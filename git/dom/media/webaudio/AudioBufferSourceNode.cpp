@@ -541,7 +541,8 @@ AudioBufferSourceNode::AudioBufferSourceNode(AudioContext* aContext)
   , mLoopStart(0.0)
   , mLoopEnd(0.0)
   // mOffset and mDuration are initialized in Start().
-  , mPlaybackRate(new AudioParam(this, SendPlaybackRateToStream, 1.0f))
+  , mPlaybackRate(new AudioParam(MOZ_THIS_IN_INITIALIZER_LIST(),
+                  SendPlaybackRateToStream, 1.0f))
   , mLoop(false)
   , mStartCalled(false)
   , mStopped(false)

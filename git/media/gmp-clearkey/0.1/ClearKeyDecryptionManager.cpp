@@ -12,6 +12,7 @@
 #include "gmp-task-utils.h"
 
 #include "mozilla/Assertions.h"
+#include "mozilla/NullPtr.h"
 
 using namespace mozilla;
 using namespace std;

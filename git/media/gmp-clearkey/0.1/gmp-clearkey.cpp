@@ -10,6 +10,7 @@
 #include "gmp-api/gmp-decryption.h"
 #include "gmp-api/gmp-platform.h"
 #include "mozilla/Attributes.h"
+#include "mozilla/NullPtr.h"
 
 static GMPPlatformAPI* sPlatform = nullptr;
 GMPPlatformAPI*

@@ -312,14 +312,12 @@ Decoder::EnsureFrame(uint32_t aFrameNum,
              aPreviousFrame->GetPaletteDepth() != aPaletteDepth,
              "Replacing first frame with the same kind of frame?");
 
-  // Remove the old frame from the SurfaceCache and release our reference to it.
+  // Remove the old frame from the SurfaceCache.
   IntSize prevFrameSize = aPreviousFrame->GetImageSize();
   SurfaceCache::RemoveSurface(ImageKey(&mImage),
                               RasterSurfaceKey(prevFrameSize, aDecodeFlags, 0));
   mFrameCount = 0;
   mInFrame = false;
-  mCurrentFrame->Abort();
-  mCurrentFrame = RawAccessFrameRef();
 
   // Add the new frame as usual.
   return InternalAddFrame(aFrameNum, aFrameRect, aDecodeFlags, aFormat,
@@ -363,7 +361,6 @@ Decoder::InternalAddFrame(uint32_t aFrameNum,
 
   RawAccessFrameRef ref = frame->RawAccessRef();
   if (!ref) {
-    frame->Abort();
     return RawAccessFrameRef();
   }
 
@@ -374,7 +371,6 @@ Decoder::InternalAddFrame(uint32_t aFrameNum,
                                           aFrameNum),
                          Lifetime::Persistent);
   if (!succeeded) {
-    ref->Abort();
     return RawAccessFrameRef();
   }
 
@@ -518,10 +514,6 @@ void
 Decoder::PostDataError()
 {
   mDataError = true;
-
-  if (mInFrame && mCurrentFrame) {
-    mCurrentFrame->Abort();
-  }
 }
 
 void
@@ -534,10 +526,6 @@ Decoder::PostDecoderError(nsresult aFailureCode)
   // XXXbholley - we should report the image URI here, but imgContainer
   // needs to know its URI first
   NS_WARNING("Image decoding error - This is probably a bug!");
-
-  if (mInFrame && mCurrentFrame) {
-    mCurrentFrame->Abort();
-  }
 }
 
 void

@@ -4,6 +4,7 @@
 
 #include "VolatileBuffer.h"
 #include "mozilla/Assertions.h"
+#include "mozilla/NullPtr.h"
 #include "mozilla/mozalloc.h"
 
 #include <fcntl.h>

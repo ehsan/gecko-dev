@@ -12,7 +12,6 @@
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "nsISupports.h"
-#include "nsWeakPtr.h"
 
 #define FILEIMPLSNAPSHOT_IID \
   {0x0dfc11b1, 0x75d3, 0x473b, {0x8c, 0x67, 0xb7, 0x23, 0xf4, 0x67, 0xd6, 0x73}}
@@ -41,7 +40,7 @@ class FileImplSnapshot MOZ_FINAL
   typedef mozilla::dom::MetadataParameters MetadataParameters;
 
   nsCOMPtr<nsIFile> mFile;
-  nsWeakPtr mFileHandle;
+  nsRefPtr<IDBFileHandle> mFileHandle;
 
   bool mWholeFile;
 
@@ -79,10 +78,14 @@ private:
   virtual nsresult
   GetInternalStream(nsIInputStream** aStream) MOZ_OVERRIDE;
 
-  virtual bool MayBeClonedToOtherThreads() const MOZ_OVERRIDE
-  {
-    return false;
-  }
+  virtual void
+  Unlink() MOZ_OVERRIDE;
+
+  virtual void
+  Traverse(nsCycleCollectionTraversalCallback &aCb) MOZ_OVERRIDE;
+
+  virtual bool
+  IsCCed() const MOZ_OVERRIDE;
 
   virtual already_AddRefed<FileImpl>
   CreateSlice(uint64_t aStart,

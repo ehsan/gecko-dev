@@ -955,17 +955,16 @@ RDFXMLDataSourceImpl::Refresh(bool aBlocking)
     }
     else {
         // Null LoadGroup ?
-        nsCOMPtr<nsIChannel> channel;
-        rv = NS_NewChannel(getter_AddRefs(channel),
-                           mURL,
-                           nsContentUtils::GetSystemPrincipal(),
-                           nsILoadInfo::SEC_NORMAL,
-                           nsIContentPolicy::TYPE_OTHER,
-                           nullptr, // aLoadGroup
-                           this);   // aCallbacks
-        NS_ENSURE_SUCCESS(rv, rv);
-        rv = channel->AsyncOpen(this, nullptr);
-        NS_ENSURE_SUCCESS(rv, rv);
+        rv = NS_OpenURI(this,
+                        nullptr,   // aContext
+                        mURL,
+                        nsContentUtils::GetSystemPrincipal(),
+                        nsILoadInfo::SEC_NORMAL,
+                        nsIContentPolicy::TYPE_OTHER,
+                        nullptr, // aLoadGroup
+                        this);   // aCallbacks
+
+        if (NS_FAILED(rv)) return rv;
 
         // So we don't try to issue two asynchronous loads at once.
         mLoadState = eLoadState_Pending;

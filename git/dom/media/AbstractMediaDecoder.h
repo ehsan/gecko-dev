@@ -143,9 +143,7 @@ public:
     AutoNotifyDecoded(AbstractMediaDecoder* aDecoder, uint32_t& aParsed, uint32_t& aDecoded)
       : mDecoder(aDecoder), mParsed(aParsed), mDecoded(aDecoded) {}
     ~AutoNotifyDecoded() {
-      if (mDecoder) {
-        mDecoder->NotifyDecodedFrames(mParsed, mDecoded);
-      }
+      mDecoder->NotifyDecodedFrames(mParsed, mDecoded);
     }
   private:
     AbstractMediaDecoder* mDecoder;

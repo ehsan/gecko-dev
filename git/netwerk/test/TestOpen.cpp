@@ -59,16 +59,13 @@ main(int argc, char **argv)
     rv = secman->GetSystemPrincipal(getter_AddRefs(systemPrincipal));
     RETURN_IF_FAILED(rv, "Couldn't get system principal!");
 
-    nsCOMPtr<nsIChannel> channel;
-    rv = NS_NewChannel(getter_AddRefs(channel),
-                       uri,
-                       systemPrincipal,
-                       nsILoadInfo::SEC_NORMAL,
-                       nsIContentPolicy::TYPE_OTHER);
-    RETURN_IF_FAILED(rv, "NS_NewChannel");
+    rv = NS_OpenURI(getter_AddRefs(stream),
+                    uri,
+                    systemPrincipal,
+                    nsILoadInfo::SEC_NORMAL,
+                    nsIContentPolicy::TYPE_OTHER);
 
-    rv = channel->Open(getter_AddRefs(stream));
-    RETURN_IF_FAILED(rv, "channel->Open()");
+    RETURN_IF_FAILED(rv, "NS_OpenURI");
 
     FILE* outfile = fopen(argv[2], "wb");
     if (!outfile) {

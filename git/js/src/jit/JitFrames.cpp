@@ -214,20 +214,43 @@ JitFrameIterator::baselineScriptAndPc(JSScript **scriptRes, jsbytecode **pcRes) 
     if (scriptRes)
         *scriptRes = script;
 
-    MOZ_ASSERT(pcRes);
-
-    // Use the frame's override pc, if we have one. This should only happen
-    // when we're in FinishBailoutToBaseline, handling an exception or toggling
-    // debug mode.
-    if (jsbytecode *overridePc = baselineFrame()->maybeOverridePc()) {
+    // If we have unwound the scope due to exception handling to a different
+    // pc, the frame should behave as if it were settled on that pc.
+    if (jsbytecode *overridePc = baselineFrame()->getUnwoundScopeOverridePc()) {
         *pcRes = overridePc;
         return;
     }
 
-    // Else, there must be an ICEntry for the current return address.
+    // If we are settled on a patched BaselineFrame due to debug mode OSR, get
+    // the stashed pc.
+    if (baselineFrame()->getDebugModeOSRInfo()) {
+        *pcRes = baselineFrame()->debugModeOSRInfo()->pc;
+        return;
+    }
+
     uint8_t *retAddr = returnAddressToFp();
-    ICEntry &icEntry = script->baselineScript()->icEntryFromReturnAddress(retAddr);
-    *pcRes = icEntry.pc(script);
+    if (pcRes) {
+        // If the return address is into the prologue entry address or just
+        // after the debug prologue, then assume start of script.
+        if (retAddr == script->baselineScript()->prologueEntryAddr() ||
+            retAddr == script->baselineScript()->postDebugPrologueAddr())
+        {
+            *pcRes = script->code();
+            return;
+        }
+
+        // The return address _may_ be a return from a callVM or IC chain call done for
+        // some op.
+        ICEntry *icEntry = script->baselineScript()->maybeICEntryFromReturnAddress(retAddr);
+        if (icEntry) {
+            *pcRes = icEntry->pc(script);
+            return;
+        }
+
+        // If not, the return address _must_ be the start address of an op, which can
+        // be computed from the pc mapping table.
+        *pcRes = script->baselineScript()->pcForReturnAddress(script, retAddr);
+    }
 }
 
 Value *
@@ -510,7 +533,7 @@ HandleClosingGeneratorReturn(JSContext *cx, const JitFrameIterator &frame, jsbyt
 
     if (unwoundScopeToPc) {
         if (frame.baselineFrame()->isDebuggee())
-            frame.baselineFrame()->setOverridePc(unwoundScopeToPc);
+            frame.baselineFrame()->setUnwoundScopeOverridePc(unwoundScopeToPc);
         pc = unwoundScopeToPc;
     }
 
@@ -675,13 +698,6 @@ struct AutoDeleteDebugModeOSRInfo
     ~AutoDeleteDebugModeOSRInfo() { frame->deleteDebugModeOSRInfo(); }
 };
 
-struct AutoClearBaselineOverridePc
-{
-    BaselineFrame *frame;
-    explicit AutoClearBaselineOverridePc(BaselineFrame *frame) : frame(frame) { MOZ_ASSERT(frame); }
-    ~AutoClearBaselineOverridePc() { frame->clearOverridePc(); }
-};
-
 void
 HandleException(ResumeFromException *rfe)
 {
@@ -773,17 +789,6 @@ HandleException(ResumeFromException *rfe)
             // Remember the pc we unwound the scope to.
             jsbytecode *unwoundScopeToPc = nullptr;
 
-            // Clear the frame's override pc when we leave this block. This is
-            // fine because we're either:
-            // (1) Going to enter a catch or finally block. We don't want to
-            //     keep the old pc when we're executing JIT code.
-            // (2) Going to pop the frame, either here or a forced return.
-            //     In this case nothing will observe the frame's pc.
-            // (3) Performing an exception bailout. In this case
-            //     FinishBailoutToBaseline will set the pc to the resume pc
-            //     and clear it before it returns to JIT code.
-            AutoClearBaselineOverridePc clearPc(iter.baselineFrame());
-
             HandleExceptionBaseline(cx, iter, rfe, &unwoundScopeToPc, &calledDebugEpilogue);
 
             // If we are propagating an exception through a frame with
@@ -815,13 +820,14 @@ HandleException(ResumeFromException *rfe)
                 // remember the pc we unwound the scope chain to, as it will
                 // be out of sync with the frame's actual pc.
                 if (unwoundScopeToPc)
-                    iter.baselineFrame()->setOverridePc(unwoundScopeToPc);
+                    iter.baselineFrame()->setUnwoundScopeOverridePc(unwoundScopeToPc);
 
                 // If DebugEpilogue returns |true|, we have to perform a forced
                 // return, e.g. return frame->returnValue() to the caller.
                 BaselineFrame *frame = iter.baselineFrame();
+                RootedScript script(cx);
                 jsbytecode *pc;
-                iter.baselineScriptAndPc(nullptr, &pc);
+                iter.baselineScriptAndPc(script.address(), &pc);
                 if (jit::DebugEpilogue(cx, frame, pc, false)) {
                     MOZ_ASSERT(frame->hasReturnValue());
                     rfe->kind = ResumeFromException::RESUME_FORCED_RETURN;

@@ -41,7 +41,7 @@ nsSMILTimeValueSpec::nsSMILTimeValueSpec(nsSMILTimedElement& aOwner,
                                          bool aIsBegin)
   : mOwner(&aOwner),
     mIsBegin(aIsBegin),
-    mReferencedElement(this)
+    mReferencedElement(MOZ_THIS_IN_INITIALIZER_LIST())
 {
 }
 

@@ -48,7 +48,7 @@ GMPVideoDecoderParent::GMPVideoDecoderParent(GMPParent* aPlugin)
   , mShuttingDown(false)
   , mPlugin(aPlugin)
   , mCallback(nullptr)
-  , mVideoHost(this)
+  , mVideoHost(MOZ_THIS_IN_INITIALIZER_LIST())
 {
   MOZ_ASSERT(mPlugin);
 }

@@ -308,8 +308,7 @@ JSObject::create(js::ExclusiveContext *cx, js::gc::AllocKind kind, js::gc::Initi
     MOZ_ASSERT_IF(!js::ClassCanHaveFixedData(type->clasp()),
                   js::gc::GetGCKindSlots(kind, type->clasp()) == shape->numFixedSlots());
     MOZ_ASSERT_IF(type->clasp()->flags & JSCLASS_BACKGROUND_FINALIZE, IsBackgroundFinalized(kind));
-    MOZ_ASSERT_IF(type->clasp()->finalize, heap == js::gc::TenuredHeap ||
-                                           (type->clasp()->flags & JSCLASS_FINALIZE_FROM_NURSERY));
+    MOZ_ASSERT_IF(type->clasp()->finalize, heap == js::gc::TenuredHeap);
 
     // Non-native classes cannot have reserved slots or private data, and the
     // objects can't have any fixed slots, for compatibility with
@@ -323,7 +322,7 @@ JSObject::create(js::ExclusiveContext *cx, js::gc::AllocKind kind, js::gc::Initi
     size_t nDynamicSlots =
         js::NativeObject::dynamicSlotsCount(shape->numFixedSlots(), shape->slotSpan(), clasp);
 
-    JSObject *obj = js::NewGCObject<js::CanGC>(cx, kind, nDynamicSlots, heap, clasp);
+    JSObject *obj = js::NewGCObject<js::CanGC>(cx, kind, nDynamicSlots, heap);
     if (!obj)
         return nullptr;
 

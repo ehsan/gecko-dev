@@ -49,14 +49,11 @@ ShapeTable::init(ExclusiveContext *cx, Shape *lastProp)
      * Use rt->calloc for memory accounting and overpressure handling
      * without OOM reporting. See ShapeTable::change.
      */
-    size = JS_BIT(sizeLog2);
-    entries_ = cx->pod_calloc<Entry>(size);
+    entries_ = cx->pod_calloc<Entry>(JS_BIT(sizeLog2));
     if (!entries_)
         return false;
 
-    MOZ_ASSERT(sizeLog2 <= HASH_BITS);
     hashShift_ = HASH_BITS - sizeLog2;
-
     for (Shape::Range<NoGC> r(lastProp); !r.empty(); r.popFront()) {
         Shape &shape = r.front();
         MOZ_ASSERT(cx->isThreadLocal(&shape));
@@ -69,10 +66,6 @@ ShapeTable::init(ExclusiveContext *cx, Shape *lastProp)
         if (!entry.shape())
             entry.setPreservingCollision(&shape);
     }
-
-    MOZ_ASSERT(capacity() == size);
-    MOZ_ASSERT(size >= MIN_SIZE);
-    MOZ_ASSERT(!needsToGrow());
     return true;
 }
 
@@ -176,13 +169,13 @@ Shape::hashify(ExclusiveContext *cx, Shape *shape)
  * size, so we simply make hash2 odd.
  */
 static HashNumber
-Hash1(HashNumber hash0, uint32_t shift)
+Hash1(HashNumber hash0, int shift)
 {
     return hash0 >> shift;
 }
 
 static HashNumber
-Hash2(HashNumber hash0, uint32_t log2, uint32_t shift)
+Hash2(HashNumber hash0, int log2, int shift)
 {
     return ((hash0 << log2) >> shift) | 1;
 }
@@ -196,7 +189,7 @@ ShapeTable::search(jsid id, bool adding)
     /* Compute the primary hash address. */
     HashNumber hash0 = HashId(id);
     HashNumber hash1 = Hash1(hash0, hashShift_);
-    Entry *entry = &getEntry(hash1);
+    Entry *entry = entries_ + hash1;
 
     /* Miss: return space for a new entry. */
     if (entry->isFree())
@@ -208,7 +201,7 @@ ShapeTable::search(jsid id, bool adding)
         return *entry;
 
     /* Collision: double hash. */
-    uint32_t sizeLog2 = HASH_BITS - hashShift_;
+    int sizeLog2 = HASH_BITS - hashShift_;
     HashNumber hash2 = Hash2(hash0, sizeLog2, hashShift_);
     uint32_t sizeMask = JS_BITMASK(sizeLog2);
 
@@ -229,10 +222,10 @@ ShapeTable::search(jsid id, bool adding)
 #endif
     }
 
-    while (true) {
+    for (;;) {
         hash1 -= hash2;
         hash1 &= sizeMask;
-        entry = &getEntry(hash1);
+        entry = entries_ + hash1;
 
         if (entry->isFree())
             return (adding && firstRemoved) ? *firstRemoved : *entry;
@@ -262,9 +255,10 @@ ShapeTable::search(jsid id, bool adding)
 void
 ShapeTable::fixupAfterMovingGC()
 {
-    uint32_t size = capacity();
+    int log2 = HASH_BITS - hashShift_;
+    uint32_t size = JS_BIT(log2);
     for (HashNumber i = 0; i < size; i++) {
-        Entry &entry = getEntry(i);
+        Entry &entry = entries_[i];
         Shape *shape = entry.shape();
         if (shape && IsForwarded(shape))
             entry.setPreservingCollision(Forwarded(shape));
@@ -276,38 +270,35 @@ bool
 ShapeTable::change(int log2Delta, ExclusiveContext *cx)
 {
     MOZ_ASSERT(entries_);
-    MOZ_ASSERT(-1 <= log2Delta && log2Delta <= 1);
 
     /*
      * Grow, shrink, or compress by changing this->entries_.
      */
-    uint32_t oldLog2 = HASH_BITS - hashShift_;
-    uint32_t newLog2 = oldLog2 + log2Delta;
-    uint32_t oldSize = JS_BIT(oldLog2);
-    uint32_t newSize = JS_BIT(newLog2);
-    Entry *newTable = cx->pod_calloc<Entry>(newSize);
+    int oldlog2 = HASH_BITS - hashShift_;
+    int newlog2 = oldlog2 + log2Delta;
+    uint32_t oldsize = JS_BIT(oldlog2);
+    uint32_t newsize = JS_BIT(newlog2);
+    Entry *newTable = cx->pod_calloc<Entry>(newsize);
     if (!newTable)
         return false;
 
     /* Now that we have newTable allocated, update members. */
-    MOZ_ASSERT(newLog2 <= HASH_BITS);
-    hashShift_ = HASH_BITS - newLog2;
+    hashShift_ = HASH_BITS - newlog2;
     removedCount_ = 0;
     Entry *oldTable = entries_;
     entries_ = newTable;
 
     /* Copy only live entries, leaving removed and free ones behind. */
-    for (Entry *oldEntry = oldTable; oldSize != 0; oldEntry++) {
-        if (Shape *shape = oldEntry->shape()) {
-            MOZ_ASSERT(cx->isThreadLocal(shape));
+    for (Entry *oldEntry = oldTable; oldsize != 0; oldEntry++) {
+        Shape *shape = oldEntry->shape();
+        MOZ_ASSERT(cx->isThreadLocal(shape));
+        if (shape) {
             Entry &entry = search(shape->propid(), true);
             MOZ_ASSERT(entry.isFree());
             entry.setShape(shape);
         }
-        oldSize--;
+        oldsize--;
     }
-
-    MOZ_ASSERT(capacity() == newSize);
 
     /* Finally, free the old entries storage. */
     js_free(oldTable);
@@ -320,9 +311,7 @@ ShapeTable::grow(ExclusiveContext *cx)
     MOZ_ASSERT(needsToGrow());
 
     uint32_t size = capacity();
-    int delta = removedCount_ < (size >> 2);
-
-    MOZ_ASSERT(entryCount_ + removedCount_ <= size - 1);
+    int delta = removedCount_ < size >> 2;
 
     if (!change(delta, cx) && entryCount_ + removedCount_ == size - 1) {
         js_ReportOutOfMemory(cx);
@@ -1006,8 +995,8 @@ NativeObject::removeProperty(ExclusiveContext *cx, jsid id_)
 
         if (entry->hadCollision()) {
             entry->setRemoved();
-            table.decEntryCount();
             table.incRemovedCount();
+            table.decEntryCount();
         } else {
             entry->setFree();
             table.decEntryCount();

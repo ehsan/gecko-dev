@@ -28,10 +28,9 @@ namespace mozilla {
 namespace dom {
 
 class EventTarget;
+class ErrorEvent;
+class ProgressEvent;
 class WantsPopupControlCheck;
-#define GENERATED_EVENT(EventClass_) class EventClass_;
-#include "mozilla/dom/GeneratedEventList.h"
-#undef GENERATED_EVENT
 
 // Dummy class so we can cast through it to get from nsISupports to
 // Event subclasses with only two non-ambiguous static casts.
@@ -96,13 +95,15 @@ public:
 
   virtual JSObject* WrapObjectInternal(JSContext* aCx);
 
-#define GENERATED_EVENT(EventClass_) \
-  virtual EventClass_* As##EventClass_()  \
-  {                                       \
-    return nullptr;                       \
+  virtual ErrorEvent* AsErrorEvent()
+  {
+    return nullptr;
   }
-#include "mozilla/dom/GeneratedEventList.h"
-#undef GENERATED_EVENT
+
+  virtual ProgressEvent* AsProgressEvent()
+  {
+    return nullptr;
+  }
 
   // nsIDOMEvent Interface
   NS_DECL_NSIDOMEVENT

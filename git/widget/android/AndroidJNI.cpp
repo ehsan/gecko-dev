@@ -48,7 +48,6 @@ using namespace mozilla;
 using namespace mozilla::dom;
 using namespace mozilla::dom::mobilemessage;
 using namespace mozilla::layers;
-using namespace mozilla::widget;
 using namespace mozilla::widget::android;
 
 /* Forward declare all the JNI methods as extern "C" */
@@ -65,9 +64,9 @@ Java_org_mozilla_gecko_GeckoAppShell_registerJavaUiThread(JNIEnv *jenv, jclass j
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoAppShell_nativeInit(JNIEnv *jenv, jclass, jobject clsLoader)
+Java_org_mozilla_gecko_GeckoAppShell_nativeInit(JNIEnv *jenv, jclass jc)
 {
-    AndroidBridge::ConstructBridge(jenv, jni::Object::Ref::From(clsLoader));
+    AndroidBridge::ConstructBridge(jenv);
 }
 
 NS_EXPORT void JNICALL
@@ -901,11 +900,11 @@ Java_org_mozilla_gecko_gfx_NativePanZoomController_init(JNIEnv* env, jobject ins
         return;
     }
 
-    const auto& newRef = NativePanZoomController::Ref::From(instance);
-    NativePanZoomController::LocalRef oldRef =
-            APZCCallbackHandler::GetInstance()->SetNativePanZoomController(newRef);
-
-    MOZ_ASSERT(!oldRef, "Registering a new NPZC when we already have one");
+    NativePanZoomController* oldRef = APZCCallbackHandler::GetInstance()->SetNativePanZoomController(instance);
+    if (oldRef && !oldRef->isNull()) {
+        MOZ_ASSERT(false, "Registering a new NPZC when we already have one");
+        delete oldRef;
+    }
 }
 
 NS_EXPORT jboolean JNICALL
@@ -946,10 +945,12 @@ Java_org_mozilla_gecko_gfx_NativePanZoomController_destroy(JNIEnv* env, jobject 
         return;
     }
 
-    NativePanZoomController::LocalRef oldRef =
-            APZCCallbackHandler::GetInstance()->SetNativePanZoomController(nullptr);
-
-    MOZ_ASSERT(oldRef, "Clearing a non-existent NPZC");
+    NativePanZoomController* oldRef = APZCCallbackHandler::GetInstance()->SetNativePanZoomController(nullptr);
+    if (!oldRef || oldRef->isNull()) {
+        MOZ_ASSERT(false, "Clearing a non-existent NPZC");
+    } else {
+        delete oldRef;
+    }
 }
 
 NS_EXPORT jboolean JNICALL

@@ -6,7 +6,7 @@
 #include "nsAndroidHandlerApp.h"
 #include "AndroidBridge.h"
 
-using namespace mozilla;
+using namespace mozilla::widget::android;
 
 
 NS_IMPL_ISUPPORTS(nsAndroidHandlerApp, nsIHandlerApp, nsISharingHandlerApp)
@@ -76,16 +76,15 @@ nsAndroidHandlerApp::LaunchWithURI(nsIURI *aURI, nsIInterfaceRequestor *aWindowC
 {
   nsCString uriSpec;
   aURI->GetSpec(uriSpec);
-  return widget::GeckoAppShell::OpenUriExternal(
-          uriSpec, mMimeType, mPackageName, mClassName,
-          mAction, EmptyString()) ? NS_OK : NS_ERROR_FAILURE;
+  return mozilla::widget::android::GeckoAppShell::OpenUriExternal
+    (NS_ConvertUTF8toUTF16(uriSpec), NS_ConvertUTF8toUTF16(mMimeType), mPackageName, mClassName, mAction) ?
+    NS_OK : NS_ERROR_FAILURE;
 }
 
 NS_IMETHODIMP
 nsAndroidHandlerApp::Share(const nsAString & data, const nsAString & title)
 {
-  return widget::GeckoAppShell::OpenUriExternal(
-          data, mMimeType, mPackageName, mClassName,
-          mAction, EmptyString()) ? NS_OK : NS_ERROR_FAILURE;
+  return mozilla::widget::android::GeckoAppShell::OpenUriExternal(data, NS_ConvertUTF8toUTF16(mMimeType),
+                    mPackageName, mClassName, mAction) ? NS_OK : NS_ERROR_FAILURE;
 }
 

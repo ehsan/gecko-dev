@@ -62,9 +62,9 @@ GetGCObjectKind(const Class *clasp)
 }
 
 inline bool
-ShouldNurseryAllocateObject(const Nursery &nursery, InitialHeap heap)
+ShouldNurseryAllocate(const Nursery &nursery, AllocKind kind, InitialHeap heap)
 {
-    return nursery.isEnabled() && heap != TenuredHeap;
+    return nursery.isEnabled() && IsNurseryAllocable(kind) && heap != TenuredHeap;
 }
 
 inline JSGCTraceKind
@@ -420,12 +420,12 @@ typedef CompartmentsIterT<GCZoneGroupIter> GCCompartmentGroupIter;
  */
 template <AllowGC allowGC>
 inline JSObject *
-TryNewNurseryObject(JSContext *cx, size_t thingSize, size_t nDynamicSlots, const js::Class *clasp)
+TryNewNurseryObject(JSContext *cx, size_t thingSize, size_t nDynamicSlots)
 {
     MOZ_ASSERT(!IsAtomsCompartment(cx->compartment()));
     JSRuntime *rt = cx->runtime();
     Nursery &nursery = rt->gc.nursery;
-    JSObject *obj = nursery.allocateObject(cx, thingSize, nDynamicSlots, clasp);
+    JSObject *obj = nursery.allocateObject(cx, thingSize, nDynamicSlots);
     if (obj)
         return obj;
     if (allowGC && !rt->mainThread.suppressGC) {
@@ -433,7 +433,7 @@ TryNewNurseryObject(JSContext *cx, size_t thingSize, size_t nDynamicSlots, const
 
         /* Exceeding gcMaxBytes while tenuring can disable the Nursery. */
         if (nursery.isEnabled()) {
-            JSObject *obj = nursery.allocateObject(cx, thingSize, nDynamicSlots, clasp);
+            JSObject *obj = nursery.allocateObject(cx, thingSize, nDynamicSlots);
             MOZ_ASSERT(obj);
             return obj;
         }
@@ -516,8 +516,7 @@ CheckIncrementalZoneState(ThreadSafeContext *cx, T *t)
 
 template <AllowGC allowGC>
 inline JSObject *
-AllocateObject(ThreadSafeContext *cx, AllocKind kind, size_t nDynamicSlots, InitialHeap heap,
-               const js::Class *clasp)
+AllocateObject(ThreadSafeContext *cx, AllocKind kind, size_t nDynamicSlots, InitialHeap heap)
 {
     size_t thingSize = Arena::thingSize(kind);
 
@@ -530,10 +529,8 @@ AllocateObject(ThreadSafeContext *cx, AllocKind kind, size_t nDynamicSlots, Init
         return nullptr;
 
     if (cx->isJSContext() &&
-        ShouldNurseryAllocateObject(cx->asJSContext()->nursery(), heap))
-    {
-        JSObject *obj = TryNewNurseryObject<allowGC>(cx->asJSContext(), thingSize, nDynamicSlots,
-                                                     clasp);
+        ShouldNurseryAllocate(cx->asJSContext()->nursery(), kind, heap)) {
+        JSObject *obj = TryNewNurseryObject<allowGC>(cx->asJSContext(), thingSize, nDynamicSlots);
         if (obj)
             return obj;
     }
@@ -596,16 +593,16 @@ AllocateNonObject(ThreadSafeContext *cx)
  */
 template <AllowGC allowGC>
 inline JSObject *
-AllocateObjectForCacheHit(JSContext *cx, AllocKind kind, InitialHeap heap, const js::Class *clasp)
+AllocateObjectForCacheHit(JSContext *cx, AllocKind kind, InitialHeap heap)
 {
-    if (ShouldNurseryAllocateObject(cx->nursery(), heap)) {
+    if (ShouldNurseryAllocate(cx->nursery(), kind, heap)) {
         size_t thingSize = Arena::thingSize(kind);
 
         MOZ_ASSERT(thingSize == Arena::thingSize(kind));
         if (!CheckAllocatorState<NoGC>(cx, kind))
             return nullptr;
 
-        JSObject *obj = TryNewNurseryObject<NoGC>(cx, thingSize, 0, clasp);
+        JSObject *obj = TryNewNurseryObject<NoGC>(cx, thingSize, 0);
         if (!obj && allowGC) {
             cx->minorGC(JS::gcreason::OUT_OF_NURSERY);
             return nullptr;
@@ -613,7 +610,7 @@ AllocateObjectForCacheHit(JSContext *cx, AllocKind kind, InitialHeap heap, const
         return obj;
     }
 
-    JSObject *obj = AllocateObject<NoGC>(cx, kind, 0, heap, clasp);
+    JSObject *obj = AllocateObject<NoGC>(cx, kind, 0, heap);
     if (!obj && allowGC) {
         cx->runtime()->gc.maybeGC(cx->zone());
         return nullptr;
@@ -639,11 +636,10 @@ IsInsideGGCNursery(const js::gc::Cell *cell)
 
 template <js::AllowGC allowGC>
 inline JSObject *
-NewGCObject(js::ThreadSafeContext *cx, js::gc::AllocKind kind, size_t nDynamicSlots,
-            js::gc::InitialHeap heap, const js::Class *clasp)
+NewGCObject(js::ThreadSafeContext *cx, js::gc::AllocKind kind, size_t nDynamicSlots, js::gc::InitialHeap heap)
 {
     MOZ_ASSERT(kind >= js::gc::FINALIZE_OBJECT0 && kind <= js::gc::FINALIZE_OBJECT_LAST);
-    return js::gc::AllocateObject<allowGC>(cx, kind, nDynamicSlots, heap, clasp);
+    return js::gc::AllocateObject<allowGC>(cx, kind, nDynamicSlots, heap);
 }
 
 template <js::AllowGC allowGC>

@@ -5,6 +5,7 @@
 
 #include "OSXRunLoopSingleton.h"
 #include <mozilla/StaticMutex.h>
+#include <mozilla/NullPtr.h>
 
 #include <AudioUnit/AudioUnit.h>
 #include <CoreAudio/AudioHardware.h>

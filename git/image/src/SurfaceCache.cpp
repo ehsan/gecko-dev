@@ -53,6 +53,7 @@ class SurfaceCacheImpl;
 // The single surface cache instance.
 static StaticRefPtr<SurfaceCacheImpl> sInstance;
 
+
 ///////////////////////////////////////////////////////////////////////////////
 // SurfaceCache Implementation
 ///////////////////////////////////////////////////////////////////////////////
@@ -276,7 +277,8 @@ public:
   SurfaceCacheImpl(uint32_t aSurfaceCacheExpirationTimeMS,
                    uint32_t aSurfaceCacheDiscardFactor,
                    uint32_t aSurfaceCacheSize)
-    : mExpirationTracker(this, aSurfaceCacheExpirationTimeMS)
+    : mExpirationTracker(MOZ_THIS_IN_INITIALIZER_LIST(),
+                         aSurfaceCacheExpirationTimeMS)
     , mMemoryPressureObserver(new MemoryPressureObserver)
     , mMutex("SurfaceCache")
     , mDiscardFactor(aSurfaceCacheDiscardFactor)
@@ -701,6 +703,7 @@ private:
   private:
     virtual ~MemoryPressureObserver() { }
   };
+
 
   nsTArray<CostEntry>                                       mCosts;
   nsRefPtrHashtable<nsPtrHashKey<Image>, ImageSurfaceCache> mImageCaches;

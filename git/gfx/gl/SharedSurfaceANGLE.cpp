@@ -158,12 +158,8 @@ SharedSurface_ANGLEShareHandle::PollSync()
 void
 SharedSurface_ANGLEShareHandle::ProducerAcquireImpl()
 {
-    if (mKeyedMutex) {
-        HRESULT hr = mKeyedMutex->AcquireSync(0, 10000);
-        if (hr == WAIT_TIMEOUT) {
-            MOZ_CRASH();
-        }
-    }
+  if (mKeyedMutex)
+      mKeyedMutex->AcquireSync(0, INFINITE);
 }
 
 void
@@ -201,12 +197,8 @@ SharedSurface_ANGLEShareHandle::ConsumerAcquireImpl()
         }
     }
 
-    if (mConsumerKeyedMutex) {
-      HRESULT hr = mConsumerKeyedMutex->AcquireSync(0, 10000);
-      if (hr == WAIT_TIMEOUT) {
-        MOZ_CRASH();
-      }
-    }
+    if (mConsumerKeyedMutex)
+        mConsumerKeyedMutex->AcquireSync(0, INFINITE);
 }
 
 void

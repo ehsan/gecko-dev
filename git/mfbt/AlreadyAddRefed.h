@@ -12,6 +12,7 @@
 #include "mozilla/Assertions.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/Move.h"
+#include "mozilla/NullPtr.h"
 
 namespace mozilla {
 

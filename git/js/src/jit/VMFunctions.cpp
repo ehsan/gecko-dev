@@ -105,10 +105,9 @@ InvokeFunction(JSContext *cx, HandleObject obj0, uint32_t argc, Value *argv, Val
 }
 
 JSObject *
-NewGCObject(JSContext *cx, gc::AllocKind allocKind, gc::InitialHeap initialHeap,
-            const js::Class *clasp)
+NewGCObject(JSContext *cx, gc::AllocKind allocKind, gc::InitialHeap initialHeap)
 {
-    return js::NewGCObject<CanGC>(cx, allocKind, 0, initialHeap, clasp);
+    return js::NewGCObject<CanGC>(cx, allocKind, 0, initialHeap);
 }
 
 bool
@@ -788,7 +787,7 @@ DebugEpilogue(JSContext *cx, BaselineFrame *frame, jsbytecode *pc, bool ok)
     ScopeIter si(frame, pc, cx);
     UnwindAllScopes(cx, si);
     jsbytecode *unwindPc = frame->script()->main();
-    frame->setOverridePc(unwindPc);
+    frame->setUnwoundScopeOverridePc(unwindPc);
 
     // If Debugger::onLeaveFrame returns |true| we have to return the frame's
     // return value. If it returns |false|, the debugger threw an exception.
@@ -819,14 +818,9 @@ DebugEpilogue(JSContext *cx, BaselineFrame *frame, jsbytecode *pc, bool ok)
         JitFrameLayout *prefix = frame->framePrefix();
         EnsureExitFrame(prefix);
         cx->mainThread().jitTop = (uint8_t *)prefix;
-        return false;
     }
 
-    // Clear the override pc. This is not necessary for correctness: the frame
-    // will return immediately, but this simplifies the check we emit in debug
-    // builds after each callVM, to ensure this flag is not set.
-    frame->clearOverridePc();
-    return true;
+    return ok;
 }
 
 JSObject *
@@ -917,19 +911,11 @@ DebugAfterYield(JSContext *cx, BaselineFrame *frame)
 }
 
 bool
-GeneratorThrowOrClose(JSContext *cx, BaselineFrame *frame, Handle<GeneratorObject*> genObj,
-                      HandleValue arg, uint32_t resumeKind)
+GeneratorThrowOrClose(JSContext *cx, BaselineFrame *frame, HandleObject obj, HandleValue arg,
+                      uint32_t resumeKind)
 {
-    // Set the frame's pc to the current resume pc, so that frame iterators
-    // work. This function always returns false, so we're guaranteed to enter
-    // the exception handler where we will clear the pc.
-    JSScript *script = frame->script();
-    uint32_t offset = script->yieldOffsets()[genObj->yieldIndex()];
-    frame->setOverridePc(script->offsetToPC(offset));
-
     MOZ_ALWAYS_TRUE(DebugAfterYield(cx, frame));
-    MOZ_ALWAYS_FALSE(js::GeneratorThrowOrClose(cx, genObj, arg, resumeKind));
-    return false;
+    return js::GeneratorThrowOrClose(cx, obj, arg, resumeKind);
 }
 
 bool
