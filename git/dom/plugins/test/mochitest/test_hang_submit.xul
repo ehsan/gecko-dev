@@ -30,7 +30,14 @@ const Ci = Components.interfaces;
 const crashReporter = Cc["@mozilla.org/toolkit/crash-reporter;1"].getService(Ci.nsICrashReporter);
 const SERVER_URL = "http://example.com/browser/toolkit/crashreporter/test/browser/crashreport.sjs";
 
-var oldServerURL = crashReporter.serverURL;
+const serverPrefName = "toolkit.crashreporter.pluginHangSubmitURL";
+
+var oldServerPref;
+try {
+  oldServerPref = Services.prefs.getCharPref(serverPrefName);
+}
+catch(e) {
+}
 
 const oldTimeoutPref = Services.prefs.getIntPref("dom.ipc.plugins.timeoutSecs");
 
@@ -83,7 +90,12 @@ var testObserver = {
     env.set("MOZ_CRASHREPORTER_NO_REPORT", "1");
 
     // Finally re-set prefs
-    crashReporter.serverURL = oldServerURL;
+    if (oldServerPref === undefined) {
+      Services.prefs.clearUserPref(serverPrefName);
+    }
+    else {
+      Services.prefs.setCharPref(serverPrefName, oldServerPref);
+    }
     Services.prefs.setIntPref("dom.ipc.plugins.timeoutSecs", oldTimeoutPref);
 
     // Check and cleanup CrashManager.
@@ -147,7 +159,7 @@ function runTests() {
   env.set("MOZ_CRASHREPORTER_NO_REPORT", "");
 
   // Override the crash reporter URL to send to our fake server
-  crashReporter.serverURL = NetUtil.newURI(SERVER_URL);
+  Services.prefs.setCharPref("toolkit.crashreporter.pluginHangSubmitURL", SERVER_URL);
 
   // Hook into plugin crash events
   Services.obs.addObserver(testObserver, "crash-report-status", true);

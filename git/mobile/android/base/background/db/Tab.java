@@ -61,11 +61,6 @@ public class Tab {
     return Utils.sameArrays(this.history, other.history);
   }
 
-  @Override
-  public int hashCode() {
-    return super.hashCode();
-  }
-
   /**
    * Extract a <code>Tab</code> from a cursor row.
    * <p>

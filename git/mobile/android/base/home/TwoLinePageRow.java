@@ -50,11 +50,6 @@ public class TwoLinePageRow extends LinearLayout
             this.view = new WeakReference<FaviconView>(view);
         }
 
-        /**
-         * Update this row's favicon.
-         * <p>
-         * This method is always invoked on the UI thread.
-         */
         @Override
         public void onFaviconLoaded(String url, String faviconURL, Bitmap favicon) {
             FaviconView v = view.get();
@@ -101,48 +96,23 @@ public class TwoLinePageRow extends LinearLayout
 
     @Override
     protected void onAttachedToWindow() {
-        super.onAttachedToWindow();
-
         Tabs.registerOnTabsChangedListener(this);
     }
 
     @Override
     protected void onDetachedFromWindow() {
-        super.onDetachedFromWindow();
-
         // Tabs' listener array is safe to modify during use: its
         // iteration pattern is based on snapshots.
         Tabs.unregisterOnTabsChangedListener(this);
     }
 
-    /**
-     * Update the row in response to a tab change event.
-     * <p>
-     * This method is always invoked on the UI thread.
-     */
     @Override
     public void onTabChanged(final Tab tab, final Tabs.TabEvents msg, final Object data) {
-        // Carefully check if this tab event is relevant to this row.
-        final String pageUrl = mPageUrl;
-        if (pageUrl == null) {
-            return;
-        }
-        final String tabUrl;
-        if (tab == null) {
-            return;
-        }
-        tabUrl = tab.getURL();
-        if (!pageUrl.equals(tabUrl)) {
-            return;
-        }
-
-        switch (msg) {
+        switch(msg) {
             case ADDED:
             case CLOSED:
             case LOCATION_CHANGE:
                 updateDisplayedUrl();
-                break;
-            default:
                 break;
         }
     }
@@ -211,29 +181,32 @@ public class TwoLinePageRow extends LinearLayout
         mShowIcons = showIcons;
     }
 
-    /**
-     * Update the data displayed by this row.
-     * <p>
-     * This method must be invoked on the UI thread.
-     *
-     * @param title to display.
-     * @param url to display.
-     */
-    public void update(String title, String url) {
-        update(title, url, 0);
-    }
+    public void updateFromCursor(Cursor cursor) {
+        if (cursor == null) {
+            return;
+        }
 
-    protected void update(String title, String url, long bookmarkId) {
+        int titleIndex = cursor.getColumnIndexOrThrow(URLColumns.TITLE);
+        final String title = cursor.getString(titleIndex);
+
+        int urlIndex = cursor.getColumnIndexOrThrow(URLColumns.URL);
+        final String url = cursor.getString(urlIndex);
+
         if (mShowIcons) {
-            // The bookmark id will be 0 (null in database) when the url
-            // is not a bookmark.
-            if (bookmarkId == 0) {
-                setPageTypeIcon(NO_ICON);
+            final int bookmarkIdIndex = cursor.getColumnIndex(Combined.BOOKMARK_ID);
+            if (bookmarkIdIndex != -1) {
+                final long bookmarkId = cursor.getLong(bookmarkIdIndex);
+
+                // The bookmark id will be 0 (null in database) when the url
+                // is not a bookmark.
+                if (bookmarkId == 0) {
+                    setPageTypeIcon(NO_ICON);
+                } else {
+                    setPageTypeIcon(R.drawable.ic_url_bar_star);
+                }
             } else {
-                setPageTypeIcon(R.drawable.ic_url_bar_star);
+                setPageTypeIcon(NO_ICON);
             }
-        } else {
-            setPageTypeIcon(NO_ICON);
         }
 
         // Use the URL instead of an empty title for consistency with the normal URL
@@ -247,38 +220,8 @@ public class TwoLinePageRow extends LinearLayout
 
         // Blank the Favicon, so we don't show the wrong Favicon if we scroll and miss DB.
         mFavicon.clearImage();
-        Favicons.cancelFaviconLoad(mLoadFaviconJobId);
-        mLoadFaviconJobId = Favicons.getSizedFaviconForPageFromLocal(getContext(), url, mFaviconListener);
+        mLoadFaviconJobId = Favicons.getSizedFaviconForPageFromLocal(url, mFaviconListener);
 
         updateDisplayedUrl(url);
-    }
-
-    /**
-     * Update the data displayed by this row.
-     * <p>
-     * This method must be invoked on the UI thread.
-     *
-     * @param cursor to extract data from.
-     */
-    public void updateFromCursor(Cursor cursor) {
-        if (cursor == null) {
-            return;
-        }
-
-        int titleIndex = cursor.getColumnIndexOrThrow(URLColumns.TITLE);
-        final String title = cursor.getString(titleIndex);
-
-        int urlIndex = cursor.getColumnIndexOrThrow(URLColumns.URL);
-        final String url = cursor.getString(urlIndex);
-
-        final long bookmarkId;
-        final int bookmarkIdIndex = cursor.getColumnIndex(Combined.BOOKMARK_ID);
-        if (bookmarkIdIndex != -1) {
-            bookmarkId = cursor.getLong(bookmarkIdIndex);
-        } else {
-            bookmarkId = 0;
-        }
-
-        update(title, url, bookmarkId);
     }
 }

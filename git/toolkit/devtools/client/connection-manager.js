@@ -193,8 +193,8 @@ Connection.prototype = {
       return;
     }
     if (!this._client) {
-      this._customTransport = transport;
-      if (this._customTransport) {
+      this._transport = transport;
+      if (this._transport) {
         this.log("connecting (custom transport)");
       } else {
         this.log("connecting to " + this.host + ":" + this.port);
@@ -223,15 +223,12 @@ Connection.prototype = {
   },
 
   _clientConnect: function () {
-    let transport;
-    if (this._customTransport) {
-      transport = this._customTransport;
-    } else {
+    if (!this._transport) {
       if (!this.host) {
-        transport = DebuggerServer.connectPipe();
+        this._transport = DebuggerServer.connectPipe();
       } else {
         try {
-          transport = debuggerSocketConnect(this.host, this.port);
+          this._transport = debuggerSocketConnect(this.host, this.port);
         } catch (e) {
           // In some cases, especially on Mac, the openOutputStream call in
           // debuggerSocketConnect may throw NS_ERROR_NOT_INITIALIZED.
@@ -243,7 +240,7 @@ Connection.prototype = {
         }
       }
     }
-    this._client = new DebuggerClient(transport);
+    this._client = new DebuggerClient(this._transport);
     this._client.addOneTimeListener("closed", this._onDisconnected);
     this._client.connect(this._onConnected);
   },
@@ -262,7 +259,6 @@ Connection.prototype = {
 
   _onDisconnected: function() {
     this._client = null;
-    this._customTransport = null;
 
     if (this._status == Connection.Status.CONNECTING && this.keepConnecting) {
       setTimeout(() => this._clientConnect(), 100);
