@@ -333,7 +333,6 @@ public class BrowserContract {
         public static final String DESCRIPTION = "description";
         public static final String IMAGE_URL = "image_url";
         public static final String CREATED = "created";
-        public static final String FILTER = "filter";
     }
 
     /*
