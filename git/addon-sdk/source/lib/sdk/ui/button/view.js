@@ -142,7 +142,6 @@ function create(options) {
       node.setAttribute('label', label);
       node.setAttribute('tooltiptext', label);
       node.setAttribute('image', image);
-      node.setAttribute('sdk-button', 'true');
 
       views.set(id, {
         area: this.currentArea,
