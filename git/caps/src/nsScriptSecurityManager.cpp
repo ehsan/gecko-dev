@@ -93,6 +93,7 @@
 #include "nsIURIFixup.h"
 #include "nsCDefaultURIFixup.h"
 #include "nsIChromeRegistry.h"
+#include "nsPrintfCString.h"
 
 static NS_DEFINE_CID(kZipReaderCID, NS_ZIPREADER_CID);
 
@@ -125,11 +126,24 @@ JSValIDToString(JSContext *cx, const jsval idval)
     return reinterpret_cast<PRUnichar*>(JS_GetStringChars(str));
 }
 
+class nsAutoInPrincipalDomainOriginSetter {
+public:
+    nsAutoInPrincipalDomainOriginSetter() {
+        ++sInPrincipalDomainOrigin;
+    }
+    ~nsAutoInPrincipalDomainOriginSetter() {
+        --sInPrincipalDomainOrigin;
+    }
+    static PRUint32 sInPrincipalDomainOrigin;
+};
+PRUint32 nsAutoInPrincipalDomainOriginSetter::sInPrincipalDomainOrigin;
+
 static
 nsresult
 GetPrincipalDomainOrigin(nsIPrincipal* aPrincipal,
                          nsACString& aOrigin)
 {
+  nsAutoInPrincipalDomainOriginSetter autoSetter;
   aOrigin.Truncate();
 
   nsCOMPtr<nsIURI> uri;
@@ -810,11 +824,16 @@ nsScriptSecurityManager::CheckPropertyAccessImpl(PRUint32 aAction,
 
         NS_ConvertUTF8toUTF16 className(classInfoData.GetName());
         nsCAutoString subjectOrigin;
-        GetPrincipalDomainOrigin(subjectPrincipal, subjectOrigin);
+        if (!nsAutoInPrincipalDomainOriginSetter::sInPrincipalDomainOrigin) {
+            GetPrincipalDomainOrigin(subjectPrincipal, subjectOrigin);
+        } else {
+            subjectOrigin.AssignLiteral("the security manager");
+        }
         NS_ConvertUTF8toUTF16 subjectOriginUnicode(subjectOrigin);
 
         nsCAutoString objectOrigin;
-        if (objectPrincipal) {
+        if (!nsAutoInPrincipalDomainOriginSetter::sInPrincipalDomainOrigin &&
+            objectPrincipal) {
             GetPrincipalDomainOrigin(objectPrincipal, objectOrigin);
         }
         NS_ConvertUTF8toUTF16 objectOriginUnicode(objectOrigin);
@@ -830,7 +849,8 @@ nsScriptSecurityManager::CheckPropertyAccessImpl(PRUint32 aAction,
 
         PRUint32 length = NS_ARRAY_LENGTH(formatStrings);
 
-        if (!objectPrincipal) {
+        if (nsAutoInPrincipalDomainOriginSetter::sInPrincipalDomainOrigin ||
+            !objectPrincipal) {
             stringName.AppendLiteral("OnlySubject");
             --length;
         }
@@ -1214,7 +1234,10 @@ nsScriptSecurityManager::CheckLoadURIFromScript(JSContext *cx, nsIURI *aURI)
     nsCAutoString spec;
     if (NS_FAILED(aURI->GetAsciiSpec(spec)))
         return NS_ERROR_FAILURE;
-    JS_ReportError(cx, "Access to '%s' from script denied", spec.get());
+    nsCAutoString msg("Access to '");
+    msg.Append(spec);
+    msg.AppendLiteral("' from script denied");
+    SetPendingException(cx, msg.get());
     return NS_ERROR_DOM_BAD_URI;
 }
 
