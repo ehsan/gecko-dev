@@ -427,23 +427,23 @@ js::ReferenceTypeDescr::call(JSContext *cx, unsigned argc, Value *vp)
  * Note: these are partially defined in SIMD.cpp
  */
 
-static const int32_t SimdSizes[] = {
-#define SIMD_SIZE(_kind, _type, _name)                        \
+static const int32_t X4Sizes[] = {
+#define X4_SIZE(_kind, _type, _name)                        \
     sizeof(_type) * 4,
-    JS_FOR_EACH_SIMD_TYPE_REPR(SIMD_SIZE) 0
-#undef SIMD_SIZE
+    JS_FOR_EACH_X4_TYPE_REPR(X4_SIZE) 0
+#undef X4_SIZE
 };
 
 int32_t
-SimdTypeDescr::size(Type t)
+X4TypeDescr::size(Type t)
 {
-    return SimdSizes[t];
+    return X4Sizes[t];
 }
 
 int32_t
-SimdTypeDescr::alignment(Type t)
+X4TypeDescr::alignment(Type t)
 {
-    return SimdSizes[t];
+    return X4Sizes[t];
 }
 
 /***************************************************************************
@@ -1543,7 +1543,7 @@ TypedObjLengthFromType(TypeDescr &descr)
       case type::Scalar:
       case type::Reference:
       case type::Struct:
-      case type::Simd:
+      case type::X4:
         return 0;
 
       case type::SizedArray:
@@ -1592,7 +1592,7 @@ TypedObject::createZeroed(JSContext *cx,
       case type::Scalar:
       case type::Reference:
       case type::Struct:
-      case type::Simd:
+      case type::X4:
       case type::SizedArray:
       {
         size_t totalSize = descr->as<SizedTypeDescr>().size();
@@ -1674,7 +1674,7 @@ TypedObject::obj_trace(JSTracer *trace, JSObject *object)
           case type::Reference:
           case type::Struct:
           case type::SizedArray:
-          case type::Simd:
+          case type::X4:
             descr.as<SizedTypeDescr>().traceInstances(trace, mem, 1);
             break;
 
@@ -1695,7 +1695,7 @@ TypedObject::obj_lookupGeneric(JSContext *cx, HandleObject obj, HandleId id,
     switch (descr->kind()) {
       case type::Scalar:
       case type::Reference:
-      case type::Simd:
+      case type::X4:
         break;
 
       case type::SizedArray:
@@ -1823,7 +1823,7 @@ TypedObject::obj_getGeneric(JSContext *cx, HandleObject obj, HandleObject receiv
       case type::Reference:
         break;
 
-      case type::Simd:
+      case type::X4:
         break;
 
       case type::SizedArray:
@@ -1882,7 +1882,7 @@ TypedObject::obj_getElement(JSContext *cx, HandleObject obj, HandleObject receiv
     switch (descr->kind()) {
       case type::Scalar:
       case type::Reference:
-      case type::Simd:
+      case type::X4:
       case type::Struct:
         break;
 
@@ -1940,7 +1940,7 @@ TypedObject::obj_setGeneric(JSContext *cx, HandleObject obj, HandleId id,
       case type::Reference:
         break;
 
-      case type::Simd:
+      case type::X4:
         break;
 
       case type::SizedArray:
@@ -1988,7 +1988,7 @@ TypedObject::obj_setElement(JSContext *cx, HandleObject obj, uint32_t index,
     switch (descr->kind()) {
       case type::Scalar:
       case type::Reference:
-      case type::Simd:
+      case type::X4:
       case type::Struct:
         break;
 
@@ -2035,7 +2035,7 @@ TypedObject::obj_getGenericAttributes(JSContext *cx, HandleObject obj,
       case type::Reference:
         break;
 
-      case type::Simd:
+      case type::X4:
         break;
 
       case type::SizedArray:
@@ -2076,7 +2076,7 @@ IsOwnId(JSContext *cx, HandleObject obj, HandleId id)
     switch (typedObj->typeDescr().kind()) {
       case type::Scalar:
       case type::Reference:
-      case type::Simd:
+      case type::X4:
         return false;
 
       case type::SizedArray:
@@ -2135,7 +2135,7 @@ TypedObject::obj_enumerate(JSContext *cx, HandleObject obj, JSIterateOp enum_op,
     switch (descr->kind()) {
       case type::Scalar:
       case type::Reference:
-      case type::Simd:
+      case type::X4:
         switch (enum_op) {
           case JSENUMERATE_INIT_ALL:
           case JSENUMERATE_INIT:
@@ -2296,7 +2296,7 @@ LengthForType(TypeDescr &descr)
       case type::Scalar:
       case type::Reference:
       case type::Struct:
-      case type::Simd:
+      case type::X4:
         return 0;
 
       case type::SizedArray:
@@ -3112,7 +3112,7 @@ visitReferences(SizedTypeDescr &descr,
 
     switch (descr.kind()) {
       case type::Scalar:
-      case type::Simd:
+      case type::X4:
         return;
 
       case type::Reference:

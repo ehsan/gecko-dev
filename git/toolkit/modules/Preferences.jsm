@@ -42,22 +42,19 @@ Preferences.prototype = {
    * @param   defaultValue
    *          the default value, if any, for prefs that don't have one
    *
-   * @param   valueType
-   *          the XPCOM interface of the pref's complex value type, if any
-   *
    * @returns the value of the pref, if any; otherwise the default value
    */
-  get: function(prefName, defaultValue, valueType = Ci.nsISupportsString) {
+  get: function(prefName, defaultValue) {
     if (Array.isArray(prefName))
       return prefName.map(function(v) this.get(v, defaultValue), this);
 
-    return this._get(prefName, defaultValue, valueType);
+    return this._get(prefName, defaultValue);
   },
 
-  _get: function(prefName, defaultValue, valueType) {
+  _get: function(prefName, defaultValue) {
     switch (this._prefSvc.getPrefType(prefName)) {
       case Ci.nsIPrefBranch.PREF_STRING:
-        return this._prefSvc.getComplexValue(prefName, valueType).data;
+        return this._prefSvc.getComplexValue(prefName, Ci.nsISupportsString).data;
 
       case Ci.nsIPrefBranch.PREF_INT:
         return this._prefSvc.getIntPref(prefName);

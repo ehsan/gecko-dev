@@ -759,11 +759,8 @@ class TemporaryTypeSet : public TypeSet
     /* Get the prototype shared by all objects in this set, or nullptr. */
     JSObject *getCommonPrototype();
 
-    /* Get the typed array type of all objects in this set, or Scalar::TypeMax. */
+    /* Get the typed array type of all objects in this set, or TypedArrayObject::TYPE_MAX. */
     Scalar::Type getTypedArrayType();
-
-    /* Get the shared typed array type of all objects in this set, or Scalar::TypeMax. */
-    Scalar::Type getSharedTypedArrayType();
 
     /* Whether all objects have JSCLASS_IS_DOMJSCLASS set. */
     bool isDOMClass();

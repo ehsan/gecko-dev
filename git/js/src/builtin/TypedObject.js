@@ -74,8 +74,8 @@ function TypedObjectGet(descr, typedObj, offset) {
   case JS_TYPEREPR_REFERENCE_KIND:
     return TypedObjectGetReference(descr, typedObj, offset);
 
-  case JS_TYPEREPR_SIMD_KIND:
-    return TypedObjectGetSimd(descr, typedObj, offset);
+  case JS_TYPEREPR_X4_KIND:
+    return TypedObjectGetX4(descr, typedObj, offset);
 
   case JS_TYPEREPR_SIZED_ARRAY_KIND:
   case JS_TYPEREPR_STRUCT_KIND:
@@ -161,17 +161,17 @@ function TypedObjectGetReference(descr, typedObj, offset) {
   return undefined;
 }
 
-function TypedObjectGetSimd(descr, typedObj, offset) {
+function TypedObjectGetX4(descr, typedObj, offset) {
   var type = DESCR_TYPE(descr);
   switch (type) {
-  case JS_SIMDTYPEREPR_FLOAT32:
+  case JS_X4TYPEREPR_FLOAT32:
     var x = Load_float32(typedObj, offset + 0);
     var y = Load_float32(typedObj, offset + 4);
     var z = Load_float32(typedObj, offset + 8);
     var w = Load_float32(typedObj, offset + 12);
     return GetFloat32x4TypeDescr()(x, y, z, w);
 
-  case JS_SIMDTYPEREPR_INT32:
+  case JS_X4TYPEREPR_INT32:
     var x = Load_int32(typedObj, offset + 0);
     var y = Load_int32(typedObj, offset + 4);
     var z = Load_int32(typedObj, offset + 8);
@@ -179,7 +179,7 @@ function TypedObjectGetSimd(descr, typedObj, offset) {
     return GetInt32x4TypeDescr()(x, y, z, w);
   }
 
-  assert(false, "Unhandled SIMD type: " + type);
+  assert(false, "Unhandled x4 type: " + type);
   return undefined;
 }
 
@@ -218,8 +218,8 @@ function TypedObjectSet(descr, typedObj, offset, fromValue) {
     TypedObjectSetReference(descr, typedObj, offset, fromValue);
     return;
 
-  case JS_TYPEREPR_SIMD_KIND:
-    TypedObjectSetSimd(descr, typedObj, offset, fromValue);
+  case JS_TYPEREPR_X4_KIND:
+    TypedObjectSetX4(descr, typedObj, offset, fromValue);
     return;
 
   case JS_TYPEREPR_SIZED_ARRAY_KIND:
@@ -342,7 +342,7 @@ function TypedObjectSetReference(descr, typedObj, offset, fromValue) {
 }
 
 // Sets `fromValue` to `this` assuming that `this` is a scalar type.
-function TypedObjectSetSimd(descr, typedObj, offset, fromValue) {
+function TypedObjectSetX4(descr, typedObj, offset, fromValue) {
   // It is only permitted to set a float32x4/int32x4 value from another
   // float32x4/int32x4; in that case, the "fast path" that uses memcopy will
   // have already matched. So if we get to this point, we're supposed
@@ -476,13 +476,13 @@ function TypedArrayRedimension(newArrayType) {
 }
 
 ///////////////////////////////////////////////////////////////////////////
-// SIMD
+// X4
 
-function SimdProtoString(type) {
+function X4ProtoString(type) {
   switch (type) {
-  case JS_SIMDTYPEREPR_INT32:
+  case JS_X4TYPEREPR_INT32:
     return "int32x4";
-  case JS_SIMDTYPEREPR_FLOAT32:
+  case JS_X4TYPEREPR_FLOAT32:
     return "float32x4";
   }
 
@@ -490,17 +490,17 @@ function SimdProtoString(type) {
   return undefined;
 }
 
-function SimdToSource() {
+function X4ToSource() {
   if (!IsObject(this) || !ObjectIsTypedObject(this))
-    ThrowError(JSMSG_INCOMPATIBLE_PROTO, "SIMD", "toSource", typeof this);
+    ThrowError(JSMSG_INCOMPATIBLE_PROTO, "X4", "toSource", typeof this);
 
   var descr = TypedObjectTypeDescr(this);
 
-  if (DESCR_KIND(descr) != JS_TYPEREPR_SIMD_KIND)
-    ThrowError(JSMSG_INCOMPATIBLE_PROTO, "SIMD", "toSource", typeof this);
+  if (DESCR_KIND(descr) != JS_TYPEREPR_X4_KIND)
+    ThrowError(JSMSG_INCOMPATIBLE_PROTO, "X4", "toSource", typeof this);
 
   var type = DESCR_TYPE(descr);
-  return SimdProtoString(type)+"("+this.x+", "+this.y+", "+this.z+", "+this.w+")";
+  return X4ProtoString(type)+"("+this.x+", "+this.y+", "+this.z+", "+this.w+")";
 }
 
 ///////////////////////////////////////////////////////////////////////////

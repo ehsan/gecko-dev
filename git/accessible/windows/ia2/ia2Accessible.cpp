@@ -221,8 +221,8 @@ ia2Accessible::scrollToPoint(enum IA2CoordinateType aCoordType,
     nsIAccessibleCoordinateType::COORDTYPE_SCREEN_RELATIVE :
     nsIAccessibleCoordinateType::COORDTYPE_PARENT_RELATIVE;
 
-  acc->ScrollToPoint(geckoCoordType, aX, aY);
-  return S_OK;
+  nsresult rv = acc->ScrollToPoint(geckoCoordType, aX, aY);
+  return GetHRESULT(rv);
 
   A11Y_TRYBLOCK_END
 }

@@ -52,30 +52,6 @@ def _relpath(path, start=None):
         return os.curdir
     return os.path.join(*rel_list)
 
-# Mapping of Python chars to their javascript string representation.
-QUOTE_MAP = {
-    '\\': '\\\\',
-    '\b': '\\b',
-    '\f': '\\f',
-    '\n': '\\n',
-    '\r': '\\r',
-    '\t': '\\t',
-    '\v': '\\v'
-}
-
-# Quote the string S, javascript style.
-def js_quote(quote, s):
-    result = quote
-    for c in s:
-        if c == quote:
-            result += '\\' + quote
-        elif c in QUOTE_MAP:
-            result += QUOTE_MAP[c]
-        else:
-            result += c
-    result += quote
-    return result
-
 os.path.relpath = _relpath
 
 class Test:
@@ -202,14 +178,12 @@ class Test:
         # whether we use double or single quotes. On windows and when using
         # a remote device, however, we have to be careful to use the quote
         # style that is the opposite of what the exec wrapper uses.
+        # This uses %r to get single quotes on windows and special cases
+        # the remote device.
+        fmt = 'const platform=%r; const libdir=%r; const scriptdir=%r'
         if remote_prefix:
-            quotechar = '"'
-        else:
-            quotechar = "'"
-        expr = ("const platform=%s; const libdir=%s; const scriptdir=%s"
-                % (js_quote(quotechar, sys.platform),
-                   js_quote(quotechar, libdir),
-                   js_quote(quotechar, scriptdir_var)))
+            fmt = 'const platform="%s"; const libdir="%s"; const scriptdir="%s"'
+        expr = fmt % (sys.platform, libdir, scriptdir_var)
 
         # We may have specified '-a' or '-d' twice: once via --jitflags, once
         # via the "|jit-test|" line.  Remove dups because they are toggles.

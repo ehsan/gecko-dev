@@ -81,13 +81,10 @@ NS_IMPL_ISUPPORTS_INHERITED0(LinkableAccessible, AccessibleWrap)
 ////////////////////////////////////////////////////////////////////////////////
 // LinkableAccessible. nsIAccessible
 
-void
+NS_IMETHODIMP
 LinkableAccessible::TakeFocus()
 {
-  if (mActionAcc)
-    mActionAcc->TakeFocus();
-  else
-    AccessibleWrap::TakeFocus();
+  return mActionAcc ? mActionAcc->TakeFocus() : AccessibleWrap::TakeFocus();
 }
 
 uint64_t
@@ -119,25 +116,31 @@ LinkableAccessible::ActionCount()
   return (mIsOnclick || mIsLink) ? 1 : 0;
 }
 
-void
-LinkableAccessible::ActionNameAt(uint8_t aIndex, nsAString& aName)
+NS_IMETHODIMP
+LinkableAccessible::GetActionName(uint8_t aIndex, nsAString& aName)
 {
   aName.Truncate();
 
   // Action 0 (default action): Jump to link
   if (aIndex == eAction_Jump) {
-    if (mIsLink)
+    if (mIsLink) {
       aName.AssignLiteral("jump");
-    else if (mIsOnclick)
+      return NS_OK;
+    }
+    else if (mIsOnclick) {
       aName.AssignLiteral("click");
+      return NS_OK;
+    }
+    return NS_ERROR_NOT_IMPLEMENTED;
   }
+  return NS_ERROR_INVALID_ARG;
 }
 
-bool
+NS_IMETHODIMP
 LinkableAccessible::DoAction(uint8_t aIndex)
 {
   if (aIndex != eAction_Jump)
-    return false;
+    return NS_ERROR_INVALID_ARG;
 
   return mActionAcc ? mActionAcc->DoAction(aIndex) :
     AccessibleWrap::DoAction(aIndex);

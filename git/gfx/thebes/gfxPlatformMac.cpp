@@ -12,7 +12,6 @@
 #include "gfxMacPlatformFontList.h"
 #include "gfxMacFont.h"
 #include "gfxCoreTextShaper.h"
-#include "gfxTextRun.h"
 #include "gfxUserFontSet.h"
 
 #include "nsTArray.h"

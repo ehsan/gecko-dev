@@ -120,40 +120,53 @@ XULComboboxAccessible::ActionCount()
   return 1;
 }
 
-bool
+NS_IMETHODIMP
 XULComboboxAccessible::DoAction(uint8_t aIndex)
 {
-  if (aIndex != XULComboboxAccessible::eAction_Click)
-    return false;
+  if (aIndex != XULComboboxAccessible::eAction_Click) {
+    return NS_ERROR_INVALID_ARG;
+  }
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
 
   // Programmaticaly toggle the combo box.
   nsCOMPtr<nsIDOMXULMenuListElement> menuList(do_QueryInterface(mContent));
-  if (!menuList)
-    return false;
-
-  bool isDroppedDown = false;
+  if (!menuList) {
+    return NS_ERROR_FAILURE;
+  }
+  bool isDroppedDown;
   menuList->GetOpen(&isDroppedDown);
-  menuList->SetOpen(!isDroppedDown);
-  return true;
+  return menuList->SetOpen(!isDroppedDown);
 }
 
-void
-XULComboboxAccessible::ActionNameAt(uint8_t aIndex, nsAString& aName)
+NS_IMETHODIMP
+XULComboboxAccessible::GetActionName(uint8_t aIndex, nsAString& aName)
 {
-  aName.Truncate();
-  if (aIndex != XULComboboxAccessible::eAction_Click)
-    return;
+  if (aIndex != XULComboboxAccessible::eAction_Click) {
+    return NS_ERROR_INVALID_ARG;
+  }
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
+  // Our action name is the reverse of our state:
+  //     if we are close -> open is our name.
+  //     if we are open -> close is our name.
+  // Uses the frame to get the state, updated on every click.
 
   nsCOMPtr<nsIDOMXULMenuListElement> menuList(do_QueryInterface(mContent));
-  if (!menuList)
-    return;
-
-  bool isDroppedDown = false;
+  if (!menuList) {
+    return NS_ERROR_FAILURE;
+  }
+  bool isDroppedDown;
   menuList->GetOpen(&isDroppedDown);
   if (isDroppedDown)
-    aName.AssignLiteral("close");
+    aName.AssignLiteral("close"); 
   else
-    aName.AssignLiteral("open");
+    aName.AssignLiteral("open"); 
+
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

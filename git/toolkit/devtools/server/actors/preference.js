@@ -16,7 +16,7 @@ exports.register = function(handle) {
 exports.unregister = function(handle) {
 };
 
-let PreferenceActor = exports.PreferenceActor = protocol.ActorClass({
+let PreferenceActor = protocol.ActorClass({
   typeName: "preference",
 
   getBoolPref: method(function(name) {

@@ -2789,14 +2789,7 @@ var gDetailView = {
 
     var fullDesc = document.getElementById("detail-fulldesc");
     if (aAddon.fullDescription) {
-      // The following is part of an awful hack to include the OpenH264 license
-      // without having bug 624602 fixed yet, and intentionally ignores
-      // localisation.
-      if (aAddon.id == OPENH264_ADDON_ID)
-        fullDesc.innerHTML = aAddon.fullDescription;
-      else
-        fullDesc.textContent = aAddon.fullDescription;
-
+      fullDesc.textContent = aAddon.fullDescription;
       fullDesc.hidden = false;
     } else {
       fullDesc.hidden = true;

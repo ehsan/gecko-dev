@@ -733,23 +733,34 @@ XULTreeItemAccessibleBase::FocusedChild()
   return FocusMgr()->FocusedAccessible() == this ? this : nullptr;
 }
 
-nsIntRect
-XULTreeItemAccessibleBase::Bounds() const
+NS_IMETHODIMP
+XULTreeItemAccessibleBase::GetBounds(int32_t* aX, int32_t* aY,
+                                     int32_t* aWidth, int32_t* aHeight)
 {
+  NS_ENSURE_ARG_POINTER(aX);
+  *aX = 0;
+  NS_ENSURE_ARG_POINTER(aY);
+  *aY = 0;
+  NS_ENSURE_ARG_POINTER(aWidth);
+  *aWidth = 0;
+  NS_ENSURE_ARG_POINTER(aHeight);
+  *aHeight = 0;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   // Get x coordinate and width from treechildren element, get y coordinate and
   // height from tree cell.
 
   nsCOMPtr<nsIBoxObject> boxObj = nsCoreUtils::GetTreeBodyBoxObject(mTree);
-  if (!boxObj)
-    return nsIntRect();
+  NS_ENSURE_STATE(boxObj);
 
   nsCOMPtr<nsITreeColumn> column = nsCoreUtils::GetFirstSensibleColumn(mTree);
 
   int32_t x = 0, y = 0, width = 0, height = 0;
   nsresult rv = mTree->GetCoordsForCellItem(mRow, column, EmptyCString(),
                                             &x, &y, &width, &height);
-  if (NS_FAILED(rv))
-    return nsIntRect();
+  NS_ENSURE_SUCCESS(rv, rv);
 
   boxObj->GetWidth(&width);
 
@@ -761,35 +772,45 @@ XULTreeItemAccessibleBase::Bounds() const
   y += tcY;
 
   nsPresContext* presContext = mDoc->PresContext();
-  return nsIntRect(presContext->CSSPixelsToDevPixels(x),
-                   presContext->CSSPixelsToDevPixels(y),
-                   presContext->CSSPixelsToDevPixels(width),
-                   presContext->CSSPixelsToDevPixels(height));
+  *aX = presContext->CSSPixelsToDevPixels(x);
+  *aY = presContext->CSSPixelsToDevPixels(y);
+  *aWidth = presContext->CSSPixelsToDevPixels(width);
+  *aHeight = presContext->CSSPixelsToDevPixels(height);
+
+  return NS_OK;
 }
 
-void
+NS_IMETHODIMP
 XULTreeItemAccessibleBase::SetSelected(bool aSelect)
 {
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   nsCOMPtr<nsITreeSelection> selection;
   mTreeView->GetSelection(getter_AddRefs(selection));
   if (selection) {
-    bool isSelected = false;
+    bool isSelected;
     selection->IsSelected(mRow, &isSelected);
     if (isSelected != aSelect)
       selection->ToggleSelect(mRow);
   }
+
+  return NS_OK;
 }
 
-void
+NS_IMETHODIMP
 XULTreeItemAccessibleBase::TakeFocus()
 {
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   nsCOMPtr<nsITreeSelection> selection;
   mTreeView->GetSelection(getter_AddRefs(selection));
   if (selection)
     selection->SetCurrentIndex(mRow);
 
   // focus event will be fired here
-  Accessible::TakeFocus();
+  return Accessible::TakeFocus();
 }
 
 Relation
@@ -834,33 +855,43 @@ XULTreeItemAccessibleBase::ActionCount()
   return IsExpandable() ? 2 : 1;
 }
 
-void
-XULTreeItemAccessibleBase::ActionNameAt(uint8_t aIndex, nsAString& aName)
+NS_IMETHODIMP
+XULTreeItemAccessibleBase::GetActionName(uint8_t aIndex, nsAString& aName)
 {
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   if (aIndex == eAction_Click) {
     aName.AssignLiteral("activate");
-    return;
+    return NS_OK;
   }
 
   if (aIndex == eAction_Expand && IsExpandable()) {
-    bool isContainerOpen = false;
+    bool isContainerOpen;
     mTreeView->IsContainerOpen(mRow, &isContainerOpen);
     if (isContainerOpen)
       aName.AssignLiteral("collapse");
     else
       aName.AssignLiteral("expand");
+
+    return NS_OK;
   }
+
+  return NS_ERROR_INVALID_ARG;
 }
 
-bool
+NS_IMETHODIMP
 XULTreeItemAccessibleBase::DoAction(uint8_t aIndex)
 {
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   if (aIndex != eAction_Click &&
       (aIndex != eAction_Expand || !IsExpandable()))
-    return false;
+    return NS_ERROR_INVALID_ARG;
 
   DoCommand(nullptr, aIndex);
-  return true;
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -128,7 +128,7 @@ TypedObjectPrediction::ofArrayKind() const
     switch (kind()) {
       case type::Scalar:
       case type::Reference:
-      case type::Simd:
+      case type::X4:
       case type::Struct:
         return false;
 
@@ -162,7 +162,7 @@ TypedObjectPrediction::hasKnownSize(int32_t *out) const
         switch (kind()) {
           case type::Scalar:
           case type::Reference:
-          case type::Simd:
+          case type::X4:
           case type::Struct:
             *out = proto().typeDescr().as<SizedTypeDescr>().size();
             return true;
@@ -200,7 +200,7 @@ TypedObjectPrediction::getKnownPrototype() const
           case type::Reference:
             return nullptr;
 
-          case type::Simd:
+          case type::X4:
           case type::Struct:
           case type::SizedArray:
           case type::UnsizedArray:
@@ -257,10 +257,10 @@ TypedObjectPrediction::referenceType() const
     return extractType<ReferenceTypeDescr>();
 }
 
-SimdTypeDescr::Type
-TypedObjectPrediction::simdType() const
+X4TypeDescr::Type
+TypedObjectPrediction::x4Type() const
 {
-    return extractType<SimdTypeDescr>();
+    return extractType<X4TypeDescr>();
 }
 
 bool

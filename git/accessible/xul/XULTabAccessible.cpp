@@ -39,24 +39,30 @@ XULTabAccessible::ActionCount()
 }
 
 /** Return the name of our only action  */
-void
-XULTabAccessible::ActionNameAt(uint8_t aIndex, nsAString& aName)
+NS_IMETHODIMP
+XULTabAccessible::GetActionName(uint8_t aIndex, nsAString& aName)
 {
-  if (aIndex == eAction_Switch)
-    aName.AssignLiteral("switch");
+  if (aIndex == eAction_Switch) {
+    aName.AssignLiteral("switch"); 
+    return NS_OK;
+  }
+  return NS_ERROR_INVALID_ARG;
 }
 
-bool
+/** Tell the tab to do its action */
+NS_IMETHODIMP
 XULTabAccessible::DoAction(uint8_t index)
 {
   if (index == eAction_Switch) {
     nsCOMPtr<nsIDOMXULElement> tab(do_QueryInterface(mContent));
-    if (tab) {
+    if ( tab )
+    {
       tab->Click();
-      return true;
+      return NS_OK;
     }
+    return NS_ERROR_FAILURE;
   }
-  return false;
+  return NS_ERROR_INVALID_ARG;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

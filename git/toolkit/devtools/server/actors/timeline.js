@@ -30,11 +30,21 @@ const {setTimeout, clearTimeout} = require("sdk/timers");
 
 const DEFAULT_TIMELINE_DATA_PULL_TIMEOUT = 200; // ms
 
+exports.register = function(handle) {
+  handle.addGlobalActor(TimelineActor, "timelineActor");
+  handle.addTabActor(TimelineActor, "timelineActor");
+};
+
+exports.unregister = function(handle) {
+  handle.removeGlobalActor(TimelineActor);
+  handle.removeTabActor(TimelineActor);
+};
+
 /**
  * The timeline actor pops and forwards timeline markers registered in
  * a docshell.
  */
-let TimelineActor = exports.TimelineActor = protocol.ActorClass({
+let TimelineActor = protocol.ActorClass({
   typeName: "timeline",
 
   events: {

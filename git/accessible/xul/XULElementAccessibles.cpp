@@ -233,23 +233,29 @@ XULLinkAccessible::ActionCount()
   return 1;
 }
 
-void
-XULLinkAccessible::ActionNameAt(uint8_t aIndex, nsAString& aName)
+NS_IMETHODIMP
+XULLinkAccessible::GetActionName(uint8_t aIndex, nsAString& aName)
 {
   aName.Truncate();
 
-  if (aIndex == eAction_Jump)
-    aName.AssignLiteral("jump");
+  if (aIndex != eAction_Jump)
+    return NS_ERROR_INVALID_ARG;
+
+  aName.AssignLiteral("jump");
+  return NS_OK;
 }
 
-bool
+NS_IMETHODIMP
 XULLinkAccessible::DoAction(uint8_t aIndex)
 {
   if (aIndex != eAction_Jump)
-    return false;
+    return NS_ERROR_INVALID_ARG;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
 
   DoCommand();
-  return true;
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

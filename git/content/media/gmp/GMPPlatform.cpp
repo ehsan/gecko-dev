@@ -257,7 +257,7 @@ GMPThreadImpl::Join()
 }
 
 GMPMutexImpl::GMPMutexImpl()
-: mMonitor("gmp-mutex")
+: mMutex("gmp-mutex")
 {
   MOZ_COUNT_CTOR(GMPMutexImpl);
 }
@@ -276,13 +276,13 @@ GMPMutexImpl::Destroy()
 void
 GMPMutexImpl::Acquire()
 {
-  mMonitor.Enter();
+  mMutex.Lock();
 }
 
 void
 GMPMutexImpl::Release()
 {
-  mMonitor.Exit();
+  mMutex.Unlock();
 }
 
 } // namespace gmp

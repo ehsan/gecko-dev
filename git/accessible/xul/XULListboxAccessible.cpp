@@ -76,21 +76,24 @@ XULColumnItemAccessible::ActionCount()
   return 1;
 }
 
-void
-XULColumnItemAccessible::ActionNameAt(uint8_t aIndex, nsAString& aName)
+NS_IMETHODIMP
+XULColumnItemAccessible::GetActionName(uint8_t aIndex, nsAString& aName)
 {
-  if (aIndex == eAction_Click)
-    aName.AssignLiteral("click");
+  if (aIndex != eAction_Click)
+    return NS_ERROR_INVALID_ARG;
+
+  aName.AssignLiteral("click");
+  return NS_OK;
 }
 
-bool
+NS_IMETHODIMP
 XULColumnItemAccessible::DoAction(uint8_t aIndex)
 {
   if (aIndex != eAction_Click)
-    return false;
+    return NS_ERROR_INVALID_ARG;
 
   DoCommand();
-  return true;
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -590,7 +593,7 @@ XULListitemAccessible::~XULListitemAccessible()
 NS_IMPL_ISUPPORTS_INHERITED0(XULListitemAccessible, Accessible)
 
 Accessible*
-XULListitemAccessible::GetListAccessible() const
+XULListitemAccessible::GetListAccessible()
 {
   if (IsDefunct())
     return nullptr;
@@ -693,16 +696,21 @@ XULListitemAccessible::NativeInteractiveState() const
     states::UNAVAILABLE : states::FOCUSABLE | states::SELECTABLE;
 }
 
-void
-XULListitemAccessible::ActionNameAt(uint8_t aIndex, nsAString& aName)
+NS_IMETHODIMP
+XULListitemAccessible::GetActionName(uint8_t aIndex, nsAString& aName)
 {
   if (aIndex == eAction_Click && mIsCheckbox) {
+    // check or uncheck
     uint64_t states = NativeState();
+
     if (states & states::CHECKED)
       aName.AssignLiteral("uncheck");
     else
       aName.AssignLiteral("check");
+
+    return NS_OK;
   }
+  return NS_ERROR_INVALID_ARG;
 }
 
 bool

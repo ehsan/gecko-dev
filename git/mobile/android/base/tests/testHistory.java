@@ -12,16 +12,16 @@ public class testHistory extends AboutHomeTest {
     public void testHistory() {
         blockForGeckoReady();
 
-        String url = getAbsoluteUrl(StringHelper.ROBOCOP_BLANK_PAGE_01_URL);
-        String url2 = getAbsoluteUrl(StringHelper.ROBOCOP_BLANK_PAGE_02_URL);
-        String url3 = getAbsoluteUrl(StringHelper.ROBOCOP_BLANK_PAGE_03_URL);
+        String url = getAbsoluteUrl("/robocop/robocop_blank_01.html");
+        String url2 = getAbsoluteUrl("/robocop/robocop_blank_02.html");
+        String url3 = getAbsoluteUrl("/robocop/robocop_blank_03.html");
 
         inputAndLoadUrl(url);
-        verifyPageTitle(StringHelper.ROBOCOP_BLANK_PAGE_01_URL);
+        verifyPageTitle("Browser Blank Page 01");
         inputAndLoadUrl(url2);
-        verifyPageTitle(StringHelper.ROBOCOP_BLANK_PAGE_02_URL);
+        verifyPageTitle("Browser Blank Page 02");
         inputAndLoadUrl(url3);
-        verifyPageTitle(StringHelper.ROBOCOP_BLANK_PAGE_03_URL);
+        verifyPageTitle("Browser Blank Page 03");
 
         openAboutHomeTab(AboutHomeTabs.HISTORY);
 
@@ -62,7 +62,7 @@ public class testHistory extends AboutHomeTest {
 
         // The first item here (since it was just visited) should be a "Switch to tab" item
         // i.e. don't expect a DOMCOntentLoaded event
-        verifyPageTitle(StringHelper.ROBOCOP_BLANK_PAGE_03_URL);
+        verifyPageTitle("Browser Blank Page 03");
         verifyUrl(url3);
     }
 }

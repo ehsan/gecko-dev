@@ -35,7 +35,6 @@ using namespace js::jit;
 using mozilla::tl::FloorLog2;
 
 typedef Rooted<TypedArrayObject *> RootedTypedArrayObject;
-typedef Rooted<SharedTypedArrayObject *> RootedSharedTypedArrayObject;
 
 void
 CodeLocationJump::repoint(JitCode *code, MacroAssembler *masm)
@@ -1095,13 +1094,12 @@ GenerateArrayLength(JSContext *cx, MacroAssembler &masm, IonCache::StubAttacher 
     return true;
 }
 
-// In this case, the code for TypedArray and SharedTypedArray is not the same,
-// because the code embeds pointers to the respective class arrays.  Code that
-// caches the stub code must distinguish between the two cases.
 static void
 GenerateTypedArrayLength(JSContext *cx, MacroAssembler &masm, IonCache::StubAttacher &attacher,
-                         const TypedArrayLayout &layout, Register object, TypedOrValueRegister output)
+                         JSObject *obj, Register object, TypedOrValueRegister output)
 {
+    JS_ASSERT(obj->is<TypedArrayObject>());
+
     Label failures;
 
     Register tmpReg;
@@ -1115,14 +1113,14 @@ GenerateTypedArrayLength(JSContext *cx, MacroAssembler &masm, IonCache::StubAtta
 
     // Implement the negated version of JSObject::isTypedArray predicate.
     masm.loadObjClass(object, tmpReg);
-    masm.branchPtr(Assembler::Below, tmpReg, ImmPtr(layout.addressOfFirstClass()),
+    masm.branchPtr(Assembler::Below, tmpReg, ImmPtr(&TypedArrayObject::classes[0]),
                    &failures);
     masm.branchPtr(Assembler::AboveOrEqual, tmpReg,
-                   ImmPtr(layout.addressOfMaxClass()),
+                   ImmPtr(&TypedArrayObject::classes[Scalar::TypeMax]),
                    &failures);
 
     // Load length.
-    masm.loadTypedOrValue(Address(object, TypedArrayLayout::lengthOffset()), output);
+    masm.loadTypedOrValue(Address(object, TypedArrayObject::lengthOffset()), output);
 
     /* Success. */
     attacher.jumpRejoin(masm);
@@ -1289,13 +1287,13 @@ GetPropertyIC::tryAttachTypedArrayLength(JSContext *cx, HandleScript outerScript
     JS_ASSERT(canAttachStub());
     JS_ASSERT(!*emitted);
 
-    if (!IsAnyTypedArray(obj))
+    if (!obj->is<TypedArrayObject>())
         return true;
 
     if (cx->names().length != name)
         return true;
 
-    if (hasAnyTypedArrayLengthStub(obj))
+    if (hasTypedArrayLengthStub())
         return true;
 
     if (output().type() != MIRType_Value && output().type() != MIRType_Int32) {
@@ -1311,9 +1309,10 @@ GetPropertyIC::tryAttachTypedArrayLength(JSContext *cx, HandleScript outerScript
 
     MacroAssembler masm(cx, ion, outerScript, profilerLeavePc_);
     RepatchStubAppender attacher(*this);
-    GenerateTypedArrayLength(cx, masm, attacher, AnyTypedArrayLayout(obj), object(), output());
+    GenerateTypedArrayLength(cx, masm, attacher, obj, object(), output());
 
-    setHasTypedArrayLengthStub(obj);
+    JS_ASSERT(!hasTypedArrayLengthStub_);
+    hasTypedArrayLengthStub_ = true;
     return linkAndAttachStub(cx, masm, attacher, ion, "typed array length");
 }
 
@@ -1789,7 +1788,6 @@ GetPropertyIC::reset()
 {
     RepatchIonCache::reset();
     hasTypedArrayLengthStub_ = false;
-    hasSharedTypedArrayLengthStub_ = false;
     hasStrictArgumentsLengthStub_ = false;
     hasNormalArgumentsLengthStub_ = false;
     hasGenericProxyStub_ = false;
@@ -1839,7 +1837,6 @@ GetPropertyParIC::reset()
 {
     ParallelIonCache::reset();
     hasTypedArrayLengthStub_ = false;
-    hasSharedTypedArrayLengthStub_ = false;
 }
 
 bool
@@ -1870,9 +1867,10 @@ GetPropertyParIC::attachTypedArrayLength(LockedJSContext &cx, IonScript *ion, Ha
 {
     MacroAssembler masm(cx, ion);
     DispatchStubPrepender attacher(*this);
-    GenerateTypedArrayLength(cx, masm, attacher, AnyTypedArrayLayout(obj), object(), output());
+    GenerateTypedArrayLength(cx, masm, attacher, obj, object(), output());
 
-    setHasTypedArrayLengthStub(obj);
+    JS_ASSERT(!hasTypedArrayLengthStub_);
+    hasTypedArrayLengthStub_ = true;
     return linkAndAttachStub(cx, masm, attacher, ion, "parallel typed array length");
 }
 
@@ -1929,8 +1927,8 @@ GetPropertyParIC::update(ForkJoinContext *cx, size_t cacheIndex,
                 }
             }
 
-            if (!attachedStub && !cache.hasAnyTypedArrayLengthStub(obj) &&
-                IsAnyTypedArray(obj) && cx->names().length == cache.name() &&
+            if (!attachedStub && !cache.hasTypedArrayLengthStub() &&
+                obj->is<TypedArrayObject>() && cx->names().length == cache.name() &&
                 (cache.output().type() == MIRType_Value || cache.output().type() == MIRType_Int32))
             {
                 if (!cache.attachTypedArrayLength(ncx, ion, obj))
@@ -3191,7 +3189,7 @@ GetElementIC::attachDenseElement(JSContext *cx, HandleScript outerScript, IonScr
 GetElementIC::canAttachTypedArrayElement(JSObject *obj, const Value &idval,
                                          TypedOrValueRegister output)
 {
-    if (!IsAnyTypedArray(obj))
+    if (!obj->is<TypedArrayObject>())
         return false;
 
     if (!idval.isInt32() && !idval.isString())
@@ -3210,12 +3208,12 @@ GetElementIC::canAttachTypedArrayElement(JSObject *obj, const Value &idval,
         if (index == UINT32_MAX)
             return false;
     }
-    if (index >= AnyTypedArrayLength(obj))
+    if (index >= obj->as<TypedArrayObject>().length())
         return false;
 
     // The output register is not yet specialized as a float register, the only
     // way to accept float typed arrays for now is to return a Value type.
-    uint32_t arrayType = AnyTypedArrayType(obj);
+    uint32_t arrayType = obj->as<TypedArrayObject>().type();
     if (arrayType == Scalar::Float32 || arrayType == Scalar::Float64)
         return output.hasValue();
 
@@ -3224,7 +3222,7 @@ GetElementIC::canAttachTypedArrayElement(JSObject *obj, const Value &idval,
 
 static void
 GenerateGetTypedArrayElement(JSContext *cx, MacroAssembler &masm, IonCache::StubAttacher &attacher,
-                             HandleObject tarr, const Value &idval, Register object,
+                             HandleTypedArrayObject tarr, const Value &idval, Register object,
                              ConstantOrRegister index, TypedOrValueRegister output,
                              bool allowDoubleResult)
 {
@@ -3233,10 +3231,10 @@ GenerateGetTypedArrayElement(JSContext *cx, MacroAssembler &masm, IonCache::Stub
     Label failures;
 
     // The array type is the object within the table of typed array classes.
-    Scalar::Type arrayType = AnyTypedArrayType(tarr);
+    Scalar::Type arrayType = tarr->type();
 
     // Guard on the shape.
-    Shape *shape = AnyTypedArrayShape(tarr);
+    Shape *shape = tarr->lastProperty();
     masm.branchTestObjShape(Assembler::NotEqual, object, shape, &failures);
 
     // Decide to what type index the stub should be optimized
@@ -3293,7 +3291,7 @@ GenerateGetTypedArrayElement(JSContext *cx, MacroAssembler &masm, IonCache::Stub
     }
 
     // Guard on the initialized length.
-    Address length(object, TypedArrayLayout::lengthOffset());
+    Address length(object, TypedArrayObject::lengthOffset());
     masm.branch32(Assembler::BelowOrEqual, length, indexReg, &failures);
 
     // Save the object register on the stack in case of failure.
@@ -3302,7 +3300,7 @@ GenerateGetTypedArrayElement(JSContext *cx, MacroAssembler &masm, IonCache::Stub
     masm.push(object);
 
     // Load elements vector.
-    masm.loadPtr(Address(object, TypedArrayLayout::dataOffset()), elementReg);
+    masm.loadPtr(Address(object, TypedArrayObject::dataOffset()), elementReg);
 
     // Load the value. We use an invalid register because the destination
     // register is necessary a non double register.
@@ -3328,7 +3326,7 @@ GenerateGetTypedArrayElement(JSContext *cx, MacroAssembler &masm, IonCache::Stub
 
 bool
 GetElementIC::attachTypedArrayElement(JSContext *cx, HandleScript outerScript, IonScript *ion,
-                                      HandleObject tarr, const Value &idval)
+                                      HandleTypedArrayObject tarr, const Value &idval)
 {
     MacroAssembler masm(cx, ion, outerScript, profilerLeavePc_);
     RepatchStubAppender attacher(*this);
@@ -3500,7 +3498,8 @@ GetElementIC::update(JSContext *cx, size_t cacheIndex, HandleObject obj,
             attachedStub = true;
         }
         if (!attachedStub && canAttachTypedArrayElement(obj, idval, cache.output())) {
-            if (!cache.attachTypedArrayElement(cx, outerScript, ion, obj, idval))
+            Rooted<TypedArrayObject*> tarr(cx, &obj->as<TypedArrayObject>());
+            if (!cache.attachTypedArrayElement(cx, outerScript, ion, tarr, idval))
                 return false;
             attachedStub = true;
         }
@@ -3570,7 +3569,7 @@ static bool
 IsTypedArrayElementSetInlineable(JSObject *obj, const Value &idval, const Value &value)
 {
     // Don't bother attaching stubs for assigning strings and objects.
-    return IsAnyTypedArray(obj) && idval.isInt32() &&
+    return obj->is<TypedArrayObject>() && idval.isInt32() &&
            !value.isString() && !value.isObject();
 }
 
@@ -3744,7 +3743,7 @@ SetElementIC::attachDenseElement(JSContext *cx, HandleScript outerScript, IonScr
 
 static bool
 GenerateSetTypedArrayElement(JSContext *cx, MacroAssembler &masm, IonCache::StubAttacher &attacher,
-                             HandleObject tarr, Register object,
+                             HandleTypedArrayObject tarr, Register object,
                              ValueOperand indexVal, ConstantOrRegister value,
                              Register tempUnbox, Register temp, FloatRegister tempDouble,
                              FloatRegister tempFloat32)
@@ -3752,7 +3751,7 @@ GenerateSetTypedArrayElement(JSContext *cx, MacroAssembler &masm, IonCache::Stub
     Label failures, done, popObjectAndFail;
 
     // Guard on the shape.
-    Shape *shape = AnyTypedArrayShape(tarr);
+    Shape *shape = tarr->lastProperty();
     if (!shape)
         return false;
     masm.branchTestObjShape(Assembler::NotEqual, object, shape, &failures);
@@ -3762,16 +3761,16 @@ GenerateSetTypedArrayElement(JSContext *cx, MacroAssembler &masm, IonCache::Stub
     Register index = masm.extractInt32(indexVal, tempUnbox);
 
     // Guard on the length.
-    Address length(object, TypedArrayLayout::lengthOffset());
+    Address length(object, TypedArrayObject::lengthOffset());
     masm.unboxInt32(length, temp);
     masm.branch32(Assembler::BelowOrEqual, temp, index, &done);
 
     // Load the elements vector.
     Register elements = temp;
-    masm.loadPtr(Address(object, TypedArrayLayout::dataOffset()), elements);
+    masm.loadPtr(Address(object, TypedArrayObject::dataOffset()), elements);
 
     // Set the value.
-    Scalar::Type arrayType = AnyTypedArrayType(tarr);
+    Scalar::Type arrayType = tarr->type();
     int width = Scalar::byteSize(arrayType);
     BaseIndex target(elements, index, ScaleFromElemWidth(width));
 
@@ -3825,7 +3824,7 @@ GenerateSetTypedArrayElement(JSContext *cx, MacroAssembler &masm, IonCache::Stub
 
 bool
 SetElementIC::attachTypedArrayElement(JSContext *cx, HandleScript outerScript, IonScript *ion,
-                                      HandleObject tarr)
+                                      HandleTypedArrayObject tarr)
 {
     MacroAssembler masm(cx, ion, outerScript, profilerLeavePc_);
     RepatchStubAppender attacher(*this);
@@ -3855,7 +3854,8 @@ SetElementIC::update(JSContext *cx, size_t cacheIndex, HandleObject obj,
             attachedStub = true;
         }
         if (!attachedStub && IsTypedArrayElementSetInlineable(obj, idval, value)) {
-            if (!cache.attachTypedArrayElement(cx, outerScript, ion, obj))
+            RootedTypedArrayObject tarr(cx, &obj->as<TypedArrayObject>());
+            if (!cache.attachTypedArrayElement(cx, outerScript, ion, tarr))
                 return false;
         }
     }
@@ -3895,7 +3895,7 @@ SetElementParIC::attachDenseElement(LockedJSContext &cx, IonScript *ion, HandleO
 
 bool
 SetElementParIC::attachTypedArrayElement(LockedJSContext &cx, IonScript *ion,
-                                         HandleObject tarr)
+                                         HandleTypedArrayObject tarr)
 {
     MacroAssembler masm(cx, ion);
     DispatchStubPrepender attacher(*this);
@@ -3937,7 +3937,8 @@ SetElementParIC::update(ForkJoinContext *cx, size_t cacheIndex, HandleObject obj
                 attachedStub = true;
             }
             if (!attachedStub && IsTypedArrayElementSetInlineable(obj, idval, value)) {
-                if (!cache.attachTypedArrayElement(ncx, ion, obj))
+                RootedTypedArrayObject tarr(cx, &obj->as<TypedArrayObject>());
+                if (!cache.attachTypedArrayElement(ncx, ion, tarr))
                     return cx->setPendingAbortFatal(ParallelBailoutOutOfMemory);
             }
         }
@@ -3979,7 +3980,7 @@ GetElementParIC::attachDenseElement(LockedJSContext &cx, IonScript *ion, HandleO
 
 bool
 GetElementParIC::attachTypedArrayElement(LockedJSContext &cx, IonScript *ion,
-                                         HandleObject tarr, const Value &idval)
+                                         HandleTypedArrayObject tarr, const Value &idval)
 {
     MacroAssembler masm(cx, ion);
     DispatchStubPrepender attacher(*this);
@@ -4047,7 +4048,8 @@ GetElementParIC::update(ForkJoinContext *cx, size_t cacheIndex, HandleObject obj
             if (!attachedStub &&
                 GetElementIC::canAttachTypedArrayElement(obj, idval, cache.output()))
             {
-                if (!cache.attachTypedArrayElement(ncx, ion, obj, idval))
+                RootedTypedArrayObject tarr(cx, &obj->as<TypedArrayObject>());
+                if (!cache.attachTypedArrayElement(ncx, ion, tarr, idval))
                     return cx->setPendingAbortFatal(ParallelBailoutOutOfMemory);
                 attachedStub = true;
             }

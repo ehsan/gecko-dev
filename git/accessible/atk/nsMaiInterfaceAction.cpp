@@ -21,7 +21,11 @@ static gboolean
 doActionCB(AtkAction *aAction, gint aActionIndex)
 {
   AccessibleWrap* accWrap = GetAccessibleWrap(ATK_OBJECT(aAction));
-  return accWrap && accWrap->DoAction(aActionIndex);
+  if (!accWrap)
+    return FALSE;
+ 
+  nsresult rv = accWrap->DoAction(aActionIndex);
+  return (NS_FAILED(rv)) ? FALSE : TRUE;
 }
 
 static gint
@@ -47,13 +51,14 @@ getActionDescriptionCB(AtkAction *aAction, gint aActionIndex)
 static const gchar*
 getActionNameCB(AtkAction *aAction, gint aActionIndex)
 {
-  AccessibleWrap* accWrap = GetAccessibleWrap(ATK_OBJECT(aAction));
-  if (!accWrap)
-    return nullptr;
+    AccessibleWrap* accWrap = GetAccessibleWrap(ATK_OBJECT(aAction));
+    if (!accWrap)
+        return nullptr;
 
-  nsAutoString autoStr;
-  accWrap->ActionNameAt(aActionIndex, autoStr);
-  return AccessibleWrap::ReturnString(autoStr);
+    nsAutoString autoStr;
+    nsresult rv = accWrap->GetActionName(aActionIndex, autoStr);
+    NS_ENSURE_SUCCESS(rv, nullptr);
+    return AccessibleWrap::ReturnString(autoStr);
 }
 
 static const gchar*

@@ -81,18 +81,21 @@ HTMLLIAccessible::NativeState()
   return HyperTextAccessibleWrap::NativeState() | states::READONLY;
 }
 
-nsIntRect
-HTMLLIAccessible::Bounds() const
+NS_IMETHODIMP
+HTMLLIAccessible::GetBounds(int32_t* aX, int32_t* aY,
+                            int32_t* aWidth, int32_t* aHeight)
 {
-  nsIntRect rect = AccessibleWrap::Bounds();
-  if (rect.IsEmpty() || !mBullet || mBullet->IsInside())
-    return rect;
+  nsresult rv = AccessibleWrap::GetBounds(aX, aY, aWidth, aHeight);
+  if (NS_FAILED(rv) || !mBullet || mBullet->IsInside())
+    return rv;
 
-  nsIntRect bulletRect = mBullet->Bounds();
+  int32_t bulletX = 0, bulletY = 0, bulletWidth = 0, bulletHeight = 0;
+  rv = mBullet->GetBounds(&bulletX, &bulletY, &bulletWidth, &bulletHeight);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  rect.width += rect.x - bulletRect.x;
-  rect.x = bulletRect.x; // Move x coordinate of list item over to cover bullet as well
-  return rect;
+  *aWidth += *aX - bulletX;
+  *aX = bulletX; // Move x coordinate of list item over to cover bullet as well
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

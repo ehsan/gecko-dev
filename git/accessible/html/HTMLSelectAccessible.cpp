@@ -231,15 +231,16 @@ HTMLSelectOptionAccessible::NativeState()
     // <select> is not collapsed: compare bounds to calculate OFFSCREEN
     Accessible* listAcc = Parent();
     if (listAcc) {
-      nsIntRect optionRect = Bounds();
-      nsIntRect listRect = listAcc->Bounds();
-      if (optionRect.y < listRect.y ||
-          optionRect.y + optionRect.height > listRect.y + listRect.height) {
+      int32_t optionX, optionY, optionWidth, optionHeight;
+      int32_t listX, listY, listWidth, listHeight;
+      GetBounds(&optionX, &optionY, &optionWidth, &optionHeight);
+      listAcc->GetBounds(&listX, &listY, &listWidth, &listHeight);
+      if (optionY < listY || optionY + optionHeight > listY + listHeight) {
         state |= states::OFFSCREEN;
       }
     }
   }
-
+ 
   return state;
 }
 
@@ -264,21 +265,25 @@ HTMLSelectOptionAccessible::GetLevelInternal()
   return level;
 }
 
-nsRect
-HTMLSelectOptionAccessible::RelativeBounds(nsIFrame** aBoundingFrame) const
+void
+HTMLSelectOptionAccessible::GetBoundsRect(nsRect& aTotalBounds,
+                                          nsIFrame** aBoundingFrame)
 {
   Accessible* combobox = GetCombobox();
   if (combobox && (combobox->State() & states::COLLAPSED))
-    return combobox->RelativeBounds(aBoundingFrame);
-
-  return HyperTextAccessibleWrap::RelativeBounds(aBoundingFrame);
+    combobox->GetBoundsRect(aTotalBounds, aBoundingFrame);
+  else
+    HyperTextAccessibleWrap::GetBoundsRect(aTotalBounds, aBoundingFrame);
 }
 
-void
-HTMLSelectOptionAccessible::ActionNameAt(uint8_t aIndex, nsAString& aName)
+NS_IMETHODIMP
+HTMLSelectOptionAccessible::GetActionName(uint8_t aIndex, nsAString& aName)
 {
-  if (aIndex == eAction_Select)
-    aName.AssignLiteral("select");
+  if (aIndex == eAction_Select) {
+    aName.AssignLiteral("select"); 
+    return NS_OK;
+  }
+  return NS_ERROR_INVALID_ARG;
 }
 
 uint8_t
@@ -287,22 +292,27 @@ HTMLSelectOptionAccessible::ActionCount()
   return 1;
 }
 
-bool
+NS_IMETHODIMP
 HTMLSelectOptionAccessible::DoAction(uint8_t aIndex)
 {
   if (aIndex != eAction_Select)
-    return false;
+    return NS_ERROR_INVALID_ARG;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
 
   DoCommand();
-  return true;
+  return NS_OK;
 }
 
-void
+NS_IMETHODIMP
 HTMLSelectOptionAccessible::SetSelected(bool aSelect)
 {
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   HTMLOptionElement* option = HTMLOptionElement::FromContent(mContent);
-  if (option)
-    option->SetSelected(aSelect);
+  return option ? option->SetSelected(aSelect) : NS_ERROR_FAILURE;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -334,22 +344,22 @@ HTMLSelectOptGroupAccessible::NativeInteractiveState() const
   return NativelyUnavailable() ? states::UNAVAILABLE : 0;
 }
 
+NS_IMETHODIMP
+HTMLSelectOptGroupAccessible::DoAction(uint8_t index)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
+HTMLSelectOptGroupAccessible::GetActionName(uint8_t aIndex, nsAString& aName)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
 uint8_t
 HTMLSelectOptGroupAccessible::ActionCount()
 {
   return 0;
-}
-
-void
-HTMLSelectOptGroupAccessible::ActionNameAt(uint8_t aIndex, nsAString& aName)
-{
-  aName.Truncate();
-}
-
-bool
-HTMLSelectOptGroupAccessible::DoAction(uint8_t aIndex)
-{
-  return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -467,30 +477,41 @@ HTMLComboboxAccessible::ActionCount()
   return 1;
 }
 
-bool
+NS_IMETHODIMP
 HTMLComboboxAccessible::DoAction(uint8_t aIndex)
 {
   if (aIndex != eAction_Click)
-    return false;
+    return NS_ERROR_INVALID_ARG;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
 
   DoCommand();
-  return true;
+  return NS_OK;
 }
 
-void
-HTMLComboboxAccessible::ActionNameAt(uint8_t aIndex, nsAString& aName)
+/**
+  * Our action name is the reverse of our state: 
+  *     if we are closed -> open is our name.
+  *     if we are open -> closed is our name.
+  * Uses the frame to get the state, updated on every click
+  */
+NS_IMETHODIMP
+HTMLComboboxAccessible::GetActionName(uint8_t aIndex, nsAString& aName)
 {
-  if (aIndex != HTMLComboboxAccessible::eAction_Click)
-    return;
-
+  if (aIndex != HTMLComboboxAccessible::eAction_Click) {
+    return NS_ERROR_INVALID_ARG;
+  }
   nsIComboboxControlFrame* comboFrame = do_QueryFrame(GetFrame());
-  if (!comboFrame)
-    return;
-
+  if (!comboFrame) {
+    return NS_ERROR_FAILURE;
+  }
   if (comboFrame->IsDroppedDown())
-    aName.AssignLiteral("close");
+    aName.AssignLiteral("close"); 
   else
-    aName.AssignLiteral("open");
+    aName.AssignLiteral("open"); 
+
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -604,32 +625,37 @@ HTMLComboboxListAccessible::NativeState()
   return state;
 }
 
-nsRect
-HTMLComboboxListAccessible::RelativeBounds(nsIFrame** aBoundingFrame) const
+/**
+  * Gets the bounds for the areaFrame.
+  *     Walks the Frame tree and checks for proper frames.
+  */
+void
+HTMLComboboxListAccessible::GetBoundsRect(nsRect& aBounds, nsIFrame** aBoundingFrame)
 {
   *aBoundingFrame = nullptr;
 
   Accessible* comboAcc = Parent();
   if (!comboAcc)
-    return nsRect();
+    return;
 
   if (0 == (comboAcc->State() & states::COLLAPSED)) {
-    return HTMLSelectListAccessible::RelativeBounds(aBoundingFrame);
+    HTMLSelectListAccessible::GetBoundsRect(aBounds, aBoundingFrame);
+    return;
   }
 
   // Get the first option.
   nsIContent* content = mContent->GetFirstChild();
-  if (!content)
-    return nsRect();
-
+  if (!content) {
+    return;
+  }
   nsIFrame* frame = content->GetPrimaryFrame();
   if (!frame) {
     *aBoundingFrame = nullptr;
-    return nsRect();
+    return;
   }
 
   *aBoundingFrame = frame->GetParent();
-  return (*aBoundingFrame)->GetRect();
+  aBounds = (*aBoundingFrame)->GetRect();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

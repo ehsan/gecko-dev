@@ -801,7 +801,7 @@ class AsmJSModule
     uint8_t *                             code_;
     uint8_t *                             interruptExit_;
     StaticLinkData                        staticLinkData_;
-    HeapPtrArrayBufferObjectMaybeShared   maybeHeap_;
+    HeapPtrArrayBufferObject              maybeHeap_;
     bool                                  dynamicallyLinked_;
     bool                                  loadedFromCache_;
     bool                                  profilingEnabled_;
@@ -1387,10 +1387,9 @@ class AsmJSModule
         dynamicallyLinked_ = true;
         JS_ASSERT(isDynamicallyLinked());
     }
-    void initHeap(Handle<ArrayBufferObjectMaybeShared*> heap, JSContext *cx);
+    void initHeap(Handle<ArrayBufferObject*> heap, JSContext *cx);
     bool clone(JSContext *cx, ScopedJSDeletePtr<AsmJSModule> *moduleOut) const;
-    void restoreToInitialState(uint8_t *prevCode,
-                               ArrayBufferObjectMaybeShared *maybePrevBuffer,
+    void restoreToInitialState(uint8_t *prevCode, ArrayBufferObject *maybePrevBuffer,
                                ExclusiveContext *cx);
 
     /*************************************************************************/
@@ -1408,7 +1407,7 @@ class AsmJSModule
         JS_ASSERT(isDynamicallyLinked());
         return heapDatum();
     }
-    ArrayBufferObjectMaybeShared *maybeHeapBufferObject() const {
+    ArrayBufferObject *maybeHeapBufferObject() const {
         JS_ASSERT(isDynamicallyLinked());
         return maybeHeap_;
     }

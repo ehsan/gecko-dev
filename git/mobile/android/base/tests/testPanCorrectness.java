@@ -11,7 +11,7 @@ import org.mozilla.gecko.PaintedSurface;
  */
 public class testPanCorrectness extends PixelTest {
     public void testPanCorrectness() {
-        String url = getAbsoluteUrl(StringHelper.ROBOCOP_BOXES_URL);
+        String url = getAbsoluteUrl("/robocop/robocop_boxes.html");
 
         MotionEventHelper meh = new MotionEventHelper(getInstrumentation(), mDriver.getGeckoLeft(), mDriver.getGeckoTop());
 

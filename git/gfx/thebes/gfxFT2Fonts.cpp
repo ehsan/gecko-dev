@@ -23,7 +23,6 @@
 #include "gfxFT2FontBase.h"
 #include "gfxFT2Utils.h"
 #include "gfxFT2FontList.h"
-#include "gfxTextRun.h"
 #include <locale.h>
 #include "nsGkAtoms.h"
 #include "nsTArray.h"

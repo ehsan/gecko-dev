@@ -778,7 +778,9 @@ AccessibleWrap::get_accDefaultAction(
     return CO_E_OBJNOTCONNECTED;
 
   nsAutoString defaultAction;
-  xpAccessible->ActionNameAt(0, defaultAction);
+  if (NS_FAILED(xpAccessible->GetActionName(0, defaultAction)))
+    return E_FAIL;
+
   *pszDefaultAction = ::SysAllocStringLen(defaultAction.get(),
                                           defaultAction.Length());
   return *pszDefaultAction ? S_OK : E_OUTOFMEMORY;
@@ -857,11 +859,14 @@ AccessibleWrap::accLocation(
   if (xpAccessible->IsDefunct())
     return CO_E_OBJNOTCONNECTED;
 
-  nsIntRect rect = xpAccessible->Bounds();
-  *pxLeft = rect.x;
-  *pyTop = rect.y;
-  *pcxWidth = rect.width;
-  *pcyHeight = rect.height;
+  int32_t x, y, width, height;
+  if (NS_FAILED(xpAccessible->GetBounds(&x, &y, &width, &height)))
+    return E_FAIL;
+
+  *pxLeft = x;
+  *pyTop = y;
+  *pcxWidth = width;
+  *pcyHeight = height;
   return S_OK;
 
   A11Y_TRYBLOCK_END
@@ -999,7 +1004,7 @@ AccessibleWrap::accDoDefaultAction(
   if (xpAccessible->IsDefunct())
     return CO_E_OBJNOTCONNECTED;
 
-  return xpAccessible->DoAction(0) ? S_OK : E_INVALIDARG;
+  return GetHRESULT(xpAccessible->DoAction(0));
 
   A11Y_TRYBLOCK_END
 }

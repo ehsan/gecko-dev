@@ -53,8 +53,6 @@ public:
   virtual void Join() = 0; // Deletes object after join completes.
 };
 
-// A re-entrant monitor; can be locked from the same thread multiple times.
-// Must be unlocked the same number of times it's locked.
 class GMPMutex {
 public:
   virtual ~GMPMutex() {}

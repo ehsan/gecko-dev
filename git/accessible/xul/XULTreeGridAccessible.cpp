@@ -146,11 +146,13 @@ XULTreeGridAccessible::ColDescription(uint32_t aColIdx, nsString& aDescription)
 {
   aDescription.Truncate();
 
-  Accessible* treeColumns = Accessible::GetChildAt(0);
+  nsCOMPtr<nsIAccessible> treeColumns;
+  Accessible::GetFirstChild(getter_AddRefs(treeColumns));
   if (treeColumns) {
-    Accessible* treeColumnItem = treeColumns->GetChildAt(aColIdx);
+    nsCOMPtr<nsIAccessible> treeColumnItem;
+    treeColumns->GetChildAt(aColIdx, getter_AddRefs(treeColumnItem));
     if (treeColumnItem)
-      treeColumnItem->Name(aDescription);
+      treeColumnItem->GetName(aDescription);
   }
 }
 
@@ -511,21 +513,32 @@ XULTreeGridCellAccessible::Name(nsString& aName)
   return eNameOK;
 }
 
-nsIntRect
-XULTreeGridCellAccessible::Bounds() const
+NS_IMETHODIMP
+XULTreeGridCellAccessible::GetBounds(int32_t* aX, int32_t* aY,
+                                     int32_t* aWidth, int32_t* aHeight)
 {
+  NS_ENSURE_ARG_POINTER(aX);
+  *aX = 0;
+  NS_ENSURE_ARG_POINTER(aY);
+  *aY = 0;
+  NS_ENSURE_ARG_POINTER(aWidth);
+  *aWidth = 0;
+  NS_ENSURE_ARG_POINTER(aHeight);
+  *aHeight = 0;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   // Get bounds for tree cell and add x and y of treechildren element to
   // x and y of the cell.
   nsCOMPtr<nsIBoxObject> boxObj = nsCoreUtils::GetTreeBodyBoxObject(mTree);
-  if (!boxObj)
-    return nsIntRect();
+  NS_ENSURE_STATE(boxObj);
 
   int32_t x = 0, y = 0, width = 0, height = 0;
   nsresult rv = mTree->GetCoordsForCellItem(mRow, mColumn,
                                             NS_LITERAL_CSTRING("cell"),
                                             &x, &y, &width, &height);
-  if (NS_FAILED(rv))
-    return nsIntRect();
+  NS_ENSURE_SUCCESS(rv, rv);
 
   int32_t tcX = 0, tcY = 0;
   boxObj->GetScreenX(&tcX);
@@ -534,10 +547,12 @@ XULTreeGridCellAccessible::Bounds() const
   y += tcY;
 
   nsPresContext* presContext = mDoc->PresContext();
-  return nsIntRect(presContext->CSSPixelsToDevPixels(x),
-                   presContext->CSSPixelsToDevPixels(y),
-                   presContext->CSSPixelsToDevPixels(width),
-                   presContext->CSSPixelsToDevPixels(height));
+  *aX = presContext->CSSPixelsToDevPixels(x);
+  *aY = presContext->CSSPixelsToDevPixels(y);
+  *aWidth = presContext->CSSPixelsToDevPixels(width);
+  *aHeight = presContext->CSSPixelsToDevPixels(height);
+
+  return NS_OK;
 }
 
 uint8_t
@@ -556,22 +571,25 @@ XULTreeGridCellAccessible::ActionCount()
   return 0;
 }
 
-void
-XULTreeGridCellAccessible::ActionNameAt(uint8_t aIndex, nsAString& aName)
+NS_IMETHODIMP
+XULTreeGridCellAccessible::GetActionName(uint8_t aIndex, nsAString& aName)
 {
   aName.Truncate();
 
-  if (aIndex != eAction_Click || !mTreeView)
-    return;
+  if (aIndex != eAction_Click)
+    return NS_ERROR_INVALID_ARG;
+
+  if (IsDefunct() || !mTreeView)
+    return NS_ERROR_FAILURE;
 
   bool isCycler = false;
   mColumn->GetCycler(&isCycler);
   if (isCycler) {
     aName.AssignLiteral("cycle");
-    return;
+    return NS_OK;
   }
 
-  int16_t type = 0;
+  int16_t type;
   mColumn->GetType(&type);
   if (type == nsITreeColumn::TYPE_CHECKBOX && IsEditable()) {
     nsAutoString value;
@@ -580,30 +598,37 @@ XULTreeGridCellAccessible::ActionNameAt(uint8_t aIndex, nsAString& aName)
       aName.AssignLiteral("uncheck");
     else
       aName.AssignLiteral("check");
+
+    return NS_OK;
   }
+
+  return NS_ERROR_INVALID_ARG;
 }
 
-bool
+NS_IMETHODIMP
 XULTreeGridCellAccessible::DoAction(uint8_t aIndex)
 {
   if (aIndex != eAction_Click)
-    return false;
+    return NS_ERROR_INVALID_ARG;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
 
   bool isCycler = false;
   mColumn->GetCycler(&isCycler);
   if (isCycler) {
     DoCommand();
-    return true;
+    return NS_OK;
   }
 
   int16_t type;
   mColumn->GetType(&type);
   if (type == nsITreeColumn::TYPE_CHECKBOX && IsEditable()) {
     DoCommand();
-    return true;
+    return NS_OK;
   }
 
-  return false;
+  return NS_ERROR_INVALID_ARG;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

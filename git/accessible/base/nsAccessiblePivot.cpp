@@ -584,11 +584,12 @@ nsAccessiblePivot::MoveToPoint(nsIAccessibleTraversalRule* aRule,
 
     // Match if no node below this is a match
     if ((filtered & nsIAccessibleTraversalRule::FILTER_MATCH) && !match) {
-      nsIntRect childRect = child->Bounds();
+      int32_t childX, childY, childWidth, childHeight;
+      child->GetBounds(&childX, &childY, &childWidth, &childHeight);
       // Double-check child's bounds since the deepest child may have been out
       // of bounds. This assures we don't return a false positive.
-      if (aX >= childRect.x && aX < childRect.x + childRect.width &&
-          aY >= childRect.y && aY < childRect.y + childRect.height)
+      if (aX >= childX && aX < childX + childWidth &&
+          aY >= childY && aY < childY + childHeight)
         match = child;
     }
 

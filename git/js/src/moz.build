@@ -268,7 +268,6 @@ UNIFIED_SOURCES += [
     'vm/SelfHosting.cpp',
     'vm/Shape.cpp',
     'vm/SharedArrayObject.cpp',
-    'vm/SharedTypedArrayObject.cpp',
     'vm/SPSProfiler.cpp',
     'vm/Stack.cpp',
     'vm/String.cpp',

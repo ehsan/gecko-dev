@@ -25,7 +25,6 @@
 #include "gfx2DGlue.h"
 #include "mozilla/LookAndFeel.h"
 #include "nsDocShell.h"
-#include "nsImageFrame.h"
 
 #include "GeckoProfiler.h"
 #include "mozilla/gfx/Tools.h"
@@ -2348,11 +2347,22 @@ ThebesLayerData::Accumulate(ContainerState* aState,
     aItem->DisableComponentAlpha();
   }
 
+  /* Mark as available for conversion to image layer if this is a nsDisplayImage and
+   * we are the first visible item in the ThebesLayerData object.
+   */
+  if (mVisibleRegion.IsEmpty() &&
+      aItem->SupportsOptimizingToImage()) {
+    mImage = static_cast<nsDisplayImageContainer*>(aItem);
+    FLB_LOG_THEBES_DECISION(this, "  Tracking image\n");
+  } else if (mImage) {
+    FLB_LOG_THEBES_DECISION(this, "  No longer tracking image\n");
+    mImage = nullptr;
+  }
   bool clipMatches = mItemClip == aClip;
   mItemClip = aClip;
 
   if (!mIsSolidColorInVisibleRegion && mOpaqueRegion.Contains(aDrawRect) &&
-      mVisibleRegion.Contains(aVisibleRect) && !mImage) {
+      mVisibleRegion.Contains(aVisibleRect)) {
     // A very common case! Most pages have a ThebesLayer with the page
     // background (opaque) visible and most or all of the page content over the
     // top of that background.
@@ -2363,19 +2373,6 @@ ThebesLayerData::Accumulate(ContainerState* aState,
     // and therefore aDrawRect.
     NS_ASSERTION(mDrawRegion.Contains(aDrawRect), "Draw region not covered");
     return;
-  }
-
-  /* Mark as available for conversion to image layer if this is a nsDisplayImage and
-   * it's the only thing visible in this layer.
-   */
-  if (nsIntRegion(aVisibleRect).Contains(mVisibleRegion) &&
-      aClippedOpaqueRegion.Contains(mVisibleRegion) &&
-      aItem->SupportsOptimizingToImage()) {
-    mImage = static_cast<nsDisplayImageContainer*>(aItem);
-    FLB_LOG_THEBES_DECISION(this, "  Tracking image: nsDisplayImageContainer covers the layer\n");
-  } else if (mImage) {
-    FLB_LOG_THEBES_DECISION(this, "  No longer tracking image\n");
-    mImage = nullptr;
   }
 
   nscolor uniformColor;

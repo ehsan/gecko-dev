@@ -313,14 +313,20 @@ DocAccessible::FocusedChild()
   return FocusMgr()->FocusedAccessible();
 }
 
-void
+NS_IMETHODIMP
 DocAccessible::TakeFocus()
 {
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   // Focus the document.
   nsFocusManager* fm = nsFocusManager::GetFocusManager();
+  NS_ENSURE_STATE(fm);
+
   nsCOMPtr<nsIDOMElement> newFocus;
-  fm->MoveFocus(mDocumentNode->GetWindow(), nullptr,
-                nsFocusManager::MOVEFOCUS_ROOT, 0, getter_AddRefs(newFocus));
+  return fm->MoveFocus(mDocumentNode->GetWindow(), nullptr,
+                       nsIFocusManager::MOVEFOCUS_ROOT, 0,
+                       getter_AddRefs(newFocus));
 }
 
 
@@ -639,19 +645,19 @@ DocAccessible::GetFrame() const
 }
 
 // DocAccessible protected member
-nsRect
-DocAccessible::RelativeBounds(nsIFrame** aRelativeFrame) const
+void
+DocAccessible::GetBoundsRect(nsRect& aBounds, nsIFrame** aRelativeFrame)
 {
   *aRelativeFrame = GetFrame();
 
   nsIDocument *document = mDocumentNode;
   nsIDocument *parentDoc = nullptr;
 
-  nsRect bounds;
   while (document) {
     nsIPresShell *presShell = document->GetShell();
-    if (!presShell)
-      return nsRect();
+    if (!presShell) {
+      return;
+    }
 
     nsRect scrollPort;
     nsIScrollableFrame* sf = presShell->GetRootScrollFrameAsScrollableExternal();
@@ -659,9 +665,9 @@ DocAccessible::RelativeBounds(nsIFrame** aRelativeFrame) const
       scrollPort = sf->GetScrollPortRect();
     } else {
       nsIFrame* rootFrame = presShell->GetRootFrame();
-      if (!rootFrame)
-        return nsRect();
-
+      if (!rootFrame) {
+        return;
+      }
       scrollPort = rootFrame->GetRect();
     }
 
@@ -670,16 +676,14 @@ DocAccessible::RelativeBounds(nsIFrame** aRelativeFrame) const
       // this document, but we're intersecting rectangles derived from
       // multiple documents and assuming they're all in the same coordinate
       // system. See bug 514117.
-      bounds.IntersectRect(scrollPort, bounds);
+      aBounds.IntersectRect(scrollPort, aBounds);
     }
     else {  // First time through loop
-      bounds = scrollPort;
+      aBounds = scrollPort;
     }
 
     document = parentDoc = document->GetParentDocument();
   }
-
-  return bounds;
 }
 
 // DocAccessible protected member

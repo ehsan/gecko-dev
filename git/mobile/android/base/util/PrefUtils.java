@@ -54,27 +54,19 @@ public class PrefUtils {
         return new HashSet<String>();
     }
 
-    /**
-     * Cross version compatible way to save a set of strings.
-     * <p>
-     * This method <b>does not commit</b> any transaction. It is up to callers
-     * to commit.
-     *
-     * @param editor to write to.
-     * @param key to write.
-     * @param vals comprising string set.
-     * @return
-     */
-    public static SharedPreferences.Editor putStringSet(final SharedPreferences.Editor editor,
+    // Cross version compatible way to save a string set to a pref.
+    // NOTE: The editor that is passed in will not commit the transaction for you. It is up to callers to commit
+    //       when they are done with any other changes to the database.
+    public static SharedPreferences.Editor putStringSet(final SharedPreferences.Editor edit,
                                     final String key,
                                     final Set<String> vals) {
         if (Versions.preHC) {
             final JSONArray json = new JSONArray(vals);
-            editor.putString(key, json.toString());
+            edit.putString(key, json.toString()).apply();
         } else {
-            editor.putStringSet(key, vals);
+            edit.putStringSet(key, vals).apply();
         }
 
-        return editor;
+        return edit;
     }
 }

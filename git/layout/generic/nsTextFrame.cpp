@@ -65,6 +65,7 @@
 
 #include "nsPrintfCString.h"
 
+#include "gfxFont.h"
 #include "gfxContext.h"
 
 #include "mozilla/dom/Element.h"

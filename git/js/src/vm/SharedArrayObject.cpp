@@ -11,11 +11,10 @@
 
 #ifdef XP_WIN
 # include "jswin.h"
-#endif
-#include "jswrapper.h"
-#ifndef XP_WIN
+#else
 # include <sys/mman.h>
 #endif
+
 #ifdef MOZ_VALGRIND
 # include <valgrind/memcheck.h>
 #endif
@@ -23,9 +22,15 @@
 #include "mozilla/Atomics.h"
 
 #include "asmjs/AsmJSValidate.h"
-#include "vm/TypedArrayCommon.h"
 
 using namespace js;
+
+using mozilla::IsNaN;
+using mozilla::PodCopy;
+
+/*
+ * SharedArrayRawBuffer
+ */
 
 static inline void *
 MapMemory(size_t length, bool commit)
@@ -79,11 +84,7 @@ static_assert(sizeof(SharedArrayRawBuffer) < AsmJSPageSize, "Page size not big e
 SharedArrayRawBuffer *
 SharedArrayRawBuffer::New(uint32_t length)
 {
-    // The value (uint32_t)-1 is used as a signal in various places,
-    // so guard against it on principle.
-    JS_ASSERT(length != (uint32_t)-1);
-
-    // Enforced by SharedArrayBufferObject::New(cx, length).
+    // Enforced by SharedArrayBufferObject constructor.
     JS_ASSERT(IsValidAsmJSHeapLength(length));
 
 #ifdef JS_CODEGEN_X64
@@ -147,15 +148,14 @@ SharedArrayRawBuffer::dropReference()
     }
 }
 
-const JSFunctionSpec SharedArrayBufferObject::jsfuncs[] = {
-    /* Nothing yet */
-    JS_FS_END
-};
-
-const JSFunctionSpec SharedArrayBufferObject::jsstaticfuncs[] = {
-    JS_FN("isView", SharedArrayBufferObject::fun_isView, 1, 0),
-    JS_FS_END
-};
+/*
+ * SharedArrayBufferObject
+ */
+bool
+js::IsSharedArrayBuffer(HandleValue v)
+{
+    return v.isObject() && v.toObject().is<SharedArrayBufferObject>();
+}
 
 MOZ_ALWAYS_INLINE bool
 SharedArrayBufferObject::byteLengthGetterImpl(JSContext *cx, CallArgs args)
@@ -173,44 +173,26 @@ SharedArrayBufferObject::byteLengthGetter(JSContext *cx, unsigned argc, Value *v
 }
 
 bool
-SharedArrayBufferObject::fun_isView(JSContext *cx, unsigned argc, Value *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    args.rval().setBoolean(args.get(0).isObject() &&
-                           JS_IsSharedTypedArrayObject(&args.get(0).toObject()));
-    return true;
-}
-
-bool
 SharedArrayBufferObject::class_constructor(JSContext *cx, unsigned argc, Value *vp)
 {
+    int32_t length = 0;
     CallArgs args = CallArgsFromVp(argc, vp);
+    if (args.length() > 0 && !ToInt32(cx, args[0], &length))
+        return false;
 
-    if (!args.isConstructing()) {
-        if (args.hasDefined(0) && IsObjectWithClass(args[0], ESClass_SharedArrayBuffer, cx)) {
-            args.rval().set(args[0]);
-            return true;
-        }
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_SHARED_ARRAY_BAD_OBJECT);
+    if (length < 0) {
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_BAD_ARRAY_LENGTH);
         return false;
     }
 
-    uint32_t length;
-    bool overflow;
-    if (!ToLengthClamped(cx, args[0], &length, &overflow)) {
-        if (overflow)
-            JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_SHARED_ARRAY_BAD_LENGTH);
-        return false;
-    }
-
-    JSObject *bufobj = New(cx, length);
+    JSObject *bufobj = New(cx, uint32_t(length));
     if (!bufobj)
         return false;
     args.rval().setObject(*bufobj);
     return true;
 }
 
-SharedArrayBufferObject *
+JSObject *
 SharedArrayBufferObject::New(JSContext *cx, uint32_t length)
 {
     if (!IsValidAsmJSHeapLength(length)) {
@@ -228,7 +210,7 @@ SharedArrayBufferObject::New(JSContext *cx, uint32_t length)
     return New(cx, buffer);
 }
 
-SharedArrayBufferObject *
+JSObject *
 SharedArrayBufferObject::New(JSContext *cx, SharedArrayRawBuffer *buffer)
 {
     Rooted<SharedArrayBufferObject*> obj(cx, NewBuiltinClassInstance<SharedArrayBufferObject>(cx));
@@ -237,7 +219,10 @@ SharedArrayBufferObject::New(JSContext *cx, SharedArrayRawBuffer *buffer)
 
     JS_ASSERT(obj->getClass() == &class_);
 
+    obj->initialize(buffer->byteLength(), BufferContents::createUnowned(nullptr), DoesntOwnData);
+
     obj->acceptRawBuffer(buffer);
+    obj->setIsSharedArrayBuffer();
 
     return obj;
 }
@@ -245,21 +230,34 @@ SharedArrayBufferObject::New(JSContext *cx, SharedArrayRawBuffer *buffer)
 void
 SharedArrayBufferObject::acceptRawBuffer(SharedArrayRawBuffer *buffer)
 {
-    setReservedSlot(RAWBUF_SLOT, PrivateValue(buffer));
+    setReservedSlot(SharedArrayBufferObject::RAWBUF_SLOT, PrivateValue(buffer));
 }
 
 void
 SharedArrayBufferObject::dropRawBuffer()
 {
-    setReservedSlot(RAWBUF_SLOT, UndefinedValue());
+    setReservedSlot(SharedArrayBufferObject::RAWBUF_SLOT, UndefinedValue());
 }
 
 SharedArrayRawBuffer *
 SharedArrayBufferObject::rawBufferObject() const
 {
-    Value v = getReservedSlot(RAWBUF_SLOT);
-    JS_ASSERT(!v.isUndefined());
-    return reinterpret_cast<SharedArrayRawBuffer *>(v.toPrivate());
+    // RAWBUF_SLOT must be populated via acceptRawBuffer(),
+    // and the raw buffer must not have been dropped.
+    Value v = getReservedSlot(SharedArrayBufferObject::RAWBUF_SLOT);
+    return (SharedArrayRawBuffer *)v.toPrivate();
+}
+
+uint8_t *
+SharedArrayBufferObject::dataPointer() const
+{
+    return rawBufferObject()->dataPointer();
+}
+
+uint32_t
+SharedArrayBufferObject::byteLength() const
+{
+    return rawBufferObject()->byteLength();
 }
 
 void
@@ -269,19 +267,16 @@ SharedArrayBufferObject::Finalize(FreeOp *fop, JSObject *obj)
 
     // Detect the case of failure during SharedArrayBufferObject creation,
     // which causes a SharedArrayRawBuffer to never be attached.
-    Value v = buf.getReservedSlot(RAWBUF_SLOT);
+    Value v = buf.getReservedSlot(SharedArrayBufferObject::RAWBUF_SLOT);
     if (!v.isUndefined()) {
         buf.rawBufferObject()->dropReference();
         buf.dropRawBuffer();
     }
 }
 
-/* static */ void
-SharedArrayBufferObject::addSizeOfExcludingThis(JSObject *obj, mozilla::MallocSizeOf mallocSizeOf,
-                                                JS::ClassInfo *info)
-{
-    info->objectsNonHeapElementsMapped += obj->as<SharedArrayBufferObject>().byteLength();
-}
+/*
+ * SharedArrayBufferObject
+ */
 
 const Class SharedArrayBufferObject::protoClass = {
     "SharedArrayBufferPrototype",
@@ -311,7 +306,7 @@ const Class SharedArrayBufferObject::class_ = {
     nullptr,        /* call        */
     nullptr,        /* hasInstance */
     nullptr,        /* construct   */
-    nullptr,        /* trace */
+    ArrayBufferObject::obj_trace,
     JS_NULL_CLASS_SPEC,
     JS_NULL_CLASS_EXT
 };
@@ -330,9 +325,6 @@ js_InitSharedArrayBufferClass(JSContext *cx, HandleObject obj)
     if (!ctor)
         return nullptr;
 
-    if (!GlobalObject::initBuiltinConstructor(cx, global, JSProto_SharedArrayBuffer, ctor, proto))
-        return nullptr;
-
     if (!LinkConstructorAndPrototype(cx, ctor, proto))
         return nullptr;
 
@@ -343,41 +335,14 @@ js_InitSharedArrayBufferClass(JSContext *cx, HandleObject obj)
     if (!getter)
         return nullptr;
 
-    if (!DefineNativeProperty(cx, proto, byteLengthId, UndefinedHandleValue,
+    RootedValue value(cx, UndefinedValue());
+    if (!DefineNativeProperty(cx, proto, byteLengthId, value,
                               JS_DATA_TO_FUNC_PTR(PropertyOp, getter), nullptr, attrs))
+    {
         return nullptr;
+    }
 
-    if (!JS_DefineFunctions(cx, ctor, SharedArrayBufferObject::jsstaticfuncs))
+    if (!GlobalObject::initBuiltinConstructor(cx, global, JSProto_SharedArrayBuffer, ctor, proto))
         return nullptr;
-
-    if (!JS_DefineFunctions(cx, proto, SharedArrayBufferObject::jsfuncs))
-        return nullptr;
-
     return proto;
-}
-
-bool
-js::IsSharedArrayBuffer(HandleValue v)
-{
-    return v.isObject() && v.toObject().is<SharedArrayBufferObject>();
-}
-
-bool
-js::IsSharedArrayBuffer(HandleObject o)
-{
-    return o->is<SharedArrayBufferObject>();
-}
-
-SharedArrayBufferObject &
-js::AsSharedArrayBuffer(HandleObject obj)
-{
-    JS_ASSERT(IsSharedArrayBuffer(obj));
-    return obj->as<SharedArrayBufferObject>();
-}
-
-JS_FRIEND_API(bool)
-JS_IsSharedArrayBufferObject(JSObject *obj)
-{
-    obj = CheckedUnwrap(obj);
-    return obj ? obj->is<ArrayBufferObject>() : false;
 }

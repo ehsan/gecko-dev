@@ -58,19 +58,17 @@ function promiseGetMozLoopAPI() {
  *
  * This assumes that the tests are running in a generatorTest.
  */
-function loadLoopPanel(aOverrideOptions = {}) {
+function loadLoopPanel() {
   // Set prefs to ensure we don't access the network externally.
-  Services.prefs.setCharPref("services.push.serverURL", aOverrideOptions.pushURL || "ws://localhost/");
-  Services.prefs.setCharPref("loop.server", aOverrideOptions.loopURL || "http://localhost/");
+  Services.prefs.setCharPref("services.push.serverURL", "ws://localhost/");
+  Services.prefs.setCharPref("loop.server", "http://localhost/");
 
   // Turn off the network for loop tests, so that we don't
   // try to access the remote servers. If we want to turn this
   // back on in future, be careful to check for intermittent
   // failures.
   let wasOffline = Services.io.offline;
-  if (!aOverrideOptions.stayOnline) {
-    Services.io.offline = true;
-  }
+  Services.io.offline = true;
 
   registerCleanupFunction(function() {
     Services.prefs.clearUserPref("services.push.serverURL");
@@ -105,7 +103,6 @@ function resetFxA() {
   global.gFxAOAuthClientPromise = null;
   global.gFxAOAuthClient = null;
   global.gFxAOAuthTokenData = null;
-  global.gFxAOAuthProfile = null;
   const fxASessionPref = MozLoopServiceInternal.getSessionTokenPrefName(LOOP_SESSION_TYPE.FXA);
   Services.prefs.clearUserPref(fxASessionPref);
 }
@@ -119,15 +116,6 @@ function promiseDeletedOAuthParams(baseURL) {
   xhr.addEventListener("error", deferred.reject);
   xhr.send();
 
-  return deferred.promise;
-}
-
-function promiseObserverNotified(aTopic) {
-  let deferred = Promise.defer();
-  Services.obs.addObserver(function onNotification(aSubject, aTopic, aData) {
-    Services.obs.removeObserver(onNotification, aTopic);
-      deferred.resolve({subject: aSubject, data: aData});
-    }, aTopic, false);
   return deferred.promise;
 }
 
