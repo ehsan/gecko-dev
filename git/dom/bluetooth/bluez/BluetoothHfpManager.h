@@ -157,8 +157,6 @@ private:
   void ResetCallArray();
   uint32_t FindFirstCall(uint16_t aState);
   uint32_t GetNumberOfCalls(uint16_t aState);
-  uint32_t GetNumberOfConCalls();
-  uint32_t GetNumberOfConCalls(uint16_t aState);
   PhoneType GetPhoneType(const nsAString& aType);
 #endif
 

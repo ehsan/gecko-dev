@@ -324,10 +324,6 @@ Section "Uninstall"
     ${un.RegCleanFileHandler}  ".shtml" "FirefoxHTML"
     ${un.RegCleanFileHandler}  ".xht"   "FirefoxHTML"
     ${un.RegCleanFileHandler}  ".xhtml" "FirefoxHTML"
-    ${un.RegCleanFileHandler}  ".oga"  "FirefoxHTML"
-    ${un.RegCleanFileHandler}  ".ogg"  "FirefoxHTML"
-    ${un.RegCleanFileHandler}  ".ogv"  "FirefoxHTML"
-    ${un.RegCleanFileHandler}  ".pdf"  "FirefoxHTML"
     ${un.RegCleanFileHandler}  ".webm"  "FirefoxHTML"
   ${EndIf}
 

@@ -7,7 +7,6 @@
 JS_MODULES_PATH = 'modules/devtools/eyedropper'
 
 EXTRA_JS_MODULES += [
-    'commands.js',
     'eyedropper.js'
 ]
 
