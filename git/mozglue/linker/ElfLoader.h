@@ -91,7 +91,6 @@ template <> inline RefCounted<LibHandle, AtomicRefCount>::~RefCounted()
 class LibHandle: public mozilla::AtomicRefCounted<LibHandle>
 {
 public:
-  MOZ_DECLARE_REFCOUNTED_TYPENAME(LibHandle)
   /**
    * Constructor. Takes the path of the loaded library and will store a copy
    * of the leaf name.

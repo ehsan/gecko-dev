@@ -625,15 +625,6 @@ nsIPresShell::InvalidatePresShellIfHidden()
 }
 
 void
-nsIPresShell::CancelInvalidatePresShellIfHidden()
-{
-  if (mHiddenInvalidationObserverRefreshDriver) {
-    mHiddenInvalidationObserverRefreshDriver->RemovePresShellToInvalidateIfHidden(this);
-    mHiddenInvalidationObserverRefreshDriver = nullptr;
-  }
-}
-
-void
 nsIPresShell::SetVerifyReflowEnable(bool aEnabled)
 {
   gVerifyReflowEnabled = aEnabled;

@@ -11,7 +11,6 @@ using mozilla::WeakPtr;
 class C : public SupportsWeakPtr<C>
 {
   public:
-    MOZ_DECLARE_REFCOUNTED_TYPENAME(C)
     int num;
     void act() {}
 };
@@ -44,7 +43,6 @@ Example()
 
 struct A : public SupportsWeakPtr<A>
 {
-    MOZ_DECLARE_REFCOUNTED_TYPENAME(A)
     int data;
 };
 

@@ -183,16 +183,13 @@ def main():
             kwargs['connectToRunningEmulator'] = True
     marionette = Marionette(**kwargs)
 
-    if options.emulator:
-        dm = marionette.emulator.dm
-    else:
-        # Create the DeviceManager instance
-        kwargs = {'adbPath': options.adb_path}
-        if options.deviceIP:
-            kwargs['host'] = options.deviceIP
-            kwargs['port'] = options.devicePort
-        kwargs['deviceRoot'] = options.remoteTestRoot
-        dm = devicemanagerADB.DeviceManagerADB(**kwargs)
+    # Create the DeviceManager instance
+    kwargs = {'adbPath': options.adb_path}
+    if options.deviceIP:
+        kwargs['host'] = options.deviceIP
+        kwargs['port'] = options.devicePort
+    kwargs['deviceRoot'] = options.remoteTestRoot
+    dm = devicemanagerADB.DeviceManagerADB(**kwargs)
 
     if not options.remoteTestRoot:
         options.remoteTestRoot = dm.getDeviceRoot()

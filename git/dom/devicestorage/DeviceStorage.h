@@ -312,7 +312,6 @@ private:
   class VolumeNameCache : public mozilla::RefCounted<VolumeNameCache>
   {
   public:
-    MOZ_DECLARE_REFCOUNTED_TYPENAME(VolumeNameCache)
     nsTArray<nsString>  mVolumeNames;
   };
   static mozilla::StaticRefPtr<VolumeNameCache> sVolumeNameCache;

@@ -216,7 +216,7 @@ SharedRGBImage::GetBuffer()
     return nullptr;
   }
 
-  ImageDataSerializer serializer(mTextureClient->GetBuffer(), mTextureClient->GetBufferSize());
+  ImageDataSerializer serializer(mTextureClient->GetBuffer());
   return serializer.GetData();
 }
 

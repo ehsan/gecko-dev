@@ -313,7 +313,7 @@ nsIMEStateManager::OnClickInEditor(nsPresContext* aPresContext,
     return; // ignore untrusted event.
   }
 
-  int16_t button;
+  uint16_t button;
   rv = aMouseEvent->GetButton(&button);
   NS_ENSURE_SUCCESS_VOID(rv);
   if (button != 0) {

@@ -962,7 +962,7 @@ nsFormFillController::MouseDown(nsIDOMEvent* aEvent)
   if (!targetInput)
     return NS_OK;
 
-  int16_t button;
+  uint16_t button;
   mouseEvent->GetButton(&button);
   if (button != 0)
     return NS_OK;
