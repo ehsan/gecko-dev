@@ -9,7 +9,6 @@ const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
 Cu.import("resource://services-common/utils.js");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource:///modules/loop/LoopCalls.jsm");
 Cu.import("resource:///modules/loop/MozLoopService.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "LoopContacts",
@@ -48,7 +47,7 @@ const cloneErrorObject = function(error, targetWindow) {
     if (typeof value != "string" && typeof value != "number") {
       value = String(value);
     }
-    
+
     Object.defineProperty(Cu.waiveXrays(obj), prop, {
       configurable: false,
       enumerable: true,
@@ -205,7 +204,7 @@ function injectLoopAPI(targetWindow) {
       enumerable: true,
       writable: true,
       value: function(loopCallId) {
-        return Cu.cloneInto(LoopCalls.getCallData(loopCallId), targetWindow);
+        return Cu.cloneInto(MozLoopService.getCallData(loopCallId), targetWindow);
       }
     },
 
@@ -220,7 +219,7 @@ function injectLoopAPI(targetWindow) {
       enumerable: true,
       writable: true,
       value: function(loopCallId) {
-        LoopCalls.releaseCallData(loopCallId);
+        MozLoopService.releaseCallData(loopCallId);
       }
     },
 
@@ -654,7 +653,7 @@ function injectLoopAPI(targetWindow) {
       enumerable: true,
       writable: true,
       value: function(contact, callType) {
-        LoopCalls.startDirectCall(contact, callType);
+        MozLoopService.startDirectCall(contact, callType);
       }
     },
   };

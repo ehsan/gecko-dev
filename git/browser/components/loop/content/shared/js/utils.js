@@ -91,15 +91,8 @@ loop.shared.utils = (function(mozL10n) {
       return this._iOSRegex.test(platform);
     },
 
-    /**
-     * Helper to allow getting some of the location data in a way that's compatible
-     * with stubbing for unit tests.
-     */
-    locationData: function() {
-      return {
-        hash: window.location.hash,
-        pathname: window.location.pathname
-      };
+    locationHash: function() {
+      return window.location.hash;
     }
   };
 

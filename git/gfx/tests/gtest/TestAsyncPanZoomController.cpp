@@ -214,7 +214,7 @@ protected:
 
   void SetMayHaveTouchListeners()
   {
-    apzc->GetFrameMetrics().SetMayHaveTouchListeners(true);
+    apzc->GetFrameMetrics().mMayHaveTouchListeners = true;
   }
 
   void MakeApzcZoomable()
@@ -2176,7 +2176,7 @@ TEST_F(APZOverscrollHandoffTester, DeferredInputEventProcessing) {
 
   // Enable touch-listeners so that we can separate the queueing of input
   // events from them being processed.
-  childApzc->GetFrameMetrics().SetMayHaveTouchListeners(true);
+  childApzc->GetFrameMetrics().mMayHaveTouchListeners = true;
 
   // Queue input events for a pan.
   int time = 0;
@@ -2203,7 +2203,7 @@ TEST_F(APZOverscrollHandoffTester, LayerStructureChangesWhileEventsArePending) {
 
   // Enable touch-listeners so that we can separate the queueing of input
   // events from them being processed.
-  childApzc->GetFrameMetrics().SetMayHaveTouchListeners(true);
+  childApzc->GetFrameMetrics().mMayHaveTouchListeners = true;
 
   // Queue input events for a pan.
   int time = 0;
@@ -2213,7 +2213,7 @@ TEST_F(APZOverscrollHandoffTester, LayerStructureChangesWhileEventsArePending) {
   // between the child and the root.
   CreateOverscrollHandoffLayerTree2();
   nsRefPtr<Layer> middle = layers[1];
-  childApzc->GetFrameMetrics().SetMayHaveTouchListeners(true);
+  childApzc->GetFrameMetrics().mMayHaveTouchListeners = true;
   TestAsyncPanZoomController* middleApzc = ApzcOf(middle);
 
   // Queue input events for another pan.

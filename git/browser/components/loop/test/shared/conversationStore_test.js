@@ -125,11 +125,8 @@ describe("loop.store.ConversationStore", function () {
   describe("#connectionFailure", function() {
     beforeEach(function() {
       store._websocket = fakeWebsocket;
-      sandbox.stub(loop.shared.utils.Helper.prototype, "locationData")
-        .returns({
-          hash: "#outgoing/42",
-          pathname: ""
-        });
+      sandbox.stub(loop.shared.utils.Helper.prototype, "locationHash")
+        .returns("#outgoing/42");
     });
 
     it("should disconnect the session", function() {
@@ -499,11 +496,8 @@ describe("loop.store.ConversationStore", function () {
         close: wsCloseSpy
       };
       store.set({callState: CALL_STATES.ONGOING});
-      sandbox.stub(loop.shared.utils.Helper.prototype, "locationData")
-        .returns({
-          hash: "#outgoing/42",
-          pathname: ""
-        });
+      sandbox.stub(loop.shared.utils.Helper.prototype, "locationHash")
+        .returns("#outgoing/42");
     });
 
     it("should disconnect the session", function() {
@@ -549,11 +543,8 @@ describe("loop.store.ConversationStore", function () {
         close: wsCloseSpy
       };
       store.set({callState: CALL_STATES.ONGOING});
-      sandbox.stub(loop.shared.utils.Helper.prototype, "locationData")
-        .returns({
-          hash: "#outgoing/42",
-          pathname: ""
-        });
+      sandbox.stub(loop.shared.utils.Helper.prototype, "locationHash")
+        .returns("#outgoing/42");
     });
 
     it("should disconnect the session", function() {
@@ -587,11 +578,8 @@ describe("loop.store.ConversationStore", function () {
       store._websocket = fakeWebsocket;
 
       store.set({callState: CALL_STATES.CONNECTING});
-      sandbox.stub(loop.shared.utils.Helper.prototype, "locationData")
-        .returns({
-          hash: "#outgoing/42",
-          pathname: ""
-        });
+      sandbox.stub(loop.shared.utils.Helper.prototype, "locationHash")
+        .returns("#outgoing/42");
     });
 
     it("should disconnect the session", function() {
