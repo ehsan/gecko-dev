@@ -14,7 +14,6 @@
 #include "nsDOMEvent.h"
 #include "nsGlobalWindow.h"
 #include "nsJSUtils.h"
-#include "mozilla/dom/ScreenBinding.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -112,42 +111,120 @@ NS_IMPL_RELEASE_INHERITED(nsScreen, nsDOMEventTargetHelper)
 
 NS_IMPL_EVENT_HANDLER(nsScreen, mozorientationchange)
 
-int32_t
-nsScreen::GetPixelDepth(ErrorResult& aRv)
+NS_IMETHODIMP
+nsScreen::GetTop(int32_t* aTop)
+{
+  nsRect rect;
+  nsresult rv = GetRect(rect);
+
+  *aTop = rect.y;
+
+  return rv;
+}
+
+
+NS_IMETHODIMP
+nsScreen::GetLeft(int32_t* aLeft)
+{
+  nsRect rect;
+  nsresult rv = GetRect(rect);
+
+  *aLeft = rect.x;
+
+  return rv;
+}
+
+
+NS_IMETHODIMP
+nsScreen::GetWidth(int32_t* aWidth)
+{
+  nsRect rect;
+  nsresult rv = GetRect(rect);
+
+  *aWidth = rect.width;
+
+  return rv;
+}
+
+NS_IMETHODIMP
+nsScreen::GetHeight(int32_t* aHeight)
+{
+  nsRect rect;
+  nsresult rv = GetRect(rect);
+
+  *aHeight = rect.height;
+
+  return rv;
+}
+
+NS_IMETHODIMP
+nsScreen::GetPixelDepth(int32_t* aPixelDepth)
 {
   nsDeviceContext* context = GetDeviceContext();
 
   if (!context) {
-    aRv.Throw(NS_ERROR_FAILURE);
-    return -1;
+    *aPixelDepth = -1;
+
+    return NS_ERROR_FAILURE;
   }
 
   uint32_t depth;
   context->GetDepth(depth);
-  return depth;
+
+  *aPixelDepth = depth;
+
+  return NS_OK;
 }
 
-#define FORWARD_LONG_GETTER(_name)                                              \
-  NS_IMETHODIMP                                                                 \
-  nsScreen::Get ## _name(int32_t* aOut)                                         \
-  {                                                                             \
-    ErrorResult rv;                                                             \
-    *aOut = Get ## _name(rv);                                                   \
-    return rv.ErrorCode();                                                      \
-  }
+NS_IMETHODIMP
+nsScreen::GetColorDepth(int32_t* aColorDepth)
+{
+  return GetPixelDepth(aColorDepth);
+}
 
-FORWARD_LONG_GETTER(AvailWidth)
-FORWARD_LONG_GETTER(AvailHeight)
-FORWARD_LONG_GETTER(Width)
-FORWARD_LONG_GETTER(Height)
+NS_IMETHODIMP
+nsScreen::GetAvailWidth(int32_t* aAvailWidth)
+{
+  nsRect rect;
+  nsresult rv = GetAvailRect(rect);
 
-FORWARD_LONG_GETTER(Top)
-FORWARD_LONG_GETTER(Left)
-FORWARD_LONG_GETTER(AvailTop)
-FORWARD_LONG_GETTER(AvailLeft)
+  *aAvailWidth = rect.width;
 
-FORWARD_LONG_GETTER(PixelDepth)
-FORWARD_LONG_GETTER(ColorDepth)
+  return rv;
+}
+
+NS_IMETHODIMP
+nsScreen::GetAvailHeight(int32_t* aAvailHeight)
+{
+  nsRect rect;
+  nsresult rv = GetAvailRect(rect);
+
+  *aAvailHeight = rect.height;
+
+  return rv;
+}
+
+NS_IMETHODIMP
+nsScreen::GetAvailLeft(int32_t* aAvailLeft)
+{
+  nsRect rect;
+  nsresult rv = GetAvailRect(rect);
+
+  *aAvailLeft = rect.x;
+
+  return rv;
+}
+
+NS_IMETHODIMP
+nsScreen::GetAvailTop(int32_t* aAvailTop)
+{
+  nsRect rect;
+  nsresult rv = GetAvailRect(rect);
+
+  *aAvailTop = rect.y;
+
+  return rv;
+}
 
 nsDeviceContext*
 nsScreen::GetDeviceContext()
@@ -210,34 +287,28 @@ nsScreen::Notify(const hal::ScreenConfiguration& aConfiguration)
   }
 }
 
-void
-nsScreen::GetMozOrientation(nsString& aOrientation)
+NS_IMETHODIMP
+nsScreen::GetMozOrientation(nsAString& aOrientation)
 {
   switch (mOrientation) {
-  case eScreenOrientation_PortraitPrimary:
-    aOrientation.AssignLiteral("portrait-primary");
-    break;
-  case eScreenOrientation_PortraitSecondary:
-    aOrientation.AssignLiteral("portrait-secondary");
-    break;
-  case eScreenOrientation_LandscapePrimary:
-    aOrientation.AssignLiteral("landscape-primary");
-    break;
-  case eScreenOrientation_LandscapeSecondary:
-    aOrientation.AssignLiteral("landscape-secondary");
-    break;
-  case eScreenOrientation_None:
-  default:
-    MOZ_NOT_REACHED("Unacceptable mOrientation value");
+    case eScreenOrientation_PortraitPrimary:
+      aOrientation.AssignLiteral("portrait-primary");
+      break;
+    case eScreenOrientation_PortraitSecondary:
+      aOrientation.AssignLiteral("portrait-secondary");
+      break;
+    case eScreenOrientation_LandscapePrimary:
+      aOrientation.AssignLiteral("landscape-primary");
+      break;
+    case eScreenOrientation_LandscapeSecondary:
+      aOrientation.AssignLiteral("landscape-secondary");
+      break;
+    case eScreenOrientation_None:
+    default:
+      MOZ_ASSERT(false);
+      return NS_ERROR_FAILURE;
   }
-}
 
-NS_IMETHODIMP
-nsScreen::GetSlowMozOrientation(nsAString& aOrientation)
-{
-  nsString orientation;
-  GetMozOrientation(orientation);
-  aOrientation = orientation;
   return NS_OK;
 }
 
@@ -275,81 +346,48 @@ nsScreen::GetLockOrientationPermission() const
 }
 
 NS_IMETHODIMP
-nsScreen::MozLockOrientation(const JS::Value& aOrientation, JSContext* aCx,
-                             bool* aReturn)
+nsScreen::MozLockOrientation(const jsval& aOrientation, JSContext* aCx, bool* aReturn)
 {
-  if (aOrientation.isObject() && IsArrayLike(aCx, &aOrientation.toObject())) {
-    JSObject* seq = &aOrientation.toObject();
-    uint32_t length;
-    // JS_GetArrayLength actually works on all objects
-    if (!JS_GetArrayLength(aCx, seq, &length)) {
-      return NS_ERROR_FAILURE;
+  *aReturn = false;
+
+  nsAutoTArray<nsString, 8> orientations;
+  // Preallocating 8 elements to make it faster.
+
+  if (aOrientation.isString()) {
+    nsDependentJSString item;
+    item.init(aCx, aOrientation.toString());
+    orientations.AppendElement(item);
+  } else {
+    // If we don't have a string, we must have an Array.
+    if (!aOrientation.isObject()) {
+      return NS_ERROR_INVALID_ARG;
     }
 
-    Sequence<nsString> orientations;
-    if (!orientations.SetCapacity(length)) {
-      return NS_ERROR_OUT_OF_MEMORY;
+    JSObject& obj = aOrientation.toObject();
+    uint32_t length;
+    if (!JS_GetArrayLength(aCx, &obj, &length) || length <= 0) {
+      return NS_ERROR_INVALID_ARG;
     }
+
+    orientations.SetCapacity(length);
 
     for (uint32_t i = 0; i < length; ++i) {
-      JS::Value temp;
-      if (!JS_GetElement(aCx, seq, i, &temp)) {
-        return NS_ERROR_FAILURE;
+      jsval value;
+      NS_ENSURE_TRUE(JS_GetElement(aCx, &obj, i, &value), NS_ERROR_UNEXPECTED);
+      if (!value.isString()) {
+        return NS_ERROR_INVALID_ARG;
       }
 
-      js::RootedString jsString(aCx, JS_ValueToString(aCx, temp));
-      if (!jsString) {
-        return NS_ERROR_FAILURE;
-      }
-
-      nsDependentJSString str;
-      if (!str.init(aCx, jsString)) {
-        return NS_ERROR_FAILURE;
-      }
-
-      *orientations.AppendElement() = str;
+      nsDependentJSString item;
+      item.init(aCx, value);
+      orientations.AppendElement(item);
     }
-
-    ErrorResult rv;
-    *aReturn = MozLockOrientation(orientations, rv);
-    return rv.ErrorCode();
   }
 
-  js::RootedString jsString(aCx, JS_ValueToString(aCx, aOrientation));
-  if (!jsString) {
-    return NS_ERROR_FAILURE;
-  }
-
-  nsDependentJSString orientation;
-  if (!orientation.init(aCx, jsString)) {
-    return NS_ERROR_FAILURE;
-  }
-
-  ErrorResult rv;
-  *aReturn = MozLockOrientation(orientation, rv);
-  return rv.ErrorCode();
-}
-
-bool
-nsScreen::MozLockOrientation(const nsAString& aOrientation, ErrorResult& aRv)
-{
-  nsString orientation(aOrientation);
-  Sequence<nsString> orientations;
-  if (!orientations.AppendElement(orientation)) {
-    aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
-    return false;
-  }
-  return MozLockOrientation(orientations, aRv);
-}
-
-bool
-nsScreen::MozLockOrientation(const Sequence<nsString>& aOrientations,
-                             ErrorResult& aRv)
-{
   ScreenOrientation orientation = eScreenOrientation_None;
 
-  for (uint32_t i = 0; i < aOrientations.Length(); ++i) {
-    const nsString& item = aOrientations[i];
+  for (uint32_t i=0; i<orientations.Length(); ++i) {
+    nsString& item = orientations[i];
 
     if (item.EqualsLiteral("portrait")) {
       orientation |= eScreenOrientation_PortraitPrimary |
@@ -366,20 +404,22 @@ nsScreen::MozLockOrientation(const Sequence<nsString>& aOrientations,
     } else if (item.EqualsLiteral("landscape-secondary")) {
       orientation |= eScreenOrientation_LandscapeSecondary;
     } else {
-      // If we don't recognize the token, we should just return 'false'
+      // If we don't recognize that the token, we should just return 'false'
       // without throwing.
-      return false;
+      return NS_OK;
     }
   }
 
   switch (GetLockOrientationPermission()) {
     case LOCK_DENIED:
-      return false;
+      return NS_OK;
     case LOCK_ALLOWED:
-      return hal::LockScreenOrientation(orientation);
-    case FULLSCREEN_LOCK_ALLOWED: {
-      if (!hal::LockScreenOrientation(orientation)) {
-        return false;
+      *aReturn = hal::LockScreenOrientation(orientation);
+      return NS_OK;
+    case FULLSCREEN_LOCK_ALLOWED:
+      *aReturn = hal::LockScreenOrientation(orientation);
+      if (!*aReturn) {
+        return NS_OK;
       }
 
       // We are fullscreen and lock has been accepted.
@@ -387,44 +427,28 @@ nsScreen::MozLockOrientation(const Sequence<nsString>& aOrientations,
       // full-screen and when we will have to unlock the screen.
       nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(GetOwner());
       if (!target) {
-        // XXX: Bug 796873
-        return true;
+        return NS_OK;
       }
 
       if (!mEventListener) {
         mEventListener = new FullScreenEventListener();
       }
 
-      aRv = target->AddSystemEventListener(NS_LITERAL_STRING("mozfullscreenchange"),
-                                           mEventListener, /* useCapture = */ true);
-      return true;
-    }
+      return target->AddSystemEventListener(NS_LITERAL_STRING("mozfullscreenchange"),
+                                            mEventListener, /* useCapture = */ true);
   }
 
   // This is only for compilers that don't understand that the previous switch
   // will always return.
   MOZ_NOT_REACHED();
-  return false;
-}
-
-void
-nsScreen::MozUnlockOrientation()
-{
-  hal::UnlockScreenOrientation();
-}
-
-NS_IMETHODIMP
-nsScreen::SlowMozUnlockOrientation()
-{
-  MozUnlockOrientation();
   return NS_OK;
 }
 
-/* virtual */
-JSObject*
-nsScreen::WrapObject(JSContext* aCx, JSObject* aScope, bool* aTriedToWrap)
+NS_IMETHODIMP
+nsScreen::MozUnlockOrientation()
 {
-  return ScreenBinding::Wrap(aCx, aScope, this, aTriedToWrap);
+  hal::UnlockScreenOrientation();
+  return NS_OK;
 }
 
 NS_IMPL_ISUPPORTS1(nsScreen::FullScreenEventListener, nsIDOMEventListener)

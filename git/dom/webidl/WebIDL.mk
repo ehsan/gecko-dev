@@ -35,7 +35,6 @@ webidl_files = \
   Performance.webidl \
   PerformanceNavigation.webidl \
   PerformanceTiming.webidl \
-  Screen.webidl \
   SVGLengthList.webidl \
   SVGNumberList.webidl \
   SVGPathSegList.webidl \
