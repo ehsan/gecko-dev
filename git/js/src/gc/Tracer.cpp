@@ -139,14 +139,13 @@ JS_TraceIncomingCCWs(JSTracer *trc, const JS::ZoneSet &zones)
                 // zones multiple times, and don't hold a strong reference.
                 if (key.kind == CrossCompartmentKey::StringWrapper)
                     continue;
-                JSObject *obj = static_cast<JSObject *>(key.wrapped);
                 // Ignore CCWs whose wrapped value doesn't live in our given set
                 // of zones.
-                if (!zones.has(obj->zone()))
+                if (!zones.has(static_cast<JSObject *>(key.wrapped)->zone()))
                     continue;
 
-                MarkObjectUnbarriered(trc, &obj, "cross-compartment wrapper");
-                MOZ_ASSERT(obj == key.wrapped);
+                void *thing = key.wrapped;
+                trc->callback(trc, &thing, GetGCThingTraceKind(key.wrapped));
             }
         }
     }

@@ -469,7 +469,7 @@ gfxDWriteFont::SetupCairoFont(gfxContext *aContext)
 }
 
 bool
-gfxDWriteFont::IsValid() const
+gfxDWriteFont::IsValid()
 {
     return mFontFace != nullptr;
 }

@@ -156,9 +156,6 @@ function testInit() {
           logLevel: "verbose",
           format: "tbpl",
         },
-        console: {
-          logLevel: "info",
-        },
       }
       setPrefs("extensions." + TEST_ID + ".sdk", options);
 

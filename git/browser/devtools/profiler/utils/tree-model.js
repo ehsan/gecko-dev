@@ -82,7 +82,8 @@ ThreadNode.prototype = {
    *        Specifies if the call tree should be inverted (youngest -> oldest
    *        frames).
    */
-  insert: function(sample, contentOnly = false, beginAt = 0, endAt = Infinity, inverted = false) {
+  insert: function(sample, contentOnly = false, beginAt = 0, endAt = Infinity,
+                   inverted = false) {
     let sampleTime = sample.time;
     if (!sampleTime || sampleTime < beginAt || sampleTime > endAt) {
       return;
@@ -93,18 +94,23 @@ ThreadNode.prototype = {
     // Filter out platform frames if only content-related function calls
     // should be taken into consideration.
     if (contentOnly) {
-      // The (root) node is not considered a content function, it'll be removed.
       sampleFrames = sampleFrames.filter(isContent);
-    } else {
-      // Remove the (root) node manually.
-      sampleFrames = sampleFrames.slice(1);
     }
+
     if (!sampleFrames.length) {
       return;
     }
+
     if (inverted) {
       sampleFrames.reverse();
+      if (!contentOnly) {
+        // Remove the (root) node -- we don't want it as a leaf in the inverted
+        // tree.
+        sampleFrames.pop();
+      }
     }
+
+    let startIndex = (inverted || contentOnly) ? 0 : 1;
 
     let sampleDuration = sampleTime - this._previousSampleTime;
     this._previousSampleTime = sampleTime;
@@ -112,7 +118,7 @@ ThreadNode.prototype = {
     this.duration += sampleDuration;
 
     FrameNode.prototype.insert(
-      sampleFrames, 0, sampleTime, sampleDuration, this.calls);
+      sampleFrames, startIndex, sampleTime, sampleDuration, this.calls);
   },
 
   /**

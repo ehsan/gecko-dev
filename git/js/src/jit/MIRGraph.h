@@ -651,7 +651,7 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
 
     const BytecodeSite *trackedSite_;
 
-#if defined(JS_ION_PERF) || defined(DEBUG)
+#if defined (JS_ION_PERF)
     unsigned lineno_;
     unsigned columnIndex_;
 

@@ -289,7 +289,6 @@ TextureHost::CompositorRecycle()
 TextureHost::TextureHost(TextureFlags aFlags)
     : mActor(nullptr)
     , mFlags(aFlags)
-    , mCompositableCount(0)
 {}
 
 TextureHost::~TextureHost()

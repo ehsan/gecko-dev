@@ -3012,26 +3012,26 @@ class CGConstructorEnabled(CGAbstractMethod):
         if not iface.isExposedInWindow():
             exposedInWindowCheck = dedent(
                 """
-                MOZ_ASSERT(!NS_IsMainThread(), "Why did we even get called?");
+                if (NS_IsMainThread()) {
+                  return false;
+                }
                 """)
             body.append(CGGeneric(exposedInWindowCheck))
 
-        if iface.isExposedInSomeButNotAllWorkers():
+        if iface.isExposedInAnyWorker() and iface.isExposedOnlyInSomeWorkers():
             workerGlobals = sorted(iface.getWorkerExposureSet())
             workerCondition = CGList((CGGeneric('strcmp(name, "%s")' % workerGlobal)
                                       for workerGlobal in workerGlobals), " && ")
             exposedInWorkerCheck = fill(
                 """
-                const char* name = js::GetObjectClass(aObj)->name;
-                if (${workerCondition}) {
-                  return false;
+                if (!NS_IsMainThread()) {
+                  const char* name = js::GetObjectClass(aObj)->name;
+                  if (${workerCondition}) {
+                    return false;
+                  }
                 }
                 """, workerCondition=workerCondition.define())
-            exposedInWorkerCheck = CGGeneric(exposedInWorkerCheck)
-            if iface.isExposedInWindow():
-                exposedInWorkerCheck = CGIfWrapper(exposedInWorkerCheck,
-                                                   "!NS_IsMainThread()")
-            body.append(exposedInWorkerCheck)
+            body.append(CGGeneric(exposedInWorkerCheck))
 
         pref = iface.getExtendedAttribute("Pref")
         if pref:
@@ -11958,7 +11958,6 @@ class CGRegisterProtos(CGAbstractMethod):
         for desc in self.config.getDescriptors(hasInterfaceObject=True,
                                                isExternal=False,
                                                workers=False,
-                                               isExposedInWindow=True,
                                                register=True):
             lines.append("REGISTER_PROTO(%s, %s);\n" % (desc.name, getCheck(desc)))
             lines.extend("REGISTER_CONSTRUCTOR(%s, %s, %s);\n" % (n.identifier.name, desc.name, getCheck(desc))
@@ -12226,6 +12225,10 @@ class CGBindingRoot(CGThing):
         hasWorkerStuff = len(config.getDescriptors(webIDLFile=webIDLFile,
                                                    workers=True)) != 0
         bindingHeaders["WorkerPrivate.h"] = hasWorkerStuff
+
+        def descriptorHasThreadChecks(desc):
+            return ((not desc.workers and not desc.interface.isExposedInWindow()) or
+                    (desc.interface.isExposedInAnyWorker() and desc.interface.isExposedOnlyInSomeWorkers()))
 
         hasThreadChecks = hasWorkerStuff or any(d.hasThreadChecks() for d in descriptors)
         bindingHeaders["nsThreadUtils.h"] = hasThreadChecks
@@ -14397,7 +14400,6 @@ class GlobalGenRoots():
         defineIncludes = [CGHeaders.getDeclarationFilename(desc.interface)
                           for desc in config.getDescriptors(hasInterfaceObject=True,
                                                             workers=False,
-                                                            isExposedInWindow=True,
                                                             register=True)]
         defineIncludes.append('nsScriptNameSpaceManager.h')
         defineIncludes.extend([CGHeaders.getDeclarationFilename(desc.interface)

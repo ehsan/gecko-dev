@@ -424,7 +424,7 @@ txCompileObserver::loadURI(const nsAString& aUri,
     rv = NS_CheckContentLoadPolicy(nsIContentPolicy::TYPE_STYLESHEET,
                                    uri,
                                    referrerPrincipal,
-                                   mLoaderDocument,
+                                   nullptr,
                                    NS_LITERAL_CSTRING("application/xml"),
                                    nullptr,
                                    &shouldLoad);
@@ -460,14 +460,12 @@ txCompileObserver::startLoad(nsIURI* aUri, txStylesheetCompiler* aCompiler,
     }
 
     nsCOMPtr<nsIChannel> channel;
-    nsresult rv = NS_NewChannelWithTriggeringPrincipal(
-                    getter_AddRefs(channel),
-                    aUri,
-                    mLoaderDocument,
-                    aReferrerPrincipal, // triggeringPrincipal
-                    nsILoadInfo::SEC_NORMAL,
-                    nsIContentPolicy::TYPE_XSLT,
-                    loadGroup);
+    nsresult rv = NS_NewChannel(getter_AddRefs(channel),
+                                aUri,
+                                aReferrerPrincipal,
+                                nsILoadInfo::SEC_NORMAL,
+                                nsIContentPolicy::TYPE_STYLESHEET,
+                                loadGroup);
 
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -523,7 +521,7 @@ TX_LoadSheet(nsIURI* aUri, txMozillaXSLTProcessor* aProcessor,
         NS_CheckContentLoadPolicy(nsIContentPolicy::TYPE_STYLESHEET,
                                   aUri,
                                   principal,
-                                  aLoaderDocument,
+                                  aProcessor->GetSourceContentModel(),
                                   NS_LITERAL_CSTRING("application/xml"),
                                   nullptr,
                                   &shouldLoad);
