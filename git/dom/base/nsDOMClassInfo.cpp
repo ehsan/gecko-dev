@@ -332,6 +332,7 @@
 #include "nsIDOMXULCommandDispatcher.h"
 #include "nsIDOMCrypto.h"
 #include "nsIDOMCRMFObject.h"
+#include "nsIDOMPkcs11.h"
 #include "nsIControllers.h"
 #include "nsISelection.h"
 #include "nsIBoxObject.h"
@@ -855,6 +856,8 @@ static nsDOMClassInfoData sClassInfoData[] = {
   NS_DEFINE_CLASSINFO_DATA(Crypto, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(CRMFObject, nsDOMGenericSH,
+                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
+  NS_DEFINE_CLASSINFO_DATA(Pkcs11, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
   // DOM Traversal classes
@@ -2643,6 +2646,10 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMCRMFObject)
   DOM_CLASSINFO_MAP_END
 
+  DOM_CLASSINFO_MAP_BEGIN(Pkcs11, nsIDOMPkcs11)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMPkcs11)
+  DOM_CLASSINFO_MAP_END
+
   DOM_CLASSINFO_MAP_BEGIN_NO_CLASS_IF(XMLStylesheetProcessingInstruction, nsIDOMProcessingInstruction)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMProcessingInstruction)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMLinkStyle)
@@ -3549,6 +3556,7 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(HTMLMediaError, nsIDOMHTMLMediaError)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLMediaError)
+    DOM_CLASSINFO_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(HTMLAudioElement, nsIDOMHTMLAudioElement)
@@ -4754,17 +4762,6 @@ nsWindowSH::GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
       rv = WrapNative(cx, frameWin->GetGlobalJSObject(), frame,
                       &NS_GET_IID(nsIDOMWindow), vp,
                       getter_AddRefs(holder));
-
-      if (NS_SUCCEEDED(rv) && !win->IsChromeWindow()) {
-        JSObject *scopeobj = JS_GetScopeChain(cx);
-        if (!scopeobj) {
-          *_retval = JS_FALSE;
-          return NS_ERROR_FAILURE;
-        }
-
-        rv = sXPConnect->GetXOWForObject(cx, scopeobj, JSVAL_TO_OBJECT(*vp),
-                                         vp);
-      }
     }
 
     return NS_FAILED(rv) ? rv : NS_SUCCESS_I_DID_SOMETHING;

@@ -284,10 +284,6 @@
     <toolbar type="menubar" id="toolbar-menubar" class="chromeclass-menubar" customizable="true"
              defaultset="menubar-items"
              mode="icons" iconsize="small" defaulticonsize="small"
-#ifdef XP_WIN
-             toolbarname="&menubarCmd.label;"
-             accesskey="&menubarCmd.accesskey;"
-#endif
              context="toolbar-context-menu">
       <toolbaritem id="menubar-items" align="center">
 # The entire main menubar is placed into browser-menubar.inc, so that it can be shared by 
@@ -374,7 +370,7 @@
                  onsearchbegin="LocationBarHelpers._searchBegin();"
                  onsearchcomplete="LocationBarHelpers._searchComplete();"
                  onfocus="document.getElementById('identity-box').style.MozUserFocus= 'normal'"
-                 onblur="setTimeout(function() document.getElementById('identity-box').style.MozUserFocus = '', 0);">
+                 onblur="document.getElementById('identity-box').style.MozUserFocus = 'ignore';">
           <!-- Use onclick instead of normal popup= syntax since the popup
                code fires onmousedown, and hence eats our favicon drag events.
                We only add the identity-box button to the tab order when the location bar

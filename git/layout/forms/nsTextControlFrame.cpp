@@ -118,7 +118,6 @@
 #include "nsIDOM3EventTarget.h"
 #include "nsINativeKeyBindings.h"
 #include "nsIJSContextStack.h"
-#include "nsFocusManager.h"
 
 #define DEFAULT_COLUMN_WIDTH 20
 
@@ -135,6 +134,15 @@ static const PRInt32 DEFAULT_UNDO_CAP = 1000;
 
 static nsINativeKeyBindings *sNativeInputBindings = nsnull;
 static nsINativeKeyBindings *sNativeTextAreaBindings = nsnull;
+
+static PRBool
+IsFocusedContent(nsPresContext* aPresContext, nsIContent* aContent)
+{
+  nsCOMPtr<nsIContent> focusedContent;
+  aPresContext->EventStateManager()->
+    GetFocusedContent(getter_AddRefs(focusedContent));
+  return focusedContent == aContent;
+}
 
 static void
 PlatformToDOMLineBreaks(nsString &aString)
@@ -182,6 +190,7 @@ GetWrapPropertyEnum(nsIContent* aContent, nsHTMLTextWrap& aWrapProp)
 }
 
 class nsTextInputListener : public nsISelectionListener,
+                            public nsIDOMFocusListener,
                             public nsIDOMKeyListener,
                             public nsIEditorObserver,
                             public nsSupportsWeakReference
@@ -203,7 +212,14 @@ public:
 
   NS_DECL_NSISELECTIONLISTENER
 
+  /** nsIDOMFocusListener interfaces 
+    * used to propagate focus, blur, and change notifications
+    * @see nsIDOMFocusListener
+    */
   NS_IMETHOD HandleEvent(nsIDOMEvent* aEvent);
+  NS_IMETHOD Focus(nsIDOMEvent* aEvent);
+  NS_IMETHOD Blur (nsIDOMEvent* aEvent);
+  /* END interfaces from nsIDOMFocusListener*/
 
   // nsIDOMKeyListener
   NS_IMETHOD KeyDown(nsIDOMEvent *aKeyEvent);
@@ -260,24 +276,12 @@ NS_INTERFACE_MAP_BEGIN(nsTextInputListener)
   NS_INTERFACE_MAP_ENTRY(nsIEditorObserver)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
   NS_INTERFACE_MAP_ENTRY(nsIDOMKeyListener)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsIDOMEventListener, nsIDOMKeyListener)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMKeyListener)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMFocusListener)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsIDOMEventListener, nsIDOMFocusListener)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMFocusListener)
 NS_INTERFACE_MAP_END
 
 // BEGIN nsIDOMSelectionListener
-
-static PRBool
-IsFocusedContent(nsIContent* aContent)
-{
-  nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-  if (!fm)
-    return PR_FALSE;
-
-  nsCOMPtr<nsIDOMElement> focusedElement;
-  fm->GetFocusedElement(getter_AddRefs(focusedElement));
-  nsCOMPtr<nsIContent> focusedContent = do_QueryInterface(focusedElement);
-  return (focusedContent == aContent);
-}
 
 NS_IMETHODIMP
 nsTextInputListener::NotifySelectionChanged(nsIDOMDocument* aDoc, nsISelection* aSel, PRInt16 aReason)
@@ -328,21 +332,70 @@ nsTextInputListener::NotifySelectionChanged(nsIDOMDocument* aDoc, nsISelection* 
   
   mSelectionWasCollapsed = collapsed;
 
-  if (!mFrame || !IsFocusedContent(mFrame->GetContent()))
+  if (!mFrame) {
     return NS_OK;
+  }
+  
+  nsCOMPtr<nsIContent> focusedContent;
+  mFrame->PresContext()->EventStateManager()->
+    GetFocusedContent(getter_AddRefs(focusedContent));
+  if (focusedContent != mFrame->GetContent()) {
+    return NS_OK;
+  }
 
   return UpdateTextInputCommands(NS_LITERAL_STRING("select"));
 }
 
 // END nsIDOMSelectionListener
 
-// BEGIN nsIDOMKeyListener
+// BEGIN nsIFocusListener
 
 NS_IMETHODIMP
 nsTextInputListener::HandleEvent(nsIDOMEvent* aEvent)
 {
   return NS_OK;
 }
+
+NS_IMETHODIMP
+nsTextInputListener::Focus(nsIDOMEvent* aEvent)
+{
+  if (!mFrame)
+    return NS_OK;
+
+  nsCOMPtr<nsIEditor> editor;
+  mFrame->GetEditor(getter_AddRefs(editor));
+  if (editor) {
+    editor->AddEditorObserver(this);
+  }
+
+  nsresult rv = mFrame->InitFocusedValue();
+
+  if (NS_SUCCEEDED(rv))
+    rv = mFrame->MaybeBeginSecureKeyboardInput();
+
+  return rv;
+}
+
+NS_IMETHODIMP
+nsTextInputListener::Blur(nsIDOMEvent* aEvent)
+{
+  if (!mFrame)
+    return NS_OK;
+
+  nsCOMPtr<nsIEditor> editor;
+  mFrame->GetEditor(getter_AddRefs(editor));
+  if (editor) {
+    editor->RemoveEditorObserver(this);
+  }
+
+  mFrame->MaybeEndSecureKeyboardInput();
+
+  return NS_OK;
+}
+
+// END nsIFocusListener
+
+// BEGIN nsIDOMKeyListener
 
 static void
 DoCommandCallback(const char *aCommand, void *aData)
@@ -1081,6 +1134,10 @@ nsTextControlFrame::PreDestroy()
   if (mTextListener)
   {
     mTextListener->SetFrame(nsnull);
+    if (mContent)
+    {
+      mContent->RemoveEventListenerByIID(static_cast<nsIDOMFocusListener  *>(mTextListener), NS_GET_IID(nsIDOMFocusListener));
+    }
 
     nsCOMPtr<nsIDOMEventGroup> systemGroup;
     mContent->GetSystemEventGroup(getter_AddRefs(systemGroup));
@@ -1355,8 +1412,11 @@ nsTextControlFrame::DelayedEditorInit()
   pusher.PushNull();
 
   InitEditor();
-  if (IsFocusedContent(GetContent()))
+  // Notify the text listener we have focus and setup the caret etc (bug 446663).
+  if (IsFocusedContent(PresContext(), GetContent())) {
+    mTextListener->Focus(nsnull);
     SetFocus(PR_TRUE, PR_FALSE);
+  }
 }
 
 nsresult
@@ -1832,25 +1892,14 @@ nsTextControlFrame::IsLeaf() const
 //IMPLEMENTING NS_IFORMCONTROLFRAME
 void nsTextControlFrame::SetFocus(PRBool aOn, PRBool aRepaint)
 {
-  nsCOMPtr<nsIEditor> editor;
-  GetEditor(getter_AddRefs(editor));
-
-  if (!aOn) {
-    if (editor)
-      editor->RemoveEditorObserver(mTextListener);
-
-    MaybeEndSecureKeyboardInput();
-    return;
-  }
-
-  if (!mSelCon)
+  if (!aOn || !mSelCon)
     return;
 
-  if (editor)
-    editor->AddEditorObserver(mTextListener);
-
-  if (NS_SUCCEEDED(InitFocusedValue()))
-    MaybeBeginSecureKeyboardInput();
+  // onfocus="some_where_else.focus()" can trigger several focus
+  // in succession. Here, we only care if we are the winner.
+  // @see also nsTextEditorFocusListener::Focus()
+  if (!IsFocusedContent(PresContext(), mContent))
+    return;
 
   // tell the caret to use our selection
 
@@ -2376,14 +2425,14 @@ nsTextControlFrame::AttributeChanged(PRInt32         aNameSpaceID,
     if (AttributeExists(nsGkAtoms::readonly))
     { // set readonly
       flags |= nsIPlaintextEditor::eEditorReadonlyMask;
-      if (IsFocusedContent(mContent))
+      if (IsFocusedContent(PresContext(), mContent))
         mSelCon->SetCaretEnabled(PR_FALSE);
     }
     else 
     { // unset readonly
       flags &= ~(nsIPlaintextEditor::eEditorReadonlyMask);
       if (!(flags & nsIPlaintextEditor::eEditorDisabledMask) &&
-          IsFocusedContent(mContent))
+          IsFocusedContent(PresContext(), mContent))
         mSelCon->SetCaretEnabled(PR_TRUE);
     }    
     mEditor->SetFlags(flags);
@@ -2396,7 +2445,7 @@ nsTextControlFrame::AttributeChanged(PRInt32         aNameSpaceID,
     { // set disabled
       flags |= nsIPlaintextEditor::eEditorDisabledMask;
       mSelCon->SetDisplaySelection(nsISelectionController::SELECTION_OFF);
-      if (IsFocusedContent(mContent))
+      if (IsFocusedContent(PresContext(), mContent))
         mSelCon->SetCaretEnabled(PR_FALSE);
     }
     else 
@@ -2754,7 +2803,17 @@ nsTextControlFrame::SetInitialChildList(nsIAtom*        aListName,
       scrollableFrame->SetScrollbarVisibility(PR_FALSE, PR_FALSE);
   }
 
-  //register key listeners
+  //register focus and key listeners
+  if (mContent) {
+    // register the event listeners with the DOM event receiver
+    rv = mContent->AddEventListenerByIID(static_cast<nsIDOMFocusListener *>(mTextListener),
+                                         NS_GET_IID(nsIDOMFocusListener));
+    NS_ASSERTION(NS_SUCCEEDED(rv), "failed to register focus listener");
+    // XXXbryner do we need to check for a null presshell here?
+    if (!PresContext()->GetPresShell())
+      return NS_ERROR_FAILURE;
+  }
+
   nsCOMPtr<nsIDOMEventGroup> systemGroup;
   mContent->GetSystemEventGroup(getter_AddRefs(systemGroup));
   nsCOMPtr<nsIDOM3EventTarget> dom3Targ = do_QueryInterface(mContent);

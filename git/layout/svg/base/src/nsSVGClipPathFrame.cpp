@@ -42,6 +42,7 @@
 #include "nsSVGUtils.h"
 #include "nsSVGClipPathElement.h"
 #include "gfxContext.h"
+#include "nsIDOMSVGRect.h"
 #include "nsSVGMatrix.h"
 
 //----------------------------------------------------------------------

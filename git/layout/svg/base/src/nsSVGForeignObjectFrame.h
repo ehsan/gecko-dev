@@ -131,7 +131,7 @@ public:
   virtual PRBool GetMatrixPropagation();
   virtual gfxRect GetBBoxContribution(const gfxMatrix &aToBBoxUserspace);
   NS_IMETHOD_(PRBool) IsDisplayContainer() { return PR_TRUE; }
-  NS_IMETHOD_(PRBool) HasValidCoveredRect() { return PR_TRUE; }
+  NS_IMETHOD_(PRBool) HasValidCoveredRect() { return PR_FALSE; }
 
   // foreignobject public methods
   /**
@@ -160,12 +160,10 @@ protected:
   PRBool IsDisabled() const { return mRect.width <= 0 || mRect.height <= 0; }
 
   nsCOMPtr<nsIDOMSVGMatrix> mCanvasTM;
-
-  // Areas dirtied by changes to decendents that are in our document
+  // Damage area due to in-this-doc invalidation
   nsRegion mSameDocDirtyRegion;
-
-  // Areas dirtied by changes to sub-documents embedded by our decendents
-  nsRegion mSubDocDirtyRegion;
+  // Damage area due to cross-doc invalidation
+  nsRegion mCrossDocDirtyRegion;
 
   PRPackedBool mInReflow;
 };

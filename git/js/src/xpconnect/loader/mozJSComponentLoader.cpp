@@ -777,8 +777,7 @@ mozJSComponentLoader::LoadModule(nsILocalFile* aComponentFile,
 #endif
 
     JSObject *jsModuleObj;
-    if (!JS_ValueToObject(cx, retval, &jsModuleObj) ||
-        !jsModuleObj) {
+    if (!JS_ValueToObject(cx, retval, &jsModuleObj)) {
         /* XXX report error properly */
         return NS_ERROR_FAILURE;
     }

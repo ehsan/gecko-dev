@@ -84,6 +84,7 @@
 #include "nsIEventListenerManager.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMCrypto.h"
+#include "nsIDOMPkcs11.h"
 #include "nsIPrincipal.h"
 #include "nsPluginArray.h"
 #include "nsMimeTypeArray.h"
@@ -98,13 +99,13 @@
 #include "nsIDOMOfflineResourceList.h"
 #include "nsPIDOMEventTarget.h"
 #include "nsIArray.h"
-#include "nsIContent.h"
 
 #define DEFAULT_HOME_PAGE "www.mozilla.org"
 #define PREF_BROWSER_STARTUP_HOMEPAGE "browser.startup.homepage"
 
 class nsIDOMBarProp;
 class nsIDocument;
+class nsIContent;
 class nsPresContext;
 class nsIDOMEvent;
 class nsIScrollableView;
@@ -288,7 +289,8 @@ public:
 
   // nsPIDOMWindow
   virtual NS_HIDDEN_(nsPIDOMWindow*) GetPrivateRoot();
-  virtual NS_HIDDEN_(void) ActivateOrDeactivate(PRBool aActivate);
+  virtual NS_HIDDEN_(nsresult) Activate();
+  virtual NS_HIDDEN_(nsresult) Deactivate();
   virtual NS_HIDDEN_(void) SetChromeEventHandler(nsPIDOMEventTarget* aChromeEventHandler);
   virtual NS_HIDDEN_(nsIFocusController*) GetRootFocusController();
 
@@ -436,10 +438,6 @@ public:
   virtual NS_HIDDEN_(void)
     CacheXBLPrototypeHandler(nsXBLPrototypeHandler* aKey,
                              nsScriptObjectHolder& aHandler);
-
-  virtual PRBool TakeFocus(PRBool aFocus, PRUint32 aFocusMethod);
-  virtual void SetReadyForFocus();
-  virtual void PageHidden();
 
   static PRBool DOMWindowDumpEnabled();
 
@@ -639,15 +637,6 @@ protected:
   nsIntSize DevToCSSIntPixels(nsIntSize px);
   nsIntSize CSSToDevIntPixels(nsIntSize px);
 
-  virtual nsIContent* GetFocusedNode();
-  virtual void SetFocusedNode(nsIContent* aNode,
-                              PRUint32 aFocusMethod = 0,
-                              PRBool aNeedsFocus = PR_FALSE);
-
-  virtual PRUint32 GetFocusMethod();
-
-  void UpdateCanvasFocus(PRBool aFocusChanged, nsIContent* aNewContent);
-
   static void NotifyDOMWindowDestroyed(nsGlobalWindow* aWindow);
 
   // When adding new member variables, be careful not to create cycles
@@ -694,11 +683,6 @@ protected:
   // Fast way to tell if this is a chrome window (without having to QI).
   PRPackedBool                  mIsChrome : 1;
 
-  // Indicates that the current document has never received a document focus
-  // event.
-  PRPackedBool           mNeedsFocus : 1;
-  PRPackedBool           mHasFocus : 1;
-
   nsCOMPtr<nsIScriptContext>    mContext;
   nsWeakPtr                     mOpener;
   nsCOMPtr<nsIControllers>      mControllers;
@@ -724,6 +708,7 @@ protected:
   nsGlobalWindowObserver*       mObserver;
 
   nsCOMPtr<nsIDOMCrypto>        mCrypto;
+  nsCOMPtr<nsIDOMPkcs11>        mPkcs11;
 
   nsCOMPtr<nsIDOMStorage>      mLocalStorage;
 
@@ -752,13 +737,6 @@ protected:
   nsDataHashtable<nsStringHashKey, PRBool> *mPendingStorageEvents;
 
   PRUint32 mTimeoutsSuspendDepth;
-
-  // the element within the document that is currently focused when this
-  // window is active
-  nsCOMPtr<nsIContent>   mFocusedNode;
-
-  // the method that was used to focus mFocusedNode
-  PRUint32 mFocusMethod;
 
 #ifdef DEBUG
   PRBool mSetOpenerWindowCalled;

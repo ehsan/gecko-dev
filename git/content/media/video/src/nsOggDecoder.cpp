@@ -377,12 +377,6 @@ public:
   }
 
 protected:
-
-  // Decodes from the current position until encountering a frame with time
-  // greater or equal to aSeekTime.
-  void DecodeToFrame(nsAutoMonitor& aMonitor,
-                     float aSeekTime);
-
   // Convert the OggPlay frame information into a format used by Gecko
   // (RGB for video, float for sound, etc).The decoder monitor must be
   // acquired in the scope of calls to these functions. They must be
@@ -796,25 +790,20 @@ nsOggDecodeStateMachine::FrameData* nsOggDecodeStateMachine::NextFrame()
     }
   }
 
-  // If the audio stream has finished, but there's still video frames to
-  // be rendered, we need to send blank audio data to the audio hardware,
-  // so that the audio clock, which maintains the presentation time, keeps
-  // incrementing.
-  PRBool needSilence = PR_FALSE;
+  PRBool needSilence = mAudioTrack != -1;
 
-  if (mAudioTrack != -1 && num_tracks > mAudioTrack) {
-    OggPlayDataType type = oggplay_callback_info_get_type(info[mAudioTrack]);
-    needSilence = (type == OGGPLAY_INACTIVE);
-    if (type == OGGPLAY_FLOATS_AUDIO) {
-      OggPlayDataHeader** headers = oggplay_callback_info_get_headers(info[mAudioTrack]);
-      if (headers[0]) {
-        audioTime = ((float)oggplay_callback_info_get_presentation_time(headers[0]))/1000.0;
-        int required = oggplay_callback_info_get_required(info[mAudioTrack]);
-        for (int j = 0; j < required; ++j) {
-          int size = oggplay_callback_info_get_record_size(headers[j]);
-          OggPlayAudioData* audio_data = oggplay_callback_info_get_audio_data(headers[j]);
-          HandleAudioData(frame, audio_data, size);
-        }
+  if (mAudioTrack != -1 &&
+      num_tracks > mAudioTrack &&
+      oggplay_callback_info_get_type(info[mAudioTrack]) == OGGPLAY_FLOATS_AUDIO) {
+    OggPlayDataHeader** headers = oggplay_callback_info_get_headers(info[mAudioTrack]);
+    if (headers[0]) {
+      audioTime = ((float)oggplay_callback_info_get_presentation_time(headers[0]))/1000.0;
+      int required = oggplay_callback_info_get_required(info[mAudioTrack]);
+      for (int j = 0; j < required; ++j) {
+        int size = oggplay_callback_info_get_record_size(headers[j]);
+        OggPlayAudioData* audio_data = oggplay_callback_info_get_audio_data(headers[j]);
+        HandleAudioData(frame, audio_data, size);
+        needSilence = PR_FALSE;
       }
     }
   }
@@ -910,7 +899,6 @@ void nsOggDecodeStateMachine::PlayFrame() {
       }
 
       double time;
-      double prevTime = -1.0;
       for (;;) {
         // Even if the frame has had its audio data written we call
         // PlayAudio to ensure that any data we have buffered in the
@@ -920,12 +908,6 @@ void nsOggDecodeStateMachine::PlayFrame() {
         time = hwtime < 0.0 ?
           (TimeStamp::Now() - mPlayStartTime - mPauseDuration).ToSeconds() :
           hwtime;
-        // Break out of the loop if we've not played any audio. This can
-        // happen when the frame has no audio, and there's no audio pending
-        // in the nsAudioStream.
-        if (time == prevTime)
-          break;
-        prevTime = time;
         if (time < frame->mTime) {
           mon.Wait(PR_MillisecondsToInterval(PRInt64((frame->mTime - time)*1000)));
           if (mState == DECODER_STATE_SHUTDOWN)
@@ -1230,9 +1212,6 @@ void nsOggDecodeStateMachine::Seek(float aTime)
   NS_ASSERTION(mState != DECODER_STATE_SEEKING,
                "We shouldn't already be seeking");
   mSeekTime = aTime + mPlaybackStartTime;
-  float duration = static_cast<float>(mDuration) / 1000.0;
-  NS_ASSERTION(mSeekTime >= 0 && mSeekTime <= duration,
-               "Can only seek in range [0,duration]");
   LOG(PR_LOG_DEBUG, ("Changed state to SEEKING (to %f)", aTime));
   mState = DECODER_STATE_SEEKING;
 }
@@ -1316,72 +1295,6 @@ nsresult nsOggDecodeStateMachine::Seek(float aTime, nsChannelReader* aReader)
   LOG(PR_LOG_DEBUG, ("Finished seeking OggPlay"));
 
   return (rv < 0) ? NS_ERROR_FAILURE : NS_OK;
-}
-
-void nsOggDecodeStateMachine::DecodeToFrame(nsAutoMonitor& aMonitor,
-                                            float aTime)
-{
-  // Drop frames before the target time.
-  float target = aTime - mCallbackPeriod / 2.0;
-  FrameData* frame = nsnull;
-  OggPlayErrorCode r;
-  mLastFrameTime = 0;
-  // Some of the audio data from previous frames actually belongs
-  // to this frame and later frames. So rescue that data and stuff
-  // it into the first frame.
-  float audioTime = 0;
-  nsTArray<float> audioData;
-  do {
-    if (frame) {
-      audioData.AppendElements(frame->mAudioData);
-      audioTime += frame->mAudioData.Length() /
-        (float)mAudioRate / (float)mAudioChannels;
-    }
-    do {
-      aMonitor.Exit();
-      r = DecodeFrame();
-      aMonitor.Enter();
-    } while (mState != DECODER_STATE_SHUTDOWN && r == E_OGGPLAY_TIMEOUT);
-
-    HandleDecodeErrors(r);
-
-    if (mState == DECODER_STATE_SHUTDOWN)
-      break;
-
-    FrameData* nextFrame = NextFrame();
-    if (!nextFrame)
-      break;
-
-    delete frame;
-    frame = nextFrame;
-  } while (frame->mDecodedFrameTime < target);
-
-  if (mState == DECODER_STATE_SHUTDOWN) {
-    delete frame;
-    return;
-  }
-
-  NS_ASSERTION(frame != nsnull, "No frame after decode!");
-  if (frame) {
-    if (audioTime > frame->mTime) {
-      // liboggplay gave us more data than expected, we need to prepend
-      // the extra data to the current frame to keep audio in sync.
-      audioTime -= frame->mTime;
-      // numExtraSamples must be evenly divisble by number of channels.
-      size_t numExtraSamples = mAudioChannels *
-        PRInt32(NS_ceil(mAudioRate*audioTime));
-      float* data = audioData.Elements() + audioData.Length() - numExtraSamples;
-      float* dst = frame->mAudioData.InsertElementsAt(0, numExtraSamples);
-      memcpy(dst, data, numExtraSamples * sizeof(float));
-    }
-
-    mLastFrameTime = 0;
-    frame->mTime = 0;
-    frame->mState = OGGPLAY_STREAM_JUST_SEEKED;
-    mDecodedFrames.Push(frame);
-    UpdatePlaybackPosition(frame->mDecodedFrameTime);
-    PlayVideo(frame);
-  }
 }
 
 void nsOggDecodeStateMachine::StopStepDecodeThread(nsAutoMonitor* aMonitor)
@@ -1605,7 +1518,7 @@ nsresult nsOggDecodeStateMachine::Run()
           NS_NEW_RUNNABLE_METHOD(nsOggDecoder, mDecoder, SeekingStarted);
         NS_DispatchToMainThread(startEvent, NS_DISPATCH_SYNC);
         
-        nsresult res = Seek(seekTime, reader);
+        Seek(seekTime, reader);
 
         // Reactivate all tracks. Liboggplay deactivates tracks when it
         // reads to the end of stream, but they must be reactivated in order
@@ -1618,45 +1531,81 @@ nsresult nsOggDecodeStateMachine::Run()
         if (mState == DECODER_STATE_SHUTDOWN)
           continue;
 
-        if (NS_SUCCEEDED(res)) {
-          DecodeToFrame(mon, seekTime);
-          // mSeekTime should not have changed. While we seek, mPlayState
-          // should always be PLAY_STATE_SEEKING and no-one will call
-          // nsOggDecoderStateMachine::Seek.
-          NS_ASSERTION(seekTime == mSeekTime, "No-one should have changed mSeekTime");
-          if (mState == DECODER_STATE_SHUTDOWN) {
-            continue;
-          }
-
-          OggPlayErrorCode r;
-          // Now try to decode another frame to see if we're at the end.
+        // Drop frames before the target seek time.
+        float seekTarget = seekTime - mCallbackPeriod / 2.0;
+        FrameData* frame = nsnull;
+        OggPlayErrorCode r;
+        mLastFrameTime = 0;
+        // Some of the audio data from previous frames actually belongs
+        // to this frame and later frames. So rescue that data and stuff
+        // it into the first frame.
+        float audioTime = 0;
+        nsTArray<float> audioData;
+        do {
           do {
             mon.Exit();
             r = DecodeFrame();
             mon.Enter();
           } while (mState != DECODER_STATE_SHUTDOWN && r == E_OGGPLAY_TIMEOUT);
+
           HandleDecodeErrors(r);
+
           if (mState == DECODER_STATE_SHUTDOWN)
-            continue;
-          QueueDecodedFrames();
+            break;
+
+          FrameData* nextFrame = NextFrame();
+          if (!nextFrame)
+            break;
+
+          delete frame;
+          frame = nextFrame;
+
+          audioData.AppendElements(frame->mAudioData);
+          audioTime += frame->mAudioData.Length() /
+                       (float)mAudioRate / (float)mAudioChannels;
+        } while (frame->mDecodedFrameTime < seekTarget);
+
+        if (mState == DECODER_STATE_SHUTDOWN) {
+          delete frame;
+          continue;
+        }
+
+        NS_ASSERTION(frame != nsnull, "No frame after seek!");
+        if (frame) {
+          if (audioTime > frame->mTime) {
+            // liboggplay gave us more data than expected, we need to prepend
+            // the extra data to the current frame to keep audio in sync.
+            audioTime -= frame->mTime;
+            // numExtraSamples must be evenly divisble by number of channels.
+            size_t numExtraSamples = mAudioChannels *
+                                     PRInt32(NS_ceil(mAudioRate*audioTime));
+            float* data = audioData.Elements() + audioData.Length() - numExtraSamples;
+            float* dst = frame->mAudioData.InsertElementsAt(0, numExtraSamples);
+            memcpy(dst, data, numExtraSamples * sizeof(float));
+          }
+        
+          mLastFrameTime = 0;
+          frame->mTime = 0;
+          frame->mState = OGGPLAY_STREAM_JUST_SEEKED;
+          mDecodedFrames.Push(frame);
+          UpdatePlaybackPosition(frame->mDecodedFrameTime);
+          PlayVideo(frame);
         }
 
         // Change state to DECODING now. SeekingStopped will call
         // nsOggDecodeStateMachine::Seek to reset our state to SEEKING
         // if we need to seek again.
         LOG(PR_LOG_DEBUG, ("Changed state from SEEKING (to %f) to DECODING", seekTime));
+        // mSeekTime should not have changed. While we seek, mPlayState
+        // should always be PLAY_STATE_SEEKING and no-one will call
+        // nsOggDecoderStateMachine::Seek.
+        NS_ASSERTION(seekTime == mSeekTime, "No-one should have changed mSeekTime");
         mState = DECODER_STATE_DECODING;
-        nsCOMPtr<nsIRunnable> stopEvent;
-        if (mDecodedFrames.GetCount() > 1) {
-          stopEvent = NS_NEW_RUNNABLE_METHOD(nsOggDecoder, mDecoder, SeekingStopped);
-          mState = DECODER_STATE_DECODING;
-        } else {
-          stopEvent = NS_NEW_RUNNABLE_METHOD(nsOggDecoder, mDecoder, SeekingStoppedAtEnd);
-          mState = DECODER_STATE_COMPLETED;
-        }
         mon.NotifyAll();
 
         mon.Exit();
+        nsCOMPtr<nsIRunnable> stopEvent = 
+          NS_NEW_RUNNABLE_METHOD(nsOggDecoder, mDecoder, SeekingStopped);
         NS_DispatchToMainThread(stopEvent, NS_DISPATCH_SYNC);        
         mon.Enter();
       }
@@ -1734,12 +1683,6 @@ nsresult nsOggDecodeStateMachine::Run()
 
           if (mState != DECODER_STATE_COMPLETED)
             continue;
-        }
-
-        // Set the right current time
-        mCurrentFrameTime += mCallbackPeriod;
-        if (mDuration >= 0) {
-          mCurrentFrameTime = PR_MAX(mCurrentFrameTime, mDuration / 1000.0);
         }
 
         mon.Exit();
@@ -2206,7 +2149,6 @@ void nsOggDecoder::PlaybackEnded()
   if (mShuttingDown || mPlayState == nsOggDecoder::PLAY_STATE_SEEKING)
     return;
 
-  PlaybackPositionChanged();
   ChangeState(PLAY_STATE_ENDED);
 
   if (mElement)  {
@@ -2367,36 +2309,6 @@ void nsOggDecoder::SeekingStopped()
   if (mElement) {
     UpdateReadyStateForData();
     mElement->SeekCompleted();
-  }
-}
-
-// This is called when seeking stopped *and* we're at the end of the
-// media.
-void nsOggDecoder::SeekingStoppedAtEnd()
-{
-  if (mShuttingDown)
-    return;
-
-  PRBool fireEnded = PR_FALSE;
-  {
-    nsAutoMonitor mon(mMonitor);
-
-    // An additional seek was requested while the current seek was
-    // in operation.
-    if (mRequestedSeekTime >= 0.0) {
-      ChangeState(PLAY_STATE_SEEKING);
-    } else {
-      fireEnded = mNextState != PLAY_STATE_PLAYING;
-      ChangeState(fireEnded ? PLAY_STATE_ENDED : mNextState);
-    }
-  }
-
-  if (mElement) {
-    UpdateReadyStateForData();
-    mElement->SeekCompleted();
-    if (fireEnded) {
-      mElement->PlaybackEnded();
-    }
   }
 }
 

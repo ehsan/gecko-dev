@@ -102,8 +102,10 @@ nsSVGMutationObserver::AttributeChanged(nsIDocument *aDocument,
     }
 
     // is the content a child of a text element
-    nsSVGTextContainerFrame *containerFrame = do_QueryFrame(frame);
-    if (containerFrame) {
+    nsISVGTextContentMetrics* metrics = do_QueryFrame(frame);
+    if (metrics) {
+      nsSVGTextContainerFrame *containerFrame =
+        static_cast<nsSVGTextContainerFrame *>(frame);
       containerFrame->NotifyGlyphMetricsChange();
       continue;
     }

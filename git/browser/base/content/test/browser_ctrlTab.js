@@ -67,7 +67,7 @@ function test() {
     pressCtrlTab();
     document.removeEventListener("keypress", detectKeyEvent, false);
     ok(eventConsumed, "Ctrl+Tab consumed by the tabbed browser if one tab is open");
-    is(focusedWindow, document.commandDispatcher.focusedWindow,
+    is(focusedWindow.location, document.commandDispatcher.focusedWindow.location,
        "Ctrl+Tab doesn't change focus if one tab is open");
   }
 

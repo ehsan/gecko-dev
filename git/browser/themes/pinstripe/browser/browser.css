@@ -828,18 +828,8 @@ toolbar[iconsize="small"] #unified-back-forward-button > #back-forward-dropmarke
 }
 
 #urlbar-search-splitter {
-  /* This is a bit of a mess, because the location bar and the search bar are bigger
-     than they look. For example, -moz-margin-start: -6px should really be -4px.
-     Bug 482086 and bug 482105 will solve this. */
-  min-width: 8px;
-  width: 8px;
-  background-image: none;
-  -moz-margin-start: -6px;
-}
-
-#urlbar-search-splitter + #urlbar-container > #urlbar,
-#urlbar-search-splitter + #search-container > #searchbar > .searchbar-textbox {
-  -moz-margin-start: 0;
+  min-width: 4px;
+  width: 4px;
 }
 
 #wrapper-urlbar-container #urlbar,
@@ -1660,43 +1650,63 @@ tabbrowser > tabbox > tabpanels {
 }
 
 .tabbrowser-arrowscrollbox > .scrollbutton-up,
-.tabbrowser-arrowscrollbox > .scrollbutton-down-stack > .scrollbutton-down {
-  -moz-image-region: rect(0, 11px, 17px, 0);
-  margin: 0;
-  padding: 0 1px;
-  border: none;
-}
-
-.tabbrowser-arrowscrollbox > .scrollbutton-up[chromedir="ltr"],
 .tabbrowser-arrowscrollbox > .scrollbutton-down-stack > .scrollbutton-down[chromedir="rtl"] {
+  border: 0;
   border-right: 2px solid;
   -moz-border-right-colors: rgba(0,0,0,0.25) rgba(255,255,255,0.15);
-  list-style-image: url("chrome://browser/skin/tabbrowser/tab-arrow-left.png");
+  list-style-image: url("chrome://browser/skin/tabbrowser/tab-arrow-start.png");
+  -moz-image-region: rect(0px, 7px, 11px, 0px);
+  padding: 0;
+  width: 16px;
+  margin: 0;
 }
 
-.tabbrowser-arrowscrollbox > .scrollbutton-down-stack > .scrollbutton-down[chromedir="ltr"],
-.tabbrowser-arrowscrollbox > .scrollbutton-up[chromedir="rtl"] {
-  border-left: 2px solid;
-  -moz-border-left-colors: rgba(0,0,0,0.25) rgba(255,255,255,0.15);
-  list-style-image: url("chrome://browser/skin/tabbrowser/tab-arrow-right.png");
+.tabbrowser-arrowscrollbox > .scrollbutton-down-stack > .scrollbutton-down[chromedir="rtl"] {
+  -moz-border-end: none;
 }
 
-.tabbrowser-arrowscrollbox > .scrollbutton-up:hover,
-.tabbrowser-arrowscrollbox > .scrollbutton-down-stack > .scrollbutton-down:hover {
-  -moz-image-region: rect(0, 22px, 17px, 11px);
+.tabbrowser-arrowscrollbox > .scrollbutton-up:hover {
   background-color: rgba(0,0,0,0.10);
 }
 
-.tabbrowser-arrowscrollbox > .scrollbutton-up:hover:active,
-.tabbrowser-arrowscrollbox > .scrollbutton-down-stack > .scrollbutton-down:hover:active {
-  -moz-image-region: rect(0, 44px, 17px, 33px);
+.tabbrowser-arrowscrollbox > .scrollbutton-up:hover:active {
   background-color: rgba(0,0,0,0.20);
 }
 
 .tabbrowser-arrowscrollbox > .scrollbutton-up[disabled="true"],
-.tabbrowser-arrowscrollbox > .scrollbutton-down-stack > .scrollbutton-down[disabled="true"] {
-  -moz-image-region: rect(0, 33px, 17px, 22px) !important;
+.tabbrowser-arrowscrollbox > .scrollbutton-down-stack > .scrollbutton-down[disabled="true"][chromedir="rtl"] {
+  -moz-image-region: rect(0px, 28px, 11px, 21px);
   background-color: transparent !important; 
+}
+
+.tabbrowser-arrowscrollbox .scrollbutton-down,
+.tabbrowser-arrowscrollbox > .scrollbutton-up[chromedir="rtl"] {
+  border-left: 2px solid;
+  -moz-border-left-colors: rgba(0,0,0,0.25) rgba(255,255,255,0.15);
+  list-style-image: url("chrome://browser/skin/tabbrowser/tab-arrow-end.png");
+  -moz-image-region: rect(0px, 44px, 11px, 37px);
+  -moz-padding-start: 2px;
+  -moz-padding-end: 0;
+  width: 16px;
+  margin: 0;
+}
+
+.tabbrowser-arrowscrollbox > .scrollbutton-up[chromedir="rtl"] {
+  -moz-border-start: none;
+}
+
+.tabbrowser-arrowscrollbox .scrollbutton-down:hover {
+  background-color: rgba(0,0,0,0.10);
+}
+
+.tabbrowser-arrowscrollbox .scrollbutton-down:hover:active {
+  background-color: rgba(0,0,0,0.20);
+}
+
+.tabbrowser-arrowscrollbox > .scrollbutton-down-stack > .scrollbutton-down[disabled="true"],
+.tabbrowser-arrowscrollbox > .scrollbutton-up[disabled="true"][chromedir="rtl"] {
+  -moz-image-region: rect(0px, 23px, 11px, 16px);
+  background-color: transparent !important;
 }
 
 
@@ -1711,31 +1721,14 @@ tabbrowser > tabbox > tabpanels {
   -moz-border-left-colors: rgba(0,0,0,0.25) rgba(255,255,255,0.15);
   -moz-border-right-colors: rgba(0,0,0,0.25) rgba(255,255,255,0.15);
   margin: 0;
-  padding: 0;
-}
-.tabs-newtab-button > .toolbarbutton-icon,
-.tabs-alltabs-button > .toolbarbutton-icon {
-  padding: 0;
+  padding: 0 4px;
 }
 .tabs-newtab-button {
   list-style-image: url(chrome://browser/skin/tabbrowser/newtab.png);
-  -moz-image-region: rect(0, 18px, 20px, 0);
-}
-.tabs-newtab-button:hover {
-  -moz-image-region: rect(0, 36px, 20px, 18px);
-}
-.tabs-newtab-button:hover:active {
-  -moz-image-region: rect(0, 54px, 20px, 36px);
 }
 .tabs-alltabs-button {
+  padding-top: 2px;
   list-style-image: url(chrome://browser/skin/tabbrowser/alltabs-box-bkgnd-icon.png);
-  -moz-image-region: rect(0, 22px, 20px, 0);
-}
-.tabs-alltabs-button:hover {
-  -moz-image-region: rect(0, 44px, 20px, 22px);
-}
-.tabs-alltabs-button:hover:active {
-  -moz-image-region: rect(0, 66px, 20px, 44px);
 }
 .tabs-container > .tabs-newtab-button:hover,
 .tabs-alltabs-button:hover {
@@ -1763,13 +1756,19 @@ tabbrowser > tabbox > tabpanels {
 }
 
 .tabs-closebutton {
-  -moz-padding-end: 4px;
-  list-style-image: url("chrome://global/skin/icons/closetab.png");
+  padding-right: 4px;
+  list-style-image: url("chrome://global/skin/icons/closetab.png") !important;
+  list-style-image: none;
   border: none;
+  -moz-box-align: stretch;
+}
+
+.tabs-closebutton:hover > .toolbarbutton-icon {
+	background-image: none !important;
 }
 
 .tabs-closebutton:hover:active {
-  list-style-image: url("chrome://global/skin/icons/closetab-active.png");
+	list-style-image: url("chrome://global/skin/icons/closetab-active.png") !important;
 }
 
 tabpanels.plain {

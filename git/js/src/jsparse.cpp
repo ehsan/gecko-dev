@@ -294,13 +294,6 @@ JSCompiler::newFunctionBox(JSObject *obj, JSParseNode *fn, JSTreeContext *tc)
     funbox->kids = NULL;
     funbox->parent = tc->funbox;
     funbox->queued = false;
-    funbox->inLoop = false;
-    for (JSStmtInfo *stmt = tc->topStmt; stmt; stmt = stmt->down) {
-        if (STMT_IS_LOOP(stmt)) {
-            funbox->inLoop = true;
-            break;
-        }
-    }
     funbox->level = tc->staticLevel;
     funbox->tcflags = TCF_IN_FUNCTION | (tc->flags & TCF_COMPILE_N_GO);
     return funbox;
@@ -751,8 +744,6 @@ JSCompiler::parse(JSObject *chain)
     return pn;
 }
 
-JS_STATIC_ASSERT(FREE_STATIC_LEVEL == JS_BITMASK(JSFB_LEVEL_BITS));
-
 static inline bool
 SetStaticLevel(JSTreeContext *tc, uintN staticLevel)
 {
@@ -815,21 +806,16 @@ JSCompiler::compileScript(JSContext *cx, JSObject *scopeChain, JSStackFrame *cal
     JSCodeGenerator cg(&jsc, &codePool, &notePool, jsc.tokenStream.lineno);
 
     MUST_FLOW_THROUGH("out");
-
-    /* Null script early in case of error, to reduce our code footprint. */
-    script = NULL;
-
-    cg.flags |= uint16(tcflags);
+    cg.flags |= (uint16) tcflags;
     cg.scopeChain = scopeChain;
     if (!SetStaticLevel(&cg, TCF_GET_STATIC_LEVEL(tcflags)))
-        goto out;
+        return NULL;
 
     /*
      * If funbox is non-null after we create the new script, callerFrame->fun
      * was saved in the 0th object table entry.
      */
-    JSObjectBox *funbox;
-    funbox = NULL;
+    JSObjectBox *funbox = NULL;
 
     if (tcflags & TCF_COMPILE_N_GO) {
         if (source) {
@@ -839,7 +825,7 @@ JSCompiler::compileScript(JSContext *cx, JSObject *scopeChain, JSStackFrame *cal
              */
             JSAtom *atom = js_AtomizeString(cx, source, 0);
             if (!atom || !cg.atomList.add(&jsc, atom))
-                goto out;
+                return NULL;
         }
 
         if (callerFrame && callerFrame->fun) {
@@ -850,7 +836,7 @@ JSCompiler::compileScript(JSContext *cx, JSObject *scopeChain, JSStackFrame *cal
              */
             funbox = jsc.newObjectBox(FUN_OBJECT(callerFrame->fun));
             if (!funbox)
-                goto out;
+                return NULL;
             funbox->emitLink = cg.objectList.lastbox;
             cg.objectList.lastbox = funbox;
             cg.objectList.length++;
@@ -863,13 +849,14 @@ JSCompiler::compileScript(JSContext *cx, JSObject *scopeChain, JSStackFrame *cal
      */
     uint32 bodyid;
     if (!GenerateBlockId(&cg, bodyid))
-        goto out;
+        return NULL;
     cg.bodyid = bodyid;
 
+    /* Null script early in case of error, to reduce our code footprint. */
+    script = NULL;
 #if JS_HAS_XML_SUPPORT
     pn = NULL;
-    bool onlyXML;
-    onlyXML = true;
+    bool onlyXML = true;
 #endif
 
     for (;;) {
@@ -1514,7 +1501,6 @@ JSCompiler::compileFunctionBody(JSContext *cx, JSFunction *fun, JSPrincipals *pr
             if (fn->pn_body) {
                 JS_ASSERT(PN_TYPE(fn->pn_body) == TOK_ARGSBODY);
                 fn->pn_body->append(pn);
-                fn->pn_body->pn_pos = pn->pn_pos;
                 pn = fn->pn_body;
             }
 
@@ -1585,10 +1571,6 @@ BindDestructuringArg(JSContext *cx, BindData *data, JSAtom *atom,
 {
     JSAtomListElement *ale;
     JSParseNode *pn;
-
-    /* Flag tc so we don't have to lookup arguments on every use. */
-    if (atom == tc->compiler->context->runtime->atomState.argumentsAtom)
-        tc->flags |= TCF_FUN_PARAM_ARGUMENTS;
 
     JS_ASSERT(tc->flags & TCF_IN_FUNCTION);
     ale = tc->decls.lookup(atom);
@@ -1692,21 +1674,12 @@ JSCompiler::analyzeFunctions(JSFunctionBox *funbox, uint16& tcflags)
  * process is potentially exponential in the number of functions, but generally
  * not so complex. But it can't be done during a single recursive traversal of
  * the funbox tree, so we must use a work queue.
- *
- * Return the minimal "skipmin" for funbox and its siblings. This is the delta
- * between the static level of the bodies of funbox and its peers (which must
- * be funbox->level + 1), and the static level of the nearest upvar among all
- * the upvars contained by funbox and its peers. If there are no upvars, return
- * FREE_STATIC_LEVEL. Thus this function never returns 0.
  */
-static uintN
+static void
 FindFunArgs(JSFunctionBox *funbox, int level, JSFunctionBoxQueue *queue)
 {
-    uintN allskipmin = FREE_STATIC_LEVEL;
-
     do {
         JSParseNode *fn = funbox->node;
-        JSFunction *fun = (JSFunction *) funbox->object;
         int fnlevel = level;
 
         /*
@@ -1722,78 +1695,35 @@ FindFunArgs(JSFunctionBox *funbox, int level, JSFunctionBoxQueue *queue)
                 kid->node->setFunArg();
         }
 
-        /*
-         * Compute in skipmin the least distance from fun's static level up to
-         * an upvar, whether used directly by fun, or indirectly by a function
-         * nested in fun.
-         */
-        uintN skipmin = FREE_STATIC_LEVEL;
-        JSParseNode *pn = fn->pn_body;
+        if (fn->isFunArg()) {
+            queue->push(funbox);
+            fnlevel = int(funbox->level);
+        } else {
+            JSParseNode *pn = fn->pn_body;
 
-        if (pn->pn_type == TOK_UPVARS) {
-            JSAtomList upvars(pn->pn_names);
-            JS_ASSERT(upvars.count != 0);
+            if (pn->pn_type == TOK_UPVARS) {
+                JSAtomList upvars(pn->pn_names);
+                JS_ASSERT(upvars.count != 0);
 
-            JSAtomListIterator iter(&upvars);
-            JSAtomListElement *ale;
+                JSAtomListIterator iter(&upvars);
+                JSAtomListElement *ale;
 
-            while ((ale = iter()) != NULL) {
-                JSDefinition *lexdep = ALE_DEFN(ale)->resolve();
+                while ((ale = iter()) != NULL) {
+                    JSDefinition *lexdep = ALE_DEFN(ale)->resolve();
 
-                if (!lexdep->isFreeVar()) {
-                    uintN upvarLevel = lexdep->frameLevel();
-
-                    if (int(upvarLevel) <= fnlevel)
+                    if (!lexdep->isFreeVar() && int(lexdep->frameLevel()) <= fnlevel) {
                         fn->setFunArg();
-
-                    uintN skip = (funbox->level + 1) - upvarLevel;
-                    if (skip < skipmin)
-                        skipmin = skip;
+                        queue->push(funbox);
+                        fnlevel = int(funbox->level);
+                        break;
+                    }
                 }
             }
         }
 
-        /*
-         * If this function escapes, whether directly (the parser detects such
-         * escapes) or indirectly (because this non-escaping function uses an
-         * upvar that reaches across an outer function boundary where the outer
-         * function escapes), enqueue it for further analysis, and bump fnlevel
-         * to trap any non-escaping children.
-         */
-        if (fn->isFunArg()) {
-            queue->push(funbox);
-            fnlevel = int(funbox->level);
-        }
-
-        /*
-         * Now process the current function's children, and recalibrate their
-         * cumulative skipmin to be relative to the current static level.
-         */
-        if (funbox->kids) {
-            uintN kidskipmin = FindFunArgs(funbox->kids, fnlevel, queue);
-
-            JS_ASSERT(kidskipmin != 0);
-            if (kidskipmin != FREE_STATIC_LEVEL) {
-                --kidskipmin;
-                if (kidskipmin != 0 && kidskipmin < skipmin)
-                    skipmin = kidskipmin;
-            }
-        }
-
-        /*
-         * Finally, after we've traversed all of the current function's kids,
-         * minimize fun's skipmin against our accumulated skipmin. Do likewise
-         * with allskipmin, but minimize across funbox and all of its siblings,
-         * to compute our return value.
-         */
-        if (skipmin != FREE_STATIC_LEVEL) {
-            fun->u.i.skipmin = skipmin;
-            if (skipmin < allskipmin)
-                allskipmin = skipmin;
-        }
+        if (funbox->kids)
+            FindFunArgs(funbox->kids, fnlevel, queue);
     } while ((funbox = funbox->siblings) != NULL);
-
-    return allskipmin;
 }
 
 bool
@@ -1823,14 +1753,13 @@ JSCompiler::markFunArgs(JSFunctionBox *funbox, uintN tcflags)
                     !lexdep->isFunArg() &&
                     lexdep->kind() == JSDefinition::FUNCTION) {
                     /*
-                     * Mark this formerly-Algol-like function as an escaping
-                     * function (i.e., as a funarg), because it is used from a
-                     * funarg and therefore can not use JSOP_{GET,CALL}UPVAR to
-                     * access upvars.
+                     * Mark this formerly-Algol-like function as a funarg,
+                     * since it is referenced from a funarg and can no longer
+                     * use JSOP_{GET,CALL}UPVAR to access upvars.
                      *
-                     * Progress is guaranteed because we set the funarg flag
-                     * here, which suppresses revisiting this function (thanks
-                     * to the !lexdep->isFunArg() test just above).
+                     * Progress is guaranteed since we set PND_FUNARG here,
+                     * which suppresses revisiting this function (namely the
+                     * !lexdep->isFunArg() test just above).
                      */
                     lexdep->setFunArg();
 
@@ -2027,13 +1956,19 @@ JSCompiler::setFunctionKinds(JSFunctionBox *funbox, uint16& tcflags)
                             afunbox = afunbox->parent;
 
                             /*
-                             * afunbox can't be null because we are sure
-                             * to find a function box whose level == lexdepLevel
-                             * before walking off the top of the funbox tree.
-                             * See bug 493260 comments 16-18.
+                             * afunbox cannot be null here. That is, we are
+                             * sure to find a function box whose level ==
+                             * lexdepLevel before walking off the top of the
+                             * funbox tree.
                              *
-                             * Assert but check anyway, to check future changes
-                             * that bind eval upvars in the parser.
+                             * Proof: lexdepLevel is at least the base
+                             * staticLevel for this compilation (often 0 but
+                             * nonzero when compiling for local eval) and at
+                             * most funbox->level. The path we are walking
+                             * includes one function box each of precisely that
+                             * range of levels.
+                             *
+                             * Assert but check anyway (bug 493260 comment 16).
                              */
                             JS_ASSERT(afunbox);
 
@@ -2048,35 +1983,23 @@ JSCompiler::setFunctionKinds(JSFunctionBox *funbox, uint16& tcflags)
                         }
 
                         /*
-                         * If afunbox's function (which is at the same level as
-                         * lexdep) is in a loop, pessimistically assume the
-                         * variable initializer may be in the same loop. A flat
-                         * closure would then be unsafe, as the captured
-                         * variable could be assigned after the closure is
-                         * created. See bug 493232.
-                         */
-                        if (afunbox->inLoop)
-                            break;
-
-                        /*
                          * with and eval defeat lexical scoping; eval anywhere
                          * in a variable's scope can assign to it. Both defeat
                          * the flat closure optimization. The parser detects
                          * these cases and flags the function heavyweight.
                          */
-                        if ((afunbox->parent ? afunbox->parent->tcflags : tcflags)
-                            & TCF_FUN_HEAVYWEIGHT) {
+                        JSFunctionBox *parentbox = afunbox->parent ? afunbox->parent : afunbox;
+                        if (parentbox->tcflags & TCF_FUN_HEAVYWEIGHT)
                             break;
-                        }
 
                         /*
-                         * If afunbox's function is not a lambda, it will be
-                         * hoisted, so it could capture the undefined value
-                         * that by default initializes var/let/const
-                         * bindings. And if lexdep is a function that comes at
-                         * (meaning a function refers to its own name) or
-                         * strictly after afunbox, we also break to defeat the
-                         * flat closure optimization.
+                         * If afunbox's function (which is at the same level as
+                         * lexdep) is not a lambda, it will be hoisted, so it
+                         * could capture the undefined value that by default
+                         * initializes var/let/const bindings. And if lexdep is
+                         * a function that comes at (meaning a function refers
+                         * to its own name) or strictly after afunbox, we also
+                         * break to defeat the flat closure optimization.
                          */
                         JSFunction *afun = (JSFunction *) afunbox->object;
                         if (!(afun->flags & JSFUN_LAMBDA)) {
@@ -2843,12 +2766,10 @@ FunctionDef(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
 
     pn->pn_funbox = funbox;
     pn->pn_op = op;
-    if (pn->pn_body) {
+    if (pn->pn_body)
         pn->pn_body->append(body);
-        pn->pn_body->pn_pos = body->pn_pos;
-    } else {
+    else
         pn->pn_body = body;
-    }
 
     pn->pn_blockid = tc->blockid();
 
@@ -3353,7 +3274,7 @@ NoteLValue(JSContext *cx, JSParseNode *pn, JSTreeContext *tc, uintN dflag = PND_
          * Save the win of PND_INITIALIZED if we can prove 'var x;' and 'x = y'
          * occur as direct kids of the same block with no forward refs to x.
          */
-        if (!(dn->pn_dflags & (PND_INITIALIZED | PND_CONST | PND_PLACEHOLDER)) &&
+        if (!(dn->pn_dflags & (PND_INITIALIZED | PND_PLACEHOLDER)) &&
             dn->isBlockChild() &&
             pn->isBlockChild() &&
             dn->pn_blockid == pn->pn_blockid &&
@@ -3367,7 +3288,7 @@ NoteLValue(JSContext *cx, JSParseNode *pn, JSTreeContext *tc, uintN dflag = PND_
         if (dn->frameLevel() != tc->staticLevel) {
             /*
              * The above condition takes advantage of the all-ones nature of
-             * FREE_UPVAR_COOKIE, and the reserved level FREE_STATIC_LEVEL.
+             * FREE_UPVAR_COOKIE, and the reserved frame level JS_BITMASK(16).
              * We make a stronger assertion by excluding FREE_UPVAR_COOKIE.
              */
             JS_ASSERT_IF(dn->pn_cookie != FREE_UPVAR_COOKIE,
@@ -3499,11 +3420,10 @@ typedef struct FindPropValEntry {
 } FindPropValEntry;
 
 #define ASSERT_VALID_PROPERTY_KEY(pnkey)                                      \
-    JS_ASSERT(((pnkey)->pn_arity == PN_NULLARY &&                             \
-               ((pnkey)->pn_type == TOK_NUMBER ||                             \
-                (pnkey)->pn_type == TOK_STRING ||                             \
-                (pnkey)->pn_type == TOK_NAME)) ||                             \
-               (pnkey)->pn_arity == PN_NAME && (pnkey)->pn_type == TOK_NAME)
+    JS_ASSERT((pnkey)->pn_arity == PN_NULLARY &&                              \
+              ((pnkey)->pn_type == TOK_NUMBER ||                              \
+               (pnkey)->pn_type == TOK_STRING ||                              \
+               (pnkey)->pn_type == TOK_NAME))
 
 static JSDHashNumber
 HashFindPropValKey(JSDHashTable *table, const void *key)
@@ -3631,9 +3551,6 @@ FindPropertyValue(JSParseNode *pn, JSParseNode *pnid, FindPropValData *data)
  * If data is null, the caller is AssignExpr and instead of binding variables,
  * we specialize lvalues in the propery value positions of the left-hand side.
  * If right is null, just check for well-formed lvalues.
- *
- * See also UndominateInitializers, immediately below. If you change either of
- * these functions, you might have to change the other to match.
  */
 static JSBool
 CheckDestructuring(JSContext *cx, BindData *data,
@@ -3784,86 +3701,6 @@ CheckDestructuring(JSContext *cx, BindData *data,
                                 JSMSG_NO_VARIABLE_NAME);
     ok = JS_FALSE;
     goto out;
-}
-
-/*
- * This is a greatly pared down version of CheckDestructuring that extends the
- * pn_pos.end source coordinate of each name in a destructuring binding such as
- * 
- *   var [x, y] = [function () y, 42];
- *
- * to cover its corresponding initializer, so that the initialized binding does
- * not appear to dominate any closures in its initializer. See bug 496134.
- *
- * The quick-and-dirty dominance computation in JSCompiler::setFunctionKinds is
- * not very precise. With one-pass SSA construction from structured source code
- * (see "Single-Pass Generation of Static Single Assignment Form for Structured
- * Languages", Brandis and Mössenböck), we could do much better.
- *
- * See CheckDestructuring, immediately above. If you change either of these
- * functions, you might have to change the other to match.
- */
-static JSBool
-UndominateInitializers(JSParseNode *left, JSParseNode *right, JSTreeContext *tc)
-{
-    FindPropValData fpvd;
-    JSParseNode *lhs, *rhs;
-
-    JS_ASSERT(left->pn_type != TOK_ARRAYCOMP);
-    JS_ASSERT(right);
-
-#if JS_HAS_DESTRUCTURING_SHORTHAND
-    if (right->pn_arity == PN_LIST && (right->pn_xflags & PNX_DESTRUCT)) {
-        js_ReportCompileErrorNumber(tc->compiler->context, TS(tc->compiler), right,
-                                    JSREPORT_ERROR, JSMSG_BAD_OBJECT_INIT);
-        return JS_FALSE;
-    }
-#endif
-
-    if (right->pn_type != left->pn_type)
-        return JS_TRUE;
-
-    fpvd.table.ops = NULL;
-    lhs = left->pn_head;
-    if (left->pn_type == TOK_RB) {
-        rhs = right->pn_head;
-
-        while (lhs && rhs) {
-            /* Nullary comma is an elision; binary comma is an expression.*/
-            if (lhs->pn_type != TOK_COMMA || lhs->pn_arity != PN_NULLARY) {
-                if (lhs->pn_type == TOK_RB || lhs->pn_type == TOK_RC) {
-                    if (!UndominateInitializers(lhs, rhs, tc))
-                        return JS_FALSE;
-                } else {
-                    lhs->pn_pos.end = rhs->pn_pos.end;
-                }
-            }
-
-            lhs = lhs->pn_next;
-            rhs = rhs->pn_next;
-        }
-    } else {
-        JS_ASSERT(left->pn_type == TOK_RC);
-        fpvd.numvars = left->pn_count;
-        fpvd.maxstep = 0;
-
-        while (lhs) {
-            JS_ASSERT(lhs->pn_type == TOK_COLON);
-            JSParseNode *pn = lhs->pn_right;
-
-            rhs = FindPropertyValue(right, lhs->pn_left, &fpvd);
-            if (pn->pn_type == TOK_RB || pn->pn_type == TOK_RC) {
-                if (rhs && !UndominateInitializers(pn, rhs, tc))
-                    return JS_FALSE;
-            } else {
-                if (rhs)
-                    pn->pn_pos.end = rhs->pn_pos.end;
-            }
-
-            lhs = lhs->pn_next;
-        }
-    }
-    return JS_TRUE;
 }
 
 static JSParseNode *
@@ -5576,10 +5413,10 @@ Variables(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc, bool inLetHead)
             if (!pn2)
                 return NULL;
 
-            if (!CheckDestructuring(cx, &data, pn2, NULL, tc))
-                return NULL;
             if ((tc->flags & TCF_IN_FOR_INIT) &&
                 js_PeekToken(cx, ts) == TOK_IN) {
+                if (!CheckDestructuring(cx, &data, pn2, NULL, tc))
+                    return NULL;
                 pn->append(pn2);
                 continue;
             }
@@ -5602,12 +5439,13 @@ Variables(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc, bool inLetHead)
             }
 #endif
 
-            if (!init || !UndominateInitializers(pn2, init, tc))
-                return NULL;
-
             pn2 = NewBinary(TOK_ASSIGN, JSOP_NOP, pn2, init, tc);
-            if (!pn2)
+            if (!pn2 ||
+                !CheckDestructuring(cx, &data,
+                                    pn2->pn_left, pn2->pn_right,
+                                    tc)) {
                 return NULL;
+            }
             pn->append(pn2);
             continue;
         }
@@ -6246,22 +6084,15 @@ class CompExprTransplanter {
  * expression must move "down" one static level, which of course increases the
  * upvar-frame-skip count.
  */
-static bool
+static void
 BumpStaticLevel(JSParseNode *pn, JSTreeContext *tc)
 {
     if (pn->pn_cookie != FREE_UPVAR_COOKIE) {
         uintN level = UPVAR_FRAME_SKIP(pn->pn_cookie) + 1;
 
         JS_ASSERT(level >= tc->staticLevel);
-        if (level >= FREE_STATIC_LEVEL) {
-            JS_ReportErrorNumber(tc->compiler->context, js_GetErrorMessage, NULL,
-                                 JSMSG_TOO_DEEP, js_function_str);
-            return false;
-        }
-
         pn->pn_cookie = MAKE_UPVAR_COOKIE(level, UPVAR_FRAME_SLOT(pn->pn_cookie));
     }
-    return true;
 }
 
 static void
@@ -6342,8 +6173,8 @@ CompExprTransplanter::transplant(JSParseNode *pn)
             --funcLevel;
 
         if (pn->pn_defn) {
-            if (genexp && !BumpStaticLevel(pn, tc))
-                return false;
+            if (genexp)
+                BumpStaticLevel(pn, tc);
         } else if (pn->pn_used) {
             JS_ASSERT(pn->pn_op != JSOP_NOP);
             JS_ASSERT(pn->pn_cookie == FREE_UPVAR_COOKIE);
@@ -6361,8 +6192,8 @@ CompExprTransplanter::transplant(JSParseNode *pn)
              * will be visited further below.
              */
             if (dn->isPlaceholder() && dn->pn_pos >= root->pn_pos && dn->dn_uses == pn) {
-                if (genexp && !BumpStaticLevel(dn, tc))
-                    return false;
+                if (genexp)
+                    BumpStaticLevel(dn, tc);
                 AdjustBlockId(dn, adjust, tc);
             }
 
@@ -6377,7 +6208,7 @@ CompExprTransplanter::transplant(JSParseNode *pn)
                 if (dn->pn_pos < root->pn_pos || dn->isPlaceholder()) {
                     JSAtomListElement *ale = tc->lexdeps.add(tc->compiler, dn->pn_atom);
                     if (!ale)
-                        return false;
+                        return NULL;
 
                     if (dn->pn_pos >= root->pn_pos) {
                         tc->parent->lexdeps.remove(tc->compiler, atom);
@@ -6385,7 +6216,7 @@ CompExprTransplanter::transplant(JSParseNode *pn)
                         JSDefinition *dn2 = (JSDefinition *)
                             NewNameNode(tc->compiler->context, TS(tc->compiler), dn->pn_atom, tc);
                         if (!dn2)
-                            return false;
+                            return NULL;
 
                         dn2->pn_type = dn->pn_type;
                         dn2->pn_pos = root->pn_pos;
@@ -7158,11 +6989,8 @@ QualifiedIdentifier(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
     pn = PropertySelector(cx, ts, tc);
     if (!pn)
         return NULL;
-    if (js_MatchToken(cx, ts, TOK_DBLCOLON)) {
-        /* Hack for bug 496316. Slowing down E4X won't make it go away, alas. */
-        tc->flags |= TCF_FUN_HEAVYWEIGHT;
+    if (js_MatchToken(cx, ts, TOK_DBLCOLON))
         pn = QualifiedSuffix(cx, ts, pn, tc);
-    }
     return pn;
 }
 
@@ -8159,20 +7987,8 @@ PrimaryExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
                 if (ale) {
                     dn = ALE_DEFN(ale);
 #if JS_HAS_BLOCK_SCOPE
-                    /*
-                     * Skip out-of-scope let bindings along an ALE list or hash
-                     * chain. These can happen due to |let (x = x) x| block and
-                     * expression bindings, where the x on the right of = comes
-                     * from an outer scope. See bug 496532.
-                     */
-                    while (dn->isLet() && !BlockIdInScope(dn->pn_blockid, tc)) {
-                        do {
-                            ale = ALE_NEXT(ale);
-                        } while (ale && ALE_ATOM(ale) != pn->pn_atom);
-                        if (!ale)
-                            break;
-                        dn = ALE_DEFN(ale);
-                    }
+                    if (dn->isLet() && !BlockIdInScope(dn->pn_blockid, tc))
+                        ale = NULL;
 #endif
                 }
 

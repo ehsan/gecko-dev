@@ -60,7 +60,6 @@
 #include "jsparse.h"
 #include "jsscope.h"
 #include "jsscript.h"
-#include "jsstaticcheck.h"
 #include "jsstr.h"
 
 #include "jsautooplen.h"
@@ -685,6 +684,7 @@ js_watch_set_wrapper(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
     jsval userid;
 
     funobj = JSVAL_TO_OBJECT(argv[-2]);
+    JS_ASSERT(OBJ_GET_CLASS(cx, funobj) == &js_FunctionClass);
     wrapper = GET_FUNCTION_PRIVATE(cx, funobj);
     userid = ATOM_KEY(wrapper->atom);
     *rval = argv[0];
@@ -1156,7 +1156,7 @@ JS_GetFrameFunctionObject(JSContext *cx, JSStackFrame *fp)
     if (!fp->fun)
         return NULL;
 
-    JS_ASSERT(HAS_FUNCTION_CLASS(fp->callee));
+    JS_ASSERT(OBJ_GET_CLASS(cx, fp->callee) == &js_FunctionClass);
     JS_ASSERT(OBJ_GET_PRIVATE(cx, fp->callee) == fp->fun);
     return fp->callee;
 }
@@ -1242,8 +1242,6 @@ JS_EvaluateUCInStackFrame(JSContext *cx, JSStackFrame *fp,
                           const char *filename, uintN lineno,
                           jsval *rval)
 {
-    JS_ASSERT_NOT_ON_TRACE(cx);
-
     JSObject *scobj;
     JSScript *script;
     JSBool ok;
@@ -1263,52 +1261,11 @@ JS_EvaluateUCInStackFrame(JSContext *cx, JSStackFrame *fp,
                                        TCF_PUT_STATIC_LEVEL(JS_DISPLAY_SIZE),
                                        chars, length, NULL,
                                        filename, lineno);
-
     if (!script)
         return JS_FALSE;
 
-    JSStackFrame *displayCopy[JS_DISPLAY_SIZE];
-    if (cx->fp != fp) {
-        memcpy(displayCopy, cx->display, sizeof displayCopy);
-
-        /*
-         * Set up cx->display as it would have been when fp was active.
-         *
-         * NB: To reconstruct cx->display for fp, we have to follow the frame
-         * chain from oldest to youngest, in the opposite direction to its
-         * single linkge. To avoid the obvious recursive reversal algorithm,
-         * which might use too much stack, we reverse in place and reverse
-         * again as we reconstruct the display. This is safe because cx is
-         * thread-local and we can't cause GC until the call to js_Execute
-         * below.
-         */
-        JSStackFrame *fp2 = fp, *last = NULL;
-        while (fp2) {
-            JSStackFrame *next = fp2->down;
-            fp2->down = last;
-            last = fp2;
-            fp2 = next;
-        }
-
-        fp2 = last;
-        last = NULL;
-        while (fp2) {
-            JSStackFrame *next = fp2->down;
-            fp2->down = last;
-            last = fp2;
-
-            JSScript *script = fp2->script;
-            if (script && script->staticLevel < JS_DISPLAY_SIZE)
-                cx->display[script->staticLevel] = fp2;
-            fp2 = next;
-        }
-    }
-
     ok = js_Execute(cx, scobj, script, fp, JSFRAME_DEBUGGER | JSFRAME_EVAL,
                     rval);
-
-    if (cx->fp != fp)
-        memcpy(cx->display, displayCopy, sizeof cx->display);
     js_DestroyScript(cx, script);
     return ok;
 }

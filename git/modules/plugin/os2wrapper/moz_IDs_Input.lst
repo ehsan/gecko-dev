@@ -102,6 +102,7 @@ nsIChromeEventHandler
 nsIChromeRegistry
 nsICipherInfo
 nsICiter
+nsIClassicPluginFactory
 nsIClassInfo
 nsIClientAuthDialogs
 nsIClipboard
@@ -410,6 +411,7 @@ nsIFileProtocolHandler
 nsIFileSpec
 nsIFileStreams
 nsIFileURL
+nsIFileUtilities
 nsIFind
 nsIFindService
 nsIFolder

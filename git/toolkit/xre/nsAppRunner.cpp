@@ -1770,9 +1770,8 @@ ProfileLockedDialog(nsILocalFile* aProfileDir, nsILocalFile* aProfileLocalDir,
     }
 
     PRInt32 button;
-    PRBool checkState;
     rv = ps->ConfirmEx(nsnull, killTitle, killMessage, flags,
-                       killTitle, nsnull, nsnull, nsnull, &checkState, &button);
+                       killTitle, nsnull, nsnull, nsnull, nsnull, &button);
     NS_ENSURE_SUCCESS_LOG(rv, rv);
 
     if (button == 1 && aUnlocker) {

@@ -752,8 +752,6 @@ struct JSObjectBox {
     JSObject            *object;
 };
 
-#define JSFB_LEVEL_BITS 14
-
 struct JSFunctionBox : public JSObjectBox
 {
     JSParseNode         *node;
@@ -761,8 +759,7 @@ struct JSFunctionBox : public JSObjectBox
     JSFunctionBox       *kids;
     JSFunctionBox       *parent;
     uint32              queued:1,
-                        inLoop:1,               /* in a loop in parent function */
-                        level:JSFB_LEVEL_BITS,
+                        level:15,
                         tcflags:16;
 };
 

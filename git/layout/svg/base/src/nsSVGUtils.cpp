@@ -637,19 +637,24 @@ nsSVGUtils::ComputeNormalizedHypotenuse(double aWidth, double aHeight)
 }
 
 float
-nsSVGUtils::ObjectSpace(const gfxRect &aRect, const nsSVGLength2 *aLength)
+nsSVGUtils::ObjectSpace(nsIDOMSVGRect *aRect, const nsSVGLength2 *aLength)
 {
   float fraction, axis;
 
   switch (aLength->GetCtxType()) {
   case X:
-    axis = aRect.Width();
+    aRect->GetWidth(&axis);
     break;
   case Y:
-    axis = aRect.Height();
+    aRect->GetHeight(&axis);
     break;
   case XY:
-    axis = float(ComputeNormalizedHypotenuse(aRect.Width(), aRect.Height()));
+  {
+    float width, height;
+    aRect->GetWidth(&width);
+    aRect->GetHeight(&height);
+    axis = float(ComputeNormalizedHypotenuse(width, height));
+  }
   }
 
   if (aLength->IsPercentage()) {
@@ -1295,28 +1300,33 @@ nsSVGUtils::GfxRectToIntRect(const gfxRect& aIn, nsIntRect* aOut)
     ? NS_OK : NS_ERROR_FAILURE;
 }
 
-gfxRect
+already_AddRefed<nsIDOMSVGRect>
 nsSVGUtils::GetBBox(nsIFrame *aFrame)
 {
-  gfxRect bbox;
   nsISVGChildFrame *svg = do_QueryFrame(aFrame);
-  if (svg) {
-    bbox = svg->GetBBoxContribution(gfxMatrix());
-  } else {
-    bbox = nsSVGIntegrationUtils::GetSVGBBoxForNonSVGFrame(aFrame);
+  if (!svg) {
+    nsIDOMSVGRect *rect = nsnull;
+    gfxRect r = nsSVGIntegrationUtils::GetSVGBBoxForNonSVGFrame(aFrame);
+    NS_NewSVGRect(&rect, r);
+    return rect;
   }
-  NS_ASSERTION(bbox.Width() >= 0.0 && bbox.Height() >= 0.0, "Invalid bbox!");
-  return bbox;
+
+  nsCOMPtr<nsIDOMSVGRect> bbox;
+  NS_NewSVGRect(getter_AddRefs(bbox), svg->GetBBoxContribution(gfxMatrix()));
+
+  return bbox.forget();
 }
 
 gfxRect
 nsSVGUtils::GetRelativeRect(PRUint16 aUnits, const nsSVGLength2 *aXYWH,
-                            const gfxRect &aBBox, nsIFrame *aFrame)
+                            nsIDOMSVGRect *aBBox, nsIFrame *aFrame)
 {
   float x, y, width, height;
   if (aUnits == nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_OBJECTBOUNDINGBOX) {
-    x = aBBox.X() + ObjectSpace(aBBox, &aXYWH[0]);
-    y = aBBox.Y() + ObjectSpace(aBBox, &aXYWH[1]);
+    aBBox->GetX(&x);
+    x += ObjectSpace(aBBox, &aXYWH[0]);
+    aBBox->GetY(&y);
+    y += ObjectSpace(aBBox, &aXYWH[1]);
     width = ObjectSpace(aBBox, &aXYWH[2]);
     height = ObjectSpace(aBBox, &aXYWH[3]);
   } else {
@@ -1371,10 +1381,32 @@ nsSVGUtils::AdjustMatrixForUnits(nsIDOMSVGMatrix *aMatrix,
 
   if (aFrame &&
       aUnits->GetAnimValue() == nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_OBJECTBOUNDINGBOX) {
-    gfxRect bbox = GetBBox(aFrame);
-    nsCOMPtr<nsIDOMSVGMatrix> tmp;
-    aMatrix->Translate(bbox.X(), bbox.Y(), getter_AddRefs(tmp));
-    tmp->ScaleNonUniform(bbox.Width(), bbox.Height(), getter_AddRefs(fini));
+    float minx, miny, width, height;
+
+    PRBool gotRect = PR_FALSE;
+    if (aFrame->IsFrameOfType(nsIFrame::eSVG)) {
+      nsCOMPtr<nsIDOMSVGRect> rect = GetBBox(aFrame);
+      if (rect) {
+        gotRect = PR_TRUE;
+        rect->GetX(&minx);
+        rect->GetY(&miny);
+        rect->GetWidth(&width);
+        rect->GetHeight(&height);
+      }
+    } else {
+      gotRect = PR_TRUE;
+      gfxRect r = nsSVGIntegrationUtils::GetSVGBBoxForNonSVGFrame(aFrame);
+      minx = r.X();
+      miny = r.Y();
+      width = r.Width();
+      height = r.Height();
+    }
+
+    if (gotRect) {
+      nsCOMPtr<nsIDOMSVGMatrix> tmp;
+      aMatrix->Translate(minx, miny, getter_AddRefs(tmp));
+      tmp->ScaleNonUniform(width, height, getter_AddRefs(fini));
+    }
   }
 
   nsIDOMSVGMatrix* retval = fini.get();
@@ -1478,4 +1510,3 @@ nsSVGRenderState::GetRenderingContext(nsIFrame *aFrame)
   }
   return mRenderingContext;
 }
-

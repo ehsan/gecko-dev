@@ -20,7 +20,6 @@
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
-#  Serge Gautherie <sgautherie.bz@free.fr>
 #  Ted Mielczarek <ted.mielczarek@gmail.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
@@ -37,7 +36,7 @@
 #
 # ***** END LICENSE BLOCK ***** */
 
-import re, sys, os, os.path, logging
+import sys, os, os.path, logging
 import tempfile
 from glob import glob
 from optparse import OptionParser
@@ -126,9 +125,6 @@ def runTests(xpcshell, testdirs=[], xrePath=None, testPath=None,
     xrePath = os.path.abspath(xrePath)
   if sys.platform == 'win32':
     env["PATH"] = env["PATH"] + ";" + xrePath
-  elif sys.platform in ('os2emx', 'os2knix'):
-    os.environ["BEGINLIBPATH"] = xrePath + ";" + env["BEGINLIBPATH"]
-    os.environ["LIBPATHSTRICT"] = "T"
   elif sys.platform == 'osx':
     env["DYLD_LIBRARY_PATH"] = xrePath
   else: # unix or linux?
@@ -193,10 +189,7 @@ def runTests(xpcshell, testdirs=[], xrePath=None, testPath=None,
 
     # Now execute each test individually.
     for test in testfiles:
-      if sys.platform == 'os2emx':
-        pstdout = None 
-      else:
-        pstdout = PIPE
+      pstdout = PIPE
       pstderr = STDOUT
       interactiveargs = []
       if interactive:
@@ -215,7 +208,7 @@ def runTests(xpcshell, testdirs=[], xrePath=None, testPath=None,
         # not sure what else to do here...
         return True
 
-      if proc.returncode != 0 or (stdout is not None and re.search("^TEST-UNEXPECTED-FAIL", stdout, re.MULTILINE)):
+      if proc.returncode != 0 or stdout.find("*** PASS") == -1:
         print """TEST-UNEXPECTED-FAIL | %s | test failed (with xpcshell return code: %d), see following log:
   >>>>>>>
   %s
@@ -223,19 +216,18 @@ def runTests(xpcshell, testdirs=[], xrePath=None, testPath=None,
         checkForCrashes(testdir, symbolsPath, testName=test)
         success = False
       else:
-        print "TEST-PASS | %s | test passed" % test
+        print "TEST-PASS | %s | all tests passed" % test
 
       leakReport = processLeakLog(leakLogFile)
 
-      if stdout is not None:
-        try:
-          f = open(test + '.log', 'w')
-          f.write(stdout)
-          if leakReport:
-            f.write(leakReport)
-        finally:
-          if f:
-            f.close()
+      try:
+        f = open(test + '.log', 'w')
+        f.write(stdout)
+        if leakReport:
+          f.write(leakReport)
+      finally:
+        if f:
+          f.close()
 
       # Remove the leak detection file (here) so it can't "leak" to the next test.
       # The file is not there if leak logging was not enabled in the xpcshell build.

@@ -907,14 +907,20 @@ PlacesTreeView.prototype = {
         }
         else if (nodeType == Ci.nsINavHistoryResultNode.RESULT_TYPE_FOLDER ||
                  nodeType == Ci.nsINavHistoryResultNode.RESULT_TYPE_FOLDER_SHORTCUT) {
-          if (PlacesUtils.nodeIsLivemarkContainer(node))
+          if (PlacesUtils.annotations.itemHasAnnotation(itemId,
+                                                        LMANNO_FEEDURI))
             properties.push(this._getAtomFor("livemark"));
         }
 
         if (itemId != -1) {
-          var queryName = PlacesUIUtils.getLeftPaneQueryNameFromId(itemId);
-          if (queryName)
-            properties.push(this._getAtomFor("OrganizerQuery_" + queryName));
+          var oqAnno;
+          try {
+            oqAnno = PlacesUtils.annotations
+                                .getItemAnnotation(itemId,
+                                                   ORGANIZER_QUERY_ANNO);
+            properties.push(this._getAtomFor("OrganizerQuery_" + oqAnno));
+          }
+          catch (ex) { /* not a special query */ }
         }
       }
       else if (nodeType == Ci.nsINavHistoryResultNode.RESULT_TYPE_SEPARATOR)

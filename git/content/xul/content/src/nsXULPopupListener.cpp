@@ -75,7 +75,7 @@
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
 #include "nsIEventStateManager.h"
-#include "nsFocusManager.h"
+#include "nsIFocusController.h"
 #include "nsPIDOMWindow.h"
 #include "nsIViewManager.h"
 #include "nsDOMError.h"
@@ -279,9 +279,10 @@ nsXULPopupListener::FireFocusOnTargetContent(nsIDOMNode* aTargetNode)
     nsCOMPtr<nsIContent> content = do_QueryInterface(aTargetNode);
     nsIFrame* targetFrame = shell->GetPrimaryFrameFor(content);
     if (!targetFrame) return NS_ERROR_FAILURE;
-
+      
+    PRBool suppressBlur = PR_FALSE;
     const nsStyleUserInterface* ui = targetFrame->GetStyleUserInterface();
-    PRBool suppressBlur = (ui->mUserFocus == NS_STYLE_USER_FOCUS_IGNORE);
+    suppressBlur = (ui->mUserFocus == NS_STYLE_USER_FOCUS_IGNORE);
 
     nsCOMPtr<nsIDOMElement> element;
     nsCOMPtr<nsIContent> newFocus = do_QueryInterface(content);
@@ -300,20 +301,21 @@ nsXULPopupListener::FireFocusOnTargetContent(nsIDOMNode* aTargetNode)
         }
         currFrame = currFrame->GetParent();
     } 
-
-    nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-    if (fm) {
-      if (element) {
-        fm->SetFocus(element, nsIFocusManager::FLAG_BYMOUSE |
-                              nsIFocusManager::FLAG_NOSCROLL);
-      } else if (!suppressBlur) {
-        nsPIDOMWindow *window = doc->GetWindow();
-        fm->ClearFocus(window);
-      }
-    }
-
-    nsIEventStateManager *esm = context->EventStateManager();
     nsCOMPtr<nsIContent> focusableContent = do_QueryInterface(element);
+    nsIEventStateManager *esm = context->EventStateManager();
+
+    if (focusableContent) {
+      // Lock to scroll by SetFocus. See bug 309075.
+      nsFocusScrollSuppressor scrollSuppressor;
+      nsPIDOMWindow *ourWindow = doc->GetWindow();
+      if (ourWindow) {
+        scrollSuppressor.Init(ourWindow->GetRootFocusController());
+      }
+
+      focusableContent->SetFocus(context);
+    } else if (!suppressBlur)
+      esm->SetContentState(nsnull, NS_EVENT_STATE_FOCUS);
+
     esm->SetContentState(focusableContent, NS_EVENT_STATE_ACTIVE);
   }
   return rv;

@@ -39,7 +39,6 @@
 #define nsIScrollableView_h___
 
 #include "nsCoord.h"
-#include "nsNativeWidget.h"
 
 class nsIView;
 class nsIScrollPositionListener;

@@ -250,7 +250,7 @@ nsHTMLTableRowElement::GetCells(nsIDOMHTMLCollection** aValue)
                                nsnull, // closure data
                                PR_FALSE,
                                nsnull,
-                               kNameSpaceID_XHTML,
+                               kNameSpaceID_None,
                                PR_FALSE);
 
     NS_ENSURE_TRUE(mCells, NS_ERROR_OUT_OF_MEMORY);

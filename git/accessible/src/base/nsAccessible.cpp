@@ -74,7 +74,6 @@
 #include "nsIViewManager.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsIScrollableFrame.h"
-#include "nsFocusManager.h"
 
 #include "nsXPIDLString.h"
 #include "nsUnicharUtils.h"
@@ -1470,11 +1469,14 @@ nsAccessible::TakeFocus()
     }
   }
 
-  nsCOMPtr<nsIDOMElement> element(do_QueryInterface(content));
-  nsCOMPtr<nsIFocusManager> fm = do_GetService(FOCUSMANAGER_CONTRACTID);
-  if (fm)
-    fm->SetFocus(element, 0);
+  nsCOMPtr<nsIDOMNSHTMLElement> htmlElement(do_QueryInterface(content));
+  if (htmlElement) {
+    // HTML Elements also set the caret position
+    // in order to affect tabbing order
+    return htmlElement->Focus();
+  }
 
+  content->SetFocus(GetPresContext());
   return NS_OK;
 }
 
@@ -1608,11 +1610,7 @@ NS_IMETHODIMP
 nsAccessible::GetRole(PRUint32 *aRole)
 {
   NS_ENSURE_ARG_POINTER(aRole);
-
   *aRole = nsIAccessibleRole::ROLE_NOTHING;
-
-  if (IsDefunct())
-    return NS_ERROR_FAILURE;
 
   if (mRoleMapEntry) {
     *aRole = mRoleMapEntry->role;
@@ -1655,12 +1653,21 @@ nsAccessible::GetRole(PRUint32 *aRole)
         *aRole = nsIAccessibleRole::ROLE_COMBOBOX_OPTION;
     }
 
-    // We are done if the mapped role trumps native semantics
-    if (mRoleMapEntry->roleRule == kUseMapRole)
+    // gLandmarkRoleMap: can use role of accessible class impl
+    // gEmptyRoleMap and all others: cannot use role of accessible class impl
+    if (mRoleMapEntry != &nsARIAMap::gLandmarkRoleMap) {
+      // We can now expose ROLE_NOTHING when there is a role map entry or used
+      // role is nothing, which
+      // will cause ATK to use ROLE_UNKNOWN and MSAA to use a BSTR role with
+      // the ARIA role or element's tag. In either case the AT can also use
+      // the object attributes tag and xml-roles to find out more.
       return NS_OK;
+    }
   }
 
-  return GetRoleInternal(aRole);
+  return mDOMNode ?
+    GetRoleInternal(aRole) :
+    NS_ERROR_FAILURE;  // Node already shut down
 }
 
 NS_IMETHODIMP

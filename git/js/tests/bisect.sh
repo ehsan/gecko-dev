@@ -417,8 +417,7 @@ EOF
             fi
 
             # remove extraneous in-tree changes
-            # See https://bugzilla.mozilla.org/show_bug.cgi?id=480680 for details
-            # of why this is necessary.
+            # nsprpub/configure I'm looking at you!
             hg -R $REPO update -C
 
             hg -R $REPO bisect
@@ -428,8 +427,7 @@ EOF
 
             bisect_log=`eval $TEST_JSDIR/runtests.sh -p $bisect_product -b $bisect_branch $bisect_extraflag -T $bisect_buildtype -I $bisect_test -B "build" -c -t -X /dev/null 2>&1 | grep '_js.log $' | sed 's|log: \([^ ]*\) |\1|'`
             # remove extraneous in-tree changes
-            # See https://bugzilla.mozilla.org/show_bug.cgi?id=480680 for details
-            # of why this is necessary.
+            # nsprpub/configure I'm looking at you!
             hg -R $REPO update -C -r $rev
 
             if [[ -z "$bisect_log" ]]; then

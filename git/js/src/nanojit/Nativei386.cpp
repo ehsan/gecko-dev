@@ -853,7 +853,6 @@ namespace nanojit
 			Register rr = prepResultReg(ins, allow);
 			int d = findMemFor(lhs) + rhs->imm32();
 			LEA(rr, d, FP);
-			return;
 		}
 
 		Register rr = prepResultReg(ins, allow);

@@ -40,6 +40,7 @@
 #include "nsSVGMaskElement.h"
 #include "nsIDOMSVGMatrix.h"
 #include "gfxContext.h"
+#include "nsIDOMSVGRect.h"
 #include "gfxImageSurface.h"
 
 //----------------------------------------------------------------------
@@ -75,9 +76,11 @@ nsSVGMaskFrame::ComputeMaskAlpha(nsSVGRenderState *aContext,
 
     PRUint16 units =
       mask->mEnumAttributes[nsSVGMaskElement::MASKUNITS].GetAnimValue();
-    gfxRect bbox;
+    nsCOMPtr<nsIDOMSVGRect> bbox;
     if (units == nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_OBJECTBOUNDINGBOX) {
       bbox = nsSVGUtils::GetBBox(aParent);
+      if (!bbox)
+        return nsnull;
     }
 
     gfxRect maskArea = nsSVGUtils::GetRelativeRect(units,

@@ -457,6 +457,8 @@ protected:
   PRPackedBool          mPluginDrawing;
   PRPackedBool          mPluginIsCG; // true if this is a CoreGraphics plugin
 
+  PRPackedBool          mInSetFocus;
+
   nsPluginPort          mPluginPort;
   nsIPluginInstanceOwner* mPluginInstanceOwner; // [WEAK]
 

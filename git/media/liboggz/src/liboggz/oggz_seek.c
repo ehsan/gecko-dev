@@ -124,8 +124,6 @@ oggz_seek_raw (OGGZ * oggz, oggz_off_t offset, int whence)
 
   oggz_vector_foreach(oggz->streams, oggz_seek_reset_stream);
   
-  reader->current_page_bytes = 0;
-  
   return offset_at;
 }
 
@@ -207,38 +205,35 @@ oggz_get_next_page (OGGZ * oggz, ogg_page * og)
   OggzReader * reader = &oggz->x.reader;
   char * buffer;
   long bytes = 0, more;
-  oggz_off_t page_offset = 0;
+  oggz_off_t page_offset = 0, ret;
   int found = 0;
-
-  /* Increment oggz->offset by length of the last page processed */
-  oggz->offset += reader->current_page_bytes;
 
   do {
     more = ogg_sync_pageseek (&reader->ogg_sync, og);
 
     if (more == 0) {
+      page_offset = 0;
+
       buffer = ogg_sync_buffer (&reader->ogg_sync, CHUNKSIZE);
       if ((bytes = (long) oggz_io_read (oggz, buffer, CHUNKSIZE)) == 0) {
-        if (oggz->file && feof (oggz->file)) {
+	if (oggz->file && feof (oggz->file)) {
 #ifdef DEBUG_VERBOSE
-          printf ("get_next_page: feof (oggz->file), returning -2\n");
+	  printf ("get_next_page: feof (oggz->file), returning -2\n");
 #endif
-          clearerr (oggz->file);
-          reader->current_page_bytes = 0;
-          return -2;
-        }
+	  clearerr (oggz->file);
+	  return -2;
+	}
       }
       if (bytes == OGGZ_ERR_SYSTEM) {
-        reader->current_page_bytes = 0;
-        return -1;
+	  /*oggz_set_error (oggz, OGGZ_ERR_SYSTEM);*/
+	  return -1;
       }
 
       if (bytes == 0) {
 #ifdef DEBUG_VERBOSE
-        printf ("get_next_page: bytes == 0, returning -2\n");
+	printf ("get_next_page: bytes == 0, returning -2\n");
 #endif
-        reader->current_page_bytes = 0;
-        return -2;
+	return -2;
       }
 
       ogg_sync_wrote(&reader->ogg_sync, bytes);
@@ -247,20 +242,27 @@ oggz_get_next_page (OGGZ * oggz, ogg_page * og)
 #ifdef DEBUG_VERBOSE
       printf ("get_next_page: skipped %ld bytes\n", -more);
 #endif
-      page_offset += (-more);
+      page_offset -= more;
     } else {
 #ifdef DEBUG_VERBOSE
       printf ("get_next_page: page has %ld bytes\n", more);
 #endif
-      reader->current_page_bytes = more;
       found = 1;
     }
 
   } while (!found);
 
-  oggz->offset += page_offset;
+  /* Calculate the byte offset of the page which was found */
+  if (bytes > 0) {
+    oggz->offset = oggz_tell_raw (oggz) - bytes + page_offset;
+  } else {
+    /* didn't need to do any reading -- accumulate the page_offset */
+    oggz->offset += page_offset;
+  }
+  
+  ret = oggz->offset + more;
 
-  return oggz->offset;
+  return ret;
 }
 
 static oggz_off_t
@@ -481,8 +483,6 @@ oggz_scan_for_page (OGGZ * oggz, ogg_page * og, ogg_int64_t unit_target,
 #else
       do {
         offset_at = oggz_get_prev_start_page(oggz, og, &granule_at, &serialno);
-	if (offset_at < 0)
-	  break;
         unit_at = oggz_get_unit(oggz, serialno, granule_at);
       } while (unit_at > unit_target);
       return offset_at;
@@ -772,8 +772,6 @@ oggz_bounded_seek_set (OGGZ * oggz,
 
   do {
     offset_at = oggz_get_prev_start_page (oggz, og, &granule_at, &serialno);
-    if (offset_at < 0)
-      break;
     unit_at = oggz_get_unit (oggz, serialno, granule_at);
   } while (unit_at > unit_target);
 

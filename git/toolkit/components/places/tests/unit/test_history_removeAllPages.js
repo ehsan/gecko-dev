@@ -59,8 +59,7 @@ const kSyncFinished = "places-sync-finished";
 const EXPECTED_SYNCS = 4;
 
 function add_fake_livemark() {
-  let lmId = lms.createLivemarkFolderOnly(bs.toolbarFolder,
-                                          "Livemark",
+  let lmId = lms.createLivemarkFolderOnly(bs.bookmarksToolbarId, "Livemark",
                                           uri("http://www.mozilla.org/"),
                                           uri("http://www.mozilla.org/test.xml"),
                                           bs.DEFAULT_INDEX);

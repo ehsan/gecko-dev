@@ -282,11 +282,11 @@ var gAllTests = [
   },
 
   /**
-   * These next two tests together ensure that toggling details persists
-   * across dialog openings.
+   * Ensures that toggling details persists across dialog openings.
    */
   function () {
     let wh = new WindowHelper();
+
     wh.onload = function () {
       // Show details
       this.toggleDetails();
@@ -294,9 +294,7 @@ var gAllTests = [
       this.cancelDialog();
     };
     wh.open();
-  },
-  function () {
-    let wh = new WindowHelper();
+
     wh.onload = function () {
       // Details should have remained open
       this.checkDetails(true);

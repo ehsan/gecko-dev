@@ -120,14 +120,6 @@ nsNativeThemeGTK::RefreshWidgetWindow(nsIFrame* aFrame)
   vm->UpdateAllViews(NS_VMREFRESH_NO_SYNC);
 }
 
-static PRBool IsFrameContentNodeOfType(nsIFrame *aFrame, PRUint32 aFlags)
-{
-  nsIContent *content = aFrame ? aFrame->GetContent() : nsnull;
-  if (!content)
-    return false;
-  return content->IsNodeOfType(aFlags);
-}
-
 static PRBool IsWidgetTypeDisabled(PRUint8* aDisabledVector, PRUint8 aWidgetType) {
   return (aDisabledVector[aWidgetType >> 3] & (1 << (aWidgetType & 7))) != 0;
 }
@@ -199,7 +191,8 @@ nsNativeThemeGTK::GetGtkWidgetAndState(PRUint8 aWidgetType, nsIFrame* aFrame,
                      aWidgetType == NS_THEME_RADIO_LABEL)) {
 
         nsIAtom* atom = nsnull;
-        if (IsFrameContentNodeOfType(aFrame, nsINode::eXUL)) {
+        nsIContent *content = aFrame->GetContent();
+        if (content->IsNodeOfType(nsINode::eXUL)) {
           if (aWidgetType == NS_THEME_CHECKBOX_LABEL ||
               aWidgetType == NS_THEME_RADIO_LABEL) {
             // Adjust stateFrame so GetContentState finds the correct state.
@@ -219,7 +212,7 @@ nsNativeThemeGTK::GetGtkWidgetAndState(PRUint8 aWidgetType, nsIFrame* aFrame,
           }
         } else {
           if (aWidgetFlags) {
-            nsCOMPtr<nsIDOMHTMLInputElement> inputElt(do_QueryInterface(aFrame->GetContent()));
+            nsCOMPtr<nsIDOMHTMLInputElement> inputElt(do_QueryInterface(content));
             *aWidgetFlags = 0;
             if (inputElt) {
               PRBool isHTMLChecked;
@@ -247,7 +240,7 @@ nsNativeThemeGTK::GetGtkWidgetAndState(PRUint8 aWidgetType, nsIFrame* aFrame,
       aState->canDefault = FALSE; // XXX fix me
       aState->depressed = FALSE;
 
-      if (IsFrameContentNodeOfType(aFrame, nsINode::eXUL)) {
+      if (aFrame->GetContent()->IsNodeOfType(nsINode::eXUL)) {
         // For these widget types, some element (either a child or parent)
         // actually has element focus, so we check the focused attribute
         // to see whether to draw in the focused state.
@@ -331,12 +324,9 @@ nsNativeThemeGTK::GetGtkWidgetAndState(PRUint8 aWidgetType, nsIFrame* aFrame,
         
           if (aWidgetType == NS_THEME_CHECKMENUITEM ||
               aWidgetType == NS_THEME_RADIOMENUITEM) {
-            *aWidgetFlags = 0;
-            if (aFrame && aFrame->GetContent()) {
-              *aWidgetFlags = aFrame->GetContent()->
-                AttrValueIs(kNameSpaceID_None, nsWidgetAtoms::checked,
-                            nsWidgetAtoms::_true, eIgnoreCase);
-            }
+            *aWidgetFlags = aFrame && aFrame->GetContent()->
+              AttrValueIs(kNameSpaceID_None, nsWidgetAtoms::checked,
+                          nsWidgetAtoms::_true, eIgnoreCase);
           }
         }
 
@@ -496,7 +486,8 @@ nsNativeThemeGTK::GetGtkWidgetAndState(PRUint8 aWidgetType, nsIFrame* aFrame,
   case NS_THEME_DROPDOWN:
     aGtkWidgetType = MOZ_GTK_DROPDOWN;
     if (aWidgetFlags)
-        *aWidgetFlags = IsFrameContentNodeOfType(aFrame, nsINode::eHTML);
+        *aWidgetFlags = aFrame && aFrame->GetContent()->
+                                        IsNodeOfType(nsINode::eHTML);
     break;
   case NS_THEME_DROPDOWN_TEXT:
     return PR_FALSE; // nothing to do, but prevents the bg from being drawn
@@ -856,7 +847,8 @@ nsNativeThemeGTK::GetWidgetBorder(nsIDeviceContext* aContext, nsIFrame* aFrame,
                                nsnull))
         moz_gtk_get_widget_border(gtkWidgetType, &aResult->left, &aResult->top,
                                   &aResult->right, &aResult->bottom, direction,
-                                  IsFrameContentNodeOfType(aFrame, nsINode::eHTML));
+                                  aFrame && aFrame->GetContent()->
+                                        IsNodeOfType(nsINode::eHTML));
     }
   }
   return NS_OK;
@@ -1289,7 +1281,7 @@ nsNativeThemeGTK::ThemeSupportsWidget(nsPresContext* aPresContext,
   case NS_THEME_DROPDOWN_BUTTON:
     // "Native" dropdown buttons cause padding and margin problems, but only
     // in HTML so allow them in XUL.
-    return (!aFrame || IsFrameContentNodeOfType(aFrame, nsINode::eXUL)) &&
+    return (!aFrame || aFrame->GetContent()->IsNodeOfType(nsINode::eXUL)) &&
            !IsWidgetStyled(aPresContext, aFrame, aWidgetType);
 
   }

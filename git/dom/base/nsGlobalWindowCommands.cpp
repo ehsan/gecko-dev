@@ -44,7 +44,6 @@
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsCRT.h"
 #include "nsString.h"
-#include "nsContentUtils.h"
 
 #include "nsIControllerCommandTable.h"
 #include "nsICommandParams.h"
@@ -54,10 +53,10 @@
 #include "nsPresContext.h"
 #include "nsIDocShell.h"
 #include "nsISelectionController.h"
+#include "nsIEventStateManager.h"
 #include "nsIWebNavigation.h"
 #include "nsIContentViewerEdit.h"
 #include "nsIContentViewer.h"
-#include "nsFocusManager.h"
 
 #include "nsIClipboardDragDropHooks.h"
 #include "nsIClipboardDragDropHookList.h"
@@ -124,6 +123,7 @@ protected:
 
   static nsresult  GetPresShellFromWindow(nsIDOMWindow *aWindow, nsIPresShell **aPresShell);
   static nsresult  GetSelectionControllerFromWindow(nsIDOMWindow *aWindow, nsISelectionController **aSelCon);
+  static nsresult  GetEventStateManagerForWindow(nsIDOMWindow *aWindow, nsIEventStateManager **aEventStateManager);
 
   // no member variables, please, we're stateless!
 };
@@ -135,9 +135,7 @@ protected:
 
   virtual nsresult DoSelectCommand(const char *aCommandName, nsIDOMWindow *aWindow);
   
-  nsresult    DoCommandBrowseWithCaretOn(const char *aCommandName,
-                                         nsIDOMWindow *aWindow,
-                                         nsISelectionController *aSelectionController);
+  nsresult    DoCommandBrowseWithCaretOn(const char *aCommandName, nsISelectionController *aSelectionController, nsIEventStateManager* aESM);
   nsresult    DoCommandBrowseWithCaretOff(const char *aCommandName, nsISelectionController *aSelectionController);
 
   // no member variables, please, we're stateless!
@@ -227,6 +225,25 @@ nsSelectionCommandsBase::GetSelectionControllerFromWindow(nsIDOMWindow *aWindow,
   return NS_ERROR_FAILURE;
 }
 
+nsresult
+nsSelectionCommandsBase::GetEventStateManagerForWindow(nsIDOMWindow *aWindow,
+                              nsIEventStateManager **aEventStateManager)
+{
+  *aEventStateManager = nsnull;
+
+  nsCOMPtr<nsIPresShell> presShell;
+  GetPresShellFromWindow(aWindow, getter_AddRefs(presShell));
+  if (presShell)
+  {
+    nsPresContext *presContext = presShell->GetPresContext();
+    if (presContext) {
+      NS_ADDREF(*aEventStateManager = presContext->EventStateManager());
+      return NS_OK;
+    }
+  }
+  return NS_ERROR_FAILURE;
+}
+
 #if 0
 #pragma mark -
 #endif
@@ -241,21 +258,24 @@ nsSelectMoveScrollCommand::DoSelectCommand(const char *aCommandName, nsIDOMWindo
   PRBool caretOn = PR_FALSE;
   selCont->GetCaretEnabled(&caretOn);
 
+  nsCOMPtr<nsIEventStateManager> esm;
+  GetEventStateManagerForWindow(aWindow, getter_AddRefs(esm));
+
+  nsresult rv;
   // We allow the caret to be moved with arrow keys on any window for which
   // the caret is enabled. In particular, this includes caret-browsing mode,
   // but we refer to this mode again in the test condition for readability.
-  if (caretOn) {
-    // XXXndeakin P3 perhaps this should be cached
-    if (nsContentUtils::GetBoolPref("accessibility.browsewithcaret"))
-      return DoCommandBrowseWithCaretOn(aCommandName, aWindow, selCont);
-  }
+  if (caretOn || (esm && esm->GetBrowseWithCaret()))
+    rv = DoCommandBrowseWithCaretOn(aCommandName, selCont, esm);
+  else
+    rv = DoCommandBrowseWithCaretOff(aCommandName, selCont);
 
-  return DoCommandBrowseWithCaretOff(aCommandName, selCont);
+  return rv;
 }
 
 nsresult
 nsSelectMoveScrollCommand::DoCommandBrowseWithCaretOn(const char *aCommandName,
-                  nsIDOMWindow *aWindow, nsISelectionController *aSelectionController)
+                  nsISelectionController *aSelectionController, nsIEventStateManager* aESM)
 {
   nsresult rv = NS_ERROR_NOT_IMPLEMENTED;
 
@@ -292,16 +312,10 @@ nsSelectMoveScrollCommand::DoCommandBrowseWithCaretOn(const char *aCommandName,
   else if (!nsCRT::strcmp(aCommandName, sEndLineString))
     rv = aSelectionController->IntraLineMove(PR_TRUE, PR_FALSE);
 
-  if (NS_SUCCEEDED(rv))
+  if (NS_SUCCEEDED(rv) && aESM)
   {
-    // adjust the focus to the new caret position
-    nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-    if (fm) {
-      nsCOMPtr<nsIDOMElement> result;
-      fm->MoveFocus(aWindow, nsnull, nsIFocusManager::MOVEFOCUS_CARET,
-                    nsIFocusManager::FLAG_NOSCROLL,
-                    getter_AddRefs(result));
-    }
+    PRBool dummy;
+    aESM->MoveFocusToCaret(PR_TRUE, &dummy);
   }
 
   return rv;

@@ -62,7 +62,6 @@ DIRS += mochitest \
 # xpcshell tests
 XPCSHELL_TESTS=unit
 
-ifndef MOZ_ENABLE_LIBXUL
 # simple c++ tests (no xpcom)
 CPP_UNIT_TESTS = \
 	TestUrlClassifierUtils.cpp \
@@ -79,6 +78,5 @@ LIBS = \
 	$(XPCOM_LIBS) \
 	$(NSPR_LIBS) \
 	$(NULL)
-endif
 
 include $(topsrcdir)/config/rules.mk

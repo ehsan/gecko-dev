@@ -63,7 +63,7 @@ function test()
   actual = f + '';
   compareSource(expect, actual, 'function f(a) { const b = a; print(++b); return b; }');
 
-  expect = '01';
+  expect = '21';
   actual = 0;
 
   function g(a) { const b = a; print(actual = ++b); return b; }

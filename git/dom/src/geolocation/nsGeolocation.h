@@ -94,7 +94,7 @@ class nsGeolocationRequest : public nsIGeolocationRequest, public nsITimerCallba
   nsCOMPtr<nsIDOMGeoPositionErrorCallback> mErrorCallback;
   nsCOMPtr<nsIDOMGeoPositionOptions> mOptions;
 
-  nsRefPtr<nsGeolocation> mLocator;
+  nsGeolocation* mLocator; // The locator exists longer than this object.
 };
 
 /**
