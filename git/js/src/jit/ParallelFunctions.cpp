@@ -23,7 +23,7 @@ using parallel::SpewBailoutIR;
 ForkJoinSlice *
 jit::ForkJoinSlicePar()
 {
-    return ForkJoinSlice::current();
+    return ForkJoinSlice::Current();
 }
 
 // NewGCThingPar() is called in place of NewGCThing() when executing
@@ -32,7 +32,7 @@ jit::ForkJoinSlicePar()
 JSObject *
 jit::NewGCThingPar(ForkJoinSlice *slice, gc::AllocKind allocKind)
 {
-    JS_ASSERT(ForkJoinSlice::current() == slice);
+    JS_ASSERT(ForkJoinSlice::Current() == slice);
     uint32_t thingSize = (uint32_t)gc::Arena::thingSize(allocKind);
     return gc::NewGCThing<JSObject, NoGC>(slice, allocKind, thingSize, gc::DefaultHeap);
 }
@@ -42,7 +42,7 @@ jit::NewGCThingPar(ForkJoinSlice *slice, gc::AllocKind allocKind)
 bool
 jit::IsThreadLocalObject(ForkJoinSlice *slice, JSObject *object)
 {
-    JS_ASSERT(ForkJoinSlice::current() == slice);
+    JS_ASSERT(ForkJoinSlice::Current() == slice);
     return slice->isThreadLocal(object);
 }
 
@@ -87,7 +87,7 @@ jit::TraceLIR(IonLIRTraceData *current)
     if (current->execModeInt == 0)
         cached = &seqTraceData;
     else
-        cached = &ForkJoinSlice::current()->traceData;
+        cached = &ForkJoinSlice::Current()->traceData;
 
     if (current->blockIndex == 0xDEADBEEF) {
         if (current->execModeInt == 0)
@@ -106,7 +106,7 @@ jit::TraceLIR(IonLIRTraceData *current)
 bool
 jit::CheckOverRecursedPar(ForkJoinSlice *slice)
 {
-    JS_ASSERT(ForkJoinSlice::current() == slice);
+    JS_ASSERT(ForkJoinSlice::Current() == slice);
     int stackDummy_;
 
     // When an interrupt is triggered, the main thread stack limit is
@@ -135,7 +135,7 @@ jit::CheckOverRecursedPar(ForkJoinSlice *slice)
 bool
 jit::CheckInterruptPar(ForkJoinSlice *slice)
 {
-    JS_ASSERT(ForkJoinSlice::current() == slice);
+    JS_ASSERT(ForkJoinSlice::Current() == slice);
     bool result = slice->check();
     if (!result) {
         // Do not set the cause here.  Either it was set by this
@@ -481,7 +481,7 @@ jit::AbortPar(ParallelBailoutCause cause, JSScript *outermostScript, JSScript *c
     JS_ASSERT(currentScript != nullptr);
     JS_ASSERT(outermostScript->hasParallelIonScript());
 
-    ForkJoinSlice *slice = ForkJoinSlice::current();
+    ForkJoinSlice *slice = ForkJoinSlice::Current();
 
     JS_ASSERT(slice->bailoutRecord->depth == 0);
     slice->bailoutRecord->setCause(cause, outermostScript, currentScript, bytecode);
@@ -500,7 +500,7 @@ jit::PropagateAbortPar(JSScript *outermostScript, JSScript *currentScript)
 
     outermostScript->parallelIonScript()->setHasUncompiledCallTarget();
 
-    ForkJoinSlice *slice = ForkJoinSlice::current();
+    ForkJoinSlice *slice = ForkJoinSlice::Current();
     if (currentScript)
         slice->bailoutRecord->addTrace(currentScript, nullptr);
 }

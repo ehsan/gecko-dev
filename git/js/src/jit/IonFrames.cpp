@@ -688,7 +688,7 @@ HandleException(ResumeFromException *rfe)
 void
 HandleParallelFailure(ResumeFromException *rfe)
 {
-    ForkJoinSlice *slice = ForkJoinSlice::current();
+    ForkJoinSlice *slice = ForkJoinSlice::Current();
     IonFrameIterator iter(slice->perThreadData->ionTop, ParallelExecution);
 
     parallel::Spew(parallel::SpewBailouts, "Bailing from VM reentry");
