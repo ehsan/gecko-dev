@@ -72,18 +72,20 @@ MIRGenerator::abort(const char *message, ...)
     return false;
 }
 
-bool
+void
 MIRGraph::addBlock(MBasicBlock *block)
 {
-    block->setId(blocks_.length());
-    return blocks_.append(block);
+    block->setId(blockIdGen_++);
+    blocks_.pushBack(block);
+#ifdef DEBUG
+    numBlocks_++;
+#endif
 }
 
 void
 MIRGraph::unmarkBlocks() {
-    for (size_t i = 0; i < numBlocks(); i ++) {
-        getBlock(i)->unmark();
-    }
+    for (MBasicBlockIterator i(blocks_.begin()); i != blocks_.end(); i++)
+        i->unmark();
 }
 
 MBasicBlock *
@@ -373,16 +375,11 @@ MDefinitionIterator
 MBasicBlock::removeDefAt(MDefinitionIterator &old)
 {
     MDefinitionIterator iter(old);
-    MDefinition *def = *iter;
-    uint32 phiIndex = iter.phiIndex_;
-    iter++;
 
-    if (phiIndex < numPhis()) {
-        JS_ASSERT(def->isPhi());
-        phis_.erase(phis_.begin() + phiIndex);
-    } else {
-        remove(def->toInstruction());
-    }
+    if (iter.atPhi())
+        iter.phiIter_ = iter.block_->removePhiAt(iter.phiIter_);
+    else
+        iter.iter_ = iter.block_->removeAt(iter.iter_);
 
     return iter;
 }
@@ -419,14 +416,25 @@ MBasicBlock::end(MControlInstruction *ins)
     lastIns_ = ins;
 }
 
-bool
+void
 MBasicBlock::addPhi(MPhi *phi)
 {
-    if (!phis_.append(phi))
-        return false;
+    phis_.pushBack(phi);
     phi->setBlock(this);
     gen()->graph().allocDefinitionId(phi);
-    return true;
+}
+
+MPhiIterator
+MBasicBlock::removePhiAt(MPhiIterator &at)
+{
+    JS_ASSERT(!phis_.empty());
+
+    MPhiIterator result = phis_.removeAt(at);
+    if (phis_.empty()) {
+        for (MBasicBlock **pred = predecessors_.begin(); pred != predecessors_.end(); pred++)
+            (*pred)->setSuccessorWithPhis(NULL, 0);
+    }
+    return result;
 }
 
 bool
@@ -455,8 +463,7 @@ MBasicBlock::addPredecessor(MBasicBlock *pred)
             } else {
                 // Otherwise, create a new phi node.
                 phi = MPhi::New(i);
-                if (!addPhi(phi))
-                    return false;
+                addPhi(phi);
 
                 // Prime the phi for each predecessor, so input(x) comes from
                 // predecessor(x).
@@ -495,6 +502,14 @@ MBasicBlock::assertUsesAreNotWithin(MUseIterator use, MUseIterator end)
 #endif
 }
 
+static inline MDefinition *
+FollowCopy(MDefinition *def)
+{
+    MDefinition *ret = def->isCopy() ? def->getOperand(0) : def;
+    JS_ASSERT(!ret->isCopy());
+    return ret;
+}
+
 bool
 MBasicBlock::setBackedge(MBasicBlock *pred, MBasicBlock *successor)
 {
@@ -518,16 +533,53 @@ MBasicBlock::setBackedge(MBasicBlock *pred, MBasicBlock *successor)
         MDefinition *entryDef = entrySnapshot()->getOperand(i);
         MDefinition *exitDef = pred->slots_[i].def;
 
+        // So long as we make sure that local variables are distinct SSA names,
+        // and generate a unique copy for each assignment until copy
+        // propagation occurs after SSA building is complete, then we need not
+        // insert phis if the entry definition is just a copy of the exit
+        // definition.
+        //
+        // If at any point, we perform an operation on a local variable that is
+        // NOT just a copy (say, we perform an add), then the exit definition
+        // will differ and we will insert the phi as necessary.
+        //
+        // Essentially, we are capturing the fact that copy propagation WILL
+        // occur, so that there will be no modifying operations in the loop,
+        // and we will not need to insert a phi to merge a back edge. So,
+        // inserting a phi is not necessary.
+        //
+        // Consider:
+        //   i = 1          ||   0: const(#1)    ||   0: const(#1)
+        //                  ||   1: copy(0)      ||   1: copy(0)
+        //   t = i          \|   do {            \|   do {
+        //   do {            ->    3: copy(0)     ->    2: phi(0, 3)
+        //      i = t       /|   } ...           /|     3: copy(2)
+        //   } ...          ||                   ||   } ...
+        //                  ||                   ||
+        //
+        // Note that the inserted phi is unecessary. After copy propagation
+        // occurs, we will have:
+        // 0: const(#1)     ||   0: const(#1)
+        // 1: copy(0)       ||   [eliminated copy]
+        // do {             \|   do {
+        //   2: phi(0, 3)    ->     2: phi(0, 2)
+        //   3: copy(2)     /|   }
+        // } ...            ||   4 : op(2, ...)
+        // 4 : op(3, ...)   ||
+        //
+        // So, the phi joins two definitions which are actually the same, and
+        // there was no reason to insert it to begin with.
+
+
         // If the entry definition and exit definition do not differ, then
         // no phi placement is necessary.
-        if (entryDef == exitDef)
+        if (FollowCopy(entryDef) == FollowCopy(exitDef))
             continue;
 
         // Create a new phi. Do not add inputs yet, as we don't want to
         // accidentally rewrite the phi's operands.
         MPhi *phi = MPhi::New(i);
-        if (!addPhi(phi))
-            return false;
+        addPhi(phi);
 
         for (MUseIterator use(entryDef->usesBegin()); use != entryDef->usesEnd(); ) {
             JS_ASSERT(use->node()->getOperand(use->index()) == entryDef);

@@ -53,9 +53,7 @@ using namespace js::ion;
 bool
 ion::SplitCriticalEdges(MIRGenerator *gen, MIRGraph &graph)
 {
-    size_t preSplitEdges = graph.numBlocks();
-    for (size_t i = 0; i < preSplitEdges; i++) {
-        MBasicBlock *block = graph.getBlock(i);
+    for (MBasicBlockIterator block(graph.begin()); block != graph.end(); block++) {
         if (block->numSuccessors() < 2)
             continue;
         for (size_t i = 0; i < block->numSuccessors(); i++) {
@@ -64,16 +62,14 @@ ion::SplitCriticalEdges(MIRGenerator *gen, MIRGraph &graph)
                 continue;
 
             // Create a new block inheriting from the predecessor.
-            MBasicBlock *split = MBasicBlock::NewSplitEdge(gen, block);
-            if (!graph.addBlock(split))
-                return false;
+            MBasicBlock *split = MBasicBlock::NewSplitEdge(gen, *block);
+            graph.addBlock(split);
             split->end(MGoto::New(target));
 
             block->replaceSuccessor(i, split);
-            target->replacePredecessor(block, split);
+            target->replacePredecessor(*block, split);
         }
     }
-
     return true;
 }
 
@@ -105,6 +101,7 @@ class TypeAnalyzer
     bool specializePhis();
     bool specializeInstructions();
     bool determineSpecializations();
+    void replaceRedundantPhi(MPhi *phi);
     bool insertConversions();
     bool adjustPhiInputs(MPhi *phi);
     bool adjustInputs(MDefinition *def);
@@ -123,15 +120,14 @@ TypeAnalyzer::buildWorklist()
 {
     // The worklist is LIFO. We add items in postorder to get reverse-postorder
     // removal.
-    for (size_t i = 0; i < graph.numBlocks(); i++) {
-        MBasicBlock *block = graph.getBlock(i);
-        MDefinitionIterator iter(block);
-        while (iter) {
+    for (ReversePostorderIterator block(graph.rpoBegin()); block != graph.rpoEnd(); block++) {
+        MInstructionIterator iter = block->begin();
+        while (iter != block->end()) {
             if (iter->isCopy()) {
                 // Remove copies here.
                 MCopy *copy = iter->toCopy();
                 copy->replaceAllUsesWith(copy->getOperand(0));
-                iter = block->removeDefAt(iter);
+                iter = block->removeAt(iter);
                 continue;
             }
             if (!push(*iter))
@@ -230,10 +226,9 @@ TypeAnalyzer::specializePhi(MPhi *phi)
 bool
 TypeAnalyzer::specializePhis()
 {
-    for (size_t i = 0; i < graph.numBlocks(); i++) {
-        MBasicBlock *block = graph.getBlock(i);
-        for (size_t i = 0; i < block->numPhis(); i++) {
-            if (!specializePhi(block->getPhi(i)))
+    for (ReversePostorderIterator block(graph.rpoBegin()); block != graph.rpoEnd(); block++) {
+        for (MPhiIterator phi(block->phisBegin()); phi != block->phisEnd(); phi++) {
+            if (!specializePhi(*phi))
                 return false;
         }
     }
@@ -352,22 +347,37 @@ TypeAnalyzer::adjustInputs(MDefinition *def)
     return true;
 }
 
+void
+TypeAnalyzer::replaceRedundantPhi(MPhi *phi)
+{
+    MBasicBlock *block = phi->block();
+    js::Value v = (phi->type() == MIRType_Undefined) ? UndefinedValue() : NullValue();
+    MConstant *c = MConstant::New(v);
+    // The instruction pass will insert the box
+    block->insertBefore(*(block->begin()), c);
+    phi->replaceAllUsesWith(c);
+}
+
 bool
 TypeAnalyzer::insertConversions()
 {
-    // Instructions are processed in postorder: all uses are defs are seen
-    // before uses. This ensures that output adjustment (which may rewrite
+    // Instructions are processed in reverse postorder: all uses are defs are
+    // seen before uses. This ensures that output adjustment (which may rewrite
     // inputs of uses) does not conflict with input adjustment.
-    for (size_t i = 0; i < graph.numBlocks(); i++) {
-        MBasicBlock *block = graph.getBlock(i);
-        for (size_t i = 0; i < block->numPhis(); i++) {
-            MPhi *phi = block->getPhi(i);
-            if (!adjustPhiInputs(phi))
-                return false;
-            if (phi->type() == MIRType_Value && !adjustOutput(phi))
-                return false;
+    for (ReversePostorderIterator block(graph.rpoBegin()); block != graph.rpoEnd(); block++) {
+        for (MPhiIterator phi(block->phisBegin()); phi != block->phisEnd();) {
+            if (phi->type() <= MIRType_Null) {
+                replaceRedundantPhi(*phi);
+                phi = block->removePhiAt(phi);
+            } else {
+                if (!adjustPhiInputs(*phi))
+                    return false;
+                if (phi->type() == MIRType_Value && !adjustOutput(*phi))
+                    return false;
+                phi++;
+            }
         }
-        for (MInstructionIterator iter = block->begin(); iter != block->end(); iter++) {
+        for (MInstructionIterator iter(block->begin()); iter != block->end(); iter++) {
             if (!adjustInputs(*iter))
                 return false;
             if (iter->type() == MIRType_Value && !adjustOutput(*iter))
@@ -403,11 +413,11 @@ ion::ApplyTypeInformation(MIRGraph &graph)
 bool
 ion::ReorderBlocks(MIRGraph &graph)
 {
-    Vector<MBasicBlock *, 0, IonAllocPolicy> pending;
+    InlineList<MBasicBlock> pending;
     Vector<unsigned int, 0, IonAllocPolicy> successors;
-    Vector<MBasicBlock *, 0, IonAllocPolicy> done;
+    InlineList<MBasicBlock> done;
 
-    MBasicBlock *current = graph.getBlock(0);
+    MBasicBlock *current = *graph.begin();
     unsigned int nextSuccessor = 0;
 
     graph.clearBlockList();
@@ -418,8 +428,7 @@ ion::ReorderBlocks(MIRGraph &graph)
             current->mark();
 
             if (nextSuccessor < current->lastIns()->numSuccessors()) {
-                if (!pending.append(current))
-                    return false;
+                pending.pushFront(current);
                 if (!successors.append(nextSuccessor))
                     return false;
 
@@ -428,14 +437,13 @@ ion::ReorderBlocks(MIRGraph &graph)
                 continue;
             }
 
-            if (!done.append(current))
-                return false;
+            done.pushFront(current);
         }
 
         if (pending.empty())
             break;
 
-        current = pending.popCopy();
+        current = pending.popFront();
         current->unmark();
         nextSuccessor = successors.popCopy() + 1;
     }
@@ -443,11 +451,11 @@ ion::ReorderBlocks(MIRGraph &graph)
     JS_ASSERT(pending.empty());
     JS_ASSERT(successors.empty());
 
+    // Insert in reverse order so blocks are in RPO order in the graph
     while (!done.empty()) {
-        current = done.popCopy();
+        current = done.popFront();
         current->unmark();
-        if (!graph.addBlock(current))
-            return false;
+        graph.addBlock(current);
     }
 
     return true;
@@ -476,28 +484,24 @@ IntersectDominators(MBasicBlock *block1, MBasicBlock *block2)
 static void
 ComputeImmediateDominators(MIRGraph &graph)
 {
-
-    if (graph.numBlocks() == 0)
-        return;
-
-    MBasicBlock *startBlock = graph.getBlock(0);
+    MBasicBlock *startBlock = *graph.begin();
     startBlock->setImmediateDominator(startBlock);
 
     bool changed = true;
 
     while (changed) {
         changed = false;
-        // We start at 1, not 0, intentionally excluding the start node.
-        for (size_t i = 1; i < graph.numBlocks(); i++) {
-            MBasicBlock *block = graph.getBlock(i);
-
+        // We intentionally exclude the start node.
+        MBasicBlockIterator block(graph.begin());
+        block++;
+        for (; block != graph.end(); block++) {
             if (block->numPredecessors() == 0)
                 continue;
 
             MBasicBlock *newIdom = block->getPredecessor(0);
 
             for (size_t i = 1; i < block->numPredecessors(); i++) {
-                MBasicBlock *pred = graph.getBlock(i);
+                MBasicBlock *pred = block->getPredecessor(i);
                 if (pred->immediateDominator() != NULL)
                     newIdom = IntersectDominators(pred, newIdom);
             }
@@ -513,9 +517,6 @@ ComputeImmediateDominators(MIRGraph &graph)
 bool
 ion::BuildDominatorTree(MIRGraph &graph)
 {
-    if (graph.numBlocks() == 0)
-        return true;
-
     ComputeImmediateDominators(graph);
 
     // Since traversing through the graph in post-order means that every use
@@ -523,8 +524,8 @@ ion::BuildDominatorTree(MIRGraph &graph)
     // dominate all its uses, this means that by the time we reach a particular
     // block, we have processed all of its dominated children, so
     // block->numDominated() is accurate.
-    for (size_t i = graph.numBlocks() - 1; i > 0; i--) { //Exclude start block.
-        MBasicBlock *child = graph.getBlock(i);
+    for (PostorderIterator i(graph.poBegin()); *i != *graph.begin(); i++) {
+        MBasicBlock *child = *i;
         MBasicBlock *parent = child->immediateDominator();
 
         if (!parent->addImmediatelyDominatedBlock(child))
@@ -533,7 +534,7 @@ ion::BuildDominatorTree(MIRGraph &graph)
         // an additional +1 because of this child block.
         parent->addNumDominated(child->numDominated() + 1);
     }
-    JS_ASSERT(graph.getBlock(0)->numDominated() == graph.numBlocks() - 1);
+    JS_ASSERT(graph.begin()->numDominated() == graph.numBlocks() - 1);
     return true;
 }
 
@@ -559,10 +560,9 @@ ion::BuildPhiReverseMapping(MIRGraph &graph)
     //   * Loop tail. A new block is always created for the exit, and if a
     //             break statement is present, the exit block will forward
     //             directly to the break block.
-    for (size_t i = 0; i < graph.numBlocks(); i++) {
-        MBasicBlock *block = graph.getBlock(i);
+    for (MBasicBlockIterator block(graph.begin()); block != graph.end(); block++) {
         if (block->numPredecessors() < 2) {
-            JS_ASSERT(block->numPhis() == 0);
+            JS_ASSERT(block->phisEmpty());
             continue;
         }
 
@@ -574,13 +574,13 @@ ion::BuildPhiReverseMapping(MIRGraph &graph)
             size_t numSuccessorsWithPhis = 0;
             for (size_t k = 0; k < pred->numSuccessors(); k++) {
                 MBasicBlock *successor = pred->getSuccessor(k);
-                if (successor->numPhis() > 0)
+                if (!successor->phisEmpty())
                     numSuccessorsWithPhis++;
             }
             JS_ASSERT(numSuccessorsWithPhis <= 1);
 #endif
 
-            pred->setSuccessorWithPhis(block, j);
+            pred->setSuccessorWithPhis(*block, j);
         }
     }
 

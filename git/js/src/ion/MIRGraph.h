@@ -57,48 +57,12 @@ class MStart;
 
 class MDefinitionIterator;
 
-class MIRGraph
-{
-    Vector<MBasicBlock *, 8, IonAllocPolicy> blocks_;
-    uint32 idGen_;
-
-  public:
-    MIRGraph()
-      : idGen_(0)
-    {  }
-
-    bool addBlock(MBasicBlock *block);
-    void unmarkBlocks();
-
-    void clearBlockList() {
-        blocks_.clear();
-    }
-    void resetInstructionNumber() {
-        idGen_ = 0;
-    }
-
-    size_t numBlocks() const {
-        return blocks_.length();
-    }
-    MBasicBlock *getBlock(size_t i) const {
-        return blocks_[i];
-    }
-    void allocDefinitionId(MDefinition *ins) {
-        // This intentionally starts above 0. The id 0 is in places used to
-        // indicate a failure to perform an operation on an instruction.
-        idGen_ += 2;
-        ins->setId(idGen_);
-    }
-    uint32 getMaxInstructionId() {
-        return idGen_;
-    }
-};
-
 typedef InlineList<MInstruction>::iterator MInstructionIterator;
+typedef InlineForwardList<MPhi>::iterator MPhiIterator;
 
 class LBlock;
 
-class MBasicBlock : public TempObject
+class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
 {
     static const uint32 NotACopy = uint32(-1);
 
@@ -196,8 +160,11 @@ class MBasicBlock : public TempObject
     // can be added.
     void end(MControlInstruction *ins);
 
-    // Adds a phi instruction.
-    bool addPhi(MPhi *phi);
+    // Adds a phi instruction, but does not set successorWithPhis.
+    void addPhi(MPhi *phi);
+
+    // Removes a phi instruction, and updates predecessor successorWithPhis.
+    MPhiIterator removePhiAt(MPhiIterator &at);
 
     // Adds a predecessor. Every predecessor must have the same exit stack
     // depth as the entry state to this block. Adding a predecessor
@@ -239,11 +206,14 @@ class MBasicBlock : public TempObject
     MControlInstruction *lastIns() const {
         return lastIns_;
     }
-    size_t numPhis() const {
-        return phis_.length();
+    MPhiIterator phisBegin() const {
+        return phis_.begin();
     }
-    MPhi *getPhi(size_t i) const {
-        return phis_[i];
+    MPhiIterator phisEnd() const {
+        return phis_.end();
+    }
+    bool phisEmpty() const {
+        return phis_.empty();
     }
     MInstructionIterator begin() {
         return instructions_.begin();
@@ -359,7 +329,7 @@ class MBasicBlock : public TempObject
     MIRGenerator *gen_;
     InlineList<MInstruction> instructions_;
     Vector<MBasicBlock *, 1, IonAllocPolicy> predecessors_;
-    Vector<MPhi *, 2, IonAllocPolicy> phis_;
+    InlineForwardList<MPhi> phis_;
     StackSlot *slots_;
     uint32 stackPosition_;
     MControlInstruction *lastIns_;
@@ -380,6 +350,80 @@ class MBasicBlock : public TempObject
     size_t numDominated_;
 };
 
+typedef InlineListIterator<MBasicBlock> MBasicBlockIterator;
+typedef InlineListIterator<MBasicBlock> ReversePostorderIterator;
+typedef InlineListReverseIterator<MBasicBlock> PostorderIterator;
+
+class MIRGraph
+{
+    InlineList<MBasicBlock> blocks_;
+    uint32 blockIdGen_;
+    uint32 idGen_;
+#ifdef DEBUG
+    size_t numBlocks_;
+#endif
+
+  public:
+    MIRGraph()
+      : blockIdGen_(0),
+        idGen_(0)
+    {  }
+
+    void addBlock(MBasicBlock *block);
+    void unmarkBlocks();
+
+    void clearBlockList() {
+        blocks_.clear();
+#ifdef DEBUG
+        numBlocks_ = 0;
+#endif
+    }
+    void resetInstructionNumber() {
+        idGen_ = 0;
+    }
+    MBasicBlockIterator begin() {
+        return blocks_.begin();
+    }
+    MBasicBlockIterator end() {
+        return blocks_.end();
+    }
+    PostorderIterator poBegin() {
+        return blocks_.rbegin();
+    }
+    PostorderIterator poEnd() {
+        return blocks_.rend();
+    }
+    ReversePostorderIterator rpoBegin() {
+        return blocks_.begin();
+    }
+    ReversePostorderIterator rpoEnd() {
+        return blocks_.end();
+    }
+    void removeBlock(MBasicBlock *block) {
+        blocks_.remove(block);
+#ifdef DEBUG
+        numBlocks_--;
+#endif
+    }
+#ifdef DEBUG
+    size_t numBlocks() const {
+        return numBlocks_;
+    }
+#endif
+    uint32 maxBlockId() const {
+        return blockIdGen_ - 1;
+    }
+    void allocDefinitionId(MDefinition *ins) {
+        // This intentionally starts above 0. The id 0 is in places used to
+        // indicate a failure to perform an operation on an instruction.
+        idGen_ += 2;
+        ins->setId(idGen_);
+    }
+    uint32 getMaxInstructionId() {
+        return idGen_;
+    }
+};
+
 class MDefinitionIterator
 {
 
@@ -387,43 +431,39 @@ class MDefinitionIterator
 
   private:
     MBasicBlock *block_;
-    size_t phiIndex_;
+    MPhiIterator phiIter_;
     MInstructionIterator iter_;
 
+    bool atPhi() const {
+        return phiIter_ != block_->phisEnd();
+    }
 
     MDefinition *getIns() {
-        if (phiIndex_ < block_->numPhis())
-            return block_->getPhi(phiIndex_);
-
+        if (atPhi())
+            return *phiIter_;
         return *iter_;
     }
 
-    MDefinitionIterator(const MDefinitionIterator *old)
-      : block_(old->block_),
-        phiIndex_(old->phiIndex_),
-        iter_(old->iter_)
-    { }
-
     void next() {
-        if (phiIndex_ < block_->numPhis())
-            phiIndex_++;
+        if (atPhi())
+            phiIter_++;
         else
             iter_++;
     }
 
     bool more() const {
-        return phiIndex_ < block_->numPhis() || (*iter_) != block_->lastIns();
+        return atPhi() || (*iter_) != block_->lastIns();
     }
 
   public:
     MDefinitionIterator(MBasicBlock *block)
       : block_(block),
-        phiIndex_(0),
+        phiIter_(block->phisBegin()),
         iter_(block->begin())
     { }
 
     MDefinitionIterator operator ++(int) {
-        MDefinitionIterator old(this);
+        MDefinitionIterator old(*this);
         if (more())
             next();
         return old;

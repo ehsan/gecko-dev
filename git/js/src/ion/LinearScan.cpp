@@ -300,7 +300,7 @@ LinearScanAllocator::createDataStructures()
 {
     allowedRegs = RegisterSet::All();
 
-    liveIn = lir->mir()->allocate<BitSet*>(graph.numBlocks());
+    liveIn = lir->mir()->allocate<BitSet*>(graph.maxBlockId() + 1);
     freeUntilPos = lir->mir()->allocate<CodePosition>(Registers::Total);
     nextUsePos = lir->mir()->allocate<CodePosition>(Registers::Total);
     if (!liveIn || !freeUntilPos || !nextUsePos)
@@ -708,7 +708,7 @@ LinearScanAllocator::resolveControlFlow()
 
         // We want to recover the state of liveIn prior to the removal of phi-
         // defined instructions. So, we (destructively) add all phis back in.
-        BitSet *live = liveIn[i];
+        BitSet *live = liveIn[successor->mir()->id()];
         for (size_t j = 0; j < successor->numPhis(); j++)
             live->insert(successor->getPhi(j)->getDef(0)->virtualRegister());
 
@@ -797,8 +797,8 @@ LinearScanAllocator::reifyAllocations()
     while ((interval = unhandled.dequeue()) != NULL) {
         VirtualRegister *reg = interval->reg();
 
-        IonSpew(IonSpew_LSRA, " Reifying interval %u = [%u,%u]", reg->reg(), interval->start(),
-                interval->end());
+        IonSpew(IonSpew_LSRA, " Reifying interval %u = [%u,%u]", reg->reg(),
+                interval->start().pos(), interval->end().pos());
 
         // Erase all uses of this interval
         for (size_t i = 0; i < reg->numUses(); i++) {

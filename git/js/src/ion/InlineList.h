@@ -45,37 +45,50 @@
 namespace js {
 
 template <typename T> class InlineForwardList;
+template <typename T> class InlineForwardListIterator;
 
 template <typename T>
 class InlineForwardListNode
 {
-    friend class InlineForwardList<T>;
-
   public:
     InlineForwardListNode() : next(NULL)
     { }
-    InlineForwardListNode(InlineForwardListNode *n) : next(n)
+    InlineForwardListNode(InlineForwardListNode<T> *n) : next(n)
     { }
 
   protected:
-    InlineForwardListNode *next;
+    friend class InlineForwardList<T>;
+    friend class InlineForwardListIterator<T>;
+
+    InlineForwardListNode<T> *next;
 };
 
 template <typename T>
 class InlineForwardList : protected InlineForwardListNode<T>
 {
+    friend class InlineForwardListIterator<T>;
+
     typedef InlineForwardListNode<T> Node;
 
+    Node *tail_;
 #ifdef DEBUG
     uintptr_t modifyCount_;
-
-  public:
-    InlineForwardList() : modifyCount_(0)
-    { }
 #endif
 
+    InlineForwardList<T> *thisFromConstructor() {
+        return this;
+    }
+
   public:
-    class iterator;
+    InlineForwardList()
+      : tail_(thisFromConstructor())
+#ifdef DEBUG
+      ,  modifyCount_(0)
+#endif
+    { }
+
+  public:
+    typedef InlineForwardListIterator<T> iterator;
 
   public:
     iterator begin() const {
@@ -104,6 +117,14 @@ class InlineForwardList : protected InlineForwardListNode<T>
     void pushFront(Node *t) {
         insertAfter(this, t);
     }
+    void pushBack(Node *t) {
+#ifdef DEBUG
+        modifyCount_++;
+#endif
+        tail_->next = t;
+        t->next = NULL;
+        tail_ = t;
+    }
     T *popFront() {
         JS_ASSERT(!empty());
         T* result = static_cast<T *>(this->next);
@@ -114,6 +135,8 @@ class InlineForwardList : protected InlineForwardListNode<T>
 #ifdef DEBUG
         modifyCount_++;
 #endif
+        if (at == tail_)
+            tail_ = item;
         item->next = at->next;
         at->next = item;
     }
@@ -121,26 +144,25 @@ class InlineForwardList : protected InlineForwardListNode<T>
 #ifdef DEBUG
         modifyCount_++;
 #endif
+        if (item == tail_)
+            tail_ = at;
         JS_ASSERT(at->next == item);
         at->next = item->next;
     }
     bool empty() const {
-        return begin() == end();
+        return tail_ == this;
     }
 };
 
 template <typename T>
-class InlineForwardList<T>::iterator
+class InlineForwardListIterator
 {
-    friend class InlineForwardList;
-    Node *prev;
-    Node *iter;
-#ifdef DEBUG
-    const InlineForwardList<T> *owner;
-    uintptr_t modifyCount;
-#endif
+private:
+    friend class InlineForwardList<T>;
 
-    iterator(const InlineForwardList<T> *owner)
+    typedef InlineForwardListNode<T> Node;
+
+    InlineForwardListIterator<T>(const InlineForwardList<T> *owner)
       : prev(const_cast<Node *>(static_cast<const Node *>(owner))),
         iter(owner ? owner->next : NULL)
 #ifdef DEBUG
@@ -150,15 +172,15 @@ class InlineForwardList<T>::iterator
     { }
 
 public:
-    iterator & operator ++() {
+    InlineForwardListIterator<T> & operator ++() {
         JS_ASSERT(modifyCount == owner->modifyCount_);
         prev = iter;
         iter = iter->next;
         return *this;
     }
-    iterator operator ++(int) {
+    InlineForwardListIterator<T> operator ++(int) {
         JS_ASSERT(modifyCount == owner->modifyCount_);
-        iterator old(*this);
+        InlineForwardListIterator<T> old(*this);
         prev = iter;
         iter = iter->next;
         return old;
@@ -171,28 +193,43 @@ public:
         JS_ASSERT(modifyCount == owner->modifyCount_);
         return static_cast<T *>(iter);
     }
-    bool operator !=(const iterator &where) const {
+    bool operator !=(const InlineForwardListIterator<T> &where) const {
         return iter != where.iter;
     }
-    bool operator ==(const iterator &where) const {
+    bool operator ==(const InlineForwardListIterator<T> &where) const {
         return iter == where.iter;
     }
+
+private:
+    Node *prev;
+    Node *iter;
+#ifdef DEBUG
+    const InlineForwardList<T> *owner;
+    uintptr_t modifyCount;
+#endif
 };
 
 template <typename T> class InlineList;
+template <typename T> class InlineListIterator;
+template <typename T> class InlineListReverseIterator;
 
 template <typename T>
 class InlineListNode : public InlineForwardListNode<T>
 {
-    friend class InlineList<T>;
   public:
     InlineListNode() : InlineForwardListNode<T>(NULL), prev(NULL)
     { }
-    InlineListNode(InlineListNode *n, InlineListNode *p) : InlineForwardListNode<T>(n), prev(p)
+    InlineListNode(InlineListNode<T> *n, InlineListNode<T> *p)
+      : InlineForwardListNode<T>(n),
+        prev(p)
     { }
 
   protected:
-    InlineListNode *prev;
+    friend class InlineList<T>;
+    friend class InlineListIterator<T>;
+    friend class InlineListReverseIterator<T>;
+
+    InlineListNode<T> *prev;
 };
 
 template <typename T>
@@ -200,13 +237,18 @@ class InlineList : protected InlineListNode<T>
 {
     typedef InlineListNode<T> Node;
 
+    // Silence MSVC warning C4355
+    InlineList<T> *thisFromConstructor() {
+        return this;
+    }
+
   public:
-    InlineList() : InlineListNode<T>(this, this)
+    InlineList() : InlineListNode<T>(thisFromConstructor(), thisFromConstructor())
     { }
 
   public:
-    class iterator;
-    class reverse_iterator;
+    typedef InlineListIterator<T> iterator;
+    typedef InlineListReverseIterator<T> reverse_iterator;
 
   public:
     iterator begin() const {
@@ -269,10 +311,23 @@ class InlineList : protected InlineListNode<T>
         static_cast<Node *>(at->next)->prev = item;
         at->next = item;
     }
+    void steal(InlineList<T> *from) {
+        Node *oldTail = this->prev;
+        Node *stealHead = from->next;
+        Node *stealTail = from->prev;
+        oldTail->next = stealHead;
+        stealHead->prev = oldTail;
+        stealTail->next = this;
+        this->prev = stealTail;
+        from->next = from->prev = from;
+    }
     void remove(Node *t) {
         t->prev->next = t->next;
         static_cast<Node *>(t->next)->prev = t->prev;
         t->next = t->prev = NULL;
+    }
+    void clear() {
+        this->next = this->prev = this;
     }
     bool empty() const {
         return begin() == end();
@@ -280,26 +335,29 @@ class InlineList : protected InlineListNode<T>
 };
 
 template <typename T>
-class InlineList<T>::iterator
+class InlineListIterator
 {
-    friend class InlineList;
-    Node *iter;
+  private:
+    friend class InlineList<T>;
 
-    iterator(const Node *iter) : iter(const_cast<Node *>(iter))
+    typedef InlineListNode<T> Node;
+
+    InlineListIterator(const Node *iter)
+      : iter(const_cast<Node *>(iter))
     { }
 
   public:
-    iterator & operator ++() {
+    InlineListIterator<T> & operator ++() {
         iter = iter->next;
         return *iter;
     }
-    iterator operator ++(int) {
-        iterator old(*this);
+    InlineListIterator<T> operator ++(int) {
+        InlineListIterator<T> old(*this);
         iter = static_cast<Node *>(iter->next);
         return old;
     }
-    iterator operator --(int) {
-        iterator old(*this);
+    InlineListIterator<T> operator --(int) {
+        InlineListIterator<T> old(*this);
         iter = iter->prev;
         return old;
     }
@@ -309,30 +367,36 @@ class InlineList<T>::iterator
     T * operator ->() const {
         return static_cast<T *>(iter);
     }
-    bool operator !=(const iterator &where) const {
+    bool operator !=(const InlineListIterator<T> &where) const {
         return iter != where.iter;
     }
-    bool operator ==(const iterator &where) const {
+    bool operator ==(const InlineListIterator<T> &where) const {
         return iter == where.iter;
     }
+
+  private:
+    Node *iter;
 };
 
 template <typename T>
-class InlineList<T>::reverse_iterator
+class InlineListReverseIterator
 {
-    friend class InlineList;
-    Node *iter;
+  private:
+    friend class InlineList<T>;
 
-    reverse_iterator(const Node *iter) : iter(const_cast<Node *>(iter))
+    typedef InlineListNode<T> Node;
+
+    InlineListReverseIterator(const Node *iter)
+      : iter(const_cast<Node *>(iter))
     { }
 
   public:
-    reverse_iterator & operator ++() {
+    InlineListReverseIterator<T> & operator ++() {
         iter = iter->prev;
         return *iter;
     }
-    reverse_iterator operator ++(int) {
-        reverse_iterator old(*this);
+    InlineListReverseIterator<T> operator ++(int) {
+        InlineListReverseIterator<T> old(*this);
         iter = iter->prev;
         return old;
     }
@@ -342,12 +406,15 @@ class InlineList<T>::reverse_iterator
     T * operator ->() {
         return static_cast<T *>(iter);
     }
-    bool operator !=(const reverse_iterator &where) const {
+    bool operator !=(const InlineListReverseIterator<T> &where) const {
         return iter != where.iter;
     }
-    bool operator ==(const reverse_iterator &where) const {
+    bool operator ==(const InlineListReverseIterator<T> &where) const {
         return iter == where.iter;
     }
+
+  private:
+    Node *iter;
 };
 
 } // namespace js

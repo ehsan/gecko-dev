@@ -87,8 +87,8 @@ C1Spewer::spewCFG(const char *pass)
     fprintf(spewout_, "begin_cfg\n");
     fprintf(spewout_, "  name \"%s\"\n", pass);
 
-    for (size_t i = 0; i < graph.numBlocks(); i++)
-        spewCFG(spewout_, graph.getBlock(i));
+    for (MBasicBlockIterator block(graph.begin()); block != graph.end(); block++)
+        spewCFG(spewout_, *block);
 
     fprintf(spewout_, "end_cfg\n");
     fflush(spewout_);
@@ -104,8 +104,8 @@ C1Spewer::spewIntervals(const char *pass, LinearScanAllocator *regalloc)
     fprintf(spewout_, " name \"%s\"\n", pass);
 
     size_t nextId = 0x4000;
-    for (size_t i = 0; i < graph.numBlocks(); i++)
-        spewIntervals(spewout_, graph.getBlock(i), regalloc, nextId);
+    for (MBasicBlockIterator block(graph.begin()); block != graph.end(); block++)
+        spewIntervals(spewout_, *block, regalloc, nextId);
 
     fprintf(spewout_, "end_intervals\n");
     fflush(spewout_);
@@ -205,9 +205,9 @@ C1Spewer::spewCFG(FILE *fp, MBasicBlock *block)
     fprintf(fp, "    end_states\n");
 
     fprintf(fp, "    begin_HIR\n");
-    for (size_t i = 0; i < block->numPhis(); i++)
-        DumpDefinition(fp, block->getPhi(i));
-    for (MInstructionIterator i = block->begin(); i != block->end(); i++)
+    for (MPhiIterator phi(block->phisBegin()); phi != block->phisEnd(); phi++)
+        DumpDefinition(fp, *phi);
+    for (MInstructionIterator i(block->begin()); i != block->end(); i++)
         DumpDefinition(fp, *i);
     fprintf(fp, "    end_HIR\n");
 
@@ -215,7 +215,7 @@ C1Spewer::spewCFG(FILE *fp, MBasicBlock *block)
         fprintf(fp, "    begin_LIR\n");
         for (size_t i = 0; i < block->lir()->numPhis(); i++)
             DumpLIR(fp, block->lir()->getPhi(i));
-        for (LInstructionIterator i = block->lir()->begin(); i != block->lir()->end(); i++)
+        for (LInstructionIterator i(block->lir()->begin()); i != block->lir()->end(); i++)
             DumpLIR(fp, *i);
         fprintf(fp, "    end_LIR\n");
     }
