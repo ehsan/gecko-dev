@@ -58,7 +58,7 @@ public:
         mArray(aArray), mIndex(0), mOwnsArray(aOwnsArray), mIsUnicode(PR_TRUE)
     {}
     
-    nsStringEnumerator(const nsTArray<nsCString>* aArray, PRBool aOwnsArray) :
+    nsStringEnumerator(const nsCStringArray* aArray, PRBool aOwnsArray) :
         mCArray(aArray), mIndex(0), mOwnsArray(aOwnsArray), mIsUnicode(PR_FALSE)
     {}
 
@@ -66,7 +66,7 @@ public:
         mArray(aArray), mIndex(0), mOwner(aOwner), mOwnsArray(PR_FALSE), mIsUnicode(PR_TRUE)
     {}
     
-    nsStringEnumerator(const nsTArray<nsCString>* aArray, nsISupports* aOwner) :
+    nsStringEnumerator(const nsCStringArray* aArray, nsISupports* aOwner) :
         mCArray(aArray), mIndex(0), mOwner(aOwner), mOwnsArray(PR_FALSE), mIsUnicode(PR_FALSE)
     {}
 
@@ -87,17 +87,17 @@ private:
             if (mIsUnicode)
                 delete const_cast<nsTArray<nsString>*>(mArray);
             else
-                delete const_cast<nsTArray<nsCString>*>(mCArray);
+                delete const_cast<nsCStringArray*>(mCArray);
         }
     }
 
     union {
         const nsTArray<nsString>* mArray;
-        const nsTArray<nsCString>* mCArray;
+        const nsCStringArray* mCArray;
     };
 
     inline PRUint32 Count() {
-        return mIsUnicode ? mArray->Length() : mCArray->Length();
+        return mIsUnicode ? mArray->Length() : mCArray->Count();
     }
     
     PRUint32 mIndex;
@@ -144,7 +144,7 @@ nsStringEnumerator::GetNext(nsISupports** aResult)
         nsSupportsCStringImpl* cstringImpl = new nsSupportsCStringImpl();
         if (!cstringImpl) return NS_ERROR_OUT_OF_MEMORY;
 
-        cstringImpl->SetData(mCArray->ElementAt(mIndex++));
+        cstringImpl->SetData(*mCArray->CStringAt(mIndex++));
         *aResult = cstringImpl;
     }
     NS_ADDREF(*aResult);
@@ -159,7 +159,7 @@ nsStringEnumerator::GetNext(nsAString& aResult)
     if (mIsUnicode)
         aResult = mArray->ElementAt(mIndex++);
     else
-        CopyUTF8toUTF16(mCArray->ElementAt(mIndex++), aResult);
+        CopyUTF8toUTF16(*mCArray->CStringAt(mIndex++), aResult);
     
     return NS_OK;
 }
@@ -172,7 +172,7 @@ nsStringEnumerator::GetNext(nsACString& aResult)
     if (mIsUnicode)
         CopyUTF16toUTF8(mArray->ElementAt(mIndex++), aResult);
     else
-        aResult = mCArray->ElementAt(mIndex++);
+        aResult = *mCArray->CStringAt(mIndex++);
     
     return NS_OK;
 }
@@ -205,7 +205,7 @@ NS_NewStringEnumerator(nsIStringEnumerator** aResult,
 
 NS_COM nsresult
 NS_NewUTF8StringEnumerator(nsIUTF8StringEnumerator** aResult,
-                           const nsTArray<nsCString>* aArray, nsISupports* aOwner)
+                           const nsCStringArray* aArray, nsISupports* aOwner)
 {
     NS_ENSURE_ARG_POINTER(aResult);
     NS_ENSURE_ARG_POINTER(aArray);
@@ -227,7 +227,7 @@ NS_NewAdoptingStringEnumerator(nsIStringEnumerator** aResult,
 
 NS_COM nsresult
 NS_NewAdoptingUTF8StringEnumerator(nsIUTF8StringEnumerator** aResult,
-                                   nsTArray<nsCString>* aArray)
+                                   nsCStringArray* aArray)
 {
     NS_ENSURE_ARG_POINTER(aResult);
     NS_ENSURE_ARG_POINTER(aArray);
@@ -250,7 +250,7 @@ NS_NewStringEnumerator(nsIStringEnumerator** aResult,
 
 NS_COM nsresult
 NS_NewUTF8StringEnumerator(nsIUTF8StringEnumerator** aResult,
-                           const nsTArray<nsCString>* aArray)
+                           const nsCStringArray* aArray)
 {
     NS_ENSURE_ARG_POINTER(aResult);
     NS_ENSURE_ARG_POINTER(aArray);

@@ -106,40 +106,11 @@ nsresult
 nsSMILTimedElement::BeginElementAt(double aOffsetSeconds,
                                    const nsSMILTimeContainer* aContainer)
 {
-  if (!aContainer)
+  if (!AddInstanceTimeFromCurrentTime(aOffsetSeconds, PR_TRUE, aContainer)) {
+    // Probably we don't have a time container
+    NS_ERROR("Failed to begin element");
     return NS_ERROR_FAILURE;
-
-  nsSMILTime currentTime = aContainer->GetCurrentTime();
-
-  AddInstanceTimeFromCurrentTime(currentTime, aOffsetSeconds, PR_TRUE);
-
-  // After we've added the instance time we must do a local resample.
-  //
-  // The reason for this can be explained by considering the following sequence
-  // of calls in a script block
-  //
-  //   BeginElementAt(0)
-  //   BeginElementAt(-1)
-  //   GetStartTime() <-- should return the time from the first call to
-  //                      BeginElementAt
-  //
-  // After BeginElementAt(0) is called a new begin instance time is added to the
-  // list. Depending on the restart mode this may generate a new interval,
-  // possiblying ending the current interval early.
-  //
-  // Intuitively this change should take effect before the subsequent call to
-  // BeginElementAt however to get this to take effect we need to drive the
-  // state engine through it's sequence active-waiting-active by calling Sample.
-  //
-  // When we get the second call to BeginElementAt the element should be in the
-  // active state and hence the new begin instance time will be ignored because
-  // it is before the beginning of the (new) current interval. SMIL says we do
-  // not change the begin of a current interval once it is active.
-  //
-  // See also:
-  // http://www.w3.org/TR/SMIL3/smil-timing.html#Timing-BeginEnd-Restart
-
-  SampleAt(currentTime);
+  }
 
   return NS_OK;
 }
@@ -148,12 +119,11 @@ nsresult
 nsSMILTimedElement::EndElementAt(double aOffsetSeconds,
                                  const nsSMILTimeContainer* aContainer)
 {
-  if (!aContainer)
+  if (!AddInstanceTimeFromCurrentTime(aOffsetSeconds, PR_FALSE, aContainer)) {
+    // Probably we don't have a time container
+    NS_ERROR("Failed to end element");
     return NS_ERROR_FAILURE;
-
-  nsSMILTime currentTime = aContainer->GetCurrentTime();
-  AddInstanceTimeFromCurrentTime(currentTime, aOffsetSeconds, PR_FALSE);
-  SampleAt(currentTime);
+  }
 
   return NS_OK;
 }
@@ -446,7 +416,7 @@ nsSMILTimedElement::SetSimpleDuration(const nsAString& aDurSpec)
   rv = nsSMILParserUtils::ParseClockValue(aDurSpec, &duration,
           nsSMILParserUtils::kClockValueAllowIndefinite, &isMedia);
 
-  if (NS_FAILED(rv)) {
+  if (NS_FAILED(rv) || (!duration.IsResolved() && !duration.IsIndefinite())) {
     mSimpleDur.SetIndefinite();
     return NS_ERROR_FAILURE;
   }
@@ -469,7 +439,6 @@ nsSMILTimedElement::SetSimpleDuration(const nsAString& aDurSpec)
     "Setting unresolved simple duration");
 
   mSimpleDur = duration;
-  UpdateCurrentInterval();
 
   return NS_OK;
 }
@@ -580,13 +549,13 @@ nsSMILTimedElement::SetRepeatCount(const nsAString& aRepeatCountSpec)
   nsresult rv = 
     nsSMILParserUtils::ParseRepeatCount(aRepeatCountSpec, newRepeatCount);
 
+  UpdateCurrentInterval();
+
   if (NS_SUCCEEDED(rv)) {
     mRepeatCount = newRepeatCount;
   } else {
     mRepeatCount.Unset();
   }
-
-  UpdateCurrentInterval();
     
   return rv;
 }
@@ -612,8 +581,9 @@ nsSMILTimedElement::SetRepeatDur(const nsAString& aRepeatDurSpec)
     return NS_ERROR_FAILURE;
   }
   
-  mRepeatDur = duration;
   UpdateCurrentInterval();
+  
+  mRepeatDur = duration;
 
   return NS_OK;
 }
@@ -670,7 +640,6 @@ nsSMILTimedElement::SetBeginOrEndSpec(const nsAString& aSpec,
 
   timeSpecsList.Clear();
   instancesList.Clear();
-  HardReset(); // XXX Need to take care of time dependents here
 
   PRInt32 start;
   PRInt32 end = -1;
@@ -726,7 +695,7 @@ nsSMILTimedElement::GetNextInterval(const nsSMILTimeValue& aBeginAfter,
   // that has already been used in another interval. See the pseudocode in
   // SMILANIM 3.6.8 for getFirstInterval.
   //
-  PRInt32 endMaxPos = 0;
+  PRInt32         endMaxPos = 0;
 
   if (mRestartMode == RESTART_NEVER && !aFirstInterval)
     return NS_ERROR_FAILURE;
@@ -1056,16 +1025,27 @@ nsSMILTimedElement::SampleFillValue()
   }
 }
 
-void
-nsSMILTimedElement::AddInstanceTimeFromCurrentTime(nsSMILTime aCurrentTime,
-    double aOffsetSeconds, PRBool aIsBegin)
+PRBool
+nsSMILTimedElement::AddInstanceTimeFromCurrentTime(double aOffsetSeconds,
+    PRBool aIsBegin, const nsSMILTimeContainer* aContainer)
 {
+  /*
+   * SMIL doesn't say what to do if someone calls BeginElement etc. before the
+   * document has started. For now we just fail.
+   */
+  if (!aContainer)
+    return PR_FALSE;
+
   double offset = aOffsetSeconds * PR_MSEC_PER_SEC;
-  nsSMILTime timeWithOffset = aCurrentTime + PRInt64(NS_round(offset));
+
+  nsSMILTime timeWithOffset = 
+    aContainer->GetCurrentTime() + PRInt64(NS_round(offset));
 
   nsSMILTimeValue timeVal;
   timeVal.SetMillis(timeWithOffset);
 
   nsSMILInstanceTime instanceTime(timeVal, nsnull, PR_TRUE);
   AddInstanceTime(instanceTime, aIsBegin);
+
+  return PR_TRUE;
 }

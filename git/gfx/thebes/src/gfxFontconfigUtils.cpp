@@ -278,13 +278,13 @@ gfxFontconfigUtils::GetFontList(const nsACString& aLangGroup,
 {
     aListOfFonts.Clear();
 
-    nsTArray<nsCString> fonts;
+    nsCStringArray fonts;
     nsresult rv = GetFontListInternal(fonts, aLangGroup);
     if (NS_FAILED(rv))
         return rv;
 
-    for (PRUint32 i = 0; i < fonts.Length(); ++i) {
-        aListOfFonts.AppendElement(NS_ConvertUTF8toUTF16(fonts[i]));
+    for (PRInt32 i = 0; i < fonts.Count(); ++i) {
+        aListOfFonts.AppendElement(NS_ConvertUTF8toUTF16(*fonts.CStringAt(i)));
     }
 
     aListOfFonts.Sort();
@@ -448,7 +448,7 @@ gfxFontconfigUtils::GetSampleLangForGroup(const nsACString& aLangGroup,
 }
 
 nsresult
-gfxFontconfigUtils::GetFontListInternal(nsTArray<nsCString>& aListOfFonts,
+gfxFontconfigUtils::GetFontListInternal(nsCStringArray& aListOfFonts,
                                         const nsACString& aLangGroup)
 {
     FcPattern *pat = NULL;
@@ -486,10 +486,10 @@ gfxFontconfigUtils::GetFontListInternal(nsTArray<nsCString>& aListOfFonts,
 
         // Remove duplicates...
         nsCAutoString strFamily(family);
-        if (aListOfFonts.Contains(strFamily))
+        if (aListOfFonts.IndexOf(strFamily) >= 0)
             continue;
 
-        aListOfFonts.AppendElement(strFamily);
+        aListOfFonts.AppendCString(strFamily);
     }
 
     rv = NS_OK;
@@ -603,7 +603,7 @@ gfxFontconfigUtils::UpdateFontListInternal(PRBool aForce)
                 /* nothing */ ;
             nsCAutoString name(Substring(start, p));
             name.CompressWhitespace(PR_FALSE, PR_TRUE);
-            mAliasForMultiFonts.AppendElement(name);
+            mAliasForMultiFonts.AppendCString(name);
             p++;
         }
     }
@@ -638,7 +638,7 @@ gfxFontconfigUtils::GetStandardFamilyName(const nsAString& aFontName, nsAString&
     FcPattern *pat = NULL;
     FcObjectSet *os = NULL;
     FcFontSet *givenFS = NULL;
-    nsTArray<nsCString> candidates;
+    nsCStringArray candidates;
     FcFontSet *candidateFS = NULL;
     rv = NS_ERROR_FAILURE;
 
@@ -667,8 +667,8 @@ gfxFontconfigUtils::GetStandardFamilyName(const nsAString& aFontName, nsAString&
             continue;
 
         nsDependentCString first(firstFamily);
-        if (!candidates.Contains(first)) {
-            candidates.AppendElement(first);
+        if (candidates.IndexOf(first) < 0) {
+            candidates.AppendCString(first);
 
             if (fontname.Equals(first)) {
                 aFamilyName.Assign(aFontName);
@@ -680,9 +680,9 @@ gfxFontconfigUtils::GetStandardFamilyName(const nsAString& aFontName, nsAString&
 
     // See if any of the first family names represent the same set of font
     // faces as the given family.
-    for (PRUint32 j = 0; j < candidates.Length(); ++j) {
+    for (PRInt32 j = 0; j < candidates.Count(); ++j) {
         FcPatternDel(pat, FC_FAMILY);
-        FcPatternAddString(pat, FC_FAMILY, (FcChar8 *)candidates[j].get());
+        FcPatternAddString(pat, FC_FAMILY, (FcChar8 *)candidates[j]->get());
 
         candidateFS = FcFontList(NULL, pat, os);
         if (!candidateFS)
@@ -699,7 +699,7 @@ gfxFontconfigUtils::GetStandardFamilyName(const nsAString& aFontName, nsAString&
             }
         }
         if (equal) {
-            AppendUTF8toUTF16(candidates[j], aFamilyName);
+            AppendUTF8toUTF16(*candidates[j], aFamilyName);
             rv = NS_OK;
             goto end;
         }
@@ -747,7 +747,7 @@ gfxFontconfigUtils::ResolveFontName(const nsAString& aFontName,
     // entire match pattern.  That info is not available here, but there
     // will be a font so leave the resolving to the gfxFontGroup.
     if (IsExistingFamily(fontname) ||
-        mAliasForMultiFonts.Contains(fontname, gfxIgnoreCaseCStringComparator()))
+        mAliasForMultiFonts.IndexOfIgnoreCase(fontname) != -1)
         aAborted = !(*aCallback)(aFontName, aClosure);
 
     return NS_OK;
