@@ -48,7 +48,6 @@
 #include "jstracer.h"
 #include "jswrapper.h"
 #include "assembler/wtf/Platform.h"
-#include "yarr/BumpPointerAllocator.h"
 #include "methodjit/MethodJIT.h"
 #include "methodjit/PolyIC.h"
 #include "methodjit/MonoIC.h"
@@ -75,9 +74,6 @@ JSCompartment::JSCompartment(JSRuntime *rt)
 #ifdef JS_METHODJIT
     jaegerCompartment(NULL),
 #endif
-#if ENABLE_YARR_JIT
-    regExpAllocator(NULL),
-#endif
     propertyTree(thisForCtor()),
     emptyArgumentsShape(NULL),
     emptyBlockShape(NULL),
@@ -88,6 +84,9 @@ JSCompartment::JSCompartment(JSRuntime *rt)
     initialRegExpShape(NULL),
     initialStringShape(NULL),
     debugMode(rt->debugMode),
+#if ENABLE_YARR_JIT
+    regExpAllocator(NULL),
+#endif
     mathCache(NULL)
 {
     JS_INIT_CLIST(&scripts);
@@ -119,7 +118,8 @@ JSCompartment::init()
     chunk = NULL;
     for (unsigned i = 0; i < FINALIZE_LIMIT; i++)
         arenas[i].init();
-    freeLists.init();
+    for (unsigned i = 0; i < FINALIZE_LIMIT; i++)
+        freeLists.finalizables[i] = NULL;
     if (!crossCompartmentWrappers.init())
         return false;
 
@@ -135,20 +135,22 @@ JSCompartment::init()
         return false;
 #endif
 
-    regExpAllocator = rt->new_<WTF::BumpPointerAllocator>();
+#if ENABLE_YARR_JIT
+    regExpAllocator = rt->new_<JSC::ExecutableAllocator>();
     if (!regExpAllocator)
         return false;
+#endif
 
     if (!backEdgeTable.init())
         return false;
 
 #ifdef JS_METHODJIT
-    jaegerCompartment = rt->new_<mjit::JaegerCompartment>();
-    if (!jaegerCompartment || !jaegerCompartment->Initialize())
+    if (!(jaegerCompartment = rt->new_<mjit::JaegerCompartment>()))
         return false;
-#endif
-        
+    return jaegerCompartment->Initialize();
+#else
     return true;
+#endif
 }
 
 #ifdef JS_METHODJIT

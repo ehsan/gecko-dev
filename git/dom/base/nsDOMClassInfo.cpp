@@ -228,6 +228,7 @@
 #include "nsIDOMComment.h"
 #include "nsIDOMCDATASection.h"
 #include "nsIDOMProcessingInstruction.h"
+#include "nsIDOMNotation.h"
 #include "nsIDOMNSEvent.h"
 #include "nsIDOMDataContainerEvent.h"
 #include "nsIDOMKeyEvent.h"
@@ -606,6 +607,8 @@ DOMCI_DATA(DOMConstructor, void)
 DOMCI_DATA(Worker, void)
 DOMCI_DATA(ChromeWorker, void)
 
+DOMCI_DATA(Notation, void)
+
 #define NS_DEFINE_CLASSINFO_DATA_WITH_NAME(_class, _name, _helper,            \
                                            _flags)                            \
   { #_name,                                                                   \
@@ -729,6 +732,7 @@ static nsDOMClassInfoData sClassInfoData[] = {
   NS_DEFINE_CLASSINFO_DATA(CDATASection, nsNodeSH, NODE_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(ProcessingInstruction, nsNodeSH,
                            NODE_SCRIPTABLE_FLAGS)
+  NS_DEFINE_CLASSINFO_DATA(Notation, nsNodeSH, NODE_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(NodeList, nsNodeListSH, ARRAY_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(NamedNodeMap, nsNamedNodeMapSH,
                            ARRAY_SCRIPTABLE_FLAGS)
@@ -1419,8 +1423,10 @@ static nsDOMClassInfoData sClassInfoData[] = {
 
   NS_DEFINE_CLASSINFO_DATA(MozTouchEvent, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
+#ifdef MOZ_MATHML
   NS_DEFINE_CLASSINFO_DATA_WITH_NAME(MathMLElement, Element, nsElementSH,
                                      ELEMENT_SCRIPTABLE_FLAGS)
+#endif
 
   NS_DEFINE_CLASSINFO_DATA(Worker, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
@@ -2552,6 +2558,10 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOM3Node)
+  DOM_CLASSINFO_MAP_END
+
+  DOM_CLASSINFO_MAP_BEGIN(Notation, nsIDOMNotation)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNotation)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(NodeList, nsIDOMNodeList)
@@ -4129,6 +4139,7 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_UI_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
+#ifdef MOZ_MATHML
   DOM_CLASSINFO_MAP_BEGIN_NO_CLASS_IF(MathMLElement, nsIDOMElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSElement)
@@ -4137,6 +4148,7 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOM3Node)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNodeSelector)
   DOM_CLASSINFO_MAP_END
+#endif
 
   DOM_CLASSINFO_MAP_BEGIN(Worker, nsIWorker)
     DOM_CLASSINFO_MAP_ENTRY(nsIWorker)

@@ -63,6 +63,7 @@ DOMCI_CLASS(Text)
 DOMCI_CLASS(Comment)
 DOMCI_CLASS(CDATASection)
 DOMCI_CLASS(ProcessingInstruction)
+DOMCI_CLASS(Notation)
 DOMCI_CLASS(NodeList)
 DOMCI_CLASS(NamedNodeMap)
 
@@ -454,7 +455,9 @@ DOMCI_CLASS(SimpleGestureEvent)
 
 DOMCI_CLASS(MozTouchEvent)
 
+#ifdef MOZ_MATHML
 DOMCI_CLASS(MathMLElement)
+#endif
 
 DOMCI_CLASS(Worker)
 DOMCI_CLASS(ChromeWorker)

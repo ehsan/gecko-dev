@@ -256,13 +256,13 @@ var ViewConfig = {
     row.setAttribute("default", aPref.default);
 
     let label = document.createElement("label");
-    label.setAttribute("class", "preferences-title");
+    label.setAttribute("class", "preftitle");
     label.setAttribute("value", aPref.name);
     label.setAttribute("crop", "end");
     row.appendChild(label);
 
     label = document.createElement("label");
-    label.setAttribute("class", "preferences-value");
+    label.setAttribute("class", "prefvalue");
     label.setAttribute("value", aPref.value);
     label.setAttribute("crop", "end");
     row.appendChild(label);

@@ -48,6 +48,7 @@
 #include "nsExceptionHandler.h"
 #include "nsICrashReporter.h"
 #define NS_CRASHREPORTER_CONTRACTID "@mozilla.org/toolkit/crash-reporter;1"
+#include "nsIPrefService.h"
 #endif
 
 using namespace mozilla::widget;

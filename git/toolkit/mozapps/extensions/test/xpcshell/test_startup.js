@@ -72,32 +72,6 @@ var addon5 = {
   }]
 };
 
-// Should be ignored because it has an invalid type
-var addon6 = {
-  id: "addon6@tests.mozilla.org",
-  version: "3.0",
-  name: "Test 6",
-  type: 5,
-  targetApplications: [{
-    id: "toolkit@mozilla.org",
-    minVersion: "1.9.2",
-    maxVersion: "1.9.2.*"
-  }]
-};
-
-// Should be ignored because it has an invalid type
-var addon7 = {
-  id: "addon7@tests.mozilla.org",
-  version: "3.0",
-  name: "Test 3",
-  type: "extension",
-  targetApplications: [{
-    id: "toolkit@mozilla.org",
-    minVersion: "1.9.2",
-    maxVersion: "1.9.2.*"
-  }]
-};
-
 createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "1", "1.9.2");
 
 const globalDir = gProfD.clone();
@@ -131,10 +105,8 @@ function run_test() {
                                "addon2@tests.mozilla.org",
                                "addon3@tests.mozilla.org",
                                "addon4@tests.mozilla.org",
-                               "addon5@tests.mozilla.org",
-                               "addon6@tests.mozilla.org",
-                               "addon7@tests.mozilla.org"],
-                               function([a1, a2, a3, a4, a5, a6, a7]) {
+                               "addon5@tests.mozilla.org"],
+                               function([a1, a2, a3, a4, a5]) {
 
     do_check_eq(a1, null);
     do_check_not_in_crash_annotation(addon1.id, addon1.version);
@@ -164,8 +136,6 @@ function run_test_1() {
   writeInstallRDFForExtension(addon3, profileDir);
   writeInstallRDFForExtension(addon4, profileDir);
   writeInstallRDFForExtension(addon5, profileDir);
-  writeInstallRDFForExtension(addon6, profileDir);
-  writeInstallRDFForExtension(addon7, profileDir);
 
   gCachePurged = false;
   restartManager();
@@ -175,10 +145,8 @@ function run_test_1() {
                                "addon2@tests.mozilla.org",
                                "addon3@tests.mozilla.org",
                                "addon4@tests.mozilla.org",
-                               "addon5@tests.mozilla.org",
-                               "addon6@tests.mozilla.org",
-                               "addon7@tests.mozilla.org"],
-                               function([a1, a2, a3, a4, a5, a6, a7]) {
+                               "addon5@tests.mozilla.org"],
+                               function([a1, a2, a3, a4, a5]) {
 
     do_check_neq(a1, null);
     do_check_eq(a1.id, "addon1@tests.mozilla.org");
@@ -223,18 +191,6 @@ function run_test_1() {
     do_check_false(isExtensionInAddonsList(profileDir, "addon5@tests.mozilla.org"));
     dest = profileDir.clone();
     dest.append(do_get_expected_addon_name("addon5@tests.mozilla.org"));
-    do_check_false(dest.exists());
-
-    do_check_eq(a6, null);
-    do_check_false(isExtensionInAddonsList(profileDir, "addon6@tests.mozilla.org"));
-    dest = profileDir.clone();
-    dest.append(do_get_expected_addon_name("addon6@tests.mozilla.org"));
-    do_check_false(dest.exists());
-
-    do_check_eq(a7, null);
-    do_check_false(isExtensionInAddonsList(profileDir, "addon7@tests.mozilla.org"));
-    dest = profileDir.clone();
-    dest.append(do_get_expected_addon_name("addon7@tests.mozilla.org"));
     do_check_false(dest.exists());
 
     AddonManager.getAddonsByTypes(["extension"], function(extensionAddons) {

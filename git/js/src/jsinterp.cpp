@@ -149,7 +149,7 @@ js::GetBlockChain(JSContext *cx, StackFrame *fp)
         return NULL;
 
     /* Assume that imacros don't affect blockChain */
-    jsbytecode *target = fp->hasImacropc() ? fp->imacropc() : fp->pcQuadratic(cx);
+    jsbytecode *target = fp->hasImacropc() ? fp->imacropc() : fp->pc(cx);
 
     JSScript *script = fp->script();
     jsbytecode *start = script->code;
@@ -195,7 +195,7 @@ JSObject *
 js::GetBlockChainFast(JSContext *cx, StackFrame *fp, JSOp op, size_t oplen)
 {
     /* Assume that we're in a script frame. */
-    jsbytecode *pc = fp->pcQuadratic(cx);
+    jsbytecode *pc = fp->pc(cx);
     JS_ASSERT(js_GetOpcode(cx, fp->script(), pc) == op);
 
     pc += oplen;
@@ -2143,7 +2143,7 @@ IteratorNext(JSContext *cx, JSObject *iterobj, Value *rval)
 namespace js {
 
 JS_REQUIRES_STACK JS_NEVER_INLINE bool
-Interpret(JSContext *cx, StackFrame *entryFrame, InterpMode interpMode)
+Interpret(JSContext *cx, StackFrame *entryFrame, uintN inlineCallCount, InterpMode interpMode)
 {
 #ifdef MOZ_TRACEVIS
     TraceVisStateObj tvso(cx, S_INTERP);
@@ -2312,7 +2312,7 @@ Interpret(JSContext *cx, StackFrame *entryFrame, InterpMode interpMode)
             void *ncode =                                                     \
                 script->nativeCodeForPC(regs.fp()->isConstructing(), regs.pc);\
             interpReturnOK = mjit::JaegerShotAtSafePoint(cx, ncode);          \
-            if (entryFrame != regs.fp())                                      \
+            if (inlineCallCount)                                              \
                 goto jit_return;                                              \
             regs.fp()->setFinishedInInterpreter();                            \
             goto leave_on_safe_point;                                         \
@@ -2365,7 +2365,7 @@ Interpret(JSContext *cx, StackFrame *entryFrame, InterpMode interpMode)
             if (!TRACE_RECORDER(cx) && !TRACE_PROFILER(cx) && useMethodJIT) { \
                 MONITOR_BRANCH_METHODJIT();                                   \
             } else {                                                          \
-                MonitorResult r = MonitorLoopEdge(cx, interpMode);            \
+                MonitorResult r = MonitorLoopEdge(cx, inlineCallCount, interpMode); \
                 if (r == MONITOR_RECORDING) {                                 \
                     JS_ASSERT(TRACE_RECORDER(cx));                            \
                     JS_ASSERT(!TRACE_PROFILER(cx));                           \
@@ -2856,6 +2856,8 @@ BEGIN_CASE(JSOP_STOP)
 
         /* Resume execution in the calling frame. */
         RESET_USE_METHODJIT();
+        JS_ASSERT(inlineCallCount);
+        inlineCallCount--;
         if (JS_LIKELY(interpReturnOK)) {
             JS_ASSERT(js_CodeSpec[js_GetOpcode(cx, script, regs.pc)].length
                       == JSOP_CALL_LENGTH);
@@ -4616,6 +4618,12 @@ BEGIN_CASE(JSOP_FUNCALL)
                 goto end_call;
             }
 
+            /* Restrict recursion of lightweight functions. */
+            if (JS_UNLIKELY(inlineCallCount >= StackSpace::MAX_INLINE_CALLS)) {
+                js_ReportOverRecursed(cx);
+                goto error;
+            }
+
             /* Get pointer to new frame/slots, prepare arguments. */
             ContextStack &stack = cx->stack;
             StackFrame *newfp = stack.getInlineFrame(cx, regs.sp, argc, newfun,
@@ -4641,6 +4649,7 @@ BEGIN_CASE(JSOP_FUNCALL)
                 goto error;
 
             RESET_USE_METHODJIT();
+            inlineCallCount++;
             JS_RUNTIME_METER(rt, inlineCalls);
 
             TRACE_0(EnterFrame);

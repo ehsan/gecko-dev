@@ -971,7 +971,7 @@ nsXULTreeItemAccessibleBase::NativeState()
 PRInt32
 nsXULTreeItemAccessibleBase::GetIndexInParent() const
 {
-  return mParent ? mParent->ContentChildCount() + mRow : -1;
+  return mParent ? mParent->GetCachedChildCount() + mRow : -1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1008,8 +1008,15 @@ nsXULTreeItemAccessibleBase::DispatchClickEvent(nsIContent *aContent,
 
 nsAccessible*
 nsXULTreeItemAccessibleBase::GetSiblingAtOffset(PRInt32 aOffset,
-                                                nsresult* aError) const
+                                                nsresult* aError)
 {
+  if (IsDefunct()) {
+    if (aError)
+      *aError = NS_ERROR_FAILURE;
+
+    return nsnull;
+  }
+
   if (aError)
     *aError = NS_OK; // fail peacefully
 
@@ -1165,13 +1172,20 @@ nsXULTreeColumnsAccessible::
 
 nsAccessible*
 nsXULTreeColumnsAccessible::GetSiblingAtOffset(PRInt32 aOffset,
-                                               nsresult* aError) const
+                                               nsresult* aError)
 {
   if (aOffset < 0)
     return nsXULColumnsAccessible::GetSiblingAtOffset(aOffset, aError);
 
+  if (IsDefunct()) {
+    if (aError)
+      *aError = NS_ERROR_FAILURE;
+
+    return nsnull;
+  }
+
   if (aError)
-    *aError =  NS_OK; // fail peacefully
+    *aError = NS_OK; // fail peacefully
 
   nsCOMPtr<nsITreeBoxObject> tree = nsCoreUtils::GetTreeBoxObject(mContent);
   if (tree) {
@@ -1181,7 +1195,7 @@ nsXULTreeColumnsAccessible::GetSiblingAtOffset(PRInt32 aOffset,
       PRInt32 rowCount = 0;
       treeView->GetRowCount(&rowCount);
       if (rowCount > 0 && aOffset <= rowCount) {
-        nsRefPtr<nsXULTreeAccessible> treeAcc = do_QueryObject(GetParent());
+        nsRefPtr<nsXULTreeAccessible> treeAcc = do_QueryObject(mParent);
 
         if (treeAcc)
           return treeAcc->GetTreeItemAccessible(aOffset - 1);

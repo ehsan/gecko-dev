@@ -97,11 +97,7 @@ public:
    * Returns shared pref service instance
    * NOTE: not addreffed.
    */
-  static nsIPrefService* GetService()
-  {
-    NS_ENSURE_TRUE(InitStaticMembers(), nsnull);
-    return sPreferences;
-  }
+  static nsIPrefService* GetService() { return sPreferences; }
 
   /**
    * Returns shared pref branch instance.
@@ -109,8 +105,7 @@ public:
    */
   static nsIPrefBranch2* GetRootBranch()
   {
-    NS_ENSURE_TRUE(InitStaticMembers(), nsnull);
-    return sPreferences->mRootBranch.get();
+    return sPreferences ? sPreferences->mRootBranch.get() : nsnull;
   }
 
   /**

@@ -9,17 +9,13 @@ function test() {
     win.content.addEventListener("focus", function () {
       win.content.removeEventListener("focus", arguments.callee, false);
 
-      function onTabClose() {
+      win.gBrowser.selectedTab.addEventListener("TabClose", function () {
         ok(false, "shouldn't have gotten the TabClose event for the last tab");
-      }
-      var tab = win.gBrowser.selectedTab;
-      tab.addEventListener("TabClose", onTabClose, false);
+      }, false);
 
       EventUtils.synthesizeKey("w", { accelKey: true }, win);
 
       ok(win.closed, "accel+w closed the window immediately");
-
-      tab.removeEventListener("TabClose", onTabClose, false);
 
       finish();
     }, false);

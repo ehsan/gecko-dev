@@ -235,9 +235,11 @@ NS_NewElement(nsIContent** aResult, PRInt32 aElementType,
     return NS_NewXULElement(aResult, aNodeInfo);
   }
 #endif
+#ifdef MOZ_MATHML
   if (aElementType == kNameSpaceID_MathML) {
     return NS_NewMathMLElement(aResult, aNodeInfo);
   }
+#endif
   if (aElementType == kNameSpaceID_SVG) {
     return NS_NewSVGElement(aResult, aNodeInfo, aFromParser);
   }
@@ -263,7 +265,9 @@ NameSpaceManagerImpl::HasElementCreator(PRInt32 aNameSpaceID)
 #ifdef MOZ_XUL
          aNameSpaceID == kNameSpaceID_XUL ||
 #endif
+#ifdef MOZ_MATHML
          aNameSpaceID == kNameSpaceID_MathML ||
+#endif
          aNameSpaceID == kNameSpaceID_SVG ||
          aNameSpaceID == kNameSpaceID_XMLEvents ||
          PR_FALSE;

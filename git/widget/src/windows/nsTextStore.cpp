@@ -769,9 +769,9 @@ nsTextStore::SendTextEventForCompositionString()
   if (mCompositionSelection.acpStart != mCompositionSelection.acpEnd &&
       textRanges.Length() == 1) {
     nsTextRange& range = textRanges[0];
-    LONG start = NS_MIN(mCompositionSelection.acpStart,
+    LONG start = PR_MIN(mCompositionSelection.acpStart,
                         mCompositionSelection.acpEnd);
-    LONG end = NS_MAX(mCompositionSelection.acpStart,
+    LONG end = PR_MAX(mCompositionSelection.acpStart,
                       mCompositionSelection.acpEnd);
     if ((LONG)range.mStartOffset == start - mCompositionStart &&
         (LONG)range.mEndOffset == end - mCompositionStart &&
@@ -783,7 +783,7 @@ nsTextStore::SendTextEventForCompositionString()
   }
 
   // The caret position has to be collapsed.
-  LONG caretPosition = NS_MAX(mCompositionSelection.acpStart,
+  LONG caretPosition = PR_MAX(mCompositionSelection.acpStart,
                               mCompositionSelection.acpEnd);
   caretPosition -= mCompositionStart;
   nsTextRange caretRange;
@@ -892,11 +892,11 @@ nsTextStore::GetText(LONG acpStart,
       // OnUpdateComposition. In this case the returned text would
       // be out of sync because we haven't sent NS_TEXT_TEXT in
       // OnUpdateComposition yet. Manually resync here.
-      compOldEnd = NS_MIN(LONG(length) + acpStart,
+      compOldEnd = PR_MIN(LONG(length) + acpStart,
                        mCompositionLength + mCompositionStart);
-      compNewEnd = NS_MIN(LONG(length) + acpStart,
+      compNewEnd = PR_MIN(LONG(length) + acpStart,
                        LONG(mCompositionString.Length()) + mCompositionStart);
-      compNewStart = NS_MAX(acpStart, mCompositionStart);
+      compNewStart = PR_MAX(acpStart, mCompositionStart);
       // Check if the range is affected
       if (compOldEnd > compNewStart || compNewEnd > compNewStart) {
         NS_ASSERTION(compOldEnd >= mCompositionStart &&
@@ -914,7 +914,7 @@ nsTextStore::GetText(LONG acpStart,
     if (compOldEnd > compNewStart || compNewEnd > compNewStart) {
       // Resync composition string
       const PRUnichar* compStrStart = mCompositionString.BeginReading() +
-          NS_MAX<LONG>(compNewStart - mCompositionStart, 0);
+          PR_MAX(compNewStart - mCompositionStart, 0);
       event.mReply.mString.Replace(compNewStart - acpStart,
           compOldEnd - mCompositionStart, compStrStart,
           compNewEnd - mCompositionStart);
@@ -922,7 +922,7 @@ nsTextStore::GetText(LONG acpStart,
     }
     NS_ENSURE_TRUE(-1 == acpEnd || event.mReply.mString.Length() == length,
                    TS_E_INVALIDPOS);
-    length = NS_MIN(length, event.mReply.mString.Length());
+    length = PR_MIN(length, event.mReply.mString.Length());
 
     if (pchPlain && cchPlainReq) {
       memcpy(pchPlain, event.mReply.mString.BeginReading(),
@@ -1453,9 +1453,9 @@ nsTextStore::OnTextChangeInternal(PRUint32 aStart,
                                   PRUint32 aNewEnd)
 {
   if (!mLock && mSink && 0 != (mSinkMask & TS_AS_TEXT_CHANGE)) {
-    mTextChange.acpStart = NS_MIN(mTextChange.acpStart, LONG(aStart));
-    mTextChange.acpOldEnd = NS_MAX(mTextChange.acpOldEnd, LONG(aOldEnd));
-    mTextChange.acpNewEnd = NS_MAX(mTextChange.acpNewEnd, LONG(aNewEnd));
+    mTextChange.acpStart = PR_MIN(mTextChange.acpStart, LONG(aStart));
+    mTextChange.acpOldEnd = PR_MAX(mTextChange.acpOldEnd, LONG(aOldEnd));
+    mTextChange.acpNewEnd = PR_MAX(mTextChange.acpNewEnd, LONG(aNewEnd));
     ::PostMessageW(mWindow->GetWindowHandle(),
                    WM_USER_TSF_TEXTCHANGE, 0, 0);
   }

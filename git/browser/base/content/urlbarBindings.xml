@@ -260,7 +260,6 @@
             return; // Do nothing for right clicks
 
           var url = this.value;
-          var mayInheritPrincipal = false;
           var postData = null;
 
           var action = this._parseActionUrl(url);
@@ -278,7 +277,7 @@
             }
           }
           else {
-            [url, postData, mayInheritPrincipal] = this._canonizeURL(aTriggeringEvent);
+            [url, postData] = this._canonizeURL(aTriggeringEvent);
             if (!url)
               return;
           }
@@ -294,13 +293,10 @@
           }
 
           function loadCurrent() {
-            let flags = Ci.nsIWebNavigation.LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP;
             // Pass LOAD_FLAGS_DISALLOW_INHERIT_OWNER to prevent any loads from
-            // inheriting the currently loaded document's principal, unless this
-            // URL is marked as safe to inherit (e.g. came from a bookmark
-            // keyword).
-            if (!mayInheritPrincipal)
-              flags |= Ci.nsIWebNavigation.LOAD_FLAGS_DISALLOW_INHERIT_OWNER;
+            // inheriting the currently loaded document's principal.
+            let flags = Ci.nsIWebNavigation.LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP |
+                        Ci.nsIWebNavigation.LOAD_FLAGS_DISALLOW_INHERIT_OWNER;
             gBrowser.loadURIWithFlags(url, flags, null, null, postData);
           }
 
@@ -343,7 +339,7 @@
         <body><![CDATA[
           var url = this.value;
           if (!url)
-            return ["", null, false];
+            return ["", null];
 
           // Only add the suffix when the URL bar value isn't already "URL-like",
           // and only if we get a keyboard event, to match user expectations.
@@ -406,10 +402,9 @@
           }
 
           var postData = {};
-          var mayInheritPrincipal = { value: false };
-          url = getShortcutOrURI(url, postData, mayInheritPrincipal);
+          url = getShortcutOrURI(url, postData);
 
-          return [url, postData.value, mayInheritPrincipal.value];
+          return [url, postData.value];
         ]]></body>
       </method>
 
@@ -1288,7 +1283,9 @@
         <xul:hbox align="center" flex="1">
           <xul:image class="panel-promo-icon"/>
           <xul:description anonid="promo-message" class="panel-promo-message" flex="1">
-            placeholder <xul:description anonid="promo-link" class="plain text-link inline-link"/>
+            placeholder <xul:description anonid="promo-link"
+                                         class="plain text-link inline-link"
+                                         onclick="document.getBindingParent(this).onLinkClick();"/>
           </xul:description>
         </xul:hbox>
         <xul:toolbarbutton class="panel-promo-closebutton"
@@ -1359,6 +1356,14 @@
         <body><![CDATA[
           this._viewsLeft = 0;
           this.hidden = true;
+        ]]></body>
+      </method>
+      <method name="onLinkClick">
+        <body><![CDATA[
+          // Open a new selected tab and close the current panel.
+          gBrowser.loadOneTab(this._promolink.getAttribute("href"),
+                              { inBackground: false });
+          this._panel.hidePopup();
         ]]></body>
       </method>
       <method name="handleEvent">

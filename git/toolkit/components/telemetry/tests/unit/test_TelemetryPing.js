@@ -55,22 +55,24 @@ function checkHistograms(request, response) {
   let payload = Cc["@mozilla.org/dom/json;1"].createInstance(Ci.nsIJSON)
                                              .decode(readBytesFromInputStream(s))
 
-  do_check_true(payload.simpleMeasurements.uptime >= 0)
+  do_check_true(payload.info.uptime >= 0)
 
   // get rid of the non-deterministic field
+  payload.info.uptime = 0;
   const expected_info = {
+    uptime: 0,
     reason: "test-ping",
     OS: "XPCShell", 
-    appID: "xpcshell@tests.mozilla.org", 
-    appVersion: "1", 
-    appName: "XPCShell", 
+    XPCOMABI: "noarch-spidermonkey", 
+    ID: "xpcshell@tests.mozilla.org", 
+    version: "1", 
+    name: "XPCShell", 
     appBuildID: "2007010101",
     platformBuildID: "2007010101"
   };
 
-  for (let f in expected_info) {
-    do_check_eq(payload.info[f], expected_info[f]);
-  }
+  do_check_eq(uneval(payload.info), 
+              uneval(expected_info));
 
   const TELEMETRY_PING = "telemetry.ping (ms)";
   const TELEMETRY_SUCCESS = "telemetry.success (No, Yes)";

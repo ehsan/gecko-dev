@@ -174,6 +174,8 @@ public:
     mDisableCookieAccess = PR_TRUE;
   }
 
+  virtual nsIContent* GetBodyContentExternal();
+
   class nsAutoEditingState {
   public:
     nsAutoEditingState(nsHTMLDocument* aDoc, EditingState aState)
@@ -233,6 +235,8 @@ protected:
 
   nsresult WriteCommon(JSContext *cx, const nsAString& aText,
                        PRBool aNewlineTerminate);
+  nsresult OpenCommon(JSContext *cx, const nsAString& aContentType,
+                      PRBool aReplace);
 
   nsresult CreateAndAddWyciwygChannel(void);
   nsresult RemoveWyciwygChannel(void);

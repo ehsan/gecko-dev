@@ -1655,6 +1655,7 @@ JSCLContextHelper::Pop()
 {
     JSContext* cx = nsnull;
     if (mContextStack) {
+        JS_ClearNewbornRoots(mContext);
         if (mContextThread) {
             JS_EndRequest(mContext);
         }
