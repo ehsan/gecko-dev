@@ -164,10 +164,6 @@ public:
 
   already_AddRefed<Promise> GetDataStores(const nsAString &aName,
                                           ErrorResult& aRv);
-
-  // Feature Detection API
-  already_AddRefed<Promise> GetFeature(const nsAString &aName);
-
   bool Vibrate(uint32_t aDuration);
   bool Vibrate(const nsTArray<uint32_t>& aDuration);
   uint32_t MaxTouchPoints();
@@ -255,8 +251,6 @@ public:
                     JS::MutableHandle<JSPropertyDescriptor> aDesc);
   void GetOwnPropertyNames(JSContext* aCx, nsTArray<nsString>& aNames,
                            ErrorResult& aRv);
-  void GetLanguages(nsTArray<nsString>& aLanguages);
-  void GetAcceptLanguages(nsTArray<nsString>& aLanguages);
 
   // WebIDL helper methods
   static bool HasBatterySupport(JSContext* /* unused*/, JSObject* /*unused */);
@@ -320,8 +314,6 @@ public:
   static bool HasPermissionSettingsSupport(JSContext* aCx, JSObject* aGlobal);
 
   static bool HasNetworkStatsSupport(JSContext* aCx, JSObject* aGlobal);
-
-  static bool HasFeatureDetectionSupport(JSContext* aCx, JSObject* aGlobal);
 
   nsPIDOMWindow* GetParentObject() const
   {

@@ -273,11 +273,5 @@ bool ImageBridgeParent::IsSameProcess() const
   return OtherProcess() == ipc::kInvalidProcessHandle;
 }
 
-void
-ImageBridgeParent::ReplyRemoveTexture(const OpReplyRemoveTexture& aReply)
-{
-  mozilla::unused << SendParentAsyncMessage(aReply);
-}
-
 } // layers
 } // mozilla

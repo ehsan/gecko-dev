@@ -19,7 +19,6 @@
 namespace mozilla {
 namespace layers {
 
-class AsyncTransactionTracker;
 class CompositableClient;
 class TextureClient;
 class BufferTextureClient;
@@ -161,10 +160,6 @@ public:
   static bool DestroyIPDLActor(PCompositableChild* actor);
 
   void InitIPDLActor(PCompositableChild* aActor, uint64_t aAsyncID = 0);
-
-  static void TransactionCompleteted(PCompositableChild* aActor, uint64_t aTransactionId);
-
-  static void HoldUntilComplete(PCompositableChild* aActor, AsyncTransactionTracker* aTracker);
 
 protected:
   CompositableChild* mCompositableChild;

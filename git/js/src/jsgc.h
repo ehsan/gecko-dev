@@ -9,7 +9,6 @@
 #ifndef jsgc_h
 #define jsgc_h
 
-#include "mozilla/Atomics.h"
 #include "mozilla/DebugOnly.h"
 #include "mozilla/MemoryReporting.h"
 
@@ -89,6 +88,8 @@ class ChunkPool {
     size_t getEmptyCount() const {
         return emptyCount;
     }
+
+    inline bool wantBackgroundAllocation(JSRuntime *rt) const;
 
     /* Must be called with the GC lock taken. */
     inline Chunk *get(JSRuntime *rt);
@@ -560,16 +561,13 @@ class ArenaLists
      * that case the lock effectively serves as a read barrier to ensure that
      * the allocation thread sees all the writes done during finalization.
      */
-    enum BackgroundFinalizeStateEnum {
+    enum BackgroundFinalizeState {
         BFS_DONE,
         BFS_RUN,
         BFS_JUST_FINISHED
     };
 
-    typedef mozilla::Atomic<BackgroundFinalizeStateEnum, mozilla::ReleaseAcquire>
-        BackgroundFinalizeState;
-
-    BackgroundFinalizeState backgroundFinalizeState[FINALIZE_LIMIT];
+    volatile uintptr_t backgroundFinalizeState[FINALIZE_LIMIT];
 
   public:
     /* For each arena kind, a list of arenas remaining to be swept. */
