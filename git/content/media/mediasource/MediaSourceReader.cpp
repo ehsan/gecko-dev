@@ -329,9 +329,6 @@ MediaSourceReader::CreateSubDecoder(const nsACString& aType)
   MSE_DEBUG("MediaSourceReader(%p)::CreateSubDecoder subdecoder %p subreader %p",
             this, decoder.get(), reader.get());
   decoder->SetReader(reader);
-#ifdef MOZ_EME
-  decoder->SetCDMProxy(mCDMProxy);
-#endif
   return decoder.forget();
 }
 
@@ -517,21 +514,5 @@ MediaSourceReader::IsEnded()
   ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
   return mEnded;
 }
-
-#ifdef MOZ_EME
-nsresult
-MediaSourceReader::SetCDMProxy(CDMProxy* aProxy)
-{
-  ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-
-  mCDMProxy = aProxy;
-  for (size_t i = 0; i < mTrackBuffers.Length(); i++) {
-    nsresult rv = mTrackBuffers[i]->SetCDMProxy(aProxy);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  return NS_OK;
-}
-#endif
 
 } // namespace mozilla

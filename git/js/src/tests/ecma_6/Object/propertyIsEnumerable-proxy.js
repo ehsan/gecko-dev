@@ -20,11 +20,7 @@ function logProxy(object) {
     return {proxy, log};
 }
 
-var properties = ["string-property"];
-if (typeof Symbol === 'function')
-    properties.push(Symbol("symbol-property"));
-
-for (var property of properties) {
+for (var property of ["string-property", Symbol("symbol-property")]) {
     // Test 1: property is not present on object
     var {proxy, log} = logProxy({});
     var result = Object.prototype.propertyIsEnumerable.call(proxy, property);

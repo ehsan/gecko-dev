@@ -66,6 +66,7 @@ static std::vector<AtForkFuncs, SpecialAllocator<AtForkFuncs> > atfork;
 
 #ifdef MOZ_WIDGET_GONK
 #include "cpuacct.h"
+#define WRAP(x) x
 
 #if ANDROID_VERSION < 17 || defined(MOZ_WIDGET_ANDROID)
 extern "C" NS_EXPORT int
@@ -79,11 +80,12 @@ timer_create(clockid_t, struct sigevent*, timer_t*)
 
 #else
 #define cpuacct_add(x)
+#define WRAP(x) __wrap_##x
 #endif
 
 #if ANDROID_VERSION < 17 || defined(MOZ_WIDGET_ANDROID)
 extern "C" NS_EXPORT int
-pthread_atfork(void (*prepare)(void), void (*parent)(void), void (*child)(void))
+WRAP(pthread_atfork)(void (*prepare)(void), void (*parent)(void), void (*child)(void))
 {
   AtForkFuncs funcs;
   funcs.prepare = prepare;
@@ -98,7 +100,7 @@ pthread_atfork(void (*prepare)(void), void (*parent)(void), void (*child)(void))
 extern "C" NS_EXPORT pid_t __fork(void);
 
 extern "C" NS_EXPORT pid_t
-fork(void)
+WRAP(fork)(void)
 {
   pid_t pid;
   for (auto it = atfork.rbegin();
@@ -125,7 +127,7 @@ fork(void)
 #endif
 
 extern "C" NS_EXPORT int
-raise(int sig)
+WRAP(raise)(int sig)
 {
   // Bug 741272: Bionic incorrectly uses kill(), which signals the
   // process, and thus could signal another thread (and let this one
@@ -260,20 +262,3 @@ extern "C" NS_EXPORT size_t __wrap_strspn(const char * a0, const char * a1) { re
 extern "C" NS_EXPORT int __wrap_strcoll(const char * a0, const char * a1) { return __real_strcoll(a0, a1); }
 extern "C" NS_EXPORT size_t __wrap_strxfrm(char * a0, const char * a1, size_t a2) { return __real_strxfrm(a0, a1, a2); }
 #endif
-
-/* Flash plugin uses symbols that are not present in Android >= 4.4 */
-#ifndef MOZ_WIDGET_GONK
-namespace android {
-  namespace VectorImpl {
-    NS_EXPORT void reservedVectorImpl1(void) { }
-    NS_EXPORT void reservedVectorImpl2(void) { }
-    NS_EXPORT void reservedVectorImpl3(void) { }
-    NS_EXPORT void reservedVectorImpl4(void) { }
-    NS_EXPORT void reservedVectorImpl5(void) { }
-    NS_EXPORT void reservedVectorImpl6(void) { }
-    NS_EXPORT void reservedVectorImpl7(void) { }
-    NS_EXPORT void reservedVectorImpl8(void) { }
-  }
-}
-#endif
-

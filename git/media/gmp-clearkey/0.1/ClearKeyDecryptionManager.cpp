@@ -376,6 +376,9 @@ ClearKeyDecryptor::ClearKeyDecryptor(GMPDecryptorCallback* aCallback,
 ClearKeyDecryptor::~ClearKeyDecryptor()
 {
   CK_LOGD("ClearKeyDecryptor dtor; key ID = %08x...", *(uint32_t*)&mKey[0]);
+  if (mThread) {
+    mThread->Join();
+  }
 }
 
 uint32_t
@@ -387,15 +390,13 @@ ClearKeyDecryptor::AddRef()
 uint32_t
 ClearKeyDecryptor::Release()
 {
-  uint32_t newCount = --mRefCnt;
-  if (!newCount) {
+  if (!--mRefCnt) {
     if (mThread) {
       mThread->Post(new DestroyTask(this));
-      mThread->Join();
     } else {
       delete this;
     }
   }
 
-  return newCount;
+  return mRefCnt;
 }

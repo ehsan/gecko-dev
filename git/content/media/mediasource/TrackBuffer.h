@@ -73,10 +73,6 @@ public:
   // TODO: Refactor to a cleaner interface between TrackBuffer and MediaSourceReader.
   const nsTArray<nsRefPtr<SourceBufferDecoder>>& Decoders();
 
-#ifdef MOZ_EME
-  nsresult SetCDMProxy(CDMProxy* aProxy);
-#endif
-
 #if defined(DEBUG)
   void Dump(const char* aPath);
 #endif
@@ -130,10 +126,6 @@ private:
   // Contains only the initialized decoders managed by this TrackBuffer.
   // Access protected by mParentDecoder's monitor.
   nsTArray<nsRefPtr<SourceBufferDecoder>> mInitializedDecoders;
-
-  // Decoders which are waiting on a Content Decryption Module to be able to
-  // finish ReadMetadata.
-  nsTArray<nsRefPtr<SourceBufferDecoder>> mWaitingDecoders;
 
   // The decoder that the owning SourceBuffer is currently appending data to.
   nsRefPtr<SourceBufferDecoder> mCurrentDecoder;
