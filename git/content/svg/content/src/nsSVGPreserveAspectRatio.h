@@ -123,6 +123,8 @@ private:
   nsresult ToDOMAnimVal(nsIDOMSVGPreserveAspectRatio **aResult,
                         nsSVGElement* aSVGElement);
 
+  struct DOMBaseVal;
+  friend class DOMBaseVal;
   struct DOMBaseVal : public nsIDOMSVGPreserveAspectRatio
   {
     NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -135,16 +137,18 @@ private:
     nsRefPtr<nsSVGElement> mSVGElement;
     
     NS_IMETHOD GetAlign(PRUint16* aAlign)
-      { *aAlign = mVal->GetBaseValue().GetAlign(); return NS_OK; }
+      { *aAlign = mVal->GetBaseValue().mAlign; return NS_OK; }
     NS_IMETHOD SetAlign(PRUint16 aAlign)
       { return mVal->SetBaseAlign(aAlign, mSVGElement); }
 
     NS_IMETHOD GetMeetOrSlice(PRUint16* aMeetOrSlice)
-      { *aMeetOrSlice = mVal->GetBaseValue().GetMeetOrSlice(); return NS_OK; }
+      { *aMeetOrSlice = mVal->GetBaseValue().mMeetOrSlice; return NS_OK; }
     NS_IMETHOD SetMeetOrSlice(PRUint16 aMeetOrSlice)
       { return mVal->SetBaseMeetOrSlice(aMeetOrSlice, mSVGElement); }
   };
 
+  struct DOMAnimVal;
+  friend class DOMAnimVal;
   struct DOMAnimVal : public nsIDOMSVGPreserveAspectRatio
   {
     NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -157,12 +161,12 @@ private:
     nsRefPtr<nsSVGElement> mSVGElement;
     
     NS_IMETHOD GetAlign(PRUint16* aAlign)
-      { *aAlign = mVal->GetAnimValue().GetAlign(); return NS_OK; }
+      { *aAlign = mVal->GetBaseValue().mAlign; return NS_OK; }
     NS_IMETHOD SetAlign(PRUint16 aAlign)
       { return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR; }
 
     NS_IMETHOD GetMeetOrSlice(PRUint16* aMeetOrSlice)
-      { *aMeetOrSlice = mVal->GetAnimValue().GetMeetOrSlice(); return NS_OK; }
+      { *aMeetOrSlice = mVal->GetBaseValue().mMeetOrSlice; return NS_OK; }
     NS_IMETHOD SetMeetOrSlice(PRUint16 aValue)
       { return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR; }
   };
