@@ -468,21 +468,15 @@ nsXULGroupboxAccessible::GetRelationByType(PRUint32 aRelationType,
   return NS_OK;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// nsXULProgressMeterAccessible
-////////////////////////////////////////////////////////////////////////////////
+/**
+  * progressmeter
+  */
+NS_IMPL_ISUPPORTS_INHERITED1(nsXULProgressMeterAccessible, nsFormControlAccessible, nsIAccessibleValue)
 
-NS_IMPL_ISUPPORTS_INHERITED1(nsXULProgressMeterAccessible,
-                             nsFormControlAccessible,
-                             nsIAccessibleValue)
-
-nsXULProgressMeterAccessible::
-  nsXULProgressMeterAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell) :
-  nsFormControlAccessible(aNode, aShell)
-{
+nsXULProgressMeterAccessible::nsXULProgressMeterAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell):
+nsFormControlAccessible(aNode, aShell)
+{ 
 }
-
-// nsAccessible
 
 nsresult
 nsXULProgressMeterAccessible::GetRoleInternal(PRUint32 *aRole)
@@ -491,108 +485,59 @@ nsXULProgressMeterAccessible::GetRoleInternal(PRUint32 *aRole)
   return NS_OK;
 }
 
-// nsIAccessibleValue
-
-NS_IMETHODIMP
-nsXULProgressMeterAccessible::GetValue(nsAString& aValue)
+NS_IMETHODIMP nsXULProgressMeterAccessible::GetValue(nsAString& aValue)
 {
-  nsresult rv = nsFormControlAccessible::GetValue(aValue);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (!aValue.IsEmpty())
-    return NS_OK;
-
-  double maxValue = 0;
-  rv = GetMaximumValue(&maxValue);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (maxValue != 1) {
-    double curValue = 0;
-    rv = GetCurrentValue(&curValue);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    double percentValue = (curValue / maxValue) * 100;
-    nsAutoString value;
-    value.AppendFloat(percentValue); // AppendFloat isn't available on nsAString
-    value.AppendLiteral("%");
-    aValue = value;
+  aValue.Truncate();
+  nsAccessible::GetValue(aValue);
+  if (!aValue.IsEmpty()) {
     return NS_OK;
   }
-
   nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
+  if (!content) {
+    return NS_ERROR_FAILURE;
+  }
   content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::value, aValue);
-  if (aValue.IsEmpty())
+  if (aValue.IsEmpty()) {
     aValue.AppendLiteral("0");  // Empty value for progress meter = 0%
-
+  }
   aValue.AppendLiteral("%");
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsXULProgressMeterAccessible::GetMaximumValue(double *aMaximumValue)
+NS_IMETHODIMP nsXULProgressMeterAccessible::GetMaximumValue(double *aMaximumValue)
 {
-  nsresult rv = nsFormControlAccessible::GetMaximumValue(aMaximumValue);
-  if (rv != NS_OK_NO_ARIA_VALUE)
-    return rv;
-
-  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
-
-  nsAutoString value;
-  if (content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::max, value)) {
-    PRInt32 result = NS_OK;
-    *aMaximumValue = value.ToFloat(&result);
-    return result;
-  }
-
   *aMaximumValue = 1; // 100% = 1;
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsXULProgressMeterAccessible::GetMinimumValue(double *aMinimumValue)
+NS_IMETHODIMP nsXULProgressMeterAccessible::GetMinimumValue(double *aMinimumValue)
 {
-  nsresult rv = nsFormControlAccessible::GetMinimumValue(aMinimumValue);
-  if (rv != NS_OK_NO_ARIA_VALUE)
-    return rv;
-
   *aMinimumValue = 0;
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsXULProgressMeterAccessible::GetMinimumIncrement(double *aMinimumIncrement)
+NS_IMETHODIMP nsXULProgressMeterAccessible::GetMinimumIncrement(double *aMinimumIncrement)
 {
-  nsresult rv = nsFormControlAccessible::GetMinimumIncrement(aMinimumIncrement);
-  if (rv != NS_OK_NO_ARIA_VALUE)
-    return rv;
-
   *aMinimumIncrement = 0;
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsXULProgressMeterAccessible::GetCurrentValue(double *aCurrentValue)
+NS_IMETHODIMP nsXULProgressMeterAccessible::GetCurrentValue(double *aCurrentValue)
 {
-  nsresult rv = nsFormControlAccessible::GetCurrentValue(aCurrentValue);
-  if (rv != NS_OK_NO_ARIA_VALUE)
-    return rv;
-
-  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
-
+  *aCurrentValue = 0;
   nsAutoString currentValue;
+  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
+  if (!content) {
+    return NS_ERROR_FAILURE;
+  }
   content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::value, currentValue);
 
-  PRInt32 result = NS_OK;
-  if (content->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::max))
-    *aCurrentValue = currentValue.ToFloat(&result);
-  else
-    *aCurrentValue = currentValue.ToFloat(&result) / 100;
-
-  return result;
+  PRInt32 error;
+  *aCurrentValue = currentValue.ToFloat(&error) / 100;
+  return NS_OK;
 }
 
-NS_IMETHODIMP
-nsXULProgressMeterAccessible::SetCurrentValue(double aValue)
+NS_IMETHODIMP nsXULProgressMeterAccessible::SetCurrentValue(double aValue)
 {
   return NS_ERROR_FAILURE; // Progress meters are readonly!
 }

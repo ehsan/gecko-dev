@@ -58,9 +58,10 @@
   color: HighlightText; 
 }
 
-#topBar {
+.viewSelector {
   -moz-appearance: listbox;
-  margin: 8px 8px 0;
+  margin: 8px 8px 0 8px;
+  padding: 0;
 }
 
 #generalTab {

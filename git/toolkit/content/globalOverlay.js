@@ -74,8 +74,7 @@ function goUpdateCommand(aCommand)
     goSetCommandEnabled(aCommand, enabled);
   }
   catch (e) {
-    Components.utils.reportError("An error occurred updating the " +
-                                 aCommand + " command: " + e);
+    dump("An error occurred updating the " + aCommand + " command\n");
   }
 }
 
@@ -88,8 +87,7 @@ function goDoCommand(aCommand)
       controller.doCommand(aCommand);
   }
   catch (e) {
-    Components.utils.reportError("An error occurred executing the " +
-                                 aCommand + " command: " + e);
+    dump("An error occurred executing the " + aCommand + " command\n" + e + "\n");
   }
 }
 

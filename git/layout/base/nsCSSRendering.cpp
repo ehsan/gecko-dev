@@ -335,6 +335,11 @@ static nscolor MakeBevelColor(PRIntn whichSide, PRUint8 style,
                               nscolor aBackgroundColor,
                               nscolor aBorderColor);
 
+/* Returns FALSE iff all returned aTwipsRadii == 0, TRUE otherwise */
+static PRBool GetBorderRadiusTwips(const nsStyleCorners& aBorderRadius,
+                                   const nscoord& aFrameWidth,
+                                   nscoord aTwipsRadii[8]);
+
 static InlineBackgroundData* gInlineBGData = nsnull;
 
 // Initialize any static variables used by nsCSSRendering.
@@ -977,7 +982,9 @@ nsCSSRendering::FindRootFrame(nsIFrame* aForFrame)
  *
  * |FindBackground| returns true if a background should be painted, and
  * the resulting style context to use for the background information
- * will be filled in to |aBackground|.
+ * will be filled in to |aBackground|.  It fills in a boolean indicating
+ * whether the frame is the canvas frame, because PaintBackground must
+ * propagate that frame's background color to the view manager.
  */
 const nsStyleBackground*
 nsCSSRendering::FindRootFrameBackground(nsIFrame* aForFrame)
@@ -1063,10 +1070,9 @@ nsCSSRendering::DidPaint()
   gInlineBGData->Reset();
 }
 
-PRBool
-nsCSSRendering::GetBorderRadiusTwips(const nsStyleCorners& aBorderRadius,
-                                     const nscoord& aFrameWidth,
-                                     nscoord aRadii[8])
+static PRBool
+GetBorderRadiusTwips(const nsStyleCorners& aBorderRadius,
+                     const nscoord& aFrameWidth, nscoord aTwipsRadii[8])
 {
   PRBool result = PR_FALSE;
   
@@ -1076,20 +1082,20 @@ nsCSSRendering::GetBorderRadiusTwips(const nsStyleCorners& aBorderRadius,
 
     switch (c.GetUnit()) {
       case eStyleUnit_Percent:
-        aRadii[i] = (nscoord)(c.GetPercentValue() * aFrameWidth);
+        aTwipsRadii[i] = (nscoord)(c.GetPercentValue() * aFrameWidth);
         break;
 
       case eStyleUnit_Coord:
-        aRadii[i] = c.GetCoordValue();
+        aTwipsRadii[i] = c.GetCoordValue();
         break;
 
       default:
         NS_NOTREACHED("GetBorderRadiusTwips: bad unit");
-        aRadii[i] = 0;
+        aTwipsRadii[i] = 0;
         break;
     }
 
-    if (aRadii[i])
+    if (aTwipsRadii[i])
       result = PR_TRUE;
   }
   return result;

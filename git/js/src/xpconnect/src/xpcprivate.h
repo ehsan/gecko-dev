@@ -2346,9 +2346,8 @@ public:
         if(mScriptableInfo && JS_IsGCMarkingTracer(trc))
             mScriptableInfo->Mark();
         if(HasProto()) GetProto()->TraceJS(trc);
-        JSObject* wrapper = GetWrapper();
-        if(wrapper)
-            JS_CALL_OBJECT_TRACER(trc, wrapper, "XPCWrappedNative::mWrapper");
+        if(mWrapper)
+            JS_CALL_OBJECT_TRACER(trc, mWrapper, "XPCWrappedNative::mWrapper");
         TraceOtherWrapper(trc);
     }
 
@@ -2388,17 +2387,8 @@ public:
 
     JSBool HasExternalReference() const {return mRefCnt > 1;}
 
-    JSBool NeedsChromeWrapper() { return !!(mWrapper & 1); }
-    void SetNeedsChromeWrapper() { mWrapper |= 1; }
-    JSObject* GetWrapper()
-    {
-        return (JSObject *)(mWrapper & ~1);
-    }
-    void SetWrapper(JSObject *obj)
-    {
-        JSBool reset = NeedsChromeWrapper();
-        mWrapper = PRWord(obj) | reset;
-    }
+    JSObject* GetWrapper()              { return mWrapper; }
+    void      SetWrapper(JSObject *obj) { mWrapper = obj; }
 
     void NoteTearoffs(nsCycleCollectionTraversalCallback& cb);
 
@@ -2464,7 +2454,7 @@ private:
     JSObject*                    mFlatJSObject;
     XPCNativeScriptableInfo*     mScriptableInfo;
     XPCWrappedNativeTearOffChunk mFirstChunk;
-    PRWord                       mWrapper;
+    JSObject*                    mWrapper;
 
 #ifdef XPC_CHECK_WRAPPER_THREADSAFETY
 public:
@@ -2736,6 +2726,22 @@ private:
     nsCOMPtr<nsIVariant> mValue;
 };
 
+class xpcPropertyBagEnumerator : public nsISimpleEnumerator
+{
+public:
+    NS_DECL_ISUPPORTS
+    NS_DECL_NSISIMPLEENUMERATOR
+
+    xpcPropertyBagEnumerator(PRUint32 count);
+    virtual ~xpcPropertyBagEnumerator() {}
+
+    JSBool AppendElement(nsISupports* element);
+
+private:
+    nsCOMArray<nsISupports> mArray;
+    PRInt32                 mIndex;
+};
+
 /***************************************************************************/
 // data conversion
 
@@ -2975,6 +2981,9 @@ public:
     virtual ~nsXPCException();
 
     static void InitStatics() { sEverMadeOneFromFactory = JS_FALSE; }
+
+    PRBool StealThrownJSVal(jsval* vp);
+    void StowThrownJSVal(JSContext* cx, jsval v);
 
 protected:
     void Reset();
@@ -4091,10 +4100,6 @@ XPC_SJOW_AttachNewConstructorObject(XPCCallContext &ccx,
 JSBool
 XPC_XOW_WrapObject(JSContext *cx, JSObject *parent, jsval *vp,
                    XPCWrappedNative *wn = nsnull);
-
-JSBool
-XPC_SOW_WrapObject(JSContext *cx, JSObject *parent, jsval v,
-                   jsval *vp);
 
 #ifdef XPC_IDISPATCH_SUPPORT
 // IDispatch specific classes

@@ -44,9 +44,6 @@
 #include "nsISVGChildFrame.h"
 #include "gfxContext.h"
 #include "gfxFont.h"
-#include "gfxRect.h"
-#include "gfxMatrix.h"
-#include "nsSVGMatrix.h"
 
 class nsSVGTextFrame;
 class nsSVGGlyphFrame;
@@ -122,7 +119,7 @@ public:
                       const nsIntRect *aDirtyRect);
   NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint &aPoint);
   NS_IMETHOD UpdateCoveredRegion();
-  virtual gfxRect GetBBoxContribution(const gfxMatrix &aToBBoxUserspace);
+  NS_IMETHOD GetBBox(nsIDOMSVGRect **_retval);
 
   NS_IMETHOD_(nsRect) GetCoveredRegion();
   NS_IMETHOD InitialUpdate();
@@ -135,7 +132,7 @@ public:
   NS_IMETHOD_(PRBool) HasValidCoveredRect() { return PR_TRUE; }
 
   // nsSVGGeometryFrame methods
-  gfxMatrix GetCanvasTM();
+  NS_IMETHOD GetCanvasTM(nsIDOMSVGMatrix * *aCTM);
 
   // nsISVGGlyphFragmentLeaf interface:
   // These do not use the global transform if NS_STATE_NONDISPLAY_CHILD
@@ -221,10 +218,6 @@ protected:
     return !(GetStateBits() & NS_STATE_SVG_PRINTING) ?
       mContent->GetText() : nsLayoutUtils::GetTextFragmentForPrinting(this);
   }
-
-  // Used to support GetBBoxContribution by making GetConvasTM use this as the
-  // parent transform instead of the real CanvasTM.
-  nsCOMPtr<nsIDOMSVGMatrix> mOverrideCanvasTM;
 
   // Owning pointer, must call gfxTextRunWordCache::RemoveTextRun before deleting
   gfxTextRun *mTextRun;

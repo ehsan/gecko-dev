@@ -263,17 +263,16 @@ public:
     }
 
     nsShortReader(nsIInputStream* in) : mIn(in), mReceived(0) {
-        mMon = nsAutoMonitor::NewMonitor("nsShortReader");
     }
 
     void Received(PRUint32 count) {
-        nsAutoMonitor mon(mMon);
+        nsAutoCMonitor mon(this);
         mReceived += count;
         mon.Notify();
     }
 
     PRUint32 WaitForReceipt(const PRUint32 aWriteCount) {
-        nsAutoMonitor mon(mMon);
+        nsAutoCMonitor mon(this);
         PRUint32 result = mReceived;
 
         while (result < aWriteCount) {
@@ -290,7 +289,6 @@ public:
 protected:
     nsCOMPtr<nsIInputStream> mIn;
     PRUint32            mReceived;
-    PRMonitor*          mMon;
 };
 
 NS_IMPL_THREADSAFE_ISUPPORTS1(nsShortReader, nsIRunnable)

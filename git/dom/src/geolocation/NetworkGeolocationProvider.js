@@ -112,6 +112,7 @@ WifiGeoPositionProvider.prototype = {
   
     provider_url:    null,
     wifi_service:    null,
+    update:          null,
     timer:           null,
     hasSeenWiFi:     false,
 
@@ -135,9 +136,12 @@ WifiGeoPositionProvider.prototype = {
   
     watch: function(c) {
         LOG("watch called");
+
         if (!this.wifi_service) {
             this.wifi_service = Cc["@mozilla.org/wifi/monitor;1"].getService(Components.interfaces.nsIWifiMonitor);
+        
             this.wifi_service.startWatching(this);
+            this.update = c;
         }
     },
 
@@ -145,7 +149,7 @@ WifiGeoPositionProvider.prototype = {
         LOG("shutdown  called");
         if(this.wifi_service)
             this.wifi_service.stopWatching(this);
-        this.wifi_service = null;
+        this.update = null;
 
         if (this.timer != null) {
             this.timer.cancel();
@@ -161,7 +165,7 @@ WifiGeoPositionProvider.prototype = {
         var prefService = Cc["@mozilla.org/preferences-service;1"].getService(Ci.nsIPrefBranch);
 
         // send our request to a wifi geolocation network provider:
-        var xhr = Components.classes["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Ci.nsIXMLHttpRequest);
+        const xhr = Components.classes["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Ci.nsIXMLHttpRequest);
 
         // This is a background load
         xhr.mozBackgroundRequest = true;
@@ -170,6 +174,9 @@ WifiGeoPositionProvider.prototype = {
         
         // set something so that we can strip cookies
         xhr.channel.loadFlags = Ci.nsIChannel.LOAD_ANONYMOUS;
+
+        // set something so that we can get back to the update object when onload is called
+        xhr.channel.QueryInterface(Ci.nsIWritablePropertyBag2).setPropertyAsInterface("moz-geolocation-service", this.update);
             
         xhr.onerror = function(req) {
             LOG("onerror: " + req);
@@ -207,7 +214,7 @@ WifiGeoPositionProvider.prototype = {
                                                         response.location.longitude,
                                                         response.location.accuracy);
 
-            var update = Cc["@mozilla.org/geolocation/service;1"].getService(Ci.nsIGeolocationUpdate);
+            var update = req.target.channel.QueryInterface(Ci.nsIPropertyBag2).getPropertyAsInterface("moz-geolocation-service", Ci.nsIGeolocationUpdate);
             update.update(newLocation);
         };
 
@@ -233,10 +240,6 @@ WifiGeoPositionProvider.prototype = {
         LOG("client sending: " + jsonString);
 
         xhr.send(jsonString);
-    },
-
-    onError: function (code) {
-        LOG("wifi error: " + code);
     },
 
     notify: function (timer) {

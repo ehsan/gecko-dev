@@ -40,7 +40,6 @@
 #define NSSVGGFRAME_H
 
 #include "nsSVGContainerFrame.h"
-#include "gfxMatrix.h"
 
 typedef nsSVGDisplayContainerFrame nsSVGGFrameBase;
 
@@ -82,7 +81,7 @@ public:
   virtual void NotifySVGChanged(PRUint32 aFlags);
 
   // nsSVGContainerFrame methods:
-  virtual gfxMatrix GetCanvasTM();
+  virtual already_AddRefed<nsIDOMSVGMatrix> GetCanvasTM();
 
   nsCOMPtr<nsIDOMSVGMatrix> mCanvasTM;
 };

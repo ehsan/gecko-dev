@@ -143,7 +143,6 @@ public:
   nsIFrame* LastChild() const;
 
   nsIFrame* FrameAt(PRInt32 aIndex) const;
-  PRInt32 IndexOf(nsIFrame* aFrame) const;
 
   PRBool IsEmpty() const {
     return nsnull == mFirstChild;

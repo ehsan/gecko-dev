@@ -141,8 +141,6 @@ extern "C" {
  *  "selector"
  *      Address of CertSelector whose criteria must be satisfied.
  *      Must be non-NULL.
- *  "verifyNode"
- *      Parent log node for tracking of filtered out certs.
  *  "pNBIOContext"
  *      Address at which platform-dependent information is stored if the
  *      operation is suspended for non-blocking I/O. Must be non-NULL.
@@ -164,7 +162,6 @@ typedef PKIX_Error *
 (*PKIX_CertStore_CertCallback)(
         PKIX_CertStore *store,
         PKIX_CertSelector *selector,
-        PKIX_VerifyNode *verifyNode,
         void **pNBIOContext,
         PKIX_List **pCerts,  /* list of PKIX_PL_Cert */
         void *plContext);
@@ -197,8 +194,6 @@ typedef PKIX_Error *
  *  "selector"
  *      Address of CertSelector whose criteria must be satisfied.
  *      Must be non-NULL.
- *  "verifyNode"
- *      Parent log node for tracking of filtered out certs.
  *  "pNBIOContext"
  *      Address at which platform-dependent information is stored if the
  *      operation is suspended for non-blocking I/O. Must be non-NULL.
@@ -220,7 +215,6 @@ PKIX_Error *
 PKIX_CertStore_CertContinue(
         PKIX_CertStore *store,
         PKIX_CertSelector *selector,
-        PKIX_VerifyNode *verifyNode,
         void **pNBIOContext,
         PKIX_List **pCerts,  /* list of PKIX_PL_Cert */
         void *plContext);
@@ -229,7 +223,6 @@ typedef PKIX_Error *
 (*PKIX_CertStore_CertContinueFunction)(
         PKIX_CertStore *store,
         PKIX_CertSelector *selector,
-        PKIX_VerifyNode *verifyNode,
         void **pNBIOContext,
         PKIX_List **pCerts,  /* list of PKIX_PL_Cert */
         void *plContext);

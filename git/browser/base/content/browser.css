@@ -13,18 +13,9 @@ toolbar[printpreview="true"] {
   -moz-binding: url("chrome://global/content/printPreviewBindings.xml#printpreviewtoolbar");
 }
 
-toolbarpaletteitem[place="palette"] > toolbaritem > hbox[type="places"] {
-  display: none;
-}
-
 /* ::::: location bar ::::: */
 #urlbar {
   -moz-binding: url(chrome://browser/content/urlbarBindings.xml#urlbar);
-}
-
-#wrapper-urlbar-container #urlbar {
-  -moz-user-input: disabled;
-  cursor: -moz-grab;
 }
 
 #PopupAutoComplete {
@@ -47,7 +38,7 @@ toolbarpaletteitem[place="palette"] > toolbaritem > hbox[type="places"] {
 
 #urlbar[pageproxystate="invalid"] > #urlbar-icons > :not(#go-button) ,
 #urlbar[pageproxystate="valid"] > #urlbar-icons > #go-button ,
-#urlbar[isempty="true"] > #urlbar-icons > #go-button {
+#urlbar[empty="true"] > #urlbar-icons > #go-button {
   visibility: collapse;
 }
 

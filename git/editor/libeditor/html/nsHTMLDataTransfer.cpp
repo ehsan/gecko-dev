@@ -87,6 +87,8 @@
 #include "nsIParser.h"
 #include "nsParserCIID.h"
 #include "nsIImage.h"
+#include "nsAOLCiter.h"
+#include "nsInternetCiter.h"
 #include "nsXPCOM.h"
 #include "nsISupportsPrimitives.h"
 #include "nsLinebreakConverter.h"
