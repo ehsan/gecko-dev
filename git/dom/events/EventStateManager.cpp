@@ -258,7 +258,6 @@ NS_INTERFACE_MAP_END
 /******************************************************************/
 
 static uint32_t sESMInstanceCount = 0;
-static bool sPointerEventEnabled = false;
 
 int32_t EventStateManager::sUserInputEventDepth = 0;
 bool EventStateManager::sNormalLMouseEventInProcess = false;
@@ -301,13 +300,6 @@ EventStateManager::EventStateManager()
     UpdateUserActivityTimer();
   }
   ++sESMInstanceCount;
-
-  static bool sAddedPointerEventEnabled = false;
-  if (!sAddedPointerEventEnabled) {
-    Preferences::AddBoolVarCache(&sPointerEventEnabled,
-                                 "dom.w3c_pointer_events.enabled", false);
-    sAddedPointerEventEnabled = true;
-  }
 }
 
 nsresult
@@ -588,10 +580,6 @@ EventStateManager::PreHandleEvent(nsPresContext* aPresContext,
       mouseEvent->reason = WidgetMouseEvent::eSynthesized;
       // then fall through...
     } else {
-      if (sPointerEventEnabled) {
-        // We should synthetize corresponding pointer events
-        GeneratePointerEnterExit(NS_POINTER_LEAVE, mouseEvent);
-      }
       GenerateMouseEnterExit(mouseEvent);
       //This is a window level mouse exit event and should stop here
       aEvent->message = 0;
@@ -2896,6 +2884,8 @@ EventStateManager::PostHandleEvent(nsPresContext* aPresContext,
     // Mouse/Pen pointers are valid all the time (not only between down/up)
     if (pointerEvent->inputSource == nsIDOMMouseEvent::MOZ_SOURCE_TOUCH) {
       mPointersEnterLeaveHelper.Remove(pointerEvent->pointerId);
+    }
+    if (pointerEvent->inputSource != nsIDOMMouseEvent::MOZ_SOURCE_MOUSE) {
       GenerateMouseEnterExit(pointerEvent);
     }
     break;
@@ -3926,14 +3916,6 @@ GetWindowInnerRectCenter(nsPIDOMWindow* aWindow,
   return LayoutDeviceIntPoint(
     aContext->CSSPixelsToDevPixels(innerX - cssScreenX + innerWidth / 2),
     aContext->CSSPixelsToDevPixels(innerY - cssScreenY + innerHeight / 2));
-}
-
-void
-EventStateManager::GeneratePointerEnterExit(uint32_t aMessage, WidgetMouseEvent* aEvent)
-{
-  WidgetPointerEvent pointerEvent(*aEvent);
-  pointerEvent.message = aMessage;
-  GenerateMouseEnterExit(&pointerEvent);
 }
 
 void
@@ -5563,31 +5545,24 @@ AutoHandlingUserInputStatePusher::AutoHandlingUserInputStatePusher(
                                     nsIDocument* aDocument) :
   mIsHandlingUserInput(aIsHandlingUserInput),
   mIsMouseDown(aEvent && aEvent->message == NS_MOUSE_BUTTON_DOWN),
-  mResetFMMouseButtonHandlingState(false)
+  mResetFMMouseDownState(false)
 {
   if (!aIsHandlingUserInput) {
     return;
   }
   EventStateManager::StartHandlingUserInput();
-  if (mIsMouseDown) {
-    nsIPresShell::SetCapturingContent(nullptr, 0);
-    nsIPresShell::AllowMouseCapture(true);
-  }
-  if (!aDocument || !aEvent || !aEvent->mFlags.mIsTrusted) {
+  if (!mIsMouseDown) {
     return;
   }
-  mResetFMMouseButtonHandlingState = (aEvent->message == NS_MOUSE_BUTTON_DOWN ||
-                                      aEvent->message == NS_MOUSE_BUTTON_UP);
-  if (mResetFMMouseButtonHandlingState) {
-    nsFocusManager* fm = nsFocusManager::GetFocusManager();
-    NS_ENSURE_TRUE_VOID(fm);
-    // If it's in modal state, mouse button event handling may be nested.
-    // E.g., a modal dialog is opened at mousedown or mouseup event handler
-    // and the dialog is clicked.  Therefore, we should store current
-    // mouse button event handling document if nsFocusManager already has it.
-    mMouseButtonEventHandlingDocument =
-      fm->SetMouseButtonHandlingDocument(aDocument);
+  nsIPresShell::SetCapturingContent(nullptr, 0);
+  nsIPresShell::AllowMouseCapture(true);
+  if (!aDocument || !aEvent->mFlags.mIsTrusted) {
+    return;
   }
+  nsFocusManager* fm = nsFocusManager::GetFocusManager();
+  NS_ENSURE_TRUE_VOID(fm);
+  fm->SetMouseButtonDownHandlingDocument(aDocument);
+  mResetFMMouseDownState = true;
 }
 
 AutoHandlingUserInputStatePusher::~AutoHandlingUserInputStatePusher()
@@ -5596,15 +5571,16 @@ AutoHandlingUserInputStatePusher::~AutoHandlingUserInputStatePusher()
     return;
   }
   EventStateManager::StopHandlingUserInput();
-  if (mIsMouseDown) {
-    nsIPresShell::AllowMouseCapture(false);
+  if (!mIsMouseDown) {
+    return;
   }
-  if (mResetFMMouseButtonHandlingState) {
-    nsFocusManager* fm = nsFocusManager::GetFocusManager();
-    NS_ENSURE_TRUE_VOID(fm);
-    nsCOMPtr<nsIDocument> handlingDocument =
-      fm->SetMouseButtonHandlingDocument(mMouseButtonEventHandlingDocument);
+  nsIPresShell::AllowMouseCapture(false);
+  if (!mResetFMMouseDownState) {
+    return;
   }
+  nsFocusManager* fm = nsFocusManager::GetFocusManager();
+  NS_ENSURE_TRUE_VOID(fm);
+  fm->SetMouseButtonDownHandlingDocument(nullptr);
 }
 
 } // namespace mozilla

@@ -252,25 +252,12 @@ MediaDecodeTask::Decode()
     return;
   }
 
-  MediaQueue<AudioData> audioQueue;
-  nsRefPtr<AudioDecodeRendezvous> barrier(new AudioDecodeRendezvous());
-  mDecoderReader->SetCallback(barrier);
-  while (1) {
-    mDecoderReader->RequestAudioData();
-    nsAutoPtr<AudioData> audio;
-    if (NS_FAILED(barrier->Await(audio))) {
-      ReportFailureOnMainThread(WebAudioDecodeJob::InvalidContent);
-      return;
-    }
-    if (!audio) {
-      // End of stream.
-      break;
-    }
-    audioQueue.Push(audio.forget());
+  while (mDecoderReader->DecodeAudioData()) {
+    // consume all of the buffer
+    continue;
   }
-  mDecoderReader->Shutdown();
-  mDecoderReader->BreakCycles();
 
+  MediaQueue<AudioData>& audioQueue = mDecoderReader->AudioQueue();
   uint32_t frameCount = audioQueue.FrameCount();
   uint32_t channelCount = mediaInfo.mAudio.mChannels;
   uint32_t sampleRate = mediaInfo.mAudio.mRate;
@@ -482,24 +469,12 @@ bool
 MediaBufferDecoder::EnsureThreadPoolInitialized()
 {
   if (!mThreadPool) {
-    mThreadPool = do_CreateInstance(NS_THREADPOOL_CONTRACTID);
+    mThreadPool = SharedThreadPool::Get(NS_LITERAL_CSTRING("MediaBufferDecoder"));
     if (!mThreadPool) {
       return false;
     }
-    mThreadPool->SetName(NS_LITERAL_CSTRING("MediaBufferDecoder"));
   }
   return true;
-}
-
-void
-MediaBufferDecoder::Shutdown() {
-  if (mThreadPool) {
-    // Setting threadLimit to 0 causes threads to exit when all events have
-    // been run, like nsIThreadPool::Shutdown(), but doesn't run a nested event
-    // loop nor wait until this has happened.
-    mThreadPool->SetThreadLimit(0);
-    mThreadPool = nullptr;
-  }
 }
 
 WebAudioDecodeJob::WebAudioDecodeJob(const nsACString& aContentType,

@@ -110,12 +110,10 @@ GetDesiredRegionSize()
 
 #else // Unix
 
-#include "mozilla/TaggedAnonymousMemory.h"
-
 static void *
 ReserveRegion(uintptr_t region, uintptr_t size)
 {
-  return MozTaggedAnonymousMmap(reinterpret_cast<void*>(region), size, PROT_NONE, MAP_PRIVATE|MAP_ANON, -1, 0, "poison");
+  return mmap(reinterpret_cast<void*>(region), size, PROT_NONE, MAP_PRIVATE|MAP_ANON, -1, 0);
 }
 
 static void

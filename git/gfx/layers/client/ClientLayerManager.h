@@ -51,11 +51,6 @@ public:
     return mForwarder;
   }
 
-  virtual ClientLayerManager* AsClientLayerManager()
-  {
-    return this;
-  }
-
   virtual int32_t GetMaxTextureSize() const;
 
   virtual void SetDefaultTargetConfiguration(BufferMode aDoubleBuffering, ScreenRotation aRotation);
@@ -112,8 +107,8 @@ public:
 
   virtual void SetIsFirstPaint() MOZ_OVERRIDE;
 
-  TextureClientPool* GetTexturePool(gfx::SurfaceFormat aFormat);
-  SimpleTextureClientPool* GetSimpleTileTexturePool(gfx::SurfaceFormat aFormat);
+  TextureClientPool *GetTexturePool(gfx::SurfaceFormat aFormat);
+  SimpleTextureClientPool *GetSimpleTileTexturePool(gfx::SurfaceFormat aFormat);
 
   // Drop cached resources and ask our shadow manager to do the same,
   // if we have one.
@@ -128,7 +123,7 @@ public:
 
   bool HasShadowTarget() { return !!mShadowTarget; }
 
-  void SetShadowTarget(gfxContext* aTarget) { mShadowTarget = aTarget; }
+  void SetShadowTarget(gfxContext *aTarget) { mShadowTarget = aTarget; }
 
   bool CompositorMightResample() { return mCompositorMightResample; } 
   
@@ -138,9 +133,7 @@ public:
   void* GetThebesLayerCallbackData() const
   { return mThebesLayerCallbackData; }
 
-  CompositorChild* GetRemoteRenderer();
-
-  CompositorChild* GetCompositorChild();
+  CompositorChild *GetRemoteRenderer();
 
   /**
    * Called for each iteration of a progressive tile update. Fills

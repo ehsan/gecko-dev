@@ -198,12 +198,7 @@ ContentClientRemoteBuffer::CreateAndAllocateTextureClient(RefPtr<TextureClient>&
     return false;
   }
 
-  TextureAllocationFlags flags = TextureAllocationFlags::ALLOC_CLEAR_BUFFER;
-  if (aFlags & TextureFlags::ON_WHITE) {
-    flags = TextureAllocationFlags::ALLOC_CLEAR_BUFFER_WHITE;
-  }
-
-  if (!aClient->AllocateForSurface(mSize, flags)) {
+  if (!aClient->AllocateForSurface(mSize, ALLOC_CLEAR_BUFFER)) {
     aClient = CreateTextureClientForDrawing(mSurfaceFormat,
                 mTextureInfo.mTextureFlags | TextureFlags::ALLOC_FALLBACK | aFlags,
                 gfx::BackendType::NONE,
@@ -211,7 +206,7 @@ ContentClientRemoteBuffer::CreateAndAllocateTextureClient(RefPtr<TextureClient>&
     if (!aClient) {
       return false;
     }
-    if (!aClient->AllocateForSurface(mSize, flags)) {
+    if (!aClient->AllocateForSurface(mSize, ALLOC_CLEAR_BUFFER)) {
       NS_WARNING("Could not allocate texture client");
       aClient = nullptr;
       return false;
