@@ -1193,8 +1193,17 @@ var gBrowserInit = {
       cmd.removeAttribute("hidden");
     }
 
+    // Enable the Browser Console?
+    if (chromeEnabled) {
+      let cmd = document.getElementById("Tools:BrowserConsole");
+      cmd.removeAttribute("disabled");
+      cmd.removeAttribute("hidden");
+    }
+
     // Enable Error Console?
-    let consoleEnabled = gPrefService.getBoolPref("devtools.errorconsole.enabled");
+    // Temporarily enabled. See bug 798925.
+    let consoleEnabled = true || gPrefService.getBoolPref("devtools.errorconsole.enabled") ||
+                         chromeEnabled;
     if (consoleEnabled) {
       let cmd = document.getElementById("Tools:ErrorConsole");
       cmd.removeAttribute("disabled");

@@ -577,8 +577,7 @@
                   <menuitem id="menu_chromeDebugger"
                             observes="devtoolsMenuBroadcaster_ChromeDebugger"/>
                   <menuitem id="menu_browserConsole"
-                            observes="devtoolsMenuBroadcaster_BrowserConsole"
-                            accesskey="&browserConsoleCmd.accesskey;"/>
+                            observes="devtoolsMenuBroadcaster_BrowserConsole"/>
                   <menuitem id="menu_responsiveUI"
                             observes="devtoolsMenuBroadcaster_ResponsiveUI"
                             accesskey="&responsiveDesignTool.accesskey;"/>

@@ -42,7 +42,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "VariablesView",
                                   "resource:///modules/devtools/VariablesView.jsm");
 
 this.EXPORTED_SYMBOLS = ["WebConsoleUtils", "JSPropertyProvider", "JSTermHelpers",
-                         "ConsoleServiceListener", "ConsoleAPIListener",
+                         "PageErrorListener", "ConsoleAPIListener",
                          "NetworkResponseListener", "NetworkMonitor",
                          "ConsoleProgressListener"];
 
@@ -876,25 +876,25 @@ return JSPropertyProvider;
 ///////////////////////////////////////////////////////////////////////////////
 
 /**
- * The nsIConsoleService listener. This is used to send all of the console
- * messages (JavaScript, CSS and more) to the remote Web Console instance.
+ * The nsIConsoleService listener. This is used to send all the page errors
+ * (JavaScript, CSS and more) to the remote Web Console instance.
  *
  * @constructor
  * @param nsIDOMWindow [aWindow]
  *        Optional - the window object for which we are created. This is used
  *        for filtering out messages that belong to other windows.
  * @param object aListener
- *        The listener object must have one method:
- *        - onConsoleServiceMessage(). This method is invoked with one argument, the
- *        nsIConsoleMessage, whenever a relevant message is received.
+ *        The listener object must have a method: onPageError. This method is
+ *        invoked with one argument, the nsIScriptError, whenever a relevant
+ *        page error is received.
  */
-this.ConsoleServiceListener = function ConsoleServiceListener(aWindow, aListener)
+this.PageErrorListener = function PageErrorListener(aWindow, aListener)
 {
   this.window = aWindow;
   this.listener = aListener;
 }
 
-ConsoleServiceListener.prototype =
+PageErrorListener.prototype =
 {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIConsoleListener]),
 
@@ -905,7 +905,8 @@ ConsoleServiceListener.prototype =
   window: null,
 
   /**
-   * The listener object which is notified of messages from the console service.
+   * The listener object which is notified of page errors. It must have
+   * a onPageError method which is invoked with one argument: the nsIScriptError.
    * @type object
    */
   listener: null,
@@ -913,7 +914,7 @@ ConsoleServiceListener.prototype =
   /**
    * Initialize the nsIConsoleService listener.
    */
-  init: function CSL_init()
+  init: function PEL_init()
   {
     Services.console.registerListener(this);
   },
@@ -923,48 +924,43 @@ ConsoleServiceListener.prototype =
    * messages belonging to the current window and sends them to the remote Web
    * Console instance.
    *
-   * @param nsIConsoleMessage aMessage
-   *        The message object coming from the nsIConsoleService.
+   * @param nsIScriptError aScriptError
+   *        The script error object coming from the nsIConsoleService.
    */
-  observe: function CSL_observe(aMessage)
+  observe: function PEL_observe(aScriptError)
   {
-    if (!this.listener) {
+    if (!this.listener ||
+        !(aScriptError instanceof Ci.nsIScriptError)) {
       return;
     }
 
     if (this.window) {
-      if (!(aMessage instanceof Ci.nsIScriptError) ||
-          !aMessage.outerWindowID ||
-          !this.isCategoryAllowed(aMessage.category)) {
+      if (!aScriptError.outerWindowID ||
+          !this.isCategoryAllowed(aScriptError.category)) {
         return;
       }
 
-      let errorWindow = Services.wm.getOuterWindowWithId(aMessage.outerWindowID);
+      let errorWindow =
+        Services.wm.getOuterWindowWithId(aScriptError.outerWindowID);
       if (!errorWindow || errorWindow.top != this.window) {
         return;
       }
     }
 
-    if (aMessage.message) {
-      this.listener.onConsoleServiceMessage(aMessage);
-    }
+    this.listener.onPageError(aScriptError);
   },
 
   /**
-   * Check if the given message category is allowed to be tracked or not.
+   * Check if the given script error category is allowed to be tracked or not.
    * We ignore chrome-originating errors as we only care about content.
    *
    * @param string aCategory
-   *        The message category you want to check.
+   *        The nsIScriptError category you want to check.
    * @return boolean
    *         True if the category is allowed to be logged, false otherwise.
    */
-  isCategoryAllowed: function CSL_isCategoryAllowed(aCategory)
+  isCategoryAllowed: function PEL_isCategoryAllowed(aCategory)
   {
-    if (!aCategory) {
-      return false;
-    }
-
     switch (aCategory) {
       case "XPConnect JavaScript":
       case "component javascript":
@@ -987,32 +983,26 @@ ConsoleServiceListener.prototype =
    *        Tells if you want to also retrieve messages coming from private
    *        windows. Defaults to false.
    * @return array
-   *         The array of cached messages. Each element is an nsIScriptError or
-   *         an nsIConsoleMessage
+   *         The array of cached messages.
    */
-  getCachedMessages: function CSL_getCachedMessages(aIncludePrivate = false)
+  getCachedMessages: function PEL_getCachedMessages(aIncludePrivate = false)
   {
-    let innerWindowID = this.window ?
+    let innerWindowId = this.window ?
                         WebConsoleUtils.getInnerWindowId(this.window) : null;
     let errors = Services.console.getMessageArray() || [];
 
     return errors.filter((aError) => {
-      if (aError instanceof Ci.nsIScriptError) {
-        if (!aIncludePrivate && aError.isFromPrivateWindow) {
-          return false;
-        }
-        if (innerWindowID &&
-            (aError.innerWindowID != innerWindowID ||
-             !this.isCategoryAllowed(aError.category))) {
-          return false;
-        }
-      }
-      else if (innerWindowID) {
-        // If this is not an nsIScriptError and we need to do window-based
-        // filtering we skip this message.
+      if (!(aError instanceof Ci.nsIScriptError)) {
         return false;
       }
-
+      if (!aIncludePrivate && aError.isFromPrivateWindow) {
+        return false;
+      }
+      if (innerWindowId &&
+          (aError.innerWindowID != innerWindowId ||
+           !this.isCategoryAllowed(aError.category))) {
+        return false;
+      }
       return true;
     });
   },
@@ -1020,7 +1010,7 @@ ConsoleServiceListener.prototype =
   /**
    * Remove the nsIConsoleService listener.
    */
-  destroy: function CSL_destroy()
+  destroy: function PEL_destroy()
   {
     Services.console.unregisterListener(this);
     this.listener = this.window = null;
@@ -1122,12 +1112,12 @@ ConsoleAPIListener.prototype =
   {
     let innerWindowId = this.window ?
                         WebConsoleUtils.getInnerWindowId(this.window) : null;
-    let events = ConsoleAPIStorage.getEvents(innerWindowId);
-    if (aIncludePrivate) {
-      return events;
-    }
-
-    return events.filter((m) => !m.private);
+    return ConsoleAPIStorage.getEvents(innerWindowId).filter((aMessage) => {
+      if (!aIncludePrivate && aMessage.private) {
+        return false;
+      }
+      return true;
+    });
   },
 
   /**
