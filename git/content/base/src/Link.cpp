@@ -77,7 +77,7 @@ Link::LinkState() const
 
   // If we have not yet registered for notifications and need to,
   // due to our href changing, register now!
-  if (!mRegistered && mNeedsRegistration && element->IsInComposedDoc()) {
+  if (!mRegistered && mNeedsRegistration && element->IsInDoc()) {
     // Only try and register once.
     self->mNeedsRegistration = false;
 
@@ -94,7 +94,7 @@ Link::LinkState() const
         self->mRegistered = true;
 
         // And make sure we are in the document's link map.
-        element->GetComposedDoc()->AddStyleRelevantLink(self);
+        element->GetCurrentDoc()->AddStyleRelevantLink(self);
       }
     }
   }
@@ -469,7 +469,7 @@ Link::ResetLinkState(bool aNotify, bool aHasHref)
   // currently registered; in either case, we should remove ourself
   // from the doc and the history.
   if (!mNeedsRegistration && mLinkState != eLinkState_NotLink) {
-    nsIDocument *doc = mElement->GetComposedDoc();
+    nsIDocument *doc = mElement->GetCurrentDoc();
     if (doc && (mRegistered || mLinkState == eLinkState_Visited)) {
       // Tell the document to forget about this link if we've registered
       // with it before.

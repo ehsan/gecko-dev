@@ -307,7 +307,7 @@ SVGSVGElement::UnsuspendRedrawAll()
 void
 SVGSVGElement::ForceRedraw(ErrorResult& rv)
 {
-  nsIDocument* doc = GetComposedDoc();
+  nsIDocument* doc = GetCurrentDoc();
   if (!doc) {
     rv.Throw(NS_ERROR_FAILURE);
     return;
@@ -514,7 +514,7 @@ SVGSVGElement::SetCurrentScaleTranslate(float s, float x, float y)
   mCurrentTranslate = SVGPoint(x, y);
 
   // now dispatch the appropriate event if we are the root element
-  nsIDocument* doc = GetUncomposedDoc();
+  nsIDocument* doc = GetCurrentDoc();
   if (doc) {
     nsCOMPtr<nsIPresShell> presShell = doc->GetShell();
     if (presShell && IsRoot()) {
@@ -831,8 +831,7 @@ SVGViewElement*
 SVGSVGElement::GetCurrentViewElement() const
 {
   if (mCurrentViewID) {
-    //XXXsmaug It is unclear how this should work in case we're in Shadow DOM.
-    nsIDocument* doc = GetUncomposedDoc();
+    nsIDocument* doc = GetCurrentDoc();
     if (doc) {
       Element *element = doc->GetElementById(*mCurrentViewID);
       if (element && element->IsSVG(nsGkAtoms::view)) {
@@ -875,7 +874,7 @@ SVGSVGElement::GetViewBoxWithSynthesis(
 SVGPreserveAspectRatio
 SVGSVGElement::GetPreserveAspectRatioWithOverride() const
 {
-  nsIDocument* doc = GetUncomposedDoc();
+  nsIDocument* doc = GetCurrentDoc();
   if (doc && doc->IsBeingUsedAsImage()) {
     const SVGPreserveAspectRatio *pAROverridePtr = GetPreserveAspectRatioProperty();
     if (pAROverridePtr) {
@@ -1038,7 +1037,7 @@ SVGSVGElement::ShouldSynthesizeViewBox() const
   NS_ABORT_IF_FALSE(!HasViewBoxRect(),
                     "Should only be called if we lack a viewBox");
 
-  nsIDocument* doc = GetUncomposedDoc();
+  nsIDocument* doc = GetCurrentDoc();
   return doc &&
     doc->IsBeingUsedAsImage() &&
     !mIsPaintingSVGImageElement &&
@@ -1087,7 +1086,7 @@ SVGSVGElement::
   SetImageOverridePreserveAspectRatio(const SVGPreserveAspectRatio& aPAR)
 {
 #ifdef DEBUG
-  NS_ABORT_IF_FALSE(OwnerDoc()->IsBeingUsedAsImage(),
+  NS_ABORT_IF_FALSE(GetCurrentDoc()->IsBeingUsedAsImage(),
                     "should only override preserveAspectRatio in images");
 #endif
 
@@ -1117,7 +1116,7 @@ void
 SVGSVGElement::ClearImageOverridePreserveAspectRatio()
 {
 #ifdef DEBUG
-  NS_ABORT_IF_FALSE(OwnerDoc()->IsBeingUsedAsImage(),
+  NS_ABORT_IF_FALSE(GetCurrentDoc()->IsBeingUsedAsImage(),
                     "should only override image preserveAspectRatio in images");
 #endif
 
@@ -1138,7 +1137,7 @@ void
 SVGSVGElement::FlushImageTransformInvalidation()
 {
   NS_ABORT_IF_FALSE(!GetParent(), "Should only be called on root node");
-  NS_ABORT_IF_FALSE(OwnerDoc()->IsBeingUsedAsImage(),
+  NS_ABORT_IF_FALSE(GetCurrentDoc()->IsBeingUsedAsImage(),
                     "Should only be called on image documents");
 
   if (mImageNeedsTransformInvalidation) {

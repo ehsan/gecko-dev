@@ -32,7 +32,6 @@ WebGLTexture::WebGLTexture(WebGLContext *context)
     , mFacesCount(0)
     , mMaxLevelWithCustomImages(0)
     , mHaveGeneratedMipmap(false)
-    , mImmutable(false)
     , mFakeBlackStatus(WebGLTextureFakeBlackStatus::IncompleteTexture)
 {
     SetIsDOMBinding();
@@ -53,7 +52,7 @@ int64_t
 WebGLTexture::ImageInfo::MemoryUsage() const {
     if (mImageDataStatus == WebGLImageDataStatus::NoImageData)
         return 0;
-    int64_t bitsPerTexel = WebGLContext::GetBitsPerTexel(mInternalFormat, mType);
+    int64_t bitsPerTexel = WebGLContext::GetBitsPerTexel(mWebGLFormat, mWebGLType);
     return int64_t(mWidth) * int64_t(mHeight) * bitsPerTexel/8;
 }
 
@@ -138,9 +137,8 @@ WebGLTexture::Bind(TexTarget aTexTarget) {
 
 void
 WebGLTexture::SetImageInfo(TexImageTarget aTexImageTarget, GLint aLevel,
-                           GLsizei aWidth, GLsizei aHeight,
-                           TexInternalFormat aInternalFormat, TexType aType,
-                           WebGLImageDataStatus aStatus)
+                  GLsizei aWidth, GLsizei aHeight,
+                  TexInternalFormat aFormat, TexType aType, WebGLImageDataStatus aStatus)
 {
     MOZ_ASSERT(TexImageTargetToTexTarget(aTexImageTarget) == mTarget);
     if (TexImageTargetToTexTarget(aTexImageTarget) != mTarget)
@@ -148,7 +146,7 @@ WebGLTexture::SetImageInfo(TexImageTarget aTexImageTarget, GLint aLevel,
 
     EnsureMaxLevelWithCustomImagesAtLeast(aLevel);
 
-    ImageInfoAt(aTexImageTarget, aLevel) = ImageInfo(aWidth, aHeight, aInternalFormat, aType, aStatus);
+    ImageInfoAt(aTexImageTarget, aLevel) = ImageInfo(aWidth, aHeight, aFormat, aType, aStatus);
 
     if (aLevel > 0)
         SetCustomMipmap();
@@ -228,12 +226,19 @@ WebGLTexture::IsCubeComplete() const {
     return AreAllLevel0ImageInfosEqual();
 }
 
+static TexImageTarget
+GLCubeMapFaceById(int id)
+{
+    // Correctness is checked by the constructor for TexImageTarget
+    return TexImageTarget(LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_X + id);
+}
+
 bool
 WebGLTexture::IsMipmapCubeComplete() const {
     if (!IsCubeComplete()) // in particular, this checks that this is a cube map
         return false;
     for (int i = 0; i < 6; i++) {
-        const TexImageTarget face = TexImageTargetForTargetAndFace(LOCAL_GL_TEXTURE_CUBE_MAP, i);
+        const TexImageTarget face = GLCubeMapFaceById(i);
         if (!DoesTexture2DMipmapHaveAllLevelsConsistentlyDefined(face))
             return false;
     }
@@ -330,7 +335,7 @@ WebGLTexture::ResolvedFakeBlackStatus() {
         }
     }
 
-    if (ImageInfoBase().mType == LOCAL_GL_FLOAT &&
+    if (ImageInfoBase().mWebGLType == LOCAL_GL_FLOAT &&
         !Context()->IsExtensionEnabled(WebGLExtensionID::OES_texture_float_linear))
     {
         if (mMinFilter == LOCAL_GL_LINEAR ||
@@ -350,7 +355,7 @@ WebGLTexture::ResolvedFakeBlackStatus() {
                                       "Try enabling the OES_texture_float_linear extension if supported.", msg_rendering_as_black);
             mFakeBlackStatus = WebGLTextureFakeBlackStatus::IncompleteTexture;
         }
-    } else if (ImageInfoBase().mType == LOCAL_GL_HALF_FLOAT_OES &&
+    } else if (ImageInfoBase().mWebGLType == LOCAL_GL_HALF_FLOAT_OES &&
                !Context()->IsExtensionEnabled(WebGLExtensionID::OES_texture_half_float_linear))
     {
         if (mMinFilter == LOCAL_GL_LINEAR ||
@@ -403,7 +408,9 @@ WebGLTexture::ResolvedFakeBlackStatus() {
             // glTexImage2D is able to upload data to images.
             for (size_t level = 0; level <= mMaxLevelWithCustomImages; ++level) {
                 for (size_t face = 0; face < mFacesCount; ++face) {
-                    TexImageTarget imageTarget = TexImageTargetForTargetAndFace(mTarget, face);
+                    TexImageTarget imageTarget = mTarget == LOCAL_GL_TEXTURE_2D
+                                                 ? LOCAL_GL_TEXTURE_2D
+                                                 : LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_X + face;
                     const ImageInfo& imageInfo = ImageInfoAt(imageTarget, level);
                     if (imageInfo.mImageDataStatus == WebGLImageDataStatus::UninitializedImageData) {
                         DoDeferredImageInitialization(imageTarget, level);
@@ -535,13 +542,13 @@ WebGLTexture::DoDeferredImageInitialization(TexImageTarget imageTarget, GLint le
     mContext->MakeContextCurrent();
 
     // Try to clear with glCLear.
-    TexInternalFormat internalformat = imageInfo.mInternalFormat;
-    TexType type = imageInfo.mType;
-    WebGLTexelFormat texelformat = GetWebGLTexelFormat(internalformat, type);
+    TexInternalFormat format = imageInfo.mWebGLFormat;
+    TexType type = imageInfo.mWebGLType;
+    WebGLTexelFormat texelformat = GetWebGLTexelFormat(format, type);
 
     bool cleared = ClearWithTempFB(mContext, GLName(),
                                    imageTarget, level,
-                                   internalformat, imageInfo.mHeight, imageInfo.mWidth);
+                                   format, imageInfo.mHeight, imageInfo.mWidth);
     if (cleared) {
         SetImageDataStatus(imageTarget, level, WebGLImageDataStatus::InitializedImageData);
         return;
@@ -565,7 +572,7 @@ WebGLTexture::DoDeferredImageInitialization(TexImageTarget imageTarget, GLint le
     GLenum driverType = DriverTypeFromType(gl, type);
     GLenum driverInternalFormat = LOCAL_GL_NONE;
     GLenum driverFormat = LOCAL_GL_NONE;
-    DriverFormatsFromFormatAndType(gl, internalformat, type, &driverInternalFormat, &driverFormat);
+    DriverFormatsFromFormatAndType(gl, format, type, &driverInternalFormat, &driverFormat);
 
     mContext->GetAndFlushUnderlyingGLErrors();
     gl->fTexImage2D(imageTarget.get(), level, driverInternalFormat,

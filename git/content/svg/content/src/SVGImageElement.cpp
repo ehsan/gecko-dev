@@ -239,14 +239,16 @@ SVGImageElement::BuildPath(PathBuilder* aBuilder)
     return nullptr;
   }
 
-  Rect r(x, y, width, height);
-  aBuilder->MoveTo(r.TopLeft());
-  aBuilder->LineTo(r.TopRight());
-  aBuilder->LineTo(r.BottomRight());
-  aBuilder->LineTo(r.BottomLeft());
-  aBuilder->Close();
+  RefPtr<PathBuilder> pathBuilder = aBuilder ? aBuilder : CreatePathBuilder();
 
-  return aBuilder->Finish();
+  Rect r(x, y, width, height);
+  pathBuilder->MoveTo(r.TopLeft());
+  pathBuilder->LineTo(r.TopRight());
+  pathBuilder->LineTo(r.BottomRight());
+  pathBuilder->LineTo(r.BottomLeft());
+  pathBuilder->Close();
+
+  return pathBuilder->Finish();
 }
 
 //----------------------------------------------------------------------

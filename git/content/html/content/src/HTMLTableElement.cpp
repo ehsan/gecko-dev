@@ -896,7 +896,7 @@ HTMLTableElement::BuildInheritedAttributes()
 {
   NS_ASSERTION(mTableInheritedAttributes == TABLE_ATTRS_DIRTY,
                "potential leak, plus waste of work");
-  nsIDocument *document = GetComposedDoc();
+  nsIDocument *document = GetCurrentDoc();
   nsHTMLStyleSheet* sheet = document ?
                               document->GetAttributeStyleSheet() : nullptr;
   nsRefPtr<nsMappedAttributes> newAttrs;

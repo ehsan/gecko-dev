@@ -67,19 +67,19 @@ public:
     {
     public:
         ImageInfo()
-            : mInternalFormat(LOCAL_GL_NONE)
-            , mType(LOCAL_GL_NONE)
+            : mWebGLFormat(LOCAL_GL_NONE)
+            , mWebGLType(LOCAL_GL_NONE)
             , mImageDataStatus(WebGLImageDataStatus::NoImageData)
         {}
 
         ImageInfo(GLsizei width,
                   GLsizei height,
-                  TexInternalFormat internalFormat,
-                  TexType type,
+                  TexInternalFormat webGLFormat,
+                  TexType webGLType,
                   WebGLImageDataStatus status)
             : WebGLRectangleObject(width, height)
-            , mInternalFormat(internalFormat)
-            , mType(type)
+            , mWebGLFormat(webGLFormat)
+            , mWebGLType(webGLType)
             , mImageDataStatus(status)
         {
             // shouldn't use this constructor to construct a null ImageInfo
@@ -90,8 +90,8 @@ public:
             return mImageDataStatus == a.mImageDataStatus &&
                    mWidth == a.mWidth &&
                    mHeight == a.mHeight &&
-                   mInternalFormat == a.mInternalFormat &&
-                   mType == a.mType;
+                   mWebGLFormat == a.mWebGLFormat &&
+                   mWebGLType == a.mWebGLType;
         }
         bool operator!=(const ImageInfo& a) const {
             return !(*this == a);
@@ -114,17 +114,16 @@ public:
          * It can be converted to a value to be passed to driver with
          * DriverFormatsFromFormatAndType().
          */
-        TexInternalFormat InternalFormat() const { return mInternalFormat; }
-
+        TexInternalFormat WebGLFormat() const { return mWebGLFormat; }
         /*! This is the type passed from JS to WebGL.
          * It can be converted to a value to be passed to driver with
          * DriverTypeFromType().
          */
-        TexType Type() const { return mType; }
+        TexType WebGLType() const { return mWebGLType; }
 
     protected:
-        TexInternalFormat mInternalFormat; //!< This is the WebGL/GLES internal format.
-        TexType mType;   //!< This is the WebGL/GLES type
+        TexInternalFormat mWebGLFormat; //!< This is the WebGL/GLES format
+        TexType mWebGLType;   //!< This is the WebGL/GLES type
         WebGLImageDataStatus mImageDataStatus;
 
         friend class WebGLTexture;
@@ -202,9 +201,7 @@ protected:
     size_t mFacesCount, mMaxLevelWithCustomImages;
     nsTArray<ImageInfo> mImageInfos;
 
-    bool mHaveGeneratedMipmap; // set by generateMipmap
-    bool mImmutable; // set by texStorage*
-
+    bool mHaveGeneratedMipmap;
     WebGLTextureFakeBlackStatus mFakeBlackStatus;
 
     void EnsureMaxLevelWithCustomImagesAtLeast(size_t aMaxLevelWithCustomImages) {
@@ -230,8 +227,7 @@ public:
 
     void SetImageInfo(TexImageTarget aTarget, GLint aLevel,
                       GLsizei aWidth, GLsizei aHeight,
-                      TexInternalFormat aInternalFormat, TexType aType,
-                      WebGLImageDataStatus aStatus);
+                      TexInternalFormat aFormat, TexType aType, WebGLImageDataStatus aStatus);
 
     void SetMinFilter(TexMinFilter aMinFilter) {
         mMinFilter = aMinFilter;
@@ -273,23 +269,10 @@ public:
 
     void SetFakeBlackStatus(WebGLTextureFakeBlackStatus x);
 
-    bool IsImmutable() const { return mImmutable; }
-    void SetImmutable() { mImmutable = true; }
-
-    size_t MaxLevelWithCustomImages() const { return mMaxLevelWithCustomImages; }
-
     // Returns the current fake-black-status, except if it was Unknown,
     // in which case this function resolves it first, so it never returns Unknown.
     WebGLTextureFakeBlackStatus ResolvedFakeBlackStatus();
 };
-
-inline TexImageTarget
-TexImageTargetForTargetAndFace(TexTarget target, size_t face)
-{
-    return target == LOCAL_GL_TEXTURE_2D
-           ? LOCAL_GL_TEXTURE_2D
-           : LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_X + face;
-}
 
 } // namespace mozilla
 

@@ -558,21 +558,16 @@ nsresult nsNPAPIPluginInstance::SetWindow(NPWindow* window)
 
     NPPAutoPusher nppPusher(&mNPP);
 
-    NPError error;
+    DebugOnly<NPError> error;
     NS_TRY_SAFE_CALL_RETURN(error, (*pluginFunctions->setwindow)(&mNPP, (NPWindow*)window), this,
                             NS_PLUGIN_CALL_UNSAFE_TO_REENTER_GECKO);
-    // 'error' is only used if this is a logging-enabled build.
-    // That is somewhat complex to check, so we just use "unused"
-    // to suppress any compiler warnings in build configurations
-    // where the logging is a no-op.
-    mozilla::unused << error;
 
     mInPluginInitCall = oldVal;
 
     NPP_PLUGIN_LOG(PLUGIN_LOG_NORMAL,
     ("NPP SetWindow called: this=%p, [x=%d,y=%d,w=%d,h=%d], clip[t=%d,b=%d,l=%d,r=%d], return=%d\n",
     this, window->x, window->y, window->width, window->height,
-    window->clipRect.top, window->clipRect.bottom, window->clipRect.left, window->clipRect.right, error));
+    window->clipRect.top, window->clipRect.bottom, window->clipRect.left, window->clipRect.right, (NPError)error));
   }
   return NS_OK;
 }

@@ -19,14 +19,6 @@ from collections import (
 
 from contextlib import contextmanager
 
-def get_disk_io_counters():
-    try:
-        io_counters = psutil.disk_io_counters()
-    except RuntimeError:
-        io_counters = []
-
-    return io_counters
-
 
 def _collect(pipe, poll_interval):
     """Collects system metrics.
@@ -42,7 +34,7 @@ def _collect(pipe, poll_interval):
     # We should ideally use a monotonic clock. However, Python 2.7 doesn't
     # make a monotonic clock available on all platforms. Python 3.3 does!
     last_time = time.time()
-    io_last = get_disk_io_counters()
+    io_last = psutil.disk_io_counters()
     cpu_last = psutil.cpu_times(True)
     swap_last = psutil.swap_memory()
     psutil.cpu_percent(None, True)
@@ -53,7 +45,7 @@ def _collect(pipe, poll_interval):
     sleep_interval = poll_interval
 
     while not pipe.poll(sleep_interval):
-        io = get_disk_io_counters()
+        io = psutil.disk_io_counters()
         cpu_times = psutil.cpu_times(True)
         cpu_percent = psutil.cpu_percent(None, True)
         virt_mem = psutil.virtual_memory()
@@ -184,7 +176,7 @@ class SystemResourceMonitor(object):
 
         cpu_percent = psutil.cpu_percent(0.0, True)
         cpu_times = psutil.cpu_times(False)
-        io = get_disk_io_counters()
+        io = psutil.disk_io_counters()
         virt = psutil.virtual_memory()
         swap = psutil.swap_memory()
 

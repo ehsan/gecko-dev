@@ -1389,10 +1389,6 @@ IonBuilder::inlineRegExpExec(CallInfo &callInfo)
     if (callInfo.getArg(0)->mightBeType(MIRType_Object))
         return InliningStatus_NotInlined;
 
-    JSContext *cx = GetIonContext()->cx;
-    if (!cx->compartment()->jitCompartment()->ensureRegExpExecStubExists(cx))
-        return InliningStatus_Error;
-
     callInfo.setImplicitlyUsedUnchecked();
 
     MInstruction *exec = MRegExpExec::New(alloc(), callInfo.thisArg(), callInfo.getArg(0));
@@ -1426,10 +1422,6 @@ IonBuilder::inlineRegExpTest(CallInfo &callInfo)
         return InliningStatus_NotInlined;
     if (callInfo.getArg(0)->mightBeType(MIRType_Object))
         return InliningStatus_NotInlined;
-
-    JSContext *cx = GetIonContext()->cx;
-    if (!cx->compartment()->jitCompartment()->ensureRegExpTestStubExists(cx))
-        return InliningStatus_Error;
 
     callInfo.setImplicitlyUsedUnchecked();
 
@@ -2073,20 +2065,11 @@ IonBuilder::inlineToInteger(CallInfo &callInfo)
     if (callInfo.argc() != 1 || callInfo.constructing())
         return InliningStatus_NotInlined;
 
-    MDefinition *input = callInfo.getArg(0);
+    MIRType type = callInfo.getArg(0)->type();
 
-    // Only optimize cases where input contains only number, null or boolean
-    if (input->mightBeType(MIRType_Object) ||
-        input->mightBeType(MIRType_String) ||
-        input->mightBeType(MIRType_Symbol) ||
-        input->mightBeType(MIRType_Undefined) ||
-        input->mightBeMagicType())
-    {
+    // Only optimize cases where input is number, null, or boolean
+    if (!IsNumberType(type) && type != MIRType_Null && type != MIRType_Boolean)
         return InliningStatus_NotInlined;
-    }
-
-    MOZ_ASSERT(input->type() == MIRType_Value || input->type() == MIRType_Null ||
-               input->type() == MIRType_Boolean || IsNumberType(input->type()));
 
     // Only optimize cases where output is int32
     if (getInlineReturnType() != MIRType_Int32)

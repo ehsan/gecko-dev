@@ -8,9 +8,6 @@
 
 #include "Workers.h"
 #include "mozilla/DOMEventTargetHelper.h"
-#include "mozilla/dom/Headers.h"
-#include "mozilla/dom/RequestBinding.h"
-#include "mozilla/dom/UnionTypes.h"
 
 namespace mozilla {
 namespace dom {
@@ -123,9 +120,6 @@ public:
   Dump(const Optional<nsAString>& aString) const;
 
   Performance* GetPerformance();
-
-  already_AddRefed<Promise>
-  Fetch(const RequestOrScalarValueString& aInput, const RequestInit& aInit, ErrorResult& aRv);
 };
 
 class DedicatedWorkerGlobalScope MOZ_FINAL : public WorkerGlobalScope

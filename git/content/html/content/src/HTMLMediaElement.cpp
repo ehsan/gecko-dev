@@ -1062,6 +1062,13 @@ void HTMLMediaElement::UpdatePreloadAction()
     }
   }
 
+  if ((mBegun || mIsRunningSelectResource) && nextAction < mPreloadAction) {
+    // We've started a load or are already downloading, and the preload was
+    // changed to a state where we buffer less. We don't support this case,
+    // so don't change the preload behaviour.
+    return;
+  }
+
   mPreloadAction = nextAction;
   if (nextAction == HTMLMediaElement::PRELOAD_ENOUGH) {
     if (mSuspendedForPreloadNone) {
@@ -2836,8 +2843,6 @@ void HTMLMediaElement::SetupSrcMediaStreamPlayback(DOMMediaStream* aStream)
     GetSrcMediaStream()->AddVideoOutput(container);
   }
 
-  // Note: we must call DisconnectTrackListListeners(...)  before dropping
-  // mSrcStream
   mSrcStream->ConstructMediaTracks(AudioTracks(), VideoTracks());
 
   ChangeReadyState(nsIDOMHTMLMediaElement::HAVE_METADATA);
@@ -2854,8 +2859,6 @@ void HTMLMediaElement::EndSrcMediaStreamPlayback()
   if (stream) {
     stream->RemoveListener(mSrcStreamListener);
   }
-  mSrcStream->DisconnectTrackListListeners(AudioTracks(), VideoTracks());
-
   // Kill its reference to this element
   mSrcStreamListener->Forget();
   mSrcStreamListener = nullptr;
@@ -3089,6 +3092,14 @@ void HTMLMediaElement::UpdateReadyStateForData(MediaDecoderOwner::NextFrameStatu
     // aNextFrame might have a next frame because the decoder can advance
     // on its own thread before MetadataLoaded gets a chance to run.
     // The arrival of more data can't change us out of this readyState.
+    return;
+  }
+
+  // Section 2.4.3.1 of the Media Source Extensions spec requires
+  // changing to HAVE_METADATA when seeking into an unbuffered
+  // range.
+  if (aNextFrame == MediaDecoderOwner::NEXT_FRAME_WAIT_FOR_MSE_DATA) {
+    ChangeReadyState(nsIDOMHTMLMediaElement::HAVE_METADATA);
     return;
   }
 

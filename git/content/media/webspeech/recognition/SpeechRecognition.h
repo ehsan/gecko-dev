@@ -53,8 +53,6 @@ PRLogModuleInfo* GetSpeechRecognitionLog();
 #define SR_LOG(...)
 #endif
 
-already_AddRefed<nsISpeechRecognitionService> GetSpeechRecognitionService();
-
 class SpeechRecognition MOZ_FINAL : public DOMEventTargetHelper,
                                     public nsIObserver,
                                     public SupportsWeakPtr<SpeechRecognition>
@@ -235,6 +233,8 @@ private:
   nsRefPtr<DOMMediaStream> mDOMStream;
   nsRefPtr<SpeechStreamListener> mSpeechListener;
   nsCOMPtr<nsISpeechRecognitionService> mRecognitionService;
+
+  void GetRecognitionServiceCID(nsACString& aResultCID);
 
   FSMState mCurrentState;
 

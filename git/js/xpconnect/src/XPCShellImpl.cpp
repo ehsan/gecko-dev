@@ -71,9 +71,8 @@ public:
     ~XPCShellDirProvider() { }
 
     // The platform resource folder
-    void SetGREDirs(nsIFile *greDir);
-    void ClearGREDirs() { mGREDir = nullptr;
-                          mGREBinDir = nullptr; }
+    void SetGREDir(nsIFile *greDir);
+    void ClearGREDir() { mGREDir = nullptr; }
     // The application resource folder
     void SetAppDir(nsIFile *appFile);
     void ClearAppDir() { mAppDir = nullptr; }
@@ -86,7 +85,6 @@ public:
 
 private:
     nsCOMPtr<nsIFile> mGREDir;
-    nsCOMPtr<nsIFile> mGREBinDir;
     nsCOMPtr<nsIFile> mAppDir;
     nsCOMPtr<nsIFile> mPluginDir;
     nsCOMPtr<nsIFile> mAppFile;
@@ -1348,7 +1346,7 @@ XRE_XPCShellMain(int argc, char **argv, char **envp)
             return 1;
         }
 
-        dirprovider.SetGREDirs(greDir);
+        dirprovider.SetGREDir(greDir);
 
         argc -= 2;
         argv += 2;
@@ -1368,7 +1366,7 @@ XRE_XPCShellMain(int argc, char **argv, char **envp)
             printf("Setting GreD failed.\n");
             return 1;
         }
-        dirprovider.SetGREDirs(greDir);
+        dirprovider.SetGREDir(greDir);
 #else
         nsAutoString workingDir;
         if (!GetCurrentWorkingDirectory(workingDir)) {
@@ -1613,7 +1611,7 @@ XRE_XPCShellMain(int argc, char **argv, char **envp)
 
     appDir = nullptr;
     appFile = nullptr;
-    dirprovider.ClearGREDirs();
+    dirprovider.ClearGREDir();
     dirprovider.ClearAppDir();
     dirprovider.ClearPluginDir();
     dirprovider.ClearAppFile();
@@ -1630,13 +1628,9 @@ XRE_XPCShellMain(int argc, char **argv, char **envp)
 }
 
 void
-XPCShellDirProvider::SetGREDirs(nsIFile* greDir)
+XPCShellDirProvider::SetGREDir(nsIFile* greDir)
 {
     mGREDir = greDir;
-    mGREDir->Clone(getter_AddRefs(mGREBinDir));
-#ifdef XP_MACOSX
-    mGREBinDir->SetNativeLeafName(NS_LITERAL_CSTRING("MacOS"));
-#endif
 }
 
 void
@@ -1680,9 +1674,6 @@ XPCShellDirProvider::GetFile(const char *prop, bool *persistent,
     if (mGREDir && !strcmp(prop, NS_GRE_DIR)) {
         *persistent = true;
         return mGREDir->Clone(result);
-    } else if (mGREBinDir && !strcmp(prop, NS_GRE_BIN_DIR)) {
-        *persistent = true;
-        return mGREBinDir->Clone(result);
     } else if (mAppFile && !strcmp(prop, XRE_EXECUTABLE_FILE)) {
         *persistent = true;
         return mAppFile->Clone(result);

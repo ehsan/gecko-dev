@@ -1275,21 +1275,6 @@ private:
   EventStates mState;
 };
 
-class RemoveFromBindingManagerRunnable : public nsRunnable
-{
-public:
-  RemoveFromBindingManagerRunnable(nsBindingManager* aManager,
-                                   nsIContent* aContent,
-                                   nsIDocument* aDoc);
-
-  NS_IMETHOD Run();
-private:
-  virtual ~RemoveFromBindingManagerRunnable();
-  nsRefPtr<nsBindingManager> mManager;
-  nsRefPtr<nsIContent> mContent;
-  nsCOMPtr<nsIDocument> mDoc;
-};
-
 class DestinationInsertionPointList : public nsINodeList
 {
 public:

@@ -906,7 +906,7 @@ bool RRegExpExec::recover(JSContext *cx, SnapshotIterator &iter) const{
 
     RootedValue result(cx);
 
-    if (!regexp_exec_raw(cx, regexp, input, nullptr, &result))
+    if(!regexp_exec_raw(cx, regexp, input, &result))
         return false;
 
     iter.storeInstructionResult(result);

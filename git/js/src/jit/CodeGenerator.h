@@ -44,8 +44,6 @@ class OutOfLineNewGCThingPar;
 class OutOfLineUpdateCache;
 class OutOfLineCallPostWriteBarrier;
 class OutOfLineIsCallable;
-class OutOfLineRegExpExec;
-class OutOfLineRegExpTest;
 
 class CodeGenerator : public CodeGeneratorSpecific
 {
@@ -103,9 +101,7 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool visitInteger(LInteger *lir);
     bool visitRegExp(LRegExp *lir);
     bool visitRegExpExec(LRegExpExec *lir);
-    bool visitOutOfLineRegExpExec(OutOfLineRegExpExec *ool);
     bool visitRegExpTest(LRegExpTest *lir);
-    bool visitOutOfLineRegExpTest(OutOfLineRegExpTest *ool);
     bool visitRegExpReplace(LRegExpReplace *lir);
     bool visitStringReplace(LStringReplace *lir);
     bool visitLambda(LLambda *lir);

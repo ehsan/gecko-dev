@@ -57,16 +57,9 @@ using namespace mozilla;
 using namespace mozilla::dom;
 using namespace mozilla::gfx;
 
-static bool sSVGPathCachingEnabled;
 static bool sSVGDisplayListHitTestingEnabled;
 static bool sSVGDisplayListPaintingEnabled;
 static bool sSVGNewGetBBoxEnabled;
-
-bool
-NS_SVGPathCachingEnabled()
-{
-  return sSVGPathCachingEnabled;
-}
 
 bool
 NS_SVGDisplayListHitTestingEnabled()
@@ -144,9 +137,6 @@ SVGAutoRenderState::IsPaintingToWindow(DrawTarget* aDrawTarget)
 void
 nsSVGUtils::Init()
 {
-  Preferences::AddBoolVarCache(&sSVGPathCachingEnabled,
-                               "svg.path-caching.enabled");
-
   Preferences::AddBoolVarCache(&sSVGDisplayListHitTestingEnabled,
                                "svg.display-lists.hit-testing.enabled");
 

@@ -1657,8 +1657,8 @@ nsLineLayout::VerticalAlignFrames(PerSpanData* psd)
   if ((emptyContinuation ||
        mPresContext->CompatibilityMode() != eCompatibility_FullStandards) &&
       ((psd == mRootSpan) ||
-       (spanFramePFD->mBorderPadding.IsAllZero() &&
-        spanFramePFD->mMargin.IsAllZero()))) {
+       (spanFramePFD->mBorderPadding.IsEmpty() &&
+        spanFramePFD->mMargin.IsEmpty()))) {
     // This code handles an issue with compatibility with non-css
     // conformant browsers. In particular, there are some cases
     // where the font-size and line-height for a span must be

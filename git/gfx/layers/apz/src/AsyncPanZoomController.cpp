@@ -2403,12 +2403,7 @@ AsyncPanZoomController::DispatchRepaintRequest(const FrameMetrics& aFrameMetrics
     APZC_LOG_FM(aFrameMetrics, "%p requesting content repaint", this);
     LogRendertraceRect(GetGuid(), "requested displayport", "yellow", GetDisplayPortRect(aFrameMetrics));
 
-    if (NS_IsMainThread()) {
-      controller->RequestContentRepaint(aFrameMetrics);
-    } else {
-      NS_DispatchToMainThread(NS_NewRunnableMethodWithArg<FrameMetrics>(
-        controller, &GeckoContentController::RequestContentRepaint, aFrameMetrics));
-    }
+    controller->RequestContentRepaint(aFrameMetrics);
     mLastDispatchedPaintMetrics = aFrameMetrics;
   }
 }
@@ -2459,7 +2454,6 @@ bool AsyncPanZoomController::UpdateAnimation(const TimeStamp& aSampleTime,
 }
 
 Matrix4x4 AsyncPanZoomController::GetOverscrollTransform() const {
-  ReentrantMonitorAutoEnter lock(mMonitor);
   if (!IsOverscrolled()) {
     return Matrix4x4();
   }

@@ -886,11 +886,6 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
         load32(lhs, secondScratchReg_);
         branch32(cond, secondScratchReg_, rhs, label);
     }
-    void branch32(Condition cond, const BaseIndex &lhs, Imm32 rhs, Label *label) {
-        // branch32 will use ScratchRegister.
-        load32(lhs, secondScratchReg_);
-        branch32(cond, secondScratchReg_, rhs, label);
-    }
     void branchPtr(Condition cond, const Address &lhs, Register rhs, Label *label) {
         branch32(cond, lhs, rhs, label);
     }
@@ -1061,11 +1056,6 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
         ma_cmp(ScratchRegister, ptr);
         ma_b(label, cond);
     }
-    void branchPtr(Condition cond, AbsoluteAddress addr, ImmWord ptr, Label *label) {
-        loadPtr(addr, ScratchRegister);
-        ma_cmp(ScratchRegister, ptr);
-        ma_b(label, cond);
-    }
     void branchPtr(Condition cond, AsmJSAbsoluteAddress addr, Register ptr, Label *label) {
         loadPtr(addr, ScratchRegister);
         ma_cmp(ScratchRegister, ptr);
@@ -1132,8 +1122,10 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
     void storeValue(ValueOperand val, Operand dst);
     void storeValue(ValueOperand val, const BaseIndex &dest);
     void storeValue(JSValueType type, Register reg, BaseIndex dest) {
+        // Harder cases not handled yet.
+        MOZ_ASSERT(dest.offset == 0);
         ma_alu(dest.base, lsl(dest.index, dest.scale), ScratchRegister, OpAdd);
-        storeValue(type, reg, Address(ScratchRegister, dest.offset));
+        storeValue(type, reg, Address(ScratchRegister, 0));
     }
     void storeValue(ValueOperand val, const Address &dest) {
         storeValue(val, Operand(dest));
@@ -1154,8 +1146,10 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
         ma_str(secondScratchReg_, dest);
     }
     void storeValue(const Value &val, BaseIndex dest) {
+        // Harder cases not handled yet.
+        MOZ_ASSERT(dest.offset == 0);
         ma_alu(dest.base, lsl(dest.index, dest.scale), ScratchRegister, OpAdd);
-        storeValue(val, Address(ScratchRegister, dest.offset));
+        storeValue(val, Address(ScratchRegister, 0));
     }
 
     void loadValue(Address src, ValueOperand val);
@@ -1564,7 +1558,6 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
     void callWithABI(void *fun, MoveOp::Type result = MoveOp::GENERAL);
     void callWithABI(AsmJSImmPtr imm, MoveOp::Type result = MoveOp::GENERAL);
     void callWithABI(const Address &fun, MoveOp::Type result = MoveOp::GENERAL);
-    void callWithABI(Register fun, MoveOp::Type result = MoveOp::GENERAL);
 
     CodeOffsetLabel labelForPatch() {
         return CodeOffsetLabel(nextOffset().getOffset());

@@ -222,7 +222,6 @@ SandboxFilterImplContent::Build() {
   Allow(SYSCALL(sched_getparam));
   Allow(SYSCALL(sched_setparam));
   Allow(SYSCALL(sigaltstack));
-  Allow(SYSCALL(pipe));
 
   /* Always last and always OK calls */
   /* Architecture-specific very infrequently used syscalls */
@@ -264,6 +263,7 @@ SandboxFilterImplContent::Build() {
   Allow(SYSCALL(readahead));
   Allow(SYSCALL(pread64));
   Allow(SYSCALL(statfs));
+  Allow(SYSCALL(pipe));
 #if SYSCALL_EXISTS(ugetrlimit)
   Allow(SYSCALL(ugetrlimit));
 #else
@@ -413,7 +413,7 @@ void SandboxFilterImplGMP::Build() {
   Allow(SYSCALL(sigaction));
 #endif
   Allow(SYSCALL(rt_sigaction));
-  Allow(SYSCALL(pipe));
+  Allow(SOCKETCALL(socketpair, SOCKETPAIR));
   Allow(SYSCALL_WITH_ARG(tgkill, 0, uint32_t(getpid())));
   Allow(SYSCALL_WITH_ARG(prctl, 0, PR_SET_DUMPABLE));
 

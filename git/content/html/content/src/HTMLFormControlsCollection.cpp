@@ -113,7 +113,7 @@ void
 HTMLFormControlsCollection::FlushPendingNotifications()
 {
   if (mForm) {
-    nsIDocument* doc = mForm->GetUncomposedDoc();
+    nsIDocument* doc = mForm->GetCurrentDoc();
     if (doc) {
       doc->FlushPendingNotifications(Flush_Content);
     }

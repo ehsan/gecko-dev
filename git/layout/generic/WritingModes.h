@@ -968,7 +968,7 @@ public:
     }
   }
 
-  bool IsAllZero() const
+  bool IsEmpty() const
   {
     return (mMargin.left == 0 && mMargin.top == 0 &&
             mMargin.right == 0 && mMargin.bottom == 0);
@@ -1283,11 +1283,6 @@ public:
   }
 
   bool IsEmpty() const
-  {
-    return mRect.IsEmpty();
-  }
-
-  bool IsAllZero() const
   {
     return (mRect.x == 0 && mRect.y == 0 &&
             mRect.width == 0 && mRect.height == 0);

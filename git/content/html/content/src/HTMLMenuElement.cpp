@@ -70,7 +70,7 @@ HTMLMenuElement::SendShowEvent()
 {
   NS_ENSURE_TRUE(nsContentUtils::IsCallerChrome(), NS_ERROR_DOM_SECURITY_ERR);
 
-  nsCOMPtr<nsIDocument> document = GetComposedDoc();
+  nsCOMPtr<nsIDocument> document = GetCurrentDoc();
   if (!document) {
     return NS_ERROR_FAILURE;
   }

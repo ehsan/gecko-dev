@@ -221,22 +221,11 @@ const uint8_t*
 gfxUserFontEntry::SanitizeOpenTypeData(const uint8_t* aData,
                                        uint32_t       aLength,
                                        uint32_t&      aSaneLength,
-                                       gfxUserFontType aFontType)
+                                       bool           aIsCompressed)
 {
-    if (aFontType == GFX_USERFONT_UNKNOWN) {
-        aSaneLength = 0;
-        return nullptr;
-    }
-
-    uint32_t lengthHint = aLength;
-    if (aFontType == GFX_USERFONT_WOFF) {
-        lengthHint *= 2;
-    } else if (aFontType == GFX_USERFONT_WOFF2) {
-        lengthHint *= 3;
-    }
-
     // limit output/expansion to 256MB
-    ExpandingMemoryStream output(lengthHint, 1024 * 1024 * 256);
+    ExpandingMemoryStream output(aIsCompressed ? aLength * 2 : aLength,
+                                 1024 * 1024 * 256);
 
     gfxOTSContext otsContext(this);
 
@@ -254,8 +243,7 @@ gfxUserFontEntry::StoreUserFontData(gfxFontEntry* aFontEntry,
                                     bool aPrivate,
                                     const nsAString& aOriginalName,
                                     FallibleTArray<uint8_t>* aMetadata,
-                                    uint32_t aMetaOrigLen,
-                                    uint8_t aCompression)
+                                    uint32_t aMetaOrigLen)
 {
     if (!aFontEntry->mUserFontData) {
         aFontEntry->mUserFontData = new gfxUserFontData;
@@ -281,7 +269,6 @@ gfxUserFontEntry::StoreUserFontData(gfxFontEntry* aFontEntry,
     if (aMetadata) {
         userFontData->mMetadata.SwapElements(*aMetadata);
         userFontData->mMetaOrigLen = aMetaOrigLen;
-        userFontData->mCompression = aCompression;
     }
 }
 
@@ -319,25 +306,7 @@ struct WOFFHeader {
     AutoSwap_PRUint32 privLen;
 };
 
-struct WOFF2Header {
-    AutoSwap_PRUint32 signature;
-    AutoSwap_PRUint32 flavor;
-    AutoSwap_PRUint32 length;
-    AutoSwap_PRUint16 numTables;
-    AutoSwap_PRUint16 reserved;
-    AutoSwap_PRUint32 totalSfntSize;
-    AutoSwap_PRUint32 totalCompressedSize;
-    AutoSwap_PRUint16 majorVersion;
-    AutoSwap_PRUint16 minorVersion;
-    AutoSwap_PRUint32 metaOffset;
-    AutoSwap_PRUint32 metaCompLen;
-    AutoSwap_PRUint32 metaOrigLen;
-    AutoSwap_PRUint32 privOffset;
-    AutoSwap_PRUint32 privLen;
-};
-
-template<typename HeaderT>
-void
+static void
 CopyWOFFMetadata(const uint8_t* aFontData,
                  uint32_t aLength,
                  FallibleTArray<uint8_t>* aMetadata,
@@ -349,11 +318,10 @@ CopyWOFFMetadata(const uint8_t* aFontData,
     // This just saves a copy of the compressed data block; it does NOT check
     // that the block can be successfully decompressed, or that it contains
     // well-formed/valid XML metadata.
-    if (aLength < sizeof(HeaderT)) {
+    if (aLength < sizeof(WOFFHeader)) {
         return;
     }
-    const HeaderT* woff =
-        reinterpret_cast<const HeaderT*>(aFontData);
+    const WOFFHeader* woff = reinterpret_cast<const WOFFHeader*>(aFontData);
     uint32_t metaOffset = woff->metaOffset;
     uint32_t metaCompLen = woff->metaCompLen;
     if (!metaOffset || !metaCompLen || !woff->metaOrigLen) {
@@ -418,8 +386,7 @@ gfxUserFontEntry::LoadNextSrc()
                 // For src:local(), we don't care whether the request is from
                 // a private window as there's no issue of caching resources;
                 // local fonts are just available all the time.
-                StoreUserFontData(fe, false, nsString(), nullptr, 0,
-                                  gfxUserFontData::kUnknownCompression);
+                StoreUserFontData(fe, false, nsString(), nullptr, 0);
                 mPlatformFontEntry = fe;
                 SetLoadState(STATUS_LOADED);
                 return;
@@ -587,7 +554,8 @@ gfxUserFontEntry::LoadPlatformFont(const uint8_t* aFontData, uint32_t& aLength)
     // if necessary. The original data in aFontData is left unchanged.
     uint32_t saneLen;
     const uint8_t* saneData =
-        SanitizeOpenTypeData(aFontData, aLength, saneLen, fontType);
+        SanitizeOpenTypeData(aFontData, aLength, saneLen,
+                             fontType == GFX_USERFONT_WOFF);
     if (!saneData) {
         mFontSet->LogMessage(this, "rejected by sanitizer");
     }
@@ -618,15 +586,8 @@ gfxUserFontEntry::LoadPlatformFont(const uint8_t* aFontData, uint32_t& aLength)
         // to the gfxUserFontData record below.
         FallibleTArray<uint8_t> metadata;
         uint32_t metaOrigLen = 0;
-        uint8_t compression = gfxUserFontData::kUnknownCompression;
         if (fontType == GFX_USERFONT_WOFF) {
-            CopyWOFFMetadata<WOFFHeader>(aFontData, aLength,
-                                         &metadata, &metaOrigLen);
-            compression = gfxUserFontData::kZlibCompression;
-        } else if (fontType == GFX_USERFONT_WOFF2) {
-            CopyWOFFMetadata<WOFF2Header>(aFontData, aLength,
-                                          &metadata, &metaOrigLen);
-            compression = gfxUserFontData::kBrotliCompression;
+            CopyWOFFMetadata(aFontData, aLength, &metadata, &metaOrigLen);
         }
 
         // copy OpenType feature/language settings from the userfont entry to the
@@ -635,7 +596,7 @@ gfxUserFontEntry::LoadPlatformFont(const uint8_t* aFontData, uint32_t& aLength)
         fe->mLanguageOverride = mLanguageOverride;
         fe->mFamilyName = mFamilyName;
         StoreUserFontData(fe, mFontSet->GetPrivateBrowsing(), originalFullName,
-                          &metadata, metaOrigLen, compression);
+                          &metadata, metaOrigLen);
 #ifdef PR_LOGGING
         if (LOG_ENABLED()) {
             nsAutoCString fontURI;
@@ -729,11 +690,6 @@ gfxUserFontSet::gfxUserFontSet()
     if (fp) {
         fp->AddUserFontSet(this);
     }
-
-    // This is a one-time global switch for OTS. However, as long as we use
-    // a preference to control the availability of WOFF2 support, we will
-    // not actually pass any WOFF2 data to OTS unless the pref is on.
-    ots::EnableWOFF2();
 }
 
 gfxUserFontSet::~gfxUserFontSet()

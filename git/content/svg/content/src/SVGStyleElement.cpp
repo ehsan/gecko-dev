@@ -85,7 +85,7 @@ SVGStyleElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 void
 SVGStyleElement::UnbindFromTree(bool aDeep, bool aNullParent)
 {
-  nsCOMPtr<nsIDocument> oldDoc = GetUncomposedDoc();
+  nsCOMPtr<nsIDocument> oldDoc = GetCurrentDoc();
   ShadowRoot* oldShadow = GetContainingShadow();
   SVGStyleElementBase::UnbindFromTree(aDeep, aNullParent);
   UpdateStyleSheetInternal(oldDoc, oldShadow);

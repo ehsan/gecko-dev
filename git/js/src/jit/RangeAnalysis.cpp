@@ -2085,8 +2085,7 @@ RangeAnalysis::addRangeAssertions()
             while (insertIter->isBeta() ||
                    insertIter->isInterruptCheck() ||
                    insertIter->isInterruptCheckPar() ||
-                   insertIter->isConstant() ||
-                   insertIter->isRecoveredOnBailout())
+                   insertIter->isConstant())
             {
                 insertIter++;
             }

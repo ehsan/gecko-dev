@@ -78,7 +78,7 @@ nsCCUncollectableMarker::Init()
 static void
 MarkUserData(void* aNode, nsIAtom* aKey, void* aValue, void* aData)
 {
-  nsIDocument* d = static_cast<nsINode*>(aNode)->GetUncomposedDoc();
+  nsIDocument* d = static_cast<nsINode*>(aNode)->GetCurrentDoc();
   if (d && nsCCUncollectableMarker::InGeneration(d->GetMarkedCCGeneration())) {
     Element::MarkUserData(aNode, aKey, aValue, aData);
   }
