@@ -1,4 +1,4 @@
-/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
 /* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
 /* Copyright 2012 Mozilla Foundation
  *
@@ -2034,11 +2034,6 @@ var GrabToPan = (function GrabToPanClosure() {
       event.preventDefault();
       event.stopPropagation();
       this.document.documentElement.classList.add(this.CSS_CLASS_GRABBING);
-
-      var focusedElement = document.activeElement;
-      if (focusedElement && !focusedElement.contains(event.target)) {
-        focusedElement.blur();
-      }
     },
 
     /**
@@ -2532,7 +2527,7 @@ var DocumentProperties = {
       minutes += offsetMinutes;
     } else if (utRel === '+') {
       hours -= offsetHours;
-      minutes -= offsetMinutes;
+      minutes += offsetMinutes;
     }
 
     // Return the new date format from the user's locale.
@@ -2800,9 +2795,7 @@ var PDFView = {
           scale = Math.min(pageWidthScale, pageHeightScale);
           break;
         case 'auto':
-          var isLandscape = (currentPage.width > currentPage.height);
-          var horizontalScale = isLandscape ? pageHeightScale : pageWidthScale;
-          scale = Math.min(MAX_AUTO_SCALE, horizontalScale);
+          scale = Math.min(MAX_AUTO_SCALE, pageWidthScale);
           break;
         default:
           console.error('pdfViewSetScale: \'' + value +
@@ -3060,7 +3053,7 @@ var PDFView = {
   },
 
   // TODO(mack): This function signature should really be pdfViewOpen(url, args)
-  open: function pdfViewOpen(file, scale, password,
+  open: function pdfViewOpen(url, scale, password,
                              pdfDataRangeTransport, args) {
     if (this.pdfDocument) {
       // Reload the preferences if a document was previously opened.
@@ -3069,14 +3062,11 @@ var PDFView = {
     this.close();
 
     var parameters = {password: password};
-    if (typeof file === 'string') { // URL
-      this.setTitleUsingUrl(file);
-      parameters.url = file;
-    } else if (file && 'byteLength' in file) { // ArrayBuffer
-      parameters.data = file;
-    } else if (file.url && file.originalUrl) {
-      this.setTitleUsingUrl(file.originalUrl);
-      parameters.url = file.url;
+    if (typeof url === 'string') { // URL
+      this.setTitleUsingUrl(url);
+      parameters.url = url;
+    } else if (url && 'byteLength' in url) { // ArrayBuffer
+      parameters.data = url;
     }
     if (args) {
       for (var prop in args) {
@@ -3104,22 +3094,21 @@ var PDFView = {
         self.load(pdfDocument, scale);
         self.loading = false;
       },
-      function getDocumentError(exception) {
-        var message = exception && exception.message;
+      function getDocumentError(message, exception) {
         var loadingErrorMessage = mozL10n.get('loading_error', null,
           'An error occurred while loading the PDF.');
 
-        if (exception instanceof PDFJS.InvalidPDFException) {
+        if (exception && exception.name === 'InvalidPDFException') {
           // change error message also for other builds
           loadingErrorMessage = mozL10n.get('invalid_file_error', null,
-                                            'Invalid or corrupted PDF file.');
-        } else if (exception instanceof PDFJS.MissingPDFException) {
+                                        'Invalid or corrupted PDF file.');
+        }
+
+        if (exception && exception.name === 'MissingPDFException') {
           // special message for missing PDF's
           loadingErrorMessage = mozL10n.get('missing_file_error', null,
-                                            'Missing PDF file.');
-        } else if (exception instanceof PDFJS.UnexpectedResponseException) {
-          loadingErrorMessage = mozL10n.get('unexpected_response_error', null,
-                                            'Unexpected server response.');
+                                        'Missing PDF file.');
+
         }
 
         var moreInfo = {
@@ -3539,11 +3528,7 @@ var PDFView = {
 
       var pdfTitle;
       if (metadata && metadata.has('dc:title')) {
-        var title = metadata.get('dc:title');
-        // Ghostscript sometimes return 'Untitled', sets the title to 'Untitled'
-        if (title !== 'Untitled') {
-          pdfTitle = title;
-        }
+        pdfTitle = metadata.get('dc:title');
       }
 
       if (!pdfTitle && info && info['Title']) {
@@ -3590,7 +3575,7 @@ var PDFView = {
   setInitialView: function pdfViewSetInitialView(storedHash, scale) {
     // Reset the current scale, as otherwise the page's scale might not get
     // updated if the zoom level stayed the same.
-    this.currentScale = UNKNOWN_SCALE;
+    this.currentScale = 0;
     this.currentScaleValue = null;
     // When opening a new file (when one is already loaded in the viewer):
     // Reset 'currentPageNumber', since otherwise the page's scale will be wrong
@@ -5089,21 +5074,15 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
         var width = ctx.measureText(textDiv.textContent).width;
         if (width > 0) {
           textLayerFrag.appendChild(textDiv);
-          var transform;
-          if (textDiv.dataset.canvasWidth !== undefined) {
-            // Dataset values come of type string.
-            var textScale = textDiv.dataset.canvasWidth / width;
-            transform = 'scaleX(' + textScale + ')';
-          } else {
-            transform = '';
-          }
+          // Dataset values come of type string.
+          var textScale = textDiv.dataset.canvasWidth / width;
           var rotation = textDiv.dataset.angle;
+          var transform = 'scale(' + textScale + ', 1)';
           if (rotation) {
             transform = 'rotate(' + rotation + 'deg) ' + transform;
           }
-          if (transform) {
-            CustomStyle.setProp('transform' , textDiv, transform);
-          }
+          CustomStyle.setProp('transform' , textDiv, transform);
+          CustomStyle.setProp('transformOrigin' , textDiv, '0% 0%');
         }
       }
 
@@ -5178,15 +5157,10 @@ var TextLayerBuilder = (function TextLayerBuilderClosure() {
       if (angle !== 0) {
         textDiv.dataset.angle = angle * (180 / Math.PI);
       }
-      // We don't bother scaling single-char text divs, because it has very
-      // little effect on text highlighting. This makes scrolling on docs with
-      // lots of such divs a lot faster.
-      if (textDiv.textContent.length > 1) {
-        if (style.vertical) {
-          textDiv.dataset.canvasWidth = geom.height * this.viewport.scale;
-        } else {
-          textDiv.dataset.canvasWidth = geom.width * this.viewport.scale;
-        }
+      if (style.vertical) {
+        textDiv.dataset.canvasWidth = geom.height * this.viewport.scale;
+      } else {
+        textDiv.dataset.canvasWidth = geom.width * this.viewport.scale;
       }
     },
 
@@ -5794,12 +5768,9 @@ window.addEventListener('localized', function localized(evt) {
 
   PDFView.animationStartedPromise.then(function() {
     // Adjust the width of the zoom box to fit the content.
-    // Note: If the window is narrow enough that the zoom box is not visible,
-    //       we temporarily show it to be able to adjust its width.
+    // Note: This is only done if the zoom box is actually visible,
+    // since otherwise element.clientWidth will return 0.
     var container = document.getElementById('scaleSelectContainer');
-    if (container.clientWidth === 0) {
-      container.setAttribute('style', 'display: inherit;');
-    }
     if (container.clientWidth > 0) {
       var select = document.getElementById('scaleSelect');
       select.setAttribute('style', 'min-width: inherit;');

@@ -9,10 +9,6 @@
  * @type {Object}
  */
 navigator.mozL10n = document.mozL10n = {
-  initialize: function(){},
-
-  getDirection: function(){},
-
   get: function(stringId, vars) {
 
     // upcase the first letter

@@ -27,7 +27,6 @@ import org.mozilla.gecko.db.BrowserContract.Combined;
 import org.mozilla.gecko.db.BrowserContract.ReadingListItems;
 import org.mozilla.gecko.db.BrowserContract.SearchHistory;
 import org.mozilla.gecko.db.BrowserDB;
-import org.mozilla.gecko.db.DBUtils;
 import org.mozilla.gecko.db.SuggestedSites;
 import org.mozilla.gecko.distribution.Distribution;
 import org.mozilla.gecko.favicons.Favicons;
@@ -79,7 +78,6 @@ import org.mozilla.gecko.widget.GeckoActionProvider;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.BroadcastReceiver;
-import android.app.KeyguardManager;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.DialogInterface;
@@ -515,17 +513,11 @@ public class BrowserApp extends GeckoApp
         mAboutHomeStartupTimer = new Telemetry.UptimeTimer("FENNEC_STARTUP_TIME_ABOUTHOME");
 
         final Intent intent = getIntent();
-        final String args = intent.getStringExtra("args");
 
-        if (GuestSession.shouldUse(this, args)) {
-            GuestSession.configureWindow(getWindow());
+        String args = intent.getStringExtra("args");
+        if (args != null && args.contains(GUEST_BROWSING_ARG)) {
             mProfile = GeckoProfile.createGuestProfile(this);
         } else {
-            // We also allow non-guest sessions if the keyguard isn't a secure one.
-            final KeyguardManager manager = (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
-            if (Versions.feature16Plus && !manager.isKeyguardSecure()) {
-                GuestSession.configureWindow(getWindow());
-            }
             GeckoProfile.maybeCleanupGuestProfile(this);
         }
 
@@ -736,18 +728,6 @@ public class BrowserApp extends GeckoApp
     @Override
     public void onResume() {
         super.onResume();
-
-        final String args = getIntent().getStringExtra("args");
-        // If an external intent tries to start Fennec in guest mode, and it's not already
-        // in guest mode, this will change modes before opening the url.
-        final boolean enableGuestSession = GuestSession.shouldUse(this, args);
-        final boolean inGuestSession = GeckoProfile.get(this).inGuestMode();
-        if (enableGuestSession != inGuestSession) {
-            doRestart(getIntent());
-            GeckoAppShell.systemExit();
-            return;
-        }
-
         EventDispatcher.getInstance().unregisterGeckoThreadListener((GeckoEventListener)this,
             "Prompt:ShowTop");
     }
@@ -2712,11 +2692,10 @@ public class BrowserApp extends GeckoApp
 
         charEncoding.setVisible(GeckoPreferences.getCharEncodingState());
 
-        if (mProfile.inGuestMode()) {
+        if (mProfile.inGuestMode())
             exitGuestMode.setVisible(true);
-        } else {
+        else
             enterGuestMode.setVisible(true);
-        }
 
         return true;
     }
@@ -2881,14 +2860,7 @@ public class BrowserApp extends GeckoApp
                         } else {
                             GeckoProfile.leaveGuestSession(BrowserApp.this);
                         }
-
-                        if (!GuestSession.isSecureKeyguardLocked(BrowserApp.this)) {
-                            doRestart(args);
-                        } else {
-                            // If the secure keyguard is up, we don't want to restart.
-                            // Just clear the guest profile data.
-                            GeckoProfile.maybeCleanupGuestProfile(BrowserApp.this);
-                        }
+                        doRestart(args);
                         GeckoAppShell.systemExit();
                     }
                 } catch(JSONException ex) {
@@ -2960,13 +2932,15 @@ public class BrowserApp extends GeckoApp
             GeckoAppShell.sendEventToGecko(GeckoEvent.createURILoadEvent(uri));
         }
 
-        // Only solicit feedback when the app has been launched from the icon shortcut.
-        if (GuestSession.NOTIFICATION_INTENT.equals(action)) {
-            GuestSession.handleIntent(this, intent);
+        if (!mInitialized) {
+            return;
         }
 
-        if (!mInitialized || !Intent.ACTION_MAIN.equals(action)) {
+        // Only solicit feedback when the app has been launched from the icon shortcut.
+        if (!Intent.ACTION_MAIN.equals(action)) {
             return;
+        } else if (GuestSession.NOTIFICATION_INTENT.equals(action)) {
+            GuestSession.handleIntent(this, intent);
         }
 
         // Check to see how many times the app has been launched.

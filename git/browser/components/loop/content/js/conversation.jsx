@@ -215,7 +215,6 @@ loop.conversation = (function(OT, mozL10n) {
       "call/decline": "decline",
       "call/ongoing": "conversation",
       "call/declineAndBlock": "declineAndBlock",
-      "call/shutdown": "shutdown",
       "call/feedback": "feedback"
     },
 
@@ -230,12 +229,7 @@ loop.conversation = (function(OT, mozL10n) {
      * @override {loop.shared.router.BaseConversationRouter.endCall}
      */
     endCall: function() {
-      navigator.mozLoop.releaseCallData(this._conversation.get("callId"));
       this.navigate("call/feedback", {trigger: true});
-    },
-
-    shutdown: function() {
-      navigator.mozLoop.releaseCallData(this._conversation.get("callId"));
     },
 
     /**
@@ -354,7 +348,6 @@ loop.conversation = (function(OT, mozL10n) {
      */
     _declineCall: function() {
       this._websocket.decline();
-      navigator.mozLoop.releaseCallData(this._conversation.get("callId"));
       // XXX Don't close the window straight away, but let any sends happen
       // first. Ideally we'd wait to close the window until after we have a
       // response from the server, to know that everything has completed
@@ -406,7 +399,6 @@ loop.conversation = (function(OT, mozL10n) {
 
       /*jshint newcap:false*/
       this.loadReactComponent(sharedViews.ConversationView({
-        initiate: true,
         sdk: OT,
         model: this._conversation,
         video: {enabled: videoStream}
@@ -441,8 +433,7 @@ loop.conversation = (function(OT, mozL10n) {
       });
 
       this.loadReactComponent(sharedViews.FeedbackView({
-        feedbackApiClient: feedbackClient,
-        onAfterFeedbackReceived: window.close.bind(window)
+        feedbackApiClient: feedbackClient
       }));
     }
   });
@@ -467,12 +458,6 @@ loop.conversation = (function(OT, mozL10n) {
         {sdk: OT}), // Model dependencies
       notifications: new loop.shared.models.NotificationCollection()
     });
-
-    window.addEventListener("unload", (event) => {
-      // Handle direct close of dialog box via [x] control.
-      navigator.mozLoop.releaseCallData(router._conversation.get("callId"));
-    });
-
     Backbone.history.start();
   }
 

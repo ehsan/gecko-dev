@@ -5,12 +5,12 @@
 #include "nsIMobileConnectionService.idl"
 
 %{C++
-#define GONK_MOBILECONNECTION_SERVICE_CONTRACTID \
-        "@mozilla.org/mobileconnection/gonkmobileconnectionservice;1"
+#define NS_MOBILECONNECTION_GONK_SERVICE_CONTRACTID \
+        "@mozilla.org/mobileconnection/mobileconnectiongonkservice;1"
 %}
 
-[scriptable, uuid(b0310517-e7f6-4fa5-a52e-fa6ff35c8fc1)]
-interface nsIGonkMobileConnectionService : nsIMobileConnectionService
+[scriptable, uuid(c5baceda-247a-4018-855d-ad5b00f2e4e2)]
+interface nsIMobileConnectionGonkService : nsIMobileConnectionService
 {
   void notifyNetworkInfoChanged(in unsigned long clientId, in jsval networkInfo);
 
@@ -46,11 +46,4 @@ interface nsIGonkMobileConnectionService : nsIMobileConnectionService
 
   void notifyLastHomeNetworkChanged(in unsigned long clientId,
                                     in DOMString network);
-
-  void notifyCFStateChanged(in unsigned long clientId,
-                            in unsigned short action,
-                            in unsigned short reason,
-                            in DOMString number,
-                            in unsigned short timeSeconds,
-                            in unsigned short serviceClass);
 };

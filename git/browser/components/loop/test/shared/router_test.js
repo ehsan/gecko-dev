@@ -60,7 +60,8 @@ describe("loop.shared.router", function() {
       conversation = new loop.shared.models.ConversationModel({
         loopToken: "fakeToken"
       }, {
-        sdk: {}
+        sdk: {},
+        pendingCallTimeout: 1000
       });
     });
 

@@ -86,7 +86,7 @@ NotificationStorage.prototype = {
       timestamp: new Date().getTime(),
       origin: origin,
       data: data,
-      mozbehavior: behavior
+      behavior: behavior
     };
 
     this._notifications[id] = notification;
@@ -207,7 +207,7 @@ NotificationStorage.prototype = {
                         notification.tag,
                         notification.icon,
                         notification.data,
-                        notification.mozbehavior);
+                        notification.behavior);
       } catch (e) {
         if (DEBUG) { debug("Error calling callback handle: " + e); }
       }

@@ -127,7 +127,6 @@
 #endif
 
 #include "mozilla/dom/indexedDB/PIndexedDBChild.h"
-#include "mozilla/dom/mobileconnection/MobileConnectionChild.h"
 #include "mozilla/dom/mobilemessage/SmsChild.h"
 #include "mozilla/dom/devicestorage/DeviceStorageRequestChild.h"
 #include "mozilla/dom/PFileSystemRequestChild.h"
@@ -156,13 +155,17 @@
 #include "mozilla/net/NeckoMessageUtils.h"
 #include "mozilla/RemoteSpellCheckEngineChild.h"
 
+#ifdef MOZ_B2G_RIL
+#include "mozilla/dom/mobileconnection/MobileConnectionChild.h"
+using namespace mozilla::dom::mobileconnection;
+#endif
+
 using namespace base;
 using namespace mozilla;
 using namespace mozilla::docshell;
 using namespace mozilla::dom::bluetooth;
 using namespace mozilla::dom::devicestorage;
 using namespace mozilla::dom::ipc;
-using namespace mozilla::dom::mobileconnection;
 using namespace mozilla::dom::mobilemessage;
 using namespace mozilla::dom::indexedDB;
 using namespace mozilla::dom::telephony;
@@ -1893,14 +1896,12 @@ ContentChild::RecvFileSystemUpdate(const nsString& aFsName,
                                    const bool& aIsMediaPresent,
                                    const bool& aIsSharing,
                                    const bool& aIsFormatting,
-                                   const bool& aIsFake,
-                                   const bool& aIsUnmounting)
+                                   const bool& aIsFake)
 {
 #ifdef MOZ_WIDGET_GONK
     nsRefPtr<nsVolume> volume = new nsVolume(aFsName, aVolumeName, aState,
                                              aMountGeneration, aIsMediaPresent,
-                                             aIsSharing, aIsFormatting, aIsFake,
-                                             aIsUnmounting);
+                                             aIsSharing, aIsFormatting, aIsFake);
 
     nsRefPtr<nsVolumeService> vs = nsVolumeService::GetSingleton();
     if (vs) {
@@ -1916,7 +1917,6 @@ ContentChild::RecvFileSystemUpdate(const nsString& aFsName,
     unused << aIsSharing;
     unused << aIsFormatting;
     unused << aIsFake;
-    unused << aIsUnmounting;
 #endif
     return true;
 }

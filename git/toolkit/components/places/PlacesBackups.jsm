@@ -502,9 +502,9 @@ this.PlacesBackups = {
    *         * children: array of child items in a folder
    */
   getBookmarksTree: Task.async(function* () {
-    let rootGuid = yield PlacesUtils.promiseItemGuid(PlacesUtils.placesRootId);
+    let rootGUID = yield PlacesUtils.promiseItemGUID(PlacesUtils.placesRootId);
     let startTime = Date.now();
-    let root = yield PlacesUtils.promiseBookmarksTree(rootGuid, {
+    let root = yield PlacesUtils.promiseBookmarksTree(rootGUID, {
       excludeItemsCallback: aItem => {
         return aItem.annos &&
           aItem.annos.find(a => a.name == PlacesUtils.EXCLUDE_FROM_BACKUP_ANNO);
