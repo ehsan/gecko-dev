@@ -190,7 +190,7 @@ private:
   nsCheapInt32Set mIndices;
 };
 
-class NS_STACK_CLASS nsSafeOptionListMutation
+class nsSafeOptionListMutation
 {
 public:
   /**

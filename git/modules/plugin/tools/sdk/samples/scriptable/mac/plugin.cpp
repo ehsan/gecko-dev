@@ -95,10 +95,8 @@ nsPluginInstance::~nsPluginInstance()
   // so releasing it here does not guarantee that it is over
   // we should take precaution in case it will be called later
   // and zero its mPlugin member
-  if (mScriptablePeer) {
-    mScriptablePeer->SetInstance(NULL);
-    NS_RELEASE(mScriptablePeer);
-  }
+  mScriptablePeer->SetInstance(NULL);
+  NS_IF_RELEASE(mScriptablePeer);
 }
 
 NPBool nsPluginInstance::init(NPWindow* aWindow)

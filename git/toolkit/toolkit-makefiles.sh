@@ -910,6 +910,10 @@ if test -n "$MOZ_CALENDAR"; then
   "
 fi
 
+if [ "$MOZ_MAIL_NEWS" ]; then
+  . "${srcdir}/mailnews/makefiles.sh"
+fi
+
 if test -n "$MOZ_IPCD"; then
   add_makefiles "
     ipc/ipcd/Makefile

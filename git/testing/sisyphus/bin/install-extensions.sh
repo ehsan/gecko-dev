@@ -39,7 +39,7 @@
 
 source $TEST_DIR/bin/library.sh
 
-TEST_STARTUP_TRIES=${TEST_STARTUP_TRIES:-3}
+echo "$SCRIPT $@"
 
 #
 # options processing
@@ -55,7 +55,7 @@ $SCRIPT -p product -b branch -x executablepath -N profilename -E extensions
 variable            description
 ===============     ============================================================
 -p product          required. firefox|thunderbird
--b branch           required. 1.8.0|1.8.1|1.9.0|1.9.1
+-b branch           required. 1.8.0|1.8.1|1.9.0
 -x executablepath   required. directory-tree containing executable named 
                     'product'
 -N profilename      required. profile name 
@@ -85,7 +85,12 @@ while getopts $options optname ;
 done
 
 # include environment variables
-loaddata $datafiles
+if [[ -n "$datafiles" ]]; then
+    for datafile in $datafiles; do 
+        cat $datafile | sed 's|^|data: |'
+        source $datafile
+    done
+fi
 
 if [[ -z "$product" || -z "$branch" || \
     -z "$executablepath" || -z "$profilename" || -z "$extensions" ]]; then
@@ -96,12 +101,20 @@ if [[ "$product" != "firefox" && "$product" != "thunderbird" ]]; then
     error "product \"$product\" must be one of firefox or thunderbird" $LINENO
 fi
 
-if [[ "$branch" != "1.8.0" && "$branch" != "1.8.1" && "$branch" != "1.9.0" && "$branch" != "1.9.1" ]]; 
+if [[ "$branch" != "1.8.0" && "$branch" != "1.8.1" && "$branch" != "1.9.0" ]]; 
     then
-    error "branch \"$branch\" must be one of 1.8.0, 1.8.1, 1.9.0 1.9.1" $LINENO
+    error "branch \"$branch\" must be one of 1.8.0, 1.8.1, 1.9.0" $LINENO
 fi
 
 executable=`get_executable $product $branch $executablepath`
+
+if [[ -z "$executable" ]]; then
+    error "get_executable $product $branch $executablepath returned empty path" $LINENO
+fi
+
+if [[ ! -x "$executable" ]]; then 
+    error "executable \"$executable\" is not executable" $LINENO
+fi
 
 if echo $profilename | egrep -qiv '[a-z0-9_]'; then
     error "profile name must consist of letters, digits or _" $LINENO
@@ -111,23 +124,14 @@ for extension in $extensions/all/*.xpi; do
     if [[ $extension == "$extensions/all/*.xpi" ]]; then
 	    break
     fi
-    if [[ "$OSID" == "nt" ]]; then
+    if [[ "$OSID" == "win32" ]]; then
         extensionos=`cygpath -a -w $extension`
     else
         extensionos="$extension"
     fi
 
     echo installing $extension
-    let tries=1
-    while ! $TEST_DIR/bin/timed_run.py ${TEST_STARTUP_TIMEOUT} "Install extension $extension: try $tries" \
-        $EXECUTABLE_DRIVER \
-        $executable -P $profilename -install-global-extension "$extensionos"; do
-        let tries=tries+1
-        if [[ "$tries" -gt $TEST_STARTUP_TRIES ]]; then
-            error "Failed to install extension $extension. Exiting..." $LINENO
-        fi
-        sleep 30
-    done
+    $TEST_DIR/bin/timed_run.py ${TEST_STARTUP_TIMEOUT} "-" $executable -P $profilename -install-global-extension "$extensionos"
     # there is no reliable method of determining if the install worked 
     # from the output or from the exit code.
 done
@@ -136,22 +140,17 @@ for extension in $extensions/$OSID/*; do
     if [[ $extension == "$extensions/$OSID/*" ]]; then
 	    break
     fi
-    if [[ "$OSID" == "nt" ]]; then
+    if [[ "$OSID" == "win32" ]]; then
         extensionos=`cygpath -a -w $extension`
     else
         extensionos="$extension"
     fi
 
     echo installing $extension
-    let tries=1
-    while ! $TEST_DIR/bin/timed_run.py ${TEST_STARTUP_TIMEOUT} "Install extension $extension: try $tries" \
-        $executable -P $profilename -install-global-extension "$extensionos"; do
-        let tries=tries+1
-        if [[ "$tries" -gt $TEST_STARTUP_TRIES ]]; then
-            error "Failed to install extension $extension. Exiting..." $LINENO
-        fi
-        sleep 30
-    done
+    if ! $TEST_DIR/bin/timed_run.py ${TEST_STARTUP_TIMEOUT} "-" $executable -P $profilename -install-global-extension "$extensionos"; then
+        error "Failed to install $extensionos" $LINENO
+    fi
+
 done
 
 # restart twice to make extension manager happy

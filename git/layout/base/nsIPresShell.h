@@ -102,11 +102,10 @@ class gfxContext;
 typedef short SelectionType;
 typedef PRUint32 nsFrameState;
 
-
-// 23e048f6-49bb-4ac4-b900-c63865363ad3
+// 228a7d67-811b-4d75-85c0-1ee22c0d2af0
 #define NS_IPRESSHELL_IID \
-{ 0x23e048f6, 0x49bb, 0x4ac4, \
-  { 0xb9, 0x00, 0xc6, 0x38, 0x65, 0x36, 0x3a, 0xd3 } }
+{ 0x228a7d67, 0x811b, 0x4d75, \
+  { 0x85, 0xc0, 0x1e, 0xe2, 0x2c, 0x0d, 0x2a, 0xf0 } }
 
 // Constants for ScrollContentIntoView() function
 #define NS_PRESSHELL_SCROLL_TOP      0
@@ -386,8 +385,6 @@ public:
    */
   NS_IMETHOD RecreateFramesFor(nsIContent* aContent) = 0;
 
-  void PostRecreateFramesFor(nsIContent* aContent);
-  
   /**
    * Determine if it is safe to flush all pending notifications
    * @param aIsSafeToFlush PR_TRUE if it is safe, PR_FALSE otherwise.
