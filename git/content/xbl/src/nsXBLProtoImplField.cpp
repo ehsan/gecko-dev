@@ -88,8 +88,7 @@ nsXBLProtoImplField::InstallField(nsIScriptContext* aContext,
 
   *aDidInstall = false;
 
-  // Empty fields are treated as not actually present.
-  if (IsEmpty()) {
+  if (mFieldTextLength == 0) {
     return NS_OK;
   }
 
