@@ -286,7 +286,7 @@ SetArrayElement(JSContext *cx, HandleObject obj, double index, HandleValue v)
                 break;
             if (idx >= arr->length())
                 arr->setLengthInt32(idx + 1);
-            arr->setDenseElementWithType(cx, idx, v);
+            JSObject::setDenseElementWithType(cx, arr, idx, v);
             return true;
         } while (false);
 
@@ -677,12 +677,14 @@ js::ArraySetLength(typename ExecutionModeTraits<mode>::ContextType cxArg,
 
     RootedValue v(cxArg, NumberValue(newLen));
     if (mode == ParallelExecution) {
-        // Overflowing int32 requires changing TI state.
-        if (newLen > INT32_MAX)
+        // Adding the property type or overflowing int32 requires changing TI
+        // state.
+        if (!HasTypePropertyId(arr, id, v) || newLen > INT32_MAX)
             return false;
         arr->setLengthInt32(newLen);
     } else {
         JSContext *cx = cxArg->asJSContext();
+        AddTypePropertyId(cx, arr, id, v);
         ArrayObject::setLength(cx, arr, newLen);
     }
 
@@ -2020,7 +2022,7 @@ NewbornArrayPushImpl(JSContext *cx, HandleObject obj, const Value &v)
 
     arr->setDenseInitializedLength(length + 1);
     arr->setLengthInt32(length + 1);
-    arr->initDenseElementWithType(cx, length, v);
+    JSObject::initDenseElementWithType(cx, arr, length, v);
     return true;
 }
 
@@ -2064,7 +2066,7 @@ js::array_push(JSContext *cx, unsigned argc, Value *vp)
 
         if (result == JSObject::ED_OK) {
             for (uint32_t i = 0, index = length; i < argCount; index++, i++)
-                obj->setDenseElementWithType(cx, index, args[i]);
+                JSObject::setDenseElementWithType(cx, obj, index, args[i]);
             uint32_t newlength = length + argCount;
             args.rval().setNumber(newlength);
             if (obj->is<ArrayObject>()) {

@@ -11,12 +11,12 @@
 #ifndef WEBRTC_AUDIO_DEVICE_AUDIO_DEVICE_MAC_H
 #define WEBRTC_AUDIO_DEVICE_AUDIO_DEVICE_MAC_H
 
-#include "webrtc/modules/audio_device/audio_device_generic.h"
-#include "webrtc/modules/audio_device/mac/audio_mixer_manager_mac.h"
-#include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
+#include "audio_device_generic.h"
+#include "critical_section_wrapper.h"
+#include "audio_mixer_manager_mac.h"
 
-#include <AudioToolbox/AudioConverter.h>
 #include <CoreAudio/CoreAudio.h>
+#include <AudioToolbox/AudioConverter.h>
 #include <mach/semaphore.h>
 
 struct PaUtilRingBuffer;
@@ -285,7 +285,7 @@ private:
     bool RenderWorkerThread();
 
 private:
-    bool KeyPressed();
+    bool KeyPressed() const;
 
 private:
     AudioDeviceBuffer* _ptrAudioBuffer;
@@ -377,13 +377,8 @@ private:
 
     int _captureBufSizeSamples;
     int _renderBufSizeSamples;
-
-private:
-    // Typing detection
-    // 0x5c is key "9", after that comes function keys.
-    bool prev_key_state_[0x5d];
 };
 
-}  // namespace webrtc
+} //  namespace webrtc
 
 #endif  // MODULES_AUDIO_DEVICE_MAIN_SOURCE_MAC_AUDIO_DEVICE_MAC_H_

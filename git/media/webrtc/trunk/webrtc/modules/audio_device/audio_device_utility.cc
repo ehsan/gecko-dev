@@ -8,9 +8,9 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include <assert.h>
+#include <cassert>
 
-#include "webrtc/modules/audio_device/audio_device_utility.h"
+#include "audio_device_utility.h"
 
 #if defined(_WIN32)
 
@@ -52,11 +52,11 @@ bool AudioDeviceUtility::StringCompare(
 //                                 Linux & Mac
 // ============================================================================
 
-#include <stdio.h>      // getchar
-#include <string.h>     // strncasecmp
 #include <sys/time.h>   // gettimeofday
-#include <termios.h>    // tcgetattr
 #include <time.h>       // gettimeofday
+#include <string.h>     // strncasecmp
+#include <stdio.h>      // getchar
+#include <termios.h>    // tcgetattr
 
 #include <unistd.h>
 
@@ -110,3 +110,5 @@ bool AudioDeviceUtility::StringCompare(
 }  // namespace webrtc
 
 #endif  // defined(WEBRTC_LINUX) || defined(WEBRTC_BSD) || defined(WEBRTC_MAC)
+
+

@@ -169,21 +169,6 @@ int ViEExternalRendererImpl::SetViEExternalRenderer(
 int32_t ViEExternalRendererImpl::RenderFrame(
     const uint32_t stream_id,
     I420VideoFrame&   video_frame) {
-  if (video_frame.native_handle() != NULL) {
-    NotifyFrameSizeChange(stream_id, video_frame);
-
-    if (external_renderer_->IsTextureSupported()) {
-      external_renderer_->DeliverFrame(NULL,
-                                       0,
-                                       video_frame.timestamp(),
-                                       video_frame.render_time_ms(),
-                                       video_frame.native_handle());
-    } else {
-      // TODO(wuchengli): readback the pixels and deliver the frame.
-    }
-    return 0;
-  }
-
   VideoFrame* out_frame = converted_frame_.get();
 
   // Convert to requested format.
@@ -233,28 +218,21 @@ int32_t ViEExternalRendererImpl::RenderFrame(
       break;
   }
 
-  NotifyFrameSizeChange(stream_id, video_frame);
+  if (external_renderer_width_ != video_frame.width() ||
+      external_renderer_height_ != video_frame.height()) {
+    external_renderer_width_ = video_frame.width();
+    external_renderer_height_ = video_frame.height();
+    external_renderer_->FrameSizeChange(external_renderer_width_,
+                                        external_renderer_height_, stream_id);
+  }
 
   if (out_frame) {
     external_renderer_->DeliverFrame(out_frame->Buffer(),
                                      out_frame->Length(),
                                      video_frame.timestamp(),
-                                     video_frame.render_time_ms(),
-                                     NULL);
+                                     video_frame.render_time_ms());
   }
   return 0;
-}
-
-void ViEExternalRendererImpl::NotifyFrameSizeChange(
-    const uint32_t stream_id,
-    I420VideoFrame& video_frame) {
-  if (external_renderer_width_ != video_frame.width() ||
-      external_renderer_height_ != video_frame.height()) {
-    external_renderer_width_ = video_frame.width();
-    external_renderer_height_ = video_frame.height();
-    external_renderer_->FrameSizeChange(
-        external_renderer_width_, external_renderer_height_, stream_id);
-  }
 }
 
 }  // namespace webrtc

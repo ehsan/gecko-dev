@@ -10,9 +10,8 @@
 
 #include "webrtc/video_engine/vie_encoder.h"
 
-#include <assert.h>
-
 #include <algorithm>
+#include <cassert>
 
 #include "webrtc/common_video/libyuv/include/webrtc_libyuv.h"
 #include "webrtc/modules/pacing/include/paced_sender.h"
@@ -55,32 +54,9 @@ static const int kMinPacingDelayMs = 200;
 // VideoEngine API and remove the kTransmissionMaxBitrateMultiplier.
 static const int kTransmissionMaxBitrateMultiplier = 2;
 
-std::vector<uint32_t> AllocateStreamBitrates(
-    uint32_t total_bitrate,
-    const SimulcastStream* stream_configs,
-    size_t number_of_streams) {
-  if (number_of_streams == 0) {
-    std::vector<uint32_t> stream_bitrates(1, 0);
-    stream_bitrates[0] = total_bitrate;
-    return stream_bitrates;
-  }
-  std::vector<uint32_t> stream_bitrates(number_of_streams, 0);
-  uint32_t bitrate_remainder = total_bitrate;
-  for (size_t i = 0; i < stream_bitrates.size() && bitrate_remainder > 0; ++i) {
-    if (stream_configs[i].maxBitrate * 1000 > bitrate_remainder) {
-      stream_bitrates[i] = bitrate_remainder;
-    } else {
-      stream_bitrates[i] = stream_configs[i].maxBitrate * 1000;
-    }
-    bitrate_remainder -= stream_bitrates[i];
-  }
-  return stream_bitrates;
-}
-
 class QMVideoSettingsCallback : public VCMQMSettingsCallback {
  public:
   explicit QMVideoSettingsCallback(VideoProcessingModule* vpm);
-
   ~QMVideoSettingsCallback();
 
   // Update VPM with QM (quality modes: frame size & frame rate) settings.
@@ -97,7 +73,6 @@ class ViEBitrateObserver : public BitrateObserver {
   explicit ViEBitrateObserver(ViEEncoder* owner)
       : owner_(owner) {
   }
-  virtual ~ViEBitrateObserver() {}
   // Implements BitrateObserver.
   virtual void OnNetworkChanged(const uint32_t bitrate_bps,
                                 const uint8_t fraction_lost,
@@ -113,7 +88,6 @@ class ViEPacedSenderCallback : public PacedSender::Callback {
   explicit ViEPacedSenderCallback(ViEEncoder* owner)
       : owner_(owner) {
   }
-  virtual ~ViEPacedSenderCallback() {}
   virtual bool TimeToSendPacket(uint32_t ssrc, uint16_t sequence_number,
                                 int64_t capture_time_ms) {
     return owner_->TimeToSendPacket(ssrc, sequence_number, capture_time_ms);
@@ -158,6 +132,7 @@ ViEEncoder::ViEEncoder(int32_t engine_id,
     picture_id_sli_(0),
     has_received_rpsi_(false),
     picture_id_rpsi_(0),
+    file_recorder_(channel_id),
     qm_callback_(NULL) {
   WEBRTC_TRACE(webrtc::kTraceMemory, webrtc::kTraceVideo,
                ViEId(engine_id, channel_id),
@@ -407,6 +382,7 @@ int32_t ViEEncoder::SetEncoder(const webrtc::VideoCodec& video_codec) {
                ViEId(engine_id_, channel_id_),
                "%s: CodecType: %d, width: %u, height: %u", __FUNCTION__,
                video_codec.codecType, video_codec.width, video_codec.height);
+
   // Setting target width and height for VPM.
   if (vpm_.SetTargetResolution(video_codec.width, video_codec.height,
                                video_codec.maxFramerate) != VPM_OK) {
@@ -423,11 +399,7 @@ int32_t ViEEncoder::SetEncoder(const webrtc::VideoCodec& video_codec) {
     return -1;
   }
   // Convert from kbps to bps.
-  std::vector<uint32_t> stream_bitrates = AllocateStreamBitrates(
-      video_codec.startBitrate * 1000,
-      video_codec.simulcastStream,
-      video_codec.numberOfSimulcastStreams);
-  default_rtp_rtcp_->SetTargetSendBitrate(stream_bitrates);
+  default_rtp_rtcp_->SetTargetSendBitrate(video_codec.startBitrate * 1000);
 
   uint16_t max_data_payload_length =
       default_rtp_rtcp_->MaxDataPayloadLength();
@@ -595,8 +567,10 @@ void ViEEncoder::DeliverFrame(int id,
       kMsToRtpTimestamp *
       static_cast<uint32_t>(video_frame->render_time_ms());
 
-  TRACE_EVENT_ASYNC_STEP0("webrtc", "Video", video_frame->render_time_ms(),
-                          "Encode");
+  TRACE_EVENT2("webrtc", "VE::DeliverFrame",
+               "timestamp", time_stamp,
+               "render_time", video_frame->render_time_ms());
+
   video_frame->set_timestamp(time_stamp);
   {
     CriticalSectionScoped cs(callback_cs_.get());
@@ -613,6 +587,8 @@ void ViEEncoder::DeliverFrame(int id,
                                 video_frame->height());
     }
   }
+  // Record raw frame.
+  file_recorder_.RecordVideoFrame(*video_frame);
 
   // Make sure the CSRC list is correct.
   if (num_csrcs > 0) {
@@ -687,6 +663,7 @@ void ViEEncoder::DelayChanged(int id, int frame_delay) {
                frame_delay);
 
   default_rtp_rtcp_->SetCameraDelay(frame_delay);
+  file_recorder_.SetFrameDelay(frame_delay);
 }
 
 int ViEEncoder::GetPreferedFrameSettings(int* width,
@@ -752,7 +729,7 @@ int ViEEncoder::CodecTargetBitrate(uint32_t* bitrate) const {
   return 0;
 }
 
-int32_t ViEEncoder::UpdateProtectionMethod(bool enable_nack) {
+int32_t ViEEncoder::UpdateProtectionMethod() {
   bool fec_enabled = false;
   uint8_t dummy_ptype_red = 0;
   uint8_t dummy_ptypeFEC = 0;
@@ -765,23 +742,25 @@ int32_t ViEEncoder::UpdateProtectionMethod(bool enable_nack) {
   if (error) {
     return -1;
   }
-  if (fec_enabled_ == fec_enabled && nack_enabled_ == enable_nack) {
+
+  bool nack_enabled = (default_rtp_rtcp_->NACK() == kNackOff) ? false : true;
+  if (fec_enabled_ == fec_enabled && nack_enabled_ == nack_enabled) {
     // No change needed, we're already in correct state.
     return 0;
   }
   fec_enabled_ = fec_enabled;
-  nack_enabled_ = enable_nack;
+  nack_enabled_ = nack_enabled;
 
   // Set Video Protection for VCM.
-  if (fec_enabled && nack_enabled_) {
+  if (fec_enabled && nack_enabled) {
     vcm_.SetVideoProtection(webrtc::kProtectionNackFEC, true);
   } else {
     vcm_.SetVideoProtection(webrtc::kProtectionFEC, fec_enabled_);
-    vcm_.SetVideoProtection(webrtc::kProtectionNackSender, nack_enabled_);
+    vcm_.SetVideoProtection(webrtc::kProtectionNack, nack_enabled_);
     vcm_.SetVideoProtection(webrtc::kProtectionNackFEC, false);
   }
 
-  if (fec_enabled_ || nack_enabled_) {
+  if (fec_enabled || nack_enabled) {
     WEBRTC_TRACE(webrtc::kTraceInfo, webrtc::kTraceVideo,
                  ViEId(engine_id_, channel_id_), "%s: FEC status ",
                  __FUNCTION__, fec_enabled);
@@ -1039,36 +1018,10 @@ void ViEEncoder::OnNetworkChanged(const uint32_t bitrate_bps,
   if (vcm_.SendCodec(&send_codec) != 0) {
     return;
   }
-  SimulcastStream* stream_configs = send_codec.simulcastStream;
-  // Allocate the bandwidth between the streams.
-  std::vector<uint32_t> stream_bitrates = AllocateStreamBitrates(
-      bitrate_bps,
-      stream_configs,
-      send_codec.numberOfSimulcastStreams);
-  // Find the max amount of padding we can allow ourselves to send at this
-  // point, based on which streams are currently active and what our current
-  // available bandwidth is.
-  int max_padding_bitrate_kbps = 0;
-  int i = send_codec.numberOfSimulcastStreams - 1;
-  for (std::vector<uint32_t>::reverse_iterator it = stream_bitrates.rbegin();
-       it != stream_bitrates.rend(); ++it) {
-    if (*it > 0) {
-      max_padding_bitrate_kbps = std::min((*it + 500) / 1000,
-                                          stream_configs[i].minBitrate);
-      break;
-    }
-    --i;
-  }
-  int pad_up_to_bitrate_kbps =
-      stream_configs[send_codec.numberOfSimulcastStreams - 1].minBitrate;
-  for (int i = 0; i < send_codec.numberOfSimulcastStreams - 1; ++i) {
-    pad_up_to_bitrate_kbps += stream_configs[i].targetBitrate;
-  }
-  pad_up_to_bitrate_kbps = std::min(bitrate_kbps, pad_up_to_bitrate_kbps);
-  paced_sender_->UpdateBitrate(bitrate_kbps,
-                               max_padding_bitrate_kbps,
-                               pad_up_to_bitrate_kbps);
-  default_rtp_rtcp_->SetTargetSendBitrate(stream_bitrates);
+  int pad_up_to_bitrate = std::min(bitrate_kbps,
+                                   static_cast<int>(send_codec.maxBitrate));
+  paced_sender_->UpdateBitrate(bitrate_kbps, pad_up_to_bitrate);
+  default_rtp_rtcp_->SetTargetSendBitrate(bitrate_bps);
 }
 
 PacedSender* ViEEncoder::GetPacedSender() {
@@ -1100,6 +1053,10 @@ int32_t ViEEncoder::RegisterEffectFilter(ViEEffectFilter* effect_filter) {
   }
   effect_filter_ = effect_filter;
   return 0;
+}
+
+ViEFileRecorder& ViEEncoder::GetOutgoingFileRecorder() {
+  return file_recorder_;
 }
 
 int ViEEncoder::StartDebugRecording(const char* fileNameUTF8) {

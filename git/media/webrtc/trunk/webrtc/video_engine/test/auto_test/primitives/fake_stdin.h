@@ -10,8 +10,7 @@
 #ifndef FAKE_STDIN_H_
 #define FAKE_STDIN_H_
 
-#include <stdio.h>
-
+#include <cstdio>
 #include <string>
 
 #include "testing/gtest/include/gtest/gtest.h"

@@ -10,8 +10,7 @@
 
 #include "webrtc/video_engine/test/libvietest/include/tb_external_transport.h"
 
-#include <assert.h>
-
+#include <cassert>
 #include <math.h>
 #include <stdio.h> // printf
 #include <stdlib.h> // rand
@@ -20,7 +19,7 @@
 #include <string.h>
 #endif
 #if defined(WEBRTC_MAC)
-#include <string.h>
+#include <cstring>
 #endif
 
 #include "webrtc/system_wrappers/interface/critical_section_wrapper.h"

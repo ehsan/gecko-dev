@@ -60,6 +60,7 @@
 #include "nsIPrincipal.h"
 #include "nsTextFragment.h"
 #include "nsIScriptGlobalObject.h"
+#include "nsIScriptGlobalObjectOwner.h"
 
 #include "nsIParserService.h"
 
@@ -711,7 +712,10 @@ IsScriptEnabled(nsIDocument *aDoc, nsIDocShell *aContainer)
   // Getting context is tricky if the document hasn't had its
   // GlobalObject set yet
   if (!globalObject) {
-    globalObject = aContainer->GetScriptGlobalObject();
+    nsCOMPtr<nsIScriptGlobalObjectOwner> owner = do_GetInterface(aContainer);
+    NS_ENSURE_TRUE(owner, true);
+
+    globalObject = owner->GetScriptGlobalObject();
     NS_ENSURE_TRUE(globalObject, true);
   }
 

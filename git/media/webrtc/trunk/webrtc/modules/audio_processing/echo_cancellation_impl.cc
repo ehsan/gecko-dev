@@ -56,11 +56,6 @@ AudioProcessing::Error MapError(int err) {
 }
 }  // namespace
 
-EchoCancellationImplWrapper* EchoCancellationImplWrapper::Create(
-    const AudioProcessingImpl* audioproc) {
-  return new EchoCancellationImpl(audioproc);
-}
-
 EchoCancellationImpl::EchoCancellationImpl(const AudioProcessingImpl* apm)
   : ProcessingComponent(apm),
     apm_(apm),

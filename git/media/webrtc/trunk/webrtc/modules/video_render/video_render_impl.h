@@ -11,15 +11,15 @@
 #ifndef WEBRTC_MODULES_VIDEO_RENDER_MAIN_SOURCE_VIDEO_RENDER_IMPL_H_
 #define WEBRTC_MODULES_VIDEO_RENDER_MAIN_SOURCE_VIDEO_RENDER_IMPL_H_
 
-#include <map>
-
-#include "webrtc/engine_configurations.h"
-#include "webrtc/modules/video_render/include/video_render.h"
+#include "engine_configurations.h"
+#include "video_render.h"
+#include "map_wrapper.h"
 
 namespace webrtc {
 class CriticalSectionWrapper;
 class IncomingVideoStream;
 class IVideoRender;
+class MapWrapper;
 
 // Class definitions
 class ModuleVideoRenderImpl: public VideoRender
@@ -219,10 +219,9 @@ private:
     bool _fullScreen;
 
     IVideoRender* _ptrRenderer;
-    typedef std::map<uint32_t, IncomingVideoStream*> IncomingVideoStreamMap;
-    IncomingVideoStreamMap _streamRenderMap;
+    MapWrapper& _streamRenderMap;
 };
 
-}  // namespace webrtc
+} //namespace webrtc
 
 #endif  // WEBRTC_MODULES_VIDEO_RENDER_MAIN_SOURCE_VIDEO_RENDER_IMPL_H_

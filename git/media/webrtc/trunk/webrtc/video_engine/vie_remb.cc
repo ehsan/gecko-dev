@@ -10,9 +10,8 @@
 
 #include "webrtc/video_engine/vie_remb.h"
 
-#include <assert.h>
-
 #include <algorithm>
+#include <cassert>
 
 #include "webrtc/modules/rtp_rtcp/interface/rtp_rtcp.h"
 #include "webrtc/modules/utility/interface/process_thread.h"

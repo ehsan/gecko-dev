@@ -13,7 +13,7 @@
 #include <assert.h>
 
 #include "webrtc/modules/audio_processing/audio_buffer.h"
-#include "webrtc/modules/audio_processing/echo_cancellation_impl_wrapper.h"
+#include "webrtc/modules/audio_processing/echo_cancellation_impl.h"
 #include "webrtc/modules/audio_processing/echo_control_mobile_impl.h"
 #include "webrtc/modules/audio_processing/gain_control_impl.h"
 #include "webrtc/modules/audio_processing/high_pass_filter_impl.h"
@@ -47,8 +47,9 @@ AudioProcessing* AudioProcessing::Create(int id) {
   return apm;
 }
 
-int32_t AudioProcessing::TimeUntilNextProcess() { return -1; }
-int32_t AudioProcessing::Process() { return -1; }
+void AudioProcessing::Destroy(AudioProcessing* apm) {
+  delete static_cast<AudioProcessingImpl*>(apm);
+}
 
 AudioProcessingImpl::AudioProcessingImpl(int id)
     : id_(id),
@@ -75,7 +76,7 @@ AudioProcessingImpl::AudioProcessingImpl(int id)
       num_reverse_channels_(1),
       num_input_channels_(1),
       num_output_channels_(1) {
-  echo_cancellation_ = EchoCancellationImplWrapper::Create(this);
+  echo_cancellation_ = new EchoCancellationImpl(this);
   component_list_.push_back(echo_cancellation_);
 
   echo_control_mobile_ = new EchoControlMobileImpl(this);
@@ -178,12 +179,6 @@ int AudioProcessingImpl::InitializeLocked() {
 #endif
 
   return kNoError;
-}
-
-void AudioProcessingImpl::SetExtraOptions(const Config& config) {
-  std::list<ProcessingComponent*>::iterator it;
-  for (it = component_list_.begin(); it != component_list_.end(); ++it)
-    (*it)->SetExtraOptions(config);
 }
 
 int AudioProcessingImpl::set_sample_rate_hz(int rate) {

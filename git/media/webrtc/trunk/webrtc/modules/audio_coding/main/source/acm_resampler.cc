@@ -17,8 +17,6 @@
 
 namespace webrtc {
 
-namespace acm1 {
-
 ACMResampler::ACMResampler() {
 }
 
@@ -57,7 +55,5 @@ int16_t ACMResampler::Resample10Msec(const int16_t* in_audio,
 
   return out_length / num_audio_channels;
 }
-
-}  // namespace acm1
 
 }  // namespace webrtc

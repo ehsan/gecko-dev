@@ -10,8 +10,8 @@
 
 #include "webrtc/test/testsupport/packet_reader.h"
 
-#include <assert.h>
-#include <stdio.h>
+#include <cassert>
+#include <cstdio>
 
 namespace webrtc {
 namespace test {

@@ -8,7 +8,7 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include <stdio.h>
+#include <cstdio>
 
 // File utilities for testing purposes.
 //

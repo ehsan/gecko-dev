@@ -19,6 +19,7 @@
 #include "webrtc/modules/rtp_rtcp/source/rtp_format_video_generic.h"
 #include "webrtc/modules/rtp_rtcp/source/rtp_header_extension.h"
 #include "webrtc/modules/rtp_rtcp/source/rtp_sender.h"
+#include "webrtc/modules/rtp_rtcp/source/rtp_utility.h"
 #include "webrtc/system_wrappers/interface/scoped_ptr.h"
 #include "webrtc/typedefs.h"
 
@@ -39,18 +40,6 @@ const int kAudioPayload = 103;
 }  // namespace
 
 using testing::_;
-
-const uint8_t* GetPayloadData(const RTPHeader& rtp_header,
-                              const uint8_t* packet) {
-  return packet + rtp_header.headerLength;
-}
-
-uint16_t GetPayloadDataLength(const RTPHeader& rtp_header,
-                              const uint16_t packet_length) {
-  uint16_t length = packet_length - rtp_header.headerLength -
-      rtp_header.paddingLength;
-  return static_cast<uint16_t>(length);
-}
 
 class LoopbackTransportTest : public webrtc::Transport {
  public:
@@ -475,12 +464,13 @@ TEST_F(RtpSenderTest, SendGenericVideo) {
   webrtc::RTPHeader rtp_header;
   ASSERT_TRUE(rtp_parser.Parse(rtp_header));
 
-  const uint8_t* payload_data = GetPayloadData(rtp_header,
+  const uint8_t* payload_data = ModuleRTPUtility::GetPayloadData(rtp_header,
       transport_.last_sent_packet_);
   uint8_t generic_header = *payload_data++;
 
   ASSERT_EQ(sizeof(payload) + sizeof(generic_header),
-            GetPayloadDataLength(rtp_header, transport_.last_sent_packet_len_));
+            ModuleRTPUtility::GetPayloadDataLength(rtp_header,
+            transport_.last_sent_packet_len_));
 
   EXPECT_TRUE(generic_header & RtpFormatVideoGeneric::kKeyFrameBit);
   EXPECT_TRUE(generic_header & RtpFormatVideoGeneric::kFirstPacketBit);
@@ -500,14 +490,16 @@ TEST_F(RtpSenderTest, SendGenericVideo) {
       transport_.last_sent_packet_len_);
   ASSERT_TRUE(rtp_parser.Parse(rtp_header));
 
-  payload_data = GetPayloadData(rtp_header, transport_.last_sent_packet_);
+  payload_data = ModuleRTPUtility::GetPayloadData(rtp_header,
+      transport_.last_sent_packet_);
   generic_header = *payload_data++;
 
   EXPECT_FALSE(generic_header & RtpFormatVideoGeneric::kKeyFrameBit);
   EXPECT_TRUE(generic_header & RtpFormatVideoGeneric::kFirstPacketBit);
 
   ASSERT_EQ(sizeof(payload) + sizeof(generic_header),
-            GetPayloadDataLength(rtp_header, transport_.last_sent_packet_len_));
+            ModuleRTPUtility::GetPayloadDataLength(rtp_header,
+      transport_.last_sent_packet_len_));
 
   EXPECT_EQ(0, memcmp(payload, payload_data, sizeof(payload)));
 }
@@ -582,10 +574,10 @@ TEST_F(RtpSenderAudioTest, SendAudio) {
   webrtc::RTPHeader rtp_header;
   ASSERT_TRUE(rtp_parser.Parse(rtp_header));
 
-  const uint8_t* payload_data = GetPayloadData(rtp_header,
+  const uint8_t* payload_data = ModuleRTPUtility::GetPayloadData(rtp_header,
       transport_.last_sent_packet_);
 
-  ASSERT_EQ(sizeof(payload), GetPayloadDataLength(rtp_header,
+  ASSERT_EQ(sizeof(payload), ModuleRTPUtility::GetPayloadDataLength(rtp_header,
             transport_.last_sent_packet_len_));
 
   EXPECT_EQ(0, memcmp(payload, payload_data, sizeof(payload)));
@@ -613,11 +605,11 @@ TEST_F(RtpSenderAudioTest, SendAudioWithAudioLevelExtension) {
   webrtc::RTPHeader rtp_header;
   ASSERT_TRUE(rtp_parser.Parse(rtp_header));
 
-  const uint8_t* payload_data = GetPayloadData(rtp_header,
-                                               transport_.last_sent_packet_);
+  const uint8_t* payload_data = ModuleRTPUtility::GetPayloadData(rtp_header,
+      transport_.last_sent_packet_);
 
-  ASSERT_EQ(sizeof(payload), GetPayloadDataLength(
-      rtp_header, transport_.last_sent_packet_len_));
+  ASSERT_EQ(sizeof(payload), ModuleRTPUtility::GetPayloadDataLength(rtp_header,
+            transport_.last_sent_packet_len_));
 
   EXPECT_EQ(0, memcmp(payload, payload_data, sizeof(payload)));
 

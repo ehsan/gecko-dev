@@ -10,8 +10,6 @@
 
 #include "webrtc/video_engine/vie_capture_impl.h"
 
-#include <map>
-
 #include "webrtc/system_wrappers/interface/trace.h"
 #include "webrtc/video_engine/include/vie_errors.h"
 #include "webrtc/video_engine/vie_capturer.h"
@@ -24,8 +22,6 @@
 #include "webrtc/video_engine/vie_shared_data.h"
 
 namespace webrtc {
-
-class CpuOveruseObserver;
 
 ViECapture* ViECapture::GetInterface(VideoEngine* video_engine) {
 #ifdef WEBRTC_VIDEO_ENGINE_CAPTURE_API
@@ -205,11 +201,6 @@ int ViECaptureImpl::ConnectCaptureDevice(const int capture_id,
     shared_data_->SetLastError(kViECaptureDeviceUnknownError);
     return -1;
   }
-  std::map<int, CpuOveruseObserver*>::iterator it =
-      shared_data_->overuse_observers()->find(video_channel);
-  if (it != shared_data_->overuse_observers()->end()) {
-    vie_capture->RegisterCpuOveruseObserver(it->second);
-  }
   return 0;
 }
 
@@ -250,9 +241,6 @@ int ViECaptureImpl::DisconnectCaptureDevice(const int video_channel) {
     return -1;
   }
 
-  ViECapturer* vie_capture = is.Capture(frame_provider->Id());
-  assert(vie_capture);
-  vie_capture->RegisterCpuOveruseObserver(NULL);
   if (frame_provider->DeregisterFrameCallback(vie_encoder) != 0) {
     shared_data_->SetLastError(kViECaptureDeviceUnknownError);
     return -1;

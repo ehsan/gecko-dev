@@ -49,8 +49,6 @@
 //
 namespace webrtc {
 
-namespace acm1 {
-
 class Nack {
  public:
   // A limit for the size of the NACK list.
@@ -206,8 +204,6 @@ class Nack {
   size_t max_nack_list_size_;
 };
 
-}  // namespace acm1
-
-}  // namespace webrtc
+}  // webrtc
 
 #endif  // WEBRTC_MODULES_AUDIO_CODING_MAIN_SOURCE_NACK_H_

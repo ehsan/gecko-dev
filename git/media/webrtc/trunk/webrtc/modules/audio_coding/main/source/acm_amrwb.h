@@ -19,60 +19,55 @@ struct AMRWB_decinst_t_;
 
 namespace webrtc {
 
-namespace acm1 {
-
-class ACMAMRwb : public ACMGenericCodec {
+class ACMAMRwb: public ACMGenericCodec {
  public:
   explicit ACMAMRwb(int16_t codec_id);
-  virtual ~ACMAMRwb();
+  ~ACMAMRwb();
 
   // for FEC
-  virtual ACMGenericCodec* CreateInstance(void) OVERRIDE;
+  ACMGenericCodec* CreateInstance(void);
 
-  virtual int16_t InternalEncode(uint8_t* bitstream,
-                                 int16_t* bitstream_len_byte) OVERRIDE;
+  int16_t InternalEncode(uint8_t* bitstream,
+                         int16_t* bitstream_len_byte);
 
-  virtual int16_t InternalInitEncoder(
-      WebRtcACMCodecParams* codec_params) OVERRIDE;
+  int16_t InternalInitEncoder(WebRtcACMCodecParams* codec_params);
 
-  virtual int16_t InternalInitDecoder(
-      WebRtcACMCodecParams* codec_params) OVERRIDE;
+  int16_t InternalInitDecoder(WebRtcACMCodecParams* codec_params);
 
-  virtual int16_t SetAMRwbEncoderPackingFormat(
+  int16_t SetAMRwbEncoderPackingFormat(
       const ACMAMRPackingFormat packing_format);
 
-  virtual ACMAMRPackingFormat AMRwbEncoderPackingFormat() const;
+  ACMAMRPackingFormat AMRwbEncoderPackingFormat() const;
 
-  virtual int16_t SetAMRwbDecoderPackingFormat(
+  int16_t SetAMRwbDecoderPackingFormat(
       const ACMAMRPackingFormat packing_format);
 
-  virtual ACMAMRPackingFormat AMRwbDecoderPackingFormat() const;
+  ACMAMRPackingFormat AMRwbDecoderPackingFormat() const;
 
  protected:
-  virtual int16_t DecodeSafe(uint8_t* bitstream,
-                             int16_t bitstream_len_byte,
-                             int16_t* audio,
-                             int16_t* audio_samples,
-                             int8_t* speech_type) OVERRIDE;
+  int16_t DecodeSafe(uint8_t* bitstream,
+                     int16_t bitstream_len_byte,
+                     int16_t* audio, int16_t* audio_samples,
+                     int8_t* speech_type);
 
-  virtual int32_t CodecDef(WebRtcNetEQ_CodecDef& codec_def,
-                           const CodecInst& codec_inst) OVERRIDE;
+  int32_t CodecDef(WebRtcNetEQ_CodecDef& codec_def,
+                   const CodecInst& codec_inst);
 
-  virtual void DestructEncoderSafe() OVERRIDE;
+  void DestructEncoderSafe();
 
-  virtual void DestructDecoderSafe() OVERRIDE;
+  void DestructDecoderSafe();
 
-  virtual int16_t InternalCreateEncoder() OVERRIDE;
+  int16_t InternalCreateEncoder();
 
-  virtual int16_t InternalCreateDecoder() OVERRIDE;
+  int16_t InternalCreateDecoder();
 
-  virtual void InternalDestructEncoderInst(void* ptr_inst) OVERRIDE;
+  void InternalDestructEncoderInst(void* ptr_inst);
 
-  virtual int16_t SetBitRateSafe(const int32_t rate) OVERRIDE;
+  int16_t SetBitRateSafe(const int32_t rate);
 
-  virtual int16_t EnableDTX() OVERRIDE;
+  int16_t EnableDTX();
 
-  virtual int16_t DisableDTX() OVERRIDE;
+  int16_t DisableDTX();
 
   AMRWB_encinst_t_* encoder_inst_ptr_;
   AMRWB_decinst_t_* decoder_inst_ptr_;
@@ -82,8 +77,6 @@ class ACMAMRwb : public ACMGenericCodec {
   ACMAMRPackingFormat encoder_packing_format_;
   ACMAMRPackingFormat decoder_packing_format_;
 };
-
-}  // namespace acm1
 
 }  // namespace webrtc
 

@@ -8,29 +8,14 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/modules/video_coding/codecs/test/stats.h"
-
-#include <assert.h>
-#include <stdio.h>
+#include "modules/video_coding/codecs/test/stats.h"
 
 #include <algorithm>  // min_element, max_element
+#include <cassert>
+#include <cstdio>
 
 namespace webrtc {
 namespace test {
-
-FrameStatistic::FrameStatistic()
-    : encoding_successful(false),
-      decoding_successful(false),
-      encode_return_code(0),
-      decode_return_code(0),
-      encode_time_in_us(0),
-      decode_time_in_us(0),
-      frame_number(0),
-      packets_dropped(0),
-      total_packets(0),
-      bit_rate_in_kbps(0),
-      encoded_frame_length_in_bytes(0),
-      frame_type(kDeltaFrame) {}
 
 Stats::Stats() {}
 

@@ -8,13 +8,13 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/modules/video_capture/android/device_info_android.h"
+#include "device_info_android.h"
 
 #include <stdio.h>
 
-#include "webrtc/modules/video_capture/android/video_capture_android.h"
-#include "webrtc/system_wrappers/interface/ref_count.h"
-#include "webrtc/system_wrappers/interface/trace.h"
+#include "ref_count.h"
+#include "trace.h"
+#include "video_capture_android.h"
 
 #include "AndroidJNIWrapper.h"
 
@@ -154,12 +154,11 @@ int32_t DeviceInfoAndroid::GetDeviceName(
 
 int32_t DeviceInfoAndroid::CreateCapabilityMap(
     const char* deviceUniqueIdUTF8) {
-  for (std::map<int, VideoCaptureCapability*>::iterator it =
-           _captureCapabilities.begin();
-       it != _captureCapabilities.end();
-       ++it)
-    delete it->second;
-  _captureCapabilities.clear();
+  MapItem* item = NULL;
+  while ((item = _captureCapabilities.Last())) {
+    delete (VideoCaptureCapability*) item->GetItem();
+    _captureCapabilities.Erase(item);
+  }
 
   AutoLocalJNIFrame jniFrame;
   JNIEnv* env = jniFrame.GetEnv();
@@ -233,7 +232,7 @@ int32_t DeviceInfoAndroid::CreateCapabilityMap(
     WEBRTC_TRACE(webrtc::kTraceInfo, webrtc::kTraceVideoCapture, _id,
                  "%s: Cap width %d, height %d, fps %d", __FUNCTION__,
                  cap->width, cap->height, cap->maxFPS);
-    _captureCapabilities[i] = cap;
+    _captureCapabilities.Insert(i, cap);
   }
 
   _lastUsedDeviceNameLength = strlen((char*) deviceUniqueIdUTF8);
@@ -246,9 +245,9 @@ int32_t DeviceInfoAndroid::CreateCapabilityMap(
   env->DeleteGlobalRef(javaCapClass);
 
   WEBRTC_TRACE(webrtc::kTraceInfo, webrtc::kTraceVideoCapture, _id,
-               "CreateCapabilityMap %d", _captureCapabilities.size());
+               "CreateCapabilityMap %d", _captureCapabilities.Size());
 
-  return _captureCapabilities.size();
+  return _captureCapabilities.Size();
 }
 
 int32_t DeviceInfoAndroid::GetOrientation(

@@ -11,8 +11,7 @@
 #ifndef WEBRTC_MODULES_AUDIO_CODING_NETEQ4_DELAY_PEAK_DETECTOR_H_
 #define WEBRTC_MODULES_AUDIO_CODING_NETEQ4_DELAY_PEAK_DETECTOR_H_
 
-#include <string.h>  // size_t
-
+#include <cstring>  // size_t
 #include <list>
 
 #include "webrtc/system_wrappers/interface/constructor_magic.h"

@@ -23,6 +23,8 @@ namespace webrtc {
 
 class VideoEncoder;
 
+namespace newapi {
+
 struct SendStreamState;
 
 // Class to deliver captured frame to the video send stream.
@@ -79,14 +81,13 @@ class VideoSendStream {
           encoder(NULL),
           internal_source(false),
           target_delay_ms(0),
-          pacing(false),
           stats_callback(NULL),
           start_state(NULL) {}
     VideoCodec codec;
 
     struct Rtp {
-      Rtp() : mode(newapi::kRtcpReducedSize), max_packet_size(0) {}
-      newapi::RtcpMode mode;
+      Rtp() : mode(kRtcpReducedSize), max_packet_size(0) {}
+      RtcpMode mode;
 
       std::vector<uint32_t> ssrcs;
 
@@ -137,10 +138,6 @@ class VideoSendStream {
     // used for streaming instead of a real-time call.
     int target_delay_ms;
 
-    // True if network a send-side packet buffer should be used to pace out
-    // packets onto the network.
-    bool pacing;
-
     // Callback for periodically receiving send stats.
     StatsCallback* stats_callback;
 
@@ -166,6 +163,7 @@ class VideoSendStream {
   virtual ~VideoSendStream() {}
 };
 
+}  // namespace newapi
 }  // namespace webrtc
 
 #endif  // WEBRTC_VIDEO_ENGINE_NEW_INCLUDE_VIDEO_SEND_STREAM_H_

@@ -43,6 +43,7 @@ JSObject::deleteProperty(JSContext *cx, js::HandleObject obj, js::HandleProperty
                          bool *succeeded)
 {
     JS::RootedId id(cx, js::NameToId(name));
+    js::types::AddTypePropertyId(cx, obj, id, js::types::Type::UndefinedType());
     js::types::MarkTypePropertyConfigured(cx, obj, id);
     js::DeletePropertyOp op = obj->getOps()->deleteProperty;
     return (op ? op : js::baseops::DeleteProperty)(cx, obj, name, succeeded);
@@ -54,6 +55,7 @@ JSObject::deleteElement(JSContext *cx, js::HandleObject obj, uint32_t index, boo
     JS::RootedId id(cx);
     if (!js::IndexToId(cx, index, &id))
         return false;
+    js::types::AddTypePropertyId(cx, obj, id, js::types::Type::UndefinedType());
     js::types::MarkTypePropertyConfigured(cx, obj, id);
     js::DeleteElementOp op = obj->getOps()->deleteElement;
     return (op ? op : js::baseops::DeleteElement)(cx, obj, index, succeeded);
@@ -64,6 +66,7 @@ JSObject::deleteSpecial(JSContext *cx, js::HandleObject obj, js::HandleSpecialId
                         bool *succeeded)
 {
     JS::RootedId id(cx, SPECIALID_TO_JSID(sid));
+    js::types::AddTypePropertyId(cx, obj, id, js::types::Type::UndefinedType());
     js::types::MarkTypePropertyConfigured(cx, obj, id);
     js::DeleteSpecialOp op = obj->getOps()->deleteSpecial;
     return (op ? op : js::baseops::DeleteSpecial)(cx, obj, sid, succeeded);
@@ -142,32 +145,32 @@ JSObject::setDenseElementIfHasType(uint32_t index, const js::Value &val)
     return true;
 }
 
-inline void
-JSObject::setDenseElementWithType(js::ExclusiveContext *cx, uint32_t index,
+/* static */ inline void
+JSObject::setDenseElementWithType(js::ExclusiveContext *cx, js::HandleObject obj, uint32_t index,
                                   const js::Value &val)
 {
     // Avoid a slow AddTypePropertyId call if the type is the same as the type
     // of the previous element.
     js::types::Type thisType = js::types::GetValueType(val);
-    if (index == 0 || js::types::GetValueType(elements[index - 1]) != thisType)
-        js::types::AddTypePropertyId(cx, this, JSID_VOID, thisType);
-    setDenseElementMaybeConvertDouble(index, val);
+    if (index == 0 || js::types::GetValueType(obj->elements[index - 1]) != thisType)
+        js::types::AddTypePropertyId(cx, obj, JSID_VOID, thisType);
+    obj->setDenseElementMaybeConvertDouble(index, val);
 }
 
-inline void
-JSObject::initDenseElementWithType(js::ExclusiveContext *cx, uint32_t index,
+/* static */ inline void
+JSObject::initDenseElementWithType(js::ExclusiveContext *cx, js::HandleObject obj, uint32_t index,
                                    const js::Value &val)
 {
-    JS_ASSERT(!shouldConvertDoubleElements());
-    js::types::AddTypePropertyId(cx, this, JSID_VOID, val);
-    initDenseElement(index, val);
+    JS_ASSERT(!obj->shouldConvertDoubleElements());
+    js::types::AddTypePropertyId(cx, obj, JSID_VOID, val);
+    obj->initDenseElement(index, val);
 }
 
-inline void
-JSObject::setDenseElementHole(js::ExclusiveContext *cx, uint32_t index)
+/* static */ inline void
+JSObject::setDenseElementHole(js::ExclusiveContext *cx, js::HandleObject obj, uint32_t index)
 {
-    js::types::MarkTypeObjectFlags(cx, this, js::types::OBJECT_FLAG_NON_PACKED);
-    setDenseElement(index, js::MagicValue(JS_ELEMENTS_HOLE));
+    js::types::MarkTypeObjectFlags(cx, obj, js::types::OBJECT_FLAG_NON_PACKED);
+    obj->setDenseElement(index, js::MagicValue(JS_ELEMENTS_HOLE));
 }
 
 /* static */ inline void
@@ -532,12 +535,12 @@ JSObject::nativeSetSlotIfHasType(js::Shape *shape, const js::Value &value)
     return true;
 }
 
-inline void
-JSObject::nativeSetSlotWithType(js::ExclusiveContext *cx, js::Shape *shape,
+/* static */ inline void
+JSObject::nativeSetSlotWithType(js::ExclusiveContext *cx, js::HandleObject obj, js::Shape *shape,
                                 const js::Value &value)
 {
-    nativeSetSlot(shape->slot(), value);
-    js::types::AddTypePropertyId(cx, this, shape->propid(), value);
+    obj->nativeSetSlot(shape->slot(), value);
+    js::types::AddTypePropertyId(cx, obj, shape->propid(), value);
 }
 
 /* static */ inline bool
@@ -901,10 +904,6 @@ CopyInitializerObject(JSContext *cx, HandleObject baseobj, NewObjectKind newKind
 }
 
 JSObject *
-NewObjectWithType(JSContext *cx, HandleTypeObject type, JSObject *parent, gc::AllocKind allocKind,
-                  NewObjectKind newKind = GenericObject);
-
-JSObject *
 NewReshapedObject(JSContext *cx, HandleTypeObject type, JSObject *parent,
                   gc::AllocKind allocKind, HandleShape shape,
                   NewObjectKind newKind = GenericObject);
@@ -946,6 +945,7 @@ DefineConstructorAndPrototype(JSContext *cx, Handle<GlobalObject*> global,
     global->setPrototype(key, ObjectValue(*proto));
     global->setConstructorPropertySlot(key, ObjectValue(*ctor));
 
+    types::AddTypePropertyId(cx, global, id, ObjectValue(*ctor));
     if (!global->addDataProperty(cx, id, GlobalObject::constructorPropertySlot(key), 0)) {
         global->setConstructor(key, UndefinedValue());
         global->setPrototype(key, UndefinedValue());
@@ -953,7 +953,6 @@ DefineConstructorAndPrototype(JSContext *cx, Handle<GlobalObject*> global,
         return false;
     }
 
-    types::AddTypePropertyId(cx, global, id, ObjectValue(*ctor));
     return true;
 }
 

@@ -47,7 +47,7 @@ class LoggingTest : public ::testing::Test, public TraceCallback {
     Trace::CreateTrace();
     Trace::SetTraceCallback(this);
     // Reduce the chance that spurious traces will ruin the test.
-    Trace::set_level_filter(kTraceWarning | kTraceError);
+    Trace::SetLevelFilter(kTraceWarning | kTraceError);
   }
 
   void TearDown() {

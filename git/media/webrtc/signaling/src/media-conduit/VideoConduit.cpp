@@ -972,8 +972,7 @@ int
 WebrtcVideoConduit::DeliverFrame(unsigned char* buffer,
                                  int buffer_size,
                                  uint32_t time_stamp,
-                                 int64_t render_time,
-                                 void *handle)
+                                 int64_t render_time)
 {
   CSFLogDebug(logTag,  "%s Buffer Size %d", __FUNCTION__, buffer_size);
 

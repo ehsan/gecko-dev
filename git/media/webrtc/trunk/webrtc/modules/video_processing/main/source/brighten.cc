@@ -10,7 +10,7 @@
 
 #include "webrtc/modules/video_processing/main/source/brighten.h"
 
-#include <stdlib.h>
+#include <cstdlib>
 
 #include "webrtc/system_wrappers/interface/trace.h"
 

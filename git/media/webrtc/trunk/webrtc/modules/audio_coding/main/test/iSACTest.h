@@ -43,12 +43,16 @@ class ISACTest : public ACMTest {
 
   void Perform();
  private:
-  void Setup();
+  int16_t Setup();
+  int16_t SetupConference();
+  int16_t RunConference();
 
   void Run10ms();
 
   void EncodeDecode(int testNr, ACMTestISACConfig& wbISACConfig,
                     ACMTestISACConfig& swbISACConfig);
+
+  void TestBWE(int testNr);
 
   void SwitchingSamplingRate(int testNr, int maxSampRateChange);
 
@@ -73,6 +77,16 @@ class ISACTest : public ACMTest {
 
   ACMTestTimer _myTimer;
   int _testMode;
+
+  AudioCodingModule* _defaultACM32;
+  AudioCodingModule* _defaultACM16;
+
+  AudioCodingModule* _confACM[NO_OF_CLIENTS];
+  AudioCodingModule* _clientACM[NO_OF_CLIENTS];
+  Channel* _conf2Client[NO_OF_CLIENTS];
+  Channel* _client2Conf[NO_OF_CLIENTS];
+
+  PCMFile _clientOutFile[NO_OF_CLIENTS];
 };
 
 }  // namespace webrtc

@@ -37,12 +37,6 @@ CGRectToRect(CGRect rect)
               rect.size.height);
 }
 
-static inline Point
-CGPointToPoint(CGPoint point)
-{
-  return Point(point.x, point.y);
-}
-
 static inline void
 SetStrokeOptions(CGContextRef cg, const StrokeOptions &aStrokeOptions)
 {

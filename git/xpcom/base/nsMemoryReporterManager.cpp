@@ -674,7 +674,7 @@ public:
     : MemoryMultiReporter("dmd")
   {}
 
-  NS_IMETHOD CollectReports(nsIHandleReportCallback* aHandleReport,
+  NS_IMETHOD CollectReports(nsIHandleReport* aHandleReport,
                             nsISupports* aData)
   {
     dmd::Sizes sizes;

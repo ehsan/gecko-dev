@@ -8,11 +8,10 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
+#include "device_info_impl.h"
+#include "video_capture_config.h"
+#include "trace.h"
 #include <stdlib.h>
-
-#include "webrtc/modules/video_capture/device_info_impl.h"
-#include "webrtc/modules/video_capture/video_capture_config.h"
-#include "webrtc/system_wrappers/interface/trace.h"
 
 #ifndef abs
 #define abs(a) (a>=0?a:-a)
@@ -31,13 +30,13 @@ DeviceInfoImpl::DeviceInfoImpl(const int32_t id)
 DeviceInfoImpl::~DeviceInfoImpl(void)
 {
     _apiLock.AcquireLockExclusive();
-
-    for (VideoCaptureCapabilityMap::iterator it = _captureCapabilities.begin();
-         it != _captureCapabilities.end();
-         ++it) {
-      delete it->second;
+    // Reset old capability list
+    MapItem* item = NULL;
+    while ((item = _captureCapabilities.Last()))
+    {
+        delete (VideoCaptureCapability*) item->GetItem();
+        _captureCapabilities.Erase(item);
     }
-
     free(_lastUsedDeviceName);
     _apiLock.ReleaseLockExclusive();
 
@@ -67,7 +66,7 @@ int32_t DeviceInfoImpl::NumberOfCapabilities(
         {
             //yes
             _apiLock.ReleaseLockShared();
-            return static_cast<int32_t>(_captureCapabilities.size());
+            return _captureCapabilities.Size();
         }
     }
     // Need to get exclusive rights to create the new capability map.
@@ -116,7 +115,7 @@ int32_t DeviceInfoImpl::GetCapability(const char* deviceUniqueIdUTF8,
     }
 
     // Make sure the number is valid
-    if (deviceCapabilityNumber >= (unsigned int) _captureCapabilities.size())
+    if (deviceCapabilityNumber >= (unsigned int) _captureCapabilities.Size())
     {
         WEBRTC_TRACE(webrtc::kTraceError, webrtc::kTraceVideoCapture, _id,
                    "deviceCapabilityNumber %d is invalid in call to GetCapability",
@@ -124,23 +123,23 @@ int32_t DeviceInfoImpl::GetCapability(const char* deviceUniqueIdUTF8,
         return -1;
     }
 
-    VideoCaptureCapabilityMap::iterator item =
-        _captureCapabilities.find(deviceCapabilityNumber);
-
-    if (item == _captureCapabilities.end())
+    MapItem* item = _captureCapabilities.Find(deviceCapabilityNumber);
+    if (!item)
     {
         WEBRTC_TRACE(webrtc::kTraceError, webrtc::kTraceVideoCapture, _id,
                    "Failed to find capability number %d of %d possible",
-                   deviceCapabilityNumber, _captureCapabilities.size());
+                   deviceCapabilityNumber, _captureCapabilities.Size());
         return -1;
     }
 
-    if (item->second == NULL)
+    VideoCaptureCapability* capPointer =  static_cast<VideoCaptureCapability*>
+                                          (item->GetItem());
+    if (!capPointer)
     {
         return -1;
     }
 
-    capability = *item->second;
+    capability = *capPointer;
     return 0;
 }
 
@@ -183,16 +182,16 @@ int32_t DeviceInfoImpl::GetBestMatchedCapability(
     RawVideoType bestRawType = kVideoUnknown;
     webrtc::VideoCodecType bestCodecType = webrtc::kVideoCodecUnknown;
 
-    const int32_t numberOfCapabilies =
-        static_cast<int32_t>(_captureCapabilities.size());
+    const int32_t numberOfCapabilies = _captureCapabilities.Size();
 
     for (int32_t tmp = 0; tmp < numberOfCapabilies; ++tmp) // Loop through all capabilities
     {
-      VideoCaptureCapabilityMap::iterator item = _captureCapabilities.find(tmp);
-      if (item == _captureCapabilities.end())
+        MapItem* item = _captureCapabilities.Find(tmp);
+        if (!item)
             return -1;
 
-        VideoCaptureCapability& capability = *item->second;
+        VideoCaptureCapability& capability = *static_cast<VideoCaptureCapability*>
+                                              (item->GetItem());
 
         const int32_t diffWidth = capability.width - requested.width;
         const int32_t diffHeight = capability.height - requested.height;
@@ -298,14 +297,15 @@ int32_t DeviceInfoImpl::GetBestMatchedCapability(
                bestWidth, bestHeight, bestFrameRate, bestRawType);
 
     // Copy the capability
-    VideoCaptureCapabilityMap::iterator item =
-        _captureCapabilities.find(bestformatIndex);
-    if (item == _captureCapabilities.end())
+    MapItem* item = _captureCapabilities.Find(bestformatIndex);
+    if (!item)
         return -1;
-    if (item->second == NULL)
+    VideoCaptureCapability* capPointer =
+        static_cast<VideoCaptureCapability*> (item->GetItem());
+    if (!capPointer)
         return -1;
 
-    resulting = *item->second;
+    resulting = *capPointer;
 
     return bestformatIndex;
 }
@@ -394,5 +394,7 @@ int32_t DeviceInfoImpl::GetOrientation(const char* deviceUniqueIdUTF8,
     orientation = kCameraRotate0;
     return -1;
 }
-}  // namespace videocapturemodule
-}  // namespace webrtc
+} //namespace videocapturemodule
+} // namespace webrtc
+
+

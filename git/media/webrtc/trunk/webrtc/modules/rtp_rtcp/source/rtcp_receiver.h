@@ -13,7 +13,6 @@
 
 #include <map>
 #include <vector>
-#include <set>
 
 #include "webrtc/modules/rtp_rtcp/interface/rtp_rtcp_defines.h"
 #include "webrtc/modules/rtp_rtcp/source/rtcp_receiver_help.h"
@@ -40,11 +39,9 @@ public:
     int64_t LastReceived();
     int64_t LastReceivedReceiverReport() const;
 
-    void SetSsrcs(uint32_t main_ssrc,
-                  const std::set<uint32_t>& registered_ssrcs);
+    void SetSSRC( const uint32_t ssrc);
     void SetRelaySSRC( const uint32_t ssrc);
     int32_t SetRemoteSSRC( const uint32_t ssrc);
-    uint32_t RemoteSSRC() const;
 
     uint32_t RelaySSRC() const;
 
@@ -70,7 +67,7 @@ public:
                 uint32_t *rtcp_timestamp) const;
 
     // get rtt
-    int32_t RTT(uint32_t remoteSSRC,
+    int32_t RTT(const uint32_t remoteSSRC,
                 uint16_t* RTT,
                 uint16_t* avgRTT,
                 uint16_t* minRTT,
@@ -108,6 +105,9 @@ public:
     int32_t BoundingSet(bool &tmmbrOwner, TMMBRSet* boundingSetRec);
 
     int32_t UpdateTMMBR();
+
+    int32_t SetPacketTimeout(const uint32_t timeoutMS);
+    void PacketTimeout();
 
 protected:
     RTCPHelp::RTCPReportBlockInformation* CreateReportBlockInformation(const uint32_t remoteSSRC);
@@ -213,9 +213,8 @@ protected:
   RtcpIntraFrameObserver* _cbRtcpIntraFrameObserver;
 
   CriticalSectionWrapper* _criticalSectionRTCPReceiver;
-  uint32_t          main_ssrc_;
+  uint32_t          _SSRC;
   uint32_t          _remoteSSRC;
-  std::set<uint32_t> registered_ssrcs_;
 
   // Received send report
   RTCPSenderInfo _remoteSenderInfo;
@@ -244,5 +243,5 @@ protected:
   uint16_t _rtt;
 
 };
-}  // namespace webrtc
+} // namespace webrtc
 #endif // WEBRTC_MODULES_RTP_RTCP_SOURCE_RTCP_RECEIVER_H_
