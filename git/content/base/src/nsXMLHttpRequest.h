@@ -65,8 +65,6 @@
 #include "nsDOMProgressEvent.h"
 #include "nsDOMEventTargetWrapperCache.h"
 #include "nsContentUtils.h"
-#include "nsDOMFile.h"
-#include "nsDOMBlobBuilder.h"
 
 class nsILoadGroup;
 class AsyncVerifyRedirectCallbackForwarder;
@@ -219,8 +217,7 @@ protected:
                 PRUint32 count,
                 PRUint32 *writeCount);
   nsresult CreateResponseParsedJSON(JSContext* aCx);
-  nsresult CreatePartialBlob(void);
-  bool CreateDOMFile(nsIRequest *request);
+  bool CreateResponseBlob(nsIRequest *request);
   // Change the state of the object with this. The broadcast argument
   // determines if the onreadystatechange listener should be called.
   nsresult ChangeState(PRUint32 aState, bool aBroadcast = true);
@@ -312,20 +309,10 @@ protected:
     XML_HTTP_RESPONSE_TYPE_TEXT,
     XML_HTTP_RESPONSE_TYPE_JSON,
     XML_HTTP_RESPONSE_TYPE_CHUNKED_TEXT,
-    XML_HTTP_RESPONSE_TYPE_CHUNKED_ARRAYBUFFER,
-    XML_HTTP_RESPONSE_TYPE_MOZ_BLOB
+    XML_HTTP_RESPONSE_TYPE_CHUNKED_ARRAYBUFFER
   } mResponseType;
 
-  // It is either a cached blob-response from the last call to GetResponse,
-  // but is also explicitly set in OnStopRequest.
   nsCOMPtr<nsIDOMBlob> mResponseBlob;
-  // Non-null only when we are able to get a os-file representation of the
-  // response, i.e. when loading from a file, or when the http-stream
-  // caches into a file or is reading from a cached file.
-  nsRefPtr<nsDOMFileBase> mDOMFile;
-  // We stream data to mBuilder when response type is "blob" or "moz-blob"
-  // and mDOMFile is null.
-  nsRefPtr<nsDOMBlobBuilder> mBuilder;
 
   nsCString mOverrideMimeType;
 

@@ -421,8 +421,6 @@ nsContentUtils::Init()
                                "dom.event.handling-user-input-time-limit",
                                1000);
 
-  nsGenericElement::InitCCCallbacks();
-
   sInitialized = true;
 
   return NS_OK;

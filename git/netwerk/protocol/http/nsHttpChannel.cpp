@@ -978,8 +978,6 @@ nsHttpChannel::ProcessResponse()
     LOG(("nsHttpChannel::ProcessResponse [this=%p httpStatus=%u]\n",
         this, httpStatus));
 
-    UpdateInhibitPersistentCachingFlag();
-
     if (mTransaction->SSLConnectFailed()) {
         if (!ShouldSSLProxyResponseContinue(httpStatus))
             return ProcessFailedSSLConnect(httpStatus);
@@ -1785,8 +1783,6 @@ nsHttpChannel::ProcessPartialContent()
     // make the cached response be the current response
     mResponseHead = mCachedResponseHead;
 
-    UpdateInhibitPersistentCachingFlag();
-
     rv = UpdateExpirationTime();
     if (NS_FAILED(rv)) return rv;
 
@@ -1867,8 +1863,6 @@ nsHttpChannel::ProcessNotModified()
 
     // make the cached response be the current response
     mResponseHead = mCachedResponseHead;
-
-    UpdateInhibitPersistentCachingFlag();
 
     rv = UpdateExpirationTime();
     if (NS_FAILED(rv)) return rv;
@@ -2854,8 +2848,6 @@ nsHttpChannel::ReadFromCache()
     if (mCachedResponseHead)
         mResponseHead = mCachedResponseHead;
 
-    UpdateInhibitPersistentCachingFlag();
-
     // if we don't already have security info, try to get it from the cache 
     // entry. there are two cases to consider here: 1) we are just reading
     // from the cache, or 2) this may be due to a 304 not modified response,
@@ -3010,6 +3002,16 @@ nsHttpChannel::InitCacheEntry()
     LOG(("nsHttpChannel::InitCacheEntry [this=%p entry=%p]\n",
         this, mCacheEntry.get()));
 
+    // The no-store directive within the 'Cache-Control:' header indicates
+    // that we must not store the response in a persistent cache.
+    if (mResponseHead->NoStore())
+        mLoadFlags |= INHIBIT_PERSISTENT_CACHING;
+
+    // Only cache SSL content on disk if the pref is set
+    if (!gHttpHandler->IsPersistentHttpsCachingEnabled() &&
+        mConnectionInfo->UsingSSL())
+        mLoadFlags |= INHIBIT_PERSISTENT_CACHING;
+
     if (mLoadFlags & INHIBIT_PERSISTENT_CACHING) {
         rv = mCacheEntry->SetStoragePolicy(nsICache::STORE_IN_MEMORY);
         if (NS_FAILED(rv)) return rv;
@@ -3026,19 +3028,6 @@ nsHttpChannel::InitCacheEntry()
     return NS_OK;
 }
 
-void
-nsHttpChannel::UpdateInhibitPersistentCachingFlag()
-{
-    // The no-store directive within the 'Cache-Control:' header indicates
-    // that we must not store the response in a persistent cache.
-    if (mResponseHead->NoStore())
-        mLoadFlags |= INHIBIT_PERSISTENT_CACHING;
-
-    // Only cache SSL content on disk if the pref is set
-    if (!gHttpHandler->IsPersistentHttpsCachingEnabled() &&
-        mConnectionInfo->UsingSSL())
-        mLoadFlags |= INHIBIT_PERSISTENT_CACHING;
-}
 
 nsresult
 nsHttpChannel::InitOfflineCacheEntry()

@@ -212,16 +212,13 @@ is(xhr.response, null, "Bad JSON should result in null response even 2nd time.")
 // test response (responseType='blob')
 var onloadCount = 0;
 function checkOnloadCount() {
-  if (++onloadCount >= 6) SimpleTest.finish();
+  if (++onloadCount >= 3) SimpleTest.finish();
 };
 
-var responseTypes = ['blob', 'moz-blob'];
-for (var i = 0; i < responseTypes.length; i++) {
-var t = responseTypes[i];
 // with a simple text file
 xhr = new XMLHttpRequest();
 xhr.open("GET", 'file_XHR_pass2.txt'); 
-xhr.responseType = t;
+xhr.responseType = 'blob';
 xhr.onloadend = continueTest;
 xhr.send(null);
 yield;
@@ -248,7 +245,7 @@ xhr.onreadystatechange = function() {
   switch (xhr.readyState) {
   case 2:
     is(xhr.status, 200, "wrong status");
-    xhr.responseType = t;
+    xhr.responseType = 'blob';
     break;
   case 4:
     b = xhr.response;
@@ -296,10 +293,9 @@ xhr.onreadystatechange = function() {
   }
 };
 xhr.open("GET", 'file_XHR_binary2.bin', true);
-xhr.responseType = t;
+xhr.responseType = 'blob';
 xhr.send(null);
 })();
-}
 
 var client = new XMLHttpRequest();
 client.onreadystatechange = function() {

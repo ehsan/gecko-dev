@@ -1722,18 +1722,6 @@ NS_IMPL_CYCLE_COLLECTING_ADDREF(nsDocument)
 NS_IMPL_CYCLE_COLLECTING_RELEASE_WITH_DESTROY(nsDocument, 
                                               nsNodeUtils::LastRelease(this))
 
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(nsDocument)
-  return nsGenericElement::CanSkip(tmp);
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_END
-
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_IN_CC_BEGIN(nsDocument)
-  return nsGenericElement::CanSkipInCC(tmp);
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_IN_CC_END
-
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_BEGIN(nsDocument)
-  return nsGenericElement::CanSkipThis(tmp);
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_END
-
 static PLDHashOperator
 SubDocTraverser(PLDHashTable *table, PLDHashEntryHdr *hdr, PRUint32 number,
                 void *arg)
@@ -5859,21 +5847,24 @@ nsDocument::SetTextContent(const nsAString & aTextContent)
 NS_IMETHODIMP
 nsDocument::LookupPrefix(const nsAString & namespaceURI, nsAString & aResult)
 {
-  return nsINode::LookupPrefix(namespaceURI, aResult);
+  SetDOMStringToNull(aResult);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDocument::IsDefaultNamespace(const nsAString & namespaceURI,
                               bool *aResult)
 {
-  return nsINode::IsDefaultNamespace(namespaceURI, aResult);
+  *aResult = namespaceURI.IsEmpty();
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDocument::LookupNamespaceURI(const nsAString & prefix,
                               nsAString & aResult)
 {
-  return nsINode::LookupNamespaceURI(prefix, aResult);
+  SetDOMStringToNull(aResult);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
