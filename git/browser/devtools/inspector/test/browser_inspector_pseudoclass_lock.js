@@ -64,32 +64,20 @@ function performTests()
   // toggle the class
   inspector.togglePseudoClass(pseudo);
 
-  // Wait for the "pseudoclass" event so we know the
-  // inspector has been told of the pseudoclass lock change.
-  inspector.selection.once("pseudoclass", () => {
-    // Give the rule view time to update.
-    executeSoon(() => {
-      testAdded();
+  testAdded();
 
-      // toggle the lock off and wait for the pseudoclass event again.
-      inspector.togglePseudoClass(pseudo);
-      inspector.selection.once("pseudoclass", () => {
-        // Give the rule view time to update.
-        executeSoon(() => {
-          testRemoved();
-          testRemovedFromUI();
+  // toggle the lock off
+  inspector.togglePseudoClass(pseudo);
 
-          // toggle it back on
-          inspector.togglePseudoClass(pseudo);
-          inspector.selection.once("pseudoclass", () => {
-            testNavigate(() => {
-              // close the inspector
-              finishUp();
-            });
-          });
-        });
-      });
-    });
+  testRemoved();
+  testRemovedFromUI();
+
+  // toggle it back on
+  inspector.togglePseudoClass(pseudo);
+
+  testNavigate(() => {
+   // close the inspector
+    finishUp();
   });
 }
 
@@ -103,7 +91,9 @@ function testNavigate(callback)
          "pseudo-class lock is still applied after inspecting ancestor");
 
     inspector.selection.setNode(div2);
-    inspector.selection.once("pseudoclass", () => {
+
+    inspector.once("inspector-updated", () => {
+
       // make sure it's removed after naving to a non-hierarchy node
       is(DOMUtils.hasPseudoClassLock(div, pseudo), false,
            "pseudo-class lock is removed after inspecting sibling node");
@@ -112,9 +102,7 @@ function testNavigate(callback)
       inspector.selection.setNode(div);
       inspector.once("inspector-updated", () => {
         inspector.togglePseudoClass(pseudo);
-        inspector.selection.once("pseudoclass", () => {
-          callback();
-        });
+        callback();
       });
     });
   });

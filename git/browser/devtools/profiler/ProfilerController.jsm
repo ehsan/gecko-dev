@@ -4,36 +4,22 @@
 
 "use strict";
 
-var isJSM = typeof require !== "function";
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
 
-// This code is needed because, for whatever reason, mochitest can't
-// find any requirejs module so we have to load it old school way. :(
-
-if (isJSM) {
-  var Cu = this["Components"].utils;
-  let XPCOMUtils = Cu.import("resource://gre/modules/XPCOMUtils.jsm", {}).XPCOMUtils;
-  this["loader"] = { lazyGetter: XPCOMUtils.defineLazyGetter.bind(XPCOMUtils) };
-  this["require"] = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools.require;
-} else {
-  var { Cu } = require("chrome");
-}
-
-const { L10N_BUNDLE } = require("devtools/profiler/consts");
-
-var EventEmitter = require("devtools/shared/event-emitter");
-
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/devtools/dbg-client.jsm");
 Cu.import("resource://gre/modules/devtools/Console.jsm");
 Cu.import("resource://gre/modules/AddonManager.jsm");
-Cu.import("resource:///modules/devtools/ViewHelpers.jsm");
 
-loader.lazyGetter(this, "L10N", () => new ViewHelpers.L10N(L10N_BUNDLE));
+let EXPORTED_SYMBOLS = ["ProfilerController"];
 
-loader.lazyGetter(this, "gDevTools",
-  () => Cu.import("resource:///modules/devtools/gDevTools.jsm", {}).gDevTools);
+XPCOMUtils.defineLazyModuleGetter(this, "gDevTools",
+  "resource:///modules/devtools/gDevTools.jsm");
 
-loader.lazyGetter(this, "DebuggerServer",
-  () => Cu.import("resource:///modules/devtools/dbg-server.jsm", {}).DebuggerServer);
+XPCOMUtils.defineLazyModuleGetter(this, "DebuggerServer",
+  "resource://gre/modules/devtools/dbg-server.jsm");
 
 /**
  * Data structure that contains information that has
@@ -58,8 +44,7 @@ function makeProfile(name, def={}) {
   return {
     name: name,
     timeStarted: def.timeStarted,
-    timeEnded: def.timeEnded,
-    fromConsole: def.fromConsole || false
+    timeEnded: def.timeEnded
   };
 }
 
@@ -90,7 +75,6 @@ function ProfilerController(target) {
   this.client = target.client;
   this.isConnected = false;
   this.consoleProfiles = [];
-  this.reservedNames = {};
 
   addTarget(target);
 
@@ -102,16 +86,9 @@ function ProfilerController(target) {
   }
 
   sharedData.controllers.set(target, this);
-  EventEmitter.decorate(this);
 };
 
 ProfilerController.prototype = {
-  target:          null,
-  client:          null,
-  isConnected:     null,
-  consoleProfiles: null,
-  reservedNames:   null,
-
   /**
    * Return a map of profile results for the current target.
    *
@@ -132,19 +109,6 @@ ProfilerController.prototype = {
     return profile.timeStarted !== null && profile.timeEnded === null;
   },
 
-  getProfileName: function PC_getProfileName() {
-    let num = 1;
-    let name = L10N.getFormatStr("profiler.profileName", [num]);
-
-    while (this.reservedNames[name]) {
-      num += 1;
-      name = L10N.getFormatStr("profiler.profileName", [num]);
-    }
-
-    this.reservedNames[name] = true;
-    return name;
-  },
-
   /**
    * A listener that fires whenever console.profile or console.profileEnd
    * is called.
@@ -153,23 +117,26 @@ ProfilerController.prototype = {
    *        Type of a call. Either 'profile' or 'profileEnd'.
    * @param object data
    *        Event data.
+   * @param object panel
+   *        A reference to the ProfilerPanel in the current tab.
    */
-  onConsoleEvent: function (type, data) {
+  onConsoleEvent: function (type, data, panel) {
     let name = data.extra.name;
 
     let profileStart = () => {
       if (name && this.profiles.has(name))
         return;
 
-      // Add profile structure to shared data.
-      let profile = makeProfile(name || this.getProfileName(), {
-        timeStarted: data.extra.currentTime,
-        fromConsole: true
-      });
+      // Add profile to the UI (createProfile will return
+      // an automatically generated name if 'name' is falsey).
+      let profile = panel.createProfile(name);
+      profile.start((name, cb) => cb());
 
-      this.profiles.set(profile.name, profile);
+      // Add profile structure to shared data.
+      this.profiles.set(profile.name, makeProfile(profile.name, {
+        timeStarted: data.extra.currentTime
+      }));
       this.consoleProfiles.push(profile.name);
-      this.emit("profileStart", profile);
     };
 
     let profileEnd = () => {
@@ -189,6 +156,8 @@ ProfilerController.prototype = {
         return;
 
       let profileData = data.extra.profile;
+      profile.timeEnded = data.extra.currentTime;
+
       profileData.threads = profileData.threads.map((thread) => {
         let samples = thread.samples.filter((sample) => {
           return sample.time >= profile.timeStarted;
@@ -197,10 +166,10 @@ ProfilerController.prototype = {
         return { samples: samples };
       });
 
-      profile.timeEnded = data.extra.currentTime;
-      profile.data = profileData;
-
-      this.emit("profileEnd", profile);
+      let ui = panel.getProfileByName(name);
+      ui.data = profileData;
+      ui.parse(profileData, () => panel.emit("parsed"));
+      ui.stop((name, cb) => cb());
     };
 
     if (type === "profile")
@@ -248,7 +217,27 @@ ProfilerController.prototype = {
             if (toolbox == null)
               return;
 
-            this.onConsoleEvent(resp.subject.action, resp.data);
+            let panel = toolbox.getPanel("jsprofiler");
+            if (panel)
+              return void this.onConsoleEvent(resp.subject.action, resp.data, panel);
+
+            // Can't use a promise here because of a race condition when the promise
+            // is resolved only after -ready event is fired when creating a new panel
+            // and during the -ready event when waiting for a panel to be created:
+            //
+            // console.profile();    // creates a new panel, waits for the promise
+            // console.profileEnd(); // panel is not created yet but loading
+            //
+            // -> jsprofiler-ready event is fired which triggers a promise for profileEnd
+            // -> a promise for profile is triggered.
+            //
+            // And it should be the other way around. Hence the event.
+
+            toolbox.once("jsprofiler-ready", (_, panel) => {
+              this.onConsoleEvent(resp.subject.action, resp.data, panel);
+            });
+
+            toolbox.loadTool("jsprofiler");
           });
         });
 
@@ -403,9 +392,3 @@ ProfilerController.prototype = {
     this.actor = null;
   }
 };
-
-if (isJSM) {
-  var EXPORTED_SYMBOLS = ["ProfilerController"];
-} else {
-  module.exports = ProfilerController;
-}

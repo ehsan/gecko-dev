@@ -263,9 +263,6 @@ let SessionStoreInternal = {
   // set default load state
   _loadState: STATE_STOPPED,
 
-  // initial state to restore after startup
-  _initialState: null,
-
   // During the initial restore and setBrowserState calls tracks the number of
   // windows yet to be restored
   _restoreCount: -1,
@@ -761,7 +758,7 @@ let SessionStoreInternal = {
           // actually wanted to restore so that we can do it later in case
           // the user opens another, non-private window.
           this._deferredInitialState = this._initialState;
-          this._initialState = null;
+          delete this._initialState;
 
           // Nothing to restore now, notify observers things are complete.
           Services.obs.notifyObservers(null, NOTIFY_WINDOWS_RESTORED, "");
@@ -772,12 +769,11 @@ let SessionStoreInternal = {
           this._restoreCount = this._initialState.windows ? this._initialState.windows.length : 0;
           this.restoreWindow(aWindow, this._initialState,
                              this._isCmdLineEmpty(aWindow, this._initialState));
+          delete this._initialState;
 
           // _loadState changed from "stopped" to "running"
           // force a save operation so that crashes happening during startup are correctly counted
-          this._initialState.session.state = STATE_RUNNING_STR;
-          this._saveStateObject(this._initialState);
-          this._initialState = null;
+          this.saveState(true);
         }
       }
       else {

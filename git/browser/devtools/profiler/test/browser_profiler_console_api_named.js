@@ -23,16 +23,23 @@ function testConsoleProfile(hud) {
 
   let profilesStarted = 0;
 
-  function endProfile() {
-    if (++profilesStarted < 2)
-      return;
+  function profileEnd(_, uid) {
+    let profile = gPanel.profiles.get(uid);
 
-    gPanel.controller.off("profileStart", endProfile);
-    gPanel.controller.once("profileEnd", () => openProfiler(gTab, checkProfiles));
-    hud.jsterm.execute("console.profileEnd('Second')");
+    profile.once("started", () => {
+      if (++profilesStarted < 2)
+        return;
+
+      gPanel.off("profileCreated", profileEnd);
+      gPanel.profiles.get(2).once("stopped", () => {
+        openProfiler(gTab, checkProfiles);
+      });
+
+      hud.jsterm.execute("console.profileEnd('Second')");
+    });
   }
 
-  gPanel.controller.on("profileStart", endProfile);
+  gPanel.on("profileCreated", profileEnd);
   hud.jsterm.execute("console.profile('Second')");
   hud.jsterm.execute("console.profile('Third')");
 }
@@ -40,14 +47,17 @@ function testConsoleProfile(hud) {
 function checkProfiles(toolbox) {
   let panel = toolbox.getPanel("jsprofiler");
 
-  is(getSidebarItem(1, panel).attachment.name, "Second", "Name in sidebar is OK");
-  is(getSidebarItem(1, panel).attachment.state, PROFILE_COMPLETED, "State in sidebar is OK");
+  is(getSidebarItem(1, panel).attachment.state, PROFILE_IDLE);
+  is(getSidebarItem(2, panel).attachment.name, "Second");
+  is(getSidebarItem(2, panel).attachment.state, PROFILE_COMPLETED);
+  is(getSidebarItem(3, panel).attachment.name, "Third");
+  is(getSidebarItem(3, panel).attachment.state, PROFILE_RUNNING);
 
   // Make sure we can still stop profiles via the queue pop.
 
-  gPanel.controller.once("profileEnd", () => {
+  gPanel.profiles.get(3).once("stopped", () => {
     openProfiler(gTab, () => {
-      is(getSidebarItem(2, panel).attachment.state, PROFILE_COMPLETED, "State in sidebar is OK");
+      is(getSidebarItem(3, panel).attachment.state, PROFILE_COMPLETED);
       tearDown(gTab, () => gTab = gPanel = null);
     });
   });
