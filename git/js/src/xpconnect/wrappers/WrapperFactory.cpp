@@ -77,19 +77,6 @@ DoubleWrap(JSContext *cx, JSObject *obj, uintN flags)
     return obj;
 }
 
-static JSObject *
-GetCurrentOuter(JSContext *cx, JSObject *obj)
-{
-    OBJ_TO_OUTER_OBJECT(cx, obj);
-    if (obj->isWrapper() && !obj->getClass()->ext.innerObject) {
-        obj = obj->unwrap();
-        NS_ASSERTION(obj->getClass()->ext.innerObject,
-                     "weird object, expecting an outer window proxy");
-    }
-
-    return obj;
-}
-
 JSObject *
 WrapperFactory::PrepareForWrapping(JSContext *cx, JSObject *scope, JSObject *obj, uintN flags)
 {
@@ -107,9 +94,9 @@ WrapperFactory::PrepareForWrapping(JSContext *cx, JSObject *scope, JSObject *obj
         return nsnull;
 
     // We only hand out outer objects to script.
-    obj = GetCurrentOuter(cx, obj);
-    if (obj->getClass()->ext.innerObject)
-        return DoubleWrap(cx, obj, flags);
+    OBJ_TO_OUTER_OBJECT(cx, obj);
+    if (!obj)
+        return nsnull;
 
     // Now, our object is ready to be wrapped, but several objects (notably
     // nsJSIIDs) have a wrapper per scope. If we are about to wrap one of
@@ -298,7 +285,9 @@ WrapperFactory::WaiveXrayAndWrap(JSContext *cx, jsval *vp)
 
     // We have to make sure that if we're wrapping an outer window, that
     // the .wrappedJSObject also wraps the outer window.
-    obj = GetCurrentOuter(cx, obj);
+    OBJ_TO_OUTER_OBJECT(cx, obj);
+    if (!obj)
+        return false;
 
     {
         js::SwitchToCompartment sc(cx, obj->compartment());

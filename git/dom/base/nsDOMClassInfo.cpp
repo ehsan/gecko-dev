@@ -4604,8 +4604,7 @@ GetExternalClassInfo(nsScriptNameSpaceManager *aNameSpaceManager,
 
 static nsresult
 ResolvePrototype(nsIXPConnect *aXPConnect, nsGlobalWindow *aWin, JSContext *cx,
-                 JSObject *obj, const PRUnichar *name,
-                 const nsDOMClassInfoData *ci_data,
+                 const PRUnichar *name, const nsDOMClassInfoData *ci_data,
                  const nsGlobalNameStruct *name_struct,
                  nsScriptNameSpaceManager *nameSpaceManager,
                  JSObject *dot_prototype, PRBool install, PRBool *did_resolve);
@@ -4704,9 +4703,8 @@ nsDOMClassInfo::PostCreatePrototype(JSContext * cx, JSObject * proto)
   NS_ENSURE_TRUE(nameSpaceManager, NS_OK);
 
   PRBool unused;
-  return ResolvePrototype(sXPConnect, win, cx, global, mData->mNameUTF16,
-                          mData, nsnull, nameSpaceManager, proto, !found,
-                          &unused);
+  return ResolvePrototype(sXPConnect, win, cx, mData->mNameUTF16, mData,
+                          nsnull, nameSpaceManager, proto, !found, &unused);
 }
 
 // static
@@ -6053,8 +6051,7 @@ GetXPCProto(nsIXPConnect *aXPConnect, JSContext *cx, nsGlobalWindow *aWin,
 // eTypeClassProto.
 static nsresult
 ResolvePrototype(nsIXPConnect *aXPConnect, nsGlobalWindow *aWin, JSContext *cx,
-                 JSObject *obj, const PRUnichar *name,
-                 const nsDOMClassInfoData *ci_data,
+                 const PRUnichar *name, const nsDOMClassInfoData *ci_data,
                  const nsGlobalNameStruct *name_struct,
                  nsScriptNameSpaceManager *nameSpaceManager,
                  JSObject *dot_prototype, PRBool install, PRBool *did_resolve)
@@ -6063,6 +6060,13 @@ ResolvePrototype(nsIXPConnect *aXPConnect, nsGlobalWindow *aWin, JSContext *cx,
                (name_struct &&
                 name_struct->mType == nsGlobalNameStruct::eTypeClassProto),
                "Wrong type or missing ci_data!");
+
+  JSObject *obj = aWin->FastGetGlobalJSObject();
+  JSAutoEnterCompartment ac;
+
+  if (!ac.enter(cx, obj)) {
+    return NS_ERROR_UNEXPECTED;
+  }
 
   nsRefPtr<nsDOMConstructor> constructor;
   nsresult rv = nsDOMConstructor::Create(name, ci_data, name_struct, aWin,
@@ -6159,59 +6163,49 @@ ResolvePrototype(nsIXPConnect *aXPConnect, nsGlobalWindow *aWin, JSContext *cx,
     }
   }
 
-  {
-    JSObject *winobj = aWin->FastGetGlobalJSObject();
+  JSObject *proto = nsnull;
 
-    JSAutoEnterCompartment ac;
-    if (!ac.enter(cx, winobj)) {
+  if (class_parent_name) {
+    jsval val;
+
+    if (!::JS_LookupProperty(cx, obj, CutPrefix(class_parent_name), &val)) {
       return NS_ERROR_UNEXPECTED;
     }
 
-    JSObject *proto = nsnull;
+    JSObject *tmp = JSVAL_IS_OBJECT(val) ? JSVAL_TO_OBJECT(val) : nsnull;
 
-    if (class_parent_name) {
-      jsval val;
-
-      if (!::JS_LookupProperty(cx, winobj, CutPrefix(class_parent_name), &val)) {
+    if (tmp) {
+      if (!::JS_LookupProperty(cx, tmp, "prototype", &val)) {
         return NS_ERROR_UNEXPECTED;
       }
 
-      JSObject *tmp = JSVAL_IS_OBJECT(val) ? JSVAL_TO_OBJECT(val) : nsnull;
-
-      if (tmp) {
-        if (!::JS_LookupProperty(cx, tmp, "prototype", &val)) {
-          return NS_ERROR_UNEXPECTED;
-        }
-
-        if (JSVAL_IS_OBJECT(val)) {
-          proto = JSVAL_TO_OBJECT(val);
-        }
+      if (JSVAL_IS_OBJECT(val)) {
+        proto = JSVAL_TO_OBJECT(val);
       }
     }
+  }
 
-    if (dot_prototype) {
-      JSObject *xpc_proto_proto = ::JS_GetPrototype(cx, dot_prototype);
+  if (dot_prototype) {
+    JSObject *xpc_proto_proto = ::JS_GetPrototype(cx, dot_prototype);
 
-      if (proto &&
-          (!xpc_proto_proto ||
-           JS_GET_CLASS(cx, xpc_proto_proto) == sObjectClass)) {
-        if (!::JS_SetPrototype(cx, dot_prototype, proto)) {
-          return NS_ERROR_UNEXPECTED;
-        }
+    if (proto &&
+        (!xpc_proto_proto ||
+         JS_GET_CLASS(cx, xpc_proto_proto) == sObjectClass)) {
+      if (!::JS_SetPrototype(cx, dot_prototype, proto)) {
+        return NS_ERROR_UNEXPECTED;
       }
-    } else {
-      dot_prototype = ::JS_NewObject(cx, &sDOMConstructorProtoClass, proto,
-                                     winobj);
-      NS_ENSURE_TRUE(dot_prototype, NS_ERROR_OUT_OF_MEMORY);
     }
+  } else {
+    dot_prototype = ::JS_NewObject(cx, &sDOMConstructorProtoClass, proto,
+                                   obj);
+    NS_ENSURE_TRUE(dot_prototype, NS_ERROR_OUT_OF_MEMORY);
   }
 
   v = OBJECT_TO_JSVAL(dot_prototype);
 
   // Per ECMA, the prototype property is {DontEnum, DontDelete, ReadOnly}
-  if (!JS_WrapValue(cx, &v) ||
-      !JS_DefineProperty(cx, class_obj, "prototype", v, nsnull, nsnull,
-                         JSPROP_PERMANENT | JSPROP_READONLY)) {
+  if (!::JS_DefineProperty(cx, class_obj, "prototype", v, nsnull, nsnull,
+                           JSPROP_PERMANENT | JSPROP_READONLY)) {
     return NS_ERROR_UNEXPECTED;
   }
 
@@ -6316,7 +6310,7 @@ nsWindowSH::GlobalResolve(nsGlobalWindow *aWin, JSContext *cx,
         ci_data = name_struct->mData;
       }
 
-      return ResolvePrototype(sXPConnect, aWin, cx, obj, class_name, ci_data,
+      return ResolvePrototype(sXPConnect, aWin, cx, class_name, ci_data,
                               name_struct, nameSpaceManager, dot_prototype,
                               PR_TRUE, did_resolve);
     }
@@ -6329,7 +6323,7 @@ nsWindowSH::GlobalResolve(nsGlobalWindow *aWin, JSContext *cx,
   if (name_struct->mType == nsGlobalNameStruct::eTypeClassProto) {
     // We don't have a XPConnect prototype object, let ResolvePrototype create
     // one.
-    return ResolvePrototype(sXPConnect, aWin, cx, obj, class_name, nsnull,
+    return ResolvePrototype(sXPConnect, aWin, cx, class_name, nsnull,
                             name_struct, nameSpaceManager, nsnull, PR_TRUE,
                             did_resolve);
   }
@@ -6360,7 +6354,7 @@ nsWindowSH::GlobalResolve(nsGlobalWindow *aWin, JSContext *cx,
       return NS_ERROR_UNEXPECTED;
     }
 
-    return ResolvePrototype(sXPConnect, aWin, cx, obj, class_name, ci_data,
+    return ResolvePrototype(sXPConnect, aWin, cx, class_name, ci_data,
                             name_struct, nameSpaceManager, nsnull, PR_TRUE,
                             did_resolve);
   }
@@ -7014,11 +7008,6 @@ nsWindowSH::OuterObject(nsIXPConnectWrappedNative *wrapper, JSContext * cx,
     NS_ASSERTION(origWin->IsOuterWindow(), "What window is this?");
     *_retval = obj;
     return NS_OK;
-  }
-
-  if (!JS_WrapObject(cx, &winObj)) {
-    *_retval = nsnull;
-    return NS_ERROR_UNEXPECTED;
   }
 
   *_retval = winObj;

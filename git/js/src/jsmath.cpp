@@ -248,8 +248,8 @@ math_atan2(JSContext *cx, uintN argc, Value *vp)
     return JS_TRUE;
 }
 
-jsdouble
-js_math_ceil_impl(jsdouble x)
+static inline jsdouble JS_FASTCALL
+math_ceil_kernel(jsdouble x)
 {
 #ifdef __APPLE__
     if (x < 0 && x > -1.0)
@@ -269,7 +269,7 @@ js_math_ceil(JSContext *cx, uintN argc, Value *vp)
     }
     if (!ValueToNumber(cx, vp[2], &x))
         return JS_FALSE;
-    z = js_math_ceil_impl(x);
+    z = math_ceil_kernel(x);
     vp->setNumber(z);
     return JS_TRUE;
 }
@@ -326,12 +326,6 @@ math_exp(JSContext *cx, uintN argc, Value *vp)
     return JS_TRUE;
 }
 
-jsdouble
-js_math_floor_impl(jsdouble x)
-{
-    return floor(x);
-}
-
 JSBool
 js_math_floor(JSContext *cx, uintN argc, Value *vp)
 {
@@ -343,7 +337,7 @@ js_math_floor(JSContext *cx, uintN argc, Value *vp)
     }
     if (!ValueToNumber(cx, vp[2], &x))
         return JS_FALSE;
-    z = js_math_floor_impl(x);
+    z = floor(x);
     vp->setNumber(z);
     return JS_TRUE;
 }
@@ -579,12 +573,6 @@ js_copysign(double x, double y)
 }
 #endif
 
-jsdouble
-js_math_round_impl(jsdouble x)
-{
-    return js_copysign(floor(x + 0.5), x);
-}
-
 JSBool
 js_math_round(JSContext *cx, uintN argc, Value *vp)
 {
@@ -789,19 +777,19 @@ math_random_tn(JSContext *cx)
 static jsdouble FASTCALL
 math_round_tn(jsdouble x)
 {
-    return js_math_round_impl(x);
+    return js_copysign(floor(x + 0.5), x);
 }
 
 static jsdouble FASTCALL
 math_ceil_tn(jsdouble x)
 {
-    return js_math_ceil_impl(x);
+    return math_ceil_kernel(x);
 }
 
 static jsdouble FASTCALL
 math_floor_tn(jsdouble x)
 {
-    return js_math_floor_impl(x);
+    return floor(x);
 }
 
 JS_DEFINE_TRCINFO_1(math_acos,
