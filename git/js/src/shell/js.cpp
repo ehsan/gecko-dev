@@ -5408,7 +5408,7 @@ ProcessArgs(JSContext *cx, JSObject *obj_, OptionParser *op)
 #ifdef JS_THREADSAFE
     int32_t threadCount = op->getIntOption("thread-count");
     if (threadCount >= 0)
-        cx->runtime()->setFakeCPUCount(threadCount);
+        cx->runtime()->requestHelperThreadCount(threadCount);
 #endif /* JS_THREADSAFE */
 
 #if defined(JS_ION)
@@ -5529,7 +5529,7 @@ ProcessArgs(JSContext *cx, JSObject *obj_, OptionParser *op)
     bool parallelCompilation = false;
     if (const char *str = op->getStringOption("ion-parallel-compile")) {
         if (strcmp(str, "on") == 0) {
-            if (cx->runtime()->workerThreadCount() == 0) {
+            if (cx->runtime()->helperThreadCount() == 0) {
                 fprintf(stderr, "Parallel compilation not available without helper threads");
                 return EXIT_FAILURE;
             }
@@ -5542,7 +5542,7 @@ ProcessArgs(JSContext *cx, JSObject *obj_, OptionParser *op)
      * Note: In shell builds, parallel compilation is only enabled with an
      * explicit option.
      */
-    cx->runtime()->setParallelIonCompilationEnabled(parallelCompilation);
+    cx->runtime()->setCanUseHelperThreadsForIonCompilation(parallelCompilation);
 #endif /* JS_THREADSAFE */
 
 #endif /* JS_ION */

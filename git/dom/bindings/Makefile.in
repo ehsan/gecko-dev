@@ -58,6 +58,12 @@ CPPSRCS = \
   $(unified_binding_cpp_files) \
   $(linked_generated_events_cpp_files) \
   $(filter %.cpp, $(globalgen_targets)) \
+  BindingUtils.cpp \
+  CallbackInterface.cpp \
+  CallbackObject.cpp \
+  DOMJSProxyHandler.cpp \
+  Date.cpp \
+  Exceptions.cpp \
   $(NULL)
 endif
 

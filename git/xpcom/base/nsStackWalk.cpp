@@ -200,7 +200,7 @@ extern HANDLE hStackWalkMutex;
 
 bool EnsureSymInitialized();
 
-bool EnsureWalkThreadReady();
+bool EnsureImageHlpInitialized();
 
 struct WalkStackData {
   uint32_t skipFrames;
@@ -251,59 +251,38 @@ void PrintError(const char *prefix)
 }
 
 bool
-EnsureWalkThreadReady()
+EnsureImageHlpInitialized()
 {
-    static bool walkThreadReady = false;
-    static HANDLE stackWalkThread = nullptr;
-    static HANDLE readyEvent = nullptr;
+    static bool gInitialized = false;
 
-    if (walkThreadReady)
-        return walkThreadReady;
+    if (gInitialized)
+        return gInitialized;
 
-    if (stackWalkThread == nullptr) {
-        readyEvent = ::CreateEvent(nullptr, FALSE /* auto-reset*/,
-                                   FALSE /* initially non-signaled */,
-                                   nullptr);
-        if (readyEvent == nullptr) {
-            PrintError("CreateEvent");
-            return false;
-        }
-
-        unsigned int threadID;
-        stackWalkThread = (HANDLE)
-            _beginthreadex(nullptr, 0, WalkStackThread, (void*)readyEvent,
-                           0, &threadID);
-        if (stackWalkThread == nullptr) {
-            PrintError("CreateThread");
-            ::CloseHandle(readyEvent);
-            readyEvent = nullptr;
-            return false;
-        }
-        gStackWalkThread = threadID;
-        ::CloseHandle(stackWalkThread);
-    }
-
-    MOZ_ASSERT((stackWalkThread != nullptr && readyEvent != nullptr) ||
-               (stackWalkThread == nullptr && readyEvent == nullptr));
-
-    // The thread was created. Try to wait an arbitrary amount of time (1 second
-    // should be enough) for its event loop to start before posting events to it.
-    DWORD waitRet = ::WaitForSingleObject(readyEvent, 1000);
-    if (waitRet == WAIT_TIMEOUT) {
-        // We get a timeout if we're called during static initialization because
-        // the thread will only start executing after we return so it couldn't
-        // have signalled the event. If that is the case, give up for now and
-        // try again next time we're called.
+    // Hope that our first call doesn't happen during static
+    // initialization.  If it does, this CreateThread call won't
+    // actually start the thread until after the static initialization
+    // is done, which means we'll deadlock while waiting for it to
+    // process a stack.
+    HANDLE readyEvent = ::CreateEvent(nullptr, FALSE /* auto-reset*/,
+                            FALSE /* initially non-signaled */, nullptr);
+    unsigned int threadID;
+    HANDLE hStackWalkThread = (HANDLE)
+      _beginthreadex(nullptr, 0, WalkStackThread, (void*)readyEvent,
+                     0, &threadID);
+    gStackWalkThread = threadID;
+    if (hStackWalkThread == nullptr) {
+        PrintError("CreateThread");
         return false;
     }
-    ::CloseHandle(readyEvent);
-    stackWalkThread = nullptr;
-    readyEvent = nullptr;
+    ::CloseHandle(hStackWalkThread);
 
+    // Wait for the thread's event loop to start before posting events to it.
+    ::WaitForSingleObject(readyEvent, INFINITE);
+    ::CloseHandle(readyEvent);
 
     ::InitializeCriticalSection(&gDbgHelpCS);
 
-    return walkThreadReady = true;
+    return gInitialized = true;
 }
 
 void
@@ -492,7 +471,7 @@ NS_StackWalk(NS_WalkStackCallback aCallback, uint32_t aSkipFrames,
     DWORD walkerReturn;
     struct WalkStackData data;
 
-    if (!EnsureWalkThreadReady())
+    if (!EnsureImageHlpInitialized())
         return NS_ERROR_FAILURE;
 
     HANDLE targetThread = ::GetCurrentThread();
@@ -724,7 +703,7 @@ EnsureSymInitialized()
     if (gInitialized)
         return gInitialized;
 
-    if (!EnsureWalkThreadReady())
+    if (!EnsureImageHlpInitialized())
         return false;
 
     SymSetOptions(SYMOPT_LOAD_LINES | SYMOPT_UNDNAME);

@@ -4,6 +4,92 @@
 
 // FIXME(bug 844882): Parallel array properties should not be exposed.
 
+// The mode asserts options object.
+#define TRY_PARALLEL(MODE) \
+  ((!MODE || MODE.mode !== "seq"))
+#define ASSERT_SEQUENTIAL_IS_OK(MODE) \
+  do { if (MODE) AssertSequentialIsOK(MODE) } while(false)
+
+// Slice array: see ComputeAllSliceBounds()
+#define SLICE_INFO(START, END) START, END, START, 0
+#define SLICE_START(ID) ((ID << 2) + 0)
+#define SLICE_END(ID)   ((ID << 2) + 1)
+#define SLICE_POS(ID)   ((ID << 2) + 2)
+
+// How many items at a time do we do recomp. for parallel execution.
+// Note that filter currently assumes that this is no greater than 32
+// in order to make use of a bitset.
+#define CHUNK_SHIFT 5
+#define CHUNK_SIZE 32
+
+// Safe versions of ARRAY.push(ELEMENT)
+#define ARRAY_PUSH(ARRAY, ELEMENT) \
+  callFunction(std_Array_push, ARRAY, ELEMENT);
+#define ARRAY_SLICE(ARRAY, ELEMENT) \
+  callFunction(std_Array_slice, ARRAY, ELEMENT);
+
+/**
+ * The ParallelSpew intrinsic is only defined in debug mode, so define a dummy
+ * if debug is not on.
+ */
+#ifndef DEBUG
+#define ParallelSpew(args)
+#endif
+
+/**
+ * Determine the number of chunks of size CHUNK_SIZE;
+ * note that the final chunk may be smaller than CHUNK_SIZE.
+ */
+function ComputeNumChunks(length) {
+  var chunks = length >>> CHUNK_SHIFT;
+  if (chunks << CHUNK_SHIFT === length)
+    return chunks;
+  return chunks + 1;
+}
+
+/**
+ * Computes the bounds for slice |sliceIndex| of |numItems| items,
+ * assuming |numSlices| total slices. If numItems is not evenly
+ * divisible by numSlices, then the final thread may have a bit of
+ * extra work.
+ */
+function ComputeSliceBounds(numItems, sliceIndex, numSlices) {
+  var sliceWidth = (numItems / numSlices) | 0;
+  var extraChunks = (numItems % numSlices) | 0;
+
+  var startIndex = sliceWidth * sliceIndex + std_Math_min(extraChunks, sliceIndex);
+  var endIndex = startIndex + sliceWidth;
+  if (sliceIndex < extraChunks)
+    endIndex += 1;
+  return [startIndex, endIndex];
+}
+
+/**
+ * Divides |numItems| items amongst |numSlices| slices. The result
+ * is an array containing multiple values per slice: the start
+ * index, end index, current position, and some padding. The
+ * current position is initially the same as the start index. To
+ * access the values for a particular slice, use the macros
+ * SLICE_START() and so forth.
+ */
+function ComputeAllSliceBounds(numItems, numSlices) {
+  // FIXME(bug 844890): Use typed arrays here.
+  var sliceWidth = (numItems / numSlices) | 0;
+  var extraChunks = (numItems % numSlices) | 0;
+  var counter = 0;
+  var info = [];
+  var i = 0;
+  for (; i < extraChunks; i++) {
+    ARRAY_PUSH(info, SLICE_INFO(counter, counter + sliceWidth + 1));
+    counter += sliceWidth + 1;
+  }
+  for (; i < numSlices; i++) {
+    ARRAY_PUSH(info, SLICE_INFO(counter, counter + sliceWidth));
+    counter += sliceWidth;
+  }
+  return info;
+}
+
 /**
  * Compute the partial products in reverse order.
  * e.g., if the shape is [A,B,C,D], then the
@@ -75,8 +161,8 @@ function ParallelArrayConstructEmpty() {
  * This is the function invoked for |new ParallelArray(array)|.
  * It copies the data from its array-like argument |array|.
  */
-function ParallelArrayConstructFromArray(array) {
-  var buffer = ToObject(array);
+function ParallelArrayConstructFromArray(buffer) {
+  var buffer = ToObject(buffer);
   var length = buffer.length >>> 0;
   if (length !== buffer.length)
     ThrowError(JSMSG_PAR_ARRAY_BAD_ARG, "");
@@ -355,8 +441,6 @@ function ParallelArrayMap(func, mode) {
 
     return chunkEnd == info[SLICE_END(sliceId)];
   }
-
-  return undefined;
 }
 
 /**
@@ -441,8 +525,6 @@ function ParallelArrayReduce(func, mode) {
       accumulator = func(accumulator, self.get(i));
     return accumulator;
   }
-
-  return undefined;
 }
 
 /**
@@ -631,8 +713,6 @@ function ParallelArrayScan(func, mode) {
 
     return indexEnd == info[SLICE_END(sliceId)];
   }
-
-  return undefined;
 }
 
 /**
@@ -790,8 +870,6 @@ function ParallelArrayScatter(targets, defaultValue, conflictFunc, length, mode)
 
       return indexEnd == targetsLength;
     }
-
-    return undefined;
   }
 
   function parDivideScatterVector() {
@@ -870,8 +948,6 @@ function ParallelArrayScatter(targets, defaultValue, conflictFunc, length, mode)
         }
       }
     }
-
-    return undefined;
   }
 
   function seq() {
@@ -905,8 +981,6 @@ function ParallelArrayScatter(targets, defaultValue, conflictFunc, length, mode)
     // It's not enough to return t, as -0 | 0 === -0.
     return TO_INT32(t);
   }
-
-  return undefined;
 }
 
 /**
@@ -1043,8 +1117,6 @@ function ParallelArrayFilter(func, mode) {
 
     return true;
   }
-
-  return undefined;
 }
 
 /**
@@ -1217,9 +1289,9 @@ function ForkJoinMode(mode) {
     return 3;
   } else if (mode.mode === "bailout") {
     return 4;
+  } else {
+    ThrowError(JSMSG_PAR_ARRAY_BAD_ARG, "");
   }
-  ThrowError(JSMSG_PAR_ARRAY_BAD_ARG, "");
-  return undefined;
 }
 
 /*

@@ -15,7 +15,6 @@
 
 #include "ui/GraphicBuffer.h"
 #include "../layers/ipc/ShadowLayers.h"
-#include "ScopedGLHelpers.h"
 
 #define DEBUG_GRALLOC
 #ifdef DEBUG_GRALLOC

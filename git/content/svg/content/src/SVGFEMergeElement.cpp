@@ -30,7 +30,7 @@ NS_IMPL_ELEMENT_CLONE_WITH_INIT(SVGFEMergeElement)
 FilterPrimitiveDescription
 SVGFEMergeElement::GetPrimitiveDescription(nsSVGFilterInstance* aInstance,
                                            const IntRect& aFilterSubregion,
-                                           nsTArray<RefPtr<SourceSurface>>& aInputImages)
+                                           nsTArray<nsRefPtr<gfxASurface> >& aInputImages)
 {
   return FilterPrimitiveDescription(FilterPrimitiveDescription::eMerge);
 }

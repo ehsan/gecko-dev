@@ -19,9 +19,8 @@ const brandBundle = Services.strings.createBundle(
 const TelemetryPing = Cc["@mozilla.org/base/telemetry-ping;1"].
   getService(Ci.nsITelemetryPing);
 
-// Maximum height of a histogram bar (in em for html, in chars for text)
+// Maximum height of a histogram bar (in em)
 const MAX_BAR_HEIGHT = 18;
-const MAX_BAR_CHARS = 25;
 const PREF_TELEMETRY_SERVER_OWNER = "toolkit.telemetry.server_owner";
 #ifdef MOZ_TELEMETRY_ON_BY_DEFAULT
 const PREF_TELEMETRY_ENABLED = "toolkit.telemetry.enabledPreRelease";
@@ -31,12 +30,6 @@ const PREF_TELEMETRY_ENABLED = "toolkit.telemetry.enabled";
 const PREF_DEBUG_SLOW_SQL = "toolkit.telemetry.debugSlowSql";
 const PREF_SYMBOL_SERVER_URI = "profiler.symbolicationUrl";
 const DEFAULT_SYMBOL_SERVER_URI = "http://symbolapi.mozilla.org";
-
-#ifdef XP_WIN
-const EOL = "\r\n";
-#else
-const EOL = "\n";
-#endif
 
 // Cached value of document's RTL mode
 let documentRTLMode = "";
@@ -414,8 +407,6 @@ let Histogram = {
 
   hgramSumCaption: bundle.GetStringFromName("histogramSum"),
 
-  hgramCopyCaption: bundle.GetStringFromName("histogramCopy"),
-
   /**
    * Renders a single Telemetry histogram
    *
@@ -446,18 +437,7 @@ let Histogram = {
     if (isRTL())
       hgram.values.reverse();
 
-    let textData = this.renderValues(outerDiv, hgram.values, hgram.max, hgram.sample_count);
-
-    // The 'Copy' button contains the textual data, copied to clipboard on click
-    let copyButton = document.createElement("button");
-    copyButton.className = "copy-node";
-    copyButton.appendChild(document.createTextNode(this.hgramCopyCaption));
-    copyButton.histogramText = aName + EOL + stats + EOL + EOL + textData;
-    copyButton.addEventListener("click", function(){
-      Cc["@mozilla.org/widget/clipboardhelper;1"].getService(Ci.nsIClipboardHelper)
-                                                 .copyString(this.histogramText);
-    });
-    outerDiv.appendChild(copyButton);
+    this.renderValues(outerDiv, hgram.values, hgram.max);
 
     aParent.appendChild(outerDiv);
   },
@@ -511,28 +491,14 @@ let Histogram = {
   },
 
   /**
-   * Create histogram HTML bars, also returns a textual representation
-   * Both aMaxValue and aSumValues must be positive.
-   * Values are assumed to use 0 as baseline.
+   * Create histogram bars
    *
    * @param aDiv Outer parent div
    * @param aValues Histogram values
-   * @param aMaxValue Value of the longest bar (length, not label)
-   * @param aSumValues Sum of all bar values
+   * @param aMaxValue Largest histogram value in set
    */
-  renderValues: function Histogram_renderValues(aDiv, aValues, aMaxValue, aSumValues) {
-    let text = "";
-    // If the last label is not the longest string, alignment will break a little
-    let labelPadTo = String(aValues[aValues.length -1][0]).length;
-
+  renderValues: function Histogram_renderValues(aDiv, aValues, aMaxValue) {
     for (let [label, value] of aValues) {
-      // Create a text representation: <right-aligned-label> |<bar-of-#><value>  <percentage>
-      text += EOL
-              + " ".repeat(Math.max(0, labelPadTo - String(label).length)) + label // Right-aligned label
-              + " |" + "#".repeat(Math.round(MAX_BAR_CHARS * value / aMaxValue)) + value // Bars and value
-              + "  " + Math.round(100 * value / aSumValues) + "%"; // Percentage
-
-      // Construct the HTML labels + bars
       let belowEm = Math.round(MAX_BAR_HEIGHT * (value / aMaxValue) * 10) / 10;
       let aboveEm = MAX_BAR_HEIGHT - belowEm;
 
@@ -554,8 +520,6 @@ let Histogram = {
 
       aDiv.appendChild(barDiv);
     }
-
-    return text.substr(EOL.length); // Trim the EOL before the first line
   }
 };
 

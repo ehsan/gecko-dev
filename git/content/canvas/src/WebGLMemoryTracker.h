@@ -15,11 +15,10 @@
 #include "WebGLTexture.h"
 #include "WebGLRenderbuffer.h"
 #include "mozilla/StaticPtr.h"
-#include "nsIMemoryReporter.h"
 
 namespace mozilla {
 
-class WebGLMemoryTracker : public MemoryMultiReporter
+class WebGLMemoryTracker : public nsISupports
 {
     NS_DECL_ISUPPORTS
 
@@ -27,13 +26,13 @@ class WebGLMemoryTracker : public MemoryMultiReporter
     virtual ~WebGLMemoryTracker();
     static StaticRefPtr<WebGLMemoryTracker> sUniqueInstance;
 
-    // Here we store plain pointers, not RefPtrs: we don't want the
+    // here we store plain pointers, not RefPtrs: we don't want the
     // WebGLMemoryTracker unique instance to keep alive all
     // WebGLContexts ever created.
     typedef nsTArray<const WebGLContext*> ContextsArrayType;
     ContextsArrayType mContexts;
 
-    void InitMemoryReporter();
+    nsCOMPtr<nsIMemoryReporter> mReporter;
 
     static WebGLMemoryTracker* UniqueInstance();
 
@@ -55,10 +54,6 @@ class WebGLMemoryTracker : public MemoryMultiReporter
         }
     }
 
-    NS_IMETHOD CollectReports(nsIHandleReportCallback* aHandleReport,
-                              nsISupports* aData);
-
-  private:
     static int64_t GetTextureMemoryUsed() {
         const ContextsArrayType & contexts = Contexts();
         int64_t result = 0;

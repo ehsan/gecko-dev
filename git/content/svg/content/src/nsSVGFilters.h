@@ -45,7 +45,6 @@ class nsSVGFE : public nsSVGFEBase
   friend class nsSVGFilterInstance;
 
 protected:
-  typedef mozilla::gfx::SourceSurface SourceSurface;
   typedef mozilla::gfx::Size Size;
   typedef mozilla::gfx::IntRect IntRect;
   typedef mozilla::gfx::ColorSpace ColorSpace;
@@ -96,7 +95,7 @@ public:
   virtual FilterPrimitiveDescription
     GetPrimitiveDescription(nsSVGFilterInstance* aInstance,
                             const IntRect& aFilterSubregion,
-                            nsTArray<mozilla::RefPtr<SourceSurface>>& aInputImages) = 0;
+                            nsTArray<nsRefPtr<gfxASurface> >& aInputImages) = 0;
 
   // returns true if changes to the attribute should cause us to
   // repaint the filter

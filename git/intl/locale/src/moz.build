@@ -38,7 +38,3 @@ FINAL_LIBRARY = 'i18n'
 GENERATED_FILES = [
     'charsetalias.properties.h',
 ]
-
-LOCAL_INCLUDES += [
-    '/intl/uconv/src',
-]

@@ -38,7 +38,6 @@
 #include "nsRect.h"                     // for nsIntRect
 #include "nsServiceManagerUtils.h"      // for do_GetService
 #include "nsString.h"                   // for nsString, nsAutoCString, etc
-#include "DecomposeIntoNoRepeatTriangles.h"
 
 #if MOZ_ANDROID_OMTC
 #include "TexturePoolOGL.h"
@@ -69,7 +68,7 @@ static void
 DrawQuads(GLContext *aGLContext,
           VBOArena &aVBOs,
           ShaderProgramOGL *aProg,
-          RectTriangles &aRects)
+          GLContext::RectTriangles &aRects)
 {
   NS_ASSERTION(aProg->HasInitialized(), "Shader program not correctly initialized");
   GLuint vertAttribIndex =
@@ -139,7 +138,7 @@ static const size_t FontTextureWidth = 64;
 static const size_t FontTextureHeight = 8;
 
 static void
-AddDigits(RectTriangles &aRects,
+AddDigits(GLContext::RectTriangles &aRects,
           const gfx::IntSize aViewportSize,
           unsigned int aOffset,
           unsigned int aValue)
@@ -205,7 +204,7 @@ FPSState::DrawFPS(TimeStamp aNow,
   unsigned int fps = unsigned(mCompositionFps.AddFrameAndGetFps(aNow));
   unsigned int txnFps = unsigned(mTransactionFps.GetFpsAt(aNow));
 
-  RectTriangles rects;
+  GLContext::RectTriangles rects;
   AddDigits(rects, viewportSize, 0, fps);
   AddDigits(rects, viewportSize, 4, txnFps);
   AddDigits(rects, viewportSize, 8, aFillRatio);
@@ -570,7 +569,7 @@ CompositorOGL::BindAndDrawQuadWithTextureRect(ShaderProgramOGL *aProg,
   // because we can't rely on full non-power-of-two texture support
   // (which is required for the REPEAT wrap mode).
 
-  RectTriangles rects;
+  GLContext::RectTriangles rects;
 
   GLenum wrapMode = aTexture->AsSourceOGL()->GetWrapMode();
 
@@ -611,9 +610,9 @@ CompositorOGL::BindAndDrawQuadWithTextureRect(ShaderProgramOGL *aProg,
   } else {
     nsIntRect tcRect(texCoordRect.x, texCoordRect.y,
                      texCoordRect.width, texCoordRect.height);
-    DecomposeIntoNoRepeatTriangles(tcRect,
-                                   nsIntSize(realTexSize.width, realTexSize.height),
-                                   rects, flipped);
+    GLContext::DecomposeIntoNoRepeatTriangles(tcRect,
+                                              nsIntSize(realTexSize.width, realTexSize.height),
+                                              rects, flipped);
   }
 
   DrawQuads(mGLContext, mVBOs, aProg, rects);

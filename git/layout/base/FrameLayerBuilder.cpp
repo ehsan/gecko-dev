@@ -1617,18 +1617,22 @@ ContainerState::FindFixedPosFrameForLayerData(const nsIFrame* aAnimatedGeometryR
                                               nsIntRegion* aVisibleRegion,
                                               bool* aIsSolidColorInVisibleRegion)
 {
-  nsIFrame *viewport = mContainerFrame->PresContext()->PresShell()->GetRootFrame();
-
+  if (mContainerFrame->GetParent()) {
+    // Viewports with displayports always get a layer created for the viewport
+    // frame. (See nsSubdocumentFrame::BuildDisplayList's calculation of
+    // needsOwnLayer.) The children of that layer are the ones that might
+    // have fixed-pos frame data. So if we're creating layers for children
+    // of a frame other than a viewport, there's nothing to do here.
+    return nullptr;
+  }
   // Viewports with no fixed-pos frames are not relevant.
-  if (!viewport->GetFirstChild(nsIFrame::kFixedList)) {
+  if (!mContainerFrame->GetFirstChild(nsIFrame::kFixedList)) {
     return nullptr;
   }
   nsRect displayPort;
   for (const nsIFrame* f = aAnimatedGeometryRoot; f; f = f->GetParent()) {
     if (nsLayoutUtils::IsFixedPosFrameInDisplayPort(f, &displayPort)) {
-      // Display ports are relative to the viewport, convert it to be relative
-      // to our reference frame.
-      displayPort += viewport->GetOffsetToCrossDoc(mContainerReferenceFrame);
+      displayPort += mContainerFrame->GetOffsetToCrossDoc(mContainerReferenceFrame);
       nsIntRegion newVisibleRegion;
       newVisibleRegion.And(ScaleToOutsidePixels(displayPort, false),
                            aDrawRegion);

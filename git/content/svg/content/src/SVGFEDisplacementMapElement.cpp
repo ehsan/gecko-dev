@@ -93,7 +93,7 @@ SVGFEDisplacementMapElement::YChannelSelector()
 FilterPrimitiveDescription
 SVGFEDisplacementMapElement::GetPrimitiveDescription(nsSVGFilterInstance* aInstance,
                                                      const IntRect& aFilterSubregion,
-                                                     nsTArray<RefPtr<SourceSurface>>& aInputImages)
+                                                     nsTArray<nsRefPtr<gfxASurface> >& aInputImages)
 {
   float scale = aInstance->GetPrimitiveNumber(SVGContentUtils::XY,
                                               &mNumberAttributes[SCALE]);

@@ -1281,14 +1281,7 @@ struct GCMarker : public JSTracer {
     /* Count of arenas that are currently in the stack. */
     mozilla::DebugOnly<size_t> markLaterArenas;
 
-    enum GrayBufferState
-    {
-        GRAY_BUFFER_UNUSED,
-        GRAY_BUFFER_OK,
-        GRAY_BUFFER_FAILED
-    };
-
-    GrayBufferState grayBufferState;
+    bool grayFailed;
 };
 
 void

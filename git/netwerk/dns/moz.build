@@ -42,8 +42,3 @@ FINAL_LIBRARY = 'necko'
 GENERATED_FILES = [
     'etld_data.inc',
 ]
-
-# need to include etld_data.inc
-LOCAL_INCLUDES += [
-    '../base/src',
-]

@@ -46,7 +46,7 @@ StoreBuffer::SlotEdge::location() const
     return (void *)slotLocation();
 }
 
-bool
+JS_ALWAYS_INLINE bool
 StoreBuffer::SlotEdge::inRememberedSet(const Nursery &nursery) const
 {
     return !nursery.isInside(object) && nursery.isInside(deref());
@@ -61,7 +61,6 @@ StoreBuffer::SlotEdge::isNullEdge() const
 void
 StoreBuffer::WholeCellEdges::mark(JSTracer *trc)
 {
-    JS_ASSERT(tenured->isTenured());
     JSGCTraceKind kind = GetGCThingTraceKind(tenured);
     if (kind <= JSTRACE_OBJECT) {
         MarkChildren(trc, static_cast<JSObject *>(tenured));
@@ -79,14 +78,13 @@ StoreBuffer::WholeCellEdges::mark(JSTracer *trc)
 
 template <typename T>
 void
-StoreBuffer::MonoTypeBuffer<T>::compactRemoveDuplicates(StoreBuffer *owner)
+StoreBuffer::MonoTypeBuffer<T>::compactRemoveDuplicates()
 {
-    EdgeSet duplicates;
-    if (!duplicates.init())
-        return; /* Failure to de-dup is acceptable. */
+    EdgeSet &duplicates = owner->edgeSet;
+    JS_ASSERT(duplicates.empty());
 
-    LifoAlloc::Enum insert(*storage_);
-    for (LifoAlloc::Enum e(*storage_); !e.empty(); e.popFront<T>()) {
+    LifoAlloc::Enum insert(storage_);
+    for (LifoAlloc::Enum e(storage_); !e.empty(); e.popFront<T>()) {
         T *edge = e.get<T>();
         if (!duplicates.has(edge->location())) {
             insert.updateFront<T>(*edge);
@@ -96,31 +94,26 @@ StoreBuffer::MonoTypeBuffer<T>::compactRemoveDuplicates(StoreBuffer *owner)
             duplicates.put(edge->location());
         }
     }
-    storage_->release(insert.mark());
+    storage_.release(insert.mark());
 
     duplicates.clear();
 }
 
 template <typename T>
 void
-StoreBuffer::MonoTypeBuffer<T>::compact(StoreBuffer *owner)
+StoreBuffer::MonoTypeBuffer<T>::compact()
 {
-    if (!storage_)
-        return;
-
-    compactRemoveDuplicates(owner);
+    compactRemoveDuplicates();
 }
 
 template <typename T>
 void
-StoreBuffer::MonoTypeBuffer<T>::mark(StoreBuffer *owner, JSTracer *trc)
+StoreBuffer::MonoTypeBuffer<T>::mark(JSTracer *trc)
 {
-    ReentrancyGuard g(*owner);
-    if (!storage_)
-        return;
+    ReentrancyGuard g(*this);
 
-    compact(owner);
-    for (LifoAlloc::Enum e(*storage_); !e.empty(); e.popFront<T>()) {
+    compact();
+    for (LifoAlloc::Enum e(storage_); !e.empty(); e.popFront<T>()) {
         T *edge = e.get<T>();
         if (edge->isNullEdge())
             continue;
@@ -133,12 +126,11 @@ StoreBuffer::MonoTypeBuffer<T>::mark(StoreBuffer *owner, JSTracer *trc)
 
 template <typename T>
 void
-StoreBuffer::RelocatableMonoTypeBuffer<T>::compactMoved(StoreBuffer *owner)
+StoreBuffer::RelocatableMonoTypeBuffer<T>::compactMoved()
 {
-    LifoAlloc &storage = *this->storage_;
-    EdgeSet invalidated;
-    if (!invalidated.init())
-        MOZ_CRASH("RelocatableMonoTypeBuffer::compactMoved: Failed to init table.");
+    LifoAlloc &storage = this->storage_;
+    EdgeSet &invalidated = this->owner->edgeSet;
+    JS_ASSERT(invalidated.empty());
 
     /* Collect the set of entries which are currently invalid. */
     for (LifoAlloc::Enum e(storage); !e.empty(); e.popFront<T>()) {
@@ -172,22 +164,20 @@ StoreBuffer::RelocatableMonoTypeBuffer<T>::compactMoved(StoreBuffer *owner)
 
 template <typename T>
 void
-StoreBuffer::RelocatableMonoTypeBuffer<T>::compact(StoreBuffer *owner)
+StoreBuffer::RelocatableMonoTypeBuffer<T>::compact()
 {
-    compactMoved(owner);
-    StoreBuffer::MonoTypeBuffer<T>::compact(owner);
+    compactMoved();
+    StoreBuffer::MonoTypeBuffer<T>::compact();
 }
 
 /*** GenericBuffer ***/
 
 void
-StoreBuffer::GenericBuffer::mark(StoreBuffer *owner, JSTracer *trc)
+StoreBuffer::GenericBuffer::mark(JSTracer *trc)
 {
-    ReentrancyGuard g(*owner);
-    if (!storage_)
-        return;
+    ReentrancyGuard g(*this);
 
-    for (LifoAlloc::Enum e(*storage_); !e.empty();) {
+    for (LifoAlloc::Enum e(storage_); !e.empty();) {
         unsigned size = *e.get<unsigned>();
         e.popFront<unsigned>();
         BufferableRef *edge = e.get<BufferableRef>(size);
@@ -225,42 +215,47 @@ StoreBuffer::SlotEdge::mark(JSTracer *trc)
 bool
 StoreBuffer::enable()
 {
-    if (enabled_)
+    if (enabled)
         return true;
 
-    if (!bufferVal.init() ||
-        !bufferCell.init() ||
-        !bufferSlot.init() ||
-        !bufferWholeCell.init() ||
-        !bufferRelocVal.init() ||
-        !bufferRelocCell.init() ||
-        !bufferGeneric.init())
-    {
-        return false;
-    }
+    bufferVal.enable();
+    bufferCell.enable();
+    bufferSlot.enable();
+    bufferWholeCell.enable();
+    bufferRelocVal.enable();
+    bufferRelocCell.enable();
+    bufferGeneric.enable();
 
-    enabled_ = true;
+    enabled = true;
     return true;
 }
 
 void
 StoreBuffer::disable()
 {
-    if (!enabled_)
+    if (!enabled)
         return;
 
-    aboutToOverflow_ = false;
+    aboutToOverflow = false;
 
-    enabled_ = false;
+    bufferVal.disable();
+    bufferCell.disable();
+    bufferSlot.disable();
+    bufferWholeCell.disable();
+    bufferRelocVal.disable();
+    bufferRelocCell.disable();
+    bufferGeneric.disable();
+
+    enabled = false;
 }
 
 bool
 StoreBuffer::clear()
 {
-    if (!enabled_)
+    if (!enabled)
         return true;
 
-    aboutToOverflow_ = false;
+    aboutToOverflow = false;
 
     bufferVal.clear();
     bufferCell.clear();
@@ -278,20 +273,20 @@ StoreBuffer::mark(JSTracer *trc)
 {
     JS_ASSERT(isEnabled());
 
-    bufferVal.mark(this, trc);
-    bufferCell.mark(this, trc);
-    bufferSlot.mark(this, trc);
-    bufferWholeCell.mark(this, trc);
-    bufferRelocVal.mark(this, trc);
-    bufferRelocCell.mark(this, trc);
-    bufferGeneric.mark(this, trc);
+    bufferVal.mark(trc);
+    bufferCell.mark(trc);
+    bufferSlot.mark(trc);
+    bufferWholeCell.mark(trc);
+    bufferRelocVal.mark(trc);
+    bufferRelocCell.mark(trc);
+    bufferGeneric.mark(trc);
 }
 
 void
 StoreBuffer::setAboutToOverflow()
 {
-    aboutToOverflow_ = true;
-    runtime_->triggerOperationCallback(JSRuntime::TriggerCallbackMainThread);
+    aboutToOverflow = true;
+    runtime->triggerOperationCallback(JSRuntime::TriggerCallbackMainThread);
 }
 
 bool

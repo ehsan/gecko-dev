@@ -38,7 +38,6 @@
 
 #include "GLContextProvider.h"
 #include "GLContext.h"
-#include "ScopedGLHelpers.h"
 
 #include "gfxCrashReporterUtils.h"
 

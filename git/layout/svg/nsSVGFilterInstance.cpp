@@ -480,8 +480,14 @@ nsSVGFilterInstance::Render(gfxContext* aContext)
     mInputImages);
 
   RefPtr<SourceSurface> resultImageSource;
-  if (!resultImage) {
-    resultImageSource = resultImageDT->Snapshot();
+  if (!aContext->IsCairo()) {
+    if (resultImage) {
+      RefPtr<DrawTarget> dt = aContext->GetDrawTarget();
+      resultImageSource =
+        gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(dt, resultImage);
+    } else {
+      resultImageSource = resultImageDT->Snapshot();
+    }
   }
 
   gfxMatrix ctm = GetFilterSpaceToDeviceSpaceTransform();

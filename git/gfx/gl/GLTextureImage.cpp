@@ -9,7 +9,6 @@
 #include "gfxPlatform.h"
 #include "gfxUtils.h"
 #include "gfx2DGlue.h"
-#include "ScopedGLHelpers.h"
 
 namespace mozilla {
 namespace gl {
