@@ -3906,6 +3906,21 @@ dnl ========================================================
 MOZ_ARG_HEADER(Individual module options)
 
 dnl ========================================================
+dnl = Enable Ultrasparc specific optimizations for JS
+dnl ========================================================
+MOZ_ARG_ENABLE_BOOL(js-ultrasparc,
+[  --enable-js-ultrasparc  Use UltraSPARC optimizations in JS],
+    JS_ULTRASPARC_OPTS=1,
+    JS_ULTRASPARC_OPTS= )
+
+dnl only enable option for ultrasparcs
+if test `echo "$target_os" | grep -c \^solaris 2>/dev/null` = 0 -o \
+    "$OS_TEST" != "sun4u"; then
+    JS_ULTRASPARC_OPTS=
+fi
+AC_SUBST(JS_ULTRASPARC_OPTS)
+
+dnl ========================================================
 dnl =
 dnl = Debugging Options
 dnl = 
@@ -4819,7 +4834,7 @@ dnl ========================================================
 dnl = Link js shell to system readline
 dnl ========================================================
 MOZ_ARG_ENABLE_BOOL(readline,
-[  --enable-readline  Link js shell to system readline library],
+[  --enable-readline       Link js shell to system readline library],
     JS_WANT_READLINE=1,
     JS_WANT_READLINE= )
 
@@ -4856,6 +4871,19 @@ fi
 AC_SUBST(JS_NATIVE_EDITLINE)
 AC_SUBST(JS_DISABLE_SHELL)
 AC_SUBST(EDITLINE_LIBS)
+
+dnl ========================================================
+dnl = lirasm
+dnl ========================================================
+
+# Disable lirasm if the JIT is disabled.
+ENABLE_LIRASM=$ENABLE_JIT
+
+MOZ_ARG_DISABLE_BOOL(lirasm,
+[  --disable-lirasm        Don't build the LIR assembler],
+    ENABLE_LIRASM= )
+
+AC_SUBST(ENABLE_LIRASM)
 
 dnl ========================================================
 dnl =

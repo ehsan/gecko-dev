@@ -1101,17 +1101,8 @@ gfxWindowsFont::FillLogFont(gfxFloat aSize)
     if (fe->mIsUserFont) {
         if (fe->IsItalic())
             isItalic = PR_FALSE; // avoid synthetic italic
-        if (fe->IsBold()) {
+        if (fe->IsBold())
             weight = 400; // avoid synthetic bold
-        } else {
-            // determine whether synthetic bolding is needed
-            PRInt8 baseWeight, weightDistance;
-            GetStyle()->ComputeWeightAndOffset(&baseWeight, &weightDistance);
-            if ((weightDistance == 0 && baseWeight >= 6) 
-                || (weightDistance > 0)) {
-                weight = 700; // set to get GDI to synthetic bold this face
-            }
-        }
     }
 
     FontEntry::FillLogFont(&mLogFont, fe->Name(),  fe->mFontType, isItalic, 
@@ -1216,27 +1207,12 @@ gfxWindowsFont::SetupCairoFont(gfxContext *aContext)
  * except for OOM in which case we do nothing and return null.
  */
 already_AddRefed<gfxWindowsFont>
-gfxWindowsFont::GetOrMakeFont(FontEntry *aFontEntry, const gfxFontStyle *aStyle,
-                              PRBool aNeedsBold)
+gfxWindowsFont::GetOrMakeFont(FontEntry *aFontEntry, const gfxFontStyle *aStyle)
 {
     // because we know the FontEntry has the weight we really want, use it for matching
     // things in the cache so we don't end up with things like 402 in there.
     gfxFontStyle style(*aStyle);
-
-    if (aFontEntry->mIsUserFont && !aFontEntry->IsBold()) {
-        // determine whether synthetic bolding is needed
-        PRInt8 baseWeight, weightDistance;
-        aStyle->ComputeWeightAndOffset(&baseWeight, &weightDistance);
-
-        if ((weightDistance == 0 && baseWeight >= 6) || (weightDistance > 0 && aNeedsBold)) {
-            style.weight = 700;  // set to get GDI to synthetic bold this face   
-        } else {
-            style.weight = aFontEntry->mWeight;
-        }
-    } else {
-        style.weight = aFontEntry->mWeight;
-    }
-
+    style.weight = aFontEntry->mWeight;
     // also pre-round the size if there is no size adjust
     if (style.sizeAdjust == 0.0)
         style.size = ROUND(style.size);
@@ -1270,8 +1246,7 @@ AddFontNameToArray(const nsAString& aName,
 
 
 void
-gfxWindowsFontGroup::GroupFamilyListToArrayList(nsTArray<nsRefPtr<FontEntry> > *list,
-                                                nsTArray<PRPackedBool> *aNeedsBold)
+gfxWindowsFontGroup::GroupFamilyListToArrayList(nsTArray<nsRefPtr<FontEntry> > *list)
 {
     nsAutoTArray<nsString, 15> fonts;
     ForEachFont(AddFontNameToArray, &fonts);
@@ -1282,7 +1257,7 @@ gfxWindowsFontGroup::GroupFamilyListToArrayList(nsTArray<nsRefPtr<FontEntry> > *
         
         // first, look up in the user font set
         gfxFontEntry *gfe;
-        PRBool needsBold = PR_FALSE;
+        PRBool needsBold;
         if (mUserFontSet && (gfe = mUserFontSet->FindFontEntry(fonts[i], mStyle, needsBold))) {
             // assume for now platform font if not SVG
             fe = static_cast<FontEntry*> (gfe);
@@ -1296,7 +1271,6 @@ gfxWindowsFontGroup::GroupFamilyListToArrayList(nsTArray<nsRefPtr<FontEntry> > *
         // if found, add to the list
         if (fe) {
             list->AppendElement(fe);
-            aNeedsBold->AppendElement(static_cast<PRPackedBool>(needsBold));
         }
     }
 }
@@ -1340,7 +1314,7 @@ gfxWindowsFontGroup::GetFontAt(PRInt32 i)
 
     if (!mFonts[i]) {
         nsRefPtr<gfxWindowsFont> font =
-            gfxWindowsFont::GetOrMakeFont(mFontEntries[i], &mStyle, mFontNeedsBold[i]);
+            gfxWindowsFont::GetOrMakeFont(mFontEntries[i], &mStyle);
         mFonts[i] = font;
     }
 
@@ -1361,7 +1335,6 @@ gfxWindowsFontGroup::UpdateFontList()
         // xxx - can probably improve this to detect when all fonts were found, so no need to update list
         mFonts.Clear();
         mFontEntries.Clear();
-        mFontNeedsBold.Clear();
         InitFontList();
         mCurrGeneration = GetGeneration();
     }
@@ -1371,7 +1344,7 @@ gfxWindowsFontGroup::UpdateFontList()
 void 
 gfxWindowsFontGroup::InitFontList()
 {
-    GroupFamilyListToArrayList(&mFontEntries, &mFontNeedsBold);
+    GroupFamilyListToArrayList(&mFontEntries);
 
     mFonts.AppendElements(mFontEntries.Length());
 
@@ -1379,11 +1352,10 @@ gfxWindowsFontGroup::InitFontList()
     // we'll surely need them anyway.
     while (mFontEntries.Length() > 0) {
         nsRefPtr<gfxWindowsFont> font =
-            gfxWindowsFont::GetOrMakeFont(mFontEntries[0], &mStyle, mFontNeedsBold[0]);
+            gfxWindowsFont::GetOrMakeFont(mFontEntries[0], &mStyle);
         if (!font->IsValid()) {
             mFontEntries.RemoveElementAt(0);
             mFonts.RemoveElementAt(0);
-            mFontNeedsBold.RemoveElementAt(0);
             continue;
         }
         mFonts[0] = font;
@@ -1422,7 +1394,6 @@ gfxWindowsFontGroup::InitFontList()
         // just report false for all characters, so the fact that the font
         // is bogus should not cause problems.
         mFonts.AppendElements(mFontEntries.Length());
-        mFontNeedsBold.AppendElements(mFontEntries.Length());
     }
 
     // force the underline offset to get recalculated
@@ -2429,7 +2400,7 @@ gfxWindowsFontGroup::WhichFontSupportsChar(const nsTArray<nsRefPtr<FontEntry> >&
             continue;
         if (fe->HasCharacter(ch)) {
             nsRefPtr<gfxWindowsFont> font =
-                gfxWindowsFont::GetOrMakeFont(fe, &mStyle, mFontNeedsBold[i]);
+                gfxWindowsFont::GetOrMakeFont(fe, &mStyle);
             // Check that the font is still usable.
             if (!font->IsValid())
                 continue;

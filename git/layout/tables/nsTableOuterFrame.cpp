@@ -393,14 +393,16 @@ nsTableOuterFrame::BuildDisplayListForInnerTable(nsDisplayListBuilder*   aBuilde
   return NS_OK;
 }
 
-void
-nsTableOuterFrame::SetSelected(PRBool        aSelected,
-                               SelectionType aType)
+NS_IMETHODIMP nsTableOuterFrame::SetSelected(nsPresContext* aPresContext,
+                                             nsIDOMRange *aRange,
+                                             PRBool aSelected,
+                                             nsSpread aSpread,
+                                             SelectionType aType)
 {
-  nsFrame::SetSelected(aSelected, aType);
-  if (mInnerTableFrame) {
-    mInnerTableFrame->SetSelected(aSelected, aType);
-  }
+  nsresult result = nsFrame::SetSelected(aPresContext, aRange,aSelected, aSpread, aType);
+  if (NS_SUCCEEDED(result) && mInnerTableFrame)
+    return mInnerTableFrame->SetSelected(aPresContext, aRange,aSelected, aSpread, aType);
+  return result;
 }
 
 NS_IMETHODIMP 

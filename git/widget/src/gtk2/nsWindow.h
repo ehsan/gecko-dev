@@ -43,6 +43,7 @@
 #include "nsAutoPtr.h"
 
 #include "mozcontainer.h"
+#include "mozdrawingarea.h"
 #include "nsWeakReference.h"
 
 #include "nsIDragService.h"
@@ -452,7 +453,6 @@ protected:
     PRPackedBool        mPlaced;
 
 private:
-    PRBool             CanBeSeen();
     void               GetToplevelWidget(GtkWidget **aWidget);
     GtkWidget         *GetMozContainerWidget();
     nsWindow          *GetContainerWindow();
@@ -466,7 +466,7 @@ private:
 
     GtkWidget          *mShell;
     MozContainer       *mContainer;
-    GdkWindow          *mGdkWindow;
+    MozDrawingarea     *mDrawingarea;
 
     GtkWindowGroup     *mWindowGroup;
 

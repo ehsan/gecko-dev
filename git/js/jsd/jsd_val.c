@@ -40,22 +40,6 @@
  */
 
 #include "jsd.h"
-#include "jsapi.h"
-#include "jspubtd.h"
-
-/*
- * Lifted with slight modification from jsobj.h
- */
-
-#define OBJ_TO_OUTER_OBJECT(cx, obj)                                \
-do {                                                                \
-    JSClass *clasp_ = JS_GetClass(cx, obj);                         \
-    if (clasp_->flags & JSCLASS_IS_EXTENDED) {                      \
-        JSExtendedClass *xclasp_ = (JSExtendedClass*) clasp_;       \
-        if (xclasp_->outerObject)                                   \
-            obj = xclasp_->outerObject(cx, obj);                    \
-    }                                                               \
-} while(0)
 
 #ifdef DEBUG
 void JSD_ASSERT_VALID_VALUE(JSDValue* jsdval)
@@ -310,23 +294,7 @@ jsd_DropValue(JSDContext* jsdc, JSDValue* jsdval)
 jsval
 jsd_GetValueWrappedJSVal(JSDContext* jsdc, JSDValue* jsdval)
 {
-    JSObject* obj;
-    JSContext* cx;
-    jsval val = jsdval->val;
-    if (!JSVAL_IS_PRIMITIVE(val)) {
-        cx = JSD_GetDefaultJSContext(jsdc);
-        obj = JSVAL_TO_OBJECT(val);
-        OBJ_TO_OUTER_OBJECT(cx, obj);
-        if (!obj)
-        {
-            JS_ClearPendingException(cx);
-            val = JSVAL_NULL;
-        }
-        else
-            val = OBJECT_TO_JSVAL(obj);
-    }
-    
-    return val;
+    return jsdval->val;
 }
 
 static JSDProperty* _newProperty(JSDContext* jsdc, JSPropertyDesc* pd,

@@ -2729,12 +2729,9 @@ pref("signon.autofillForms",                true);
 pref("signon.debug",                        false); // logs to Error Console
 
 // Satchel (Form Manager) prefs
-pref("browser.formfill.debug",            false);
-pref("browser.formfill.enable",           true);
-pref("browser.formfill.agedWeight",       2);
-pref("browser.formfill.bucketSize",       5);
-pref("browser.formfill.maxTimeGroupings", 25);
-pref("browser.formfill.timeGroupingSize", 604800);
+pref("browser.formfill.enable",     true);
+pref("browser.formfill.debug",      false);
+
 
 // Zoom prefs
 pref("browser.zoom.full", false);

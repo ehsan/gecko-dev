@@ -83,9 +83,6 @@
 #ifdef XP_WIN
 #include <windows.h>
 #endif
-#ifdef __SYMBIAN32__
-#include <unistd.h>
-#endif
 
 #ifndef XPCONNECT_STANDALONE
 #include "nsIScriptSecurityManager.h"
@@ -538,7 +535,7 @@ GC(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     JS_GC(cx);
     fprintf(gOutFile, "before %lu, after %lu, break %08lx\n",
            (unsigned long)preBytes, (unsigned long)rt->gcBytes,
-#if defined(XP_UNIX) && !defined(__SYMBIAN32__)
+#ifdef XP_UNIX
            (unsigned long)sbrk(0)
 #else
            0
