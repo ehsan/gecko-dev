@@ -93,6 +93,7 @@ RawFunction CloneFunctionAtCallsite(JSContext *cx, HandleFunction fun,
                                     HandleScript script, jsbytecode *pc);
 
 typedef HashSet<JSObject *> ObjectSet;
+typedef HashSet<Shape *> ShapeSet;
 
 /* Detects cycles when traversing an object graph. */
 class AutoCycleDetector
@@ -1203,8 +1204,6 @@ struct JSRuntime : private JS::shadow::Runtime,
     js::AsmJSMachExceptionHandler asmJSMachExceptionHandler;
 #endif
 
-    size_t              sizeOfNonHeapAsmJSArrays_;
-
 #ifdef JS_THREADSAFE
 # ifdef JS_ION
     js::WorkerThreadState *workerThreadState;
@@ -1404,7 +1403,6 @@ struct JSRuntime : private JS::shadow::Runtime,
     }
 
     void sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf, JS::RuntimeSizes *runtime);
-    size_t sizeOfExplicitNonHeap();
 
   private:
 

@@ -268,9 +268,9 @@ XPCWrappedNativeScope::EnsureXBLScope(JSContext *cx)
 }
 
 namespace xpc {
-JSObject *GetXBLScope(JSContext *cx, JSObject *contentScope_)
+JSObject *GetXBLScope(JSContext *cx, JSObject *contentScopeArg)
 {
-    JS::RootedObject contentScope(cx, contentScope_);
+    JS::RootedObject contentScope(cx, contentScopeArg);
     JSAutoCompartment ac(cx, contentScope);
     JSObject *scope = EnsureCompartmentPrivate(contentScope)->scope->EnsureXBLScope(cx);
     NS_ENSURE_TRUE(scope, nullptr); // See bug 858642.
@@ -301,7 +301,7 @@ js::Class XPC_WN_NoHelper_Proto_JSClass = {
 
     /* Mandatory non-null function pointer members. */
     JS_PropertyStub,                // addProperty;
-    JS_PropertyStub,                // delProperty;
+    JS_DeletePropertyStub,          // delProperty;
     JS_PropertyStub,                // getProperty;
     JS_StrictPropertyStub,          // setProperty;
     JS_EnumerateStub,               // enumerate;
