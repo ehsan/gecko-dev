@@ -34,30 +34,28 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-Cc["@mozilla.org/moz/jssubscript-loader;1"]
-  .getService(Ci.mozIJSSubScriptLoader)
-  .loadSubScript("chrome://mochitests/content/browser/toolkit/content/tests/browser/common/mockObjects.js",
-                 this);
-
-var mockTransferCallback;
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 /**
  * This "transfer" object implementation continues the currently running test
  * when the download is completed, reporting true for success or false for
  * failure as the first argument of the testRunner.continueTest function.
  */
-function MockTransfer() {
+function MockTransferForContinuing()
+{
   this._downloadIsSuccessful = true;
 }
 
-MockTransfer.prototype = {
+MockTransferForContinuing.prototype = {
   QueryInterface: XPCOMUtils.generateQI([
     Ci.nsIWebProgressListener,
     Ci.nsIWebProgressListener2,
     Ci.nsITransfer,
   ]),
 
-  /* nsIWebProgressListener */
+  //////////////////////////////////////////////////////////////////////////////
+  //// nsIWebProgressListener
+
   onStateChange: function MTFC_onStateChange(aWebProgress, aRequest,
                                              aStateFlags, aStatus) {
     // If at least one notification reported an error, the download failed.
@@ -68,24 +66,34 @@ MockTransfer.prototype = {
     if ((aStateFlags & Ci.nsIWebProgressListener.STATE_STOP) &&
         (aStateFlags & Ci.nsIWebProgressListener.STATE_IS_NETWORK))
       // Continue the test, reporting the success or failure condition.
-      mockTransferCallback(this._downloadIsSuccessful);
+      testRunner.continueTest(this._downloadIsSuccessful);
   },
-  onProgressChange: function () {},
-  onLocationChange: function () {},
+  onProgressChange: function(aWebProgress, aRequest, aCurSelfProgress,
+                             aMaxSelfProgress, aCurTotalProgress,
+                             aMaxTotalProgress) { },
+  onLocationChange: function(aWebProgress, aRequest, aLocation) { },
   onStatusChange: function MTFC_onStatusChange(aWebProgress, aRequest, aStatus,
                                                aMessage) {
     // If at least one notification reported an error, the download failed.
     if (!Components.isSuccessCode(aStatus))
       this._downloadIsSuccessful = false;
   },
-  onSecurityChange: function () {},
+  onSecurityChange: function(aWebProgress, aRequest, aState) { },
 
-  /* nsIWebProgressListener2 */
-  onProgressChange64: function () {},
-  onRefreshAttempted: function () {},
+  //////////////////////////////////////////////////////////////////////////////
+  //// nsIWebProgressListener2
 
-  /* nsITransfer */
-  init: function () {}
+  onProgressChange64: function(aWebProgress, aRequest, aCurSelfProgress,
+                               aMaxSelfProgress, aCurTotalProgress,
+                               aMaxTotalProgress) { },
+  onRefreshAttempted: function(aWebProgress, aRefreshURI, aMillis,
+                               aSameURI) { },
+
+  //////////////////////////////////////////////////////////////////////////////
+  //// nsITransfer
+
+  init: function(aSource, aTarget, aDisplayName, aMIMEInfo, aStartTime,
+                 aTempFile, aCancelable) { }
 };
 
 // Create an instance of a MockObjectRegisterer whose methods can be used to
@@ -94,5 +102,6 @@ MockTransfer.prototype = {
 // factory, call the "register" method. Starting from that moment, all the
 // transfer objects that are requested will be mock objects, until the
 // "unregister" method is called.
-var mockTransferRegisterer =
-  new MockObjectRegisterer("@mozilla.org/transfer;1",  MockTransfer);
+var mockTransferForContinuingRegisterer =
+  new MockObjectRegisterer("@mozilla.org/transfer;1",
+                           MockTransferForContinuing);
