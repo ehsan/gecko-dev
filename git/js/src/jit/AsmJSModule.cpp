@@ -457,11 +457,11 @@ AsmJSReportOverRecursed()
     js_ReportOverRecursed(cx);
 }
 
-static bool
+static void
 AsmJSHandleExecutionInterrupt()
 {
     JSContext *cx = PerThreadData::innermostAsmJSActivation()->cx();
-    return HandleExecutionInterrupt(cx);
+    HandleExecutionInterrupt(cx);
 }
 
 static int32_t
@@ -1446,12 +1446,11 @@ AsmJSModule::deserialize(ExclusiveContext *cx, const uint8_t *cursor)
     return cursor;
 }
 
-// At any time, the executable code of an asm.js module can be protected (as
-// part of RequestInterruptForAsmJSCode). When we touch the executable outside
-// of executing it (which the AsmJSFaultHandler will correctly handle), we need
-// to guard against this by unprotecting the code (if it has been protected) and
-// preventing it from being protected while we are touching it.
-class AutoUnprotectCode
+// When a module is cloned, we memcpy its executable code. If, right before or
+// during the clone, another thread calls AsmJSModule::protectCode() then the
+// executable code will become inaccessible. In theory, we could take away only
+// PROT_EXEC, but this seems to break emulators.
+class AutoUnprotectCodeForClone
 {
     JSRuntime *rt_;
     JSRuntime::AutoLockForInterrupt lock_;
@@ -1459,7 +1458,7 @@ class AutoUnprotectCode
     const bool protectedBefore_;
 
   public:
-    AutoUnprotectCode(JSContext *cx, const AsmJSModule &module)
+    AutoUnprotectCodeForClone(JSContext *cx, const AsmJSModule &module)
       : rt_(cx->runtime()),
         lock_(rt_),
         module_(module),
@@ -1469,7 +1468,7 @@ class AutoUnprotectCode
             module_.unprotectCode(rt_);
     }
 
-    ~AutoUnprotectCode()
+    ~AutoUnprotectCodeForClone()
     {
         if (protectedBefore_)
             module_.protectCode(rt_);
@@ -1479,7 +1478,7 @@ class AutoUnprotectCode
 bool
 AsmJSModule::clone(JSContext *cx, ScopedJSDeletePtr<AsmJSModule> *moduleOut) const
 {
-    AutoUnprotectCode auc(cx, *this);
+    AutoUnprotectCodeForClone cloneGuard(cx, *this);
 
     *moduleOut = cx->new_<AsmJSModule>(scriptSource_, srcStart_, srcBodyStart_, pod.strict_,
                                        pod.usesSignalHandlers_);
@@ -1528,7 +1527,7 @@ AsmJSModule::clone(JSContext *cx, ScopedJSDeletePtr<AsmJSModule> *moduleOut) con
 }
 
 void
-AsmJSModule::setProfilingEnabled(bool enabled, JSContext *cx)
+AsmJSModule::setProfilingEnabled(bool enabled)
 {
     JS_ASSERT(isDynamicallyLinked());
 
@@ -1540,7 +1539,6 @@ AsmJSModule::setProfilingEnabled(bool enabled, JSContext *cx)
     setAutoFlushICacheRange();
 
     // To enable profiling, we need to patch 3 kinds of things:
-    AutoUnprotectCode auc(cx, *this);
 
     // Patch all internal (asm.js->asm.js) callsites to call the profiling
     // prologues:
@@ -1558,9 +1556,6 @@ AsmJSModule::setProfilingEnabled(bool enabled, JSContext *cx)
         BOffImm calleeOffset;
         callerInsn->as<InstBLImm>()->extractImm(&calleeOffset);
         void *callee = calleeOffset.getDest(callerInsn);
-#elif defined(JS_CODEGEN_NONE)
-        MOZ_CRASH();
-        void *callee = nullptr;
 #else
 # error "Missing architecture"
 #endif
@@ -1579,8 +1574,6 @@ AsmJSModule::setProfilingEnabled(bool enabled, JSContext *cx)
         JSC::X86Assembler::setRel32(callerRetAddr, newCallee);
 #elif defined(JS_CODEGEN_ARM)
         new (caller) InstBLImm(BOffImm(newCallee - caller), Assembler::Always);
-#elif defined(JS_CODEGEN_NONE)
-        MOZ_CRASH();
 #else
 # error "Missing architecture"
 #endif
@@ -1638,8 +1631,6 @@ AsmJSModule::setProfilingEnabled(bool enabled, JSContext *cx)
             JS_ASSERT(reinterpret_cast<Instruction*>(jump)->is<InstBImm>());
             new (jump) InstNOP();
         }
-#elif defined(JS_CODEGEN_NONE)
-        MOZ_CRASH();
 #else
 # error "Missing architecture"
 #endif

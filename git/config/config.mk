@@ -41,7 +41,6 @@ _MOZBUILD_EXTERNAL_VARIABLES := \
   CPP_UNIT_TESTS \
   DIRS \
   EXTRA_DSO_LDOPTS \
-  EXTRA_JS_MODULES \
   EXTRA_PP_COMPONENTS \
   EXTRA_PP_JS_MODULES \
   FORCE_SHARED_LIB \
@@ -65,7 +64,6 @@ _MOZBUILD_EXTERNAL_VARIABLES := \
   NO_DIST_INSTALL \
   PARALLEL_DIRS \
   PROGRAM \
-  PYTHON_UNIT_TESTS \
   RESOURCE_FILES \
   SDK_HEADERS \
   SDK_LIBRARY \
@@ -758,8 +756,8 @@ CREATE_PRECOMPLETE_CMD = $(PYTHON) $(abspath $(topsrcdir)/config/createprecomple
 # MDDEPDIR is the subdirectory where dependency files are stored
 MDDEPDIR := .deps
 
-EXPAND_LIBS_EXEC = $(PYTHON) $(topsrcdir)/config/expandlibs_exec.py
-EXPAND_LIBS_GEN = $(PYTHON) $(topsrcdir)/config/expandlibs_gen.py
+EXPAND_LIBS_EXEC = $(PYTHON) $(topsrcdir)/config/expandlibs_exec.py $(if $@,--depend $(MDDEPDIR)/$@.pp --target $@)
+EXPAND_LIBS_GEN = $(PYTHON) $(topsrcdir)/config/expandlibs_gen.py $(if $@,--depend $(MDDEPDIR)/$@.pp)
 EXPAND_AR = $(EXPAND_LIBS_EXEC) --extract -- $(AR)
 EXPAND_CC = $(EXPAND_LIBS_EXEC) --uselist -- $(CC)
 EXPAND_CCC = $(EXPAND_LIBS_EXEC) --uselist -- $(CCC)

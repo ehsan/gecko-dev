@@ -1042,13 +1042,6 @@ public:
   }
 
   bool
-  DOMFetchEnabled() const
-  {
-    AssertIsOnWorkerThread();
-    return mPreferences[WORKERPREF_DOM_FETCH];
-  }
-
-  bool
   OnLine() const
   {
     AssertIsOnWorkerThread();

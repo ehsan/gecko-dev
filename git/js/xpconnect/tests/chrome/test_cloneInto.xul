@@ -189,11 +189,11 @@
   var test = { a: function() { return 42; } };
   cloneAndTestWithFunctions(test);
 
-  // Check that inputs are properly passed through cloned functions:
+  // Check that we're cloning input to functions:
   test = { a: function(obj) { return obj; } };
   var clonedTest = Cu.cloneInto(test, sandbox, {cloneFunctions: true});
   var testInput = {};
-  is(clonedTest.a(testInput), testInput, "Objects should be identical");
+  isnot(clonedTest.a(testInput), testInput, "Objects should not be identical");
   ]]>
   </script>
 </window>

@@ -29,11 +29,12 @@
  * The function used for whitespace detection is a template argument.
  * By default, it is NS_IsAsciiWhitespace.
  */
-template<typename DependentSubstringType, bool IsWhitespace(char16_t)>
+template<typename SubstringType,
+         typename DependentSubstringType,
+         bool IsWhitespace(char16_t)>
 class nsTCharSeparatedTokenizer
 {
-  typedef typename DependentSubstringType::char_type CharType;
-  typedef typename DependentSubstringType::substring_type SubstringType;
+  typedef typename SubstringType::char_type CharType;
 
 public:
     // Flags -- only one for now. If we need more, they should be defined to
@@ -165,34 +166,60 @@ private:
 
 template<bool IsWhitespace(char16_t) = NS_IsAsciiWhitespace>
 class nsCharSeparatedTokenizerTemplate
-  : public nsTCharSeparatedTokenizer<nsDependentSubstring, IsWhitespace>
+  : public nsTCharSeparatedTokenizer<nsSubstring,
+                                     nsDependentSubstring,
+                                     IsWhitespace>
 {
 public:
   nsCharSeparatedTokenizerTemplate(const nsSubstring& aSource,
                                    char16_t aSeparatorChar,
                                    uint32_t aFlags = 0)
-    : nsTCharSeparatedTokenizer<nsDependentSubstring,
+    : nsTCharSeparatedTokenizer<nsSubstring,
+                                nsDependentSubstring,
                                 IsWhitespace>(aSource, aSeparatorChar, aFlags)
   {
   }
 };
 
-typedef nsCharSeparatedTokenizerTemplate<> nsCharSeparatedTokenizer;
+class nsCharSeparatedTokenizer
+  : public nsCharSeparatedTokenizerTemplate<>
+{
+public:
+  nsCharSeparatedTokenizer(const nsSubstring& aSource,
+                           char16_t aSeparatorChar,
+                           uint32_t aFlags = 0)
+    : nsCharSeparatedTokenizerTemplate<>(aSource, aSeparatorChar, aFlags)
+  {
+  }
+};
 
 template<bool IsWhitespace(char16_t) = NS_IsAsciiWhitespace>
 class nsCCharSeparatedTokenizerTemplate
-  : public nsTCharSeparatedTokenizer<nsDependentCSubstring, IsWhitespace>
+  : public nsTCharSeparatedTokenizer<nsCSubstring,
+                                     nsDependentCSubstring,
+                                     IsWhitespace>
 {
 public:
   nsCCharSeparatedTokenizerTemplate(const nsCSubstring& aSource,
                                     char aSeparatorChar,
                                     uint32_t aFlags = 0)
-    : nsTCharSeparatedTokenizer<nsDependentCSubstring,
+    : nsTCharSeparatedTokenizer<nsCSubstring,
+                                nsDependentCSubstring,
                                 IsWhitespace>(aSource, aSeparatorChar, aFlags)
   {
   }
 };
 
-typedef nsCCharSeparatedTokenizerTemplate<> nsCCharSeparatedTokenizer;
+class nsCCharSeparatedTokenizer
+  : public nsCCharSeparatedTokenizerTemplate<>
+{
+public:
+  nsCCharSeparatedTokenizer(const nsCSubstring& aSource,
+                            char aSeparatorChar,
+                            uint32_t aFlags = 0)
+    : nsCCharSeparatedTokenizerTemplate<>(aSource, aSeparatorChar, aFlags)
+  {
+  }
+};
 
 #endif /* __nsCharSeparatedTokenizer_h */

@@ -48,7 +48,7 @@ private:
   class Ptr
   {
   public:
-    MOZ_IMPLICIT Ptr(T* aPtr)
+    Ptr(T* aPtr)
       : mPtr(aPtr)
     {
     }
@@ -81,7 +81,7 @@ public:
   {
   }
 
-  MOZ_IMPLICIT nsAutoPtr(Ptr aRawPtr)
+  nsAutoPtr(Ptr aRawPtr)
     : mRawPtr(aRawPtr)
     // construct from a raw pointer (of the right type)
   {
@@ -471,7 +471,7 @@ public:
   {
   }
 
-  MOZ_IMPLICIT nsAutoArrayPtr(T* aRawPtr)
+  nsAutoArrayPtr(T* aRawPtr)
     : mRawPtr(aRawPtr)
     // construct from a raw pointer (of the right type)
   {
@@ -878,7 +878,7 @@ public:
 
   // construct from a raw pointer (of the right type)
 
-  MOZ_IMPLICIT nsRefPtr(T* aRawPtr)
+  nsRefPtr(T* aRawPtr)
     : mRawPtr(aRawPtr)
   {
     if (mRawPtr) {
@@ -900,7 +900,7 @@ public:
   {
   }
 
-  MOZ_IMPLICIT nsRefPtr(const nsCOMPtr_helper& aHelper)
+  nsRefPtr(const nsCOMPtr_helper& aHelper)
   {
     void* newRawPtr;
     if (NS_FAILED(aHelper(NS_GET_TEMPLATE_IID(T), &newRawPtr))) {
@@ -1330,7 +1330,7 @@ template<class T>
 class nsQueryObject : public nsCOMPtr_helper
 {
 public:
-  explicit nsQueryObject(T* aRawPtr)
+  nsQueryObject(T* aRawPtr)
     : mRawPtr(aRawPtr)
   {
   }

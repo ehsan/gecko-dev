@@ -14,7 +14,6 @@ from mozpack.copier import (
 )
 from mozpack.manifests import (
     InstallManifest,
-    UnreadableInstallManifest,
 )
 from mozpack.test.test_files import TestWithTmpDir
 
@@ -23,12 +22,6 @@ class TestInstallManifest(TestWithTmpDir):
     def test_construct(self):
         m = InstallManifest()
         self.assertEqual(len(m), 0)
-
-    def test_malformed(self):
-        f = self.tmppath('manifest')
-        open(f, 'wb').write('junk\n')
-        with self.assertRaises(UnreadableInstallManifest):
-            m = InstallManifest(f)
 
     def test_adds(self):
         m = InstallManifest()

@@ -18,7 +18,7 @@ else
 include $(topsrcdir)/toolkit/library/libxul.mk
 
 ifdef COMPILE_ENVIRONMENT
-target:: $(DIST)/bin/dependentlibs.list.gtest
+libs:: $(DIST)/bin/dependentlibs.list.gtest
 endif
 
 $(DIST)/bin/dependentlibs.list.gtest: $(DIST)/bin/dependentlibs.list

@@ -458,7 +458,7 @@ ExposeGCThingToActiveJS(void *thing, JSGCTraceKind kind)
     if (js::gc::IsInsideNursery((js::gc::Cell *)thing))
         return;
 #endif
-    if (IsIncrementalBarrierNeededOnTenuredGCThing(rt, thing, kind))
+    if (IsIncrementalBarrierNeededOnGCThing(rt, thing, kind))
         IncrementalReferenceBarrier(thing, kind);
     else if (GCThingIsMarkedGray(thing))
         UnmarkGrayGCThingRecursively(thing, kind);
@@ -484,7 +484,7 @@ MarkGCThingAsLive(JSRuntime *rt_, void *thing, JSGCTraceKind kind)
     if (js::gc::IsInsideNursery((js::gc::Cell *)thing))
         return;
 #endif
-    if (IsIncrementalBarrierNeededOnTenuredGCThing(rt, thing, kind))
+    if (IsIncrementalBarrierNeededOnGCThing(rt, thing, kind))
         IncrementalReferenceBarrier(thing, kind);
 }
 

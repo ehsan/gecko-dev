@@ -26,7 +26,7 @@
 class xpcObjectHelper
 {
 public:
-    explicit xpcObjectHelper(nsISupports *aObject, nsWrapperCache *aCache = nullptr)
+    xpcObjectHelper(nsISupports *aObject, nsWrapperCache *aCache = nullptr)
       : mCanonical(nullptr)
       , mObject(aObject)
       , mCache(aCache)

@@ -2804,7 +2804,7 @@ MCompare::collectRangeInfoPreTrunc()
 void
 MNot::collectRangeInfoPreTrunc()
 {
-    if (!Range(input()).canBeNaN())
+    if (!Range(operand()).canBeNaN())
         operandIsNeverNaN_ = true;
 }
 

@@ -147,23 +147,12 @@ CompositableHost::AddMaskEffect(EffectChain& aEffects,
 {
   RefPtr<TextureSource> source;
   RefPtr<TextureHost> host = GetAsTextureHost();
-
-  if (!host) {
-    NS_WARNING("Using compositable with no valid TextureHost as mask");
-    return false;
+  if (host && host->Lock()) {
+    source = host->GetTextureSources();
   }
-
-  if (!host->Lock()) {
-    NS_WARNING("Failed to lock the mask texture");
-    return false;
-  }
-
-  source = host->GetTextureSources();
-  MOZ_ASSERT(source);
 
   if (!source) {
-    NS_WARNING("The TextureHost was successfully locked but can't provide a TextureSource");
-    host->Unlock();
+    NS_WARNING("Using compositable with no texture host as mask layer");
     return false;
   }
 

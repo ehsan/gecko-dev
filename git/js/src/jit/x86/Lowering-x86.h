@@ -71,7 +71,7 @@ class LIRGeneratorX86 : public LIRGeneratorX86Shared
 
 typedef LIRGeneratorX86 LIRGeneratorSpecific;
 
-} // namespace jit
 } // namespace js
+} // namespace jit
 
 #endif /* jit_x86_Lowering_x86_h */

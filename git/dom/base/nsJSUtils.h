@@ -124,7 +124,7 @@ class MOZ_STACK_CLASS AutoDontReportUncaught {
   bool mWasSet;
 
 public:
-  explicit AutoDontReportUncaught(JSContext* aContext) : mContext(aContext) {
+  AutoDontReportUncaught(JSContext* aContext) : mContext(aContext) {
     MOZ_ASSERT(aContext);
     mWasSet = JS::ContextOptionsRef(mContext).dontReportUncaught();
     if (!mWasSet) {

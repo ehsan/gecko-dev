@@ -23,7 +23,7 @@ class NS_COM_GLUE nsCOMArray_base
   friend class nsArrayBase;
 protected:
   nsCOMArray_base() {}
-  explicit nsCOMArray_base(int32_t aCount) : mArray(aCount) {}
+  nsCOMArray_base(int32_t aCount) : mArray(aCount) {}
   nsCOMArray_base(const nsCOMArray_base& aOther);
   ~nsCOMArray_base();
 

@@ -315,7 +315,7 @@ public:
   NS_DECL_NSISUPPORTSPRIMITIVE
   NS_DECL_NSISUPPORTSCSTRING
 
-  explicit nsSupportsDependentCString(const char* aStr);
+  nsSupportsDependentCString(const char* aStr);
 
 private:
   ~nsSupportsDependentCString() {}

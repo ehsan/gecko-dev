@@ -1274,7 +1274,7 @@ private:
 
     FileDescriptor::PlatformHandleType handle =
       FileDescriptor::PlatformHandleType(PR_FileDesc2NativeHandle(mFileDesc));
-    if (!SendOnOpenCacheFile(mFileSize, FileDescriptor(handle))) {
+    if (!SendOnOpenCacheFile(mFileSize, handle)) {
       unused << Send__delete__(this);
     }
   }

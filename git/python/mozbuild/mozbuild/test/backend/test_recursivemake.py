@@ -212,7 +212,8 @@ class TestRecursiveMakeBackend(BackendTester):
 
         lines = [l.strip() for l in open(p, 'rt').readlines()[2:]]
         self.assertEqual(lines, [
-            'DIRS := dir1 dir2',
+            'DIRS := dir1',
+            'PARALLEL_DIRS := dir2',
             'TEST_DIRS := dir3',
         ])
 

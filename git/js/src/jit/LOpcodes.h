@@ -311,8 +311,6 @@
 # include "jit/arm/LOpcodes-arm.h"
 #elif defined(JS_CODEGEN_MIPS)
 # include "jit/mips/LOpcodes-mips.h"
-#elif defined(JS_CODEGEN_NONE)
-# include "jit/none/LOpcodes-none.h"
 #else
 # error "Unknown architecture!"
 #endif

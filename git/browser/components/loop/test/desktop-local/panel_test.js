@@ -229,7 +229,7 @@ describe("loop.panel", function() {
 
     beforeEach(function() {
       callUrlData = {
-        call_url: "http://call.invalid/fakeToken",
+        call_url: "http://call.invalid/",
         expiresAt: 1000
       };
 
@@ -302,12 +302,6 @@ describe("loop.panel", function() {
         sinon.assert.calledOnce(notifier.errorL10n);
         sinon.assert.calledWithExactly(notifier.errorL10n,
                                        "unable_retrieve_url");
-      });
-
-      it("should set 'loopToken' with the callUrl token", function() {
-        sinon.assert.calledOnce(navigator.mozLoop.setLoopCharPref);
-        sinon.assert.calledWithExactly(navigator.mozLoop.setLoopCharPref,
-                                       "loopToken", "fakeToken");
       });
     });
   });

@@ -4,7 +4,8 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-DIRS += ['builtin']
+PARALLEL_DIRS += ['builtin']
+TEST_DIRS += ['test']
 
 EXPORTS += [
     'nsBindingManager.h',
@@ -43,14 +44,11 @@ MSVC_ENABLE_PGO = True
 LOCAL_INCLUDES += [
     '/content/base/src',
     '/content/html/document/src',
+    '/content/xml/document/src',
     '/content/xul/content/src',
     '/content/xul/document/src',
     '/dom/base',
-    '/dom/xml',
     '/layout/style',
 ]
 
 FINAL_LIBRARY = 'xul'
-
-MOCHITEST_MANIFESTS += ['test/mochitest.ini']
-MOCHITEST_CHROME_MANIFESTS += ['test/chrome.ini']

@@ -16,7 +16,7 @@ class nsConsoleMessage MOZ_FINAL : public nsIConsoleMessage
 {
 public:
   nsConsoleMessage();
-  explicit nsConsoleMessage(const char16_t* aMessage);
+  nsConsoleMessage(const char16_t* aMessage);
 
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSICONSOLEMESSAGE

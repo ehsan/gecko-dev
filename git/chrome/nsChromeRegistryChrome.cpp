@@ -1,10 +1,9 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 sts=2 sw=2 et tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/dom/ContentParent.h"
+#include "mozilla/dom/PContentParent.h"
 #include "RegistryMessageUtils.h"
 #include "nsResProtocolHandler.h"
 
@@ -25,7 +24,6 @@
 #include "nsXPCOMCIDInternal.h"
 
 #include "mozilla/LookAndFeel.h"
-#include "mozilla/unused.h"
 
 #include "nsICommandLine.h"
 #include "nsILocaleService.h"
@@ -46,8 +44,6 @@
 #define PACKAGE_OVERRIDE_BRANCH "chrome.override_package."
 
 using namespace mozilla;
-using mozilla::dom::ContentParent;
-using mozilla::dom::PContentParent;
 
 static PLDHashOperator
 RemoveAll(PLDHashTable *table, PLDHashEntryHdr *entry, uint32_t number, void *arg)
@@ -103,7 +99,6 @@ LanguagesMatch(const nsACString& a, const nsACString& b)
 
 nsChromeRegistryChrome::nsChromeRegistryChrome()
   : mProfileLoaded(false)
-  , mDynamicRegistration(true)
 {
   mPackagesHash.ops = nullptr;
 }
@@ -394,13 +389,7 @@ nsChromeRegistryChrome::CheckForNewChrome()
   mStyleHash.Clear();
   mOverrideTable.Clear();
 
-  mDynamicRegistration = false;
-
   nsComponentManagerImpl::gComponentManager->RereadChromeManifests();
-
-  mDynamicRegistration = true;
-
-  SendRegisteredChrome(nullptr);
   return NS_OK;
 }
 
@@ -487,39 +476,9 @@ nsChromeRegistryChrome::SendRegisteredChrome(
 
   mOverrideTable.EnumerateRead(&EnumerateOverride, &overrides);
 
-  if (aParent) {
-    bool success = aParent->SendRegisterChrome(packages, resources, overrides,
-                                               mSelectedLocale, false);
-    NS_ENSURE_TRUE_VOID(success);
-  } else {
-    nsTArray<ContentParent*> parents;
-    ContentParent::GetAll(parents);
-    if (!parents.Length())
-      return;
-
-    for (PRUint32 i = 0; i < parents.Length(); i++) {
-      DebugOnly<bool> success =
-        parents[i]->SendRegisterChrome(packages, resources, overrides,
-                                       mSelectedLocale, true);
-      NS_WARN_IF_FALSE(success, "couldn't reset a child's registered chrome");
-    }
-  }
-}
-
-/* static */ void
-nsChromeRegistryChrome::ChromePackageFromPackageEntry(PackageEntry* aPackage,
-                                                      ChromePackage* aChromePackage,
-                                                      const nsCString& aSelectedLocale,
-                                                      const nsCString& aSelectedSkin)
-{
-  SerializeURI(aPackage->baseURI, aChromePackage->contentBaseURI);
-  SerializeURI(aPackage->locales.GetBase(aSelectedLocale,
-                                         nsProviderArray::LOCALE),
-               aChromePackage->localeBaseURI);
-  SerializeURI(aPackage->skins.GetBase(aSelectedSkin, nsProviderArray::ANY),
-               aChromePackage->skinBaseURI);
-  aChromePackage->package = aPackage->package;
-  aChromePackage->flags = aPackage->flags;
+  bool success = aParent->SendRegisterChrome(packages, resources, overrides,
+                                             mSelectedLocale);
+  NS_ENSURE_TRUE_VOID(success);
 }
 
 PLDHashOperator
@@ -531,9 +490,21 @@ nsChromeRegistryChrome::CollectPackages(PLDHashTable *table,
   EnumerationArgs* args = static_cast<EnumerationArgs*>(arg);
   PackageEntry* package = static_cast<PackageEntry*>(entry);
 
-  ChromePackage chromePackage;
-  ChromePackageFromPackageEntry(package, &chromePackage,
-                                args->selectedLocale, args->selectedSkin);
+  SerializedURI contentURI, localeURI, skinURI;
+
+  SerializeURI(package->baseURI, contentURI);
+  SerializeURI(package->locales.GetBase(args->selectedLocale,
+                                        nsProviderArray::LOCALE), localeURI);
+  SerializeURI(package->skins.GetBase(args->selectedSkin, nsProviderArray::ANY),
+               skinURI);
+  
+  ChromePackage chromePackage = {
+    package->package,
+    contentURI,
+    localeURI,
+    skinURI,
+    package->flags
+  };
   args->packages.AppendElement(chromePackage);
   return (PLDHashOperator)PL_DHASH_NEXT;
 }
@@ -818,19 +789,6 @@ EnsureLowerCase(char *aBuf)
   }
 }
 
-static void
-SendManifestEntry(const ChromeRegistryItem &aItem)
-{
-  nsTArray<ContentParent*> parents;
-  ContentParent::GetAll(parents);
-  if (!parents.Length())
-    return;
-
-  for (uint32_t i = 0; i < parents.Length(); i++) {
-    unused << parents[i]->SendRegisterChromeItem(aItem);
-  }
-}
-
 void
 nsChromeRegistryChrome::ManifestContent(ManifestProcessingContext& cx, int lineno,
                                         char *const * argv, bool platform,
@@ -868,12 +826,6 @@ nsChromeRegistryChrome::ManifestContent(ManifestProcessingContext& cx, int linen
     entry->flags |= PLATFORM_PACKAGE;
   if (contentaccessible)
     entry->flags |= CONTENT_ACCESSIBLE;
-
-  if (mDynamicRegistration) {
-    ChromePackage chromePackage;
-    ChromePackageFromPackageEntry(entry, &chromePackage, mSelectedLocale, mSelectedSkin);
-    SendManifestEntry(chromePackage);
-  }
 }
 
 void
@@ -909,12 +861,6 @@ nsChromeRegistryChrome::ManifestLocale(ManifestProcessingContext& cx, int lineno
     return;
 
   entry->locales.SetBase(nsDependentCString(provider), resolved);
-
-  if (mDynamicRegistration) {
-    ChromePackage chromePackage;
-    ChromePackageFromPackageEntry(entry, &chromePackage, mSelectedLocale, mSelectedSkin);
-    SendManifestEntry(chromePackage);
-  }
 }
 
 void
@@ -950,12 +896,6 @@ nsChromeRegistryChrome::ManifestSkin(ManifestProcessingContext& cx, int lineno,
     return;
 
   entry->skins.SetBase(nsDependentCString(provider), resolved);
-
-  if (mDynamicRegistration) {
-    ChromePackage chromePackage;
-    ChromePackageFromPackageEntry(entry, &chromePackage, mSelectedLocale, mSelectedSkin);
-    SendManifestEntry(chromePackage);
-  }
 }
 
 void
@@ -1030,17 +970,6 @@ nsChromeRegistryChrome::ManifestOverride(ManifestProcessingContext& cx, int line
     return;
   }
   mOverrideTable.Put(chromeuri, resolveduri);
-
-  if (mDynamicRegistration) {
-    SerializedURI serializedChrome;
-    SerializedURI serializedOverride;
-
-    SerializeURI(chromeuri, serializedChrome);
-    SerializeURI(resolveduri, serializedOverride);
-
-    OverrideMapping override = { serializedChrome, serializedOverride };
-    SendManifestEntry(override);
-  }
 }
 
 void

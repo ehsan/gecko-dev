@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 sts=2 sw=2 et tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -19,17 +18,10 @@ nsChromeRegistryContent::RegisterRemoteChrome(
     const InfallibleTArray<ChromePackage>& aPackages,
     const InfallibleTArray<ResourceMapping>& aResources,
     const InfallibleTArray<OverrideMapping>& aOverrides,
-    const nsACString& aLocale,
-    bool aReset)
+    const nsACString& aLocale)
 {
-  NS_ABORT_IF_FALSE(aReset || mLocale.IsEmpty(),
+  NS_ABORT_IF_FALSE(mLocale == nsDependentCString(""),
                     "RegisterChrome twice?");
-
-  if (aReset) {
-    mPackagesHash.Clear();
-    mOverrideTable.Clear();
-    // XXX Can't clear resources.
-  }
 
   for (uint32_t i = aPackages.Length(); i > 0; ) {
     --i;
@@ -114,7 +106,7 @@ nsChromeRegistryContent::RegisterResource(const ResourceMapping& aResource)
     nsresult rv = NS_NewURI(getter_AddRefs(resolvedURI),
                             aResource.resolvedURI.spec,
                             aResource.resolvedURI.charset.get(),
-                            nullptr, io);
+                            nullptr, io);                 
     if (NS_FAILED(rv))
       return;
   }

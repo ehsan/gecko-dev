@@ -13,8 +13,6 @@
 # include "jit/arm/MoveEmitter-arm.h"
 #elif defined(JS_CODEGEN_MIPS)
 # include "jit/mips/MoveEmitter-mips.h"
-#elif defined(JS_CODEGEN_NONE)
-# include "jit/none/MoveEmitter-none.h"
 #else
 # error "Unknown architecture!"
 #endif

@@ -19,7 +19,7 @@
 #include "mozilla/ModuleLoader.h"
 #include "mozilla/Mutex.h"
 #include "nsXULAppAPI.h"
-#include "nsNativeModuleLoader.h"
+#include "nsNativeComponentLoader.h"
 #include "nsIFactory.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIInterfaceRequestorUtils.h"

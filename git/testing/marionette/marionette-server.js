@@ -2493,12 +2493,12 @@ MarionetteServerConnection.prototype.requestTypes = {
   "isElementDisplayed": MarionetteServerConnection.prototype.isElementDisplayed,
   "getElementValueOfCssProperty": MarionetteServerConnection.prototype.getElementValueOfCssProperty,
   "submitElement": MarionetteServerConnection.prototype.submitElement,
-  "getElementSize": MarionetteServerConnection.prototype.getElementSize,  //deprecated
+  "getElementSize": MarionetteServerConnection.prototype.getElementSize,
   "getElementRect": MarionetteServerConnection.prototype.getElementRect,
   "isElementEnabled": MarionetteServerConnection.prototype.isElementEnabled,
   "isElementSelected": MarionetteServerConnection.prototype.isElementSelected,
   "sendKeysToElement": MarionetteServerConnection.prototype.sendKeysToElement,
-  "getElementLocation": MarionetteServerConnection.prototype.getElementLocation,  // deprecated
+  "getElementLocation": MarionetteServerConnection.prototype.getElementLocation,
   "getElementPosition": MarionetteServerConnection.prototype.getElementLocation,  // deprecated
   "clearElement": MarionetteServerConnection.prototype.clearElement,
   "getTitle": MarionetteServerConnection.prototype.getTitle,
@@ -2578,13 +2578,7 @@ BrowserObj.prototype = {
   setBrowser: function BO_setBrowser(win) {
     switch (appName) {
       case "Firefox":
-        if (this.window.location.href.indexOf("chrome://b2g") == -1) {
-          this.browser = win.gBrowser;
-        }
-        else {
-          // this is Mulet
-          appName = "B2G";
-        }
+        this.browser = win.gBrowser;
         break;
       case "Fennec":
         this.browser = win.BrowserApp;

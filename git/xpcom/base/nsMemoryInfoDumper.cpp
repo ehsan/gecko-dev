@@ -721,10 +721,10 @@ nsMemoryInfoDumper::DumpDMDToFile(FILE* aFile)
     return rv;
   }
 
-  // Dump DMD's memory reports analysis to the file.
+  // Dump DMD output to the file.
   DMDWriteState state(dmdWriter);
   dmd::Writer w(DMDWrite, &state);
-  dmd::AnalyzeReports(w);
+  dmd::Dump(w);
 
   rv = dmdWriter->Finish();
   NS_WARN_IF(NS_FAILED(rv));

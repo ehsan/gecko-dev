@@ -17,12 +17,11 @@ class nsChromeRegistryContent : public nsChromeRegistry
 {
  public:
   nsChromeRegistryContent();
-
+  
   void RegisterRemoteChrome(const InfallibleTArray<ChromePackage>& aPackages,
                             const InfallibleTArray<ResourceMapping>& aResources,
                             const InfallibleTArray<OverrideMapping>& aOverrides,
-                            const nsACString& aLocale,
-                            bool aReset);
+                            const nsACString& aLocale);
 
   NS_IMETHOD GetLocalesForPackage(const nsACString& aPackage,
                                   nsIUTF8StringEnumerator* *aResult) MOZ_OVERRIDE;
@@ -39,10 +38,6 @@ class nsChromeRegistryContent : public nsChromeRegistry
   NS_IMETHOD GetXULOverlays(nsIURI *aChromeURL,
                             nsISimpleEnumerator **aResult) MOZ_OVERRIDE;
 
-  void RegisterPackage(const ChromePackage& aPackage);
-  void RegisterOverride(const OverrideMapping& aOverride);
-  void RegisterResource(const ResourceMapping& aResource);
-
  private:
   struct PackageEntry
   {
@@ -54,6 +49,10 @@ class nsChromeRegistryContent : public nsChromeRegistry
     nsCOMPtr<nsIURI> skinBaseURI;
     uint32_t         flags;
   };
+  
+  void RegisterPackage(const ChromePackage& aPackage);
+  void RegisterResource(const ResourceMapping& aResource);
+  void RegisterOverride(const OverrideMapping& aOverride);
 
   nsresult UpdateSelectedLocale() MOZ_OVERRIDE;
   nsIURI* GetBaseURIFromPackage(const nsCString& aPackage,

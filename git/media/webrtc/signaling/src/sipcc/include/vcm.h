@@ -1085,13 +1085,7 @@ int vcmDisableRtcpComponent(const char *peerconnection, int level);
 
 short vcmGetVideoMaxFs(uint16_t codec, int32_t *max_fs);
 
-short vcmGetVideoMaxFr(uint16_t codec, int32_t *max_fr);
-
-short vcmGetVideoMaxBr(uint16_t codec, int32_t *max_br);
-
-short vcmGetVideoMaxMbps(uint16_t codec, int32_t *max_mbps);
-
-short vcmGetVideoPreferredCodec(int32_t *preferred_codec);
+short vcmGetVideoMaxFr(uint16_t codec, int32_t *max_fs);
 
 //Using C++ for gips. This is the end of extern "C" above.
 #ifdef __cplusplus

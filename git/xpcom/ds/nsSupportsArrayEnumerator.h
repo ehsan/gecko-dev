@@ -16,7 +16,7 @@ class nsSupportsArrayEnumerator MOZ_FINAL : public nsIBidirectionalEnumerator
 public:
   NS_DECL_ISUPPORTS
 
-  explicit nsSupportsArrayEnumerator(nsISupportsArray* aArray);
+  nsSupportsArrayEnumerator(nsISupportsArray* aArray);
 
   // nsIEnumerator methods:
   NS_DECL_NSIENUMERATOR

@@ -20,8 +20,6 @@
 # include "jit/arm/CodeGenerator-arm.h"
 #elif defined(JS_CODEGEN_MIPS)
 # include "jit/mips/CodeGenerator-mips.h"
-#elif defined(JS_CODEGEN_NONE)
-# include "jit/none/CodeGenerator-none.h"
 #else
 #error "Unknown architecture!"
 #endif

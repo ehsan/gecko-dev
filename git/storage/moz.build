@@ -6,5 +6,5 @@
 
 DIRS += ['public', 'src', 'build']
 
-TEST_DIRS += ['test']
+TEST_TOOL_DIRS += ['test']
 
