@@ -220,6 +220,7 @@ protected:
     nsTArray<DelayedDialogData*> mDelayedDialogs;
 
     PRBool ShouldDelayDialogs();
+    PRBool AllowContentIME();
 
     NS_OVERRIDE
     virtual PRenderFrameParent* AllocPRenderFrame();

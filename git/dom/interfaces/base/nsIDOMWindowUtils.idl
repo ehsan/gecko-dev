@@ -65,7 +65,7 @@ interface nsITransferable;
 interface nsIQueryContentEventResult;
 interface nsIDOMWindow;
 
-[scriptable, uuid(bf43190f-dc49-4948-934f-4613438ed84a)]
+[scriptable, uuid(33cbae2d-2361-4f3d-b589-cc55af07a434)]
 interface nsIDOMWindowUtils : nsISupports {
 
   /**
@@ -476,17 +476,6 @@ interface nsIDOMWindowUtils : nsISupports {
   void getScrollXY(in boolean aFlushLayout, out long aScrollX, out long aScrollY);
 
   /**
-   * Creates a ChromeObjectWrapper for the object and returns it.
-   *
-   * @param scope The JavaScript object whose scope we'll use as the
-   *        parent of the wrapper.
-   * @param objToWrap The JavaScript object to wrap.
-   * @return the wrapped object.
-   */
-
-  void getCOWForObject(/* scope, objToWrap */);
-
-  /**
    * Get IME open state. TRUE means 'Open', otherwise, 'Close'.
    * This property works only when IMEEnabled is IME_STATUS_ENABLED.
    */
@@ -804,6 +793,11 @@ interface nsIDOMWindowUtils : nsISupports {
    * error if there is no widget associated with this window.
    */
   readonly attribute AString layerManagerType;
+
+  /**
+   * The DPI of the display
+   */
+  readonly attribute float displayDPI;
 
   /**
    * Return the outer window with the given ID, if any.  Can return null.
