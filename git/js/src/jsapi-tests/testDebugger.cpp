@@ -10,8 +10,6 @@
 #include "js/OldDebugAPI.h"
 #include "jsapi-tests/tests.h"
 
-using namespace js;
-
 static int callCounts[2] = {0, 0};
 
 static void *
@@ -255,13 +253,13 @@ BEGIN_TEST(testDebugger_singleStepThrow)
     static bool
     setStepMode(JSContext *cx, unsigned argc, jsval *vp)
     {
-        CallArgs args = CallArgsFromVp(argc, vp);
+        JS::RootedScript script(cx);
+        JS_DescribeScriptedCaller(cx, &script, nullptr);
+        JS_ASSERT(script);
 
-        NonBuiltinScriptFrameIter iter(cx);
-        if (!JS_SetSingleStepMode(cx, iter.script(), true))
+        if (!JS_SetSingleStepMode(cx, script, true))
             return false;
-
-        args.rval().set(UndefinedValue());
+        JS_SET_RVAL(cx, vp, JSVAL_VOID);
         return true;
     }
 

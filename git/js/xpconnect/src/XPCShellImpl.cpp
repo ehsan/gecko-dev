@@ -121,19 +121,22 @@ GetLocationProperty(JSContext *cx, HandleObject obj, HandleId id, MutableHandleV
     //XXX: your platform should really implement this
     return false;
 #else
-    JS::AutoFilename filename;
-    if (JS::DescribeScriptedCaller(cx, &filename) && filename.get()) {
+    JS::RootedScript script(cx);
+    JS_DescribeScriptedCaller(cx, &script, nullptr);
+    const char *filename = JS_GetScriptFilename(cx, script);
+
+    if (filename) {
         nsresult rv;
         nsCOMPtr<nsIXPConnect> xpc =
             do_GetService(kXPConnectServiceContractID, &rv);
 
 #if defined(XP_WIN)
         // convert from the system codepage to UTF-16
-        int bufferSize = MultiByteToWideChar(CP_ACP, 0, filename.get(),
+        int bufferSize = MultiByteToWideChar(CP_ACP, 0, filename,
                                              -1, nullptr, 0);
         nsAutoString filenameString;
         filenameString.SetLength(bufferSize);
-        MultiByteToWideChar(CP_ACP, 0, filename.get(),
+        MultiByteToWideChar(CP_ACP, 0, filename,
                             -1, (LPWSTR)filenameString.BeginWriting(),
                             filenameString.Length());
         // remove the null terminator
@@ -150,7 +153,7 @@ GetLocationProperty(JSContext *cx, HandleObject obj, HandleId id, MutableHandleV
             start++;
         }
 #elif defined(XP_UNIX)
-        NS_ConvertUTF8toUTF16 filenameString(filename.get());
+        NS_ConvertUTF8toUTF16 filenameString(filename);
 #endif
 
         nsCOMPtr<nsIFile> location;

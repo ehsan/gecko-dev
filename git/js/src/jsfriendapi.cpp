@@ -930,18 +930,11 @@ JS::DisableIncrementalGC(JSRuntime *rt)
     rt->gcIncrementalEnabled = false;
 }
 
-JS::AutoDisableGenerationalGC::AutoDisableGenerationalGC(JSRuntime *rt)
-  : runtime(rt)
-#ifdef JS_GC_ZEAL
-  , restartVerifier(rt->gcVerifyPostData)
-#endif
+extern JS_FRIEND_API(void)
+JS::DisableGenerationalGC(JSRuntime *rt)
 {
 #ifdef JSGC_GENERATIONAL
     if (IsGenerationalGCEnabled(rt)) {
-#ifdef JS_GC_ZEAL
-        if (restartVerifier)
-            gc::EndVerifyPostBarriers(rt);
-#endif
         MinorGC(rt, JS::gcreason::API);
         rt->gcNursery.disable();
         rt->gcStoreBuffer.disable();
@@ -950,18 +943,15 @@ JS::AutoDisableGenerationalGC::AutoDisableGenerationalGC(JSRuntime *rt)
     ++rt->gcGenerationalDisabled;
 }
 
-JS::AutoDisableGenerationalGC::~AutoDisableGenerationalGC()
+extern JS_FRIEND_API(void)
+JS::EnableGenerationalGC(JSRuntime *rt)
 {
-    JS_ASSERT(runtime->gcGenerationalDisabled > 0);
-    --runtime->gcGenerationalDisabled;
+    JS_ASSERT(rt->gcGenerationalDisabled > 0);
+    --rt->gcGenerationalDisabled;
 #ifdef JSGC_GENERATIONAL
-    if (runtime->gcGenerationalDisabled == 0) {
-        runtime->gcNursery.enable();
-        runtime->gcStoreBuffer.enable();
-#ifdef JS_GC_ZEAL
-        if (restartVerifier)
-            gc::StartVerifyPostBarriers(runtime);
-#endif
+    if (IsGenerationalGCEnabled(rt)) {
+        rt->gcNursery.enable();
+        rt->gcStoreBuffer.enable();
     }
 #endif
 }

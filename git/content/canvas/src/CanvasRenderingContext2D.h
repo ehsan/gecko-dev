@@ -702,9 +702,7 @@ protected:
     nsRefPtr<Element> mElement;
   };
 
-#ifdef ACCESSIBILITY
   static PLDHashOperator RemoveHitRegionProperty(RegionInfo* aEntry, void* aData);
-#endif
   nsTHashtable<RegionInfo> mHitRegionsOptions;
 
   /**

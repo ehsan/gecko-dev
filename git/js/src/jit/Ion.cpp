@@ -1683,7 +1683,7 @@ IonCompile(JSContext *cx, JSScript *script,
 
     BaselineFrameInspector *baselineFrameInspector = nullptr;
     if (baselineFrame) {
-        baselineFrameInspector = NewBaselineFrameInspector(temp, baselineFrame, info);
+        baselineFrameInspector = NewBaselineFrameInspector(temp, baselineFrame);
         if (!baselineFrameInspector)
             return AbortReason_Alloc;
     }

@@ -32,14 +32,14 @@ bool
 nsJSUtils::GetCallingLocation(JSContext* aContext, const char* *aFilename,
                               uint32_t* aLineno)
 {
-  JS::AutoFilename filename;
+  JS::Rooted<JSScript*> script(aContext);
   unsigned lineno = 0;
 
-  if (!JS::DescribeScriptedCaller(aContext, &filename, &lineno)) {
+  if (!JS_DescribeScriptedCaller(aContext, &script, &lineno)) {
     return false;
   }
 
-  *aFilename = filename.get();
+  *aFilename = ::JS_GetScriptFilename(aContext, script);
   *aLineno = lineno;
 
   return true;

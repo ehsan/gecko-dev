@@ -14,7 +14,6 @@ HOST_SIMPLE_PROGRAMS += [
 
 MOCHITEST_MANIFESTS += [
     'chrome/mochitest.ini',
-    'css-visited/mochitest.ini',
     'mochitest.ini',
 ]
 BROWSER_CHROME_MANIFESTS += ['browser.ini']

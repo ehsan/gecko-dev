@@ -1009,7 +1009,8 @@ nsMemoryInfoDumper::DumpMemoryInfoToTempDir(const nsAString& aIdentifier,
       do_GetService("@mozilla.org/memory-reporter-manager;1");
     if (NS_WARN_IF(!mgr))
       return NS_ERROR_FAILURE;
-    mgr->MinimizeMemoryUsage(callback);
+    nsCOMPtr<nsICancelableRunnable> runnable;
+    mgr->MinimizeMemoryUsage(callback, getter_AddRefs(runnable));
     return NS_OK;
   }
 

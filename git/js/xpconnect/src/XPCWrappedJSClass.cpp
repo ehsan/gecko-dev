@@ -845,8 +845,10 @@ nsXPCWrappedJSClass::CheckForException(XPCCallContext & ccx,
 
                 // Finally, check to see if this is the last JS frame on the
                 // stack. If so then we always want to report it.
-                if (!reportable)
-                    reportable = !JS::DescribeScriptedCaller(cx);
+                if (!reportable) {
+                    RootedScript ignored(cx);
+                    reportable = !JS_DescribeScriptedCaller(cx, &ignored, nullptr);
+                }
 
                 // Ugly special case for GetInterface. It's "special" in the
                 // same way as QueryInterface in that a failure is not

@@ -526,7 +526,8 @@ NS_ScriptErrorReporter(JSContext *cx,
   // absence of werror are swallowed whole, so report those now.
   if (!JSREPORT_IS_WARNING(report->flags)) {
     nsIXPConnect* xpc = nsContentUtils::XPConnect();
-    if (JS::DescribeScriptedCaller(cx)) {
+    JS::Rooted<JSScript*> script(cx);
+    if (JS_DescribeScriptedCaller(cx, &script, nullptr)) {
       xpc->MarkErrorUnreported(cx);
       return;
     }

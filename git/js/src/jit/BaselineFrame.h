@@ -152,8 +152,8 @@ class BaselineFrame
     }
 
     Value &unaliasedVar(uint32_t i, MaybeCheckAliasing checkAliasing = CHECK_ALIASING) const {
-        JS_ASSERT(i < script()->nfixedvars());
         JS_ASSERT_IF(checkAliasing, !script()->varIsAliased(i));
+        JS_ASSERT(i < script()->nfixed());
         return *valueSlot(i);
     }
 
@@ -172,7 +172,6 @@ class BaselineFrame
     }
 
     Value &unaliasedLocal(uint32_t i, MaybeCheckAliasing checkAliasing = CHECK_ALIASING) const {
-        JS_ASSERT(i < script()->nfixed());
 #ifdef DEBUG
         CheckLocalUnaliased(checkAliasing, script(), i);
 #endif
@@ -296,7 +295,7 @@ class BaselineFrame
         flags_ |= OVER_RECURSED;
     }
 
-    void trace(JSTracer *trc, IonFrameIterator &frame);
+    void trace(JSTracer *trc);
 
     bool isFunctionFrame() const {
         return CalleeTokenIsFunction(calleeToken());

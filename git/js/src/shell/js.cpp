@@ -577,6 +577,14 @@ Version(JSContext *cx, unsigned argc, jsval *vp)
     return true;
 }
 
+static JSScript *
+GetTopScript(JSContext *cx)
+{
+    RootedScript script(cx);
+    JS_DescribeScriptedCaller(cx, &script, nullptr);
+    return script;
+}
+
 /*
  * Resolve a (possibly) relative filename to an absolute path. If
  * |scriptRelative| is true, then the result will be relative to the directory
@@ -609,23 +617,19 @@ ResolvePath(JSContext *cx, HandleString filenameStr, bool scriptRelative)
 #endif
 
     /* Get the currently executing script's name. */
-    JS::AutoFilename scriptFilename;
-    if (!DescribeScriptedCaller(cx, &scriptFilename))
+    RootedScript script(cx, GetTopScript(cx));
+    if (!script->filename())
         return nullptr;
-
-    if (!scriptFilename.get())
-        return nullptr;
-
-    if (strcmp(scriptFilename.get(), "-e") == 0 || strcmp(scriptFilename.get(), "typein") == 0)
+    if (strcmp(script->filename(), "-e") == 0 || strcmp(script->filename(), "typein") == 0)
         scriptRelative = false;
 
     static char buffer[PATH_MAX+1];
     if (scriptRelative) {
 #ifdef XP_WIN
         // The docs say it can return EINVAL, but the compiler says it's void
-        _splitpath(scriptFilename.get(), nullptr, buffer, nullptr, nullptr);
+        _splitpath(script->filename(), nullptr, buffer, nullptr, nullptr);
 #else
-        strncpy(buffer, scriptFilename.get(), PATH_MAX+1);
+        strncpy(buffer, script->filename(), PATH_MAX+1);
         if (buffer[PATH_MAX] != '\0')
             return nullptr;
 
@@ -1651,13 +1655,6 @@ SetDebug(JSContext *cx, unsigned argc, jsval *vp)
     if (ok)
         args.rval().setBoolean(true);
     return ok;
-}
-
-static JSScript *
-GetTopScript(JSContext *cx)
-{
-    NonBuiltinScriptFrameIter iter(cx);
-    return iter.done() ? nullptr : iter.script();
 }
 
 static bool
@@ -2698,10 +2695,10 @@ EvalInContext(JSContext *cx, unsigned argc, jsval *vp)
         return true;
     }
 
-    JS::AutoFilename filename;
+    RootedScript script(cx);
     unsigned lineno;
 
-    DescribeScriptedCaller(cx, &filename, &lineno);
+    JS_DescribeScriptedCaller(cx, &script, &lineno);
     {
         Maybe<JSAutoCompartment> ac;
         unsigned flags;
@@ -2719,7 +2716,7 @@ EvalInContext(JSContext *cx, unsigned argc, jsval *vp)
             return false;
         }
         if (!JS_EvaluateUCScript(cx, sobj, src, srclen,
-                                 filename.get(),
+                                 script->filename(),
                                  lineno,
                                  args.rval())) {
             return false;
@@ -4017,21 +4014,17 @@ static bool
 DecompileThisScript(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-
-    NonBuiltinScriptFrameIter iter(cx);
-    if (iter.done()) {
+    RootedScript script (cx);
+    if (!JS_DescribeScriptedCaller(cx, &script, nullptr)) {
         args.rval().setString(cx->runtime()->emptyString);
         return true;
     }
 
     {
-        JSAutoCompartment ac(cx, iter.script());
-
-        RootedScript script(cx, iter.script());
+        JSAutoCompartment ac(cx, script);
         JSString *result = JS_DecompileScript(cx, script, "test", 0);
         if (!result)
             return false;
-
         args.rval().setString(result);
     }
 
@@ -4042,18 +4035,15 @@ static bool
 ThisFilename(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-
-    JS::AutoFilename filename;
-    if (!DescribeScriptedCaller(cx, &filename) || !filename.get()) {
+    RootedScript script (cx);
+    if (!JS_DescribeScriptedCaller(cx, &script, nullptr) || !script->filename()) {
         args.rval().setString(cx->runtime()->emptyString);
         return true;
     }
-
-    JSString *str = JS_NewStringCopyZ(cx, filename.get());
-    if (!str)
+    JSString *filename = JS_NewStringCopyZ(cx, script->filename());
+    if (!filename)
         return false;
-
-    args.rval().setString(str);
+    args.rval().setString(filename);
     return true;
 }
 
@@ -6213,9 +6203,8 @@ main(int argc, char **argv, char **envp)
 
     JS_SetGCParameter(rt, JSGC_MAX_BYTES, 0xffffffff);
 #ifdef JSGC_GENERATIONAL
-    Maybe<JS::AutoDisableGenerationalGC> noggc;
     if (op.getBoolOption("no-ggc"))
-        noggc.construct(rt);
+        JS::DisableGenerationalGC(rt);
 #endif
 
     size_t availMem = op.getIntOption("available-memory");

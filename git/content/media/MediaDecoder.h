@@ -816,8 +816,10 @@ public:
   static bool IsRawEnabled();
 #endif
 
+#ifdef MOZ_OGG
   static bool IsOggEnabled();
   static bool IsOpusEnabled();
+#endif
 
 #ifdef MOZ_WAVE
   static bool IsWaveEnabled();

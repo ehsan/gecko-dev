@@ -13,6 +13,7 @@
 #include "PromiseCallback.h"
 #include "PromiseNativeHandler.h"
 #include "nsContentUtils.h"
+#include "nsPIDOMWindow.h"
 #include "WorkerPrivate.h"
 #include "WorkerRunnable.h"
 #include "nsJSPrincipals.h"
@@ -189,7 +190,7 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(Promise)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(Promise)
   tmp->MaybeReportRejected();
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mGlobal)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mWindow)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mResolveCallbacks);
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mRejectCallbacks);
   tmp->mResult = JS::UndefinedValue();
@@ -197,7 +198,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(Promise)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(Promise)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mGlobal)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mWindow)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mResolveCallbacks);
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mRejectCallbacks);
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
@@ -216,16 +217,15 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(Promise)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
 
-Promise::Promise(nsIGlobalObject* aGlobal)
-  : mGlobal(aGlobal)
+Promise::Promise(nsPIDOMWindow* aWindow)
+  : mWindow(aWindow)
   , mResult(JS::UndefinedValue())
   , mState(Pending)
   , mTaskPending(false)
   , mHadRejectCallback(false)
   , mResolvePending(false)
 {
-  MOZ_ASSERT(mGlobal);
-
+  MOZ_COUNT_CTOR(Promise);
   mozilla::HoldJSObjects(this);
   SetIsDOMBinding();
 }
@@ -235,37 +235,13 @@ Promise::~Promise()
   MaybeReportRejected();
   mResult = JS::UndefinedValue();
   mozilla::DropJSObjects(this);
+  MOZ_COUNT_DTOR(Promise);
 }
 
 JSObject*
 Promise::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
   return PromiseBinding::Wrap(aCx, aScope, this);
-}
-
-JSObject*
-Promise::GetOrCreateWrapper(JSContext* aCx)
-{
-  if (JSObject* wrapper = GetWrapper()) {
-    return wrapper;
-  }
-
-  nsIGlobalObject* global = GetParentObject();
-  MOZ_ASSERT(global);
-
-  JS::Rooted<JSObject*> scope(aCx, global->GetGlobalJSObject());
-  if (!scope) {
-    JS_ReportError(aCx, "can't get scope");
-    return nullptr;
-  }
-
-  JS::Rooted<JS::Value> val(aCx);
-  if (!WrapNewBindingObject(aCx, scope, this, &val)) {
-    MOZ_ASSERT(JS_IsExceptionPending(aCx));
-    return nullptr;
-  }
-
-  return GetWrapper();
 }
 
 void
@@ -477,15 +453,18 @@ Promise::Constructor(const GlobalObject& aGlobal,
                      PromiseInit& aInit, ErrorResult& aRv)
 {
   JSContext* cx = aGlobal.GetContext();
+  nsCOMPtr<nsPIDOMWindow> window;
 
-  nsCOMPtr<nsIGlobalObject> global;
-  global = do_QueryInterface(aGlobal.GetAsSupports());
-  if (!global) {
-    aRv.Throw(NS_ERROR_UNEXPECTED);
-    return nullptr;
+  // On workers, let the window be null.
+  if (MOZ_LIKELY(NS_IsMainThread())) {
+    window = do_QueryInterface(aGlobal.GetAsSupports());
+    if (!window) {
+      aRv.Throw(NS_ERROR_UNEXPECTED);
+      return nullptr;
+    }
   }
 
-  nsRefPtr<Promise> promise = new Promise(global);
+  nsRefPtr<Promise> promise = new Promise(window);
 
   JS::Rooted<JSObject*> resolveFunc(cx,
                                     CreateFunction(cx, aGlobal.Get(), promise,
@@ -534,21 +513,24 @@ Promise::Resolve(const GlobalObject& aGlobal, JSContext* aCx,
     }
   }
 
-  nsCOMPtr<nsIGlobalObject> global =
-    do_QueryInterface(aGlobal.GetAsSupports());
-  if (!global) {
-    aRv.Throw(NS_ERROR_UNEXPECTED);
-    return nullptr;
+  nsCOMPtr<nsPIDOMWindow> window;
+  if (MOZ_LIKELY(NS_IsMainThread())) {
+    window = do_QueryInterface(aGlobal.GetAsSupports());
+    if (!window) {
+      aRv.Throw(NS_ERROR_UNEXPECTED);
+      return nullptr;
+    }
   }
 
-  return Resolve(global, aCx, aValue, aRv);
+  return Resolve(window, aCx, aValue, aRv);
 }
 
 /* static */ already_AddRefed<Promise>
-Promise::Resolve(nsIGlobalObject* aGlobal, JSContext* aCx,
+Promise::Resolve(nsPIDOMWindow* aWindow, JSContext* aCx,
                  JS::Handle<JS::Value> aValue, ErrorResult& aRv)
 {
-  nsRefPtr<Promise> promise = new Promise(aGlobal);
+  // aWindow may be null.
+  nsRefPtr<Promise> promise = new Promise(aWindow);
 
   promise->MaybeResolveInternal(aCx, aValue);
   return promise.forget();
@@ -558,21 +540,24 @@ Promise::Resolve(nsIGlobalObject* aGlobal, JSContext* aCx,
 Promise::Reject(const GlobalObject& aGlobal, JSContext* aCx,
                 JS::Handle<JS::Value> aValue, ErrorResult& aRv)
 {
-  nsCOMPtr<nsIGlobalObject> global =
-    do_QueryInterface(aGlobal.GetAsSupports());
-  if (!global) {
-    aRv.Throw(NS_ERROR_UNEXPECTED);
-    return nullptr;
+  nsCOMPtr<nsPIDOMWindow> window;
+  if (MOZ_LIKELY(NS_IsMainThread())) {
+    window = do_QueryInterface(aGlobal.GetAsSupports());
+    if (!window) {
+      aRv.Throw(NS_ERROR_UNEXPECTED);
+      return nullptr;
+    }
   }
 
-  return Reject(global, aCx, aValue, aRv);
+  return Reject(window, aCx, aValue, aRv);
 }
 
 /* static */ already_AddRefed<Promise>
-Promise::Reject(nsIGlobalObject* aGlobal, JSContext* aCx,
+Promise::Reject(nsPIDOMWindow* aWindow, JSContext* aCx,
                 JS::Handle<JS::Value> aValue, ErrorResult& aRv)
 {
-  nsRefPtr<Promise> promise = new Promise(aGlobal);
+  // aWindow may be null.
+  nsRefPtr<Promise> promise = new Promise(aWindow);
 
   promise->MaybeRejectInternal(aCx, aValue);
   return promise.forget();
@@ -731,11 +716,13 @@ NS_IMPL_CYCLE_COLLECTION_1(AllResolveHandler, mCountdownHolder)
 Promise::All(const GlobalObject& aGlobal, JSContext* aCx,
              const Sequence<JS::Value>& aIterable, ErrorResult& aRv)
 {
-  nsCOMPtr<nsIGlobalObject> global =
-    do_QueryInterface(aGlobal.GetAsSupports());
-  if (!global) {
-    aRv.Throw(NS_ERROR_UNEXPECTED);
-    return nullptr;
+  nsCOMPtr<nsPIDOMWindow> window;
+  if (MOZ_LIKELY(NS_IsMainThread())) {
+    window = do_QueryInterface(aGlobal.GetAsSupports());
+    if (!window) {
+      aRv.Throw(NS_ERROR_UNEXPECTED);
+      return nullptr;
+    }
   }
 
   if (aIterable.Length() == 0) {
@@ -748,7 +735,7 @@ Promise::All(const GlobalObject& aGlobal, JSContext* aCx,
     return Promise::Resolve(aGlobal, aCx, value, aRv);
   }
 
-  nsRefPtr<Promise> promise = new Promise(global);
+  nsRefPtr<Promise> promise = new Promise(window);
   nsRefPtr<CountdownHolder> holder =
     new CountdownHolder(aGlobal, promise, aIterable.Length());
 
@@ -777,14 +764,16 @@ Promise::All(const GlobalObject& aGlobal, JSContext* aCx,
 Promise::Race(const GlobalObject& aGlobal, JSContext* aCx,
               const Sequence<JS::Value>& aIterable, ErrorResult& aRv)
 {
-  nsCOMPtr<nsIGlobalObject> global =
-    do_QueryInterface(aGlobal.GetAsSupports());
-  if (!global) {
-    aRv.Throw(NS_ERROR_UNEXPECTED);
-    return nullptr;
+  nsCOMPtr<nsPIDOMWindow> window;
+  if (MOZ_LIKELY(NS_IsMainThread())) {
+    window = do_QueryInterface(aGlobal.GetAsSupports());
+    if (!window) {
+      aRv.Throw(NS_ERROR_UNEXPECTED);
+      return nullptr;
+    }
   }
 
-  nsRefPtr<Promise> promise = new Promise(global);
+  nsRefPtr<Promise> promise = new Promise(window);
   nsRefPtr<PromiseCallback> resolveCb = new ResolvePromiseCallback(promise);
   nsRefPtr<PromiseCallback> rejectCb = new RejectPromiseCallback(promise);
 
@@ -1066,27 +1055,6 @@ Promise::RunResolveTask(JS::Handle<JS::Value> aValue,
   SetResult(aValue);
   SetState(aState);
   RunTask();
-}
-
-bool
-Promise::ArgumentToJSValue(const nsAString& aArgument,
-                           JSContext* aCx,
-                           JSObject* aScope,
-                           JS::MutableHandle<JS::Value> aValue)
-{
-  // XXXkhuey I'd love to use xpc::NonVoidStringToJsval here, but it requires
-  // a non-const nsAString for silly reasons.
-  nsStringBuffer* sharedBuffer;
-  if (!XPCStringConvert::ReadableToJSVal(aCx, aArgument, &sharedBuffer,
-                                         aValue)) {
-    return false;
-  }
-
-  if (sharedBuffer) {
-    NS_ADDREF(sharedBuffer);
-  }
-
-  return true;
 }
 
 } // namespace dom

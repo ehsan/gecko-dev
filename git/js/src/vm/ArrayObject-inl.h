@@ -15,17 +15,17 @@
 
 namespace js {
 
-inline void
-ArrayObject::setLength(ExclusiveContext *cx, uint32_t length)
+/* static */ inline void
+ArrayObject::setLength(ExclusiveContext *cx, Handle<ArrayObject*> arr, uint32_t length)
 {
-    JS_ASSERT(lengthIsWritable());
+    JS_ASSERT(arr->lengthIsWritable());
 
     if (length > INT32_MAX) {
         /* Track objects with overflowing lengths in type information. */
-        types::MarkTypeObjectFlags(cx, this, types::OBJECT_FLAG_LENGTH_OVERFLOW);
+        types::MarkTypeObjectFlags(cx, arr, types::OBJECT_FLAG_LENGTH_OVERFLOW);
     }
 
-    getElementsHeader()->length = length;
+    arr->getElementsHeader()->length = length;
 }
 
 } // namespace js

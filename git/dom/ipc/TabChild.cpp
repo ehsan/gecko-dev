@@ -2470,7 +2470,11 @@ TabChild::GetDefaultScale(double* aScale)
 void
 TabChild::NotifyPainted()
 {
-    if (UseDirectCompositor() && !mNotified) {
+    // Normally we only need to notify the content process once, but with BasicCompositor
+    // we need to notify content every change so that it can compute an invalidation
+    // region and send that to the widget.
+    if (UseDirectCompositor() &&
+        (!mNotified || mTextureFactoryIdentifier.mParentBackend == LayersBackend::LAYERS_BASIC)) {
         mRemoteFrame->SendNotifyCompositorTransaction();
         mNotified = true;
     }

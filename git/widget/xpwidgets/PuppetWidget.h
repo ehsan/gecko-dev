@@ -180,7 +180,7 @@ private:
 
   nsresult IMEEndComposition(bool aCancel);
   nsresult NotifyIMEOfFocusChange(bool aFocus);
-  nsresult NotifyIMEOfSelectionChange(const IMENotification& aIMENotification);
+  nsresult NotifyIMEOfSelectionChange();
   nsresult NotifyIMEOfUpdateComposition();
   nsresult NotifyIMEOfTextChange(const IMENotification& aIMENotification);
 

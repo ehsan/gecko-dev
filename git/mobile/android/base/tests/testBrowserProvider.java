@@ -65,41 +65,17 @@ public class testBrowserProvider extends ContentProviderTest {
                                         BrowserContract.Bookmarks.READING_LIST_FOLDER_GUID });
 
         c = mProvider.query(appendUriParam(BrowserContract.Bookmarks.CONTENT_URI, BrowserContract.PARAM_SHOW_DELETED, "1"), null, null, null, null);
-        assertCountIsAndClose(c, 7, "All non-special bookmarks and folders were deleted");
+        mAsserter.is(c.getCount(), 7, "All non-special bookmarks and folders were deleted");
 
         mProvider.delete(appendUriParam(BrowserContract.History.CONTENT_URI, BrowserContract.PARAM_IS_SYNC, "1"), null, null);
         c = mProvider.query(appendUriParam(BrowserContract.History.CONTENT_URI, BrowserContract.PARAM_SHOW_DELETED, "1"), null, null, null, null);
-        assertCountIsAndClose(c, 0, "All history entries were deleted");
+        mAsserter.is(c.getCount(), 0, "All history entries were deleted");
 
-        /**
-         * There's no reason why the following two parts should fail.
-         * But sometimes they do, and I'm not going to spend the time
-         * to figure out why in an unrelated bug.
-         */
+        mProvider.delete(BrowserContract.Favicons.CONTENT_URI, null, null);
+        mAsserter.is(c.getCount(), 0, "All favicons were deleted");
 
-        mProvider.delete(appendUriParam(BrowserContract.Favicons.CONTENT_URI, BrowserContract.PARAM_IS_SYNC, "1"), null, null);
-        c = mProvider.query(appendUriParam(BrowserContract.Favicons.CONTENT_URI,
-                                           BrowserContract.PARAM_SHOW_DELETED, "1"),
-                                           null, null, null, null);
-
-        if (c.getCount() > 0) {
-          mAsserter.dumpLog("Unexpected favicons in ensureEmptyDatabase.");
-        }
-        c.close();
-
-        // assertCountIsAndClose(c, 0, "All favicons were deleted");
-
-        mProvider.delete(appendUriParam(BrowserContract.Thumbnails.CONTENT_URI, BrowserContract.PARAM_IS_SYNC, "1"), null, null);
-        c = mProvider.query(appendUriParam(BrowserContract.Thumbnails.CONTENT_URI,
-                                           BrowserContract.PARAM_SHOW_DELETED, "1"),
-                                           null, null, null, null);
-
-        if (c.getCount() > 0) {
-          mAsserter.dumpLog("Unexpected thumbnails in ensureEmptyDatabase.");
-        }
-        c.close();
-
-        // assertCountIsAndClose(c, 0, "All thumbnails were deleted");
+        mProvider.delete(BrowserContract.Thumbnails.CONTENT_URI, null, null);
+        mAsserter.is(c.getCount(), 0, "All thumbnails were deleted");
     }
 
     private ContentValues createBookmark(String title, String url, long parentId,
@@ -350,7 +326,7 @@ public class testBrowserProvider extends ContentProviderTest {
             mAsserter.is(seenException, false, "Batch updating succeded");
             mOperations.clear();
 
-            // Delete all visits
+            // Delte all visits
             for (int i = 0; i < TESTCOUNT; i++) {
                 builder = ContentProviderOperation.newDelete(BrowserContract.History.CONTENT_URI);
                 builder.withSelection(BrowserContract.History.URL  + " = ?",
@@ -364,7 +340,7 @@ public class testBrowserProvider extends ContentProviderTest {
             } catch (OperationApplicationException ex) {
                 seenException = true;
             }
-            mAsserter.is(seenException, false, "Batch deletion succeeded");
+            mAsserter.is(seenException, false, "Batch deletion succeded");
         }
 
         // Force a Constraint error, see if later operations still apply correctly
@@ -499,8 +475,6 @@ public class testBrowserProvider extends ContentProviderTest {
                 mAsserter.is(new Integer(parentId), new Integer(rootId),
                              "The PARENT of the " + guid + " special folder is correct");
             }
-
-            c.close();
         }
     }
 
@@ -575,7 +549,6 @@ public class testBrowserProvider extends ContentProviderTest {
 
             mAsserter.is(c.getString(c.getColumnIndex(BrowserContract.Bookmarks.TYPE)), String.valueOf(BrowserContract.Bookmarks.TYPE_BOOKMARK),
                          "Inserted bookmark has correct default type");
-            c.close();
         }
     }
 
@@ -598,14 +571,12 @@ public class testBrowserProvider extends ContentProviderTest {
 
             mAsserter.is(new String(c.getBlob(c.getColumnIndex(BrowserContract.Bookmarks.FAVICON)), "UTF8"),
                          favicon, "Inserted bookmark has corresponding favicon image");
-            c.close();
 
             c = getFaviconsByUrl(pageUrl);
             mAsserter.is(c.moveToFirst(), true, "Inserted favicon found");
 
             mAsserter.is(new String(c.getBlob(c.getColumnIndex(BrowserContract.Combined.FAVICON)), "UTF8"),
                          favicon, "Inserted favicon has corresponding favicon image");
-            c.close();
         }
     }
 
@@ -616,7 +587,6 @@ public class testBrowserProvider extends ContentProviderTest {
 
             Cursor c = getBookmarkById(id);
             mAsserter.is(c.moveToFirst(), true, "Inserted bookmark found");
-            c.close();
 
             return id;
         }
@@ -633,7 +603,6 @@ public class testBrowserProvider extends ContentProviderTest {
 
             Cursor c = getBookmarkById(appendUriParam(BrowserContract.Bookmarks.CONTENT_URI, BrowserContract.PARAM_SHOW_DELETED, "1"), id);
             mAsserter.is(c.moveToFirst(), true, "Deleted bookmark was only marked as deleted");
-            c.close();
 
             deleted = mProvider.delete(appendUriParam(BrowserContract.Bookmarks.CONTENT_URI, BrowserContract.PARAM_IS_SYNC, "1"),
                                        BrowserContract.Bookmarks._ID + " = ?",
@@ -643,7 +612,6 @@ public class testBrowserProvider extends ContentProviderTest {
 
             c = getBookmarkById(appendUriParam(BrowserContract.Bookmarks.CONTENT_URI, BrowserContract.PARAM_SHOW_DELETED, "1"), id);
             mAsserter.is(c.moveToFirst(), false, "Inserted bookmark is now actually deleted");
-            c.close();
 
             id = insertOneBookmark();
 
@@ -654,7 +622,6 @@ public class testBrowserProvider extends ContentProviderTest {
             c = getBookmarkById(id);
             mAsserter.is(c.moveToFirst(), false,
                          "Inserted bookmark can't be found after deletion using URI with ID");
-            c.close();
 
             if (Build.VERSION.SDK_INT >= 8 &&
                 Build.VERSION.SDK_INT < 16) {
@@ -664,7 +631,6 @@ public class testBrowserProvider extends ContentProviderTest {
                 long parentId = ContentUris.parseId(mProvider.insert(BrowserContract.Bookmarks.CONTENT_URI, b));
                 c = getBookmarkById(parentId);
                 mAsserter.is(c.moveToFirst(), true, "Inserted bookmarks folder found");
-                c.close();
 
                 b = createBookmark("Example", "http://example.com", parentId,
                         BrowserContract.Bookmarks.TYPE_BOOKMARK, 0, "tags", "description", "keyword");
@@ -672,7 +638,6 @@ public class testBrowserProvider extends ContentProviderTest {
                 id = ContentUris.parseId(mProvider.insert(BrowserContract.Bookmarks.CONTENT_URI, b));
                 c = getBookmarkById(id);
                 mAsserter.is(c.moveToFirst(), true, "Inserted bookmark found");
-                c.close();
 
                 deleted = 0;
                 try {
@@ -699,13 +664,11 @@ public class testBrowserProvider extends ContentProviderTest {
 
             Cursor c = getFaviconsByUrl(pageUrl);
             mAsserter.is(c.moveToFirst(), true, "Inserted favicon found");
-            c.close();
 
             mProvider.delete(ContentUris.withAppendedId(BrowserContract.Bookmarks.CONTENT_URI, id), null, null);
 
             c = getFaviconsByUrl(pageUrl);
             mAsserter.is(c.moveToFirst(), false, "Favicon is deleted with last reference to it");
-            c.close();
         }
     }
 
@@ -750,7 +713,6 @@ public class testBrowserProvider extends ContentProviderTest {
                                            new String[] { String.valueOf(id) });
 
             mAsserter.is((updated == 1), true, "Inserted bookmark was updated");
-            c.close();
 
             c = getBookmarkById(id);
             mAsserter.is(c.moveToFirst(), true, "Updated bookmark found");
@@ -790,14 +752,12 @@ public class testBrowserProvider extends ContentProviderTest {
             u.put(BrowserContract.Bookmarks.URL, "http://examples2.com");
 
             updated = mProvider.update(ContentUris.withAppendedId(BrowserContract.Bookmarks.CONTENT_URI, id), u, null, null);
-            c.close();
 
             c = getBookmarkById(id);
             mAsserter.is(c.moveToFirst(), true, "Updated bookmark found");
 
             mAsserter.is(c.getString(c.getColumnIndex(BrowserContract.Bookmarks.URL)), u.getAsString(BrowserContract.Bookmarks.URL),
                          "Updated bookmark has correct URL using URI with id");
-            c.close();
         }
     }
 
@@ -824,14 +784,12 @@ public class testBrowserProvider extends ContentProviderTest {
 
             ContentValues u = createFaviconEntry(pageUrl, newFavicon);
             mProvider.update(BrowserContract.Favicons.CONTENT_URI, u, null, null);
-            c.close();
 
             c = getFaviconsByUrl(pageUrl);
             mAsserter.is(c.moveToFirst(), true, "Updated favicon found");
 
             mAsserter.is(new String(c.getBlob(c.getColumnIndex(BrowserContract.Combined.FAVICON)), "UTF8"),
                          newFavicon, "Updated favicon has corresponding favicon image");
-            c.close();
         }
     }
 
@@ -867,7 +825,6 @@ public class testBrowserProvider extends ContentProviderTest {
             }
 
             mAsserter.is(i, count, "Folder has the right number of children.");
-            c.close();
         }
 
         public static final int NUMBER_OF_CHILDREN = 1001;
@@ -964,7 +921,6 @@ public class testBrowserProvider extends ContentProviderTest {
             id = insertWithNullCol(BrowserContract.History.VISITS);
             mAsserter.is(new Long(id), new Long(-1),
                          "Should not be able to insert history with null number of visits");
-            c.close();
         }
     }
 
@@ -987,14 +943,12 @@ public class testBrowserProvider extends ContentProviderTest {
 
             mAsserter.is(new String(c.getBlob(c.getColumnIndex(BrowserContract.History.FAVICON)), "UTF8"),
                          favicon, "Inserted history entry has corresponding favicon image");
-            c.close();
 
             c = getFaviconsByUrl(pageUrl);
             mAsserter.is(c.moveToFirst(), true, "Inserted favicon found");
 
             mAsserter.is(new String(c.getBlob(c.getColumnIndex(BrowserContract.Combined.FAVICON)), "UTF8"),
                          favicon, "Inserted favicon has corresponding favicon image");
-            c.close();
         }
     }
 
@@ -1005,7 +959,6 @@ public class testBrowserProvider extends ContentProviderTest {
 
             Cursor c = getHistoryEntryById(id);
             mAsserter.is(c.moveToFirst(), true, "Inserted history entry found");
-            c.close();
 
             return id;
         }
@@ -1028,7 +981,6 @@ public class testBrowserProvider extends ContentProviderTest {
                                        new String[] { String.valueOf(id) });
 
             mAsserter.is((deleted == 1), true, "Inserted history entry was deleted");
-            c.close();
 
             c = getHistoryEntryById(appendUriParam(BrowserContract.History.CONTENT_URI, BrowserContract.PARAM_SHOW_DELETED, "1"), id);
             mAsserter.is(c.moveToFirst(), false, "Inserted history is now actually deleted");
@@ -1038,12 +990,10 @@ public class testBrowserProvider extends ContentProviderTest {
             deleted = mProvider.delete(ContentUris.withAppendedId(BrowserContract.History.CONTENT_URI, id), null, null);
             mAsserter.is((deleted == 1), true,
                          "Inserted history entry was deleted using URI with id");
-            c.close();
 
             c = getHistoryEntryById(id);
             mAsserter.is(c.moveToFirst(), false,
                          "Inserted history entry can't be found after deletion using URI with ID");
-            c.close();
         }
     }
 
@@ -1062,11 +1012,9 @@ public class testBrowserProvider extends ContentProviderTest {
             mAsserter.is(c.moveToFirst(), true, "Inserted favicon found");
 
             mProvider.delete(ContentUris.withAppendedId(BrowserContract.History.CONTENT_URI, id), null, null);
-            c.close();
 
             c = getFaviconsByUrl(pageUrl);
             mAsserter.is(c.moveToFirst(), false, "Favicon is deleted with last reference to it");
-            c.close();
         }
     }
 
@@ -1108,7 +1056,6 @@ public class testBrowserProvider extends ContentProviderTest {
                                            new String[] { String.valueOf(id) });
 
             mAsserter.is((updated == 1), true, "Inserted history entry was updated");
-            c.close();
 
             c = getHistoryEntryById(id);
             mAsserter.is(c.moveToFirst(), true, "Updated history entry found");
@@ -1142,14 +1089,12 @@ public class testBrowserProvider extends ContentProviderTest {
             u.put(BrowserContract.History.URL, "http://examples2.com");
 
             updated = mProvider.update(ContentUris.withAppendedId(BrowserContract.History.CONTENT_URI, id), u, null, null);
-            c.close();
 
             c = getHistoryEntryById(id);
             mAsserter.is(c.moveToFirst(), true, "Updated history entry found");
 
             mAsserter.is(c.getString(c.getColumnIndex(BrowserContract.History.URL)), u.getAsString(BrowserContract.History.URL),
                          "Updated history entry has correct URL using URI with id");
-            c.close();
         }
     }
 
@@ -1176,14 +1121,12 @@ public class testBrowserProvider extends ContentProviderTest {
             ContentValues u = createFaviconEntry(pageUrl, newFavicon);
 
             mProvider.update(BrowserContract.Favicons.CONTENT_URI, u, null, null);
-            c.close();
 
             c = getFaviconsByUrl(pageUrl);
             mAsserter.is(c.moveToFirst(), true, "Updated favicon found");
 
             mAsserter.is(new String(c.getBlob(c.getColumnIndex(BrowserContract.Combined.FAVICON)), "UTF8"),
                          newFavicon, "Updated favicon has corresponding favicon image");
-            c.close();
         }
     }
 
@@ -1252,7 +1195,6 @@ public class testBrowserProvider extends ContentProviderTest {
                                        BrowserContract.History._ID + " = ?",
                                        new String[] { String.valueOf(id) });
             mAsserter.is((updated == 1), true, "Inserted history entry was updated");
-            c.close();
 
             c = getHistoryEntryById(id);
             mAsserter.is(c.moveToFirst(), true, "Updated history entry found");
@@ -1278,8 +1220,6 @@ public class testBrowserProvider extends ContentProviderTest {
             mAsserter.is((updated == 1), true, "History entry was inserted");
 
             id = getHistoryEntryIdByUrl(TEST_URL_2);
-            c.close();
-
             c = getHistoryEntryById(id);
             mAsserter.is(c.moveToFirst(), true, "History entry was inserted");
 
@@ -1299,7 +1239,6 @@ public class testBrowserProvider extends ContentProviderTest {
                                        BrowserContract.History._ID + " = ?",
                                        new String[] { String.valueOf(id) });
             mAsserter.is((updated == 1), true, "Inserted history entry was updated");
-            c.close();
 
             c = getHistoryEntryById(id);
             mAsserter.is(c.moveToFirst(), true, "Updated history entry found");
@@ -1314,7 +1253,6 @@ public class testBrowserProvider extends ContentProviderTest {
                          "Updated history entry has same creation date");
             mAsserter.isnot(new Long(c.getLong(c.getColumnIndex(BrowserContract.History.DATE_MODIFIED))), new Long(dateModified),
                             "Updated history entry has new modification date");
-            c.close();
 
         }
     }
@@ -1337,7 +1275,6 @@ public class testBrowserProvider extends ContentProviderTest {
 
             mAsserter.is(new String(c.getBlob(c.getColumnIndex(BrowserContract.Thumbnails.DATA)), "UTF8"),
                          thumbnail, "Inserted thumbnail has corresponding thumbnail image");
-            c.close();
         }
     }
 
@@ -1364,14 +1301,12 @@ public class testBrowserProvider extends ContentProviderTest {
             ContentValues u = createThumbnailEntry(pageUrl, newThumbnail);
 
             mProvider.update(BrowserContract.Thumbnails.CONTENT_URI, u, null, null);
-            c.close();
 
             c = getThumbnailByUrl(pageUrl);
             mAsserter.is(c.moveToFirst(), true, "Updated thumbnail found");
 
             mAsserter.is(new String(c.getBlob(c.getColumnIndex(BrowserContract.Thumbnails.DATA)), "UTF8"),
                          newThumbnail, "Updated thumbnail has corresponding thumbnail image");
-            c.close();
         }
     }
 
@@ -1390,11 +1325,9 @@ public class testBrowserProvider extends ContentProviderTest {
             mAsserter.is(c.moveToFirst(), true, "Inserted thumbnail found");
 
             mProvider.delete(ContentUris.withAppendedId(BrowserContract.History.CONTENT_URI, id), null, null);
-            c.close();
 
             c = getThumbnailByUrl(pageUrl);
             mAsserter.is(c.moveToFirst(), false, "Thumbnail is deleted with last reference to it");
-            c.close();
         }
     }
 
@@ -1502,7 +1435,6 @@ public class testBrowserProvider extends ContentProviderTest {
                          "Combined entry has correct number of visits");
             mAsserter.is(new Long(c.getLong(c.getColumnIndex(BrowserContract.Combined.DATE_LAST_VISITED))), new Long(LAST_VISITED),
                          "Combined entry has correct last visit time");
-            c.close();
         }
     }
 
@@ -1563,7 +1495,6 @@ public class testBrowserProvider extends ContentProviderTest {
                 mAsserter.is(new Integer(display), new Integer(expectedDisplay),
                                  "Combined display column should always be DISPLAY_READER for the reading list item");
             }
-            c.close();
         }
     }
 
@@ -1596,7 +1527,6 @@ public class testBrowserProvider extends ContentProviderTest {
                                            new String[] { String.valueOf(combinedBookmarkId) });
 
             mAsserter.is((deleted == 1), true, "Inserted combined bookmark was deleted");
-            c.close();
 
             c = mProvider.query(BrowserContract.Combined.CONTENT_URI, null, "", null, null);
             mAsserter.is(c.getCount(), 1, "1 combined entry found");
@@ -1604,7 +1534,6 @@ public class testBrowserProvider extends ContentProviderTest {
             mAsserter.is(c.moveToFirst(), true, "Found combined entry without bookmark id");
             mAsserter.is(new Long(c.getLong(c.getColumnIndex(BrowserContract.Combined.BOOKMARK_ID))), new Long(0),
                          "Bookmark id should not be set to removed bookmark id");
-            c.close();
         }
     }
 
@@ -1640,7 +1569,6 @@ public class testBrowserProvider extends ContentProviderTest {
                                            new String[] { String.valueOf(combinedReadingListItemId) });
 
             mAsserter.is((deleted == 1), true, "Inserted combined reading list item was deleted");
-            c.close();
 
             c = mProvider.query(BrowserContract.Combined.CONTENT_URI, null, "", null, null);
             mAsserter.is(c.getCount(), 1, "1 combined entry found");
@@ -1650,7 +1578,6 @@ public class testBrowserProvider extends ContentProviderTest {
                          "Bookmark id should not be set to removed bookmark id");
             mAsserter.is(new Long(c.getLong(c.getColumnIndex(BrowserContract.Combined.DISPLAY))), new Long(BrowserContract.Combined.DISPLAY_NORMAL),
                          "Combined entry should have reader display type");
-            c.close();
         }
     }
 
@@ -1681,8 +1608,7 @@ public class testBrowserProvider extends ContentProviderTest {
             }
 
             Cursor c = mProvider.query(BrowserContract.History.CONTENT_URI, null, "", null, null);
-
-            assertCountIsAndClose(c, count, count + " history entries found");
+            mAsserter.is(c.getCount(), count, count + " history entries found");
 
             // add thumbnails for each entry
             allVals = new ContentValues[count];
@@ -1696,7 +1622,7 @@ public class testBrowserProvider extends ContentProviderTest {
             mAsserter.is(inserts, count, "Expected number of inserts matches");
 
             c = mProvider.query(BrowserContract.Thumbnails.CONTENT_URI, null, null, null, null);
-            assertCountIsAndClose(c, count, count + " thumbnails entries found");
+            mAsserter.is(c.getCount(), count, count + " thumbnails entries found");
         }
 
         @Override
@@ -1711,61 +1637,57 @@ public class testBrowserProvider extends ContentProviderTest {
             Uri url = appendUriParam(BrowserContract.History.CONTENT_OLD_URI, BrowserContract.PARAM_EXPIRE_PRIORITY, "NORMAL");
             mProvider.delete(url, null, null);
             Cursor c = mProvider.query(BrowserContract.History.CONTENT_URI, null, "", null, null);
-            assertCountIsAndClose(c, count, count + " history entries found");
+            mAsserter.is(c.getCount(), count, count + " history entries found");
 
             // expiring with a normal priority should delete all but 10 thumbnails
             c = mProvider.query(BrowserContract.Thumbnails.CONTENT_URI, null, null, null, null);
-            assertCountIsAndClose(c, thumbCount, thumbCount + " thumbnails found");
+            mAsserter.is(c.getCount(), thumbCount, thumbCount + " thumbnails found");
 
             ensureEmptyDatabase();
-
-            // Insert a bunch of new entries.
+            // insert a bunch of new entries
             createFakeHistory(0, count);
 
-            // Expiring with a aggressive priority should leave 500 entries.
+            // expiring with a aggressive priority should leave 500 entries
             url = appendUriParam(BrowserContract.History.CONTENT_OLD_URI, BrowserContract.PARAM_EXPIRE_PRIORITY, "AGGRESSIVE");
             mProvider.delete(url, null, null);
-
             c = mProvider.query(BrowserContract.History.CONTENT_URI, null, "", null, null);
-            assertCountIsAndClose(c, 500, "500 history entries found");
+            mAsserter.is(c.getCount(), 500, "500 history entries found");
 
-            // Expiring with a aggressive priority should delete all but 10 thumbnails.
+            // expiring with a aggressive priority should delete all but 10 thumbnails
             c = mProvider.query(BrowserContract.Thumbnails.CONTENT_URI, null, null, null, null);
-            assertCountIsAndClose(c, thumbCount, thumbCount + " thumbnails found");
+            mAsserter.is(c.getCount(), thumbCount, thumbCount + " thumbnails found");
 
             ensureEmptyDatabase();
-
-            // Insert a bunch of entries with an old time created/modified.
+            // insert a bunch of entries with an old time created/modified
             long time = 1000L * 60L * 60L * 24L * 30L * 3L;
             createFakeHistory(time, count);
 
-            // Expiring with an normal priority should remove at most 1000 entries,
-            // entries leaving at least 2000.
+            // expiring with an normal priority should remove at most 1000 entries
+            // entries leaving at least 2000
             url = appendUriParam(BrowserContract.History.CONTENT_OLD_URI, BrowserContract.PARAM_EXPIRE_PRIORITY, "NORMAL");
             mProvider.delete(url, null, null);
-
             c = mProvider.query(BrowserContract.History.CONTENT_URI, null, "", null, null);
-            assertCountIsAndClose(c, 2000, "2000 history entries found");
+            mAsserter.is(c.getCount(), 2000, "2000 history entries found");
 
-            // Expiring with a normal priority should delete all but 10 thumbnails.
+            // expiring with a normal priority should delete all but 10 thumbnails
             c = mProvider.query(BrowserContract.Thumbnails.CONTENT_URI, null, null, null, null);
-            assertCountIsAndClose(c, thumbCount, thumbCount + " thumbnails found");
+            mAsserter.is(c.getCount(), thumbCount, thumbCount + " thumbnails found");
 
             ensureEmptyDatabase();
             // insert a bunch of entries with an old time created/modified
             time = 1000L * 60L * 60L * 24L * 30L * 3L;
             createFakeHistory(time, count);
 
-            // Expiring with an aggressive priority should remove old
-            // entries, leaving at least 500.
+            // expiring with an agressive priority should remove old
+            // entries leaving at least 500
             url = appendUriParam(BrowserContract.History.CONTENT_OLD_URI, BrowserContract.PARAM_EXPIRE_PRIORITY, "AGGRESSIVE");
             mProvider.delete(url, null, null);
             c = mProvider.query(BrowserContract.History.CONTENT_URI, null, "", null, null);
-            assertCountIsAndClose(c, 500, "500 history entries found");
+            mAsserter.is(c.getCount(), 500, "500 history entries found");
 
             // expiring with an aggressive priority should delete all but 10 thumbnails
             c = mProvider.query(BrowserContract.Thumbnails.CONTENT_URI, null, null, null, null);
-            assertCountIsAndClose(c, thumbCount, thumbCount + " thumbnails found");
+            mAsserter.is(c.getCount(), thumbCount, thumbCount + " thumbnails found");
         }
     }
 
@@ -1852,18 +1774,6 @@ public class testBrowserProvider extends ContentProviderTest {
                          "Correct number of items are bulkInserted");
 
             ensureOnlyChangeNotifiedStartsWith(BrowserContract.History.CONTENT_URI, "bulkInsert");
-        }
-    }
-
-    /**
-     * Assert that the provided cursor has the expected number of rows,
-     * closing the cursor afterwards.
-     */
-    private void assertCountIsAndClose(Cursor c, int expectedCount, String message) {
-        try {
-            mAsserter.is(c.getCount(), expectedCount, message);
-        } finally {
-            c.close();
         }
     }
 }
