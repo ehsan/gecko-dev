@@ -80,7 +80,6 @@ html|*.highlighter-nodeinfobar-classes,
 html|*.highlighter-nodeinfobar-pseudo-classes,
 html|*.highlighter-nodeinfobar-tagname {
   -moz-user-select: text;
-  -moz-user-focus: normal;
   cursor: text;
 }
 

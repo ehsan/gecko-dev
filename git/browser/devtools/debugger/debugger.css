@@ -40,15 +40,6 @@
 }
 
 /**
- * Watch expressions view
- */
-
-#expressions {
-  overflow-x: hidden;
-  overflow-y: auto;
-}
-
-/**
  * Variables view
  */
 
@@ -61,20 +52,21 @@
  * Scope, variable and property elements
  */
 
-.details:not([open]) {
+#variables .details:not([open]) {
   display: none;
-}
-
-.scope,
-.variable,
-.property {
-  -moz-user-focus: normal;
 }
 
 .scope[non-header] > .title,
 .variable[non-header] > .title,
+.property[non-header] > .title {
+  display: none;
+}
+
+/**
+ * Variables and properties searching
+ */
+
 .variable[non-match] > .title,
-.property[non-header] > .title,
 .property[non-match] > .title {
   display: none;
 }
