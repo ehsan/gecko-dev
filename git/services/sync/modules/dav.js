@@ -103,14 +103,16 @@ DAVCollection.prototype = {
   },
 
   get locked() {
-    return !this._allowLock || (DAVLocks['default'] &&
-                                DAVLocks['default'].token);
+    return !this._lockAllowed || (DAVLocks['default'] &&
+                                  DAVLocks['default'].token);
   },
 
-  _allowLock: true,
-  get allowLock() this._allowLock,
+  _lockAllowed: true,
+  get allowLock() {
+    return this._lockAllowed;
+  },
   set allowLock(value) {
-    this._allowLock = value;
+    this._lockAllowed = value;
   },
 
   _makeRequest: function DC__makeRequest(op, path, headers, data) {
@@ -120,7 +122,13 @@ DAVCollection.prototype = {
     this._log.debug(op + " request for " + (path? path : 'root folder'));
 
     if (!path || path[0] != '/')
+      // if it's a relative path, (no slash), prepend default prefix
       path = this._defaultPrefix + path;
+    else
+      path = path.slice(1); // if absolute path, remove leading slash
+    // path at this point should have no leading slash.
+    dump("DefaultPrefix is " + this._defaultPrefix + "\n");
+    dump(" In _makeRequest, after fixing the path, it is " + path +"\n");
 
     let request = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Ci.nsIXMLHttpRequest);
 
@@ -352,13 +360,13 @@ DAVCollection.prototype = {
     let self = yield;
 
     this._log.trace("Acquiring lock");
-    if (!this._allowLock)
+    if (!this._lockAllowed)
       throw {message: "Cannot acquire lock (internal lock)"};
-    this._allowLock = false;
+    this._lockAllowed = false;
 
     if (DAVLocks['default']) {
       this._log.debug("Lock called, but we already hold a token");
-      this._allowLock = true;
+      this._lockAllowed = true;
       self.done();
       return;
     }
@@ -372,7 +380,7 @@ DAVCollection.prototype = {
     let resp = yield;
 
     if (resp.status < 200 || resp.status >= 300) {
-      this._allowLock = true;
+      this._lockAllowed = true;
       return;
     }
 
@@ -387,13 +395,13 @@ DAVCollection.prototype = {
 
     if (!DAVLocks['default']) {
       this._log.warn("Could not acquire lock");
-      this._allowLock = true;
+      this._lockAllowed = true;
       self.done();
       return;
     }
 
     this._log.trace("Lock acquired");
-    this._allowLock = true;
+    this._lockAllowed = true;
 
     self.done(DAVLocks['default']);
   },
@@ -406,24 +414,20 @@ DAVCollection.prototype = {
     if (!this.locked) {
       this._log.debug("Unlock called, but we don't hold a token right now");
       self.done(true);
-      return;
+      yield;
     }
 
-    // Do this unconditionally, since code that calls unlock() doesn't
-    // really have much of an option if unlock fails.  The only thing
-    // to do is wait for it to time out (and hope it didn't really
-    // fail)
-    delete DAVLocks['default'];
+    this.UNLOCK("lock", self.cb);
+    let resp = yield;
 
-    let resp = yield this.UNLOCK("lock", self.cb);
-
-    if (Utils.checkStatus(resp.status)) {
-      this._log.trace("Lock released");
-      self.done(true);
-    } else {
-      this._log.trace("Failed to release lock");
+    if (resp.status < 200 || resp.status >= 300) {
       self.done(false);
+      yield;
     }
+
+    delete DAVLocks['default'];
+    this._log.trace("Lock released (or we didn't have one)");
+    self.done(true);
   },
 
   forceUnlock: function DC_forceUnlock() {

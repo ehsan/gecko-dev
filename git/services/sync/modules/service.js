@@ -264,7 +264,7 @@ WeaveSvc.prototype = {
 
   _onSchedule: function WeaveSvc__onSchedule() {
     if (this.enabled) {
-      if (DAV.locked) {
+      if (!DAV.allowLock) {
         this._log.info("Skipping scheduled sync; local operation in progress")
       } else {
         this._log.info("Running scheduled sync");

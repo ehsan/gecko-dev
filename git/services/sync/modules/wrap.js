@@ -121,7 +121,8 @@ let Wrap = {
       if (DAV.locked)
         throw "Could not acquire lock (lock already held)";
 
-      let locked = yield DAV.lock.async(DAV, self.cb);
+      DAV.lock.async(DAV, self.cb);
+      let locked = yield;
       if (!locked)
         throw "Could not acquire lock";
 
@@ -130,7 +131,8 @@ let Wrap = {
       try {
         args = savedArgs.concat(args);
         args.unshift(this, savedMethod, self.cb);
-        ret = yield Async.run.apply(Async, args);
+        Async.run.apply(Async, args);
+        ret = yield;
 
       } catch (e) {
         throw e;
