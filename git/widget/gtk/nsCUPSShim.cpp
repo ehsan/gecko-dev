@@ -7,7 +7,6 @@
 #include "nsDebug.h"
 #include "nsString.h"
 #include "nsCUPSShim.h"
-#include "mozilla/ArrayUtils.h"
 #include "prlink.h"
 
 
@@ -22,7 +21,7 @@ static const char gSymName[][sizeof("cupsPrintFile")] = {
     { "cupsPrintFile" },
     { "cupsTempFd" },
 };
-static const int gSymNameCt = mozilla::ArrayLength(gSymName);
+static const int gSymNameCt = NS_ARRAY_LENGTH(gSymName);
 
 
 bool

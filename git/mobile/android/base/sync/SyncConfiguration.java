@@ -258,8 +258,6 @@ public class SyncConfiguration {
   public static final String PREF_CLIENT_NAME = "account.clientName";
   public static final String PREF_NUM_CLIENTS = "account.numClients";
 
-  private static final String API_VERSION = "1.5";
-
   /**
    * Create a new SyncConfiguration instance. Pass in a PrefsSource to
    * provide access to preferences.
@@ -278,10 +276,6 @@ public class SyncConfiguration {
   public SyncConfiguration(String username, AuthHeaderProvider authHeaderProvider, SharedPreferences prefs, KeyBundle syncKeyBundle) {
     this(username, authHeaderProvider, prefs);
     this.syncKeyBundle = syncKeyBundle;
-  }
-
-  public String getAPIVersion() {
-    return API_VERSION;
   }
 
   public SharedPreferences getPrefs() {
@@ -459,17 +453,8 @@ public class SyncConfiguration {
     collectionKeys = k;
   }
 
-  /**
-   * Return path to storage endpoint without trailing slash.
-   *
-   * @return storage endpoint without trailing slash.
-   */
-  public String storageURL() {
-    return clusterURL + "/storage";
-  }
-
   protected String infoBaseURL() {
-    return clusterURL + "/info/";
+    return clusterURL + GlobalSession.API_VERSION + "/" + username + "/info/";
   }
 
   public String infoCollectionsURL() {
@@ -482,6 +467,15 @@ public class SyncConfiguration {
 
   public String metaURL() {
     return storageURL() + "/meta/global";
+  }
+
+  /**
+   * Return path to storage endpoint without trailing slash.
+   *
+   * @return storage endpoint without trailing slash.
+   */
+  public String storageURL() {
+    return clusterURL + GlobalSession.API_VERSION + "/" + username + "/storage";
   }
 
   public URI collectionURI(String collection) throws URISyntaxException {
@@ -523,8 +517,35 @@ public class SyncConfiguration {
     return clusterURL.toASCIIString();
   }
 
+  protected void setAndPersistClusterURL(URI u, SharedPreferences prefs) {
+    boolean shouldPersist = (prefs != null) && (clusterURL == null);
+
+    Logger.trace(LOG_TAG, "Setting cluster URL to " + u.toASCIIString() +
+                          (shouldPersist ? ". Persisting." : ". Not persisting."));
+    clusterURL = u;
+    if (shouldPersist) {
+      Editor edit = prefs.edit();
+      edit.putString(PREF_CLUSTER_URL, clusterURL.toASCIIString());
+      edit.commit();
+    }
+  }
+
+  protected void setClusterURL(URI u, SharedPreferences prefs) {
+    if (u == null) {
+      Logger.warn(LOG_TAG, "Refusing to set cluster URL to null.");
+      return;
+    }
+    URI uri = u.normalize();
+    if (uri.toASCIIString().endsWith("/")) {
+      setAndPersistClusterURL(u, prefs);
+      return;
+    }
+    setAndPersistClusterURL(uri.resolve("/"), prefs);
+    Logger.trace(LOG_TAG, "Set cluster URL to " + clusterURL.toASCIIString() + ", given input " + u.toASCIIString());
+  }
+
   public void setClusterURL(URI u) {
-    this.clusterURL = u;
+    setClusterURL(u, this.getPrefs());
   }
 
   /**

@@ -414,7 +414,9 @@ protected:
                                         uint32_t& aSaneLength,
                                         bool aIsCompressed);
 
+#ifdef MOZ_OTS_REPORT_ERRORS
     static bool OTSMessage(void *aUserData, const char *format, ...);
+#endif
 
     // font families defined by @font-face rules
     nsRefPtrHashtable<nsStringHashKey, gfxMixedFontFamily> mFontFamilies;

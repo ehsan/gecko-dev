@@ -9,9 +9,7 @@
 #include "maxp.h"
 
 // vhea - Vertical Header Table
-// http://www.microsoft.com/typography/otspec/vhea.htm
-
-#define TABLE_NAME "vhea"
+// http://www.microsoft.com/opentype/otspec/vhea.htm
 
 namespace ots {
 
@@ -21,15 +19,15 @@ bool ots_vhea_parse(OpenTypeFile *file, const uint8_t *data, size_t length) {
   file->vhea = vhea;
 
   if (!table.ReadU32(&vhea->header.version)) {
-    return OTS_FAILURE_MSG("Failed to read version");
+    return OTS_FAILURE();
   }
   if (vhea->header.version != 0x00010000 &&
       vhea->header.version != 0x00011000) {
-    return OTS_FAILURE_MSG("Bad vhea version %x", vhea->header.version);
+    return OTS_FAILURE();
   }
 
   if (!ParseMetricsHeader(file, &table, &vhea->header)) {
-    return OTS_FAILURE_MSG("Failed to parse metrics in vhea");
+    return OTS_FAILURE();
   }
 
   return true;
@@ -44,8 +42,8 @@ bool ots_vhea_should_serialise(OpenTypeFile *file) {
 }
 
 bool ots_vhea_serialise(OTSStream *out, OpenTypeFile *file) {
-  if (!SerialiseMetricsHeader(file, out, &file->vhea->header)) {
-    return OTS_FAILURE_MSG("Failed to write vhea metrics");
+  if (!SerialiseMetricsHeader(out, &file->vhea->header)) {
+    return OTS_FAILURE();
   }
   return true;
 }

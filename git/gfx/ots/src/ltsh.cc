@@ -9,14 +9,8 @@
 // LTSH - Linear Threshold
 // http://www.microsoft.com/typography/otspec/ltsh.htm
 
-#define TABLE_NAME "LTSH"
-
 #define DROP_THIS_TABLE \
-  do { \
-    delete file->ltsh; \
-    file->ltsh = 0; \
-    OTS_FAILURE_MSG("Table discarded"); \
-  } while (0)
+  do { delete file->ltsh; file->ltsh = 0; } while (0)
 
 namespace ots {
 
@@ -24,7 +18,7 @@ bool ots_ltsh_parse(OpenTypeFile *file, const uint8_t *data, size_t length) {
   Buffer table(data, length);
 
   if (!file->maxp) {
-    return OTS_FAILURE_MSG("Missing maxp table from font needed by ltsh");
+    return OTS_FAILURE();
   }
 
   OpenTypeLTSH *ltsh = new OpenTypeLTSH;
@@ -33,7 +27,7 @@ bool ots_ltsh_parse(OpenTypeFile *file, const uint8_t *data, size_t length) {
   uint16_t num_glyphs = 0;
   if (!table.ReadU16(&ltsh->version) ||
       !table.ReadU16(&num_glyphs)) {
-    return OTS_FAILURE_MSG("Failed to read ltsh header");
+    return OTS_FAILURE();
   }
 
   if (ltsh->version != 0) {
@@ -52,7 +46,7 @@ bool ots_ltsh_parse(OpenTypeFile *file, const uint8_t *data, size_t length) {
   for (unsigned i = 0; i < num_glyphs; ++i) {
     uint8_t pel = 0;
     if (!table.ReadU8(&pel)) {
-      return OTS_FAILURE_MSG("Failed to read pixels for glyph %d", i);
+      return OTS_FAILURE();
     }
     ltsh->ypels.push_back(pel);
   }
@@ -70,11 +64,11 @@ bool ots_ltsh_serialise(OTSStream *out, OpenTypeFile *file) {
 
   if (!out->WriteU16(ltsh->version) ||
       !out->WriteU16(ltsh->ypels.size())) {
-    return OTS_FAILURE_MSG("Failed to write pels size");
+    return OTS_FAILURE();
   }
   for (unsigned i = 0; i < ltsh->ypels.size(); ++i) {
     if (!out->Write(&(ltsh->ypels[i]), 1)) {
-      return OTS_FAILURE_MSG("Failed to write pixel size for glyph %d", i);
+      return OTS_FAILURE();
     }
   }
 

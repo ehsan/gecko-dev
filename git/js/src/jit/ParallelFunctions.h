@@ -39,7 +39,6 @@ bool SetElementPar(ForkJoinSlice *slice, HandleObject obj, HandleValue index,
 JSString *ConcatStringsPar(ForkJoinSlice *slice, HandleString left, HandleString right);
 JSFlatString *IntToStringPar(ForkJoinSlice *slice, int i);
 JSString *DoubleToStringPar(ForkJoinSlice *slice, double d);
-JSString *PrimitiveToStringPar(ForkJoinSlice *slice, HandleValue input);
 bool StringToNumberPar(ForkJoinSlice *slice, JSString *str, double *out);
 
 // Binary and unary operator functions on values. These tend to return

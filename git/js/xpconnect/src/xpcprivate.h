@@ -343,12 +343,12 @@ protected:
 
 private:
     // Singleton instance
-    static nsXPConnect*             gSelf;
-    static bool                     gOnceAliveNowDead;
+    static nsXPConnect*      gSelf;
+    static bool              gOnceAliveNowDead;
 
-    XPCJSRuntime*                   mRuntime;
-    nsRefPtr<nsIXPCSecurityManager> mDefaultSecurityManager;
-    bool                            mShuttingDown;
+    XPCJSRuntime*            mRuntime;
+    nsIXPCSecurityManager*   mDefaultSecurityManager;
+    bool                     mShuttingDown;
 
     // nsIThreadInternal doesn't remember which observers it called
     // OnProcessNextEvent on when it gets around to calling AfterProcessNextEvent.
@@ -712,12 +712,14 @@ public:
 
     nsresult GetException(nsIException** e)
         {
-            nsCOMPtr<nsIException> rval = mException;
-            rval.forget(e);
+            NS_IF_ADDREF(mException);
+            *e = mException;
             return NS_OK;
         }
     void SetException(nsIException* e)
         {
+            NS_IF_ADDREF(e);
+            NS_IF_RELEASE(mException);
             mException = e;
         }
 
@@ -748,7 +750,7 @@ private:
     JSContext*  mJSContext;
     nsresult mLastResult;
     nsresult mPendingResult;
-    nsCOMPtr<nsIException> mException;
+    nsIException* mException;
     LangType mCallingLangType;
     bool mErrorUnreported;
 
@@ -2374,7 +2376,7 @@ private:
 
 private:
     XPCJSRuntime* mRuntime;
-    nsCOMPtr<nsIInterfaceInfo> mInfo;
+    nsIInterfaceInfo* mInfo;
     char* mName;
     nsIID mIID;
     uint32_t* mDescriptors;

@@ -4,12 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-/*
- * JS allocation policies.
- *
- * The allocators here are for system memory with lifetimes which are not
- * managed by the GC. See the comment at the top of vm/MallocProvider.h.
- */
+/* JS allocation policies. */
 
 #ifndef jsalloc_h
 #define jsalloc_h

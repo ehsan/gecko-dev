@@ -6,7 +6,7 @@
 #define OTS_GASP_H_
 
 #include <new>
-#include <utility>
+#include <utility>  // std::pair
 #include <vector>
 
 #include "ots.h"

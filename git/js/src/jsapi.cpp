@@ -5947,12 +5947,12 @@ JS_DropExceptionState(JSContext *cx, JSExceptionState *state)
 }
 
 JS_PUBLIC_API(JSErrorReport *)
-JS_ErrorFromException(JSContext *cx, HandleObject obj)
+JS_ErrorFromException(JSContext *cx, HandleValue value)
 {
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
-    assertSameCompartment(cx, obj);
-    return js_ErrorFromException(cx, obj);
+    assertSameCompartment(cx, value);
+    return js_ErrorFromException(value);
 }
 
 JS_PUBLIC_API(bool)

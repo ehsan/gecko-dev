@@ -5,9 +5,7 @@
 #include "fpgm.h"
 
 // fpgm - Font Program
-// http://www.microsoft.com/typography/otspec/fpgm.htm
-
-#define TABLE_NAME "fpgm"
+// http://www.microsoft.com/opentype/otspec/fpgm.htm
 
 namespace ots {
 
@@ -18,11 +16,11 @@ bool ots_fpgm_parse(OpenTypeFile *file, const uint8_t *data, size_t length) {
   file->fpgm = fpgm;
 
   if (length >= 128 * 1024u) {
-    return OTS_FAILURE_MSG("length (%ld) > 120", length);  // almost all fpgm tables are less than 5k bytes.
+    return OTS_FAILURE();  // almost all fpgm tables are less than 5k bytes.
   }
 
   if (!table.Skip(length)) {
-    return OTS_FAILURE_MSG("Bad fpgm length");
+    return OTS_FAILURE();
   }
 
   fpgm->data = data;
@@ -39,7 +37,7 @@ bool ots_fpgm_serialise(OTSStream *out, OpenTypeFile *file) {
   const OpenTypeFPGM *fpgm = file->fpgm;
 
   if (!out->Write(fpgm->data, fpgm->length)) {
-    return OTS_FAILURE_MSG("Failed to write fpgm");
+    return OTS_FAILURE();
   }
 
   return true;

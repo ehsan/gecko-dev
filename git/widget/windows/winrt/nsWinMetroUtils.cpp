@@ -33,8 +33,6 @@ extern ComPtr<FrameworkView> sFrameworkView;
 namespace mozilla {
 namespace widget {
 
-bool nsWinMetroUtils::sUpdatePending = false;
-
 NS_IMPL_ISUPPORTS1(nsWinMetroUtils, nsIWinMetroUtils)
 
 nsWinMetroUtils::nsWinMetroUtils()
@@ -316,20 +314,6 @@ NS_IMETHODIMP
 nsWinMetroUtils::SwapMouseButton(bool aValue, bool *aOriginalValue)
 {
   *aOriginalValue = ::SwapMouseButton(aValue);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsWinMetroUtils::GetUpdatePending(bool *aUpdatePending)
-{
-  *aUpdatePending = sUpdatePending;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsWinMetroUtils::SetUpdatePending(bool aUpdatePending)
-{
-  sUpdatePending = aUpdatePending;
   return NS_OK;
 }
 

@@ -8,7 +8,6 @@
 #include "AboutRedirector.h"
 #include "nsNetUtil.h"
 #include "nsIScriptSecurityManager.h"
-#include "mozilla/ArrayUtils.h"
 
 namespace mozilla {
 namespace browser {
@@ -98,7 +97,7 @@ static RedirEntry kRedirMap[] = {
   { "customizing", "chrome://browser/content/customizableui/aboutCustomizing.xhtml",
     nsIAboutModule::ALLOW_SCRIPT },
 };
-static const int kRedirTotal = ArrayLength(kRedirMap);
+static const int kRedirTotal = NS_ARRAY_LENGTH(kRedirMap);
 
 static nsAutoCString
 GetAboutModuleName(nsIURI *aURI)
