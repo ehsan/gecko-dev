@@ -79,7 +79,6 @@ class nsIControllers;
 class nsIDOMNSFeatureFactory;
 class nsIEventListenerManager;
 class nsIScrollableView;
-class nsContentList;
 struct nsRect;
 
 typedef unsigned long PtrBits;
@@ -389,9 +388,6 @@ private:
   static PRUint32 sMutationCount;
 };
 
-// Forward declare to allow being a friend
-class nsNSElementTearoff;
-
 /**
  * A generic base class for DOM elements, implementing many nsIContent,
  * nsIDOMNode and nsIDOMElement methods.
@@ -401,8 +397,6 @@ class nsGenericElement : public nsIContent
 public:
   nsGenericElement(nsINodeInfo *aNodeInfo);
   virtual ~nsGenericElement();
-
-  friend class nsNSElementTearoff;
 
   friend class nsNSElementTearoff;
 
@@ -1013,11 +1007,6 @@ public:
      * Weak reference to this node
      */
     nsNodeWeakReference* mWeakReference;
-
-    /**
-     * An object implementing the .children property for this element.
-     */
-    nsRefPtr<nsContentList> mChildrenList;
   };
 
 protected:
@@ -1152,8 +1141,6 @@ public:
   }
   
 private:
-  nsContentList* GetChildrenList();
-
   nsRefPtr<nsGenericElement> mContent;
 
   /**
