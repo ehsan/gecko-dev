@@ -70,8 +70,7 @@ public:
 
   // nsISMILAnimationElement
   virtual nsSMILAnimationFunction& AnimationFunction();
-  virtual PRBool GetTargetAttributeName(PRInt32 *aNamespaceID,
-                                        nsIAtom **aLocalName) const;
+  virtual nsIAtom* GetTargetAttributeName() const;
   virtual nsSMILTargetAttrType GetTargetAttributeType() const;
 
   // Utility method to let our <mpath> children tell us when they've changed,

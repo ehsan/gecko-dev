@@ -73,11 +73,6 @@ static NS_DEFINE_CID(kFrameSelectionCID, NS_FRAMESELECTION_CID);
 static nsINativeKeyBindings *sNativeInputBindings = nsnull;
 static nsINativeKeyBindings *sNativeTextAreaBindings = nsnull;
 
-struct SelectionState {
-  PRInt32 mStart;
-  PRInt32 mEnd;
-};
-
 /*static*/
 PRBool
 nsITextControlElement::GetWrapPropertyEnum(nsIContent* aContent,
@@ -589,8 +584,6 @@ public:
    */
   void SetFrame(nsTextControlFrame *aFrame){mFrame = aFrame;}
 
-  void SettingValue(PRBool aValue) { mSettingValue = aValue; }
-
   NS_DECL_ISUPPORTS
 
   NS_DECL_NSISELECTIONLISTENER
@@ -627,11 +620,6 @@ protected:
    * notification (when this state changes we update undo and redo menus)
    */
   PRPackedBool    mHadRedoItems;
-  /**
-   * Whether we're in the process of a SetValue call, and should therefore
-   * refrain from calling OnValueChanged.
-   */
-  PRPackedBool mSettingValue;
 };
 
 
@@ -645,7 +633,6 @@ nsTextInputListener::nsTextInputListener(nsITextControlElement* aTxtCtrlElement)
 , mSelectionWasCollapsed(PR_TRUE)
 , mHadUndoItems(PR_FALSE)
 , mHadRedoItems(PR_FALSE)
-, mSettingValue(PR_FALSE)
 {
 }
 
@@ -855,9 +842,7 @@ nsTextInputListener::EditAction()
   // Fire input event
   mFrame->FireOnInput();
 
-  if (!mSettingValue) {
-    mTxtCtrlElement->OnValueChanged(PR_TRUE);
-  }
+  mTxtCtrlElement->OnValueChanged(PR_TRUE);
 
   return NS_OK;
 }
@@ -1129,7 +1114,11 @@ nsTextEditorState::PrepareEditor(const nsAString *aValue)
 
   // Use async reflow and painting for text widgets to improve
   // performance.
-  editorFlags |= nsIPlaintextEditor::eEditorUseAsyncUpdatesMask;
+
+  // XXX: Using editor async updates exposes bugs 158782, 151882,
+  //      and 165130, so we're disabling it for now, until they
+  //      can be addressed.
+  // editorFlags |= nsIPlaintextEditor::eEditorUseAsyncUpdatesMask;
 
   PRBool shouldInitializeEditor = PR_FALSE;
   nsCOMPtr<nsIEditor> newEditor; // the editor that we might create
@@ -1145,9 +1134,9 @@ nsTextEditorState::PrepareEditor(const nsAString *aValue)
     rv = mBoundFrame->UpdateValueDisplay(PR_FALSE, PR_TRUE);
     NS_ENSURE_SUCCESS(rv, rv);
   } else {
-    if (aValue || !mEditorInitialized) {
+    if (aValue) {
       // Set the correct value in the root node
-      rv = mBoundFrame->UpdateValueDisplay(PR_TRUE, !mEditorInitialized, aValue);
+      rv = mBoundFrame->UpdateValueDisplay(PR_TRUE, PR_FALSE, aValue);
       NS_ENSURE_SUCCESS(rv, rv);
     }
 
@@ -1326,12 +1315,6 @@ nsTextEditorState::PrepareEditor(const nsAString *aValue)
   if (mTextListener)
     newEditor->AddEditorObserver(mTextListener);
 
-  // Restore our selection after being bound to a new frame
-  if (mSelState) {
-    mBoundFrame->SetSelectionRange(mSelState->mStart, mSelState->mEnd);
-    mSelState = nsnull;
-  }
-
   return rv;
 }
 
@@ -1361,20 +1344,6 @@ nsTextEditorState::UnbindFromFrame(nsTextControlFrame* aFrame)
   // going to use it anymore, so retrieve it for now.
   nsAutoString value;
   GetValue(value, PR_TRUE);
-
-  // Save our selection state if needed.
-  // Note that nsTextControlFrame::GetSelectionRange attempts to initialize the
-  // editor before grabbing the range, and because this is not an acceptable
-  // side effect for unbinding from a text control frame, we need to call
-  // GetSelectionRange before calling DestroyEditor, and only if
-  // mEditorInitialized indicates that we actually have an editor available.
-  if (mEditorInitialized) {
-    mSelState = new SelectionState();
-    nsresult rv = mBoundFrame->GetSelectionRange(&mSelState->mStart, &mSelState->mEnd);
-    if (NS_FAILED(rv)) {
-      mSelState = nsnull;
-    }
-  }
 
   // Destroy our editor
   DestroyEditor();
@@ -1750,8 +1719,6 @@ nsTextEditorState::SetValue(const nsAString& aValue, PRBool aUserInput)
         flags |= nsIPlaintextEditor::eEditorDontEchoPassword;
         mEditor->SetFlags(flags);
 
-        mTextListener->SettingValue(PR_TRUE);
-
         // Also don't enforce max-length here
         PRInt32 savedMaxLength;
         plaintextEditor->GetMaxTextLength(&savedMaxLength);
@@ -1762,9 +1729,6 @@ nsTextEditorState::SetValue(const nsAString& aValue, PRBool aUserInput)
         } else {
           plaintextEditor->InsertText(insertValue);
         }
-
-        mTextListener->SettingValue(PR_FALSE);
-
         if (!weakFrame.IsAlive()) {
           // If the frame was destroyed because of a flush somewhere inside
           // InsertText, mBoundFrame here will be false.  But it's also possible

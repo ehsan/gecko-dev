@@ -394,12 +394,16 @@ function testConstructionWithNullBuffer(type, name) {
 }
 
 function shouldThrowIndexSizeErr(func, text) {
-    var errorText = text + " should throw an exception";
+    var errorText = text + " should throw INDEX_SIZE_ERR exception";
     try {
         func();
         testFailed(errorText);
     } catch (e) {
-        testPassed(text + " threw an exception");
+        if (e.code != DOMException.INDEX_SIZE_ERR) {
+            testFailed(errorText);
+        } else {
+            testPassed(text + " threw INDEX_SIZE_ERR exception");
+        }
     }
 }
 
@@ -451,18 +455,6 @@ function testConstructionOfHugeArray(type, name, sz) {
     }
 }
 
-function testConstructionWithBothArrayBufferAndLength(type, name, elementSizeInBytes) {
-    var bufByteLength = 1000 * elementSizeInBytes;
-    var buf = new ArrayBuffer(bufByteLength);
-    var array1 = new type(buf);
-    var array2 = new type(bufByteLength / elementSizeInBytes);
-    if (array1.length == array2.length) {
-        testPassed("Array lengths matched with explicit and implicit creation of ArrayBuffer");
-    } else {
-        testFailed("Array lengths DID NOT MATCH with explicit and implicit creation of ArrayBuffer");
-    }
-}
-
 // These need to be global for shouldBe to see them
 var array;
 var typeSize;
@@ -503,7 +495,7 @@ function testSlicingWithDefaultValues(type, name, sz) {
         typeSize = sz;
         shouldBe("array.length", "32 / typeSize");
         try {
-            shouldBe("array.slice(0).length", "(32 / typeSize)");
+            shouldBe("array.slice().length", "(32 / typeSize)");
             shouldBe("array.slice(2).length", "(32 / typeSize) - 2");
             shouldBe("array.slice(-2).length", "2");
             shouldBe("array.slice(-2147483648).length", "(32 / typeSize)");
@@ -672,7 +664,6 @@ function runTests() {
     testConstructionWithNegativeOutOfRangeValues(type, name);
     testConstructionWithUnalignedOffset(type, name, testCase.elementSizeInBytes);
     testConstructionOfHugeArray(type, name, testCase.elementSizeInBytes);
-    testConstructionWithBothArrayBufferAndLength(type, name, testCase.elementSizeInBytes);
     testSlicingWithOutOfRangeValues(type, name, testCase.elementSizeInBytes);
     testSlicingWithDefaultValues(type, name, testCase.elementSizeInBytes);
     testSettingFromArrayWithOutOfRangeOffset(type, name);

@@ -82,7 +82,7 @@ private:
   nsBuiltinDecoder* mDecoder;
 
   // The number of samples per second.
-  float mSamplesPerSecond;
+  PRUint64 mSamplesPerSecond;
 
   // A buffer for audio data to be dispatched in DOM events.
   nsAutoArrayPtr<float> mSignalBuffer;

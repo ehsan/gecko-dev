@@ -113,7 +113,6 @@ AndroidBridge::Init(JNIEnv *jEnv,
     jSetClipboardText = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "setClipboardText", "(Ljava/lang/String;)V");
     jShowAlertNotification = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "showAlertNotification", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V");
     jAlertsProgressListener_OnProgress = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "alertsProgressListener_OnProgress", "(Ljava/lang/String;JJLjava/lang/String;)V");
-    jGetDpi = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "getDpi", "()I");
 
 
     jEGLContextClass = (jclass) jEnv->NewGlobalRef(jEnv->FindClass("javax/microedition/khronos/egl/EGLContext"));
@@ -478,12 +477,6 @@ AndroidBridge::AlertsProgressListener_OnProgress(const nsAString& aAlertName,
                                   jstrName, aProgress, aProgressMax, jstrText);
 }
 
-int
-AndroidBridge::GetDPI()
-{
-    return (int) mJNIEnv->CallStaticIntMethod(mGeckoAppShellClass, jGetDpi);
-}
-
 void
 AndroidBridge::SetSurfaceView(jobject obj)
 {
@@ -576,9 +569,4 @@ mozilla_AndroidBridge_AttachThread(PRBool asDaemon)
 extern "C" JNIEnv * GetJNIForThread()
 {
     return mozilla::AndroidBridge::JNIForThread();
-}
-
-jclass GetGeckoAppShellClass()
-{
-    return mozilla::AndroidBridge::GetGeckoAppShellClass();
 }

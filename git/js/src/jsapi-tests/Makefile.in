@@ -50,7 +50,6 @@ CPPSRCS = \
   tests.cpp \
   selfTest.cpp \
   testClassGetter.cpp \
-  testCloneScript.cpp \
   testConservativeGC.cpp \
   testContexts.cpp \
   testDebugger.cpp \
@@ -69,7 +68,6 @@ CPPSRCS = \
   testSameValue.cpp \
   testScriptObject.cpp \
   testSetPropertyWithNativeGetterStubSetter.cpp \
-  testBug604087.cpp \
   testTrap.cpp \
   testXDR.cpp \
   $(NULL)

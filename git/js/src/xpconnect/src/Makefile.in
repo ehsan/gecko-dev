@@ -91,7 +91,12 @@ CPPSRCS		= \
 		xpcwrappednativejsops.cpp \
 		xpcwrappednativeproto.cpp \
 		xpcwrappednativescope.cpp \
+		XPCNativeWrapper.cpp \
 		xpcJSWeakReference.cpp \
+		XPCSafeJSObjectWrapper.cpp \
+		XPCCrossOriginWrapper.cpp \
+		XPCChromeObjectWrapper.cpp \
+		XPCSystemOnlyWrapper.cpp \
 		XPCWrapper.cpp \
 		xpcquickstubs.cpp \
 		dom_quickstubs.cpp \

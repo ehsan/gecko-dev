@@ -12,7 +12,6 @@
 
 #define GL_APICALL
 #include <GLES2/gl2.h>
-#include <GLES2/gl2ext.h>
 #define EGLAPI
 #include <EGL/egl.h>
 #include <d3d9.h>
@@ -52,7 +51,6 @@ class VertexDataManager;
 class IndexDataManager;
 class BufferBackEnd;
 class Blit;
-class Fence;
 
 enum
 {
@@ -159,7 +157,6 @@ struct State
     GLfloat lineWidth;
 
     GLenum generateMipmapHint;
-    GLenum fragmentShaderDerivativeHint;
 
     GLint viewportX;
     GLint viewportY;
@@ -184,8 +181,7 @@ struct State
     BindingPointer<Buffer> elementArrayBuffer;
     BindingPointer<Texture> texture2D;
     BindingPointer<Texture> textureCubeMap;
-    GLuint readFramebuffer;
-    GLuint drawFramebuffer;
+    GLuint framebuffer;
     BindingPointer<Renderbuffer> renderbuffer;
     GLuint currentProgram;
 
@@ -267,7 +263,6 @@ class Context
     void setLineWidth(GLfloat width);
 
     void setGenerateMipmapHint(GLenum hint);
-    void setFragmentShaderDerivativeHint(GLenum hint);
 
     void setViewportParams(GLint x, GLint y, GLsizei width, GLsizei height);
 
@@ -278,8 +273,7 @@ class Context
 
     void setActiveSampler(int active);
 
-    GLuint getReadFramebufferHandle() const;
-    GLuint getDrawFramebufferHandle() const;
+    GLuint getFramebufferHandle() const;
     GLuint getRenderbufferHandle() const;
 
     GLuint getArrayBufferHandle() const;
@@ -316,16 +310,11 @@ class Context
     GLuint createFramebuffer();
     void deleteFramebuffer(GLuint framebuffer);
 
-    // Fences are owned by the Context.
-    GLuint createFence();
-    void deleteFence(GLuint fence);
-
     void bindArrayBuffer(GLuint buffer);
     void bindElementArrayBuffer(GLuint buffer);
     void bindTexture2D(GLuint texture);
     void bindTextureCubeMap(GLuint texture);
-    void bindReadFramebuffer(GLuint framebuffer);
-    void bindDrawFramebuffer(GLuint framebuffer);
+    void bindFramebuffer(GLuint framebuffer);
     void bindRenderbuffer(GLuint renderbuffer);
     void useProgram(GLuint program);
 
@@ -336,7 +325,6 @@ class Context
     void setVertexAttrib(GLuint index, const GLfloat *values);
 
     Buffer *getBuffer(GLuint handle);
-    Fence *getFence(GLuint handle);
     Shader *getShader(GLuint handle);
     Program *getProgram(GLuint handle);
     Texture *getTexture(GLuint handle);
@@ -349,8 +337,7 @@ class Context
     Texture2D *getTexture2D();
     TextureCubeMap *getTextureCubeMap();
     Texture *getSamplerTexture(unsigned int sampler, SamplerType type);
-    Framebuffer *getReadFramebuffer();
-    Framebuffer *getDrawFramebuffer();
+    Framebuffer *getFramebuffer();
 
     bool getFloatv(GLenum pname, GLfloat *params);
     bool getIntegerv(GLenum pname, GLint *params);
@@ -383,21 +370,7 @@ class Context
     GLenum getError();
 
     bool supportsShaderModel3() const;
-    GLsizei getMaxSupportedSamples() const;
-    int getNearestSupportedSamples(D3DFORMAT format, int requested) const;
     const char *getExtensionString() const;
-    bool supportsEventQueries() const;
-    bool supportsCompressedTextures() const;
-    bool supportsFloatTextures() const;
-    bool supportsFloatLinearFilter() const;
-    bool supportsFloatRenderableTextures() const;
-    bool supportsHalfFloatTextures() const;
-    bool supportsHalfFloatLinearFilter() const;
-    bool supportsHalfFloatRenderableTextures() const;
-
-    void blitFramebuffer(GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, 
-                         GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1,
-                         GLbitfield mask);
 
     Blit *getBlitter() { return mBlit; }
 
@@ -417,20 +390,20 @@ class Context
 
     bool cullSkipsDraw(GLenum drawMode);
     bool isTriangleMode(GLenum drawMode);
+    bool hasStencil();
 
     const egl::Config *const mConfig;
 
     State   mState;
 
-    BindingPointer<Texture2D> mTexture2DZero;
-    BindingPointer<TextureCubeMap> mTextureCubeMapZero;
+    Texture2D *mTexture2DZero;
+    TextureCubeMap *mTextureCubeMapZero;
 
+    Colorbuffer *mColorbufferZero;
+    DepthStencilbuffer *mDepthStencilbufferZero;
 
     typedef std::map<GLuint, Framebuffer*> FramebufferMap;
     FramebufferMap mFramebufferMap;
-
-    typedef std::map<GLuint, Fence*> FenceMap;
-    FenceMap mFenceMap;
 
     void initExtensionString();
     std::string mExtensionString;
@@ -441,7 +414,7 @@ class Context
 
     Blit *mBlit;
     
-    BindingPointer<Texture> mIncompleteTextures[SAMPLER_TYPE_COUNT];
+    Texture *mIncompleteTextures[SAMPLER_TYPE_COUNT];
 
     // Recorded errors
     bool mInvalidEnum;
@@ -456,19 +429,8 @@ class Context
     unsigned int mAppliedRenderTargetSerial;
     unsigned int mAppliedDepthbufferSerial;
     unsigned int mAppliedStencilbufferSerial;
-    bool mDepthStencilInitialized;
 
     bool mSupportsShaderModel3;
-    std::map<D3DFORMAT, bool *> mMultiSampleSupport;
-    GLsizei mMaxSupportedSamples;
-    bool mSupportsEventQueries;
-    bool mSupportsCompressedTextures;
-    bool mSupportsFloatTextures;
-    bool mSupportsFloatLinearFilter;
-    bool mSupportsFloatRenderableTextures;
-    bool mSupportsHalfFloatTextures;
-    bool mSupportsHalfFloatLinearFilter;
-    bool mSupportsHalfFloatRenderableTextures;
 
     // state caching flags
     bool mClearStateDirty;

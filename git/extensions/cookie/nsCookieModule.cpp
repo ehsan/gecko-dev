@@ -46,8 +46,7 @@
 #include "nsXPIDLString.h"
 
 // Define the constructor function for the objects
-NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsIPermissionManager,
-  nsPermissionManager::GetXPCOMSingleton)
+NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsPermissionManager, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsPopupWindowManager, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsCookiePermission)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsCookiePromptService)
@@ -59,7 +58,7 @@ NS_DEFINE_NAMED_CID(NS_COOKIEPERMISSION_CID);
 
 
 static const mozilla::Module::CIDEntry kCookieCIDs[] = {
-    { &kNS_PERMISSIONMANAGER_CID, false, NULL, nsIPermissionManagerConstructor },
+    { &kNS_PERMISSIONMANAGER_CID, false, NULL, nsPermissionManagerConstructor },
     { &kNS_POPUPWINDOWMANAGER_CID, false, NULL, nsPopupWindowManagerConstructor },
     { &kNS_COOKIEPROMPTSERVICE_CID, false, NULL, nsCookiePromptServiceConstructor },
     { &kNS_COOKIEPERMISSION_CID, false, NULL, nsCookiePermissionConstructor },

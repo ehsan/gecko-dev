@@ -44,7 +44,7 @@
 #include <string.h>
 #include "jstypes.h"
 #include "jsstdint.h"
-#include "jsutil.h"
+#include "jsutil.h" /* Added by JSIFY */
 #include "jsclist.h"
 #include "jsapi.h"
 #include "jscntxt.h"
@@ -116,7 +116,8 @@ js_SetDebugMode(JSContext *cx, JSBool debug)
          &script->links != &cx->compartment->scripts;
          script = (JSScript *)script->links.next) {
         if (script->debugMode != debug &&
-            script->hasJITCode() &&
+            script->ncode &&
+            script->ncode != JS_UNJITTABLE_METHOD &&
             !IsScriptLive(cx, script)) {
             /*
              * In the event that this fails, debug mode is left partially on,
@@ -235,12 +236,6 @@ JS_SetTrap(JSContext *cx, JSScript *script, jsbytecode *pc,
         return JS_FALSE;
     }
 
-    if (JSOp(*pc) == JSOP_BEGIN) {
-        JS_ReportErrorFlagsAndNumber(cx, JSREPORT_ERROR, js_GetErrorMessage,
-                                     NULL, JSMSG_READ_ONLY, "trap invalid on BEGIN opcode");
-        return JS_FALSE;
-    }
-
     JS_ASSERT((JSOp) *pc != JSOP_TRAP);
     junk = NULL;
     rt = cx->runtime;
@@ -279,7 +274,7 @@ JS_SetTrap(JSContext *cx, JSScript *script, jsbytecode *pc,
         cx->free(junk);
 
 #ifdef JS_METHODJIT
-    if (script->hasJITCode()) {
+    if (script->ncode != NULL && script->ncode != JS_UNJITTABLE_METHOD) {
         mjit::Recompiler recompiler(cx, script);
         if (!recompiler.recompile())
             return JS_FALSE;
@@ -332,7 +327,7 @@ JS_ClearTrap(JSContext *cx, JSScript *script, jsbytecode *pc,
         DBG_UNLOCK(cx->runtime);
 
 #ifdef JS_METHODJIT
-    if (script->hasJITCode()) {
+    if (script->ncode != NULL && script->ncode != JS_UNJITTABLE_METHOD) {
         mjit::Recompiler recompiler(cx, script);
         recompiler.recompile();
     }
@@ -1021,19 +1016,6 @@ JS_LineNumberToPC(JSContext *cx, JSScript *script, uintN lineno)
     return js_LineNumberToPC(script, lineno);
 }
 
-JS_PUBLIC_API(jsbytecode *)
-JS_FirstValidPC(JSContext *cx, JSScript *script)
-{
-    jsbytecode *pc = script->code;
-    return *pc == JSOP_BEGIN ? pc + JSOP_BEGIN_LENGTH : pc;
-}
-
-JS_PUBLIC_API(jsbytecode *)
-JS_EndPC(JSContext *cx, JSScript *script)
-{
-    return script->code + script->length;
-}
-
 JS_PUBLIC_API(uintN)
 JS_GetFunctionArgumentCount(JSContext *cx, JSFunction *fun)
 {
@@ -1233,15 +1215,12 @@ JS_GetFrameCallObject(JSContext *cx, JSStackFrame *fp)
     return js_GetCallObject(cx, fp);
 }
 
-JS_PUBLIC_API(JSBool)
-JS_GetFrameThis(JSContext *cx, JSStackFrame *fp, jsval *thisv)
+JS_PUBLIC_API(JSObject *)
+JS_GetFrameThis(JSContext *cx, JSStackFrame *fp)
 {
     if (fp->isDummyFrame())
-        return false;
-    if (!fp->computeThis(cx))
-        return false;
-    *thisv = Jsvalify(fp->thisValue());
-    return true;
+        return NULL;
+    return fp->computeThisObject(cx);
 }
 
 JS_PUBLIC_API(JSFunction *)
@@ -1667,7 +1646,15 @@ JS_SetDebugErrorHook(JSRuntime *rt, JSDebugErrorHook hook, void *closure)
 JS_PUBLIC_API(size_t)
 JS_GetObjectTotalSize(JSContext *cx, JSObject *obj)
 {
-    return obj->slotsAndStructSize();
+    size_t nbytes = (obj->isFunction() && obj->getPrivate() == obj)
+                    ? sizeof(JSFunction)
+                    : sizeof *obj;
+
+    if (obj->dslots) {
+        nbytes += (obj->dslots[-1].toPrivateUint32() - JS_INITIAL_NSLOTS + 1)
+                  * sizeof obj->dslots[0];
+    }
+    return nbytes;
 }
 
 static size_t
@@ -2315,8 +2302,6 @@ ethogram_construct(JSContext *cx, uintN argc, jsval *vp)
     EthogramEventBuffer *p;
 
     p = (EthogramEventBuffer *) JS_malloc(cx, sizeof(EthogramEventBuffer));
-    if (!p)
-        return JS_FALSE;
 
     p->mReadPos = p->mWritePos = 0;
     p->mScripts = NULL;
