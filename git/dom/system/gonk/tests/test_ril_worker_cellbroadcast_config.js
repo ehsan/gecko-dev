@@ -16,28 +16,27 @@ add_test(function test_ril_worker_cellbroadcast_activate() {
       // Do nothing
     }
   });
-  let context = worker.ContextPool._contexts[0];
 
   let parcelTypes = [];
-  let org_newParcel = context.Buf.newParcel;
-  context.Buf.newParcel = function(type, options) {
+  let org_newParcel = worker.Buf.newParcel;
+  worker.Buf.newParcel = function(type, options) {
     parcelTypes.push(type);
     org_newParcel.apply(this, arguments);
   };
 
   function setup(isCdma) {
-    context.RIL._isCdma = isCdma;
-    context.RIL.cellBroadcastDisabled = false;
-    context.RIL.mergedCellBroadcastConfig = [1, 2, 4, 7];  // 1, 4-6
+    worker.RIL._isCdma = isCdma;
+    worker.RIL.cellBroadcastDisabled = false;
+    worker.RIL.mergedCellBroadcastConfig = [1, 2, 4, 7];  // 1, 4-6
     parcelTypes = [];
   }
 
   function test(isCdma, expectedRequest) {
     setup(isCdma);
-    context.RIL.setCellBroadcastDisabled({disabled: true});
+    worker.RIL.setCellBroadcastDisabled({disabled: true});
     // Makesure that request parcel is sent out.
     do_check_neq(parcelTypes.indexOf(expectedRequest), -1);
-    do_check_eq(context.RIL.cellBroadcastDisabled, true);
+    do_check_eq(worker.RIL.cellBroadcastDisabled, true);
   }
 
   test(false, REQUEST_GSM_SMS_BROADCAST_ACTIVATION);
@@ -56,7 +55,6 @@ add_test(function test_ril_worker_cellbroadcast_config() {
       // Do nothing
     }
   });
-  let context = worker.ContextPool._contexts[0];
 
   function U32ArrayFromParcelArray(pa) {
     do_print(pa);
@@ -84,8 +82,8 @@ add_test(function test_ril_worker_cellbroadcast_config() {
       do_check_eq(u32Parcel.slice(3).toString(), expected);
     };
 
-    context.RIL._isCdma = isCdma;
-    context.RIL.setSmsBroadcastConfig(configs);
+    worker.RIL._isCdma = isCdma;
+    worker.RIL.setSmsBroadcastConfig(configs);
 
     // Makesure that request parcel is sent out.
     do_check_true(found);
@@ -115,13 +113,12 @@ add_test(function test_ril_worker_cellbroadcast_merge_config() {
       // Do nothing
     }
   });
-  let context = worker.ContextPool._contexts[0];
 
   function test(isCdma, configs, expected) {
-    context.RIL._isCdma = isCdma;
-    context.RIL.cellBroadcastConfigs = configs;
-    context.RIL._mergeAllCellBroadcastConfigs();
-    do_check_eq(context.RIL.mergedCellBroadcastConfig.toString(), expected);
+    worker.RIL._isCdma = isCdma;
+    worker.RIL.cellBroadcastConfigs = configs;
+    worker.RIL._mergeAllCellBroadcastConfigs();
+    do_check_eq(worker.RIL.mergedCellBroadcastConfig.toString(), expected);
   }
 
   let configs = {

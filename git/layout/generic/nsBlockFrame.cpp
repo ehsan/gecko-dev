@@ -4777,9 +4777,9 @@ ShouldPutNextSiblingOnNewLine(nsIFrame* aLastFrame)
   if (type == nsGkAtoms::brFrame) {
     return true;
   }
-  // XXX the TEXT_OFFSETS_NEED_FIXING check is a wallpaper for bug 822910.
+  // XXX the IS_DIRTY check is a wallpaper for bug 822910.
   if (type == nsGkAtoms::textFrame &&
-      !(aLastFrame->GetStateBits() & TEXT_OFFSETS_NEED_FIXING)) {
+      !(aLastFrame->GetStateBits() & NS_FRAME_IS_DIRTY)) {
     return aLastFrame->HasSignificantTerminalNewline();
   }
   return false;

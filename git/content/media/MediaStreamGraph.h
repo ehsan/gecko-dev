@@ -672,10 +672,10 @@ public:
    * Ensures that aSignalRunnable will be dispatched to aSignalThread
    * when we don't have enough buffered data in the track (which could be
    * immediately). Will dispatch the runnable immediately if the track
-   * does not exist. No op if a runnable is already present for this track.
+   * does not exist.
    */
   void DispatchWhenNotEnoughBuffered(TrackID aID,
-      nsIEventTarget* aSignalThread, nsIRunnable* aSignalRunnable);
+      nsIThread* aSignalThread, nsIRunnable* aSignalRunnable);
   /**
    * Indicate that a track has ended. Do not do any more API calls
    * affecting this track.
@@ -728,13 +728,13 @@ public:
   friend class MediaStreamGraphImpl;
 
   struct ThreadAndRunnable {
-    void Init(nsIEventTarget* aTarget, nsIRunnable* aRunnable)
+    void Init(nsIThread* aThread, nsIRunnable* aRunnable)
     {
-      mTarget = aTarget;
+      mThread = aThread;
       mRunnable = aRunnable;
     }
 
-    nsCOMPtr<nsIEventTarget> mTarget;
+    nsCOMPtr<nsIThread> mThread;
     nsCOMPtr<nsIRunnable> mRunnable;
   };
   enum TrackCommands {

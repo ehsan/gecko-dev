@@ -1836,10 +1836,7 @@ nsWindow::OnIMEEvent(AndroidGeckoEvent *ae)
             // Use 'INT32_MAX / 2' here because subsequent text changes might
             // combine with this text change, and overflow might occur if
             // we just use INT32_MAX
-            IMENotification notification(NOTIFY_IME_OF_TEXT_CHANGE);
-            notification.mTextChangeData.mOldEndOffset =
-                notification.mTextChangeData.mNewEndOffset = INT32_MAX / 2;
-            NotifyIMEOfTextChange(notification);
+            NotifyIMEOfTextChange(0, INT32_MAX / 2, INT32_MAX / 2);
             FlushIMEChanges();
         }
         GeckoAppShell::NotifyIME(AndroidBridge::NOTIFY_IME_REPLY_EVENT);
@@ -2097,9 +2094,9 @@ nsWindow::UserActivity()
 }
 
 NS_IMETHODIMP
-nsWindow::NotifyIME(const IMENotification& aIMENotification)
+nsWindow::NotifyIME(NotificationToIME aNotification)
 {
-    switch (aIMENotification.mMessage) {
+    switch (aNotification) {
         case REQUEST_TO_COMMIT_COMPOSITION:
             //ALOGIME("IME: REQUEST_TO_COMMIT_COMPOSITION: s=%d", aState);
             RemoveIMEComposition();
@@ -2150,8 +2147,6 @@ nsWindow::NotifyIME(const IMENotification& aIMENotification)
             PostFlushIMEChanges();
             mIMESelectionChanged = true;
             return NS_OK;
-        case NOTIFY_IME_OF_TEXT_CHANGE:
-            return NotifyIMEOfTextChange(aIMENotification);
         default:
             return NS_ERROR_NOT_IMPLEMENTED;
     }
@@ -2278,36 +2273,31 @@ nsWindow::FlushIMEChanges()
     }
 }
 
-nsresult
-nsWindow::NotifyIMEOfTextChange(const IMENotification& aIMENotification)
+NS_IMETHODIMP
+nsWindow::NotifyIMEOfTextChange(uint32_t aStart,
+                                uint32_t aOldEnd,
+                                uint32_t aNewEnd)
 {
-    MOZ_ASSERT(aIMENotification.mMessage == NOTIFY_IME_OF_TEXT_CHANGE,
-               "NotifyIMEOfTextChange() is called with invaild notification");
-
     if (mIMEMaskTextUpdate)
         return NS_OK;
 
     ALOGIME("IME: NotifyIMEOfTextChange: s=%d, oe=%d, ne=%d",
-            aIMENotification.mTextChangeData.mStartOffset,
-            aIMENotification.mTextChangeData.mOldEndOffset,
-            aIMENotification.mTextChangeData.mNewEndOffset);
+            aStart, aOldEnd, aNewEnd);
 
     /* Make sure Java's selection is up-to-date */
     mIMESelectionChanged = false;
     NotifyIME(NOTIFY_IME_OF_SELECTION_CHANGE);
     PostFlushIMEChanges();
 
-    mIMETextChanges.AppendElement(IMEChange(aIMENotification));
+    mIMETextChanges.AppendElement(IMEChange(aStart, aOldEnd, aNewEnd));
     // Now that we added a new range we need to go back and
     // update all the ranges before that.
     // Ranges that have offsets which follow this new range
     // need to be updated to reflect new offsets
-    int32_t delta = aIMENotification.mTextChangeData.AdditionalLength();
+    int32_t delta = (int32_t)(aNewEnd - aOldEnd);
     for (int32_t i = mIMETextChanges.Length() - 2; i >= 0; i--) {
         IMEChange &previousChange = mIMETextChanges[i];
-        if (previousChange.mStart >
-                static_cast<int32_t>(
-                    aIMENotification.mTextChangeData.mOldEndOffset)) {
+        if (previousChange.mStart > (int32_t)aOldEnd) {
             previousChange.mStart += delta;
             previousChange.mOldEnd += delta;
             previousChange.mNewEnd += delta;

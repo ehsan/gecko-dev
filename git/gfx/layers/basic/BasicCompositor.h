@@ -116,10 +116,6 @@ public:
 
   virtual const char* Name() const { return "Basic"; }
 
-  virtual LayersBackend GetBackendType() const MOZ_OVERRIDE {
-    return LayersBackend::LAYERS_BASIC;
-  }
-
   virtual nsIWidget* GetWidget() const MOZ_OVERRIDE { return mWidget; }
 
   gfx::DrawTarget *GetDrawTarget() { return mDrawTarget; }

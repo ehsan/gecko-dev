@@ -5865,10 +5865,10 @@ nsChildWindow::~nsChildWindow()
 }
 
 NS_IMETHODIMP
-nsWindow::NotifyIME(const IMENotification& aIMENotification)
+nsWindow::NotifyIME(NotificationToIME aNotification)
 {
     if (MOZ_UNLIKELY(!mIMModule)) {
-        switch (aIMENotification.mMessage) {
+        switch (aNotification) {
             case NOTIFY_IME_OF_CURSOR_POS_CHANGED:
             case REQUEST_TO_COMMIT_COMPOSITION:
             case REQUEST_TO_CANCEL_COMPOSITION:
@@ -5879,7 +5879,7 @@ nsWindow::NotifyIME(const IMENotification& aIMENotification)
               break;
         }
     }
-    switch (aIMENotification.mMessage) {
+    switch (aNotification) {
         // TODO: We should replace NOTIFY_IME_OF_CURSOR_POS_CHANGED with
         //       NOTIFY_IME_OF_SELECTION_CHANGE.  The required behavior is
         //       really different from committing composition.

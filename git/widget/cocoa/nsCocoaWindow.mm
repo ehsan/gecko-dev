@@ -2120,9 +2120,9 @@ bool nsCocoaWindow::ShouldFocusPlugin()
 }
 
 NS_IMETHODIMP
-nsCocoaWindow::NotifyIME(const IMENotification& aIMENotification)
+nsCocoaWindow::NotifyIME(NotificationToIME aNotification)
 {
-  switch (aIMENotification.mMessage) {
+  switch (aNotification) {
     case NOTIFY_IME_OF_FOCUS:
       if (mInputContext.IsPasswordEditor()) {
         TextInputHandler::EnableSecureEventInput();

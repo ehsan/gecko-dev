@@ -19,9 +19,6 @@
 #endif
 #ifdef MOZ_X11
 #include "mozilla/layers/TextureClientX11.h"
-#ifdef GL_PROVIDER_GLX
-#include "GLXLibrary.h"
-#endif
 #endif
 #ifdef MOZ_WIDGET_GONK
 #include <cutils/properties.h>
@@ -257,25 +254,12 @@ CompositableClient::CreateTextureClientForDrawing(SurfaceFormat aFormat,
 
 #ifdef MOZ_X11
   LayersBackend parentBackend = GetForwarder()->GetCompositorBackendType();
-  gfxSurfaceType type =
-    gfxPlatform::GetPlatform()->ScreenReferenceSurface()->GetType();
-
   if (parentBackend == LayersBackend::LAYERS_BASIC &&
-      type == gfxSurfaceType::Xlib &&
+      gfxPlatform::GetPlatform()->ScreenReferenceSurface()->GetType() == gfxSurfaceType::Xlib &&
       !(aTextureFlags & TEXTURE_ALLOC_FALLBACK))
   {
     result = new TextureClientX11(aFormat, aTextureFlags);
   }
-#ifdef GL_PROVIDER_GLX
-  if (parentBackend == LayersBackend::LAYERS_OPENGL &&
-      type == gfxSurfaceType::Xlib &&
-      !(aTextureFlags & TEXTURE_ALLOC_FALLBACK) &&
-      aFormat != SurfaceFormat::A8 &&
-      gl::sGLXLibrary.UseTextureFromPixmap())
-  {
-    result = new TextureClientX11(aFormat, aTextureFlags);
-  }
-#endif
 #endif
 
 #ifdef MOZ_WIDGET_GONK

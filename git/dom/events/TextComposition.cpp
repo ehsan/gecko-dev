@@ -16,8 +16,6 @@
 #include "mozilla/MiscEvents.h"
 #include "mozilla/TextEvents.h"
 
-using namespace mozilla::widget;
-
 namespace mozilla {
 
 /******************************************************************************
@@ -110,7 +108,7 @@ TextComposition::NotityUpdateComposition(WidgetGUIEvent* aEvent)
     }
   }
 
-  NotifyIME(NOTIFY_IME_OF_COMPOSITION_UPDATE);
+  NotifyIME(widget::NotificationToIME::NOTIFY_IME_OF_COMPOSITION_UPDATE);
 }
 
 void
@@ -135,10 +133,10 @@ TextComposition::SynthesizeCommit(bool aDiscard)
 }
 
 nsresult
-TextComposition::NotifyIME(IMEMessage aMessage)
+TextComposition::NotifyIME(widget::NotificationToIME aNotification)
 {
   NS_ENSURE_TRUE(mPresContext, NS_ERROR_NOT_AVAILABLE);
-  return nsIMEStateManager::NotifyIME(aMessage, mPresContext);
+  return nsIMEStateManager::NotifyIME(aNotification, mPresContext);
 }
 
 void

@@ -91,8 +91,6 @@ namespace mozilla {
 
 class AudioSegment;
 class VideoSegment;
-class MediaTaskQueue;
-class SharedThreadPool;
 
 // GetCurrentTime is defined in winbase.h as zero argument macro forwarding to
 // GetTickCount() and conflicts with MediaDecoderStateMachine::GetCurrentTime
@@ -122,6 +120,7 @@ public:
                                bool aRealTime = false);
   ~MediaDecoderStateMachine();
 
+  // nsDecoderStateMachine interface
   nsresult Init(MediaDecoderStateMachine* aCloneDonor);
 
   // Enumeration for the valid decoding states
@@ -177,7 +176,9 @@ public:
 
   // Functions used by assertions to ensure we're calling things
   // on the appropriate threads.
-  bool OnDecodeThread() const;
+  bool OnDecodeThread() const {
+    return IsCurrentThread(mDecodeThread);
+  }
   bool OnStateMachineThread() const;
   bool OnAudioThread() const {
     return IsCurrentThread(mAudioThread);
@@ -302,7 +303,7 @@ public:
   void SetFrameBufferLength(uint32_t aLength);
 
   // Returns the shared state machine thread.
-  nsIEventTarget* GetStateMachineThread();
+  static nsIThread* GetStateMachineThread();
 
   // Calls ScheduleStateMachine() after taking the decoder lock. Also
   // notifies the decoder thread in case it's waiting on the decoder lock.
@@ -312,6 +313,12 @@ public:
   // in aUsecs microseconds from now, if it's not already scheduled to run
   // earlier, in which case the request is discarded.
   nsresult ScheduleStateMachine(int64_t aUsecs = 0);
+
+  // Creates and starts a new decode thread. Don't call this directly,
+  // request a new decode thread by calling
+  // StateMachineTracker::RequestCreateDecodeThread().
+  // The decoder monitor must not be held. Called on the state machine thread.
+  nsresult StartDecodeThread();
 
   // Timer function to implement ScheduleStateMachine(aUsecs).
   void TimeoutExpired();
@@ -610,12 +617,8 @@ private:
   // The "audio push thread".
   nsCOMPtr<nsIThread> mAudioThread;
 
-  // The task queue in which we run decode tasks. This is referred to as
-  // the "decode thread", though in practise tasks can run on a different
-  // thread every time they're called.
-  RefPtr<MediaTaskQueue> mDecodeTaskQueue;
-
-  RefPtr<SharedThreadPool> mStateMachineThreadPool;
+  // Thread for decoding video in background. The "decode thread".
+  nsCOMPtr<nsIThread> mDecodeThread;
 
   // Timer to call the state machine Run() method. Used by
   // ScheduleStateMachine(). Access protected by decoder monitor.
@@ -777,10 +780,12 @@ private:
   // and decode threads. Syncrhonised by decoder monitor.
   bool mStopDecodeThread;
 
-  // True if we've dispatched an event to the decode task queue to call
-  // DecodeThreadRun(). We use this flag to prevent us from dispatching
-  // unneccessary runnables, since the decode thread runs in a loop.
-  bool mDispatchedEventToDecode;
+  // True when the decode thread run function has finished, but the thread
+  // has not necessarily been shut down yet. This can happen if we switch
+  // from COMPLETED state to SEEKING before the state machine has a chance
+  // to run in the COMPLETED state and shutdown the decode thread.
+  // Synchronised by the decoder monitor.
+  bool mDecodeThreadIdle;
 
   // False while audio thread should be running. Accessed state machine
   // and audio threads. Syncrhonised by decoder monitor.
@@ -821,6 +826,10 @@ private:
   // throttled to not-throttled we need to pump decoding.
   bool mDidThrottleAudioDecoding;
   bool mDidThrottleVideoDecoding;
+
+  // True if we've requested a new decode thread, but it has not yet been
+  // created. Synchronized by the decoder monitor.
+  bool mRequestedNewDecodeThread;
 
   // Manager for queuing and dispatching MozAudioAvailable events.  The
   // event manager is accessed from the state machine and audio threads,

@@ -1858,9 +1858,9 @@ bool nsChildView::HasPendingInputEvent()
 #pragma mark -
 
 NS_IMETHODIMP
-nsChildView::NotifyIME(const IMENotification& aIMENotification)
+nsChildView::NotifyIME(NotificationToIME aNotification)
 {
-  switch (aIMENotification.mMessage) {
+  switch (aNotification) {
     case REQUEST_TO_COMMIT_COMPOSITION:
       NS_ENSURE_TRUE(mTextInputHandler, NS_ERROR_NOT_AVAILABLE);
       mTextInputHandler->CommitIMEComposition();

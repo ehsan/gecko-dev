@@ -45,10 +45,7 @@ public:
 
   nsresult Init(MediaDecoderReader* aCloneDonor) MOZ_OVERRIDE
   {
-    // Although we technically don't implement anything here, we return NS_OK
-    // so that when the state machine initializes and calls this function
-    // we don't return an error code back to the media element.
-    return NS_OK;
+    return NS_ERROR_NOT_IMPLEMENTED;
   }
 
   bool DecodeAudioData() MOZ_OVERRIDE
@@ -151,14 +148,7 @@ MediaSourceDecoder::CreateStateMachine()
 nsresult
 MediaSourceDecoder::Load(nsIStreamListener**, MediaDecoder*)
 {
-  MOZ_ASSERT(!mDecoderStateMachine);
-  mDecoderStateMachine = CreateStateMachine();
-  if (!mDecoderStateMachine) {
-    NS_WARNING("Failed to create state machine!");
-    return NS_ERROR_FAILURE;
-  }
-
-  return mDecoderStateMachine->Init(nullptr);
+  return NS_OK;
 }
 
 nsresult
@@ -182,6 +172,7 @@ MediaSourceDecoder::AttachMediaSource(dom::MediaSource* aMediaSource)
 {
   MOZ_ASSERT(!mMediaSource && !mDecoderStateMachine);
   mMediaSource = aMediaSource;
+  mDecoderStateMachine = CreateStateMachine();
 }
 
 void
