@@ -11,8 +11,6 @@
 
 #include "libGLESv2/Shader.h"
 
-#include <algorithm>
-
 #include "GLSLANG/ShaderLang.h"
 #include "libGLESv2/utilities.h"
 #include "libGLESv2/renderer/Renderer.h"

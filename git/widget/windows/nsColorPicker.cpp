@@ -8,7 +8,6 @@
 
 #include <shlwapi.h>
 
-#include "mozilla/AutoRestore.h"
 #include "nsIWidget.h"
 #include "WidgetUtils.h"
 
@@ -90,9 +89,7 @@ BGRIntToRGBString(DWORD color, nsAString& aResult)
 }
 } // anonymous namespace
 
-AsyncColorChooser::AsyncColorChooser(const nsAString& aInitialColor,
-                                     nsIWidget* aParentWidget,
-                                     nsIColorPickerShownCallback* aCallback)
+AsyncColorChooser::AsyncColorChooser(DWORD aInitialColor, nsIWidget* aParentWidget, nsIColorPickerShownCallback* aCallback)
   : mInitialColor(aInitialColor)
   , mParentWidget(aParentWidget)
   , mCallback(aCallback)
@@ -102,34 +99,20 @@ AsyncColorChooser::AsyncColorChooser(const nsAString& aInitialColor,
 NS_IMETHODIMP
 AsyncColorChooser::Run()
 {
-  static COLORREF sCustomColors[16] = {0} ;
+  CHOOSECOLOR options;
+  static COLORREF customColors[16] = {0} ;
 
-  MOZ_ASSERT(NS_IsMainThread(),
-      "Color pickers can only be opened from main thread currently");
+  AutoDestroyTmpWindow adtw((HWND) (mParentWidget.get() ?
+    mParentWidget->GetNativeData(NS_NATIVE_TMP_WINDOW) : nullptr));
 
-  static bool sColorPickerOpen = false;
-  // Allow only one color picker to be opened at a time, to workaround bug 944737
-  if (!sColorPickerOpen) {
-    mozilla::AutoRestore<bool> autoRestoreColorPickerOpen(sColorPickerOpen);
-    sColorPickerOpen = true;
+  options.lStructSize   = sizeof(options);
+  options.hwndOwner     = adtw.get();
+  options.Flags         = CC_RGBINIT | CC_FULLOPEN;
+  options.rgbResult     = mInitialColor;
+  options.lpCustColors  = customColors;
 
-    AutoDestroyTmpWindow adtw((HWND) (mParentWidget.get() ?
-      mParentWidget->GetNativeData(NS_NATIVE_TMP_WINDOW) : nullptr));
-
-    CHOOSECOLOR options;
-    options.lStructSize   = sizeof(options);
-    options.hwndOwner     = adtw.get();
-    options.Flags         = CC_RGBINIT | CC_FULLOPEN;
-    options.rgbResult     = ColorStringToRGB(mInitialColor);
-    options.lpCustColors  = sCustomColors;
-
-    if (ChooseColor(&options)) {
-      BGRIntToRGBString(options.rgbResult, mColor);
-    }
-  } else {
-    NS_WARNING("Currently, it's not possible to open more than one color "
-               "picker at a time");
-    mColor = mInitialColor;
+  if (ChooseColor(&options)) {
+    BGRIntToRGBString(options.rgbResult, mColor);
   }
 
   if (mCallback) {
@@ -153,14 +136,12 @@ nsColorPicker::~nsColorPicker()
 NS_IMPL_ISUPPORTS1(nsColorPicker, nsIColorPicker)
 
 NS_IMETHODIMP
-nsColorPicker::Init(nsIDOMWindow* parent,
-                    const nsAString& title,
-                    const nsAString& aInitialColor)
+nsColorPicker::Init(nsIDOMWindow* parent, const nsAString& title, const nsAString& aInitialColor)
 {
   NS_PRECONDITION(parent,
       "Null parent passed to colorpicker, no color picker for you!");
   mParentWidget =  WidgetUtils::DOMWindowToWidget(parent);
-  mInitialColor = aInitialColor;
+  mInitialColor = ColorStringToRGB(aInitialColor);
   return NS_OK;
 }
 

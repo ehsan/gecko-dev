@@ -2216,13 +2216,13 @@ private:
 static AntialiasMode Get2DAAMode(gfxFont::AntialiasOption aAAOption) {
   switch (aAAOption) {
   case gfxFont::kAntialiasSubpixel:
-    return AntialiasMode::SUBPIXEL;
+    return AA_SUBPIXEL;
   case gfxFont::kAntialiasGrayscale:
-    return AntialiasMode::GRAY;
+    return AA_GRAY;
   case gfxFont::kAntialiasNone:
-    return AntialiasMode::NONE;
+    return AA_NONE;
   default:
-    return AntialiasMode::DEFAULT;
+    return AA_DEFAULT;
   }
 }
 
@@ -2289,11 +2289,11 @@ struct GlyphBufferAzure {
 
                         // This relies on the returned Pattern not to be reused by
                         // others, but regenerated on GetPattern calls. This is true!
-                        if (pat->GetType() == PatternType::LINEAR_GRADIENT) {
+                        if (pat->GetType() == PATTERN_LINEAR_GRADIENT) {
                             mat = &static_cast<LinearGradientPattern*>(pat)->mMatrix;
-                        } else if (pat->GetType() == PatternType::RADIAL_GRADIENT) {
+                        } else if (pat->GetType() == PATTERN_RADIAL_GRADIENT) {
                             mat = &static_cast<RadialGradientPattern*>(pat)->mMatrix;
-                        } else if (pat->GetType() == PatternType::SURFACE) {
+                        } else if (pat->GetType() == PATTERN_SURFACE) {
                             mat = &static_cast<SurfacePattern*>(pat)->mMatrix;
                         }
 
@@ -2312,7 +2312,7 @@ struct GlyphBufferAzure {
                 }
             } else if (state.sourceSurface) {
                 aDT->FillGlyphs(aFont, buf, SurfacePattern(state.sourceSurface,
-                                                           ExtendMode::CLAMP,
+                                                           EXTEND_CLAMP,
                                                            state.surfTransform),
                                 aDrawOptions, aOptions);
             } else {
@@ -2641,7 +2641,7 @@ gfxFont::Draw(gfxTextRun *aTextRun, uint32_t aStart, uint32_t aEnd,
       // The cairo DrawTarget backend uses the cairo_scaled_font directly
       // and so has the font skew matrix applied already.
       if (mScaledFont &&
-          dt->GetType() != BackendType::CAIRO) {
+          dt->GetType() != BACKEND_CAIRO) {
         cairo_matrix_t matrix;
         cairo_scaled_font_get_font_matrix(mScaledFont, &matrix);
         if (matrix.xy != 0) {

@@ -147,7 +147,7 @@ public:
   {
     // XXX - Should it be implemented ? is the above assert true ?
     MOZ_ASSERT(false, "Not implemented");
-    return gfx::SurfaceFormat::UNKNOWN;
+    return gfx::FORMAT_UNKNOWN;
   }
 
   const gfxMatrix& GetTransform() {

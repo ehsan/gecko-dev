@@ -93,7 +93,7 @@ public:
   /**
    * Return the pixel format of this texture
    */
-  virtual gfx::SurfaceFormat GetFormat() const { return gfx::SurfaceFormat::UNKNOWN; }
+  virtual gfx::SurfaceFormat GetFormat() const { return gfx::FORMAT_UNKNOWN; }
 
   /**
    * Cast to a TextureSource for for each backend..
@@ -457,7 +457,7 @@ public:
    * GetTextureSources.
    *
    * If the shared format is YCbCr and the compositor does not support it,
-   * GetFormat will be RGB32 (even though mFormat is SurfaceFormat::YUV).
+   * GetFormat will be RGB32 (even though mFormat is FORMAT_YUV).
    */
   virtual gfx::SurfaceFormat GetFormat() const MOZ_OVERRIDE;
 

@@ -1427,8 +1427,7 @@ var BrowserApp = {
 
         // Pass LOAD_FLAGS_DISALLOW_INHERIT_OWNER to prevent any loads from
         // inheriting the currently loaded document's principal.
-        let flags = Ci.nsIWebNavigation.LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP |
-                    Ci.nsIWebNavigation.LOAD_FLAGS_FIXUP_SCHEME_TYPOS;
+        let flags = Ci.nsIWebNavigation.LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP;
         if (data.userEntered) {
           flags |= Ci.nsIWebNavigation.LOAD_FLAGS_DISALLOW_INHERIT_OWNER;
         }

@@ -2,7 +2,7 @@
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
-/* Replace app binary complete MAR file staged patch apply success test */
+/* Replace app binary complete MAR file background patch apply success test */
 
 // The files are listed in the same order as they are applied from the mar's
 // update.manifest. Complete updates have remove file and rmdir directory
@@ -192,30 +192,34 @@ function run_test() {
     return;
   }
 
-  gStageUpdate = true;
-  setupTestCommon();
+  setupTestCommon(false);
+  do_register_cleanup(cleanupUpdaterTest);
+
+  gBackgroundUpdate = true;
   setupUpdaterTest(FILE_COMPLETE_WIN_MAR);
 
   gCallbackBinFile = "exe0.exe";
 
-  setupAppFilesAsync();
-}
-
-function setupAppFilesFinished() {
-  runUpdateUsingService(STATE_PENDING_SVC, STATE_APPLIED);
-}
-
-function checkUpdateFinished() {
-  logTestInfo("testing update.status should be " + STATE_APPLIED);
-  do_check_eq(readStatusState(), STATE_APPLIED);
-
-  // Now switch the application and its updated version.
-  gStageUpdate = false;
-  gSwitchApp = true;
-  runUpdate(0, STATE_SUCCEEDED);
+  // apply the complete mar
+  runUpdateUsingService(STATE_PENDING_SVC, STATE_APPLIED, checkUpdateApplied);
 }
 
 function checkUpdateApplied() {
+  logTestInfo("testing update.status should be " + STATE_APPLIED);
+  let updatesDir = do_get_file(gTestID + UPDATES_DIR_SUFFIX);
+  do_check_eq(readStatusFile(updatesDir), STATE_APPLIED);
+
+  // Now switch the application and its updated version
+  gBackgroundUpdate = false;
+  gSwitchApp = true;
+  exitValue = runUpdate();
+  logTestInfo("testing updater binary process exitValue for success when " +
+              "switching to the updated application");
+  do_check_eq(exitValue, 0);
+
+  logTestInfo("testing update.status should be " + STATE_SUCCEEDED);
+  do_check_eq(readStatusFile(updatesDir), STATE_SUCCEEDED);
+
   checkFilesAfterUpdateSuccess();
 
   logTestInfo("testing tobedeleted directory doesn't exist");

@@ -33,7 +33,7 @@ class GlyphRenderingOptionsCairo : public GlyphRenderingOptions
 {
 public:
   GlyphRenderingOptionsCairo()
-    : mHinting(FontHinting::NORMAL)
+    : mHinting(FONT_HINTING_NORMAL)
     , mAutoHinting(false)
   {
   }
@@ -42,7 +42,7 @@ public:
   void SetAutoHinting(bool aAutoHinting) { mAutoHinting = aAutoHinting; }
   FontHinting GetHinting() const { return mHinting; }
   bool GetAutoHinting() const { return mAutoHinting; }
-  virtual FontType GetType() const { return FontType::CAIRO; }
+  virtual FontType GetType() const { return FONT_CAIRO; }
 private:
   FontHinting mHinting;
   bool mAutoHinting;

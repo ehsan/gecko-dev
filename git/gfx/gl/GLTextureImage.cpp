@@ -30,10 +30,10 @@ CreateTextureImage(GLContext* gl,
 {
     switch (gl->GetContextType()) {
 #ifdef XP_MACOSX
-        case GLContextType::CGL:
+        case ContextTypeCGL:
             return CreateTextureImageCGL(gl, aSize, aContentType, aWrapMode, aFlags, aImageFormat);
 #endif
-        case GLContextType::EGL:
+        case ContextTypeEGL:
             return CreateTextureImageEGL(gl, aSize, aContentType, aWrapMode, aFlags, aImageFormat);
         default:
             return CreateBasicTextureImage(gl, aSize, aContentType, aWrapMode, aFlags, aImageFormat);
@@ -50,10 +50,10 @@ TileGenFunc(GLContext* gl,
 {
     switch (gl->GetContextType()) {
 #ifdef XP_MACOSX
-        case GLContextType::CGL:
+        case ContextTypeCGL:
             return TileGenFuncCGL(gl, aSize, aContentType, aFlags, aImageFormat);
 #endif
-        case GLContextType::EGL:
+        case ContextTypeEGL:
             return TileGenFuncEGL(gl, aSize, aContentType, aFlags, aImageFormat);
         default:
             return nullptr;
@@ -321,7 +321,7 @@ WantsSmallTiles(GLContext* gl)
 
     // We can't use small tiles on the SGX 540, because of races in texture upload.
     if (gl->WorkAroundDriverBugs() &&
-        gl->Renderer() == GLRenderer::SGX540)
+        gl->Renderer() == GLContext::RendererSGX540)
         return false;
 
     // Don't use small tiles otherwise. (If we implement incremental texture upload,

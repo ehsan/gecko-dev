@@ -59,14 +59,15 @@ public:
      */
     static already_AddRefed<GLContext>
     CreateOffscreen(const gfxIntSize& size,
-                    const SurfaceCaps& caps);
+                    const SurfaceCaps& caps,
+                    ContextFlags flags = ContextFlagsNone);
 
     /**
      * Get a pointer to the global context, creating it if it doesn't exist.
      */
     static GLContext*
-    GetGlobalContext();
-
+    GetGlobalContext(ContextFlags flags = ContextFlagsNone);
+    
     /**
      * Free any resources held by this Context Provider.
      */

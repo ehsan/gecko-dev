@@ -77,7 +77,6 @@ PARALLEL_DIRS += [
     'telephony',
     'inputmethod',
     'webidl',
-    'xbl',
     'xslt',
 ]
 

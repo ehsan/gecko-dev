@@ -228,44 +228,26 @@ function run_test() {
     return;
   }
 
-  setupTestCommon();
+  setupTestCommon(false);
+  do_register_cleanup(cleanupUpdaterTest);
+
   setupUpdaterTest(FILE_PARTIAL_MAR);
 
-  // For Mac OS X set the last modified time for the root directory to a date in
-  // the past to test that the last modified time is updated on all updates since
-  // the precomplete file in the root of the bundle is renamed, etc. (bug 600098).
-  if (IS_MACOSX) {
-    let now = Date.now();
-    let yesterday = now - (1000 * 60 * 60 * 24);
-    let applyToDir = getApplyDirFile();
-    applyToDir.lastModifiedTime = yesterday;
-  }
+  let updatesDir = do_get_file(gTestID + UPDATES_DIR_SUFFIX);
 
-  setupAppFilesAsync();
+  // apply the partial mar
+  runUpdateUsingService(STATE_PENDING_SVC, STATE_FAILED, checkUpdateApplied);
 }
 
-function setupAppFilesFinished() {
-  runUpdateUsingService(STATE_PENDING_SVC, STATE_FAILED);
-}
-
-function checkUpdateFinished() {
+function checkUpdateApplied() {
+  let updatesDir = do_get_file(gTestID + UPDATES_DIR_SUFFIX);
   logTestInfo("testing update.status should be " + STATE_FAILED);
-  do_check_eq(readStatusState(), STATE_FAILED);
-
-  if (IS_MACOSX) {
-    logTestInfo("testing last modified time on the apply to directory has " +
-                "changed after a successful update (bug 600098)");
-    let now = Date.now();
-    let applyToDir = getApplyDirFile();
-    let timeDiff = Math.abs(applyToDir.lastModifiedTime - now);
-    do_check_true(timeDiff < MAC_MAX_TIME_DIFFERENCE);
-  }
+  // The update status format for a failure is failed: # where # is the error
+  // code for the failure.
+  do_check_eq(readStatusFile(updatesDir).split(": ")[0], STATE_FAILED);
 
   checkFilesAfterUpdateFailure();
-  // Sorting on Linux is different so skip this check for now.
-  if (!IS_UNIX) {
-    checkUpdateLogContents(LOG_PARTIAL_FAILURE);
-  }
+  checkUpdateLogContents(LOG_PARTIAL_FAILURE);
 
   logTestInfo("testing tobedeleted directory doesn't exist");
   let toBeDeletedDir = getApplyDirFile("tobedeleted", true);

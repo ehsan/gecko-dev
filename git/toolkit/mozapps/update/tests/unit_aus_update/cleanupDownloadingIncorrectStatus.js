@@ -3,7 +3,7 @@
  */
 
 function run_test() {
-  setupTestCommon();
+  setupTestCommon(true);
 
   logTestInfo("testing update cleanup when reading the status file returns " +
               "STATUS_NONE and the update xml has an update with " +
@@ -33,5 +33,9 @@ function run_test() {
   logTestInfo("testing updateCount == 0");
   do_check_eq(gUpdateManager.updateCount, 0);
 
-  doTestFinish();
+  do_test_finished();
+}
+
+function end_test() {
+  cleanupTestCommon();
 }

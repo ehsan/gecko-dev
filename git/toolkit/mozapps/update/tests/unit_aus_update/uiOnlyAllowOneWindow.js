@@ -8,7 +8,7 @@
  */
 
 function run_test() {
-  setupTestCommon();
+  setupTestCommon(true);
 
   logTestInfo("testing nsIUpdatePrompt notifications should not be seen when " +
               "there is already an application update window open");
@@ -58,7 +58,11 @@ function run_test() {
   registrar.unregisterFactory(Components.ID("{1dfeb90a-2193-45d5-9cb8-864928b2af56}"),
                               WindowMediatorFactory);
 
-  doTestFinish();
+  do_test_finished();
+}
+
+function end_test() {
+  cleanupTestCommon();
 }
 
 function check_showUpdateInstalled() {

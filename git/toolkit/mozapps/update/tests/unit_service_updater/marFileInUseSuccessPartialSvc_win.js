@@ -194,37 +194,36 @@ function run_test() {
     return;
   }
 
-  setupTestCommon();
+  setupTestCommon(false);
+  do_register_cleanup(cleanupUpdaterTest);
+
   setupUpdaterTest(FILE_PARTIAL_WIN_MAR);
 
-  // Launch an existing file so it is in use during the update.
+  // Launch an existing file so it is in use during the update
   let fileInUseBin = getApplyDirFile(TEST_FILES[12].relPathDir +
                                      TEST_FILES[12].fileName);
-  let args = [getApplyDirPath() + "a/b/", "input", "output", "-s",
-              HELPER_SLEEP_TIMEOUT];
+  let args = [getApplyDirPath() + "a/b/", "input", "output", "-s", "20"];
   let fileInUseProcess = AUS_Cc["@mozilla.org/process/util;1"].
                          createInstance(AUS_Ci.nsIProcess);
   fileInUseProcess.init(fileInUseBin);
   fileInUseProcess.run(false, args, args.length);
 
-  setupAppFilesAsync();
-}
-
-function setupAppFilesFinished() {
   do_timeout(TEST_HELPER_TIMEOUT, waitForHelperSleep);
 }
 
 function doUpdate() {
-  runUpdateUsingService(STATE_PENDING_SVC, STATE_SUCCEEDED);
+  // apply the complete mar
+  runUpdateUsingService(STATE_PENDING_SVC, STATE_SUCCEEDED, checkUpdateApplied);
 }
 
-function checkUpdateFinished() {
+function checkUpdateApplied() {
   setupHelperFinish();
 }
 
 function checkUpdate() {
   logTestInfo("testing update.status should be " + STATE_SUCCEEDED);
-  do_check_eq(readStatusState(), STATE_SUCCEEDED);
+  let updatesDir = do_get_file(gTestID + UPDATES_DIR_SUFFIX);
+  do_check_eq(readStatusFile(updatesDir), STATE_SUCCEEDED);
 
   checkFilesAfterUpdateSuccess();
   checkUpdateLogContains(ERR_BACKUP_DISCARD);

@@ -190,11 +190,9 @@ nsHttpHandler::nsHttpHandler()
     , mEnableSpdy(false)
     , mSpdyV3(true)
     , mSpdyV31(true)
-    , mHttp2DraftEnabled(true)
-    , mEnforceHttp2TlsProfile(true)
     , mCoalesceSpdy(true)
     , mSpdyPersistentSettings(false)
-    , mAllowPush(true)
+    , mAllowSpdyPush(true)
     , mSpdySendingChunkSize(ASpdySession::kSendingChunkSize)
     , mSpdySendBufferSize(ASpdySession::kTCPSendBufferSize)
     , mSpdyPushAllowance(32768)
@@ -1166,18 +1164,6 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
             mSpdyV31 = cVar;
     }
 
-    if (PREF_CHANGED(HTTP_PREF("spdy.enabled.http2draft"))) {
-        rv = prefs->GetBoolPref(HTTP_PREF("spdy.enabled.http2draft"), &cVar);
-        if (NS_SUCCEEDED(rv))
-            mHttp2DraftEnabled = cVar;
-    }
-
-    if (PREF_CHANGED(HTTP_PREF("spdy.enforce-tls-profile"))) {
-        rv = prefs->GetBoolPref(HTTP_PREF("spdy.enforce-tls-profile"), &cVar);
-        if (NS_SUCCEEDED(rv))
-            mEnforceHttp2TlsProfile = cVar;
-    }
-
     if (PREF_CHANGED(HTTP_PREF("spdy.coalesce-hostnames"))) {
         rv = prefs->GetBoolPref(HTTP_PREF("spdy.coalesce-hostnames"), &cVar);
         if (NS_SUCCEEDED(rv))
@@ -1198,10 +1184,9 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
     }
 
     if (PREF_CHANGED(HTTP_PREF("spdy.chunk-size"))) {
-        // keep this within http/2 ranges of 1 to 2^14-1
         rv = prefs->GetIntPref(HTTP_PREF("spdy.chunk-size"), &val);
         if (NS_SUCCEEDED(rv))
-            mSpdySendingChunkSize = (uint32_t) clamped(val, 1, 0x3fff);
+            mSpdySendingChunkSize = (uint32_t) clamped(val, 1, 0x7fffffff);
     }
 
     // The amount of idle seconds on a spdy connection before initiating a
@@ -1226,7 +1211,7 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
         rv = prefs->GetBoolPref(HTTP_PREF("spdy.allow-push"),
                                 &cVar);
         if (NS_SUCCEEDED(rv))
-            mAllowPush = cVar;
+            mAllowSpdyPush = cVar;
     }
 
     if (PREF_CHANGED(HTTP_PREF("spdy.push-allowance"))) {

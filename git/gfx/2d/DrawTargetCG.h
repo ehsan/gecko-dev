@@ -51,27 +51,27 @@ SetStrokeOptions(CGContextRef cg, const StrokeOptions &aStrokeOptions)
 {
   switch (aStrokeOptions.mLineCap)
   {
-    case CapStyle::BUTT:
+    case CAP_BUTT:
       CGContextSetLineCap(cg, kCGLineCapButt);
       break;
-    case CapStyle::ROUND:
+    case CAP_ROUND:
       CGContextSetLineCap(cg, kCGLineCapRound);
       break;
-    case CapStyle::SQUARE:
+    case CAP_SQUARE:
       CGContextSetLineCap(cg, kCGLineCapSquare);
       break;
   }
 
   switch (aStrokeOptions.mLineJoin)
   {
-    case JoinStyle::BEVEL:
+    case JOIN_BEVEL:
       CGContextSetLineJoin(cg, kCGLineJoinBevel);
       break;
-    case JoinStyle::ROUND:
+    case JOIN_ROUND:
       CGContextSetLineJoin(cg, kCGLineJoinRound);
       break;
-    case JoinStyle::MITER:
-    case JoinStyle::MITER_OR_BEVEL:
+    case JOIN_MITER:
+    case JOIN_MITER_OR_BEVEL:
       CGContextSetLineJoin(cg, kCGLineJoinMiter);
       break;
   }
@@ -147,7 +147,7 @@ public:
   virtual TemporaryRef<DrawTarget> CreateSimilarDrawTarget(const IntSize &, SurfaceFormat) const;
   virtual TemporaryRef<PathBuilder> CreatePathBuilder(FillRule) const;
   virtual TemporaryRef<GradientStops> CreateGradientStops(GradientStop *, uint32_t,
-                                                          ExtendMode aExtendMode = ExtendMode::CLAMP) const;
+                                                          ExtendMode aExtendMode = EXTEND_CLAMP) const;
   virtual TemporaryRef<FilterNode> CreateFilter(FilterType aType);
 
   virtual void *GetNativeSurface(NativeSurfaceType);

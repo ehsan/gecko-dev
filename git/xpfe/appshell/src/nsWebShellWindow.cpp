@@ -65,6 +65,7 @@
 
 #include "nsIBaseWindow.h"
 #include "nsIDocShellTreeItem.h"
+#include "nsIDocShellTreeNode.h"
 
 #include "nsIMarkupDocumentViewer.h"
 #include "mozilla/Attributes.h"

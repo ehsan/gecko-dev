@@ -642,7 +642,8 @@ test(function test_FrameAncestor_ignores_userpass_bug779918() {
                                .createInstance(Ci.nsIDocShell);
         docshellparent.setCurrentURI(aParentUri);
         docshellchild.setCurrentURI(aChildUri);
-        docshellparent.addChild(docshellchild);
+        docshellparent.QueryInterface(Ci.nsIDocShellTreeNode)
+                      .addChild(docshellchild);
         return cspObj.permitsAncestry(docshellchild);
       };
 

@@ -2,7 +2,7 @@
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
-/* File in use inside removed dir partial MAR file staged patch apply failure fallback test */
+/* File in use inside removed dir partial MAR file background patch apply failure fallback test */
 
 // The files are listed in the same order as they are applied from the mar's
 // update.manifest. Complete updates have remove file and rmdir directory
@@ -190,8 +190,9 @@ ADDITIONAL_TEST_DIRS = [
 }];
 
 function run_test() {
-  gStageUpdate = true;
-  setupTestCommon();
+  setupTestCommon(true);
+
+  gBackgroundUpdate = true;
   setupUpdaterTest(FILE_PARTIAL_MAR);
 
   let fileInUseBin = getApplyDirFile(TEST_DIRS[2].relPathDir +
@@ -204,9 +205,8 @@ function run_test() {
   let fileInUseDir = getApplyDirFile(TEST_DIRS[2].relPathDir);
   helperBin.copyTo(fileInUseDir, TEST_DIRS[2].files[0]);
 
-  // Launch an existing file so it is in use during the update.
-  let args = [getApplyDirPath() + "a/b/", "input", "output", "-s",
-              HELPER_SLEEP_TIMEOUT];
+  // Launch an existing file so it is in use during the update
+  let args = [getApplyDirPath() + "a/b/", "input", "output", "-s", "40"];
   let fileInUseProcess = AUS_Cc["@mozilla.org/process/util;1"].
                          createInstance(AUS_Ci.nsIProcess);
   fileInUseProcess.init(fileInUseBin);
@@ -216,19 +216,31 @@ function run_test() {
 }
 
 function doUpdate() {
-  runUpdate(0, STATE_APPLIED, null);
+  let exitValue = runUpdate();
+  logTestInfo("testing updater binary process exitValue for success when " +
+              "applying a complete mar");
+  do_check_eq(exitValue, 0);
 
-  // Now switch the application and its updated version.
-  gStageUpdate = false;
+  logTestInfo("testing update.status should be " + STATE_APPLIED);
+  let updatesDir = do_get_file(gTestID + UPDATES_DIR_SUFFIX);
+  do_check_eq(readStatusFile(updatesDir), STATE_APPLIED);
+
+  // Now switch the application and its updated version
+  gBackgroundUpdate = false;
   gSwitchApp = true;
-  runUpdate(1, STATE_PENDING);
-}
+  exitValue = runUpdate();
+  logTestInfo("testing updater binary process exitValue for failure when " +
+              "switching to the updated application");
+  do_check_eq(exitValue, 1);
 
-function checkUpdateApplied() {
   setupHelperFinish();
 }
 
 function checkUpdate() {
+  logTestInfo("testing update.status should be " + STATE_PENDING);
+  let updatesDir = do_get_file(gTestID + UPDATES_DIR_SUFFIX);
+  do_check_eq(readStatusFile(updatesDir), STATE_PENDING);
+
   checkFilesAfterUpdateFailure(getApplyDirFile);
   checkUpdateLogContains(ERR_RENAME_FILE);
 
@@ -237,4 +249,8 @@ function checkUpdate() {
   do_check_false(toBeDeletedDir.exists());
 
   checkCallbackAppLog();
+}
+
+function end_test() {
+  cleanupUpdaterTest();
 }

@@ -194,21 +194,21 @@ function run_test() {
     return;
   }
 
-  setupTestCommon();
+  setupTestCommon(false);
+  do_register_cleanup(cleanupUpdaterTest);
+
   setupUpdaterTest(FILE_PARTIAL_WIN_MAR);
 
   gCallbackBinFile = "exe0.exe";
 
-  setupAppFilesAsync();
+  // apply the complete mar
+  runUpdateUsingService(STATE_PENDING_SVC, STATE_SUCCEEDED, checkUpdateApplied);
 }
 
-function setupAppFilesFinished() {
-  runUpdateUsingService(STATE_PENDING_SVC, STATE_SUCCEEDED);
-}
-
-function checkUpdateFinished() {
+function checkUpdateApplied() {
   logTestInfo("testing update.status should be " + STATE_SUCCEEDED);
-  do_check_eq(readStatusState(), STATE_SUCCEEDED);
+  let updatesDir = do_get_file(gTestID + UPDATES_DIR_SUFFIX);
+  do_check_eq(readStatusFile(updatesDir), STATE_SUCCEEDED);
 
   checkFilesAfterUpdateSuccess();
 

@@ -4,7 +4,7 @@
  */
 
 function run_test() {
-  setupTestCommon();
+  setupTestCommon(true);
 
   // Verify write access to the custom app dir
   logTestInfo("testing write access to the application directory");
@@ -23,6 +23,9 @@ function run_test() {
   // Check if updates can be applied
   logTestInfo("testing nsIApplicationUpdateService:canApplyUpdates");
   do_check_true(gAUS.canApplyUpdates);
+  do_test_finished();
+}
 
-  doTestFinish();
+function end_test() {
+  cleanupTestCommon();
 }

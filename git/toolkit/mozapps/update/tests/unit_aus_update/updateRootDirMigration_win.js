@@ -13,9 +13,8 @@ function clearTaskbarIDHash(exePath, appInfoName) {
                   "Software\\Mozilla\\" + appInfoName + "\\TaskBarIDs",
                   AUS_Ci.nsIWindowsRegKey.ACCESS_ALL);
     registry.removeValue(exePath);
-  } catch (e) {
-  }
-  finally {
+  } catch (ex) {
+  } finally {
     registry.close();
   }
 }
@@ -28,9 +27,8 @@ function setTaskbarIDHash(exePath, hash, appInfoName) {
                     "Software\\Mozilla\\" + appInfoName + "\\TaskBarIDs",
                     AUS_Ci.nsIWindowsRegKey.ACCESS_WRITE);
     registry.writeStringValue(exePath, hash);
-  } catch (e) {
-  }
-  finally {
+  } catch (ex) {
+  } finally {
     registry.close();
   }
 };
@@ -47,7 +45,8 @@ function getMigrated() {
 /* General Update Manager Tests */
 
 function run_test() {
-  setupTestCommon();
+  setupTestCommon(false);
+  do_register_cleanup(end_test);
 
   standardInit();
 
@@ -85,7 +84,7 @@ function run_test() {
 
   // Remove the old and new update root directories
   try {
-    oldUpdateRoot.remove(true);
+  oldUpdateRoot.remove(true);
   } catch (e) {
   }
   try {
@@ -136,7 +135,7 @@ function run_test() {
   });
   // Do the migration
   initUpdateServiceStub();
-  doTestFinish();
+  do_test_finished();
   return;
   // Now verify that each of the files exist in the new update directory
   filesToMigrate.forEach(relPath => {
@@ -159,7 +158,7 @@ function run_test() {
     do_check_false(oldFile.exists());
   });
 
-  doTestFinish();
+  do_test_finished();
 }
 
 function end_test() {
@@ -168,4 +167,5 @@ function end_test() {
                 QueryInterface(AUS_Ci.nsIXULRuntime);
   var exeFile = FileUtils.getFile(XRE_EXECUTABLE_FILE, []);
   clearTaskbarIDHash(exeFile.parent.path, appinfo.name);
+  cleanupTestCommon();
 }

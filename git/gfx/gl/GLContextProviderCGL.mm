@@ -251,7 +251,8 @@ CreateOffscreenFBOContext(bool aShare = true)
 
 already_AddRefed<GLContext>
 GLContextProviderCGL::CreateOffscreen(const gfxIntSize& size,
-                                      const SurfaceCaps& caps)
+                                      const SurfaceCaps& caps,
+                                      const ContextFlags flags)
 {
     nsRefPtr<GLContextCGL> glContext = CreateOffscreenFBOContext();
     if (glContext &&
@@ -268,7 +269,7 @@ GLContextProviderCGL::CreateOffscreen(const gfxIntSize& size,
 static nsRefPtr<GLContext> gGlobalContext;
 
 GLContext *
-GLContextProviderCGL::GetGlobalContext()
+GLContextProviderCGL::GetGlobalContext(const ContextFlags)
 {
     if (!sCGLLibrary.EnsureInitialized()) {
         return nullptr;

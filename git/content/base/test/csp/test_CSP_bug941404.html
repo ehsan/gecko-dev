@@ -33,25 +33,29 @@ window.tests = {
 // get sent out to the wire.
 function examiner() {
   SpecialPowers.addObserver(this, "csp-on-violate-policy", false);
-  SpecialPowers.addObserver(this, "specialpowers-http-notify-request", false);
+  SpecialPowers.addObserver(this, "http-on-modify-request", false);
 }
 
 examiner.prototype  = {
   observe: function(subject, topic, data) {
+    // subject should be an nsURI, and should be either allowed or blocked.
+    if (!SpecialPowers.can_QI(subject))
+      return;
+
     var testpat = new RegExp("testid=([a-z0-9_]+)");
 
     //_good things better be allowed!
     //_bad things better be stopped!
 
-    if (topic === "specialpowers-http-notify-request") {
+    if (topic === "http-on-modify-request") {
       //these things were allowed by CSP
-      var uri = data;
-      if (!testpat.test(uri)) return;
-      var testid = testpat.exec(uri)[1];
+      var asciiSpec = SpecialPowers.getPrivilegedProps(SpecialPowers.do_QueryInterface(subject, "nsIHttpChannel"), "URI.asciiSpec");
+      if (!testpat.test(asciiSpec)) return;
+      var testid = testpat.exec(asciiSpec)[1];
 
       window.testResult(testid,
                         /_good/.test(testid),
-                        uri + " allowed by csp");
+                        asciiSpec + " allowed by csp");
     }
 
     if(topic === "csp-on-violate-policy") {
@@ -69,7 +73,7 @@ examiner.prototype  = {
   // or mochitests might get borked.
   remove: function() {
     SpecialPowers.removeObserver(this, "csp-on-violate-policy");
-    SpecialPowers.removeObserver(this, "specialpowers-http-notify-request");
+    SpecialPowers.removeObserver(this, "http-on-modify-request");
   }
 }
 

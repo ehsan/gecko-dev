@@ -14,7 +14,7 @@
 #include "mozilla/gfx/Matrix.h"         // for Matrix4x4
 #include "mozilla/gfx/Point.h"          // for Point
 #include "mozilla/gfx/Rect.h"           // for RoundedToInt, Rect
-#include "mozilla/gfx/Types.h"          // for Filter::Filter::LINEAR
+#include "mozilla/gfx/Types.h"          // for Filter::FILTER_LINEAR
 #include "mozilla/layers/Compositor.h"  // for Compositor
 #include "mozilla/layers/ContentHost.h"  // for ContentHost
 #include "mozilla/layers/Effects.h"     // for EffectChain
@@ -135,7 +135,7 @@ ThebesLayerComposite::RenderLayer(const nsIntRect& aClipRect)
   mBuffer->Composite(effectChain,
                      GetEffectiveOpacity(),
                      transform,
-                     gfx::Filter::LINEAR,
+                     gfx::FILTER_LINEAR,
                      clipRect,
                      &visibleRegion,
                      mRequiresTiledProperties ? &tiledLayerProps
