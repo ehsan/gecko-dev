@@ -58,7 +58,7 @@ public:
   nsRefPtr<nsInvalidPluginTag> mNext;
 };
 
-class nsPluginHost : public nsIPluginHost2,
+class nsPluginHost : public nsIPluginHost,
                      public nsIObserver,
                      public nsITimerCallback,
                      public nsSupportsWeakReference
@@ -75,7 +75,6 @@ public:
   NS_DECL_NSIPLUGINHOST
   NS_DECL_NSIOBSERVER
   NS_DECL_NSITIMERCALLBACK
-  NS_DECL_NSIPLUGINHOST2
 
   nsresult Init();
   nsresult LoadPlugins();
@@ -83,7 +82,7 @@ public:
 
   nsresult SetUpPluginInstance(const char *aMimeType,
                                nsIURI *aURL,
-                               nsIPluginInstanceOwner *aOwner);
+                               nsPluginInstanceOwner *aOwner);
   nsresult IsPluginEnabledForType(const char* aMimeType);
   nsresult IsPluginEnabledForExtension(const char* aExtension, const char* &aMimeType);
   bool     IsPluginPlayPreviewForType(const char *aMimeType);
@@ -214,7 +213,7 @@ public:
 
 private:
   nsresult
-  TrySetUpPluginInstance(const char *aMimeType, nsIURI *aURL, nsIPluginInstanceOwner *aOwner);
+  TrySetUpPluginInstance(const char *aMimeType, nsIURI *aURL, nsPluginInstanceOwner *aOwner);
 
   nsresult
   NewEmbeddedPluginStream(nsIURI* aURL, nsObjectLoadingContent *aContent, nsNPAPIPluginInstance* aInstance);
