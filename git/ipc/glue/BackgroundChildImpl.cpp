@@ -18,16 +18,14 @@ class TestChild MOZ_FINAL : public mozilla::ipc::PBackgroundTestChild
   TestChild(const nsCString& aTestArg)
   : mTestArg(aTestArg)
   {
-    MOZ_COUNT_CTOR(TestChild);
+    MOZ_COUNT_CTOR(mozilla::ipc::BackgroundTestChild);
   }
 
-protected:
   ~TestChild()
   {
-    MOZ_COUNT_DTOR(TestChild);
+    MOZ_COUNT_DTOR(mozilla::ipc::BackgroundTestChild);
   }
 
-public:
   virtual bool
   Recv__delete__(const nsCString& aTestArg) MOZ_OVERRIDE;
 };

@@ -70,7 +70,6 @@ MozExternalRefCountType nsTestCom::Release()
 }
 
 class nsTestComFactory MOZ_FINAL : public nsIFactory {
-  ~nsTestComFactory() {}
   NS_DECL_ISUPPORTS
 public:
   nsTestComFactory() {

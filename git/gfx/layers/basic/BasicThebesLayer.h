@@ -37,14 +37,11 @@ public:
   {
     MOZ_COUNT_CTOR(BasicThebesLayer);
   }
-
-protected:
   virtual ~BasicThebesLayer()
   {
     MOZ_COUNT_DTOR(BasicThebesLayer);
   }
 
-public:
   virtual void SetVisibleRegion(const nsIntRegion& aRegion)
   {
     NS_ASSERTION(BasicManager()->InConstruction(),

@@ -18,8 +18,6 @@ namespace a11y {
 class ApplicationAccessibleWrap: public ApplicationAccessible,
                                  public IAccessibleApplication
 {
-  ~ApplicationAccessibleWrap() {}
-
 public:
   // nsISupporst
   NS_DECL_ISUPPORTS_INHERITED

@@ -15,11 +15,8 @@ class RawReader : public MediaDecoderReader
 {
 public:
   RawReader(AbstractMediaDecoder* aDecoder);
-
-protected:
   ~RawReader();
 
-public:
   virtual nsresult Init(MediaDecoderReader* aCloneDonor);
   virtual nsresult ResetDecode();
   virtual bool DecodeAudioData();

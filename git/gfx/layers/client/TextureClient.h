@@ -500,10 +500,8 @@ public:
   ShmemTextureClient(ISurfaceAllocator* aAllocator, gfx::SurfaceFormat aFormat,
                      gfx::BackendType aBackend, TextureFlags aFlags);
 
-protected:
   ~ShmemTextureClient();
 
-public:
   virtual bool ToSurfaceDescriptor(SurfaceDescriptor& aDescriptor) MOZ_OVERRIDE;
 
   virtual bool Allocate(uint32_t aSize) MOZ_OVERRIDE;
@@ -534,10 +532,8 @@ public:
   MemoryTextureClient(ISurfaceAllocator* aAllocator, gfx::SurfaceFormat aFormat,
                       gfx::BackendType aBackend, TextureFlags aFlags);
 
-protected:
   ~MemoryTextureClient();
 
-public:
   virtual bool ToSurfaceDescriptor(SurfaceDescriptor& aDescriptor) MOZ_OVERRIDE;
 
   virtual bool Allocate(uint32_t aSize) MOZ_OVERRIDE;
@@ -563,10 +559,8 @@ class StreamTextureClient : public TextureClient
 public:
   StreamTextureClient(TextureFlags aFlags);
 
-protected:
   ~StreamTextureClient();
 
-public:
   virtual bool IsAllocated() const MOZ_OVERRIDE;
 
   virtual bool Lock(OpenMode mode) MOZ_OVERRIDE;

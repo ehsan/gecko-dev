@@ -32,14 +32,11 @@ public:
   {
     MOZ_COUNT_CTOR(BasicColorLayer);
   }
-
-protected:
   virtual ~BasicColorLayer()
   {
     MOZ_COUNT_DTOR(BasicColorLayer);
   }
 
-public:
   virtual void SetVisibleRegion(const nsIntRegion& aRegion)
   {
     NS_ASSERTION(BasicManager()->InConstruction(),

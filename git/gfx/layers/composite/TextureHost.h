@@ -148,13 +148,11 @@ public:
   {
     MOZ_COUNT_CTOR(NewTextureSource);
   }
-protected:
   virtual ~NewTextureSource()
   {
     MOZ_COUNT_DTOR(NewTextureSource);
   }
 
-public:
   /**
    * Should be overridden in order to deallocate the data that is associated
    * with the rendering backend, such as GL textures.
@@ -287,10 +285,8 @@ class TextureHost
 public:
   TextureHost(TextureFlags aFlags);
 
-protected:
   virtual ~TextureHost();
 
-public:
   /**
    * Factory method.
    */
@@ -552,10 +548,8 @@ public:
                    ISurfaceAllocator* aDeallocator,
                    TextureFlags aFlags);
 
-protected:
   ~ShmemTextureHost();
 
-public:
   virtual void DeallocateSharedData() MOZ_OVERRIDE;
 
   virtual void ForgetSharedData() MOZ_OVERRIDE;
@@ -586,10 +580,8 @@ public:
                     gfx::SurfaceFormat aFormat,
                     TextureFlags aFlags);
 
-protected:
   ~MemoryTextureHost();
 
-public:
   virtual void DeallocateSharedData() MOZ_OVERRIDE;
 
   virtual void ForgetSharedData() MOZ_OVERRIDE;

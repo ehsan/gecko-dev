@@ -38,11 +38,8 @@ class ThebesLayerComposite : public ThebesLayer,
 {
 public:
   ThebesLayerComposite(LayerManagerComposite *aManager);
-
-protected:
   virtual ~ThebesLayerComposite();
 
-public:
   virtual void Disconnect() MOZ_OVERRIDE;
 
   virtual LayerRenderState GetRenderState() MOZ_OVERRIDE;

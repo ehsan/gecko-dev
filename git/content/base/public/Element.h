@@ -101,7 +101,6 @@ enum {
 ASSERT_NODE_FLAGS_SPACE(ELEMENT_TYPE_SPECIFIC_BITS_OFFSET);
 
 namespace mozilla {
-class ElementAnimation;
 class EventChainPostVisitor;
 class EventChainPreVisitor;
 class EventChainVisitor;
@@ -783,8 +782,6 @@ public:
   virtual void SetUndoScope(bool aUndoScope, ErrorResult& aError)
   {
   }
-
-  void GetAnimationPlayers(nsTArray<nsRefPtr<ElementAnimation> >& aPlayers);
 
   NS_IMETHOD GetInnerHTML(nsAString& aInnerHTML);
   virtual void SetInnerHTML(const nsAString& aInnerHTML, ErrorResult& aError);

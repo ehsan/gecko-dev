@@ -25,7 +25,6 @@ public:
     MOZ_COUNT_CTOR(NotifyUpdateListenerEvent);
   }
 
-protected:
   ~NotifyUpdateListenerEvent()
   {
     LOG(("NotifyUpdateListenerEvent::~NotifyUpdateListenerEvent() [this=%p]",
@@ -33,7 +32,6 @@ protected:
     MOZ_COUNT_DTOR(NotifyUpdateListenerEvent);
   }
 
-public:
   NS_IMETHOD Run()
   {
     LOG(("NotifyUpdateListenerEvent::Run() [this=%p]", this));

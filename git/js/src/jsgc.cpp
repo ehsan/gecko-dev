@@ -4964,33 +4964,6 @@ GCRuntime::budgetIncrementalGC(int64_t *budget)
         resetIncrementalGC("zone change");
 }
 
-namespace {
-
-#ifdef JSGC_GENERATIONAL
-class AutoDisableStoreBuffer
-{
-    StoreBuffer &sb;
-    bool prior;
-
-  public:
-    explicit AutoDisableStoreBuffer(GCRuntime *gc) : sb(gc->storeBuffer) {
-        prior = sb.isEnabled();
-        sb.disable();
-    }
-    ~AutoDisableStoreBuffer() {
-        if (prior)
-            sb.enable();
-    }
-};
-#else
-struct AutoDisableStoreBuffer
-{
-    AutoDisableStoreBuffer(GCRuntime *gc) {}
-};
-#endif
-
-} /* anonymous namespace */
-
 /*
  * Run one GC "cycle" (either a slice of incremental GC or an entire
  * non-incremental GC. We disable inlining to ensure that the bottom of the
@@ -5004,14 +4977,6 @@ MOZ_NEVER_INLINE bool
 GCRuntime::gcCycle(bool incremental, int64_t budget, JSGCInvocationKind gckind,
                    JS::gcreason::Reason reason)
 {
-    minorGC(reason);
-
-    /*
-     * Marking can trigger many incidental post barriers, some of them for
-     * objects which are not going to be live after the GC.
-     */
-    AutoDisableStoreBuffer adsb(this);
-
     AutoTraceSession session(rt, MajorCollecting);
 
     isNeeded = false;
@@ -5108,28 +5073,32 @@ ShouldCleanUpEverything(JS::gcreason::Reason reason, JSGCInvocationKind gckind)
            gckind == GC_SHRINK;
 }
 
-gcstats::ZoneGCStats
-GCRuntime::scanZonesBeforeGC()
+namespace {
+
+#ifdef JSGC_GENERATIONAL
+class AutoDisableStoreBuffer
 {
-    gcstats::ZoneGCStats zoneStats;
-    for (ZonesIter zone(rt, WithAtoms); !zone.done(); zone.next()) {
-        if (mode == JSGC_MODE_GLOBAL)
-            zone->scheduleGC();
+    StoreBuffer &sb;
+    bool prior;
 
-        /* This is a heuristic to avoid resets. */
-        if (incrementalState != NO_INCREMENTAL && zone->needsBarrier())
-            zone->scheduleGC();
-
-        zoneStats.zoneCount++;
-        if (zone->isGCScheduled())
-            zoneStats.collectedCount++;
+  public:
+    explicit AutoDisableStoreBuffer(GCRuntime *gc) : sb(gc->storeBuffer) {
+        prior = sb.isEnabled();
+        sb.disable();
     }
+    ~AutoDisableStoreBuffer() {
+        if (prior)
+            sb.enable();
+    }
+};
+#else
+struct AutoDisableStoreBuffer
+{
+    AutoDisableStoreBuffer(GCRuntime *gc) {}
+};
+#endif
 
-    for (CompartmentsIter c(rt, WithAtoms); !c.done(); c.next())
-        zoneStats.compartmentCount++;
-
-    return zoneStats;
-}
+} /* anonymous namespace */
 
 void
 GCRuntime::collect(bool incremental, int64_t budget, JSGCInvocationKind gckind,
@@ -5166,12 +5135,39 @@ GCRuntime::collect(bool incremental, int64_t budget, JSGCInvocationKind gckind,
 
     recordNativeStackTop();
 
-    gcstats::AutoGCSlice agc(stats, scanZonesBeforeGC(), reason);
+    int zoneCount = 0;
+    int compartmentCount = 0;
+    int collectedCount = 0;
+    for (ZonesIter zone(rt, WithAtoms); !zone.done(); zone.next()) {
+        if (mode == JSGC_MODE_GLOBAL)
+            zone->scheduleGC();
+
+        /* This is a heuristic to avoid resets. */
+        if (incrementalState != NO_INCREMENTAL && zone->needsBarrier())
+            zone->scheduleGC();
+
+        zoneCount++;
+        if (zone->isGCScheduled())
+            collectedCount++;
+    }
+
+    for (CompartmentsIter c(rt, WithAtoms); !c.done(); c.next())
+        compartmentCount++;
 
     cleanUpEverything = ShouldCleanUpEverything(reason, gckind);
 
     bool repeat = false;
     do {
+        minorGC(reason);
+
+        /*
+         * Marking can trigger many incidental post barriers, some of them for
+         * objects which are not going to be live after the GC.
+         */
+        AutoDisableStoreBuffer adsb(this);
+
+        gcstats::AutoGCSlice agc(stats, collectedCount, zoneCount, compartmentCount, reason);
+
         /*
          * Let the API user decide to defer a GC if it wants to (unless this
          * is the last context). Invoke the callback regardless.

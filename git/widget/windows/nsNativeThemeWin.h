@@ -20,8 +20,6 @@ struct nsIntSize;
 
 class nsNativeThemeWin : private nsNativeTheme,
                          public nsITheme {
-  virtual ~nsNativeThemeWin();
-
 public:
   typedef mozilla::TimeStamp TimeStamp;
   typedef mozilla::TimeDuration TimeDuration;
@@ -77,6 +75,7 @@ public:
   virtual bool ShouldHideScrollbars() MOZ_OVERRIDE;
 
   nsNativeThemeWin();
+  virtual ~nsNativeThemeWin();
 
 protected:
   HANDLE GetTheme(uint8_t aWidgetType);

@@ -448,8 +448,7 @@ SampleAnimations(Layer* aLayer, TimeStamp aPoint)
     timing.mFillMode = NS_STYLE_ANIMATION_FILL_MODE_BOTH;
 
     ComputedTiming computedTiming =
-      ElementAnimation::GetComputedTimingAt(
-        Nullable<TimeDuration>(elapsedDuration), timing);
+      ElementAnimation::GetComputedTimingAt(elapsedDuration, timing);
 
     NS_ABORT_IF_FALSE(0.0 <= computedTiming.mTimeFraction &&
                       computedTiming.mTimeFraction <= 1.0,

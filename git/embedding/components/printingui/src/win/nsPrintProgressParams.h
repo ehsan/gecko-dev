@@ -11,13 +11,12 @@
 
 class nsPrintProgressParams : public nsIPrintProgressParams
 {
-	virtual ~nsPrintProgressParams();
-
 public: 
 	NS_DECL_ISUPPORTS
   NS_DECL_NSIPRINTPROGRESSPARAMS
 
 	nsPrintProgressParams();
+	virtual ~nsPrintProgressParams();
 
 private:
   nsString mDocTitle;

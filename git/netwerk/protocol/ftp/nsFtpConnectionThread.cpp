@@ -1951,12 +1951,10 @@ public:
     {
         MOZ_COUNT_CTOR(nsFtpAsyncAlert);
     }
-protected:
     virtual ~nsFtpAsyncAlert()
     {
         MOZ_COUNT_DTOR(nsFtpAsyncAlert);
     }
-public:
     NS_IMETHOD Run()
     {
         if (mPrompter) {

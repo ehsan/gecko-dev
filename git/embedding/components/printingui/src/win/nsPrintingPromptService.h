@@ -30,10 +30,9 @@ class nsIDialogParamBlock;
 class nsPrintingPromptService: public nsIPrintingPromptService,
                                public nsIWebProgressListener
 {
-    virtual ~nsPrintingPromptService();
-
 public:
     nsPrintingPromptService();
+    virtual ~nsPrintingPromptService();
 
     nsresult Init();
 

@@ -28,7 +28,6 @@
 #include "nssgtest.h"
 #include "pkix/pkixtypes.h"
 #include "pkixder.h"
-#include "pkixgtest.h"
 
 using namespace mozilla::pkix;
 using namespace mozilla::pkix::der;
@@ -113,8 +112,8 @@ TEST_F(pkixder_pki_types_tests, CertificateSerialNumberZeroLength)
                                 sizeof DER_CERT_SERIAL_ZERO_LENGTH));
 
   SECItem item;
-  ASSERT_RecoverableError(SEC_ERROR_BAD_DER,
-                          CertificateSerialNumber(input, item));
+  ASSERT_EQ(Failure, CertificateSerialNumber(input, item));
+  ASSERT_EQ(SEC_ERROR_BAD_DER, PR_GetError());
 }
 
 TEST_F(pkixder_pki_types_tests, OptionalVersionV1ExplicitEncodingAllowed)
@@ -131,8 +130,8 @@ TEST_F(pkixder_pki_types_tests, OptionalVersionV1ExplicitEncodingAllowed)
   // XXX(bug 1031093): We shouldn't accept an explicit encoding of v1, but we
   // do here for compatibility reasons.
   // Version version;
-  // ASSERT_RecoverableError(SEC_ERROR_BAD_DER,
-  //                         OptionalVersion(input, version));
+  // ASSERT_EQ(Failure, OptionalVersion(input, version));
+  // ASSERT_EQ(SEC_ERROR_BAD_DER, PR_GetError());
   der::Version version = der::Version::v3;
   ASSERT_EQ(Success, OptionalVersion(input, version));
   ASSERT_EQ(der::Version::v1, version);
@@ -182,7 +181,8 @@ TEST_F(pkixder_pki_types_tests, OptionalVersionUnknown)
                                 sizeof DER_OPTIONAL_VERSION_INVALID));
 
   der::Version version = der::Version::v1;
-  ASSERT_RecoverableError(SEC_ERROR_BAD_DER, OptionalVersion(input, version));
+  ASSERT_EQ(Failure, OptionalVersion(input, version));
+  ASSERT_EQ(SEC_ERROR_BAD_DER, PR_GetError());
 }
 
 TEST_F(pkixder_pki_types_tests, OptionalVersionInvalidTooLong)
@@ -197,7 +197,8 @@ TEST_F(pkixder_pki_types_tests, OptionalVersionInvalidTooLong)
                                 sizeof DER_OPTIONAL_VERSION_INVALID_TOO_LONG));
 
   der::Version version;
-  ASSERT_RecoverableError(SEC_ERROR_BAD_DER, OptionalVersion(input, version));
+  ASSERT_EQ(Failure, OptionalVersion(input, version));
+  ASSERT_EQ(SEC_ERROR_BAD_DER, PR_GetError());
 }
 
 TEST_F(pkixder_pki_types_tests, OptionalVersionMissing)
@@ -301,8 +302,8 @@ TEST_F(pkixder_DigestAlgorithmIdentifier, Invalid_MD5)
   Input input;
   ASSERT_EQ(Success, input.Init(DER, sizeof(DER)));
   DigestAlgorithm alg;
-  ASSERT_RecoverableError(SEC_ERROR_INVALID_ALGORITHM,
-                          DigestAlgorithmIdentifier(input, alg));
+  ASSERT_EQ(Failure, DigestAlgorithmIdentifier(input, alg));
+  ASSERT_EQ(SEC_ERROR_INVALID_ALGORITHM, PR_GetError());
 }
 
 TEST_F(pkixder_DigestAlgorithmIdentifier, Invalid_Digest_ECDSA_WITH_SHA256)
@@ -317,8 +318,8 @@ TEST_F(pkixder_DigestAlgorithmIdentifier, Invalid_Digest_ECDSA_WITH_SHA256)
   Input input;
   ASSERT_EQ(Success, input.Init(DER, sizeof(DER)));
   DigestAlgorithm alg;
-  ASSERT_RecoverableError(SEC_ERROR_INVALID_ALGORITHM,
-                          DigestAlgorithmIdentifier(input, alg));
+  ASSERT_EQ(Failure, DigestAlgorithmIdentifier(input, alg));
+  ASSERT_EQ(SEC_ERROR_INVALID_ALGORITHM, PR_GetError());
 }
 
 static const AlgorithmIdentifierTestInfo<SignatureAlgorithm>
@@ -432,8 +433,8 @@ TEST_F(pkixder_SignatureAlgorithmIdentifier, Invalid_RSA_With_MD5)
   Input input;
   ASSERT_EQ(Success, input.Init(DER, sizeof(DER)));
   SignatureAlgorithm alg;
-  ASSERT_RecoverableError(SEC_ERROR_CERT_SIGNATURE_ALGORITHM_DISABLED,
-                          SignatureAlgorithmIdentifier(input, alg));
+  ASSERT_EQ(Failure, SignatureAlgorithmIdentifier(input, alg));
+  ASSERT_EQ(SEC_ERROR_CERT_SIGNATURE_ALGORITHM_DISABLED, PR_GetError());
 }
 
 TEST_F(pkixder_SignatureAlgorithmIdentifier, Invalid_SignatureAlgorithm_SHA256)
@@ -448,8 +449,8 @@ TEST_F(pkixder_SignatureAlgorithmIdentifier, Invalid_SignatureAlgorithm_SHA256)
   Input input;
   ASSERT_EQ(Success, input.Init(DER, sizeof(DER)));
   SignatureAlgorithm alg;
-  ASSERT_RecoverableError(SEC_ERROR_CERT_SIGNATURE_ALGORITHM_DISABLED,
-                          SignatureAlgorithmIdentifier(input, alg));
+  ASSERT_EQ(Failure, SignatureAlgorithmIdentifier(input, alg));
+  ASSERT_EQ(SEC_ERROR_CERT_SIGNATURE_ALGORITHM_DISABLED, PR_GetError());
 }
 
 } // unnamed namespace

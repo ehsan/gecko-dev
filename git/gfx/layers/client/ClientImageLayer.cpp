@@ -33,14 +33,12 @@ public:
   {
     MOZ_COUNT_CTOR(ClientImageLayer);
   }
-
-protected:
   virtual ~ClientImageLayer()
   {
     DestroyBackBuffer();
     MOZ_COUNT_DTOR(ClientImageLayer);
   }
-
+  
   virtual void SetContainer(ImageContainer* aContainer) MOZ_OVERRIDE
   {
     ImageLayer::SetContainer(aContainer);

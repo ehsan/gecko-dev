@@ -29,7 +29,6 @@ public:
     MOZ_COUNT_CTOR(ArchiveRequestEvent);
   }
 
-protected:
   ~ArchiveRequestEvent()
   {
     MOZ_COUNT_DTOR(ArchiveRequestEvent);
