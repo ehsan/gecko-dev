@@ -52,19 +52,20 @@
 #include "jstypedarray.h"
 #include "jsxml.h"
 
-#include "ds/LifoAlloc.h"
+#include "builtin/Eval.h"
 #include "builtin/MapObject.h"
 #include "builtin/RegExp.h"
+#include "ds/LifoAlloc.h"
 #include "frontend/BytecodeCompiler.h"
 #include "frontend/TreeContext.h"
 #include "gc/Marking.h"
 #include "gc/Memory.h"
 #include "js/MemoryMetrics.h"
-#include "yarr/BumpPointerAllocator.h"
 #include "vm/MethodGuard.h"
 #include "vm/NumericConversions.h"
 #include "vm/StringBuffer.h"
 #include "vm/Xdr.h"
+#include "yarr/BumpPointerAllocator.h"
 
 #include "jsatominlines.h"
 #include "jsinferinlines.h"
@@ -1538,8 +1539,6 @@ JS_WrapValue(JSContext *cx, jsval *vp)
  * is used to make this happen if an object other than |target| is used.
  */
 
-static bool RemapWrappers(JSContext *cx, JSObject *orig, JSObject *target);
-
 JS_PUBLIC_API(JSObject *)
 JS_TransplantObject(JSContext *cx, JSObject *origobj, JSObject *target)
 {
@@ -1581,7 +1580,7 @@ JS_TransplantObject(JSContext *cx, JSObject *origobj, JSObject *target)
 
     // Now, iterate through other scopes looking for references to the
     // old object, and update the relevant cross-compartment wrappers.
-    if (!RemapWrappers(cx, origobj, newIdentity))
+    if (!RemapAllWrappersForObject(cx, origobj, newIdentity))
         return NULL;
 
     // Lastly, update the original object to point to the new one.
@@ -1598,60 +1597,6 @@ JS_TransplantObject(JSContext *cx, JSObject *origobj, JSObject *target)
     // The new identity object might be one of several things. Return it to avoid
     // ambiguity.
     return newIdentity;
-}
-
-/*
- * Remap cross-compartment wrappers pointing to |src| to point to |dst|. All
- * wrappers are recomputed.
- */
-static bool
-RemapWrappers(JSContext *cx, JSObject *orig, JSObject *target)
-{
-    Value origv = ObjectValue(*orig);
-    Value targetv = ObjectValue(*target);
-
-    CompartmentVector &vector = cx->runtime->compartments;
-    AutoValueVector toTransplant(cx);
-    if (!toTransplant.reserve(vector.length()))
-        return false;
-
-    for (JSCompartment **p = vector.begin(), **end = vector.end(); p != end; ++p) {
-        WrapperMap &pmap = (*p)->crossCompartmentWrappers;
-        if (WrapperMap::Ptr wp = pmap.lookup(origv)) {
-            // We found a wrapper. Remember and root it.
-            toTransplant.infallibleAppend(wp->value);
-        }
-    }
-
-    for (Value *begin = toTransplant.begin(), *end = toTransplant.end(); begin != end; ++begin) {
-        JSObject *wobj = &begin->toObject();
-        JSCompartment *wcompartment = wobj->compartment();
-        WrapperMap &pmap = wcompartment->crossCompartmentWrappers;
-
-        // When we remove origv from the wrapper map, its wrapper, wobj, must
-        // immediately cease to be a cross-compartment wrapper. Neuter it.
-        JS_ASSERT(pmap.lookup(origv));
-        pmap.remove(origv);
-        NukeCrossCompartmentWrapper(wobj);
-
-        // First, we wrap it in the new compartment. This will return
-        // a new wrapper.
-        AutoCompartment ac(cx, wobj);
-        JSObject *tobj = target;
-        if (!ac.enter() || !wcompartment->wrap(cx, &tobj))
-            return false;
-
-        // Now, because we need to maintain object identity, we do a
-        // brain transplant on the old object. At the same time, we
-        // update the entry in the compartment's wrapper map to point
-        // to the old wrapper.
-        JS_ASSERT(tobj != wobj);
-        if (!wobj->swap(cx, tobj))
-            return false;
-        pmap.put(targetv, ObjectValue(*wobj));
-    }
-
-    return true;
 }
 
 /*
@@ -1705,7 +1650,7 @@ js_TransplantObjectWithWrapper(JSContext *cx,
     // Now, iterate through other scopes looking for references to the old
     // object. Note that the entries in the maps are for |origobj| and not
     // |origwrapper|. They need to be updated to point at the new object.
-    if (!RemapWrappers(cx, origobj, targetobj))
+    if (!RemapAllWrappersForObject(cx, origobj, targetobj))
         return NULL;
 
     // Lastly, update things in the original compartment. Our invariants dictate
@@ -1735,7 +1680,7 @@ js_TransplantObjectWithWrapper(JSContext *cx,
 JS_PUBLIC_API(JSBool)
 JS_RefreshCrossCompartmentWrappers(JSContext *cx, JSObject *obj)
 {
-    return RemapWrappers(cx, obj, obj);
+    return RemapAllWrappersForObject(cx, obj, obj);
 }
 
 JS_PUBLIC_API(JSObject *)
@@ -1867,9 +1812,7 @@ static JSStdName standard_class_names[] = {
     {js_InitXMLClass,           EAGER_ATOM(isXMLName), CLASP(XML)},
 #endif
 
-#if JS_HAS_GENERATORS
-    {js_InitIteratorClasses,    EAGER_ATOM_AND_CLASP(Iterator)},
-#endif
+    {js_InitIteratorClasses,    EAGER_CLASS_ATOM(Iterator), &PropertyIteratorObject::class_},
 
     /* Typed Arrays */
     {js_InitTypedArrayClasses,  EAGER_CLASS_ATOM(ArrayBuffer),  &ArrayBufferClass},
@@ -4464,22 +4407,16 @@ JS_NextProperty(JSContext *cx, JSObject *iterobj, jsid *idp)
     return JS_TRUE;
 }
 
-JS_PUBLIC_API(JSObject *)
-JS_NewElementIterator(JSContext *cx, JSObject *obj_)
+JS_PUBLIC_API(JSBool)
+JS_ArrayIterator(JSContext *cx, unsigned argc, jsval *vp)
 {
-    AssertNoGC(cx);
-    CHECK_REQUEST(cx);
-    assertSameCompartment(cx, obj_);
-
-    Rooted<JSObject*> obj(cx, obj_);
-    return ElementIteratorObject::create(cx, obj);
-}
-
-JS_PUBLIC_API(JSObject *)
-JS_ElementIteratorStub(JSContext *cx, JSHandleObject obj, JSBool keysonly)
-{
-    JS_ASSERT(!keysonly);
-    return JS_NewElementIterator(cx, obj);
+    CallArgs args = CallArgsFromVp(argc, vp);
+    Rooted<Value> target(cx, args.thisv());
+    JSObject *iterobj = ElementIteratorObject::create(cx, target);
+    if (!iterobj)
+        return false;
+    vp->setObject(*iterobj);
+    return true;
 }
 
 JS_PUBLIC_API(jsval)

@@ -33,6 +33,7 @@
 #include "nsString.h"
 
 #include "OSFileConstants.h"
+#include "nsIOSFileConstantsService.h"
 
 /**
  * This module defines the basic libc constants (error numbers, open modes,
@@ -64,7 +65,7 @@ nsresult InitOSFileConstants()
 {
   MOZ_ASSERT(NS_IsMainThread());
   if (gInitialized) {
-    return NS_ERROR_ALREADY_INITIALIZED;
+    return NS_OK;
   }
 
   gInitialized = true;
@@ -86,15 +87,15 @@ nsresult InitOSFileConstants()
   return libDir->GetPath(*gLibDirectory);
 }
 
-nsresult CleanupOSFileConstants()
+void CleanupOSFileConstants()
 {
   MOZ_ASSERT(NS_IsMainThread());
   if (!gInitialized) {
-    return NS_ERROR_NOT_INITIALIZED;
+    return;
   }
 
+  gInitialized = false;
   delete gLibDirectory;
-  return NS_OK;
 }
 
 
@@ -439,6 +440,14 @@ bool DefineOSFileConstants(JSContext *cx, JSObject *global)
     }
   }
 
+  // Build OS.Constants.Path
+
+  JSObject *objPath;
+  if (!(objPath = GetOrCreateObjectProperty(cx, objConstants, "Path"))) {
+    return false;
+  }
+
+
   // Locate libxul
   {
     nsAutoString xulPath(*gLibDirectory);
@@ -458,7 +467,7 @@ bool DefineOSFileConstants(JSContext *cx, JSObject *global)
 
     JSString* strPathToLibXUL = JS_NewUCStringCopyZ(cx, xulPath.get());
     jsval valXul = STRING_TO_JSVAL(strPathToLibXUL);
-    if (!JS_SetProperty(cx, objSys, "libxulpath", &valXul)) {
+    if (!JS_SetProperty(cx, objPath, "libxul", &valXul)) {
       return false;
     }
   }
@@ -466,5 +475,36 @@ bool DefineOSFileConstants(JSContext *cx, JSObject *global)
   return true;
 }
 
-} // namespace mozilla
+NS_IMPL_ISUPPORTS1(OSFileConstantsService, nsIOSFileConstantsService)
 
+OSFileConstantsService::OSFileConstantsService()
+{
+  MOZ_ASSERT(NS_IsMainThread());
+}
+
+OSFileConstantsService::~OSFileConstantsService()
+{
+  mozilla::CleanupOSFileConstants();
+}
+
+
+NS_IMETHODIMP
+OSFileConstantsService::Init(JSContext *aCx)
+{
+  nsresult rv = mozilla::InitOSFileConstants();
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+
+  JSObject *global = JS_GetGlobalForScopeChain(aCx);
+  if (!global) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+  if (!mozilla::DefineOSFileConstants(aCx, global)) {
+    return NS_ERROR_FAILURE;
+  }
+
+  return NS_OK;
+}
+
+} // namespace mozilla
