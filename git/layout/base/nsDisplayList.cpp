@@ -87,7 +87,7 @@ nsDisplayListBuilder::nsDisplayListBuilder(nsIFrame* aReferenceFrame,
       mInTransform(PR_FALSE),
       mSyncDecodeImages(PR_FALSE),
       mIsPaintingToWindow(PR_FALSE),
-      mSnappingEnabled(mMode != EVENT_DELIVERY),
+      mSnappingEnabled(PR_TRUE),
       mHasDisplayPort(PR_FALSE),
       mHasFixedItems(PR_FALSE)
 {
