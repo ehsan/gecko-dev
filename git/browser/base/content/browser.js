@@ -137,10 +137,6 @@ let gInitialPages = [
   "about:sessionrestore"
 ];
 
-#include browser-fullZoom.js
-#include browser-places.js
-#include browser-tabPreviews.js
-
 /**
 * We can avoid adding multiple load event listeners and save some time by adding
 * one listener that calls all real handlers.
@@ -6223,6 +6219,12 @@ var FeedHandler = {
     }
   }
 };
+
+#include browser-places.js
+
+#include browser-textZoom.js
+
+#include browser-tabPreviews.js
 
 /**
  * Re-open a closed tab.

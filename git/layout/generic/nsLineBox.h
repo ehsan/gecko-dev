@@ -43,8 +43,8 @@
 #ifndef nsLineBox_h___
 #define nsLineBox_h___
 
+#include "nsPlaceholderFrame.h"
 #include "nsILineIterator.h"
-#include "nsIFrame.h"
 
 class nsLineBox;
 class nsFloatCache;
@@ -64,7 +64,7 @@ public:
 
   nsFloatCache* Next() const { return mNext; }
 
-  nsIFrame* mFloat;                     // floating frame
+  nsPlaceholderFrame* mPlaceholder;     // nsPlaceholderFrame
 
 protected:
   nsFloatCache* mNext;
@@ -162,8 +162,8 @@ public:
   void Remove(nsFloatCache* aElement);
 
   // Remove an nsFloatCache object from this list and return it, or create
-  // a new one if this one is empty; Set its mFloat to aFloat.
-  nsFloatCache* Alloc(nsIFrame* aFloat);
+  // a new one if this one is empty;
+  nsFloatCache* Alloc();
   
 protected:
   nsFloatCache* mTail;

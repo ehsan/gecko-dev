@@ -45,7 +45,6 @@
 #include "nsCOMPtr.h"
 #include "nsFrame.h"
 #include "nsFrameList.h"
-#include "nsPlaceholderFrame.h"
 #include "nsLineLayout.h"
 #include "nsIContent.h"
 #include "nsContentUtils.h"
@@ -1483,8 +1482,7 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
 #endif
     ;
   PRBool isPositioned = disp->IsPositioned();
-  if (isComposited || isPositioned || disp->IsFloating() ||
-      (aFlags & DISPLAY_CHILD_FORCE_STACKING_CONTEXT)) {
+  if (isComposited || isPositioned || (aFlags & DISPLAY_CHILD_FORCE_STACKING_CONTEXT)) {
     // If you change this, also change IsPseudoStackingContextFromStyle()
     pseudoStackingContext = PR_TRUE;
   }
@@ -5879,9 +5877,9 @@ nsFrame::DoGetParentStyleContextFrame(nsPresContext* aPresContext,
   // For out-of-flow frames, we must resolve underneath the
   // placeholder's parent.
   nsIFrame* oofFrame = this;
-  if ((oofFrame->GetStateBits() & NS_FRAME_OUT_OF_FLOW) &&
-      GetPrevInFlow()) {
-    // Out of flows that are continuations do not
+  if ((oofFrame->GetStateBits() & NS_FRAME_IS_OVERFLOW_CONTAINER)
+      && (oofFrame->GetStateBits() & NS_FRAME_OUT_OF_FLOW)) {
+    // Out of flows that are overflow containers do not
     // have placeholders. Use their first-in-flow's placeholder.
     oofFrame = oofFrame->GetFirstInFlow();
   }
