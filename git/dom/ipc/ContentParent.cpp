@@ -899,11 +899,10 @@ void
 ContentParent::OnChannelError()
 {
     nsRefPtr<ContentParent> content(this);
+    PContentParent::OnChannelError();
 #ifdef MOZ_NUWA_PROCESS
-    // Handle app or Nuwa process exit before normal channel error handling.
     PreallocatedProcessManager::MaybeForgetSpare(this);
 #endif
-    PContentParent::OnChannelError();
 }
 
 void
@@ -2725,8 +2724,7 @@ ContentParent::OnProcessNextEvent(nsIThreadInternal *thread,
 /* void afterProcessNextEvent (in nsIThreadInternal thread, in unsigned long recursionDepth); */
 NS_IMETHODIMP
 ContentParent::AfterProcessNextEvent(nsIThreadInternal *thread,
-                                     uint32_t recursionDepth,
-                                     bool eventWasProcessed)
+                                     uint32_t recursionDepth)
 {
     return NS_OK;
 }

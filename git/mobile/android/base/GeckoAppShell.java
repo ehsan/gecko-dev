@@ -1515,13 +1515,9 @@ public class GeckoAppShell
     public static boolean isNetworkLinkUp() {
         ConnectivityManager cm = (ConnectivityManager)
            getContext().getSystemService(Context.CONNECTIVITY_SERVICE);
-        try {
-            NetworkInfo info = cm.getActiveNetworkInfo();
-            if (info == null || !info.isConnected())
-                return false;
-        } catch (SecurityException se) {
+        NetworkInfo info = cm.getActiveNetworkInfo();
+        if (info == null || !info.isConnected())
             return false;
-        }
         return true;
     }
 
@@ -1529,12 +1525,8 @@ public class GeckoAppShell
     public static boolean isNetworkLinkKnown() {
         ConnectivityManager cm = (ConnectivityManager)
             getContext().getSystemService(Context.CONNECTIVITY_SERVICE);
-        try {
-            if (cm.getActiveNetworkInfo() == null)
-                return false;
-        } catch (SecurityException se) {
+        if (cm.getActiveNetworkInfo() == null)
             return false;
-        }
         return true;
     }
 

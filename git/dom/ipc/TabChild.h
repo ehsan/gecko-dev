@@ -217,7 +217,6 @@ public:
     virtual bool RecvHandleDoubleTap(const CSSIntPoint& aPoint);
     virtual bool RecvHandleSingleTap(const CSSIntPoint& aPoint);
     virtual bool RecvHandleLongTap(const CSSIntPoint& aPoint);
-    virtual bool RecvHandleLongTapUp(const CSSIntPoint& aPoint);
     virtual bool RecvNotifyTransformBegin(const ViewID& aViewId);
     virtual bool RecvNotifyTransformEnd(const ViewID& aViewId);
     virtual bool RecvActivate();
@@ -497,7 +496,6 @@ private:
     bool mTriedBrowserInit;
     ScreenOrientation mOrientation;
     bool mUpdateHitRegion;
-    bool mContextMenuHandled;
 
     DISALLOW_EVIL_CONSTRUCTORS(TabChild);
 };

@@ -220,11 +220,7 @@ public class GeckoNetworkManager extends BroadcastReceiver {
             return NetworkType.NETWORK_NONE;
         }
 
-        NetworkInfo ni = null;
-        try {
-            ni = cm.getActiveNetworkInfo();
-        } catch (SecurityException se) {} // if we don't have the permission, fall through to null check
-
+        NetworkInfo ni = cm.getActiveNetworkInfo();
         if (ni == null) {
             return NetworkType.NETWORK_NONE;
         }

@@ -141,7 +141,7 @@ private:
   int mLastCommand;
 
   int mPacketLength;
-  int mPutPacketReceivedLength;
+  int mPacketReceivedLength;
   int mBodySegmentLength;
   int mUpdateProgressCounter;
 

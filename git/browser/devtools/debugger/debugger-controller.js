@@ -1228,7 +1228,7 @@ SourceScripts.prototype = {
    *          A promize that resolves to [aSource, isBlackBoxed] or rejects to
    *          [aSource, error].
    */
-  setBlackBoxing: function(aSource, aBlackBoxFlag) {
+  blackBox: function(aSource, aBlackBoxFlag) {
     const sourceClient = this.activeThread.source(aSource);
     const deferred = promise.defer();
 
@@ -1282,9 +1282,11 @@ SourceScripts.prototype = {
         // Revert the rejected promise from the cache, so that the original
         // source's text may be shown when the source is selected.
         this._cache.set(aSource.url, textPromise);
+
         deferred.reject([aSource, message || error]);
         return;
       }
+
       deferred.resolve([aSource, text]);
     };
 
@@ -1453,10 +1455,10 @@ EventListeners.prototype = {
         return;
       }
 
-      let outstandingListenersDefinitionSite = aResponse.listeners.map(aListener => {
+      promise.all(aResponse.listeners.map(listener => {
         const deferred = promise.defer();
 
-        gThreadClient.pauseGrip(aListener.function).getDefinitionSite(aResponse => {
+        gThreadClient.pauseGrip(listener.function).getDefinitionSite(aResponse => {
           if (aResponse.error) {
             const msg = "Error getting function definition site: " + aResponse.message;
             DevToolsUtils.reportException("scheduleEventListenersFetch", msg);
@@ -1464,15 +1466,13 @@ EventListeners.prototype = {
             return;
           }
 
-          aListener.function.url = aResponse.url;
-          deferred.resolve(aListener);
+          listener.function.url = aResponse.url;
+          deferred.resolve(listener);
         });
 
         return deferred.promise;
-      });
-
-      promise.all(outstandingListenersDefinitionSite).then(aListeners => {
-        this._onEventListeners(aListeners);
+      })).then(listeners => {
+        this._onEventListeners(listeners);
 
         // Notify that event listeners were fetched and shown in the view,
         // and callback to resume the active thread if necessary.
