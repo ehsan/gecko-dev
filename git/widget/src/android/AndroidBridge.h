@@ -153,7 +153,10 @@ public:
                                nsIObserver *aAlertListener,
                                const nsAString& aAlertName);
 
-    void ShowFilePicker(nsAString& aFilePath);
+    void AlertsProgressListener_OnProgress(const nsAString& aAlertName,
+                                           PRInt64 aProgress,
+                                           PRInt64 aProgressMax,
+                                           const nsAString& aAlertText);
 
     struct AutoLocalJNIFrame {
         AutoLocalJNIFrame(int nEntries = 128) : mEntries(nEntries) {
@@ -215,6 +218,7 @@ protected:
     jmethodID jGetClipboardText;
     jmethodID jSetClipboardText;
     jmethodID jShowAlertNotification;
+    jmethodID jAlertsProgressListener_OnProgress;
     jmethodID jShowFilePicker;
 
     // stuff we need for CallEglCreateWindowSurface
