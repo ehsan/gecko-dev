@@ -7,15 +7,6 @@ function LOG(aMsg) {
   dump("Weave::Transport-HTTP-Poll: " + aMsg + "\n");
 }
 
-/* 
-  The interface that should be implemented by any Transport object: 
-
-  send( messageXml );
-  setCallbackObject(object with .onIncomingData(aStringData) and .onTransportError(aErrorText) );
-  connect();
-  disconnect();
-*/
-
 function InputStreamBuffer() {
 }
 InputStreamBuffer.prototype = {
@@ -150,6 +141,15 @@ SocketClient.prototype = {
 };
 
 
+/* 
+  The interface that should be implemented by any Transport object: 
+
+  send( messageXml );
+  setCallbackObject( object with .onIncomingData and .onTransportError );
+  connect();
+  disconnect();
+*/
+
 /**
  * Send HTTP requests periodically to the server using a timer.
  * HTTP POST requests with content-type application/x-www-form-urlencoded.
@@ -173,8 +173,6 @@ HTTPPollingTransport.prototype = {
     this._useKeys = useKeys;
     this._interval = interval;
     this._outgoingRetryBuffer = "";
-    this._retryCount = 0;
-    this._retryCap = 0;
   },
 
   __request: null,
@@ -296,36 +294,19 @@ HTTPPollingTransport.prototype = {
                if we re-send the POST it seems to usually work the second
                time.  So put the message into a buffer and try again later:
             */
-            if (self._retryCount >= self._retryCap) {
-              self._onError("Maximum number of retries reached. Unable to communicate with the server.");
-            }
-            else {
-              self._outgoingRetryBuffer = requestXml;
-              self._retryCount++;
-            }
-          }
-          else if (request.status == 404) {
-            self._onError("Provided URL is not valid.");
-          }
-          else {
-            self._onError("Unable to communicate with the server.");
+            self._outgoingRetryBuffer = requestXml;
           }
         }
       }
     };
 
-    try {
-      request.open( "POST", this._serverUrl, true ); //async = true
-      request.setRequestHeader( "Content-type", "application/x-www-form-urlencoded;charset=UTF-8" );
-      request.setRequestHeader( "Content-length", contents.length );
-      request.setRequestHeader( "Connection", "close" );
-      request.onreadystatechange = _processReqChange;
-      LOG("Sending: " + contents);
-      request.send( contents );
-    } catch(ex) { 
-      this._onError("Unable to send message to server: " + this._serverUrl);
-      LOG("Connection failure: " + ex);
-    }
+    request.open( "POST", this._serverUrl, true ); //async = true
+    request.setRequestHeader( "Content-type", "application/x-www-form-urlencoded;charset=UTF-8" );
+    request.setRequestHeader( "Content-length", contents.length );
+    request.setRequestHeader( "Connection", "close" );
+    request.onreadystatechange = _processReqChange;
+    LOG("Sending: " + contents);
+    request.send( contents );
   },
 
   send: function( messageXml ) {
@@ -333,7 +314,7 @@ HTTPPollingTransport.prototype = {
   },
  
   setCallbackObject: function( callbackObject ) {
-    this._callbackObject = callbackObject;
+      this._callbackObject = callbackObject;
   },
 
   notify: function( timer ) {
@@ -351,9 +332,6 @@ HTTPPollingTransport.prototype = {
   },
  
   connect: function() {
-    // In case this is a reconnect, make sure to re-initialize.
-    this._init(this._serverUrl, this._useKeys, this._interval);
-
     /* Set up a timer to poll the server periodically. */
 
     // TODO doPost isn't reentrant; don't try to doPost if there's

@@ -6,8 +6,10 @@ function LOG(aMsg) {
   dump("TEST_XMPP: " + aMsg + "\n");
 }
 
-var serverUrl = "http://localhost:5280/http-poll";
-var jabberDomain = "localhost";
+var serverUrl = "http://127.0.0.1:5280/http-poll";
+var jabberDomain = Cc["@mozilla.org/network/dns-service;1"].
+                   getService(Ci.nsIDNSService).myHostName;
+LOG("DOMAIN: " + jabberDomain);
 
 var timer = Cc["@mozilla.org/timer;1"].createInstance( Ci.nsITimer );
 var threadManager = Cc["@mozilla.org/thread-manager;1"].getService();
@@ -17,10 +19,12 @@ function run_test() {
   return;
 
   /* First, just see if we can connect: */
-  var transport = new HTTPPollingTransport(serverUrl, false, 4000);
+  var transport = new HTTPPollingTransport( serverUrl,
+					    false,
+					    4000 );
   var auth = new PlainAuthenticator();
   var alice = new XmppClient("alice", jabberDomain, "iamalice",
-                             transport, auth);
+	            		       transport, auth);
 
   // test connection
   LOG("connecting");
@@ -35,6 +39,7 @@ function run_test() {
   do_check_eq( alice._connectionStatus, alice.NOT_CONNECTED);
   LOG("disconnected");
 
+  /*
   // test re-connection
   LOG("reconnecting");
   alice.connect( jabberDomain );
@@ -43,12 +48,11 @@ function run_test() {
   do_check_eq( alice._connectionStatus, alice.CONNECTED);
   alice.disconnect();
 
-  // test connection failure - bad domain
+  // test connection failure
   alice.connect( "bad domain" );
   alice.waitForConnection();
   do_check_eq( alice._connectionStatus, alice.FAILED );
 
-  /*
   // re-connect and move on
   alice.connect( jabberDomain );
   alice.waitForConnection();
