@@ -54,9 +54,7 @@ DIRS += editline
 endif
 
 # editline needs to get built before the shell
-ifndef JS_DISABLE_SHELL
 DIRS += shell
-endif
 
 MODULE		    = js
 LIBRARY_NAME	    = mozjs
@@ -326,7 +324,7 @@ endif
 default::
 
 ifneq (,$(CROSS_COMPILE)$(filter-out WINNT OS2,$(OS_ARCH)))
-ifneq (,$(filter-out SYMBIAN WINCE,$(OS_ARCH)))
+ifneq ($(OS_ARCH), WINCE)
 # nsinstall doesn't get built until we enter config/ in the exports phase,
 # so we'll have to manually ensure it gets built here if we want to use
 # $(EXPORTS)

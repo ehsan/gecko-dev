@@ -877,9 +877,8 @@ const PRInt32 nsCSSProps::kIMEModeKTable[] = {
   eCSSKeyword_UNKNOWN,-1
 };
 
-const PRInt32 nsCSSProps::kLineHeightKTable[] = {
-  // -moz- prefixed, intended for internal use for single-line controls
-  eCSSKeyword__moz_block_height, NS_STYLE_LINE_HEIGHT_BLOCK_HEIGHT,
+// XXX What's the point?
+const PRInt32 nsCSSProps::kKeyEquivalentKTable[] = {
   eCSSKeyword_UNKNOWN,-1
 };
 

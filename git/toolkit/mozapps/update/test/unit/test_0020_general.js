@@ -44,9 +44,10 @@ var gExpectedCount;
 function run_test() {
   do_test_pending();
   removeUpdateDirsAndFiles();
-  var pb = getPrefBranch();
-  pb.setCharPref(PREF_APP_UPDATE_URL_OVERRIDE, URL_HOST + "update.xml");
-  var defaults = pb.QueryInterface(AUS_Ci.nsIPrefService).getDefaultBranch(null);
+  gPrefs.setCharPref(PREF_APP_UPDATE_URL_OVERRIDE,
+                     URL_HOST + "update.xml");
+  var defaults = gPrefs.QueryInterface(AUS_Ci.nsIPrefService)
+                   .getDefaultBranch(null);
   defaults.setCharPref("app.update.channel", "bogus_channel");
   // The mock XMLHttpRequest is MUCH faster
   overrideXHR(callHandleEvent);
@@ -57,7 +58,6 @@ function run_test() {
 
 function end_test() {
   do_test_finished();
-  cleanUp();
 }
 
 // Helper function for testing update counts returned from an update xml
@@ -82,8 +82,8 @@ function callHandleEvent() {
   gXHR.status = 400;
   gXHR.responseText = gResponseBody;
   try {
-    var parser = AUS_Cc["@mozilla.org/xmlextras/domparser;1"].
-                 createInstance(AUS_Ci.nsIDOMParser);
+    var parser = AUS_Cc["@mozilla.org/xmlextras/domparser;1"]
+                   .createInstance(AUS_Ci.nsIDOMParser);
     gXHR.responseXML = parser.parseFromString(gResponseBody, "application/xml");
   }
   catch(e) {

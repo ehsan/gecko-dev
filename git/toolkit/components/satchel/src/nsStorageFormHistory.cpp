@@ -75,8 +75,6 @@
 // Limit the length of names and values stored in form history
 #define MAX_HISTORY_NAME_LEN    200
 #define MAX_HISTORY_VALUE_LEN   200
-// Limit the number of fields saved in a form
-#define MAX_FIELDS_SAVED        100
 
 // nsFormHistoryResult is a specialized autocomplete result class that knows
 // how to remove entries from the form history table.
@@ -482,7 +480,6 @@ nsFormHistory::Notify(nsIDOMHTMLFormElement* formElt, nsIDOMWindowInternal* aWin
   nsCOMPtr<nsIDOMHTMLCollection> elts;
   formElt->GetElements(getter_AddRefs(elts));
 
-  PRUint32 savedCount = 0;
   PRUint32 length;
   elts->GetLength(&length);
   if (length == 0)
@@ -527,8 +524,6 @@ nsFormHistory::Notify(nsIDOMHTMLFormElement* formElt, nsIDOMWindowInternal* aWin
           if (name.Length() > MAX_HISTORY_NAME_LEN ||
               value.Length() > MAX_HISTORY_VALUE_LEN)
             continue;
-          if (savedCount++ >= MAX_FIELDS_SAVED)
-            break;
           AddEntry(name, value);
         }
       }

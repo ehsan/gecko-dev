@@ -65,10 +65,10 @@ public:
 
   nsMediaStream* Stream() { return mStream; }
 
-  // Set the time of the last frame. This is returned in duration() to
-  // liboggplay. Call with decoder lock obtained so that liboggplay cannot
-  // call duration() on the decoder thread while it is changing.
-  void SetLastFrameTime(PRInt64 aTime);
+  // Set the duration of the media resource. Call with decoder lock
+  // obtained so that the decoder thread does not request the duration
+  // while it is changing.
+  void SetDuration(PRInt64 aDuration);
 
   nsIPrincipal* GetCurrentPrincipal();
   
@@ -83,9 +83,8 @@ public:
 public:
   nsAutoPtr<nsMediaStream> mStream;
 
-  // Timestamp of the end of the last frame in the media resource.
-  // -1 if not known.
-  PRInt64 mLastFrameTime;
+  // Duration of the media resource. -1 if not known.
+  PRInt64 mDuration;
 };
 
 #endif

@@ -41,9 +41,9 @@ srcdir		= @srcdir@
 VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
-MODULE      = plugin
-
 include $(topsrcdir)/config/rules.mk
+
+MODULE      = plugin
 
 ifdef MOZ_DEBUG
 BUILDSTYLE	= Debug

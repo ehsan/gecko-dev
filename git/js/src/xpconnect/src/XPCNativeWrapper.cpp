@@ -877,7 +877,7 @@ XPC_NW_HasInstance(JSContext *cx, JSObject *obj, jsval v, JSBool *bp)
 
 static JSBool
 MirrorWrappedNativeParent(JSContext *cx, XPCWrappedNative *wrapper,
-                          JSObject **result NS_OUTPARAM)
+                          JSObject **result)
 {
   JSObject *wn_parent = STOBJ_GET_PARENT(wrapper->GetFlatJSObject());
   if (!wn_parent) {
@@ -893,8 +893,6 @@ MirrorWrappedNativeParent(JSContext *cx, XPCWrappedNative *wrapper,
       *result = XPCNativeWrapper::GetNewOrUsed(cx, parent_wrapper, nsnull);
       if (!*result)
         return JS_FALSE;
-    } else {
-      *result = nsnull;
     }
   }
   return JS_TRUE;

@@ -47,7 +47,6 @@
 #include "nsUnicharUtils.h"
 #include "nsParserUtils.h"
 #include "nsGkAtoms.h"
-#include "nsThreadUtils.h"
 
 class nsXMLStylesheetPI : public nsXMLProcessingInstruction,
                           public nsStyleLinkElement
@@ -124,9 +123,7 @@ nsXMLStylesheetPI::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                                                        aCompileEventHandlers);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsContentUtils::AddScriptRunner(
-    new nsRunnableMethod<nsXMLStylesheetPI>(this,
-                                            &nsXMLStylesheetPI::UpdateStyleSheetInternal));
+  UpdateStyleSheetInternal(nsnull);
 
   return rv;  
 }
