@@ -9,9 +9,13 @@ findbar {
   min-width: 1px;
 }
 
-.findbar-container > label {
-  color: #6D6D6D;
+.findbar-container > label,
+.findbar-container > description {
   font-weight: bold;
+}
+
+.findbar-find-fast {
+  color: #6D6D6D;
 }
 
 .findbar-closebutton {
@@ -133,7 +137,7 @@ findbar {
                    0 0 2px 1px -moz-mac-focusring;
 }
 
-.findbar-textbox[flash="true"] {
+findbar[flash="true"] > .findbar-container > .find-field-container > .findbar-textbox {
   background-color: #F7E379;
 }
 
@@ -194,8 +198,7 @@ findbar {
 }
 
 .findbar-find-status {
-  color: #436599;
-  font-weight: bold;
+  color: #436599 !important;
   margin: 1px;
   -moz-margin-start: 12px;
 }
