@@ -89,12 +89,6 @@ static JSBool
 NewTryNote(JSContext *cx, JSCodeGenerator *cg, JSTryNoteKind kind,
            uintN stackDepth, size_t start, size_t end);
 
-static JSBool
-EmitIndexOp(JSContext *cx, JSOp op, uintN index, JSCodeGenerator *cg);
-
-static JSBool
-EmitLeaveBlock(JSContext *cx, JSCodeGenerator *cg, JSOp op, JSObjectBox *box);
-
 JSCodeGenerator::JSCodeGenerator(Parser *parser,
                                  JSArenaPool *cpool, JSArenaPool *npool,
                                  uintN lineno)
@@ -109,9 +103,7 @@ JSCodeGenerator::JSCodeGenerator(Parser *parser,
     emitLevel(0),
     constMap(parser->context),
     constList(parser->context),
-    globalUses(ContextAllocPolicy(parser->context)),
-    closedArgs(ContextAllocPolicy(parser->context)),
-    closedVars(ContextAllocPolicy(parser->context))
+    globalUses(ContextAllocPolicy(parser->context))
 {
     flags = TCF_COMPILING;
     memset(&prolog, 0, sizeof prolog);
@@ -293,24 +285,6 @@ js_Emit3(JSContext *cx, JSCodeGenerator *cg, JSOp op, jsbytecode op1,
         next[1] = op1;
         next[2] = op2;
         CG_NEXT(cg) = next + 3;
-        UpdateDepth(cx, cg, offset);
-    }
-    return offset;
-}
-
-ptrdiff_t
-js_Emit5(JSContext *cx, JSCodeGenerator *cg, JSOp op, uint16 op1, uint16 op2)
-{
-    ptrdiff_t offset = EmitCheck(cx, cg, op, 5);
-
-    if (offset >= 0) {
-        jsbytecode *next = CG_NEXT(cg);
-        next[0] = (jsbytecode)op;
-        next[1] = UINT16_HI(op1);
-        next[2] = UINT16_LO(op1);
-        next[3] = UINT16_HI(op2);
-        next[4] = UINT16_LO(op2);
-        CG_NEXT(cg) = next + 5;
         UpdateDepth(cx, cg, offset);
     }
     return offset;
@@ -1361,7 +1335,7 @@ js_PushStatement(JSTreeContext *tc, JSStmtInfo *stmt, JSStmtType type,
     stmt->blockid = tc->blockid();
     SET_STATEMENT_TOP(stmt, top);
     stmt->label = NULL;
-    JS_ASSERT(!stmt->blockBox);
+    JS_ASSERT(!stmt->blockObj);
     stmt->down = tc->topStmt;
     tc->topStmt = stmt;
     if (STMT_LINKS_SCOPE(stmt)) {
@@ -1373,16 +1347,16 @@ js_PushStatement(JSTreeContext *tc, JSStmtInfo *stmt, JSStmtType type,
 }
 
 void
-js_PushBlockScope(JSTreeContext *tc, JSStmtInfo *stmt, JSObjectBox *blockBox,
+js_PushBlockScope(JSTreeContext *tc, JSStmtInfo *stmt, JSObject *blockObj,
                   ptrdiff_t top)
 {
     js_PushStatement(tc, stmt, STMT_BLOCK, top);
     stmt->flags |= SIF_SCOPE;
-    blockBox->object->setParent(tc->blockChain());
+    blockObj->setParent(tc->blockChain);
     stmt->downScope = tc->topScopeStmt;
     tc->topScopeStmt = stmt;
-    tc->blockChainBox = blockBox;
-    stmt->blockBox = blockBox;
+    tc->blockChain = blockObj;
+    stmt->blockObj = blockObj;
 }
 
 /*
@@ -1497,12 +1471,14 @@ EmitNonLocalJumpFixup(JSContext *cx, JSCodeGenerator *cg, JSStmtInfo *toStmt)
         }
 
         if (stmt->flags & SIF_SCOPE) {
+            uintN i;
+
             /* There is a Block object with locals on the stack to pop. */
             FLUSH_POPS();
             if (js_NewSrcNote(cx, cg, SRC_HIDDEN) < 0)
                 return JS_FALSE;
-            if (!EmitLeaveBlock(cx, cg, JSOP_LEAVEBLOCK, stmt->blockBox))
-                return JS_FALSE;
+            i = OBJ_BLOCK_COUNT(cx, stmt->blockObj);
+            EMIT_UINT16_IMM_OP(JSOP_LEAVEBLOCK, i);
         }
     }
 
@@ -1511,16 +1487,6 @@ EmitNonLocalJumpFixup(JSContext *cx, JSCodeGenerator *cg, JSStmtInfo *toStmt)
     return JS_TRUE;
 
 #undef FLUSH_POPS
-}
-
-static JSBool
-EmitBlockChain(JSContext *cx, JSCodeGenerator *cg)
-{
-    JSObjectBox *box = cg->blockChainBox;
-    if (box)
-        return EmitIndexOp(cx, JSOP_BLOCKCHAIN, box->index, cg);
-    else
-        return js_Emit1(cx, cg, JSOP_NULLBLOCKCHAIN) >= 0;
 }
 
 static ptrdiff_t
@@ -1579,11 +1545,7 @@ js_PopStatement(JSTreeContext *tc)
     if (STMT_LINKS_SCOPE(stmt)) {
         tc->topScopeStmt = stmt->downScope;
         if (stmt->flags & SIF_SCOPE) {
-            if (stmt->downScope) {
-                tc->blockChainBox = stmt->downScope->blockBox;
-            } else {
-                tc->blockChainBox = NULL;
-            }
+            tc->blockChain = stmt->blockObj->getParent();
             JS_SCOPE_DEPTH_METERING(--tc->scopeDepth);
         }
     }
@@ -1630,7 +1592,7 @@ js_LexicalLookup(JSTreeContext *tc, JSAtom *atom, jsint *slotp, JSStmtInfo *stmt
         if (!(stmt->flags & SIF_SCOPE))
             continue;
 
-        JSObject *obj = stmt->blockBox->object;
+        JSObject *obj = stmt->blockObj;
         JS_ASSERT(obj->isStaticBlock());
 
         const Shape *shape = obj->nativeLookup(ATOM_TO_JSID(atom));
@@ -1849,12 +1811,6 @@ EmitSlotIndexOp(JSContext *cx, JSOp op, uintN slot, uintN index,
     return bigSuffix == JSOP_NOP || js_Emit1(cx, cg, bigSuffix) >= 0;
 }
 
-bool
-JSCodeGenerator::shouldNoteClosedName(JSParseNode *pn)
-{
-    return !callsEval() && pn->pn_defn && pn->isClosed();
-}
-
 /*
  * Adjust the slot for a block local to account for the number of variables
  * that share the same index space with locals. Due to the incremental code
@@ -1910,32 +1866,15 @@ EmitEnterBlock(JSContext *cx, JSParseNode *pn, JSCodeGenerator *cg)
             JS_ASSERT(pnu->pn_cookie.isFree());
         }
 #endif
-
-        /*
-         * If this variable is closed over, and |eval| is not present, then
-         * then set a bit in dslots so the Method JIT can deoptimize this
-         * slot.
-         */
-        bool isClosed = cg->shouldNoteClosedName(dn);
-        blockObj->setSlot(slot, BooleanValue(isClosed));
     }
 
+    /*
+     * Shrink slots to free blockObj->dslots and ensure a prompt safe crash if
+     * by accident some code tries to get a slot from a compiler-created Block
+     * prototype instead of from a clone.
+     */
+    blockObj->shrinkSlots(cx, base);
     return true;
-}
-
-static JSBool
-EmitLeaveBlock(JSContext *cx, JSCodeGenerator *cg, JSOp op,
-               JSObjectBox *box)
-{
-    JSOp bigSuffix;
-    uintN count = OBJ_BLOCK_COUNT(cx, box->object);
-    
-    bigSuffix = EmitBigIndexPrefix(cx, cg, box->index);
-    if (bigSuffix == JSOP_FALSE)
-        return JS_FALSE;
-    if (js_Emit5(cx, cg, op, count, box->index) < 0)
-        return JS_FALSE;
-    return bigSuffix == JSOP_NOP || js_Emit1(cx, cg, bigSuffix) >= 0;
 }
 
 /*
@@ -3135,7 +3074,7 @@ EmitSwitch(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn,
     size_t switchSize, tableSize;
     jsbytecode *pc, *savepc;
 #if JS_HAS_BLOCK_SCOPE
-    JSObjectBox *box;
+    jsint count;
 #endif
 
     /* Try for most optimal, fall back if not dense ints, and per ECMAv2. */
@@ -3160,8 +3099,8 @@ EmitSwitch(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn,
          * the stack so that case-dispatch bytecodes can find the discriminant
          * on top of stack.
          */
-        box = pn2->pn_objbox;
-        js_PushBlockScope(cg, stmtInfo, box, -1);
+        count = OBJ_BLOCK_COUNT(cx, pn2->pn_objbox->object);
+        js_PushBlockScope(cg, stmtInfo, pn2->pn_objbox->object, -1);
         stmtInfo->type = STMT_SWITCH;
 
         /* Emit JSOP_ENTERBLOCK before code to evaluate the discriminant. */
@@ -3179,7 +3118,7 @@ EmitSwitch(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn,
     }
 #ifdef __GNUC__
     else {
-        box = NULL;
+        count = 0;
     }
 #endif
 #endif
@@ -3201,7 +3140,6 @@ EmitSwitch(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn,
     } else {
         /* Re-push the switch's statement info record. */
         cg->topStmt = cg->topScopeStmt = stmtInfo;
-        cg->blockChainBox = stmtInfo->blockBox;
 
         /* Set the statement info record's idea of top. */
         stmtInfo->update = top;
@@ -3665,7 +3603,7 @@ out:
 
 #if JS_HAS_BLOCK_SCOPE
         if (ok && pn->pn_right->pn_type == TOK_LEXICALSCOPE)
-            ok = EmitLeaveBlock(cx, cg, JSOP_LEAVEBLOCK, box);
+            EMIT_UINT16_IMM_OP(JSOP_LEAVEBLOCK, count);
 #endif
     }
     return ok;
@@ -3701,7 +3639,7 @@ js_EmitFunctionScript(JSContext *cx, JSCodeGenerator *cg, JSParseNode *body)
 
     return js_EmitTree(cx, cg, body) &&
            js_Emit1(cx, cg, JSOP_STOP) >= 0 &&
-           JSScript::NewScriptFromCG(cx, cg);
+           js_NewScriptFromCG(cx, cg);
 }
 
 /* A macro for inlining at the top of js_EmitTree (whence it came). */
@@ -3770,11 +3708,13 @@ MaybeEmitVarDecl(JSContext *cx, JSCodeGenerator *cg, JSOp prologOp,
     }
 
     if (JOF_OPTYPE(pn->pn_op) == JOF_LOCAL &&
-        pn->pn_cookie.slot() < cg->fun->u.i.nvars &&
-        cg->shouldNoteClosedName(pn))
+        !(cg->flags & TCF_FUN_CALLS_EVAL) &&
+        pn->pn_defn &&
+        (((JSDefinition *)pn)->pn_dflags & PND_CLOSED))
     {
-        if (!cg->closedVars.append(pn->pn_cookie.slot()))
-            return JS_FALSE;
+        CG_SWITCH_TO_PROLOG(cg);
+        EMIT_UINT16_IMM_OP(JSOP_DEFUPVAR, pn->pn_cookie.asInteger());
+        CG_SWITCH_TO_MAIN(cg);
     }
 
     if (result)
@@ -4318,7 +4258,6 @@ EmitVariables(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn,
                 if (popScope) {
                     cg->topStmt = stmt;
                     cg->topScopeStmt = scopeStmt;
-                    cg->blockChainBox = scopeStmt->blockBox;
                 }
 #endif
             }
@@ -4571,10 +4510,6 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
                 return JS_FALSE;
             }
             EMIT_INDEX_OP(op, index);
-
-            /* Make blockChain determination quicker. */
-            if (EmitBlockChain(cx, cg) < 0)
-                return JS_FALSE;
             break;
         }
 
@@ -4593,9 +4528,6 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
                 CG_SWITCH_TO_PROLOG(cg);
                 op = FUN_FLAT_CLOSURE(fun) ? JSOP_DEFFUN_FC : JSOP_DEFFUN;
                 EMIT_INDEX_OP(op, index);
-                /* Make blockChain determination quicker. */
-                if (EmitBlockChain(cx, cg) < 0)
-                    return JS_FALSE;
                 CG_SWITCH_TO_MAIN(cg);
             }
 
@@ -4611,37 +4543,20 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
             JS_ASSERT(index < JS_BIT(20));
             pn->pn_index = index;
             op = FUN_FLAT_CLOSURE(fun) ? JSOP_DEFLOCALFUN_FC : JSOP_DEFLOCALFUN;
-            if (pn->isClosed() &&
-                !cg->callsEval() &&
-                !cg->closedVars.append(pn->pn_cookie.slot())) {
-                return JS_FALSE;
+            if ((pn->pn_dflags & PND_CLOSED) && !(cg->flags & TCF_FUN_CALLS_EVAL)) {
+                CG_SWITCH_TO_PROLOG(cg);
+                EMIT_UINT16_IMM_OP(JSOP_DEFUPVAR, pn->pn_cookie.asInteger());
+                CG_SWITCH_TO_MAIN(cg);
             }
             if (!EmitSlotIndexOp(cx, op, slot, index, cg))
-                return JS_FALSE;
-
-            /* Make blockChain determination quicker. */
-            if (EmitBlockChain(cx, cg) < 0)
                 return JS_FALSE;
         }
         break;
       }
 
       case TOK_ARGSBODY:
-      {
-        JSParseNode *pnlast = pn->last();
-        for (JSParseNode *pn2 = pn->pn_head; pn2 != pnlast; pn2 = pn2->pn_next) {
-            if (!pn2->pn_defn)
-                continue;
-            if (!BindNameToSlot(cx, cg, pn2))
-                return JS_FALSE;
-            if (JOF_OPTYPE(pn2->pn_op) == JOF_QARG && cg->shouldNoteClosedName(pn2)) {
-                if (!cg->closedArgs.append(pn2->pn_cookie.slot()))
-                    return JS_FALSE;
-            }
-        }
-        ok = js_EmitTree(cx, cg, pnlast);
+        ok = js_EmitTree(cx, cg, pn->last());
         break;
-      }
 
       case TOK_UPVARS:
         JS_ASSERT(cg->lexdeps.count == 0);
@@ -5329,9 +5244,8 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
         pn2 = pn->pn_kid2;
         lastCatch = NULL;
         if (pn2) {
-            JSObjectBox *prevBox = NULL;
-            uintN count = 0;    /* previous catch block's population */
-            
+            jsint count = 0;    /* previous catch block's population */
+
             /*
              * The emitted code for a catch block looks like:
              *
@@ -5382,8 +5296,7 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
                     }
                     if (js_NewSrcNote(cx, cg, SRC_HIDDEN) < 0)
                         return JS_FALSE;
-                    if (!EmitLeaveBlock(cx, cg, JSOP_LEAVEBLOCK, prevBox))
-                        return JS_FALSE;
+                    EMIT_UINT16_IMM_OP(JSOP_LEAVEBLOCK, count);
                     JS_ASSERT(cg->stackDepth == depth);
                 }
 
@@ -5406,7 +5319,6 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
                  */
                 JS_ASSERT(pn3->pn_type == TOK_LEXICALSCOPE);
                 count = OBJ_BLOCK_COUNT(cx, pn3->pn_objbox->object);
-                prevBox = pn3->pn_objbox;
                 if (!js_EmitTree(cx, cg, pn3))
                     return JS_FALSE;
 
@@ -5531,7 +5443,7 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
         JS_ASSERT(stmt->type == STMT_BLOCK && (stmt->flags & SIF_SCOPE));
         stmt->type = STMT_CATCH;
         catchStart = stmt->update;
-        blockObj = stmt->blockBox->object;
+        blockObj = stmt->blockObj;
 
         /* Go up one statement info record to the TRY or FINALLY record. */
         stmt = stmt->down;
@@ -5708,7 +5620,7 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
                  * functions, see bug 419662.
                  */
                 JS_ASSERT(pnchild->pn_type == TOK_SEMI);
-                JS_ASSERT(pnchild->pn_kid->pn_type == TOK_VAR);
+                JS_ASSERT(pnchild->pn_kid->pn_type == TOK_COMMA);
                 if (!js_EmitTree(cx, cg, pnchild))
                     return JS_FALSE;
                 pnchild = pnchild->pn_next;
@@ -6515,20 +6427,18 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
         argc = pn->pn_count - 1;
         if (js_Emit3(cx, cg, PN_OP(pn), ARGC_HI(argc), ARGC_LO(argc)) < 0)
             return JS_FALSE;
-        if (PN_OP(pn) == JSOP_EVAL) {
+        if (PN_OP(pn) == JSOP_EVAL)
             EMIT_UINT16_IMM_OP(JSOP_LINENO, pn->pn_pos.begin.lineno);
-            if (EmitBlockChain(cx, cg) < 0)
-                return JS_FALSE;
-        }
         break;
       }
 
       case TOK_LEXICALSCOPE:
       {
         JSObjectBox *objbox;
+        uintN count;
 
         objbox = pn->pn_objbox;
-        js_PushBlockScope(cg, &stmtInfo, objbox, CG_OFFSET(cg));
+        js_PushBlockScope(cg, &stmtInfo, objbox->object, CG_OFFSET(cg));
 
         /*
          * If this lexical scope is not for a catch block, let block or let
@@ -6575,8 +6485,8 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
         }
 
         /* Emit the JSOP_LEAVEBLOCK or JSOP_LEAVEBLOCKEXPR opcode. */
-        if (!EmitLeaveBlock(cx, cg, op, objbox))
-            return JS_FALSE;
+        count = OBJ_BLOCK_COUNT(cx, objbox->object);
+        EMIT_UINT16_IMM_OP(op, count);
 
         ok = js_PopStatementCG(cx, cg);
         break;
@@ -7520,8 +7430,7 @@ JSCGObjectList::index(JSObjectBox *objbox)
     JS_ASSERT(!objbox->emitLink);
     objbox->emitLink = lastbox;
     lastbox = objbox;
-    objbox->index = length++;
-    return objbox->index;
+    return length++;
 }
 
 void

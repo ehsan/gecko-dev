@@ -47,8 +47,7 @@
 
 #include "AndroidJavaWrappers.h"
 
-#include "nsIMutableArray.h"
-#include "nsIMIMEInfo.h"
+#include "nsVoidArray.h"
 
 // Some debug #defines
 // #define ANDROID_DEBUG_EVENTS
@@ -118,21 +117,13 @@ public:
     void SetSurfaceView(jobject jobj);
     AndroidGeckoSurfaceView& SurfaceView() { return mSurfaceView; }
 
-    PRBool GetHandlersForProtocol(const char *aScheme, 
-                                  nsIMutableArray* handlersArray = nsnull,
-                                  nsIHandlerApp **aDefaultApp = nsnull,
-                                  const nsAString& aAction = EmptyString());
+    PRBool GetHandlersForProtocol(const char *aScheme, nsStringArray* aStringArray = nsnull);
 
-    PRBool GetHandlersForMimeType(const char *aMimeType,
-                                  nsIMutableArray* handlersArray = nsnull,
-                                  nsIHandlerApp **aDefaultApp = nsnull,
-                                  const nsAString& aAction = EmptyString());
+    PRBool GetHandlersForMimeType(const char *aMimeType, nsStringArray* aStringArray = nsnull);
 
-    PRBool OpenUriExternal(const nsACString& aUriSpec, const nsACString& aMimeType,
-                           const nsAString& aPackageName = EmptyString(),
-                           const nsAString& aClassName = EmptyString(),
-                           const nsAString& aAction = EmptyString(),
-                           const nsAString& aTitle = EmptyString());
+    PRBool OpenUriExternal(const nsACString& aUriSpec, const nsACString& aMimeType, 
+                           const nsAString& aPackageName = EmptyString(), 
+                           const nsAString& aClassName = EmptyString());
 
     void GetMimeTypeFromExtension(const nsACString& aFileExt, nsCString& aMimeType);
 
@@ -152,11 +143,6 @@ public:
                                const nsAString& aAlertData,
                                nsIObserver *aAlertListener,
                                const nsAString& aAlertName);
-
-    void AlertsProgressListener_OnProgress(const nsAString& aAlertName,
-                                           PRInt64 aProgress,
-                                           PRInt64 aProgressMax,
-                                           const nsAString& aAlertText);
 
     struct AutoLocalJNIFrame {
         AutoLocalJNIFrame(int nEntries = 128) : mEntries(nEntries) {
@@ -218,8 +204,6 @@ protected:
     jmethodID jGetClipboardText;
     jmethodID jSetClipboardText;
     jmethodID jShowAlertNotification;
-    jmethodID jAlertsProgressListener_OnProgress;
-    jmethodID jShowFilePicker;
 
     // stuff we need for CallEglCreateWindowSurface
     jclass jEGLSurfaceImplClass;

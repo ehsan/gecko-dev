@@ -148,10 +148,6 @@
 #include "ExternalHelperAppChild.h"
 #endif
 
-#ifdef ANDROID
-#include "AndroidBridge.h"
-#endif
-
 // Buffer file writes in 32kb chunks
 #define BUFFERED_OUTPUT_SIZE (1024 * 32)
 

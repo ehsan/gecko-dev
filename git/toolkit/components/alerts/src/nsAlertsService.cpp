@@ -67,7 +67,13 @@ static NS_DEFINE_CID(kLookAndFeelCID, NS_LOOKANDFEEL_CID);
 
 #endif // !ANDROID
 
-NS_IMPL_THREADSAFE_ISUPPORTS2(nsAlertsService, nsIAlertsService, nsIAlertsProgressListener)
+NS_IMPL_THREADSAFE_ADDREF(nsAlertsService)
+NS_IMPL_THREADSAFE_RELEASE(nsAlertsService)
+
+NS_INTERFACE_MAP_BEGIN(nsAlertsService)
+   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIAlertsService)
+   NS_INTERFACE_MAP_ENTRY(nsIAlertsService)
+NS_INTERFACE_MAP_END_THREADSAFE
 
 nsAlertsService::nsAlertsService()
 {
@@ -186,18 +192,5 @@ NS_IMETHODIMP nsAlertsService::ShowAlertNotification(const nsAString & aImageUrl
                  "chrome,dialog=yes,titlebar=no,popup=yes", argsArray,
                  getter_AddRefs(newWindow));
   return rv;
-#endif // !ANDROID
-}
-
-NS_IMETHODIMP nsAlertsService::OnProgress(const nsAString & aAlertName,
-                                          PRInt64 aProgress,
-                                          PRInt64 aProgressMax,
-                                          const nsAString & aAlertText)
-{
-#ifdef ANDROID
-  mozilla::AndroidBridge::Bridge()->AlertsProgressListener_OnProgress(aAlertName, aProgress, aProgressMax, aAlertText);
-  return NS_OK;
-#else
-  return NS_ERROR_NOT_IMPLEMENTED;
 #endif // !ANDROID
 }
