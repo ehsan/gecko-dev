@@ -88,24 +88,28 @@
  */
 #editBMPanel_namePicker[droppable="false"] {
   /* These rules come from the textbox element in textbox.css. */
-  -moz-appearance: textfield; /* Normal editable menulists set this to "none". */
+
+  /* Normal editable menulists set this to "none". */
+  -moz-appearance: textfield;
   cursor: text;
+
   border: 2px solid;
   -moz-border-top-colors: ThreeDShadow ThreeDDarkShadow;
   -moz-border-right-colors: ThreeDHighlight ThreeDLightShadow;
   -moz-border-bottom-colors: ThreeDHighlight ThreeDLightShadow;
   -moz-border-left-colors: ThreeDShadow ThreeDDarkShadow;
-  padding: 2px 2px 3px;
-  -moz-padding-start: 4px;
   background-color: -moz-Field;
   color: -moz-FieldText;
 }
 
 #editBMPanel_namePicker[droppable="false"] > .menulist-editable-box {
-  -moz-appearance: none; /* Normal editable menulists set this to "menulist-textfield". */
-  padding: 0;
+  /* Normal editable menulists set this to "menulist-textfield". */
+  -moz-appearance: none;
+  padding: 2px 2px 3px 4px;
 }
 
+
+/* Hide the drop marker and the popup. */
 #editBMPanel_namePicker[droppable="false"] > .menulist-dropmarker,
 #editBMPanel_namePicker[droppable="false"] > menupopup {
   display: none;
