@@ -34,7 +34,7 @@ import java.util.ArrayList;
 
 public class UninstallListener extends BroadcastReceiver {
 
-    private static final String LOGTAG = "GeckoWebappUninstallListener";
+    private static String LOGTAG = "GeckoWebappUninstallListener";
 
     @Override
     public void onReceive(Context context, Intent intent) {
@@ -136,7 +136,7 @@ public class UninstallListener extends BroadcastReceiver {
     }
 
     public static class DelayedStartupTask implements Runnable {
-        private final GeckoApp mApp;
+        private GeckoApp mApp;
 
         public DelayedStartupTask(GeckoApp app) {
             mApp = app;

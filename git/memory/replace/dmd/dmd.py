@@ -10,7 +10,6 @@ from __future__ import print_function, division
 
 import argparse
 import collections
-import gzip
 import json
 import os
 import platform
@@ -23,9 +22,7 @@ import tempfile
 outputVersion = 1
 
 # If --ignore-alloc-fns is specified, stack frames containing functions that
-# match these strings will be removed from the *start* of stack traces. (Once
-# we hit a non-matching frame, any subsequent frames won't be removed even if
-# they do match.)
+# match these strings will be removed.
 allocatorFns = [
     'replace_malloc',
     'replace_calloc',
@@ -51,10 +48,6 @@ allocatorFns = [
     'pod_malloc',
     'pod_calloc',
     'pod_realloc',
-    # This one necessary to fully filter some sequences of allocation functions
-    # that happen in practice. Note that ??? entries that follow non-allocation
-    # functions won't be stripped, as explained above.
-    '???',
 ]
 
 class Record(object):
@@ -105,12 +98,11 @@ def parseCommandLine():
 
     description = '''
 Analyze heap data produced by DMD.
-If no files are specified, read from stdin; input can be gzipped.
+If no files are specified, read from stdin.
 Write to stdout unless -o/--output is specified.
 Stack traces are fixed to show function names, filenames and line numbers
 unless --no-fix-stacks is specified; stack fixing modifies the original file
-and may take some time. If specified, the BREAKPAD_SYMBOLS_PATH environment
-variable is used to find breakpad symbols for stack fixing.
+and may take some time.
 '''
     p = argparse.ArgumentParser(description=description)
 
@@ -137,27 +129,22 @@ variable is used to find breakpad symbols for stack fixing.
     p.add_argument('--no-fix-stacks', action='store_true',
                    help='do not fix stacks')
 
-    p.add_argument('--filter-stacks-for-testing', action='store_true',
-                   help='filter stack traces; only useful for testing purposes')
-
-    p.add_argument('input_file')
+    p.add_argument('input_file', type=argparse.FileType('r'))
 
     return p.parse_args(sys.argv[1:])
 
 
 # Fix stacks if necessary: first write the output to a tempfile, then replace
 # the original file with it.
-def fixStackTraces(inputFilename, isZipped, opener):
+def fixStackTraces(args):
     # This append() call is needed to make the import statements work when this
     # script is installed as a symlink.
     sys.path.append(os.path.dirname(__file__))
 
-    bpsyms = os.environ.get('BREAKPAD_SYMBOLS_PATH', None)
+    # XXX: should incorporate fix_stack_using_bpsyms.py here as well, like in
+    #      testing/mochitests/runtests.py
     sysname = platform.system()
-    if bpsyms and os.path.exists(bpsyms):
-        import fix_stack_using_bpsyms as fixModule
-        fix = lambda line: fixModule.fixSymbols(line, bpsyms)
-    elif sysname == 'Linux':
+    if sysname == 'Linux':
         import fix_linux_stack as fixModule
         fix = lambda line: fixModule.fixSymbols(line)
     elif sysname == 'Darwin':
@@ -169,45 +156,22 @@ def fixStackTraces(inputFilename, isZipped, opener):
     if fix:
         # Fix stacks, writing output to a temporary file, and then
         # overwrite the original file.
-        tmpFile = tempfile.NamedTemporaryFile(delete=False)
+        with tempfile.NamedTemporaryFile(delete=False) as tmp:
+            for line in args.input_file:
+                tmp.write(fix(line))
+            shutil.move(tmp.name, args.input_file.name)
 
-        # If the input is gzipped, then the output (written initially to
-        # |tmpFile|) should be gzipped as well.
-        #
-        # And we want to set its pre-gzipped filename to '' rather than the
-        # name of the temporary file, so that programs like the Unix 'file'
-        # utility don't say that it was called 'tmp6ozTxE' (or something like
-        # that) before it was zipped. So that explains the |filename=''|
-        # parameter.
-        #
-        # But setting the filename like that clobbers |tmpFile.name|, so we
-        # must get that now in order to move |tmpFile| at the end.
-        tmpFilename = tmpFile.name
-        if isZipped:
-            tmpFile = gzip.GzipFile(filename='', fileobj=tmpFile)
-
-        with opener(inputFilename, 'rb') as inputFile:
-            for line in inputFile:
-                tmpFile.write(fix(line))
-
-        tmpFile.close()
-
-        shutil.move(tmpFilename, inputFilename)
+        args.input_file = open(args.input_file.name)
 
 
 def main():
     args = parseCommandLine()
 
-    # Handle gzipped input if necessary.
-    isZipped = args.input_file.endswith('.gz')
-    opener = gzip.open if isZipped else open
-
     # Fix stack traces unless otherwise instructed.
     if not args.no_fix_stacks:
-        fixStackTraces(args.input_file, isZipped, opener)
+        fixStackTraces(args)
 
-    with opener(args.input_file, 'rb') as f:
-        j = json.load(f)
+    j = json.load(args.input_file)
 
     if j['version'] != outputVersion:
         raise Exception("'version' property isn't '{:d}'".format(outputVersion))
@@ -340,26 +304,10 @@ def main():
         print(*arguments, file=args.output, **kwargs)
 
     def printStack(traceTable, frameTable, traceKey):
-        frameKeys = traceTable[traceKey]
-        fmt = '    #{:02d}{:}'
-
-        if args.filter_stacks_for_testing:
-            # If any frame has "DMD.cpp" or "replace_malloc.c" in its
-            # description -- as should be the case for every stack trace when
-            # running DMD in test mode -- we replace the entire trace with a
-            # single, predictable frame. There is too much variation in the
-            # stack traces across different machines and platforms to do more
-            # specific matching.
-            for frameKey in frameKeys:
-                frameDesc = frameTable[frameKey]
-                if 'DMD.cpp' in frameDesc or 'replace_malloc.c' in frameDesc:
-                    out(fmt.format(1, ': ... DMD.cpp ...'))
-                    return
-
         # The frame number is always '#00' (see DMD.h for why), so we have to
         # replace that with the correct frame number.
         for n, frameKey in enumerate(traceTable[traceKey], start=1):
-            out(fmt.format(n, frameTable[frameKey][3:]))
+            out('    #{:02d}{:}'.format(n, frameTable[frameKey][3:]))
 
     def printRecords(recordKind, records, heapUsableSize):
         RecordKind = recordKind.capitalize()

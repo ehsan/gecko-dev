@@ -81,7 +81,6 @@ EXPORTS.mozilla.dom += [
     'StyleSheetList.h',
     'Text.h',
     'TreeWalker.h',
-    'WebSocket.h',
 ]
 
 UNIFIED_SOURCES += [

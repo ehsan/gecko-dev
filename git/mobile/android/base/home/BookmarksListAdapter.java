@@ -104,7 +104,7 @@ class BookmarksListAdapter extends MultiTypeCursorAdapter {
 
     // mParentStack holds folder info instances (id + title) that allow
     // us to navigate back up the folder hierarchy.
-    private final LinkedList<FolderInfo> mParentStack;
+    private LinkedList<FolderInfo> mParentStack;
 
     // Refresh folder listener.
     private OnRefreshFolderListener mListener;

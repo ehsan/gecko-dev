@@ -47,7 +47,6 @@ import org.mozilla.gecko.prompts.PromptService;
 import org.mozilla.gecko.updater.UpdateService;
 import org.mozilla.gecko.updater.UpdateServiceHelper;
 import org.mozilla.gecko.util.ActivityResultHandler;
-import org.mozilla.gecko.util.ActivityUtils;
 import org.mozilla.gecko.util.EventCallback;
 import org.mozilla.gecko.util.FileUtils;
 import org.mozilla.gecko.util.GeckoEventListener;
@@ -104,6 +103,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewStub;
 import android.view.Window;
+import android.view.WindowManager;
 import android.widget.AbsoluteLayout;
 import android.widget.FrameLayout;
 import android.widget.ListView;
@@ -158,7 +158,6 @@ public abstract class GeckoApp
     // after a version upgrade.
     private static final int CLEANUP_DEFERRAL_SECONDS = 15;
 
-    protected RelativeLayout mRootLayout;
     protected RelativeLayout mMainLayout;
     protected RelativeLayout mGeckoLayout;
     private View mCameraView;
@@ -183,7 +182,7 @@ public abstract class GeckoApp
     private FullScreenHolder mFullScreenPluginContainer;
     private View mFullScreenPluginView;
 
-    private final HashMap<String, PowerManager.WakeLock> mWakeLocks = new HashMap<String, PowerManager.WakeLock>();
+    private HashMap<String, PowerManager.WakeLock> mWakeLocks = new HashMap<String, PowerManager.WakeLock>();
 
     protected boolean mShouldRestore;
     protected boolean mInitialized;
@@ -1016,9 +1015,9 @@ public abstract class GeckoApp
         int inSampleSize = 1;
         if (height > idealHeight || width > idealWidth) {
             if (width > height) {
-                inSampleSize = Math.round((float)height / idealHeight);
+                inSampleSize = Math.round((float)height / (float)idealHeight);
             } else {
-                inSampleSize = Math.round((float)width / idealWidth);
+                inSampleSize = Math.round((float)width / (float)idealWidth);
             }
         }
         return inSampleSize;
@@ -1075,7 +1074,15 @@ public abstract class GeckoApp
         ThreadUtils.postToUiThread(new Runnable() {
             @Override
             public void run() {
-                ActivityUtils.setFullScreen(GeckoApp.this, fullscreen);
+                // Hide/show the system notification bar
+                Window window = getWindow();
+                window.setFlags(fullscreen ?
+                                WindowManager.LayoutParams.FLAG_FULLSCREEN : 0,
+                                WindowManager.LayoutParams.FLAG_FULLSCREEN);
+
+                if (Versions.feature11Plus) {
+                    window.getDecorView().setSystemUiVisibility(fullscreen ? 1 : 0);
+                }
             }
         });
     }
@@ -1255,7 +1262,6 @@ public abstract class GeckoApp
         setContentView(getLayout());
 
         // Set up Gecko layout.
-        mRootLayout = (RelativeLayout) findViewById(R.id.root_layout);
         mGeckoLayout = (RelativeLayout) findViewById(R.id.gecko_layout);
         mMainLayout = (RelativeLayout) findViewById(R.id.main_layout);
 

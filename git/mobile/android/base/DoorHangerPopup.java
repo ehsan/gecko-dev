@@ -31,7 +31,7 @@ public class DoorHangerPopup extends ArrowPopup
 
     // Stores a set of all active DoorHanger notifications. A DoorHanger is
     // uniquely identified by its tabId and value.
-    private final HashSet<DoorHanger> mDoorHangers;
+    private HashSet<DoorHanger> mDoorHangers;
 
     // Whether or not the doorhanger popup is disabled.
     private boolean mDisabled;

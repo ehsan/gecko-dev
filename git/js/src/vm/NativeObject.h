@@ -407,8 +407,7 @@ class NativeObject : public JSObject
 
     Shape *
     replaceWithNewEquivalentShape(ThreadSafeContext *cx,
-                                  Shape *existingShape, Shape *newShape = nullptr,
-                                  bool accessorShape = false);
+                                  Shape *existingShape, Shape *newShape = nullptr);
 
     /*
      * Remove the last property of an object, provided that it is safe to do so

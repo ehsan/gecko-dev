@@ -267,7 +267,7 @@ class Nursery
     HeapSlot *allocateHugeSlots(JS::Zone *zone, size_t nslots);
 
     /* Allocates a new GC thing from the tenured generation during minor GC. */
-    gc::TenuredCell *allocateFromTenured(JS::Zone *zone, gc::AllocKind thingKind);
+    void *allocateFromTenured(JS::Zone *zone, gc::AllocKind thingKind);
 
     struct TenureCountCache;
 

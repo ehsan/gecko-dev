@@ -7,8 +7,6 @@
 #ifndef gc_GCRuntime_h
 #define gc_GCRuntime_h
 
-#include <setjmp.h>
-
 #include "jsgc.h"
 
 #include "gc/Heap.h"
@@ -470,20 +468,11 @@ class GCRuntime
     bool isVerifyPreBarriersEnabled() const { return false; }
 #endif
 
-    template <AllowGC allowGC>
-    static void *refillFreeListFromAnyThread(ThreadSafeContext *cx, AllocKind thingKind);
-
   private:
-    // For ArenaLists::allocateFromArena()
+    // For ArenaLists::allocateFromArenaInline()
     friend class ArenaLists;
-    Chunk *pickChunk(Zone *zone, AutoMaybeStartBackgroundAllocation &maybeStartBGAlloc);
+    Chunk *pickChunk(Zone *zone, AutoMaybeStartBackgroundAllocation &maybeStartBackgroundAllocation);
     inline void arenaAllocatedDuringGC(JS::Zone *zone, ArenaHeader *arena);
-
-    template <AllowGC allowGC>
-    static void *refillFreeListFromMainThread(JSContext *cx, AllocKind thingKind);
-    static void *refillFreeListOffMainThread(ExclusiveContext *cx, AllocKind thingKind);
-    static void *refillFreeListPJS(ForkJoinContext *cx, AllocKind thingKind);
-    static void *refillFreeListInGC(Zone *zone, AllocKind thingKind);
 
     /*
      * Return the list of chunks that can be released outside the GC lock.
@@ -534,7 +523,7 @@ class GCRuntime
     void decommitArenasFromAvailableList(Chunk **availableListHeadp);
     void decommitArenas();
     void expireChunksAndArenas(bool shouldShrink);
-    void sweepBackgroundThings();
+    void sweepBackgroundThings(bool onBackgroundThread);
     void assertBackgroundSweepingFinished();
     bool shouldCompact();
 #ifdef JSGC_COMPACTING

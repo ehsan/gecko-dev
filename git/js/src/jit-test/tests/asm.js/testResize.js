@@ -203,7 +203,6 @@ assertEq(changeHeap.toSource(), changeHeapSource);
 
 set(0, 42);
 set(4, 13);
-set(4, 13);
 assertEq(get(0), 42);
 assertEq(get(4), 13);
 set(BUF_CHANGE_MIN, 262);
@@ -214,8 +213,6 @@ assertEq(get(0), 0);
 assertEq(get(4), 0);
 set(BUF_CHANGE_MIN, 262);
 assertEq(get(BUF_CHANGE_MIN), 262);
-set(2*BUF_CHANGE_MIN, 262);
-assertEq(get(2*BUF_CHANGE_MIN), 0);
 changeHeap(buf1);
 assertEq(get(0), 42);
 assertEq(get(4), 13);

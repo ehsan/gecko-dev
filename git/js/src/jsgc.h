@@ -62,7 +62,6 @@ template <typename T> struct MapTypeToFinalizeKind {};
 template <> struct MapTypeToFinalizeKind<JSScript>          { static const AllocKind kind = FINALIZE_SCRIPT; };
 template <> struct MapTypeToFinalizeKind<LazyScript>        { static const AllocKind kind = FINALIZE_LAZY_SCRIPT; };
 template <> struct MapTypeToFinalizeKind<Shape>             { static const AllocKind kind = FINALIZE_SHAPE; };
-template <> struct MapTypeToFinalizeKind<AccessorShape>     { static const AllocKind kind = FINALIZE_ACCESSOR_SHAPE; };
 template <> struct MapTypeToFinalizeKind<BaseShape>         { static const AllocKind kind = FINALIZE_BASE_SHAPE; };
 template <> struct MapTypeToFinalizeKind<types::TypeObject> { static const AllocKind kind = FINALIZE_TYPE_OBJECT; };
 template <> struct MapTypeToFinalizeKind<JSFatInlineString> { static const AllocKind kind = FINALIZE_FAT_INLINE_STRING; };
@@ -92,7 +91,6 @@ IsNurseryAllocable(AllocKind kind)
         false,     /* FINALIZE_SCRIPT */
         false,     /* FINALIZE_LAZY_SCRIPT */
         false,     /* FINALIZE_SHAPE */
-        false,     /* FINALIZE_ACCESSOR_SHAPE */
         false,     /* FINALIZE_BASE_SHAPE */
         false,     /* FINALIZE_TYPE_OBJECT */
         false,     /* FINALIZE_FAT_INLINE_STRING */
@@ -130,7 +128,6 @@ IsFJNurseryAllocable(AllocKind kind)
         false,     /* FINALIZE_SCRIPT */
         false,     /* FINALIZE_LAZY_SCRIPT */
         false,     /* FINALIZE_SHAPE */
-        false,     /* FINALIZE_ACCESSOR_SHAPE */
         false,     /* FINALIZE_BASE_SHAPE */
         false,     /* FINALIZE_TYPE_OBJECT */
         false,     /* FINALIZE_FAT_INLINE_STRING */
@@ -164,7 +161,6 @@ IsBackgroundFinalized(AllocKind kind)
         false,     /* FINALIZE_SCRIPT */
         false,     /* FINALIZE_LAZY_SCRIPT */
         true,      /* FINALIZE_SHAPE */
-        true,      /* FINALIZE_ACCESSOR_SHAPE */
         true,      /* FINALIZE_BASE_SHAPE */
         true,      /* FINALIZE_TYPE_OBJECT */
         true,      /* FINALIZE_FAT_INLINE_STRING */
@@ -446,15 +442,11 @@ class ArenaList {
         return *cursorp_;
     }
 
-    // This returns the arena after the cursor and moves the cursor past it.
-    ArenaHeader *takeNextArena() {
-        check();
-        ArenaHeader *aheader = *cursorp_;
-        if (!aheader)
-            return nullptr;
+    // This moves the cursor past |aheader|. |aheader| must be an arena within
+    // this list.
+    void moveCursorPast(ArenaHeader *aheader) {
         cursorp_ = &aheader->next;
         check();
-        return aheader;
     }
 
     // This does two things.
@@ -586,12 +578,31 @@ class ArenaLists
 
     ArenaList      arenaLists[FINALIZE_LIMIT];
 
-    enum BackgroundFinalizeStateEnum { BFS_DONE, BFS_RUN };
+    /*
+     * The background finalization adds the finalized arenas to the list at
+     * the cursor position. backgroundFinalizeState controls the interaction
+     * between the GC lock and the access to the list from the allocation
+     * thread.
+     *
+     * BFS_DONE indicates that the finalizations is not running or cannot
+     * affect this arena list. The allocation thread can access the list
+     * outside the GC lock.
+     *
+     * In BFS_RUN and BFS_JUST_FINISHED the allocation thread must take the
+     * lock. The former indicates that the finalization still runs. The latter
+     * signals that finalization just added to the list finalized arenas. In
+     * that case the lock effectively serves as a read barrier to ensure that
+     * the allocation thread sees all the writes done during finalization.
+     */
+    enum BackgroundFinalizeStateEnum {
+        BFS_DONE,
+        BFS_RUN,
+        BFS_JUST_FINISHED
+    };
 
     typedef mozilla::Atomic<BackgroundFinalizeStateEnum, mozilla::ReleaseAcquire>
         BackgroundFinalizeState;
 
-    /* The current background finalization state, accessed atomically. */
     BackgroundFinalizeState backgroundFinalizeState[FINALIZE_LIMIT];
 
   public:
@@ -604,7 +615,6 @@ class ArenaLists
 
     /* Shape arenas to be swept in the foreground. */
     ArenaHeader *gcShapeArenasToSweep;
-    ArenaHeader *gcAccessorShapeArenasToSweep;
 
   public:
     ArenaLists() {
@@ -616,7 +626,6 @@ class ArenaLists
             arenaListsToSweep[i] = nullptr;
         incrementalSweptArenaKind = FINALIZE_LIMIT;
         gcShapeArenasToSweep = nullptr;
-        gcAccessorShapeArenasToSweep = nullptr;
     }
 
     ~ArenaLists() {
@@ -685,14 +694,16 @@ class ArenaLists
     void unmarkAll() {
         for (size_t i = 0; i != FINALIZE_LIMIT; ++i) {
             /* The background finalization must have stopped at this point. */
-            MOZ_ASSERT(backgroundFinalizeState[i] == BFS_DONE);
+            MOZ_ASSERT(backgroundFinalizeState[i] == BFS_DONE ||
+                       backgroundFinalizeState[i] == BFS_JUST_FINISHED);
             for (ArenaHeader *aheader = arenaLists[i].head(); aheader; aheader = aheader->next)
                 aheader->unmarkAll();
         }
     }
 
     bool doneBackgroundFinalize(AllocKind kind) const {
-        return backgroundFinalizeState[kind] == BFS_DONE;
+        return backgroundFinalizeState[kind] == BFS_DONE ||
+               backgroundFinalizeState[kind] == BFS_JUST_FINISHED;
     }
 
     bool needBackgroundFinalizeWait(AllocKind kind) const {
@@ -785,14 +796,18 @@ class ArenaLists
         return aheader == freeList.arenaHeader();
     }
 
-    MOZ_ALWAYS_INLINE TenuredCell *allocateFromFreeList(AllocKind thingKind, size_t thingSize) {
+    MOZ_ALWAYS_INLINE void *allocateFromFreeList(AllocKind thingKind, size_t thingSize) {
         return freeLists[thingKind].allocate(thingSize);
     }
 
-    // Returns false on Out-Of-Memory. This method makes no attempt to
-    // synchronize with background finalization, so may miss available memory
-    // that is waiting to be finalized.
-    TenuredCell *allocateFromArena(JS::Zone *zone, AllocKind thingKind);
+    template <AllowGC allowGC>
+    static void *refillFreeList(ThreadSafeContext *cx, AllocKind thingKind);
+    template <AllowGC allowGC>
+    static void *refillFreeListFromMainThread(JSContext *cx, AllocKind thingKind);
+    static void *refillFreeListOffMainThread(ExclusiveContext *cx, AllocKind thingKind);
+    static void *refillFreeListPJS(ForkJoinContext *cx, AllocKind thingKind);
+
+    static void *refillFreeListInGC(Zone *zone, AllocKind thingKind);
 
     /*
      * Moves all arenas from |fromArenaLists| into |this|.  In
@@ -829,7 +844,7 @@ class ArenaLists
 
     bool foregroundFinalize(FreeOp *fop, AllocKind thingKind, SliceBudget &sliceBudget,
                             SortedArenaList &sweepList);
-    static void backgroundFinalize(FreeOp *fop, ArenaHeader *listHead);
+    static void backgroundFinalize(FreeOp *fop, ArenaHeader *listHead, bool onBackgroundThread);
 
     void wipeDuringParallelExecution(JSRuntime *rt);
 
@@ -839,17 +854,14 @@ class ArenaLists
     inline void queueForForegroundSweep(FreeOp *fop, AllocKind thingKind);
     inline void queueForBackgroundSweep(FreeOp *fop, AllocKind thingKind);
 
-    TenuredCell *allocateFromArena(JS::Zone *zone, AllocKind thingKind,
-                                   AutoMaybeStartBackgroundAllocation &maybeStartBGAlloc);
-
-    enum ArenaAllocMode { HasFreeThings = true, IsEmpty = false };
-    template <ArenaAllocMode hasFreeThings>
-    inline TenuredCell *allocateFromArenaInner(JS::Zone *zone, ArenaHeader *aheader,
-                                               AllocKind thingKind);
+    void *allocateFromArena(JS::Zone *zone, AllocKind thingKind);
+    inline void *allocateFromArenaInline(JS::Zone *zone, AllocKind thingKind,
+                                         AutoMaybeStartBackgroundAllocation &maybeStartBackgroundAllocation);
 
     inline void normalizeBackgroundFinalizeState(AllocKind thingKind);
 
-    friend class GCRuntime;
+    friend class js::Nursery;
+    friend class js::gc::ForkJoinNursery;
 };
 
 /*

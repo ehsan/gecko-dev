@@ -31,7 +31,7 @@ public final class IntentHelper implements GeckoEventListener {
     };
     private static IntentHelper instance;
 
-    private final Activity activity;
+    private Activity activity;
 
     private IntentHelper(Activity activity) {
         this.activity = activity;

@@ -282,7 +282,6 @@ const uint32_t Arena::ThingSizes[] = CHECK_MIN_THING_SIZE(
     sizeof(JSScript),           /* FINALIZE_SCRIPT              */
     sizeof(LazyScript),         /* FINALIZE_LAZY_SCRIPT         */
     sizeof(Shape),              /* FINALIZE_SHAPE               */
-    sizeof(AccessorShape),      /* FINALIZE_ACCESSOR_SHAPE      */
     sizeof(BaseShape),          /* FINALIZE_BASE_SHAPE          */
     sizeof(types::TypeObject),  /* FINALIZE_TYPE_OBJECT         */
     sizeof(JSFatInlineString),  /* FINALIZE_FAT_INLINE_STRING   */
@@ -313,7 +312,6 @@ const uint32_t Arena::FirstThingOffsets[] = {
     OFFSET(JSScript),           /* FINALIZE_SCRIPT              */
     OFFSET(LazyScript),         /* FINALIZE_LAZY_SCRIPT         */
     OFFSET(Shape),              /* FINALIZE_SHAPE               */
-    OFFSET(AccessorShape),      /* FINALIZE_ACCESSOR_SHAPE      */
     OFFSET(BaseShape),          /* FINALIZE_BASE_SHAPE          */
     OFFSET(types::TypeObject),  /* FINALIZE_TYPE_OBJECT         */
     OFFSET(JSFatInlineString),  /* FINALIZE_FAT_INLINE_STRING   */
@@ -399,7 +397,6 @@ static const AllocKind BackgroundPhaseStringsAndSymbols[] = {
 
 static const AllocKind BackgroundPhaseShapes[] = {
     FINALIZE_SHAPE,
-    FINALIZE_ACCESSOR_SHAPE,
     FINALIZE_BASE_SHAPE,
     FINALIZE_TYPE_OBJECT
 };
@@ -626,8 +623,6 @@ FinalizeArenas(FreeOp *fop,
         return FinalizeTypedArenas<LazyScript>(fop, src, dest, thingKind, budget);
       case FINALIZE_SHAPE:
         return FinalizeTypedArenas<Shape>(fop, src, dest, thingKind, budget);
-      case FINALIZE_ACCESSOR_SHAPE:
-        return FinalizeTypedArenas<AccessorShape>(fop, src, dest, thingKind, budget);
       case FINALIZE_BASE_SHAPE:
         return FinalizeTypedArenas<BaseShape>(fop, src, dest, thingKind, budget);
       case FINALIZE_TYPE_OBJECT:
@@ -1921,77 +1916,110 @@ GCRuntime::arenaAllocatedDuringGC(JS::Zone *zone, ArenaHeader *arena)
     }
 }
 
-TenuredCell *
-ArenaLists::allocateFromArena(JS::Zone *zone, AllocKind thingKind)
+inline void *
+ArenaLists::allocateFromArenaInline(Zone *zone, AllocKind thingKind,
+                                    AutoMaybeStartBackgroundAllocation &maybeStartBackgroundAllocation)
 {
-    AutoMaybeStartBackgroundAllocation maybeStartBackgroundAllocation;
-    return allocateFromArena(zone, thingKind, maybeStartBackgroundAllocation);
-}
+    /*
+     * Parallel JS Note:
+     *
+     * This function can be called from parallel threads all of which
+     * are associated with the same compartment. In that case, each
+     * thread will have a distinct ArenaLists.  Therefore, whenever we
+     * fall through to pickChunk() we must be sure that we are holding
+     * a lock.
+     */
 
-TenuredCell *
-ArenaLists::allocateFromArena(JS::Zone *zone, AllocKind thingKind,
-                              AutoMaybeStartBackgroundAllocation &maybeStartBGAlloc)
-{
-    JSRuntime *rt = zone->runtimeFromAnyThread();
     AutoLockGC maybeLock;
 
-    // See if we can proceed without taking the GC lock.
-    if (backgroundFinalizeState[thingKind] != BFS_DONE)
+    bool backgroundFinalizationIsRunning = false;
+    ArenaLists::BackgroundFinalizeState *bfs = &backgroundFinalizeState[thingKind];
+    if (*bfs != BFS_DONE) {
+        /*
+         * We cannot search the arena list for free things while background
+         * finalization runs and can modify it at any moment. So we always
+         * allocate a new arena in that case.
+         */
+        JSRuntime *rt = zone->runtimeFromAnyThread();
         maybeLock.lock(rt);
-
-    ArenaList &al = arenaLists[thingKind];
-    ArenaHeader *aheader = al.takeNextArena();
-    if (aheader) {
-        // Empty arenas should be immediately freed except in Parallel JS.
-        MOZ_ASSERT_IF(aheader->isEmpty(), InParallelSection());
-
-        return allocateFromArenaInner<HasFreeThings>(zone, aheader, thingKind);
+        if (*bfs == BFS_RUN) {
+            backgroundFinalizationIsRunning = true;
+        } else if (*bfs == BFS_JUST_FINISHED) {
+            /* See comments before BackgroundFinalizeState definition. */
+            *bfs = BFS_DONE;
+        } else {
+            MOZ_ASSERT(*bfs == BFS_DONE);
+        }
     }
 
-    // Parallel threads have their own ArenaLists, but chunks are shared;
-    // if we haven't already, take the GC lock now to avoid racing.
+    ArenaHeader *aheader;
+    ArenaList *al = &arenaLists[thingKind];
+    if (!backgroundFinalizationIsRunning && (aheader = al->arenaAfterCursor())) {
+        /*
+         * Normally, the empty arenas are returned to the chunk
+         * and should not be present on the list. In parallel
+         * execution, however, we keep empty arenas in the arena
+         * list to avoid synchronizing on the chunk.
+         */
+        MOZ_ASSERT(!aheader->isEmpty() || InParallelSection());
+
+        al->moveCursorPast(aheader);
+
+        /*
+         * Move the free span stored in the arena to the free list and
+         * allocate from it.
+         */
+        FreeSpan firstFreeSpan = aheader->getFirstFreeSpan();
+        freeLists[thingKind].setHead(&firstFreeSpan);
+        aheader->setAsFullyUsed();
+        if (MOZ_UNLIKELY(zone->wasGCStarted()))
+            zone->runtimeFromMainThread()->gc.arenaAllocatedDuringGC(zone, aheader);
+        void *thing = freeLists[thingKind].allocate(Arena::thingSize(thingKind));
+        MOZ_ASSERT(thing);   // This allocation is infallible.
+        return thing;
+    }
+
+    /* Make sure we hold the GC lock before we call pickChunk. */
+    JSRuntime *rt = zone->runtimeFromAnyThread();
     if (!maybeLock.locked())
         maybeLock.lock(rt);
-
-    Chunk *chunk = rt->gc.pickChunk(zone, maybeStartBGAlloc);
+    Chunk *chunk = rt->gc.pickChunk(zone, maybeStartBackgroundAllocation);
     if (!chunk)
         return nullptr;
 
-    // Although our chunk should definitely have enough space for another arena,
-    // there are other valid reasons why Chunk::allocateArena() may fail.
+    /*
+     * While we still hold the GC lock get an arena from some chunk, mark it
+     * as full as its single free span is moved to the free lists, and insert
+     * it to the list as a fully allocated arena.
+     */
+    MOZ_ASSERT(al->isCursorAtEnd());
     aheader = chunk->allocateArena(zone, thingKind);
     if (!aheader)
         return nullptr;
 
-    MOZ_ASSERT(al.isCursorAtEnd());
-    al.insertAtCursor(aheader);
+    if (MOZ_UNLIKELY(zone->wasGCStarted()))
+        rt->gc.arenaAllocatedDuringGC(zone, aheader);
+    al->insertAtCursor(aheader);
 
-    return allocateFromArenaInner<IsEmpty>(zone, aheader, thingKind);
+    /*
+     * Allocate from a newly allocated arena. The arena will have been set up
+     * as fully used during the initialization so we have to re-mark it as
+     * empty before allocating.
+     */
+    MOZ_ASSERT(!aheader->hasFreeThings());
+    Arena *arena = aheader->getArena();
+    size_t thingSize = Arena::thingSize(thingKind);
+    FreeSpan fullSpan;
+    fullSpan.initFinal(arena->thingsStart(thingKind), arena->thingsEnd() - thingSize, thingSize);
+    freeLists[thingKind].setHead(&fullSpan);
+    return freeLists[thingKind].allocate(thingSize);
 }
 
-template <ArenaLists::ArenaAllocMode hasFreeThings>
-inline TenuredCell *
-ArenaLists::allocateFromArenaInner(JS::Zone *zone, ArenaHeader *aheader, AllocKind thingKind)
+void *
+ArenaLists::allocateFromArena(JS::Zone *zone, AllocKind thingKind)
 {
-    size_t thingSize = Arena::thingSize(thingKind);
-
-    FreeSpan span;
-    if (hasFreeThings) {
-        MOZ_ASSERT(aheader->hasFreeThings());
-        span = aheader->getFirstFreeSpan();
-        aheader->setAsFullyUsed();
-    } else {
-        MOZ_ASSERT(!aheader->hasFreeThings());
-        Arena *arena = aheader->getArena();
-        span.initFinal(arena->thingsStart(thingKind), arena->thingsEnd() - thingSize, thingSize);
-    }
-    freeLists[thingKind].setHead(&span);
-
-    if (MOZ_UNLIKELY(zone->wasGCStarted()))
-        zone->runtimeFromAnyThread()->gc.arenaAllocatedDuringGC(zone, aheader);
-    TenuredCell *thing = freeLists[thingKind].allocate(thingSize);
-    MOZ_ASSERT(thing); // This allocation is infallible.
-    return thing;
+    AutoMaybeStartBackgroundAllocation maybeStartBackgroundAllocation;
+    return allocateFromArenaInline(zone, thingKind, maybeStartBackgroundAllocation);
 }
 
 void
@@ -2541,7 +2569,12 @@ ArenaLists::queueForBackgroundSweep(FreeOp *fop, AllocKind thingKind)
         return;
     }
 
-    MOZ_ASSERT(backgroundFinalizeState[thingKind] == BFS_DONE);
+    /*
+     * The state can be done, or just-finished if we have not allocated any GC
+     * things from the arena list after the previous background finalization.
+     */
+    MOZ_ASSERT(backgroundFinalizeState[thingKind] == BFS_DONE ||
+               backgroundFinalizeState[thingKind] == BFS_JUST_FINISHED);
 
     arenaListsToSweep[thingKind] = al->head();
     al->clear();
@@ -2549,7 +2582,7 @@ ArenaLists::queueForBackgroundSweep(FreeOp *fop, AllocKind thingKind)
 }
 
 /*static*/ void
-ArenaLists::backgroundFinalize(FreeOp *fop, ArenaHeader *listHead)
+ArenaLists::backgroundFinalize(FreeOp *fop, ArenaHeader *listHead, bool onBackgroundThread)
 {
     MOZ_ASSERT(listHead);
     AllocKind thingKind = listHead->getAllocKind();
@@ -2572,13 +2605,29 @@ ArenaLists::backgroundFinalize(FreeOp *fop, ArenaHeader *listHead)
     // Flatten |finalizedSorted| into a regular ArenaList.
     ArenaList finalized = finalizedSorted.toArenaList();
 
+    // Store this for later, since merging may change the state of |finalized|.
+    bool allClear = finalized.isEmpty();
+
     AutoLockGC lock(fop->runtime());
     MOZ_ASSERT(lists->backgroundFinalizeState[thingKind] == BFS_RUN);
 
     // Join |al| and |finalized| into a single list.
     *al = finalized.insertListWithCursorAtEnd(*al);
 
-    lists->backgroundFinalizeState[thingKind] = BFS_DONE;
+    /*
+     * We must set the state to BFS_JUST_FINISHED if we are running on the
+     * background thread and we have touched arenaList list, even if we add to
+     * the list only fully allocated arenas without any free things. It ensures
+     * that the allocation thread takes the GC lock and all writes to the free
+     * list elements are propagated. As we always take the GC lock when
+     * allocating new arenas from the chunks we can set the state to BFS_DONE if
+     * we have released all finalized arenas back to their chunks.
+     */
+    if (onBackgroundThread && !allClear)
+        lists->backgroundFinalizeState[thingKind] = BFS_JUST_FINISHED;
+    else
+        lists->backgroundFinalizeState[thingKind] = BFS_DONE;
+
     lists->arenaListsToSweep[thingKind] = nullptr;
 }
 
@@ -2635,7 +2684,6 @@ ArenaLists::queueShapesForSweep(FreeOp *fop)
     gcstats::AutoPhase ap(fop->runtime()->gc.stats, gcstats::PHASE_SWEEP_SHAPE);
 
     queueForBackgroundSweep(fop, FINALIZE_SHAPE);
-    queueForBackgroundSweep(fop, FINALIZE_ACCESSOR_SHAPE);
     queueForBackgroundSweep(fop, FINALIZE_BASE_SHAPE);
     queueForBackgroundSweep(fop, FINALIZE_TYPE_OBJECT);
 }
@@ -2668,7 +2716,7 @@ RunLastDitchGC(JSContext *cx, JS::Zone *zone, AllocKind thingKind)
 
 template <AllowGC allowGC>
 /* static */ void *
-GCRuntime::refillFreeListFromMainThread(JSContext *cx, AllocKind thingKind)
+ArenaLists::refillFreeListFromMainThread(JSContext *cx, AllocKind thingKind)
 {
     MOZ_ASSERT(!cx->runtime()->isHeapBusy(), "allocating while under GC");
     MOZ_ASSERT_IF(allowGC, !cx->runtime()->currentThreadHasExclusiveAccess());
@@ -2700,17 +2748,17 @@ GCRuntime::refillFreeListFromMainThread(JSContext *cx, AllocKind thingKind)
         }
 
         AutoMaybeStartBackgroundAllocation maybeStartBGAlloc;
-        void *thing = allocator->arenas.allocateFromArena(zone, thingKind, maybeStartBGAlloc);
+        void *thing = allocator->arenas.allocateFromArenaInline(zone, thingKind, maybeStartBGAlloc);
         if (MOZ_LIKELY(thing))
             return thing;
 
-        // Even if allocateFromArena failed due to OOM, a background
+        // Even if allocateFromArenaInline failed due to OOM, a background
         // finalization task may be running (freeing more memory); wait for it
         // to finish, then try to allocate again in case it freed up the memory
         // we need.
         cx->runtime()->gc.waitBackgroundSweepEnd();
 
-        thing = allocator->arenas.allocateFromArena(zone, thingKind, maybeStartBGAlloc);
+        thing = allocator->arenas.allocateFromArenaInline(zone, thingKind, maybeStartBGAlloc);
         if (MOZ_LIKELY(thing))
             return thing;
 
@@ -2724,7 +2772,7 @@ GCRuntime::refillFreeListFromMainThread(JSContext *cx, AllocKind thingKind)
 }
 
 /* static */ void *
-GCRuntime::refillFreeListOffMainThread(ExclusiveContext *cx, AllocKind thingKind)
+ArenaLists::refillFreeListOffMainThread(ExclusiveContext *cx, AllocKind thingKind)
 {
     Allocator *allocator = cx->allocator();
     Zone *zone = allocator->zone_;
@@ -2739,22 +2787,22 @@ GCRuntime::refillFreeListOffMainThread(ExclusiveContext *cx, AllocKind thingKind
     while (rt->isHeapBusy())
         HelperThreadState().wait(GlobalHelperThreadState::PRODUCER);
 
-    return allocator->arenas.allocateFromArena(zone, thingKind, maybeStartBGAlloc);
+    return allocator->arenas.allocateFromArenaInline(zone, thingKind, maybeStartBGAlloc);
 }
 
 /* static */ void *
-GCRuntime::refillFreeListPJS(ForkJoinContext *cx, AllocKind thingKind)
+ArenaLists::refillFreeListPJS(ForkJoinContext *cx, AllocKind thingKind)
 {
     Allocator *allocator = cx->allocator();
     Zone *zone = allocator->zone_;
 
     AutoMaybeStartBackgroundAllocation maybeStartBGAlloc;
-    return allocator->arenas.allocateFromArena(zone, thingKind, maybeStartBGAlloc);
+    return allocator->arenas.allocateFromArenaInline(zone, thingKind, maybeStartBGAlloc);
 }
 
 template <AllowGC allowGC>
 /* static */ void *
-GCRuntime::refillFreeListFromAnyThread(ThreadSafeContext *cx, AllocKind thingKind)
+ArenaLists::refillFreeList(ThreadSafeContext *cx, AllocKind thingKind)
 {
     MOZ_ASSERT(cx->allocator()->arenas.freeLists[thingKind].isEmpty());
 
@@ -2768,13 +2816,13 @@ GCRuntime::refillFreeListFromAnyThread(ThreadSafeContext *cx, AllocKind thingKin
 }
 
 template void *
-GCRuntime::refillFreeListFromAnyThread<NoGC>(ThreadSafeContext *cx, AllocKind thingKind);
+ArenaLists::refillFreeList<NoGC>(ThreadSafeContext *cx, AllocKind thingKind);
 
 template void *
-GCRuntime::refillFreeListFromAnyThread<CanGC>(ThreadSafeContext *cx, AllocKind thingKind);
+ArenaLists::refillFreeList<CanGC>(ThreadSafeContext *cx, AllocKind thingKind);
 
 /* static */ void *
-GCRuntime::refillFreeListInGC(Zone *zone, AllocKind thingKind)
+ArenaLists::refillFreeListInGC(Zone *zone, AllocKind thingKind)
 {
     /*
      * Called by compacting GC to refill a free list while we are in a GC.
@@ -3110,7 +3158,7 @@ GCRuntime::expireChunksAndArenas(bool shouldShrink)
 }
 
 void
-GCRuntime::sweepBackgroundThings()
+GCRuntime::sweepBackgroundThings(bool onBackgroundThread)
 {
     /*
      * We must finalize in the correct order, see comments in
@@ -3123,7 +3171,7 @@ GCRuntime::sweepBackgroundThings()
                 AllocKind kind = BackgroundPhases[phase][index];
                 ArenaHeader *arenas = zone->allocator.arenas.arenaListsToSweep[kind];
                 if (arenas)
-                    ArenaLists::backgroundFinalize(&fop, arenas);
+                    ArenaLists::backgroundFinalize(&fop, arenas, onBackgroundThread);
             }
         }
     }
@@ -3363,7 +3411,7 @@ GCHelperState::doSweep()
         sweepFlag = false;
         AutoUnlockGC unlock(rt);
 
-        rt->gc.sweepBackgroundThings();
+        rt->gc.sweepBackgroundThings(true);
 
         rt->freeLifoAlloc.freeAll();
     }
@@ -4833,8 +4881,6 @@ GCRuntime::beginSweepingZoneGroup()
         zone->allocator.arenas.queueShapesForSweep(&fop);
         zone->allocator.arenas.gcShapeArenasToSweep =
             zone->allocator.arenas.arenaListsToSweep[FINALIZE_SHAPE];
-        zone->allocator.arenas.gcAccessorShapeArenasToSweep =
-            zone->allocator.arenas.arenaListsToSweep[FINALIZE_ACCESSOR_SHAPE];
     }
 
     finalizePhase = 0;
@@ -4932,25 +4978,6 @@ GCRuntime::drainMarkStack(SliceBudget &sliceBudget, gcstats::Phase phase)
     return marker.drainMarkStack(sliceBudget);
 }
 
-static bool
-SweepShapes(ArenaHeader **arenasToSweep, size_t thingsPerArena, SliceBudget &sliceBudget)
-{
-    while (ArenaHeader *arena = *arenasToSweep) {
-        for (ArenaCellIterUnderGC i(arena); !i.done(); i.next()) {
-            Shape *shape = i.get<Shape>();
-            if (!shape->isMarked())
-                shape->sweep();
-        }
-
-        *arenasToSweep = arena->next;
-        sliceBudget.step(thingsPerArena);
-        if (sliceBudget.isOverBudget())
-            return false;  /* Yield to the mutator. */
-    }
-
-    return true;
-}
-
 bool
 GCRuntime::sweepPhase(SliceBudget &sliceBudget)
 {
@@ -4996,17 +5023,17 @@ GCRuntime::sweepPhase(SliceBudget &sliceBudget)
 
             for (; sweepZone; sweepZone = sweepZone->nextNodeInGroup()) {
                 Zone *zone = sweepZone;
-                if (!SweepShapes(&zone->allocator.arenas.gcShapeArenasToSweep,
-                                 Arena::thingsPerArena(Arena::thingSize(FINALIZE_SHAPE)),
-                                 sliceBudget))
-                {
-                    return false;  /* Yield to the mutator. */
-                }
-                if (!SweepShapes(&zone->allocator.arenas.gcAccessorShapeArenasToSweep,
-                                 Arena::thingsPerArena(Arena::thingSize(FINALIZE_ACCESSOR_SHAPE)),
-                                 sliceBudget))
-                {
-                    return false;  /* Yield to the mutator. */
+                while (ArenaHeader *arena = zone->allocator.arenas.gcShapeArenasToSweep) {
+                    for (ArenaCellIterUnderGC i(arena); !i.done(); i.next()) {
+                        Shape *shape = i.get<Shape>();
+                        if (!shape->isMarked())
+                            shape->sweep();
+                    }
+
+                    zone->allocator.arenas.gcShapeArenasToSweep = arena->next;
+                    sliceBudget.step(Arena::thingsPerArena(Arena::thingSize(FINALIZE_SHAPE)));
+                    if (sliceBudget.isOverBudget())
+                        return false;  /* Yield to the mutator. */
                 }
             }
         }
@@ -5114,7 +5141,7 @@ GCRuntime::endSweepPhase(bool lastGC)
     if (!sweepOnBackgroundThread) {
         gcstats::AutoPhase ap(stats, gcstats::PHASE_DESTROY);
 
-        sweepBackgroundThings();
+        sweepBackgroundThings(false);
 
         rt->freeLifoAlloc.freeAll();
 
@@ -6318,6 +6345,11 @@ ArenaLists::normalizeBackgroundFinalizeState(AllocKind thingKind)
     ArenaLists::BackgroundFinalizeState *bfs = &backgroundFinalizeState[thingKind];
     switch (*bfs) {
       case BFS_DONE:
+        break;
+      case BFS_JUST_FINISHED:
+        // No allocations between end of last sweep and now.
+        // Transfering over arenas is a kind of allocation.
+        *bfs = BFS_DONE;
         break;
       default:
         MOZ_ASSERT(!"Background finalization in progress, but it should not be.");

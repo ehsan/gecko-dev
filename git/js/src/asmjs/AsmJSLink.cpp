@@ -570,19 +570,9 @@ ChangeHeap(JSContext *cx, AsmJSModule &module, CallArgs args)
     }
 
     Rooted<ArrayBufferObject*> newBuffer(cx, &bufferArg.toObject().as<ArrayBufferObject>());
-    uint32_t heapLength = newBuffer->byteLength();
-    if (heapLength & module.heapLengthMask() || heapLength < module.minHeapLength()) {
-        args.rval().set(BooleanValue(false));
-        return true;
-    }
+    bool rval = module.changeHeap(newBuffer, cx);
 
-    MOZ_ASSERT(IsValidAsmJSHeapLength(heapLength));
-    MOZ_ASSERT(!IsDeprecatedAsmJSHeapLength(heapLength));
-
-    if (!ArrayBufferObject::prepareForAsmJS(cx, newBuffer, module.usesSignalHandlersForOOB()))
-        return false;
-
-    args.rval().set(BooleanValue(module.changeHeap(newBuffer, cx)));
+    args.rval().set(BooleanValue(rval));
     return true;
 }
 

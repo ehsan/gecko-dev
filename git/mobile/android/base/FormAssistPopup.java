@@ -401,8 +401,8 @@ public class FormAssistPopup extends RelativeLayout implements GeckoEventListene
     }
 
     private class AutoCompleteListAdapter extends ArrayAdapter<Pair<String, String>> {
-        private final LayoutInflater mInflater;
-        private final int mTextViewResourceId;
+        private LayoutInflater mInflater;
+        private int mTextViewResourceId;
 
         public AutoCompleteListAdapter(Context context, int textViewResourceId) {
             super(context, textViewResourceId);

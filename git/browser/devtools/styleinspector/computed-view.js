@@ -645,8 +645,7 @@ CssHtmlTree.prototype = {
     this.menuitemSources= createMenuItem(this._contextmenu, {
       label: "ruleView.contextmenu.showOrigSources",
       accesskey: "ruleView.contextmenu.showOrigSources.accessKey",
-      command: this._onToggleOrigSources,
-      type: "checkbox"
+      command: this._onToggleOrigSources
     });
 
     let popupset = doc.documentElement.querySelector("popupset");
@@ -667,8 +666,16 @@ CssHtmlTree.prototype = {
     let disable = win.getSelection().isCollapsed;
     this.menuitemCopy.disabled = disable;
 
-    let showOrig = Services.prefs.getBoolPref(PREF_ORIG_SOURCES);
-    this.menuitemSources.setAttribute("checked", showOrig);
+    let label = "ruleView.contextmenu.showOrigSources";
+    if (Services.prefs.getBoolPref(PREF_ORIG_SOURCES)) {
+      label = "ruleView.contextmenu.showCSSSources";
+    }
+    this.menuitemSources.setAttribute("label",
+                                      CssHtmlTree.l10n(label));
+
+    let accessKey = label + ".accessKey";
+    this.menuitemSources.setAttribute("accesskey",
+                                      CssHtmlTree.l10n(accessKey));
 
     this.menuitemCopyColor.hidden = !this._isColorPopup();
   },

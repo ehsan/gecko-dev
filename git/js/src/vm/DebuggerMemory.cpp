@@ -199,21 +199,9 @@ DebuggerMemory::drainAllocationsLog(JSContext *cx, unsigned argc, Value *vp)
     result->ensureDenseInitializedLength(cx, 0, length);
 
     for (size_t i = 0; i < length; i++) {
-        RootedObject obj(cx, NewBuiltinClassInstance(cx, &JSObject::class_));
-        if (!obj)
-            return false;
-
-        mozilla::UniquePtr<Debugger::AllocationSite, JS::DeletePolicy<Debugger::AllocationSite> >
-            allocSite(dbg->allocationsLog.popFirst());
-        RootedValue frame(cx, ObjectOrNullValue(allocSite->frame));
-        if (!JSObject::defineProperty(cx, obj, cx->names().frame, frame))
-            return false;
-
-        RootedValue timestampValue(cx, NumberValue(allocSite->when));
-        if (!JSObject::defineProperty(cx, obj, cx->names().timestamp, timestampValue))
-            return false;
-
-        result->setDenseElement(i, ObjectValue(*obj));
+        Debugger::AllocationSite *allocSite = dbg->allocationsLog.popFirst();
+        result->setDenseElement(i, ObjectOrNullValue(allocSite->frame));
+        js_delete(allocSite);
     }
 
     dbg->allocationsLogLength = 0;

@@ -5,7 +5,6 @@
 #include "nsChannelClassifier.h"
 
 #include "mozIThirdPartyUtil.h"
-#include "nsContentUtils.h"
 #include "nsNetUtil.h"
 #include "nsICacheEntry.h"
 #include "nsICachingChannel.h"
@@ -17,7 +16,6 @@
 #include "nsIIOService.h"
 #include "nsIPermissionManager.h"
 #include "nsIProtocolHandler.h"
-#include "nsIScriptError.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsISecureBrowserUI.h"
 #include "nsISecurityEventSink.h"
@@ -28,7 +26,6 @@
 
 #include "prlog.h"
 
-using mozilla::ArrayLength;
 using mozilla::Preferences;
 
 #if defined(PR_LOGGING)
@@ -361,20 +358,6 @@ nsChannelClassifier::SetBlockedTrackingContent(nsIChannel *channel)
   securityUI->GetState(&state);
   state |= nsIWebProgressListener::STATE_BLOCKED_TRACKING_CONTENT;
   eventSink->OnSecurityChange(nullptr, state);
-
-  // Log a warning to the web console.
-  nsCOMPtr<nsIURI> uri;
-  channel->GetURI(getter_AddRefs(uri));
-  nsCString utf8spec;
-  uri->GetSpec(utf8spec);
-  NS_ConvertUTF8toUTF16 spec(utf8spec);
-  const char16_t* params[] = { spec.get() };
-  nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
-                                  NS_LITERAL_CSTRING("Tracking Protection"),
-                                  doc,
-                                  nsContentUtils::eNECKO_PROPERTIES,
-                                  "TrackingUriBlocked",
-                                  params, ArrayLength(params));
 
   return NS_OK;
 }

@@ -16,6 +16,8 @@ CreateCert(const char* issuerCN,
            const char* subjectCN,
            EndEntityOrCA endEntityOrCA,
            const ByteString& signatureAlgorithm,
+           /*optional*/ TestKeyPair* issuerKey,
+           /*out*/ ScopedTestKeyPair& subjectKey,
            /*out*/ ByteString& subjectDER)
 {
   static long serialNumberValue = 0;
@@ -36,13 +38,12 @@ CreateCert(const char* issuerCN,
     EXPECT_FALSE(ENCODING_FAILED(extensions[0]));
   }
 
-  ScopedTestKeyPair reusedKey(CloneReusedKeyPair());
   ByteString certDER(CreateEncodedCertificate(v3, signatureAlgorithm,
-                                              serialNumber, issuerDER,
-                                              oneDayBeforeNow, oneDayAfterNow,
-                                              subjectDER, *reusedKey,
-                                              extensions, *reusedKey,
-                                              signatureAlgorithm));
+                                              serialNumber,
+                                              issuerDER, oneDayBeforeNow,
+                                              oneDayAfterNow, subjectDER,
+                                              extensions, issuerKey,
+                                              signatureAlgorithm, subjectKey));
   EXPECT_FALSE(ENCODING_FAILED(certDER));
   return certDER;
 }
@@ -205,26 +206,31 @@ TEST_P(pkixcert_IsValidChainForAlgorithm, IsValidChainForAlgorithm)
 {
   const ChainValidity& chainValidity(GetParam());
   const char* rootCN = "CN=Root";
+  ScopedTestKeyPair rootKey;
   ByteString rootSubjectDER;
   ByteString rootEncoded(
     CreateCert(rootCN, rootCN, EndEntityOrCA::MustBeCA,
-               chainValidity.rootSignatureAlgorithm, rootSubjectDER));
+               chainValidity.rootSignatureAlgorithm,
+               nullptr, rootKey, rootSubjectDER));
   EXPECT_FALSE(ENCODING_FAILED(rootEncoded));
   EXPECT_FALSE(ENCODING_FAILED(rootSubjectDER));
 
   const char* issuerCN = rootCN;
+  TestKeyPair* issuerKey = rootKey.get();
 
   const char* intermediateCN = "CN=Intermediate";
+  ScopedTestKeyPair intermediateKey;
   ByteString intermediateSubjectDER;
   ByteString intermediateEncoded;
   if (chainValidity.optionalIntermediateSignatureAlgorithm != NO_INTERMEDIATE) {
     intermediateEncoded =
       CreateCert(rootCN, intermediateCN, EndEntityOrCA::MustBeCA,
                  chainValidity.optionalIntermediateSignatureAlgorithm,
-                 intermediateSubjectDER);
+                 rootKey.get(), intermediateKey, intermediateSubjectDER);
     EXPECT_FALSE(ENCODING_FAILED(intermediateEncoded));
     EXPECT_FALSE(ENCODING_FAILED(intermediateSubjectDER));
     issuerCN = intermediateCN;
+    issuerKey = intermediateKey.get();
   }
 
   AlgorithmTestsTrustDomain trustDomain(rootEncoded, rootSubjectDER,
@@ -232,11 +238,12 @@ TEST_P(pkixcert_IsValidChainForAlgorithm, IsValidChainForAlgorithm)
                                         intermediateSubjectDER);
 
   const char* endEntityCN = "CN=End Entity";
+  ScopedTestKeyPair endEntityKey;
   ByteString endEntitySubjectDER;
   ByteString endEntityEncoded(
     CreateCert(issuerCN, endEntityCN, EndEntityOrCA::MustBeEndEntity,
                chainValidity.endEntitySignatureAlgorithm,
-               endEntitySubjectDER));
+               issuerKey, endEntityKey, endEntitySubjectDER));
   EXPECT_FALSE(ENCODING_FAILED(endEntityEncoded));
   EXPECT_FALSE(ENCODING_FAILED(endEntitySubjectDER));
 

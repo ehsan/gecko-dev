@@ -423,13 +423,13 @@ protected:
         : ByteString(),
       ByteString()
     };
-    ScopedTestKeyPair signerKeyPair(GenerateKeyPair());
+    ScopedTestKeyPair signerKeyPair;
     ByteString signerDER(CreateEncodedCertificate(
-                           ++rootIssuedCount, certSignatureAlgorithm,
-                           rootName, oneDayBeforeNow, oneDayAfterNow,
-                           certSubjectName, *signerKeyPair,
+                           ++rootIssuedCount, rootName,
+                           oneDayBeforeNow, oneDayAfterNow, certSubjectName,
+                           certSignatureAlgorithm,
                            signerEKUDER ? extensions : nullptr,
-                           *rootKeyPair));
+                           rootKeyPair.get(), signerKeyPair));
     EXPECT_FALSE(ENCODING_FAILED(signerDER));
     if (signerDEROut) {
       *signerDEROut = signerDER;
@@ -451,14 +451,14 @@ protected:
   }
 
   static ByteString CreateEncodedCertificate(uint32_t serialNumber,
-                                             const ByteString& signatureAlg,
                                              const char* issuer,
                                              time_t notBefore,
                                              time_t notAfter,
                                              const char* subject,
-                                             const TestKeyPair& subjectKeyPair,
+                                             const ByteString& signatureAlg,
                                 /*optional*/ const ByteString* extensions,
-                                             const TestKeyPair& signerKeyPair)
+                                /*optional*/ TestKeyPair* signerKeyPair,
+                                     /*out*/ ScopedTestKeyPair& keyPair)
   {
     ByteString serialNumberDER(CreateEncodedSerialNumber(serialNumber));
     if (ENCODING_FAILED(serialNumberDER)) {
@@ -473,10 +473,13 @@ protected:
       return ByteString();
     }
     return ::mozilla::pkix::test::CreateEncodedCertificate(
-                                    v3, signatureAlg, serialNumberDER,
-                                    issuerDER, notBefore, notAfter,
-                                    subjectDER, subjectKeyPair, extensions,
-                                    signerKeyPair, signatureAlg);
+                                    v3,
+                                    signatureAlg,
+                                    serialNumberDER, issuerDER, notBefore,
+                                    notAfter, subjectDER, extensions,
+                                    signerKeyPair,
+                                    signatureAlg,
+                                    keyPair);
   }
 
   static const Input OCSPSigningEKUDER;
@@ -574,13 +577,13 @@ TEST_F(pkixocsp_VerifyEncodedResponse_DelegatedResponder, good_expired)
     ByteString()
   };
 
-  ScopedTestKeyPair signerKeyPair(GenerateKeyPair());
+  ScopedTestKeyPair signerKeyPair;
   ByteString signerDER(CreateEncodedCertificate(
-                          ++rootIssuedCount, sha256WithRSAEncryption, rootName,
+                          ++rootIssuedCount, rootName,
                           now - (10 * Time::ONE_DAY_IN_SECONDS),
                           now - (2 * Time::ONE_DAY_IN_SECONDS),
-                          signerName, *signerKeyPair, extensions,
-                          *rootKeyPair));
+                          signerName, sha256WithRSAEncryption, extensions,
+                          rootKeyPair.get(), signerKeyPair));
   ASSERT_FALSE(ENCODING_FAILED(signerDER));
 
   ByteString certs[] = { signerDER, ByteString() };
@@ -610,14 +613,13 @@ TEST_F(pkixocsp_VerifyEncodedResponse_DelegatedResponder, good_future)
     ByteString()
   };
 
-  ScopedTestKeyPair signerKeyPair(GenerateKeyPair());
+  ScopedTestKeyPair signerKeyPair;
   ByteString signerDER(CreateEncodedCertificate(
-                         ++rootIssuedCount, sha256WithRSAEncryption,
-                         rootName,
+                         ++rootIssuedCount, rootName,
                          now + (2 * Time::ONE_DAY_IN_SECONDS),
                          now + (10 * Time::ONE_DAY_IN_SECONDS),
-                         signerName, *signerKeyPair, extensions,
-                         *rootKeyPair));
+                         signerName, sha256WithRSAEncryption, extensions,
+                         rootKeyPair.get(), signerKeyPair));
   ASSERT_FALSE(ENCODING_FAILED(signerDER));
 
   ByteString certs[] = { signerDER, ByteString() };
@@ -717,11 +719,11 @@ TEST_F(pkixocsp_VerifyEncodedResponse_DelegatedResponder, good_unknown_issuer)
                               ExtensionCriticality::NotCritical),
     ByteString()
   };
-  ScopedTestKeyPair signerKeyPair(GenerateKeyPair());
+  ScopedTestKeyPair signerKeyPair;
   ByteString signerDER(CreateEncodedCertificate(
-                         1, sha256WithRSAEncryption, subCAName,
-                         oneDayBeforeNow, oneDayAfterNow, signerName,
-                         *signerKeyPair, extensions, *unknownKeyPair));
+                         1, subCAName, oneDayBeforeNow, oneDayAfterNow,
+                         signerName, sha256WithRSAEncryption, extensions,
+                         unknownKeyPair.get(), signerKeyPair));
   ASSERT_FALSE(ENCODING_FAILED(signerDER));
 
   // OCSP response signed by that delegated responder
@@ -757,11 +759,12 @@ TEST_F(pkixocsp_VerifyEncodedResponse_DelegatedResponder,
     CreateEncodedBasicConstraints(true, 0, ExtensionCriticality::NotCritical),
     ByteString()
   };
-  ScopedTestKeyPair subCAKeyPair(GenerateKeyPair());
+  ScopedTestKeyPair subCAKeyPair;
   ByteString subCADER(CreateEncodedCertificate(
-                        ++rootIssuedCount, sha256WithRSAEncryption, rootName,
-                        oneDayBeforeNow, oneDayAfterNow, subCAName,
-                        *subCAKeyPair, subCAExtensions, *rootKeyPair));
+                        ++rootIssuedCount, rootName,
+                        oneDayBeforeNow, oneDayAfterNow,
+                        subCAName, sha256WithRSAEncryption,
+                        subCAExtensions, rootKeyPair.get(), subCAKeyPair));
   ASSERT_FALSE(ENCODING_FAILED(subCADER));
 
   // Delegated responder cert signed by that sub-CA
@@ -770,11 +773,11 @@ TEST_F(pkixocsp_VerifyEncodedResponse_DelegatedResponder,
                               ExtensionCriticality::NotCritical),
     ByteString(),
   };
-  ScopedTestKeyPair signerKeyPair(GenerateKeyPair());
+  ScopedTestKeyPair signerKeyPair;
   ByteString signerDER(CreateEncodedCertificate(
-                         1, sha256WithRSAEncryption, subCAName,
-                         oneDayBeforeNow, oneDayAfterNow, signerName,
-                         *signerKeyPair, extensions, *subCAKeyPair));
+                         1, subCAName, oneDayBeforeNow, oneDayAfterNow,
+                         signerName, sha256WithRSAEncryption, extensions,
+                         subCAKeyPair.get(), signerKeyPair));
   ASSERT_FALSE(ENCODING_FAILED(signerDER));
 
   // OCSP response signed by the delegated responder issued by the sub-CA
@@ -811,13 +814,14 @@ TEST_F(pkixocsp_VerifyEncodedResponse_DelegatedResponder,
     CreateEncodedBasicConstraints(true, 0, ExtensionCriticality::NotCritical),
     ByteString()
   };
-  ScopedTestKeyPair subCAKeyPair(GenerateKeyPair());
-  ByteString subCADER(CreateEncodedCertificate(++rootIssuedCount,
-                                               sha256WithRSAEncryption,
-                                               rootName,
+  ScopedTestKeyPair subCAKeyPair;
+  ByteString subCADER(CreateEncodedCertificate(++rootIssuedCount, rootName,
                                                oneDayBeforeNow, oneDayAfterNow,
-                                               subCAName, *subCAKeyPair,
-                                               subCAExtensions, *rootKeyPair));
+                                               subCAName,
+                                               sha256WithRSAEncryption,
+                                               subCAExtensions,
+                                               rootKeyPair.get(),
+                                               subCAKeyPair));
   ASSERT_FALSE(ENCODING_FAILED(subCADER));
 
   // Delegated responder cert signed by that sub-CA
@@ -826,11 +830,11 @@ TEST_F(pkixocsp_VerifyEncodedResponse_DelegatedResponder,
                               ExtensionCriticality::NotCritical),
     ByteString()
   };
-  ScopedTestKeyPair signerKeyPair(GenerateKeyPair());
+  ScopedTestKeyPair signerKeyPair;
   ByteString signerDER(CreateEncodedCertificate(
-                         1, sha256WithRSAEncryption, subCAName,
-                         oneDayBeforeNow, oneDayAfterNow, signerName,
-                         *signerKeyPair, extensions, *subCAKeyPair));
+                         1, subCAName, oneDayBeforeNow, oneDayAfterNow,
+                         signerName, sha256WithRSAEncryption, extensions,
+                         subCAKeyPair.get(), signerKeyPair));
   ASSERT_FALSE(ENCODING_FAILED(signerDER));
 
   // OCSP response signed by the delegated responder issued by the sub-CA

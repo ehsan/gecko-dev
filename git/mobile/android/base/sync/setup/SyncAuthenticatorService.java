@@ -133,7 +133,7 @@ public class SyncAuthenticatorService extends Service {
   }
 
   private static class SyncAccountAuthenticator extends AbstractAccountAuthenticator {
-    private final Context mContext;
+    private Context mContext;
     public SyncAccountAuthenticator(Context context) {
       super(context);
       mContext = context;

@@ -33,12 +33,12 @@ class TabsGridLayout extends GridView
                                 Tabs.OnTabsChangedListener {
     private static final String LOGTAG = "Gecko" + TabsGridLayout.class.getSimpleName();
 
-    private final Context mContext;
+    private Context mContext;
     private TabsPanel mTabsPanel;
 
     final private boolean mIsPrivate;
 
-    private final TabsLayoutAdapter mTabsAdapter;
+    private TabsLayoutAdapter mTabsAdapter;
 
     public TabsGridLayout(Context context, AttributeSet attrs) {
         super(context, attrs, R.attr.tabGridLayoutViewStyle);

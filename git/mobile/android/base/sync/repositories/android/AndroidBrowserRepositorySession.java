@@ -200,8 +200,8 @@ public abstract class AndroidBrowserRepositorySession extends StoreTrackingRepos
 
   class GuidsSinceRunnable implements Runnable {
 
-    private final RepositorySessionGuidsSinceDelegate delegate;
-    private final long                                timestamp;
+    private RepositorySessionGuidsSinceDelegate delegate;
+    private long                                timestamp;
 
     public GuidsSinceRunnable(long timestamp,
                               RepositorySessionGuidsSinceDelegate delegate) {
@@ -300,9 +300,9 @@ public abstract class AndroidBrowserRepositorySession extends StoreTrackingRepos
   }
 
   public class FetchRunnable extends FetchingRunnable {
-    private final String[] guids;
-    private final long     end;
-    private final RecordFilter filter;
+    private String[] guids;
+    private long     end;
+    private RecordFilter filter;
 
     public FetchRunnable(String[] guids,
                          long end,
@@ -349,9 +349,9 @@ public abstract class AndroidBrowserRepositorySession extends StoreTrackingRepos
   }
 
   class FetchSinceRunnable extends FetchingRunnable {
-    private final long since;
-    private final long end;
-    private final RecordFilter filter;
+    private long since;
+    private long end;
+    private RecordFilter filter;
 
     public FetchSinceRunnable(long since,
                               long end,

@@ -103,10 +103,6 @@ nsXREDirProvider::Initialize(nsIFile *aXULAppDir,
   mAppProvider = aAppProvider;
   mXULAppDir = aXULAppDir;
   mGREDir = aGREDir;
-  mGREDir->Clone(getter_AddRefs(mGREBinDir));
-#ifdef XP_MACOSX
-  mGREBinDir->SetNativeLeafName(NS_LITERAL_CSTRING("MacOS"));
-#endif
 
   if (!mProfileDir) {
     nsCOMPtr<nsIDirectoryServiceProvider> app(do_QueryInterface(mAppProvider));
@@ -283,6 +279,12 @@ nsXREDirProvider::GetFile(const char* aProperty, bool* aPersistent,
     return mGREDir->Clone(aFile);
   }
   else if (!strcmp(aProperty, NS_GRE_BIN_DIR)) {
+    if (!mGREBinDir) {
+      mGREDir->Clone(getter_AddRefs(mGREBinDir));
+#ifdef XP_MACOSX
+      mGREBinDir->SetNativeLeafName(NS_LITERAL_CSTRING("MacOS"));
+#endif
+    }
     return mGREBinDir->Clone(aFile);
   }
   else if (!strcmp(aProperty, NS_OS_CURRENT_PROCESS_DIR) ||

@@ -97,29 +97,29 @@ public class ToolbarDisplayLayout extends ThemedLinearLayout
 
     private boolean mIsAttached;
 
-    private final ThemedTextView mTitle;
-    private final int mTitlePadding;
+    private ThemedTextView mTitle;
+    private int mTitlePadding;
     private ToolbarPrefs mPrefs;
     private OnTitleChangeListener mTitleChangeListener;
 
-    private final ImageButton mSiteSecurity;
+    private ImageButton mSiteSecurity;
     private boolean mSiteSecurityVisible;
 
     // To de-bounce sets.
     private Bitmap mLastFavicon;
-    private final ImageButton mFavicon;
+    private ImageButton mFavicon;
     private int mFaviconSize;
 
-    private final ImageButton mStop;
+    private ImageButton mStop;
     private OnStopListener mStopListener;
 
-    private final PageActionLayout mPageActionLayout;
+    private PageActionLayout mPageActionLayout;
 
     private AlphaAnimation mLockFadeIn;
     private TranslateAnimation mTitleSlideLeft;
     private TranslateAnimation mTitleSlideRight;
 
-    private final SiteIdentityPopup mSiteIdentityPopup;
+    private SiteIdentityPopup mSiteIdentityPopup;
     private SecurityMode mSecurityMode;
 
     private PropertyAnimator mForwardAnim;

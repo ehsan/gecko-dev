@@ -31,6 +31,15 @@ ShapeHasher::match(const Key k, const Lookup &l)
     return k->matches(l);
 }
 
+Shape *
+PropertyTree::newShape(ExclusiveContext *cx)
+{
+    Shape *shape = js_NewGCShape(cx);
+    if (!shape)
+        js_ReportOutOfMemory(cx);
+    return shape;
+}
+
 static KidsHash *
 HashChildren(Shape *kid1, Shape *kid2)
 {
@@ -104,14 +113,8 @@ Shape::removeChild(Shape *child)
     KidsHash *hash = kidp->toHash();
     MOZ_ASSERT(hash->count() >= 2);      /* otherwise kidp->isShape() should be true */
 
-#ifdef DEBUG
-    size_t oldCount = hash->count();
-#endif
-
     hash->remove(StackShape(child));
     child->parent = nullptr;
-
-    MOZ_ASSERT(hash->count() == oldCount - 1);
 
     if (hash->count() == 1) {
         /* Convert from HASH form back to SHAPE form. */
@@ -181,9 +184,13 @@ PropertyTree::getChild(ExclusiveContext *cx, Shape *parentArg, StackShape &unroo
     if (existingShape)
         return existingShape;
 
-    Shape *shape = Shape::new_(cx, unrootedChild, parent->numFixedSlots());
+    RootedGeneric<StackShape*> child(cx, &unrootedChild);
+
+    Shape *shape = newShape(cx);
     if (!shape)
         return nullptr;
+
+    new (shape) Shape(*child, parent->numFixedSlots());
 
     if (!insertChild(cx, parent, shape))
         return nullptr;
@@ -280,10 +287,8 @@ Shape::fixupDictionaryShapeAfterMovingGC()
 
     MOZ_ASSERT(!IsInsideNursery(reinterpret_cast<Cell *>(listp)));
     AllocKind kind = TenuredCell::fromPointer(listp)->getAllocKind();
-    MOZ_ASSERT(kind == FINALIZE_SHAPE ||
-               kind == FINALIZE_ACCESSOR_SHAPE ||
-               kind <= FINALIZE_OBJECT_LAST);
-    if (kind == FINALIZE_SHAPE || kind == FINALIZE_ACCESSOR_SHAPE) {
+    MOZ_ASSERT(kind == FINALIZE_SHAPE || kind <= FINALIZE_OBJECT_LAST);
+    if (kind == FINALIZE_SHAPE) {
         // listp points to the parent field of the next shape.
         Shape *next = reinterpret_cast<Shape *>(uintptr_t(listp) -
                                                 offsetof(Shape, parent));
@@ -312,30 +317,21 @@ Shape::fixupShapeTreeAfterMovingGC()
     KidsHash *kh = kids.toHash();
     for (KidsHash::Enum e(*kh); !e.empty(); e.popFront()) {
         Shape *key = e.front();
-        if (IsForwarded(key))
-            key = Forwarded(key);
+        if (!IsForwarded(key))
+            continue;
 
+        key = Forwarded(key);
         BaseShape *base = key->base();
         if (IsForwarded(base))
             base = Forwarded(base);
         UnownedBaseShape *unowned = base->unowned();
         if (IsForwarded(unowned))
             unowned = Forwarded(unowned);
-
-        PropertyOp getter = key->getter();
-        if (key->hasGetterObject() && IsForwarded(key->getterObject()))
-            getter = PropertyOp(Forwarded(key->getterObject()));
-
-        StrictPropertyOp setter = key->setter();
-        if (key->hasSetterObject() && IsForwarded(key->setterObject()))
-            setter = StrictPropertyOp(Forwarded(key->setterObject()));
-
         StackShape lookup(unowned,
                           const_cast<Shape *>(key)->propidRef(),
                           key->slotInfo & Shape::SLOT_MASK,
                           key->attrs,
                           key->flags);
-        lookup.updateGetterSetter(getter, setter);
         e.rekeyFront(lookup, key);
     }
 }
@@ -350,34 +346,6 @@ Shape::fixupAfterMovingGC()
 }
 
 #endif // JSGC_COMPACTING
-
-#ifdef JSGC_GENERATIONAL
-void
-ShapeGetterSetterRef::mark(JSTracer *trc)
-{
-    // Update the current shape's entry in the parent KidsHash table if needed.
-    // This is necessary as the computed hash includes the getter/setter
-    // pointers.
-
-    JSObject *obj = *objp;
-    JSObject *prior = obj;
-    trc->setTracingLocation(&*prior);
-    gc::Mark(trc, &obj, "AccessorShape getter or setter");
-    if (obj == *objp)
-        return;
-
-    Shape *parent = shape->parent;
-    if (shape->inDictionary() || !parent->kids.isHash()) {
-        *objp = obj;
-        return;
-    }
-
-    KidsHash *kh = parent->kids.toHash();
-    kh->remove(StackShape(shape));
-    *objp = obj;
-    MOZ_ALWAYS_TRUE(kh->putNew(StackShape(shape), shape));
-}
-#endif
 
 #ifdef DEBUG
 
@@ -417,8 +385,8 @@ Shape::dump(JSContext *cx, FILE *fp) const
     }
 
     fprintf(fp, " g/s %p/%p slot %d attrs %x ",
-            JS_FUNC_TO_DATA_PTR(void *, getter()),
-            JS_FUNC_TO_DATA_PTR(void *, setter()),
+            JS_FUNC_TO_DATA_PTR(void *, base()->rawGetter),
+            JS_FUNC_TO_DATA_PTR(void *, base()->rawSetter),
             hasSlot() ? slot() : -1, attrs);
 
     if (attrs) {

@@ -284,9 +284,6 @@ void TableTicker::StreamJSObject(JSStreamWriter& b)
           if (!sRegisteredThreads->at(i)->Profile())
             continue;
 
-          // Note that we intentionally include ThreadProfile which
-          // have been marked for pending delete.
-
           MutexAutoLock lock(*sRegisteredThreads->at(i)->Profile()->GetMutex());
 
           sRegisteredThreads->at(i)->Profile()->StreamJSObject(b);

@@ -18,7 +18,7 @@ import android.widget.ViewFlipper;
  * i.e. It ignores touch events on the ViewFlipper when its hidden. */
 
 public class GeckoViewFlipper extends ViewFlipper {
-    private final Rect mRect = new Rect();
+    private Rect mRect = new Rect();
 
     public GeckoViewFlipper(Context context) {
         super(context);

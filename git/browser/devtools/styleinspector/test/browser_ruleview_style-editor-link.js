@@ -4,13 +4,6 @@
 
 "use strict";
 
-///////////////////
-//
-// Whitelisting this test.
-// As part of bug 1077403, the leaking uncaught rejection should be fixed. 
-//
-thisTestLeaksUncaughtRejectionsAndShouldBeFixed("Error: Unknown sheet source");
-
 // Test the links from the rule-view to the styleeditor
 
 const STYLESHEET_URL = "data:text/css,"+encodeURIComponent(
@@ -152,7 +145,7 @@ function testRuleViewLinkLabel(view) {
 
   is(value, EXTERNAL_STYLESHEET_FILE_NAME + ":1",
     "rule view stylesheet display value matches filename and line number");
-  is(tooltipText, EXTERNAL_STYLESHEET_URL + ":1",
+  is(tooltipText, EXTERNAL_STYLESHEET_URL,
     "rule view stylesheet tooltip text matches the full URI path");
 }
 

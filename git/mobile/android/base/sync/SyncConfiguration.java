@@ -26,7 +26,7 @@ public class SyncConfiguration {
 
   public class EditorBranch implements Editor {
 
-    private final String prefix;
+    private String prefix;
     private Editor editor;
 
     public EditorBranch(SyncConfiguration config, String prefix) {
@@ -105,8 +105,8 @@ public class SyncConfiguration {
    */
   public class ConfigurationBranch implements SharedPreferences {
 
-    private final SyncConfiguration config;
-    private final String prefix;                // Including trailing period.
+    private SyncConfiguration config;
+    private String prefix;                // Including trailing period.
 
     public ConfigurationBranch(SyncConfiguration syncConfiguration,
         String prefix) {

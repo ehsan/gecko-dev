@@ -7,7 +7,6 @@ package org.mozilla.gecko;
 
 import org.mozilla.gecko.AppConstants.Versions;
 import org.mozilla.gecko.prompts.PromptService;
-import org.mozilla.gecko.util.ActivityUtils;
 import org.mozilla.gecko.util.HardwareUtils;
 import org.mozilla.gecko.util.ThreadUtils;
 
@@ -74,7 +73,15 @@ public class BaseGeckoInterface implements GeckoAppShell.GeckoInterface {
         ThreadUtils.postToUiThread(new Runnable() {
             @Override
             public void run() {
-                ActivityUtils.setFullScreen(getActivity(), fullscreen);
+                // Hide/show the system notification bar
+                Window window = getActivity().getWindow();
+                window.setFlags(fullscreen ?
+                                WindowManager.LayoutParams.FLAG_FULLSCREEN : 0,
+                                WindowManager.LayoutParams.FLAG_FULLSCREEN);
+
+                if (Versions.feature11Plus) {
+                    window.getDecorView().setSystemUiVisibility(fullscreen ? 1 : 0);
+                }
             }
         });
     }

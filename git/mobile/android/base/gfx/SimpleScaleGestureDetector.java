@@ -36,12 +36,12 @@ import java.util.Stack;
 class SimpleScaleGestureDetector {
     private static final String LOGTAG = "GeckoSimpleScaleGestureDetector";
 
-    private final SimpleScaleGestureListener mListener;
+    private SimpleScaleGestureListener mListener;
     private long mLastEventTime;
     private boolean mScaleResult;
 
     /* Information about all pointers that are down. */
-    private final LinkedList<PointerInfo> mPointerInfo;
+    private LinkedList<PointerInfo> mPointerInfo;
 
     /** Creates a new gesture detector with the given listener. */
     SimpleScaleGestureDetector(SimpleScaleGestureListener listener) {

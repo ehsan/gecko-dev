@@ -35,7 +35,7 @@ class AnimatorProxy {
         public View getView();
     }
 
-    private final AnimatorProxyImpl mImpl;
+    private AnimatorProxyImpl mImpl;
 
     private AnimatorProxy(AnimatorProxyImpl impl) {
         mImpl = impl;
@@ -146,7 +146,7 @@ class AnimatorProxy {
      * the NineOldAndroids library under the Apache License 2.0.
      */
     private static class AnimatorProxyPreHC extends Animation implements AnimatorProxyImpl {
-        private final WeakReference<View> mViewRef;
+        private WeakReference<View> mViewRef;
 
         private final RectF mBefore;
         private final RectF mAfter;
@@ -291,7 +291,7 @@ class AnimatorProxy {
     }
 
     private static class AnimatorProxyPostHC implements AnimatorProxyImpl {
-        private final WeakReference<View> mViewRef;
+        private WeakReference<View> mViewRef;
 
         public AnimatorProxyPostHC(View view) {
             mViewRef = new WeakReference<View>(view);

@@ -106,11 +106,6 @@ public:
 
   ThreadInfo* GetThreadInfo() const { return mThreadInfo; }
   ThreadResponsiveness* GetThreadResponsiveness() { return &mRespInfo; }
-  void SetPendingDelete()
-  {
-    mPseudoStack = nullptr;
-    mPlatformData = nullptr;
-  }
 private:
   FRIEND_TEST(ThreadProfile, InsertOneTag);
   FRIEND_TEST(ThreadProfile, InsertOneTagWithTinyBuffer);

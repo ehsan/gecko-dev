@@ -88,13 +88,13 @@ public class GeckoMenu extends ListView
     protected static final int NO_ID = 0;
 
     // List of all menu items.
-    private final List<GeckoMenuItem> mItems;
+    private List<GeckoMenuItem> mItems;
 
     // Map of "always" action-items in action-bar and their views.
-    private final Map<GeckoMenuItem, View> mPrimaryActionItems;
+    private Map<GeckoMenuItem, View> mPrimaryActionItems;
 
     // Map of "ifRoom" action-items in action-bar and their views.
-    private final Map<GeckoMenuItem, View> mSecondaryActionItems;
+    private Map<GeckoMenuItem, View> mSecondaryActionItems;
 
     // Reference to a callback for menu events.
     private Callback mCallback;
@@ -109,7 +109,7 @@ public class GeckoMenu extends ListView
     private final ActionItemBarPresenter mSecondaryActionItemBar;
 
     // Adapter to hold the list of menu items.
-    private final MenuItemsAdapter mAdapter;
+    private MenuItemsAdapter mAdapter;
 
     // Show/hide icons in the list.
     boolean mShowIcons;
@@ -686,7 +686,7 @@ public class GeckoMenu extends ListView
         private static final int VIEW_TYPE_DEFAULT = 0;
         private static final int VIEW_TYPE_ACTION_MODE = 1;
 
-        private final List<GeckoMenuItem> mItems;
+        private List<GeckoMenuItem> mItems;
 
         public MenuItemsAdapter() {
             mItems = new ArrayList<GeckoMenuItem>();

@@ -274,7 +274,7 @@ nsXPTIInterfaceInfoManagerGetSingleton(nsISupports* aOuter,
 nsComponentManagerImpl* nsComponentManagerImpl::gComponentManager = nullptr;
 bool gXPCOMShuttingDown = false;
 bool gXPCOMThreadsShutDown = false;
-char16_t* gGREBinPath = nullptr;
+char16_t* gGREPath = nullptr;
 
 static NS_DEFINE_CID(kComponentManagerCID, NS_COMPONENTMANAGER_CID);
 static NS_DEFINE_CID(kINIParserFactoryCID, NS_INIPARSERFACTORY_CID);
@@ -584,15 +584,26 @@ NS_InitXPCOM2(nsIServiceManager** aResult,
   }
 
   nsCOMPtr<nsIFile> xpcomLib;
-  nsDirectoryService::gService->Get(NS_GRE_BIN_DIR,
+  nsDirectoryService::gService->Get(NS_GRE_DIR,
                                     NS_GET_IID(nsIFile),
                                     getter_AddRefs(xpcomLib));
   MOZ_ASSERT(xpcomLib);
 
-  // set gGREBinPath
+  // set gGREPath
   nsAutoString path;
   xpcomLib->GetPath(path);
-  gGREBinPath = ToNewUnicode(path);
+  gGREPath = ToNewUnicode(path);
+
+#ifdef XP_MACOSX
+  nsCOMPtr<nsIFile> parent;
+  xpcomLib->GetParent(getter_AddRefs(parent));
+  parent->AppendNative(NS_LITERAL_CSTRING("MacOS"));
+  bool pathExists = false;
+  parent->Exists(&pathExists);
+  if (pathExists) {
+      xpcomLib = parent.forget();
+  }
+#endif
 
   xpcomLib->AppendNative(nsDependentCString(XPCOM_DLL));
   nsDirectoryService::gService->Set(NS_XPCOM_LIBRARY_FILE, xpcomLib);
@@ -904,8 +915,8 @@ ShutdownXPCOM(nsIServiceManager* aServMgr)
   // Release the directory service
   NS_IF_RELEASE(nsDirectoryService::gService);
 
-  NS_Free(gGREBinPath);
-  gGREBinPath = nullptr;
+  NS_Free(gGREPath);
+  gGREPath = nullptr;
 
   if (moduleLoaders) {
     bool more;

@@ -11,6 +11,7 @@ onmessage = function(event) {
   rtnObj.name = file.name;
   rtnObj.path = file.path;
   rtnObj.lastModifiedDate = file.lastModifiedDate;
+  rtnObj.mozFullPath = file.mozFullPath;
 
   postMessage(rtnObj);
 };

@@ -46,11 +46,11 @@ public class PropertyAnimator implements Runnable {
         public void onPropertyAnimationEnd();
     }
 
-    private final Interpolator mInterpolator;
+    private Interpolator mInterpolator;
     private long mStartTime;
-    private final long mDuration;
-    private final float mDurationReciprocal;
-    private final List<ElementHolder> mElementsList;
+    private long mDuration;
+    private float mDurationReciprocal;
+    private List<ElementHolder> mElementsList;
     private List<PropertyAnimationListener> mListeners;
     FramePoster mFramePoster;
     private boolean mUseHardwareLayer;
@@ -61,7 +61,7 @@ public class PropertyAnimator implements Runnable {
 
     public PropertyAnimator(long duration, Interpolator interpolator) {
         mDuration = duration;
-        mDurationReciprocal = 1.0f / mDuration;
+        mDurationReciprocal = 1.0f / (float) mDuration;
         mInterpolator = interpolator;
         mElementsList = new ArrayList<ElementHolder>();
         mFramePoster = FramePoster.create(this);

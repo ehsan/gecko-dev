@@ -87,7 +87,7 @@ public class JSONRecordFetcher {
   private class LatchedJSONRecordFetchDelegate implements JSONRecordFetchDelegate {
     public ExtendedJSONObject body = null;
     public Exception exception = null;
-    private final CountDownLatch latch;
+    private CountDownLatch latch;
 
     public LatchedJSONRecordFetchDelegate(CountDownLatch latch) {
       this.latch = latch;

@@ -300,9 +300,7 @@ void LogTerm();
 
 extern bool gXPCOMShuttingDown;
 extern bool gXPCOMThreadsShutDown;
-
-// Needed by the IPC layer from off the main thread
-extern char16_t* gGREBinPath;
+extern char16_t* gGREPath; // Needed by the IPC layer from off the main thread
 
 namespace mozilla {
 namespace services {
