@@ -435,14 +435,6 @@ nsINode::GetParentNode(nsIDOMNode** aParentNode)
 }
 
 nsresult
-nsINode::GetParentElement(nsIDOMElement** aParentElement)
-{
-  *aParentElement = nsnull;
-  nsINode* parent = GetElementParent();
-  return parent ? CallQueryInterface(parent, aParentElement) : NS_OK;
-}
-
-nsresult
 nsINode::GetChildNodes(nsIDOMNodeList** aChildNodes)
 {
   *aChildNodes = GetChildNodesList();
