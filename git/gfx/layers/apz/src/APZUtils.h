@@ -7,8 +7,6 @@
 #ifndef mozilla_layers_APZUtils_h
 #define mozilla_layers_APZUtils_h
 
-#include <stdint.h>                     // for uint32_t
-
 namespace mozilla {
 namespace layers {
 

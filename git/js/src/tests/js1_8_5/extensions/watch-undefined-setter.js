@@ -14,6 +14,6 @@ var summary =
   '[@ js_GetClassPrototype]';
 
 this.watch("x", function() { });
-Object.defineProperty(this, "x", { set: undefined, configurable: true });
+Object.defineProperty(this, "x", { set: undefined });
 
 reportCompare(true, true);

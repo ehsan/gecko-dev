@@ -380,8 +380,7 @@ function testPercentUnitChangeOnLength()
   // can be updated.
   todo_is(gCircle.cy.animVal.value, 100,
      "Checking animated length=100% after animating but before reflow");
-  // force a layout flush (Bug 627594)
-  gSvg.getCTM();
+  gSvg.forceRedraw();
   // Even after doing a reflow though we'll still fail due to bug 508206
   // (Relative units used in animation don't update immediately)
   todo_is(gCircle.cy.animVal.value, 100,
@@ -392,8 +391,7 @@ function testPercentUnitChangeOnLength()
      "Checking animated length=100% after animating");
 
   gSvg.setAttribute("height", "50px"); // Change: height: 50px
-  // force a layout flush (Bug 627594)
-  gSvg.getCTM();
+  gSvg.forceRedraw(); // Bug 627594
   gSvg.setCurrentTime(0); // Bug 508206
   is(gCircle.cy.animVal.value, 50,
      "Checking animated length=100% after updating context");

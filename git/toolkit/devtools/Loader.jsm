@@ -300,8 +300,7 @@ DevToolsLoader.prototype = {
     Object.defineProperty(obj, property, {
       get: () => destructure
         ? this.require(module)[property]
-        : this.require(module || property),
-      configurable: true
+        : this.require(module || property)
     });
   },
 

@@ -37,7 +37,7 @@ function testSteps()
   let objectStore = db.createObjectStore(osName, { keyPath: "ssn" });
   objectStore.createIndex(indexName, "weight", { unique: false });
 
-  for (let i of data) {
+  for each (let i in data) {
     objectStore.add(i);
   }
 
@@ -227,7 +227,7 @@ function testSteps()
 
   event.target.transaction.oncomplete = grabEventAndContinueHandler;
 
-  for (let i of data) {
+  for each (let i in data) {
     objectStore.add(i);
   }
 

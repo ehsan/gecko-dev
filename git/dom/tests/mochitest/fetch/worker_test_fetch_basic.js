@@ -23,9 +23,7 @@ function testAboutURL() {
   });
 
   var p2 = fetch('about:config').then(function(res) {
-    ok(false, "about:config should fail");
-  }, function(e) {
-    ok(e instanceof TypeError, "about:config should fail");
+    is(res.type, "error", "about:config should fail");
   });
 
   return Promise.all([p1, p2]);
