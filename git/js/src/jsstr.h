@@ -73,6 +73,11 @@ JS_BEGIN_EXTERN_C
  * A flat string with JSSTRFLAG_ATOMIZED set means that the string is hashed as
  * an atom. This flag is used to avoid re-hashing the already-atomized string.
  *
+ * Any string with JSSTRFLAG_DEFLATED set means that the string has an entry
+ * in the deflated string cache. The GC uses this flag to optimize string 
+ * finalization and avoid an expensive cache lookup for strings that were 
+ * never deflated.
+ *
  * When JSSTRFLAG_DEPENDENT is set, the string depends on characters of another
  * string strongly referenced by the u.base field. The base member may point to
  * another dependent string if JSSTRING_CHARS has not been called yet.
@@ -108,8 +113,9 @@ struct JSString {
 #define JSSTRFLAG_PREFIX            JSSTRING_BIT(JS_BITS_PER_WORD - 2)
 #define JSSTRFLAG_MUTABLE           JSSTRFLAG_PREFIX
 #define JSSTRFLAG_ATOMIZED          JSSTRING_BIT(JS_BITS_PER_WORD - 3)
+#define JSSTRFLAG_DEFLATED          JSSTRING_BIT(JS_BITS_PER_WORD - 4)
 
-#define JSSTRING_LENGTH_BITS        (JS_BITS_PER_WORD - 3)
+#define JSSTRING_LENGTH_BITS        (JS_BITS_PER_WORD - 4)
 #define JSSTRING_LENGTH_MASK        JSSTRING_BITMASK(JSSTRING_LENGTH_BITS)
 
 /* Universal JSString type inquiry and accessor macros. */
@@ -131,6 +137,13 @@ struct JSString {
 #define JSSTRING_LENGTH(str)        (JSSTRING_IS_DEPENDENT(str)               \
                                      ? JSSTRDEP_LENGTH(str)                   \
                                      : JSFLATSTR_LENGTH(str))
+
+JS_STATIC_ASSERT(sizeof(size_t) == sizeof(jsword));
+
+#define JSSTRING_IS_DEFLATED(str)   ((str)->length & JSSTRFLAG_DEFLATED)
+
+#define JSSTRING_SET_DEFLATED(str)                                            \
+    JS_ATOMIC_SET_MASK((jsword*)&(str)->length, JSSTRFLAG_DEFLATED)
 
 #define JSSTRING_CHARS_AND_LENGTH(str, chars_, length_)                       \
     ((void)(JSSTRING_IS_DEPENDENT(str)                                        \
@@ -182,8 +195,10 @@ struct JSString {
  * with the atomized bit set.
  */
 #define JSFLATSTR_SET_ATOMIZED(str)                                           \
-    ((void)(JS_ASSERT(JSSTRING_IS_FLAT(str) && !JSSTRING_IS_MUTABLE(str)),    \
-            (str)->length |= JSSTRFLAG_ATOMIZED))
+    JS_BEGIN_MACRO                                                            \
+        JS_ASSERT(JSSTRING_IS_FLAT(str) && !JSSTRING_IS_MUTABLE(str));        \
+        JS_ATOMIC_SET_MASK((jsword*) &(str)->length, JSSTRFLAG_ATOMIZED);     \
+    JS_END_MACRO
 
 #define JSFLATSTR_SET_MUTABLE(str)                                            \
     ((void)(JS_ASSERT(JSSTRING_IS_FLAT(str) && !JSSTRING_IS_ATOMIZED(str)),   \
