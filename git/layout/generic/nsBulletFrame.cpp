@@ -11,7 +11,6 @@
 #include "nsHTMLParts.h"
 #include "nsContainerFrame.h"
 #include "nsGenericHTMLElement.h"
-#include "nsAttrValueInlines.h"
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
 #include "nsIDocument.h"

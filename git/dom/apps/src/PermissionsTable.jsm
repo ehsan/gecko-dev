@@ -62,11 +62,6 @@ const PermissionsTable = { "resource-lock": {
                              privileged: ALLOW_ACTION,
                              certified: ALLOW_ACTION
                            },
-                           "network-events": {
-                             app: DENY_ACTION,
-                             privileged: DENY_ACTION,
-                             certified: ALLOW_ACTION
-                           },
                            contacts: {
                              app: DENY_ACTION,
                              privileged: PROMPT_ACTION,

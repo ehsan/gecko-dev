@@ -10,7 +10,6 @@
 #include "nsError.h"
 #include <math.h>
 #include "nsContentUtils.h"
-#include "nsAttrValueInlines.h"
 
 namespace mozilla {
 

@@ -101,13 +101,6 @@ public:
                       mozilla::ipc::UnixSocketConsumer* aConsumer,
                       BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
 
-  virtual nsresult
-  ListenSocketViaService(int aChannel,
-                         BluetoothSocketType aType,
-                         bool aAuth,
-                         bool aEncrypt,
-                         mozilla::ipc::UnixSocketConsumer* aConsumer) MOZ_OVERRIDE;
-
   virtual bool
   SetPinCodeInternal(const nsAString& aDeviceAddress,
                      const nsAString& aPinCode,
@@ -144,12 +137,6 @@ public:
 
   virtual void
   DisconnectObjectPush(BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
-
-  virtual bool
-  SendFile(const nsAString& aDeviceAddress,
-           BlobParent* aBlobParent,
-           BlobChild* aBlobChild,
-           BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
 
 protected:
   BluetoothServiceChildProcess();

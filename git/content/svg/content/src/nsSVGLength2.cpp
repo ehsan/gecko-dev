@@ -15,7 +15,6 @@
 #include "nsContentUtils.h" // NS_ENSURE_FINITE
 #include "nsSMILValue.h"
 #include "nsSMILFloatType.h"
-#include "nsAttrValueInlines.h"
 
 using namespace mozilla;
 

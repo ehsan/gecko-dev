@@ -177,9 +177,6 @@ protected:
 
   bool
   DoRequest(const DisconnectObjectPushRequest& aRequest);
-
-  bool
-  DoRequest(const SendFileRequest& aRequest);
 };
 
 END_BLUETOOTH_NAMESPACE

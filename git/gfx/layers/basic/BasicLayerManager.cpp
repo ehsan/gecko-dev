@@ -210,7 +210,9 @@ public:
 };
 
 BasicLayerManager::BasicLayerManager(nsIWidget* aWidget) :
+#ifdef DEBUG
   mPhase(PHASE_NONE),
+#endif
   mWidget(aWidget)
   , mDoubleBuffering(BUFFER_NONE), mUsingDefaultTarget(false)
   , mCachedSurfaceInUse(false)
@@ -222,7 +224,9 @@ BasicLayerManager::BasicLayerManager(nsIWidget* aWidget) :
 }
 
 BasicLayerManager::BasicLayerManager() :
+#ifdef DEBUG
   mPhase(PHASE_NONE),
+#endif
   mWidget(nullptr)
   , mDoubleBuffering(BUFFER_NONE), mUsingDefaultTarget(false)
   , mCachedSurfaceInUse(false)
@@ -320,7 +324,9 @@ BasicLayerManager::BeginTransactionWithTarget(gfxContext* aTarget)
 #endif
 
   NS_ASSERTION(!InTransaction(), "Nested transactions not allowed");
+#ifdef DEBUG
   mPhase = PHASE_CONSTRUCTION;
+#endif
   mTarget = aTarget;
 }
 
@@ -507,7 +513,9 @@ void
 BasicLayerManager::AbortTransaction()
 {
   NS_ASSERTION(InConstruction(), "Should be in construction phase");
+#ifdef DEBUG
   mPhase = PHASE_NONE;
+#endif
   mUsingDefaultTarget = false;
   mInTransaction = false;
 }
@@ -524,7 +532,9 @@ BasicLayerManager::EndTransactionInternal(DrawThebesLayerCallback aCallback,
 #endif
 
   NS_ASSERTION(InConstruction(), "Should be in construction phase");
+#ifdef DEBUG
   mPhase = PHASE_DRAWING;
+#endif
 
   Layer* aLayer = GetRoot();
   RenderTraceLayers(aLayer, "FF00");
@@ -592,9 +602,11 @@ BasicLayerManager::EndTransactionInternal(DrawThebesLayerCallback aCallback,
   MOZ_LAYERS_LOG(("]----- EndTransaction"));
 #endif
 
+#ifdef DEBUG
   // Go back to the construction phase if the transaction isn't complete.
   // Layout will update the layer tree and call EndTransaction().
   mPhase = mTransactionIncomplete ? PHASE_CONSTRUCTION : PHASE_NONE;
+#endif
 
   if (!mTransactionIncomplete) {
     // This is still valid if the transaction was incomplete.
@@ -1145,7 +1157,9 @@ void
 BasicShadowLayerManager::ForwardTransaction()
 {
   RenderTraceScope rendertrace("Foward Transaction", "000090");
+#ifdef DEBUG
   mPhase = PHASE_FORWARD;
+#endif
 
   // forward this transaction's changeset to our ShadowLayerManager
   AutoInfallibleTArray<EditReply, 10> replies;
@@ -1209,7 +1223,9 @@ BasicShadowLayerManager::ForwardTransaction()
     NS_WARNING("failed to forward Layers transaction");
   }
 
+#ifdef DEBUG
   mPhase = PHASE_NONE;
+#endif
 
   // this may result in Layers being deleted, which results in
   // PLayer::Send__delete__() and DeallocShmem()

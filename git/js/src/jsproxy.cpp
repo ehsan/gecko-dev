@@ -1603,9 +1603,7 @@ ScriptedDirectProxyHandler::getPropertyDescriptor(JSContext *cx, JSObject *proxy
         return false;
     if (desc->obj)
         return true;
-    RootedObject proto(cx);
-    if (!JSObject::getProto(cx, proxy, &proto))
-        return false;
+    JSObject *proto = proxy->getProto();
     if (!proto) {
         JS_ASSERT(!desc->obj);
         return true;
@@ -3127,16 +3125,14 @@ proxy(JSContext *cx, unsigned argc, jsval *vp)
                              "Proxy", "1", "s");
         return false;
     }
-    RootedObject target(cx, NonNullObject(cx, args[0]));
+    JSObject *target = NonNullObject(cx, args[0]);
     if (!target)
         return false;
-    RootedObject handler(cx, NonNullObject(cx, args[1]));
+    JSObject *handler = NonNullObject(cx, args[1]);
     if (!handler)
         return false;
-    RootedObject proto(cx);
-    if (!JSObject::getProto(cx, target, &proto))
-        return false;
-    RootedObject fun(cx, target->isCallable() ? target : (JSObject *) NULL);
+    JSObject *proto = target->getProto();
+    JSObject *fun = target->isCallable() ? target : NULL;
     JSObject *proxy = NewProxyObject(cx, &ScriptedDirectProxyHandler::singleton,
                                      ObjectValue(*target), proto, proto->getParent(),
                                      fun, fun);

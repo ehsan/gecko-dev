@@ -6,7 +6,6 @@
 #include "nsIDOMHTMLProgressElement.h"
 #include "nsGenericHTMLElement.h"
 #include "nsAttrValue.h"
-#include "nsAttrValueInlines.h"
 #include "nsEventStateManager.h"
 
 

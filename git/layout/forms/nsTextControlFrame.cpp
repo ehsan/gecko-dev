@@ -70,7 +70,6 @@
 #include "nsTextEditRules.h"
 #include "nsPresState.h"
 #include "nsContentList.h"
-#include "nsAttrValueInlines.h"
 
 #include "mozilla/Selection.h"
 

@@ -9,9 +9,7 @@
 #include "nsUpdateDriver.h"
 #include "nsXULAppAPI.h"
 #include "nsAppRunner.h"
-#include "nsIWritablePropertyBag.h"
 #include "nsIFile.h"
-#include "nsIVariant.h"
 #include "nsCOMPtr.h"
 #include "nsString.h"
 #include "prproces.h"
@@ -559,48 +557,6 @@ SwitchToUpdatedApp(nsIFile *greDir, nsIFile *updateDir, nsIFile *statusFile,
 #endif
 }
 
-#if defined(MOZ_WIDGET_GONK)
-static nsresult
-GetOSApplyToDir(nsACString& applyToDir)
-{
-  nsCOMPtr<nsIProperties> ds =
-    do_GetService(NS_DIRECTORY_SERVICE_CONTRACTID);
-  NS_ASSERTION(ds, "Can't get directory service");
-
-  nsCOMPtr<nsIFile> osApplyToDir;
-  nsresult rv = ds->Get(XRE_OS_UPDATE_APPLY_TO_DIR, NS_GET_IID(nsIFile),
-                        getter_AddRefs(osApplyToDir));
-  NS_ASSERTION(NS_SUCCEEDED(rv), "Can't get the OS applyTo dir");
-
-  return osApplyToDir->GetNativePath(applyToDir);
-}
-
-static void
-SetOSApplyToDir(nsIUpdate* update, const nsACString& osApplyToDir)
-{
-  nsresult rv;
-  nsCOMPtr<nsIWritablePropertyBag> updateProperties =
-    do_QueryInterface(update, &rv);
-
-  if (NS_FAILED(rv)) {
-    return;
-  }
-
-  nsCOMPtr<nsIWritableVariant> variant =
-    do_CreateInstance("@mozilla.org/variant;1", &rv);
-  if (NS_FAILED(rv)) {
-    return;
-  }
-
-  rv = variant->SetAsACString(osApplyToDir);
-  if (NS_FAILED(rv)) {
-    return;
-  }
-
-  updateProperties->SetProperty(NS_LITERAL_STRING("osApplyToDir"), variant);
-}
-#endif
-
 /**
  * Apply an update, possibly in the background.
  *
@@ -618,8 +574,7 @@ SetOSApplyToDir(nsIUpdate* update, const nsACString& osApplyToDir)
  */
 static void
 ApplyUpdate(nsIFile *greDir, nsIFile *updateDir, nsIFile *statusFile,
-            nsIFile *appDir, int appArgc, char **appArgv,
-            bool restart, bool isOSUpdate, nsIFile *osApplyToDir,
+            nsIFile *appDir, int appArgc, char **appArgv, bool restart,
             ProcessType *outpid)
 {
   nsresult rv;
@@ -717,26 +672,9 @@ ApplyUpdate(nsIFile *greDir, nsIFile *updateDir, nsIFile *statusFile,
   NS_ConvertUTF16toUTF8 applyToDir(applyToDirW);
 #else
   nsAutoCString applyToDir;
-
-#if defined(MOZ_WIDGET_GONK)
-  if (isOSUpdate) {
-    if (!osApplyToDir) {
-      return;
-    }
-
-    rv = osApplyToDir->GetNativePath(applyToDir);
-  } else {
-#endif // defined(MOZ_WIDGET_GONK)
-
-    rv = updatedDir->GetNativePath(applyToDir);
-
-#if defined(MOZ_WIDGET_GONK)
-  }
-#endif // defined(MOZ_WIDGET_GONK)
-
-#endif // defined(XP_WIN)
+  rv = updatedDir->GetNativePath(applyToDir);
 #endif
-
+#endif
   if (NS_FAILED(rv))
     return;
 
@@ -804,10 +742,6 @@ ApplyUpdate(nsIFile *greDir, nsIFile *updateDir, nsIFile *statusFile,
     PR_SetEnv("MOZ_SAFE_MODE_RESTART=1");
   }
 
-  if (isOSUpdate) {
-    PR_SetEnv("MOZ_OS_UPDATE=1");
-  }
-
   LOG(("spawning updater process [%s]\n", updaterPath.get()));
 
 #if defined(USE_EXECV)
@@ -867,8 +801,7 @@ WaitForProcess(ProcessType pt)
 nsresult
 ProcessUpdates(nsIFile *greDir, nsIFile *appDir, nsIFile *updRootDir,
                int argc, char **argv, const char *appVersion,
-               bool restart, bool isOSUpdate, nsIFile *osApplyToDir,
-               ProcessType *pid)
+               bool restart, ProcessType *pid)
 {
   nsresult rv;
 
@@ -932,7 +865,7 @@ ProcessUpdates(nsIFile *greDir, nsIFile *appDir, nsIFile *updRootDir,
       updatesDir->Remove(true);
     } else {
       ApplyUpdate(greDir, updatesDir, statusFile,
-                  appDir, argc, argv, restart, isOSUpdate, osApplyToDir, pid);
+                  appDir, argc, argv, restart, pid);
     }
     break;
   }
@@ -951,8 +884,6 @@ ProcessUpdates(nsIFile *greDir, nsIFile *appDir, nsIFile *updRootDir,
 
   return NS_OK;
 }
-
-
 
 NS_IMPL_THREADSAFE_ISUPPORTS1(nsUpdateProcessor, nsIUpdateProcessor)
 
@@ -1049,34 +980,12 @@ nsUpdateProcessor::ProcessUpdate(nsIUpdate* aUpdate)
   }
   mInfo.mAppVersion = appVersion;
 
-#if defined(MOZ_WIDGET_GONK)
-  bool isOSUpdate;
-  if (NS_SUCCEEDED(aUpdate->GetIsOSUpdate(&isOSUpdate)) &&
-      isOSUpdate) {
-    nsAutoCString osApplyToDir;
-
-    // This needs to be done on the main thread, so we pass it along in
-    // BackgroundThreadInfo
-    nsresult rv = GetOSApplyToDir(osApplyToDir);
-    NS_ASSERTION(NS_SUCCEEDED(rv), "Can't get the OS apply to dir");
-
-    SetOSApplyToDir(aUpdate, osApplyToDir);
-
-    mInfo.mIsOSUpdate = true;
-    rv = NS_NewNativeLocalFile(osApplyToDir, false,
-                               getter_AddRefs(mInfo.mOSApplyToDir));
-    NS_ASSERTION(NS_SUCCEEDED(rv), "Can't create nsIFile for OS apply to dir");
-  }
-#endif
-
   mUpdate = aUpdate;
 
   NS_ABORT_IF_FALSE(NS_IsMainThread(), "not main thread");
   return NS_NewThread(getter_AddRefs(mProcessWatcher),
                       NS_NewRunnableMethod(this, &nsUpdateProcessor::StartBackgroundUpdate));
 }
-
-
 
 void
 nsUpdateProcessor::StartBackgroundUpdate()
@@ -1090,8 +999,6 @@ nsUpdateProcessor::StartBackgroundUpdate()
                                mInfo.mArgv,
                                mInfo.mAppVersion.get(),
                                false,
-                               mInfo.mIsOSUpdate,
-                               mInfo.mOSApplyToDir,
                                &mUpdaterPID);
   NS_ENSURE_SUCCESS_VOID(rv);
 

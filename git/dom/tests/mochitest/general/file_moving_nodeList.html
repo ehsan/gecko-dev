@@ -4,10 +4,9 @@
             document.childNodes.expando = "foo";
 
             function getNodeList() {
-                return document.childNodes;
-            }
-            function getOptions() {
-                return document.createElement("select").options;
+                var nodeList = document.createElement("select").options;
+                nodeList.expando = "foo";
+                return nodeList;
             }
 
             function tryToUseNodeList(nodeList, ok) {
