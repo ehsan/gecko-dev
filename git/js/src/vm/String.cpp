@@ -54,7 +54,7 @@ bool
 JSString::isShort() const
 {
     bool is_short = (getAllocKind() == gc::FINALIZE_SHORT_STRING);
-    JS_ASSERT_IF(is_short, isFixed());
+    JS_ASSERT_IF(is_short, isFlat());
     return is_short;
 }
 
@@ -230,8 +230,7 @@ JSRope::flattenInternal(JSContext *maybecx)
             wholeChars = const_cast<jschar *>(left.chars());
             size_t bits = left.d.lengthAndFlags;
             pos = wholeChars + (bits >> LENGTH_SHIFT);
-            JS_STATIC_ASSERT(!(EXTENSIBLE_FLAGS & DEPENDENT_FLAGS));
-            left.d.lengthAndFlags = bits ^ (EXTENSIBLE_FLAGS | DEPENDENT_FLAGS);
+            left.d.lengthAndFlags = bits ^ (EXTENSIBLE_FLAGS | DEPENDENT_BIT);
             left.d.s.u2.base = (JSLinearString *)this;  /* will be true on exit */
             JSString::writeBarrierPost(left.d.s.u2.base, &left.d.s.u2.base);
             goto visit_right_child;
@@ -282,7 +281,7 @@ JSRope::flattenInternal(JSContext *maybecx)
             return &this->asFlat();
         }
         size_t progress = str->d.lengthAndFlags;
-        str->d.lengthAndFlags = buildLengthAndFlags(pos - str->d.u1.chars, DEPENDENT_FLAGS);
+        str->d.lengthAndFlags = buildLengthAndFlags(pos - str->d.u1.chars, DEPENDENT_BIT);
         str->d.s.u2.base = (JSLinearString *)this;       /* will be true on exit */
         JSString::writeBarrierPost(str->d.s.u2.base, &str->d.s.u2.base);
         str = str->d.s.u3.parent;
@@ -365,10 +364,9 @@ JSDependentString::undepend(JSContext *cx)
 
     PodCopy(s, chars(), n);
     s[n] = 0;
-    d.u1.chars = s;
 
-    /* TODO: explain why undepended. */
-    d.lengthAndFlags = buildLengthAndFlags(n, UNDEPENDED_FLAGS);
+    d.lengthAndFlags = buildLengthAndFlags(n, FIXED_FLAGS);
+    d.u1.chars = s;
 
     return &this->asFixed();
 }

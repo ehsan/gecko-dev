@@ -692,7 +692,7 @@ public:
 
     JSBool OnJSContextNew(JSContext* cx);
 
-    bool DeferredRelease(nsISupports* obj);
+    JSBool DeferredRelease(nsISupports* obj);
 
     JSBool GetDoingFinalization() const {return mDoingFinalization;}
 
@@ -748,7 +748,7 @@ public:
     void UnmarkSkippableJSHolders();
 
     static void GCCallback(JSRuntime *rt, JSGCStatus status);
-    static void FinalizeCallback(JSFreeOp *fop, JSFinalizeStatus status, JSBool isCompartmentGC);
+    static void FinalizeCallback(JSFreeOp *fop, JSFinalizeStatus status);
 
     inline void AddVariantRoot(XPCTraceableVariant* variant);
     inline void AddWrappedJSRoot(nsXPCWrappedJS* wrappedJS);

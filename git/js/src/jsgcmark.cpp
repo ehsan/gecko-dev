@@ -583,8 +583,8 @@ ScanLinearString(GCMarker *gcmarker, JSLinearString *str)
      * mutations.
      */
     JS_ASSERT(str->JSString::isLinear());
-    while (str->hasBase()) {
-        str = str->base();
+    while (str->isDependent()) {
+        str = str->asDependent().base();
         JS_ASSERT(str->JSString::isLinear());
         JS_COMPARTMENT_ASSERT_STR(gcmarker->runtime, str);
         if (!str->markIfUnmarked())
@@ -678,8 +678,8 @@ MarkChildren(JSTracer *trc, JSObject *obj)
 static void
 MarkChildren(JSTracer *trc, JSString *str)
 {
-    if (str->hasBase())
-        str->markBase(trc);
+    if (str->isDependent())
+        str->asDependent().markChildren(trc);
     else if (str->isRope())
         str->asRope().markChildren(trc);
 }

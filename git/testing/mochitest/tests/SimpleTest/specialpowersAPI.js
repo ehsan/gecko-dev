@@ -771,7 +771,8 @@ SpecialPowersAPI.prototype = {
   },
 
   createSystemXHR: function() {
-    return this.wrap(Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Ci.nsIXMLHttpRequest));
+    return Cc["@mozilla.org/xmlextras/xmlhttprequest;1"]
+             .createInstance(Ci.nsIXMLHttpRequest);
   },
 
   snapshotWindow: function (win, withCaret) {

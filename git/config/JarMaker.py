@@ -323,9 +323,8 @@ class JarMaker(object):
       jarfilepath = jarfile + '.jar'
       try:
         os.makedirs(os.path.dirname(jarfilepath))
-      except OSError, error:
-        if error.errno != errno.EEXIST:
-          raise
+      except OSError:
+        pass
       jf = ZipFile(jarfilepath, 'a', lock = True)
       outHelper = self.OutputHelper_jar(jf)
     else:
@@ -457,11 +456,7 @@ class JarMaker(object):
       out = os.path.join(self.basepath, name)
       outdir = os.path.dirname(out)
       if not os.path.isdir(outdir):
-        try:
-          os.makedirs(outdir)
-        except OSError, error:
-          if error.errno != errno.EEXIST:
-            raise
+        os.makedirs(outdir)
       return out
 
   class OutputHelper_symlink(OutputHelper_flat):

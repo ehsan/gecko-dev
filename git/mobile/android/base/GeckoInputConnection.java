@@ -693,12 +693,12 @@ public class GeckoInputConnection
         if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.GINGERBREAD_MR1) {
             switch (inputChar) {
                 case '&':
-                    // Some Gingerbread devices' KeyCharacterMaps return ALT+7 instead of SHIFT+7,
-                    // but some devices like the Droid Bionic treat SHIFT+7 as '7'. So just return
-                    // null and onTextChanged() will send "&" as a composition string instead of
-                    // KEY_DOWN + KEY_UP event pair. This may break web content listening for '&'
-                    // key events, but they will still receive "&" input event.
-                    return null;
+                    // Gingerbread's KeyCharacterMap would return ALT+7, but we want SHIFT+7.
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.GINGERBREAD) {
+                        return createKeyDownKeyUpEvents(KeyEvent.KEYCODE_7, KeyEvent.META_SHIFT_ON);
+                    }
+                    // Froyo's KeyCharacterMap will return the correct '&' key events below.
+                    break;
 
                 case '<':
                 case '>':
@@ -928,9 +928,6 @@ public class GeckoInputConnection
                           + isPreIme + ")");
         }
 
-        if (keyCode > KeyEvent.getMaxKeyCode())
-            return false;
-
         clampSelection();
 
         switch (keyCode) {
@@ -991,9 +988,6 @@ public class GeckoInputConnection
             Log.d(LOGTAG, "IME: processKeyUp(keyCode=" + keyCode + ", event=" + event + ", "
                           + isPreIme + ")");
         }
-
-        if (keyCode > KeyEvent.getMaxKeyCode())
-            return false;
 
         switch (keyCode) {
             case KeyEvent.KEYCODE_BACK:

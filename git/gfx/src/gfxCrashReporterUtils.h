@@ -63,8 +63,6 @@ public:
   }
   void SetSuccessful() { mStatusChar = '+'; }
 
-  class AppNoteWritingRunnable;
-
 protected:
   const char *mFeature;
   char mStatusChar;

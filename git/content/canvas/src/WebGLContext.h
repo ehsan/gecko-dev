@@ -1778,11 +1778,7 @@ protected:
   */
 static bool SplitLastSquareBracket(nsACString& string, nsCString& bracketPart)
 {
-    MOZ_ASSERT(bracketPart.IsEmpty(), "SplitLastSquareBracket must be called with empty bracketPart string");
-
-    if (string.IsEmpty())
-        return false;
-
+    NS_ABORT_IF_FALSE(bracketPart.Length() == 0, "SplitLastSquareBracket must be called with empty bracketPart string");
     char *string_start = string.BeginWriting();
     char *s = string_start + string.Length() - 1;
 

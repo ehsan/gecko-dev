@@ -521,16 +521,41 @@ nsXMLHttpRequest::RootResultArrayBuffer()
 nsresult
 nsXMLHttpRequest::Init()
 {
-  nsIScriptSecurityManager* secMan = nsContentUtils::GetSecurityManager();
+  // Set the original mPrincipal, if available.
+  // Get JSContext from stack.
+  nsCOMPtr<nsIJSContextStack> stack =
+    do_GetService("@mozilla.org/js/xpc/ContextStack;1");
+
+  if (!stack) {
+    return NS_OK;
+  }
+
+  JSContext *cx;
+
+  if (NS_FAILED(stack->Peek(&cx)) || !cx) {
+    return NS_OK;
+  }
+
+  nsIScriptSecurityManager *secMan = nsContentUtils::GetSecurityManager();
   nsCOMPtr<nsIPrincipal> subjectPrincipal;
   if (secMan) {
-    secMan->GetSystemPrincipal(getter_AddRefs(subjectPrincipal));
+    nsresult rv = secMan->GetSubjectPrincipal(getter_AddRefs(subjectPrincipal));
+    NS_ENSURE_SUCCESS(rv, rv);
   }
   NS_ENSURE_STATE(subjectPrincipal);
-  Construct(subjectPrincipal, nsnull);
+
+  nsIScriptContext* context = GetScriptContextFromJSContext(cx);
+  nsCOMPtr<nsPIDOMWindow> window;
+  if (context) {
+    window = do_QueryInterface(context->GetGlobalObject());
+    if (window) {
+      window = window->GetCurrentInnerWindow();
+    }
+  }
+
+  Construct(subjectPrincipal, window);
   return NS_OK;
 }
-
 /**
  * This Init method should only be called by C++ consumers.
  */

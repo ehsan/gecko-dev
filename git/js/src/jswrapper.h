@@ -277,9 +277,6 @@ JS_FRIEND_API(JSObject *) UnwrapObjectChecked(JSContext *cx, JSObject *obj);
 
 bool IsCrossCompartmentWrapper(const JSObject *obj);
 
-void
-NukeCrossCompartmentWrapper(JSObject *wrapper);
-
 } /* namespace js */
 
 #endif

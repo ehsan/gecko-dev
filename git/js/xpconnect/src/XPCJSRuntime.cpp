@@ -122,9 +122,6 @@ struct CX_AND_XPCRT_Data
     XPCJSRuntime* rt;
 };
 
-static void * const UNMARK_ONLY = nsnull;
-static void * const UNMARK_AND_SWEEP = (void *)1;
-
 static JSDHashOperator
 NativeInterfaceSweeper(JSDHashTable *table, JSDHashEntryHdr *hdr,
                        uint32_t number, void *arg)
@@ -134,9 +131,6 @@ NativeInterfaceSweeper(JSDHashTable *table, JSDHashEntryHdr *hdr,
         iface->Unmark();
         return JS_DHASH_NEXT;
     }
-
-    if (arg == UNMARK_ONLY)
-        return JS_DHASH_NEXT;
 
 #ifdef XPC_REPORT_NATIVE_INTERFACE_AND_SET_FLUSHING
     fputs("- Destroying XPCNativeInterface for ", stdout);
@@ -173,9 +167,6 @@ NativeSetSweeper(JSDHashTable *table, JSDHashEntryHdr *hdr,
         return JS_DHASH_NEXT;
     }
 
-    if (arg == UNMARK_ONLY)
-        return JS_DHASH_NEXT;
-
 #ifdef XPC_REPORT_NATIVE_INTERFACE_AND_SET_FLUSHING
     printf("- Destroying XPCNativeSet for:\n");
     PRUint16 count = set->GetInterfaceCount();
@@ -206,9 +197,6 @@ JSClassSweeper(JSDHashTable *table, JSDHashEntryHdr *hdr,
         shared->Unmark();
         return JS_DHASH_NEXT;
     }
-
-    if (arg == UNMARK_ONLY)
-        return JS_DHASH_NEXT;
 
 #ifdef XPC_REPORT_JSCLASS_FLUSHING
     printf("- Destroying XPCNativeScriptableShared for: %s @ %x\n",
@@ -710,7 +698,7 @@ XPCJSRuntime::GCCallback(JSRuntime *rt, JSGCStatus status)
 }
 
 /* static */ void
-XPCJSRuntime::FinalizeCallback(JSFreeOp *fop, JSFinalizeStatus status, JSBool isCompartmentGC)
+XPCJSRuntime::FinalizeCallback(JSFreeOp *fop, JSFinalizeStatus status)
 {
     XPCJSRuntime* self = nsXPConnect::GetRuntimeInstance();
     if (!self)
@@ -821,37 +809,24 @@ XPCJSRuntime::FinalizeCallback(JSFreeOp *fop, JSFinalizeStatus status, JSBool is
                 }
             }
 
-            // Do the sweeping. During a compartment GC, only
-            // WrappedNativeProtos in collected compartments will be
-            // marked. Therefore, some reachable NativeInterfaces will not be
-            // marked, so it is not safe to sweep them. We still need to unmark
-            // them, since the ones pointed to by WrappedNativeProtos in a
-            // compartment being collected will be marked.
-            //
-            // Ideally, if NativeInterfaces from different compartments were
-            // kept separate, we could sweep only the ones belonging to
-            // compartments being collected. Currently, though, NativeInterfaces
-            // are shared between compartments. This ought to be fixed.
-            void *sweepArg = isCompartmentGC ? UNMARK_ONLY : UNMARK_AND_SWEEP;
+            // Do the sweeping...
 
             // We don't want to sweep the JSClasses at shutdown time.
             // At this point there may be JSObjects using them that have
             // been removed from the other maps.
             if (!self->GetXPConnect()->IsShuttingDown()) {
                 self->mNativeScriptableSharedMap->
-                    Enumerate(JSClassSweeper, sweepArg);
+                    Enumerate(JSClassSweeper, nsnull);
             }
 
-            if (!isCompartmentGC) {
-                self->mClassInfo2NativeSetMap->
-                    Enumerate(NativeUnMarkedSetRemover, nsnull);
-            }
+            self->mClassInfo2NativeSetMap->
+                Enumerate(NativeUnMarkedSetRemover, nsnull);
 
             self->mNativeSetMap->
-                Enumerate(NativeSetSweeper, sweepArg);
+                Enumerate(NativeSetSweeper, nsnull);
 
             self->mIID2NativeInterfaceMap->
-                Enumerate(NativeInterfaceSweeper, sweepArg);
+                Enumerate(NativeInterfaceSweeper, nsnull);
 
 #ifdef DEBUG
             XPCWrappedNativeScope::ASSERT_NoInterfaceSetsAreMarked();
@@ -2149,7 +2124,7 @@ XPCJSRuntime::OnJSContextNew(JSContext *cx)
     return true;
 }
 
-bool
+JSBool
 XPCJSRuntime::DeferredRelease(nsISupports* obj)
 {
     NS_ASSERTION(obj, "bad param");

@@ -954,7 +954,8 @@ nsFocusManager::WindowHidden(nsIDOMWindow* aWindow)
   // window, or an ancestor of the focused window. Either way, the focus is no
   // longer valid, so it needs to be updated.
 
-  nsCOMPtr<nsIContent> oldFocusedContent = mFocusedContent.forget();
+  nsIContent* oldFocusedContent = mFocusedContent;
+  mFocusedContent = nsnull;
 
   if (oldFocusedContent && oldFocusedContent->IsInDoc()) {
     NotifyFocusStateChange(oldFocusedContent,

@@ -201,8 +201,6 @@ TraceProtoOrIfaceCache(JSTracer* trc, JSObject* obj)
 {
   MOZ_ASSERT(js::GetObjectClass(obj)->flags & JSCLASS_DOM_GLOBAL);
 
-  if (!HasProtoOrIfaceArray(obj))
-    return;
   JSObject** protoOrIfaceArray = GetProtoOrIfaceArray(obj);
   for (size_t i = 0; i < kProtoOrIfaceCacheCount; ++i) {
     JSObject* proto = protoOrIfaceArray[i];
@@ -387,8 +385,9 @@ FindEnumStringIndex(JSContext* cx, JS::Value v, const EnumEntry* values, bool* o
     }
   }
 
-  *ok = true;
-  return -1;
+  // XXX we don't know whether we're on the main thread, so play it safe
+  *ok = Throw<false>(cx, NS_ERROR_XPC_BAD_CONVERT_JS);
+  return 0;
 }
 
 inline nsWrapperCache*

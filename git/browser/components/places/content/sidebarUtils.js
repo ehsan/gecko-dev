@@ -100,11 +100,11 @@ var SidebarUtils = {
 
   handleTreeKeyPress: function SU_handleTreeKeyPress(aEvent) {
     // XXX Bug 627901: Post Fx4, this method should take a tree parameter.
-    let tree = aEvent.target;
-    let node = tree.selectedNode;
+    let node = aEvent.target.selectedNode;
     if (node) {
+      let view = PlacesUIUtils.getViewForNode(node);
       if (aEvent.keyCode == KeyEvent.DOM_VK_RETURN)
-        PlacesUIUtils.openNodeWithEvent(node, aEvent, tree);
+        PlacesUIUtils.openNodeWithEvent(node, aEvent, view);
     }
   },
 

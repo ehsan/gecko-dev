@@ -266,14 +266,17 @@ let MigratorPrototype = {
                           getService(Ci.nsIObserver);
         browserGlue.observe(null, TOPIC_WILL_IMPORT_BOOKMARKS, "");
 
-        // Note doMigrate doesn't care about the success value of the
-        // callback.
-        BookmarkHTMLUtils.importFromURL(
-          "resource:///defaults/profile/bookmarks.html", true, function(a) {
-            browserGlue.observe(null, TOPIC_DID_IMPORT_BOOKMARKS, "");
-            doMigrate();
-          });
-        return;
+        let bookmarksHTMLFile = Services.dirsvc.get("BMarks", Ci.nsIFile);
+        if (bookmarksHTMLFile.exists()) {
+          // Note doMigrate doesn't care about the success value of the
+          // callback.
+          BookmarkHTMLUtils.importFromURL(
+            NetUtil.newURI(bookmarksHTMLFile).spec, true, function(a) {
+              browserGlue.observe(null, TOPIC_DID_IMPORT_BOOKMARKS, "");
+              doMigrate();
+            });
+          return;
+        }
       }
     }
     doMigrate();
@@ -445,8 +448,7 @@ let MigrationUtils = Object.freeze({
    * @param aKey internal name of the migration source.
    *             Supported values: ie (windows),
    *                               safari (mac/windows),
-   *                               chrome (mac/windows/linux),
-   *                               firefox.
+   *                               chrome (mac/windows/linux).
    *
    * If null is returned,  either no data can be imported
    * for the given migrator, or aMigratorKey is invalid  (e.g. ie on mac,
@@ -466,37 +468,11 @@ let MigrationUtils = Object.freeze({
         migrator = Cc["@mozilla.org/profile/migrator;1?app=browser&type=" +
                       aKey].createInstance(Ci.nsIBrowserProfileMigrator);
       }
-      catch(ex) { }
+      catch(ex) { Cu.reportError(ex); }
       this._migrators.set(aKey, migrator);
     }
 
     return migrator && migrator.sourceExists ? migrator : null;
-  },
-
-  // Iterates the available migrators, in the most suitable
-  // order for the running platform.
-  get migrators() {
-    let migratorKeysOrdered = [
-#ifdef XP_WIN
-      "ie", "chrome", "safari"
-#elifdef XP_MACOSX
-      "safari", "chrome"
-#elifdef XP_UNIX
-      "chrome"
-#endif
-    ];
-
-    // If a supported default browser is found check it first
-    // so that the wizard defaults to import from that browser.
-    let defaultBrowserKey = getMigratorKeyForDefaultBrowser();
-    if (defaultBrowserKey)
-      migratorKeysOrdered.sort(function (a, b) b == defaultBrowserKey ? 1 : 0);
-
-    for (let migratorKey of migratorKeysOrdered) {
-      let migrator = this.getMigrator(migratorKey);
-      if (migrator)
-        yield migrator;
-    }
   },
 
   // Whether or not we're in the process of startup migration
@@ -589,20 +565,6 @@ let MigrationUtils = Object.freeze({
         migrator = this.getMigrator(defaultBrowserKey);
         if (migrator)
           migratorKey = defaultBrowserKey;
-      }
-    }
-
-    if (!migrator) {
-      // If there's no migrator set so far, ensure that there is at least one
-      // migrator available before opening the wizard.
-      try {
-        this.migrators.next();
-      }
-      catch(ex) {
-        this.finishMigration();
-        if (!(ex instanceof StopIteration))
-          throw ex;
-        return;
       }
     }
 
