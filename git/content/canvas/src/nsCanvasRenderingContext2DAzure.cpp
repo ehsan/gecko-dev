@@ -552,8 +552,7 @@ namespace dom {
 bool
 AzureCanvasEnabled()
 {
-  BackendType dontCare;
-  return gfxPlatform::GetPlatform()->SupportsAzureCanvas(dontCare);
+  return gfxPlatform::GetPlatform()->SupportsAzureCanvas();
 }
 
 }
@@ -4352,7 +4351,7 @@ nsCanvasRenderingContext2DAzure::PutImageData(JSContext* cx,
 
   error = PutImageData_explicit(JS_DoubleToInt32(dx), JS_DoubleToInt32(dy),
                                 imageData->GetWidth(), imageData->GetHeight(),
-                                arr.mData, arr.mLength, false, 0, 0, 0, 0);
+                                arr.Data(), arr.Length(), false, 0, 0, 0, 0);
 }
 
 void
@@ -4372,7 +4371,7 @@ nsCanvasRenderingContext2DAzure::PutImageData(JSContext* cx,
 
   error = PutImageData_explicit(JS_DoubleToInt32(dx), JS_DoubleToInt32(dy),
                                 imageData->GetWidth(), imageData->GetHeight(),
-                                arr.mData, arr.mLength, true,
+                                arr.Data(), arr.Length(), true,
                                 JS_DoubleToInt32(dirtyX),
                                 JS_DoubleToInt32(dirtyY),
                                 JS_DoubleToInt32(dirtyWidth),
