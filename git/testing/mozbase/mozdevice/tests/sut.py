@@ -26,8 +26,6 @@ class MockAgent(object):
         self.thread = Thread(target=self._serve_thread)
         self.thread.start()
 
-        self.should_stop = False
-
     @property
     def port(self):
         return self._sock.getsockname()[1]
@@ -44,21 +42,12 @@ class MockAgent(object):
             # send response and prompt separately to test for bug 789496
             # FIXME: Improve the mock agent, since overloading the meaning
             # of 'response' is getting confusing.
-            if response is None: # code for "shut down"
+            if response is None:
                 conn.shutdown(socket.SHUT_RDWR)
                 conn.close()
                 conn = None
-            elif type(response) is int: # code for "time out"
-                max_timeout = 15.0
-                timeout = 0.0
-                interval = 0.1
-                while not self.should_stop and timeout < max_timeout:
-                    time.sleep(interval)
-                    timeout += interval
-                if timeout >= max_timeout:
-                    raise Exception("Maximum timeout reached! This should not "
-                                    "happen")
-                return
+            elif type(response) is int:
+                time.sleep(response)
             else:
                 # pull is handled specially, as we just pass back the full
                 # command line

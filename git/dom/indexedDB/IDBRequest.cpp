@@ -120,15 +120,13 @@ IDBRequest::NotifyHelperCompleted(HelperBase* aHelper)
   JSAutoCompartment ac(cx, global);
   AssertIsRooted();
 
-  JS::Rooted<JS::Value> value(cx);
-  rv = aHelper->GetSuccessResult(cx, value.address());
+  rv = aHelper->GetSuccessResult(cx, &mResultVal);
   if (NS_FAILED(rv)) {
     NS_WARNING("GetSuccessResult failed!");
   }
 
   if (NS_SUCCEEDED(rv)) {
     mError = nullptr;
-    mResultVal = value;
   }
   else {
     SetError(rv);

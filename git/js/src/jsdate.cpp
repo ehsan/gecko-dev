@@ -23,6 +23,7 @@
  */
 
 #include <ctype.h>
+#include <locale.h>
 #include <math.h>
 #include <string.h>
 
@@ -31,11 +32,13 @@
 #include "prmjtime.h"
 #include "jsutil.h"
 #include "jsapi.h"
+#include "jsversion.h"
 #include "jscntxt.h"
 #include "jsnum.h"
 #include "jsobj.h"
 #include "jsstr.h"
 
+#include "js/Date.h"
 #include "vm/DateTime.h"
 #include "vm/GlobalObject.h"
 #include "vm/Interpreter.h"
@@ -540,7 +543,7 @@ Class js::DateClass = {
 
 /* for use by date_parse */
 
-static const char* const wtb[] = {
+static const char* wtb[] = {
     "am", "pm",
     "monday", "tuesday", "wednesday", "thursday", "friday",
     "saturday", "sunday",
@@ -554,7 +557,7 @@ static const char* const wtb[] = {
     /* time zone table needs to be expanded */
 };
 
-static const int ttb[] = {
+static int ttb[] = {
     -1, -2, 0, 0, 0, 0, 0, 0, 0,       /* AM/PM */
     2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,
     10000 + 0, 10000 + 0, 10000 + 0,   /* GMT/UT/UTC */
@@ -2456,12 +2459,12 @@ date_setYear(JSContext *cx, unsigned argc, Value *vp)
 }
 
 /* constants for toString, toUTCString */
-static const char js_NaN_date_str[] = "Invalid Date";
-static const char * const days[] =
+static char js_NaN_date_str[] = "Invalid Date";
+static const char* days[] =
 {
    "Sun","Mon","Tue","Wed","Thu","Fri","Sat"
 };
-static const char * const months[] =
+static const char* months[] =
 {
    "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
 };

@@ -15,9 +15,12 @@
 
 #include "vm/ForkJoin.h"
 #include "vm/Interpreter.h"
+#include "vm/ThreadPool.h"
 
 #include "jsfuninlines.h"
 #include "jstypedarrayinlines.h"
+
+#include "ion/BaselineJIT.h"
 
 #include "vm/BooleanObject-inl.h"
 #include "vm/NumberObject-inl.h"

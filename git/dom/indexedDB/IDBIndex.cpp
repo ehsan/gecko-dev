@@ -810,7 +810,7 @@ IDBIndex::GetKeyPath(JSContext* aCx,
     return NS_OK;
   }
 
-  nsresult rv = GetKeyPath().ToJSVal(aCx, mCachedKeyPath);
+  nsresult rv = GetKeyPath().ToJSVal(aCx, &mCachedKeyPath);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (JSVAL_IS_GCTHING(mCachedKeyPath)) {
@@ -1180,12 +1180,7 @@ nsresult
 GetKeyHelper::GetSuccessResult(JSContext* aCx,
                                jsval* aVal)
 {
-  JS::Rooted<JS::Value> value(aCx);
-  nsresult rv = mKey.ToJSVal(aCx, &value);
-  if (NS_SUCCEEDED(rv)) {
-    *aVal = value;
-  }
-  return rv;
+  return mKey.ToJSVal(aCx, aVal);
 }
 
 void
@@ -1513,7 +1508,7 @@ GetAllKeysHelper::GetSuccessResult(JSContext* aCx,
       NS_ASSERTION(!key.IsUnset(), "Bad key!");
 
       JS::Rooted<JS::Value> value(aCx);
-      nsresult rv = key.ToJSVal(aCx, &value);
+      nsresult rv = key.ToJSVal(aCx, value.address());
       if (NS_FAILED(rv)) {
         NS_WARNING("Failed to get jsval for key!");
         return rv;

@@ -130,8 +130,7 @@ WidgetShutdownObserver::Observe(nsISupports *aSubject,
                                 const char *aTopic,
                                 const PRUnichar *aData)
 {
-  if (strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID) == 0 &&
-      mWidget) {
+  if (strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID) == 0) {
     mWidget->Shutdown();
     nsContentUtils::UnregisterShutdownObserver(this);
   }
@@ -196,11 +195,6 @@ nsBaseWidget::~nsBaseWidget()
   }
 
   if (mShutdownObserver) {
-    // If the shutdown observer is currently processing observers,
-    // then UnregisterShutdownObserver won't stop our Observer
-    // function from being called. Make sure we don't try
-    // to reference the dead widget.
-    mShutdownObserver->mWidget = nullptr;
     nsContentUtils::UnregisterShutdownObserver(mShutdownObserver);
   }
 

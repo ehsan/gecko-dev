@@ -157,7 +157,7 @@ private:
   int64_t mId;
   nsString mName;
   KeyPath mKeyPath;
-  JS::Heap<JS::Value> mCachedKeyPath;
+  JS::Value mCachedKeyPath;
 
   IndexedDBIndexChild* mActorChild;
   IndexedDBIndexParent* mActorParent;

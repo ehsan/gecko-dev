@@ -7,6 +7,7 @@
 #include "jsapi.h"
 #include "jscntxt.h"
 #include "jsgc.h"
+#include "jsprf.h"
 
 #include "js/HashTable.h"
 #include "gc/GCInternals.h"

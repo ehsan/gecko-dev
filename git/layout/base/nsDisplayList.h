@@ -335,14 +335,6 @@ public:
    */
   void EnterPresShell(nsIFrame* aReferenceFrame, const nsRect& aDirtyRect);
   /**
-   * For print-preview documents, we sometimes need to build display items for
-   * the same frames multiple times in the same presentation, with different
-   * clipping. Between each such batch of items, call
-   * ResetMarkedFramesForDisplayList to make sure that the results of
-   * MarkFramesForDisplayList do not carry over between batches.
-   */
-  void ResetMarkedFramesForDisplayList();
-  /**
    * Notify the display list builder that we're leaving a presshell.
    */
   void LeavePresShell(nsIFrame* aReferenceFrame, const nsRect& aDirtyRect);
@@ -574,15 +566,12 @@ public:
   void SetCurrentTableItem(nsDisplayTableItem* aTableItem) { mCurrentTableItem = aTableItem; }
 
   struct OutOfFlowDisplayData {
-    OutOfFlowDisplayData(const DisplayItemClip& aContainingBlockClip,
+    OutOfFlowDisplayData(const DisplayItemClip* aContainingBlockClip,
                          const nsRect &aDirtyRect)
       : mContainingBlockClip(aContainingBlockClip)
       , mDirtyRect(aDirtyRect)
     {}
-    OutOfFlowDisplayData(const nsRect &aDirtyRect)
-      : mDirtyRect(aDirtyRect)
-    {}
-    DisplayItemClip mContainingBlockClip;
+    const DisplayItemClip* mContainingBlockClip;
     nsRect mDirtyRect;
   };
   static void DestroyOutOfFlowDisplayData(void* aPropertyValue)

@@ -6,6 +6,7 @@
 
 #include "jsfriendapi.h"
 
+#include "mozilla/GuardObjects.h"
 #include "mozilla/PodOperations.h"
 #include "mozilla/StandardInteger.h"
 
@@ -16,7 +17,6 @@
 #include "jswrapper.h"
 #include "jsweakmap.h"
 #include "jswatchpoint.h"
-#include "prmjtime.h"
 
 #include "builtin/TestingFunctions.h"
 

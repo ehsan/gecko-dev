@@ -4,20 +4,22 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "builtin/TestingFunctions.h"
-
 #include "jsapi.h"
+#include "jsbool.h"
 #include "jscntxt.h"
+#include "jscompartment.h"
 #include "jsfriendapi.h"
 #include "jsgc.h"
 #include "jsobj.h"
 #include "jsprf.h"
 #include "jswrapper.h"
 
-#include "ion/AsmJS.h"
+#include "builtin/TestingFunctions.h"
 #include "vm/ForkJoin.h"
 
-#include "vm/ObjectImpl-inl.h"
+#include "jsobjinlines.h"
+
+#include "vm/Stack-inl.h"
 
 using namespace js;
 using namespace JS;
@@ -912,8 +914,8 @@ ShellObjectMetadataCallback(JSContext *cx)
 {
     Value thisv = UndefinedValue();
 
-    RootedValue rval(cx);
-    if (!Invoke(cx, thisv, ObjectValue(*objectMetadataFunction), 0, NULL, rval.address())) {
+    Value rval;
+    if (!Invoke(cx, thisv, ObjectValue(*objectMetadataFunction), 0, NULL, &rval)) {
         cx->clearPendingException();
         return NULL;
     }

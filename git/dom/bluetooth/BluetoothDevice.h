@@ -58,8 +58,8 @@ private:
   ~BluetoothDevice();
   void Root();
 
-  JS::Heap<JSObject*> mJsUuids;
-  JS::Heap<JSObject*> mJsServices;
+  JSObject* mJsUuids;
+  JSObject* mJsServices;
 
   nsString mAdapterPath;
   nsString mAddress;

@@ -925,7 +925,7 @@ class ICUpdatedStub : public ICStub
   public:
     bool initUpdatingChain(JSContext *cx, ICStubSpace *space);
 
-    bool addUpdateStubForValue(JSContext *cx, HandleScript script, HandleObject obj, HandleId id,
+    bool addUpdateStubForValue(JSContext *cx, HandleScript script, HandleObject obj, jsid id,
                                HandleValue val);
 
     void addOptimizedUpdateStub(ICStub *stub) {
@@ -2405,20 +2405,14 @@ class ICBinaryArith_Int32 : public ICStub
 {
     friend class ICStubSpace;
 
-    ICBinaryArith_Int32(IonCode *stubCode, bool allowDouble)
-      : ICStub(BinaryArith_Int32, stubCode)
-    {
-        extra_ = allowDouble;
-    }
+    ICBinaryArith_Int32(IonCode *stubCode)
+      : ICStub(BinaryArith_Int32, stubCode) {}
 
   public:
-    static inline ICBinaryArith_Int32 *New(ICStubSpace *space, IonCode *code, bool allowDouble) {
+    static inline ICBinaryArith_Int32 *New(ICStubSpace *space, IonCode *code) {
         if (!code)
             return NULL;
-        return space->allocate<ICBinaryArith_Int32>(code, allowDouble);
-    }
-    bool allowDouble() const {
-        return extra_;
+        return space->allocate<ICBinaryArith_Int32>(code);
     }
 
     // Compiler for this stub kind.
@@ -2441,7 +2435,7 @@ class ICBinaryArith_Int32 : public ICStub
             op_(op), allowDouble_(allowDouble) {}
 
         ICStub *getStub(ICStubSpace *space) {
-            return ICBinaryArith_Int32::New(space, getStubCode(), allowDouble_);
+            return ICBinaryArith_Int32::New(space, getStubCode());
         }
     };
 };

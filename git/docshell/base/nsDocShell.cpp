@@ -3087,18 +3087,14 @@ nsDocShell::FindItemWithName(const PRUnichar * aName,
     if (!*aName)
         return NS_OK;
 
-    if (aRequestor) {
-        // If aRequestor is not null we don't need to check special names, so
-        // just hand straight off to the search by actual name function.
-        return DoFindItemWithName(aName, aRequestor, aOriginalRequestor,
-                                  _retval);
-    } else {
+    if (!aRequestor)
+    {
+        nsCOMPtr<nsIDocShellTreeItem> foundItem;
 
         // This is the entry point into the target-finding algorithm.  Check
         // for special names.  This should only be done once, hence the check
         // for a null aRequestor.
 
-        nsCOMPtr<nsIDocShellTreeItem> foundItem;
         nsDependentString name(aName);
         if (name.LowerCaseEqualsLiteral("_self")) {
             foundItem = this;
@@ -3147,19 +3143,16 @@ nsDocShell::FindItemWithName(const PRUnichar * aName,
                 // a new window?
             }
 #endif
-        } else {
-            // Do the search for item by an actual name.
-            DoFindItemWithName(aName, aRequestor, aOriginalRequestor,
-                               getter_AddRefs(foundItem));
         }
 
         if (foundItem && !CanAccessItem(foundItem, aOriginalRequestor)) {
             foundItem = nullptr;
         }
 
-        // DoFindItemWithName only returns active items and we don't check if
-        // the item is active for the special cases.
         if (foundItem) {
+            // We return foundItem here even if it's not an active
+            // item since all the names we've dealt with so far are
+            // special cases that we won't bother looking for further.
 
             // If our document is sandboxed, we need to do some extra checks.
             uint32_t sandboxFlags = 0;
@@ -3181,14 +3174,17 @@ nsDocShell::FindItemWithName(const PRUnichar * aName,
                     bool isAncestor = false;
 
                     nsCOMPtr<nsIDocShellTreeItem> parentAsItem;
-                    foundItem->GetSameTypeParent(getter_AddRefs(parentAsItem));
+                    GetSameTypeParent(getter_AddRefs(parentAsItem));
+
                     while (parentAsItem) {
-                        if (parentAsItem == selfAsItem) {
+                        nsCOMPtr<nsIDocShellTreeItem> tmp;
+                        parentAsItem->GetParent(getter_AddRefs(tmp));
+
+                        if (tmp && tmp == selfAsItem) {
                             isAncestor = true;
                             break;
                         }
-                        nsCOMPtr<nsIDocShellTreeItem> tmp = parentAsItem;
-                        tmp->GetSameTypeParent(getter_AddRefs(parentAsItem));
+                        parentAsItem = tmp;
                     }
 
                     if (!isAncestor) {
@@ -3216,17 +3212,12 @@ nsDocShell::FindItemWithName(const PRUnichar * aName,
             }
 
             foundItem.swap(*_retval);
+            return NS_OK;
         }
-        return NS_OK;
     }
-}
 
-nsresult
-nsDocShell::DoFindItemWithName(const PRUnichar* aName,
-                               nsISupports* aRequestor,
-                               nsIDocShellTreeItem* aOriginalRequestor,
-                               nsIDocShellTreeItem** _retval)
-{
+    // Keep looking
+        
     // First we check our name.
     if (mName.Equals(aName) && ItemIsActive(this) &&
         CanAccessItem(this, aOriginalRequestor)) {
@@ -7890,6 +7881,17 @@ nsDocShell::RestoreFromHistory()
     // Restart plugins, and paint the content.
     if (shell) {
         shell->Thaw();
+
+        newVM = shell->GetViewManager();
+        if (newVM) {
+            // When we insert the root view above the resulting invalidate is
+            // dropped because painting is suppressed in the presshell until we
+            // call Thaw. So we issue the invalidate here.
+            newRootView = newVM->GetRootView();
+            if (newRootView) {
+                newVM->InvalidateView(newRootView);
+            }
+        }
     }
 
     return privWin->FireDelayedDOMEvents();

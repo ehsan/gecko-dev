@@ -31,7 +31,6 @@
 #include "nsBindingManager.h"
 #include "nsINodeInfo.h"
 #include "nsInterfaceHashtable.h"
-#include "nsJSThingHashtable.h"
 #include "nsIBoxObject.h"
 #include "nsPIBoxObject.h"
 #include "nsIScriptObjectPrincipal.h"
@@ -1204,7 +1203,7 @@ protected:
 
   // Hashtable for custom element prototypes in web components.
   // Custom prototypes are in the document's compartment.
-  nsJSThingHashtable<nsStringHashKey, JSObject*> mCustomPrototypes;
+  nsDataHashtable<nsStringHashKey, JSObject*> mCustomPrototypes;
 
   nsRefPtr<nsEventListenerManager> mListenerManager;
   nsCOMPtr<nsIDOMStyleSheetList> mDOMStyleSheets;

@@ -1316,7 +1316,7 @@ ICTypeMonitor_TypeObject::Compiler::generateStubCode(MacroAssembler &masm)
 
 bool
 ICUpdatedStub::addUpdateStubForValue(JSContext *cx, HandleScript script, HandleObject obj,
-                                     HandleId id, HandleValue val)
+                                     jsid id, HandleValue val)
 {
     if (numOptimizedStubs_ >= MAX_OPTIMIZED_STUBS) {
         // TODO: if the TypeSet becomes unknown or has the AnyObject type,
@@ -2549,10 +2549,9 @@ DoBinaryArithFallback(JSContext *cx, BaselineFrame *frame, ICBinaryArith_Fallbac
         }
     }
 
+    // TODO: unlink previous !allowDouble stub.
     if (lhs.isInt32() && rhs.isInt32()) {
         bool allowDouble = ret.isDouble();
-        if (allowDouble)
-            stub->unlinkStubsWithKind(cx, ICStub::BinaryArith_Int32);
         IonSpew(IonSpew_BaselineIC, "  Generating %s(Int32, Int32%s) stub", js_CodeName[op],
                 allowDouble ? " => Double" : "");
         ICBinaryArith_Int32::Compiler compilerInt32(cx, op, allowDouble);
@@ -4216,7 +4215,7 @@ DoSetElemFallback(JSContext *cx, BaselineFrame *frame, ICSetElem_Fallback *stub,
                 ICUpdatedStub *denseStub = compiler.getStub(compiler.getStubSpace(script));
                 if (!denseStub)
                     return false;
-                if (!denseStub->addUpdateStubForValue(cx, script, obj, JS::JSID_VOIDHANDLE, rhs))
+                if (!denseStub->addUpdateStubForValue(cx, script, obj, JSID_VOID, rhs))
                     return false;
 
                 stub->addNewStub(denseStub);
@@ -4230,7 +4229,7 @@ DoSetElemFallback(JSContext *cx, BaselineFrame *frame, ICSetElem_Fallback *stub,
                 ICUpdatedStub *denseStub = compiler.getStub(compiler.getStubSpace(script));
                 if (!denseStub)
                     return false;
-                if (!denseStub->addUpdateStubForValue(cx, script, obj, JS::JSID_VOIDHANDLE, rhs))
+                if (!denseStub->addUpdateStubForValue(cx, script, obj, JSID_VOID, rhs))
                     return false;
 
                 stub->addNewStub(denseStub);

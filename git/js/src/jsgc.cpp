@@ -8,8 +8,6 @@
 
 #include "jsgc.h"
 
-#include "prmjtime.h"
-
 #include "mozilla/DebugOnly.h"
 #include "mozilla/Util.h"
 
@@ -99,7 +97,7 @@ static const uint64_t GC_IDLE_FULL_SPAN = 20 * 1000 * 1000;
 static const int IGC_MARK_SLICE_MULTIPLIER = 2;
 
 /* This array should be const, but that doesn't link right under GCC. */
-const AllocKind gc::slotsToThingKind[] = {
+AllocKind gc::slotsToThingKind[] = {
     /* 0 */  FINALIZE_OBJECT0,  FINALIZE_OBJECT2,  FINALIZE_OBJECT2,  FINALIZE_OBJECT4,
     /* 4 */  FINALIZE_OBJECT4,  FINALIZE_OBJECT8,  FINALIZE_OBJECT8,  FINALIZE_OBJECT8,
     /* 8 */  FINALIZE_OBJECT8,  FINALIZE_OBJECT12, FINALIZE_OBJECT12, FINALIZE_OBJECT12,
@@ -178,7 +176,7 @@ static const AllocKind FinalizePhaseIonCode[] = {
     FINALIZE_IONCODE
 };
 
-static const AllocKind * const FinalizePhases[] = {
+static const AllocKind* FinalizePhases[] = {
     FinalizePhaseStrings,
     FinalizePhaseScripts,
     FinalizePhaseIonCode
@@ -221,7 +219,7 @@ static const AllocKind BackgroundPhaseShapes[] = {
     FINALIZE_TYPE_OBJECT
 };
 
-static const AllocKind * const BackgroundPhases[] = {
+static const AllocKind* BackgroundPhases[] = {
     BackgroundPhaseObjects,
     BackgroundPhaseStrings,
     BackgroundPhaseShapes
@@ -2573,6 +2571,7 @@ PurgeRuntime(JSRuntime *rt)
     rt->freeLifoAlloc.transferUnusedFrom(&rt->tempLifoAlloc);
 
     rt->gsnCache.purge();
+    rt->propertyCache.purge(rt);
     rt->newObjectCache.purge();
     rt->nativeIterCache.purge();
     rt->sourceDataCache.purge();

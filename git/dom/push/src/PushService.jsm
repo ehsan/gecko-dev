@@ -307,7 +307,12 @@ this.PushService = {
         // Try to connect if network-active-changed or the offline-status
         // changed to online.
         if (aTopic === "network-active-changed" || aData === "online") {
-          this._startListeningIfChannelsPresent();
+          // Check to see if we need to do anything.
+          this._db.getAllChannelIDs(function(channelIDs) {
+            if (channelIDs.length > 0) {
+              this._beginWSSetup();
+            }
+          }.bind(this));
         }
         break;
       case "nsPref:changed":
@@ -315,12 +320,6 @@ this.PushService = {
           debug("services.push.serverURL changed! websocket. new value " +
                 prefs.get("serverURL"));
           this._shutdownWS();
-        } else if (aData == "services.push.connection.enabled") {
-          if (prefs.get("connection.enabled")) {
-            this._startListeningIfChannelsPresent();
-          } else {
-            this._shutdownWS();
-          }
         }
         break;
       case "timer-callback":
@@ -430,7 +429,18 @@ this.PushService = {
 
     this._udpPort = prefs.get("udp.port");
 
-    this._startListeningIfChannelsPresent();
+    this._db.getAllChannelIDs(
+      function(channelIDs) {
+        if (channelIDs.length > 0) {
+          debug("Found registered channelIDs. Starting WebSocket");
+          this._beginWSSetup();
+        }
+      }.bind(this),
+
+      function(error) {
+        debug("db error " + error);
+      }
+    );
 
     Services.obs.addObserver(this, "xpcom-shutdown", false);
     Services.obs.addObserver(this, "webapps-uninstall", false);
@@ -458,8 +468,6 @@ this.PushService = {
     // This is only used for testing. Different tests require connecting to
     // slightly different URLs.
     prefs.observe("serverURL", this);
-    // Used to monitor if the user wishes to disable Push.
-    prefs.observe("connection.enabled", this);
   },
 
   _shutdownWS: function() {
@@ -484,7 +492,6 @@ this.PushService = {
 
     debug("uninit()");
 
-    prefs.ignore("connection.enabled", this);
     prefs.ignore("serverURL", this);
     Services.obs.removeObserver(this, this._getNetworkStateChangeEventName());
     Services.obs.removeObserver(this, "webapps-uninstall", false);
@@ -555,11 +562,6 @@ this.PushService = {
       return;
     }
 
-    if (!prefs.get("connection.enabled")) {
-      debug("_beginWSSetup: connection.enabled is not set to true. Aborting.");
-      return;
-    }
-
     // Stop any pending reconnects scheduled for the near future.
     this._stopAlarm();
 
@@ -602,15 +604,6 @@ this.PushService = {
     this._ws.protocol = "push-notification";
     this._ws.asyncOpen(uri, serverURL, this._wsListener, null);
     this._currentState = STATE_WAITING_FOR_WS_START;
-  },
-
-  _startListeningIfChannelsPresent: function() {
-    // Check to see if we need to do anything.
-    this._db.getAllChannelIDs(function(channelIDs) {
-      if (channelIDs.length > 0) {
-        this._beginWSSetup();
-      }
-    }.bind(this));
   },
 
   /** |delay| should be in milliseconds. */

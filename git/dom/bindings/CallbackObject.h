@@ -76,7 +76,7 @@ public:
    */
   JS::Handle<JSObject*> CallbackPreserveColor() const
   {
-    return mCallback;
+    return JS::Handle<JSObject*>::fromMarkedLocation(&mCallback);
   }
 
   enum ExceptionHandling {
@@ -111,7 +111,7 @@ protected:
     }
   }
 
-  JS::Heap<JSObject*> mCallback;
+  JSObject* mCallback;
 
   class MOZ_STACK_CLASS CallSetup
   {

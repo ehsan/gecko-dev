@@ -598,10 +598,8 @@ void nsDisplayListBuilder::MarkOutOfFlowFrameForDisplay(nsIFrame* aDirtyFrame,
 
   if (!dirty.IntersectRect(dirty, overflowRect))
     return;
-  const DisplayItemClip* clip = mClipState.GetClipForContainingBlockDescendants();
-  OutOfFlowDisplayData* data = clip ? new OutOfFlowDisplayData(*clip, dirty)
-    : new OutOfFlowDisplayData(dirty);
-  aFrame->Properties().Set(nsDisplayListBuilder::OutOfFlowDisplayDataProperty(), data);
+  aFrame->Properties().Set(nsDisplayListBuilder::OutOfFlowDisplayDataProperty(),
+    new OutOfFlowDisplayData(mClipState.GetClipForContainingBlockDescendants(), dirty));
 
   MarkFrameForDisplay(aFrame, aDirtyFrame);
 }
@@ -810,13 +808,6 @@ nsDisplayListBuilder::LeavePresShell(nsIFrame* aReferenceFrame,
     return;
   }
 
-  ResetMarkedFramesForDisplayList();
-  mPresShellStates.SetLength(mPresShellStates.Length() - 1);
-}
-
-void
-nsDisplayListBuilder::ResetMarkedFramesForDisplayList()
-{
   // Unmark and pop off the frames marked for display in this pres shell.
   uint32_t firstFrameForShell = CurrentPresShellState()->mFirstFrameMarkedForDisplay;
   for (uint32_t i = firstFrameForShell;
@@ -824,6 +815,7 @@ nsDisplayListBuilder::ResetMarkedFramesForDisplayList()
     UnmarkFrameForDisplay(mFramesMarkedForDisplay[i]);
   }
   mFramesMarkedForDisplay.SetLength(firstFrameForShell);
+  mPresShellStates.SetLength(mPresShellStates.Length() - 1);
 }
 
 void
@@ -1207,7 +1199,6 @@ void nsDisplayList::PaintForFrame(nsDisplayListBuilder* aBuilder,
     LayerProperties::ClearInvalidations(root);
   }
 
-  bool shouldInvalidate = layerManager->NeedsWidgetInvalidation();
   if (view) {
     if (props) {
       if (!invalid.IsEmpty()) {
@@ -1216,12 +1207,10 @@ void nsDisplayList::PaintForFrame(nsDisplayListBuilder* aBuilder,
                     presContext->DevPixelsToAppUnits(bounds.y),
                     presContext->DevPixelsToAppUnits(bounds.width),
                     presContext->DevPixelsToAppUnits(bounds.height));
-        if (shouldInvalidate) {
-          view->GetViewManager()->InvalidateViewNoSuppression(view, rect);
-        }
+        view->GetViewManager()->InvalidateViewNoSuppression(view, rect);
         presContext->NotifyInvalidation(bounds, 0);
       }
-    } else if (shouldInvalidate) {
+    } else {
       view->GetViewManager()->InvalidateView(view);
     }
   }

@@ -7,6 +7,8 @@
 #ifndef ScopeObject_h___
 #define ScopeObject_h___
 
+#include "mozilla/GuardObjects.h"
+
 #include "jscntxt.h"
 #include "jsobj.h"
 #include "jsweakmap.h"

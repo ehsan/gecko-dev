@@ -11,6 +11,7 @@
 #include "jsapi.h"
 
 #include "mozilla/FloatingPoint.h"
+#include "mozilla/GuardObjects.h"
 #include "mozilla/PodOperations.h"
 #include "mozilla/ThreadLocal.h"
 
@@ -22,12 +23,14 @@
 
 #include "jstypes.h"
 #include "jsutil.h"
+#include "jsclist.h"
 #include "jsprf.h"
 #include "jsarray.h"
 #include "jsatom.h"
 #include "jsbool.h"
 #include "jsclone.h"
 #include "jscntxt.h"
+#include "jsversion.h"
 #include "jsdate.h"
 #include "jsdtoa.h"
 #include "jsexn.h"
@@ -40,6 +43,7 @@
 #include "jsnum.h"
 #include "json.h"
 #include "jsobj.h"
+#include "jsopcode.h"
 #include "jsproxy.h"
 #include "jsscript.h"
 #include "jsstr.h"
@@ -62,7 +66,6 @@
 #include "gc/Marking.h"
 #include "gc/Memory.h"
 #include "ion/AsmJS.h"
-#include "ion/PcScriptCache.h"
 #include "js/CharacterEncoding.h"
 #include "vm/Debugger.h"
 #include "vm/Interpreter.h"
@@ -166,8 +169,8 @@ class AutoVersionAPI
 #endif
 
 #ifdef JS_USE_JSID_STRUCT_TYPES
-const jsid JSID_VOID  = { size_t(JSID_TYPE_VOID) };
-const jsid JSID_EMPTY = { size_t(JSID_TYPE_OBJECT) };
+jsid JSID_VOID  = { size_t(JSID_TYPE_VOID) };
+jsid JSID_EMPTY = { size_t(JSID_TYPE_OBJECT) };
 #endif
 
 const jsval JSVAL_NULL  = IMPL_TO_JSVAL(BUILD_JSVAL(JSVAL_TAG_NULL,      0));
@@ -1803,7 +1806,7 @@ typedef struct JSStdName {
 } JSStdName;
 
 static Handle<PropertyName*>
-StdNameToPropertyName(JSContext *cx, const JSStdName *stdn)
+StdNameToPropertyName(JSContext *cx, JSStdName *stdn)
 {
     return OFFSET_TO_NAME(cx->runtime(), stdn->atomOffset);
 }
@@ -1812,7 +1815,7 @@ StdNameToPropertyName(JSContext *cx, const JSStdName *stdn)
  * Table of class initializers and their atom offsets in rt->atomState.
  * If you add a "standard" class, remember to update this table.
  */
-static const JSStdName standard_class_atoms[] = {
+static JSStdName standard_class_atoms[] = {
     {js_InitFunctionClass,              EAGER_ATOM_AND_CLASP(Function)},
     {js_InitObjectClass,                EAGER_ATOM_AND_CLASP(Object)},
     {js_InitArrayClass,                 EAGER_ATOM_AND_CLASP(Array)},
@@ -1846,7 +1849,7 @@ static const JSStdName standard_class_atoms[] = {
  * If you add a "standard" global function or property, remember to update
  * this table.
  */
-static const JSStdName standard_class_names[] = {
+static JSStdName standard_class_names[] = {
     {js_InitObjectClass,        EAGER_ATOM(eval), CLASP(Object)},
 
     /* Global properties and functions defined by the Number class. */
@@ -1897,7 +1900,7 @@ static const JSStdName standard_class_names[] = {
     {NULL,                      0, NULL}
 };
 
-static const JSStdName object_prototype_names[] = {
+static JSStdName object_prototype_names[] = {
     /* Object.prototype properties (global delegates to Object.prototype). */
     {js_InitObjectClass,        EAGER_ATOM(proto), CLASP(Object)},
 #if JS_HAS_TOSOURCE
@@ -1929,7 +1932,7 @@ JS_ResolveStandardClass(JSContext *cx, JSObject *objArg, jsid id, JSBool *resolv
     RootedObject obj(cx, objArg);
     JSRuntime *rt;
     JSAtom *atom;
-    const JSStdName *stdnm;
+    JSStdName *stdnm;
     unsigned i;
 
     AssertHeapIsIdle(cx);
@@ -3850,15 +3853,10 @@ DefinePropertyById(JSContext *cx, HandleObject obj, HandleId id, HandleValue val
      */
     if (attrs & JSPROP_NATIVE_ACCESSORS) {
         JS_ASSERT(!(attrs & (JSPROP_GETTER | JSPROP_SETTER)));
-        JSFunction::Flags zeroFlags = JSAPIToJSFunctionFlags(0);
-        // We can't just use JS_NewFunctionById here because it
-        // assumes a string id.
-        RootedAtom atom(cx, JSID_IS_ATOM(id) ? JSID_TO_ATOM(id) : nullptr);
         attrs &= ~JSPROP_NATIVE_ACCESSORS;
         if (getter) {
             RootedObject global(cx, (JSObject*) &obj->global());
-            JSFunction *getobj = NewFunction(cx, NullPtr(), (Native) getter, 0,
-                                             zeroFlags, global, atom);
+            JSFunction *getobj = JS_NewFunction(cx, (Native) getter, 0, 0, global, NULL);
             if (!getobj)
                 return false;
 
@@ -3872,8 +3870,7 @@ DefinePropertyById(JSContext *cx, HandleObject obj, HandleId id, HandleValue val
             // Root just the getter, since the setter is not yet a JSObject.
             AutoRooterGetterSetter getRoot(cx, JSPROP_GETTER, &getter, NULL);
             RootedObject global(cx, (JSObject*) &obj->global());
-            JSFunction *setobj = NewFunction(cx, NullPtr(), (Native) setter, 1,
-                                             zeroFlags, global, atom);
+            JSFunction *setobj = JS_NewFunction(cx, (Native) setter, 1, 0, global, NULL);
             if (!setobj)
                 return false;
 
@@ -4050,7 +4047,7 @@ JS_DefineObject(JSContext *cx, JSObject *objArg, const char *name, JSClass *jscl
 }
 
 JS_PUBLIC_API(JSBool)
-JS_DefineConstDoubles(JSContext *cx, JSObject *objArg, const JSConstDoubleSpec *cds)
+JS_DefineConstDoubles(JSContext *cx, JSObject *objArg, JSConstDoubleSpec *cds)
 {
     RootedObject obj(cx, objArg);
     JSBool ok;

@@ -12,8 +12,12 @@
 #include <stddef.h>
 #include "jsalloc.h"
 #include "jsapi.h"
+#include "jsfriendapi.h"
+#include "jsprototypes.h"
 #include "jsprvtd.h"
 #include "jspubtd.h"
+#include "jslock.h"
+#include "jsversion.h"
 
 #include "gc/Barrier.h"
 #include "js/HashTable.h"
@@ -177,7 +181,7 @@ extern const char   js_send_str[];
 
 namespace js {
 
-extern const char * const TypeStrings[];
+extern const char * TypeStrings[];
 
 /*
  * Initialize atom state. Return true on success, false on failure to allocate

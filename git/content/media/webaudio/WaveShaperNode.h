@@ -37,7 +37,7 @@ private:
   void ClearCurve();
 
 private:
-  JS::Heap<JSObject*> mCurve;
+  JSObject* mCurve;
 };
 
 }

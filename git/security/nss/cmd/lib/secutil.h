@@ -160,8 +160,7 @@ SECU_displayVerifyLog(FILE *outfile, CERTVerifyLog *log,
 
 /* Read in a DER from a file, may be ascii  */
 extern SECStatus 
-SECU_ReadDERFromFile(SECItem *der, PRFileDesc *inFile, PRBool ascii,
-		     PRBool warnOnPrivateKeyInAsciiFile);
+SECU_ReadDERFromFile(SECItem *der, PRFileDesc *inFile, PRBool ascii);
 
 /* Print integer value and hex */
 extern void SECU_PrintInteger(FILE *out, const SECItem *i, const char *m,

@@ -13,11 +13,14 @@
 #include "ion/AsmJS.h"
 #include "vm/GlobalObject.h"
 
+#include "jsinferinlines.h"
 #include "jsobjinlines.h"
 
 #include "frontend/ParseMaps-inl.h"
+#include "frontend/ParseNode-inl.h"
 #include "frontend/Parser-inl.h"
 #include "frontend/SharedContext-inl.h"
+#include "vm/Probes-inl.h"
 
 using namespace js;
 using namespace js::frontend;
@@ -268,7 +271,7 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain,
         TokenStream::Position pos(parser.keepAtoms);
         parser.tokenStream.tell(&pos);
 
-        ParseNode *pn = parser.statement(canHaveDirectives);
+        ParseNode *pn = parser.statement();
         if (!pn) {
             if (parser.hadAbortedSyntaxParse()) {
                 // Parsing inner functions lazily may lead the parser into an

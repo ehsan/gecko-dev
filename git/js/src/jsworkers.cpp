@@ -8,8 +8,6 @@
 
 #include "mozilla/DebugOnly.h"
 
-#include "prmjtime.h"
-
 #ifdef JS_PARALLEL_COMPILATION
 # include "ion/AsmJS.h"
 # include "ion/IonBuilder.h"

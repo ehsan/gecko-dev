@@ -73,13 +73,13 @@ const JSCodeSpec js_CodeSpec[] = {
 #undef OPDEF
 };
 
-const unsigned js_NumCodeSpecs = JS_ARRAY_LENGTH(js_CodeSpec);
+unsigned js_NumCodeSpecs = JS_ARRAY_LENGTH(js_CodeSpec);
 
 /*
  * Each element of the array is either a source literal associated with JS
  * bytecode or null.
  */
-static const char * const CodeToken[] = {
+static const char *CodeToken[] = {
 #define OPDEF(op,val,name,token,length,nuses,ndefs,format) \
     token,
 #include "jsopcode.tbl"
@@ -90,7 +90,7 @@ static const char * const CodeToken[] = {
  * Array of JS bytecode names used by PC count JSON, DEBUG-only js_Disassemble
  * and JIT debug spew.
  */
-const char * const js_CodeName[] = {
+const char *js_CodeName[] = {
 #define OPDEF(op,val,name,token,length,nuses,ndefs,format) \
     name,
 #include "jsopcode.tbl"
@@ -172,7 +172,7 @@ js::StackDefs(JSScript *script, jsbytecode *pc)
     return op == JSOP_ENTERLET1 ? n + 1 : n;
 }
 
-static const char * const countBaseNames[] = {
+static const char * countBaseNames[] = {
     "interp",
     "mjit",
     "mjit_calls",
@@ -182,7 +182,7 @@ static const char * const countBaseNames[] = {
 
 JS_STATIC_ASSERT(JS_ARRAY_LENGTH(countBaseNames) == PCCounts::BASE_LIMIT);
 
-static const char * const countAccessNames[] = {
+static const char * countAccessNames[] = {
     "infer_mono",
     "infer_di",
     "infer_poly",
@@ -200,7 +200,7 @@ static const char * const countAccessNames[] = {
 JS_STATIC_ASSERT(JS_ARRAY_LENGTH(countBaseNames) +
                  JS_ARRAY_LENGTH(countAccessNames) == PCCounts::ACCESS_LIMIT);
 
-static const char * const countElementNames[] = {
+static const char * countElementNames[] = {
     "id_int",
     "id_double",
     "id_other",
@@ -215,7 +215,7 @@ JS_STATIC_ASSERT(JS_ARRAY_LENGTH(countBaseNames) +
                  JS_ARRAY_LENGTH(countAccessNames) +
                  JS_ARRAY_LENGTH(countElementNames) == PCCounts::ELEM_LIMIT);
 
-static const char * const countPropertyNames[] = {
+static const char * countPropertyNames[] = {
     "prop_static",
     "prop_definite",
     "prop_other"
@@ -225,7 +225,7 @@ JS_STATIC_ASSERT(JS_ARRAY_LENGTH(countBaseNames) +
                  JS_ARRAY_LENGTH(countAccessNames) +
                  JS_ARRAY_LENGTH(countPropertyNames) == PCCounts::PROP_LIMIT);
 
-static const char * const countArithNames[] = {
+static const char * countArithNames[] = {
     "arith_int",
     "arith_double",
     "arith_other",
@@ -2086,8 +2086,7 @@ AppendJSONProperty(StringBuffer &buf, const char *name, MaybeComma comma = COMMA
 
 static void
 AppendArrayJSONProperties(JSContext *cx, StringBuffer &buf,
-                          double *values, const char * const *names, unsigned count,
-                          MaybeComma &comma)
+                          double *values, const char **names, unsigned count, MaybeComma &comma)
 {
     for (unsigned i = 0; i < count; i++) {
         if (values[i]) {

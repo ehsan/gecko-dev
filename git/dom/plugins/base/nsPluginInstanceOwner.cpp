@@ -3298,6 +3298,8 @@ nsPluginInstanceOwner::UpdateDocumentActiveState(bool aIsActive)
   if (mInstance) {
     if (!mPluginDocumentActiveState)
       RemovePluginView();
+    else if (mPluginDocumentActiveState && mFullScreen)
+      AddPluginView();
 
     mInstance->NotifyOnScreen(mPluginDocumentActiveState);
 

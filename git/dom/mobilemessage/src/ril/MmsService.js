@@ -129,14 +129,10 @@ XPCOMUtils.defineLazyGetter(this, "gMmsConnection", function () {
     proxy: null,
     port: null,
 
-    // For keeping track of the radio status.
-    radioDisabled: false,
-
     proxyInfo: null,
     settings: ["ril.mms.mmsc",
                "ril.mms.mmsproxy",
-               "ril.mms.mmsport",
-               "ril.radio.disabled"],
+               "ril.mms.mmsport"],
     connected: false,
 
     //A queue to buffer the MMS HTTP requests when the MMS network
@@ -190,19 +186,11 @@ XPCOMUtils.defineLazyGetter(this, "gMmsConnection", function () {
         this.port = Services.prefs.getIntPref("ril.mms.mmsport");
         this.updateProxyInfo();
       } catch (e) {
-        if (DEBUG) debug("Unable to initialize the MMS proxy settings from " +
-                         "the preference. This could happen at the first-run. " +
-                         "Should be available later.");
+        if (DEBUG) debug("Unable to initialize the MMS proxy settings from the" +
+                         "preference. This could happen at the first-run. Should be" +
+                         "available later.");
         this.clearMmsProxySettings();
       }
-
-      try {
-        this.radioDisabled = Services.prefs.getBoolPref("ril.radio.disabled");
-      } catch (e) {
-        if (DEBUG) debug("Getting preference 'ril.radio.disabled' fails.");
-        this.radioDisabled = false;
-      }
-
       this.connected = gRIL.getDataCallStateByType("mms") ==
         Ci.nsINetworkInterface.NETWORK_STATE_CONNECTED;
     },
@@ -331,16 +319,6 @@ XPCOMUtils.defineLazyGetter(this, "gMmsConnection", function () {
           break;
         }
         case kPrefenceChangedObserverTopic: {
-          if (data == "ril.radio.disabled") {
-            try {
-              this.radioDisabled = Services.prefs.getBoolPref("ril.radio.disabled");
-            } catch (e) {
-              if (DEBUG) debug("Updating preference 'ril.radio.disabled' fails.");
-              this.radioDisabled = false;
-            }
-            return;
-          }
-
           try {
             switch (data) {
               case "ril.mms.mmsc":
@@ -402,7 +380,7 @@ MmsProxyFilter.prototype = {
     // Fall-through, reutrn the MMS proxy info.
     if (DEBUG) debug("applyFilter: MMSC is matched: " +
                      JSON.stringify({ url: this.url,
-                                      proxyInfo: gMmsConnection.proxyInfo }));
+                                      roxyInfo: gMmsConnection.proxyInfo }));
     return gMmsConnection.proxyInfo ? gMmsConnection.proxyInfo : proxyInfo;
   }
 };
@@ -460,6 +438,8 @@ XPCOMUtils.defineLazyGetter(this, "gMmsTransactionHelper", function () {
             xhr.setRequestHeader("Content-Type",
                                  "application/vnd.wap.mms-message");
             xhr.setRequestHeader("Content-Length", istream.available());
+          } else {
+            xhr.setRequestHeader("Content-Length", 0);
           }
 
           // UAProf headers.
@@ -502,8 +482,7 @@ XPCOMUtils.defineLazyGetter(this, "gMmsTransactionHelper", function () {
                 break;
               }
               default: {
-                if (DEBUG) debug("xhr done, but status = " + xhr.status +
-                                 ", statusText = " + xhr.statusText);
+                if (DEBUG) debug("xhr done, but status = " + xhr.status);
                 break;
               }
             }
@@ -1448,21 +1427,20 @@ MmsService.prototype = {
 
     let self = this;
 
-    let sendTransactionCb = function sendTransactionCb(aRecordId, aErrorCode) {
-      if (DEBUG) debug("The error code of sending transaction: " + aErrorCode);
-      let isSentSuccess = (aErrorCode == Ci.nsIMobileMessageCallback.SUCCESS_NO_ERROR);
+    let sendTransactionCb = function sendTransactionCb(aRecordId, aIsSentSuccess) {
+      if (DEBUG) debug("The success status of sending transaction: " + aIsSentSuccess);
       gMobileMessageDatabaseService
         .setMessageDelivery(aRecordId,
                             null,
-                            isSentSuccess ? DELIVERY_SENT : DELIVERY_ERROR,
-                            isSentSuccess ? null : DELIVERY_STATUS_ERROR,
+                            aIsSentSuccess ? DELIVERY_SENT : DELIVERY_ERROR,
+                            aIsSentSuccess ? null : DELIVERY_STATUS_ERROR,
                             function notifySetDeliveryResult(aRv, aDomMessage) {
         if (DEBUG) debug("Marking the delivery state/staus is done. Notify sent or failed.");
         // TODO bug 832140 handle !Components.isSuccessCode(aRv)
-        if (!isSentSuccess) {
+        if (!aIsSentSuccess) {
           if (DEBUG) debug("Send MMS fail. aParams.receivers = " +
                            JSON.stringify(aParams.receivers));
-          aRequest.notifySendMessageFailed(aErrorCode);
+          aRequest.notifySendMessageFailed(Ci.nsIMobileMessageCallback.INTERNAL_ERROR);
           Services.obs.notifyObservers(aDomMessage, kSmsFailedObserverTopic, null);
           return;
         }
@@ -1483,21 +1461,6 @@ MmsService.prototype = {
       .saveSendingMessage(savableMessage,
                           function notifySendingResult(aRv, aDomMessage) {
       if (DEBUG) debug("Saving sending message is done. Start to send.");
-
-      // For radio disabled error.
-      if(gMmsConnection.radioDisabled) {
-        if (DEBUG) debug("Error! Radio is disabled when sending MMS.");
-        sendTransactionCb(aDomMessage.id, Ci.nsIMobileMessageCallback.RADIO_DISABLED_ERROR);
-        return;
-      }
-
-      // For SIM card is not ready.
-      if(gRIL.rilContext.cardState != "ready") {
-        if (DEBUG) debug("Error! SIM card is not ready when sending MMS.");
-        sendTransactionCb(aDomMessage.id, Ci.nsIMobileMessageCallback.NO_SIM_CARD_ERROR);
-        return;
-      }
-
       // TODO bug 832140 handle !Components.isSuccessCode(aRv)
       Services.obs.notifyObservers(aDomMessage, kSmsSendingObserverTopic, null);
       let sendTransaction;
@@ -1505,15 +1468,13 @@ MmsService.prototype = {
         sendTransaction = new SendTransaction(savableMessage);
       } catch (e) {
         if (DEBUG) debug("Exception: fail to create a SendTransaction instance.");
-        sendTransactionCb(aDomMessage.id, Ci.nsIMobileMessageCallback.INTERNAL_ERROR);
+        sendTransactionCb(aDomMessage.id, false);
         return;
       }
       sendTransaction.run(function callback(aMmsStatus, aMsg) {
         let isSentSuccess = (aMmsStatus == MMS.MMS_PDU_ERROR_OK);
         if (DEBUG) debug("The sending status of sendTransaction.run(): " + aMmsStatus);
-        sendTransactionCb(aDomMessage.id, isSentSuccess?
-                          Ci.nsIMobileMessageCallback.SUCCESS_NO_ERROR:
-                          Ci.nsIMobileMessageCallback.INTERNAL_ERROR);
+        sendTransactionCb(aDomMessage.id, isSentSuccess);
       });
     });
   },

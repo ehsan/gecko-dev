@@ -818,7 +818,6 @@ nsSimplePageSequenceFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     while (child) {
       child->BuildDisplayListForStackingContext(aBuilder,
           child->GetVisualOverflowRectRelativeToSelf(), &content);
-      aBuilder->ResetMarkedFramesForDisplayList();
       child = child->GetNextSibling();
     }
   }

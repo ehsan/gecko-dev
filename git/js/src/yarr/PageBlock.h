@@ -32,7 +32,8 @@
 
 #include "mozilla/StandardInteger.h"
 
-#include <stddef.h>
+#include <stdlib.h>
+#include "assembler/wtf/Platform.h"
 
 namespace WTF {
 

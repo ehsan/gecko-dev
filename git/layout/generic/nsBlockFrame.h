@@ -547,9 +547,9 @@ protected:
 
   /** Reflow pushed floats
    */
-  void ReflowPushedFloats(nsBlockReflowState& aState,
-                          nsOverflowAreas&    aOverflowAreas,
-                          nsReflowStatus&     aStatus);
+  nsresult ReflowPushedFloats(nsBlockReflowState& aState,
+                              nsOverflowAreas&    aOverflowAreas,
+                              nsReflowStatus&     aStatus);
 
   /** Find any trailing BR clear from the last line of the block (or its PIFs)
    */
@@ -579,7 +579,7 @@ protected:
   /** set up the conditions necessary for an resize reflow
     * the primary task is to mark the minimumly sufficient lines dirty. 
     */
-  void PrepareResizeReflow(nsBlockReflowState& aState);
+  nsresult PrepareResizeReflow(nsBlockReflowState& aState);
 
   /** reflow all lines that have been marked dirty */
   nsresult ReflowDirtyLines(nsBlockReflowState& aState);
@@ -697,11 +697,13 @@ protected:
    * @param aState the block reflow state
    * @param aLine where to put a new frame
    * @param aFrame the frame
-   * @return true if a new frame was created, false if not
+   * @param aMadeNewFrame true if a new frame was created, false if not
+   * @return NS_OK if a next-in-flow already exists or is successfully created
    */
-  bool CreateContinuationFor(nsBlockReflowState& aState,
-                             nsLineBox*          aLine,
-                             nsIFrame*           aFrame);
+  virtual nsresult CreateContinuationFor(nsBlockReflowState& aState,
+                                         nsLineBox*          aLine,
+                                         nsIFrame*           aFrame,
+                                         bool&             aMadeNewFrame);
 
   /**
    * Push aLine (and any after it), since it cannot be placed on this
@@ -712,11 +714,11 @@ protected:
                          line_iterator       aLine,
                          bool*               aKeepReflowGoing);
 
-  void SplitLine(nsBlockReflowState& aState,
-                 nsLineLayout& aLineLayout,
-                 line_iterator aLine,
-                 nsIFrame* aFrame,
-                 LineReflowStatus* aLineReflowStatus);
+  nsresult SplitLine(nsBlockReflowState& aState,
+                     nsLineLayout& aLineLayout,
+                     line_iterator aLine,
+                     nsIFrame* aFrame,
+                     LineReflowStatus* aLineReflowStatus);
 
   /**
    * Pull a frame from the next available location (one of our lines or

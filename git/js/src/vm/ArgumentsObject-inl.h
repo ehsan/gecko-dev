@@ -7,9 +7,9 @@
 #ifndef ArgumentsObject_inl_h___
 #define ArgumentsObject_inl_h___
 
-#include "vm/ArgumentsObject.h"
+#include "ArgumentsObject.h"
 
-#include "vm/ScopeObject.h"
+#include "ScopeObject-inl.h"
 
 namespace js {
 

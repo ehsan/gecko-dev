@@ -145,7 +145,7 @@ protected:
   nsString mResult;
   nsCOMPtr<nsIPrincipal> mPrincipal;
   
-  JS::Heap<JSObject*> mResultArrayBuffer;
+  JSObject* mResultArrayBuffer;
 };
 
 #endif

@@ -7,7 +7,10 @@
 #ifndef jsfriendapi_h___
 #define jsfriendapi_h___
 
+#include "mozilla/GuardObjects.h"
+
 #include "jsclass.h"
+#include "jscpucfg.h"
 #include "jspubtd.h"
 #include "jsprvtd.h"
 
@@ -27,11 +30,6 @@
 #endif
 
 #define JS_CHECK_STACK_SIZE(limit, lval) JS_CHECK_STACK_SIZE_WITH_TOLERANCE(limit, lval, 0)
-
-namespace JS {
-template <class T>
-class Heap;
-} /* namespace JS */
 
 extern JS_FRIEND_API(void)
 JS_SetGrayGCRootsTracer(JSRuntime *rt, JSTraceDataOp traceOp, void *data);
@@ -892,7 +890,7 @@ struct ExpandoAndGeneration {
       generation(0)
   {}
 
-  JS::Heap<JS::Value> expando;
+  Value expando;
   uint32_t generation;
 };
 

@@ -8,15 +8,9 @@
 #define BytecodeCompiler_h__
 
 #include "jsapi.h"
-
-class JSLinearString;
+#include "jsprvtd.h"
 
 namespace js {
-
-class AutoNameVector;
-class LazyScript;
-struct SourceCompressionToken;
-
 namespace frontend {
 
 JSScript *

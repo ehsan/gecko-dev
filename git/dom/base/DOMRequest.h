@@ -22,7 +22,7 @@ class DOMRequest : public nsDOMEventTargetHelper,
                    public nsIDOMDOMRequest
 {
 protected:
-  JS::Heap<JS::Value> mResult;
+  JS::Value mResult;
   nsRefPtr<DOMError> mError;
   bool mDone;
   bool mRooted;

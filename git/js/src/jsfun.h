@@ -10,7 +10,10 @@
  * JS function definitions.
  */
 #include "jsprvtd.h"
+#include "jspubtd.h"
 #include "jsobj.h"
+#include "jsatom.h"
+#include "jsstr.h"
 
 #include "gc/Barrier.h"
 

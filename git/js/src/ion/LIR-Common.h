@@ -1561,10 +1561,10 @@ class LCompareStrictS : public LInstructionHelper<1, BOX_PIECES + 1, 2>
     const LAllocation *right() {
         return getOperand(BOX_PIECES);
     }
-    const LDefinition *temp() {
+    const LDefinition *temp0() {
         return getTemp(0);
     }
-    const LDefinition *tempToUnbox() {
+    const LDefinition *temp1() {
         return getTemp(1);
     }
     MCompare *mir() {
@@ -1680,10 +1680,10 @@ class LIsNullOrLikeUndefined : public LInstructionHelper<1, BOX_PIECES, 2>
   public:
     LIR_HEADER(IsNullOrLikeUndefined)
 
-    LIsNullOrLikeUndefined(const LDefinition &temp, const LDefinition &tempToUnbox)
+    LIsNullOrLikeUndefined(const LDefinition &temp0, const LDefinition &temp1)
     {
-        setTemp(0, temp);
-        setTemp(1, tempToUnbox);
+        setTemp(0, temp0);
+        setTemp(1, temp1);
     }
 
     static const size_t Value = 0;
@@ -1692,11 +1692,11 @@ class LIsNullOrLikeUndefined : public LInstructionHelper<1, BOX_PIECES, 2>
         return mir_->toCompare();
     }
 
-    const LDefinition *temp() {
+    const LDefinition *temp0() {
         return getTemp(0);
     }
 
-    const LDefinition *tempToUnbox() {
+    const LDefinition *temp1() {
         return getTemp(1);
     }
 };
@@ -1706,12 +1706,12 @@ class LIsNullOrLikeUndefinedAndBranch : public LControlInstructionHelper<2, BOX_
   public:
     LIR_HEADER(IsNullOrLikeUndefinedAndBranch)
 
-    LIsNullOrLikeUndefinedAndBranch(MBasicBlock *ifTrue, MBasicBlock *ifFalse, const LDefinition &temp, const LDefinition &tempToUnbox)
+    LIsNullOrLikeUndefinedAndBranch(MBasicBlock *ifTrue, MBasicBlock *ifFalse, const LDefinition &temp0, const LDefinition &temp1)
     {
         setSuccessor(0, ifTrue);
         setSuccessor(1, ifFalse);
-        setTemp(0, temp);
-        setTemp(1, tempToUnbox);
+        setTemp(0, temp0);
+        setTemp(1, temp1);
     }
 
     static const size_t Value = 0;
@@ -1725,10 +1725,10 @@ class LIsNullOrLikeUndefinedAndBranch : public LControlInstructionHelper<2, BOX_
     MCompare *mir() {
         return mir_->toCompare();
     }
-    const LDefinition *temp() {
+    const LDefinition *temp0() {
         return getTemp(0);
     }
-    const LDefinition *tempToUnbox() {
+    const LDefinition *temp1() {
         return getTemp(1);
     }
 };
