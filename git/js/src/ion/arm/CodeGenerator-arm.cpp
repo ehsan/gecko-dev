@@ -598,8 +598,6 @@ CodeGeneratorARM::visitDivPowTwoI(LDivPowTwoI *ins)
 
         // Do the shift.
         masm.as_mov(output, asr(ScratchRegister, shift));
-    } else {
-        masm.ma_mov(lhs, output);
     }
 
     return true;
