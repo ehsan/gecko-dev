@@ -2919,7 +2919,7 @@ TraceRecorder::isValidSlot(JSScope* scope, JSScopeProperty* sprop)
     }
 
     /* This check applies even when setflags == 0. */
-    if (setflags != JOF_SET && !SPROP_HAS_STUB_GETTER_OR_IS_METHOD(sprop))
+    if (setflags != JOF_SET && !SPROP_HAS_STUB_GETTER(sprop))
         ABORT_TRACE_RV("non-stub getter", false);
 
     if (!SPROP_HAS_VALID_SLOT(sprop, scope))
@@ -4391,7 +4391,7 @@ TraceRecorder::hasMethod(JSObject* obj, jsid id)
         JSScope* scope = OBJ_SCOPE(pobj);
         JSScopeProperty* sprop = (JSScopeProperty*) prop;
 
-        if (SPROP_HAS_STUB_GETTER_OR_IS_METHOD(sprop) &&
+        if (SPROP_HAS_STUB_GETTER(sprop) &&
             SPROP_HAS_VALID_SLOT(sprop, scope)) {
             jsval v = LOCKED_OBJ_GET_SLOT(pobj, sprop->slot);
             if (VALUE_IS_FUNCTION(cx, v)) {
@@ -7106,22 +7106,9 @@ TraceRecorder::alu(LOpcode v, jsdouble v0, jsdouble v1, LIns* s0, LIns* s1)
 
         exit = snapshot(OVERFLOW_EXIT);
 
-        /*
-         * If the divisor is greater than zero its always safe to execute
-         * the division. If not, we have to make sure we are not running
-         * into -2147483648 / -1, because it can raise an overflow exception.
-         */
-        if (!d1->isconst()) {
-            LIns* gt = lir->insBranch(LIR_jt, lir->ins2i(LIR_gt, d1, 0), NULL);
+        /* Make sure we don't trigger division by zero at runtime. */
+        if (!d1->isconst())
             guard(false, lir->ins_eq0(d1), exit);
-            guard(false, lir->ins2(LIR_and,
-                                   lir->ins2i(LIR_eq, d0, -2147483648),
-                                   lir->ins2i(LIR_eq, d1, -1)), exit);
-            gt->setTarget(lir->ins0(LIR_label));
-        } else {
-            if (d1->imm32() == -1)
-                guard(false, lir->ins2i(LIR_eq, d0, -2147483648), exit);
-        }
         result = lir->ins2(v = LIR_div, d0, d1);
 
         /* As long the modulus is zero, the result is an integer. */
@@ -8210,7 +8197,7 @@ JSRecordingStatus
 TraceRecorder::native_get(LIns* obj_ins, LIns* pobj_ins, JSScopeProperty* sprop,
                           LIns*& dslots_ins, LIns*& v_ins)
 {
-    if (!SPROP_HAS_STUB_GETTER_OR_IS_METHOD(sprop))
+    if (!SPROP_HAS_STUB_GETTER(sprop))
         return JSRS_STOP;
 
     if (sprop->slot != SPROP_INVALID_SLOT)
@@ -9134,7 +9121,7 @@ TraceRecorder::emitNativePropertyOp(JSScope* scope, JSScopeProperty* sprop, LIns
                                     bool setflag, LIns* boxed_ins)
 {
     JS_ASSERT(!(sprop->attrs & (setflag ? JSPROP_SETTER : JSPROP_GETTER)));
-    JS_ASSERT(setflag ? !SPROP_HAS_STUB_SETTER(sprop) : !SPROP_HAS_STUB_GETTER_OR_IS_METHOD(sprop));
+    JS_ASSERT(setflag ? !SPROP_HAS_STUB_SETTER(sprop) : !SPROP_HAS_STUB_GETTER(sprop));
 
     enterDeepBailCall();
 
@@ -10198,7 +10185,7 @@ TraceRecorder::getPropertyWithNativeGetter(LIns* obj_ins, JSScopeProperty* sprop
 {
     JS_ASSERT(!(sprop->attrs & JSPROP_GETTER));
     JS_ASSERT(sprop->slot == SPROP_INVALID_SLOT);
-    JS_ASSERT(!SPROP_HAS_STUB_GETTER_OR_IS_METHOD(sprop));
+    JS_ASSERT(!SPROP_HAS_STUB_GETTER(sprop));
 
     // Call GetPropertyWithNativeGetter. See note in getPropertyByName about vp.
     // FIXME - We should call the getter directly. Using a builtin function for
@@ -11143,7 +11130,7 @@ TraceRecorder::prop(JSObject* obj, LIns* obj_ins, uint32 *slotp, LIns** v_insp, 
             ABORT_TRACE("non-stub setter");
         if (setflags && (sprop->attrs & JSPROP_READONLY))
             ABORT_TRACE("writing to a readonly property");
-        if (!SPROP_HAS_STUB_GETTER_OR_IS_METHOD(sprop)) {
+        if (!SPROP_HAS_STUB_GETTER(sprop)) {
             if (slotp)
                 ABORT_TRACE("can't trace non-stub getter for this opcode");
             if (sprop->attrs & JSPROP_GETTER)
@@ -13007,18 +12994,6 @@ DBG_STUB(JSOP_CALLUPVAR_DBG)
 DBG_STUB(JSOP_DEFFUN_DBGFC)
 DBG_STUB(JSOP_DEFLOCALFUN_DBGFC)
 DBG_STUB(JSOP_LAMBDA_DBGFC)
-
-JS_REQUIRES_STACK JSRecordingStatus
-TraceRecorder::record_JSOP_SETMETHOD()
-{
-    return record_JSOP_SETPROP();
-}
-
-JS_REQUIRES_STACK JSRecordingStatus
-TraceRecorder::record_JSOP_INITMETHOD()
-{
-    return record_JSOP_INITPROP();
-}
 
 #ifdef JS_JIT_SPEW
 /*
