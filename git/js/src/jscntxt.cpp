@@ -533,8 +533,6 @@ JSThreadData::purge(JSContext *cx)
 
     /* FIXME: bug 506341. */
     propertyCache.purge(cx);
-
-    dtoaCache.s = NULL;
 }
 
 #ifdef JS_THREADSAFE
@@ -1406,18 +1404,18 @@ checkReportFlags(JSContext *cx, uintN *flags)
         JSStackFrame *fp = js_GetScriptedCaller(cx, NULL);
         if (fp && fp->script()->strictModeCode)
             *flags &= ~JSREPORT_WARNING;
-        else if (JS_HAS_STRICT_OPTION(cx))
+        else if (cx->hasStrictOption())
             *flags |= JSREPORT_WARNING;
         else
             return true;
     } else if (JSREPORT_IS_STRICT(*flags)) {
         /* Warning/error only when JSOPTION_STRICT is set. */
-        if (!JS_HAS_STRICT_OPTION(cx))
+        if (!cx->hasStrictOption())
             return true;
     }
 
     /* Warnings become errors when JSOPTION_WERROR is set. */
-    if (JSREPORT_IS_WARNING(*flags) && JS_HAS_WERROR_OPTION(cx))
+    if (JSREPORT_IS_WARNING(*flags) && cx->hasWErrorOption())
         *flags &= ~JSREPORT_WARNING;
 
     return false;
@@ -1990,7 +1988,8 @@ DSTOffsetCache::DSTOffsetCache()
 }
 
 JSContext::JSContext(JSRuntime *rt)
-  : runtime(rt),
+  : hasVersionOverride(false),
+    runtime(rt),
     compartment(NULL),
     regs(NULL),
     busyArrays()
@@ -2033,9 +2032,8 @@ error:
 
 /*
  * Since this function is only called in the context of a pending exception,
- * the caller must subsequently take an error path. If wrapping fails, we leave
- * the exception cleared, which, in the context of an error path, will be
- * interpreted as an uncatchable exception.
+ * the caller must subsequently take an error path. If wrapping fails, it will
+ * set a new (uncatchable) exception to be used in place of the original.
  */
 void
 JSContext::wrapPendingException()
@@ -2076,6 +2074,7 @@ JSContext::popSegmentAndFrame()
         JS_ASSERT(regs->fp->prev() == NULL);
         setCurrentRegs(NULL);
     }
+    maybeMigrateVersionOverride();
 }
 
 void
@@ -2276,14 +2275,14 @@ void
 JSContext::updateJITEnabled()
 {
 #ifdef JS_TRACER
-    traceJitEnabled = ((options & JSOPTION_JIT) &&
+    traceJitEnabled = ((runOptions & JSOPTION_JIT) &&
                        !IsJITBrokenHere() &&
                        (debugHooks == &js_NullDebugHooks ||
                         (debugHooks == &runtime->globalDebugHooks &&
                          !runtime->debuggerInhibitsJIT())));
 #endif
 #ifdef JS_METHODJIT
-    methodJitEnabled = (options & JSOPTION_METHODJIT) &&
+    methodJitEnabled = (runOptions & JSOPTION_METHODJIT) &&
                        !IsJITBrokenHere()
 # if defined JS_CPU_X86 || defined JS_CPU_X64
                        && JSC::MacroAssemblerX86Common::getSSEState() >=
@@ -2291,7 +2290,7 @@ JSContext::updateJITEnabled()
 # endif
                         ;
 #ifdef JS_TRACER
-    profilingEnabled = (options & JSOPTION_PROFILING) && traceJitEnabled && methodJitEnabled;
+    profilingEnabled = (runOptions & JSOPTION_PROFILING) && traceJitEnabled && methodJitEnabled;
 #endif
 #endif
 }

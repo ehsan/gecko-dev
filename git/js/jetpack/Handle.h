@@ -121,8 +121,6 @@ public:
 
   JSObject* ToJSObject(JSContext* cx) {
     if (!mObj && !mCx) {
-      JSAutoRequest request(cx);
-
       JSClass* clasp = const_cast<JSClass*>(&sHandle_JSClass);
       JSObject* obj = JS_NewObject(cx, clasp, NULL, NULL);
       if (!obj)
@@ -164,14 +162,18 @@ private:
         js::AutoObjectRooter obj(mCx, mObj);
         mObj = NULL;
 
-        JSBool hasOnInvalidate;
-        if (JS_HasProperty(mCx, obj.object(), "onInvalidate",
-                           &hasOnInvalidate) && hasOnInvalidate) {
-          js::AutoValueRooter r(mCx);
-          JSBool ok = JS_CallFunctionName(mCx, obj.object(), "onInvalidate", 0,
-                                          NULL, r.jsval_addr());
-          if (!ok)
-            JS_ReportPendingException(mCx);
+        // If we can't enter the compartment, we won't run onInvalidate().
+        JSAutoEnterCompartment ac;
+        if (ac.enter(mCx, obj.object())) {
+          JSBool hasOnInvalidate;
+          if (JS_HasProperty(mCx, obj.object(), "onInvalidate",
+                             &hasOnInvalidate) && hasOnInvalidate) {
+            js::AutoValueRooter r(mCx);
+            JSBool ok = JS_CallFunctionName(mCx, obj.object(), "onInvalidate", 0,
+                                            NULL, r.jsval_addr());
+            if (!ok)
+              JS_ReportPendingException(mCx);
+          }
         }
 
         // By not nulling out mContext, we prevent ToJSObject from

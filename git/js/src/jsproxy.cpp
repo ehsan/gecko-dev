@@ -259,14 +259,7 @@ JSProxyHandler::construct(JSContext *cx, JSObject *proxy,
     Value fval = GetConstruct(proxy);
     if (fval.isUndefined())
         return ExternalInvokeConstructor(cx, GetCall(proxy), argc, argv, rval);
-
-    /*
-     * FIXME: The Proxy proposal says to pass undefined as the this argument,
-     * but primitive this is not supported yet. See bug 576644.
-     */
-    JS_ASSERT(fval.isObject());
-    JSObject *thisobj = fval.toObject().getGlobal();
-    return ExternalInvoke(cx, thisobj, fval, argc, argv, rval);
+    return ExternalInvoke(cx, UndefinedValue(), fval, argc, argv, rval);
 }
 
 bool
@@ -335,7 +328,7 @@ GetDerivedTrap(JSContext *cx, JSObject *handler, JSAtom *atom, Value *fvalp)
 static bool
 Trap(JSContext *cx, JSObject *handler, Value fval, uintN argc, Value* argv, Value *rval)
 {
-    return ExternalInvoke(cx, handler, fval, argc, argv, rval);
+    return ExternalInvoke(cx, ObjectValue(*handler), fval, argc, argv, rval);
 }
 
 static bool
@@ -374,6 +367,13 @@ ParsePropertyDescriptorObject(JSContext *cx, JSObject *obj, jsid id, const Value
     desc->getter = d->getter();
     desc->setter = d->setter();
     desc->shortid = 0;
+    return true;
+}
+
+static bool
+IndicatePropertyNotFound(JSContext *cx, PropertyDescriptor *desc)
+{
+    desc->obj = NULL;
     return true;
 }
 
@@ -496,8 +496,9 @@ JSScriptedProxyHandler::getPropertyDescriptor(JSContext *cx, JSObject *proxy, js
     AutoValueRooter tvr(cx);
     return GetFundamentalTrap(cx, handler, ATOM(getPropertyDescriptor), tvr.addr()) &&
            Trap1(cx, handler, tvr.value(), id, tvr.addr()) &&
-           ReturnedValueMustNotBePrimitive(cx, proxy, ATOM(getPropertyDescriptor), tvr.value()) &&
-           ParsePropertyDescriptorObject(cx, proxy, id, tvr.value(), desc);
+           ((tvr.value().isUndefined() && IndicatePropertyNotFound(cx, desc)) ||
+            ReturnedValueMustNotBePrimitive(cx, proxy, ATOM(getPropertyDescriptor), tvr.value()) &&
+            ParsePropertyDescriptorObject(cx, proxy, id, tvr.value(), desc));
 }
 
 bool
@@ -508,8 +509,9 @@ JSScriptedProxyHandler::getOwnPropertyDescriptor(JSContext *cx, JSObject *proxy,
     AutoValueRooter tvr(cx);
     return GetFundamentalTrap(cx, handler, ATOM(getOwnPropertyDescriptor), tvr.addr()) &&
            Trap1(cx, handler, tvr.value(), id, tvr.addr()) &&
-           ReturnedValueMustNotBePrimitive(cx, proxy, ATOM(getPropertyDescriptor), tvr.value()) &&
-           ParsePropertyDescriptorObject(cx, proxy, id, tvr.value(), desc);
+           ((tvr.value().isUndefined() && IndicatePropertyNotFound(cx, desc)) ||
+            ReturnedValueMustNotBePrimitive(cx, proxy, ATOM(getPropertyDescriptor), tvr.value()) &&
+            ParsePropertyDescriptorObject(cx, proxy, id, tvr.value(), desc));
 }
 
 bool
@@ -1270,15 +1272,12 @@ static const uint32 JSSLOT_CALLABLE_CONSTRUCT = 1;
 static JSBool
 callable_Call(JSContext *cx, uintN argc, Value *vp)
 {
-    JSObject *thisobj = ComputeThisFromVp(cx, vp);
-    if (!thisobj)
-        return false;
-
     JSObject *callable = &JS_CALLEE(cx, vp).toObject();
     JS_ASSERT(callable->getClass() == &CallableObjectClass);
     const Value &fval = callable->getSlot(JSSLOT_CALLABLE_CALL);
+    const Value &thisval = vp[1];
     Value rval;
-    bool ok = ExternalInvoke(cx, thisobj, fval, argc, JS_ARGV(cx, vp), &rval);
+    bool ok = ExternalInvoke(cx, thisval, fval, argc, JS_ARGV(cx, vp), &rval);
     *vp = rval;
     return ok;
 }
@@ -1317,7 +1316,7 @@ callable_Construct(JSContext *cx, uintN argc, Value *vp)
 
         /* If the call returns an object, return that, otherwise the original newobj. */
         Value rval;
-        if (!ExternalInvoke(cx, newobj, callable->getSlot(JSSLOT_CALLABLE_CALL),
+        if (!ExternalInvoke(cx, ObjectValue(*newobj), callable->getSlot(JSSLOT_CALLABLE_CALL),
                             argc, vp + 2, &rval)) {
             return false;
         }
@@ -1329,7 +1328,7 @@ callable_Construct(JSContext *cx, uintN argc, Value *vp)
     }
 
     Value rval;
-    bool ok = ExternalInvoke(cx, thisobj, fval, argc, vp + 2, &rval);
+    bool ok = ExternalInvoke(cx, ObjectValue(*thisobj), fval, argc, vp + 2, &rval);
     *vp = rval;
     return ok;
 }

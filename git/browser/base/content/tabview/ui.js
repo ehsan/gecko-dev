@@ -479,6 +479,17 @@ let UI = {
     let event = document.createEvent("Events");
     event.initEvent("tabviewshown", true, false);
 
+    // Close the active group if it was empty. This will happen when the
+    // user returns to Panorama after looking at an app tab, having
+    // closed all other tabs. (If the user is looking at an orphan tab, then
+    // there is no active group for the purposes of this check.)
+    let activeGroupItem = null;
+    if (!GroupItems.getActiveOrphanTab()) {
+      activeGroupItem = GroupItems.getActiveGroupItem();
+      if (activeGroupItem && activeGroupItem.closeIfEmpty())
+        activeGroupItem = null;
+    }
+
     if (zoomOut && currentTab && currentTab._tabViewTabItem) {
       item = currentTab._tabViewTabItem;
       // If there was a previous currentTab we want to animate
@@ -492,11 +503,8 @@ let UI = {
 
         self.setActiveTab(item);
 
-        if (item.parent) {
-          var activeGroupItem = GroupItems.getActiveGroupItem();
-          if (activeGroupItem)
-            activeGroupItem.setTopChild(item);
-        }
+        if (activeGroupItem && item.parent)
+          activeGroupItem.setTopChild(item);
 
         self._resize(true);
         dispatchEvent(event);
@@ -507,9 +515,6 @@ let UI = {
         TabItems.resumePainting();
       });
     } else {
-      if (currentTab && currentTab._tabViewTabItem)
-        currentTab._tabViewTabItem.setZoomPrep(false);
-
       self.setActiveTab(null);
       dispatchEvent(event);
 
@@ -591,8 +596,10 @@ let UI = {
   // Pauses the storage activity that conflicts with sessionstore updates and 
   // private browsing mode switches. Calls can be nested. 
   storageBusy: function UI_storageBusy() {
-    if (!this._storageBusyCount)
+    if (!this._storageBusyCount) {
       TabItems.pauseReconnecting();
+      GroupItems.pauseAutoclose();
+    }
     
     this._storageBusyCount++;
   },
@@ -610,6 +617,7 @@ let UI = {
   
       TabItems.resumeReconnecting();
       GroupItems._updateTabBar();
+      GroupItems.resumeAutoclose();
     }
   },
 
@@ -733,9 +741,6 @@ let UI = {
           if (closingLastOfGroup || closingUnnamedGroup) {
             // for the tab focus event to pick up.
             self._closedLastVisibleTab = true;
-            // remove the zoom prep.
-            if (tab && tab._tabViewTabItem)
-              tab._tabViewTabItem.setZoomPrep(false);
             self.showTabView();
           }
         }
@@ -875,15 +880,6 @@ let UI = {
       if (GroupItems.getActiveGroupItem() || GroupItems.getActiveOrphanTab())
         GroupItems._updateTabBar();
     }
-
-    // ___ prepare for when we return to TabView
-    if (newItem != oldItem) {
-      if (oldItem)
-        oldItem.setZoomPrep(false);
-      if (newItem)
-        newItem.setZoomPrep(true);
-    } else if (oldItem)
-      oldItem.setZoomPrep(true);
   },
 
   // ----------
@@ -1232,9 +1228,6 @@ let UI = {
     itemBounds.width = 1;
     itemBounds.height = 1;
     items.forEach(function(item) {
-      if (item.locked.bounds)
-        return;
-
       var bounds = item.getBounds();
       itemBounds = (itemBounds ? itemBounds.union(bounds) : new Rect(bounds));
     });
@@ -1262,9 +1255,6 @@ let UI = {
     var self = this;
     var pairs = [];
     items.forEach(function(item) {
-      if (item.locked.bounds)
-        return;
-
       var bounds = item.getBounds();
       bounds.left += (UI.rtl ? -1 : 1) * (newPageBounds.left - self._pageBounds.left);
       bounds.left *= scale;

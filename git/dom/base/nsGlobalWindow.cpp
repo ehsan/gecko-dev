@@ -1084,7 +1084,6 @@ nsGlobalWindow::CleanUp(PRBool aIgnoreModalDialog)
 
   mNavigator = nsnull;
   mScreen = nsnull;
-  mHistory = nsnull;
   mMenubar = nsnull;
   mToolbar = nsnull;
   mLocationbar = nsnull;
@@ -1092,6 +1091,7 @@ nsGlobalWindow::CleanUp(PRBool aIgnoreModalDialog)
   mStatusbar = nsnull;
   mScrollbars = nsnull;
   mLocation = nsnull;
+  mHistory = nsnull;
   mFrames = nsnull;
   mApplicationCache = nsnull;
   mIndexedDB = nsnull;
@@ -1160,42 +1160,36 @@ nsGlobalWindow::ClearControllers()
   }
 }
 
-class ClearScopeEvent : public nsRunnable
+// static
+void
+nsGlobalWindow::TryClearWindowScope(nsISupports *aWindow)
 {
-public:
-  ClearScopeEvent(nsGlobalWindow *innerWindow)
-    : mInnerWindow(innerWindow) {
-  }
+  nsGlobalWindow *window =
+          static_cast<nsGlobalWindow *>(static_cast<nsIDOMWindow*>(aWindow));
 
-  NS_IMETHOD Run()
-  {
-    mInnerWindow->ReallyClearScope(this);
-    return NS_OK;
-  }
-
-private:
-  nsRefPtr<nsGlobalWindow> mInnerWindow;
-};
+  // This termination function might be called when any script evaluation in our
+  // context terminated, even if there are other scripts in the stack. Thus, we
+  // have to check again if a script is executing and post a new termination
+  // function if necessary.
+  window->ClearScopeWhenAllScriptsStop();
+}
 
 void
-nsGlobalWindow::ReallyClearScope(nsRunnable *aRunnable)
+nsGlobalWindow::ClearScopeWhenAllScriptsStop()
 {
   NS_ASSERTION(IsInnerWindow(), "Must be an inner window");
 
+  // We cannot clear scope safely until all the scripts in our script context
+  // stopped. This might be a long wait, for example if one script is busy
+  // because it started a nested event loop for a modal dialog.
   nsIScriptContext *jsscx = GetContextInternal();
   if (jsscx && jsscx->GetExecutingScript()) {
-    if (!aRunnable) {
-      aRunnable = new ClearScopeEvent(this);
-      if (!aRunnable) {
-        // The only reason that we clear scope here is to try to prevent
-        // leaks. Failing to clear scope might mean that we'll leak more
-        // but if we don't have enough memory to allocate a ClearScopeEvent
-        // we probably don't have to worry about this anyway.
-        return;
-      }
-    }
-
-    NS_DispatchToMainThread(aRunnable);
+    // We ignore the return value because the only reason that we clear scope
+    // here is to try to prevent leaks. Failing to clear scope might mean that
+    // we'll leak more but if we don't have enough memory to allocate a
+    // termination function we probably don't have to worry about this anyway.
+    jsscx->SetTerminationFunction(TryClearWindowScope,
+                                  static_cast<nsIDOMWindow *>(this));
     return;
   }
 
@@ -1229,7 +1223,7 @@ nsGlobalWindow::FreeInnerObjects(PRBool aClearScope)
   indexedDB::IndexedDatabaseManager* idbManager =
     indexedDB::IndexedDatabaseManager::Get();
   if (idbManager) {
-    idbManager->CloseDatabasesForWindow(this);
+    idbManager->AbortCloseDatabasesForWindow(this);
   }
 
   ClearAllTimeouts();
@@ -1242,6 +1236,7 @@ nsGlobalWindow::FreeInnerObjects(PRBool aClearScope)
   }
 
   mLocation = nsnull;
+  mHistory = nsnull;
 
   if (mDocument) {
     NS_ASSERTION(mDoc, "Why is mDoc null?");
@@ -1270,9 +1265,7 @@ nsGlobalWindow::FreeInnerObjects(PRBool aClearScope)
   mIndexedDB = nsnull;
 
   if (aClearScope) {
-    // NB: This might not clear our scope, but fire an event to do so
-    // instead.
-    ReallyClearScope(nsnull);
+    ClearScopeWhenAllScriptsStop();
   }
 
   if (mDummyJavaPluginOwner) {
@@ -2396,8 +2389,6 @@ nsGlobalWindow::SetDocShell(nsIDocShell* aDocShell)
 
   if (mNavigator)
     mNavigator->SetDocShell(aDocShell);
-  if (mHistory)
-    mHistory->SetDocShell(aDocShell);
   if (mFrames)
     mFrames->SetDocShell(aDocShell);
   if (mScreen)
@@ -2918,12 +2909,12 @@ nsGlobalWindow::GetScreen(nsIDOMScreen** aScreen)
 NS_IMETHODIMP
 nsGlobalWindow::GetHistory(nsIDOMHistory** aHistory)
 {
-  FORWARD_TO_OUTER(GetHistory, (aHistory), NS_ERROR_NOT_INITIALIZED);
+  FORWARD_TO_INNER(GetHistory, (aHistory), NS_ERROR_NOT_INITIALIZED);
 
   *aHistory = nsnull;
 
-  if (!mHistory && mDocShell) {
-    mHistory = new nsHistory(mDocShell);
+  if (!mHistory) {
+    mHistory = new nsHistory(this);
     if (!mHistory) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
@@ -5072,7 +5063,7 @@ nsGlobalWindow::Print()
 
       EnterModalState();
       webBrowserPrint->Print(printSettings, nsnull);
-      LeaveModalState();
+      LeaveModalState(nsnull);
 
       PRBool savePrintSettings =
         nsContentUtils::GetBoolPref("print.save_print_settings", PR_FALSE);
@@ -6277,7 +6268,7 @@ nsGlobalWindow::ReallyCloseWindow()
   }
 }
 
-void
+nsIDOMWindow *
 nsGlobalWindow::EnterModalState()
 {
   nsGlobalWindow* topWin = GetTop();
@@ -6285,7 +6276,7 @@ nsGlobalWindow::EnterModalState()
   if (!topWin) {
     NS_ERROR("Uh, EnterModalState() called w/o a reachable top window?");
 
-    return;
+    return nsnull;
   }
 
   // If there is an active ESM in this window, clear it. Otherwise, this can
@@ -6320,9 +6311,20 @@ nsGlobalWindow::EnterModalState()
   }
   topWin->mModalStateDepth++;
 
+  JSContext *cx = nsContentUtils::GetCurrentJSContext();
+
+  nsCOMPtr<nsIDOMWindow> callerWin;
+  nsIScriptContext *scx;
+  if (cx && (scx = GetScriptContextFromJSContext(cx))) {
+    scx->EnterModalState();
+    callerWin = do_QueryInterface(nsJSUtils::GetDynamicScriptGlobal(cx));
+  }
+
   if (mContext) {
     mContext->EnterModalState();
   }
+
+  return callerWin;
 }
 
 // static
@@ -6396,7 +6398,7 @@ private:
 };
 
 void
-nsGlobalWindow::LeaveModalState()
+nsGlobalWindow::LeaveModalState(nsIDOMWindow *aCallerWin)
 {
   nsGlobalWindow *topWin = GetTop();
 
@@ -6418,6 +6420,14 @@ nsGlobalWindow::LeaveModalState()
       mSuspendedDoc->UnsuppressEventHandlingAndFireEvents(currentDoc == mSuspendedDoc);
       mSuspendedDoc = nsnull;
     }
+  }
+
+  JSContext *cx = nsContentUtils::GetCurrentJSContext();
+
+  if (aCallerWin) {
+    nsCOMPtr<nsIScriptGlobalObject> sgo(do_QueryInterface(aCallerWin));
+    nsIScriptContext *scx = sgo->GetContext();
+    scx->LeaveModalState();
   }
 
   if (mContext) {
@@ -6771,7 +6781,7 @@ nsGlobalWindow::ShowModalDialog(const nsAString& aURI, nsIVariant *aArgs,
                              GetPrincipal(),    // aCalleePrincipal
                              nsnull,            // aJSCallerContext
                              getter_AddRefs(dlgWin));
-  LeaveModalState();
+  LeaveModalState(nsnull);
 
   NS_ENSURE_SUCCESS(rv, rv);
   

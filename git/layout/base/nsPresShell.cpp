@@ -181,8 +181,7 @@
 #include "nsIDOMHTMLLinkElement.h"
 #include "nsITimer.h"
 #ifdef ACCESSIBILITY
-#include "nsIAccessibilityService.h"
-#include "nsAccessible.h"
+#include "nsAccessibilityService.h"
 #endif
 
 // For style data reconstruction
@@ -953,6 +952,13 @@ public:
   virtual NS_HIDDEN_(void) DisableNonTestMouseEvents(PRBool aDisable);
 
   virtual void UpdateCanvasBackground();
+
+  virtual nsresult AddCanvasBackgroundColorItem2(nsDisplayListBuilder& aBuilder,
+                                                nsDisplayList& aList,
+                                                nsIFrame* aFrame,
+                                                const nsRect& aBounds,
+                                                nscolor aBackstopColor,
+                                                PRUint32 aFlags);
 
   virtual nsresult AddCanvasBackgroundColorItem(nsDisplayListBuilder& aBuilder,
                                                 nsDisplayList& aList,
@@ -1894,12 +1900,9 @@ PresShell::Destroy()
     return;
 
 #ifdef ACCESSIBILITY
-  if (gIsAccessibilityActive) {
-    nsCOMPtr<nsIAccessibilityService> accService =
-      do_GetService("@mozilla.org/accessibilityService;1");
-    if (accService) {
-      accService->PresShellDestroyed(this);
-    }
+  nsAccessibilityService* accService = AccService();
+  if (accService) {
+    accService->PresShellDestroyed(this);
   }
 #endif // ACCESSIBILITY
 
@@ -4023,9 +4026,8 @@ PresShell::GoToAnchor(const nsAString& aAnchorName, PRBool aScroll)
   }
 
 #ifdef ACCESSIBILITY
-  if (anchorTarget && gIsAccessibilityActive) {
-    nsCOMPtr<nsIAccessibilityService> accService = 
-      do_GetService("@mozilla.org/accessibilityService;1");
+  if (anchorTarget) {
+    nsAccessibilityService* accService = AccService();
     if (accService)
       accService->NotifyOfAnchorJumpTo(anchorTarget);
   }
@@ -5148,6 +5150,13 @@ PresShell::ContentRemoved(nsIDocument *aDocument,
 nsresult
 PresShell::ReconstructFrames(void)
 {
+  NS_PRECONDITION(!FrameManager()->GetRootFrame() || mDidInitialReflow,
+                  "Must not have root frame before initial reflow");
+  if (!mDidInitialReflow) {
+    // Nothing to do here
+    return NS_OK;
+  }
+
   nsCOMPtr<nsIPresShell> kungFuDeathGrip(this);
 
   // Have to make sure that the content notifications are flushed before we
@@ -5851,14 +5860,28 @@ nsresult PresShell::AddCanvasBackgroundColorItem(nsDisplayListBuilder& aBuilder,
                                                  nscolor               aBackstopColor,
                                                  PRBool                aForceDraw)
 {
+  return AddCanvasBackgroundColorItem2(aBuilder, aList, aFrame, aBounds,
+    aBackstopColor,
+    aForceDraw ? nsIPresShell_MOZILLA_2_0_BRANCH::FORCE_DRAW : 0);
+}
+
+nsresult PresShell::AddCanvasBackgroundColorItem2(nsDisplayListBuilder& aBuilder,
+                                                 nsDisplayList&        aList,
+                                                 nsIFrame*             aFrame,
+                                                 const nsRect&         aBounds,
+                                                 nscolor               aBackstopColor,
+                                                 PRUint32              aFlags)
+{
   // We don't want to add an item for the canvas background color if the frame
   // (sub)tree we are painting doesn't include any canvas frames. There isn't
   // an easy way to check this directly, but if we check if the root of the
   // (sub)tree we are painting is a canvas frame that should cover us in all
   // cases (it will usually be a viewport frame when we have a canvas frame in
   // the (sub)tree).
-  if (!aForceDraw && !nsCSSRendering::IsCanvasFrame(aFrame))
+  if (!(aFlags & nsIPresShell_MOZILLA_2_0_BRANCH::FORCE_DRAW) &&
+      !nsCSSRendering::IsCanvasFrame(aFrame)) {
     return NS_OK;
+  }
 
   nscolor bgcolor = NS_ComposeColors(aBackstopColor, mCanvasBackgroundColor);
   if (NS_GET_A(bgcolor) == 0)
@@ -5881,7 +5904,8 @@ nsresult PresShell::AddCanvasBackgroundColorItem(nsDisplayListBuilder& aBuilder,
   }
 
   return aList.AppendNewToBottom(
-      new (&aBuilder) nsDisplaySolidColor(&aBuilder, aFrame, aBounds, bgcolor));
+      new (&aBuilder) nsDisplaySolidColor(&aBuilder, aFrame, aBounds, bgcolor,
+        !!(aFlags & nsIPresShell_MOZILLA_2_0_BRANCH::ROOT_CONTENT_DOC_BG)));
 }
 
 static PRBool IsTransparentContainerElement(nsPresContext* aPresContext)
@@ -6120,9 +6144,14 @@ PresShell::Paint(nsIView*           aDisplayRoot,
 
   if (frame) {
     if (!(frame->GetStateBits() & NS_FRAME_UPDATE_LAYER_TREE)) {
-      if (layerManager->EndEmptyTransaction())
+      if (layerManager->EndEmptyTransaction()) {
+        frame->UpdatePaintCountForPaintedPresShells();
+        
         return NS_OK;
+      }
     }
+    
+    frame->ClearPresShellsFromLastPaint();
     frame->RemoveStateBits(NS_FRAME_UPDATE_LAYER_TREE);
   }
 
@@ -6710,8 +6739,8 @@ PresShell::HandleEvent(nsIView         *aView,
         // content area from grabbing the focus from chrome in-between key
         // events.
         if (mCurrentEventContent &&
-            nsContentUtils::IsChromeDoc(gKeyDownTarget->GetCurrentDoc()) &&
-            !nsContentUtils::IsChromeDoc(mCurrentEventContent->GetCurrentDoc())) {
+            nsContentUtils::IsChromeDoc(gKeyDownTarget->GetCurrentDoc()) !=
+            nsContentUtils::IsChromeDoc(mCurrentEventContent->GetCurrentDoc())) {
           mCurrentEventContent = gKeyDownTarget;
         }
 
@@ -8148,8 +8177,9 @@ PRBool
 nsIPresShell::AddRefreshObserverInternal(nsARefreshObserver* aObserver,
                                          mozFlushType aFlushType)
 {
-  return GetPresContext()->RefreshDriver()->
-    AddRefreshObserver(aObserver, aFlushType);
+  nsPresContext* presContext = GetPresContext();
+  return presContext ? presContext->RefreshDriver()->
+    AddRefreshObserver(aObserver, aFlushType) : PR_FALSE;
 }
 
 /* virtual */ PRBool
@@ -8163,8 +8193,9 @@ PRBool
 nsIPresShell::RemoveRefreshObserverInternal(nsARefreshObserver* aObserver,
                                             mozFlushType aFlushType)
 {
-  return GetPresContext()->RefreshDriver()->
-    RemoveRefreshObserver(aObserver, aFlushType);
+  nsPresContext* presContext = GetPresContext();
+  return presContext ? presContext->RefreshDriver()->
+    RemoveRefreshObserver(aObserver, aFlushType) : PR_FALSE;
 }
 
 /* virtual */ PRBool
@@ -9235,6 +9266,23 @@ nsIFrame* nsIPresShell::GetAbsoluteContainingBlock(nsIFrame *aFrame)
 {
   return FrameConstructor()->GetAbsoluteContainingBlock(aFrame);
 }
+
+#ifdef ACCESSIBILITY
+nsAccessibilityService*
+nsIPresShell::AccService()
+{
+#ifdef MOZ_ENABLE_LIBXUL
+  return GetAccService();
+#else
+  if (gIsAccessibilityActive) {
+    nsCOMPtr<nsIAccessibilityService> srv =
+      do_GetService("@mozilla.org/accessibilityService;1");
+    return static_cast<nsAccessibilityService*>(srv.get());
+  }
+  return nsnull;
+#endif
+}
+#endif
 
 void nsIPresShell::InitializeStatics()
 {

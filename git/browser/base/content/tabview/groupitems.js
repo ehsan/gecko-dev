@@ -59,7 +59,6 @@
 //
 // Possible options:
 //   id - specifies the groupItem's id; otherwise automatically generated
-//   locked - see <Item.locked>; default is {}
 //   userSize - see <Item.userSize>; default is null
 //   bounds - a <Rect>; otherwise based on the locations of the provided elements
 //   container - a DOM element to use as the container for this groupItem; otherwise will create
@@ -79,7 +78,6 @@ function GroupItem(listOfEls, options) {
   this.id = options.id || GroupItems.getNextID();
   this._isStacked = false;
   this.expanded = null;
-  this.locked = (options.locked ? Utils.copy(options.locked) : {});
   this.topChild = null;
   this.hidden = false;
   this.fadeAwayUndoButtonDelay = 15000;
@@ -193,34 +191,26 @@ function GroupItem(listOfEls, options) {
       self.$titleShield.show();
     })
     .focus(function() {
-      if (self.locked.title) {
-        (self.$title)[0].blur();
-        return;
-      }
       (self.$title)[0].select();
     })
     .keydown(handleKeyDown)
     .keyup(handleKeyUp);
 
-  if (this.locked.title)
-    this.$title.addClass('name-locked');
-  else {
-    this.$titleShield
-      .mousedown(function(e) {
-        self.lastMouseDownTarget = (Utils.isLeftClick(e) ? e.target : null);
-      })
-      .mouseup(function(e) {
-        var same = (e.target == self.lastMouseDownTarget);
-        self.lastMouseDownTarget = null;
-        if (!same)
-          return;
+  this.$titleShield
+    .mousedown(function(e) {
+      self.lastMouseDownTarget = (Utils.isLeftClick(e) ? e.target : null);
+    })
+    .mouseup(function(e) {
+      var same = (e.target == self.lastMouseDownTarget);
+      self.lastMouseDownTarget = null;
+      if (!same)
+        return;
 
-        if (!self.isDragging) {
-          self.$titleShield.hide();
-          (self.$title)[0].focus();
-        }
-      });
-  }
+      if (!self.isDragging) {
+        self.$titleShield.hide();
+        (self.$title)[0].focus();
+      }
+    });
 
   // ___ Stack Expander
   this.$expander = iQ("<div/>")
@@ -237,13 +227,6 @@ function GroupItem(listOfEls, options) {
     if (xulTab.pinned && xulTab.ownerDocument.defaultView == gWindow)
       self.addAppTab(xulTab);
   });
-
-  // ___ locking
-  if (this.locked.bounds)
-    $container.css({cursor: 'default'});
-
-  if (this.locked.close)
-    this.$closeButton.hide();
 
   // ___ Undo Close
   this.$undoContainer = null;
@@ -263,8 +246,7 @@ function GroupItem(listOfEls, options) {
   // ___ Finish Up
   this._addHandlers($container);
 
-  if (!this.locked.bounds)
-    this.setResizable(true, immediately);
+  this.setResizable(true, immediately);
 
   GroupItems.register(this);
 
@@ -318,7 +300,6 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     var data = {
       bounds: this.getBounds(),
       userSize: null,
-      locked: Utils.copy(this.locked),
       title: this.getTitle(),
       id: this.id
     };
@@ -538,36 +519,41 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // ----------
   // Function: close
   // Closes the groupItem, removing (but not closing) all of its children.
-  close: function GroupItem_close() {
+  //
+  // Parameters:
+  //   options - An object with optional settings for this call.
+  //
+  // Options:
+  //   immediately - (bool) if true, no animation will be used
+  close: function GroupItem_close(options) {
     this.removeAll({dontClose: true});
     GroupItems.unregister(this);
 
-    if (this.hidden) {
-      iQ(this.container).remove();
-      if (this.$undoContainer) {
-        this.$undoContainer.remove();
-        this.$undoContainer = null;
-       }
-      this.removeTrenches();
+    let self = this;
+    let destroyGroup = function () {
+      iQ(self.container).remove();
+      if (self.$undoContainer) {
+        self.$undoContainer.remove();
+        self.$undoContainer = null;
+      }
+      self.removeTrenches();
       Items.unsquish();
-      this._sendToSubscribers("close");
+      self._sendToSubscribers("close");
       GroupItems.updateGroupCloseButtons();
+    }
+
+    if (this.hidden || (options && options.immediately)) {
+      destroyGroup();
     } else {
-      let self = this;
       iQ(this.container).animate({
         opacity: 0,
         "-moz-transform": "scale(.3)",
       }, {
         duration: 170,
-        complete: function() {
-          iQ(this).remove();
-          self.removeTrenches();
-          Items.unsquish();
-          self._sendToSubscribers("close");
-          GroupItems.updateGroupCloseButtons();
-        }
+        complete: destroyGroup
       });
     }
+
     this.deleteData();
   },
 
@@ -590,11 +576,10 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
         }
       });
 
+      this.droppable(false);
       this._createUndoButton();
-    } else {
-      if (!this.locked.close)
-        this.close();
-    }
+    } else
+      this.close();
     
     this._makeClosestTabActive();
   },
@@ -624,6 +609,21 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   },
 
   // ----------
+  // Function: closeIfEmpty
+  // Closes the group if it's empty, has no title, is closable, and
+  // autoclose is enabled (see pauseAutoclose()). Returns true if the close
+  // occurred and false otherwise.
+  closeIfEmpty: function() {
+    if (!this._children.length && !this.getTitle() &&
+        !GroupItems.getUnclosableGroupItemId() &&
+        !GroupItems._autoclosePaused) {
+      this.close();
+      return true;
+    }
+    return false;
+  },
+
+  // ----------
   // Function: _unhide
   // Shows the hidden group.
   _unhide: function GroupItem__unhide() {
@@ -633,6 +633,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     this.hidden = false;
     this.$undoContainer.remove();
     this.$undoContainer = null;
+    this.droppable(true);
 
     iQ(this.container).show().animate({
       "-moz-transform": "scale(1)",
@@ -870,7 +871,9 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
         item.groupItemData = {};
 
         item.addSubscriber(this, "close", function() {
-          self.remove(item);
+          let dontClose = !item.closedManually && gBrowser._numPinnedTabs > 0;
+          self.remove(item, { dontClose: dontClose });
+
           if (self._children.length > 0 && self._activeTab) {
             GroupItems.setActiveGroupItem(self);
             UI.setActiveTab(self._activeTab);
@@ -958,17 +961,11 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       if (typeof item.setResizable == 'function')
         item.setResizable(true, options.immediately);
 
-      if (this._children.length == 0 && !this.locked.close && !this.getTitle() && 
-          !options.dontClose) {
-        if (!GroupItems.getUnclosableGroupItemId()) {
-          this.close();
-          this._makeClosestTabActive();
-        } else {
-          // this.close();  this line is causing the leak but the leak doesn't happen after re-enabling it
-        }
-      } else if (!options.dontArrange) {
+      let closed = options.dontClose ? false : this.closeIfEmpty();
+      if (closed)
+        this._makeClosestTabActive();
+      else if (!options.dontArrage)
         this.arrange({animate: !options.immediately});
-      }
 
       this._sendToSubscribers("childRemoved",{ groupItemId: this.id, item: item });
     } catch(e) {
@@ -1213,16 +1210,14 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
 
     let angleAccum = 0;
     children.forEach(function GroupItem__stackArrange_apply(child, index) {
-      if (!child.locked.bounds) {
-        child.setZ(zIndex);
-        zIndex--;
+      child.setZ(zIndex);
+      zIndex--;
 
-        // Force a recalculation of height because we've changed how the title
-        // is shown.
-        child.setBounds(box, !animate, {force:true});
-        child.setRotation((UI.rtl ? -1 : 1) * angleAccum);
-        angleAccum += angleDelta;
-      }
+      // Force a recalculation of height because we've changed how the title
+      // is shown.
+      child.setBounds(box, !animate, {force:true});
+      child.setRotation((UI.rtl ? -1 : 1) * angleAccum);
+      angleAccum += angleDelta;
     });
 
     self._isStacked = true;
@@ -1285,12 +1280,10 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       // (and skip one for the dropPos)
       if (self._dropSpaceActive && index === dropIndex)
         index++;
-      if (!child.locked.bounds) {
-        child.setBounds(rects[index], !options.animate);
-        child.setRotation(0);
-        if (arrangeOptions.z)
-          child.setZ(arrangeOptions.z);
-      }
+      child.setBounds(rects[index], !options.animate);
+      child.setRotation(0);
+      if (arrangeOptions.z)
+        child.setZ(arrangeOptions.z);
       index++;
     });
 
@@ -1560,9 +1553,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       iQ(this.container).removeClass("acceptsDrop");
     }
 
-    if (!this.locked.bounds)
-      this.draggable();
-
+    this.draggable();
     this.droppable(true);
 
     this.$expander.click(function() {
@@ -1681,6 +1672,7 @@ let GroupItems = {
   _arrangesPending: [],
   _removingHiddenGroups: false,
   _delayedModUpdates: [],
+  _autoclosePaused: false,
   minGroupHeight: 110,
   minGroupWidth: 125,
 
@@ -1938,7 +1930,7 @@ let GroupItems = {
         }
 
         toClose.forEach(function(groupItem) {
-          groupItem.close();
+          groupItem.close({immediately: true});
         });
       }
 
@@ -2364,10 +2356,8 @@ let GroupItems = {
 
     if (shouldUpdateTabBar)
       this._updateTabBar();
-    else if (shouldShowTabView) {
-      tab._tabViewTabItem.setZoomPrep(false);
+    else if (shouldShowTabView)
       UI.showTabView();
-    }
   },
 
   // ----------
@@ -2436,5 +2426,21 @@ let GroupItems = {
     return new Point(
       Math.max(size.x, GroupItems.minGroupWidth),
       Math.max(size.y, GroupItems.minGroupHeight));
+  },
+
+  // ----------
+  // Function: pauseAutoclose()
+  // Temporarily disable the behavior that closes groups when they become
+  // empty. This is used when entering private browsing, to avoid trashing the
+  // user's groups while private browsing is shuffling things around.
+  pauseAutoclose: function GroupItems_pauseAutoclose() {
+    this._autoclosePaused = true;
+  },
+
+  // ----------
+  // Function: unpauseAutoclose()
+  // Re-enables the auto-close behavior.
+  resumeAutoclose: function GroupItems_resumeAutoclose() {
+    this._autoclosePaused = false;
   }
 };

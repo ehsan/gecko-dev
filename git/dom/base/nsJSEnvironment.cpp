@@ -161,14 +161,16 @@ static PRLogModuleInfo* gJSDiagnostics;
 #define NS_MIN_CC_INTERVAL          10000 // ms
 // If previous cycle collection collected more than this number of objects,
 // the next collection will happen somewhat soon.
+// Also, if there are more than this number suspected objects, GC will be called
+// right before CC, if it wasn't called after last CC.
 #define NS_COLLECTED_OBJECTS_LIMIT  5000
 // CC will be called if GC has been called at least this number of times and
 // there are at least NS_MIN_SUSPECT_CHANGES new suspected objects.
 #define NS_MAX_GC_COUNT             5
-#define NS_MIN_SUSPECT_CHANGES      10
+#define NS_MIN_SUSPECT_CHANGES      100
 // CC will be called if there are at least NS_MAX_SUSPECT_CHANGES new suspected
 // objects.
-#define NS_MAX_SUSPECT_CHANGES      100
+#define NS_MAX_SUSPECT_CHANGES      1000
 
 // if you add statics here, add them to the list in nsJSRuntime::Startup
 
@@ -259,7 +261,7 @@ nsUserActivityObserver::Observe(nsISupports* aSubject, const char* aTopic,
     if (sUserIsActive) {
       sUserIsActive = PR_FALSE;
       if (!sGCTimer) {
-        nsJSContext::IntervalCC();
+        nsJSContext::MaybeCC(PR_FALSE);
         return NS_OK;
       }
     }
@@ -299,7 +301,7 @@ NS_IMETHODIMP
 nsCCMemoryPressureObserver::Observe(nsISupports* aSubject, const char* aTopic,
                                     const PRUnichar* aData)
 {
-  nsJSContext::CC(nsnull);
+  nsJSContext::CC(nsnull, PR_TRUE);
   return NS_OK;
 }
 
@@ -1072,7 +1074,8 @@ nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
     newDefaultJSOptions &= ~JSOPTION_PROFILING;
 
 #ifdef DEBUG
-  // In debug builds, warnings are enabled in chrome context if javascript.options.strict.debug is true
+  // In debug builds, warnings are enabled in chrome context if
+  // javascript.options.strict.debug is true
   PRBool strictDebug = nsContentUtils::GetBoolPref(js_strict_debug_option_str);
   // Note this callback is also called from context's InitClasses thus we don't
   // need to enable this directly from InitContext
@@ -1094,15 +1097,10 @@ nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
   else
     newDefaultJSOptions &= ~JSOPTION_RELIMIT;
 
-  if (newDefaultJSOptions != oldDefaultJSOptions) {
-    // Set options only if we used the old defaults; otherwise the page has
-    // customized some via the options object and we defer to its wisdom.
-    if (::JS_GetOptions(context->mContext) == oldDefaultJSOptions)
-      ::JS_SetOptions(context->mContext, newDefaultJSOptions);
+  ::JS_SetOptions(context->mContext, newDefaultJSOptions & JSRUNOPTION_MASK);
 
-    // Save the new defaults for the next page load (InitContext).
-    context->mDefaultJSOptions = newDefaultJSOptions;
-  }
+  // Save the new defaults for the next page load (InitContext).
+  context->mDefaultJSOptions = newDefaultJSOptions;
 
 #ifdef JS_GC_ZEAL
   PRInt32 zeal = nsContentUtils::GetIntPref(js_zeal_option_str, -1);
@@ -1156,7 +1154,11 @@ nsJSContext::~nsJSContext()
 #ifdef DEBUG
   nsCycleCollector_DEBUG_wasFreed(static_cast<nsIScriptContext*>(this));
 #endif
-  NS_PRECONDITION(!mTerminations, "Shouldn't have termination funcs by now");
+
+  // We may still have pending termination functions if the context is destroyed
+  // before they could be executed. In this case, free the references to their
+  // parameters, but don't execute the functions (see bug 622326).
+  delete mTerminations;
 
   mGlobalObjectRef = nsnull;
 
@@ -1984,7 +1986,7 @@ nsJSContext::CallEventHandler(nsISupports* aTarget, void *aScope, void *aHandler
 
     jsval funval = OBJECT_TO_JSVAL(funobj);
     JSAutoEnterCompartment ac;
-    if (!ac.enter(mContext, target)) {
+    if (!ac.enter(mContext, funobj) || !JS_WrapObject(mContext, &target)) {
       sSecurityManager->PopContextPrincipal(mContext);
       return NS_ERROR_FAILURE;
     }
@@ -2843,57 +2845,6 @@ nsJSContext::AddSupportsPrimitiveTojsvals(nsISupports *aArg, jsval *aArgv)
   return NS_OK;
 }
 
-static JSPropertySpec OptionsProperties[] = {
-  {"strict",    (int8)JSOPTION_STRICT,   JSPROP_ENUMERATE | JSPROP_PERMANENT},
-  {"werror",    (int8)JSOPTION_WERROR,   JSPROP_ENUMERATE | JSPROP_PERMANENT},
-  {"relimit",   (int8)JSOPTION_RELIMIT,  JSPROP_ENUMERATE | JSPROP_PERMANENT},
-  {0}
-};
-
-static JSBool
-GetOptionsProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
-{
-  if (JSID_IS_INT(id)) {
-    uint32 optbit = (uint32) JSID_TO_INT(id);
-    if (((optbit & (optbit - 1)) == 0 && optbit <= JSOPTION_WERROR) ||
-          optbit == JSOPTION_RELIMIT)
-      *vp = (JS_GetOptions(cx) & optbit) ? JSVAL_TRUE : JSVAL_FALSE;
-  }
-  return JS_TRUE;
-}
-
-static JSBool
-SetOptionsProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
-{
-  if (JSID_IS_INT(id)) {
-    uint32 optbit = (uint32) JSID_TO_INT(id);
-
-    // Don't let options other than strict, werror, or relimit be set -- it
-    // would be bad if web page script could clear
-    // JSOPTION_PRIVATE_IS_NSISUPPORTS!
-    if (((optbit & (optbit - 1)) == 0 && optbit <= JSOPTION_WERROR) ||
-        optbit == JSOPTION_RELIMIT) {
-      JSBool optval;
-      JS_ValueToBoolean(cx, *vp, &optval);
-
-      uint32 optset = ::JS_GetOptions(cx);
-      if (optval)
-        optset |= optbit;
-      else
-        optset &= ~optbit;
-      ::JS_SetOptions(cx, optset);
-    }
-  }
-  return JS_TRUE;
-}
-
-static JSClass OptionsClass = {
-  "JSOptions",
-  0,
-  JS_PropertyStub, JS_PropertyStub, GetOptionsProperty, SetOptionsProperty,
-  JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, nsnull
-};
-
 #ifdef NS_TRACE_MALLOC
 
 #include <errno.h>              // XXX assume Linux if NS_TRACE_MALLOC
@@ -3171,15 +3122,7 @@ nsJSContext::InitClasses(void *aGlobalObj)
 
   JSAutoRequest ar(mContext);
 
-  // Initialize the options object and set default options in mContext
-  JSObject *optionsObj = ::JS_DefineObject(mContext, globalObj, "_options",
-                                           &OptionsClass, nsnull, 0);
-  if (optionsObj &&
-      ::JS_DefineProperties(mContext, optionsObj, OptionsProperties)) {
-    ::JS_SetOptions(mContext, mDefaultJSOptions);
-  } else {
-    rv = NS_ERROR_FAILURE;
-  }
+  ::JS_SetOptions(mContext, mDefaultJSOptions);
 
   // Attempt to initialize profiling functions
   ::JS_DefineProfilingFunctions(mContext, globalObj);
@@ -3360,7 +3303,7 @@ nsresult
 nsJSContext::SetTerminationFunction(nsScriptTerminationFunc aFunc,
                                     nsISupports* aRef)
 {
-  NS_PRECONDITION(JS_IsRunning(mContext), "should be executing script");
+  NS_PRECONDITION(GetExecutingScript(), "should be executing script");
 
   nsJSContext::TerminationFuncClosure* newClosure =
     new nsJSContext::TerminationFuncClosure(aFunc, aRef, mTerminations);
@@ -3425,37 +3368,6 @@ nsJSContext::ScriptExecuted()
   return NS_OK;
 }
 
-//static
-void
-nsJSContext::CC(nsICycleCollectorListener *aListener)
-{
-  NS_TIME_FUNCTION_MIN(1.0);
-
-  ++sCCollectCount;
-#ifdef DEBUG_smaug
-  printf("Will run cycle collector (%i), %lldms since previous.\n",
-         sCCollectCount, (PR_Now() - sPreviousCCTime) / PR_USEC_PER_MSEC);
-#endif
-  sPreviousCCTime = PR_Now();
-  sDelayedCCollectCount = 0;
-  sCCSuspectChanges = 0;
-  // nsCycleCollector_collect() no longer forces a JS garbage collection,
-  // so we have to do it ourselves here.
-  if (nsContentUtils::XPConnect()) {
-    nsContentUtils::XPConnect()->GarbageCollect();
-  }
-  sCollectedObjectsCounts = nsCycleCollector_collect(aListener);
-  sCCSuspectedCount = nsCycleCollector_suspectedCount();
-  if (nsJSRuntime::sRuntime) {
-    sSavedGCCount = JS_GetGCParameter(nsJSRuntime::sRuntime, JSGC_NUMBER);
-  }
-#ifdef DEBUG_smaug
-  printf("Collected %u objects, %u suspected objects, took %lldms\n",
-         sCollectedObjectsCounts, sCCSuspectedCount,
-         (PR_Now() - sPreviousCCTime) / PR_USEC_PER_MSEC);
-#endif
-}
-
 static inline uint32
 GetGCRunsSinceLastCC()
 {
@@ -3469,6 +3381,40 @@ GetGCRunsSinceLastCC()
     // UINT32_MAX since the last call to JS_GetGCParameter(). 
     return JS_GetGCParameter(nsJSRuntime::sRuntime, JSGC_NUMBER) -
            sSavedGCCount;
+}
+
+//static
+void
+nsJSContext::CC(nsICycleCollectorListener *aListener, PRBool aForceGC)
+{
+  NS_TIME_FUNCTION_MIN(1.0);
+
+  ++sCCollectCount;
+#ifdef DEBUG_smaug
+  printf("Will run cycle collector (%i), %lldms since previous.\n",
+         sCCollectCount, (PR_Now() - sPreviousCCTime) / PR_USEC_PER_MSEC);
+#endif
+  sPreviousCCTime = PR_Now();
+  sDelayedCCollectCount = 0;
+  sCCSuspectChanges = 0;
+  // nsCycleCollector_collect() no longer forces a JS garbage collection,
+  // so we have to do it ourselves here.
+  if (nsContentUtils::XPConnect() &&
+      (aForceGC ||
+       (!GetGCRunsSinceLastCC() &&
+        sCCSuspectedCount > NS_COLLECTED_OBJECTS_LIMIT))) {
+    nsContentUtils::XPConnect()->GarbageCollect();
+  }
+  sCollectedObjectsCounts = nsCycleCollector_collect(aListener);
+  sCCSuspectedCount = nsCycleCollector_suspectedCount();
+  if (nsJSRuntime::sRuntime) {
+    sSavedGCCount = JS_GetGCParameter(nsJSRuntime::sRuntime, JSGC_NUMBER);
+  }
+#ifdef DEBUG_smaug
+  printf("Collected %u objects, %u suspected objects, took %lldms\n",
+         sCollectedObjectsCounts, sCCSuspectedCount,
+         (PR_Now() - sPreviousCCTime) / PR_USEC_PER_MSEC);
+#endif
 }
 
 //static
@@ -3528,7 +3474,7 @@ nsJSContext::CCIfUserInactive()
   if (sUserIsActive) {
     MaybeCC(PR_TRUE);
   } else {
-    IntervalCC();
+    IntervalCC(PR_TRUE);
   }
 }
 
@@ -3543,11 +3489,11 @@ nsJSContext::MaybeCCIfUserInactive()
 
 //static
 PRBool
-nsJSContext::IntervalCC()
+nsJSContext::IntervalCC(PRBool aForceGC)
 {
   if ((PR_Now() - sPreviousCCTime) >=
       PRTime(NS_MIN_CC_INTERVAL * PR_USEC_PER_MSEC)) {
-    nsJSContext::CC(nsnull);
+    nsJSContext::CC(nsnull, aForceGC);
     return PR_TRUE;
   }
 #ifdef DEBUG_smaug
