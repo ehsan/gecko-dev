@@ -6,7 +6,7 @@
 
 #include "TransportSecurityInfo.h"
 
-#include "pkix/pkixtypes.h"
+#include "insanity/pkixtypes.h"
 #include "nsNSSComponent.h"
 #include "nsIWebProgressListener.h"
 #include "nsNSSCertificate.h"
@@ -755,7 +755,7 @@ AppendErrorTextMismatch(const nsString &host,
   const char16_t *params[1];
   nsresult rv;
 
-  mozilla::pkix::ScopedCERTCertificate nssCert;
+  insanity::pkix::ScopedCERTCertificate nssCert;
 
   nsCOMPtr<nsIX509Cert2> cert2 = do_QueryInterface(ix509, &rv);
   if (cert2)

@@ -1,7 +1,7 @@
 try {
     (function() {
         var m
-        new ArrayBuffer()
+        ArrayBuffer()
         var _ = t
         var _2 = []
     }())

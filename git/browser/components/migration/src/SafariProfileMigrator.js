@@ -304,7 +304,7 @@ MainPreferencesPropertyList.prototype = {
     binaryStream.setInputStream(inputStream);
     let bytes = binaryStream.readByteArray(inputStream.available());
     this._dict = PropertyListUtils._readFromArrayBufferSync(
-      new Uint8Array(bytes).buffer);
+      Uint8Array(bytes).buffer);
     return this._dict;
   }
 };

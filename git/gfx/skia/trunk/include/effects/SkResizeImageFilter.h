@@ -21,8 +21,6 @@
 
 class SK_API SkResizeImageFilter : public SkImageFilter {
 public:
-    virtual ~SkResizeImageFilter();
-
     /** Construct a (scaling-only) resampling image filter.
      *  @param sx           The x scale parameter to apply when resizing.
      *  @param sy           The y scale parameter to apply when resizing.
@@ -30,12 +28,10 @@ public:
      *  @param input        The input image filter.  If NULL, the src bitmap
      *                      passed to filterImage() is used instead.
      */
-    static SkResizeImageFilter* Create(SkScalar sx, SkScalar sy, SkPaint::FilterLevel filterLevel,
-                                       SkImageFilter* input = NULL) {
-        return SkNEW_ARGS(SkResizeImageFilter, (sx, sy, filterLevel, input));
-    }
 
-    virtual void computeFastBounds(const SkRect&, SkRect*) const SK_OVERRIDE;
+    SkResizeImageFilter(SkScalar sx, SkScalar sy, SkPaint::FilterLevel filterLevel,
+                        SkImageFilter* input = NULL);
+    virtual ~SkResizeImageFilter();
 
     SK_DECLARE_PUBLIC_FLATTENABLE_DESERIALIZATION_PROCS(SkResizeImageFilter)
 
@@ -43,16 +39,8 @@ protected:
     SkResizeImageFilter(SkReadBuffer& buffer);
     virtual void flatten(SkWriteBuffer&) const SK_OVERRIDE;
 
-    virtual bool onFilterImage(Proxy*, const SkBitmap& src, const Context&,
+    virtual bool onFilterImage(Proxy*, const SkBitmap& src, const SkMatrix&,
                                SkBitmap* result, SkIPoint* loc) const SK_OVERRIDE;
-    virtual bool onFilterBounds(const SkIRect& src, const SkMatrix&,
-                                SkIRect* dst) const SK_OVERRIDE;
-
-#ifdef SK_SUPPORT_LEGACY_PUBLICEFFECTCONSTRUCTORS
-public:
-#endif
-    SkResizeImageFilter(SkScalar sx, SkScalar sy, SkPaint::FilterLevel filterLevel,
-                        SkImageFilter* input = NULL);
 
 private:
     SkScalar              fSx, fSy;

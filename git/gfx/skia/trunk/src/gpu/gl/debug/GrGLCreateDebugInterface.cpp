@@ -32,6 +32,13 @@ GrGLvoid GR_GL_FUNCTION_TYPE debugGLActiveTexture(GrGLenum texture) {
     GrDebugGL::getInstance()->setCurTextureUnit(texture);
 }
 
+GrGLvoid GR_GL_FUNCTION_TYPE debugGLClientActiveTexture(GrGLenum texture) {
+
+    // Ganesh offsets the texture unit indices
+    texture -= GR_GL_TEXTURE0;
+    GrAlwaysAssert(texture < GrDebugGL::getInstance()->getMaxTextureUnits());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 GrGLvoid GR_GL_FUNCTION_TYPE debugGLAttachShader(GrGLuint programID,
                                                  GrGLuint shaderID) {
@@ -801,6 +808,7 @@ const GrGLInterface* GrGLCreateDebugInterface() {
     functions->fClear = noOpGLClear;
     functions->fClearColor = noOpGLClearColor;
     functions->fClearStencil = noOpGLClearStencil;
+    functions->fClientActiveTexture = debugGLClientActiveTexture;
     functions->fColorMask = noOpGLColorMask;
     functions->fCompileShader = noOpGLCompileShader;
     functions->fCompressedTexImage2D = noOpGLCompressedTexImage2D;
@@ -816,12 +824,14 @@ const GrGLInterface* GrGLCreateDebugInterface() {
     functions->fDeleteVertexArrays = debugGLDeleteVertexArrays;
     functions->fDepthMask = noOpGLDepthMask;
     functions->fDisable = noOpGLDisable;
+    functions->fDisableClientState = noOpGLDisableClientState;
     functions->fDisableVertexAttribArray = noOpGLDisableVertexAttribArray;
     functions->fDrawArrays = noOpGLDrawArrays;
     functions->fDrawBuffer = noOpGLDrawBuffer;
     functions->fDrawBuffers = noOpGLDrawBuffers;
     functions->fDrawElements = noOpGLDrawElements;
     functions->fEnable = noOpGLEnable;
+    functions->fEnableClientState = noOpGLEnableClientState;
     functions->fEnableVertexAttribArray = noOpGLEnableVertexAttribArray;
     functions->fEndQuery = noOpGLEndQuery;
     functions->fFinish = noOpGLFinish;
@@ -865,6 +875,7 @@ const GrGLInterface* GrGLCreateDebugInterface() {
     functions->fStencilMaskSeparate = noOpGLStencilMaskSeparate;
     functions->fStencilOp = noOpGLStencilOp;
     functions->fStencilOpSeparate = noOpGLStencilOpSeparate;
+    functions->fTexGenf = noOpGLTexGenf;
     functions->fTexGenfv = noOpGLTexGenfv;
     functions->fTexGeni = noOpGLTexGeni;
     functions->fTexImage2D = noOpGLTexImage2D;
@@ -895,6 +906,7 @@ const GrGLInterface* GrGLCreateDebugInterface() {
     functions->fUseProgram = debugGLUseProgram;
     functions->fVertexAttrib4fv = noOpGLVertexAttrib4fv;
     functions->fVertexAttribPointer = noOpGLVertexAttribPointer;
+    functions->fVertexPointer = noOpGLVertexPointer;
     functions->fViewport = noOpGLViewport;
     functions->fBindFramebuffer = debugGLBindFramebuffer;
     functions->fBindRenderbuffer = debugGLBindRenderbuffer;
@@ -918,9 +930,6 @@ const GrGLInterface* GrGLCreateDebugInterface() {
     functions->fUnmapBuffer = debugGLUnmapBuffer;
     functions->fBindFragDataLocationIndexed =
                                     noOpGLBindFragDataLocationIndexed;
-
-    interface->fExtensions.init(kGL_GrGLStandard, functions->fGetString, functions->fGetStringi,
-                                functions->fGetIntegerv);
 
     return interface;
 }

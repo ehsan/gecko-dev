@@ -66,14 +66,15 @@ SkMergeImageFilter::~SkMergeImageFilter() {
 }
 
 bool SkMergeImageFilter::onFilterImage(Proxy* proxy, const SkBitmap& src,
-                                       const Context& ctx,
+                                       const SkMatrix& ctm,
                                        SkBitmap* result, SkIPoint* offset) const {
     if (countInputs() < 1) {
         return false;
     }
 
     SkIRect bounds;
-    if (!this->applyCropRect(ctx, src, SkIPoint::Make(0, 0), &bounds)) {
+    src.getBounds(&bounds);
+    if (!this->applyCropRect(&bounds, ctm)) {
         return false;
     }
 
@@ -94,7 +95,7 @@ bool SkMergeImageFilter::onFilterImage(Proxy* proxy, const SkBitmap& src,
         SkIPoint pos = SkIPoint::Make(0, 0);
         SkImageFilter* filter = getInput(i);
         if (filter) {
-            if (!filter->filterImage(proxy, src, ctx, &tmp, &pos)) {
+            if (!filter->filterImage(proxy, src, ctm, &tmp, &pos)) {
                 return false;
             }
             srcPtr = &tmp;

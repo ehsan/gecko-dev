@@ -96,10 +96,6 @@
 #include "GStreamerFormatHelper.h"
 #endif
 
-#ifdef MOZ_FFMPEG
-#include "FFmpegRuntimeLinker.h"
-#endif
-
 #include "AudioStream.h"
 #include "Latency.h"
 #include "WebAudioUtils.h"
@@ -365,10 +361,6 @@ nsLayoutStatics::Shutdown()
 
 #ifdef MOZ_GSTREAMER
   GStreamerFormatHelper::Shutdown();
-#endif
-
-#ifdef MOZ_FFMPEG
-  FFmpegRuntimeLinker::Unlink();
 #endif
 
   AudioStream::ShutdownLibrary();

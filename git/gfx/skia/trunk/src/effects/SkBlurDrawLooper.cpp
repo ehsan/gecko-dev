@@ -33,6 +33,7 @@ void SkBlurDrawLooper::init(SkScalar sigma, SkScalar dx, SkScalar dy,
     fDy = dy;
     fBlurColor = color;
     fBlurFlags = flags;
+    fState = kDone;
 
     SkASSERT(flags <= kAll_BlurFlag);
     if (sigma > 0) {
@@ -89,16 +90,11 @@ void SkBlurDrawLooper::flatten(SkWriteBuffer& buffer) const {
     buffer.writeUInt(fBlurFlags);
 }
 
-SkDrawLooper::Context* SkBlurDrawLooper::createContext(SkCanvas*, void* storage) const {
-    return SkNEW_PLACEMENT_ARGS(storage, BlurDrawLooperContext, (this));
+void SkBlurDrawLooper::init(SkCanvas*) {
+    fState = kBeforeEdge;
 }
 
-SkBlurDrawLooper::BlurDrawLooperContext::BlurDrawLooperContext(
-        const SkBlurDrawLooper* looper)
-    : fLooper(looper), fState(SkBlurDrawLooper::kBeforeEdge) {}
-
-bool SkBlurDrawLooper::BlurDrawLooperContext::next(SkCanvas* canvas,
-                                                   SkPaint* paint) {
+bool SkBlurDrawLooper::next(SkCanvas* canvas, SkPaint* paint) {
     switch (fState) {
         case kBeforeEdge:
             // we do nothing if a maskfilter is already installed
@@ -108,23 +104,23 @@ bool SkBlurDrawLooper::BlurDrawLooperContext::next(SkCanvas* canvas,
             }
 #ifdef SK_BUILD_FOR_ANDROID
             SkColor blurColor;
-            blurColor = fLooper->fBlurColor;
+            blurColor = fBlurColor;
             if (SkColorGetA(blurColor) == 255) {
                 blurColor = SkColorSetA(blurColor, paint->getAlpha());
             }
             paint->setColor(blurColor);
 #else
-            paint->setColor(fLooper->fBlurColor);
+            paint->setColor(fBlurColor);
 #endif
-            paint->setMaskFilter(fLooper->fBlur);
-            paint->setColorFilter(fLooper->fColorFilter);
+            paint->setMaskFilter(fBlur);
+            paint->setColorFilter(fColorFilter);
             canvas->save(SkCanvas::kMatrix_SaveFlag);
-            if (fLooper->fBlurFlags & kIgnoreTransform_BlurFlag) {
+            if (fBlurFlags & kIgnoreTransform_BlurFlag) {
                 SkMatrix transform(canvas->getTotalMatrix());
-                transform.postTranslate(fLooper->fDx, fLooper->fDy);
+                transform.postTranslate(fDx, fDy);
                 canvas->setMatrix(transform);
             } else {
-                canvas->translate(fLooper->fDx, fLooper->fDy);
+                canvas->translate(fDx, fDy);
             }
             fState = kAfterEdge;
             return true;
@@ -138,7 +134,7 @@ bool SkBlurDrawLooper::BlurDrawLooperContext::next(SkCanvas* canvas,
     }
 }
 
-#ifndef SK_IGNORE_TO_STRING
+#ifdef SK_DEVELOPER
 void SkBlurDrawLooper::toString(SkString* str) const {
     str->append("SkBlurDrawLooper: ");
 

@@ -861,7 +861,6 @@ TextAttrsMgr::TextPosTextAttr::
     case eStyleUnit_Grad:
     case eStyleUnit_Radian:
     case eStyleUnit_Turn:
-    case eStyleUnit_FlexFraction:
     case eStyleUnit_Integer:
     case eStyleUnit_Calc:
       break;

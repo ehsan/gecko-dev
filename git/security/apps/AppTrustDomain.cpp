@@ -10,7 +10,7 @@
 
 #include "AppTrustDomain.h"
 #include "certdb.h"
-#include "pkix/pkix.h"
+#include "insanity/pkix.h"
 #include "mozilla/ArrayUtils.h"
 #include "nsIX509CertDB.h"
 #include "prerror.h"
@@ -23,7 +23,7 @@
 #include "marketplace-dev-reviewers.inc"
 #include "xpcshell.inc"
 
-using namespace mozilla::pkix;
+using namespace insanity::pkix;
 
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* gPIPNSSLog;
@@ -88,7 +88,7 @@ AppTrustDomain::SetTrustedRoot(AppTrustedRoot trustedRoot)
 SECStatus
 AppTrustDomain::FindPotentialIssuers(const SECItem* encodedIssuerName,
                                      PRTime time,
-                             /*out*/ mozilla::pkix::ScopedCERTCertList& results)
+                             /*out*/ insanity::pkix::ScopedCERTCertList& results)
 {
   MOZ_ASSERT(mTrustedRoot);
   if (!mTrustedRoot) {
@@ -168,7 +168,7 @@ SECStatus
 AppTrustDomain::VerifySignedData(const CERTSignedData* signedData,
                                   const CERTCertificate* cert)
 {
-  return ::mozilla::pkix::VerifySignedData(signedData, cert, mPinArg);
+  return ::insanity::pkix::VerifySignedData(signedData, cert, mPinArg);
 }
 
 SECStatus

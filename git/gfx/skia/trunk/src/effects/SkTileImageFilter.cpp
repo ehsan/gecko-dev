@@ -16,17 +16,17 @@
 #include "SkShader.h"
 #include "SkValidationUtils.h"
 
-bool SkTileImageFilter::onFilterImage(Proxy* proxy, const SkBitmap& src, const SkImageFilter::Context& ctx,
+bool SkTileImageFilter::onFilterImage(Proxy* proxy, const SkBitmap& src, const SkMatrix& ctm,
                                       SkBitmap* dst, SkIPoint* offset) const {
     SkBitmap source = src;
     SkImageFilter* input = getInput(0);
     SkIPoint srcOffset = SkIPoint::Make(0, 0);
-    if (input && !input->filterImage(proxy, src, ctx, &source, &srcOffset)) {
+    if (input && !input->filterImage(proxy, src, ctm, &source, &srcOffset)) {
         return false;
     }
 
     SkRect dstRect;
-    ctx.ctm().mapRect(&dstRect, fDstRect);
+    ctm.mapRect(&dstRect, fDstRect);
     SkIRect dstIRect;
     dstRect.roundOut(&dstIRect);
     int w = dstIRect.width();
@@ -36,7 +36,7 @@ bool SkTileImageFilter::onFilterImage(Proxy* proxy, const SkBitmap& src, const S
     }
 
     SkRect srcRect;
-    ctx.ctm().mapRect(&srcRect, fSrcRect);
+    ctm.mapRect(&srcRect, fSrcRect);
     SkIRect srcIRect;
     srcRect.roundOut(&srcIRect);
     srcIRect.offset(-srcOffset);

@@ -90,10 +90,12 @@ const GrGLInterface* GrGLCreateNativeInterface() {
         SET_PROC(DeleteTextures)
         SET_PROC(DepthMask)
         SET_PROC(Disable)
+        SET_PROC(DisableClientState)
         SET_PROC(DrawArrays)
         SET_PROC(DrawElements)
         SET_PROC(DrawBuffer)
         SET_PROC(Enable)
+        SET_PROC(EnableClientState)
         SET_PROC(FrontFace)
         SET_PROC(Finish)
         SET_PROC(Flush)
@@ -113,6 +115,7 @@ const GrGLInterface* GrGLCreateNativeInterface() {
         SET_PROC(StencilFunc)
         SET_PROC(StencilMask)
         SET_PROC(StencilOp)
+        SET_PROC(TexGenf)
         SET_PROC(TexGenfv)
         SET_PROC(TexGeni)
         SET_PROC(TexImage2D)
@@ -125,6 +128,7 @@ const GrGLInterface* GrGLCreateNativeInterface() {
         }
         SET_PROC(TexSubImage2D)
         SET_PROC(Viewport)
+        SET_PROC(VertexPointer)
 
         WGL_SET_PROC(ActiveTexture);
         WGL_SET_PROC(AttachShader);
@@ -134,6 +138,7 @@ const GrGLInterface* GrGLCreateNativeInterface() {
         WGL_SET_PROC(BindFragDataLocation);
         WGL_SET_PROC(BufferData);
         WGL_SET_PROC(BufferSubData);
+        WGL_SET_PROC(ClientActiveTexture);
         WGL_SET_PROC(CompileShader);
         WGL_SET_PROC(CompressedTexImage2D);
         WGL_SET_PROC(CreateProgram);
@@ -297,12 +302,6 @@ const GrGLInterface* GrGLCreateNativeInterface() {
             WGL_SET_PROC_SUFFIX(IsPointInStrokePath, NV);
             WGL_SET_PROC_SUFFIX(GetPathLength, NV);
             WGL_SET_PROC_SUFFIX(PointAlongPath, NV);
-        }
-
-        if (extensions.has("GL_EXT_debug_marker")) {
-            WGL_SET_PROC_SUFFIX(InsertEventMarker, EXT);
-            WGL_SET_PROC_SUFFIX(PushGroupMarker, EXT);
-            WGL_SET_PROC_SUFFIX(PopGroupMarker, EXT);
         }
 
         interface->fStandard = kGL_GrGLStandard;

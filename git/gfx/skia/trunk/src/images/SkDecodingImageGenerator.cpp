@@ -14,50 +14,60 @@
 #include "SkStream.h"
 #include "SkUtils.h"
 
-static bool equal_modulo_alpha(const SkImageInfo& a, const SkImageInfo& b) {
-    return a.width() == b.width() && a.height() == b.height() &&
-           a.colorType() == b.colorType();
-}
-
 namespace {
 /**
  *  Special allocator used by getPixels(). Uses preallocated memory
- *  provided if possible, else fall-back on the default allocator
+ *  provided.
  */
 class TargetAllocator : public SkBitmap::Allocator {
 public:
-    TargetAllocator(const SkImageInfo& info,
-                    void* target,
-                    size_t rowBytes)
-        : fInfo(info)
-        , fTarget(target)
+    TargetAllocator(void* target,
+                    size_t rowBytes,
+                    int width,
+                    int height,
+                    SkBitmap::Config config)
+        : fTarget(target)
         , fRowBytes(rowBytes)
-    {}
+        , fWidth(width)
+        , fHeight(height)
+        , fConfig(config) { }
 
     bool isReady() { return (fTarget != NULL); }
 
     virtual bool allocPixelRef(SkBitmap* bm, SkColorTable* ct) {
-        if (NULL == fTarget || !equal_modulo_alpha(fInfo, bm->info())) {
+        if ((NULL == fTarget)
+            || (fConfig != bm->config())
+            || (fWidth != bm->width())
+            || (fHeight != bm->height())
+            || (ct != NULL)) {
             // Call default allocator.
             return bm->allocPixels(NULL, ct);
         }
-
+        // make sure fRowBytes is correct.
+        bm->setConfig(fConfig, fWidth, fHeight, fRowBytes, bm->alphaType());
         // TODO(halcanary): verify that all callers of this function
         // will respect new RowBytes.  Will be moot once rowbytes belongs
         // to PixelRef.
-        bm->installPixels(fInfo, fTarget, fRowBytes, NULL, NULL);
-
+        bm->setPixels(fTarget, NULL);
         fTarget = NULL;  // never alloc same pixels twice!
         return true;
     }
 
 private:
-    const SkImageInfo fInfo;
     void* fTarget;  // Block of memory to be supplied as pixel memory
                     // in allocPixelRef.  Must be large enough to hold
-                    // a bitmap described by fInfo and fRowBytes
-    const size_t fRowBytes;  // rowbytes for the destination bitmap
-
+                    // a bitmap described by fWidth, fHeight, and
+                    // fRowBytes.
+    size_t fRowBytes;  // rowbytes for the destination bitmap
+    int fWidth;   // Along with fHeight and fConfig, the information
+    int fHeight;  // about the bitmap whose pixels this allocator is
+                  // expected to allocate. If they do not match the
+                  // bitmap passed to allocPixelRef, it is assumed
+                  // that the bitmap will be copied to a bitmap with
+                  // the correct info using this allocator, so the
+                  // default allocator will be used instead of
+                  // fTarget.
+    SkBitmap::Config fConfig;
     typedef SkBitmap::Allocator INHERITED;
 };
 
@@ -84,13 +94,14 @@ SkDecodingImageGenerator::SkDecodingImageGenerator(
         SkStreamRewindable* stream,
         const SkImageInfo& info,
         int sampleSize,
-        bool ditherImage)
+        bool ditherImage,
+        SkBitmap::Config requestedConfig)
     : fData(data)
     , fStream(stream)
     , fInfo(info)
     , fSampleSize(sampleSize)
     , fDitherImage(ditherImage)
-{
+    , fRequestedConfig(requestedConfig) {
     SkASSERT(stream != NULL);
     SkSafeRef(fData);  // may be NULL.
 }
@@ -140,7 +151,8 @@ bool SkDecodingImageGenerator::getPixels(const SkImageInfo& info,
         // to change the settings.
         return false;
     }
-    if (info.minRowBytes() > rowBytes) {
+    int bpp = SkBitmap::ComputeBytesPerPixel(fRequestedConfig);
+    if (static_cast<size_t>(bpp * info.fWidth) > rowBytes) {
         // The caller has specified a bad rowBytes.
         return false;
     }
@@ -154,11 +166,10 @@ bool SkDecodingImageGenerator::getPixels(const SkImageInfo& info,
     decoder->setSampleSize(fSampleSize);
 
     SkBitmap bitmap;
-    TargetAllocator allocator(fInfo, pixels, rowBytes);
+    TargetAllocator allocator(pixels, rowBytes, info.fWidth,
+                              info.fHeight, fRequestedConfig);
     decoder->setAllocator(&allocator);
-    // TODO: need to be able to pass colortype directly to decoder
-    SkBitmap::Config legacyConfig = SkColorTypeToBitmapConfig(info.colorType());
-    bool success = decoder->decode(fStream, &bitmap, legacyConfig,
+    bool success = decoder->decode(fStream, &bitmap, fRequestedConfig,
                                    SkImageDecoder::kDecodePixels_Mode);
     decoder->setAllocator(NULL);
     if (!success) {
@@ -166,16 +177,16 @@ bool SkDecodingImageGenerator::getPixels(const SkImageInfo& info,
     }
     if (allocator.isReady()) {  // Did not use pixels!
         SkBitmap bm;
-        SkASSERT(bitmap.canCopyTo(info.colorType()));
-        bool copySuccess = bitmap.copyTo(&bm, info.colorType(), &allocator);
-        if (!copySuccess || allocator.isReady()) {
+        SkASSERT(bitmap.canCopyTo(fRequestedConfig));
+        if (!bitmap.copyTo(&bm, fRequestedConfig, &allocator)
+            || allocator.isReady()) {
             SkDEBUGFAIL("bitmap.copyTo(requestedConfig) failed.");
             // Earlier we checked canCopyto(); we expect consistency.
             return false;
         }
-        SkASSERT(check_alpha(info.alphaType(), bm.alphaType()));
+        SkASSERT(check_alpha(fInfo.fAlphaType, bm.alphaType()));
     } else {
-        SkASSERT(check_alpha(info.alphaType(), bitmap.alphaType()));
+        SkASSERT(check_alpha(fInfo.fAlphaType, bitmap.alphaType()));
     }
     return true;
 }
@@ -234,23 +245,38 @@ SkImageGenerator* SkDecodingImageGenerator::Create(
         return NULL;
     }
 
-    SkImageInfo info = bitmap.info();
+    SkImageInfo info;
+    SkBitmap::Config config;
 
     if (!opts.fUseRequestedColorType) {
-        // Use default
-        if (kIndex_8_SkColorType == bitmap.colorType()) {
+        // Use default config.
+        if (SkBitmap::kIndex8_Config == bitmap.config()) {
             // We don't support kIndex8 because we don't support
             // colortables in this workflow.
+            config = SkBitmap::kARGB_8888_Config;
+            info.fWidth = bitmap.width();
+            info.fHeight = bitmap.height();
             info.fColorType = kPMColor_SkColorType;
+            info.fAlphaType = bitmap.alphaType();
+        } else {
+            config = bitmap.config();  // Save for later!
+            if (!bitmap.asImageInfo(&info)) {
+                SkDEBUGFAIL("Getting SkImageInfo from bitmap failed.");
+                return NULL;
+            }
         }
     } else {
-        if (!bitmap.canCopyTo(opts.fRequestedColorType)) {
-            SkASSERT(bitmap.colorType() != opts.fRequestedColorType);
+        config = SkColorTypeToBitmapConfig(opts.fRequestedColorType);
+        if (!bitmap.canCopyTo(config)) {
+            SkASSERT(bitmap.config() != config);
             return NULL;  // Can not translate to needed config.
         }
+        info.fWidth = bitmap.width();
+        info.fHeight = bitmap.height();
         info.fColorType = opts.fRequestedColorType;
+        info.fAlphaType = bitmap.alphaType();
     }
     return SkNEW_ARGS(SkDecodingImageGenerator,
                       (data, autoStream.detach(), info,
-                       opts.fSampleSize, opts.fDitherImage));
+                       opts.fSampleSize, opts.fDitherImage, config));
 }

@@ -18,11 +18,11 @@
 #endif
 
 bool SkBitmapProcShader::CanDo(const SkBitmap& bm, TileMode tx, TileMode ty) {
-    switch (bm.colorType()) {
-        case kAlpha_8_SkColorType:
-        case kRGB_565_SkColorType:
-        case kIndex_8_SkColorType:
-        case kPMColor_SkColorType:
+    switch (bm.config()) {
+        case SkBitmap::kA8_Config:
+        case SkBitmap::kRGB_565_Config:
+        case SkBitmap::kIndex8_Config:
+        case SkBitmap::kARGB_8888_Config:
     //        if (tx == ty && (kClamp_TileMode == tx || kRepeat_TileMode == tx))
                 return true;
         default:
@@ -88,7 +88,7 @@ static bool valid_for_drawing(const SkBitmap& bm) {
     if (NULL == bm.pixelRef()) {
         return false;   // no pixels to read
     }
-    if (kIndex_8_SkColorType == bm.colorType()) {
+    if (SkBitmap::kIndex8_Config == bm.config()) {
         // ugh, I have to lock-pixels to inspect the colortable
         SkAutoLockPixels alp(bm);
         if (!bm.getColorTable()) {
@@ -125,23 +125,23 @@ bool SkBitmapProcShader::setContext(const SkBitmap& device,
         flags |= kOpaqueAlpha_Flag;
     }
 
-    switch (bitmap.colorType()) {
-        case kRGB_565_SkColorType:
+    switch (bitmap.config()) {
+        case SkBitmap::kRGB_565_Config:
             flags |= (kHasSpan16_Flag | kIntrinsicly16_Flag);
             break;
-        case kIndex_8_SkColorType:
-        case kPMColor_SkColorType:
+        case SkBitmap::kIndex8_Config:
+        case SkBitmap::kARGB_8888_Config:
             if (bitmapIsOpaque) {
                 flags |= kHasSpan16_Flag;
             }
             break;
-        case kAlpha_8_SkColorType:
+        case SkBitmap::kA8_Config:
             break;  // never set kHasSpan16_Flag
         default:
             break;
     }
 
-    if (paint.isDither() && bitmap.colorType() != kRGB_565_SkColorType) {
+    if (paint.isDither() && bitmap.config() != SkBitmap::kRGB_565_Config) {
         // gradients can auto-dither in their 16bit sampler, but we don't so
         // we clear the flag here.
         flags &= ~kHasSpan16_Flag;
@@ -278,14 +278,14 @@ static bool canUseColorShader(const SkBitmap& bm, SkColor* color) {
         return false;
     }
 
-    switch (bm.colorType()) {
-        case kPMColor_SkColorType:
+    switch (bm.config()) {
+        case SkBitmap::kARGB_8888_Config:
             *color = SkUnPreMultiply::PMColorToColor(*bm.getAddr32(0, 0));
             return true;
-        case kRGB_565_SkColorType:
+        case SkBitmap::kRGB_565_Config:
             *color = SkPixel16ToColor(*bm.getAddr16(0, 0));
             return true;
-        case kIndex_8_SkColorType:
+        case SkBitmap::kIndex8_Config:
             *color = SkUnPreMultiply::PMColorToColor(bm.getIndex8Color(0, 0));
             return true;
         default: // just skip the other configs for now
@@ -293,6 +293,8 @@ static bool canUseColorShader(const SkBitmap& bm, SkColor* color) {
     }
     return false;
 }
+
+#include "SkTemplatesPriv.h"
 
 static bool bitmapIsTooBig(const SkBitmap& bm) {
     // SkBitmapProcShader stores bitmap coordinates in a 16bit buffer, as it
@@ -304,36 +306,27 @@ static bool bitmapIsTooBig(const SkBitmap& bm) {
     return bm.width() > maxSize || bm.height() > maxSize;
 }
 
-SkShader* CreateBitmapShader(const SkBitmap& src, SkShader::TileMode tmx,
-        SkShader::TileMode tmy, SkTBlitterAllocator* allocator) {
+SkShader* SkShader::CreateBitmapShader(const SkBitmap& src,
+                                       TileMode tmx, TileMode tmy,
+                                       void* storage, size_t storageSize) {
     SkShader* shader;
     SkColor color;
     if (src.isNull() || bitmapIsTooBig(src)) {
-        if (NULL == allocator) {
-            shader = SkNEW(SkEmptyShader);
-        } else {
-            shader = allocator->createT<SkEmptyShader>();
-        }
+        SK_PLACEMENT_NEW(shader, SkEmptyShader, storage, storageSize);
     }
     else if (canUseColorShader(src, &color)) {
-        if (NULL == allocator) {
-            shader = SkNEW_ARGS(SkColorShader, (color));
-        } else {
-            shader = allocator->createT<SkColorShader>(color);
-        }
+        SK_PLACEMENT_NEW_ARGS(shader, SkColorShader, storage, storageSize,
+                              (color));
     } else {
-        if (NULL == allocator) {
-            shader = SkNEW_ARGS(SkBitmapProcShader, (src, tmx, tmy));
-        } else {
-            shader = allocator->createT<SkBitmapProcShader>(src, tmx, tmy);
-        }
+        SK_PLACEMENT_NEW_ARGS(shader, SkBitmapProcShader, storage,
+                              storageSize, (src, tmx, tmy));
     }
     return shader;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 
-#ifndef SK_IGNORE_TO_STRING
+#ifdef SK_DEVELOPER
 void SkBitmapProcShader::toString(SkString* str) const {
     static const char* gTileModeName[SkShader::kTileModeCount] = {
         "clamp", "repeat", "mirror"

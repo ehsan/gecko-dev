@@ -42,11 +42,11 @@ void SkBitmapSource::flatten(SkWriteBuffer& buffer) const {
     buffer.writeRect(fDstRect);
 }
 
-bool SkBitmapSource::onFilterImage(Proxy* proxy, const SkBitmap&, const Context& ctx,
+bool SkBitmapSource::onFilterImage(Proxy* proxy, const SkBitmap&, const SkMatrix& matrix,
                                    SkBitmap* result, SkIPoint* offset) const {
     SkRect bounds, dstRect;
     fBitmap.getBounds(&bounds);
-    ctx.ctm().mapRect(&dstRect, fDstRect);
+    matrix.mapRect(&dstRect, fDstRect);
     if (fSrcRect == bounds && dstRect == bounds) {
         // No regions cropped out or resized; return entire bitmap.
         *result = fBitmap;
@@ -71,7 +71,7 @@ bool SkBitmapSource::onFilterImage(Proxy* proxy, const SkBitmap&, const Context&
     // None filtering when it's translate-only
     paint.setFilterLevel(
         fSrcRect.width() == dstRect.width() && fSrcRect.height() == dstRect.height() ?
-        SkPaint::kNone_FilterLevel : SkPaint::kHigh_FilterLevel);
+        SkPaint::kNone_FilterLevel : SkPaint::kMedium_FilterLevel);
     canvas.drawBitmapRectToRect(fBitmap, &fSrcRect, dstRect, &paint);
 
     *result = device.get()->accessBitmap(false);

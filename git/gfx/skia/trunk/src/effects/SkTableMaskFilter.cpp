@@ -129,7 +129,7 @@ void SkTableMaskFilter::MakeClipTable(uint8_t table[256], uint8_t min,
 #endif
 }
 
-#ifndef SK_IGNORE_TO_STRING
+#ifdef SK_DEVELOPER
 void SkTableMaskFilter::toString(SkString* str) const {
     str->append("SkTableMaskFilter: (");
 
