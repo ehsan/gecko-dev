@@ -2300,7 +2300,7 @@ nsContentUtils::GetContextForContent(nsIContent* aContent)
 {
   nsIDocument* doc = aContent->GetCurrentDoc();
   if (doc) {
-    nsIPresShell *presShell = doc->GetShell();
+    nsIPresShell *presShell = doc->GetPrimaryShell();
     if (presShell) {
       return presShell->GetPresContext();
     }
@@ -6116,7 +6116,7 @@ nsContentUtils::LayerManagerForDocument(nsIDocument *aDoc)
     doc = displayDoc;
   }
 
-  nsIPresShell* shell = doc->GetShell();
+  nsIPresShell* shell = doc->GetPrimaryShell();
   nsCOMPtr<nsISupports> container = doc->GetContainer();
   nsCOMPtr<nsIDocShellTreeItem> docShellTreeItem = do_QueryInterface(container);
   while (!shell && docShellTreeItem) {

@@ -685,7 +685,7 @@ nsTextInputListener::NotifySelectionChanged(nsIDOMDocument* aDoc, nsISelection* 
       nsCOMPtr<nsIDocument> doc = content->GetDocument();
       if (doc) 
       {
-        nsCOMPtr<nsIPresShell> presShell = doc->GetShell();
+        nsCOMPtr<nsIPresShell> presShell = doc->GetPrimaryShell();
         if (presShell) 
         {
           nsEventStatus status = nsEventStatus_eIgnore;

@@ -115,11 +115,9 @@ class Element;
 } // namespace dom
 } // namespace mozilla
 
-
-// fbcd570b-dbfa-479b-9bd0-02312129c044
 #define NS_IDOCUMENT_IID      \
-{ 0xfbcd570b, 0xdbfa, 0x479b, \
-  { 0x9b, 0xd0, 0x02, 0x31, 0x21, 0x29, 0xc0, 0x44 } }
+{ 0x3ee6a14b, 0x83b5, 0x4629, \
+  { 0x96, 0x9b, 0xe9, 0x84, 0x7c, 0x57, 0x24, 0x3c } }
 
 // Flag for AddStyleSheet().
 #define NS_STYLESHEET_FROM_CATALOG                (1 << 0)
@@ -439,7 +437,7 @@ public:
                                nsIPresShell** aInstancePtrResult) = 0;
   void DeleteShell() { mPresShell = nsnull; }
 
-  nsIPresShell* GetShell() const
+  nsIPresShell* GetPrimaryShell() const
   {
     return mShellIsHidden ? nsnull : mPresShell;
   }
@@ -1151,7 +1149,7 @@ public:
    */
   void SetDisplayDocument(nsIDocument* aDisplayDocument)
   {
-    NS_PRECONDITION(!GetShell() &&
+    NS_PRECONDITION(!GetPrimaryShell() &&
                     !nsCOMPtr<nsISupports>(GetContainer()) &&
                     !GetWindow() &&
                     !GetScriptGlobalObject(),

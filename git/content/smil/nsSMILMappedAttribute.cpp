@@ -157,7 +157,7 @@ nsSMILMappedAttribute::FlushChangesToTargetAttr() const
 
   // Request animation restyle
   if (doc) {
-    nsIPresShell* shell = doc->GetShell();
+    nsIPresShell* shell = doc->GetPrimaryShell();
     if (shell) {
       shell->RestyleForAnimation(mElement);
     }

@@ -794,7 +794,8 @@ nsLocation::Reload(PRBool aForceget)
 
     nsIPresShell *shell;
     nsPresContext *pcx;
-    if (doc && (shell = doc->GetShell()) && (pcx = shell->GetPresContext())) {
+    if (doc && (shell = doc->GetPrimaryShell()) &&
+        (pcx = shell->GetPresContext())) {
       pcx->RebuildAllStyleData(NS_STYLE_HINT_REFLOW);
     }
 

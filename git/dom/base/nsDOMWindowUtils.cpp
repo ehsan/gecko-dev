@@ -478,7 +478,7 @@ nsDOMWindowUtils::GetWidgetForElement(nsIDOMElement* aElement)
 
   nsCOMPtr<nsIContent> content = do_QueryInterface(aElement);
   nsIDocument* doc = content->GetCurrentDoc();
-  nsIPresShell* presShell = doc ? doc->GetShell() : nsnull;
+  nsIPresShell* presShell = doc ? doc->GetPrimaryShell() : nsnull;
 
   if (presShell) {
     nsIFrame* frame = content->GetPrimaryFrame();
@@ -784,7 +784,7 @@ nsDOMWindowUtils::GetScrollXY(PRBool aFlushLayout, PRInt32* aScrollX, PRInt32* a
   }
 
   nsPoint scrollPos(0,0);
-  nsIPresShell *presShell = doc->GetShell();
+  nsIPresShell *presShell = doc->GetPrimaryShell();
   if (presShell) {
     nsIScrollableFrame* sf = presShell->GetRootScrollFrameAsScrollable();
     if (sf) {

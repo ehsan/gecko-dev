@@ -537,7 +537,7 @@ protected:
         do_QueryInterface(static_cast<nsIDOMHTMLCanvasElement*>(mCanvasElement));
       if (content) {
         nsIDocument* ownerDoc = content->GetOwnerDoc();
-        return ownerDoc ? ownerDoc->GetShell() : nsnull;
+        return ownerDoc ? ownerDoc->GetPrimaryShell() : nsnull;
       }
       if (mDocShell) {
         nsCOMPtr<nsIPresShell> shell;

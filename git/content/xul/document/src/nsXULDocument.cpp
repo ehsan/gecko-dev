@@ -962,8 +962,9 @@ nsXULDocument::ExecuteOnBroadcastHandlerFor(nsIContent* aBroadcaster,
         // |onbroadcast| event handler
         nsEvent event(PR_TRUE, NS_XUL_BROADCAST);
 
-        nsCOMPtr<nsIPresShell> shell = GetShell();
+        nsCOMPtr<nsIPresShell> shell = GetPrimaryShell();
         if (shell) {
+
             nsRefPtr<nsPresContext> aPresContext = shell->GetPresContext();
 
             // Handle the DOM event
@@ -1473,7 +1474,7 @@ nsXULDocument::GetViewportSize(PRInt32* aWidth,
 
     FlushPendingNotifications(Flush_Layout);
 
-    nsIPresShell *shell = GetShell();
+    nsIPresShell *shell = GetPrimaryShell();
     NS_ENSURE_TRUE(shell, NS_ERROR_FAILURE);
 
     nsIFrame* frame = shell->GetRootFrame();
@@ -1987,8 +1988,9 @@ nsresult
 nsXULDocument::StartLayout(void)
 {
     mMayStartLayout = PR_TRUE;
-    nsCOMPtr<nsIPresShell> shell = GetShell();
+    nsCOMPtr<nsIPresShell> shell = GetPrimaryShell();
     if (shell) {
+
         // Resize-reflow this time
         nsPresContext *cx = shell->GetPresContext();
         NS_ASSERTION(cx != nsnull, "no pres context");
@@ -3894,7 +3896,7 @@ nsXULDocument::OverlayForwardReference::Resolve()
     nsresult rv;
     nsCOMPtr<nsIContent> target;
 
-    nsIPresShell *shell = mDocument->GetShell();
+    nsIPresShell *shell = mDocument->GetPrimaryShell();
     PRBool notify = shell && shell->DidInitialReflow();
 
     nsAutoString id;

@@ -981,7 +981,7 @@ already_AddRefed<nsStyleContext>
 LookupStyleContext(nsIContent* aElement)
 {
   nsIDocument* doc = aElement->GetCurrentDoc();
-  nsIPresShell* shell = doc->GetShell();
+  nsIPresShell* shell = doc->GetPrimaryShell();
   if (!shell) {
     return nsnull;
   }
