@@ -17,7 +17,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=493187
 <pre id="test">
 <script class="testbody" type="text/javascript">
 
-var manager = new MediaTestManager;
+var videos = [];
 
 function start(e) {
   e.target.currentTime = e.target.duration / 4;
@@ -32,23 +32,24 @@ function canPlayThrough(e) {
   if (v._seeked && !v._finished) {
     ok(true, "Got canplaythrough after seek for " + v._name);
     v._finished = true;
-    v.parentNode.removeChild(v);
-    manager.finished(v.token);
+    if (AllFinished(videos))
+      SimpleTest.finish();
   }
 }
 
-function startTest(test, token) {
+for (var i=0; i<gSeekTests.length; ++i) {
+  var test = gSeekTests[i];
+
   // TODO: Bug 568402, there's a bug in the WAV backend where we sometimes
   // don't send canplaythrough events after seeking. Once that is fixed,
   // we should remove this guard below so that we run this test for audio.
   var isVideo = /^video/.test(test.type) ? true : false;
   if (!isVideo)
-    return;
+    continue;
 
   var v = document.createElement('video');
-  v.token = token;
-  manager.started(token);
-
+  if (!v.canPlayType(test.type))
+    continue;
   v.src = test.name;
   v._name = test.name;
   v._seeked = false;
@@ -58,9 +59,14 @@ function startTest(test, token) {
   v.addEventListener("canplaythrough", canPlayThrough, false);
   v.addEventListener("seeking", startSeeking, false);
   document.body.appendChild(v);
+  videos.push(v);
 }
 
-manager.runTests(gSeekTests, startTest);
+if (videos.length == 0) {
+  todo(false, "No types supported");
+} else {
+  SimpleTest.waitForExplicitFinish();
+}
 
 </script>
 </pre>

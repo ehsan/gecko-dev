@@ -381,8 +381,7 @@ JSCompartment::wrap(JSContext *cx, Value *vp)
      * we parent all wrappers to the global object in their home compartment.
      * This loses us some transparency, and is generally very cheesy.
      */
-    JSObject *global =
-        cx->hasfp() ? cx->fp()->getScopeChain()->getGlobal() : cx->globalObject;
+    JSObject *global = cx->fp ? cx->fp->getScopeChain()->getGlobal() : cx->globalObject;
     wrapper->setParent(global);
     return true;
 }
@@ -475,6 +474,31 @@ JSCompartment::sweep(JSContext *cx)
     }
 }
 
+static bool
+SetupFakeFrame(JSContext *cx, ExecuteFrameGuard &frame, JSFrameRegs &regs, JSObject *obj)
+{
+    const uintN vplen = 2;
+    const uintN nfixed = 0;
+    if (!cx->stack().getExecuteFrame(cx, js_GetTopStackFrame(cx), vplen, nfixed, frame))
+        return false;
+
+    Value *vp = frame.getvp();
+    vp[0].setUndefined();
+    vp[1].setNull();  // satisfy LeaveTree assert
+
+    JSStackFrame *fp = frame.getFrame();
+    PodZero(fp);  // fp->fun and fp->script are both NULL
+    fp->argv = vp + 2;
+    fp->setScopeChain(obj->getGlobal());
+    fp->flags = JSFRAME_DUMMY;
+
+    regs.pc = NULL;
+    regs.sp = fp->slots();
+
+    cx->stack().pushExecuteFrame(cx, frame, regs, NULL);
+    return true;
+}
+
 AutoCompartment::AutoCompartment(JSContext *cx, JSObject *target)
     : context(cx),
       origin(cx->compartment),
@@ -497,11 +521,9 @@ AutoCompartment::enter()
 {
     JS_ASSERT(!entered);
     if (origin != destination) {
-        LeaveTrace(context);
         context->compartment = destination;
-        JSObject *scopeChain = target->getGlobal();
         frame.construct();
-        if (!context->stack().pushDummyFrame(context, frame.ref(), regs, scopeChain)) {
+        if (!SetupFakeFrame(context, frame.ref(), regs, target)) {
             frame.destroy();
             context->compartment = origin;
             return false;
@@ -742,6 +764,9 @@ JSCrossCompartmentWrapper::call(JSContext *cx, JSObject *wrapper, uintN argc, Va
         if (!call.destination->wrap(cx, &argv[n]))
             return false;
     }
+    Value *fakevp = call.getvp();
+    fakevp[0] = vp[0];
+    fakevp[1] = vp[1];
     if (!JSWrapper::call(cx, wrapper, argc, vp))
         return false;
 
@@ -761,6 +786,8 @@ JSCrossCompartmentWrapper::construct(JSContext *cx, JSObject *wrapper, uintN arg
         if (!call.destination->wrap(cx, &argv[n]))
             return false;
     }
+    Value *vp = call.getvp();
+    vp[0] = ObjectValue(*call.target);
     if (!JSWrapper::construct(cx, wrapper, argc, argv, rval))
         return false;
 

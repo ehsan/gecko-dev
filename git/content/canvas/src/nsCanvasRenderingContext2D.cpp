@@ -3951,9 +3951,6 @@ nsCanvasRenderingContext2D::GetImageData_explicit(PRInt32 x, PRInt32 y, PRUint32
         return NS_ERROR_DOM_SECURITY_ERR;
     }
 
-    if (w == 0 || h == 0)
-        return NS_ERROR_DOM_SYNTAX_ERR;
-
     if (!CanvasUtils::CheckSaneSubrectSize (x, y, w, h, mWidth, mHeight))
         return NS_ERROR_DOM_SYNTAX_ERR;
 
@@ -4044,9 +4041,6 @@ nsCanvasRenderingContext2D::PutImageData_explicit(PRInt32 x, PRInt32 y, PRUint32
 {
     if (!mValid)
         return NS_ERROR_FAILURE;
-
-    if (w == 0 || h == 0)
-        return NS_ERROR_DOM_SYNTAX_ERR;
 
     if (!CanvasUtils::CheckSaneSubrectSize (x, y, w, h, mWidth, mHeight))
         return NS_ERROR_DOM_SYNTAX_ERR;

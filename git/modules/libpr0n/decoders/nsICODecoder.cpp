@@ -121,11 +121,14 @@ nsICODecoder::FinishInternal()
 
   // Send notifications if appropriate
   if (!IsSizeDecode() && !mError && (GetFrameCount() == 1)) {
-
-    // Invalidate
+    // Tell the image that it's data has been updated 
     nsIntRect r(0, 0, mDirEntry.mWidth, mDirEntry.mHeight);
-    PostInvalidation(r);
+    rv = mImage->FrameUpdated(0, r);
 
+
+    if (mObserver) {
+      mObserver->OnDataAvailable(nsnull, PR_TRUE, &r);
+    }
     PostFrameStop();
     mImage->DecodingComplete();
     if (mObserver) {

@@ -54,7 +54,6 @@
 #include "nsIWindowsRegKey.h"
 #include "nsILocalFile.h"
 #include "plbase64.h"
-#include "nsIXULRuntime.h"
 
 #ifdef MOZ_FT2_FONTS
 #include "ft2build.h"
@@ -199,11 +198,6 @@ gfxWindowsPlatform::gfxWindowsPlatform()
     mUseClearTypeForDownloadableFonts = UNINITIALIZED_VALUE;
     mUseClearTypeAlways = UNINITIALIZED_VALUE;
 
-    /* 
-     * Initialize COM 
-     */ 
-    CoInitialize(NULL); 
-
     mScreenDC = GetDC(NULL);
 
 #ifdef MOZ_FT2_FONTS
@@ -228,22 +222,12 @@ gfxWindowsPlatform::gfxWindowsPlatform()
     ::GetVersionExA(&versionInfo);
     bool isVistaOrHigher = versionInfo.dwMajorVersion >= 6;
 
-    PRBool safeMode = PR_FALSE;
 #ifdef CAIRO_HAS_D2D_SURFACE
     NS_RegisterMemoryReporter(new D2DCacheReporter());
     NS_RegisterMemoryReporter(new D2DVRAMReporter());
     mD2DDevice = NULL;
 
-    PRBool d2dDisabled = PR_FALSE;
-    nsresult rv = pref->GetBoolPref("gfx.direct2d.disabled", &d2dDisabled);
-    if (NS_FAILED(rv))
-        d2dDisabled = PR_FALSE;
-
-    nsCOMPtr<nsIXULRuntime> xr = do_GetService("@mozilla.org/xre/runtime;1");
-    if (xr)
-      xr->GetInSafeMode(&safeMode);
-
-    if (isVistaOrHigher && !d2dDisabled && !safeMode) {
+    if (isVistaOrHigher) {
         // We need a DWriteFactory to work.
         HMODULE d3d10module = LoadLibraryA("d3d10_1.dll");
         D3D10CreateDevice1Func createD3DDevice = (D3D10CreateDevice1Func)
@@ -293,6 +277,7 @@ gfxWindowsPlatform::gfxWindowsPlatform()
 #endif
 
 #ifdef CAIRO_HAS_DWRITE_FONT
+    nsresult rv;
     PRBool useDirectWrite = PR_FALSE;
 
     rv = pref->GetBoolPref(
@@ -325,8 +310,7 @@ gfxWindowsPlatform::gfxWindowsPlatform()
 #endif
 
     PRInt32 rmode;
-    if (!safeMode &&
-	NS_SUCCEEDED(pref->GetIntPref("mozilla.widget.render-mode", &rmode))) {
+    if (NS_SUCCEEDED(pref->GetIntPref("mozilla.widget.render-mode", &rmode))) {
         if (rmode >= 0 && rmode < RENDER_MODE_MAX) {
 #ifdef CAIRO_HAS_DWRITE_FONT
 	    if (rmode != RENDER_DIRECT2D && !useDirectWrite) {
@@ -372,12 +356,6 @@ gfxWindowsPlatform::~gfxWindowsPlatform()
 	cairo_release_device(mD2DDevice);
     }
 #endif
-
-    /* 
-     * Uninitialize COM 
-     */ 
-    CoUninitialize(); 
-
 }
 
 gfxPlatformFontList*

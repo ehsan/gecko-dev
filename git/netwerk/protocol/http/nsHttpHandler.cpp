@@ -30,7 +30,6 @@
  *   Bradley Baetz <bbaetz@netscape.com>
  *   Benjamin Smedberg <bsmedberg@covad.net>
  *   Josh Aas <josh@mozilla.com>
- *   Dão Gottwald <dao@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -120,6 +119,8 @@ static NS_DEFINE_CID(kCacheServiceCID, NS_CACHESERVICE_CID);
 static NS_DEFINE_CID(kSocketProviderServiceCID, NS_SOCKETPROVIDERSERVICE_CID);
 
 #define UA_PREF_PREFIX          "general.useragent."
+#define UA_APPNAME              "Mozilla"
+#define UA_APPVERSION           "5.0"
 #ifdef XP_WIN
 #define UA_SPARE_PLATFORM
 #endif
@@ -183,15 +184,12 @@ nsHttpHandler::nsHttpHandler()
     , mMaxPersistentConnectionsPerProxy(4)
     , mMaxPipelinedRequests(2)
     , mRedirectionLimit(10)
-    , mInPrivateBrowsingMode(PR_FALSE)
     , mPhishyUserPassLength(1)
     , mQoSBits(0x00)
     , mPipeliningOverSSL(PR_FALSE)
     , mLastUniqueID(NowInSeconds())
     , mSessionStartTime(0)
     , mProduct("Gecko")
-    , mLegacyAppName("Mozilla")
-    , mLegacyAppVersion("5.0")
     , mUserAgentIsDirty(PR_TRUE)
     , mUseCache(PR_TRUE)
     , mPromptTempRedirect(PR_TRUE)
@@ -253,12 +251,6 @@ nsHttpHandler::Init()
         NeckoChild::InitNeckoChild();
 #endif // MOZ_IPC
 
-    // figure out if we're starting in private browsing mode
-    nsCOMPtr<nsIPrivateBrowsingService> pbs =
-      do_GetService(NS_PRIVATE_BROWSING_SERVICE_CONTRACTID);
-    if (pbs)
-      pbs->GetPrivateBrowsingEnabled(&mInPrivateBrowsingMode);
-
     InitUserAgentComponents();
 
     // monitor some preference changes
@@ -276,32 +268,21 @@ nsHttpHandler::Init()
 
     mMisc.AssignLiteral("rv:" MOZILLA_VERSION);
 
-    nsCOMPtr<nsIXULAppInfo> appInfo =
-        do_GetService("@mozilla.org/xre/app-info;1");
-
-    mAppName.AssignLiteral(MOZ_APP_UA_NAME);
-    if (mAppName.Length() == 0 && appInfo) {
-        appInfo->GetName(mAppName);
-        appInfo->GetVersion(mAppVersion);
-    } else {
-        mAppVersion.AssignLiteral(MOZ_APP_VERSION);
-    }
-
 #if DEBUG
     // dump user agent prefs
-    LOG(("> legacy-app-name = %s\n", mLegacyAppName.get()));
-    LOG(("> legacy-app-version = %s\n", mLegacyAppVersion.get()));
+    LOG(("> app-name = %s\n", mAppName.get()));
+    LOG(("> app-version = %s\n", mAppVersion.get()));
     LOG(("> platform = %s\n", mPlatform.get()));
     LOG(("> oscpu = %s\n", mOscpu.get()));
     LOG(("> language = %s\n", mLanguage.get()));
     LOG(("> misc = %s\n", mMisc.get()));
     LOG(("> vendor = %s\n", mVendor.get()));
     LOG(("> vendor-sub = %s\n", mVendorSub.get()));
+    LOG(("> vendor-comment = %s\n", mVendorComment.get()));
+    LOG(("> extra = %s\n", mExtraUA.get()));
     LOG(("> product = %s\n", mProduct.get()));
     LOG(("> product-sub = %s\n", mProductSub.get()));
-    LOG(("> app-name = %s\n", mAppName.get()));
-    LOG(("> app-version = %s\n", mAppVersion.get()));
-    LOG(("> compat-firefox = %s\n", mCompatFirefox.get()));
+    LOG(("> product-comment = %s\n", mProductComment.get()));
     LOG(("> user-agent = %s\n", UserAgent().get()));
 #endif
 
@@ -313,6 +294,16 @@ nsHttpHandler::Init()
     rv = InitConnectionMgr();
     if (NS_FAILED(rv)) return rv;
 
+    rv = NS_NewThread(getter_AddRefs(mCacheWriteThread));
+    if (NS_FAILED(rv)) {
+        mCacheWriteThread = nsnull;
+        LOG(("Failed creating cache-write thread - writes will be synchronous"));
+    } else {
+        LOG(("Created cache-write thread = %p", mCacheWriteThread.get()));
+    }
+
+    nsCOMPtr<nsIXULAppInfo> appInfo =
+        do_GetService("@mozilla.org/xre/app-info;1");
     if (appInfo)
         appInfo->GetPlatformBuildID(mProductSub);
     if (mProductSub.Length() > 8)
@@ -330,7 +321,7 @@ nsHttpHandler::Init()
         mObserverService->AddObserver(this, "profile-change-net-restore", PR_TRUE);
         mObserverService->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, PR_TRUE);
         mObserverService->AddObserver(this, "net:clear-active-logins", PR_TRUE);
-        mObserverService->AddObserver(this, NS_PRIVATE_BROWSING_SWITCH_TOPIC, PR_TRUE);
+        mObserverService->AddObserver(this, "xpcom-shutdown-threads", PR_TRUE);
     }
  
     StartPruneDeadConnectionsTimer();
@@ -518,14 +509,6 @@ nsHttpHandler::GetStreamConverterService(nsIStreamConverterService **result)
     return NS_OK;
 }
 
-nsIStrictTransportSecurityService*
-nsHttpHandler::GetSTSService()
-{
-    if (!mSTSService)
-      mSTSService = do_GetService(NS_STSSERVICE_CONTRACTID);
-    return mSTSService;
-}
-
 nsICookieService *
 nsHttpHandler::GetCookieService()
 {
@@ -612,16 +595,16 @@ nsHttpHandler::BuildUserAgent()
 {
     LOG(("nsHttpHandler::BuildUserAgent\n"));
 
-    NS_ASSERTION(!mLegacyAppName.IsEmpty() &&
-                 !mLegacyAppVersion.IsEmpty() &&
+    NS_ASSERTION(!mAppName.IsEmpty() &&
+                 !mAppVersion.IsEmpty() &&
                  !mPlatform.IsEmpty() &&
                  !mOscpu.IsEmpty(),
                  "HTTP cannot send practical requests without this much");
 
     // preallocate to worst-case size, which should always be better
     // than if we didn't preallocate at all.
-    mUserAgent.SetCapacity(mLegacyAppName.Length() + 
-                           mLegacyAppVersion.Length() + 
+    mUserAgent.SetCapacity(mAppName.Length() + 
+                           mAppVersion.Length() + 
 #ifndef UA_SPARE_PLATFORM
                            mPlatform.Length() + 
 #endif
@@ -629,17 +612,17 @@ nsHttpHandler::BuildUserAgent()
                            mMisc.Length() +
                            mProduct.Length() +
                            mProductSub.Length() +
+                           mProductComment.Length() +
                            mVendor.Length() +
                            mVendorSub.Length() +
-                           mAppName.Length() +
-                           mAppVersion.Length() +
-                           mCompatFirefox.Length() +
-                           15);
+                           mVendorComment.Length() +
+                           mExtraUA.Length() +
+                           22);
 
     // Application portion
-    mUserAgent.Assign(mLegacyAppName);
+    mUserAgent.Assign(mAppName);
     mUserAgent += '/';
-    mUserAgent += mLegacyAppVersion;
+    mUserAgent += mAppVersion;
     mUserAgent += ' ';
 
     // Application comment
@@ -649,27 +632,26 @@ nsHttpHandler::BuildUserAgent()
     mUserAgent.AppendLiteral("; ");
 #endif
     mUserAgent += mOscpu;
-    mUserAgent.AppendLiteral("; ");
-    mUserAgent += mMisc;
+    if (!mMisc.IsEmpty()) {
+        mUserAgent.AppendLiteral("; ");
+        mUserAgent += mMisc;
+    }
     mUserAgent += ')';
 
     // Product portion
-    mUserAgent += ' ';
-    mUserAgent += mProduct;
-    mUserAgent += '/';
-    mUserAgent += mProductSub;
-
-    // "Firefox/x.y.z" compatibility token
-    if (!mCompatFirefox.IsEmpty()) {
+    if (!mProduct.IsEmpty()) {
         mUserAgent += ' ';
-        mUserAgent += mCompatFirefox;
+        mUserAgent += mProduct;
+        if (!mProductSub.IsEmpty()) {
+            mUserAgent += '/';
+            mUserAgent += mProductSub;
+        }
+        if (!mProductComment.IsEmpty()) {
+            mUserAgent.AppendLiteral(" (");
+            mUserAgent += mProductComment;
+            mUserAgent += ')';
+        }
     }
-
-    // App portion
-    mUserAgent += ' ';
-    mUserAgent += mAppName;
-    mUserAgent += '/';
-    mUserAgent += mAppVersion;
 
     // Vendor portion
     if (!mVendor.IsEmpty()) {
@@ -679,7 +661,15 @@ nsHttpHandler::BuildUserAgent()
             mUserAgent += '/';
             mUserAgent += mVendorSub;
         }
+        if (!mVendorComment.IsEmpty()) {
+            mUserAgent.AppendLiteral(" (");
+            mUserAgent += mVendorComment;
+            mUserAgent += ')';
+        }
     }
+
+    if (!mExtraUA.IsEmpty())
+        mUserAgent += mExtraUA;
 }
 
 #ifdef XP_WIN
@@ -705,8 +695,6 @@ nsHttpHandler::InitUserAgentComponents()
     "Macintosh"
 #elif defined(XP_BEOS)
     "BeOS"
-#elif defined(MOZ_PLATFORM_MAEMO)
-    "Maemo"
 #elif defined(MOZ_X11)
     "X11"
 #else
@@ -785,7 +773,7 @@ nsHttpHandler::InitUserAgentComponents()
             // to differentiate this from someone running 64-bit code
             // on x86_64..
 
-            buf += " i686 on x86_64";
+            buf += " i686 (x86_64)";
         } else {
             buf += ' ';
 
@@ -830,6 +818,22 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
     // UA components
     //
 
+    // Gather application values.
+    if (PREF_CHANGED(UA_PREF("appName"))) {
+        prefs->GetCharPref(UA_PREF("appName"),
+            getter_Copies(mAppName));
+        if (mAppName.IsEmpty())
+            mAppName.AssignLiteral(UA_APPNAME);
+        mUserAgentIsDirty = PR_TRUE;
+    }
+    if (PREF_CHANGED(UA_PREF("appVersion"))) {
+        prefs->GetCharPref(UA_PREF("appVersion"),
+            getter_Copies(mAppVersion));
+        if (mAppVersion.IsEmpty())
+            mAppVersion.AssignLiteral(UA_APPVERSION);
+        mUserAgentIsDirty = PR_TRUE;
+    }
+
     // Gather vendor values.
     if (PREF_CHANGED(UA_PREF("vendor"))) {
         prefs->GetCharPref(UA_PREF("vendor"),
@@ -841,16 +845,46 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
             getter_Copies(mVendorSub));
         mUserAgentIsDirty = PR_TRUE;
     }
+    if (PREF_CHANGED(UA_PREF("vendorComment"))) {
+        prefs->GetCharPref(UA_PREF("vendorComment"),
+            getter_Copies(mVendorComment));
+        mUserAgentIsDirty = PR_TRUE;
+    }
 
-    PRBool cVar = PR_FALSE;
+    if (MULTI_PREF_CHANGED(UA_PREF("extra."))) {
+        mExtraUA.Truncate();
 
-    if (PREF_CHANGED(UA_PREF("compatMode.firefox"))) {
-        rv = prefs->GetBoolPref(UA_PREF("compatMode.firefox"), &cVar);
-        if (NS_SUCCEEDED(rv) && cVar) {
-            mCompatFirefox.AssignLiteral("Firefox/" MOZ_UA_FIREFOX_VERSION);
-        } else {
-            mCompatFirefox.Truncate();
+        // Unfortunately, we can't do this using the pref branch.
+        nsCOMPtr<nsIPrefService> service =
+            do_GetService(NS_PREFSERVICE_CONTRACTID);
+        nsCOMPtr<nsIPrefBranch> branch;
+        service->GetBranch(UA_PREF("extra."), getter_AddRefs(branch));
+        if (branch) {
+            PRUint32 extraCount;
+            char **extraItems;
+            rv = branch->GetChildList("", &extraCount, &extraItems);
+            if (NS_SUCCEEDED(rv) && extraItems) {
+                NS_QuickSort(extraItems, extraCount, sizeof(extraItems[0]),
+                             StringCompare, nsnull);
+                for (char **item = extraItems,
+                      **item_end = extraItems + extraCount;
+                     item < item_end; ++item) {
+                    nsXPIDLCString valStr;
+                    branch->GetCharPref(*item, getter_Copies(valStr));
+                    if (!valStr.IsEmpty())
+                        mExtraUA += NS_LITERAL_CSTRING(" ") + valStr;
+                }
+                NS_FREE_XPCOM_ALLOCATED_POINTER_ARRAY(extraCount, extraItems);
+            }
         }
+
+        mUserAgentIsDirty = PR_TRUE;
+    }
+
+    // Gather product values.
+    if (PREF_CHANGED(UA_PREF("productComment"))) {
+        prefs->GetCharPref(UA_PREF("productComment"),
+            getter_Copies(mProductComment));
         mUserAgentIsDirty = PR_TRUE;
     }
 
@@ -988,6 +1022,8 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
             // it does not make sense to issue a HTTP/0.9 request to a proxy server
         }
     }
+
+    PRBool cVar = PR_FALSE;
 
     if (PREF_CHANGED(HTTP_PREF("keep-alive"))) {
         rv = prefs->GetBoolPref(HTTP_PREF("keep-alive"), &cVar);
@@ -1562,14 +1598,14 @@ nsHttpHandler::GetUserAgent(nsACString &value)
 NS_IMETHODIMP
 nsHttpHandler::GetAppName(nsACString &value)
 {
-    value = mLegacyAppName;
+    value = mAppName;
     return NS_OK;
 }
 
 NS_IMETHODIMP
 nsHttpHandler::GetAppVersion(nsACString &value)
 {
-    value = mLegacyAppVersion;
+    value = mAppVersion;
     return NS_OK;
 }
 
@@ -1579,11 +1615,39 @@ nsHttpHandler::GetVendor(nsACString &value)
     value = mVendor;
     return NS_OK;
 }
+NS_IMETHODIMP
+nsHttpHandler::SetVendor(const nsACString &value)
+{
+    mVendor = value;
+    mUserAgentIsDirty = PR_TRUE;
+    return NS_OK;
+}
 
 NS_IMETHODIMP
 nsHttpHandler::GetVendorSub(nsACString &value)
 {
     value = mVendorSub;
+    return NS_OK;
+}
+NS_IMETHODIMP
+nsHttpHandler::SetVendorSub(const nsACString &value)
+{
+    mVendorSub = value;
+    mUserAgentIsDirty = PR_TRUE;
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsHttpHandler::GetVendorComment(nsACString &value)
+{
+    value = mVendorComment;
+    return NS_OK;
+}
+NS_IMETHODIMP
+nsHttpHandler::SetVendorComment(const nsACString &value)
+{
+    mVendorComment = value;
+    mUserAgentIsDirty = PR_TRUE;
     return NS_OK;
 }
 
@@ -1593,11 +1657,39 @@ nsHttpHandler::GetProduct(nsACString &value)
     value = mProduct;
     return NS_OK;
 }
+NS_IMETHODIMP
+nsHttpHandler::SetProduct(const nsACString &value)
+{
+    mProduct = value;
+    mUserAgentIsDirty = PR_TRUE;
+    return NS_OK;
+}
 
 NS_IMETHODIMP
 nsHttpHandler::GetProductSub(nsACString &value)
 {
     value = mProductSub;
+    return NS_OK;
+}
+NS_IMETHODIMP
+nsHttpHandler::SetProductSub(const nsACString &value)
+{
+    mProductSub = value;
+    mUserAgentIsDirty = PR_TRUE;
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsHttpHandler::GetProductComment(nsACString &value)
+{
+    value = mProductComment;
+    return NS_OK;
+}
+NS_IMETHODIMP
+nsHttpHandler::SetProductComment(const nsACString &value)
+{
+    mProductComment = value;
+    mUserAgentIsDirty = PR_TRUE;
     return NS_OK;
 }
 
@@ -1626,6 +1718,13 @@ NS_IMETHODIMP
 nsHttpHandler::GetMisc(nsACString &value)
 {
     value = mMisc;
+    return NS_OK;
+}
+NS_IMETHODIMP
+nsHttpHandler::SetMisc(const nsACString &value)
+{
+    mMisc = value;
+    mUserAgentIsDirty = PR_TRUE;
     return NS_OK;
 }
 
@@ -1681,13 +1780,19 @@ nsHttpHandler::Observe(nsISupports *subject,
     else if (strcmp(topic, "net:clear-active-logins") == 0) {
         mAuthCache.ClearAll();
     }
-    else if (strcmp(topic, NS_PRIVATE_BROWSING_SWITCH_TOPIC) == 0) {
-        if (NS_LITERAL_STRING(NS_PRIVATE_BROWSING_ENTER).Equals(data))
-            mInPrivateBrowsingMode = PR_TRUE;
-        else if (NS_LITERAL_STRING(NS_PRIVATE_BROWSING_LEAVE).Equals(data))
-            mInPrivateBrowsingMode = PR_FALSE;
+    else if (strcmp(topic, "xpcom-shutdown-threads") == 0) {
+        // Shutdown the cache write thread. This must be done after shutting down
+        // the cache service, because the (memory) cache entries' storage streams
+        // get released on the thread on which they were first written to, which
+        // is this thread.
+        if (mCacheWriteThread) {
+            LOG(("  shutting down cache-write thread...\n"));
+            mCacheWriteThread->Shutdown();
+            LOG(("  cache-write thread shutdown complete\n"));
+            mCacheWriteThread = nsnull;
+        }
     }
-  
+
     return NS_OK;
 }
 

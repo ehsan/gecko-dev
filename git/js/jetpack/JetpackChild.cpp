@@ -111,12 +111,9 @@ JetpackChild::Init(base::ProcessHandle aParentProcessHandle,
     JSAutoRequest request(mCx);
     JS_SetContextPrivate(mCx, this);
     JSObject* implGlobal =
-      JS_NewCompartmentAndGlobalObject(mCx, const_cast<JSClass*>(&sGlobalClass), NULL);
+      JS_NewGlobalObject(mCx, const_cast<JSClass*>(&sGlobalClass));
     if (!implGlobal ||
         !JS_InitStandardClasses(mCx, implGlobal) ||
-#ifdef BUILD_CTYPES
-        !JS_InitCTypesClass(mCx, implGlobal) ||
-#endif
         !JS_DefineFunctions(mCx, implGlobal,
                             const_cast<JSFunctionSpec*>(sImplMethods)))
       return false;
@@ -399,12 +396,8 @@ JetpackChild::CreateSandbox(JSContext* cx, uintN argc, jsval* vp)
     return JS_FALSE;
   }
 
-  JSObject* obj = JS_NewCompartmentAndGlobalObject(cx, const_cast<JSClass*>(&sGlobalClass), NULL);
+  JSObject* obj = JS_NewGlobalObject(cx, const_cast<JSClass*>(&sGlobalClass));
   if (!obj)
-    return JS_FALSE;
-
-  JSAutoCrossCompartmentCall ac;
-  if (!ac.enter(cx, obj))
     return JS_FALSE;
 
   JS_SET_RVAL(cx, vp, OBJECT_TO_JSVAL(obj));
@@ -432,10 +425,6 @@ JetpackChild::EvalInSandbox(JSContext* cx, uintN argc, jsval* vp)
 
   JSString* str = JS_ValueToString(cx, argv[1]);
   if (!str)
-    return JS_FALSE;
-
-  JSAutoCrossCompartmentCall ac;
-  if (!ac.enter(cx, obj))
     return JS_FALSE;
 
   js::AutoValueRooter ignored(cx);

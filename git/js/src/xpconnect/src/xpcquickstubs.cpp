@@ -1110,7 +1110,8 @@ xpc_qsStringToJsstring(JSContext *cx, nsString &str, JSString **rval)
 }
 
 JSBool
-xpc_qsXPCOMObjectToJsval(XPCLazyCallContext &lccx, qsObjectHelper &aHelper,
+xpc_qsXPCOMObjectToJsval(XPCLazyCallContext &lccx, qsObjectHelper* aHelper,
+                         nsWrapperCache *cache,
                          const nsIID *iid, XPCNativeInterface **iface,
                          jsval *rval)
 {
@@ -1129,9 +1130,12 @@ xpc_qsXPCOMObjectToJsval(XPCLazyCallContext &lccx, qsObjectHelper &aHelper,
 
     nsresult rv;
     if(!XPCConvert::NativeInterface2JSObject(lccx, rval, nsnull,
-                                             aHelper, iid, iface,
+                                             aHelper->Object(),
+                                             iid, iface,
+                                             cache,
                                              lccx.GetCurrentJSObject(), PR_TRUE,
-                                             OBJ_IS_NOT_GLOBAL, &rv))
+                                             OBJ_IS_NOT_GLOBAL, &rv,
+                                             aHelper))
     {
         // I can't tell if NativeInterface2JSObject throws JS exceptions
         // or not.  This is a sloppy stab at the right semantics; the

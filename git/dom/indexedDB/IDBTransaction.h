@@ -53,9 +53,7 @@
 #include "nsHashKeys.h"
 #include "nsInterfaceHashtable.h"
 
-class nsIScriptContext;
 class nsIThread;
-class nsPIDOMWindow;
 
 BEGIN_INDEXEDDB_NAMESPACE
 
@@ -80,8 +78,7 @@ public:
                                            nsDOMEventTargetHelper)
 
   static already_AddRefed<IDBTransaction>
-  Create(JSContext* aCx,
-         IDBDatabase* aDatabase,
+  Create(IDBDatabase* aDatabase,
          nsTArray<nsString>& aObjectStoreNames,
          PRUint16 aMode,
          PRUint32 aTimeout);
@@ -146,16 +143,6 @@ public:
 #endif
 
   enum { FULL_LOCK = nsIIDBTransaction::SNAPSHOT_READ + 1 };
-
-  nsIScriptContext* ScriptContext()
-  {
-    return mScriptContext;
-  }
-
-  nsPIDOMWindow* Owner()
-  {
-    return mOwner;
-  }
 
 private:
   IDBTransaction();

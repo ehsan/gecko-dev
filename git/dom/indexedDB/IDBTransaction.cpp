@@ -39,11 +39,8 @@
 
 #include "IDBTransaction.h"
 
-#include "nsIScriptContext.h"
-
 #include "mozilla/storage.h"
 #include "nsDOMClassInfo.h"
-#include "nsPIDOMWindow.h"
 #include "nsProxyRelease.h"
 #include "nsThreadUtils.h"
 
@@ -75,8 +72,7 @@ DoomCachedStatements(const nsACString& aQuery,
 
 // static
 already_AddRefed<IDBTransaction>
-IDBTransaction::Create(JSContext* aCx,
-                       IDBDatabase* aDatabase,
+IDBTransaction::Create(IDBDatabase* aDatabase,
                        nsTArray<nsString>& aObjectStoreNames,
                        PRUint16 aMode,
                        PRUint32 aTimeout)
@@ -96,21 +92,6 @@ IDBTransaction::Create(JSContext* aCx,
 
   if (!transaction->mCachedStatements.Init()) {
     NS_ERROR("Failed to initialize hash!");
-    return nsnull;
-  }
-
-  nsIScriptContext* context = GetScriptContextFromJSContext(aCx);
-  if (context) {
-    transaction->mScriptContext = context;
-    nsCOMPtr<nsPIDOMWindow> window =
-      do_QueryInterface(context->GetGlobalObject());
-    if (window) {
-      transaction->mOwner = window->GetCurrentInnerWindow();
-    }
-  }
-
-  if (!transaction->mOwner) {
-    NS_ERROR("Couldn't get script context and owner!");
     return nsnull;
   }
 

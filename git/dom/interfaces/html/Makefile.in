@@ -104,8 +104,8 @@ SDK_XPIDLSRCS =					\
 	nsIDOMHTMLTextAreaElement.idl		\
 	nsIDOMHTMLTitleElement.idl		\
 	nsIDOMHTMLUListElement.idl		\
-	nsIDOMMediaError.idl		\
-	nsIDOMTimeRanges.idl		\
+	nsIDOMHTMLMediaError.idl		\
+	nsIDOMHTMLTimeRanges.idl		\
 	nsIDOMHTMLByteRanges.idl		\
 	nsIDOMHTMLMediaElement.idl		\
 	nsIDOMHTMLSourceElement.idl		\

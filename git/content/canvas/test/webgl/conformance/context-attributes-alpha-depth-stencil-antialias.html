@@ -21,9 +21,6 @@ void main()
 </script>
 
 <script id="fshader" type="x-shader/x-fragment">
-#ifdef GL_ES
-precision highp float;
-#endif
 varying vec4 color;
 
 void main()
@@ -178,14 +175,14 @@ function testDepth(depth)
 
     webGL.depthFunc(webGL.NEVER);
 
-    var vertices = new Float32Array([
+    var vertices = new WebGLFloatArray([
          1.0,  1.0, 0.0,
         -1.0,  1.0, 0.0,
         -1.0, -1.0, 0.0,
          1.0,  1.0, 0.0,
         -1.0, -1.0, 0.0,
          1.0, -1.0, 0.0]);
-    var colors = new Uint8Array([
+    var colors = new WebGLUnsignedByteArray([
         255, 0, 0, 255,
         255, 0, 0, 255,
         255, 0, 0, 255,
@@ -221,14 +218,14 @@ function testStencil(stencil)
     webGL.stencilFunc(webGL.NEVER, 1, 1);
     webGL.stencilOp(webGL.KEEP, webGL.KEEP, webGL.KEEP);
 
-    var vertices = new Float32Array([
+    var vertices = new WebGLFloatArray([
          1.0, 1.0, 0.0,
         -1.0, 1.0, 0.0,
         -1.0, -1.0, 0.0,
          1.0, 1.0, 0.0,
         -1.0, -1.0, 0.0,
          1.0, -1.0, 0.0]);
-    var colors = new Uint8Array([
+    var colors = new WebGLUnsignedByteArray([
         255, 0, 0, 255,
         255, 0, 0, 255,
         255, 0, 0, 255,
@@ -262,11 +259,11 @@ function testAntialias(antialias)
     shouldBe("contextAttribs.antialias == true || contextAttribs.antialias == false", "true");
     shouldBe("contextAttribs.premultipliedAlpha", "true");
 
-    var vertices = new Float32Array([
+    var vertices = new WebGLFloatArray([
          1.0, 1.0, 0.0,
         -1.0, 1.0, 0.0,
         -1.0, -1.0, 0.0]);
-    var colors = new Uint8Array([
+    var colors = new WebGLUnsignedByteArray([
         255, 0, 0, 255,
         255, 0, 0, 255,
         255, 0, 0, 255]);

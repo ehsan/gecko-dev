@@ -39,7 +39,7 @@
 #ifndef _nsEventShell_H_
 #define _nsEventShell_H_
 
-#include "AccEvent.h"
+#include "nsAccEvent.h"
 
 #include "a11yGeneric.h"
 
@@ -59,7 +59,7 @@ public:
   /**
    * Fire the accessible event.
    */
-  static void FireEvent(AccEvent* aEvent);
+  static void FireEvent(nsAccEvent *aEvent);
 
   /**
    * Fire accessible event of the given type for the given accessible.
@@ -105,7 +105,7 @@ public:
   /**
    * Push event to queue, coalesce it if necessary. Start pending processing.
    */
-  void Push(AccEvent* aEvent);
+  void Push(nsAccEvent *aEvent);
 
   /**
    * Shutdown the queue.
@@ -142,20 +142,20 @@ private:
    */
   void ApplyToSiblings(PRUint32 aStart, PRUint32 aEnd,
                        PRUint32 aEventType, nsINode* aNode,
-                       AccEvent::EEventRule aEventRule);
+                       nsAccEvent::EEventRule aEventRule);
 
   /**
    * Do not emit one of two given reorder events fired for the same DOM node.
    */
-  void CoalesceReorderEventsFromSameSource(AccEvent* aAccEvent1,
-                                           AccEvent* aAccEvent2);
+  void CoalesceReorderEventsFromSameSource(nsAccEvent *aAccEvent1,
+                                           nsAccEvent *aAccEvent2);
 
   /**
    * Do not emit one of two given reorder events fired for DOM nodes in the case
    * when one DOM node is in parent chain of second one.
    */
-  void CoalesceReorderEventsFromSameTree(AccEvent* aAccEvent,
-                                         AccEvent* aDescendantAccEvent);
+  void CoalesceReorderEventsFromSameTree(nsAccEvent *aAccEvent,
+                                         nsAccEvent *aDescendantAccEvent);
 
   /**
    * Coalesce text change events caused by sibling hide events.
@@ -186,7 +186,7 @@ private:
    * Pending events array.  Don't make this an nsAutoTArray; we use
    * SwapElements() on it.
    */
-  nsTArray<nsRefPtr<AccEvent> > mEvents;
+  nsTArray<nsRefPtr<nsAccEvent> > mEvents;
 };
 
 #endif

@@ -453,17 +453,19 @@ var UIManager = {
       if (tab.ownerDocument.defaultView != gWindow)
         return;
 
-      self.onTabSelect(tab);
+      self.tabOnFocus(tab);
     });
   },
 
   // ----------
-  // Function: onTabSelect
+  // Function: tabOnFocus
   // Called when the user switches from one tab to another outside of the TabView UI.
-  onTabSelect: function(tab) {
-    let currentTab = this._currentTab;
-    this._currentTab = tab;
+  tabOnFocus: function(tab) {
+    var self = this;
+    var focusTab = tab;
+    var currentTab = this._currentTab;
 
+    this._currentTab = focusTab;
     // if the last visible tab has just been closed, don't show the chrome UI.
     if (this._isTabViewVisible() &&
         (this._closedLastVisibleTab || this._closedSelectedTabInTabView)) {
@@ -471,33 +473,50 @@ var UIManager = {
       this._closedSelectedTabInTabView = false;
       return;
     }
-    // reset these vars, just in case.
-    this._closedLastVisibleTab = false;
-    this._closedSelectedTabInTabView = false;
 
     // if TabView is visible but we didn't just close the last tab or
     // selected tab, show chrome.
     if (this._isTabViewVisible())
       this.hideTabView();
 
-    let oldItem = null;
+    // reset these vars, just in case.
+    this._closedLastVisibleTab = false;
+    this._closedSelectedTabInTabView = false;
+
+    // have things have changed while we were in timeout?
+    if (focusTab != self._currentTab)
+      return;
+
     let newItem = null;
-    
-    if (currentTab && currentTab.tabItem)
-      oldItem = currentTab.tabItem;
-    if (tab && tab.tabItem) {
-      newItem = tab.tabItem;
-      GroupItems.updateActiveGroupItemAndTabBar(newItem);
+    if (focusTab && focusTab.tabItem) {
+      newItem = focusTab.tabItem;
+      if (newItem.parent)
+        GroupItems.setActiveGroupItem(newItem.parent);
+      else {
+        GroupItems.setActiveGroupItem(null);
+        GroupItems.setActiveOrphanTab(newItem);
+      }
+      GroupItems.updateTabBar();
     }
 
     // ___ prepare for when we return to TabView
+    let oldItem = null;
+    if (currentTab && currentTab.tabItem)
+      oldItem = currentTab.tabItem;
+
     if (newItem != oldItem) {
       if (oldItem)
         oldItem.setZoomPrep(false);
-      if (newItem)
+
+      // if the last visible tab is removed, don't set zoom prep because
+      // we should be in the TabView interface.
+      let visibleTabCount = gBrowser.visibleTabs.length;
+      if (visibleTabCount > 0 && newItem && !self._isTabViewVisible())
         newItem.setZoomPrep(true);
-    } else if (oldItem)
-      oldItem.setZoomPrep(true);
+    }
+    // the tab is already focused so the new and old items are the same.
+    else if (oldItem)
+      oldItem.setZoomPrep(!self._isTabViewVisible());
   },
 
   // ----------
@@ -544,7 +563,7 @@ var UIManager = {
       if (!self.getActiveTab() || iQ(":focus").length > 0) {
         // prevent the default action when tab is pressed so it doesn't gives
         // us problem with content focus.
-        if (event.keyCode == KeyEvent.DOM_VK_TAB) {
+        if (event.which == 9) {
           event.stopPropagation();
           event.preventDefault();
         }
@@ -566,17 +585,17 @@ var UIManager = {
       }
 
       var norm = null;
-      switch (event.keyCode) {
-        case KeyEvent.DOM_VK_RIGHT:
+      switch (event.which) {
+        case 39: // Right
           norm = function(a, me){return a.x > me.x};
           break;
-        case KeyEvent.DOM_VK_LEFT:
+        case 37: // Left
           norm = function(a, me){return a.x < me.x};
           break;
-        case KeyEvent.DOM_VK_DOWN:
+        case 40: // Down
           norm = function(a, me){return a.y > me.y};
           break;
-        case KeyEvent.DOM_VK_UP:
+        case 38: // Up
           norm = function(a, me){return a.y < me.y}
           break;
       }
@@ -590,7 +609,7 @@ var UIManager = {
         }
         event.stopPropagation();
         event.preventDefault();
-      } else if (event.keyCode == KeyEvent.DOM_VK_SPACE) {
+      } else if (event.which == 32) {
         // alt/control + space to zoom into the active tab.
 #ifdef XP_MACOSX
         if (event.altKey && !event.metaKey && !event.shiftKey &&
@@ -605,21 +624,14 @@ var UIManager = {
           event.stopPropagation();
           event.preventDefault();
         }
-      } else if (event.keyCode == KeyEvent.DOM_VK_ESCAPE || 
-                 event.keyCode == KeyEvent.DOM_VK_RETURN ||
-                 event.keyCode == KeyEvent.DOM_VK_ENTER) {
-        let activeTab = self.getActiveTab();
-        let activeGroupItem = GroupItems.getActiveGroupItem();
-
-        if (activeGroupItem && activeGroupItem.expanded && 
-            event.keyCode == KeyEvent.DOM_VK_ESCAPE)
-          activeGroupItem.collapse();
-        else if (activeTab)
-            activeTab.zoomIn();
-
+      } else if (event.which == 27 || event.which == 13) {
+        // esc or return to zoom into the active tab.
+        var activeTab = self.getActiveTab();
+        if (activeTab)
+          activeTab.zoomIn();
         event.stopPropagation();
         event.preventDefault();
-      } else if (event.keyCode == KeyEvent.DOM_VK_TAB) {
+      } else if (event.which == 9) {
         // tab/shift + tab to go to the next tab.
         var activeTab = self.getActiveTab();
         if (activeTab) {

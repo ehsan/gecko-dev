@@ -46,12 +46,6 @@ const FILE_PICKER_DESCRIPTION = "File Picker Test Service";
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
-// disable popups to make sure that the popup blocker does not interfere
-// with manually opened file pickers.
-var pbi = Cc["@mozilla.org/preferences-service;1"].getService(Ci.nsIPrefBranch2);
-var oldAllow = pbi.getBoolPref("dom.disable_open_during_load");
-pbi.setBoolPref("dom.disable_open_during_load", true);
-
 function FilePickerService()
 {
 }
@@ -98,7 +92,6 @@ FilePickerService.prototype = {
 
   appendFilters: function(val)
   {
-    netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
     this._obs.notifyObservers(null, "TEST_FILEPICKER_APPENDFILTERS", val);
   },
 
@@ -106,7 +99,6 @@ FilePickerService.prototype = {
 
   show: function()
   {
-    netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
     this._obs.notifyObservers(null, "TEST_FILEPICKER_SHOW", this.filterIndex);
     return this.returnOK;
   }
@@ -205,8 +197,7 @@ function runTests()
                                  "File Picker Service",
                                  FILE_PICKER_CID,
                                  null);
-                                 
-              pbi.setBoolPref("dom.disable_open_during_load", oldAllow);
+
               SimpleTest.finish();
             } else {
               launchNextTest(observer);

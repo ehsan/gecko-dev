@@ -1,5 +1,4 @@
-/* -*- Mode: Java; c-basic-offset: 4; tab-width: 20; indent-tabs-mode: nil; -*-
- * ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: Java; c-basic-offset: 4; tab-width: 20; indent-tabs-mode: nil; -*-/ * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -60,7 +59,6 @@ abstract public class GeckoApp
     public static FrameLayout mainLayout;
     public static GeckoSurfaceView surfaceView;
     public static GeckoApp mAppContext;
-    ProgressDialog mProgressDialog;
 
     void launch()
     {
@@ -104,10 +102,6 @@ abstract public class GeckoApp
                                                   ViewGroup.LayoutParams.FILL_PARENT));
 
         if (!GeckoAppShell.sGeckoRunning) {
-            
-            mProgressDialog = 
-                ProgressDialog.show(GeckoApp.this, "", getAppName() + 
-                                    " is loading", true);
             // Load our JNI libs; we need to do this before launch() because
             // setInitialSize will be called even before Gecko is actually up
             // and running.

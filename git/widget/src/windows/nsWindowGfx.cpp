@@ -246,15 +246,11 @@ void nsWindowGfx::OnSettingsChangeGfx(WPARAM wParam)
 
 nsIntRegion nsWindow::GetRegionToPaint(PRBool aForceFullRepaint,
                                        PAINTSTRUCT ps, HDC aDC)
-{
+{ 
   if (aForceFullRepaint) {
     RECT paintRect;
     ::GetClientRect(mWnd, &paintRect);
-    nsIntRegion region(nsWindowGfx::ToIntRect(paintRect));
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-    region.Sub(region, mCaptionButtonsRoundedRegion);
-#endif
-    return region;
+    return nsIntRegion(nsWindowGfx::ToIntRect(paintRect));
   }
 
 #if defined(WINCE_WINDOWS_MOBILE) || !defined(WINCE)
@@ -274,21 +270,11 @@ nsIntRegion nsWindow::GetRegionToPaint(PRBool aForceFullRepaint,
     ::DeleteObject(paintRgn);
 # ifdef WINCE
     if (!rgn.IsEmpty())
-      return rgn;
-# elif MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-    rgn.Sub(rgn, mCaptionButtonsRoundedRegion);
-    return rgn;
-# else
-    return rgn;
 # endif
+      return rgn;
   }
 #endif
-
-  nsIntRegion region(nsWindowGfx::ToIntRect(ps.rcPaint));
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-  region.Sub(region, mCaptionButtonsRoundedRegion);
-#endif
-  return region;
+  return nsIntRegion(nsWindowGfx::ToIntRect(ps.rcPaint));
 }
 
 #define WORDSSIZE(x) ((x).width * (x).height)
@@ -574,28 +560,6 @@ DDRAW_FAILED:
             doubleBuffering = BasicLayerManager::BUFFER_BUFFERED;
 #endif
           }
-
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-          if (IsRenderMode(gfxWindowsPlatform::RENDER_GDI) &&
-              mTransparencyMode != eTransparencyTransparent &&
-              !mCaptionButtons.IsEmpty()) {
-            // The area behind the caption buttons need to have a
-            // black background first to make the clipping work.
-            RECT rect;
-            rect.top = mCaptionButtons.y;
-            rect.left = mCaptionButtons.x;
-            rect.right = mCaptionButtons.x + mCaptionButtons.width;
-            rect.bottom = mCaptionButtons.y + mCaptionButtons.height;
-            FillRect(hDC, &rect, (HBRUSH)GetStockObject(BLACK_BRUSH));
-
-            const nsIntRect* r;
-            for (nsIntRegionRectIterator iter(event.region);
-                 (r = iter.Next()) != nsnull;) {
-              thebesContext->Rectangle(gfxRect(r->x, r->y, r->width, r->height), PR_TRUE);
-            }
-            thebesContext->Clip();
-          }
-#endif
 
           {
             AutoLayerManagerSetup

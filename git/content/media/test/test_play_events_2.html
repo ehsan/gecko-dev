@@ -11,7 +11,7 @@
 <pre id="test">
 
 <script>
-var manager = new MediaTestManager;
+var videos = [];
 
 var tokens = {
   0:                ["play"],
@@ -32,14 +32,16 @@ function ended(event) {
   var v = event.target;
   v._finished = true;
   is(v._state, "canplaythrough", "Last event should be canplaythrough for " + v.src);
-  v.parentNode.removeChild(v);
-  manager.finished(v.token);
+  if (AllFinished(videos)) {
+    SimpleTest.finish();
+  }
 }
 
-function startTest(test, token) {
+for (var i=0; i<gSmallTests.length; ++i) {
   var v = document.createElement('video');
-  v.token = token;
-  manager.started(token);
+  var test = gSmallTests[i];
+  if (!v.canPlayType(test.type))
+    continue;
   v._state = 0;
   v._finished = false;
 
@@ -52,9 +54,15 @@ function startTest(test, token) {
   v.src = test.name;
   document.body.appendChild(v); // Causes load.
   v.play();
+  videos.push(v);
 }
 
-manager.runTests(gSmallTests, startTest);
+if (videos.length == 0) {
+  todo(false, "No types supported");
+} else {
+  SimpleTest.waitForExplicitFinish();
+}
+
 
 </script>
 </pre>

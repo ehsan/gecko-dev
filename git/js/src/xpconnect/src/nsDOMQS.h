@@ -76,8 +76,6 @@ xpc_qsUnwrapArg<_interface>(JSContext *cx,                                    \
     return rv;                                                                \
 }
 
-#undef DOMCI_CASTABLE_INTERFACE
-
 #define DOMCI_CASTABLE_INTERFACE(_interface, _base, _bit, _extra)             \
   DEFINE_UNWRAP_CAST(_interface, _base, _bit)
 
@@ -157,6 +155,12 @@ inline nsISupports*
 ToCanonicalSupports(nsContentList *p)
 {
     return static_cast<nsINodeList*>(p);
+}
+
+inline already_AddRefed<nsISupports>
+ToCanonicalSupports(nsCOMPtr<nsIContent>& p)
+{
+    return p.forget().get();
 }
 
 #endif /* nsDOMQS_h__ */

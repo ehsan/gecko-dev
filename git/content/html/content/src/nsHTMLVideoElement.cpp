@@ -64,7 +64,7 @@
 #include "nsEventDispatcher.h"
 #include "nsIDOMDocumentEvent.h"
 #include "nsIDOMProgressEvent.h"
-#include "nsMediaError.h"
+#include "nsHTMLMediaError.h"
 
 NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(Video)
 

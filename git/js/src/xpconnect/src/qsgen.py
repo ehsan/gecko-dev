@@ -202,7 +202,7 @@ def removeStubMember(memberId, member):
 
 def addStubMember(memberId, member, traceable):
     mayTrace = False
-    if member.kind == 'method' and not member.implicit_jscontext and not isVariantType(member.realtype):
+    if member.kind == 'method' and not member.implicit_jscontext:
         # This code MUST match writeTraceableQuickStub
         haveCallee = memberNeedsCallee(member)
         # Traceable natives support up to MAX_TRACEABLE_NATIVE_ARGS
@@ -696,23 +696,13 @@ def writeResultConv(f, type, jsvalPtr, jsvalRef):
             return
         else:
             f.write("    nsWrapperCache* cache = xpc_qsGetWrapperCache(result);\n"
-                    "    if (cache) {\n"
-                    "      JSObject* wrapper = cache->GetWrapper();\n"
-                    "      if (wrapper &&\n"
-                    # FIXME: Bug 585786, this check should go away
-                    "          IS_SLIM_WRAPPER_OBJECT(wrapper) &&\n"
-                    # FIXME: Bug 585787 this should compare compartments
-                    "          xpc_GetGlobalForObject(wrapper) ==\n"
-                    "            xpc_GetGlobalForObject(obj)) {\n"
-                    "        *%s = OBJECT_TO_JSVAL(wrapper);\n"
-                    "        return JS_TRUE;\n"
-                    "      }\n"
-                    "    }\n"
+                    "    qsObjectHelper helper(ToSupports(result));\n"
+                    "    helper.SetNode(result);\n"
+                    "    helper.SetCanonical(ToCanonicalSupports(result));\n"
                     "    // After this point do not use 'result'!\n"
-                    "    qsObjectHelper helper(result, cache);\n"
                     "    return xpc_qsXPCOMObjectToJsval(lccx, "
-                    "helper, &NS_GET_IID(%s), &interfaces[k_%s], %s);\n"
-                    % (jsvalPtr, type.name, type.name, jsvalPtr))
+                    "&helper, cache, &NS_GET_IID(%s), &interfaces[k_%s], %s);\n"
+                    % (type.name, type.name, jsvalPtr))
             return
 
     warn("Unable to convert result of type %s" % type.name)
@@ -1060,31 +1050,28 @@ defaultReturnTraceType = ("JSObject *", "OBJECT_OR_NULL", "nsnull")
 defaultParamTraceType = ("js::ValueArgType ", "VALUE")
 
 def getTraceParamType(type):
-    type = getBuiltinOrNativeTypeName(type)
     assert type is not '[jsval]'
+    type = getBuiltinOrNativeTypeName(type)
     return traceParamTypeMap.get(type, defaultParamTraceType)[0]
 
 def getTraceReturnType(type):
-    assert not isVariantType(type)
-    type = getBuiltinOrNativeTypeName(type)
     assert type is not '[jsval]'
+    type = getBuiltinOrNativeTypeName(type)
     return traceReturnTypeMap.get(type, defaultReturnTraceType)[0]
 
 def getTraceInfoParamType(type):
-    type = getBuiltinOrNativeTypeName(type)
     assert type is not '[jsval]'
+    type = getBuiltinOrNativeTypeName(type)
     return traceParamTypeMap.get(type, defaultParamTraceType)[1]
 
 def getTraceInfoReturnType(type):
-    assert not isVariantType(type)
-    type = getBuiltinOrNativeTypeName(type)
     assert type is not '[jsval]'
+    type = getBuiltinOrNativeTypeName(type)
     return traceReturnTypeMap.get(type, defaultReturnTraceType)[1]
 
 def getTraceInfoDefaultReturn(type):
-    assert not isVariantType(type)
-    type = getBuiltinOrNativeTypeName(type)
     assert type is not '[jsval]'
+    type = getBuiltinOrNativeTypeName(type)
     return traceReturnTypeMap.get(type, defaultReturnTraceType)[2]
 
 def getFailureString(retval, indent):
@@ -1236,22 +1223,12 @@ def writeTraceableResultConv(f, type):
                     "&vp.array[0]);\n")
         else:
             f.write("    nsWrapperCache* cache = xpc_qsGetWrapperCache(result);\n"
-                    "    if (cache) {\n"
-                    "      JSObject* wrapper = cache->GetWrapper();\n"
-                    "      if (wrapper &&\n"
-                    # FIXME: Bug 585786, this check should go away
-                    "          IS_SLIM_WRAPPER_OBJECT(wrapper) &&\n"
-                    # FIXME: Bug 585787 this should compare compartments
-                    "          xpc_GetGlobalForObject(wrapper) ==\n"
-                    "            xpc_GetGlobalForObject(obj)) {\n"
-                    "        vp.array[0] = OBJECT_TO_JSVAL(wrapper);\n"
-                    "        return wrapper;\n"
-                    "      }\n"
-                    "    }\n"
+                    "    qsObjectHelper helper(ToSupports(result));\n"
+                    "    helper.SetNode(result);\n"
+                    "    helper.SetCanonical(ToCanonicalSupports(result));\n"
                     "    // After this point do not use 'result'!\n"
-                    "    qsObjectHelper helper(result, cache);\n"
                     "    JSBool ok = xpc_qsXPCOMObjectToJsval(lccx, "
-                    "helper, &NS_GET_IID(%s), &interfaces[k_%s], "
+                    "&helper, cache, &NS_GET_IID(%s), &interfaces[k_%s], "
                     "&vp.array[0]);\n"
                     % (type.name, type.name))
         f.write("    if (!ok) {\n");

@@ -68,7 +68,7 @@ nsIConstraintValidation::GetValidity(nsIDOMValidityState** aValidity)
   return NS_OK;
 }
 
-NS_IMETHODIMP
+nsresult
 nsIConstraintValidation::GetValidationMessage(nsAString& aValidationMessage)
 {
   aValidationMessage.Truncate();

@@ -39,7 +39,7 @@
 
 #include "nsIProxiedProtocolHandler.idl"
 
-[scriptable, uuid(36709064-d2c8-40cb-b754-d30d970be639)]
+[scriptable, uuid(cf549f80-9423-11df-981c-0800200c9a66)]
 interface nsIHttpProtocolHandler : nsIProxiedProtocolHandler
 {
     /**
@@ -64,22 +64,32 @@ interface nsIHttpProtocolHandler : nsIProxiedProtocolHandler
     /**
      * @return The vendor name.
      */
-    readonly attribute ACString vendor;
+    attribute ACString vendor;
 
     /**
      * @return The vendor sub string.
      */
-    readonly attribute ACString vendorSub;
+    attribute ACString vendorSub;
+    
+    /**
+     * @return The vendor comment.
+     */
+    attribute ACString vendorComment;
 
     /**
      * @return The product name.
      */
-    readonly attribute ACString product;
+    attribute ACString product;
 
     /**
      * @return A product sub string.
      */
-    readonly attribute ACString productSub;
+    attribute ACString productSub;
+
+    /**
+     * @return A product comment.
+     */
+    attribute ACString productComment;
 
     /**
      * Get the current platform.
@@ -104,9 +114,9 @@ interface nsIHttpProtocolHandler : nsIProxiedProtocolHandler
     readonly attribute ACString language;
 
     /**
-     * Get the application comment misc portion.
+     * Get/Set the application comment misc portion.
      */
-    readonly attribute ACString misc;
+    attribute ACString misc;
 
 };
 

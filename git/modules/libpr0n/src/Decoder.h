@@ -86,16 +86,6 @@ public:
    */
   nsresult Finish();
 
-  /**
-   * Tells the decoder to flush any pending invalidations. This informs the image
-   * frame of its decoded region, and sends the appropriate OnDataAvailable call
-   * to consumers.
-   *
-   * This can be called any time when we're midway through decoding a frame,
-   * and must be called after finishing a frame (before starting a new one).
-   */
-  void FlushInvalidations();
-
   // We're not COM-y, so we don't get refcounts by default
   NS_INLINE_DECL_REFCOUNTING(Decoder)
 
@@ -140,9 +130,6 @@ protected:
   void PostFrameStart();
   void PostFrameStop();
 
-  // Called by the decoders when they have a region to invalidate. We may not
-  // actually pass these invalidations on right away.
-  void PostInvalidation(nsIntRect& aRect);
 
   /*
    * Member variables.
@@ -153,8 +140,6 @@ protected:
   nsCOMPtr<imgIDecoderObserver> mObserver;
 
   PRUint32 mFrameCount; // Number of frames, including anything in-progress
-
-  nsIntRect mInvalidRect; // Tracks an invalidation region in the current frame.
 
   bool mInitialized;
   bool mSizeDecode;
