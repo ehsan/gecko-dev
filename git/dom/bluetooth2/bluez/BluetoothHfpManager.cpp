@@ -23,7 +23,6 @@
 #include "nsIObserverService.h"
 #include "nsISettingsService.h"
 #include "nsServiceManagerUtils.h"
-#include "mozilla/dom/BindingUtils.h"
 #include "mozilla/dom/SettingChangeNotificationBinding.h"
 
 #ifdef MOZ_B2G_RIL

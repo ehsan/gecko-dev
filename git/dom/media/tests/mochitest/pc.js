@@ -1937,10 +1937,6 @@ PeerConnectionWrapper.prototype = {
     var self = this;
 
     self._remote_ice_candidates.push(candidate);
-    if (self.signalingstate === 'closed') {
-      info("Received ICE candidate for closed PeerConnection - discarding");
-      return;
-    }
     if (self.remoteDescriptionSet) {
       self.addIceCandidate(candidate);
     } else {
@@ -2570,9 +2566,15 @@ PeerConnectionWrapper.prototype = {
    * Closes the connection
    */
   close : function PCW_close() {
-    this._ice_candidates_to_add = [];
-    this._pc.close();
-    info(this + ": Closed connection.");
+    // It might be that a test has already closed the pc. In those cases
+    // we should not fail.
+    try {
+      this._pc.close();
+      info(this + ": Closed connection.");
+    }
+    catch (e) {
+      info(this + ": Failure in closing connection - " + e.message);
+    }
   },
 
   /**

@@ -552,7 +552,6 @@ public:
     float GamepadButtonValue() { return mGamepadButtonValue; }
     const nsTArray<float>& GamepadValues() { return mGamepadValues; }
     int RequestId() { return mCount; } // for convenience
-    const AutoGlobalWrappedJavaObject& Object() { return mObject; }
     bool CanCoalesceWith(AndroidGeckoEvent* ae);
     WidgetTouchEvent MakeTouchEvent(nsIWidget* widget);
     MultiTouchInput MakeMultiTouchInput(nsIWidget* widget);
@@ -602,7 +601,6 @@ protected:
     nsTArray<nsString> mPrefNames;
     MultiTouchInput mApzInput;
     mozilla::layers::ScrollableLayerGuid mApzGuid;
-    AutoGlobalWrappedJavaObject mObject;
 
     void ReadIntArray(nsTArray<int> &aVals,
                       JNIEnv *jenv,
@@ -687,8 +685,6 @@ protected:
     static jfieldID jGamepadButtonValueField;
     static jfieldID jGamepadValuesField;
 
-    static jfieldID jObjectField;
-
     static jclass jDomKeyLocationClass;
     static jfieldID jDomKeyLocationValueField;
 
@@ -698,7 +694,6 @@ public:
         KEY_EVENT = 1,
         MOTION_EVENT = 2,
         SENSOR_EVENT = 3,
-        PROCESS_OBJECT = 4,
         LOCATION_EVENT = 5,
         IME_EVENT = 6,
         SIZE_CHANGED = 8,
@@ -770,11 +765,6 @@ public:
     enum {
         ACTION_GAMEPAD_BUTTON = 1,
         ACTION_GAMEPAD_AXES = 2
-    };
-
-    enum {
-        ACTION_OBJECT_LAYER_CLIENT = 1,
-        dummy_object_enum_list_end
     };
 };
 

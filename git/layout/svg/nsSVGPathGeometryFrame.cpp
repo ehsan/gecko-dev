@@ -12,7 +12,6 @@
 #include "gfxPlatform.h"
 #include "gfxSVGGlyphs.h"
 #include "mozilla/gfx/2D.h"
-#include "mozilla/gfx/Helpers.h"
 #include "mozilla/RefPtr.h"
 #include "nsDisplayList.h"
 #include "nsGkAtoms.h"
@@ -108,9 +107,11 @@ nsDisplaySVGPathGeometry::Paint(nsDisplayListBuilder* aBuilder,
   gfxPoint devPixelOffset =
     nsLayoutUtils::PointToGfxPoint(offset, appUnitsPerDevPixel);
 
+  aCtx->ThebesContext()->Save();
   gfxMatrix tm = nsSVGIntegrationUtils::GetCSSPxToDevPxMatrix(mFrame) *
                    gfxMatrix::Translation(devPixelOffset);
   static_cast<nsSVGPathGeometryFrame*>(mFrame)->PaintSVG(aCtx, tm);
+  aCtx->ThebesContext()->Restore();
 }
 
 //----------------------------------------------------------------------
@@ -218,18 +219,9 @@ nsSVGPathGeometryFrame::PaintSVG(nsRenderingContext *aContext,
   if (!StyleVisibility()->IsVisible())
     return NS_OK;
 
-  gfxContext* gfx = aContext->ThebesContext();
-
-  // Matrix to the geometry's user space:
-  gfxMatrix newMatrix =
-    gfx->CurrentMatrix().PreMultiply(aTransform).NudgeToIntegers();
-  if (newMatrix.IsSingular()) {
-    return NS_OK;
-  }
-
   uint32_t paintOrder = StyleSVG()->mPaintOrder;
   if (paintOrder == NS_STYLE_PAINT_ORDER_NORMAL) {
-    Render(gfx, eRenderFill | eRenderStroke, newMatrix);
+    Render(aContext, eRenderFill | eRenderStroke, aTransform);
     PaintMarkers(aContext, aTransform);
   } else {
     while (paintOrder) {
@@ -237,10 +229,10 @@ nsSVGPathGeometryFrame::PaintSVG(nsRenderingContext *aContext,
         paintOrder & ((1 << NS_STYLE_PAINT_ORDER_BITWIDTH) - 1);
       switch (component) {
         case NS_STYLE_PAINT_ORDER_FILL:
-          Render(gfx, eRenderFill, newMatrix);
+          Render(aContext, eRenderFill, aTransform);
           break;
         case NS_STYLE_PAINT_ORDER_STROKE:
-          Render(gfx, eRenderStroke, newMatrix);
+          Render(aContext, eRenderStroke, aTransform);
           break;
         case NS_STYLE_PAINT_ORDER_MARKERS:
           PaintMarkers(aContext, aTransform);
@@ -302,15 +294,18 @@ nsSVGPathGeometryFrame::GetFrameForPoint(const gfxPoint& aPoint)
     Point point = ToPoint(aPoint);
     SVGContentUtils::AutoStrokeOptions stroke;
     SVGContentUtils::GetStrokeOptions(&stroke, content, StyleContext(), nullptr);
-    gfxMatrix userToOuterSVG;
-    if (nsSVGUtils::GetNonScalingStrokeTransform(this, &userToOuterSVG)) {
+    Matrix nonScalingStrokeMatrix = ToMatrix(nsSVGUtils::GetStrokeTransform(this));
+    if (!nonScalingStrokeMatrix.IsIdentity()) {
       // We need to transform the path back into the appropriate ancestor
       // coordinate system in order for non-scaled stroke to be correct.
       // Naturally we also need to transform the point into the same
       // coordinate system in order to hit-test against the path.
-      point = ToMatrix(userToOuterSVG) * point;
+      if (!nonScalingStrokeMatrix.Invert()) {
+        return nullptr;
+      }
+      point = nonScalingStrokeMatrix * point;
       RefPtr<PathBuilder> builder =
-        path->TransformedCopyToBuilder(ToMatrix(userToOuterSVG), fillRule);
+        path->TransformedCopyToBuilder(nonScalingStrokeMatrix, fillRule);
       path = builder->Finish();
     }
     isHit = path->StrokeContainsPoint(stroke, point, Matrix());
@@ -613,24 +608,25 @@ nsSVGPathGeometryFrame::MarkerProperties::GetMarkerEndFrame()
 }
 
 void
-nsSVGPathGeometryFrame::Render(gfxContext* aContext,
+nsSVGPathGeometryFrame::Render(nsRenderingContext *aContext,
                                uint32_t aRenderComponents,
-                               const gfxMatrix& aNewTransform)
+                               const gfxMatrix& aTransform)
 {
-  MOZ_ASSERT(!aNewTransform.IsSingular());
+  gfxContext *gfx = aContext->ThebesContext();
 
-  DrawTarget* drawTarget = aContext->GetDrawTarget();
+  gfxMatrix newMatrix =
+    gfx->CurrentMatrix().PreMultiply(aTransform).NudgeToIntegers();
+  if (newMatrix.IsSingular()) {
+    return;
+  }
 
-  uint16_t renderMode = SVGAutoRenderState::GetRenderMode(drawTarget);
-  MOZ_ASSERT(renderMode == SVGAutoRenderState::NORMAL ||
-             renderMode == SVGAutoRenderState::CLIP_MASK,
-             "Unknown render mode");
-
+  uint16_t renderMode = SVGAutoRenderState::GetRenderMode(aContext);
   FillRule fillRule =
-    nsSVGUtils::ToFillRule(renderMode == SVGAutoRenderState::NORMAL ?
-                             StyleSVG()->mFillRule : StyleSVG()->mClipRule);
+    nsSVGUtils::ToFillRule(renderMode == SVGAutoRenderState::CLIP_MASK ?
+                             StyleSVG()->mClipRule : StyleSVG()->mFillRule);
 
-  RefPtr<PathBuilder> builder = drawTarget->CreatePathBuilder(fillRule);
+  RefPtr<PathBuilder> builder =
+    aContext->GetDrawTarget()->CreatePathBuilder(fillRule);
   if (!builder) {
     return;
   }
@@ -641,65 +637,62 @@ nsSVGPathGeometryFrame::Render(gfxContext* aContext,
     return;
   }
 
-  AntialiasMode aaMode =
-    (StyleSVG()->mShapeRendering == NS_STYLE_SHAPE_RENDERING_OPTIMIZESPEED ||
-     StyleSVG()->mShapeRendering == NS_STYLE_SHAPE_RENDERING_CRISPEDGES) ?
-    AntialiasMode::NONE : AntialiasMode::SUBPIXEL;
-
-  // We wait as late as possible before setting the transform so that we don't
-  // set it unnecessarily if we return early (it's an expensive operation for
-  // some backends).
-  gfxContextMatrixAutoSaveRestore autoRestoreTransform(aContext);
-  aContext->SetMatrix(aNewTransform);
+  switch (StyleSVG()->mShapeRendering) {
+  case NS_STYLE_SHAPE_RENDERING_OPTIMIZESPEED:
+  case NS_STYLE_SHAPE_RENDERING_CRISPEDGES:
+    gfx->SetAntialiasMode(AntialiasMode::NONE);
+    break;
+  default:
+    gfx->SetAntialiasMode(AntialiasMode::SUBPIXEL);
+    break;
+  }
 
   if (renderMode == SVGAutoRenderState::CLIP_MASK) {
-    drawTarget->Fill(path, ColorPattern(Color(1.0f, 1.0f, 1.0f, 1.0f)),
-                     DrawOptions(1.0f, CompositionOp::OP_OVER, aaMode));
+    FillRule oldFillRule = gfx->CurrentFillRule();
+    gfxContextMatrixAutoSaveRestore autoSaveRestore(gfx);
+
+    gfx->SetMatrix(newMatrix);
+    gfx->SetFillRule(fillRule);
+    gfx->SetColor(gfxRGBA(1.0f, 1.0f, 1.0f, 1.0f));
+    gfx->SetPath(path);
+    gfx->Fill();
+
+    gfx->SetFillRule(oldFillRule);
+    gfx->NewPath();
     return;
   }
 
-  gfxTextContextPaint *contextPaint =
-    (gfxTextContextPaint*)drawTarget->
-      GetUserData(&gfxTextContextPaint::sUserDataKey);
+  NS_ABORT_IF_FALSE(renderMode == SVGAutoRenderState::NORMAL,
+                    "Unknown render mode");
 
-  if (aRenderComponents & eRenderFill) {
+  gfxContextAutoSaveRestore autoSaveRestore(gfx);
+  gfx->SetMatrix(newMatrix);
+
+  gfxTextContextPaint *contextPaint =
+    (gfxTextContextPaint*)aContext->GetDrawTarget()->GetUserData(&gfxTextContextPaint::sUserDataKey);
+
+  if ((aRenderComponents & eRenderFill)) {
     GeneralPattern fillPattern;
-    nsSVGUtils::MakeFillPatternFor(this, aContext, &fillPattern, contextPaint);
+    nsSVGUtils::MakeFillPatternFor(this, gfx, &fillPattern, contextPaint);
     if (fillPattern.GetPattern()) {
-      drawTarget->Fill(path, fillPattern,
-                       DrawOptions(1.0f, CompositionOp::OP_OVER, aaMode));
+      gfx->SetPath(path);
+      gfx->SetFillRule(fillRule);
+      gfx->Fill(fillPattern);
     }
   }
 
   if ((aRenderComponents & eRenderStroke) &&
       nsSVGUtils::HasStroke(this, contextPaint)) {
-    // Account for vector-effect:non-scaling-stroke:
-    gfxMatrix userToOuterSVG;
-    if (nsSVGUtils::GetNonScalingStrokeTransform(this, &userToOuterSVG)) {
-      // We need to transform the path back into the appropriate ancestor
-      // coordinate system, and paint it it that coordinate system, in order
-      // for non-scaled stroke to paint correctly.
-      gfxMatrix outerSVGToUser = userToOuterSVG;
-      outerSVGToUser.Invert();
-      aContext->Multiply(outerSVGToUser);
-      builder = path->TransformedCopyToBuilder(ToMatrix(userToOuterSVG), fillRule);
-      path = builder->Finish();
-    }
     GeneralPattern strokePattern;
-    nsSVGUtils::MakeStrokePatternFor(this, aContext, &strokePattern, contextPaint);
+    nsSVGUtils::MakeStrokePatternFor(this, gfx, &strokePattern, contextPaint);
     if (strokePattern.GetPattern()) {
-      SVGContentUtils::AutoStrokeOptions strokeOptions;
-      SVGContentUtils::GetStrokeOptions(&strokeOptions,
-                                        static_cast<nsSVGElement*>(mContent),
-                                        StyleContext(), contextPaint);
-      // GetStrokeOptions may set the line width to zero as an optimization
-      if (strokeOptions.mLineWidth <= 0) {
-        return;
-      }
-      drawTarget->Stroke(path, strokePattern, strokeOptions,
-                         DrawOptions(1.0f, CompositionOp::OP_OVER, aaMode));
+      gfx->SetPath(path);
+      nsSVGUtils::SetupCairoStrokeGeometry(this, gfx, contextPaint);
+      gfx->Stroke(strokePattern);
     }
   }
+
+  gfx->NewPath();
 }
 
 void

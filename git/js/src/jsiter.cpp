@@ -1366,17 +1366,13 @@ ForOfIterator::init(HandleValue iterable, NonIterableBehavior nonIterableBehavio
     if (!JSObject::getProperty(cx, iterableObj, iterableObj, cx->names().std_iterator, &callee))
         return false;
 
-    // If obj[@@iterator] is undefined and we were asked to allow non-iterables,
-    // bail out now without setting iterator.  This will make valueIsIterable(),
-    // which our caller should check, return false.
-    if (nonIterableBehavior == AllowNonIterable && callee.isUndefined())
-        return true;
-
-    // Throw if obj[@@iterator] isn't callable.
+    // Throw if obj[@@iterator] isn't callable if we were asked to do so.
     // js::Invoke is about to check for this kind of error anyway, but it would
     // throw an inscrutable error message about |method| rather than this nice
     // one about |obj|.
     if (!callee.isObject() || !callee.toObject().isCallable()) {
+        if (nonIterableBehavior == AllowNonIterable)
+            return true;
         char *bytes = DecompileValueGenerator(cx, JSDVG_SEARCH_STACK, iterable, NullPtr());
         if (!bytes)
             return false;

@@ -9,7 +9,7 @@ const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/PrivateBrowsingUtils.jsm");
 
-if (!PrivateBrowsingUtils.isContentWindowPrivate(window)) {
+if (!PrivateBrowsingUtils.isWindowPrivate(window)) {
   document.addEventListener("DOMContentLoaded", function () {
     document.body.setAttribute("class", "normal");
   }, false);

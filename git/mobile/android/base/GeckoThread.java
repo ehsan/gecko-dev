@@ -136,29 +136,25 @@ public class GeckoThread extends Thread implements GeckoEventListener {
     }
 
     private String addCustomProfileArg(String args) {
-        String profileArg = "";
-        String guestArg = "";
+        String profile = "";
+        String guest = "";
         if (GeckoAppShell.getGeckoInterface() != null) {
-            final GeckoProfile profile = GeckoAppShell.getGeckoInterface().getProfile();
-
-            if (profile.inGuestMode()) {
+            if (GeckoAppShell.getGeckoInterface().getProfile().inGuestMode()) {
                 try {
-                    profileArg = " -profile " + profile.getDir().getCanonicalPath();
-                } catch (final IOException ioe) {
-                    Log.e(LOGTAG, "error getting guest profile path", ioe);
-                }
+                    profile = " -profile " + GeckoAppShell.getGeckoInterface().getProfile().getDir().getCanonicalPath();
+                } catch (IOException ioe) { Log.e(LOGTAG, "error getting guest profile path", ioe); }
 
                 if (args == null || !args.contains(BrowserApp.GUEST_BROWSING_ARG)) {
-                    guestArg = " " + BrowserApp.GUEST_BROWSING_ARG;
+                    guest = " " + BrowserApp.GUEST_BROWSING_ARG;
                 }
             } else if (!GeckoProfile.sIsUsingCustomProfile) {
-                // If nothing was passed in the intent, make sure the default profile exists and
-                // force Gecko to use the default profile for this activity
-                profileArg = " -P " + profile.forceCreate().getName();
+                // If nothing was passed in in the intent, force Gecko to use the default profile for
+                // for this activity
+                profile = " -P " + GeckoAppShell.getGeckoInterface().getProfile().getName();
             }
         }
 
-        return (args != null ? args : "") + profileArg + guestArg;
+        return (args != null ? args : "") + profile + guest;
     }
 
     @Override

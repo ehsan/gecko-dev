@@ -263,12 +263,13 @@ nsSVGGradientFrame::GetPaintServerPattern(nsIFrame* aSource,
     return nullptr;
   }
 
-  // revert any vector effect transform so that the gradient appears unchanged
+  // revert the vector effect transform so that the gradient appears unchanged
   if (aFillOrStroke == &nsStyleSVG::mStroke) {
-    gfxMatrix userToOuterSVG;
-    if (nsSVGUtils::GetNonScalingStrokeTransform(aSource, &userToOuterSVG)) {
-      patternMatrix *= userToOuterSVG;
+    gfxMatrix nonScalingStrokeTM = nsSVGUtils::GetStrokeTransform(aSource);
+    if (!nonScalingStrokeTM.Invert()) {
+      return nullptr;
     }
+    patternMatrix *= nonScalingStrokeTM;
   }
 
   if (!patternMatrix.Invert()) {

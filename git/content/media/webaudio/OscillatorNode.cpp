@@ -376,17 +376,16 @@ public:
     float* higherWaveData = nullptr;
     float* lowerWaveData = nullptr;
     float tableInterpolationFactor;
-    // Phase increment at frequency of 1 Hz.
-    // mPhase runs [0,periodicWaveSize) here instead of [0,2*M_PI).
-    float basePhaseIncrement =
-      static_cast<float>(periodicWaveSize) / mSource->SampleRate();
-
+    float rate = 1.0 / mSource->SampleRate();
+ 
     for (uint32_t i = aStart; i < aEnd; ++i) {
       UpdateParametersIfNeeded(ticks, i);
       mPeriodicWave->waveDataForFundamentalFrequency(mFinalFrequency,
                                                      lowerWaveData,
                                                      higherWaveData,
                                                      tableInterpolationFactor);
+      // mPhase runs 0..periodicWaveSize here instead of 0..2*M_PI.
+      mPhase += periodicWaveSize * mFinalFrequency * rate;
       mPhase = fmod(mPhase, periodicWaveSize);
       // Bilinear interpolation between adjacent samples in each table.
       uint32_t j1 = floor(mPhase);
@@ -395,14 +394,12 @@ public:
         j2 -= periodicWaveSize;
       }
       float sampleInterpolationFactor = mPhase - j1;
-      float lower = (1.0f - sampleInterpolationFactor) * lowerWaveData[j1] +
-                    sampleInterpolationFactor * lowerWaveData[j2];
-      float higher = (1.0f - sampleInterpolationFactor) * higherWaveData[j1] +
-                    sampleInterpolationFactor * higherWaveData[j2];
-      aOutput[i] = (1.0f - tableInterpolationFactor) * lower +
-                   tableInterpolationFactor * higher;
-
-      mPhase += basePhaseIncrement * mFinalFrequency;
+      float lower = sampleInterpolationFactor * lowerWaveData[j1] +
+                    (1 - sampleInterpolationFactor) * lowerWaveData[j2];
+      float higher = sampleInterpolationFactor * higherWaveData[j1] +
+                    (1 - sampleInterpolationFactor) * higherWaveData[j2];
+      aOutput[i] = tableInterpolationFactor * lower +
+                   (1 - tableInterpolationFactor) * higher;
     }
   }
 
