@@ -8286,21 +8286,13 @@ TraceRecorder::record_JSOP_TYPEOFEXPR()
 JS_REQUIRES_STACK bool
 TraceRecorder::record_JSOP_ENTERBLOCK()
 {
-    JSScript* script = cx->fp->script;
-    JSFrameRegs& regs = *cx->fp->regs;
-    JSObject* obj;
-    JS_GET_SCRIPT_OBJECT(script, GET_FULL_INDEX(0), obj);
-
-    LIns* void_ins = INS_CONST(JSVAL_TO_BOOLEAN(JSVAL_VOID));
-    for (int i = 0, n = OBJ_BLOCK_COUNT(cx, obj); i < n; i++)
-        stack(i, void_ins);
-    return true;
+    return false;
 }
 
 JS_REQUIRES_STACK bool
 TraceRecorder::record_JSOP_LEAVEBLOCK()
 {
-    return true;
+    return false;
 }
 
 JS_REQUIRES_STACK bool
@@ -8353,10 +8345,7 @@ TraceRecorder::record_JSOP_ENUMCONSTELEM()
 JS_REQUIRES_STACK bool
 TraceRecorder::record_JSOP_LEAVEBLOCKEXPR()
 {
-    LIns* v_ins = stack(-1);
-    int n = -1 - GET_UINT16(cx->fp->regs->pc);
-    stack(n, v_ins);
-    return true;
+    return false;
 }
 
 JS_REQUIRES_STACK bool

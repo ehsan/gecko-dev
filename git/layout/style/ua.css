@@ -203,6 +203,7 @@
   z-index: inherit;
   clip: inherit;
   opacity: inherit;
+  -moz-box-ordinal-group: inherit !important;
 }
 
 /* Printing */
