@@ -84,7 +84,7 @@ function acceptDialog()
     profileLock = selectedProfile.profile.lock({ value: null });
   }
   catch (e) {
-    if (!selectedProfile.profile.rootDir.exists()) {
+    if (!selectedProfile.profile.localDir.exists()) {
       var missingTitle = gProfileManagerBundle.getString("profileMissingTitle");
       var missing =
         gProfileManagerBundle.getFormattedString("profileMissing", [appName]);

@@ -269,11 +269,11 @@ public class PanZoomController
     }
 
     /** This function must be called on the UI thread. */
-    public void startingNewEventBlock(MotionEvent event, boolean waitingForTouchListeners) {
+    public void waitingForTouchListeners(MotionEvent event) {
         checkMainThread();
-        mSubscroller.cancel();
-        if (waitingForTouchListeners && (event.getAction() & MotionEvent.ACTION_MASK) == MotionEvent.ACTION_DOWN) {
+        if ((event.getAction() & MotionEvent.ACTION_MASK) == MotionEvent.ACTION_DOWN) {
             // this is the first touch point going down, so we enter the pending state
+            mSubscroller.cancel();
             // seting the state will kill any animations in progress, possibly leaving
             // the page in overscroll
             mState = PanZoomState.WAITING_LISTENERS;
@@ -315,6 +315,7 @@ public class PanZoomController
         // user is taking control of movement, so stop
         // any auto-movement we have going
         stopAnimationTimer();
+        mSubscroller.cancel();
 
         switch (mState) {
         case ANIMATED_ZOOM:

@@ -101,7 +101,7 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
     if (!parser.init())
         return NULL;
 
-    SharedContext sc(cx, scopeChain, /* fun = */ NULL, /* funbox = */ NULL, StrictModeFromContext(cx));
+    SharedContext sc(cx, scopeChain, /* fun = */ NULL, /* funbox = */ NULL);
 
     TreeContext tc(&parser, &sc, staticLevel, /* bodyid = */ 0);
     if (!tc.init())
@@ -133,7 +133,7 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
 
     /* If this is a direct call to eval, inherit the caller's strictness.  */
     if (callerFrame && callerFrame->isScriptFrame() && callerFrame->script()->strictModeCode)
-        sc.strictModeState = StrictMode::STRICT;
+        sc.setInStrictMode();
 
     if (compileAndGo) {
         if (source) {
@@ -169,18 +169,9 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
     onlyXML = true;
 #endif
 
+    bool inDirectivePrologue = true;
     TokenStream &tokenStream = parser.tokenStream;
-    {
-        ParseNode *stringsAtStart = ListNode::create(PNK_STATEMENTLIST, &parser);
-        if (!stringsAtStart)
-            return NULL;
-        stringsAtStart->makeEmpty();
-        bool ok = parser.processDirectives(stringsAtStart) && EmitTree(cx, &bce, stringsAtStart);
-        parser.freeTree(stringsAtStart);
-        if (!ok)
-            return NULL;
-    }
-    JS_ASSERT(sc.strictModeState != StrictMode::UNKNOWN);
+    tokenStream.setOctalCharacterEscape(false);
     for (;;) {
         TokenKind tt = tokenStream.peekToken(TSF_OPERAND);
         if (tt <= TOK_EOF) {
@@ -192,6 +183,9 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
 
         pn = parser.statement();
         if (!pn)
+            return NULL;
+
+        if (inDirectivePrologue && !parser.recognizeDirectivePrologue(pn, &inDirectivePrologue))
             return NULL;
 
         if (!FoldConstants(cx, pn, &parser))
@@ -269,8 +263,7 @@ frontend::CompileFunctionBody(JSContext *cx, HandleFunction fun,
         return false;
 
     JS_ASSERT(fun);
-    SharedContext funsc(cx, /* scopeChain = */ NULL, fun, /* funbox = */ NULL,
-                        StrictModeFromContext(cx));
+    SharedContext funsc(cx, /* scopeChain = */ NULL, fun, /* funbox = */ NULL);
     funsc.bindings.transfer(bindings);
     fun->setArgCount(funsc.bindings.numArgs());
 

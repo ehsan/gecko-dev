@@ -14,7 +14,6 @@
 #include "nsCategoryCache.h"
 #include "nsTHashtable.h"
 #include "nsWeakReference.h"
-#include "mozilla/Attributes.h"
 
 class nsNavBookmarks;
 class nsIOutputStream;
@@ -86,11 +85,11 @@ namespace places {
 } // namespace places
 } // namespace mozilla
 
-class nsNavBookmarks MOZ_FINAL : public nsINavBookmarksService
-                               , public nsINavHistoryObserver
-                               , public nsIAnnotationObserver
-                               , public nsIObserver
-                               , public nsSupportsWeakReference
+class nsNavBookmarks : public nsINavBookmarksService
+                     , public nsINavHistoryObserver
+                     , public nsIAnnotationObserver
+                     , public nsIObserver
+                     , public nsSupportsWeakReference
 {
 public:
   NS_DECL_ISUPPORTS
@@ -368,7 +367,7 @@ private:
   static const PRInt32 kGetChildrenIndex_FolderTitle;
   static const PRInt32 kGetChildrenIndex_Guid;
 
-  class RemoveFolderTransaction MOZ_FINAL : public nsITransaction {
+  class RemoveFolderTransaction : public nsITransaction {
   public:
     RemoveFolderTransaction(PRInt64 aID) : mID(aID) {}
 

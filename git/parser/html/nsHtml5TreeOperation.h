@@ -38,7 +38,6 @@ enum eHtml5TreeOperation {
   eTreeOpMarkAsBroken,
   eTreeOpRunScript,
   eTreeOpRunScriptAsyncDefer,
-  eTreeOpPreventScriptExecution,
   eTreeOpDoneAddingChildren,
   eTreeOpDoneCreatingElement,
   eTreeOpFlushPendingAppendNotifications,

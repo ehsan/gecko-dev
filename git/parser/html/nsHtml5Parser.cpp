@@ -678,7 +678,9 @@ nsHtml5Parser::Initialize(nsIDocument* aDoc,
 
 void
 nsHtml5Parser::StartTokenizer(bool aScriptingEnabled) {
-  mTreeBuilder->SetPreventScriptExecution(!aScriptingEnabled);
+  if (!aScriptingEnabled) {
+    mExecutor->PreventScriptExecution();
+  }
   mTreeBuilder->setScriptingEnabled(aScriptingEnabled);
   mTokenizer->start();
 }

@@ -6097,7 +6097,7 @@ nsDocument::AdoptNode(nsIDOMNode *aAdoptedNode, nsIDOMNode **aResult)
     }
   }
 
-  nsCOMPtr<nsIDocument> oldDocument = adoptedNode->OwnerDoc();
+  nsIDocument *oldDocument = adoptedNode->OwnerDoc();
   bool sameDocument = oldDocument == this;
 
   JSContext *cx = nsnull;
@@ -9542,8 +9542,7 @@ nsDocument::UpdateVisibilityState()
   if (oldState != mVisibilityState) {
     nsContentUtils::DispatchTrustedEvent(this, static_cast<nsIDocument*>(this),
                                          NS_LITERAL_STRING("mozvisibilitychange"),
-                                         /* bubbles = */ true,
-                                         /* cancelable = */ false);
+                                         false, false);
   }
 }
 

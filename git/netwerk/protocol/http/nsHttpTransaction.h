@@ -103,8 +103,6 @@ public:
     const TimingStruct& Timings() const { return mTimings; }
     enum Classifier Classification() { return mClassification; }
 
-    void PrintDiagnostics(nsCString &log);
-
 private:
     nsresult Restart();
     nsresult RestartInProgress();

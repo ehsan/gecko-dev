@@ -60,7 +60,7 @@ nsHtml5StringParser::ParseFragment(const nsAString& aSourceBuffer,
   }
 #endif
 
-  mTreeBuilder->SetPreventScriptExecution(aPreventScriptExecution);
+  mExecutor->EnableFragmentMode(aPreventScriptExecution);
 
   Tokenize(aSourceBuffer, doc, true);
   return NS_OK;
@@ -81,7 +81,7 @@ nsHtml5StringParser::ParseDocument(const nsAString& aSourceBuffer,
                                    nsnull,
                                    false);
 
-  mTreeBuilder->SetPreventScriptExecution(true);
+  mExecutor->PreventScriptExecution();
 
   Tokenize(aSourceBuffer, aTargetDoc, aScriptingEnabledForNoscriptParsing);
   return NS_OK;
@@ -113,10 +113,8 @@ nsHtml5StringParser::Tokenize(const nsAString& aSourceBuffer,
       if (buffer.hasMore()) {
         lastWasCR = mTokenizer->tokenizeBuffer(&buffer);
         if (mTreeBuilder->HasScript()) {
-          // If we come here, we are in createContextualFragment() or in the
-          // upcoming document.parse(). It's unclear if it's really necessary
-          // to flush here, but let's do so for consistency with other flushes
-          // to avoid different code paths on the executor side.
+          // Flush on each script, because the execution prevention code
+          // can handle at most one script per flush.
           mTreeBuilder->Flush(); // Move ops to the executor
           mExecutor->FlushDocumentWrite(); // run the ops
         }

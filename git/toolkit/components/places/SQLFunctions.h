@@ -12,7 +12,6 @@
  */
 
 #include "mozIStorageFunction.h"
-#include "mozilla/Attributes.h"
 
 class mozIStorageConnection;
 
@@ -53,7 +52,7 @@ namespace places {
  * @param aSearchBehavior
  *        A bitfield dictating the search behavior.
  */
-class MatchAutoCompleteFunction MOZ_FINAL : public mozIStorageFunction
+class MatchAutoCompleteFunction : public mozIStorageFunction
 {
 public:
   NS_DECL_ISUPPORTS
@@ -190,7 +189,7 @@ private:
  * @param [optional] isBookmarked
  *        Whether the page is bookmarked. Default is false.
  */
-class CalculateFrecencyFunction MOZ_FINAL : public mozIStorageFunction
+class CalculateFrecencyFunction : public mozIStorageFunction
 {
 public:
   NS_DECL_ISUPPORTS
@@ -211,7 +210,7 @@ public:
  *
  * @return a guid for the item.
  */
-class GenerateGUIDFunction MOZ_FINAL : public mozIStorageFunction
+class GenerateGUIDFunction : public mozIStorageFunction
 {
 public:
   NS_DECL_ISUPPORTS
@@ -234,7 +233,7 @@ public:
  *
  * @return the unreversed host of the page.
  */
-class GetUnreversedHostFunction MOZ_FINAL : public mozIStorageFunction
+class GetUnreversedHostFunction : public mozIStorageFunction
 {
 public:
   NS_DECL_ISUPPORTS
@@ -262,7 +261,7 @@ public:
  * @return
  *        The same URL, with redundant parts removed.
  */
-class FixupURLFunction MOZ_FINAL : public mozIStorageFunction
+class FixupURLFunction : public mozIStorageFunction
 {
 public:
   NS_DECL_ISUPPORTS

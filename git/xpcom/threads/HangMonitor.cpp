@@ -58,9 +58,6 @@ static HANDLE winMainThreadHandle = NULL;
 
 // Default timeout for reporting chrome hangs to Telemetry (5 seconds)
 static const PRInt32 DEFAULT_CHROME_HANG_INTERVAL = 5;
-
-// Maximum number of PCs to gather from the stack
-static const PRInt32 MAX_CALL_STACK_PCS = 400;
 #endif
 
 // PrefChangedFunc
@@ -109,24 +106,18 @@ Crash()
 
 #ifdef REPORT_CHROME_HANGS
 static void
-ChromeStackWalker(void *aPC, void *aSP, void *aClosure)
+ChromeStackWalker(void *aPC, void *aClosure)
 {
   MOZ_ASSERT(aClosure);
   Telemetry::HangStack *callStack =
     reinterpret_cast< Telemetry::HangStack* >(aClosure);
-
-  if (callStack->Length() < MAX_CALL_STACK_PCS)
-    callStack->AppendElement(reinterpret_cast<uintptr_t>(aPC));
+  callStack->AppendElement(reinterpret_cast<uintptr_t>(aPC));
 }
 
 static void
 GetChromeHangReport(Telemetry::HangStack &callStack, SharedLibraryInfo &moduleMap)
 {
   MOZ_ASSERT(winMainThreadHandle);
-
-  // The thread we're about to suspend might have the alloc lock
-  // so allocate ahead of time
-  callStack.SetCapacity(MAX_CALL_STACK_PCS);
 
   DWORD ret = ::SuspendThread(winMainThreadHandle);
   if (ret == -1) {

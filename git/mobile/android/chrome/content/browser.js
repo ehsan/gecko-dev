@@ -210,7 +210,6 @@ var BrowserApp = {
     RemoteDebugger.init();
     Reader.init();
     UserAgent.init();
-    ExternalApps.init();
 #ifdef MOZ_TELEMETRY_REPORTING
     Telemetry.init();
 #endif
@@ -363,7 +362,6 @@ var BrowserApp = {
     RemoteDebugger.uninit();
     Reader.uninit();
     UserAgent.uninit();
-    ExternalApps.uninit();
 #ifdef MOZ_TELEMETRY_REPORTING
     Telemetry.uninit();
 #endif
@@ -1138,27 +1136,6 @@ var NativeWindow = {
                  aTarget.mozRequestFullScreen();
                });
 
-      this.add(Strings.browser.GetStringFromName("contextmenu.shareImage"),
-               this.imageSaveableContext,
-               function(aTarget) {
-                 let imageCache = Cc["@mozilla.org/image/cache;1"].getService(Ci.imgICache);
-                 let props = imageCache.findEntryProperties(aTarget.currentURI, aTarget.ownerDocument.characterSet);
-                 let src = aTarget.src;
-                 let type = "";
-                 try {
-                    type = String(props.get("type", Ci.nsISupportsCString));
-                 } catch(ex) {
-                    type = "";
-                 }
-                 sendMessageToJava({
-                   gecko: {
-                     type: "Share:Image",
-                     url: src,
-                     mime: type,
-                   }
-                 });
-               });
-
       this.add(Strings.browser.GetStringFromName("contextmenu.saveImage"),
                this.imageSaveableContext,
                function(aTarget) {
@@ -1167,12 +1144,9 @@ var NativeWindow = {
                  let contentDisposition = "";
                  let type = "";
                  try {
-                    contentDisposition = String(props.get("content-disposition", Ci.nsISupportsCString));
-                    type = String(props.get("type", Ci.nsISupportsCString));
-                 } catch(ex) {
-                    contentDisposition = "";
-                    type = "";
-                 }
+                    String(props.get("content-disposition", Ci.nsISupportsCString));
+                    String(props.get("type", Ci.nsISupportsCString));
+                 } catch(ex) { }
                  ContentAreaUtils.internalSave(aTarget.currentURI.spec, null, null, contentDisposition, type, false, "SaveImageTitle", null, aTarget.ownerDocument.documentURIObject, true, null);
                });
     },
@@ -1192,9 +1166,9 @@ var NativeWindow = {
         matches: function(aElt) {
           return this.context.matches(aElt);
         },
-        getValue: function(aElt) {
+        getValue: function() {
           return {
-            label: (typeof this.name == "function") ? this.name(aElt) : this.name,
+            label: this.name,
             id: this.id
           }
         }
@@ -1333,7 +1307,7 @@ var NativeWindow = {
       // convert this.menuitems object to an array for sending to native code
       let itemArray = [];
       for each (let item in this.menuitems) {
-        itemArray.push(item.getValue(popupNode));
+        itemArray.push(item.getValue());
       }
 
       let msg = {
@@ -1461,15 +1435,13 @@ var SelectionHandler = {
   init: function sh_init() {
     Services.obs.addObserver(this, "Gesture:SingleTap", false);
     Services.obs.addObserver(this, "Window:Resize", false);
-    Services.obs.addObserver(this, "Tab:Selected", false);
     Services.obs.addObserver(this, "after-viewport-change", false);
   },
 
   uninit: function sh_uninit() {
-    Services.obs.removeObserver(this, "Gesture:SingleTap");
-    Services.obs.removeObserver(this, "Window:Resize");
-    Services.obs.removeObserver(this, "Tab:Selected");
-    Services.obs.removeObserver(this, "after-viewport-change");
+    Services.obs.removeObserver(this, "Gesture:SingleTap", false);
+    Services.obs.removeObserver(this, "Window:Resize", false);
+    Services.obs.removeObserver(this, "after-viewport-change", false);
   },
 
   observe: function sh_observe(aSubject, aTopic, aData) {
@@ -1482,7 +1454,6 @@ var SelectionHandler = {
         this.endSelection(data.x, data.y);
         break;
       }
-      case "Tab:Selected":
       case "Window:Resize": {
         // Knowing when the page is done drawing is hard, so let's just cancel
         // the selection when the window changes. We should fix this later.
@@ -2481,12 +2452,10 @@ Tab.prototype = {
     let y = aViewport.y / aViewport.zoom;
 
     // Set scroll position and scroll-port clamping size
-    let viewportWidth = gScreenWidth / aViewport.zoom;
-    let viewportHeight = gScreenHeight / aViewport.zoom;
     let [pageWidth, pageHeight] = this.getPageSize(this.browser.contentDocument,
-                                                   viewportWidth, viewportHeight);
-    let scrollPortWidth = Math.min(viewportWidth, pageWidth);
-    let scrollPortHeight = Math.min(viewportHeight, pageHeight);
+                                                   aViewport.width, aViewport.height);
+    let scrollPortWidth = Math.min(gScreenWidth / aViewport.zoom, pageWidth);
+    let scrollPortHeight = Math.min(gScreenHeight / aViewport.zoom, pageHeight);
 
     let win = this.browser.contentWindow;
     win.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils).
@@ -3873,7 +3842,8 @@ var ErrorPageEventHandler = {
 };
 
 var FindHelper = {
-  _fastFind: null,
+  _find: null,
+  _findInProgress: false,
   _targetTab: null,
   _initialViewport: null,
   _viewportChanged: false,
@@ -3883,15 +3853,13 @@ var FindHelper = {
     Services.obs.addObserver(this, "FindInPage:Prev", false);
     Services.obs.addObserver(this, "FindInPage:Next", false);
     Services.obs.addObserver(this, "FindInPage:Closed", false);
-    Services.obs.addObserver(this, "Tab:Selected", false);
   },
 
   uninit: function() {
-    Services.obs.removeObserver(this, "FindInPage:Find");
-    Services.obs.removeObserver(this, "FindInPage:Prev");
-    Services.obs.removeObserver(this, "FindInPage:Next");
-    Services.obs.removeObserver(this, "FindInPage:Closed");
-    Services.obs.removeObserver(this, "Tab:Selected");
+    Services.obs.removeObserver(this, "FindInPage:Find", false);
+    Services.obs.removeObserver(this, "FindInPage:Prev", false);
+    Services.obs.removeObserver(this, "FindInPage:Next", false);
+    Services.obs.removeObserver(this, "FindInPage:Closed", false);
   },
 
   observe: function(aMessage, aTopic, aData) {
@@ -3908,7 +3876,6 @@ var FindHelper = {
         this.findAgain(aData, false);
         break;
 
-      case "Tab:Selected":
       case "FindInPage:Closed":
         this.findClosed();
         break;
@@ -3916,35 +3883,38 @@ var FindHelper = {
   },
 
   doFind: function(aSearchString) {
-    if (!this._fastFind) {
+    if (!this._findInProgress) {
+      this._findInProgress = true;
       this._targetTab = BrowserApp.selectedTab;
-      this._fastFind = this._targetTab.browser.fastFind;
+      this._find = Cc["@mozilla.org/typeaheadfind;1"].createInstance(Ci.nsITypeAheadFind);
+      this._find.init(this._targetTab.browser.docShell);
       this._initialViewport = JSON.stringify(this._targetTab.getViewport());
       this._viewportChanged = false;
     }
 
-    let result = this._fastFind.find(aSearchString, false);
+    let result = this._find.find(aSearchString, false);
     this.handleResult(result);
   },
 
   findAgain: function(aString, aFindBackwards) {
     // This can happen if the user taps next/previous after re-opening the search bar
-    if (!this._fastFind) {
+    if (!this._findInProgress) {
       this.doFind(aString);
       return;
     }
 
-    let result = this._fastFind.findAgain(aFindBackwards, false);
+    let result = this._find.findAgain(aFindBackwards, false);
     this.handleResult(result);
   },
 
   findClosed: function() {
     // If there's no find in progress, there's nothing to clean up
-    if (!this._fastFind)
+    if (!this._findInProgress)
       return;
 
-    this._fastFind.collapseSelection();
-    this._fastFind = null;
+    this._find.collapseSelection();
+    this._find = null;
+    this._findInProgress = false;
     this._targetTab = null;
     this._initialViewport = null;
     this._viewportChanged = false;
@@ -5881,7 +5851,7 @@ var WebappsUI = {
 
           // Add a homescreen shortcut -- we can't use createShortcut, since we need to pass
           // a unique ID for Android webapp allocation
-          this.makeBase64Icon(this.getBiggestIcon(manifest.icons, Services.io.newURI(data.origin, null, null)),
+          this.makeBase64Icon(this.getBiggestIcon(manifest.icons),
                               function(icon) {
                                 sendMessageToJava({
                                   gecko: {
@@ -5918,37 +5888,15 @@ var WebappsUI = {
     }
   },
 
-  getBiggestIcon: function getBiggestIcon(aIcons, aOrigin) {
-    const DEFAULT_ICON = "chrome://browser/skin/images/default-app-icon.png";
+  getBiggestIcon: function getBiggestIcon(aIcons) {
     if (!aIcons)
-      return DEFAULT_ICON;
+      return "chrome://browser/skin/images/default-app-icon.png";
   
     let iconSizes = Object.keys(aIcons);
     if (iconSizes.length == 0)
-      return DEFAULT_ICON;
+      return "chrome://browser/skin/images/default-app-icon.png";
     iconSizes.sort(function(a, b) a - b);
-
-    let biggestIcon = aIcons[iconSizes.pop()];
-    let iconURI = null;
-    try {
-      iconURI = Services.io.newURI(biggestIcon, null, null);
-      if (iconURI.scheme == "data") {
-        return iconURI.spec;
-      }
-    } catch (ex) {
-      // we don't have a biggestIcon or its not a valid url
-    }
-
-    // if we have an origin, try to resolve biggestIcon as a relative url
-    if (!iconURI && aOrigin) {
-      try {
-        iconURI = Services.io.newURI(aOrigin.resolve(biggestIcon), null, null);
-      } catch (ex) {
-        console.log("Could not resolve url: " + aOrigin.spec + " " + biggestIcon + " - " + ex);
-      }
-    }
-
-    return iconURI ? iconURI.spec : DEFAULT_ICON;
+    return aIcons[iconSizes.pop()];
   },
 
   doInstall: function doInstall(aData) {
@@ -6563,44 +6511,3 @@ let Reader = {
     }.bind(this);
   }
 };
-
-var ExternalApps = {
-  _contextMenuId: -1,
-
-  init: function helper_init() {
-    this._contextMenuId = NativeWindow.contextmenus.add(function(aElement) {
-      let uri = null;
-      var node = aElement;
-      while (node && !uri) {
-        uri = NativeWindow.contextmenus._getLink(node);
-        node = node.parentNode;
-      }
-      let apps = [];
-      if (uri)
-        apps = HelperApps.getAppsForUri(uri);
-
-      return apps.length == 1 ? Strings.browser.formatStringFromName("helperapps.openWithApp2", [apps[0].name], 1) :
-                                Strings.browser.GetStringFromName("helperapps.openWithList2");
-    }, this.filter, this.openExternal);
-  },
-
-  uninit: function helper_uninit() {
-    NativeWindow.contextmenus.remove(this._contextMenuId);
-  },
-
-  filter: {
-    matches: function(aElement) {
-      let uri = NativeWindow.contextmenus._getLink(aElement);
-      let apps = [];
-      if (uri) {
-        apps = HelperApps.getAppsForUri(uri);
-      }
-      return apps.length > 0;
-    }
-  },
-
-  openExternal: function(aElement) {
-    let uri = NativeWindow.contextmenus._getLink(aElement);
-    HelperApps.openUriInApp(uri);
-  }
-}

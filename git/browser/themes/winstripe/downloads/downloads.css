@@ -30,7 +30,7 @@
 }
 
 #downloadsHistory {
-  background: transparent;
+  background: inherit;
   color: -moz-nativehyperlinktext;
   cursor: pointer;
 }

@@ -76,22 +76,10 @@ using namespace js::frontend;
     JS_END_MACRO
 #define MUST_MATCH_TOKEN(tt, errno) MUST_MATCH_TOKEN_WITH_FLAGS(tt, errno, 0)
 
-StrictMode::StrictModeState
+bool
 StrictModeGetter::get() const
 {
-    return parser->tc->sc->strictModeState;
-}
-
-CompileError *
-StrictModeGetter::queuedStrictModeError() const
-{
-    return parser->tc->queuedStrictModeError;
-}
-
-void
-StrictModeGetter::setQueuedStrictModeError(CompileError *e)
-{
-    parser->tc->setQueuedStrictModeError(e);
+    return parser->tc->sc->inStrictMode();
 }
 
 static void
@@ -177,8 +165,7 @@ Parser::newObjectBox(JSObject *obj)
     return objbox;
 }
 
-FunctionBox::FunctionBox(ObjectBox* traceListHead, JSObject *obj, ParseNode *fn, TreeContext *tc,
-                         StrictMode::StrictModeState sms)
+FunctionBox::FunctionBox(ObjectBox* traceListHead, JSObject *obj, ParseNode *fn, TreeContext *tc)
   : ObjectBox(traceListHead, obj),
     node(fn),
     siblings(tc->functionList),
@@ -187,7 +174,6 @@ FunctionBox::FunctionBox(ObjectBox* traceListHead, JSObject *obj, ParseNode *fn,
     bindings(),
     level(tc->staticLevel),
     ndefaults(0),
-    strictModeState(sms),
     inLoop(false),
     inWith(!!tc->innermostWith),
     inGenexpLambda(false),
@@ -211,8 +197,7 @@ FunctionBox::FunctionBox(ObjectBox* traceListHead, JSObject *obj, ParseNode *fn,
 }
 
 FunctionBox *
-Parser::newFunctionBox(JSObject *obj, ParseNode *fn, TreeContext *tc,
-                       StrictMode::StrictModeState sms)
+Parser::newFunctionBox(JSObject *obj, ParseNode *fn, TreeContext *tc)
 {
     JS_ASSERT(obj && !IsPoisonedPtr(obj));
     JS_ASSERT(obj->isFunction());
@@ -224,7 +209,7 @@ Parser::newFunctionBox(JSObject *obj, ParseNode *fn, TreeContext *tc,
      * scanning, parsing and code generation for the whole script or top-level
      * function.
      */
-    FunctionBox *funbox = context->tempLifoAlloc().new_<FunctionBox>(traceListHead, obj, fn, tc, sms);
+    FunctionBox *funbox = context->tempLifoAlloc().new_<FunctionBox>(traceListHead, obj, fn, tc);
     if (!funbox) {
         js_ReportOutOfMemory(context);
         return NULL;
@@ -276,8 +261,7 @@ Parser::parse(JSObject *chain)
      *   an object lock before it finishes generating bytecode into a script
      *   protected from the GC by a root or a stack frame reference.
      */
-    SharedContext globalsc(context, chain, /* fun = */ NULL, /* funbox = */ NULL,
-                           StrictModeFromContext(context));
+    SharedContext globalsc(context, chain, /* fun = */ NULL, /* funbox = */ NULL);
     TreeContext globaltc(this, &globalsc, /* staticLevel = */ 0, /* bodyid = */ 0);
     if (!globaltc.init())
         return NULL;
@@ -536,13 +520,13 @@ CheckStrictParameters(JSContext *cx, Parser *parser)
                 return false;
         }
 
-        if (sc->needStrictChecks() && FindKeyword(name->charsZ(), name->length())) {
+        if (sc->inStrictMode() && FindKeyword(name->charsZ(), name->length())) {
             /*
              * JSOPTION_STRICT is supposed to warn about future keywords, too,
              * but we took care of that in the scanner.
              */
-            if (!ReportBadParameter(cx, parser, name, JSMSG_RESERVED_ID))
-                return false;
+            JS_ALWAYS_TRUE(!ReportBadParameter(cx, parser, name, JSMSG_RESERVED_ID));
+            return false;
         }
 
         /*
@@ -595,11 +579,6 @@ Parser::functionBody(FunctionBodyType type)
     } else {
         JS_ASSERT(type == ExpressionBody);
         JS_ASSERT(JS_HAS_EXPR_CLOSURES);
-
-        // There are no directives to parse, so indicate we're done finding
-        // strict mode directives.
-        if (!setStrictMode(false))
-            return NULL;
         pn = UnaryNode::create(PNK_RETURN, this);
         if (pn) {
             pn->pn_kid = assignExpr();
@@ -726,7 +705,7 @@ Parser::functionBody(FunctionBodyType type)
          * to any mutation we create it eagerly whenever parameters are (or
          * might, in the case of calls to eval) be assigned.
          */
-        if (tc->sc->needStrictChecks()) {
+        if (tc->sc->inStrictMode()) {
             for (AtomDefnListMap::Range r = tc->decls.all(); !r.empty(); r.popFront()) {
                 DefinitionList &dlist = r.front().value();
                 for (DefinitionList::Range dr = dlist.all(); !dr.empty(); dr.popFront()) {
@@ -1559,20 +1538,19 @@ Parser::functionDef(HandlePropertyName funName, FunctionType type, FunctionSynta
     if (!fun)
         return NULL;
 
-    // Inherit strictness if neeeded.
-    StrictMode::StrictModeState sms = (outertc->sc->strictModeState == StrictMode::STRICT) ?
-        StrictMode::STRICT : StrictMode::UNKNOWN;
-
-    // Create box for fun->object early to protect against last-ditch GC.
-    FunctionBox *funbox = newFunctionBox(fun, pn, outertc, sms);
+    /* Create box for fun->object early to protect against last-ditch GC. */
+    FunctionBox *funbox = newFunctionBox(fun, pn, outertc);
     if (!funbox)
         return NULL;
 
     /* Initialize early for possible flags mutation via destructuringExpr. */
-    SharedContext funsc(context, /* scopeChain = */ NULL, fun, funbox, sms);
+    SharedContext funsc(context, /* scopeChain = */ NULL, fun, funbox);
     TreeContext funtc(this, &funsc, outertc->staticLevel + 1, outertc->blockidGen);
     if (!funtc.init())
         return NULL;
+
+    if (outertc->sc->inStrictMode())
+        funsc.setInStrictMode();    // inherit strict mode from parent
 
     /* Now parse formal argument list and compute fun->nargs. */
     ParseNode *prelude = NULL;
@@ -1715,7 +1693,7 @@ Parser::functionDef(HandlePropertyName funName, FunctionType type, FunctionSynta
              * compound statement such as the "then" part of an "if" statement,
              * binds a closure only if control reaches that sub-statement.
              */
-            JS_ASSERT(outertc->sc->strictModeState != StrictMode::STRICT);
+            JS_ASSERT(!outertc->sc->inStrictMode());
             op = JSOP_DEFFUN;
             outertc->sc->setFunMightAliasLocals();
             outertc->sc->setFunHasExtensibleScope();
@@ -1768,9 +1746,10 @@ Parser::functionStmt()
     }
 
     /* We forbid function statements in strict mode code. */
-    if (!tc->atBodyLevel() && tc->sc->needStrictChecks() &&
-        !reportStrictModeError(NULL, JSMSG_STRICT_FUNCTION_STATEMENT))
+    if (!tc->atBodyLevel() && tc->sc->inStrictMode()) {
+        reportStrictModeError(NULL, JSMSG_STRICT_FUNCTION_STATEMENT);
         return NULL;
+    }
 
     return functionDef(name, Normal, Statement);
 }
@@ -1784,83 +1763,6 @@ Parser::functionExpr()
     else
         tokenStream.ungetToken();
     return functionDef(name, Normal, Expression);
-}
-
-void
-FunctionBox::recursivelySetStrictMode(StrictMode::StrictModeState strictness)
-{
-    if (strictModeState == StrictMode::UNKNOWN) {
-        strictModeState = strictness;
-        for (FunctionBox *kid = kids; kid; kid = kid->siblings)
-            kid->recursivelySetStrictMode(strictness);
-    }
-}
-
-/*
- * Indicate that the current scope can't switch to strict mode with a body-level
- * "use strict" directive anymore. Return false on error.
- */
-bool
-Parser::setStrictMode(bool strictMode)
-{
-    if (tc->sc->strictModeState != StrictMode::UNKNOWN) {
-        // Strict mode was inherited.
-        JS_ASSERT(tc->sc->strictModeState == StrictMode::STRICT);
-        if (tc->sc->inFunction() && tc->sc->funbox()) {
-            JS_ASSERT(tc->sc->funbox()->strictModeState == tc->sc->strictModeState);
-            JS_ASSERT(tc->parent->sc->strictModeState == StrictMode::STRICT);
-        } else {
-            JS_ASSERT(StrictModeFromContext(context) == StrictMode::STRICT || tc->staticLevel);
-        }
-        return true;
-    }
-    if (strictMode) {
-        if (tc->queuedStrictModeError) {
-            // There was a strict mode error in this scope before we knew it was
-            // strict. Throw it.
-            JS_ASSERT(!(tc->queuedStrictModeError->report.flags & JSREPORT_WARNING));
-            tc->queuedStrictModeError->throwError();
-            return false;
-        }
-        tc->sc->strictModeState = StrictMode::STRICT;
-    } else if (!tc->parent || tc->parent->sc->strictModeState == StrictMode::NOTSTRICT) {
-        // This scope will not be strict.
-        tc->sc->strictModeState = StrictMode::NOTSTRICT;
-        if (tc->queuedStrictModeError && context->hasStrictOption() &&
-            tc->queuedStrictModeError->report.errorNumber != JSMSG_STRICT_CODE_WITH) {
-            // Convert queued strict mode error to a warning.
-            tc->queuedStrictModeError->report.flags |= JSREPORT_WARNING;
-            tc->queuedStrictModeError->throwError();
-        }
-    }
-    JS_ASSERT_IF(!tc->sc->inFunction(), !tc->functionList);
-    if (tc->sc->strictModeState != StrictMode::UNKNOWN && tc->sc->inFunction()) {
-        // We changed the strict mode state. Retroactively recursively set
-        // strict mode status on all the function children we've seen so far
-        // children (That is, functions in default expressions).
-        if (tc->sc->funbox())
-            tc->sc->funbox()->strictModeState = tc->sc->strictModeState;
-        for (FunctionBox *kid = tc->functionList; kid; kid = kid->siblings)
-            kid->recursivelySetStrictMode(tc->sc->strictModeState);
-    }
-    return true;
-}
-
-/*
- * Return true if this token, known to be an unparenthesized string literal,
- * could be the string of a directive in a Directive Prologue. Directive
- * strings never contain escape sequences or line continuations.
- */
-static bool
-IsEscapeFreeStringLiteral(const Token &tok)
-{
-    /*
-     * If the string's length in the source code is its length as a value,
-     * accounting for the quotes, then it must not contain any escape
-     * sequences or line continuations.
-     */
-    return (tok.pos.begin.lineno == tok.pos.end.lineno &&
-            tok.pos.begin.index + tok.atom()->length() + 2 == tok.pos.end.index);
 }
 
 /*
@@ -1883,45 +1785,52 @@ IsEscapeFreeStringLiteral(const Token &tok)
  * to the "use strict" statement, which is indeed a directive.
  */
 bool
-Parser::processDirectives(ParseNode *stmts)
+Parser::recognizeDirectivePrologue(ParseNode *pn, bool *isDirectivePrologueMember)
 {
-    bool gotStrictMode = false;
-    for (TokenKind tt = tokenStream.getToken(TSF_OPERAND); tt == TOK_STRING; tt = tokenStream.getToken(TSF_OPERAND)) {
-        ParseNode *stringNode = atomNode(PNK_STRING, JSOP_STRING);
-        if (!stringNode)
-            return false;
-        const Token directive = tokenStream.currentToken();
-        bool isDirective = IsEscapeFreeStringLiteral(directive);
-        JSAtom *atom = directive.atom();
-        TokenKind next = tokenStream.peekTokenSameLine(TSF_OPERAND);
-        if (next != TOK_EOF && next != TOK_EOL && next != TOK_SEMI && next != TOK_RC) {
-            freeTree(stringNode);
-            if (next == TOK_ERROR)
+    *isDirectivePrologueMember = pn->isStringExprStatement();
+    if (!*isDirectivePrologueMember)
+        return true;
+
+    ParseNode *kid = pn->pn_kid;
+    if (kid->isEscapeFreeStringLiteral()) {
+        /*
+         * Mark this statement as being a possibly legitimate part of a
+         * directive prologue, so the byte code emitter won't warn about it
+         * being useless code. (We mustn't just omit the statement entirely yet,
+         * as it could be producing the value of an eval or JSScript execution.)
+         *
+         * Note that even if the string isn't one we recognize as a directive,
+         * the emitter still shouldn't flag it as useless, as it could become a
+         * directive in the future. We don't want to interfere with people
+         * taking advantage of directive-prologue-enabled features that appear
+         * in other browsers first.
+         */
+        pn->pn_prologue = true;
+
+        JSAtom *directive = kid->pn_atom;
+        if (directive == context->runtime->atomState.useStrictAtom) {
+            /*
+             * Unfortunately, Directive Prologue members in general may contain
+             * escapes, even while "use strict" directives may not.  Therefore
+             * we must check whether an octal character escape has been seen in
+             * any previous directives whenever we encounter a "use strict"
+             * directive, so that the octal escape is properly treated as a
+             * syntax error.  An example of this case:
+             *
+             *   function error()
+             *   {
+             *     "\145"; // octal escape
+             *     "use strict"; // retroactively makes "\145" a syntax error
+             *   }
+             */
+            if (tokenStream.hasOctalCharacterEscape()) {
+                reportError(NULL, JSMSG_DEPRECATED_OCTAL);
                 return false;
-            break;
-        }
-        tokenStream.matchToken(TOK_SEMI);
-        if (isDirective) {
-            // It's a directive. Is it one we know?
-            if (atom == context->runtime->atomState.useStrictAtom && !gotStrictMode) {
-                if (!setStrictMode(true))
-                    return false;
-                gotStrictMode = true;
             }
+
+            tc->sc->setInStrictMode();
         }
-        ParseNode *stmt = UnaryNode::create(PNK_SEMI, this);
-        if (!stmt) {
-            freeTree(stringNode);
-            return false;
-        }
-        stmt->pn_pos = stringNode->pn_pos;
-        stmt->pn_kid = stringNode;
-        stmt->pn_prologue = isDirective;
-        stmts->append(stmt);
     }
-    tokenStream.ungetToken();
-    if (!gotStrictMode && !setStrictMode(false))
-        return false;
     return true;
 }
 
@@ -1945,8 +1854,8 @@ Parser::statements(bool *hasFunctionStmt)
     ParseNode *saveBlock = tc->blockNode;
     tc->blockNode = pn;
 
-    if (tc->atBodyLevel() && !processDirectives(pn))
-        return NULL;
+    bool inDirectivePrologue = tc->atBodyLevel();
+    tokenStream.setOctalCharacterEscape(false);
     for (;;) {
         TokenKind tt = tokenStream.peekToken(TSF_OPERAND);
         if (tt <= TOK_EOF || tt == TOK_RC) {
@@ -1963,6 +1872,9 @@ Parser::statements(bool *hasFunctionStmt)
                 tokenStream.setUnexpectedEOF();
             return NULL;
         }
+
+        if (inDirectivePrologue && !recognizeDirectivePrologue(next, &inDirectivePrologue))
+            return NULL;
 
         if (next->isKind(PNK_FUNCTION)) {
             /*
@@ -3633,16 +3545,18 @@ Parser::withStatement()
 {
     JS_ASSERT(tokenStream.isCurrentTokenType(TOK_WITH));
 
-    // In most cases, we want the constructs forbidden in strict mode code to be
-    // a subset of those that JSOPTION_STRICT warns about, and we should use
-    // reportStrictModeError.  However, 'with' is the sole instance of a
-    // construct that is forbidden in strict mode code, but doesn't even merit a
-    // warning under JSOPTION_STRICT.  See
-    // https://bugzilla.mozilla.org/show_bug.cgi?id=514576#c1. The actual
-    // supression of the with code warning is in
-    // TokenStream::reportCompileErrorNumberVA.
-    if (!reportStrictModeError(NULL, JSMSG_STRICT_CODE_WITH))
+    /*
+     * In most cases, we want the constructs forbidden in strict mode
+     * code to be a subset of those that JSOPTION_STRICT warns about, and
+     * we should use reportStrictModeError.  However, 'with' is the sole
+     * instance of a construct that is forbidden in strict mode code, but
+     * doesn't even merit a warning under JSOPTION_STRICT.  See
+     * https://bugzilla.mozilla.org/show_bug.cgi?id=514576#c1.
+     */
+    if (tc->sc->inStrictMode()) {
+        reportError(NULL, JSMSG_STRICT_CODE_WITH);
         return NULL;
+    }
 
     ParseNode *pn = BinaryNode::create(PNK_WITH, this);
     if (!pn)
@@ -5477,11 +5391,11 @@ Parser::generatorExpr(ParseNode *kid)
             return NULL;
 
         /* Create box for fun->object early to protect against last-ditch GC. */
-        FunctionBox *funbox = newFunctionBox(fun, genfn, outertc, outertc->sc->strictModeState);
+        FunctionBox *funbox = newFunctionBox(fun, genfn, outertc);
         if (!funbox)
             return NULL;
 
-        SharedContext gensc(context, /* scopeChain = */ NULL, fun, funbox, outertc->sc->strictModeState);
+        SharedContext gensc(context, /* scopeChain = */ NULL, fun, funbox);
         TreeContext gentc(this, &gensc, outertc->staticLevel + 1, outertc->blockidGen);
         if (!gentc.init())
             return NULL;
@@ -5809,7 +5723,7 @@ Parser::memberExpr(bool allowCallSyntax)
                      * In non-strict mode code, direct calls to eval can add
                      * variables to the call object.
                      */
-                    if (tc->sc->strictModeState != StrictMode::STRICT)
+                    if (!tc->sc->inStrictMode())
                         tc->sc->setFunHasExtensibleScope();
                 }
             } else if (lhs->isOp(JSOP_GETPROP)) {
@@ -6453,10 +6367,11 @@ Parser::parseXMLText(JSObject *chain, bool allowList)
      * lightweight function activation, or if its scope chain doesn't match
      * the one passed to us.
      */
-    SharedContext xmlsc(context, chain, /* fun = */ NULL, /* funbox = */ NULL, StrictMode::NOTSTRICT);
+    SharedContext xmlsc(context, chain, /* fun = */ NULL, /* funbox = */ NULL);
     TreeContext xmltc(this, &xmlsc, /* staticLevel = */ 0, /* bodyid = */ 0);
     if (!xmltc.init())
         return NULL;
+    JS_ASSERT(!xmlsc.inStrictMode());
 
     /* Set XML-only mode to turn off special treatment of {expr} in XML. */
     tokenStream.setXMLOnlyMode();
@@ -6960,9 +6875,9 @@ Parser::primaryExpr(TokenKind tt, bool afterDoubleDot)
                         return NULL;
 
                     Reporter reporter = 
-                        (oldAssignType == VALUE && assignType == VALUE && !tc->sc->needStrictChecks())
+                        (oldAssignType == VALUE && assignType == VALUE && !tc->sc->inStrictMode())
                         ? &Parser::reportWarning
-                        : (tc->sc->needStrictChecks() ? &Parser::reportStrictModeError : &Parser::reportError);
+                        : &Parser::reportError;
                     if (!(this->*reporter)(NULL, JSMSG_DUPLICATE_PROPERTY, name.ptr()))
                         return NULL;
                 }

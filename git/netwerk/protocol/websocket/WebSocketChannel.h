@@ -126,7 +126,7 @@ private:
   void GeneratePong(PRUint8 *payload, PRUint32 len);
   void GeneratePing();
 
-  void     BeginOpen();
+  bool     BeginOpen();
   nsresult HandleExtensions();
   nsresult SetupRequest();
   nsresult ApplyForAdmission();
@@ -198,8 +198,7 @@ private:
   PRUint32                        mAutoFollowRedirects       : 1;
   PRUint32                        mReleaseOnTransmit         : 1;
   PRUint32                        mTCPClosed                 : 1;
-  PRUint32                        mWasOpened                 : 1;
-  PRUint32                        mOpenedHttpChannel         : 1;
+  PRUint32                        mChannelWasOpened          : 1;
   PRUint32                        mDataStarted               : 1;
   PRUint32                        mIncrementedSessionCount   : 1;
   PRUint32                        mDecrementedSessionCount   : 1;

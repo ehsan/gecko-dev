@@ -1484,31 +1484,12 @@ static nsresult PrefSubmitReports(bool* aSubmitReports, bool writePref)
   nsCAutoString regPath;
 
   regPath.AppendLiteral("Software\\");
-
-  // We need to ensure the registry keys are created so we can properly
-  // write values to it
-  
-  // Create appVendor key
   if(!appVendor.IsEmpty()) {
     regPath.Append(appVendor);
-    regKey->Create(nsIWindowsRegKey::ROOT_KEY_CURRENT_USER,
-                   NS_ConvertUTF8toUTF16(regPath),
-                   nsIWindowsRegKey::ACCESS_SET_VALUE);
     regPath.AppendLiteral("\\");
   }
-
-  // Create appName key
   regPath.Append(appName);
-  regKey->Create(nsIWindowsRegKey::ROOT_KEY_CURRENT_USER,
-                 NS_ConvertUTF8toUTF16(regPath),
-                 nsIWindowsRegKey::ACCESS_SET_VALUE);
-  regPath.AppendLiteral("\\");
-
-  // Create Crash Reporter key
-  regPath.AppendLiteral("Crash Reporter");
-  regKey->Create(nsIWindowsRegKey::ROOT_KEY_CURRENT_USER,
-                 NS_ConvertUTF8toUTF16(regPath),
-                 nsIWindowsRegKey::ACCESS_SET_VALUE);
+  regPath.AppendLiteral("\\Crash Reporter");
 
   // If we're saving the pref value, just write it to ROOT_KEY_CURRENT_USER
   // and we're done.

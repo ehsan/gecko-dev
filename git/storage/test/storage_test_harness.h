@@ -121,7 +121,7 @@ public:
   PRUint16 completionReason;
 
 protected:
-  virtual ~AsyncStatementSpinner() {}
+  ~AsyncStatementSpinner() {}
   volatile bool mCompleted;
 };
 

@@ -194,12 +194,6 @@ Accessible::SetRoleMapEntry(nsRoleMapEntry* aRoleMapEntry)
   mRoleMapEntry = aRoleMapEntry;
 }
 
-bool
-Accessible::Init()
-{
-  return true;
-}
-
 NS_IMETHODIMP
 Accessible::GetDocument(nsIAccessibleDocument** aDocument)
 {
