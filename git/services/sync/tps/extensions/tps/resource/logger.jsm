@@ -74,7 +74,7 @@ var Logger = {
       msg += "; " + this._potentialError;
       this._potentialError = null;
     }
-    throw new Error("ASSERTION FAILED! " + msg);
+    throw("ASSERTION FAILED! " + msg);
   },
 
   AssertFalse: function(bool, msg, showPotentialError) {
@@ -83,7 +83,7 @@ var Logger = {
 
   AssertEqual: function(val1, val2, msg) {
     if (val1 != val2)
-      throw new Error("ASSERTION FAILED! " + msg + "; expected " +
+      throw("ASSERTION FAILED! " + msg + "; expected " +
             JSON.stringify(val2) + ", got " + JSON.stringify(val1));
   },
 

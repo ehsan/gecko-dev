@@ -8,8 +8,6 @@
 # linux) to the information; I certainly wouldn't want anyone parsing this
 # information and having behaviour depend on it
 
-import ctypes
-import errno
 import json
 import os
 import platform
@@ -34,8 +32,7 @@ info = {'os': unknown,
         'processor': unknown,
         'version': unknown,
         'os_version': unknown,
-        'bits': unknown,
-        'has_sandbox': unknown }
+        'bits': unknown }
 (system, node, release, version, machine, processor) = platform.uname()
 (bits, linkage) = platform.architecture()
 
@@ -95,14 +92,6 @@ bits = re.search('(\d+)bit', bits).group(1)
 info.update({'processor': processor,
              'bits': int(bits),
             })
-
-if info['os'] == 'linux':
-    PR_SET_SECCOMP = 22
-    SECCOMP_MODE_FILTER = 2
-    ctypes.CDLL("libc.so.6", use_errno=True).prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, 0)
-    info['has_sandbox'] = ctypes.get_errno() == errno.EFAULT
-else:
-    info['has_sandbox'] = True
 
 # standard value of choices, for easy inspection
 choices = {'os': ['linux', 'bsd', 'win', 'mac', 'unix'],

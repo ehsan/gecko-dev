@@ -248,6 +248,7 @@ private:
     bool ValidateTexStorage(GLenum target, GLsizei levels, GLenum internalformat,
                                 GLsizei width, GLsizei height, GLsizei depth,
                                 const char* info);
+
 };
 
 } // namespace mozilla

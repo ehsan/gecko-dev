@@ -187,17 +187,4 @@ MediaSourceDecoder::PrepareReaderInitialization()
   mReader->PrepareInitialization();
 }
 
-#ifdef MOZ_EME
-nsresult
-MediaSourceDecoder::SetCDMProxy(CDMProxy* aProxy)
-{
-  nsresult rv = MediaDecoder::SetCDMProxy(aProxy);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = mReader->SetCDMProxy(aProxy);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return NS_OK;
-}
-#endif
-
 } // namespace mozilla

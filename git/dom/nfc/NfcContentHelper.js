@@ -36,16 +36,13 @@ const NFC_ENABLED = libcutils.property_get("ro.moz.nfc.enabled", "false") === "t
 let DEBUG = NFC.DEBUG_CONTENT_HELPER;
 
 let debug;
-function updateDebug() {
-  if (DEBUG) {
-    debug = function (s) {
-      dump("-*- NfcContentHelper: " + s + "\n");
-    };
-  } else {
-    debug = function (s) {};
-  }
-};
-updateDebug();
+if (DEBUG) {
+  debug = function (s) {
+    dump("-*- NfcContentHelper: " + s + "\n");
+  };
+} else {
+  debug = function (s) {};
+}
 
 const NFCCONTENTHELPER_CID =
   Components.ID("{4d72c120-da5f-11e1-9b23-0800200c9a66}");
@@ -68,8 +65,6 @@ XPCOMUtils.defineLazyServiceGetter(this, "cpmm",
 
 function NfcContentHelper() {
   this.initDOMRequestHelper(/* aWindow */ null, NFC_IPC_MSG_NAMES);
-
-  Services.obs.addObserver(this, NFC.TOPIC_MOZSETTINGS_CHANGED, false);
   Services.obs.addObserver(this, "xpcom-shutdown", false);
 
   this._requestMap = [];
@@ -90,17 +85,6 @@ NfcContentHelper.prototype = {
 
   _requestMap: null,
   eventTarget: null,
-
-  init: function init(aWindow) {
-    if (aWindow && aWindow.navigator.mozSettings) {
-      let lock = aWindow.navigator.mozSettings.createLock();
-      var nfcDebug = lock.get(NFC.SETTING_NFC_DEBUG);
-      nfcDebug.onsuccess = function _nfcDebug() {
-        DEBUG = nfcDebug.result[NFC.SETTING_NFC_DEBUG];
-        updateDebug();
-      };
-    }
-  },
 
   encodeNDEFRecords: function encodeNDEFRecords(records) {
     let encodedRecords = [];
@@ -344,16 +328,8 @@ NfcContentHelper.prototype = {
   observe: function observe(subject, topic, data) {
     if (topic == "xpcom-shutdown") {
       this.destroyDOMRequestHelper();
-      Services.obs.removeObserver(this, NFC.TOPIC_MOZSETTINGS_CHANGED);
       Services.obs.removeObserver(this, "xpcom-shutdown");
       cpmm = null;
-    } else if (topic == NFC.TOPIC_MOZSETTINGS_CHANGED) {
-      if ("wrappedJSObject" in subject) {
-        subject = subject.wrappedJSObject;
-      }
-      if (subject) {
-        this.handle(subject.key, subject.value);
-      }
     }
   },
 
@@ -415,15 +391,6 @@ NfcContentHelper.prototype = {
             this.eventTarget.notifyPeerLost(result.sessionToken);
             break;
         }
-        break;
-    }
-  },
-
-  handle: function handle(name, result) {
-    switch (name) {
-      case NFC.SETTING_NFC_DEBUG:
-        DEBUG = result;
-        updateDebug();
         break;
     }
   },

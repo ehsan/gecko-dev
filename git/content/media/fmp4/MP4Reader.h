@@ -92,7 +92,7 @@ private:
   bool IsSupportedAudioMimeType(const char* aMimeType);
   void NotifyResourcesStatusChanged();
   bool IsWaitingOnCodecResource();
-  virtual bool IsWaitingOnCDMResource() MOZ_OVERRIDE;
+  bool IsWaitingOnCDMResource();
 
   nsAutoPtr<mp4_demuxer::MP4Demuxer> mDemuxer;
   nsAutoPtr<PlatformDecoderModule> mPlatform;
