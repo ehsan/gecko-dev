@@ -495,10 +495,8 @@ LayerTransactionParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
       break;
     }
     case Edit::TCompositableOperation: {
-      if (!ReceiveCompositableUpdate(edit.get_CompositableOperation(),
-                                replyv)) {
-        return false;
-      }
+      ReceiveCompositableUpdate(edit.get_CompositableOperation(),
+                                replyv);
       break;
     }
     case Edit::TOpAttachCompositable: {

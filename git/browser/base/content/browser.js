@@ -7097,7 +7097,7 @@ XPCOMUtils.defineLazyGetter(window, "gShowPageResizers", function () {
 });
 
 var MousePosTracker = {
-  _listeners: new Set(),
+  _listeners: [],
   _x: 0,
   _y: 0,
   get _windowUtils() {
@@ -7106,17 +7106,21 @@ var MousePosTracker = {
   },
 
   addListener: function (listener) {
-    if (this._listeners.has(listener))
+    if (this._listeners.indexOf(listener) >= 0)
       return;
 
     listener._hover = false;
-    this._listeners.add(listener);
+    this._listeners.push(listener);
 
     this._callListener(listener);
   },
 
   removeListener: function (listener) {
-    this._listeners.delete(listener);
+    var index = this._listeners.indexOf(listener);
+    if (index < 0)
+      return;
+
+    this._listeners.splice(index, 1);
   },
 
   handleEvent: function (event) {

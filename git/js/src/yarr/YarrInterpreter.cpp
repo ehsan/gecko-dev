@@ -1122,7 +1122,7 @@ public:
         ASSERT(context->term < static_cast<int>(disjunction->terms.size()));
 
         // Prevent jank resulting from getting stuck in Yarr for a long time.
-        if (!CheckForInterrupt(this->cx))
+        if (!JS_CHECK_OPERATION_LIMIT(this->cx))
             return JSRegExpErrorInternal;
 
         switch (currentTerm().type) {
@@ -1284,7 +1284,7 @@ public:
         ASSERT(context->term < static_cast<int>(disjunction->terms.size()));
 
         // Prevent jank resulting from getting stuck in Yarr for a long time.
-        if (!CheckForInterrupt(this->cx))
+        if (!JS_CHECK_OPERATION_LIMIT(this->cx))
             return JSRegExpErrorInternal;
 
         switch (currentTerm().type) {

@@ -28,68 +28,46 @@ using mozilla::NegativeInfinity;
 using mozilla::PositiveInfinity;
 using JS::GenericNaN;
 
-static bool
-ContainsVarOrConst(ExclusiveContext *cx, ParseNode *pn, ParseNode **resultp)
+static ParseNode *
+ContainsVarOrConst(ParseNode *pn)
 {
-    JS_CHECK_RECURSION(cx, return false);
-
-    if (!pn) {
-        *resultp = nullptr;
-        return true;
-    }
-    if (pn->isKind(PNK_VAR) || pn->isKind(PNK_CONST)) {
-        *resultp = pn;
-        return true;
-    }
+    if (!pn)
+        return nullptr;
+    if (pn->isKind(PNK_VAR) || pn->isKind(PNK_CONST))
+        return pn;
     switch (pn->getArity()) {
       case PN_LIST:
         for (ParseNode *pn2 = pn->pn_head; pn2; pn2 = pn2->pn_next) {
-            if (!ContainsVarOrConst(cx, pn2, resultp))
-                return false;
-            if (*resultp)
-                return true;
+            if (ParseNode *pnt = ContainsVarOrConst(pn2))
+                return pnt;
         }
         break;
-
       case PN_TERNARY:
-        if (!ContainsVarOrConst(cx, pn->pn_kid1, resultp))
-            return false;
-        if (*resultp)
-            return true;
-        if (!ContainsVarOrConst(cx, pn->pn_kid2, resultp))
-            return false;
-        if (*resultp)
-            return true;
-        return ContainsVarOrConst(cx, pn->pn_kid3, resultp);
-
+        if (ParseNode *pnt = ContainsVarOrConst(pn->pn_kid1))
+            return pnt;
+        if (ParseNode *pnt = ContainsVarOrConst(pn->pn_kid2))
+            return pnt;
+        return ContainsVarOrConst(pn->pn_kid3);
       case PN_BINARY:
       case PN_BINARY_OBJ:
-        // Limit recursion if pn is a binary expression, which can't contain a
-        // var statement.
-        if (!pn->isOp(JSOP_NOP)) {
-            *resultp = nullptr;
-            return true;
-        }
-        if (!ContainsVarOrConst(cx, pn->pn_left, resultp))
-            return false;
-        if (*resultp)
-            return true;
-        return ContainsVarOrConst(cx, pn->pn_right, resultp);
-
+        /*
+         * Limit recursion if pn is a binary expression, which can't contain a
+         * var statement.
+         */
+        if (!pn->isOp(JSOP_NOP))
+            return nullptr;
+        if (ParseNode *pnt = ContainsVarOrConst(pn->pn_left))
+            return pnt;
+        return ContainsVarOrConst(pn->pn_right);
       case PN_UNARY:
-        if (!pn->isOp(JSOP_NOP)) {
-            *resultp = nullptr;
-            return true;
-        }
-        return ContainsVarOrConst(cx, pn->pn_kid, resultp);
-
+        if (!pn->isOp(JSOP_NOP))
+            return nullptr;
+        return ContainsVarOrConst(pn->pn_kid);
       case PN_NAME:
-        return ContainsVarOrConst(cx, pn->maybeExpr(), resultp);
-
+        return ContainsVarOrConst(pn->maybeExpr());
       default:;
     }
-    *resultp = nullptr;
-    return true;
+    return nullptr;
 }
 
 /*
@@ -431,17 +409,8 @@ Fold(ExclusiveContext *cx, ParseNode **pnp,
 
     switch (pn->getKind()) {
       case PNK_IF:
-        {
-            ParseNode *decl;
-            if (!ContainsVarOrConst(cx, pn2, &decl))
-                return false;
-            if (decl)
-                break;
-            if (!ContainsVarOrConst(cx, pn3, &decl))
-                return false;
-            if (decl)
-                break;
-        }
+        if (ContainsVarOrConst(pn2) || ContainsVarOrConst(pn3))
+            break;
         /* FALL THROUGH */
 
       case PNK_CONDITIONAL:

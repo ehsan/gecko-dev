@@ -1183,48 +1183,26 @@ class CGClassConstructor(CGAbstractStaticMethod):
 
     def generate_code(self):
         preamble = """
-JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
-JS::Rooted<JSObject*> obj(cx, &args.callee());
+  JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
+  JS::Rooted<JSObject*> obj(cx, &args.callee());
 """
         # [ChromeOnly] interfaces may only be constructed by chrome.
+        # Additionally, we want to throw if a non-chrome caller does a bareword invocation of a
+        # constructor without |new|. We don't enforce this for chrome to avoid the addon compat
+        # fallout of making that change. See bug 916644.
         if isChromeOnly(self._ctor):
-            preamble += (
-                "if (!nsContentUtils::ThreadsafeIsCallerChrome()) {\n"
-                "  return ThrowingConstructor(cx, argc, vp);\n"
-                "}\n\n")
-
-        # Additionally, we want to throw if a caller does a bareword invocation
-        # of a constructor without |new|. We don't enforce this for chrome in
-        # realease builds to avoid the addon compat fallout of making that
-        # change. See bug 916644.
-        #
-        # Figure out the name of our constructor for error reporting purposes.
-        # For unnamed webidl constructors, identifier.name is "constructor" but
-        # the name JS sees is the interface name; for named constructors
-        # identifier.name is the actual name.
-        name = self._ctor.identifier.name
-        if name != "constructor":
-            ctorName = name
+            mayInvokeCtor = "nsContentUtils::ThreadsafeIsCallerChrome()"
         else:
-            ctorName = self.descriptor.interface.identifier.name
-        preamble += (
-            "bool mayInvoke = args.isConstructing();\n"
-            "#ifdef RELEASE_BUILD\n"
-            "mayInvoke = mayInvoke || nsContentUtils::ThreadsafeIsCallerChrome();\n"
-            "#endif // RELEASE_BUILD\n"
-            "if (!mayInvoke) {\n"
-            "  // XXXbz wish I could get the name from the callee instead of\n"
-            "  // Adding more relocations\n"
-            '  return ThrowConstructorWithoutNew(cx, "%s");\n'
-            "}" % ctorName)
-
+            mayInvokeCtor = "(args.isConstructing() || nsContentUtils::ThreadsafeIsCallerChrome())"
+        preamble += """  if (!%s) {
+    return ThrowingConstructor(cx, argc, vp);
+  }
+""" % mayInvokeCtor
         name = self._ctor.identifier.name
         nativeName = MakeNativeName(self.descriptor.binaryNames.get(name, name))
         callGenerator = CGMethodCall(nativeName, True, self.descriptor,
-                                     self._ctor, isConstructor=True,
-                                     constructorName=ctorName)
-        return CGList([CGIndenter(CGGeneric(preamble)), callGenerator],
-                      "\n").define()
+                                     self._ctor, isConstructor=True)
+        return preamble + callGenerator.define();
 
 # Encapsulate the constructor in a helper method to share genConstructorBody with CGJSImplMethod.
 class CGConstructNavigatorObjectHelper(CGAbstractStaticMethod):
@@ -5442,14 +5420,10 @@ class CGMethodCall(CGThing):
     signatures and generation of a call to that signature.
     """
     def __init__(self, nativeMethodName, static, descriptor, method,
-                 isConstructor=False, constructorName=None):
+                 isConstructor=False):
         CGThing.__init__(self)
 
-        if isConstructor:
-            assert constructorName is not None
-            methodName = constructorName
-        else:
-            methodName = "%s.%s" % (descriptor.interface.identifier.name, method.identifier.name)
+        methodName = "%s.%s" % (descriptor.interface.identifier.name, method.identifier.name)
         argDesc = "argument %d of " + methodName
 
         def requiredArgCount(signature):

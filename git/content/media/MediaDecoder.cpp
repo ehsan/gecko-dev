@@ -1592,15 +1592,6 @@ MediaDecoderStateMachine* MediaDecoder::GetStateMachine() const {
   return mDecoderStateMachine;
 }
 
-void
-MediaDecoder::NotifyWaitingForResourcesStatusChanged()
-{
-  ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
-  if (mDecoderStateMachine) {
-    mDecoderStateMachine->NotifyWaitingForResourcesStatusChanged();
-  }
-}
-
 bool MediaDecoder::IsShutdown() const {
   NS_ENSURE_TRUE(GetStateMachine(), true);
   return GetStateMachine()->IsShutdown();
