@@ -8011,19 +8011,6 @@ CodeGenerator::visitHaveSameClass(LHaveSameClass *ins)
 }
 
 bool
-CodeGenerator::visitHasClass(LHasClass *ins)
-{
-    Register lhs = ToRegister(ins->lhs());
-    Register output = ToRegister(ins->output());
-
-    masm.loadObjClass(lhs, output);
-    masm.cmpPtr(output, ImmPtr(ins->mir()->getClass()));
-    masm.emitSet(Assembler::Equal, output);
-
-    return true;
-}
-
-bool
 CodeGenerator::visitAsmJSCall(LAsmJSCall *ins)
 {
     MAsmJSCall *mir = ins->mir();

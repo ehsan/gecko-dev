@@ -656,6 +656,8 @@ obj_hasOwnProperty(JSContext *cx, unsigned argc, Value *vp)
         return false;
 
     /* Non-standard code for proxies. */
+    RootedObject obj2(cx);
+    RootedShape prop(cx);
     if (obj->is<ProxyObject>()) {
         bool has;
         if (!Proxy::hasOwn(cx, obj, idRoot, &has))
@@ -665,12 +667,10 @@ obj_hasOwnProperty(JSContext *cx, unsigned argc, Value *vp)
     }
 
     /* Step 3. */
-    bool found;
-    if (!HasOwnProperty(cx, obj, idRoot, &found))
+    if (!HasOwnProperty<CanGC>(cx, obj->getOps()->lookupGeneric, obj, idRoot, &obj2, &prop))
         return false;
-
     /* Step 4,5. */
-    args.rval().setBoolean(found);
+    args.rval().setBoolean(!!prop);
     return true;
 }
 
