@@ -1135,7 +1135,6 @@ nsJSContext::nsJSContext(JSRuntime *aRuntime, bool aGCOnDestruction,
   mOperationCallbackTime = 0;
   mModalStateTime = 0;
   mModalStateDepth = 0;
-  mProcessingScriptTag = false;
 }
 
 nsJSContext::~nsJSContext()
@@ -2887,18 +2886,6 @@ nsJSContext::SetScriptsEnabled(bool aEnabled, bool aFireTimeouts)
   }
 }
 
-
-bool
-nsJSContext::GetProcessingScriptTag()
-{
-  return mProcessingScriptTag;
-}
-
-void
-nsJSContext::SetProcessingScriptTag(bool aFlag)
-{
-  mProcessingScriptTag = aFlag;
-}
 
 bool
 nsJSContext::GetExecutingScript()

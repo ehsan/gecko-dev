@@ -245,17 +245,17 @@
 #endif
 #ifdef MOZ_SERVICES_HEALTHREPORT
       <groupbox>
-        <caption label="&healthReportSection.label;"/>
-        <description>&healthReportDesc.label;</description>
+        <caption label="&FHRSection.label;"/>
+        <description>&FHRDesc.label;</description>
         <hbox>
           <checkbox id="submitHealthReportBox"
                     oncommand="gAdvancedPane.updateSubmitHealthReport();"
-                    label="&enableHealthReport.label;"
-                    accesskey="&enableHealthReport.accesskey;"/>
+                    label="&enableFHR.label;"
+                    accesskey="&enableFHR.accesskey;"/>
           <spacer flex="1"/>
           <label id="FHRLearnMore"
                  class="text-link"
-                 value="&healthReportLearnMore.label;"/>
+                 value="&FHRLearnMore.label;"/>
         </hbox>
       </groupbox>
 #endif

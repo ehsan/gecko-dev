@@ -97,7 +97,7 @@ DataNotificationInfoBar.prototype = {
 
     let buttons = [{
       label: gNavigatorBundle.getString("dataReportingNotification.button.label"),
-      accessKey: gNavigatorBundle.getString("dataReportingNotification.button.accessKey"),
+      accesskey: gNavigatorBundle.getString("dataReportingNotification.button.accessKey"),
       popup: null,
       callback: function () {
         // Clicking the button to go to the preferences tab constitutes
