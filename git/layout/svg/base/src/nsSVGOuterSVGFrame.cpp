@@ -283,8 +283,10 @@ nsSVGOuterSVGFrame::GetIntrinsicRatio()
     return ratio;
   }
 
-  if (content->mViewBox.IsValid()) {
-    const nsSVGViewBoxRect viewbox = content->mViewBox.GetAnimValue(content);
+  if (content->HasAttr(kNameSpaceID_None, nsGkAtoms::viewBox)) {
+    // XXXjwatt we need to fix our viewBox code so that we can tell whether the
+    // viewBox attribute specifies a valid rect or not.
+    const nsSVGViewBoxRect viewbox = content->mViewBox.GetAnimValue();
     float viewBoxWidth = viewbox.width;
     float viewBoxHeight = viewbox.height;
 

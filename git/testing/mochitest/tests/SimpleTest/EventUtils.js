@@ -482,14 +482,13 @@ function synthesizeDragStart(element, expectedDragData, aWindow)
 /**
  * Emulate a drop by emulating a dragstart and firing events dragenter, dragover, and drop.
  *  element - the element to fire the dragover, dragleave and drop events
- *  dropEffect - the drop effect to set during the dragstart event, or 'move' if null
  *  dragData - the data to supply for the data transfer
  *                     This data is in the format:
  *                       [ [ {type: value, data: value}, ...], ... ]
  *
  * Returns the drop effect that was desired.
  */
-function synthesizeDrop(element, dragData, dropEffect, aWindow)
+function synthesizeDrop(element, dragData, aWindow)
 {
   if (!aWindow)
     aWindow = window;
@@ -503,7 +502,6 @@ function synthesizeDrop(element, dragData, dropEffect, aWindow)
         dataTransfer.mozSetDataAt(item[j].type, item[j].data, i);
       }
     }
-    dataTransfer.dropEffect = dropEffect || "move";
     event.preventDefault();
     event.stopPropagation();
   }

@@ -81,22 +81,12 @@ fails == anim-fillopacity-1xml.svg  anim-standard-ref.svg # bug 534028
 == anim-offset-01.svg lime.svg
 == anim-pathLength-01.svg anim-pathLength-01-ref.svg
 
-# animate some <integer> attributes:
-== anim-feTurbulence-numOctaves-01.svg anim-feTurbulence-numOctaves-01-ref.svg
-
-# animate some <angle> attributes:
-== anim-marker-orient-01.svg lime.svg
-
 # animate some enumeration attributes:
 == anim-feComposite-operator-01.svg lime.svg
 == anim-filter-filterUnits-01.svg lime.svg
 
 # animate some boolean attributes:
 == anim-feConvolveMatrix-preserveAlpha-01.svg lime.svg
-
-# animate some viewBox attributes
-== anim-svg-viewBox-01.svg lime.svg
-== anim-svg-viewBox-02.svg lime.svg
 
 # animate some preserveAspectRatio attributes
 == anim-feImage-preserveAspectRatio-01.svg lime.svg
