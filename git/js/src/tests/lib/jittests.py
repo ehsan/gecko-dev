@@ -287,16 +287,7 @@ def run_test(test, prefix, options):
 def check_output(out, err, rc, test):
     if test.expect_error:
         # The shell exits with code 3 on uncaught exceptions.
-        # Sometimes 0 is returned on Windows for unknown reasons.
-        # See bug 899697.
-        if sys.platform in ['win32', 'cygwin']:
-            if rc != 3 and rc != 0:
-                return False
-        else:
-            if rc != 3:
-                return False
-
-        return test.expect_error in err
+        return test.expect_error in err and rc == 3
 
     for line in out.split('\n'):
         if line.startswith('Trace stats check failed'):
