@@ -25,6 +25,7 @@
 #include "nsIObjectFrame.h"
 #include "nsIPermissionManager.h"
 #include "nsPluginHost.h"
+#include "nsPluginInstanceOwner.h"
 #include "nsJSNPRuntime.h"
 #include "nsIPresShell.h"
 #include "nsIScriptGlobalObject.h"
@@ -60,6 +61,7 @@
 #include "nsGUIEvent.h"
 #include "nsUnicharUtils.h"
 #include "mozilla/Preferences.h"
+#include "nsSandboxFlags.h"
 
 // Concrete classes
 #include "nsFrameLoader.h"
@@ -74,11 +76,19 @@
 #include "nsObjectFrame.h"
 #include "nsDOMClassInfo.h"
 #include "nsWrapperCacheInlines.h"
+#include "nsDOMJSUtils.h"
 
 #include "nsWidgetsCID.h"
 #include "nsContentCID.h"
 #include "mozilla/dom/BindingUtils.h"
 #include "mozilla/Telemetry.h"
+
+#ifdef XP_WIN
+// Thanks so much, Microsoft! :(
+#ifdef CreateEvent
+#undef CreateEvent
+#endif
+#endif // XP_WIN
 
 static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 
@@ -1478,10 +1488,10 @@ nsObjectLoadingContent::UpdateObjectParameters(bool aJavaURI)
             }
             if (domapplet || domobject) {
               if (domapplet) {
-                parent = domapplet;
+                parent = do_QueryInterface(domapplet);
               }
               else {
-                parent = domobject;
+                parent = do_QueryInterface(domobject);
               }
               nsCOMPtr<nsIDOMNode> mydomNode = do_QueryInterface(mydomElement);
               if (parent == mydomNode) {
@@ -2289,9 +2299,20 @@ nsObjectLoadingContent::OpenChannel()
     httpChan->SetReferrer(doc->GetDocumentURI());
   }
 
-  // Set up the channel's principal and such, like nsDocShell::DoURILoad does
-  nsContentUtils::SetUpChannelOwner(thisContent->NodePrincipal(),
-                                    chan, mURI, true);
+  // Set up the channel's principal and such, like nsDocShell::DoURILoad does.
+  // If the content being loaded should be sandboxed with respect to origin we
+  // create a new null principal here. nsContentUtils::SetUpChannelOwner is
+  // used with a flag to force it to be set as the channel owner.
+  nsCOMPtr<nsIPrincipal> ownerPrincipal;
+  uint32_t sandboxFlags = doc->GetSandboxFlags();
+  if (sandboxFlags & SANDBOXED_ORIGIN) {
+    ownerPrincipal = do_CreateInstance("@mozilla.org/nullprincipal;1");
+  } else {
+    // Not sandboxed - we allow the content to assume its natural owner.
+    ownerPrincipal = thisContent->NodePrincipal();
+  }
+  nsContentUtils::SetUpChannelOwner(ownerPrincipal, chan, mURI, true,
+                                    sandboxFlags & SANDBOXED_ORIGIN);
 
   nsCOMPtr<nsIScriptChannel> scriptChannel = do_QueryInterface(chan);
   if (scriptChannel) {
@@ -2656,12 +2677,6 @@ DoDelayedStop(nsPluginInstanceOwner* aInstanceOwner,
               nsObjectLoadingContent* aContent,
               bool aDelayedStop)
 {
-#if (MOZ_PLATFORM_MAEMO==5)
-  // Don't delay stop on Maemo/Hildon (bug 530739).
-  if (aDelayedStop && aInstanceOwner->MatchPluginName("Shockwave Flash"))
-    return false;
-#endif
-
   // Don't delay stopping QuickTime (bug 425157), Flip4Mac (bug 426524),
   // XStandard (bug 430219), CMISS Zinc (bug 429604).
   if (aDelayedStop
@@ -3347,7 +3362,7 @@ nsObjectLoadingContent::TeardownProtoChain()
 
   // Loop over the DOM element's JS object prototype chain and remove
   // all JS objects of the class sNPObjectJSWrapperClass
-  bool removed = false;
+  DebugOnly<bool> removed = false;
   while (obj) {
     if (!::JS_GetPrototype(cx, obj, &proto)) {
       return;
@@ -3384,7 +3399,7 @@ nsObjectLoadingContent::DoNewResolve(JSContext* aCx, JS::Handle<JSObject*> aObje
   nsRefPtr<nsNPAPIPluginInstance> pi;
   nsresult rv = ScriptRequestPluginInstance(aCx, getter_AddRefs(pi));
   if (NS_FAILED(rv)) {
-    return mozilla::dom::Throw<true>(aCx, rv);
+    return mozilla::dom::Throw(aCx, rv);
   }
   return true;
 }

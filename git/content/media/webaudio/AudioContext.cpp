@@ -5,13 +5,14 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "AudioContext.h"
-#include "nsContentUtils.h"
+
 #include "nsPIDOMWindow.h"
 #include "mozilla/ErrorResult.h"
 #include "mozilla/dom/AnalyserNode.h"
 #include "mozilla/dom/AudioContextBinding.h"
 #include "mozilla/dom/HTMLMediaElement.h"
 #include "mozilla/dom/OfflineAudioContextBinding.h"
+#include "mozilla/dom/OwningNonNull.h"
 #include "MediaStreamGraph.h"
 #include "AudioDestinationNode.h"
 #include "AudioBufferSourceNode.h"
@@ -62,16 +63,16 @@ AudioContext::AudioContext(nsPIDOMWindow* aWindow,
   // Actually play audio
   mDestination->Stream()->AddAudioOutput(&gWebAudioOutputKey);
   nsDOMEventTargetHelper::BindToOwner(aWindow);
+  aWindow->AddAudioContext(this);
   SetIsDOMBinding();
-
-  mPannerNodes.Init();
-  mAudioBufferSourceNodes.Init();
-  mOscillatorNodes.Init();
-  mScriptProcessorNodes.Init();
 }
 
 AudioContext::~AudioContext()
 {
+  nsPIDOMWindow* window = GetOwner();
+  if (window) {
+    window->RemoveAudioContext(this);
+  }
 }
 
 JSObject*
@@ -85,16 +86,16 @@ AudioContext::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 }
 
 /* static */ already_AddRefed<AudioContext>
-AudioContext::Constructor(const GlobalObject& aGlobal, ErrorResult& aRv)
+AudioContext::Constructor(const GlobalObject& aGlobal,
+                          ErrorResult& aRv)
 {
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aGlobal.Get());
+  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aGlobal.GetAsSupports());
   if (!window) {
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
   }
 
   nsRefPtr<AudioContext> object = new AudioContext(window, false);
-  window->AddAudioContext(object);
   return object.forget();
 }
 
@@ -105,7 +106,7 @@ AudioContext::Constructor(const GlobalObject& aGlobal,
                           float aSampleRate,
                           ErrorResult& aRv)
 {
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aGlobal.Get());
+  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aGlobal.GetAsSupports());
   if (!window) {
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
@@ -126,7 +127,6 @@ AudioContext::Constructor(const GlobalObject& aGlobal,
                                                    aNumberOfChannels,
                                                    aLength,
                                                    aSampleRate);
-  window->AddAudioContext(object);
   return object.forget();
 }
 
@@ -165,7 +165,7 @@ AudioContext::CreateBuffer(JSContext* aJSContext, uint32_t aNumberOfChannels,
 }
 
 already_AddRefed<AudioBuffer>
-AudioContext::CreateBuffer(JSContext* aJSContext, ArrayBuffer& aBuffer,
+AudioContext::CreateBuffer(JSContext* aJSContext, const ArrayBuffer& aBuffer,
                           bool aMixToMono, ErrorResult& aRv)
 {
   // Do not accept this method unless the legacy pref has been set.
@@ -521,24 +521,9 @@ GetHashtableElements(nsTHashtable<nsPtrHashKey<T> >& aHashtable, nsTArray<T*>& a
 }
 
 void
-AudioContext::ShutdownDecoder()
-{
-  mDecoder.Shutdown();
-}
-
-void
 AudioContext::Shutdown()
 {
   Suspend();
-
-  // We need to hold the AudioContext object alive here to make sure that
-  // it doesn't get destroyed before our decoder shutdown runnable has had
-  // a chance to run.
-  nsCOMPtr<nsIRunnable> threadShutdownEvent =
-    NS_NewRunnableMethod(this, &AudioContext::ShutdownDecoder);
-  if (threadShutdownEvent) {
-    NS_DispatchToCurrentThread(threadShutdownEvent);
-  }
 
   // Stop all audio buffer source nodes, to make sure that they release
   // their self-references.
@@ -570,7 +555,7 @@ AudioContext::Shutdown()
 
   // For offline contexts, we can destroy the MediaStreamGraph at this point.
   if (mIsOffline) {
-    mDestination->DestroyGraph();
+    mDestination->OfflineShutdown();
   }
 }
 

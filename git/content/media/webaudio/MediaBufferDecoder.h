@@ -14,11 +14,9 @@
 #include "nsString.h"
 #include "nsTArray.h"
 #include "mozilla/dom/TypedArray.h"
-#include <utility>
 
 namespace mozilla {
 
-class MediaDecoderReader;
 namespace dom {
 class AudioBuffer;
 class AudioContext;
@@ -81,8 +79,6 @@ public:
 
   bool SyncDecodeMedia(const char* aContentType, uint8_t* aBuffer,
                        uint32_t aLength, WebAudioDecodeJob& aDecodeJob);
-
-  void Shutdown();
 
 private:
   bool EnsureThreadPoolInitialized();

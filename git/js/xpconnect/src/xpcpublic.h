@@ -9,10 +9,6 @@
 #define xpcpublic_h
 
 #include "jsapi.h"
-#include "js/MemoryMetrics.h"
-#include "jsclass.h"
-#include "jsfriendapi.h"
-#include "jspubtd.h"
 #include "jsproxy.h"
 #include "js/HeapAPI.h"
 #include "js/GCAPI.h"
@@ -23,7 +19,7 @@
 #include "nsWrapperCache.h"
 #include "nsStringGlue.h"
 #include "nsTArray.h"
-#include "mozilla/dom/DOMJSClass.h"
+#include "mozilla/dom/JSSlots.h"
 #include "nsMathUtils.h"
 #include "nsStringBuffer.h"
 #include "nsIGlobalObject.h"
@@ -67,12 +63,24 @@ AllowXBLScope(JSCompartment *c);
 bool
 IsSandboxPrototypeProxy(JSObject *obj);
 
+bool
+IsReflector(JSObject *obj);
 } /* namespace xpc */
 
-#define XPCONNECT_GLOBAL_FLAGS                                                \
+namespace JS {
+
+struct RuntimeStats;
+
+}
+
+#define XPCONNECT_GLOBAL_FLAGS_WITH_EXTRA_SLOTS(n)                            \
     JSCLASS_DOM_GLOBAL | JSCLASS_HAS_PRIVATE |                                \
     JSCLASS_PRIVATE_IS_NSISUPPORTS | JSCLASS_IMPLEMENTS_BARRIERS |            \
-    JSCLASS_GLOBAL_FLAGS_WITH_SLOTS(2)
+    JSCLASS_GLOBAL_FLAGS_WITH_SLOTS(DOM_GLOBAL_SLOTS + n)
+
+#define XPCONNECT_GLOBAL_EXTRA_SLOT_OFFSET (JSCLASS_GLOBAL_SLOT_COUNT + DOM_GLOBAL_SLOTS)
+
+#define XPCONNECT_GLOBAL_FLAGS XPCONNECT_GLOBAL_FLAGS_WITH_EXTRA_SLOTS(0)
 
 void
 TraceXPCGlobal(JSTracer *trc, JSObject *obj);
@@ -86,7 +94,7 @@ xpc_DelocalizeRuntime(JSRuntime *rt);
 // If IS_WN_CLASS for the JSClass of an object is true, the object is a
 // wrappednative wrapper, holding the XPCWrappedNative in its private slot.
 
-static inline bool IS_WN_CLASS(js::Class* clazz)
+static inline bool IS_WN_CLASS(const js::Class* clazz)
 {
     return clazz->ext.isWrappedNative;
 }
@@ -118,7 +126,7 @@ xpc_FastGetCachedWrapper(nsWrapperCache *cache, JSObject *scope, jsval *vp)
 // The JS GC marks objects gray that are held alive directly or
 // indirectly by an XPConnect root. The cycle collector explores only
 // this subset of the JS heap.
-inline JSBool
+inline bool
 xpc_IsGrayGCThing(void *thing)
 {
     return JS::GCThingIsMarkedGray(thing);
@@ -126,25 +134,8 @@ xpc_IsGrayGCThing(void *thing)
 
 // The cycle collector only cares about some kinds of GCthings that are
 // reachable from an XPConnect root. Implemented in nsXPConnect.cpp.
-extern JSBool
+extern bool
 xpc_GCThingIsGrayCCThing(void *thing);
-
-// Unmark gray for known-nonnull cases
-MOZ_ALWAYS_INLINE void
-xpc_UnmarkNonNullGrayObject(JSObject *obj)
-{
-    JS::ExposeGCThingToActiveJS(obj, JSTRACE_OBJECT);
-}
-
-// Remove the gray color from the given JSObject and any other objects that can
-// be reached through it.
-MOZ_ALWAYS_INLINE JSObject *
-xpc_UnmarkGrayObject(JSObject *obj)
-{
-    if (obj)
-        xpc_UnmarkNonNullGrayObject(obj);
-    return obj;
-}
 
 inline JSScript *
 xpc_UnmarkGrayScript(JSScript *script)
@@ -153,21 +144,6 @@ xpc_UnmarkGrayScript(JSScript *script)
         JS::ExposeGCThingToActiveJS(script, JSTRACE_SCRIPT);
 
     return script;
-}
-
-inline JSContext *
-xpc_UnmarkGrayContext(JSContext *cx)
-{
-    if (cx) {
-        JSObject *global = js::DefaultObjectForContextOrNull(cx);
-        xpc_UnmarkGrayObject(global);
-        if (global && JS_IsInRequest(JS_GetRuntime(cx))) {
-            JSObject *scope = JS::CurrentGlobalOrNull(cx);
-            if (scope != global)
-                xpc_UnmarkGrayObject(scope);
-        }
-    }
-    return cx;
 }
 
 // If aVariant is an XPCVariant, this marks the object to be in aGeneration.
@@ -187,7 +163,7 @@ xpc_UnmarkSkippableJSHolders();
 NS_EXPORT_(void)
 xpc_ActivateDebugMode();
 
-class nsIMemoryMultiReporterCallback;
+class nsIMemoryReporterCallback;
 
 // readable string conversions, static methods and members only
 class XPCStringConvert
@@ -383,7 +359,7 @@ private:
 nsresult
 ReportJSRuntimeExplicitTreeStats(const JS::RuntimeStats &rtStats,
                                  const nsACString &rtPath,
-                                 nsIMemoryMultiReporterCallback *cb,
+                                 nsIMemoryReporterCallback *cb,
                                  nsISupports *closure, size_t *rtTotal = NULL);
 
 /**
@@ -440,24 +416,9 @@ SimulateActivityCallback(bool aActive);
 namespace mozilla {
 namespace dom {
 
-extern int HandlerFamily;
-inline void* ProxyFamily() { return &HandlerFamily; }
-
-inline bool IsDOMProxy(JSObject *obj, const js::Class* clasp)
-{
-    MOZ_ASSERT(js::GetObjectClass(obj) == clasp);
-    return (js::IsObjectProxyClass(clasp) || js::IsFunctionProxyClass(clasp)) &&
-           js::GetProxyHandler(obj)->family() == ProxyFamily();
-}
-
-inline bool IsDOMProxy(JSObject *obj)
-{
-    return IsDOMProxy(obj, js::GetObjectClass(obj));
-}
-
 typedef JSObject*
 (*DefineInterface)(JSContext *cx, JS::Handle<JSObject*> global,
-                   JS::Handle<jsid> id, bool *enabled);
+                   JS::Handle<jsid> id, bool defineOnGlobal);
 
 typedef JSObject*
 (*ConstructNavigatorProperty)(JSContext *cx, JS::Handle<JSObject*> naviObj);

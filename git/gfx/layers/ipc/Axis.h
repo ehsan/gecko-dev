@@ -7,11 +7,10 @@
 #ifndef mozilla_layers_Axis_h
 #define mozilla_layers_Axis_h
 
-#include "nsGUIEvent.h"
-#include "mozilla/TimeStamp.h"
-#include "mozilla/gfx/2D.h"
-#include "nsTArray.h"
-#include "Units.h"
+#include <sys/types.h>                  // for int32_t
+#include "Units.h"                      // for CSSRect, CSSPoint
+#include "mozilla/TimeStamp.h"          // for TimeDuration
+#include "nsTArray.h"                   // for nsTArray
 
 namespace mozilla {
 namespace layers {
@@ -143,7 +142,7 @@ public:
    * scroll offset in such a way that it remains in the same place on the page
    * relative.
    */
-  Overscroll ScaleWillOverscroll(float aScale, float aFocus);
+  Overscroll ScaleWillOverscroll(ScreenToScreenScale aScale, float aFocus);
 
   /**
    * If a scale will overscroll the axis, this returns the amount and in what
@@ -153,7 +152,7 @@ public:
    * scroll offset in such a way that it remains in the same place on the page
    * relative.
    */
-  float ScaleWillOverscrollAmount(float aScale, float aFocus);
+  float ScaleWillOverscrollAmount(ScreenToScreenScale aScale, float aFocus);
 
   /**
    * Checks if an axis will overscroll in both directions by computing the
@@ -162,7 +161,7 @@ public:
    *
    * This gets called by ScaleWillOverscroll().
    */
-  bool ScaleWillOverscrollBothSides(float aScale);
+  bool ScaleWillOverscrollBothSides(ScreenToScreenScale aScale);
 
   float GetOrigin();
   float GetCompositionLength();

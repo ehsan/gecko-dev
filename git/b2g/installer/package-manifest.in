@@ -164,16 +164,12 @@
 @BINPATH@/components/dom_base.xpt
 @BINPATH@/components/dom_system.xpt
 #ifdef MOZ_B2G_RIL
-@BINPATH@/components/dom_telephony.xpt
 @BINPATH@/components/dom_voicemail.xpt
 @BINPATH@/components/dom_wifi.xpt
 @BINPATH@/components/dom_system_gonk.xpt
 @BINPATH@/components/dom_icc.xpt
 @BINPATH@/components/dom_cellbroadcast.xpt
 @BINPATH@/components/dom_wappush.xpt
-#endif
-#ifdef MOZ_B2G_FM
-@BINPATH@/components/dom_fm.xpt
 #endif
 #ifdef MOZ_B2G_BT
 @BINPATH@/components/dom_bluetooth.xpt
@@ -196,7 +192,6 @@
 @BINPATH@/components/dom_offline.xpt
 @BINPATH@/components/dom_payment.xpt
 @BINPATH@/components/dom_json.xpt
-@BINPATH@/components/dom_browserelement.xpt
 @BINPATH@/components/dom_messages.xpt
 @BINPATH@/components/dom_power.xpt
 @BINPATH@/components/dom_quota.xpt
@@ -207,6 +202,7 @@
 @BINPATH@/components/dom_mobilemessage.xpt
 @BINPATH@/components/dom_storage.xpt
 @BINPATH@/components/dom_stylesheets.xpt
+@BINPATH@/components/dom_telephony.xpt
 @BINPATH@/components/dom_threads.xpt
 @BINPATH@/components/dom_traversal.xpt
 @BINPATH@/components/dom_views.xpt
@@ -241,6 +237,7 @@
 @BINPATH@/components/intl.xpt
 @BINPATH@/components/jar.xpt
 @BINPATH@/components/jsdebugger.xpt
+@BINPATH@/components/jsdownloads.xpt
 @BINPATH@/components/jsdservice.xpt
 @BINPATH@/components/jsinspector.xpt
 @BINPATH@/components/layout_base.xpt
@@ -310,9 +307,7 @@
 #endif
 @BINPATH@/components/uconv.xpt
 @BINPATH@/components/unicharutil.xpt
-#ifdef MOZ_UPDATER
 @BINPATH@/components/update.xpt
-#endif
 @BINPATH@/components/uriloader.xpt
 @BINPATH@/components/urlformatter.xpt
 @BINPATH@/components/webBrowser_core.xpt
@@ -348,6 +343,8 @@
 @BINPATH@/components/BrowserElementParent.js
 @BINPATH@/components/ContactManager.js
 @BINPATH@/components/ContactManager.manifest
+@BINPATH@/components/PhoneNumberService.js
+@BINPATH@/components/PhoneNumberService.manifest
 @BINPATH@/components/PermissionSettings.js
 @BINPATH@/components/PermissionSettings.manifest
 @BINPATH@/components/PermissionPromptService.js
@@ -472,10 +469,10 @@
 @BINPATH@/components/NetworkStatsManager.manifest
 @BINPATH@/components/NetworkInterfaceListService.manifest
 @BINPATH@/components/NetworkInterfaceListService.js
-#endif
-#ifdef MOZ_B2G_FM
-@BINPATH@/components/DOMFMRadioChild.js
-@BINPATH@/components/DOMFMRadio.manifest
+@BINPATH@/components/TelephonyProvider.manifest
+@BINPATH@/components/TelephonyProvider.js
+@BINPATH@/components/NetworkStatsServiceProxy.manifest
+@BINPATH@/components/NetworkStatsServiceProxy.js
 #endif
 #ifdef MOZ_ENABLE_DBUS
 @BINPATH@/components/@DLL_PREFIX@dbusservice@DLL_SUFFIX@
@@ -509,6 +506,11 @@
 @BINPATH@/components/Push.js
 @BINPATH@/components/Push.manifest
 @BINPATH@/components/PushServiceLauncher.js
+
+@BINPATH@/components/InterAppComm.manifest
+@BINPATH@/components/InterAppCommService.js
+@BINPATH@/components/InterAppConnection.js
+@BINPATH@/components/InterAppMessagePort.js
 
 @BINPATH@/components/nsDOMIdentity.js
 @BINPATH@/components/nsIDService.js
@@ -738,6 +740,7 @@ bin/components/@DLL_PREFIX@nkgnomevfs@DLL_SUFFIX@
 #ifdef MOZ_UPDATER
 @BINPATH@/components/UpdatePrompt.js
 #endif
+@BINPATH@/components/WebappsUpdateTimer.js
 @BINPATH@/components/MozKeyboard.js
 @BINPATH@/components/DirectoryProvider.js
 @BINPATH@/components/ActivitiesGlue.js

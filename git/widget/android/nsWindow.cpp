@@ -37,7 +37,6 @@ using mozilla::unused;
 #include "gfxContext.h"
 
 #include "Layers.h"
-#include "BasicLayers.h"
 #include "LayerManagerOGL.h"
 #include "mozilla/layers/LayerManagerComposite.h"
 #include "mozilla/layers/AsyncCompositionManager.h"
@@ -72,7 +71,7 @@ static gfxIntSize gAndroidScreenBounds;
 #include "nsThreadUtils.h"
 
 class ContentCreationNotifier;
-static nsCOMPtr<ContentCreationNotifier> gContentCreationNotifier;
+static StaticRefPtr<ContentCreationNotifier> gContentCreationNotifier;
 
 // A helper class to send updates when content processes
 // are created. Currently an update for the screen size is sent.
@@ -822,7 +821,7 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
             if (!obs)
                 break;
 
-            nsCOMPtr<ContentCreationNotifier> notifier = new ContentCreationNotifier;
+            nsRefPtr<ContentCreationNotifier> notifier = new ContentCreationNotifier;
             if (NS_SUCCEEDED(obs->AddObserver(notifier, "ipc:content-created", false))) {
                 if (NS_SUCCEEDED(obs->AddObserver(notifier, "xpcom-shutdown", false)))
                     gContentCreationNotifier = notifier;
@@ -1158,21 +1157,6 @@ nsWindow::OnMouseEvent(AndroidGeckoEvent *ae)
 {
     uint32_t msg;
     switch (ae->Action()) {
-#ifndef MOZ_ONLY_TOUCH_EVENTS
-        case AndroidMotionEvent::ACTION_DOWN:
-            msg = NS_MOUSE_BUTTON_DOWN;
-            break;
-
-        case AndroidMotionEvent::ACTION_MOVE:
-            msg = NS_MOUSE_MOVE;
-            break;
-
-        case AndroidMotionEvent::ACTION_UP:
-        case AndroidMotionEvent::ACTION_CANCEL:
-            msg = NS_MOUSE_BUTTON_UP;
-            break;
-#endif
-
         case AndroidMotionEvent::ACTION_HOVER_MOVE:
             msg = NS_MOUSE_MOVE;
             break;
@@ -2213,6 +2197,12 @@ nsWindow::SetInputContext(const InputContext& aContext,
 
     mInputContext.mIMEState.mEnabled = enabled;
 
+    if (enabled == IMEState::ENABLED && aAction.UserMightRequestOpenVKB()) {
+        // Don't reset keyboard when we should simply open the vkb
+        AndroidBridge::NotifyIME(AndroidBridge::NOTIFY_IME_OPEN_VKB);
+        return;
+    }
+
     if (mIMEUpdatingContext) {
         return;
     }
@@ -2265,8 +2255,7 @@ nsWindow::FlushIMEChanges()
         if (!event.mSucceeded)
             return;
 
-        AndroidBridge::NotifyIMEChange(event.mReply.mString.get(),
-                                       event.mReply.mString.Length(),
+        AndroidBridge::NotifyIMEChange(event.mReply.mString,
                                        change.mStart,
                                        change.mOldEnd,
                                        change.mNewEnd);
@@ -2281,9 +2270,9 @@ nsWindow::FlushIMEChanges()
         if (!event.mSucceeded)
             return;
 
-        AndroidBridge::NotifyIMEChange(nullptr, 0,
-                                       event.GetSelectionStart(),
-                                       event.GetSelectionEnd(), -1);
+        AndroidBridge::NotifyIMEChange(EmptyString(),
+                             (int32_t) event.GetSelectionStart(),
+                             (int32_t) event.GetSelectionEnd(), -1);
         mIMESelectionChanged = false;
     }
 }
@@ -2417,10 +2406,10 @@ nsWindow::DrawWindowOverlay(LayerManager* aManager, nsIntRect aRect)
 
 // off-main-thread compositor fields and functions
 
-nsRefPtr<mozilla::layers::APZCTreeManager> nsWindow::sApzcTreeManager = 0;
-nsRefPtr<mozilla::layers::LayerManager> nsWindow::sLayerManager = 0;
-nsRefPtr<mozilla::layers::CompositorParent> nsWindow::sCompositorParent = 0;
-nsRefPtr<mozilla::layers::CompositorChild> nsWindow::sCompositorChild = 0;
+StaticRefPtr<mozilla::layers::APZCTreeManager> nsWindow::sApzcTreeManager;
+StaticRefPtr<mozilla::layers::LayerManager> nsWindow::sLayerManager;
+StaticRefPtr<mozilla::layers::CompositorParent> nsWindow::sCompositorParent;
+StaticRefPtr<mozilla::layers::CompositorChild> nsWindow::sCompositorChild;
 bool nsWindow::sCompositorPaused = true;
 
 void

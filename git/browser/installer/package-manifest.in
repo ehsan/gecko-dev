@@ -176,7 +176,6 @@
 @BINPATH@/components/dom_base.xpt
 @BINPATH@/components/dom_system.xpt
 #ifdef MOZ_B2G_RIL
-@BINPATH@/components/dom_telephony.xpt
 @BINPATH@/components/dom_voicemail.xpt
 @BINPATH@/components/dom_wifi.xpt
 @BINPATH@/components/dom_system_gonk.xpt
@@ -203,7 +202,6 @@
 @BINPATH@/components/dom_indexeddb.xpt
 @BINPATH@/components/dom_offline.xpt
 @BINPATH@/components/dom_json.xpt
-@BINPATH@/components/dom_browserelement.xpt
 @BINPATH@/components/dom_power.xpt
 @BINPATH@/components/dom_quota.xpt
 @BINPATH@/components/dom_range.xpt
@@ -213,6 +211,7 @@
 @BINPATH@/components/dom_mobilemessage.xpt
 @BINPATH@/components/dom_storage.xpt
 @BINPATH@/components/dom_stylesheets.xpt
+@BINPATH@/components/dom_telephony.xpt
 @BINPATH@/components/dom_traversal.xpt
 #ifdef MOZ_WEBSPEECH
 @BINPATH@/components/dom_webspeechrecognition.xpt
@@ -249,6 +248,7 @@
 @BINPATH@/components/jsdservice.xpt
 #endif
 @BINPATH@/components/jsdebugger.xpt
+@BINPATH@/components/jsdownloads.xpt
 @BINPATH@/components/jsinspector.xpt
 @BINPATH@/components/layout_base.xpt
 #ifdef NS_PRINTING
@@ -520,6 +520,8 @@
 @BINPATH@/components/PermissionSettings.manifest
 @BINPATH@/components/ContactManager.js
 @BINPATH@/components/ContactManager.manifest
+@BINPATH@/components/PhoneNumberService.js
+@BINPATH@/components/PhoneNumberService.manifest
 @BINPATH@/components/AlarmsManager.js
 @BINPATH@/components/AlarmsManager.manifest
 @BINPATH@/components/Push.js
@@ -757,13 +759,13 @@ bin/libfreebl_32int64_3.so
 @BINPATH@/webapprt/chrome/@AB_CD@.manifest
 @BINPATH@/webapprt/components/CommandLineHandler.js
 @BINPATH@/webapprt/components/ContentPermission.js
-@BINPATH@/webapprt/components/ContentPolicy.js
 @BINPATH@/webapprt/components/DirectoryProvider.js
 @BINPATH@/webapprt/components/components.manifest
 @BINPATH@/webapprt/defaults/preferences/prefs.js
 @BINPATH@/webapprt/modules/Startup.jsm
 @BINPATH@/webapprt/modules/WebappRT.jsm
 @BINPATH@/webapprt/modules/WebappsHandler.jsm
+@BINPATH@/webapprt/modules/RemoteDebugger.jsm
 #endif
 
 #ifdef MOZ_METRO

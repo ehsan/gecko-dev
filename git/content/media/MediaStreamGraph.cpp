@@ -13,9 +13,7 @@
 #include "nsIObserver.h"
 #include "nsServiceManagerUtils.h"
 #include "nsWidgetsCID.h"
-#include "nsXPCOMCIDInternal.h"
 #include "prlog.h"
-#include "VideoUtils.h"
 #include "mozilla/Attributes.h"
 #include "TrackUnionStream.h"
 #include "ImageContainer.h"
@@ -2100,6 +2098,21 @@ SourceMediaStream::EndAllTrackAndFinish()
   // we will call NotifyFinished() to let GetUserMedia know
 }
 
+TrackTicks
+SourceMediaStream::GetBufferedTicks(TrackID aID)
+{
+  StreamBuffer::Track* track  = mBuffer.FindTrack(aID);
+  if (track) {
+    MediaSegment* segment = track->GetSegment();
+    if (segment) {
+      return segment->GetDuration() -
+        track->TimeToTicksRoundDown(
+          GraphTimeToStreamTime(GraphImpl()->mStateComputedTime));
+    }
+  }
+  return 0;
+}
+
 void
 MediaInputPort::Init()
 {
@@ -2339,9 +2352,12 @@ void
 MediaStreamGraph::DestroyNonRealtimeInstance(MediaStreamGraph* aGraph)
 {
   NS_ASSERTION(NS_IsMainThread(), "Main thread only");
-  MOZ_ASSERT(aGraph != gGraph, "Should not destroy the global graph here");
+  MOZ_ASSERT(aGraph->IsNonRealtime(), "Should not destroy the global graph here");
 
   MediaStreamGraphImpl* graph = static_cast<MediaStreamGraphImpl*>(aGraph);
+  if (graph->mForceShutDown)
+    return; // already done
+
   if (!graph->mNonRealtimeProcessing) {
     // Start the graph, but don't produce anything
     graph->StartNonRealtimeProcessing(0);
@@ -2406,6 +2422,12 @@ MediaStreamGraph::CreateAudioNodeStream(AudioNodeEngine* aEngine,
   }
   graph->AppendMessage(new CreateMessage(stream));
   return stream;
+}
+
+bool
+MediaStreamGraph::IsNonRealtime() const
+{
+  return this != gGraph;
 }
 
 void

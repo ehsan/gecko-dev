@@ -18,6 +18,7 @@
 #include "mozilla/dom/PCrashReporterParent.h"
 #include "mozilla/ipc/SyncChannel.h"
 #include "mozilla/plugins/BrowserStreamParent.h"
+#include "mozilla/plugins/PluginInstanceParent.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
 #include "mozilla/unused.h"
@@ -135,8 +136,6 @@ PluginModuleParent::PluginModuleParent(const char* aFilePath)
 #endif
 {
     NS_ASSERTION(mSubprocess, "Out of memory!");
-
-    mIdentifiers.Init();
 
     Preferences::RegisterCallback(TimeoutChanged, kChildTimeoutPref, this);
     Preferences::RegisterCallback(TimeoutChanged, kParentTimeoutPref, this);
@@ -649,8 +648,7 @@ PluginModuleParent::ProcessFirstMinidump()
     if (!crashReporter)
         return;
 
-    AnnotationTable notes;
-    notes.Init(4);
+    AnnotationTable notes(4);
     WriteExtraDataForMinidump(notes);
 
     if (!mPluginDumpID.IsEmpty()) {
@@ -1113,20 +1111,6 @@ PluginModuleParent::AsyncSetWindow(NPP instance, NPWindow* window)
 
     return i->AsyncSetWindow(window);
 }
-
-#if defined(MOZ_WIDGET_QT) && (MOZ_PLATFORM_MAEMO == 6)
-nsresult
-PluginModuleParent::HandleGUIEvent(NPP instance,
-                                   const nsGUIEvent& anEvent,
-                                   bool* handled)
-{
-    PluginInstanceParent* i = InstCast(instance);
-    if (!i)
-        return NS_ERROR_FAILURE;
-
-    return i->HandleGUIEvent(anEvent, handled);
-}
-#endif
 
 nsresult
 PluginModuleParent::GetImageContainer(NPP instance,

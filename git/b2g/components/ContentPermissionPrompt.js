@@ -13,7 +13,7 @@ const Cr = Components.results;
 const Cu = Components.utils;
 const Cc = Components.classes;
 
-const PROMPT_FOR_UNKNOWN = ["geolocation", "desktop-notification"];
+const PROMPT_FOR_UNKNOWN = ["geolocation", "desktop-notification", "audio-capture"];
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
@@ -188,7 +188,9 @@ ContentPermissionPrompt.prototype = {
     this.sendToBrowserWindow("permission-prompt", request, requestId, function(type, remember) {
       if (type == "permission-allow") {
         rememberPermission(request.type, principal, !remember);
-        callback();
+        if (callback) {
+          callback();
+        }
         request.allow();
         return;
       }
@@ -202,7 +204,9 @@ ContentPermissionPrompt.prototype = {
                                         Ci.nsIPermissionManager.EXPIRE_SESSION, 0);
       }
 
-      callback();
+      if (callback) {
+        callback();
+      }
       request.cancel();
     });
   },
@@ -245,13 +249,8 @@ ContentPermissionPrompt.prototype = {
       return;
     }
 
-    // When it's an app, get the manifest to add the l10n application name.
-    let app = DOMApplicationRegistry.getAppByLocalId(principal.appId);
-    DOMApplicationRegistry.getManifestFor(app.origin, function getManifest(aManifest) {
-      let helper = new ManifestHelper(aManifest, app.origin);
-      details.appName = helper.name;
-      browser.shell.sendChromeEvent(details);
-    });
+    details.manifestURL = DOMApplicationRegistry.getManifestURLByLocalId(principal.appId);
+    browser.shell.sendChromeEvent(details);
   },
 
   classID: Components.ID("{8c719f03-afe0-4aac-91ff-6c215895d467}"),

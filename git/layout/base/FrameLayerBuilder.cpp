@@ -12,9 +12,6 @@
 #include "nsLayoutUtils.h"
 #include "Layers.h"
 #include "BasicLayers.h"
-#include "nsSubDocumentFrame.h"
-#include "nsCSSRendering.h"
-#include "nsCSSFrameConstructor.h"
 #include "gfxUtils.h"
 #include "nsRenderingContext.h"
 #include "MaskLayerImageCache.h"
@@ -23,18 +20,10 @@
 #include "LayerTreeInvalidation.h"
 #include "nsSVGIntegrationUtils.h"
 
-#include "mozilla/Preferences.h"
 #include "GeckoProfiler.h"
 #include "mozilla/gfx/Tools.h"
 
-#include "nsAnimationManager.h"
-#include "nsTransitionManager.h"
 #include <algorithm>
-
-#ifdef DEBUG
-#include <stdio.h>
-//#define DEBUG_DISPLAY_ITEM_DATA
-#endif
 
 using namespace mozilla::layers;
 using namespace mozilla::gfx;
@@ -180,7 +169,6 @@ public:
     , mInvalidateAllLayers(false)
   {
     MOZ_COUNT_CTOR(LayerManagerData);
-    mDisplayItems.Init();
   }
   ~LayerManagerData() {
     MOZ_COUNT_DTOR(LayerManagerData);
@@ -258,7 +246,6 @@ public:
     // will work.
     mSnappingEnabled = aManager->IsSnappingEffectiveTransforms() &&
       !mParameters.AllowResidualTranslation();
-    mRecycledMaskImageLayers.Init();
     CollectOldLayers();
   }
 
@@ -667,7 +654,8 @@ struct MaskLayerUserData : public LayerUserData
     return mRoundedClipRects == aOther.mRoundedClipRects &&
            mScaleX == aOther.mScaleX &&
            mScaleY == aOther.mScaleY &&
-           mOffset == aOther.mOffset;
+           mOffset == aOther.mOffset &&
+           mAppUnitsPerDevPixel == aOther.mAppUnitsPerDevPixel;
   }
 
   nsRefPtr<const MaskLayerImageCache::MaskLayerImageKey> mImageKey;
@@ -678,6 +666,7 @@ struct MaskLayerUserData : public LayerUserData
   float mScaleX, mScaleY;
   // The ContainerParameters offset which is applied to the mask's transform.
   nsIntPoint mOffset;
+  int32_t mAppUnitsPerDevPixel;
 };
 
 /**
@@ -2041,6 +2030,9 @@ ContainerState::ProcessDisplayItems(const nsDisplayList& aList,
     topLeft = lastActiveScrolledRoot->GetOffsetToCrossDoc(mContainerReferenceFrame);
   }
 
+  int32_t maxLayers = nsDisplayItem::MaxActiveLayers();
+  int layerCount = 0;
+
   for (nsDisplayItem* item = aList.GetBottom(); item; item = item->GetAbove()) {
     NS_ASSERTION(mAppUnitsPerDevPixel == AppUnitsPerDevPixel(item),
       "items in a container layer should all have the same app units per dev pixel");
@@ -2083,12 +2075,18 @@ ContainerState::ProcessDisplayItems(const nsDisplayList& aList,
       }
     }
 
+    if (maxLayers != -1 && layerCount >= maxLayers) {
+      forceInactive = true;
+    }
+
     // Assign the item to a layer
     if (layerState == LAYER_ACTIVE_FORCE ||
         (layerState == LAYER_INACTIVE && !mManager->IsWidgetLayerManager()) ||
         (!forceInactive &&
          (layerState == LAYER_ACTIVE_EMPTY ||
           layerState == LAYER_ACTIVE))) {
+
+      layerCount++;
 
       // LAYER_ACTIVE_EMPTY means the layer is created just for its metadata.
       // We should never see an empty layer with any visible content!
@@ -2663,7 +2661,7 @@ ChooseScaleAndSetTransform(FrameLayerBuilder* aLayerBuilder,
   }
   gfxMatrix transform2d;
   if (aContainerFrame &&
-      aState == LAYER_INACTIVE &&
+      (aState == LAYER_INACTIVE || aState == LAYER_SVG_EFFECTS) &&
       (!aTransform || (aTransform->Is2D(&transform2d) &&
                        !transform2d.HasNonTranslation()))) {
     // When we have an inactive ContainerLayer, translate the container by the offset to the
@@ -2676,8 +2674,8 @@ ChooseScaleAndSetTransform(FrameLayerBuilder* aLayerBuilder,
     nsPoint appUnitOffset = aDisplayListBuilder->ToReferenceFrame(aContainerFrame);
     nscoord appUnitsPerDevPixel = aContainerFrame->PresContext()->AppUnitsPerDevPixel();
     offset = nsIntPoint(
-        int32_t(NSAppUnitsToDoublePixels(appUnitOffset.x, appUnitsPerDevPixel)*aIncomingScale.mXScale),
-        int32_t(NSAppUnitsToDoublePixels(appUnitOffset.y, appUnitsPerDevPixel)*aIncomingScale.mYScale));
+        NS_lround(NSAppUnitsToDoublePixels(appUnitOffset.x, appUnitsPerDevPixel)*aIncomingScale.mXScale),
+        NS_lround(NSAppUnitsToDoublePixels(appUnitOffset.y, appUnitsPerDevPixel)*aIncomingScale.mYScale));
   }
   transform = transform * gfx3DMatrix::Translation(offset.x + aIncomingScale.mOffset.x, offset.y + aIncomingScale.mOffset.y, 0);
 
@@ -2951,7 +2949,7 @@ FrameLayerBuilder::BuildContainerLayerFor(nsDisplayListBuilder* aBuilder,
   containerLayer->SetContentFlags(flags);
 
   mContainerLayerGeneration = oldGeneration;
-  containerLayer->SetUserData(&gNotifySubDocInvalidationData, nullptr);
+  nsPresContext::ClearNotifySubDocInvalidationData(containerLayer);
 
   return containerLayer.forget();
 }
@@ -3405,6 +3403,7 @@ ContainerState::SetupMaskLayer(Layer *aLayer, const DisplayItemClip& aClip,
   newData.mScaleX = mParameters.mXScale;
   newData.mScaleY = mParameters.mYScale;
   newData.mOffset = mParameters.mOffset;
+  newData.mAppUnitsPerDevPixel = mContainerFrame->PresContext()->AppUnitsPerDevPixel();
 
   if (*userData == newData) {
     aLayer->SetMaskLayer(maskLayer);
@@ -3413,8 +3412,8 @@ ContainerState::SetupMaskLayer(Layer *aLayer, const DisplayItemClip& aClip,
   }
 
   // calculate a more precise bounding rect
-  const int32_t A2D = mContainerFrame->PresContext()->AppUnitsPerDevPixel();
-  gfxRect boundingRect = CalculateBounds(newData.mRoundedClipRects, A2D);
+  gfxRect boundingRect = CalculateBounds(newData.mRoundedClipRects,
+                                         newData.mAppUnitsPerDevPixel);
   boundingRect.Scale(mParameters.mXScale, mParameters.mYScale);
 
   uint32_t maxSize = mManager->GetMaxTextureSize();
@@ -3470,7 +3469,10 @@ ContainerState::SetupMaskLayer(Layer *aLayer, const DisplayItemClip& aClip,
 
     // paint the clipping rects with alpha to create the mask
     context->SetColor(gfxRGBA(1, 1, 1, 1));
-    aClip.DrawRoundedRectsTo(context, A2D, 0, aRoundedRectClipCount);
+    aClip.DrawRoundedRectsTo(context,
+                             newData.mAppUnitsPerDevPixel,
+                             0,
+                             aRoundedRectClipCount);
 
     // build the image and container
     container = aLayer->Manager()->CreateImageContainer();

@@ -11,8 +11,53 @@
 #include "mozilla/Preferences.h"
 #include "nsGlobalWindow.h"
 #include "nsIAppsService.h"
+#include "PCOMContentPermissionRequestChild.h"
+
 namespace mozilla {
 namespace dom {
+
+/*
+ * Simple Request
+ */
+class DesktopNotificationRequest : public nsIContentPermissionRequest,
+                                   public nsRunnable,
+                                   public PCOMContentPermissionRequestChild
+
+{
+public:
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSICONTENTPERMISSIONREQUEST
+
+  DesktopNotificationRequest(DesktopNotification* notification)
+    : mDesktopNotification(notification) {}
+
+  NS_IMETHOD Run() MOZ_OVERRIDE
+  {
+    nsCOMPtr<nsIContentPermissionPrompt> prompt =
+      do_CreateInstance(NS_CONTENT_PERMISSION_PROMPT_CONTRACTID);
+    if (prompt) {
+      prompt->Prompt(this);
+    }
+    return NS_OK;
+  }
+
+  ~DesktopNotificationRequest()
+  {
+  }
+
+  virtual bool Recv__delete__(const bool& aAllow) MOZ_OVERRIDE
+  {
+    if (aAllow) {
+      (void) Allow();
+    } else {
+     (void) Cancel();
+    }
+   return true;
+  }
+  virtual void IPDLRelease() MOZ_OVERRIDE { Release(); }
+
+  nsRefPtr<DesktopNotification> mDesktopNotification;
+};
 
 /* ------------------------------------------------------------------------ */
 /* AlertServiceObserver                                                     */
@@ -47,7 +92,8 @@ DesktopNotification::PostDesktopNotification()
       return appNotifier->ShowAppNotification(mIconURL, mTitle, mDescription,
                                               true,
                                               manifestUrl,
-                                              mObserver);
+                                              mObserver,
+                                              EmptyString());
     }
   }
 #endif
@@ -115,7 +161,7 @@ DesktopNotification::Init()
 
     // because owner implements nsITabChild, we can assume that it is
     // the one and only TabChild for this docshell.
-    TabChild* child = GetTabChildFrom(GetOwner()->GetDocShell());
+    TabChild* child = TabChild::GetFrom(GetOwner()->GetDocShell());
 
     // Retain a reference so the object isn't deleted without IPDL's knowledge.
     // Corresponding release occurs in DeallocPContentPermissionRequest.
@@ -273,7 +319,9 @@ DesktopNotificationRequest::GetWindow(nsIDOMWindow * *aRequestingWindow)
 NS_IMETHODIMP
 DesktopNotificationRequest::GetElement(nsIDOMElement * *aElement)
 {
-  return NS_ERROR_FAILURE;
+  NS_ENSURE_ARG_POINTER(aElement);
+  *aElement = nullptr;
+  return NS_OK;
 }
 
 NS_IMETHODIMP

@@ -10,6 +10,7 @@
 #include "nsIClassInfo.h"
 #include "nsIContentSecurityPolicy.h"
 #include "nsIConsoleService.h"
+#include "nsIDOMDOMException.h"
 #include "nsIDOMFile.h"
 #include "nsIDocument.h"
 #include "nsIDocShell.h"
@@ -24,15 +25,12 @@
 #include "nsIURI.h"
 #include "nsIURL.h"
 #include "nsIXPConnect.h"
-#include "nsIXPCScriptNotify.h"
 #include "nsPrintfCString.h"
 #include "nsHostObjectProtocolHandler.h"
 
 #include <algorithm>
 #include "jsfriendapi.h"
-#include "jsdbgapi.h"
-#include "jsfriendapi.h"
-#include "jsprf.h"
+#include "js/OldDebugAPI.h"
 #include "js/MemoryMetrics.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/Likely.h"
@@ -58,7 +56,7 @@
 #endif
 
 #include "Events.h"
-#include "Exceptions.h"
+#include "mozilla/dom/Exceptions.h"
 #include "File.h"
 #include "Principal.h"
 #include "RuntimeService.h"
@@ -76,7 +74,7 @@
 using mozilla::MutexAutoLock;
 using mozilla::TimeDuration;
 using mozilla::TimeStamp;
-using mozilla::dom::workers::exceptions::ThrowDOMExceptionForNSResult;
+using mozilla::dom::Throw;
 using mozilla::AutoPushJSContext;
 using mozilla::AutoSafeJSContext;
 
@@ -220,7 +218,7 @@ struct WorkerStructuredCloneCallbacks
     return nullptr;
   }
 
-  static JSBool
+  static bool
   Write(JSContext* aCx, JSStructuredCloneWriter* aWriter,
         JS::Handle<JSObject*> aObj, void* aClosure)
   {
@@ -259,7 +257,7 @@ struct WorkerStructuredCloneCallbacks
     // See if this is an ImageData object.
     {
       ImageData* imageData = nullptr;
-      if (NS_SUCCEEDED(UnwrapObject<ImageData>(aCx, aObj, imageData))) {
+      if (NS_SUCCEEDED(UNWRAP_OBJECT(ImageData, aCx, aObj, imageData))) {
         // Prepare the ImageData internals.
         uint32_t width = imageData->Width();
         uint32_t height = imageData->Height();
@@ -280,7 +278,7 @@ struct WorkerStructuredCloneCallbacks
   static void
   Error(JSContext* aCx, uint32_t /* aErrorId */)
   {
-    ThrowDOMExceptionForNSResult(aCx, NS_ERROR_DOM_DATA_CLONE_ERR);
+    Throw(aCx, NS_ERROR_DOM_DATA_CLONE_ERR);
   }
 };
 
@@ -325,7 +323,7 @@ struct MainThreadWorkerStructuredCloneCallbacks
                                                  &NS_GET_IID(nsIDOMFile),
                                                  wrappedFile.address());
         if (NS_FAILED(rv)) {
-          Error(aCx, DATA_CLONE_ERR);
+          Error(aCx, nsIDOMDOMException::DATA_CLONE_ERR);
           return nullptr;
         }
 
@@ -359,7 +357,7 @@ struct MainThreadWorkerStructuredCloneCallbacks
                                                  &NS_GET_IID(nsIDOMBlob),
                                                  wrappedBlob.address());
         if (NS_FAILED(rv)) {
-          Error(aCx, DATA_CLONE_ERR);
+          Error(aCx, nsIDOMDOMException::DATA_CLONE_ERR);
           return nullptr;
         }
 
@@ -371,7 +369,7 @@ struct MainThreadWorkerStructuredCloneCallbacks
     return NS_DOMReadStructuredClone(aCx, aReader, aTag, aData, nullptr);
   }
 
-  static JSBool
+  static bool
   Write(JSContext* aCx, JSStructuredCloneWriter* aWriter,
         JS::Handle<JSObject*> aObj, void* aClosure)
   {
@@ -459,7 +457,7 @@ struct ChromeWorkerStructuredCloneCallbacks
                                                 aClosure);
   }
 
-  static JSBool
+  static bool
   Write(JSContext* aCx, JSStructuredCloneWriter* aWriter,
         JS::Handle<JSObject*> aObj, void* aClosure)
   {
@@ -505,7 +503,7 @@ struct MainThreadChromeWorkerStructuredCloneCallbacks
     return NS_DOMReadStructuredClone(aCx, aReader, aTag, aData, nullptr);
   }
 
-  static JSBool
+  static bool
   Write(JSContext* aCx, JSStructuredCloneWriter* aWriter,
         JS::Handle<JSObject*> aObj, void* aClosure)
   {
@@ -842,8 +840,6 @@ public:
 
   void PostRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate, bool aRunResult)
   {
-    // Notify before WorkerRunnable::PostRun, since that can kill aWorkerPrivate
-    NotifyScriptExecutedIfNeeded();
     WorkerRunnable::PostRun(aCx, aWorkerPrivate, aRunResult);
   }
 };
@@ -990,8 +986,6 @@ public:
 
   void PostRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate, bool aRunResult)
   {
-    // Notify before WorkerRunnable::PostRun, since that can kill aWorkerPrivate
-    NotifyScriptExecutedIfNeeded();
     WorkerRunnable::PostRun(aCx, aWorkerPrivate, aRunResult);
   }
 
@@ -1738,18 +1732,6 @@ WorkerRunnable::PostRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate,
   }
 }
 
-void
-WorkerRunnable::NotifyScriptExecutedIfNeeded() const
-{
-  // if we're on the main thread notify about the end of our script execution.
-  if (mTarget == ParentThread && !mWorkerPrivate->GetParent()) {
-    AssertIsOnMainThread();
-    if (mWorkerPrivate->GetScriptNotify()) {
-      mWorkerPrivate->GetScriptNotify()->ScriptExecuted();
-    }
-  }
-}
-
 struct WorkerPrivate::TimeoutInfo
 {
   TimeoutInfo()
@@ -1785,7 +1767,7 @@ struct WorkerPrivate::TimeoutInfo
   bool mCanceled;
 };
 
-class WorkerPrivate::MemoryReporter MOZ_FINAL : public nsIMemoryMultiReporter
+class WorkerPrivate::MemoryReporter MOZ_FINAL : public nsIMemoryReporter
 {
   friend class WorkerPrivate;
 
@@ -1826,7 +1808,7 @@ public:
   }
 
   NS_IMETHOD
-  CollectReports(nsIMemoryMultiReporterCallback* aCallback,
+  CollectReports(nsIMemoryReporterCallback* aCallback,
                  nsISupports* aClosure)
   {
     AssertIsOnMainThread();
@@ -1902,7 +1884,7 @@ private:
   }
 };
 
-NS_IMPL_ISUPPORTS1(WorkerPrivate::MemoryReporter, nsIMemoryMultiReporter)
+NS_IMPL_ISUPPORTS1(WorkerPrivate::MemoryReporter, nsIMemoryReporter)
 
 template <class Derived>
 WorkerPrivateParent<Derived>::WorkerPrivateParent(
@@ -1939,7 +1921,6 @@ WorkerPrivateParent<Derived>::WorkerPrivateParent(
 
   mWindow.swap(aWindow);
   mScriptContext.swap(aScriptContext);
-  mScriptNotify = do_QueryInterface(mScriptContext);
   mBaseURI.swap(aBaseURI);
   mPrincipal.swap(aPrincipal);
   mChannel.swap(aChannel);
@@ -2248,7 +2229,6 @@ WorkerPrivateParent<Derived>::ForgetMainThreadObjects(
 
   SwapToISupportsArray(mWindow, aDoomed);
   SwapToISupportsArray(mScriptContext, aDoomed);
-  SwapToISupportsArray(mScriptNotify, aDoomed);
   SwapToISupportsArray(mBaseURI, aDoomed);
   SwapToISupportsArray(mScriptURI, aDoomed);
   SwapToISupportsArray(mPrincipal, aDoomed);
@@ -2729,7 +2709,7 @@ WorkerPrivate::Create(JSContext* aCx, JS::Handle<JSObject*> aObj, WorkerPrivate*
       return nullptr;
     }
 
-    if (!GetContentSecurityPolicy(aCx, getter_AddRefs(csp))) {
+    if (!nsContentUtils::GetContentSecurityPolicy(aCx, getter_AddRefs(csp))) {
       return nullptr;
     }
 
@@ -3114,7 +3094,7 @@ WorkerPrivate::EnableMemoryReporter()
   // successfully registered the reporter.
   mMemoryReporter = new MemoryReporter(this);
 
-  if (NS_FAILED(NS_RegisterMemoryMultiReporter(mMemoryReporter))) {
+  if (NS_FAILED(NS_RegisterMemoryReporter(mMemoryReporter))) {
     NS_WARNING("Failed to register memory reporter!");
     // No need to lock here since a failed registration means our memory
     // reporter can't start running. Just clean up.
@@ -3169,7 +3149,7 @@ WorkerPrivate::DisableMemoryReporter()
   }
 
   // Finally unregister the memory reporter.
-  if (NS_FAILED(NS_UnregisterMemoryMultiReporter(memoryReporter))) {
+  if (NS_FAILED(NS_UnregisterMemoryReporter(memoryReporter))) {
     NS_WARNING("Failed to unregister memory reporter!");
   }
 }
@@ -4375,34 +4355,6 @@ WorkerPrivate::GetCrossThreadDispatcher()
   return mCrossThreadDispatcher;
 }
 
-bool
-WorkerPrivate::GetContentSecurityPolicy(JSContext* aCx,
-                                        nsIContentSecurityPolicy** aCSP)
-{
-  AssertIsOnMainThread();
-
-  // Get the security manager
-  nsCOMPtr<nsIScriptSecurityManager> ssm = nsContentUtils::GetSecurityManager();
-
-  if (!ssm) {
-    NS_ERROR("Failed to get security manager service");
-    return false;
-  }
-
-  nsCOMPtr<nsIPrincipal> subjectPrincipal = ssm->GetCxSubjectPrincipal(aCx);
-  NS_ASSERTION(subjectPrincipal, "Failed to get subjectPrincipal");
-
-  nsCOMPtr<nsIContentSecurityPolicy> csp;
-  nsresult rv = subjectPrincipal->GetCsp(getter_AddRefs(csp));
-  if (NS_FAILED(rv)) {
-    NS_ERROR("CSP: Failed to get CSP from principal.");
-    return false;
-  }
-
-  csp.forget(aCSP);
-  return true;
-}
-
 void
 WorkerPrivate::BeginCTypesCall()
 {
@@ -4447,13 +4399,6 @@ BEGIN_WORKERS_NAMESPACE
 
 // Force instantiation.
 template class WorkerPrivateParent<WorkerPrivate>;
-
-WorkerPrivate*
-GetWorkerPrivateFromContext(JSContext* aCx)
-{
-  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
-  return static_cast<WorkerPrivate*>(JS_GetRuntimePrivate(JS_GetRuntime(aCx)));
-}
 
 JSStructuredCloneCallbacks*
 WorkerStructuredCloneCallbacks(bool aMainRuntime)

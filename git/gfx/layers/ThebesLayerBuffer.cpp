@@ -3,19 +3,33 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "base/basictypes.h"
-
-#include "BasicLayersImpl.h"
 #include "ThebesLayerBuffer.h"
-#include "Layers.h"
-#include "gfxContext.h"
-#include "gfxPlatform.h"
-#include "gfxTeeSurface.h"
-#include "gfxUtils.h"
-#include "ipc/AutoOpenSurface.h"
-#include "nsDeviceContext.h"
-#include "GeckoProfiler.h"
-#include <algorithm>
+#include <sys/types.h>                  // for int32_t
+#include <algorithm>                    // for max
+#include "BasicImplData.h"              // for BasicImplData
+#include "BasicLayersImpl.h"            // for ToData
+#include "GeckoProfiler.h"              // for PROFILER_LABEL
+#include "Layers.h"                     // for ThebesLayer, Layer, etc
+#include "gfxColor.h"                   // for gfxRGBA
+#include "gfxContext.h"                 // for gfxContext, etc
+#include "gfxMatrix.h"                  // for gfxMatrix
+#include "gfxPattern.h"                 // for gfxPattern
+#include "gfxPlatform.h"                // for gfxPlatform
+#include "gfxPoint.h"                   // for gfxPoint
+#include "gfxRect.h"                    // for gfxRect
+#include "gfxTeeSurface.h"              // for gfxTeeSurface
+#include "gfxUtils.h"                   // for gfxUtils
+#include "mozilla/Util.h"               // for ArrayLength
+#include "mozilla/gfx/BasePoint.h"      // for BasePoint
+#include "mozilla/gfx/BaseRect.h"       // for BaseRect
+#include "mozilla/gfx/BaseSize.h"       // for BaseSize
+#include "mozilla/gfx/Matrix.h"         // for Matrix
+#include "mozilla/gfx/Point.h"          // for Point, IntPoint
+#include "mozilla/gfx/Rect.h"           // for Rect, IntRect
+#include "mozilla/gfx/Types.h"          // for ExtendMode::EXTEND_CLAMP, etc
+#include "mozilla/layers/ShadowLayers.h"  // for ShadowableLayer
+#include "mozilla/layers/TextureClient.h"  // for DeprecatedTextureClient
+#include "nsSize.h"                     // for nsIntSize
 
 namespace mozilla {
 
@@ -147,6 +161,7 @@ RotatedBuffer::DrawBufferQuadrant(gfx::DrawTarget* aTarget,
                                   XSide aXSide, YSide aYSide,
                                   ContextSource aSource,
                                   float aOpacity,
+                                  gfx::CompositionOp aOperator,
                                   gfx::SourceSurface* aMask,
                                   const gfx::Matrix* aMaskTransform) const
 {
@@ -179,14 +194,26 @@ RotatedBuffer::DrawBufferQuadrant(gfx::DrawTarget* aTarget,
   SurfacePattern source(snapshot, EXTEND_CLAMP, transform);
 #endif
 
+  if (aOperator == OP_SOURCE) {
+    // OP_SOURCE is unbounded in Azure, and we really don't want that behaviour here.
+    // We also can't do a ClearRect+FillRect since we need the drawing to happen
+    // as an atomic operation (to prevent flickering).
+    aTarget->PushClipRect(gfx::Rect(fillRect.x, fillRect.y,
+                                    fillRect.width, fillRect.height));
+  }
+
   if (aMask) {
     SurfacePattern mask(aMask, EXTEND_CLAMP, *aMaskTransform);
 
-    aTarget->Mask(source, mask, DrawOptions(aOpacity));
+    aTarget->Mask(source, mask, DrawOptions(aOpacity, aOperator));
   } else {
     aTarget->FillRect(gfx::Rect(fillRect.x, fillRect.y,
                                 fillRect.width, fillRect.height),
-                      source, DrawOptions(aOpacity));
+                      source, DrawOptions(aOpacity, aOperator));
+  }
+
+  if (aOperator == OP_SOURCE) {
+    aTarget->PopClip();
   }
 
   aTarget->Flush();
@@ -210,6 +237,7 @@ RotatedBuffer::DrawBufferWithRotation(gfxContext* aTarget, ContextSource aSource
 void
 RotatedBuffer::DrawBufferWithRotation(gfx::DrawTarget *aTarget, ContextSource aSource,
                                       float aOpacity,
+                                      gfx::CompositionOp aOperator,
                                       gfx::SourceSurface* aMask,
                                       const gfx::Matrix* aMaskTransform) const
 {
@@ -217,10 +245,10 @@ RotatedBuffer::DrawBufferWithRotation(gfx::DrawTarget *aTarget, ContextSource aS
   // See above, in Azure Repeat should always be a safe, even faster choice
   // though! Particularly on D2D Repeat should be a lot faster, need to look
   // into that. TODO[Bas]
-  DrawBufferQuadrant(aTarget, LEFT, TOP, aSource, aOpacity, aMask, aMaskTransform);
-  DrawBufferQuadrant(aTarget, RIGHT, TOP, aSource, aOpacity, aMask, aMaskTransform);
-  DrawBufferQuadrant(aTarget, LEFT, BOTTOM, aSource, aOpacity, aMask, aMaskTransform);
-  DrawBufferQuadrant(aTarget, RIGHT, BOTTOM, aSource, aOpacity, aMask, aMaskTransform);
+  DrawBufferQuadrant(aTarget, LEFT, TOP, aSource, aOpacity, aOperator, aMask, aMaskTransform);
+  DrawBufferQuadrant(aTarget, RIGHT, TOP, aSource, aOpacity, aOperator, aMask, aMaskTransform);
+  DrawBufferQuadrant(aTarget, LEFT, BOTTOM, aSource, aOpacity, aOperator, aMask, aMaskTransform);
+  DrawBufferQuadrant(aTarget, RIGHT, BOTTOM, aSource, aOpacity, aOperator,aMask, aMaskTransform);
 }
 
 /* static */ bool
@@ -263,6 +291,7 @@ ThebesLayerBuffer::DrawTo(ThebesLayer* aLayer,
     aTarget->Restore();
   } else {
     RefPtr<DrawTarget> dt = aTarget->GetDrawTarget();
+    bool clipped = false;
 
     // If the entire buffer is valid, we can just draw the whole thing,
     // no need to clip. But we'll still clip if clipping is cheap ---
@@ -278,11 +307,25 @@ ThebesLayerBuffer::DrawTo(ThebesLayer* aLayer,
       // we might sample pixels outside GetEffectiveVisibleRegion(), which is wrong
       // and may cause gray lines.
       gfxUtils::ClipToRegionSnapped(dt, aLayer->GetEffectiveVisibleRegion());
+      clipped = true;
     }
 
-    DrawBufferWithRotation(aTarget, BUFFER_BLACK, aOpacity, aMask, aMaskTransform);
-    aTarget->Restore();
-   }
+    RefPtr<SourceSurface> mask;
+    if (aMask) {
+      mask = gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(dt, aMask);
+    }
+
+    Matrix maskTransform;
+    if (aMaskTransform) {
+      maskTransform = ToMatrix(*aMaskTransform);
+    }
+
+    CompositionOp op = CompositionOpForOp(aTarget->CurrentOperator());
+    DrawBufferWithRotation(dt, BUFFER_BLACK, aOpacity, op, mask, &maskTransform);
+    if (clipped) {
+      dt->PopClip();
+    }
+  }
 }
 
 static void
@@ -304,19 +347,25 @@ ThebesLayerBuffer::GetContextForQuadrantUpdate(const nsIntRect& aBounds, Context
   nsRefPtr<gfxContext> ctx;
   if (aSource == BUFFER_BOTH && HaveBufferOnWhite()) {
     EnsureBufferOnWhite();
-    MOZ_ASSERT(mBuffer, "We don't support azure here yet");
-    gfxASurface* surfaces[2] = { mBuffer, mBufferOnWhite };
-    nsRefPtr<gfxTeeSurface> surf = new gfxTeeSurface(surfaces, ArrayLength(surfaces));
+    if (mBuffer) {
+      MOZ_ASSERT(mBufferOnWhite);
+      gfxASurface* surfaces[2] = { mBuffer, mBufferOnWhite };
+      nsRefPtr<gfxTeeSurface> surf = new gfxTeeSurface(surfaces, ArrayLength(surfaces));
 
-    // XXX If the device offset is set on the individual surfaces instead of on
-    // the tee surface, we render in the wrong place. Why?
-    gfxPoint deviceOffset = mBuffer->GetDeviceOffset();
-    surfaces[0]->SetDeviceOffset(gfxPoint(0, 0));
-    surfaces[1]->SetDeviceOffset(gfxPoint(0, 0));
-    surf->SetDeviceOffset(deviceOffset);
+      // XXX If the device offset is set on the individual surfaces instead of on
+      // the tee surface, we render in the wrong place. Why?
+      gfxPoint deviceOffset = mBuffer->GetDeviceOffset();
+      surfaces[0]->SetDeviceOffset(gfxPoint(0, 0));
+      surfaces[1]->SetDeviceOffset(gfxPoint(0, 0));
+      surf->SetDeviceOffset(deviceOffset);
 
-    surf->SetAllowUseAsSource(false);
-    ctx = new gfxContext(surf);
+      surf->SetAllowUseAsSource(false);
+      ctx = new gfxContext(surf);
+    } else {
+      MOZ_ASSERT(mDTBuffer && mDTBufferOnWhite);
+      RefPtr<DrawTarget> dualDT = Factory::CreateDualDrawTarget(mDTBuffer, mDTBufferOnWhite);
+      ctx = new gfxContext(dualDT);
+    }
   } else if (aSource == BUFFER_WHITE) {
     EnsureBufferOnWhite();
     if (mBufferOnWhite) {
@@ -380,14 +429,33 @@ ThebesLayerBuffer::BufferSizeOkFor(const nsIntSize& aSize)
            aSize < mBufferRect.Size()));
 }
 
+bool
+ThebesLayerBuffer::IsAzureBuffer()
+{
+  MOZ_ASSERT(!(mDTBuffer && mBuffer), "Trying to use Azure and Thebes in the same buffer?");
+  if (mDTBuffer) {
+    return true;
+  }
+  if (mBuffer) {
+    return false;
+  }
+  if (mBufferProvider) {
+    return gfxPlatform::GetPlatform()->SupportsAzureContentForType(
+      mBufferProvider->BackendType());
+  }
+  return SupportsAzureContent();
+}
+
 void
 ThebesLayerBuffer::EnsureBuffer()
 {
   if ((!mBuffer && !mDTBuffer) && mBufferProvider) {
-    if (SupportsAzureContent()) {
+    if (IsAzureBuffer()) {
       mDTBuffer = mBufferProvider->LockDrawTarget();
+      mBuffer = nullptr;
     } else {
       mBuffer = mBufferProvider->LockSurface();
+      mDTBuffer = nullptr;
     }
   }
 }
@@ -396,10 +464,12 @@ void
 ThebesLayerBuffer::EnsureBufferOnWhite()
 {
   if ((!mBufferOnWhite && !mDTBufferOnWhite) && mBufferProviderOnWhite) {
-    if (SupportsAzureContent()) {
+    if (IsAzureBuffer()) {
       mDTBufferOnWhite = mBufferProviderOnWhite->LockDrawTarget();
+      mBufferOnWhite = nullptr;
     } else {
       mBufferOnWhite = mBufferProviderOnWhite->LockSurface();
+      mDTBufferOnWhite = nullptr;
     }
   }
 }
@@ -488,7 +558,7 @@ ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
           !aLayer->Manager()->IsCompositingCheap() ||
           !aLayer->AsShadowableLayer() ||
           !aLayer->AsShadowableLayer()->HasShadow() ||
-          SupportsAzureContent()) {
+          !gfxPlatform::ComponentAlphaEnabled()) {
         mode = Layer::SURFACE_SINGLE_CHANNEL_ALPHA;
       } else {
         contentType = gfxASurface::CONTENT_COLOR;
@@ -569,18 +639,28 @@ ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
         if (mBufferRotation == nsIntPoint(0,0)) {
           nsIntRect srcRect(nsIntPoint(0, 0), mBufferRect.Size());
           nsIntPoint dest = mBufferRect.TopLeft() - destBufferRect.TopLeft();
-          if (mBuffer) {
+          if (IsAzureBuffer()) {
+            MOZ_ASSERT(mDTBuffer);
+            RefPtr<SourceSurface> source = mDTBuffer->Snapshot();
+            mDTBuffer->CopySurface(source,
+                                   IntRect(srcRect.x, srcRect.y, srcRect.width, srcRect.height),
+                                   IntPoint(dest.x, dest.y));
+            if (mode == Layer::SURFACE_COMPONENT_ALPHA) {
+              EnsureBufferOnWhite();
+              MOZ_ASSERT(mDTBufferOnWhite);
+              RefPtr<SourceSurface> sourceOnWhite = mDTBufferOnWhite->Snapshot();
+              mDTBufferOnWhite->CopySurface(sourceOnWhite,
+                                            IntRect(srcRect.x, srcRect.y, srcRect.width, srcRect.height),
+                                            IntPoint(dest.x, dest.y));
+            }
+          } else {
+            MOZ_ASSERT(mBuffer);
             mBuffer->MovePixels(srcRect, dest);
             if (mode == Layer::SURFACE_COMPONENT_ALPHA) {
               EnsureBufferOnWhite();
               MOZ_ASSERT(mBufferOnWhite);
               mBufferOnWhite->MovePixels(srcRect, dest);
             }
-          } else {
-            RefPtr<SourceSurface> source = mDTBuffer->Snapshot();
-            mDTBuffer->CopySurface(source,
-                                   IntRect(srcRect.x, srcRect.y, srcRect.width, srcRect.height),
-                                   IntPoint(dest.x, dest.y));
           }
           result.mDidSelfCopy = true;
           // Don't set destBuffer; we special-case self-copies, and
@@ -590,13 +670,9 @@ ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
           // We can't do a real self-copy because the buffer is rotated.
           // So allocate a new buffer for the destination.
           destBufferRect = ComputeBufferRect(neededRegion.GetBounds());
-          if (SupportsAzureContent()) {
-            MOZ_ASSERT(!mBuffer);
-            destDTBuffer = CreateDTBuffer(contentType, destBufferRect, bufferFlags);
-          } else {
-            MOZ_ASSERT(!mDTBuffer);
-            destBuffer = CreateBuffer(contentType, destBufferRect, bufferFlags, getter_AddRefs(destBufferOnWhite));
-          }
+          CreateBuffer(contentType, destBufferRect, bufferFlags,
+                       getter_AddRefs(destBuffer), getter_AddRefs(destBufferOnWhite),
+                       &destDTBuffer, &destDTBufferOnWhite);
           if (!destBuffer && !destDTBuffer)
             return result;
         }
@@ -613,13 +689,9 @@ ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
     }
   } else {
     // The buffer's not big enough, so allocate a new one
-    if (SupportsAzureContent()) {
-      MOZ_ASSERT(!mBuffer);
-      destDTBuffer = CreateDTBuffer(contentType, destBufferRect, bufferFlags);
-    } else {
-      MOZ_ASSERT(!mDTBuffer);
-      destBuffer = CreateBuffer(contentType, destBufferRect, bufferFlags, getter_AddRefs(destBufferOnWhite));
-    }
+    CreateBuffer(contentType, destBufferRect, bufferFlags,
+                 getter_AddRefs(destBuffer), getter_AddRefs(destBufferOnWhite),
+                 &destDTBuffer, &destDTBufferOnWhite);
     if (!destBuffer && !destDTBuffer)
       return result;
   }
@@ -645,21 +717,20 @@ ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
         EnsureBufferOnWhite();
         NS_ASSERTION(destBufferOnWhite, "Must have a white buffer!");
         nsRefPtr<gfxContext> tmpCtx = new gfxContext(destBufferOnWhite);
-        nsIntPoint offset = -destBufferRect.TopLeft();
         tmpCtx->SetOperator(gfxContext::OPERATOR_SOURCE);
         tmpCtx->Translate(gfxPoint(offset.x, offset.y));
         DrawBufferWithRotation(tmpCtx, BUFFER_WHITE);
       }
     }
 
-    MOZ_ASSERT(!SupportsAzureContent());
     mBuffer = destBuffer.forget();
+    mDTBuffer = nullptr;
     mBufferRect = destBufferRect;
     mBufferOnWhite = destBufferOnWhite.forget();
+    mDTBufferOnWhite = nullptr;
     mBufferRotation = nsIntPoint(0,0);
   } else if (destDTBuffer) {
     if (!isClear && (mode != Layer::SURFACE_COMPONENT_ALPHA || HaveBufferOnWhite())) {
-      MOZ_ASSERT(mode != Layer::SURFACE_COMPONENT_ALPHA, "We don't support azure here yet");
       // Copy the bits
       nsIntPoint offset = -destBufferRect.TopLeft();
       Matrix mat;
@@ -667,11 +738,23 @@ ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
       destDTBuffer->SetTransform(mat);
       EnsureBuffer();
       MOZ_ASSERT(mDTBuffer, "Have we got a Thebes buffer for some reason?");
-      DrawBufferWithRotation(destDTBuffer, BUFFER_BLACK);
+      DrawBufferWithRotation(destDTBuffer, BUFFER_BLACK, 1.0, OP_SOURCE);
       destDTBuffer->SetTransform(Matrix());
+
+      if (mode == Layer::SURFACE_COMPONENT_ALPHA) {
+        NS_ASSERTION(destDTBufferOnWhite, "Must have a white buffer!");
+        destDTBufferOnWhite->SetTransform(mat);
+        EnsureBufferOnWhite();
+        MOZ_ASSERT(destDTBufferOnWhite, "Have we got a Thebes buffer for some reason?");
+        DrawBufferWithRotation(destDTBufferOnWhite, BUFFER_WHITE, 1.0, OP_SOURCE);
+        destDTBufferOnWhite->SetTransform(Matrix());
+      }
     }
 
     mDTBuffer = destDTBuffer.forget();
+    mBuffer = nullptr;
+    mDTBufferOnWhite = destDTBufferOnWhite.forget();
+    mBufferOnWhite = nullptr;
     mBufferRect = destBufferRect;
     mBufferRotation = nsIntPoint(0,0);
   }
@@ -686,17 +769,24 @@ ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
   result.mContext = GetContextForQuadrantUpdate(drawBounds, BUFFER_BOTH, &topLeft);
 
   if (mode == Layer::SURFACE_COMPONENT_ALPHA) {
-    MOZ_ASSERT(mBuffer && mBufferOnWhite, "Must not be using azure!");
-    FillSurface(mBuffer, result.mRegionToDraw, topLeft, gfxRGBA(0.0, 0.0, 0.0, 1.0));
-    FillSurface(mBufferOnWhite, result.mRegionToDraw, topLeft, gfxRGBA(1.0, 1.0, 1.0, 1.0));
+    if (IsAzureBuffer()) {
+      MOZ_ASSERT(mDTBuffer && mDTBufferOnWhite);
+      nsIntRegionRectIterator iter(result.mRegionToDraw);
+      const nsIntRect *iterRect;
+      while ((iterRect = iter.Next())) {
+        mDTBuffer->FillRect(Rect(iterRect->x, iterRect->y, iterRect->width, iterRect->height),
+                            ColorPattern(Color(0.0, 0.0, 0.0, 1.0)));
+        mDTBufferOnWhite->FillRect(Rect(iterRect->x, iterRect->y, iterRect->width, iterRect->height),
+                                   ColorPattern(Color(1.0, 1.0, 1.0, 1.0)));
+      }
+    } else {
+      MOZ_ASSERT(mBuffer && mBufferOnWhite);
+      FillSurface(mBuffer, result.mRegionToDraw, topLeft, gfxRGBA(0.0, 0.0, 0.0, 1.0));
+      FillSurface(mBufferOnWhite, result.mRegionToDraw, topLeft, gfxRGBA(1.0, 1.0, 1.0, 1.0));
+    }
     gfxUtils::ClipToRegionSnapped(result.mContext, result.mRegionToDraw);
   } else if (contentType == gfxASurface::CONTENT_COLOR_ALPHA && !isClear) {
-    if (result.mContext->IsCairo()) {
-      gfxUtils::ClipToRegionSnapped(result.mContext, result.mRegionToDraw);
-      result.mContext->SetOperator(gfxContext::OPERATOR_CLEAR);
-      result.mContext->Paint();
-      result.mContext->SetOperator(gfxContext::OPERATOR_OVER);
-    } else {
+    if (IsAzureBuffer()) {
       nsIntRegionRectIterator iter(result.mRegionToDraw);
       const nsIntRect *iterRect;
       while ((iterRect = iter.Next())) {
@@ -705,6 +795,12 @@ ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
       // Clear will do something expensive with a complex clip pushed, so clip
       // here.
       gfxUtils::ClipToRegionSnapped(result.mContext, result.mRegionToDraw);
+    } else {
+      MOZ_ASSERT(result.mContext->IsCairo());
+      gfxUtils::ClipToRegionSnapped(result.mContext, result.mRegionToDraw);
+      result.mContext->SetOperator(gfxContext::OPERATOR_CLEAR);
+      result.mContext->Paint();
+      result.mContext->SetOperator(gfxContext::OPERATOR_OVER);
     }
   } else {
     gfxUtils::ClipToRegionSnapped(result.mContext, result.mRegionToDraw);

@@ -5,10 +5,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "MediaBufferDecoder.h"
-#include "AbstractMediaDecoder.h"
-#include "mozilla/Attributes.h"
-#include "mozilla/ReentrantMonitor.h"
 #include "BufferDecoder.h"
+#include "mozilla/dom/AudioContextBinding.h"
 #include <speex/speex_resampler.h>
 #include "nsXPCOMCIDInternal.h"
 #include "nsComponentManagerUtils.h"
@@ -17,8 +15,6 @@
 #include "DecoderTraits.h"
 #include "AudioContext.h"
 #include "AudioBuffer.h"
-#include "nsIScriptGlobalObject.h"
-#include "nsIScriptContext.h"
 #include "nsIScriptObjectPrincipal.h"
 #include "nsIScriptError.h"
 #include "nsMimeTypes.h"
@@ -576,15 +572,6 @@ MediaBufferDecoder::EnsureThreadPoolInitialized()
   return true;
 }
 
-void
-MediaBufferDecoder::Shutdown() {
-  if (mThreadPool) {
-    mThreadPool->Shutdown();
-    mThreadPool = nullptr;
-  }
-  MOZ_ASSERT(!mThreadPool);
-}
-
 WebAudioDecodeJob::WebAudioDecodeJob(const nsACString& aContentType,
                                      AudioContext* aContext,
                                      const ArrayBuffer& aBuffer,
@@ -606,7 +593,7 @@ WebAudioDecodeJob::WebAudioDecodeJob(const nsACString& aContentType,
              (!aSuccessCallback && !aFailureCallback),
              "If a success callback is not passed, no failure callback should be passed either");
 
-  nsContentUtils::HoldJSObjects(this, NS_CYCLE_COLLECTION_PARTICIPANT(WebAudioDecodeJob));
+  mozilla::HoldJSObjects(this);
 }
 
 WebAudioDecodeJob::~WebAudioDecodeJob()
@@ -614,7 +601,7 @@ WebAudioDecodeJob::~WebAudioDecodeJob()
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_COUNT_DTOR(WebAudioDecodeJob);
   mArrayBuffer = nullptr;
-  nsContentUtils::DropJSObjects(this);
+  mozilla::DropJSObjects(this);
 }
 
 void
@@ -664,7 +651,7 @@ WebAudioDecodeJob::OnFailure(ErrorCode aErrorCode)
     doc = pWindow->GetExtantDoc();
   }
   nsContentUtils::ReportToConsole(nsIScriptError::errorFlag,
-                                  "Media",
+                                  NS_LITERAL_CSTRING("Media"),
                                   doc,
                                   nsContentUtils::eDOM_PROPERTIES,
                                   errorMessage);

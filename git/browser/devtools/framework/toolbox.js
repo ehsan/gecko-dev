@@ -6,13 +6,19 @@
 
 const {Cc, Ci, Cu} = require("chrome");
 const MAX_ORDINAL = 99;
+const ZOOM_PREF = "devtools.toolbox.zoomValue";
+const MIN_ZOOM = 0.5;
+const MAX_ZOOM = 2;
+
 let promise = require("sdk/core/promise");
 let EventEmitter = require("devtools/shared/event-emitter");
 let Telemetry = require("devtools/shared/telemetry");
+let HUDService = require("devtools/webconsole/hudservice");
 
 Cu.import('resource://gre/modules/XPCOMUtils.jsm');
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource:///modules/devtools/gDevTools.jsm");
+Cu.import("resource:///modules/devtools/scratchpad-manager.jsm");
 
 loader.lazyGetter(this, "Hosts", () => require("devtools/framework/toolbox-hosts").Hosts);
 
@@ -188,6 +194,13 @@ Toolbox.prototype = {
   },
 
   /**
+   * Get current zoom level of toolbox
+   */
+  get zoomValue() {
+    return parseFloat(Services.prefs.getCharPref(ZOOM_PREF));
+  },
+
+  /**
    * Open the toolbox
    */
   open: function TBOX_open() {
@@ -208,6 +221,8 @@ Toolbox.prototype = {
         this._buildButtons();
         this._addKeysToWindow();
         this._addToolSwitchingKeys();
+        this._addZoomKeys();
+        this._loadInitialZoom();
 
         this._telemetry.toolOpened("toolbox");
 
@@ -236,6 +251,70 @@ Toolbox.prototype = {
     nextKey.addEventListener("command", this.selectNextTool.bind(this), true);
     let prevKey = this.doc.getElementById("toolbox-previous-tool-key");
     prevKey.addEventListener("command", this.selectPreviousTool.bind(this), true);
+  },
+
+  /**
+   * Wire up the listeners for the zoom keys.
+   */
+  _addZoomKeys: function TBOX__addZoomKeys() {
+    let inKey = this.doc.getElementById("toolbox-zoom-in-key");
+    inKey.addEventListener("command", this.zoomIn.bind(this), true);
+
+    let inKey2 = this.doc.getElementById("toolbox-zoom-in-key2");
+    inKey2.addEventListener("command", this.zoomIn.bind(this), true);
+
+    let outKey = this.doc.getElementById("toolbox-zoom-out-key");
+    outKey.addEventListener("command", this.zoomOut.bind(this), true);
+
+    let resetKey = this.doc.getElementById("toolbox-zoom-reset-key");
+    resetKey.addEventListener("command", this.zoomReset.bind(this), true);
+  },
+
+  /**
+   * Set zoom on toolbox to whatever the last setting was.
+   */
+  _loadInitialZoom: function TBOX__loadInitialZoom() {
+    this.setZoom(this.zoomValue);
+  },
+
+  /**
+   * Increase zoom level of toolbox window - make things bigger.
+   */
+  zoomIn: function TBOX__zoomIn() {
+    this.setZoom(this.zoomValue + 0.1);
+  },
+
+  /**
+   * Decrease zoom level of toolbox window - make things smaller.
+   */
+  zoomOut: function TBOX__zoomOut() {
+    this.setZoom(this.zoomValue - 0.1);
+  },
+
+  /**
+   * Reset zoom level of the toolbox window.
+   */
+  zoomReset: function TBOX__zoomReset() {
+    this.setZoom(1);
+  },
+
+  /**
+   * Set zoom level of the toolbox window.
+   *
+   * @param {number} zoomValue
+   *        Zoom level e.g. 1.2
+   */
+  setZoom: function TBOX__setZoom(zoomValue) {
+    // cap zoom value
+    zoomValue = Math.max(zoomValue, MIN_ZOOM);
+    zoomValue = Math.min(zoomValue, MAX_ZOOM);
+
+    let contViewer = this.frame.docShell.contentViewer;
+    let docViewer = contViewer.QueryInterface(Ci.nsIMarkupDocumentViewer);
+
+    docViewer.fullZoom = zoomValue;
+
+    Services.prefs.setCharPref(ZOOM_PREF, zoomValue);
   },
 
   /**
@@ -270,6 +349,34 @@ Toolbox.prototype = {
         }.bind(this, id), true);
         doc.getElementById("toolbox-keyset").appendChild(key);
       }
+    }
+
+    // Add key for opening Scratchpad from the detached window
+    if(doc.getElementById("key_scratchpad") == null) {
+      let key = doc.createElement("key");
+      key.id = "key_scratchpad";
+
+      key.setAttribute("keycode", toolboxStrings("scratchpad.keycode"));
+      key.setAttribute("modifiers", "shift");
+      key.setAttribute("oncommand", "void(0)"); // needed. See bug 371900
+      key.addEventListener("command", function() {
+        ScratchpadManager.openScratchpad();
+      }, true);
+      doc.getElementById("toolbox-keyset").appendChild(key);
+    }
+
+    // Add key for toggling the browser console from the detached window
+    if(doc.getElementById("key_browserconsole") == null) {
+      let key = doc.createElement("key");
+      key.id = "key_browserconsole";
+
+      key.setAttribute("key", toolboxStrings("browserConsoleCmd.commandkey"));
+      key.setAttribute("modifiers", "accel,shift");
+      key.setAttribute("oncommand", "void(0)"); // needed. See bug 371900
+      key.addEventListener("command", function() {
+        HUDService.toggleBrowserConsole();
+      }, true);
+      doc.getElementById("toolbox-keyset").appendChild(key);
     }
   },
 
@@ -516,6 +623,9 @@ Toolbox.prototype = {
     let prevToolId = this._currentToolId;
 
     if (this._currentToolId == id) {
+      // re-focus tool to get key events again
+      this.focusTool(id);
+
       // Return the existing panel in order to have a consistent return value.
       return promise.resolve(this._toolPanels.get(id));
     }
@@ -558,10 +668,23 @@ Toolbox.prototype = {
     }
 
     return this.loadTool(id).then((panel) => {
+      // focus the tool's frame to start receiving key events
+      this.focusTool(id);
+
       this.emit("select", id);
       this.emit(id + "-selected", panel);
       return panel;
     });
+  },
+
+  /**
+   * Focus a tool's panel by id
+   * @param  {string} id
+   *         The id of tool to focus
+   */
+  focusTool: function(id) {
+    let iframe = this.doc.getElementById("toolbox-panel-iframe-" + id);
+    iframe.focus();
   },
 
   /**
@@ -817,8 +940,7 @@ Toolbox.prototype = {
 
     this._telemetry.destroy();
 
-    // Targets need to be notified that the toolbox is being torn down, so that
-    // remote protocol connections can be gracefully terminated.
+    // Targets need to be notified that the toolbox is being torn down.
     if (this._target) {
       this._target.off("close", this.destroy);
       outstanding.push(this._target.destroy());

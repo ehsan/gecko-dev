@@ -70,7 +70,7 @@ var ContentAreaObserver = {
   },
 
   get isKeyboardOpened() {
-    return MetroUtils.keyboardVisible;
+    return Services.metro.keyboardVisible;
   },
 
   get isKeyboardTransitioning() {
@@ -133,6 +133,17 @@ var ContentAreaObserver = {
     let newWidth = width || this.width;
     let newHeight = height || this.contentHeight;
 
+    if (Browser.selectedBrowser) {
+      let notificationBox = Browser.getNotificationBox();
+
+      // If a notification and navbar are visible together,
+      // make the notification appear above the navbar.
+      if (ContextUI.navbarVisible && !notificationBox.notificationsHidden &&
+          notificationBox.allNotifications.length != 0) {
+        newHeight -= Elements.navbar.getBoundingClientRect().height;
+      }
+    }
+
     if (newHeight == oldHeight && newWidth == oldWidth)
       return;
 
@@ -171,7 +182,7 @@ var ContentAreaObserver = {
 
   updateAppBarPosition: function updateAppBarPosition(aForceDown) {
     // Adjust the app and find bar position above the soft keyboard
-    let keyboardHeight = aForceDown ? 0 : MetroUtils.keyboardHeight;
+    let keyboardHeight = aForceDown ? 0 : Services.metro.keyboardHeight;
     Elements.navbar.style.bottom = keyboardHeight + "px";
     Elements.contextappbar.style.bottom = keyboardHeight + "px";
     Elements.findbar.style.bottom = keyboardHeight + "px";
@@ -187,8 +198,9 @@ var ContentAreaObserver = {
   },
 
   onBrowserCreated: function onBrowserCreated(aBrowser) {
-    aBrowser.classList.add("content-width");
-    aBrowser.classList.add("content-height");
+    let notificationBox = aBrowser.parentNode.parentNode;
+    notificationBox.classList.add("content-width");
+    notificationBox.classList.add("content-height");
   },
 
   /*
@@ -323,7 +335,7 @@ var ContentAreaObserver = {
   },
 
   _getViewableHeightForContent: function (contentHeight) {
-    let keyboardHeight = MetroUtils.keyboardHeight;
+    let keyboardHeight = Services.metro.keyboardHeight;
     return contentHeight - keyboardHeight;
   },
 

@@ -34,6 +34,12 @@
     "n_buckets": 50,
     "description": "Time spent on one cycle collection (ms)"
   },
+  "CYCLE_COLLECTOR_WORKER": {
+    "kind": "exponential",
+    "high": "10000",
+    "n_buckets": 50,
+    "description": "Time spent on one cycle collection in a worker (ms)"
+  },
   "CYCLE_COLLECTOR_FULL": {
     "kind": "exponential",
     "high": "10000",
@@ -54,11 +60,23 @@
     "n_buckets": 50,
     "description": "Number of ref counted objects visited by the cycle collector"
   },
+  "CYCLE_COLLECTOR_WORKER_VISITED_REF_COUNTED": {
+    "kind": "exponential",
+    "high": "300000",
+    "n_buckets": 50,
+    "description": "Number of ref counted objects visited by the cycle collector in a worker"
+  },
   "CYCLE_COLLECTOR_VISITED_GCED": {
     "kind": "exponential",
     "high": "300000",
     "n_buckets": 50,
     "description": "Number of JS objects visited by the cycle collector"
+  },
+  "CYCLE_COLLECTOR_WORKER_VISITED_GCED": {
+    "kind": "exponential",
+    "high": "300000",
+    "n_buckets": 50,
+    "description": "Number of JS objects visited by the cycle collector in a worker"
   },
   "CYCLE_COLLECTOR_COLLECTED": {
     "kind": "exponential",
@@ -66,9 +84,19 @@
     "n_buckets": 50,
     "description": "Number of objects collected by the cycle collector"
   },
+  "CYCLE_COLLECTOR_WORKER_COLLECTED": {
+    "kind": "exponential",
+    "high": "100000",
+    "n_buckets": 50,
+    "description": "Number of objects collected by the cycle collector in a worker"
+  },
   "CYCLE_COLLECTOR_NEED_GC": {
     "kind": "boolean",
     "description": "Needed garbage collection before cycle collection."
+  },
+  "CYCLE_COLLECTOR_WORKER_NEED_GC": {
+    "kind": "boolean",
+    "description": "Needed garbage collection before cycle collection in a worker."
   },
   "CYCLE_COLLECTOR_TIME_BETWEEN": {
     "kind": "exponential",
@@ -85,6 +113,10 @@
   "CYCLE_COLLECTOR_OOM": {
     "kind": "flag",
     "description": "Set if the cycle collector ran out of memory at some point"
+  },
+  "CYCLE_COLLECTOR_WORKER_OOM": {
+    "kind": "flag",
+    "description": "Set if the cycle collector in a worker ran out of memory at some point"
   },
   "CYCLE_COLLECTOR_ASYNC_SNOW_WHITE_FREEING": {
     "kind": "exponential",
@@ -1573,6 +1605,11 @@
     "n_buckets": 50,
     "description": "Time spent waiting on the cache service lock (ms) on the main thread in NSASYNCDOOMEVENT_RUN"
   },
+  "DNT_USAGE": {
+    "kind": "enumerated",
+    "n_values": 3,
+    "description": "I want to be tracked, I do NOT want to be tracked, DNT unset"
+  },
   "DNS_LOOKUP_METHOD2": {
     "kind": "enumerated",
     "n_values": 16,
@@ -2552,6 +2589,22 @@
     "extended_statistics_ok": true,
     "description": "Session restore: Time spent blocking the main thread while restoring a window state (ms)"
   },
+  "FX_SESSION_RESTORE_SESSION_LENGTH": {
+    "kind": "exponential",
+    "high": "365",
+    "n_buckets": 15,
+    "description": "Session restore: Days elapsed since the session was first started"
+  },
+  "FX_SESSION_RESTORE_TABSTATECACHE_HIT_RATE": {
+     "kind": "enumerated",
+     "n_values": 101,
+     "description": "Session restore: Percentage of tab state cache hits in all tab state cache accesses"
+  },
+  "FX_SESSION_RESTORE_TABSTATECACHE_CLEAR_RATIO": {
+     "kind": "enumerated",
+     "n_values": 101,
+     "description": "Session restore: Number of times the tab state cache has been cleared during a session divided by number of total accesses during the session (percentage)"
+  },
   "INNERWINDOWS_WITH_MUTATION_LISTENERS": {
     "kind": "boolean",
     "description": "Deleted or to-be-reused innerwindow which has had mutation event listeners."
@@ -3002,18 +3055,6 @@
     "description": "The device supports touch input",
     "cpp_guard": "XP_WIN"
   },
-  "COMPONENTS_OBJECT_ACCESSED_BY_CONTENT": {
-    "kind": "flag",
-    "description": "Whether content ever accesed the Components object in this session"
-  },
-  "COMPONENTS_LOOKUPMETHOD_ACCESSED_BY_CONTENT": {
-    "kind": "flag",
-    "description": "Whether content ever accesed Components.lookupMethod in this session"
-  },
-  "COMPONENTS_INTERFACES_ACCESSED_BY_CONTENT": {
-    "kind": "flag",
-    "description": "Whether content ever accesed Components.interfaces in this session"
-  },
   "COMPONENTS_SHIM_ACCESSED_BY_CONTENT": {
     "kind": "flag",
     "description": "Whether content ever accesed the Components shim in this session"
@@ -3147,6 +3188,64 @@
     "high": "20000",
     "n_buckets": 15,
     "description": "Time (ms) for a WAL checkpoint after collecting all measurements."
+  },
+  "PDF_VIEWER_USED": {
+    "kind": "boolean",
+    "description": "How many times PDF Viewer was used"
+  },
+  "PDF_VIEWER_FALLBACK_SHOWN": {
+    "kind": "boolean",
+    "description": "How many times PDF Viewer fallback bar was shown"
+  },
+  "PDF_VIEWER_PRINT": {
+    "kind": "boolean",
+    "description": "How many times PDF Viewer print functionality was used"
+  },
+  "PDF_VIEWER_DOCUMENT_VERSION": {
+    "kind": "enumerated",
+    "n_values": 20,
+    "description": "The PDF document version (1.1, 1.2, etc.)"
+  },
+  "PDF_VIEWER_DOCUMENT_GENERATOR": {
+    "kind": "enumerated",
+    "n_values": 30,
+    "description": "The PDF document generator"
+  },
+  "PDF_VIEWER_DOCUMENT_SIZE_KB": {
+    "kind": "exponential",
+    "low": "2",
+    "high": "64 * 1024",
+    "n_buckets": 20,
+    "description": "The PDF document size (KB)"
+  },
+  "PDF_VIEWER_FORM": {
+    "kind": "boolean",
+    "description": "A PDF form expected: true for AcroForm and false for XFA"
+  },
+  "PDF_VIEWER_STREAM_TYPES": {
+    "kind": "enumerated",
+    "n_values": 9,
+    "description": "The PDF document compression stream types used"
+  },
+  "PDF_VIEWER_TIME_TO_VIEW_MS": {
+    "kind": "exponential",
+    "high": "10000",
+    "n_buckets": 50,
+    "description": "Time spent to display first page in PDF Viewer (ms)"
+  },
+  "PLUGINS_NOTIFICATION_SHOWN": {
+    "kind": "boolean",
+    "description": "The number of times the click-to-activate notification was shown: false: shown by in-content activation true: shown by location bar activation"
+  },
+  "PLUGINS_NOTIFICATION_PLUGIN_COUNT": {
+    "kind": "enumerated",
+    "n_values": 5,
+    "description": "The number of plugins present in the click-to-activate notification, minus one (1, 2, 3, 4, more than 4)"
+  },
+  "PLUGINS_NOTIFICATION_USER_ACTION": {
+    "kind": "enumerated",
+    "n_values": 3,
+    "description": "User actions taken in the plugin notification: 0: allownow 1: allowalways 2: block"
   },
   "POPUP_NOTIFICATION_MAINACTION_TRIGGERED_MS": {
     "kind": "linear",
@@ -3323,6 +3422,18 @@
     "n_buckets": "1000",
     "description": "The time (in milliseconds) that it took a 'prototypeAndProperties' request to go round trip."
   },
+  "DEVTOOLS_DEBUGGER_RDP_LOCAL_PROTOTYPESANDPROPERTIES_MS": {
+    "kind": "exponential",
+    "high": "10000",
+    "n_buckets": "1000",
+    "description": "The time (in milliseconds) that it took a 'prototypesAndProperties' request to go round trip."
+  },
+  "DEVTOOLS_DEBUGGER_RDP_REMOTE_PROTOTYPESANDPROPERTIES_MS": {
+    "kind": "exponential",
+    "high": "10000",
+    "n_buckets": "1000",
+    "description": "The time (in milliseconds) that it took a 'prototypesAndProperties' request to go round trip."
+  },
   "DEVTOOLS_DEBUGGER_RDP_LOCAL_PROPERTY_MS": {
     "kind": "exponential",
     "high": "10000",
@@ -3395,6 +3506,18 @@
     "n_buckets": "1000",
     "description": "The time (in milliseconds) that it took a 'listTabs' request to go round trip."
   },
+  "DEVTOOLS_DEBUGGER_RDP_LOCAL_LISTADDONS_MS": {
+    "kind": "exponential",
+    "high": "10000",
+    "n_buckets": "1000",
+    "description": "The time (in milliseconds) that it took a 'listAddons' request to go round trip."
+  },
+  "DEVTOOLS_DEBUGGER_RDP_REMOTE_LISTADDONS_MS": {
+    "kind": "exponential",
+    "high": "10000",
+    "n_buckets": "1000",
+    "description": "The time (in milliseconds) that it took a 'listAddons' request to go round trip."
+  },
   "DEVTOOLS_DEBUGGER_RDP_LOCAL_DELETE_MS": {
     "kind": "exponential",
     "high": "10000",
@@ -3430,6 +3553,22 @@
     "high": "10000",
     "n_buckets": "1000",
     "description": "The time (in milliseconds) that it took a 'detach' request to go round trip."
+  },
+  "WEBRTC_ICE_SUCCESS_RATE":{
+    "kind": "boolean",
+    "description": "The number of failed ICE Connections (0) vs. number of successful ICE connections (1)."
+  },
+  "WEBRTC_CALL_DURATION":{
+    "kind": "exponential",
+    "high": "10000",
+    "n_buckets": "1000",
+    "description": "The length of time (in seconds) that a call lasted."
+  },
+  "WEBRTC_CALL_COUNT":{
+    "kind": "exponential",
+    "high": "500",
+    "n_buckets": "50",
+    "description": "The number of calls made during a session."
   },
   "DEVTOOLS_DEBUGGER_RDP_LOCAL_TRACERDETACH_MS": {
     "kind": "exponential",

@@ -15,6 +15,7 @@
 #include "mozilla/Util.h"
 
 #include "mozilla/dom/ContentChild.h"
+#include "mozilla/dom/TabChild.h"
 #include "nsXULAppAPI.h"
 
 #include "nsExternalHelperAppService.h"
@@ -347,9 +348,6 @@ static nsresult GetDownloadDirectory(nsIFile **_directory)
   else {
     return NS_ERROR_FAILURE;
   }
-#elif defined(MOZ_PLATFORM_MAEMO)
-  nsresult rv = NS_GetSpecialDirectory(NS_UNIX_XDG_DOCUMENTS_DIR, getter_AddRefs(dir));
-  NS_ENSURE_SUCCESS(rv, rv);
 #elif defined(XP_WIN)
   // On metro we want to be able to search opened files and the temp directory
   // is exlcuded in searches.
@@ -397,6 +395,7 @@ static nsDefaultMimeTypeEntry defaultMimeEntries [] =
   { TEXT_CSS, "css" },
   { IMAGE_JPEG, "jpeg" },
   { IMAGE_JPEG, "jpg" },
+  { IMAGE_SVG_XML, "svg" },
   { TEXT_HTML, "html" },
   { TEXT_HTML, "htm" },
   { APPLICATION_XPINSTALL, "xpi" },
@@ -480,7 +479,7 @@ static nsExtraMimeTypeEntry extraMimeEntries [] =
   { IMAGE_PNG, "png", "PNG Image" },
   { IMAGE_TIFF, "tiff,tif", "TIFF Image" },
   { IMAGE_XBM, "xbm", "XBM Image" },
-  { "image/svg+xml", "svg", "Scalable Vector Graphics" },
+  { IMAGE_SVG_XML, "svg", "Scalable Vector Graphics" },
   { MESSAGE_RFC822, "eml", "RFC-822 data" },
   { TEXT_PLAIN, "txt,text", "Text File" },
   { TEXT_HTML, "html,htm,shtml,ehtml", "HyperText Markup Language" },
@@ -581,6 +580,9 @@ NS_IMETHODIMP nsExternalHelperAppService::DoContent(const nsACString& aMimeConte
     channel->GetContentLength(&contentLength);
   }
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
+    nsCOMPtr<nsIDOMWindow> window = do_GetInterface(aWindowContext);
+    NS_ENSURE_STATE(window);
+
     // We need to get a hold of a ContentChild so that we can begin forwarding
     // this data to the parent.  In the HTTP case, this is unfortunate, since
     // we're actually passing data from parent->child->parent wastefully, but
@@ -611,7 +613,8 @@ NS_IMETHODIMP nsExternalHelperAppService::DoContent(const nsACString& aMimeConte
       child->SendPExternalHelperAppConstructor(uriParams,
                                                nsCString(aMimeContentType),
                                                disp, aForceSave, contentLength,
-                                               referrerParams);
+                                               referrerParams,
+                                               mozilla::dom::TabChild::GetFrom(window));
     ExternalHelperAppChild *childListener = static_cast<ExternalHelperAppChild *>(pc);
 
     NS_ADDREF(*aStreamListener = childListener);
@@ -622,9 +625,8 @@ NS_IMETHODIMP nsExternalHelperAppService::DoContent(const nsACString& aMimeConte
                                reason, aForceSave);
     if (!handler)
       return NS_ERROR_OUT_OF_MEMORY;
-    
-    childListener->SetHandler(handler);
 
+    childListener->SetHandler(handler);
     return NS_OK;
   }
 
@@ -959,11 +961,6 @@ NS_IMETHODIMP
 nsExternalHelperAppService::DeleteTemporaryPrivateFileWhenPossible(nsIFile* aTemporaryFile)
 {
   return DeleteTemporaryFileHelper(aTemporaryFile, mTemporaryPrivateFilesList);
-}
-
-void nsExternalHelperAppService::FixFilePermissions(nsIFile* aFile)
-{
-  // This space intentionally left blank
 }
 
 void nsExternalHelperAppService::ExpungeTemporaryFilesHelper(nsCOMArray<nsIFile> &fileList)

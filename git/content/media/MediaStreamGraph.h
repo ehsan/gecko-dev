@@ -11,7 +11,6 @@
 #include "AudioStream.h"
 #include "nsTArray.h"
 #include "nsIRunnable.h"
-#include "nsISupportsImpl.h"
 #include "StreamBuffer.h"
 #include "TimeVarying.h"
 #include "VideoFrameContainer.h"
@@ -691,6 +690,17 @@ public:
    */
   void EndAllTrackAndFinish();
 
+  /**
+   * Note: Only call from Media Graph thread (eg NotifyPull)
+   *
+   * Returns amount of time (data) that is currently buffered in the track,
+   * assuming playout via PlayAudio or via a TrackUnion - note that
+   * NotifyQueuedTrackChanges() on a SourceMediaStream will occur without
+   * any "extra" buffering, but NotifyQueued TrackChanges() on a TrackUnion
+   * will be buffered.
+   */
+  TrackTicks GetBufferedTicks(TrackID aID);
+
   // XXX need a Reset API
 
   friend class MediaStreamGraphImpl;
@@ -965,6 +975,7 @@ public:
   // Main thread only
   static MediaStreamGraph* GetInstance();
   static MediaStreamGraph* CreateNonRealtimeInstance();
+  // Idempotent
   static void DestroyNonRealtimeInstance(MediaStreamGraph* aGraph);
 
   // Control API.
@@ -1012,6 +1023,8 @@ public:
    * in main-thread stream state.
    */
   int64_t GetCurrentGraphUpdateIndex() { return mGraphUpdatesSent; }
+
+  bool IsNonRealtime() const;
   /**
    * Start processing non-realtime for a specific number of ticks.
    */

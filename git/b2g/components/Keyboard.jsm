@@ -22,7 +22,9 @@ let Keyboard = {
   _messageNames: [
     'SetValue', 'RemoveFocus', 'SetSelectedOption', 'SetSelectedOptions',
     'SetSelectionRange', 'ReplaceSurroundingText', 'ShowInputMethodPicker',
-    'SwitchToNextInputMethod', 'HideInputMethod'
+    'SwitchToNextInputMethod', 'HideInputMethod',
+    'GetText', 'SendKey', 'GetContext',
+    'SetComposition', 'EndComposition'
   ],
 
   get messageManager() {
@@ -34,6 +36,12 @@ let Keyboard = {
 
   set messageManager(mm) {
     this._messageManager = mm;
+  },
+
+  sendAsyncMessage: function(name, data) {
+    try {
+      this.messageManager.sendAsyncMessage(name, data);
+    } catch(e) { }
   },
 
   init: function keyboardInit() {
@@ -58,6 +66,15 @@ let Keyboard = {
     } else {
       mm.addMessageListener('Forms:Input', this);
       mm.addMessageListener('Forms:SelectionChange', this);
+      mm.addMessageListener('Forms:GetText:Result:OK', this);
+      mm.addMessageListener('Forms:GetText:Result:Error', this);
+      mm.addMessageListener('Forms:SetSelectionRange:Result:OK', this);
+      mm.addMessageListener('Forms:ReplaceSurroundingText:Result:OK', this);
+      mm.addMessageListener('Forms:SendKey:Result:OK', this);
+      mm.addMessageListener('Forms:SequenceError', this);
+      mm.addMessageListener('Forms:GetContext:Result:OK', this);
+      mm.addMessageListener('Forms:SetComposition:Result:OK', this);
+      mm.addMessageListener('Forms:EndComposition:Result:OK', this);
 
       // When not running apps OOP, we need to load forms.js here since this
       // won't happen from dom/ipc/preload.js
@@ -98,11 +115,22 @@ let Keyboard = {
 
     switch (msg.name) {
       case 'Forms:Input':
-        this.handleFormsInput(msg);
+        this.handleFocusChange(msg);
         break;
       case 'Forms:SelectionChange':
-        this.handleFormsSelectionChange(msg);
+      case 'Forms:GetText:Result:OK':
+      case 'Forms:GetText:Result:Error':
+      case 'Forms:SetSelectionRange:Result:OK':
+      case 'Forms:ReplaceSurroundingText:Result:OK':
+      case 'Forms:SendKey:Result:OK':
+      case 'Forms:SequenceError':
+      case 'Forms:GetContext:Result:OK':
+      case 'Forms:SetComposition:Result:OK':
+      case 'Forms:EndComposition:Result:OK':
+        let name = msg.name.replace(/^Forms/, 'Keyboard');
+        this.forwardEvent(name, msg);
         break;
+
       case 'Keyboard:SetValue':
         this.setValue(msg);
         break;
@@ -127,60 +155,115 @@ let Keyboard = {
       case 'Keyboard:ShowInputMethodPicker':
         this.showInputMethodPicker();
         break;
+      case 'Keyboard:GetText':
+        this.getText(msg);
+        break;
+      case 'Keyboard:SendKey':
+        this.sendKey(msg);
+        break;
+      case 'Keyboard:GetContext':
+        this.getContext(msg);
+        break;
+      case 'Keyboard:SetComposition':
+        this.setComposition(msg);
+        break;
+      case 'Keyboard:EndComposition':
+        this.endComposition(msg);
+        break;
     }
   },
 
-  handleFormsInput: function keyboardHandleFormsInput(msg) {
+  forwardEvent: function keyboardForwardEvent(newEventName, msg) {
     this.messageManager = msg.target.QueryInterface(Ci.nsIFrameLoaderOwner)
                              .frameLoader.messageManager;
 
-    ppmm.broadcastAsyncMessage('Keyboard:FocusChange', msg.data);
+    ppmm.broadcastAsyncMessage(newEventName, msg.data);
   },
 
-  handleFormsSelectionChange: function keyboardHandleFormsSelectionChange(msg) {
-    this.messageManager = msg.target.QueryInterface(Ci.nsIFrameLoaderOwner)
-                             .frameLoader.messageManager;
+  handleFocusChange: function keyboardHandleFocusChange(msg) {
+    this.forwardEvent('Keyboard:FocusChange', msg);
 
-    ppmm.broadcastAsyncMessage('Keyboard:SelectionChange', msg.data);
+    let browser = Services.wm.getMostRecentWindow("navigator:browser");
+
+    browser.shell.sendChromeEvent({
+      type: 'inputmethod-contextchange',
+      inputType: msg.data.type
+    });
   },
 
   setSelectedOption: function keyboardSetSelectedOption(msg) {
-    this.messageManager.sendAsyncMessage('Forms:Select:Choice', msg.data);
+    this.sendAsyncMessage('Forms:Select:Choice', msg.data);
   },
 
   setSelectedOptions: function keyboardSetSelectedOptions(msg) {
-    this.messageManager.sendAsyncMessage('Forms:Select:Choice', msg.data);
+    this.sendAsyncMessage('Forms:Select:Choice', msg.data);
   },
 
   setSelectionRange: function keyboardSetSelectionRange(msg) {
-    this.messageManager.sendAsyncMessage('Forms:SetSelectionRange', msg.data);
+    this.sendAsyncMessage('Forms:SetSelectionRange', msg.data);
   },
 
   setValue: function keyboardSetValue(msg) {
-    this.messageManager.sendAsyncMessage('Forms:Input:Value', msg.data);
+    this.sendAsyncMessage('Forms:Input:Value', msg.data);
   },
 
   removeFocus: function keyboardRemoveFocus() {
-    this.messageManager.sendAsyncMessage('Forms:Select:Blur', {});
+    this.sendAsyncMessage('Forms:Select:Blur', {});
   },
 
   replaceSurroundingText: function keyboardReplaceSurroundingText(msg) {
-    this.messageManager.sendAsyncMessage('Forms:ReplaceSurroundingText',
-                                         msg.data);
+    this.sendAsyncMessage('Forms:ReplaceSurroundingText', msg.data);
   },
 
   showInputMethodPicker: function keyboardShowInputMethodPicker() {
     let browser = Services.wm.getMostRecentWindow("navigator:browser");
     browser.shell.sendChromeEvent({
-      type: "input-method-show-picker"
+      type: "inputmethod-showall"
     });
   },
 
   switchToNextInputMethod: function keyboardSwitchToNextInputMethod() {
     let browser = Services.wm.getMostRecentWindow("navigator:browser");
     browser.shell.sendChromeEvent({
-      type: "input-method-switch-to-next"
+      type: "inputmethod-next"
     });
+  },
+
+  getText: function keyboardGetText(msg) {
+    this.sendAsyncMessage('Forms:GetText', msg.data);
+  },
+
+  sendKey: function keyboardSendKey(msg) {
+    this.sendAsyncMessage('Forms:Input:SendKey', msg.data);
+  },
+
+  getContext: function keyboardGetContext(msg) {
+    if (this._layouts) {
+      ppmm.broadcastAsyncMessage('Keyboard:LayoutsChange', this._layouts);
+    }
+
+    this.sendAsyncMessage('Forms:GetContext', msg.data);
+  },
+
+  setComposition: function keyboardSetComposition(msg) {
+    this.sendAsyncMessage('Forms:SetComposition', msg.data);
+  },
+
+  endComposition: function keyboardEndComposition(msg) {
+    this.sendAsyncMessage('Forms:EndComposition', msg.data);
+  },
+
+  /**
+   * Get the number of keyboard layouts active from keyboard_manager
+   */
+  _layouts: null,
+  setLayouts: function keyboardSetLayoutCount(layouts) {
+    // The input method plugins may not have loaded yet,
+    // cache the layouts so on init we can respond immediately instead
+    // of going back and forth between keyboard_manager
+    this._layouts = layouts;
+
+    ppmm.broadcastAsyncMessage('Keyboard:LayoutsChange', layouts);
   }
 };
 

@@ -67,15 +67,15 @@ this._SessionFile = {
   /**
    * Write the contents of the session file, asynchronously.
    */
-  write: function (aData, aOptions = {}) {
-    return SessionFileInternal.write(aData, aOptions);
+  write: function (aData) {
+    return SessionFileInternal.write(aData);
   },
   /**
    * Writes the initial state to disk again only to change the session's load
    * state. This must only be called once, it will throw an error otherwise.
    */
   writeLoadStateOnceAfterStartup: function (aLoadState) {
-    return SessionFileInternal.writeLoadStateOnceAfterStartup(aLoadState);
+    SessionFileInternal.writeLoadStateOnceAfterStartup(aLoadState);
   },
   /**
    * Create a backup copy, asynchronously.
@@ -95,7 +95,7 @@ this._SessionFile = {
    * Wipe the contents of the session file, asynchronously.
    */
   wipe: function () {
-    return SessionFileInternal.wipe();
+    SessionFileInternal.wipe();
   }
 };
 
@@ -209,13 +209,13 @@ let SessionFileInternal = {
     });
   },
 
-  write: function (aData, aOptions) {
+  write: function (aData) {
     let refObj = {};
     return TaskUtils.spawn(function task() {
       TelemetryStopwatch.start("FX_SESSION_RESTORE_WRITE_FILE_LONGEST_OP_MS", refObj);
 
       try {
-        let promise = SessionWorker.post("write", [aData, aOptions]);
+        let promise = SessionWorker.post("write", [aData]);
         // At this point, we measure how long we stop the main thread
         TelemetryStopwatch.finish("FX_SESSION_RESTORE_WRITE_FILE_LONGEST_OP_MS", refObj);
 
@@ -231,7 +231,7 @@ let SessionFileInternal = {
   },
 
   writeLoadStateOnceAfterStartup: function (aLoadState) {
-    return SessionWorker.post("writeLoadStateOnceAfterStartup", [aLoadState]).then(msg => {
+    SessionWorker.post("writeLoadStateOnceAfterStartup", [aLoadState]).then(msg => {
       this._recordTelemetry(msg.telemetry);
       return msg;
     });
@@ -246,7 +246,7 @@ let SessionFileInternal = {
   },
 
   wipe: function () {
-    return SessionWorker.post("wipe");
+    SessionWorker.post("wipe");
   },
 
   _recordTelemetry: function(telemetry) {

@@ -171,7 +171,6 @@ bool MediaOmxReader::DecodeVideoFrame(bool &aKeyframeSkip,
     frame.mGraphicBuffer = nullptr;
     frame.mShouldSkip = false;
     if (!mOmxDecoder->ReadVideo(&frame, aTimeThreshold, aKeyframeSkip, doSeek)) {
-      mVideoQueue.Finish();
       return false;
     }
     doSeek = false;
@@ -270,6 +269,15 @@ bool MediaOmxReader::DecodeVideoFrame(bool &aKeyframeSkip,
   return true;
 }
 
+void MediaOmxReader::NotifyDataArrived(const char* aBuffer, uint32_t aLength, int64_t aOffset)
+{
+  android::OmxDecoder *omxDecoder = mOmxDecoder.get();
+
+  if (omxDecoder) {
+    omxDecoder->NotifyDataArrived(aBuffer, aLength, aOffset);
+  }
+}
+
 bool MediaOmxReader::DecodeAudioData()
 {
   NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
@@ -280,7 +288,6 @@ bool MediaOmxReader::DecodeAudioData()
   // Read next frame
   MPAPI::AudioFrame frame;
   if (!mOmxDecoder->ReadAudio(&frame, mAudioSeekTimeUs)) {
-    mAudioQueue.Finish();
     return false;
   }
   mAudioSeekTimeUs = -1;

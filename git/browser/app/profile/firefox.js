@@ -336,7 +336,7 @@ pref("browser.download.manager.scanWhenDone", true);
 pref("browser.download.manager.resumeOnWakeDelay", 10000);
 
 // Enables the asynchronous Downloads API in the Downloads Panel.
-pref("browser.download.useJSTransfer", false);
+pref("browser.download.useJSTransfer", true);
 
 // This allows disabling the Downloads Panel in favor of the old interface.
 pref("browser.download.useToolkitUI", false);
@@ -351,6 +351,10 @@ pref("browser.download.panel.shown", false);
 // This records whether or not at least one session with the Downloads Panel
 // enabled has been completed already.
 pref("browser.download.panel.firstSessionCompleted", false);
+
+#ifndef XP_MACOSX
+pref("browser.helperApps.deleteTempFileOnExit", true);
+#endif
 
 // search engines URL
 pref("browser.search.searchEnginesURL",      "https://addons.mozilla.org/%LOCALE%/firefox/search-engines/");
@@ -641,6 +645,10 @@ pref("plugins.update.notifyUser", false);
 
 pref("plugins.click_to_play", true);
 
+// let all plugins except Flash default to click-to-play
+pref("plugin.default.state", 1);
+pref("plugin.state.flash", 2);
+
 // display door hanger if flash not installed
 pref("plugins.notifyMissingFlash", true);
 
@@ -805,7 +813,6 @@ pref("urlclassifier.max-complete-age", 2700);
 #endif
 
 pref("browser.geolocation.warning.infoURL", "https://www.mozilla.org/%LOCALE%/firefox/geolocation/");
-pref("browser.mixedcontent.warning.infoURL", "http://support.mozilla.org/1/%APP%/%VERSION%/%OS%/%LOCALE%/mixed-content/");
 
 pref("browser.EULA.version", 3);
 pref("browser.rights.version", 3);
@@ -1063,6 +1070,10 @@ pref("devtools.toolbar.visible", false);
 pref("devtools.gcli.allowSet", false);
 pref("devtools.commands.dir", "");
 
+// Disable the app manager
+pref("devtools.appmanager.enabled", true);
+pref("devtools.appmanager.firstrun", true);
+
 // Toolbox preferences
 pref("devtools.toolbox.footer.height", 250);
 pref("devtools.toolbox.sidebar.width", 500);
@@ -1070,19 +1081,18 @@ pref("devtools.toolbox.host", "bottom");
 pref("devtools.toolbox.selectedTool", "webconsole");
 pref("devtools.toolbox.toolbarSpec", '["paintflashing toggle","tilt toggle","scratchpad","resize toggle"]');
 pref("devtools.toolbox.sideEnabled", true);
+pref("devtools.toolbox.zoomValue", "1");
 
 // Enable the Inspector
 pref("devtools.inspector.enabled", true);
 pref("devtools.inspector.activeSidebar", "ruleview");
 pref("devtools.inspector.markupPreview", false);
 pref("devtools.inspector.remote", false);
-
-// Enable the Layout View
-pref("devtools.layoutview.enabled", true);
-pref("devtools.layoutview.open", false);
+pref("devtools.inspector.show_pseudo_elements", true);
 
 // Enable the Responsive UI tool
 pref("devtools.responsiveUI.enabled", true);
+pref("devtools.responsiveUI.no-reload-notification", false);
 
 // Enable the Debugger
 pref("devtools.debugger.enabled", true);
@@ -1092,6 +1102,7 @@ pref("devtools.debugger.chrome-debugging-port", 6080);
 pref("devtools.debugger.remote-host", "localhost");
 pref("devtools.debugger.remote-timeout", 20000);
 pref("devtools.debugger.pause-on-exceptions", false);
+pref("devtools.debugger.ignore-caught-exceptions", true);
 pref("devtools.debugger.source-maps-enabled", true);
 
 // The default Debugger UI settings

@@ -18,6 +18,7 @@
 #include "nsCycleCollectionParticipant.h"
 #include "mozilla/storage.h"
 #include "Helpers.h"
+#include "mozilla/TimeStamp.h"
 
 class nsNavHistory;
 class nsNavHistoryQuery;
@@ -172,8 +173,16 @@ public:
                                bool aExpand);
 
   void InvalidateTree();
-  
+
   bool mBatchInProgress;
+  int32_t mRelatedNotificationsCount;
+  mozilla::TimeStamp mLastNotificationTimeStamp;
+  nsCOMPtr<nsITimer> mEndBatchTimer;
+
+  void MaybeBeginBatch();
+  static void MaybeEndBatchCallback(nsITimer* aTimer, void* aClosure);
+  nsresult BeginBatch();
+  nsresult EndBatch();
 
   nsMaybeWeakPtrArray<nsINavHistoryResultObserver> mObservers;
   bool mSuppressNotifications;
@@ -236,7 +245,11 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsNavHistoryResult, NS_NAVHISTORYRESULT_IID)
   NS_IMETHOD GetParentResult(nsINavHistoryResult** aResult) \
     { return nsNavHistoryResultNode::GetParentResult(aResult); } \
   NS_IMETHOD GetTags(nsAString& aTags) \
-    { return nsNavHistoryResultNode::GetTags(aTags); }
+    { return nsNavHistoryResultNode::GetTags(aTags); } \
+  NS_IMETHOD GetPageGuid(nsACString& aPageGuid) \
+    { return nsNavHistoryResultNode::GetPageGuid(aPageGuid); } \
+  NS_IMETHOD GetBookmarkGuid(nsACString& aBookmarkGuid) \
+    { return nsNavHistoryResultNode::GetBookmarkGuid(aBookmarkGuid); }
 
 #define NS_FORWARD_COMMON_RESULTNODE_TO_BASE \
   NS_FORWARD_COMMON_RESULTNODE_TO_BASE_NO_GETITEMMID \
@@ -265,6 +278,8 @@ public:
   NS_IMETHOD GetUri(nsACString& aURI)
     { aURI = mURI; return NS_OK; }
   NS_IMETHOD GetTags(nsAString& aTags);
+  NS_IMETHOD GetPageGuid(nsACString& aPageGuid);
+  NS_IMETHOD GetBookmarkGuid(nsACString& aBookmarkGuid);
 
   virtual void OnRemoving();
 
@@ -367,6 +382,12 @@ public:
 
   // Transition type used when this node represents a single visit.
   uint32_t mTransitionType;
+
+  // Unique Id of the page.
+  nsCString mPageGuid;
+
+  // Unique Id of the bookmark.
+  nsCString mBookmarkGuid;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsNavHistoryResultNode, NS_NAVHISTORYRESULTNODE_IID)
@@ -671,8 +692,6 @@ public:
 
   nsCOMPtr<nsIURI> mRemovingURI;
   nsresult NotifyIfTagsChanged(nsIURI* aURI);
-
-  uint32_t mBatchChanges;
 
   // Tracks transition type filters shared by all mQueries.
   nsTArray<uint32_t> mTransitions;
