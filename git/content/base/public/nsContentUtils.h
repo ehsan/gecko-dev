@@ -90,6 +90,9 @@ class nsIWidget;
 class nsIDragSession;
 class nsIPresShell;
 class nsIXPConnectJSObjectHolder;
+#ifdef MOZ_XTF
+class nsIXTFService;
+#endif
 #ifdef IBMBIDI
 class nsIBidiKeyboard;
 #endif
@@ -454,6 +457,10 @@ public:
   {
     return sIOService;
   }
+
+#ifdef MOZ_XTF
+  static nsIXTFService* GetXTFService();
+#endif
 
 #ifdef IBMBIDI
   static nsIBidiKeyboard* GetBidiKeyboard();
@@ -2214,6 +2221,10 @@ private:
   static nsINameSpaceManager *sNameSpaceManager;
 
   static nsIIOService *sIOService;
+
+#ifdef MOZ_XTF
+  static nsIXTFService *sXTFService;
+#endif
 
   static bool sImgLoaderInitialized;
   static void InitImgLoader();

@@ -90,6 +90,8 @@
 #include "nsIRadioVisitor.h"
 #include "nsIFormControl.h"
 
+#include "nsXMLEventsManager.h"
+
 #include "nsBidiUtils.h"
 #include "mozilla/dom/DirectionalityUtils.h"
 
@@ -1843,6 +1845,16 @@ nsIDocument::GetExtraPropertyTable(uint16_t aCategory)
     mExtraPropertyTables.AppendElement(new nsPropertyTable());
   }
   return mExtraPropertyTables[aCategory - 1];
+}
+
+void
+nsDocument::AddXMLEventsContent(nsIContent *aXMLEventsElement)
+{
+  if (!mXMLEventsManager) {
+    mXMLEventsManager = new nsXMLEventsManager();
+    AddObserver(mXMLEventsManager);
+  }
+  mXMLEventsManager->AddXMLEventsContent(aXMLEventsElement);
 }
 
 void
