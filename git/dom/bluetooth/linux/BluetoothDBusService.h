@@ -22,6 +22,7 @@ BEGIN_BLUETOOTH_NAMESPACE
  */
 
 class BluetoothDBusService : public BluetoothService
+                           , private mozilla::ipc::RawDBusConnection
 {
 public:
   bool IsReady();
@@ -200,8 +201,6 @@ private:
                                 const char* aInterface,
                                 const nsAString& aMessage,
                                 mozilla::ipc::DBusReplyCallback aCallback);
-
-  nsRefPtr<mozilla::ipc::RawDBusConnection> mConnection;
 };
 
 END_BLUETOOTH_NAMESPACE

@@ -308,7 +308,6 @@ function WinNativeApp(aData) {
 
   if (aData.isPackage) {
     this.size = aData.app.updateManifest.size / 1024;
-    this.isPackaged = true;
   }
 
   let filenameRE = new RegExp("[<>:\"/\\\\|\\?\\*]", "gi");
@@ -511,9 +510,6 @@ WinNativeApp.prototype = {
       "File: \\webapp.json\r\n" +
       "File: \\webapprt.old\r\n" +
       "File: \\chrome\\icons\\default\\default.ico";
-    if (this.isPackaged) {
-      uninstallContent += "\r\nFile: \\application.zip";
-    }
 
     writeToFile(OS.Path.join(this.tmpInstallDir, this.uninstallDir,
                              "uninstall.log"),

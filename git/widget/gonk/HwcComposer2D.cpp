@@ -621,9 +621,7 @@ HwcComposer2D::TryRender(Layer* aRoot,
                           aGLWorldTransform))
     {
         LOGD("Render aborted. Nothing was drawn to the screen");
-        if (mList) {
-           mList->numHwLayers = 0;
-        }
+        mList->numHwLayers = 0;
         return false;
     }
 

@@ -11,7 +11,6 @@
 #include "gfxTypes.h"
 #include "gfxPoint.h"                   // for gfxIntSize
 #include "mozilla/ipc/SharedMemory.h"   // for SharedMemory, etc
-#include "mozilla/WeakPtr.h"
 
 /*
  * FIXME [bjacob] *** PURE CRAZYNESS WARNING ***
@@ -69,7 +68,7 @@ bool ReleaseOwnedSurfaceDescriptor(const SurfaceDescriptor& aDescriptor);
  * These methods should be only called in the ipdl implementor's thread, unless
  * specified otherwise in the implementing class.
  */
-class ISurfaceAllocator : public SupportsWeakPtr<ISurfaceAllocator>
+class ISurfaceAllocator
 {
 public:
 ISurfaceAllocator() {}

@@ -587,19 +587,13 @@ public class Tabs implements GeckoEventListener {
 
     /**
      * Looks for an open tab with the given URL.
-     * @param url       the URL of the tab we're looking for
-     * @param isPrivate if true, only look for tabs that are private. if false,
-     *                  only look for tabs that are non-private.
      *
      * @return id of an open tab with the given URL; -1 if the tab doesn't exist.
      */
-    public int getTabIdForUrl(String url, boolean isPrivate) {
+    public int getTabIdForUrl(String url) {
         for (Tab tab : mOrder) {
-            String tabUrl = tab.getURL();
-            if (ReaderModeUtils.isAboutReader(tabUrl)) {
-                tabUrl = ReaderModeUtils.getUrlFromAboutReader(tabUrl);
-            }
-            if (TextUtils.equals(tabUrl, url) && isPrivate == tab.isPrivate()) {
+            if (TextUtils.equals(tab.getURL(), url) ||
+                TextUtils.equals(ReaderModeUtils.getUrlFromAboutReader(tab.getURL()), url)) {
                 return tab.getId();
             }
         }

@@ -227,9 +227,10 @@ GetAppForId(uint32_t aAppId)
   nsCOMPtr<nsIAppsService> appsService = do_GetService(APPS_SERVICE_CONTRACTID);
   NS_ENSURE_TRUE(appsService, nullptr);
 
-  nsCOMPtr<mozIApplication> app;
-  appsService->GetAppByLocalId(aAppId, getter_AddRefs(app));
+  nsCOMPtr<mozIDOMApplication> domApp;
+  appsService->GetAppByLocalId(aAppId, getter_AddRefs(domApp));
 
+  nsCOMPtr<mozIApplication> app = do_QueryInterface(domApp);
   return app.forget();
 }
 

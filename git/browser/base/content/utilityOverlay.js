@@ -656,16 +656,13 @@ function isValidFeed(aLink, aPrincipal, aIsFeed)
 }
 
 // aCalledFromModal is optional
-function openHelpLink(aHelpTopic, aCalledFromModal, aWhere) {
+function openHelpLink(aHelpTopic, aCalledFromModal) {
   var url = Components.classes["@mozilla.org/toolkit/URLFormatterService;1"]
                       .getService(Components.interfaces.nsIURLFormatter)
                       .formatURLPref("app.support.baseURL");
   url += aHelpTopic;
 
-  var where = aWhere;
-  if (!aWhere)
-    where = aCalledFromModal ? "window" : "tab";
-
+  var where = aCalledFromModal ? "window" : "tab";
   openUILinkIn(url, where);
 }
 

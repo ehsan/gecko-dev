@@ -62,6 +62,7 @@
 #include "nsIAlertsService.h"
 #include "nsIAppsService.h"
 #include "nsIClipboard.h"
+#include "nsIDOMApplicationRegistry.h"
 #include "nsIDOMGeoGeolocation.h"
 #include "nsIDOMWakeLock.h"
 #include "nsIDOMWindow.h"
@@ -985,9 +986,10 @@ TryGetNameFromManifestURL(const nsAString& aManifestURL,
     nsCOMPtr<nsIAppsService> appsService = do_GetService(APPS_SERVICE_CONTRACTID);
     NS_ENSURE_TRUE_VOID(appsService);
 
-    nsCOMPtr<mozIApplication> app;
-    appsService->GetAppByManifestURL(aManifestURL, getter_AddRefs(app));
+    nsCOMPtr<mozIDOMApplication> domApp;
+    appsService->GetAppByManifestURL(aManifestURL, getter_AddRefs(domApp));
 
+    nsCOMPtr<mozIApplication> app = do_QueryInterface(domApp);
     if (!app) {
         return;
     }

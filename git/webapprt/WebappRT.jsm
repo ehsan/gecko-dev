@@ -46,12 +46,8 @@ this.WebappRT = {
   },
 
   get launchURI() {
-    let manifest = this.localeManifest;
+    let manifest = new ManifestHelper(this.config.app.manifest,
+                                      this.config.app.origin);
     return manifest.fullLaunchPath();
-  },
-
-  get localeManifest() {
-    return new ManifestHelper(this.config.app.manifest,
-                              this.config.app.origin);
-  },
+  }
 };

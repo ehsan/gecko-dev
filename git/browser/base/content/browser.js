@@ -2404,7 +2404,11 @@ let BrowserOnClick = {
           }
         }
         else { // It's a phishing site, not malware
-          openHelpLink("phishing-malware", false, "current");
+          try {
+            content.location = formatURL("browser.safebrowsing.warning.infoURL", true);
+          } catch (e) {
+            Components.utils.reportError("Couldn't get phishing info URL: " + e);
+          }
         }
         break;
 
@@ -6431,14 +6435,6 @@ var gIdentityHandler = {
     this._identityIcon = document.getElementById("page-proxy-favicon");
     this._permissionsContainer = document.getElementById("identity-popup-permissions");
     this._permissionList = document.getElementById("identity-popup-permission-list");
-  },
-
-  /**
-   * Handler for commands on the help button in the "identity-popup" panel.
-   */
-  handleHelpCommand : function(event) {
-    openHelpLink("secure-connection");
-    this._identityPopup.hidePopup();
   },
 
   /**
