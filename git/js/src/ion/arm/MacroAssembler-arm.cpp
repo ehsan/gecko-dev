@@ -275,7 +275,7 @@ void
 MacroAssemblerARM::ma_mov(const ImmGCPtr &ptr, Register dest)
 {
     writeDataRelocation(nextOffset());
-    ma_movPatchable(Imm32(ptr.value), dest, Always, L_MOVWT);
+    ma_mov(Imm32(ptr.value), dest);
 }
 
     // Shifts (just a move with a shifting op2)
@@ -592,8 +592,8 @@ MacroAssemblerARM::ma_cmp(Register src1, Imm32 imm, Condition c)
 void
 MacroAssemblerARM::ma_cmp(Register src1, ImmGCPtr ptr, Condition c)
 {
-    ma_mov(ptr, ScratchRegister);
-    ma_cmp(src1, ScratchRegister, c);
+    writeDataRelocation(nextOffset());
+    ma_alu(src1, Imm32(ptr.value), InvalidReg, op_cmp, SetCond, c);
 }
 void
 MacroAssemblerARM::ma_cmp(Register src1, Operand op, Condition c)
@@ -1232,6 +1232,7 @@ MacroAssemblerARMCompat::movePtr(const ImmWord &imm, const Register &dest)
 void
 MacroAssemblerARMCompat::movePtr(const ImmGCPtr &imm, const Register &dest)
 {
+    writeDataRelocation(nextOffset());
     ma_mov(imm, dest);
 }
 void
@@ -1396,10 +1397,7 @@ MacroAssemblerARMCompat::addPtr(Imm32 imm, const Register dest)
 Assembler::Condition
 MacroAssemblerARMCompat::compareDoubles(JSOp compare, FloatRegister lhs, FloatRegister rhs)
 {
-    if (rhs == InvalidFloatReg)
-        ma_vcmpz(lhs);
-    else
-        ma_vcmp(lhs, rhs);
+    ma_vcmp(lhs, rhs);
     as_vmrs(pc);
     switch (compare) {
       case JSOP_STRICTNE:
@@ -1871,11 +1869,11 @@ MacroAssemblerARMCompat::storePayload(const Value &val, Operand dest)
 {
     jsval_layout jv = JSVAL_TO_IMPL(val);
     if (val.isMarkable()) {
-        ma_mov(ImmGCPtr((gc::Cell *)jv.s.payload.ptr), lr);
+        ma_mov(ImmGCPtr((gc::Cell *)jv.s.payload.ptr), ScratchRegister);
     } else {
-        ma_mov(Imm32(jv.s.payload.i32), lr);
+        ma_mov(Imm32(jv.s.payload.i32), ScratchRegister);
     }
-    ma_str(lr, ToPayload(dest));
+    ma_str(ScratchRegister, ToPayload(dest));
 }
 void
 MacroAssemblerARMCompat::storePayload(Register src, Operand dest)
@@ -1917,8 +1915,8 @@ MacroAssemblerARMCompat::storePayload(Register src, Register base, Register inde
 void
 MacroAssemblerARMCompat::storeTypeTag(ImmTag tag, Operand dest) {
     if (dest.getTag() == Operand::MEM) {
-        ma_mov(tag, lr);
-        ma_str(lr, ToType(dest));
+        ma_mov(tag, ScratchRegister);
+        ma_str(ScratchRegister, ToType(dest));
         return;
     }
 
@@ -2026,8 +2024,6 @@ MacroAssemblerARMCompat::setupUnalignedABICall(uint32 args, const Register &scra
     dynamicAlignment_ = true;
 
     ma_mov(sp, scratch);
-
-    // Force sp to be aligned
     ma_and(Imm32(~(StackAlignment - 1)), sp, sp);
     ma_push(scratch);
 }
@@ -2055,7 +2051,7 @@ MacroAssemblerARMCompat::passABIArg(const MoveOperand &from)
             floatArgsInGPR[destReg.code() >> 1] = VFPRegister(from.floatReg());
             useResolver = false;
         } else {
-            dest = MoveOperand(destReg);
+            dest = MoveOperand(dest);
         }
     } else {
         uint32 disp = GetArgStackDisp(usedSlots_);
@@ -2094,13 +2090,9 @@ void
 MacroAssemblerARMCompat::callWithABI(void *fun, Result result)
 {
     JS_ASSERT(inCall_);
-    uint32 stackAdjust = ((usedSlots_ > NumArgRegs) ? usedSlots_ - NumArgRegs : 0) * STACK_SLOT_SIZE;
+    uint32 stackAdjust = ((usedSlots_ - 4 > 0) ? usedSlots_ - 4 : 0) * STACK_SLOT_SIZE;
     if (!dynamicAlignment_)
-        stackAdjust +=
-            ComputeByteAlignment(framePushed_ + stackAdjust, StackAlignment);
-    else
-        // STACK_SLOT_SIZE account for the saved stack pointer pushed by setupUnalignedABICall
-        stackAdjust += ComputeByteAlignment(stackAdjust + STACK_SLOT_SIZE, StackAlignment);
+        stackAdjust += 8-(framePushed_ & 7);
 
     reserveStack(stackAdjust);
     // Position all arguments.
