@@ -40,7 +40,6 @@
 
 #include "gfxImageSurface.h"
 #include "nsCocoaUtils.h"
-#include "nsChildView.h"
 #include "nsMenuBarX.h"
 #include "nsCocoaWindow.h"
 #include "nsCOMPtr.h"
@@ -106,11 +105,6 @@ NSPoint nsCocoaUtils::ScreenLocationForEvent(NSEvent* anEvent)
   if (!anEvent || [anEvent type] == NSMouseMoved)
     return [NSEvent mouseLocation];
 
-  // Pin momentum scroll events to the location of the last user-controlled
-  // scroll event.
-  if (IsMomentumScrollEvent(anEvent))
-    return ChildViewMouseTracker::sLastScrollEventScreenLocation;
-
   return [[anEvent window] convertBaseToScreen:[anEvent locationInWindow]];
 
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NSMakePoint(0.0, 0.0));
@@ -132,13 +126,6 @@ NSPoint nsCocoaUtils::EventLocationForWindow(NSEvent* anEvent, NSWindow* aWindow
   return [aWindow convertScreenToBase:ScreenLocationForEvent(anEvent)];
 
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NSMakePoint(0.0, 0.0));
-}
-
-BOOL nsCocoaUtils::IsMomentumScrollEvent(NSEvent* aEvent)
-{
-  return [aEvent type] == NSScrollWheel &&
-         [aEvent respondsToSelector:@selector(_scrollPhase)] &&
-         [aEvent _scrollPhase] != 0;
 }
 
 void nsCocoaUtils::HideOSChromeOnScreen(PRBool aShouldHide, NSScreen* aScreen)

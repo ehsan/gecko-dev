@@ -40,12 +40,13 @@ function PageMenu() {
 
 PageMenu.prototype = {
   PAGEMENU_ATTR: "pagemenu",
-  GENERATEDITEMID_ATTR: "generateditemid",
+  GENERATED_ATTR: "generated",
+  IDENT_ATTR: "ident",
 
   popup: null,
   builder: null,
 
-  maybeBuildAndAttachMenu: function(aTarget, aPopup) {
+  init: function(aTarget, aPopup) {
     var pageMenu = null;
     var target = aTarget;
     while (target) {
@@ -77,16 +78,16 @@ PageMenu.prototype = {
       return false;
     }
     builder.QueryInterface(Components.interfaces.nsIXULContextMenuBuilder);
-    builder.init(fragment, this.GENERATEDITEMID_ATTR);
+    builder.init(fragment, this.GENERATED_ATTR, this.IDENT_ATTR);
 
     pageMenu.build(builder);
 
     var pos = insertionPoint.getAttribute(this.PAGEMENU_ATTR);
-    if (pos == "start") {
+    if (pos == "end") {
+      insertionPoint.appendChild(fragment);
+    } else {
       insertionPoint.insertBefore(fragment,
                                   insertionPoint.firstChild);
-    } else {
-      insertionPoint.appendChild(fragment);
     }
 
     this.builder = builder;
@@ -101,8 +102,8 @@ PageMenu.prototype = {
   handleEvent: function(event) {
     var type = event.type;
     var target = event.target;
-    if (type == "command" && target.hasAttribute(this.GENERATEDITEMID_ATTR)) {
-      this.builder.click(target.getAttribute(this.GENERATEDITEMID_ATTR));
+    if (type == "command" && target.hasAttribute(this.GENERATED_ATTR)) {
+      this.builder.click(target.getAttribute(this.IDENT_ATTR));
     } else if (type == "popuphidden" && this.popup == target) {
       this.removeGeneratedContent(this.popup);
 
@@ -159,7 +160,7 @@ PageMenu.prototype = {
       var i = element.childNodes.length;
       while (i-- > 0) {
         var child = element.childNodes[i];
-        if (!child.hasAttribute(this.GENERATEDITEMID_ATTR)) {
+        if (!child.hasAttribute(this.GENERATED_ATTR)) {
           ungenerated.push(child);
           continue;
         }

@@ -93,37 +93,37 @@ public:
 #ifdef MOZ_TREMOR
 #include <ogg/os_types.h>
 typedef ogg_int32_t VorbisPCMValue;
-typedef short AudioDataValue;
+typedef short SoundDataValue;
 
-#define MOZ_AUDIO_DATA_FORMAT (nsAudioStream::FORMAT_S16_LE)
+#define MOZ_SOUND_DATA_FORMAT (nsAudioStream::FORMAT_S16_LE)
 #define MOZ_CLIP_TO_15(x) ((x)<-32768?-32768:(x)<=32767?(x):32767)
-// Convert the output of vorbis_synthesis_pcmout to a AudioDataValue
+// Convert the output of vorbis_synthesis_pcmout to a SoundDataValue
 #define MOZ_CONVERT_VORBIS_SAMPLE(x) \
- (static_cast<AudioDataValue>(MOZ_CLIP_TO_15((x)>>9)))
-// Convert a AudioDataValue to a float for the Audio API
-#define MOZ_CONVERT_AUDIO_SAMPLE(x) ((x)*(1.F/32768))
+ (static_cast<SoundDataValue>(MOZ_CLIP_TO_15((x)>>9)))
+// Convert a SoundDataValue to a float for the Audio API
+#define MOZ_CONVERT_SOUND_SAMPLE(x) ((x)*(1.F/32768))
 #define MOZ_SAMPLE_TYPE_S16LE 1
 
 #else /*MOZ_VORBIS*/
 
 typedef float VorbisPCMValue;
-typedef float AudioDataValue;
+typedef float SoundDataValue;
 
-#define MOZ_AUDIO_DATA_FORMAT (nsAudioStream::FORMAT_FLOAT32)
+#define MOZ_SOUND_DATA_FORMAT (nsAudioStream::FORMAT_FLOAT32)
 #define MOZ_CONVERT_VORBIS_SAMPLE(x) (x)
-#define MOZ_CONVERT_AUDIO_SAMPLE(x) (x)
+#define MOZ_CONVERT_SOUND_SAMPLE(x) (x)
 #define MOZ_SAMPLE_TYPE_FLOAT32 1
 
 #endif
 
-// Holds chunk a decoded audio samples.
-class AudioData {
+// Holds chunk a decoded sound samples.
+class SoundData {
 public:
-  AudioData(PRInt64 aOffset,
+  SoundData(PRInt64 aOffset,
             PRInt64 aTime,
             PRInt64 aDuration,
             PRUint32 aSamples,
-            AudioDataValue* aData,
+            SoundDataValue* aData,
             PRUint32 aChannels)
   : mOffset(aOffset),
     mTime(aTime),
@@ -132,13 +132,13 @@ public:
     mChannels(aChannels),
     mAudioData(aData)
   {
-    MOZ_COUNT_CTOR(AudioData);
+    MOZ_COUNT_CTOR(SoundData);
   }
 
-  AudioData(PRInt64 aOffset,
+  SoundData(PRInt64 aOffset,
             PRInt64 aDuration,
             PRUint32 aSamples,
-            AudioDataValue* aData,
+            SoundDataValue* aData,
             PRUint32 aChannels)
   : mOffset(aOffset),
     mTime(-1),
@@ -147,12 +147,12 @@ public:
     mChannels(aChannels),
     mAudioData(aData)
   {
-    MOZ_COUNT_CTOR(AudioData);
+    MOZ_COUNT_CTOR(SoundData);
   }
 
-  ~AudioData()
+  ~SoundData()
   {
-    MOZ_COUNT_DTOR(AudioData);
+    MOZ_COUNT_DTOR(SoundData);
   }
 
   PRUint32 AudioDataLength() {
@@ -167,7 +167,7 @@ public:
   const PRInt64 mDuration; // In usecs.
   const PRUint32 mSamples;
   const PRUint32 mChannels;
-  nsAutoArrayPtr<AudioDataValue> mAudioData;
+  nsAutoArrayPtr<SoundDataValue> mAudioData;
 };
 
 // Holds a decoded video frame, in YCbCr format. These are queued in the reader.
@@ -457,7 +457,7 @@ public:
 
   // Queue of audio samples. This queue is threadsafe, and is accessed from
   // the audio, decoder, state machine, and main threads.
-  MediaQueue<AudioData> mAudioQueue;
+  MediaQueue<SoundData> mAudioQueue;
 
   // Queue of video samples. This queue is threadsafe, and is accessed from
   // the decoder, state machine, and main threads.
@@ -501,8 +501,8 @@ public:
     AudioQueueMemoryFunctor() : mResult(0) {}
 
     virtual void* operator()(void* anObject) {
-      const AudioData* audioData = static_cast<const AudioData*>(anObject);
-      mResult += audioData->mSamples * audioData->mChannels * sizeof(AudioDataValue);
+      const SoundData* soundData = static_cast<const SoundData*>(anObject);
+      mResult += soundData->mSamples * soundData->mChannels * sizeof(SoundDataValue);
       return nsnull;
     }
 
