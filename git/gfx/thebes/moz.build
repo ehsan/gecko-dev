@@ -52,7 +52,6 @@ EXPORTS += [
     'gfxVR.h',
     'GraphicsFilter.h',
     'RoundedRect.h',
-    'VsyncSource.h',
 ]
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'android':
@@ -247,7 +246,6 @@ UNIFIED_SOURCES += [
     'gfxUtils.cpp',
     'gfxVR.cpp',
     'nsUnicodeRange.cpp',
-    'VsyncSource.cpp',
 ]
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
@@ -270,9 +268,6 @@ GENERATED_FILES = [
 LOCAL_INCLUDES += [
     '/dom/xml',
 ]
-
-if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
-  LOCAL_INCLUDES += ['/widget/gonk']
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] in ('android', 'gtk2', 'gtk3', 'gonk', 'qt'):
     DEFINES['MOZ_ENABLE_FREETYPE'] = True

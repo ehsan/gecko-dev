@@ -97,11 +97,6 @@ public:
 
   virtual TextureClient* GetTextureClient(CompositableClient* aClient) MOZ_OVERRIDE;
 
-  virtual GrallocImage* AsGrallocImage() MOZ_OVERRIDE
-  {
-    return this;
-  }
-
   virtual uint8_t* GetBuffer()
   {
     return static_cast<uint8_t*>(GetNativeBuffer());

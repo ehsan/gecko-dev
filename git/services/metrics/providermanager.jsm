@@ -101,16 +101,14 @@ this.ProviderManager.prototype = Object.freeze({
    *
    * @param category
    *        (string) Name of category from which to query and load.
-   * @param providerDiagnostic
-   *        (function) Optional, called with the name of the provider currently being initialized.
    * @return a newly spawned Task.
    */
-  registerProvidersFromCategoryManager: function (category, providerDiagnostic) {
+  registerProvidersFromCategoryManager: function (category) {
     this._log.info("Registering providers from category: " + category);
     let cm = Cc["@mozilla.org/categorymanager;1"]
                .getService(Ci.nsICategoryManager);
 
-    let promiseList = [];
+    let promises = [];
     let enumerator = cm.enumerateCategory(category);
     while (enumerator.hasMoreElements()) {
       let entry = enumerator.getNext()
@@ -127,7 +125,7 @@ this.ProviderManager.prototype = Object.freeze({
 
         let promise = this.registerProviderFromType(ns[entry]);
         if (promise) {
-          promiseList.push({name: entry, promise: promise});
+          promises.push(promise);
         }
       } catch (ex) {
         this._recordProviderError(entry,
@@ -137,12 +135,9 @@ this.ProviderManager.prototype = Object.freeze({
       }
     }
 
-    return Task.spawn(function* wait() {
-      for (let entry of promiseList) {
-        if (providerDiagnostic) {
-          providerDiagnostic(entry.name);
-        }
-        yield entry.promise;
+    return Task.spawn(function wait() {
+      for (let promise of promises) {
+        yield promise;
       }
     });
   },

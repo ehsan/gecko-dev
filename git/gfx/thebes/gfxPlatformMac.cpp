@@ -26,8 +26,6 @@
 #include <CoreVideo/CoreVideo.h>
 
 #include "nsCocoaFeatures.h"
-#include "mozilla/layers/CompositorParent.h"
-#include "VsyncSource.h"
 
 using namespace mozilla;
 using namespace mozilla::gfx;
@@ -40,7 +38,7 @@ typedef uint32_t AutoActivationSetting;
 
 // bug 567552 - disable auto-activation of fonts
 
-static void
+static void 
 DisableFontActivation()
 {
     // get the main bundle identifier
@@ -431,98 +429,81 @@ static CVReturn VsyncCallback(CVDisplayLinkRef aDisplayLink,
                               CVOptionFlags* aFlagsOut,
                               void* aDisplayLinkContext)
 {
-  VsyncSource::Display* display = (VsyncSource::Display*) aDisplayLinkContext;
-  int64_t timestamp = aOutputTime->hostTime;
-  mozilla::TimeStamp vsyncTime = mozilla::TimeStamp::FromSystemTime(timestamp);
-  display->NotifyVsync(vsyncTime);
-  return kCVReturnSuccess;
+  mozilla::VsyncSource* vsyncSource = (mozilla::VsyncSource*) aDisplayLinkContext;
+  if (vsyncSource->IsVsyncEnabled()) {
+    // Now refers to "Now" as in when this callback is called or when the current frame
+    // is displayed. aOutputTime is when the next frame should be displayed.
+    // Now is VERY VERY noisy, aOutputTime is in the future though.
+    int64_t timestamp = aOutputTime->hostTime;
+    mozilla::TimeStamp vsyncTime = mozilla::TimeStamp::FromSystemTime(timestamp);
+    mozilla::VsyncDispatcher::GetInstance()->NotifyVsync(vsyncTime);
+    return kCVReturnSuccess;
+  } else {
+    return kCVReturnDisplayLinkNotRunning;
+  }
 }
 
-class OSXVsyncSource MOZ_FINAL : public VsyncSource
+class OSXVsyncSource MOZ_FINAL : public mozilla::VsyncSource
 {
 public:
   OSXVsyncSource()
   {
+    EnableVsync();
   }
 
-  virtual Display& GetGlobalDisplay() MOZ_OVERRIDE
+  virtual void EnableVsync() MOZ_OVERRIDE
   {
-    return mGlobalDisplay;
+    // Create a display link capable of being used with all active displays
+    // TODO: See if we need to create an active DisplayLink for each monitor in multi-monitor
+    // situations. According to the docs, it is compatible with all displays running on the computer
+    // But if we have different monitors at different display rates, we may hit issues.
+    if (CVDisplayLinkCreateWithActiveCGDisplays(&mDisplayLink) != kCVReturnSuccess) {
+      NS_WARNING("Could not create a display link, returning");
+      return;
+    }
+
+    // Set the renderer output callback function
+    if (CVDisplayLinkSetOutputCallback(mDisplayLink, &VsyncCallback, this) != kCVReturnSuccess) {
+      NS_WARNING("Could not set displaylink output callback");
+      return;
+    }
+
+    // Activate the display link
+    if (CVDisplayLinkStart(mDisplayLink) != kCVReturnSuccess) {
+      NS_WARNING("Could not activate the display link");
+      mDisplayLink = nullptr;
+    }
   }
 
-protected:
-  class OSXDisplay MOZ_FINAL : public VsyncSource::Display
+  virtual void DisableVsync() MOZ_OVERRIDE
   {
-  public:
-    OSXDisplay()
-    {
-      EnableVsync();
+    // Release the display link
+    if (mDisplayLink) {
+      CVDisplayLinkRelease(mDisplayLink);
+      mDisplayLink = nullptr;
     }
+  }
 
-    ~OSXDisplay()
-    {
-      DisableVsync();
-    }
-
-    virtual void EnableVsync() MOZ_OVERRIDE
-    {
-      MOZ_ASSERT(NS_IsMainThread());
-
-      // Create a display link capable of being used with all active displays
-      // TODO: See if we need to create an active DisplayLink for each monitor in multi-monitor
-      // situations. According to the docs, it is compatible with all displays running on the computer
-      // But if we have different monitors at different display rates, we may hit issues.
-      if (CVDisplayLinkCreateWithActiveCGDisplays(&mDisplayLink) != kCVReturnSuccess) {
-        NS_WARNING("Could not create a display link, returning");
-        return;
-      }
-
-      if (CVDisplayLinkSetOutputCallback(mDisplayLink, &VsyncCallback, this) != kCVReturnSuccess) {
-        NS_WARNING("Could not set displaylink output callback");
-        return;
-      }
-
-      if (CVDisplayLinkStart(mDisplayLink) != kCVReturnSuccess) {
-        NS_WARNING("Could not activate the display link");
-        mDisplayLink = nullptr;
-      }
-    }
-
-    virtual void DisableVsync() MOZ_OVERRIDE
-    {
-      MOZ_ASSERT(NS_IsMainThread());
-
-      // Release the display link
-      if (mDisplayLink) {
-        CVDisplayLinkRelease(mDisplayLink);
-        mDisplayLink = nullptr;
-      }
-    }
-
-    virtual bool IsVsyncEnabled() MOZ_OVERRIDE
-    {
-      MOZ_ASSERT(NS_IsMainThread());
-      return mDisplayLink != nullptr;
-    }
-
-  private:
-    // Manages the display link render thread
-    CVDisplayLinkRef   mDisplayLink;
-  }; // OSXDisplay
+  virtual bool IsVsyncEnabled() MOZ_OVERRIDE
+  {
+    return mDisplayLink != nullptr;
+  }
 
 private:
   virtual ~OSXVsyncSource()
   {
+    DisableVsync();
   }
 
-  OSXDisplay mGlobalDisplay;
+  // Manages the display link render thread
+  CVDisplayLinkRef   mDisplayLink;
 }; // OSXVsyncSource
 
-already_AddRefed<mozilla::gfx::VsyncSource>
-gfxPlatformMac::CreateHardwareVsyncSource()
+void
+gfxPlatformMac::InitHardwareVsync()
 {
   nsRefPtr<VsyncSource> osxVsyncSource = new OSXVsyncSource();
-  return osxVsyncSource.forget();
+  mozilla::VsyncDispatcher::GetInstance()->SetVsyncSource(osxVsyncSource);
 }
 
 void

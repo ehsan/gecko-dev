@@ -49,7 +49,6 @@ public:
     nsWindow();
     virtual ~nsWindow();
 
-    static void NotifyVsync(mozilla::TimeStamp aVsyncTimestamp);
     static void DoDraw(void);
     static nsEventStatus DispatchInputEvent(mozilla::WidgetGUIEvent& aEvent,
                                             bool* aWasCaptured = nullptr);

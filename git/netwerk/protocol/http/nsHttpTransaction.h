@@ -405,11 +405,6 @@ private:
         mCountSent += sentBytes;
         SaveNetworkStats(false);
     }
-public:
-    void     SetClassOfService(uint32_t cos) { mClassOfService = cos; }
-    uint32_t ClassOfService() { return mClassOfService; }
-private:
-    uint32_t mClassOfService;
 };
 
 }} // namespace mozilla::net

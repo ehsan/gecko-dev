@@ -22,16 +22,11 @@
 #include "Units.h"
 #include "mozilla/Mutex.h"
 #include <vector>
-#include "nsRefPtr.h"
 
 class nsIWidget;
 
 namespace mozilla {
 class WidgetMouseEvent;
-
-namespace layers {
-class CompositorVsyncObserver;
-}
 
 // Used to resample touch events whenever a vsync event occurs. It batches
 // touch moves and on every vsync, resamples the touch position to create smooth
@@ -53,7 +48,6 @@ public:
   void DispatchTouchEvent(MultiTouchInput& aMultiTouch);
   void DispatchTouchMoveEvents(TimeStamp aVsyncTime);
   static bool NotifyVsync(TimeStamp aVsyncTimestamp);
-  static void SetCompositorVsyncObserver(layers::CompositorVsyncObserver* aObserver);
 
 private:
   void ResampleTouchMoves(MultiTouchInput& aOutTouch, TimeStamp vsyncTime);
@@ -84,8 +78,6 @@ private:
 
   // How far ahead can vsync events get ahead of touch events.
   TimeDuration mOldTouchThreshold;
-
-  nsRefPtr<layers::CompositorVsyncObserver> mCompositorVsyncObserver;
 };
 
 } // namespace mozilla

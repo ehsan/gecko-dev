@@ -50,7 +50,6 @@ class SourceSurface;
 class DataSourceSurface;
 class ScaledFont;
 class DrawEventRecorder;
-class VsyncSource;
 
 inline uint32_t
 BackendTypeBit(BackendType b)
@@ -584,17 +583,6 @@ public:
     static bool UsesOffMainThreadCompositing();
 
     bool HasEnoughTotalSystemMemoryForSkiaGL();
-
-    /**
-     * Get the hardware vsync source for each platform.
-     * Should only exist and be valid on the parent process
-     */
-    virtual mozilla::gfx::VsyncSource* GetHardwareVsync() {
-      MOZ_ASSERT(mVsyncSource != nullptr);
-      MOZ_ASSERT(XRE_IsParentProcess());
-      return mVsyncSource;
-    }
-
 protected:
     gfxPlatform();
     virtual ~gfxPlatform();
@@ -605,10 +593,7 @@ protected:
     /**
      * Initialized hardware vsync based on each platform.
      */
-    virtual already_AddRefed<mozilla::gfx::VsyncSource> CreateHardwareVsyncSource() {
-      NS_WARNING("Hardware vsync not supported on platform yet");
-      return nullptr;
-    }
+    virtual void InitHardwareVsync() {}
 
     /**
      * Helper method, creates a draw target for a specific Azure backend.
@@ -673,9 +658,6 @@ protected:
     int32_t mWordCacheMaxEntries;
 
     uint32_t mTotalSystemMemory;
-
-    // Hardware vsync source. Only valid on parent process
-    nsRefPtr<mozilla::gfx::VsyncSource> mVsyncSource;
 
 private:
     /**

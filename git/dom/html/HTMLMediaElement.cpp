@@ -3244,7 +3244,10 @@ void HTMLMediaElement::UpdateReadyStateForData(MediaDecoderOwner::NextFrameStatu
   // autoplay elements for live streams will never play. Otherwise we
   // move to HAVE_ENOUGH_DATA if we can play through the entire media
   // without stopping to buffer.
-  if (mDecoder->CanPlayThrough())
+  MediaDecoder::Statistics stats = mDecoder->GetStatistics();
+  if (stats.mTotalBytes < 0 ? stats.mDownloadRateReliable
+                            : stats.mTotalBytes == stats.mDownloadPosition ||
+                              mDecoder->CanPlayThrough())
   {
     ChangeReadyState(nsIDOMHTMLMediaElement::HAVE_ENOUGH_DATA);
     return;

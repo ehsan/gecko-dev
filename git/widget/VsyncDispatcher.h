@@ -12,6 +12,8 @@
 #include "nsTArray.h"
 #include "ThreadSafeRefcountingWithMainThreadDestruction.h"
 
+class MessageLoop;
+
 namespace mozilla {
 class TimeStamp;
 
@@ -19,10 +21,23 @@ namespace layers {
 class CompositorVsyncObserver;
 }
 
+// Controls how and when to enable/disable vsync.
+class VsyncSource
+{
+public:
+  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(VsyncSource)
+  virtual void EnableVsync() = 0;
+  virtual void DisableVsync() = 0;
+  virtual bool IsVsyncEnabled() = 0;
+
+protected:
+  virtual ~VsyncSource() {}
+}; // VsyncSource
+
 class VsyncObserver
 {
   // Must be destroyed on main thread since the compositor is as well
-  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(VsyncObserver)
+  NS_INLINE_DECL_THREADSAFE_REFCOUNTING_WITH_MAIN_THREAD_DESTRUCTION(VsyncObserver)
 
 public:
   // The method called when a vsync occurs. Return true if some work was done.
@@ -40,8 +55,7 @@ class VsyncDispatcher
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(VsyncDispatcher)
 
 public:
-  VsyncDispatcher();
-
+  static VsyncDispatcher* GetInstance();
   // Called on the vsync thread when a hardware vsync occurs
   // The aVsyncTimestamp can mean different things depending on the platform:
   // b2g - The vsync timestamp of the previous frame that was just displayed
@@ -49,15 +63,24 @@ public:
   // TODO: Windows / Linux. DOCUMENT THIS WHEN IMPLEMENTING ON THOSE PLATFORMS
   // Android: TODO
   void NotifyVsync(TimeStamp aVsyncTimestamp);
+  void SetVsyncSource(VsyncSource* aVsyncSource);
 
   // Compositor vsync observers must be added/removed on the compositor thread
-  void SetCompositorVsyncObserver(VsyncObserver* aVsyncObserver);
-  void Shutdown();
+  void AddCompositorVsyncObserver(VsyncObserver* aVsyncObserver);
+  void RemoveCompositorVsyncObserver(VsyncObserver* aVsyncObserver);
 
 private:
+  VsyncDispatcher();
   virtual ~VsyncDispatcher();
+  void DispatchTouchEvents(bool aNotifiedCompositors, TimeStamp aVsyncTime);
+
+  // Called on the vsync thread. Returns true if observers were notified
+  bool NotifyVsyncObservers(TimeStamp aVsyncTimestamp, nsTArray<nsRefPtr<VsyncObserver>>& aObservers);
+
+  // Can have multiple compositors. On desktop, this is 1 compositor per window
   Mutex mCompositorObserverLock;
-  nsRefPtr<VsyncObserver> mCompositorVsyncObserver;
+  nsTArray<nsRefPtr<VsyncObserver>> mCompositorObservers;
+  nsRefPtr<VsyncSource> mVsyncSource;
 }; // VsyncDispatcher
 
 } // namespace mozilla

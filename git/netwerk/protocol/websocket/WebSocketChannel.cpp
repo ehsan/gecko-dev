@@ -19,7 +19,6 @@
 #include "nsIPrefBranch.h"
 #include "nsIPrefService.h"
 #include "nsICancelable.h"
-#include "nsIClassOfService.h"
 #include "nsIDNSRecord.h"
 #include "nsIDNSService.h"
 #include "nsIStreamConverterService.h"
@@ -2294,10 +2293,8 @@ WebSocketChannel::SetupRequest()
   // we never let websockets be blocked by head CSS/JS loads to avoid
   // potential deadlock where server generation of CSS/JS requires
   // an XHR signal.
-  nsCOMPtr<nsIClassOfService> cos(do_QueryInterface(mChannel));
-  if (cos) {
-    cos->AddClassFlags(nsIClassOfService::Unblocked);
-  }
+  rv = mChannel->SetLoadUnblocked(true);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // draft-ietf-hybi-thewebsocketprotocol-07 illustrates Upgrade: websocket
   // in lower case, so go with that. It is technically case insensitive.

@@ -196,30 +196,23 @@ static void SetThreadPriority()
   hal::SetCurrentThreadPriority(hal::THREAD_PRIORITY_COMPOSITOR);
 }
 
-CompositorVsyncObserver::CompositorVsyncObserver(CompositorParent* aCompositorParent, nsIWidget* aWidget)
+CompositorVsyncObserver::CompositorVsyncObserver(CompositorParent* aCompositorParent)
   : mNeedsComposite(false)
   , mIsObservingVsync(false)
   , mCompositorParent(aCompositorParent)
   , mCurrentCompositeTaskMonitor("CurrentCompositeTaskMonitor")
   , mCurrentCompositeTask(nullptr)
 {
-  MOZ_ASSERT(NS_IsMainThread());
-  MOZ_ASSERT(aWidget != nullptr);
-  mVsyncDispatcher = aWidget->GetVsyncDispatcher();
-#ifdef MOZ_WIDGET_GONK
-  GeckoTouchDispatcher::SetCompositorVsyncObserver(this);
-#endif
+
 }
 
 CompositorVsyncObserver::~CompositorVsyncObserver()
 {
-  MOZ_ASSERT(CompositorParent::IsInCompositorThread());
-  MOZ_ASSERT(!mIsObservingVsync);
-  // The VsyncDispatcher is cleaned up before this in the nsBaseWidget, which stops vsync listeners
-  CancelCurrentCompositeTask();
+  MOZ_ASSERT(NS_IsMainThread());
+  UnobserveVsync();
   mCompositorParent = nullptr;
-  mVsyncDispatcher = nullptr;
   mNeedsComposite = false;
+  CancelCurrentCompositeTask();
 }
 
 /**
@@ -232,14 +225,9 @@ CompositorVsyncObserver::~CompositorVsyncObserver()
 void
 CompositorVsyncObserver::SetNeedsComposite(bool aNeedsComposite)
 {
-  if (aNeedsComposite && !CompositorParent::IsInCompositorThread()) {
-    CompositorParent::CompositorLoop()->PostTask(FROM_HERE,
-      NewRunnableMethod(this,
-                        &CompositorVsyncObserver::SetNeedsComposite,
-                        aNeedsComposite));
-  }
-
+  MOZ_ASSERT(CompositorParent::IsInCompositorThread());
   mNeedsComposite = aNeedsComposite;
+
   if (!mIsObservingVsync && mNeedsComposite) {
     ObserveVsync();
   }
@@ -285,6 +273,10 @@ CompositorVsyncObserver::Composite(TimeStamp aVsyncTimestamp)
   if (mNeedsComposite && mCompositorParent) {
     mNeedsComposite = false;
     mCompositorParent->CompositeCallback(aVsyncTimestamp);
+  } else {
+    // We're getting vsync notifications but we don't need to composite so
+    // unregister the vsync.
+    UnobserveVsync();
   }
 
   DispatchTouchEvents(aVsyncTimestamp);
@@ -297,11 +289,15 @@ CompositorVsyncObserver::NeedsComposite()
   return mNeedsComposite;
 }
 
+/**
+ * Since the vsync thread has its own locks before notifying us of vsync
+ * we can't register/unregister from the vsync thread. Any other thread is fine
+ */
 void
 CompositorVsyncObserver::ObserveVsync()
 {
   MOZ_ASSERT(CompositorParent::IsInCompositorThread());
-  mVsyncDispatcher->SetCompositorVsyncObserver(this);
+  VsyncDispatcher::GetInstance()->AddCompositorVsyncObserver(this);
   mIsObservingVsync = true;
 }
 
@@ -309,7 +305,7 @@ void
 CompositorVsyncObserver::UnobserveVsync()
 {
   MOZ_ASSERT(CompositorParent::IsInCompositorThread() || NS_IsMainThread());
-  mVsyncDispatcher->SetCompositorVsyncObserver(nullptr);
+  VsyncDispatcher::GetInstance()->RemoveCompositorVsyncObserver(this);
   mIsObservingVsync = false;
 }
 
@@ -317,7 +313,9 @@ void
 CompositorVsyncObserver::DispatchTouchEvents(TimeStamp aVsyncTimestamp)
 {
 #ifdef MOZ_WIDGET_GONK
-  GeckoTouchDispatcher::NotifyVsync(aVsyncTimestamp);
+  if (gfxPrefs::TouchResampling()) {
+    GeckoTouchDispatcher::NotifyVsync(aVsyncTimestamp);
+  }
 #endif
 }
 
@@ -387,7 +385,7 @@ CompositorParent::CompositorParent(nsIWidget* aWidget,
   }
 
   if (gfxPrefs::VsyncAlignedCompositor()) {
-    mCompositorVsyncObserver = new CompositorVsyncObserver(this, aWidget);
+    mCompositorVsyncObserver = new CompositorVsyncObserver(this);
   }
 
   gfxPlatform::GetPlatform()->ComputeTileSize();
@@ -430,10 +428,7 @@ CompositorParent::Destroy()
     mApzcTreeManager = nullptr;
   }
   sIndirectLayerTrees.erase(mRootLayerTreeID);
-  if (mCompositorVsyncObserver) {
-    mCompositorVsyncObserver->UnobserveVsync();
-    mCompositorVsyncObserver = nullptr;
-  }
+  mCompositorVsyncObserver = nullptr;
 }
 
 void
