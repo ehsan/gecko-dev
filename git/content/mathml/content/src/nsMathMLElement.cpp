@@ -6,7 +6,7 @@
 
 #include "nsMathMLElement.h"
 #include "base/compiler_specific.h"
-#include "mozilla/ArrayUtils.h"
+#include "mozilla/Util.h"
 #include "nsGkAtoms.h"
 #include "nsCRT.h"
 #include "nsRuleData.h"

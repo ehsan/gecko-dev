@@ -9,6 +9,7 @@
 #include <algorithm>
 
 #include "mozilla/MemoryReporting.h"
+#include "mozilla/Util.h"
 
 // Local Includes
 #include "Navigator.h"

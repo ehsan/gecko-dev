@@ -9,7 +9,7 @@
  * same-origin with anything but themselves.
  */
 
-#include "mozilla/ArrayUtils.h"
+#include "mozilla/Util.h"
 
 #include "nsNullPrincipal.h"
 #include "nsNullPrincipalURI.h"

@@ -5,7 +5,7 @@
 #include "TestShellParent.h"
 
 /* This must occur *after* TestShellParent.h to avoid typedefs conflicts. */
-#include "mozilla/ArrayUtils.h"
+#include "mozilla/Util.h"
 
 #include "mozilla/dom/ContentParent.h"
 

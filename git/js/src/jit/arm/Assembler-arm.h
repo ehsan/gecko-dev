@@ -7,9 +7,9 @@
 #ifndef jit_arm_Assembler_arm_h
 #define jit_arm_Assembler_arm_h
 
-#include "mozilla/ArrayUtils.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/MathAlgorithms.h"
+#include "mozilla/Util.h"
 
 #include "assembler/assembler/AssemblerBufferWithConstantPool.h"
 #include "jit/arm/Architecture-arm.h"
@@ -68,8 +68,12 @@ static const uint32_t NumCallTempNonArgRegs =
     mozilla::ArrayLength(CallTempNonArgRegs);
 class ABIArgGenerator
 {
+#if defined(JS_CPU_ARM_HARDFP)
     unsigned intRegIndex_;
     unsigned floatRegIndex_;
+#else
+    unsigned argRegIndex_;
+#endif
     uint32_t stackOffset_;
     ABIArg current_;
 
@@ -1156,7 +1160,7 @@ class Assembler
         LessThanOrEqual = LE,
         Overflow = VS,
         Signed = MI,
-        NotSigned = PL,
+        Unsigned = PL,
         Zero = EQ,
         NonZero = NE,
         Always  = AL,

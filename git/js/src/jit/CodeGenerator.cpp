@@ -201,8 +201,7 @@ CodeGenerator::visitValueToInt32(LValueToInt32 *lir)
         masm.bind(oolDouble->rejoin());
     } else {
         masm.convertValueToInt32(operand, input, temp, output, &fails,
-                                 lir->mirNormal()->canBeNegativeZero(),
-                                 lir->mirNormal()->conversion());
+                                 lir->mirNormal()->canBeNegativeZero());
     }
 
     return bailoutFrom(&fails, lir->snapshot());
@@ -3840,7 +3839,7 @@ CodeGenerator::visitAbsI(LAbsI *ins)
 
     JS_ASSERT(input == ToRegister(ins->output()));
     masm.test32(input, input);
-    masm.j(Assembler::NotSigned, &positive);
+    masm.j(Assembler::GreaterThanOrEqual, &positive);
     masm.neg32(input);
     if (ins->snapshot() && !bailoutIf(Assembler::Overflow, ins->snapshot()))
         return false;
@@ -7685,14 +7684,12 @@ CodeGenerator::visitAsmJSCall(LAsmJSCall *ins)
     MAsmJSCall *mir = ins->mir();
 
 #if defined(JS_CPU_ARM) && !defined(JS_CPU_ARM_HARDFP)
-    if (mir->callee().which() == MAsmJSCall::Callee::Builtin) {
-        for (unsigned i = 0, e = ins->numOperands(); i < e; i++) {
-            LAllocation *a = ins->getOperand(i);
-            if (a->isFloatReg()) {
-                FloatRegister fr = ToFloatRegister(a);
-                int srcId = fr.code() * 2;
-                masm.ma_vxfer(fr, Register::FromCode(srcId), Register::FromCode(srcId+1));
-            }
+    for (unsigned i = 0, e = ins->numOperands(); i < e; i++) {
+        LAllocation *a = ins->getOperand(i);
+        if (a->isFloatReg()) {
+            FloatRegister fr = ToFloatRegister(a);
+            int srcId = fr.code() * 2;
+            masm.ma_vxfer(fr, Register::FromCode(srcId), Register::FromCode(srcId+1));
         }
     }
 #endif
@@ -7732,6 +7729,16 @@ CodeGenerator::visitAsmJSCall(LAsmJSCall *ins)
 bool
 CodeGenerator::visitAsmJSParameter(LAsmJSParameter *lir)
 {
+#if defined(JS_CPU_ARM) && !defined(JS_CPU_ARM_HARDFP)
+    // softfp transfers some double values in gprs.
+    // undo this.
+    LAllocation *a = lir->getDef(0)->output();
+    if (a->isFloatReg()) {
+        FloatRegister fr = ToFloatRegister(a);
+        int srcId = fr.code() * 2;
+        masm.ma_vxfer(Register::FromCode(srcId), Register::FromCode(srcId+1), fr);
+    }
+#endif
     return true;
 }
 
@@ -7739,6 +7746,10 @@ bool
 CodeGenerator::visitAsmJSReturn(LAsmJSReturn *lir)
 {
     // Don't emit a jump to the return label if this is the last block.
+#if defined(JS_CPU_ARM) && !defined(JS_CPU_ARM_HARDFP)
+    if (lir->getOperand(0)->isFloatReg())
+        masm.ma_vxfer(d0, r0, r1);
+#endif
     if (current->mir() != *gen->graph().poBegin())
         masm.jump(&returnLabel_);
     return true;

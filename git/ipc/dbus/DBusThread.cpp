@@ -50,6 +50,7 @@
 #include "mozilla/NullPtr.h"
 #include "mozilla/StaticPtr.h"
 #include "mozilla/Monitor.h"
+#include "mozilla/Util.h"
 #include "mozilla/FileUtils.h"
 #include "nsThreadUtils.h"
 #include "nsIThread.h"

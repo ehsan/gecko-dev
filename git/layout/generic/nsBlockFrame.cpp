@@ -12,6 +12,7 @@
 #include "nsBlockFrame.h"
 
 #include "mozilla/DebugOnly.h"
+#include "mozilla/Util.h"
 
 #include "nsCOMPtr.h"
 #include "nsAbsoluteContainingBlock.h"

@@ -5,7 +5,7 @@
 
 /* This parsing code originally lived in xpfe/components/directory/ - bbaetz */
 
-#include "mozilla/ArrayUtils.h"
+#include "mozilla/Util.h"
 
 #include "prprf.h"
 

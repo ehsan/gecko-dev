@@ -63,9 +63,9 @@
 #include "nsTreeUtils.h"
 #include "nsXBLPrototypeBinding.h"
 #include "nsXBLBinding.h"
-#include "mozilla/ArrayUtils.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
+#include "mozilla/Util.h"
 #include "nsDeckFrame.h"
 
 #ifdef MOZ_XUL
@@ -1310,7 +1310,7 @@ nsAccessibilityService::CreateAccessibleByType(nsIContent* aContent,
     accessible = new XULLabelAccessible(aContent, aDoc);
 
   } else if (role.EqualsLiteral("xul:textbox")) {
-    accessible = new EnumRoleAccessible(aContent, aDoc, roles::SECTION);
+    accessible = new XULTextFieldAccessible(aContent, aDoc);
 
   } else if (role.EqualsLiteral("xul:thumb")) {
     accessible = new XULThumbAccessible(aContent, aDoc);

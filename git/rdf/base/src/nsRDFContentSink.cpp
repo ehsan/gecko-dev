@@ -38,6 +38,8 @@
 
 */
 
+#include "mozilla/Util.h"
+
 #include "nsCOMPtr.h"
 #include "nsInterfaceHashtable.h"
 #include "nsIContentSink.h"

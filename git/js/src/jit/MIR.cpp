@@ -1723,9 +1723,6 @@ MCompare::inputType()
         return MIRType_Boolean;
       case Compare_UInt32:
       case Compare_Int32:
-      case Compare_Int32MaybeCoerceBoth:
-      case Compare_Int32MaybeCoerceLHS:
-      case Compare_Int32MaybeCoerceRHS:
         return MIRType_Int32;
       case Compare_Double:
       case Compare_DoubleMaybeCoerceLHS:
@@ -1812,7 +1809,7 @@ MCompare::infer(BaselineInspector *inspector, jsbytecode *pc)
     if ((lhs == MIRType_Int32 && rhs == MIRType_Int32) ||
         (lhs == MIRType_Boolean && rhs == MIRType_Boolean))
     {
-        compareType_ = Compare_Int32MaybeCoerceBoth;
+        compareType_ = Compare_Int32;
         return;
     }
 
@@ -1821,7 +1818,7 @@ MCompare::infer(BaselineInspector *inspector, jsbytecode *pc)
         (lhs == MIRType_Int32 || lhs == MIRType_Boolean) &&
         (rhs == MIRType_Int32 || rhs == MIRType_Boolean))
     {
-        compareType_ = Compare_Int32MaybeCoerceBoth;
+        compareType_ = Compare_Int32;
         return;
     }
 

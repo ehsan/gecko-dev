@@ -81,6 +81,7 @@
 #include "mozilla/CycleCollectedJSRuntime.h"
 #include "mozilla/GuardObjects.h"
 #include "mozilla/MemoryReporting.h"
+#include "mozilla/Util.h"
 
 #include <math.h>
 #include <stdint.h>

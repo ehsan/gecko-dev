@@ -132,12 +132,6 @@ ConsoleAPI.prototype = {
         Services.obs.notifyObservers(consoleEvent, "console-api-profiler",
                                      null);  
       },
-      assert: function CA_assert() {
-        let args = Array.prototype.slice.call(arguments);
-        if(!args.shift()) {
-          self.queueCall("assert", args);
-        }
-      },
       __exposedProps__: {
         log: "r",
         info: "r",
@@ -153,8 +147,7 @@ ConsoleAPI.prototype = {
         time: "r",
         timeEnd: "r",
         profile: "r",
-        profileEnd: "r",
-        assert: "r"
+        profileEnd: "r"
       }
     };
 
@@ -181,7 +174,6 @@ ConsoleAPI.prototype = {
       timeEnd: genPropDesc('timeEnd'),
       profile: genPropDesc('profile'),
       profileEnd: genPropDesc('profileEnd'),
-      assert: genPropDesc('assert'),
       __noSuchMethod__: { enumerable: true, configurable: true, writable: true,
                           value: function() {} },
       __mozillaConsole__: { value: true }
@@ -303,7 +295,6 @@ ConsoleAPI.prototype = {
       case "error":
       case "exception":
       case "debug":
-      case "assert":
         consoleEvent.arguments = this.processArguments(args);
         break;
       case "trace":
