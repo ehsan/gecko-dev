@@ -1925,12 +1925,7 @@ CacheFile::PadChunkWithZeroes(uint32_t aChunkIdx)
   LOG(("CacheFile::PadChunkWithZeroes() - Zeroing hole in chunk %d, range %d-%d"
        " [this=%p]", aChunkIdx, chunk->DataSize(), kChunkSize - 1, this));
 
-  rv = chunk->EnsureBufSize(kChunkSize);
-  if (NS_FAILED(rv)) {
-    ReleaseOutsideLock(chunk.forget().take());
-    SetError(rv);
-    return rv;
-  }
+  chunk->EnsureBufSize(kChunkSize);
   memset(chunk->BufForWriting() + chunk->DataSize(), 0, kChunkSize - chunk->DataSize());
 
   chunk->UpdateDataSize(chunk->DataSize(), kChunkSize - chunk->DataSize(),

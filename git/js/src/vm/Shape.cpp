@@ -33,14 +33,12 @@ using mozilla::DebugOnly;
 using mozilla::PodZero;
 using mozilla::RotateLeft;
 
-Shape *const ShapeTable::Entry::SHAPE_REMOVED = (Shape *)ShapeTable::Entry::SHAPE_COLLISION;
-
 bool
 ShapeTable::init(ExclusiveContext *cx, Shape *lastProp)
 {
-    uint32_t sizeLog2 = CeilingLog2Size(entryCount_);
+    uint32_t sizeLog2 = CeilingLog2Size(entryCount);
     uint32_t size = JS_BIT(sizeLog2);
-    if (entryCount_ >= size - (size >> 2))
+    if (entryCount >= size - (size >> 2))
         sizeLog2++;
     if (sizeLog2 < MIN_SIZE_LOG2)
         sizeLog2 = MIN_SIZE_LOG2;
@@ -49,22 +47,22 @@ ShapeTable::init(ExclusiveContext *cx, Shape *lastProp)
      * Use rt->calloc for memory accounting and overpressure handling
      * without OOM reporting. See ShapeTable::change.
      */
-    entries_ = cx->pod_calloc<Entry>(JS_BIT(sizeLog2));
-    if (!entries_)
+    entries = cx->pod_calloc<Shape *>(JS_BIT(sizeLog2));
+    if (!entries)
         return false;
 
-    hashShift_ = HASH_BITS - sizeLog2;
+    hashShift = HASH_BITS - sizeLog2;
     for (Shape::Range<NoGC> r(lastProp); !r.empty(); r.popFront()) {
         Shape &shape = r.front();
         MOZ_ASSERT(cx->isThreadLocal(&shape));
-        Entry &entry = search(shape.propid(), true);
+        Shape **spp = search(shape.propid(), true);
 
         /*
          * Beware duplicate args and arg vs. var conflicts: the youngest shape
          * (nearest to lastProp) must win. See bug 600067.
          */
-        if (!entry.shape())
-            entry.setPreservingCollision(&shape);
+        if (!SHAPE_FETCH(spp))
+            SHAPE_STORE_PRESERVING_COLLISION(spp, &shape);
     }
     return true;
 }
@@ -168,100 +166,97 @@ Shape::hashify(ExclusiveContext *cx, Shape *shape)
  * Double hashing needs the second hash code to be relatively prime to table
  * size, so we simply make hash2 odd.
  */
-static HashNumber
-Hash1(HashNumber hash0, int shift)
-{
-    return hash0 >> shift;
-}
+#define HASH1(hash0,shift)      ((hash0) >> (shift))
+#define HASH2(hash0,log2,shift) ((((hash0) << (log2)) >> (shift)) | 1)
 
-static HashNumber
-Hash2(HashNumber hash0, int log2, int shift)
-{
-    return ((hash0 << log2) >> shift) | 1;
-}
-
-ShapeTable::Entry &
+Shape **
 ShapeTable::search(jsid id, bool adding)
 {
-    MOZ_ASSERT(entries_);
+    js::HashNumber hash0, hash1, hash2;
+    int sizeLog2;
+    Shape *stored, *shape, **spp, **firstRemoved;
+    uint32_t sizeMask;
+
+    MOZ_ASSERT(entries);
     MOZ_ASSERT(!JSID_IS_EMPTY(id));
 
     /* Compute the primary hash address. */
-    HashNumber hash0 = HashId(id);
-    HashNumber hash1 = Hash1(hash0, hashShift_);
-    Entry *entry = entries_ + hash1;
+    hash0 = HashId(id);
+    hash1 = HASH1(hash0, hashShift);
+    spp = entries + hash1;
 
     /* Miss: return space for a new entry. */
-    if (entry->isFree())
-        return *entry;
+    stored = *spp;
+    if (SHAPE_IS_FREE(stored))
+        return spp;
 
     /* Hit: return entry. */
-    Shape *shape = entry->shape();
+    shape = SHAPE_CLEAR_COLLISION(stored);
     if (shape && shape->propidRaw() == id)
-        return *entry;
+        return spp;
 
     /* Collision: double hash. */
-    int sizeLog2 = HASH_BITS - hashShift_;
-    HashNumber hash2 = Hash2(hash0, sizeLog2, hashShift_);
-    uint32_t sizeMask = JS_BITMASK(sizeLog2);
+    sizeLog2 = HASH_BITS - hashShift;
+    hash2 = HASH2(hash0, sizeLog2, hashShift);
+    sizeMask = JS_BITMASK(sizeLog2);
 
 #ifdef DEBUG
-    bool collisionFlag = true;
+    uintptr_t collision_flag = SHAPE_COLLISION;
 #endif
 
     /* Save the first removed entry pointer so we can recycle it if adding. */
-    Entry *firstRemoved;
-    if (entry->isRemoved()) {
-        firstRemoved = entry;
+    if (SHAPE_IS_REMOVED(stored)) {
+        firstRemoved = spp;
     } else {
         firstRemoved = nullptr;
-        if (adding && !entry->hadCollision())
-            entry->flagCollision();
+        if (adding && !SHAPE_HAD_COLLISION(stored))
+            SHAPE_FLAG_COLLISION(spp, shape);
 #ifdef DEBUG
-        collisionFlag &= entry->hadCollision();
+        collision_flag &= uintptr_t(*spp) & SHAPE_COLLISION;
 #endif
     }
 
     for (;;) {
         hash1 -= hash2;
         hash1 &= sizeMask;
-        entry = entries_ + hash1;
+        spp = entries + hash1;
 
-        if (entry->isFree())
-            return (adding && firstRemoved) ? *firstRemoved : *entry;
+        stored = *spp;
+        if (SHAPE_IS_FREE(stored))
+            return (adding && firstRemoved) ? firstRemoved : spp;
 
-        shape = entry->shape();
+        shape = SHAPE_CLEAR_COLLISION(stored);
         if (shape && shape->propidRaw() == id) {
-            MOZ_ASSERT(collisionFlag);
-            return *entry;
+            MOZ_ASSERT(collision_flag);
+            return spp;
         }
 
-        if (entry->isRemoved()) {
+        if (SHAPE_IS_REMOVED(stored)) {
             if (!firstRemoved)
-                firstRemoved = entry;
+                firstRemoved = spp;
         } else {
-            if (adding && !entry->hadCollision())
-                entry->flagCollision();
+            if (adding && !SHAPE_HAD_COLLISION(stored))
+                SHAPE_FLAG_COLLISION(spp, shape);
 #ifdef DEBUG
-            collisionFlag &= entry->hadCollision();
+            collision_flag &= uintptr_t(*spp) & SHAPE_COLLISION;
 #endif
         }
     }
 
     MOZ_CRASH("Shape::search failed to find an expected entry.");
+    return nullptr;
 }
 
 #ifdef JSGC_COMPACTING
 void
 ShapeTable::fixupAfterMovingGC()
 {
-    int log2 = HASH_BITS - hashShift_;
+    int log2 = HASH_BITS - hashShift;
     uint32_t size = JS_BIT(log2);
     for (HashNumber i = 0; i < size; i++) {
-        Entry &entry = entries_[i];
-        Shape *shape = entry.shape();
+        Shape *shape = SHAPE_FETCH(&entries[i]);
         if (shape && IsForwarded(shape))
-            entry.setPreservingCollision(Forwarded(shape));
+            SHAPE_STORE_PRESERVING_COLLISION(&entries[i], Forwarded(shape));
     }
 }
 #endif
@@ -269,33 +264,33 @@ ShapeTable::fixupAfterMovingGC()
 bool
 ShapeTable::change(int log2Delta, ExclusiveContext *cx)
 {
-    MOZ_ASSERT(entries_);
+    MOZ_ASSERT(entries);
 
     /*
-     * Grow, shrink, or compress by changing this->entries_.
+     * Grow, shrink, or compress by changing this->entries.
      */
-    int oldlog2 = HASH_BITS - hashShift_;
+    int oldlog2 = HASH_BITS - hashShift;
     int newlog2 = oldlog2 + log2Delta;
     uint32_t oldsize = JS_BIT(oldlog2);
     uint32_t newsize = JS_BIT(newlog2);
-    Entry *newTable = cx->pod_calloc<Entry>(newsize);
+    Shape **newTable = cx->pod_calloc<Shape *>(newsize);
     if (!newTable)
         return false;
 
     /* Now that we have newTable allocated, update members. */
-    hashShift_ = HASH_BITS - newlog2;
-    removedCount_ = 0;
-    Entry *oldTable = entries_;
-    entries_ = newTable;
+    hashShift = HASH_BITS - newlog2;
+    removedCount = 0;
+    Shape **oldTable = entries;
+    entries = newTable;
 
     /* Copy only live entries, leaving removed and free ones behind. */
-    for (Entry *oldEntry = oldTable; oldsize != 0; oldEntry++) {
-        Shape *shape = oldEntry->shape();
+    for (Shape **oldspp = oldTable; oldsize != 0; oldspp++) {
+        Shape *shape = SHAPE_FETCH(oldspp);
         MOZ_ASSERT(cx->isThreadLocal(shape));
         if (shape) {
-            Entry &entry = search(shape->propid(), true);
-            MOZ_ASSERT(entry.isFree());
-            entry.setShape(shape);
+            Shape **spp = search(shape->propid(), true);
+            MOZ_ASSERT(SHAPE_IS_FREE(*spp));
+            *spp = shape;
         }
         oldsize--;
     }
@@ -311,9 +306,9 @@ ShapeTable::grow(ExclusiveContext *cx)
     MOZ_ASSERT(needsToGrow());
 
     uint32_t size = capacity();
-    int delta = removedCount_ < size >> 2;
+    int delta = removedCount < size >> 2;
 
-    if (!change(delta, cx) && entryCount_ + removedCount_ == size - 1) {
+    if (!change(delta, cx) && entryCount + removedCount == size - 1) {
         js_ReportOutOfMemory(cx);
         return false;
     }
@@ -503,11 +498,11 @@ NativeObject::addProperty(ExclusiveContext *cx, HandleNativeObject obj, HandleId
         return nullptr;
     }
 
-    ShapeTable::Entry *entry = nullptr;
+    Shape **spp = nullptr;
     if (obj->inDictionaryMode())
-        entry = &obj->lastProperty()->table().search(id, true);
+        spp = obj->lastProperty()->table().search(id, true);
 
-    return addPropertyInternal(cx, obj, id, getter, setter, slot, attrs, flags, entry,
+    return addPropertyInternal(cx, obj, id, getter, setter, slot, attrs, flags, spp,
                                allowDictionary);
 }
 
@@ -528,7 +523,7 @@ NativeObject::addPropertyInternal(ExclusiveContext *cx,
                                   HandleNativeObject obj, HandleId id,
                                   PropertyOp getter, StrictPropertyOp setter,
                                   uint32_t slot, unsigned attrs,
-                                  unsigned flags, ShapeTable::Entry *entry,
+                                  unsigned flags, Shape **spp,
                                   bool allowDictionary)
 {
     MOZ_ASSERT(cx->isThreadLocal(obj));
@@ -556,19 +551,19 @@ NativeObject::addPropertyInternal(ExclusiveContext *cx,
             if (!obj->toDictionaryMode(cx))
                 return nullptr;
             table = &obj->lastProperty()->table();
-            entry = &table->search(id, true);
+            spp = table->search(id, true);
         }
     } else {
         table = &obj->lastProperty()->table();
         if (table->needsToGrow()) {
             if (!table->grow(cx))
                 return nullptr;
-            entry = &table->search(id, true);
-            MOZ_ASSERT(!entry->shape());
+            spp = table->search(id, true);
+            MOZ_ASSERT(!SHAPE_FETCH(spp));
         }
     }
 
-    MOZ_ASSERT(!!table == !!entry);
+    MOZ_ASSERT(!!table == !!spp);
 
     /* Find or create a property tree node labeled by our arguments. */
     RootedShape shape(cx);
@@ -599,8 +594,8 @@ NativeObject::addPropertyInternal(ExclusiveContext *cx,
 
         if (table) {
             /* Store the tree node pointer in the table entry for id. */
-            entry->setPreservingCollision(shape);
-            table->incEntryCount();
+            SHAPE_STORE_PRESERVING_COLLISION(spp, static_cast<Shape *>(shape));
+            ++table->entryCount;
 
             /* Pass the table along to the new last property, namely shape. */
             MOZ_ASSERT(&shape->parent->table() == table);
@@ -727,8 +722,8 @@ NativeObject::putProperty(ExclusiveContext *cx, HandleNativeObject obj, HandleId
      * locally. Only for those objects we can try to claim an entry in its
      * shape table.
      */
-    ShapeTable::Entry *entry;
-    RootedShape shape(cx, Shape::search(cx, obj->lastProperty(), id, &entry, true));
+    Shape **spp;
+    RootedShape shape(cx, Shape::search(cx, obj->lastProperty(), id, &spp, true));
     if (!shape) {
         /*
          * You can't add properties to a non-extensible object, but you can change
@@ -746,11 +741,11 @@ NativeObject::putProperty(ExclusiveContext *cx, HandleNativeObject obj, HandleId
         }
 
         return addPropertyInternal(cx, obj, id, getter, setter, slot, attrs, flags,
-                                   entry, true);
+                                   spp, true);
     }
 
-    /* Property exists: search must have returned a valid entry. */
-    MOZ_ASSERT_IF(entry, !entry->isRemoved());
+    /* Property exists: search must have returned a valid *spp. */
+    MOZ_ASSERT_IF(spp, !SHAPE_IS_REMOVED(*spp));
 
     if (!CheckCanChangeAttrs(cx, obj, shape, &attrs))
         return nullptr;
@@ -792,8 +787,8 @@ NativeObject::putProperty(ExclusiveContext *cx, HandleNativeObject obj, HandleId
     if (shape != obj->lastProperty() && !obj->inDictionaryMode()) {
         if (!obj->toDictionaryMode(cx))
             return nullptr;
-        entry = &obj->lastProperty()->table().search(shape->propid(), false);
-        shape = entry->shape();
+        spp = obj->lastProperty()->table().search(shape->propid(), false);
+        shape = SHAPE_FETCH(spp);
     }
 
     MOZ_ASSERT_IF(shape->hasSlot() && !(attrs & JSPROP_SHARED), shape->slot() == slot);
@@ -932,8 +927,8 @@ NativeObject::removeProperty(ExclusiveContext *cx, jsid id_)
     RootedId id(cx, id_);
     RootedNativeObject self(cx, this);
 
-    ShapeTable::Entry *entry;
-    RootedShape shape(cx, Shape::search(cx, lastProperty(), id, &entry));
+    Shape **spp;
+    RootedShape shape(cx, Shape::search(cx, lastProperty(), id, &spp));
     if (!shape)
         return true;
 
@@ -944,8 +939,8 @@ NativeObject::removeProperty(ExclusiveContext *cx, jsid id_)
     if (!self->inDictionaryMode() && (shape != self->lastProperty() || !self->canRemoveLastProperty())) {
         if (!self->toDictionaryMode(cx))
             return false;
-        entry = &self->lastProperty()->table().search(shape->propid(), false);
-        shape = entry->shape();
+        spp = self->lastProperty()->table().search(shape->propid(), false);
+        shape = SHAPE_FETCH(spp);
     }
 
     /*
@@ -993,13 +988,13 @@ NativeObject::removeProperty(ExclusiveContext *cx, jsid id_)
     if (self->inDictionaryMode()) {
         ShapeTable &table = self->lastProperty()->table();
 
-        if (entry->hadCollision()) {
-            entry->setRemoved();
-            table.incRemovedCount();
-            table.decEntryCount();
+        if (SHAPE_HAD_COLLISION(*spp)) {
+            *spp = SHAPE_REMOVED;
+            ++table.removedCount;
+            --table.entryCount;
         } else {
-            entry->setFree();
-            table.decEntryCount();
+            *spp = nullptr;
+            --table.entryCount;
 
 #ifdef DEBUG
             /*
@@ -1027,7 +1022,7 @@ NativeObject::removeProperty(ExclusiveContext *cx, jsid id_)
 
         /* Consider shrinking table if its load factor is <= .25. */
         uint32_t size = table.capacity();
-        if (size > ShapeTable::MIN_SIZE && table.entryCount() <= size >> 2)
+        if (size > ShapeTable::MIN_SIZE && table.entryCount <= size >> 2)
             (void) table.change(-1, cx);
     } else {
         /*
@@ -1127,9 +1122,9 @@ NativeObject::replaceWithNewEquivalentShape(ExclusiveContext *cx, Shape *oldShap
     }
 
     ShapeTable &table = self->lastProperty()->table();
-    ShapeTable::Entry *entry = oldShape->isEmptyShape()
-                               ? nullptr
-                               : &table.search(oldShape->propidRef(), false);
+    Shape **spp = oldShape->isEmptyShape()
+                  ? nullptr
+                  : table.search(oldShape->propidRef(), false);
 
     /*
      * Splice the new shape into the same position as the old shape, preserving
@@ -1144,8 +1139,8 @@ NativeObject::replaceWithNewEquivalentShape(ExclusiveContext *cx, Shape *oldShap
     if (newShape == self->lastProperty())
         oldShape->handoffTableTo(newShape);
 
-    if (entry)
-        entry->setPreservingCollision(newShape);
+    if (spp)
+        SHAPE_STORE_PRESERVING_COLLISION(spp, newShape);
     return newShape;
 }
 

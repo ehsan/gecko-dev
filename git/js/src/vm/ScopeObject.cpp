@@ -700,8 +700,8 @@ StaticBlockObject::addVar(ExclusiveContext *cx, Handle<StaticBlockObject*> block
     *redeclared = false;
 
     /* Inline NativeObject::addProperty in order to trap the redefinition case. */
-    ShapeTable::Entry *entry;
-    if (Shape::search(cx, block->lastProperty(), id, &entry, true)) {
+    Shape **spp;
+    if (Shape::search(cx, block->lastProperty(), id, &spp, true)) {
         *redeclared = true;
         return nullptr;
     }
@@ -719,7 +719,7 @@ StaticBlockObject::addVar(ExclusiveContext *cx, Handle<StaticBlockObject*> block
                                              slot,
                                              propFlags,
                                              /* attrs = */ 0,
-                                             entry,
+                                             spp,
                                              /* allowDictionary = */ false);
 }
 

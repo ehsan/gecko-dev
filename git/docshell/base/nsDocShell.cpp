@@ -195,7 +195,6 @@
 #include "mozilla/dom/EncodingUtils.h"
 #include "mozilla/dom/ScriptSettings.h"
 #include "mozilla/dom/URLSearchParams.h"
-#include "nsPerformance.h"
 
 #ifdef MOZ_TOOLKIT_SEARCH
 #include "nsIBrowserSearchService.h"
@@ -860,7 +859,6 @@ nsDocShell::nsDocShell():
     mInvisible(false),
     mHasLoadedNonBlankURI(false),
     mDefaultLoadFlags(nsIRequest::LOAD_NORMAL),
-    mBlankTiming(false),
     mFrameType(eFrameTypeRegular),
     mOwnOrContainingAppId(nsIScriptSecurityManager::UNKNOWN_APP_ID),
     mParentCharsetSource(0),
@@ -1772,22 +1770,11 @@ nsDocShell::FirePageHideNotification(bool aIsUnload)
 void
 nsDocShell::MaybeInitTiming()
 {
-    if (mTiming && !mBlankTiming) {
+    if (mTiming) {
         return;
     }
 
-    if (mScriptGlobal && mBlankTiming) {
-        nsPIDOMWindow* innerWin = mScriptGlobal->GetCurrentInnerWindow();
-        if (innerWin && innerWin->GetPerformance()) {
-            mTiming = innerWin->GetPerformance()->GetDOMTiming();
-            mBlankTiming = false;
-        }
-    }
-
-    if (!mTiming) {
-      mTiming = new nsDOMNavigationTiming();
-    }
-
+    mTiming = new nsDOMNavigationTiming();
     mTiming->NotifyNavigationStart();
 }
 
@@ -7882,7 +7869,6 @@ nsDocShell::CreateAboutBlankContentViewer(nsIPrincipal* aPrincipal,
   // have one before entering this function.
   if (!hadTiming) {
     mTiming = nullptr;
-    mBlankTiming = true;
   }
 
   return rv;

@@ -277,6 +277,7 @@ function test() {
     return;
   }
 
+  PopupNotifications.transitionsEnabled = false;
 
   registerCleanupFunction(cleanUp);
 
@@ -315,6 +316,7 @@ function cleanUp() {
   info("cleanup");
   resetState();
 
+  PopupNotifications.transitionsEnabled = true;
 
   for (let topic in gActiveObservers)
     Services.obs.removeObserver(gActiveObservers[topic], topic);
