@@ -1405,7 +1405,7 @@ nsIAtom* nsSVGElement::GetEventNameForAttr(nsIAtom* aAttr)
 }
 
 nsSVGSVGElement *
-nsSVGElement::GetCtx()
+nsSVGElement::GetCtx() const
 {
   nsIContent* ancestor = GetFlattenedTreeParent();
 
@@ -1425,7 +1425,7 @@ nsSVGElement::GetCtx()
 }
 
 /* virtual */ gfxMatrix
-nsSVGElement::PrependLocalTransformTo(const gfxMatrix &aMatrix)
+nsSVGElement::PrependLocalTransformTo(const gfxMatrix &aMatrix) const
 {
   return aMatrix;
 }
@@ -1442,6 +1442,20 @@ void nsSVGElement::LengthAttributesInfo::Reset(PRUint8 aAttrEnum)
                            aAttrEnum,
                            mLengthInfo[aAttrEnum].mDefaultValue,
                            mLengthInfo[aAttrEnum].mDefaultUnitType);
+}
+
+void
+nsSVGElement::SetLength(nsIAtom* aName, const nsSVGLength2 &aLength)
+{
+  LengthAttributesInfo lengthInfo = GetLengthInfo();
+
+  for (PRUint32 i = 0; i < lengthInfo.mLengthCount; i++) {
+    if (aName == *lengthInfo.mLengthInfo[i].mName) {
+      lengthInfo.mLengths[i] = aLength;
+      return;
+    }
+  }
+  NS_ABORT_IF_FALSE(false, "no length found to set");
 }
 
 void

@@ -137,6 +137,7 @@ class nsLocation;
 class nsNavigator;
 class nsScreen;
 class nsHistory;
+class nsPerformance;
 class nsIDocShellLoadInfo;
 class WindowStateHolder;
 class nsGlobalWindowObserver;
@@ -284,7 +285,8 @@ class nsGlobalWindow : public nsPIDOMWindow,
                        public nsIInterfaceRequestor,
                        public nsIDOMWindow_2_0_BRANCH,
                        public nsWrapperCache,
-                       public PRCListStr
+                       public PRCListStr,
+                       public nsIDOMWindowPerformance
 {
 public:
   friend class nsDOMMozURLProperty;
@@ -326,11 +328,11 @@ public:
   // nsIDOMWindow
   NS_DECL_NSIDOMWINDOW
 
-  // nsIDOMWindow2
-  NS_DECL_NSIDOMWINDOW2
-
   // nsIDOMWindowInternal
   NS_DECL_NSIDOMWINDOWINTERNAL
+
+  // nsIDOMWindowPerformance
+  NS_DECL_NSIDOMWINDOWPERFORMANCE
 
   // nsIDOMJSWindow
   NS_DECL_NSIDOMJSWINDOW
@@ -569,12 +571,14 @@ public:
 
   static bool HasIndexedDBSupport();
 
+  static bool HasPerformanceSupport();
+
 private:
   // Enable updates for the accelerometer.
-  void EnableAccelerationUpdates();
+  void EnableDeviceMotionUpdates();
 
   // Disables updates for the accelerometer.
-  void DisableAccelerationUpdates();
+  void DisableDeviceMotionUpdates();
 
 protected:
   friend class HashchangeCallback;
@@ -889,8 +893,8 @@ protected:
   // should be displayed.
   PRPackedBool           mFocusByKeyOccurred : 1;
 
-  // Indicates whether this window is getting acceleration change events
-  PRPackedBool           mHasAcceleration : 1;
+  // Indicates whether this window is getting device motion change events
+  PRPackedBool           mHasDeviceMotion : 1;
 
   // whether we've sent the destroy notification for our window id
   PRPackedBool           mNotifiedIDDestroyed : 1;
@@ -903,6 +907,7 @@ protected:
   nsCOMPtr<nsIPrincipal>        mArgumentsOrigin;
   nsRefPtr<nsNavigator>         mNavigator;
   nsRefPtr<nsScreen>            mScreen;
+  nsRefPtr<nsPerformance>       mPerformance;
   nsRefPtr<nsDOMWindowList>     mFrames;
   nsRefPtr<nsBarProp>           mMenubar;
   nsRefPtr<nsBarProp>           mToolbar;
@@ -1026,8 +1031,8 @@ public:
     mCleanMessageManager = PR_FALSE;
   }
 
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsGlobalChromeWindow,
-                                                     nsGlobalWindow)
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsGlobalChromeWindow,
+                                           nsGlobalWindow)
 
   nsCOMPtr<nsIBrowserDOMWindow> mBrowserDOMWindow;
   nsCOMPtr<nsIChromeFrameMessageManager> mMessageManager;
