@@ -1080,21 +1080,19 @@ struct MessageManagerReferentCount
 namespace mozilla {
 namespace dom {
 
-class MessageManagerReporter MOZ_FINAL : public MemoryMultiReporter
+class MessageManagerReporter MOZ_FINAL : public nsIMemoryReporter
 {
 public:
-  MessageManagerReporter()
-    : MemoryMultiReporter("message-manager")
-  {}
-
-  NS_IMETHOD CollectReports(nsIMemoryReporterCallback* aCallback,
-                            nsISupports* aData);
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIMEMORYREPORTER
 
   static const size_t kSuspectReferentCount = 300;
 protected:
   void CountReferents(nsFrameMessageManager* aMessageManager,
                       MessageManagerReferentCount* aReferentCount);
 };
+
+NS_IMPL_ISUPPORTS1(MessageManagerReporter, nsIMemoryReporter)
 
 static PLDHashOperator
 CollectMessageListenerData(const nsAString& aKey,
@@ -1153,6 +1151,13 @@ MessageManagerReporter::CountReferents(nsFrameMessageManager* aMessageManager,
       static_cast<nsFrameMessageManager*>(aMessageManager->mChildManagers[i]);
     CountReferents(mm, aReferentCount);
   }
+}
+
+NS_IMETHODIMP
+MessageManagerReporter::GetName(nsACString& aName)
+{
+  aName.AssignLiteral("message-manager");
+  return NS_OK;
 }
 
 static nsresult

@@ -610,33 +610,32 @@ namespace mozilla {
   } while (0)
 
 static nsresult
-DumpReport(nsIGZFileWriter *aWriter, bool aIsFirst,
+DumpReport(nsIGZFileWriter *aWriter, bool *aIsFirstPtr,
   const nsACString &aProcess, const nsACString &aPath, int32_t aKind,
   int32_t aUnits, int64_t aAmount, const nsACString &aDescription)
 {
-  DUMP(aWriter, aIsFirst ? "[" : ",");
-
-  nsAutoCString process;
-  if (aProcess.IsEmpty()) {
-    // If the process is empty, the report originated with the process doing
-    // the dumping.  In that case, generate the process identifier, which is of
-    // the form "$PROCESS_NAME (pid $PID)", or just "(pid $PID)" if we don't
-    // have a process name.  If we're the main process, we let $PROCESS_NAME be
-    // "Main Process".
-    if (XRE_GetProcessType() == GeckoProcessType_Default) {
-      // We're the main process.
-      process.AssignLiteral("Main Process");
-    } else if (ContentChild *cc = ContentChild::GetSingleton()) {
-      // Try to get the process name from ContentChild.
-      cc->GetProcessName(process);
-    }
-    ContentChild::AppendProcessId(process);
-
-  } else {
-    // Otherwise, the report originated with another process and already has a
-    // process name.  Just use that.
-    process = aProcess;
+  // We only want to dump reports for this process.  If |aProcess| is
+  // non-nullptr that means we've received it from another process in response
+  // to a "child-memory-reporter-request" event;  ignore such reports.
+  if (!aProcess.IsEmpty()) {
+    return NS_OK;
   }
+
+  DUMP(aWriter, *aIsFirstPtr ? "[" : ",");
+  *aIsFirstPtr = false;
+
+  // Generate the process identifier, which is of the form "$PROCESS_NAME
+  // (pid $PID)", or just "(pid $PID)" if we don't have a process name.  If
+  // we're the main process, we let $PROCESS_NAME be "Main Process".
+  nsAutoCString process;
+  if (XRE_GetProcessType() == GeckoProcessType_Default) {
+    // We're the main process.
+    process.AssignLiteral("Main Process ");
+  } else if (ContentChild *cc = ContentChild::GetSingleton()) {
+    // Try to get the process name from ContentChild.
+    cc->GetProcessName(process);
+  }
+  ContentChild::AppendProcessId(process);
 
   DUMP(aWriter, "\n    {\"process\": \"");
   DUMP(aWriter, process);
@@ -667,12 +666,12 @@ DumpReport(nsIGZFileWriter *aWriter, bool aIsFirst,
   return NS_OK;
 }
 
-class DumpReportCallback MOZ_FINAL : public nsIHandleReportCallback
+class DumpReporterCallback MOZ_FINAL : public nsIMemoryReporterCallback
 {
 public:
   NS_DECL_ISUPPORTS
 
-  DumpReportCallback() : mIsFirst(true) {}
+  DumpReporterCallback() : mIsFirst(true) {}
 
   NS_IMETHOD Callback(const nsACString &aProcess, const nsACString &aPath,
       int32_t aKind, int32_t aUnits, int64_t aAmount,
@@ -682,17 +681,15 @@ public:
     nsCOMPtr<nsIGZFileWriter> writer = do_QueryInterface(aData);
     NS_ENSURE_TRUE(writer, NS_ERROR_FAILURE);
 
-    nsresult rv = DumpReport(writer, mIsFirst, aProcess, aPath, aKind, aUnits,
-                             aAmount, aDescription);
-    mIsFirst = false;
-    return rv;
+    return DumpReport(writer, &mIsFirst, aProcess, aPath, aKind, aUnits,
+                      aAmount, aDescription);
   }
 
 private:
   bool mIsFirst;
 };
 
-NS_IMPL_ISUPPORTS1(DumpReportCallback, nsIHandleReportCallback)
+NS_IMPL_ISUPPORTS1(DumpReporterCallback, nsIMemoryReporterCallback)
 
 } // namespace mozilla
 
@@ -788,7 +785,7 @@ DMDWrite(void* aState, const char* aFmt, va_list ap)
 #endif
 
 static nsresult
-DumpHeader(nsIGZFileWriter* aWriter)
+DumpProcessMemoryReportsToGZFileWriter(nsIGZFileWriter *aWriter)
 {
   // Increment this number if the format changes.
   //
@@ -807,37 +804,20 @@ DumpHeader(nsIGZFileWriter* aWriter)
   DUMP(aWriter, ",\n");
   DUMP(aWriter, "  \"reports\": ");
 
-  return NS_OK;
-}
-
-static nsresult
-DumpFooter(nsIGZFileWriter* aWriter)
-{
-  DUMP(aWriter, "\n  ]\n}\n");
-
-  return NS_OK;
-}
-
-static nsresult
-DumpProcessMemoryReportsToGZFileWriter(nsIGZFileWriter* aWriter)
-{
-  nsresult rv = DumpHeader(aWriter);
-  NS_ENSURE_SUCCESS(rv, rv);
-
   // Process reporters.
   bool more;
   nsCOMPtr<nsISimpleEnumerator> e;
-  nsCOMPtr<nsIMemoryReporterManager> mgr =
-    do_GetService("@mozilla.org/memory-reporter-manager;1");
   mgr->EnumerateReporters(getter_AddRefs(e));
-  nsRefPtr<DumpReportCallback> dumpReport = new DumpReportCallback();
+  nsRefPtr<DumpReporterCallback> cb = new DumpReporterCallback();
   while (NS_SUCCEEDED(e->HasMoreElements(&more)) && more) {
     nsCOMPtr<nsIMemoryReporter> r;
     e->GetNext(getter_AddRefs(r));
-    r->CollectReports(dumpReport, aWriter);
+    r->CollectReports(cb, aWriter);
   }
 
-  return DumpFooter(aWriter);
+  DUMP(aWriter, "\n  ]\n}\n");
+
+  return NS_OK;
 }
 
 nsresult
@@ -997,45 +977,8 @@ nsMemoryInfoDumper::DumpMemoryInfoToTempDir(const nsAString& aIdentifier,
   return DumpProcessMemoryInfoToTempDir(identifier);
 }
 
-// This dumps the JSON footer and closes the file, and then calls the given
-// nsIFinishDumpingCallback.
-class FinishReportingCallback MOZ_FINAL : public nsIFinishReportingCallback
-{
-public:
-  NS_DECL_ISUPPORTS
-
-  FinishReportingCallback(nsIFinishDumpingCallback* aFinishDumping,
-                          nsISupports* aFinishDumpingData)
-    : mFinishDumping(aFinishDumping)
-    , mFinishDumpingData(aFinishDumpingData)
-  {}
-
-  NS_IMETHOD Callback(nsISupports* aData)
-  {
-    nsCOMPtr<nsIGZFileWriter> writer = do_QueryInterface(aData);
-    NS_ENSURE_TRUE(writer, NS_ERROR_FAILURE);
-
-    nsresult rv = DumpFooter(writer);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    rv = writer->Finish();
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    return mFinishDumping->Callback(mFinishDumpingData);
-  }
-
-private:
-  nsCOMPtr<nsIFinishDumpingCallback> mFinishDumping;
-  nsCOMPtr<nsISupports> mFinishDumpingData;
-};
-
-NS_IMPL_ISUPPORTS1(FinishReportingCallback, nsIFinishReportingCallback)
-
 NS_IMETHODIMP
-nsMemoryInfoDumper::DumpMemoryReportsToNamedFile(
-  const nsAString& aFilename,
-  nsIFinishDumpingCallback* aFinishDumping,
-  nsISupports* aFinishDumpingData)
+nsMemoryInfoDumper::DumpMemoryReportsToNamedFile(const nsAString& aFilename)
 {
   MOZ_ASSERT(!aFilename.IsEmpty());
 
@@ -1063,16 +1006,12 @@ nsMemoryInfoDumper::DumpMemoryReportsToNamedFile(
   rv = mrWriter->Init(mrFile);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = DumpHeader(mrWriter);
+  DumpProcessMemoryReportsToGZFileWriter(mrWriter);
+
+  rv = mrWriter->Finish();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // Process reports and finish up.
-  nsRefPtr<DumpReportCallback> dumpReport = new DumpReportCallback();
-  nsRefPtr<FinishReportingCallback> finishReporting =
-    new FinishReportingCallback(aFinishDumping, aFinishDumpingData);
-  nsCOMPtr<nsIMemoryReporterManager> mgr =
-    do_GetService("@mozilla.org/memory-reporter-manager;1");
-  return mgr->GetReports(dumpReport, mrWriter, finishReporting, mrWriter);
+  return NS_OK;
 }
 
 #undef DUMP

@@ -3620,7 +3620,7 @@ IsSandbox(JSObject *obj);
 class MOZ_STACK_CLASS OptionsBase {
 public:
     OptionsBase(JSContext *cx = xpc_GetSafeJSContext(),
-                JSObject *options = nullptr)
+                JS::HandleObject options = JS::NullPtr())
         : mCx(cx)
         , mObject(cx, options)
     { }
@@ -3632,7 +3632,6 @@ protected:
     bool ParseBoolean(const char *name, bool *prop);
     bool ParseObject(const char *name, JS::MutableHandleObject prop);
     bool ParseString(const char *name, nsCString &prop);
-    bool ParseString(const char *name, nsString &prop);
     bool ParseId(const char* name, JS::MutableHandleId id);
 
     JSContext *mCx;
@@ -3642,7 +3641,7 @@ protected:
 class MOZ_STACK_CLASS SandboxOptions : public OptionsBase {
 public:
     SandboxOptions(JSContext *cx = xpc_GetSafeJSContext(),
-                   JSObject *options = nullptr)
+                   JS::HandleObject options = JS::NullPtr())
         : OptionsBase(cx, options)
         , wantXrays(true)
         , wantComponents(true)
@@ -3670,7 +3669,7 @@ protected:
 class MOZ_STACK_CLASS CreateObjectInOptions : public OptionsBase {
 public:
     CreateObjectInOptions(JSContext *cx = xpc_GetSafeJSContext(),
-                          JSObject* options = nullptr)
+                          JS::HandleObject options = JS::NullPtr())
         : OptionsBase(cx, options)
         , defineAs(cx, JSID_VOID)
     { }

@@ -1242,7 +1242,10 @@ class ObjectImpl : public gc::BarrieredCell<ObjectImpl>
         return nativeLookup(cx, shape->propid()) == shape;
     }
 
-    /* Contextless; can be called from parallel code. */
+    /*
+     * Contextless; can be called from parallel code. Returns false if the
+     * operation would have been effectful.
+     */
     Shape *nativeLookupPure(jsid id);
     Shape *nativeLookupPure(PropertyId pid) {
         return nativeLookupPure(pid.asId());
