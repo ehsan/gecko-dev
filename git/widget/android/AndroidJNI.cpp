@@ -41,7 +41,8 @@
 #include "nsPluginInstanceOwner.h"
 #include "nsSurfaceTexture.h"
 #include "GeckoProfiler.h"
-#include "nsMemoryPressure.h"
+
+#include "GeckoProfiler.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -836,12 +837,6 @@ Java_org_mozilla_gecko_GeckoAppShell_onSurfaceTextureFrameAvailable(JNIEnv* jenv
   }
 
   st->NotifyFrameAvailable();
-}
-
-NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoAppShell_dispatchMemoryPressure(JNIEnv* jenv, jclass)
-{
-    NS_DispatchMemoryPressure(MemPressure_New);
 }
 
 NS_EXPORT jdouble JNICALL
