@@ -907,7 +907,7 @@ function invokerChecker(aEventType, aTargetOrFunc, aTargetFuncArg)
   function invokerChecker_targetDescrGetter()
   {
     if (typeof this.mTarget == "function")
-      return this.mTarget.name + ", arg: " + this.mTargetFuncArg;
+      return this.mTarget.toSource() + this.mTargetFuncArg;
 
     return prettyName(this.mTarget);
   }

@@ -529,15 +529,6 @@ nsAccessibilityService::ContentRemoved(nsIPresShell* aPresShell,
 }
 
 void
-nsAccessibilityService::UpdateText(nsIPresShell* aPresShell,
-                                   nsIContent* aContent)
-{
-  nsDocAccessible* document = GetDocAccessible(aPresShell->GetDocument());
-  if (document)
-    document->UpdateText(aContent);
-}
-
-void
 nsAccessibilityService::PresShellDestroyed(nsIPresShell *aPresShell)
 {
   // Presshell destruction will automatically destroy shells for descendant
