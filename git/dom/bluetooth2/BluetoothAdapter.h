@@ -83,7 +83,6 @@ public:
   IMPL_EVENT_HANDLER(attributechanged);
   IMPL_EVENT_HANDLER(devicepaired);
   IMPL_EVENT_HANDLER(deviceunpaired);
-  IMPL_EVENT_HANDLER(pairingaborted);
   IMPL_EVENT_HANDLER(a2dpstatuschanged);
   IMPL_EVENT_HANDLER(hfpstatuschanged);
   IMPL_EVENT_HANDLER(requestmediaplaystatus);
@@ -223,13 +222,6 @@ private:
   void HandlePropertyChanged(const BluetoothValue& aValue);
 
   /**
-   * Handle "DeviceFound" bluetooth signal.
-   *
-   * @param aValue [in] Properties array of the discovered device.
-   */
-  void HandleDeviceFound(const BluetoothValue& aValue);
-
-  /**
    * Handle DEVICE_PAIRED_ID bluetooth signal.
    *
    * @param aValue [in] Properties array of the paired device.
@@ -250,6 +242,13 @@ private:
   void HandleDeviceUnpaired(const BluetoothValue& aValue);
 
   /**
+   * Handle "DeviceFound" bluetooth signal.
+   *
+   * @param aValue [in] Properties array of the discovered device.
+   */
+  void HandleDeviceFound(const BluetoothValue& aValue);
+
+  /**
    * Fire BluetoothAttributeEvent to trigger onattributechanged event handler.
    */
   void DispatchAttributeEvent(const nsTArray<nsString>& aTypes);
@@ -263,13 +262,6 @@ private:
    */
   void DispatchDeviceEvent(const nsAString& aType,
                            const BluetoothDeviceEventInit& aInit);
-
-  /**
-   * Fire event with no argument
-   *
-   * @param aType [in] Event type to fire
-   */
-  void DispatchEmptyEvent(const nsAString& aType);
 
   /**
    * Convert string to BluetoothAdapterAttribute.

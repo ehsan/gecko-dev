@@ -350,7 +350,7 @@ class DeviceManagerADB(DeviceManager):
             self._checkCmd(["shell"] + cmd)
             return outputFile
 
-        acmd = ["-W"]
+        acmd = ["shell", "am", "start", "-W"]
         cmd = ' '.join(cmd).strip()
         i = cmd.find(" ")
         # SUT identifies the URL by looking for :\\ -- another strategy to consider
@@ -379,9 +379,7 @@ class DeviceManagerADB(DeviceManager):
                 envCnt += 1
         if uri != "":
             acmd.append("-d")
-            acmd.append(uri)
-
-        acmd = ["shell", ' '.join(map(lambda x: '"' + x + '"', ["am", "start"] + acmd))]
+            acmd.append(''.join(['\'',uri, '\'']));
         self._logger.info(acmd)
         self._checkCmd(acmd)
         return outputFile

@@ -3487,10 +3487,8 @@ ChangeObjectFixedSlotCount(JSContext *cx, PlainObject *obj, gc::AllocKind allocK
 {
     MOZ_ASSERT(OnlyHasDataProperties(obj->lastProperty()));
 
-    obj->assertParentIs(cx->global());
     Shape *newShape = ReshapeForParentAndAllocKind(cx, obj->lastProperty(),
-                                                   obj->getTaggedProto(),
-                                                   cx->global(),
+                                                   obj->getTaggedProto(), obj->getParent(),
                                                    allocKind);
     if (!newShape)
         return false;

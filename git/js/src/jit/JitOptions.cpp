@@ -43,10 +43,14 @@ T overrideDefault(const char *param, T dflt) {
     if (!str)
         return dflt;
     if (IsBool<T>::value) {
-        if (strcmp(str, "true") == 0 || strcmp(str, "yes") == 0)
+        if (strcmp(str, "true") == 0 ||
+            strcmp(str, "yes")) {
             return true;
-        if (strcmp(str, "false") == 0 || strcmp(str, "no") == 0)
+        }
+        if (strcmp(str, "false") == 0 ||
+            strcmp(str, "no")) {
             return false;
+        }
         Warn(param, str);
     } else {
         Maybe<int> value = ParseInt(str);

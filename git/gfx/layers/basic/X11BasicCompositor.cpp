@@ -125,12 +125,5 @@ X11BasicCompositor::CreateDataTextureSource(TextureFlags aFlags)
   return result.forget();
 }
 
-void
-X11BasicCompositor::EndFrame()
-{
-  BasicCompositor::EndFrame();
-  XFlush(DefaultXDisplay());
-}
-
 } // namespace layers
 } // namespace mozilla

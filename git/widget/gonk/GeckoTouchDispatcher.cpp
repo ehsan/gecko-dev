@@ -63,8 +63,6 @@ GeckoTouchDispatcher::GetInstance()
 
 GeckoTouchDispatcher::GeckoTouchDispatcher()
   : mTouchQueueLock("GeckoTouchDispatcher::mTouchQueueLock")
-  , mHavePendingTouchMoves(false)
-  , mInflightNonMoveEvents(0)
   , mTouchEventsFiltered(false)
 {
   // Since GeckoTouchDispatcher is initialized when input is initialized
@@ -95,12 +93,22 @@ GeckoTouchDispatcher::SetCompositorVsyncObserver(mozilla::layers::CompositorVsyn
   }
 }
 
-void
+bool
 GeckoTouchDispatcher::NotifyVsync(TimeStamp aVsyncTimestamp)
 {
   MOZ_ASSERT(mResamplingEnabled);
-  layers::APZThreadUtils::AssertOnControllerThread();
-  DispatchTouchMoveEvents(aVsyncTimestamp);
+  bool haveTouchData = false;
+  {
+    MutexAutoLock lock(mTouchQueueLock);
+    haveTouchData = !mTouchMoveEvents.empty();
+  }
+
+  if (haveTouchData) {
+    layers::APZThreadUtils::AssertOnControllerThread();
+    DispatchTouchMoveEvents(aVsyncTimestamp);
+  }
+
+  return haveTouchData;
 }
 
 // Touch data timestamps are in milliseconds, aEventTime is in nanoseconds
@@ -113,51 +121,23 @@ GeckoTouchDispatcher::NotifyTouch(MultiTouchInput& aTouch, TimeStamp aEventTime)
 
   if (aTouch.mType == MultiTouchInput::MULTITOUCH_MOVE) {
     MutexAutoLock lock(mTouchQueueLock);
-    if (mInflightNonMoveEvents > 0) {
-      // If we have any pending non-move events, we shouldn't resample the
-      // move events because we might end up dispatching events out of order.
-      // Instead, fall back to a non-resampling in-order dispatch until we're
-      // done processing the non-move events.
-      layers::APZThreadUtils::RunOnControllerThread(NewRunnableMethod(
-        this, &GeckoTouchDispatcher::DispatchTouchEvent, aTouch));
+    if (mResamplingEnabled) {
+      mTouchMoveEvents.push_back(aTouch);
       return;
     }
 
-    mTouchMoveEvents.push_back(aTouch);
-    mHavePendingTouchMoves = true;
-    if (mResamplingEnabled) {
-      return;
+    if (mTouchMoveEvents.empty()) {
+      mTouchMoveEvents.push_back(aTouch);
+    } else {
+      // Coalesce touch move events
+      mTouchMoveEvents.back() = aTouch;
     }
 
     layers::APZThreadUtils::RunOnControllerThread(NewRunnableMethod(
       this, &GeckoTouchDispatcher::DispatchTouchMoveEvents, TimeStamp::Now()));
   } else {
-    if (mResamplingEnabled) {
-      MutexAutoLock lock(mTouchQueueLock);
-      mInflightNonMoveEvents++;
-    }
     layers::APZThreadUtils::RunOnControllerThread(NewRunnableMethod(
-      this, &GeckoTouchDispatcher::DispatchTouchNonMoveEvent, aTouch));
-  }
-}
-
-void
-GeckoTouchDispatcher::DispatchTouchNonMoveEvent(MultiTouchInput aInput)
-{
-  layers::APZThreadUtils::AssertOnControllerThread();
-
-  if (mResamplingEnabled) {
-    // Flush pending touch move events, if there are any
-    // (DispatchTouchMoveEvents will check the mHavePendingTouchMoves flag and
-    // bail out if there's nothing to be done).
-    NotifyVsync(TimeStamp::Now());
-  }
-  DispatchTouchEvent(aInput);
-
-  if (mResamplingEnabled) {
-    MutexAutoLock lock(mTouchQueueLock);
-    mInflightNonMoveEvents--;
-    MOZ_ASSERT(mInflightNonMoveEvents >= 0);
+      this, &GeckoTouchDispatcher::DispatchTouchEvent, aTouch));
   }
 }
 
@@ -168,10 +148,9 @@ GeckoTouchDispatcher::DispatchTouchMoveEvents(TimeStamp aVsyncTime)
 
   {
     MutexAutoLock lock(mTouchQueueLock);
-    if (!mHavePendingTouchMoves) {
+    if (mTouchMoveEvents.empty()) {
       return;
     }
-    mHavePendingTouchMoves = false;
 
     if (mResamplingEnabled) {
       int touchCount = mTouchMoveEvents.size();

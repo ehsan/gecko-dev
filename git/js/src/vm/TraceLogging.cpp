@@ -209,28 +209,26 @@ TraceLoggerThread::enable()
 }
 
 bool
-TraceLoggerThread::fail(JSContext *cx, const char *error)
-{
-    JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_TRACELOGGER_ENABLE_FAIL, error);
-    failed = true;
-    enabled = 0;
-
-    return false;
-}
-
-bool
 TraceLoggerThread::enable(JSContext *cx)
 {
-    if (!enable())
-        return fail(cx, "internal error");
+    if (!enable()) {
+        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_TRACELOGGER_ENABLE_FAIL,
+                             "internal error");
+        return false;
+    }
 
     if (enabled == 1) {
         // Get the top Activation to log the top script/pc (No inlined frames).
         ActivationIterator iter(cx->runtime());
         Activation *act = iter.activation();
 
-        if (!act)
-            return fail(cx, "internal error");
+        if (!act) {
+            JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_TRACELOGGER_ENABLE_FAIL,
+                                 "internal error");
+            failed = true;
+            enabled = 0;
+            return false;
+        }
 
         JSScript *script = nullptr;
         int32_t engine = 0;
@@ -257,8 +255,13 @@ TraceLoggerThread::enable(JSContext *cx)
 
             script = fp->script();
             engine = TraceLogger_Interpreter;
-            if (script->compartment() != cx->compartment())
-                return fail(cx, "compartment mismatch");
+            if (script->compartment() != cx->compartment()) {
+                JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_TRACELOGGER_ENABLE_FAIL,
+                                     "compartment mismatch");
+                failed = true;
+                enabled = 0;
+                return false;
+            }
         }
 
         TraceLoggerEvent event(this, TraceLogger_Scripts, script);
