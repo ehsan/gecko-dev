@@ -130,9 +130,8 @@ class ViECPULoadStateObserver : public CPULoadStateObserver {
       : owner_(owner) {
   }
   virtual ~ViECPULoadStateObserver() {};
-
-  // Implements CPULoadStateObserver.
-  virtual void onLoadStateChanged(CPULoadState state) {
+    // Implements CPULoadStateObserver.
+    virtual void onLoadStateChanged(CPULoadState state) {
     owner_->onLoadStateChanged(state);
   }
  private:

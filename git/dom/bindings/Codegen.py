@@ -687,9 +687,12 @@ def InterfaceObjectProtoGetter(descriptor):
            interface prototype as a JS::Handle<JSObject*> or None if no such
            function exists.
     """
-    parentInterface = descriptor.interface.parent
-    if parentInterface:
-        parentIfaceName = parentInterface.identifier.name
+    parentWithInterfaceObject = descriptor.interface.parent
+    while (parentWithInterfaceObject and
+           not parentWithInterfaceObject.hasInterfaceObject()):
+        parentWithInterfaceObject = parentWithInterfaceObject.parent
+    if parentWithInterfaceObject:
+        parentIfaceName = parentWithInterfaceObject.identifier.name
         parentDesc = descriptor.getDescriptor(parentIfaceName)
         prefix = toBindingNamespace(parentDesc.name)
         protoGetter = prefix + "::GetConstructorObject"

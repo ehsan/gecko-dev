@@ -203,9 +203,9 @@ public:
                    JS::MutableHandle<JSObject*> aReflector) MOZ_OVERRIDE;
 
   void
-  GetScope(nsString& aScope) const
+  GetScope(DOMString& aScope) const
   {
-    aScope = mScope;
+    aScope.AsAString() = mScope;
   }
 
   void

@@ -148,8 +148,6 @@ var interfaceNamesInGlobalScope =
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "XMLHttpRequest",
 // IMPORTANT: Do not change this list without review from a DOM peer!
-    "XMLHttpRequestEventTarget",
-// IMPORTANT: Do not change this list without review from a DOM peer!
     "XMLHttpRequestUpload",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "URL",
