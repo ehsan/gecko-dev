@@ -35,6 +35,9 @@ include canvas/reftest.list
 # css @import tests
 include css-import/reftest.list
 
+# css character encoding tests
+include css-charset/reftest.list
+
 # columns/
 include columns/reftest.list
 
@@ -52,6 +55,9 @@ include first-letter/reftest.list
 
 # first-line/
 include first-line/reftest.list
+
+# font-face
+include font-face/reftest.list
 
 # forms
 include forms/reftest.list
@@ -92,6 +98,9 @@ include svg-integration/reftest.list
 
 # table-background/
 include table-background/reftest.list
+
+# table-bordercollapse/
+include table-bordercollapse/reftest.list
 
 # table-dom/
 include table-dom/reftest.list

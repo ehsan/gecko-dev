@@ -41,6 +41,7 @@
 #include "nsAutoPtr.h"
 #include "nsAutoLock.h"
 #include "nsCOMArray.h"
+#include "prtime.h"
 
 #include "sqlite3.h"
 
@@ -49,9 +50,23 @@
 #include "mozStorageHelper.h"
 #include "mozStorageResultSet.h"
 #include "mozStorageRow.h"
-#include "mozStorageBackground.h"
+#include "mozStorageConnection.h"
 #include "mozStorageError.h"
 #include "mozStorageEvents.h"
+
+/**
+ * The following constants help batch rows into result sets.
+ * MAX_MILLISECONDS_BETWEEN_RESULTS was chosen because any user-based task that
+ * takes less than 200 milliseconds is considered to feel instantaneous to end
+ * users.  MAX_ROWS_PER_RESULT was arbitrarily chosen to reduce the number of
+ * dispatches to calling thread, while also providing reasonably-sized sets of
+ * data for consumers.  Both of these constants are used because we assume that
+ * consumers are trying to avoid blocking their execution thread for long
+ * periods of time, and dispatching many small events to the calling thread will
+ * end up blocking it.
+ */
+#define MAX_MILLISECONDS_BETWEEN_RESULTS 100
+#define MAX_ROWS_PER_RESULT 15
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Asynchronous Statement Execution
@@ -67,76 +82,47 @@ enum ExecutionState {
 };
 
 /**
- * Interface used to cancel pending events.
+ * Interface used to check if an event should run.
  */
-class iCancelable : public nsISupports
+class iEventStatus : public nsISupports
 {
 public:
-  /**
-   * Tells an event to cancel itself.
-   */
-  virtual void cancel() = 0;
-};
-
-/**
- * Interface used to notify of event completion.
- */
-class iCompletionNotifier : public nsISupports
-{
-public:
-  /**
-   * Called when an event is completed and no longer needs to be tracked.
-   *
-   * @param aEvent
-   *        The event that has finished.
-   */
-  virtual void completed(iCancelable *aEvent) = 0;
+  virtual PRBool runEvent() = 0;
 };
 
 /**
  * Notifies a callback with a result set.
  */
 class CallbackResultNotifier : public nsIRunnable
-                             , public iCancelable
 {
 public:
   NS_DECL_ISUPPORTS
 
   CallbackResultNotifier(mozIStorageStatementCallback *aCallback,
                          mozIStorageResultSet *aResults,
-                         iCompletionNotifier *aNotifier) :
+                         iEventStatus *aEventStatus) :
       mCallback(aCallback)
     , mResults(aResults)
-    , mCompletionNotifier(aNotifier)
-    , mCanceled(PR_FALSE)
+    , mEventStatus(aEventStatus)
   {
   }
 
   NS_IMETHOD Run()
   {
-    if (!mCanceled)
+    NS_ASSERTION(mCallback, "Trying to notify about results without a callback!");
+
+    if (mEventStatus->runEvent())
       (void)mCallback->HandleResult(mResults);
 
-    // Notify owner AsyncExecute that we have completed
-    mCompletionNotifier->completed(this);
-    // It is likely that the completion notifier holds a reference to us as
-    // well, so we release our reference to it here to avoid cycles.
-    mCompletionNotifier = nsnull;
     return NS_OK;
   }
 
-  virtual void cancel()
-  {
-    // Atomically set our status so we know to not run.
-    PR_AtomicSet(&mCanceled, PR_TRUE);
-  }
 private:
   CallbackResultNotifier() { }
 
   mozIStorageStatementCallback *mCallback;
   nsCOMPtr<mozIStorageResultSet> mResults;
-  nsRefPtr<iCompletionNotifier> mCompletionNotifier;
-  PRInt32 mCanceled;
+  nsRefPtr<iEventStatus> mEventStatus;
 };
 NS_IMPL_THREADSAFE_ISUPPORTS1(
   CallbackResultNotifier,
@@ -147,61 +133,33 @@ NS_IMPL_THREADSAFE_ISUPPORTS1(
  * Notifies the calling thread that an error has occurred.
  */
 class ErrorNotifier : public nsIRunnable
-                    , public iCancelable
 {
 public:
   NS_DECL_ISUPPORTS
 
   ErrorNotifier(mozIStorageStatementCallback *aCallback,
                 mozIStorageError *aErrorObj,
-                iCompletionNotifier *aCompletionNotifier) :
+                iEventStatus *aEventStatus) :
       mCallback(aCallback)
     , mErrorObj(aErrorObj)
-    , mCanceled(PR_FALSE)
-    , mCompletionNotifier(aCompletionNotifier)
+    , mEventStatus(aEventStatus)
   {
   }
 
   NS_IMETHOD Run()
   {
-    if (!mCanceled && mCallback)
+    if (mEventStatus->runEvent() && mCallback)
       (void)mCallback->HandleError(mErrorObj);
 
-    mCompletionNotifier->completed(this);
-    // It is likely that the completion notifier holds a reference to us as
-    // well, so we release our reference to it here to avoid cycles.
-    mCompletionNotifier = nsnull;
     return NS_OK;
   }
 
-  virtual void cancel()
-  {
-    // Atomically set our status so we know to not run.
-    PR_AtomicSet(&mCanceled, PR_TRUE);
-  }
-
-  static inline iCancelable *Dispatch(nsIThread *aCallingThread,
-                                      mozIStorageStatementCallback *aCallback,
-                                      iCompletionNotifier *aCompletionNotifier,
-                                      int aResult,
-                                      const char *aMessage)
-  {
-    nsCOMPtr<mozIStorageError> errorObj(new mozStorageError(aResult, aMessage));
-    if (!errorObj)
-      return nsnull;
-
-    ErrorNotifier *notifier =
-      new ErrorNotifier(aCallback, errorObj, aCompletionNotifier);
-    (void)aCallingThread->Dispatch(notifier, NS_DISPATCH_NORMAL);
-    return notifier;
-  }
 private:
   ErrorNotifier() { }
 
   mozIStorageStatementCallback *mCallback;
   nsCOMPtr<mozIStorageError> mErrorObj;
-  PRInt32 mCanceled;
-  nsRefPtr<iCompletionNotifier> mCompletionNotifier;
+  nsRefPtr<iEventStatus> mEventStatus;
 };
 NS_IMPL_THREADSAFE_ISUPPORTS1(
   ErrorNotifier,
@@ -212,7 +170,6 @@ NS_IMPL_THREADSAFE_ISUPPORTS1(
  * Notifies the calling thread that the statement has finished executing.
  */
 class CompletionNotifier : public nsIRunnable
-                         , public iCancelable
 {
 public:
   NS_DECL_ISUPPORTS
@@ -222,11 +179,9 @@ public:
    * dispatched to (which should always be the calling thread).
    */
   CompletionNotifier(mozIStorageStatementCallback *aCallback,
-                     ExecutionState aReason,
-                     iCompletionNotifier *aCompletionNotifier) :
+                     ExecutionState aReason) :
       mCallback(aCallback)
     , mReason(aReason)
-    , mCompletionNotifier(aCompletionNotifier)
   {
   }
 
@@ -235,10 +190,6 @@ public:
     (void)mCallback->HandleCompletion(mReason);
     NS_RELEASE(mCallback);
 
-    mCompletionNotifier->completed(this);
-    // It is likely that the completion notifier holds a reference to us as
-    // well, so we release our reference to it here to avoid cycles.
-    mCompletionNotifier = nsnull;
     return NS_OK;
   }
 
@@ -253,7 +204,6 @@ private:
 
   mozIStorageStatementCallback *mCallback;
   ExecutionState mReason;
-  nsRefPtr<iCompletionNotifier> mCompletionNotifier;
 };
 NS_IMPL_THREADSAFE_ISUPPORTS1(
   CompletionNotifier,
@@ -265,7 +215,7 @@ NS_IMPL_THREADSAFE_ISUPPORTS1(
  */
 class AsyncExecute : public nsIRunnable
                    , public mozIStoragePendingStatement
-                   , public iCompletionNotifier
+                   , public iEventStatus
 {
 public:
   NS_DECL_ISUPPORTS
@@ -280,9 +230,11 @@ public:
     , mTransactionManager(nsnull)
     , mCallback(aCallback)
     , mCallingThread(do_GetCurrentThread())
+    , mMaxIntervalWait(PR_MicrosecondsToInterval(MAX_MILLISECONDS_BETWEEN_RESULTS))
+    , mIntervalStart(PR_IntervalNow())
     , mState(PENDING)
-    , mStateMutex(nsAutoLock::NewLock("AsyncExecute::mStateMutex"))
-    , mPendingEventsMutex(nsAutoLock::NewLock("AsyncExecute::mPendingEventsMutex"))
+    , mCancelRequested(PR_FALSE)
+    , mLock(nsAutoLock::NewLock("AsyncExecute::mLock"))
   {
     (void)mStatements.SwapElements(aStatements);
     NS_ASSERTION(mStatements.Length(), "We weren't given any statements!");
@@ -290,8 +242,7 @@ public:
 
   nsresult initialize()
   {
-    NS_ENSURE_TRUE(mStateMutex, NS_ERROR_OUT_OF_MEMORY);
-    NS_ENSURE_TRUE(mPendingEventsMutex, NS_ERROR_OUT_OF_MEMORY);
+    NS_ENSURE_TRUE(mLock, NS_ERROR_OUT_OF_MEMORY);
     NS_IF_ADDREF(mCallback);
     return NS_OK;
   }
@@ -300,9 +251,12 @@ public:
   {
     // do not run if we have been canceled
     {
-      nsAutoLock mutex(mStateMutex);
-      if (mState == CANCELED)
-        return Complete();
+      nsAutoLock mutex(mLock);
+      if (mCancelRequested) {
+        mState = CANCELED;
+        mutex.unlock();
+        return NotifyComplete();
+      }
     }
 
     // If there is more than one statement, run it in a transaction.  We assume
@@ -315,178 +269,228 @@ public:
     }
 
     // Execute each statement, giving the callback results if it returns any.
-    nsresult rv = NS_OK;
     for (PRUint32 i = 0; i < mStatements.Length(); i++) {
-      while (PR_TRUE) {
-        int rc = sqlite3_step(mStatements[i]);
-        // Break out if we have no more results
-        if (rc == SQLITE_DONE)
-          break;
+      PRBool finished = (i == (mStatements.Length() - 1));
+      if (!ExecuteAndProcessStatement(mStatements[i], finished))
+        break;
+    }
 
-        // Some errors are not fatal, and we can handle them and continue.
-        if (rc != SQLITE_OK && rc != SQLITE_ROW) {
-          if (rc == SQLITE_BUSY) {
-            // Yield, and try again
-            PR_Sleep(PR_INTERVAL_NO_WAIT);
-            continue;
-          }
+    // If we still have results that we haven't notified about, take care of
+    // them now.
+    if (mResultSet)
+      (void)NotifyResults();
 
-          // Set error state
-          {
-            nsAutoLock mutex(mStateMutex);
-            mState = ERROR;
-          }
+    // Notify about completion
+    return NotifyComplete();
+  }
 
-          // Notify
-          sqlite3 *db = sqlite3_db_handle(mStatements[i]);
-          iCancelable *cancelable = ErrorNotifier::Dispatch(
-            mCallingThread, mCallback, this, rc, sqlite3_errmsg(db)
-          );
-          if (cancelable) {
-            nsAutoLock mutex(mPendingEventsMutex);
-            (void)mPendingEvents.AppendObject(cancelable);
-          }
+  NS_IMETHOD Cancel(PRBool *_successful)
+  {
+#ifdef DEBUG
+    PRBool onCallingThread = PR_FALSE;
+    (void)mCallingThread->IsOnCurrentThread(&onCallingThread);
+    NS_ASSERTION(onCallingThread, "Not canceling from the calling thread!");
+#endif
 
-          // And complete
-          return Complete();
+    // If we have already canceled, we have an error, but always indicate that
+    // we are trying to cancel.
+    NS_ENSURE_FALSE(mCancelRequested, NS_ERROR_UNEXPECTED);
+
+    {
+      nsAutoLock mutex(mLock);
+
+      // We need to indicate that we want to try and cancel now.
+      mCancelRequested = PR_TRUE;
+
+      // Establish if we can cancel
+      *_successful = (mState == PENDING);
+    }
+
+    // Note, it is possible for us to return false here, and end up canceling
+    // events that have been dispatched to the calling thread.  This is OK,
+    // however, because only read statements (such as SELECT) are going to be
+    // posting events to the calling thread that actually check if they should
+    // run or not.
+
+    return NS_OK;
+  }
+
+  /**
+   * This is part of iEventStatus.  It indicates if an event should be ran based
+   * on if we are trying to cancel or not.
+   */
+  PRBool runEvent()
+  {
+#ifdef DEBUG
+    PRBool onCallingThread = PR_FALSE;
+    (void)mCallingThread->IsOnCurrentThread(&onCallingThread);
+    NS_ASSERTION(onCallingThread, "runEvent not running on the calling thread!");
+#endif
+
+    // We do not need to acquire mLock here because it can only ever be written
+    // to on the calling thread, and the only thread that can call us is the
+    // calling thread, so we know that our access is serialized.
+    return !mCancelRequested;
+  }
+
+private:
+  AsyncExecute() : mMaxIntervalWait(0) { }
+
+  ~AsyncExecute()
+  {
+    nsAutoLock::DestroyLock(mLock);
+  }
+
+  /**
+   * Executes a given statement until completion, an error occurs, or we are
+   * canceled.  If aFinished is true, we know that we are the last statement,
+   * and should set mState accordingly.
+   *
+   * @pre mLock is not held
+   *
+   * @param aStatement
+   *        The statement to execute and then process.
+   * @param aFinished
+   *        Indicates if this is the last statement or not.  If it is, we have
+   *        to set the proper state.
+   * @returns true if we should continue to process statements, false otherwise.
+   */
+  PRBool ExecuteAndProcessStatement(sqlite3_stmt *aStatement, PRBool aFinished)
+  {
+    // We need to hold a lock for statement execution so we can properly
+    // reflect state in case we are canceled.  We unlock in a few areas in
+    // order to allow for cancelation to occur.
+    nsAutoLock mutex(mLock);
+
+    nsresult rv = NS_OK;
+    while (PR_TRUE) {
+      int rc = sqlite3_step(aStatement);
+      // Break out if we have no more results
+      if (rc == SQLITE_DONE)
+        break;
+
+      // Some errors are not fatal, and we can handle them and continue.
+      if (rc != SQLITE_OK && rc != SQLITE_ROW) {
+        if (rc == SQLITE_BUSY) {
+          // We do not want to hold our lock while we yield.
+          nsAutoUnlock cancelationScope(mLock);
+
+          // Yield, and try again
+          PR_Sleep(PR_INTERVAL_NO_WAIT);
+          continue;
         }
 
-        // Check to see if we have been canceled
-        {
-          nsAutoLock mutex(mStateMutex);
-          if (mState == CANCELED)
-            return Complete();
-        }
+        // Set error state
+        mState = ERROR;
 
-        // If we do not have a callback, there's no point in executing this
-        // statement anymore.
-        if (!mCallback)
-          break;
+        // Drop our mutex - NotifyError doesn't want it held
+        mutex.unlock();
 
-        // Build result object
-        // XXX bug 454740 chunk these results better
-        nsRefPtr<mozStorageResultSet> results(new mozStorageResultSet());
-        if (!results) {
-          rv = NS_ERROR_OUT_OF_MEMORY;
-          break;
-        }
+        // Notify
+        sqlite3 *db = sqlite3_db_handle(aStatement);
+        (void)NotifyError(rc, sqlite3_errmsg(db));
 
-        nsRefPtr<mozStorageRow> row(new mozStorageRow());
-        if (!row) {
-          rv = NS_ERROR_OUT_OF_MEMORY;
-          break;
-        }
-
-        rv = row->initialize(mStatements[i]);
-        if (NS_FAILED(rv)) {
-          rv = NS_ERROR_OUT_OF_MEMORY;
-          break;
-        }
-
-        rv = results->add(row);
-        if (NS_FAILED(rv))
-          break;
-
-        // Notify caller
-        nsRefPtr<CallbackResultNotifier> notifier =
-          new CallbackResultNotifier(mCallback, results, this);
-        if (!notifier) {
-          rv = NS_ERROR_OUT_OF_MEMORY;
-          break;
-        }
-
-        nsresult status = mCallingThread->Dispatch(notifier, NS_DISPATCH_NORMAL);
-        if (NS_SUCCEEDED(status)) {
-          nsAutoLock mutex(mPendingEventsMutex);
-          (void)mPendingEvents.AppendObject(notifier);
-        }
+        // And stop processing statements
+        return PR_FALSE;
       }
 
-      // If we have an error, we need to break out now.
+      // If we do not have a callback, there's no point in executing this
+      // statement anymore, but we wish to continue to execute statements.  We
+      // also need to update our state if we are finished, so break out of the
+      // while loop.
+      if (!mCallback)
+        break;
+
+      // If we have been canceled, there is no point in going on...
+      if (mCancelRequested) {
+        mState = CANCELED;
+        return PR_FALSE;
+      }
+
+      // Build our results and notify if it's time.
+      rv = BuildAndNotifyResults(aStatement);
       if (NS_FAILED(rv))
         break;
     }
 
-    // We have broken out of the loop because of an error or because we are
-    // completed.  Handle accordingly.
+    // If we have an error that we have not already notified about, set our
+    // state accordingly, and notify.
     if (NS_FAILED(rv)) {
-      // This is a fatal error :(
+      mState = ERROR;
 
-      // Update state
-      {
-        nsAutoLock mutex(mStateMutex);
-        mState = ERROR;
-      }
+      // Drop our mutex - NotifyError doesn't want it held
+      mutex.unlock();
 
-      // Notify
-      iCancelable *cancelable = ErrorNotifier::Dispatch(
-        mCallingThread, mCallback, this, mozIStorageError::ERROR, ""
-      );
-      if (cancelable) {
-        nsAutoLock mutex(mPendingEventsMutex);
-        (void)mPendingEvents.AppendObject(cancelable);
-      }
+      // Notify, and stop processing statements.
+      (void)NotifyError(mozIStorageError::ERROR, "");
+      return PR_FALSE;
     }
 
-    // No more results, so update state if needed
-    {
-      nsAutoLock mutex(mStateMutex);
-      if (mState == PENDING)
-        mState = COMPLETED;
+    // If we are done, we need to set our state accordingly while we still
+    // hold our lock.  We would have already returned if we were canceled or had
+    // an error at this point.
+    if (aFinished)
+      mState = COMPLETED;
 
-      // Notify about completion
-      return Complete();
-    }
-  }
-
-  static PRBool cancelEnumerator(iCancelable *aCancelable, void *)
-  {
-    (void)aCancelable->cancel();
     return PR_TRUE;
   }
 
-  NS_IMETHOD Cancel()
+  /**
+   * Builds a result set up with a row from a given statement.  If we meet the
+   * right criteria, go ahead and notify about this results too.
+   *
+   * @pre mLock is held
+   *
+   * @param aStatement
+   *        The statement to get the row data from.
+   */
+  nsresult BuildAndNotifyResults(sqlite3_stmt *aStatement)
   {
-    // Check and update our state
-    {
-      nsAutoLock mutex(mStateMutex);
-      NS_ENSURE_TRUE(mState == PENDING || mState == COMPLETED,
-                     NS_ERROR_UNEXPECTED);
-      mState = CANCELED;
-    }
+    NS_ASSERTION(mCallback, "Trying to dispatch results without a callback!");
 
-    // Cancel all our pending events on the calling thread
-    {
-      nsAutoLock mutex(mPendingEventsMutex);
-      (void)mPendingEvents.EnumerateForwards(&AsyncExecute::cancelEnumerator,
-                                             nsnull);
-      mPendingEvents.Clear();
+    // At this point, it is safe to not hold the lock and allow for cancelation.
+    // We may add an event to the calling thread, but that thread will not end
+    // up running when it checks back with us to see if it should run.
+    nsAutoUnlock cancelationScope(mLock);
+
+    // Build result object if we need it.
+    if (!mResultSet)
+      mResultSet = new mozStorageResultSet();
+    NS_ENSURE_TRUE(mResultSet, NS_ERROR_OUT_OF_MEMORY);
+
+    nsRefPtr<mozStorageRow> row(new mozStorageRow());
+    NS_ENSURE_TRUE(row, NS_ERROR_OUT_OF_MEMORY);
+
+    nsresult rv = row->initialize(aStatement);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = mResultSet->add(row);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    // If we have hit our maximum number of allowed results, or if we have hit
+    // the maximum amount of time we want to wait for results, notify the
+    // calling thread about it.
+    PRIntervalTime now = PR_IntervalNow();
+    PRIntervalTime delta = now - mIntervalStart;
+    if (mResultSet->rows() >= MAX_ROWS_PER_RESULT || delta > mMaxIntervalWait) {
+      // Notify the caller
+      rv = NotifyResults();
+      if (NS_FAILED(rv))
+        return NS_OK; // we'll try again with the next result
+
+      // Reset our start time
+      mIntervalStart = now;
     }
 
     return NS_OK;
   }
 
-  virtual void completed(iCancelable *aCancelable)
-  {
-    nsAutoLock mutex(mPendingEventsMutex);
-    (void)mPendingEvents.RemoveObject(aCancelable);
-  }
-
-private:
-  AsyncExecute() { }
-
-  ~AsyncExecute()
-  {
-    NS_ASSERTION(mPendingEvents.Count() == 0, "Still pending events!");
-    nsAutoLock::DestroyLock(mStateMutex);
-    nsAutoLock::DestroyLock(mPendingEventsMutex);
-  }
-
   /**
    * Notifies callback about completion, and does any necessary cleanup.
-   * @note: When calling this function, mStateMutex must be held.
+   *
+   * @pre mLock is not held
    */
-  nsresult Complete()
+  nsresult NotifyComplete()
   {
     NS_ASSERTION(mState != PENDING,
                  "Still in a pending state when calling Complete!");
@@ -496,14 +500,9 @@ private:
       if (mState == COMPLETED) {
         nsresult rv = mTransactionManager->Commit();
         if (NS_FAILED(rv)) {
-          iCancelable *cancelable = ErrorNotifier::Dispatch(
-            mCallingThread, mCallback, this, mozIStorageError::ERROR,
-            "Transaction failed to commit"
-          );
-          if (cancelable) {
-            nsAutoLock mutex(mPendingEventsMutex);
-            (void)mPendingEvents.AppendObject(cancelable);
-          }
+          mState = ERROR;
+          (void)NotifyError(mozIStorageError::ERROR,
+                            "Transaction failed to commit");
         }
       }
       else {
@@ -522,25 +521,80 @@ private:
     // Notify about completion iff we have a callback.
     if (mCallback) {
       nsRefPtr<CompletionNotifier> completionEvent =
-        new CompletionNotifier(mCallback, mState, this);
-      nsresult rv = mCallingThread->Dispatch(completionEvent, NS_DISPATCH_NORMAL);
-      if (NS_SUCCEEDED(rv)) {
-        nsAutoLock mutex(mPendingEventsMutex);
-        (void)mPendingEvents.AppendObject(completionEvent);
-      }
+        new CompletionNotifier(mCallback, mState);
+      NS_ENSURE_TRUE(completionEvent, NS_ERROR_OUT_OF_MEMORY);
 
       // We no longer own mCallback (the CompletionNotifier takes ownership).
       mCallback = nsnull;
+
+      (void)mCallingThread->Dispatch(completionEvent, NS_DISPATCH_NORMAL);
     }
 
     return NS_OK;
   }
+
+  /**
+   * Notifies callback about an error.
+   *
+   * @pre mLock is not held
+   *
+   * @param aErrorCode
+   *        The error code defined in mozIStorageError for the error.
+   * @param aMessage
+   *        The error string, if any.
+   */
+  nsresult NotifyError(PRInt32 aErrorCode, const char *aMessage)
+  {
+    if (!mCallback)
+      return NS_OK;
+
+    nsCOMPtr<mozIStorageError> errorObj =
+      new mozStorageError(aErrorCode, aMessage);
+    NS_ENSURE_TRUE(errorObj, NS_ERROR_OUT_OF_MEMORY);
+
+    nsRefPtr<ErrorNotifier> notifier =
+      new ErrorNotifier(mCallback, errorObj, this);
+    NS_ENSURE_TRUE(notifier, NS_ERROR_OUT_OF_MEMORY);
+
+    return mCallingThread->Dispatch(notifier, NS_DISPATCH_NORMAL);
+  }
+
+  /**
+   * Notifies the callback about a result set.
+   *
+   * @pre mLock is not held
+   */
+  nsresult NotifyResults()
+  {
+    NS_ASSERTION(mCallback, "NotifyResults called without a callback!");
+
+    nsRefPtr<CallbackResultNotifier> notifier =
+      new CallbackResultNotifier(mCallback, mResultSet, this);
+    NS_ENSURE_TRUE(notifier, NS_ERROR_OUT_OF_MEMORY);
+
+    nsresult rv = mCallingThread->Dispatch(notifier, NS_DISPATCH_NORMAL);
+    if (NS_SUCCEEDED(rv))
+      mResultSet = nsnull; // we no longer own it on success
+    return rv;
+  };
 
   nsTArray<sqlite3_stmt *> mStatements;
   mozIStorageConnection *mConnection;
   mozStorageTransaction *mTransactionManager;
   mozIStorageStatementCallback *mCallback;
   nsCOMPtr<nsIThread> mCallingThread;
+  nsRefPtr<mozStorageResultSet> mResultSet;
+
+  /**
+   * The maximum amount of time we want to wait between results.  Defined by
+   * MAX_MILLISECONDS_BETWEEN_RESULTS and set at construction.
+   */
+  const PRIntervalTime mMaxIntervalWait;
+
+  /**
+   * The start time since our last set of results.
+   */
+  PRIntervalTime mIntervalStart;
 
   /**
    * Indicates the state the object is currently in.
@@ -548,20 +602,19 @@ private:
   ExecutionState mState;
 
   /**
-   * Mutex to protect mState.
+   * Indicates if we should try to cancel at a cancelation point or not.
    */
-  PRLock *mStateMutex;
+  PRBool mCancelRequested;
 
   /**
-   * Stores a list of pending events that have not yet completed on the
-   * calling thread.
+   * This is the lock that protects our state from changing.  This includes the
+   * following variables:
+   *   -mState
+   *   -mCancelRequested is only set on the calling thread while the lock is
+   *    held.  It is always read from within the lock on the background thread,
+   *    but not on the calling thread (see runEvent for why).
    */
-  nsCOMArray<iCancelable> mPendingEvents;
-
-  /**
-   * Mutex to protect mPendingEvents.
-   */
-  PRLock *mPendingEventsMutex;
+  PRLock *mLock;
 };
 NS_IMPL_THREADSAFE_ISUPPORTS2(
   AsyncExecute,
@@ -571,7 +624,7 @@ NS_IMPL_THREADSAFE_ISUPPORTS2(
 
 nsresult
 NS_executeAsync(nsTArray<sqlite3_stmt *> &aStatements,
-                mozIStorageConnection *aConnection,
+                mozStorageConnection *aConnection,
                 mozIStorageStatementCallback *aCallback,
                 mozIStoragePendingStatement **_stmt)
 {
@@ -583,7 +636,8 @@ NS_executeAsync(nsTArray<sqlite3_stmt *> &aStatements,
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Dispatch it to the background
-  nsIEventTarget *target = mozStorageBackground::getService()->target();
+  nsCOMPtr<nsIEventTarget> target(aConnection->getAsyncExecutionTarget());
+  NS_ENSURE_TRUE(target, NS_ERROR_NOT_AVAILABLE);
   rv = target->Dispatch(event, NS_DISPATCH_NORMAL);
   NS_ENSURE_SUCCESS(rv, rv);
 

@@ -42,6 +42,17 @@
 #define __nanojit_NativeArm__
 
 
+#ifdef PERFM
+#include "../vprof/vprof.h"
+#define count_instr() _nvprof("arm",1)
+#define count_prolog() _nvprof("arm-prolog",1); count_instr();
+#define count_imt() _nvprof("arm-imt",1) count_instr()
+#else
+#define count_instr()
+#define count_prolog()
+#define count_imt()
+#endif
+
 namespace nanojit
 {
 
@@ -107,10 +118,6 @@ typedef enum {
 
     FirstFloatReg = 16,
     LastFloatReg = 22,
-
-    // helpers
-    FRAME_PTR = 11,
-    ESP = SP,
         
     FirstReg = 0,
 #ifdef NJ_ARM_VFP
@@ -152,12 +159,12 @@ typedef struct _FragInfo {
     NIns*           epilogue;
 } FragInfo;
 
-#ifdef ARM_VFP
-static const RegisterMask SavedFpRegs = 1<<D0 | 1<<D1 | 1<<D2 | 1<<D3 | 1<<D4 | 1<<D5 | 1<<D6 | 1<<D7;
-#else
+// D0-D6 are not saved; D7-D15 are, but we don't use those,
+// so we don't have to worry about saving/restoring them
 static const RegisterMask SavedFpRegs = 0;
-#endif
-static const RegisterMask SavedRegs = 1<<R4 | 1<<R5 | 1<<R6 | 1<<R7 | 1<<R8 | 1<<R9 | 1<<R10 | SavedFpRegs;
+static const RegisterMask SavedRegs = 1<<R4 | 1<<R5 | 1<<R6 | 1<<R7 | 1<<R8 | 1<<R9 | 1<<R10;
+static const int NumSavedRegs = 7;
+
 static const RegisterMask FpRegs = 1<<D0 | 1<<D1 | 1<<D2 | 1<<D3 | 1<<D4 | 1<<D5 | 1<<D6; // no D7; S14-S15 are used for i2f/u2f.
 static const RegisterMask GpRegs = 0x07FF;
 static const RegisterMask AllowableFlagRegs = 1<<R0 | 1<<R1 | 1<<R2 | 1<<R3 | 1<<R4 | 1<<R5 | 1<<R6 | 1<<R7 | 1<<R8 | 1<<R9 | 1<<R10;
@@ -191,8 +198,7 @@ verbose_only( extern const char* regNames[]; )
     const static Register argRegs[4], retRegs[2];                       \
     void LD32_nochk(Register r, int32_t imm);                           \
     void BL(NIns*);                                                     \
-    void BL_far(NIns*);                                                 \
-    void CALL(const CallInfo*);                                         \
+    void JMP_far(NIns*);                                                \
     void B_cond_chk(ConditionCode, NIns*, bool);                        \
     void underrunProtect(int bytes);                                    \
     void nativePageReset();                                             \
@@ -216,8 +222,6 @@ verbose_only( extern const char* regNames[]; )
 
 
 #define IMM32(imm)  *(--_nIns) = (NIns)((imm));
-
-#define FUNCADDR(addr) ( ((int)addr) )  
 
 #define OP_IMM  (1<<25)
 #define OP_STAT (1<<20)
@@ -506,8 +510,8 @@ typedef enum {
         asm_output3("ldr %s, [%s, #%d]",gpn(_d),gpn(_b),(_off));        \
     } while(0)
 
-#define LDR(_d,_b,_off)        LDR_chk(_d,_b,_off,0)
-#define LDR_nochk(_d,_b,_off)  LDR_chk(_d,_b,_off,1)
+#define LDR(_d,_b,_off)        LDR_chk(_d,_b,_off,1)
+#define LDR_nochk(_d,_b,_off)  LDR_chk(_d,_b,_off,0)
 
 // i386 compat, for Assembler.cpp
 #define LD(reg,offset,base)    LDR_chk(reg,base,offset,1)
@@ -529,15 +533,23 @@ typedef enum {
     } while(0)
 
 
-// load 8-bit, zero extend (aka LDRB)
-// note, only 5-bit offsets (!) are supported for this, but that's all we need at the moment
-// (LDRB actually allows 12-bit offset in ARM mode but constraining to 5-bit gives us advantage for Thumb)
-// @todo, untested!
-#define LD8Z(_d,_off,_b) do {                                           \
-        NanoAssert((d)>=0&&(d)<=31);                                    \
+// load 8-bit, zero extend (aka LDRB) note, only 5-bit offsets (!) are
+// supported for this, but that's all we need at the moment.
+// (LDRB/LDRH actually allow a 12-bit offset in ARM mode but
+// constraining to 5-bit gives us advantage for Thumb)
+#define LDRB(_d,_off,_b) do {                                           \
+        NanoAssert((_off)>=0&&(_off)<=31);                              \
         underrunProtect(4);                                             \
-        *(--_nIns) = (NIns)( COND_AL | (0x5D<<20) | ((_b)<<16) | ((_d)<<12) |  ((_off)&0xfff)  ); \
+        *(--_nIns) = (NIns)( COND_AL | (0x5D<<20) | ((_b)<<16) | ((_d)<<12) | ((_off)&0xfff)  ); \
         asm_output3("ldrb %s,%d(%s)", gpn(_d),(_off),gpn(_b));          \
+    } while(0)
+
+// P and U
+#define LDRH(_d,_off,_b) do {                  \
+        NanoAssert((_off)>=0&&(_off)<=31);      \
+        underrunProtect(4);                     \
+        *(--_nIns) = (NIns)( COND_AL | (0x1D<<20) | ((_b)<<16) | ((_d)<<12) | ((0xB)<<4) | (((_off)&0xf0)<<4) | ((_off)&0xf) ); \
+        asm_output3("ldrsh %s,%d(%s)", gpn(_d),(_off),gpn(_b));         \
     } while(0)
 
 #define STR(_d,_n,_off) do {                                            \
@@ -588,8 +600,14 @@ typedef enum {
 //#define INT3()  underrunProtect(1); *(--_nIns) = 0xcc;  asm_output("int3")
 //#define RET() INT3()
 
+#define BKPT_insn ((NIns)( (0xE<<24) | (0x12<<20) | (0x7<<4) ))
 #define BKPT_nochk() do { \
-        *(--_nIns) = (NIns)( (0xE<<24) | (0x12<<20) | (0x7<<4) ); } while (0)
+        *(--_nIns) = BKPT_insn; } while (0)
+
+// this isn't a armv6t2 NOP -- it's a mov r0,r0
+#define NOP_nochk() do { \
+        *(--_nIns) = (NIns)( COND_AL | (0xD<<21) | ((R0)<<12) | (R0) ); \
+        asm_output("nop"); } while(0)
 
 // this is pushing a reg
 #define PUSHr(_r)  do {                                                 \
@@ -636,15 +654,6 @@ typedef enum {
 
 #define JMP_nochk(_t)                           \
     B_cond_chk(AL,_t,0)
-
-// emit a placeholder that will be filled in later by nPatchBranch;
-// emit two breakpoint instructions in case something goes wrong with
-// the patching.
-#define JMP_long_placeholder()  do {            \
-        underrunProtect(8);                     \
-        BKPT_nochk();                           \
-        BKPT_nochk();                           \
-    } while(0)
 
 #define JA(t)   do {B_cond(HI,t); asm_output1("ja 0x%08x",(unsigned int)t); } while(0)
 #define JNA(t)  do {B_cond(LS,t); asm_output1("jna 0x%08x",(unsigned int)t); } while(0)

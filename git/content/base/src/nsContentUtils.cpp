@@ -158,6 +158,9 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #include "nsIDragService.h"
 #include "nsIChannelEventSink.h"
 #include "nsIInterfaceRequestor.h"
+#include "nsIOfflineCacheUpdate.h"
+#include "nsCPrefetchService.h"
+#include "nsIChromeRegistry.h"
 
 #ifdef IBMBIDI
 #include "nsIBidiKeyboard.h"
@@ -477,7 +480,16 @@ nsContentUtils::InitializeEventTable() {
     { &nsGkAtoms::ondurationchange,              { NS_DURATIONCHANGE, EventNameType_HTML }},
     { &nsGkAtoms::onvolumechange,                { NS_VOLUMECHANGE, EventNameType_HTML }},
 #endif //MOZ_MEDIA
-    { &nsGkAtoms::onMozAfterPaint,               { NS_AFTERPAINT, EventNameType_None }}
+    { &nsGkAtoms::onMozAfterPaint,               { NS_AFTERPAINT, EventNameType_None }},
+
+    // Simple gesture events
+    { &nsGkAtoms::onMozSwipeGesture,             { NS_SIMPLE_GESTURE_SWIPE, EventNameType_None } },
+    { &nsGkAtoms::onMozMagnifyGestureStart,      { NS_SIMPLE_GESTURE_MAGNIFY_START, EventNameType_None } },
+    { &nsGkAtoms::onMozMagnifyGestureUpdate,     { NS_SIMPLE_GESTURE_MAGNIFY_UPDATE, EventNameType_None } },
+    { &nsGkAtoms::onMozMagnifyGesture,           { NS_SIMPLE_GESTURE_MAGNIFY, EventNameType_None } },
+    { &nsGkAtoms::onMozRotateGestureStart,       { NS_SIMPLE_GESTURE_ROTATE_START, EventNameType_None } },
+    { &nsGkAtoms::onMozRotateGestureUpdate,      { NS_SIMPLE_GESTURE_ROTATE_UPDATE, EventNameType_None } },
+    { &nsGkAtoms::onMozRotateGesture,            { NS_SIMPLE_GESTURE_ROTATE, EventNameType_None } }
   };
 
   sEventTable = new nsDataHashtable<nsISupportsHashKey, EventNameMapping>;
@@ -787,22 +799,9 @@ nsContentUtils::IsHTMLWhitespace(PRUnichar aChar)
 
 /* static */
 void
-nsContentUtils::GetOfflineAppManifest(nsIDOMWindow *aWindow, nsIURI **aURI)
+nsContentUtils::GetOfflineAppManifest(nsIDocument *aDocument, nsIURI **aURI)
 {
-  nsCOMPtr<nsIDOMWindow> top;
-  aWindow->GetTop(getter_AddRefs(top));
-  if (!top) {
-    return;
-  }
-
-  nsCOMPtr<nsIDOMDocument> topDOMDocument;
-  top->GetDocument(getter_AddRefs(topDOMDocument));
-  nsCOMPtr<nsIDocument> topDoc = do_QueryInterface(topDOMDocument);
-  if (!topDoc) {
-    return;
-  }
-
-  nsCOMPtr<nsIContent> docElement = topDoc->GetRootContent();
+  nsCOMPtr<nsIContent> docElement = aDocument->GetRootContent();
   if (!docElement) {
     return;
   }
@@ -817,24 +816,41 @@ nsContentUtils::GetOfflineAppManifest(nsIDOMWindow *aWindow, nsIURI **aURI)
   }
 
   nsContentUtils::NewURIWithDocumentCharset(aURI, manifestSpec,
-                                            topDoc, topDoc->GetBaseURI());
+                                            aDocument, aDocument->GetBaseURI());
 }
 
 /* static */
 PRBool
 nsContentUtils::OfflineAppAllowed(nsIURI *aURI)
 {
-  return NS_OfflineAppAllowed(aURI, sPrefBranch);
+  nsCOMPtr<nsIOfflineCacheUpdateService> updateService =
+    do_GetService(NS_OFFLINECACHEUPDATESERVICE_CONTRACTID);
+  if (!updateService) {
+    return PR_FALSE;
+  }
+
+  PRBool allowed;
+  nsresult rv = updateService->OfflineAppAllowedForURI(aURI,
+                                                       sPrefBranch,
+                                                       &allowed);
+  return NS_SUCCEEDED(rv) && allowed;
 }
 
 /* static */
 PRBool
 nsContentUtils::OfflineAppAllowed(nsIPrincipal *aPrincipal)
 {
-  nsCOMPtr<nsIURI> codebaseURI;
-  aPrincipal->GetURI(getter_AddRefs(codebaseURI));
+  nsCOMPtr<nsIOfflineCacheUpdateService> updateService =
+    do_GetService(NS_OFFLINECACHEUPDATESERVICE_CONTRACTID);
+  if (!updateService) {
+    return PR_FALSE;
+  }
 
-  return OfflineAppAllowed(codebaseURI);
+  PRBool allowed;
+  nsresult rv = updateService->OfflineAppAllowed(aPrincipal,
+                                                 sPrefBranch,
+                                                 &allowed);
+  return NS_SUCCEEDED(rv) && allowed;
 }
 
 // static
@@ -1090,15 +1106,6 @@ nsContentUtils::doReparentContentWrapper(nsIContent *aNode,
                                                 aNode,
                                                 getter_AddRefs(old_wrapper));
   NS_ENSURE_SUCCESS(rv, rv);
-
-  if (aOldDocument) {
-    nsCOMPtr<nsISupports> old_ref = aOldDocument->GetReference(aNode);
-    if (old_ref) {
-      // Transfer the reference from aOldDocument to aNewDocument
-      aOldDocument->RemoveReference(aNode);
-      aNewDocument->AddReference(aNode, old_ref);
-    }
-  }
 
   // Whether or not aChild is already wrapped we must iterate through
   // its descendants since there's no guarantee that a descendant isn't
@@ -1644,12 +1651,14 @@ nsContentUtils::ComparePoints(nsINode* aParent1, PRInt32 aOffset1,
 
   PRUint32 pos1 = parents1.Length() - 1;
   PRUint32 pos2 = parents2.Length() - 1;
-
-  NS_ASSERTION(parents1.ElementAt(pos1) == parents2.ElementAt(pos2) ||
-               aDisconnected,
-               "disconnected nodes");
+  
+  PRBool disconnected = parents1.ElementAt(pos1) != parents2.ElementAt(pos2);
   if (aDisconnected) {
-    *aDisconnected = (parents1.ElementAt(pos1) != parents2.ElementAt(pos2));
+    *aDisconnected = disconnected;
+  }
+  if (disconnected) {
+    NS_ASSERTION(aDisconnected, "unexpected disconnected nodes");
+    return 1;
   }
 
   // Find where the parent chains differ
@@ -2900,6 +2909,53 @@ nsContentUtils::IsChromeDoc(nsIDocument *aDocument)
   return aDocument->NodePrincipal() == systemPrincipal;
 }
 
+PRBool
+nsContentUtils::GetWrapperSafeScriptFilename(nsIDocument *aDocument,
+                                             nsIURI *aURI,
+                                             nsACString& aScriptURI)
+{
+  PRBool scriptFileNameModified = PR_FALSE;
+  aURI->GetSpec(aScriptURI);
+
+  if (IsChromeDoc(aDocument)) {
+    nsCOMPtr<nsIChromeRegistry> chromeReg =
+      do_GetService(NS_CHROMEREGISTRY_CONTRACTID);
+
+    if (!chromeReg) {
+      // If we're running w/o a chrome registry we won't modify any
+      // script file names.
+
+      return scriptFileNameModified;
+    }
+
+    PRBool docWrappersEnabled =
+      chromeReg->WrappersEnabled(aDocument->GetDocumentURI());
+
+    PRBool uriWrappersEnabled = chromeReg->WrappersEnabled(aURI);
+
+    nsIURI *docURI = aDocument->GetDocumentURI();
+
+    if (docURI && docWrappersEnabled && !uriWrappersEnabled) {
+      // aURI is a script from a URL that doesn't get wrapper
+      // automation. aDocument is a chrome document that does get
+      // wrapper automation. Prepend the chrome document's URI
+      // followed by the string " -> " to the URI of the script we're
+      // loading here so that script in that URI gets the same wrapper
+      // automation that the chrome document expects.
+      nsCAutoString spec;
+      docURI->GetSpec(spec);
+      spec.AppendASCII(" -> ");
+      spec.Append(aScriptURI);
+
+      aScriptURI = spec;
+
+      scriptFileNameModified = PR_TRUE;
+    }
+  }
+
+  return scriptFileNameModified;
+}
+
 // static
 PRBool
 nsContentUtils::IsInChromeDocshell(nsIDocument *aDocument)
@@ -3953,36 +4009,34 @@ nsContentUtils::GetNativeEvent(nsIDOMEvent* aDOMEvent)
 
 //static
 PRBool
-nsContentUtils::DOMEventToNativeKeyEvent(nsIDOMEvent* aDOMEvent,
+nsContentUtils::DOMEventToNativeKeyEvent(nsIDOMKeyEvent* aKeyEvent,
                                          nsNativeKeyEvent* aNativeEvent,
                                          PRBool aGetCharCode)
 {
-  nsCOMPtr<nsIDOMNSUIEvent> uievent = do_QueryInterface(aDOMEvent);
+  nsCOMPtr<nsIDOMNSUIEvent> uievent = do_QueryInterface(aKeyEvent);
   PRBool defaultPrevented;
   uievent->GetPreventDefault(&defaultPrevented);
   if (defaultPrevented)
     return PR_FALSE;
 
-  nsCOMPtr<nsIDOMNSEvent> nsevent = do_QueryInterface(aDOMEvent);
+  nsCOMPtr<nsIDOMNSEvent> nsevent = do_QueryInterface(aKeyEvent);
   PRBool trusted = PR_FALSE;
   nsevent->GetIsTrusted(&trusted);
   if (!trusted)
     return PR_FALSE;
 
-  nsCOMPtr<nsIDOMKeyEvent> keyEvent = do_QueryInterface(aDOMEvent);
-
   if (aGetCharCode) {
-    keyEvent->GetCharCode(&aNativeEvent->charCode);
+    aKeyEvent->GetCharCode(&aNativeEvent->charCode);
   } else {
     aNativeEvent->charCode = 0;
   }
-  keyEvent->GetKeyCode(&aNativeEvent->keyCode);
-  keyEvent->GetAltKey(&aNativeEvent->altKey);
-  keyEvent->GetCtrlKey(&aNativeEvent->ctrlKey);
-  keyEvent->GetShiftKey(&aNativeEvent->shiftKey);
-  keyEvent->GetMetaKey(&aNativeEvent->metaKey);
+  aKeyEvent->GetKeyCode(&aNativeEvent->keyCode);
+  aKeyEvent->GetAltKey(&aNativeEvent->altKey);
+  aKeyEvent->GetCtrlKey(&aNativeEvent->ctrlKey);
+  aKeyEvent->GetShiftKey(&aNativeEvent->shiftKey);
+  aKeyEvent->GetMetaKey(&aNativeEvent->metaKey);
 
-  aNativeEvent->nativeEvent = GetNativeEvent(aDOMEvent);
+  aNativeEvent->nativeEvent = GetNativeEvent(aKeyEvent);
 
   return PR_TRUE;
 }

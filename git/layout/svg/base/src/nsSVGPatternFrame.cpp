@@ -77,10 +77,10 @@ nsSVGPatternFrame::nsSVGPatternFrame(nsStyleContext* aContext) :
 // nsIFrame methods:
 
 /* virtual */ void
-nsSVGPatternFrame::DidSetStyleContext()
+nsSVGPatternFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
 {
   nsSVGEffects::InvalidateRenderingObservers(this);
-  nsSVGPatternFrameBase::DidSetStyleContext();
+  nsSVGPatternFrameBase::DidSetStyleContext(aOldStyleContext);
 }
 
 NS_IMETHODIMP
@@ -293,7 +293,7 @@ nsSVGPatternFrame::PaintPattern(gfxASurface** surface,
     mPaintLoopFlag = PR_TRUE;
     for (nsIFrame* kid = firstKid; kid;
          kid = kid->GetNextSibling()) {
-      nsSVGUtils::PaintChildWithEffects(&tmpState, nsnull, kid);
+      nsSVGUtils::PaintFrameWithEffects(&tmpState, nsnull, kid);
     }
     mPaintLoopFlag = PR_FALSE;
   }

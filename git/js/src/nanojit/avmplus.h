@@ -162,190 +162,124 @@ static __inline__ unsigned long long rdtsc(void)
 
 struct JSContext;
 
-namespace nanojit
-{
-	class Fragment;
-
-	enum ExitType {
-	    BRANCH_EXIT, 
-	    LOOP_EXIT, 
-	    NESTED_EXIT,
-	    MISMATCH_EXIT,
-	    OOM_EXIT,
-	    OVERFLOW_EXIT
-	};
-	
-	struct SideExit
-	{
-        intptr_t ip_adj;
-        intptr_t sp_adj;
-        intptr_t rp_adj;
-        Fragment *target;
-        Fragment *from;
-        int32_t calldepth;
-        uint32 numGlobalSlots;
-        uint32 numStackSlots;
-        uint32 numStackSlotsBelowCurrentFrame;
-        uint8 *typeMap;
-        ExitType exitType;
-#if defined NJ_VERBOSE
-		uint32_t sid;
-#endif
-	};
-
-	class LIns;
-
-	struct GuardRecord
-	{
-		Fragment *target;
-		Fragment *from;
-		void *jmp;
-		void *origTarget;
-		SideExit *exit;
-		GuardRecord *outgoing;
-		GuardRecord *next;
-		LIns *guard;
-		int32_t calldepth;
-#if defined NJ_VERBOSE
-		uint32_t compileNbr;
-		uint32_t sid;
-#endif
-	};
-
-	#define GuardRecordSize(g) sizeof(GuardRecord)
-    #define SideExitSize(e) sizeof(SideExit)
-}
-
-class GC;
-
-class GCObject 
-{
-public:
-    inline void*
-    operator new(size_t size, GC* gc)
-    {
-        return calloc(1, size);
-    }
-
-    static void operator delete (void *gcObject)
-    {
-        free(gcObject); 
-    }
-};
-
-#define MMGC_SUBCLASS_DECL : public GCObject
-
-class GCFinalizedObject : public GCObject
-{
-public:
-    static void operator delete (void *gcObject)
-    {
-        free(gcObject); 
-    }
-};
-
-class GCHeap
-{
-public:
-    int32_t kNativePageSize;
-
-    GCHeap()
-    {
-#if defined _SC_PAGE_SIZE
-        kNativePageSize = sysconf(_SC_PAGE_SIZE);
-#else
-        kNativePageSize = 4096; // @todo: what is this?
-#endif
-    }
+namespace avmplus {
     
-    inline void*
-    Alloc(uint32_t pages) 
-    {
-#ifdef XP_WIN
-        return VirtualAlloc(NULL, 
-                            pages * kNativePageSize,
-                            MEM_COMMIT | MEM_RESERVE, 
-                            PAGE_EXECUTE_READWRITE);
-#elif defined AVMPLUS_UNIX
-        /**
-         * Don't use normal heap with mprotect+PROT_EXEC for executable code.
-         * SELinux and friends don't allow this.
-         */
-        return mmap(NULL, 
-                    pages * kNativePageSize,
-                    PROT_READ | PROT_WRITE | PROT_EXEC,
-                    MAP_PRIVATE | MAP_ANON,
-                    -1,
-                    0);
-#else
-        return valloc(pages * kNativePageSize); 
-#endif
-    }
+    class GC;
     
-    inline void
-    Free(void* p, uint32_t pages)
+    class GCObject 
     {
-#ifdef XP_WIN
-        VirtualFree(p, 0, MEM_RELEASE);
-#elif defined AVMPLUS_UNIX
-        #if defined SOLARIS
-        munmap((char*)p, pages * kNativePageSize); 
-        #else
-        munmap(p, pages * kNativePageSize); 
-        #endif
-#else
-        free(p);
-#endif
-    }
+    public:
+        inline void*
+        operator new(size_t size, GC* gc)
+        {
+            return calloc(1, size);
+        }
     
-};
-
-class GC 
-{
-    static GCHeap heap;
+        static void operator delete (void *gcObject)
+        {
+            free(gcObject); 
+        }
+    };
     
-public:
-    static inline void*
-    Alloc(uint32_t bytes)
-    {
-        return calloc(1, bytes);
-    }
-
-    static inline void
-    Free(void* p)
-    {
-        free(p);
-    }
+    #define MMGC_SUBCLASS_DECL : public avmplus::GCObject
     
-    static inline GCHeap*
-    GetGCHeap()
+    class GCFinalizedObject : public GCObject
     {
-        return &heap;
-    }
-};
+    public:
+        static void operator delete (void *gcObject)
+        {
+            free(gcObject); 
+        }
+    };
+    
+    class GCHeap
+    {
+    public:
+        int32_t kNativePageSize;
+    
+        GCHeap()
+        {
+    #if defined _SC_PAGE_SIZE
+            kNativePageSize = sysconf(_SC_PAGE_SIZE);
+    #else
+            kNativePageSize = 4096; // @todo: what is this?
+    #endif
+        }
+        
+        inline void*
+        Alloc(uint32_t pages) 
+        {
+    #ifdef XP_WIN
+            return VirtualAlloc(NULL, 
+                                pages * kNativePageSize,
+                                MEM_COMMIT | MEM_RESERVE, 
+                                PAGE_EXECUTE_READWRITE);
+    #elif defined AVMPLUS_UNIX
+            /**
+             * Don't use normal heap with mprotect+PROT_EXEC for executable code.
+             * SELinux and friends don't allow this.
+             */
+            return mmap(NULL, 
+                        pages * kNativePageSize,
+                        PROT_READ | PROT_WRITE | PROT_EXEC,
+                        MAP_PRIVATE | MAP_ANON,
+                        -1,
+                        0);
+    #else
+            return valloc(pages * kNativePageSize); 
+    #endif
+        }
+        
+        inline void
+        Free(void* p, uint32_t pages)
+        {
+    #ifdef XP_WIN
+            VirtualFree(p, 0, MEM_RELEASE);
+    #elif defined AVMPLUS_UNIX
+            #if defined SOLARIS
+            munmap((char*)p, pages * kNativePageSize); 
+            #else
+            munmap(p, pages * kNativePageSize); 
+            #endif
+    #else
+            free(p);
+    #endif
+        }
+        
+    };
+    
+    class GC 
+    {
+        static GCHeap heap;
+        
+    public:
+        static inline void*
+        Alloc(uint32_t bytes)
+        {
+            return calloc(1, bytes);
+        }
+    
+        static inline void
+        Free(void* p)
+        {
+            free(p);
+        }
+        
+        static inline GCHeap*
+        GetGCHeap()
+        {
+            return &heap;
+        }
+    };
 
 #define DWB(x) x
 #define DRCWB(x) x
+#define WB(gc, container, addr, value) do { *(addr) = (value); } while(0)
+#define WBRC(gc, container, addr, value) do { *(addr) = (value); } while(0)
 
 #define MMGC_MEM_TYPE(x)
 
-typedef int FunctionID;
-
-namespace avmplus
-{
-    struct InterpState
-    {
-        void* sp; /* native stack pointer, stack[0] is spbase[0] */
-        void* rp; /* call stack pointer */
-        void* gp; /* global frame pointer */
-        JSContext *cx; /* current VM context handle */
-        void* eos; /* first unusable word after the native stack */
-        void* eor; /* first unusable word after the call stack */
-        nanojit::GuardRecord* lastTreeExitGuard; /* guard we exited on during a tree call */
-        nanojit::GuardRecord* lastTreeCallGuard; /* guard we want to grow from if the tree
-                                                    call exit guard mismatched */
-        void* rpAtLastTreeCall; /* value of rp at innermost tree call guard */
-    };
+    typedef int FunctionID;
 
     class String
     {

@@ -59,6 +59,7 @@
 #include "nsWidgetAtoms.h"
 #include "nsToolkit.h"
 #include "nsCocoaWindow.h"
+#include "nsNativeThemeColors.h"
 
 #include "gfxContext.h"
 #include "gfxQuartzSurface.h"
@@ -255,8 +256,7 @@ static void DrawCellWithScaling(NSCell *cell,
   if (drawRect.size.height < minimumSize.height)
     drawRect.size.height = minimumSize.height;
 
-  CGAffineTransform savedCTM = CGContextGetCTM(cgContext);
-  NSGraphicsContext* savedContext = [NSGraphicsContext currentContext];
+  [NSGraphicsContext saveGraphicsState];
 
   if (flip) {
     // This flips the image in place and is necessary to work around a bug in the way
@@ -273,12 +273,16 @@ static void DrawCellWithScaling(NSCell *cell,
     // Inflate the rect Gecko gave us by the margin for the control.
     InflateControlRect(&drawRect, controlSize, marginSet);
 
+    NSGraphicsContext* savedContext = [NSGraphicsContext currentContext];
+
     // Set up the graphics context we've been asked to draw to.
     [NSGraphicsContext setCurrentContext:[NSGraphicsContext graphicsContextWithGraphicsPort:cgContext flipped:YES]];
 
     // [NSView focusView] may return nil here, but
     // [NSCell drawWithFrame:inView:] can deal with that.
     [cell drawWithFrame:drawRect inView:[NSView focusView]];
+
+    [NSGraphicsContext setCurrentContext:savedContext];
   }
   else {
     float w = ceil(drawRect.size.width);
@@ -301,6 +305,8 @@ static void DrawCellWithScaling(NSCell *cell,
     CGColorSpaceRelease(rgb);
 
     CGContextTranslateCTM(ctx, MAX_FOCUS_RING_WIDTH, MAX_FOCUS_RING_WIDTH);
+
+    NSGraphicsContext* savedContext = [NSGraphicsContext currentContext];
 
     [NSGraphicsContext setCurrentContext:[NSGraphicsContext graphicsContextWithGraphicsPort:ctx flipped:YES]];
 
@@ -329,9 +335,7 @@ static void DrawCellWithScaling(NSCell *cell,
     CGContextRelease(ctx);
   }
 
-  CGContextSetCTM(cgContext, savedCTM);
-
-  [NSGraphicsContext setCurrentContext:savedContext];
+  [NSGraphicsContext restoreGraphicsState];
 
 #if DRAW_IN_FRAME_DEBUG
   CGContextSetRGBFillColor(cgContext, 0.0, 0.0, 0.5, 0.25);
@@ -849,7 +853,8 @@ nsNativeThemeCocoa::DrawFrame(CGContextRef cgContext, HIThemeFrameKind inKind,
 void
 nsNativeThemeCocoa::DrawProgress(CGContextRef cgContext, const HIRect& inBoxRect,
                                  PRBool inIsIndeterminate, PRBool inIsHorizontal,
-                                 PRInt32 inValue, nsIFrame* aFrame)
+                                 PRInt32 inValue, PRInt32 inMaxValue,
+                                 nsIFrame* aFrame)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
@@ -862,7 +867,7 @@ nsNativeThemeCocoa::DrawProgress(CGContextRef cgContext, const HIRect& inBoxRect
   tdi.kind = inIsIndeterminate ? kThemeMediumIndeterminateBar: kThemeMediumProgressBar;
   tdi.bounds = inBoxRect;
   tdi.min = 0;
-  tdi.max = 100;
+  tdi.max = inMaxValue;
   tdi.value = inValue;
   tdi.attributes = inIsHorizontal ? kThemeTrackHorizontal : 0;
   tdi.enableState = FrameIsInActiveWindow(aFrame) ? kThemeTrackActive : kThemeTrackInactive;
@@ -1189,7 +1194,7 @@ nsNativeThemeCocoa::DrawUnifiedToolbar(CGContextRef cgContext, const HIRect& inB
 
   // Draw the gradient
   UnifiedGradientInfo info = { titlebarHeight, inBoxRect.size.height, isMain, NO };
-  struct CGFunctionCallbacks callbacks = { 0, unifiedShading, NULL };
+  struct CGFunctionCallbacks callbacks = { 0, nsCocoaWindow::UnifiedShading, NULL };
   CGFunctionRef function = CGFunctionCreate(&info, 1,  NULL, 4, NULL, &callbacks);
   float srcY = inBoxRect.origin.y;
   float dstY = srcY + inBoxRect.size.height - 1;
@@ -1230,6 +1235,8 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsIRenderingContext* aContext, nsIFrame
   nativeWidgetRect.ScaleInverse(gfxFloat(p2a));
   nativeDirtyRect.ScaleInverse(gfxFloat(p2a));
   nativeWidgetRect.Round();
+  if (nativeWidgetRect.IsEmpty())
+    return NS_OK; // Don't attempt to draw invisible widgets.
 
   nsRefPtr<gfxContext> thebesCtx = aContext->ThebesContext();
   if (!thebesCtx)
@@ -1330,11 +1337,8 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsIRenderingContext* aContext, nsIFrame
       break;
 
     case NS_THEME_CHECKBOX:
-    case NS_THEME_CHECKBOX_SMALL:
-    case NS_THEME_RADIO:
-    case NS_THEME_RADIO_SMALL: {
-      PRBool isCheckbox = (aWidgetType == NS_THEME_CHECKBOX ||
-                           aWidgetType == NS_THEME_CHECKBOX_SMALL);
+    case NS_THEME_RADIO: {
+      PRBool isCheckbox = (aWidgetType == NS_THEME_CHECKBOX);
       DrawCheckboxOrRadio(cgContext, isCheckbox, macRect, GetCheckedOrSelected(aFrame, !isCheckbox),
                           IsDisabled(aFrame), eventState, aFrame);
     }
@@ -1428,12 +1432,14 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsIRenderingContext* aContext, nsIFrame
       
     case NS_THEME_PROGRESSBAR:
       DrawProgress(cgContext, macRect, IsIndeterminateProgress(aFrame),
-                   PR_TRUE, GetProgressValue(aFrame), aFrame);
+                   PR_TRUE, GetProgressValue(aFrame),
+                   GetProgressMaxValue(aFrame), aFrame);
       break;
 
     case NS_THEME_PROGRESSBAR_VERTICAL:
       DrawProgress(cgContext, macRect, IsIndeterminateProgress(aFrame),
-                   PR_FALSE, GetProgressValue(aFrame), aFrame);
+                   PR_FALSE, GetProgressValue(aFrame),
+                   GetProgressMaxValue(aFrame), aFrame);
       break;
 
     case NS_THEME_PROGRESSBAR_CHUNK:
@@ -1700,9 +1706,7 @@ nsNativeThemeCocoa::GetWidgetPadding(nsIDeviceContext* aContext,
     // and have a meaningful baseline, so they can't have
     // author-specified padding.
     case NS_THEME_CHECKBOX:
-    case NS_THEME_CHECKBOX_SMALL:
     case NS_THEME_RADIO:
-    case NS_THEME_RADIO_SMALL:
       aResult->SizeTo(0, 0, 0, 0);
       return PR_TRUE;
   }
@@ -1722,9 +1726,7 @@ nsNativeThemeCocoa::GetWidgetOverflow(nsIDeviceContext* aContext, nsIFrame* aFra
     case NS_THEME_DROPDOWN:
     case NS_THEME_DROPDOWN_BUTTON:
     case NS_THEME_CHECKBOX:
-    case NS_THEME_CHECKBOX_SMALL:
     case NS_THEME_RADIO:
-    case NS_THEME_RADIO_SMALL:
     {
       // We assume that the above widgets can draw a focus ring that will be less than
       // or equal to 4 pixels thick.
@@ -2012,7 +2014,10 @@ PRBool
 nsNativeThemeCocoa::ThemeSupportsWidget(nsPresContext* aPresContext, nsIFrame* aFrame,
                                       PRUint8 aWidgetType)
 {
-  if (aPresContext && !aPresContext->PresShell()->IsThemeSupportEnabled())
+  // We don't have CSS set up to render non-native scrollbars on Mac OS X so we
+  // render natively even if native theme support is disabled.
+  if (aWidgetType != NS_THEME_SCROLLBAR &&
+      aPresContext && !aPresContext->PresShell()->IsThemeSupportEnabled())
     return PR_FALSE;
 
   // if this is a dropdown button in a combobox the answer is always no
@@ -2033,10 +2038,8 @@ nsNativeThemeCocoa::ThemeSupportsWidget(nsPresContext* aPresContext, nsIFrame* a
     case NS_THEME_TOOLTIP:
     
     case NS_THEME_CHECKBOX:
-    case NS_THEME_CHECKBOX_SMALL:
     case NS_THEME_CHECKBOX_CONTAINER:
     case NS_THEME_RADIO:
-    case NS_THEME_RADIO_SMALL:
     case NS_THEME_RADIO_CONTAINER:
     case NS_THEME_GROUPBOX:
     case NS_THEME_BUTTON:
@@ -2103,9 +2106,7 @@ nsNativeThemeCocoa::WidgetIsContainer(PRUint8 aWidgetType)
   switch (aWidgetType) {
    case NS_THEME_DROPDOWN_BUTTON:
    case NS_THEME_RADIO:
-   case NS_THEME_RADIO_SMALL:
    case NS_THEME_CHECKBOX:
-   case NS_THEME_CHECKBOX_SMALL:
    case NS_THEME_PROGRESSBAR:
     return PR_FALSE;
     break;
@@ -2120,9 +2121,7 @@ nsNativeThemeCocoa::ThemeDrawsFocusForWidget(nsPresContext* aPresContext, nsIFra
   if (aWidgetType == NS_THEME_DROPDOWN ||
       aWidgetType == NS_THEME_BUTTON ||
       aWidgetType == NS_THEME_RADIO ||
-      aWidgetType == NS_THEME_RADIO_SMALL ||
-      aWidgetType == NS_THEME_CHECKBOX ||
-      aWidgetType == NS_THEME_CHECKBOX_SMALL)
+      aWidgetType == NS_THEME_CHECKBOX)
     return PR_TRUE;
 
   return PR_FALSE;

@@ -117,6 +117,9 @@ enum {
 
     /* Whether we can use GradientFill rectangles with this surface */
     CAIRO_WIN32_SURFACE_CAN_RECT_GRADIENT = (1<<6),
+
+    /* if this DDB surface can be converted to a DIB if necessary */
+    CAIRO_WIN32_SURFACE_CAN_CONVERT_TO_DIB = (1<<7),
 };
 
 cairo_status_t
@@ -160,6 +163,8 @@ _cairo_win32_surface_clone_similar (void *abstract_surface,
 				    int src_y,
 				    int width,
 				    int height,
+				    int *clone_offset_x,
+				    int *clone_offset_y,
 				    cairo_surface_t **clone_out);
 
 static inline void

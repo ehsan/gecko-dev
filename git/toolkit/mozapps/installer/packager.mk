@@ -225,6 +225,7 @@ NO_PKG_FILES += \
 	core \
 	bsdecho \
 	gtscc \
+	js-config \
 	jscpucfg \
 	nsinstall \
 	viewer \
@@ -271,6 +272,8 @@ MOZ_PKG_REMOVALS_GEN = removed-files
 
 $(MOZ_PKG_REMOVALS_GEN): $(MOZ_PKG_REMOVALS) Makefile Makefile.in
 	$(PYTHON) $(MOZILLA_DIR)/config/Preprocessor.py -Fsubstitution $(DEFINES) $(ACDEFINES) $(MOZ_PKG_REMOVALS) > $(MOZ_PKG_REMOVALS_GEN)
+
+GARBAGE += $(MOZ_PKG_REMOVALS_GEN)
 endif
 
 GARBAGE		+= $(DIST)/$(PACKAGE) $(PACKAGE)
@@ -285,7 +288,7 @@ endif
 ifeq ($(OS_ARCH),OS2)
 STRIP		= $(MOZILLA_DIR)/toolkit/mozapps/installer/os2/strip.cmd
 STRIP_FLAGS	=
-PLATFORM_EXCLUDE_LIST = ! -name "*.ico"
+PLATFORM_EXCLUDE_LIST = ! -name "*.ico" ! -name "$(MOZ_PKG_APPNAME).exe"
 endif
 
 ifneq (,$(filter WINNT OS2,$(OS_ARCH)))
@@ -476,3 +479,23 @@ make-sdk:
 	(cd $(DIST)/sdk/lib && tar $(TAR_CREATE_FLAGS) - .) | \
 	  (cd $(DIST)/$(MOZ_APP_NAME)-sdk/lib && tar -xf -)
 	cd $(DIST) && $(MAKE_SDK)
+
+ifeq ($(OS_TARGET), WINNT)
+INSTALLER_PACKAGE = $(DIST)/$(PKG_INST_PATH)$(PKG_INST_BASENAME).exe
+endif
+
+upload:
+	$(PYTHON) $(topsrcdir)/build/upload.py --base-path $(DIST) $(DIST)/$(PACKAGE) $(INSTALLER_PACKAGE)
+
+ifndef MOZ_PKG_SRCDIR
+MOZ_PKG_SRCDIR = $(topsrcdir)
+endif
+
+CREATE_SOURCE_TAR = $(TAR) -c --owner=0 --group=0 --numeric-owner \
+  --mode="go-w" --exclude=".hg*" --exclude="CVS" --exclude=".cvs*" -f
+
+# source-package creates a source tarball from the files in MOZ_PKG_SRCDIR,
+# which is either set to a clean checkout or defaults to $topsrcdir
+source-package:
+	@echo "Packaging source tarball..."
+	(cd $(MOZ_PKG_SRCDIR) && $(CREATE_SOURCE_TAR) - .) | bzip2 -vf > $(DIST)/$(PKG_SRCPACK_PATH)$(PKG_SRCPACK_BASENAME).tar.bz2

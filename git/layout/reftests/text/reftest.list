@@ -1,3 +1,5 @@
+== fallback-01.xhtml fallback-01-ref.xhtml
+== font-selection-by-lang-01.html font-selection-by-lang-01-ref.html
 == justification-1.html justification-1-ref.html
 == justification-2a.html justification-2-ref.html
 == justification-2b.html justification-2-ref.html
@@ -18,6 +20,10 @@ random-if(MOZ_WIDGET_TOOLKIT=="gtk2") == wordwrap-03.html wordwrap-03-ref.html #
 == wordwrap-05.html wordwrap-05-ref.html
 == wordwrap-06.html wordwrap-06-ref.html
 == wordwrap-07.html wordwrap-07-ref.html
+!= wordwrap-08.html wordwrap-01-ref.html
+== wordwrap-08.html wordwrap-08-ref.html
+!= wordwrap-09.html wordwrap-01-ref.html
+== wordwrap-09.html wordwrap-09-ref.html
 == zwnj-01.html zwnj-01-ref.html
 == zwnj-02.html zwnj-02-ref.html
 random-if(MOZ_WIDGET_TOOLKIT=="gtk2") != zwnj-01.html zwnj-02-ref.html # Bad fonts on the tinderbox -- works locally

@@ -87,6 +87,10 @@
 #include "nsCSSRules.h"
 #include "nsFontFaceLoader.h"
 
+#define VISITED_PSEUDO_PREF "layout.css.visited_links_enabled"
+
+static PRBool gSupportVisitedPseudo = PR_TRUE;
+
 static NS_DEFINE_CID(kLookAndFeelCID, NS_LOOKANDFEEL_CID);
 static nsTArray< nsCOMPtr<nsIAtom> >* sSystemMetrics = 0;
 
@@ -753,6 +757,16 @@ nsCSSRuleProcessor::~nsCSSRuleProcessor()
 
 NS_IMPL_ISUPPORTS1(nsCSSRuleProcessor, nsIStyleRuleProcessor)
 
+/* static */ void
+nsCSSRuleProcessor::Startup()
+{
+  nsContentUtils::AddBoolPrefVarCache(VISITED_PSEUDO_PREF,
+                                      &gSupportVisitedPseudo);
+  // We want to default to true, not false as AddBoolPrefVarCache does.
+  gSupportVisitedPseudo =
+    nsContentUtils::GetBoolPref(VISITED_PSEUDO_PREF, PR_TRUE);
+}
+
 static PRBool
 InitSystemMetrics()
 {
@@ -920,6 +934,10 @@ RuleProcessorData::RuleProcessorData(nsPresContext* aPresContext,
       mIsLink = PR_TRUE;
     } 
   }
+
+  if (mLinkState == eLinkState_Visited && !gSupportVisitedPseudo) {
+    mLinkState = eLinkState_Unvisited;
+  }
 }
 
 RuleProcessorData::~RuleProcessorData()
@@ -1029,7 +1047,7 @@ RuleProcessorData::GetNthIndex(PRBool aIsOfType, PRBool aIsFromEnd,
   nsIContent * const * stopPtr;
   if (aIsFromEnd) {
     stopPtr = curChildPtr - 1;
-    curChildPtr += childCount - 1;
+    curChildPtr = stopPtr + childCount;
     increment = -1;
   } else {
     increment = 1;
@@ -2385,6 +2403,8 @@ InsertFontFaceRule(nsICSSRule* aRule, gfxUserFontSet* fs)
       case eCSSUnit_URL:
         face->mIsLocal = PR_FALSE;
         face->mURI = val.GetURLValue();
+        NS_ASSERTION(face->mURI, "null url in @font-face rule");
+        face->mReferrer = val.GetURLStructValue()->mReferrer;
         face->mLocalName.Truncate();
         face->mFormatFlags = 0;
         while (i + 1 < numSrc && (val = srcArr->Item(i+1), 

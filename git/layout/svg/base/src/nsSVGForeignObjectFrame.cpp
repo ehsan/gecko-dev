@@ -75,7 +75,6 @@ NS_NewSVGForeignObjectFrame(nsIPresShell   *aPresShell,
 
 nsSVGForeignObjectFrame::nsSVGForeignObjectFrame(nsStyleContext* aContext)
   : nsSVGForeignObjectFrameBase(aContext),
-    mPropagateTransform(PR_TRUE),
     mInReflow(PR_FALSE)
 {
   AddStateBits(NS_FRAME_REFLOW_ROOT |
@@ -98,7 +97,8 @@ nsSVGForeignObjectFrame::Init(nsIContent* aContent,
                               nsIFrame*   aPrevInFlow)
 {
   nsresult rv = nsSVGForeignObjectFrameBase::Init(aContent, aParent, aPrevInFlow);
-  AddStateBits(NS_STATE_SVG_PROPAGATE_TRANSFORM);
+  AddStateBits(NS_STATE_SVG_PROPAGATE_TRANSFORM | 
+               (aParent->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD));
   if (NS_SUCCEEDED(rv)) {
     nsSVGUtils::GetOuterSVGFrame(this)->RegisterForeignObject(this);
   }
@@ -175,7 +175,7 @@ nsSVGForeignObjectFrame::InvalidateInternal(const nsRect& aDamageRect,
                                             nsIFrame* aForChild,
                                             PRUint32 aFlags)
 {
-  if (mParent->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)
+  if (GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)
     return;
 
   nsRegion* region = (aFlags & INVALIDATE_CROSS_DOC)
@@ -230,7 +230,7 @@ GetTransformedRegion(float aX, float aY, float aWidth, float aHeight,
 
 NS_IMETHODIMP
 nsSVGForeignObjectFrame::PaintSVG(nsSVGRenderState *aContext,
-                                  nsIntRect *aDirtyRect)
+                                  const nsIntRect *aDirtyRect)
 {
   if (IsDisabled())
     return NS_OK;
@@ -292,7 +292,7 @@ nsresult
 nsSVGForeignObjectFrame::TransformPointFromOuterPx(const nsPoint &aIn,
                                                    nsPoint* aOut)
 {
-  if (mParent->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)
+  if (GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)
     return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsIDOMSVGMatrix> tm = GetTMIncludingOffset();
@@ -356,7 +356,7 @@ nsSVGForeignObjectFrame::GetCoveredRegion()
 NS_IMETHODIMP
 nsSVGForeignObjectFrame::UpdateCoveredRegion()
 {
-  if (mParent->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)
+  if (GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)
     return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsIDOMSVGMatrix> ctm = GetCanvasTM();
@@ -374,8 +374,6 @@ nsSVGForeignObjectFrame::UpdateCoveredRegion()
   // XXXjwatt: _this_ is where we should reflow _if_ mRect.width has changed!
   // we should not unconditionally reflow in AttributeChanged
   mRect = GetTransformedRegion(x, y, w, h, ctm, PresContext());
-
-  nsSVGUtils::UpdateFilterRegion(this);
 
   return NS_OK;
 }
@@ -455,7 +453,7 @@ nsSVGForeignObjectFrame::NotifyRedrawSuspended()
 NS_IMETHODIMP
 nsSVGForeignObjectFrame::NotifyRedrawUnsuspended()
 {
-  if (!(mParent->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
+  if (!(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
     if (GetStateBits() & NS_STATE_SVG_DIRTY) {
       UpdateGraphic();
     } else {
@@ -483,26 +481,11 @@ nsSVGForeignObjectFrame::GetMatrixPropagation()
 }
 
 NS_IMETHODIMP
-nsSVGForeignObjectFrame::SetOverrideCTM(nsIDOMSVGMatrix *aCTM)
-{
-  mOverrideCTM = aCTM;
-  return NS_OK;
-}
-
-already_AddRefed<nsIDOMSVGMatrix>
-nsSVGForeignObjectFrame::GetOverrideCTM()
-{
-  nsIDOMSVGMatrix *matrix = mOverrideCTM.get();
-  NS_IF_ADDREF(matrix);
-  return matrix;
-}
-
-NS_IMETHODIMP
 nsSVGForeignObjectFrame::GetBBox(nsIDOMSVGRect **_retval)
 {
   *_retval = nsnull;
 
-  if (mParent->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)
+  if (GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)
     return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsIDOMSVGMatrix> ctm = GetCanvasTM();
@@ -544,12 +527,7 @@ nsSVGForeignObjectFrame::GetCanvasTM()
 {
   if (!GetMatrixPropagation()) {
     nsIDOMSVGMatrix *retval;
-    if (mOverrideCTM) {
-      retval = mOverrideCTM;
-      NS_ADDREF(retval);
-    } else {
-      NS_NewSVGMatrix(&retval);
-    }
+    NS_NewSVGMatrix(&retval);
     return retval;
   }
 
@@ -635,7 +613,7 @@ nsSVGForeignObjectFrame::DoReflow()
   if (IsDisabled())
     return;
 
-  if (mParent->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)
+  if (GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)
     return;
 
   nsPresContext *presContext = PresContext();

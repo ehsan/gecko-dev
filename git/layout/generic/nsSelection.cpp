@@ -219,6 +219,7 @@ public:
                                PRInt16 aHPercent = NS_PRESSHELL_SCROLL_ANYWHERE);
   nsresult      AddItem(nsIDOMRange *aRange, PRInt32* aOutIndex = nsnull);
   nsresult      RemoveItem(nsIDOMRange *aRange);
+  nsresult      RemoveCollapsedRanges();
   nsresult      Clear(nsPresContext* aPresContext);
 
   // methods for convenience. Note, these don't addref
@@ -236,7 +237,7 @@ public:
   nsDirection  GetDirection(){return mDirection;}
   void         SetDirection(nsDirection aDir){mDirection = aDir;}
   NS_IMETHOD   CopyRangeToAnchorFocus(nsIDOMRange *aRange);
-  
+  void         ReplaceAnchorFocusRange(nsIDOMRange *aRange);
 
 //  NS_IMETHOD   GetPrimaryFrameForRangeEndpoint(nsIDOMNode *aNode, PRInt32 aOffset, PRBool aIsEndNode, nsIFrame **aResultFrame);
   NS_IMETHOD   GetPrimaryFrameForAnchorNode(nsIFrame **aResultFrame);
@@ -1582,7 +1583,7 @@ nsFrameSelection::GetFrameFromLevel(nsIFrame    *aFrameIn,
   PRUint8 foundLevel = 0;
   nsIFrame *foundFrame = aFrameIn;
 
-  nsCOMPtr<nsIBidirectionalEnumerator> frameTraversal;
+  nsCOMPtr<nsIFrameEnumerator> frameTraversal;
   nsresult result;
   nsCOMPtr<nsIFrameTraversal> trav(do_CreateInstance(kFrameTraversalCID,&result));
   if (NS_FAILED(result))
@@ -1597,25 +1598,17 @@ nsFrameSelection::GetFrameFromLevel(nsIFrame    *aFrameIn,
                                    );
   if (NS_FAILED(result))
     return result;
-  nsISupports *isupports = nsnull;
 
   do {
     *aFrameOut = foundFrame;
     if (aDirection == eDirNext)
-      result = frameTraversal->Next();
+      frameTraversal->Next();
     else 
-      result = frameTraversal->Prev();
+      frameTraversal->Prev();
 
-    if (NS_FAILED(result))
-      return result;
-    result = frameTraversal->CurrentItem(&isupports);
-    if (NS_FAILED(result))
-      return result;
-    if (!isupports)
-      return NS_ERROR_NULL_POINTER;
-    //we must CAST here to an nsIFrame. nsIFrame doesn't really follow the rules
-    //for speed reasons
-    foundFrame = (nsIFrame *)isupports;
+    foundFrame = frameTraversal->CurrentItem();
+    if (!foundFrame)
+      return NS_ERROR_FAILURE;
     foundLevel = NS_GET_EMBEDDING_LEVEL(foundFrame);
 
   } while (foundLevel > aBidiLevel);
@@ -1628,12 +1621,6 @@ nsresult
 nsFrameSelection::MaintainSelection(nsSelectionAmount aAmount)
 {
   PRInt8 index = GetIndexFromSelectionType(nsISelectionController::SELECTION_NORMAL);
-  nsCOMPtr<nsIDOMRange> range;
-  nsresult rv = mDomSelections[index]->GetRangeAt(0, getter_AddRefs(range));
-  if (NS_FAILED(rv))
-    return rv;
-  if (!range)
-    return NS_ERROR_FAILURE;
 
   mMaintainedAmount = aAmount;
   
@@ -1641,10 +1628,15 @@ nsFrameSelection::MaintainSelection(nsSelectionAmount aAmount)
   nsCOMPtr<nsIDOMNode> endNode;
   PRInt32 startOffset;
   PRInt32 endOffset;
-  range->GetStartContainer(getter_AddRefs(startNode));
-  range->GetEndContainer(getter_AddRefs(endNode));
-  range->GetStartOffset(&startOffset);
-  range->GetEndOffset(&endOffset);
+  nsresult rv;
+  rv = mDomSelections[index]->GetAnchorNode(getter_AddRefs(startNode));
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = mDomSelections[index]->GetFocusNode(getter_AddRefs(endNode));
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = mDomSelections[index]->GetAnchorOffset(&startOffset);
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = mDomSelections[index]->GetFocusOffset(&endOffset);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   mMaintainRange = nsnull;
   NS_NewRange(getter_AddRefs(mMaintainRange));
@@ -1731,55 +1723,44 @@ PRBool
 nsFrameSelection::AdjustForMaintainedSelection(nsIContent *aContent,
                                                PRInt32     aOffset)
 {
-  // Is the desired content and offset currently in selection?
-  // If the double click flag is set then don't continue selection if the 
-  // desired content and offset are currently inside a selection.
-  // This will stop double click then mouse-drag from undoing the desired
-  // selecting of a word.
   if (!mMaintainRange)
     return PR_FALSE;
 
-  nsCOMPtr<nsIDOMNode> rangenode;
-  PRInt32 rangeOffset;
-  mMaintainRange->GetStartContainer(getter_AddRefs(rangenode));
-  mMaintainRange->GetStartOffset(&rangeOffset);
-
   nsCOMPtr<nsIDOMNode> domNode = do_QueryInterface(aContent);
-  if (domNode)
-  {
-    PRInt8 index = GetIndexFromSelectionType(nsISelectionController::SELECTION_NORMAL);
-    nsCOMPtr<nsIDOMNSRange> nsrange = do_QueryInterface(mMaintainRange);
-    if (nsrange)
-    {
-      PRBool insideSelection = PR_FALSE;
-      nsrange->IsPointInRange(domNode, aOffset, &insideSelection);
+  if (!domNode)
+    return PR_FALSE;
+  
+  PRInt8 index = GetIndexFromSelectionType(nsISelectionController::SELECTION_NORMAL);
 
-      // Done when we find a range that we are in
-      if (insideSelection)
-      {
-        mDomSelections[index]->Collapse(rangenode, rangeOffset);
-        mMaintainRange->GetEndContainer(getter_AddRefs(rangenode));
-        mMaintainRange->GetEndOffset(&rangeOffset);
-        mDomSelections[index]->Extend(rangenode,rangeOffset);
-        return PR_TRUE; // dragging in selection aborted
-      }
-    }
+  nsCOMPtr<nsIDOMNode> rangeStartNode, rangeEndNode;
+  PRInt32 rangeStartOffset, rangeEndOffset;
+  mMaintainRange->GetStartContainer(getter_AddRefs(rangeStartNode));
+  mMaintainRange->GetEndContainer(getter_AddRefs(rangeEndNode));
+  mMaintainRange->GetStartOffset(&rangeStartOffset);
+  mMaintainRange->GetEndOffset(&rangeEndOffset);
 
-    PRInt32 relativePosition = CompareDOMPoints(rangenode, rangeOffset,
-                                                domNode, aOffset);
-    // if == 0 or -1 do nothing if < 0 then we need to swap direction
-    if (relativePosition > 0
-        && (mDomSelections[index]->GetDirection() == eDirNext))
-    {
-      mMaintainRange->GetEndContainer(getter_AddRefs(rangenode));
-      mMaintainRange->GetEndOffset(&rangeOffset);
-      mDomSelections[index]->Collapse(rangenode, rangeOffset);
+  PRInt32 relToStart = CompareDOMPoints(rangeStartNode, rangeStartOffset,
+                                        domNode, aOffset);
+  PRInt32 relToEnd = CompareDOMPoints(rangeEndNode, rangeEndOffset,
+                                      domNode, aOffset);
+
+  // If aContent/aOffset is inside the maintained selection, or if it is on the
+  // "anchor" side of the maintained selection, we need to do something.
+  if (relToStart < 0 && relToEnd > 0 ||
+      (relToStart > 0 &&
+       mDomSelections[index]->GetDirection() == eDirNext) ||
+      (relToEnd < 0 &&
+       mDomSelections[index]->GetDirection() == eDirPrevious)) {
+    // Set the current range to the maintained range. 
+    mDomSelections[index]->ReplaceAnchorFocusRange(mMaintainRange);
+    if (relToStart < 0 && relToEnd > 0) {
+      // We're inside the maintained selection, just keep it selected.
+      return PR_TRUE;
     }
-    else if (relativePosition < 0
-             && (mDomSelections[index]->GetDirection() == eDirPrevious))
-      mDomSelections[index]->Collapse(rangenode, rangeOffset);
+    // Reverse the direction of the selection so that the anchor will be on the 
+    // far side of the maintained selection, relative to aContent/aOffset.
+    mDomSelections[index]->SetDirection(relToStart > 0 ? eDirPrevious : eDirNext);
   }
-
   return PR_FALSE;
 }
 
@@ -1864,6 +1845,19 @@ nsFrameSelection::HandleDrag(nsIFrame *aFrame, nsPoint aPoint)
 
     PRInt32 offset;
     nsIFrame* frame = GetFrameForNodeOffset(offsets.content, offsets.offset, HINTRIGHT, &offset);
+
+    if (frame && amount == eSelectWord && direction == eDirPrevious) {
+      // To avoid selecting the previous word when at start of word,
+      // first move one character forward.
+      nsPeekOffsetStruct charPos;
+      charPos.SetData(eSelectCharacter, eDirNext, offset, 0,
+                      PR_FALSE, mLimiter != nsnull, PR_FALSE, PR_FALSE);
+      if (NS_SUCCEEDED(frame->PeekOffset(&charPos))) {
+        frame = charPos.mResultFrame;
+        offset = charPos.mContentOffset;
+      }
+    }
+
     nsPeekOffsetStruct pos;
     pos.SetData(amount, direction, offset, 0,
                 PR_FALSE, mLimiter != nsnull, PR_FALSE, PR_FALSE);
@@ -1937,7 +1931,11 @@ nsFrameSelection::TakeFocus(nsIContent *aNewFocus,
     PRBool changes = mChangesDuringBatching;
     mBatching = 1;
 
-    if (aMultipleSelection){
+    if (aMultipleSelection) {
+      // Remove existing collapsed ranges as there's no point in having 
+      // non-anchor/focus collapsed ranges.
+      mDomSelections[index]->RemoveCollapsedRanges();
+
       nsCOMPtr<nsIDOMRange> newRange;
       NS_NewRange(getter_AddRefs(newRange));
 
@@ -2309,6 +2307,12 @@ nsFrameSelection::CharacterMove(PRBool aForward, PRBool aExtend)
     return MoveCaret(nsIDOMKeyEvent::DOM_VK_RIGHT,aExtend,eSelectCharacter);
   else
     return MoveCaret(nsIDOMKeyEvent::DOM_VK_LEFT,aExtend,eSelectCharacter);
+}
+
+nsresult
+nsFrameSelection::CharacterExtendForDelete()
+{
+  return MoveCaret(nsIDOMKeyEvent::DOM_VK_DELETE, PR_TRUE, eSelectCharacter);
 }
 
 nsresult
@@ -4060,6 +4064,24 @@ nsTypedSelection::RemoveItem(nsIDOMRange *aItem)
   return NS_OK;
 }
 
+nsresult
+nsTypedSelection::RemoveCollapsedRanges()
+{
+  nsresult rv;
+  PRUint32 i = 0;
+  while (i < mRanges.Length()) {
+    PRBool isCollapsed;
+    rv = mRanges[i].mRange->GetCollapsed(&isCollapsed);
+    NS_ENSURE_SUCCESS(rv, rv);
+    if (isCollapsed) {
+      rv = RemoveItem(mRanges[i].mRange);
+      NS_ENSURE_SUCCESS(rv, rv);
+    } else {
+      ++i;
+    }
+  }
+  return NS_OK;
+}
 
 nsresult
 nsTypedSelection::Clear(nsPresContext* aPresContext)
@@ -4578,7 +4600,8 @@ nsTypedSelection::selectFrames(nsPresContext* aPresContext,
     // Now iterated through the child frames and set them
     while (!aInnerIter->IsDone())
     {
-      nsIContent *innercontent = aInnerIter->GetCurrentNode();
+      nsCOMPtr<nsIContent> innercontent =
+        do_QueryInterface(aInnerIter->GetCurrentNode());
 
       frame = mFrameSelection->GetShell()->GetPrimaryFrameFor(innercontent);
       if (frame)
@@ -4672,7 +4695,7 @@ nsTypedSelection::selectFrames(nsPresContext* aPresContext, nsIDOMRange *aRange,
 
     while (!iter->IsDone())
     {
-      content = iter->GetCurrentNode();
+      content = do_QueryInterface(iter->GetCurrentNode());
 
       selectFrames(aPresContext, inneriter, content, aRange, presShell,aFlags);
 
@@ -5066,8 +5089,7 @@ nsTypedSelection::ScrollPointIntoClipView(nsPresContext *aPresContext, nsIView *
 
     // Now scroll the view!
 
-    result = scrollableView->ScrollTo(bounds.x + dx, bounds.y + dy,
-                                      NS_VMREFRESH_NO_SYNC);
+    result = scrollableView->ScrollTo(bounds.x + dx, bounds.y + dy, 0);
 
     if (NS_FAILED(result))
       return result;
@@ -5628,6 +5650,18 @@ nsTypedSelection::CopyRangeToAnchorFocus(nsIDOMRange *aRange)
   else if (NS_FAILED(mAnchorFocusRange->SetEnd(endNode,endOffset)))
           return NS_ERROR_FAILURE;//???
   return NS_OK;
+}
+
+void
+nsTypedSelection::ReplaceAnchorFocusRange(nsIDOMRange *aRange)
+{
+  nsCOMPtr<nsPresContext> presContext;
+  GetPresContext(getter_AddRefs(presContext));
+  if (presContext) {
+    selectFrames(presContext, mAnchorFocusRange, PR_FALSE);
+    CopyRangeToAnchorFocus(aRange);
+    selectFrames(presContext, mAnchorFocusRange, PR_TRUE);
+  }
 }
 
 /*
@@ -6365,7 +6399,7 @@ nsTypedSelection::ScrollRectIntoView(nsIScrollableView *aScrollableView,
     }
   }
 
-  aScrollableView->ScrollTo(scrollOffsetX, scrollOffsetY, NS_VMREFRESH_IMMEDIATE);
+  aScrollableView->ScrollTo(scrollOffsetX, scrollOffsetY, 0);
 
   if (aScrollParentViews)
   {

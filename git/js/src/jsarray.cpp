@@ -1538,11 +1538,21 @@ InitArrayObject(JSContext *cx, JSObject *obj, jsuint length, jsval *vector,
 }
 
 #ifdef JS_TRACER
-JSString* FASTCALL
-js_Array_p_join(JSContext* cx, JSObject* obj, JSString *str)
+static JSString* FASTCALL
+Array_p_join(JSContext* cx, JSObject* obj, JSString *str)
 {
     jsval v;
     if (!array_join_sub(cx, obj, TO_STRING, str, &v))
+        return NULL;
+    JS_ASSERT(JSVAL_IS_STRING(v));
+    return JSVAL_TO_STRING(v);
+}
+
+static JSString* FASTCALL
+Array_p_toString(JSContext* cx, JSObject* obj)
+{
+    jsval v;
+    if (!array_join_sub(cx, obj, TO_STRING, NULL, &v))
         return NULL;
     JS_ASSERT(JSVAL_IS_STRING(v));
     return JSVAL_TO_STRING(v);
@@ -2126,8 +2136,8 @@ array_push1_dense(JSContext* cx, JSObject* obj, jsval v, jsval *rval)
 }
 
 #ifdef JS_TRACER
-jsval FASTCALL
-js_Array_p_push1(JSContext* cx, JSObject* obj, jsval v)
+static jsval FASTCALL
+Array_p_push1(JSContext* cx, JSObject* obj, jsval v)
 {
     if (OBJ_IS_DENSE_ARRAY(cx, obj) 
         ? array_push1_dense(cx, obj, v, &v)
@@ -2197,8 +2207,8 @@ array_pop_dense(JSContext *cx, JSObject* obj, jsval *vp)
 }
 
 #ifdef JS_TRACER
-jsval FASTCALL
-js_Array_p_pop(JSContext* cx, JSObject* obj)
+static jsval FASTCALL
+Array_p_pop(JSContext* cx, JSObject* obj)
 {
     jsval v;
     if (OBJ_IS_DENSE_ARRAY(cx, obj) 
@@ -2967,29 +2977,20 @@ static JSPropertySpec array_props[] = {
     {0,0,0,0,0}
 };
 
-#ifdef JS_TRACER
-
-JS_DEFINE_CALLINFO_3(STRING,    Array_p_join, CONTEXT, OBJECT, STRING,  0, 0)
-JS_DEFINE_CALLINFO_3(JSVAL,     Array_p_push1, CONTEXT, OBJECT, JSVAL,  0, 0)
-JS_DEFINE_CALLINFO_2(JSVAL,     Array_p_pop, CONTEXT, OBJECT,           0, 0)
-
-static JSTraceableNative array_join_trcinfo[] = {
-    { array_join, &ci_Array_p_join,  "TC",  "s", FAIL_NULL }
-};
-static JSTraceableNative array_push_trcinfo[] = {
-    { array_push, &ci_Array_p_push1, "TC",  "v", FAIL_JSVAL }
-};
-static JSTraceableNative array_pop_trcinfo[] = {
-    { array_pop,  &ci_Array_p_pop,   "TC",  "",  FAIL_JSVAL }
-};
-
-#endif /* JS_TRACER */
+JS_DEFINE_TRCINFO_1(array_toString,
+    (2, (static, STRING_FAIL, Array_p_toString, CONTEXT, THIS,      0, 0)))
+JS_DEFINE_TRCINFO_1(array_join,
+    (3, (static, STRING_FAIL, Array_p_join, CONTEXT, THIS, STRING,  0, 0)))
+JS_DEFINE_TRCINFO_1(array_push,
+    (3, (static, JSVAL_FAIL, Array_p_push1, CONTEXT, THIS, JSVAL,   0, 0)))
+JS_DEFINE_TRCINFO_1(array_pop,
+    (2, (static, JSVAL_FAIL, Array_p_pop, CONTEXT, THIS,            0, 0)))
 
 static JSFunctionSpec array_methods[] = {
 #if JS_HAS_TOSOURCE
     JS_FN(js_toSource_str,      array_toSource,     0,0),
 #endif
-    JS_FN(js_toString_str,      array_toString,     0,0),
+    JS_TN(js_toString_str,      array_toString,     0,0, array_toString_trcinfo),
     JS_FN(js_toLocaleString_str,array_toLocaleString,0,0),
 
     /* Perl-ish methods. */
@@ -3417,9 +3418,9 @@ js_ArrayToJSDoubleBuffer(JSContext *cx, JSObject *obj, jsuint offset, jsuint cou
     return JS_TRUE;
 }
 
-JS_DEFINE_CALLINFO_4(BOOL,      Array_dense_setelem, CONTEXT, OBJECT, INT32, JSVAL,   0, 0)
-JS_DEFINE_CALLINFO_2(OBJECT,    FastNewArray, CONTEXT, OBJECT,                        0, 0)
-JS_DEFINE_CALLINFO_3(OBJECT,    Array_1int, CONTEXT, OBJECT, INT32,                   0, 0)
-JS_DEFINE_CALLINFO_3(OBJECT,    Array_1str, CONTEXT, OBJECT, STRING,                  0, 0)
-JS_DEFINE_CALLINFO_4(OBJECT,    Array_2obj, CONTEXT, OBJECT, OBJECT, OBJECT,          0, 0)
-JS_DEFINE_CALLINFO_5(OBJECT,    Array_3num, CONTEXT, OBJECT, DOUBLE, DOUBLE, DOUBLE,  0, 0)
+JS_DEFINE_CALLINFO_4(extern, BOOL,   js_Array_dense_setelem, CONTEXT, OBJECT, INT32, JSVAL,   0, 0)
+JS_DEFINE_CALLINFO_2(extern, OBJECT, js_FastNewArray, CONTEXT, OBJECT,                        0, 0)
+JS_DEFINE_CALLINFO_3(extern, OBJECT, js_Array_1int, CONTEXT, OBJECT, INT32,                   0, 0)
+JS_DEFINE_CALLINFO_3(extern, OBJECT, js_Array_1str, CONTEXT, OBJECT, STRING,                  0, 0)
+JS_DEFINE_CALLINFO_4(extern, OBJECT, js_Array_2obj, CONTEXT, OBJECT, OBJECT, OBJECT,          0, 0)
+JS_DEFINE_CALLINFO_5(extern, OBJECT, js_Array_3num, CONTEXT, OBJECT, DOUBLE, DOUBLE, DOUBLE,  0, 0)

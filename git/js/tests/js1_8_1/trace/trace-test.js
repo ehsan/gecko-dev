@@ -1161,6 +1161,13 @@ function testDoubleToStr() {
 testDoubleToStr.expected = 5.5*200;
 test(testDoubleToStr);
 
+function testNumberToString() {
+    var x = new Number(0);
+    for (var i = 0; i < 4; i++)
+        x.toString();
+}
+test(testNumberToString);
+
 function testDecayingInnerLoop() {
     var i, j, k = 10;
     for (i = 0; i < 5000; ++i) {
@@ -1616,9 +1623,9 @@ function testNestedExitStackOuter() {
 }
 testNestedExitStackOuter.expected = 81;
 testNestedExitStackOuter.jitstats = {
-    recorderStarted: 4,
+    recorderStarted: 3,
     recorderAborted: 0,
-    traceTriggered: 9
+    traceTriggered: 7
 };
 test(testNestedExitStackOuter);
 
@@ -1627,13 +1634,6 @@ function testHOTLOOPSize() {
 }
 testHOTLOOPSize.expected = true;
 test(testHOTLOOPSize);
-
-function testGlobalProtoAccess() {
-    return "ok";
-}
-this.__proto__.a = 3; for (var j = 0; j < 4; ++j) { [a]; }
-testGlobalProtoAccess.expected = "ok";
-test(testGlobalProtoAccess);
 
 function testMatchStringObject() {
     var a = new String("foo");
@@ -1834,6 +1834,196 @@ function testInvalidCharCodeAt()
 }
 testInvalidCharCodeAt.expected = "NaNNaNNaNNaNNaNNaNNaNNaNNaNNaN";
 test(testInvalidCharCodeAt);
+
+function FPQuadCmp()
+{
+    for (let j = 0; j < 3; ++j) { true == 0; }
+    return "ok";
+}
+FPQuadCmp.expected = "ok";
+test(FPQuadCmp);
+
+function testDestructuring() {
+    var t = 0;
+    for (var i = 0; i < HOTLOOP + 1; ++i) {
+        var [r, g, b] = [1, 1, 1];
+        t += r + g + b;
+    }
+    return t
+}
+testDestructuring.expected = (HOTLOOP + 1) * 3;
+test(testDestructuring);
+
+/* Keep this test last, since it screws up all for...in loops after it */
+function testGlobalProtoAccess() {
+    return "ok";
+}
+this.__proto__.a = 3; for (var j = 0; j < 4; ++j) { [a]; }
+testGlobalProtoAccess.expected = "ok";
+test(testGlobalProtoAccess);
+
+function testNewDate()
+{
+    // Accessing global.Date for the first time will change the global shape,
+    // so do it before the loop starts; otherwise we have to loop an extra time
+    // to pick things up.
+    var start = new Date();
+    var time = new Date();
+    for (var j = 0; j < RUNLOOP; ++j) {
+	time = new Date();
+    }
+    return time > 0 && time >= start;
+}
+testNewDate.expected = true;
+testNewDate.jitstats = {
+    recorderStarted: 1,
+    recorderAborted: 0,
+    traceTriggered: 1
+};
+test(testNewDate);
+
+function testArrayPushPop() {
+    var a = [], sum1 = 0, sum2 = 0;
+    for (var i = 0; i < 10; ++i)
+	sum1 += a.push(i);
+    for (var i = 0; i < 10; ++i)
+	sum2 += a.pop();
+    a.push(sum1);
+    a.push(sum2);
+    return a.join(",");
+}
+testArrayPushPop.expected = "55,45";
+test(testArrayPushPop);
+
+function testResumeOp() {
+    var a = [1,"2",3,"4",5,"6",7,"8",9,"10",11,"12",13,"14",15,"16"];
+    var x = "";
+    while (a.length > 0)
+        x += a.pop();
+    return x;
+}
+testResumeOp.expected = "16151413121110987654321";
+test(testResumeOp);
+
+function testUndefinedCmp() {
+    var a = false;
+    for (var j = 0; j < 4; ++j) { if (undefined < false) { a = true; } }
+    return a;
+}
+testUndefinedCmp.expected = false;
+test(testUndefinedCmp);
+
+function reallyDeepNestedExit(schedule)
+{
+    var c = 0, j = 0;
+    for (var i = 0; i < 5; i++) {
+        for (j = 0; j < 4; j++) {
+            c += (schedule[i*4 + j] == 1) ? 1 : 2;
+        }
+    }
+    return c;
+}
+function testReallyDeepNestedExit()
+{
+    var c = 0;
+    var schedule1 = new Array(5*4);
+    var schedule2 = new Array(5*4);
+    for (var i = 0; i < 5*4; i++) {
+        schedule1[i] = 0;
+        schedule2[i] = 0;
+    }
+    /**
+     * First innermost compile: true branch runs through.
+     * Second '': false branch compiles new loop edge.
+     * First outer compile: expect true branch.
+     * Second '': hit false branch.
+     */
+    schedule1[0*4 + 3] = 1;
+    var schedules = [schedule1,
+                     schedule2,
+                     schedule1,
+                     schedule2,
+                     schedule2];
+
+    for (var i = 0; i < 5; i++) {
+        c += reallyDeepNestedExit(schedules[i]);
+    }
+    return c;
+}
+testReallyDeepNestedExit.expected = 198;
+test(testReallyDeepNestedExit);
+
+function testRegExpTest() {
+    var r = /abc/;
+    var flag = false;
+    for (var i = 0; i < 10; ++i)
+	flag = r.test("abc");
+    return flag;
+}
+testRegExpTest.expected = true;
+test(testRegExpTest);
+
+function testNumToString() {
+    var r = [];
+    var d = 123456789;
+    for (var i = 0; i < 10; ++i) {
+	r = [
+	     d.toString(),
+	     (-d).toString(),
+	     d.toString(10),
+	     (-d).toString(10),
+	     d.toString(16),
+	     (-d).toString(16),
+	     d.toString(36),
+	     (-d).toString(36)
+        ];
+    }
+    return r.join(",");
+}
+testNumToString.expected = "123456789,-123456789,123456789,-123456789,75bcd15,-75bcd15,21i3v9,-21i3v9";
+test(testNumToString);
+
+function testSubstring() {
+    for (var i = 0; i < 5; ++i) {
+        actual = "".substring(5);
+    }
+    return actual;
+}
+testSubstring.expected = "";
+test(testSubstring);
+
+function testForInLoopChangeIteratorType() {
+    for(y in [0,1,2]) y = NaN;
+    (function(){ [].__proto__.u = void 0; for (let y in [5,6,7,8]) y = NaN; })()
+    return "ok";
+}
+testForInLoopChangeIteratorType.expected = "ok";
+test(testForInLoopChangeIteratorType);
+
+function testGrowDenseArray() {
+    var a = new Array();
+    for (var i = 0; i < 10; ++i)
+	a[i] |= 5;
+    return a.join(",");
+}
+testGrowDenseArray.expected = "5,5,5,5,5,5,5,5,5,5";
+test(testGrowDenseArray);
+
+function testCallProtoMethod() {
+    function X() { this.x = 1; }
+    X.prototype.getName = function () { return "X"; }
+
+    function Y() { this.x = 2; }
+    Y.prototype.getName = function() "Y";
+
+    var a = [new X, new X, new X, new X, new Y];
+    var s = '';
+    for (var i = 0; i < a.length; i++)
+        s += a[i].getName();
+    return s;
+}
+testCallProtoMethod.expected = 'XXXXY';
+test(testCallProtoMethod);
 
 jit(false);
 

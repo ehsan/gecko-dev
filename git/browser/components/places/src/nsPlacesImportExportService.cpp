@@ -241,62 +241,67 @@ public:
 char *
 nsEscapeHTML(const char * string)
 {
-	/* XXX Hardcoded max entity len. The +1 is for the trailing null. */
-	char *rv = (char *) nsMemory::Alloc(strlen(string) * 6 + 1);
-	char *ptr = rv;
+    /* XXX Hardcoded max entity len. The +1 is for the trailing null. */
+    char *rv = nsnull;
+    PRUint32 len = strlen(string);
+    if (len >= (PR_UINT32_MAX / 6))
+      return nsnull;
 
-	if(rv)
-	  {
-		for(; *string != '\0'; string++)
-		  {
-			if(*string == '<')
-			  {
-				*ptr++ = '&';
-				*ptr++ = 'l';
-				*ptr++ = 't';
-				*ptr++ = ';';
-			  }
-			else if(*string == '>')
-			  {
-				*ptr++ = '&';
-				*ptr++ = 'g';
-				*ptr++ = 't';
-				*ptr++ = ';';
-			  }
-			else if(*string == '&')
-			  {
-				*ptr++ = '&';
-				*ptr++ = 'a';
-				*ptr++ = 'm';
-				*ptr++ = 'p';
-				*ptr++ = ';';
-			  }
-			else if (*string == '"')
-			  {
-				*ptr++ = '&';
-				*ptr++ = 'q';
-				*ptr++ = 'u';
-				*ptr++ = 'o';
-				*ptr++ = 't';
-				*ptr++ = ';';
-			  }			
-			else if (*string == '\'')
-			  {
-				*ptr++ = '&';
-				*ptr++ = '#';
-				*ptr++ = '3';
-				*ptr++ = '9';
-				*ptr++ = ';';
-			  }
-			else
-			  {
-				*ptr++ = *string;
-			  }
-		  }
-		*ptr = '\0';
-	  }
+    rv = (char *) NS_Alloc((len * 6) + 1);
+    char *ptr = rv;
 
-	return(rv);
+    if(rv)
+      {
+        for(; *string != '\0'; string++)
+          {
+            if(*string == '<')
+              {
+                *ptr++ = '&';
+                *ptr++ = 'l';
+                *ptr++ = 't';
+                *ptr++ = ';';
+              }
+            else if(*string == '>')
+              {
+                *ptr++ = '&';
+                *ptr++ = 'g';
+                *ptr++ = 't';
+                *ptr++ = ';';
+              }
+            else if(*string == '&')
+              {
+                *ptr++ = '&';
+                *ptr++ = 'a';
+                *ptr++ = 'm';
+                *ptr++ = 'p';
+                *ptr++ = ';';
+              }
+            else if (*string == '"')
+              {
+                *ptr++ = '&';
+                *ptr++ = 'q';
+                *ptr++ = 'u';
+                *ptr++ = 'o';
+                *ptr++ = 't';
+                *ptr++ = ';';
+              }            
+            else if (*string == '\'')
+              {
+                *ptr++ = '&';
+                *ptr++ = '#';
+                *ptr++ = '3';
+                *ptr++ = '9';
+                *ptr++ = ';';
+              }
+            else
+              {
+                *ptr++ = *string;
+              }
+          }
+        *ptr = '\0';
+      }
+
+    return(rv);
 }
 
 NS_IMPL_ISUPPORTS2(nsPlacesImportExportService, nsIPlacesImportExportService,
@@ -339,7 +344,7 @@ public:
   NS_DECL_ISUPPORTS
 
   // nsIContentSink (superclass of nsIHTMLContentSink)
-  NS_IMETHOD WillTokenize() { return NS_OK; }
+  NS_IMETHOD WillParse() { return NS_OK; }
   NS_IMETHOD WillBuildModel() { return NS_OK; }
   NS_IMETHOD DidBuildModel() { return NS_OK; }
   NS_IMETHOD WillInterrupt() { return NS_OK; }
@@ -355,7 +360,6 @@ public:
   NS_IMETHOD EndContext(PRInt32 aPosition) { return NS_OK; }
   NS_IMETHOD IsEnabled(PRInt32 aTag, PRBool* aReturn)
     { *aReturn = PR_TRUE; return NS_OK; }
-  NS_IMETHOD WillProcessTokens() { return NS_OK; }
   NS_IMETHOD DidProcessTokens() { return NS_OK; }
   NS_IMETHOD WillProcessAToken() { return NS_OK; }
   NS_IMETHOD DidProcessAToken() { return NS_OK; }

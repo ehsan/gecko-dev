@@ -59,6 +59,31 @@
 
 namespace nanojit {
 	const uint32_t NJ_PAGE_SIZE = 1 << NJ_LOG2_PAGE_SIZE;
+	
+    class Fragment;
+    struct SideExit;
+    
+    struct GuardRecord 
+    {
+        void* jmpToStub;
+        void* stubEntry;
+        void* jmpToTarget;
+        GuardRecord* next;
+        SideExit* exit;
+    };
+    
+    struct SideExit
+    {
+        GuardRecord* guards;
+        Fragment* from;
+        Fragment* target;
+        
+        void addGuard(GuardRecord* lr) 
+        {
+            lr->next = guards;
+            guards = lr;
+        }
+    };
 }
 
 	#ifdef NJ_STACK_GROWTH_UP
@@ -84,6 +109,7 @@ namespace nanojit {
 		#define asm_output1(s,x)		PRFX,s,x); PSFX
 		#define asm_output2(s,x,y)		PRFX,s,x,y); PSFX
 		#define asm_output3(s,x,y,z)	PRFX,s,x,y,z); PSFX
+		#define asm_output5(s,x,y,z,a,b) PRFX,s,x,y,z,a,b); PSFX
 		#define gpn(r)					regNames[(r)] 
 		#define fpn(r)					regNames[(r)] 
 	#else
@@ -92,6 +118,7 @@ namespace nanojit {
 		#define asm_output1(s,x)	
 		#define asm_output2(s,x,y)	
 		#define asm_output3(s,x,y,z)	
+		#define asm_output5(s,x,y,z,a,b)	
 		#define gpn(r)		
 	#endif /* NJ_VERBOSE */
 

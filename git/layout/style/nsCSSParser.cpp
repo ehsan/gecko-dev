@@ -273,6 +273,7 @@ protected:
   PRBool CheckEndProperty();
   nsSubstring* NextIdent();
   void SkipUntil(PRUnichar aStopSymbol);
+  void SkipUntilOneOf(const PRUnichar* aStopSymbolChars);
   void SkipRuleSet();
   PRBool SkipAtRule();
   PRBool SkipDeclaration(PRBool aCheckForBraces);
@@ -1591,10 +1592,18 @@ CSSParserImpl::GatherMedia(nsMediaList* aMedia,
     PRBool parsedSomething, hitStop;
     if (!ParseMediaQuery(aStopSymbol, getter_Transfers(query),
                          &parsedSomething, &hitStop)) {
+      NS_ASSERTION(!hitStop, "should return true when hit stop");
       if (NS_FAILED(mScanner.GetLowLevelError())) {
         return PR_FALSE;
       }
-      SkipUntil(',');
+      const PRUnichar stopChars[] =
+        { PRUnichar(','), aStopSymbol /* may be null */, PRUnichar(0) };
+      SkipUntilOneOf(stopChars);
+      // Rely on SkipUntilOneOf leaving mToken around as the last token read.
+      if (mToken.mType == eCSSToken_Symbol && mToken.mSymbol == aStopSymbol) {
+        UngetToken();
+        hitStop = PR_TRUE;
+      }
     }
     if (parsedSomething) {
       aMedia->SetNonEmpty();
@@ -2145,6 +2154,30 @@ CSSParserImpl::SkipUntil(PRUnichar aStopSymbol)
     if (eCSSToken_Symbol == tk->mType) {
       PRUnichar symbol = tk->mSymbol;
       if (symbol == aStopSymbol) {
+        break;
+      } else if ('{' == symbol) {
+        SkipUntil('}');
+      } else if ('[' == symbol) {
+        SkipUntil(']');
+      } else if ('(' == symbol) {
+        SkipUntil(')');
+      }
+    }
+  }
+}
+
+void
+CSSParserImpl::SkipUntilOneOf(const PRUnichar* aStopSymbolChars)
+{
+  nsCSSToken* tk = &mToken;
+  nsDependentString stopSymbolChars(aStopSymbolChars);
+  for (;;) {
+    if (!GetToken(PR_TRUE)) {
+      break;
+    }
+    if (eCSSToken_Symbol == tk->mType) {
+      PRUnichar symbol = tk->mSymbol;
+      if (stopSymbolChars.FindChar(symbol) != -1) {
         break;
       } else if ('{' == symbol) {
         SkipUntil('}');
@@ -3149,7 +3182,8 @@ CSSParserImpl::ParseNegatedSimpleSelector(PRInt32&       aDataMask,
   // Given the current parsing rules, every selector in mNegations
   // contains only one simple selector (css3 definition) within it.
   // This could easily change in future versions of CSS, and the only
-  // thing we need to change to support that is this parsing code.
+  // thing we need to change to support that is this parsing code and the
+  // serialization code for nsCSSSelector.
   nsCSSSelector *newSel = new nsCSSSelector();
   if (!newSel) {
     mScanner.SetLowLevelError(NS_ERROR_OUT_OF_MEMORY);
@@ -3187,6 +3221,11 @@ CSSParserImpl::ParseNegatedSimpleSelector(PRInt32&       aDataMask,
     REPORT_UNEXPECTED_TOKEN(PENegationNoClose);
     return eSelectorParsingStatus_Error;
   }
+
+  NS_ASSERTION(newSel->mNameSpace == kNameSpaceID_Unknown ||
+               (!newSel->mIDList && !newSel->mClassList &&
+                !newSel->mPseudoClassList && !newSel->mAttrList),
+               "Need to fix the serialization code to deal with this");
 
   return eSelectorParsingStatus_Continue;
 }
@@ -6882,7 +6921,7 @@ CSSParserImpl::ParseFunction(const nsString &aFunction,
   PRUint16 numElements = (foundValues.Length() <= MAX_ALLOWED_ELEMS ?
                           foundValues.Length() + 1 : MAX_ALLOWED_ELEMS);
   nsRefPtr<nsCSSValue::Array> convertedArray =
-	  nsCSSValue::Array::Create(numElements);
+    nsCSSValue::Array::Create(numElements);
   if (!convertedArray) {
     mScanner.SetLowLevelError(NS_ERROR_OUT_OF_MEMORY);
     return PR_FALSE;
@@ -7042,7 +7081,7 @@ static PRBool GetFunctionParseInformation(nsCSSKeyword aToken,
 PRBool CSSParserImpl::ReadSingleTransform(nsCSSValueList **& aTail)
 {
   typedef nsTArray<nsCSSValue>::size_type arrlen_t;
-	
+
   if (!GetToken(PR_TRUE))
     return PR_FALSE;
   
@@ -7740,8 +7779,6 @@ CSSParserImpl::GetNamespaceIdForPrefix(const nsString& aPrefix,
   }
   // else no declared namespaces
 
-  NS_ASSERTION(nameSpaceID != kNameSpaceID_None, "Shouldn't happen!");
-
   if (kNameSpaceID_Unknown == nameSpaceID) {   // unknown prefix, dump it
     const PRUnichar *params[] = {
       aPrefix.get()
@@ -7759,12 +7796,10 @@ CSSParserImpl::GetNamespaceIdForPrefix(const nsString& aPrefix,
 void
 CSSParserImpl::SetDefaultNamespaceOnSelector(nsCSSSelector& aSelector)
 {
-  aSelector.SetNameSpace(kNameSpaceID_Unknown); // wildcard
-  if (mNameSpaceMap) { // look for default namespace
-    PRInt32 defaultID = mNameSpaceMap->FindNameSpaceID(nsnull);
-    if (defaultID != kNameSpaceID_None) {
-      aSelector.SetNameSpace(defaultID);
-    }
+  if (mNameSpaceMap) {
+    aSelector.SetNameSpace(mNameSpaceMap->FindNameSpaceID(nsnull));
+  } else {
+    aSelector.SetNameSpace(kNameSpaceID_Unknown); // wildcard
   }
 }
 

@@ -39,7 +39,8 @@
 
 // NOTE: alphabetically ordered
 #include "nsAccessibilityAtoms.h"
-#include "nsAccessibilityUtils.h"
+#include "nsCoreUtils.h"
+#include "nsAccUtils.h"
 #include "nsBaseWidgetAccessible.h"
 #include "nsIDOMXULDescriptionElement.h"
 #include "nsINameSpaceManager.h"
@@ -66,10 +67,11 @@ nsXULTextAccessible::GetNameInternal(nsAString& aName)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsXULTextAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
+nsresult
+nsXULTextAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
 {
-  nsresult rv = nsHyperTextAccessibleWrap::GetState(aState, aExtraState);
+  nsresult rv = nsHyperTextAccessibleWrap::GetStateInternal(aState,
+                                                            aExtraState);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Labels and description have read only state
@@ -89,7 +91,7 @@ nsXULTextAccessible::GetAccessibleRelated(PRUint32 aRelationType,
     return NS_OK;
   }
 
-  nsIContent *content = GetRoleContent(mDOMNode);
+  nsIContent *content = nsCoreUtils::GetRoleContent(mDOMNode);
   if (!content)
     return NS_ERROR_FAILURE;
 
@@ -99,9 +101,8 @@ nsXULTextAccessible::GetAccessibleRelated(PRUint32 aRelationType,
     if (parent && parent->Tag() == nsAccessibilityAtoms::caption) {
       nsCOMPtr<nsIAccessible> parentAccessible;
       GetParent(getter_AddRefs(parentAccessible));
-      if (Role(parentAccessible) == nsIAccessibleRole::ROLE_GROUPING) {
+      if (nsAccUtils::Role(parentAccessible) == nsIAccessibleRole::ROLE_GROUPING)
         parentAccessible.swap(*aRelated);
-      }
     }
   }
 
@@ -122,10 +123,11 @@ nsXULTooltipAccessible::GetNameInternal(nsAString& aName)
   return GetXULName(aName, PR_TRUE);
 }
 
-NS_IMETHODIMP
-nsXULTooltipAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
+nsresult
+nsXULTooltipAccessible::GetStateInternal(PRUint32 *aState,
+                                         PRUint32 *aExtraState)
 {
-  nsresult rv = nsLeafAccessible::GetState(aState, aExtraState);
+  nsresult rv = nsLeafAccessible::GetStateInternal(aState, aExtraState);
   NS_ENSURE_SUCCESS(rv, rv);
 
   *aState &= ~nsIAccessibleStates::STATE_FOCUSABLE;
@@ -189,10 +191,11 @@ nsXULLinkAccessible::GetRole(PRUint32 *aRole)
 }
 
 
-NS_IMETHODIMP
-nsXULLinkAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
+nsresult
+nsXULLinkAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
 {
-  nsresult rv = nsHyperTextAccessibleWrap::GetState(aState, aExtraState);
+  nsresult rv = nsHyperTextAccessibleWrap::GetStateInternal(aState,
+                                                            aExtraState);
   NS_ENSURE_SUCCESS(rv, rv);
 
   *aState |= nsIAccessibleStates::STATE_LINKED;

@@ -215,6 +215,18 @@ nsFormHistory::RemoveAllEntries()
   return rv;
 }
 
+NS_IMETHODIMP
+nsFormHistory::RemoveEntriesByTimeframe(PRInt64 aStartTime, PRInt64 aEndTime)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
+nsFormHistory::GetDBConnection()
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
 ////////////////////////////////////////////////////////////////////////
 //// nsIObserver
 

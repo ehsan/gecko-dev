@@ -39,6 +39,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nanojit.h"
+#undef MEMORY_INFO
 
 namespace nanojit
 {	
@@ -58,16 +59,37 @@ namespace nanojit
 	 */
 	Fragmento::Fragmento(AvmCore* core, uint32_t cacheSizeLog2) 
 		: _allocList(core->GetGC()),
-			_max_pages(1 << (calcSaneCacheSize(cacheSizeLog2) - NJ_LOG2_PAGE_SIZE))
+			_max_pages(1 << (calcSaneCacheSize(cacheSizeLog2) - NJ_LOG2_PAGE_SIZE)),
+			_pagesGrowth(1)
 	{
+#ifdef _DEBUG
+		{
+			// XXX These belong somewhere else, but I can't find the
+			//     right location right now.
+			NanoStaticAssert((LIR_lt ^ 3) == LIR_ge);
+			NanoStaticAssert((LIR_le ^ 3) == LIR_gt);
+			NanoStaticAssert((LIR_ult ^ 3) == LIR_uge);
+			NanoStaticAssert((LIR_ule ^ 3) == LIR_ugt);
+
+			/* Opcodes must be strictly increasing without holes. */
+			uint32_t count = 0;
+			#define OPDEF(op, number, operands) \
+				NanoAssertMsg(LIR_##op == count++, "misnumbered opcode");
+			#define OPDEF64(op, number, operands) OPDEF(op, number, operands)
+			#include "LIRopcode.tbl"
+			#undef OPDEF
+			#undef OPDEF64
+		}
+#endif
+
 #ifdef MEMORY_INFO
 		_allocList.set_meminfo_name("Fragmento._allocList");
 #endif
+		NanoAssert(_max_pages > _pagesGrowth); // shrink growth if needed 
 		_core = core;
 		GC *gc = core->GetGC();
 		_frags = new (gc) FragmentMap(gc, 128);
 		_assm = new (gc) nanojit::Assembler(this);
-        _pageGrowth = 1;
 		verbose_only( enterCounts = new (gc) BlockHist(gc); )
 		verbose_only( mergeCounts = new (gc) BlockHist(gc); )
 	}
@@ -109,10 +131,10 @@ namespace nanojit
 	{
         NanoAssert(sizeof(Page) == NJ_PAGE_SIZE);
 		if (!_pageList) {
-			pagesGrow(_pageGrowth);	// try to get more mem
-            if ((_pageGrowth << 1) < _max_pages)
-                _pageGrowth <<= 1;
-        }
+			pagesGrow(_pagesGrowth);	// try to get more mem
+			            if ((_pagesGrowth << 1) < _max_pages)
+							_pagesGrowth <<= 1;						
+		}
 		Page *page = _pageList;
 		if (page)
 		{
@@ -186,23 +208,36 @@ namespace nanojit
 		}
 	}
 	
+	// Clear the fragment. This *does not* remove the fragment from the
+	// map--the caller must take care of this.
+	void Fragmento::clearFragment(Fragment* f)
+	{
+		Fragment *peer = f->peer;
+		while (peer) {
+			Fragment *next = peer->peer;
+			peer->releaseTreeMem(this);
+			delete peer;
+			peer = next;
+		}
+		f->releaseTreeMem(this);
+		delete f;
+	}
+
+	void Fragmento::clearFrag(const void* ip)
+	{
+		if (_frags->containsKey(ip)) {
+			clearFragment(_frags->remove(ip));
+		}
+	}
+
 	void Fragmento::clearFrags()
 	{
 		// reclaim any dangling native pages
 		_assm->pageReset();
 
         while (!_frags->isEmpty()) {
-            Fragment *f = _frags->removeLast();
-            Fragment *peer = f->peer;
-            while (peer) {
-                Fragment *next = peer->peer;
-                peer->releaseTreeMem(this);
-                delete peer;
-                peer = next;
-            }
-            f->releaseTreeMem(this);
-            delete f;
-		}			
+            clearFragment(_frags->removeLast());
+		}
 
 		verbose_only( enterCounts->clear();)
 		verbose_only( mergeCounts->clear();)
@@ -221,7 +256,7 @@ namespace nanojit
 		return _core;
 	}
 
-	Fragment* Fragmento::newLoop(const void* ip)
+    Fragment* Fragmento::getAnchor(const void* ip)
 	{
         Fragment *f = newFrag(ip);
         Fragment *p = _frags->get(ip);
@@ -260,7 +295,7 @@ namespace nanojit
 
 	Fragment *Fragmento::getMerge(GuardRecord *lr, const void* ip)
     {
-		Fragment *anchor = lr->from->anchor;
+		Fragment *anchor = lr->exit->from->anchor;
 		for (Fragment *f = anchor->branches; f != 0; f = f->nextbranch) {
 			if (f->kind == MergeTrace && f->ip == ip /*&& f->calldepth == lr->calldepth*/) {
 				// found existing shared branch on anchor
@@ -271,7 +306,6 @@ namespace nanojit
 		Fragment *f = newBranch(anchor, ip);
 		f->root = f;
 		f->kind = MergeTrace;
-		f->calldepth = lr->calldepth;
 		verbose_only(
 			int mergeid = 1;
 			for (Fragment *g = anchor->branches; g != 0; g = g->nextbranch)
@@ -282,12 +316,10 @@ namespace nanojit
         return f;
     }
 
-	Fragment *Fragmento::createBranch(GuardRecord *lr, const void* ip)
+	Fragment *Fragmento::createBranch(SideExit* exit, const void* ip)
     {
-		Fragment *from = lr->from;
-        Fragment *f = newBranch(from, ip);
+        Fragment *f = newBranch(exit->from, ip);
 		f->kind = BranchTrace;
-		f->calldepth = lr->calldepth;
 		f->treeBranches = f->root->treeBranches;
 		f->root->treeBranches = f;
         return f;
@@ -480,7 +512,7 @@ namespace nanojit
 	{
 		int c = hist->count(ip);
 		if (_assm->_verbose)
-			_assm->outputf("++ %s %d", core()->interp.labels->format(ip), c);
+			_assm->outputf("++ %s %d", labels->format(ip), c);
 	}
 
 	void Fragmento::countIL(uint32_t il, uint32_t abc)
@@ -509,138 +541,12 @@ namespace nanojit
         onDestroy();
 		NanoAssert(_pages == 0);
     }
-	
-	void Fragment::addLink(GuardRecord* lnk)
-	{
-		//fprintf(stderr,"addLink %x from %X target %X\n",(int)lnk,(int)lnk->from,(int)lnk->target);
-		lnk->next = _links;
-		_links = lnk;
-	}
 
-	void Fragment::removeLink(GuardRecord* lnk)
-	{
-		GuardRecord*  lr = _links;
-		GuardRecord** lrp = &_links;
-		while(lr)
-		{
-			if (lr == lnk)
-			{
-				*lrp = lr->next;
-				lnk->next = 0;
-				break;
-			}
-			lrp = &(lr->next);
-			lr = lr->next;
-		}
-	}
-	
-	void Fragment::link(Assembler* assm)
-	{
-		// patch all jumps into this fragment
-		GuardRecord* lr = _links;
-		while (lr)
-		{
-			GuardRecord* next = lr->next;
-			Fragment* from = lr->target;
-			if (from && from->fragEntry) assm->patch(lr);
-			lr = next;
-		}
-
-		// and then patch all jumps leading out
-		lr = outbound;
-		while(lr)
-		{
-			GuardRecord* next = lr->outgoing;
-			Fragment* targ = lr->target;
-			if (targ && targ->fragEntry) assm->patch(lr);
-			lr = next;
-		}
-	}
-
-	void Fragment::unlink(Assembler* assm)
-	{
-		// remove our guards from others' in-bound list, so they don't patch to us 
-		GuardRecord* lr = outbound;
-		while (lr)
-		{
-			GuardRecord* next = lr->outgoing;
-			Fragment* targ = lr->target;
-			if (targ) targ->removeLink(lr);
-			lr = next;
-		}	
-
-		// then unpatch all jumps into this fragment
-		lr = _links;
-		while (lr)
-		{
-			GuardRecord* next = lr->next;
-			Fragment* from = lr->target;
-			if (from && from->fragEntry) assm->unpatch(lr);
-			lr = next;
-		}
-	}
-
-#ifdef _DEBUG
-	bool Fragment::hasOnlyTreeLinks()
-	{
-		// check that all incoming links are on the same tree
-		bool isIt = true;
-		GuardRecord *lr = _links;
-		while (lr)
-		{
-			GuardRecord *next = lr->next;
-			NanoAssert(lr->target == this);  // def'n of GuardRecord
-			if (lr->from->root != root)
-			{
-				isIt = false;
-				break;
-			}
-			lr = next;
-		}	
-		return isIt;		
-	}
-#endif
-
-	void Fragment::removeIntraLinks()
-	{
-		// should only be called on root of tree
-		NanoAssert(isRoot());
-		GuardRecord *lr = _links;
-		while (lr)
-		{
-			GuardRecord *next = lr->next;
-			NanoAssert(lr->target == this);  // def'n of GuardRecord
-			if (lr->from->root == root)
-				removeLink(lr);
-			lr = next;
-		}	
-	}
-	
-	void Fragment::unlinkBranches(Assembler* /*assm*/)
-	{
-		// should only be called on root of tree
-		NanoAssert(isRoot());
-		Fragment* frag = treeBranches;
-		while(frag)
-		{
-			NanoAssert(frag->kind == BranchTrace && frag->hasOnlyTreeLinks());
-			frag->_links = 0;
-			frag->fragEntry = 0;
-			frag = frag->treeBranches;
-		}
-	}
-
-	void Fragment::linkBranches(Assembler* assm)
-	{
-		// should only be called on root of tree
-		NanoAssert(isRoot());
-		Fragment* frag = treeBranches;
-		while(frag)
-		{
-			if (frag->fragEntry) frag->link(assm);
-			frag = frag->treeBranches;
-		}
-	}
+    void Fragment::resetHits()
+    {
+        blacklistLevel >>= 1;
+        _hits = 0;
+    }
 	
     void Fragment::blacklist()
     {
@@ -653,6 +559,7 @@ namespace nanojit
 		GC *gc = _core->gc;
         Fragment *f = new (gc) Fragment(ip);
 		f->blacklistLevel = 5;
+        f->recordAttempts = 0;
         return f;
     }
 
@@ -676,6 +583,24 @@ namespace nanojit
 			p->nextbranch = f;
 		}
 		return f;
+	}
+
+	void Fragmento::disconnectLoops()
+	{
+		for (int i = 0; i < _frags->size(); ++i) {
+			Fragment* frag = _frags->at(i);
+			if (frag->lastIns->isop(LIR_loop))
+				_assm->disconnectLoop(frag->lastIns->record());
+		}
+	}
+
+	void Fragmento::reconnectLoops()
+	{
+		for (int i = 0; i < _frags->size(); ++i) {
+			Fragment* frag = _frags->at(i);
+			if (frag->lastIns->isop(LIR_loop))
+				_assm->reconnectLoop(frag->lastIns->record());
+		}
 	}
 
 	void Fragment::releaseLirBuffer()

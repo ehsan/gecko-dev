@@ -42,6 +42,8 @@
 #include <stddef.h>
 #include "avmplus.h"
 
+#ifdef FEATURE_NANOJIT
+
 #ifdef AVMPLUS_IA32
 #define NANOJIT_IA32
 #elif AVMPLUS_ARM
@@ -73,6 +75,8 @@ namespace nanojit
 	typedef avmplus::List<LIns*,avmplus::LIST_NonGCObjects>	InsList;
 	typedef avmplus::List<char*, avmplus::LIST_GCObjects> StringList;
 
+    const uint32_t MAXARGS = 8;
+
 	#if defined(_MSC_VER) && _MSC_VER < 1400
 		static void NanoAssertMsgf(bool a,const char *f,...) {}
 		static void NanoAssertMsg(bool a,const char *m) {}
@@ -96,6 +100,20 @@ namespace nanojit
 		#define NanoAssert(a)             do { } while (0) /* no semi */
 	#endif
 
+	/*
+	 * Sun Studio C++ compiler has a bug
+	 * "sizeof expression not accepted as size of array parameter"
+	 * The bug number is 6688515. It is not public yet.
+	 * Turn off this assert for Sun Studio until this bug is fixed.
+	 */
+	#ifdef __SUNPRO_CC
+		#define NanoStaticAssert(condition)
+	#else
+		#define NanoStaticAssert(condition) \
+			extern void nano_static_assert(int arg[(condition) ? 1 : -1])
+	#endif
+
+
 	/**
 	 * -------------------------------------------
 	 * END AVM bridging definitions
@@ -113,12 +131,12 @@ namespace nanojit
 	#define verbose_output						if (verbose_enabled()) Assembler::output
 	#define verbose_outputf						if (verbose_enabled()) Assembler::outputf
 	#define verbose_enabled()					(_verbose)
-	#define verbose_only(x)						x
+	#define verbose_only(...)					__VA_ARGS__
 #else
 	#define verbose_output
 	#define verbose_outputf
 	#define verbose_enabled()
-	#define verbose_only(x)
+	#define verbose_only(...)
 #endif /*NJ_VERBOSE*/
 
 #ifdef _DEBUG
@@ -172,4 +190,5 @@ namespace nanojit
 #include "Assembler.h"
 #include "TraceTreeDrawer.h"
 
+#endif // FEATURE_NANOJIT
 #endif // __nanojit_h__

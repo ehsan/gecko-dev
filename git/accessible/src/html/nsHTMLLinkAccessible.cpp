@@ -82,10 +82,11 @@ nsHTMLLinkAccessible::GetRole(PRUint32 *aRole)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsHTMLLinkAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
+nsresult
+nsHTMLLinkAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
 {
-  nsresult rv = nsHyperTextAccessibleWrap::GetState(aState, aExtraState);
+  nsresult rv = nsHyperTextAccessibleWrap::GetStateInternal(aState,
+                                                            aExtraState);
   NS_ENSURE_SUCCESS(rv, rv);
   if (!mDOMNode)
     return NS_OK;
@@ -110,8 +111,8 @@ nsHTMLLinkAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
     // This is a either named anchor (a link with also a name attribute) or
     // it doesn't have any attributes. Check if 'click' event handler is
     // registered, otherwise bail out.
-    PRBool isOnclick = nsAccUtils::HasListener(content,
-                                               NS_LITERAL_STRING("click"));
+    PRBool isOnclick = nsCoreUtils::HasListener(content,
+                                                NS_LITERAL_STRING("click"));
     if (!isOnclick)
       return NS_OK;
   }

@@ -202,7 +202,15 @@ public:
   NS_HIDDEN ~UndisplayedNode()
   {
     MOZ_COUNT_DTOR(UndisplayedNode);
-    delete mNext;
+
+    // Delete mNext iteratively to avoid blowing up the stack (bug 460461).
+    UndisplayedNode *cur = mNext;
+    while (cur) {
+      UndisplayedNode *next = cur->mNext;
+      cur->mNext = nsnull;
+      delete cur;
+      cur = next;
+    }
   }
 
   nsCOMPtr<nsIContent>      mContent;
@@ -1072,6 +1080,24 @@ CaptureChange(nsStyleContext* aOldContext, nsStyleContext* aNewContext,
   return aMinChange;
 }
 
+static PRBool
+ShouldStopImage(imgIRequest *aOldImage, imgIRequest *aNewImage)
+{
+  if (!aOldImage)
+    return PR_FALSE;
+
+  PRBool stopImages = !aNewImage;
+  if (!stopImages) {
+    nsCOMPtr<nsIURI> oldURI, newURI;
+    aOldImage->GetURI(getter_AddRefs(oldURI));
+    aNewImage->GetURI(getter_AddRefs(newURI));
+    PRBool equal;
+    stopImages =
+      NS_FAILED(oldURI->Equals(newURI, &equal)) || !equal;
+  }
+  return stopImages;
+}
+
 nsChangeHint
 nsFrameManager::ReResolveStyleContext(nsPresContext    *aPresContext,
                                       nsIFrame          *aFrame,
@@ -1092,11 +1118,7 @@ nsFrameManager::ReResolveStyleContext(nsPresContext    *aPresContext,
   nsStyleContext* oldContext = aFrame->GetStyleContext();
   nsStyleSet* styleSet = aPresContext->StyleSet();
 #ifdef ACCESSIBILITY
-  PRBool isAccessibilityActive = mPresShell->IsAccessibilityActive();
-  PRBool isVisible;
-  if (isAccessibilityActive) {
-    isVisible = aFrame->GetStyleVisibility()->IsVisible();
-  }
+  PRBool isVisible = aFrame->GetStyleVisibility()->IsVisible();
 #endif
 
   // XXXbz the nsIFrame constructor takes an nsStyleContext, so how
@@ -1206,6 +1228,33 @@ nsFrameManager::ReResolveStyleContext(nsPresContext    *aPresContext,
         if (!(aMinChange & nsChangeHint_ReconstructFrame)) {
           // if frame gets regenerated, let it keep old context
           aFrame->SetStyleContext(newContext);
+        }
+        // if old context had image and new context does not have the same image, 
+        // stop the image load for the frame
+        if (ShouldStopImage(
+              oldContext->GetStyleBackground()->mBackgroundImage,
+              newContext->GetStyleBackground()->mBackgroundImage)) {
+          // stop the image loading for the frame, the image has changed
+          aPresContext->StopBackgroundImageFor(aFrame);
+        }
+
+        imgIRequest *newBorderImage =
+          newContext->GetStyleBorder()->GetBorderImage();
+        if (ShouldStopImage(oldContext->GetStyleBorder()->GetBorderImage(),
+                            newBorderImage)) {
+          // stop the image loading for the frame, the image has changed
+          aPresContext->StopBorderImageFor(aFrame);
+        }
+
+        // Since the CalcDifference call depended on the result of
+        // GetActualBorder() and that result depends on whether the
+        // image has loaded, start the image load now so that we'll get
+        // notified when it completes loading and can do a restyle.
+        // Otherwise, the image might finish loading from the network
+        // before we start listening to its notifications, and then
+        // we'll never know that it's finished loading.
+        if (newBorderImage) {
+          aPresContext->LoadBorderImage(newBorderImage, aFrame);
         }
       }
       oldContext->Release();
@@ -1408,7 +1457,7 @@ nsFrameManager::ReResolveStyleContext(nsPresContext    *aPresContext,
   }
 
 #ifdef ACCESSIBILITY
-  if (isAccessibilityActive &&
+  if (mPresShell->IsAccessibilityActive() &&
       aFrame->GetStyleVisibility()->IsVisible() != isVisible &&
       !aFrame->GetPrevContinuation()) { // Primary frames only
     // XXX Visibility does not affect descendents with visibility set
@@ -1418,9 +1467,10 @@ nsFrameManager::ReResolveStyleContext(nsPresContext    *aPresContext,
     nsCOMPtr<nsIAccessibilityService> accService = 
       do_GetService("@mozilla.org/accessibilityService;1");
     if (accService) {
-      accService->InvalidateSubtreeFor(mPresShell, aFrame->GetContent(),
-                                       isVisible ? nsIAccessibleEvent::EVENT_ASYNCH_HIDE :
-                                                   nsIAccessibleEvent::EVENT_ASYNCH_SHOW);
+      PRUint32 event = isVisible ?
+        PRUint32(nsIAccessibleEvent::EVENT_ASYNCH_HIDE) :
+        PRUint32(nsIAccessibleEvent::EVENT_ASYNCH_SHOW);
+      accService->InvalidateSubtreeFor(mPresShell, aFrame->GetContent(), event);
     }
   }
 #endif

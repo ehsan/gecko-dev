@@ -54,7 +54,6 @@ namespace nanojit
     struct PageHeader
     {
         struct Page *next;
-        verbose_only (int seq;) // sequence # of page
     };
     struct Page: public PageHeader
     {
@@ -63,7 +62,7 @@ namespace nanojit
             NIns code[(NJ_PAGE_SIZE-sizeof(PageHeader))/sizeof(NIns)];
         };
     };
-    struct AllocEntry : public GCObject
+    struct AllocEntry : public avmplus::GCObject
     {
         Page *page;
         uint32_t allocSize;
@@ -74,7 +73,7 @@ namespace nanojit
 	class BlockHist: public BlockSortedMap
 	{
 	public:
-		BlockHist(GC*gc) : BlockSortedMap(gc)
+		BlockHist(avmplus::GC*gc) : BlockSortedMap(gc)
 		{
 		}
 		uint32_t count(const void *p) {
@@ -89,7 +88,7 @@ namespace nanojit
 	 *
 	 * This is the main control center for creating and managing fragments.
 	 */
-	class Fragmento : public GCFinalizedObject
+	class Fragmento : public avmplus::GCFinalizedObject
 	{
 		public:
 			Fragmento(AvmCore* core, uint32_t cacheSizeLog2);
@@ -101,13 +100,20 @@ namespace nanojit
 			Page*		pageAlloc();
 			void		pageFree(Page* page);
 			
-			Fragment*   newLoop(const void* ip);
             Fragment*   getLoop(const void* ip);
+            Fragment*   getAnchor(const void* ip);
+		    // Remove one fragment. The caller is responsible for making sure
+			// that this does not destroy any resources shared with other
+			// fragments (such as a LirBuffer or this fragment itself as a
+			// jump target).
+    		void        clearFrag(const void* ip);
 			void        clearFrags();	// clear all fragments from the cache
             Fragment*   getMerge(GuardRecord *lr, const void* ip);
-            Fragment*   createBranch(GuardRecord *lr, const void* ip);
+            Fragment*   createBranch(SideExit *exit, const void* ip);
             Fragment*   newFrag(const void* ip);
             Fragment*   newBranch(Fragment *from, const void* ip);
+            void        disconnectLoops();
+            void        reconnectLoops();
 
             verbose_only ( uint32_t pageCount(); )
 			verbose_only ( void dumpStats(); )
@@ -138,6 +144,7 @@ namespace nanojit
 			uint32_t cacheUsed() const { return (_stats.pages-_stats.freePages)<<NJ_LOG2_PAGE_SIZE; }
 			uint32_t cacheUsedMax() const { return (_stats.maxPageUse)<<NJ_LOG2_PAGE_SIZE; }
 		private:
+		    void        clearFragment(Fragment *f);
 			void		pagesGrow(int32_t count);
 			void		trackFree(int32_t delta);
 
@@ -145,13 +152,13 @@ namespace nanojit
 			DWB(Assembler*)		_assm;
 			DWB(FragmentMap*)	_frags;		/* map from ip -> Fragment ptr  */
 			Page*			_pageList;
-            uint32_t        _pageGrowth;
 
 			/* unmanaged mem */
 			AllocList	_allocList;
-			GCHeap*		_gcHeap;
+			avmplus::GCHeap* _gcHeap;
 
 			const uint32_t _max_pages;
+			uint32_t _pagesGrowth;
 	};
 
 	enum TraceKind {
@@ -167,7 +174,7 @@ namespace nanojit
 	 * It may turn out that that this arrangement causes too much traffic
 	 * between d and i-caches and that we need to carve up the structure differently.
 	 */
-	class Fragment : public GCFinalizedObject
+	class Fragment : public avmplus::GCFinalizedObject
 	{
 		public:
 			Fragment(const void*);
@@ -177,17 +184,10 @@ namespace nanojit
 			void			setCode(NIns* codee, Page* pages) { _code = codee; _pages = pages; }
 			GuardRecord*	links()							{ return _links; }
 			int32_t&		hits()							{ return _hits; }
+            void            resetHits();
             void            blacklist();
 			bool			isBlacklisted()		{ return _hits < 0; }
-			void			resetLinks();
-			void			addLink(GuardRecord* lnk);
-			void			removeLink(GuardRecord* lnk);
-			void			link(Assembler* assm);
-			void			linkBranches(Assembler* assm);
-			void			unlink(Assembler* assm);
-			void			unlinkBranches(Assembler* assm);
 			debug_only( bool hasOnlyTreeLinks(); )
-			void			removeIntraLinks();
 			void			releaseLirBuffer();
 			void			releaseCode(Fragmento* frago);
 			void			releaseTreeMem(Fragmento* frago);
@@ -218,16 +218,16 @@ namespace nanojit
 			DWB(BlockHist*) mergeCounts;
             DWB(LirBuffer*) lirbuf;
 			LIns*			lastIns;
-			LIns*		spawnedFrom;
-			GuardRecord*	outbound;
+			SideExit*       spawnedFrom;
 			
 			TraceKind kind;
 			const void* ip;
 			uint32_t guardCount;
             uint32_t xjumpCount;
+            uint32_t recordAttempts;
             int32_t blacklistLevel;
             NIns* fragEntry;
-			int32_t calldepth;
+            NIns* loopEntry;
 			void* vmprivate;
 			
 		private:
@@ -236,18 +236,5 @@ namespace nanojit
 			int32_t			_hits;
 			Page*			_pages;		// native code pages 
 	};
-	
-#ifdef NJ_VERBOSE
-	inline int nbr(LInsp x) 
-	{
-        Page *p = x->page();
-        return (p->seq * NJ_PAGE_SIZE + (intptr_t(x)-intptr_t(p))) / sizeof(LIns);
-	}
-#else
-    inline int nbr(LInsp x)
-    {
-        return (int)(intptr_t(x) & intptr_t(NJ_PAGE_SIZE-1));
-    }
-#endif
 }
 #endif // __nanojit_Fragmento__

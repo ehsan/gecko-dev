@@ -169,6 +169,8 @@ DebugListContentTree(nsIContent* aElement)
 
 #endif
 
+NS_DEFINE_IID(kThisPtrOffsetsSID, NS_THISPTROFFSETS_SID);
+
 PRInt32 nsIContent::sTabFocusModel = eTabFocus_any;
 PRBool nsIContent::sTabFocusModelAppliesToXUL = PR_FALSE;
 nsresult NS_NewContentIterator(nsIContentIterator** aInstancePtrResult);
@@ -456,10 +458,18 @@ nsIContent::FindFirstNonNativeAnonymous() const
 
 //----------------------------------------------------------------------
 
-nsChildContentList::~nsChildContentList()
-{
-  MOZ_COUNT_DTOR(nsChildContentList);
-}
+NS_IMPL_ADDREF(nsChildContentList)
+NS_IMPL_RELEASE(nsChildContentList)
+
+NS_INTERFACE_TABLE_HEAD(nsChildContentList)
+  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
+  NS_NODELIST_OFFSET_AND_INTERFACE_TABLE_BEGIN(nsChildContentList)
+    NS_INTERFACE_TABLE_ENTRY(nsChildContentList, nsINodeList)
+    NS_INTERFACE_TABLE_ENTRY(nsChildContentList, nsIDOMNodeList)
+  NS_OFFSET_AND_INTERFACE_TABLE_END
+  NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(NodeList)
+NS_INTERFACE_MAP_END
 
 NS_IMETHODIMP
 nsChildContentList::GetLength(PRUint32* aLength)
@@ -467,6 +477,19 @@ nsChildContentList::GetLength(PRUint32* aLength)
   *aLength = mNode ? mNode->GetChildCount() : 0;
 
   return NS_OK;
+}
+
+NS_IMETHODIMP
+nsChildContentList::Item(PRUint32 aIndex, nsIDOMNode** aReturn)
+{
+  nsINode* node = GetNodeAt(aIndex);
+  if (!node) {
+    *aReturn = nsnull;
+
+    return NS_OK;
+  }
+
+  return CallQueryInterface(node, aReturn);
 }
 
 nsINode*
@@ -786,13 +809,6 @@ nsNSElementTearoff::GetFirstElementChild(nsIDOMElement** aResult)
 {
   *aResult = nsnull;
 
-#ifdef MOZ_XUL
-  nsXULElement* xul = nsXULElement::FromContent(mContent);
-  if (xul) {
-    xul->EnsureContentsGenerated();
-  }
-#endif
-
   nsAttrAndChildArray& children = mContent->mAttrsAndChildren;
   PRUint32 i, count = children.ChildCount();
   for (i = 0; i < count; ++i) {
@@ -809,13 +825,6 @@ NS_IMETHODIMP
 nsNSElementTearoff::GetLastElementChild(nsIDOMElement** aResult)
 {
   *aResult = nsnull;
-
-#ifdef MOZ_XUL
-  nsXULElement* xul = nsXULElement::FromContent(mContent);
-  if (xul) {
-    xul->EnsureContentsGenerated();
-  }
-#endif
 
   nsAttrAndChildArray& children = mContent->mAttrsAndChildren;
   PRUint32 i = children.ChildCount();
@@ -838,13 +847,6 @@ nsNSElementTearoff::GetPreviousElementSibling(nsIDOMElement** aResult)
   if (!parent) {
     return NS_OK;
   }
-
-#ifdef MOZ_XUL
-  nsXULElement* xul = nsXULElement::FromContent(parent);
-  if (xul) {
-    xul->EnsureContentsGenerated();
-  }
-#endif
 
   NS_ASSERTION(parent->IsNodeOfType(nsINode::eELEMENT) ||
                parent->IsNodeOfType(nsINode::eDOCUMENT_FRAGMENT),
@@ -877,13 +879,6 @@ nsNSElementTearoff::GetNextElementSibling(nsIDOMElement** aResult)
   if (!parent) {
     return NS_OK;
   }
-
-#ifdef MOZ_XUL
-  nsXULElement* xul = nsXULElement::FromContent(parent);
-  if (xul) {
-    xul->EnsureContentsGenerated();
-  }
-#endif
 
   NS_ASSERTION(parent->IsNodeOfType(nsINode::eELEMENT) ||
                parent->IsNodeOfType(nsINode::eDOCUMENT_FRAGMENT),
@@ -1108,7 +1103,7 @@ nsNSElementTearoff::SetScrollTop(PRInt32 aScrollTop)
 
     if (NS_SUCCEEDED(rv)) {
       rv = view->ScrollTo(xPos, nsPresContext::CSSPixelsToAppUnits(aScrollTop),
-                          NS_VMREFRESH_IMMEDIATE);
+                          0);
     }
   }
 
@@ -1150,7 +1145,7 @@ nsNSElementTearoff::SetScrollLeft(PRInt32 aScrollLeft)
 
     if (NS_SUCCEEDED(rv)) {
       rv = view->ScrollTo(nsPresContext::CSSPixelsToAppUnits(aScrollLeft),
-                          yPos, NS_VMREFRESH_IMMEDIATE);
+                          yPos, 0);
     }
   }
 
@@ -2538,7 +2533,7 @@ nsGenericElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
   NS_ASSERTION(!aBindingParent || IsRootOfNativeAnonymousSubtree() ||
                !HasFlag(NODE_IS_IN_ANONYMOUS_SUBTREE) ||
                aBindingParent->IsInNativeAnonymousSubtree(),
-               "Trying to re-bind content from native anonymous subtree to"
+               "Trying to re-bind content from native anonymous subtree to "
                "non-native anonymous parent!");
   if (IsRootOfNativeAnonymousSubtree() ||
       aParent && aParent->IsInNativeAnonymousSubtree()) {
@@ -3479,6 +3474,10 @@ nsGenericElement::DestroyContent()
     document->ClearBoxObjectFor(this);
   }
 
+  // XXX We really should let cycle collection do this, but that currently still
+  //     leaks (see https://bugzilla.mozilla.org/show_bug.cgi?id=406684).
+  ReleaseWrapper();
+
   PRUint32 i, count = mAttrsAndChildren.ChildCount();
   for (i = 0; i < count; ++i) {
     // The child can remove itself from the parent in BindToTree.
@@ -4072,7 +4071,9 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsGenericElement)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsGenericElement)
+NS_INTERFACE_MAP_BEGIN(nsGenericElement)
+  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
+  NS_INTERFACE_MAP_ENTRIES_CYCLE_COLLECTION(nsGenericElement)
   NS_INTERFACE_MAP_ENTRY(nsIContent)
   NS_INTERFACE_MAP_ENTRY(nsINode)
   NS_INTERFACE_MAP_ENTRY(nsPIDOMEventTarget)

@@ -133,9 +133,9 @@ nsBulletFrame::IsSelfEmpty()
 }
 
 /* virtual */ void
-nsBulletFrame::DidSetStyleContext()
+nsBulletFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
 {
-  nsFrame::DidSetStyleContext();
+  nsFrame::DidSetStyleContext(aOldStyleContext);
 
   imgIRequest *newRequest = GetStyleList()->mListStyleImage;
 
@@ -239,8 +239,8 @@ nsBulletFrame::PaintBullet(nsIRenderingContext& aRenderingContext, nsPoint aPt,
         nsRect dest(mPadding.left, mPadding.top,
                     mRect.width - (mPadding.left + mPadding.right),
                     mRect.height - (mPadding.top + mPadding.bottom));
-        nsLayoutUtils::DrawImage(&aRenderingContext, imageCon,
-                                 dest + aPt, aDirtyRect);
+        nsLayoutUtils::DrawSingleImage(&aRenderingContext, imageCon,
+             dest + aPt, aDirtyRect);
         return;
       }
     }

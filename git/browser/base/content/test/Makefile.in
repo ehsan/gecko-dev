@@ -47,11 +47,15 @@ _TEST_FILES =	test_feed_discovery.html \
 		feed_discovery.html \
 		test_bug395533.html \
 		bug395533-data.txt \
+		test_contextmenu.html \
+		subtst_contextmenu.html \
+		ctxmenu-image.png \
 		$(NULL)
 
 # browser_bug423833.js disabled temporarily since it's unreliable: bug 428712
 # browser_sanitize-download-history.js disabled temporarily since it's unreliable: bug 432425
 _BROWSER_FILES = browser_bug321000.js \
+                 browser_sanitize-timespans.js \
                  browser_bug405137.js \
                  browser_bug409481.js \
                  browser_bug413915.js \
@@ -64,8 +68,17 @@ _BROWSER_FILES = browser_bug321000.js \
                  browser_getshortcutoruri.js \
                  browser_page_style_menu.js \
                  page_style_sample.html \
-                 browser_ctrlTab.js \
                  browser_selectTabAtIndex.js \
+                 browser_gestureSupport.js \
+                 browser_feed_tab.js \
+                 feed_tab.html \
+                 browser_pluginnotification.js \
+                 plugin_unknown.html \
+                 plugin_test.html \
+                 plugin_both.html \
+                 plugin_both2.html \
+                 browser_alltabslistener.js \
+                 alltabslistener.html \
     $(NULL)
 
 ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))

@@ -396,7 +396,7 @@
   <menu id="bookmarksMenu" 
         label="&bookmarksMenu.label;" accesskey="&bookmarksMenu.accesskey;"
         ondragenter="PlacesMenuDNDController.onBookmarksMenuDragEnter(event);"
-        ondragdrop="nsDragAndDrop.drop(event, BookmarksMenuDropHandler);"
+        ondrop="nsDragAndDrop.drop(event, BookmarksMenuDropHandler);"
         ondragover="nsDragAndDrop.dragOver(event, BookmarksMenuDropHandler);"
         ondragexit="nsDragAndDrop.dragExit(event, BookmarksMenuDropHandler);">
     <menupopup id="bookmarksMenuPopup"
@@ -466,9 +466,15 @@
                         key="key_viewInfo" command="View:PageInfo"/>
 #endif
               <menuseparator id="sanitizeSeparator"/>
+              <menuitem id="privateBrowsingItem"
+                        label="&privateBrowsingCmd.label;"
+                        accesskey="&privateBrowsingCmd.accesskey;"
+                        type="checkbox"
+                        autocheck="false"
+                        command="Tools:PrivateBrowsing"/>
               <menuitem id="sanitizeItem"
-                        accesskey="&clearPrivateDataCmd.accesskey;"
-                        label="&clearPrivateDataCmd.label;"
+                        accesskey="&clearRecentHistoryCmd.accesskey;"
+                        label="&clearRecentHistoryCmd.label;"
                         key="key_sanitize" command="Tools:Sanitize"/>
 #ifndef XP_UNIX
               <menuseparator id="prefSep"/>

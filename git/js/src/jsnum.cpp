@@ -124,8 +124,8 @@ num_parseFloat(JSContext *cx, uintN argc, jsval *vp)
 }
 
 #ifdef JS_TRACER
-jsdouble FASTCALL
-js_ParseFloat(JSContext* cx, JSString* str)
+static jsdouble FASTCALL
+ParseFloat(JSContext* cx, JSString* str)
 {
     const jschar* bp;
     const jschar* end;
@@ -183,8 +183,8 @@ num_parseInt(JSContext *cx, uintN argc, jsval *vp)
 }
 
 #ifdef JS_TRACER
-jsdouble FASTCALL
-js_ParseInt(JSContext* cx, JSString* str)
+static jsdouble FASTCALL
+ParseInt(JSContext* cx, JSString* str)
 {
     const jschar* bp;
     const jschar* end;
@@ -197,8 +197,8 @@ js_ParseInt(JSContext* cx, JSString* str)
     return d;
 }
 
-jsdouble FASTCALL
-js_ParseIntDouble(jsdouble d)
+static jsdouble FASTCALL
+ParseIntDouble(jsdouble d)
 {
     if (!JSDOUBLE_IS_FINITE(d))
         return js_NaN;
@@ -215,23 +215,18 @@ const char js_parseInt_str[]   = "parseInt";
 
 #ifdef JS_TRACER
 
-JS_DEFINE_CALLINFO_2(DOUBLE, ParseInt, CONTEXT, STRING,     1, 1)
-JS_DEFINE_CALLINFO_1(DOUBLE, ParseIntDouble, DOUBLE,        1, 1)
-JS_DEFINE_CALLINFO_2(DOUBLE, ParseFloat, CONTEXT, STRING,   1, 1)
+JS_DEFINE_TRCINFO_2(num_parseInt,
+    (2, (static, DOUBLE, ParseInt, CONTEXT, STRING,     1, 1)),
+    (1, (static, DOUBLE, ParseIntDouble, DOUBLE,        1, 1)))
 
-static const JSTraceableNative num_parseInt_trcinfo[] = {
-    { num_parseInt,             &ci_ParseInt,             "C",   "s",    INFALLIBLE | JSTN_MORE },
-    { num_parseInt,             &ci_ParseIntDouble,       "",    "d",    INFALLIBLE }
-};
-static const JSTraceableNative num_parseFloat_trcinfo[] = {
-    { num_parseFloat,           &ci_ParseFloat,           "C",   "s",    INFALLIBLE }
-};
+JS_DEFINE_TRCINFO_1(num_parseFloat,
+    (2, (static, DOUBLE, ParseFloat, CONTEXT, STRING,   1, 1)))
 
 #endif /* JS_TRACER */
 
 static JSFunctionSpec number_functions[] = {
-    JS_FN(js_isNaN_str,         num_isNaN,              1,0),
-    JS_FN(js_isFinite_str,      num_isFinite,           1,0),
+    JS_FN(js_isNaN_str,         num_isNaN,           1,0),
+    JS_FN(js_isFinite_str,      num_isFinite,        1,0),
     JS_TN(js_parseFloat_str,    num_parseFloat,      1,0, num_parseFloat_trcinfo),
     JS_TN(js_parseInt_str,      num_parseInt,        2,0, num_parseInt_trcinfo),
     JS_FS_END
@@ -304,7 +299,7 @@ num_toSource(JSContext *cx, uintN argc, jsval *vp)
 
 /* The buf must be big enough for MIN_INT to fit including '-' and '\0'. */
 char *
-js_IntToCString(jsint i, char *buf, size_t bufSize)
+js_IntToCString(jsint i, jsint base, char *buf, size_t bufSize)
 {
     char *cp;
     jsuint u;
@@ -318,12 +313,30 @@ js_IntToCString(jsint i, char *buf, size_t bufSize)
      * Build the string from behind. We use multiply and subtraction
      * instead of modulus because that's much faster.
      */
-    do {
-        jsuint newu = u / 10;
-        *--cp = (char)(u - newu * 10) + '0';
-        u = newu;
-    } while (u != 0);
-
+    switch (base) {
+    case 10:
+      do {
+          jsuint newu = u / 10;
+          *--cp = (char)(u - newu * 10) + '0';
+          u = newu;
+      } while (u != 0);
+      break;
+    case 16:
+      do {
+          jsuint newu = u / 16;
+          *--cp = "0123456789abcdef"[u - newu * 16];
+          u = newu;
+      } while (u != 0);
+      break;
+    default:
+      JS_ASSERT(base >= 2 && base <= 36);
+      do {
+          jsuint newu = u / base;
+          *--cp = "0123456789abcdefghijklmnopqrstuvwxyz"[u - newu * base];
+          u = newu;
+      } while (u != 0);
+      break;
+    }
     if (i < 0)
         *--cp = '-';
 
@@ -350,7 +363,7 @@ num_toString(JSContext *cx, uintN argc, jsval *vp)
             return JS_FALSE;
         if (base < 2 || base > 36) {
             char numBuf[12];
-            char *numStr = js_IntToCString(base, numBuf, sizeof numBuf);
+            char *numStr = js_IntToCString(base, 10, numBuf, sizeof numBuf);
             JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_BAD_RADIX,
                                  numStr);
             return JS_FALSE;
@@ -579,11 +592,9 @@ num_toPrecision(JSContext *cx, uintN argc, jsval *vp)
 
 #ifdef JS_TRACER
 
-JS_DEFINE_CALLINFO_2(STRING, NumberToString, CONTEXT, DOUBLE, 1, 1)
-
-static const JSTraceableNative num_toString_trcinfo[] = {
-    { num_toString,             &ci_NumberToString,       "DC",   "",    FAIL_NULL }
-};
+JS_DEFINE_TRCINFO_2(num_toString,
+    (3, (static, STRING, NumberToStringWithBase, CONTEXT, THIS_DOUBLE, INT32, 1, 1)),
+    (2, (extern, STRING, js_NumberToString,      CONTEXT, THIS_DOUBLE,        1, 1)))
 
 #endif /* JS_TRACER */
 
@@ -595,6 +606,7 @@ static JSFunctionSpec number_methods[] = {
           num_toString_trcinfo),
     JS_FN(js_toLocaleString_str, num_toLocaleString,    0,JSFUN_THISP_NUMBER),
     JS_FN(js_valueOf_str,        num_valueOf,           0,JSFUN_THISP_NUMBER),
+    JS_FN(js_toJSON_str,         num_valueOf,           0,JSFUN_THISP_NUMBER),
     JS_FN("toFixed",             num_toFixed,           1,JSFUN_THISP_NUMBER),
     JS_FN("toExponential",       num_toExponential,     1,JSFUN_THISP_NUMBER),
     JS_FN("toPrecision",         num_toPrecision,       1,JSFUN_THISP_NUMBER),
@@ -776,16 +788,19 @@ js_NewNumberInRootedValue(JSContext *cx, jsdouble d, jsval *vp)
 }
 
 char *
-js_NumberToCString(JSContext *cx, jsdouble d, char *buf, size_t bufSize)
+js_NumberToCString(JSContext *cx, jsdouble d, jsint base, char *buf, size_t bufSize)
 {
     jsint i;
     char *numStr;
 
     JS_ASSERT(bufSize >= DTOSTR_STANDARD_BUFFER_SIZE);
     if (JSDOUBLE_IS_INT(d, i)) {
-        numStr = js_IntToCString(i, buf, bufSize);
+        numStr = js_IntToCString(i, base, buf, bufSize);
     } else {
-        numStr = JS_dtostr(buf, bufSize, DTOSTR_STANDARD, 0, d);
+        if (base == 10)
+            numStr = JS_dtostr(buf, bufSize, DTOSTR_STANDARD, 0, d);
+        else
+            numStr = JS_dtobasestr(base, d);
         if (!numStr) {
             JS_ReportOutOfMemory(cx);
             return NULL;
@@ -794,16 +809,24 @@ js_NumberToCString(JSContext *cx, jsdouble d, char *buf, size_t bufSize)
     return numStr;
 }
 
-JSString * JS_FASTCALL
-js_NumberToString(JSContext *cx, jsdouble d)
+static JSString * JS_FASTCALL
+NumberToStringWithBase(JSContext *cx, jsdouble d, jsint base)
 {
     char buf[DTOSTR_STANDARD_BUFFER_SIZE];
     char *numStr;
 
-    numStr = js_NumberToCString(cx, d, buf, sizeof buf);
+    if (base < 2 || base > 36)
+        return NULL;
+    numStr = js_NumberToCString(cx, d, base, buf, sizeof buf);
     if (!numStr)
         return NULL;
     return JS_NewStringCopyZ(cx, numStr);
+}
+
+JSString * JS_FASTCALL
+js_NumberToString(JSContext *cx, jsdouble d)
+{
+    return NumberToStringWithBase(cx, d, 10);
 }
 
 jsdouble

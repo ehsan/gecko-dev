@@ -101,6 +101,7 @@ namespace nanojit
 
 	typedef int RegisterMask;
 
+	static const int NumSavedRegs = 3;
 	static const RegisterMask SavedRegs = 1<<EBX | 1<<EDI | 1<<ESI;
 	static const RegisterMask GpRegs = SavedRegs | 1<<EAX | 1<<ECX | 1<<EDX;
     static const RegisterMask XmmRegs = 1<<XMM0|1<<XMM1|1<<XMM2|1<<XMM3|1<<XMM4|1<<XMM5|1<<XMM6|1<<XMM7;
@@ -132,23 +133,12 @@ namespace nanojit
 		bool pad[3];\
 		void nativePageReset();\
 		void nativePageSetup();\
-        void asm_farg(LInsp);
+        void underrunProtect(int);\
+        void asm_farg(LInsp);\
+        void asm_align_code();
 		
 	#define swapptrs()  { NIns* _tins = _nIns; _nIns=_nExitIns; _nExitIns=_tins; }
 		
-	// enough room for n bytes
-	#define underrunProtect(n)									\
-		{														\
-			intptr_t u = n + sizeof(PageHeader)/sizeof(NIns) + 5; \
-			if ( !samepage(_nIns-u,_nIns-1) )					\
-			{													\
-				NIns *tt = _nIns; \
-				_nIns = pageAlloc(_inExit);						\
-				int d = tt-_nIns; \
-				JMP_long_nochk_offset(d);			\
-			}													\
-		}														\
-
 #define IMM32(i)	\
 	_nIns -= 4;		\
 	*((int32_t*)_nIns) = (int32_t)(i)
@@ -171,8 +161,11 @@ namespace nanojit
  		}
 
 #define MODRMm(r,d,b) \
-		NanoAssert(unsigned(r)<8 && unsigned(b)<8); \
- 		if ((b) == ESP) { \
+		NanoAssert(unsigned(r)<8 && ((b)==UnknownReg || unsigned(b)<8)); \
+        if ((b) == UnknownReg) {\
+            IMM32(d);\
+            *(--_nIns) = (uint8_t) (0<<6 | (r)<<3 | 5);\
+        } else if ((b) == ESP) { \
  			MODRMs(r, d, b, 0, (Register)4); \
  		} \
 		else if ( (d) == 0 && (b) != EBP) { \
@@ -184,6 +177,29 @@ namespace nanojit
  			IMM32(d); \
  			*(--_nIns) = (uint8_t) ( 2<<6 | (r)<<3 | (b) ); \
  		} 
+
+#define MODRMSIB(reg,base,index,scale,disp)					\
+		if (disp != 0 || base == EBP) {						\
+			if (isS8(disp)) {								\
+				*(--_nIns) = int8_t(disp);					\
+			} else {										\
+				IMM32(disp);								\
+			}												\
+		}													\
+		*(--_nIns) = uint8_t((scale)<<6|(index)<<3|(base));	\
+		if (disp == 0 && base != EBP) {						\
+			*(--_nIns) = uint8_t(((reg)<<3)|4);				\
+		} else {											\
+			if (isS8(disp))									\
+				*(--_nIns) = uint8_t((1<<6)|(reg<<3)|4);	\
+			else											\
+				*(--_nIns) = uint8_t((2<<6)|(reg<<3)|4);	\
+		}
+
+#define MODRMdm(r,addr)					\
+		NanoAssert(unsigned(r)<8);		\
+		IMM32(addr);					\
+		*(--_nIns) = (uint8_t)( (r)<<3 | 5 );
 
 #define MODRM(d,s) \
 		NanoAssert(((unsigned)(d))<8 && ((unsigned)(s))<8); \
@@ -198,16 +214,38 @@ namespace nanojit
 		MODRMm(r,d,b);		\
 		*(--_nIns) = uint8_t(c)
 
+#define ALUdm(c,r,addr)		\
+		underrunProtect(6);	\
+		MODRMdm(r,addr);	\
+		*(--_nIns) = uint8_t(c)
+
+#define ALUsib(c,r,base,index,scale,disp)	\
+		underrunProtect(7);					\
+		MODRMSIB(r,base,index,scale,disp);	\
+		*(--_nIns) = uint8_t(c)
+
 #define ALUm16(c,r,d,b)		\
 		underrunProtect(9); \
 		MODRMm(r,d,b);		\
 		*(--_nIns) = uint8_t(c);\
 		*(--_nIns) = 0x66
 
+#define ALU2dm(c,r,addr)	\
+		underrunProtect(7);	\
+		MODRMdm(r,addr);	\
+        *(--_nIns) = (uint8_t) (c);\
+        *(--_nIns) = (uint8_t) ((c)>>8)
+
 #define ALU2m(c,r,d,b)      \
         underrunProtect(9); \
         MODRMm(r,d,b);      \
         *(--_nIns) = (uint8_t) (c);\
+        *(--_nIns) = (uint8_t) ((c)>>8)
+
+#define ALU2sib(c,r,base,index,scale,disp)	\
+		underrunProtect(8);					\
+		MODRMSIB(r,base,index,scale,disp);	\
+        *(--_nIns) = (uint8_t) (c);			\
         *(--_nIns) = (uint8_t) ((c)>>8)
 
 #define ALU(c,d,s)  \
@@ -327,13 +365,49 @@ namespace nanojit
 	ALUm(0x8b,reg,disp,base);	\
 	asm_output3("mov %s,%d(%s)",gpn(reg),disp,gpn(base)); } while(0)
 
+#define LDdm(reg,addr) do {		\
+	ALUdm(0x8b,reg,addr);		\
+	asm_output2("mov %s,0(%lx)",gpn(reg),addr); \
+	} while (0)
+
+
+#define SIBIDX(n)	"1248"[n]
+
+#define LDsib(reg,disp,base,index,scale) do {	\
+	ALUsib(0x8b,reg,base,index,scale,disp);		\
+	asm_output5("mov %s,%d(%s+%s*%c)",gpn(reg),disp,gpn(base),gpn(index),SIBIDX(scale)); \
+	} while (0)
+
 // load 16-bit, sign extend
 #define LD16S(r,d,b) do { ALU2m(0x0fbf,r,d,b); asm_output3("movsx %s,%d(%s)", gpn(r),d,gpn(b)); } while(0)
+	
+// load 16-bit, zero extend
+#define LD16Z(r,d,b) do { ALU2m(0x0fb7,r,d,b); asm_output3("movsz %s,%d(%s)", gpn(r),d,gpn(b)); } while(0)
+
+#define LD16Zdm(r,addr) do { ALU2dm(0x0fb7,r,addr); asm_output2("movsz %s,0(%lx)", gpn(r),addr); } while (0)
+
+#define LD16Zsib(r,disp,base,index,scale) do {	\
+	ALU2sib(0x0fb7,r,base,index,scale,disp);	\
+	asm_output5("movsz %s,%d(%s+%s*%c)",gpn(r),disp,gpn(base),gpn(index),SIBIDX(scale)); \
+	} while (0)
 
 // load 8-bit, zero extend
 // note, only 5-bit offsets (!) are supported for this, but that's all we need at the moment
 // (movzx actually allows larger offsets mode but 5-bit gives us advantage in Thumb mode)
 #define LD8Z(r,d,b)	do { NanoAssert((d)>=0&&(d)<=31); ALU2m(0x0fb6,r,d,b); asm_output3("movzx %s,%d(%s)", gpn(r),d,gpn(b)); } while(0)
+
+#define LD8Zdm(r,addr) do { \
+	NanoAssert((d)>=0&&(d)<=31); \
+	ALU2dm(0x0fb6,r,addr); \
+	asm_output2("movzx %s,0(%lx)", gpn(r),addr); \
+	} while(0)
+
+#define LD8Zsib(r,disp,base,index,scale) do {	\
+	NanoAssert((d)>=0&&(d)<=31);				\
+	ALU2sib(0x0fb6,r,base,index,scale,disp);	\
+	asm_output5("movzx %s,%d(%s+%s*%c)",gpn(r),disp,gpn(base),gpn(index),SIBIDX(scale)); \
+	} while(0)
+	
 
 #define LDi(r,i) do { \
 	underrunProtect(5);			\
@@ -344,7 +418,7 @@ namespace nanojit
 
 #define ST(base,disp,reg) do {  \
 	ALUm(0x89,reg,disp,base);	\
-	asm_output3("mov %d(%s),%s",disp,gpn(base),gpn(reg)); } while(0)
+    asm_output3("mov %d(%s),%s",disp,base==UnknownReg?"0":gpn(base),gpn(reg)); } while(0)
 
 #define STi(base,disp,imm)	do { \
 	underrunProtect(12);	\
@@ -387,10 +461,14 @@ namespace nanojit
 	*(--_nIns) = (uint8_t) ( 0x58 | (r) ); \
 	asm_output1("pop %s",gpn(r)); } while(0)
 
-#define JCC(o,t,n) do { \
+#define JCC32 0x0f
+#define JMP8  0xeb
+#define JMP32 0xe9  
+    
+#define JCC(o,t,isfar,n) do { \
 	underrunProtect(6);	\
 	intptr_t tt = (intptr_t)t - (intptr_t)_nIns;	\
-	if (isS8(tt)) { \
+	if (isS8(tt) && !isfar) { \
 		verbose_only( NIns* next = _nIns; (void)next; ) \
 		_nIns -= 2; \
 		_nIns[0] = (uint8_t) ( 0x70 | (o) ); \
@@ -400,7 +478,7 @@ namespace nanojit
 		verbose_only( NIns* next = _nIns; ) \
 		IMM32(tt); \
 		_nIns -= 2; \
-		_nIns[0] = 0x0f; \
+		_nIns[0] = JCC32; \
 		_nIns[1] = (uint8_t) ( 0x80 | (o) ); \
 		asm_output2("%s %p",(n),(next+tt)); \
 	} } while(0)
@@ -409,6 +487,7 @@ namespace nanojit
 	underrunProtect(5);	\
 	intptr_t tt = (intptr_t)t - (intptr_t)_nIns;	\
 	JMP_long_nochk_offset(tt);	\
+    verbose_only( verbose_outputf("        %p:",_nIns); ) \
 	} while(0)
 
 #define JMP(t)		do { 	\
@@ -417,55 +496,49 @@ namespace nanojit
 	if (isS8(tt)) { \
 		verbose_only( NIns* next = _nIns; (void)next; ) \
 		_nIns -= 2; \
-		_nIns[0] = 0xeb; \
+		_nIns[0] = JMP8; \
 		_nIns[1] = (uint8_t) ( (tt)&0xff ); \
 		asm_output1("jmp %p",(next+tt)); \
 	} else { \
 		JMP_long_nochk_offset(tt);	\
 	} } while(0)
 
-#define JMPc 0xe9
-		
-#define JMP_long_placeholder()	do {\
-	underrunProtect(5);				\
-	JMP_long_nochk_offset(0xffffffff); } while(0)
-	
 // this should only be used when you can guarantee there is enough room on the page
 #define JMP_long_nochk_offset(o) do {\
 		verbose_only( NIns* next = _nIns; (void)next; ) \
  		IMM32((o)); \
- 		*(--_nIns) = JMPc; \
+ 		*(--_nIns) = JMP32; \
 		asm_output1("jmp %p",(next+(o))); } while(0)
 
-#define JE(t)	JCC(0x04, t, "je")
-#define JNE(t)	JCC(0x05, t, "jne")
-#define JP(t)	JCC(0x0A, t, "jp")
-#define JNP(t)	JCC(0x0B, t, "jnp")
+#define JE(t, isfar)	   JCC(0x04, t, isfar, "je")
+#define JNE(t, isfar)	   JCC(0x05, t, isfar, "jne")
+#define JP(t, isfar)	   JCC(0x0A, t, isfar, "jp")
+#define JNP(t, isfar)	   JCC(0x0B, t, isfar, "jnp")
 
-#define JB(t)	JCC(0x02, t, "jb")
-#define JNB(t)	JCC(0x03, t, "jnb")
-#define JBE(t)	JCC(0x06, t, "jbe")
-#define JNBE(t) JCC(0x07, t, "jnbe")
+#define JB(t, isfar)	   JCC(0x02, t, isfar, "jb")
+#define JNB(t, isfar)	   JCC(0x03, t, isfar, "jnb")
+#define JBE(t, isfar)	   JCC(0x06, t, isfar, "jbe")
+#define JNBE(t, isfar)   JCC(0x07, t, isfar, "jnbe")
 
-#define JA(t)	JCC(0x07, t, "ja")
-#define JNA(t)	JCC(0x06, t, "jna")
-#define JAE(t)	JCC(0x03, t, "jae")
-#define JNAE(t) JCC(0x02, t, "jnae")
+#define JA(t, isfar)	   JCC(0x07, t, isfar, "ja")
+#define JNA(t, isfar)	   JCC(0x06, t, isfar, "jna")
+#define JAE(t, isfar)	   JCC(0x03, t, isfar, "jae")
+#define JNAE(t, isfar)   JCC(0x02, t, isfar, "jnae")
 
-#define JL(t)	JCC(0x0C, t, "jl")
-#define JNL(t)	JCC(0x0D, t, "jnl")
-#define JLE(t)	JCC(0x0E, t, "jle")
-#define JNLE(t)	JCC(0x0F, t, "jnle")
+#define JL(t, isfar)	   JCC(0x0C, t, isfar, "jl")
+#define JNL(t, isfar)	   JCC(0x0D, t, isfar, "jnl")
+#define JLE(t, isfar)	   JCC(0x0E, t, isfar, "jle")
+#define JNLE(t, isfar)   JCC(0x0F, t, isfar, "jnle")
 
-#define JG(t)	JCC(0x0F, t, "jg")
-#define JNG(t)	JCC(0x0E, t, "jng")
-#define JGE(t)	JCC(0x0D, t, "jge")
-#define JNGE(t)	JCC(0x0C, t, "jnge")
+#define JG(t, isfar)	   JCC(0x0F, t, isfar, "jg")
+#define JNG(t, isfar)	   JCC(0x0E, t, isfar, "jng")
+#define JGE(t, isfar)	   JCC(0x0D, t, isfar, "jge")
+#define JNGE(t, isfar)   JCC(0x0C, t, isfar, "jnge")
 
-#define JC(t)   JCC(0x02, t, "jc")
-#define JNC(t)  JCC(0x03, t, "jnc")
-#define JO(t)   JCC(0x00, t, "jo")
-#define JNO(t)  JCC(0x01, t, "jno")
+#define JC(t, isfar)     JCC(0x02, t, isfar, "jc")
+#define JNC(t, isfar)    JCC(0x03, t, isfar, "jnc")
+#define JO(t, isfar)     JCC(0x00, t, isfar, "jo")
+#define JNO(t, isfar)    JCC(0x01, t, isfar, "jno")
 
 // sse instructions 
 #define SSE(c,d,s)  \
@@ -497,7 +570,7 @@ namespace nanojit
     *(--_nIns) = 0x10;\
     *(--_nIns) = 0x0f;\
     *(--_nIns) = 0xf2;\
-    asm_output3("movsd %s,%p // =%f",gpn(r),daddr,*daddr); \
+    asm_output3("movsd %s,(#%p) // =%f",gpn(r),(void*)daddr,*daddr); \
     } while(0)
 
 #define STSD(d,b,r)do {     \
@@ -539,61 +612,70 @@ namespace nanojit
     } while(0)
 
 #define SSE_MOVSD(rd,rs) do{ \
+    NanoAssert(_is_xmm_reg_(rd) && _is_xmm_reg_(rs));\
     SSE(0xf20f10, (rd)&7, (rs)&7); \
     asm_output2("movsd %s,%s",gpn(rd),gpn(rs)); \
     } while(0)
 
 #define SSE_MOVDm(d,b,xrs) do {\
+    NanoAssert(_is_xmm_reg_(xrs) && _is_gp_reg_(b));\
     SSEm(0x660f7e, (xrs)&7, d, b);\
     asm_output3("movd %d(%s),%s", d, gpn(b), gpn(xrs));\
     } while(0)
 
 #define SSE_ADDSD(rd,rs) do{ \
+    NanoAssert(_is_xmm_reg_(rd) && _is_xmm_reg_(rs));\
     SSE(0xf20f58, (rd)&7, (rs)&7); \
     asm_output2("addsd %s,%s",gpn(rd),gpn(rs)); \
     } while(0)
 
 #define SSE_ADDSDm(r,addr)do {     \
     underrunProtect(8); \
+    NanoAssert(_is_xmm_reg_(r));\
 	const double* daddr = addr; \
     IMM32(int32_t(daddr));\
     *(--_nIns) = uint8_t(((r)&7)<<3|5); \
     *(--_nIns) = 0x58;\
     *(--_nIns) = 0x0f;\
     *(--_nIns) = 0xf2;\
-    asm_output3("addsd %s,%p // =%f",gpn(r),daddr,*daddr); \
+    asm_output3("addsd %s,%p // =%f",gpn(r),(void*)daddr,*daddr); \
     } while(0)
 
 #define SSE_SUBSD(rd,rs) do{ \
+    NanoAssert(_is_xmm_reg_(rd) && _is_xmm_reg_(rs));\
     SSE(0xf20f5c, (rd)&7, (rs)&7); \
     asm_output2("subsd %s,%s",gpn(rd),gpn(rs)); \
     } while(0)
 #define SSE_MULSD(rd,rs) do{ \
+    NanoAssert(_is_xmm_reg_(rd) && _is_xmm_reg_(rs));\
     SSE(0xf20f59, (rd)&7, (rs)&7); \
     asm_output2("mulsd %s,%s",gpn(rd),gpn(rs)); \
     } while(0)
 #define SSE_DIVSD(rd,rs) do{ \
+    NanoAssert(_is_xmm_reg_(rd) && _is_xmm_reg_(rs));\
     SSE(0xf20f5e, (rd)&7, (rs)&7); \
     asm_output2("divsd %s,%s",gpn(rd),gpn(rs)); \
     } while(0)
 #define SSE_UCOMISD(rl,rr) do{ \
+    NanoAssert(_is_xmm_reg_(rl) && _is_xmm_reg_(rr));\
     SSE(0x660f2e, (rl)&7, (rr)&7); \
     asm_output2("ucomisd %s,%s",gpn(rl),gpn(rr)); \
     } while(0)
 
 #define CVTSI2SDm(xr,d,b) do{ \
+    NanoAssert(_is_xmm_reg_(xr) && _is_gp_reg_(b));\
     SSEm(0xf20f2a, (xr)&7, (d), (b)); \
     asm_output3("cvtsi2sd %s,%d(%s)",gpn(xr),(d),gpn(b)); \
     } while(0)
 
 #define SSE_XORPD(r, maskaddr) do {\
-    underrunProtect(8); \
+	underrunProtect(8); \
     IMM32(maskaddr);\
     *(--_nIns) = uint8_t(((r)&7)<<3|5); \
     *(--_nIns) = 0x57;\
     *(--_nIns) = 0x0f;\
     *(--_nIns) = 0x66;\
-    asm_output2("xorpd %s,[0x%p]",gpn(r),(maskaddr));\
+    asm_output2("xorpd %s,[0x%p]",gpn(r),(void*)(maskaddr));\
     } while(0)
 
 #define SSE_XORPDr(rd,rs) do{ \
@@ -657,6 +739,7 @@ namespace nanojit
 #define FLDr(r)		do { FPU(0xd9c0,r);				asm_output1("fld %s",fpn(r)); fpu_push(); } while(0)
 #define EMMS()		do { FPUc(0x0f77);				asm_output("emms"); } while (0)
 
+// standard direct call
 #define CALL(c)	do { \
   underrunProtect(5);					\
   int offset = (c->_address) - ((int)_nIns); \
@@ -665,6 +748,15 @@ namespace nanojit
   verbose_only(asm_output1("call %s",(c->_name));) \
   debug_only(if ((c->_argtypes&3)==ARGSIZE_F) fpu_push();)\
 } while (0)
+
+// indirect call thru register
+#define CALLr(c,r)	do { \
+  underrunProtect(2);\
+  ALU(0xff, 2, (r));\
+  verbose_only(asm_output1("call %s",gpn(r));) \
+  debug_only(if ((c->_argtypes&3)==ARGSIZE_F) fpu_push();)\
+} while (0)
+
 
 }
 #endif // __nanojit_Nativei386__

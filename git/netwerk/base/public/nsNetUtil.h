@@ -1443,46 +1443,6 @@ NS_GetFinalChannelURI(nsIChannel* channel, nsIURI** uri)
     return channel->GetOriginalURI(uri);
 }
 
-/**
- * Checks whether a document at the given URI should have access
- * to the offline cache.
- * @param uri
- *        The URI to check
- * @param prefBranch
- *        The pref branch to use to check the
- *        offline-apps.allow_by_default pref.  If not specified,
- *        the pref service will be used.
- */
-inline PRBool
-NS_OfflineAppAllowed(nsIURI *aURI, nsIPrefBranch *aPrefBranch = nsnull)
-{
-    nsresult rv;
-    nsCOMPtr<nsINetUtil_MOZILLA_1_9_1> util = do_GetIOService(&rv);
-    NS_ENSURE_SUCCESS(rv, PR_FALSE);
-
-    PRBool allowed;
-    rv = util->OfflineAppAllowed(aURI, aPrefBranch, &allowed);
-    NS_ENSURE_SUCCESS(rv, PR_FALSE);
-
-    return allowed;
-}
-
-static inline PRInt32
-GetEffectivePort(nsIURI* aURI)
-{
-    PRInt32 port;
-
-    nsCOMPtr<nsIURI> baseURI = NS_GetInnermostURI(aURI);
-    if (NS_SUCCEEDED(baseURI->GetPort(&port)) && port != -1)
-        return port;
-
-    nsCAutoString scheme;
-    if (NS_FAILED(baseURI->GetScheme(scheme)))
-        return -1;
-
-    return NS_GetDefaultPort(scheme.get());
-}
-
 // NS_SecurityHashURI must return the same hash value for any two URIs that
 // compare equal according to NS_SecurityCompareURIs.  Unfortunately, in the
 // case of files, it's not clear we can do anything better than returning
@@ -1518,7 +1478,7 @@ NS_SecurityHashURI(nsIURI* aURI)
         hostHash = nsCRT::HashCode(host.get());
 
     // XOR to combine hash values
-    return schemeHash ^ hostHash ^ GetEffectivePort(aURI);
+    return schemeHash ^ hostHash ^ NS_GetRealPort(baseURI);
 }
 
 inline PRBool
@@ -1618,7 +1578,7 @@ NS_SecurityCompareURIs(nsIURI* aSourceURI,
         return PR_FALSE;
     }
 
-    return GetEffectivePort(targetBaseURI) == GetEffectivePort(sourceBaseURI);
+    return NS_GetRealPort(targetBaseURI) == NS_GetRealPort(sourceBaseURI);
 }
 
 #endif // !nsNetUtil_h__

@@ -80,7 +80,7 @@ public:
                                nsIAtom*        aAttribute,
                                PRInt32         aModType);
 
-  virtual void DidSetStyleContext();
+  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
 
   /**
    * Get the "type" of the frame
@@ -101,7 +101,8 @@ public:
 
 protected:
   // nsISVGChildFrame interface:
-  NS_IMETHOD PaintSVG(nsSVGRenderState *aContext, nsIntRect *aDirtyRect);
+  NS_IMETHOD PaintSVG(nsSVGRenderState *aContext,
+                      const nsIntRect *aDirtyRect);
   NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint &aPoint);
   NS_IMETHOD_(nsRect) GetCoveredRegion();
   NS_IMETHOD UpdateCoveredRegion();
@@ -111,8 +112,6 @@ protected:
   NS_IMETHOD NotifyRedrawUnsuspended();
   NS_IMETHOD SetMatrixPropagation(PRBool aPropagate);
   virtual PRBool GetMatrixPropagation();
-  NS_IMETHOD SetOverrideCTM(nsIDOMSVGMatrix *aCTM);
-  virtual already_AddRefed<nsIDOMSVGMatrix> GetOverrideCTM();
   NS_IMETHOD GetBBox(nsIDOMSVGRect **_retval);
   NS_IMETHOD_(PRBool) IsDisplayContainer() { return PR_FALSE; }
   NS_IMETHOD_(PRBool) HasValidCoveredRect() { return PR_TRUE; }
@@ -123,18 +122,6 @@ protected:
 private:
   void Render(nsSVGRenderState *aContext);
   void GeneratePath(gfxContext *aContext);
-
-  /*
-   * Check for what cairo returns for the fill extents of a degenerate path
-   *
-   * @return PR_TRUE if the path is degenerate
-   */
-  static PRBool
-  IsDegeneratePath(const gfxRect& rect)
-  {
-    return (rect.X() == 0 && rect.Y() == 0 &&
-            rect.Width() == 0 && rect.Height() == 0);
-  }
 
   struct MarkerProperties {
     nsSVGMarkerProperty* mMarkerStart;
@@ -154,8 +141,6 @@ private:
    * @param aFrame should be the first continuation
    */
   static MarkerProperties GetMarkerProperties(nsSVGPathGeometryFrame *aFrame);
-
-  nsCOMPtr<nsIDOMSVGMatrix> mOverrideCTM;
 };
 
 #endif // __NS_SVGPATHGEOMETRYFRAME_H__

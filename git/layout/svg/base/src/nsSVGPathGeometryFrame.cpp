@@ -84,9 +84,9 @@ nsSVGPathGeometryFrame::AttributeChanged(PRInt32         aNameSpaceID,
 }
 
 /* virtual */ void
-nsSVGPathGeometryFrame::DidSetStyleContext()
+nsSVGPathGeometryFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
 {
-  nsSVGPathGeometryFrameBase::DidSetStyleContext();
+  nsSVGPathGeometryFrameBase::DidSetStyleContext(aOldStyleContext);
 
   nsSVGOuterSVGFrame *outerSVGFrame = nsSVGUtils::GetOuterSVGFrame(this);
   if (outerSVGFrame) {
@@ -114,7 +114,7 @@ nsSVGPathGeometryFrame::GetType() const
 
 NS_IMETHODIMP
 nsSVGPathGeometryFrame::PaintSVG(nsSVGRenderState *aContext,
-                                 nsIntRect *aDirtyRect)
+                                 const nsIntRect *aDirtyRect)
 {
   if (!GetStyleVisibility()->IsVisible())
     return NS_OK;
@@ -253,28 +253,32 @@ nsSVGPathGeometryFrame::UpdateCoveredRegion()
 
   gfxContext context(nsSVGUtils::GetThebesComputationalSurface());
 
-  GeneratePath(&context);
+  static_cast<nsSVGPathGeometryElement*>(mContent)->ConstructPath(&context);
 
   gfxRect extent;
 
   if (SetupCairoStrokeGeometry(&context)) {
     extent = context.GetUserStrokeExtent();
-    if (!IsDegeneratePath(extent)) {
-      extent = context.UserToDevice(extent);
-      mRect = nsSVGUtils::ToAppPixelRect(PresContext(),extent);
-    }
-  } else {
-    context.IdentityMatrix();
+  } else if (GetStyleSVG()->mFill.mType != eStyleSVGPaintType_None) {
     extent = context.GetUserPathExtent();
-    if (!IsDegeneratePath(extent)) {
-      mRect = nsSVGUtils::ToAppPixelRect(PresContext(),extent);
-    }
+  } else {
+    extent = gfxRect(0, 0, 0, 0);
+  }
+
+  if (!extent.IsEmpty()) {
+    nsCOMPtr<nsIDOMSVGMatrix> ctm;
+    GetCanvasTM(getter_AddRefs(ctm));
+    NS_ASSERTION(ctm, "graphic source didn't specify a ctm");
+
+    gfxMatrix matrix = nsSVGUtils::ConvertSVGMatrixToThebes(ctm);
+
+    extent = matrix.TransformBounds(extent);
+    mRect = nsSVGUtils::ToAppPixelRect(PresContext(), extent);
   }
 
   // Add in markers
   mRect = GetCoveredRegion();
 
-  nsSVGUtils::UpdateFilterRegion(this);
   return NS_OK;
 }
 
@@ -338,21 +342,6 @@ nsSVGPathGeometryFrame::GetMatrixPropagation()
 }
 
 NS_IMETHODIMP
-nsSVGPathGeometryFrame::SetOverrideCTM(nsIDOMSVGMatrix *aCTM)
-{
-  mOverrideCTM = aCTM;
-  return NS_OK;
-}
-
-already_AddRefed<nsIDOMSVGMatrix>
-nsSVGPathGeometryFrame::GetOverrideCTM()
-{
-  nsIDOMSVGMatrix *matrix = mOverrideCTM.get();
-  NS_IF_ADDREF(matrix);
-  return matrix;
-}
-
-NS_IMETHODIMP
 nsSVGPathGeometryFrame::GetBBox(nsIDOMSVGRect **_retval)
 {
   gfxContext context(nsSVGUtils::GetThebesComputationalSurface());
@@ -373,11 +362,6 @@ nsSVGPathGeometryFrame::GetCanvasTM(nsIDOMSVGMatrix * *aCTM)
   *aCTM = nsnull;
 
   if (!GetMatrixPropagation()) {
-    if (mOverrideCTM) {
-      *aCTM = mOverrideCTM;
-      NS_ADDREF(*aCTM);
-      return NS_OK;
-    }
     return NS_NewSVGMatrix(aCTM);
   }
 

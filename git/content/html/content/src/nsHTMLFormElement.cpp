@@ -88,6 +88,7 @@
 #include "nsEventDispatcher.h"
 
 #include "mozAutoDocUpdate.h"
+#include "nsIHTMLCollection.h"
 
 static const int NS_FORM_CONTROL_LIST_HASHTABLE_SIZE = 16;
 
@@ -348,7 +349,7 @@ PRBool nsHTMLFormElement::gPasswordManagerInitialized = PR_FALSE;
 
 // nsFormControlList
 class nsFormControlList : public nsIDOMNSHTMLFormControlList,
-                          public nsIDOMHTMLCollection
+                          public nsIHTMLCollection
 {
 public:
   nsFormControlList(nsHTMLFormElement* aForm);
@@ -366,6 +367,21 @@ public:
   // nsIDOMNSHTMLFormControlList interface
   NS_DECL_NSIDOMNSHTMLFORMCONTROLLIST
 
+  virtual nsISupports* GetNodeAt(PRUint32 aIndex, nsresult* aResult)
+  {
+    FlushPendingNotifications();
+
+    *aResult = NS_OK;
+
+    return mElements.SafeElementAt(aIndex, nsnull);
+  }
+  virtual nsISupports* GetNamedItem(const nsAString& aName, nsresult* aResult)
+  {
+    *aResult = NS_OK;
+
+    return NamedItemInternal(aName, PR_TRUE);
+  }
+
   nsresult AddElementToTable(nsIFormControl* aChild,
                              const nsAString& aName);
   nsresult RemoveElementFromTable(nsIFormControl* aChild,
@@ -373,8 +389,7 @@ public:
   nsresult IndexOfControl(nsIFormControl* aControl,
                           PRInt32* aIndex);
 
-  void NamedItemInternal(const nsAString& aName, PRBool aFlushContent,
-                         nsISupports **aResult);
+  nsISupports* NamedItemInternal(const nsAString& aName, PRBool aFlushContent);
   
   /**
    * Create a sorted list of form control elements. This list is sorted
@@ -398,8 +413,7 @@ public:
 
   nsTArray<nsIFormControl*> mNotInElements; // Holds WEAK references
 
-  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsFormControlList,
-                                           nsIDOMHTMLCollection)
+  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsFormControlList, nsIHTMLCollection)
 
 protected:
   // Drop all our references to the form elements
@@ -551,14 +565,15 @@ NS_IMPL_RELEASE_INHERITED(nsHTMLFormElement, nsGenericElement)
 
 
 // QueryInterface implementation for nsHTMLFormElement
-NS_HTML_CONTENT_CC_INTERFACE_TABLE_HEAD(nsHTMLFormElement,
-                                        nsGenericHTMLElement)
-  NS_INTERFACE_TABLE_INHERITED5(nsHTMLFormElement,
-                                nsIDOMHTMLFormElement,
-                                nsIDOMNSHTMLFormElement,
-                                nsIForm,
-                                nsIWebProgressListener,
-                                nsIRadioGroupContainer)
+NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLFormElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE5(nsHTMLFormElement,
+                                   nsIDOMHTMLFormElement,
+                                   nsIDOMNSHTMLFormElement,
+                                   nsIForm,
+                                   nsIWebProgressListener,
+                                   nsIRadioGroupContainer)
+  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLFormElement,
+                                               nsGenericHTMLElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLFormElement)
 
 
@@ -1538,8 +1553,8 @@ already_AddRefed<nsISupports>
 nsHTMLFormElement::DoResolveName(const nsAString& aName,
                                  PRBool aFlushContent)
 {
-  nsISupports *result = nsnull;
-  mControls->NamedItemInternal(aName, aFlushContent, &result);
+  nsISupports *result;
+  NS_IF_ADDREF(result = mControls->NamedItemInternal(aName, aFlushContent));
   return result;
 }
 
@@ -2112,7 +2127,8 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 // XPConnect interface list for nsFormControlList
 NS_INTERFACE_TABLE_HEAD(nsFormControlList)
-  NS_INTERFACE_TABLE2(nsFormControlList,
+  NS_INTERFACE_TABLE3(nsFormControlList,
+                      nsIHTMLCollection,
                       nsIDOMHTMLCollection,
                       nsIDOMNSHTMLFormControlList)
   NS_INTERFACE_TABLE_TO_MAP_SEGUE_CYCLE_COLLECTION(nsFormControlList)
@@ -2120,10 +2136,8 @@ NS_INTERFACE_TABLE_HEAD(nsFormControlList)
 NS_INTERFACE_MAP_END
 
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsFormControlList,
-                                          nsIDOMHTMLCollection)
-NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsFormControlList,
-                                           nsIDOMHTMLCollection)
+NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsFormControlList, nsIHTMLCollection)
+NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsFormControlList, nsIHTMLCollection)
 
 
 // nsIDOMHTMLCollection interface
@@ -2139,14 +2153,15 @@ nsFormControlList::GetLength(PRUint32* aLength)
 NS_IMETHODIMP
 nsFormControlList::Item(PRUint32 aIndex, nsIDOMNode** aReturn)
 {
-  FlushPendingNotifications();
+  nsresult rv;
+  nsISupports* item = GetNodeAt(aIndex, &rv);
+  if (!item) {
+    *aReturn = nsnull;
 
-  if (aIndex < mElements.Length()) {
-    return CallQueryInterface(mElements[aIndex], aReturn);
+    return rv;
   }
 
-  *aReturn = nsnull;
-  return NS_OK;
+  return CallQueryInterface(item, aReturn);
 }
 
 NS_IMETHODIMP 
@@ -2188,20 +2203,19 @@ NS_IMETHODIMP
 nsFormControlList::NamedItem(const nsAString& aName,
                              nsISupports** aReturn)
 {
-  NamedItemInternal(aName, PR_TRUE, aReturn);
+  NS_IF_ADDREF(*aReturn = NamedItemInternal(aName, PR_TRUE));
   return NS_OK;
 }
 
-void
+nsISupports*
 nsFormControlList::NamedItemInternal(const nsAString& aName,
-                                     PRBool aFlushContent,
-                                     nsISupports** aReturn)
+                                     PRBool aFlushContent)
 {
   if (aFlushContent) {
     FlushPendingNotifications();
   }
 
-  mNameLookupTable.Get(aName, aReturn);
+  return mNameLookupTable.GetWeak(aName);
 }
 
 nsresult

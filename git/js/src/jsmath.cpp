@@ -115,7 +115,7 @@ math_abs(JSContext *cx, uintN argc, jsval *vp)
     x = js_ValueToNumber(cx, &vp[2]);
     if (JSVAL_IS_NULL(vp[2]))
         return JS_FALSE;
-    z = fd_fabs(x);
+    z = fabs(x);
     return js_NewNumberInRootedValue(cx, z, vp);
 }
 
@@ -131,13 +131,13 @@ math_acos(JSContext *cx, uintN argc, jsval *vp)
     x = js_ValueToNumber(cx, &vp[2]);
     if (JSVAL_IS_NULL(vp[2]))
         return JS_FALSE;
-#if !JS_USE_FDLIBM_MATH && defined(SOLARIS) && defined(__GNUC__)
+#if defined(SOLARIS) && defined(__GNUC__)
     if (x < -1 || 1 < x) {
         *vp = DOUBLE_TO_JSVAL(cx->runtime->jsNaN);
         return JS_TRUE;
     }
 #endif
-    z = fd_acos(x);
+    z = acos(x);
     return js_NewNumberInRootedValue(cx, z, vp);
 }
 
@@ -153,13 +153,13 @@ math_asin(JSContext *cx, uintN argc, jsval *vp)
     x = js_ValueToNumber(cx, &vp[2]);
     if (JSVAL_IS_NULL(vp[2]))
         return JS_FALSE;
-#if !JS_USE_FDLIBM_MATH && defined(SOLARIS) && defined(__GNUC__)
+#if defined(SOLARIS) && defined(__GNUC__)
     if (x < -1 || 1 < x) {
         *vp = DOUBLE_TO_JSVAL(cx->runtime->jsNaN);
         return JS_TRUE;
     }
 #endif
-    z = fd_asin(x);
+    z = asin(x);
     return js_NewNumberInRootedValue(cx, z, vp);
 }
 
@@ -175,7 +175,7 @@ math_atan(JSContext *cx, uintN argc, jsval *vp)
     x = js_ValueToNumber(cx, &vp[2]);
     if (JSVAL_IS_NULL(vp[2]))
         return JS_FALSE;
-    z = fd_atan(x);
+    z = atan(x);
     return js_NewNumberInRootedValue(cx, z, vp);
 }
 
@@ -203,17 +203,17 @@ math_atan2(JSContext *cx, uintN argc, jsval *vp)
      * - The sign of y determines the multiplicator, 1 or 3.
      */
     if (JSDOUBLE_IS_INFINITE(x) && JSDOUBLE_IS_INFINITE(y)) {
-        z = fd_copysign(M_PI / 4, x);
+        z = js_copysign(M_PI / 4, x);
         if (y < 0)
             z *= 3;
         return js_NewDoubleInRootedValue(cx, z, vp);
     }
 #endif
 
-#if !JS_USE_FDLIBM_MATH && defined(SOLARIS) && defined(__GNUC__)
+#if defined(SOLARIS) && defined(__GNUC__)
     if (x == 0) {
         if (JSDOUBLE_IS_NEGZERO(y)) {
-            z = fd_copysign(M_PI, x);
+            z = js_copysign(M_PI, x);
             return js_NewDoubleInRootedValue(cx, z, vp);
         }
         if (y == 0) {
@@ -222,7 +222,7 @@ math_atan2(JSContext *cx, uintN argc, jsval *vp)
         }
     }
 #endif
-    z = fd_atan2(x, y);
+    z = atan2(x, y);
     return js_NewNumberInRootedValue(cx, z, vp);
 }
 
@@ -238,7 +238,7 @@ math_ceil(JSContext *cx, uintN argc, jsval *vp)
     x = js_ValueToNumber(cx, &vp[2]);
     if (JSVAL_IS_NULL(vp[2]))
         return JS_FALSE;
-    z = fd_ceil(x);
+    z = ceil(x);
     return js_NewNumberInRootedValue(cx, z, vp);
 }
 
@@ -254,7 +254,7 @@ math_cos(JSContext *cx, uintN argc, jsval *vp)
     x = js_ValueToNumber(cx, &vp[2]);
     if (JSVAL_IS_NULL(vp[2]))
         return JS_FALSE;
-    z = fd_cos(x);
+    z = cos(x);
     return js_NewNumberInRootedValue(cx, z, vp);
 }
 
@@ -282,7 +282,7 @@ math_exp(JSContext *cx, uintN argc, jsval *vp)
         }
     }
 #endif
-    z = fd_exp(x);
+    z = exp(x);
     return js_NewNumberInRootedValue(cx, z, vp);
 }
 
@@ -298,7 +298,7 @@ math_floor(JSContext *cx, uintN argc, jsval *vp)
     x = js_ValueToNumber(cx, &vp[2]);
     if (JSVAL_IS_NULL(vp[2]))
         return JS_FALSE;
-    z = fd_floor(x);
+    z = floor(x);
     return js_NewNumberInRootedValue(cx, z, vp);
 }
 
@@ -314,13 +314,13 @@ math_log(JSContext *cx, uintN argc, jsval *vp)
     x = js_ValueToNumber(cx, &vp[2]);
     if (JSVAL_IS_NULL(vp[2]))
         return JS_FALSE;
-#if !JS_USE_FDLIBM_MATH && defined(SOLARIS) && defined(__GNUC__)
+#if defined(SOLARIS) && defined(__GNUC__)
     if (x < 0) {
         *vp = DOUBLE_TO_JSVAL(cx->runtime->jsNaN);
         return JS_TRUE;
     }
 #endif
-    z = fd_log(x);
+    z = log(x);
     return js_NewNumberInRootedValue(cx, z, vp);
 }
 
@@ -344,16 +344,12 @@ math_max(JSContext *cx, uintN argc, jsval *vp)
             *vp = DOUBLE_TO_JSVAL(cx->runtime->jsNaN);
             return JS_TRUE;
         }
-        if (x == 0 && x == z && fd_copysign(1.0, z) == -1)
-            z = x;
-        else
-            /* 
-             * Note: it is essential that you write the ternary expression
-             * here such that the false branch produces z not x, as the case
-             * of x=-0, z=0, for which we wind up in this expression but
-             * evaluate either > order as false, whether we do x>z *or* z>x.
-             */
+        if (x == 0 && x == z) {
+            if (js_copysign(1.0, z) == -1)
+                z = x;
+        } else {
             z = (x > z) ? x : z;
+        }
     }
     return js_NewNumberInRootedValue(cx, z, vp);
 }
@@ -378,10 +374,12 @@ math_min(JSContext *cx, uintN argc, jsval *vp)
             *vp = DOUBLE_TO_JSVAL(cx->runtime->jsNaN);
             return JS_TRUE;
         }
-        if (x == 0 && x == z && fd_copysign(1.0,x) == -1)
-            z = x;
-        else
+        if (x == 0 && x == z) {
+            if (js_copysign(1.0, x) == -1)
+                z = x;
+        } else {
             z = (x < z) ? x : z;
+        }
     }
     return js_NewNumberInRootedValue(cx, z, vp);
 }
@@ -414,7 +412,7 @@ math_pow(JSContext *cx, uintN argc, jsval *vp)
         *vp = JSVAL_ONE;
         return JS_TRUE;
     }
-    z = fd_pow(x, y);
+    z = pow(x, y);
     return js_NewNumberInRootedValue(cx, z, vp);
 }
 
@@ -532,7 +530,7 @@ math_round(JSContext *cx, uintN argc, jsval *vp)
     x = js_ValueToNumber(cx, &vp[2]);
     if (JSVAL_IS_NULL(vp[2]))
         return JS_FALSE;
-    z = fd_copysign(fd_floor(x + 0.5), x);
+    z = js_copysign(floor(x + 0.5), x);
     return js_NewNumberInRootedValue(cx, z, vp);
 }
 
@@ -548,7 +546,7 @@ math_sin(JSContext *cx, uintN argc, jsval *vp)
     x = js_ValueToNumber(cx, &vp[2]);
     if (JSVAL_IS_NULL(vp[2]))
         return JS_FALSE;
-    z = fd_sin(x);
+    z = sin(x);
     return js_NewNumberInRootedValue(cx, z, vp);
 }
 
@@ -564,7 +562,7 @@ math_sqrt(JSContext *cx, uintN argc, jsval *vp)
     x = js_ValueToNumber(cx, &vp[2]);
     if (JSVAL_IS_NULL(vp[2]))
         return JS_FALSE;
-    z = fd_sqrt(x);
+    z = sqrt(x);
     return js_NewNumberInRootedValue(cx, z, vp);
 }
 
@@ -580,7 +578,7 @@ math_tan(JSContext *cx, uintN argc, jsval *vp)
     x = js_ValueToNumber(cx, &vp[2]);
     if (JSVAL_IS_NULL(vp[2]))
         return JS_FALSE;
-    z = fd_tan(x);
+    z = tan(x);
     return js_NewNumberInRootedValue(cx, z, vp);
 }
 
@@ -596,10 +594,9 @@ math_toSource(JSContext *cx, uintN argc, jsval *vp)
 #ifdef JS_TRACER
 
 #define MATH_BUILTIN_1(name)                                                  \
-    jsdouble FASTCALL js_Math_##name(jsdouble d) { return name(d); }          \
-    JS_DEFINE_CALLINFO_1(DOUBLE, Math_##name, DOUBLE, 1, 1)                   \
-    static const JSTraceableNative math_##name##_trcinfo =                    \
-        { math_##name, &ci_Math_##name, "", "d", INFALLIBLE };
+    static jsdouble FASTCALL math_##name##_tn(jsdouble d) { return name(d); } \
+    JS_DEFINE_TRCINFO_1(math_##name,                                          \
+        (1, (static, DOUBLE, math_##name##_tn, DOUBLE, 1, 1)))
 
 MATH_BUILTIN_1(sin)
 MATH_BUILTIN_1(cos)
@@ -607,29 +604,38 @@ MATH_BUILTIN_1(sqrt)
 MATH_BUILTIN_1(floor)
 MATH_BUILTIN_1(ceil)
 
-jsdouble FASTCALL
-js_Math_log(jsdouble d)
+static jsdouble FASTCALL
+math_abs_tn(jsdouble d)
 {
-#if !JS_USE_FDLIBM_MATH && defined(SOLARIS) && defined(__GNUC__)
+    return fabs(d);
+}
+
+static jsdouble FASTCALL
+math_log_tn(jsdouble d)
+{
+#if defined(SOLARIS) && defined(__GNUC__)
     if (d < 0)
         return js_NaN;
 #endif
     return log(d);
 }
 
-jsdouble FASTCALL
-js_Math_max(jsdouble d, jsdouble p)
+static jsdouble FASTCALL
+math_max_tn(jsdouble d, jsdouble p)
 {
     if (JSDOUBLE_IS_NaN(d) || JSDOUBLE_IS_NaN(p))
         return js_NaN;
 
-    if (p == 0 && p == d && fd_copysign(1.0, d) == -1)
-        return p;
-    return (d > p) ? d : p;
+    if (p == 0 && p == d) {
+        if (js_copysign(1.0, d) == -1)
+            return p;
+        return d;
+    }
+    return (p > d) ? p : d;
 }
 
-jsdouble FASTCALL
-js_Math_pow(jsdouble d, jsdouble p)
+static jsdouble FASTCALL
+math_pow_tn(jsdouble d, jsdouble p)
 {
     if (!JSDOUBLE_IS_FINITE(p) && (d == 1.0 || d == -1.0))
         return js_NaN;
@@ -638,8 +644,8 @@ js_Math_pow(jsdouble d, jsdouble p)
     return pow(d, p);
 }
 
-jsdouble FASTCALL
-js_Math_random(JSRuntime* rt)
+static jsdouble FASTCALL
+math_random_tn(JSRuntime* rt)
 {
     JS_LOCK_RUNTIME(rt);
     js_random_init(rt);
@@ -648,19 +654,24 @@ js_Math_random(JSRuntime* rt)
     return z;
 }
 
-JS_DEFINE_CALLINFO_1(DOUBLE, Math_log,    DOUBLE,          1, 1)
-JS_DEFINE_CALLINFO_2(DOUBLE, Math_max,    DOUBLE, DOUBLE,  1, 1)
-JS_DEFINE_CALLINFO_2(DOUBLE, Math_pow,    DOUBLE, DOUBLE,  1, 1)
-JS_DEFINE_CALLINFO_1(DOUBLE, Math_random, RUNTIME,         0, 0)
+static jsdouble FASTCALL
+math_round_tn(jsdouble x)
+{
+    return js_copysign(floor(x + 0.5), x);
+}
 
-static const JSTraceableNative math_log_trcinfo =
-    { math_log,    &ci_Math_log,    "",    "d",    INFALLIBLE };
-static const JSTraceableNative math_max_trcinfo =
-    { math_max,    &ci_Math_max,    "",    "dd",   INFALLIBLE };
-static const JSTraceableNative math_pow_trcinfo =
-    { math_pow,    &ci_Math_pow,    "",    "dd",   INFALLIBLE };
-static const JSTraceableNative math_random_trcinfo =
-    { math_random, &ci_Math_random, "R",   "",     INFALLIBLE };
+JS_DEFINE_TRCINFO_1(math_abs,
+    (1, (static, DOUBLE, math_abs_tn, DOUBLE,           1, 1)))
+JS_DEFINE_TRCINFO_1(math_log,
+    (1, (static, DOUBLE, math_log_tn, DOUBLE,           1, 1)))
+JS_DEFINE_TRCINFO_1(math_max,
+    (2, (static, DOUBLE, math_max_tn, DOUBLE, DOUBLE,   1, 1)))
+JS_DEFINE_TRCINFO_1(math_pow,
+    (2, (static, DOUBLE, math_pow_tn, DOUBLE, DOUBLE,   1, 1)))
+JS_DEFINE_TRCINFO_1(math_random,
+    (1, (static, DOUBLE, math_random_tn, RUNTIME,       0, 0)))
+JS_DEFINE_TRCINFO_1(math_round,
+    (1, (static, DOUBLE, math_round_tn, DOUBLE,         1, 1)))
 
 #endif /* JS_TRACER */
 
@@ -668,23 +679,23 @@ static JSFunctionSpec math_static_methods[] = {
 #if JS_HAS_TOSOURCE
     JS_FN(js_toSource_str,  math_toSource,        0, 0),
 #endif
-    JS_FN("abs",            math_abs,             1, 0),
+    JS_TN("abs",            math_abs,             1, 0, math_abs_trcinfo),
     JS_FN("acos",           math_acos,            1, 0),
     JS_FN("asin",           math_asin,            1, 0),
     JS_FN("atan",           math_atan,            1, 0),
     JS_FN("atan2",          math_atan2,           2, 0),
-    JS_TN("ceil",           math_ceil,            1, 0, &math_ceil_trcinfo),
-    JS_TN("cos",            math_cos,             1, 0, &math_cos_trcinfo),
+    JS_TN("ceil",           math_ceil,            1, 0, math_ceil_trcinfo),
+    JS_TN("cos",            math_cos,             1, 0, math_cos_trcinfo),
     JS_FN("exp",            math_exp,             1, 0),
-    JS_TN("floor",          math_floor,           1, 0, &math_floor_trcinfo),
-    JS_TN("log",            math_log,             1, 0, &math_log_trcinfo),
-    JS_TN("max",            math_max,             2, 0, &math_max_trcinfo),
+    JS_TN("floor",          math_floor,           1, 0, math_floor_trcinfo),
+    JS_TN("log",            math_log,             1, 0, math_log_trcinfo),
+    JS_TN("max",            math_max,             2, 0, math_max_trcinfo),
     JS_FN("min",            math_min,             2, 0),
-    JS_TN("pow",            math_pow,             2, 0, &math_pow_trcinfo),
-    JS_TN("random",         math_random,          0, 0, &math_random_trcinfo),
-    JS_FN("round",          math_round,           1, 0),
-    JS_TN("sin",            math_sin,             1, 0, &math_sin_trcinfo),
-    JS_TN("sqrt",           math_sqrt,            1, 0, &math_sqrt_trcinfo),
+    JS_TN("pow",            math_pow,             2, 0, math_pow_trcinfo),
+    JS_TN("random",         math_random,          0, 0, math_random_trcinfo),
+    JS_TN("round",          math_round,           1, 0, math_round_trcinfo),
+    JS_TN("sin",            math_sin,             1, 0, math_sin_trcinfo),
+    JS_TN("sqrt",           math_sqrt,            1, 0, math_sqrt_trcinfo),
     JS_FN("tan",            math_tan,             1, 0),
     JS_FS_END
 };

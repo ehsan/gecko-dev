@@ -113,7 +113,6 @@
 #include "nsIDOMPkcs11.h"
 #include "nsIDOMOfflineResourceList.h"
 #include "nsIDOMGeoGeolocation.h"
-#include "nsIDOMThreads.h"
 #include "nsDOMString.h"
 #include "nsIEmbeddingSiteWindow2.h"
 #include "nsThreadUtils.h"
@@ -224,6 +223,10 @@ static PRUint32             gSerialCounter             = 0;
 
 #ifdef DEBUG_jst
 PRInt32 gTimeoutCnt                                    = 0;
+#endif
+
+#if !(defined(NS_DEBUG) || defined(MOZ_ENABLE_JS_DUMP))
+static PRBool               gDOMWindowDumpEnabled      = PR_FALSE;
 #endif
 
 #if defined(DEBUG_bryner) || defined(DEBUG_chb)
@@ -655,9 +658,21 @@ nsGlobalWindow::nsGlobalWindow(nsGlobalWindow *aOuterWindow)
   // We could have failed the first time through trying
   // to create the entropy collector, so we should
   // try to get one until we succeed.
-  if (gRefCnt++ == 0 || !gEntropyCollector) {
+
+  gRefCnt++;
+
+#if !(defined(NS_DEBUG) || defined(MOZ_ENABLE_JS_DUMP))
+  if (gRefCnt == 1) {
+    static const char* prefName = "browser.dom.window.dump.enabled";
+    nsContentUtils::AddBoolPrefVarCache(prefName, &gDOMWindowDumpEnabled);
+    gDOMWindowDumpEnabled = nsContentUtils::GetBoolPref(prefName);
+  }
+#endif
+
+  if (!gEntropyCollector) {
     CallGetService(NS_ENTROPYCOLLECTOR_CONTRACTID, &gEntropyCollector);
   }
+
 #ifdef DEBUG
   printf("++DOMWINDOW == %d (%p) [serial = %d] [outer = %p]\n", gRefCnt,
          static_cast<void*>(static_cast<nsIScriptGlobalObject*>(this)),
@@ -1001,13 +1016,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsGlobalWindow)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mDocumentPrincipal)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mDoc)
 
-  // Traverse any associated preserved wrappers.
-  {
-    if (tmp->mDoc) {
-      cb.NoteXPCOMChild(tmp->mDoc->GetReference(tmp));
-    }
-  }
-
   // Traverse stuff from nsPIDOMWindow
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mChromeEventHandler)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mDocument)
@@ -1039,12 +1047,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsGlobalWindow)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mSessionStorage)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mApplicationCache)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mDocumentPrincipal)
-
-  // Unlink any associated preserved wrapper.
-  if (tmp->mDoc) {
-    tmp->mDoc->RemoveReference(tmp);
-    NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mDoc)
-  }
 
   // Unlink stuff from nsPIDOMWindow
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mChromeEventHandler)
@@ -1667,6 +1669,11 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
 
     PRBool isChrome = PR_FALSE;
 
+    nsCxPusher cxPusher;
+    if (!cxPusher.Push(cx)) {
+      return NS_ERROR_FAILURE;
+    }
+
     JSAutoRequest ar(cx);
 
     // Make sure to clear scope on the outer window *before* we
@@ -2157,7 +2164,7 @@ nsGlobalWindow::SetOpenerWindow(nsIDOMWindowInternal* aOpener,
                "Shouldn't set mHadOriginalOpener if aOpener is null");
 
   mOpener = do_GetWeakReference(aOpener);
-  NS_ASSERTION(mOpener, "Opener must support weak references!");
+  NS_ASSERTION(mOpener || !aOpener, "Opener must support weak references!");
 
   if (aOriginalOpener) {
     mHadOriginalOpener = PR_TRUE;
@@ -2861,19 +2868,14 @@ nsGlobalWindow::GetApplicationCache(nsIDOMOfflineResourceList **aApplicationCach
     nsresult rv = webNav->GetCurrentURI(getter_AddRefs(uri));
     NS_ENSURE_SUCCESS(rv, rv);
 
+    nsCOMPtr<nsIDocument> doc = do_QueryInterface(mDocument);
     nsCOMPtr<nsIURI> manifestURI;
-    nsContentUtils::GetOfflineAppManifest(GetOuterWindowInternal(),
-                                          getter_AddRefs(manifestURI));
-
-    PRBool isToplevel;
-    nsCOMPtr<nsIDOMWindow> parentWindow;
-    GetParent(getter_AddRefs(parentWindow));
-    isToplevel = (parentWindow.get() == static_cast<nsIDOMWindow*>(GetOuterWindowInternal()));
+    nsContentUtils::GetOfflineAppManifest(doc, getter_AddRefs(manifestURI));
 
     nsDOMOfflineResourceList* applicationCache =
-      new nsDOMOfflineResourceList(isToplevel, manifestURI, uri, this);
+      new nsDOMOfflineResourceList(manifestURI, uri, this);
 
-    if (!applicationCache) 
+    if (!applicationCache)
         return NS_ERROR_OUT_OF_MEMORY;
 
     mApplicationCache = applicationCache;
@@ -3828,24 +3830,25 @@ nsGlobalWindow::GetFullScreen(PRBool* aFullScreen)
   return NS_OK;
 }
 
+PRBool
+nsGlobalWindow::DOMWindowDumpEnabled()
+{
+#if !(defined(NS_DEBUG) || defined(MOZ_ENABLE_JS_DUMP))
+  // In optimized builds we check a pref that controls if we should
+  // enable output from dump() or not, in debug builds it's always
+  // enabled.
+  return gDOMWindowDumpEnabled;
+#else
+  return PR_TRUE;
+#endif
+}
+
 NS_IMETHODIMP
 nsGlobalWindow::Dump(const nsAString& aStr)
 {
-#if !(defined(NS_DEBUG) || defined(MOZ_ENABLE_JS_DUMP))
-  {
-    // In optimized builds we check a pref that controls if we should
-    // enable output from dump() or not, in debug builds it's always
-    // enabled.
-
-    // if pref doesn't exist, disable dump output.
-    PRBool enable_dump =
-      nsContentUtils::GetBoolPref("browser.dom.window.dump.enabled");
-
-    if (!enable_dump) {
-      return NS_OK;
-    }
+  if (!DOMWindowDumpEnabled()) {
+    return NS_OK;
   }
-#endif
 
   char *cstr = ToNewUTF8String(aStr);
 
@@ -4597,7 +4600,7 @@ nsGlobalWindow::ScrollTo(PRInt32 aXScroll, PRInt32 aYScroll)
 
     result = view->ScrollTo(nsPresContext::CSSPixelsToAppUnits(aXScroll),
                             nsPresContext::CSSPixelsToAppUnits(aYScroll),
-                            NS_VMREFRESH_IMMEDIATE);
+                            0);
   }
 
   return result;
@@ -9441,20 +9444,5 @@ NS_IMETHODIMP nsNavigator::GetGeolocation(nsIDOMGeoGeolocation **_retval)
   }
 
   NS_IF_ADDREF(*_retval = mGeolocation);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsNavigator::NewWorkerPool(nsIDOMWorkerPool** _retval)
-{
-  nsCOMPtr<nsIDOMThreadService> threadService =
-    nsDOMThreadService::GetOrInitService();
-  NS_ENSURE_TRUE(threadService, NS_ERROR_OUT_OF_MEMORY);
-
-  nsCOMPtr<nsIDOMWorkerPool> newPool;
-  nsresult rv = threadService->CreatePool(getter_AddRefs(newPool));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  newPool.forget(_retval);
   return NS_OK;
 }

@@ -120,7 +120,7 @@ LIBIDL_VERSION=0.6.3
 PERL_VERSION=5.006
 LIBART_VERSION=2.3.4
 CAIRO_VERSION=1.6.0
-PANGO_VERSION=1.10.0
+PANGO_VERSION=1.14.0
 GTK2_VERSION=2.10.0
 MAKE_VERSION=3.78
 WINDRES_VERSION=2.14.90
@@ -132,7 +132,7 @@ LIBGNOME_VERSION=2.0
 STARTUP_NOTIFICATION_VERSION=0.8
 DBUS_VERSION=0.60
 LCMS_VERSION=1.17
-SQLITE_VERSION=3.5.4
+SQLITE_VERSION=3.6.4
 
 MSMANIFEST_TOOL=
 
@@ -681,7 +681,6 @@ AC_PATH_PROGS(PYTHON, $PYTHON python)
 if test -z "$PYTHON"; then
     AC_MSG_ERROR([python was not found in \$PATH])
 fi
-echo PYTHON="$PYTHON"
 
 AC_PATH_PROGS(NSINSTALL_BIN, nsinstall )
 if test -z "$COMPILE_ENVIRONMENT"; then
@@ -1148,7 +1147,7 @@ CYGWIN32_NT|CYGWIN_NT*|MINGW*_NT*)
     ;;
 AIX)
     OS_RELEASE=`uname -v`.`uname -r`
-    OS_TEST=`uname -p`
+    OS_TEST=${target_cpu}
     ;;
 BSD_386)
     OS_ARCH=BSD
@@ -1250,7 +1249,7 @@ case "$OS_TEST" in
     CPU_ARCH=x86
     ;;
 
-powerpc* | ppc)
+powerpc* | ppc | rs6000)
     CPU_ARCH=ppc
     ;;
 
@@ -1295,6 +1294,7 @@ if test "$GNU_CC"; then
     WARNINGS_AS_ERRORS='-Werror'
     DSO_CFLAGS=''
     DSO_PIC_CFLAGS='-fPIC'
+    ASFLAGS="$ASFLAGS -fPIC"
     _MOZ_RTTI_FLAGS_ON=${_COMPILER_PREFIX}-frtti
     _MOZ_RTTI_FLAGS_OFF=${_COMPILER_PREFIX}-fno-rtti
     _MOZ_EXCEPTIONS_FLAGS_ON='-fhandle-exceptions'
@@ -1620,15 +1620,15 @@ case "$target" in
         if test "$COMPILE_ENVIRONMENT"; then
             AC_LANG_SAVE
             AC_LANG_CPLUSPLUS
-            AC_MSG_CHECKING([for VisualAge C++ compiler version >= 5.0.2.0])
+            AC_MSG_CHECKING([for VisualAge C++ compiler version >= 6.0.0.3])
             AC_TRY_COMPILE([],
-                [#if (__IBMCPP__ < 502)
+                [#if (__IBMCPP__ < 600)
                  #error "Bad compiler"
                  #endif],
                 _BAD_COMPILER=,_BAD_COMPILER=1)
             if test -n "$_BAD_COMPILER"; then
                 AC_MSG_RESULT([no])    
-                AC_MSG_ERROR([VisualAge C++ version 5.0.2.0 or higher is required to build.])
+                AC_MSG_ERROR([VisualAge C++ version 6.0.0.3 or higher is required to build.])
             else
                 AC_MSG_RESULT([yes])    
             fi
@@ -1824,22 +1824,29 @@ case "$target" in
     ;;
 
 *-*linux*)
-    if test "$GNU_CC"; then
+    # Note: both GNU_CC and INTEL_CC are set when using Intel's C compiler.
+    # Similarly for GNU_CXX and INTEL_CXX.
+    if test "$INTEL_CC" || test "$INTEL_CXX"; then
+        # -Os has been broken on Intel's C/C++ compilers for quite a
+        # while; Intel recommends against using it.
+        MOZ_OPTIMIZE_FLAGS="-O2"
+        MOZ_DEBUG_FLAGS="-g -fno-inline"
+    elif test "$GNU_CC" || test "$GNU_CXX"; then
         GCC_VERSION=`$CC -v 2>&1 | awk '/^gcc version/ { print $3 }'`
         case $GCC_VERSION in
         4.1.*|4.2.*)
             # -Os is broken on gcc 4.1.x and 4.2.x, we need to tweak it to get good results.
             MOZ_OPTIMIZE_SIZE_TWEAK="-finline-limit=50"
         esac
+        MOZ_OPTIMIZE_FLAGS="-Os -freorder-blocks -fno-reorder-functions $MOZ_OPTIMIZE_SIZE_TWEAK"
+        MOZ_DEBUG_FLAGS="-g -fno-inline"  # most people on linux use gcc/gdb,
+                                          # and that combo is not yet good at
+                                          # debugging inlined functions (even
+                                          # when using DWARF2 as the debugging
+                                          # format)
     fi
 
     TARGET_NSPR_MDCPUCFG='\"md/_linux.cfg\"'
-    MOZ_OPTIMIZE_FLAGS="-Os -freorder-blocks -fno-reorder-functions $MOZ_OPTIMIZE_SIZE_TWEAK"
-    MOZ_DEBUG_FLAGS="-g -fno-inline"  # most people on linux use gcc/gdb,
-                                      # and that combo is not yet good at
-                                      # debugging inlined functions (even
-                                      # when using DWARF2 as the debugging
-                                      # format)    
 
     MOZ_MEMORY=1
 
@@ -1853,8 +1860,7 @@ case "$target" in
         MOZ_ENABLE_OLD_ABI_COMPAT_WRAPPERS=1
     ;;
     mips*)
-        CFLAGS="$CFLAGS -Wa,-xgot"
-        CXXFLAGS="$CXXFLAGS -Wa,-xgot"
+        MOZ_DEBUG_FLAGS="-g" # We want inlining
     ;;
     esac
     ;;
@@ -1893,8 +1899,8 @@ case "$target" in
 	MOZ_OPTIMIZE_FLAGS='-O1'
     AR_FLAGS='-NOLOGO -OUT:"$@"'
     ASM_SUFFIX=asm
-    CFLAGS="$CFLAGS -W3 -Gy -Fd\$(PDBFILE)"
-    CXXFLAGS="$CXXFLAGS -W3 -Gy -Fd\$(PDBFILE)"
+    CFLAGS="$CFLAGS -W3 -Gy -Fd\$(COMPILE_PDBFILE)"
+    CXXFLAGS="$CXXFLAGS -W3 -Gy -Fd\$(COMPILE_PDBFILE)"
     DLL_PREFIX=
     DOXYGEN=:
     DSO_LDOPTS=-SUBSYSTEM:WINDOWSCE
@@ -1995,13 +2001,13 @@ case "$target" in
         DLL_PREFIX=
         LIB_PREFIX=
         IMPORT_LIB_SUFFIX=lib
-        MKSHLIB='$(LD) -NOLOGO -DLL -OUT:$@ -PDB:$(PDBFILE) $(DSO_LDOPTS)'
-        MKCSHLIB='$(LD) -NOLOGO -DLL -OUT:$@ -PDB:$(PDBFILE) $(DSO_LDOPTS)'
+        MKSHLIB='$(LD) -NOLOGO -DLL -OUT:$@ -PDB:$(LINK_PDBFILE) $(DSO_LDOPTS)'
+        MKCSHLIB='$(LD) -NOLOGO -DLL -OUT:$@ -PDB:$(LINK_PDBFILE) $(DSO_LDOPTS)'
         MKSHLIB_FORCE_ALL=
         MKSHLIB_UNFORCE_ALL=
         DSO_LDOPTS=-SUBSYSTEM:WINDOWS
-        CFLAGS="$CFLAGS -W3 -Gy -Fd\$(PDBFILE)"
-        CXXFLAGS="$CXXFLAGS -W3 -Gy -Fd\$(PDBFILE)"
+        CFLAGS="$CFLAGS -W3 -Gy -Fd\$(COMPILE_PDBFILE)"
+        CXXFLAGS="$CXXFLAGS -W3 -Gy -Fd\$(COMPILE_PDBFILE)"
         LIBS="$LIBS kernel32.lib user32.lib gdi32.lib winmm.lib wsock32.lib advapi32.lib"
         MOZ_DEBUG_FLAGS='-Zi'
         MOZ_DEBUG_LDFLAGS='-DEBUG -DEBUGTYPE:CV'
@@ -2782,6 +2788,7 @@ dnl Note that we assume that mac & win32 have short wchar (see nscore.h)
     if test "$ac_cv_have_usable_wchar_option_v2" = "yes"; then
         AC_DEFINE(HAVE_CPP_2BYTE_WCHAR_T)
         HAVE_CPP_2BYTE_WCHAR_T=1
+        WCHAR_CFLAGS="-fshort-wchar"
     else    
         CXXFLAGS=$_SAVE_CXXFLAGS
     fi
@@ -4289,7 +4296,6 @@ MOZ_ACTIVEX_SCRIPTING_SUPPORT=
 MOZ_BRANDING_DIRECTORY=
 MOZ_DBGRINFO_MODULES=
 MOZ_ENABLE_CANVAS=1
-MOZ_EXTENSIONS_ALL=" wallet p3p venkman inspector irc typeaheadfind gnomevfs sroaming datetime finger cview layout-debug tasks sql xforms schema-validation reporter"
 MOZ_FEEDS=1
 MOZ_IMG_DECODERS_DEFAULT="png gif jpeg bmp xbm icon"
 MOZ_IMG_ENCODERS_DEFAULT="png jpeg"
@@ -4308,6 +4314,8 @@ MOZ_NO_INSPECTOR_APIS=
 MOZ_NO_XPCOM_OBSOLETE=
 MOZ_NO_FAST_LOAD=
 MOZ_OGG=1
+MOZ_SYDNEYAUDIO=
+MOZ_WAVE=1
 MOZ_MEDIA=
 MOZ_OJI=1
 MOZ_PERMISSIONS=1
@@ -5280,7 +5288,7 @@ if test -n "$MOZ_NO_FAST_LOAD"; then
 fi
 
 dnl ========================================================
-dnl = Enable Ogg Codecs
+dnl = Disable Ogg Codecs
 dnl ========================================================
 MOZ_ARG_DISABLE_BOOL(ogg,
 [  --disable-ogg           Disable Ogg Codec support],
@@ -5291,7 +5299,34 @@ AC_SUBST(MOZ_OGG)
 
 if test -n "$MOZ_OGG"; then
     AC_DEFINE(MOZ_OGG)
+    MOZ_SYDNEYAUDIO=1
     MOZ_MEDIA=1
+fi
+
+dnl ========================================================
+dnl = Disable Wave decoder support
+dnl ========================================================
+MOZ_ARG_DISABLE_BOOL(wave,
+[  --disable-wave          Disable Wave decoder support],
+    MOZ_WAVE=,
+    MOZ_WAVE=1)
+
+AC_SUBST(MOZ_WAVE)
+
+if test -n "$MOZ_WAVE"; then
+    AC_DEFINE(MOZ_WAVE)
+    MOZ_SYDNEYAUDIO=1
+    MOZ_MEDIA=1
+fi
+
+dnl ========================================================
+dnl = Handle dependent SYDNEYAUDIO and MEDIA defines
+dnl ========================================================
+
+AC_SUBST(MOZ_SYDNEYAUDIO)
+
+if test -n "$MOZ_SYDNEYAUDIO"; then
+    AC_DEFINE(MOZ_SYDNEYAUDIO)
 fi
 
 AC_SUBST(MOZ_MEDIA)
@@ -5300,13 +5335,19 @@ if test -n "$MOZ_MEDIA"; then
     AC_DEFINE(MOZ_MEDIA)
 fi
 
-dnl If using Ogg with Linux, ensure that the alsa library is available
-if test -n "$MOZ_OGG"; then
+dnl ========================================================
+dnl = Check alsa availability on Linux if using sydneyaudio
+dnl ========================================================
+
+dnl If using sydneyaudio with Linux, ensure that the alsa library is available
+if test "$COMPILE_ENVIRONMENT"; then
+if test -n "$MOZ_SYDNEYAUDIO"; then
    case "$target_os" in
 linux*)
       AC_CHECK_LIB(asound, snd_pcm_open,,AC_MSG_ERROR([Ogg support on Linux requires the alsa library]))
       ;;
    esac
+fi
 fi
 
 dnl ========================================================
@@ -5472,7 +5513,7 @@ MOZ_ARG_ENABLE_STRING(extensions,
 [  --enable-extensions     Enable extensions],
 [ for option in `echo $enableval | sed 's/,/ /g'`; do
     if test "$option" = "yes" || test "$option" = "all"; then
-        MOZ_EXTENSIONS="$MOZ_EXTENSIONS $MOZ_EXTENSIONS_ALL"
+        AC_MSG_ERROR([--enable-extensions=$option is no longer supported.])
     elif test "$option" = "no" || test "$option" = "none"; then
         MOZ_EXTENSIONS=""
     elif test "$option" = "default"; then
@@ -7937,6 +7978,7 @@ AC_SUBST(COMPILE_CXXFLAGS)
 AC_SUBST(LDFLAGS)
 AC_SUBST(LIBS)
 AC_SUBST(CROSS_COMPILE)
+AC_SUBST(WCHAR_CFLAGS)
 
 AC_SUBST(HOST_CC)
 AC_SUBST(HOST_CXX)
@@ -8046,8 +8088,6 @@ elif test "$OS_ARCH" != "WINNT" -a "$OS_ARCH" != "OS2" -a "$OS_ARCH" != "WINCE";
   MOZ_MOVEMAIL=1
 fi
 AC_SUBST(MOZ_MOVEMAIL)
-
-AC_DEFINE(JS_THREADSAFE)
 
 if test "$MOZ_DEBUG"; then
     AC_DEFINE(MOZ_REFLOW_PERF)
@@ -8247,7 +8287,9 @@ RC=
 unset MAKEFILES
 unset CONFIG_FILES
 
-if test "$COMPILE_ENVIRONMENT"; then
+# No need to run subconfigures when building with LIBXUL_SDK_DIR
+if test "$COMPILE_ENVIRONMENT" -a -z "$LIBXUL_SDK_DIR"; then
+
 if test -z "$MOZ_NATIVE_NSPR"; then
     ac_configure_args="$_SUBDIR_CONFIG_ARGS --with-dist-prefix=$MOZ_BUILD_ROOT/dist --with-mozilla"
     if test -z "$MOZ_DEBUG"; then
@@ -8281,5 +8323,22 @@ if test -z "$MOZ_NATIVE_NSPR"; then
     rm -f config/autoconf.mk.bak
 fi
 
-fi # COMPILE_ENVIRONMENT
+# Run the SpiderMonkey 'configure' script.
+dist=$MOZ_BUILD_ROOT/dist
+ac_configure_args="$_SUBDIR_CONFIG_ARGS"
+ac_configure_args="$ac_configure_args --enable-threadsafe"
+if test -z "$MOZ_NATIVE_NSPR"; then
+    ac_configure_args="$ac_configure_args --with-nspr-cflags='$NSPR_CFLAGS'"
+    ac_configure_args="$ac_configure_args --with-nspr-libs='$NSPR_LIBS'"
+fi
+ac_configure_args="$ac_configure_args --includedir=$dist/include"
+ac_configure_args="$ac_configure_args --bindir=$dist/bin"
+ac_configure_args="$ac_configure_args --libdir=$dist/lib"
+ac_configure_args="$ac_configure_args --with-sync-build-files=$srcdir"
+if test "$MOZ_MEMORY"; then
+   ac_configure_args="$ac_configure_args --enable-jemalloc"  
+fi
+AC_OUTPUT_SUBDIRS(js/src)
+ac_configure_args="$_SUBDIR_CONFIG_ARGS"
 
+fi # COMPILE_ENVIRONMENT && !LIBXUL_SDK_DIR

@@ -564,32 +564,24 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, PRBool aClone, PRBool aDeep,
     }
   }
   else if (nodeInfoManager) {
-    nsCOMPtr<nsISupports> oldRef;
     nsIDocument* oldDoc = aNode->GetOwnerDoc();
-    if (oldDoc) {
-      if (aNode->IsNodeOfType(nsINode::eELEMENT)) {
-        oldDoc->ClearBoxObjectFor(static_cast<nsIContent*>(aNode));
-      }
-      oldRef = oldDoc->GetReference(aNode);
-      if (oldRef) {
-        oldDoc->RemoveReference(aNode);
-      }
+    if (oldDoc && aNode->IsNodeOfType(nsINode::eELEMENT)) {
+      oldDoc->ClearBoxObjectFor(static_cast<nsIContent*>(aNode));
     }
 
     aNode->mNodeInfo.swap(newNodeInfo);
 
     nsIDocument* newDoc = aNode->GetOwnerDoc();
     if (newDoc) {
-      if (oldRef) {
-        newDoc->AddReference(aNode, oldRef);
-      }
-
       nsPIDOMWindow* window = newDoc->GetInnerWindow();
       if (window) {
         nsCOMPtr<nsIEventListenerManager> elm;
         aNode->GetListenerManager(PR_FALSE, getter_AddRefs(elm));
         if (elm) {
           window->SetMutationListeners(elm->MutationListenerBits());
+          if (elm->MayHavePaintEventListener()) {
+            window->SetHasPaintEventListeners();
+          }
         }
       }
     }

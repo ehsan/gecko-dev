@@ -95,6 +95,7 @@
 #include "nsString.h"
 #include "nsReadableUtils.h"
 #include "nsXPIDLString.h"
+#include "nsAutoJSValHolder.h"
 
 #include "nsThreadUtils.h"
 #include "nsIJSContextStack.h"
@@ -1853,6 +1854,8 @@ private:
 // XPCWrappedNativeProto hold the additional (potentially shared) wrapper data
 // for XPCWrappedNative whose native objects expose nsIClassInfo.
 
+#define UNKNOWN_OFFSETS ((QITableEntry*)1)
+
 class XPCWrappedNativeProto
 {
 public:
@@ -1862,7 +1865,8 @@ public:
                  nsIClassInfo* ClassInfo,
                  const XPCNativeScriptableCreateInfo* ScriptableCreateInfo,
                  JSBool ForceNoSharing,
-                 JSBool isGlobal);
+                 JSBool isGlobal,
+                 QITableEntry* offsets = UNKNOWN_OFFSETS);
 
     XPCWrappedNativeScope*
     GetScope()   const {return mScope;}
@@ -1887,6 +1891,45 @@ public:
 
     JSUint32
     GetClassInfoFlags() const {return mClassInfoFlags;}
+
+    QITableEntry*
+    GetOffsets()
+    {
+        return InitedOffsets() ? mOffsets : nsnull;
+    }
+    QITableEntry*
+    GetOffsetsMasked()
+    {
+        return mOffsets;
+    }
+    void
+    CacheOffsets(nsISupports* identity)
+    {
+        static NS_DEFINE_IID(kThisPtrOffsetsSID, NS_THISPTROFFSETS_SID);
+
+#ifdef DEBUG
+        if(InitedOffsets() && mOffsets)
+        {
+            QITableEntry* offsets;
+            identity->QueryInterface(kThisPtrOffsetsSID, (void**)&offsets);
+            NS_ASSERTION(offsets == mOffsets,
+                         "We can't deal with objects that have the same "
+                         "classinfo but different offset tables.");
+        }
+#endif
+
+        if(!InitedOffsets())
+        {
+            if(mClassInfoFlags & nsIClassInfo::CONTENT_NODE)
+            {
+                identity->QueryInterface(kThisPtrOffsetsSID, (void**)&mOffsets);
+            }
+            else
+            {
+                mOffsets = nsnull;
+            }
+        }
+    }
 
 #ifdef GET_IT
 #undef GET_IT
@@ -1952,7 +1995,8 @@ protected:
     XPCWrappedNativeProto(XPCWrappedNativeScope* Scope,
                           nsIClassInfo* ClassInfo,
                           PRUint32 ClassInfoFlags,
-                          XPCNativeSet* Set);
+                          XPCNativeSet* Set,
+                          QITableEntry* offsets);
 
     JSBool Init(XPCCallContext& ccx, JSBool isGlobal,
                 const XPCNativeScriptableCreateInfo* scriptableCreateInfo);
@@ -1963,6 +2007,12 @@ private:
 #endif
 
 private:
+    PRBool
+    InitedOffsets()
+    {
+        return mOffsets != UNKNOWN_OFFSETS;
+    }
+
     XPCWrappedNativeScope*   mScope;
     JSObject*                mJSProtoObject;
     nsCOMPtr<nsIClassInfo>   mClassInfo;
@@ -1970,6 +2020,7 @@ private:
     XPCNativeSet*            mSet;
     void*                    mSecurityInfo;
     XPCNativeScriptableInfo* mScriptableInfo;
+    QITableEntry*            mOffsets;
 };
 
 
@@ -2314,6 +2365,21 @@ public:
     void      SetWrapper(JSObject *obj) { mWrapper = obj; }
 
     void NoteTearoffs(nsCycleCollectionTraversalCallback& cb);
+
+    QITableEntry* GetOffsets()
+    {
+        if(!HasProto() || !GetProto()->ClassIsDOMObject())
+            return nsnull;
+
+        XPCWrappedNativeProto* proto = GetProto();
+        QITableEntry* offsets = proto->GetOffsets();
+        if(!offsets)
+        {
+            static NS_DEFINE_IID(kThisPtrOffsetsSID, NS_THISPTROFFSETS_SID);
+            mIdentity->QueryInterface(kThisPtrOffsetsSID, (void**)&offsets);
+        }
+        return offsets;
+    }
 
     // Make ctor and dtor protected (rather than private) to placate nsCOMPtr.
 protected:
@@ -2769,7 +2835,8 @@ public:
                                        const char* methodName,
                                        nsISupports* data,
                                        nsIException** exception,
-                                       const jsval *jsExceptionPtr);
+                                       JSContext* cx,
+                                       jsval *jsExceptionPtr);
 
     static void RemoveXPCOMUCStringFinalizer();
 
@@ -2855,8 +2922,6 @@ private:
 
 /***************************************************************************/
 
-class XPCVariant;
-
 class nsXPCException :
             public nsIXPCException
 {
@@ -2889,8 +2954,8 @@ public:
 
     static void InitStatics() { sEverMadeOneFromFactory = JS_FALSE; }
 
-    PRBool GetThrownJSVal(jsval *vp) const;
-    void   SetThrownJSVal(jsval v);
+    PRBool StealThrownJSVal(jsval* vp);
+    void StowThrownJSVal(JSContext* cx, jsval v);
 
 protected:
     void Reset();
@@ -2905,7 +2970,7 @@ private:
     nsIException*   mInner;
     PRBool          mInitialized;
 
-    nsCOMPtr<XPCVariant> mThrownJSVal;
+    nsAutoJSValHolder mThrownJSVal;
 
     static JSBool sEverMadeOneFromFactory;
 };

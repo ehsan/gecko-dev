@@ -1950,39 +1950,6 @@ nsJSContext::CallEventHandler(nsISupports* aTarget, void *aScope, void *aHandler
 
   // check if the event handler can be run on the object in question
   rv = sSecurityManager->CheckFunctionAccess(mContext, aHandler, target);
-  if (NS_SUCCEEDED(rv)) {
-    // We're not done yet!  Some event listeners are confused about their
-    // script context, so check whether we might actually be the wrong script
-    // context.  To be safe, do CheckFunctionAccess checks for both.
-    nsCOMPtr<nsIContent> content = do_QueryInterface(aTarget);
-    if (content) {
-      // XXXbz XBL2/sXBL issue
-      nsIDocument* ownerDoc = content->GetOwnerDoc();
-      if (ownerDoc) {
-        nsIScriptGlobalObject* global = ownerDoc->GetScriptGlobalObject();
-        if (global) {
-          nsIScriptContext* context =
-            global->GetScriptContext(JAVASCRIPT);
-          if (context && context != this) {
-            JSContext* cx =
-              static_cast<JSContext*>(context->GetNativeContext());
-            rv = stack->Push(cx);
-            if (NS_SUCCEEDED(rv)) {
-              rv = sSecurityManager->CheckFunctionAccess(cx, aHandler,
-                                                         target);
-              // Here we lose no matter what; we don't want to leave the wrong
-              // cx on the stack.  I guess default to leaving mContext, to
-              // cover those cases when we really do have a different context
-              // for the handler and the node.  That's probably safer.
-              if (NS_FAILED(stack->Pop(nsnull))) {
-                return NS_ERROR_FAILURE;
-              }
-            }
-          }
-        }
-      }
-    }
-  }
 
   nsJSContext::TerminationFuncHolder holder(this);
 
@@ -2346,9 +2313,10 @@ nsJSContext::ConnectToInner(nsIScriptGlobalObject *aNewInner, void *aOuterGlobal
   JSObject *newInnerJSObject = (JSObject *)aNewInner->GetScriptGlobal(JAVASCRIPT);
   JSObject *myobject = (JSObject *)aOuterGlobal;
 
-  // *Don't* call JS_ClearScope here since it's unnecessary
-  // and it confuses the JS engine as to which Function is
-  // on which window. See bug 343966.
+  // Call ClearScope to nuke any properties (e.g. Function and Object) on the
+  // outer object. From now on, anybody asking the outer object for these
+  // properties will be forwarded to the inner window.
+  ::JS_ClearScope(mContext, myobject);
 
   // Make the inner and outer window both share the same
   // prototype. The prototype we share is the outer window's
@@ -2403,6 +2371,11 @@ nsJSContext::InitContext(nsIScriptGlobalObject *aGlobalObject)
     // If we don't get a global object then there's nothing more to do here.
 
     return NS_OK;
+  }
+
+  nsCxPusher cxPusher;
+  if (!cxPusher.Push(mContext)) {
+    return NS_ERROR_FAILURE;
   }
 
   nsIXPConnect *xpc = nsContentUtils::XPConnect();
@@ -3404,7 +3377,8 @@ nsJSContext::ScriptExecuted()
 NS_IMETHODIMP
 nsJSContext::PreserveWrapper(nsIXPConnectWrappedNative *aWrapper)
 {
-  return nsDOMClassInfo::PreserveNodeWrapper(aWrapper);
+  nsDOMClassInfo::PreserveNodeWrapper(aWrapper);
+  return NS_OK;
 }
 
 //static

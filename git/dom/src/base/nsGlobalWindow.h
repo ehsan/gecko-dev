@@ -124,7 +124,6 @@ class nsDummyJavaPluginOwner;
 class PostMessageEvent;
 
 class nsDOMOfflineResourceList;
-class nsDOMOfflineLoadStatusList;
 class nsGeolocation;
 
 // permissible values for CheckOpenAllow
@@ -435,6 +434,7 @@ public:
     CacheXBLPrototypeHandler(nsXBLPrototypeHandler* aKey,
                              nsScriptObjectHolder& aHandler);
 
+  static PRBool DOMWindowDumpEnabled();
 
 protected:
   // Object Management

@@ -325,10 +325,12 @@ nsHTMLSelectListAccessible::nsHTMLSelectListAccessible(nsIDOMNode* aDOMNode,
   *     nsIAccessibleStates::STATE_MULTISELECTABLE
   *     nsIAccessibleStates::STATE_EXTSELECTABLE
   */
-NS_IMETHODIMP
-nsHTMLSelectListAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
+nsresult
+nsHTMLSelectListAccessible::GetStateInternal(PRUint32 *aState,
+                                             PRUint32 *aExtraState)
 {
-  nsresult rv = nsHTMLSelectableAccessible::GetState(aState, aExtraState);
+  nsresult rv = nsHTMLSelectableAccessible::GetStateInternal(aState,
+                                                             aExtraState);
   NS_ENSURE_SUCCESS(rv, rv);
   if (!mDOMNode)
     return NS_OK;
@@ -357,12 +359,11 @@ nsHTMLSelectListAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 
 NS_IMETHODIMP nsHTMLSelectListAccessible::GetRole(PRUint32 *aRole)
 {
-  if (mParent && Role(mParent) == nsIAccessibleRole::ROLE_COMBOBOX) {
+  if (nsAccUtils::Role(mParent) == nsIAccessibleRole::ROLE_COMBOBOX)
     *aRole = nsIAccessibleRole::ROLE_COMBOBOX_LIST;
-  }
-  else {
+  else
     *aRole = nsIAccessibleRole::ROLE_LIST;
-  }
+
   return NS_OK;
 }
 
@@ -501,12 +502,11 @@ nsHyperTextAccessibleWrap(aDOMNode, aShell)
 /** We are a ListItem */
 NS_IMETHODIMP nsHTMLSelectOptionAccessible::GetRole(PRUint32 *aRole)
 {
-  if (mParent && Role(mParent) == nsIAccessibleRole::ROLE_COMBOBOX_LIST) {
+  if (nsAccUtils::Role(mParent) == nsIAccessibleRole::ROLE_COMBOBOX_LIST)
     *aRole = nsIAccessibleRole::ROLE_COMBOBOX_OPTION;
-  }
-  else {
+  else
     *aRole = nsIAccessibleRole::ROLE_OPTION;
-  }
+
   return NS_OK;
 }
 
@@ -559,7 +559,7 @@ nsHTMLSelectOptionAccessible::GetAttributesInternal(nsIPersistentProperties *aAt
   parentNode->GetLocalName(parentTagName);
 
   PRInt32 level = parentTagName.LowerCaseEqualsLiteral("optgroup") ? 2 : 1;
-  if (level == 1 && Role(this) != nsIAccessibleRole::ROLE_HEADING) {
+  if (level == 1 && nsAccUtils::Role(this) != nsIAccessibleRole::ROLE_HEADING) {
     level = 0; // In a single level list, the level is irrelevant
   }
 
@@ -606,12 +606,13 @@ nsIFrame* nsHTMLSelectOptionAccessible::GetBoundsFrame()
   *     STATE_FOCUSABLE
   *     STATE_OFFSCREEN
   */
-NS_IMETHODIMP
-nsHTMLSelectOptionAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
+nsresult
+nsHTMLSelectOptionAccessible::GetStateInternal(PRUint32 *aState,
+                                               PRUint32 *aExtraState)
 {
   // Upcall to nsAccessible, but skip nsHyperTextAccessible impl
   // because we don't want EXT_STATE_EDITABLE or EXT_STATE_SELECTABLE_TEXT
-  nsresult rv = nsAccessible::GetState(aState, aExtraState);
+  nsresult rv = nsAccessible::GetStateInternal(aState, aExtraState);
   NS_ENSURE_SUCCESS(rv, rv);
   if (!mDOMNode)
     return NS_OK;
@@ -847,7 +848,8 @@ void nsHTMLSelectOptionAccessible::SelectionChangedIfOption(nsIContent *aPossibl
   nsCOMPtr<nsIDOMNode> optionNode(do_QueryInterface(aPossibleOption));
   NS_ASSERTION(optionNode, "No option node for nsIContent with option tag!");
 
-  nsCOMPtr<nsIAccessible> multiSelect = GetMultiSelectFor(optionNode);
+  nsCOMPtr<nsIAccessible> multiSelect =
+    nsAccUtils::GetMultiSelectFor(optionNode);
   nsCOMPtr<nsPIAccessible> privateMultiSelect = do_QueryInterface(multiSelect);
   if (!privateMultiSelect) {
     return;
@@ -864,7 +866,7 @@ void nsHTMLSelectOptionAccessible::SelectionChangedIfOption(nsIContent *aPossibl
   nsAccUtils::FireAccEvent(nsIAccessibleEvent::EVENT_SELECTION_WITHIN,
                            multiSelect);
 
-  PRUint32 state = State(optionAccessible);
+  PRUint32 state = nsAccUtils::State(optionAccessible);
   PRUint32 eventType;
   if (state & nsIAccessibleStates::STATE_SELECTED) {
     eventType = nsIAccessibleEvent::EVENT_SELECTION_ADD;
@@ -891,7 +893,7 @@ nsIContent* nsHTMLSelectOptionAccessible::GetSelectState(PRUint32* aState,
       nsCOMPtr<nsIAccessible> selAcc;
       accService->GetAccessibleFor(selectNode, getter_AddRefs(selAcc));
       if (selAcc) {
-        selAcc->GetFinalState(aState, aExtraState);
+        selAcc->GetState(aState, aExtraState);
         return content;
       }
     }
@@ -914,10 +916,12 @@ nsHTMLSelectOptGroupAccessible::GetRole(PRUint32 *aRole)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsHTMLSelectOptGroupAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
+nsresult
+nsHTMLSelectOptGroupAccessible::GetStateInternal(PRUint32 *aState,
+                                                 PRUint32 *aExtraState)
 {
-  nsresult rv = nsHTMLSelectOptionAccessible::GetState(aState, aExtraState);
+  nsresult rv = nsHTMLSelectOptionAccessible::GetStateInternal(aState,
+                                                               aExtraState);
   NS_ENSURE_SUCCESS(rv, rv);
 
   *aState &= ~(nsIAccessibleStates::STATE_FOCUSABLE |
@@ -1047,7 +1051,8 @@ void nsHTMLComboboxAccessible::CacheChildren()
   }
 }
 
-NS_IMETHODIMP nsHTMLComboboxAccessible::Shutdown()
+nsresult
+nsHTMLComboboxAccessible::Shutdown()
 {
   nsAccessibleWrap::Shutdown();
 
@@ -1066,11 +1071,12 @@ NS_IMETHODIMP nsHTMLComboboxAccessible::Shutdown()
   *     STATE_EXPANDED
   *     STATE_COLLAPSED
   */
-NS_IMETHODIMP
-nsHTMLComboboxAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
+nsresult
+nsHTMLComboboxAccessible::GetStateInternal(PRUint32 *aState,
+                                           PRUint32 *aExtraState)
 {
   // Get focus status from base class
-  nsresult rv = nsAccessible::GetState(aState, aExtraState);
+  nsresult rv = nsAccessible::GetStateInternal(aState, aExtraState);
   NS_ENSURE_SUCCESS(rv, rv);
   if (!mDOMNode)
     return NS_OK;
@@ -1386,11 +1392,12 @@ nsHTMLComboboxButtonAccessible::GetName(nsAString& aName)
   *     STATE_FOCUSABLE
   *     STATE_INVISIBLE
   */
-NS_IMETHODIMP
-nsHTMLComboboxButtonAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
+nsresult
+nsHTMLComboboxButtonAccessible::GetStateInternal(PRUint32 *aState,
+                                                 PRUint32 *aExtraState)
 {
   // Get focus status from base class
-  nsresult rv = nsAccessible::GetState(aState, aExtraState);
+  nsresult rv = nsAccessible::GetStateInternal(aState, aExtraState);
   NS_ENSURE_SUCCESS(rv, rv);
   if (!mDOMNode)
     return NS_OK;
@@ -1423,7 +1430,8 @@ nsHTMLSelectListAccessible(aDOMNode, aShell)
 {
 }
 
-nsIFrame *nsHTMLComboboxListAccessible::GetFrame()
+nsIFrame*
+nsHTMLComboboxListAccessible::GetFrame()
 {
   nsIFrame* frame = nsHTMLSelectListAccessible::GetFrame();
 
@@ -1445,11 +1453,12 @@ nsIFrame *nsHTMLComboboxListAccessible::GetFrame()
   *     STATE_INVISIBLE
   *     STATE_FLOATING
   */
-NS_IMETHODIMP
-nsHTMLComboboxListAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
+nsresult
+nsHTMLComboboxListAccessible::GetStateInternal(PRUint32 *aState,
+                                               PRUint32 *aExtraState)
 {
   // Get focus status from base class
-  nsresult rv = nsAccessible::GetState(aState, aExtraState);
+  nsresult rv = nsAccessible::GetStateInternal(aState, aExtraState);
   NS_ENSURE_SUCCESS(rv, rv);
   if (!mDOMNode)
     return NS_OK;
@@ -1494,7 +1503,7 @@ void nsHTMLComboboxListAccessible::GetBoundsRect(nsRect& aBounds, nsIFrame** aBo
   if (!comboAccessible) {
     return;
   }
-  if (0 == (State(comboAccessible) & nsIAccessibleStates::STATE_COLLAPSED)) {
+  if (0 == (nsAccUtils::State(comboAccessible) & nsIAccessibleStates::STATE_COLLAPSED)) {
     nsHTMLSelectListAccessible::GetBoundsRect(aBounds, aBoundingFrame);
     return;
   }

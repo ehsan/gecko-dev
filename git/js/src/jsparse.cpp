@@ -543,6 +543,18 @@ js_CompileScript(JSContext *cx, JSObject *scopeChain, JSStackFrame *callerFrame,
     cg.treeContext.u.scopeChain = scopeChain;
     cg.staticDepth = TCF_GET_STATIC_DEPTH(tcflags);
 
+    if ((tcflags & TCF_COMPILE_N_GO) && callerFrame && callerFrame->fun) {
+        /*
+         * An eval script in a caller frame needs to have its enclosing function
+         * captured in case it uses an upvar reference, and someone wishes to
+         * decompile it while running.
+         */
+        JSParsedObjectBox *pob = js_NewParsedObjectBox(cx, &pc, callerFrame->callee);
+        pob->emitLink = cg.objectList.lastPob;
+        cg.objectList.lastPob = pob;
+        cg.objectList.length++;
+    }
+
     /* Inline Statements() to emit as we go to save space. */
     for (;;) {
         pc.tokenStream.flags |= TSF_OPERAND;
@@ -1663,6 +1675,23 @@ BindVarOrConst(JSContext *cx, BindData *data, JSAtom *atom, JSTreeContext *tc)
     return JS_TRUE;
 }
 
+static JSBool
+MakeSetCall(JSContext *cx, JSParseNode *pn, JSTreeContext *tc, uintN msg)
+{
+    JSParseNode *pn2;
+
+    JS_ASSERT(pn->pn_arity == PN_LIST);
+    JS_ASSERT(pn->pn_op == JSOP_CALL || pn->pn_op == JSOP_EVAL || pn->pn_op == JSOP_APPLY);
+    pn2 = pn->pn_head;
+    if (pn2->pn_type == TOK_FUNCTION && (pn2->pn_flags & TCF_GENEXP_LAMBDA)) {
+        js_ReportCompileErrorNumber(cx, TS(tc->parseContext), pn,
+                                    JSREPORT_ERROR, msg);
+        return JS_FALSE;
+    }
+    pn->pn_op = JSOP_SETCALL;
+    return JS_TRUE;
+}
+
 #if JS_HAS_DESTRUCTURING
 
 static JSBool
@@ -1699,23 +1728,6 @@ BindDestructuringVar(JSContext *cx, BindData *data, JSParseNode *pn,
         pn->pn_op = JSOP_SETNAME;
         pn->pn_const = JS_FALSE;
     }
-    return JS_TRUE;
-}
-
-static JSBool
-MakeSetCall(JSContext *cx, JSParseNode *pn, JSTreeContext *tc, uintN msg)
-{
-    JSParseNode *pn2;
-
-    JS_ASSERT(pn->pn_arity == PN_LIST);
-    JS_ASSERT(pn->pn_op == JSOP_CALL || pn->pn_op == JSOP_EVAL);
-    pn2 = pn->pn_head;
-    if (pn2->pn_type == TOK_FUNCTION && (pn2->pn_flags & TCF_GENEXP_LAMBDA)) {
-        js_ReportCompileErrorNumber(cx, TS(tc->parseContext), pn,
-                                    JSREPORT_ERROR, msg);
-        return JS_FALSE;
-    }
-    pn->pn_op = JSOP_SETCALL;
     return JS_TRUE;
 }
 
@@ -2885,22 +2897,6 @@ Statement(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
                 pn2 = Expr(cx, ts, tc);
                 if (!pn2)
                     return NULL;
-
-                if (pn2->pn_type == TOK_LP &&
-                    pn2->pn_head->pn_type == TOK_FUNCTION &&
-                    (pn2->pn_head->pn_flags & TCF_GENEXP_LAMBDA)) {
-                    /*
-                     * A generator expression as loop condition is useless.
-                     * It won't be called, and as an object it evaluates to
-                     * true in boolean contexts without any conversion hook
-                     * being called.
-                     *
-                     * This useless condition elimination is mandatory, to
-                     * help the decompiler. See bug 442342.
-                     */
-                    RecycleTree(pn2, tc);
-                    pn2 = NULL;
-                }
             }
 
             /* Parse the update expression or null into pn3. */
@@ -2916,11 +2912,11 @@ Statement(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
                     return NULL;
             }
 
-            /* Build the RESERVED node to use as the left kid of pn. */
+            /* Build the FORHEAD node to use as the left kid of pn. */
             pn4 = NewParseNode(cx, ts, PN_TERNARY, tc);
             if (!pn4)
                 return NULL;
-            pn4->pn_type = TOK_RESERVED;
+            pn4->pn_type = TOK_FORHEAD;
             pn4->pn_op = JSOP_NOP;
             pn4->pn_kid1 = pn1;
             pn4->pn_kid2 = pn2;
@@ -3995,7 +3991,7 @@ SetLvalKid(JSContext *cx, JSTokenStream *ts, JSParseNode *pn, JSParseNode *kid,
         kid->pn_type != TOK_DOT &&
 #if JS_HAS_LVALUE_RETURN
         (kid->pn_type != TOK_LP ||
-         (kid->pn_op != JSOP_CALL && kid->pn_op != JSOP_EVAL)) &&
+         (kid->pn_op != JSOP_CALL && kid->pn_op != JSOP_EVAL && kid->pn_op != JSOP_APPLY)) &&
 #endif
 #if JS_HAS_XML_SUPPORT
         (kid->pn_type != TOK_UNARYOP || kid->pn_op != JSOP_XMLNAME) &&
@@ -4532,7 +4528,7 @@ MemberExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
                 } else if (tt == TOK_RP) {
                     JSParseNode *group = pn3;
 
-                    /* Recycle the useless TOK_RP/JSOP_GROUP node. */
+                    /* Recycle the useless TOK_RP node. */
                     pn3 = group->pn_kid;
                     group->pn_kid = NULL;
                     RecycleTree(group, tc);
@@ -4619,6 +4615,7 @@ MemberExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
                         break;
                     }
                     pn3->pn_type = TOK_NUMBER;
+                    pn3->pn_op = JSOP_DOUBLE;
                     pn3->pn_dval = index;
                 }
                 pn2->pn_op = JSOP_GETELEM;
@@ -4630,13 +4627,18 @@ MemberExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
             if (!pn2)
                 return NULL;
 
-            /* Pick JSOP_EVAL and flag tc as heavyweight if eval(...). */
             pn2->pn_op = JSOP_CALL;
             if (pn->pn_op == JSOP_NAME &&
                 pn->pn_atom == cx->runtime->atomState.evalAtom) {
+                /* Pick JSOP_EVAL and flag tc as heavyweight if eval(...). */
                 pn2->pn_op = JSOP_EVAL;
                 tc->flags |= TCF_FUN_HEAVYWEIGHT;
-            }
+            } else if (pn->pn_op == JSOP_GETPROP &&
+                       (pn->pn_atom == cx->runtime->atomState.applyAtom ||
+                        pn->pn_atom == cx->runtime->atomState.callAtom)) {
+                /* Pick JSOP_APPLY if apply(...). */
+                pn2->pn_op = JSOP_APPLY;
+            } 
 
             PN_INIT_LIST_1(pn2, pn);
             pn2->pn_pos.begin = pn->pn_pos.begin;
@@ -5393,6 +5395,7 @@ PrimaryExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
         if (!pn)
             return NULL;
         pn->pn_type = TOK_RB;
+        pn->pn_op = JSOP_NEWINIT;
 
 #if JS_HAS_SHARP_VARS
         if (defsharp) {
@@ -5526,6 +5529,7 @@ PrimaryExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
         if (!pn)
             return NULL;
         pn->pn_type = TOK_RC;
+        pn->pn_op = JSOP_NEWINIT;
 
 #if JS_HAS_SHARP_VARS
         if (defsharp) {
@@ -5855,6 +5859,7 @@ PrimaryExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
         pn = NewParseNode(cx, ts, PN_NULLARY, tc);
         if (!pn)
             return NULL;
+        pn->pn_op = JSOP_DOUBLE;
         pn->pn_dval = CURRENT_TOKEN(ts).t_dval;
 #if JS_HAS_SHARP_VARS
         notsharp = JS_TRUE;
@@ -6286,8 +6291,53 @@ recur:
 #undef TAIL_RECURSE
 }
 
+static int
+Boolish(JSParseNode *pn)
+{
+    switch (pn->pn_op) {
+      case JSOP_DOUBLE:
+        return pn->pn_dval != 0 && !JSDOUBLE_IS_NaN(pn->pn_dval);
+
+      case JSOP_STRING:
+        return JSSTRING_LENGTH(ATOM_TO_STRING(pn->pn_atom)) != 0;
+
+#if JS_HAS_GENERATOR_EXPRS
+      case JSOP_CALL:
+      {
+        /*
+         * A generator expression as an if or loop condition has no effects, it
+         * simply results in a truthy object reference. This condition folding
+         * is needed for the decompiler. See bug 442342 and bug 443074.
+         */
+        if (pn->pn_count != 1)
+            break;
+        JSParseNode *pn2 = pn->pn_head;
+        if (pn2->pn_type != TOK_FUNCTION)
+            break;
+        if (!(pn2->pn_flags & TCF_GENEXP_LAMBDA))
+            break;
+        /* FALL THROUGH */
+      }
+#endif
+
+      case JSOP_DEFFUN:
+      case JSOP_NAMEDFUNOBJ:
+      case JSOP_ANONFUNOBJ:
+      case JSOP_THIS:
+      case JSOP_TRUE:
+        return 1;
+
+      case JSOP_NULL:
+      case JSOP_FALSE:
+        return 0;
+
+      default:;
+    }
+    return -1;
+}
+
 JSBool
-js_FoldConstants(JSContext *cx, JSParseNode *pn, JSTreeContext *tc)
+js_FoldConstants(JSContext *cx, JSParseNode *pn, JSTreeContext *tc, bool inCond)
 {
     JSParseNode *pn1 = NULL, *pn2 = NULL, *pn3 = NULL;
 
@@ -6306,85 +6356,66 @@ js_FoldConstants(JSContext *cx, JSParseNode *pn, JSTreeContext *tc)
       }
 
       case PN_LIST:
-#if 0 /* JS_HAS_XML_SUPPORT */
-        switch (pn->pn_type) {
-          case TOK_XMLELEM:
-          case TOK_XMLLIST:
-          case TOK_XMLPTAGC:
-            /*
-             * Try to fold this XML parse tree once, from the top down, into
-             * a JSXML tree with just one object wrapping the tree root.
-             *
-             * Certain subtrees could be folded similarly, but we'd have to
-             * ensure that none used namespace prefixes declared elsewhere in
-             * its super-tree, and we would have to convert each XML object
-             * created at runtime for such sub-trees back into a string, and
-             * concatenate and re-parse anyway.
-             */
-            if ((pn->pn_extra & (PNX_XMLROOT | PNX_CANTFOLD)) == PNX_XMLROOT &&
-                !(tc->flags & TCF_HAS_DEFXMLNS)) {
-                JSObject *obj;
-                JSParsedObjectBox *xmlpob;
-
-                obj = js_ParseNodeToXMLObject(cx, pn);
-                if (!obj)
-                    return JS_FALSE;
-                xmlpob = js_NewParsedObjectBox(cx, ts, obj);
-                if (!xmlpob)
-                    return JS_FALSE;
-                pn->pn_op = JSOP_XMLOBJECT;
-                pn->pn_arity = PN_NULLARY;
-                pn->pn_pob = xmlpob;
-                return JS_TRUE;
-            }
-
-            /*
-             * Can't fold from parse node to XML tree -- try folding strings
-             * as much as possible, and folding XML sub-trees bottom up to
-             * minimize string concatenation and ToXML/ToXMLList operations
-             * at runtime.
-             */
-            break;
-
-          default:;
-        }
-#endif
+      {
+        /* Propagate inCond through logical connectives. */
+        bool cond = inCond && (pn->pn_type == TOK_OR || pn->pn_type == TOK_AND);
 
         /* Save the list head in pn1 for later use. */
         for (pn1 = pn2 = pn->pn_head; pn2; pn2 = pn2->pn_next) {
-            if (!js_FoldConstants(cx, pn2, tc))
+            if (!js_FoldConstants(cx, pn2, tc, cond))
                 return JS_FALSE;
         }
         break;
+      }
 
       case PN_TERNARY:
         /* Any kid may be null (e.g. for (;;)). */
         pn1 = pn->pn_kid1;
         pn2 = pn->pn_kid2;
         pn3 = pn->pn_kid3;
-        if (pn1 && !js_FoldConstants(cx, pn1, tc))
+        if (pn1 && !js_FoldConstants(cx, pn1, tc, pn->pn_type == TOK_IF))
             return JS_FALSE;
-        if (pn2 && !js_FoldConstants(cx, pn2, tc))
-            return JS_FALSE;
+        if (pn2) {
+            if (!js_FoldConstants(cx, pn2, tc, pn->pn_type == TOK_FORHEAD))
+                return JS_FALSE;
+            if (pn->pn_type == TOK_FORHEAD && pn2->pn_op == JSOP_TRUE) {
+                RecycleTree(pn2, tc);
+                pn->pn_kid2 = NULL;
+            }
+        }
         if (pn3 && !js_FoldConstants(cx, pn3, tc))
             return JS_FALSE;
         break;
 
       case PN_BINARY:
-        /* First kid may be null (for default case in switch). */
         pn1 = pn->pn_left;
         pn2 = pn->pn_right;
-        if (pn1 && !js_FoldConstants(cx, pn1, tc))
+
+        /* Propagate inCond through logical connectives. */
+        if (pn->pn_type == TOK_OR || pn->pn_type == TOK_AND) {
+            if (!js_FoldConstants(cx, pn1, tc, inCond))
+                return JS_FALSE;
+            if (!js_FoldConstants(cx, pn2, tc, inCond))
+                return JS_FALSE;
+            break;
+        }
+
+        /* First kid may be null (for default case in switch). */
+        if (pn1 && !js_FoldConstants(cx, pn1, tc, pn->pn_type == TOK_WHILE))
             return JS_FALSE;
-        if (!js_FoldConstants(cx, pn2, tc))
+        if (!js_FoldConstants(cx, pn2, tc, pn->pn_type == TOK_DO))
             return JS_FALSE;
         break;
 
       case PN_UNARY:
         /* Our kid may be null (e.g. return; vs. return e;). */
         pn1 = pn->pn_kid;
-        if (pn1 && !js_FoldConstants(cx, pn1, tc))
+        if (pn1 &&
+            !js_FoldConstants(cx, pn1, tc,
+                              (inCond && pn->pn_type == TOK_RP) ||
+                              pn->pn_op == JSOP_NOT)) {
             return JS_FALSE;
+        }
         break;
 
       case PN_NAME:
@@ -6475,6 +6506,62 @@ js_FoldConstants(JSContext *cx, JSParseNode *pn, JSTreeContext *tc)
         RecycleTree(pn2, tc);
         if (pn3 && pn3 != pn2)
             RecycleTree(pn3, tc);
+        break;
+
+      case TOK_OR:
+      case TOK_AND:
+        if (inCond) {
+            if (pn->pn_arity == PN_LIST) {
+                JSParseNode **pnp = &pn->pn_head;
+                JS_ASSERT(*pnp == pn1);
+                do {
+                    int cond = Boolish(pn1);
+                    if (cond == (pn->pn_type == TOK_OR)) {
+                        for (pn2 = pn1->pn_next; pn2; pn2 = pn3) {
+                            pn3 = pn2->pn_next;
+                            RecycleTree(pn2, tc);
+                            --pn->pn_count;
+                        }
+                        pn1->pn_next = NULL;
+                        break;
+                    }
+                    if (cond != -1) {
+                        JS_ASSERT(cond == (pn->pn_type == TOK_AND));
+                        if (pn->pn_count == 1)
+                            break;
+                        *pnp = pn1->pn_next;
+                        RecycleTree(pn1, tc);
+                        --pn->pn_count;
+                    } else {
+                        pnp = &pn1->pn_next;
+                    }
+                } while ((pn1 = *pnp) != NULL);
+
+                // We may have to change arity from LIST to BINARY.
+                pn1 = pn->pn_head;
+                if (pn->pn_count == 2) {
+                    pn2 = pn1->pn_next;
+                    pn1->pn_next = NULL;
+                    JS_ASSERT(!pn2->pn_next);
+                    pn->pn_arity = PN_BINARY;
+                    pn->pn_left = pn1;
+                    pn->pn_right = pn2;
+                } else if (pn->pn_count == 1) {
+                    PN_MOVE_NODE(pn, pn1);
+                    RecycleTree(pn1, tc);
+                }
+            } else {
+                int cond = Boolish(pn1);
+                if (cond == (pn->pn_type == TOK_OR)) {
+                    RecycleTree(pn2, tc);
+                    PN_MOVE_NODE(pn, pn1);
+                } else if (cond != -1) {
+                    JS_ASSERT(cond == (pn->pn_type == TOK_AND));
+                    RecycleTree(pn1, tc);
+                    PN_MOVE_NODE(pn, pn2);
+                }
+            }
+        }
         break;
 
       case TOK_ASSIGN:
@@ -6663,6 +6750,14 @@ js_FoldConstants(JSContext *cx, JSParseNode *pn, JSTreeContext *tc)
             pn->pn_arity = PN_NULLARY;
             pn->pn_dval = d;
             RecycleTree(pn1, tc);
+        } else if (pn1->pn_type == TOK_PRIMARY) {
+            if (pn->pn_op == JSOP_NOT &&
+                (pn1->pn_op == JSOP_TRUE ||
+                 pn1->pn_op == JSOP_FALSE)) {
+                PN_MOVE_NODE(pn, pn1);
+                pn->pn_op = (pn->pn_op == JSOP_TRUE) ? JSOP_FALSE : JSOP_TRUE;
+                RecycleTree(pn1, tc);
+            }
         }
         break;
 
@@ -6705,6 +6800,22 @@ js_FoldConstants(JSContext *cx, JSParseNode *pn, JSTreeContext *tc)
 #endif /* JS_HAS_XML_SUPPORT */
 
       default:;
+    }
+
+    if (inCond) {
+        int cond = Boolish(pn);
+        if (cond >= 0) {
+            if (pn->pn_arity == PN_LIST) {
+                pn2 = pn->pn_head;
+                do {
+                    pn3 = pn2->pn_next;
+                    RecycleTree(pn2, tc);
+                } while ((pn2 = pn3) != NULL);
+            }
+            pn->pn_type = TOK_PRIMARY;
+            pn->pn_op = cond ? JSOP_TRUE : JSOP_FALSE;
+            pn->pn_arity = PN_NULLARY;
+        }
     }
 
     return JS_TRUE;
