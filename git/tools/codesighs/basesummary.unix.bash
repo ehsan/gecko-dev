@@ -50,20 +50,12 @@ else
 OBJROOT="./mozilla"
 fi
 
-if [ "$1" = "-s" ]; then
-SRCROOT="$2"
-shift
-shift
-else
-SRCROOT="./mozilla"
-fi
-
 OSTYPE=`uname -s`
 
 if [ $OSTYPE == "Darwin" ]; then
-MANIFEST="$SRCROOT/embedding/config/basebrowser-mac-macho"
+MANIFEST="./mozilla/embedding/config/basebrowser-mac-macho"
 else
-MANIFEST="$SRCROOT/embedding/config/basebrowser-unix"
+MANIFEST="./mozilla/embedding/config/basebrowser-unix"
 fi
 
 #
@@ -181,7 +173,7 @@ RAWTSVFILE="$MYTMPDIR/raw.tsv"
 
 if test "$USE_READELF"; then
 export READELF_PROG
-xargs -n 1 $SRCROOT/tools/codesighs/readelf_wrap.pl < $ALLFILES > $RAWTSVFILE
+xargs -n 1 ./mozilla/tools/codesighs/readelf_wrap.pl < $ALLFILES > $RAWTSVFILE
 else
 
 #
@@ -194,7 +186,7 @@ else
 #
 NMRESULTS="$MYTMPDIR/nm.txt"
 if [ $OSTYPE == "Darwin" ]; then
-xargs -n 1 $SRCROOT/tools/codesighs/nm_wrap_osx.pl < $ALLFILES  > $NMRESULTS 2> /dev/null
+xargs -n 1 ./mozilla/tools/codesighs/nm_wrap_osx.pl < $ALLFILES  > $NMRESULTS 2> /dev/null
 else
 xargs -n 1 nm --format=bsd --size-sort --print-file-name --demangle < $ALLFILES > $NMRESULTS 2> /dev/null
 fi
