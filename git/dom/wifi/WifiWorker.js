@@ -1026,7 +1026,6 @@ var WifiManager = (function() {
   manager.scan = scanCommand;
   manager.getRssiApprox = getRssiApproxCommand;
   manager.getLinkSpeed = getLinkSpeedCommand;
-  manager.getDhcpInfo = function() { return dhcpInfo; }
   return manager;
 })();
 
@@ -1375,27 +1374,6 @@ function WifiWorker() {
   debug("Wifi starting");
 }
 
-function translateState(state) {
-  switch (state) {
-    case "INTERFACE_DISABLED":
-    case "INACTIVE":
-    case "SCANNING":
-    case "DISCONNECTED":
-    default:
-      return "disconnected";
-
-    case "AUTHENTICATING":
-    case "ASSOCIATING":
-    case "ASSOCIATED":
-    case "FOUR_WAY_HANDSHAKE":
-    case "GROUP_HANDSHAKE":
-      return "connecting";
-
-    case "COMPLETED":
-      return WifiManager.getDhcpInfo() ? "connected" : "associated";
-  }
-}
-
 WifiWorker.prototype = {
   classID:   WIFIWORKER_CID,
   classInfo: XPCOMUtils.generateCI({classID: WIFIWORKER_CID,
@@ -1605,8 +1583,7 @@ WifiWorker.prototype = {
         let net = this.currentNetwork ? netToDOM(this.currentNetwork) : null;
         return { network: net,
                  connectionInfo: this._lastConnectionInfo,
-                 enabled: WifiManager.state !== "UNINITIALIZED",
-                 status: translateState(WifiManager.state) };
+                 enabled: WifiManager.state !== "UNINITIALIZED", };
       }
     }
   },

@@ -53,6 +53,7 @@ XPIDLSRCS =                                    \
             nsIDOMGeoPositionCallback.idl      \
             nsIDOMGeoPositionError.idl         \
             nsIDOMGeoPositionErrorCallback.idl \
+            nsIDOMGeoPositionOptions.idl       \
             nsIDOMNavigatorGeolocation.idl     \
             $(NULL)
 
