@@ -8,6 +8,7 @@
 
 #include "nsServiceManagerUtils.h"
 #include "nsNPAPIPlugin.h"
+#include "nsIJSContextStack.h"
 #include "PluginScriptableObjectUtils.h"
 #include "mozilla/unused.h"
 
@@ -29,7 +30,17 @@ PluginIdentifierParent::RecvRetain()
 
   // The following is what nsNPAPIPlugin.cpp does. Gross, but the API doesn't
   // give you a NPP to play with.
-  SafeAutoJSContext cx;
+  nsCOMPtr<nsIThreadJSContextStack> stack =
+    do_GetService("@mozilla.org/js/xpc/ContextStack;1");
+  if (!stack) {
+    return false;
+  }
+
+  JSContext* cx = stack->GetSafeJSContext();
+  if (!cx) {
+    return false;
+  }
+
   JSAutoRequest ar(cx);
   JSString* str = JSID_TO_STRING(id);
   JSString* str2 = JS_InternJSString(cx, str);

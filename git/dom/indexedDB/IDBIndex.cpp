@@ -9,6 +9,7 @@
 #include "IDBIndex.h"
 
 #include "nsIIDBKeyRange.h"
+#include "nsIJSContextStack.h"
 
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/dom/ContentParent.h"

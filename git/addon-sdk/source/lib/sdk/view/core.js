@@ -24,6 +24,3 @@ getNodeView.define(function(value) {
 });
 
 exports.getNodeView = getNodeView;
-
-let getActiveView = method("getActiveView");
-exports.getActiveView = getActiveView;

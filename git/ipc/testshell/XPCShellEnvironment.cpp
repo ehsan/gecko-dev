@@ -26,6 +26,7 @@
 #include "nsIChannel.h"
 #include "nsIClassInfo.h"
 #include "nsIDirectoryService.h"
+#include "nsIJSContextStack.h"
 #include "nsIJSRuntimeService.h"
 #include "nsIPrincipal.h"
 #include "nsIScriptSecurityManager.h"
@@ -33,7 +34,6 @@
 #include "nsIXPConnect.h"
 #include "nsIXPCScriptable.h"
 
-#include "nsContentUtils.h"
 #include "nsJSUtils.h"
 #include "nsJSPrincipals.h"
 #include "nsThreadUtils.h"
@@ -529,8 +529,7 @@ ProcessFile(JSContext *cx,
             JSBool forceTTY)
 {
     XPCShellEnvironment* env = Environment(cx);
-    nsCxPusher pusher;
-    pusher.Push(env->GetContext());
+    XPCShellEnvironment::AutoContextPusher pusher(env);
 
     JSScript *script;
     JS::Value result;
@@ -883,6 +882,26 @@ XPCShellDirProvider::GetFile(const char *prop,
     return NS_ERROR_FAILURE;
 }
 
+XPCShellEnvironment::
+AutoContextPusher::AutoContextPusher(XPCShellEnvironment* aEnv)
+{
+    NS_ASSERTION(aEnv->mCx, "Null context?!");
+
+    if (NS_SUCCEEDED(aEnv->mCxStack->Push(aEnv->mCx))) {
+        mEnv = aEnv;
+    }
+}
+
+XPCShellEnvironment::
+AutoContextPusher::~AutoContextPusher()
+{
+    if (mEnv) {
+        JSContext* cx;
+        mEnv->mCxStack->Pop(&cx);
+        NS_ASSERTION(cx == mEnv->mCx, "Wrong context on the stack!");
+    }
+}
+
 // static
 XPCShellEnvironment*
 XPCShellEnvironment::CreateEnvironment()
@@ -918,6 +937,8 @@ XPCShellEnvironment::~XPCShellEnvironment()
 
         JSRuntime *rt = JS_GetRuntime(mCx);
         JS_GC(rt);
+
+        mCxStack = nullptr;
 
         if (mJSPrincipals) {
             JS_DropPrincipals(rt, mJSPrincipals);
@@ -1006,8 +1027,15 @@ XPCShellEnvironment::Init()
         fprintf(stderr, "+++ Failed to get ScriptSecurityManager service, running without principals");
     }
 
-    nsCxPusher pusher;
-    pusher.Push(mCx);
+    nsCOMPtr<nsIJSContextStack> cxStack =
+        do_GetService("@mozilla.org/js/xpc/ContextStack;1");
+    if (!cxStack) {
+        NS_ERROR("failed to get the nsThreadJSContextStack service!");
+        return false;
+    }
+    mCxStack = cxStack;
+
+    AutoContextPusher pusher(this);
 
     nsRefPtr<BackstagePass> backstagePass;
     rv = NS_NewBackstagePass(getter_AddRefs(backstagePass));
@@ -1065,8 +1093,7 @@ XPCShellEnvironment::EvaluateString(const nsString& aString,
                                     nsString* aResult)
 {
   XPCShellEnvironment* env = Environment(mCx);
-  nsCxPusher pusher;
-  pusher.Push(env->GetContext());
+  XPCShellEnvironment::AutoContextPusher pusher(env);
 
   JSAutoRequest ar(mCx);
 

@@ -183,10 +183,7 @@ JSONSpewer::beginFunction(RawScript script)
         endFunction();
 
     beginObject();
-    if (script)
-        stringProperty("name", "%s:%d", script->filename(), script->lineno);
-    else
-        stringProperty("name", "asm.js compilation");
+    stringProperty("name", "%s:%d", script->filename(), script->lineno);
     beginListProperty("passes");
 
     inFunction_ = true;
@@ -202,9 +199,6 @@ JSONSpewer::beginPass(const char *pass)
 void
 JSONSpewer::spewMResumePoint(MResumePoint *rp)
 {
-    if (!rp)
-        return;
-
     beginObjectProperty("resumePoint");
 
     if (rp->caller())

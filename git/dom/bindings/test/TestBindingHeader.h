@@ -229,15 +229,6 @@ public:
   double LenientDoubleAttr() const;
   void SetLenientDoubleAttr(double);
 
-  void PassUnrestricted(float arg1,
-                        float arg2,
-                        float arg3,
-                        float arg4,
-                        double arg5,
-                        double arg6,
-                        double arg7,
-                        double arg8);
-
   // Interface types
   already_AddRefed<TestInterface> ReceiveSelf();
   already_AddRefed<TestInterface> ReceiveNullableSelf();
@@ -451,13 +442,13 @@ public:
   void SetAttributeRenamedTo(int8_t);
 
   // Dictionary tests
-  void PassDictionary(JSContext*, const Dict&);
-  void ReceiveDictionary(JSContext*, Dict&);
+  void PassDictionary(const Dict&);
+  void ReceiveDictionary(Dict&);
   void PassOtherDictionary(const GrandparentDict&);
-  void PassSequenceOfDictionaries(JSContext*, const Sequence<Dict>&);
-  void PassDictionaryOrLong(JSContext*, const Dict&);
+  void PassSequenceOfDictionaries(const Sequence<Dict>&);
+  void PassDictionaryOrLong(const Dict&);
   void PassDictionaryOrLong(int32_t);
-  void PassDictContainingDict(JSContext*, const DictContainingDict&);
+  void PassDictContainingDict(const DictContainingDict&);
   void PassDictContainingSequence(const DictContainingSequence&);
   void ReceiveDictContainingSequence(DictContainingSequence&);
 
@@ -477,7 +468,7 @@ public:
   bool Overload1(TestInterface&);
   TestInterface* Overload1(const nsAString&, TestInterface&);
   void Overload2(TestInterface&);
-  void Overload2(JSContext*, const Dict&);
+  void Overload2(const Dict&);
   void Overload2(const nsAString&);
   void Overload3(TestInterface&);
   void Overload3(const TestCallback&);

@@ -86,8 +86,6 @@ MessageLoop* MessageLoop::current() {
   return lazy_tls_ptr.Pointer()->Get();
 }
 
-PRInt32 message_loop_id_seq = 0;
-
 MessageLoop::MessageLoop(Type type)
     : type_(type),
       nestable_tasks_allowed_(true),
@@ -97,8 +95,7 @@ MessageLoop::MessageLoop(Type type)
 #ifdef OS_WIN
       os_modal_loop_(false),
 #endif  // OS_WIN
-      next_sequence_num_(0),
-      id_(PR_ATOMIC_INCREMENT(&message_loop_id_seq)) {
+      next_sequence_num_(0) {
   DCHECK(!current()) << "should only have one message loop per thread";
   lazy_tls_ptr.Pointer()->Set(this);
   if (type_ == TYPE_MOZILLA_UI) {

@@ -20,7 +20,6 @@
 #include "nsDOMString.h"
 #include "nsStringBuffer.h"
 #include "nsTArray.h"
-#include "nsAutoPtr.h" // for nsRefPtr member variables
 
 class nsWrapperCache;
 

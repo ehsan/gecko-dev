@@ -731,8 +731,6 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
     eventtracer::Shutdown();
 #endif
 
-    profiler_shutdown();
-
     NS_LogTerm();
 
     return NS_OK;
