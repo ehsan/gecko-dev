@@ -13,8 +13,6 @@ var gTab = null;
 var gDebugger = null;
 var gCount = 0;
 
-requestLongerTimeout(2);
-
 function test()
 {
   debug_tab_pane(TAB_URL, function(aTab, aDebuggee, aPane) {
@@ -22,8 +20,6 @@ function test()
     gPane = aPane;
     gDebugger = gPane.contentWindow;
 
-    gDebugger.DebuggerController.StackFrames.autoScopeExpand = true;
-    gDebugger.DebuggerView.Variables.nonEnumVisible = false;
     testWithFrame();
   });
 }

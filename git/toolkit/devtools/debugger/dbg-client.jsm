@@ -12,8 +12,7 @@ const Cr = Components.results;
 
 this.EXPORTED_SYMBOLS = ["DebuggerTransport",
                          "DebuggerClient",
-                         "debuggerSocketConnect",
-                         "LongStringClient"];
+                         "debuggerSocketConnect"];
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/NetUtil.jsm");
@@ -1185,7 +1184,6 @@ function LongStringClient(aClient, aGrip) {
 LongStringClient.prototype = {
   get actor() { return this._grip.actor; },
   get length() { return this._grip.length; },
-  get initial() { return this._grip.initial; },
 
   valid: true,
 

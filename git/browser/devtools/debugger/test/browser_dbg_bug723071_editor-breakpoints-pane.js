@@ -173,7 +173,7 @@ function test()
             function(cl, err) {
             onBreakpointAdd.call({ increment: increment, line: line }, cl, err);
 
-            line = 9;
+            line = 8;
             gPane.addBreakpoint({url: gScripts.selectedValue, line: line},
               function(cl, err) {
               onBreakpointAdd.call({ increment: increment, line: line }, cl, err);
