@@ -120,6 +120,8 @@ extern nsresult nsStringInputStreamConstructor(nsISupports *, REFNSIID, void **)
 
 #include "mozilla/VisualEventTracer.h"
 
+#include "sampler.h"
+
 using base::AtExitManager;
 using mozilla::ipc::BrowserProcessSubThread;
 
@@ -141,7 +143,7 @@ extern nsresult NS_RegistryGetFactory(nsIFactory** aFactory);
 extern nsresult NS_CategoryManagerGetFactory( nsIFactory** );
 
 #ifdef XP_WIN
-extern nsresult ScheduleMediaCacheRemover();
+extern nsresult CreateAnonTempFileRemover();
 #endif
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsProcess)
@@ -312,6 +314,7 @@ NS_InitXPCOM2(nsIServiceManager* *result,
               nsIFile* binDirectory,
               nsIDirectoryServiceProvider* appFileLocationProvider)
 {
+    SAMPLER_INIT();
     nsresult rv = NS_OK;
 
      // We are not shutting down
@@ -464,7 +467,7 @@ NS_InitXPCOM2(nsIServiceManager* *result,
                                   nullptr,
                                   NS_XPCOM_STARTUP_OBSERVER_ID);
 #ifdef XP_WIN
-    ScheduleMediaCacheRemover();
+    CreateAnonTempFileRemover();
 #endif
 
     mozilla::MapsMemoryReporter::Init();

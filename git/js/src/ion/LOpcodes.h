@@ -70,6 +70,7 @@
     _(SqrtD)                        \
     _(PowI)                         \
     _(PowD)                         \
+    _(Random)                       \
     _(MathFunctionD)                \
     _(NotI)                         \
     _(NotD)                         \
@@ -94,6 +95,7 @@
     _(OsrValue)                     \
     _(OsrScopeChain)                \
     _(RegExp)                       \
+    _(RegExpTest)                   \
     _(Lambda)                       \
     _(LambdaForSingleton)           \
     _(ImplicitThis)                 \
@@ -121,6 +123,7 @@
     _(ArrayPopShiftT)               \
     _(ArrayPushV)                   \
     _(ArrayPushT)                   \
+    _(ArrayConcat)                  \
     _(StoreElementHoleV)            \
     _(StoreElementHoleT)            \
     _(LoadTypedArrayElement)        \

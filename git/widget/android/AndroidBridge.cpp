@@ -122,6 +122,8 @@ AndroidBridge::Init(JNIEnv *jEnv,
     jShowFilePickerForExtensions = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "showFilePickerForExtensions", "(Ljava/lang/String;)Ljava/lang/String;");
     jShowFilePickerForMimeType = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "showFilePickerForMimeType", "(Ljava/lang/String;)Ljava/lang/String;");
     jShowFilePickerAsync = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "showFilePickerAsync", "(Ljava/lang/String;J)V");
+    jUnlockProfile = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "unlockProfile", "()Z");
+    jKillAnyZombies = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "killAnyZombies", "()V");
     jAlertsProgressListener_OnProgress = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "alertsProgressListener_OnProgress", "(Ljava/lang/String;JJLjava/lang/String;)V");
     jAlertsProgressListener_OnCancel = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "alertsProgressListener_OnCancel", "(Ljava/lang/String;)V");
     jGetDpi = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "getDpi", "()I");
@@ -2524,6 +2526,16 @@ AndroidBridge::GetDisplayPort(bool aPageSizeUpdate, bool aIsBrowserContentDispla
     return NS_OK;
 }
 
+bool
+AndroidBridge::ShouldAbortProgressiveUpdate(bool aHasPendingNewThebesContent, const gfx::Rect& aDisplayPort, float aDisplayResolution)
+{
+    AndroidGeckoLayerClient *client = mLayerClient;
+    if (!client)
+        return false;
+
+    return client->ShouldAbortProgressiveUpdate(aHasPendingNewThebesContent, aDisplayPort, aDisplayResolution);
+}
+
 void
 AndroidBridge::NotifyPaintedRect(float top, float left, float bottom, float right)
 {
@@ -2535,6 +2547,30 @@ AndroidBridge::NotifyPaintedRect(float top, float left, float bottom, float righ
     env->CallStaticVoidMethod(AndroidBridge::Bridge()->jScreenshotHandlerClass,
                               AndroidBridge::Bridge()->jNotifyPaintedRect,
                               top, left, bottom, right);
+}
+
+void
+AndroidBridge::KillAnyZombies()
+{
+    JNIEnv* env = GetJNIEnv();
+    if (!env)
+        return;
+    env->CallStaticVoidMethod(mGeckoAppShellClass, AndroidBridge::Bridge()->jKillAnyZombies);
+}
+
+bool
+AndroidBridge::UnlockProfile()
+{
+    JNIEnv* env = GetJNIEnv();
+    if (!env)
+        return false;
+
+    AutoLocalJNIFrame jniFrame(env, 0);
+    bool ret = env->CallStaticBooleanMethod(mGeckoAppShellClass, jUnlockProfile);
+    if (jniFrame.CheckForException())
+        return false;
+
+    return ret;
 }
 
 extern "C" {

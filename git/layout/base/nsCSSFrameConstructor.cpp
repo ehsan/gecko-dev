@@ -7732,30 +7732,47 @@ DoApplyRenderingChangeToTree(nsIFrame* aFrame,
                        nsChangeHint(aChange & (nsChangeHint_RepaintFrame |
                                                nsChangeHint_SyncFrameView |
                                                nsChangeHint_UpdateOpacityLayer)));
+    // This must be set to true if the rendering change needs to
+    // invalidate content.  If it's false, a composite-only paint
+    // (empty transaction) will be scheduled.
+    bool needInvalidatingPaint = false;
 
     // if frame has view, will already be invalidated
     if (aChange & nsChangeHint_RepaintFrame) {
       if (aFrame->IsFrameOfType(nsIFrame::eSVG) &&
           !(aFrame->GetStateBits() & NS_STATE_IS_OUTER_SVG)) {
         if (aChange & nsChangeHint_UpdateEffects) {
+          needInvalidatingPaint = true;
           // Invalidate and update our area:
           nsSVGUtils::InvalidateAndScheduleReflowSVG(aFrame);
         } else {
+          needInvalidatingPaint = true;
           // Just invalidate our area:
           nsSVGUtils::InvalidateBounds(aFrame);
         }
       } else {
+        needInvalidatingPaint = true;
         aFrame->InvalidateFrameSubtree();
       }
     }
     if (aChange & nsChangeHint_UpdateOpacityLayer) {
+      // FIXME/bug 796697: we can get away with empty transactions for
+      // opacity updates in many cases.
+      needInvalidatingPaint = true;
       aFrame->MarkLayersActive(nsChangeHint_UpdateOpacityLayer);
     }
-    
     if (aChange & nsChangeHint_UpdateTransformLayer) {
       aFrame->MarkLayersActive(nsChangeHint_UpdateTransformLayer);
+      // If we're not already going to do an invalidating paint, see
+      // if we can get away with only updating the transform on a
+      // layer for this frame, and not scheduling an invalidating
+      // paint.
+      if (!needInvalidatingPaint) {
+        needInvalidatingPaint |= !aFrame->TryUpdateTransformOnly();
+      }
     }
     if (aChange & nsChangeHint_ChildrenOnlyTransform) {
+      needInvalidatingPaint = true;
       // The long comment in ProcessRestyledFrames that precedes the
       // |frame->GetContent()->GetPrimaryFrame()| and abort applies here too.
       nsIFrame *f = aFrame->GetContent()->GetPrimaryFrame();
@@ -7767,7 +7784,9 @@ DoApplyRenderingChangeToTree(nsIFrame* aFrame,
         childFrame->MarkLayersActive(nsChangeHint_UpdateTransformLayer);
       }
     }
-    aFrame->SchedulePaint();
+    aFrame->SchedulePaint(needInvalidatingPaint ?
+                          nsIFrame::PAINT_DEFAULT :
+                          nsIFrame::PAINT_COMPOSITE_ONLY);
   }
 }
 
@@ -9029,23 +9048,42 @@ nsCSSFrameConstructor::CaptureStateForFramesOf(nsIContent* aContent,
   }
 }
 
+static bool EqualURIs(mozilla::css::URLValue *aURI1,
+                      mozilla::css::URLValue *aURI2)
+{
+  return aURI1 == aURI2 ||    // handle null==null, and optimize
+         (aURI1 && aURI2 && aURI1->URIEquals(*aURI2));
+}
+
 nsresult
 nsCSSFrameConstructor::MaybeRecreateFramesForElement(Element* aElement)
 {
-  nsresult result = NS_OK;
+  nsRefPtr<nsStyleContext> oldContext = GetUndisplayedContent(aElement);
+  if (!oldContext) {
+    return NS_OK;
+  }
 
-  nsStyleContext *oldContext = GetUndisplayedContent(aElement);
-  if (oldContext) {
-    // The parent has a frame, so try resolving a new context.
-    nsRefPtr<nsStyleContext> newContext = mPresShell->StyleSet()->
-      ResolveStyleFor(aElement, oldContext->GetParent());
+  // The parent has a frame, so try resolving a new context.
+  nsRefPtr<nsStyleContext> newContext = mPresShell->StyleSet()->
+    ResolveStyleFor(aElement, oldContext->GetParent());
 
-    ChangeUndisplayedContent(aElement, newContext);
-    if (newContext->GetStyleDisplay()->mDisplay != NS_STYLE_DISPLAY_NONE) {
-      result = RecreateFramesForContent(aElement, false);
+  ChangeUndisplayedContent(aElement, newContext);
+  const nsStyleDisplay* disp = newContext->GetStyleDisplay();
+  if (disp->mDisplay == NS_STYLE_DISPLAY_NONE) {
+    // We can skip trying to recreate frames here, but only if our style
+    // context does not have a binding URI that differs from our old one.
+    // Otherwise, we should try to recreate, because we may want to apply the
+    // new binding
+    if (!disp->mBinding) {
+      return NS_OK;
+    }
+    const nsStyleDisplay* oldDisp = oldContext->PeekStyleDisplay();
+    if (oldDisp && EqualURIs(disp->mBinding, oldDisp->mBinding)) {
+      return NS_OK;
     }
   }
-  return result;
+
+  return RecreateFramesForContent(aElement, false);
 }
 
 static nsIFrame*

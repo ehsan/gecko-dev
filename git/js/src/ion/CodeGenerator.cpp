@@ -239,6 +239,30 @@ CodeGenerator::visitRegExp(LRegExp *lir)
 }
 
 bool
+CodeGenerator::visitRegExpTest(LRegExpTest *lir)
+{
+    typedef bool (*pf)(JSContext *cx, RegExpExecType type, HandleObject regexp,
+                       HandleString string, MutableHandleValue rval);
+    static const VMFunction ExecuteRegExpInfo = FunctionInfo<pf>(ExecuteRegExp);
+
+    pushArg(ToRegister(lir->string()));
+    pushArg(ToRegister(lir->regexp()));
+    pushArg(Imm32(RegExpTest));
+    if (!callVM(ExecuteRegExpInfo, lir))
+        return false;
+
+    Register output = ToRegister(lir->output());
+    Label notBool, end;
+    masm.branchTestBoolean(Assembler::NotEqual, JSReturnOperand, &notBool);
+    masm.unboxBoolean(JSReturnOperand, output);
+    masm.jump(&end);
+    masm.bind(&notBool);
+    masm.mov(Imm32(0), output);
+    masm.bind(&end);
+    return true;
+}
+
+bool
 CodeGenerator::visitLambdaForSingleton(LLambdaForSingleton *lir)
 {
     typedef JSObject *(*pf)(JSContext *, HandleFunction, HandleObject);
@@ -650,7 +674,7 @@ CodeGenerator::visitCallDOMNative(LCallDOMNative *call)
     uint32 safepointOffset;
     if (!masm.buildFakeExitFrame(argJSContext, &safepointOffset))
         return false;
-    masm.enterFakeDOMFrame(ION_FRAME_DOMMETHOD);
+    masm.enterFakeExitFrame(ION_FRAME_DOMMETHOD);
 
     if (!markSafepointAt(safepointOffset, call))
         return false;
@@ -1780,6 +1804,22 @@ CodeGenerator::visitPowD(LPowD *ins)
 }
 
 bool
+CodeGenerator::visitRandom(LRandom *ins)
+{
+    Register temp = ToRegister(ins->temp());
+    Register temp2 = ToRegister(ins->temp2());
+
+    masm.loadJSContext(temp);
+
+    masm.setupUnalignedABICall(1, temp2);
+    masm.passABIArg(temp);
+    masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, math_random_no_outparam), MacroAssembler::DOUBLE);
+
+    JS_ASSERT(ToFloatRegister(ins->output()) == ReturnFloatReg);
+    return true;
+}
+
+bool
 CodeGenerator::visitMathFunctionD(LMathFunctionD *ins)
 {
     Register temp = ToRegister(ins->temp());
@@ -1880,6 +1920,7 @@ CodeGenerator::visitCompareS(LCompareS *lir)
     Register left = ToRegister(lir->left());
     Register right = ToRegister(lir->right());
     Register output = ToRegister(lir->output());
+    Register temp = ToRegister(lir->temp());
 
     typedef bool (*pf)(JSContext *, HandleString, HandleString, JSBool *);
     static const VMFunction stringsEqualInfo = FunctionInfo<pf>(ion::StringsEqual<true>);
@@ -1903,20 +1944,26 @@ CodeGenerator::visitCompareS(LCompareS *lir)
     masm.jump(ool->rejoin());
 
     masm.bind(&notPointerEqual);
+    masm.loadPtr(Address(left, JSString::offsetOfLengthAndFlags()), output);
+    masm.loadPtr(Address(right, JSString::offsetOfLengthAndFlags()), temp);
 
-    // JSString::isAtom === !(lengthAndFlags & ATOM_MASK)
-    Imm32 atomMask(JSString::ATOM_BIT);
-
-    // This optimization is only correct for atomized strings,
-    // so we need to jump to the ool path.
-    masm.branchTest32(Assembler::Zero, Address(left, JSString::offsetOfLengthAndFlags()), 
-                      atomMask, ool->entry());
-
-    masm.branchTest32(Assembler::Zero, Address(right, JSString::offsetOfLengthAndFlags()), 
-                      atomMask, ool->entry());
+    Label notAtom;
+    // We can optimize the equality operation to a pointer compare for
+    // two atoms.
+    Imm32 atomBit(JSString::ATOM_BIT);
+    masm.branchTest32(Assembler::Zero, output, atomBit, &notAtom);
+    masm.branchTest32(Assembler::Zero, temp, atomBit, &notAtom);
 
     masm.cmpPtr(left, right);
     emitSet(JSOpToCondition(op), output);
+    masm.jump(ool->rejoin());
+
+    masm.bind(&notAtom);
+    // Strings of different length can never be equal.
+    masm.rshiftPtr(Imm32(JSString::LENGTH_SHIFT), output);
+    masm.rshiftPtr(Imm32(JSString::LENGTH_SHIFT), temp);
+    masm.branchPtr(Assembler::Equal, output, temp, ool->entry());
+    masm.move32(Imm32(op == JSOP_NE || op == JSOP_STRICTNE), output);
 
     masm.bind(ool->rejoin());
     return true;
@@ -2587,6 +2634,46 @@ CodeGenerator::visitArrayPushT(LArrayPushT *lir)
 }
 
 bool
+CodeGenerator::visitArrayConcat(LArrayConcat *lir)
+{
+    Register lhs = ToRegister(lir->lhs());
+    Register rhs = ToRegister(lir->rhs());
+    Register temp1 = ToRegister(lir->temp1());
+    Register temp2 = ToRegister(lir->temp2());
+
+    // If 'length == initializedLength' for both arrays we try to allocate an object
+    // inline and pass it to the stub. Else, we just pass NULL and the stub falls back
+    // to a slow path.
+    Label fail, call;
+    masm.loadPtr(Address(lhs, JSObject::offsetOfElements()), temp1);
+    masm.load32(Address(temp1, ObjectElements::offsetOfInitializedLength()), temp2);
+    masm.branch32(Assembler::NotEqual, Address(temp1, ObjectElements::offsetOfLength()), temp2, &fail);
+
+    masm.loadPtr(Address(rhs, JSObject::offsetOfElements()), temp1);
+    masm.load32(Address(temp1, ObjectElements::offsetOfInitializedLength()), temp2);
+    masm.branch32(Assembler::NotEqual, Address(temp1, ObjectElements::offsetOfLength()), temp2, &fail);
+
+    // Try to allocate an object.
+    JSObject *templateObj = lir->mir()->templateObj();
+    masm.newGCThing(temp1, templateObj, &fail);
+    masm.initGCThing(temp1, templateObj);
+    masm.jump(&call);
+    {
+        masm.bind(&fail);
+        masm.movePtr(ImmWord((void *)NULL), temp1);
+    }
+    masm.bind(&call);
+
+    typedef JSObject *(*pf)(JSContext *, HandleObject, HandleObject, HandleObject);
+    static const VMFunction Info = FunctionInfo<pf>(ArrayConcatDense);
+
+    pushArg(temp1);
+    pushArg(ToRegister(lir->rhs()));
+    pushArg(ToRegister(lir->lhs()));
+    return callVM(Info, lir);
+}
+
+bool
 CodeGenerator::visitCallIteratorStart(LCallIteratorStart *lir)
 {
     typedef JSObject *(*pf)(JSContext *, HandleObject, uint32_t);
@@ -3198,7 +3285,7 @@ CodeGenerator::visitOutOfLineCacheGetProperty(OutOfLineCache *ool)
     RegisterSet liveRegs = ool->cache()->safepoint()->liveRegs();
 
     LInstruction *ins = ool->cache();
-    const MInstruction *mir = ins->mirRaw()->toInstruction();
+    MInstruction *mir = ins->mirRaw()->toInstruction();
 
     TypedOrValueRegister output;
 
@@ -3209,6 +3296,7 @@ CodeGenerator::visitOutOfLineCacheGetProperty(OutOfLineCache *ool)
     // Note: because all registers are saved, the output register should be
     //       a def register, else the result will be overriden by restoreLive(ins)
     PropertyName *name = NULL;
+    bool allowGetters = false;
     switch (ins->op()) {
       case LInstruction::LOp_InstanceOfO:
       case LInstruction::LOp_InstanceOfV:
@@ -3220,11 +3308,15 @@ CodeGenerator::visitOutOfLineCacheGetProperty(OutOfLineCache *ool)
         name = ((LGetPropertyCacheT *) ins)->mir()->name();
         objReg = ToRegister(ins->getOperand(0));
         output = TypedOrValueRegister(mir->type(), ToAnyRegister(ins->getDef(0)));
+        JS_ASSERT(mir->isGetPropertyCache());
+        allowGetters = mir->toGetPropertyCache()->allowGetters();
         break;
       case LInstruction::LOp_GetPropertyCacheV:
         name = ((LGetPropertyCacheV *) ins)->mir()->name();
         objReg = ToRegister(ins->getOperand(0));
         output = TypedOrValueRegister(GetValueOutput(ins));
+        JS_ASSERT(mir->isGetPropertyCache());
+        allowGetters = mir->toGetPropertyCache()->allowGetters();
         break;
       default:
         JS_NOT_REACHED("Bad instruction");
@@ -3233,7 +3325,7 @@ CodeGenerator::visitOutOfLineCacheGetProperty(OutOfLineCache *ool)
 
     IonCacheGetProperty cache(ool->getInlineJump(), ool->getInlineLabel(),
                               masm.labelForPatch(), liveRegs,
-                              objReg, name, output);
+                              objReg, name, output, allowGetters);
 
     if (mir->resumePoint())
         cache.setScriptedLocation(mir->block()->info().script(), mir->resumePoint()->pc());
@@ -4015,7 +4107,7 @@ CodeGenerator::visitGetDOMProperty(LGetDOMProperty *ins)
     uint32 safepointOffset;
     if (!masm.buildFakeExitFrame(JSContextReg, &safepointOffset))
         return false;
-    masm.enterFakeDOMFrame(ION_FRAME_DOMGETTER);
+    masm.enterFakeExitFrame(ION_FRAME_DOMGETTER);
 
     if (!markSafepointAt(safepointOffset, ins))
         return false;
@@ -4081,7 +4173,7 @@ CodeGenerator::visitSetDOMProperty(LSetDOMProperty *ins)
     uint32 safepointOffset;
     if (!masm.buildFakeExitFrame(JSContextReg, &safepointOffset))
         return false;
-    masm.enterFakeDOMFrame(ION_FRAME_DOMSETTER);
+    masm.enterFakeExitFrame(ION_FRAME_DOMSETTER);
 
     if (!markSafepointAt(safepointOffset, ins))
         return false;

@@ -48,10 +48,8 @@ public:
 
   bool SendFile(BlobParent* aBlob,
                 BluetoothReplyRunnable* aRunnable);
-
   bool StopSendingFile(BluetoothReplyRunnable* aRunnable);
 
-  // xxx For runnable use
   void SendConnectRequest();
   void SendPutHeaderRequest(const nsAString& aFileName, int aFileSize);
   void SendPutRequest(uint8_t* aFileBody, int aFileBodyLength,
@@ -61,6 +59,9 @@ public:
 
 private:
   BluetoothOppManager();
+  void FileTransferComplete(bool aSuccess, bool aReceived,
+                            const nsString& aFileName, uint32_t aFileLength);
+  void UpdateProgress(uint32_t aProcessed, uint32_t aFileLength);
 
   bool mConnected;
   int mConnectionId;

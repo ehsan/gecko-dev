@@ -233,6 +233,7 @@ public:
     void SetPageRect(const gfx::Rect& aCssPageRect);
     void SyncViewportInfo(const nsIntRect& aDisplayPort, float aDisplayResolution, bool aLayersUpdated,
                           nsIntPoint& aScrollOffset, float& aScaleX, float& aScaleY);
+    bool ShouldAbortProgressiveUpdate(bool aHasPendingNewThebesContent, const gfx::Rect& aDisplayPort, float aDisplayResolution);
     bool CreateFrame(AutoLocalJNIFrame *jniFrame, AndroidLayerRendererFrame& aFrame);
     bool ActivateProgram(AutoLocalJNIFrame *jniFrame);
     bool DeactivateProgram(AutoLocalJNIFrame *jniFrame);
@@ -247,6 +248,7 @@ protected:
     static jmethodID jActivateProgramMethod;
     static jmethodID jDeactivateProgramMethod;
     static jmethodID jGetDisplayPort;
+    static jmethodID jShouldAbortProgressiveUpdate;
 
 public:
     static jclass jViewportClass;

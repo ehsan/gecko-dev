@@ -71,6 +71,7 @@ fuzzy-if(/^Windows\x20NT\x206\.1/.test(http.oscpu),1,2) == clipPath-and-shape-re
 == dynamic-clipPath-02.svg pass.svg
 == dynamic-feFlood-01.svg pass.svg
 == dynamic-feImage-01.svg pass.svg
+== dynamic-fill-01.svg dynamic-fill-01-ref.svg
 == dynamic-filter-contents-01a.svg dynamic-filter-contents-01-ref.svg
 == dynamic-filter-contents-01b.svg dynamic-filter-contents-01-ref.svg
 == dynamic-gradient-contents-01.svg pass.svg
@@ -253,6 +254,7 @@ random-if(gtk2Widget) == text-font-weight-01.svg text-font-weight-01-ref.svg # b
 == text-gradient-01.svg text-gradient-01-ref.svg
 random-if(winWidget) == text-gradient-02.svg text-gradient-02-ref.svg # see bug 590101
 == text-gradient-03.svg pass.svg
+HTTP(..) == text-gradient-04.svg text-gradient-04-ref.svg
 == text-in-link-01.svg text-in-link-01-ref.svg
 == text-in-link-02.svg text-in-link-02-ref.svg
 == text-in-link-03.svg text-in-link-03-ref.svg

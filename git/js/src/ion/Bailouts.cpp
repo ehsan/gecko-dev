@@ -247,7 +247,7 @@ ConvertFrames(JSContext *cx, IonActivation *activation, IonBailoutIterator &it)
     activation->setBailout(br);
 
     StackFrame *fp;
-    if (it.isEntryJSFrame() && cx->fp()->runningInIon()) {
+    if (it.isEntryJSFrame() && cx->fp()->runningInIon() && activation->entryfp()) {
         // Avoid creating duplicate interpreter frames. This is necessary to
         // avoid blowing out the interpreter stack, and must be used in
         // conjunction with inline-OSR from within bailouts (since each Ion
@@ -257,6 +257,7 @@ ConvertFrames(JSContext *cx, IonActivation *activation, IonBailoutIterator &it)
         // Note: If the entry frame is a placeholder (a stub frame pushed for
         // JM -> Ion calls), then we cannot re-use it as it does not have
         // enough slots.
+        JS_ASSERT(cx->fp() == activation->entryfp());
         fp = cx->fp();
         cx->regs().sp = fp->base();
     } else {
@@ -410,12 +411,14 @@ ion::InvalidationBailout(InvalidationBailoutStack *sp, size_t *frameSizeOut)
         cx->regs().sp[-1] = cx->runtime->takeIonReturnOverride();
 
     if (retval != BAILOUT_RETURN_FATAL_ERROR) {
-        if (void *annotation = activation->entryfp()->annotation()) {
-            // If the entry frame has an annotation, then we invalidated and have
-            // immediately returned into this bailout. Transfer the annotation to
-            // the new topmost frame.
-            activation->entryfp()->setAnnotation(NULL);
-            cx->fp()->setAnnotation(annotation);
+        if (activation->entryfp()) {
+            if (void *annotation = activation->entryfp()->annotation()) {
+                // If the entry frame has an annotation, then we invalidated and have
+                // immediately returned into this bailout. Transfer the annotation to
+                // the new topmost frame.
+                activation->entryfp()->setAnnotation(NULL);
+                cx->fp()->setAnnotation(annotation);
+            }
         }
 
         // If invalidation was triggered inside a stub call, we may still have to
@@ -594,6 +597,41 @@ ion::ThunkToInterpreter(Value *vp)
         pc += GET_JUMP_OFFSET(pc);
     if (JSOp(*pc) == JSOP_LOOPENTRY)
         cx->regs().pc = GetNextPc(pc);
+
+    // When JSScript::argumentsOptimizationFailed, we cannot access Ion frames
+    // in order to create an arguments object for them.  However, there is an
+    // invariant that script->needsArgsObj() implies fp->hasArgsObj() (after the
+    // prologue), so we must create one now for each inlined frame which needs
+    // one.
+    {
+        br->entryfp()->clearRunningInIon();
+        ScriptFrameIter iter(cx);
+        StackFrame *fp = NULL;
+        Rooted<JSScript*> script(cx, NULL);
+        do {
+            JS_ASSERT(!iter.isIon());
+            fp = iter.fp();
+            script = iter.script();
+            if (script->needsArgsObj()) {
+                // Currently IonMonkey does not compile if the script needs an
+                // arguments object, so the frame should not have any argument
+                // object yet.
+                JS_ASSERT(!fp->hasArgsObj());
+                ArgumentsObject *argsobj = ArgumentsObject::createExpected(cx, fp);
+                if (!argsobj)
+                    return Interpret_Error;
+                InternalBindingsHandle bindings(script, &script->bindings);
+                const unsigned var = Bindings::argumentsVarIndex(cx, bindings);
+                // The arguments is a local binding and needsArgsObj does not
+                // check if it is clobbered. Ensure that the local binding
+                // restored during bailout before storing the arguments object
+                // to the slot.
+                if (fp->unaliasedLocal(var).isMagic(JS_OPTIMIZED_ARGUMENTS))
+                    fp->unaliasedLocal(var) = ObjectValue(*argsobj);
+            }
+            ++iter;
+        } while (fp != br->entryfp());
+    }
 
     if (activation->entryfp() == br->entryfp()) {
         // If the bailout entry fp is the same as the activation entryfp, then

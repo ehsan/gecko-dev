@@ -382,6 +382,9 @@ Section "Uninstall"
   ${If} ${FileExists} "$INSTDIR\updates"
     RmDir /r /REBOOTOK "$INSTDIR\updates"
   ${EndIf}
+  ${If} ${FileExists} "$INSTDIR\updated"
+    RmDir /r /REBOOTOK "$INSTDIR\updated"
+  ${EndIf}
   ${If} ${FileExists} "$INSTDIR\defaults\shortcuts"
     RmDir /r /REBOOTOK "$INSTDIR\defaults\shortcuts"
   ${EndIf}
@@ -410,6 +413,8 @@ Section "Uninstall"
   ; See bug 757978
   RmDir "$INSTDIR\webapprt\components"
   RmDir "$INSTDIR\webapprt"
+
+  RmDir /r /REBOOTOK "$INSTDIR\${TO_BE_DELETED}"
 
   ; Remove the installation directory if it is empty
   ${RemoveDir} "$INSTDIR"

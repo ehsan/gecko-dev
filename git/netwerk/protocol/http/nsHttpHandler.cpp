@@ -138,6 +138,7 @@ nsHttpHandler::nsHttpHandler()
     , mMaxRequestAttempts(10)
     , mMaxRequestDelay(10)
     , mIdleSynTimeout(250)
+    , mPipeliningEnabled(false)
     , mMaxConnections(24)
     , mMaxPersistentConnectionsPerServer(2)
     , mMaxPersistentConnectionsPerProxy(4)
@@ -173,6 +174,7 @@ nsHttpHandler::nsHttpHandler()
     , mCoalesceSpdy(true)
     , mUseAlternateProtocol(false)
     , mSpdySendingChunkSize(ASpdySession::kSendingChunkSize)
+    , mSpdySendBufferSize(ASpdySession::kTCPSendBufferSize)
     , mSpdyPingThreshold(PR_SecondsToInterval(44))
     , mSpdyPingTimeout(PR_SecondsToInterval(8))
     , mConnectTimeout(90000)
@@ -201,6 +203,10 @@ nsHttpHandler::~nsHttpHandler()
     // and it'll segfault.  NeckoChild will get cleaned up by process exit.
 
     nsHttp::DestroyAtomTable();
+    if (mPipelineTestTimer) {
+        mPipelineTestTimer->Cancel();
+        mPipelineTestTimer = nullptr;
+    }
 
     gHttpHandler = nullptr;
 }
@@ -868,6 +874,7 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
                 mCapabilities |=  NS_HTTP_ALLOW_PIPELINING;
             else
                 mCapabilities &= ~NS_HTTP_ALLOW_PIPELINING;
+            mPipeliningEnabled = cVar;
         }
     }
 
@@ -1097,6 +1104,14 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
                 PR_SecondsToInterval((uint16_t) clamped(val, 0, 0x7fffffff));
     }
 
+    // The amount of seconds to wait for a spdy ping response before
+    // closing the session.
+    if (PREF_CHANGED(HTTP_PREF("spdy.send-buffer-size"))) {
+        rv = prefs->GetIntPref(HTTP_PREF("spdy.send-buffer-size"), &val);
+        if (NS_SUCCEEDED(rv))
+            mSpdySendBufferSize = (uint32_t) clamped(val, 1500, 0x7fffffff);
+    }
+
     // The maximum amount of time to wait for socket transport to be
     // established
     if (PREF_CHANGED(HTTP_PREF("connection-timeout"))) {
@@ -1186,8 +1201,51 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
         }
     }
 
+    //
+    // Test HTTP Pipelining (bug796192)
+    // If experiments are allowed and pipelining is Off,
+    // turn it On for just 10 minutes
+    //
+    if (mAllowExperiments && !mPipeliningEnabled &&
+        PREF_CHANGED(HTTP_PREF("pipelining.abtest"))) {
+        rv = prefs->GetBoolPref(HTTP_PREF("pipelining.abtest"), &cVar);
+        if (NS_SUCCEEDED(rv)) {
+            // If option is enabled, only test for ~1% of sessions
+            if (cVar && !(rand() % 128)) {
+                mCapabilities |=  NS_HTTP_ALLOW_PIPELINING;
+                if (mPipelineTestTimer)
+                    mPipelineTestTimer->Cancel();
+                mPipelineTestTimer =
+                    do_CreateInstance("@mozilla.org/timer;1", &rv);
+                if (NS_SUCCEEDED(rv)) {
+                    rv = mPipelineTestTimer->InitWithFuncCallback(
+                        TimerCallback, this, 10*60*1000, // 10 minutes
+                        nsITimer::TYPE_ONE_SHOT);
+                }
+            } else {
+                mCapabilities &= ~NS_HTTP_ALLOW_PIPELINING;
+                if (mPipelineTestTimer) {
+                    mPipelineTestTimer->Cancel();
+                    mPipelineTestTimer = nullptr;
+                }
+            }
+        }
+    }
+
 #undef PREF_CHANGED
 #undef MULTI_PREF_CHANGED
+}
+
+
+/**
+ * Static method called by mPipelineTestTimer when it expires.
+ */
+void
+nsHttpHandler::TimerCallback(nsITimer * aTimer, void * aClosure)
+{
+    nsRefPtr<nsHttpHandler> thisObject = static_cast<nsHttpHandler*>(aClosure);
+    if (!thisObject->mPipeliningEnabled)
+        thisObject->mCapabilities &= ~NS_HTTP_ALLOW_PIPELINING;
 }
 
 /**

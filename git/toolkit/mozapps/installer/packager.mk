@@ -101,6 +101,7 @@ _ABS_DIST = $(call core_abspath,$(DIST))
 JARLOG_DIR = $(call core_abspath,$(DEPTH)/jarlog/)
 JARLOG_DIR_AB_CD = $(JARLOG_DIR)/$(AB_CD)
 
+TAR_CREATE_FLAGS := --exclude=.mkdir.done $(TAR_CREATE_FLAGS)
 CREATE_FINAL_TAR = $(TAR) -c --owner=0 --group=0 --numeric-owner \
   --mode="go-w" --exclude=.mkdir.done -f
 UNPACK_TAR       = tar -xf-
@@ -455,18 +456,16 @@ _ABS_RUN_TEST_PROGRAM = $(call core_abspath,$(RUN_TEST_PROGRAM))
 endif
 
 ifdef LIBXUL_SDK
-PRECOMPILE_DIR=XCurProcD
 PRECOMPILE_RESOURCE=app
 PRECOMPILE_GRE=$(LIBXUL_DIST)/bin
 else
-PRECOMPILE_DIR=GreD
 PRECOMPILE_RESOURCE=gre
 PRECOMPILE_GRE=$$PWD
 endif
 
 # Silence the unzip step so we don't print any binary data from the comment field.
 GENERATE_CACHE = \
-  $(_ABS_RUN_TEST_PROGRAM) $(LIBXUL_DIST)/bin/xpcshell$(BIN_SUFFIX) -g "$(PRECOMPILE_GRE)" -a "$$PWD" -f $(call core_abspath,$(MOZILLA_DIR)/toolkit/mozapps/installer/precompile_cache.js) -e "populate_startupcache('$(PRECOMPILE_DIR)', '$(OMNIJAR_NAME)', 'startupCache.zip');" && \
+  $(_ABS_RUN_TEST_PROGRAM) $(LIBXUL_DIST)/bin/xpcshell$(BIN_SUFFIX) -g "$(PRECOMPILE_GRE)" -a "$$PWD" -f $(call core_abspath,$(MOZILLA_DIR)/toolkit/mozapps/installer/precompile_cache.js) -e "populate_startupcache('startupCache.zip');" && \
   rm -rf jsloader jssubloader && \
   $(UNZIP) -q startupCache.zip && \
   rm startupCache.zip && \
@@ -855,7 +854,7 @@ endif # LIBXUL_SDK
 prepare-package: stage-package
 	cd $(DIST) && $(PREPARE_PACKAGE)
 
-make-package-internal: prepare-package $(PACKAGE_XULRUNNER) make-sourcestamp-file
+make-package-internal: prepare-package make-sourcestamp-file
 	@echo "Compressing..."
 	cd $(DIST) && $(MAKE_PACKAGE)
 
@@ -891,7 +890,7 @@ ifeq (bundle,$(MOZ_FS_LAYOUT))
 	$(error "make install" is not supported on this platform. Use "make package" instead.)
 endif
 	$(NSINSTALL) -D $(DESTDIR)$(installdir)
-	(cd $(DIST)/$(MOZ_PKG_DIR) && tar $(TAR_CREATE_FLAGS) - .) | \
+	(cd $(DIST)/$(MOZ_PKG_DIR) && tar --exclude=precomplete $(TAR_CREATE_FLAGS) - .) | \
 	  (cd $(DESTDIR)$(installdir) && tar -xf -)
 	$(NSINSTALL) -D $(DESTDIR)$(bindir)
 	$(RM) -f $(DESTDIR)$(bindir)/$(MOZ_APP_NAME)

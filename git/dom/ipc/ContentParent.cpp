@@ -462,14 +462,20 @@ ContentParent::SetManifestFromPreallocated(const nsAString& aAppManifestURL)
 void
 ContentParent::ShutDownProcess()
 {
-    if (mIsAlive) {
-        // Close() can only be called once.  It kicks off the
-        // destruction sequence.
-        Close();
+  if (mIsAlive) {
+    const InfallibleTArray<PIndexedDBParent*>& idbParents =
+      ManagedPIndexedDBParent();
+    for (uint32_t i = 0; i < idbParents.Length(); ++i) {
+      static_cast<IndexedDBParent*>(idbParents[i])->Disconnect();
     }
-    // NB: must MarkAsDead() here so that this isn't accidentally
-    // returned from Get*() while in the midst of shutdown.
-    MarkAsDead();
+
+    // Close() can only be called once.  It kicks off the
+    // destruction sequence.
+    Close();
+  }
+  // NB: must MarkAsDead() here so that this isn't accidentally
+  // returned from Get*() while in the midst of shutdown.
+  MarkAsDead();
 }
 
 void
@@ -774,8 +780,12 @@ ContentParent::~ContentParent()
         MOZ_ASSERT(!gNonAppContentParents ||
                    !gNonAppContentParents->Contains(this));
     } else {
+        // In general, we expect gAppContentParents->Get(mAppManifestURL) to be
+        // NULL.  But it could be that we created another ContentParent for this
+        // app after we did this->ActorDestroy(), so the right check is that
+        // gAppContentParent->Get(mAppManifestURL) != this.
         MOZ_ASSERT(!gAppContentParents ||
-                   !gAppContentParents->Get(mAppManifestURL));
+                   gAppContentParents->Get(mAppManifestURL) != this);
     }
 }
 

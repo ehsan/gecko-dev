@@ -93,6 +93,7 @@ public:
     bool           CoalesceSpdy() { return mCoalesceSpdy; }
     bool           UseAlternateProtocol() { return mUseAlternateProtocol; }
     uint32_t       SpdySendingChunkSize() { return mSpdySendingChunkSize; }
+    uint32_t       SpdySendBufferSize()      { return mSpdySendBufferSize; }
     PRIntervalTime SpdyPingThreshold() { return mSpdyPingThreshold; }
     PRIntervalTime SpdyPingTimeout() { return mSpdyPingTimeout; }
     uint32_t       ConnectTimeout()  { return mConnectTimeout; }
@@ -255,6 +256,7 @@ private:
 
     void     NotifyObservers(nsIHttpChannel *chan, const char *event);
 
+    static void TimerCallback(nsITimer * aTimer, void * aClosure);
 private:
 
     // cached services
@@ -289,6 +291,7 @@ private:
     uint16_t mMaxRequestDelay;
     uint16_t mIdleSynTimeout;
 
+    bool     mPipeliningEnabled;
     uint16_t mMaxConnections;
     uint8_t  mMaxPersistentConnectionsPerServer;
     uint8_t  mMaxPersistentConnectionsPerProxy;
@@ -299,6 +302,7 @@ private:
     bool     mPipelineRescheduleOnTimeout;
     PRIntervalTime mPipelineRescheduleTimeout;
     PRIntervalTime mPipelineReadTimeout;
+    nsCOMPtr<nsITimer> mPipelineTestTimer;
 
     uint8_t  mRedirectionLimit;
 
@@ -371,6 +375,7 @@ private:
     bool           mCoalesceSpdy;
     bool           mUseAlternateProtocol;
     uint32_t       mSpdySendingChunkSize;
+    uint32_t       mSpdySendBufferSize;
     PRIntervalTime mSpdyPingThreshold;
     PRIntervalTime mSpdyPingTimeout;
 

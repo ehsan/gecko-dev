@@ -1100,7 +1100,8 @@ ContextStack::pushBailoutArgs(JSContext *cx, const ion::IonBailoutIterator &it, 
     CopyTo dst(iag->array());
     Value *src = it.actualArgs();
     Value thisv = iag->thisv();
-    return s.readFrameArgs(dst, src, NULL, &thisv, 0, fun->nargs, argc);
+    s.readFrameArgs(dst, src, NULL, &thisv, 0, fun->nargs, argc);
+    return true;
 }
 
 StackFrame *
@@ -1460,7 +1461,21 @@ StackIter::popIonFrame()
             ionInlineFrames_ = ion::InlineFrameIterator(&ionFrames_);
             pc_ = ionInlineFrames_.pc();
             script_ = ionInlineFrames_.script();
-        } else if (fp_->runningInIon()) {
+            return;
+        }
+
+        // The activation has no other frames. If entryfp is NULL, it was invoked
+        // by a native written in C++, using FastInvoke, on top of another activation.
+        ion::IonActivation *activation = ionActivations_.activation();
+        if (!activation->entryfp()) {
+            JS_ASSERT(activation->prevpc());
+            JS_ASSERT(fp_->beginsIonActivation());
+            ++ionActivations_;
+            settleOnNewState();
+            return;
+        }
+
+        if (fp_->runningInIon()) {
             ++ionActivations_;
             popFrame();
             settleOnNewState();

@@ -15,19 +15,16 @@
 BEGIN_BLUETOOTH_NAMESPACE
 
 class BluetoothReplyRunnable;
-class BluetoothNamedValue;
+class BluetoothHfpManagerObserver;
 
 class BluetoothHfpManager : public mozilla::ipc::UnixSocketConsumer
-                          , public nsIObserver
 {
 public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSIOBSERVER
-
   ~BluetoothHfpManager();
   static BluetoothHfpManager* Get();
   void ReceiveSocketData(mozilla::ipc::UnixSocketRawData* aMessage);
   bool Connect(const nsAString& aDeviceObjectPath,
+               const bool aIsHandsfree,
                BluetoothReplyRunnable* aRunnable);
   void Disconnect();
   bool SendLine(const char* aMessage);
@@ -36,13 +33,12 @@ public:
   bool Listen();
 
 private:
+  friend class BluetoothHfpManagerObserver;
   BluetoothHfpManager();
-  bool Init();
-  void Cleanup();
   nsresult HandleVolumeChanged(const nsAString& aData);
   nsresult HandleShutdown();
-  bool BroadcastSystemMessage(const nsAString& aType,
-                              const InfallibleTArray<BluetoothNamedValue>& aData);
+  bool Init();
+  void Cleanup();
   void NotifyDialer(const nsAString& aCommand);
   void NotifySettings(const bool aConnected);
 

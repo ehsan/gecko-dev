@@ -789,10 +789,10 @@ ComputePrecisionInRange(JSContext *cx, int minPrecision, int maxPrecision, const
         *precision = int(prec);
         return true;
     }
+
     ToCStringBuf cbuf;
-    char *numStr = IntToCString(&cbuf, *precision);
-    JS_ASSERT(numStr);
-    JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_PRECISION_RANGE, numStr);
+    if (char *numStr = NumberToCString(cx, &cbuf, prec, 10))
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_PRECISION_RANGE, numStr);
     return false;
 }
 
@@ -1344,6 +1344,7 @@ NumberValueToStringBuffer(JSContext *cx, const Value &v, StringBuffer &sb)
 JS_PUBLIC_API(bool)
 ToNumberSlow(JSContext *cx, Value v, double *out)
 {
+    AssertCanGC();
 #ifdef DEBUG
     /*
      * MSVC bizarrely miscompiles this, complaining about the first brace below

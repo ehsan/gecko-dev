@@ -898,7 +898,6 @@ toolbar[iconsize="small"] #feed-button {
 /* Location bar */
 #urlbar {
   width: 7em;
-  min-width: 7em;
   -moz-appearance: textfield;
   padding: 0;
 }
@@ -910,6 +909,7 @@ toolbar[iconsize="small"] #feed-button {
 
 .urlbar-input-box {
   -moz-margin-start: 0;
+  min-width: 4em;
 }
 
 .urlbar-history-dropmarker {
@@ -1199,6 +1199,10 @@ toolbar[iconsize="small"] #feed-button {
   list-style-image: url(chrome://browser/skin/webapps-64.png);
 }
 
+.popup-notification-icon[popupid="webRTC-shareDevices"] {
+  list-style-image: url(chrome://browser/skin/webRTC-shareDevice-64.png);
+}
+
 /* Notification icon box */
 #notification-popup-box {
   position: relative;
@@ -1264,6 +1268,10 @@ toolbar[iconsize="small"] #feed-button {
 
 #plugins-notification-icon {
   list-style-image: url(chrome://mozapps/skin/plugins/pluginGeneric-16.png);
+}
+
+#webRTC-notification-icon {
+  list-style-image: url(chrome://browser/skin/webRTC-shareDevice-16.png);
 }
 
 #treecolAutoCompleteImage {
@@ -2643,9 +2651,10 @@ html|*#gcli-output-frame {
   padding: 0;
 }
 
-.social-notification-icon-stack > image {
+.social-notification-icon-image {
   margin: 5px 3px;
-  max-height: 16px;
+  width: 16px;
+  height: 16px;
 }
 
 .social-notification-icon-hbox {
@@ -2832,17 +2841,11 @@ chatbox[minimized="true"] {
   height: 20px;
 }
 
-panel[type="arrow"][popupid="click-to-play-plugins"] > .panel-arrowcontainer > .panel-arrowbox > .panel-arrow[side="top"],
-panel[type="arrow"][popupid="click-to-play-plugins"] > .panel-arrowcontainer > .panel-arrowbox > .panel-arrow[side="bottom"] {
-  list-style-image: url("chrome://global/skin/icons/panelarrow-light-vertical.svg");
-}
-
 .click-to-play-plugins-notification-content {
   margin: -10px;
 }
 
 .click-to-play-plugins-notification-icon-box {
-  background: hsla(0,0%,100%,.4);
   -moz-border-end: 1px solid hsla(0,0%,100%,.2);
   padding-top: 16px;
   -moz-padding-start: 16px;

@@ -834,6 +834,12 @@ nsGlobalWindow::~nsGlobalWindow()
     nsAutoCString url;
     if (mLastOpenedURI) {
       mLastOpenedURI->GetSpec(url);
+
+      // Data URLs can be very long, so truncate to avoid flooding the log.
+      const uint32_t maxURLLength = 1000;
+      if (url.Length() > maxURLLength) {
+        url.Truncate(maxURLLength);
+      }
     }
 
     printf("--DOMWINDOW == %d (%p) [serial = %d] [outer = %p] [url = %s]\n",
@@ -6548,9 +6554,10 @@ nsGlobalWindow::Close()
     return NS_OK;
   }
 
-  // Don't allow scripts from content to close windows
-  // that were not opened by script
-  if (!mHadOriginalOpener && !nsContentUtils::IsCallerTrustedForWrite()) {
+  // Don't allow scripts from content to close non-app windows that were not
+  // opened by script.
+  if (!mDocShell->GetIsApp() &&
+      !mHadOriginalOpener && !nsContentUtils::IsCallerTrustedForWrite()) {
     bool allowClose =
       Preferences::GetBool("dom.allow_scripts_to_close_windows", true);
     if (!allowClose) {

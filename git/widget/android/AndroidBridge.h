@@ -156,6 +156,8 @@ public:
     nsresult TakeScreenshot(nsIDOMWindow *window, int32_t srcX, int32_t srcY, int32_t srcW, int32_t srcH, int32_t dstY, int32_t dstX, int32_t dstW, int32_t dstH, int32_t bufW, int32_t bufH, int32_t tabId, int32_t token, jobject buffer);
     nsresult GetDisplayPort(bool aPageSizeUpdate, bool aIsBrowserContentDisplayed, int32_t tabId, nsIAndroidViewport* metrics, nsIAndroidDisplayport** displayPort);
 
+    bool ShouldAbortProgressiveUpdate(bool aHasPendingNewThebesContent, const gfx::Rect& aDisplayPort, float aDisplayResolution);
+
     static void NotifyPaintedRect(float top, float left, float bottom, float right);
 
     void AcknowledgeEventSync();
@@ -278,6 +280,10 @@ public:
     void *LockBitmap(jobject bitmap);
 
     void UnlockBitmap(jobject bitmap);
+
+    bool UnlockProfile();
+
+    void KillAnyZombies();
 
     /* Copied from Android's native_window.h in newer (platform 9) NDK */
     enum {
@@ -417,6 +423,8 @@ protected:
     jmethodID jShowFilePickerForExtensions;
     jmethodID jShowFilePickerForMimeType;
     jmethodID jShowFilePickerAsync;
+    jmethodID jUnlockProfile;
+    jmethodID jKillAnyZombies;
     jmethodID jAlertsProgressListener_OnProgress;
     jmethodID jAlertsProgressListener_OnCancel;
     jmethodID jGetDpi;

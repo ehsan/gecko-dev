@@ -481,8 +481,13 @@ nsWindow::Create(nsIWidget *aParent,
   DWORD extendedStyle = WindowExStyle();
 
   if (mWindowType == eWindowType_popup) {
-    if (!aParent)
+    if (!aParent) {
       parent = NULL;
+    }
+
+    if (mPopupType == ePopupTypeMenu && aInitData->mDropShadow) {
+      extendedStyle |= WS_EX_COMPOSITED;
+    }
 
     if (aInitData->mIsDragPopup) {
       // This flag makes the window transparent to mouse events
@@ -959,6 +964,19 @@ float nsWindow::GetDPI()
     return 96.0f;
   }
   return float(heightPx/heightInches);
+}
+
+double nsWindow::GetDefaultScale()
+{
+  HDC dc = ::GetDC(mWnd);
+  if (!dc)
+    return 1.0;
+
+  // LOGPIXELSY returns the number of logical pixels per inch. This is based
+  // on font DPI settings rather than the actual screen DPI.
+  double pixelsPerInch = ::GetDeviceCaps(dc, LOGPIXELSY);
+  ::ReleaseDC(mWnd, dc);
+  return pixelsPerInch/96.0;
 }
 
 nsWindow* nsWindow::GetParentWindow(bool aIncludeOwner)
@@ -6405,7 +6423,7 @@ LRESULT nsWindow::OnKeyDown(const MSG &aMsg,
         keyinput.ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
       }
       keyinput.ki.time = 0;
-      keyinput.ki.dwExtraInfo = NULL;
+      keyinput.ki.dwExtraInfo = 0;
 
       sRedirectedKeyDownEventPreventedDefault = noDefault;
       sRedirectedKeyDown = aMsg;

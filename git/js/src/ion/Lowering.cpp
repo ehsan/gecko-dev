@@ -454,7 +454,7 @@ LIRGenerator::visitCompare(MCompare *comp)
         // LCompareSAndBranch. Doing this now wouldn't be wrong, but doesn't
         // make sense and avoids confusion.
         if (comp->specialization() == MIRType_String) {
-            LCompareS *lir = new LCompareS(useRegister(left), useRegister(right));
+            LCompareS *lir = new LCompareS(useRegister(left), useRegister(right), temp());
             if (!define(lir, comp))
                 return false;
             return assignSafepoint(lir, comp);
@@ -731,6 +731,13 @@ LIRGenerator::visitPow(MPow *ins)
 
     LPowD *lir = new LPowD(useRegisterAtStart(input), useRegisterAtStart(power),
                            tempFixed(CallTempReg0));
+    return defineFixed(lir, ins, LAllocation(AnyRegister(ReturnFloatReg)));
+}
+
+bool
+LIRGenerator::visitRandom(MRandom *ins)
+{
+    LRandom *lir = new LRandom(tempFixed(CallTempReg0), tempFixed(CallTempReg1));
     return defineFixed(lir, ins, LAllocation(AnyRegister(ReturnFloatReg)));
 }
 
@@ -1113,6 +1120,17 @@ LIRGenerator::visitRegExp(MRegExp *ins)
 }
 
 bool
+LIRGenerator::visitRegExpTest(MRegExpTest *ins)
+{
+    JS_ASSERT(ins->regexp()->type() == MIRType_Object);
+    JS_ASSERT(ins->string()->type() == MIRType_String);
+
+    LRegExpTest *lir = new LRegExpTest(useRegisterAtStart(ins->regexp()),
+                                       useRegisterAtStart(ins->string()));
+    return defineVMReturn(lir, ins) && assignSafepoint(lir, ins);
+}
+
+bool
 LIRGenerator::visitLambda(MLambda *ins)
 {
     if (ins->fun()->hasSingletonType() || types::UseNewTypeForClone(ins->fun())) {
@@ -1475,6 +1493,20 @@ LIRGenerator::visitArrayPush(MArrayPush *ins)
         return define(lir, ins) && assignSafepoint(lir, ins);
       }
     }
+}
+
+bool
+LIRGenerator::visitArrayConcat(MArrayConcat *ins)
+{
+    JS_ASSERT(ins->type() == MIRType_Object);
+    JS_ASSERT(ins->lhs()->type() == MIRType_Object);
+    JS_ASSERT(ins->rhs()->type() == MIRType_Object);
+
+    LArrayConcat *lir = new LArrayConcat(useFixed(ins->lhs(), CallTempReg1),
+                                         useFixed(ins->rhs(), CallTempReg2),
+                                         tempFixed(CallTempReg3),
+                                         tempFixed(CallTempReg4));
+    return defineVMReturn(lir, ins) && assignSafepoint(lir, ins);
 }
 
 bool

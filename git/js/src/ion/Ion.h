@@ -165,7 +165,7 @@ struct IonOptions
         lsra(true),
         inlining(true),
         edgeCaseAnalysis(true),
-        rangeAnalysis(false),
+        rangeAnalysis(true),
         parallelCompilation(false),
         usesBeforeCompile(10240),
         usesBeforeCompileNoJaeger(40),
@@ -226,6 +226,7 @@ bool SetIonContext(IonContext *ctx);
 MethodStatus CanEnterAtBranch(JSContext *cx, HandleScript script,
                               StackFrame *fp, jsbytecode *pc);
 MethodStatus CanEnter(JSContext *cx, HandleScript script, StackFrame *fp, bool newType);
+MethodStatus CanEnterUsingFastInvoke(JSContext *cx, HandleScript script);
 
 enum IonExecStatus
 {
@@ -236,6 +237,9 @@ enum IonExecStatus
 
 IonExecStatus Cannon(JSContext *cx, StackFrame *fp);
 IonExecStatus SideCannon(JSContext *cx, StackFrame *fp, jsbytecode *pc);
+
+// Used to enter Ion from C++ natives like Array.map. Called from FastInvokeGuard.
+IonExecStatus FastInvoke(JSContext *cx, HandleFunction fun, CallArgs &args);
 
 // Walk the stack and invalidate active Ion frames for the invalid scripts.
 void Invalidate(types::TypeCompartment &types, FreeOp *fop,

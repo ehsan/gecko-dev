@@ -23,8 +23,13 @@
 #include "BasicLayersImpl.h"
 #include "BasicThebesLayer.h"
 #include "BasicContainerLayer.h"
+#include "CompositorChild.h"
 #include "mozilla/Preferences.h"
 #include "nsIWidget.h"
+
+#ifdef MOZ_WIDGET_ANDROID
+#include "AndroidBridge.h"
+#endif
 
 using namespace mozilla::dom;
 using namespace mozilla::gfx;
@@ -550,6 +555,12 @@ BasicLayerManager::EndTransactionInternal(DrawThebesLayerCallback aCallback,
       gfxContextMatrixAutoSaveRestore save(mTarget);
       mTarget->SetMatrix(gfxMatrix());
       clipRect = ToOutsideIntRect(mTarget->GetClipExtents());
+    }
+
+    if (aFlags & END_NO_COMPOSITE) {
+      // Apply pending tree updates before recomputing effective
+      // properties.
+      aLayer->ApplyPendingUpdatesToSubtree();
     }
 
     // Need to do this before we call ApplyDoubleBuffering,
@@ -1097,13 +1108,14 @@ BasicShadowLayerManager::BeginTransactionWithTarget(gfxContext* aTarget)
     if (aTarget && (aTarget != mDefaultTarget) &&
         XRE_GetProcessType() == GeckoProcessType_Default) {
       mShadowTarget = aTarget;
-
-      // Create a temporary target for ourselves, so that mShadowTarget is only
-      // drawn to by our shadow manager.
-      nsRefPtr<gfxASurface> targetSurface = gfxPlatform::GetPlatform()->
-        CreateOffscreenSurface(aTarget->OriginalSurface()->GetSize(),
-                               aTarget->OriginalSurface()->GetContentType());
-      targetContext = new gfxContext(targetSurface);
+      // Create a temporary target for ourselves, so that
+      // mShadowTarget is only drawn to for the window snapshot.
+      nsRefPtr<gfxASurface> dummy =
+        gfxPlatform::GetPlatform()->CreateOffscreenSurface(
+          gfxIntSize(1, 1),
+          aTarget->OriginalSurface()->GetContentType());
+      mDummyTarget = new gfxContext(dummy);
+      aTarget = mDummyTarget;
     }
   }
   BasicLayerManager::BeginTransactionWithTarget(aTarget);
@@ -1122,9 +1134,30 @@ BasicShadowLayerManager::EndTransaction(DrawThebesLayerCallback aCallback,
     BasicLayerManager::BeginTransaction();
     BasicShadowLayerManager::EndTransaction(aCallback, aCallbackData, aFlags);
   } else if (mShadowTarget) {
-    // Draw to shadow target at the recursion tail of the repeat transactions
-    ShadowLayerForwarder::ShadowDrawToTarget(mShadowTarget);
+    if (mWidget) {
+      if (CompositorChild* remoteRenderer = mWidget->GetRemoteRenderer()) {
+        nsRefPtr<gfxASurface> target = mShadowTarget->OriginalSurface();
+        SurfaceDescriptor inSnapshot, snapshot;
+        if (AllocBuffer(target->GetSize(), target->GetContentType(),
+                        &inSnapshot) &&
+            // The compositor will usually reuse |snapshot| and return
+            // it through |outSnapshot|, but if it doesn't, it's
+            // responsible for freeing |snapshot|.
+            remoteRenderer->SendMakeSnapshot(inSnapshot, &snapshot)) {
+          AutoOpenSurface opener(OPEN_READ_ONLY, snapshot);
+          gfxASurface* source = opener.Get();
+
+          gfxContextAutoSaveRestore restore(mShadowTarget);
+          mShadowTarget->SetOperator(gfxContext::OPERATOR_OVER);
+          mShadowTarget->DrawSurface(source, source->GetSize());
+        }
+        if (IsSurfaceDescriptorValid(snapshot)) {
+          ShadowLayerForwarder::DestroySharedSurface(&snapshot);
+        }
+      }
+    }
     mShadowTarget = nullptr;
+    mDummyTarget = nullptr;
   }
 }
 
@@ -1241,6 +1274,32 @@ void
 BasicShadowLayerManager::SetIsFirstPaint()
 {
   ShadowLayerForwarder::SetIsFirstPaint();
+}
+
+bool
+BasicShadowLayerManager::ShouldAbortProgressiveUpdate(bool aHasPendingNewThebesContent)
+{
+#ifdef MOZ_WIDGET_ANDROID
+  Layer* primaryScrollable = GetPrimaryScrollableLayer();
+  if (primaryScrollable) {
+    const FrameMetrics& metrics = primaryScrollable->AsContainerLayer()->GetFrameMetrics();
+
+    // This is derived from the code in
+    // gfx/layers/ipc/CompositorParent.cpp::TransformShadowTree.
+    const gfx3DMatrix& rootTransform = GetRoot()->GetTransform();
+    float devPixelRatioX = 1 / rootTransform.GetXScale();
+    float devPixelRatioY = 1 / rootTransform.GetYScale();
+    gfx::Rect displayPort((metrics.mDisplayPort.x + metrics.mScrollOffset.x) * devPixelRatioX,
+                          (metrics.mDisplayPort.y + metrics.mScrollOffset.y) * devPixelRatioY,
+                          metrics.mDisplayPort.width * devPixelRatioX,
+                          metrics.mDisplayPort.height * devPixelRatioY);
+
+    return AndroidBridge::Bridge()->ShouldAbortProgressiveUpdate(
+      aHasPendingNewThebesContent, displayPort, devPixelRatioX);
+  }
+#endif
+
+  return false;
 }
 
 already_AddRefed<ThebesLayer>
