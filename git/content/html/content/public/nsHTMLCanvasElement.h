@@ -177,7 +177,8 @@ protected:
   nsresult UpdateContext(nsIPropertyBag *aNewContextOptions = nsnull);
   nsresult ExtractData(const nsAString& aType,
                        const nsAString& aOptions,
-                       nsIInputStream** aStream,
+                       char*& aData,
+                       PRUint32& aSize,
                        bool& aFellBackToPNG);
   nsresult ToDataURLImpl(const nsAString& aMimeType,
                          nsIVariant* aEncoderOptions,

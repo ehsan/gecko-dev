@@ -133,13 +133,6 @@ public:
 
 static ImageCache* gImageCache = nsnull;
 
-class CanvasImageCacheShutdownObserver : public nsIObserver
-{
-public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSIOBSERVER
-};
-
 void
 CanvasImageCache::NotifyDrawImage(nsIDOMElement* aImage,
                                   nsHTMLCanvasElement* aCanvas,
@@ -149,7 +142,6 @@ CanvasImageCache::NotifyDrawImage(nsIDOMElement* aImage,
 {
   if (!gImageCache) {
     gImageCache = new ImageCache();
-    nsContentUtils::RegisterShutdownObserver(new CanvasImageCacheShutdownObserver());
   }
 
   ImageCacheEntry* entry = gImageCache->mCache.PutEntry(ImageCacheKey(aImage, aCanvas));
@@ -194,21 +186,11 @@ CanvasImageCache::Lookup(nsIDOMElement* aImage,
   return entry->mData->mSurface;
 }
 
-NS_IMPL_ISUPPORTS1(CanvasImageCacheShutdownObserver, nsIObserver)
-
-NS_IMETHODIMP
-CanvasImageCacheShutdownObserver::Observe(nsISupports *aSubject,
-                                          const char *aTopic,
-                                          const PRUnichar *aData)
+void
+CanvasImageCache::Shutdown()
 {
-  if (strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID) == 0) {
-    delete gImageCache;
-    gImageCache = nsnull;
-
-    nsContentUtils::UnregisterShutdownObserver(this);
-  }
-
-  return NS_OK;
+  delete gImageCache;
+  gImageCache = nsnull;
 }
 
 }

@@ -1125,6 +1125,12 @@ if [ "$MOZ_XTF" ]; then
   "
 fi
 
+if [ "$MOZ_STATIC_COMPONENTS" ]; then
+  add_makefiles "
+    modules/staticmod/Makefile
+  "
+fi
+
 if [ "$MOZ_MEDIA" ]; then
  add_makefiles "
    content/media/Makefile

@@ -82,6 +82,7 @@ nsNPAPIPluginInstance::nsNPAPIPluginInstance(nsNPAPIPlugin* plugin)
     mWindowlessLocal(PR_FALSE),
     mTransparent(PR_FALSE),
     mCached(PR_FALSE),
+    mWantsAllNetworkStreams(PR_FALSE),
     mUsesDOMForCursor(PR_FALSE),
     mInPluginInitCall(PR_FALSE),
     mPlugin(plugin),
@@ -676,6 +677,12 @@ NPError nsNPAPIPluginInstance::SetWindowlessLocal(PRBool aWindowlessLocal)
 NPError nsNPAPIPluginInstance::SetTransparent(PRBool aTransparent)
 {
   mTransparent = aTransparent;
+  return NPERR_NO_ERROR;
+}
+
+NPError nsNPAPIPluginInstance::SetWantsAllNetworkStreams(PRBool aWantsAllNetworkStreams)
+{
+  mWantsAllNetworkStreams = aWantsAllNetworkStreams;
   return NPERR_NO_ERROR;
 }
 
