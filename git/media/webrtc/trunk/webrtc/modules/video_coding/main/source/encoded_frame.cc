@@ -174,16 +174,33 @@ VCMEncodedFrame::VerifyAndAllocate(const uint32_t minimumSize)
 
 webrtc::FrameType VCMEncodedFrame::ConvertFrameType(VideoFrameType frameType)
 {
-  switch(frameType) {
+    switch(frameType)
+    {
     case kKeyFrame:
-      return  kVideoFrameKey;
+        {
+            return  kVideoFrameKey;
+        }
     case kDeltaFrame:
-      return kVideoFrameDelta;
+        {
+            return kVideoFrameDelta;
+        }
+    case kGoldenFrame:
+        {
+            return kVideoFrameGolden;
+        }
+    case kAltRefFrame:
+        {
+            return kVideoFrameAltRef;
+        }
     case kSkipFrame:
-      return kFrameEmpty;
+        {
+            return kFrameEmpty;
+        }
     default:
-      return kVideoFrameDelta;
-  }
+        {
+            return kVideoFrameDelta;
+        }
+    }
 }
 
 VideoFrameType VCMEncodedFrame::ConvertFrameType(webrtc::FrameType frame_type) {
@@ -192,6 +209,10 @@ VideoFrameType VCMEncodedFrame::ConvertFrameType(webrtc::FrameType frame_type) {
       return kKeyFrame;
     case kVideoFrameDelta:
       return kDeltaFrame;
+    case kVideoFrameGolden:
+      return kGoldenFrame;
+    case kVideoFrameAltRef:
+      return kAltRefFrame;
     default:
       assert(false);
       return kDeltaFrame;

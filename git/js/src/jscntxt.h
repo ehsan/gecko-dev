@@ -285,6 +285,7 @@ struct ThreadSafeContext : ContextFriendFields,
     const JS::AsmJSCacheOps &asmJSCacheOps() { return runtime_->asmJSCacheOps; }
     PropertyName *emptyString() { return runtime_->emptyString; }
     FreeOp *defaultFreeOp() { return runtime_->defaultFreeOp(); }
+    bool useHelperThreads() { return runtime_->useHelperThreads(); }
     void *runtimeAddressForJit() { return runtime_; }
     void *stackLimitAddress(StackKind kind) { return &runtime_->mainThread.nativeStackLimit[kind]; }
     void *stackLimitAddressForJitCode(StackKind kind);
@@ -1002,7 +1003,6 @@ class ContextAllocPolicy
 /* Exposed intrinsics so that Ion may inline them. */
 bool intrinsic_ToObject(JSContext *cx, unsigned argc, Value *vp);
 bool intrinsic_ToInteger(JSContext *cx, unsigned argc, Value *vp);
-bool intrinsic_ToString(JSContext *cx, unsigned argc, Value *vp);
 bool intrinsic_IsCallable(JSContext *cx, unsigned argc, Value *vp);
 bool intrinsic_ThrowError(JSContext *cx, unsigned argc, Value *vp);
 bool intrinsic_NewDenseArray(JSContext *cx, unsigned argc, Value *vp);

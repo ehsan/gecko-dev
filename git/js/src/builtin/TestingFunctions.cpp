@@ -1577,7 +1577,7 @@ WorkerThreadCount(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 #ifdef JS_THREADSAFE
-    args.rval().setInt32(WorkerThreadState().threadCount);
+    args.rval().setInt32(cx->runtime()->useHelperThreads() ? WorkerThreadState().threadCount : 0);
 #else
     args.rval().setInt32(0);
 #endif

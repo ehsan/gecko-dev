@@ -45,41 +45,10 @@
 #endif
 #endif
 
-#if defined(XP_MACOSX) || defined(__DragonFly__) || defined(__FreeBSD__) \
- || defined(__NetBSD__) || defined(__OpenBSD__)
+#if defined(XP_MACOSX)
 #include <stdbool.h>
 #include <unistd.h>
-#include <sys/param.h>
 #include <sys/sysctl.h>
-#endif
-
-#if defined(__OpenBSD__)
-#include <sys/proc.h>
-#endif
-
-#if defined(__DragonFly__) || defined(__FreeBSD__)
-#include <sys/user.h>
-#endif
-
-#if defined(__NetBSD__)
-#undef KERN_PROC
-#define KERN_PROC KERN_PROC2
-#define KINFO_PROC struct kinfo_proc2
-#else
-#define KINFO_PROC struct kinfo_proc
-#endif
-
-#if defined(XP_MACOSX)
-#define KP_FLAGS kp_proc.p_flag
-#elif defined(__DragonFly__)
-#define KP_FLAGS kp_flags
-#elif defined(__FreeBSD__)
-#define KP_FLAGS ki_flag
-#elif defined(__OpenBSD__) && !defined(_P_TRACED)
-#define KP_FLAGS p_psflags
-#define P_TRACED PS_TRACED
-#else
-#define KP_FLAGS p_flag
 #endif
 
 #include "mozilla/mozalloc_abort.h"
@@ -175,22 +144,16 @@ nsDebugImpl::GetIsDebuggerAttached(bool* aResult)
 
 #if defined(XP_WIN)
   *aResult = ::IsDebuggerPresent();
-#elif defined(XP_MACOSX) || defined(__DragonFly__) || defined(__FreeBSD__) \
-   || defined(__NetBSD__) || defined(__OpenBSD__)
+#elif defined(XP_MACOSX)
   // Specify the info we're looking for
-  int mib[] = {
-    CTL_KERN,
-    KERN_PROC,
-    KERN_PROC_PID,
-    getpid(),
-#if defined(__NetBSD__) || defined(__OpenBSD__)
-    sizeof(KINFO_PROC),
-    1,
-#endif
-  };
-  u_int mibSize = sizeof(mib) / sizeof(int);
+  int mib[4];
+  mib[0] = CTL_KERN;
+  mib[1] = KERN_PROC;
+  mib[2] = KERN_PROC_PID;
+  mib[3] = getpid();
+  size_t mibSize = sizeof(mib) / sizeof(int);
 
-  KINFO_PROC info;
+  struct kinfo_proc info;
   size_t infoSize = sizeof(info);
   memset(&info, 0, infoSize);
 
@@ -200,7 +163,7 @@ nsDebugImpl::GetIsDebuggerAttached(bool* aResult)
     return NS_OK;
   }
 
-  if (info.KP_FLAGS & P_TRACED) {
+  if (info.kp_proc.p_flag & P_TRACED) {
     *aResult = true;
   }
 #endif

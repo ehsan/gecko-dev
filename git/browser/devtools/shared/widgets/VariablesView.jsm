@@ -1039,8 +1039,7 @@ VariablesView.NON_SORTABLE_CLASSES = [
   "Int32Array",
   "Uint32Array",
   "Float32Array",
-  "Float64Array",
-  "NodeList"
+  "Float64Array"
 ];
 
 /**

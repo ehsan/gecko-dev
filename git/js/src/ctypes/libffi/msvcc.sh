@@ -105,13 +105,9 @@ do
       shift 1
     ;;
     -DFFI_DEBUG)
-      # Enable runtime error checks.
+      # Link against debug CRT and enable runtime error checks.
       args="$args -RTC1"
       defines="$defines $1"
-      shift 1
-    ;;
-    -DUSE_DEBUG_RTL)
-      # Link against debug CRT.
       md=-MDd
       shift 1
     ;;

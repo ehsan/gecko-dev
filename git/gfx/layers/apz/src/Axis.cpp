@@ -203,7 +203,7 @@ void Axis::CancelTouch() {
 }
 
 bool Axis::CanScroll() const {
-  return GetPageLength() - GetCompositionLength() > COORDINATE_EPSILON;
+  return GetCompositionLength() < GetPageLength();
 }
 
 bool Axis::CanScrollNow() const {

@@ -28,10 +28,12 @@ interface Element : Node {
 
   [Pure]
            attribute DOMString id;
-  [Pure]
+/*
+  FIXME Bug 810677 Move className from HTMLElement to Element
            attribute DOMString className;
+*/
   [Constant]
-  readonly attribute DOMTokenList classList;
+  readonly attribute DOMTokenList? classList;
 
   [SameObject]
   readonly attribute MozNamedAttrMap attributes;

@@ -309,13 +309,6 @@ protected:
     nsTArray<nsCString> mAliasForMultiFonts;
 
     FcConfig *mLastConfig;
-
-#ifdef MOZ_BUNDLED_FONTS
-    void      ActivateBundledFonts();
-
-    nsCString mBundledFontsPath;
-    bool      mBundledFontsInitialized;
-#endif
 };
 
 #endif /* GFX_FONTCONFIG_UTILS_H */

@@ -202,7 +202,7 @@ public:
                           int32_t aAttrCount);
     nsresult startElement(const char16_t *aName,
                           const char16_t **aAtts,
-                          int32_t aAttrCount);
+                          int32_t aAttrCount, int32_t aIDOffset);
     nsresult endElement();
     nsresult characters(const nsAString& aStr);
     nsresult doneLoading();
@@ -224,7 +224,8 @@ private:
     nsresult startElementInternal(int32_t aNamespaceID, nsIAtom* aLocalName,
                                   nsIAtom* aPrefix,
                                   txStylesheetAttr* aAttributes,
-                                  int32_t aAttrCount);
+                                  int32_t aAttrCount,
+                                  int32_t aIDOffset = -1);
 
     nsresult flushCharacters();
     nsresult ensureNewElementContext();

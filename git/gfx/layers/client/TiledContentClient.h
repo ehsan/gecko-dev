@@ -254,11 +254,9 @@ struct BasicTiledLayerPaintData {
   ParentLayerPoint mLastScrollOffset;
 
   /*
-   * The transform matrix to go from the display port layer's ParentLayer
-   * units to this layer's LayoutDevice units. The "display port layer" is
-   * the closest ancestor layer with a displayport.
+   * The transform matrix to go from Screen units to ParentLayer units.
    */
-  gfx3DMatrix mTransformDisplayPortToLayoutDevice;
+  gfx3DMatrix mTransformParentLayerToLayoutDevice;
 
   /*
    * The critical displayport of the content from the nearest ancestor layer

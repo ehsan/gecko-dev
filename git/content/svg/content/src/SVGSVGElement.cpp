@@ -381,10 +381,10 @@ SVGSVGElement::DeselectAll()
   }
 }
 
-already_AddRefed<DOMSVGNumber>
+already_AddRefed<nsIDOMSVGNumber>
 SVGSVGElement::CreateSVGNumber()
 {
-  nsRefPtr<DOMSVGNumber> number = new DOMSVGNumber(ToSupports(this));
+  nsCOMPtr<nsIDOMSVGNumber> number = new DOMSVGNumber();
   return number.forget();
 }
 

@@ -647,7 +647,7 @@ ContentSecurityPolicy.prototype = {
     }
     policy.log(WARN_FLAG, violationMessage,
                (aSourceFile) ? aSourceFile : null,
-               (aScriptSample) ? aScriptSample : null,
+               (aScriptSample) ? decodeURIComponent(aScriptSample) : null,
                (aLineNum) ? aLineNum : null);
   },
 

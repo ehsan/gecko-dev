@@ -1657,10 +1657,8 @@ nsJSContext::InitClasses(JS::Handle<JSObject*> aGlobalObj)
 #endif
 
 #ifdef MOZ_DMD
-  if (nsContentUtils::IsCallerChrome()) {
-    // Attempt to initialize DMD functions
-    ::JS_DefineFunctions(cx, aGlobalObj, DMDFunctions);
-  }
+  // Attempt to initialize DMD functions
+  ::JS_DefineFunctions(cx, aGlobalObj, DMDFunctions);
 #endif
 
 #ifdef MOZ_JPROF

@@ -2421,8 +2421,7 @@ let BrowserOnClick = {
         TabCrashReporter.submitCrashReport(browser);
       }
 #endif
-
-      TabCrashReporter.reloadCrashedTabs();
+      openUILinkIn(button.getAttribute("url"), "current");
     }
   },
 

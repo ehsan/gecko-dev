@@ -6,7 +6,6 @@
 #define mozilla_dom_gamepad_Gamepad_h
 
 #include "mozilla/ErrorResult.h"
-#include "mozilla/dom/GamepadBinding.h"
 #include "mozilla/dom/GamepadButton.h"
 #include <stdint.h>
 #include "nsCOMPtr.h"
@@ -16,6 +15,12 @@
 
 namespace mozilla {
 namespace dom {
+
+enum GamepadMappingType
+{
+  NoMapping = 0,
+  StandardMapping = 1
+};
 
 // Per spec:
 // https://dvcs.w3.org/hg/gamepad/raw-file/default/gamepad.html#remapping
@@ -65,9 +70,13 @@ public:
     aID = mID;
   }
 
-  GamepadMappingType Mapping()
+  void GetMapping(nsAString& aMapping) const
   {
-    return mMapping;
+    if (mMapping == StandardMapping) {
+      aMapping = NS_LITERAL_STRING("standard");
+    } else {
+      aMapping = NS_LITERAL_STRING("");
+    }
   }
 
   bool Connected() const
