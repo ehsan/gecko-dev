@@ -226,7 +226,7 @@ SessionStoreService.prototype = {
     if (iniString) {
       try {
         // parse the session state into JS objects
-        this._initialState = this._safeEval(iniString);
+        this._initialState = this._safeEval("(" + iniString + ")");
         
         let lastSessionCrashed =
           this._initialState.session && this._initialState.session.state &&
@@ -335,7 +335,7 @@ SessionStoreService.prototype = {
         openWindows[aWindow.__SSi] = true;
       });
       // also clear all data about closed tabs and windows
-      for (ix in this._windows) {
+      for (let ix in this._windows) {
         if (ix in openWindows)
           this._windows[ix]._closedTabs = [];
         else
@@ -379,8 +379,7 @@ SessionStoreService.prototype = {
       // if the user decreases the max number of closed tabs they want
       // preserved update our internal states to match that max
       case "sessionstore.max_tabs_undo":
-        var ix;
-        for (ix in this._windows) {
+        for (let ix in this._windows) {
           this._windows[ix]._closedTabs.splice(this._prefBranch.getIntPref("sessionstore.max_tabs_undo"));
         }
         break;
@@ -1659,8 +1658,9 @@ SessionStoreService.prototype = {
     }
 
     // when overwriting tabs, remove all superflous ones
-    for (t = openTabCount - 1; t >= newTabCount; t--) {
-      tabbrowser.removeTab(tabbrowser.mTabs[t]);
+    if (aOverwriteTabs && newTabCount < openTabCount) {
+      Array.slice(tabbrowser.mTabs, newTabCount, openTabCount)
+           .forEach(tabbrowser.removeTab, tabbrowser);
     }
     
     if (aOverwriteTabs) {
