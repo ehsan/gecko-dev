@@ -579,7 +579,7 @@ StackFrames.prototype = {
       this._addFrame(frame);
     }
     if (this.currentFrame == null) {
-      DebuggerView.StackFrames.selectedDepth = 0;
+      this.selectFrame(0);
     }
     if (this.activeThread.moreFrames) {
       DebuggerView.StackFrames.dirty = true;
@@ -639,6 +639,8 @@ StackFrames.prototype = {
 
     // Move the editor's caret to the proper url and line.
     DebuggerView.updateEditor(url, line);
+    // Highlight the stack frame at the specified depth.
+    DebuggerView.StackFrames.highlightFrame(aDepth);
     // Highlight the breakpoint at the specified url and line if it exists.
     DebuggerView.Sources.highlightBreakpoint(url, line);
     // Don't display the watch expressions textbox inputs in the pane.

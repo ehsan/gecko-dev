@@ -1,23 +1,24 @@
-ac_add_options --enable-update-channel=${MOZ_UPDATE_CHANNEL}
 ac_add_options --enable-update-packaging
-ac_add_options --enable-official-branding
+ac_add_options --enable-codesighs
 
 . $topsrcdir/build/unix/mozconfig.linux32
 
 # Avoid dependency on libstdc++ 4.5
 ac_add_options --enable-stdcxx-compat
 
-mk_add_options MOZ_PGO=1
-
 # Needed to enable breakpad in application.ini
 export MOZILLA_OFFICIAL=1
 
-export MOZ_TELEMETRY_REPORTING=1
+#Use ccache
+ac_add_options --with-ccache=/usr/bin/ccache
+
+# QT Options
+export PKG_CONFIG_PATH=/tools/qt-4.6.3/qt/lib/pkgconfig
+ac_add_options --with-qtdir=/tools/qt-4.6.3/qt
+ac_add_options --enable-default-toolkit=cairo-qt
+ac_add_options --disable-crashreporter
 
 # Treat warnings as errors in directories with FAIL_ON_WARNINGS.
 ac_add_options --enable-warnings-as-errors
-
-# Package js shell.
-export MOZ_PACKAGE_JSSHELL=1
 
 . "$topsrcdir/build/mozconfig.common.override"
