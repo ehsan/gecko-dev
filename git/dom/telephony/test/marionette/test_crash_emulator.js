@@ -31,7 +31,7 @@ function answer() {
       return(callDuration >= 2000);
     });
   };
-  emulator.runWithCallback("gsm accept " + outNumber);
+  emulator.run("gsm accept " + outNumber);
 }
 
 function cleanUp(){

@@ -10,7 +10,7 @@ import java.util.Locale;
 import org.mozilla.gecko.BrowserLocaleManager;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.Tabs;
-import org.mozilla.gecko.tabspanel.TabsPanel.CloseAllPanelView;
+import org.mozilla.gecko.tabspanel.TabsPanel.PanelView;
 
 import android.content.Context;
 import android.util.AttributeSet;
@@ -24,7 +24,7 @@ import android.widget.FrameLayout;
  * this container as calling {@link android.widget.AdapterView#setVisibility} does not affect the
  * empty View's visibility.
  */
-class PrivateTabsPanel extends FrameLayout implements CloseAllPanelView {
+class PrivateTabsPanel extends FrameLayout implements PanelView {
     private TabsPanel tabsPanel;
     private TabsTray tabsTray;
 
@@ -73,10 +73,5 @@ class PrivateTabsPanel extends FrameLayout implements CloseAllPanelView {
     @Override
     public boolean shouldExpand() {
         return tabsTray.shouldExpand();
-    }
-
-    @Override
-    public void closeAll() {
-        tabsTray.closeAll();
     }
 }

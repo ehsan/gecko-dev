@@ -25,9 +25,10 @@ function dial() {
       is(outgoing, event.call);
       is(outgoing.state, "alerting");
 
-      emulator.runWithCallback("gsm list", function(result) {
+      emulator.run("gsm list", function(result) {
         log("Call list is now: " + result);
         is(result[0], "outbound to  " + number + " : ringing");
+        is(result[1], "OK");
         busy();
       });
     };
@@ -42,13 +43,14 @@ function busy() {
     is(outgoing, event.call);
     is(event.call.error.name, "BusyError");
 
-    emulator.runWithCallback("gsm list", function(result) {
+    emulator.run("gsm list", function(result) {
       log("Call list is now: " + result);
+      is(result[0], "OK");
       cleanUp();
     });
   };
 
-  emulator.runWithCallback("gsm busy " + number);
+  emulator.run("gsm busy " + number);
 }
 
 function cleanUp() {

@@ -1,6 +1,3 @@
-// CodeMirror, copyright (c) by Marijn Haverbeke and others
-// Distributed under an MIT license: http://codemirror.net/LICENSE
-
 (function(mod) {
   if (typeof exports == "object" && typeof module == "object") // CommonJS
     mod(require("../../lib/codemirror"));
@@ -176,6 +173,7 @@ CodeMirror.defineMode("clike", function(config, parserConfig) {
   };
 });
 
+(function() {
   function words(str) {
     var obj = {}, words = str.split(" ");
     for (var i = 0; i < words.length; ++i) obj[words[i]] = true;
@@ -253,7 +251,6 @@ CodeMirror.defineMode("clike", function(config, parserConfig) {
   }
 
   function def(mimes, mode) {
-    if (typeof mimes == "string") mimes = [mimes];
     var words = [];
     function add(obj) {
       if (obj) for (var prop in obj) if (obj.hasOwnProperty(prop))
@@ -298,7 +295,7 @@ CodeMirror.defineMode("clike", function(config, parserConfig) {
     },
     modeProps: {fold: ["brace", "include"]}
   });
-  def("text/x-java", {
+  CodeMirror.defineMIME("text/x-java", {
     name: "clike",
     keywords: words("abstract assert boolean break byte case catch char class const continue default " +
                     "do double else enum extends final finally float for goto if implements import " +
@@ -315,7 +312,7 @@ CodeMirror.defineMode("clike", function(config, parserConfig) {
     },
     modeProps: {fold: ["brace", "import"]}
   });
-  def("text/x-csharp", {
+  CodeMirror.defineMIME("text/x-csharp", {
     name: "clike",
     keywords: words("abstract as base break case catch checked class const continue" +
                     " default delegate do else enum event explicit extern finally fixed for" +
@@ -341,7 +338,7 @@ CodeMirror.defineMode("clike", function(config, parserConfig) {
       }
     }
   });
-  def("text/x-scala", {
+  CodeMirror.defineMIME("text/x-scala", {
     name: "clike",
     keywords: words(
 
@@ -435,5 +432,6 @@ CodeMirror.defineMode("clike", function(config, parserConfig) {
     hooks: {"#": cppHook},
     modeProps: {fold: ["brace", "include"]}
   });
+}());
 
 });

@@ -1,48 +1,31 @@
-// CodeMirror, copyright (c) by Marijn Haverbeke and others
-// Distributed under an MIT license: http://codemirror.net/LICENSE
-
-(function(mod) {
-  if (typeof exports == "object" && typeof module == "object") // CommonJS
-    mod(require("../../lib/codemirror"));
-  else if (typeof define == "function" && define.amd) // AMD
-    define(["../../lib/codemirror"], mod);
-  else // Plain browser env
-    mod(CodeMirror);
-})(function(CodeMirror) {
+(function() {
   "use strict";
 
   var HINT_ELEMENT_CLASS        = "CodeMirror-hint";
   var ACTIVE_HINT_ELEMENT_CLASS = "CodeMirror-hint-active";
 
-  // This is the old interface, kept around for now to stay
-  // backwards-compatible.
   CodeMirror.showHint = function(cm, getHints, options) {
-    if (!getHints) return cm.showHint(options);
-    if (options && options.async) getHints.async = true;
-    var newOpts = {hint: getHints};
-    if (options) for (var prop in options) newOpts[prop] = options[prop];
-    return cm.showHint(newOpts);
+    // We want a single cursor position.
+    if (cm.somethingSelected()) return;
+    if (getHints == null) {
+      if (options && options.async) return;
+      else getHints = CodeMirror.hint.auto;
+    }
+
+    if (cm.state.completionActive) cm.state.completionActive.close();
+
+    var completion = cm.state.completionActive = new Completion(cm, getHints, options || {});
+    CodeMirror.signal(cm, "startCompletion", cm);
+    if (completion.options.async)
+      getHints(cm, function(hints) { completion.showHints(hints); }, completion.options);
+    else
+      return completion.showHints(getHints(cm, completion.options));
   };
 
-  CodeMirror.defineExtension("showHint", function(options) {
-    // We want a single cursor position.
-    if (this.listSelections().length > 1 || this.somethingSelected()) return;
-
-    if (this.state.completionActive) this.state.completionActive.close();
-    var completion = this.state.completionActive = new Completion(this, options);
-    var getHints = completion.options.hint;
-    if (!getHints) return;
-
-    CodeMirror.signal(this, "startCompletion", this);
-    if (getHints.async)
-      getHints(this, function(hints) { completion.showHints(hints); }, completion.options);
-    else
-      return completion.showHints(getHints(this, completion.options));
-  });
-
-  function Completion(cm, options) {
+  function Completion(cm, getHints, options) {
     this.cm = cm;
-    this.options = this.buildOptions(options);
+    this.getHints = getHints;
+    this.options = options;
     this.widget = this.onClose = null;
   }
 
@@ -63,8 +46,7 @@
     pick: function(data, i) {
       var completion = data.list[i];
       if (completion.hint) completion.hint(this.cm, data, completion);
-      else this.cm.replaceRange(getText(completion), completion.from || data.from,
-                                completion.to || data.to, "complete");
+      else this.cm.replaceRange(getText(completion), data.from, data.to);
       CodeMirror.signal(data, "pick", completion);
       this.close();
     },
@@ -72,7 +54,7 @@
     showHints: function(data) {
       if (!data || !data.list.length || !this.active()) return this.close();
 
-      if (this.options.completeSingle && data.list.length == 1)
+      if (this.options.completeSingle != false && data.list.length == 1)
         this.pick(data, 0);
       else
         this.showWidget(data);
@@ -83,7 +65,7 @@
       CodeMirror.signal(data, "shown");
 
       var debounce = 0, completion = this, finished;
-      var closeOn = this.options.closeCharacters;
+      var closeOn = this.options.closeCharacters || /[\s()\[\]{};:>,]/;
       var startPos = this.cm.getCursor(), startLen = this.cm.getLine(startPos.line).length;
 
       var requestAnimationFrame = window.requestAnimationFrame || function(fn) {
@@ -102,17 +84,15 @@
       function update() {
         if (finished) return;
         CodeMirror.signal(data, "update");
-        var getHints = completion.options.hint;
-        if (getHints.async)
-          getHints(completion.cm, finishUpdate, completion.options);
+        if (completion.options.async)
+          completion.getHints(completion.cm, finishUpdate, completion.options);
         else
-          finishUpdate(getHints(completion.cm, completion.options));
+          finishUpdate(completion.getHints(completion.cm, completion.options));
       }
       function finishUpdate(data_) {
         data = data_;
         if (finished) return;
         if (!data || !data.list.length) return done();
-        if (completion.widget) completion.widget.close();
         completion.widget = new Widget(completion, data);
       }
 
@@ -137,17 +117,6 @@
       }
       this.cm.on("cursorActivity", activity);
       this.onClose = done;
-    },
-
-    buildOptions: function(options) {
-      var editor = this.cm.options.hintOptions;
-      var out = {};
-      for (var prop in defaultOptions) out[prop] = defaultOptions[prop];
-      if (editor) for (var prop in editor)
-        if (editor[prop] !== undefined) out[prop] = editor[prop];
-      if (options) for (var prop in options)
-        if (options[prop] !== undefined) out[prop] = options[prop];
-      return out;
     }
   };
 
@@ -156,7 +125,7 @@
     else return completion.text;
   }
 
-  function buildKeyMap(completion, handle) {
+  function buildKeyMap(options, handle) {
     var baseMap = {
       Up: function() {handle.moveFocus(-1);},
       Down: function() {handle.moveFocus(1);},
@@ -168,8 +137,7 @@
       Tab: handle.pick,
       Esc: handle.close
     };
-    var custom = completion.options.customKeys;
-    var ourMap = custom ? {} : baseMap;
+    var ourMap = options.customKeys ? {} : baseMap;
     function addBinding(key, val) {
       var bound;
       if (typeof val != "string")
@@ -181,13 +149,12 @@
         bound = val;
       ourMap[key] = bound;
     }
-    if (custom)
-      for (var key in custom) if (custom.hasOwnProperty(key))
-        addBinding(key, custom[key]);
-    var extra = completion.options.extraKeys;
-    if (extra)
-      for (var key in extra) if (extra.hasOwnProperty(key))
-        addBinding(key, extra[key]);
+    if (options.customKeys)
+      for (var key in options.customKeys) if (options.customKeys.hasOwnProperty(key))
+        addBinding(key, options.customKeys[key]);
+    if (options.extraKeys)
+      for (var key in options.extraKeys) if (options.extraKeys.hasOwnProperty(key))
+        addBinding(key, options.extraKeys[key]);
     return ourMap;
   }
 
@@ -201,11 +168,11 @@
   function Widget(completion, data) {
     this.completion = completion;
     this.data = data;
-    var widget = this, cm = completion.cm;
+    var widget = this, cm = completion.cm, options = completion.options;
 
     var hints = this.hints = document.createElement("ul");
     hints.className = "CodeMirror-hints";
-    this.selectedHint = data.selectedHint || 0;
+    this.selectedHint = options.getDefaultSelection ? options.getDefaultSelection(cm,options,data) : 0;
 
     var completions = data.list;
     for (var i = 0; i < completions.length; ++i) {
@@ -218,14 +185,14 @@
       elt.hintId = i;
     }
 
-    var pos = cm.cursorCoords(completion.options.alignWithWord ? data.from : null);
+    var pos = cm.cursorCoords(options.alignWithWord !== false ? data.from : null);
     var left = pos.left, top = pos.bottom, below = true;
     hints.style.left = left + "px";
     hints.style.top = top + "px";
     // If we're at the edge of the screen, then we want the menu to appear on the left of the cursor.
     var winW = window.innerWidth || Math.max(document.body.offsetWidth, document.documentElement.offsetWidth);
     var winH = window.innerHeight || Math.max(document.body.offsetHeight, document.documentElement.offsetHeight);
-    (completion.options.container || document.body).appendChild(hints);
+    (options.container || document.body).appendChild(hints);
     var box = hints.getBoundingClientRect(), overlapY = box.bottom - winH;
     if (overlapY > 0) {
       var height = box.bottom - box.top, curTop = box.top - (pos.bottom - pos.top);
@@ -252,7 +219,7 @@
       hints.style.left = (left = pos.left - overlapX) + "px";
     }
 
-    cm.addKeyMap(this.keyMap = buildKeyMap(completion, {
+    cm.addKeyMap(this.keyMap = buildKeyMap(options, {
       moveFocus: function(n, avoidWrap) { widget.changeActive(widget.selectedHint + n, avoidWrap); },
       setFocus: function(n) { widget.changeActive(n); },
       menuSize: function() { return widget.screenAmount(); },
@@ -262,7 +229,7 @@
       data: data
     }));
 
-    if (completion.options.closeOnUnfocus) {
+    if (options.closeOnUnfocus !== false) {
       var closingOnBlur;
       cm.on("blur", this.onBlur = function() { closingOnBlur = setTimeout(function() { completion.close(); }, 100); });
       cm.on("focus", this.onFocus = function() { clearTimeout(closingOnBlur); });
@@ -288,7 +255,7 @@
       var t = getHintElement(hints, e.target || e.srcElement);
       if (t && t.hintId != null) {
         widget.changeActive(t.hintId);
-        if (completion.options.completeOnSingleClick) widget.pick();
+        if (options.completeOnSingleClick) widget.pick();
       }
     });
 
@@ -308,7 +275,7 @@
       this.completion.cm.removeKeyMap(this.keyMap);
 
       var cm = this.completion.cm;
-      if (this.completion.options.closeOnUnfocus) {
+      if (this.completion.options.closeOnUnfocus !== false) {
         cm.off("blur", this.onBlur);
         cm.off("focus", this.onFocus);
       }
@@ -342,16 +309,15 @@
   };
 
   CodeMirror.registerHelper("hint", "auto", function(cm, options) {
-    var helpers = cm.getHelpers(cm.getCursor(), "hint"), words;
+    var helpers = cm.getHelpers(cm.getCursor(), "hint");
     if (helpers.length) {
       for (var i = 0; i < helpers.length; i++) {
         var cur = helpers[i](cm, options);
         if (cur && cur.list.length) return cur;
       }
-    } else if (words = cm.getHelper(cm.getCursor(), "hintWords")) {
+    } else {
+      var words = cm.getHelper(cm.getCursor(), "hintWords");
       if (words) return CodeMirror.hint.fromList(cm, {words: words});
-    } else if (CodeMirror.hint.anyword) {
-      return CodeMirror.hint.anyword(cm, options);
     }
   });
 
@@ -372,18 +338,4 @@
   });
 
   CodeMirror.commands.autocomplete = CodeMirror.showHint;
-
-  var defaultOptions = {
-    hint: CodeMirror.hint.auto,
-    completeSingle: true,
-    alignWithWord: true,
-    closeCharacters: /[\s()\[\]{};:>,]/,
-    closeOnUnfocus: true,
-    completeOnSingleClick: false,
-    container: null,
-    customKeys: null,
-    extraKeys: null
-  };
-
-  CodeMirror.defineOption("hintOptions", null);
-});
+})();

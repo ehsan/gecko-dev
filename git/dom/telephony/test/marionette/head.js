@@ -16,28 +16,14 @@ let emulator = (function() {
 
   // Overwritten it so people could not call this function directly.
   runEmulatorCmd = function() {
-    throw "Use emulator.runWithCallback(cmd, callback) instead of runEmulatorCmd";
+    throw "Use emulator.run(cmd, callback) instead of runEmulatorCmd";
   };
 
-  function run(cmd) {
-    let deferred = Promise.defer();
-
+  function run(cmd, callback) {
     pendingCmdCount++;
     originalRunEmulatorCmd(cmd, function(result) {
+      is(result[result.length - 1], "OK", "emulator command should be OK.");
       pendingCmdCount--;
-      if (result[result.length - 1] === "OK") {
-        deferred.resolve(result);
-      } else {
-        is(result[result.length - 1], "OK", "emulator command result.");
-        deferred.reject();
-      }
-    });
-
-    return deferred.promise;
-  }
-
-  function runWithCallback(cmd, callback) {
-    run(cmd).then(result => {
       if (callback && typeof callback === "function") {
         callback(result);
       }
@@ -61,7 +47,6 @@ let emulator = (function() {
 
   return {
     run: run,
-    runWithCallback: runWithCallback,
     waitFinish: waitFinish
   };
 }());
@@ -90,24 +75,24 @@ let emulator = (function() {
   /**
    * @return Promise
    */
-  function waitForNoCall() {
+  function clearCalls() {
     let deferred = Promise.defer();
 
-    waitFor(function() {
-      deferred.resolve();
-    }, function() {
-      return telephony.calls.length === 0;
+    log("Clear existing calls.");
+    emulator.run("gsm clear", function(result) {
+      if (result[0] == "OK") {
+        waitFor(function() {
+          deferred.resolve();
+        }, function() {
+          return telephony.calls.length === 0;
+        });
+      } else {
+        log("Failed to clear existing calls.");
+        deferred.reject();
+      }
     });
 
     return deferred.promise;
-  }
-
-  /**
-   * @return Promise
-   */
-  function clearCalls() {
-    log("Clear existing calls.");
-    return emulator.run("gsm clear").then(waitForNoCall);
   }
 
   /**
@@ -343,12 +328,18 @@ let emulator = (function() {
    * @return A deferred promise.
    */
   function checkEmulatorCallList(expectedCallList) {
-    return emulator.run("gsm list").then(result => {
-      log("Call list is now: " + result);
-      for (let i = 0; i < expectedCallList.length; ++i) {
-        is(result[i], expectedCallList[i], "emulator calllist");
-      }
-    });
+    let deferred = Promise.defer();
+
+    emulator.run("gsm list", function(result) {
+        log("Call list is now: " + result);
+        for (let i = 0; i < expectedCallList.length; ++i) {
+          is(result[i], expectedCallList[i], "emulator calllist");
+        }
+        is(result[expectedCallList.length], "OK", "emulator calllist");
+        deferred.resolve();
+        });
+
+    return deferred.promise;
   }
 
   /**

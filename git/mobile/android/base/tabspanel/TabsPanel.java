@@ -57,7 +57,7 @@ public class TabsPanel extends LinearLayout
         public boolean shouldExpand();
     }
 
-    public static interface CloseAllPanelView extends PanelView {
+    public static interface CloseAllPanelView {
         public void closeAll();
     }
 
