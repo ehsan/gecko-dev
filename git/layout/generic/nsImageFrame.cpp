@@ -1891,11 +1891,11 @@ static const char kIconLoadPrefs[][40] = {
 nsImageFrame::IconLoad::IconLoad()
 {
   nsIPrefBranch2* prefBranch = nsContentUtils::GetPrefBranch();
-  if (prefBranch) {
-    // register observers
-    for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(kIconLoadPrefs); ++i)
-      prefBranch->AddObserver(kIconLoadPrefs[i], this, PR_FALSE);
-  }
+
+  // register observers
+  for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(kIconLoadPrefs); ++i)
+    prefBranch->AddObserver(kIconLoadPrefs[i], this, PR_FALSE);
+
   GetPrefs();
 }
 

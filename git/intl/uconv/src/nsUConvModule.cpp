@@ -58,6 +58,7 @@
 
 #include "nsITextToSubURI.h"
 
+#include "nsUConvDll.h"
 #include "nsIFile.h"
 
 #include "nsCRT.h"
