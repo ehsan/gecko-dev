@@ -125,6 +125,7 @@ ElementManager.prototype = {
         else if (val == null) {
           result = null;
         }
+        // nodeType 1 == 'element'
         else if (val.nodeType == 1) {
           for(let i in this.seenItems) {
             if (this.seenItems[i] == val) {
@@ -221,20 +222,18 @@ ElementManager.prototype = {
   },
   
   /**
-   * Find an element or elements starting at the document root or
-   * given node, using the given search strategy. Search
+   * Find an element or elements starting at the document root 
+   * using the given search strategy. Search
    * will continue until the search timelimit has been reached.
    *
-   * @param nsIDOMWindow win
-   *        The window to search in
    * @param object values
    *        The 'using' member of values will tell us which search
    *        method to use. The 'value' member tells us the value we
    *        are looking for.
-   *        If this object has an 'element' member, this will be used
-   *        as the start node instead of the document root
    *        If this object has a 'time' member, this number will be
    *        used to see if we have hit the search timelimit.
+   * @param nsIDOMElement rootNode
+   *        The document root
    * @param function notify
    *        The notification callback used when we are returning
    * @param boolean all
@@ -244,13 +243,12 @@ ElementManager.prototype = {
    * @return nsIDOMElement or list of nsIDOMElements
    *        Returns the element(s) by calling the notify function.
    */
-  find: function EM_find(win, values, notify, all) {
+  find: function EM_find(values, rootNode, notify, all) {
     let startTime = values.time ? values.time : new Date().getTime();
-    let startNode = (values.element != undefined) ? this.getKnownElement(values.element, win) : win.document;
     if (this.elementStrategies.indexOf(values.using) < 0) {
       throw new ElementException("No such strategy.", 17, null);
     }
-    let found = all ? this.findElements(values.using, values.value, win.document, startNode) : this.findElement(values.using, values.value, win.document, startNode);
+    let found = all ? this.findElements(values.using, values.value, rootNode) : this.findElement(values.using, values.value, rootNode);
     if (found) {
       let type = Object.prototype.toString.call(found);
       if ((type == '[object Array]') || (type == '[object HTMLCollection]')) {
@@ -270,52 +268,9 @@ ElementManager.prototype = {
         throw new ElementException("Unable to locate element: " + values.value, 7, null);
       } else {
         values.time = startTime;
-        this.timer.initWithCallback(this.find.bind(this, win, values, notify, all), 100, Components.interfaces.nsITimer.TYPE_ONE_SHOT);
+        this.timer.initWithCallback(this.find.bind(this, values, rootNode, notify, all), 100, Components.interfaces.nsITimer.TYPE_ONE_SHOT);
       }
     }
-  },
-
-  /**
-   * Find a value by XPATH
-   * 
-   * @param nsIDOMElement root
-   *        Document root
-   * @param string value
-   *        XPATH search string
-   * @param nsIDOMElement node
-   *        start node
-   *
-   * @return nsIDOMElement
-   *        returns the found element
-   */
-  findByXPath: function EM_findByXPath(root, value, node) {
-    return root.evaluate(value, node, null,
-            Components.interfaces.nsIDOMXPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-  },
-
-  /**
-   * Find values by XPATH
-   * 
-   * @param nsIDOMElement root
-   *        Document root
-   * @param string value
-   *        XPATH search string
-   * @param nsIDOMElement node
-   *        start node
-   *
-   * @return object
-   *        returns a list of found nsIDOMElements
-   */
-  findByXPathAll: function EM_findByXPathAll(root, value, node) {
-    let values = root.evaluate(value, node, null,
-                      Components.interfaces.nsIDOMXPathResult.ORDERED_NODE_ITERATOR_TYPE, null);
-    let elements = [];
-    let element = values.iterateNext();
-    while (element) {
-      elements.push(element);
-      element = values.iterateNext();
-    }
-    return elements;
   },
   
   /**
@@ -327,37 +282,33 @@ ElementManager.prototype = {
    *        Value to look for
    * @param nsIDOMElement rootNode
    *        Document root
-   * @param nsIDOMElement startNode
-   *        Node from which we start searching
    *
    * @return nsIDOMElement
    *        Returns found element or throws Exception if not found
    */
-  findElement: function EM_findElement(using, value, rootNode, startNode) {
+  findElement: function EM_findElement(using, value, rootNode) {
     let element;
     switch (using) {
       case ID:
-        element = startNode.getElementById ?
-                  startNode.getElementById(value) : 
-                  this.findByXPath(rootNode, './/*[@id="' + value + '"]', startNode);
+        element = rootNode.getElementById(value);
         break;
       case NAME:
-        element = startNode.getElementsByName ?
-                  startNode.getElementsByName(value)[0] : 
-                  this.findByXPath(rootNode, './/*[@name="' + value + '"]', startNode);
+        element = rootNode.getElementsByName(value)[0];
         break;
       case CLASS_NAME:
-        element = startNode.getElementsByClassName(value)[0]; //works for >=FF3
+        element = rootNode.getElementsByClassName(value)[0];
         break;
       case TAG:
-        element = startNode.getElementsByTagName(value)[0]; //works for all elements
+        element = rootNode.getElementsByTagName(value)[0];
         break;
       case XPATH:
-        element = this.findByXPath(rootNode, value, startNode);
+        element = rootNode.evaluate(value, rootNode, null,
+                    Components.interfaces.nsIDOMXPathResult.FIRST_ORDERED_NODE_TYPE, null).
+                    singleNodeValue;
         break;
       case LINK_TEXT:
       case PARTIAL_LINK_TEXT:
-        let allLinks = startNode.getElementsByTagName('A');
+        let allLinks = rootNode.getElementsByTagName('A');
         for (let i = 0; i < allLinks.length && !element; i++) {
           let text = allLinks[i].text;
           if (PARTIAL_LINK_TEXT == using) {
@@ -370,7 +321,7 @@ ElementManager.prototype = {
         }
         break;
       case SELECTOR:
-        element = startNode.querySelector(value);
+        element = rootNode.querySelector(value);
         break;
       default:
         throw new ElementException("No such strategy", 500, null);
@@ -387,30 +338,32 @@ ElementManager.prototype = {
    *        Value to look for
    * @param nsIDOMElement rootNode
    *        Document root
-   * @param nsIDOMElement startNode
-   *        Node from which we start searching
    *
    * @return nsIDOMElement
    *        Returns found elements or throws Exception if not found
    */
-  findElements: function EM_findElements(using, value, rootNode, startNode) {
+  findElements: function EM_findElements(using, value, rootNode) {
     let elements = [];
     switch (using) {
       case ID:
         value = './/*[@id="' + value + '"]';
       case XPATH:
-        elements = this.findByXPathAll(rootNode, value, startNode);
+        values = rootNode.evaluate(value, rootNode, null,
+                    Components.interfaces.nsIDOMXPathResult.ORDERED_NODE_ITERATOR_TYPE, null)
+        let element = values.iterateNext();
+        while (element) {
+          elements.push(element);
+          element = values.iterateNext();
+        }
         break;
       case NAME:
-        element = startNode.getElementsByName ?
-                  startNode.getElementsByName(value)[0] : 
-                  this.findByXPathAll(rootNode, './/*[@name="' + value + '"]', startNode);
+        elements = rootNode.getElementsByName(value);
         break;
       case CLASS_NAME:
-        elements = startNode.getElementsByClassName(value);
+        elements = rootNode.getElementsByClassName(value);
         break;
       case TAG:
-        elements = startNode.getElementsByTagName(value);
+        elements = rootNode.getElementsByTagName(value);
         break;
       case LINK_TEXT:
       case PARTIAL_LINK_TEXT:

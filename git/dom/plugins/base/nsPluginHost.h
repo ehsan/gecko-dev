@@ -53,6 +53,7 @@
 #include "nsWeakPtr.h"
 #include "nsIPrompt.h"
 #include "nsISupportsArray.h"
+#include "nsIPrefBranch.h"
 #include "nsWeakReference.h"
 #include "nsThreadUtils.h"
 #include "nsTArray.h"
@@ -274,9 +275,9 @@ private:
                            bool aCreatePluginList,
                            bool *aPluginsChanged);
 
-  nsresult EnsurePluginLoaded(nsPluginTag* aPluginTag);
+  nsresult EnsurePluginLoaded(nsPluginTag* plugin);
 
-  bool IsRunningPlugin(nsPluginTag * aPluginTag);
+  bool IsRunningPlugin(nsPluginTag * plugin);
 
   // Stores all plugins info into the registry
   nsresult WritePluginInfo();
@@ -321,6 +322,7 @@ private:
   nsTArray< nsRefPtr<nsNPAPIPluginInstance> > mInstances;
 
   nsCOMPtr<nsIFile> mPluginRegFile;
+  nsCOMPtr<nsIPrefBranch> mPrefService;
 #ifdef XP_WIN
   nsRefPtr<nsPluginDirServiceProvider> mPrivateDirServiceProvider;
 #endif

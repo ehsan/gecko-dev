@@ -386,16 +386,21 @@ nsRootAccessible::ProcessDOMEvent(nsIDOMEvent* aDOMEvent)
   nsINode* targetNode = accessible->GetNode();
 
 #ifdef MOZ_XUL
-  nsXULTreeAccessible* treeAcc = accessible->AsXULTree();
-  if (treeAcc) {
-    if (eventType.EqualsLiteral("TreeRowCountChanged")) {
-      HandleTreeRowCountChangedEvent(aDOMEvent, treeAcc);
-      return;
-    }
+  nsRefPtr<nsXULTreeAccessible> treeAcc;
+  if (targetNode->IsElement() &&
+      targetNode->AsElement()->NodeInfo()->Equals(nsGkAtoms::tree,
+                                                  kNameSpaceID_XUL)) {
+    treeAcc = do_QueryObject(accessible);
+    if (treeAcc) {
+      if (eventType.EqualsLiteral("TreeRowCountChanged")) {
+        HandleTreeRowCountChangedEvent(aDOMEvent, treeAcc);
+        return;
+      }
 
-    if (eventType.EqualsLiteral("TreeInvalidated")) {
-      HandleTreeInvalidatedEvent(aDOMEvent, treeAcc);
-      return;
+      if (eventType.EqualsLiteral("TreeInvalidated")) {
+        HandleTreeInvalidatedEvent(aDOMEvent, treeAcc);
+        return;
+      }
     }
   }
 #endif

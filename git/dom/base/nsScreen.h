@@ -74,6 +74,8 @@ protected:
   nsresult GetRect(nsRect& aRect);
   nsresult GetAvailRect(nsRect& aRect);
 
+  bool mIsChrome;
+
   mozilla::dom::ScreenOrientation mOrientation;
 
 private:
@@ -88,6 +90,14 @@ private:
 
   nsScreen();
   virtual ~nsScreen();
+
+  static bool sInitialized;
+  static bool sAllowScreenEnabledProperty;
+  static bool sAllowScreenBrightnessProperty;
+
+  static void Initialize();
+
+  bool IsWhiteListed();
 
   nsRefPtr<FullScreenEventListener> mEventListener;
 

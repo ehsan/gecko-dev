@@ -425,8 +425,7 @@ function findElementContent(msg) {
   let id;
   try {
     let notify = function(id) { sendResponse({value:id});};
-    let curWin = activeFrame ? win.frames[activeFrame] : win;
-    id = elementManager.find(curWin, msg.json, notify, false);
+    id = elementManager.find(msg.json, win.document, notify, false);
   }
   catch (e) {
     sendError(e.message, e.num, e.stack);
@@ -442,8 +441,7 @@ function findElementsContent(msg) {
   let id;
   try {
     let notify = function(id) { sendResponse({value:id});};
-    let curWin = activeFrame ? win.frames[activeFrame] : win;
-    id = elementManager.find(curWin, msg.json, notify, true);
+    id = elementManager.find(msg.json, win.document, notify, true);
   }
   catch (e) {
     sendError(e.message, e.num, e.stack);

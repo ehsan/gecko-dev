@@ -48,6 +48,7 @@
 #include "nsIObserver.h"
 #include "nsIThreadInternal.h"
 #include "nsNetUtil.h"
+#include "nsIPrefService.h"
 #include "nsIPermissionManager.h"
 #include "nsIDOMGeoPositionCallback.h"
 #include "nsIMemoryReporter.h"
@@ -166,6 +167,8 @@ private:
     virtual bool RecvReadPrefsArray(InfallibleTArray<PrefTuple> *retValue);
     virtual bool RecvReadFontList(InfallibleTArray<FontListEntry>* retValue);
 
+    void EnsurePrefService();
+
     virtual bool RecvReadPermissions(InfallibleTArray<IPC::Permission>* aPermissions);
 
     virtual bool RecvGetIndexedDBDirectory(nsString* aDirectory);
@@ -235,6 +238,8 @@ private:
     nsCOMArray<nsIMemoryReporter> mMemoryReporters;
 
     bool mIsAlive;
+    nsCOMPtr<nsIPrefService> mPrefService;
+
     bool mSendPermissionUpdates;
 
     nsRefPtr<nsFrameMessageManager> mMessageManager;

@@ -151,8 +151,7 @@ protected:
 
   nsMutationReceiverBase(nsINode* aRegisterTarget,
                          nsMutationReceiverBase* aParent)
-  : mTarget(nsnull), mObserver(nsnull), mParent(aParent),
-    mRegisterTarget(aRegisterTarget)
+  : mObserver(nsnull), mParent(aParent), mRegisterTarget(aRegisterTarget)
   {
     NS_ASSERTION(mParent->Subtree(), "Should clone a non-subtree observer!");
     mRegisterTarget->AddMutationObserver(this);
@@ -229,7 +228,7 @@ public:
     aParent->AddClone(this);
   }
 
-  virtual ~nsMutationReceiver() { Disconnect(false); }
+  virtual ~nsMutationReceiver() { Disconnect(); }
 
   nsMutationReceiver* GetParent()
   {
@@ -241,12 +240,12 @@ public:
     for (PRInt32 i = 0; i < mTransientReceivers.Count(); ++i) {
       nsMutationReceiver* r =
         static_cast<nsMutationReceiver*>(mTransientReceivers[i]);
-      r->DisconnectTransientReceiver();
+      r->Disconnect();
     }
     mTransientReceivers.Clear();
   }
 
-  void DisconnectTransientReceiver()
+  void DisconnectTransientReceivers()
   {
     if (mRegisterTarget) {
       mRegisterTarget->RemoveMutationObserver(this);
@@ -254,11 +253,23 @@ public:
     }
 
     mParent = nsnull;
-    NS_ASSERTION(!mTarget, "Should not have mTarget");
-    NS_ASSERTION(!mObserver, "Should not have mObserver");
   }
 
-  void Disconnect(bool aRemoveFromObserver);
+  void Disconnect()
+  {
+    if (mRegisterTarget) {
+      mRegisterTarget->RemoveMutationObserver(this);
+      mRegisterTarget = nsnull;
+    }
+    if (mTarget && mObserver) {
+      mTarget->UnbindObject(mObserver);
+    }
+
+    mParent = nsnull;
+    mTarget = nsnull;
+    mObserver = nsnull;
+    RemoveClones();
+  }
 
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_IMUTATION_OBSERVER_IID)
   NS_DECL_AND_IMPL_ZEROING_OPERATOR_NEW
@@ -289,8 +300,7 @@ public:
 
   virtual void NodeWillBeDestroyed(const nsINode *aNode)
   {
-    NS_ASSERTION(!mParent, "Shouldn't have mParent here!");
-    Disconnect(true);
+    Disconnect();
   }
   
 };
@@ -337,8 +347,6 @@ protected:
   friend class nsMutationReceiver;
   friend class nsAutoMutationBatch;
   nsMutationReceiver* GetReceiverFor(nsINode* aNode, bool aMayCreate);
-  void RemoveReceiver(nsMutationReceiver* aReceiver);
-
   void GetAllSubtreeObserversFor(nsINode* aNode,
                                  nsTArray<nsMutationReceiver*>& aObservers);
   void ScheduleForRun();

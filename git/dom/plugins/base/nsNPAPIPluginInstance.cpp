@@ -61,8 +61,6 @@
 #include "nsNetCID.h"
 #include "nsIContent.h"
 
-#include "mozilla/Preferences.h"
-
 #ifdef MOZ_WIDGET_ANDROID
 #include "ANPBase.h"
 #include <android/log.h>
@@ -107,8 +105,13 @@ nsNPAPIPluginInstance::nsNPAPIPluginInstance()
   mNPP.pdata = NULL;
   mNPP.ndata = this;
 
-  mUsePluginLayersPref =
-    Preferences::GetBool("plugins.use_layers", mUsePluginLayersPref);
+  nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
+  if (prefs) {
+    bool useLayersPref;
+    nsresult rv = prefs->GetBoolPref("plugins.use_layers", &useLayersPref);
+    if (NS_SUCCEEDED(rv))
+      mUsePluginLayersPref = useLayersPref;
+  }
 
   PLUGIN_LOG(PLUGIN_LOG_BASIC, ("nsNPAPIPluginInstance ctor: this=%p\n",this));
 }

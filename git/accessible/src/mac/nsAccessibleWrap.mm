@@ -261,7 +261,7 @@ nsAccessibleWrap::IsIgnored()
 }
 
 void
-nsAccessibleWrap::GetUnignoredChildren(nsTArray<nsAccessible*>* aChildrenArray)
+nsAccessibleWrap::GetUnignoredChildren(nsTArray<nsRefPtr<nsAccessibleWrap> > &aChildrenArray)
 {
   // we're flat; there are no children.
   if (nsAccUtils::MustPrune(this))
@@ -272,13 +272,19 @@ nsAccessibleWrap::GetUnignoredChildren(nsTArray<nsAccessible*>* aChildrenArray)
     nsAccessibleWrap *childAcc =
       static_cast<nsAccessibleWrap*>(GetChildAt(childIdx));
 
-    // If element is ignored, then add its children as substitutes.
     if (childAcc->IsIgnored()) {
-      childAcc->GetUnignoredChildren(aChildrenArray);
-      continue;
-    }
-
-    aChildrenArray->AppendElement(childAcc);
+      // element is ignored, so try adding its children as substitutes, if it has any.
+      if (!nsAccUtils::MustPrune(childAcc)) {
+        nsTArray<nsRefPtr<nsAccessibleWrap> > children;
+        childAcc->GetUnignoredChildren(children);
+        if (!children.IsEmpty()) {
+          // add the found unignored descendants to the array.
+          aChildrenArray.AppendElements(children);
+        }
+      }
+    } else
+      // simply add the element, since it's not ignored.
+      aChildrenArray.AppendElement(childAcc);
   }
 }
 

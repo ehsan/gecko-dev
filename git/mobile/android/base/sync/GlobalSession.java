@@ -31,7 +31,6 @@ import org.mozilla.gecko.sync.net.SyncStorageRequest;
 import org.mozilla.gecko.sync.net.SyncStorageRequestDelegate;
 import org.mozilla.gecko.sync.net.SyncStorageResponse;
 import org.mozilla.gecko.sync.stage.AndroidBrowserBookmarksServerSyncStage;
-import org.mozilla.gecko.sync.stage.FormHistoryServerSyncStage;
 import org.mozilla.gecko.sync.stage.AndroidBrowserHistoryServerSyncStage;
 import org.mozilla.gecko.sync.stage.CheckPreconditionsStage;
 import org.mozilla.gecko.sync.stage.CompletedStage;
@@ -199,7 +198,6 @@ public class GlobalSession implements CredentialsSource, PrefsSource, HttpRespon
     stages.put(Stage.syncTabs,                new FennecTabsServerSyncStage());
     stages.put(Stage.syncBookmarks,           new AndroidBrowserBookmarksServerSyncStage());
     stages.put(Stage.syncHistory,             new AndroidBrowserHistoryServerSyncStage());
-    stages.put(Stage.syncFormHistory,         new FormHistoryServerSyncStage());
     stages.put(Stage.completed,               new CompletedStage());
   }
 

@@ -66,6 +66,8 @@
 #include "nsIURI.h"
 #include "nsIPermissionManager.h"
 #include "nsIObserverService.h"
+#include "nsIPrefService.h"
+#include "nsIPrefBranch.h"
 #include "nsIJSContextStack.h"
 #include "nsThreadUtils.h"
 #include "mozilla/Services.h"

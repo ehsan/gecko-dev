@@ -320,14 +320,4 @@ protected:
                                            nsresult *aError = nsnull) const;
 };
 
-////////////////////////////////////////////////////////////////////////////////
-// nsAccessible downcasting method
-
-inline nsXULTreeAccessible*
-nsAccessible::AsXULTree()
-{
-  return IsXULTree() ?
-    static_cast<nsXULTreeAccessible*>(this) : nsnull;
-}
-
 #endif

@@ -108,7 +108,7 @@ public:
   nsTArray<nsCString> mMimeDescriptions; // UTF-8
   nsTArray<nsCString> mExtensions; // UTF-8
   PRLibrary     *mLibrary;
-  nsRefPtr<nsNPAPIPlugin> mPlugin;
+  nsRefPtr<nsNPAPIPlugin> mEntryPoint;
   bool          mIsJavaPlugin;
   bool          mIsNPRuntimeEnabledJavaPlugin;
   bool          mIsFlashPlugin;

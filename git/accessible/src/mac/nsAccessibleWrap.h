@@ -99,7 +99,7 @@ public: // construction, destruction
    * Returns this accessible's all children, adhering to "flat" accessibles by 
    * not returning their children.
    */
-  void GetUnignoredChildren(nsTArray<nsAccessible*>* aChildrenArray);
+  void GetUnignoredChildren(nsTArray<nsRefPtr<nsAccessibleWrap> >& aChildrenArray);
   nsAccessible* GetUnignoredParent() const;
     
 protected:

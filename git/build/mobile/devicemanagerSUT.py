@@ -199,17 +199,17 @@ class DeviceManagerSUT(DeviceManager):
         if self.debug >= 1:
           print "reconnecting socket"
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-      except socket.error, msg:
+      except:
         self._sock = None
-        raise AgentError("unable to create socket: "+str(msg))
+        raise AgentError("unable to create socket")
 
       try:
         self._sock.connect((self.host, int(self.port)))
         self._sock.recv(1024)
-      except socket.error, msg:
+      except:
         self._sock.close()
         self._sock = None
-        raise AgentError("unable to connect socket: "+str(msg))
+        raise AgentError("unable to connect socket")
 
     for cmd in cmdlist:
       if newline: cmd += '\r\n'
@@ -220,11 +220,9 @@ class DeviceManagerSUT(DeviceManager):
           raise AgentError("ERROR: our cmd was %s bytes and we only sent %s" % (len(cmd),
                                                                                 numbytes))
         if (self.debug >= 4): print "send cmd: " + str(cmd)
-      except socket.error, msg:
+      except:
         self._sock.close()
         self._sock = None
-        if self.debug >= 1:
-          print "Error sending data to socket. cmd="+str(cmd)+"; err="+str(msg)
         return False
 
       # Check if the command should close the socket
@@ -244,10 +242,10 @@ class DeviceManagerSUT(DeviceManager):
           try:
             temp = self._sock.recv(1024)
             if (self.debug >= 4): print "response: " + str(temp)
-          except socket.error, msg:
+          except:
             self._sock.close()
             self._sock = None
-            raise AgentError("Error receiving data from socket. cmd="+str(cmd)+"; err="+str(msg))
+            raise AgentError("Error receiving data from socket")
 
           data += temp
 

@@ -71,19 +71,14 @@ public class SyncResponse {
                           ParseException {
     if (body != null) {
       // Do it from the cached String.
-      return ExtendedJSONObject.parse(body);
+      ExtendedJSONObject.parse(body);
     }
-
     HttpEntity entity = this.response.getEntity();
     if (entity == null) {
       return null;
     }
     InputStream content = entity.getContent();
-    try {
-      return ExtendedJSONObject.parse(content);
-    } finally {
-      content.close();
-    }
+    return ExtendedJSONObject.parse(content);
   }
 
   /**

@@ -285,7 +285,7 @@ var shell = {
   let idleHandler = function idleHandler(subject, topic, time) {
     if (topic === "idle") {
       if (power.getWakeLockState("screen") != "locked-foreground") {
-        navigator.mozPower.screenEnabled = false;
+        screen.mozEnabled = false;
       }
     }
   }
@@ -298,10 +298,10 @@ var shell = {
     if (topic == "screen") {
       if (state != "locked-foreground") {
         if (Services.idle.idleTime > idleTimeout*1000) {
-          navigator.mozPower.screenEnabled = false;
+          screen.mozEnabled = false;
         }
       } else {
-        navigator.mozPower.screenEnabled = true;
+        screen.mozEnabled = true;
       }
     }
   }

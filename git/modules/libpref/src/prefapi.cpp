@@ -172,11 +172,8 @@ struct CallbackNode {
 /* -- Prototypes */
 static nsresult pref_DoCallback(const char* changed_pref);
 
-enum {
-    kPrefSetDefault = 1,
-    kPrefForceSet = 2
-};
-static nsresult pref_HashPref(const char *key, PrefValue value, PrefType type, PRUint32 flags);
+
+static nsresult pref_HashPref(const char *key, PrefValue value, PrefType type, bool defaultPref);
 
 #define PREF_HASHTABLE_INITIAL_SIZE	2048
 
@@ -282,7 +279,7 @@ PREF_SetCharPref(const char *pref_name, const char *value, bool set_default)
     PrefValue pref;
     pref.stringVal = (char*) value;
 
-    return pref_HashPref(pref_name, pref, PREF_STRING, set_default ? kPrefSetDefault : 0);
+    return pref_HashPref(pref_name, pref, PREF_STRING, set_default);
 }
 
 nsresult
@@ -291,7 +288,7 @@ PREF_SetIntPref(const char *pref_name, PRInt32 value, bool set_default)
     PrefValue pref;
     pref.intVal = value;
 
-    return pref_HashPref(pref_name, pref, PREF_INT, set_default ? kPrefSetDefault : 0);
+    return pref_HashPref(pref_name, pref, PREF_INT, set_default);
 }
 
 nsresult
@@ -300,7 +297,7 @@ PREF_SetBoolPref(const char *pref_name, bool value, bool set_default)
     PrefValue pref;
     pref.boolVal = value;
 
-    return pref_HashPref(pref_name, pref, PREF_BOOL, set_default ? kPrefSetDefault : 0);
+    return pref_HashPref(pref_name, pref, PREF_BOOL, set_default);
 }
 
 nsresult
@@ -700,7 +697,7 @@ PrefHashEntry* pref_HashTableLookup(const void *key)
     return result;
 }
 
-nsresult pref_HashPref(const char *key, PrefValue value, PrefType type, PRUint32 flags)
+nsresult pref_HashPref(const char *key, PrefValue value, PrefType type, bool set_default)
 {
     if (!gHashTable.ops)
         return NS_ERROR_OUT_OF_MEMORY;
@@ -727,7 +724,7 @@ nsresult pref_HashPref(const char *key, PrefValue value, PrefType type, PRUint32
     }
 
     bool valueChanged = false;
-    if (flags & kPrefSetDefault)
+    if (set_default)
     {
         if (!PREF_IS_LOCKED(pref))
         {       /* ?? change of semantics? */
@@ -746,8 +743,7 @@ nsresult pref_HashPref(const char *key, PrefValue value, PrefType type, PRUint32
         /* If new value is same as the default value, then un-set the user value.
            Otherwise, set the user value only if it has changed */
         if (!pref_ValueChanged(pref->defaultPref, value, type) &&
-            (pref->flags & PREF_HAS_DEFAULT) &&
-            !(flags & kPrefForceSet))
+            pref->flags & PREF_HAS_DEFAULT)
         {
             if (PREF_HAS_USER_VALUE(pref))
             {
@@ -950,5 +946,5 @@ void PREF_ReaderCallback(void       *closure,
                          PrefType    type,
                          bool        isDefault)
 {
-    pref_HashPref(pref, value, type, isDefault ? kPrefSetDefault : kPrefForceSet);
+    pref_HashPref(pref, value, type, isDefault);
 }

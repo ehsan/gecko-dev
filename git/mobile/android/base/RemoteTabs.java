@@ -27,7 +27,7 @@ import android.widget.SimpleExpandableListAdapter;
 import android.text.TextUtils;
 import android.util.Log;
 
-public class RemoteTabs extends GeckoActivity
+public class RemoteTabs extends Activity
        implements ExpandableListView.OnGroupClickListener, ExpandableListView.OnChildClickListener, 
                   TabsAccessor.OnQueryTabsCompleteListener {
     private static final String LOGTAG = "GeckoRemoteTabs";

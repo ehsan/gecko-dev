@@ -275,8 +275,6 @@ AddonsStore.prototype = {
   // Define the add-on types (.type) that we support.
   _syncableTypes: ["extension", "theme"],
 
-  _extensionsPrefs: new Preferences("extensions."),
-
   get reconciler() {
     return this.engine._reconciler;
   },
@@ -541,8 +539,7 @@ AddonsStore.prototype = {
     //   2) Installed in the current profile
     //   3) Not installed by a foreign entity (i.e. installed by the app)
     //      since they act like global extensions.
-    //   4) Is not a hotfix.
-    //   5) Are installed from AMO
+    //   4) Are installed from AMO
 
     // We could represent the test as a complex boolean expression. We go the
     // verbose route so the failure reason is logged.
@@ -568,12 +565,6 @@ AddonsStore.prototype = {
     // TODO Address the edge case and come up with more robust heuristics.
     if (addon.foreignInstall) {
       this._log.debug(addon.id + " not syncable: is foreign install.");
-      return false;
-    }
-
-    // Ignore hotfix extensions (bug 741670). The pref may not be defined.
-    if (this._extensionsPrefs.get("hotfix.id", null) == addon.id) {
-      this._log.debug(addon.id + " not syncable: is a hotfix.");
       return false;
     }
 
