@@ -148,6 +148,8 @@ let PrefObserver = {
     this.branch.removeObserver("", this);
   },
   observe: function(subject, topic, pref) {
+    Prefs.refresh();
+
     if (pref == "ui.show-platform-data") {
       RecordingsListView.forceSelect(RecordingsListView.selectedItem);
     }

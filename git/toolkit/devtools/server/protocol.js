@@ -1111,9 +1111,8 @@ let Front = Class({
     // Reject all outstanding requests, they won't make sense after
     // the front is destroyed.
     while (this._requests && this._requests.length > 0) {
-      let { deferred, to, type } = this._requests.shift();
-      deferred.reject(new Error("Connection closed, pending request to " + to +
-                                ", type " + type + " failed"));
+      let deferred = this._requests.shift();
+      deferred.reject(new Error("Connection closed"));
     }
     Pool.prototype.destroy.call(this);
     this.actorID = null;
@@ -1160,13 +1159,7 @@ let Front = Class({
    */
   request: function(packet) {
     let deferred = promise.defer();
-    // Save packet basics for debugging
-    let { to, type } = packet;
-    this._requests.push({
-      deferred,
-      to: to || this.actorID,
-      type
-    });
+    this._requests.push(deferred);
     this.send(packet);
     return deferred.promise;
   },
@@ -1202,7 +1195,7 @@ let Front = Class({
       throw err;
     }
 
-    let { deferred } = this._requests.shift();
+    let deferred = this._requests.shift();
     if (packet.error) {
       // "Protocol error" is here to avoid TBPL heuristics. See also
       // https://mxr.mozilla.org/webtools-central/source/tbpl/php/inc/GeneralErrorFilter.php

@@ -162,9 +162,7 @@ let SnapshotsListView = Heritage.extend(WidgetMethods, {
    * The select listener for this container.
    */
   _onSelect: function({ detail: snapshotItem }) {
-    // Check to ensure the attachment has an actor, like
-    // an in-progress recording.
-    if (!snapshotItem || !snapshotItem.attachment.actor) {
+    if (!snapshotItem) {
       return;
     }
     let { calls, thumbnails, screenshot } = snapshotItem.attachment;

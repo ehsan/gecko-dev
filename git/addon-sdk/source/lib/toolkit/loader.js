@@ -703,8 +703,7 @@ Loader.main = main;
 const Module = iced(function Module(id, uri) {
   return create(null, {
     id: { enumerable: true, value: id },
-    exports: { enumerable: true, writable: true, value: create(null),
-               configurable: true },
+    exports: { enumerable: true, writable: true, value: create(null) },
     uri: { value: uri }
   });
 });
@@ -785,7 +784,6 @@ function Loader(options) {
     }
   }, modules);
 
-  const builtinModuleExports = modules;
   modules = keys(modules).reduce(function(result, id) {
     // We resolve `uri` from `id` since modules are cached by `uri`.
     let uri = resolveURI(id, mapping);
@@ -794,16 +792,7 @@ function Loader(options) {
     if (isNative && !uri)
       uri = id;
     let module = Module(id, uri);
-
-    // Lazily expose built-in modules in order to
-    // allow them to be loaded lazily.
-    Object.defineProperty(module, "exports", {
-      enumerable: true,
-      get: function() {
-        return builtinModuleExports[id];
-      }
-    });
-
+    module.exports = freeze(modules[id]);
     result[uri] = freeze(module);
     return result;
   }, {});
