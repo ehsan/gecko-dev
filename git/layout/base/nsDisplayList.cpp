@@ -721,7 +721,7 @@ nsDisplayScrollLayer::ComputeFrameMetrics(nsIFrame* aForFrame,
           metrics.GetDisplayPort());
     }
     if (nsLayoutUtils::GetCriticalDisplayPort(content, &dp)) {
-      metrics.mCriticalDisplayPort = CSSRect::FromAppUnits(dp);
+      metrics.SetCriticalDisplayPort(CSSRect::FromAppUnits(dp));
     }
     DisplayPortMarginsPropertyData* marginsData =
         static_cast<DisplayPortMarginsPropertyData*>(content->GetProperty(nsGkAtoms::DisplayPortMargins));
@@ -1182,28 +1182,12 @@ nsDisplayListBuilder::IsAnimatedGeometryRoot(nsIFrame* aFrame, nsIFrame** aParen
   return false;
 }
 
-bool
-nsDisplayListBuilder::GetCachedAnimatedGeometryRoot(const nsIFrame* aFrame,
-                                                    const nsIFrame* aStopAtAncestor,
-                                                    nsIFrame** aOutResult)
-{
-  AnimatedGeometryRootLookup lookup(aFrame, aStopAtAncestor);
-  return mAnimatedGeometryRootCache.Get(lookup, aOutResult);
-}
-
 static nsIFrame*
 ComputeAnimatedGeometryRootFor(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame,
-                               const nsIFrame* aStopAtAncestor = nullptr,
-                               bool aUseCache = false)
+                               const nsIFrame* aStopAtAncestor = nullptr)
 {
   nsIFrame* cursor = aFrame;
   while (cursor != aStopAtAncestor) {
-    if (aUseCache) {
-      nsIFrame* result;
-      if (aBuilder->GetCachedAnimatedGeometryRoot(cursor, aStopAtAncestor, &result)) {
-        return result;
-      }
-    }
     nsIFrame* next;
     if (aBuilder->IsAnimatedGeometryRoot(cursor, &next))
       return cursor;
@@ -1218,19 +1202,13 @@ nsDisplayListBuilder::FindAnimatedGeometryRootFor(nsIFrame* aFrame, const nsIFra
   if (aFrame == mCurrentFrame) {
     return mCurrentAnimatedGeometryRoot;
   }
-
-  nsIFrame* result = ComputeAnimatedGeometryRootFor(this, aFrame, aStopAtAncestor, true);
-  AnimatedGeometryRootLookup lookup(aFrame, aStopAtAncestor);
-  mAnimatedGeometryRootCache.Put(lookup, result);
-  return result;
+  return ComputeAnimatedGeometryRootFor(this, aFrame, aStopAtAncestor);
 }
 
 void
 nsDisplayListBuilder::RecomputeCurrentAnimatedGeometryRoot()
 {
   mCurrentAnimatedGeometryRoot = ComputeAnimatedGeometryRootFor(this, const_cast<nsIFrame *>(mCurrentFrame));
-  AnimatedGeometryRootLookup lookup(mCurrentFrame, nullptr);
-  mAnimatedGeometryRootCache.Put(lookup, mCurrentAnimatedGeometryRoot);
 }
 
 void
