@@ -4622,7 +4622,7 @@ mozilla::BrowserTabsRemoteAutostart()
                          !Preferences::GetBool("layers.acceleration.force-enabled", false);
 
 #if defined(XP_MACOSX)
-    accelDisabled = accelDisabled || !nsCocoaFeatures::AccelerateByDefault();
+    accelDisabled = !nsCocoaFeatures::AccelerateByDefault();
 #endif
 
     // Check for blocked drivers
