@@ -7,7 +7,6 @@
 #define mozilla_a11y_SelectionManager_h__
 
 #include "nsAutoPtr.h"
-#include "nsIFrame.h"
 #include "nsISelectionListener.h"
 
 class nsIContent;
@@ -102,7 +101,7 @@ protected:
 
 private:
   // Currently focused control.
-  nsWeakFrame mCurrCtrlFrame;
+  nsCOMPtr<nsIContent> mCurrentControl;
 
   // Info for the the last selection event.
   // If it was on a control, then its control's selection. Otherwise, it's for

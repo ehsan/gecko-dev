@@ -17,7 +17,7 @@
 namespace {
 
 void UpdateListIndicesFromIndex(
-  FallibleTArray<mozilla::DOMSVGTransform*>& aItemsArray,
+  nsTArray<mozilla::DOMSVGTransform*>& aItemsArray,
   uint32_t aStartingIndex)
 {
   uint32_t length = aItemsArray.Length();

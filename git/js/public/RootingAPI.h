@@ -191,15 +191,13 @@ class Handle : public js::HandleBase<T>
 
     /* Create a handle for a NULL pointer. */
     Handle(js::NullPtr) {
-        MOZ_STATIC_ASSERT(mozilla::IsPointer<T>::value,
-                          "js::NullPtr overload not valid for non-pointer types");
+        typedef typename js::tl::StaticAssert<mozilla::IsPointer<T>::value>::result _;
         ptr = reinterpret_cast<const T *>(&js::NullPtr::constNullValue);
     }
 
     /* Create a handle for a NULL pointer. */
     Handle(JS::NullPtr) {
-        MOZ_STATIC_ASSERT(mozilla::IsPointer<T>::value,
-                          "JS::NullPtr overload not valid for non-pointer types");
+        typedef typename js::tl::StaticAssert<mozilla::IsPointer<T>::value>::result _;
         ptr = reinterpret_cast<const T *>(&JS::NullPtr::constNullValue);
     }
 

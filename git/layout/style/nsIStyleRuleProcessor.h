@@ -14,6 +14,7 @@
 
 #include "nsISupports.h"
 #include "nsChangeHint.h"
+#include "nsIContent.h"
 
 struct RuleProcessorData;
 struct ElementRuleProcessorData;

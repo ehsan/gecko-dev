@@ -89,8 +89,8 @@ public:
   // @media rule methods
   nsresult SetMedia(nsMediaList* aMedia);
   
-  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
-    const MOZ_MUST_OVERRIDE;
+  virtual NS_MUST_OVERRIDE size_t
+    SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
 protected:
   void AppendConditionText(nsAString& aOutput);
@@ -167,8 +167,8 @@ public:
 
   void SetURLs(URL *aURLs) { mURLs = aURLs; }
 
-  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
-    const MOZ_MUST_OVERRIDE;
+  virtual NS_MUST_OVERRIDE size_t
+    SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
 protected:
   void AppendConditionText(nsAString& aOutput);

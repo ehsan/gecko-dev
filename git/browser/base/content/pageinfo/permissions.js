@@ -64,11 +64,7 @@ var gPermObj = {
   fullscreen: function getFullscreenDefaultPermissions()
   {
     return UNKNOWN;  
-  },
-  pointerLock: function getPointerLockPermissions()
-  {
-    return BLOCK;
-  },
+  }
 };
 
 var permissionObserver = {
@@ -133,13 +129,9 @@ function initRow(aPartId)
 
   var checkbox = document.getElementById(aPartId + "Def");
   var command  = document.getElementById("cmd_" + aPartId + "Toggle");
-  // Geolocation and PointerLock permission consumers use testExactPermission, not testPermission.
-  var perm;
-  if (aPartId == "geo" || aPartId == "pointerLock")
-    perm = permissionManager.testExactPermission(gPermURI, aPartId);
-  else
-    perm = permissionManager.testPermission(gPermURI, aPartId);
-
+  // Geolocation permission consumers use testExactPermission, not testPermission. 
+  var perm = aPartId == "geo" ? permissionManager.testExactPermission(gPermURI, aPartId) :
+                                permissionManager.testPermission(gPermURI, aPartId);
   if (perm) {
     checkbox.checked = false;
     command.removeAttribute("disabled");

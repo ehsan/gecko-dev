@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsCOMPtr.h"
-#include "nsICollation.h"
 #include "nsIDOMNode.h"
 #include "nsIRDFNode.h"
 #include "nsIRDFObserver.h"

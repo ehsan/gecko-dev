@@ -23,7 +23,6 @@
 #include "VectorImage.h"
 #include "FrozenImage.h"
 #include "Image.h"
-#include "nsMediaFragmentURIParser.h"
 
 #include "ImageFactory.h"
 
@@ -215,11 +214,6 @@ ImageFactory::CreateRasterImage(nsIRequest* aRequest,
         NS_WARNING("About to hit OOM in imagelib!");
       }
     }
-  }
-
-  mozilla::net::nsMediaFragmentURIParser parser(aURI);
-  if (parser.HasResolution()) {
-    newImage->SetRequestedResolution(parser.GetResolution());
   }
 
   return newImage.forget();

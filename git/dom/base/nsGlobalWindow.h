@@ -51,6 +51,7 @@
 #include "nsIDOMStorageIndexedDB.h"
 #include "nsIDOMOfflineResourceList.h"
 #include "nsIArray.h"
+#include "nsIContent.h"
 #include "nsIIDBFactory.h"
 #include "nsFrameMessageManager.h"
 #include "mozilla/LinkedList.h"
@@ -90,7 +91,6 @@
 // Min idle notification time in seconds.
 #define MIN_IDLE_NOTIFICATION_TIME_S 1
 
-class nsIContent;
 class nsIDOMBarProp;
 class nsIDocument;
 class nsPresContext;

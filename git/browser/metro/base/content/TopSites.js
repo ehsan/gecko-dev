@@ -159,8 +159,7 @@ TopSitesView.prototype = {
       if (this._useThumbs) {
         let thumbnail = PageThumbs.getThumbnailURL(uri);
         let cssthumbnail = 'url("'+thumbnail+'")';
-        // Use setAttribute because binding properties may not be available yet.
-        item.setAttribute("customImage", cssthumbnail);
+        item.backgroundImage = cssthumbnail;
       }
     }
     rootNode.containerOpen = false;

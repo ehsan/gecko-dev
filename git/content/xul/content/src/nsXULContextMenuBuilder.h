@@ -5,14 +5,11 @@
 
 #include "nsCOMPtr.h"
 #include "nsCOMArray.h"
+#include "nsIContent.h"
 #include "nsIMenuBuilder.h"
 #include "nsIXULContextMenuBuilder.h"
+#include "nsIDOMDocumentFragment.h"
 #include "nsCycleCollectionParticipant.h"
-
-class nsIAtom;
-class nsIContent;
-class nsIDocument;
-class nsIDOMHTMLElement;
 
 class nsXULContextMenuBuilder : public nsIMenuBuilder,
                                 public nsIXULContextMenuBuilder

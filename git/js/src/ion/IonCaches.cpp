@@ -1018,14 +1018,6 @@ GetPropertyIC::update(JSContext *cx, size_t cacheIndex,
 }
 
 void
-GetPropertyIC::reset()
-{
-    IonCache::reset();
-    hasArrayLengthStub_ = false;
-    hasTypedArrayLengthStub_ = false;
-}
-
-void
 IonCache::updateBaseAddress(IonCode *code, MacroAssembler &masm)
 {
     initialJump_.repoint(code, &masm);
@@ -1750,13 +1742,6 @@ GetElementIC::update(JSContext *cx, size_t cacheIndex, HandleObject obj,
     return true;
 }
 
-void
-GetElementIC::reset()
-{
-    IonCache::reset();
-    hasDenseStub_ = false;
-}
-
 bool
 BindNameIC::attachGlobal(JSContext *cx, IonScript *ion, JSObject *scopeChain)
 {
@@ -2120,7 +2105,7 @@ CallsiteCloneIC::update(JSContext *cx, size_t cacheIndex, HandleObject callee)
     // Act as the identity for functions that are not clone-at-callsite, as we
     // generate this cache as long as some callees are clone-at-callsite.
     RootedFunction fun(cx, callee->toFunction());
-    if (!fun->hasScript() || !fun->nonLazyScript()->shouldCloneAtCallsite)
+    if (!fun->nonLazyScript()->shouldCloneAtCallsite)
         return fun;
 
     IonScript *ion = GetTopIonJSScript(cx)->ionScript();

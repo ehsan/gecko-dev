@@ -26,11 +26,6 @@
 #endif
 #include "jsfriendapi.h"
 
-// Make sure that we can use std::min here without the Windows headers messing with us.
-#ifdef min
-#undef min
-#endif
-
 using mozilla::TimeStamp;
 using mozilla::TimeDuration;
 

@@ -12,6 +12,7 @@
 #include "nsISupportsArray.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMDataTransfer.h"
+#include "nsIContent.h"
 #include "nsCOMPtr.h"
 #include "nsPoint.h"
 
@@ -20,7 +21,6 @@
 // translucency level for drag images
 #define DRAG_TRANSLUCENCY 0.65
 
-class nsIContent;
 class nsIDOMNode;
 class nsIFrame;
 class nsPresContext;

@@ -753,7 +753,6 @@ struct JSRuntime : js::RuntimeFriendFields,
     //-------------------------------------------------------------------------
 
     bool initSelfHosting(JSContext *cx);
-    void finishSelfHosting();
     void markSelfHostingGlobal(JSTracer *trc);
     bool isSelfHostingGlobal(js::HandleObject global) {
         return global == selfHostingGlobal_;
@@ -836,6 +835,7 @@ struct JSRuntime : js::RuntimeFriendFields,
     js::gc::ChunkPool   gcChunkPool;
 
     js::RootedValueMap  gcRootsHash;
+    js::GCLocks         gcLocksHash;
     unsigned            gcKeepAtoms;
     volatile size_t     gcBytes;
     size_t              gcMaxBytes;
@@ -1145,10 +1145,6 @@ struct JSRuntime : js::RuntimeFriendFields,
 
     js::GCHelperThread  gcHelperThread;
 
-#ifdef XP_MACOSX
-    js::AsmJSMachExceptionHandler asmJSMachExceptionHandler;
-#endif
-
 #ifdef JS_THREADSAFE
 # ifdef JS_ION
     js::WorkerThreadState *workerThreadState;
@@ -1184,12 +1180,10 @@ struct JSRuntime : js::RuntimeFriendFields,
      */
     uint32_t            propertyRemovals;
 
-#if !ENABLE_INTL_API
-    /* Number localization, used by jsnum.cpp. */
+    /* Number localization, used by jsnum.c */
     const char          *thousandsSeparator;
     const char          *decimalSeparator;
     const char          *numGrouping;
-#endif
 
   private:
     js::MathCache *mathCache_;

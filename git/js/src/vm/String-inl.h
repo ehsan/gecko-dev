@@ -37,6 +37,7 @@ NewShortString(JSContext *cx, JS::Latin1Chars chars)
     for (size_t i = 0; i < len; ++i)
         p[i] = static_cast<jschar>(chars[i]);
     p[len] = '\0';
+    Probes::createString(cx, str, len);
     return str;
 }
 
@@ -60,6 +61,7 @@ NewShortString(JSContext *cx, JS::StableTwoByteChars chars)
     jschar *storage = str->init(len);
     PodCopy(storage, chars.start().get(), len);
     storage[len] = 0;
+    Probes::createString(cx, str, len);
     return str;
 }
 
@@ -88,6 +90,7 @@ NewShortString(JSContext *cx, JS::TwoByteChars chars)
     jschar *storage = str->init(len);
     PodCopy(storage, chars.start().get(), len);
     storage[len] = 0;
+    Probes::createString(cx, str, len);
     return str;
 }
 

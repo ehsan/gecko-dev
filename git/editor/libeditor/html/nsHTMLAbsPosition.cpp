@@ -72,8 +72,6 @@ nsHTMLEditor::AbsolutePositionSelection(bool aEnabled)
   nsTextRulesInfo ruleInfo(aEnabled ? EditAction::setAbsolutePosition :
                                       EditAction::removeAbsolutePosition);
   bool cancel, handled;
-  // Protect the edit rules object from dying
-  nsCOMPtr<nsIEditRules> kungFuDeathGrip(mRules);
   nsresult res = mRules->WillDoAction(selection, &ruleInfo, &cancel, &handled);
   if (NS_FAILED(res) || cancel)
     return res;
@@ -186,8 +184,6 @@ nsHTMLEditor::RelativeChangeZIndex(int32_t aChange)
   nsTextRulesInfo ruleInfo(aChange < 0 ? EditAction::decreaseZIndex :
                                          EditAction::increaseZIndex);
   bool cancel, handled;
-  // Protect the edit rules object from dying
-  nsCOMPtr<nsIEditRules> kungFuDeathGrip(mRules);
   nsresult res = mRules->WillDoAction(selection, &ruleInfo, &cancel, &handled);
   if (cancel || NS_FAILED(res))
     return res;
@@ -564,7 +560,7 @@ nsHTMLEditor::AbsolutelyPositionElement(nsIDOMElement * aElement,
 
     nsCOMPtr<dom::Element> element = do_QueryInterface(aElement);
     if (element && element->IsHTML(nsGkAtoms::div) && !HasStyleOrIdOrClass(element)) {
-      nsRefPtr<nsHTMLEditRules> htmlRules = static_cast<nsHTMLEditRules*>(mRules.get());
+      nsHTMLEditRules* htmlRules = static_cast<nsHTMLEditRules*>(mRules.get());
       NS_ENSURE_TRUE(htmlRules, NS_ERROR_FAILURE);
       nsresult res = htmlRules->MakeSureElemStartsOrEndsOnCR(aElement);
       NS_ENSURE_SUCCESS(res, res);

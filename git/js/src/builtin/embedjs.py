@@ -62,19 +62,27 @@ HEADER_TEMPLATE = """\
 
 namespace js {
 namespace selfhosted {
-    static const %(sources_type)s data[] = { %(sources_data)s };
+  static const char data[] = { %(sources_data)s };
 
-    static const %(sources_type)s *%(sources_name)s = reinterpret_cast<const %(sources_type)s *>(data);
+%(sources_declaration)s
 
-    uint32_t GetCompressedSize() {
-        return %(compressed_total_length)i;
-    }
+  uint32_t GetCompressedSize() {
+    return %(compressed_total_length)i;
+  }
 
-    uint32_t GetRawScriptsSize() {
-        return %(raw_total_length)i;
-    }
+  uint32_t GetRawScriptsSize() {
+    return %(raw_total_length)i;
+  }
 } // selfhosted
 } // js
+"""
+
+RAW_SOURCES_DECLARATION = """\
+  static const char *rawSources = reinterpret_cast<const char *>(data);
+"""
+
+COMPRESSED_SOURCES_DECLARATION = """\
+  static const unsigned char *compressedSources = reinterpret_cast<const unsigned char *>(data);
 """
 
 def embed(cpp, msgs, sources, c_out, js_out, env):
@@ -98,18 +106,16 @@ def embed(cpp, msgs, sources, c_out, js_out, env):
       compressed = zlib.compress(processed)
       data = ToCArray(compressed)
       output.write(HEADER_TEMPLATE % {
-          'sources_type': 'unsigned char',
           'sources_data': data,
-          'sources_name': 'compressedSources',
+          'sources_declaration': COMPRESSED_SOURCES_DECLARATION,
           'compressed_total_length': len(compressed),
           'raw_total_length': len(processed)
       })
     else:
       data = ToCAsciiArray(processed)
       output.write(HEADER_TEMPLATE % {
-          'sources_type': 'char',
           'sources_data': data,
-          'sources_name': 'rawSources',
+          'sources_declaration': RAW_SOURCES_DECLARATION,
           'compressed_total_length': 0,
           'raw_total_length': len(processed)
       })

@@ -969,7 +969,7 @@ public:
 
   virtual void RequestPointerLock(Element* aElement) = 0;
 
-  static void UnlockPointer(nsIDocument* aDoc = nullptr);
+  static void UnlockPointer();
 
 
   //----------------------------------------------------------------------
@@ -2021,7 +2021,7 @@ public:
   Element* GetMozPointerLockElement();
   void MozExitPointerLock()
   {
-    UnlockPointer(this);
+    UnlockPointer();
   }
   bool Hidden() const
   {

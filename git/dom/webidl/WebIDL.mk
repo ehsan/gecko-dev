@@ -91,7 +91,6 @@ webidl_files = \
   HTMLHeadingElement.webidl \
   HTMLHRElement.webidl \
   HTMLHtmlElement.webidl \
-  HTMLIFrameElement.webidl \
   HTMLImageElement.webidl \
   HTMLLabelElement.webidl \
   HTMLLegendElement.webidl \
@@ -200,7 +199,6 @@ webidl_files = \
   SVGFEImageElement.webidl \
   SVGFEMergeElement.webidl \
   SVGFEMergeNodeElement.webidl \
-  SVGFEOffsetElement.webidl \
   SVGFEPointLightElement.webidl \
   SVGFETileElement.webidl \
   SVGFitToViewBox.webidl \

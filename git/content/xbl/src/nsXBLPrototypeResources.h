@@ -6,7 +6,7 @@
 #ifndef nsXBLPrototypeResources_h__
 #define nsXBLPrototypeResources_h__
 
-#include "nsAutoPtr.h"
+#include "nsCOMPtr.h"
 #include "nsICSSLoaderObserver.h"
 #include "nsIStyleRuleProcessor.h"
 

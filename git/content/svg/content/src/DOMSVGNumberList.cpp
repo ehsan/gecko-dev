@@ -22,7 +22,7 @@ namespace {
 
 using mozilla::DOMSVGNumber;
 
-void UpdateListIndicesFromIndex(FallibleTArray<DOMSVGNumber*>& aItemsArray,
+void UpdateListIndicesFromIndex(nsTArray<DOMSVGNumber*>& aItemsArray,
                                 uint32_t aStartingIndex)
 {
   uint32_t length = aItemsArray.Length();

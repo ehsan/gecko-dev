@@ -387,6 +387,8 @@ class JSObject : public js::ObjectImpl
 
     inline bool hasShapeTable() const;
 
+    inline size_t computedSizeOfThisSlotsElements() const;
+
     inline void sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf, JS::ObjectsExtraSizes *sizes);
 
     bool hasIdempotentProtoChain() const;

@@ -257,11 +257,14 @@ class nsRootedJSValueArray {
 public:
   explicit nsRootedJSValueArray(JSContext *cx) : avr(cx, vals.Length(), vals.Elements()) {}
 
-  void SetCapacity(JSContext *cx, size_t capacity) {
-    vals.SetCapacity(capacity);
+  bool SetCapacity(JSContext *cx, size_t capacity) {
+    bool ok = vals.SetCapacity(capacity);
+    if (!ok)
+      return false;
     // Values must be safe for the GC to inspect (they must not contain garbage).
     memset(vals.Elements(), 0, vals.Capacity() * sizeof(jsval));
     resetRooter(cx);
+    return true;
   }
 
   jsval *Elements() {
@@ -1832,7 +1835,8 @@ nsJSContext::ConvertSupportsTojsvals(nsISupports *aArgs,
 
   // Use the caller's auto guards to release and unroot.
   aTempStorage.construct(mContext);
-  aTempStorage.ref().SetCapacity(mContext, argCount);
+  bool ok = aTempStorage.ref().SetCapacity(mContext, argCount);
+  NS_ENSURE_TRUE(ok, NS_ERROR_OUT_OF_MEMORY);
   jsval *argv = aTempStorage.ref().Elements();
 
   if (argsArray) {
@@ -3300,6 +3304,34 @@ DOMAnalysisPurgeCallback(JSRuntime *aRt, JSFlatString *aDesc)
     (*sPrevAnalysisPurgeCallback)(aRt, aDesc);
 }
 
+// Script object mananagement - note duplicate implementation
+// in nsJSRuntime below...
+nsresult
+nsJSContext::HoldScriptObject(void* aScriptObject)
+{
+    NS_ASSERTION(sIsInitialized, "runtime not initialized");
+    if (! nsJSRuntime::sRuntime) {
+        NS_NOTREACHED("couldn't add GC root - no runtime");
+        return NS_ERROR_FAILURE;
+    }
+
+    ::JS_LockGCThingRT(nsJSRuntime::sRuntime, aScriptObject);
+    return NS_OK;
+}
+
+nsresult
+nsJSContext::DropScriptObject(void* aScriptObject)
+{
+  NS_ASSERTION(sIsInitialized, "runtime not initialized");
+  if (! nsJSRuntime::sRuntime) {
+    NS_NOTREACHED("couldn't remove GC root");
+    return NS_ERROR_FAILURE;
+  }
+
+  ::JS_UnlockGCThingRT(nsJSRuntime::sRuntime, aScriptObject);
+  return NS_OK;
+}
+
 void
 nsJSContext::ReportPendingException()
 {
@@ -3691,6 +3723,34 @@ nsJSRuntime::Shutdown()
 
   sShuttingDown = true;
   sDidShutdown = true;
+}
+
+// Script object mananagement - note duplicate implementation
+// in nsJSContext above...
+nsresult
+nsJSRuntime::HoldScriptObject(void* aScriptObject)
+{
+    NS_ASSERTION(sIsInitialized, "runtime not initialized");
+    if (! sRuntime) {
+        NS_NOTREACHED("couldn't remove GC root - no runtime");
+        return NS_ERROR_FAILURE;
+    }
+
+    ::JS_LockGCThingRT(sRuntime, aScriptObject);
+    return NS_OK;
+}
+
+nsresult
+nsJSRuntime::DropScriptObject(void* aScriptObject)
+{
+  NS_ASSERTION(sIsInitialized, "runtime not initialized");
+  if (! sRuntime) {
+    NS_NOTREACHED("couldn't remove GC root");
+    return NS_ERROR_FAILURE;
+  }
+
+  ::JS_UnlockGCThingRT(sRuntime, aScriptObject);
+  return NS_OK;
 }
 
 // A factory for the runtime.

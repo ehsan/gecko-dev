@@ -1874,6 +1874,12 @@ TextRenderedRunIterator::Next()
 
     frame = mFrameIterator.Current();
 
+    // Get the character index for the start of this rendered run, by skipping
+    // any undisplayed characters.
+    if (frame != mCurrent.mFrame) {
+      mFrameStartTextElementCharIndex += mFrameIterator.UndisplayedCharacters();
+      mTextElementCharIndex += mFrameIterator.UndisplayedCharacters();
+    }
     charIndex = mTextElementCharIndex;
 
     // Get the position and rotation of the character that begins this
@@ -1937,7 +1943,6 @@ TextRenderedRunIterator::Next()
     // advance to the next frame.
     if (offset + untrimmedLength >= contentEnd) {
       mFrameIterator.Next();
-      mTextElementCharIndex += mFrameIterator.UndisplayedCharacters();
       mFrameStartTextElementCharIndex = mTextElementCharIndex;
     }
 
@@ -1970,11 +1975,6 @@ TextRenderedRunIterator::First()
     mFrameIterator.Close();
     return TextRenderedRun();
   }
-  // Get the character index for the start of this rendered run, by skipping
-  // any undisplayed characters.
-  mTextElementCharIndex = mFrameIterator.UndisplayedCharacters();
-  mFrameStartTextElementCharIndex = mTextElementCharIndex;
-
   return Next();
 }
 
@@ -2213,14 +2213,6 @@ private:
   bool MatchesFilter() const;
 
   /**
-   * If this is the start of a glyph, record it.
-   */
-  void UpdateGlyphStartTextElementCharIndex() {
-    if (!IsOriginalCharSkipped() && IsClusterAndLigatureGroupStart()) {
-      mGlyphStartTextElementCharIndex = mTextElementCharIndex;
-    }
-  }
-  /**
    * The filter to use.
    */
   CharacterFilter mFilter;
@@ -2273,7 +2265,6 @@ CharIterator::CharIterator(nsSVGTextFrame2* aSVGTextFrame,
     mSkipCharsIterator = TextFrame()->EnsureTextRun(nsTextFrame::eInflated);
     mTextRun = TextFrame()->GetTextRun(nsTextFrame::eInflated);
     mTextElementCharIndex = mFrameIterator.UndisplayedCharacters();
-    UpdateGlyphStartTextElementCharIndex();
     if (!MatchesFilter()) {
       Next();
     }
@@ -2486,7 +2477,10 @@ CharIterator::NextCharacter()
   mSkipCharsIterator.AdvanceOriginal(1);
   if (mSkipCharsIterator.GetOriginalOffset() < TextFrame()->GetContentEnd()) {
     // We're still within the part of the text run for the current text frame.
-    UpdateGlyphStartTextElementCharIndex();
+    if (!IsOriginalCharSkipped() && IsClusterAndLigatureGroupStart()) {
+      // If this is the start of a glyph, record it.
+      mGlyphStartTextElementCharIndex = mTextElementCharIndex;
+    }
     return true;
   }
 
@@ -2503,7 +2497,10 @@ CharIterator::NextCharacter()
 
   mSkipCharsIterator = TextFrame()->EnsureTextRun(nsTextFrame::eInflated);
   mTextRun = TextFrame()->GetTextRun(nsTextFrame::eInflated);
-  UpdateGlyphStartTextElementCharIndex();
+  if (!IsOriginalCharSkipped() && IsClusterAndLigatureGroupStart()) {
+    // If this is the start of a glyph, record it.
+    mGlyphStartTextElementCharIndex = mTextElementCharIndex;
+  }
   return true;
 }
 

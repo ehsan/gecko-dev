@@ -2808,12 +2808,8 @@ RasterImage::RequestDecodeCore(RequestDecodeType aDecodeType)
   // If we don't have a decoder, create one 
   if (!mDecoder) {
     rv = InitDecoder(/* aDoSizeDecode = */ false);
-    CONTAINER_ENSURE_SUCCESS(rv);
 
-    rv = FinishedSomeDecoding();
     CONTAINER_ENSURE_SUCCESS(rv);
-
-    MOZ_ASSERT(mDecoder);
   }
 
   // If we've read all the data we have, we're done
@@ -2911,10 +2907,16 @@ RasterImage::SyncDecode()
   mDecoder->FlushInvalidations();
   mInDecoder = false;
 
-  rv = FinishedSomeDecoding();
-  CONTAINER_ENSURE_SUCCESS(rv);
-
-  if (mDecoder) {
+  // If we finished the decode, shutdown the decoder
+  if (mDecoder && IsDecodeFinished()) {
+    // We have to shut down the decoder *now*, so we explicitly shut down the
+    // decoder, and let FinishedSomeDecoding handle the rest for us.
+    nsRefPtr<DecodeRequest> request = mDecodeRequest;
+    nsresult rv = ShutdownDecoder(eShutdownIntent_Done);
+    CONTAINER_ENSURE_SUCCESS(rv);
+    rv = FinishedSomeDecoding(eShutdownIntent_Done, request);
+    CONTAINER_ENSURE_SUCCESS(rv);
+  } else if (mDecoder) {
     mDecoder->SetSynchronous(false);
   }
 
@@ -3399,8 +3401,6 @@ RasterImage::FinishedSomeDecoding(eShutdownIntent aIntent /* = eShutdownIntent_D
   nsresult rv = NS_OK;
 
   if (image->mDecoder) {
-    image->mDecoder->MarkFrameDirty();
-
     if (request && request->mChunkCount && !image->mDecoder->IsSizeDecode()) {
       Telemetry::Accumulate(Telemetry::IMAGE_DECODE_CHUNKS, request->mChunkCount);
     }

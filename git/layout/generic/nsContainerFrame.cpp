@@ -1099,8 +1099,13 @@ nsContainerFrame::ReflowOverflowContainerChildren(nsPresContext*           aPres
         nsContainerFrame::ReparentFrameViewList(aPresContext, *excessFrames,
                                                 prev, this);
         overflowContainers = excessFrames;
-        SetPropTableFrames(aPresContext, overflowContainers,
-                           OverflowContainersProperty());
+        rv = SetPropTableFrames(aPresContext, overflowContainers,
+                                OverflowContainersProperty());
+        if (NS_FAILED(rv)) {
+          excessFrames->DestroyFrames();
+          delete excessFrames;
+          return rv;
+        }
       }
     }
   }
@@ -1440,7 +1445,7 @@ nsContainerFrame::RemovePropTableFrames(nsPresContext*                 aPresCont
   return static_cast<nsFrameList*>(propTable->Remove(this, aProperty));
 }
 
-void
+nsresult
 nsContainerFrame::SetPropTableFrames(nsPresContext*                 aPresContext,
                                      nsFrameList*                   aFrameList,
                                      const FramePropertyDescriptor* aProperty)
@@ -1452,6 +1457,7 @@ nsContainerFrame::SetPropTableFrames(nsPresContext*                 aPresContext
     IsFrameOfType(nsIFrame::eCanContainOverflowContainers),
     "this type of frame can't have overflow containers");
   aPresContext->PropertyTable()->Set(this, aProperty, aFrameList);
+  return NS_OK;
 }
 
 /**
@@ -1672,8 +1678,9 @@ nsOverflowContinuationTracker::Insert(nsIFrame*       aOverflowCont,
     }
     if (!mOverflowContList) {
       mOverflowContList = new nsFrameList();
-      mParent->SetPropTableFrames(presContext, mOverflowContList,
+      rv = mParent->SetPropTableFrames(presContext, mOverflowContList,
         nsContainerFrame::ExcessOverflowContainersProperty());
+      NS_ENSURE_SUCCESS(rv, rv);
       SetUpListWalker();
     }
     if (aOverflowCont->GetParent() != mParent) {

@@ -55,10 +55,9 @@ function run_test() {
     populate();
 
     // 2. run the test-suite
-    Task.spawn(function() {
-      yield validate();
-      yield promiseAsyncUpdates();
-      
+    validate();
+  
+    promiseAsyncUpdates().then(function testJsonExport() {
       // Test exporting a Places canonical json file.
       // 1. export to bookmarks.exported.json
       try {
@@ -74,11 +73,10 @@ function run_test() {
       LOG("imported json");
 
       // 4. run the test-suite
-      yield validate();
+      validate();
       LOG("validated import");
   
-      yield promiseAsyncUpdates();
-      do_test_finished();
+      promiseAsyncUpdates().then(do_test_finished);
     });
   }
 }
@@ -116,7 +114,7 @@ function populate() {
 }
 
 function validate() {
-  yield testCanonicalBookmarks();
+  testCanonicalBookmarks(PlacesUtils.bookmarks.bookmarksMenuFolder);
   testToolbarFolder();
   testUnfiledBookmarks();
   testTags();
@@ -127,7 +125,7 @@ function validate() {
 function testCanonicalBookmarks() {
   // query to see if the deleted folder and items have been imported
   var query = PlacesUtils.history.getNewQuery();
-  query.setFolders([PlacesUtils.bookmarksMenuFolderId], 1);
+  query.setFolders([PlacesUtils.bookmarks.bookmarksMenuFolder], 1);
   var result = PlacesUtils.history.executeQuery(query, PlacesUtils.history.getNewQueryOptions());
   var rootNode = result.root;
   rootNode.containerOpen = true;
@@ -191,9 +189,9 @@ function testCanonicalBookmarks() {
 
   // last charset
   var testURI = PlacesUtils._uri(testBookmark1.uri);
-  do_check_eq("ISO-8859-1", (yield PlacesUtils.getCharsetForURI(testURI)));
+  do_check_eq("ISO-8859-1", PlacesUtils.history.getCharsetForURI(testURI));
 
-  // description
+  // description 
   do_check_true(PlacesUtils.annotations.itemHasAnnotation(testBookmark1.itemId,
                                                           DESCRIPTION_ANNO));
   do_check_eq("item description",
@@ -207,7 +205,7 @@ function testCanonicalBookmarks() {
 
 function testToolbarFolder() {
   var query = PlacesUtils.history.getNewQuery();
-  query.setFolders([PlacesUtils.toolbarFolderId], 1);
+  query.setFolders([PlacesUtils.bookmarks.toolbarFolder], 1);
   var result = PlacesUtils.history.executeQuery(query, PlacesUtils.history.getNewQueryOptions());
 
   var toolbar = result.root;
@@ -245,7 +243,7 @@ function testToolbarFolder() {
 
 function testUnfiledBookmarks() {
   var query = PlacesUtils.history.getNewQuery();
-  query.setFolders([PlacesUtils.unfiledBookmarksFolderId], 1);
+  query.setFolders([PlacesUtils.bookmarks.unfiledBookmarksFolder], 1);
   var result = PlacesUtils.history.executeQuery(query, PlacesUtils.history.getNewQueryOptions());
   var rootNode = result.root;
   rootNode.containerOpen = true;

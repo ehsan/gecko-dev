@@ -328,22 +328,6 @@ bool nsMediaFragmentURIParser::ParseXYWH(nsDependentSubstring aString)
   return false;
 }
 
-bool nsMediaFragmentURIParser::ParseMozResolution(nsDependentSubstring aString)
-{
-  int32_t w, h;
-
-  // Read and validate coordinates.
-  if (ParseInteger(aString, w) && w >= 0 &&
-      ParseCommaSeparator(aString)       &&
-      ParseInteger(aString, h) && h >= 0 &&
-      aString.Length() == 0) {
-    mResolution.construct(w,h);
-    return true;
-  }
-
-  return false;
-}
-
 void nsMediaFragmentURIParser::Parse(nsACString& aRef)
 {
   // Create an array of possibly-invalid media fragments.
@@ -364,7 +348,7 @@ void nsMediaFragmentURIParser::Parse(nsACString& aRef)
   }
 
   // Parse the media fragment values.
-  bool gotTemporal = false, gotSpatial = false, gotResolution = false;
+  bool gotTemporal = false, gotSpatial = false;
   for (int i = fragments.Length() - 1 ; i >= 0 ; --i) {
     if (gotTemporal && gotSpatial) {
       // We've got one of each possible type. No need to look at the rest.
@@ -375,9 +359,6 @@ void nsMediaFragmentURIParser::Parse(nsACString& aRef)
     } else if (!gotSpatial && fragments[i].first.EqualsLiteral("xywh")) {
       nsAutoString value = NS_ConvertUTF8toUTF16(fragments[i].second);
       gotSpatial = ParseXYWH(nsDependentSubstring(value, 0));
-    } else if (!gotResolution && fragments[i].first.EqualsLiteral("-moz-resolution")) {
-      nsAutoString value = NS_ConvertUTF8toUTF16(fragments[i].second);
-      gotResolution = ParseMozResolution(nsDependentSubstring(value, 0));
     }
   }
 }

@@ -221,7 +221,7 @@ class IonCache
     void updateBaseAddress(IonCode *code, MacroAssembler &masm);
 
     // Reset the cache around garbage collection.
-    virtual void reset();
+    void reset();
 
     bool canAttachStub() const {
         return stubCount_ < MAX_STUBS;
@@ -321,8 +321,6 @@ class GetPropertyIC : public IonCache
     }
 
     CACHE_HEADER(GetProperty)
-
-    void reset();
 
     Register object() const {
         return object_;
@@ -434,8 +432,6 @@ class GetElementIC : public IonCache
     }
 
     CACHE_HEADER(GetElement)
-
-    void reset();
 
     Register object() const {
         return object_;

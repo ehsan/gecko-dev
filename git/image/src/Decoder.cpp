@@ -97,11 +97,6 @@ Decoder::Write(const char* aBuffer, uint32_t aCount)
   if (HasDataError())
     return;
 
-  if (IsSizeDecode() && HasSize()) {
-    // More data came in since we found the size. We have nothing to do here.
-    return;
-  }
-
   // Pass the data along to the implementation
   WriteInternal(aBuffer, aCount);
 
@@ -192,8 +187,6 @@ Decoder::AllocateFrame()
 {
   MOZ_ASSERT(mNeedsNewFrame);
   MOZ_ASSERT(NS_IsMainThread());
-
-  MarkFrameDirty();
 
   nsresult rv;
   if (mNewFrameData.mPaletteDepth) {
@@ -336,6 +329,8 @@ Decoder::PostFrameStop(RasterImage::FrameAlpha aFrameAlpha /* = RasterImage::kFr
   // Flush any invalidations before we finish the frame
   FlushInvalidations();
 
+  mCurrentFrame = nullptr;
+
   // Fire notifications
   if (mObserver) {
     mObserver->OnStopFrame();
@@ -406,16 +401,6 @@ Decoder::NeedNewFrame(uint32_t framenum, uint32_t x_offset, uint32_t y_offset,
 
   mNewFrameData = NewFrameData(framenum, x_offset, y_offset, width, height, format, palette_depth);
   mNeedsNewFrame = true;
-}
-
-void
-Decoder::MarkFrameDirty()
-{
-  MOZ_ASSERT(NS_IsMainThread());
-
-  if (mCurrentFrame) {
-    mCurrentFrame->MarkImageDataDirty();
-  }
 }
 
 } // namespace image

@@ -143,7 +143,7 @@ struct MotionSegment
   } mU;
 };
 
-typedef FallibleTArray<MotionSegment> MotionSegmentArray;
+typedef nsTArray<MotionSegment> MotionSegmentArray;
 
 // Helper methods to cast nsSMILValue.mU.mPtr to the right pointer-type
 static MotionSegmentArray&

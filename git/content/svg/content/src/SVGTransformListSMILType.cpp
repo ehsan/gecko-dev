@@ -14,7 +14,7 @@ using namespace mozilla;
 
 /*static*/ SVGTransformListSMILType SVGTransformListSMILType::sSingleton;
 
-typedef FallibleTArray<SVGTransformSMILData> TransformArray;
+typedef nsTArray<SVGTransformSMILData> TransformArray;
 
 //----------------------------------------------------------------------
 // nsISMILType implementation
@@ -351,7 +351,7 @@ SVGTransformListSMILType::AppendTransforms(const SVGTransformList& aList,
 // static
 bool
 SVGTransformListSMILType::GetTransforms(const nsSMILValue& aValue,
-                                        FallibleTArray<SVGTransform>& aTransforms)
+                                        nsTArray<SVGTransform>& aTransforms)
 {
   NS_PRECONDITION(aValue.mType == &sSingleton, "Unexpected SMIL value type");
 

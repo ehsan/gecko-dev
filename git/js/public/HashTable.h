@@ -8,7 +8,6 @@
 #ifndef js_HashTable_h__
 #define js_HashTable_h__
 
-#include "mozilla/Assertions.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/DebugOnly.h"
 #include "mozilla/TypeTraits.h"
@@ -68,15 +67,7 @@ class HashMap
 
     // HashMap construction is fallible (due to OOM); thus the user must call
     // init after constructing a HashMap and check the return value.
-    HashMap(AllocPolicy a = AllocPolicy())
-      : impl(a)
-    {
-        MOZ_STATIC_ASSERT(tl::IsRelocatableHeapType<Key>::result,
-                          "Key type must be relocatable");
-        MOZ_STATIC_ASSERT(tl::IsRelocatableHeapType<Value>::result,
-                          "Value type must be relocatable");
-    }
-
+    HashMap(AllocPolicy a = AllocPolicy()) : impl(a)  {}
     bool init(uint32_t len = 16)                      { return impl.init(len); }
     bool initialized() const                          { return impl.initialized(); }
 
@@ -263,6 +254,9 @@ class HashMap
     HashMap &operator=(const HashMap &hm) MOZ_DELETE;
 
     friend class Impl::Enum;
+
+    typedef typename tl::StaticAssert<tl::IsRelocatableHeapType<Key>::result>::result keyAssert;
+    typedef typename tl::StaticAssert<tl::IsRelocatableHeapType<Value>::result>::result valAssert;
 };
 
 /*****************************************************************************/
@@ -303,11 +297,7 @@ class HashSet
 
     // HashSet construction is fallible (due to OOM); thus the user must call
     // init after constructing a HashSet and check the return value.
-    HashSet(AllocPolicy a = AllocPolicy()) : impl(a)
-    {
-        MOZ_STATIC_ASSERT(tl::IsRelocatableHeapType<T>::result,
-                          "Set element type must be relocatable");
-    }
+    HashSet(AllocPolicy a = AllocPolicy()) : impl(a)  {}
     bool init(uint32_t len = 16)                      { return impl.init(len); }
     bool initialized() const                          { return impl.initialized(); }
 
@@ -458,6 +448,8 @@ class HashSet
     HashSet &operator=(const HashSet &hs) MOZ_DELETE;
 
     friend class Impl::Enum;
+
+    typedef typename tl::StaticAssert<tl::IsRelocatableHeapType<T>::result>::result _;
 };
 
 /*****************************************************************************/

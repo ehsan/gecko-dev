@@ -92,15 +92,8 @@ public:
     mValue -= aOther.mValue;
     return *this;
   }
-
-private:
-  // Block double multiplier (slower, imprecise if long duration) - Bug 853398.
-  // If required, use MultDouble explicitly and with care.
-  TimeDuration operator*(const double aMultiplier) const MOZ_DELETE;
-
-public:
-  TimeDuration MultDouble(double aMultiplier) const {
-    return TimeDuration::FromTicks(static_cast<int64_t>(mValue * aMultiplier));
+  TimeDuration operator*(const double aMultiplier) const {
+    return TimeDuration::FromTicks(mValue * int64_t(aMultiplier));
   }
   TimeDuration operator*(const int32_t aMultiplier) const {
     return TimeDuration::FromTicks(mValue * int64_t(aMultiplier));

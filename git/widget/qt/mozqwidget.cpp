@@ -414,9 +414,7 @@ void MozQWidget::hideEvent(QHideEvent* aEvent)
 
 void MozQWidget::showEvent(QShowEvent* aEvent)
 {
-    if (mReceiver) {
-        mReceiver->showEvent(aEvent);
-    }
+    mReceiver->showEvent(aEvent);
     QGraphicsWidget::showEvent(aEvent);
 }
 

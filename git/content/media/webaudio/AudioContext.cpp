@@ -197,17 +197,5 @@ AudioContext::CurrentTime() const
   return MediaTimeToSeconds(Destination()->Stream()->GetCurrentTime());
 }
 
-void
-AudioContext::Suspend()
-{
-  DestinationStream()->ChangeExplicitBlockerCount(1);
-}
-
-void
-AudioContext::Resume()
-{
-  DestinationStream()->ChangeExplicitBlockerCount(-1);
-}
-
 }
 }
