@@ -18,7 +18,6 @@ EXPORTS_mozilla += \
   Compiler.h \
   Constants.h \
   DebugOnly.h \
-  decimal/Decimal.h \
   Endian.h \
   EnumSet.h \
   FloatingPoint.h \

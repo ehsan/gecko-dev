@@ -3628,12 +3628,7 @@ def getWrapTemplateForType(type, descriptorProvider, result, successCode,
     """
     Reflect a C++ value stored in "result", of IDL type "type" into JS.  The
     "successCode" is the code to run once we have successfully done the
-    conversion and must guarantee that execution of the conversion template
-    stops once the successCode has executed (e.g. by doing a 'return', or by
-    doing a 'break' if the entire conversion template is inside a block that
-    the 'break' will exit).
-
-    The resulting string should be used with string.Template.  It
+    conversion.  The resulting string should be used with string.Template, it
     needs the following keys when substituting: jsvalPtr/jsvalRef/obj.
 
     Returns (templateString, infallibility of conversion template)
@@ -3919,13 +3914,9 @@ def wrapForType(type, descriptorProvider, templateValues, isMember=False):
       * 'result' (optional): the name of the variable in which the C++ value is
                              stored, if not supplied 'result' will be used as
                              the name
-      * 'successCode' (optional): the code to run once we have successfully
-                                  done the conversion, if not supplied 'return
-                                  true;' will be used as the code.  The
-                                  successCode must ensure that once it runs no
-                                  more of the conversion template will be
-                                  executed (e.g. by doing a 'return' or 'break'
-                                  as appropriate).
+      * 'successCode' (optional): the code to run once we have successfully done
+                                  the conversion, if not supplied 'return true;'
+                                  will be used as the code
       * 'isCreator' (optional): If true, we're wrapping for the return value of
                                 a [Creator] method.  Assumed false if not set.
       * 'exceptionCode' (optional): Code to run when a JS exception is thrown.
@@ -4321,7 +4312,7 @@ if (global.Failed()) {
             # generating code for the legacycaller or not.
             assert idlNode.isIdentifierLess()
             # Pass in our thisVal
-            argsPre.append("args.thisv()")
+            argsPre.append("JS_THIS_VALUE(cx, vp)")
 
         cgThings.extend([CGArgumentConverter(arguments[i], i, self.getArgv(),
                                              self.getArgc(), self.descriptor,
@@ -4816,8 +4807,7 @@ class CGAbstractBindingMethod(CGAbstractStaticMethod):
     CGThing which is already properly indented.
     """
     def __init__(self, descriptor, name, args, unwrapFailureCode=None,
-                 getThisObj="&args.computeThis(cx).toObject()",
-                 callArgs="JS::CallArgs args = JS::CallArgsFromVp(argc, vp);"):
+                 getThisObj="JS_THIS_OBJECT(cx, vp)"):
         CGAbstractStaticMethod.__init__(self, descriptor, name, "JSBool", args)
 
         if unwrapFailureCode is None:
@@ -4825,20 +4815,18 @@ class CGAbstractBindingMethod(CGAbstractStaticMethod):
         else:
             self.unwrapFailureCode = unwrapFailureCode
         self.getThisObj = getThisObj
-        self.callArgs = callArgs
 
     def definition_body(self):
         # Our descriptor might claim that we're not castable, simply because
         # we're someone's consequential interface.  But for this-unwrapping, we
         # know that we're the real deal.  So fake a descriptor here for
         # consumption by CastableObjectUnwrapper.
-        getThis = CGGeneric("""%s
-JS::RootedObject obj(cx, %s);
+        getThis = CGGeneric("""JS::RootedObject obj(cx, %s);
 if (!obj) {
   return false;
 }
 
-%s* self;""" % (self.callArgs, self.getThisObj, self.descriptor.nativeType))
+%s* self;""" % (self.getThisObj, self.descriptor.nativeType))
         unwrapThis = CGGeneric(
             str(CastableObjectUnwrapper(
                         self.descriptor,
@@ -4951,7 +4939,7 @@ class CGNewResolveHook(CGAbstractBindingMethod):
         # Our "self" is actually the callee in this case, not the thisval.
         CGAbstractBindingMethod.__init__(
             self, descriptor, NEWRESOLVE_HOOK_NAME,
-            args, getThisObj="obj_", callArgs="")
+            args, getThisObj="obj_")
 
     def define(self):
         if not self._needNewResolve:
@@ -5087,7 +5075,6 @@ class CGGenericSetter(CGAbstractBindingMethod):
             unwrapFailureCode = (
                 "MOZ_ASSERT(!JS_IsExceptionPending(cx));\n"
                 "ReportLenientThisUnwrappingFailure(cx, obj);\n"
-                "JS_SET_RVAL(cx, vp, JS::UndefinedValue());\n"
                 "return true;")
         else:
             name = "genericSetter"
@@ -7583,8 +7570,7 @@ class CGDictionary(CGThing):
                 'result' : "currentValue",
                 'successCode' : ("if (!%s) {\n"
                                  "  return false;\n"
-                                 "}\n"
-                                 "break;" % propDef),
+                                 "}" % propDef),
                 'jsvalRef': "temp",
                 'jsvalPtr': "temp.address()",
                 'isCreator': False,
@@ -7597,17 +7583,15 @@ class CGDictionary(CGThing):
                                     (declType.define(), memberData)
                                     ))
 
-        # Now make sure that our successCode can actually break out of the
-        # conversion.  This incidentally gives us a scope for 'temp' and
-        # 'currentValue'.
-        conversion = CGWrapper(
-            CGIndenter(conversion),
-            pre=("do {\n"
-                 "  // block for our 'break' successCode and scope for 'temp' and 'currentValue'\n"),
-            post="\n} while(0);")
         if not member.defaultValue:
             # Only do the conversion if we have a value
             conversion = CGIfWrapper(conversion, "%s.WasPassed()" % memberLoc)
+        else:
+            # Make sure we have a scope for our stuff
+            conversion = CGWrapper(CGIndenter(conversion),
+                                   pre=("{\n"
+                                        "  // scope for 'temp' and 'currentValue'\n"),
+                                   post="\n}")
         return conversion
 
     @staticmethod

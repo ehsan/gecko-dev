@@ -341,7 +341,7 @@ public:
       return nullptr;
     }
 
-    AutoSafeJSContext cx;
+    SafeAutoJSContext cx;
 
     JS::Rooted<JSObject*> obj(cx);
     if (NS_FAILED(wrappedJS->GetJSObject(obj.address())) || !obj) {

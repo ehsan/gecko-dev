@@ -86,10 +86,6 @@ function checkTools() {
   for (let tool of toolsPref) {
     prefNodes.push(tool);
   }
-  // Randomize the order in which we remove the tool and then add them back so
-  // that we get to know if the tabs are correctly placed as per their ordinals.
-  prefNodes = prefNodes.sort(() => Math.random() > 0.5 ? 1: -1);
-
   // Wait for the next turn of the event loop to avoid stack overflow errors.
   executeSoon(toggleTools);
 }
@@ -128,22 +124,7 @@ function checkRegistered(event, data) {
   if (data == prefNodes[index - prefNodes.length].getAttribute("id")) {
     ok(true, "Correct tool added back");
     // checking tab on the toolbox
-    let radio = doc.getElementById("toolbox-tab-" + data);
-    ok(radio, "Tab added back for " + data);
-    if (radio.previousSibling) {
-      ok(+radio.getAttribute("ordinal") >=
-         +radio.previousSibling.getAttribute("ordinal"),
-         "Inserted tab's ordinal is greater than equal to its previous tab." +
-         "Expected " + radio.getAttribute("ordinal") + " >= " +
-         radio.previousSibling.getAttribute("ordinal"));
-    }
-    if (radio.nextSibling) {
-      ok(+radio.getAttribute("ordinal") <
-         +radio.nextSibling.getAttribute("ordinal"),
-         "Inserted tab's ordinal is less than its next tab. Expected " +
-         radio.getAttribute("ordinal") + " < " +
-         radio.nextSibling.getAttribute("ordinal"));
-    }
+    ok(doc.getElementById("toolbox-tab-" + data), "Tab added back for " + data);
     index++;
     // Wait for the next turn of the event loop to avoid stack overflow errors.
     executeSoon(toggleTools);

@@ -191,7 +191,7 @@ CallbackObjectHolderBase::ToXPCOMCallback(CallbackObject* aCallback,
     return nullptr;
   }
 
-  AutoSafeJSContext cx;
+  SafeAutoJSContext cx;
 
   JS::Rooted<JSObject*> callback(cx, aCallback->Callback());
 

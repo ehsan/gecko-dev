@@ -5,8 +5,8 @@
 
 #ifdef XP_WIN
 // Include Windows headers required for enabling high precision timers.
-#include "windows.h"
-#include "mmsystem.h"
+#include "Windows.h"
+#include "Mmsystem.h"
 #endif
  
 #include "mozilla/DebugOnly.h"

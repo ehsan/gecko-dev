@@ -905,6 +905,7 @@ AudioClock::AudioClock(AudioStream* aStream)
   mOutRate(0),
   mInRate(0),
   mPreservesPitch(true),
+  mPlaybackRate(1.0),
   mCompensatingLatency(false)
 {}
 
@@ -912,6 +913,7 @@ void AudioClock::Init()
 {
   mOutRate = mAudioStream->GetRate();
   mInRate = mAudioStream->GetRate();
+  mPlaybackRate = 1.0;
   mOldOutRate = mOutRate;
 }
 
@@ -981,7 +983,7 @@ void AudioClock::SetPlaybackRate(double aPlaybackRate)
 
 double AudioClock::GetPlaybackRate()
 {
-  return static_cast<double>(mInRate) / mOutRate;
+  return mPlaybackRate;
 }
 
 void AudioClock::SetPreservesPitch(bool aPreservesPitch)
