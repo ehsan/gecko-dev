@@ -296,8 +296,7 @@ nsVideoFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (!ShouldDisplayPoster() && HasVideoData()) {
-    rv = aLists.Content()->AppendNewToTop(
-        new (aBuilder) nsDisplayGeneric(this, ::PaintVideo, "Video"));
+    rv = aLists.Content()->AppendNewToTop(new (aBuilder) nsDisplayGeneric(this, ::PaintVideo, "Video"));
     NS_ENSURE_SUCCESS(rv, rv);
   }
 

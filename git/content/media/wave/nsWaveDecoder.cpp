@@ -54,13 +54,6 @@
 using mozilla::TimeDuration;
 using mozilla::TimeStamp;
 
-#ifdef PR_LOGGING
-static PRLogModuleInfo* gWaveDecoderLog;
-#define LOG(type, msg) PR_LOG(gWaveDecoderLog, type, msg)
-#else
-#define LOG(type, msg)
-#endif
-
 // Maximum number of seconds to wait when buffering.
 #define BUFFERING_TIMEOUT 3
 
@@ -468,12 +461,7 @@ nsWaveStateMachine::GetNextFrameStatus()
   nsAutoMonitor monitor(mMonitor);
   if (mState == STATE_BUFFERING)
     return nsHTMLMediaElement::NEXT_FRAME_UNAVAILABLE_BUFFERING;
-  // If mMetadataValid is false then we can't call GetDataLength because
-  // we haven't got the length from the Wave header yet. But we know that
-  // if we haven't read the metadata then we don't have playable data.
-  if (mMetadataValid &&
-      mPlaybackPosition < mStream->GetCachedDataEnd(mPlaybackPosition) &&
-      mPlaybackPosition < mWavePCMOffset + GetDataLength())
+  if (mPlaybackPosition < mStream->GetCachedDataEnd(mPlaybackPosition))
     return nsHTMLMediaElement::NEXT_FRAME_AVAILABLE;
   return nsHTMLMediaElement::NEXT_FRAME_UNAVAILABLE;
 }
@@ -1167,12 +1155,6 @@ nsWaveDecoder::nsWaveDecoder()
     mResourceLoadedReported(PR_FALSE)
 {
   MOZ_COUNT_CTOR(nsWaveDecoder);
-
-#ifdef PR_LOGGING
-  if (!gWaveDecoderLog) {
-    gWaveDecoderLog = PR_NewLogModule("nsWaveDecoder");
-  }
-#endif
 }
 
 nsWaveDecoder::~nsWaveDecoder()

@@ -52,6 +52,7 @@ nsresult nsChildView::Create(nsIWidget *aParent,
 {
 
 	NS_ASSERTION(aInitData->mWindowType == eWindowType_child
+		|| aInitData->mWindowType == eWindowType_java
 		|| aInitData->mWindowType == eWindowType_plugin, 
 		"The windowtype is not handled by this class." );
 

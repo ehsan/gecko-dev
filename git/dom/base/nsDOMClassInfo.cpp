@@ -37,13 +37,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-// JavaScript includes
-#include "jsapi.h"
-#include "jsprvtd.h"    // we are using private JS typedefs...
-#include "jscntxt.h"
-#include "jsdbgapi.h"
-#include "jsnum.h"
-
 #include "nscore.h"
 #include "nsDOMClassInfo.h"
 #include "nsCRT.h"
@@ -68,6 +61,13 @@
 #include "nsCSSValue.h"
 #include "nsIRunnable.h"
 #include "nsThreadUtils.h"
+
+// JavaScript includes
+#include "jsapi.h"
+#include "jsprvtd.h"    // we are using private JS typedefs...
+#include "jscntxt.h"
+#include "jsdbgapi.h"
+#include "jsnum.h"
 
 // General helper includes
 #include "nsGlobalWindow.h"
@@ -7656,14 +7656,11 @@ static PRBool
 GetBindingURL(nsIContent *aContent, nsIDocument *aDocument,
               nsCSSValue::URL **aResult)
 {
-  // If we have a frame the frame has already loaded the binding.  And
-  // otherwise, don't do anything else here unless we're dealing with
-  // XUL.
+  // If we have a frame the frame has already loaded the binding.
   nsIPresShell *shell = aDocument->GetPrimaryShell();
   nsIFrame *frame;
   if (!shell ||
-      (frame = shell->GetPrimaryFrameFor(aContent)) ||
-      !aContent->IsXUL()) {
+      (frame = shell->GetPrimaryFrameFor(aContent))) {
     *aResult = nsnull;
 
     return PR_TRUE;
