@@ -117,12 +117,14 @@ GrGpuGL::GrGpuGL(const GrGLContext& ctx, GrContext* context)
     , fGLContext(ctx) {
 
     SkASSERT(ctx.isInitialized());
+
     fCaps.reset(SkRef(ctx.caps()));
 
     fHWBoundTextures.reset(this->glCaps().maxFragmentTextureUnits());
     fHWTexGenSettings.reset(this->glCaps().maxFixedFunctionTextureCoords());
 
     GrGLClearErr(fGLContext.interface());
+
     if (gPrintStartupSpew) {
         const GrGLubyte* vendor;
         const GrGLubyte* renderer;
@@ -2661,23 +2663,6 @@ bool GrGpuGL::onCanCopySurface(GrSurface* dst,
     return INHERITED::onCanCopySurface(dst, src, srcRect, dstPoint);
 }
 
-void GrGpuGL::onInstantGpuTraceEvent(const char* marker) {
-    if (this->caps()->gpuTracingSupport()) {
-        // GL_CALL(InsertEventMarker(0, marker));
-    }
-}
-
-void GrGpuGL::onPushGpuTraceEvent(const char* marker) {
-    if (this->caps()->gpuTracingSupport()) {
-        // GL_CALL(PushGroupMarker(0, marker));
-    }
-}
-
-void GrGpuGL::onPopGpuTraceEvent() {
-    if (this->caps()->gpuTracingSupport()) {
-        // GL_CALL(PopGroupMarker());
-    }
-}
 
 ///////////////////////////////////////////////////////////////////////////////
 

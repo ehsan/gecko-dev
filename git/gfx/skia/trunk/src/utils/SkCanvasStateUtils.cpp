@@ -130,10 +130,6 @@ public:
         fFailed |= antialias;
     }
 
-    virtual void clipRRect(const SkRRect& rrect, SkRegion::Op op, bool antialias) SK_OVERRIDE {
-        fFailed |= antialias;
-    }
-
     virtual void clipPath(const SkPath&, SkRegion::Op, bool antialias) SK_OVERRIDE {
         fFailed |= antialias;
     }
@@ -194,8 +190,7 @@ SkCanvasState* SkCanvasStateUtils::CaptureCanvasState(SkCanvas* canvas) {
     SkAutoTDelete<SkCanvasState> canvasState(SkNEW_ARGS(SkCanvasState, (canvas)));
 
     // decompose the total matrix and clip
-    setup_MC_state(&canvasState->mcState, canvas->getTotalMatrix(),
-                   canvas->internal_private_getTotalClip());
+    setup_MC_state(&canvasState->mcState, canvas->getTotalMatrix(), canvas->getTotalClip());
 
     /*
      * decompose the layers
@@ -222,11 +217,11 @@ SkCanvasState* SkCanvasStateUtils::CaptureCanvasState(SkCanvas* canvas) {
         layerState->width = bitmap.width();
         layerState->height = bitmap.height();
 
-        switch (bitmap.colorType()) {
-            case kPMColor_SkColorType:
+        switch (bitmap.config()) {
+            case SkBitmap::kARGB_8888_Config:
                 layerState->raster.config = kARGB_8888_RasterConfig;
                 break;
-            case kRGB_565_SkColorType:
+            case SkBitmap::kRGB_565_Config:
                 layerState->raster.config = kRGB_565_RasterConfig;
                 break;
             default:
@@ -280,24 +275,25 @@ static SkCanvas* create_canvas_from_canvas_layer(const SkCanvasLayerState& layer
     SkASSERT(kRaster_CanvasBackend == layerState.type);
 
     SkBitmap bitmap;
-    SkColorType colorType =
-        layerState.raster.config == kARGB_8888_RasterConfig ? kPMColor_SkColorType :
-        layerState.raster.config == kRGB_565_RasterConfig ? kRGB_565_SkColorType :
-        kUnknown_SkColorType;
+    SkBitmap::Config config =
+        layerState.raster.config == kARGB_8888_RasterConfig ? SkBitmap::kARGB_8888_Config :
+        layerState.raster.config == kRGB_565_RasterConfig ? SkBitmap::kRGB_565_Config :
+        SkBitmap::kNo_Config;
 
-    if (colorType == kUnknown_SkColorType) {
+    if (config == SkBitmap::kNo_Config) {
         return NULL;
     }
 
-    bitmap.installPixels(SkImageInfo::Make(layerState.width, layerState.height,
-                                           colorType, kPremul_SkAlphaType),
-                         layerState.raster.pixels, layerState.raster.rowBytes,
-                         NULL, NULL);
+    bitmap.setConfig(config, layerState.width, layerState.height,
+                     layerState.raster.rowBytes);
+    bitmap.setPixels(layerState.raster.pixels);
 
     SkASSERT(!bitmap.empty());
     SkASSERT(!bitmap.isNull());
 
-    SkAutoTUnref<SkCanvas> canvas(SkNEW_ARGS(SkCanvas, (bitmap)));
+    // create a device & canvas
+    SkAutoTUnref<SkBitmapDevice> device(SkNEW_ARGS(SkBitmapDevice, (bitmap)));
+    SkAutoTUnref<SkCanvas> canvas(SkNEW_ARGS(SkCanvas, (device.get())));
 
     // setup the matrix and clip
     setup_canvas_from_MC_state(layerState.mcState, canvas.get());

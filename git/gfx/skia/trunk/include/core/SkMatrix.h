@@ -560,7 +560,7 @@ public:
     size_t readFromMemory(const void* buffer, size_t length);
 
     SkDEVCODE(void dump() const;)
-    SK_TO_STRING_NONVIRT()
+    SkDEVCODE(void toString(SkString*) const;)
 
     /**
      * Calculates the minimum stretching factor of the matrix. If the matrix has

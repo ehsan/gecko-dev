@@ -31,7 +31,7 @@ SkPixelXorXfermode::SkPixelXorXfermode(SkReadBuffer& rb)
     fOpColor = rb.readColor();
 }
 
-#ifndef SK_IGNORE_TO_STRING
+#ifdef SK_DEVELOPER
 void SkPixelXorXfermode::toString(SkString* str) const {
     str->append("SkPixelXorXfermode: ");
     str->appendHex(fOpColor);

@@ -119,11 +119,11 @@ function run_test() {
   run_next_test();
 }
 
-function add_tests_in_mode(useMozillaPKIX)
+function add_tests_in_mode(useInsanity)
 {
   add_test(function () {
-    Services.prefs.setBoolPref("security.use_mozillapkix_verification",
-                               useMozillaPKIX);
+    Services.prefs.setBoolPref("security.use_insanity_verification",
+                               useInsanity);
     run_next_test();
   });
 
@@ -162,8 +162,8 @@ function add_tests_in_mode(useMozillaPKIX)
     clearOCSPCache();
     let ocspResponder = failingOCSPResponder();
     check_cert_err("ev-valid",
-                   useMozillaPKIX ? SEC_ERROR_UNKNOWN_ISSUER
-                                  : SEC_ERROR_UNTRUSTED_ISSUER);
+                   useInsanity ? SEC_ERROR_UNKNOWN_ISSUER
+                               : SEC_ERROR_UNTRUSTED_ISSUER);
     ocspResponder.stop(run_next_test);
   });
 
@@ -186,23 +186,23 @@ function add_tests_in_mode(useMozillaPKIX)
 
   add_test(function () {
     check_no_ocsp_requests("ev-valid",
-      useMozillaPKIX ? SEC_ERROR_POLICY_VALIDATION_FAILED
-                     : (isDebugBuild ? SEC_ERROR_REVOKED_CERTIFICATE
-                                     : SEC_ERROR_EXTENSION_NOT_FOUND));
+      useInsanity ? SEC_ERROR_POLICY_VALIDATION_FAILED
+                  : (isDebugBuild ? SEC_ERROR_REVOKED_CERTIFICATE
+                                  : SEC_ERROR_EXTENSION_NOT_FOUND));
   });
 
   add_test(function () {
     check_no_ocsp_requests("non-ev-root",
-      useMozillaPKIX ? SEC_ERROR_POLICY_VALIDATION_FAILED
-                     : (isDebugBuild ? SEC_ERROR_UNTRUSTED_ISSUER
-                                     : SEC_ERROR_EXTENSION_NOT_FOUND));
+      useInsanity ? SEC_ERROR_POLICY_VALIDATION_FAILED
+                  : (isDebugBuild ? SEC_ERROR_UNTRUSTED_ISSUER
+                                  : SEC_ERROR_EXTENSION_NOT_FOUND));
   });
 
   add_test(function () {
     check_no_ocsp_requests("no-ocsp-url-cert",
-      useMozillaPKIX ? SEC_ERROR_POLICY_VALIDATION_FAILED
-                     : (isDebugBuild ? SEC_ERROR_REVOKED_CERTIFICATE
-                                     : SEC_ERROR_EXTENSION_NOT_FOUND));
+      useInsanity ? SEC_ERROR_POLICY_VALIDATION_FAILED
+                  : (isDebugBuild ? SEC_ERROR_REVOKED_CERTIFICATE
+                                  : SEC_ERROR_EXTENSION_NOT_FOUND));
   });
 
   // Test the EV continues to work with flags after successful EV verification
@@ -226,8 +226,8 @@ function add_tests_in_mode(useMozillaPKIX)
       do_check_eq(hasEVPolicy.value, isDebugBuild);
       do_check_eq(error,
                   isDebugBuild ? 0
-                               : (useMozillaPKIX ? SEC_ERROR_POLICY_VALIDATION_FAILED
-                                                 : SEC_ERROR_EXTENSION_NOT_FOUND));
+                               : (useInsanity ? SEC_ERROR_POLICY_VALIDATION_FAILED
+                                              : SEC_ERROR_EXTENSION_NOT_FOUND));
       failingOcspResponder.stop(run_next_test);
     });
   });

@@ -123,8 +123,8 @@ bool SkBitmapProcState::setBitmapFilterProcs() {
         return false;
     }
 
-    // TODO: consider supporting other colortypes (e.g. 565, A8)
-    if (fBitmap->colorType() != kPMColor_SkColorType) {
+    // TODO: consider supporting other configs (e.g. 565, A8)
+    if (fBitmap->config() != SkBitmap::kARGB_8888_Config) {
         return false;
     }
 

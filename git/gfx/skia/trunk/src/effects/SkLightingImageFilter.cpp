@@ -271,7 +271,7 @@ public:
 protected:
     explicit SkDiffuseLightingImageFilter(SkReadBuffer& buffer);
     virtual void flatten(SkWriteBuffer& buffer) const SK_OVERRIDE;
-    virtual bool onFilterImage(Proxy*, const SkBitmap& src, const Context&,
+    virtual bool onFilterImage(Proxy*, const SkBitmap& src, const SkMatrix&,
                                SkBitmap* result, SkIPoint* offset) const SK_OVERRIDE;
 #if SK_SUPPORT_GPU
     virtual bool asNewEffect(GrEffectRef** effect, GrTexture*, const SkMatrix& matrix, const SkIRect& bounds) const SK_OVERRIDE;
@@ -293,7 +293,7 @@ public:
 protected:
     explicit SkSpecularLightingImageFilter(SkReadBuffer& buffer);
     virtual void flatten(SkWriteBuffer& buffer) const SK_OVERRIDE;
-    virtual bool onFilterImage(Proxy*, const SkBitmap& src, const Context&,
+    virtual bool onFilterImage(Proxy*, const SkBitmap& src, const SkMatrix&,
                                SkBitmap* result, SkIPoint* offset) const SK_OVERRIDE;
 #if SK_SUPPORT_GPU
     virtual bool asNewEffect(GrEffectRef** effect, GrTexture*, const SkMatrix& matrix, const SkIRect& bounds) const SK_OVERRIDE;
@@ -641,10 +641,7 @@ public:
     virtual SkLight* transform(const SkMatrix& matrix) const {
         SkPoint location2 = SkPoint::Make(fLocation.fX, fLocation.fY);
         matrix.mapPoints(&location2, 1);
-        // Use X scale and Y scale on Z and average the result
-        SkPoint locationZ = SkPoint::Make(fLocation.fZ, fLocation.fZ);
-        matrix.mapVectors(&locationZ, 1);
-        SkPoint3 location(location2.fX, location2.fY, SkScalarAve(locationZ.fX, locationZ.fY));
+        SkPoint3 location(location2.fX, location2.fY, fLocation.fZ);
         return new SkPointLight(location, color());
     }
 
@@ -685,18 +682,11 @@ public:
     virtual SkLight* transform(const SkMatrix& matrix) const {
         SkPoint location2 = SkPoint::Make(fLocation.fX, fLocation.fY);
         matrix.mapPoints(&location2, 1);
-        // Use X scale and Y scale on Z and average the result
-        SkPoint locationZ = SkPoint::Make(fLocation.fZ, fLocation.fZ);
-        matrix.mapVectors(&locationZ, 1);
-        SkPoint3 location(location2.fX, location2.fY, SkScalarAve(locationZ.fX, locationZ.fY));
+        SkPoint3 location(location2.fX, location2.fY, fLocation.fZ);
         SkPoint target2 = SkPoint::Make(fTarget.fX, fTarget.fY);
         matrix.mapPoints(&target2, 1);
-        SkPoint targetZ = SkPoint::Make(fTarget.fZ, fTarget.fZ);
-        matrix.mapVectors(&targetZ, 1);
-        SkPoint3 target(target2.fX, target2.fY, SkScalarAve(targetZ.fX, targetZ.fY));
-        SkPoint3 s = target - location;
-        s.normalize();
-        return new SkSpotLight(location, target, fSpecularExponent, fCosOuterConeAngle, fCosInnerConeAngle, fConeScale, s, color());
+        SkPoint3 target(target2.fX, target2.fY, fTarget.fZ);
+        return new SkSpotLight(location, target, fSpecularExponent, fCosOuterConeAngle, fCosInnerConeAngle, fConeScale, fS, color());
     }
 
     SkPoint3 surfaceToLight(int x, int y, int z, SkScalar surfaceScale) const {
@@ -933,30 +923,32 @@ void SkDiffuseLightingImageFilter::flatten(SkWriteBuffer& buffer) const {
 
 bool SkDiffuseLightingImageFilter::onFilterImage(Proxy* proxy,
                                                  const SkBitmap& source,
-                                                 const Context& ctx,
+                                                 const SkMatrix& ctm,
                                                  SkBitmap* dst,
                                                  SkIPoint* offset) const {
     SkImageFilter* input = getInput(0);
     SkBitmap src = source;
     SkIPoint srcOffset = SkIPoint::Make(0, 0);
-    if (input && !input->filterImage(proxy, source, ctx, &src, &srcOffset)) {
+    if (input && !input->filterImage(proxy, source, ctm, &src, &srcOffset)) {
         return false;
     }
 
-    if (src.colorType() != kPMColor_SkColorType) {
+    if (src.config() != SkBitmap::kARGB_8888_Config) {
         return false;
     }
+    SkAutoLockPixels alp(src);
+    if (!src.getPixels()) {
+        return false;
+    }
+
     SkIRect bounds;
-    if (!this->applyCropRect(ctx, proxy, src, &srcOffset, &bounds, &src)) {
+    src.getBounds(&bounds);
+    bounds.offset(srcOffset);
+    if (!this->applyCropRect(&bounds, ctm)) {
         return false;
     }
 
     if (bounds.width() < 2 || bounds.height() < 2) {
-        return false;
-    }
-
-    SkAutoLockPixels alp(src);
-    if (!src.getPixels()) {
         return false;
     }
 
@@ -965,7 +957,7 @@ bool SkDiffuseLightingImageFilter::onFilterImage(Proxy* proxy,
         return false;
     }
 
-    SkAutoTUnref<SkLight> transformedLight(light()->transform(ctx.ctm()));
+    SkAutoTUnref<SkLight> transformedLight(light()->transform(ctm));
 
     DiffuseLightingType lightingType(fKD);
     offset->fX = bounds.left();
@@ -1024,31 +1016,32 @@ void SkSpecularLightingImageFilter::flatten(SkWriteBuffer& buffer) const {
 
 bool SkSpecularLightingImageFilter::onFilterImage(Proxy* proxy,
                                                   const SkBitmap& source,
-                                                  const Context& ctx,
+                                                  const SkMatrix& ctm,
                                                   SkBitmap* dst,
                                                   SkIPoint* offset) const {
     SkImageFilter* input = getInput(0);
     SkBitmap src = source;
     SkIPoint srcOffset = SkIPoint::Make(0, 0);
-    if (input && !input->filterImage(proxy, source, ctx, &src, &srcOffset)) {
+    if (input && !input->filterImage(proxy, source, ctm, &src, &srcOffset)) {
         return false;
     }
 
-    if (src.colorType() != kPMColor_SkColorType) {
+    if (src.config() != SkBitmap::kARGB_8888_Config) {
+        return false;
+    }
+    SkAutoLockPixels alp(src);
+    if (!src.getPixels()) {
         return false;
     }
 
     SkIRect bounds;
-    if (!this->applyCropRect(ctx, proxy, src, &srcOffset, &bounds, &src)) {
+    src.getBounds(&bounds);
+    bounds.offset(srcOffset);
+    if (!this->applyCropRect(&bounds, ctm)) {
         return false;
     }
 
     if (bounds.width() < 2 || bounds.height() < 2) {
-        return false;
-    }
-
-    SkAutoLockPixels alp(src);
-    if (!src.getPixels()) {
         return false;
     }
 
@@ -1062,7 +1055,7 @@ bool SkSpecularLightingImageFilter::onFilterImage(Proxy* proxy,
     offset->fX = bounds.left();
     offset->fY = bounds.top();
     bounds.offset(-srcOffset);
-    SkAutoTUnref<SkLight> transformedLight(light()->transform(ctx.ctm()));
+    SkAutoTUnref<SkLight> transformedLight(light()->transform(ctm));
     switch (transformedLight->type()) {
         case SkLight::kDistant_LightType:
             lightBitmap<SpecularLightingType, SkDistantLight>(lightingType, transformedLight, src, dst, surfaceScale(), bounds);

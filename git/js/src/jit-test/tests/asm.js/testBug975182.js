@@ -8,7 +8,7 @@ Function("\
         return f\
     })(this, {\
         ff: arguments.callee\
-    }, new ArrayBuffer(4096))\
+    }, ArrayBuffer(4096))\
 ")()
 function m(f) {
     for (var j = 0; j < 6000; ++j) {

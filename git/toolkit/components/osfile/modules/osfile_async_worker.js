@@ -302,9 +302,9 @@ const EXCEPTION_NAMES = {
      }
    },
    // Functions of OS.File
-   stat: function stat(path, options) {
+   stat: function stat(path) {
      return exports.OS.File.Info.toMsg(
-       exports.OS.File.stat(Type.path.fromMsg(path), options));
+       exports.OS.File.stat(Type.path.fromMsg(path)));
    },
    setDates: function setDates(path, accessDate, modificationDate) {
      return exports.OS.File.setDates(Type.path.fromMsg(path), accessDate,
@@ -507,12 +507,6 @@ const EXCEPTION_NAMES = {
        });
    }
   };
-  if (!SharedAll.Constants.Win) {
-    Agent.unixSymLink = function unixSymLink(sourcePath, destPath) {
-      return File.unixSymLink(Type.path.fromMsg(sourcePath),
-        Type.path.fromMsg(destPath));
-    };
-  }
 
   timeStamps.loaded = Date.now();
 })(this);

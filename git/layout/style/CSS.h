@@ -32,11 +32,6 @@ public:
   static bool Supports(const GlobalObject& aGlobal,
                        const nsAString& aDeclaration,
                        ErrorResult& aRv);
-
-  static void Escape(const GlobalObject& aGlobal,
-                     const nsAString& aIdent,
-                     nsAString& aReturn,
-                     ErrorResult& aRv);
 };
 
 } // namespace dom

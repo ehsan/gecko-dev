@@ -52,10 +52,7 @@ public:
         @param style how to transform path at each point (based on the current
                      position and tangent)
     */
-    static SkPath1DPathEffect* Create(const SkPath& path, SkScalar advance, SkScalar phase,
-                                      Style style) {
-        return SkNEW_ARGS(SkPath1DPathEffect, (path, advance, phase, style));
-    }
+    SkPath1DPathEffect(const SkPath& path, SkScalar advance, SkScalar phase, Style);
 
     virtual bool filterPath(SkPath*, const SkPath&,
                             SkStrokeRec*, const SkRect*) const SK_OVERRIDE;
@@ -69,11 +66,6 @@ protected:
     // overrides from Sk1DPathEffect
     virtual SkScalar begin(SkScalar contourLength) const SK_OVERRIDE;
     virtual SkScalar next(SkPath*, SkScalar, SkPathMeasure&) const SK_OVERRIDE;
-
-#ifdef SK_SUPPORT_LEGACY_PUBLICEFFECTCONSTRUCTORS
-public:
-#endif
-    SkPath1DPathEffect(const SkPath& path, SkScalar advance, SkScalar phase, Style);
 
 private:
     SkPath      fPath;          // copied from constructor

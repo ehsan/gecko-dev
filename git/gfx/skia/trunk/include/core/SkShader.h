@@ -345,7 +345,8 @@ public:
     static SkShader* CreateBitmapShader(const SkBitmap& src,
                                         TileMode tmx, TileMode tmy);
 
-    SK_TO_STRING_VIRT()
+    SkDEVCODE(virtual void toString(SkString* str) const;)
+
     SK_DEFINE_FLATTENABLE_TYPE(SkShader)
 
 protected:
@@ -370,6 +371,10 @@ private:
     uint8_t             fTotalInverseClass;
     SkDEBUGCODE(SkBool8 fInSetContext;)
 
+    static SkShader* CreateBitmapShader(const SkBitmap& src,
+                                        TileMode, TileMode,
+                                        void* storage, size_t storageSize);
+    friend class SkAutoBitmapShaderInstall;
     typedef SkFlattenable INHERITED;
 };
 

@@ -2,9 +2,9 @@
 // Flags:
 //
 try {
-    a = new ArrayBuffer(76);
-    b = new Uint32Array(a);
+    a = ArrayBuffer(76);
+    b = Uint32Array(a);
     uneval()
-    c = new Uint8Array(a);
+    c = Uint8Array(a);
     c.set(b)
 } catch (e) {}

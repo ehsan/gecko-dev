@@ -13,13 +13,10 @@
 
 class SK_API SkBlurImageFilter : public SkImageFilter {
 public:
-    static SkBlurImageFilter* Create(SkScalar sigmaX,
-                                     SkScalar sigmaY,
-                                     SkImageFilter* input = NULL,
-                                     const CropRect* cropRect = NULL) {
-        return SkNEW_ARGS(SkBlurImageFilter, (sigmaX, sigmaY, input, cropRect));
-    }
-
+    SkBlurImageFilter(SkScalar sigmaX,
+                      SkScalar sigmaY,
+                      SkImageFilter* input = NULL,
+                      const CropRect* cropRect = NULL);
     virtual void computeFastBounds(const SkRect&, SkRect*) const SK_OVERRIDE;
 
     SK_DECLARE_PUBLIC_FLATTENABLE_DESERIALIZATION_PROCS(SkBlurImageFilter)
@@ -28,22 +25,14 @@ protected:
     explicit SkBlurImageFilter(SkReadBuffer& buffer);
     virtual void flatten(SkWriteBuffer&) const SK_OVERRIDE;
 
-    virtual bool onFilterImage(Proxy*, const SkBitmap& src, const Context&,
+    virtual bool onFilterImage(Proxy*, const SkBitmap& src, const SkMatrix&,
                                SkBitmap* result, SkIPoint* offset) const SK_OVERRIDE;
     virtual bool onFilterBounds(const SkIRect& src, const SkMatrix&,
                                 SkIRect* dst) const SK_OVERRIDE;
 
     bool canFilterImageGPU() const SK_OVERRIDE { return true; }
-    virtual bool filterImageGPU(Proxy* proxy, const SkBitmap& src, const Context& ctx,
+    virtual bool filterImageGPU(Proxy* proxy, const SkBitmap& src, const SkMatrix& ctm,
                                 SkBitmap* result, SkIPoint* offset) const SK_OVERRIDE;
-
-#ifdef SK_SUPPORT_LEGACY_PUBLICEFFECTCONSTRUCTORS
-public:
-#endif
-    SkBlurImageFilter(SkScalar sigmaX,
-                      SkScalar sigmaY,
-                      SkImageFilter* input = NULL,
-                      const CropRect* cropRect = NULL);
 
 private:
     SkSize   fSigma;

@@ -5,7 +5,7 @@
 
 #include "nsPKCS12Blob.h"
 
-#include "pkix/pkixtypes.h"
+#include "insanity/pkixtypes.h"
 
 #include "prmem.h"
 #include "prprf.h"
@@ -307,7 +307,7 @@ nsPKCS12Blob::ExportToFile(nsIFile *file,
   for (i=0; i<numCerts; i++) {
     nsNSSCertificate *cert = (nsNSSCertificate *)certs[i];
     // get it as a CERTCertificate XXX
-    mozilla::pkix::ScopedCERTCertificate nssCert(cert->GetCert());
+    insanity::pkix::ScopedCERTCertificate nssCert(cert->GetCert());
     if (!nssCert) {
       rv = NS_ERROR_FAILURE;
       goto finish;

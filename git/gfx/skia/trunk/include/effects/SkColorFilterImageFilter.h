@@ -25,7 +25,7 @@ protected:
     SkColorFilterImageFilter(SkReadBuffer& buffer);
     virtual void flatten(SkWriteBuffer&) const SK_OVERRIDE;
 
-    virtual bool onFilterImage(Proxy*, const SkBitmap& src, const Context&,
+    virtual bool onFilterImage(Proxy*, const SkBitmap& src, const SkMatrix&,
                                SkBitmap* result, SkIPoint* loc) const SK_OVERRIDE;
 
     virtual bool asColorFilter(SkColorFilter**) const SK_OVERRIDE;

@@ -176,7 +176,7 @@ void SkComposeShader::shadeSpan(int x, int y, SkPMColor result[], int count) {
     }
 }
 
-#ifndef SK_IGNORE_TO_STRING
+#ifdef SK_DEVELOPER
 void SkComposeShader::toString(SkString* str) const {
     str->append("SkComposeShader: (");
 

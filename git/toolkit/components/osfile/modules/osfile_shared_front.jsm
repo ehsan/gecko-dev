@@ -485,11 +485,19 @@ AbstractFile.writeAtomic =
 };
 
 /**
- * This function is used by removeDir to avoid calling lstat for each
- * files under the specified directory. External callers should not call
- * this function directly.
- */
-AbstractFile.removeRecursive = function(path, options = {}) {
+  * Remove an existing directory and its contents.
+  *
+  * @param {string} path The name of the directory.
+  * @param {*=} options Additional options.
+  *   - {bool} ignoreAbsent If |false|, throw an error if the directory doesn't
+  *     exist. |true| by default.
+  *   - {boolean} ignorePermissions If |true|, remove the file even when lacking write
+  *     permission.
+  *
+  * @throws {OS.File.Error} In case of I/O error, in particular if |path| is
+            not a directory.
+  */
+AbstractFile.removeDir = function(path, options = {}) {
   let iterator = new OS.File.DirectoryIterator(path);
   if (!iterator.exists()) {
     if (!("ignoreAbsent" in options) || options.ignoreAbsent) {
@@ -500,17 +508,8 @@ AbstractFile.removeRecursive = function(path, options = {}) {
   try {
     for (let entry in iterator) {
       if (entry.isDir) {
-        if (entry.isLink) {
-          // Unlike Unix symlinks, NTFS junctions or NTFS symlinks to
-          // directories are directories themselves. OS.File.remove()
-          // will not work for them.
-          OS.File.removeEmptyDir(entry.path, options);
-        } else {
-          // Normal directories.
-          AbstractFile.removeRecursive(entry.path, options);
-        }
+        OS.File.removeDir(entry.path, options);
       } else {
-        // NTFS symlinks to files, Unix symlinks, or regular files.
         OS.File.remove(entry.path, options);
       }
     }

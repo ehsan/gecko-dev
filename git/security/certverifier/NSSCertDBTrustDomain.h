@@ -7,7 +7,7 @@
 #ifndef mozilla_psm__NSSCertDBTrustDomain_h
 #define mozilla_psm__NSSCertDBTrustDomain_h
 
-#include "pkix/pkixtypes.h"
+#include "insanity/pkixtypes.h"
 #include "secmodt.h"
 #include "CertVerifier.h"
 
@@ -43,9 +43,9 @@ SetClassicOCSPBehavior(CertVerifier::ocsp_download_config enabled,
 // Caller must free the result with PR_Free
 char* DefaultServerNicknameForCert(CERTCertificate* cert);
 
-void SaveIntermediateCerts(const mozilla::pkix::ScopedCERTCertList& certList);
+void SaveIntermediateCerts(const insanity::pkix::ScopedCERTCertList& certList);
 
-class NSSCertDBTrustDomain : public mozilla::pkix::TrustDomain
+class NSSCertDBTrustDomain : public insanity::pkix::TrustDomain
 {
 
 public:
@@ -62,9 +62,9 @@ public:
   virtual SECStatus FindPotentialIssuers(
                         const SECItem* encodedIssuerName,
                         PRTime time,
-                /*out*/ mozilla::pkix::ScopedCERTCertList& results);
+                /*out*/ insanity::pkix::ScopedCERTCertList& results);
 
-  virtual SECStatus GetCertTrust(mozilla::pkix::EndEntityOrCA endEntityOrCA,
+  virtual SECStatus GetCertTrust(insanity::pkix::EndEntityOrCA endEntityOrCA,
                                  SECOidTag policy,
                                  const CERTCertificate* candidateCert,
                          /*out*/ TrustLevel* trustLevel);
@@ -72,7 +72,7 @@ public:
   virtual SECStatus VerifySignedData(const CERTSignedData* signedData,
                                      const CERTCertificate* cert);
 
-  virtual SECStatus CheckRevocation(mozilla::pkix::EndEntityOrCA endEntityOrCA,
+  virtual SECStatus CheckRevocation(insanity::pkix::EndEntityOrCA endEntityOrCA,
                                     const CERTCertificate* cert,
                           /*const*/ CERTCertificate* issuerCert,
                                     PRTime time,

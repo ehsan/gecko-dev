@@ -72,16 +72,16 @@ function run_test() {
   run_next_test();
 }
 
-function add_tests_in_mode(useMozillaPKIX) {
+function add_tests_in_mode(useInsanity) {
   add_test(function () {
-    Services.prefs.setBoolPref("security.use_mozillapkix_verification",
-                               useMozillaPKIX);
+    Services.prefs.setBoolPref("security.use_insanity_verification",
+                               useInsanity);
     run_next_test();
   });
 
-  add_simple_tests(useMozillaPKIX);
-  add_combo_tests(useMozillaPKIX);
-  add_distrust_tests(useMozillaPKIX);
+  add_simple_tests(useInsanity);
+  add_combo_tests(useInsanity);
+  add_distrust_tests(useInsanity);
 
   add_test(function () {
     certOverrideService.clearValidityOverride("all:temporary-certificates", 0);
@@ -89,23 +89,23 @@ function add_tests_in_mode(useMozillaPKIX) {
   });
 }
 
-function add_simple_tests(useMozillaPKIX) {
+function add_simple_tests(useInsanity) {
   add_cert_override_test("expired.example.com",
                          Ci.nsICertOverrideService.ERROR_TIME,
                          getXPCOMStatusFromNSS(SEC_ERROR_EXPIRED_CERTIFICATE));
   add_cert_override_test("selfsigned.example.com",
                          Ci.nsICertOverrideService.ERROR_UNTRUSTED,
                          getXPCOMStatusFromNSS(
-                            useMozillaPKIX ? SEC_ERROR_UNKNOWN_ISSUER
-                                           : SEC_ERROR_CA_CERT_INVALID));
+                            useInsanity ? SEC_ERROR_UNKNOWN_ISSUER
+                                        : SEC_ERROR_CA_CERT_INVALID));
   add_cert_override_test("unknownissuer.example.com",
                          Ci.nsICertOverrideService.ERROR_UNTRUSTED,
                          getXPCOMStatusFromNSS(SEC_ERROR_UNKNOWN_ISSUER));
   add_cert_override_test("expiredissuer.example.com",
                          Ci.nsICertOverrideService.ERROR_UNTRUSTED,
                          getXPCOMStatusFromNSS(
-                            useMozillaPKIX ? SEC_ERROR_UNKNOWN_ISSUER
-                                           : SEC_ERROR_EXPIRED_ISSUER_CERTIFICATE));
+                            useInsanity ? SEC_ERROR_UNKNOWN_ISSUER
+                                        : SEC_ERROR_EXPIRED_ISSUER_CERTIFICATE));
   add_cert_override_test("md5signature.example.com",
                          Ci.nsICertOverrideService.ERROR_UNTRUSTED,
                          getXPCOMStatusFromNSS(
@@ -122,16 +122,16 @@ function add_simple_tests(useMozillaPKIX) {
   // (i.e. itself). As a result, to be able to override this,
   // SEC_ERROR_INADEQUATE_KEY_USAGE must be overridable (although,
   // confusingly, this isn't the main error reported).
-  // mozilla::pkix just says this certificate's issuer is unknown.
+  // insanity::pkix just says this certificate's issuer is unknown.
   add_cert_override_test("selfsigned-inadequateEKU.example.com",
                          Ci.nsICertOverrideService.ERROR_UNTRUSTED,
                          getXPCOMStatusFromNSS(
-                            useMozillaPKIX ? SEC_ERROR_UNKNOWN_ISSUER
-                                           : SEC_ERROR_CA_CERT_INVALID));
+                            useInsanity ? SEC_ERROR_UNKNOWN_ISSUER
+                                        : SEC_ERROR_CA_CERT_INVALID));
 
   // SEC_ERROR_INADEQUATE_KEY_USAGE is overridable in general for
-  // classic verification, but not for mozilla::pkix verification.
-  if (useMozillaPKIX) {
+  // classic verification, but not for insanity::pkix verification.
+  if (useInsanity) {
     add_connection_test("inadequatekeyusage.example.com",
                         getXPCOMStatusFromNSS(SEC_ERROR_INADEQUATE_KEY_USAGE),
                         null,
@@ -149,9 +149,9 @@ function add_simple_tests(useMozillaPKIX) {
   }
 }
 
-function add_combo_tests(useMozillaPKIX) {
+function add_combo_tests(useInsanity) {
   // Note that "untrusted" here really is "unknown issuer" in the
-  // mozilla::pkix case.
+  // insanity::pkix case.
 
   add_cert_override_test("mismatch-expired.example.com",
                          Ci.nsICertOverrideService.ERROR_MISMATCH |
@@ -161,21 +161,21 @@ function add_combo_tests(useMozillaPKIX) {
                          Ci.nsICertOverrideService.ERROR_MISMATCH |
                          Ci.nsICertOverrideService.ERROR_UNTRUSTED,
                          getXPCOMStatusFromNSS(
-                            useMozillaPKIX ? SEC_ERROR_UNKNOWN_ISSUER
-                                           : SEC_ERROR_UNTRUSTED_ISSUER));
+                            useInsanity ? SEC_ERROR_UNKNOWN_ISSUER
+                                        : SEC_ERROR_UNTRUSTED_ISSUER));
   add_cert_override_test("untrusted-expired.example.com",
                          Ci.nsICertOverrideService.ERROR_UNTRUSTED |
                          Ci.nsICertOverrideService.ERROR_TIME,
                          getXPCOMStatusFromNSS(
-                            useMozillaPKIX ? SEC_ERROR_UNKNOWN_ISSUER
-                                           : SEC_ERROR_UNTRUSTED_ISSUER));
+                            useInsanity ? SEC_ERROR_UNKNOWN_ISSUER
+                                        : SEC_ERROR_UNTRUSTED_ISSUER));
   add_cert_override_test("mismatch-untrusted-expired.example.com",
                          Ci.nsICertOverrideService.ERROR_MISMATCH |
                          Ci.nsICertOverrideService.ERROR_UNTRUSTED |
                          Ci.nsICertOverrideService.ERROR_TIME,
                          getXPCOMStatusFromNSS(
-                            useMozillaPKIX ? SEC_ERROR_UNKNOWN_ISSUER
-                                           : SEC_ERROR_UNTRUSTED_ISSUER));
+                            useInsanity ? SEC_ERROR_UNKNOWN_ISSUER
+                                        : SEC_ERROR_UNTRUSTED_ISSUER));
 
   add_cert_override_test("md5signature-expired.example.com",
                          Ci.nsICertOverrideService.ERROR_UNTRUSTED |
@@ -184,7 +184,7 @@ function add_combo_tests(useMozillaPKIX) {
                             SEC_ERROR_CERT_SIGNATURE_ALGORITHM_DISABLED));
 }
 
-function add_distrust_tests(useMozillaPKIX) {
+function add_distrust_tests(useInsanity) {
   // Before we specifically distrust this certificate, it should be trusted.
   add_connection_test("untrusted.example.com", Cr.NS_OK);
 
@@ -193,7 +193,7 @@ function add_distrust_tests(useMozillaPKIX) {
   add_distrust_override_test("tlsserver/default-ee.der",
                              "untrusted.example.com",
                              getXPCOMStatusFromNSS(SEC_ERROR_UNTRUSTED_CERT),
-                             useMozillaPKIX
+                             useInsanity
                                 ? getXPCOMStatusFromNSS(SEC_ERROR_UNTRUSTED_CERT)
                                 : Cr.NS_OK);
 
@@ -202,7 +202,7 @@ function add_distrust_tests(useMozillaPKIX) {
   add_distrust_override_test("tlsserver/other-test-ca.der",
                              "untrustedissuer.example.com",
                              getXPCOMStatusFromNSS(SEC_ERROR_UNTRUSTED_ISSUER),
-                             useMozillaPKIX
+                             useInsanity
                                 ? getXPCOMStatusFromNSS(SEC_ERROR_UNTRUSTED_ISSUER)
                                 : Cr.NS_OK);
 }

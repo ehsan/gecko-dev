@@ -115,10 +115,7 @@ nsMathMLmoFrame::ProcessTextData()
   mFlags = 0;
 
   nsAutoString data;
-  if (!nsContentUtils::GetNodeTextContent(mContent, false, data)) {
-    NS_RUNTIMEABORT("OOM");
-  }
-
+  nsContentUtils::GetNodeTextContent(mContent, false, data);
   data.CompressWhitespace();
   int32_t length = data.Length();
   char16_t ch = (length == 0) ? char16_t('\0') : data[0];

@@ -677,11 +677,6 @@
        File.remove(sourcePath);
      };
 
-     File.unixSymLink = function unixSymLink(sourcePath, destPath) {
-       throw_on_negative("symlink", UnixFile.symlink(sourcePath, destPath),
-           sourcePath);
-     };
-
      /**
       * Iterate on one directory.
       *
@@ -935,42 +930,7 @@
      File.read = exports.OS.Shared.AbstractFile.read;
      File.writeAtomic = exports.OS.Shared.AbstractFile.writeAtomic;
      File.openUnique = exports.OS.Shared.AbstractFile.openUnique;
-
-     /**
-      * Remove an existing directory and its contents.
-      *
-      * @param {string} path The name of the directory.
-      * @param {*=} options Additional options.
-      *   - {bool} ignoreAbsent If |false|, throw an error if the directory doesn't
-      *     exist. |true| by default.
-      *   - {boolean} ignorePermissions If |true|, remove the file even when lacking write
-      *     permission.
-      *
-      * @throws {OS.File.Error} In case of I/O error, in particular if |path| is
-      *         not a directory.
-      *
-      * Note: This function will remove a symlink even if it points a directory.
-      */
-     File.removeDir = function(path, options) {
-       let isSymLink;
-       try {
-         let info = File.stat(path, {unixNoFollowingLinks: true});
-         isSymLink = info.isSymLink;
-       } catch (e) {
-         if ((!("ignoreAbsent" in options) || options.ignoreAbsent) &&
-             ctypes.errno == Const.ENOENT) {
-           return;
-         }
-         throw e;
-       }
-       if (isSymLink) {
-         // A Unix symlink itself is not a directory even if it points
-         // a directory.
-         File.remove(path, options);
-         return;
-       }
-       exports.OS.Shared.AbstractFile.removeRecursive(path, options);
-     };
+     File.removeDir = exports.OS.Shared.AbstractFile.removeDir;
 
      /**
       * Get the current directory by getCurrentDirectory.

@@ -289,12 +289,13 @@ bool SkScaledImageCacheDiscardableAllocator::allocPixelRef(SkBitmap* bitmap,
         return false;
     }
 
-    // can we relax this?
-    if (kPMColor_SkColorType != bitmap->colorType()) {
+    // can relax when we have bitmap::asImageInfo
+    if (SkBitmap::kARGB_8888_Config != bitmap->config()) {
         return false;
     }
 
-    SkImageInfo info = bitmap->info();
+    SkImageInfo info = SkImageInfo::MakeN32(bitmap->width(), bitmap->height(),
+                                            bitmap->alphaType());
     bitmap->setPixelRef(SkNEW_ARGS(SkOneShotDiscardablePixelRef,
                                    (info, dm, bitmap->rowBytes())))->unref();
     bitmap->lockPixels();
@@ -425,7 +426,6 @@ SkScaledImageCache::ID* SkScaledImageCache::addAndLock(SkScaledImageCache::Rec* 
     if (NULL != existing) {
         // Since we already have a matching entry, just delete the new one and return.
         // Call sites cannot assume the passed in object will live past this call.
-        existing->fBitmap = rec->fBitmap;
         SkDELETE(rec);
         return rec_to_id(existing);
     }

@@ -38,18 +38,18 @@ function test_cert_for_usages(certChainNicks, expected_usages_string) {
   do_check_eq(expected_usages_string, usages.value);
 }
 
-function run_test_in_mode(useMozillaPKIX) {
-  Services.prefs.setBoolPref("security.use_mozillapkix_verification", useMozillaPKIX);
+function run_test_in_mode(useInsanity) {
+  Services.prefs.setBoolPref("security.use_insanity_verification", useInsanity);
 
-  // mozilla::pkix doesn't support the obsolete Netscape object signing
+  // insanity::pkix doesn't support the obsolete Netscape object signing
   // extension, but NSS does.
-  let ee_usage1 = useMozillaPKIX
+  let ee_usage1 = useInsanity
                 ? 'Client,Server,Sign,Encrypt,Object Signer'
                 : 'Client,Server,Sign,Encrypt'
 
-  // mozilla::pkix doesn't validate CA certificates for non-CA uses, but
+  // insanity::pkix doesn't validate CA certificates for non-CA uses, but
   // NSS does.
-  let ca_usage1 = useMozillaPKIX
+  let ca_usage1 = useInsanity
                 ? "SSL CA"
                 : 'Client,Server,Sign,Encrypt,SSL CA,Status Responder';
 
@@ -85,10 +85,10 @@ function run_test_in_mode(useMozillaPKIX) {
   //      int-limited-depth-invalid (cA==true)
   //
   // XXX: It seems the NSS code does not consider the path length of the
-  // certificate we're validating, but mozilla::pkix does. mozilla::pkix's
+  // certificate we're validating, but insanity::pkix does. insanity::pkix's
   // behavior is correct.
   test_cert_for_usages(["int-limited-depth-invalid", "int-limited-depth"],
-                       useMozillaPKIX ? "" : ca_usage1);
+                       useInsanity ? "" : ca_usage1);
   test_cert_for_usages(["ee-int-limited-depth-invalid",
                         "int-limited-depth-invalid",
                         "int-limited-depth"],
@@ -100,11 +100,11 @@ function run_test_in_mode(useMozillaPKIX) {
                        ee_usage1);
 
   // int-bad-ku-no-eku has basicConstraints.cA==true and has a KU extension
-  // but the KU extension is missing keyCertSign. Note that mozilla::pkix
+  // but the KU extension is missing keyCertSign. Note that insanity::pkix
   // doesn't validate certificates with basicConstraints.Ca==true for non-CA
   // uses, but NSS does.
   test_cert_for_usages(["int-bad-ku-no-eku"],
-                       useMozillaPKIX
+                       useInsanity
                           ? ""
                           : 'Client,Server,Sign,Encrypt,Status Responder');
   test_cert_for_usages(["ee-int-bad-ku-no-eku", "int-bad-ku-no-eku"], "");

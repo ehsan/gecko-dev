@@ -556,7 +556,7 @@ GrEffectRef* SkLinearGradient::asNewEffect(GrContext*, const SkPaint&) const {
 
 #endif
 
-#ifndef SK_IGNORE_TO_STRING
+#ifdef SK_DEVELOPER
 void SkLinearGradient::toString(SkString* str) const {
     str->append("SkLinearGradient (");
 

@@ -103,7 +103,6 @@
 #include <algorithm>
 #include "nsGlobalWindow.h"
 #include "nsDOMMutationObserver.h"
-#include "GeometryUtils.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -774,10 +773,10 @@ nsINode::CompareDocumentPosition(nsINode& aOtherNode) const
   const nsINode *node1 = &aOtherNode, *node2 = this;
 
   // Check if either node is an attribute
-  const nsIAttribute* attr1 = nullptr;
+  const Attr* attr1 = nullptr;
   if (node1->IsNodeOfType(nsINode::eATTRIBUTE)) {
-    attr1 = static_cast<const nsIAttribute*>(node1);
-    const nsIContent* elem = attr1->GetContent();
+    attr1 = static_cast<const Attr*>(node1);
+    const nsIContent* elem = attr1->GetElement();
     // If there is an owner element add the attribute
     // to the chain and walk up to the element
     if (elem) {
@@ -786,8 +785,8 @@ nsINode::CompareDocumentPosition(nsINode& aOtherNode) const
     }
   }
   if (node2->IsNodeOfType(nsINode::eATTRIBUTE)) {
-    const nsIAttribute* attr2 = static_cast<const nsIAttribute*>(node2);
-    const nsIContent* elem = attr2->GetContent();
+    const Attr* attr2 = static_cast<const Attr*>(node2);
+    const nsIContent* elem = attr2->GetElement();
     if (elem == node1 && attr1) {
       // Both nodes are attributes on the same element.
       // Compare position between the attributes.
@@ -1139,41 +1138,6 @@ nsINode::PreHandleEvent(EventChainPreVisitor& aVisitor)
   // This is only here so that we can use the NS_DECL_NSIDOMTARGET macro
   NS_ABORT();
   return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-void
-nsINode::GetBoxQuads(const BoxQuadOptions& aOptions,
-                     nsTArray<nsRefPtr<DOMQuad> >& aResult,
-                     mozilla::ErrorResult& aRv)
-{
-  mozilla::GetBoxQuads(this, aOptions, aResult, aRv);
-}
-
-already_AddRefed<DOMQuad>
-nsINode::ConvertQuadFromNode(DOMQuad& aQuad,
-                             const GeometryNode& aFrom,
-                             const ConvertCoordinateOptions& aOptions,
-                             ErrorResult& aRv)
-{
-  return mozilla::ConvertQuadFromNode(this, aQuad, aFrom, aOptions, aRv);
-}
-
-already_AddRefed<DOMQuad>
-nsINode::ConvertRectFromNode(DOMRectReadOnly& aRect,
-                             const GeometryNode& aFrom,
-                             const ConvertCoordinateOptions& aOptions,
-                             ErrorResult& aRv)
-{
-  return mozilla::ConvertRectFromNode(this, aRect, aFrom, aOptions, aRv);
-}
-
-already_AddRefed<DOMPoint>
-nsINode::ConvertPointFromNode(const DOMPointInit& aPoint,
-                              const GeometryNode& aFrom,
-                              const ConvertCoordinateOptions& aOptions,
-                              ErrorResult& aRv)
-{
-  return mozilla::ConvertPointFromNode(this, aPoint, aFrom, aOptions, aRv);
 }
 
 nsresult
