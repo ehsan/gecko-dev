@@ -757,9 +757,14 @@ class CGAbstractClassHook(CGAbstractStaticMethod):
                                         args)
 
     def definition_body_prologue(self):
-        return """
+        if self.descriptor.nativeOwnership == 'nsisupports':
+            assertion = ('  MOZ_STATIC_ASSERT((IsBaseOf<nsISupports, %s>::value), '
+                         '"Must be an nsISupports class");') % self.descriptor.nativeType
+        else:
+            assertion = ''
+        return """%s
   %s* self = UnwrapDOMObject<%s>(obj);
-""" % (self.descriptor.nativeType, self.descriptor.nativeType)
+""" % (assertion, self.descriptor.nativeType, self.descriptor.nativeType)
 
     def definition_body(self):
         return self.definition_body_prologue() + self.generate_code()
@@ -1139,11 +1144,16 @@ class PropertyDefiner:
         return arrays
 
 
-# The length of a method is the maximum of the lengths of the
+# The length of a method is the minimum of the lengths of the
 # argument lists of all its overloads.
+def overloadLength(arguments):
+    i = len(arguments)
+    while i > 0 and arguments[i - 1].optional:
+        i -= 1
+    return i
 def methodLength(method):
     signatures = method.signatures()
-    return max([len(arguments) for (retType, arguments) in signatures])
+    return min(overloadLength(arguments) for (retType, arguments) in signatures)
 
 class MethodDefiner(PropertyDefiner):
     """

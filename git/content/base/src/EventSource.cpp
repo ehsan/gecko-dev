@@ -3,10 +3,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "mozilla/dom/EventSource.h"
+
 #include "mozilla/DebugOnly.h"
+#include "mozilla/dom/EventSourceBinding.h"
 #include "mozilla/Util.h"
 
-#include "nsEventSource.h"
 #include "nsNetUtil.h"
 #include "nsMimeTypes.h"
 #include "nsDOMMessageEvent.h"
@@ -33,10 +35,10 @@
 #include "nsWrapperCacheInlines.h"
 #include "nsDOMEventTargetHelper.h"
 #include "mozilla/Attributes.h"
-#include "nsDOMClassInfoID.h"
 #include "nsError.h"
 
-using namespace mozilla;
+namespace mozilla {
+namespace dom {
 
 #define REPLACEMENT_CHAR     (PRUnichar)0xFFFD
 #define BOM_CHAR             (PRUnichar)0xFEFF
@@ -53,7 +55,7 @@ using namespace mozilla;
 #define DEFAULT_RECONNECTION_TIME_VALUE   5000
 #define MAX_RECONNECTION_TIME_VALUE       PR_IntervalToMilliseconds(DELAY_INTERVAL_LIMIT)
 
-nsEventSource::nsEventSource() :
+EventSource::EventSource() :
   mStatus(PARSE_STATE_OFF),
   mFrozen(false),
   mErrorLoadOnRedirect(false),
@@ -61,24 +63,25 @@ nsEventSource::nsEventSource() :
   mWithCredentials(false),
   mWaitingForOnStopRequest(false),
   mLastConvertionResult(NS_OK),
-  mReadyState(nsIEventSource::CONNECTING),
+  mReadyState(CONNECTING),
   mScriptLine(0),
   mInnerWindowID(0)
 {
+  SetIsDOMBinding();
 }
 
-nsEventSource::~nsEventSource()
+EventSource::~EventSource()
 {
   Close();
 }
 
 //-----------------------------------------------------------------------------
-// nsEventSource::nsISupports
+// EventSource::nsISupports
 //-----------------------------------------------------------------------------
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsEventSource)
+NS_IMPL_CYCLE_COLLECTION_CLASS(EventSource)
 
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(nsEventSource)
+NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(EventSource)
   bool isBlack = tmp->IsBlack();
   if (isBlack || tmp->mWaitingForOnStopRequest) {
     if (tmp->mListenerManager) {
@@ -91,19 +94,19 @@ NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(nsEventSource)
   }
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_END
 
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_IN_CC_BEGIN(nsEventSource)
+NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_IN_CC_BEGIN(EventSource)
   return tmp->IsBlack();
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_IN_CC_END
 
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_BEGIN(nsEventSource)
+NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_BEGIN(EventSource)
   return tmp->IsBlack();
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_END
 
-NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN_INHERITED(nsEventSource,
+NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN_INHERITED(EventSource,
                                                nsDOMEventTargetHelper)
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsEventSource,
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(EventSource,
                                                   nsDOMEventTargetHelper)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mSrc)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mNotificationCallbacks)
@@ -114,70 +117,34 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsEventSource,
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mUnicodeDecoder)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsEventSource, nsDOMEventTargetHelper)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(EventSource, nsDOMEventTargetHelper)
   tmp->Close();
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
-DOMCI_DATA(EventSource, nsEventSource)
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsEventSource)
-  NS_INTERFACE_MAP_ENTRY(nsIEventSource)
-  NS_INTERFACE_MAP_ENTRY(nsIJSNativeInitializer)
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(EventSource)
   NS_INTERFACE_MAP_ENTRY(nsIObserver)
   NS_INTERFACE_MAP_ENTRY(nsIRequestObserver)
   NS_INTERFACE_MAP_ENTRY(nsIStreamListener)
   NS_INTERFACE_MAP_ENTRY(nsIChannelEventSink)
   NS_INTERFACE_MAP_ENTRY(nsIInterfaceRequestor)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(EventSource)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
 
-NS_IMPL_ADDREF_INHERITED(nsEventSource, nsDOMEventTargetHelper)
-NS_IMPL_RELEASE_INHERITED(nsEventSource, nsDOMEventTargetHelper)
-
-NS_IMPL_EVENT_HANDLER(nsEventSource, open)
-NS_IMPL_EVENT_HANDLER(nsEventSource, message)
-NS_IMPL_EVENT_HANDLER(nsEventSource, error)
+NS_IMPL_ADDREF_INHERITED(EventSource, nsDOMEventTargetHelper)
+NS_IMPL_RELEASE_INHERITED(EventSource, nsDOMEventTargetHelper)
 
 void
-nsEventSource::DisconnectFromOwner()
+EventSource::DisconnectFromOwner()
 {
   nsDOMEventTargetHelper::DisconnectFromOwner();
   Close();
 }
 
-//-----------------------------------------------------------------------------
-// nsEventSource::nsIEventSource
-//-----------------------------------------------------------------------------
-
-NS_IMETHODIMP
-nsEventSource::GetUrl(nsAString& aURL)
+void
+EventSource::Close()
 {
-  aURL = mOriginalURL;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsEventSource::GetReadyState(int32_t *aReadyState)
-{
-  NS_ENSURE_ARG_POINTER(aReadyState);
-  *aReadyState = mReadyState;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsEventSource::GetWithCredentials(bool *aWithCredentials)
-{
-  NS_ENSURE_ARG_POINTER(aWithCredentials);
-  *aWithCredentials = mWithCredentials;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsEventSource::Close()
-{
-  if (mReadyState == nsIEventSource::CLOSED) {
-    return NS_OK;
+  if (mReadyState == CLOSED) {
+    return;
   }
 
   nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
@@ -205,35 +172,36 @@ nsEventSource::Close()
 
   mUnicodeDecoder = nullptr;
 
-  mReadyState = nsIEventSource::CLOSED;
-
-  return NS_OK;
+  mReadyState = CLOSED;
 }
 
-/**
- * This Init method should only be called by C++ consumers.
- */
-NS_IMETHODIMP
-nsEventSource::Init(nsIPrincipal* aPrincipal,
-                    nsIScriptContext* aScriptContext,
-                    nsPIDOMWindow* aOwnerWindow,
-                    const nsAString& aURL,
-                    bool aWithCredentials)
+nsresult
+EventSource::Init(nsISupports* aOwner,
+                  const nsAString& aURL,
+                  bool aWithCredentials)
 {
-  NS_ENSURE_ARG(aPrincipal);
-
-  if (mReadyState != nsIEventSource::CONNECTING || !PrefEnabled()) {
+  if (mReadyState != CONNECTING || !PrefEnabled()) {
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 
-  mPrincipal = aPrincipal;
+  nsCOMPtr<nsPIDOMWindow> ownerWindow = do_QueryInterface(aOwner);
+  NS_ENSURE_STATE(ownerWindow);
+  MOZ_ASSERT(ownerWindow->IsInnerWindow());
+
+  nsCOMPtr<nsIScriptGlobalObject> sgo = do_QueryInterface(aOwner);
+  NS_ENSURE_STATE(sgo);
+  nsCOMPtr<nsIScriptContext> scriptContext = sgo->GetContext();
+  NS_ENSURE_STATE(scriptContext);
+
+  nsCOMPtr<nsIScriptObjectPrincipal> scriptPrincipal =
+    do_QueryInterface(aOwner);
+  NS_ENSURE_STATE(scriptPrincipal);
+  nsCOMPtr<nsIPrincipal> principal = scriptPrincipal->GetPrincipal();
+  NS_ENSURE_STATE(principal);
+
+  mPrincipal = principal;
   mWithCredentials = aWithCredentials;
-  if (aOwnerWindow) {
-    BindToOwner(aOwnerWindow->IsOuterWindow() ?
-      aOwnerWindow->GetCurrentInnerWindow() : aOwnerWindow);
-  } else {
-    BindToOwner(aOwnerWindow);
-  }
+  BindToOwner(ownerWindow);
 
   nsCOMPtr<nsIJSContextStack> stack =
     do_GetService("@mozilla.org/js/xpc/ContextStack;1");
@@ -311,97 +279,32 @@ nsEventSource::Init(nsIPrincipal* aPrincipal,
   return NS_OK;
 }
 
-//-----------------------------------------------------------------------------
-// nsEventSource::nsIJSNativeInitializer methods:
-//-----------------------------------------------------------------------------
-
-/**
- * This Initialize method is called from XPConnect via nsIJSNativeInitializer.
- * It is used for constructing our nsEventSource from javascript. It expects a
- * URL string parameter. Also, initializes the principal, the script context
- * and the window owner.
- */
-NS_IMETHODIMP
-nsEventSource::Initialize(nsISupports* aOwner,
-                          JSContext* aContext,
-                          JSObject* aObject,
-                          uint32_t aArgc,
-                          jsval* aArgv)
+/* virtual */ JSObject*
+EventSource::WrapObject(JSContext* aCx, JSObject* aScope, bool* aTriedToWrap)
 {
-  if (mReadyState != nsIEventSource::CONNECTING || !PrefEnabled() ||
-      aArgc < 1) {
-    return NS_ERROR_FAILURE;
-  }
+  return EventSourceBinding::Wrap(aCx, aScope, this, aTriedToWrap);
+}
 
-  JSAutoRequest ar(aContext);
-
-  JSString* jsstr = JS_ValueToString(aContext, aArgv[0]);
-  if (!jsstr) {
-    return NS_ERROR_DOM_SYNTAX_ERR;
-  }
-
-  JS::Anchor<JSString *> deleteProtector(jsstr);
-  size_t length;
-  const jschar *chars = JS_GetStringCharsAndLength(aContext, jsstr, &length);
-  if (!chars) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
-
-  nsAutoString urlParam;
-
-  urlParam.Assign(chars, length);
-
-  nsCOMPtr<nsPIDOMWindow> ownerWindow = do_QueryInterface(aOwner);
-  NS_ENSURE_STATE(ownerWindow);
-
-  nsCOMPtr<nsIScriptGlobalObject> sgo = do_QueryInterface(aOwner);
-  NS_ENSURE_STATE(sgo);
-  nsCOMPtr<nsIScriptContext> scriptContext = sgo->GetContext();
-  NS_ENSURE_STATE(scriptContext);
-
-  nsCOMPtr<nsIScriptObjectPrincipal> scriptPrincipal =
-    do_QueryInterface(aOwner);
-  NS_ENSURE_STATE(scriptPrincipal);
-  nsCOMPtr<nsIPrincipal> principal = scriptPrincipal->GetPrincipal();
-  NS_ENSURE_STATE(principal);
-
-  bool withCredentialsParam = false;
-  if (aArgc >= 2) {
-    NS_ENSURE_TRUE(!JSVAL_IS_PRIMITIVE(aArgv[1]), NS_ERROR_INVALID_ARG);
-
-    JSObject *obj = JSVAL_TO_OBJECT(aArgv[1]);
-    NS_ASSERTION(obj, "obj shouldn't be null!!");
-
-    JSBool hasProperty = JS_FALSE;
-    NS_ENSURE_TRUE(JS_HasProperty(aContext, obj, "withCredentials",
-                                  &hasProperty), NS_ERROR_FAILURE);
-
-    if (hasProperty) {
-      jsval withCredentialsVal;
-      NS_ENSURE_TRUE(JS_GetProperty(aContext, obj, "withCredentials",
-                                    &withCredentialsVal), NS_ERROR_FAILURE);
-
-      JSBool withCredentials = JS_FALSE;
-      NS_ENSURE_TRUE(JS_ValueToBoolean(aContext, withCredentialsVal,
-                                       &withCredentials), NS_ERROR_FAILURE);
-      withCredentialsParam = !!withCredentials;
-    }
-  }
-
-  return Init(principal, scriptContext, ownerWindow,
-              urlParam, withCredentialsParam);
+/* static */ already_AddRefed<EventSource>
+EventSource::Constructor(nsISupports* aOwner, const nsAString& aURL,
+                         const EventSourceInit& aEventSourceInitDict,
+                         ErrorResult& aRv)
+{
+  nsRefPtr<EventSource> eventSource = new EventSource();
+  aRv = eventSource->Init(aOwner, aURL, aEventSourceInitDict.mWithCredentials);
+  return eventSource.forget();
 }
 
 //-----------------------------------------------------------------------------
-// nsEventSource::nsIObserver
+// EventSource::nsIObserver
 //-----------------------------------------------------------------------------
 
 NS_IMETHODIMP
-nsEventSource::Observe(nsISupports* aSubject,
-                       const char* aTopic,
-                       const PRUnichar* aData)
+EventSource::Observe(nsISupports* aSubject,
+                     const char* aTopic,
+                     const PRUnichar* aData)
 {
-  if (mReadyState == nsIEventSource::CLOSED) {
+  if (mReadyState == CLOSED) {
     return NS_OK;
   }
 
@@ -425,12 +328,12 @@ nsEventSource::Observe(nsISupports* aSubject,
 }
 
 //-----------------------------------------------------------------------------
-// nsEventSource::nsIStreamListener
+// EventSource::nsIStreamListener
 //-----------------------------------------------------------------------------
 
 NS_IMETHODIMP
-nsEventSource::OnStartRequest(nsIRequest *aRequest,
-                              nsISupports *ctxt)
+EventSource::OnStartRequest(nsIRequest *aRequest,
+                            nsISupports *ctxt)
 {
   nsresult rv = CheckHealthOfRequestCallback(aRequest);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -461,7 +364,7 @@ nsEventSource::OnStartRequest(nsIRequest *aRequest,
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIRunnable> event =
-    NS_NewRunnableMethod(this, &nsEventSource::AnnounceConnection);
+    NS_NewRunnableMethod(this, &EventSource::AnnounceConnection);
   NS_ENSURE_STATE(event);
 
   rv = NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
@@ -475,16 +378,16 @@ nsEventSource::OnStartRequest(nsIRequest *aRequest,
 // this method parses the characters as they become available instead of
 // buffering them.
 NS_METHOD
-nsEventSource::StreamReaderFunc(nsIInputStream *aInputStream,
-                                void *aClosure,
-                                const char *aFromRawSegment,
-                                uint32_t aToOffset,
-                                uint32_t aCount,
-                                uint32_t *aWriteCount)
+EventSource::StreamReaderFunc(nsIInputStream *aInputStream,
+                              void *aClosure,
+                              const char *aFromRawSegment,
+                              uint32_t aToOffset,
+                              uint32_t aCount,
+                              uint32_t *aWriteCount)
 {
-  nsEventSource* thisObject = static_cast<nsEventSource*>(aClosure);
+  EventSource* thisObject = static_cast<EventSource*>(aClosure);
   if (!thisObject || !aWriteCount) {
-    NS_WARNING("nsEventSource cannot read from stream: no aClosure or aWriteCount");
+    NS_WARNING("EventSource cannot read from stream: no aClosure or aWriteCount");
     return NS_ERROR_FAILURE;
   }
 
@@ -519,11 +422,11 @@ nsEventSource::StreamReaderFunc(nsIInputStream *aInputStream,
 }
 
 NS_IMETHODIMP
-nsEventSource::OnDataAvailable(nsIRequest *aRequest,
-                               nsISupports *aContext,
-                               nsIInputStream *aInputStream,
-                               uint64_t aOffset,
-                               uint32_t aCount)
+EventSource::OnDataAvailable(nsIRequest *aRequest,
+                             nsISupports *aContext,
+                             nsIInputStream *aInputStream,
+                             uint64_t aOffset,
+                             uint32_t aCount)
 {
   NS_ENSURE_ARG_POINTER(aInputStream);
 
@@ -531,18 +434,18 @@ nsEventSource::OnDataAvailable(nsIRequest *aRequest,
   NS_ENSURE_SUCCESS(rv, rv);
 
   uint32_t totalRead;
-  return aInputStream->ReadSegments(nsEventSource::StreamReaderFunc, this,
+  return aInputStream->ReadSegments(EventSource::StreamReaderFunc, this,
                                     aCount, &totalRead);
 }
 
 NS_IMETHODIMP
-nsEventSource::OnStopRequest(nsIRequest *aRequest,
-                             nsISupports *aContext,
-                             nsresult aStatusCode)
+EventSource::OnStopRequest(nsIRequest *aRequest,
+                           nsISupports *aContext,
+                           nsresult aStatusCode)
 {
   mWaitingForOnStopRequest = false;
 
-  if (mReadyState == nsIEventSource::CLOSED) {
+  if (mReadyState == CLOSED) {
     return NS_ERROR_ABORT;
   }
 
@@ -587,7 +490,7 @@ nsEventSource::OnStopRequest(nsIRequest *aRequest,
   }
 
   nsCOMPtr<nsIRunnable> event =
-    NS_NewRunnableMethod(this, &nsEventSource::ReestablishConnection);
+    NS_NewRunnableMethod(this, &EventSource::ReestablishConnection);
   NS_ENSURE_STATE(event);
 
   rv = NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
@@ -598,12 +501,12 @@ nsEventSource::OnStopRequest(nsIRequest *aRequest,
 
 /**
  * Simple helper class that just forwards the redirect callback back
- * to the nsEventSource.
+ * to the EventSource.
  */
 class AsyncVerifyRedirectCallbackFwr MOZ_FINAL : public nsIAsyncVerifyRedirectCallback
 {
 public:
-  AsyncVerifyRedirectCallbackFwr(nsEventSource* aEventsource)
+  AsyncVerifyRedirectCallbackFwr(EventSource* aEventsource)
     : mEventSource(aEventsource)
   {
   }
@@ -624,7 +527,7 @@ public:
   }
 
 private:
-  nsRefPtr<nsEventSource> mEventSource;
+  nsRefPtr<EventSource> mEventSource;
 };
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(AsyncVerifyRedirectCallbackFwr)
@@ -646,14 +549,14 @@ NS_IMPL_CYCLE_COLLECTING_ADDREF(AsyncVerifyRedirectCallbackFwr)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(AsyncVerifyRedirectCallbackFwr)
 
 //-----------------------------------------------------------------------------
-// nsEventSource::nsIChannelEventSink
+// EventSource::nsIChannelEventSink
 //-----------------------------------------------------------------------------
 
 NS_IMETHODIMP
-nsEventSource::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
-                                      nsIChannel *aNewChannel,
-                                      uint32_t    aFlags,
-                                      nsIAsyncVerifyRedirectCallback *aCallback)
+EventSource::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
+                                    nsIChannel *aNewChannel,
+                                    uint32_t    aFlags,
+                                    nsIAsyncVerifyRedirectCallback *aCallback)
 {
   nsCOMPtr<nsIRequest> aOldRequest = do_QueryInterface(aOldChannel);
   NS_PRECONDITION(aOldRequest, "Redirect from a null request?");
@@ -697,7 +600,7 @@ nsEventSource::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
 }
 
 nsresult
-nsEventSource::OnRedirectVerifyCallback(nsresult aResult)
+EventSource::OnRedirectVerifyCallback(nsresult aResult)
 {
   NS_ABORT_IF_FALSE(mRedirectCallback, "mRedirectCallback not set in callback");
   NS_ABORT_IF_FALSE(mNewRedirectChannel,
@@ -727,12 +630,12 @@ nsEventSource::OnRedirectVerifyCallback(nsresult aResult)
 }
 
 //-----------------------------------------------------------------------------
-// nsEventSource::nsIInterfaceRequestor
+// EventSource::nsIInterfaceRequestor
 //-----------------------------------------------------------------------------
 
 NS_IMETHODIMP
-nsEventSource::GetInterface(const nsIID & aIID,
-                            void **aResult)
+EventSource::GetInterface(const nsIID & aIID,
+                          void **aResult)
 {
   // Make sure to return ourselves for the channel event sink interface,
   // no matter what.  We can forward these to mNotificationCallbacks
@@ -780,13 +683,13 @@ nsEventSource::GetInterface(const nsIID & aIID,
 
 // static
 bool
-nsEventSource::PrefEnabled()
+EventSource::PrefEnabled()
 {
   return Preferences::GetBool("dom.server-events.enabled", false);
 }
 
 nsresult
-nsEventSource::GetBaseURI(nsIURI **aBaseURI)
+EventSource::GetBaseURI(nsIURI **aBaseURI)
 {
   NS_ENSURE_ARG_POINTER(aBaseURI);
 
@@ -816,7 +719,7 @@ nsEventSource::GetBaseURI(nsIURI **aBaseURI)
 }
 
 nsresult
-nsEventSource::SetupHttpChannel()
+EventSource::SetupHttpChannel()
 {
   mHttpChannel->SetRequestMethod(NS_LITERAL_CSTRING("GET"));
 
@@ -843,9 +746,9 @@ nsEventSource::SetupHttpChannel()
 }
 
 nsresult
-nsEventSource::InitChannelAndRequestEventSource()
+EventSource::InitChannelAndRequestEventSource()
 {
-  if (mReadyState == nsIEventSource::CLOSED) {
+  if (mReadyState == CLOSED) {
     return NS_ERROR_ABORT;
   }
 
@@ -902,13 +805,13 @@ nsEventSource::InitChannelAndRequestEventSource()
 }
 
 void
-nsEventSource::AnnounceConnection()
+EventSource::AnnounceConnection()
 {
-  if (mReadyState == nsIEventSource::CLOSED) {
+  if (mReadyState == CLOSED) {
     return;
   }
 
-  if (mReadyState != nsIEventSource::CONNECTING) {
+  if (mReadyState != CONNECTING) {
     NS_WARNING("Unexpected mReadyState!!!");
     return;
   }
@@ -917,7 +820,7 @@ nsEventSource::AnnounceConnection()
   // the readyState attribute to OPEN and queue a task to fire a simple event
   // named open at the EventSource object.
 
-  mReadyState = nsIEventSource::OPEN;
+  mReadyState = OPEN;
 
   nsresult rv = CheckInnerWindowCorrectness();
   if (NS_FAILED(rv)) {
@@ -948,7 +851,7 @@ nsEventSource::AnnounceConnection()
 }
 
 nsresult
-nsEventSource::ResetConnection()
+EventSource::ResetConnection()
 {
   if (mHttpChannel) {
     mHttpChannel->Cancel(NS_ERROR_ABORT);
@@ -966,19 +869,19 @@ nsEventSource::ResetConnection()
   mRedirectCallback = nullptr;
   mNewRedirectChannel = nullptr;
 
-  mReadyState = nsIEventSource::CONNECTING;
+  mReadyState = CONNECTING;
 
   return NS_OK;
 }
 
 void
-nsEventSource::ReestablishConnection()
+EventSource::ReestablishConnection()
 {
-  if (mReadyState == nsIEventSource::CLOSED) {
+  if (mReadyState == CLOSED) {
     return;
   }
 
-  if (mReadyState != nsIEventSource::OPEN) {
+  if (mReadyState != OPEN) {
     NS_WARNING("Unexpected mReadyState!!!");
     return;
   }
@@ -1024,9 +927,9 @@ nsEventSource::ReestablishConnection()
 }
 
 nsresult
-nsEventSource::SetReconnectionTimeout()
+EventSource::SetReconnectionTimeout()
 {
-  if (mReadyState == nsIEventSource::CLOSED) {
+  if (mReadyState == CLOSED) {
     return NS_ERROR_ABORT;
   }
 
@@ -1045,10 +948,10 @@ nsEventSource::SetReconnectionTimeout()
 }
 
 nsresult
-nsEventSource::PrintErrorOnConsole(const char *aBundleURI,
-                                   const PRUnichar *aError,
-                                   const PRUnichar **aFormatStrings,
-                                   uint32_t aFormatStringsLen)
+EventSource::PrintErrorOnConsole(const char *aBundleURI,
+                                 const PRUnichar *aError,
+                                 const PRUnichar **aFormatStrings,
+                                 uint32_t aFormatStringsLen)
 {
   nsCOMPtr<nsIStringBundleService> bundleService =
     mozilla::services::GetStringBundleService();
@@ -1094,7 +997,7 @@ nsEventSource::PrintErrorOnConsole(const char *aBundleURI,
 }
 
 nsresult
-nsEventSource::ConsoleError()
+EventSource::ConsoleError()
 {
   nsAutoCString targetSpec;
   nsresult rv = mSrc->GetSpec(targetSpec);
@@ -1103,7 +1006,7 @@ nsEventSource::ConsoleError()
   NS_ConvertUTF8toUTF16 specUTF16(targetSpec);
   const PRUnichar *formatStrings[] = { specUTF16.get() };
 
-  if (mReadyState == nsIEventSource::CONNECTING) {
+  if (mReadyState == CONNECTING) {
     rv = PrintErrorOnConsole("chrome://global/locale/appstrings.properties",
                              NS_LITERAL_STRING("connectionFailure").get(),
                              formatStrings, ArrayLength(formatStrings));
@@ -1118,19 +1021,19 @@ nsEventSource::ConsoleError()
 }
 
 nsresult
-nsEventSource::DispatchFailConnection()
+EventSource::DispatchFailConnection()
 {
   nsCOMPtr<nsIRunnable> event =
-    NS_NewRunnableMethod(this, &nsEventSource::FailConnection);
+    NS_NewRunnableMethod(this, &EventSource::FailConnection);
   NS_ENSURE_STATE(event);
 
   return NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
 }
 
 void
-nsEventSource::FailConnection()
+EventSource::FailConnection()
 {
-  if (mReadyState == nsIEventSource::CLOSED) {
+  if (mReadyState == CLOSED) {
     return;
   }
 
@@ -1174,9 +1077,9 @@ nsEventSource::FailConnection()
 }
 
 bool
-nsEventSource::CheckCanRequestSrc(nsIURI* aSrc)
+EventSource::CheckCanRequestSrc(nsIURI* aSrc)
 {
-  if (mReadyState == nsIEventSource::CLOSED) {
+  if (mReadyState == CLOSED) {
     return false;
   }
 
@@ -1232,11 +1135,11 @@ nsEventSource::CheckCanRequestSrc(nsIURI* aSrc)
 
 // static
 void
-nsEventSource::TimerCallback(nsITimer* aTimer, void* aClosure)
+EventSource::TimerCallback(nsITimer* aTimer, void* aClosure)
 {
-  nsRefPtr<nsEventSource> thisObject = static_cast<nsEventSource*>(aClosure);
+  nsRefPtr<EventSource> thisObject = static_cast<EventSource*>(aClosure);
 
-  if (thisObject->mReadyState == nsIEventSource::CLOSED) {
+  if (thisObject->mReadyState == CLOSED) {
     return;
   }
 
@@ -1253,9 +1156,9 @@ nsEventSource::TimerCallback(nsITimer* aTimer, void* aClosure)
 }
 
 nsresult
-nsEventSource::Thaw()
+EventSource::Thaw()
 {
-  if (mReadyState == nsIEventSource::CLOSED || !mFrozen) {
+  if (mReadyState == CLOSED || !mFrozen) {
     return NS_OK;
   }
 
@@ -1265,7 +1168,7 @@ nsEventSource::Thaw()
   nsresult rv;
   if (!mGoingToDispatchAllMessages && mMessagesToDispatch.GetSize() > 0) {
     nsCOMPtr<nsIRunnable> event =
-      NS_NewRunnableMethod(this, &nsEventSource::DispatchAllMessageEvents);
+      NS_NewRunnableMethod(this, &EventSource::DispatchAllMessageEvents);
     NS_ENSURE_STATE(event);
 
     mGoingToDispatchAllMessages = true;
@@ -1281,9 +1184,9 @@ nsEventSource::Thaw()
 }
 
 nsresult
-nsEventSource::Freeze()
+EventSource::Freeze()
 {
-  if (mReadyState == nsIEventSource::CLOSED || mFrozen) {
+  if (mReadyState == CLOSED || mFrozen) {
     return NS_OK;
   }
 
@@ -1293,7 +1196,7 @@ nsEventSource::Freeze()
 }
 
 nsresult
-nsEventSource::DispatchCurrentMessageEvent()
+EventSource::DispatchCurrentMessageEvent()
 {
   nsAutoPtr<Message> message(new Message());
   *message = mCurrentMessage;
@@ -1325,7 +1228,7 @@ nsEventSource::DispatchCurrentMessageEvent()
 
   if (!mGoingToDispatchAllMessages) {
     nsCOMPtr<nsIRunnable> event =
-      NS_NewRunnableMethod(this, &nsEventSource::DispatchAllMessageEvents);
+      NS_NewRunnableMethod(this, &EventSource::DispatchAllMessageEvents);
     NS_ENSURE_STATE(event);
 
     mGoingToDispatchAllMessages = true;
@@ -1337,9 +1240,9 @@ nsEventSource::DispatchCurrentMessageEvent()
 }
 
 void
-nsEventSource::DispatchAllMessageEvents()
+EventSource::DispatchAllMessageEvents()
 {
-  if (mReadyState == nsIEventSource::CLOSED || mFrozen) {
+  if (mReadyState == CLOSED || mFrozen) {
     return;
   }
 
@@ -1409,7 +1312,7 @@ nsEventSource::DispatchAllMessageEvents()
 }
 
 nsresult
-nsEventSource::ClearFields()
+EventSource::ClearFields()
 {
   // mLastEventID and mReconnectionTime must be cached
 
@@ -1424,7 +1327,7 @@ nsEventSource::ClearFields()
 }
 
 nsresult
-nsEventSource::SetFieldAndClear()
+EventSource::SetFieldAndClear()
 {
   if (mLastFieldName.IsEmpty()) {
     mLastFieldValue.Truncate();
@@ -1496,11 +1399,11 @@ nsEventSource::SetFieldAndClear()
 }
 
 nsresult
-nsEventSource::CheckHealthOfRequestCallback(nsIRequest *aRequestCallback)
+EventSource::CheckHealthOfRequestCallback(nsIRequest *aRequestCallback)
 {
   // check if we have been closed or if the request has been canceled
   // or if we have been frozen
-  if (mReadyState == nsIEventSource::CLOSED || !mHttpChannel ||
+  if (mReadyState == CLOSED || !mHttpChannel ||
       mFrozen || mErrorLoadOnRedirect) {
     return NS_ERROR_ABORT;
   }
@@ -1517,11 +1420,11 @@ nsEventSource::CheckHealthOfRequestCallback(nsIRequest *aRequestCallback)
 }
 
 nsresult
-nsEventSource::ParseCharacter(PRUnichar aChr)
+EventSource::ParseCharacter(PRUnichar aChr)
 {
   nsresult rv;
 
-  if (mReadyState == nsIEventSource::CLOSED) {
+  if (mReadyState == CLOSED) {
     return NS_ERROR_ABORT;
   }
 
@@ -1664,3 +1567,6 @@ nsEventSource::ParseCharacter(PRUnichar aChr)
 
   return NS_OK;
 }
+
+} // namespace dom
+} // namespace mozilla
