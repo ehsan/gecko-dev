@@ -37,6 +37,7 @@
 #include "jsstr.h"
 #include "jstypes.h"
 #include "jswatchpoint.h"
+#include "jsworkers.h"
 
 #include "gc/Marking.h"
 #ifdef JS_ION
@@ -44,7 +45,6 @@
 #endif
 #include "js/CharacterEncoding.h"
 #include "js/OldDebugAPI.h"
-#include "vm/HelperThreads.h"
 #include "vm/Shape.h"
 
 #include "jsobjinlines.h"

@@ -647,8 +647,7 @@ nsEventStatus AsyncPanZoomController::ReceiveInputEvent(const InputData& aEvent)
   // enable as it introduces potentially unbounded lag because it causes a round-trip through
   // content.  Usually, if content is responding in a timely fashion, this only introduces a
   // nearly constant few hundred ms of lag.
-  if ((mFrameMetrics.mMayHaveTouchListeners || mFrameMetrics.mMayHaveTouchCaret) &&
-      aEvent.mInputType == MULTITOUCH_INPUT &&
+  if (mFrameMetrics.mMayHaveTouchListeners && aEvent.mInputType == MULTITOUCH_INPUT &&
       (mState == NOTHING || mState == TOUCHING || IsPanningState(mState))) {
     const MultiTouchInput& multiTouchInput = aEvent.AsMultiTouchInput();
     if (multiTouchInput.mType == MultiTouchInput::MULTITOUCH_START) {
@@ -2035,7 +2034,6 @@ void AsyncPanZoomController::NotifyLayersUpdated(const FrameMetrics& aLayerMetri
   UpdateTransformScale();
 
   mFrameMetrics.mMayHaveTouchListeners = aLayerMetrics.mMayHaveTouchListeners;
-  mFrameMetrics.mMayHaveTouchCaret = aLayerMetrics.mMayHaveTouchCaret;
   APZC_LOG_FM(aLayerMetrics, "%p got a NotifyLayersUpdated with aIsFirstPaint=%d", this, aIsFirstPaint);
 
   LogRendertraceRect(GetGuid(), "page", "brown", aLayerMetrics.mScrollableRect);
@@ -2245,8 +2243,7 @@ void AsyncPanZoomController::ContentReceivedTouch(bool aPreventDefault) {
 void AsyncPanZoomController::CheckContentResponse() {
   bool canProceedToTouchState = true;
 
-  if (mFrameMetrics.mMayHaveTouchListeners ||
-      mFrameMetrics.mMayHaveTouchCaret) {
+  if (mFrameMetrics.mMayHaveTouchListeners) {
     canProceedToTouchState &= mTouchBlockState.mPreventDefaultSet;
   }
 

@@ -181,7 +181,7 @@ LookupCache::Dump()
 
   for (uint32_t i = 0; i < mCompletions.Length(); i++) {
     nsAutoCString str;
-    mCompletions[i].ToHexString(str);
+    mCompletions[i].ToString(str);
     LOG(("Completion: %s", str.get()));
   }
 }

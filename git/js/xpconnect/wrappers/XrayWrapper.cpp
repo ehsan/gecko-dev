@@ -452,6 +452,9 @@ JSXrayTraits::resolveOwnProperty(JSContext *cx, Wrapper &jsWrapper,
     // Scan through the functions.
     const JSFunctionSpec *fsMatch = nullptr;
     for (const JSFunctionSpec *fs = clasp->spec.prototypeFunctions; fs && fs->name; ++fs) {
+        // We don't support self-hosted functions yet. See bug 972987.
+        if (fs->selfHostedName)
+            continue;
         if (JS_FlatStringEqualsAscii(str, fs->name)) {
             fsMatch = fs;
             break;
@@ -459,13 +462,8 @@ JSXrayTraits::resolveOwnProperty(JSContext *cx, Wrapper &jsWrapper,
     }
     if (fsMatch) {
         // Generate an Xrayed version of the method.
-        RootedFunction fun(cx);
-        if (fsMatch->selfHostedName) {
-            fun = JS::GetSelfHostedFunction(cx, fsMatch->selfHostedName, id, fsMatch->nargs);
-        } else {
-            fun = JS_NewFunctionById(cx, fsMatch->call.op, fsMatch->nargs,
-                                     0, wrapper, id);
-        }
+        Rooted<JSFunction*> fun(cx, JS_NewFunctionById(cx, fsMatch->call.op, fsMatch->nargs,
+                                                       0, wrapper, id));
         if (!fun)
             return false;
 
@@ -481,37 +479,17 @@ JSXrayTraits::resolveOwnProperty(JSContext *cx, Wrapper &jsWrapper,
     // Scan through the properties.
     const JSPropertySpec *psMatch = nullptr;
     for (const JSPropertySpec *ps = clasp->spec.prototypeProperties; ps && ps->name; ++ps) {
+        // We don't support self-hosted accessors yet (see bug 972987). And given
+        // the confusion outlined in bug 992977, we can't support JSPropertyOp-
+        // backed entries either (which in practice is fine).
+        if (!(ps->flags & JSPROP_NATIVE_ACCESSORS))
+            continue;
         if (JS_FlatStringEqualsAscii(str, ps->name)) {
             psMatch = ps;
             break;
         }
     }
     if (psMatch) {
-        desc.value().setUndefined();
-        // Note that this is also kind of an abuse of JSPROP_NATIVE_ACCESSORS.
-        // See bug 992977.
-        RootedFunction getterObj(cx);
-        RootedFunction setterObj(cx);
-        unsigned flags = psMatch->flags;
-        if (flags & JSPROP_NATIVE_ACCESSORS) {
-            desc.setGetter(psMatch->getter.propertyOp.op);
-            desc.setSetter(psMatch->setter.propertyOp.op);
-        } else {
-            MOZ_ASSERT(flags & JSPROP_GETTER);
-            getterObj = JS::GetSelfHostedFunction(cx, psMatch->getter.selfHosted.funname, id, 0);
-            if (!getterObj)
-                return false;
-            desc.setGetterObject(JS_GetFunctionObject(getterObj));
-            if (psMatch->setter.selfHosted.funname) {
-                MOZ_ASSERT(flags & JSPROP_SETTER);
-                setterObj = JS::GetSelfHostedFunction(cx, psMatch->setter.selfHosted.funname, id, 0);
-                if (!setterObj)
-                    return false;
-                desc.setSetterObject(JS_GetFunctionObject(setterObj));
-            }
-        }
-        desc.setAttributes(flags);
-
         // The generic Xray machinery only defines non-own properties on the holder.
         // This is broken, and will be fixed at some point, but for now we need to
         // cache the value explicitly. See the corresponding call to
@@ -521,8 +499,8 @@ JSXrayTraits::resolveOwnProperty(JSContext *cx, Wrapper &jsWrapper,
         // pass along JITInfo. It's probably ok though, since Xrays are already
         // pretty slow.
         return JS_DefinePropertyById(cx, holder, id,
-                                     UndefinedHandleValue, desc.attributes(),
-                                     desc.getter(), desc.setter()) &&
+                                     UndefinedHandleValue, psMatch->flags,
+                                     psMatch->getter.propertyOp.op, psMatch->setter.propertyOp.op) &&
                JS_GetPropertyDescriptorById(cx, holder, id, desc);
     }
 
@@ -549,6 +527,9 @@ JSXrayTraits::enumerateNames(JSContext *cx, HandleObject wrapper, unsigned flags
 
     // Intern all the strings, and pass theme to the caller.
     for (const JSFunctionSpec *fs = clasp->spec.prototypeFunctions; fs && fs->name; ++fs) {
+        // We don't support self-hosted functions yet. See bug 972987.
+        if (fs->selfHostedName)
+            continue;
         RootedString str(cx, JS_InternString(cx, fs->name));
         if (!str)
             return false;
@@ -556,13 +537,11 @@ JSXrayTraits::enumerateNames(JSContext *cx, HandleObject wrapper, unsigned flags
             return false;
     }
     for (const JSPropertySpec *ps = clasp->spec.prototypeProperties; ps && ps->name; ++ps) {
-        // We have code to Xray self-hosted accessors. But at present, there don't appear
-        // to be any self-hosted accessors anywhere in SpiderMonkey, let alone in on an
-        // Xrayable class, so we can't test it. Assert against it to make sure that we get
-        // test coverage in test_XrayToJS.xul when the time comes.
-        MOZ_ASSERT(ps->flags & JSPROP_NATIVE_ACCESSORS,
-                   "Self-hosted accessor added to Xrayable class - ping the XPConnect "
-                   "module owner about adding test coverage");
+        // We don't support self-hosted functions yet. See bug 972987.
+        // Note that this is also kind of an abuse of JSPROP_NATIVE_ACCESSORS.
+        // See bug 992977.
+        if (!(ps->flags & JSPROP_NATIVE_ACCESSORS))
+            continue;
         RootedString str(cx, JS_InternString(cx, ps->name));
         if (!str)
             return false;
@@ -1775,7 +1754,7 @@ DEBUG_CheckXBLCallable(JSContext *cx, JSObject *obj)
     // has been adopted into another compartment, those prototypes will now point
     // to a different XBL scope (which is ok).
     MOZ_ASSERT_IF(js::IsCrossCompartmentWrapper(obj),
-                  xpc::IsContentXBLScope(js::GetObjectCompartment(js::UncheckedUnwrap(obj))));
+                  xpc::IsXBLScope(js::GetObjectCompartment(js::UncheckedUnwrap(obj))));
     MOZ_ASSERT(JS_ObjectIsCallable(cx, obj));
 }
 
@@ -1930,7 +1909,7 @@ XrayWrapper<Base, Traits>::getPropertyDescriptor(JSContext *cx, HandleObject wra
     // Make sure to assert this.
     nsCOMPtr<nsIContent> content;
     if (!desc.object() &&
-        EnsureCompartmentPrivate(wrapper)->scope->IsContentXBLScope() &&
+        EnsureCompartmentPrivate(wrapper)->scope->IsXBLScope() &&
         (content = do_QueryInterfaceNative(cx, wrapper)))
     {
         if (!nsContentUtils::LookupBindingMember(cx, content, id, desc))

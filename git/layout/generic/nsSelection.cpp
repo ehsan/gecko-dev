@@ -53,7 +53,6 @@ static NS_DEFINE_CID(kFrameTraversalCID, NS_FRAMETRAVERSAL_CID);
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
 #include "nsCaret.h"
-#include "TouchCaret.h"
 
 #include "mozilla/MouseEvents.h"
 #include "mozilla/TextEvents.h"
@@ -694,14 +693,6 @@ nsFrameSelection::Init(nsIPresShell *aShell, nsIContent *aLimiter)
   mLimiter = aLimiter;
   mCaretMovementStyle =
     Preferences::GetInt("bidi.edit.caret_movement_style", 2);
-  // Set touch caret as selection listener
-  nsRefPtr<TouchCaret> touchCaret = mShell->GetTouchCaret();
-  if (touchCaret) {
-    int8_t index = GetIndexFromSelectionType(nsISelectionController::SELECTION_NORMAL);
-    if (mDomSelections[index]) {
-      mDomSelections[index]->AddSelectionListener(touchCaret);
-    }
-  }
 }
 
 nsresult
@@ -3020,12 +3011,6 @@ nsFrameSelection::SetDelayedCaretData(WidgetMouseEvent* aMouseEvent)
 void
 nsFrameSelection::DisconnectFromPresShell()
 {
-  // Remove touch caret as selection listener
-  nsRefPtr<TouchCaret> touchCaret = mShell->GetTouchCaret();
-  if (touchCaret) {
-    int8_t index = GetIndexFromSelectionType(nsISelectionController::SELECTION_NORMAL);
-    mDomSelections[index]->RemoveSelectionListener(touchCaret);
-  }
   StopAutoScrollTimer();
   for (int32_t i = 0; i < nsISelectionController::NUM_SELECTIONTYPES; i++) {
     mDomSelections[i]->Clear(nullptr);

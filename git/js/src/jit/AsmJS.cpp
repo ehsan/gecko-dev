@@ -14,6 +14,7 @@
 
 #include "jsmath.h"
 #include "jsprf.h"
+#include "jsworkers.h"
 #include "prmjtime.h"
 
 #include "assembler/assembler/MacroAssembler.h"
@@ -28,7 +29,6 @@
 #ifdef JS_ION_PERF
 # include "jit/PerfSpewer.h"
 #endif
-#include "vm/HelperThreads.h"
 #include "vm/Interpreter.h"
 
 #include "jsinferinlines.h"
