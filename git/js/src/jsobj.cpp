@@ -86,8 +86,6 @@
 #include "jsscriptinlines.h"
 #include "jsobjinlines.h"
 
-#include "vm/StringObject-inl.h"
-
 #if JS_HAS_GENERATORS
 #include "jsiter.h"
 #endif
@@ -2932,6 +2930,25 @@ js_CreateThisForFunction(JSContext *cx, JSObject *callee)
 
 #ifdef JS_TRACER
 
+static JS_ALWAYS_INLINE JSObject*
+NewObjectWithClassProto(JSContext *cx, Class *clasp, JSObject *proto,
+                        /*gc::FinalizeKind*/ unsigned _kind)
+{
+    JS_ASSERT(clasp->isNative());
+    gc::FinalizeKind kind = gc::FinalizeKind(_kind);
+
+    if (CanBeFinalizedInBackground(kind, clasp))
+        kind = (gc::FinalizeKind)(kind + 1);
+
+    JSObject* obj = js_NewGCObject(cx, kind);
+    if (!obj)
+        return NULL;
+
+    if (!obj->initSharingEmptyShape(cx, clasp, proto, proto->getParent(), NULL, kind))
+        return NULL;
+    return obj;
+}
+
 JSObject* FASTCALL
 js_Object_tn(JSContext* cx, JSObject* proto)
 {
@@ -2961,8 +2978,11 @@ JSObject* FASTCALL
 js_String_tn(JSContext* cx, JSObject* proto, JSString* str)
 {
     JS_ASSERT(JS_ON_TRACE(cx));
-    JS_ASSERT(proto);
-    return StringObject::createWithProto(cx, str, *proto);
+    JS_ASSERT(FINALIZE_OBJECT2 == gc::GetGCObjectKind(JSCLASS_RESERVED_SLOTS(&js_StringClass)));
+    JSObject *obj = NewObjectWithClassProto(cx, &js_StringClass, proto, FINALIZE_OBJECT2);
+    if (!obj || !obj->initString(cx, str))
+        return NULL;
+    return obj;
 }
 JS_DEFINE_CALLINFO_3(extern, OBJECT, js_String_tn, CONTEXT, CALLEE_PROTOTYPE, STRING, 0,
                      nanojit::ACCSET_STORE_ANY)
@@ -3785,7 +3805,7 @@ DefineStandardSlot(JSContext *cx, JSObject *obj, JSProtoKey key, JSAtom *atom,
 
         const Shape *shape = obj->nativeLookup(id);
         if (!shape) {
-            uint32 slot = 2 * JSProto_LIMIT + key;
+            uint32 slot = JS_GLOBAL_PROPERTY_SLOT(key);
             if (!js_SetReservedSlot(cx, obj, slot, v))
                 return false;
             if (!obj->addProperty(cx, id, PropertyStub, StrictPropertyStub, slot, attrs, 0, 0))
@@ -3971,7 +3991,7 @@ IsStandardClassResolved(JSObject *obj, js::Class *clasp)
     JSProtoKey key = JSCLASS_CACHED_PROTO_KEY(clasp);
 
     /* If the constructor is undefined, then it hasn't been initialized. */
-    return (obj->getReservedSlot(key) != UndefinedValue());
+    return (!obj->getReservedSlot(JS_GLOBAL_CTOR_SLOT(key)).isUndefined());
 }
 
 void
@@ -3983,7 +4003,7 @@ MarkStandardClassInitializedNoProto(JSObject* obj, js::Class *clasp)
      * We use True so that it's obvious what we're doing (instead of, say,
      * Null, which might be miscontrued as an error in setting Undefined).
      */
-    if (obj->getReservedSlot(key) == UndefinedValue())
+    if (obj->getReservedSlot(JS_GLOBAL_CTOR_SLOT(key)).isUndefined())
         obj->setSlot(key, BooleanValue(true));
 }
 
@@ -4197,7 +4217,7 @@ js_GetClassObject(JSContext *cx, JSObject *obj, JSProtoKey key,
         return true;
     }
 
-    Value v = obj->getReservedSlot(key);
+    Value v = obj->getReservedSlot(JS_GLOBAL_CTOR_SLOT(key));
     if (v.isObject()) {
         *objp = &v.toObject();
         return true;
@@ -4214,7 +4234,7 @@ js_GetClassObject(JSContext *cx, JSObject *obj, JSProtoKey key,
     if (JSObjectOp init = lazy_prototype_init[key]) {
         if (!init(cx, obj))
             return false;
-        v = obj->getReservedSlot(key);
+        v = obj->getReservedSlot(JS_GLOBAL_CTOR_SLOT(key));
         if (v.isObject())
             cobj = &v.toObject();
     }
@@ -4230,8 +4250,8 @@ js_SetClassObject(JSContext *cx, JSObject *obj, JSProtoKey key, JSObject *cobj, 
     if (!obj->isGlobal())
         return JS_TRUE;
 
-    return js_SetReservedSlot(cx, obj, key, ObjectOrNullValue(cobj)) &&
-           js_SetReservedSlot(cx, obj, JSProto_LIMIT + key, ObjectOrNullValue(proto));
+    return js_SetReservedSlot(cx, obj, JS_GLOBAL_CTOR_SLOT(key), ObjectOrNullValue(cobj)) &&
+           js_SetReservedSlot(cx, obj, JS_GLOBAL_PROTO_SLOT(key), ObjectOrNullValue(proto));
 }
 
 JSBool
@@ -4272,8 +4292,6 @@ js_FindClassObject(JSContext *cx, JSObject *start, JSProtoKey protoKey,
         return JS_FALSE;
 
     if (protoKey != JSProto_Null) {
-        JS_ASSERT(JSProto_Null < protoKey);
-        JS_ASSERT(protoKey < JSProto_LIMIT);
         if (!js_GetClassObject(cx, obj, protoKey, &cobj))
             return JS_FALSE;
         if (cobj) {
@@ -6180,7 +6198,7 @@ js_GetClassPrototype(JSContext *cx, JSObject *scopeobj, JSProtoKey protoKey,
         }
         scopeobj = scopeobj->getGlobal();
         if (scopeobj->isGlobal()) {
-            const Value &v = scopeobj->getReservedSlot(JSProto_LIMIT + protoKey);
+            const Value &v = scopeobj->getReservedSlot(JS_GLOBAL_PROTO_SLOT(protoKey));
             if (v.isObject()) {
                 *protop = &v.toObject();
                 return true;
@@ -6216,8 +6234,12 @@ js_SetClassPrototype(JSContext *cx, JSObject *ctor, JSObject *proto, uintN attrs
 JSObject *
 PrimitiveToObject(JSContext *cx, const Value &v)
 {
-    if (v.isString())
-        return StringObject::create(cx, v.toString());
+    if (v.isString()) {
+        JSObject *obj = NewBuiltinClassInstance(cx, &js_StringClass);
+        if (!obj || !obj->initString(cx, v.toString()))
+            return NULL;
+        return obj;
+    }
 
     JS_ASSERT(v.isNumber() || v.isBoolean());
     Class *clasp = v.isNumber() ? &js_NumberClass : &js_BooleanClass;
