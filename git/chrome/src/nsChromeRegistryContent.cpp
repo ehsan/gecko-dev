@@ -117,7 +117,9 @@ nsChromeRegistryContent::RegisterPackage(const ChromePackage& aPackage)
   entry->localeBaseURI = locale;
   entry->skinBaseURI = skin;
 
-  mPackagesHash.Put(aPackage.package, entry);
+  nsresult rv = mPackagesHash.Put(aPackage.package, entry);
+  if (NS_FAILED(rv))
+    return;
 }
 
 void

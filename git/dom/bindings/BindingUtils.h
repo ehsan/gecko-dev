@@ -13,11 +13,9 @@
 
 #include "jsapi.h"
 #include "jsfriendapi.h"
-#include "jswrapper.h"
 
-#include "nsIXPConnect.h"
-#include "qsObjectHelper.h"
-#include "xpcpublic.h"
+#include "XPCQuickStubs.h"
+#include "XPCWrapper.h"
 #include "nsTraceRefcnt.h"
 #include "nsWrapperCacheInlines.h"
 
@@ -36,7 +34,7 @@ Throw(JSContext* cx, nsresult rv)
 
   // XXX Introduce exception machinery.
   if (mainThread) {
-    xpc::Throw(cx, rv);
+    XPCThrower::Throw(rv, cx);
   } else {
     if (!JS_IsExceptionPending(cx)) {
       ThrowDOMExceptionForNSResult(cx, rv);
@@ -108,7 +106,7 @@ UnwrapObject(JSContext* cx, JSObject* obj, T** value)
       return NS_ERROR_XPC_BAD_CONVERT_JS;
     }
 
-    obj = xpc::Unwrap(cx, obj, false);
+    obj = XPCWrapper::Unwrap(cx, obj, false);
     if (!obj) {
       return NS_ERROR_XPC_SECURITY_MANAGER_VETO;
     }
@@ -145,7 +143,7 @@ IsArrayLike(JSContext* cx, JSObject* obj)
   // the underlying object after unwrapping.
   JSAutoEnterCompartment ac;
   if (js::IsWrapper(obj)) {
-    obj = xpc::Unwrap(cx, obj, false);
+    obj = XPCWrapper::Unwrap(cx, obj, false);
     if (!obj) {
       // Let's say it's not
       return false;
@@ -177,7 +175,7 @@ IsPlatformObject(JSContext* cx, JSObject* obj)
   }
   // Now for simplicity check for security wrappers before anything else
   if (js::IsWrapper(obj)) {
-    obj = xpc::Unwrap(cx, obj, false);
+    obj = XPCWrapper::Unwrap(cx, obj, false);
     if (!obj) {
       // Let's say it's not
       return false;

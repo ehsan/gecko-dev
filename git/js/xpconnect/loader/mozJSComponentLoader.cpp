@@ -454,9 +454,12 @@ mozJSComponentLoader::ReallyInit()
     if (NS_FAILED(rv) || !mSystemPrincipal)
         return NS_ERROR_FAILURE;
 
-    mModules.Init(32);
-    mImports.Init(32);
-    mInProgressImports.Init(32);
+    if (!mModules.Init(32))
+        return NS_ERROR_OUT_OF_MEMORY;
+    if (!mImports.Init(32))
+        return NS_ERROR_OUT_OF_MEMORY;
+    if (!mInProgressImports.Init(32))
+        return NS_ERROR_OUT_OF_MEMORY;
 
     nsCOMPtr<nsIObserverService> obsSvc =
         do_GetService(kObserverServiceContractID, &rv);
@@ -604,7 +607,8 @@ mozJSComponentLoader::LoadModule(FileLocation &aFile)
     }
 
     // Cache this module for later
-    mModules.Put(spec, entry);
+    if (!mModules.Put(spec, entry))
+        return NULL;
 
     // The hash owns the ModuleEntry now, forget about it
     return entry.forget();
@@ -1137,9 +1141,8 @@ mozJSComponentLoader::ImportInto(const nsACString & aLocation,
     nsAutoPtr<ModuleEntry> newEntry;
     if (!mImports.Get(key, &mod) && !mInProgressImports.Get(key, &mod)) {
         newEntry = new ModuleEntry;
-        if (!newEntry)
+        if (!newEntry || !mInProgressImports.Put(key, newEntry))
             return NS_ERROR_OUT_OF_MEMORY;
-        mInProgressImports.Put(key, newEntry);
 
         JS::Anchor<jsval> exception(JSVAL_VOID);
         rv = GlobalForLocation(sourceLocalFile, resURI, &newEntry->global,
@@ -1253,7 +1256,8 @@ mozJSComponentLoader::ImportInto(const nsACString & aLocation,
 
     // Cache this module for later
     if (newEntry) {
-        mImports.Put(key, newEntry);
+        if (!mImports.Put(key, newEntry))
+            return NS_ERROR_OUT_OF_MEMORY;
         newEntry.forget();
     }
 

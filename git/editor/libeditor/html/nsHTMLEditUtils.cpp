@@ -244,15 +244,7 @@ bool
 nsHTMLEditUtils::IsTableElementButNotTable(nsIDOMNode *node)
 {
   NS_PRECONDITION(node, "null node passed to nsHTMLEditor::IsTableElementButNotTable");
-  nsCOMPtr<dom::Element> element = do_QueryInterface(node);
-  return element && IsTableElementButNotTable(element);
-}
-
-bool
-nsHTMLEditUtils::IsTableElementButNotTable(dom::Element* aNode)
-{
-  MOZ_ASSERT(aNode);
-  nsCOMPtr<nsIAtom> nodeAtom = aNode->Tag();
+  nsCOMPtr<nsIAtom> nodeAtom = nsEditor::GetTag(node);
   return (nodeAtom == nsEditProperty::tr)
       || (nodeAtom == nsEditProperty::td)
       || (nodeAtom == nsEditProperty::th)

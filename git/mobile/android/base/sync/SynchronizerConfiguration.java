@@ -44,6 +44,7 @@ import org.mozilla.gecko.sync.SyncConfiguration.ConfigurationBranch;
 import org.mozilla.gecko.sync.repositories.RepositorySessionBundle;
 
 import android.content.SharedPreferences.Editor;
+import android.util.Log;
 
 public class SynchronizerConfiguration {
   private static final String LOG_TAG = "SynczrConfiguration";
@@ -60,6 +61,14 @@ public class SynchronizerConfiguration {
     this.syncID       = syncID;
     this.remoteBundle = remoteBundle;
     this.localBundle  = localBundle;
+  }
+
+  public String[] toStringValues() {
+    String[] out = new String[3];
+    out[0] = syncID;
+    out[1] = remoteBundle.toJSONString();
+    out[2] = localBundle.toJSONString();
+    return out;
   }
 
   // This should get partly shuffled back into SyncConfiguration, I think.
@@ -80,7 +89,7 @@ public class SynchronizerConfiguration {
     syncID = config.getString("syncID", null);
     remoteBundle = rB;
     localBundle  = lB;
-    Logger.debug(LOG_TAG, "Loaded SynchronizerConfiguration. syncID: " + syncID + ", remoteBundle: " + remoteBundle + ", localBundle: " + localBundle);
+    Log.i(LOG_TAG, "Initialized SynchronizerConfiguration. syncID: " + syncID + ", remoteBundle: " + remoteBundle + ", localBundle: " + localBundle);
   }
 
   public void persist(ConfigurationBranch config) {
@@ -96,6 +105,5 @@ public class SynchronizerConfiguration {
 
     // Synchronous.
     editor.commit();
-    Logger.debug(LOG_TAG, "Persisted SynchronizerConfiguration. syncID: " + syncID + ", remoteBundle: " + remoteBundle + ", localBundle: " + localBundle);
   }
 }

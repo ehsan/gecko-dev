@@ -177,16 +177,9 @@ class RepeatedXorMasker(object):
     def mask(self, s):
         result = array.array('B')
         result.fromstring(s)
-        # Use temporary local variables to eliminate the cost to access
-        # attributes
-        count = self._count
-        mask = self._mask
-        mask_size = self._mask_size
         for i in xrange(len(result)):
-            result[i] ^= mask[count]
-            count = (count + 1) % mask_size
-        self._count = count
-
+            result[i] ^= self._mask[self._count]
+            self._count = (self._count + 1) % self._mask_size
         return result.tostring()
 
 

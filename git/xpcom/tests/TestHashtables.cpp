@@ -407,7 +407,10 @@ main(void) {
   nsTHashtable<EntityToUnicodeEntry> EntityToUnicode;
 
   printf("Initializing nsTHashtable...");
-  EntityToUnicode.Init(ENTITY_COUNT);
+  if (!EntityToUnicode.Init(ENTITY_COUNT)) {
+    printf("FAILED\n");
+    exit (1);
+  }
   printf("OK\n");
 
   printf("Partially filling nsTHashtable:\n");
@@ -451,7 +454,10 @@ main(void) {
   nsDataHashtable<nsUint32HashKey,const char*> UniToEntity;
 
   printf("Initializing nsDataHashtable...");
-  UniToEntity.Init(ENTITY_COUNT);
+  if (!UniToEntity.Init(ENTITY_COUNT)) {
+    printf("FAILED\n");
+    exit (10);
+  }
   printf("OK\n");
 
   printf("Filling hash with %u entries.\n", ENTITY_COUNT);
@@ -459,7 +465,10 @@ main(void) {
   PRUint32 i;
   for (i = 0; i < ENTITY_COUNT; ++i) {
     printf("  Putting entry %u...", gEntities[i].mUnicode);
-    UniToEntity.Put(gEntities[i].mUnicode, gEntities[i].mStr);
+    if (!UniToEntity.Put(gEntities[i].mUnicode, gEntities[i].mStr)) {
+      printf("FAILED\n");
+      exit (11);
+    }
     printf("OK...\n");
   }
 
@@ -512,14 +521,20 @@ main(void) {
   nsDataHashtableMT<nsUint32HashKey,const char*> UniToEntityL;
 
   printf("Initializing nsDataHashtableMT...");
-  UniToEntityL.Init(ENTITY_COUNT);
+  if (!UniToEntityL.Init(ENTITY_COUNT)) {
+    printf("FAILED\n");
+    exit (10);
+  }
   printf("OK\n");
 
   printf("Filling hash with %u entries.\n", ENTITY_COUNT);
 
   for (i = 0; i < ENTITY_COUNT; ++i) {
     printf("  Putting entry %u...", gEntities[i].mUnicode);
-    UniToEntityL.Put(gEntities[i].mUnicode, gEntities[i].mStr);
+    if (!UniToEntityL.Put(gEntities[i].mUnicode, gEntities[i].mStr)) {
+      printf("FAILED\n");
+      exit (11);
+    }
     printf("OK...\n");
   }
 
@@ -571,7 +586,10 @@ main(void) {
   nsClassHashtable<nsCStringHashKey,TestUniChar> EntToUniClass;
 
   printf("Initializing nsClassHashtable...");
-  EntToUniClass.Init(ENTITY_COUNT);
+  if (!EntToUniClass.Init(ENTITY_COUNT)) {
+    printf("FAILED\n");
+    exit (16);
+  }
   printf("OK\n");
 
   printf("Filling hash with %u entries.\n", ENTITY_COUNT);
@@ -580,7 +598,11 @@ main(void) {
     printf("  Putting entry %u...", gEntities[i].mUnicode);
     TestUniChar* temp = new TestUniChar(gEntities[i].mUnicode);
 
-    EntToUniClass.Put(nsDependentCString(gEntities[i].mStr), temp);
+    if (!EntToUniClass.Put(nsDependentCString(gEntities[i].mStr), temp)) {
+      printf("FAILED\n");
+      delete temp;
+      exit (17);
+    }
     printf("OK...\n");
   }
 
@@ -633,7 +655,10 @@ main(void) {
   nsClassHashtableMT<nsCStringHashKey,TestUniChar> EntToUniClassL;
 
   printf("Initializing nsClassHashtableMT...");
-  EntToUniClassL.Init(ENTITY_COUNT);
+  if (!EntToUniClassL.Init(ENTITY_COUNT)) {
+    printf("FAILED\n");
+    exit (16);
+  }
   printf("OK\n");
 
   printf("Filling hash with %u entries.\n", ENTITY_COUNT);
@@ -642,7 +667,11 @@ main(void) {
     printf("  Putting entry %u...", gEntities[i].mUnicode);
     TestUniChar* temp = new TestUniChar(gEntities[i].mUnicode);
 
-    EntToUniClassL.Put(nsDependentCString(gEntities[i].mStr), temp);
+    if (!EntToUniClassL.Put(nsDependentCString(gEntities[i].mStr), temp)) {
+      printf("FAILED\n");
+      delete temp;
+      exit (17);
+    }
     printf("OK...\n");
   }
 
@@ -694,7 +723,10 @@ main(void) {
   nsDataHashtable<nsISupportsHashKey,PRUint32> EntToUniClass2;
 
   printf("Initializing nsDataHashtable with interface key...");
-  EntToUniClass2.Init(ENTITY_COUNT);
+  if (!EntToUniClass2.Init(ENTITY_COUNT)) {
+    printf("FAILED\n");
+    exit (22);
+  }
   printf("OK\n");
 
   printf("Filling hash with %u entries.\n", ENTITY_COUNT);
@@ -710,7 +742,10 @@ main(void) {
     
     fooArray.InsertObjectAt(foo, i);
 
-    EntToUniClass2.Put(foo, gEntities[i].mUnicode);
+    if (!EntToUniClass2.Put(foo, gEntities[i].mUnicode)) {
+      printf("FAILED\n");
+      exit (23);
+    }
     printf("OK...\n");
   }
 
@@ -764,7 +799,10 @@ main(void) {
   nsInterfaceHashtable<nsUint32HashKey,IFoo> UniToEntClass2;
 
   printf("Initializing nsInterfaceHashtable...");
-  UniToEntClass2.Init(ENTITY_COUNT);
+  if (!UniToEntClass2.Init(ENTITY_COUNT)) {
+    printf("FAILED\n");
+    exit (28);
+  }
   printf("OK\n");
 
   printf("Filling hash with %u entries.\n", ENTITY_COUNT);
@@ -775,7 +813,10 @@ main(void) {
     CreateIFoo(getter_AddRefs(foo));
     foo->SetString(nsDependentCString(gEntities[i].mStr));
     
-    UniToEntClass2.Put(gEntities[i].mUnicode, foo);
+    if (!UniToEntClass2.Put(gEntities[i].mUnicode, foo)) {
+      printf("FAILED\n");
+      exit (29);
+    }
     printf("OK...\n");
   }
 
@@ -832,7 +873,10 @@ main(void) {
   nsInterfaceHashtableMT<nsUint32HashKey,IFoo> UniToEntClass2L;
 
   printf("Initializing nsInterfaceHashtableMT...");
-  UniToEntClass2L.Init(ENTITY_COUNT);
+  if (!UniToEntClass2L.Init(ENTITY_COUNT)) {
+    printf("FAILED\n");
+    exit (28);
+  }
   printf("OK\n");
 
   printf("Filling hash with %u entries.\n", ENTITY_COUNT);
@@ -843,7 +887,10 @@ main(void) {
     CreateIFoo(getter_AddRefs(foo));
     foo->SetString(nsDependentCString(gEntities[i].mStr));
     
-    UniToEntClass2L.Put(gEntities[i].mUnicode, foo);
+    if (!UniToEntClass2L.Put(gEntities[i].mUnicode, foo)) {
+      printf("FAILED\n");
+      exit (29);
+    }
     printf("OK...\n");
   }
 

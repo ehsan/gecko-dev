@@ -44,7 +44,6 @@
 #include "mozilla/Util.h"
 
 #include "xpcprivate.h"
-#include "XPCWrapper.h"
 #include "nsScriptSecurityManager.h"
 #include "nsIServiceManager.h"
 #include "nsIScriptObjectPrincipal.h"
@@ -631,8 +630,8 @@ nsScriptSecurityManager::ContentSecurityPolicyPermitsJSAction(JSContext *cx)
 
 
 JSBool
-nsScriptSecurityManager::CheckObjectAccess(JSContext *cx, JSHandleObject obj,
-                                           JSHandleId id, JSAccessMode mode,
+nsScriptSecurityManager::CheckObjectAccess(JSContext *cx, JSObject *obj,
+                                           jsid id, JSAccessMode mode,
                                            jsval *vp)
 {
     // Get the security manager

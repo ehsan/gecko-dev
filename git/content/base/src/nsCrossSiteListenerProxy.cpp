@@ -113,8 +113,7 @@ public:
 
   bool Initialize()
   {
-    mTable.Init();
-    return true;
+    return mTable.Init();
   }
 
   CacheEntry* GetEntry(nsIURI* aURI, nsIPrincipal* aPrincipal,
@@ -261,7 +260,14 @@ nsPreflightCache::GetEntry(nsIURI* aURI,
     }
   }
   
-  mTable.Put(key, entry);
+  if (!mTable.Put(key, entry)) {
+    // Failed, clean up the new entry.
+    delete entry;
+
+    NS_WARNING("Failed to add entry to the CORS preflight cache!");
+    return nsnull;
+  }
+
   PR_INSERT_LINK(entry, &mList);
 
   return entry;

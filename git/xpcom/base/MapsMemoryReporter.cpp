@@ -124,7 +124,8 @@ void GetBasename(const nsCString &aPath, nsACString &aOut)
 }
 
 // MapsReporter::CollectReports uses this stuct to keep track of whether it's
-// seen a mapping under 'resident', 'pss', 'vsize', and 'swap'.
+// seen a mapping under 'smaps/resident', 'smaps/pss', 'smaps/vsize', and
+// 'smaps/swap'.
 struct CategoriesSeen {
   CategoriesSeen() :
     mSeenResident(false),
@@ -228,18 +229,17 @@ MapsReporter::CollectReports(nsIMemoryMultiReporterCallback *aCb,
 
   fclose(f);
 
-  // For sure we should have created some node under 'resident' and
-  // 'vsize'; otherwise we're probably not reading smaps correctly.  If we
-  // didn't create a node under 'swap', create one here so about:memory
-  // knows to create an empty 'swap' tree;  it needs a 'total' child because
-  // about:memory expects at least one report whose path begins with 'swap/'.
+  // For sure we should have created some node under 'smaps/resident' and
+  // 'smaps/vsize'; otherwise we're probably not reading smaps correctly.  If we
+  // didn't create a node under 'smaps/swap', create one here so about:memory
+  // knows to create an empty 'smaps/swap' tree.  See also bug 682735.
 
   NS_ASSERTION(categoriesSeen.mSeenVsize, "Didn't create a vsize node?");
   NS_ASSERTION(categoriesSeen.mSeenVsize, "Didn't create a resident node?");
   if (!categoriesSeen.mSeenSwap) {
     nsresult rv;
     rv = aCb->Callback(NS_LITERAL_CSTRING(""),
-                       NS_LITERAL_CSTRING("swap/total"),
+                       NS_LITERAL_CSTRING("smaps/swap/total"),
                        nsIMemoryReporter::KIND_NONHEAP,
                        nsIMemoryReporter::UNITS_BYTES,
                        0,
@@ -523,6 +523,7 @@ MapsReporter::ParseMapBody(
   }
 
   nsCAutoString path;
+  path.Append("smaps/");
   path.Append(category);
   path.Append("/");
   path.Append(aName);

@@ -62,6 +62,7 @@ struct JSObject;
 class nsPluginStreamListenerPeer; // browser-initiated stream class
 class nsNPAPIPluginStreamListener; // plugin-initiated stream class
 class nsIPluginInstanceOwner;
+class nsIPluginStreamListener;
 class nsIOutputStream;
 
 #if defined(OS_WIN)
@@ -174,7 +175,7 @@ public:
 #endif
 
   nsresult NewStreamListener(const char* aURL, void* notifyData,
-                             nsNPAPIPluginStreamListener** listener);
+                             nsIPluginStreamListener** listener);
 
   nsNPAPIPluginInstance();
   virtual ~nsNPAPIPluginInstance();

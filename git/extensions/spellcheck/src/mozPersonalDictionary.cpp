@@ -90,8 +90,8 @@ mozPersonalDictionary::~mozPersonalDictionary()
 
 nsresult mozPersonalDictionary::Init()
 {
-  mDictionaryTable.Init();
-  mIgnoreTable.Init();
+  if (!mDictionaryTable.Init() || !mIgnoreTable.Init())
+    return NS_ERROR_OUT_OF_MEMORY;
 
   nsresult rv;
   nsCOMPtr<nsIObserverService> svc = 

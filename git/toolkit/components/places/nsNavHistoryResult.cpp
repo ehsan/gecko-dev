@@ -4347,7 +4347,8 @@ nsNavHistoryResult::Init(nsINavHistoryQuery** aQueries,
   rv = aOptions->GetSortingAnnotation(mSortingAnnotation);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  mBookmarkFolderObservers.Init(128);
+  if (!mBookmarkFolderObservers.Init(128))
+    return NS_ERROR_OUT_OF_MEMORY;
 
   NS_ASSERTION(mRootNode->mIndentLevel == -1,
                "Root node's indent level initialized wrong");

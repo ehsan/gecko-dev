@@ -200,7 +200,7 @@ nsSVGGeometryFrame::SetupCairoFill(gfxContext *aContext)
 
   nsSVGPaintServerFrame *ps =
     GetPaintServer(&style->mFill, nsSVGEffects::FillProperty());
-  if (ps && ps->SetupPaintServer(aContext, this, &nsStyleSVG::mFill, opacity))
+  if (ps && ps->SetupPaintServer(aContext, this, opacity))
     return true;
 
   // On failure, use the fallback colour in case we have an
@@ -228,9 +228,6 @@ nsSVGGeometryFrame::SetupCairoStrokeGeometry(gfxContext *aContext)
   if (width <= 0)
     return;
   aContext->SetLineWidth(width);
-
-  // Apply any stroke-specific transform
-  aContext->Multiply(nsSVGUtils::GetStrokeTransform(this));
 
   const nsStyleSVG* style = GetStyleSVG();
   
@@ -286,7 +283,7 @@ nsSVGGeometryFrame::SetupCairoStroke(gfxContext *aContext)
 
   nsSVGPaintServerFrame *ps =
     GetPaintServer(&style->mStroke, nsSVGEffects::StrokeProperty());
-  if (ps && ps->SetupPaintServer(aContext, this, &nsStyleSVG::mStroke, opacity))
+  if (ps && ps->SetupPaintServer(aContext, this, opacity))
     return true;
 
   // On failure, use the fallback colour in case we have an

@@ -341,12 +341,16 @@ nsNavHistory::Init()
   NS_ENSURE_STATE(mDB);
 
   // recent events hash tables
-  mRecentTyped.Init(RECENT_EVENTS_INITIAL_CACHE_SIZE);
-  mRecentLink.Init(RECENT_EVENTS_INITIAL_CACHE_SIZE);
-  mRecentBookmark.Init(RECENT_EVENTS_INITIAL_CACHE_SIZE);
+  NS_ENSURE_TRUE(mRecentTyped.Init(RECENT_EVENTS_INITIAL_CACHE_SIZE),
+                 NS_ERROR_OUT_OF_MEMORY);
+  NS_ENSURE_TRUE(mRecentLink.Init(RECENT_EVENTS_INITIAL_CACHE_SIZE),
+                 NS_ERROR_OUT_OF_MEMORY);
+  NS_ENSURE_TRUE(mRecentBookmark.Init(RECENT_EVENTS_INITIAL_CACHE_SIZE),
+                 NS_ERROR_OUT_OF_MEMORY);
 
   // Embed visits hash table.
-  mEmbedVisits.Init(EMBED_VISITS_INITIAL_CACHE_SIZE);
+  NS_ENSURE_TRUE(mEmbedVisits.Init(EMBED_VISITS_INITIAL_CACHE_SIZE),
+                 NS_ERROR_OUT_OF_MEMORY);
 
   /*****************************************************************************
    *** IMPORTANT NOTICE!

@@ -8,8 +8,8 @@
 
 namespace mozilla {
 
-struct StackBlock;
-struct StackMark;
+class StackBlock;
+class StackMark;
 class AutoStackArena;
  
 /**

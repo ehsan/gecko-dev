@@ -178,9 +178,9 @@ nsXULLinkAccessible::NativeRole()
 
 
 PRUint64
-nsXULLinkAccessible::NativeLinkState() const
+nsXULLinkAccessible::NativeState()
 {
-  return states::LINKED;
+  return nsHyperTextAccessible::NativeState() | states::LINKED;
 }
 
 PRUint8

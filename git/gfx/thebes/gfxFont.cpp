@@ -4936,9 +4936,7 @@ gfxTextRun::BreakAndMeasureText(PRUint32 aStart, PRUint32 aMaxLength,
         if (!aSuppressInitialBreak || i > aStart) {
             bool lineBreakHere = mCharacterGlyphs[i].CanBreakBefore() == 1;
             bool hyphenation = haveHyphenation && hyphenBuffer[i - bufferStart];
-            bool wordWrapping =
-                aCanWordWrap && mCharacterGlyphs[i].IsClusterStart() &&
-                *aBreakPriority <= eWordWrapBreak;
+            bool wordWrapping = aCanWordWrap && *aBreakPriority <= eWordWrapBreak;
 
             if (lineBreakHere || hyphenation || wordWrapping) {
                 gfxFloat hyphenatedAdvance = advance;
@@ -5335,9 +5333,7 @@ gfxTextRun::CopyGlyphDataFrom(gfxTextRun *aSource, PRUint32 aStart,
     CompressedGlyph *dstGlyphs = mCharacterGlyphs + aDest;
     for (PRUint32 i = 0; i < aLength; ++i) {
         CompressedGlyph g = srcGlyphs[i];
-        g.SetCanBreakBefore(!g.IsClusterStart() ?
-            CompressedGlyph::FLAG_BREAK_TYPE_NONE :
-            dstGlyphs[i].CanBreakBefore());
+        g.SetCanBreakBefore(dstGlyphs[i].CanBreakBefore());
         if (!g.IsSimpleGlyph()) {
             PRUint32 count = g.GetGlyphCount();
             if (count > 0) {

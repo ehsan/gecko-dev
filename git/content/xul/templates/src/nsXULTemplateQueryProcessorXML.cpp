@@ -255,8 +255,9 @@ nsXULTemplateQueryProcessorXML::InitializeForBuilding(nsISupports* aDatasource,
     mEvaluator = do_CreateInstance("@mozilla.org/dom/xpath-evaluator;1");
     NS_ENSURE_TRUE(mEvaluator, NS_ERROR_OUT_OF_MEMORY);
 
-    if (!mRuleToBindingsMap.IsInitialized())
-        mRuleToBindingsMap.Init();
+    if (!mRuleToBindingsMap.IsInitialized() &&
+        !mRuleToBindingsMap.Init())
+        return NS_ERROR_OUT_OF_MEMORY;
 
     return NS_OK;
 }
@@ -399,7 +400,8 @@ nsXULTemplateQueryProcessorXML::AddBinding(nsIDOMNode* aRuleNode,
     nsRefPtr<nsXMLBindingSet> bindings = mRuleToBindingsMap.GetWeak(aRuleNode);
     if (!bindings) {
         bindings = new nsXMLBindingSet();
-        mRuleToBindingsMap.Put(aRuleNode, bindings);
+        if (!bindings || !mRuleToBindingsMap.Put(aRuleNode, bindings))
+            return NS_ERROR_OUT_OF_MEMORY;
     }
 
     nsCOMPtr<nsIDOMXPathExpression> compiledexpr;

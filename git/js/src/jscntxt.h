@@ -103,7 +103,6 @@ class JaegerRuntime;
 class MathCache;
 class WeakMapBase;
 class InterpreterFrames;
-class DebugScopes;
 
 /*
  * GetSrcNote cache to avoid O(n^2) growth in finding a source note for a
@@ -376,10 +375,6 @@ class FreeOp : public JSFreeOp {
 };
 
 } /* namespace js */
-
-namespace JS {
-struct RuntimeSizes;
-}
 
 struct JSRuntime : js::RuntimeFriendFields
 {
@@ -702,9 +697,6 @@ struct JSRuntime : js::RuntimeFriendFields
      */
     JSCList             debuggerList;
 
-    /* Bookkeeping information for debug scope objects. */
-    js::DebugScopes     *debugScopes;
-
     /* Client opaque pointers */
     void                *data;
 
@@ -888,8 +880,9 @@ struct JSRuntime : js::RuntimeFriendFields
         return jitHardening;
     }
 
-    void sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf, JS::RuntimeSizes *runtime);
-    size_t sizeOfExplicitNonHeap();
+    void sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf, size_t *normal, size_t *temporary,
+                             size_t *mjitCode, size_t *regexpCode, size_t *unusedCodeMemory,
+                             size_t *stackCommitted, size_t *gcMarker);
 };
 
 /* Common macros to access thread-local caches in JSRuntime. */
@@ -1184,8 +1177,6 @@ struct JSContext : js::ContextFriendFields
     js::LifoAlloc &tempLifoAlloc() { return runtime->tempLifoAlloc; }
     inline js::LifoAlloc &typeLifoAlloc();
 
-    inline js::PropertyTree &propertyTree();
-
 #ifdef JS_THREADSAFE
     unsigned            outstandingRequests;/* number of JS_BeginRequest calls
                                                without the corresponding
@@ -1267,6 +1258,7 @@ struct JSContext : js::ContextFriendFields
     }
 
     inline void* calloc_(size_t bytes) {
+        JS_ASSERT(bytes != 0);
         return runtime->calloc_(bytes, this);
     }
 
@@ -1306,26 +1298,20 @@ struct JSContext : js::ContextFriendFields
         this->exception.setUndefined();
     }
 
-#ifdef DEBUG
-    /*
-     * Controls whether a quadratic-complexity assertion is performed during
-     * stack iteration; defaults to true.
-     */
-    bool stackIterAssertionEnabled;
-
-    /*
-     * When greather than zero, it is ok to accessed non-aliased fields of
-     * ScopeObjects because the accesses are coming from the DebugScopeProxy.
-     */
-    unsigned okToAccessUnaliasedBindings;
-#endif
-
     /*
      * Count of currently active compilations.
      * When there are compilations active for the context, the GC must not
      * purge the ParseMapPool.
      */
     unsigned activeCompilations;
+
+#ifdef DEBUG
+    /*
+     * Controls whether a quadratic-complexity assertion is performed during
+     * stack iteration, defaults to true.
+     */
+    bool stackIterAssertionEnabled;
+#endif
 
     /*
      * See JS_SetTrustedPrincipals in jsapi.h.
@@ -1353,23 +1339,6 @@ struct JSContext : js::ContextFriendFields
 }; /* struct JSContext */
 
 namespace js {
-
-class AutoAllowUnaliasedVarAccess
-{
-    JSContext *cx;
-  public:
-    AutoAllowUnaliasedVarAccess(JSContext *cx) : cx(cx) {
-#ifdef DEBUG
-        cx->okToAccessUnaliasedBindings++;
-#endif
-    }
-    ~AutoAllowUnaliasedVarAccess() {
-#ifdef DEBUG
-        JS_ASSERT(cx->okToAccessUnaliasedBindings);
-        cx->okToAccessUnaliasedBindings--;
-#endif
-    }
-};
 
 struct AutoResolving {
   public:

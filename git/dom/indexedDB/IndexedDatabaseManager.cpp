@@ -228,9 +228,12 @@ IndexedDatabaseManager::GetOrCreate()
 
     instance = new IndexedDatabaseManager();
 
-    instance->mLiveDatabases.Init();
-    instance->mQuotaHelperHash.Init();
-    instance->mFileManagers.Init();
+    if (!instance->mLiveDatabases.Init() ||
+        !instance->mQuotaHelperHash.Init() ||
+        !instance->mFileManagers.Init()) {
+      NS_WARNING("Out of memory!");
+      return nsnull;
+    }
 
     // We need a thread-local to hold the current window.
     NS_ASSERTION(instance->mCurrentWindowIndex == BAD_TLS_INDEX, "Huh?");
@@ -339,7 +342,10 @@ IndexedDatabaseManager::RegisterDatabase(IDBDatabase* aDatabase)
   nsTArray<IDBDatabase*>* array;
   if (!mLiveDatabases.Get(aDatabase->Origin(), &array)) {
     nsAutoPtr<nsTArray<IDBDatabase*> > newArray(new nsTArray<IDBDatabase*>());
-    mLiveDatabases.Put(aDatabase->Origin(), newArray);
+    if (!mLiveDatabases.Put(aDatabase->Origin(), newArray)) {
+      NS_WARNING("Out of memory?");
+      return false;
+    }
     array = newArray.forget();
   }
   if (!array->AppendElement(aDatabase)) {
@@ -724,7 +730,7 @@ IndexedDatabaseManager::EnsureOriginIsInitialized(const nsACString& aOrigin,
     new nsTArray<nsRefPtr<FileManager> >());
 
   nsTHashtable<nsStringHashKey> validSubdirs;
-  validSubdirs.Init(20);
+  NS_ENSURE_TRUE(validSubdirs.Init(20), NS_ERROR_OUT_OF_MEMORY);
   
   nsCOMPtr<nsISimpleEnumerator> entries;
   rv = directory->GetDirectoryEntries(getter_AddRefs(entries));
@@ -802,7 +808,10 @@ IndexedDatabaseManager::EnsureOriginIsInitialized(const nsACString& aOrigin,
     rv = ss->UpdateQuotaInformationForFile(file);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    validSubdirs.PutEntry(dbBaseFilename);
+    if (!validSubdirs.PutEntry(dbBaseFilename)) {
+      NS_WARNING("Out of memory?");
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
   }
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -835,7 +844,11 @@ IndexedDatabaseManager::EnsureOriginIsInitialized(const nsACString& aOrigin,
     }
   }
 
-  mFileManagers.Put(aOrigin, fileManagers);
+  if (!mFileManagers.Put(aOrigin, fileManagers)) {
+    NS_WARNING("Out of memory?");
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+
   fileManagers.forget();
 
   NS_ADDREF(*aDirectory = directory);
@@ -865,7 +878,8 @@ IndexedDatabaseManager::QuotaIsLiftedInternal()
     helper = new CheckQuotaHelper(window, mQuotaHelperMutex);
     createdHelper = true;
 
-    mQuotaHelperHash.Put(window, helper);
+    bool result = mQuotaHelperHash.Put(window, helper);
+    NS_ENSURE_TRUE(result, result);
 
     // Unlock while calling out to XPCOM
     {
@@ -952,7 +966,10 @@ IndexedDatabaseManager::GetOrCreateFileManager(const nsACString& aOrigin,
   if (!mFileManagers.Get(aOrigin, &array)) {
     nsAutoPtr<nsTArray<nsRefPtr<FileManager> > > newArray(
       new nsTArray<nsRefPtr<FileManager> >());
-    mFileManagers.Put(aOrigin, newArray);
+    if (!mFileManagers.Put(aOrigin, newArray)) {
+      NS_WARNING("Out of memory?");
+      return nsnull;
+    }
     array = newArray.forget();
   }
 

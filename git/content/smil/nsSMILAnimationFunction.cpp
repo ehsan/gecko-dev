@@ -215,6 +215,7 @@ nsSMILAnimationFunction::Activate(nsSMILTime aBeginTime)
   mBeginTime = aBeginTime;
   mIsActive = true;
   mIsFrozen = false;
+  mFrozenValue = nsSMILValue();
   mHasChanged = true;
 }
 
@@ -223,6 +224,7 @@ nsSMILAnimationFunction::Inactivate(bool aIsFrozen)
 {
   mIsActive = false;
   mIsFrozen = aIsFrozen;
+  mFrozenValue = nsSMILValue();
   mHasChanged = true;
 }
 
@@ -284,6 +286,11 @@ nsSMILAnimationFunction::ComposeResult(const nsISMILAttr& aSMILAttr,
       result.Add(last, mRepeatIteration);
     }
 
+  } else if (!mFrozenValue.IsNull() && !mHasChanged) {
+
+    // Frozen to animation
+    result = mFrozenValue;
+
   } else {
 
     // Interpolation
@@ -292,6 +299,10 @@ nsSMILAnimationFunction::ComposeResult(const nsISMILAttr& aSMILAttr,
 
     if (NS_FAILED(AccumulateResult(values, result)))
       return;
+
+    if (IsToAnimation() && mIsFrozen) {
+      mFrozenValue = result;
+    }
   }
 
   // If additive animation isn't required or isn't supported, set the value.
@@ -348,11 +359,12 @@ nsSMILAnimationFunction::WillReplace() const
 {
   /*
    * In IsAdditive() we don't consider to-animation to be additive as it is
-   * a special case that is dealt with differently in the compositing method.
-   * Here, however, we return FALSE for to-animation (i.e. it will NOT replace
-   * the underlying value) as it builds on the underlying value.
+   * a special case that is dealt with differently in the compositing method but
+   * here we return false for to animation as it builds on the underlying value
+   * unless its a frozen to animation.
    */
-  return !mErrorFlags && !(IsAdditive() || IsToAnimation());
+  return !mErrorFlags && (!(IsAdditive() || IsToAnimation()) ||
+                          (IsToAnimation() && mIsFrozen && !mHasChanged));
 }
 
 bool
@@ -362,8 +374,7 @@ nsSMILAnimationFunction::HasChanged() const
 }
 
 bool
-nsSMILAnimationFunction::UpdateCachedTarget(
-  const nsSMILTargetIdentifier& aNewTarget)
+nsSMILAnimationFunction::UpdateCachedTarget(const nsSMILTargetIdentifier& aNewTarget)
 {
   if (!mLastTarget.Equals(aNewTarget)) {
     mLastTarget = aNewTarget;
@@ -503,7 +514,8 @@ nsresult
 nsSMILAnimationFunction::AccumulateResult(const nsSMILValueArray& aValues,
                                           nsSMILValue& aResult)
 {
-  if (!IsToAnimation() && GetAccumulate() && mRepeatIteration) {
+  if (!IsToAnimation() && GetAccumulate() && mRepeatIteration)
+  {
     const nsSMILValue& lastValue = aValues[aValues.Length() - 1];
 
     // If the target attribute type doesn't support addition, Add will
@@ -807,7 +819,7 @@ nsSMILAnimationFunction::GetValues(const nsISMILAttr& aSMILAttr,
                          preventCachingOfSandwich);
     parseOk &= ParseAttr(nsGkAtoms::by,   aSMILAttr, by,
                          preventCachingOfSandwich);
-
+    
     if (preventCachingOfSandwich) {
       mValueNeedsReparsingEverySample = true;
     }

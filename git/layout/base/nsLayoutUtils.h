@@ -55,7 +55,6 @@ class nsClientRectList;
 class nsFontFaceList;
 
 #include "prtypes.h"
-#include "nsChangeHint.h"
 #include "nsStyleContext.h"
 #include "nsAutoPtr.h"
 #include "nsStyleSet.h"
@@ -1652,15 +1651,6 @@ public:
   static void DeregisterImageRequest(nsPresContext* aPresContext,
                                      imgIRequest* aRequest,
                                      bool* aRequestRegistered);
-
-  /**
-   * Shim to nsCSSFrameConstructor::PostRestyleEvent. Exists so that we
-   * can avoid including nsCSSFrameConstructor.h and all its dependencies
-   * in content files.
-   */
-  static void PostRestyleEvent(mozilla::dom::Element* aElement,
-                               nsRestyleHint aRestyleHint,
-                               nsChangeHint aMinChangeHint);
 
 #ifdef DEBUG
   /**

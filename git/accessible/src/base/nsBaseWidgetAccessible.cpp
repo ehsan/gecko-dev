@@ -113,12 +113,16 @@ nsLinkableAccessible::TakeFocus()
 }
 
 PRUint64
-nsLinkableAccessible::NativeLinkState() const
+nsLinkableAccessible::NativeState()
 {
-  if (mIsLink)
-    return states::LINKED | (mActionAcc->LinkState() & states::TRAVERSED);
+  PRUint64 states = nsAccessibleWrap::NativeState();
+  if (mIsLink) {
+    states |= states::LINKED;
+    if (mActionAcc->State() & states::TRAVERSED)
+      states |= states::TRAVERSED;
+  }
 
-  return 0;
+  return states;
 }
 
 void
@@ -231,10 +235,11 @@ nsLinkableAccessible::BindToParent(nsAccessible* aParent,
   // is traversed.
   nsAccessible* walkUpAcc = this;
   while ((walkUpAcc = walkUpAcc->Parent()) && !walkUpAcc->IsDoc()) {
-    if (walkUpAcc->LinkState() & states::LINKED) {
-      mIsLink = true;
-      mActionAcc = walkUpAcc;
-      return;
+    if (walkUpAcc->Role() == roles::LINK &&
+        walkUpAcc->State() & states::LINKED) {
+        mIsLink = true;
+        mActionAcc = walkUpAcc;
+        return;
     }
 
     if (nsCoreUtils::HasClickListener(walkUpAcc->GetContent())) {

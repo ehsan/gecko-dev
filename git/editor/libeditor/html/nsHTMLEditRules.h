@@ -140,6 +140,9 @@ protected:
 
   // nsHTMLEditRules implementation methods
   nsresult WillInsert(nsISelection *aSelection, bool *aCancel);
+#ifdef XXX_DEAD_CODE
+  nsresult DidInsert(nsISelection *aSelection, nsresult aResult);
+#endif
   nsresult WillInsertText(  nsEditor::OperationID aAction,
                             nsISelection *aSelection, 
                             bool            *aCancel,
@@ -152,10 +155,8 @@ protected:
   nsresult StandardBreakImpl(nsIDOMNode *aNode, PRInt32 aOffset, nsISelection *aSelection);
   nsresult DidInsertBreak(nsISelection *aSelection, nsresult aResult);
   nsresult SplitMailCites(nsISelection *aSelection, bool aPlaintext, bool *aHandled);
-  nsresult WillDeleteSelection(nsISelection* aSelection,
-                               nsIEditor::EDirection aAction,
-                               nsIEditor::EStripWrappers aStripWrappers,
-                               bool* aCancel, bool* aHandled);
+  nsresult WillDeleteSelection(nsISelection *aSelection, nsIEditor::EDirection aAction, 
+                               bool *aCancel, bool *aHandled);
   nsresult DidDeleteSelection(nsISelection *aSelection, 
                               nsIEditor::EDirection aDir, 
                               nsresult aResult);
@@ -166,7 +167,7 @@ protected:
   nsresult MoveBlock(nsIDOMNode *aLeft, nsIDOMNode *aRight, PRInt32 aLeftOffset, PRInt32 aRightOffset);
   nsresult MoveNodeSmart(nsIDOMNode *aSource, nsIDOMNode *aDest, PRInt32 *aOffset);
   nsresult MoveContents(nsIDOMNode *aSource, nsIDOMNode *aDest, PRInt32 *aOffset);
-  nsresult DeleteNonTableElements(nsINode* aNode);
+  nsresult DeleteNonTableElements(nsIDOMNode *aNode);
   nsresult WillMakeList(nsISelection *aSelection, const nsAString *aListType, bool aEntireList, const nsAString *aBulletType, bool *aCancel, bool *aHandled, const nsAString *aItemType=nsnull);
   nsresult WillRemoveList(nsISelection *aSelection, bool aOrderd, bool *aCancel, bool *aHandled);
   nsresult WillIndent(nsISelection *aSelection, bool *aCancel, bool *aHandled);
@@ -183,8 +184,6 @@ protected:
   nsresult DidAbsolutePosition();
   nsresult AlignInnerBlocks(nsIDOMNode *aNode, const nsAString *alignType);
   nsresult AlignBlockContents(nsIDOMNode *aNode, const nsAString *alignType);
-  nsresult AppendInnerFormatNodes(nsCOMArray<nsIDOMNode>& aArray,
-                                  nsINode* aNode);
   nsresult AppendInnerFormatNodes(nsCOMArray<nsIDOMNode>& aArray,
                                   nsIDOMNode *aNode);
   nsresult GetFormatString(nsIDOMNode *aNode, nsAString &outFormat);
@@ -233,6 +232,10 @@ protected:
   nsresult ExpandSelectionForDeletion(nsISelection *aSelection);
   bool IsFirstNode(nsIDOMNode *aNode);
   bool IsLastNode(nsIDOMNode *aNode);
+#ifdef XXX_DEAD_CODE
+  bool AtStartOfBlock(nsIDOMNode *aNode, PRInt32 aOffset, nsIDOMNode *aBlock);
+  bool AtEndOfBlock(nsIDOMNode *aNode, PRInt32 aOffset, nsIDOMNode *aBlock);
+#endif
   nsresult NormalizeSelection(nsISelection *inSelection);
   nsresult GetPromotedPoint(RulesEndpoint aWhere, nsIDOMNode *aNode,
                             PRInt32 aOffset, nsEditor::OperationID actionID,

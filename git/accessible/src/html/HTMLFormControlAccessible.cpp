@@ -437,7 +437,7 @@ HTMLTextFieldAccessible::Value(nsString& aValue)
 }
 
 void
-HTMLTextFieldAccessible::ApplyARIAState(PRUint64* aState) const
+HTMLTextFieldAccessible::ApplyARIAState(PRUint64* aState)
 {
   nsHyperTextAccessibleWrap::ApplyARIAState(aState);
 

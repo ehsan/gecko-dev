@@ -28,12 +28,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-"""This file provides the opening handshake processor for the WebSocket
-protocol version HyBi 00.
-
-Specification:
-http://tools.ietf.org/html/draft-ietf-hybi-thewebsocketprotocol-00
-"""
+"""WebSocket initial handshake hander for HyBi 00 protocol."""
 
 
 # Note: request.connection.write/read are used in this module, even though
@@ -66,8 +61,7 @@ _MANDATORY_HEADERS = [
 
 
 class Handshaker(object):
-    """Opening handshake processor for the WebSocket protocol version HyBi 00.
-    """
+    """This class performs WebSocket handshake."""
 
     def __init__(self, request, dispatcher):
         """Construct an instance.
@@ -145,7 +139,7 @@ class Handshaker(object):
                                      (common.SEC_WEBSOCKET_DRAFT_HEADER,
                                       draft))
 
-        self._logger.debug('Protocol version is HyBi 00')
+        self._logger.debug('IETF HyBi 00 protocol')
         self._request.ws_version = common.VERSION_HYBI00
         self._request.ws_stream = StreamHixie75(self._request, True)
 

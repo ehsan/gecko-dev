@@ -209,7 +209,7 @@ nsXULPrototypeCache::PutPrototype(nsXULPrototypeDocument* aDocument)
 {
     nsCOMPtr<nsIURI> uri = aDocument->GetURI();
     // Put() releases any old value and addrefs the new one
-    mPrototypeTable.Put(uri, aDocument);
+    NS_ENSURE_TRUE(mPrototypeTable.Put(uri, aDocument), NS_ERROR_OUT_OF_MEMORY);
 
     return NS_OK;
 }
@@ -219,7 +219,8 @@ nsXULPrototypeCache::PutStyleSheet(nsCSSStyleSheet* aStyleSheet)
 {
     nsIURI* uri = aStyleSheet->GetSheetURI();
 
-    mStyleSheetTable.Put(uri, aStyleSheet);
+    NS_ENSURE_TRUE(mStyleSheetTable.Put(uri, aStyleSheet),
+                   NS_ERROR_OUT_OF_MEMORY);
 
     return NS_OK;
 }
@@ -265,7 +266,7 @@ nsXULPrototypeCache::PutScript(nsIURI* aURI, JSScript* aScriptObject)
 
     CacheScriptEntry entry = {aScriptObject};
 
-    mScriptTable.Put(aURI, entry);
+    NS_ENSURE_TRUE(mScriptTable.Put(aURI, entry), NS_ERROR_OUT_OF_MEMORY);
 
     // Lock the object from being gc'd until it is removed from the cache
     nsCOMPtr<nsIScriptRuntime> rt;
@@ -295,7 +296,8 @@ nsXULPrototypeCache::PutXBLDocumentInfo(nsXBLDocumentInfo* aDocumentInfo)
     nsRefPtr<nsXBLDocumentInfo> info;
     mXBLDocTable.Get(uri, getter_AddRefs(info));
     if (!info) {
-        mXBLDocTable.Put(uri, aDocumentInfo);
+        NS_ENSURE_TRUE(mXBLDocTable.Put(uri, aDocumentInfo),
+                       NS_ERROR_OUT_OF_MEMORY);
     }
     return NS_OK;
 }

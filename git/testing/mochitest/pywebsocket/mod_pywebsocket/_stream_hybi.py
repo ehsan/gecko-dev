@@ -1,4 +1,4 @@
-# Copyright 2012, Google Inc.
+# Copyright 2011, Google Inc.
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -28,11 +28,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-"""This file provides classes and helper functions for parsing/building frames
-of the WebSocket protocol (RFC 6455).
-
-Specification:
-http://tools.ietf.org/html/rfc6455
+"""Stream class for IETF HyBi latest WebSocket protocol.
 """
 
 
@@ -242,9 +238,7 @@ class StreamOptions(object):
 
 
 class Stream(StreamBase):
-    """A class for parsing/building frames of the WebSocket protocol
-    (RFC 6455).
-    """
+    """Stream of WebSocket messages."""
 
     def __init__(self, request, options):
         """Constructs an instance.
@@ -359,8 +353,8 @@ class Stream(StreamBase):
 
         Raises:
             BadOperationException: when called on a server-terminated
-                connection or called with inconsistent message type or
-                binary parameter.
+                connection or called with inconsistent message type or binary
+                parameter.
         """
 
         if self._request.server_terminated:
@@ -488,11 +482,7 @@ class Stream(StreamBase):
                 # - no application data: no code no reason
                 # - 2 octet of application data: has code but no reason
                 # - 3 or more octet of application data: both code and reason
-                if len(message) == 0:
-                    self._logger.debug('Received close frame (empty body)')
-                    self._request.ws_close_code = (
-                        common.STATUS_NO_STATUS_RECEIVED)
-                elif len(message) == 1:
+                if len(message) == 1:
                     raise InvalidFrameException(
                         'If a close frame has status code, the length of '
                         'status code must be 2 octet')
@@ -511,28 +501,22 @@ class Stream(StreamBase):
 
                 if self._request.server_terminated:
                     self._logger.debug(
-                        'Received ack for server-initiated closing handshake')
+                        'Received ack for server-initiated closing '
+                        'handshake')
                     return None
 
                 self._logger.debug(
                     'Received client-initiated closing handshake')
 
-                code = common.STATUS_NORMAL_CLOSURE
+                code = common.STATUS_NORMAL
                 reason = ''
                 if hasattr(self._request, '_dispatcher'):
                     dispatcher = self._request._dispatcher
                     code, reason = dispatcher.passive_closing_handshake(
                         self._request)
-                    if code is None and reason is not None and len(reason) > 0:
-                        self._logger.warning(
-                            'Handler specified reason despite code being None')
-                        reason = ''
-                    if reason is None:
-                        reason = ''
                 self._send_closing_handshake(code, reason)
                 self._logger.debug(
-                    'Sent ack for client-initiated closing handshake '
-                    '(code=%r, reason=%r)', code, reason)
+                    'Sent ack for client-initiated closing handshake')
                 return None
             elif self._original_opcode == common.OPCODE_PING:
                 try:
@@ -581,19 +565,17 @@ class Stream(StreamBase):
                     'Opcode %d is not supported' % self._original_opcode)
 
     def _send_closing_handshake(self, code, reason):
-        body = ''
-        if code is not None:
-            if code >= (1 << 16) or code < 0:
-                raise BadOperationException('Status code is out of range')
-            encoded_reason = reason.encode('utf-8')
-            if len(encoded_reason) + 2 > 125:
-                raise BadOperationException(
-                    'Application data size of close frames must be 125 bytes '
-                    'or less')
-            body = struct.pack('!H', code) + encoded_reason
+        if code >= (1 << 16) or code < 0:
+            raise BadOperationException('Status code is out of range')
+
+        encoded_reason = reason.encode('utf-8')
+        if len(encoded_reason) + 2 > 125:
+            raise BadOperationException(
+                'Application data size of close frames must be 125 bytes or '
+                'less')
 
         frame = create_close_frame(
-            body,
+            struct.pack('!H', code) + encoded_reason,
             self._options.mask_send,
             self._options.outgoing_frame_filters)
 
@@ -601,37 +583,16 @@ class Stream(StreamBase):
 
         self._write(frame)
 
-    def close_connection(self, code=common.STATUS_NORMAL_CLOSURE, reason=''):
-        """Closes a WebSocket connection.
-
-        Args:
-            code: Status code for close frame. If code is None, a close
-                frame with empty body will be sent.
-            reason: string representing close reason.
-        Raises:
-            BadOperationException: when reason is specified with code None
-            or reason is not an instance of both str and unicode.
-        """
+    def close_connection(self, code=common.STATUS_NORMAL, reason=''):
+        """Closes a WebSocket connection."""
 
         if self._request.server_terminated:
             self._logger.debug(
                 'Requested close_connection but server is already terminated')
             return
 
-        if code is None:
-            if reason is not None and len(reason) > 0:
-                raise BadOperationException(
-                    'close reason must not be specified if code is None')
-            reason = ''
-        else:
-            if not isinstance(reason, str) and not isinstance(reason, unicode):
-                raise BadOperationException(
-                    'close reason must be an instance of str or unicode')
-
         self._send_closing_handshake(code, reason)
-        self._logger.debug(
-            'Sent server-initiated closing handshake (code=%r, reason=%r)',
-            code, reason)
+        self._logger.debug('Sent server-initiated closing handshake')
 
         if (code == common.STATUS_GOING_AWAY or
             code == common.STATUS_PROTOCOL_ERROR):

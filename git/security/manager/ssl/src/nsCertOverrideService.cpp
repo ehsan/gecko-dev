@@ -136,7 +136,8 @@ nsCertOverrideService::Init()
     return NS_ERROR_NOT_SAME_THREAD;
   }
 
-  mSettingsTable.Init();
+  if (!mSettingsTable.Init())
+    return NS_ERROR_OUT_OF_MEMORY;
 
   mOidTagForStoringNewHashes = SEC_OID_SHA256;
 

@@ -81,6 +81,8 @@ public class LayerView extends SurfaceView implements SurfaceHolder.Callback {
     private GLController mGLController;
     private InputConnectionHandler mInputConnectionHandler;
     private LayerRenderer mRenderer;
+    private long mRenderTime;
+    private boolean mRenderTimeReset;
     /* Must be a PAINT_xxx constant */
     private int mPaintState = PAINT_NONE;
 
@@ -176,7 +178,7 @@ public class LayerView extends SurfaceView implements SurfaceHolder.Callback {
         return false;
     }
 
-    public void requestRender() {
+    public synchronized void requestRender() {
         if (mListener != null) {
             mListener.renderRequested();
         }
@@ -188,6 +190,17 @@ public class LayerView extends SurfaceView implements SurfaceHolder.Callback {
 
     public void removeLayer(Layer layer) {
         mRenderer.removeLayer(layer);
+    }
+
+    /**
+     * Returns the time elapsed between the first call of requestRender() after
+     * the last call of getRenderTime(), in nanoseconds.
+     */
+    public long getRenderTime() {
+        synchronized(this) {
+            mRenderTimeReset = false;
+            return System.nanoTime() - mRenderTime;
+        }
     }
 
     public int getMaxTextureSize() {
@@ -229,14 +242,14 @@ public class LayerView extends SurfaceView implements SurfaceHolder.Callback {
         mListener = listener;
     }
 
-    public GLController getGLController() {
+    public synchronized GLController getGLController() {
         return mGLController;
     }
 
     /** Implementation of SurfaceHolder.Callback */
     public synchronized void surfaceChanged(SurfaceHolder holder, int format, int width,
                                             int height) {
-        mGLController.surfaceChanged(width, height);
+        mGLController.sizeChanged(width, height);
 
         if (mListener != null) {
             mListener.surfaceChanged(width, height);
@@ -245,6 +258,7 @@ public class LayerView extends SurfaceView implements SurfaceHolder.Callback {
 
     /** Implementation of SurfaceHolder.Callback */
     public synchronized void surfaceCreated(SurfaceHolder holder) {
+        mGLController.surfaceCreated();
     }
 
     /** Implementation of SurfaceHolder.Callback */

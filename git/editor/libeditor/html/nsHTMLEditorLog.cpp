@@ -145,8 +145,7 @@ nsHTMLEditorLog::RemoveInlineProperty(nsIAtom *aProperty, const nsAString &aAttr
 }
 
 NS_IMETHODIMP
-nsHTMLEditorLog::DeleteSelection(nsIEditor::EDirection aAction,
-                                 nsIEditor::EStripWrappers aStripWrappers)
+nsHTMLEditorLog::DeleteSelection(nsIEditor::EDirection aAction)
 {
   nsAutoHTMLEditorLogLock logLock(this);
 
@@ -160,7 +159,7 @@ nsHTMLEditorLog::DeleteSelection(nsIEditor::EDirection aAction,
     Flush();
   }
 
-  return nsHTMLEditor::DeleteSelection(aAction, aStripWrappers);
+  return nsHTMLEditor::DeleteSelection(aAction);
 }
 
 NS_IMETHODIMP

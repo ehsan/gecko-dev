@@ -96,15 +96,13 @@ nsresult
 nsLayoutHistoryState::Init()
 {
   mScrollPositionOnly = false;
-  mStates.Init();
-  return NS_OK;
+  return mStates.Init() ? NS_OK : NS_ERROR_FAILURE;
 }
 
 NS_IMETHODIMP
 nsLayoutHistoryState::AddState(const nsCString& aStateKey, nsPresState* aState)
 {
-  mStates.Put(aStateKey, aState);
-  return NS_OK;
+  return mStates.Put(aStateKey, aState) ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
 
 NS_IMETHODIMP

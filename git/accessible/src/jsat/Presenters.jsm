@@ -14,8 +14,7 @@ Cu.import('resource://gre/modules/Services.jsm');
 
 var EXPORTED_SYMBOLS = ['VisualPresenter',
                         'AndroidPresenter',
-                        'DummyAndroidPresenter',
-                        'PresenterContext'];
+                        'DummyAndroidPresenter'];
 
 /**
  * The interface for all presenter classes. A presenter could be, for example,
@@ -37,10 +36,11 @@ Presenter.prototype = {
 
   /**
    * The virtual cursor's position changed.
-   * @param {PresenterContext} aContext the context object for the new pivot
-   *   position.
+   * @param {nsIAccessible} aObject the new position.
+   * @param {nsIAccessible[]} aNewContext the ancestry of the new position that
+   *    is different from the old virtual cursor position.
    */
-  pivotChanged: function pivotChanged(aContext) {},
+  pivotChanged: function pivotChanged(aObject, aNewContext) {},
 
   /**
    * An object's action has been invoked.
@@ -78,12 +78,11 @@ Presenter.prototype = {
 
   /**
    * The current tab has changed.
-   * @param {PresenterContext} aDocContext context object for tab's
-   *   document.
-   * @param {PresenterContext} aVCContext context object for tab's current
-   *   virtual cursor position.
+   * @param {nsIAccessible} aObject the document contained by the tab
+   *    accessible, or null if it is a new tab with no attached
+   *    document yet.
    */
-  tabSelected: function tabSelected(aDocContext, aVCContext) {},
+  tabSelected: function tabSelected(aDocObj) {},
 
   /**
    * The viewport has changed, either a scroll, pan, zoom, or
@@ -140,32 +139,34 @@ VisualPresenter.prototype = {
       this._highlight(this._currentObject);
   },
 
-  pivotChanged: function VisualPresenter_pivotChanged(aContext) {
-    this._currentObject = aContext.accessible;
+  pivotChanged: function VisualPresenter_pivotChanged(aObject, aNewContext) {
+    this._currentObject = aObject;
 
-    if (!aContext.accessible) {
+    if (!aObject) {
       this._hide();
       return;
     }
 
     try {
-      aContext.accessible.scrollTo(
-        Ci.nsIAccessibleScrollType.SCROLL_TYPE_ANYWHERE);
-      this._highlight(aContext.accessible);
+      aObject.scrollTo(Ci.nsIAccessibleScrollType.SCROLL_TYPE_ANYWHERE);
+      this._highlight(aObject);
     } catch (e) {
       dump('Error getting bounds: ' + e);
       return;
     }
   },
 
-  tabSelected: function VisualPresenter_tabSelected(aDocContext, aVCContext) {
-    this.pivotChanged(aVCContext);
+  tabSelected: function VisualPresenter_tabSelected(aDocObj) {
+    let vcPos = aDocObj ? aDocObj.QueryInterface(Ci.nsIAccessibleCursorable).
+      virtualCursor.position : null;
+
+    this.pivotChanged(vcPos);
   },
 
   tabStateChanged: function VisualPresenter_tabStateChanged(aDocObj,
                                                             aPageState) {
     if (aPageState == 'newdoc')
-      this._hide();
+      this.pivotChanged(null);
   },
 
   // Internals
@@ -233,15 +234,14 @@ AndroidPresenter.prototype = {
   ANDROID_VIEW_TEXT_CHANGED: 0x10,
   ANDROID_WINDOW_STATE_CHANGED: 0x20,
 
-  pivotChanged: function AndroidPresenter_pivotChanged(aContext) {
+  pivotChanged: function AndroidPresenter_pivotChanged(aObject, aNewContext) {
     let output = [];
-    for (let i in aContext.newAncestry)
-      output.push.apply(
-        output, UtteranceGenerator.genForObject(aContext.newAncestry[i]));
+    for (let i in aNewContext)
+      output.push.apply(output,
+                        UtteranceGenerator.genForObject(aNewContext[i]));
 
     output.push.apply(output,
-                      UtteranceGenerator.genForObject(aContext.accessible,
-                                                      true));
+                      UtteranceGenerator.genForObject(aObject, true));
 
     this.sendMessageToJava({
       gecko: {
@@ -262,9 +262,21 @@ AndroidPresenter.prototype = {
     });
   },
 
-  tabSelected: function AndroidPresenter_tabSelected(aDocContext, aVCContext) {
+  tabSelected: function AndroidPresenter_tabSelected(aDocObj) {
     // Send a pivot change message with the full context utterance for this doc.
-    this.pivotChanged(aVCContext);
+    let vcDoc = aDocObj.QueryInterface(Ci.nsIAccessibleCursorable);
+    let context = [];
+
+    let parent = vcDoc.virtualCursor.position || aDocObj;
+    while ((parent = parent.parent)) {
+      context.push(parent);
+      if (parent == aDocObj)
+        break;
+    }
+
+    context.reverse();
+
+    this.pivotChanged(vcDoc.virtualCursor.position || aDocObj, context);
   },
 
   tabStateChanged: function AndroidPresenter_tabStateChanged(aDocObj,
@@ -328,64 +340,5 @@ DummyAndroidPresenter.prototype = {
 
   sendMessageToJava: function DummyAndroidPresenter_sendMessageToJava(aMsg) {
     dump(JSON.stringify(aMsg, null, 2) + '\n');
-  }
-};
-
-/**
- * PresenterContext: An object that generates and caches context information
- * for a given accessible and its relationship with another accessible.
- */
-function PresenterContext(aAccessible, aOldAccessible) {
-  this._accessible = aAccessible;
-  this._oldAccessible = aOldAccessible;
-}
-
-PresenterContext.prototype = {
-  get accessible() {
-    return this._accessible;
-  },
-
-  get oldAccessible() {
-    return this._oldAccessible;
-  },
-
-  /*
-   * This is a list of the accessible's ancestry up to the common ancestor
-   * of the accessible and the old accessible. It is useful for giving the
-   * user context as to where they are in the heirarchy.
-   */
-  get newAncestry() {
-    if (!this._newAncestry) {
-      let newLineage = [];
-      let oldLineage = [];
-
-      let parent = this._accessible;
-      while ((parent = parent.parent))
-        newLineage.push(parent);
-
-      if (this._oldAccessible) {
-        parent = this._oldAccessible;
-        while ((parent = parent.parent))
-          oldLineage.push(parent);
-      }
-
-      let i = 0;
-      this._newAncestry = [];
-
-      while (true) {
-        let newAncestor = newLineage.pop();
-        let oldAncestor = oldLineage.pop();
-
-        if (newAncestor == undefined)
-          break;
-
-        if (newAncestor != oldAncestor)
-          this._newAncestry.push(newAncestor);
-        i++;
-      }
-
-    }
-
-    return this._newAncestry;
   }
 };

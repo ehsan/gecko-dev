@@ -102,8 +102,7 @@ public:
   NS_IMETHOD GetDocumentIsEmpty(bool *aDocumentIsEmpty);
   NS_IMETHOD GetIsDocumentEditable(bool *aIsDocumentEditable);
 
-  NS_IMETHOD DeleteSelection(EDirection aAction,
-                             EStripWrappers aStripWrappers);
+  NS_IMETHOD DeleteSelection(EDirection aAction);
 
   NS_IMETHOD SetDocumentCharacterSet(const nsACString & characterSet);
 

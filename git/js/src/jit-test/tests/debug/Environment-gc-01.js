@@ -9,11 +9,11 @@ assertEq(g.f(22), 44);
 dbg.onEnterFrame = undefined;
 
 assertEq(env.find("x"), env);
-assertEq(env.names().join(","), "arguments,x");
+assertEq(env.names().join(","), "x");
 
 gc();
 g.gc(g);
 gc(env);
 
 assertEq(env.find("x"), env);
-assertEq(env.names().join(","), "arguments,x");
+assertEq(env.names().join(","), "x");

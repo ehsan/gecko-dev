@@ -71,7 +71,9 @@ public:
   StatementCache(nsCOMPtr<mozIStorageConnection>& aConnection)
   : mConnection(aConnection)
   {
-    mCachedStatements.Init();
+    if (!mCachedStatements.Init()) {
+      NS_ERROR("Out of memory!?");
+    }
   }
 
   /**
@@ -92,7 +94,9 @@ public:
       stmt = CreateStatement(aQuery);
       NS_ENSURE_TRUE(stmt, nsnull);
 
-      mCachedStatements.Put(aQuery, stmt);
+      if (!mCachedStatements.Put(aQuery, stmt)) {
+        NS_ERROR("Out of memory!?");
+      }
     }
     return stmt.forget();
   }

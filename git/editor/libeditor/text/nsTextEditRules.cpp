@@ -410,7 +410,7 @@ nsTextEditRules::WillInsertBreak(nsISelection *aSelection,
     NS_ENSURE_SUCCESS(res, res);
     if (!bCollapsed)
     {
-      res = mEditor->DeleteSelection(nsIEditor::eNone, nsIEditor::eStrip);
+      res = mEditor->DeleteSelection(nsIEditor::eNone);
       NS_ENSURE_SUCCESS(res, res);
     }
 
@@ -638,7 +638,7 @@ nsTextEditRules::WillInsertText(nsEditor::OperationID aAction,
   NS_ENSURE_SUCCESS(res, res);
   if (!bCollapsed)
   {
-    res = mEditor->DeleteSelection(nsIEditor::eNone, nsIEditor::eStrip);
+    res = mEditor->DeleteSelection(nsIEditor::eNone);
     NS_ENSURE_SUCCESS(res, res);
   }
 
@@ -878,7 +878,7 @@ nsTextEditRules::WillDeleteSelection(nsISelection *aSelection,
     NS_ENSURE_SUCCESS(res, res);
   }
 
-  res = mEditor->DeleteSelectionImpl(aCollapsedAction, nsIEditor::eStrip);
+  res = mEditor->DeleteSelectionImpl(aCollapsedAction);
   NS_ENSURE_SUCCESS(res, res);
 
   *aHandled = true;

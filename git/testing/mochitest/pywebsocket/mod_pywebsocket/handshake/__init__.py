@@ -83,15 +83,15 @@ def do_handshake(request, dispatcher, allowDraft75=False, strict=False):
 
     handshakers = []
     handshakers.append(
-        ('RFC 6455', hybi.Handshaker(request, dispatcher)))
+        ('IETF HyBi latest', hybi.Handshaker(request, dispatcher)))
     handshakers.append(
-        ('HyBi 00', hybi00.Handshaker(request, dispatcher)))
+        ('IETF HyBi 00', hybi00.Handshaker(request, dispatcher)))
     if allowDraft75:
         handshakers.append(
-            ('Hixie 75', draft75.Handshaker(request, dispatcher, strict)))
+            ('IETF Hixie 75', draft75.Handshaker(request, dispatcher, strict)))
 
     for name, handshaker in handshakers:
-        _LOGGER.debug('Trying protocol version %s', name)
+        _LOGGER.debug('Trying %s protocol', name)
         try:
             handshaker.do_handshake()
             _LOGGER.info('Established (%s protocol)', name)

@@ -135,19 +135,22 @@ public class GLController {
         return mHeight;
     }
 
+    synchronized void surfaceCreated() {
+        mSurfaceValid = true;
+        notifyAll();
+    }
+
     synchronized void surfaceDestroyed() {
         mSurfaceValid = false;
         notifyAll();
     }
 
-    synchronized void surfaceChanged(int newWidth, int newHeight) {
+    synchronized void sizeChanged(int newWidth, int newHeight) {
         mWidth = newWidth;
         mHeight = newHeight;
         if (mGL != null) {
           mView.getRenderer().onSurfaceChanged((GL10)mGL, mWidth, mHeight);
         }
-        mSurfaceValid = true;
-        notifyAll();
     }
 
     private void initEGL() {
@@ -172,7 +175,7 @@ public class GLController {
 
         if (mView.getRenderer() != null) {
             mView.getRenderer().onSurfaceCreated((GL10)mGL, mEGLConfig);
-            mView.getRenderer().onSurfaceChanged((GL10)mGL, mWidth, mHeight);
+            mView.getRenderer().onSurfaceChanged((GL10)mGL, mView.getWidth(), mView.getHeight());
         }
     }
 

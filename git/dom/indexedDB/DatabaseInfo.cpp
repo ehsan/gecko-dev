@@ -73,7 +73,10 @@ CloneObjectStoreInfo(const nsAString& aKey,
 
   nsRefPtr<ObjectStoreInfo> newInfo(new ObjectStoreInfo(*aData));
 
-  hash->Put(aKey, newInfo);
+  if (!hash->Put(aKey, newInfo)) {
+    NS_WARNING("Out of memory?");
+    return PL_DHASH_STOP;
+  }
 
   return PL_DHASH_NEXT;
 }
@@ -175,7 +178,11 @@ DatabaseInfo::Put(DatabaseInfo* aInfo)
 
   if (!gDatabaseHash) {
     nsAutoPtr<DatabaseHash> databaseHash(new DatabaseHash());
-    databaseHash->Init();
+    if (!databaseHash->Init()) {
+      NS_ERROR("Failed to initialize hashtable!");
+      return false;
+    }
+
     gDatabaseHash = databaseHash.forget();
   }
 
@@ -184,7 +191,10 @@ DatabaseInfo::Put(DatabaseInfo* aInfo)
     return false;
   }
 
-  gDatabaseHash->Put(aInfo->id, aInfo);
+  if (!gDatabaseHash->Put(aInfo->id, aInfo)) {
+    NS_ERROR("Put failed!");
+    return false;
+  }
 
   return true;
 }
@@ -270,7 +280,10 @@ DatabaseInfo::PutObjectStore(ObjectStoreInfo* aInfo)
 
   if (!objectStoreHash) {
     nsAutoPtr<ObjectStoreInfoHash> hash(new ObjectStoreInfoHash());
-    hash->Init();
+    if (!hash->Init()) {
+      NS_ERROR("Failed to initialize hashtable!");
+      return false;
+    }
     objectStoreHash = hash.forget();
   }
 
@@ -279,8 +292,7 @@ DatabaseInfo::PutObjectStore(ObjectStoreInfo* aInfo)
     return false;
   }
 
-  objectStoreHash->Put(aInfo->name, aInfo);
-  return true;
+  return objectStoreHash->Put(aInfo->name, aInfo);
 }
 
 void
@@ -311,7 +323,10 @@ DatabaseInfo::Clone()
 
   if (objectStoreHash) {
     dbInfo->objectStoreHash = new ObjectStoreInfoHash();
-    dbInfo->objectStoreHash->Init();
+    if (!dbInfo->objectStoreHash->Init()) {
+      return nsnull;
+    }
+
     objectStoreHash->EnumerateRead(CloneObjectStoreInfo,
                                    dbInfo->objectStoreHash);
   }

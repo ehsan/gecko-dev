@@ -47,19 +47,25 @@ using namespace mozilla;
 
 ///////////////////////////////////////////////////////////////////////////
 // IsBody: true if node an html body node
+//                  
+// Would use NodeIsType and the corresponding atom, but
+// the atom list isn't generationed in a plaintext-only
+// configured build.
 bool 
 nsTextEditUtils::IsBody(nsIDOMNode *node)
 {
-  return nsEditor::NodeIsType(node, nsGkAtoms::body);
+  return nsEditor::NodeIsTypeString(node, NS_LITERAL_STRING("body"));
 }
 
 
 ///////////////////////////////////////////////////////////////////////////
 // IsBreak: true if node an html break node
+//                  
+// See previous comment regarding NodeisType
 bool 
 nsTextEditUtils::IsBreak(nsIDOMNode *node)
 {
-  return nsEditor::NodeIsType(node, nsGkAtoms::br);
+  return nsEditor::NodeIsTypeString(node, NS_LITERAL_STRING("br"));
 }
 
 

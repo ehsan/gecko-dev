@@ -137,7 +137,9 @@ PluginModuleParent::PluginModuleParent(const char* aFilePath)
 {
     NS_ASSERTION(mSubprocess, "Out of memory!");
 
-    mIdentifiers.Init();
+    if (!mIdentifiers.Init()) {
+        NS_ERROR("Out of memory");
+    }
 
     Preferences::RegisterCallback(TimeoutChanged, kChildTimeoutPref, this);
     Preferences::RegisterCallback(TimeoutChanged, kParentTimeoutPref, this);

@@ -394,7 +394,7 @@ BEGIN_WORKERS_NAMESPACE
 
 // Entry point for the DOM.
 JSBool
-ResolveWorkerClasses(JSContext* aCx, JSHandleObject aObj, JSHandleId aId, unsigned aFlags,
+ResolveWorkerClasses(JSContext* aCx, JSObject* aObj, jsid aId, unsigned aFlags,
                      JSObject** aObjp)
 {
   AssertIsOnMainThread();
@@ -423,7 +423,7 @@ ResolveWorkerClasses(JSContext* aCx, JSHandleObject aObj, JSHandleId aId, unsign
   bool shouldResolve = false;
 
   for (PRUint32 i = 0; i < ID_COUNT; i++) {
-    if (gStringIDs[i] == aId) {
+    if (aId == gStringIDs[i]) {
       nsIScriptSecurityManager* ssm = nsContentUtils::GetSecurityManager();
       NS_ASSERTION(ssm, "This should never be null!");
 
@@ -437,7 +437,7 @@ ResolveWorkerClasses(JSContext* aCx, JSHandleObject aObj, JSHandleId aId, unsign
 
       // Don't resolve if this is ChromeWorker and we're not chrome. Otherwise
       // always resolve.
-      shouldResolve = gStringIDs[ID_ChromeWorker] == aId ? isChrome : true;
+      shouldResolve = aId == gStringIDs[ID_ChromeWorker] ? isChrome : true;
       break;
     }
   }
@@ -639,7 +639,11 @@ RuntimeService::RegisterWorker(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
 
       domainInfo = new WorkerDomainInfo();
       domainInfo->mDomain = domain;
-      mDomainMap.Put(domain, domainInfo);
+
+      if (!mDomainMap.Put(domain, domainInfo)) {
+        delete domainInfo;
+        domainInfo = nsnull;
+      }
     }
 
     if (domainInfo) {
@@ -692,7 +696,13 @@ RuntimeService::RegisterWorker(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
       NS_ASSERTION(!parent, "Shouldn't have a parent here!");
 
       windowArray = new nsTArray<WorkerPrivate*>(1);
-      mWindowMap.Put(window, windowArray);
+
+      if (!mWindowMap.Put(window, windowArray)) {
+        delete windowArray;
+        UnregisterWorker(aCx, aWorkerPrivate);
+        JS_ReportOutOfMemory(aCx);
+        return false;
+      }
     }
 
     NS_ASSERTION(!windowArray->Contains(aWorkerPrivate),
@@ -905,8 +915,11 @@ RuntimeService::Init()
   mIdleThreadTimer = do_CreateInstance(NS_TIMER_CONTRACTID);
   NS_ENSURE_STATE(mIdleThreadTimer);
 
-  mDomainMap.Init();
-  mWindowMap.Init();
+  bool ok = mDomainMap.Init();
+  NS_ENSURE_STATE(ok);
+
+  ok = mWindowMap.Init();
+  NS_ENSURE_STATE(ok);
 
   nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
   NS_ENSURE_TRUE(obs, NS_ERROR_FAILURE);

@@ -7,21 +7,21 @@ var manager = null;
 var bufferCache = [];
 var utils = SpecialPowers.getDOMWindowUtils(window);
 
-function getView(size)
+function getBuffer(size)
 {
   let buffer = new ArrayBuffer(size);
-  let view = new Uint8Array(buffer);
   is(buffer.byteLength, size, "Correct byte length");
-  return view;
+  return buffer;
 }
 
-function getRandomView(size)
+function getRandomBuffer(size)
 {
-  let view = getView(size);
+  let buffer = getBuffer(size);
+  let view = new Uint8Array(buffer);
   for (let i = 0; i < size; i++) {
     view[i] = parseInt(Math.random() * 255)
   }
-  return view;
+  return buffer;
 }
 
 function compareBuffers(buffer1, buffer2)
@@ -39,34 +39,34 @@ function compareBuffers(buffer1, buffer2)
   return true;
 }
 
-function getBlob(type, view)
+function getBlob(type, buffer)
 {
-  return new Blob([view], {type: type});
+  return new Blob([buffer], {type: type});
 }
 
-function getFile(name, type, view)
+function getFile(name, type, buffer)
 {
-  return new Blob([view], {type: type});
+  return new Blob([buffer], {type: type});
 }
 
 function getRandomBlob(size)
 {
-  return getBlob("binary/random", getRandomView(size));
+  return getBlob("binary/random", getRandomBuffer(size));
 }
 
 function getRandomFile(name, size)
 {
-  return getFile(name, "binary/random", getRandomView(size));
+  return getFile(name, "binary/random", getRandomBuffer(size));
 }
 
 function getNullBlob(size)
 {
-  return getBlob("binary/null", getView(size));
+  return getBlob("binary/null", getBuffer(size));
 }
 
 function getNullFile(name, size)
 {
-  return getFile(name, "binary/null", getView(size));
+  return getFile(name, "binary/null", getBuffer(size));
 }
 
 function verifyBuffers(buffer1, buffer2)

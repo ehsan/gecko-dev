@@ -275,7 +275,10 @@ nsCounterManager::CounterListFor(const nsSubstring& aCounterName)
     nsCounterList *counterList;
     if (!mNames.Get(aCounterName, &counterList)) {
         counterList = new nsCounterList();
-        mNames.Put(aCounterName, counterList);
+        if (!mNames.Put(aCounterName, counterList)) {
+            delete counterList;
+            return nsnull;
+        }
     }
     return counterList;
 }

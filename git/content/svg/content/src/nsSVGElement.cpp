@@ -931,7 +931,6 @@ nsSVGElement::sFillStrokeMap[] = {
   { &nsGkAtoms::stroke_miterlimit },
   { &nsGkAtoms::stroke_opacity },
   { &nsGkAtoms::stroke_width },
-  { &nsGkAtoms::vector_effect },
   { nsnull }
 };
 

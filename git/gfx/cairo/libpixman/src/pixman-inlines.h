@@ -83,7 +83,6 @@ repeat (pixman_repeat_t repeat, int *c, int size)
 
 #ifdef MOZ_GFX_OPTIMIZE_MOBILE
 #define LOW_QUALITY_INTERPOLATION
-#define LOWER_QUALITY_INTERPOLATION
 #endif
 
 #ifdef LOW_QUALITY_INTERPOLATION

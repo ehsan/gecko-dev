@@ -28,11 +28,8 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-"""This file provides a class for parsing/building frames of the WebSocket
-protocol version HyBi 00 and Hixie 75.
-
-Specification:
-http://tools.ietf.org/html/draft-ietf-hybi-thewebsocketprotocol-00
+"""Stream of WebSocket protocol with the framing used by IETF HyBi 00 and
+Hixie 75. For Hixie 75 this stream doesn't perform closing handshake.
 """
 
 
@@ -46,9 +43,7 @@ from mod_pywebsocket import util
 
 
 class StreamHixie75(StreamBase):
-    """A class for parsing/building frames of the WebSocket protocol version
-    HyBi 00 and Hixie 75.
-    """
+    """Stream of WebSocket messages."""
 
     def __init__(self, request, enable_closing_handshake=False):
         """Construct an instance.

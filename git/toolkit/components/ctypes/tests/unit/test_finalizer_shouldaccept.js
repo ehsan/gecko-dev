@@ -5,10 +5,7 @@ try {
 } catch(e) {
 }
 
-let acquire, dispose, reset_errno, dispose_errno,
-  acquire_ptr, dispose_ptr,
-  acquire_void_ptr, dispose_void_ptr,
-  acquire_string, dispose_string;
+let acquire, dispose, reset_errno, dispose_errno, acquire_ptr, dispose_ptr;
 
 function run_test()
 {
@@ -43,21 +40,12 @@ function run_test()
                                 ctypes.default_abi,
                                 ctypes.void_t,
                                 ctypes.int32_t.ptr);
-  acquire_string = library.declare("test_finalizer_acq_string_t",
-                                ctypes.default_abi,
-                                ctypes.char.ptr,
-                                ctypes.size_t);
-  dispose_string = library.declare("test_finalizer_rel_string_t",
-                                ctypes.default_abi,
-                                ctypes.void_t,
-                                ctypes.char.ptr);
 
   tester.launch(10, test_to_string);
   tester.launch(10, test_to_source);
   tester.launch(10, test_to_int);
   tester.launch(10, test_errno);
   tester.launch(10, test_to_pointer);
-  tester.launch(10, test_readstring);
 }
 
 /**
@@ -157,18 +145,4 @@ function test_to_pointer()
   do_check_eq(""+ptr, ""+unwrapped);
 
   finalizable.forget(); // Do not dispose: This is not a real pointer.
-}
-
-/**
- * Test that readstring can be applied to a finalizer
- */
-function test_readstring(size)
-{
-  for (let i = 0; i < size; ++i) {
-    let acquired = acquire_string(i);
-    let finalizable = ctypes.CDataFinalizer(acquired,
-      dispose_string);
-    do_check_eq(finalizable.readString(), acquired.readString());
-    finalizable.dispose();
-  }
 }

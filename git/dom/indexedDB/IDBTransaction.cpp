@@ -136,7 +136,10 @@ IDBTransaction::Create(IDBDatabase* aDatabase,
     return nsnull;
   }
 
-  transaction->mCachedStatements.Init();
+  if (!transaction->mCachedStatements.Init()) {
+    NS_ERROR("Failed to initialize hash!");
+    return nsnull;
+  }
 
   if (!aDispatchDelayed) {
     nsCOMPtr<nsIAppShell> appShell = do_GetService(kAppShellCID);
@@ -393,7 +396,9 @@ IDBTransaction::GetCachedStatement(const nsACString& aQuery)
 #endif
     NS_ENSURE_SUCCESS(rv, nsnull);
 
-    mCachedStatements.Put(aQuery, stmt);
+    if (!mCachedStatements.Put(aQuery, stmt)) {
+      NS_ERROR("Out of memory?!");
+    }
   }
 
   return stmt.forget();
@@ -840,7 +845,7 @@ CommitHelper::RevertAutoIncrementCounts()
 nsresult
 UpdateRefcountFunction::Init()
 {
-  mFileInfoEntries.Init();
+  NS_ENSURE_TRUE(mFileInfoEntries.Init(), NS_ERROR_OUT_OF_MEMORY);
 
   return NS_OK;
 }
@@ -906,7 +911,10 @@ UpdateRefcountFunction::ProcessValue(mozIStorageValueArray* aValues,
       NS_ASSERTION(fileInfo, "Shouldn't be null!");
 
       nsAutoPtr<FileInfoEntry> newEntry(new FileInfoEntry(fileInfo));
-      mFileInfoEntries.Put(id, newEntry);
+      if (!mFileInfoEntries.Put(id, newEntry)) {
+        NS_WARNING("Out of memory?");
+        return NS_ERROR_OUT_OF_MEMORY;
+      }
       entry = newEntry.forget();
     }
 

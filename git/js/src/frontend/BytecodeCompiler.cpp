@@ -157,9 +157,8 @@ frontend::CompileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
     /* If this is a direct call to eval, inherit the caller's strictness.  */
     if (callerFrame &&
         callerFrame->isScriptFrame() &&
-        callerFrame->script()->strictModeCode)
-    {
-        bce.sc->setInStrictMode();
+        callerFrame->script()->strictModeCode) {
+        bce.sc->flags |= TCF_STRICT_MODE_CODE;
         tokenStream.setStrictMode();
     }
 

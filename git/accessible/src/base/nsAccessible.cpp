@@ -746,19 +746,11 @@ nsAccessible::NativeState()
     if (mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::popup))
       state |= states::HASPOPUP;
 
-  // Bypass the link states specialization for non links.
-  if (!mRoleMapEntry || mRoleMapEntry->roleRule == kUseNativeRole ||
-      mRoleMapEntry->role == roles::LINK)
-    state |= NativeLinkState();
+  // Add 'linked' state for simple xlink.
+  if (nsCoreUtils::IsXLink(mContent))
+    state |= states::LINKED;
 
   return state;
-}
-
-PRUint64
-nsAccessible::NativeLinkState() const
-{
-  // Expose linked state for simple xlink.
-  return nsCoreUtils::IsXLink(mContent) ? states::LINKED : 0;
 }
 
   /* readonly attribute boolean focusedChild; */
@@ -1626,7 +1618,7 @@ nsAccessible::State()
 }
 
 void
-nsAccessible::ApplyARIAState(PRUint64* aState) const
+nsAccessible::ApplyARIAState(PRUint64* aState)
 {
   if (!mContent->IsElement())
     return;

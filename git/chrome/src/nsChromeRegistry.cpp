@@ -175,7 +175,8 @@ nsChromeRegistry::GetService()
 nsresult
 nsChromeRegistry::Init()
 {
-  mOverrideTable.Init();
+  if (!mOverrideTable.Init())
+    return NS_ERROR_FAILURE;
 
   // This initialization process is fairly complicated and may cause reentrant
   // getservice calls to resolve chrome URIs (especially locale files). We

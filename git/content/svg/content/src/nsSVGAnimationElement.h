@@ -100,9 +100,6 @@ public:
   virtual nsSMILTimedElement& TimedElement();
   virtual nsSMILTimeContainer* GetTimeContainer();
 
-  // Utility methods for within SVG
-  void ActivateByHyperlink();
-
 protected:
   // nsSVGElement overrides
   bool IsEventName(nsIAtom* aName);

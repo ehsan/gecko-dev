@@ -915,8 +915,10 @@ nsresult imgLoader::InitCache()
 
   gCacheTracker = new imgCacheExpirationTracker();
 
-  sCache.Init();
-  sChromeCache.Init();
+  if (!sCache.Init())
+      return NS_ERROR_OUT_OF_MEMORY;
+  if (!sChromeCache.Init())
+      return NS_ERROR_OUT_OF_MEMORY;
 
   PRInt32 timeweight;
   rv = Preferences::GetInt("image.cache.timeweight", &timeweight);
@@ -1081,7 +1083,8 @@ bool imgLoader::PutIntoCache(nsIURI *key, imgCacheEntry *entry)
            ("[this=%p] imgLoader::PutIntoCache -- Element NOT already in the cache", nsnull));
   }
 
-  cache.Put(spec, entry);
+  if (!cache.Put(spec, entry))
+    return false;
 
   // We can be called to resurrect an evicted entry.
   if (entry->Evicted())

@@ -436,8 +436,8 @@ class StackFrame
         NoPostBarrier = false
     };
     template <class T, class U, TriggerPostBarriers doPostBarrier>
-    void stealFrameAndSlots(JSContext *cx, StackFrame *fp, T *vp,
-                            StackFrame *otherfp, U *othervp, Value *othersp);
+    void stealFrameAndSlots(StackFrame *fp, T *vp, StackFrame *otherfp, U *othervp,
+                            Value *othersp);
     void writeBarrierPost();
 
     /* Perhaps one fine day we will remove dummy frames. */
@@ -503,14 +503,6 @@ class StackFrame
 
     bool isNonStrictEvalFrame() const {
         return isEvalFrame() && !script()->strictModeCode;
-    }
-
-    bool isDirectEvalFrame() const {
-        return isEvalFrame() && script()->staticLevel > 0;
-    }
-
-    bool isNonStrictDirectEvalFrame() const {
-        return isNonStrictEvalFrame() && isDirectEvalFrame();
     }
 
     /*
@@ -810,9 +802,9 @@ class StackFrame
      * null (for global frames).
      */
 
-    JSFunction &callee() const {
+    JSObject &callee() const {
         JS_ASSERT(isFunctionFrame());
-        return *calleev().toObject().toFunction();
+        return calleev().toObject();
     }
 
     const Value &calleev() const {
@@ -880,8 +872,50 @@ class StackFrame
     }
 
     inline CallObject &callObj() const;
-    inline void initScopeChain(CallObject &callobj);
-    inline void setScopeChain(JSObject &obj);
+    inline void setScopeChainNoCallObj(JSObject &obj);
+    inline void setScopeChainWithOwnCallObj(CallObject &obj);
+
+    /* Block chain */
+
+    bool hasBlockChain() const {
+        return (flags_ & HAS_BLOCKCHAIN) && blockChain_;
+    }
+
+    StaticBlockObject *maybeBlockChain() {
+        return (flags_ & HAS_BLOCKCHAIN) ? blockChain_ : NULL;
+    }
+
+    StaticBlockObject &blockChain() const {
+        JS_ASSERT(hasBlockChain());
+        return *blockChain_;
+    }
+
+    void setBlockChain(StaticBlockObject *obj) {
+        flags_ |= HAS_BLOCKCHAIN;
+        blockChain_ = obj;
+    }
+
+    /*
+     * Prologue for function frames: make a call object for heavyweight
+     * functions, and maintain type nesting invariants.
+     */
+    inline bool functionPrologue(JSContext *cx);
+
+    /*
+     * Epilogue for function frames: put any args or call object for the frame
+     * which may still be live, and maintain type nesting invariants. Note:
+     * this does mark the epilogue as having been completed, since the frame is
+     * about to be popped. Use updateEpilogueFlags for this.
+     */
+    inline void functionEpilogue();
+
+    /*
+     * If callObj() or argsObj() have already been put, update our flags
+     * accordingly. This call must be followed by a later functionEpilogue.
+     */
+    inline void updateEpilogueFlags();
+
+    inline bool maintainNestingState() const;
 
     /*
      * Variables object
@@ -899,50 +933,6 @@ class StackFrame
      */
 
     inline JSObject &varObj();
-
-    /* Block chain */
-
-    bool hasBlockChain() const {
-        return (flags_ & HAS_BLOCKCHAIN) && blockChain_;
-    }
-
-    StaticBlockObject *maybeBlockChain() {
-        return (flags_ & HAS_BLOCKCHAIN) ? blockChain_ : NULL;
-    }
-
-    StaticBlockObject &blockChain() const {
-        JS_ASSERT(hasBlockChain());
-        return *blockChain_;
-    }
-
-    /* Enter/exit execution of a lexical block. */
-    bool pushBlock(JSContext *cx, StaticBlockObject &block);
-    void popBlock(JSContext *cx);
-
-    /* Exits (via execution or exception) a with block. */
-    void popWith(JSContext *cx);
-
-    /*
-     * Prologue for function frames: make a call object for heavyweight
-     * functions, and maintain type nesting invariants.
-     */
-    inline bool functionPrologue(JSContext *cx);
-
-    /*
-     * Epilogue for function frames: put any args or call object for the frame
-     * which may still be live, and maintain type nesting invariants. Note:
-     * this does mark the epilogue as having been completed, since the frame is
-     * about to be popped. Use updateEpilogueFlags for this.
-     */
-    inline void functionEpilogue(JSContext *cx);
-
-    /*
-     * If callObj() or argsObj() have already been put, update our flags
-     * accordingly. This call must be followed by a later functionEpilogue.
-     */
-    inline void updateEpilogueFlags();
-
-    inline bool maintainNestingState() const;
 
     /*
      * Frame compartment
@@ -1139,6 +1129,11 @@ class StackFrame
     bool finishedInInterpreter() const {
         return !!(flags_ & FINISHED_IN_INTERP);
     }
+
+#ifdef DEBUG
+    /* Poison scopeChain value set before a frame is flushed. */
+    static JSObject *const sInvalidScopeChain;
+#endif
 
   public:
     /* Public, but only for JIT use: */
@@ -1568,10 +1563,6 @@ class StackSpace
 
     /* We only report the committed size;  uncommitted size is uninteresting. */
     JS_FRIEND_API(size_t) sizeOfCommitted();
-
-#ifdef DEBUG
-    bool containsSlow(StackFrame *fp);
-#endif
 };
 
 /*****************************************************************************/
@@ -1824,7 +1815,7 @@ class GeneratorFrameGuard : public FrameGuard
 class StackIter
 {
     friend class ContextStack;
-    JSContext    *maybecx_;
+    JSContext    *cx_;
   public:
     enum SavedOption { STOP_AT_SAVED, GO_THROUGH_SAVED };
   private:
@@ -1851,7 +1842,6 @@ class StackIter
 
   public:
     StackIter(JSContext *cx, SavedOption = STOP_AT_SAVED);
-    StackIter(JSRuntime *rt, StackSegment &seg);
 
     bool done() const { return state_ == DONE; }
     StackIter &operator++();

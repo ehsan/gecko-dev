@@ -68,11 +68,8 @@ class nsSVGContainerFrame : public nsSVGContainerFrameBase
   friend nsIFrame* NS_NewSVGContainerFrame(nsIPresShell* aPresShell,
                                            nsStyleContext* aContext);
 protected:
-  nsSVGContainerFrame(nsStyleContext* aContext)
-    : nsSVGContainerFrameBase(aContext)
-  {
-    AddStateBits(NS_FRAME_SVG_LAYOUT);
-  }
+  nsSVGContainerFrame(nsStyleContext* aContext) :
+    nsSVGContainerFrameBase(aContext) {}
 
 public:
   NS_DECL_QUERYFRAME_TARGET(nsSVGContainerFrame)
@@ -81,17 +78,6 @@ public:
 
   // Returns the transform to our gfxContext (to device pixels, not CSS px)
   virtual gfxMatrix GetCanvasTM() { return gfxMatrix(); }
-
-  /**
-   * Returns true if the frame's content has a transform that applies only to
-   * its children, and not to the frame itself. For example, an implicit
-   * transform introduced by a 'viewBox' attribute, or an explicit transform
-   * due to a root-<svg> having its currentScale/currentTransform properties
-   * set. If aTransform is non-null, then it will be set to the transform.
-   */
-  virtual bool HasChildrenOnlyTransform(gfxMatrix *aTransform) const {
-    return false;
-  }
 
   // nsIFrame:
   NS_IMETHOD AppendFrames(ChildListID     aListID,
@@ -107,8 +93,6 @@ public:
     return nsSVGContainerFrameBase::IsFrameOfType(
             aFlags & ~(nsIFrame::eSVG | nsIFrame::eSVGContainer));
   }
-
-  virtual bool UpdateOverflow();
 };
 
 /**
@@ -119,11 +103,8 @@ class nsSVGDisplayContainerFrame : public nsSVGContainerFrame,
                                    public nsISVGChildFrame
 {
 protected:
-  nsSVGDisplayContainerFrame(nsStyleContext* aContext)
-    : nsSVGContainerFrame(aContext)
-  {
-     AddStateBits(NS_FRAME_MAY_BE_TRANSFORMED);
-  }
+  nsSVGDisplayContainerFrame(nsStyleContext* aContext) :
+    nsSVGContainerFrame(aContext) {}
 
 public:
   NS_DECL_QUERYFRAME_TARGET(nsSVGDisplayContainerFrame)
@@ -140,9 +121,6 @@ public:
                   nsIFrame*        aParent,
                   nsIFrame*        aPrevInFlow);
 
-  virtual bool IsSVGTransformed(gfxMatrix *aOwnTransform = nsnull,
-                                gfxMatrix *aFromParentTransform = nsnull) const;
-
   // nsISVGChildFrame interface:
   NS_IMETHOD PaintSVG(nsRenderingContext* aContext,
                       const nsIntRect *aDirtyRect);
@@ -153,6 +131,7 @@ public:
   virtual SVGBBox GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
                                       PRUint32 aFlags);
   NS_IMETHOD_(bool) IsDisplayContainer() { return true; }
+  NS_IMETHOD_(bool) HasValidCoveredRect() { return false; }
 };
 
 #endif

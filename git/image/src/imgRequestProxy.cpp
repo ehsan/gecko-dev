@@ -558,17 +558,6 @@ NS_IMETHODIMP imgRequestProxy::GetImagePrincipal(nsIPrincipal **aPrincipal)
   return NS_OK;
 }
 
-/* readonly attribute bool multipart; */
-NS_IMETHODIMP imgRequestProxy::GetMultipart(bool *aMultipart)
-{
-  if (!mOwner)
-    return NS_ERROR_FAILURE;
-
-  *aMultipart = mOwner->GetMultipart();
-
-  return NS_OK;
-}
-
 /* readonly attribute PRInt32 CORSMode; */
 NS_IMETHODIMP imgRequestProxy::GetCORSMode(PRInt32* aCorsMode)
 {
@@ -706,10 +695,6 @@ void imgRequestProxy::OnStopContainer(imgIContainer *image)
     nsCOMPtr<imgIDecoderObserver> kungFuDeathGrip(mListener);
     mListener->OnStopContainer(this, image);
   }
-
-  // Multipart needs reset for next OnStartContainer
-  if (mOwner && mOwner->GetMultipart())
-    mSentStartContainer = false;
 }
 
 void imgRequestProxy::OnStopDecode(nsresult status, const PRUnichar *statusArg)
@@ -895,8 +880,7 @@ void
 imgRequestProxy::SetImage(Image* aImage)
 {
   NS_ABORT_IF_FALSE(aImage,  "Setting null image");
-  NS_ABORT_IF_FALSE(!mImage || mOwner->GetMultipart(),
-                    "Setting image when we already have one");
+  NS_ABORT_IF_FALSE(!mImage, "Setting image when we already have one");
 
   mImage = aImage;
 

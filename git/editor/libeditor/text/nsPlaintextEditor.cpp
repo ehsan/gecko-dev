@@ -548,12 +548,14 @@ nsPlaintextEditor::InsertBR(nsCOMPtr<nsIDOMNode>* outBRNode)
   nsCOMPtr<nsISelection> selection;
   nsresult res = GetSelection(getter_AddRefs(selection));
   NS_ENSURE_SUCCESS(res, res);
-
-  if (!selection->Collapsed()) {
-    res = DeleteSelection(nsIEditor::eNone, nsIEditor::eStrip);
+  bool bCollapsed;
+  res = selection->GetIsCollapsed(&bCollapsed);
+  NS_ENSURE_SUCCESS(res, res);
+  if (!bCollapsed)
+  {
+    res = DeleteSelection(nsIEditor::eNone);
     NS_ENSURE_SUCCESS(res, res);
   }
-
   nsCOMPtr<nsIDOMNode> selNode;
   PRInt32 selOffset;
   res = GetStartNodeAndOffset(selection, getter_AddRefs(selNode), &selOffset);
@@ -662,9 +664,11 @@ nsresult
 nsPlaintextEditor::ExtendSelectionForDelete(nsISelection *aSelection,
                                             nsIEditor::EDirection *aAction)
 {
-  nsresult result = NS_OK;
+  nsresult result;
 
-  bool bCollapsed = aSelection->Collapsed();
+  bool bCollapsed;
+  result = aSelection->GetIsCollapsed(&bCollapsed);
+  NS_ENSURE_SUCCESS(result, result);
 
   if (*aAction == eNextWord || *aAction == ePreviousWord
       || (*aAction == eNext && bCollapsed)
@@ -735,12 +739,8 @@ nsPlaintextEditor::ExtendSelectionForDelete(nsISelection *aSelection,
   return result;
 }
 
-nsresult
-nsPlaintextEditor::DeleteSelection(EDirection aAction,
-                                   EStripWrappers aStripWrappers)
+NS_IMETHODIMP nsPlaintextEditor::DeleteSelection(nsIEditor::EDirection aAction)
 {
-  MOZ_ASSERT(aStripWrappers == eStrip || aStripWrappers == eNoStrip);
-
   if (!mRules) { return NS_ERROR_NOT_INITIALIZED; }
 
   // Protect the edit rules object from dying
@@ -765,7 +765,10 @@ nsPlaintextEditor::DeleteSelection(EDirection aAction,
   //  selection to the  start and then create a new selection.
   //  Platforms that use "selection-style" caret positioning just delete the
   //  existing selection without extending it.
-  if (!selection->Collapsed() &&
+  bool bCollapsed;
+  result  = selection->GetIsCollapsed(&bCollapsed);
+  NS_ENSURE_SUCCESS(result, result);
+  if (!bCollapsed &&
       (aAction == eNextWord || aAction == ePreviousWord ||
        aAction == eToBeginningOfLine || aAction == eToEndOfLine))
   {
@@ -782,13 +785,12 @@ nsPlaintextEditor::DeleteSelection(EDirection aAction,
 
   nsTextRulesInfo ruleInfo(kOpDeleteSelection);
   ruleInfo.collapsedAction = aAction;
-  ruleInfo.stripWrappers = aStripWrappers;
   bool cancel, handled;
   result = mRules->WillDoAction(selection, &ruleInfo, &cancel, &handled);
   NS_ENSURE_SUCCESS(result, result);
   if (!cancel && !handled)
   {
-    result = DeleteSelectionImpl(aAction, aStripWrappers);
+    result = DeleteSelectionImpl(aAction);
   }
   if (!cancel)
   {
@@ -1258,7 +1260,9 @@ nsPlaintextEditor::CanCutOrCopy()
   if (NS_FAILED(GetSelection(getter_AddRefs(selection))))
     return false;
 
-  return !selection->Collapsed();
+  bool isCollapsed;
+  selection->GetIsCollapsed(&isCollapsed);
+  return !isCollapsed;
 }
 
 bool
@@ -1287,7 +1291,7 @@ NS_IMETHODIMP nsPlaintextEditor::Cut()
   HandlingTrustedAction trusted(this);
 
   if (FireClipboardEvent(NS_CUT))
-    return DeleteSelection(eNone, eStrip);
+    return DeleteSelection(eNone);
   return NS_OK;
 }
 
@@ -1565,7 +1569,8 @@ nsPlaintextEditor::SharedOutputString(PRUint32 aFlags,
   NS_ENSURE_SUCCESS(rv, rv);
   NS_ENSURE_TRUE(selection, NS_ERROR_NOT_INITIALIZED);
 
-  *aIsCollapsed = selection->Collapsed();
+  rv = selection->GetIsCollapsed(aIsCollapsed);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   if (!*aIsCollapsed)
     aFlags |= nsIDocumentEncoder::OutputSelectionOnly;

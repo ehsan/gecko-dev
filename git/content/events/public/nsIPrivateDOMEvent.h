@@ -94,8 +94,6 @@ NS_NewDOMPopupBlockedEvent(nsIDOMEvent** aResult, nsPresContext* aPresContext, n
 nsresult
 NS_NewDOMDeviceProximityEvent(nsIDOMEvent** aInstancePtrResult, nsPresContext* aPresContext, nsEvent *aEvent);
 nsresult
-NS_NewDOMUserProximityEvent(nsIDOMEvent** aInstancePtrResult, nsPresContext* aPresContext, nsEvent *aEvent);
-nsresult
 NS_NewDOMDeviceOrientationEvent(nsIDOMEvent** aResult, nsPresContext* aPresContext, nsEvent* aEvent);
 nsresult
 NS_NewDOMDeviceLightEvent(nsIDOMEvent** aResult, nsPresContext* aPresContext, nsEvent* aEvent);

@@ -67,8 +67,8 @@ class Transaction
 {
 public:
   Transaction()
-    : mSwapRequired(false)
-    , mOpen(false)
+    : mOpen(false)
+    , mSwapRequired(false)
   {}
 
   void Begin() { mOpen = true; }

@@ -65,8 +65,7 @@ nsDOMAttributeMap::nsDOMAttributeMap(Element* aContent)
 bool
 nsDOMAttributeMap::Init()
 {
-  mAttributeCache.Init();
-  return true;
+  return mAttributeCache.Init();
 }
 
 /**
@@ -213,8 +212,9 @@ nsDOMAttributeMap::GetAttribute(nsINodeInfo* aNodeInfo, bool aNsAware)
     nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
     nsRefPtr<nsDOMAttribute> newAttr =
       new nsDOMAttribute(this, ni.forget(), EmptyString(), aNsAware);
-    mAttributeCache.Put(attr, newAttr);
-    node = newAttr;
+    if (newAttr && mAttributeCache.Put(attr, newAttr)) {
+      node = newAttr;
+    }
   }
 
   return node;
@@ -352,7 +352,8 @@ nsDOMAttributeMap::SetNamedItemInternal(nsIDOMNode *aNode,
     // Add the new attribute to the attribute map before updating
     // its value in the element. @see bug 364413.
     nsAttrKey attrkey(ni->NamespaceID(), ni->NameAtom());
-    mAttributeCache.Put(attrkey, attribute);
+    rv = mAttributeCache.Put(attrkey, attribute);
+    NS_ENSURE_SUCCESS(rv, rv);
     iAttribute->SetMap(this);
 
     rv = mContent->SetAttr(ni->NamespaceID(), ni->NameAtom(),

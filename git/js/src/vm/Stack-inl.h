@@ -74,7 +74,7 @@ StackFrame::scopeChain() const
 {
     JS_ASSERT_IF(!(flags_ & HAS_SCOPECHAIN), isFunctionFrame());
     if (!(flags_ & HAS_SCOPECHAIN)) {
-        scopeChain_ = callee().environment();
+        scopeChain_ = callee().toFunction()->environment();
         flags_ |= HAS_SCOPECHAIN;
     }
     return HandleObject::fromMarkedLocation(&scopeChain_);
@@ -311,18 +311,20 @@ StackFrame::actualArgsEnd() const
 }
 
 inline void
-StackFrame::setScopeChain(JSObject &obj)
+StackFrame::setScopeChainNoCallObj(JSObject &obj)
 {
 #ifdef DEBUG
     JS_ASSERT(&obj != NULL);
-    if (hasCallObj()) {
-        JSObject *pobj = &obj;
-        while (pobj && !pobj->isWith() && pobj->asScope().maybeStackFrame() != this)
-            pobj = pobj->enclosingScope();
-        JS_ASSERT(pobj);
-    } else {
-        for (JSObject *pobj = &obj; pobj->isScope() && !pobj->isWith(); pobj = pobj->enclosingScope())
-            JS_ASSERT_IF(pobj->isCall(), pobj->asScope().maybeStackFrame() != this);
+    if (&obj != sInvalidScopeChain) {
+        if (hasCallObj()) {
+            JSObject *pobj = &obj;
+            while (pobj && pobj->getPrivate() != this)
+                pobj = pobj->enclosingScope();
+            JS_ASSERT(pobj);
+        } else {
+            for (JSObject *pobj = &obj; pobj->isScope(); pobj = pobj->enclosingScope())
+                JS_ASSERT_IF(pobj->isCall(), pobj->getPrivate() != this);
+        }
     }
 #endif
     scopeChain_ = &obj;
@@ -330,7 +332,7 @@ StackFrame::setScopeChain(JSObject &obj)
 }
 
 inline void
-StackFrame::initScopeChain(CallObject &obj)
+StackFrame::setScopeChainWithOwnCallObj(CallObject &obj)
 {
     JS_ASSERT(&obj != NULL);
     JS_ASSERT(!hasCallObj() && obj.maybeStackFrame() == this);
@@ -366,10 +368,8 @@ StackFrame::functionPrologue(JSContext *cx)
     JS_ASSERT(!isGeneratorFrame());
 
     if (fun()->isHeavyweight()) {
-        CallObject *callobj = CallObject::createForFunction(cx, this);
-        if (!callobj)
+        if (!CallObject::createForFunction(cx, this))
             return false;
-        initScopeChain(*callobj);
     } else {
         /* Force instantiation of the scope chain, for JIT frames. */
         scopeChain();
@@ -384,16 +384,13 @@ StackFrame::functionPrologue(JSContext *cx)
 }
 
 inline void
-StackFrame::functionEpilogue(JSContext *cx)
+StackFrame::functionEpilogue()
 {
     JS_ASSERT(isNonEvalFunctionFrame());
 
-    if (cx->compartment->debugMode())
-        cx->runtime->debugScopes->onPopCall(this);
-
     if (flags_ & (HAS_ARGS_OBJ | HAS_CALL_OBJ)) {
         if (hasCallObj())
-            js_PutCallObject(this, scopeChain_->asCall());
+            js_PutCallObject(this);
         if (hasArgsObj())
             js_PutArgsObject(this);
     }
@@ -417,7 +414,7 @@ StackFrame::updateEpilogueFlags()
              * scope chain.
              */
             scopeChain_ = isFunctionFrame()
-                          ? callee().environment()
+                          ? callee().toFunction()->environment()
                           : &scopeChain_->asScope().enclosingScope();
             flags_ &= ~HAS_CALL_OBJ;
         }
@@ -566,7 +563,7 @@ ContextStack::popInlineFrame(FrameRegs &regs)
     JS_ASSERT(&regs == &seg_->regs());
 
     StackFrame *fp = regs.fp();
-    fp->functionEpilogue(cx_);
+    fp->functionEpilogue();
 
     Value *newsp = fp->actualArgs() - 1;
     JS_ASSERT(newsp >= fp->prev()->base());

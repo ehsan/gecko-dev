@@ -39,6 +39,7 @@
 #include "nsNPAPIPlugin.h"
 #include "nsNPAPIPluginInstance.h"
 #include "nsIMemory.h"
+#include "nsIPluginStreamListener.h"
 #include "nsPluginsDir.h"
 #include "nsPluginsDirUtils.h"
 #include "prmem.h"

@@ -1042,7 +1042,6 @@ nsStyleSVGReset::nsStyleSVGReset()
     mStopOpacity             = 1.0f;
     mFloodOpacity            = 1.0f;
     mDominantBaseline        = NS_STYLE_DOMINANT_BASELINE_AUTO;
-    mVectorEffect            = NS_STYLE_VECTOR_EFFECT_NONE;
 }
 
 nsStyleSVGReset::~nsStyleSVGReset() 
@@ -1062,7 +1061,6 @@ nsStyleSVGReset::nsStyleSVGReset(const nsStyleSVGReset& aSource)
   mStopOpacity = aSource.mStopOpacity;
   mFloodOpacity = aSource.mFloodOpacity;
   mDominantBaseline = aSource.mDominantBaseline;
-  mVectorEffect = aSource.mVectorEffect;
 }
 
 nsChangeHint nsStyleSVGReset::CalcDifference(const nsStyleSVGReset& aOther) const
@@ -1080,8 +1078,7 @@ nsChangeHint nsStyleSVGReset::CalcDifference(const nsStyleSVGReset& aOther) cons
              mLightingColor    != aOther.mLightingColor ||
              mStopOpacity      != aOther.mStopOpacity   ||
              mFloodOpacity     != aOther.mFloodOpacity  ||
-             mDominantBaseline != aOther.mDominantBaseline ||
-             mVectorEffect     != aOther.mVectorEffect)
+             mDominantBaseline != aOther.mDominantBaseline)
     NS_UpdateHint(hint, nsChangeHint_RepaintFrame);
 
   return hint;

@@ -341,7 +341,7 @@ nsDocAccessible::NativeState()
 
 // nsAccessible public method
 void
-nsDocAccessible::ApplyARIAState(PRUint64* aState) const
+nsDocAccessible::ApplyARIAState(PRUint64* aState)
 {
   // Combine with states from outer doc
   // 
@@ -1369,11 +1369,17 @@ nsDocAccessible::BindToDocument(nsAccessible* aAccessible,
     return false;
 
   // Put into DOM node cache.
-  if (aAccessible->IsPrimaryForNode())
-    mNodeToAccessibleMap.Put(aAccessible->GetNode(), aAccessible);
+  if (aAccessible->IsPrimaryForNode() &&
+      !mNodeToAccessibleMap.Put(aAccessible->GetNode(), aAccessible))
+    return false;
 
   // Put into unique ID cache.
-  mAccessibleCache.Put(aAccessible->UniqueID(), aAccessible);
+  if (!mAccessibleCache.Put(aAccessible->UniqueID(), aAccessible)) {
+    if (aAccessible->IsPrimaryForNode())
+      mNodeToAccessibleMap.Remove(aAccessible->GetNode());
+
+    return false;
+  }
 
   // Initialize the accessible.
   if (!aAccessible->Init()) {
@@ -1615,7 +1621,10 @@ nsDocAccessible::AddDependentIDsFor(nsAccessible* aRelProvider,
       if (!providers) {
         providers = new AttrRelProviderArray();
         if (providers) {
-          mDependentIDsHash.Put(id, providers);
+          if (!mDependentIDsHash.Put(id, providers)) {
+            delete providers;
+            providers = nsnull;
+          }
         }
       }
 

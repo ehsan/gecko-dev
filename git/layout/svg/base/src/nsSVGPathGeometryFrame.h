@@ -68,11 +68,8 @@ class nsSVGPathGeometryFrame : public nsSVGPathGeometryFrameBase,
   friend nsIFrame*
   NS_NewSVGPathGeometryFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 protected:
-  nsSVGPathGeometryFrame(nsStyleContext* aContext)
-    : nsSVGPathGeometryFrameBase(aContext)
-  {
-     AddStateBits(NS_FRAME_MAY_BE_TRANSFORMED);
-  }
+  nsSVGPathGeometryFrame(nsStyleContext* aContext) :
+    nsSVGPathGeometryFrameBase(aContext) {}
 
 public:
   NS_DECL_QUERYFRAME
@@ -91,9 +88,6 @@ public:
    * @see nsGkAtoms::svgPathGeometryFrame
    */
   virtual nsIAtom* GetType() const;
-
-  virtual bool IsSVGTransformed(gfxMatrix *aOwnTransforms = nsnull,
-                                gfxMatrix *aFromParentTransforms = nsnull) const;
 
 #ifdef DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const
@@ -116,6 +110,9 @@ protected:
   virtual SVGBBox GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
                                       PRUint32 aFlags);
   NS_IMETHOD_(bool) IsDisplayContainer() { return false; }
+  NS_IMETHOD_(bool) HasValidCoveredRect() {
+    return !(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD);
+  }
 
 protected:
   void GeneratePath(gfxContext *aContext,

@@ -21,13 +21,14 @@ import org.mozilla.gecko.sync.NonObjectJSONException;
 import org.mozilla.gecko.sync.crypto.CryptoException;
 import org.mozilla.gecko.sync.crypto.KeyBundle;
 import org.mozilla.gecko.sync.crypto.PersistedCrypto5Keys;
+import org.mozilla.gecko.sync.delegates.KeyUploadDelegate;
 import org.mozilla.gecko.sync.net.SyncStorageRecordRequest;
 import org.mozilla.gecko.sync.net.SyncStorageRequestDelegate;
 import org.mozilla.gecko.sync.net.SyncStorageResponse;
 
 public class EnsureCrypto5KeysStage
 extends AbstractNonRepositorySyncStage
-implements SyncStorageRequestDelegate {
+implements SyncStorageRequestDelegate, KeyUploadDelegate {
 
   public EnsureCrypto5KeysStage(GlobalSession session) {
     super(session);
@@ -60,7 +61,7 @@ implements SyncStorageRequestDelegate {
       Logger.info(LOG_TAG, "Failed to use persisted collection keys for this session.");
     }
 
-    // We need an update: fetch fresh keys.
+    // We need an update: fetch or upload keys as necessary.
     Logger.info(LOG_TAG, "Fetching fresh collection keys for this session.");
     try {
       SyncStorageRecordRequest request = new SyncStorageRecordRequest(session.wboURI(CRYPTO_COLLECTION, "keys"));
@@ -198,16 +199,41 @@ implements SyncStorageRequestDelegate {
     }
 
     int statusCode = response.getStatusCode();
+    Logger.debug(LOG_TAG, "Got " + statusCode + " fetching keys.");
     if (statusCode == 404) {
-      Logger.info(LOG_TAG, "Got 404 fetching keys.  Fresh starting since keys are missing on server.");
-      session.freshStart();
+      // No keys. Generate and upload, then refetch.
+      CollectionKeys keys;
+      try {
+        keys = CollectionKeys.generateCollectionKeys();
+      } catch (CryptoException e) {
+        session.abort(e, "Couldn't generate new key bundle.");
+        return;
+      }
+      session.uploadKeys(keys, this);
       return;
     }
-    session.handleHTTPError(response, "Failure fetching keys: got response status code " + statusCode);
+    session.handleHTTPError(response, "Failure fetching keys.");
   }
 
   @Override
   public void handleRequestError(Exception ex) {
     session.abort(ex, "Failure fetching keys.");
+  }
+
+  @Override
+  public void onKeysUploaded() {
+    Logger.debug(LOG_TAG, "New keys uploaded. Persisting before starting stage again.");
+    try {
+      retrying = true;
+      this.execute();
+    } catch (NoSuchStageException e) {
+      session.abort(e, "No such stage.");
+    }
+  }
+
+  @Override
+  public void onKeyUploadFailed(Exception e) {
+    Logger.warn(LOG_TAG, "Key upload failed. Aborting sync.");
+    session.abort(e, "Key upload failed.");
   }
 }

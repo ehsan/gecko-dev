@@ -48,11 +48,11 @@
 namespace js {
 
 /* Base class for all C++ proxy handlers. */
-class JS_FRIEND_API(BaseProxyHandler) {
+class JS_FRIEND_API(ProxyHandler) {
     void *mFamily;
   public:
-    explicit BaseProxyHandler(void *family);
-    virtual ~BaseProxyHandler();
+    explicit ProxyHandler(void *family);
+    virtual ~ProxyHandler();
 
     /* ES5 Harmony fundamental proxy traps. */
     virtual bool getPropertyDescriptor(JSContext *cx, JSObject *proxy, jsid id, bool set,
@@ -98,52 +98,6 @@ class JS_FRIEND_API(BaseProxyHandler) {
     inline void *family() {
         return mFamily;
     }
-};
-
-class JS_PUBLIC_API(IndirectProxyHandler) : public BaseProxyHandler {
-  public:
-    explicit IndirectProxyHandler(void *family);
-
-    /* ES5 Harmony fundamental proxy traps. */
-    virtual bool getPropertyDescriptor(JSContext *cx, JSObject *proxy, jsid id,
-                                       bool set,
-                                       PropertyDescriptor *desc) MOZ_OVERRIDE;
-    virtual bool getOwnPropertyDescriptor(JSContext *cx, JSObject *proxy,
-                                          jsid id, bool set,
-                                          PropertyDescriptor *desc) MOZ_OVERRIDE;
-    virtual bool defineProperty(JSContext *cx, JSObject *proxy, jsid id,
-                                PropertyDescriptor *desc) MOZ_OVERRIDE;
-    virtual bool getOwnPropertyNames(JSContext *cx, JSObject *proxy,
-                                     AutoIdVector &props) MOZ_OVERRIDE;
-    virtual bool delete_(JSContext *cx, JSObject *proxy, jsid id,
-                         bool *bp) MOZ_OVERRIDE;
-    virtual bool enumerate(JSContext *cx, JSObject *proxy,
-                           AutoIdVector &props) MOZ_OVERRIDE;
-
-    /* Derived traps are implemented in terms of fundamental traps */
-
-    /* Spidermonkey extensions. */
-    virtual bool call(JSContext *cx, JSObject *proxy, unsigned argc,
-                      Value *vp) MOZ_OVERRIDE;
-    virtual bool construct(JSContext *cx, JSObject *proxy, unsigned argc,
-                           Value *argv, Value *rval) MOZ_OVERRIDE;
-    virtual bool nativeCall(JSContext *cx, JSObject *proxy, Class *clasp,
-                            Native native, CallArgs args) MOZ_OVERRIDE;
-    virtual bool hasInstance(JSContext *cx, JSObject *proxy, const Value *vp,
-                             bool *bp) MOZ_OVERRIDE;
-    virtual JSType typeOf(JSContext *cx, JSObject *proxy) MOZ_OVERRIDE;
-    virtual bool objectClassIs(JSObject *obj, ESClassValue classValue,
-                               JSContext *cx) MOZ_OVERRIDE;
-    virtual JSString *obj_toString(JSContext *cx, JSObject *proxy) MOZ_OVERRIDE;
-    virtual JSString *fun_toString(JSContext *cx, JSObject *proxy,
-                                   unsigned indent) MOZ_OVERRIDE;
-    virtual bool regexp_toShared(JSContext *cx, JSObject *proxy,
-                                 RegExpGuard *g) MOZ_OVERRIDE;
-    virtual bool defaultValue(JSContext *cx, JSObject *obj, JSType hint,
-                              Value *vp) MOZ_OVERRIDE;
-    virtual bool iteratorNext(JSContext *cx, JSObject *proxy,
-                              Value *vp) MOZ_OVERRIDE;
-    virtual void trace(JSTracer *trc, JSObject *proxy) MOZ_OVERRIDE;
 };
 
 /* Dispatch point for handlers that executes the appropriate C++ or scripted traps. */
@@ -222,11 +176,11 @@ const uint32_t JSSLOT_PROXY_EXTRA   = 2;
 const uint32_t JSSLOT_PROXY_CALL = 4;
 const uint32_t JSSLOT_PROXY_CONSTRUCT = 5;
 
-inline BaseProxyHandler *
+inline ProxyHandler *
 GetProxyHandler(const JSObject *obj)
 {
     JS_ASSERT(IsProxy(obj));
-    return (BaseProxyHandler *) GetReservedSlot(obj, JSSLOT_PROXY_HANDLER).toPrivate();
+    return (ProxyHandler *) GetReservedSlot(obj, JSSLOT_PROXY_HANDLER).toPrivate();
 }
 
 inline const Value &
@@ -234,13 +188,6 @@ GetProxyPrivate(const JSObject *obj)
 {
     JS_ASSERT(IsProxy(obj));
     return GetReservedSlot(obj, JSSLOT_PROXY_PRIVATE);
-}
-
-inline JSObject *
-GetProxyTargetObject(const JSObject *obj)
-{
-    JS_ASSERT(IsProxy(obj));
-    return GetProxyPrivate(obj).toObjectOrNull();
 }
 
 inline const Value &
@@ -251,7 +198,7 @@ GetProxyExtra(const JSObject *obj, size_t n)
 }
 
 inline void
-SetProxyHandler(JSObject *obj, BaseProxyHandler *handler)
+SetProxyHandler(JSObject *obj, ProxyHandler *handler)
 {
     JS_ASSERT(IsProxy(obj));
     SetReservedSlot(obj, JSSLOT_PROXY_HANDLER, PrivateValue(handler));
@@ -273,7 +220,7 @@ SetProxyExtra(JSObject *obj, size_t n, const Value &extra)
 }
 
 JS_FRIEND_API(JSObject *)
-NewProxyObject(JSContext *cx, BaseProxyHandler *handler, const Value &priv,
+NewProxyObject(JSContext *cx, ProxyHandler *handler, const Value &priv,
                JSObject *proto, JSObject *parent,
                JSObject *call = NULL, JSObject *construct = NULL);
 

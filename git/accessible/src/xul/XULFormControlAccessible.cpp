@@ -754,11 +754,12 @@ XULTextFieldAccessible::Value(nsString& aValue)
 }
 
 void
-XULTextFieldAccessible::ApplyARIAState(PRUint64* aState) const
+XULTextFieldAccessible::ApplyARIAState(PRUint64* aState)
 {
   nsHyperTextAccessibleWrap::ApplyARIAState(aState);
 
   aria::MapToState(aria::eARIAAutoComplete, mContent->AsElement(), aState);
+
 }
 
 PRUint64

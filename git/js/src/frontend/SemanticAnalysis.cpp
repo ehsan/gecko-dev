@@ -52,7 +52,7 @@ using namespace js;
 using namespace js::frontend;
 
 static void
-FlagHeavyweights(Definition *dn, FunctionBox *funbox, bool *isHeavyweight, bool topInFunction)
+FlagHeavyweights(Definition *dn, FunctionBox *funbox, uint32_t *tcflags, bool topInFunction)
 {
     unsigned dnLevel = dn->frameLevel();
 
@@ -64,17 +64,17 @@ FlagHeavyweights(Definition *dn, FunctionBox *funbox, bool *isHeavyweight, bool 
          * funbox whose body contains the dn definition.
          */
         if (funbox->level + 1U == dnLevel || (dnLevel == 0 && dn->isLet())) {
-            funbox->setFunIsHeavyweight();
+            funbox->tcflags |= TCF_FUN_HEAVYWEIGHT;
             break;
         }
     }
 
     if (!funbox && topInFunction)
-        *isHeavyweight = true;
+        *tcflags |= TCF_FUN_HEAVYWEIGHT;
 }
 
 static void
-SetFunctionKinds(FunctionBox *funbox, bool *isHeavyweight, bool topInFunction, bool isDirectEval)
+SetFunctionKinds(FunctionBox *funbox, uint32_t *tcflags, bool topInFunction, bool isDirectEval)
 {
     for (; funbox; funbox = funbox->siblings) {
         ParseNode *fn = funbox->node;
@@ -86,13 +86,13 @@ SetFunctionKinds(FunctionBox *funbox, bool *isHeavyweight, bool topInFunction, b
             continue;
 
         if (funbox->kids)
-            SetFunctionKinds(funbox->kids, isHeavyweight, topInFunction, isDirectEval);
+            SetFunctionKinds(funbox->kids, tcflags, topInFunction, isDirectEval);
 
         JSFunction *fun = funbox->function();
 
         JS_ASSERT(fun->kind() == JSFUN_INTERPRETED);
 
-        if (funbox->funIsHeavyweight()) {
+        if (funbox->tcflags & TCF_FUN_HEAVYWEIGHT) {
             /* nothing to do */
         } else if (isDirectEval || funbox->inAnyDynamicScope()) {
             /*
@@ -134,7 +134,7 @@ SetFunctionKinds(FunctionBox *funbox, bool *isHeavyweight, bool topInFunction, b
              * ensure that its containing function has been flagged as
              * heavyweight.
              *
-             * The emitter must see funIsHeavyweight() accurately before
+             * The emitter must see TCF_FUN_HEAVYWEIGHT accurately before
              * generating any code for a tree of nested functions.
              */
             AtomDefnMapPtr upvars = pn->pn_names;
@@ -144,7 +144,7 @@ SetFunctionKinds(FunctionBox *funbox, bool *isHeavyweight, bool topInFunction, b
                 Definition *defn = r.front().value();
                 Definition *lexdep = defn->resolve();
                 if (!lexdep->isFreeVar())
-                    FlagHeavyweights(lexdep, funbox, isHeavyweight, topInFunction);
+                    FlagHeavyweights(lexdep, funbox, tcflags, topInFunction);
             }
         }
     }
@@ -162,7 +162,7 @@ SetFunctionKinds(FunctionBox *funbox, bool *isHeavyweight, bool topInFunction, b
  * js::Bindings::extensibleParents explain why.
  */
 static bool
-MarkExtensibleScopeDescendants(JSContext *context, FunctionBox *funbox, bool hasExtensibleParent)
+MarkExtensibleScopeDescendants(JSContext *context, FunctionBox *funbox, bool hasExtensibleParent) 
 {
     for (; funbox; funbox = funbox->siblings) {
         /*
@@ -179,9 +179,7 @@ MarkExtensibleScopeDescendants(JSContext *context, FunctionBox *funbox, bool has
 
         if (funbox->kids) {
             if (!MarkExtensibleScopeDescendants(context, funbox->kids,
-                                                hasExtensibleParent ||
-                                                funbox->funHasExtensibleScope()))
-            {
+                                                hasExtensibleParent || funbox->scopeIsExtensible())) {
                 return false;
             }
         }
@@ -199,9 +197,6 @@ frontend::AnalyzeFunctions(Parser *parser)
     if (!MarkExtensibleScopeDescendants(sc->context, sc->functionList, false))
         return false;
     bool isDirectEval = !!parser->callerFrame;
-    bool isHeavyweight = false;
-    SetFunctionKinds(sc->functionList, &isHeavyweight, sc->inFunction, isDirectEval);
-    if (isHeavyweight)
-        sc->setFunIsHeavyweight();
+    SetFunctionKinds(sc->functionList, &sc->flags, sc->inFunction, isDirectEval);
     return true;
 }

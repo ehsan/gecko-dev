@@ -56,7 +56,6 @@ EXPORTS_mozilla += \
   RefPtr.h \
   Scoped.h \
   StandardInteger.h \
-  ThreadLocal.h \
   Types.h \
   Util.h \
   $(NULL)

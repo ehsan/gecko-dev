@@ -81,7 +81,6 @@
 # include "methodjit/MethodJIT.h"
 #endif
 #include "gc/Marking.h"
-#include "js/MemoryMetrics.h"
 #include "frontend/TokenStream.h"
 #include "frontend/ParseMaps.h"
 #include "yarr/BumpPointerAllocator.h"
@@ -94,65 +93,27 @@
 using namespace js;
 using namespace js::gc;
 
-struct CallbackData
-{
-    CallbackData(JSMallocSizeOfFun f) : mallocSizeOf(f), n(0) {}
-    JSMallocSizeOfFun mallocSizeOf;
-    size_t n;
-};
-
-void CompartmentCallback(JSRuntime *rt, void *vdata, JSCompartment *compartment)
-{
-    CallbackData *data = (CallbackData *) vdata;
-    data->n += data->mallocSizeOf(compartment);
-}
-
 void
-JSRuntime::sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf, RuntimeSizes *runtime)
+JSRuntime::sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf, size_t *normal, size_t *temporary,
+                               size_t *mjitCode, size_t *regexpCode, size_t *unusedCodeMemory,
+                               size_t *stackCommitted, size_t *gcMarkerSize)
 {
-    runtime->object = mallocSizeOf(this);
+    if (normal)
+        *normal = mallocSizeOf(dtoaState);
 
-    runtime->atomsTable = atomState.atoms.sizeOfExcludingThis(mallocSizeOf);
-
-    runtime->contexts = 0;
-    for (ContextIter acx(this); !acx.done(); acx.next())
-        runtime->contexts += acx->sizeOfIncludingThis(mallocSizeOf);
-
-    runtime->dtoa = mallocSizeOf(dtoaState);
-
-    runtime->temporary = tempLifoAlloc.sizeOfExcludingThis(mallocSizeOf);
+    if (temporary)
+        *temporary = tempLifoAlloc.sizeOfExcludingThis(mallocSizeOf);
 
     if (execAlloc_)
-        execAlloc_->sizeOfCode(&runtime->mjitCode, &runtime->regexpCode,
-                               &runtime->unusedCodeMemory);
+        execAlloc_->sizeOfCode(mjitCode, regexpCode, unusedCodeMemory);
     else
-        runtime->mjitCode = runtime->regexpCode = runtime->unusedCodeMemory = 0;
+        *mjitCode = *regexpCode = *unusedCodeMemory = 0;
 
-    runtime->stackCommitted = stackSpace.sizeOfCommitted();
+    if (stackCommitted)
+        *stackCommitted = stackSpace.sizeOfCommitted();
 
-    runtime->gcMarker = gcMarker.sizeOfExcludingThis(mallocSizeOf);
-
-    runtime->mathCache = mathCache_ ? mathCache_->sizeOfIncludingThis(mallocSizeOf) : 0;
-
-    runtime->scriptFilenames = scriptFilenameTable.sizeOfExcludingThis(mallocSizeOf);
-    for (ScriptFilenameTable::Range r = scriptFilenameTable.all(); !r.empty(); r.popFront())
-        runtime->scriptFilenames += mallocSizeOf(r.front());
-
-    runtime->compartmentObjects = 0;
-    CallbackData data(mallocSizeOf);
-    JS_IterateCompartments(this, &data, CompartmentCallback);
-    runtime->compartmentObjects = data.n;
-}
-
-size_t
-JSRuntime::sizeOfExplicitNonHeap()
-{
-    if (!execAlloc_)
-        return 0;
-
-    size_t mjitCode, regexpCode, unusedCodeMemory;
-    execAlloc_->sizeOfCode(&mjitCode, &regexpCode, &unusedCodeMemory);
-    return mjitCode + regexpCode + unusedCodeMemory + stackSpace.sizeOfCommitted();
+    if (gcMarkerSize)
+        *gcMarkerSize = gcMarker.sizeOfExcludingThis(mallocSizeOf);
 }
 
 void
@@ -1027,11 +988,10 @@ JSContext::JSContext(JSRuntime *rt)
     functionCallback(NULL),
 #endif
     enumerators(NULL),
-#ifdef DEBUG
-    stackIterAssertionEnabled(true),
-    okToAccessUnaliasedBindings(0),
-#endif
     activeCompilations(0)
+#ifdef DEBUG
+    , stackIterAssertionEnabled(true)
+#endif
 {
     PodZero(&link);
 #ifdef JSGC_ROOT_ANALYSIS
@@ -1065,7 +1025,7 @@ JSContext::~JSContext()
 void
 JSContext::resetCompartment()
 {
-    RootedVarObject scopeobj(this);
+    JSObject *scopeobj;
     if (stack.hasfp()) {
         scopeobj = fp()->scopeChain();
     } else {
@@ -1077,7 +1037,7 @@ JSContext::resetCompartment()
          * Innerize. Assert, but check anyway, that this succeeds. (It
          * can only fail due to bugs in the engine or embedding.)
          */
-        scopeobj = GetInnerObject(this, scopeobj);
+        OBJ_TO_INNER_OBJECT(this, scopeobj);
         if (!scopeobj)
             goto error;
     }

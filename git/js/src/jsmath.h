@@ -74,8 +74,6 @@ class MathCache
         e.f = f;
         return (e.out = f(x));
     }
-
-    size_t sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf);
 };
 
 } /* namespace js */

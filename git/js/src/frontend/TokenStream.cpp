@@ -563,7 +563,7 @@ js::ReportStrictModeError(JSContext *cx, TokenStream *ts, SharedContext *sc, Par
 
     /* In strict mode code, this is an error, not merely a warning. */
     unsigned flags;
-    if ((ts && ts->isStrictMode()) || (sc && sc->inStrictMode())) {
+    if ((ts && ts->isStrictMode()) || (sc && (sc->flags & TCF_STRICT_MODE_CODE))) {
         flags = JSREPORT_ERROR;
     } else {
         if (!cx->hasStrictOption())

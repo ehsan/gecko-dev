@@ -732,11 +732,12 @@ nsXULTreeGridRowAccessible::GetCellAccessible(nsITreeColumn* aColumn)
     new nsXULTreeGridCellAccessibleWrap(mContent, mDoc, this, mTree,
                                         mTreeView, mRow, aColumn);
   if (cell) {
-    mAccessibleCache.Put(key, cell);
-    if (Document()->BindToDocument(cell, nsnull))
-      return cell;
+    if (mAccessibleCache.Put(key, cell)) {
+      if (Document()->BindToDocument(cell, nsnull))
+        return cell;
 
-    mAccessibleCache.Remove(key);
+      mAccessibleCache.Remove(key);
+    }
   }
 
   return nsnull;

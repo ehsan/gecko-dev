@@ -38,7 +38,7 @@
 
 #include <stdlib.h>
 #include <signal.h>
-#include "mozilla/ThreadLocal.h"
+#include "thread_helper.h"
 #include "nscore.h"
 #include "jsapi.h"
 #include "mozilla/TimeStamp.h"
@@ -47,11 +47,8 @@
 using mozilla::TimeStamp;
 using mozilla::TimeDuration;
 
-struct ProfileStack;
-class TableTicker;
-
-extern mozilla::ThreadLocal<ProfileStack> tlsStack;
-extern mozilla::ThreadLocal<TableTicker> tlsTicker;
+extern mozilla::tls::key pkey_stack;
+extern mozilla::tls::key pkey_ticker;
 extern bool stack_key_initialized;
 
 #ifndef SAMPLE_FUNCTION_NAME
@@ -279,11 +276,11 @@ public:
 inline void* mozilla_sampler_call_enter(const char *aInfo)
 {
   // check if we've been initialized to avoid calling pthread_getspecific
-  // with a null tlsStack which will return undefined results.
+  // with a null pkey_stack which will return undefined results.
   if (!stack_key_initialized)
     return NULL;
 
-  ProfileStack *stack = tlsStack.get();
+  ProfileStack *stack = mozilla::tls::get<ProfileStack>(pkey_stack);
   // we can't infer whether 'stack' has been initialized
   // based on the value of stack_key_intiailized because
   // 'stack' is only intialized when a thread is being
@@ -312,7 +309,7 @@ inline void mozilla_sampler_call_exit(void *aHandle)
 
 inline void mozilla_sampler_add_marker(const char *aMarker)
 {
-  ProfileStack *stack = tlsStack.get();
+  ProfileStack *stack = mozilla::tls::get<ProfileStack>(pkey_stack);
   if (!stack) {
     return;
   }

@@ -39,7 +39,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "frontend/ParseNode.h"
-#include "frontend/Parser.h"
 
 #include "jsscriptinlines.h"
 
@@ -113,10 +112,16 @@ bool
 FunctionBox::inAnyDynamicScope() const
 {
     for (const FunctionBox *funbox = this; funbox; funbox = funbox->parent) {
-        if (funbox->inWith || funbox->funHasExtensibleScope())
+        if (funbox->inWith || (funbox->tcflags & TCF_FUN_EXTENSIBLE_SCOPE))
             return true;
     }
     return false;
+}
+
+bool
+FunctionBox::scopeIsExtensible() const
+{
+    return tcflags & TCF_FUN_EXTENSIBLE_SCOPE;
 }
 
 /* Add |node| to |parser|'s free node list. */
@@ -126,7 +131,7 @@ ParseNodeAllocator::freeNode(ParseNode *pn)
     /* Catch back-to-back dup recycles. */
     JS_ASSERT(pn != freelist);
 
-    /*
+    /* 
      * It's too hard to clear these nodes from the AtomDefnMaps, etc. that
      * hold references to them, so we never free them. It's our caller's job to
      * recognize and process these, since their children do need to be dealt
@@ -251,7 +256,7 @@ PushNodeChildren(ParseNode *pn, NodeStack *stack)
         stack->pushUnlessNull(pn->pn_kid);
         break;
       case PN_NULLARY:
-        /*
+        /* 
          * E4X function namespace nodes are PN_NULLARY, but can appear on use
          * lists.
          */
@@ -655,7 +660,7 @@ js::CloneLeftHandSide(ParseNode *opn, Parser *parser)
 void
 js::DumpParseTree(ParseNode *pn, int indent)
 {
-    if (pn == NULL)
+    if (pn == NULL) 
         fprintf(stderr, "()");
     else
         pn->dump(indent);

@@ -211,18 +211,19 @@ nsDOMMultipartFile::InitInternal(JSContext* aCx,
     if (d.endings.EqualsLiteral("native")) {
       nativeEOL = true;
     } else if (!d.endings.EqualsLiteral("transparent")) {
-      return NS_ERROR_TYPE_ERR;
+      return NS_ERROR_DOM_INVALID_STATE_ERR;
     }
   }
 
   if (aArgc > 0) {
     if (!aArgv[0].isObject()) {
-      return NS_ERROR_TYPE_ERR; // We're not interested
+      return NS_ERROR_INVALID_ARG; // We're not interested
     }
 
     JSObject& obj = aArgv[0].toObject();
+
     if (!JS_IsArrayObject(aCx, &obj)) {
-      return NS_ERROR_TYPE_ERR; // We're not interested
+      return NS_ERROR_INVALID_ARG; // We're not interested
     }
 
     BlobSet blobSet;
@@ -232,7 +233,7 @@ nsDOMMultipartFile::InitInternal(JSContext* aCx,
     for (uint32_t i = 0; i < length; ++i) {
       jsval element;
       if (!JS_GetElement(aCx, &obj, i, &element))
-        return NS_ERROR_TYPE_ERR;
+        return NS_ERROR_INVALID_ARG;
 
       if (element.isObject()) {
         JSObject& obj = element.toObject();
@@ -248,26 +249,18 @@ nsDOMMultipartFile::InitInternal(JSContext* aCx,
           } else {
             blobSet.AppendBlob(blob);
           }
-          continue;
-        }
-        if (JS_IsArrayBufferViewObject(&obj, aCx)) {
-          blobSet.AppendVoidPtr(JS_GetArrayBufferViewData(&obj, aCx),
-                                JS_GetArrayBufferViewByteLength(&obj, aCx));
-          continue;
-        }
-        if (JS_IsArrayBufferObject(&obj, aCx)) {
+        } else if (JS_IsArrayBufferObject(&obj, aCx)) {
           blobSet.AppendArrayBuffer(&obj, aCx);
-          continue;
+        } else {
+          // neither arraybuffer nor blob
+          return NS_ERROR_DOM_INVALID_STATE_ERR;
         }
-        // neither Blob nor ArrayBuffer(View)
       } else if (element.isString()) {
         blobSet.AppendString(element.toString(), nativeEOL, aCx);
-        continue;
+      } else {
+        // neither object nor string
+        return NS_ERROR_DOM_INVALID_STATE_ERR;
       }
-      // coerce it to a string
-      JSString* str = JS_ValueToString(aCx, element);
-      NS_ENSURE_TRUE(str, NS_ERROR_TYPE_ERR);
-      blobSet.AppendString(str, nativeEOL, aCx);
     }
 
     mBlobs = blobSet.GetBlobs();

@@ -86,23 +86,24 @@ nsHTMLLinkAccessible::NativeState()
     states |= states::SELECTABLE;
   }
 
-  return states;
-}
+  nsEventStates state = mContent->AsElement()->State();
+  if (state.HasAtLeastOneOfStates(NS_EVENT_STATE_VISITED |
+                                  NS_EVENT_STATE_UNVISITED)) {
+    states |= states::LINKED;
 
-PRUint64
-nsHTMLLinkAccessible::NativeLinkState() const
-{
-  nsEventStates eventState = mContent->AsElement()->State();
-  if (eventState.HasState(NS_EVENT_STATE_UNVISITED))
-    return states::LINKED;
+    if (state.HasState(NS_EVENT_STATE_VISITED))
+      states |= states::TRAVERSED;
 
-  if (eventState.HasState(NS_EVENT_STATE_VISITED))
-    return states::LINKED | states::TRAVERSED;
+    return states;
+  }
 
   // This is a either named anchor (a link with also a name attribute) or
   // it doesn't have any attributes. Check if 'click' event handler is
   // registered, otherwise bail out.
-  return nsCoreUtils::HasClickListener(mContent) ? states::LINKED : 0;
+  if (nsCoreUtils::HasClickListener(mContent))
+    states |= states::LINKED;
+
+  return states;
 }
 
 void

@@ -309,7 +309,8 @@ AsyncBindingParams::BindByName(const nsACString &aName,
 {
   NS_ENSURE_FALSE(mLocked, NS_ERROR_UNEXPECTED);
 
-  mNamedParameters.Put(aName, aValue);
+  if (!mNamedParameters.Put(aName, aValue))
+    return NS_ERROR_OUT_OF_MEMORY;
   return NS_OK;
 }
 

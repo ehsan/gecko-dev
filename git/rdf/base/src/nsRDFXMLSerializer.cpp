@@ -254,8 +254,7 @@ nsRDFXMLSerializer::RegisterQName(nsIRDFResource* aResource)
         iter->mPrefix->ToUTF8String(qname);
         qname.Append(':');
         qname += StringTail(uri, uri.Length() - iter->mURI.Length());
-        mQNames.Put(aResource, qname);
-        return NS_OK;
+        return mQNames.Put(aResource, qname) ? NS_OK : NS_ERROR_FAILURE;
     }
 
     // Okay, so we don't have it in our map. Try to make one up. This
@@ -266,8 +265,7 @@ nsRDFXMLSerializer::RegisterQName(nsIRDFResource* aResource)
         if (i == -1) {
             // Okay, just punt and assume there is _no_ namespace on
             // this thing...
-            mQNames.Put(aResource, uri);
-            return NS_OK;
+            return mQNames.Put(aResource, uri) ? NS_OK : NS_ERROR_FAILURE;
         }
     }
 
@@ -279,8 +277,7 @@ nsRDFXMLSerializer::RegisterQName(nsIRDFResource* aResource)
     qname.Append(':');
     qname += StringTail(uri, uri.Length() - (i + 1));
 
-    mQNames.Put(aResource, qname);
-    return NS_OK;
+    return mQNames.Put(aResource, qname) ? NS_OK : NS_ERROR_FAILURE;
 }
 
 nsresult

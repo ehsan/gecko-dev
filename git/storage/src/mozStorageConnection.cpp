@@ -1423,7 +1423,8 @@ Connection::CreateFunction(const nsACString &aFunctionName,
   FunctionInfo info = { aFunction,
                         Connection::FunctionInfo::SIMPLE,
                         aNumArguments };
-  mFunctions.Put(aFunctionName, info);
+  NS_ENSURE_TRUE(mFunctions.Put(aFunctionName, info),
+                 NS_ERROR_OUT_OF_MEMORY);
 
   return NS_OK;
 }
@@ -1458,7 +1459,8 @@ Connection::CreateAggregateFunction(const nsACString &aFunctionName,
   FunctionInfo info = { aFunction,
                         Connection::FunctionInfo::AGGREGATE,
                         aNumArguments };
-  mFunctions.Put(aFunctionName, info);
+  NS_ENSURE_TRUE(mFunctions.Put(aFunctionName, info),
+                 NS_ERROR_OUT_OF_MEMORY);
 
   return NS_OK;
 }

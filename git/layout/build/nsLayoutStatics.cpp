@@ -270,8 +270,6 @@ nsLayoutStatics::Initialize()
 
   nsWindowMemoryReporter::Init();
 
-  nsSVGUtils::Init();
-
   return NS_OK;
 }
 

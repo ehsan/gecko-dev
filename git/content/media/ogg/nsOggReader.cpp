@@ -126,7 +126,11 @@ nsOggReader::~nsOggReader()
 }
 
 nsresult nsOggReader::Init(nsBuiltinDecoderReader* aCloneDonor) {
-  mCodecStates.Init();
+  bool init = mCodecStates.Init();
+  NS_ASSERTION(init, "Failed to initialize mCodecStates");
+  if (!init) {
+    return NS_ERROR_FAILURE;
+  }
   int ret = ogg_sync_init(&mOggState);
   NS_ENSURE_TRUE(ret == 0, NS_ERROR_FAILURE);
   return NS_OK;
@@ -201,7 +205,8 @@ nsresult nsOggReader::ReadMetadata(nsVideoInfo* aInfo)
       // an nsOggCodecState to demux it, and map that to the nsOggCodecState
       // in mCodecStates.
       codecState = nsOggCodecState::Create(&page);
-      mCodecStates.Put(serial, codecState);
+      DebugOnly<bool> r = mCodecStates.Put(serial, codecState);
+      NS_ASSERTION(r, "Failed to insert into mCodecStates");
       bitstreams.AppendElement(codecState);
       mKnownStreams.AppendElement(serial);
       if (codecState &&
@@ -446,7 +451,7 @@ nsresult nsOggReader::DecodeOpus(ogg_packet* aPacket) {
     PRInt32 goodFrames = frames - skip;
     NS_ASSERTION(goodFrames > 0, "endTime calculation was wrong");
     nsAutoArrayPtr<AudioDataValue> goodBuffer(new AudioDataValue[goodFrames * channels]);
-    for (PRInt32 i = 0; i < goodFrames * PRInt32(channels); i++)
+    for (int i = 0; i < goodFrames*channels; i++)
       goodBuffer[i] = buffer[skip*channels + i];
 
     startTime = mOpusState->Time(endFrame - goodFrames);

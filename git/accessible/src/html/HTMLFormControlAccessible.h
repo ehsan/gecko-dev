@@ -145,7 +145,7 @@ public:
 
   // nsAccessible
   virtual void Value(nsString& aValue);
-  virtual void ApplyARIAState(PRUint64* aState) const;
+  virtual void ApplyARIAState(PRUint64* aState);
   virtual nsresult GetNameInternal(nsAString& aName);
   virtual mozilla::a11y::role NativeRole();
   virtual PRUint64 State();

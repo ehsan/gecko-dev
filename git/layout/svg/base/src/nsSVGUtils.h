@@ -45,7 +45,6 @@
 #include "gfxPoint.h"
 #include "gfxRect.h"
 #include "nsAlgorithm.h"
-#include "nsChangeHint.h"
 #include "nsColor.h"
 #include "nsCOMPtr.h"
 #include "nsID.h"
@@ -144,9 +143,6 @@ IsSVGWhitespace(PRUnichar aChar)
  */
 bool NS_SMILEnabled();
 
-bool NS_SVGDisplayListHitTestingEnabled();
-bool NS_SVGDisplayListPaintingEnabled();
-
 /**
  * Sometimes we need to distinguish between an empty box and a box
  * that contains an element that has no size e.g. a point at the origin.
@@ -229,8 +225,6 @@ public:
   typedef mozilla::SVGAnimatedPreserveAspectRatio SVGAnimatedPreserveAspectRatio;
   typedef mozilla::SVGPreserveAspectRatio SVGPreserveAspectRatio;
 
-  static void Init();
-
   /*
    * Get the parent element of an nsIContent
    */
@@ -240,16 +234,6 @@ public:
    * Get the outer SVG element of an nsIContent
    */
   static nsSVGSVGElement *GetOuterSVGElement(nsSVGElement *aSVGElement);
-
-  /**
-   * Activates the animation element aContent as a result of navigation to the
-   * fragment identifier that identifies aContent. aContent must be an instance
-   * of nsSVGAnimationElement.
-   *
-   * This is just a shim to allow nsSVGAnimationElement::ActivateByHyperlink to
-   * be called from layout/base without adding to that directory's include paths.
-   */
-  static void ActivateByHyperlink(nsIContent *aContent);
 
   /*
    * Get the number of CSS px (user units) per em (i.e. the em-height in user
@@ -331,15 +315,7 @@ public:
    * returns nsnull.
    */
   static nsSVGDisplayContainerFrame* GetNearestSVGViewport(nsIFrame *aFrame);
-
-  /**
-   * Returns the frame's post-filter visual overflow rect when passed the
-   * frame's pre-filter visual overflow rect. If the frame is not currently
-   * being filtered, this function simply returns aUnfilteredRect.
-   */
-  static nsRect GetPostFilterVisualOverflowRect(nsIFrame *aFrame,
-                                                const nsRect &aUnfilteredRect);
-
+  
   /**
    * Figures out the worst case invalidation area for a frame, taking
    * filters into account.
@@ -630,12 +606,6 @@ public:
 
   static bool OuterSVGIsCallingUpdateBounds(nsIFrame *aFrame);
 #endif
-
-  /*
-   * Get any additional transforms that apply only to stroking
-   * e.g. non-scaling-stroke
-   */
-  static gfxMatrix GetStrokeTransform(nsIFrame *aFrame);
 
   /**
    * Compute the maximum possible device space stroke extents of a path given

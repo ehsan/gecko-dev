@@ -145,8 +145,12 @@ EnsureEnvHash()
     if (!gEnvHash)
         return false;
 
-    gEnvHash->Init();
-    return true;
+    if(gEnvHash->Init())
+        return true;
+
+    delete gEnvHash;
+    gEnvHash = nsnull;
+    return false;
 }
 
 NS_IMETHODIMP

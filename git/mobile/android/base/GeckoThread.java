@@ -62,8 +62,6 @@ public class GeckoThread extends Thread {
         mIntent = intent;
         mUri = uri;
         mRestoreMode = restoreMode;
-
-        setName("Gecko");
     }
 
     public void run() {

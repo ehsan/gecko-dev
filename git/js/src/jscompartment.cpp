@@ -217,7 +217,8 @@ JSCompartment::wrap(JSContext *cx, Value *vp)
 
 #ifdef DEBUG
         {
-            JSObject *outer = GetOuterObject(cx, RootedVarObject(cx, obj));
+            JSObject *outer = obj;
+            OBJ_TO_OUTER_OBJECT(cx, outer);
             JS_ASSERT(outer && outer == obj);
         }
 #endif
@@ -408,10 +409,16 @@ JSCompartment::markTypes(JSTracer *trc)
         JS_ASSERT(script == i.get<JSScript>());
     }
 
-    for (size_t thingKind = FINALIZE_OBJECT0; thingKind < FINALIZE_OBJECT_LIMIT; thingKind++) {
-        ArenaHeader *aheader = arenas.getFirstArena(static_cast<AllocKind>(thingKind));
-        if (aheader)
-            rt->gcMarker.pushArenaList(aheader);
+    for (size_t thingKind = FINALIZE_OBJECT0;
+         thingKind < FINALIZE_OBJECT_LIMIT;
+         thingKind++) {
+        for (CellIterUnderGC i(this, AllocKind(thingKind)); !i.done(); i.next()) {
+            JSObject *object = i.get<JSObject>();
+            if (object->hasSingletonType()) {
+                MarkObjectRoot(trc, &object, "mark_types_singleton");
+                JS_ASSERT(object == i.get<JSObject>());
+            }
+        }
     }
 
     for (CellIterUnderGC i(this, FINALIZE_TYPE_OBJECT); !i.done(); i.next()) {
@@ -618,11 +625,8 @@ JSCompartment::setDebugModeFromC(JSContext *cx, bool b, AutoDebugModeGC &dmgc)
 
     debugModeBits = (debugModeBits & ~unsigned(DebugFromC)) | (b ? DebugFromC : 0);
     JS_ASSERT(debugMode() == enabledAfter);
-    if (enabledBefore != enabledAfter) {
+    if (enabledBefore != enabledAfter)
         updateForDebugMode(cx->runtime->defaultFreeOp(), dmgc);
-        if (!enabledAfter)
-            cx->runtime->debugScopes->onCompartmentLeaveDebugMode(this);
-    }
     return true;
 }
 
@@ -630,7 +634,7 @@ void
 JSCompartment::updateForDebugMode(FreeOp *fop, AutoDebugModeGC &dmgc)
 {
     for (ContextIter acx(rt); !acx.done(); acx.next()) {
-        if (acx->compartment == this)
+        if (acx->compartment == this) 
             acx->updateJITEnabled();
     }
 
@@ -694,7 +698,6 @@ JSCompartment::removeDebuggee(FreeOp *fop,
         debugModeBits &= ~DebugFromJS;
         if (wasEnabled && !debugMode()) {
             AutoDebugModeGC dmgc(rt);
-            fop->runtime()->debugScopes->onCompartmentLeaveDebugMode(this);
             updateForDebugMode(fop, dmgc);
         }
     }

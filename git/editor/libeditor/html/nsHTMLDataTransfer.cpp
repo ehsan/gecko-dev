@@ -199,9 +199,14 @@ NS_IMETHODIMP nsHTMLEditor::LoadHTML(const nsAString & aInputString)
 
   if (!handled)
   {
+    bool isCollapsed;
+    rv = selection->GetIsCollapsed(&isCollapsed);
+    NS_ENSURE_SUCCESS(rv, rv);
+
     // Delete Selection, but only if it isn't collapsed, see bug #106269
-    if (!selection->Collapsed()) {
-      rv = DeleteSelection(eNone, eStrip);
+    if (!isCollapsed) 
+    {
+      rv = DeleteSelection(eNone);
       NS_ENSURE_SUCCESS(rv, rv);
     }
 
@@ -283,20 +288,21 @@ nsHTMLEditor::DoInsertHTMLWithContext(const nsAString & aInputString,
   nsAutoRules beginRulesSniffing(this, kOpHTMLPaste, nsIEditor::eNext);
 
   // Get selection
-  nsRefPtr<nsTypedSelection> selection = GetTypedSelection();
-  NS_ENSURE_STATE(selection);
+  nsCOMPtr<nsISelection>selection;
+  nsresult rv = GetSelection(getter_AddRefs(selection));
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // create a dom document fragment that represents the structure to paste
   nsCOMPtr<nsIDOMNode> fragmentAsNode, streamStartParent, streamEndParent;
   PRInt32 streamStartOffset = 0, streamEndOffset = 0;
 
-  nsresult rv = CreateDOMFragmentFromPaste(aInputString, aContextStr, aInfoStr,
-                                           address_of(fragmentAsNode),
-                                           address_of(streamStartParent),
-                                           address_of(streamEndParent),
-                                           &streamStartOffset,
-                                           &streamEndOffset,
-                                           aTrustedInput);
+  rv = CreateDOMFragmentFromPaste(aInputString, aContextStr, aInfoStr, 
+                                  address_of(fragmentAsNode),
+                                  address_of(streamStartParent),
+                                  address_of(streamEndParent),
+                                  &streamStartOffset,
+                                  &streamEndOffset,
+                                  aTrustedInput);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIDOMNode> targetNode, tempNode;
@@ -345,7 +351,7 @@ nsHTMLEditor::DoInsertHTMLWithContext(const nsAString & aInputString,
       // Use an auto tracker so that our drop point is correctly
       // positioned after the delete.
       nsAutoTrackDOMPoint tracker(mRangeUpdater, &targetNode, &targetOffset);
-      rv = DeleteSelection(eNone, eStrip);
+      rv = DeleteSelection(eNone);
       NS_ENSURE_SUCCESS(rv, rv);
     }
 
@@ -399,10 +405,7 @@ nsHTMLEditor::DoInsertHTMLWithContext(const nsAString & aInputString,
     NS_ENSURE_SUCCESS(rv, rv);
 
     // pasting does not inherit local inline styles
-    nsCOMPtr<nsIDOMNode> tmpNode =
-      do_QueryInterface(selection->GetAnchorNode());
-    PRInt32 tmpOffset = selection->GetAnchorOffset();
-    rv = ClearStyle(address_of(tmpNode), &tmpOffset, nsnull, nsnull);
+    rv = RemoveAllInlineProperties();
     NS_ENSURE_SUCCESS(rv, rv);
   }
   else

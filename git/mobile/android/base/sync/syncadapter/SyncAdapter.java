@@ -177,7 +177,6 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
   private SyncResult syncResult;
 
   public Account localAccount;
-  protected boolean thisSyncIsForced = false;
 
   /**
    * Return the number of milliseconds until we're allowed to sync again,
@@ -194,15 +193,6 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
 
   @Override
   public boolean shouldBackOff() {
-    if (thisSyncIsForced) {
-      /*
-       * If the user asks us to sync, we should sync regardless. This path is
-       * hit if the user force syncs and we restart a session after a
-       * freshStart.
-       */
-      return false;
-    }
-
     if (wantNodeAssignment()) {
       /*
        * We recently had a 401 and we aborted the last sync. We should kick off
@@ -230,10 +220,10 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
     this.syncResult   = syncResult;
     this.localAccount = account;
 
-    thisSyncIsForced = (extras != null) && (extras.getBoolean("force", false));
+    boolean force = (extras != null) && (extras.getBoolean("force", false));
     long delay = delayMilliseconds();
     if (delay > 0) {
-      if (thisSyncIsForced) {
+      if (force) {
         Log.i(LOG_TAG, "Forced sync: overruling remaining backoff of " + delay + "ms.");
       } else {
         Log.i(LOG_TAG, "Not syncing: must wait another " + delay + "ms.");

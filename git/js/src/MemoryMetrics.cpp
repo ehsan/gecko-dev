@@ -69,8 +69,6 @@ StatsCompartmentCallback(JSRuntime *rt, void *data, JSCompartment *compartment)
     // Get the compartment-level numbers.
     compartment->sizeOfTypeInferenceData(&cStats.typeInferenceSizes, rtStats->mallocSizeOf);
     cStats.shapesCompartmentTables = compartment->sizeOfShapeTable(rtStats->mallocSizeOf);
-    cStats.crossCompartmentWrappers =
-        compartment->crossCompartmentWrappers.sizeOfExcludingThis(rtStats->mallocSizeOf);
 }
 
 static void
@@ -169,13 +167,11 @@ StatsCellCallback(JSRuntime *rt, void *data, void *thing, JSGCTraceKind traceKin
         obj->sizeOfExcludingThis(&cStats->typeInferenceSizes, rtStats->mallocSizeOf);
         break;
     }
-#if JS_HAS_XML_SUPPORT
     case JSTRACE_XML:
     {
         cStats->gcHeapXML += thingSize;
         break;
     }
-#endif
     }
     // Yes, this is a subtraction:  see StatsArenaCallback() for details.
     cStats->gcHeapArenaUnused -= thingSize;
@@ -186,7 +182,7 @@ CollectRuntimeStats(JSRuntime *rt, RuntimeStats *rtStats)
 {
     if (!rtStats->compartmentStatsVector.reserve(rt->compartments.length()))
         return false;
-
+    
     rtStats->gcHeapChunkCleanDecommitted =
         rt->gcChunkPool.countCleanDecommittedArenas(rt) * gc::ArenaSize;
     rtStats->gcHeapChunkCleanUnused =
@@ -194,12 +190,27 @@ CollectRuntimeStats(JSRuntime *rt, RuntimeStats *rtStats)
         rtStats->gcHeapChunkCleanDecommitted;
     rtStats->gcHeapChunkTotal =
         size_t(JS_GetGCParameter(rt, JSGC_TOTAL_CHUNKS)) * gc::ChunkSize;
-
+    
     IterateCompartmentsArenasCells(rt, rtStats, StatsCompartmentCallback,
                                    StatsArenaCallback, StatsCellCallback);
     IterateChunks(rt, rtStats, StatsChunkCallback);
-
-    rt->sizeOfIncludingThis(rtStats->mallocSizeOf, &rtStats->runtime);
+    
+    rtStats->runtimeObject = rtStats->mallocSizeOf(rt);
+    
+    rt->sizeOfExcludingThis(rtStats->mallocSizeOf,
+                            &rtStats->runtimeNormal,
+                            &rtStats->runtimeTemporary,
+                            &rtStats->runtimeMjitCode,
+                            &rtStats->runtimeRegexpCode,
+                            &rtStats->runtimeUnusedCodeMemory,
+                            &rtStats->runtimeStackCommitted,
+                            &rtStats->runtimeGCMarker);
+    
+    rtStats->runtimeAtomsTable =
+        rt->atomState.atoms.sizeOfExcludingThis(rtStats->mallocSizeOf);
+    
+    for (ContextIter acx(rt); !acx.done(); acx.next())
+        rtStats->runtimeContexts += acx->sizeOfIncludingThis(rtStats->mallocSizeOf);
 
     // This is initialized to all bytes stored in used chunks, and then we
     // subtract used space from it each time around the loop.
@@ -208,7 +219,7 @@ CollectRuntimeStats(JSRuntime *rt, RuntimeStats *rtStats)
                                       rtStats->gcHeapChunkCleanDecommitted -
                                       rtStats->gcHeapChunkDirtyDecommitted;
 
-    rtStats->totalMjit = rtStats->runtime.mjitCode;
+    rtStats->totalMjit = rtStats->runtimeMjitCode;
 
     for (size_t index = 0;
          index < rtStats->compartmentStatsVector.length();
@@ -225,10 +236,8 @@ CollectRuntimeStats(JSRuntime *rt, RuntimeStats *rtStats)
                       cStats.gcHeapShapesDict +
                       cStats.gcHeapShapesBase +
                       cStats.gcHeapScripts +
-#if JS_HAS_XML_SUPPORT
-                      cStats.gcHeapXML +
-#endif
-                      cStats.gcHeapTypeObjects;
+                      cStats.gcHeapTypeObjects +
+                      cStats.gcHeapXML;
 
         rtStats->gcHeapChunkDirtyUnused -= used;
         rtStats->gcHeapArenaUnused += cStats.gcHeapArenaUnused;
@@ -284,7 +293,19 @@ GetExplicitNonHeapForRuntime(JSRuntime *rt, JSMallocSizeOfFun mallocSizeOf)
     // explicit/runtime/regexp-code
     // explicit/runtime/stack-committed
     // explicit/runtime/unused-code-memory
-    n += rt->sizeOfExplicitNonHeap();
+    size_t dummy, mjitCode, regexpCode, unusedCodeMemory, stackCommitted;
+    rt->sizeOfExcludingThis(mallocSizeOf,
+                            &dummy,
+                            &dummy,
+                            &mjitCode,
+                            &regexpCode,
+                            &unusedCodeMemory,
+                            &stackCommitted,
+                            NULL);
+    n += mjitCode;
+    n += regexpCode;
+    n += unusedCodeMemory;
+    n += stackCommitted;
 
     return int64_t(n);
 }

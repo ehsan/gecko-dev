@@ -185,6 +185,9 @@ public:
   virtual void UpdateBounds();
   virtual void NotifySVGChanged(PRUint32 aFlags);
   NS_IMETHOD_(bool) IsDisplayContainer() { return false; }
+  NS_IMETHOD_(bool) HasValidCoveredRect() {
+    return !(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD);
+  }
 
   // nsSVGGeometryFrame methods
   gfxMatrix GetCanvasTM();

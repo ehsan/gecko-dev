@@ -1102,15 +1102,10 @@ Loader::CreateSheet(nsIURI* aURI,
   LOG(("css::Loader::CreateSheet"));
   NS_PRECONDITION(aSheet, "Null out param!");
 
-  if (!mCompleteSheets.IsInitialized()) {
-    mCompleteSheets.Init();
-  }
-  if (!mLoadingDatas.IsInitialized()) {
-    mLoadingDatas.Init();
-  }
-  if (!mPendingDatas.IsInitialized()) {
-    mPendingDatas.Init();
-  }
+  NS_ENSURE_TRUE((mCompleteSheets.IsInitialized() || mCompleteSheets.Init()) &&
+                   (mLoadingDatas.IsInitialized() || mLoadingDatas.Init()) &&
+                   (mPendingDatas.IsInitialized() || mPendingDatas.Init()),
+                 NS_ERROR_OUT_OF_MEMORY);
 
   nsresult rv = NS_OK;
   *aSheet = nsnull;
@@ -1602,7 +1597,14 @@ Loader::LoadSheet(SheetLoadData* aLoadData, StyleSheetState aSheetState)
     return rv;
   }
 
-  mLoadingDatas.Put(&key, aLoadData);
+  if (!mLoadingDatas.Put(&key, aLoadData)) {
+    LOG_ERROR(("  Failed to put data in loading table"));
+    aLoadData->mIsCancelled = true;
+    channel->Cancel(NS_ERROR_OUT_OF_MEMORY);
+    SheetComplete(aLoadData, NS_ERROR_OUT_OF_MEMORY);
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+
   aLoadData->mIsLoading = true;
 
   return NS_OK;
@@ -1949,7 +1951,9 @@ Loader::LoadStyleLink(nsIContent* aElement,
       *aIsAlternate) {
     LOG(("  Deferring alternate sheet load"));
     URIAndPrincipalHashKey key(data->mURI, data->mLoaderPrincipal);
-    mPendingDatas.Put(&key, data);
+    if (!mPendingDatas.Put(&key, data)) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
 
     data->mMustNotify = true;
     return NS_OK;

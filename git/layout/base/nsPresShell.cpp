@@ -155,8 +155,6 @@
 #include "nsHTMLMediaElement.h"
 #endif
 #include "nsSMILAnimationController.h"
-#include "nsSVGUtils.h"
-#include "SVGFragmentIdentifier.h"
 
 #include "nsRefreshDriver.h"
 
@@ -767,7 +765,9 @@ PresShell::Init(nsIDocument* aDocument,
     return NS_ERROR_ALREADY_INITIALIZED;
   }
 
-  mFramesToDirty.Init();
+  if (!mFramesToDirty.Init()) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
 
   mDocument = aDocument;
   NS_ADDREF(mDocument);
@@ -2748,15 +2748,6 @@ PresShell::GoToAnchor(const nsAString& aAnchorName, bool aScroll)
     return NS_ERROR_FAILURE;
   }
   
-  const Element *root = mDocument->GetRootElement();
-  if (root && root->IsSVG(nsGkAtoms::svg)) {
-    // We need to execute this even if there is an empty anchor name
-    // so that any existing SVG fragment identifier effect is removed
-    if (SVGFragmentIdentifier::ProcessFragmentIdentifier(mDocument, aAnchorName)) {
-      return NS_OK;
-    }
-  }
-
   // Hold a reference to the ESM in case event dispatch tears us down.
   nsRefPtr<nsEventStateManager> esm = mPresContext->EventStateManager();
 
@@ -2888,11 +2879,6 @@ PresShell::GoToAnchor(const nsAString& aAnchorName, bool aScroll)
       if (SameCOMIdentity(win, focusedWindow)) {
         fm->ClearFocus(focusedWindow);
       }
-    }
-
-    // If the target is an animation element, activate the animation
-    if (content->IsNodeOfType(nsINode::eANIMATION)) {
-      nsSVGUtils::ActivateByHyperlink(content.get());
     }
   } else {
     rv = NS_ERROR_FAILURE;

@@ -146,8 +146,6 @@ nsSVGOuterSVGFrame::nsSVGOuterSVGFrame(nsStyleContext* aContext)
 #endif
     , mIsRootContent(false)
 {
-  // Outer-<svg> has CSS layout, so remove this bit:
-  RemoveStateBits(NS_FRAME_SVG_LAYOUT);
 }
 
 NS_IMETHODIMP
@@ -418,7 +416,7 @@ nsSVGOuterSVGFrame::Reflow(nsPresContext*           aPresContext,
     svgElem->SetViewportSize(newViewportSize);
   }
   if (mFullZoom != PresContext()->GetFullZoom()) {
-    changeBits |= FULL_ZOOM_CHANGED;
+    changeBits |= TRANSFORM_CHANGED;
     mFullZoom = PresContext()->GetFullZoom();
   }
   mViewportInitialized = true;
@@ -619,13 +617,8 @@ nsSVGOuterSVGFrame::AttributeChanged(PRInt32  aNameSpaceID,
           this, aAttribute == nsGkAtoms::viewBox ?
                   TRANSFORM_CHANGED | COORD_CONTEXT_CHANGED : TRANSFORM_CHANGED);
 
-      static_cast<nsSVGSVGElement*>(mContent)->ChildrenOnlyTransformChanged();
-
     } else if (aAttribute == nsGkAtoms::width ||
                aAttribute == nsGkAtoms::height) {
-
-      // Don't call ChildrenOnlyTransformChanged() here, since we call it
-      // under Reflow if the width/height actually changed.
 
       nsIFrame* embeddingFrame;
       if (IsRootOfReplacedElementSubDoc(&embeddingFrame) && embeddingFrame) {
@@ -710,8 +703,7 @@ void
 nsSVGOuterSVGFrame::NotifyViewportOrTransformChanged(PRUint32 aFlags)
 {
   NS_ABORT_IF_FALSE(aFlags &&
-                    !(aFlags & ~(COORD_CONTEXT_CHANGED | TRANSFORM_CHANGED |
-                                 FULL_ZOOM_CHANGED)),
+                    !(aFlags & ~(COORD_CONTEXT_CHANGED | TRANSFORM_CHANGED)),
                     "Unexpected aFlags value");
 
   // No point in doing anything when were not init'ed yet:
@@ -737,21 +729,9 @@ nsSVGOuterSVGFrame::NotifyViewportOrTransformChanged(PRUint32 aFlags)
     }
   }
 
-  bool haveNonFulLZoomTransformChange = (aFlags & TRANSFORM_CHANGED);
-
-  if (aFlags & FULL_ZOOM_CHANGED) {
-    // Convert FULL_ZOOM_CHANGED to TRANSFORM_CHANGED:
-    aFlags = (aFlags & ~FULL_ZOOM_CHANGED) | TRANSFORM_CHANGED;
-  }
-
   if (aFlags & TRANSFORM_CHANGED) {
     // Make sure our canvas transform matrix gets (lazily) recalculated:
     mCanvasTM = nsnull;
-
-    if (haveNonFulLZoomTransformChange &&
-        !(mState & NS_STATE_SVG_NONDISPLAY_CHILD)) {
-      content->ChildrenOnlyTransformChanged();
-    }
   }
 
   nsSVGUtils::NotifyChildrenOfSVGChange(this, aFlags);
@@ -770,29 +750,19 @@ nsSVGOuterSVGFrame::GetCanvasTM()
       1.0f / PresContext()->AppUnitsToFloatCSSPixels(
                                 PresContext()->AppUnitsPerDevPixel());
 
-    gfxMatrix tm = content->PrependLocalTransformsTo(
-                     gfxMatrix().Scale(devPxPerCSSPx, devPxPerCSSPx));
-    mCanvasTM = new gfxMatrix(tm);
+    gfxMatrix viewBoxTM = content->GetViewBoxTransform();
+
+    gfxMatrix zoomPanTM;
+    if (mIsRootContent) {
+      const nsSVGTranslatePoint& translate = content->GetCurrentTranslate();
+      zoomPanTM.Translate(gfxPoint(translate.GetX(), translate.GetY()));
+      zoomPanTM.Scale(content->GetCurrentScale(), content->GetCurrentScale());
+    }
+
+    gfxMatrix TM = viewBoxTM * zoomPanTM * gfxMatrix().Scale(devPxPerCSSPx, devPxPerCSSPx);
+    mCanvasTM = new gfxMatrix(TM);
   }
   return *mCanvasTM;
-}
-
-bool
-nsSVGOuterSVGFrame::HasChildrenOnlyTransform(gfxMatrix *aTransform) const
-{
-  nsSVGSVGElement *content = static_cast<nsSVGSVGElement*>(mContent);
-
-  bool hasTransform = content->HasChildrenOnlyTransform();
-
-  if (hasTransform && aTransform) {
-    // Outer-<svg> doesn't use x/y, so we can pass eChildToUserSpace here.
-    gfxMatrix identity;
-    *aTransform =
-      content->PrependLocalTransformsTo(identity,
-                                        nsSVGElement::eChildToUserSpace);
-  }
-
-  return hasTransform;
 }
 
 //----------------------------------------------------------------------
