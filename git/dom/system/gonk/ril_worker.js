@@ -944,15 +944,15 @@ let RIL = {
   },
 
   /**
-   * Request the phone's radio to be enabled or disabled.
+   * Request the phone's radio power to be switched on or off.
    *
-   * @param enabled
-   *        Boolean indicating the desired state.
+   * @param on
+   *        Boolean indicating the desired power state.
    */
-  setRadioEnabled: function setRadioEnabled(options) {
+  setRadioPower: function setRadioPower(options) {
     Buf.newParcel(REQUEST_RADIO_POWER, options);
     Buf.writeInt32(1);
-    Buf.writeInt32(options.enabled ? 1 : 0);
+    Buf.writeInt32(options.on ? 1 : 0);
     Buf.sendParcel();
   },
 
@@ -1413,7 +1413,9 @@ let RIL = {
       }
       this.cachedDialRequest.onerror = onerror;
       this.cachedDialRequest.callback = this.sendDialRequest.bind(this, options);
-      this.setRadioEnabled({enabled: true});
+
+      // Change radio setting value in settings DB to enable radio.
+      this.sendChromeMessage({rilMessageType: "setRadioEnabled", on: true});
       return;
     }
 
@@ -5182,25 +5184,18 @@ RIL[REQUEST_OPERATOR] = function REQUEST_OPERATOR(length, options) {
   this._processOperator(operatorData);
 };
 RIL[REQUEST_RADIO_POWER] = function REQUEST_RADIO_POWER(length, options) {
-  if (options.rilMessageType == null) {
-    // The request was made by ril_worker itself.
-    if (options.rilRequestError) {
-      if (this.cachedDialRequest && options.enabled) {
-        // Turning on radio fails. Notify the error of making an emergency call.
-        this.cachedDialRequest.onerror(GECKO_ERROR_RADIO_NOT_AVAILABLE);
-        this.cachedDialRequest = null;
-      }
-      return;
+  if (options.rilRequestError) {
+    if (this.cachedDialRequest && options.on) {
+      // Turning on radio fails. Notify the error of making an emergency call.
+      this.cachedDialRequest.onerror(GECKO_ERROR_RADIO_NOT_AVAILABLE);
+      this.cachedDialRequest = null;
     }
-
-    if (this._isInitialRadioState) {
-      this._isInitialRadioState = false;
-    }
-
     return;
   }
 
-  this.sendChromeMessage(options);
+  if (this._isInitialRadioState) {
+    this._isInitialRadioState = false;
+  }
 };
 RIL[REQUEST_DTMF] = null;
 RIL[REQUEST_SEND_SMS] = function REQUEST_SEND_SMS(length, options) {
@@ -6025,7 +6020,7 @@ RIL[UNSOLICITED_RESPONSE_RADIO_STATE_CHANGED] = function UNSOLICITED_RESPONSE_RA
   if (this._isInitialRadioState) {
     // Even radioState is RADIO_STATE_OFF, we still have to maually turn radio off,
     // otherwise REQUEST_GET_SIM_STATUS will still report CARD_STATE_PRESENT.
-    this.setRadioEnabled({enabled: false});
+    this.setRadioPower({on: false});
   }
 
   let newState;

@@ -13,11 +13,11 @@
 #include <sys/un.h>
 
 #undef LOG
-#if (defined(MOZ_WIDGET_GONK) && defined(DEBUG))
+#if defined(MOZ_WIDGET_GONK)
 #include <android/log.h>
 #define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "Gonk", args)
 #else
-#define LOG(args...)
+#define LOG(args...)  printf(args);
 #endif
 
 #include "jsfriendapi.h"

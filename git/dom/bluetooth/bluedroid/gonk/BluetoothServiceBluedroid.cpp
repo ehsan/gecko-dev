@@ -75,7 +75,7 @@ static InfallibleTArray<BluetoothNamedValue> sRemoteDevicesPack;
 static nsTArray<nsRefPtr<BluetoothProfileController> > sControllerArray;
 static nsTArray<nsRefPtr<BluetoothReplyRunnable> > sBondingRunnableArray;
 static nsTArray<nsRefPtr<BluetoothReplyRunnable> > sChangeDiscoveryRunnableArray;
-static nsTArray<nsRefPtr<BluetoothReplyRunnable> > sGetDeviceRunnableArray;
+static nsTArray<nsRefPtr<BluetoothReplyRunnable> > sGetPairedDeviceRunnableArray;
 static nsTArray<nsRefPtr<BluetoothReplyRunnable> > sSetPropertyRunnableArray;
 static nsTArray<nsRefPtr<BluetoothReplyRunnable> > sUnbondingRunnableArray;
 static nsTArray<int> sRequestedDeviceCountArray;
@@ -356,7 +356,7 @@ RemoteDevicePropertiesChangeCallback(bt_status_t aStatus,
   MOZ_ASSERT(!NS_IsMainThread());
 
   if (sRequestedDeviceCountArray.IsEmpty()) {
-    MOZ_ASSERT(sGetDeviceRunnableArray.IsEmpty());
+    MOZ_ASSERT(sGetPairedDeviceRunnableArray.IsEmpty());
     return;
   }
 
@@ -395,21 +395,21 @@ RemoteDevicePropertiesChangeCallback(bt_status_t aStatus,
     BluetoothNamedValue(remoteDeviceBdAddress, props));
 
   if (sRequestedDeviceCountArray[0] == 0) {
-    MOZ_ASSERT(!sGetDeviceRunnableArray.IsEmpty());
+    MOZ_ASSERT(!sGetPairedDeviceRunnableArray.IsEmpty());
 
-    if (sGetDeviceRunnableArray.IsEmpty()) {
+    if (sGetPairedDeviceRunnableArray.IsEmpty()) {
       BT_LOGR("No runnable to return");
       return;
     }
 
-    DispatchBluetoothReply(sGetDeviceRunnableArray[0],
+    DispatchBluetoothReply(sGetPairedDeviceRunnableArray[0],
                            sRemoteDevicesPack, EmptyString());
 
     // After firing it, clean up cache
     sRemoteDevicesPack.Clear();
 
     sRequestedDeviceCountArray.RemoveElementAt(0);
-    sGetDeviceRunnableArray.RemoveElementAt(0);
+    sGetPairedDeviceRunnableArray.RemoveElementAt(0);
   }
 }
 
@@ -788,54 +788,12 @@ BluetoothServiceBluedroid::GetDefaultAdapterPathInternal(
 
 nsresult
 BluetoothServiceBluedroid::GetConnectedDevicePropertiesInternal(
-  uint16_t aServiceUuid, BluetoothReplyRunnable* aRunnable)
+  uint16_t aProfileId, BluetoothReplyRunnable* aRunnable)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  if (!IsReady()) {
-    NS_NAMED_LITERAL_STRING(errorStr, "Bluetooth service is not ready yet!");
-    DispatchBluetoothReply(aRunnable, BluetoothValue(), errorStr);
-    return NS_OK;
-  }
-
-  BluetoothProfileManagerBase* profile =
-    BluetoothUuidHelper::GetBluetoothProfileManager(aServiceUuid);
-  if (!profile) {
-    InfallibleTArray<BluetoothNamedValue> emptyArr;
-    DispatchBluetoothReply(aRunnable, emptyArr,
-                           NS_LITERAL_STRING(ERR_UNKNOWN_PROFILE));
-    return NS_OK;
-  }
-
-  nsTArray<nsString> deviceAddresses;
-  if (profile->IsConnected()) {
-    nsString address;
-    profile->GetAddress(address);
-    deviceAddresses.AppendElement(address);
-  }
-
-  int requestedDeviceCount = deviceAddresses.Length();
-  if (requestedDeviceCount == 0) {
-    InfallibleTArray<BluetoothNamedValue> emptyArr;
-    DispatchBluetoothReply(aRunnable, emptyArr, EmptyString());
-    return NS_OK;
-  }
-
-  for (int i = 0; i < requestedDeviceCount; i++) {
-    // Retrieve all properties of devices
-    bt_bdaddr_t addressType;
-    StringToBdAddressType(deviceAddresses[i], &addressType);
-
-    int ret = sBtInterface->get_remote_device_properties(&addressType);
-    if (ret != BT_STATUS_SUCCESS) {
-      DispatchBluetoothReply(aRunnable, BluetoothValue(true),
-                             NS_LITERAL_STRING("GetConnectedDeviceFailed"));
-      return NS_OK;
-    }
-  }
-
-  sRequestedDeviceCountArray.AppendElement(requestedDeviceCount);
-  sGetDeviceRunnableArray.AppendElement(aRunnable);
+  //FIXME: This will be implemented in later patches
+  DispatchBluetoothReply(aRunnable, BluetoothValue(true), EmptyString());
 
   return NS_OK;
 }
@@ -872,7 +830,7 @@ BluetoothServiceBluedroid::GetPairedDevicePropertiesInternal(
   }
 
   sRequestedDeviceCountArray.AppendElement(requestedDeviceCount);
-  sGetDeviceRunnableArray.AppendElement(aRunnable);
+  sGetPairedDeviceRunnableArray.AppendElement(aRunnable);
 
   return NS_OK;
 }
@@ -911,7 +869,6 @@ BluetoothServiceBluedroid::StopDiscoveryInternal(
     DispatchBluetoothReply(aRunnable, BluetoothValue(), errorStr);
     return NS_OK;
   }
-
   int ret = sBtInterface->cancel_discovery();
   if (ret != BT_STATUS_SUCCESS) {
     ReplyStatusError(aRunnable, ret, NS_LITERAL_STRING("StopDiscovery"));
@@ -919,7 +876,6 @@ BluetoothServiceBluedroid::StopDiscoveryInternal(
   }
 
   sChangeDiscoveryRunnableArray.AppendElement(aRunnable);
-
   return NS_OK;
 }
 
@@ -1192,14 +1148,12 @@ BluetoothServiceBluedroid::PrepareAdapterInternal()
 static void
 NextBluetoothProfileController()
 {
-  MOZ_ASSERT(NS_IsMainThread());
-
-  // First, remove the task at the front which has been already done.
-  NS_ENSURE_FALSE_VOID(sControllerArray.IsEmpty());
+  sControllerArray[0] = nullptr;
   sControllerArray.RemoveElementAt(0);
-  // Re-check if the task array is empty, if it's not, the next task will begin.
-  NS_ENSURE_FALSE_VOID(sControllerArray.IsEmpty());
-  sControllerArray[0]->Start();
+
+  if (!sControllerArray.IsEmpty()) {
+    sControllerArray[0]->Start();
+  }
 }
 
 static void

@@ -1280,6 +1280,10 @@ Tab.prototype = {
   },
 
   endLoading: function endLoading() {
+    if (!this._loading) {
+      let stack = new Error().stack;
+      throw "Not Loading!\n" + stack;
+    }
     this._loading = false;
     this.updateFavicon();
   },

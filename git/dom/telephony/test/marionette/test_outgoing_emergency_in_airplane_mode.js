@@ -4,43 +4,34 @@
 MARIONETTE_TIMEOUT = 60000;
 MARIONETTE_HEAD_JS = 'head.js';
 
-let connection;
+let Promise = SpecialPowers.Cu.import("resource://gre/modules/Promise.jsm").Promise;
+
+const KEY = "ril.radio.disabled";
+
+let settings;
 let number = "112";
 let outgoing;
 
-function receivedPending(received, pending, nextAction) {
-  let index = pending.indexOf(received);
-  if (index != -1) {
-    pending.splice(index, 1);
-  }
-  if (pending.length === 0) {
-    nextAction();
-  }
-}
+function setAirplaneMode() {
+  log("Turning on airplane mode");
 
-function setRadioEnabled(enabled, callback) {
-  let request  = connection.setRadioEnabled(enabled);
-  let desiredRadioState = enabled ? 'enabled' : 'disabled';
+  let deferred = Promise.defer();
 
-  let pending = ['onradiostatechange', 'onsuccess'];
-  let done = callback;
+  let setLock = settings.createLock();
+  let obj = {};
+  obj[KEY] = false;
 
-  connection.onradiostatechange = function() {
-    let state = connection.radioState;
-    log("Received 'radiostatechange' event, radioState: " + state);
+  let setReq = setLock.set(obj);
+  setReq.addEventListener("success", function onSetSuccess() {
+    ok(true, "set '" + KEY + "' to " + obj[KEY]);
+    deferred.resolve();
+  });
+  setReq.addEventListener("error", function onSetError() {
+    ok(false, "cannot set '" + KEY + "'");
+    deferred.reject();
+  });
 
-    if (state == desiredRadioState) {
-      receivedPending('onradiostatechange', pending, done);
-    }
-  };
-
-  request.onsuccess = function onsuccess() {
-    receivedPending('onsuccess', pending, done);
-  };
-
-  request.onerror = function onerror() {
-    ok(false, "setRadioEnabled should be ok");
-  };
+  return deferred.promise;
 }
 
 function dial() {
@@ -117,12 +108,10 @@ function cleanUp() {
   finish();
 }
 
-startTestWithPermissions(['mobileconnection'], function() {
-  connection = navigator.mozMobileConnections[0];
-  ok(connection instanceof MozMobileConnection,
-     "connection is instanceof " + connection.constructor);
-
-  setRadioEnabled(false, function() {
-    dial();
-  });
+startTestWithPermissions(['settings-write'], function() {
+  settings = window.navigator.mozSettings;
+  ok(settings);
+  setAirplaneMode()
+    .then(dial)
+    .then(null, cleanUp);
 });

@@ -5,18 +5,25 @@ MARIONETTE_TIMEOUT = 30000;
 MARIONETTE_HEAD_JS = "icc_header.js";
 
 function setRadioEnabled(enabled) {
-  let connection = navigator.mozMobileConnections[0];
-  ok(connection);
+  SpecialPowers.addPermission("settings-write", true, document);
 
-  let request  = connection.setRadioEnabled(enabled);
-
-  request.onsuccess = function onsuccess() {
-    log('setRadioEnabled: ' + enabled);
+  // TODO: Bug 856553 - [B2G] RIL: need an API to enable/disable radio
+  let settings = navigator.mozSettings;
+  let setLock = settings.createLock();
+  let obj = {
+    "ril.radio.disabled": !enabled
   };
+  let setReq = setLock.set(obj);
 
-  request.onerror = function onerror() {
-    ok(false, "setRadioEnabled should be ok");
-  };
+  setReq.addEventListener("success", function onSetSuccess() {
+    log("set 'ril.radio.disabled' to " + enabled);
+  });
+
+  setReq.addEventListener("error", function onSetError() {
+    ok(false, "cannot set 'ril.radio.disabled' to " + enabled);
+  });
+
+  SpecialPowers.removePermission("settings-write", document);
 }
 
 /* Basic test */

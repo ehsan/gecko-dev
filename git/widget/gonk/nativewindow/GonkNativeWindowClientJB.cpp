@@ -215,7 +215,7 @@ int GonkNativeWindowClient::dequeueBuffer(android_native_buffer_t** buffer,
         }
     }
 
-    if (fence.get() && fence->isValid()) {
+    if (fence->isValid()) {
         *fenceFd = fence->dup();
         if (*fenceFd == -1) {
             ALOGE("dequeueBuffer: error duping fence: %d", errno);
