@@ -705,16 +705,10 @@ struct JSContext {
      * property values associated with this context's global object.
      */
     uint8               xmlSettingFlags;
-#else
     uint8               padding;
+#else
+    uint16              padding;
 #endif
-
-    /*
-     * Flag to prevent last-ditch garbage collection when up against runtime
-     * memory limits. This also suppresses calls to JS_ReportOutOfMemory when
-     * failing due to runtime limits.
-     */
-    JSPackedBool        gcDontBlock;
 
     /* Runtime version control identifier. */
     uint16              version;
