@@ -205,15 +205,8 @@ class TransportTestPeer : public sigslot::has_slots<> {
     ice_ = new TransportLayerIce(name, ice_ctx_, stream, 1);
 
     // Assemble the stack
-    std::queue<mozilla::TransportLayer *> layers;
-    layers.push(ice_);
-    layers.push(dtls_);
-
-    test_utils.sts_target()->Dispatch(
-      WrapRunnableRet(flow_, &TransportFlow::PushLayers, layers, &res),
-      NS_DISPATCH_SYNC);
-        
-    ASSERT_EQ((nsresult)NS_OK, res);
+    ASSERT_EQ((nsresult)NS_OK, flow_->PushLayer(ice_));
+    ASSERT_EQ((nsresult)NS_OK, flow_->PushLayer(dtls_));
 
     // Listen for media events
     flow_->SignalPacketReceived.connect(this, &TransportTestPeer::PacketReceived);
@@ -275,13 +268,7 @@ class TransportTestPeer : public sigslot::has_slots<> {
   }
 
   TransportResult SendPacket(const unsigned char* data, size_t len) {
-    TransportResult ret;
-    
-    test_utils.sts_target()->Dispatch(
-      WrapRunnableRet(flow_, &TransportFlow::SendPacket, data, len, &ret),
-      NS_DISPATCH_SYNC);
-
-    return ret;
+    return flow_->SendPacket(data, len);
   }
 
 
@@ -368,24 +355,15 @@ class TransportTest : public ::testing::Test {
   }
 
   void ConnectSocket() {
-    test_utils.sts_target()->Dispatch(
-      WrapRunnable(p1_, &TransportTestPeer::ConnectSocket, p2_),
-      NS_DISPATCH_SYNC);
-    test_utils.sts_target()->Dispatch(
-      WrapRunnable(p2_, &TransportTestPeer::ConnectSocket, p1_),
-      NS_DISPATCH_SYNC);
-
+    p1_->ConnectSocket(p2_);
+    p2_->ConnectSocket(p1_);
     ASSERT_TRUE_WAIT(p1_->connected(), 10000);
     ASSERT_TRUE_WAIT(p2_->connected(), 10000);
   }
 
   void ConnectSocketExpectFail() {
-    test_utils.sts_target()->Dispatch(
-      WrapRunnable(p1_, &TransportTestPeer::ConnectSocket, p2_),
-      NS_DISPATCH_SYNC);
-    test_utils.sts_target()->Dispatch(
-      WrapRunnable(p2_, &TransportTestPeer::ConnectSocket, p1_),
-      NS_DISPATCH_SYNC);
+    p1_->ConnectSocket(p2_);
+    p2_->ConnectSocket(p1_);
     ASSERT_TRUE_WAIT(p1_->failed(), 10000);
     ASSERT_TRUE_WAIT(p2_->failed(), 10000);
   }

@@ -29,19 +29,21 @@ function testWithFrame()
   gDebugger.addEventListener("Debugger:FetchedVariables", function test() {
     // We expect 4 Debugger:FetchedVariables events, one from the global object
     // scope, two from the |with| scopes and the regular one.
-    if (++count < 4) {
+    if (++count <3) {
       info("Number of received Debugger:FetchedVariables events: " + count);
       return;
     }
     gDebugger.removeEventListener("Debugger:FetchedVariables", test, false);
     Services.tm.currentThread.dispatch({ run: function() {
 
-      var frames = gDebugger.DebuggerView.StackFrames._container._list,
-          scopes = gDebugger.DebuggerView.Variables._list,
-          innerScope = scopes.querySelectorAll(".scope")[0],
-          globalScope = scopes.querySelectorAll(".scope")[4],
-          innerNodes = innerScope.querySelector(".details").childNodes,
-          globalNodes = globalScope.querySelector(".details").childNodes;
+      var frames = gDebugger.DebuggerView.StackFrames._frames,
+          scopes = gDebugger.DebuggerView.Properties._vars,
+          globalScope = scopes.lastChild,
+          innerScope = scopes.firstChild,
+          globalNodes = globalScope.querySelector(".details").childNodes,
+          innerNodes = innerScope.querySelector(".details").childNodes;
+
+      globalScope.expand();
 
       is(gDebugger.DebuggerController.activeThread.state, "paused",
         "Should only be getting stack frames while paused.");
@@ -49,7 +51,7 @@ function testWithFrame()
       is(frames.querySelectorAll(".dbg-stackframe").length, 2,
         "Should have three frames.");
 
-      is(scopes.childNodes.length, 5, "Should have 5 variable scopes.");
+      is(scopes.children.length, 5, "Should have 5 variable scopes.");
 
       is(innerNodes[1].querySelector(".name").getAttribute("value"), "one",
         "Should have the right property name for |one|.");
@@ -58,7 +60,7 @@ function testWithFrame()
         "Should have the right property value for |one|.");
 
       is(globalNodes[0].querySelector(".name").getAttribute("value"), "InstallTrigger",
-        "Should have the right property name for |InstallTrigger|.");
+        "Should have the right property name for |Array|.");
 
       is(globalNodes[0].querySelector(".value").getAttribute("value"), "undefined",
         "Should have the right property value for |InstallTrigger|.");
@@ -83,7 +85,7 @@ function resumeAndFinish() {
   gDebugger.addEventListener("Debugger:AfterFramesCleared", function listener() {
     gDebugger.removeEventListener("Debugger:AfterFramesCleared", listener, true);
     Services.tm.currentThread.dispatch({ run: function() {
-      var frames = gDebugger.DebuggerView.StackFrames._container._list;
+      var frames = gDebugger.DebuggerView.StackFrames._frames;
 
       is(frames.querySelectorAll(".dbg-stackframe").length, 0,
         "Should have no frames.");

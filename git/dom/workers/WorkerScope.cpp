@@ -677,7 +677,7 @@ public:
   {
     JS_ASSERT(JS_GetClass(aObj) == Class());
 
-    dom::AllocateProtoAndIfaceCache(aObj);
+    dom::AllocateProtoOrIfaceCache(aObj);
 
     nsRefPtr<DedicatedWorkerGlobalScope> scope =
       new DedicatedWorkerGlobalScope(aCx, aWorkerPrivate);
@@ -807,7 +807,7 @@ private:
     DedicatedWorkerGlobalScope* scope =
       UnwrapDOMObject<DedicatedWorkerGlobalScope>(aObj, eRegularDOMObject);
     if (scope) {
-      DestroyProtoAndIfaceCache(aObj);
+      DestroyProtoOrIfaceCache(aObj);
       scope->_finalize(aFop);
     }
   }
@@ -819,7 +819,7 @@ private:
     DedicatedWorkerGlobalScope* scope =
       UnwrapDOMObject<DedicatedWorkerGlobalScope>(aObj, eRegularDOMObject);
     if (scope) {
-      mozilla::dom::TraceProtoAndIfaceCache(aTrc, aObj);
+      mozilla::dom::TraceProtoOrIfaceCache(aTrc, aObj);
       scope->_trace(aTrc);
     }
   }

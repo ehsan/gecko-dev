@@ -3953,10 +3953,6 @@ nsJSRuntime::Init()
   SetMemoryGCPrefChangedCallback("javascript.options.mem.analysis_purge_mb",
                                  (void *)JSGC_ANALYSIS_PURGE_TRIGGER);
 
-  Preferences::RegisterCallback(SetMemoryGCPrefChangedCallback,
-                               "javascript.options.mem.gc_allocation_threshold_mb");
-  SetMemoryGCPrefChangedCallback("javascript.options.mem.gc_allocation_threshold_mb",
-                                (void *)JSGC_ALLOCATION_THRESHOLD);
   nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
   if (!obs)
     return NS_ERROR_FAILURE;

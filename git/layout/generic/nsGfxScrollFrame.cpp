@@ -2385,12 +2385,13 @@ nsGfxScrollFrameInner::GetLineScrollAmount() const
                                 "mousewheel.min_line_scroll_amount", 1);
   }
   uint32_t appUnitsPerDevPixel = mOuter->PresContext()->AppUnitsPerDevPixel();
-  nscoord minScrollAmountInAppUnits =
+  nscoord fontHeight =
     NS_MAX(1, sMinLineScrollAmountInPixels) * appUnitsPerDevPixel;
-  nscoord horizontalAmount = fm ? fm->AveCharWidth() : 0;
-  nscoord verticalAmount = fm ? fm->MaxHeight() : 0;
-  return nsSize(NS_MAX(horizontalAmount, minScrollAmountInAppUnits),
-                NS_MAX(verticalAmount, minScrollAmountInAppUnits));
+  if (fm) {
+    fontHeight = NS_MAX(fm->MaxHeight(), fontHeight);
+  }
+
+  return nsSize(fontHeight, fontHeight);
 }
 
 /**
@@ -3421,33 +3422,27 @@ nsGfxScrollFrameInner::ReflowFinished()
   if (vScroll || hScroll) {
     nsWeakFrame weakFrame(mOuter);
     nsPoint scrollPos = GetScrollPosition();
-    nsSize lineScrollAmount = GetLineScrollAmount();
+    // XXX shouldn't we use GetPageScrollAmount/GetLineScrollAmount here?
     if (vScroll) {
-      const double kScrollMultiplier =
-        Preferences::GetInt("toolkit.scrollbox.verticalScrollDistance",
-                            NS_DEFAULT_VERTICAL_SCROLL_DISTANCE);
-      nscoord increment = lineScrollAmount.height * kScrollMultiplier;
-      // We normally use (scrollArea.height - increment) for height
+      const double kScrollMultiplier = Preferences::GetInt("toolkit.scrollbox.verticalScrollDistance",
+                                                           NS_DEFAULT_VERTICAL_SCROLL_DISTANCE);
+      nscoord fontHeight = GetLineScrollAmount().height * kScrollMultiplier;
+      // We normally use (scrollArea.height - fontHeight) for height
       // of page scrolling.  However, it is too small when
-      // increment is very large. (If increment is larger than
+      // fontHeight is very large. (If fontHeight is larger than
       // scrollArea.height, direction of scrolling will be opposite).
       // To avoid it, we use (float(scrollArea.height) * 0.8) as
       // lower bound value of height of page scrolling. (bug 383267)
-      // XXX shouldn't we use GetPageScrollAmount here?
-      nscoord pageincrement = nscoord(mScrollPort.height - increment);
+      nscoord pageincrement = nscoord(mScrollPort.height - fontHeight);
       nscoord pageincrementMin = nscoord(float(mScrollPort.height) * 0.8);
       FinishReflowForScrollbar(vScroll, minY, maxY, scrollPos.y,
                                NS_MAX(pageincrement, pageincrementMin),
-                               increment);
+                               fontHeight);
     }
     if (hScroll) {
-      const double kScrollMultiplier =
-        Preferences::GetInt("toolkit.scrollbox.horizontalScrollDistance",
-                            NS_DEFAULT_HORIZONTAL_SCROLL_DISTANCE);
-      nscoord increment = lineScrollAmount.width * kScrollMultiplier;
       FinishReflowForScrollbar(hScroll, minX, maxX, scrollPos.x,
                                nscoord(float(mScrollPort.width) * 0.8),
-                               increment);
+                               nsPresContext::CSSPixelsToAppUnits(10));
     }
     NS_ENSURE_TRUE(weakFrame.IsAlive(), false);
   }

@@ -31,7 +31,6 @@
 #include "nsGUIEvent.h"
 #include "nsIView.h"
 #include "nsLayoutUtils.h"
-#include "nsGkAtoms.h"
 
 #include "nsComponentManagerUtils.h"
 #include "nsIInterfaceRequestorUtils.h"
@@ -53,9 +52,9 @@ nsCoreUtils::HasClickListener(nsIContent *aContent)
     aContent->GetListenerManager(false);
 
   return listenerManager &&
-    (listenerManager->HasListenersFor(nsGkAtoms::onclick) ||
-     listenerManager->HasListenersFor(nsGkAtoms::onmousedown) ||
-     listenerManager->HasListenersFor(nsGkAtoms::onmouseup));
+    (listenerManager->HasListenersFor(NS_LITERAL_STRING("click")) ||
+     listenerManager->HasListenersFor(NS_LITERAL_STRING("mousedown")) ||
+     listenerManager->HasListenersFor(NS_LITERAL_STRING("mouseup")));
 }
 
 void

@@ -12,6 +12,7 @@
 #include "nsBuiltinDecoder.h"
 #include "nsBuiltinDecoderReader.h"
 
+using namespace mozilla;
 
 class nsAudioAvailableEventManager
 {
@@ -29,7 +30,7 @@ public:
 
   // Queues audio sample data and re-packages it into equal sized
   // framebuffers.  Called from the audio thread.
-  void QueueWrittenAudioData(mozilla::AudioDataValue* aAudioData,
+  void QueueWrittenAudioData(AudioDataValue* aAudioData,
                              uint32_t aAudioDataLength,
                              uint64_t aEndTimeSampleOffset);
 
@@ -78,7 +79,7 @@ private:
 
   // ReentrantMonitor for shared access to mPendingEvents queue or
   // buffer length.
-  mozilla::ReentrantMonitor mReentrantMonitor;
+  ReentrantMonitor mReentrantMonitor;
 
   // True if something in the owning document has a listener on the
   // "MozAudioAvailable" event. If not, we don't need to bother copying played

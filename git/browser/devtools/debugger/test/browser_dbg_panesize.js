@@ -29,17 +29,14 @@ function test() {
     ok(DebuggerUI.preferences.height !== someHeight,
       "Height preferences shouldn't have been updated yet.");
 
-    wait_for_connect_and_resume(function() {
-      removeTab(tab1);
-    });
+    pane._frame.addEventListener("Debugger:Connecting", function dbgConnected() {
+      pane._frame.removeEventListener("Debugger:Connecting", dbgConnected, true);
 
-    window.addEventListener("Debugger:Shutdown", function dbgShutdown() {
-      window.removeEventListener("Debugger:Shutdown", dbgShutdown, true);
+      removeTab(tab1);
+      finish();
 
       is(DebuggerUI.preferences.height, someHeight,
         "Height preferences should have been updated by now.");
-
-      finish();
 
     }, true);
   });

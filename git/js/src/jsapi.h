@@ -3956,10 +3956,7 @@ typedef enum JSGCParamKey {
     JSGC_DYNAMIC_MARK_SLICE = 18,
 
     /* Number of megabytes of analysis data to allocate before purging. */
-    JSGC_ANALYSIS_PURGE_TRIGGER = 19,
-
-    /* Lower limit after which we limit the heap growth. */
-    JSGC_ALLOCATION_THRESHOLD = 20
+    JSGC_ANALYSIS_PURGE_TRIGGER = 19
 } JSGCParamKey;
 
 typedef enum JSGCMode {

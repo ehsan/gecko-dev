@@ -324,7 +324,6 @@ MemoryInfoDumper::DumpMemoryReportsToFile(
       do_GetService("@mozilla.org/memory-reporter-manager;1");
     NS_ENSURE_TRUE(mgr,);
     mgr->MinimizeMemoryUsage(callback);
-    return;
   }
 
   DumpMemoryReportsToFileImpl(identifier);

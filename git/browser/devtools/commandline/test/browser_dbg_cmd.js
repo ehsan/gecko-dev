@@ -17,8 +17,8 @@ function testDbgCmd() {
   ok(pane, "Debugger was opened.");
   let frame = pane._frame;
 
-  frame.addEventListener("Debugger:Connected", function dbgConnected(aEvent) {
-    frame.removeEventListener("Debugger:Connected", dbgConnected, true);
+  frame.addEventListener("Debugger:Connecting", function dbgConnected(aEvent) {
+    frame.removeEventListener("Debugger:Connecting", dbgConnected, true);
 
     // Wait for the initial resume...
     aEvent.target.ownerDocument.defaultView.gClient

@@ -3281,7 +3281,7 @@ Wrap(JSContext *cx, unsigned argc, jsval *vp)
     if (!JSObject::getProto(cx, obj, &proto))
         return false;
     JSObject *wrapped = Wrapper::New(cx, obj, proto, &obj->global(),
-                                     &Wrapper::singleton);
+                                     &DirectWrapper::singleton);
     if (!wrapped)
         return false;
 
@@ -3305,7 +3305,7 @@ WrapWithProto(JSContext *cx, unsigned argc, jsval *vp)
 
     JSObject *wrapped = Wrapper::New(cx, &obj.toObject(), proto.toObjectOrNull(),
                                      &obj.toObject().global(),
-                                     &Wrapper::singletonWithPrototype);
+                                     &DirectWrapper::singletonWithPrototype);
     if (!wrapped)
         return false;
 

@@ -17,16 +17,15 @@
 using namespace mozilla;
 using namespace js;
 
+#ifdef DEBUG
 bool
 JSString::isShort() const
 {
-    // It's possible for short strings to be converted to flat strings;  as a
-    // result, checking just for the arena isn't enough to determine if a
-    // string is short.  Hence the isInline() check.
-    bool is_short = (getAllocKind() == gc::FINALIZE_SHORT_STRING) && isInline();
+    bool is_short = (getAllocKind() == gc::FINALIZE_SHORT_STRING);
     JS_ASSERT_IF(is_short, isFlat());
     return is_short;
 }
+#endif
 
 bool
 JSString::isExternal() const

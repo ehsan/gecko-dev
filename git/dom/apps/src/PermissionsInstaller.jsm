@@ -44,7 +44,6 @@ function mapSuffixes(aPermName, aSuffixes)
 }
 
 // Permissions Matrix: https://docs.google.com/spreadsheet/ccc?key=0Akyz_Bqjgf5pdENVekxYRjBTX0dCXzItMnRyUU1RQ0E#gid=0
-// Also, keep in sync with https://mxr.mozilla.org/mozilla-central/source/extensions/cookie/Permission.txt
 
 // Permissions that are implicit:
 // battery-status, network-information, vibration,
@@ -88,31 +87,24 @@ const PermissionsTable = { "resource-lock": {
                            },
                            "device-storage:apps": {
                              app: DENY_ACTION,
-                             privileged: PROMPT_ACTION,
-                             certified: ALLOW_ACTION,
-                             access: ["read", "write", "create"]
+                             privileged: ALLOW_ACTION,
+                             certified: ALLOW_ACTION
                            },
                            "device-storage:pictures": {
                              app: DENY_ACTION,
-                             privileged: PROMPT_ACTION,
+                             privileged: ALLOW_ACTION,
                              certified: ALLOW_ACTION,
                              access: ["read", "write", "create"]
                            },
                            "device-storage:videos": {
                              app: DENY_ACTION,
-                             privileged: PROMPT_ACTION,
+                             privileged: ALLOW_ACTION,
                              certified: ALLOW_ACTION,
                              access: ["read", "write", "create"]
                            },
                            "device-storage:music": {
                              app: DENY_ACTION,
-                             privileged: PROMPT_ACTION,
-                             certified: ALLOW_ACTION,
-                             access: ["read", "write", "create"]
-                           },
-                           "device-storage:sdcard": {
-                             app: DENY_ACTION,
-                             privileged: PROMPT_ACTION,
+                             privileged: ALLOW_ACTION,
                              certified: ALLOW_ACTION,
                              access: ["read", "write", "create"]
                            },
@@ -278,10 +270,10 @@ for (let permName in PermissionsTable) {
 function expandPermissions(aPermName, aAccess) {
   if (!PermissionsTable[aPermName]) {
     Cu.reportError("PermissionsTable.jsm: expandPermissions: Unknown Permission: " + aPermName);
-    return [];
+    throw new Error("PermissionsTable.jsm: expandPermissions: Unknown Permission: " + aPermName);
   }
 
-/*
+/* 
 Temporarily disabled in order to add access fields to gaia: See Bug 805646
   if (!aAccess && PermissionsTable[aPermName].access ||
       aAccess && !PermissionsTable[aPermName].access) {
@@ -395,9 +387,9 @@ let PermissionsInstaller = {
 
       for (let permName in newManifest.permissions) {
         if (!PermissionsTable[permName]) {
-          Cu.reportError("PermissionsInstaller.jsm: '" + permName + "'" +
-                         " is not a valid Webapps permission type.");
-          continue;
+          throw new Error("PermissionsInstaller.jsm: '" + permName + "'" +
+                         " is not a valid Webapps permission type. Aborting Webapp installation");
+          return;
         }
 
         let perms = expandPermissions(permName,

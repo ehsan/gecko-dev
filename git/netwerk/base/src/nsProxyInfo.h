@@ -36,10 +36,6 @@ public:
   const char      *Type()  { return mType; }
   uint32_t         Flags() { return mFlags; }
 
-  bool IsDirect();
-  bool IsHTTP();
-  bool IsSOCKS();
-
 private:
   friend class nsProtocolProxyService;
 

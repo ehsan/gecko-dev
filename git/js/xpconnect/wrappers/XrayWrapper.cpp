@@ -1730,12 +1730,12 @@ template class XRAY;
 
 /* Same-compartment non-filtering versions. */
 
-#define XRAY XrayWrapper<Wrapper, XPCWrappedNativeXrayTraits >
+#define XRAY XrayWrapper<DirectWrapper, XPCWrappedNativeXrayTraits >
 template <> XRAY XRAY::singleton(0);
 template class XRAY;
 #undef XRAY
 
-#define XRAY XrayWrapper<Wrapper, DOMXrayTraits >
+#define XRAY XrayWrapper<DirectWrapper, DOMXrayTraits >
 template <> XRAY XRAY::singleton(0);
 template class XRAY;
 #undef XRAY

@@ -1026,8 +1026,11 @@ TraceXPCGlobal(JSTracer *trc, JSObject *obj)
     }
 #endif
 
+    if (XPCWrappedNativeScope *scope = GetObjectScope(obj))
+        scope->TraceDOMPrototypes(trc);
+
     if (js::GetObjectClass(obj)->flags & JSCLASS_DOM_GLOBAL)
-        mozilla::dom::TraceProtoAndIfaceCache(trc, obj);
+        mozilla::dom::TraceProtoOrIfaceCache(trc, obj);
 }
 
 #ifdef DEBUG
@@ -1104,7 +1107,7 @@ CreateGlobalObject(JSContext *cx, JSClass *clasp, nsIPrincipal *principal)
 #endif
 
     if (clasp->flags & JSCLASS_DOM_GLOBAL) {
-        AllocateProtoAndIfaceCache(global);
+        AllocateProtoOrIfaceCache(global);
     }
 
     return global;

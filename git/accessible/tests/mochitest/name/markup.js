@@ -6,7 +6,7 @@ var gNameRulesFileURL = "markuprules.xml";
 var gRuleDoc = null;
 
 // Debuggin stuff.
-var gDumpToConsole = true;
+var gDumpToConsole = false;
 
 /**
  * Start name tests. Run through markup elements and test names for test
@@ -14,8 +14,6 @@ var gDumpToConsole = true;
  */
 function testNames()
 {
-  enableLogging("tree");
-
   var request = new XMLHttpRequest();
   request.open("get", gNameRulesFileURL, false);
   request.send();
@@ -66,7 +64,6 @@ var gTestIterator =
 
       this.markupIdx++;
       if (this.markupIdx == this.markupElms.length) {
-        disableLogging("tree");
         SimpleTest.finish();
         return;
       }
