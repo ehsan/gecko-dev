@@ -3,7 +3,6 @@ package org.mozilla.gecko.tests;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.mozilla.gecko.Actions;
-import org.mozilla.gecko.home.HomePager;
 import org.mozilla.gecko.R;
 
 import android.view.View;
@@ -108,7 +107,7 @@ public class testReaderMode extends AboutHomeTest {
 
         // Check if the page is added in History tab like a Reading List item
         openAboutHomeTab(AboutHomeTabs.HISTORY);
-        list = findListViewWithTag(HomePager.LIST_TAG_HISTORY);
+        list = findListViewWithTag("history");
         child = list.getChildAt(1);
         mAsserter.ok(child != null, "item can be retrieved", child != null ? child.toString() : "null!");
         mSolo.clickLongOnView(child);
@@ -125,7 +124,7 @@ public class testReaderMode extends AboutHomeTest {
         }
         // Verify if the page is present to your Reading List
         openAboutHomeTab(AboutHomeTabs.READING_LIST);
-        list = findListViewWithTag(HomePager.LIST_TAG_READING_LIST);
+        list = findListViewWithTag("reading_list");
         child = list.getChildAt(childNo-1);
         mAsserter.ok(child != null, "Verify if the page is present to your Reading List", "The page is present in your Reading List");
         contentEventExpecter = mActions.expectGeckoEvent("DOMContentLoaded");
@@ -144,7 +143,7 @@ public class testReaderMode extends AboutHomeTest {
 
         //Check if the Reading List is empty
         openAboutHomeTab(AboutHomeTabs.READING_LIST);
-        list = findListViewWithTag(HomePager.LIST_TAG_READING_LIST);
+        list = findListViewWithTag("reading_list");
         child = list.getChildAt(childNo-1);
         mAsserter.ok(child == null, "Verify if the Reading List is empty", "The Reading List is empty");
     }

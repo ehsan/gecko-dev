@@ -88,8 +88,6 @@ const PACKET_HEADER_MAX = 200;
  *     @return Promise
  *             The promise is resolved when copying completes or rejected if any
  *             (unexpected) errors occur.
- *             This object also emits "progress" events for each chunk that is
- *             copied.  See stream-utils.js.
  *
  * - onClosed(reason) - called when the connection is closed. |reason| is
  *   an optional nsresult or object, typically passed when the transport is
@@ -174,8 +172,6 @@ DebuggerTransport.prototype = {
    *             @return Promise
    *                     The promise is resolved when copying completes or
    *                     rejected if any (unexpected) errors occur.
-   *                     This object also emits "progress" events for each chunk
-   *                     that is copied.  See stream-utils.js.
    */
   startBulkSend: function(header) {
     let packet = new BulkPacket(this);
@@ -580,10 +576,9 @@ LocalDebuggerTransport.prototype = {
         type: type,
         length: length,
         copyTo: (output) => {
-          let copying =
-            StreamUtils.copyStream(pipe.inputStream, output, length);
-          deferred.resolve(copying);
-          return copying;
+          deferred.resolve(
+            StreamUtils.copyStream(pipe.inputStream, output, length));
+          return deferred.promise;
         },
         stream: pipe.inputStream,
         done: deferred
@@ -603,10 +598,9 @@ LocalDebuggerTransport.prototype = {
 
       sendDeferred.resolve({
         copyFrom: (input) => {
-          let copying =
-            StreamUtils.copyStream(input, pipe.outputStream, length);
-          copyDeferred.resolve(copying);
-          return copying;
+          copyDeferred.resolve(
+            StreamUtils.copyStream(input, pipe.outputStream, length));
+          return copyDeferred.promise;
         },
         stream: pipe.outputStream,
         done: copyDeferred

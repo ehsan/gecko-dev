@@ -18,10 +18,11 @@
 
 #include "BluetoothServiceBluedroid.h"
 
+#include <hardware/hardware.h>
+
 #include "BluetoothA2dpManager.h"
 #include "BluetoothHfpManager.h"
 #include "BluetoothOppManager.h"
-#include "BluetoothInterface.h"
 #include "BluetoothProfileController.h"
 #include "BluetoothReplyRunnable.h"
 #include "BluetoothUtils.h"
@@ -57,7 +58,7 @@ static nsString sAdapterBdName;
 static InfallibleTArray<nsString> sAdapterBondedAddressArray;
 
 // Static variables below should only be used on *main thread*
-static BluetoothInterface* sBtInterface;
+static const bt_interface_t* sBtInterface;
 static nsTArray<nsRefPtr<BluetoothProfileController> > sControllerArray;
 static nsTArray<int> sRequestedDeviceCountArray;
 static nsTArray<nsRefPtr<BluetoothReplyRunnable> > sSetPropertyRunnableArray;
@@ -124,7 +125,7 @@ public:
 
     NS_ENSURE_TRUE(sBtInterface, NS_ERROR_FAILURE);
 
-    int ret = sBtInterface->SetAdapterProperty(&prop);
+    int ret = sBtInterface->set_adapter_property(&prop);
     if (ret != BT_STATUS_SUCCESS) {
       BT_LOGR("Fail to set: BT_SCAN_MODE_CONNECTABLE");
     }
@@ -158,7 +159,7 @@ public:
     // Cleanup bluetooth interfaces after BT state becomes BT_STATE_OFF.
     BluetoothHfpManager::DeinitHfpInterface();
     BluetoothA2dpManager::DeinitA2dpInterface();
-    sBtInterface->Cleanup();
+    sBtInterface->cleanup();
 
     return NS_OK;
   }
@@ -790,7 +791,19 @@ bt_callbacks_t sBluetoothCallbacks =
 static bool
 EnsureBluetoothHalLoad()
 {
-  sBtInterface = BluetoothInterface::GetInstance();
+  hw_module_t* module;
+  hw_device_t* device;
+
+  int err = hw_get_module(BT_HARDWARE_MODULE_ID, (hw_module_t const**)&module);
+  if (err != 0) {
+    BT_LOGR("Error: %s", strerror(err));
+    return false;
+  }
+  module->methods->open(module, BT_HARDWARE_MODULE_ID, &device);
+  bluetooth_device_t* btDevice = (bluetooth_device_t *)device;
+  NS_ENSURE_TRUE(btDevice, false);
+
+  sBtInterface = btDevice->get_bluetooth_interface();
   NS_ENSURE_TRUE(sBtInterface, false);
 
   return true;
@@ -799,7 +812,7 @@ EnsureBluetoothHalLoad()
 static bool
 EnableInternal()
 {
-  int ret = sBtInterface->Init(&sBluetoothCallbacks);
+  int ret = sBtInterface->init(&sBluetoothCallbacks);
   if (ret != BT_STATUS_SUCCESS) {
     BT_LOGR("Error while setting the callbacks");
     sBtInterface = nullptr;
@@ -811,7 +824,7 @@ EnableInternal()
   // If any interface cannot be initialized, turn on bluetooth core anyway.
   BluetoothHfpManager::InitHfpInterface();
   BluetoothA2dpManager::InitA2dpInterface();
-  return sBtInterface->Enable();
+  return sBtInterface->enable();
 }
 
 static nsresult
@@ -834,7 +847,7 @@ StartStopGonkBluetooth(bool aShouldEnable)
     return NS_OK;
   }
 
-  int ret = aShouldEnable ? EnableInternal() : sBtInterface->Disable();
+  int ret = aShouldEnable ? EnableInternal() : sBtInterface->disable();
   NS_ENSURE_TRUE(ret == BT_STATUS_SUCCESS, NS_ERROR_FAILURE);
 
   return NS_OK;
@@ -989,7 +1002,7 @@ BluetoothServiceBluedroid::GetConnectedDevicePropertiesInternal(
     bt_bdaddr_t addressType;
     StringToBdAddressType(deviceAddresses[i], &addressType);
 
-    int ret = sBtInterface->GetRemoteDeviceProperties(&addressType);
+    int ret = sBtInterface->get_remote_device_properties(&addressType);
     if (ret != BT_STATUS_SUCCESS) {
       DispatchBluetoothReply(aRunnable, BluetoothValue(true),
                              NS_LITERAL_STRING("GetConnectedDeviceFailed"));
@@ -1022,7 +1035,7 @@ BluetoothServiceBluedroid::GetPairedDevicePropertiesInternal(
     // Retrieve all properties of devices
     bt_bdaddr_t addressType;
     StringToBdAddressType(aDeviceAddress[i], &addressType);
-    int ret = sBtInterface->GetRemoteDeviceProperties(&addressType);
+    int ret = sBtInterface->get_remote_device_properties(&addressType);
     if (ret != BT_STATUS_SUCCESS) {
       DispatchBluetoothReply(aRunnable, BluetoothValue(true),
                              NS_LITERAL_STRING("GetPairedDeviceFailed"));
@@ -1044,7 +1057,7 @@ BluetoothServiceBluedroid::StartDiscoveryInternal(
 
   ENSURE_BLUETOOTH_IS_READY(aRunnable, NS_OK);
 
-  int ret = sBtInterface->StartDiscovery();
+  int ret = sBtInterface->start_discovery();
   if (ret != BT_STATUS_SUCCESS) {
     ReplyStatusError(aRunnable, ret, NS_LITERAL_STRING("StartDiscovery"));
 
@@ -1064,7 +1077,7 @@ BluetoothServiceBluedroid::StopDiscoveryInternal(
 
   ENSURE_BLUETOOTH_IS_READY(aRunnable, NS_OK);
 
-  int ret = sBtInterface->CancelDiscovery();
+  int ret = sBtInterface->cancel_discovery();
   if (ret != BT_STATUS_SUCCESS) {
     ReplyStatusError(aRunnable, ret, NS_LITERAL_STRING("StopDiscovery"));
     return NS_ERROR_FAILURE;
@@ -1123,7 +1136,7 @@ BluetoothServiceBluedroid::SetProperty(BluetoothObjectType aType,
 
   sSetPropertyRunnableArray.AppendElement(aRunnable);
 
-  int ret = sBtInterface->SetAdapterProperty(&prop);
+  int ret = sBtInterface->set_adapter_property(&prop);
   if (ret != BT_STATUS_SUCCESS) {
     ReplyStatusError(aRunnable, ret, NS_LITERAL_STRING("SetProperty"));
   }
@@ -1160,7 +1173,7 @@ BluetoothServiceBluedroid::CreatePairedDeviceInternal(
   bt_bdaddr_t remoteAddress;
   StringToBdAddressType(aDeviceAddress, &remoteAddress);
 
-  int ret = sBtInterface->CreateBond(&remoteAddress);
+  int ret = sBtInterface->create_bond(&remoteAddress);
   if (ret != BT_STATUS_SUCCESS) {
     ReplyStatusError(aRunnable, ret, NS_LITERAL_STRING("CreatedPairedDevice"));
   } else {
@@ -1181,7 +1194,7 @@ BluetoothServiceBluedroid::RemoveDeviceInternal(
   bt_bdaddr_t remoteAddress;
   StringToBdAddressType(aDeviceAddress, &remoteAddress);
 
-  int ret = sBtInterface->RemoveBond(&remoteAddress);
+  int ret = sBtInterface->remove_bond(&remoteAddress);
   if (ret != BT_STATUS_SUCCESS) {
     ReplyStatusError(aRunnable, ret,
                      NS_LITERAL_STRING("RemoveDevice"));
@@ -1204,7 +1217,7 @@ BluetoothServiceBluedroid::SetPinCodeInternal(
   bt_bdaddr_t remoteAddress;
   StringToBdAddressType(aDeviceAddress, &remoteAddress);
 
-  int ret = sBtInterface->PinReply(
+  int ret = sBtInterface->pin_reply(
       &remoteAddress, true, aPinCode.Length(),
       (bt_pin_code_t*)NS_ConvertUTF16toUTF8(aPinCode).get());
 
@@ -1237,8 +1250,8 @@ BluetoothServiceBluedroid::SetPairingConfirmationInternal(
   bt_bdaddr_t remoteAddress;
   StringToBdAddressType(aDeviceAddress, &remoteAddress);
 
-  int ret = sBtInterface->SspReply(&remoteAddress, (bt_ssp_variant_t)0,
-                                   aConfirm, 0);
+  int ret = sBtInterface->ssp_reply(&remoteAddress, (bt_ssp_variant_t)0,
+                                    aConfirm, 0);
   if (ret != BT_STATUS_SUCCESS) {
     ReplyStatusError(aRunnable, ret,
                      NS_LITERAL_STRING("SetPairingConfirmation"));
@@ -1299,6 +1312,12 @@ ConnectDisconnect(bool aConnect, const nsAString& aDeviceAddress,
   if (sControllerArray.Length() == 1) {
     sControllerArray[0]->StartSession();
   }
+}
+
+const bt_interface_t*
+BluetoothServiceBluedroid::GetBluetoothInterface()
+{
+  return sBtInterface;
 }
 
 void

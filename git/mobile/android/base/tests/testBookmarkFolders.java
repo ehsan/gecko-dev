@@ -1,7 +1,6 @@
 package org.mozilla.gecko.tests;
 
 import org.mozilla.gecko.sync.Utils;
-import org.mozilla.gecko.home.HomePager;
 
 import android.content.ContentResolver;
 import android.content.ContentValues;
@@ -30,7 +29,7 @@ public class testBookmarkFolders extends AboutHomeTest {
         waitForText(StringHelper.TOOLBAR_FOLDER_LABEL);
 
         // Verify the number of folders displayed in the Desktop Bookmarks folder is correct
-        ListView desktopFolderContent = findListViewWithTag(HomePager.LIST_TAG_BOOKMARKS);
+        ListView desktopFolderContent = findListViewWithTag("bookmarks");
         ListAdapter adapter = desktopFolderContent.getAdapter();
         if (mDevice.type.equals("tablet")) { // On tablets it's 4 folders and 1 view for top padding
             mAsserter.is(adapter.getCount(), 5, "Checking that the correct number of folders is displayed in the Desktop Bookmarks folder");
@@ -99,7 +98,7 @@ public class testBookmarkFolders extends AboutHomeTest {
         mSolo.hideSoftKeyboard();
         getInstrumentation().waitForIdleSync();
 
-        ListView bookmarksTabList = findListViewWithTag(HomePager.LIST_TAG_BOOKMARKS);
+        ListView bookmarksTabList = findListViewWithTag("bookmarks");
         if (!waitForNonEmptyListToLoad(bookmarksTabList)) {
             return null;
         }

@@ -8,7 +8,6 @@ const {Services} = Cu.import("resource://gre/modules/Services.jsm");
 const {Simulator} = Cu.import("resource://gre/modules/devtools/Simulator.jsm");
 const {ConnectionManager, Connection} = require("devtools/client/connection-manager");
 const {DebuggerServer} = require("resource://gre/modules/devtools/dbg-server.jsm");
-const discovery = require("devtools/toolkit/discovery/discovery");
 
 const Strings = Services.strings.createBundle("chrome://webide/content/webide.properties");
 
@@ -20,7 +19,7 @@ USBRuntime.prototype = {
   connect: function(connection) {
     let device = Devices.getByName(this.id);
     if (!device) {
-      return promise.reject("Can't find device: " + this.getName());
+      return promise.reject("Can't find device: " + id);
     }
     return device.connect().then((port) => {
       connection.host = "localhost";
@@ -36,29 +35,6 @@ USBRuntime.prototype = {
   },
 }
 
-function WiFiRuntime(deviceName) {
-  this.deviceName = deviceName;
-}
-
-WiFiRuntime.prototype = {
-  connect: function(connection) {
-    let service = discovery.getRemoteService("devtools", this.deviceName);
-    if (!service) {
-      return promise.reject("Can't find device: " + this.getName());
-    }
-    connection.host = service.host;
-    connection.port = service.port;
-    connection.connect();
-    return promise.resolve();
-  },
-  getID: function() {
-    return this.deviceName;
-  },
-  getName: function() {
-    return this.deviceName;
-  },
-}
-
 function SimulatorRuntime(version) {
   this.version = version;
 }
@@ -68,7 +44,7 @@ SimulatorRuntime.prototype = {
     let port = ConnectionManager.getFreeTCPPort();
     let simulator = Simulator.getByVersion(this.version);
     if (!simulator || !simulator.launch) {
-      return promise.reject("Can't find simulator: " + this.getName());
+      return promise.reject("Can't find simulator: " + this.version);
     }
     return simulator.launch({port: port}).then(() => {
       connection.port = port;
@@ -126,7 +102,6 @@ let gRemoteRuntime = {
 }
 
 exports.USBRuntime = USBRuntime;
-exports.WiFiRuntime = WiFiRuntime;
 exports.SimulatorRuntime = SimulatorRuntime;
 exports.gRemoteRuntime = gRemoteRuntime;
 exports.gLocalRuntime = gLocalRuntime;
