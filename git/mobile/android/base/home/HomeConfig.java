@@ -371,11 +371,6 @@ public final class HomeConfig {
         }
 
         @Override
-        public int hashCode() {
-            return super.hashCode();
-        }
-
-        @Override
         public int describeContents() {
             return 0;
         }

@@ -48,13 +48,13 @@ nsToolkit::nsToolkit()
 , mEventTapRLS(nullptr)
 {
   MOZ_COUNT_CTOR(nsToolkit);
-  RegisterForSleepWakeNotifications();
+  RegisterForSleepWakeNotifcations();
 }
 
 nsToolkit::~nsToolkit()
 {
   MOZ_COUNT_DTOR(nsToolkit);
-  RemoveSleepWakeNotifications();
+  RemoveSleepWakeNotifcations();
   UnregisterAllProcessMouseEventHandlers();
 }
 
@@ -98,7 +98,7 @@ static void ToolkitSleepWakeCallback(void *refCon, io_service_t service, natural
 }
 
 nsresult
-nsToolkit::RegisterForSleepWakeNotifications()
+nsToolkit::RegisterForSleepWakeNotifcations()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
@@ -123,7 +123,7 @@ nsToolkit::RegisterForSleepWakeNotifications()
 }
 
 void
-nsToolkit::RemoveSleepWakeNotifications()
+nsToolkit::RemoveSleepWakeNotifcations()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
