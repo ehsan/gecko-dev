@@ -253,7 +253,6 @@ function UpdateBackForwardCommands(aWebNavigation) {
   }
 }
 
-#ifdef XP_MACOSX
 /**
  * Click-and-Hold implementation for the Back and Forward buttons
  * XXXmano: should this live in toolbarbutton.xml?
@@ -310,8 +309,7 @@ function SetClickAndHoldHandlers() {
   // the forward buttons.
   var unifiedButton = document.getElementById("unified-back-forward-button");
   if (unifiedButton && !unifiedButton._clickHandlersAttached) {
-    var popup = document.getElementById("back-forward-dropmarker")
-                        .firstChild.cloneNode(true);
+    var popup = document.getElementById("backForwardMenu").cloneNode(true);
     var backButton = document.getElementById("back-button");
     backButton.setAttribute("type", "menu");
     backButton.appendChild(popup);
@@ -324,7 +322,6 @@ function SetClickAndHoldHandlers() {
     unifiedButton._clickHandlersAttached = true;
   }
 }
-#endif
 
 const gSessionHistoryObserver = {
   observe: function(subject, topic, data)
@@ -1462,12 +1459,10 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
     document.getElementById("textfieldDirection-swap").hidden = false;
   }
 
-#ifdef XP_MACOSX
   // Setup click-and-hold gestures access to the session history
   // menus if global click-and-hold isn't turned on
   if (!getBoolPref("ui.click_hold_context_menus", false))
     SetClickAndHoldHandlers();
-#endif
 
   // Initialize the full zoom setting.
   // We do this before the session restore service gets initialized so we can
@@ -3492,12 +3487,6 @@ function BrowserToolboxCustomizeDone(aToolboxChanged) {
     gIdentityHandler._cacheElements();
     window.XULBrowserWindow.init();
 
-    var backForwardDropmarker = document.getElementById("back-forward-dropmarker");
-    if (backForwardDropmarker)
-      backForwardDropmarker.disabled =
-        document.getElementById('Browser:Back').hasAttribute('disabled') &&
-        document.getElementById('Browser:Forward').hasAttribute('disabled');
-
 #ifndef XP_MACOSX
     updateEditUIVisibility();
 #endif
@@ -3524,15 +3513,11 @@ function BrowserToolboxCustomizeDone(aToolboxChanged) {
   var cmd = document.getElementById("cmd_CustomizeToolbars");
   cmd.removeAttribute("disabled");
 
-#ifdef XP_MACOSX
   // make sure to re-enable click-and-hold
   if (!getBoolPref("ui.click_hold_context_menus", false))
     SetClickAndHoldHandlers();
-#endif
 
-  // XXX Shouldn't have to do this, but I do
-  if (!gCustomizeSheet)
-    window.focus();
+  window.content.focus();
 }
 
 function BrowserToolboxCustomizeChange() {
@@ -4247,14 +4232,12 @@ var XULBrowserWindow = {
 
   // Properties used to cache security state used to update the UI
   _state: null,
-  _tooltipText: null,
   _hostChanged: false, // onLocationChange will flip this bit
 
   onSecurityChange: function (aWebProgress, aRequest, aState) {
     // Don't need to do anything if the data we use to update the UI hasn't
     // changed
     if (this._state == aState &&
-        this._tooltipText == gBrowser.securityUI.tooltipText &&
         !this._hostChanged) {
 #ifdef DEBUG
       try {
@@ -4280,7 +4263,6 @@ var XULBrowserWindow = {
 #endif
 
     this._hostChanged = false;
-    this._tooltipText = gBrowser.securityUI.tooltipText
 
     // aState is defined as a bitmask that may be extended in the future.
     // We filter out any unknown bits before testing for known values.
@@ -4440,19 +4422,26 @@ var CombinedStopReload = {
     if (!this._initialized)
       return;
 
+    this.reload.removeAttribute("displaystop");
+
     if (!aDelay || this._stopClicked) {
       this._stopClicked = false;
       this._cancelTransition();
-      this.reload.removeAttribute("displaystop");
+      this.reload.disabled = XULBrowserWindow.reloadCommand
+                                             .getAttribute("disabled") == "true";
       return;
     }
 
     if (this._timer)
       return;
 
+    // Temporarily disable the reload button to prevent the user from
+    // accidentally reloading the page when intending to click the stop button
+    this.reload.disabled = true;
     this._timer = setTimeout(function (self) {
       self._timer = 0;
-      self.reload.removeAttribute("displaystop");
+      self.reload.disabled = XULBrowserWindow.reloadCommand
+                                             .getAttribute("disabled") == "true";
     }, 650, this);
   },
 
@@ -5871,6 +5860,11 @@ var IndexedDBPromptHelper = {
 
 function WindowIsClosing()
 {
+  if (TabView.isVisible()) {
+    TabView.hide();
+    return false;
+  }
+
   var reallyClose = closeWindow(false, warnAboutClosingWindow);
   if (!reallyClose)
     return false;
@@ -6574,7 +6568,22 @@ function convertFromUnicode(charset, str)
  */
 var FeedHandler = {
   /**
-   * Called when the user clicks on the Subscribe to This Page... menu item.
+   * The click handler for the Feed icon in the toolbar. Opens the
+   * subscription page if user is not given a choice of feeds.
+   * (Otherwise the list of available feeds will be presented to the
+   * user in a popup menu.)
+   */
+  onFeedButtonClick: function(event) {
+    event.stopPropagation();
+
+    if (event.target.hasAttribute("feed") &&
+        event.eventPhase == Event.AT_TARGET &&
+        (event.button == 0 || event.button == 1)) {
+        this.subscribeToFeed(null, event);
+    }
+  },
+
+ /** Called when the user clicks on the Subscribe to This Page... menu item.
    * Builds a menu of unique feeds associated with the page, and if there
    * is only one, shows the feed inline in the browser window.
    * @param   menuPopup
@@ -6598,6 +6607,13 @@ var FeedHandler = {
 
     while (menuPopup.firstChild)
       menuPopup.removeChild(menuPopup.firstChild);
+
+    if (feeds.length == 1) {
+      var feedButton = document.getElementById("feed-button");
+      if (feedButton)
+        feedButton.setAttribute("feed", feeds[0].href);
+      return false;
+    }
 
     // Build the menu showing the available feed choices for viewing.
     for (var i = 0; i < feeds.length; ++i) {
@@ -6670,16 +6686,30 @@ var FeedHandler = {
    * a page is loaded or the user switches tabs to a page that has feeds.
    */
   updateFeeds: function() {
+    var feedButton = document.getElementById("feed-button");
+
     var feeds = gBrowser.selectedBrowser.feeds;
     if (!feeds || feeds.length == 0) {
+      if (feedButton) {
+        feedButton.disabled = true;
+        feedButton.removeAttribute("feed");
+      }
       this._feedMenuitem.setAttribute("disabled", "true");
       this._feedMenupopup.setAttribute("hidden", "true");
       this._feedMenuitem.removeAttribute("hidden");
     } else {
+      if (feedButton)
+        feedButton.disabled = false;
+
       if (feeds.length > 1) {
         this._feedMenuitem.setAttribute("hidden", "true");
         this._feedMenupopup.removeAttribute("hidden");
+        if (feedButton)
+          feedButton.removeAttribute("feed");
       } else {
+        if (feedButton)
+          feedButton.setAttribute("feed", feeds[0].href);
+
         this._feedMenuitem.setAttribute("feed", feeds[0].href);
         this._feedMenuitem.removeAttribute("disabled");
         this._feedMenuitem.removeAttribute("hidden");
@@ -6700,6 +6730,12 @@ var FeedHandler = {
       browserForLink.feeds = [];
 
     browserForLink.feeds.push({ href: link.href, title: link.title });
+
+    if (browserForLink == gBrowser.selectedBrowser) {
+      var feedButton = document.getElementById("feed-button");
+      if (feedButton)
+        feedButton.collapsed = false;
+    }
   }
 };
 
@@ -7903,6 +7939,9 @@ var TabContextMenu = {
     let unpinnedTabs = gBrowser.visibleTabs.length - gBrowser._numPinnedTabs;
     document.getElementById("context_closeOtherTabs").disabled = unpinnedTabs <= 1;
     document.getElementById("context_closeOtherTabs").hidden = this.contextTab.pinned;
+
+    // Disable "Move to Group" if it's a pinned tab.
+    document.getElementById("context_tabViewMenu").disabled = this.contextTab.pinned;
   }
 };
 
