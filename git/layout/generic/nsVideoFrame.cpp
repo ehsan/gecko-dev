@@ -239,7 +239,7 @@ public:
   nsCOMPtr<nsIContent> mContent;
 };
 
-nsresult
+NS_IMETHODIMP
 nsVideoFrame::Reflow(nsPresContext*           aPresContext,
                      nsHTMLReflowMetrics&     aMetrics,
                      const nsHTMLReflowState& aReflowState,
@@ -469,7 +469,7 @@ nsVideoFrame::AccessibleType()
 #endif
 
 #ifdef DEBUG_FRAME_DUMP
-nsresult
+NS_IMETHODIMP
 nsVideoFrame::GetFrameName(nsAString& aResult) const
 {
   return MakeFrameName(NS_LITERAL_STRING("HTMLVideo"), aResult);
@@ -604,7 +604,7 @@ nsVideoFrame::UpdatePosterSource(bool aNotify)
   }
 }
 
-nsresult
+NS_IMETHODIMP
 nsVideoFrame::AttributeChanged(int32_t aNameSpaceID,
                                nsIAtom* aAttribute,
                                int32_t aModType)

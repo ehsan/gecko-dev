@@ -27,13 +27,13 @@ public:
   virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;
 
 #ifdef DEBUG_FRAME_DUMP
-  virtual nsresult GetFrameName(nsAString& aResult) const MOZ_OVERRIDE {
+  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE {
     return MakeFrameName(NS_LITERAL_STRING("SplitterFrame"), aResult);
   }
 #endif
 
   // nsIFrame overrides
-  virtual nsresult AttributeChanged(int32_t aNameSpaceID,
+  NS_IMETHOD AttributeChanged(int32_t aNameSpaceID,
                               nsIAtom* aAttribute,
                               int32_t aModType) MOZ_OVERRIDE;
 
@@ -41,7 +41,7 @@ public:
                     nsIFrame*        aParent,
                     nsIFrame*        aPrevInFlow) MOZ_OVERRIDE;
 
-  virtual nsresult GetCursor(const nsPoint&    aPoint,
+  NS_IMETHOD GetCursor(const nsPoint&    aPoint,
                        nsIFrame::Cursor& aCursor) MOZ_OVERRIDE;
 
   NS_IMETHOD DoLayout(nsBoxLayoutState& aBoxLayoutState) MOZ_OVERRIDE;
@@ -63,7 +63,7 @@ public:
                            mozilla::WidgetGUIEvent* aEvent,
                            nsEventStatus* aEventStatus) MOZ_OVERRIDE;
 
-  virtual nsresult HandleEvent(nsPresContext* aPresContext,
+  NS_IMETHOD HandleEvent(nsPresContext* aPresContext,
                          mozilla::WidgetGUIEvent* aEvent,
                          nsEventStatus* aEventStatus) MOZ_OVERRIDE;
 

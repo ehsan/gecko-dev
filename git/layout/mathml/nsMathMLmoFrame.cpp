@@ -924,7 +924,7 @@ nsMathMLmoFrame::TransmitAutomaticData()
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsMathMLmoFrame::SetInitialChildList(ChildListID     aListID,
                                      nsFrameList&    aChildList)
 {
@@ -937,7 +937,7 @@ nsMathMLmoFrame::SetInitialChildList(ChildListID     aListID,
   return rv;
 }
 
-nsresult
+NS_IMETHODIMP
 nsMathMLmoFrame::Reflow(nsPresContext*          aPresContext,
                         nsHTMLReflowMetrics&     aDesiredSize,
                         const nsHTMLReflowState& aReflowState,
@@ -1025,7 +1025,7 @@ nsMathMLmoFrame::GetIntrinsicWidthMetrics(nsRenderingContext *aRenderingContext,
   }
 }
 
-nsresult
+NS_IMETHODIMP
 nsMathMLmoFrame::AttributeChanged(int32_t         aNameSpaceID,
                                   nsIAtom*        aAttribute,
                                   int32_t         aModType)

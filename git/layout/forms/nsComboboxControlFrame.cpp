@@ -756,7 +756,7 @@ nsComboboxControlFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
   return prefWidth;
 }
 
-nsresult
+NS_IMETHODIMP
 nsComboboxControlFrame::Reflow(nsPresContext*          aPresContext,
                                nsHTMLReflowMetrics&     aDesiredSize,
                                const nsHTMLReflowState& aReflowState,
@@ -884,7 +884,7 @@ nsComboboxControlFrame::GetType() const
 }
 
 #ifdef DEBUG_FRAME_DUMP
-nsresult
+NS_IMETHODIMP
 nsComboboxControlFrame::GetFrameName(nsAString& aResult) const
 {
   return MakeFrameName(NS_LITERAL_STRING("ComboboxControl"), aResult);
@@ -1097,7 +1097,7 @@ nsComboboxControlFrame::OnSetSelectedIndex(int32_t aOldIndex, int32_t aNewIndex)
 // End nsISelectControlFrame
 //----------------------------------------------------------------------
 
-nsresult
+NS_IMETHODIMP
 nsComboboxControlFrame::HandleEvent(nsPresContext* aPresContext,
                                     WidgetGUIEvent* aEvent,
                                     nsEventStatus* aEventStatus)
@@ -1226,7 +1226,7 @@ public:
       ~(nsIFrame::eReplacedContainsBlock));
   }
 
-  virtual nsresult Reflow(nsPresContext*           aPresContext,
+  NS_IMETHOD Reflow(nsPresContext*           aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus&          aStatus);
@@ -1247,7 +1247,7 @@ nsComboboxDisplayFrame::GetType() const
   return nsGkAtoms::comboboxDisplayFrame;
 }
 
-nsresult
+NS_IMETHODIMP
 nsComboboxDisplayFrame::Reflow(nsPresContext*           aPresContext,
                                nsHTMLReflowMetrics&     aDesiredSize,
                                const nsHTMLReflowState& aReflowState,
@@ -1368,7 +1368,7 @@ nsComboboxControlFrame::GetChildLists(nsTArray<ChildList>* aLists) const
   mPopupFrames.AppendIfNonempty(aLists, kSelectPopupList);
 }
 
-nsresult
+NS_IMETHODIMP
 nsComboboxControlFrame::SetInitialChildList(ChildListID     aListID,
                                             nsFrameList&    aChildList)
 {

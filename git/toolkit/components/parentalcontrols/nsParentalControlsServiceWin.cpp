@@ -21,9 +21,24 @@ NS_IMPL_ISUPPORTS1(nsParentalControlsServiceWin, nsIParentalControlsService)
 
 static HINSTANCE gAdvAPIDLLInst = nullptr;
 
-decltype(EventWrite)* gEventWrite = nullptr;
-decltype(EventRegister)* gEventRegister = nullptr;
-decltype(EventUnregister)* gEventUnregister = nullptr;
+typedef ULONG (STDMETHODCALLTYPE *MyEventWrite)(
+  REGHANDLE RegHandle,
+  PCEVENT_DESCRIPTOR EventDescriptor,
+  ULONG UserDataCount,
+  PEVENT_DATA_DESCRIPTOR UserData);
+
+typedef ULONG (STDMETHODCALLTYPE *MyEventRegister)(
+  LPCGUID ProviderId,
+  PENABLECALLBACK EnableCallback,
+  PVOID CallbackContext,
+  PREGHANDLE RegHandle);
+
+typedef ULONG (STDMETHODCALLTYPE *MyEventUnregister)(
+  REGHANDLE RegHandle);
+
+MyEventWrite gEventWrite = nullptr;
+MyEventRegister gEventRegister = nullptr;
+MyEventUnregister gEventUnregister = nullptr;
 
 nsParentalControlsServiceWin::nsParentalControlsServiceWin() :
   mEnabled(false)
@@ -52,9 +67,9 @@ nsParentalControlsServiceWin::nsParentalControlsServiceWin() :
     gAdvAPIDLLInst = ::LoadLibrary("Advapi32.dll");
     if(gAdvAPIDLLInst)
     {
-      gEventWrite = (decltype(EventWrite)*) GetProcAddress(gAdvAPIDLLInst, "EventWrite");
-      gEventRegister = (decltype(EventRegister)*) GetProcAddress(gAdvAPIDLLInst, "EventRegister");
-      gEventUnregister = (decltype(EventUnregister)*) GetProcAddress(gAdvAPIDLLInst, "EventUnregister");
+      gEventWrite = (MyEventWrite) GetProcAddress(gAdvAPIDLLInst, "EventWrite");
+      gEventRegister = (MyEventRegister) GetProcAddress(gAdvAPIDLLInst, "EventRegister");
+      gEventUnregister = (MyEventUnregister) GetProcAddress(gAdvAPIDLLInst, "EventUnregister");
     }
     mEnabled = true;
   }

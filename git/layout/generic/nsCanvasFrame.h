@@ -40,19 +40,19 @@ public:
 
   virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;
 
-  virtual nsresult SetInitialChildList(ChildListID     aListID,
+  NS_IMETHOD SetInitialChildList(ChildListID     aListID,
                                  nsFrameList&    aChildList) MOZ_OVERRIDE;
-  virtual nsresult AppendFrames(ChildListID     aListID,
+  NS_IMETHOD AppendFrames(ChildListID     aListID,
                           nsFrameList&    aFrameList) MOZ_OVERRIDE;
-  virtual nsresult InsertFrames(ChildListID     aListID,
+  NS_IMETHOD InsertFrames(ChildListID     aListID,
                           nsIFrame*       aPrevFrame,
                           nsFrameList&    aFrameList) MOZ_OVERRIDE;
-  virtual nsresult RemoveFrame(ChildListID     aListID,
+  NS_IMETHOD RemoveFrame(ChildListID     aListID,
                          nsIFrame*       aOldFrame) MOZ_OVERRIDE;
 
   virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
   virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
-  virtual nsresult Reflow(nsPresContext*          aPresContext,
+  NS_IMETHOD Reflow(nsPresContext*          aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus&          aStatus) MOZ_OVERRIDE;
@@ -98,9 +98,9 @@ public:
   }
 
 #ifdef DEBUG_FRAME_DUMP
-  virtual nsresult GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
+  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
 #endif
-  virtual nsresult GetContentForEvent(mozilla::WidgetEvent* aEvent,
+  NS_IMETHOD GetContentForEvent(mozilla::WidgetEvent* aEvent,
                                 nsIContent** aContent) MOZ_OVERRIDE;
 
   nsRect CanvasArea() const;

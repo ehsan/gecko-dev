@@ -6614,9 +6614,9 @@ nsWindow::OnSysColorChanged()
  **************************************************************/
 
 NS_IMETHODIMP
-nsWindow::NotifyIME(const IMENotification& aIMENotification)
+nsWindow::NotifyIME(NotificationToIME aNotification)
 {
-  return IMEHandler::NotifyIME(this, aIMENotification);
+  return IMEHandler::NotifyIME(this, aNotification);
 }
 
 NS_IMETHODIMP_(void)
@@ -6649,6 +6649,14 @@ nsWindow::GetToggledKeyState(uint32_t aKeyCode, bool* aLEDState)
   NS_ENSURE_ARG_POINTER(aLEDState);
   *aLEDState = (::GetKeyState(aKeyCode) & 1) != 0;
   return NS_OK;
+}
+
+NS_IMETHODIMP
+nsWindow::NotifyIMEOfTextChange(uint32_t aStart,
+                                uint32_t aOldEnd,
+                                uint32_t aNewEnd)
+{
+  return IMEHandler::NotifyIMEOfTextChange(aStart, aOldEnd, aNewEnd);
 }
 
 nsIMEUpdatePreference

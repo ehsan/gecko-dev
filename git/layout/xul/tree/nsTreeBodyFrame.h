@@ -150,10 +150,10 @@ public:
                     nsIFrame*       aPrevInFlow) MOZ_OVERRIDE;
   virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;
 
-  virtual nsresult GetCursor(const nsPoint& aPoint,
+  NS_IMETHOD GetCursor(const nsPoint& aPoint,
                        nsIFrame::Cursor& aCursor) MOZ_OVERRIDE;
 
-  virtual nsresult HandleEvent(nsPresContext* aPresContext,
+  NS_IMETHOD HandleEvent(nsPresContext* aPresContext,
                          mozilla::WidgetGUIEvent* aEvent,
                          nsEventStatus* aEventStatus) MOZ_OVERRIDE;
 

@@ -1586,9 +1586,9 @@ MetroWidget::GetInputContext()
 }
 
 NS_IMETHODIMP
-MetroWidget::NotifyIME(const IMENotification& aIMENotification)
+MetroWidget::NotifyIME(NotificationToIME aNotification)
 {
-  switch (aIMENotification.mMessage) {
+  switch (aNotification) {
     case REQUEST_TO_COMMIT_COMPOSITION:
       nsTextStore::CommitComposition(false);
       return NS_OK;
@@ -1603,8 +1603,6 @@ MetroWidget::NotifyIME(const IMENotification& aIMENotification)
                                         mInputContext.mIMEState.mEnabled);
     case NOTIFY_IME_OF_SELECTION_CHANGE:
       return nsTextStore::OnSelectionChange();
-    case NOTIFY_IME_OF_TEXT_CHANGE:
-      return nsTextStore::OnTextChange(aIMENotification);
     default:
       return NS_ERROR_NOT_IMPLEMENTED;
   }
@@ -1616,6 +1614,14 @@ MetroWidget::GetToggledKeyState(uint32_t aKeyCode, bool* aLEDState)
   NS_ENSURE_ARG_POINTER(aLEDState);
   *aLEDState = (::GetKeyState(aKeyCode) & 1) != 0;
   return NS_OK;
+}
+
+NS_IMETHODIMP
+MetroWidget::NotifyIMEOfTextChange(uint32_t aStart,
+                                   uint32_t aOldEnd,
+                                   uint32_t aNewEnd)
+{
+  return nsTextStore::OnTextChange(aStart, aOldEnd, aNewEnd);
 }
 
 nsIMEUpdatePreference

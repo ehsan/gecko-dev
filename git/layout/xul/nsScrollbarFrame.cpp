@@ -53,7 +53,7 @@ nsScrollbarFrame::Init(nsIContent* aContent,
   mState |= NS_FRAME_REFLOW_ROOT;
 }
 
-nsresult
+NS_IMETHODIMP
 nsScrollbarFrame::Reflow(nsPresContext*          aPresContext,
                          nsHTMLReflowMetrics&     aDesiredSize,
                          const nsHTMLReflowState& aReflowState,
@@ -80,7 +80,7 @@ nsScrollbarFrame::GetType() const
   return nsGkAtoms::scrollbarFrame;
 }
 
-nsresult
+NS_IMETHODIMP
 nsScrollbarFrame::AttributeChanged(int32_t aNameSpaceID,
                                    nsIAtom* aAttribute,
                                    int32_t aModType)
@@ -159,7 +159,7 @@ nsScrollbarFrame::GetScrollbarMediator()
   return sbm;
 }
 
-nsresult
+NS_IMETHODIMP
 nsScrollbarFrame::GetMargin(nsMargin& aMargin)
 {
   aMargin.SizeTo(0,0,0,0);

@@ -606,6 +606,9 @@ nsWindowsShellService::GetCanSetDesktopBackground(bool* aResult)
 static nsresult
 DynSHOpenWithDialog(HWND hwndParent, const OPENASINFO *poainfo)
 {
+  typedef HRESULT (WINAPI * SHOpenWithDialogPtr)(HWND hwndParent,
+                                                 const OPENASINFO *poainfo);
+  
   // shell32.dll is in the knownDLLs list so will always be loaded from the
   // system32 directory.
   static const wchar_t kSehllLibraryName[] =  L"shell32.dll";
@@ -614,8 +617,8 @@ DynSHOpenWithDialog(HWND hwndParent, const OPENASINFO *poainfo)
     return NS_ERROR_FAILURE;
   }
 
-  decltype(SHOpenWithDialog)* SHOpenWithDialogFn =
-    (decltype(SHOpenWithDialog)*) GetProcAddress(shellDLL, "SHOpenWithDialog");
+  SHOpenWithDialogPtr SHOpenWithDialogFn =
+    (SHOpenWithDialogPtr)GetProcAddress(shellDLL, "SHOpenWithDialog");
 
   if (!SHOpenWithDialogFn) {
     return NS_ERROR_FAILURE;

@@ -121,7 +121,7 @@ NS_NewImageBoxFrame (nsIPresShell* aPresShell, nsStyleContext* aContext)
 
 NS_IMPL_FRAMEARENA_HELPERS(nsImageBoxFrame)
 
-nsresult
+NS_IMETHODIMP
 nsImageBoxFrame::AttributeChanged(int32_t aNameSpaceID,
                                   nsIAtom* aAttribute,
                                   int32_t aModType)
@@ -593,7 +593,7 @@ nsImageBoxFrame::GetType() const
 }
 
 #ifdef DEBUG_FRAME_DUMP
-nsresult
+NS_IMETHODIMP
 nsImageBoxFrame::GetFrameName(nsAString& aResult) const
 {
   return MakeFrameName(NS_LITERAL_STRING("ImageBox"), aResult);

@@ -161,12 +161,12 @@ public:
   /** @see nsIFrame::DidSetStyleContext */
   virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext) MOZ_OVERRIDE;
 
-  virtual nsresult AppendFrames(ChildListID     aListID,
+  NS_IMETHOD AppendFrames(ChildListID     aListID,
                           nsFrameList&    aFrameList) MOZ_OVERRIDE;
-  virtual nsresult InsertFrames(ChildListID     aListID,
+  NS_IMETHOD InsertFrames(ChildListID     aListID,
                           nsIFrame*       aPrevFrame,
                           nsFrameList&    aFrameList) MOZ_OVERRIDE;
-  virtual nsresult RemoveFrame(ChildListID     aListID,
+  NS_IMETHOD RemoveFrame(ChildListID     aListID,
                          nsIFrame*       aOldFrame) MOZ_OVERRIDE;
 
   virtual nsMargin GetUsedBorder() const MOZ_OVERRIDE;
@@ -218,7 +218,7 @@ public:
   /** Initialize the table frame with a set of children.
     * @see nsIFrame::SetInitialChildList 
     */
-  virtual nsresult SetInitialChildList(ChildListID     aListID,
+  NS_IMETHOD SetInitialChildList(ChildListID     aListID,
                                  nsFrameList&    aChildList) MOZ_OVERRIDE;
 
   virtual const nsFrameList& GetChildList(ChildListID aListID) const MOZ_OVERRIDE;
@@ -320,7 +320,7 @@ public:
     *
     * @see nsIFrame::Reflow
     */
-  virtual nsresult Reflow(nsPresContext*          aPresContext,
+  NS_IMETHOD Reflow(nsPresContext*          aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus&          aStatus) MOZ_OVERRIDE;
@@ -352,7 +352,7 @@ public:
 
 #ifdef DEBUG_FRAME_DUMP
   /** @see nsIFrame::GetFrameName */
-  virtual nsresult GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
+  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
 #endif
 
   /** return the width of the column at aColIndex    */

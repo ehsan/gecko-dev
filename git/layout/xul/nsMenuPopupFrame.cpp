@@ -353,7 +353,7 @@ private:
   nsRefPtr<nsPresContext> mPresContext;
 };
 
-nsresult
+NS_IMETHODIMP
 nsMenuPopupFrame::SetInitialChildList(ChildListID  aListID,
                                       nsFrameList& aChildList)
 {
@@ -1819,7 +1819,7 @@ nsMenuPopupFrame::AttachedDismissalListener()
 
 // helpers /////////////////////////////////////////////////////////////
 
-nsresult 
+NS_IMETHODIMP 
 nsMenuPopupFrame::AttributeChanged(int32_t aNameSpaceID,
                                    nsIAtom* aAttribute,
                                    int32_t aModType)

@@ -91,7 +91,7 @@ NS_QUERYFRAME_HEAD(nsMeterFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsContainerFrame)
 
 
-nsresult nsMeterFrame::Reflow(nsPresContext*           aPresContext,
+NS_IMETHODIMP nsMeterFrame::Reflow(nsPresContext*           aPresContext,
                                    nsHTMLReflowMetrics&     aDesiredSize,
                                    const nsHTMLReflowState& aReflowState,
                                    nsReflowStatus&          aStatus)
@@ -186,7 +186,7 @@ nsMeterFrame::ReflowBarFrame(nsIFrame*                aBarFrame,
                     xoffset, yoffset, 0);
 }
 
-nsresult
+NS_IMETHODIMP
 nsMeterFrame::AttributeChanged(int32_t  aNameSpaceID,
                                nsIAtom* aAttribute,
                                int32_t  aModType)

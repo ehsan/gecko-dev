@@ -39,12 +39,12 @@ public:
   /** @see nsIFrame::DidSetStyleContext */
   virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext) MOZ_OVERRIDE;
   
-  virtual nsresult AppendFrames(ChildListID     aListID,
+  NS_IMETHOD AppendFrames(ChildListID     aListID,
                           nsFrameList&    aFrameList) MOZ_OVERRIDE;
-  virtual nsresult InsertFrames(ChildListID     aListID,
+  NS_IMETHOD InsertFrames(ChildListID     aListID,
                           nsIFrame*       aPrevFrame,
                           nsFrameList&    aFrameList) MOZ_OVERRIDE;
-  virtual nsresult RemoveFrame(ChildListID     aListID,
+  NS_IMETHOD RemoveFrame(ChildListID     aListID,
                          nsIFrame*       aOldFrame) MOZ_OVERRIDE;
 
   /** instantiate a new instance of nsTableRowFrame.
@@ -77,7 +77,7 @@ public:
     * @see nsTableFrame::BalanceColumnWidths
     * @see nsTableFrame::ShrinkWrapChildren
     */
-  virtual nsresult Reflow(nsPresContext*          aPresContext,
+  NS_IMETHOD Reflow(nsPresContext*          aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus&          aStatus) MOZ_OVERRIDE;
@@ -92,7 +92,7 @@ public:
   virtual nsIAtom* GetType() const MOZ_OVERRIDE;
 
 #ifdef DEBUG_FRAME_DUMP
-  virtual nsresult GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
+  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
 #endif
  
   void UpdateHeight(nscoord           aHeight,

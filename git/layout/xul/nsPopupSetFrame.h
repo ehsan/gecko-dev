@@ -26,14 +26,14 @@ public:
   virtual void Init(nsIContent*      aContent,
                     nsIFrame*        aParent,
                     nsIFrame*        aPrevInFlow) MOZ_OVERRIDE;
-  virtual nsresult AppendFrames(ChildListID     aListID,
+  NS_IMETHOD AppendFrames(ChildListID     aListID,
                           nsFrameList&    aFrameList) MOZ_OVERRIDE;
-  virtual nsresult RemoveFrame(ChildListID     aListID,
+  NS_IMETHOD RemoveFrame(ChildListID     aListID,
                          nsIFrame*       aOldFrame) MOZ_OVERRIDE;
-  virtual nsresult InsertFrames(ChildListID     aListID,
+  NS_IMETHOD InsertFrames(ChildListID     aListID,
                           nsIFrame*       aPrevFrame,
                           nsFrameList&    aFrameList) MOZ_OVERRIDE;
-  virtual nsresult  SetInitialChildList(ChildListID     aListID,
+  NS_IMETHOD  SetInitialChildList(ChildListID     aListID,
                                   nsFrameList&    aChildList) MOZ_OVERRIDE;
 
   virtual const nsFrameList& GetChildList(ChildListID aList) const MOZ_OVERRIDE;
@@ -47,7 +47,7 @@ public:
   virtual nsIAtom* GetType() const MOZ_OVERRIDE;
 
 #ifdef DEBUG_FRAME_DUMP
-  virtual nsresult GetFrameName(nsAString& aResult) const MOZ_OVERRIDE
+  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE
   {
       return MakeFrameName(NS_LITERAL_STRING("PopupSet"), aResult);
   }

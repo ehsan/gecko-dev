@@ -117,7 +117,7 @@ nsSimplePageSequenceFrame::SetDesiredSize(nsHTMLReflowMetrics& aDesiredSize,
                                  nscoord(aHeight * PresContext()->GetPrintPreviewScale()));
 }
 
-nsresult
+NS_IMETHODIMP
 nsSimplePageSequenceFrame::Reflow(nsPresContext*          aPresContext,
                                   nsHTMLReflowMetrics&     aDesiredSize,
                                   const nsHTMLReflowState& aReflowState,
@@ -303,7 +303,7 @@ nsSimplePageSequenceFrame::Reflow(nsPresContext*          aPresContext,
 //----------------------------------------------------------------------
 
 #ifdef DEBUG_FRAME_DUMP
-nsresult
+NS_IMETHODIMP
 nsSimplePageSequenceFrame::GetFrameName(nsAString& aResult) const
 {
   return MakeFrameName(NS_LITERAL_STRING("SimplePageSequence"), aResult);

@@ -10,7 +10,6 @@
 #include "mozilla/EventForwards.h"
 #include "mozilla/dom/PBrowserParent.h"
 #include "mozilla/dom/PContentDialogParent.h"
-#include "mozilla/dom/PFilePickerParent.h"
 #include "mozilla/dom/TabContext.h"
 #include "nsCOMPtr.h"
 #include "nsIAuthPromptProvider.h"
@@ -258,11 +257,6 @@ public:
                                          const IPC::Principal& aPrincipal) MOZ_OVERRIDE;
     virtual bool
     DeallocPContentPermissionRequestParent(PContentPermissionRequestParent* actor) MOZ_OVERRIDE;
-
-    virtual PFilePickerParent*
-    AllocPFilePickerParent(const nsString& aTitle,
-                           const int16_t& aMode) MOZ_OVERRIDE;
-    virtual bool DeallocPFilePickerParent(PFilePickerParent* actor) MOZ_OVERRIDE;
 
     virtual POfflineCacheUpdateParent*
     AllocPOfflineCacheUpdateParent(const URIParams& aManifestURI,

@@ -26,10 +26,10 @@ public:
   virtual void Init(nsIContent*      aContent,
                     nsIFrame*        aParent,
                     nsIFrame*        aPrevInFlow) MOZ_OVERRIDE;
-  virtual nsresult SetInitialChildList(ChildListID     aListID,
+  NS_IMETHOD SetInitialChildList(ChildListID     aListID,
                                  nsFrameList&    aChildList) MOZ_OVERRIDE;
 #ifdef DEBUG_FRAME_DUMP
-  virtual nsresult GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
+  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
 #endif
   virtual nsIAtom* GetType() const MOZ_OVERRIDE;
 
@@ -53,7 +53,7 @@ public:
                              nsSize aCBSize, nscoord aAvailableWidth,
                              nsSize aMargin, nsSize aBorder, nsSize aPadding,
                              uint32_t aFlags) MOZ_OVERRIDE;
-  virtual nsresult Reflow(nsPresContext*          aPresContext,
+  NS_IMETHOD Reflow(nsPresContext*          aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus&          aStatus) MOZ_OVERRIDE;
@@ -63,7 +63,7 @@ public:
   virtual int GetSkipSides(const nsHTMLReflowState* aReflowState = nullptr) const MOZ_OVERRIDE;
 
 //override of nsFrame method
-  virtual nsresult GetChildFrameContainingOffset(int32_t inContentOffset,
+  NS_IMETHOD GetChildFrameContainingOffset(int32_t inContentOffset,
                                            bool inHint,
                                            int32_t* outFrameContentOffset,
                                            nsIFrame **outChildFrame) MOZ_OVERRIDE;

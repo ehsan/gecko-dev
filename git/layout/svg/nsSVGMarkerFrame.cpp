@@ -28,7 +28,7 @@ NS_IMPL_FRAMEARENA_HELPERS(nsSVGMarkerFrame)
 //----------------------------------------------------------------------
 // nsIFrame methods:
 
-nsresult
+NS_IMETHODIMP
 nsSVGMarkerFrame::AttributeChanged(int32_t  aNameSpaceID,
                                    nsIAtom* aAttribute,
                                    int32_t  aModType)

@@ -483,7 +483,7 @@ public:
    *            child list.
    * @see     #Init()
    */
-  virtual nsresult  SetInitialChildList(ChildListID     aListID,
+  NS_IMETHOD  SetInitialChildList(ChildListID     aListID,
                                   nsFrameList&    aChildList) = 0;
 
   /**
@@ -501,7 +501,7 @@ public:
    *            aFrameList in the process of moving the frames over to its own
    *            child list.
    */
-  virtual nsresult AppendFrames(ChildListID     aListID,
+  NS_IMETHOD AppendFrames(ChildListID     aListID,
                           nsFrameList&    aFrameList) = 0;
 
   /**
@@ -520,7 +520,7 @@ public:
    *            aFrameList in the process of moving the frames over to its own
    *            child list.
    */
-  virtual nsresult InsertFrames(ChildListID     aListID,
+  NS_IMETHOD InsertFrames(ChildListID     aListID,
                           nsIFrame*       aPrevFrame,
                           nsFrameList&    aFrameList) = 0;
 
@@ -539,7 +539,7 @@ public:
    *          NS_ERROR_UNEXPECTED if the frame is an atomic frame,
    *          NS_OK otherwise
    */
-  virtual nsresult RemoveFrame(ChildListID     aListID,
+  NS_IMETHOD RemoveFrame(ChildListID     aListID,
                          nsIFrame*       aOldFrame) = 0;
 
   /**
@@ -572,7 +572,7 @@ public:
    * Get the offsets of the frame. most will be 0,0
    *
    */
-  virtual nsresult GetOffsets(int32_t &start, int32_t &end) const = 0;
+  NS_IMETHOD GetOffsets(int32_t &start, int32_t &end) const = 0;
 
   /**
    * Reset the offsets when splitting frames during Bidi reordering
@@ -1206,11 +1206,11 @@ public:
    * @see     WidgetGUIEvent
    * @see     nsEventStatus
    */
-  virtual nsresult  HandleEvent(nsPresContext* aPresContext,
+  NS_IMETHOD  HandleEvent(nsPresContext* aPresContext,
                           mozilla::WidgetGUIEvent* aEvent,
                           nsEventStatus* aEventStatus) = 0;
 
-  virtual nsresult  GetContentForEvent(mozilla::WidgetEvent* aEvent,
+  NS_IMETHOD  GetContentForEvent(mozilla::WidgetEvent* aEvent,
                                  nsIContent** aContent) = 0;
 
   // This structure keeps track of the content node and offsets associated with
@@ -1278,7 +1278,7 @@ public:
   /**
    * Get the cursor for a given frame.
    */
-  virtual nsresult  GetCursor(const nsPoint&  aPoint,
+  NS_IMETHOD  GetCursor(const nsPoint&  aPoint,
                         Cursor&         aCursor) = 0;
 
   /**
@@ -1286,7 +1286,7 @@ public:
    * the content. This point should be on the baseline of text with
    * the correct horizontal offset
    */
-  virtual nsresult  GetPointFromOffset(int32_t                  inOffset,
+  NS_IMETHOD  GetPointFromOffset(int32_t                  inOffset,
                                  nsPoint*                 outPoint) = 0;
   
   /**
@@ -1297,7 +1297,7 @@ public:
    * to stick to the end of the first found frame or the beginning of the 
    * next in case the offset falls on a boundary.
    */
-  virtual nsresult  GetChildFrameContainingOffset(int32_t       inContentOffset,
+  NS_IMETHOD  GetChildFrameContainingOffset(int32_t       inContentOffset,
                                  bool                     inHint,//false stick left
                                  int32_t*                 outFrameContentOffset,
                                  nsIFrame*                *outChildFrame) = 0;
@@ -1328,7 +1328,7 @@ public:
    * This call is invoked on the primary frame for a character data content
    * node, when it is changed in the content tree.
    */
-  virtual nsresult  CharacterDataChanged(CharacterDataChangeInfo* aInfo) = 0;
+  NS_IMETHOD  CharacterDataChanged(CharacterDataChangeInfo* aInfo) = 0;
 
   /**
    * This call is invoked when the value of a content objects's attribute
@@ -1341,7 +1341,7 @@ public:
    * @param aModType Whether or not the attribute was added, changed, or removed.
    *   The constants are defined in nsIDOMMutationEvent.h.
    */
-  virtual nsresult  AttributeChanged(int32_t         aNameSpaceID,
+  NS_IMETHOD  AttributeChanged(int32_t         aNameSpaceID,
                                nsIAtom*        aAttribute,
                                int32_t         aModType) = 0;
 
@@ -1698,7 +1698,7 @@ public:
    * XXX Is this really the semantics we want? Because we have the NS_FRAME_IN_REFLOW
    * bit we can ensure we don't call it more than once...
    */
-  virtual nsresult  WillReflow(nsPresContext* aPresContext) = 0;
+  NS_IMETHOD  WillReflow(nsPresContext* aPresContext) = 0;
 
   /**
    * The frame is given an available size and asked for its desired
@@ -1743,7 +1743,7 @@ public:
    * @param aStatus a return value indicating whether the frame is complete
    *          and whether the next-in-flow is dirty and needs to be reflowed
    */
-  virtual nsresult Reflow(nsPresContext*          aPresContext,
+  NS_IMETHOD Reflow(nsPresContext*          aPresContext,
                     nsHTMLReflowMetrics&     aReflowMetrics,
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus&          aStatus) = 0;
@@ -1763,7 +1763,7 @@ public:
    * XXX Don't we want the semantics to dictate that we only call this once for
    * a given reflow?
    */
-  virtual nsresult  DidReflow(nsPresContext*           aPresContext,
+  NS_IMETHOD  DidReflow(nsPresContext*           aPresContext,
                         const nsHTMLReflowState*  aReflowState,
                         nsDidReflowStatus         aStatus) = 0;
 
@@ -2297,14 +2297,14 @@ public:
    *  @param aSelectStyle  out param. Returns the type of selection style found
    *                        (using values defined in nsStyleConsts.h).
    */
-  virtual nsresult  IsSelectable(bool* aIsSelectable, uint8_t* aSelectStyle) const = 0;
+  NS_IMETHOD  IsSelectable(bool* aIsSelectable, uint8_t* aSelectStyle) const = 0;
 
   /** 
    *  Called to retrieve the SelectionController associated with the frame.
    *  @param aSelCon will contain the selection controller associated with
    *  the frame.
    */
-  virtual nsresult  GetSelectionController(nsPresContext *aPresContext, nsISelectionController **aSelCon) = 0;
+  NS_IMETHOD  GetSelectionController(nsPresContext *aPresContext, nsISelectionController **aSelCon) = 0;
 
   /**
    *  Call to get nsFrameSelection for this frame.
@@ -2324,7 +2324,7 @@ public:
    *  return NS_ERROR_FAILURE
    *  @param aPOS is defined in nsFrameSelection
    */
-  virtual nsresult PeekOffset(nsPeekOffsetStruct *aPos);
+  NS_IMETHOD PeekOffset(nsPeekOffsetStruct *aPos);
 
   /**
    *  called to find the previous/next selectable leaf frame.
@@ -2352,7 +2352,7 @@ public:
    *  @param aFinished did this frame have the aEndIndex? or is there more work to do
    *  @param _retval  return value true or false. false = range is not rendered.
    */
-  virtual nsresult CheckVisibility(nsPresContext* aContext, int32_t aStartIndex, int32_t aEndIndex, bool aRecurse, bool *aFinished, bool *_retval)=0;
+  NS_IMETHOD CheckVisibility(nsPresContext* aContext, int32_t aStartIndex, int32_t aEndIndex, bool aRecurse, bool *aFinished, bool *_retval)=0;
 
   /**
    * Called to tell a frame that one of its child frames is dirty (i.e.,
@@ -2605,10 +2605,10 @@ NS_PTR_TO_INT32(frame->Properties().Get(nsIFrame::ParagraphDepthProperty()))
   }
   // Box methods.  Note that these do NOT just get the CSS border, padding,
   // etc.  They also talk to nsITheme.
-  virtual nsresult GetBorderAndPadding(nsMargin& aBorderAndPadding);
-  virtual nsresult GetBorder(nsMargin& aBorder)=0;
-  virtual nsresult GetPadding(nsMargin& aBorderAndPadding)=0;
-  virtual nsresult GetMargin(nsMargin& aMargin)=0;
+  NS_IMETHOD GetBorderAndPadding(nsMargin& aBorderAndPadding);
+  NS_IMETHOD GetBorder(nsMargin& aBorder)=0;
+  NS_IMETHOD GetPadding(nsMargin& aBorderAndPadding)=0;
+  NS_IMETHOD GetMargin(nsMargin& aMargin)=0;
   virtual void SetLayoutManager(nsBoxLayout* aLayout) { }
   virtual nsBoxLayout* GetLayoutManager() { return nullptr; }
   NS_HIDDEN_(nsresult) GetClientRect(nsRect& aContentRect);
@@ -2621,15 +2621,15 @@ NS_PTR_TO_INT32(frame->Properties().Get(nsIFrame::ParagraphDepthProperty()))
   bool IsNormalDirection() const { return (mState & NS_STATE_IS_DIRECTION_NORMAL) != 0; }
 
   NS_HIDDEN_(nsresult) Redraw(nsBoxLayoutState& aState);
-  virtual nsresult RelayoutChildAtOrdinal(nsBoxLayoutState& aState, nsIFrame* aChild)=0;
+  NS_IMETHOD RelayoutChildAtOrdinal(nsBoxLayoutState& aState, nsIFrame* aChild)=0;
   // XXX take this out after we've branched
   virtual bool GetMouseThrough() const { return false; }
 
 #ifdef DEBUG_LAYOUT
-  virtual nsresult SetDebug(nsBoxLayoutState& aState, bool aDebug)=0;
-  virtual nsresult GetDebug(bool& aDebug)=0;
+  NS_IMETHOD SetDebug(nsBoxLayoutState& aState, bool aDebug)=0;
+  NS_IMETHOD GetDebug(bool& aDebug)=0;
 
-  virtual nsresult DumpBox(FILE* out)=0;
+  NS_IMETHOD DumpBox(FILE* out)=0;
 #endif
 
   /**
@@ -3077,13 +3077,13 @@ public:
   virtual void DumpFrameTree();
   void DumpFrameTreeLimited();
 
-  virtual nsresult  GetFrameName(nsAString& aResult) const = 0;
+  NS_IMETHOD  GetFrameName(nsAString& aResult) const = 0;
 #endif
 
 #ifdef DEBUG
 public:
-  virtual nsFrameState  GetDebugStateBits() const = 0;
-  virtual nsresult  DumpRegressionData(nsPresContext* aPresContext,
+  NS_IMETHOD_(nsFrameState)  GetDebugStateBits() const = 0;
+  NS_IMETHOD  DumpRegressionData(nsPresContext* aPresContext,
                                  FILE* out, int32_t aIndent) = 0;
 #endif
 };

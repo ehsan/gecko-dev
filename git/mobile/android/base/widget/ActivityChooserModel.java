@@ -798,8 +798,7 @@ public class ActivityChooserModel extends DataSetObservable {
         for (Iterator<HistoricalRecord> i = mHistoricalRecords.iterator(); i.hasNext();) {
             final HistoricalRecord record = i.next();
             if (record.activity.getPackageName().equals(pkg)) {
-                i.remove();
-                removed = true;
+                removed = mHistoricalRecords.remove(record);
             }
         }
 

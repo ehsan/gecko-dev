@@ -284,7 +284,7 @@ nsObjectFrame::GetType() const
 }
 
 #ifdef DEBUG_FRAME_DUMP
-nsresult
+NS_IMETHODIMP
 nsObjectFrame::GetFrameName(nsAString& aResult) const
 {
   return MakeFrameName(NS_LITERAL_STRING("ObjectFrame"), aResult);
@@ -497,7 +497,7 @@ nsObjectFrame::GetDesiredSize(nsPresContext* aPresContext,
   // call the superclass in all cases.
 }
 
-nsresult
+NS_IMETHODIMP
 nsObjectFrame::Reflow(nsPresContext*           aPresContext,
                       nsHTMLReflowMetrics&     aMetrics,
                       const nsHTMLReflowState& aReflowState,
@@ -801,7 +801,7 @@ nsIntPoint nsObjectFrame::GetWindowOriginInPixels(bool aWindowless)
                     PresContext()->AppUnitsToDevPixels(origin.y));
 }
 
-nsresult
+NS_IMETHODIMP
 nsObjectFrame::DidReflow(nsPresContext*            aPresContext,
                          const nsHTMLReflowState*  aReflowState,
                          nsDidReflowStatus         aStatus)
@@ -1840,7 +1840,7 @@ nsObjectFrame::PaintPlugin(nsDisplayListBuilder* aBuilder,
 #endif
 }
 
-nsresult
+NS_IMETHODIMP
 nsObjectFrame::HandleEvent(nsPresContext* aPresContext,
                            WidgetGUIEvent* anEvent,
                            nsEventStatus* anEventStatus)
@@ -1934,7 +1934,7 @@ nsObjectFrame::GetPluginInstance(nsNPAPIPluginInstance** aPluginInstance)
   return mInstanceOwner->GetInstance(aPluginInstance);
 }
 
-nsresult
+NS_IMETHODIMP
 nsObjectFrame::GetCursor(const nsPoint& aPoint, nsIFrame::Cursor& aCursor)
 {
   if (!mInstanceOwner) {

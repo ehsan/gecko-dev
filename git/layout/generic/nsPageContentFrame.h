@@ -20,7 +20,7 @@ public:
   friend class nsPageFrame;
 
   // nsIFrame
-  virtual nsresult  Reflow(nsPresContext*      aPresContext,
+  NS_IMETHOD  Reflow(nsPresContext*      aPresContext,
                      nsHTMLReflowMetrics& aDesiredSize,
                      const nsHTMLReflowState& aMaxSize,
                      nsReflowStatus&      aStatus) MOZ_OVERRIDE;
@@ -44,7 +44,7 @@ public:
   
 #ifdef DEBUG_FRAME_DUMP
   // Debugging
-  virtual nsresult  GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
+  NS_IMETHOD  GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
 #endif
 
 protected:

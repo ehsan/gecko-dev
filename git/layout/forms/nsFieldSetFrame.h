@@ -32,7 +32,7 @@ public:
    */
   virtual nsRect VisualBorderRectRelativeToSelf() const MOZ_OVERRIDE;
 
-  virtual nsresult Reflow(nsPresContext*           aPresContext,
+  NS_IMETHOD Reflow(nsPresContext*           aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus&          aStatus);
@@ -44,12 +44,12 @@ public:
   void PaintBorderBackground(nsRenderingContext& aRenderingContext,
     nsPoint aPt, const nsRect& aDirtyRect, uint32_t aBGFlags);
 
-  virtual nsresult AppendFrames(ChildListID    aListID,
+  NS_IMETHOD AppendFrames(ChildListID    aListID,
                           nsFrameList&   aFrameList);
-  virtual nsresult InsertFrames(ChildListID    aListID,
+  NS_IMETHOD InsertFrames(ChildListID    aListID,
                           nsIFrame*      aPrevFrame,
                           nsFrameList&   aFrameList);
-  virtual nsresult RemoveFrame(ChildListID    aListID,
+  NS_IMETHOD RemoveFrame(ChildListID    aListID,
                          nsIFrame*      aOldFrame);
 
   virtual nsIAtom* GetType() const;
@@ -68,12 +68,12 @@ public:
 #endif
 
 #ifdef DEBUG
-  virtual nsresult SetInitialChildList(ChildListID    aListID,
+  NS_IMETHOD SetInitialChildList(ChildListID    aListID,
                                  nsFrameList&   aChildList);
 #endif
 
 #ifdef DEBUG_FRAME_DUMP
-  virtual nsresult GetFrameName(nsAString& aResult) const {
+  NS_IMETHOD GetFrameName(nsAString& aResult) const {
     return MakeFrameName(NS_LITERAL_STRING("FieldSet"), aResult);
   }
 #endif

@@ -58,17 +58,17 @@ public:
   NS_DECL_FRAMEARENA_HELPERS
 
     // nsIFrame
-  virtual nsresult HandleEvent(nsPresContext* aPresContext,
+  NS_IMETHOD HandleEvent(nsPresContext* aPresContext,
                          mozilla::WidgetGUIEvent* aEvent,
                          nsEventStatus* aEventStatus) MOZ_OVERRIDE;
   
-  virtual nsresult SetInitialChildList(ChildListID     aListID,
+  NS_IMETHOD SetInitialChildList(ChildListID     aListID,
                                  nsFrameList&    aChildList) MOZ_OVERRIDE;
 
   virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
   virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
 
-  virtual nsresult Reflow(nsPresContext*          aCX,
+  NS_IMETHOD Reflow(nsPresContext*          aCX,
                     nsHTMLReflowMetrics&     aDesiredSize,
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus&          aStatus) MOZ_OVERRIDE;
@@ -77,7 +77,7 @@ public:
                     nsIFrame*        aParent,
                     nsIFrame*        aPrevInFlow) MOZ_OVERRIDE;
 
-  virtual nsresult DidReflow(nsPresContext*           aPresContext, 
+  NS_IMETHOD DidReflow(nsPresContext*           aPresContext, 
                        const nsHTMLReflowState*  aReflowState, 
                        nsDidReflowStatus         aStatus) MOZ_OVERRIDE;
   virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;
@@ -102,7 +102,7 @@ public:
   }
 
 #ifdef DEBUG_FRAME_DUMP
-  virtual nsresult GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
+  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
 #endif
 
     // nsIFormControlFrame

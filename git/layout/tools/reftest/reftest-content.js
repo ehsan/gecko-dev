@@ -204,13 +204,9 @@ function setupDisplayport(contentRootElement) {
     var dph = attrOrDefault("reftest-displayport-h", 0);
     var dpx = attrOrDefault("reftest-displayport-x", 0);
     var dpy = attrOrDefault("reftest-displayport-y", 0);
-    var elementID = attrOrDefault("reftest-displayport-element", null);
     if (dpw !== 0 || dph !== 0) {
-        var element = elementID ? content.document.getElementById(elementID) : null;
-        LogInfo("Setting displayport to <x="+ dpx +", y="+ dpy +", w="+ dpw +", h="+ dph +">" +
-                (element ? (" on element with id " + elementID) : " on document element"));
-        windowUtils().setDisplayPortForElement(dpx, dpy, dpw, dph,
-            element ? element : content.document.documentElement);
+        LogInfo("Setting displayport to <x="+ dpx +", y="+ dpy +", w="+ dpw +", h="+ dph +">");
+        windowUtils().setDisplayPortForElement(dpx, dpy, dpw, dph, content.document.documentElement);
     }
     var asyncScroll = attrOrDefault("reftest-async-scroll", false);
     if (asyncScroll) {

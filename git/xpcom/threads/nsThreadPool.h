@@ -39,7 +39,6 @@ private:
   uint32_t              mIdleThreadLimit;
   uint32_t              mIdleThreadTimeout;
   uint32_t              mIdleCount;
-  uint32_t              mStackSize;
   nsCOMPtr<nsIThreadPoolListener> mListener;
   bool                  mShutdown;
   nsCString             mName;

@@ -1482,7 +1482,7 @@ void MediaDecoder::UpdatePlaybackOffset(int64_t aOffset)
 
 bool MediaDecoder::OnStateMachineThread() const
 {
-  return mDecoderStateMachine->OnStateMachineThread();
+  return IsCurrentThread(MediaDecoderStateMachine::GetStateMachineThread());
 }
 
 void MediaDecoder::NotifyAudioAvailableListener()

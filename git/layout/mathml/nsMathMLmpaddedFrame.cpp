@@ -300,7 +300,7 @@ nsMathMLmpaddedFrame::UpdateValue(int32_t                  aSign,
   }
 }
 
-nsresult
+NS_IMETHODIMP
 nsMathMLmpaddedFrame::Reflow(nsPresContext*          aPresContext,
                              nsHTMLReflowMetrics&     aDesiredSize,
                              const nsHTMLReflowState& aReflowState,

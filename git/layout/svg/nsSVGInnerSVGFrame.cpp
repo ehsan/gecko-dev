@@ -162,7 +162,7 @@ nsSVGInnerSVGFrame::NotifySVGChanged(uint32_t aFlags)
   nsSVGInnerSVGFrameBase::NotifySVGChanged(aFlags);
 }
 
-nsresult
+NS_IMETHODIMP
 nsSVGInnerSVGFrame::AttributeChanged(int32_t  aNameSpaceID,
                                      nsIAtom* aAttribute,
                                      int32_t  aModType)

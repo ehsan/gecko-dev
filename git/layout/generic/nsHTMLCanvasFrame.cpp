@@ -170,7 +170,7 @@ nsHTMLCanvasFrame::ComputeSize(nsRenderingContext *aRenderingContext,
                             aMargin, aBorder, aPadding);
 }
 
-nsresult
+NS_IMETHODIMP
 nsHTMLCanvasFrame::Reflow(nsPresContext*           aPresContext,
                           nsHTMLReflowMetrics&     aMetrics,
                           const nsHTMLReflowState& aReflowState,
@@ -336,7 +336,7 @@ nsHTMLCanvasFrame::AccessibleType()
 #endif
 
 #ifdef DEBUG_FRAME_DUMP
-nsresult
+NS_IMETHODIMP
 nsHTMLCanvasFrame::GetFrameName(nsAString& aResult) const
 {
   return MakeFrameName(NS_LITERAL_STRING("HTMLCanvas"), aResult);

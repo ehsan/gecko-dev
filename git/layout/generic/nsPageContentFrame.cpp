@@ -17,7 +17,7 @@ NS_NewPageContentFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 
 NS_IMPL_FRAMEARENA_HELPERS(nsPageContentFrame)
 
-nsresult
+NS_IMETHODIMP
 nsPageContentFrame::Reflow(nsPresContext*           aPresContext,
                            nsHTMLReflowMetrics&     aDesiredSize,
                            const nsHTMLReflowState& aReflowState,
@@ -110,7 +110,7 @@ nsPageContentFrame::GetType() const
 }
 
 #ifdef DEBUG_FRAME_DUMP
-nsresult
+NS_IMETHODIMP
 nsPageContentFrame::GetFrameName(nsAString& aResult) const
 {
   return MakeFrameName(NS_LITERAL_STRING("PageContent"), aResult);
