@@ -95,12 +95,10 @@ a = {["x"]: 1, x: 2};
 assertEq(a.x, 2);
 
 // Symbols
-if (typeof Symbol === "function") {
-    var unique_sym = Symbol("1"), registered_sym = Symbol.for("2");
-    a = { [unique_sym] : 2, [registered_sym] : 3 };
-    assertEq(a[unique_sym], 2);
-    assertEq(a[registered_sym], 3);
-}
+var unique_sym = Symbol("1"), registered_sym = Symbol.for("2");
+a = { [unique_sym] : 2, [registered_sym] : 3 };
+assertEq(a[unique_sym], 2);
+assertEq(a[registered_sym], 3);
 
 // Same expression can be run several times to build objects with different property names.
 a = [];

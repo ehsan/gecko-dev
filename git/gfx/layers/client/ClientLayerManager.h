@@ -300,7 +300,6 @@ private:
   RefPtr<ShadowLayerForwarder> mForwarder;
   nsAutoTArray<RefPtr<TextureClientPool>,2> mTexturePools;
   nsAutoTArray<dom::OverfillCallback*,0> mOverfillCallbacks;
-  mozilla::TimeStamp mTransactionStart;
 
   // indexed by gfx::SurfaceFormat
   nsTArray<RefPtr<SimpleTextureClientPool> > mSimpleTilePools;

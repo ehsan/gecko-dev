@@ -122,28 +122,75 @@ cpr_status_e ccappTaskPostMsg(unsigned int msgId, void * data, uint16_t len, int
 cpr_status_e
 ccappTaskSendMsg (uint32_t cmd, void *msg, uint16_t len, uint32_t UsrInfo)
 {
-    appListener *listener = NULL;
+    phn_syshdr_t *syshdr;
 
-    CCAPP_DEBUG(DEB_F_PREFIX"Received Cmd[%d] for app[%d]", DEB_F_PREFIX_ARGS(SIP_CC_PROV, __FUNCTION__),
-        cmd, UsrInfo);
-
-    listener = getCcappListener(UsrInfo);
-    if (listener != NULL) {
-      (* ((appListener)(listener)))(msg, cmd);
-    } else {
-      CCAPP_DEBUG(DEB_F_PREFIX"Event[%d] doesn't have a dedicated listener.", DEB_F_PREFIX_ARGS(SIP_CC_PROV, __FUNCTION__),
-          UsrInfo);
+    syshdr = (phn_syshdr_t *) cprGetSysHeader(msg);
+    if (!syshdr) {
+        return CPR_FAILURE;
     }
-    cpr_free(msg);
+    syshdr->Cmd = cmd;
+    syshdr->Len = len;
+    syshdr->Usr.UsrInfo = UsrInfo;
 
+    if (cprSendMessage(ccapp_msgq , (cprBuffer_t*)msg, (void **)&syshdr) == CPR_FAILURE) {
+        cprReleaseSysHeader(syshdr);
+        return CPR_FAILURE;
+    }
     return CPR_SUCCESS;
 }
 
-void CCApp_prepare_task()
+/**
+ *
+ * CCApp Provider main routine.
+ *
+ * @param   arg - CCApp msg queue
+ *
+ * @return  void
+ *
+ * @pre     None
+ */
+void CCApp_task(void * arg)
 {
+    static const char fname[] = "CCApp_task";
+    phn_syshdr_t   *syshdr = NULL;
+    appListener *listener = NULL;
+    void * msg;
+
     //initialize the listener list
     sll_lite_init(&sll_list);
 
     CCAppInit();
+
+    // If the "ready to start" condition variable has been created
+    // (is non-null), we're going to wait for it to be signaled
+    // before we start processing messages.
+    if (ccAppReadyToStartCond) {
+      PR_Lock(ccAppReadyToStartLock);
+      while (!ccAppReadyToStart) {
+        PR_WaitCondVar(ccAppReadyToStartCond, PR_INTERVAL_NO_TIMEOUT);
+      }
+      PR_Unlock(ccAppReadyToStartLock);
+    }
+
+
+    while (1) {
+        msg = cprGetMessage(ccapp_msgq, TRUE, (void **) &syshdr);
+        if ( msg) {
+            CCAPP_DEBUG(DEB_F_PREFIX"Received Cmd[%d] for app[%d]", DEB_F_PREFIX_ARGS(SIP_CC_PROV, fname),
+                    syshdr->Cmd, syshdr->Usr.UsrInfo);
+
+            listener = getCcappListener(syshdr->Usr.UsrInfo);
+            if (listener != NULL) {
+                (* ((appListener)(listener)))(msg, syshdr->Cmd);
+            } else {
+                CCAPP_DEBUG(DEB_F_PREFIX"Event[%d] doesn't have a dedicated listener.", DEB_F_PREFIX_ARGS(SIP_CC_PROV, fname),
+                        syshdr->Usr.UsrInfo);
+            }
+            cprReleaseSysHeader(syshdr);
+            cpr_free(msg);
+        }
+    }
 }
+
+
 

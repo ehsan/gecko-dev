@@ -1326,7 +1326,7 @@ class DebugScopeProxy : public BaseProxyHandler
     static const char family;
     static const DebugScopeProxy singleton;
 
-    MOZ_CONSTEXPR DebugScopeProxy() : BaseProxyHandler(&family) {}
+    DebugScopeProxy() : BaseProxyHandler(&family) {}
 
     bool isExtensible(JSContext *cx, HandleObject proxy, bool *extensible) const MOZ_OVERRIDE
     {

@@ -185,12 +185,10 @@ LayerTransactionParent::RecvUpdateNoSwap(const InfallibleTArray<Edit>& cset,
                                          const bool& isFirstPaint,
                                          const bool& scheduleComposite,
                                          const uint32_t& paintSequenceNumber,
-                                         const bool& isRepeatTransaction,
-                                         const mozilla::TimeStamp& aTransactionStart)
+                                         const bool& isRepeatTransaction)
 {
   return RecvUpdate(cset, aTransactionId, targetConfig, isFirstPaint,
-      scheduleComposite, paintSequenceNumber, isRepeatTransaction,
-      aTransactionStart, nullptr);
+      scheduleComposite, paintSequenceNumber, isRepeatTransaction, nullptr);
 }
 
 bool
@@ -201,7 +199,6 @@ LayerTransactionParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
                                    const bool& scheduleComposite,
                                    const uint32_t& paintSequenceNumber,
                                    const bool& isRepeatTransaction,
-                                   const mozilla::TimeStamp& aTransactionStart,
                                    InfallibleTArray<EditReply>* reply)
 {
   profiler_tracing("Paint", "Composite", TRACING_INTERVAL_START);
@@ -571,16 +568,6 @@ LayerTransactionParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
     printf_stderr("Compositor: Layers update took %i ms (blocking gecko).\n", compositeTime);
   }
 #endif
-
-  TimeDuration latency = TimeStamp::Now() - aTransactionStart;
-  // Theshold is 200ms to trigger, 1000ms to hit red
-  if (latency > TimeDuration::FromMilliseconds(200)) {
-    float severity = (latency - TimeDuration::FromMilliseconds(200)).ToMilliseconds() / 800;
-    if (severity > 1.f) {
-      severity = 1.f;
-    }
-    mLayerManager->VisualFrameWarning(severity);
-  }
 
   return true;
 }

@@ -53,6 +53,7 @@
 #include "prlog.h"
 #include "prlock.h"
 #include "prcvar.h"
+#include "thread_monitor.h"
 
 /*---------------------------------------------------------
  *
@@ -175,7 +176,7 @@ extern void cc_media_update_video_txcap(boolean val);
 session_data_t * getDeepCopyOfSessionData(session_data_t *data);
 static void ccappUpdateSessionData(session_update_t *sessUpd);
 static void ccappFeatureUpdated (feature_update_t *featUpd);
-void ccapp_shutdown();
+void destroy_ccapp_thread();
 void ccpro_handleserviceControlNotify();
 /* Sets up mutex needed for protecting state variables. */
 static cc_int32_t InitInternal();
@@ -1019,8 +1020,6 @@ void CCApp_processCmds(unsigned int cmd, unsigned int reason, string_t reasonStr
          case CMD_UNREGISTER_ALL_LINES:
             /* send a shutdown message to the SIP Task */
             SIPTaskPostShutdown(SIP_EXTERNAL, reason, reasonStr);
-            ccsnap_line_free();
-            ccsnap_device_free();
             break;
          case CMD_RESTART:
             SIPTaskPostRestart(TRUE);
@@ -1507,7 +1506,6 @@ static void ccappUpdateSessionData (session_update_t *sessUpd)
                     state_data.media_stream_track_id;
                 data->media_stream_id = sessUpd->update.ccSessionUpd.data.
                     state_data.media_stream_id;
-                strlib_free(data->status);
                 data->status =
                   sessUpd->update.ccSessionUpd.data.state_data.reason_text;
                 break;
@@ -1764,7 +1762,6 @@ static void ccappUpdateSessionData (session_update_t *sessUpd)
 	data->status = ccsnap_EscapeStrToLocaleStr(data->status, sessUpd->update.ccSessionUpd.data.status.status, LEN_UNKNOWN);
         if (data->status != NULL) {
             if(strncmp(data->status, UNKNOWN_PHRASE_STR, UNKNOWN_PHRASE_STR_SIZE) == 0){
-                    strlib_free(data->status);
                     data->status = strlib_empty();
             }
             if(strcmp(data->status, strlib_empty()) != 0){
@@ -1851,11 +1848,9 @@ static void ccappUpdateSessionData (session_update_t *sessUpd)
     case ICE_CANDIDATE_FOUND:
 	if (sessUpd->update.ccSessionUpd.data.state_data.extra) {
 	    if (sessUpd->eventID == ICE_CANDIDATE_FOUND) {
-                strlib_free(data->candidate);
 		data->candidate = sessUpd->update.ccSessionUpd.data.state_data.extra;
 	    }
 	}
-        strlib_free(data->sdp);
         data->sdp = sessUpd->update.ccSessionUpd.data.state_data.sdp;
         /* Fall through to the next case... */
     case REMOTE_STREAM_ADD:
@@ -2152,7 +2147,8 @@ void ccp_handler(void* msg, int type) {
         break;
 
     case CCAPP_THREAD_UNLOAD:
-        ccapp_shutdown();
+        thread_ended(THREADMON_CCAPP);
+        destroy_ccapp_thread();
         break;
     default:
         APP_ERR_MSG("CCApp_Task: Error: Unknown message %d msg =%p",
@@ -2162,18 +2158,19 @@ void ccp_handler(void* msg, int type) {
 }
 
 /*
- *  Function: ccapp_shutdown
- *  Description:  shutdown ccapp
+ *  Function: destroy_ccapp_thread
+ *  Description:  shutdown and kill ccapp thread
  *  Parameters:   none
  *  Returns: none
  */
-void ccapp_shutdown()
+void destroy_ccapp_thread()
 {
-    static const char fname[] = "ccapp_shutdown";
-    TNP_DEBUG(DEB_F_PREFIX"Unloading ccapp",
+    static const char fname[] = "destroy_ccapp_thread";
+    TNP_DEBUG(DEB_F_PREFIX"Unloading ccapp and destroying ccapp thread",
         DEB_F_PREFIX_ARGS(SIP_CC_INIT, fname));
     platform_initialized = FALSE;
     CCAppShutdown();
+    (void)cprDestroyThread(ccapp_thread);
 }
 
 /**

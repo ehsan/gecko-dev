@@ -21,15 +21,7 @@ MoofParser::RebuildFragmentedIndex(const nsTArray<MediaByteRange>& aByteRanges)
     if (box.IsType("moov")) {
       ParseMoov(box);
     } else if (box.IsType("moof")) {
-      Moof moof(box, mTrex, mMdhd);
-
-      if (!mMoofs.IsEmpty()) {
-        // Stitch time ranges together in the case of a (hopefully small) time
-        // range gap between moofs.
-        mMoofs.LastElement().FixRounding(moof);
-      }
-
-      mMoofs.AppendElement(moof);
+      mMoofs.AppendElement(Moof(box, mTrex, mMdhd));
     }
     mOffset = box.NextOffset();
   }
@@ -40,7 +32,10 @@ MoofParser::GetCompositionRange()
 {
   Interval<Microseconds> compositionRange;
   for (size_t i = 0; i < mMoofs.Length(); i++) {
-    compositionRange = compositionRange.Extents(mMoofs[i].mTimeRange);
+    nsTArray<Interval<Microseconds>>& compositionRanges = mMoofs[i].mTimeRanges;
+    for (int j = 0; j < compositionRanges.Length(); j++) {
+      compositionRange = compositionRange.Extents(compositionRanges[j]);
+    }
   }
   return compositionRange;
 }
@@ -102,8 +97,7 @@ MoofParser::ParseMvex(Box& aBox)
   }
 }
 
-Moof::Moof(Box& aBox, Trex& aTrex, Mdhd& aMdhd) :
-    mRange(aBox.Range()), mMaxRoundingError(0)
+Moof::Moof(Box& aBox, Trex& aTrex, Mdhd& aMdhd) : mRange(aBox.Range())
 {
   for (Box box = aBox.FirstChild(); box.IsAvailable(); box = box.Next()) {
     if (box.IsType("traf")) {
@@ -133,28 +127,6 @@ Moof::ParseTraf(Box& aBox, Trex& aTrex, Mdhd& aMdhd)
 }
 
 void
-Moof::FixRounding(const Moof& aMoof) {
-  Microseconds gap = aMoof.mTimeRange.start - mTimeRange.end;
-  if (gap > 0 && gap <= mMaxRoundingError) {
-    mTimeRange.end = aMoof.mTimeRange.start;
-  }
-}
-
-class CtsComparator
-{
-public:
-  bool Equals(Sample* const aA, Sample* const aB) const
-  {
-    return aA->mCompositionRange.start == aB->mCompositionRange.start;
-  }
-  bool
-  LessThan(Sample* const aA, Sample* const aB) const
-  {
-    return aA->mCompositionRange.start < aB->mCompositionRange.start;
-  }
-};
-
-void
 Moof::ParseTrun(Box& aBox, Tfhd& aTfhd, Tfdt& aTfdt, Mdhd& aMdhd)
 {
   if (!aMdhd.mTimescale) {
@@ -170,10 +142,6 @@ Moof::ParseTrun(Box& aBox, Tfhd& aTfhd, Tfdt& aTfdt, Mdhd& aMdhd)
   }
 
   uint32_t sampleCount = reader->ReadU32();
-  if (sampleCount == 0) {
-    return;
-  }
-
   uint64_t offset = aTfhd.mBaseDataOffset + (flags & 1 ? reader->ReadU32() : 0);
   bool hasFirstSampleFlags = flags & 4;
   uint32_t firstSampleFlags = hasFirstSampleFlags ? reader->ReadU32() : 0;
@@ -195,8 +163,8 @@ Moof::ParseTrun(Box& aBox, Tfhd& aTfhd, Tfdt& aTfdt, Mdhd& aMdhd)
     offset += sampleSize;
 
     sample.mCompositionRange = Interval<Microseconds>(
-      aMdhd.ToMicroseconds(decodeTime + ctsOffset),
-      aMdhd.ToMicroseconds(decodeTime + ctsOffset + sampleDuration));
+      ((decodeTime + ctsOffset) * 1000000ll) / aMdhd.mTimescale,
+      ((decodeTime + sampleDuration + ctsOffset) * 1000000ll) / aMdhd.mTimescale);
     decodeTime += sampleDuration;
 
     sample.mSync = !(sampleFlags & 0x1010000);
@@ -204,22 +172,10 @@ Moof::ParseTrun(Box& aBox, Tfhd& aTfhd, Tfdt& aTfdt, Mdhd& aMdhd)
     mIndex.AppendElement(sample);
 
     mMdatRange = mMdatRange.Extents(sample.mByteRange);
+    Interval<Microseconds>::SemiNormalAppend(timeRanges,
+                                             sample.mCompositionRange);
   }
-  mMaxRoundingError += aMdhd.ToMicroseconds(sampleCount);
-
-  nsTArray<Sample*> ctsOrder;
-  for (int i = 0; i < mIndex.Length(); i++) {
-    ctsOrder.AppendElement(&mIndex[i]);
-  }
-  ctsOrder.Sort(CtsComparator());
-
-  for (int i = 0; i < ctsOrder.Length(); i++) {
-    if (i + 1 < ctsOrder.Length()) {
-      ctsOrder[i]->mCompositionRange.end = ctsOrder[i + 1]->mCompositionRange.start;
-    }
-  }
-  mTimeRange = Interval<Microseconds>(ctsOrder[0]->mCompositionRange.start,
-      ctsOrder.LastElement()->mCompositionRange.end);
+  Interval<Microseconds>::Normalize(timeRanges, &mTimeRanges);
 }
 
 Tkhd::Tkhd(Box& aBox)
