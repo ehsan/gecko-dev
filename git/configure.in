@@ -4963,7 +4963,7 @@ NSS_DISABLE_DBM=
 NECKO_WIFI=1
 NECKO_COOKIES=1
 NECKO_DISK_CACHE=1
-NECKO_PROTOCOLS_DEFAULT="about data device file ftp http res viewsource"
+NECKO_PROTOCOLS_DEFAULT="about data file ftp http res viewsource"
 USE_ARM_KUSER=
 BUILD_CTYPES=1
 XPC_IDISPATCH_SUPPORT=
@@ -5196,7 +5196,6 @@ cairo-qt)
     MOZ_WEBGL=1
     MOZ_WEBGL_GLX=1
     USE_ELF_DYNSTR_GC=
-    NS_PRINTING=
 
     AC_DEFINE(MOZ_X11)
     MOZ_X11=1
@@ -5846,11 +5845,6 @@ MOZ_ARG_DISABLE_BOOL(printing,
     NS_PRINTING=,
     NS_PRINTING=1)
 
-if test "$MOZ_WIDGET_TOOLKIT" = "qt"; then
-    AC_MSG_WARN([Printing does not work with Qt at this time. Omitting printing support.])
-    NS_PRINTING=
-fi
-
 if test "$NS_PRINTING"; then
     AC_DEFINE(NS_PRINTING)
     AC_DEFINE(NS_PRINT_PREVIEW)
@@ -5899,12 +5893,12 @@ if test -n "$MOZ_NO_FAST_LOAD"; then
 fi
 
 dnl ========================================================
-dnl = Disable Raw Codecs
+dnl = Enable Raw Codecs
 dnl ========================================================
-MOZ_ARG_DISABLE_BOOL(raw,
-[  --disable-raw           Disable support for RAW media],
-    MOZ_RAW=,
-    MOZ_RAW=1)
+MOZ_ARG_ENABLE_BOOL(raw,
+[  --enable-raw           Enable support for RAW media],
+    MOZ_RAW=1,
+    MOZ_RAW=)
 
 if test -n "$MOZ_RAW"; then
     AC_DEFINE(MOZ_RAW)
@@ -8563,6 +8557,12 @@ dnl HarfBuzz
 dnl ========================================================
 MOZ_HARFBUZZ_LIBS='$(DEPTH)/gfx/harfbuzz/src/$(LIB_PREFIX)mozharfbuzz.$(LIB_SUFFIX)'
 AC_SUBST(MOZ_HARFBUZZ_LIBS)
+
+dnl ========================================================
+dnl OTS
+dnl ========================================================
+MOZ_OTS_LIBS='$(DEPTH)/gfx/ots/src/$(LIB_PREFIX)mozots.$(LIB_SUFFIX)'
+AC_SUBST(MOZ_OTS_LIBS)
 
 dnl ========================================================
 dnl disable xul
