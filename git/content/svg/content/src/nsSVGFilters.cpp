@@ -345,12 +345,6 @@ nsSVGFE::DidAnimateBoolean(PRUint8 aAttrEnum)
   DidAnimateAttr(this);
 }
 
-void
-nsSVGFE::DidAnimateString(PRUint8 aAttrEnum)
-{
-  DidAnimateAttr(this);
-}
-
 //---------------------Gaussian Blur------------------------
 
 typedef nsSVGFE nsSVGFEGaussianBlurElementBase;
@@ -424,8 +418,8 @@ nsSVGElement::NumberInfo nsSVGFEGaussianBlurElement::sNumberInfo[2] =
 
 nsSVGElement::StringInfo nsSVGFEGaussianBlurElement::sStringInfo[2] =
 {
-  { &nsGkAtoms::result, kNameSpaceID_None, PR_TRUE },
-  { &nsGkAtoms::in, kNameSpaceID_None, PR_TRUE }
+  { &nsGkAtoms::result, kNameSpaceID_None },
+  { &nsGkAtoms::in, kNameSpaceID_None }
 };
 
 NS_IMPL_NS_NEW_SVG_ELEMENT(FEGaussianBlur)
@@ -904,9 +898,9 @@ nsSVGElement::EnumInfo nsSVGFEBlendElement::sEnumInfo[1] =
 
 nsSVGElement::StringInfo nsSVGFEBlendElement::sStringInfo[3] =
 {
-  { &nsGkAtoms::result, kNameSpaceID_None, PR_TRUE },
-  { &nsGkAtoms::in, kNameSpaceID_None, PR_TRUE },
-  { &nsGkAtoms::in2, kNameSpaceID_None, PR_TRUE }
+  { &nsGkAtoms::result, kNameSpaceID_None },
+  { &nsGkAtoms::in, kNameSpaceID_None },
+  { &nsGkAtoms::in2, kNameSpaceID_None }
 };
 
 NS_IMPL_NS_NEW_SVG_ELEMENT(FEBlend)
@@ -1109,8 +1103,8 @@ nsSVGElement::EnumInfo nsSVGFEColorMatrixElement::sEnumInfo[1] =
 
 nsSVGElement::StringInfo nsSVGFEColorMatrixElement::sStringInfo[2] =
 {
-  { &nsGkAtoms::result, kNameSpaceID_None, PR_TRUE },
-  { &nsGkAtoms::in, kNameSpaceID_None, PR_TRUE }
+  { &nsGkAtoms::result, kNameSpaceID_None },
+  { &nsGkAtoms::in, kNameSpaceID_None }
 };
 
 NS_IMPL_NS_NEW_SVG_ELEMENT(FEColorMatrix)
@@ -1449,9 +1443,9 @@ nsSVGElement::EnumInfo nsSVGFECompositeElement::sEnumInfo[1] =
 
 nsSVGElement::StringInfo nsSVGFECompositeElement::sStringInfo[3] =
 {
-  { &nsGkAtoms::result, kNameSpaceID_None, PR_TRUE },
-  { &nsGkAtoms::in, kNameSpaceID_None, PR_TRUE },
-  { &nsGkAtoms::in2, kNameSpaceID_None, PR_TRUE }
+  { &nsGkAtoms::result, kNameSpaceID_None },
+  { &nsGkAtoms::in, kNameSpaceID_None },
+  { &nsGkAtoms::in2, kNameSpaceID_None }
 };
 
 NS_IMPL_NS_NEW_SVG_ELEMENT(FEComposite)
@@ -1712,8 +1706,8 @@ protected:
 
 nsSVGElement::StringInfo nsSVGFEComponentTransferElement::sStringInfo[2] =
 {
-  { &nsGkAtoms::result, kNameSpaceID_None, PR_TRUE },
-  { &nsGkAtoms::in, kNameSpaceID_None, PR_TRUE }
+  { &nsGkAtoms::result, kNameSpaceID_None },
+  { &nsGkAtoms::in, kNameSpaceID_None }
 };
 
 NS_IMPL_NS_NEW_SVG_ELEMENT(FEComponentTransfer)
@@ -2353,7 +2347,7 @@ protected:
 
 nsSVGElement::StringInfo nsSVGFEMergeElement::sStringInfo[1] =
 {
-  { &nsGkAtoms::result, kNameSpaceID_None, PR_TRUE }
+  { &nsGkAtoms::result, kNameSpaceID_None }
 };
 
 NS_IMPL_NS_NEW_SVG_ELEMENT(FEMerge)
@@ -2425,7 +2419,7 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsSVGFEMergeNodeElement, NS_SVG_FE_MERGE_NODE_CID)
 
 nsSVGElement::StringInfo nsSVGFEMergeNodeElement::sStringInfo[1] =
 {
-  { &nsGkAtoms::in, kNameSpaceID_None, PR_TRUE }
+  { &nsGkAtoms::in, kNameSpaceID_None }
 };
 
 NS_IMPL_NS_NEW_SVG_ELEMENT(FEMergeNode)
@@ -2540,8 +2534,8 @@ nsSVGElement::NumberInfo nsSVGFEOffsetElement::sNumberInfo[2] =
 
 nsSVGElement::StringInfo nsSVGFEOffsetElement::sStringInfo[2] =
 {
-  { &nsGkAtoms::result, kNameSpaceID_None, PR_TRUE },
-  { &nsGkAtoms::in, kNameSpaceID_None, PR_TRUE }
+  { &nsGkAtoms::result, kNameSpaceID_None },
+  { &nsGkAtoms::in, kNameSpaceID_None }
 };
 
 NS_IMPL_NS_NEW_SVG_ELEMENT(FEOffset)
@@ -2732,7 +2726,7 @@ protected:
  
 nsSVGElement::StringInfo nsSVGFEFloodElement::sStringInfo[1] =
 {
-  { &nsGkAtoms::result, kNameSpaceID_None, PR_TRUE }
+  { &nsGkAtoms::result, kNameSpaceID_None }
 };
 
 NS_IMPL_NS_NEW_SVG_ELEMENT(FEFlood)
@@ -2873,8 +2867,8 @@ protected:
 
 nsSVGElement::StringInfo nsSVGFETileElement::sStringInfo[2] =
 {
-  { &nsGkAtoms::result, kNameSpaceID_None, PR_TRUE },
-  { &nsGkAtoms::in, kNameSpaceID_None, PR_TRUE }
+  { &nsGkAtoms::result, kNameSpaceID_None },
+  { &nsGkAtoms::in, kNameSpaceID_None }
 };
 
 NS_IMPL_NS_NEW_SVG_ELEMENT(FETile)
@@ -3181,7 +3175,7 @@ nsSVGElement::EnumInfo nsSVGFETurbulenceElement::sEnumInfo[2] =
 
 nsSVGElement::StringInfo nsSVGFETurbulenceElement::sStringInfo[1] =
 {
-  { &nsGkAtoms::result, kNameSpaceID_None, PR_TRUE }
+  { &nsGkAtoms::result, kNameSpaceID_None }
 };
 
 NS_IMPL_NS_NEW_SVG_ELEMENT(FETurbulence)
@@ -3619,8 +3613,8 @@ nsSVGElement::EnumInfo nsSVGFEMorphologyElement::sEnumInfo[1] =
 
 nsSVGElement::StringInfo nsSVGFEMorphologyElement::sStringInfo[2] =
 {
-  { &nsGkAtoms::result, kNameSpaceID_None, PR_TRUE },
-  { &nsGkAtoms::in, kNameSpaceID_None, PR_TRUE }
+  { &nsGkAtoms::result, kNameSpaceID_None },
+  { &nsGkAtoms::in, kNameSpaceID_None }
 };
 
 NS_IMPL_NS_NEW_SVG_ELEMENT(FEMorphology)
@@ -3976,8 +3970,8 @@ nsSVGElement::EnumInfo nsSVGFEConvolveMatrixElement::sEnumInfo[1] =
 
 nsSVGElement::StringInfo nsSVGFEConvolveMatrixElement::sStringInfo[2] =
 {
-  { &nsGkAtoms::result, kNameSpaceID_None, PR_TRUE },
-  { &nsGkAtoms::in, kNameSpaceID_None, PR_TRUE }
+  { &nsGkAtoms::result, kNameSpaceID_None },
+  { &nsGkAtoms::in, kNameSpaceID_None }
 };
 
 NS_IMPL_NS_NEW_SVG_ELEMENT(FEConvolveMatrix)
@@ -4715,8 +4709,8 @@ nsSVGElement::NumberInfo nsSVGFELightingElement::sNumberInfo[6] =
 
 nsSVGElement::StringInfo nsSVGFELightingElement::sStringInfo[2] =
 {
-  { &nsGkAtoms::result, kNameSpaceID_None, PR_TRUE },
-  { &nsGkAtoms::in, kNameSpaceID_None, PR_TRUE }
+  { &nsGkAtoms::result, kNameSpaceID_None },
+  { &nsGkAtoms::in, kNameSpaceID_None }
 };
 
 //----------------------------------------------------------------------
@@ -5364,7 +5358,6 @@ protected:
 
   virtual nsSVGPreserveAspectRatio *GetPreserveAspectRatio();
   virtual StringAttributesInfo GetStringInfo();
-  virtual void DidAnimateString(PRUint8 aAttrEnum);
 
   enum { RESULT, HREF };
   nsSVGString mStringAttributes[2];
@@ -5375,8 +5368,8 @@ protected:
 
 nsSVGElement::StringInfo nsSVGFEImageElement::sStringInfo[2] =
 {
-  { &nsGkAtoms::result, kNameSpaceID_None, PR_TRUE },
-  { &nsGkAtoms::href, kNameSpaceID_XLink, PR_TRUE }
+  { &nsGkAtoms::result, kNameSpaceID_None },
+  { &nsGkAtoms::href, kNameSpaceID_XLink }
 };
 
 NS_IMPL_NS_NEW_SVG_ELEMENT(FEImage)
@@ -5598,17 +5591,6 @@ nsSVGFEImageElement::GetStringInfo()
                               NS_ARRAY_LENGTH(sStringInfo));
 }
 
-void
-nsSVGFEImageElement::DidAnimateString(PRUint8 aAttrEnum)
-{
-  if (aAttrEnum == HREF) {
-    LoadSVGImage(PR_TRUE, PR_FALSE);
-    return;
-  }
-
-  nsSVGFEImageElementBase::DidAnimateString(aAttrEnum);
-}
-
 //----------------------------------------------------------------------
 // imgIDecoderObserver methods
 
@@ -5763,9 +5745,9 @@ nsSVGElement::EnumInfo nsSVGFEDisplacementMapElement::sEnumInfo[2] =
 
 nsSVGElement::StringInfo nsSVGFEDisplacementMapElement::sStringInfo[3] =
 {
-  { &nsGkAtoms::result, kNameSpaceID_None, PR_TRUE },
-  { &nsGkAtoms::in, kNameSpaceID_None, PR_TRUE },
-  { &nsGkAtoms::in2, kNameSpaceID_None, PR_TRUE }
+  { &nsGkAtoms::result, kNameSpaceID_None },
+  { &nsGkAtoms::in, kNameSpaceID_None },
+  { &nsGkAtoms::in2, kNameSpaceID_None }
 };
 
 NS_IMPL_NS_NEW_SVG_ELEMENT(FEDisplacementMap)

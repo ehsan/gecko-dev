@@ -101,7 +101,6 @@
 static const char kJSRuntimeServiceContractID[] = "@mozilla.org/js/xpc/RuntimeService;1";
 static const char kXPConnectServiceContractID[] = "@mozilla.org/js/xpc/XPConnect;1";
 static const char kObserverServiceContractID[] = "@mozilla.org/observer-service;1";
-static const char kCacheKeyPrefix[] = "jsloader:";
 
 /* Some platforms don't have an implementation of PR_MemMap(). */
 #if !defined(XP_BEOS) && !defined(XP_OS2)
@@ -883,8 +882,6 @@ mozJSComponentLoader::ReadScript(StartupCache* cache, nsIURI *uri,
     nsCAutoString spec;
     rv = uri->GetSpec(spec);
     NS_ENSURE_SUCCESS(rv, rv);
-    spec.Insert(kCacheKeyPrefix, 0);
-    
     nsAutoArrayPtr<char> buf;   
     PRUint32 len;
     rv = cache->GetBuffer(spec.get(), getter_Transfers(buf), 
@@ -911,8 +908,6 @@ mozJSComponentLoader::WriteScript(StartupCache* cache, JSScript *script,
     nsCAutoString spec;
     rv = uri->GetSpec(spec);
     NS_ENSURE_SUCCESS(rv, rv);
-
-    spec.Insert(kCacheKeyPrefix, 0);
 
     LOG(("Writing %s to startupcache\n", spec.get()));
     nsCOMPtr<nsIObjectOutputStream> oos;

@@ -439,8 +439,7 @@ BasicThebesLayer::Paint(gfxContext* aContext,
 
   if (!BasicManager()->IsRetained() ||
       (aOpacity == 1.0 && !canUseOpaqueSurface &&
-       !ShouldRetainTransparentSurface(mContentFlags, targetSurface) &&
-       !AsShadowableLayer())) {
+       !ShouldRetainTransparentSurface(mContentFlags, targetSurface))) {
     mValidRegion.SetEmpty();
     mBuffer.Clear();
 

@@ -1076,7 +1076,7 @@ AssertDocumentOrder(const nsTArray<nsGenericHTMLFormElement*>& aControls,
 
 nsresult
 nsHTMLFormElement::AddElement(nsGenericHTMLFormElement* aChild,
-                              bool aUpdateValidity, PRBool aNotify)
+                              PRBool aNotify)
 {
   NS_ASSERTION(aChild->GetParent(), "Form control should have a parent");
 
@@ -1208,13 +1208,11 @@ nsHTMLFormElement::AddElement(nsGenericHTMLFormElement* aChild,
 
   // If the element is subject to constraint validaton and is invalid, we need
   // to update our internal counter.
-  if (aUpdateValidity) {
-    nsCOMPtr<nsIConstraintValidation> cvElmt =
-      do_QueryInterface(static_cast<nsGenericHTMLElement*>(aChild));
-    if (cvElmt &&
-        cvElmt->IsCandidateForConstraintValidation() && !cvElmt->IsValid()) {
-      UpdateValidity(PR_FALSE);
-    }
+  nsCOMPtr<nsIConstraintValidation> cvElmt =
+    do_QueryInterface(static_cast<nsGenericHTMLElement*>(aChild));
+  if (cvElmt &&
+      cvElmt->IsCandidateForConstraintValidation() && !cvElmt->IsValid()) {
+    UpdateValidity(PR_FALSE);
   }
 
   return NS_OK;
@@ -1230,8 +1228,7 @@ nsHTMLFormElement::AddElementToTable(nsGenericHTMLFormElement* aChild,
 
 nsresult
 nsHTMLFormElement::RemoveElement(nsGenericHTMLFormElement* aChild,
-                                 bool aUpdateValidity,
-                                 PRBool aNotify)
+                                 PRBool aNotify) 
 {
   //
   // Remove it from the radio group if it's a radio button
@@ -1287,13 +1284,11 @@ nsHTMLFormElement::RemoveElement(nsGenericHTMLFormElement* aChild,
 
   // If the element was subject to constraint validaton and is invalid, we need
   // to update our internal counter.
-  if (aUpdateValidity) {
-    nsCOMPtr<nsIConstraintValidation> cvElmt =
-      do_QueryInterface(static_cast<nsGenericHTMLElement*>(aChild));
-    if (cvElmt &&
-        cvElmt->IsCandidateForConstraintValidation() && !cvElmt->IsValid()) {
-      UpdateValidity(PR_TRUE);
-    }
+  nsCOMPtr<nsIConstraintValidation> cvElmt =
+    do_QueryInterface(static_cast<nsGenericHTMLElement*>(aChild));
+  if (cvElmt &&
+      cvElmt->IsCandidateForConstraintValidation() && !cvElmt->IsValid()) {
+    UpdateValidity(PR_TRUE);
   }
 
   return rv;
