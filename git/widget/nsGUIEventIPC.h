@@ -15,9 +15,9 @@ namespace IPC
 {
 
 template<>
-struct ParamTraits<mozilla::BaseEventFlags>
+struct ParamTraits<mozilla::widget::BaseEventFlags>
 {
-  typedef mozilla::BaseEventFlags paramType;
+  typedef mozilla::widget::BaseEventFlags paramType;
 
   static void Write(Message* aMsg, const paramType& aParam)
   {
@@ -121,9 +121,9 @@ struct ParamTraits<nsMouseEvent_base>
 };
 
 template<>
-struct ParamTraits<mozilla::WheelEvent>
+struct ParamTraits<mozilla::widget::WheelEvent>
 {
-  typedef mozilla::WheelEvent paramType;
+  typedef mozilla::widget::WheelEvent paramType;
 
   static void Write(Message* aMsg, const paramType& aParam)
   {
@@ -160,7 +160,7 @@ struct ParamTraits<mozilla::WheelEvent>
       ReadParam(aMsg, aIter, &aResult->overflowDeltaX) &&
       ReadParam(aMsg, aIter, &aResult->overflowDeltaY);
     aResult->scrollType =
-      static_cast<mozilla::WheelEvent::ScrollType>(scrollType);
+      static_cast<mozilla::widget::WheelEvent::ScrollType>(scrollType);
     return rv;
   }
 };
@@ -277,7 +277,7 @@ struct ParamTraits<nsKeyEvent>
         ReadParam(aMsg, aIter, &aResult->location) &&
         ReadParam(aMsg, aIter, &aResult->mUniqueId))
     {
-      aResult->mKeyNameIndex = static_cast<mozilla::KeyNameIndex>(keyNameIndex);
+      aResult->mKeyNameIndex = static_cast<mozilla::widget::KeyNameIndex>(keyNameIndex);
       aResult->mNativeKeyEvent = NULL;
       return true;
     }

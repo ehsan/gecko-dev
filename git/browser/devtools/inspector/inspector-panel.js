@@ -56,8 +56,8 @@ InspectorPanel.prototype = {
   _deferredOpen: function(defaultSelection) {
     let deferred = promise.defer();
 
-    this.onNewRoot = this.onNewRoot.bind(this);
-    this.walker.on("new-root", this.onNewRoot);
+    this.onNavigatedAway = this.onNavigatedAway.bind(this);
+    this.target.on("navigate", this.onNavigatedAway);
 
     this.nodemenu = this.panelDoc.getElementById("inspector-node-popup");
     this.lastNodemenuItem = this.nodemenu.lastChild;
@@ -292,9 +292,9 @@ InspectorPanel.prototype = {
   },
 
   /**
-   * Reset the inspector on new root mutation.
+   * Reset the inspector on navigate away.
    */
-  onNewRoot: function InspectorPanel_onNewRoot() {
+  onNavigatedAway: function InspectorPanel_onNavigatedAway() {
     this._defaultNode = null;
     this.selection.setNodeFront(null);
     this._destroyMarkup();
@@ -448,7 +448,6 @@ InspectorPanel.prototype = {
       return this._destroyPromise;
     }
     if (this.walker) {
-      this.walker.off("new-root", this.onNewRoot);
       this._destroyPromise = this.walker.release().then(null, console.error);
       delete this.walker;
       delete this.pageStyle;
@@ -463,6 +462,8 @@ InspectorPanel.prototype = {
       this.browser.removeEventListener("resize", this.scheduleLayoutChange, true);
       this.browser = null;
     }
+
+    this.target.off("navigate", this.onNavigatedAway);
 
     if (this.highlighter) {
       this.highlighter.off("locked", this.onLockStateChanged);

@@ -58,7 +58,7 @@ enum nsEventStructType {
   NS_MOUSE_EVENT,                    // nsMouseEvent
   NS_MOUSE_SCROLL_EVENT,             // nsMouseScrollEvent
   NS_DRAG_EVENT,                     // nsDragEvent
-  NS_WHEEL_EVENT,                    // WheelEvent
+  NS_WHEEL_EVENT,                    // widget::WheelEvent
 
   // Touchpad related events
   NS_GESTURENOTIFY_EVENT,            // nsGestureNotifyEvent
@@ -491,6 +491,7 @@ enum nsWindowZ {
 };
 
 namespace mozilla {
+namespace widget {
 
 // BaseEventFlags must be a POD struct for safe to use memcpy (including
 // in ParamTraits<BaseEventFlags>).  So don't make virtual methods, constructor,
@@ -590,7 +591,7 @@ private:
   inline void SetRawFlags(RawFlags aRawFlags)
   {
     static_assert(sizeof(BaseEventFlags) <= sizeof(RawFlags),
-      "mozilla::EventFlags must not be bigger than the RawFlags");
+      "mozilla::widget::EventFlags must not be bigger than the RawFlags");
     memcpy(this, &aRawFlags, sizeof(BaseEventFlags));
   }
   inline RawFlags GetRawFlags() const
@@ -609,6 +610,7 @@ struct EventFlags : public BaseEventFlags
   }
 };
 
+} // namespace widget
 } // namespace mozilla
 
 /**
@@ -678,7 +680,7 @@ public:
   // to the time the message was created
   uint64_t    time;
   // See BaseEventFlags definition for the detail.
-  mozilla::BaseEventFlags mFlags;
+  mozilla::widget::BaseEventFlags mFlags;
 
   // Additional type info for user defined events
   nsCOMPtr<nsIAtom>     userType;
@@ -850,62 +852,62 @@ public:
   // true indicates the shift key is down
   bool IsShift() const
   {
-    return ((modifiers & mozilla::MODIFIER_SHIFT) != 0);
+    return ((modifiers & mozilla::widget::MODIFIER_SHIFT) != 0);
   }
   // true indicates the control key is down
   bool IsControl() const
   {
-    return ((modifiers & mozilla::MODIFIER_CONTROL) != 0);
+    return ((modifiers & mozilla::widget::MODIFIER_CONTROL) != 0);
   }
   // true indicates the alt key is down
   bool IsAlt() const
   {
-    return ((modifiers & mozilla::MODIFIER_ALT) != 0);
+    return ((modifiers & mozilla::widget::MODIFIER_ALT) != 0);
   }
   // true indicates the meta key is down (or, on Mac, the Command key)
   bool IsMeta() const
   {
-    return ((modifiers & mozilla::MODIFIER_META) != 0);
+    return ((modifiers & mozilla::widget::MODIFIER_META) != 0);
   }
   // true indicates the win key is down on Windows. Or the Super or Hyper key
   // is down on Linux.
   bool IsOS() const
   {
-    return ((modifiers & mozilla::MODIFIER_OS) != 0);
+    return ((modifiers & mozilla::widget::MODIFIER_OS) != 0);
   }
   // true indicates the alt graph key is down
   // NOTE: on Mac, the option key press causes both IsAlt() and IsAltGrpah()
   //       return true.
   bool IsAltGraph() const
   {
-    return ((modifiers & mozilla::MODIFIER_ALTGRAPH) != 0);
+    return ((modifiers & mozilla::widget::MODIFIER_ALTGRAPH) != 0);
   }
   // true indeicates the CapLock LED is turn on.
   bool IsCapsLocked() const
   {
-    return ((modifiers & mozilla::MODIFIER_CAPSLOCK) != 0);
+    return ((modifiers & mozilla::widget::MODIFIER_CAPSLOCK) != 0);
   }
   // true indeicates the NumLock LED is turn on.
   bool IsNumLocked() const
   {
-    return ((modifiers & mozilla::MODIFIER_NUMLOCK) != 0);
+    return ((modifiers & mozilla::widget::MODIFIER_NUMLOCK) != 0);
   }
   // true indeicates the ScrollLock LED is turn on.
   bool IsScrollLocked() const
   {
-    return ((modifiers & mozilla::MODIFIER_SCROLLLOCK) != 0);
+    return ((modifiers & mozilla::widget::MODIFIER_SCROLLLOCK) != 0);
   }
 
   // true indeicates the Fn key is down, but this is not supported by native
   // key event on any platform.
   bool IsFn() const
   {
-    return ((modifiers & mozilla::MODIFIER_FN) != 0);
+    return ((modifiers & mozilla::widget::MODIFIER_FN) != 0);
   }
   // true indeicates the ScrollLock LED is turn on.
   bool IsSymbolLocked() const
   {
-    return ((modifiers & mozilla::MODIFIER_SYMBOLLOCK) != 0);
+    return ((modifiers & mozilla::widget::MODIFIER_SYMBOLLOCK) != 0);
   }
 
   void InitBasicModifiers(bool aCtrlKey,
@@ -915,20 +917,20 @@ public:
   {
     modifiers = 0;
     if (aCtrlKey) {
-      modifiers |= mozilla::MODIFIER_CONTROL;
+      modifiers |= mozilla::widget::MODIFIER_CONTROL;
     }
     if (aAltKey) {
-      modifiers |= mozilla::MODIFIER_ALT;
+      modifiers |= mozilla::widget::MODIFIER_ALT;
     }
     if (aShiftKey) {
-      modifiers |= mozilla::MODIFIER_SHIFT;
+      modifiers |= mozilla::widget::MODIFIER_SHIFT;
     }
     if (aMetaKey) {
-      modifiers |= mozilla::MODIFIER_META;
+      modifiers |= mozilla::widget::MODIFIER_META;
     }
   }
 
-  mozilla::Modifiers modifiers;
+  mozilla::widget::Modifiers modifiers;
 
   void AssignInputEventData(const nsInputEvent& aEvent, bool aCopyTargets)
   {
@@ -1149,7 +1151,7 @@ public:
     : nsInputEvent(isTrusted, msg, w, NS_KEY_EVENT),
       keyCode(0), charCode(0),
       location(nsIDOMKeyEvent::DOM_KEY_LOCATION_STANDARD), isChar(0),
-      mKeyNameIndex(mozilla::KEY_NAME_INDEX_Unidentified),
+      mKeyNameIndex(mozilla::widget::KEY_NAME_INDEX_Unidentified),
       mNativeKeyEvent(nullptr),
       mUniqueId(0)
   {
@@ -1167,7 +1169,7 @@ public:
   // indicates whether the event signifies a printable character
   bool            isChar;
   // DOM KeyboardEvent.key
-  mozilla::KeyNameIndex mKeyNameIndex;
+  mozilla::widget::KeyNameIndex mKeyNameIndex;
   // OS-specific native event can optionally be preserved
   void*           mNativeKeyEvent;
   // Unique id associated with a keydown / keypress event. Used in identifing
@@ -1181,11 +1183,11 @@ public:
     GetDOMKeyName(mKeyNameIndex, aKeyName);
   }
 
-  static void GetDOMKeyName(mozilla::KeyNameIndex aKeyNameIndex,
+  static void GetDOMKeyName(mozilla::widget::KeyNameIndex aKeyNameIndex,
                             nsAString& aKeyName)
   {
 #define NS_DEFINE_KEYNAME(aCPPName, aDOMKeyName) \
-      case mozilla::KEY_NAME_INDEX_##aCPPName: \
+      case mozilla::widget::KEY_NAME_INDEX_##aCPPName: \
         aKeyName.Assign(NS_LITERAL_STRING(aDOMKeyName)); return;
     switch (aKeyNameIndex) {
 #include "nsDOMKeyNameList.h"
@@ -1413,7 +1415,7 @@ public:
 /**
  * nsMouseScrollEvent is used for legacy DOM mouse scroll events, i.e.,
  * DOMMouseScroll and MozMousePixelScroll event.  These events are NOT hanbled
- * by ESM even if widget dispatches them.  Use new WheelEvent instead.
+ * by ESM even if widget dispatches them.  Use new widget::WheelEvent instead.
  */
 
 class nsMouseScrollEvent : public nsMouseEvent_base
@@ -1448,6 +1450,7 @@ public:
  */
 
 namespace mozilla {
+namespace widget {
 
 class WheelEvent : public nsMouseEvent_base
 {
@@ -1565,6 +1568,7 @@ public:
   }
 };
 
+} // namespace widget
 } // namespace mozilla
 
 /*
@@ -2226,8 +2230,8 @@ inline bool NS_IsAllowedToDispatchDOMEvent(nsEvent* aEvent)
     case NS_WHEEL_EVENT: {
       // wheel event whose all delta values are zero by user pref applied, it
       // shouldn't cause a DOM event.
-      mozilla::WheelEvent* wheelEvent =
-        static_cast<mozilla::WheelEvent*>(aEvent);
+      mozilla::widget::WheelEvent* wheelEvent =
+        static_cast<mozilla::widget::WheelEvent*>(aEvent);
       return wheelEvent->deltaX != 0.0 || wheelEvent->deltaY != 0.0 ||
              wheelEvent->deltaZ != 0.0;
     }

@@ -12,6 +12,7 @@
 #include "nsIContent.h"
 #include "nsIMEStateManager.h"
 #include "nsIPresShell.h"
+#include "nsIWidget.h"
 #include "nsPresContext.h"
 
 namespace mozilla {

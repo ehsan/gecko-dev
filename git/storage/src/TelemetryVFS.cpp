@@ -86,7 +86,6 @@ public:
     uint32_t mainThread = NS_IsMainThread() ? 1 : 0;
     Telemetry::AccumulateTimeDelta(static_cast<Telemetry::ID>(id + mainThread),
                                    start, end);
-#ifdef MOZ_ENABLE_PROFILER_SPS
     if (IOInterposer::IsObservedOperation(op)) {
       const char* main_ref  = "sqlite-mainthread";
       const char* other_ref = "sqlite-otherthread";
@@ -97,7 +96,6 @@ public:
       // Report observation
       IOInterposer::Report(ob);
     }
-#endif /* MOZ_ENABLE_PROFILER_SPS */
   }
 
 private:

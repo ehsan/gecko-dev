@@ -136,8 +136,6 @@ function testFocusFirst() {
 }
 
 function testRemoveTab() {
-  let deferred = promise.defer();
-
   gNewWindow.close();
   removeTab(gNewTab);
 
@@ -150,11 +148,7 @@ function testRemoveTab() {
 
     is(aResponse.selected, 0,
       "The original tab is selected.");
-
-    deferred.resolve();
   });
-
-  return deferred.promise;
 }
 
 function closeConnection() {

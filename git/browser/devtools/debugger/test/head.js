@@ -205,12 +205,6 @@ function once(aTarget, aEventName, aUseCapture = false) {
   return deferred.promise;
 }
 
-function waitForTick() {
-  let deferred = promise.defer();
-  executeSoon(deferred.resolve);
-  return deferred.promise;
-}
-
 function waitForSourceShown(aPanel, aUrl) {
   return waitForDebuggerEvents(aPanel, aPanel.panelWin.EVENTS.SOURCE_SHOWN).then(aSource => {
     let sourceUrl = aSource.url;

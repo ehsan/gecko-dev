@@ -951,9 +951,7 @@ nsEventListenerManager::HandleEventSubType(nsListenerStruct* aListenerStruct,
   }
 
   if (NS_SUCCEEDED(result)) {
-    if (mIsMainThreadELM) {
-      nsContentUtils::EnterMicroTask();
-    }
+    nsAutoMicroTask mt;
     // nsIDOMEvent::currentTarget is set in nsEventDispatcher.
     if (aListener.HasWebIDLCallback()) {
       ErrorResult rv;
@@ -962,9 +960,6 @@ nsEventListenerManager::HandleEventSubType(nsListenerStruct* aListenerStruct,
       result = rv.ErrorCode();
     } else {
       result = aListener.GetXPCOMCallback()->HandleEvent(aDOMEvent);
-    }
-    if (mIsMainThreadELM) {
-      nsContentUtils::LeaveMicroTask();
     }
   }
 

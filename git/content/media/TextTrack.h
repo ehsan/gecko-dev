@@ -18,8 +18,6 @@ namespace dom {
 
 class TextTrackCue;
 class TextTrackCueList;
-class TextTrackRegion;
-class TextTrackRegionList;
 
 class TextTrack MOZ_FINAL : public nsDOMEventTargetHelper
 {
@@ -84,17 +82,6 @@ public:
     return mActiveCueList;
   }
 
-  TextTrackRegionList* GetRegions() const
-  {
-    if (mMode != TextTrackMode::Disabled) {
-      return mRegionList;
-    }
-    return nullptr;
-  }
-
-  void AddRegion(TextTrackRegion& aRegion);
-  void RemoveRegion(const TextTrackRegion& aRegion, ErrorResult& aRv);
-
   // Time is in seconds.
   void Update(double aTime);
 
@@ -116,7 +103,6 @@ private:
 
   nsRefPtr<TextTrackCueList> mCueList;
   nsRefPtr<TextTrackCueList> mActiveCueList;
-  nsRefPtr<TextTrackRegionList> mRegionList;
 };
 
 } // namespace dom

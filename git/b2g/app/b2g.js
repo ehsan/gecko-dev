@@ -553,7 +553,6 @@ pref("dom.disable_window_showModalDialog", true);
 
 // Enable new experimental html forms
 pref("dom.experimental_forms", true);
-pref("dom.forms.number", true);
 
 // Turns on gralloc-based direct texturing for Gonk
 pref("gfx.gralloc.enabled", false);
@@ -707,8 +706,6 @@ pref("wap.UAProf.url", "");
 pref("wap.UAProf.tagname", "x-wap-profile");
 
 pref("layout.imagevisibility.enabled", false);
-pref("layout.imagevisibility.numscrollportwidths", 1);
-pref("layout.imagevisibility.numscrollportheights", 1);
 
 // Enable native identity (persona/browserid)
 pref("dom.identity.enabled", true);
@@ -780,6 +777,3 @@ pref("devtools.debugger.unix-domain-socket", "/data/local/debugger-socket");
 // falling back to Skia/software for smaller canvases
 pref("gfx.canvas.azure.backends", "skia");
 pref("gfx.canvas.azure.accelerated", true);
-
-// Enable Telephony API
-pref("dom.telephony.enabled", true);

@@ -179,7 +179,6 @@ private:
 
   VertexShaderConstants mVSConstants;
   PixelShaderConstants mPSConstants;
-  bool mDisableSequenceForNextFrame;
 };
 
 }
