@@ -621,18 +621,7 @@ protected:
 
     // The spec says we should not draw shadows if the operator is OVER.
     // If it's over and the alpha value is zero, nothing needs to be drawn.
-    return NS_GET_A(state.shadowColor) != 0 && 
-      (state.shadowBlur != 0 || state.shadowOffset.x != 0 || state.shadowOffset.y != 0);
-  }
-
-  CompositionOp UsedOperation()
-  {
-    if (NeedToDrawShadow()) {
-      // In this case the shadow rendering will use the operator.
-      return OP_OVER;
-    }
-
-    return CurrentState().op;
+    return state.op == OP_OVER && NS_GET_A(state.shadowColor) != 0;
   }
 
   /**
@@ -939,8 +928,7 @@ protected:
       
       mCtx->mTarget->DrawSurfaceWithShadow(snapshot, mSurfOffset,
                                            Color::FromABGR(mCtx->CurrentState().shadowColor),
-                                           mCtx->CurrentState().shadowOffset, mSigma,
-                                           mCtx->CurrentState().op);
+                                           mCtx->CurrentState().shadowOffset, mSigma);
     }
 
     DrawTarget* operator->()
@@ -2148,7 +2136,7 @@ nsCanvasRenderingContext2DAzure::FillRect(float x, float y, float w, float h)
 
   AdjustedTarget(this)->FillRect(mgfx::Rect(x, y, w, h),
                                   GeneralPattern().ForStyle(this, STYLE_FILL, mTarget),
-                                  DrawOptions(state.globalAlpha, UsedOperation()));
+                                  DrawOptions(state.globalAlpha, state.op));
 
   return RedrawUser(gfxRect(x, y, w, h));
 }
@@ -2177,7 +2165,7 @@ nsCanvasRenderingContext2DAzure::StrokeRect(float x, float y, float w, float h)
                                 state.dash.Length(),
                                 state.dash.Elements(),
                                 state.dashOffset),
-                  DrawOptions(state.globalAlpha, UsedOperation()));
+                  DrawOptions(state.globalAlpha, state.op));
     return NS_OK;
   } else if (!w) {
     CapStyle cap = CAP_BUTT;
@@ -2192,7 +2180,7 @@ nsCanvasRenderingContext2DAzure::StrokeRect(float x, float y, float w, float h)
                                 state.dash.Length(),
                                 state.dash.Elements(),
                                 state.dashOffset),
-                  DrawOptions(state.globalAlpha, UsedOperation()));
+                  DrawOptions(state.globalAlpha, state.op));
     return NS_OK;
   }
 
@@ -2204,7 +2192,7 @@ nsCanvasRenderingContext2DAzure::StrokeRect(float x, float y, float w, float h)
                               state.dash.Length(),
                               state.dash.Elements(),
                               state.dashOffset),
-                DrawOptions(state.globalAlpha, UsedOperation()));
+                DrawOptions(state.globalAlpha, state.op));
 
   return Redraw();
 }
@@ -2248,7 +2236,7 @@ nsCanvasRenderingContext2DAzure::Fill()
 
   AdjustedTarget(this)->
     Fill(mPath, GeneralPattern().ForStyle(this, STYLE_FILL, mTarget),
-         DrawOptions(CurrentState().globalAlpha, UsedOperation()));
+         DrawOptions(CurrentState().globalAlpha, CurrentState().op));
 
   return Redraw();
 }
@@ -2271,7 +2259,7 @@ nsCanvasRenderingContext2DAzure::Stroke()
                           state.dash.Length(),
                           state.dash.Elements(),
                           state.dashOffset),
-            DrawOptions(state.globalAlpha, UsedOperation()));
+            DrawOptions(state.globalAlpha, state.op));
 
   return Redraw();
 }
@@ -3038,7 +3026,7 @@ struct NS_STACK_CLASS nsCanvasBidiProcessorAzure : public nsBidiPresUtils::BidiP
       mBoundingBox = mBoundingBox.Union(textRunMetrics.mBoundingBox);
     }
 
-    return NSToCoordRound(textRunMetrics.mAdvanceWidth);
+    return static_cast<nscoord>(textRunMetrics.mAdvanceWidth/gfxFloat(mAppUnitsPerDevPixel));
   }
 
   virtual void DrawText(nscoord xOffset, nscoord width)
@@ -3145,7 +3133,7 @@ struct NS_STACK_CLASS nsCanvasBidiProcessorAzure : public nsBidiPresUtils::BidiP
           FillGlyphs(scaledFont, buffer,
                       nsCanvasRenderingContext2DAzure::GeneralPattern().
                         ForStyle(mCtx, nsCanvasRenderingContext2DAzure::STYLE_FILL, mCtx->mTarget),
-                      DrawOptions(mState->globalAlpha, mCtx->UsedOperation()));
+                      DrawOptions(mState->globalAlpha, mState->op));
       } else if (mOp == nsCanvasRenderingContext2DAzure::TEXT_DRAW_OPERATION_STROKE) {
         RefPtr<Path> path = scaledFont->GetPathForGlyphs(buffer, mCtx->mTarget);
             
@@ -3160,7 +3148,7 @@ struct NS_STACK_CLASS nsCanvasBidiProcessorAzure : public nsBidiPresUtils::BidiP
                                 state.dash.Length(),
                                 state.dash.Elements(),
                                 state.dashOffset),
-                  DrawOptions(state.globalAlpha, mCtx->UsedOperation()));
+                  DrawOptions(state.globalAlpha, state.op));
 
       }
     }
@@ -3280,7 +3268,7 @@ nsCanvasRenderingContext2DAzure::DrawOrMeasureText(const nsAString& aRawText,
   processor.mFontgrp = GetCurrentFontStyle();
   NS_ASSERTION(processor.mFontgrp, "font group is null");
 
-  nscoord totalWidthCoord;
+  nscoord totalWidth;
 
   // calls bidi algo twice since it needs the full text width and the
   // bounding boxes before rendering anything
@@ -3292,14 +3280,13 @@ nsCanvasRenderingContext2DAzure::DrawOrMeasureText(const nsAString& aRawText,
                               nsBidiPresUtils::MODE_MEASURE,
                               nsnull,
                               0,
-                              &totalWidthCoord);
+                              &totalWidth);
   if (NS_FAILED(rv)) {
     return rv;
   }
 
-  float totalWidth = float(totalWidthCoord) / processor.mAppUnitsPerDevPixel;
   if (aWidth) {
-    *aWidth = totalWidth;
+    *aWidth = static_cast<float>(totalWidth);
   }
 
   // if only measuring, don't need to do any more work
@@ -3440,6 +3427,30 @@ gfxFontGroup *nsCanvasRenderingContext2DAzure::GetCurrentFontStyle()
   }
 
   return CurrentState().fontGroup;
+}
+
+NS_IMETHODIMP
+nsCanvasRenderingContext2DAzure::MozDrawText(const nsAString& textToDraw)
+{
+  return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
+}
+
+NS_IMETHODIMP
+nsCanvasRenderingContext2DAzure::MozMeasureText(const nsAString& textToMeasure, float *retVal)
+{
+  return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
+}
+
+NS_IMETHODIMP
+nsCanvasRenderingContext2DAzure::MozPathText(const nsAString& textToPath)
+{
+  return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
+}
+
+NS_IMETHODIMP
+nsCanvasRenderingContext2DAzure::MozTextAlongPath(const nsAString& textToDraw, PRBool stroke)
+{
+  return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
 }
 
 //
@@ -3796,7 +3807,7 @@ nsCanvasRenderingContext2DAzure::DrawImage(nsIDOMElement *imgElt, float a1,
                 mgfx::Rect(dx, dy, dw, dh),
                 mgfx::Rect(sx, sy, sw, sh),
                 DrawSurfaceOptions(filter),
-                DrawOptions(CurrentState().globalAlpha, UsedOperation()));
+                DrawOptions(CurrentState().globalAlpha, CurrentState().op));
 
   return RedrawUser(gfxRect(dx, dy, dw, dh));
 }
@@ -3952,12 +3963,12 @@ nsCanvasRenderingContext2DAzure::DrawWindow(nsIDOMWindow* aWindow, float aX, flo
 }
 
 NS_IMETHODIMP
-nsCanvasRenderingContext2DAzure::AsyncDrawXULElement(nsIDOMXULElement* aElem,
-                                                     float aX, float aY,
-                                                     float aW, float aH,
-                                                     const nsAString& aBGColor,
-                                                     PRUint32 flags)
+nsCanvasRenderingContext2DAzure::AsyncDrawXULElement(nsIDOMXULElement* aElem, float aX, float aY,
+                                                float aW, float aH,
+                                                const nsAString& aBGColor,
+                                                PRUint32 flags)
 {
+#if 0
     NS_ENSURE_ARG(aElem != nsnull);
 
     // We can't allow web apps to call this until we fix at least the
@@ -3972,7 +3983,6 @@ nsCanvasRenderingContext2DAzure::AsyncDrawXULElement(nsIDOMXULElement* aElem,
         return NS_ERROR_DOM_SECURITY_ERR;
     }
 
-#if 0
     nsCOMPtr<nsIFrameLoaderOwner> loaderOwner = do_QueryInterface(aElem);
     if (!loaderOwner)
         return NS_ERROR_FAILURE;

@@ -104,13 +104,11 @@
 #include "nsIViewManager.h"
 #include "nsIScriptChannel.h"
 #include "nsIOfflineCacheUpdate.h"
-#include "nsITimedChannel.h"
 #include "nsCPrefetchService.h"
 #include "nsJSON.h"
 #include "IHistory.h"
 #include "mozilla/Services.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/Telemetry.h"
 
 // we want to explore making the document own the load group
 // so we can associate the document URI with the load group.
@@ -234,7 +232,6 @@ static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 #include "nsXULAppAPI.h"
 
 #include "nsDOMNavigationTiming.h"
-#include "nsITimedChannel.h"
 
 using namespace mozilla;
 
@@ -678,9 +675,7 @@ ConvertLoadTypeToNavigationType(PRUint32 aLoadType)
     case LOAD_NORMAL_BYPASS_CACHE:
     case LOAD_NORMAL_BYPASS_PROXY:
     case LOAD_NORMAL_BYPASS_PROXY_AND_CACHE:
-    case LOAD_NORMAL_REPLACE:
     case LOAD_LINK:
-    case LOAD_STOP_CONTENT:
         result = nsIDOMPerformanceNavigation::TYPE_NAVIGATE;
         break;
     case LOAD_HISTORY:
@@ -693,6 +688,8 @@ ConvertLoadTypeToNavigationType(PRUint32 aLoadType)
     case LOAD_RELOAD_BYPASS_PROXY_AND_CACHE:
         result = nsIDOMPerformanceNavigation::TYPE_RELOAD;
         break;
+    case LOAD_NORMAL_REPLACE:
+    case LOAD_STOP_CONTENT:
     case LOAD_STOP_CONTENT_AND_REPLACE:
     case LOAD_REFRESH:
     case LOAD_BYPASS_HISTORY:
@@ -6119,20 +6116,6 @@ nsDocShell::EndPageLoad(nsIWebProgress * aProgress,
     nsresult rv = aChannel->GetURI(getter_AddRefs(url));
     if (NS_FAILED(rv)) return rv;
 
-    nsCOMPtr<nsITimedChannel> timingChannel =
-        do_QueryInterface(aChannel);
-    if (timingChannel) {
-        TimeStamp channelCreationTime;
-        rv = timingChannel->GetChannelCreation(&channelCreationTime);
-        if (NS_SUCCEEDED(rv) && !channelCreationTime.IsNull()) {
-            PRUint32 interval = (PRUint32)
-                (TimeStamp::Now() - channelCreationTime)
-                .ToMilliseconds();
-            Telemetry::Accumulate(Telemetry::TOTAL_CONTENT_PAGE_LOAD_TIME, 
-                                  interval);
-        }
-    }
-
     // Timing is picked up by the window, we don't need it anymore
     mTiming = nsnull;
 
@@ -9076,13 +9059,6 @@ nsDocShell::DoURILoad(nsIURI * aURI,
             props->SetPropertyAsBool(
                 NS_LITERAL_STRING("docshell.newWindowTarget"),
                 PR_TRUE);
-        }
-    }
-
-    if (Preferences::GetBool("dom.enable_performance", PR_FALSE)) {
-        nsCOMPtr<nsITimedChannel> timedChannel(do_QueryInterface(channel));
-        if (timedChannel) {
-            timedChannel->SetTimingEnabled(PR_TRUE);
         }
     }
 

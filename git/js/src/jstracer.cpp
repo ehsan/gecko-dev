@@ -3652,22 +3652,23 @@ TraceRecorder::importImpl(Address addr, const void* p, JSValueType t,
 #ifdef DEBUG
     char name[64];
     JS_ASSERT(strlen(prefix) < 11);
-    Vector<JSAtom *> localNames(cx);
+    void* mark = NULL;
+    jsuword* localNames = NULL;
     const char* funName = NULL;
     JSAutoByteString funNameBytes;
     if (*prefix == 'a' || *prefix == 'v') {
+        mark = JS_ARENA_MARK(&cx->tempPool);
         JSFunction *fun = fp->fun();
         Bindings &bindings = fun->script()->bindings;
-        if (bindings.hasLocalNames()) {
-            JS_ASSERT(bindings.getLocalNameArray(cx, &localNames));
-        }
+        if (bindings.hasLocalNames())
+            localNames = bindings.getLocalNameArray(cx, &cx->tempPool);
         funName = fun->atom
                   ? js_AtomToPrintableString(cx, fun->atom, &funNameBytes)
                   : "<anonymous>";
     }
     if (!strcmp(prefix, "argv")) {
         if (index < fp->numFormalArgs()) {
-            JSAtom *atom = localNames[index];
+            JSAtom *atom = JS_LOCAL_NAME_TO_ATOM(localNames[index]);
             JSAutoByteString atomBytes;
             JS_snprintf(name, sizeof name, "$%s.%s", funName,
                         js_AtomToPrintableString(cx, atom, &atomBytes));
@@ -3675,7 +3676,7 @@ TraceRecorder::importImpl(Address addr, const void* p, JSValueType t,
             JS_snprintf(name, sizeof name, "$%s.<arg%d>", funName, index);
         }
     } else if (!strcmp(prefix, "vars")) {
-        JSAtom *atom = localNames[fp->numFormalArgs() + index];
+        JSAtom *atom = JS_LOCAL_NAME_TO_ATOM(localNames[fp->numFormalArgs() + index]);
         JSAutoByteString atomBytes;
         JS_snprintf(name, sizeof name, "$%s.%s", funName,
                     js_AtomToPrintableString(cx, atom, &atomBytes));
@@ -3683,6 +3684,8 @@ TraceRecorder::importImpl(Address addr, const void* p, JSValueType t,
         JS_snprintf(name, sizeof name, "$%s%d", prefix, index);
     }
 
+    if (mark)
+        JS_ARENA_RELEASE(&cx->tempPool, mark);
     w.name(ins, name);
 
     debug_only_printf(LC_TMTracer, "import vp=%p name=%s type=%c\n",
@@ -13747,10 +13750,6 @@ TraceRecorder::interpretedFunctionCall(Value& fval, JSFunction* fun, uintN argc,
     if (fval.toObject().getGlobal() != globalObj)
         RETURN_STOP("JSOP_CALL or JSOP_NEW crosses global scopes");
 
-    JS_ASSERT(fun->isInterpreted());
-    if (!fun->isInterpretedConstructor())
-        RETURN_STOP("Non-interpreted constructors get called via Invoke");
-
     StackFrame* const fp = cx->fp();
 
     if (constructing) {
@@ -16269,7 +16268,7 @@ TraceRecorder::record_JSOP_ARRAYPUSH()
     enterDeepBailCall();
 
     LIns *args[] = { elt_ins, array_ins, cx_ins };
-    pendingGuardCondition = w.call(&js_NewbornArrayPush_tn_ci, args);
+    pendingGuardCondition = w.call(&js_ArrayCompPush_tn_ci, args);
 
     leaveDeepBailCall();
     return ARECORD_CONTINUE;

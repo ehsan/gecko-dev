@@ -907,8 +907,6 @@ nsHTMLInputElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
       UpdateTooLongValidityState();
     } else if (aName == nsGkAtoms::pattern) {
       UpdatePatternMismatchValidityState();
-    } else if (aName == nsGkAtoms::multiple) {
-      UpdateTypeMismatchValidityState();
     }
 
     UpdateEditableState(aNotify);

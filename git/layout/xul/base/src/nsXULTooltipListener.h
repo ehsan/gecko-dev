@@ -38,7 +38,9 @@
 #ifndef nsXULTooltipListener_h__
 #define nsXULTooltipListener_h__
 
-#include "nsIDOMEventListener.h"
+#include "nsIDOMMouseListener.h"
+#include "nsIDOMMouseMotionListener.h"
+#include "nsIDOMKeyListener.h"
 #include "nsIDOMMouseEvent.h"
 #include "nsIContent.h"
 #include "nsIDOMElement.h"
@@ -51,14 +53,32 @@
 #endif
 #include "nsWeakPtr.h"
 
-class nsXULTooltipListener : public nsIDOMEventListener
+class nsXULTooltipListener : public nsIDOMMouseListener,
+                             public nsIDOMMouseMotionListener,
+                             public nsIDOMKeyListener
 {
 public:
   NS_DECL_ISUPPORTS
-  NS_DECL_NSIDOMEVENTLISTENER
 
-  void MouseOut(nsIDOMEvent* aEvent);
-  void MouseMove(nsIDOMEvent* aEvent);
+  // nsIDOMMouseListener
+  NS_IMETHOD MouseDown(nsIDOMEvent* aMouseEvent);
+  NS_IMETHOD MouseUp(nsIDOMEvent* aMouseEvent);
+  NS_IMETHOD MouseClick(nsIDOMEvent* aMouseEvent) { return NS_OK; }
+  NS_IMETHOD MouseDblClick(nsIDOMEvent* aMouseEvent) { return NS_OK; }
+  NS_IMETHOD MouseOver(nsIDOMEvent* aMouseEvent) { return NS_OK; }
+  NS_IMETHOD MouseOut(nsIDOMEvent* aMouseEvent);
+
+  // nsIDOMMouseMotionListener
+  NS_IMETHOD DragMove(nsIDOMEvent* aMouseEvent) { return NS_OK; }
+  NS_IMETHOD MouseMove(nsIDOMEvent* aMouseEvent);
+
+  // nsIDOMKeyListener
+  NS_IMETHOD KeyDown(nsIDOMEvent* aKeyEvent);
+  NS_IMETHOD KeyUp(nsIDOMEvent* aKeyEvent) { return NS_OK; }
+  NS_IMETHOD KeyPress(nsIDOMEvent* aKeyEvent) { return NS_OK; }
+
+  // nsIDOMEventListener
+  NS_IMETHOD HandleEvent(nsIDOMEvent* aEvent);
 
   nsresult AddTooltipSupport(nsIContent* aNode);
   nsresult RemoveTooltipSupport(nsIContent* aNode);

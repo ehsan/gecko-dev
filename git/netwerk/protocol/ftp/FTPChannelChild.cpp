@@ -57,7 +57,7 @@ namespace net {
 
 FTPChannelChild::FTPChannelChild(nsIURI* uri)
 : mIPCOpen(false)
-, mEventQ(static_cast<nsIFTPChannel*>(this))
+, mEventQ(this)
 , mCanceled(false)
 , mSuspendCount(0)
 , mIsPending(PR_FALSE)

@@ -67,7 +67,6 @@ IPDLDIRS =  \
   netwerk/protocol/ftp \
   netwerk/protocol/http  \
   netwerk/protocol/wyciwyg \
-  netwerk/protocol/websocket \
   netwerk/cookie  \
   uriloader/prefetch  \
   $(NULL)

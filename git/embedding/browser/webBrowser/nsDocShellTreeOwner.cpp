@@ -70,6 +70,7 @@
 #include "Link.h"
 #include "nsIDOMSVGElement.h"
 #include "nsIDOMSVGTitleElement.h"
+#include "nsIDOMSVGForeignObjectElem.h"
 #include "nsIDOMEvent.h"
 #include "nsIDOMMouseEvent.h"
 #include "nsIDOMNSUIEvent.h"
@@ -1058,8 +1059,9 @@ DefaultTooltipTextProvider::DefaultTooltipTextProvider()
 // UseSVGTitle
 //
 // A helper routine that determines whether we're still interested
-// in SVG titles. We need to stop at the SVG root element that
-// has a document node parent
+// in SVG titles. We need to stop at the SVG root element; that
+// either has no parent, has a non-SVG parent or has an SVG ForeignObject 
+// parent.
 //
 static PRBool
 UseSVGTitle(nsIDOMElement *currElement)
@@ -1073,10 +1075,12 @@ UseSVGTitle(nsIDOMElement *currElement)
   if (!parent)
     return PR_FALSE;
 
-  PRUint16 nodeType;
-  nsresult rv = parent->GetNodeType(&nodeType);
+  nsCOMPtr<nsIDOMSVGForeignObjectElement> parentFOContent(do_QueryInterface(parent));
+  if (parentFOContent)
+    return PR_FALSE;
 
-  return NS_SUCCEEDED(rv) && nodeType != nsIDOMNode::DOCUMENT_NODE;
+  nsCOMPtr<nsIDOMSVGElement> parentSVGContent(do_QueryInterface(parent));
+  return (parentSVGContent != nsnull);
 }
 
 /* void getNodeText (in nsIDOMNode aNode, out wstring aText); */

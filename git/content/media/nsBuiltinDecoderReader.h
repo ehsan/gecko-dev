@@ -268,13 +268,13 @@ public:
             PRBool aKeyframe,
             PRInt64 aTimecode,
             nsIntSize aDisplay)
-    : mDisplay(aDisplay),
-      mOffset(aOffset),
+    : mOffset(aOffset),
       mTime(aTime),
       mEndTime(aEndTime),
       mTimecode(aTimecode),
       mDuplicate(PR_FALSE),
-      mKeyframe(aKeyframe)
+      mKeyframe(aKeyframe),
+      mDisplay(aDisplay)
   {
     MOZ_COUNT_CTOR(VideoData);
     NS_ASSERTION(aEndTime >= aTime, "Frame must start before it ends.");
