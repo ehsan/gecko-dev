@@ -8311,8 +8311,7 @@ class CGNativeMember(ClassMethod):
                 # The holder is an nsRefPtr.  If we're nullable and end up null,
                 # the holder will be null anyway, so it's safe to just always
                 # return it here.
-                returnCode = ("(void)${declName}; // avoid warning. May end up not being read\n"
-                              "return ${holderName}.forget();")
+                returnCode = "return ${holderName}.forget();"
             elif iface.isCallback():
                 # The decl is an OwningNonNull or nsRefPtr, depending
                 # on whether we're nullable.

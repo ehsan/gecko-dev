@@ -8,8 +8,6 @@
 #include "nsContentUtils.h"
 #include "nsPIDOMWindow.h"
 #include "mozilla/ErrorResult.h"
-#include "mozilla/dom/AudioContextBinding.h"
-#include "mozilla/dom/OfflineAudioContextBinding.h"
 #include "MediaStreamGraph.h"
 #include "mozilla/dom/AnalyserNode.h"
 #include "AudioDestinationNode.h"
@@ -46,15 +44,8 @@ NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
 
 static uint8_t gWebAudioOutputKey;
 
-AudioContext::AudioContext(nsPIDOMWindow* aWindow,
-                           bool aIsOffline,
-                           uint32_t aNumberOfChannels,
-                           uint32_t aLength,
-                           float aSampleRate)
-  : mDestination(new AudioDestinationNode(this, aIsOffline,
-                                          aNumberOfChannels,
-                                          aLength, aSampleRate))
-  , mIsOffline(aIsOffline)
+AudioContext::AudioContext(nsPIDOMWindow* aWindow)
+  : mDestination(new AudioDestinationNode(this, MediaStreamGraph::GetInstance()))
 {
   // Actually play audio
   mDestination->Stream()->AddAudioOutput(&gWebAudioOutputKey);
@@ -73,11 +64,7 @@ AudioContext::~AudioContext()
 JSObject*
 AudioContext::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  if (mIsOffline) {
-    return OfflineAudioContextBinding::Wrap(aCx, aScope, this);
-  } else {
-    return AudioContextBinding::Wrap(aCx, aScope, this);
-  }
+  return AudioContextBinding::Wrap(aCx, aScope, this);
 }
 
 /* static */ already_AddRefed<AudioContext>
@@ -89,35 +76,7 @@ AudioContext::Constructor(const GlobalObject& aGlobal, ErrorResult& aRv)
     return nullptr;
   }
 
-  nsRefPtr<AudioContext> object = new AudioContext(window, false);
-  window->AddAudioContext(object);
-  return object.forget();
-}
-
-/* static */ already_AddRefed<AudioContext>
-AudioContext::Constructor(const GlobalObject& aGlobal,
-                          uint32_t aNumberOfChannels,
-                          uint32_t aLength,
-                          float aSampleRate,
-                          ErrorResult& aRv)
-{
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aGlobal.Get());
-  if (!window) {
-    aRv.Throw(NS_ERROR_FAILURE);
-    return nullptr;
-  }
-
-  if (aSampleRate != IdealAudioRate()) {
-    // TODO: Add support for running OfflineAudioContext at other sampling rates
-    aRv.Throw(NS_ERROR_DOM_SYNTAX_ERR);
-    return nullptr;
-  }
-
-  nsRefPtr<AudioContext> object = new AudioContext(window,
-                                                   true,
-                                                   aNumberOfChannels,
-                                                   aLength,
-                                                   aSampleRate);
+  nsRefPtr<AudioContext> object = new AudioContext(window);
   window->AddAudioContext(object);
   return object.forget();
 }
@@ -429,7 +388,7 @@ AudioContext::Shutdown()
   GetHashtableElements(mAudioBufferSourceNodes, sourceNodes);
   for (uint32_t i = 0; i < sourceNodes.Length(); ++i) {
     ErrorResult rv;
-    sourceNodes[i]->Stop(0.0, rv, true);
+    sourceNodes[i]->Stop(0.0, rv);
   }
   // Stop all script processor nodes, to make sure that they release
   // their self-references.
@@ -437,11 +396,6 @@ AudioContext::Shutdown()
   GetHashtableElements(mScriptProcessorNodes, spNodes);
   for (uint32_t i = 0; i < spNodes.Length(); ++i) {
     spNodes[i]->Stop();
-  }
-
-  // For offline contexts, we can destroy the MediaStreamGraph at this point.
-  if (mIsOffline) {
-    mDestination->DestroyGraph();
   }
 }
 
@@ -478,14 +432,6 @@ AudioContext::GetJSContext() const
     return nullptr;
   }
   return scriptContext->GetNativeContext();
-}
-
-void
-AudioContext::StartRendering()
-{
-  MOZ_ASSERT(mIsOffline, "This should only be called on OfflineAudioContext");
-
-  mDestination->StartRendering();
 }
 
 }

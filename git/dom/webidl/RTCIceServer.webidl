@@ -7,9 +7,4 @@
 dictionary RTCIceServer {
     DOMString  url;
     DOMString? credential = null;
-    DOMString? username = null;
-};
-
-dictionary RTCConfiguration {
-    sequence<RTCIceServer> iceServers;
 };

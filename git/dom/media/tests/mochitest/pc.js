@@ -558,14 +558,15 @@ PeerConnectionWrapper.prototype = {
   /**
    * Sets the local description and automatically handles the failure case.
    *
-   * @param {object} desc
-   *        mozRTCSessionDescription for the local description request
+   * @param {object} sdp
+   *        SDP for the local description request
    * @param {function} onSuccess
    *        Callback to execute if the local description was set successfully
    */
-  setLocalDescription : function PCW_setLocalDescription(desc, onSuccess) {
+  setLocalDescription : function PCW_setLocalDescription(sdp, onSuccess) {
     var self = this;
-    this._pc.setLocalDescription(desc, function () {
+
+    this._pc.setLocalDescription(sdp, function () {
       info("Successfully set the local description for " + self.label);
       onSuccess();
     }, unexpectedCallbackAndFinish(new Error));
@@ -574,14 +575,15 @@ PeerConnectionWrapper.prototype = {
   /**
    * Sets the remote description and automatically handles the failure case.
    *
-   * @param {object} desc
-   *        mozRTCSessionDescription for the remote description request
+   * @param {object} sdp
+   *        SDP for the remote description request
    * @param {function} onSuccess
    *        Callback to execute if the remote description was set successfully
    */
-  setRemoteDescription : function PCW_setRemoteDescription(desc, onSuccess) {
+  setRemoteDescription : function PCW_setRemoteDescription(sdp, onSuccess) {
     var self = this;
-    this._pc.setRemoteDescription(desc, function () {
+
+    this._pc.setRemoteDescription(sdp, function () {
       info("Successfully set remote description for " + self.label);
       onSuccess();
     }, unexpectedCallbackAndFinish(new Error));
