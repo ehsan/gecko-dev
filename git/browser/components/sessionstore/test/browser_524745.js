@@ -10,34 +10,37 @@ function test() {
 
   waitForExplicitFinish();
 
-  whenNewWindowLoaded({ private: false }, function (window_B) {
-    waitForFocus(function() {
-      // Add identifying information to window_B
-      ss.setWindowValue(window_B, uniqKey, uniqVal);
-      let state = JSON.parse(ss.getBrowserState());
-      let selectedWindow = state.windows[state.selectedWindow - 1];
-      is(selectedWindow.extData && selectedWindow.extData[uniqKey], uniqVal,
-         "selectedWindow is window_B");
+  let window_B = openDialog(location, "_blank", "chrome,all,dialog=no");
+  window_B.addEventListener("load", function(aEvent) {
+    window_B.removeEventListener("load", arguments.callee, false);
 
-      // Now minimize window_B. The selected window shouldn't have the secret data
-      window_B.minimize();
       waitForFocus(function() {
-        state = JSON.parse(ss.getBrowserState());
-        selectedWindow = state.windows[state.selectedWindow - 1];
-        ok(!selectedWindow.extData || !selectedWindow.extData[uniqKey],
-           "selectedWindow is not window_B after minimizing it");
+        // Add identifying information to window_B
+        ss.setWindowValue(window_B, uniqKey, uniqVal);
+        let state = JSON.parse(ss.getBrowserState());
+        let selectedWindow = state.windows[state.selectedWindow - 1];
+        is(selectedWindow.extData && selectedWindow.extData[uniqKey], uniqVal,
+           "selectedWindow is window_B");
 
-        // Now minimize the last open window (assumes no other tests left windows open)
-        window.minimize();
-        state = JSON.parse(ss.getBrowserState());
-        is(state.selectedWindow, 0,
-           "selectedWindow should be 0 when all windows are minimized");
+        // Now minimize window_B. The selected window shouldn't have the secret data
+        window_B.minimize();
+        waitForFocus(function() {
+          state = JSON.parse(ss.getBrowserState());
+          selectedWindow = state.windows[state.selectedWindow - 1];
+          ok(!selectedWindow.extData || !selectedWindow.extData[uniqKey],
+             "selectedWindow is not window_B after minimizing it");
 
-        // Cleanup
-        window.restore();
-        window_B.close();
-        finish();
-      });
-    }, window_B);
-  });
+          // Now minimize the last open window (assumes no other tests left windows open)
+          window.minimize();
+          state = JSON.parse(ss.getBrowserState());
+          is(state.selectedWindow, 0,
+             "selectedWindow should be 0 when all windows are minimized");
+
+          // Cleanup
+          window.restore();
+          window_B.close();
+          finish();
+        });
+      }, window_B);
+  }, false);
 }
