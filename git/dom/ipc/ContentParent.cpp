@@ -114,6 +114,8 @@ using namespace mozilla::system;
 #include "BluetoothService.h"
 #endif
 
+#include "Crypto.h"
+
 static NS_DEFINE_CID(kCClipboardCID, NS_CLIPBOARD_CID);
 static const char* sClipboardTextFlavors[] = { kUnicodeMime };
 
@@ -125,6 +127,7 @@ using namespace mozilla::dom::indexedDB;
 using namespace mozilla::dom::power;
 using namespace mozilla::dom::sms;
 using namespace mozilla::hal;
+using namespace mozilla::idl;
 using namespace mozilla::ipc;
 using namespace mozilla::layers;
 using namespace mozilla::net;
@@ -2167,6 +2170,22 @@ ContentParent::RecvShowFilePicker(const int16_t& mode,
 }
 
 bool
+ContentParent::RecvGetRandomValues(const uint32_t& length,
+                                   InfallibleTArray<uint8_t>* randomValues)
+{
+    uint8_t* buf = Crypto::GetRandomValues(length);
+
+    randomValues->SetCapacity(length);
+    randomValues->SetLength(length);
+
+    memcpy(randomValues->Elements(), buf, length);
+
+    NS_Free(buf);
+
+    return true;
+}
+
+bool
 ContentParent::RecvLoadURIExternal(const URIParams& uri)
 {
     nsCOMPtr<nsIExternalProtocolService> extProtService(do_GetService(NS_EXTERNALPROTOCOLSERVICE_CONTRACTID));
@@ -2283,8 +2302,24 @@ ContentParent::RecvFilePathUpdateNotify(const nsString& aType, const nsString& a
     return true;
 }
 
+static int32_t
+AddGeolocationListener(nsIDOMGeoPositionCallback* watcher, bool highAccuracy)
+{
+  nsCOMPtr<nsIGeolocation> geo = do_GetService("@mozilla.org/geolocation;1");
+  if (!geo) {
+    return -1;
+  }
+
+  GeoPositionOptions* options = new GeoPositionOptions();
+  options->enableHighAccuracy = highAccuracy;
+  int32_t retval = 1;
+  geo->WatchPosition(watcher, nullptr, options, &retval);
+  return retval;
+}
+
 bool
-ContentParent::RecvAddGeolocationListener(const IPC::Principal& aPrincipal)
+ContentParent::RecvAddGeolocationListener(const IPC::Principal& aPrincipal,
+                                          const bool& aHighAccuracy)
 {
 #ifdef MOZ_PERMISSIONS
   if (Preferences::GetBool("geo.testing.ignore_ipc_principal", false) == false) {
@@ -2336,17 +2371,7 @@ ContentParent::RecvAddGeolocationListener(const IPC::Principal& aPrincipal)
   // To ensure no geolocation updates are skipped, we always force the
   // creation of a new listener.
   RecvRemoveGeolocationListener();
-
-  nsCOMPtr<nsIDOMGeoGeolocation> geo = do_GetService("@mozilla.org/geolocation;1");
-  if (!geo) {
-    return true;
-  }
-
-  nsRefPtr<nsGeolocation> geosvc = static_cast<nsGeolocation*>(geo.get());
-  nsAutoPtr<mozilla::idl::GeoPositionOptions> options(new mozilla::idl::GeoPositionOptions());
-  jsval null = JS::NullValue();
-  options->Init(nullptr, &null);
-  geosvc->WatchPosition(this, nullptr, options.forget(), &mGeolocationWatchID);
+  mGeolocationWatchID = AddGeolocationListener(this, aHighAccuracy);
   return true;
 }
 
@@ -2367,12 +2392,13 @@ ContentParent::RecvRemoveGeolocationListener()
 bool
 ContentParent::RecvSetGeolocationHigherAccuracy(const bool& aEnable)
 {
-    nsRefPtr<nsGeolocationService> geoSvc =
-        nsGeolocationService::GetGeolocationService();
-    if (geoSvc) {
-        geoSvc->SetHigherAccuracy(aEnable);
-    }
-    return true;
+  // This should never be called without a listener already present,
+  // so this check allows us to forgo securing privileges.
+  if (mGeolocationWatchID != -1) {
+    RecvRemoveGeolocationListener();
+    mGeolocationWatchID = AddGeolocationListener(this, aEnable);
+  }
+  return true;
 }
 
 NS_IMETHODIMP

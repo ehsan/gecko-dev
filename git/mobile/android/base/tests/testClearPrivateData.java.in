@@ -30,15 +30,15 @@ public class testClearPrivateData extends PixelTest  {
 
         // Checking that the history list in not empty
         ListView hList = getHistoryList();
-        mAsserter.ok(hList.getChildCount() > 0,"checking history exists","history exists");
+        mAsserter.ok(hList.getAdapter().getCount() > 0,"checking history exists","history exists");
 
         // Quit the awesomescreen
         mActions.sendSpecialKey(Actions.SpecialKey.BACK);
-        mSolo.waitForText("Browser Blank Page 01");
+        waitForText("Browser Blank Page 01");
 
         // Clearing private data
         selectMenuItem("Settings");
-        if (mSolo.waitForText("^Clear private data$")) {
+        if (waitForText("^Clear private data$")) {
             mSolo.clickOnText("^Clear private data$");
         }
         mAsserter.ok(mSolo.searchButton("Clear data"),"checking clear button","clear button exists");
@@ -47,6 +47,6 @@ public class testClearPrivateData extends PixelTest  {
 
         // Checking that history list is empty
         hList = getHistoryList();
-        mAsserter.ok(hList.getChildCount() == 0,"checking history is cleared ","history is cleared");
+        mAsserter.ok(hList.getAdapter().getCount() == 0,"checking history is cleared ","history is cleared");
     }
 }
