@@ -173,7 +173,7 @@ XPCWrappedNative::WrapNewGlobal(xpcObjectHelper &nativeHelper,
     RootedObject global(cx, xpc::CreateGlobalObject(cx, clasp, principal, aOptions));
     if (!global)
         return NS_ERROR_FAILURE;
-    XPCWrappedNativeScope *scope = CompartmentPrivate::Get(global)->scope;
+    XPCWrappedNativeScope *scope = GetCompartmentPrivate(global)->scope;
 
     // Immediately enter the global's compartment, so that everything else we
     // create ends up there.
@@ -372,7 +372,7 @@ XPCWrappedNative::GetNewOrUsed(xpcObjectHelper& helper,
         ac.construct(static_cast<JSContext*>(cx), parent);
 
         if (parent != plannedParent) {
-            XPCWrappedNativeScope* betterScope = ObjectScope(parent);
+            XPCWrappedNativeScope* betterScope = GetObjectScope(parent);
             if (betterScope != Scope)
                 return GetNewOrUsed(helper, betterScope, Interface, resultWrapper);
 
@@ -1302,8 +1302,8 @@ RescueOrphans(HandleObject obj)
         RootedObject realParent(cx, js::UncheckedUnwrap(parentObj));
         XPCWrappedNative *wn =
             static_cast<XPCWrappedNative*>(js::GetObjectPrivate(obj));
-        return wn->ReparentWrapperIfFound(ObjectScope(parentObj),
-                                          ObjectScope(realParent),
+        return wn->ReparentWrapperIfFound(GetObjectScope(parentObj),
+                                          GetObjectScope(realParent),
                                           realParent, wn->GetIdentityObject());
     }
 

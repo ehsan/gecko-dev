@@ -270,6 +270,7 @@ let AudioNodeActor = exports.AudioNodeActor = protocol.ActorClass({
 let AudioNodeFront = protocol.FrontClass(AudioNodeActor, {
   initialize: function (client, form) {
     protocol.Front.prototype.initialize.call(this, client, form);
+    client.addActorPool(this);
     this.manage(this);
   }
 });
@@ -329,8 +330,7 @@ let WebAudioActor = exports.WebAudioActor = protocol.ActorClass({
       tracedGlobals: AUDIO_GLOBALS,
       startRecording: true,
       performReload: reload,
-      holdWeak: true,
-      storeCalls: false
+      holdWeak: true
     });
     // Bind to the `global-destroyed` event on the content observer so we can
     // unbind events between the global destruction and the `finalize` cleanup
@@ -580,6 +580,7 @@ let WebAudioActor = exports.WebAudioActor = protocol.ActorClass({
 let WebAudioFront = exports.WebAudioFront = protocol.FrontClass(WebAudioActor, {
   initialize: function(client, { webaudioActor }) {
     protocol.Front.prototype.initialize.call(this, client, { actor: webaudioActor });
+    client.addActorPool(this);
     this.manage(this);
   }
 });

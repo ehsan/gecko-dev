@@ -212,7 +212,7 @@ nsMathMLmencloseFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     nsRect rect;
     mMathMLChar[mRadicalCharIndex].GetRect(rect);
     rect.MoveBy(StyleVisibility()->mDirection ? -mContentWidth : rect.width, 0);
-    rect.SizeTo(mContentWidth, mRadicalRuleThickness);
+    rect.SizeTo(mContentWidth, mRuleThickness);
     DisplayBar(aBuilder, this, rect, aLists);
   }
 
@@ -329,19 +329,17 @@ nsMathMLmencloseFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
   nscoord radicalAscent = 0, radicalDescent = 0;
   nscoord longdivAscent = 0, longdivDescent = 0;
   nscoord psi = 0;
-  nscoord leading = 0;
 
   ///////////////
   // Thickness of bars and font metrics
   nscoord onePixel = nsPresContext::CSSPixelsToAppUnits(1);
 
+  nscoord mEmHeight;
   nsRefPtr<nsFontMetrics> fm;
   nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
   aRenderingContext.SetFont(fm);
   GetRuleThickness(aRenderingContext, fm, mRuleThickness);
-  if (mRuleThickness < onePixel) {
-    mRuleThickness = onePixel;
-  }
+  GetEmHeight(fm, mEmHeight);
 
   char16_t one = '1';
   nsBoundingMetrics bmOne = aRenderingContext.GetBoundingMetrics(&one, 1);
@@ -357,23 +355,23 @@ nsMathMLmencloseFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
     padding += onePixel - delta; // round up
 
   if (IsToDraw(NOTATION_LONGDIV) || IsToDraw(NOTATION_RADICAL)) {
-    GetRadicalParameters(fm, StyleFont()->mMathDisplay ==
-                         NS_MATHML_DISPLAYSTYLE_BLOCK,
-                         mRadicalRuleThickness, leading, psi);
+      nscoord phi;
+      // Rule 11, App. G, TeXbook
+      // psi = clearance between rule and content
+      if (StyleFont()->mMathDisplay == NS_MATHML_DISPLAYSTYLE_BLOCK)
+        phi = fm->XHeight();
+      else
+        phi = mRuleThickness;
+      psi = mRuleThickness + phi / 4;
 
-    // make sure that the rule appears on on screen
-    if (mRadicalRuleThickness < onePixel) {
-      mRadicalRuleThickness = onePixel;
+      delta = psi % onePixel;
+      if (delta)
+        psi += onePixel - delta; // round up
     }
 
-    // adjust clearance psi to get an exact number of pixels -- this
-    // gives a nicer & uniform look on stacked radicals (bug 130282)
-    delta = psi % onePixel;
-    if (delta) {
-      psi += onePixel - delta; // round up
-    }
-  }
-
+  if (mRuleThickness < onePixel)
+    mRuleThickness = onePixel;
+ 
   // Set horizontal parameters
   if (IsToDraw(NOTATION_ROUNDEDBOX) ||
       IsToDraw(NOTATION_TOP) ||
@@ -523,10 +521,10 @@ nsMathMLmencloseFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
       // Stretch the radical symbol to the appropriate height if it is not
       // big enough.
       nsBoundingMetrics contSize = bmBase;
-      contSize.ascent = mRadicalRuleThickness;
+      contSize.ascent = mRuleThickness;
       contSize.descent = bmBase.ascent + bmBase.descent + psi;
 
-      // height(radical) should be >= height(base) + psi + mRadicalRuleThickness
+      // height(radical) should be >= height(base) + psi + mRuleThickness
       mMathMLChar[mRadicalCharIndex].Stretch(PresContext(), aRenderingContext,
                                              NS_STRETCH_DIRECTION_VERTICAL,
                                              contSize, bmRadicalChar,
@@ -538,7 +536,7 @@ nsMathMLmencloseFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
       *dx_leading = std::max(*dx_leading, bmRadicalChar.width);
 
       // Update vertical parameters
-      radicalAscent = bmBase.ascent + psi + mRadicalRuleThickness;
+      radicalAscent = bmBase.ascent + psi + mRuleThickness;
       radicalDescent = std::max(bmBase.descent,
                               (bmRadicalChar.ascent + bmRadicalChar.descent -
                                radicalAscent));
@@ -576,6 +574,10 @@ nsMathMLmencloseFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
              baseSize.Height() - baseSize.BlockStartAscent());
 
   if (IsToDraw(NOTATION_LONGDIV) || IsToDraw(NOTATION_RADICAL)) {
+    // get the leading to be left at the top of the resulting frame
+    // this seems more reliable than using fm->GetLeading() on suspicious
+    // fonts
+    nscoord leading = nscoord(0.2f * mEmHeight);
     nscoord desiredSizeAscent = aDesiredSize.BlockStartAscent();
     nscoord desiredSizeDescent = aDesiredSize.Height() -
                                  aDesiredSize.BlockStartAscent();
@@ -591,7 +593,7 @@ nsMathMLmencloseFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
       desiredSizeAscent = std::max(desiredSizeAscent,
                                  radicalAscent + leading);
       desiredSizeDescent = std::max(desiredSizeDescent,
-                                    radicalDescent + mRadicalRuleThickness);
+                                  radicalDescent + mRuleThickness);
     }
 
     aDesiredSize.SetBlockStartAscent(desiredSizeAscent);

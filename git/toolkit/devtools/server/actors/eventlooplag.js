@@ -84,6 +84,7 @@ exports.EventLoopLagFront = protocol.FrontClass(EventLoopLagActor, {
   initialize: function(client, form) {
     protocol.Front.prototype.initialize.call(this, client);
     this.actorID = form.eventLoopLagActor;
+    client.addActorPool(this);
     this.manage(this);
   },
 });

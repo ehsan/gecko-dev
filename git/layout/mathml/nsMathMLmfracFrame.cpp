@@ -219,15 +219,7 @@ nsMathMLmfracFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
   aRenderingContext.SetFont(fm);
 
   nscoord defaultRuleThickness, axisHeight;
-  nscoord oneDevPixel = fm->AppUnitsPerDevPixel();
-  gfxFont* mathFont = fm->GetThebesFontGroup()->GetFirstMathFont();
-  if (mathFont) {
-    defaultRuleThickness =
-      mathFont->GetMathConstant(gfxFontEntry::FractionRuleThickness,
-                                oneDevPixel);
-  } else {
-    GetRuleThickness(aRenderingContext, fm, defaultRuleThickness);
-  }
+  GetRuleThickness(aRenderingContext, fm, defaultRuleThickness);
   GetAxisHeight(aRenderingContext, fm, axisHeight);
 
   bool outermostEmbellished = false;
@@ -246,8 +238,6 @@ nsMathMLmfracFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
   // bevelled attribute
   mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::bevelled_, value);
   mIsBevelled = value.EqualsLiteral("true");
-
-  bool displayStyle = StyleFont()->mMathDisplay == NS_MATHML_DISPLAYSTYLE_BLOCK;
 
   if (!mIsBevelled) {
     mLineRect.height = mLineThickness;
@@ -268,8 +258,6 @@ nsMathMLmfracFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
                       coreData.leadingSpace : coreData.trailingSpace;
     }
 
-    nscoord actualRuleThickness =  mLineThickness;
-
     //////////////////
     // Get shifts
     nscoord numShift = 0;
@@ -281,54 +269,28 @@ nsMathMLmfracFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
 
     GetNumeratorShifts(fm, numShift1, numShift2, numShift3);
     GetDenominatorShifts(fm, denShift1, denShift2);
-
-    if (0 == actualRuleThickness) {
-      numShift = displayStyle ? numShift1 : numShift3;
-      denShift = displayStyle ? denShift1 : denShift2;
-      if (mathFont) {
-        numShift = mathFont->
-          GetMathConstant(displayStyle ?
-                          gfxFontEntry::StackTopDisplayStyleShiftUp :
-                          gfxFontEntry::StackTopShiftUp,
-                          oneDevPixel);
-        denShift = mathFont->
-          GetMathConstant(displayStyle ?
-                          gfxFontEntry::StackBottomDisplayStyleShiftDown :
-                          gfxFontEntry::StackBottomShiftDown,
-                          oneDevPixel);
-      }
-    } else {
-      numShift = displayStyle ? numShift1 : numShift2;
-      denShift = displayStyle ? denShift1 : denShift2;
-      if (mathFont) {
-        numShift = mathFont->
-          GetMathConstant(displayStyle ?
-                          gfxFontEntry::FractionNumeratorDisplayStyleShiftUp :
-                          gfxFontEntry::FractionNumeratorShiftUp,
-                          oneDevPixel);
-        denShift = mathFont->
-          GetMathConstant(
-            displayStyle ?
-            gfxFontEntry::FractionDenominatorDisplayStyleShiftDown :
-            gfxFontEntry::FractionDenominatorShiftDown,
-            oneDevPixel);
-      }
+    if (StyleFont()->mMathDisplay == NS_MATHML_DISPLAYSTYLE_BLOCK) {
+      // C > T
+      numShift = numShift1;
+      denShift = denShift1;
     }
+    else {
+      numShift = (0 < mLineRect.height) ? numShift2 : numShift3;
+      denShift = denShift2;
+    }
+
+    nscoord minClearance = 0;
+    nscoord actualClearance = 0;
+
+    nscoord actualRuleThickness =  mLineThickness;
 
     if (0 == actualRuleThickness) {
       // Rule 15c, App. G, TeXbook
 
       // min clearance between numerator and denominator
-      nscoord minClearance = displayStyle ?
+      minClearance = StyleFont()->mMathDisplay == NS_MATHML_DISPLAYSTYLE_BLOCK ?
         7 * defaultRuleThickness : 3 * defaultRuleThickness;
-      if (mathFont) {
-        minClearance =
-          mathFont->GetMathConstant(displayStyle ?
-                                    gfxFontEntry::StackDisplayStyleGapMin :
-                                    gfxFontEntry::StackGapMin,
-                                    oneDevPixel);
-      }
-      nscoord actualClearance =
+      actualClearance =
         (numShift - bmNum.descent) - (bmDen.ascent - denShift);
       // actualClearance should be >= minClearance
       if (actualClearance < minClearance) {
@@ -344,40 +306,27 @@ nsMathMLmfracFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
 
     // TeX has a different interpretation of the thickness.
     // Try $a \above10pt b$ to see. Here is what TeX does:
-    // minClearance = displayStyle ?
-    //   3 * actualRuleThickness : actualRuleThickness;
+    // minClearance = StyleFont()->mMathDisplay == NS_MATHML_DISPLAYSTYLE_BLOCK
+    // ? 3 * actualRuleThickness : actualRuleThickness;
  
     // we slightly depart from TeX here. We use the defaultRuleThickness instead
     // of the value coming from the linethickness attribute, i.e., we recover what
     // TeX does if the user hasn't set linethickness. But when the linethickness
     // is set, we avoid the wide gap problem.
-      nscoord minClearanceNum = displayStyle ?
-        3 * defaultRuleThickness : defaultRuleThickness + onePixel;
-      nscoord minClearanceDen = minClearanceNum;
-      if (mathFont) {
-        minClearanceNum = mathFont->
-          GetMathConstant(displayStyle ?
-                          gfxFontEntry::FractionNumDisplayStyleGapMin :
-                          gfxFontEntry::FractionNumeratorGapMin,
-                          oneDevPixel);
-        minClearanceDen = mathFont->
-          GetMathConstant(displayStyle ?
-                          gfxFontEntry::FractionDenomDisplayStyleGapMin :
-                          gfxFontEntry::FractionDenominatorGapMin,
-                          oneDevPixel);
-      }
+     minClearance = StyleFont()->mMathDisplay == NS_MATHML_DISPLAYSTYLE_BLOCK ?
+      3 * defaultRuleThickness : defaultRuleThickness + onePixel;
 
-      // adjust numShift to maintain minClearanceNum if needed
-      nscoord actualClearanceNum =
+      // adjust numShift to maintain minClearance if needed
+      actualClearance =
         (numShift - bmNum.descent) - (axisHeight + actualRuleThickness/2);
-      if (actualClearanceNum < minClearanceNum) {
-        numShift += (minClearanceNum - actualClearanceNum);
+      if (actualClearance < minClearance) {
+        numShift += (minClearance - actualClearance);
       }
-      // adjust denShift to maintain minClearanceDen if needed
-      nscoord actualClearanceDen =
+      // adjust denShift to maintain minClearance if needed
+      actualClearance =
         (axisHeight - actualRuleThickness/2) - (bmDen.ascent - denShift);
-      if (actualClearanceDen < minClearanceDen) {
-        denShift += (minClearanceDen - actualClearanceDen);
+      if (actualClearance < minClearance) {
+        denShift += (minClearance - actualClearance);
       }
     }
 

@@ -965,22 +965,12 @@ class LRecoverInfo : public TempObject
     {
       private:
         MNode **it_;
-        MNode **end_;
         size_t op_;
 
       public:
-        explicit OperandIter(LRecoverInfo *recoverInfo)
-          : it_(recoverInfo->begin()), end_(recoverInfo->end()), op_(0)
-        {
-            settle();
-        }
-
-        void settle() {
-            while ((*it_)->numOperands() == 0) {
-                ++it_;
-                op_ = 0;
-            }
-        }
+        explicit OperandIter(MNode **it)
+          : it_(it), op_(0)
+        { }
 
         MDefinition *operator *() {
             return (*it_)->getOperand(op_);
@@ -995,14 +985,11 @@ class LRecoverInfo : public TempObject
                 op_ = 0;
                 ++it_;
             }
-            if (!*this)
-                settle();
-
             return *this;
         }
 
-        operator bool() const {
-            return it_ == end_;
+        bool operator !=(const OperandIter &where) const {
+            return it_ != where.it_ || op_ != where.op_;
         }
 
 #ifdef DEBUG

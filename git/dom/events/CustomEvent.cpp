@@ -101,11 +101,6 @@ void
 CustomEvent::GetDetail(JSContext* aCx,
                        JS::MutableHandle<JS::Value> aRetval)
 {
-  if (!mDetail) {
-    aRetval.setNull();
-    return;
-  }
-
   VariantToJsval(aCx, mDetail, aRetval);
 }
 

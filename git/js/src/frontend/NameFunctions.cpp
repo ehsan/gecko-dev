@@ -150,9 +150,8 @@ class NameResolver
                 break;
 
               case PNK_COLON:
-              case PNK_SHORTHAND:
                 /*
-                 * Record the PNK_COLON/SHORTHAND but skip the PNK_OBJECT so we're not
+                 * Record the PNK_COLON but skip the PNK_OBJECT so we're not
                  * flagged as a contributor.
                  */
                 pos--;
@@ -222,7 +221,7 @@ class NameResolver
         for (int pos = size - 1; pos >= 0; pos--) {
             ParseNode *node = toName[pos];
 
-            if (node->isKind(PNK_COLON) || node->isKind(PNK_SHORTHAND)) {
+            if (node->isKind(PNK_COLON)) {
                 ParseNode *left = node->pn_left;
                 if (left->isKind(PNK_NAME) || left->isKind(PNK_STRING)) {
                     if (!appendPropertyReference(left->pn_atom))

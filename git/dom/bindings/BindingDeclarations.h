@@ -302,12 +302,12 @@ public:
 };
 
 // Specialization for strings.
-// XXXbz we can't pull in FakeString here, because it depends on internal
-// strings.  So we just have to forward-declare it and reimplement its
+// XXXbz we can't pull in FakeDependentString here, because it depends on
+// internal strings.  So we just have to forward-declare it and reimplement its
 // ToAStringPtr.
 
 namespace binding_detail {
-struct FakeString;
+struct FakeDependentString;
 } // namespace binding_detail
 
 template<>
@@ -329,11 +329,11 @@ public:
   }
 
   // If this code ever goes away, remove the comment pointing to it in the
-  // FakeString class in BindingUtils.h.
-  void operator=(const binding_detail::FakeString* str)
+  // FakeDependentString class in BindingUtils.h.
+  void operator=(const binding_detail::FakeDependentString* str)
   {
     MOZ_ASSERT(str);
-    mStr = reinterpret_cast<const nsString*>(str);
+    mStr = reinterpret_cast<const nsDependentString*>(str);
     mPassed = true;
   }
 

@@ -85,7 +85,6 @@ const char* const XPCJSRuntime::mStrings[] = {
     "length",               // IDX_LENGTH
     "name",                 // IDX_NAME
     "undefined",            // IDX_UNDEFINED
-    "",                     // IDX_EMPTYSTRING
 };
 
 /***************************************************************************/
@@ -251,7 +250,7 @@ static uint32_t kLivingAdopters = 0;
 void
 RecordAdoptedNode(JSCompartment *c)
 {
-    CompartmentPrivate *priv = CompartmentPrivate::Get(c);
+    CompartmentPrivate *priv = EnsureCompartmentPrivate(c);
     if (!priv->adoptedNode) {
         priv->adoptedNode = true;
         ++kLivingAdopters;
@@ -261,7 +260,7 @@ RecordAdoptedNode(JSCompartment *c)
 void
 RecordDonatedNode(JSCompartment *c)
 {
-    CompartmentPrivate::Get(c)->donatedNode = true;
+    EnsureCompartmentPrivate(c)->donatedNode = true;
 }
 
 CompartmentPrivate::~CompartmentPrivate()
@@ -378,6 +377,37 @@ bool CompartmentPrivate::TryParseLocationURI(CompartmentPrivate::LocationHint aL
     MOZ_ASSUME_UNREACHABLE("Chain parser loop does not terminate");
 }
 
+CompartmentPrivate*
+EnsureCompartmentPrivate(JSObject *obj)
+{
+    return EnsureCompartmentPrivate(js::GetObjectCompartment(obj));
+}
+
+CompartmentPrivate*
+EnsureCompartmentPrivate(JSCompartment *c)
+{
+    CompartmentPrivate *priv = GetCompartmentPrivate(c);
+    if (priv)
+        return priv;
+    priv = new CompartmentPrivate(c);
+    JS_SetCompartmentPrivate(c, priv);
+    return priv;
+}
+
+XPCWrappedNativeScope*
+MaybeGetObjectScope(JSObject *obj)
+{
+    MOZ_ASSERT(obj);
+    JSCompartment *compartment = js::GetObjectCompartment(obj);
+
+    MOZ_ASSERT(compartment);
+    CompartmentPrivate *priv = GetCompartmentPrivate(compartment);
+    if (!priv)
+        return nullptr;
+
+    return priv->scope;
+}
+
 static bool
 PrincipalImmuneToScriptPolicy(nsIPrincipal* aPrincipal)
 {
@@ -473,14 +503,14 @@ Scriptability::SetDocShellAllowsScript(bool aAllowed)
 Scriptability&
 Scriptability::Get(JSObject *aScope)
 {
-    return CompartmentPrivate::Get(aScope)->scriptability;
+    return EnsureCompartmentPrivate(aScope)->scriptability;
 }
 
 bool
 IsContentXBLScope(JSCompartment *compartment)
 {
     // We always eagerly create compartment privates for XBL scopes.
-    CompartmentPrivate *priv = CompartmentPrivate::Get(compartment);
+    CompartmentPrivate *priv = GetCompartmentPrivate(compartment);
     if (!priv || !priv->scope)
         return false;
     return priv->scope->IsContentXBLScope();
@@ -495,13 +525,15 @@ IsInContentXBLScope(JSObject *obj)
 bool
 IsInAddonScope(JSObject *obj)
 {
-    return ObjectScope(obj)->IsAddonScope();
+    // We always eagerly create compartment privates for addon scopes.
+    XPCWrappedNativeScope *scope = MaybeGetObjectScope(obj);
+    return scope && scope->IsAddonScope();
 }
 
 bool
 IsUniversalXPConnectEnabled(JSCompartment *compartment)
 {
-    CompartmentPrivate *priv = CompartmentPrivate::Get(compartment);
+    CompartmentPrivate *priv = GetCompartmentPrivate(compartment);
     if (!priv)
         return false;
     return priv->universalXPConnectEnabled;
@@ -526,7 +558,7 @@ EnableUniversalXPConnect(JSContext *cx)
     // the security wrapping code.
     if (AccessCheck::isChrome(compartment))
         return true;
-    CompartmentPrivate *priv = CompartmentPrivate::Get(compartment);
+    CompartmentPrivate *priv = GetCompartmentPrivate(compartment);
     if (!priv)
         return true;
     priv->universalXPConnectEnabled = true;
@@ -620,7 +652,7 @@ CompartmentDestroyedCallback(JSFreeOp *fop, JSCompartment *compartment)
 
     // Get the current compartment private into an AutoPtr (which will do the
     // cleanup for us), and null out the private (which may already be null).
-    nsAutoPtr<CompartmentPrivate> priv(CompartmentPrivate::Get(compartment));
+    nsAutoPtr<CompartmentPrivate> priv(GetCompartmentPrivate(compartment));
     JS_SetCompartmentPrivate(compartment, nullptr);
 }
 
@@ -1684,7 +1716,7 @@ GetCompartmentName(JSCompartment *c, nsCString &name, int *anonymizeID,
         // script location, append the compartment's location to allow
         // differentiation of multiple compartments owned by the same principal
         // (e.g. components owned by the system or null principal).
-        CompartmentPrivate *compartmentPrivate = CompartmentPrivate::Get(c);
+        CompartmentPrivate *compartmentPrivate = GetCompartmentPrivate(c);
         if (compartmentPrivate) {
             const nsACString& location = compartmentPrivate->GetLocation();
             if (!location.IsEmpty() && !location.Equals(name)) {
@@ -2695,7 +2727,7 @@ class XPCJSRuntimeStats : public JS::RuntimeStats
         nsCString cName;
         GetCompartmentName(c, cName, &mAnonymizeID, /* replaceSlashes = */ true);
         if (mGetLocations) {
-            CompartmentPrivate *cp = CompartmentPrivate::Get(c);
+            CompartmentPrivate *cp = GetCompartmentPrivate(c);
             if (cp)
               cp->GetLocationURI(CompartmentPrivate::LocationHintAddon,
                                  getter_AddRefs(extras->location));

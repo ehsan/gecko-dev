@@ -69,5 +69,3 @@ if (f3Main() !== lastSum)
 
 if (!this.jsFuns)
     postMessage("ok");
-else
-    complete();

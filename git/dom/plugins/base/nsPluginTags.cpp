@@ -485,10 +485,11 @@ void nsPluginTag::TryUnloadPlugin(bool inShutdown)
 {
   // We never want to send NPP_Shutdown to an in-process plugin unless
   // this process is shutting down.
-  if (!mPlugin) {
+  if (mLibrary && !inShutdown) {
     return;
   }
-  if (inShutdown || mPlugin->GetLibrary()->IsOOP()) {
+
+  if (mPlugin) {
     mPlugin->Shutdown();
     mPlugin = nullptr;
   }

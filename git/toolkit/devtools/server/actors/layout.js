@@ -133,6 +133,7 @@ let ReflowActor = protocol.ActorClass({
 exports.ReflowFront = protocol.FrontClass(ReflowActor, {
   initialize: function(client, {reflowActor}) {
     protocol.Front.prototype.initialize.call(this, client, {actor: reflowActor});
+    client.addActorPool(this);
     this.manage(this);
   },
 

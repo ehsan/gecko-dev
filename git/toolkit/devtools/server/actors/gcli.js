@@ -202,6 +202,7 @@ exports.GcliFront = protocol.FrontClass(GcliActor, {
 
     // XXX: This is the first actor type in its hierarchy to use the protocol
     // library, so we're going to self-own on the client side for now.
+    client.addActorPool(this);
     this.manage(this);
   },
 });

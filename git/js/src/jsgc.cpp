@@ -227,6 +227,8 @@
 using namespace js;
 using namespace js::gc;
 
+using mozilla::ArrayEnd;
+using mozilla::DebugOnly;
 using mozilla::Maybe;
 using mozilla::Swap;
 
@@ -244,6 +246,7 @@ static const int MAX_EMPTY_CHUNK_COUNT = 2;
 static const int MAX_EMPTY_CHUNK_COUNT = 30;
 #endif
 
+/* This array should be const, but that doesn't link right under GCC. */
 const AllocKind gc::slotsToThingKind[] = {
     /* 0 */  FINALIZE_OBJECT0,  FINALIZE_OBJECT2,  FINALIZE_OBJECT2,  FINALIZE_OBJECT4,
     /* 4 */  FINALIZE_OBJECT4,  FINALIZE_OBJECT8,  FINALIZE_OBJECT8,  FINALIZE_OBJECT8,
@@ -427,7 +430,7 @@ ArenaHeader::checkSynchronizedWithFreeList() const
 
     /*
      * Here this arena has free things, FreeList::lists[thingKind] is not
-     * empty and also points to this arena. Thus they must be the same.
+     * empty and also points to this arena. Thus they must the same.
      */
     JS_ASSERT(freeList->isSameNonEmptySpan(firstSpan));
 }
@@ -965,7 +968,7 @@ Chunk::releaseArena(ArenaHeader *aheader)
     JS_ASSERT(rt->gc.bytes >= ArenaSize);
     JS_ASSERT(zone->gcBytes >= ArenaSize);
     if (rt->gc.isBackgroundSweeping())
-        zone->gcBytesAfterGC -= ArenaSize;
+        zone->reduceGCTriggerBytes(zone->gcHeapGrowthFactor * ArenaSize);
     rt->gc.bytes -= ArenaSize;
     zone->gcBytes -= ArenaSize;
 
@@ -1098,7 +1101,7 @@ GCRuntime::GCRuntime(JSRuntime *rt) :
     highFrequencyHeapGrowthMax(3.0),
     highFrequencyHeapGrowthMin(1.5),
     lowFrequencyHeapGrowth(1.5),
-    dynamicHeapGrowth(true),
+    dynamicHeapGrowth(false),
     dynamicMarkSlice(false),
     decommitThreshold(32 * 1024 * 1024),
     cleanUpEverything(false),
@@ -1384,13 +1387,9 @@ GCRuntime::setParameter(JSGCParamKey key, uint32_t value)
         break;
       case JSGC_HIGH_FREQUENCY_LOW_LIMIT:
         highFrequencyLowLimitBytes = value * 1024 * 1024;
-        if (highFrequencyLowLimitBytes >= highFrequencyHighLimitBytes)
-            highFrequencyHighLimitBytes = highFrequencyLowLimitBytes + 1;
         break;
       case JSGC_HIGH_FREQUENCY_HIGH_LIMIT:
         highFrequencyHighLimitBytes = value * 1024 * 1024;
-        if (highFrequencyLowLimitBytes >= highFrequencyHighLimitBytes)
-            highFrequencyLowLimitBytes = highFrequencyHighLimitBytes - 1;
         break;
       case JSGC_HIGH_FREQUENCY_HEAP_GROWTH_MAX:
         highFrequencyHeapGrowthMax = value / 100.0;
@@ -1671,8 +1670,7 @@ GCRuntime::onTooMuchMalloc()
 }
 
 size_t
-GCRuntime::computeTriggerBytes(double growthFactor, size_t lastBytes,
-                               JSGCInvocationKind gckind) const
+GCRuntime::computeTriggerBytes(double growthFactor, size_t lastBytes, JSGCInvocationKind gckind)
 {
     size_t base = gckind == GC_SHRINK ? lastBytes : Max(lastBytes, allocThreshold);
     double trigger = double(base) * growthFactor;
@@ -1680,7 +1678,7 @@ GCRuntime::computeTriggerBytes(double growthFactor, size_t lastBytes,
 }
 
 double
-GCRuntime::computeHeapGrowthFactor(size_t lastBytes) const
+GCRuntime::computeHeapGrowthFactor(size_t lastBytes)
 {
     /*
      * The heap growth factor depends on the heap size after a GC and the GC frequency.
@@ -1698,7 +1696,8 @@ GCRuntime::computeHeapGrowthFactor(size_t lastBytes) const
         factor = lowFrequencyHeapGrowth;
     } else {
         JS_ASSERT(highFrequencyHighLimitBytes > highFrequencyLowLimitBytes);
-        if (highFrequencyGC) {
+        uint64_t now = PRMJ_Now();
+        if (lastGCTime && lastGCTime + highFrequencyTimeThreshold * PRMJ_USEC_PER_MSEC > now) {
             if (lastBytes <= highFrequencyLowLimitBytes) {
                 factor = highFrequencyHeapGrowthMax;
             } else if (lastBytes >= highFrequencyHighLimitBytes) {
@@ -1711,8 +1710,10 @@ GCRuntime::computeHeapGrowthFactor(size_t lastBytes) const
                 JS_ASSERT(factor <= highFrequencyHeapGrowthMax
                           && factor >= highFrequencyHeapGrowthMin);
             }
+            highFrequencyGC = true;
         } else {
             factor = lowFrequencyHeapGrowth;
+            highFrequencyGC = false;
         }
     }
 
@@ -1722,9 +1723,20 @@ GCRuntime::computeHeapGrowthFactor(size_t lastBytes) const
 void
 Zone::setGCLastBytes(size_t lastBytes, JSGCInvocationKind gckind)
 {
-    const GCRuntime &gc = runtimeFromAnyThread()->gc;
+    GCRuntime &gc = runtimeFromMainThread()->gc;
     gcHeapGrowthFactor = gc.computeHeapGrowthFactor(lastBytes);
     gcTriggerBytes = gc.computeTriggerBytes(gcHeapGrowthFactor, lastBytes, gckind);
+}
+
+void
+Zone::reduceGCTriggerBytes(size_t amount)
+{
+    JS_ASSERT(amount > 0);
+    JS_ASSERT(gcTriggerBytes >= amount);
+    GCRuntime &gc = runtimeFromAnyThread()->gc;
+    if (gcTriggerBytes - amount < gc.allocationThreshold() * gcHeapGrowthFactor)
+        return;
+    gcTriggerBytes -= amount;
 }
 
 Allocator::Allocator(Zone *zone)
@@ -2554,15 +2566,6 @@ GCRuntime::sweepBackgroundThings(bool onBackgroundThread)
                     ArenaLists::backgroundFinalize(&fop, arenas, onBackgroundThread);
             }
         }
-    }
-
-    if (onBackgroundThread) {
-        /*
-         * Update zone triggers a second time now we have completely finished
-         * sweeping these zones.
-         */
-        for (Zone *zone = sweepingZones; zone; zone = zone->gcNextGraphNode)
-            zone->setGCLastBytes(zone->gcBytesAfterGC, lastKind);
     }
 
     sweepingZones = nullptr;
@@ -4362,7 +4365,7 @@ GCRuntime::sweepPhase(SliceBudget &sliceBudget)
 }
 
 void
-GCRuntime::endSweepPhase(bool lastGC)
+GCRuntime::endSweepPhase(JSGCInvocationKind gckind, bool lastGC)
 {
     gcstats::AutoPhase ap(stats, gcstats::PHASE_SWEEP);
     FreeOp fop(rt, sweepOnBackgroundThread);
@@ -4435,7 +4438,7 @@ GCRuntime::endSweepPhase(bool lastGC)
              * Expire needs to unlock it for other callers.
              */
             AutoLockGC lock(rt);
-            expireChunksAndArenas(lastKind == GC_SHRINK);
+            expireChunksAndArenas(gckind == GC_SHRINK);
         }
     }
 
@@ -4473,15 +4476,10 @@ GCRuntime::endSweepPhase(bool lastGC)
             sweepZones(&fop, lastGC);
     }
 
-    uint64_t currentTime = PRMJ_Now();
-    highFrequencyGC = dynamicHeapGrowth && lastGCTime &&
-        lastGCTime + highFrequencyTimeThreshold * PRMJ_USEC_PER_MSEC > currentTime;
-
     for (ZonesIter zone(rt, WithAtoms); !zone.done(); zone.next()) {
-        zone->setGCLastBytes(zone->gcBytes, lastKind);
+        zone->setGCLastBytes(zone->gcBytes, gckind);
         if (zone->isCollecting()) {
             JS_ASSERT(zone->isGCFinished());
-            zone->gcBytesAfterGC = zone->gcBytes;
             zone->setGCState(Zone::NoGC);
         }
 
@@ -4511,7 +4509,7 @@ GCRuntime::endSweepPhase(bool lastGC)
 
     finishMarkingValidation();
 
-    lastGCTime = currentTime;
+    lastGCTime = PRMJ_Now();
 }
 
 /* Start a new heap session. */
@@ -4763,8 +4761,6 @@ GCRuntime::incrementalCollectSlice(int64_t budget,
     JS_ASSERT_IF(incrementalState != NO_INCREMENTAL, isIncremental);
     isIncremental = budget != SliceBudget::Unlimited;
 
-    lastKind = gckind;
-
     if (zeal == ZealIncrementalRootsThenFinish || zeal == ZealIncrementalMarkAllThenFinish) {
         /*
          * Yields between slices occurs at predetermined points in these modes;
@@ -4852,7 +4848,7 @@ GCRuntime::incrementalCollectSlice(int64_t budget,
         if (!finished)
             break;
 
-        endSweepPhase(lastGC);
+        endSweepPhase(gckind, lastGC);
 
         if (sweepOnBackgroundThread)
             helperState.startBackgroundSweep(gckind == GC_SHRINK);

@@ -79,7 +79,10 @@ DOMProxyHandler::GetAndClearExpandoObject(JSObject* obj)
 
   if (v.isObject()) {
     js::SetProxyExtra(obj, JSPROXYSLOT_EXPANDO, UndefinedValue());
-    xpc::ObjectScope(obj)->RemoveDOMExpandoObject(obj);
+    XPCWrappedNativeScope* scope = xpc::MaybeGetObjectScope(obj);
+    if (scope) {
+      scope->RemoveDOMExpandoObject(obj);
+    }
   } else {
     js::ExpandoAndGeneration* expandoAndGeneration =
       static_cast<js::ExpandoAndGeneration*>(v.toPrivate());
@@ -131,7 +134,8 @@ DOMProxyHandler::EnsureExpandoObject(JSContext* cx, JS::Handle<JSObject*> obj)
     return expando;
   }
 
-  if (!xpc::ObjectScope(obj)->RegisterDOMExpandoObject(obj)) {
+  XPCWrappedNativeScope* scope = xpc::GetObjectScope(obj);
+  if (!scope->RegisterDOMExpandoObject(obj)) {
     return nullptr;
   }
 

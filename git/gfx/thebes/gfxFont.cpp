@@ -430,7 +430,7 @@ gfxFontEntry::NotifyGlyphsChanged()
 }
 
 bool
-gfxFontEntry::TryGetMathTable()
+gfxFontEntry::TryGetMathTable(gfxFont* aFont)
 {
     if (!mMathInitialized) {
         mMathInitialized = true;
@@ -5224,19 +5224,6 @@ gfxFontGroup::HasFont(const gfxFontEntry *aFontEntry)
 gfxFontGroup::~gfxFontGroup()
 {
     mFonts.Clear();
-}
-
-gfxFont *
-gfxFontGroup::GetFirstMathFont()
-{
-    uint32_t count = mFonts.Length();
-    for (uint32_t i = 0; i < count; ++i) {
-        gfxFont* font = GetFontAt(i);
-        if (font->GetFontEntry()->TryGetMathTable()) {
-            return font;
-        }
-    }
-    return nullptr;
 }
 
 gfxFontGroup *

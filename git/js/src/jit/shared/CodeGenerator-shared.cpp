@@ -317,7 +317,9 @@ CodeGeneratorShared::encode(LSnapshot *snapshot)
 #endif
 
     uint32_t allocIndex = 0;
-    for (LRecoverInfo::OperandIter it(recoverInfo); !it; ++it) {
+    LRecoverInfo::OperandIter it(recoverInfo->begin());
+    LRecoverInfo::OperandIter end(recoverInfo->end());
+    for (; it != end; ++it) {
         DebugOnly<uint32_t> allocWritten = snapshots_.allocWritten();
         if (!encodeAllocation(snapshot, *it, &allocIndex))
             return false;

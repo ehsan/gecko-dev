@@ -171,7 +171,7 @@ nsIContent::GetFlattenedTreeParent() const
 
   // Shadow roots never shows up in the flattened tree. Return the host
   // instead.
-  if (parent && parent->IsInShadowTree()) {
+  if (parent && parent->HasFlag(NODE_IS_IN_SHADOW_TREE)) {
     ShadowRoot* parentShadowRoot = ShadowRoot::FromNode(parent);
     if (parentShadowRoot) {
       return parentShadowRoot->GetHost();

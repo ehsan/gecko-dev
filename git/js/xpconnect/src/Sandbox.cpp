@@ -414,7 +414,7 @@ struct AutoSkipPropertyMirroring
 static bool
 sandbox_addProperty(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue vp)
 {
-    CompartmentPrivate *priv = CompartmentPrivate::Get(obj);
+    CompartmentPrivate *priv = GetCompartmentPrivate(obj);
     MOZ_ASSERT(priv->writeToGlobalPrototype);
 
     // Whenever JS_EnumerateStandardClasses is called (by sandbox_enumerate for
@@ -891,7 +891,7 @@ xpc::CreateSandboxObject(JSContext *cx, MutableHandleValue vp, nsISupports *prin
     if (!sandbox)
         return NS_ERROR_FAILURE;
 
-    CompartmentPrivate::Get(sandbox)->writeToGlobalPrototype =
+    xpc::GetCompartmentPrivate(sandbox)->writeToGlobalPrototype =
       options.writeToGlobalPrototype;
 
     // Set up the wantXrays flag, which indicates whether xrays are desired even
@@ -903,7 +903,7 @@ xpc::CreateSandboxObject(JSContext *cx, MutableHandleValue vp, nsISupports *prin
     // Arguably we should just flip the default for chrome and still honor the
     // flag, but such a change would break code in subtle ways for minimal
     // benefit. So we just switch it off here.
-    CompartmentPrivate::Get(sandbox)->wantXrays =
+    xpc::GetCompartmentPrivate(sandbox)->wantXrays =
       AccessCheck::isChrome(sandbox) ? false : options.wantXrays;
 
     {
@@ -947,12 +947,12 @@ xpc::CreateSandboxObject(JSContext *cx, MutableHandleValue vp, nsISupports *prin
         JS_SetPrivate(sandbox, sbp.forget().take());
 
         // Don't try to mirror the properties that are set below.
-        AutoSkipPropertyMirroring askip(CompartmentPrivate::Get(sandbox));
+        AutoSkipPropertyMirroring askip(GetCompartmentPrivate(sandbox));
 
         bool allowComponents = nsContentUtils::IsSystemPrincipal(principal) ||
                                nsContentUtils::IsExpandedPrincipal(principal);
         if (options.wantComponents && allowComponents &&
-            !ObjectScope(sandbox)->AttachComponentsObject(cx))
+            !GetObjectScope(sandbox)->AttachComponentsObject(cx))
             return NS_ERROR_XPC_UNEXPECTED;
 
         if (!XPCNativeWrapper::AttachNewConstructorObject(cx, sandbox))

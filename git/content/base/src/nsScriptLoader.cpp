@@ -895,7 +895,7 @@ nsScriptLoader::AttemptAsyncScriptParse(nsScriptLoadRequest* aRequest)
   JSContext* cx = jsapi.cx();
   JS::Rooted<JSObject*> global(cx, globalObject->GetGlobalJSObject());
   JS::CompileOptions options(cx);
-  FillCompileOptionsForRequest(jsapi, aRequest, global, &options);
+  FillCompileOptionsForRequest(aRequest, global, &options);
 
   if (!JS::CanCompileOffThread(cx, options, aRequest->mScriptTextLength)) {
     return NS_ERROR_FAILURE;
@@ -1066,8 +1066,7 @@ nsScriptLoader::GetScriptGlobalObject()
 }
 
 void
-nsScriptLoader::FillCompileOptionsForRequest(const AutoJSAPI &jsapi,
-                                             nsScriptLoadRequest *aRequest,
+nsScriptLoader::FillCompileOptionsForRequest(nsScriptLoadRequest *aRequest,
                                              JS::Handle<JSObject *> aScopeChain,
                                              JS::CompileOptions *aOptions)
 {
@@ -1086,9 +1085,15 @@ nsScriptLoader::FillCompileOptionsForRequest(const AutoJSAPI &jsapi,
     aOptions->setOriginPrincipals(nsJSPrincipals::get(aRequest->mOriginPrincipal));
   }
 
-  JSContext* cx = jsapi.cx();
+  AutoJSContext cx;
   JS::Rooted<JS::Value> elementVal(cx);
   MOZ_ASSERT(aRequest->mElement);
+  // XXXbz this is super-fragile, because the code that _uses_ the
+  // JS::CompileOptions is nowhere near us, but we have to coordinate
+  // compartments with it... and in particular, it will compile in the
+  // compartment of aScopeChain, so we want to wrap into that compartment as
+  // well.
+  JSAutoCompartment ac(cx, aScopeChain);
   if (NS_SUCCEEDED(nsContentUtils::WrapNative(cx, aRequest->mElement,
                                               &elementVal,
                                               /* aAllowWrapping = */ true))) {
@@ -1160,7 +1165,7 @@ nsScriptLoader::EvaluateScript(nsScriptLoadRequest* aRequest,
     }
 
     JS::CompileOptions options(entryScript.cx());
-    FillCompileOptionsForRequest(entryScript, aRequest, global, &options);
+    FillCompileOptionsForRequest(aRequest, global, &options);
     rv = nsJSUtils::EvaluateString(entryScript.cx(), aSrcBuf, global, options,
                                    aOffThreadToken);
   }
