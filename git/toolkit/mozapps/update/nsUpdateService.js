@@ -150,8 +150,6 @@ const SERVICE_UPDATER_COMPARE_ERROR        = 27;
 const SERVICE_UPDATER_IDENTITY_ERROR       = 28;
 const SERVICE_STILL_APPLYING_ON_SUCCESS    = 29;
 const SERVICE_STILL_APPLYING_ON_FAILURE    = 30;
-const SERVICE_UPDATER_NOT_FIXED_DRIVE      = 31;
-const SERVICE_COULD_NOT_LOCK_UPDATER       = 32;
 
 const CERT_ATTR_CHECK_FAILED_NO_UPDATE  = 100;
 const CERT_ATTR_CHECK_FAILED_HAS_UPDATE = 101;
@@ -1417,10 +1415,7 @@ UpdateService.prototype = {
             update.errorCode == SERVICE_UPDATER_COMPARE_ERROR ||
             update.errorCode == SERVICE_UPDATER_IDENTITY_ERROR ||
             update.errorCode == SERVICE_STILL_APPLYING_ON_SUCCESS ||
-            update.errorCode == SERVICE_STILL_APPLYING_ON_FAILURE ||
-            update.errorCode == SERVICE_UPDATER_NOT_FIXED_DRIVE ||
-            update.errorCode == SERVICE_COULD_NOT_LOCK_UPDATER) {
-
+            update.errorCode == SERVICE_STILL_APPLYING_ON_FAILURE) {
           var failCount = getPref("getIntPref", 
                                   PREF_APP_UPDATE_SERVICE_ERRORS, 0);
           var maxFail = getPref("getIntPref", 
