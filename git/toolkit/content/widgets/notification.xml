@@ -114,11 +114,11 @@
 
             newitem.priority = aPriority;
             if (aPriority >= this.PRIORITY_CRITICAL_LOW)
-              newitem.setAttribute("type", "critical");
+              newitem.type = "critical";
             else if (aPriority <= this.PRIORITY_INFO_HIGH)
-              newitem.setAttribute("type", "info");
+              newitem.type = "info";
             else
-              newitem.setAttribute("type", "warning");
+              newitem.type = "warning";
 
             if (!insertPos) {
               newitem.style.position = "fixed";
