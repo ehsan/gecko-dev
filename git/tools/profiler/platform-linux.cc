@@ -291,14 +291,6 @@ static void* SignalSender(void* arg) {
         if (!info->Profile())
           continue;
 
-        PseudoStack::SleepState sleeping = info->Stack()->observeSleeping();
-        if (sleeping == PseudoStack::SLEEPING_AGAIN) {
-          info->Profile()->DuplicateLastSample();
-          //XXX: This causes flushes regardless of jank-only mode
-          info->Profile()->flush();
-          continue;
-        }
-
         // We use sCurrentThreadProfile the ThreadProfile for the
         // thread we're profiling to the signal handler
         sCurrentThreadProfile = info->Profile();

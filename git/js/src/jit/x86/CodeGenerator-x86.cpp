@@ -687,17 +687,13 @@ CodeGeneratorX86::postAsmJSCall(LAsmJSCall *lir)
         return;
 
     if (mir->type() == MIRType_Float32) {
-        masm.reserveStack(sizeof(float));
-        Operand op(esp, 0);
+        Operand op(esp, -sizeof(float));
         masm.fstp32(op);
         masm.loadFloat32(op, ReturnFloatReg);
-        masm.freeStack(sizeof(float));
     } else {
-        masm.reserveStack(sizeof(double));
-        Operand op(esp, 0);
+        Operand op(esp, -sizeof(double));
         masm.fstp(op);
         masm.loadDouble(op, ReturnFloatReg);
-        masm.freeStack(sizeof(double));
     }
 }
 

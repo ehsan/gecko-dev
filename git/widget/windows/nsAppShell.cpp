@@ -18,7 +18,6 @@
 #include "nsIDOMWakeLockListener.h"
 #include "nsIPowerManagerService.h"
 #include "mozilla/StaticPtr.h"
-#include "GeckoProfiler.h"
 
 using namespace mozilla;
 using namespace mozilla::widget;
@@ -283,10 +282,7 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
     } else if (mayWait) {
       // Block and wait for any posted application message
       mozilla::HangMonitor::Suspend();
-      {
-        GeckoProfilerSleepRAII profiler_sleep;
-        ::WaitMessage();
-      }
+      ::WaitMessage();
     }
   } while (!gotMessage && mayWait);
 

@@ -3918,10 +3918,8 @@ IonBuilder::inlineScriptedCall(CallInfo &callInfo, JSFunction *target)
     {
         types::StackTypeSet *types = types::TypeScript::ThisTypes(calleeScript);
         if (!types->unknown()) {
-            types::TemporaryTypeSet *clonedTypes = types->clone(alloc_->lifoAlloc());
-            if (!clonedTypes)
-                return oom();
-            MTypeBarrier *barrier = MTypeBarrier::New(alloc(), callInfo.thisArg(), clonedTypes);
+            MTypeBarrier *barrier =
+                MTypeBarrier::New(alloc(), callInfo.thisArg(), types->clone(alloc_->lifoAlloc()));
             current->add(barrier);
             callInfo.setThis(barrier);
         }

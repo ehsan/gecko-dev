@@ -16,7 +16,6 @@
 #include "prenv.h"
 #include "mozilla/HangMonitor.h"
 #include "mozilla/unused.h"
-#include "GeckoProfiler.h"
 
 using mozilla::unused;
 
@@ -36,9 +35,7 @@ static gint
 PollWrapper(GPollFD *ufds, guint nfsd, gint timeout_)
 {
     mozilla::HangMonitor::Suspend();
-    profiler_sleep_start();
     gint result = (*sPollFunc)(ufds, nfsd, timeout_);
-    profiler_sleep_end();
     mozilla::HangMonitor::NotifyActivity();
     return result;
 }

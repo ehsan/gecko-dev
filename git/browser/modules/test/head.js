@@ -165,10 +165,8 @@ function UITourTest() {
     }
     let test = tests.shift();
     info("Starting " + test.name);
-    waitForFocus(function() {
-      loadUITourTestPage(function() {
-        test(done);
-      });
+    loadUITourTestPage(function() {
+      test(done);
     });
   }
   nextTest();

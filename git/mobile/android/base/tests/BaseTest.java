@@ -181,8 +181,10 @@ abstract class BaseTest extends BaseRobocopTest {
                 EditText urlEditText = (EditText) mSolo.getView(R.id.url_edit_text);
                 if (urlEditText.isInputMethodTarget()) {
                     return true;
+                } else {
+                    mSolo.clickOnView(urlEditText);
+                    return false;
                 }
-                return false;
             }
         }, MAX_WAIT_ENABLED_TEXT_MS);
 

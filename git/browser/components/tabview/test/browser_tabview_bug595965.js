@@ -9,7 +9,6 @@
  */
 
 function test() {
-  requestLongerTimeout(2);
   waitForExplicitFinish();
 
   newWindowWithTabView(onTabViewShown);

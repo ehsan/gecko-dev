@@ -2,7 +2,6 @@
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
 function test() {
-  requestLongerTimeout(4);
   let cw;
   let win;
   let groupItem;

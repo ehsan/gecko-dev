@@ -10,7 +10,6 @@ let gContentWindow;
 Components.utils.import("resource:///modules/UITour.jsm");
 
 function test() {
-  requestLongerTimeout(2);
   UITourTest();
 }
 

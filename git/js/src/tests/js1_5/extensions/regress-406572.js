@@ -14,26 +14,19 @@ printStatus (summary);
 
 if (typeof window != 'undefined')
 {
-  try {
-    actual = "FAIL: Unexpected exception thrown";
+  var s = self;
 
-    var win = window;
-    var windowString = String(window);
-    window = 1;
-    reportCompare(windowString, String(window), "window should be readonly");
+  document.writeln(uneval(self));
+  self = 1;
+  document.writeln(uneval(self));
 
-    actual = ""; // We should reach this line, and throw an exception after it
+  if (1)
+    function self() { return 1; }
 
-    if (1)
-      function window() { return 1; }
+  document.writeln(uneval(self));
 
-    actual = "FAIL: this line should never be reached";
-
-    // The test harness might rely on window having its original value:
-    // restore it.
-    window = win;
-  } catch (e) {
-  }
+  // The test harness might rely on self having its original value: restore it.
+  self = s;
 }
 else
 {

@@ -93,7 +93,6 @@ public:
     return aGenID + 2 <= mGeneration;
   }
   void* GetStackTop() const { return mStackTop; }
-  void DuplicateLastSample();
 private:
   // Circular buffer 'Keep One Slot Open' implementation
   // for simplicity

@@ -16,7 +16,6 @@ extern "C" {
 #include "nsINetworkInterfaceListService.h"
 #include "runnable_utils.h"
 #include "nsCOMPtr.h"
-#include "nsMemory.h"
 #include "nsThreadUtils.h"
 #include "nsServiceManagerUtils.h"
 #include "mozilla/SyncRunnable.h"
@@ -56,43 +55,25 @@ GetInterfaces(std::vector<NetworkInterface>* aInterfaces)
                     NS_ERROR_FAILURE);
   aInterfaces->clear();
 
+  nsAutoString ip;
+  nsAutoString ifaceName;
   for (int32_t i = 0; i < listLength; i++) {
     nsCOMPtr<nsINetworkInterface> iface;
     if (NS_FAILED(networkList->GetInterface(i, getter_AddRefs(iface)))) {
       continue;
     }
 
-    char16_t **ips = nullptr;
-    uint32_t *prefixs = nullptr;
-    uint32_t count = 0;
-    bool isAddressGot = false;
     NetworkInterface interface;
     memset(&(interface.addr), 0, sizeof(interface.addr));
     interface.addr.sin_family = AF_INET;
-
-    if (NS_FAILED(iface->GetAddresses(&ips, &prefixs, &count))) {
+    if (NS_FAILED(iface->GetIp(ip))) {
+      continue;
+    }
+    if (inet_pton(AF_INET, NS_ConvertUTF16toUTF8(ip).get(),
+                  &(interface.addr.sin_addr.s_addr)) != 1) {
       continue;
     }
 
-    for (uint32_t j = 0; j < count; j++) {
-      nsAutoString ip;
-
-      ip.Assign(ips[j]);
-      if (inet_pton(AF_INET, NS_ConvertUTF16toUTF8(ip).get(),
-                    &(interface.addr.sin_addr.s_addr)) == 1) {
-        isAddressGot = true;
-        break;
-      }
-    }
-
-    nsMemory::Free(prefixs);
-    NS_FREE_XPCOM_ALLOCATED_POINTER_ARRAY(count, ips);
-
-    if (!isAddressGot) {
-      continue;
-    }
-
-    nsAutoString ifaceName;
     if (NS_FAILED(iface->GetName(ifaceName))) {
       continue;
     }
@@ -103,12 +84,12 @@ GetInterfaces(std::vector<NetworkInterface>* aInterfaces)
       continue;
     }
     switch (type) {
-      case nsINetworkInterface::NETWORK_TYPE_WIFI:
-        interface.type = NR_INTERFACE_TYPE_WIFI;
-        break;
-      case nsINetworkInterface::NETWORK_TYPE_MOBILE:
-        interface.type = NR_INTERFACE_TYPE_MOBILE;
-        break;
+    case nsINetworkInterface::NETWORK_TYPE_WIFI:
+      interface.type = NR_INTERFACE_TYPE_WIFI;
+      break;
+    case nsINetworkInterface::NETWORK_TYPE_MOBILE:
+      interface.type = NR_INTERFACE_TYPE_MOBILE;
+      break;
     }
 
     aInterfaces->push_back(interface);

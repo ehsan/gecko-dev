@@ -3289,13 +3289,9 @@ nsresult
 ThrowAndFail(nsresult errNum, JSContext *cx, bool *retval);
 
 struct GlobalProperties {
-    GlobalProperties(bool aPromise) {
-      mozilla::PodZero(this);
-      Promise = true;
-    }
+    GlobalProperties() { mozilla::PodZero(this); }
     bool Parse(JSContext *cx, JS::HandleObject obj);
     bool Define(JSContext *cx, JS::HandleObject obj);
-    bool Promise : 1;
     bool indexedDB : 1;
     bool XMLHttpRequest : 1;
     bool TextDecoder : 1;
@@ -3346,7 +3342,6 @@ public:
         , proto(cx)
         , sameZoneAs(cx)
         , invisibleToDebugger(false)
-        , globalProperties(true)
         , metadata(cx)
     { }
 

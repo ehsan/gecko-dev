@@ -12,7 +12,6 @@ let EDITOR_TEXT = [
 
 function test()
 {
-  requestLongerTimeout(2);
   waitForExplicitFinish();
   Services.prefs.setBoolPref(DEVTOOLS_CHROME_ENABLED, true);
 
