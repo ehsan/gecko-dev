@@ -429,6 +429,7 @@ getFuncFromString(const char* funcname)
       { FUNCTION_NPP_WRITEREADY, "npp_writeready" },
       { FUNCTION_NPP_WRITE, "npp_write" },
       { FUNCTION_NPP_DESTROYSTREAM, "npp_destroystream" },
+      { FUNCTION_NPP_WRITE_RPC, "npp_write_rpc" },
       { FUNCTION_NONE, NULL }
     };
   int32_t i = 0;
@@ -955,6 +956,16 @@ NPP_Write(NPP instance, NPStream* stream, int32_t offset, int32_t len, void* buf
   //  instanceData->err << "NPP_Write called even though NPP_WriteReady " <<
   //      "returned 0";
   //}
+
+  if (instanceData->functionToFail == FUNCTION_NPP_WRITE_RPC) {
+    // Make an RPC call and pretend to consume the data
+    NPObject* windowObject = NULL;
+    NPN_GetValue(instance, NPNVWindowNPObject, &windowObject);
+    if (windowObject)
+      NPN_ReleaseObject(windowObject);
+
+    return len;
+  }
   
   if (instanceData->functionToFail == FUNCTION_NPP_NEWSTREAM) {
     instanceData->err << "NPP_Write called";
@@ -1013,9 +1024,6 @@ NPP_Write(NPP instance, NPStream* stream, int32_t offset, int32_t len, void* buf
       NPError err = NPN_DestroyStream(instance, stream, NPRES_DONE);
       if (err != NPERR_NO_ERROR) {
         instanceData->err << "Error: NPN_DestroyStream returned " << err;
-      }
-      if (instanceData->frame.length() > 0) {
-        sendBufferToFrame(instance);
       }
     }
   }
