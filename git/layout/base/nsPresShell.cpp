@@ -6336,7 +6336,7 @@ FindAnyTarget(const uint32_t& aKey, nsRefPtr<dom::Touch>& aData,
               void* aAnyTarget)
 {
   if (aData) {
-    dom::EventTarget* target = aData->GetTarget();
+    dom::EventTarget* target = aData->Target();
     if (target) {
       nsCOMPtr<nsIContent>* content =
         static_cast<nsCOMPtr<nsIContent>*>(aAnyTarget);
@@ -6878,7 +6878,7 @@ PresShell::HandleEvent(nsIFrame* aFrame,
           }
 
           nsCOMPtr<nsIContent> content =
-            do_QueryInterface(oldTouch->GetTarget());
+            do_QueryInterface(oldTouch->Target());
           if (!content) {
             break;
           }

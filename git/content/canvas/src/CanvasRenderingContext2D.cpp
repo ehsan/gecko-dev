@@ -1490,13 +1490,7 @@ CanvasRenderingContext2D::CreatePattern(const HTMLImageOrCanvasOrVideoElement& e
       return pat.forget();
     }
   } else if (element.IsHTMLImageElement()) {
-    HTMLImageElement* img = &element.GetAsHTMLImageElement();
-    if (img->IntrinsicState().HasState(NS_EVENT_STATE_BROKEN)) {
-      error.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
-      return nullptr;
-    }
-
-    htmlElement = img;
+    htmlElement = &element.GetAsHTMLImageElement();
   } else {
     htmlElement = &element.GetAsHTMLVideoElement();
   }
@@ -1868,10 +1862,7 @@ bool CanvasRenderingContext2D::DrawCustomFocusRing(mozilla::dom::Element& aEleme
     nsCOMPtr<nsIDOMElement> focusedElement;
     fm->GetFocusedElement(getter_AddRefs(focusedElement));
     if (SameCOMIdentity(aElement.AsDOMNode(), focusedElement)) {
-      nsPIDOMWindow *window = aElement.OwnerDoc()->GetWindow();
-      if (window) {
-        return window->ShouldShowFocusRing();
-      }
+      return true;
     }
   }
 

@@ -55,7 +55,7 @@ public:
   bool IsPriority() const { return mPriority; }
   bool FileExists() const { return mFileExists; }
   bool IsClosed() const { return mClosed; }
-  bool IsSpecialFile() const { return mSpecialFile; }
+  bool IsSpecialFile() const { return !mHash; }
   nsCString & Key() { return mKey; }
 
   // Memory reporting
@@ -73,7 +73,6 @@ private:
   bool                 mIsDoomed;
   bool                 mPriority;
   bool                 mClosed;
-  bool                 mSpecialFile;
   bool                 mInvalid;
   bool                 mFileExists; // This means that the file should exists,
                                     // but it can be still deleted by OS/user
