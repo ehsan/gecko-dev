@@ -6,6 +6,7 @@
 #include "GLScreenBuffer.h"
 
 #include <cstring>
+#include "gfxImageSurface.h"
 #include "GLContext.h"
 #include "GLBlitHelper.h"
 #include "GLReadTexImageHelper.h"

@@ -249,7 +249,7 @@ public:
    * Returns a path
    * string formatted as an SVG path
    */
-  static mozilla::TemporaryRef<mozilla::gfx::Path>
+  static mozilla::RefPtr<mozilla::gfx::Path>
   GetPath(const nsAString& aPathString);
 };
 

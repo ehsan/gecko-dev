@@ -4669,7 +4669,7 @@ nsTextFrame::GetTextDecorations(
     // the CSS 2.1 spec that blocks should propagate decorations down to their
     // children (albeit the style should be preserved)
     // However, if we're vertically aligned within a block, then we need to
-    // recover the correct baseline from the line by querying the FrameProperty
+    // recover the right baseline from the line by querying the FrameProperty
     // that should be set (see nsLineLayout::VerticalAlignLine).
     if (firstBlock) {
       // At this point, fChild can't be null since TextFrames can't be blocks
@@ -4684,9 +4684,7 @@ nsTextFrame::GetTextDecorations(
       }
     }
     else if (!nearestBlockFound) {
-      // use a dummy WritingMode, because nsTextFrame::GetLogicalBaseLine
-      // doesn't use it anyway
-      baselineOffset = frameTopOffset - f->GetLogicalBaseline(WritingMode());
+      baselineOffset = frameTopOffset - f->GetBaseline();
     }
 
     nearestBlockFound = nearestBlockFound || firstBlock;
@@ -8527,7 +8525,7 @@ nsTextFrame::IsAtEndOfLine() const
 }
 
 nscoord
-nsTextFrame::GetLogicalBaseline(WritingMode aWritingMode ) const
+nsTextFrame::GetBaseline() const
 {
   return mAscent;
 }

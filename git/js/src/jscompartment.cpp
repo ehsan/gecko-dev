@@ -65,9 +65,7 @@ JSCompartment::JSCompartment(Zone *zone, const JS::CompartmentOptions &options =
     debugScriptMap(nullptr),
     debugScopes(nullptr),
     enumerators(nullptr),
-    compartmentStats(nullptr),
-    scheduledForDestruction(false),
-    maybeAlive(true)
+    compartmentStats(nullptr)
 #ifdef JS_ION
     , jitCompartment_(nullptr)
 #endif
@@ -404,6 +402,7 @@ JSCompartment::wrap(JSContext *cx, MutableHandleObject obj, HandleObject existin
         return true;
     }
 
+    RootedObject proto(cx, TaggedProto::LazyProto);
     RootedObject existing(cx, existingArg);
     if (existing) {
         // Is it possible to reuse |existing|?
@@ -417,7 +416,7 @@ JSCompartment::wrap(JSContext *cx, MutableHandleObject obj, HandleObject existin
         }
     }
 
-    obj.set(cb->wrap(cx, existing, obj, global, flags));
+    obj.set(cb->wrap(cx, existing, obj, proto, global, flags));
     if (!obj)
         return false;
 

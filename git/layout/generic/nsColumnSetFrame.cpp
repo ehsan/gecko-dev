@@ -464,7 +464,7 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
     }
   }
   int columnCount = 0;
-  int contentBEnd = 0;
+  int contentBottom = 0;
   bool reflowNext = false;
 
   while (child) {
@@ -494,8 +494,7 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
     bool skipResizeHeightShrink = shrinkingHeightOnly
       && child->GetScrollableOverflowRect().YMost() <= aConfig.mColMaxHeight;
 
-    nscoord childContentBEnd = 0;
-    WritingMode wm = child->GetWritingMode();
+    nscoord childContentBottom = 0;
     if (!reflowNext && (skipIncremental || skipResizeHeightShrink)) {
       // This child does not need to be reflowed, but we may need to move it
       MoveChildTo(this, child, childOrigin);
@@ -509,7 +508,7 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
       } else {
         aStatus = mLastFrameStatus;
       }
-      childContentBEnd = nsLayoutUtils::CalculateContentBEnd(wm, child);
+      childContentBottom = nsLayoutUtils::CalculateContentBottom(child);
 #ifdef DEBUG_roc
       printf("*** Skipping child #%d %p (incremental %d, resize height shrink %d): status = %d\n",
              columnCount, (void*)child, skipIncremental, skipResizeHeightShrink, aStatus);
@@ -548,7 +547,8 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
         kidReflowState.mFlags.mNextInFlowUntouched = true;
       }
     
-      nsHTMLReflowMetrics kidDesiredSize(wm, aDesiredSize.mFlags);
+      nsHTMLReflowMetrics kidDesiredSize(aReflowState.GetWritingMode(),
+                                         aDesiredSize.mFlags);
 
       // XXX it would be cool to consult the float manager for the
       // previous block to figure out the region of floats from the
@@ -578,12 +578,12 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
       FinishReflowChild(child, PresContext(), kidDesiredSize,
                         &kidReflowState, childOrigin.x, childOrigin.y, 0);
 
-      childContentBEnd = nsLayoutUtils::CalculateContentBEnd(wm, child);
-      if (childContentBEnd > aConfig.mColMaxHeight) {
+      childContentBottom = nsLayoutUtils::CalculateContentBottom(child);
+      if (childContentBottom > aConfig.mColMaxHeight) {
         allFit = false;
       }
-      if (childContentBEnd > availSize.height) {
-        aColData.mMaxOverflowingHeight = std::max(childContentBEnd,
+      if (childContentBottom > availSize.height) {
+        aColData.mMaxOverflowingHeight = std::max(childContentBottom,
             aColData.mMaxOverflowingHeight);
       }
     }
@@ -591,9 +591,9 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
     contentRect.UnionRect(contentRect, child->GetRect());
 
     ConsiderChildOverflow(overflowRects, child);
-    contentBEnd = std::max(contentBEnd, childContentBEnd);
-    aColData.mLastHeight = childContentBEnd;
-    aColData.mSumHeight += childContentBEnd;
+    contentBottom = std::max(contentBottom, childContentBottom);
+    aColData.mLastHeight = childContentBottom;
+    aColData.mSumHeight += childContentBottom;
 
     // Build a continuation column if necessary
     nsIFrame* kidNextInFlow = child->GetNextInFlow();
@@ -637,8 +637,8 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
         kidNextInFlow->RemoveStateBits(NS_FRAME_IS_OVERFLOW_CONTAINER);
       }
 
-      if ((contentBEnd > aReflowState.ComputedMaxBSize() ||
-           contentBEnd > aReflowState.ComputedBSize()) &&
+      if ((contentBottom > aReflowState.ComputedMaxHeight() ||
+           contentBottom > aReflowState.ComputedHeight()) &&
            aConfig.mBalanceColCount < INT32_MAX) {
         // We overflowed vertically, but have not exceeded the number of
         // columns. We're going to go into overflow columns now, so balancing
@@ -702,8 +702,8 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
     }
   }
   
-  aColData.mMaxHeight = contentBEnd;
-  contentRect.height = std::max(contentRect.height, contentBEnd);
+  aColData.mMaxHeight = contentBottom;
+  contentRect.height = std::max(contentRect.height, contentBottom);
   mLastFrameStatus = aStatus;
   
   // contentRect included the borderPadding.left,borderPadding.top of the child rects

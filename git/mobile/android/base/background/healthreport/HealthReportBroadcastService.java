@@ -100,11 +100,6 @@ public class HealthReportBroadcastService extends BackgroundService {
   protected void onHandleIntent(Intent intent) {
     Logger.setThreadLogTag(HealthReportConstants.GLOBAL_LOG_TAG);
 
-    // Intent can be null. Bug 1025937.
-    if (intent == null) {
-        Logger.debug(LOG_TAG, "Short-circuiting on null intent.");
-    }
-
     // The same intent can be handled by multiple methods so do not short-circuit evaluate.
     boolean handled = attemptHandleIntentForUpload(intent);
     handled = attemptHandleIntentForPrune(intent) ? true : handled;
@@ -116,10 +111,8 @@ public class HealthReportBroadcastService extends BackgroundService {
 
   /**
    * Attempts to handle the given intent for FHR document upload. If it cannot, false is returned.
-   *
-   * @param intent must be non-null.
    */
-  private boolean attemptHandleIntentForUpload(final Intent intent) {
+  protected boolean attemptHandleIntentForUpload(final Intent intent) {
     if (HealthReportConstants.UPLOAD_FEATURE_DISABLED) {
       Logger.debug(LOG_TAG, "Health report upload feature is compile-time disabled; not handling intent.");
       return false;
@@ -149,10 +142,8 @@ public class HealthReportBroadcastService extends BackgroundService {
    * Handle the intent sent by the browser when it wishes to notify us
    * of the value of the user preference. Look at the value and toggle the
    * alarm service accordingly.
-   *
-   * @param intent must be non-null.
    */
-  private void handleUploadPrefIntent(Intent intent) {
+  protected void handleUploadPrefIntent(Intent intent) {
     if (!intent.hasExtra("enabled")) {
       Logger.warn(LOG_TAG, "Got " + HealthReportConstants.ACTION_HEALTHREPORT_UPLOAD_PREF + " intent without enabled. Ignoring.");
       return;
@@ -203,10 +194,8 @@ public class HealthReportBroadcastService extends BackgroundService {
 
   /**
    * Attempts to handle the given intent for FHR data pruning. If it cannot, false is returned.
-   *
-   * @param intent must be non-null.
    */
-  private boolean attemptHandleIntentForPrune(final Intent intent) {
+  protected boolean attemptHandleIntentForPrune(final Intent intent) {
     final String action = intent.getAction();
     Logger.debug(LOG_TAG, "Prune: Attempting to handle intent with action, " + action + ".");
 
@@ -226,10 +215,7 @@ public class HealthReportBroadcastService extends BackgroundService {
     return false;
   }
 
-  /**
-   * @param intent must be non-null.
-   */
-  private void handlePruneIntent(final Intent intent) {
+  protected void handlePruneIntent(final Intent intent) {
     final String profileName = intent.getStringExtra("profileName");
     final String profilePath = intent.getStringExtra("profilePath");
 

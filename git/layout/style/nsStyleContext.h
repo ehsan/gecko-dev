@@ -56,17 +56,15 @@ public:
    *                   rules that any element, pseudo-element, or
    *                   anonymous box that this style context is for
    *                   matches.  See |nsRuleNode| and |nsIStyleRule|.
-   * @param aSkipParentDisplayBasedStyleFixup
+   * @param aSkipFlexOrGridItemStyleFixup
    *                 If set, this flag indicates that we should skip
-   *                 the chunk of ApplyStyleFixups() that applies to 
-   *                 special cases where a child element's style may 
-   *                 need to be modified based on its parent's display 
-   *                 value.
+   *                 the chunk of ApplyStyleFixups() that modifies flex
+   *                 and grid items' display values.
    */
   nsStyleContext(nsStyleContext* aParent, nsIAtom* aPseudoTag,
                  nsCSSPseudoElements::Type aPseudoType,
                  nsRuleNode* aRuleNode,
-                 bool aSkipParentDisplayBasedStyleFixup);
+                 bool aSkipFlexOrGridItemStyleFixup);
   ~nsStyleContext();
 
   void* operator new(size_t sz, nsPresContext* aPresContext) CPP_THROW_NEW;
@@ -350,7 +348,7 @@ protected:
   void AddChild(nsStyleContext* aChild);
   void RemoveChild(nsStyleContext* aChild);
 
-  void ApplyStyleFixups(bool aSkipParentDisplayBasedStyleFixup);
+  void ApplyStyleFixups(bool aSkipFlexOrGridItemStyleFixup);
 
   void FreeAllocations(nsPresContext* aPresContext);
 
@@ -444,5 +442,5 @@ NS_NewStyleContext(nsStyleContext* aParentContext,
                    nsIAtom* aPseudoTag,
                    nsCSSPseudoElements::Type aPseudoType,
                    nsRuleNode* aRuleNode,
-                   bool aSkipParentDisplayBasedStyleFixup);
+                   bool aSkipFlexOrGridItemStyleFixup);
 #endif

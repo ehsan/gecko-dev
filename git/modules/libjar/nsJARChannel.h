@@ -16,8 +16,6 @@
 #include "nsIZipReader.h"
 #include "nsIDownloader.h"
 #include "nsILoadGroup.h"
-#include "nsIThreadRetargetableRequest.h"
-#include "nsIThreadRetargetableStreamListener.h"
 #include "nsHashPropertyBag.h"
 #include "nsIFile.h"
 #include "nsIURI.h"
@@ -33,8 +31,6 @@ class nsJARChannel : public nsIJARChannel
                    , public nsIDownloadObserver
                    , public nsIStreamListener
                    , public nsIRemoteOpenFileListener
-                   , public nsIThreadRetargetableRequest
-                   , public nsIThreadRetargetableStreamListener
                    , public nsHashPropertyBag
 {
 public:
@@ -46,22 +42,17 @@ public:
     NS_DECL_NSIREQUESTOBSERVER
     NS_DECL_NSISTREAMLISTENER
     NS_DECL_NSIREMOTEOPENFILELISTENER
-    NS_DECL_NSITHREADRETARGETABLEREQUEST
-    NS_DECL_NSITHREADRETARGETABLESTREAMLISTENER
 
     nsJARChannel();
+    virtual ~nsJARChannel();
 
     nsresult Init(nsIURI *uri);
 
 private:
-    virtual ~nsJARChannel();
-
     nsresult CreateJarInput(nsIZipReaderCache *, nsJARInputThunk **);
     nsresult LookupFile();
     nsresult OpenLocalFile();
     void NotifyError(nsresult aError);
-
-    void FireOnProgress(uint64_t aProgress);
 
 #if defined(PR_LOGGING)
     nsCString                       mSpec;
@@ -94,9 +85,6 @@ private:
 
     nsCOMPtr<nsIStreamListener>     mDownloader;
     nsCOMPtr<nsIInputStreamPump>    mPump;
-    // mRequest is only non-null during OnStartRequest, so we'll have a pointer
-    // to the request if we get called back via RetargetDeliveryTo.
-    nsCOMPtr<nsIRequest>            mRequest;
     nsCOMPtr<nsIFile>               mJarFile;
     nsCOMPtr<nsIURI>                mJarBaseURI;
     nsCString                       mJarEntry;

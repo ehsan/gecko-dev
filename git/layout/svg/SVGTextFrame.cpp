@@ -335,9 +335,6 @@ GetBaselinePosition(nsTextFrame* aFrame,
                     gfxTextRun* aTextRun,
                     uint8_t aDominantBaseline)
 {
-  // use a dummy WritingMode, because nsTextFrame::GetLogicalBaseLine
-  // doesn't use it anyway
-  WritingMode writingMode;
   switch (aDominantBaseline) {
     case NS_STYLE_DOMINANT_BASELINE_HANGING:
     case NS_STYLE_DOMINANT_BASELINE_TEXT_BEFORE_EDGE:
@@ -351,7 +348,7 @@ GetBaselinePosition(nsTextFrame* aFrame,
       // (fall through)
     case NS_STYLE_DOMINANT_BASELINE_AUTO:
     case NS_STYLE_DOMINANT_BASELINE_ALPHABETIC:
-      return aFrame->GetLogicalBaseline(writingMode);
+      return aFrame->GetBaseline();
   }
 
   gfxTextRun::Metrics metrics =
@@ -369,7 +366,7 @@ GetBaselinePosition(nsTextFrame* aFrame,
   }
 
   NS_NOTREACHED("unexpected dominant-baseline value");
-  return aFrame->GetLogicalBaseline(writingMode);
+  return aFrame->GetBaseline();
 }
 
 /**
@@ -1072,7 +1069,7 @@ TextRenderedRun::GetCharNumAtPosition(nsPresContext* aContext,
   gfxFloat ascent, descent;
   GetAscentAndDescentInAppUnits(mFrame, ascent, descent);
 
-  gfxFloat topEdge = mFrame->GetLogicalBaseline(mFrame->GetWritingMode()) - ascent;
+  gfxFloat topEdge = mFrame->GetBaseline() - ascent;
   gfxFloat bottomEdge = topEdge + ascent + descent;
 
   if (p.y < aContext->AppUnitsToGfxUnits(topEdge) ||

@@ -22,9 +22,6 @@ using namespace js;
 using mozilla::AddToHash;
 using mozilla::HashString;
 using mozilla::Range;
-using mozilla::RangedPtr;
-
-using JS::AutoCheckCannotGC;
 
 // We should be able to assert this for *any* fp->scopeChain().
 static void
@@ -52,11 +49,10 @@ IsEvalCacheCandidate(JSScript *script)
 /* static */ HashNumber
 EvalCacheHashPolicy::hash(const EvalCacheLookup &l)
 {
-    AutoCheckCannotGC nogc;
-    uint32_t hash = l.str->hasLatin1Chars()
-                    ? HashString(l.str->latin1Chars(nogc), l.str->length())
-                    : HashString(l.str->twoByteChars(nogc), l.str->length());
-    return AddToHash(hash, l.callerScript.get(), l.version, l.pc);
+    return AddToHash(HashString(l.str->chars(), l.str->length()),
+                     l.callerScript.get(),
+                     l.version,
+                     l.pc);
 }
 
 /* static */ bool
@@ -149,18 +145,23 @@ enum EvalJSONResult {
     EvalJSON_NotJSON
 };
 
-template <typename CharT>
-static bool
-EvalStringMightBeJSON(const Range<const CharT> chars)
+static EvalJSONResult
+TryEvalJSON(JSContext *cx, JSScript *callerScript,
+            ConstTwoByteChars chars, size_t length, MutableHandleValue rval)
 {
     // If the eval string starts with '(' or '[' and ends with ')' or ']', it may be JSON.
     // Try the JSON parser first because it's much faster.  If the eval string
     // isn't JSON, JSON parsing will probably fail quickly, so little time
     // will be lost.
-    size_t length = chars.length();
+    //
+    // Don't use the JSON parser if the caller is strict mode code, because in
+    // strict mode object literals must not have repeated properties, and the
+    // JSON parser cheerfully (and correctly) accepts them.  If you're parsing
+    // JSON with eval and using strict mode, you deserve to be slow.
     if (length > 2 &&
         ((chars[0] == '[' && chars[length - 1] == ']') ||
-         (chars[0] == '(' && chars[length - 1] == ')')))
+        (chars[0] == '(' && chars[length - 1] == ')')) &&
+        (!callerScript || !callerScript->strict()))
     {
         // Remarkably, JavaScript syntax is not a superset of JSON syntax:
         // strings in JavaScript cannot contain the Unicode line and paragraph
@@ -168,68 +169,27 @@ EvalStringMightBeJSON(const Range<const CharT> chars)
         // Rather than force the JSON parser to handle this quirk when used by
         // eval, we simply don't use the JSON parser when either character
         // appears in the provided string.  See bug 657367.
-        if (sizeof(CharT) > 1) {
-            for (RangedPtr<const CharT> cp = chars.start() + 1, end = chars.end() - 1;
-                 cp < end;
-                 cp++)
-            {
-                jschar c = *cp;
-                if (c == 0x2028 || c == 0x2029)
-                    return false;
+        for (const jschar *cp = &chars[1], *end = &chars[length - 2]; ; cp++) {
+            if (*cp == 0x2028 || *cp == 0x2029)
+                break;
+
+            if (cp == end) {
+                bool isArray = (chars[0] == '[');
+                auto jsonChars = isArray
+                                 ? Range<const jschar>(chars.get(), length)
+                                 : Range<const jschar>(chars.get() + 1U, length - 2);
+                JSONParser<jschar> parser(cx, jsonChars, JSONParserBase::NoError);
+                RootedValue tmp(cx);
+                if (!parser.parse(&tmp))
+                    return EvalJSON_Failure;
+                if (tmp.isUndefined())
+                    return EvalJSON_NotJSON;
+                rval.set(tmp);
+                return EvalJSON_Success;
             }
         }
-
-        return true;
     }
-    return false;
-}
-
-template <typename CharT>
-static EvalJSONResult
-ParseEvalStringAsJSON(JSContext *cx, const Range<const CharT> chars, MutableHandleValue rval)
-{
-    size_t len = chars.length();
-    MOZ_ASSERT((chars[0] == '(' && chars[len - 1] == ')') ||
-               (chars[0] == '[' && chars[len - 1] == ']'));
-
-    auto jsonChars = (chars[0] == '[')
-                     ? chars
-                     : Range<const CharT>(chars.start().get() + 1U, len - 2);
-
-    JSONParser<CharT> parser(cx, jsonChars, JSONParserBase::NoError);
-    if (!parser.parse(rval))
-        return EvalJSON_Failure;
-
-    return rval.isUndefined() ? EvalJSON_NotJSON : EvalJSON_Success;
-}
-
-static EvalJSONResult
-TryEvalJSON(JSContext *cx, JSScript *callerScript, JSFlatString *str, MutableHandleValue rval)
-{
-    // Don't use the JSON parser if the caller is strict mode code, because in
-    // strict mode object literals must not have repeated properties, and the
-    // JSON parser cheerfully (and correctly) accepts them.  If you're parsing
-    // JSON with eval and using strict mode, you deserve to be slow.
-    if (callerScript && callerScript->strict())
-        return EvalJSON_NotJSON;
-
-    if (str->hasLatin1Chars()) {
-        AutoCheckCannotGC nogc;
-        if (!EvalStringMightBeJSON(str->latin1Range(nogc)))
-            return EvalJSON_NotJSON;
-    } else {
-        AutoCheckCannotGC nogc;
-        if (!EvalStringMightBeJSON(str->twoByteRange(nogc)))
-            return EvalJSON_NotJSON;
-    }
-
-    AutoStableStringChars flatChars(cx, str);
-    if (!flatChars.init())
-        return EvalJSON_Failure;
-
-    return flatChars.isLatin1()
-           ? ParseEvalStringAsJSON(cx, flatChars.latin1Range(), rval)
-           : ParseEvalStringAsJSON(cx, flatChars.twoByteRange(), rval);
+    return EvalJSON_NotJSON;
 }
 
 // Define subset of ExecuteType so that casting performs the injection.
@@ -301,8 +261,11 @@ EvalKernel(JSContext *cx, const CallArgs &args, EvalType evalType, AbstractFrame
     if (!flatStr)
         return false;
 
+    size_t length = flatStr->length();
+    ConstTwoByteChars chars(flatStr->chars(), length);
+
     RootedScript callerScript(cx, caller ? caller.script() : nullptr);
-    EvalJSONResult ejr = TryEvalJSON(cx, callerScript, flatStr, args.rval());
+    EvalJSONResult ejr = TryEvalJSON(cx, callerScript, chars, length, args.rval());
     if (ejr != EvalJSON_NotJSON)
         return ejr == EvalJSON_Success;
 
@@ -334,16 +297,7 @@ EvalKernel(JSContext *cx, const CallArgs &args, EvalType evalType, AbstractFrame
                .setNoScriptRval(false)
                .setOriginPrincipals(originPrincipals)
                .setIntroductionInfo(introducerFilename, "eval", lineno, maybeScript, pcOffset);
-
-        AutoStableStringChars flatChars(cx, flatStr);
-        if (!flatChars.initTwoByte(cx))
-            return false;
-
-        const jschar *chars = flatChars.twoByteRange().start().get();
-        SourceBufferHolder::Ownership ownership = flatChars.maybeGiveOwnershipToCaller()
-                                                  ? SourceBufferHolder::GiveOwnership
-                                                  : SourceBufferHolder::NoOwnership;
-        SourceBufferHolder srcBuf(chars, flatStr->length(), ownership);
+        SourceBufferHolder srcBuf(chars.get(), length, SourceBufferHolder::NoOwnership);
         JSScript *compiled = frontend::CompileScript(cx, &cx->tempLifoAlloc(),
                                                      scopeobj, callerScript, options,
                                                      srcBuf, flatStr, staticLevel);
@@ -379,7 +333,10 @@ js::DirectEvalStringFromIon(JSContext *cx,
     if (!flatStr)
         return false;
 
-    EvalJSONResult ejr = TryEvalJSON(cx, callerScript, flatStr, vp);
+    size_t length = flatStr->length();
+    ConstTwoByteChars chars(flatStr->chars(), length);
+
+    EvalJSONResult ejr = TryEvalJSON(cx, callerScript, chars, length, vp);
     if (ejr != EvalJSON_NotJSON)
         return ejr == EvalJSON_Success;
 
@@ -407,16 +364,7 @@ js::DirectEvalStringFromIon(JSContext *cx,
                .setNoScriptRval(false)
                .setOriginPrincipals(originPrincipals)
                .setIntroductionInfo(introducerFilename, "eval", lineno, maybeScript, pcOffset);
-
-        AutoStableStringChars flatChars(cx, flatStr);
-        if (!flatChars.initTwoByte(cx))
-            return false;
-
-        const jschar *chars = flatChars.twoByteRange().start().get();
-        SourceBufferHolder::Ownership ownership = flatChars.maybeGiveOwnershipToCaller()
-                                                  ? SourceBufferHolder::GiveOwnership
-                                                  : SourceBufferHolder::NoOwnership;
-        SourceBufferHolder srcBuf(chars, flatStr->length(), ownership);
+        SourceBufferHolder srcBuf(chars.get(), length, SourceBufferHolder::NoOwnership);
         JSScript *compiled = frontend::CompileScript(cx, &cx->tempLifoAlloc(),
                                                      scopeobj, callerScript, options,
                                                      srcBuf, flatStr, staticLevel);

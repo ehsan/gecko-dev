@@ -17,7 +17,6 @@ EXTRA_JS_MODULES += [
     'Feeds.jsm',
     'NetworkPrioritizer.jsm',
     'offlineAppCache.jsm',
-    'PanelFrame.jsm',
     'RemotePrompt.jsm',
     'SharedFrame.jsm',
     'SitePermissions.jsm',

@@ -176,8 +176,8 @@ public:
   /* The total number of frames in this image. */
   uint32_t GetNumFrames() const;
 
-  virtual size_t HeapSizeOfSourceWithComputedFallback(MallocSizeOf aMallocSizeOf) const;
-  virtual size_t HeapSizeOfDecodedWithComputedFallback(MallocSizeOf aMallocSizeOf) const;
+  virtual size_t HeapSizeOfSourceWithComputedFallback(mozilla::MallocSizeOf aMallocSizeOf) const;
+  virtual size_t HeapSizeOfDecodedWithComputedFallback(mozilla::MallocSizeOf aMallocSizeOf) const;
   virtual size_t NonHeapSizeOfDecoded() const;
   virtual size_t OutOfProcessSizeOfDecoded() const;
 
@@ -487,9 +487,6 @@ private:
 
       NS_IMETHOD Run();
 
-    protected:
-      virtual ~DecodeJob();
-
     private:
       nsRefPtr<DecodeRequest> mRequest;
       nsRefPtr<RasterImage> mImage;
@@ -500,7 +497,7 @@ private:
     // mThreadPoolMutex protects mThreadPool. For all RasterImages R,
     // R::mDecodingMonitor must be acquired before mThreadPoolMutex
     // if both are acquired; the other order may cause deadlock.
-    Mutex                     mThreadPoolMutex;
+    mozilla::Mutex            mThreadPoolMutex;
     nsCOMPtr<nsIThreadPool>   mThreadPool;
   };
 
@@ -580,7 +577,7 @@ private:
   uint32_t GetCurrentImgFrameIndex() const;
 
   size_t SizeOfDecodedWithComputedFallbackIfHeap(gfxMemoryLocation aLocation,
-                                                 MallocSizeOf aMallocSizeOf) const;
+                                                 mozilla::MallocSizeOf aMallocSizeOf) const;
 
   void EnsureAnimExists();
 
@@ -663,10 +660,10 @@ private: // data
   int                        mRequestedSampleSize;
 
   // Cached value for GetImageContainer.
-  nsRefPtr<layers::ImageContainer> mImageContainer;
+  nsRefPtr<mozilla::layers::ImageContainer> mImageContainer;
 
   // If not cached in mImageContainer, this might have our image container
-  WeakPtr<layers::ImageContainer> mImageContainerCache;
+  WeakPtr<mozilla::layers::ImageContainer> mImageContainerCache;
 
 #ifdef DEBUG
   uint32_t                       mFramesNotified;
@@ -676,7 +673,7 @@ private: // data
   // at once, and hence need to be locked by mDecodingMonitor.
 
   // BEGIN LOCKED MEMBER VARIABLES
-  ReentrantMonitor           mDecodingMonitor;
+  mozilla::ReentrantMonitor  mDecodingMonitor;
 
   FallibleTArray<char>       mSourceData;
 

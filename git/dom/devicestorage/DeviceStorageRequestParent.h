@@ -132,14 +132,12 @@ private:
   class WriteFileEvent : public CancelableRunnable
   {
     public:
-      WriteFileEvent(DeviceStorageRequestParent* aParent, DeviceStorageFile* aFile,
-                     nsIInputStream* aInputStream, int32_t aRequestType);
+      WriteFileEvent(DeviceStorageRequestParent* aParent, DeviceStorageFile* aFile, nsIInputStream* aInputStream);
       virtual ~WriteFileEvent();
       virtual nsresult CancelableRun();
     private:
       nsRefPtr<DeviceStorageFile> mFile;
       nsCOMPtr<nsIInputStream> mInputStream;
-      int32_t mRequestType;
   };
 
   class DeleteFileEvent : public CancelableRunnable

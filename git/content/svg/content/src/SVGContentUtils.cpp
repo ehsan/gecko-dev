@@ -588,7 +588,7 @@ SVGContentUtils::CoordToFloat(nsPresContext *aPresContext,
   }
 }
 
-TemporaryRef<gfx::Path>
+RefPtr<gfx::Path>
 SVGContentUtils::GetPath(const nsAString& aPathString)
 {
   SVGPathData pathData;

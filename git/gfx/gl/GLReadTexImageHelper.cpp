@@ -8,6 +8,8 @@
 #include "GLContext.h"
 #include "OGLShaderProgram.h"
 #include "gfxTypes.h"
+#include "gfxContext.h"
+#include "gfxImageSurface.h"
 #include "ScopedGLHelpers.h"
 #include "mozilla/gfx/2D.h"
 #include "gfx2DGlue.h"
@@ -489,29 +491,24 @@ static TemporaryRef<DataSourceSurface> YInvertImageSurface(DataSourceSurface* aS
     Factory::CreateDataSourceSurfaceWithStride(aSurf->GetSize(),
                                                aSurf->GetFormat(),
                                                aSurf->Stride());
-  if (!temp) {
-    return nullptr;
-  }
-  DataSourceSurface::MappedSurface map;
-  if (!temp->Map(DataSourceSurface::MapType::WRITE, &map)) {
-    return nullptr;
-  }
   RefPtr<DrawTarget> dt =
     Factory::CreateDrawTargetForData(BackendType::CAIRO,
-                                     map.mData,
+                                     temp->GetData(),
                                      temp->GetSize(),
-                                     map.mStride,
+                                     temp->Stride(),
                                      temp->GetFormat());
-  if (!dt) {
-    temp->Unmap();
-    return nullptr;
-  }
-  dt->SetTransform(Matrix::Translation(0.0, aSurf->GetSize().height) *
-                   Matrix::Scaling(1.0, -1.0));
-  Rect rect(0, 0, aSurf->GetSize().width, aSurf->GetSize().height);
-  dt->DrawSurface(aSurf, rect, rect, DrawSurfaceOptions(),
-                  DrawOptions(1.0, CompositionOp::OP_SOURCE, AntialiasMode::NONE));
-  temp->Unmap();
+  nsRefPtr<gfxContext> ctx = new gfxContext(dt);
+  ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
+  ctx->Scale(1.0, -1.0);
+  ctx->Translate(-gfxPoint(0.0, aSurf->GetSize().height));
+
+  nsRefPtr<gfxImageSurface> thebesSurf =
+    new gfxImageSurface(aSurf->GetData(),
+                        ThebesIntSize(aSurf->GetSize()),
+                        aSurf->Stride(),
+                        SurfaceFormatToImageFormat(aSurf->GetFormat()));
+  ctx->SetSource(thebesSurf);
+  ctx->Paint();
   return temp.forget();
 }
 

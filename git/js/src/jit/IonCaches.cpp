@@ -2960,11 +2960,10 @@ EqualStringsHelper(JSString *str1, JSString *str2)
     JS_ASSERT(!str2->isAtom());
     JS_ASSERT(str1->length() == str2->length());
 
-    JSLinearString *str2Linear = str2->ensureLinear(nullptr);
-    if (!str2Linear)
+    const jschar *chars = str2->getChars(nullptr);
+    if (!chars)
         return false;
-
-    return EqualChars(&str1->asLinear(), str2Linear);
+    return mozilla::PodEqual(str1->asAtom().chars(), chars, str1->length());
 }
 
 bool

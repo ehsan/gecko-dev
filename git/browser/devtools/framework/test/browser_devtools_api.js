@@ -122,11 +122,11 @@ DevToolPanel.prototype = {
   open: function() {
     let deferred = promise.defer();
 
-    executeSoon(() => {
+    executeSoon(function() {
       this._isReady = true;
       this.emit("ready");
       deferred.resolve(this);
-    });
+    }.bind(this));
 
     return deferred.promise;
   },

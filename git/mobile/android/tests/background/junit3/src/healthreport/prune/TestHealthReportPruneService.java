@@ -36,6 +36,11 @@ public class TestHealthReportPruneService
     }
 
     @Override
+    public boolean isIntentValid(final Intent intent) {
+      return super.isIntentValid(intent);
+    }
+
+    @Override
     public PrunePolicy getPrunePolicy(final String profilePath) {
       final PrunePolicyStorage storage = new PrunePolicyDatabaseStorage(new MockContext(), profilePath);
       prunePolicy = new MockPrunePolicy(storage, getSharedPreferences());

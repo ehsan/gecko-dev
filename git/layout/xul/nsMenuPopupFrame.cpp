@@ -44,7 +44,6 @@
 #include "nsIScreenManager.h"
 #include "nsIServiceManager.h"
 #include "nsThemeConstants.h"
-#include "nsTransitionManager.h"
 #include "nsDisplayList.h"
 #include "mozilla/EventDispatcher.h"
 #include "mozilla/EventStateManager.h"
@@ -331,37 +330,26 @@ nsMenuPopupFrame::GetShadowStyle()
   return NS_STYLE_WINDOW_SHADOW_DEFAULT;
 }
 
-NS_IMETHODIMP nsXULPopupShownEvent::Run()
+// this class is used for dispatching popupshown events asynchronously.
+class nsXULPopupShownEvent : public nsRunnable
 {
-  WidgetMouseEvent event(true, NS_XUL_POPUP_SHOWN, nullptr,
-                         WidgetMouseEvent::eReal);
-  return EventDispatcher::Dispatch(mPopup, mPresContext, &event);                 
-}
-
-NS_IMETHODIMP nsXULPopupShownEvent::HandleEvent(nsIDOMEvent* aEvent)
-{
-  nsMenuPopupFrame* popup = do_QueryFrame(mPopup->GetPrimaryFrame());
-  if (popup) {
-    // ResetPopupShownDispatcher will delete the reference to this, so keep
-    // another one until Run is finished.
-    nsRefPtr<nsXULPopupShownEvent> event = this;
-    // Only call Run if it the dispatcher was assigned. This avoids calling the
-    // Run method if the transitionend event fires multiple times.
-    if (popup->ClearPopupShownDispatcher()) {
-      return Run();
-    }
+public:
+  nsXULPopupShownEvent(nsIContent *aPopup, nsPresContext* aPresContext)
+    : mPopup(aPopup), mPresContext(aPresContext)
+  {
   }
 
-  CancelListener();
-  return NS_OK;
-}
+  NS_IMETHOD Run() MOZ_OVERRIDE
+  {
+    WidgetMouseEvent event(true, NS_XUL_POPUP_SHOWN, nullptr,
+                           WidgetMouseEvent::eReal);
+    return EventDispatcher::Dispatch(mPopup, mPresContext, &event);                 
+  }
 
-void nsXULPopupShownEvent::CancelListener()
-{
-  mPopup->RemoveSystemEventListener(NS_LITERAL_STRING("transitionend"), this, false);
-}
-
-NS_IMPL_ISUPPORTS_INHERITED(nsXULPopupShownEvent, nsRunnable, nsIDOMEventListener);
+private:
+  nsCOMPtr<nsIContent> mPopup;
+  nsRefPtr<nsPresContext> mPresContext;
+};
 
 void
 nsMenuPopupFrame::SetInitialChildList(ChildListID  aListID,
@@ -494,21 +482,6 @@ nsMenuPopupFrame::LayoutPopup(nsBoxLayoutState& aState, nsIFrame* aParentMenu,
   // finally, if the popup just opened, send a popupshown event
   if (mIsOpenChanged) {
     mIsOpenChanged = false;
-
-#ifndef MOZ_WIDGET_GTK
-    // If the animate attribute is set to open, check for a transition and wait
-    // for it to finish before firing the popupshown event.
-    if (mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::animate,
-                              nsGkAtoms::open, eCaseMatters) &&
-        nsLayoutUtils::HasCurrentAnimations(mContent, nsGkAtoms::transitionsProperty, pc)) {
-      mPopupShownDispatcher = new nsXULPopupShownEvent(mContent, pc);
-      mContent->AddSystemEventListener(NS_LITERAL_STRING("transitionend"),
-                                       mPopupShownDispatcher, false, false);
-      return;
-    }
-#endif
-
-    // If there are no transitions, fire the popupshown event right away.
     nsCOMPtr<nsIRunnable> event = new nsXULPopupShownEvent(GetContent(), pc);
     NS_DispatchToCurrentThread(event);
   }
@@ -805,8 +778,6 @@ nsMenuPopupFrame::HidePopup(bool aDeselectMenu, nsPopupState aNewState)
 {
   NS_ASSERTION(aNewState == ePopupClosed || aNewState == ePopupInvisible,
                "popup being set to unexpected state");
-
-  ClearPopupShownDispatcher();
 
   // don't hide the popup when it isn't open
   if (mPopupState == ePopupClosed || mPopupState == ePopupShowing)
@@ -1915,8 +1886,6 @@ nsMenuPopupFrame::DestroyFrom(nsIFrame* aDestructRoot)
     nsContentUtils::AddScriptRunner(
       new nsUnsetAttrRunnable(menu->GetContent(), nsGkAtoms::open));
   }
-
-  ClearPopupShownDispatcher();
 
   nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
   if (pm)

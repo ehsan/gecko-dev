@@ -14,7 +14,7 @@
 
 class nsIStackFrame;
 template <class T>
-struct already_AddRefed;
+class already_AddRefed;
 
 namespace mozilla {
 namespace dom {

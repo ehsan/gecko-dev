@@ -10,7 +10,7 @@
 #include "nsIOutputStream.h"
 #include "nsString.h"
 
-template <class> struct already_AddRefed;
+template <class> class already_AddRefed;
 
 namespace mozilla {
 namespace dom {

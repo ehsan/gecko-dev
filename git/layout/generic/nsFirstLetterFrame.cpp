@@ -373,7 +373,7 @@ nsFirstLetterFrame::DrainOverflowFrames(nsPresContext* aPresContext)
 }
 
 nscoord
-nsFirstLetterFrame::GetLogicalBaseline(WritingMode aWritingMode) const
+nsFirstLetterFrame::GetBaseline() const
 {
   return mBaseline;
 }

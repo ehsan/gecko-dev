@@ -1090,6 +1090,7 @@ JS_TransplantObject(JSContext *cx, HandleObject origobj, HandleObject target)
     JS_ASSERT(!origobj->is<CrossCompartmentWrapperObject>());
     JS_ASSERT(!target->is<CrossCompartmentWrapperObject>());
 
+    AutoMaybeTouchDeadZones agc(cx);
     AutoDisableProxyCheck adpc(cx->runtime());
 
     JSCompartment *destination = target->compartment();
@@ -5524,10 +5525,7 @@ JS_EncodeStringToUTF8(JSContext *cx, HandleString str)
     if (!linear)
         return nullptr;
 
-    JS::AutoCheckCannotGC nogc;
-    return linear->hasLatin1Chars()
-           ? JS::CharsToNewUTF8CharsZ(cx, linear->latin1Range(nogc)).c_str()
-           : JS::CharsToNewUTF8CharsZ(cx, linear->twoByteRange(nogc)).c_str();
+    return TwoByteCharsToNewUTF8CharsZ(cx, linear->range()).c_str();
 }
 
 JS_PUBLIC_API(size_t)

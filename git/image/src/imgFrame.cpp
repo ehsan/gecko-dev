@@ -16,6 +16,7 @@
 
 static bool gDisableOptimize = false;
 
+#include "cairo.h"
 #include "GeckoProfiler.h"
 #include "mozilla/Likely.h"
 #include "mozilla/MemoryReporting.h"
@@ -343,12 +344,12 @@ imgFrame::SurfaceForDrawing(bool               aDoPadding,
       imageSpaceToUserSpace.Invert();
       SurfacePattern pattern(aSurface,
                              ExtendMode::REPEAT,
-                             Matrix(imageSpaceToUserSpace._11,
-                                    imageSpaceToUserSpace._21,
-                                    imageSpaceToUserSpace._12,
-                                    imageSpaceToUserSpace._22,
-                                    imageSpaceToUserSpace._31,
-                                    imageSpaceToUserSpace._32));
+                             Matrix(imageSpaceToUserSpace.xx,
+                                    imageSpaceToUserSpace.xy,
+                                    imageSpaceToUserSpace.yx,
+                                    imageSpaceToUserSpace.yy,
+                                    imageSpaceToUserSpace.x0,
+                                    imageSpaceToUserSpace.y0));
       target->FillRect(fillRect, pattern);
     }
 

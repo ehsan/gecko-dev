@@ -25,6 +25,7 @@ public:
 
   static already_AddRefed<Activity>
   Constructor(const GlobalObject& aOwner,
+              JSContext* aCx,
               const ActivityOptions& aOptions,
               ErrorResult& aRv)
   {
@@ -35,7 +36,7 @@ public:
     }
 
     nsRefPtr<Activity> activity = new Activity(window);
-    aRv = activity->Initialize(window, aOwner.Context(), aOptions);
+    aRv = activity->Initialize(window, aCx, aOptions);
     return activity.forget();
   }
 

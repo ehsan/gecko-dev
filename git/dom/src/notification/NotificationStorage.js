@@ -150,12 +150,9 @@ NotificationStorage.prototype = {
         } catch (e) {
           debug("Error calling callback done: " + e);
         }
-      case kMessageNotificationSaveKo:
-      case kMessageNotificationDeleteKo:
-        if (DEBUG) {
-          debug("Error received when treating: '" + message.name +
-                "': " + message.data.errorMsg);
-        }
+      case kMessageNotificationSaveOk:
+      case kMessageNotificationDeleteOk:
+	debug("Error received when treating: '" + message.name + "': " + message.data.errorMsg);
         break;
 
       default:

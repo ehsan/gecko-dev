@@ -330,21 +330,6 @@ nsLayoutUtils::HasAnimations(nsIContent* aContent,
             (aContent, nsGkAtoms::transitionsProperty, aProperty);
 }
 
-bool
-nsLayoutUtils::HasCurrentAnimations(nsIContent* aContent,
-                                    nsIAtom* aAnimationProperty,
-                                    nsPresContext* aPresContext)
-{
-  if (!aContent->MayHaveAnimations())
-    return false;
-
-  TimeStamp now = aPresContext->RefreshDriver()->MostRecentRefresh();
-
-  CommonElementAnimationData* animations =
-    static_cast<CommonElementAnimationData*>(aContent->GetProperty(aAnimationProperty));
-  return (animations && animations->HasCurrentAnimationsAt(now));
-}
-
 static gfxSize
 GetScaleForValue(const nsStyleAnimation::Value& aValue,
                  nsIFrame* aFrame)
@@ -4595,19 +4580,17 @@ nsLayoutUtils::GetCenteredFontBaseline(nsFontMetrics* aFontMetrics,
 
 
 /* static */ bool
-nsLayoutUtils::GetFirstLineBaseline(WritingMode aWritingMode,
-                                    const nsIFrame* aFrame, nscoord* aResult)
+nsLayoutUtils::GetFirstLineBaseline(const nsIFrame* aFrame, nscoord* aResult)
 {
   LinePosition position;
-  if (!GetFirstLinePosition(aWritingMode, aFrame, &position))
+  if (!GetFirstLinePosition(aFrame, &position))
     return false;
   *aResult = position.mBaseline;
   return true;
 }
 
 /* static */ bool
-nsLayoutUtils::GetFirstLinePosition(WritingMode aWM,
-                                    const nsIFrame* aFrame,
+nsLayoutUtils::GetFirstLinePosition(const nsIFrame* aFrame,
                                     LinePosition* aResult)
 {
   const nsBlockFrame* block = nsLayoutUtils::GetAsBlock(const_cast<nsIFrame*>(aFrame));
@@ -4616,11 +4599,11 @@ nsLayoutUtils::GetFirstLinePosition(WritingMode aWM,
     // so, use the baseline of its first row.
     nsIAtom* fType = aFrame->GetType();
     if (fType == nsGkAtoms::tableOuterFrame) {
-      aResult->mBStart = 0;
-      aResult->mBaseline = aFrame->GetLogicalBaseline(aWM);
+      aResult->mTop = 0;
+      aResult->mBaseline = aFrame->GetBaseline();
       // This is what we want for the list bullet caller; not sure if
       // other future callers will want the same.
-      aResult->mBEnd = aFrame->BSize(aWM);
+      aResult->mBottom = aFrame->GetSize().height;
       return true;
     }
 
@@ -4631,13 +4614,11 @@ nsLayoutUtils::GetFirstLinePosition(WritingMode aWM,
         NS_NOTREACHED("not scroll frame");
       }
       LinePosition kidPosition;
-      if (GetFirstLinePosition(aWM,
-                               sFrame->GetScrolledFrame(), &kidPosition)) {
+      if (GetFirstLinePosition(sFrame->GetScrolledFrame(), &kidPosition)) {
         // Consider only the border and padding that contributes to the
         // kid's position, not the scrolling, so we get the initial
         // position.
-        *aResult = kidPosition +
-          aFrame->GetLogicalUsedBorderAndPadding(aWM).BStart(aWM);
+        *aResult = kidPosition + aFrame->GetUsedBorderAndPadding().top;
         return true;
       }
       return false;
@@ -4647,9 +4628,8 @@ nsLayoutUtils::GetFirstLinePosition(WritingMode aWM,
       LinePosition kidPosition;
       nsIFrame* kid = aFrame->GetFirstPrincipalChild();
       // kid might be a legend frame here, but that's ok.
-      if (GetFirstLinePosition(aWM, kid, &kidPosition)) {
-        *aResult = kidPosition +
-          kid->GetLogicalNormalPosition(aWM, aFrame->GetSize().width).B(aWM);
+      if (GetFirstLinePosition(kid, &kidPosition)) {
+        *aResult = kidPosition + kid->GetNormalPosition().y;
         return true;
       }
       return false;
@@ -4665,23 +4645,18 @@ nsLayoutUtils::GetFirstLinePosition(WritingMode aWM,
     if (line->IsBlock()) {
       nsIFrame *kid = line->mFirstChild;
       LinePosition kidPosition;
-      if (GetFirstLinePosition(aWM, kid, &kidPosition)) {
-        //XXX Not sure if this is the correct value to use for container
-        //    width here. It will only be used in vertical-rl layout,
-        //    which we don't have full support and testing for yet.
-        nscoord containerWidth = line->mContainerWidth;
-        *aResult = kidPosition +
-                   kid->GetLogicalNormalPosition(aWM, containerWidth).B(aWM);
+      if (GetFirstLinePosition(kid, &kidPosition)) {
+        *aResult = kidPosition + kid->GetNormalPosition().y;
         return true;
       }
     } else {
       // XXX Is this the right test?  We have some bogus empty lines
       // floating around, but IsEmpty is perhaps too weak.
       if (line->BSize() != 0 || !line->IsEmpty()) {
-        nscoord bStart = line->BStart();
-        aResult->mBStart = bStart;
-        aResult->mBaseline = bStart + line->GetLogicalAscent();
-        aResult->mBEnd = bStart + line->BSize();
+        nscoord top = line->BStart();
+        aResult->mTop = top;
+        aResult->mBaseline = top + line->GetAscent();
+        aResult->mBottom = top + line->BSize();
         return true;
       }
     }
@@ -4690,8 +4665,7 @@ nsLayoutUtils::GetFirstLinePosition(WritingMode aWM,
 }
 
 /* static */ bool
-nsLayoutUtils::GetLastLineBaseline(WritingMode aWM,
-                                   const nsIFrame* aFrame, nscoord* aResult)
+nsLayoutUtils::GetLastLineBaseline(const nsIFrame* aFrame, nscoord* aResult)
 {
   const nsBlockFrame* block = nsLayoutUtils::GetAsBlock(const_cast<nsIFrame*>(aFrame));
   if (!block)
@@ -4704,24 +4678,21 @@ nsLayoutUtils::GetLastLineBaseline(WritingMode aWM,
     if (line->IsBlock()) {
       nsIFrame *kid = line->mFirstChild;
       nscoord kidBaseline;
-      nscoord containerWidth = line->mContainerWidth;
-      if (GetLastLineBaseline(aWM, kid, &kidBaseline)) {
+      if (GetLastLineBaseline(kid, &kidBaseline)) {
         // Ignore relative positioning for baseline calculations
-        *aResult = kidBaseline +
-          kid->GetLogicalNormalPosition(aWM, containerWidth).B(aWM);
+        *aResult = kidBaseline + kid->GetNormalPosition().y;
         return true;
       } else if (kid->GetType() == nsGkAtoms::scrollFrame) {
         // Use the bottom of the scroll frame.
         // XXX CSS2.1 really doesn't say what to do here.
-        *aResult = kid->GetLogicalNormalPosition(aWM, containerWidth).B(aWM) +
-                   kid->BSize(aWM);
+        *aResult = kid->GetNormalPosition().y + kid->GetRect().height;
         return true;
       }
     } else {
       // XXX Is this the right test?  We have some bogus empty lines
       // floating around, but IsEmpty is perhaps too weak.
       if (line->BSize() != 0 || !line->IsEmpty()) {
-        *aResult = line->BStart() + line->GetLogicalAscent();
+        *aResult = line->BStart() + line->GetAscent();
         return true;
       }
     }
@@ -4730,49 +4701,45 @@ nsLayoutUtils::GetLastLineBaseline(WritingMode aWM,
 }
 
 static nscoord
-CalculateBlockContentBEnd(WritingMode aWM, nsBlockFrame* aFrame)
+CalculateBlockContentBottom(nsBlockFrame* aFrame)
 {
   NS_PRECONDITION(aFrame, "null ptr");
 
-  nscoord contentBEnd = 0;
+  nscoord contentBottom = 0;
 
   for (nsBlockFrame::line_iterator line = aFrame->begin_lines(),
                                    line_end = aFrame->end_lines();
        line != line_end; ++line) {
     if (line->IsBlock()) {
       nsIFrame* child = line->mFirstChild;
-      nscoord containerWidth = line->mContainerWidth;
-      nscoord offset =
-        child->GetLogicalNormalPosition(aWM, containerWidth).B(aWM);
-      contentBEnd =
-        std::max(contentBEnd,
-                 nsLayoutUtils::CalculateContentBEnd(aWM, child) + offset);
+      nscoord offset = child->GetNormalPosition().y;
+      contentBottom = std::max(contentBottom,
+                        nsLayoutUtils::CalculateContentBottom(child) + offset);
     }
     else {
-      contentBEnd = std::max(contentBEnd, line->BEnd());
+      contentBottom = std::max(contentBottom, line->BEnd());
     }
   }
-  return contentBEnd;
+  return contentBottom;
 }
 
 /* static */ nscoord
-nsLayoutUtils::CalculateContentBEnd(WritingMode aWM, nsIFrame* aFrame)
+nsLayoutUtils::CalculateContentBottom(nsIFrame* aFrame)
 {
   NS_PRECONDITION(aFrame, "null ptr");
 
-  nscoord contentBEnd = aFrame->BSize(aWM);
+  nscoord contentBottom = aFrame->GetRect().height;
 
   // We want scrollable overflow rather than visual because this
   // calculation is intended to affect layout.
-  LogicalSize overflowSize(aWM, aFrame->GetScrollableOverflowRect().Size());
-  if (overflowSize.BSize(aWM) > contentBEnd) {
+  if (aFrame->GetScrollableOverflowRect().height > contentBottom) {
     nsIFrame::ChildListIDs skip(nsIFrame::kOverflowList |
                                 nsIFrame::kExcessOverflowContainersList |
                                 nsIFrame::kOverflowOutOfFlowList);
     nsBlockFrame* blockFrame = GetAsBlock(aFrame);
     if (blockFrame) {
-      contentBEnd =
-        std::max(contentBEnd, CalculateBlockContentBEnd(aWM, blockFrame));
+      contentBottom =
+        std::max(contentBottom, CalculateBlockContentBottom(blockFrame));
       skip |= nsIFrame::kPrincipalList;
     }
     nsIFrame::ChildListIterator lists(aFrame);
@@ -4781,16 +4748,14 @@ nsLayoutUtils::CalculateContentBEnd(WritingMode aWM, nsIFrame* aFrame)
         nsFrameList::Enumerator childFrames(lists.CurrentList()); 
         for (; !childFrames.AtEnd(); childFrames.Next()) {
           nsIFrame* child = childFrames.get();
-          nscoord offset =
-            child->GetLogicalNormalPosition(aWM,
-                                            aFrame->GetSize().width).B(aWM);
-          contentBEnd = std::max(contentBEnd,
-                                 CalculateContentBEnd(aWM, child) + offset);
+          nscoord offset = child->GetNormalPosition().y;
+          contentBottom = std::max(contentBottom,
+                                 CalculateContentBottom(child) + offset);
         }
       }
     }
   }
-  return contentBEnd;
+  return contentBottom;
 }
 
 /* static */ nsIFrame*
@@ -4938,7 +4903,7 @@ ComputeSnappedImageDrawingParameters(gfxContext*     aCtx,
   // we have something that's not translation+scale, or if the scale flips in
   // the X or Y direction, because snapped image drawing can't handle that yet.
   if (!currentMatrix.HasNonAxisAlignedTransform() &&
-      currentMatrix._11 > 0.0 && currentMatrix._22 > 0.0 &&
+      currentMatrix.xx > 0.0 && currentMatrix.yy > 0.0 &&
       aCtx->UserToDevicePixelSnapped(fill, true)) {
     didSnap = true;
     if (fill.IsEmpty()) {
@@ -4987,8 +4952,8 @@ ComputeSnappedImageDrawingParameters(gfxContext*     aCtx,
   if (didSnap) {
     // We'll reset aCTX to the identity matrix before drawing, so we need to
     // adjust our scales to match.
-    scaleX /= currentMatrix._11;
-    scaleY /= currentMatrix._22;
+    scaleX /= currentMatrix.xx;
+    scaleY /= currentMatrix.yy;
   }
   gfxFloat translateX = imageSpaceAnchorPoint.x - anchorPoint.x*scaleX;
   gfxFloat translateY = imageSpaceAnchorPoint.y - anchorPoint.y*scaleY;

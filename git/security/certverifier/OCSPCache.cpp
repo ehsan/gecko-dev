@@ -286,7 +286,6 @@ OCSPCache::Put(const CERTCertificate* aCert,
   SECStatus rv = newEntry->Init(aCert, aIssuerCert, aErrorCode, aThisUpdate,
                                 aValidThrough);
   if (rv != SECSuccess) {
-    delete newEntry;
     return rv;
   }
   mEntries.append(newEntry);

@@ -51,36 +51,23 @@
         <item name="android:paddingTop">30dp</item>
     </style>
 
-    <!-- Tabs panel -->
-    <style name="TabsPanelFrame" parent="TabsPanelFrameBase">
+    <!-- Remote tabs panel -->
+    <style name="RemoteTabsPanelChild" parent="RemoteTabsPanelChildBase">
         <item name="android:paddingTop">32dp</item>
-        <!-- Additional spacing set via margins on TabsPanelSection. -->
+        <!-- Additional spacing set via margins on RemoteTabsSection. -->
         <item name="android:paddingLeft">0dp</item>
         <item name="android:paddingRight">0dp</item>
     </style>
 
-    <style name="TabsPanelFrame.PrivateTabs">
-        <!-- We set values in tablet portrait. -->
-    </style>
-
-    <style name="TabsPanelSection" parent="TabsPanelSectionBase">
+    <style name="RemoteTabsSection" parent="RemoteTabsSectionBase">
         <!-- To override the values-land style. -->
     </style>
 
-    <style name="TabsPanelSection.PrivateTabs">
-        <!-- We set values in tablet portrait. -->
-    </style>
-
-    <style name="TabsPanelSection.PrivateTabs.Header">
-        <!-- We set values in tablet portrait. -->
-    </style>
-
-
-    <style name="TabsPanelItem" parent="TabsPanelItemBase">
+    <style name="RemoteTabsItem" parent="RemoteTabsItemBase">
         <!-- To override the values-land style. -->
     </style>
 
-    <style name="TabsPanelItem.Button" parent="TabsPanelItem.ButtonBase">
+    <style name="RemoteTabsItem.Button" parent="RemoteTabsItem.ButtonBase">
         <item name="android:paddingTop">12dp</item>
         <item name="android:paddingBottom">12dp</item>
         <item name="android:paddingLeft">6dp</item>
@@ -90,19 +77,11 @@
         <item name="android:textSize">16dp</item>
     </style>
 
-    <style name="TabsPanelItem.TextAppearance.Header.FXAccounts">
+    <style name="RemoteTabsItem.TextAppearance.Header.FXAccounts">
         <item name="android:visibility">gone</item>
     </style>
 
-    <style name="TabsPanelItem.TextAppearance.Header.PrivateTabs">
-        <item name="android:visibility">visible</item>
-    </style>
-
-    <style name="TabsPanelItem.TextAppearance.Linkified.LearnMore">
-        <item name="android:layout_height">wrap_content</item>
-    </style>
-
-    <style name="TabsPanelItem.TextAppearance.Linkified.Resend">
+    <style name="RemoteTabsItem.TextAppearance.Linkified.Resend">
         <item name="android:layout_height">wrap_content</item>
     </style>
 

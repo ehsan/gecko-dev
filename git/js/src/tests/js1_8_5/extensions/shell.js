@@ -83,10 +83,6 @@ var Match =
         return (x !== null) && (typeof x === "object");
     }
 
-    function isFunction(x) {
-        return typeof x === "function";
-    }
-
     function isArrayLike(x) {
         return isObject(x) && ("length" in x);
     }
@@ -138,15 +134,6 @@ var Match =
         return true;
     }
 
-    function matchFunction(act, exp) {
-        if (!isFunction(act))
-            throw new MatchError("expected function, got " + quote(act));
-
-        if (act !== exp)
-            throw new MatchError("expected function: " + exp +
-                                 "\nbut got different function: " + act);
-    }
-
     function matchArray(act, exp) {
         if (!isObject(act) || !("length" in act))
             throw new MatchError("expected array-like object, got " + quote(act));
@@ -178,9 +165,6 @@ var Match =
 
         if (isArrayLike(exp))
             return matchArray(act, exp);
-
-        if (isFunction(exp))
-            return matchFunction(act, exp);
 
         return matchObject(act, exp);
     }
