@@ -550,7 +550,13 @@ pref("nglayout.debug.paint_flashing_chrome", false);
 // BasicLayers (other layer managers always update the entire widget area)
 pref("nglayout.debug.widget_update_flashing", false);
 
+// Whether image visibility is enabled globally (ie we will try to unlock images
+// that are not visible).
 pref("layout.imagevisibility.enabled", true);
+// Whether image visibility is enabled in documents that are within a browser
+// element as defined by nsDocShell::FrameType and GetInheritedFrameType. This
+// pref only has an effect if layout.imagevisibility.enabled is false.
+pref("layout.imagevisibility.enabled_for_browser_elements_only", false);
 pref("layout.imagevisibility.numscrollportwidths", 0);
 pref("layout.imagevisibility.numscrollportheights", 1);
 
@@ -1373,6 +1379,24 @@ pref("network.dir.format", 2);
 
 // enables the prefetch service (i.e., prefetching of <link rel="next"> URLs).
 pref("network.prefetch-next", true);
+
+// enables the predictive service
+pref("network.seer.enabled", true);
+pref("network.seer.enable-hover-on-ssl", false);
+pref("network.seer.page-degradation.day", 0);
+pref("network.seer.page-degradation.week", 5);
+pref("network.seer.page-degradation.month", 10);
+pref("network.seer.page-degradation.year", 25);
+pref("network.seer.page-degradation.max", 50);
+pref("network.seer.subresource-degradation.day", 1);
+pref("network.seer.subresource-degradation.week", 10);
+pref("network.seer.subresource-degradation.month", 25);
+pref("network.seer.subresource-degradation.year", 50);
+pref("network.seer.subresource-degradation.max", 100);
+pref("network.seer.preconnect-min-confidence", 90);
+pref("network.seer.preresolve-min-confidence", 60);
+pref("network.seer.redirect-likely-confidence", 75);
+pref("network.seer.max-queue-size", 50);
 
 
 // The following prefs pertain to the negotiate-auth extension (see bug 17578),
