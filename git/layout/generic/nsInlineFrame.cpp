@@ -1,4 +1,3 @@
-
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -63,6 +62,9 @@
 #endif
 
 
+NS_DEFINE_IID(kInlineFrameCID, NS_INLINE_FRAME_CID);
+
+
 //////////////////////////////////////////////////////////////////////
 
 // Basic nsInlineFrame methods
@@ -73,9 +75,18 @@ NS_NewInlineFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsInlineFrame(aContext);
 }
 
-NS_QUERYFRAME_HEAD(nsInlineFrame)
-  NS_QUERYFRAME_ENTRY(nsInlineFrame)
-NS_QUERYFRAME_TAIL_INHERITING(nsInlineFrameSuper)
+NS_IMETHODIMP
+nsInlineFrame::QueryInterface(const nsIID& aIID, void** aInstancePtr)
+{
+  NS_PRECONDITION(aInstancePtr, "null out param");
+
+  if (aIID.Equals(kInlineFrameCID)) {
+    *aInstancePtr = this;
+    return NS_OK;
+  }
+
+  return nsInlineFrameSuper::QueryInterface(aIID, aInstancePtr);
+}
 
 #ifdef DEBUG
 NS_IMETHODIMP
@@ -303,19 +314,14 @@ nsInlineFrame::Reflow(nsPresContext*          aPresContext,
       nsHTMLContainerFrame::ReparentFrameViewList(aPresContext, prevOverflowFrames,
                                                   prevInFlow, this);
 
-      // Check if we should do the lazilySetParentPointer optimization.
-      // Only do it in simple cases where we're being reflowed for the
-      // first time, nothing (e.g. bidi resolution) has already given
-      // us children, and there's no next-in-flow, so all our frames
-      // will be taken from prevOverflowFrames.
-      if ((GetStateBits() & NS_FRAME_FIRST_REFLOW) && mFrames.IsEmpty() &&
-          !GetNextInFlow()) {
-        // If our child list is empty, just set the child list rather than
-        // calling InsertFrame(). This avoids having to get the last child
-        // frame in the list.
+      if (GetStateBits() & NS_FRAME_FIRST_REFLOW) {
+        // If it's the initial reflow, then our child list must be empty, so
+        // just set the child list rather than calling InsertFrame(). This avoids
+        // having to get the last child frame in the list.
         // Note that we don't set the parent pointer for the new frames. Instead wait
         // to do this until we actually reflow the frame. If the overflow list contains
         // thousands of frames this is a big performance issue (see bug #5588)
+        NS_ASSERTION(mFrames.IsEmpty(), "child list is not empty for initial reflow");
         mFrames.SetFrames(prevOverflowFrames);
         lazilySetParentPointer = PR_TRUE;
       } else {
@@ -385,7 +391,7 @@ nsInlineFrame::Reflow(nsPresContext*          aPresContext,
   rv = ReflowFrames(aPresContext, aReflowState, irs, aMetrics, aStatus);
   
   // Note: the line layout code will properly compute our
-  // overflow-rect state for us.
+  // NS_FRAME_OUTSIDE_CHILDREN state for us.
 
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aMetrics);
   return rv;
@@ -411,10 +417,7 @@ nsInlineFrame::ReflowFrames(nsPresContext* aPresContext,
   nsLineLayout* lineLayout = aReflowState.mLineLayout;
   PRBool ltr = (NS_STYLE_DIRECTION_LTR == aReflowState.mStyleVisibility->mDirection);
   nscoord leftEdge = 0;
-  // Don't offset by our start borderpadding if we have a prev continuation or
-  // if we're in the last part of an {ib} split.
-  if (!GetPrevContinuation() &&
-      !nsLayoutUtils::FrameIsInLastPartOfIBSplit(this)) {
+  if (nsnull == GetPrevContinuation()) {
     leftEdge = ltr ? aReflowState.mComputedBorderPadding.left
                    : aReflowState.mComputedBorderPadding.right;
   }
@@ -456,7 +459,7 @@ nsInlineFrame::ReflowFrames(nsPresContext* aPresContext,
       // complete we'll fail when deleting its next-in-flow which is no longer
       // needed. This scenario doesn't happen often, but it can happen
       nsIFrame* nextInFlow = frame->GetNextInFlow();
-      for ( ; nextInFlow; nextInFlow = nextInFlow->GetNextInFlow()) {
+      while (nextInFlow) {
         // Since we only do lazy setting of parent pointers for the frame's
         // initial reflow, this frame can't have a next-in-flow. That means
         // the continuing child frame must be in our child list as well. If
@@ -466,36 +469,7 @@ nsInlineFrame::ReflowFrames(nsPresContext* aPresContext,
           ReparentFloatsForInlineChild(irs.mLineContainer, nextInFlow, PR_FALSE);
         }
         nextInFlow->SetParent(this);
-      }
-
-      // Fix the parent pointer for ::first-letter child frame next-in-flows,
-      // so nsFirstLetterFrame::Reflow can destroy them safely (bug 401042).
-      nsIFrame* realFrame = nsPlaceholderFrame::GetRealFrameFor(frame);
-      if (realFrame->GetType() == nsGkAtoms::letterFrame) {
-        nsIFrame* child = realFrame->GetFirstChild(nsnull);
-        if (child) {
-          NS_ASSERTION(child->GetType() == nsGkAtoms::textFrame,
-                       "unexpected frame type");
-          nsIFrame* nextInFlow = child->GetNextInFlow();
-          for ( ; nextInFlow; nextInFlow = nextInFlow->GetNextInFlow()) {
-            NS_ASSERTION(nextInFlow->GetType() == nsGkAtoms::textFrame,
-                         "unexpected frame type");
-            if (mFrames.ContainsFrame(nextInFlow)) {
-              nextInFlow->SetParent(this);
-            }
-            else {
-#ifdef DEBUG              
-              // Once we find a next-in-flow that isn't ours none of the
-              // remaining next-in-flows should be either.
-              for ( ; nextInFlow; nextInFlow = nextInFlow->GetNextInFlow()) {
-                NS_ASSERTION(!mFrames.ContainsFrame(nextInFlow),
-                             "unexpected letter frame flow");
-              }
-#endif
-              break;
-            }
-          }
-        }
+        nextInFlow = nextInFlow->GetNextInFlow();
       }
     }
     rv = ReflowInlineFrame(aPresContext, aReflowState, irs, frame, aStatus);
@@ -561,25 +535,12 @@ nsInlineFrame::ReflowFrames(nsPresContext* aPresContext,
   // whitespace in an inline element don't affect the line-height.
   aMetrics.width = lineLayout->EndSpan(this);
 
-  // Compute final width.
-
-  // Make sure to not include our start border and padding if we have a prev
-  // continuation or if we're in the last part of an {ib} split.
-  if (!GetPrevContinuation() &&
-      !nsLayoutUtils::FrameIsInLastPartOfIBSplit(this)) {
+  // Compute final width
+  if (nsnull == GetPrevContinuation()) {
     aMetrics.width += ltr ? aReflowState.mComputedBorderPadding.left
                           : aReflowState.mComputedBorderPadding.right;
   }
-
-  /*
-   * We want to only apply the end border and padding if we're the last
-   * continuation and not in the first part of an {ib} split.  To be the last
-   * continuation we have to be complete (so that we won't get a next-in-flow)
-   * and have no non-fluid continuations on our continuation chain.
-   */
-  if (NS_FRAME_IS_COMPLETE(aStatus) &&
-      !GetLastInFlow()->GetNextContinuation() &&
-      !nsLayoutUtils::FrameIsInFirstPartOfIBSplit(this)) {
+  if (NS_FRAME_IS_COMPLETE(aStatus) && (!GetNextContinuation() || GetNextInFlow())) {
     aMetrics.width += ltr ? aReflowState.mComputedBorderPadding.right
                           : aReflowState.mComputedBorderPadding.left;
   }
@@ -808,28 +769,6 @@ nsInlineFrame::GetSkipSides() const
       // edge border render.
     }
   }
-
-  if (GetStateBits() & NS_FRAME_IS_SPECIAL) {
-    // The first part of an {ib} split should always skip the "end" side (as
-    // determined by this frame's direction) and the last part of such a split
-    // should alwas skip the "start" side.  But figuring out which part of the
-    // split we are involves getting our first continuation, which might be
-    // expensive.  So don't bother if we already have the relevant bits set.
-    PRBool ltr = (NS_STYLE_DIRECTION_LTR == GetStyleVisibility()->mDirection);
-    PRIntn startBit = (1 << (ltr ? NS_SIDE_LEFT : NS_SIDE_RIGHT));
-    PRIntn endBit = (1 << (ltr ? NS_SIDE_RIGHT : NS_SIDE_LEFT));
-    if (((startBit | endBit) & skip) != (startBit | endBit)) {
-      // We're missing one of the skip bits, so check whether we need to set it.
-      if (nsLayoutUtils::FrameIsInFirstPartOfIBSplit(this)) {
-        skip |= endBit;
-      } else {
-        NS_ASSERTION(nsLayoutUtils::FrameIsInLastPartOfIBSplit(this),
-                     "How did that happen?");
-        skip |= startBit;
-      }
-    }
-  }
-
   return skip;
 }
 

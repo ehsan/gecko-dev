@@ -42,7 +42,7 @@
 #include "nsIAccessibilityService.h"
 #include "nsIAccessibleDocument.h"
 #include "nsAccessibleWrap.h"
-#include "nsCoreUtils.h"
+#include "nsAccessibilityUtils.h"
 #include "nsIDOMNSHTMLElement.h"
 #include "nsGUIEvent.h"
 #include "nsHyperTextAccessibleWrap.h"
@@ -86,21 +86,11 @@ NS_IMETHODIMP nsLeafAccessible::GetChildCount(PRInt32 *_retval)
   return NS_OK;
 }
 
-// nsAccessible::GetAllowsAnonChildAccessibles()
-PRBool
-nsLeafAccessible::GetAllowsAnonChildAccessibles()
+/* readonly attribute boolean allowsAnonChildAccessibles; */
+NS_IMETHODIMP
+nsLeafAccessible::GetAllowsAnonChildAccessibles(PRBool *aAllowsAnonChildren)
 {
-  return PR_FALSE;
-}
-
-// nsAccessible::GetChildAtPoint()
-nsresult
-nsLeafAccessible::GetChildAtPoint(PRInt32 aX, PRInt32 aY,
-                                  PRBool aDeepestChild,
-                                  nsIAccessible **aChild)
-{
-  // Don't walk into leaf accessibles.
-  NS_ADDREF(*aChild = this);
+  *aAllowsAnonChildren = PR_FALSE;
   return NS_OK;
 }
 
@@ -131,17 +121,16 @@ nsLinkableAccessible::TakeFocus()
   return nsHyperTextAccessibleWrap::TakeFocus();
 }
 
-nsresult
-nsLinkableAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
+NS_IMETHODIMP
+nsLinkableAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 {
-  nsresult rv = nsHyperTextAccessibleWrap::GetStateInternal(aState,
-                                                            aExtraState);
-  NS_ENSURE_A11Y_SUCCESS(rv, rv);
+  nsresult rv = nsHyperTextAccessibleWrap::GetState(aState, aExtraState);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   if (mIsLink) {
     *aState |= nsIAccessibleStates::STATE_LINKED;
     nsCOMPtr<nsIAccessible> actionAcc = GetActionAccessible();
-    if (nsAccUtils::State(actionAcc) & nsIAccessibleStates::STATE_TRAVERSED)
+    if (actionAcc && (State(actionAcc) & nsIAccessibleStates::STATE_TRAVERSED))
       *aState |= nsIAccessibleStates::STATE_TRAVERSED;
   }
 
@@ -244,16 +233,16 @@ nsLinkableAccessible::GetURI(PRInt32 aIndex, nsIURI **aURI)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// nsLinkableAccessible. nsAccessNode
+// nsLinkableAccessible. nsPIAccessNode
 
-nsresult
+NS_IMETHODIMP
 nsLinkableAccessible::Init()
 {
   CacheActionContent();
   return nsHyperTextAccessibleWrap::Init();
 }
 
-nsresult
+NS_IMETHODIMP
 nsLinkableAccessible::Shutdown()
 {
   mActionContent = nsnull;
@@ -267,8 +256,8 @@ void
 nsLinkableAccessible::CacheActionContent()
 {
   nsCOMPtr<nsIContent> walkUpContent(do_QueryInterface(mDOMNode));
-  PRBool isOnclick = nsCoreUtils::HasListener(walkUpContent,
-                                              NS_LITERAL_STRING("click"));
+  PRBool isOnclick = nsAccUtils::HasListener(walkUpContent,
+                                             NS_LITERAL_STRING("click"));
 
   if (isOnclick) {
     mActionContent = walkUpContent;
@@ -277,8 +266,8 @@ nsLinkableAccessible::CacheActionContent()
   }
 
   while ((walkUpContent = walkUpContent->GetParent())) {
-    isOnclick = nsCoreUtils::HasListener(walkUpContent,
-                                         NS_LITERAL_STRING("click"));
+    isOnclick = nsAccUtils::HasListener(walkUpContent,
+                                        NS_LITERAL_STRING("click"));
   
     nsCOMPtr<nsIDOMNode> walkUpNode(do_QueryInterface(walkUpContent));
 
@@ -286,8 +275,8 @@ nsLinkableAccessible::CacheActionContent()
     GetAccService()->GetAccessibleInWeakShell(walkUpNode, mWeakShell,
                                               getter_AddRefs(walkUpAcc));
 
-    if (nsAccUtils::Role(walkUpAcc) == nsIAccessibleRole::ROLE_LINK &&
-        nsAccUtils::State(walkUpAcc) & nsIAccessibleStates::STATE_LINKED) {
+    if (walkUpAcc && Role(walkUpAcc) == nsIAccessibleRole::ROLE_LINK &&
+        (State(walkUpAcc) & nsIAccessibleStates::STATE_LINKED)) {
       mIsLink = PR_TRUE;
       mActionContent = walkUpContent;
       return;
@@ -329,10 +318,3 @@ nsEnumRoleAccessible::nsEnumRoleAccessible(nsIDOMNode* aNode, nsIWeakReference* 
 }
 
 NS_IMPL_ISUPPORTS_INHERITED0(nsEnumRoleAccessible, nsAccessible)
-
-nsresult
-nsEnumRoleAccessible::GetRoleInternal(PRUint32 *aRole)
-{
-  *aRole = mRole;
-  return NS_OK;
-}

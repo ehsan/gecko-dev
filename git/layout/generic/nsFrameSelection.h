@@ -46,13 +46,12 @@
 #include "nsITableCellLayout.h"
 #include "nsIDOMElement.h"
 #include "nsGUIEvent.h"
-#include "nsIRange.h"
 
 // IID for the nsFrameSelection interface
-// 0ea74459-e3f9-48b0-8aa4-5dfef53bf1f7
+// d78edc5a-28d0-48f0-8abb-1597b1591556
 #define NS_FRAME_SELECTION_IID      \
-{ 0xea74459, 0xe3f9, 0x48b0, \
-  { 0x8a, 0xa4, 0x5d, 0xfe, 0xf5, 0x3b, 0xf1, 0xf7 } }
+{ 0xd78edc5a, 0x28d0, 0x48f0, \
+  { 0x8a, 0xbb, 0x15, 0x97, 0xb1, 0x59, 0x15, 0x56 } }
 
 #ifdef IBMBIDI // Constant for Set/Get CaretBidiLevel
 #define BIDI_LEVEL_UNDEFINED 0x80
@@ -75,7 +74,6 @@ struct SelectionDetails
   PRInt32 mStart;
   PRInt32 mEnd;
   SelectionType mType;
-  nsTextRangeStyle mTextRangeStyle;
   SelectionDetails *mNext;
 };
 
@@ -216,8 +214,7 @@ public:
   enum HINT { HINTLEFT = 0, HINTRIGHT = 1};  //end of this line or beginning of next
   /*interfaces for addref and release and queryinterface*/
   
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_CLASS(nsFrameSelection)
+  NS_DECL_ISUPPORTS
 
   /** Init will initialize the frame selector with the necessary pres shell to 
    *  be used by most of the methods
@@ -287,7 +284,7 @@ public:
    *  @param aMouseEvent         passed in so we can get where event occurred and what keys are pressed
    */
   /*unsafe*/
-  nsresult HandleTableSelection(nsINode *aParentContent,
+  nsresult HandleTableSelection(nsIContent *aParentContent,
                                 PRInt32 aContentOffset,
                                 PRInt32 aTarget,
                                 nsMouseEvent *aMouseEvent);
@@ -300,7 +297,6 @@ public:
    *  @param aPoint is relative to the view.
    *  @param aDelay is the timer's interval.
    */
-  /*unsafe*/
   nsresult StartAutoScrollTimer(nsIView *aView,
                                 nsPoint aPoint,
                                 PRUint32 aDelay);
@@ -356,7 +352,6 @@ public:
    * @param aIsSynchronous when PR_TRUE, scrolls the selection into view
    * at some point after the method returns.request which is processed
    */
-  /*unsafe*/
   nsresult ScrollSelectionIntoView(SelectionType aType,
                                    SelectionRegion aRegion,
                                    PRBool aIsSynchronous) const;
@@ -421,12 +416,6 @@ public:
    */
   /*unsafe*/
   nsresult CharacterMove(PRBool aForward, PRBool aExtend);
-
-  /** CharacterExtendForDelete extends the selection forward (logically) to
-   * the next character cell, so that the selected cell can be deleted.
-   */
-  /*unsafe*/
-  nsresult CharacterExtendForDelete();
 
   /** WordMove will generally be called from the nsiselectioncontroller implementations.
    *  the effect being the selection will move one word left or right.
@@ -554,6 +543,7 @@ public:
 
 
   nsFrameSelection();
+  virtual ~nsFrameSelection();
 
   void StartBatchChanges();
   void EndBatchChanges();
@@ -562,12 +552,11 @@ public:
 
   nsIPresShell *GetShell()const  { return mShell; }
 
-  void DisconnectFromPresShell() { StopAutoScrollTimer(); mShell = nsnull; }
+  void DisconnectFromPresShell() { mShell = nsnull; }
 private:
   nsresult TakeFocus(nsIContent *aNewFocus,
                      PRUint32 aContentOffset,
-                     PRUint32 aContentEndOffset,
-                     HINT aHint,
+                     PRUint32 aContentEndOffset, 
                      PRBool aContinueSelection,
                      PRBool aMultipleSelection);
 
@@ -581,6 +570,27 @@ private:
                                              PRUint32 aContentOffset,
                                              HINT aHint,
                                              PRBool aJumpLines) const;
+#ifdef VISUALSELECTION
+  NS_IMETHOD VisualSelectFrames(nsIFrame* aCurrentFrame,
+                                nsPeekOffsetStruct aPos);
+  NS_IMETHOD VisualSequence(nsIFrame* aSelectFrame,
+                            nsIFrame* aCurrentFrame,
+                            nsPeekOffsetStruct* aPos,
+                            PRBool* aNeedVisualSelection);
+  NS_IMETHOD SelectToEdge(nsIFrame *aFrame,
+                          nsIContent *aContent,
+                          PRInt32 aOffset,
+                          PRInt32 aEdge,
+                          PRBool aMultipleSelection);
+  NS_IMETHOD SelectLines(nsDirection aSelectionDirection,
+                         nsIDOMNode *aAnchorNode,
+                         nsIFrame* aAnchorFrame,
+                         PRInt32 aAnchorOffset,
+                         nsIDOMNode *aCurrentNode,
+                         nsIFrame* aCurrentFrame,
+                         PRInt32 aCurrentOffset,
+                         nsPeekOffsetStruct aPos);
+#endif // VISUALSELECTION
 
   PRBool AdjustForMaintainedSelection(nsIContent *aContent, PRInt32 aOffset);
 
@@ -617,7 +627,7 @@ private:
   // so remember to use nsCOMPtr when needed.
   nsresult     NotifySelectionListeners(SelectionType aType);     // add parameters to say collapsed etc?
 
-  nsRefPtr<nsTypedSelection> mDomSelections[nsISelectionController::NUM_SELECTIONTYPES];
+  nsTypedSelection *mDomSelections[nsISelectionController::NUM_SELECTIONTYPES];
 
   // Table selection support.
   // Interfaces that let us get info based on cellmap locations
@@ -628,24 +638,20 @@ private:
   nsresult SelectRowOrColumn(nsIContent *aCellContent, PRUint32 aTarget);
   nsresult GetCellIndexes(nsIContent *aCell, PRInt32 &aRowIndex, PRInt32 &aColIndex);
 
-  // Get our first range, if its first selected node is a cell.  If this does
-  // not return null, then the first node in the returned range is a cell
-  // (according to GetFirstCellNodeInRange).
-  nsIRange* GetFirstCellRange();
-  // Get our next range, if its first selected node is a cell.  If this does
-  // not return null, then the first node in the returned range is a cell
-  // (according to GetFirstCellNodeInRange).
-  nsIRange* GetNextCellRange();
-  nsIContent* GetFirstCellNodeInRange(nsIRange *aRange) const;
-  // Returns non-null table if in same table, null otherwise
-  nsIContent* IsInSameTable(nsIContent *aContent1, nsIContent *aContent2) const;
-  // Might return null
-  nsIContent* GetParentTable(nsIContent *aCellNode) const;
-  nsresult SelectCellElement(nsIContent* aCellElement);
-  nsresult CreateAndAddRange(nsINode *aParentNode, PRInt32 aOffset);
+  nsresult GetFirstSelectedCellAndRange(nsIDOMNode **aCell, nsIDOMRange **aRange);
+  nsresult GetNextSelectedCellAndRange(nsIDOMNode **aCell, nsIDOMRange **aRange);
+  nsresult GetFirstCellNodeInRange(nsIDOMRange *aRange,
+                                   nsIDOMNode **aCellNode) const;
+  // aTableNode may be null if table isn't needed to be returned
+  PRBool   IsInSameTable(nsIContent *aContent1, nsIContent *aContent2,
+                         nsIContent **aTableNode) const;
+  nsresult GetParentTable(nsIContent *aCellNode,
+                          nsIContent **aTableNode) const;
+  nsresult SelectCellElement(nsIDOMElement* aCellElement);
+  nsresult CreateAndAddRange(nsIDOMNode *aParentNode, PRInt32 aOffset);
   nsresult ClearNormalSelection();
 
-  nsCOMPtr<nsINode> mCellParent; //used to snap to table selection
+  nsCOMPtr<nsIDOMNode> mCellParent; //used to snap to table selection
   nsCOMPtr<nsIContent> mStartSelectedCell;
   nsCOMPtr<nsIContent> mEndSelectedCell;
   nsCOMPtr<nsIContent> mAppendStartSelectedCell;
@@ -654,7 +660,7 @@ private:
   PRInt32  mSelectedCellIndex;
 
   // maintain selection
-  nsCOMPtr<nsIRange> mMaintainRange;
+  nsCOMPtr<nsIDOMRange> mMaintainRange;
   nsSelectionAmount mMaintainedAmount;
 
   //batching
@@ -682,6 +688,7 @@ private:
 
   PRPackedBool mChangesDuringBatching;
   PRPackedBool mNotifyFrames;
+  PRPackedBool mIsEditor;
   PRPackedBool mDragSelectingCells;
   PRPackedBool mMouseDownState;   //for drag purposes
   PRPackedBool mMouseDoubleDownState; //has the doubleclick down happened

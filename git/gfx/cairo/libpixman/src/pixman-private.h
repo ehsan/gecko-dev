@@ -69,16 +69,7 @@
 #endif
 
 #ifdef _MSC_VER
-/* 'inline' is available only in C++ in MSVC */
-#   define inline __inline
-#   define force_inline __forceinline
-#elif defined __GNUC__
-#   define inline __inline__
-#   define force_inline __inline__ __attribute__ ((__always_inline__))
-#else
-# ifndef force_inline
-#  define force_inline inline
-# endif
+#define inline __inline
 #endif
 
 #define FB_SHIFT    5

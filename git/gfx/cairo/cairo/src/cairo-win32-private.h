@@ -117,15 +117,6 @@ enum {
 
     /* Whether we can use GradientFill rectangles with this surface */
     CAIRO_WIN32_SURFACE_CAN_RECT_GRADIENT = (1<<6),
-
-    /* Whether we can use the CHECKJPEGFORMAT escape function */
-    CAIRO_WIN32_SURFACE_CAN_CHECK_JPEG = (1<<7),
-
-    /* Whether we can use the CHECKJPEGFORMAT escape function */
-    CAIRO_WIN32_SURFACE_CAN_CHECK_PNG = (1<<8),
-
-    /* if this DDB surface can be converted to a DIB if necessary */
-    CAIRO_WIN32_SURFACE_CAN_CONVERT_TO_DIB = (1<<9),
 };
 
 cairo_status_t
@@ -150,12 +141,11 @@ _cairo_win32_flags_for_dc (HDC dc);
 cairo_int_status_t
 _cairo_win32_surface_show_glyphs (void			*surface,
 				  cairo_operator_t	 op,
-				  const cairo_pattern_t	*source,
+				  cairo_pattern_t	*source,
 				  cairo_glyph_t		*glyphs,
 				  int			 num_glyphs,
 				  cairo_scaled_font_t	*scaled_font,
-				  int			*remaining_glyphs,
-				  cairo_rectangle_int_t *extents);
+				  int			*remaining_glyphs);
 
 cairo_surface_t *
 _cairo_win32_surface_create_similar (void	    *abstract_src,
@@ -170,8 +160,6 @@ _cairo_win32_surface_clone_similar (void *abstract_surface,
 				    int src_y,
 				    int width,
 				    int height,
-				    int *clone_offset_x,
-				    int *clone_offset_y,
 				    cairo_surface_t **clone_out);
 
 static inline void
@@ -200,23 +188,5 @@ _cairo_win32_scaled_font_is_type1 (cairo_scaled_font_t *scaled_font);
 
 cairo_bool_t
 _cairo_win32_scaled_font_is_bitmap (cairo_scaled_font_t *scaled_font);
-
-#ifdef WINCE
-
-// These are the required stubs for windows mobile
-#define ETO_GLYPH_INDEX 0
-#define ETO_PDY 0
-#define HALFTONE COLORONCOLOR
-#define GM_ADVANCED 2
-#define MWT_IDENTITY 1
-
-inline int SetGraphicsMode(HDC hdc, int iMode) {return 1;}
-inline int GetGraphicsMode(HDC hdc)            {return 1;} /*GM_COMPATIBLE*/
-inline void GdiFlush()                         {}
-inline BOOL SetWorldTransform(HDC hdc, CONST XFORM *lpXform) { return FALSE; }
-inline BOOL GetWorldTransform(HDC hdc, LPXFORM lpXform )     { return FALSE; }
-inline BOOL ModifyWorldTransform(HDC hdc, CONST XFORM * lpxf, DWORD mode) { return 1; }
-
-#endif
 
 #endif /* CAIRO_WIN32_PRIVATE_H */

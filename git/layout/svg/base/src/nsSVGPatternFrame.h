@@ -39,11 +39,12 @@
 #ifndef __NS_SVGPATTERNFRAME_H__
 #define __NS_SVGPATTERNFRAME_H__
 
+#include "nsIDOMSVGAnimatedString.h"
 #include "nsIDOMSVGMatrix.h"
 #include "nsSVGPaintServerFrame.h"
 #include "gfxMatrix.h"
 
-class nsSVGPreserveAspectRatio;
+class nsIDOMSVGAnimatedPreserveAspectRatio;
 class nsIFrame;
 class nsSVGLength2;
 class nsSVGElement;
@@ -60,9 +61,10 @@ class nsSVGPatternFrame : public nsSVGPatternFrameBase
 {
 public:
   friend nsIFrame* NS_NewSVGPatternFrame(nsIPresShell* aPresShell,
+                                         nsIContent*   aContent,
                                          nsStyleContext* aContext);
 
-  nsSVGPatternFrame(nsStyleContext* aContext);
+  nsSVGPatternFrame(nsStyleContext* aContext) : nsSVGPatternFrameBase(aContext) {}
 
   nsresult PaintPattern(gfxASurface **surface,
                         gfxMatrix *patternMatrix,
@@ -76,20 +78,14 @@ public:
 
 public:
   // nsSVGContainerFrame methods:
-  virtual gfxMatrix GetCanvasTM();
+  virtual already_AddRefed<nsIDOMSVGMatrix> GetCanvasTM();
 
   // nsIFrame interface:
-  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
+  NS_IMETHOD DidSetStyleContext();
 
   NS_IMETHOD AttributeChanged(PRInt32         aNameSpaceID,
                               nsIAtom*        aAttribute,
                               PRInt32         aModType);
-
-#ifdef DEBUG
-  NS_IMETHOD Init(nsIContent*      aContent,
-                  nsIFrame*        aParent,
-                  nsIFrame*        aPrevInFlow);
-#endif
 
   /**
    * Get the "type" of the frame
@@ -107,6 +103,9 @@ public:
 #endif // DEBUG
 
 protected:
+  nsSVGPatternFrame(nsStyleContext* aContext,
+                    nsIDOMSVGURIReference *aRef);
+
   // Internal methods for handling referenced patterns
   nsSVGPatternFrame* GetReferencedPattern();
   // Helper to look at our pattern and then along its reference chain (if any)
@@ -115,32 +114,33 @@ protected:
   nsSVGPatternElement* GetPatternWithAttr(nsIAtom *aAttrName, nsIContent *aDefault);
 
   //
-  const nsSVGLength2 *GetX();
-  const nsSVGLength2 *GetY();
-  const nsSVGLength2 *GetWidth();
-  const nsSVGLength2 *GetHeight();
+  nsSVGLength2 *GetX();
+  nsSVGLength2 *GetY();
+  nsSVGLength2 *GetWidth();
+  nsSVGLength2 *GetHeight();
 
   PRUint16 GetPatternUnits();
   PRUint16 GetPatternContentUnits();
   gfxMatrix GetPatternTransform();
 
-  const nsSVGViewBox &GetViewBox();
-  const nsSVGPreserveAspectRatio &GetPreserveAspectRatio();
-
+  NS_IMETHOD GetPreserveAspectRatio(nsIDOMSVGAnimatedPreserveAspectRatio
+                                                     **aPreserveAspectRatio);
   NS_IMETHOD GetPatternFirstChild(nsIFrame **kid);
-  gfxRect    GetPatternRect(const gfxRect &bbox,
+  NS_IMETHOD GetViewBox(nsIDOMSVGRect * *aMatrix);
+  nsresult   GetPatternRect(nsIDOMSVGRect **patternRect,
+                            nsIDOMSVGRect *bbox,
                             nsIDOMSVGMatrix *callerCTM,
                             nsSVGElement *content);
-  gfxMatrix  GetPatternMatrix(const gfxRect &bbox,
-                              const gfxRect &callerBBox,
+  gfxMatrix  GetPatternMatrix(nsIDOMSVGRect *bbox,
+                              nsIDOMSVGRect *callerBBox,
                               nsIDOMSVGMatrix *callerCTM);
   nsresult   ConstructCTM(nsIDOMSVGMatrix **ctm,
-                          const gfxRect &callerBBox,
+                          nsIDOMSVGRect *callerBBox,
                           nsIDOMSVGMatrix *callerCTM);
-  nsresult   GetTargetGeometry(nsIDOMSVGMatrix **aCTM,
-                               gfxRect *aBBox,
-                               nsSVGElement **aTargetContent,
-                               nsSVGGeometryFrame *aTarget);
+  nsresult   GetCallerGeometry(nsIDOMSVGMatrix **aCTM,
+                               nsIDOMSVGRect **aBBox,
+                               nsSVGElement **aContent,
+                               nsSVGGeometryFrame *aSource);
 
 private:
   // this is a *temporary* reference to the frame of the element currently
@@ -150,6 +150,7 @@ private:
   nsCOMPtr<nsIDOMSVGMatrix>         mCTM;
 
 protected:
+  nsCOMPtr<nsIDOMSVGAnimatedString> mHref;
   // This flag is used to detect loops in xlink:href processing
   PRPackedBool                      mLoopFlag;
   // This flag is used to detect loops when painting this pattern

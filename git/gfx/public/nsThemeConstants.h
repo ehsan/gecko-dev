@@ -10,6 +10,12 @@
 // A checkbox element. 
 #define NS_THEME_CHECKBOX                                  3
 
+// A small radio button, for HTML forms
+#define NS_THEME_RADIO_SMALL                               4
+
+// A small checkbox, for HTML forms
+#define NS_THEME_CHECKBOX_SMALL                            5
+
 // A rectangular button that contains complex content
 // like images (e.g. HTML <button> elements)
 #define NS_THEME_BUTTON_BEVEL                              7
@@ -99,6 +105,12 @@
 // A single pane (inside the tabpanels container)
 #define NS_THEME_TAB_PANEL                                 62
 
+// The tab just before the selection
+#define NS_THEME_TAB_LEFT_EDGE                             63
+
+// The tab just after the selection
+#define NS_THEME_TAB_RIGHT_EDGE                            64
+
 // The tab panels container.
 #define NS_THEME_TAB_PANELS                                65
 
@@ -149,9 +161,6 @@
 
 // A multiline text field
 #define NS_THEME_TEXTFIELD_MULTILINE                       97
-
-// A searchfield
-#define NS_THEME_SEARCHFIELD                               98
 
 // A dropdown list.
 #define NS_THEME_DROPDOWN                                  101

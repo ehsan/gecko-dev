@@ -127,7 +127,7 @@ nsCSSValue::nsCSSValue(nsCSSValue::Image* aValue)
 nsCSSValue::nsCSSValue(const nsCSSValue& aCopy)
   : mUnit(aCopy.mUnit)
 {
-  if (mUnit <= eCSSUnit_RectIsAuto) {
+  if (mUnit <= eCSSUnit_Dummy) {
     // nothing to do, but put this important case first
   }
   else if (eCSSUnit_Percent <= mUnit) {
@@ -172,7 +172,7 @@ nsCSSValue& nsCSSValue::operator=(const nsCSSValue& aCopy)
 PRBool nsCSSValue::operator==(const nsCSSValue& aOther) const
 {
   if (mUnit == aOther.mUnit) {
-    if (mUnit <= eCSSUnit_RectIsAuto) {
+    if (mUnit <= eCSSUnit_Dummy) {
       return PR_TRUE;
     }
     else if (UnitHasStringValue()) {
@@ -215,16 +215,28 @@ nscoord nsCSSValue::GetLengthTwips() const
     switch (mUnit) {
     case eCSSUnit_Inch:        
       return NS_INCHES_TO_TWIPS(mValue.mFloat);
+    case eCSSUnit_Foot:        
+      return NS_FEET_TO_TWIPS(mValue.mFloat);
+    case eCSSUnit_Mile:        
+      return NS_MILES_TO_TWIPS(mValue.mFloat);
 
     case eCSSUnit_Millimeter:
       return NS_MILLIMETERS_TO_TWIPS(mValue.mFloat);
     case eCSSUnit_Centimeter:
       return NS_CENTIMETERS_TO_TWIPS(mValue.mFloat);
+    case eCSSUnit_Meter:
+      return NS_METERS_TO_TWIPS(mValue.mFloat);
+    case eCSSUnit_Kilometer:
+      return NS_KILOMETERS_TO_TWIPS(mValue.mFloat);
 
     case eCSSUnit_Point:
       return NS_POINTS_TO_TWIPS(mValue.mFloat);
     case eCSSUnit_Pica:
       return NS_PICAS_TO_TWIPS(mValue.mFloat);
+    case eCSSUnit_Didot:
+      return NS_DIDOTS_TO_TWIPS(mValue.mFloat);
+    case eCSSUnit_Cicero:
+      return NS_CICEROS_TO_TWIPS(mValue.mFloat);
     default:
       NS_ERROR("should never get here");
       break;
@@ -368,18 +380,6 @@ void nsCSSValue::SetDummyValue()
   mUnit = eCSSUnit_Dummy;
 }
 
-void nsCSSValue::SetDummyInheritValue()
-{
-  Reset();
-  mUnit = eCSSUnit_DummyInherit;
-}
-
-void nsCSSValue::SetRectIsAutoValue()
-{
-  Reset();
-  mUnit = eCSSUnit_RectIsAuto;
-}
-
 void nsCSSValue::StartImageLoad(nsIDocument* aDocument) const
 {
   NS_PRECONDITION(eCSSUnit_URL == mUnit, "Not a URL value!");
@@ -393,19 +393,6 @@ void nsCSSValue::StartImageLoad(nsIDocument* aDocument) const
     nsCSSValue* writable = const_cast<nsCSSValue*>(this);
     writable->SetImageValue(image);
   }
-}
-
-PRBool nsCSSValue::IsNonTransparentColor() const
-{
-  // We have the value in the form it was specified in at this point, so we
-  // have to look for both the keyword 'transparent' and its equivalent in
-  // rgba notation.
-  nsDependentString buf;
-  return
-    (mUnit == eCSSUnit_Color && NS_GET_A(GetColorValue()) > 0) ||
-    (mUnit == eCSSUnit_Ident &&
-     !nsGkAtoms::transparent->Equals(GetStringValue(buf))) ||
-    (mUnit == eCSSUnit_EnumColor);
 }
 
 // static

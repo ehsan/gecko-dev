@@ -47,7 +47,7 @@
    variables in this file.  -dwh */
 
 #include <stdio.h>
-#include "nsQueryFrame.h"
+#include "nsISupports.h"
 #include "nsEvent.h"
 #include "nsStyleStruct.h"
 #include "nsStyleContext.h"
@@ -85,7 +85,6 @@ class nsIDOMRange;
 class nsISelectionController;
 class nsBoxLayoutState;
 class nsIBoxLayout;
-class nsILineIterator;
 #ifdef ACCESSIBILITY
 class nsIAccessible;
 #endif
@@ -106,10 +105,10 @@ struct nsMargin;
 typedef class nsIFrame nsIBox;
 
 // IID for the nsIFrame interface
-// 7b437d20-a34e-11dd-ad8b-0800200c9a66
+// 3459e7bb-2b22-4eb3-b60d-27d9f851b919
 #define NS_IFRAME_IID \
-  { 0x7b437d20, 0xa34e, 0x11dd, \
-    { 0xad, 0x8b, 0x08, 0x00, 0x20, 0x0c, 0x9a, 0x66 } }
+  { 0x3459e7bb, 0x2b22, 0x4eb3, \
+    { 0xb6, 0x0d, 0x27, 0xd9, 0xf8, 0x51, 0xb9, 0x19 } }
 
 /**
  * Indication of how the frame can be split. This is used when doing runaround
@@ -162,14 +161,9 @@ enum {
   // continuation, e.g. a bidi continuation.
   NS_FRAME_IS_FLUID_CONTINUATION =              0x00000004,
 
-/*
- * This bit is obsolete, replaced by HasOverflowRect().
- * The definition is left here as a placeholder for now, to remind us
- * that this bit is now free to allocate for other purposes.
- * // This bit is set when the frame's overflow rect is
- * // different from its border rect (i.e. GetOverflowRect() != GetRect())
- * NS_FRAME_OUTSIDE_CHILDREN =                   0x00000008,
- */
+  // This bit is set when the frame's overflow rect is
+  // different from its border rect (i.e. GetOverflowRect() != GetRect())
+  NS_FRAME_OUTSIDE_CHILDREN =                   0x00000008,
 
   // If this bit is set, then a reference to the frame is being held
   // elsewhere.  The frame may want to send a notification when it is
@@ -446,24 +440,6 @@ typedef PRBool nsDidReflowStatus;
 #define NS_FRAME_REFLOW_NOT_FINISHED PR_FALSE
 #define NS_FRAME_REFLOW_FINISHED     PR_TRUE
 
-/**
- * The overflow rect may be stored as four 1-byte deltas each strictly
- * LESS THAN 0xff, for the four edges of the rectangle, or the four bytes
- * may be read as a single 32-bit "overflow-rect type" value including
- * at least one 0xff byte as an indicator that the value does NOT
- * represent four deltas.
- * If all four deltas are zero, this means that no overflow rect has
- * actually been set (this is the initial state of newly-created frames).
- */
-#define NS_FRAME_OVERFLOW_DELTA_MAX     0xfe // max delta we can store
-
-#define NS_FRAME_OVERFLOW_NONE    0x00000000 // there is no overflow rect;
-                                             // code relies on this being
-                                             // the all-zero value
-
-#define NS_FRAME_OVERFLOW_LARGE   0x000000ff // overflow is stored as a
-                                             // separate rect property
-
 //----------------------------------------------------------------------
 
 /**
@@ -487,10 +463,10 @@ typedef PRBool nsDidReflowStatus;
  * If you're not in layout but you must call functions in here, at least
  * restrict yourself to calling virtual methods, which won't hurt you as badly.
  */
-class nsIFrame : public nsQueryFrame
+class nsIFrame : public nsISupports
 {
 public:
-  NS_DECLARE_FRAME_ACCESSOR(nsIFrame)
+  NS_DECLARE_STATIC_IID_ACCESSOR(NS_IFRAME_IID)
 
   nsPresContext* PresContext() const {
     return GetStyleContext()->GetRuleNode()->GetPresContext();
@@ -634,14 +610,13 @@ public:
   void SetStyleContext(nsStyleContext* aContext)
   { 
     if (aContext != mStyleContext) {
-      nsStyleContext* oldStyleContext = mStyleContext;
+      if (mStyleContext)
+        mStyleContext->Release();
       mStyleContext = aContext;
       if (aContext) {
         aContext->AddRef();
-        DidSetStyleContext(oldStyleContext);
+        DidSetStyleContext();
       }
-      if (oldStyleContext)
-        oldStyleContext->Release();
     }
   }
   
@@ -658,10 +633,7 @@ public:
   }
 
   // Style post processing hook
-  // Attention: the old style context is the one we're forgetting,
-  // and hence possibly completely bogus for GetStyle* purposes.
-  // Use PeekStyleData instead.
-  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext) = 0;
+  NS_IMETHOD DidSetStyleContext() = 0;
 
   /**
    * Get the style data associated with this frame.  This returns a
@@ -712,10 +684,6 @@ public:
   virtual void SetAdditionalStyleContext(PRInt32 aIndex,
                                          nsStyleContext* aStyleContext) = 0;
 
-  // returns GetStyleBorder()->mBoxShadow unless this frame is using
-  // -moz-appearance and is not chrome
-  nsCSSShadowArray* GetEffectiveBoxShadows();
-
   /**
    * Accessor functions for geometric parent
    */
@@ -723,7 +691,7 @@ public:
   NS_IMETHOD SetParent(const nsIFrame* aParent) { mParent = (nsIFrame*)aParent; return NS_OK; }
 
   /**
-   * Bounding rect of the frame. The values are in app units, and the origin is
+   * Bounding rect of the frame. The values are in twips, and the origin is
    * relative to the upper-left of the geometric parent. The size includes the
    * content area, borders, and padding.
    *
@@ -733,32 +701,9 @@ public:
   nsRect GetRect() const { return mRect; }
   nsPoint GetPosition() const { return nsPoint(mRect.x, mRect.y); }
   nsSize GetSize() const { return nsSize(mRect.width, mRect.height); }
-
-  /**
-   * When we change the size of the frame's border-box rect, we may need to
-   * reset the overflow rect if it was previously stored as deltas.
-   * (If it is currently a "large" overflow and could be re-packed as deltas,
-   * we don't bother as the cost of the allocation has already been paid.)
-   */
-  void SetRect(const nsRect& aRect) {
-    if (HasOverflowRect() && mOverflow.mType != NS_FRAME_OVERFLOW_LARGE) {
-      nsRect r = GetOverflowRect();
-      mRect = aRect;
-      SetOverflowRect(r);
-    } else {
-      mRect = aRect;
-    }
-  }
-  void SetSize(const nsSize& aSize) {
-    if (HasOverflowRect() && mOverflow.mType != NS_FRAME_OVERFLOW_LARGE) {
-      nsRect r = GetOverflowRect();
-      mRect.SizeTo(aSize);
-      SetOverflowRect(r);
-    } else {
-      mRect.SizeTo(aSize);
-    }
-  }
+  void SetRect(const nsRect& aRect) { mRect = aRect; }
   void SetPosition(const nsPoint& aPt) { mRect.MoveTo(aPt); }
+  void SetSize(const nsSize& aSize) { mRect.SizeTo(aSize); }
 
   /**
    * Return frame's computed offset due to relative positioning
@@ -817,7 +762,7 @@ public:
 
   /**
    * Like the frame's rect (see |GetRect|), which is the border rect,
-   * other rectangles of the frame, in app units, relative to the parent.
+   * other rectangles of the frame, in twips, relative to the parent.
    *
    * Note that GetMarginRect is not meaningful for blocks (anything with
    * 'display:block', whether block frame or not) because of both the
@@ -892,21 +837,15 @@ public:
                         const nsRect&               aDirtyRect,
                         const nsDisplayListSet&     aLists);
 
-  PRBool IsThemed(nsTransparencyMode* aTransparencyMode = nsnull) {
-    return IsThemed(GetStyleDisplay(), aTransparencyMode);
+  PRBool IsThemed() {
+    return IsThemed(GetStyleDisplay());
   }
-  PRBool IsThemed(const nsStyleDisplay* aDisp,
-                  nsTransparencyMode* aTransparencyMode = nsnull) {
+  PRBool IsThemed(const nsStyleDisplay* aDisp) {
     if (!aDisp->mAppearance)
       return PR_FALSE;
     nsPresContext* pc = PresContext();
     nsITheme *theme = pc->GetTheme();
-    if(!theme || !theme->ThemeSupportsWidget(pc, this, aDisp->mAppearance))
-      return PR_FALSE;
-    if (aTransparencyMode) {
-      *aTransparencyMode = theme->GetWidgetTransparency(aDisp->mAppearance);
-    }
-    return PR_TRUE;
+    return theme && theme->ThemeSupportsWidget(pc, this, aDisp->mAppearance);
   }
   
   /**
@@ -1223,7 +1162,6 @@ public:
   struct InlineIntrinsicWidthData {
     InlineIntrinsicWidthData()
       : line(nsnull)
-      , lineContainer(nsnull)
       , prevLines(0)
       , currentLine(0)
       , skipWhitespace(PR_TRUE)
@@ -1233,9 +1171,6 @@ public:
     // The line. This may be null if the inlines are not associated with
     // a block or if we just don't know the line.
     const nsLineList_iterator* line;
-
-    // The line container.
-    nsIFrame* lineContainer;
 
     // The maximum intrinsic width for all previous lines.
     nscoord prevLines;
@@ -1255,7 +1190,7 @@ public:
     nscoord trailingWhitespace;
 
     // Floats encountered in the lines.
-    nsTArray<nsIFrame*> floats;
+    nsVoidArray floats; // of nsIFrame*
   };
 
   struct InlineMinWidthData : public InlineIntrinsicWidthData {
@@ -1802,8 +1737,8 @@ public:
    * frame's outline, and descentant frames' outline, but does not include
    * areas clipped out by the CSS "overflow" and "clip" properties.
    *
-   * HasOverflowRect() (below) will return PR_TRUE when this overflow rect
-   * has been explicitly set, even if it matches mRect.
+   * The NS_FRAME_OUTSIDE_CHILDREN state bit is set when this overflow rect
+   * is different from nsRect(0, 0, GetRect().width, GetRect().height).
    * XXX Note: because of a space optimization using the formula above,
    * during reflow this function does not give accurate data if
    * FinishAndStoreOverflow has been called but mRect hasn't yet been
@@ -1822,7 +1757,7 @@ public:
    * frame's outline, and descentant frames' outline, but does not include
    * areas clipped out by the CSS "overflow" and "clip" properties.
    *
-   * HasOverflowRect() (below) will return PR_TRUE when this overflow rect
+   * The NS_FRAME_OUTSIDE_CHILDREN state bit is set when this overflow rect
    * is different from nsRect(0, 0, GetRect().width, GetRect().height).
    * XXX Note: because of a space optimization using the formula above,
    * during reflow this function does not give accurate data if
@@ -1846,7 +1781,7 @@ public:
   nsRect GetOverflowRectRelativeToSelf() const;
 
   /**
-   * Store the overflow area in the frame's mOverflow.mDeltas fields or
+   * Set/unset the NS_FRAME_OUTSIDE_CHILDREN flag and store the overflow area
    * as a frame property in the frame manager so that it can be retrieved
    * later without reflowing the frame.
    */
@@ -1854,22 +1789,6 @@ public:
 
   void FinishAndStoreOverflow(nsHTMLReflowMetrics* aMetrics) {
     FinishAndStoreOverflow(&aMetrics->mOverflowArea, nsSize(aMetrics->width, aMetrics->height));
-  }
-
-  /**
-   * Returns whether the frame has an overflow rect that is different from
-   * its border-box.
-   */
-  PRBool HasOverflowRect() const {
-    return mOverflow.mType != NS_FRAME_OVERFLOW_NONE;
-  }
-
-  /**
-   * Removes any stored overflow rect from the frame.
-   */
-  void ClearOverflowRect() {
-    DeleteProperty(nsGkAtoms::overflowAreaProperty);
-    mOverflow.mType = NS_FRAME_OVERFLOW_NONE;
   }
 
   /**
@@ -2299,15 +2218,7 @@ NS_PTR_TO_INT32(frame->GetProperty(nsGkAtoms::embeddingLevel))
    */
   void CheckInvalidateSizeChange(const nsRect& aOldRect,
                                  const nsRect& aOldOverflowRect,
-                                 const nsSize& aNewDesiredSize);
-
-  /**
-   * Get a line iterator for this frame, if supported.
-   *
-   * @return nsnull if no line iterator is supported.
-   * @note dispose the line iterator using nsILineIterator::DisposeLineIterator
-   */
-  virtual nsILineIterator* GetLineIterator() = 0;
+                                 nsHTMLReflowMetrics& aNewDesiredSize);
 
 protected:
   // Members
@@ -2317,25 +2228,6 @@ protected:
   nsIFrame*        mParent;
   nsIFrame*        mNextSibling;  // singly-linked list of frames
   nsFrameState     mState;
-
-  // When there is an overflow area only slightly larger than mRect,
-  // we store a set of four 1-byte deltas from the edges of mRect
-  // rather than allocating a whole separate rectangle property.
-  // Note that these are unsigned values, all measured "outwards"
-  // from the edges of mRect, so /mLeft/ and /mTop/ are reversed from
-  // our normal coordinate system.
-  // If mOverflow.mType == NS_FRAME_OVERFLOW_LARGE, then the
-  // delta values are not meaningful and the overflow area is stored
-  // as a separate rect property.
-  union {
-    PRUint32  mType;
-    struct {
-      PRUint8 mLeft;
-      PRUint8 mTop;
-      PRUint8 mRight;
-      PRUint8 mBottom;
-    } mDeltas;
-  } mOverflow;
   
   // Helpers
   /**
@@ -2348,8 +2240,7 @@ protected:
    * Gets the overflow area for any properties that are common to all types of frames
    * e.g. outlines.
    */
-  nsRect GetAdditionalOverflow(const nsRect& aOverflowArea, const nsSize& aNewSize,
-                               PRBool* aHasOutlineOrEffects);
+  nsRect GetAdditionalOverflow(const nsRect& aOverflowArea, const nsSize& aNewSize);
 
   /**
    * Can we stop inside this frame when we're skipping non-rendered whitespace?
@@ -2437,8 +2328,10 @@ protected:
    nsresult PeekOffsetParagraph(nsPeekOffsetStruct *aPos);
 
 private:
+  NS_IMETHOD_(nsrefcnt) AddRef(void) = 0;
+  NS_IMETHOD_(nsrefcnt) Release(void) = 0;
+
   nsRect* GetOverflowAreaProperty(PRBool aCreateIfNecessary = PR_FALSE);
-  void SetOverflowRect(const nsRect& aRect);
 };
 
 //----------------------------------------------------------------------
@@ -2511,5 +2404,8 @@ private:
   nsWeakFrame*  mPrev;
   nsIFrame*     mFrame;
 };
+
+
+NS_DEFINE_STATIC_IID_ACCESSOR(nsIFrame, NS_IFRAME_IID)
 
 #endif /* nsIFrame_h___ */

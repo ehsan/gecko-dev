@@ -93,7 +93,6 @@ CPPSRCS		= \
 		nsNetStrings.cpp \
 		nsBase64Encoder.cpp \
 		nsSerializationHelper.cpp \
-		nsDNSPrefetch.cpp \
 		$(NULL)
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),os2)
@@ -101,11 +100,9 @@ ifeq ($(MOZ_WIDGET_TOOLKIT),os2)
 else
 ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
 	CPPSRCS += nsURLHelperWin.cpp
-	CPPSRCS += nsNativeConnectionHelper.cpp
 ifneq ($(OS_ARCH), WINCE)
+	CPPSRCS += nsNativeConnectionHelper.cpp
 	CPPSRCS += nsAutodialWin.cpp
-else
-	CPPSRCS += nsAutodialWinCE.cpp
 endif
 else
 ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
@@ -118,10 +115,6 @@ endif
 
 EXTRA_COMPONENTS = \
 		$(srcdir)/nsProxyAutoConfig.js \
-		$(NULL)
-
-EXTRA_JS_MODULES = \
-		NetUtil.jsm \
 		$(NULL)
 
 # we don't want the shared lib, but we want to force the creation of a

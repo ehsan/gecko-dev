@@ -38,14 +38,13 @@
 #define __NS_SVGCLIPPATHFRAME_H__
 
 #include "nsSVGContainerFrame.h"
-#include "gfxMatrix.h"
 
 typedef nsSVGContainerFrame nsSVGClipPathFrameBase;
 
 class nsSVGClipPathFrame : public nsSVGClipPathFrameBase
 {
   friend nsIFrame*
-  NS_NewSVGClipPathFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
+  NS_NewSVGClipPathFrame(nsIPresShell* aPresShell, nsIContent* aContent, nsStyleContext* aContext);
 protected:
   nsSVGClipPathFrame(nsStyleContext* aContext) :
     nsSVGClipPathFrameBase(aContext),
@@ -66,12 +65,6 @@ public:
   // If so, the clipping API in cairo isn't enough and we need to use
   // mask based clipping.
   PRBool IsTrivial();
-
-#ifdef DEBUG
-  NS_IMETHOD Init(nsIContent*      aContent,
-                  nsIFrame*        aParent,
-                  nsIFrame*        aPrevInFlow);
-#endif
 
   /**
    * Get the "type" of the frame
@@ -113,7 +106,7 @@ public:
   PRPackedBool mInUse;
 
   // nsSVGContainerFrame methods:
-  virtual gfxMatrix GetCanvasTM();
+  virtual already_AddRefed<nsIDOMSVGMatrix> GetCanvasTM();
 };
 
 #endif

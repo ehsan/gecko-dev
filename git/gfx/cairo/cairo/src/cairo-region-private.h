@@ -37,12 +37,10 @@
 #ifndef CAIRO_REGION_PRIVATE_H
 #define CAIRO_REGION_PRIVATE_H
 
-#include "cairo-compiler-private.h"
-#include "cairo-types-private.h"
-
 #include <pixman.h>
 
-CAIRO_BEGIN_DECLS
+#include "cairo-compiler-private.h"
+#include "cairo-types-private.h"
 
 /* #cairo_region_t is defined in cairoint.h */
 
@@ -72,10 +70,14 @@ _cairo_region_copy (cairo_region_t *dst,
 cairo_private int
 _cairo_region_num_boxes (cairo_region_t *region);
 
+cairo_private cairo_int_status_t
+_cairo_region_get_boxes (cairo_region_t *region,
+			 int *num_boxes,
+			 cairo_box_int_t **boxes);
+
 cairo_private void
-_cairo_region_get_box (cairo_region_t *region,
-		       int nth_box,
-		       cairo_box_int_t *box);
+_cairo_region_boxes_fini (cairo_region_t *region,
+			  cairo_box_int_t *boxes);
 
 cairo_private void
 _cairo_region_get_extents (cairo_region_t *region,
@@ -104,10 +106,7 @@ _cairo_region_translate (cairo_region_t *region,
 			 int x, int y);
 
 cairo_private pixman_region_overlap_t
-_cairo_region_contains_rectangle (cairo_region_t *region,
-				  const cairo_rectangle_int_t *box);
+_cairo_region_contains_rectangle (cairo_region_t *region, cairo_rectangle_int_t *box);
 
-
-CAIRO_END_DECLS
 
 #endif /* CAIRO_REGION_PRIVATE_H */

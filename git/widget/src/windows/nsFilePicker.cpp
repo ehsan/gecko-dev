@@ -265,11 +265,8 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
         result = ::GetSaveFileNameW(&ofn);
         if (!result) {
           // Error, find out what kind.
-          if (::GetLastError() == ERROR_INVALID_PARAMETER 
-#ifndef WINCE
-              || ::CommDlgExtendedError() == FNERR_INVALIDFILENAME
-#endif
-              ) {
+          if (::GetLastError() == ERROR_INVALID_PARAMETER ||
+              ::CommDlgExtendedError() == FNERR_INVALIDFILENAME) {
             // probably the default file name is too long or contains illegal characters!
             // Try again, without a starting file name.
             ofn.lpstrFile[0] = 0;
@@ -297,6 +294,8 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
 
       // Set user-selected location of file or directory
       if (mMode == modeOpenMultiple) {
+        nsresult rv = NS_NewISupportsArray(getter_AddRefs(mFiles));
+        NS_ENSURE_SUCCESS(rv,rv);
         
         // from msdn.microsoft.com, "Open and Save As Dialog Boxes" section:
         // If you specify OFN_EXPLORER,
@@ -312,7 +311,6 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
         if (current[dirName.Length() - 1] != '\\')
           dirName.Append((PRUnichar)'\\');
         
-        nsresult rv;
         while (current && *current && *(current + nsCRT::strlen(current) + 1)) {
           current = current + nsCRT::strlen(current) + 1;
           
@@ -322,7 +320,7 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
           rv = file->InitWithPath(dirName + nsDependentString(current));
           NS_ENSURE_SUCCESS(rv,rv);
           
-          rv = mFiles.AppendObject(file);
+          rv = mFiles->AppendElement(file);
           NS_ENSURE_SUCCESS(rv,rv);
         }
         
@@ -338,7 +336,7 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
           rv = file->InitWithPath(nsDependentString(current));
           NS_ENSURE_SUCCESS(rv,rv);
           
-          rv = mFiles.AppendObject(file);
+          rv = mFiles->AppendElement(file);
           NS_ENSURE_SUCCESS(rv,rv);
         }
       }
@@ -459,13 +457,13 @@ NS_IMETHODIMP nsFilePicker::SetDefaultString(const nsAString& aString)
     nameIndex ++;
   nameLength = mDefault.Length() - nameIndex;
   
-  if (nameLength > MAX_PATH) {
+  if (nameLength > _MAX_FNAME) {
     PRInt32 extIndex = mDefault.RFind(".");
     if (extIndex == kNotFound)
       extIndex = mDefault.Length();
 
     //Let's try to shave the needed characters from the name part
-    PRInt32 charsToRemove = nameLength - MAX_PATH;
+    PRInt32 charsToRemove = nameLength - _MAX_FNAME;
     if (extIndex - nameIndex >= charsToRemove) {
       mDefault.Cut(extIndex - charsToRemove, charsToRemove);
     }

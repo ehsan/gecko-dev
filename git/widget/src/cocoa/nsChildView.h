@@ -20,7 +20,6 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Thomas K. Dyas <tdyas@zecador.org>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -54,6 +53,7 @@
 #include "nsIScrollableView.h"
 #include "nsWeakPtr.h"
 
+#include "nsIWidget.h"
 #include "nsIAppShell.h"
 
 #include "nsIEventListener.h"
@@ -128,6 +128,9 @@ enum {
   // the link back to it must be weak.
   nsChildView* mGeckoChild;
     
+  // tag for our mouse enter/exit tracking rect
+  NSTrackingRectTag mMouseEnterExitTag;
+
   // Whether we're a plugin view.
   BOOL mIsPluginView;
 
@@ -163,8 +166,6 @@ enum {
   // All views are always opaque (non-transparent). The only exception is when we're
   // the content view in a transparent XUL window.
   BOOL mIsTransparent;
-  PRIntervalTime mLastShadowInvalidation;
-  BOOL mNeedsShadowInvalidation;
 
   // Holds our drag service across multiple drag calls. The reference to the
   // service is obtained when the mouse enters the view and is released when
@@ -173,37 +174,13 @@ enum {
   // when handling |draggingUpdated:| messages.
   nsIDragService* mDragService;
   
+  PRUint32 mLastModifierState;
+
   // For use with plugins, so that we can support IME in them.  We can't use
   // Cocoa TSM documents (those created and managed by the NSTSMInputContext
   // class) -- for some reason TSMProcessRawKeyEvent() doesn't work with them.
   TSMDocumentID mPluginTSMDoc;
-
-  // Simple gestures support
-  //
-  // mGestureState is used to detect when Cocoa has called both
-  // magnifyWithEvent and rotateWithEvent within the same
-  // beginGestureWithEvent and endGestureWithEvent sequence. We
-  // discard the spurious gesture event so as not to confuse Gecko.
-  //
-  // mCumulativeMagnification keeps track of the total amount of
-  // magnification peformed during a magnify gesture so that we can
-  // send that value with the final MozMagnifyGesture event.
-  //
-  // mCumulativeRotation keeps track of the total amount of rotation
-  // performed during a rotate gesture so we can send that value with
-  // the final MozRotateGesture event.
-  enum {
-    eGestureState_None,
-    eGestureState_StartGesture,
-    eGestureState_MagnifyGesture,
-    eGestureState_RotateGesture
-  } mGestureState;
-  float mCumulativeMagnification;
-  float mCumulativeRotation;
 }
-
-// class initialization
-+ (void)initialize;
 
 // these are sent to the first responder when the window key status changes
 - (void)viewsWindowDidBecomeKey;
@@ -217,22 +194,6 @@ enum {
 - (void)sendFocusEvent:(PRUint32)eventType;
 
 - (void) processPluginKeyEvent:(EventRef)aKeyEvent;
-
-// Simple gestures support
-//
-// XXX - The swipeWithEvent, beginGestureWithEvent, magnifyWithEvent,
-// rotateWithEvent, and endGestureWithEvent methods are part of a
-// PRIVATE interface exported by nsResponder and reverse-engineering
-// was necessary to obtain the methods' prototypes. Thus, Apple may
-// change the interface in the future without notice.
-//
-// The prototypes were obtained from the following link:
-// http://cocoadex.com/2008/02/nsevent-modifications-swipe-ro.html
-- (void)swipeWithEvent:(NSEvent *)anEvent;
-- (void)beginGestureWithEvent:(NSEvent *)anEvent;
-- (void)magnifyWithEvent:(NSEvent *)anEvent;
-- (void)rotateWithEvent:(NSEvent *)anEvent;
-- (void)endGestureWithEvent:(NSEvent *)anEvent;
 @end
 
 
@@ -298,14 +259,14 @@ public:
 
   // nsIWidget interface
   NS_IMETHOD              Create(nsIWidget *aParent,
-                                 const nsIntRect &aRect,
+                                 const nsRect &aRect,
                                  EVENT_CALLBACK aHandleEventFunction,
                                  nsIDeviceContext *aContext,
                                  nsIAppShell *aAppShell = nsnull,
                                  nsIToolkit *aToolkit = nsnull,
                                  nsWidgetInitData *aInitData = nsnull);
   NS_IMETHOD              Create(nsNativeWidget aNativeParent,
-                                 const nsIntRect &aRect,
+                                 const nsRect &aRect,
                                  EVENT_CALLBACK aHandleEventFunction,
                                  nsIDeviceContext *aContext,
                                  nsIAppShell *aAppShell = nsnull,
@@ -316,7 +277,7 @@ public:
    // Create(nsNativeWidget...)
 
   virtual nsresult        StandardCreate(nsIWidget *aParent,
-                              const nsIntRect &aRect,
+                              const nsRect &aRect,
                               EVENT_CALLBACK aHandleEventFunction,
                               nsIDeviceContext *aContext,
                               nsIAppShell *aAppShell,
@@ -329,8 +290,10 @@ public:
   NS_IMETHOD              Show(PRBool aState);
   NS_IMETHOD              IsVisible(PRBool& outState);
 
-  NS_IMETHOD              SetParent(nsIWidget* aNewParent);
   virtual nsIWidget*      GetParent(void);
+
+  NS_IMETHOD              ModalEventFilter(PRBool aRealEvent, void *aEvent,
+                                           PRBool *aForWindow);
 
   NS_IMETHOD              ConstrainPosition(PRBool aAllowSlop,
                                             PRInt32 *aX, PRInt32 *aY);
@@ -341,16 +304,19 @@ public:
   NS_IMETHOD              Enable(PRBool aState);
   NS_IMETHOD              IsEnabled(PRBool *aState);
   NS_IMETHOD              SetFocus(PRBool aRaise);
-  NS_IMETHOD              SetBounds(const nsIntRect &aRect);
-  NS_IMETHOD              GetBounds(nsIntRect &aRect);
+  NS_IMETHOD              SetBounds(const nsRect &aRect);
+  NS_IMETHOD              GetBounds(nsRect &aRect);
 
   NS_IMETHOD              Invalidate(PRBool aIsSynchronous);
-  NS_IMETHOD              Invalidate(const nsIntRect &aRect, PRBool aIsSynchronous);
+  NS_IMETHOD              Invalidate(const nsRect &aRect,PRBool aIsSynchronous);
+  NS_IMETHOD              InvalidateRegion(const nsIRegion *aRegion, PRBool aIsSynchronous);
   NS_IMETHOD              Validate();
 
   virtual void*           GetNativeData(PRUint32 aDataType);
-  NS_IMETHOD              Scroll(PRInt32 aDx, PRInt32 aDy, nsIntRect *aClipRect);
-  virtual nsIntPoint      WidgetToScreenOffset();
+  NS_IMETHOD              SetColorMap(nsColorMap *aColorMap);
+  NS_IMETHOD              Scroll(PRInt32 aDx, PRInt32 aDy, nsRect *aClipRect);
+  NS_IMETHOD              WidgetToScreen(const nsRect& aOldRect, nsRect& aNewRect);
+  NS_IMETHOD              ScreenToWidget(const nsRect& aOldRect, nsRect& aNewRect);
   NS_IMETHOD              BeginResizingChildren(void);
   NS_IMETHOD              EndResizingChildren(void);
   virtual PRBool          ShowsResizeIndicator(nsIntRect* aResizerRect);
@@ -361,6 +327,17 @@ public:
 
   NS_IMETHOD              Update();
 
+  virtual void      ConvertToDeviceCoordinates(nscoord &aX, nscoord &aY);
+  void              LocalToWindowCoordinate(nsPoint& aPoint)            { ConvertToDeviceCoordinates(aPoint.x, aPoint.y); }
+  void              LocalToWindowCoordinate(nscoord& aX, nscoord& aY)   { ConvertToDeviceCoordinates(aX, aY); }
+  void              LocalToWindowCoordinate(nsRect& aRect)              { ConvertToDeviceCoordinates(aRect.x, aRect.y); }
+
+  NS_IMETHOD        SetMenuBar(void* aMenuBar);
+  NS_IMETHOD        ShowMenuBar(PRBool aShow);
+
+  NS_IMETHOD        GetPreferredSize(PRInt32& aWidth, PRInt32& aHeight);
+  NS_IMETHOD        SetPreferredSize(PRInt32 aWidth, PRInt32 aHeight);
+  
   NS_IMETHOD        SetCursor(nsCursor aCursor);
   NS_IMETHOD        SetCursor(imgIContainer* aCursor, PRUint32 aHotspotX, PRUint32 aHotspotY);
   
@@ -369,10 +346,8 @@ public:
 
   NS_IMETHOD        GetAttention(PRInt32 aCycleCount);
 
-  virtual PRBool HasPendingInputEvent();
-
   NS_IMETHOD        ActivateNativeMenuItemAt(const nsAString& indexString);
-  NS_IMETHOD        ForceUpdateNativeMenuAt(const nsAString& indexString);
+  NS_IMETHOD        ForceNativeMenuReload();
 
   NS_IMETHOD        ResetInputState();
   NS_IMETHOD        SetIMEOpenState(PRBool aState);
@@ -384,16 +359,16 @@ public:
                                        PRBool* aLEDState);
 
   // nsIPluginWidget
-  NS_IMETHOD        GetPluginClipRect(nsIntRect& outClipRect, nsIntPoint& outOrigin, PRBool& outWidgetVisible);
+  NS_IMETHOD        GetPluginClipRect(nsRect& outClipRect, nsPoint& outOrigin, PRBool& outWidgetVisible);
   NS_IMETHOD        StartDrawPlugin();
   NS_IMETHOD        EndDrawPlugin();
   NS_IMETHOD        SetPluginInstanceOwner(nsIPluginInstanceOwner* aInstanceOwner);
   
   virtual nsTransparencyMode GetTransparencyMode();
   virtual void                SetTransparencyMode(nsTransparencyMode aMode);
-  NS_IMETHOD        SetWindowShadowStyle(PRInt32 aStyle);
   
   // Mac specific methods
+  virtual PRBool    PointInWidget(Point aThePoint);
   
   virtual PRBool    DispatchWindowEvent(nsGUIEvent& event);
   
@@ -411,16 +386,13 @@ public:
 
   void              HidePlugin();
 
-  void              ResetParent();
-
-  static PRBool DoHasPendingInputEvent();
-  static PRUint32 GetCurrentInputEventCount();
-  static void UpdateCurrentInputEventCount();
 protected:
 
   PRBool            ReportDestroyEvent();
   PRBool            ReportMoveEvent();
   PRBool            ReportSizeEvent();
+
+  NS_IMETHOD        CalcOffset(PRInt32 &aX,PRInt32 &aY);
 
   virtual PRBool    OnPaint(nsPaintEvent & aEvent);
 
@@ -453,14 +425,14 @@ protected:
   PRPackedBool          mVisible;
   PRPackedBool          mDrawing;
   PRPackedBool          mLiveResizeInProgress;
-  PRPackedBool          mIsPluginView;
+  PRPackedBool          mIsPluginView; // true if this is a plugin view
   PRPackedBool          mPluginDrawing;
   PRPackedBool          mPluginIsCG; // true if this is a CoreGraphics plugin
 
+  PRPackedBool          mInSetFocus;
+
   nsPluginPort          mPluginPort;
   nsIPluginInstanceOwner* mPluginInstanceOwner; // [WEAK]
-
-  static PRUint32 sLastInputEventCount;
 };
 
 void NS_InstallPluginKeyEventsHandler();

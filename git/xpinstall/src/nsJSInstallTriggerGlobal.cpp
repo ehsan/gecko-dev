@@ -78,7 +78,7 @@ void ConvertJSValToStr(nsString&  aString,
   }
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 FinalizeInstallTriggerGlobal(JSContext *cx, JSObject *obj);
 
 /***********************************************************************/
@@ -119,6 +119,36 @@ FinalizeInstallTriggerGlobal(JSContext *cx, JSObject *obj)
     // The addref was part of JSObject construction
     NS_RELEASE(nativeThis);
   }
+}
+
+static JSBool CreateNativeObject(JSContext *cx, JSObject *obj, nsIDOMInstallTriggerGlobal **aResult)
+{
+    nsresult result;
+    nsIScriptObjectOwner *owner = nsnull;
+    nsIDOMInstallTriggerGlobal *nativeThis;
+
+    static NS_DEFINE_CID(kInstallTrigger_CID,
+                         NS_SoftwareUpdateInstallTrigger_CID);
+
+    result = CallCreateInstance(kInstallTrigger_CID, &nativeThis);
+    if (NS_FAILED(result)) return JS_FALSE;
+
+    result = nativeThis->QueryInterface(NS_GET_IID(nsIScriptObjectOwner),
+                                        (void **)&owner);
+
+    if (NS_OK != result)
+    {
+        NS_RELEASE(nativeThis);
+        return JS_FALSE;
+    }
+
+    owner->SetScriptObject((void *)obj);
+    JS_SetPrivate(cx, obj, nativeThis);
+
+    *aResult = nativeThis;
+
+    NS_RELEASE(nativeThis);  // we only want one refcnt. JSUtils cleans us up.
+    return JS_TRUE;
 }
 
 //
@@ -163,7 +193,12 @@ static nsIDOMInstallTriggerGlobal* getTriggerNative(JSContext *cx, JSObject *obj
   if (!JS_InstanceOf(cx, obj, &InstallTriggerGlobalClass, nsnull))
     return nsnull;
 
-  return (nsIDOMInstallTriggerGlobal*)JS_GetPrivate(cx, obj);
+  nsIDOMInstallTriggerGlobal *native = (nsIDOMInstallTriggerGlobal*)JS_GetPrivate(cx, obj);
+  if (!native) {
+    // xpinstall script contexts delay creation of the native.
+    CreateNativeObject(cx, obj, &native);
+  }
+  return native;
 }
 
 //

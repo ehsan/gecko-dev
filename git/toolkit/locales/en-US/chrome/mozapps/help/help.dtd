@@ -22,8 +22,9 @@
 <!ENTITY printButton.tooltip            "Print this page">
 <!ENTITY closeWindow.commandkey         "W">
 
-<!ENTITY search.emptytext               "Search">
-<!ENTITY searchHeader.label             "Search results">
+<!ENTITY searchtab.label                "Search">
+<!ENTITY searchtab.accesskey            "S">
+<!ENTITY searchClose.tooltip            "Close search results">
 <!ENTITY toctab.label                   "Contents">
 <!ENTITY toctab.accesskey               "C">
 

@@ -50,7 +50,7 @@
 #include "nsICSSStyleSheet.h"
 #include "nsIDOMCSSStyleSheet.h"
 #include "nsICSSLoaderObserver.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "nsCOMArray.h"
 
 class nsIURI;
@@ -67,31 +67,28 @@ public:
   nsCSSStyleSheetInner(nsICSSStyleSheet* aPrimarySheet);
   nsCSSStyleSheetInner(nsCSSStyleSheetInner& aCopy,
                        nsCSSStyleSheet* aPrimarySheet);
-  ~nsCSSStyleSheetInner();
+  virtual ~nsCSSStyleSheetInner();
 
-  nsCSSStyleSheetInner* CloneFor(nsCSSStyleSheet* aPrimarySheet);
-  void AddSheet(nsICSSStyleSheet* aSheet);
-  void RemoveSheet(nsICSSStyleSheet* aSheet);
+  virtual nsCSSStyleSheetInner* CloneFor(nsCSSStyleSheet* aPrimarySheet);
+  virtual void AddSheet(nsICSSStyleSheet* aSheet);
+  virtual void RemoveSheet(nsICSSStyleSheet* aSheet);
 
-  void RebuildNameSpaces();
+  virtual void RebuildNameSpaces();
 
-  // Create a new namespace map
-  nsresult CreateNamespaceMap();
-
-  nsAutoTArray<nsICSSStyleSheet*, 8> mSheets;
+  nsAutoVoidArray        mSheets;
   nsCOMPtr<nsIURI>       mSheetURI; // for error reports, etc.
   nsCOMPtr<nsIURI>       mOriginalSheetURI;  // for GetHref.  Can be null.
   nsCOMPtr<nsIURI>       mBaseURI; // for resolving relative URIs
   nsCOMPtr<nsIPrincipal> mPrincipal;
   nsCOMArray<nsICSSRule> mOrderedRules;
   nsAutoPtr<nsXMLNameSpaceMap> mNameSpaceMap;
+  PRBool                 mComplete;
   // Linked list of child sheets.  This is al fundamentally broken, because
   // each of the child sheets has a unique parent... We can only hope (and
   // currently this is the case) that any time page JS can get ts hands on a
   // child sheet that means we've already ensured unique inners throughout its
   // parent chain and things are good.
   nsRefPtr<nsCSSStyleSheet> mFirstChild;
-  PRBool                 mComplete;
 
 #ifdef DEBUG
   PRBool                 mPrincipalSet;
@@ -104,6 +101,7 @@ public:
 //
 
 class CSSRuleListImpl;
+static PRBool CascadeSheetRulesInto(nsICSSStyleSheet* aSheet, void* aData);
 struct ChildSheetListBuilder;
 
 class nsCSSStyleSheet : public nsICSSStyleSheet, 
@@ -133,6 +131,8 @@ public:
 #endif
   
   // nsICSSStyleSheet interface
+  NS_IMETHOD ContainsStyleSheet(nsIURI* aURL, PRBool& aContains,
+                                nsIStyleSheet** aTheChild=nsnull);
   NS_IMETHOD AppendStyleSheet(nsICSSStyleSheet* aSheet);
   NS_IMETHOD InsertStyleSheetAt(nsICSSStyleSheet* aSheet, PRInt32 aIndex);
   NS_IMETHOD PrependStyleRule(nsICSSRule* aRule);
@@ -165,8 +165,7 @@ public:
   NS_IMETHOD AddRuleProcessor(nsCSSRuleProcessor* aProcessor);
   NS_IMETHOD DropRuleProcessor(nsCSSRuleProcessor* aProcessor);
   NS_IMETHOD InsertRuleInternal(const nsAString& aRule,
-                                PRUint32 aIndex, PRUint32* aReturn);
-  NS_IMETHOD_(nsIURI*) GetOriginalURI() const;
+                                PRUint32 aIndex, PRUint32* aReturn);  
 
   // nsICSSLoaderObserver interface
   NS_IMETHOD StyleSheetLoaded(nsICSSStyleSheet* aSheet, PRBool aWasAlternate,
@@ -182,10 +181,6 @@ public:
 
   // nsIDOMCSSStyleSheet interface
   NS_DECL_NSIDOMCSSSTYLESHEET
-
-  // Function used as a callback to rebuild our inner's child sheet
-  // list after we clone a unique inner for ourselves.
-  static PRBool RebuildChildList(nsICSSRule* aRule, void* aBuilder);
 
 private:
   nsCSSStyleSheet(const nsCSSStyleSheet& aCopy,
@@ -211,9 +206,6 @@ protected:
   // UniversalBrowserWrite.
   nsresult SubjectSubsumesInnerPrincipal() const;
 
-  // Add the namespace mapping from this @namespace rule to our namespace map
-  nsresult RegisterNamespaceRule(nsICSSRule* aRule);
-
 protected:
   nsString              mTitle;
   nsCOMPtr<nsMediaList> mMedia;
@@ -229,10 +221,10 @@ protected:
 
   nsCSSStyleSheetInner* mInner;
 
-  nsAutoTArray<nsCSSRuleProcessor*, 8>* mRuleProcessors;
+  nsAutoVoidArray*      mRuleProcessors;
 
   friend class nsMediaList;
-  friend class nsCSSRuleProcessor;
+  friend PRBool CascadeSheetRulesInto(nsICSSStyleSheet* aSheet, void* aData);
   friend nsresult NS_NewCSSStyleSheet(nsICSSStyleSheet** aInstancePtrResult);
   friend struct ChildSheetListBuilder;
 };

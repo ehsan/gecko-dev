@@ -219,7 +219,8 @@ NS_IMETHODIMP nsMIMEInfoOS2::LaunchWithFile(nsIFile *aFile)
     if (NS_FAILED(rv = process->Init(application)))
       return rv;
     const char *strPath = filePath.get();
-    return process->Run(PR_FALSE, &strPath, 1);
+    PRUint32 pid;
+    return process->Run(PR_FALSE, &strPath, 1, &pid);
   }
 
   return rv;
@@ -543,7 +544,8 @@ nsresult nsMIMEInfoOS2::LoadUriInternal(nsIURI *aURL)
   if (NS_FAILED(rv = process->Init(application)))
      return rv;
 
-  if (NS_FAILED(rv = process->Run(PR_FALSE, params, numParams)))
+  PRUint32 pid;
+  if (NS_FAILED(rv = process->Run(PR_FALSE, params, numParams, &pid)))
     return rv;
 
   return NS_OK;

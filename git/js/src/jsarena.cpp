@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -42,10 +42,10 @@
  * "Fast Allocation and Deallocation of Memory Based on Object Lifetimes"
  * David R. Hanson, Software -- Practice and Experience, Vol. 20(1).
  */
+#include "jsstddef.h"
 #include <stdlib.h>
 #include <string.h>
 #include "jstypes.h"
-#include "jsstdint.h"
 #include "jsbit.h"
 #include "jsarena.h" /* Added by JSIFY */
 #include "jsutil.h" /* Added by JSIFY */

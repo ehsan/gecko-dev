@@ -35,7 +35,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #ifdef DEBUG
-static const char CVS_ID[] = "@(#) $RCSfile: devutil.c,v $ $Revision: 1.33 $ $Date: 2008/11/19 20:44:35 $";
+static const char CVS_ID[] = "@(#) $RCSfile: devutil.c,v $ $Revision: 1.31 $ $Date: 2008/05/18 01:51:45 $";
 #endif /* DEBUG */
 
 #ifndef DEVM_H
@@ -148,7 +148,9 @@ nssSlotArray_Clone (
     if (count > 0) {
 	rvSlots = nss_ZNEWARRAY(NULL, NSSSlot *, count + 1);
 	if (rvSlots) {
-	    for (sp = slots, count = 0; *sp; sp++) {
+	    sp = slots;
+	    count = 0;
+	    for (sp = slots; *sp; sp++) {
 		rvSlots[count++] = nssSlot_AddRef(*sp);
 	    }
 	}
@@ -374,7 +376,7 @@ create_object (
 )
 {
     PRUint32 j;
-    NSSArena *arena = NULL;
+    NSSArena *arena;
     NSSSlot *slot = NULL;
     nssSession *session = NULL;
     nssCryptokiObjectAndAttributes *rvCachedObject = NULL;
@@ -385,10 +387,7 @@ create_object (
         goto loser;
     }
     session = nssToken_GetDefaultSession(object->token);
-    if (!session) {
-        nss_SetError(NSS_ERROR_INVALID_POINTER);
-        goto loser;
-    }
+
     arena = nssArena_Create();
     if (!arena) {
 	goto loser;

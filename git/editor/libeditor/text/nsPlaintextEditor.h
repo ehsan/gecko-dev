@@ -49,7 +49,6 @@
 #include "nsIDOMEventListener.h"
 
 #include "nsEditRules.h"
-#include "nsCycleCollectionParticipant.h"
  
 class nsITransferable;
 class nsIDocumentEncoder;
@@ -69,7 +68,6 @@ public:
 // NOTE macro used is for classes that inherit from 
 // another class. Only the base class should use NS_DECL_ISUPPORTS
   NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsPlaintextEditor, nsEditor)
 
   /* below used by TypedText() */
   enum {
@@ -165,14 +163,6 @@ public:
                         nsIDOMNode *aDestinationNode,
                         PRInt32 aDestOffset,
                         PRBool aDoDeleteSelection);
-
-  /**
-   * Extends the selection for given deletion operation
-   * If done, also update aAction to what's actually left to do after the
-   * extension.
-   */
-  nsresult ExtendSelectionForDelete(nsISelection* aSelection,
-                                    nsIEditor::EDirection *aAction);
 
 protected:
 

@@ -100,16 +100,8 @@ public:
 #endif  
 
   // nsContainerFrame methods
-
-  /**
-   * Delete aNextInFlow and its next-in-flows.
-   * @param aDeletingEmptyFrames if set, then the reflow for aNextInFlow's
-   * content was complete before aNextInFlow, so aNextInFlow and its
-   * next-in-flows no longer map any real content.
-   */
   virtual void DeleteNextInFlowChild(nsPresContext* aPresContext,
-                                     nsIFrame*      aNextInFlow,
-                                     PRBool         aDeletingEmptyFrames);
+                                     nsIFrame*       aNextInFlow);
 
   static PRInt32 LengthOf(nsIFrame* aFrameList) {
     nsFrameList tmp(aFrameList);

@@ -46,6 +46,7 @@
 #include "nsIDOMAttr.h"
 #include "nsIDOMText.h"
 #include "nsIDOMNodeList.h"
+#include "nsGenericDOMNodeList.h"
 #include "nsString.h"
 #include "nsCOMPtr.h"
 #include "nsINodeInfo.h"
@@ -54,7 +55,6 @@
 #include "nsDOMAttributeMap.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsContentUtils.h"
-#include "nsIDOMXPathNSResolver.h"
 
 class nsDOMAttribute;
 
@@ -62,8 +62,7 @@ class nsDOMAttribute;
 // object that implements nsIDOMAttr, nsIDOM3Attr, nsIDOMNode, nsIDOM3Node
 class nsDOMAttribute : public nsIAttribute,
                        public nsIDOMAttr,
-                       public nsIDOM3Attr,
-                       public nsIDOMXPathNSResolver
+                       public nsIDOM3Attr
 {
 public:
   nsDOMAttribute(nsDOMAttributeMap* aAttrMap, nsINodeInfo *aNodeInfo,
@@ -93,7 +92,7 @@ public:
   virtual PRBool IsNodeOfType(PRUint32 aFlags) const;
   virtual PRUint32 GetChildCount() const;
   virtual nsIContent *GetChildAt(PRUint32 aIndex) const;
-  virtual nsIContent * const * GetChildArray(PRUint32* aChildCount) const;
+  virtual nsIContent * const * GetChildArray() const;
   virtual PRInt32 IndexOf(nsINode* aPossibleChild) const;
   virtual nsresult InsertChildAt(nsIContent* aKid, PRUint32 aIndex,
                                  PRBool aNotify);
@@ -104,15 +103,16 @@ public:
   virtual nsresult DispatchDOMEvent(nsEvent* aEvent, nsIDOMEvent* aDOMEvent,
                                     nsPresContext* aPresContext,
                                     nsEventStatus* aEventStatus);
-  virtual nsIEventListenerManager* GetListenerManager(PRBool aCreateIfNotFound);
+  virtual nsresult GetListenerManager(PRBool aCreateIfNotFound,
+                                      nsIEventListenerManager** aResult);
   virtual nsresult AddEventListenerByIID(nsIDOMEventListener *aListener,
                                          const nsIID& aIID);
   virtual nsresult RemoveEventListenerByIID(nsIDOMEventListener *aListener,
                                             const nsIID& aIID);
   virtual nsresult GetSystemEventGroup(nsIDOMEventGroup** aGroup);
-  virtual nsIScriptContext* GetContextForEventHandlers(nsresult* aRv)
+  virtual nsresult GetContextForEventHandlers(nsIScriptContext** aContext)
   {
-    return nsContentUtils::GetContextForEventHandlers(this, aRv);
+    return nsContentUtils::GetContextForEventHandlers(this, aContext);
   }
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
@@ -126,14 +126,6 @@ protected:
 
 private:
   nsresult EnsureChildState(PRBool aSetText, PRBool &aHasChild) const;
-
-  PRUint32 GetChildCount(PRBool aSetText) const
-  {
-    PRBool hasChild;
-    EnsureChildState(aSetText, hasChild);
-
-    return hasChild ? 1 : 0;
-  }
 
   nsString mValue;
   // XXX For now, there's only a single child - a text element

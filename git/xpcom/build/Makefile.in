@@ -55,6 +55,13 @@ endif
 
 LIBXUL_LIBRARY = 1
 
+PACKAGE_FILE = xpcom.pkg
+PACKAGE_VARS += USE_SHORT_LIBNAME
+
+ifdef ENABLE_TESTS
+PACKAGE_FILE += xpcom-tests.pkg
+endif
+
 # This is only a static library in libxul builds
 ifdef MOZ_ENABLE_LIBXUL
 EXPORT_LIBRARY = 1
@@ -65,6 +72,11 @@ MOZILLA_INTERNAL_API = 1
 
 REQUIRES	= string \
 		  $(NULL)
+
+# pull in MoreFiles for MacOSX
+ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
+REQUIRES += macmorefiles
+endif
 
 ifdef NS_TRACE_MALLOC
 REQUIRES += tracemalloc
@@ -131,20 +143,14 @@ LOCAL_INCLUDES	= \
 		-I$(srcdir)/../reflect/xptinfo/src \
 		$(NULL)
 
-EXPORTS_NAMESPACES = mozilla
-
 SDK_HEADERS =  \
-  nsXPCOM.h       \
-  nsXPCOMCID.h    \
-  $(NULL)
+		nsXPCOM.h       \
+		nsXPCOMCID.h    \
+		$(NULL)
 
 EXPORTS	= \
-  nsXPCOMCIDInternal.h \
-  $(NULL)
-
-EXPORTS_mozilla = \
-  XPCOM.h \
-  $(NULL)
+		nsXPCOMCIDInternal.h \
+		$(NULL)
 
 # Force use of PIC
 FORCE_USE_PIC	= 1 
@@ -176,9 +182,10 @@ ifdef TARGET_XPCOM_ABI
 DEFINES += -DTARGET_XPCOM_ABI=\"$(TARGET_XPCOM_ABI)\"
 endif
 
-ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
 CXXFLAGS	+= $(TK_CFLAGS)
 EXTRA_DSO_LDOPTS += \
+  ../MoreFiles/$(LIB_PREFIX)macmorefiles_s.$(LIB_SUFFIX) \
   $(TK_LIBS) \
   $(NULL)
 endif
@@ -197,10 +204,6 @@ ifneq (,$(MOZ_DEBUG)$(NS_TRACE_MALLOC))
 EXTRA_DSO_LDOPTS += $(call EXPAND_LIBNAME,imagehlp)
 endif
 endif # WINNT
-
-ifeq ($(OS_ARCH),WINCE)
-EXTRA_DSO_LDOPTS += $(call EXPAND_LIBNAME,ole32)
-endif # WINCE
 
 export:: $(XPCOM_GLUE_SRC_CSRCS) $(XPCOM_GLUE_SRC_CPPSRCS) $(XPCOM_GLUENS_SRC_CPPSRCS)
 	$(INSTALL) $^ .

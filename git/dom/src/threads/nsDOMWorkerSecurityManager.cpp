@@ -89,16 +89,14 @@ NS_IMETHODIMP
 nsDOMWorkerSecurityManager::CanCreateInstance(JSContext* aJSContext,
                                               const nsCID& aCID)
 {
-  NS_NOTREACHED("Should not call this!");
-  return NS_ERROR_UNEXPECTED;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDOMWorkerSecurityManager::CanGetService(JSContext* aJSContext,
                                           const nsCID& aCID)
 {
-  NS_NOTREACHED("Should not call this!");
-  return NS_ERROR_UNEXPECTED;
+  return NS_OK;
 }
 
 NS_IMETHODIMP

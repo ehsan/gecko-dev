@@ -56,7 +56,6 @@
 #include "nsIControllers.h"
 #include "nsIDOMWindowInternal.h"
 #include "nsIFocusController.h"
-#include "nsFocusManager.h"
 #include "nsPIWindowRoot.h"
 #include "nsIURI.h"
 #include "nsNetUtil.h"
@@ -66,6 +65,7 @@
 #include "nsIDOMNSDocument.h"
 #include "nsPIWindowRoot.h"
 #include "nsPIDOMWindow.h"
+#include "nsIFocusController.h"
 #include "nsIDocShell.h"
 #include "nsIPresShell.h"
 #include "nsIPrivateDOMEvent.h"
@@ -374,20 +374,19 @@ nsXBLWindowKeyHandler::WalkHandlers(nsIDOMKeyEvent* aKeyEvent, nsIAtom* aEventTy
       }
     }
 
-    PRBool handled = PR_FALSE;
+    PRBool handled;
     if (aEventType == nsGkAtoms::keypress) {
-      if (nsContentUtils::DOMEventToNativeKeyEvent(aKeyEvent, &nativeEvent, PR_TRUE))
-        handled = sNativeEditorBindings->KeyPress(nativeEvent,
-                                                  DoCommandCallback, controllers);
+      nsContentUtils::DOMEventToNativeKeyEvent(aKeyEvent, &nativeEvent, PR_TRUE);
+      handled = sNativeEditorBindings->KeyPress(nativeEvent,
+                                                DoCommandCallback, controllers);
     } else if (aEventType == nsGkAtoms::keyup) {
-      if (nsContentUtils::DOMEventToNativeKeyEvent(aKeyEvent, &nativeEvent, PR_FALSE))
-        handled = sNativeEditorBindings->KeyUp(nativeEvent,
-                                               DoCommandCallback, controllers);
+      nsContentUtils::DOMEventToNativeKeyEvent(aKeyEvent, &nativeEvent, PR_FALSE);
+      handled = sNativeEditorBindings->KeyUp(nativeEvent,
+                                             DoCommandCallback, controllers);
     } else {
-      NS_ASSERTION(aEventType == nsGkAtoms::keydown, "unknown key event type");
-      if (nsContentUtils::DOMEventToNativeKeyEvent(aKeyEvent, &nativeEvent, PR_FALSE))
-        handled = sNativeEditorBindings->KeyDown(nativeEvent,
-                                                 DoCommandCallback, controllers);
+      nsContentUtils::DOMEventToNativeKeyEvent(aKeyEvent, &nativeEvent, PR_FALSE);
+      handled = sNativeEditorBindings->KeyDown(nativeEvent,
+                                               DoCommandCallback, controllers);
     }
 
     if (handled)
@@ -449,18 +448,20 @@ nsXBLWindowKeyHandler::ShutDown()
 PRBool
 nsXBLWindowKeyHandler::IsEditor()
 {
-  // XXXndeakin even though this is only used for key events which should be
-  // going to the focused frame anyway, this doesn't seem like the right way
-  // to determine if something is an editor.
-  nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-  if (!fm)
+  nsCOMPtr<nsPIWindowRoot> windowRoot(do_QueryInterface(mTarget));
+  NS_ENSURE_TRUE(windowRoot, PR_FALSE);
+  nsCOMPtr<nsIFocusController> focusController;
+  windowRoot->GetFocusController(getter_AddRefs(focusController));
+  if (!focusController) {
+    NS_WARNING("********* Something went wrong! No focus controller on the root!!!\n");
     return PR_FALSE;
+  }
 
-  nsCOMPtr<nsIDOMWindow> focusedWindow;
-  fm->GetFocusedWindow(getter_AddRefs(focusedWindow));
+  nsCOMPtr<nsIDOMWindowInternal> focusedWindow;
+  focusController->GetFocusedWindow(getter_AddRefs(focusedWindow));
   if (!focusedWindow)
     return PR_FALSE;
-
+  
   nsCOMPtr<nsPIDOMWindow> piwin(do_QueryInterface(focusedWindow));
   nsIDocShell *docShell = piwin->GetDocShell();
   nsCOMPtr<nsIPresShell> presShell;
@@ -518,7 +519,8 @@ nsXBLWindowKeyHandler::WalkHandlersAndExecute(nsIDOMKeyEvent* aKeyEvent,
   // Try all of the handlers until we find one that matches the event.
   for (nsXBLPrototypeHandler *currHandler = aHandler; currHandler;
        currHandler = currHandler->GetNextHandler()) {
-    PRBool stopped = privateEvent->IsDispatchStopped();
+    PRBool stopped;
+    privateEvent->IsDispatchStopped(&stopped);
     if (stopped) {
       // The event is finished, don't execute any more handlers
       return NS_OK;

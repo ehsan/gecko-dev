@@ -42,8 +42,6 @@
  * for shared application glue for the Communicator suite of applications
  **/
 
-var TAB_DROP_TYPE = "application/x-moz-tabbrowser-tab";
-
 var gBidiUI = false;
 
 function getBrowserURL()
@@ -93,17 +91,24 @@ function getBoolPref ( prefname, def )
 
 // Change focus for this browser window to |aElement|, without focusing the
 // window itself.
-function focusElement(aElement)
-{
-  // if a content window, focus the <browser> instead as window.focus()
-  // raises the window
-  if (aElement instanceof Window) {
-    var browser = getBrowserFromContentWindow(aElement);
-    if (browser)
-      browser.focus();
-  }
-  else {
+function focusElement(aElement) {
+  // This is a redo of the fix for jag bug 91884
+  var ww = Components.classes["@mozilla.org/embedcomp/window-watcher;1"]
+                     .getService(Components.interfaces.nsIWindowWatcher);
+  if (window == ww.activeWindow)
     aElement.focus();
+  else {
+    // set the element in command dispatcher so focus will restore properly
+    // when the window does become active
+    var cmdDispatcher = document.commandDispatcher;
+    if (aElement instanceof Window) {
+      cmdDispatcher.focusedWindow = aElement;
+      cmdDispatcher.focusedElement = null;
+    }
+    else if (aElement instanceof Element) {
+      cmdDispatcher.focusedWindow = aElement.ownerDocument.defaultView;
+      cmdDispatcher.focusedElement = aElement;
+    }
   }
 }
 
@@ -242,25 +247,16 @@ function openUILinkIn( url, where, allowThirdPartyFixup, postData, referrerUrl )
     loadInBackground = !loadInBackground;
     // fall through
   case "tab":
-    let browser = w.getBrowser();
+    var browser = w.getBrowser();
     browser.loadOneTab(url, referrerUrl, null, postData, loadInBackground,
                        allowThirdPartyFixup || false);
     break;
   }
 
-  // If this window is active, focus the target window. Otherwise, focus the
-  // content but don't raise the window, since the URI we just loaded may have
+  // Call focusElement(w.content) instead of w.content.focus() to make sure
+  // that we don't raise the old window, since the URI we just loaded may have
   // resulted in a new frontmost window (e.g. "javascript:window.open('');").
-  var fm = Components.classes["@mozilla.org/focus-manager;1"].
-             getService(Components.interfaces.nsIFocusManager);
-  if (window == fm.activeWindow) {
-    w.content.focus();
-  }
-  else {
-    let browser = w.getBrowserFromContentWindow(w.content);
-    if (browser)
-      browser.focus();
-  }
+  focusElement(w.content);
 }
 
 // Used as an onclick handler for UI elements with link-like behavior.
@@ -356,12 +352,6 @@ function getShellService()
 }
 
 function isBidiEnabled() {
-  // first check the pref.
-  if (getBoolPref("bidi.browser.ui", false))
-    return true;
-
-  // if the pref isn't set, check for an RTL locale and force the pref to true
-  // if we find one.
   var rv = false;
 
   try {
@@ -376,11 +366,12 @@ function isBidiEnabled() {
       case "ur-":
       case "syr":
         rv = true;
-        var pref = Components.classes["@mozilla.org/preferences-service;1"]
-                             .getService(Components.interfaces.nsIPrefBranch);
-        pref.setBoolPref("bidi.browser.ui", true);
     }
   } catch (e) {}
+
+  // check the overriding pref
+  if (!rv)
+    rv = getBoolPref("bidi.browser.ui");
 
   return rv;
 }
@@ -438,17 +429,20 @@ function openAdvancedPreferences(tabID)
 
 /**
  * Opens the release notes page for this version of the application.
+ * @param   event
+ *          The DOM Event that caused this function to be called, used to
+ *          determine where the release notes page should be displayed based
+ *          on modifiers (e.g. Ctrl = new tab)
  */
-function openReleaseNotes()
+function openReleaseNotes(event)
 {
   var formatter = Components.classes["@mozilla.org/toolkit/URLFormatterService;1"]
                             .getService(Components.interfaces.nsIURLFormatter);
   var relnotesURL = formatter.formatURLPref("app.releaseNotesURL");
   
-  openUILinkIn(relnotesURL, "tab");
+  openUILink(relnotesURL, event, false, true);
 }
-
-#ifdef MOZ_UPDATER
+  
 /**
  * Opens the update manager and checks for updates to the application.
  */
@@ -469,7 +463,6 @@ function checkForUpdates()
   else
     prompter.checkForUpdates();
 }
-#endif
 
 function buildHelpMenu()
 {
@@ -478,7 +471,6 @@ function buildHelpMenu()
   if (typeof safebrowsing != "undefined")
     safebrowsing.setReportPhishingMenu();
 
-#ifdef MOZ_UPDATER
   var updates = 
       Components.classes["@mozilla.org/updates/update-service;1"].
       getService(Components.interfaces.nsIApplicationUpdateService);
@@ -523,15 +515,10 @@ function buildHelpMenu()
     }
   }
   checkForUpdates.label = getStringWithUpdateName("updatesItem_" + key);
-  checkForUpdates.accessKey = strings.getString("updatesItem_" + key + ".accesskey");
   if (um.activeUpdate && updates.isDownloading)
     checkForUpdates.setAttribute("loading", "true");
   else
     checkForUpdates.removeAttribute("loading");
-#else
-  // Needed by safebrowsing for inserting its menuitem so just hide it
-  document.getElementById("updateSeparator").hidden = true;
-#endif
 }
 
 function isElementVisible(aElement)

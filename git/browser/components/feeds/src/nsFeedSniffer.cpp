@@ -161,14 +161,17 @@ HasAttachmentDisposition(nsIHttpChannel* httpChannel)
       // XXXbz this code is duplicated in GetFilenameAndExtensionFromChannel in
       // nsExternalHelperAppService.  Factor it out!
       if (NS_FAILED(rv) || 
-          (!dispToken.IsEmpty() &&
+          (// Some broken sites just send
+           // Content-Disposition: ; filename="file"
+           // screen those out here.
+           !dispToken.IsEmpty() &&
            !StringBeginsWithLowercaseLiteral(dispToken, "inline") &&
            // Broken sites just send
            // Content-Disposition: filename="file"
            // without a disposition token... screen those out.
-           !StringBeginsWithLowercaseLiteral(dispToken, "filename") &&
-           // Also in use is Content-Disposition: name="file"
-           !StringBeginsWithLowercaseLiteral(dispToken, "name")))
+           !StringBeginsWithLowercaseLiteral(dispToken, "filename")) &&
+          // Also in use is Content-Disposition: name="file"
+          !StringBeginsWithLowercaseLiteral(dispToken, "name"))
         // We have a content-disposition of "attachment" or unknown
         return PR_TRUE;
     }

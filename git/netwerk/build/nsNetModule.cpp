@@ -59,15 +59,11 @@
 #include "nsDiskCacheDeviceSQL.h"
 #include "nsMimeTypes.h"
 #include "nsNetStrings.h"
-#include "nsDNSPrefetch.h"
-#include "nsAboutProtocolHandler.h"
 
 #include "nsNetCID.h"
 
 #if defined(XP_MACOSX)
-#if !defined(__LP64__)
 #define BUILD_APPLEFILE_DECODER 1
-#endif
 #else
 #define BUILD_BINHEX_DECODER 1
 #endif
@@ -173,15 +169,6 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsStreamListenerTee)
 NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsCookieService, nsCookieService::GetSingleton)
 #endif
 
-
-///////////////////////////////////////////////////////////////////////////////
-#ifdef NECKO_WIFI
-
-#include "nsWifiMonitor.h"
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsWifiMonitor)
-
-#endif
-
 ///////////////////////////////////////////////////////////////////////////////
 // protocols
 ///////////////////////////////////////////////////////////////////////////////
@@ -191,7 +178,6 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsWifiMonitor)
 #include "nsAboutBlank.h"
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsAboutProtocolHandler)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsSafeAboutProtocolHandler)
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsNestedAboutURI)
 
 #ifdef NECKO_PROTOCOL_about
 // about
@@ -283,7 +269,7 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsSimpleNestedURI)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsIDNService, Init)
 
 ///////////////////////////////////////////////////////////////////////////////
-#if defined(XP_WIN)
+#if defined(XP_WIN) && !defined(WINCE)
 #include "nsNotifyAddrListener.h"
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsNotifyAddrListener, Init)
 #elif defined(MOZ_WIDGET_COCOA)
@@ -612,7 +598,7 @@ CreateNewNSTXTToHTMLConvFactory(nsISupports *aOuter, REFNSIID aIID, void **aResu
 // Module implementation for the net library
 
 // Net module startup hook
-static nsresult nsNetStartup(nsIModule *neckoModule)
+PR_STATIC_CALLBACK(nsresult) nsNetStartup(nsIModule *neckoModule)
 {
     gNetStrings = new nsNetStrings();
     return gNetStrings ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
@@ -620,7 +606,7 @@ static nsresult nsNetStartup(nsIModule *neckoModule)
 
 
 // Net module shutdown hook
-static void nsNetShutdown(nsIModule *neckoModule)
+static void PR_CALLBACK nsNetShutdown(nsIModule *neckoModule)
 {
     // Release the url parser that the stdurl is holding.
     nsStandardURL::ShutdownGlobalObjects();
@@ -633,13 +619,10 @@ static void nsNetShutdown(nsIModule *neckoModule)
 #ifdef XP_MACOSX
     net_ShutdownURLHelperOSX();
 #endif
-    
+
     // Release necko strings
     delete gNetStrings;
     gNetStrings = nsnull;
-    
-    // Release DNS service reference.
-    nsDNSPrefetch::Shutdown();
 }
 
 static const nsModuleComponentInfo gNetModuleInfo[] = {
@@ -1027,10 +1010,6 @@ static const nsModuleComponentInfo gNetModuleInfo[] = {
       NS_ABOUT_MODULE_CONTRACTID_PREFIX "blank", 
       nsAboutBlank::Create
     },
-    { "Nested about: URI",
-      NS_NESTEDABOUTURI_CID,
-      nsnull,
-      nsNestedAboutURIConstructor },
 #ifdef NECKO_PROTOCOL_about
 #ifdef NS_BUILD_REFCNT_LOGGING
     { "about:bloat", 
@@ -1102,15 +1081,6 @@ static const nsModuleComponentInfo gNetModuleInfo[] = {
     },
 #endif
 
-#ifdef NECKO_WIFI
-    {
-      NS_WIFI_MONITOR_CLASSNAME,
-      NS_WIFI_MONITOR_COMPONENT_CID,
-      NS_WIFI_MONITOR_CONTRACTID,
-      nsWifiMonitorConstructor
-    },
-#endif
-
 #ifdef NECKO_PROTOCOL_gopher
     //gopher:
     { "The Gopher Protocol Handler", 
@@ -1137,7 +1107,7 @@ static const nsModuleComponentInfo gNetModuleInfo[] = {
     },
 #endif
 
-#if defined(XP_WIN)
+#if defined(XP_WIN) && !defined(WINCE)
     { NS_NETWORK_LINK_SERVICE_CLASSNAME,
       NS_NETWORK_LINK_SERVICE_CID,
       NS_NETWORK_LINK_SERVICE_CONTRACTID,

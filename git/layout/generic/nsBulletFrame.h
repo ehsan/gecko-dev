@@ -62,7 +62,7 @@ public:
                               const nsRect&           aDirtyRect,
                               const nsDisplayListSet& aLists);
   virtual nsIAtom* GetType() const;
-  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
+  NS_IMETHOD DidSetStyleContext();
 #ifdef NS_DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
@@ -82,13 +82,13 @@ public:
   NS_IMETHOD OnStartContainer(imgIRequest *aRequest, imgIContainer *aImage);
   NS_IMETHOD OnDataAvailable(imgIRequest *aRequest,
                              gfxIImageFrame *aFrame,
-                             const nsIntRect *aRect);
+                             const nsRect * rect);
   NS_IMETHOD OnStopDecode(imgIRequest *aRequest,
                           nsresult aStatus,
                           const PRUnichar *aStatusArg);
   NS_IMETHOD FrameChanged(imgIContainer *aContainer,
                           gfxIImageFrame *aNewframe,
-                          nsIntRect *aDirtyRect);
+                          nsRect *aDirtyRect);
 
   /* get list item text, without '.' */
   static PRBool AppendCounterText(PRInt32 aListStyleType,
@@ -112,13 +112,13 @@ protected:
 
   void GetLoadGroup(nsPresContext *aPresContext, nsILoadGroup **aLoadGroup);
 
+  PRInt32 mOrdinal;
   nsMargin mPadding;
   nsCOMPtr<imgIRequest> mImageRequest;
   nsCOMPtr<imgIDecoderObserver> mListener;
 
   nsSize mIntrinsicSize;
   nsSize mComputedSize;
-  PRInt32 mOrdinal;
   PRBool mTextIsRTL;
 };
 

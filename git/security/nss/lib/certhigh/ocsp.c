@@ -39,7 +39,7 @@
  * Implementation of OCSP services, for both client and server.
  * (XXX, really, mostly just for client right now, but intended to do both.)
  *
- * $Id: ocsp.c,v 1.58 2009/03/21 01:40:35 nelson%bolyard.com Exp $
+ * $Id: ocsp.c,v 1.54 2008/07/08 21:34:32 alexei.volkov.bugs%sun.com Exp $
  */
 
 #include "prerror.h"
@@ -120,7 +120,6 @@ static struct OCSPGlobalStruct {
     PRUint32 timeoutSeconds;
     OCSPCacheData cache;
     SEC_OcspFailureMode ocspFailureMode;
-    CERT_StringFromCertFcn alternateOCSPAIAFcn;
 } OCSP_Global = { NULL, 
                   NULL, 
                   DEFAULT_OCSP_CACHE_SIZE, 
@@ -128,11 +127,8 @@ static struct OCSPGlobalStruct {
                   DEFAULT_MAXIMUM_SECONDS_TO_NEXT_OCSP_FETCH_ATTEMPT,
                   DEFAULT_OSCP_TIMEOUT_SECONDS,
                   {NULL, 0, NULL, NULL},
-                  ocspMode_FailureIsVerificationFailure,
-                  NULL
+                  ocspMode_FailureIsVerificationFailure
                 };
-
-
 
 /* Forward declarations */
 static SECItem *
@@ -209,14 +205,14 @@ static void
 ocsp_dumpStringWithTime(const char *str, int64 time)
 {
     PRExplodedTime timePrintable;
-    char timestr[256];
+    char timestr[100];
 
     if (!wantOcspTrace())
         return;
     PR_ExplodeTime(time, PR_GMTParameters, &timePrintable);
-    if (PR_FormatTime(timestr, 256, "%a %b %d %H:%M:%S %Y", &timePrintable)) {
-        ocsp_Trace("OCSP %s %s\n", str, timestr);
-    }
+    PR_FormatTime(timestr, 100, "%a %b %d %H:%M:%S %Y", 
+                  &timePrintable);
+    ocsp_Trace("OCSP %s %s\n", str, timestr);
 }
 
 static void
@@ -249,18 +245,16 @@ dumpCertificate(CERTCertificate *cert)
     {
         int64 timeBefore, timeAfter;
         PRExplodedTime beforePrintable, afterPrintable;
-        char beforestr[256], afterstr[256];
-        PRStatus rv1, rv2;
+        char beforestr[100], afterstr[100];
         DER_DecodeTimeChoice(&timeBefore, &cert->validity.notBefore);
         DER_DecodeTimeChoice(&timeAfter, &cert->validity.notAfter);
         PR_ExplodeTime(timeBefore, PR_GMTParameters, &beforePrintable);
         PR_ExplodeTime(timeAfter, PR_GMTParameters, &afterPrintable);
-        rv1 = PR_FormatTime(beforestr, 256, "%a %b %d %H:%M:%S %Y", 
+        PR_FormatTime(beforestr, 100, "%a %b %d %H:%M:%S %Y", 
                       &beforePrintable);
-        rv2 = PR_FormatTime(afterstr, 256, "%a %b %d %H:%M:%S %Y", 
+        PR_FormatTime(afterstr, 100, "%a %b %d %H:%M:%S %Y", 
                       &afterPrintable);
-        ocsp_Trace("OCSP ## VALIDITY:  %s to %s\n", rv1 ? beforestr : "",
-                   rv2 ? afterstr : "");
+        ocsp_Trace("OCSP ## VALIDITY:  %s to %s\n", beforestr, afterstr);
     }
     ocsp_Trace("OCSP ## ISSUER:  %s\n", cert->issuerName);
     printHexString("OCSP ## SERIAL NUMBER:", &cert->serialNumber);
@@ -289,27 +283,6 @@ SEC_RegisterDefaultHttpClient(const SEC_HttpClientFcn *fcnTable)
     OCSP_Global.defaultHttpClientFcn = fcnTable;
     PR_ExitMonitor(OCSP_Global.monitor);
     
-    return SECSuccess;
-}
-
-SECStatus
-CERT_RegisterAlternateOCSPAIAInfoCallBack(
-			CERT_StringFromCertFcn   newCallback,
-			CERT_StringFromCertFcn * oldCallback)
-{
-    CERT_StringFromCertFcn old;
-
-    if (!OCSP_Global.monitor) {
-      PORT_SetError(SEC_ERROR_LIBRARY_FAILURE);
-      return SECFailure;
-    }
-
-    PR_EnterMonitor(OCSP_Global.monitor);
-    old = OCSP_Global.alternateOCSPAIAFcn;
-    OCSP_Global.alternateOCSPAIAFcn = newCallback;
-    PR_ExitMonitor(OCSP_Global.monitor);
-    if (oldCallback)
-    	*oldCallback = old;
     return SECSuccess;
 }
 
@@ -3880,7 +3853,7 @@ CERT_VerifyOCSPResponseSignature(CERTOCSPResponse *response,
     } else {
         SECCertUsage certUsage;
         if (CERT_IsCACert(signerCert, NULL)) {
-            certUsage = certUsageAnyCA;
+            certUsage = certUsageVerifyCA;
         } else {
             certUsage = certUsageStatusResponder;
         }
@@ -4498,8 +4471,7 @@ loser:
 
 /*
  * Figure out where we should go to find out the status of the given cert
- * via OCSP.  If allowed to use a default responder uri and a default
- * responder is set up, then that is our answer.
+ * via OCSP.  If a default responder is set up, that is our answer.
  * If not, see if the certificate has an Authority Information Access (AIA)
  * extension for OCSP, and return the value of that.  Otherwise return NULL.
  * We also let our caller know whether or not the responder chosen was
@@ -4511,14 +4483,11 @@ loser:
  */
 char *
 ocsp_GetResponderLocation(CERTCertDBHandle *handle, CERTCertificate *cert,
-			  PRBool canUseDefault, PRBool *isDefault)
+			  PRBool *isDefault)
 {
-    ocspCheckingContext *ocspcx = NULL;
-    char *ocspUrl = NULL;
+    ocspCheckingContext *ocspcx;
 
-    if (canUseDefault) {
-        ocspcx = ocsp_GetCheckingContext(handle);
-    }
+    ocspcx = ocsp_GetCheckingContext(handle);
     if (ocspcx != NULL && ocspcx->useDefaultResponder) {
 	/*
 	 * A default responder wins out, if specified.
@@ -4536,20 +4505,7 @@ ocsp_GetResponderLocation(CERTCertDBHandle *handle, CERTCertificate *cert,
      * extension that has a value for OCSP, and get the url from that.
      */
     *isDefault = PR_FALSE;
-    ocspUrl = CERT_GetOCSPAuthorityInfoAccessLocation(cert);
-    if (!ocspUrl) {
-	CERT_StringFromCertFcn altFcn;
-
-	PR_EnterMonitor(OCSP_Global.monitor);
-	altFcn = OCSP_Global.alternateOCSPAIAFcn;
-	PR_ExitMonitor(OCSP_Global.monitor);
-	if (altFcn) {
-	    ocspUrl = (*altFcn)(cert);
-	    if (ocspUrl)
-		*isDefault = PR_TRUE;
-    	}
-    }
-    return ocspUrl;
+    return CERT_GetOCSPAuthorityInfoAccessLocation(cert);
 }
 
 /*
@@ -4666,18 +4622,6 @@ ocsp_GetCachedOCSPResponseStatusIfFresh(CERTOCSPCertID *certID,
     return rv;
 }
 
-PRBool
-ocsp_FetchingFailureIsVerificationFailure()
-{
-    PRBool isFailure;
-
-    PR_EnterMonitor(OCSP_Global.monitor);
-    isFailure =
-        OCSP_Global.ocspFailureMode == ocspMode_FailureIsVerificationFailure;
-    PR_ExitMonitor(OCSP_Global.monitor);
-    return isFailure;
-}
-
 /*
  * FUNCTION: CERT_CheckOCSPStatus
  *   Checks the status of a certificate via OCSP.  Will only check status for
@@ -4755,10 +4699,12 @@ CERT_CheckOCSPStatus(CERTCertDBHandle *handle, CERTCertificate *cert,
                                        &certIDWasConsumed, 
                                        &rvOcsp);
     if (rv != SECSuccess) {
-        /* we were unable to obtain ocsp status. Check if we should
-         * return cert status revoked. */
-        rvOcsp = ocsp_FetchingFailureIsVerificationFailure() ?
-            SECFailure : SECSuccess;
+        /* we were unable to obtain ocsp status */
+        PR_EnterMonitor(OCSP_Global.monitor);
+        rvOcsp = (OCSP_Global.ocspFailureMode 
+                  == ocspMode_FailureIsVerificationFailure)
+            ? SECFailure : SECSuccess;
+        PR_ExitMonitor(OCSP_Global.monitor);
     }
     if (!certIDWasConsumed) {
         CERT_DestroyOCSPCertID(certID);
@@ -4807,8 +4753,7 @@ ocsp_GetOCSPStatusFromNetwork(CERTCertDBHandle *handle,
      * a true failure that we unfortunately have to treat as an overall
      * failure here.
      */
-    location = ocsp_GetResponderLocation(handle, cert, PR_TRUE,
-                                         &locationIsDefault);
+    location = ocsp_GetResponderLocation(handle, cert, &locationIsDefault);
     if (location == NULL) {
        int err = PORT_GetError();
        if (err == SEC_ERROR_EXTENSION_NOT_FOUND ||

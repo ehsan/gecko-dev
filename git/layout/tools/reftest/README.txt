@@ -74,48 +74,21 @@ must be one of the following:
                          particular platform (i.e. it allows us to get test
                          coverage on the other platforms).
 
-      asserts(count)
-          Loading the test and reference is known to assert exactly
-          count times.
-          NOTE: An asserts() notation with a non-zero count or maxCount
-          suppresses use of a cached canvas for the test with the
-          annotation.  However, if later occurrences of the same test
-          are not annotated, they will use the cached canvas
-          (potentially from the load that asserted).  This allows
-          repeated use of the same test or reference to be annotated
-          correctly (which may be particularly useful when the uses are
-          in different subdirectories that can be tested independently),
-          but does not force them to be, nor does it force suppression
-          of caching for a common reference when it is the test that
-          asserts.
-
-      asserts(minCount-maxCount)
-          Loading the test and reference is known to assert between
-          minCount and maxCount times, inclusive.
-          NOTE: See above regarding canvas caching.
-
-      asserts-if(condition,count)
-      asserts-if(condition,minCount-maxCount)
-          Same as above, but only if condition is true.
-
       Examples of using conditions:
           fails-if(MOZ_WIDGET_TOOLKIT=="windows") ...
           fails-if(MOZ_WIDGET_TOOLKIT=="cocoa") ...
           fails-if(MOZ_WIDGET_TOOLKIT=="gtk2") ...
 
-   b. <http>, if present, is one of the strings (sans quotes) "HTTP" or
-      "HTTP(..)" or "HTTP(../..)" or "HTTP(../../..)", etc. , indicating that
+   b. <http>, if present, is the string "HTTP" (sans quotes), indicating that
       the test should be run over an HTTP server because it requires certain
       HTTP headers or a particular HTTP status.  (Don't use this if your test
       doesn't require this functionality, because it unnecessarily slows down
       the test.)
 
-      With "HTTP", HTTP tests have the restriction that any resource an HTTP
-      test accesses must be accessed using a relative URL, and the test and
-      the resource must be within the directory containing the reftest
-      manifest that describes the test (or within a descendant directory).
-      The variants "HTTP(..)", etc., can be used to relax this restriction by
-      allowing resources in the parent directory, etc.
+      HTTP tests have the restriction that any resource an HTTP test accesses
+      must be accessed using a relative URL, and the test and the resource must
+      be within the directory containing the reftest manifest that describes
+      the test (or within a descendant directory).
 
       To modify the HTTP status or headers of a resource named FOO, create a
       sibling file named FOO^headers^ with the following contents:
@@ -290,27 +263,6 @@ Note that in layout tests it is often enough to trigger layout using
 
 When possible, you should use this technique instead of making your
 test async.
-
-Invalidation Tests
-==================
-
-When a test (or reference) uses reftest-wait, reftest tracks invalidation
-via MozAfterPaint and updates the test image in the same way that
-a regular window would be repainted. Therefore it is possible to test
-invalidation-related bugs by setting up initial content and then
-dynamically modifying it before removing reftest-wait. However, it is
-important to get the timing of these dynamic modifications right so that
-the test doesn't accidentally pass because a full repaint of the window
-was already pending. To help with this, reftest fires one MozReftestInvalidate
-event at the document root element for a reftest-wait test when it is safe to
-make changes that should test invalidation. The event bubbles up to the
-document and window so you can set listeners there too. For example,
-
-function doTest() {
-  document.body.style.border = "";
-  document.documentElement.removeAttribute('class');
-}
-document.addEventListener("MozReftestInvalidate", doTest, false);
 
 Printing Tests
 ==============

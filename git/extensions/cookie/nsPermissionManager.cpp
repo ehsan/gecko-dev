@@ -43,8 +43,6 @@
 #include "nsNetUtil.h"
 #include "nsCOMArray.h"
 #include "nsArrayEnumerator.h"
-#include "nsTArray.h"
-#include "nsReadableUtils.h"
 #include "nsILineInputStream.h"
 #include "nsIIDNService.h"
 #include "nsAppDirectoryServiceDefs.h"
@@ -125,7 +123,7 @@ nsPermissionManager::Init()
   // ignore failure here, since it's non-fatal (we can run fine without
   // persistent storage - e.g. if there's no profile).
   // XXX should we tell the user about this?
-  InitDB(PR_FALSE);
+  InitDB();
 
   mObserverService = do_GetService("@mozilla.org/observer-service;1", &rv);
   if (NS_SUCCEEDED(rv)) {
@@ -137,7 +135,7 @@ nsPermissionManager::Init()
 }
 
 nsresult
-nsPermissionManager::InitDB(PRBool aRemoveFile)
+nsPermissionManager::InitDB()
 {
   nsCOMPtr<nsIFile> permissionsFile;
   NS_GetSpecialDirectory(NS_APP_USER_PROFILE_50_DIR, getter_AddRefs(permissionsFile));
@@ -146,16 +144,6 @@ nsPermissionManager::InitDB(PRBool aRemoveFile)
 
   nsresult rv = permissionsFile->AppendNative(NS_LITERAL_CSTRING(kPermissionsFileName));
   NS_ENSURE_SUCCESS(rv, rv);
-
-  if (aRemoveFile) {
-    PRBool exists = PR_FALSE;
-    rv = permissionsFile->Exists(&exists);
-    NS_ENSURE_SUCCESS(rv, rv);
-    if (exists) {
-      rv = permissionsFile->Remove(PR_FALSE);
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-  }
 
   nsCOMPtr<mozIStorageService> storage = do_GetService(MOZ_STORAGE_SERVICE_CONTRACTID);
   if (!storage)
@@ -464,11 +452,7 @@ nsPermissionManager::RemoveAllInternal()
   if (mDBConn) {
     nsresult rv = mDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING("DELETE FROM moz_hosts"));
     if (NS_FAILED(rv)) {
-      mStmtInsert = nsnull;
-      mStmtDelete = nsnull;
-      mStmtUpdate = nsnull;
-      mDBConn = nsnull;
-      rv = InitDB(PR_TRUE);
+      NS_WARNING("db delete failed");
       return rv;
     }
   }
@@ -562,7 +546,7 @@ struct nsGetEnumeratorData
   const nsTArray<nsCString> *types;
 };
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 AddPermissionsToList(nsHostEntry *entry, void *arg)
 {
   nsGetEnumeratorData *data = static_cast<nsGetEnumeratorData *>(arg);
@@ -605,7 +589,7 @@ NS_IMETHODIMP nsPermissionManager::Observe(nsISupports *aSubject, const char *aT
   }  
   else if (!nsCRT::strcmp(aTopic, "profile-do-change")) {
     // the profile has already changed; init the db from the new location
-    InitDB(PR_FALSE);
+    InitDB();
   }
 
   return NS_OK;
@@ -759,27 +743,27 @@ nsPermissionManager::Import()
       continue;
     }
 
-    nsTArray<nsCString> lineArray;
+    nsCStringArray lineArray;
 
     // Split the line at tabs
-    ParseString(buffer, '\t', lineArray);
+    lineArray.ParseString(buffer.get(), "\t");
     
-    if (lineArray[0].EqualsLiteral(kMatchTypeHost) &&
-        lineArray.Length() == 4) {
+    if (lineArray[0]->EqualsLiteral(kMatchTypeHost) &&
+        lineArray.Count() == 4) {
       
       PRInt32 error;
-      PRUint32 permission = lineArray[2].ToInteger(&error);
+      PRUint32 permission = lineArray[2]->ToInteger(&error);
       if (error)
         continue;
 
       // hosts might be encoded in UTF8; switch them to ACE to be consistent
-      if (!IsASCII(lineArray[3])) {
-        rv = NormalizeToACE(lineArray[3]);
+      if (!IsASCII(*lineArray[3])) {
+        rv = NormalizeToACE(*lineArray[3]);
         if (NS_FAILED(rv))
           continue;
       }
 
-      rv = AddInternal(lineArray[3], lineArray[1], permission, 0, eDontNotify, eWriteToDB);
+      rv = AddInternal(*lineArray[3], *lineArray[1], permission, 0, eDontNotify, eWriteToDB);
       NS_ENSURE_SUCCESS(rv, rv);
     }
   }

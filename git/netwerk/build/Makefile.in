@@ -50,6 +50,12 @@ MODULE_NAME	= necko
 GRE_MODULE	= 1
 LIBXUL_LIBRARY = 1
 
+PACKAGE_FILE = necko.pkg
+
+ifdef ENABLE_TESTS
+PACKAGE_FILE += necko-tests.pkg
+endif
+
 REQUIRES	= xpcom \
 		  string \
 		  nkcache \
@@ -83,11 +89,6 @@ ifeq ($(OS_ARCH),WINNT)
         ../system/win32/$(LIB_PREFIX)neckosystem_s.$(LIB_SUFFIX)
 endif
 
-ifeq ($(OS_ARCH),WINCE)
-    SHARED_LIBRARY_LIBS += \
-        ../system/wince/$(LIB_PREFIX)neckosystem_s.$(LIB_SUFFIX)
-endif
-
 ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
     SHARED_LIBRARY_LIBS += \
         ../system/mac/$(LIB_PREFIX)neckosystem_s.$(LIB_SUFFIX)
@@ -110,10 +111,6 @@ ifeq ($(OS_ARCH),WINNT)
     LOCAL_INCLUDES += -I$(srcdir)/../system/win32
 endif
 
-ifeq ($(OS_ARCH),WINCE)
-    LOCAL_INCLUDES += -I$(srcdir)/../system/wince
-endif
-
 ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
     LOCAL_INCLUDES += -I$(srcdir)/../system/mac
 endif
@@ -124,14 +121,6 @@ SHARED_LIBRARY_LIBS += \
                 $(NULL)
 LOCAL_INCLUDES	+= -I$(srcdir)/../cookie/src
 endif
-
-ifdef NECKO_WIFI
-SHARED_LIBRARY_LIBS += \
-		../wifi/src/$(LIB_PREFIX)neckowifi_s.$(LIB_SUFFIX) \
-                $(NULL)
-LOCAL_INCLUDES	+= -I$(srcdir)/../wifi/src
-endif
-
 
 ifdef MOZ_STORAGE
 REQUIRES += storage

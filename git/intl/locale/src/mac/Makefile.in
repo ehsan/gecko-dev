@@ -54,6 +54,7 @@ REQUIRES	= xpcom \
 		  $(NULL)
 
 CPPSRCS		= \
+		nsCollationMac.cpp \
 		nsCollationMacUC.cpp \
 		nsDateTimeFormatMac.cpp \
 		nsMacLocale.cpp \
@@ -62,3 +63,4 @@ CPPSRCS		= \
 include $(topsrcdir)/config/rules.mk
 
 INCLUDES	+= -I$(srcdir)/..
+

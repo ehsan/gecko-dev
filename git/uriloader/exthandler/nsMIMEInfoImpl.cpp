@@ -63,6 +63,8 @@ NS_INTERFACE_MAP_END_THREADSAFE
 
 // Constructors for a MIME handler.
 nsMIMEInfoBase::nsMIMEInfoBase(const char *aMIMEType) :
+    mMacType(0),
+    mMacCreator(0),
     mType(aMIMEType),
     mClass(eMIMEInfo),
     mPreferredAction(nsIMIMEInfo::saveToDisk),
@@ -71,6 +73,8 @@ nsMIMEInfoBase::nsMIMEInfoBase(const char *aMIMEType) :
 }
 
 nsMIMEInfoBase::nsMIMEInfoBase(const nsACString& aMIMEType) :
+    mMacType(0),
+    mMacCreator(0),
     mType(aMIMEType),
     mClass(eMIMEInfo),
     mPreferredAction(nsIMIMEInfo::saveToDisk),
@@ -84,6 +88,8 @@ nsMIMEInfoBase::nsMIMEInfoBase(const nsACString& aMIMEType) :
 // for both and distinguish between the two kinds of handlers via the aClass
 // argument to this method, which can be either eMIMEInfo or eProtocolInfo.
 nsMIMEInfoBase::nsMIMEInfoBase(const nsACString& aType, HandlerClass aClass) :
+    mMacType(0),
+    mMacCreator(0),
     mType(aType),
     mClass(aClass),
     mPreferredAction(nsIMIMEInfo::saveToDisk),
@@ -106,12 +112,12 @@ nsMIMEInfoBase::ExtensionExists(const nsACString& aExtension, PRBool *_retval)
 {
     NS_ASSERTION(!aExtension.IsEmpty(), "no extension");
     PRBool found = PR_FALSE;
-    PRUint32 extCount = mExtensions.Length();
+    PRUint32 extCount = mExtensions.Count();
     if (extCount < 1) return NS_OK;
 
     for (PRUint8 i=0; i < extCount; i++) {
-        const nsCString& ext = mExtensions[i];
-        if (ext.Equals(aExtension, nsCaseInsensitiveCStringComparator())) {
+        nsCString* ext = (nsCString*)mExtensions.CStringAt(i);
+        if (ext->Equals(aExtension, nsCaseInsensitiveCStringComparator())) {
             found = PR_TRUE;
             break;
         }
@@ -124,10 +130,10 @@ nsMIMEInfoBase::ExtensionExists(const nsACString& aExtension, PRBool *_retval)
 NS_IMETHODIMP
 nsMIMEInfoBase::GetPrimaryExtension(nsACString& _retval)
 {
-    if (!mExtensions.Length())
-      return NS_ERROR_NOT_INITIALIZED;
+    PRUint32 extCount = mExtensions.Count();
+    if (extCount < 1) return NS_ERROR_NOT_INITIALIZED;
 
-    _retval = mExtensions[0];
+    _retval = *(mExtensions.CStringAt(0));
     return NS_OK;    
 }
 
@@ -135,21 +141,21 @@ NS_IMETHODIMP
 nsMIMEInfoBase::SetPrimaryExtension(const nsACString& aExtension)
 {
   NS_ASSERTION(!aExtension.IsEmpty(), "no extension");
-  PRUint32 extCount = mExtensions.Length();
+  PRUint32 extCount = mExtensions.Count();
   PRUint8 i;
   PRBool found = PR_FALSE;
   for (i=0; i < extCount; i++) {
-    const nsCString& ext = mExtensions[i];
-    if (ext.Equals(aExtension, nsCaseInsensitiveCStringComparator())) {
+    nsCString* ext = (nsCString*)mExtensions.CStringAt(i);
+    if (ext->Equals(aExtension, nsCaseInsensitiveCStringComparator())) {
       found = PR_TRUE;
       break;
     }
   }
   if (found) {
-    mExtensions.RemoveElementAt(i);
+    mExtensions.RemoveCStringAt(i);
   }
 
-  mExtensions.InsertElementAt(0, aExtension);
+  mExtensions.InsertCStringAt(aExtension, 0);
   
   return NS_OK;
 }
@@ -157,7 +163,7 @@ nsMIMEInfoBase::SetPrimaryExtension(const nsACString& aExtension)
 NS_IMETHODIMP
 nsMIMEInfoBase::AppendExtension(const nsACString& aExtension)
 {
-  mExtensions.AppendElement(aExtension);
+  mExtensions.AppendCString(aExtension);
   return NS_OK;
 }
 
@@ -210,6 +216,42 @@ nsMIMEInfoBase::Equals(nsIMIMEInfo *aMIMEInfo, PRBool *_retval)
 }
 
 NS_IMETHODIMP
+nsMIMEInfoBase::GetMacType(PRUint32 *aMacType)
+{
+    *aMacType = mMacType;
+
+    if (!mMacType)
+        return NS_ERROR_NOT_INITIALIZED;
+
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsMIMEInfoBase::SetMacType(PRUint32 aMacType)
+{
+    mMacType = aMacType;
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsMIMEInfoBase::GetMacCreator(PRUint32 *aMacCreator)
+{
+    *aMacCreator = mMacCreator;
+
+    if (!mMacCreator)
+        return NS_ERROR_NOT_INITIALIZED;
+
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsMIMEInfoBase::SetMacCreator(PRUint32 aMacCreator)
+{
+    mMacCreator = aMacCreator;
+    return NS_OK;
+}
+
+NS_IMETHODIMP
 nsMIMEInfoBase::SetFileExtensions(const nsACString& aExtensions)
 {
     mExtensions.Clear();
@@ -218,11 +260,11 @@ nsMIMEInfoBase::SetFileExtensions(const nsACString& aExtensions)
     PRInt32 breakLocation = -1;
     while ( (breakLocation= extList.FindChar(',') )!= -1)
     {
-        mExtensions.AppendElement(Substring(extList.get(), extList.get() + breakLocation));
+        mExtensions.AppendCString(Substring(extList.get(), extList.get() + breakLocation));
         extList.Cut(0, breakLocation+1 );
     }
     if ( !extList.IsEmpty() )
-        mExtensions.AppendElement( extList );
+        mExtensions.AppendCString( extList );
     return NS_OK;
 }
 
@@ -371,6 +413,9 @@ nsMIMEInfoBase::CopyBasicDataTo(nsMIMEInfoBase* aOther)
   aOther->mType = mType;
   aOther->mDefaultAppDescription = mDefaultAppDescription;
   aOther->mExtensions = mExtensions;
+
+  aOther->mMacType = mMacType;
+  aOther->mMacCreator = mMacCreator;
 }
 
 /* static */
@@ -389,7 +434,8 @@ nsMIMEInfoBase::LaunchWithIProcess(nsIFile* aApp, const nsCString& aArg)
 
   const char *string = aArg.get();
 
-  return process->Run(PR_FALSE, &string, 1);
+  PRUint32 pid;
+  return process->Run(PR_FALSE, &string, 1, &pid);
 }
 
 // nsMIMEInfoImpl implementation

@@ -77,13 +77,13 @@ SpanningCellSorter::HashTableOps = {
     nsnull
 };
 
-/* static */ PLDHashNumber
+/* static */ PR_CALLBACK PLDHashNumber
 SpanningCellSorter::HashTableHashKey(PLDHashTable *table, const void *key)
 {
     return NS_PTR_TO_INT32(key);
 }
 
-/* static */ PRBool
+/* static */ PR_CALLBACK PRBool
 SpanningCellSorter::HashTableMatchEntry(PLDHashTable *table,
                                         const PLDHashEntryHdr *hdr,
                                         const void *key)
@@ -134,7 +134,7 @@ SpanningCellSorter::AddCell(PRInt32 aColSpan, PRInt32 aRow, PRInt32 aCol)
     return PR_TRUE;
 }
 
-/* static */ PLDHashOperator
+/* static */ PR_CALLBACK PLDHashOperator
 SpanningCellSorter::FillSortedArray(PLDHashTable *table, PLDHashEntryHdr *hdr,
                                     PRUint32 number, void *arg)
 {

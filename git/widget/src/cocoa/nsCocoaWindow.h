@@ -47,6 +47,7 @@
 #include "nsBaseWidget.h"
 #include "nsPIWidgetCocoa.h"
 #include "nsAutoPtr.h"
+#include "nsNativeThemeColors.h"
 
 class nsCocoaWindow;
 class nsChildView;
@@ -103,8 +104,8 @@ typedef struct _nsCocoaWindowList {
 @interface WindowDelegate : NSObject
 {
   nsCocoaWindow* mGeckoWindow; // [WEAK] (we are owned by the window)
-  // Used to avoid duplication when we send NS_ACTIVATE and
-  // NS_DEACTIVATE to Gecko for toplevel widgets.  Starts out
+  // Used to avoid duplication when we send NS_ACTIVATE/NS_GOTFOCUS and
+  // NS_DEACTIVATE/NS_LOSTFOCUS to Gecko for toplevel widgets.  Starts out
   // PR_FALSE.
   PRBool mToplevelActiveState;
 }
@@ -124,6 +125,25 @@ struct UnifiedGradientInfo {
   BOOL windowIsMain;
   BOOL drawTitlebar; // NO for toolbar, YES for titlebar
 };
+
+// Callback used by the default titlebar and toolbar shading.
+// *aIn == 0 at the top of the titlebar/toolbar, *aIn == 1 at the bottom
+static void unifiedShading(void* aInfo, const float* aIn, float* aOut)
+{
+  UnifiedGradientInfo* info = (UnifiedGradientInfo*)aInfo;
+  // The gradient percentage at the bottom of the titlebar / top of the toolbar
+  float start = info->titlebarHeight / (info->titlebarHeight + info->toolbarHeight - 1);
+  const float startGrey = NativeGreyColorAsFloat(headerStartGrey, info->windowIsMain);
+  const float endGrey = NativeGreyColorAsFloat(headerEndGrey, info->windowIsMain);
+  // *aIn is the gradient percentage of the titlebar or toolbar gradient,
+  // a is the gradient percentage of the whole unified gradient.
+  float a = info->drawTitlebar ? *aIn * start : start + *aIn * (1 - start);
+  float result = (1.0f - a) * startGrey + a * endGrey;
+  aOut[0] = result;
+  aOut[1] = result;
+  aOut[2] = result;
+  aOut[3] = 1.0f;
+}
 
 // NSColor subclass that allows us to draw separate colors both in the titlebar 
 // and for background of the window.
@@ -183,7 +203,7 @@ public:
     NS_DECL_NSPIWIDGETCOCOA
       
     NS_IMETHOD              Create(nsNativeWidget aParent,
-                                   const nsIntRect &aRect,
+                                   const nsRect &aRect,
                                    EVENT_CALLBACK aHandleEventFunction,
                                    nsIDeviceContext *aContext,
                                    nsIAppShell *aAppShell = nsnull,
@@ -191,7 +211,7 @@ public:
                                    nsWidgetInitData *aInitData = nsnull);
 
     NS_IMETHOD              Create(nsIWidget* aParent,
-                                   const nsIntRect &aRect,
+                                   const nsRect &aRect,
                                    EVENT_CALLBACK aHandleEventFunction,
                                    nsIDeviceContext *aContext,
                                    nsIAppShell *aAppShell = nsnull,
@@ -199,6 +219,17 @@ public:
                                    nsWidgetInitData *aInitData = nsnull);
 
     NS_IMETHOD              Destroy();
+     // Utility method for implementing both Create(nsIWidget ...) and
+     // Create(nsNativeWidget...)
+
+    virtual nsresult        StandardCreate(nsIWidget *aParent,
+                                    const nsRect &aRect,
+                                    EVENT_CALLBACK aHandleEventFunction,
+                                    nsIDeviceContext *aContext,
+                                    nsIAppShell *aAppShell,
+                                    nsIToolkit *aToolkit,
+                                    nsWidgetInitData *aInitData,
+                                    nsNativeWidget aNativeWindow = nsnull);
 
     NS_IMETHOD              Show(PRBool aState);
     virtual nsIWidget*      GetSheetWindowParent(void);
@@ -208,7 +239,11 @@ public:
     NS_IMETHOD              SetModal(PRBool aState);
     NS_IMETHOD              IsVisible(PRBool & aState);
     NS_IMETHOD              SetFocus(PRBool aState=PR_FALSE);
-    virtual nsIntPoint WidgetToScreenOffset();
+    NS_IMETHOD              SetMenuBar(void* aMenuBar);
+    virtual nsMenuBarX*     GetMenuBar();
+    NS_IMETHOD              ShowMenuBar(PRBool aShow);
+    NS_IMETHOD WidgetToScreen(const nsRect& aOldRect, nsRect& aNewRect);
+    NS_IMETHOD ScreenToWidget(const nsRect& aOldRect, nsRect& aNewRect);
     
     virtual void* GetNativeData(PRUint32 aDataType) ;
 
@@ -221,25 +256,26 @@ public:
 
     NS_IMETHOD              Resize(PRInt32 aWidth,PRInt32 aHeight, PRBool aRepaint);
     NS_IMETHOD              Resize(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeight, PRBool aRepaint);
-    NS_IMETHOD              GetScreenBounds(nsIntRect &aRect);
+    NS_IMETHOD              GetScreenBounds(nsRect &aRect);
     virtual PRBool          OnPaint(nsPaintEvent &event);
     void                    ReportSizeEvent(NSRect *overrideRect = nsnull);
 
     NS_IMETHOD              SetTitle(const nsAString& aTitle);
 
-    NS_IMETHOD Invalidate(const nsIntRect &aRect, PRBool aIsSynchronous);
+    NS_IMETHOD Invalidate(const nsRect & aRect, PRBool aIsSynchronous);
     NS_IMETHOD Invalidate(PRBool aIsSynchronous);
     NS_IMETHOD Update();
-    NS_IMETHOD Scroll(PRInt32 aDx, PRInt32 aDy, nsIntRect *alCipRect) { return NS_OK; }
+    NS_IMETHOD Scroll(PRInt32 aDx, PRInt32 aDy, nsRect *alCipRect) { return NS_OK; }
+    NS_IMETHOD SetColorMap(nsColorMap *aColorMap) { return NS_OK; }
     NS_IMETHOD BeginResizingChildren(void) { return NS_OK; }
     NS_IMETHOD EndResizingChildren(void) { return NS_OK; }
+    NS_IMETHOD GetPreferredSize(PRInt32& aWidth, PRInt32& aHeight) { return NS_OK; }
+    NS_IMETHOD SetPreferredSize(PRInt32 aWidth, PRInt32 aHeight) { return NS_OK; }
     NS_IMETHOD DispatchEvent(nsGUIEvent* event, nsEventStatus & aStatus) ;
     NS_IMETHOD CaptureRollupEvents(nsIRollupListener * aListener, PRBool aDoCapture, PRBool aConsumeRollupEvent);
     NS_IMETHOD GetAttention(PRInt32 aCycleCount);
-    virtual PRBool HasPendingInputEvent();
     virtual nsTransparencyMode GetTransparencyMode();
     virtual void SetTransparencyMode(nsTransparencyMode aMode);
-    NS_IMETHOD SetWindowShadowStyle(PRInt32 aStyle);
     NS_IMETHOD SetWindowTitlebarColor(nscolor aColor, PRBool aActive);
 
     // dispatch an NS_SIZEMODE event on miniaturize or deminiaturize
@@ -258,9 +294,6 @@ public:
     PRBool HasModalDescendents() { return mNumModalDescendents > 0; }
     NSWindow *GetCocoaWindow() { return mWindow; }
 
-    void SetMenuBar(nsMenuBarX* aMenuBar);
-    nsMenuBarX *GetMenuBar();
-
     // nsIKBStateControl interface
     NS_IMETHOD ResetInputState();
     
@@ -269,29 +302,8 @@ public:
     NS_IMETHOD BeginSecureKeyboardInput();
     NS_IMETHOD EndSecureKeyboardInput();
 
-    static void UnifiedShading(void* aInfo, const float* aIn, float* aOut);
-
 protected:
-
-  // Utility method for implementing both Create(nsIWidget ...) and
-  // Create(nsNativeWidget...)
-  nsresult             StandardCreate(nsIWidget *aParent,
-                                      const nsIntRect &aRect,
-                                      EVENT_CALLBACK aHandleEventFunction,
-                                      nsIDeviceContext *aContext,
-                                      nsIAppShell *aAppShell,
-                                      nsIToolkit *aToolkit,
-                                      nsWidgetInitData *aInitData,
-                                      nsNativeWidget aNativeWindow = nsnull);
-  nsresult             CreateNativeWindow(const nsIntRect &aRect,
-                                          nsBorderStyle aBorderStyle);
-  nsresult             CreatePopupContentView(const nsIntRect &aRect,
-                                              EVENT_CALLBACK aHandleEventFunction,
-                                              nsIDeviceContext *aContext,
-                                              nsIAppShell *aAppShell,
-                                              nsIToolkit *aToolkit);
-  void                 DestroyNativeWindow();
-
+  
   nsIWidget*           mParent;         // if we're a popup, this is our parent [WEAK]
   NSWindow*            mWindow;         // our cocoa window [STRONG]
   WindowDelegate*      mDelegate;       // our delegate for processing window msgs [STRONG]

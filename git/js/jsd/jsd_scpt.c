@@ -229,7 +229,7 @@ jsd_alloc_script_table(void *priv, size_t size)
 }
 
 static void
-jsd_free_script_table(void *priv, void *item, size_t size)
+jsd_free_script_table(void *priv, void *item)
 {
     free(item);
 }
@@ -284,29 +284,7 @@ jsd_FindJSDScript( JSDContext*  jsdc,
 {
     JS_ASSERT(JSD_SCRIPTS_LOCKED(jsdc));
     return (JSDScript*) JS_HashTableLookup(jsdc->scriptsTable, (void *)script);
-}
-
-JSDScript *
-jsd_FindOrCreateJSDScript(JSDContext    *jsdc,
-                          JSContext     *cx,
-                          JSScript      *script,
-                          JSStackFrame  *fp)
-{
-    JSDScript *jsdscript;
-    JS_ASSERT(JSD_SCRIPTS_LOCKED(jsdc));
-
-    jsdscript = jsd_FindJSDScript(jsdc, script);
-    if (jsdscript)
-        return jsdscript;
-
-    /* Fallback for unknown scripts: create a new script. */
-    if (!fp)
-        JS_FrameIterator(cx, &fp);
-    if (fp)
-        jsdscript = _newJSDScript(jsdc, cx, script, JS_GetFrameFunction(cx, fp));
-
-    return jsdscript;
-}
+}               
 
 JSDProfileData*
 jsd_GetScriptProfileData(JSDContext* jsdc, JSDScript *script)
@@ -825,6 +803,7 @@ jsd_ClearExecutionHook(JSDContext*           jsdc,
     jsdhook = _findHook(jsdc, jsdscript, pc);
     if( ! jsdhook )
     {
+        JS_ASSERT(0);
         JSD_UNLOCK();
         return JS_FALSE;
     }

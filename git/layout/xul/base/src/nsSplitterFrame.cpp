@@ -45,6 +45,7 @@
 
 #include "nsSplitterFrame.h"
 #include "nsGkAtoms.h"
+#include "nsISupportsArray.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMXULElement.h"
 #include "nsIDOMDocument.h"
@@ -60,7 +61,7 @@
 #include "nsIScrollableView.h"
 #include "nsIDOMMouseEvent.h"
 #include "nsIPresShell.h"
-#include "nsFrameList.h"
+#include "nsFrameNavigator.h"
 #include "nsHTMLParts.h"
 #include "nsILookAndFeel.h"
 #include "nsStyleContext.h"
@@ -279,6 +280,13 @@ nsSplitterFrame::Destroy()
 }
 
 
+//
+// QueryInterface
+//
+NS_INTERFACE_MAP_BEGIN(nsSplitterFrame)
+NS_INTERFACE_MAP_END_INHERITING(nsBoxFrame)
+
+
 NS_IMETHODIMP
 nsSplitterFrame::GetCursor(const nsPoint&    aPoint,
                            nsIFrame::Cursor& aCursor)
@@ -369,7 +377,7 @@ nsSplitterFrame::Init(nsIContent*      aContent,
   nsresult  rv = nsBoxFrame::Init(aContent, aParent, aPrevInFlow);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = nsHTMLContainerFrame::CreateViewForFrame(this, PR_TRUE);
+  rv = nsHTMLContainerFrame::CreateViewForFrame(this, nsnull, PR_TRUE);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (!realTimeDrag) {
@@ -470,11 +478,6 @@ nsSplitterFrame::HandleEvent(nsPresContext* aPresContext,
                                       nsGUIEvent* aEvent,
                                       nsEventStatus* aEventStatus)
 {
-  NS_ENSURE_ARG_POINTER(aEventStatus);
-  if (nsEventStatus_eConsumeNoDefault == *aEventStatus) {
-    return NS_OK;
-  }
-
   nsWeakFrame weakFrame(this);
   nsRefPtr<nsSplitterFrameInner> kungFuDeathGrip(mInner);
   switch (aEvent->message) {
@@ -740,17 +743,15 @@ nsSplitterFrameInner::MouseDown(nsIDOMEvent* aMouseEvent)
   mParentBox = mOuter->GetParentBox();
   if (!mParentBox)
     return NS_OK;
-
+  
   // get our index
   nsPresContext* outerPresContext = mOuter->PresContext();
-  nsFrameList siblingList(mParentBox->GetFirstChild(nsnull));
-  PRInt32 childIndex = siblingList.IndexOf(mOuter);
-  // if it's 0 (or not found) then stop right here.
-  // It might be not found if we're not in the parent's primary frame list.
-  if (childIndex <= 0)
+  nscoord childIndex = nsFrameNavigator::IndexOf(outerPresContext, mParentBox, mOuter);
+  // if it's 0 then stop right here.
+  if (childIndex == 0)
     return NS_OK;
 
-  PRInt32 childCount = siblingList.GetLength();
+  PRInt32 childCount = nsFrameNavigator::CountFrames(outerPresContext, mParentBox);
   // if it's the last index then we need to allow for resizeafter="grow"
   if (childIndex == childCount - 1 && GetResizeAfter() != Grow)
     return NS_OK;
@@ -975,17 +976,13 @@ nsSplitterFrameInner::UpdateState()
     return;
   }
 
-  if ((SupportsCollapseDirection(Before) || SupportsCollapseDirection(After)) &&
-      mOuter->GetParent()->IsBoxFrame()) {
+  if (SupportsCollapseDirection(Before) || SupportsCollapseDirection(After)) {
+    nsIBox* splitter = mOuter;
     // Find the splitter's immediate sibling.
-    nsIFrame* splitterSibling;
-    if (newState == CollapsedBefore || mState == CollapsedBefore) {
-      splitterSibling =
-        nsFrameList(mOuter->GetParent()->GetFirstChild(nsnull)).GetPrevSiblingFor(mOuter);
-    } else {
-      splitterSibling = mOuter->GetNextSibling();
-    }
-
+    nsIBox* splitterSibling =
+      nsFrameNavigator::GetChildBeforeAfter(mOuter->PresContext(), splitter,
+                                            (newState == CollapsedBefore ||
+                                             mState == CollapsedBefore));
     if (splitterSibling) {
       nsCOMPtr<nsIContent> sibling = splitterSibling->GetContent();
       if (sibling) {

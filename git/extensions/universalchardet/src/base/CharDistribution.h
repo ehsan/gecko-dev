@@ -71,7 +71,7 @@ public:
   }
 
   //return confidence base on existing data
-  float GetConfidence(PRBool aIsPreferredLanguage);
+  float GetConfidence();
 
   //Reset analyser, clear any state 
   void      Reset(void) 

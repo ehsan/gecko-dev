@@ -275,8 +275,16 @@ NS_IMETHODIMP imgContainer::AppendFrame(gfxIImageFrame *item)
 }
 
 //******************************************************************************
-/* void endFrameDecode (in unsigned long framenumber); */
-NS_IMETHODIMP imgContainer::EndFrameDecode(PRUint32 aFrameNum)
+/* void removeFrame (in gfxIImageFrame item); */
+NS_IMETHODIMP imgContainer::RemoveFrame(gfxIImageFrame *item)
+{
+  /* Remember to decrement mNumFrames if you implement this */
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+//******************************************************************************
+/* void endFrameDecode (in unsigned long framenumber, in unsigned long timeout); */
+NS_IMETHODIMP imgContainer::EndFrameDecode(PRUint32 aFrameNum, PRUint32 aTimeout)
 {
   // Assume there's another frame.
   // currentDecodingFrameIndex is 0 based, aFrameNum is 1 based
@@ -297,6 +305,13 @@ NS_IMETHODIMP imgContainer::DecodingComplete(void)
   if (mNumFrames == 1)
     mFrames[0]->SetMutable(PR_FALSE);
   return NS_OK;
+}
+
+//******************************************************************************
+/* void clear (); */
+NS_IMETHODIMP imgContainer::Clear()
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 //******************************************************************************
@@ -1209,9 +1224,9 @@ imgContainer::sDiscardTimerCallback(nsITimer *aTimer, void *aClosure)
 
   int old_frame_count = self->mFrames.Count();
 
-  // Don't discard animated images, because we don't handle that very well. (See bug 414259.)
   if (self->mAnim) {
-    return;
+    delete self->mAnim;
+    self->mAnim = nsnull;
   }
 
   self->mFrames.Clear();
@@ -1477,9 +1492,9 @@ imgContainer::ReloadImages(void)
             mRestoreData.Length()));
   }
 
-  // |WriteFrom()| may fail if the original data is broken.
   PRUint32 written;
-  (void)decoder->WriteFrom(stream, mRestoreData.Length(), &written);
+  result = decoder->WriteFrom(stream, mRestoreData.Length(), &written);
+  NS_ENSURE_SUCCESS(result, result);
 
   result = decoder->Flush();
   NS_ENSURE_SUCCESS(result, result);

@@ -49,21 +49,19 @@
 #include "prio.h"
 
 #include <windows.h>
-#include "malloc.h"
 
-static const wchar_t kRegKeyRoot[] = L"Software\\mozilla.org\\GRE";
-static const wchar_t kRegFileGlobal[] = L"global.reginfo";
-static const wchar_t kRegFileUser[] = L"user.reginfo";
+static const char kRegKeyRoot[] = "Software\\mozilla.org\\GRE";
+static const char kRegFileGlobal[] = "global.reginfo";
+static const char kRegFileUser[] = "user.reginfo";
 
 static nsresult
-MakeVersionKey(HKEY root, const wchar_t* keyname, const nsString &grehome,
+MakeVersionKey(HKEY root, const char* keyname, const nsCString &grehome,
                const GREProperty *aProperties, PRUint32 aPropertiesLen,
-               const wchar_t *aGREMilestone)
+               const char *aGREMilestone)
 {
   HKEY  subkey;
   DWORD disp;
-  
-  if (::RegCreateKeyExW(root, keyname, NULL, NULL, 0, KEY_WRITE, NULL,
+  if (::RegCreateKeyEx(root, keyname, NULL, NULL, 0, KEY_WRITE, NULL,
                        &subkey, &disp) != ERROR_SUCCESS)
     return NS_ERROR_FAILURE;
 
@@ -73,30 +71,24 @@ MakeVersionKey(HKEY root, const wchar_t* keyname, const nsString &grehome,
   }
 
   PRBool failed = PR_FALSE;
-  failed |= ::RegSetValueExW(subkey, L"Version", NULL, REG_SZ,
-			     (BYTE*) aGREMilestone,
-			     sizeof(PRUnichar) * (wcslen(aGREMilestone) + 1)) 
-    != ERROR_SUCCESS;
-  failed |= ::RegSetValueExW(subkey, L"GreHome", NULL, REG_SZ,
-			     (BYTE*) grehome.get(),
-			     sizeof(PRUnichar) * (grehome.Length() + 1)) 
-    != ERROR_SUCCESS;
-  
+  failed |= ::RegSetValueEx(subkey, "Version", NULL, REG_SZ,
+                            (BYTE*) aGREMilestone,
+                            strlen(aGREMilestone)) != ERROR_SUCCESS;
+  failed |= ::RegSetValueEx(subkey, "GreHome", NULL, REG_SZ,
+                            (BYTE*) grehome.get(),
+                            grehome.Length()) != ERROR_SUCCESS;
+
   for (PRUint32 i = 0; i < aPropertiesLen; ++i) {
-    // Properties should be ascii only 
-    NS_ConvertASCIItoUTF16 prop(aProperties[i].property);
-    NS_ConvertASCIItoUTF16 val(aProperties[i].value);
-    failed |= ::RegSetValueExW(subkey, prop.get(), NULL, REG_SZ, 
-			       (BYTE*) val.get(), 
-			       sizeof(wchar_t)*(val.Length()+1)
-			       ) != ERROR_SUCCESS;
+    failed |= ::RegSetValueEx(subkey, aProperties[i].property, NULL, REG_SZ,
+                              (BYTE*) aProperties[i].value,
+                              strlen(aProperties[i].value)) != ERROR_SUCCESS;
   }
 
   ::RegCloseKey(subkey);
 
   if (failed) {
     // we created a key but couldn't fill it properly: delete it
-    ::RegDeleteKeyW(root, keyname);
+    ::RegDeleteKey(root, keyname);
     return NS_ERROR_FAILURE;
   }
 
@@ -106,7 +98,7 @@ MakeVersionKey(HKEY root, const wchar_t* keyname, const nsString &grehome,
 int
 RegisterXULRunner(PRBool aRegisterGlobally, nsIFile* aLocation,
                   const GREProperty *aProperties, PRUint32 aPropertiesLen,
-                  const char *aGREMilestoneAscii)
+                  const char *aGREMilestone)
 {
   // Register ourself in the windows registry, and record what key we created
   // for future unregistration.
@@ -114,9 +106,9 @@ RegisterXULRunner(PRBool aRegisterGlobally, nsIFile* aLocation,
   nsresult rv;
   PRBool irv;
   int i;
-  NS_ConvertASCIItoUTF16 aGREMilestone(aGREMilestoneAscii);
-  nsString greHome;
-  rv = aLocation->GetPath(greHome);
+
+  nsCString greHome;
+  rv = aLocation->GetNativePath(greHome);
   if (NS_FAILED(rv))
     return rv;
 
@@ -126,8 +118,8 @@ RegisterXULRunner(PRBool aRegisterGlobally, nsIFile* aLocation,
   if (!localSaved)
     return PR_FALSE;
 
-  const wchar_t *infoname = aRegisterGlobally ? kRegFileGlobal : kRegFileUser;
-  localSaved->Append(nsDependentString(infoname));
+  const char *infoname = aRegisterGlobally ? kRegFileGlobal : kRegFileUser;
+  localSaved->AppendNative(nsDependentCString(infoname));
 
   PRFileDesc* fd = nsnull;
   rv = localSaved->OpenNSPRFileDesc(PR_CREATE_FILE | PR_RDWR, 0664, &fd);
@@ -137,13 +129,13 @@ RegisterXULRunner(PRBool aRegisterGlobally, nsIFile* aLocation,
   }
 
   HKEY rootKey = NULL;
-  wchar_t keyName[MAXPATHLEN];
+  char keyName[MAXPATHLEN];
   PRInt32 r;
 
-  if (::RegCreateKeyExW(aRegisterGlobally ? HKEY_LOCAL_MACHINE :
-			HKEY_CURRENT_USER,
-			kRegKeyRoot, NULL, NULL, 0, KEY_WRITE,
-			NULL, &rootKey, NULL) != ERROR_SUCCESS) {
+  if (::RegCreateKeyEx(aRegisterGlobally ? HKEY_LOCAL_MACHINE :
+                                           HKEY_CURRENT_USER,
+                       kRegKeyRoot, NULL, NULL, 0, KEY_WRITE,
+                       NULL, &rootKey, NULL) != ERROR_SUCCESS) {
     irv = PR_FALSE;
     goto reg_end;
   }
@@ -160,7 +152,7 @@ RegisterXULRunner(PRBool aRegisterGlobally, nsIFile* aLocation,
     // There was already a .reginfo file, let's see if we are already
     // registered.
     HKEY existing = NULL;
-    if (::RegOpenKeyExW(rootKey, keyName, NULL, KEY_QUERY_VALUE, &existing) ==
+    if (::RegOpenKeyEx(rootKey, keyName, NULL, KEY_QUERY_VALUE, &existing) ==
         ERROR_SUCCESS) {
       fprintf(stderr, "Warning: Registry key Software\\mozilla.org\\GRE\\%s already exists.\n"
               "No action was performed.\n",
@@ -180,24 +172,22 @@ RegisterXULRunner(PRBool aRegisterGlobally, nsIFile* aLocation,
     }
   }
 
-  wcscpy(keyName, aGREMilestone.get());
+  strcpy(keyName, aGREMilestone);
   rv = MakeVersionKey(rootKey, keyName, greHome, aProperties, aPropertiesLen,
-                      aGREMilestone.get());
+                      aGREMilestone);
   if (NS_SUCCEEDED(rv)) {
-    NS_ConvertUTF16toUTF8 keyNameAscii(keyName);
-    PR_Write(fd, keyNameAscii.get(), sizeof(char)*keyNameAscii.Length());
+    PR_Write(fd, keyName, strlen(keyName));
     irv = PR_TRUE;
     goto reg_end;
   }
   
   for (i = 0; i < 1000; ++i) {
-    swprintf(keyName, L"%s_%i", aGREMilestone.get(),  i);
+    sprintf(keyName, "%s_%i", aGREMilestone,  i);
     rv = MakeVersionKey(rootKey, keyName, greHome,
                         aProperties, aPropertiesLen,
-                        aGREMilestone.get());
+                        aGREMilestone);
     if (NS_SUCCEEDED(rv)) {
-      NS_ConvertUTF16toUTF8 keyNameAscii(keyName);
-      PR_Write(fd, keyNameAscii.get(), sizeof(char)*keyNameAscii.Length());
+      PR_Write(fd, keyName, strlen(keyName));
       irv = PR_TRUE;
       goto reg_end;
     }
@@ -225,8 +215,8 @@ UnregisterXULRunner(PRBool aGlobal, nsIFile* aLocation,
   if (!localSaved)
     return;
 
-  const wchar_t *infoname = aGlobal ? kRegFileGlobal : kRegFileUser;
-  localSaved->Append(nsDependentString(infoname));
+  const char *infoname = aGlobal ? kRegFileGlobal : kRegFileUser;
+  localSaved->AppendNative(nsDependentCString(infoname));
 
   PRFileDesc* fd = nsnull;
   nsresult rv = localSaved->OpenNSPRFileDesc(PR_RDONLY, 0, &fd);
@@ -235,7 +225,7 @@ UnregisterXULRunner(PRBool aGlobal, nsIFile* aLocation,
     return;
   }
 
-  wchar_t keyName[MAXPATHLEN];
+  char keyName[MAXPATHLEN];
   PRInt32 r = PR_Read(fd, keyName, MAXPATHLEN);
   PR_Close(fd);
 
@@ -247,17 +237,17 @@ UnregisterXULRunner(PRBool aGlobal, nsIFile* aLocation,
   keyName[r] = '\0';
 
   HKEY rootKey = NULL;
-  if (::RegOpenKeyExW(aGlobal ? HKEY_LOCAL_MACHINE : HKEY_CURRENT_USER,
-		      kRegKeyRoot, 0, KEY_READ, &rootKey) != ERROR_SUCCESS)
+  if (::RegOpenKeyEx(aGlobal ? HKEY_LOCAL_MACHINE : HKEY_CURRENT_USER,
+                     kRegKeyRoot, 0, KEY_READ, &rootKey) != ERROR_SUCCESS)
     return;
 
   HKEY subKey = NULL;
-  if (::RegOpenKeyExW(rootKey, keyName, 0, KEY_READ, &subKey) == ERROR_SUCCESS) {
+  if (::RegOpenKeyEx(rootKey, keyName, 0, KEY_READ, &subKey) == ERROR_SUCCESS) {
 
     char regpath[MAXPATHLEN];
     DWORD reglen = MAXPATHLEN;
 
-    if (::RegQueryValueExW(subKey, L"GreHome", NULL, NULL,
+    if (::RegQueryValueEx(subKey, "GreHome", NULL, NULL,
                           (BYTE*) regpath, &reglen) == ERROR_SUCCESS) {
 
       nsCOMPtr<nsILocalFile> regpathfile;
@@ -283,6 +273,6 @@ UnregisterXULRunner(PRBool aGlobal, nsIFile* aLocation,
     ::RegCloseKey(subKey);
   }
 
-  ::RegDeleteKeyW(rootKey, keyName);
+  ::RegDeleteKey(rootKey, keyName);
   ::RegCloseKey(rootKey);
 }

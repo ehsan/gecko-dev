@@ -113,15 +113,13 @@ for testlogfile in `ls $testlogfiles`; do
     case "$testlogfile" in
         *,js,*) testtype=shell;;
         *,firefox,*) testtype=browser;;
-        *,thunderbird,*) testtype=browser;;
-        *,fennec,*) testtype=browser;;
         *) error "unknown testtype in logfile $testlogfile" $LINENO;;
     esac
 
     debug "testtype=$testtype"
 
     case "$testlogfile" in
-        *,nightly*) buildtype=nightly;;
+        *,nightly,*) buildtype=nightly;;
         *,opt,*) buildtype=opt;;
         *,debug,*) buildtype=debug;;
         *) error "unknown buildtype in logfile $testlogfile" $LINENO;
@@ -134,7 +132,6 @@ for testlogfile in `ls $testlogfiles`; do
         *,1.8.1*) branch=1.8.1;;
         *,1.9.0*) branch=1.9.0;;
         *,1.9.1*) branch=1.9.1;;
-        *,1.9.2*) branch=1.9.2;;
         *) 
             branch=`grep -m 1 '^environment: TEST_BRANCH=' $worktestlogfile | sed 's|.*TEST_BRANCH=\(.*\)|\1|'`
             if [[ -z "$branch" ]]; then
@@ -145,7 +142,7 @@ for testlogfile in `ls $testlogfiles`; do
 
     debug "branch=$branch"
 
-    repo=`grep -m 1 '^environment: TEST_MOZILLA_HG=' $worktestlogfile | sed 's|.*TEST_MOZILLA_HG=http://hg.mozilla.org.*/\([^\/]*\)|\1|'`
+    repo=`grep -m 1 '^environment: TEST_MOZILLA_HG=' $worktestlogfile | sed 's|.*TEST_MOZILLA_HG=http://hg.mozilla.org/\(.*\)|\1|'`
     if [[ -z "$repo" ]]; then
         repo=CVS
     fi
@@ -175,15 +172,11 @@ for testlogfile in `ls $testlogfiles`; do
     debug "arch=$arch"
 
     memory=`grep -m 1 '^environment: TEST_MEMORY=' $worktestlogfile | sed 's|.*TEST_MEMORY=\(.*\)|\1|'`
+    speed=`grep -m 1 '^environment: TEST_CPUSPEED=' $worktestlogfile | sed 's|.*TEST_CPUSPEED=\(.*\)|\1|'`
 
     timezone=`basename $testlogfile | sed 's|^[-0-9]*\([-+]\)\([0-9]\{4,4\}\),.*|\1\2|'`
-    debug "timezone=$timezone"
 
-    jsoptions=`grep -m 1 '^arguments: javascriptoptions=' $worktestlogfile | sed 's|.*javascriptoptions=\(.*\)|\1|'`
-    if [[ -z "$jsoptions" ]]; then
-        jsoptions=none
-    fi
-    debug "jsoptions=$jsoptions"
+    debug "timezone=$timezone"
 
     outputprefix=$testlogfile
 
@@ -202,8 +195,8 @@ for testlogfile in `ls $testlogfiles`; do
         -K "$kernel" \
         -A "$arch" \
         -M "$memory" \
+        -S "$speed" \
         -z "$timezone" \
-        -J "$jsoptions" \
         -r "$TEST_JSDIR/failures.txt" \
         -l "$worktestlogfile" \
         -O "$outputprefix"

@@ -100,11 +100,6 @@ interface nsIWebBrowserPersist : nsICancelable
    */
   const unsigned long PERSIST_FLAGS_APPEND_TO_FILE = 32768;
 
-  /**
-   * Force relevant cookies to be sent with this load even if normally they
-   * wouldn't be.
-   */
-  const unsigned long PERSIST_FLAGS_FORCE_ALLOW_COOKIES = 65536;
 
   /**
    * Flags governing how data is fetched and saved from the network. 
@@ -153,9 +148,7 @@ interface nsIWebBrowserPersist : nsICancelable
    *                   may also support <CODE>nsnull</CODE> to imply the currently
    *                   loaded URI.
    * @param aCacheKey  An object representing the URI in the cache or
-   *                   <CODE>nsnull</CODE>.  This can be a necko cache key,
-   *                   an nsIWebPageDescriptor, or the currentDescriptor of an
-   *                   nsIWebPageDescriptor.
+   *                   <CODE>nsnull</CODE>.
    * @param aReferrer  The referrer URI to pass with an HTTP request or
    *                   <CODE>nsnull</CODE>.
    * @param aPostData  Post data to pass with an HTTP request or

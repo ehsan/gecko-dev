@@ -76,7 +76,6 @@
 #include "nsNodeInfoManager.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsContentUtils.h"
-#include "nsLayoutErrors.h"
 
 nsIFrame*
 NS_NewIsIndexFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
@@ -85,9 +84,9 @@ NS_NewIsIndexFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 }
 
 nsIsIndexFrame::nsIsIndexFrame(nsStyleContext* aContext) :
-  nsBlockFrame(aContext)
+  nsAreaFrame(aContext)
 {
-  SetFlags(NS_BLOCK_FLOAT_MGR);
+  SetFlags(NS_BLOCK_SPACE_MGR);
 }
 
 nsIsIndexFrame::~nsIsIndexFrame()
@@ -105,10 +104,10 @@ nsIsIndexFrame::Destroy()
   nsContentUtils::DestroyAnonymousContent(&mTextContent);
   nsContentUtils::DestroyAnonymousContent(&mPreHr);
   nsContentUtils::DestroyAnonymousContent(&mPostHr);
-  nsBlockFrame::Destroy();
+  nsAreaFrame::Destroy();
 }
 
-// REVIEW: We don't need to override BuildDisplayList, nsBlockFrame will honour
+// REVIEW: We don't need to override BuildDisplayList, nsAreaFrame will honour
 // our visibility setting
 
 nsresult
@@ -147,8 +146,7 @@ nsIsIndexFrame::GetInputFrame(nsIFormControlFrame** oFrame)
   if (presShell && mInputContent) {
     nsIFrame *frame = presShell->GetPrimaryFrameFor(mInputContent);
     if (frame) {
-      *oFrame = do_QueryFrame(frame);
-      return *oFrame ? NS_OK : NS_NOINTERFACE;
+      return CallQueryInterface(frame, oFrame);
     }
   }
   return NS_OK;
@@ -193,7 +191,7 @@ nsIsIndexFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 
   // Create an hr
   nsCOMPtr<nsINodeInfo> hrInfo;
-  hrInfo = nimgr->GetNodeInfo(nsGkAtoms::hr, nsnull, kNameSpaceID_XHTML);
+  hrInfo = nimgr->GetNodeInfo(nsGkAtoms::hr, nsnull, kNameSpaceID_None);
 
   NS_NewHTMLElement(getter_AddRefs(mPreHr), hrInfo, PR_FALSE);
   if (!mPreHr || !aElements.AppendElement(mPreHr))
@@ -211,7 +209,7 @@ nsIsIndexFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 
   // Create text input field
   nsCOMPtr<nsINodeInfo> inputInfo;
-  inputInfo = nimgr->GetNodeInfo(nsGkAtoms::input, nsnull, kNameSpaceID_XHTML);
+  inputInfo = nimgr->GetNodeInfo(nsGkAtoms::input, nsnull, kNameSpaceID_None);
 
   NS_NewHTMLElement(getter_AddRefs(mInputContent), inputInfo, PR_FALSE);
   if (!mInputContent)
@@ -234,17 +232,20 @@ nsIsIndexFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
   return NS_OK;
 }
 
-NS_QUERYFRAME_HEAD(nsIsIndexFrame)
-  NS_QUERYFRAME_ENTRY(nsIAnonymousContentCreator)
-  NS_QUERYFRAME_ENTRY(nsIStatefulFrame)
-NS_QUERYFRAME_TAIL_INHERITING(nsBlockFrame)
-
 // Frames are not refcounted, no need to AddRef
 NS_IMETHODIMP
 nsIsIndexFrame::QueryInterface(const nsIID& aIID, void** aInstancePtr)
 {
   NS_PRECONDITION(aInstancePtr, "null out param");
 
+  if (aIID.Equals(NS_GET_IID(nsIAnonymousContentCreator))) {
+    *aInstancePtr = static_cast<nsIAnonymousContentCreator*>(this);
+    return NS_OK;
+  }
+  if (aIID.Equals(NS_GET_IID(nsIStatefulFrame))) {
+    *aInstancePtr = static_cast<nsIStatefulFrame*>(this);
+    return NS_OK;
+  }
   if (aIID.Equals(NS_GET_IID(nsIDOMKeyListener))) {
     *aInstancePtr = static_cast<nsIDOMKeyListener*>(this);
     return NS_OK;
@@ -254,7 +255,7 @@ nsIsIndexFrame::QueryInterface(const nsIID& aIID, void** aInstancePtr)
     return NS_OK;
   }
 
-  return NS_NOINTERFACE;
+  return nsAreaFrame::QueryInterface(aIID, aInstancePtr);
 }
 
 nscoord
@@ -264,7 +265,7 @@ nsIsIndexFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
   DISPLAY_MIN_WIDTH(this, result);
 
   // Our min width is our pref width; the rest of our reflow is
-  // happily handled by nsBlockFrame
+  // happily handled by nsAreaFrame
   result = GetPrefWidth(aRenderingContext);
   return result;
 }
@@ -284,7 +285,7 @@ nsIsIndexFrame::AttributeChanged(PRInt32         aNameSpaceID,
   if (nsGkAtoms::prompt == aAttribute) {
     rv = UpdatePromptLabel(PR_TRUE);
   } else {
-    rv = nsBlockFrame::AttributeChanged(aNameSpaceID, aAttribute, aModType);
+    rv = nsAreaFrame::AttributeChanged(aNameSpaceID, aAttribute, aModType);
   }
   return rv;
 }
@@ -533,18 +534,9 @@ nsIsIndexFrame::SaveState(SpecialStateID aStateID, nsPresState** aState)
   if (! stateString.IsEmpty()) {
 
     // Construct a pres state and store value in it.
-    *aState = new nsPresState();
-    if (!*aState)
-      return NS_ERROR_OUT_OF_MEMORY;
-
-    nsCOMPtr<nsISupportsString> state
-      (do_CreateInstance(NS_SUPPORTS_STRING_CONTRACTID));
-
-    if (!state)
-      return NS_ERROR_OUT_OF_MEMORY;
-
-    state->SetData(stateString);
-    (*aState)->SetStateProperty(state);
+    res = NS_NewPresState(aState);
+    NS_ENSURE_SUCCESS(res, res);
+    res = (*aState)->SetStateProperty(NS_LITERAL_STRING("value"), stateString);
   }
 
   return res;
@@ -556,12 +548,10 @@ nsIsIndexFrame::RestoreState(nsPresState* aState)
   NS_ENSURE_ARG_POINTER(aState);
 
   // Set the value to the stored state.
-  nsCOMPtr<nsISupportsString> stateString
-    (do_QueryInterface(aState->GetStateProperty()));
-  
-  nsAutoString data;
-  stateString->GetData(data);
-  SetInputValue(data);
+  nsAutoString stateString;
+  nsresult res = aState->GetStateProperty(NS_LITERAL_STRING("value"), stateString);
+  NS_ENSURE_SUCCESS(res, res);
 
+  SetInputValue(stateString);
   return NS_OK;
 }

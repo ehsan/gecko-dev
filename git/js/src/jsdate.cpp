@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  * vim: set ts=8 sw=4 et tw=78:
  *
  * ***** BEGIN LICENSE BLOCK *****
@@ -51,19 +51,18 @@
  * Frederick Brooks, 'The Second-System Effect'.
  */
 
+#include "jsstddef.h"
 #include <ctype.h>
 #include <locale.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
 #include "jstypes.h"
-#include "jsstdint.h"
 #include "jsprf.h"
 #include "prmjtime.h"
 #include "jsutil.h" /* Added by JSIFY */
 #include "jsapi.h"
 #include "jsversion.h"
-#include "jsbuiltins.h"
 #include "jscntxt.h"
 #include "jsdate.h"
 #include "jsinterp.h"
@@ -416,13 +415,8 @@ DaylightSavingTA(jsdouble t)
     return result;
 }
 
-static jsdouble
-AdjustTime(jsdouble date)
-{
-    jsdouble t = DaylightSavingTA(date) + LocalTZA;
-    t = (LocalTZA >= 0) ? fmod(t, msPerDay) : -fmod(msPerDay - t, msPerDay);
-    return t;
-}
+
+#define AdjustTime(t)   fmod(LocalTZA + DaylightSavingTA(t), msPerDay)
 
 #define LocalTime(t)    ((t) + AdjustTime(t))
 
@@ -648,7 +642,7 @@ date_parseString(JSString *str, jsdouble *result)
     int temp;
     JSBool seenmonthname = JS_FALSE;
 
-    str->getCharsAndLength(s, limit);
+    JSSTRING_CHARS_AND_LENGTH(str, s, limit);
     if (limit == 0)
         goto syntax;
     while (i < limit) {
@@ -918,25 +912,11 @@ date_parse(JSContext *cx, uintN argc, jsval *vp)
     return js_NewNumberInRootedValue(cx, result, vp);
 }
 
-static inline jsdouble
-NowAsMillis()
+JSBool
+js_date_now(JSContext *cx, uintN argc, jsval *vp)
 {
-    return (jsdouble) (PRMJ_Now() / PRMJ_USEC_PER_MSEC);
+    return js_NewDoubleInRootedValue(cx, PRMJ_Now() / PRMJ_USEC_PER_MSEC, vp);
 }
-
-static JSBool
-date_now(JSContext *cx, uintN argc, jsval *vp)
-{
-    return js_NewDoubleInRootedValue(cx, NowAsMillis(), vp);
-}
-
-#ifdef JS_TRACER
-static jsdouble FASTCALL
-date_now_tn(JSContext*)
-{
-    return NowAsMillis();
-}
-#endif
 
 /*
  * Get UTC time from the date object. Returns false if the object is not
@@ -1599,38 +1579,8 @@ static const char* months[] =
    "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
 };
 
-
-// Avoid dependence on PRMJ_FormatTimeUSEnglish, because it
-// requires a PRMJTime... which only has 16-bit years.  Sub-ECMA.
-static void
-print_gmt_string(char* buf, size_t size, jsdouble utctime)
-{
-    JS_snprintf(buf, size, "%s, %.2d %s %.4d %.2d:%.2d:%.2d GMT",
-                days[WeekDay(utctime)],
-                DateFromTime(utctime),
-                months[MonthFromTime(utctime)],
-                YearFromTime(utctime),
-                HourFromTime(utctime),
-                MinFromTime(utctime),
-                SecFromTime(utctime));
-}
-
-static void
-print_iso_string(char* buf, size_t size, jsdouble utctime)
-{
-    JS_snprintf(buf, size, "%.4d-%.2d-%.2dT%.2d:%.2d:%.2d.%.3dZ",
-                YearFromTime(utctime),
-                MonthFromTime(utctime) + 1,
-                DateFromTime(utctime),
-                HourFromTime(utctime),
-                MinFromTime(utctime),
-                SecFromTime(utctime),
-                msFromTime(utctime));
-}
-
 static JSBool
-date_utc_format(JSContext *cx, jsval *vp,
-                void (*printFunc)(char*, size_t, jsdouble))
+date_toGMTString(JSContext *cx, uintN argc, jsval *vp)
 {
     char buf[100];
     JSString *str;
@@ -1642,25 +1592,23 @@ date_utc_format(JSContext *cx, jsval *vp,
     if (!JSDOUBLE_IS_FINITE(utctime)) {
         JS_snprintf(buf, sizeof buf, js_NaN_date_str);
     } else {
-        (*printFunc)(buf, sizeof buf, utctime);
+        /* Avoid dependence on PRMJ_FormatTimeUSEnglish, because it
+         * requires a PRMJTime... which only has 16-bit years.  Sub-ECMA.
+         */
+        JS_snprintf(buf, sizeof buf, "%s, %.2d %s %.4d %.2d:%.2d:%.2d GMT",
+                    days[WeekDay(utctime)],
+                    DateFromTime(utctime),
+                    months[MonthFromTime(utctime)],
+                    YearFromTime(utctime),
+                    HourFromTime(utctime),
+                    MinFromTime(utctime),
+                    SecFromTime(utctime));
     }
     str = JS_NewStringCopyZ(cx, buf);
     if (!str)
         return JS_FALSE;
     *vp = STRING_TO_JSVAL(str);
     return JS_TRUE;
-}
-
-static JSBool
-date_toGMTString(JSContext *cx, uintN argc, jsval *vp)
-{
-    return date_utc_format(cx, vp, print_gmt_string);
-}
-
-static JSBool
-date_toISOString(JSContext *cx, uintN argc, jsval *vp)
-{
-    return date_utc_format(cx, vp, print_iso_string);
 }
 
 /* for Date.toLocaleString; interface to PRMJTime date struct.
@@ -1979,30 +1927,10 @@ date_toString(JSContext *cx, uintN argc, jsval *vp)
     return date_format(cx, utctime, FORMATSPEC_FULL, vp);
 }
 
-#ifdef JS_TRACER
-static jsval FASTCALL
-date_valueOf_tn(JSContext* cx, JSObject* obj, JSString* str)
-{
-    JS_ASSERT(JS_InstanceOf(cx, obj, &js_DateClass, NULL));
-    jsdouble t = *JSVAL_TO_DOUBLE(obj->fslots[JSSLOT_UTC_TIME]);
-
-    JSString* number_str = ATOM_TO_STRING(cx->runtime->atomState.typeAtoms[JSTYPE_NUMBER]);
-    jsval v;
-    if (js_EqualStrings(str, number_str)) {
-        if (!js_NewNumberInRootedValue(cx, t, &v))
-            return JSVAL_ERROR_COOKIE;
-    } else {
-        if (!date_format(cx, t, FORMATSPEC_FULL, &v))
-            return JSVAL_ERROR_COOKIE;
-    }
-    return v;
-}
-#endif
-
 static JSBool
 date_valueOf(JSContext *cx, uintN argc, jsval *vp)
 {
-    JSString *str, *number_str;
+    JSString *str, *str2;
 
     /* It is an error to call date_valueOf on a non-date object, but we don't
      * need to check for that explicitly here because every path calls
@@ -2017,25 +1945,22 @@ date_valueOf(JSContext *cx, uintN argc, jsval *vp)
     str = js_ValueToString(cx, vp[2]);
     if (!str)
         return JS_FALSE;
-    number_str = ATOM_TO_STRING(cx->runtime->atomState.typeAtoms[JSTYPE_NUMBER]);
-    if (js_EqualStrings(str, number_str))
+    str2 = ATOM_TO_STRING(cx->runtime->atomState.typeAtoms[JSTYPE_NUMBER]);
+    if (js_EqualStrings(str, str2))
         return date_getTime(cx, argc, vp);
     return date_toString(cx, argc, vp);
 }
 
-// Don't really need an argument here, but we don't support arg-less builtins
-JS_DEFINE_TRCINFO_1(date_now,
-    (1, (static, DOUBLE, date_now_tn, CONTEXT, 0, 0)))
+/*
+ * creation and destruction
+ */
 
 static JSFunctionSpec date_static_methods[] = {
     JS_FN("UTC",                 date_UTC,                MAXARGS,0),
     JS_FN("parse",               date_parse,              1,0),
-    JS_TN("now",                 date_now,                0,0, date_now_trcinfo),
+    JS_FN("now",                 js_date_now,             0,0),
     JS_FS_END
 };
-
-JS_DEFINE_TRCINFO_1(date_valueOf,
-    (3, (static, JSVAL_RETRY, date_valueOf_tn, CONTEXT, THIS, STRING, 0, 0)))
 
 static JSFunctionSpec date_methods[] = {
     JS_FN("getTime",             date_getTime,            0,0),
@@ -2080,14 +2005,11 @@ static JSFunctionSpec date_methods[] = {
     JS_FN("toLocaleFormat",      date_toLocaleFormat,     0,0),
     JS_FN("toDateString",        date_toDateString,       0,0),
     JS_FN("toTimeString",        date_toTimeString,       0,0),
-    JS_FN("toISOString",         date_toISOString,        0,0),
-    JS_FN(js_toJSON_str,         date_toISOString,        0,0),
-
 #if JS_HAS_TOSOURCE
     JS_FN(js_toSource_str,       date_toSource,           0,0),
 #endif
     JS_FN(js_toString_str,       date_toString,           0,0),
-    JS_TN(js_valueOf_str,        date_valueOf,            0,0, date_valueOf_trcinfo),
+    JS_FN(js_valueOf_str,        date_valueOf,            0,0),
     JS_FS_END
 };
 
@@ -2105,23 +2027,25 @@ date_constructor(JSContext *cx, JSObject* obj)
     return date;
 }
 
-JSBool
-js_Date(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
+static JSBool
+Date(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     jsdouble *date;
     JSString *str;
     jsdouble d;
 
     /* Date called as function. */
-    if (!JS_IsConstructing(cx))
-        return date_format(cx, NowAsMillis(), FORMATSPEC_FULL, rval);
+    if (!(cx->fp->flags & JSFRAME_CONSTRUCTING)) {
+        return date_format(cx, PRMJ_Now() / PRMJ_USEC_PER_MSEC,
+                           FORMATSPEC_FULL, rval);
+    }
 
     /* Date called as constructor. */
     if (argc == 0) {
         date = date_constructor(cx, obj);
         if (!date)
             return JS_FALSE;
-        *date = NowAsMillis();
+        *date = PRMJ_Now() / PRMJ_USEC_PER_MSEC;
     } else if (argc == 1) {
         if (!JSVAL_IS_STRING(argv[0])) {
             /* the argument is a millisecond number */
@@ -2175,7 +2099,7 @@ js_InitDateClass(JSContext *cx, JSObject *obj)
 
     /* set static LocalTZA */
     LocalTZA = -(PRMJ_LocalGMTDifference() * msPerSecond);
-    proto = js_InitClass(cx, obj, NULL, &js_DateClass, js_Date, MAXARGS,
+    proto = JS_InitClass(cx, obj, NULL, &js_DateClass, Date, MAXARGS,
                          NULL, date_methods, NULL, date_static_methods);
     if (!proto)
         return NULL;
@@ -2445,21 +2369,3 @@ js_DateGetMsecSinceEpoch(JSContext *cx, JSObject *obj)
         return 0;
     return utctime;
 }
-
-#ifdef JS_THREADSAFE
-#include "prinrval.h"
-
-JS_FRIEND_API(uint32)
-js_IntervalNow()
-{
-    return uint32(PR_IntervalToMilliseconds(PR_IntervalNow()));
-}
-
-#else /* !JS_THREADSAFE */
-
-JS_FRIEND_API(uint32)
-js_IntervalNow()
-{
-    return uint32(PRMJ_Now() / PRMJ_USEC_PER_MSEC);
-}
-#endif

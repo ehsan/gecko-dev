@@ -75,14 +75,11 @@ REQUIRES	= appshell \
 CPPSRCS = \
   nsAccessNode.cpp \
   nsAccessibleEventData.cpp \
-  nsARIAGridAccessible.cpp \
   nsARIAMap.cpp \
   nsDocAccessible.cpp \
   nsOuterDocAccessible.cpp \
   nsAccessibilityAtoms.cpp \
-  nsCoreUtils.cpp \
-  nsAccUtils.cpp \
-  nsRelUtils.cpp \
+  nsAccessibilityUtils.cpp \
   nsAccessibilityService.cpp \
   nsAccessible.cpp \
   nsAccessibleRelation.cpp \
@@ -93,8 +90,7 @@ CPPSRCS = \
   nsApplicationAccessible.cpp \
   nsCaretAccessible.cpp \
   nsTextAccessible.cpp \
-  nsTextEquivUtils.cpp \
-  nsTextAttrs.cpp \
+  nsTextUtils.cpp \
   $(NULL)
 
 EXPORTS = \

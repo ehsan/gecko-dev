@@ -43,8 +43,6 @@
 #include "nsIObserver.h"
 #include "nsIURI.h"
 
-#include "nsCycleCollectionParticipant.h"
-
 #include "nsIDOMGeoGeolocation.h"
 #include "nsIDOMGeoPosition.h"
 #include "nsIDOMGeoPositionError.h"
@@ -60,20 +58,15 @@
 class nsGeolocationService;
 class nsGeolocation;
 
-class nsGeolocationRequest : public nsIGeolocationRequest, public nsITimerCallback
+class nsGeolocationRequest : public nsIGeolocationRequest
 {
  public:
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIGEOLOCATIONREQUEST
-  NS_DECL_NSITIMERCALLBACK
-
-  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsGeolocationRequest, nsIGeolocationRequest)
 
   nsGeolocationRequest(nsGeolocation* locator,
                        nsIDOMGeoPositionCallback* callback,
-                       nsIDOMGeoPositionErrorCallback* errorCallback,
-                       nsIDOMGeoPositionOptions* options);
-  nsresult Init();
+                       nsIDOMGeoPositionErrorCallback* errorCallback);
   void Shutdown();
 
   void SendLocation(nsIDOMGeoPosition* location);
@@ -83,24 +76,38 @@ class nsGeolocationRequest : public nsIGeolocationRequest, public nsITimerCallba
   ~nsGeolocationRequest();
 
  private:
+  PRBool mAllowed;
+  PRBool mCleared;
+  PRBool mFuzzLocation;
 
-  void NotifyError(PRInt16 errorCode);
-  PRPackedBool mAllowed;
-  PRPackedBool mCleared;
-  PRPackedBool mHasSentData;
-
-  nsCOMPtr<nsITimer> mTimeoutTimer;
   nsCOMPtr<nsIDOMGeoPositionCallback> mCallback;
   nsCOMPtr<nsIDOMGeoPositionErrorCallback> mErrorCallback;
-  nsCOMPtr<nsIDOMGeoPositionOptions> mOptions;
 
-  nsRefPtr<nsGeolocation> mLocator;
+  nsGeolocation* mLocator; // The locator exists alonger than this object.
+};
+
+/**
+ * Simple object that holds a single point in space.
+ */ 
+class nsGeoPosition : public nsIDOMGeoPosition
+{
+public:
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIDOMGEOPOSITION
+
+    nsGeoPosition(double aLat, double aLong, double aAlt, double aHError, double aVError, double aHeading, double aVelocity, long long aTimestamp)
+    : mLat(aLat), mLong(aLong), mAlt(aAlt), mHError(aHError), mVError(aVError), mHeading(aHeading), mVelocity(aVelocity), mTimestamp(aTimestamp){};
+
+private:
+  ~nsGeoPosition(){}
+  double mLat, mLong, mAlt, mHError, mVError, mHeading, mVelocity;
+  long long mTimestamp;
 };
 
 /**
  * Singleton that manages the geolocation provider
  */
-class nsGeolocationService : public nsIGeolocationUpdate, public nsIObserver
+class nsGeolocationService : public nsIGeolocationService, public nsIGeolocationUpdate, public nsIObserver
 {
 public:
 
@@ -111,6 +118,7 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIGEOLOCATIONUPDATE
   NS_DECL_NSIOBSERVER
+  NS_DECL_NSIGEOLOCATIONSERVICE
 
   nsGeolocationService();
 
@@ -118,11 +126,15 @@ public:
   void AddLocator(nsGeolocation* locator);
   void RemoveLocator(nsGeolocation* locator);
 
-  void SetCachedPosition(nsIDOMGeoPosition* aPosition);
-  nsIDOMGeoPosition* GetCachedPosition();
+  // Returns the last geolocation we have seen since calling StartDevice()
+  already_AddRefed<nsIDOMGeoPosition> GetLastKnownPosition();
+  
+  // Returns the application defined UI prompt
+  nsIGeolocationPrompt* GetPrompt() { return mPrompt; } // does not addref.
 
-  // Returns true if there is a geolocation provider registered.
-  PRBool   HasGeolocationProvider();
+  // Returns true if the we have successfully found and started a
+  // geolocation device
+  PRBool   IsDeviceReady();
 
   // Find and startup a geolocation device (gps, nmea, etc.)
   nsresult StartDevice();
@@ -153,8 +165,8 @@ private:
   // them from this list.
   nsTArray<nsGeolocation*> mGeolocators;
 
-  // This is the last geo position that we have seen.
-  nsCOMPtr<nsIDOMGeoPosition> mLastPosition;
+  // prompt callback, if any
+  nsCOMPtr<nsIGeolocationPrompt> mPrompt;
 };
 
 
@@ -165,10 +177,8 @@ class nsGeolocation : public nsIDOMGeoGeolocation
 {
 public:
 
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIDOMGEOGEOLOCATION
-
-  NS_DECL_CYCLE_COLLECTION_CLASS(nsGeolocation)
 
   nsGeolocation(nsIDOMWindow* contentDom);
 
@@ -176,13 +186,13 @@ public:
   void Update(nsIDOMGeoPosition* aPosition);
 
   // Returns true if any of the callbacks are repeating
-  PRBool HasActiveCallbacks();
+  PRBool   HasActiveCallbacks();
 
   // Remove request from all callbacks arrays
-  void RemoveRequest(nsGeolocationRequest* request);
+  void     RemoveRequest(nsGeolocationRequest* request);
 
   // Shutting down.
-  void Shutdown();
+  void     Shutdown();
 
   // Setter and Getter of the URI that this nsGeolocation was loaded from
   nsIURI* GetURI() { return mURI; }
@@ -202,8 +212,8 @@ private:
   // |mWatchingCallbacks| holds objects until the object is explictly removed or
   // there is a page change.
 
-  nsTArray<nsRefPtr<nsGeolocationRequest> > mPendingCallbacks;
-  nsTArray<nsRefPtr<nsGeolocationRequest> > mWatchingCallbacks;
+  nsCOMArray<nsGeolocationRequest> mPendingCallbacks;
+  nsCOMArray<nsGeolocationRequest> mWatchingCallbacks;
 
   PRBool mUpdateInProgress;
 

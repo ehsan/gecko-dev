@@ -40,9 +40,8 @@
 #include "nsISVGGlyphFragmentNode.h"
 #include "nsSVGGraphicElement.h"
 #include "nsSVGMatrix.h"
-#include "nsSVGAElement.h"
+#include "nsIDOMSVGAElement.h"
 #include "nsSVGUtils.h"
-#include "gfxMatrix.h"
 
 // <a> elements can contain text. nsSVGGlyphFrames expect to have
 // a class derived from nsSVGTextContainerFrame as a parent. We
@@ -54,18 +53,13 @@ typedef nsSVGTSpanFrame nsSVGAFrameBase;
 class nsSVGAFrame : public nsSVGAFrameBase
 {
   friend nsIFrame*
-  NS_NewSVGAFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
+  NS_NewSVGAFrame(nsIPresShell* aPresShell, nsIContent* aContent,
+                  nsStyleContext* aContext);
 protected:
   nsSVGAFrame(nsStyleContext* aContext) :
     nsSVGAFrameBase(aContext) {}
 
 public:
-#ifdef DEBUG
-  NS_IMETHOD Init(nsIContent*      aContent,
-                  nsIFrame*        aParent,
-                  nsIFrame*        aPrevInFlow);
-#endif
-
   // nsIFrame:
   NS_IMETHOD  AttributeChanged(PRInt32         aNameSpaceID,
                                nsIAtom*        aAttribute,
@@ -88,7 +82,7 @@ public:
   virtual void NotifySVGChanged(PRUint32 aFlags);
   
   // nsSVGContainerFrame methods:
-  virtual gfxMatrix GetCanvasTM();
+  virtual already_AddRefed<nsIDOMSVGMatrix> GetCanvasTM();
   
 private:
   nsCOMPtr<nsIDOMSVGMatrix> mCanvasTM;
@@ -98,27 +92,20 @@ private:
 // Implementation
 
 nsIFrame*
-NS_NewSVGAFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
+NS_NewSVGAFrame(nsIPresShell* aPresShell, nsIContent* aContent, nsStyleContext* aContext)
 {
+  nsCOMPtr<nsIDOMSVGAElement> elem = do_QueryInterface(aContent);
+  if (!elem) {
+    NS_ERROR("Trying to construct an SVGAFrame for a "
+             "content element that doesn't support the right interfaces");
+    return nsnull;
+  }
+
   return new (aPresShell) nsSVGAFrame(aContext);
 }
 
 //----------------------------------------------------------------------
 // nsIFrame methods
-#ifdef DEBUG
-NS_IMETHODIMP
-nsSVGAFrame::Init(nsIContent* aContent,
-                  nsIFrame* aParent,
-                  nsIFrame* aPrevInFlow)
-{
-  nsCOMPtr<nsIDOMSVGAElement> elem = do_QueryInterface(aContent);
-  NS_ASSERTION(elem,
-               "Trying to construct an SVGAFrame for a "
-               "content element that doesn't support the right interfaces");
-
-  return nsSVGAFrameBase::Init(aContent, aParent, aPrevInFlow);
-}
-#endif /* DEBUG */
 
 NS_IMETHODIMP
 nsSVGAFrame::AttributeChanged(PRInt32         aNameSpaceID,
@@ -163,19 +150,40 @@ nsSVGAFrame::NotifySVGChanged(PRUint32 aFlags)
 //----------------------------------------------------------------------
 // nsSVGContainerFrame methods:
 
-gfxMatrix
+already_AddRefed<nsIDOMSVGMatrix>
 nsSVGAFrame::GetCanvasTM()
 {
-  if (!mCanvasTM) {
-    NS_ASSERTION(mParent, "null parent");
-
-    nsSVGContainerFrame *parent = static_cast<nsSVGContainerFrame*>(mParent);
-    nsSVGAElement *content = static_cast<nsSVGAElement*>(mContent);
-
-    gfxMatrix tm = content->PrependLocalTransformTo(parent->GetCanvasTM());
-
-    mCanvasTM = NS_NewSVGMatrix(tm);
+  if (!mPropagateTransform) {
+    nsIDOMSVGMatrix *retval;
+    if (mOverrideCTM) {
+      retval = mOverrideCTM;
+      NS_ADDREF(retval);
+    } else {
+      NS_NewSVGMatrix(&retval);
+    }
+    return retval;
   }
 
-  return nsSVGUtils::ConvertSVGMatrixToThebes(mCanvasTM);
+  if (!mCanvasTM) {
+    // get our parent's tm and append local transforms (if any):
+    NS_ASSERTION(mParent, "null parent");
+    nsSVGContainerFrame *containerFrame = static_cast<nsSVGContainerFrame*>
+                                                     (mParent);
+    nsCOMPtr<nsIDOMSVGMatrix> parentTM = containerFrame->GetCanvasTM();
+    NS_ASSERTION(parentTM, "null TM");
+
+    // got the parent tm, now check for local tm:
+    nsSVGGraphicElement *element =
+      static_cast<nsSVGGraphicElement*>(mContent);
+    nsCOMPtr<nsIDOMSVGMatrix> localTM = element->GetLocalTransformMatrix();
+
+    if (localTM)
+      parentTM->Multiply(localTM, getter_AddRefs(mCanvasTM));
+    else
+      mCanvasTM = parentTM;
+  }
+
+  nsIDOMSVGMatrix* retval = mCanvasTM.get();
+  NS_IF_ADDREF(retval);
+  return retval;
 }

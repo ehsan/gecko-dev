@@ -60,7 +60,7 @@ public:
                           const PRUnichar *statusArg);
   // imgIContainerObserver (override nsStubImageDecoderObserver)
   NS_IMETHOD FrameChanged(imgIContainer *container, gfxIImageFrame *newframe,
-                          nsIntRect *dirtyRect);
+                          nsRect * dirtyRect);
 
   void SetFrame(nsImageBoxFrame *frame) { mFrame = frame; }
 
@@ -90,7 +90,7 @@ public:
                               nsIAtom* aAttribute,
                               PRInt32 aModType);
 
-  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
+  NS_IMETHOD DidSetStyleContext();
 
   virtual void Destroy();
 
@@ -123,7 +123,7 @@ public:
                           const PRUnichar *statusArg);
   NS_IMETHOD FrameChanged(imgIContainer *container,
                           gfxIImageFrame *newframe,
-                          nsIntRect *dirtyRect);
+                          nsRect * dirtyRect);
 
   virtual ~nsImageBoxFrame();
 
@@ -138,17 +138,18 @@ protected:
 
 private:
 
-  nsRect mSubRect; ///< If set, indicates that only the portion of the image specified by the rect should be used.
-  nsSize mIntrinsicSize;
-  nsSize mImageSize;
-
   nsCOMPtr<imgIRequest> mImageRequest;
   nsCOMPtr<imgIDecoderObserver> mListener;
 
-  PRInt32 mLoadFlags;
-
   PRPackedBool mUseSrcAttr; ///< Whether or not the image src comes from an attribute.
   PRPackedBool mSuppressStyleCheck;
+  
+  nsRect mSubRect; ///< If set, indicates that only the portion of the image specified by the rect should be used.
+
+  nsSize mIntrinsicSize;
+  PRInt32 mLoadFlags;
+
+  nsSize mImageSize;
 }; // class nsImageBoxFrame
 
 #endif /* nsImageBoxFrame_h___ */

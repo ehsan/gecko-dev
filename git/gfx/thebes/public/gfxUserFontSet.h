@@ -54,20 +54,35 @@ class gfxMixedFontFamily;
 // lifetime: from when @font-face rule processed until font is loaded
 struct gfxFontFaceSrc {
     PRPackedBool           mIsLocal;       // url or local
-
-    // if url, whether to use the origin principal or not
-    PRPackedBool           mUseOriginPrincipal;
+    nsString               mLocalName;     // full font name if local
+    nsCOMPtr<nsIURI>       mURI;           // uri if url 
 
     // format hint flags, union of all possible formats
     // (e.g. TrueType, EOT, SVG, etc.)
     // see FLAG_FORMAT_* enum values below
     PRUint32               mFormatFlags;
+};
 
-    nsString               mLocalName;     // full font name if local
-    nsCOMPtr<nsIURI>       mURI;           // uri if url 
-    nsCOMPtr<nsIURI>       mReferrer;      // referrer url if url
-    nsCOMPtr<nsISupports>  mOriginPrincipal; // principal if url 
-    
+// data needed to initialize platform font
+// After download completes, platform-specific code is responsible for
+// removing temp file and managing cache token. Depending on the
+// platform, these may need to persist after the platform font has been
+// created.
+// lifetime: time during which font is downloaded and active
+struct gfxDownloadedFontData {
+    nsCOMPtr<nsIFile>      mFontFile;     // file containing font data
+    nsCOMPtr<nsISupports>  mDownloader;   // need to a ref to this to prevent file from being deleted
+
+    // format hint flags, union of all possible formats
+    PRUint32               mFormatFlags;  // opentype, truetype, svg, etc. (if known)
+};
+
+// subclassed by loader code to contain needed context info
+// lifetime: user font set lifetime 
+class gfxFontLoaderContext {
+public:
+  gfxFontLoaderContext() { }
+  virtual ~gfxFontLoaderContext() { }
 };
 
 // subclassed to store platform-specific code cleaned out when font entry is deleted
@@ -144,24 +159,32 @@ class gfxProxyFontEntry;
 class THEBES_API gfxUserFontSet {
 
 public:
+    class LoaderContext;
+    typedef PRBool (*LoaderCallback) (gfxFontEntry *aFontToLoad, nsIURI *aSrcURL, 
+                                      LoaderContext *aContextData);
+
+    class LoaderContext {
+    public:
+        LoaderContext(LoaderCallback aLoader)
+            : mUserFontSet(nsnull), mLoaderProc(aLoader) { }
+        virtual ~LoaderContext() { }
+
+        gfxUserFontSet* mUserFontSet;
+        LoaderCallback  mLoaderProc;
+    };
 
     THEBES_INLINE_DECL_REFCOUNTING(gfxUserFontSet)
 
-    gfxUserFontSet();
+    gfxUserFontSet(LoaderContext *aContext);
     virtual ~gfxUserFontSet();
 
     enum {
-        // no flags ==> no hint set
-        // unknown ==> unknown format hint set
-        FLAG_FORMAT_UNKNOWN        = 1,
-        FLAG_FORMAT_OPENTYPE       = 1 << 1,
-        FLAG_FORMAT_TRUETYPE       = 1 << 2,
-        FLAG_FORMAT_TRUETYPE_AAT   = 1 << 3,
-        FLAG_FORMAT_EOT            = 1 << 4,
-        FLAG_FORMAT_SVG            = 1 << 5,
-        
-        // mask of all unused bits, update when adding new formats
-        FLAG_FORMAT_NOT_USED       = ~((1 << 6)-1)
+        // no flags ==> unknown
+        FLAG_FORMAT_OPENTYPE       = 1,
+        FLAG_FORMAT_TRUETYPE       = 2,
+        FLAG_FORMAT_TRUETYPE_AAT   = 4,
+        FLAG_FORMAT_EOT            = 8,
+        FLAG_FORMAT_SVG            = 16
     };
 
     enum LoadStatus {
@@ -175,7 +198,7 @@ public:
 
     // add in a font face
     // weight, stretch - 0 == unknown, [1, 9] otherwise
-    // italic style = constants in gfxFontConstants.h, e.g. NS_FONT_STYLE_NORMAL
+    // italic style = constants in gfxFont.h (e.g. FONT_STYLE_NORMAL)
     // TODO: support for unicode ranges not yet implemented
     void AddFontFace(const nsAString& aFamilyName, 
                      const nsTArray<gfxFontFaceSrc>& aFontFaceSrcList, 
@@ -184,28 +207,16 @@ public:
                      PRUint32 aItalicStyle = 0, 
                      gfxSparseBitSet *aUnicodeRanges = nsnull);
 
-    // Whether there is a face with this family name
-    PRBool HasFamily(const nsAString& aFamilyName) const
-    {
-        return GetFamily(aFamilyName) != nsnull;
-    }
-
     // lookup a font entry for a given style, returns null if not loaded
     gfxFontEntry *FindFontEntry(const nsAString& aName, 
-                                const gfxFontStyle& aFontStyle, 
-                                PRBool& aNeedsBold);
-                                
-    // initialize the process that loads external font data, which upon 
-    // completion will call OnLoadComplete method
-    virtual nsresult StartLoad(gfxFontEntry *aFontToLoad, 
-                               const gfxFontFaceSrc *aFontFaceSrc) = 0;
+                                const gfxFontStyle& aFontStyle, PRBool& aNeedsBold);
 
     // when download has been completed, pass back data here
     // aDownloadStatus == NS_OK ==> download succeeded, error otherwise
     // returns true if platform font creation sucessful (or local()
     // reference was next in line)
-    PRBool OnLoadComplete(gfxFontEntry *aFontToLoad, nsISupports *aLoader,
-                          const PRUint8 *aFontData, PRUint32 aLength,
+    PRBool OnLoadComplete(gfxFontEntry *aFontToLoad, 
+                          const gfxDownloadedFontData& aFontData, 
                           nsresult aDownloadStatus);
 
     // generation - each time a face is loaded, generation is
@@ -220,8 +231,6 @@ protected:
     // increment the generation on font load
     void IncrementGeneration();
 
-    gfxMixedFontFamily *GetFamily(const nsAString& aName) const;
-
     // remove family
     void RemoveFamily(const nsAString& aFamilyName);
 
@@ -229,6 +238,9 @@ protected:
     nsRefPtrHashtable<nsStringHashKey, gfxMixedFontFamily> mFontFamilies;
 
     PRUint64        mGeneration;
+
+    // owned by user font set obj, deleted within destructor
+    nsAutoPtr<LoaderContext> mLoaderContext;
 };
 
 // acts a placeholder until the real font is downloaded
@@ -237,7 +249,6 @@ class gfxProxyFontEntry : public gfxFontEntry {
 
 public:
     gfxProxyFontEntry(const nsTArray<gfxFontFaceSrc>& aFontFaceSrcList, 
-                      gfxMixedFontFamily *aFamily,
                       PRUint32 aWeight, 
                       PRUint32 aStretch, 
                       PRUint32 aItalicStyle, 

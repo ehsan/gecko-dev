@@ -331,13 +331,8 @@ struct nsPluginEvent {
 
 #elif defined(XP_WIN)
     uint16      event;
-#if defined(_WIN64)
-    uint64      wParam;
-    uint64      lParam;
-#else
     uint32      wParam;
     uint32      lParam;
-#endif /* _WIN64 */
 
 #elif defined(XP_UNIX) && defined(MOZ_X11)
     XEvent      event;
@@ -357,9 +352,10 @@ enum nsPluginEventType {
     nsPluginEventType_AdjustCursorEvent,
     nsPluginEventType_MenuCommandEvent,
     nsPluginEventType_ClippingChangedEvent,
-    nsPluginEventType_ScrollingBeginsEvent = 1000,
-    nsPluginEventType_ScrollingEndsEvent
-#endif
+    nsPluginEventType_ScrollingBeginsEvent,
+    nsPluginEventType_ScrollingEndsEvent,
+#endif /* XP_MACOSX */
+    nsPluginEventType_Idle                 = 0
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -395,10 +391,14 @@ enum nsPluginReason {
 
 // Classes that must be implemented by the plugin DLL:
 class nsIPlugin;                        // plugin class (MIME-type handler)
+class nsIEventHandler;                  // event handler interface
 class nsIPluginInstance;                // plugin instance
 
 // Classes that are implemented by the browser:
+class nsIPluginManager;                 // minimum browser requirements
+class nsIFileUtilities;                 // file utilities (accessible from nsIPluginManager)
 class nsIPluginInstancePeer;            // parts of nsIPluginInstance implemented by the browser
+class nsIWindowlessPluginInstancePeer;  // subclass of nsIPluginInstancePeer for windowless plugins
 class nsIPluginTagInfo;                 // describes html tag (accessible from nsIPluginInstancePeer)
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -103,23 +103,6 @@ char * strdup(const char *src)
 }
 #endif
 
-#ifdef WINCE
-int remove(const char* inPath)
-{
-  unsigned short wPath[MAX_PATH];
-  MultiByteToWideChar(CP_ACP,
-                      0,
-                      inPath,
-                      -1,
-                      wPath,
-                      MAX_PATH);
-  
-  if(FALSE != DeleteFileW(wPath))
-    return 0;
-  return -1;
-}
-#endif
-
 #endif /* STANDALONE */
 
 #ifdef XP_UNIX
@@ -132,11 +115,6 @@ int remove(const char* inPath)
 #elif defined(XP_BEOS)
     #include <unistd.h>
 #endif
-
-#ifdef __SYMBIAN32__
-    #include <sys/syslimits.h>
-#endif /*__SYMBIAN32__*/
-
 
 #ifndef XP_UNIX /* we need some constants defined in limits.h and unistd.h */
 #  ifndef S_IFMT
@@ -468,7 +446,7 @@ void ProcessWindowsMessages()
 // we startup and disabled after we startup if memory is a concern.
 //***********************************************************
 
-static void *
+PR_STATIC_CALLBACK(void *)
 zlibAlloc(void *opaque, uInt items, uInt size)
 {
   nsRecyclingAllocator *zallocator = (nsRecyclingAllocator *)opaque;
@@ -483,7 +461,7 @@ zlibAlloc(void *opaque, uInt items, uInt size)
     return calloc(items, size);
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 zlibFree(void *opaque, void *ptr)
 {
   nsRecyclingAllocator *zallocator = (nsRecyclingAllocator *)opaque;
@@ -750,7 +728,7 @@ nsZipArchive::FindInit(const char * aPattern, nsZipFind **aFind)
 
   *aFind = new nsZipFind(this, pattern, regExp);
   if (!*aFind) {
-    PL_strfree(pattern);
+    PR_FREEIF(pattern);
     return ZIP_ERR_MEMORY;
   }
 
@@ -1353,7 +1331,7 @@ nsZipFind::nsZipFind(nsZipArchive* aZip, char* aPattern, PRBool aRegExp) :
 
 nsZipFind::~nsZipFind()
 {
-  PL_strfree(mPattern);
+  PR_FREEIF(mPattern);
 
   MOZ_COUNT_DTOR(nsZipFind);
 }

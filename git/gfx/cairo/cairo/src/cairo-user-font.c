@@ -96,6 +96,8 @@ _cairo_user_scaled_font_create_meta_context (cairo_user_scaled_font_t *scaled_fo
     return cr;
 }
 
+static const cairo_scaled_font_backend_t cairo_user_scaled_font_backend;
+
 static cairo_int_status_t
 _cairo_user_scaled_glyph_init (void			 *abstract_font,
 			       cairo_scaled_glyph_t	 *scaled_glyph,
@@ -118,7 +120,7 @@ _cairo_user_scaled_glyph_init (void			 *abstract_font,
 							     _cairo_scaled_glyph_index(scaled_glyph),
 							     cr, &extents);
 	else
-	    status = CAIRO_STATUS_USER_FONT_NOT_IMPLEMENTED;
+	    status = CAIRO_STATUS_USER_FONT_ERROR;
 
 	if (status == CAIRO_STATUS_SUCCESS)
 	    status = cairo_status (cr);
@@ -127,7 +129,7 @@ _cairo_user_scaled_glyph_init (void			 *abstract_font,
 
 	cairo_destroy (cr);
 
-	if (unlikely (status)) {
+	if (status) {
 	    cairo_surface_destroy (meta_surface);
 	    return status;
 	}
@@ -151,18 +153,13 @@ _cairo_user_scaled_glyph_init (void			 *abstract_font,
 	    null_surface = _cairo_null_surface_create (cairo_surface_get_content (meta_surface));
 	    analysis_surface = _cairo_analysis_surface_create (null_surface, -1, -1);
 	    cairo_surface_destroy (null_surface);
-	    status = analysis_surface->status;
-	    if (unlikely (status))
-		return status;
 
-	    _cairo_analysis_surface_set_ctm (analysis_surface,
-					     &scaled_font->extent_scale);
-	    status = _cairo_meta_surface_replay (meta_surface,
-						 analysis_surface);
+	    _cairo_analysis_surface_set_ctm (analysis_surface, &scaled_font->extent_scale);
+	    status = _cairo_meta_surface_replay (meta_surface, analysis_surface);
 	    _cairo_analysis_surface_get_bounding_box (analysis_surface, &bbox);
 	    cairo_surface_destroy (analysis_surface);
 
-	    if (unlikely (status))
+	    if (status)
 		return status;
 
 	    _cairo_box_to_doubles (&bbox, &x1, &y1, &x2, &y2);
@@ -187,6 +184,7 @@ _cairo_user_scaled_glyph_init (void			 *abstract_font,
 
     if (info & CAIRO_SCALED_GLYPH_INFO_SURFACE) {
 	cairo_surface_t	*surface;
+	cairo_status_t status = CAIRO_STATUS_SUCCESS;
 	cairo_format_t format;
 	int width, height;
 
@@ -215,7 +213,7 @@ _cairo_user_scaled_glyph_init (void			 *abstract_font,
 	                                 - _cairo_fixed_integer_floor (scaled_glyph->bbox.p1.y));
 	status = _cairo_meta_surface_replay (meta_surface, surface);
 
-	if (unlikely (status)) {
+	if (status) {
 	    cairo_surface_destroy(surface);
 	    return status;
 	}
@@ -232,7 +230,7 @@ _cairo_user_scaled_glyph_init (void			 *abstract_font,
 
 	status = _cairo_meta_surface_get_path (meta_surface, path);
 
-	if (unlikely (status)) {
+	if (status) {
 	    _cairo_path_fixed_destroy (path);
 	    return status;
 	}
@@ -260,16 +258,12 @@ _cairo_user_ucs4_to_index (void	    *abstract_font,
 	status = face->scaled_font_methods.unicode_to_glyph (&scaled_font->base,
 							     ucs4, &glyph);
 
-	if (status == CAIRO_STATUS_USER_FONT_NOT_IMPLEMENTED)
-	    goto not_implemented;
-
 	if (status != CAIRO_STATUS_SUCCESS) {
 	    status = _cairo_scaled_font_set_error (&scaled_font->base, status);
 	    glyph = 0;
 	}
 
     } else {
-not_implemented:
 	glyph = ucs4;
     }
 
@@ -277,16 +271,16 @@ not_implemented:
 }
 
 static cairo_int_status_t
-_cairo_user_text_to_glyphs (void		      *abstract_font,
-			    double		       x,
-			    double		       y,
-			    const char		      *utf8,
-			    int			       utf8_len,
-			    cairo_glyph_t	     **glyphs,
-			    int			       *num_glyphs,
-			    cairo_text_cluster_t      **clusters,
-			    int			       *num_clusters,
-			    cairo_text_cluster_flags_t *cluster_flags)
+_cairo_user_text_to_glyphs (void		 *abstract_font,
+			    double		  x,
+			    double		  y,
+			    const char		 *utf8,
+			    int			  utf8_len,
+			    cairo_glyph_t	**glyphs,
+			    int			  *num_glyphs,
+			    cairo_text_cluster_t **clusters,
+			    int			  *num_clusters,
+			    cairo_bool_t	  *backward)
 {
     cairo_int_status_t status = CAIRO_INT_STATUS_UNSUPPORTED;
 
@@ -296,23 +290,18 @@ _cairo_user_text_to_glyphs (void		      *abstract_font,
 
     if (face->scaled_font_methods.text_to_glyphs) {
 	int i;
-	cairo_glyph_t *orig_glyphs = *glyphs;
 	int orig_num_glyphs = *num_glyphs;
 
 	status = face->scaled_font_methods.text_to_glyphs (&scaled_font->base,
 							   utf8, utf8_len,
 							   glyphs, num_glyphs,
-							   clusters, num_clusters, cluster_flags);
+							   clusters, num_clusters,
+							   backward);
 
-	if (status != CAIRO_STATUS_SUCCESS &&
-	    status != CAIRO_STATUS_USER_FONT_NOT_IMPLEMENTED)
+	if (status != CAIRO_STATUS_SUCCESS)
 	    return status;
 
-	if (status == CAIRO_STATUS_USER_FONT_NOT_IMPLEMENTED || *num_glyphs < 0) {
-	    if (orig_glyphs != *glyphs) {
-		cairo_glyph_free (*glyphs);
-		*glyphs = orig_glyphs;
-	    }
+	if (*num_glyphs < 0) {
 	    *num_glyphs = orig_num_glyphs;
 	    return CAIRO_INT_STATUS_UNSUPPORTED;
 	}
@@ -333,29 +322,16 @@ _cairo_user_text_to_glyphs (void		      *abstract_font,
     return status;
 }
 
-static cairo_status_t
-_cairo_user_font_face_scaled_font_create (void                        *abstract_face,
-					  const cairo_matrix_t        *font_matrix,
-					  const cairo_matrix_t        *ctm,
-					  const cairo_font_options_t  *options,
-					  cairo_scaled_font_t        **scaled_font);
-
-static cairo_status_t
-_cairo_user_font_face_create_for_toy (cairo_toy_font_face_t   *toy_face,
-				      cairo_font_face_t      **font_face)
-{
-    return _cairo_font_face_twin_create_for_toy (toy_face, font_face);
-}
-
-static const cairo_scaled_font_backend_t _cairo_user_scaled_font_backend = {
+static const cairo_scaled_font_backend_t cairo_user_scaled_font_backend = {
     CAIRO_FONT_TYPE_USER,
+    NULL,	/* create_toy */
     NULL,	/* scaled_font_fini */
     _cairo_user_scaled_glyph_init,
     _cairo_user_text_to_glyphs,
     _cairo_user_ucs4_to_index,
     NULL,	/* show_glyphs */
     NULL,	/* load_truetype_table */
-    NULL	/* index_to_ucs4 */
+    NULL,	/* map_glyphs_to_unicode */
 };
 
 /* #cairo_user_font_face_t */
@@ -375,15 +351,15 @@ _cairo_user_font_face_scaled_font_create (void                        *abstract_
     font_face->immutable = TRUE;
 
     user_scaled_font = malloc (sizeof (cairo_user_scaled_font_t));
-    if (unlikely (user_scaled_font == NULL))
-	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
+    if (user_scaled_font == NULL)
+	return CAIRO_STATUS_NO_MEMORY;
 
     status = _cairo_scaled_font_init (&user_scaled_font->base,
 				      &font_face->base,
 				      font_matrix, ctm, options,
-				      &_cairo_user_scaled_font_backend);
+				      &cairo_user_scaled_font_backend);
 
-    if (unlikely (status)) {
+    if (status) {
 	free (user_scaled_font);
 	return status;
     }
@@ -421,40 +397,36 @@ _cairo_user_font_face_scaled_font_create (void                        *abstract_
 	}
     }
 
-    if (status == CAIRO_STATUS_SUCCESS &&
-	font_face->scaled_font_methods.init != NULL)
-    {
+    if (status == CAIRO_STATUS_SUCCESS && font_face->scaled_font_methods.init != NULL) {
+
+	cairo_t *cr;
+
 	/* Lock the scaled_font mutex such that user doesn't accidentally try
          * to use it just yet. */
 	CAIRO_MUTEX_LOCK (user_scaled_font->base.mutex);
 
 	/* Give away fontmap lock such that user-font can use other fonts */
-	status = _cairo_scaled_font_register_placeholder_and_unlock_font_map (&user_scaled_font->base);
-	if (status == CAIRO_STATUS_SUCCESS) {
-	    cairo_t *cr;
+	_cairo_scaled_font_register_placeholder_and_unlock_font_map (&user_scaled_font->base);
 
-	    cr = _cairo_user_scaled_font_create_meta_context (user_scaled_font);
+	cr = _cairo_user_scaled_font_create_meta_context (user_scaled_font);
 
-	    status = font_face->scaled_font_methods.init (&user_scaled_font->base,
-							  cr,
-							  &font_extents);
+	status = font_face->scaled_font_methods.init (&user_scaled_font->base,
+						      cr,
+						      &font_extents);
 
-	    if (status == CAIRO_STATUS_USER_FONT_NOT_IMPLEMENTED)
-		status = CAIRO_STATUS_SUCCESS;
+	if (status == CAIRO_STATUS_SUCCESS)
+	    status = cairo_status (cr);
 
-	    if (status == CAIRO_STATUS_SUCCESS)
-		status = cairo_status (cr);
+	cairo_destroy (cr);
 
-	    cairo_destroy (cr);
-
-	    _cairo_scaled_font_unregister_placeholder_and_lock_font_map (&user_scaled_font->base);
-	}
+	_cairo_scaled_font_unregister_placeholder_and_lock_font_map (&user_scaled_font->base);
 
 	CAIRO_MUTEX_UNLOCK (user_scaled_font->base.mutex);
     }
 
     if (status == CAIRO_STATUS_SUCCESS)
 	status = _cairo_scaled_font_set_metrics (&user_scaled_font->base, &font_extents);
+
 
     if (status != CAIRO_STATUS_SUCCESS) {
         _cairo_scaled_font_fini (&user_scaled_font->base);
@@ -473,9 +445,8 @@ _cairo_user_font_face_scaled_font_create (void                        *abstract_
     return status;
 }
 
-const cairo_font_face_backend_t _cairo_user_font_face_backend = {
+static const cairo_font_face_backend_t _cairo_user_font_face_backend = {
     CAIRO_FONT_TYPE_USER,
-    _cairo_user_font_face_create_for_toy,
     NULL,	/* destroy */
     _cairo_user_font_face_scaled_font_create
 };
@@ -526,7 +497,6 @@ cairo_user_font_face_create (void)
 
     return &font_face->base;
 }
-slim_hidden_def(cairo_user_font_face_create);
 
 /* User-font method setters */
 
@@ -550,24 +520,17 @@ void
 cairo_user_font_face_set_init_func (cairo_font_face_t                  *font_face,
 				    cairo_user_scaled_font_init_func_t  init_func)
 {
-    cairo_user_font_face_t *user_font_face;
-
-    if (font_face->status)
-	return;
-
+    cairo_user_font_face_t *user_font_face = (cairo_user_font_face_t *) font_face;
     if (! _cairo_font_face_is_user (font_face)) {
 	if (_cairo_font_face_set_error (font_face, CAIRO_STATUS_FONT_TYPE_MISMATCH))
 	    return;
     }
-
-    user_font_face = (cairo_user_font_face_t *) font_face;
     if (user_font_face->immutable) {
 	if (_cairo_font_face_set_error (font_face, CAIRO_STATUS_USER_FONT_IMMUTABLE))
 	    return;
     }
     user_font_face->scaled_font_methods.init = init_func;
 }
-slim_hidden_def(cairo_user_font_face_set_init_func);
 
 /**
  * cairo_user_font_face_set_render_glyph_func:
@@ -592,24 +555,17 @@ void
 cairo_user_font_face_set_render_glyph_func (cairo_font_face_t                          *font_face,
 					    cairo_user_scaled_font_render_glyph_func_t  render_glyph_func)
 {
-    cairo_user_font_face_t *user_font_face;
-
-    if (font_face->status)
-	return;
-
+    cairo_user_font_face_t *user_font_face = (cairo_user_font_face_t *) font_face;
     if (! _cairo_font_face_is_user (font_face)) {
 	if (_cairo_font_face_set_error (font_face, CAIRO_STATUS_FONT_TYPE_MISMATCH))
 	    return;
     }
-
-    user_font_face = (cairo_user_font_face_t *) font_face;
     if (user_font_face->immutable) {
 	if (_cairo_font_face_set_error (font_face, CAIRO_STATUS_USER_FONT_IMMUTABLE))
 	    return;
     }
     user_font_face->scaled_font_methods.render_glyph = render_glyph_func;
 }
-slim_hidden_def(cairo_user_font_face_set_render_glyph_func);
 
 /**
  * cairo_user_font_face_set_text_to_glyphs_func:
@@ -630,17 +586,11 @@ void
 cairo_user_font_face_set_text_to_glyphs_func (cairo_font_face_t                            *font_face,
 					      cairo_user_scaled_font_text_to_glyphs_func_t  text_to_glyphs_func)
 {
-    cairo_user_font_face_t *user_font_face;
-
-    if (font_face->status)
-	return;
-
+    cairo_user_font_face_t *user_font_face = (cairo_user_font_face_t *) font_face;
     if (! _cairo_font_face_is_user (font_face)) {
 	if (_cairo_font_face_set_error (font_face, CAIRO_STATUS_FONT_TYPE_MISMATCH))
 	    return;
     }
-
-    user_font_face = (cairo_user_font_face_t *) font_face;
     if (user_font_face->immutable) {
 	if (_cairo_font_face_set_error (font_face, CAIRO_STATUS_USER_FONT_IMMUTABLE))
 	    return;
@@ -667,23 +617,17 @@ void
 cairo_user_font_face_set_unicode_to_glyph_func (cairo_font_face_t                              *font_face,
 						cairo_user_scaled_font_unicode_to_glyph_func_t  unicode_to_glyph_func)
 {
-    cairo_user_font_face_t *user_font_face;
-    if (font_face->status)
-	return;
-
+    cairo_user_font_face_t *user_font_face = (cairo_user_font_face_t *) font_face;
     if (! _cairo_font_face_is_user (font_face)) {
 	if (_cairo_font_face_set_error (font_face, CAIRO_STATUS_FONT_TYPE_MISMATCH))
 	    return;
     }
-
-    user_font_face = (cairo_user_font_face_t *) font_face;
     if (user_font_face->immutable) {
 	if (_cairo_font_face_set_error (font_face, CAIRO_STATUS_USER_FONT_IMMUTABLE))
 	    return;
     }
     user_font_face->scaled_font_methods.unicode_to_glyph = unicode_to_glyph_func;
 }
-slim_hidden_def(cairo_user_font_face_set_unicode_to_glyph_func);
 
 /* User-font method getters */
 
@@ -694,24 +638,18 @@ slim_hidden_def(cairo_user_font_face_set_unicode_to_glyph_func);
  * Gets the scaled-font initialization function of a user-font.
  *
  * Return value: The init callback of @font_face
- * or %NULL if none set or an error has occurred.
+ * or %NULL if none set.
  *
  * Since: 1.8
  **/
 cairo_user_scaled_font_init_func_t
 cairo_user_font_face_get_init_func (cairo_font_face_t *font_face)
 {
-    cairo_user_font_face_t *user_font_face;
-
-    if (font_face->status)
-	return NULL;
-
+    cairo_user_font_face_t *user_font_face = (cairo_user_font_face_t *) font_face;
     if (! _cairo_font_face_is_user (font_face)) {
 	if (_cairo_font_face_set_error (font_face, CAIRO_STATUS_FONT_TYPE_MISMATCH))
 	    return NULL;
     }
-
-    user_font_face = (cairo_user_font_face_t *) font_face;
     return user_font_face->scaled_font_methods.init;
 }
 
@@ -722,24 +660,18 @@ cairo_user_font_face_get_init_func (cairo_font_face_t *font_face)
  * Gets the glyph rendering function of a user-font.
  *
  * Return value: The render_glyph callback of @font_face
- * or %NULL if none set or an error has occurred.
+ * or %NULL if none set.
  *
  * Since: 1.8
  **/
 cairo_user_scaled_font_render_glyph_func_t
 cairo_user_font_face_get_render_glyph_func (cairo_font_face_t *font_face)
 {
-    cairo_user_font_face_t *user_font_face;
-
-    if (font_face->status)
-	return NULL;
-
+    cairo_user_font_face_t *user_font_face = (cairo_user_font_face_t *) font_face;
     if (! _cairo_font_face_is_user (font_face)) {
 	if (_cairo_font_face_set_error (font_face, CAIRO_STATUS_FONT_TYPE_MISMATCH))
 	    return NULL;
     }
-
-    user_font_face = (cairo_user_font_face_t *) font_face;
     return user_font_face->scaled_font_methods.render_glyph;
 }
 
@@ -750,24 +682,18 @@ cairo_user_font_face_get_render_glyph_func (cairo_font_face_t *font_face)
  * Gets the text-to-glyphs conversion function of a user-font.
  *
  * Return value: The text_to_glyphs callback of @font_face
- * or %NULL if none set or an error occurred.
+ * or %NULL if none set.
  *
  * Since: 1.8
  **/
 cairo_user_scaled_font_text_to_glyphs_func_t
 cairo_user_font_face_get_text_to_glyphs_func (cairo_font_face_t *font_face)
 {
-    cairo_user_font_face_t *user_font_face;
-
-    if (font_face->status)
-	return NULL;
-
+    cairo_user_font_face_t *user_font_face = (cairo_user_font_face_t *) font_face;
     if (! _cairo_font_face_is_user (font_face)) {
 	if (_cairo_font_face_set_error (font_face, CAIRO_STATUS_FONT_TYPE_MISMATCH))
 	    return NULL;
     }
-
-    user_font_face = (cairo_user_font_face_t *) font_face;
     return user_font_face->scaled_font_methods.text_to_glyphs;
 }
 
@@ -778,23 +704,17 @@ cairo_user_font_face_get_text_to_glyphs_func (cairo_font_face_t *font_face)
  * Gets the unicode-to-glyph conversion function of a user-font.
  *
  * Return value: The unicode_to_glyph callback of @font_face
- * or %NULL if none set or an error occurred.
+ * or %NULL if none set.
  *
  * Since: 1.8
  **/
 cairo_user_scaled_font_unicode_to_glyph_func_t
 cairo_user_font_face_get_unicode_to_glyph_func (cairo_font_face_t *font_face)
 {
-    cairo_user_font_face_t *user_font_face;
-
-    if (font_face->status)
-	return NULL;
-
+    cairo_user_font_face_t *user_font_face = (cairo_user_font_face_t *) font_face;
     if (! _cairo_font_face_is_user (font_face)) {
 	if (_cairo_font_face_set_error (font_face, CAIRO_STATUS_FONT_TYPE_MISMATCH))
 	    return NULL;
     }
-
-    user_font_face = (cairo_user_font_face_t *) font_face;
     return user_font_face->scaled_font_methods.unicode_to_glyph;
 }

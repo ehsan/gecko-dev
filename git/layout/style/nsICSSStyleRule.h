@@ -128,12 +128,12 @@ public:
   /** Do a deep clone.  Should be used only on the first in the linked list. */
   nsAttrSelector* Clone() const { return Clone(PR_TRUE); }
 
-  nsString        mValue;
-  nsAttrSelector* mNext;
-  nsCOMPtr<nsIAtom> mAttr;
   PRInt32         mNameSpace;
+  nsCOMPtr<nsIAtom> mAttr;
   PRUint8         mFunction;
   PRPackedBool    mCaseSensitive;
+  nsString        mValue;
+  nsAttrSelector* mNext;
 private: 
   nsAttrSelector* Clone(PRBool aDeep) const;
 
@@ -163,8 +163,7 @@ public:
                     const nsString& aValue, PRBool aCaseSensitive);
   void SetOperator(PRUnichar aOperator);
 
-  // Calculate the specificity of this selector (not including its mNext!).
-  PRInt32 CalcWeight() const;
+  PRInt32 CalcWeight(void) const;
 
   void ToString(nsAString& aString, nsICSSStyleSheet* aSheet,
                 PRBool aAppend = PR_FALSE) const;
@@ -173,31 +172,23 @@ private:
   void AddPseudoClassInternal(nsPseudoClassList *aPseudoClass);
   nsCSSSelector* Clone(PRBool aDeepNext, PRBool aDeepNegations) const;
 
-  void AppendToStringWithoutCombinators(nsAString& aString,
-                                        nsICSSStyleSheet* aSheet) const;
-  void AppendToStringWithoutCombinatorsOrNegations(nsAString& aString,
-                                                   nsICSSStyleSheet* aSheet,
-                                                   PRBool aIsNegated)
-                                                        const;
-  // Returns true if this selector can have a namespace specified (which
-  // happens if and only if the default namespace would apply to this
-  // selector).
-  PRBool CanBeNamespaced(PRBool aIsNegated) const;
-  // Calculate the specificity of this selector (not including its mNext
-  // or its mNegations).
-  PRInt32 CalcWeightWithoutNegations() const;
+  void AppendNegationToString(nsAString& aString);
+  void ToStringInternal(nsAString& aString, nsICSSStyleSheet* aSheet,
+                        PRBool aIsPseudoElem,
+                        PRBool aIsNegated) const;
 
 public:
+  PRInt32         mNameSpace;
   nsCOMPtr<nsIAtom> mTag;
   nsAtomList*     mIDList;
   nsAtomList*     mClassList;
   nsPseudoClassList* mPseudoClassList; // atom for the pseudo, string for
                                        // the argument to functional pseudos
   nsAttrSelector* mAttrList;
-  nsCSSSelector*  mNegations;
-  nsCSSSelector*  mNext;
-  PRInt32         mNameSpace;
   PRUnichar       mOperator;
+  nsCSSSelector*  mNegations;
+
+  nsCSSSelector*  mNext;
 private: 
   // These are not supported and are not implemented! 
   nsCSSSelector(const nsCSSSelector& aCopy);

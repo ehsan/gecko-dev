@@ -67,9 +67,6 @@ class nsILayoutHistoryState;
 
 class nsFrameManagerBase
 {
-public:
-  PRBool IsDestroyingFrames() { return mIsDestroyingFrames; }
-
 protected:
   class UndisplayedMap;
 
@@ -81,8 +78,7 @@ protected:
   PLDHashTable                    mPrimaryFrameMap;
   PLDHashTable                    mPlaceholderMap;
   UndisplayedMap*                 mUndisplayedMap;
-  PRPackedBool                    mIsDestroying;        // The frame manager is being destroyed.
-  PRPackedBool                    mIsDestroyingFrames;  // The frame manager is destroying some frame(s).
+  PRBool                          mIsDestroyingFrames;
 };
 
 #endif

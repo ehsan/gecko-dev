@@ -49,6 +49,7 @@
 #include "nsIURI.h"
 #include "nsIViewManager.h"
 #include "nsIWebNavigation.h"
+#include "nsIWidget.h"
 
 /* For documentation of the accessibility architecture, 
  * see http://lxr.mozilla.org/seamonkey/source/accessible/accessible-docs.html
@@ -161,8 +162,7 @@ __try {
   return E_FAIL;
 }
 
-void
-nsDocAccessibleWrap::FireAnchorJumpEvent()
+NS_IMETHODIMP nsDocAccessibleWrap::FireAnchorJumpEvent()
 {
   // Staying on the same page, jumping to a named anchor
   // Fire EVENT_SCROLLING_START on first leaf accessible -- because some
@@ -172,19 +172,19 @@ nsDocAccessibleWrap::FireAnchorJumpEvent()
   // we have to move forward in the document to get one
   nsDocAccessible::FireAnchorJumpEvent();
   if (!mIsAnchorJumped)
-    return;
+    return NS_OK;
 
   nsCOMPtr<nsIDOMNode> focusNode;
   if (mIsAnchor) {
     nsCOMPtr<nsISelectionController> selCon(do_QueryReferent(mWeakShell));
-    if (!selCon)
-      return;
-
+    if (!selCon) {
+      return NS_OK;
+    }
     nsCOMPtr<nsISelection> domSel;
     selCon->GetSelection(nsISelectionController::SELECTION_NORMAL, getter_AddRefs(domSel));
-    if (!domSel)
-      return;
-
+    if (!domSel) {
+      return NS_OK;
+    }
     domSel->GetFocusNode(getter_AddRefs(focusNode));
   }
   else {
@@ -194,6 +194,8 @@ nsDocAccessibleWrap::FireAnchorJumpEvent()
   nsCOMPtr<nsIAccessible> accessible = GetFirstAvailableAccessible(focusNode, PR_TRUE);
   nsAccUtils::FireAccEvent(nsIAccessibleEvent::EVENT_SCROLLING_START,
                            accessible);
+
+  return NS_OK;
 }
 
 STDMETHODIMP nsDocAccessibleWrap::get_URL(/* [out] */ BSTR __RPC_FAR *aURL)
@@ -320,7 +322,7 @@ STDMETHODIMP nsDocAccessibleWrap::get_accValue(
   if (FAILED(hr) || *pszValue || varChild.lVal != CHILDID_SELF)
     return hr;
   // If document is being used to create a widget, don't use the URL hack
-  PRUint32 role = nsAccUtils::Role(this);
+  PRUint32 role = Role(this);
   if (role != nsIAccessibleRole::ROLE_DOCUMENT &&
       role != nsIAccessibleRole::ROLE_APPLICATION &&
       role != nsIAccessibleRole::ROLE_DIALOG &&

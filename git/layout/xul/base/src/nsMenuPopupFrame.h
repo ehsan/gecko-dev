@@ -53,11 +53,10 @@
 #include "nsIDOMEventTarget.h"
 
 #include "nsBoxFrame.h"
-#include "nsMenuParent.h"
+#include "nsIMenuParent.h"
+#include "nsIWidget.h"
 
 #include "nsITimer.h"
-
-class nsIWidget;
 
 // XUL popups can be in several different states. When opening a popup, the
 // state changes as follows:
@@ -112,14 +111,15 @@ nsIFrame* NS_NewMenuPopupFrame(nsIPresShell* aPresShell, nsStyleContext* aContex
 
 class nsIViewManager;
 class nsIView;
+class nsIMenuParent;
 class nsMenuPopupFrame;
 
-class nsMenuPopupFrame : public nsBoxFrame, public nsMenuParent
+class nsMenuPopupFrame : public nsBoxFrame, public nsIMenuParent
 {
 public:
   nsMenuPopupFrame(nsIPresShell* aShell, nsStyleContext* aContext);
 
-  // nsMenuParent interface
+  // nsIMenuParentInterface
   virtual nsMenuFrame* GetCurrentMenuItem();
   NS_IMETHOD SetCurrentMenuItem(nsMenuFrame* aMenuItem);
   virtual void CurrentMenuIsBeingDestroyed();
@@ -202,9 +202,8 @@ public:
   // set the position of the popup either relative to the anchor aAnchorFrame
   // (or the frame for mAnchorContent if aAnchorFrame is null) or at a specific
   // point if a screen position (mScreenXPos and mScreenYPos) are set. The popup
-  // will be adjusted so that it is on screen. If aIsMove is true, then the popup
-  // is being moved.
-  nsresult SetPopupPosition(nsIFrame* aAnchorFrame, PRBool aIsMove = PR_FALSE);
+  // will be adjusted so that it is on screen.
+  nsresult SetPopupPosition(nsIFrame* aAnchorFrame);
 
   PRBool HasGeneratedChildren() { return mGeneratedChildren; }
   void SetGeneratedChildren() { mGeneratedChildren = PR_TRUE; }
@@ -273,11 +272,9 @@ public:
 
   void EnsureMenuItemIsVisible(nsMenuFrame* aMenuFrame);
 
-  // Move the popup to the screen coordinate (aLeft, aTop). If aUpdateAttrs
-  // is true, and the popup already has left or top attributes, then those
-  // attributes are updated to the new location.
-  // The frame may be destroyed by this method.
-  void MoveTo(PRInt32 aLeft, PRInt32 aTop, PRBool aUpdateAttrs);
+  // This sets 'left' and 'top' attributes.
+  // May kill the frame.
+  void MoveTo(PRInt32 aLeft, PRInt32 aTop);
 
   PRBool GetAutoPosition();
   void SetAutoPosition(PRBool aShouldAutoPosition);
@@ -294,6 +291,8 @@ public:
   void SetPreferredSize(nsSize aSize) { mPrefSize = aSize; }
 
 protected:
+  // Move without updating attributes.                                          
+  void MoveToInternal(PRInt32 aLeft, PRInt32 aTop);                             
 
   // redefine to tell the box system not to move the views.
   virtual void GetLayoutFlags(PRUint32& aFlags);
@@ -301,36 +300,20 @@ protected:
   void InitPositionFromAnchorAlign(const nsAString& aAnchor,
                                    const nsAString& aAlign);
 
-  // return the position where the popup should be, when it should be
-  // anchored at anchorRect. aHFlip and aVFlip will be set if the popup may be
-  // flipped in that direction if there is not enough space available.
-  nsPoint AdjustPositionForAnchorAlign(const nsRect& anchorRect, PRBool& aHFlip, PRBool& aVFlip);
+  void AdjustPositionForAnchorAlign ( PRInt32* ioXPos, PRInt32* ioYPos, const nsSize & inParentRect,
+                                      PRBool* outFlushWithTopBottom ) ;
 
+  PRBool IsMoreRoomOnOtherSideOfParent ( PRBool inFlushAboveBelow, PRInt32 inScreenViewLocX, PRInt32 inScreenViewLocY,
+                                           const nsRect & inScreenParentFrameRect, PRInt32 inScreenTopTwips, PRInt32 inScreenLeftTwips,
+                                           PRInt32 inScreenBottomTwips, PRInt32 inScreenRightTwips ) ;
 
-  // check if the popup will fit into the available space and resize it. This
-  // method handles only one axis at a time so is called twice, once for
-  // horizontal and once for vertical. All arguments are specified for this
-  // one axis. All coordinates are in app units relative to the screen.
-  //   aScreenPoint - the point where the popup should appear
-  //   aSize - the size of the popup
-  //   aScreenBegin - the left or top edge of the screen
-  //   aScreenEnd - the right or bottom edge of the screen
-  //   aAnchorBegin - the left or top edge of the anchor rectangle
-  //   aAnchorEnd - the right or bottom edge of the anchor rectangle
-  //   aMarginBegin - the left or top margin of the popup
-  //   aMarginEnd - the right or bottom margin of the popup
-  //   aOffsetForContextMenu - the additional offset to add for context menus
-  //   aFlip - whether to flip or resize the popup when there isn't space
-  nscoord FlipOrResize(nscoord& aScreenPoint, nscoord aSize, 
-                       nscoord aScreenBegin, nscoord aScreenEnd,
-                       nscoord aAnchorBegin, nscoord aAnchorEnd,
-                       nscoord aMarginBegin, nscoord aMarginEnd,
-                       nscoord aOffsetForContextMenu, PRBool aFlip);
+  void MovePopupToOtherSideOfParent ( PRBool inFlushAboveBelow, PRInt32* ioXPos, PRInt32* ioYPos, 
+                                           PRInt32* ioScreenViewLocX, PRInt32* ioScreenViewLocY,
+                                           const nsRect & inScreenParentFrameRect, PRInt32 inScreenTopTwips, PRInt32 inScreenLeftTwips,
+                                           PRInt32 inScreenBottomTwips, PRInt32 inScreenRightTwips ) ;
 
   // Move the popup to the position specified in its |left| and |top| attributes.
   void MoveToAttributePosition();
-
-  nsString     mIncrementalString;  // for incremental typing navigation
 
   // the content that the popup is anchored to, if any, which may be in a
   // different document than the popup.
@@ -338,14 +321,9 @@ protected:
 
   nsMenuFrame* mCurrentMenu; // The current menu that is active.
 
-  // A popup's preferred size may be different than its actual size stored in
-  // mRect in the case where the popup was resized because it was too large
-  // for the screen. The preferred size mPrefSize holds the full size the popup
-  // would be before resizing. Computations are performed using this size.
-  // The parent frame is responsible for setting the preferred size using
-  // SetPreferredBounds or SetPreferredSize before positioning the popup with
-  // SetPopupPosition.
-  nsSize mPrefSize;
+  // popup alignment relative to the anchor node
+  PRInt8 mPopupAlignment;
+  PRInt8 mPopupAnchor;
 
   // the position of the popup. The screen coordinates, if set to values other
   // than -1, override mXPos and mYPos.
@@ -357,10 +335,6 @@ protected:
   nsPopupType mPopupType; // type of popup
   nsPopupState mPopupState; // open state of the popup
 
-  // popup alignment relative to the anchor node
-  PRInt8 mPopupAlignment;
-  PRInt8 mPopupAnchor;
-
   PRPackedBool mIsOpenChanged; // true if the open state changed since the last layout
   PRPackedBool mIsContextMenu; // true for context menus
   // true if we need to offset the popup to ensure it's not under the mouse
@@ -371,6 +345,17 @@ protected:
   PRPackedBool mShouldAutoPosition; // Should SetPopupPosition be allowed to auto position popup?
   PRPackedBool mConsumeRollupEvent; // Should the rollup event be consumed?
   PRPackedBool mInContentShell; // True if the popup is in a content shell
+
+  nsString     mIncrementalString;  // for incremental typing navigation
+
+  // A popup's preferred size may be different than its actual size stored in
+  // mRect in the case where the popup was resized because it was too large
+  // for the screen. The preferred size mPrefSize holds the full size the popup
+  // would be before resizing. Computations are performed using this size.
+  // The parent frame is responsible for setting the preferred size using
+  // SetPreferredBounds or SetPreferredSize before positioning the popup with
+  // SetPopupPosition.
+  nsSize mPrefSize;
 
   static PRInt8 sDefaultLevelParent;
 }; // class nsMenuPopupFrame

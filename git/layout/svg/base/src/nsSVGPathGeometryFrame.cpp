@@ -37,36 +37,207 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsSVGPathGeometryFrame.h"
+#include "nsSVGContainerFrame.h"
+#include "nsReadableUtils.h"
+#include "nsUnicharUtils.h"
 #include "nsGkAtoms.h"
 #include "nsSVGMarkerFrame.h"
 #include "nsSVGMatrix.h"
 #include "nsSVGUtils.h"
-#include "nsSVGEffects.h"
 #include "nsSVGGraphicElement.h"
 #include "nsSVGOuterSVGFrame.h"
 #include "nsSVGRect.h"
 #include "nsSVGPathGeometryElement.h"
 #include "gfxContext.h"
 
+class nsSVGMarkerProperty : public nsStubMutationObserver {
+public:
+  nsSVGMarkerProperty(nsIURI                 *aMarkerStart,
+                      nsIURI                 *aMarkerMid,
+                      nsIURI                 *aMarkerEnd,
+                      nsSVGPathGeometryFrame *aMarkedFrame);
+  virtual ~nsSVGMarkerProperty();
+
+  nsSVGMarkerFrame *GetMarkerStartFrame() {
+    return GetMarkerFrame(mObservedMarkerStart);
+  }
+  nsSVGMarkerFrame *GetMarkerMidFrame() {
+    return GetMarkerFrame(mObservedMarkerMid);
+  }
+  nsSVGMarkerFrame *GetMarkerEndFrame() {
+    return GetMarkerFrame(mObservedMarkerEnd);
+  }
+
+  // nsISupports
+  NS_DECL_ISUPPORTS
+
+  // nsIMutationObserver
+  NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTECHANGED
+  NS_DECL_NSIMUTATIONOBSERVER_CONTENTAPPENDED
+  NS_DECL_NSIMUTATIONOBSERVER_CONTENTINSERTED
+  NS_DECL_NSIMUTATIONOBSERVER_CONTENTREMOVED
+  NS_DECL_NSIMUTATIONOBSERVER_PARENTCHAINCHANGED
+
+private:
+  nsSVGMarkerFrame *GetMarkerFrame(nsWeakPtr aObservedMarker);
+  already_AddRefed<nsIWeakReference>
+  AddMutationObserver(nsIURI *aURI, nsIContent *aContent);
+  void RemoveMutationObserver(nsWeakPtr aObservedMarker);
+  void DoUpdate();
+
+  nsWeakPtr mObservedMarkerStart, mObservedMarkerMid, mObservedMarkerEnd;
+  nsSVGPathGeometryFrame *mFrame;  // frame being marked
+};
+
+NS_IMPL_ISUPPORTS1(nsSVGMarkerProperty, nsIMutationObserver)
+
+nsSVGMarkerProperty::nsSVGMarkerProperty(nsIURI                 *aMarkerStart,
+                                         nsIURI                 *aMarkerMid,
+                                         nsIURI                 *aMarkerEnd,
+                                         nsSVGPathGeometryFrame *aMarkedFrame)
+  : mFrame(aMarkedFrame)
+{
+  nsIContent *content = mFrame->GetContent();
+
+  mObservedMarkerStart = AddMutationObserver(aMarkerStart, content);
+  mObservedMarkerMid = AddMutationObserver(aMarkerMid, content);
+  mObservedMarkerEnd = AddMutationObserver(aMarkerEnd, content);
+
+  NS_ADDREF(this); // addref to allow QI - SupportsDtorFunc releases
+  mFrame->SetProperty(nsGkAtoms::marker,
+                      static_cast<nsISupports*>(this),
+                      nsPropertyTable::SupportsDtorFunc);
+
+  mFrame->AddStateBits(NS_STATE_SVG_HAS_MARKERS);
+}
+
+nsSVGMarkerProperty::~nsSVGMarkerProperty()
+{
+  RemoveMutationObserver(mObservedMarkerStart);
+  RemoveMutationObserver(mObservedMarkerMid);
+  RemoveMutationObserver(mObservedMarkerEnd);
+
+  mFrame->RemoveStateBits(NS_STATE_SVG_HAS_MARKERS);
+}
+
+nsSVGMarkerFrame *
+nsSVGMarkerProperty::GetMarkerFrame(nsWeakPtr aObservedMarker)
+{
+  nsCOMPtr<nsIContent> marker = do_QueryReferent(aObservedMarker);
+  if (marker) {
+    nsIFrame *frame =
+      static_cast<nsGenericElement*>(marker.get())->GetPrimaryFrame();
+    if (frame && frame->GetType() == nsGkAtoms::svgMarkerFrame)
+      return static_cast<nsSVGMarkerFrame*>(frame);
+  }
+  return nsnull;
+}
+
+already_AddRefed<nsIWeakReference>
+nsSVGMarkerProperty::AddMutationObserver(nsIURI      *aURI,
+                                         nsIContent  *aContent)
+{
+  if (!aURI)
+    return nsnull;
+
+  nsIContent *marker = NS_GetSVGMarkerElement(aURI, aContent);
+  if (marker) {
+    marker->AddMutationObserver(this);
+    return do_GetWeakReference(marker);
+  }
+  return nsnull;
+}
+
+void
+nsSVGMarkerProperty::RemoveMutationObserver(nsWeakPtr aObservedMarker)
+{
+  if (!aObservedMarker)
+    return;
+
+  nsCOMPtr<nsIContent> marker = do_QueryReferent(aObservedMarker);
+  if (marker)
+    marker->RemoveMutationObserver(this);
+}
+
+void
+nsSVGMarkerProperty::DoUpdate()
+{
+  nsSVGUtils::UpdateGraphic(mFrame);
+}
+
+void
+nsSVGMarkerProperty::AttributeChanged(nsIDocument *aDocument,
+                                      nsIContent *aContent,
+                                      PRInt32 aNameSpaceID,
+                                      nsIAtom *aAttribute,
+                                      PRInt32 aModType,
+                                      PRUint32 aStateMask)
+{
+  DoUpdate();
+}
+
+void
+nsSVGMarkerProperty::ContentAppended(nsIDocument *aDocument,
+                                     nsIContent *aContainer,
+                                     PRInt32 aNewIndexInContainer)
+{
+  DoUpdate();
+}
+
+void
+nsSVGMarkerProperty::ContentInserted(nsIDocument *aDocument,
+                                     nsIContent *aContainer,
+                                     nsIContent *aChild,
+                                     PRInt32 aIndexInContainer)
+{
+  DoUpdate();
+}
+
+void
+nsSVGMarkerProperty::ContentRemoved(nsIDocument *aDocument,
+                                    nsIContent *aContainer,
+                                    nsIContent *aChild,
+                                    PRInt32 aIndexInContainer)
+{
+  DoUpdate();
+}
+
+void
+nsSVGMarkerProperty::ParentChainChanged(nsIContent *aContent)
+{
+  if (aContent->IsInDoc())
+    return;
+
+  mFrame->DeleteProperty(nsGkAtoms::marker);
+}
+
 //----------------------------------------------------------------------
 // Implementation
 
 nsIFrame*
 NS_NewSVGPathGeometryFrame(nsIPresShell* aPresShell,
+                           nsIContent* aContent,
                            nsStyleContext* aContext)
 {
   return new (aPresShell) nsSVGPathGeometryFrame(aContext);
 }
 
 //----------------------------------------------------------------------
-// nsQueryFrame methods
+// nsISupports methods
 
-NS_QUERYFRAME_HEAD(nsSVGPathGeometryFrame)
-  NS_QUERYFRAME_ENTRY(nsISVGChildFrame)
-NS_QUERYFRAME_TAIL_INHERITING(nsSVGPathGeometryFrameBase)
+NS_INTERFACE_MAP_BEGIN(nsSVGPathGeometryFrame)
+  NS_INTERFACE_MAP_ENTRY(nsISVGChildFrame)
+NS_INTERFACE_MAP_END_INHERITING(nsSVGPathGeometryFrameBase)
 
 //----------------------------------------------------------------------
 // nsIFrame methods
+
+void
+nsSVGPathGeometryFrame::Destroy()
+{
+  RemovePathProperties();
+  nsSVGPathGeometryFrameBase::Destroy();
+}
 
 NS_IMETHODIMP
 nsSVGPathGeometryFrame::AttributeChanged(PRInt32         aNameSpaceID,
@@ -75,17 +246,25 @@ nsSVGPathGeometryFrame::AttributeChanged(PRInt32         aNameSpaceID,
 {
   if (aNameSpaceID == kNameSpaceID_None &&
       (static_cast<nsSVGPathGeometryElement*>
-                  (mContent)->AttributeDefinesGeometry(aAttribute) ||
+                  (mContent)->IsDependentAttribute(aAttribute) ||
        aAttribute == nsGkAtoms::transform))
     nsSVGUtils::UpdateGraphic(this);
 
   return NS_OK;
 }
 
-/* virtual */ void
-nsSVGPathGeometryFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
+NS_IMETHODIMP
+nsSVGPathGeometryFrame::DidSetStyleContext()
 {
-  nsSVGPathGeometryFrameBase::DidSetStyleContext(aOldStyleContext);
+  nsSVGPathGeometryFrameBase::DidSetStyleContext();
+
+  nsSVGOuterSVGFrame *outerSVGFrame = nsSVGUtils::GetOuterSVGFrame(this);
+  if (outerSVGFrame) {
+    // invalidate here while we still have the filter information
+    outerSVGFrame->InvalidateCoveredRegion(this);
+  }
+
+  RemovePathProperties();
 
   // XXX: we'd like to use the style_hint mechanism and the
   // ContentStateChanged/AttributeChanged functions for style changes
@@ -94,6 +273,8 @@ nsSVGPathGeometryFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
   // best place to deal with style changes:
 
   nsSVGUtils::UpdateGraphic(this);
+
+  return NS_OK;
 }
 
 nsIAtom *
@@ -107,7 +288,7 @@ nsSVGPathGeometryFrame::GetType() const
 
 NS_IMETHODIMP
 nsSVGPathGeometryFrame::PaintSVG(nsSVGRenderState *aContext,
-                                 const nsIntRect *aDirtyRect)
+                                 nsIntRect *aDirtyRect)
 {
   if (!GetStyleVisibility()->IsVisible())
     return NS_OK;
@@ -116,9 +297,9 @@ nsSVGPathGeometryFrame::PaintSVG(nsSVGRenderState *aContext,
   Render(aContext);
 
   if (static_cast<nsSVGPathGeometryElement*>(mContent)->IsMarkable()) {
-    MarkerProperties properties = GetMarkerProperties(this);
+    nsSVGMarkerProperty *property = GetMarkerProperty();
       
-    if (properties.MarkersExist()) {
+    if (property) {
       float strokeWidth = GetStrokeWidth();
         
       nsTArray<nsSVGMark> marks;
@@ -128,17 +309,17 @@ nsSVGPathGeometryFrame::PaintSVG(nsSVGRenderState *aContext,
       PRUint32 num = marks.Length();
 
       if (num) {
-        nsSVGMarkerFrame *frame = properties.GetMarkerStartFrame();
+        nsSVGMarkerFrame *frame = property->GetMarkerStartFrame();
         if (frame)
           frame->PaintMark(aContext, this, &marks[0], strokeWidth);
 
-        frame = properties.GetMarkerMidFrame();
+        frame = property->GetMarkerMidFrame();
         if (frame) {
           for (PRUint32 i = 1; i < num - 1; i++)
             frame->PaintMark(aContext, this, &marks[i], strokeWidth);
         }
 
-        frame = properties.GetMarkerEndFrame();
+        frame = property->GetMarkerEndFrame();
         if (frame)
           frame->PaintMark(aContext, this, &marks[num-1], strokeWidth);
       }
@@ -196,14 +377,10 @@ nsSVGPathGeometryFrame::GetFrameForPoint(const nsPoint &aPoint)
 NS_IMETHODIMP_(nsRect)
 nsSVGPathGeometryFrame::GetCoveredRegion()
 {
-  // XXX why are we adding in markers here each time someone gets the covered
-  // region? Isn't UpdateCoveredRegion called whenever markers change?
-  // And why are the answers to these questions not documented here??!!
-
   if (static_cast<nsSVGPathGeometryElement*>(mContent)->IsMarkable()) {
-    MarkerProperties properties = GetMarkerProperties(this);
+    nsSVGMarkerProperty *property = GetMarkerProperty();
 
-    if (!properties.MarkersExist())
+    if (!property)
       return mRect;
 
     nsRect rect(mRect);
@@ -216,13 +393,13 @@ nsSVGPathGeometryFrame::GetCoveredRegion()
     PRUint32 num = marks.Length();
 
     if (num) {
-      nsSVGMarkerFrame *frame = properties.GetMarkerStartFrame();
+      nsSVGMarkerFrame *frame = property->GetMarkerStartFrame();
       if (frame) {
         nsRect mark = frame->RegionMark(this, &marks[0], strokeWidth);
         rect.UnionRect(rect, mark);
       }
 
-      frame = properties.GetMarkerMidFrame();
+      frame = property->GetMarkerMidFrame();
       if (frame) {
         for (PRUint32 i = 1; i < num - 1; i++) {
           nsRect mark = frame->RegionMark(this, &marks[i], strokeWidth);
@@ -230,7 +407,7 @@ nsSVGPathGeometryFrame::GetCoveredRegion()
         }
       }
 
-      frame = properties.GetMarkerEndFrame();
+      frame = property->GetMarkerEndFrame();
       if (frame) {
         nsRect mark = frame->RegionMark(this, &marks[num-1], strokeWidth);
         rect.UnionRect(rect, mark);
@@ -251,35 +428,28 @@ nsSVGPathGeometryFrame::UpdateCoveredRegion()
   gfxContext context(nsSVGUtils::GetThebesComputationalSurface());
 
   GeneratePath(&context);
-  context.IdentityMatrix();
 
-  gfxRect extent = context.GetUserPathExtent();
-
-  // Be careful when replacing the following logic to get the fill and stroke
-  // extents independently (instead of computing the stroke extents from the
-  // path extents). You may think that you can just use the stroke extents if
-  // there is both a fill and a stroke. In reality it's necessary to calculate
-  // both the fill and stroke extents, and take the union of the two. There are
-  // two reasons for this:
-  //
-  // # Due to stroke dashing, in certain cases the fill extents could actually
-  //   extend outside the stroke extents.
-  // # If the stroke is very thin, cairo won't paint any stroke, and so the
-  //   stroke bounds that it will return will be empty.
+  gfxRect extent;
 
   if (SetupCairoStrokeGeometry(&context)) {
-    extent = nsSVGUtils::PathExtentsToMaxStrokeExtents(extent, this);
-  } else if (GetStyleSVG()->mFill.mType == eStyleSVGPaintType_None) {
-    extent = gfxRect(0, 0, 0, 0);
-  }
-
-  if (!extent.IsEmpty()) {
-    mRect = nsSVGUtils::ToAppPixelRect(PresContext(), extent);
+    extent = context.GetUserStrokeExtent();
+    if (!IsDegeneratePath(extent)) {
+      extent = context.UserToDevice(extent);
+      mRect = nsSVGUtils::ToAppPixelRect(PresContext(),extent);
+    }
+  } else {
+    context.IdentityMatrix();
+    extent = context.GetUserPathExtent();
+    if (!IsDegeneratePath(extent)) {
+      mRect = nsSVGUtils::ToAppPixelRect(PresContext(),extent);
+    }
   }
 
   // Add in markers
+  UpdateMarkerProperty();
   mRect = GetCoveredRegion();
 
+  nsSVGUtils::UpdateFilterRegion(this);
   return NS_OK;
 }
 
@@ -342,77 +512,104 @@ nsSVGPathGeometryFrame::GetMatrixPropagation()
   return (GetStateBits() & NS_STATE_SVG_PROPAGATE_TRANSFORM) != 0;
 }
 
-gfxRect
-nsSVGPathGeometryFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace)
+NS_IMETHODIMP
+nsSVGPathGeometryFrame::SetOverrideCTM(nsIDOMSVGMatrix *aCTM)
 {
-  if (aToBBoxUserspace.IsSingular()) {
-    // XXX ReportToConsole
-    return gfxRect(0.0, 0.0, 0.0, 0.0);
-  }
+  mOverrideCTM = aCTM;
+  return NS_OK;
+}
+
+already_AddRefed<nsIDOMSVGMatrix>
+nsSVGPathGeometryFrame::GetOverrideCTM()
+{
+  nsIDOMSVGMatrix *matrix = mOverrideCTM.get();
+  NS_IF_ADDREF(matrix);
+  return matrix;
+}
+
+NS_IMETHODIMP
+nsSVGPathGeometryFrame::GetBBox(nsIDOMSVGRect **_retval)
+{
   gfxContext context(nsSVGUtils::GetThebesComputationalSurface());
-  GeneratePath(&context, &aToBBoxUserspace);
+
+  GeneratePath(&context);
   context.IdentityMatrix();
-  return context.GetUserPathExtent();
+
+  return NS_NewSVGRect(_retval, context.GetUserPathExtent());
 }
 
 //----------------------------------------------------------------------
 // nsSVGGeometryFrame methods:
 
-gfxMatrix
-nsSVGPathGeometryFrame::GetCanvasTM()
+/* readonly attribute nsIDOMSVGMatrix canvasTM; */
+NS_IMETHODIMP
+nsSVGPathGeometryFrame::GetCanvasTM(nsIDOMSVGMatrix * *aCTM)
 {
-  NS_ASSERTION(mParent, "null parent");
+  *aCTM = nsnull;
 
-  nsSVGContainerFrame *parent = static_cast<nsSVGContainerFrame*>(mParent);
-  nsSVGGraphicElement *content = static_cast<nsSVGGraphicElement*>(mContent);
+  if (!GetMatrixPropagation()) {
+    if (mOverrideCTM) {
+      *aCTM = mOverrideCTM;
+      NS_ADDREF(*aCTM);
+      return NS_OK;
+    }
+    return NS_NewSVGMatrix(aCTM);
+  }
 
-  return content->PrependLocalTransformTo(parent->GetCanvasTM());
+  nsSVGContainerFrame *containerFrame = static_cast<nsSVGContainerFrame*>
+                                                   (mParent);
+  nsCOMPtr<nsIDOMSVGMatrix> parentTM = containerFrame->GetCanvasTM();
+  NS_ASSERTION(parentTM, "null TM");
+
+  // append our local transformations if we have any:
+  nsSVGGraphicElement *element =
+    static_cast<nsSVGGraphicElement*>(mContent);
+  nsCOMPtr<nsIDOMSVGMatrix> localTM = element->GetLocalTransformMatrix();
+
+  if (localTM)
+    return parentTM->Multiply(localTM, aCTM);
+
+  *aCTM = parentTM;
+  NS_ADDREF(*aCTM);
+  return NS_OK;
 }
 
 //----------------------------------------------------------------------
 // nsSVGPathGeometryFrame methods:
 
-nsSVGPathGeometryFrame::MarkerProperties
-nsSVGPathGeometryFrame::GetMarkerProperties(nsSVGPathGeometryFrame *aFrame)
+nsSVGMarkerProperty *
+nsSVGPathGeometryFrame::GetMarkerProperty()
 {
-  NS_ASSERTION(!aFrame->GetPrevContinuation(), "aFrame should be first continuation");
+  if (GetStateBits() & NS_STATE_SVG_HAS_MARKERS)
+    return static_cast<nsSVGMarkerProperty *>
+                      (GetProperty(nsGkAtoms::marker));
 
-  MarkerProperties result;
-  const nsStyleSVG *style = aFrame->GetStyleSVG();
-  result.mMarkerStart = nsSVGEffects::GetMarkerProperty(
-                          style->mMarkerStart, aFrame, nsGkAtoms::marker_start);
-  result.mMarkerMid = nsSVGEffects::GetMarkerProperty(
-                        style->mMarkerMid, aFrame, nsGkAtoms::marker_mid);
-  result.mMarkerEnd = nsSVGEffects::GetMarkerProperty(
-                        style->mMarkerEnd, aFrame, nsGkAtoms::marker_end);
-  return result;
+  return nsnull;
 }
 
-nsSVGMarkerFrame *
-nsSVGPathGeometryFrame::MarkerProperties::GetMarkerStartFrame()
+void
+nsSVGPathGeometryFrame::UpdateMarkerProperty()
 {
-  if (!mMarkerStart)
-    return nsnull;
-  return static_cast<nsSVGMarkerFrame *>
-    (mMarkerStart->GetReferencedFrame(nsGkAtoms::svgMarkerFrame, nsnull));
+  if (GetStateBits() & NS_STATE_SVG_HAS_MARKERS)
+    return;
+
+  const nsStyleSVG *style = GetStyleSVG();
+
+  if ((style->mMarkerStart || style->mMarkerMid || style->mMarkerEnd) &&
+      !new nsSVGMarkerProperty(style->mMarkerStart,
+                               style->mMarkerMid,
+                               style->mMarkerEnd,
+                               this)) {
+    NS_ERROR("Could not create marker property");
+    return;
+  }
 }
 
-nsSVGMarkerFrame *
-nsSVGPathGeometryFrame::MarkerProperties::GetMarkerMidFrame()
+void
+nsSVGPathGeometryFrame::RemovePathProperties()
 {
-  if (!mMarkerMid)
-    return nsnull;
-  return static_cast<nsSVGMarkerFrame *>
-    (mMarkerMid->GetReferencedFrame(nsGkAtoms::svgMarkerFrame, nsnull));
-}
-
-nsSVGMarkerFrame *
-nsSVGPathGeometryFrame::MarkerProperties::GetMarkerEndFrame()
-{
-  if (!mMarkerEnd)
-    return nsnull;
-  return static_cast<nsSVGMarkerFrame *>
-    (mMarkerEnd->GetReferencedFrame(nsGkAtoms::svgMarkerFrame, nsnull));
+  if (GetStateBits() & NS_STATE_SVG_HAS_MARKERS)
+    DeleteProperty(nsGkAtoms::marker);
 }
 
 void
@@ -422,10 +619,28 @@ nsSVGPathGeometryFrame::Render(nsSVGRenderState *aContext)
 
   PRUint16 renderMode = aContext->GetRenderMode();
 
-  /* save/restore the state so we don't screw up the xform */
+  /* save/pop the state so we don't screw up the xform */
   gfx->Save();
 
   GeneratePath(gfx);
+
+  if (renderMode != nsSVGRenderState::NORMAL) {
+    gfx->Restore();
+
+    if (GetClipRule() == NS_STYLE_FILL_RULE_EVENODD)
+      gfx->SetFillRule(gfxContext::FILL_RULE_EVEN_ODD);
+    else
+      gfx->SetFillRule(gfxContext::FILL_RULE_WINDING);
+
+    if (renderMode == nsSVGRenderState::CLIP_MASK) {
+      gfx->SetAntialiasMode(gfxContext::MODE_ALIASED);
+      gfx->SetColor(gfxRGBA(1.0f, 1.0f, 1.0f, 1.0f));
+      gfx->Fill();
+      gfx->NewPath();
+    }
+
+    return;
+  }
 
   switch (GetStyleSVG()->mShapeRendering) {
   case NS_STYLE_SHAPE_RENDERING_OPTIMIZESPEED:
@@ -435,22 +650,6 @@ nsSVGPathGeometryFrame::Render(nsSVGRenderState *aContext)
   default:
     gfx->SetAntialiasMode(gfxContext::MODE_COVERAGE);
     break;
-  }
-
-  if (renderMode != nsSVGRenderState::NORMAL) {
-    if (GetClipRule() == NS_STYLE_FILL_RULE_EVENODD)
-      gfx->SetFillRule(gfxContext::FILL_RULE_EVEN_ODD);
-    else
-      gfx->SetFillRule(gfxContext::FILL_RULE_WINDING);
-
-    if (renderMode == nsSVGRenderState::CLIP_MASK) {
-      gfx->SetColor(gfxRGBA(1.0f, 1.0f, 1.0f, 1.0f));
-      gfx->Fill();
-      gfx->NewPath();
-    }
-    gfx->Restore();
-
-    return;
   }
 
   if (SetupCairoFill(gfx)) {
@@ -467,15 +666,13 @@ nsSVGPathGeometryFrame::Render(nsSVGRenderState *aContext)
 }
 
 void
-nsSVGPathGeometryFrame::GeneratePath(gfxContext* aContext,
-                                     const gfxMatrix *aOverrideTransform)
+nsSVGPathGeometryFrame::GeneratePath(gfxContext* aContext)
 {
-  gfxMatrix matrix;
-  if (aOverrideTransform) {
-    matrix = *aOverrideTransform;
-  } else {
-    matrix = GetCanvasTM();
-  }
+  nsCOMPtr<nsIDOMSVGMatrix> ctm;
+  GetCanvasTM(getter_AddRefs(ctm));
+  NS_ASSERTION(ctm, "graphic source didn't specify a ctm");
+
+  gfxMatrix matrix = nsSVGUtils::ConvertSVGMatrixToThebes(ctm);
 
   if (matrix.IsSingular()) {
     aContext->IdentityMatrix();

@@ -207,7 +207,8 @@ NS_IMETHODIMP nsFilePicker::Show(PRInt16 *aReturnVal)
 	else { /* here mMode is modeOpenMultiple */
 		PtFileSelectorInfo_t *minfo = info.minfo;
 		if( minfo ) {
-			nsresult rv;
+			nsresult rv = NS_NewISupportsArray(getter_AddRefs(mFiles));
+			NS_ENSURE_SUCCESS(rv,rv);
 
 			for( int i=0; i<minfo->nitems; i++ ) {
 				nsCOMPtr<nsILocalFile> file = do_CreateInstance("@mozilla.org/file/local;1", &rv);
@@ -217,7 +218,7 @@ NS_IMETHODIMP nsFilePicker::Show(PRInt16 *aReturnVal)
 				rv = file->InitWithNativePath( s );
 				NS_ENSURE_SUCCESS(rv,rv);
 	
-				rv = mFiles.AppendObject(file);
+				rv = mFiles->AppendElement(file);
 				NS_ENSURE_SUCCESS(rv,rv);
 				}
 

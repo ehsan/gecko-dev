@@ -201,9 +201,9 @@ private:
 
 inline
 xpcFunctionDefiner::xpcFunctionDefiner(JSContext * aJSContext) : 
-    m_Runtime(nsXPConnect::GetRuntimeInstance()), m_JSContext(aJSContext)
+    m_Runtime(nsXPConnect::GetRuntime()), m_JSContext(aJSContext)
 {
-    NS_ASSERTION(m_Runtime, "nsXPConnect::GetRuntimeInstance() returned null");
+    NS_ASSERTION(m_Runtime, "nsXPConnect::GetRuntime() returned null");
     NS_ASSERTION(aJSContext, "xpcFunctionDefiner constructor passed a null context");
 }
 
@@ -289,30 +289,25 @@ JSBool XPCIDispatchExtension::DefineProperty(XPCCallContext & ccx,
         if(resolved)
             *resolved = JS_TRUE;
         return JS_ValueToId(ccx, idval, &id) &&
-               JS_DefinePropertyById(ccx, obj, id, OBJECT_TO_JSVAL(funobj),
-                                     nsnull, nsnull, propFlags);
+               OBJ_DEFINE_PROPERTY(ccx, obj, id, OBJECT_TO_JSVAL(funobj),
+                                   nsnull, nsnull, propFlags, nsnull);
     }
     // Define the property on the object
     NS_ASSERTION(member->IsProperty(), "way broken!");
     propFlags |= JSPROP_GETTER | JSPROP_SHARED;
-    JSPropertyOp getter = JS_DATA_TO_FUNC_PTR(JSPropertyOp, funobj);
-    JSPropertyOp setter;
     if(member->IsSetter())
     {
         propFlags |= JSPROP_SETTER;
         propFlags &= ~JSPROP_READONLY;
-        setter = getter;
-    }
-    else
-    {
-        setter = js_GetterOnlyPropertyStub;
     }
     AutoResolveName arn(ccx, idval);
     if(resolved)
         *resolved = JS_TRUE;
     return JS_ValueToId(ccx, idval, &id) &&
-           JS_DefinePropertyById(ccx, obj, id, JSVAL_VOID, getter, setter,
-                                 propFlags);
+           OBJ_DEFINE_PROPERTY(ccx, obj, id, JSVAL_VOID,
+                               (JSPropertyOp) funobj,
+                               (JSPropertyOp) funobj,
+                               propFlags, nsnull);
 
 }
 

@@ -22,8 +22,6 @@
  * Contributor(s):
  *   Daniel Witte (dwitte@stanford.edu)
  *   Michiel van Leeuwen (mvl@exedo.nl)
- *   Michael Ventnor <m.ventnor@gmail.com>
- *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -69,8 +67,6 @@
 #include "mozIStorageStatement.h"
 #include "mozIStorageConnection.h"
 #include "mozStorageHelper.h"
-#include "nsIPrivateBrowsingService.h"
-#include "nsNetCID.h"
 
 /******************************************************************************
  * nsCookieService impl:
@@ -94,7 +90,7 @@ static const char kOldCookieFileName[] = "cookies.txt";
 
 // default limits for the cookie list. these can be tuned by the
 // network.cookie.maxNumber and network.cookie.maxPerHost prefs respectively.
-static const PRUint32 kMaxNumberOfCookies = 3000;
+static const PRUint32 kMaxNumberOfCookies = 1000;
 static const PRUint32 kMaxCookiesPerHost  = 50;
 static const PRUint32 kMaxBytesPerCookie  = 4096;
 static const PRUint32 kMaxBytesPerPath    = 1024;
@@ -333,6 +329,39 @@ LogSuccess(PRBool aSetCookie, nsIURI *aHostURI, const nsAFlatCString &aCookieStr
 
 /******************************************************************************
  * nsCookieService impl:
+ * private list sorting callbacks
+ *
+ * these functions return:
+ *   < 0 if the first element should come before the second element,
+ *     0 if the first element may come before or after the second element,
+ *   > 0 if the first element should come after the second element.
+ ******************************************************************************/
+
+// comparison function for sorting cookies before sending to a server.
+PR_STATIC_CALLBACK(int)
+compareCookiesForSending(const void *aElement1,
+                         const void *aElement2,
+                         void       *aData)
+{
+  const nsCookie *cookie1 = static_cast<const nsCookie*>(aElement1);
+  const nsCookie *cookie2 = static_cast<const nsCookie*>(aElement2);
+
+  // compare by cookie path length in accordance with RFC2109
+  int rv = cookie2->Path().Length() - cookie1->Path().Length();
+  if (rv == 0) {
+    // when path lengths match, older cookies should be listed first.  this is
+    // required for backwards compatibility since some websites erroneously
+    // depend on receiving cookies in the order in which they were sent to the
+    // browser!  see bug 236772.
+    // note: CreationID is unique, so two id's can never be equal.
+    // we may have overflow problems returning the result directly, so we need branches
+    rv = (cookie1->CreationID() > cookie2->CreationID() ? 1 : -1);
+  }
+  return rv;
+}
+
+/******************************************************************************
+ * nsCookieService impl:
  * singleton instance ctor/dtor methods
  ******************************************************************************/
 
@@ -376,8 +405,7 @@ NS_IMPL_ISUPPORTS5(nsCookieService,
                    nsISupportsWeakReference)
 
 nsCookieService::nsCookieService()
- : mHostTable(&mDefaultHostTable)
- , mCookieCount(0)
+ : mCookieCount(0)
  , mCookiesPermissions(BEHAVIOR_ACCEPT)
  , mMaxNumberOfCookies(kMaxNumberOfCookies)
  , mMaxCookiesPerHost(kMaxCookiesPerHost)
@@ -387,7 +415,7 @@ nsCookieService::nsCookieService()
 nsresult
 nsCookieService::Init()
 {
-  if (!mHostTable->Init()) {
+  if (!mHostTable.Init()) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
@@ -404,14 +432,9 @@ nsCookieService::Init()
     PrefChanged(prefBranch);
   }
 
-  // failure here is non-fatal (we can run fine without
+  // ignore failure here, since it's non-fatal (we can run fine without
   // persistent storage - e.g. if there's no profile)
   rv = InitDB();
-  if (rv == NS_ERROR_FILE_CORRUPTED) {
-    // database is corrupt - delete and try again
-    COOKIE_LOGSTRING(PR_LOG_WARNING, ("Init(): db corrupt, trying again", rv));
-    rv = InitDB(PR_TRUE);
-  }
   if (NS_FAILED(rv))
     COOKIE_LOGSTRING(PR_LOG_WARNING, ("Init(): InitDB() gave error %x", rv));
 
@@ -419,17 +442,6 @@ nsCookieService::Init()
   if (mObserverService) {
     mObserverService->AddObserver(this, "profile-before-change", PR_TRUE);
     mObserverService->AddObserver(this, "profile-do-change", PR_TRUE);
-    mObserverService->AddObserver(this, NS_PRIVATE_BROWSING_SWITCH_TOPIC, PR_TRUE);
-
-    nsCOMPtr<nsIPrivateBrowsingService> pbs =
-      do_GetService(NS_PRIVATE_BROWSING_SERVICE_CONTRACTID);
-    if (pbs) {
-      PRBool inPrivateBrowsing = PR_FALSE;
-      pbs->GetPrivateBrowsingEnabled(&inPrivateBrowsing);
-      if (inPrivateBrowsing) {
-        Observe(nsnull, NS_PRIVATE_BROWSING_SWITCH_TOPIC, NS_LITERAL_STRING(NS_PRIVATE_BROWSING_ENTER).get());
-      }
-    }
   }
 
   mPermissionService = do_GetService(NS_COOKIEPERMISSION_CONTRACTID);
@@ -442,22 +454,13 @@ nsCookieService::Init()
 }
 
 nsresult
-nsCookieService::InitDB(PRBool aDeleteExistingDB)
+nsCookieService::InitDB()
 {
-  // null out any existing connection
-  CloseDB();
-
   nsCOMPtr<nsIFile> cookieFile;
   nsresult rv = NS_GetSpecialDirectory(NS_APP_USER_PROFILE_50_DIR, getter_AddRefs(cookieFile));
   if (NS_FAILED(rv)) return rv;
 
   cookieFile->AppendNative(NS_LITERAL_CSTRING(kCookieFileName));
-
-  // remove an existing db, if we've been told to (i.e. it's corrupt)
-  if (aDeleteExistingDB) {
-    rv = cookieFile->Remove(PR_FALSE);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
 
   nsCOMPtr<mozIStorageService> storage = do_GetService("@mozilla.org/storage/service;1");
   if (!storage)
@@ -465,6 +468,13 @@ nsCookieService::InitDB(PRBool aDeleteExistingDB)
 
   // cache a connection to the cookie database
   rv = storage->OpenUnsharedDatabase(cookieFile, getter_AddRefs(mDBConn));
+  if (rv == NS_ERROR_FILE_CORRUPTED) {
+    // delete and try again
+    rv = cookieFile->Remove(PR_FALSE);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = storage->OpenUnsharedDatabase(cookieFile, getter_AddRefs(mDBConn));
+  }
   NS_ENSURE_SUCCESS(rv, rv);
 
   PRBool tableExists = PR_FALSE;
@@ -561,29 +571,19 @@ nsCookieService::InitDB(PRBool aDeleteExistingDB)
     "UPDATE moz_cookies SET lastAccessed = ?1 WHERE id = ?2"), getter_AddRefs(mStmtUpdate));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // if we deleted a corrupt db, don't attempt to import - return now
-  if (aDeleteExistingDB)
-    return NS_OK;
-
   // check whether to import or just read in the db
   if (tableExists)
     return Read();
 
-  nsCOMPtr<nsIFile> oldCookieFile;
-  rv = NS_GetSpecialDirectory(NS_APP_USER_PROFILE_50_DIR, getter_AddRefs(oldCookieFile));
+  rv = NS_GetSpecialDirectory(NS_APP_USER_PROFILE_50_DIR, getter_AddRefs(cookieFile));
   if (NS_FAILED(rv)) return rv;
 
-  oldCookieFile->AppendNative(NS_LITERAL_CSTRING(kOldCookieFileName));
-  rv = ImportCookies(oldCookieFile);
-  if (NS_FAILED(rv)) {
-    if (rv == NS_ERROR_FILE_NOT_FOUND)
-      return NS_OK;
-
-    return rv;
-  }
+  cookieFile->AppendNative(NS_LITERAL_CSTRING(kOldCookieFileName));
+  rv = ImportCookies(cookieFile);
+  if (NS_FAILED(rv)) return rv;
 
   // we're done importing - delete the old cookie file
-  oldCookieFile->Remove(PR_FALSE);
+  cookieFile->Remove(PR_FALSE);
   return NS_OK;
 }
 
@@ -602,21 +602,8 @@ nsCookieService::CreateTable()
     "expiry INTEGER, lastAccessed INTEGER, isSecure INTEGER, isHttpOnly INTEGER)"));
 }
 
-void
-nsCookieService::CloseDB()
-{
-  // finalize our statements and close the db connection.
-  // since we own these objects, nulling the pointers is sufficient here.
-  mStmtInsert = nsnull;
-  mStmtDelete = nsnull;
-  mStmtUpdate = nsnull;
-  mDBConn = nsnull;
-}
-
 nsCookieService::~nsCookieService()
 {
-  CloseDB();
-
   gCookieService = nsnull;
 }
 
@@ -640,7 +627,8 @@ nsCookieService::Observe(nsISupports     *aSubject,
       }
 
       // Close the DB connection before changing
-      CloseDB();
+      mDBConn->Close();
+      mDBConn = nsnull;
     }
 
   } else if (!strcmp(aTopic, "profile-do-change")) {
@@ -651,28 +639,6 @@ nsCookieService::Observe(nsISupports     *aSubject,
     nsCOMPtr<nsIPrefBranch> prefBranch = do_QueryInterface(aSubject);
     if (prefBranch)
       PrefChanged(prefBranch);
-  } else if (!strcmp(aTopic, NS_PRIVATE_BROWSING_SWITCH_TOPIC)) {
-    if (NS_LITERAL_STRING(NS_PRIVATE_BROWSING_ENTER).Equals(aData)) {
-      // backup the existing in-memory DB
-      if (mPrivateHostTable.IsInitialized() || mPrivateHostTable.Init()) {
-        mHostTable = &mPrivateHostTable;
-        mCookieCount = mHostTable->Count();
-        NotifyChanged(nsnull, NS_LITERAL_STRING("reload").get());
-      }
-      // close the connection to the on-disk DB
-      CloseDB();
-      // continue to use the in-memory DB
-    } else if (NS_LITERAL_STRING(NS_PRIVATE_BROWSING_LEAVE).Equals(aData)) {
-      // open the connection to the on-disk DB
-      InitDB();
-      // restore the in-memory DB as it was prior to private browsing
-      if (mPrivateHostTable.IsInitialized())
-        mPrivateHostTable.Clear();
-      mHostTable = &mDefaultHostTable;
-      mCookieCount = mHostTable->Count();
-      NotifyChanged(nsnull, NS_LITERAL_STRING("reload").get());
-      // continue to use both on-disk and in-memory DB
-    }
   }
 
   return NS_OK;
@@ -824,9 +790,8 @@ nsCookieService::RemoveAll()
       // Database must be corrupted, so remove it completely.
       nsCOMPtr<nsIFile> dbFile;
       mDBConn->GetDatabaseFile(getter_AddRefs(dbFile));
-      CloseDB();
+      mDBConn->Close();
       dbFile->Remove(PR_FALSE);
-
       InitDB();
     }
   }
@@ -846,7 +811,7 @@ struct nsGetEnumeratorData
   PRInt64 currentTime;
 };
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 COMArrayCallback(nsCookieEntry *aEntry,
                  void          *aArg)
 {
@@ -866,7 +831,7 @@ nsCookieService::GetEnumerator(nsISimpleEnumerator **aEnumerator)
   nsCOMArray<nsICookie> cookieList(mCookieCount);
   nsGetEnumeratorData data(&cookieList, PR_Now() / PR_USEC_PER_SEC);
 
-  mHostTable->EnumerateEntries(COMArrayCallback, &data);
+  mHostTable.EnumerateEntries(COMArrayCallback, &data);
 
   return NS_NewArrayEnumerator(aEnumerator, cookieList);
 }
@@ -971,7 +936,7 @@ nsCookieService::Read()
 
   nsCAutoString name, value, host, path;
   PRBool hasResult;
-  while (NS_SUCCEEDED(rv = stmt->ExecuteStep(&hasResult)) && hasResult) {
+  while (NS_SUCCEEDED(stmt->ExecuteStep(&hasResult)) && hasResult) {
     PRInt64 creationID = stmt->AsInt64(0);
     
     stmt->GetUTF8String(1, name);
@@ -1009,7 +974,7 @@ nsCookieService::Read()
 
   COOKIE_LOGSTRING(PR_LOG_DEBUG, ("Read(): %ld cookies read", mCookieCount));
 
-  return rv;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -1151,29 +1116,6 @@ nsCookieService::ImportCookies(nsIFile *aCookieFile)
 // helper function for GetCookieList
 static inline PRBool ispathdelimiter(char c) { return c == '/' || c == '?' || c == '#' || c == ';'; }
 
-// Comparator class for sorting cookies before sending to a server.
-class CompareCookiesForSendingComparator
-{
-  public:
-  PRBool Equals(const nsCookie* aCookie1, const nsCookie* aCookie2) const {
-    return PR_FALSE; // CreationID is unique, so two id's can never be equal.
-  }
-  PRBool LessThan(const nsCookie* aCookie1, const nsCookie* aCookie2) const {
-    // compare by cookie path length in accordance with RFC2109
-    int rv = aCookie2->Path().Length() - aCookie1->Path().Length();
-    if (rv == 0) {
-      // when path lengths match, older cookies should be listed first.  this is
-      // required for backwards compatibility since some websites erroneously
-      // depend on receiving cookies in the order in which they were sent to the
-      // browser!  see bug 236772.
-      // note: CreationID is unique, so two id's can never be equal.
-      // we may have overflow problems returning the result directly, so we need branches
-      rv = (aCookie1->CreationID() > aCookie2->CreationID() ? 1 : -1);
-    }
-    return rv < 0;
-  }
-};
-
 void
 nsCookieService::GetCookieInternal(nsIURI      *aHostURI,
                                    nsIChannel  *aChannel,
@@ -1220,7 +1162,7 @@ nsCookieService::GetCookieInternal(nsIURI      *aHostURI,
   }
 
   nsCookie *cookie;
-  nsAutoTArray<nsCookie*, 8> foundCookieList;
+  nsAutoVoidArray foundCookieList;
   PRInt64 currentTimeInUsec = PR_Now();
   PRInt64 currentTime = currentTimeInUsec / PR_USEC_PER_SEC;
   const char *currentDot = hostFromURI.get();
@@ -1230,7 +1172,7 @@ nsCookieService::GetCookieInternal(nsIURI      *aHostURI,
   // begin hash lookup, walking up the subdomain levels.
   // we use nextDot to force a lookup of the original host (without leading dot).
   do {
-    nsCookieEntry *entry = mHostTable->GetEntry(currentDot);
+    nsCookieEntry *entry = mHostTable.GetEntry(currentDot);
     cookie = entry ? entry->Head() : nsnull;
     for (; cookie; cookie = cookie->Next()) {
       // if the cookie is secure and the host scheme isn't, we can't send it
@@ -1285,7 +1227,7 @@ nsCookieService::GetCookieInternal(nsIURI      *aHostURI,
 
   } while (currentDot);
 
-  PRInt32 count = foundCookieList.Length();
+  PRInt32 count = foundCookieList.Count();
   if (count == 0)
     return;
 
@@ -1297,7 +1239,7 @@ nsCookieService::GetCookieInternal(nsIURI      *aHostURI,
     mozStorageTransaction transaction(mDBConn, PR_TRUE);
 
     for (PRInt32 i = 0; i < count; ++i) {
-      cookie = foundCookieList.ElementAt(i);
+      cookie = static_cast<nsCookie*>(foundCookieList.ElementAt(i));
 
       if (currentTimeInUsec - cookie->LastAccessed() > kCookieStaleThreshold)
         UpdateCookieInList(cookie, currentTimeInUsec);
@@ -1307,11 +1249,11 @@ nsCookieService::GetCookieInternal(nsIURI      *aHostURI,
   // return cookies in order of path length; longest to shortest.
   // this is required per RFC2109.  if cookies match in length,
   // then sort by creation time (see bug 236772).
-  foundCookieList.Sort(CompareCookiesForSendingComparator());
+  foundCookieList.Sort(compareCookiesForSending, nsnull);
 
   nsCAutoString cookieData;
   for (PRInt32 i = 0; i < count; ++i) {
-    cookie = foundCookieList.ElementAt(i);
+    cookie = static_cast<nsCookie*>(foundCookieList.ElementAt(i));
 
     // check if we have anything to write
     if (!cookie->Name().IsEmpty() || !cookie->Value().IsEmpty()) {
@@ -2067,11 +2009,11 @@ nsCookieService::RemoveAllFromMemory()
 {
   // clearing the hashtable will call each nsCookieEntry's dtor,
   // which releases all their respective children.
-  mHostTable->Clear();
+  mHostTable.Clear();
   mCookieCount = 0;
 }
 
-PLDHashOperator
+PLDHashOperator PR_CALLBACK
 removeExpiredCallback(nsCookieEntry *aEntry,
                       void          *aArg)
 {
@@ -2093,7 +2035,7 @@ nsCookieService::RemoveExpiredCookies(PRInt64 aCurrentTime)
 #ifdef PR_LOGGING
   PRUint32 initialCookieCount = mCookieCount;
 #endif
-  mHostTable->EnumerateEntries(removeExpiredCallback, &aCurrentTime);
+  mHostTable.EnumerateEntries(removeExpiredCallback, &aCurrentTime);
   COOKIE_LOGSTRING(PR_LOG_DEBUG, ("RemoveExpiredCookies(): %ld purged; %ld remain", initialCookieCount - mCookieCount, mCookieCount));
 }
 
@@ -2133,7 +2075,7 @@ nsCookieService::CountCookiesFromHostInternal(const nsACString  &aHost,
   const char *currentDot = hostWithDot.get();
   const char *nextDot = currentDot + 1;
   do {
-    nsCookieEntry *entry = mHostTable->GetEntry(currentDot);
+    nsCookieEntry *entry = mHostTable.GetEntry(currentDot);
     for (nsListIter iter(entry); iter.current; ++iter) {
       // only count non-expired cookies
       if (iter.current->Expiry() > aData.currentTime) {
@@ -2177,7 +2119,7 @@ nsCookieService::FindCookie(const nsAFlatCString &aHost,
                             nsListIter           &aIter,
                             PRInt64               aCurrentTime)
 {
-  nsCookieEntry *entry = mHostTable->GetEntry(aHost.get());
+  nsCookieEntry *entry = mHostTable.GetEntry(aHost.get());
   for (aIter = nsListIter(entry); aIter.current; ++aIter) {
     if (aIter.current->Expiry() > aCurrentTime &&
         aPath.Equals(aIter.current->Path()) &&
@@ -2214,7 +2156,7 @@ nsCookieService::RemoveCookieFromList(nsListIter &aIter)
     // we're removing the last element in the list - so just remove the entry
     // from the hash. note that the entryclass' dtor will take care of
     // releasing this last element for us!
-    mHostTable->RawRemoveEntry(aIter.entry);
+    mHostTable.RawRemoveEntry(aIter.entry);
     aIter.current = nsnull;
 
   } else {
@@ -2269,7 +2211,7 @@ bindCookieParameters(mozIStorageStatement* aStmt, const nsCookie* aCookie)
 PRBool
 nsCookieService::AddCookieToList(nsCookie *aCookie, PRBool aWriteToDB)
 {
-  nsCookieEntry *entry = mHostTable->PutEntry(aCookie->Host().get());
+  nsCookieEntry *entry = mHostTable.PutEntry(aCookie->Host().get());
 
   if (!entry) {
     NS_ERROR("can't insert element into a null entry!");
@@ -2329,7 +2271,7 @@ nsCookieService::UpdateCookieInList(nsCookie *aCookie, PRInt64 aLastAccessed)
   }
 }
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 findOldestCallback(nsCookieEntry *aEntry,
                    void          *aArg)
 {
@@ -2347,5 +2289,6 @@ findOldestCallback(nsCookieEntry *aEntry,
 void
 nsCookieService::FindOldestCookie(nsEnumerationData &aData)
 {
-  mHostTable->EnumerateEntries(findOldestCallback, &aData);
+  mHostTable.EnumerateEntries(findOldestCallback, &aData);
 }
+

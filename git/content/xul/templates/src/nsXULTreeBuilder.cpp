@@ -59,7 +59,7 @@
 #include "nsGkAtoms.h"
 #include "nsXULContentUtils.h"
 #include "nsXULTemplateBuilder.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "nsUnicharUtils.h"
 #include "nsINameSpaceManager.h"
 #include "nsIDOMClassInfo.h"
@@ -152,7 +152,7 @@ protected:
                            nsIXULTemplateResult *aResult,
                            nsTemplateQuerySet* aQuerySet,
                            PRInt32* aDelta,
-                           nsTArray<PRInt32>& open);
+                           nsAutoVoidArray& open);
 
     /**
      * Close a container row, removing the container's childrem from
@@ -179,7 +179,7 @@ protected:
     /**
      * A sorting callback for NS_QuickSort().
      */
-    static int
+    static int PR_CALLBACK
     Compare(const void* aLeft, const void* aRight, void* aClosure);
 
     /**
@@ -301,7 +301,7 @@ NS_IMPL_RELEASE_INHERITED(nsXULTreeBuilder, nsXULTemplateBuilder)
 NS_INTERFACE_MAP_BEGIN(nsXULTreeBuilder)
   NS_INTERFACE_MAP_ENTRY(nsIXULTreeBuilder)
   NS_INTERFACE_MAP_ENTRY(nsITreeView)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(XULTreeBuilder)
+  NS_INTERFACE_MAP_ENTRY_DOM_CLASSINFO(XULTreeBuilder)
 NS_INTERFACE_MAP_END_INHERITING(nsXULTemplateBuilder)
 
 
@@ -319,9 +319,6 @@ nsXULTreeBuilder::Uninit(PRBool aIsFinal)
     if (mBoxObject) {
         mBoxObject->BeginUpdateBatch();
         mBoxObject->RowCountChanged(0, -count);
-        if (mBoxObject) {
-            mBoxObject->EndUpdateBatch();
-        }
     }
 
     nsXULTemplateBuilder::Uninit(aIsFinal);
@@ -1352,35 +1349,40 @@ nsXULTreeBuilder::RebuildAll()
     if (! mQueryProcessor)
         return NS_OK;
 
-    if (mBoxObject) {
-        mBoxObject->BeginUpdateBatch();
-    }
-
     if (mQueriesCompiled) {
         Uninit(PR_FALSE);
     }
     else if (mBoxObject) {
         PRInt32 count = mRows.Count();
         mRows.Clear();
+        mBoxObject->BeginUpdateBatch();
         mBoxObject->RowCountChanged(0, -count);
     }
 
     nsresult rv = CompileQueries();
-    if (NS_SUCCEEDED(rv) && mQuerySets.Length() > 0) {
-        // Seed the rule network with assignments for the tree row variable
-        nsAutoString ref;
-        mRoot->GetAttr(kNameSpaceID_None, nsGkAtoms::ref, ref);
-        if (!ref.IsEmpty()) {
-            rv = mQueryProcessor->TranslateRef(mDataSource, ref,
-                                               getter_AddRefs(mRootResult));
-            if (NS_SUCCEEDED(rv) && mRootResult) {
-                OpenContainer(-1, mRootResult);
+    if (NS_FAILED(rv))
+        return rv;
 
-                nsCOMPtr<nsIRDFResource> rootResource;
-                GetResultResource(mRootResult, getter_AddRefs(rootResource));
+    if (mQuerySets.Length() == 0)
+        return NS_OK;
 
-                mRows.SetRootResource(rootResource);
-            }
+    // Seed the rule network with assignments for the tree row variable
+    nsAutoString ref;
+    mRoot->GetAttr(kNameSpaceID_None, nsGkAtoms::ref, ref);
+
+    if (! ref.IsEmpty()) {
+        rv = mQueryProcessor->TranslateRef(mDataSource, ref,
+                                           getter_AddRefs(mRootResult));
+        if (NS_FAILED(rv))
+            return rv;
+
+        if (mRootResult) {
+            OpenContainer(-1, mRootResult);
+
+            nsCOMPtr<nsIRDFResource> rootResource;
+            GetResultResource(mRootResult, getter_AddRefs(rootResource));
+
+            mRows.SetRootResource(rootResource);
         }
     }
 
@@ -1388,7 +1390,7 @@ nsXULTreeBuilder::RebuildAll()
         mBoxObject->EndUpdateBatch();
     }
 
-    return rv;
+    return NS_OK;
 }
 
 nsresult
@@ -1398,6 +1400,8 @@ nsXULTreeBuilder::GetTemplateActionRowFor(PRInt32 aRow, nsIContent** aResult)
     // generate text
     nsTreeRows::Row& row = *(mRows[aRow]);
 
+    nsCOMPtr<nsIContent> action;
+
     // The match stores the indices of the rule and query to use. Use these
     // to look up the right nsTemplateRule and use that rule's action to get
     // the treerow in the template.
@@ -1406,8 +1410,10 @@ nsXULTreeBuilder::GetTemplateActionRowFor(PRInt32 aRow, nsIContent** aResult)
         nsTemplateQuerySet* qs = mQuerySets[row.mMatch->QuerySetPriority()];
         nsTemplateRule* rule = qs->GetRuleAt(ruleindex);
         if (rule) {
+            rule->GetAction(getter_AddRefs(action));
+
             nsCOMPtr<nsIContent> children;
-            nsXULContentUtils::FindChildByTag(rule->GetAction(), kNameSpaceID_XUL,
+            nsXULContentUtils::FindChildByTag(action, kNameSpaceID_XUL,
                                               nsGkAtoms::treechildren,
                                               getter_AddRefs(children));
             if (children) {
@@ -1520,7 +1526,7 @@ nsXULTreeBuilder::OpenSubtreeOf(nsTreeRows::Subtree* aSubtree,
                                 nsIXULTemplateResult *aResult,
                                 PRInt32* aDelta)
 {
-    nsAutoTArray<PRInt32, 8> open;
+    nsAutoVoidArray open;
     PRInt32 count = 0;
 
     PRInt32 rulecount = mQuerySets.Length();
@@ -1532,8 +1538,8 @@ nsXULTreeBuilder::OpenSubtreeOf(nsTreeRows::Subtree* aSubtree,
 
     // Now recursively deal with any open sub-containers that just got
     // inserted. We need to do this back-to-front to avoid skewing offsets.
-    for (PRInt32 i = open.Length() - 1; i >= 0; --i) {
-        PRInt32 index = open[i];
+    for (PRInt32 i = open.Count() - 1; i >= 0; --i) {
+        PRInt32 index = NS_PTR_TO_INT32(open[i]);
 
         nsTreeRows::Subtree* child =
             mRows.EnsureSubtreeFor(aSubtree, index);
@@ -1564,7 +1570,7 @@ nsXULTreeBuilder::OpenSubtreeForQuerySet(nsTreeRows::Subtree* aSubtree,
                                          nsIXULTemplateResult* aResult,
                                          nsTemplateQuerySet* aQuerySet,
                                          PRInt32* aDelta,
-                                         nsTArray<PRInt32>& open)
+                                         nsAutoVoidArray& open)
 {
     PRInt32 count = *aDelta;
     
@@ -1672,7 +1678,7 @@ nsXULTreeBuilder::OpenSubtreeForQuerySet(nsTreeRows::Subtree* aSubtree,
                 PRBool isOpen = PR_FALSE;
                 IsContainerOpen(nextresult, &isOpen);
                 if (isOpen) {
-                    if (open.AppendElement(count) == nsnull)
+                    if (!open.AppendElement(NS_INT32_TO_PTR(count)))
                         return NS_ERROR_OUT_OF_MEMORY;
                 }
 
@@ -1890,8 +1896,7 @@ nsXULTreeBuilder::SortSubtree(nsTreeRows::Subtree* aSubtree)
 
 /* boolean canDrop (in long index, in long orientation); */
 NS_IMETHODIMP
-nsXULTreeBuilder::CanDrop(PRInt32 index, PRInt32 orientation,
-                          nsIDOMDataTransfer* dataTransfer, PRBool *_retval)
+nsXULTreeBuilder::CanDrop(PRInt32 index, PRInt32 orientation, PRBool *_retval)
 {
     *_retval = PR_FALSE;
     if (mObservers) {
@@ -1900,7 +1905,7 @@ nsXULTreeBuilder::CanDrop(PRInt32 index, PRInt32 orientation,
         for (PRUint32 i = 0; i < count; ++i) {
             nsCOMPtr<nsIXULTreeBuilderObserver> observer = do_QueryElementAt(mObservers, i);
             if (observer) {
-                observer->CanDrop(index, orientation, dataTransfer, _retval);
+                observer->CanDrop(index, orientation, _retval);
                 if (*_retval)
                     break;
             }
@@ -1911,7 +1916,7 @@ nsXULTreeBuilder::CanDrop(PRInt32 index, PRInt32 orientation,
 }
 
 NS_IMETHODIMP
-nsXULTreeBuilder::Drop(PRInt32 row, PRInt32 orient, nsIDOMDataTransfer* dataTransfer)
+nsXULTreeBuilder::Drop(PRInt32 row, PRInt32 orient)
 {
     if (mObservers) {
         PRUint32 count;
@@ -1920,9 +1925,9 @@ nsXULTreeBuilder::Drop(PRInt32 row, PRInt32 orient, nsIDOMDataTransfer* dataTran
             nsCOMPtr<nsIXULTreeBuilderObserver> observer = do_QueryElementAt(mObservers, i);
             if (observer) {
                 PRBool canDrop = PR_FALSE;
-                observer->CanDrop(row, orient, dataTransfer, &canDrop);
+                observer->CanDrop(row, orient, &canDrop);
                 if (canDrop)
-                    observer->OnDrop(row, orient, dataTransfer);
+                    observer->OnDrop(row, orient);
             }
         }
     }

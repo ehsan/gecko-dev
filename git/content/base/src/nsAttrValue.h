@@ -50,11 +50,10 @@
 #include "nsColor.h"
 #include "nsCaseTreatment.h"
 
-typedef PRUptrdiff PtrBits;
+typedef unsigned long PtrBits;
 class nsAString;
 class nsIAtom;
 class nsICSSStyleRule;
-class nsIURI;
 class nsISVGValue;
 class nsIDocument;
 template<class E> class nsCOMArray;
@@ -121,7 +120,6 @@ public:
     ,eSVGValue =    0x12
 #endif
     ,eFloatValue  = 0x13
-    ,eLazyURIValue = 0x14
   };
 
   ValueType Type() const;
@@ -155,10 +153,6 @@ public:
   inline nsISVGValue* GetSVGValue() const;
 #endif
   inline float GetFloatValue() const;
-  inline nsIURI* GetURIValue() const;
-  const nsCheapString GetURIStringValue() const;
-  void CacheURIValue(nsIURI* aURI);
-  void DropCachedURI();
 
   // Methods to get access to atoms we may have
   // Returns the number of atoms we have; 0 if we have none.  It's OK
@@ -263,12 +257,6 @@ public:
    */
   PRBool ParseFloatValue(const nsAString& aString);
 
-  /**
-   * Parse a lazy URI.  This just sets up the storage for the URI; it
-   * doesn't actually allocate it.
-   */
-  PRBool ParseLazyURIValue(const nsAString& aString);
-
 private:
   // These have to be the same as in ValueType
   enum ValueBaseType {
@@ -297,7 +285,6 @@ private:
       nsISVGValue* mSVGValue;
 #endif
       float mFloatValue;
-      nsIURI* mURI;
     };
   };
 
@@ -401,13 +388,6 @@ nsAttrValue::GetFloatValue() const
 {
   NS_PRECONDITION(Type() == eFloatValue, "wrong type");
   return GetMiscContainer()->mFloatValue;
-}
-
-inline nsIURI*
-nsAttrValue::GetURIValue() const
-{
-  NS_PRECONDITION(Type() == eLazyURIValue, "wrong type");
-  return GetMiscContainer()->mURI;
 }
 
 inline nsAttrValue::ValueBaseType

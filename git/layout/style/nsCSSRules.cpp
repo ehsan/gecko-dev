@@ -61,7 +61,7 @@
 #include "nsIDOMCSSStyleDeclaration.h"
 #include "nsIMediaList.h"
 #include "nsIDOMMediaList.h"
-#include "nsICSSRuleList.h"
+#include "nsIDOMCSSRuleList.h"
 #include "nsIDOMStyleSheet.h"
 #include "nsIDocument.h"
 #include "nsPresContext.h"
@@ -76,18 +76,19 @@
 NS_IMETHODIMP _class::GetStyleSheet(nsIStyleSheet*& aSheet) const { return super::GetStyleSheet(aSheet); }  \
 NS_IMETHODIMP _class::SetStyleSheet(nsICSSStyleSheet* aSheet) { return super::SetStyleSheet(aSheet); }  \
 NS_IMETHODIMP _class::SetParentRule(nsICSSGroupRule* aRule) { return super::SetParentRule(aRule); }  \
-nsIDOMCSSRule* _class::GetDOMRuleWeak(nsresult *aResult) { *aResult = NS_OK; return this; }  \
+NS_IMETHODIMP _class::GetDOMRule(nsIDOMCSSRule** aDOMRule) { return CallQueryInterface(this, aDOMRule); }  \
 NS_IMETHODIMP _class::MapRuleInfoInto(nsRuleData* aRuleData) { return NS_OK; } 
 
 #define IMPL_STYLE_RULE_INHERIT2(_class, super) \
 NS_IMETHODIMP _class::GetStyleSheet(nsIStyleSheet*& aSheet) const { return super::GetStyleSheet(aSheet); }  \
 NS_IMETHODIMP _class::SetParentRule(nsICSSGroupRule* aRule) { return super::SetParentRule(aRule); }  \
+NS_IMETHODIMP _class::GetDOMRule(nsIDOMCSSRule** aDOMRule) { return CallQueryInterface(this, aDOMRule); }  \
 NS_IMETHODIMP _class::MapRuleInfoInto(nsRuleData* aRuleData) { return NS_OK; } 
 
 // -------------------------------
 // Style Rule List for group rules
 //
-class CSSGroupRuleRuleListImpl : public nsICSSRuleList
+class CSSGroupRuleRuleListImpl : public nsIDOMCSSRuleList
 {
 public:
   CSSGroupRuleRuleListImpl(nsICSSGroupRule *aGroupRule);
@@ -95,8 +96,6 @@ public:
   NS_DECL_ISUPPORTS
 
   NS_DECL_NSIDOMCSSRULELIST
-
-  virtual nsIDOMCSSRule* GetItemAt(PRUint32 aIndex, nsresult* aResult);
 
   void DropReference() { mGroupRule = nsnull; }
 
@@ -120,7 +119,6 @@ CSSGroupRuleRuleListImpl::~CSSGroupRuleRuleListImpl()
 
 // QueryInterface implementation for CSSGroupRuleRuleList
 NS_INTERFACE_MAP_BEGIN(CSSGroupRuleRuleListImpl)
-  NS_INTERFACE_MAP_ENTRY(nsICSSRuleList)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCSSRuleList)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
   NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(CSSGroupRuleRuleList)
@@ -144,39 +142,24 @@ CSSGroupRuleRuleListImpl::GetLength(PRUint32* aLength)
   return NS_OK;
 }
 
-nsIDOMCSSRule*    
-CSSGroupRuleRuleListImpl::GetItemAt(PRUint32 aIndex, nsresult* aResult)
+NS_IMETHODIMP    
+CSSGroupRuleRuleListImpl::Item(PRUint32 aIndex, nsIDOMCSSRule** aReturn)
 {
   nsresult result = NS_OK;
 
+  *aReturn = nsnull;
   if (mGroupRule) {
     nsCOMPtr<nsICSSRule> rule;
 
     result = mGroupRule->GetStyleRuleAt(aIndex, *getter_AddRefs(rule));
     if (rule) {
-      return rule->GetDOMRuleWeak(aResult);
-    }
-    if (result == NS_ERROR_ILLEGAL_VALUE) {
+      result = rule->GetDOMRule(aReturn);
+    } else if (result == NS_ERROR_ILLEGAL_VALUE) {
       result = NS_OK; // per spec: "Return Value ... null if ... not a valid index."
     }
   }
-
-  *aResult = result;
-
-  return nsnull;
-}
-
-NS_IMETHODIMP    
-CSSGroupRuleRuleListImpl::Item(PRUint32 aIndex, nsIDOMCSSRule** aReturn)
-{
-  nsresult rv;
-  nsIDOMCSSRule* rule = GetItemAt(aIndex, &rv);
-  if (!rule) {
-    *aReturn = nsnull;
-    return rv;
-  }
-
-  return CallQueryInterface(rule, aReturn);
+  
+  return result;
 }
 
 // -------------------------------------------
@@ -571,7 +554,7 @@ NS_IMETHODIMP
 CSSImportRuleImpl::GetCssText(nsAString& aCssText)
 {
   aCssText.AssignLiteral("@import url(");
-  nsStyleUtil::AppendEscapedCSSString(mURLSpec, aCssText);
+  aCssText.Append(mURLSpec);
   aCssText.Append(NS_LITERAL_STRING(")"));
   if (mMedia) {
     nsAutoString mediaText;
@@ -1162,18 +1145,19 @@ nsCSSDocumentRule::GetCssText(nsAString& aCssText)
   for (URL *url = mURLs; url; url = url->next) {
     switch (url->func) {
       case eURL:
-        aCssText.AppendLiteral("url(");
+        aCssText.AppendLiteral("url(\"");
         break;
       case eURLPrefix:
-        aCssText.AppendLiteral("url-prefix(");
+        aCssText.AppendLiteral("url-prefix(\"");
         break;
       case eDomain:
-        aCssText.AppendLiteral("domain(");
+        aCssText.AppendLiteral("domain(\"");
         break;
     }
-    nsStyleUtil::AppendEscapedCSSString(NS_ConvertUTF8toUTF16(url->url),
-                                        aCssText);
-    aCssText.AppendLiteral("), ");
+    nsCAutoString escapedURL(url->url);
+    escapedURL.ReplaceSubstring("\"", "\\\""); // escape quotes
+    AppendUTF8toUTF16(escapedURL, aCssText);
+    aCssText.AppendLiteral("\"), ");
   }
   aCssText.Cut(aCssText.Length() - 2, 1); // remove last ,
 
@@ -1256,10 +1240,6 @@ nsCSSDocumentRule::UseForPresentation(nsPresContext* aPresContext,
   return PR_FALSE;
 }
 
-nsCSSDocumentRule::URL::~URL()
-{
-  NS_CSS_DELETE_LIST_MEMBER(nsCSSDocumentRule::URL, this, next);
-}
 
 // -------------------------------------------
 // nsICSSNameSpaceRule
@@ -1446,7 +1426,7 @@ CSSNameSpaceRuleImpl::GetCssText(nsAString& aCssText)
     aCssText.AppendLiteral(" ");
   }
   aCssText.AppendLiteral("url(");
-  nsStyleUtil::AppendEscapedCSSString(mURLSpec, aCssText);
+  aCssText.Append(mURLSpec);
   aCssText.Append(NS_LITERAL_STRING(");"));
   return NS_OK;
 }
@@ -1487,10 +1467,14 @@ CSSNameSpaceRuleImpl::GetParentRule(nsIDOMCSSRule** aParentRule)
 // only after one of the first two.  (css3-fonts only contemplates
 // annotating URLs with formats, but we handle the general case.)
 static void
-AppendSerializedFontSrc(const nsCSSValue& src, nsAString & aResult NS_OUTPARAM)
+SerializeFontSrc(const nsCSSValue& src, nsAString & aResult NS_OUTPARAM)
 {
-  NS_PRECONDITION(src.GetUnit() == eCSSUnit_Array,
+  NS_PRECONDITION(src.GetUnit() == eCSSUnit_Null ||
+                  src.GetUnit() == eCSSUnit_Array,
                   "improper value unit for src:");
+  aResult.Truncate();
+  if (src.GetUnit() != eCSSUnit_Array)
+    return;
 
   const nsCSSValue::Array& sources = *src.GetArrayValue();
   PRUint32 i = 0;
@@ -1499,15 +1483,19 @@ AppendSerializedFontSrc(const nsCSSValue& src, nsAString & aResult NS_OUTPARAM)
     nsAutoString formats;
 
     if (sources[i].GetUnit() == eCSSUnit_URL) {
-      aResult.AppendLiteral("url(");
       nsDependentString url(sources[i].GetOriginalURLValue());
-      nsStyleUtil::AppendEscapedCSSString(url, aResult);
-      aResult.AppendLiteral(")");
+      nsAutoString escapedUrl;
+      nsStyleUtil::EscapeCSSString(url, escapedUrl);
+      aResult.AppendLiteral("url(\"");
+      aResult.Append(escapedUrl);
+      aResult.AppendLiteral("\")");
     } else if (sources[i].GetUnit() == eCSSUnit_Local_Font) {
-      aResult.AppendLiteral("local(");
       nsDependentString local(sources[i].GetStringBufferValue());
-      nsStyleUtil::AppendEscapedCSSString(local, aResult);
-      aResult.AppendLiteral(")");
+      nsAutoString escapedLocal;
+      nsStyleUtil::EscapeCSSString(local, escapedLocal);
+      aResult.AppendLiteral("local(\"");
+      aResult.Append(escapedLocal);
+      aResult.AppendLiteral("\")");
     } else {
       NS_NOTREACHED("entry in src: descriptor with improper unit");
       i++;
@@ -1570,19 +1558,17 @@ nsCSSFontFaceStyleDecl::GetPropertyValue(nsCSSFontDesc aFontDescID,
 
   const nsCSSValue& val = this->*nsCSSFontFaceStyleDecl::Fields[aFontDescID];
 
-  if (val.GetUnit() == eCSSUnit_Null) {
-    // Avoid having to check no-value in the Family and Src cases below.
-    return NS_OK;
-  }
-
   switch (aFontDescID) {
   case eCSSFontDesc_Family: {
       // we don't use AppendCSSValueToString here because it doesn't
       // canonicalize the way we want, and anyway it's overkill when
       // we know we have eCSSUnit_String
-      NS_ASSERTION(val.GetUnit() == eCSSUnit_String, "unexpected unit");
       nsDependentString family(val.GetStringBufferValue());
-      nsStyleUtil::AppendEscapedCSSString(family, aResult);
+      nsAutoString escapedFamily;
+      nsStyleUtil::EscapeCSSString(family, escapedFamily);
+      aResult.Append('"');
+      aResult.Append(escapedFamily);
+      aResult.Append('"');
       return NS_OK;
     }
 
@@ -1602,7 +1588,7 @@ nsCSSFontFaceStyleDecl::GetPropertyValue(nsCSSFontDesc aFontDescID,
     return NS_OK;
 
   case eCSSFontDesc_Src:
-    AppendSerializedFontSrc(val, aResult);
+    SerializeFontSrc(val, aResult);
     return NS_OK;
 
   case eCSSFontDesc_UnicodeRange:

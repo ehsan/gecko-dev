@@ -82,9 +82,7 @@
  *    // QueryInterface implementation, e.g. using the generateQI helper
  *    QueryInterface: XPCOMUtils.generateQI(
  *      [Components.interfaces.nsIObserver,
- *       Components.interfaces.nsIMyInterface,
- *       "nsIFoo",
- *       "nsIBar" ]),
+ *       Components.interfaces.nsIMyInterface]),
  *
  *    // ...component implementation...
  *  };
@@ -114,8 +112,7 @@ var XPCOMUtils = {
    * param, and if it is, returns |this| (the object it was called on).
    */
   generateQI: function(interfaces) {
-    /* Note that Ci[Ci.x] == Ci.x for all x */
-    return makeQI([Ci[i].name for each (i in interfaces) if (Ci[i])]);
+    return makeQI([i.name for each(i in interfaces)]);
   },
 
   /**

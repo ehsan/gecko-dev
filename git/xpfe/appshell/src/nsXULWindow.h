@@ -46,7 +46,7 @@
 
 // Helper classes
 #include "nsCOMPtr.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "nsString.h"
 #include "nsWeakReference.h"
 #include "nsCOMArray.h"
@@ -58,6 +58,7 @@
 #include "nsIDOMWindowInternal.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIInterfaceRequestorUtils.h"
+#include "nsIWidget.h"
 #include "nsIXULWindow.h"
 #include "nsIPrompt.h"
 #include "nsIAuthPrompt.h"
@@ -74,8 +75,6 @@
      0x44ad,                                          \
    { 0xa7, 0x85, 0xb5, 0xa8, 0x63, 0xcf, 0x55, 0x88 } \
 }
-
-class nsContentShellInfo;
 
 class nsXULWindow : public nsIBaseWindow,
                     public nsIInterfaceRequestor,
@@ -149,7 +148,6 @@ protected:
    void       SetContentScrollbarVisibility(PRBool aVisible);
    PRBool     GetContentScrollbarVisibility();
    void       PersistentAttributesDirty(PRUint32 aDirtyFlags);
-   PRInt32    AppUnitsPerDevPixel();
 
    nsChromeTreeOwner*      mChromeTreeOwner;
    nsContentTreeOwner*     mContentTreeOwner;
@@ -162,7 +160,7 @@ protected:
    nsCOMPtr<nsIAuthPrompt> mAuthPrompter;
    nsCOMPtr<nsIXULBrowserWindow> mXULBrowserWindow;
    nsCOMPtr<nsIDocShellTreeItem> mPrimaryContentShell;
-   nsTArray<nsContentShellInfo*> mContentShells; // array of doc shells by id
+   nsVoidArray             mContentShells; // array of doc shells by id
    nsresult                mModalStatus;
    PRPackedBool            mContinueModalLoop;
    PRPackedBool            mDebuting;       // being made visible right now
@@ -177,8 +175,6 @@ protected:
    PRUint32                mPersistentAttributesDirty; // persistentAttributes
    PRUint32                mPersistentAttributesMask;
    PRUint32                mChromeFlags;
-   PRUint32                mAppPerDev; // sometimes needed when we can't get
-                                       // it from the widget
    nsString                mTitle;
 
    nsCOMArray<nsIWeakReference> mTargetableShells; // targetable shells only
@@ -187,7 +183,7 @@ protected:
 NS_DEFINE_STATIC_IID_ACCESSOR(nsXULWindow, NS_XULWINDOW_IMPL_CID)
 
 // nsContentShellInfo
-// Used to map shell IDs to nsIDocShellTreeItems.
+// Used (in an nsVoidArray) to map shell IDs to nsIDocShellTreeItems.
 
 class nsContentShellInfo
 {

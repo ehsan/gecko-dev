@@ -92,7 +92,7 @@ NS_IMPL_RELEASE_INHERITED(nsApplicationAccessible, nsAccessible)
 ////////////////////////////////////////////////////////////////////////////////
 // nsIAccessNode
 
-nsresult
+NS_IMETHODIMP
 nsApplicationAccessible::Init()
 {
   nsresult rv;
@@ -114,38 +114,37 @@ nsApplicationAccessible::GetName(nsAString& aName)
   NS_ENSURE_STATE(bundleService);
 
   nsCOMPtr<nsIStringBundle> bundle;
-  nsresult rv = bundleService->CreateBundle("chrome://branding/locale/brand.properties",
-                                            getter_AddRefs(bundle));
-  NS_ENSURE_SUCCESS(rv, rv);
+  bundleService->CreateBundle("chrome://branding/locale/brand.properties",
+                              getter_AddRefs(bundle));
 
   nsXPIDLString appName;
-  rv = bundle->GetStringFromName(NS_LITERAL_STRING("brandShortName").get(),
-                                 getter_Copies(appName));
-  if (NS_FAILED(rv) || appName.IsEmpty()) {
-    NS_WARNING("brandShortName not found, using default app name");
-    appName.AssignLiteral("Gecko based application");
+  if (bundle) {
+    bundle->GetStringFromName(NS_LITERAL_STRING("brandShortName").get(),
+                              getter_Copies(appName));
+  } else {
+    NS_WARNING("brand.properties not present, using default app name");
+    appName.AssignLiteral("Mozilla");
   }
 
   aName.Assign(appName);
   return NS_OK;
 }
 
-nsresult
-nsApplicationAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP
+nsApplicationAccessible::GetRole(PRUint32 *aRole)
 {
   *aRole = nsIAccessibleRole::ROLE_APP_ROOT;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsApplicationAccessible::GetRole(PRUint32 *aRole)
+nsApplicationAccessible::GetFinalRole(PRUint32 *aFinalRole)
 {
-  return GetRoleInternal(aRole);
+  return GetRole(aFinalRole);
 }
 
-nsresult
-nsApplicationAccessible::GetStateInternal(PRUint32 *aState,
-                                          PRUint32 *aExtraState)
+NS_IMETHODIMP
+nsApplicationAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 {
   *aState = 0;
   if (aExtraState)
@@ -236,21 +235,20 @@ nsApplicationAccessible::CacheChildren()
 
     nsCOMPtr<nsIWeakReference> childWeakRef;
     nsCOMPtr<nsIAccessible> accessible;
-    nsRefPtr<nsAccessible> prevAcc;
+    nsCOMPtr<nsPIAccessible> previousAccessible;
     PRBool hasMoreElements;
-
-    while(NS_SUCCEEDED(enumerator->HasMoreElements(&hasMoreElements)) &&
-          hasMoreElements) {
+    while(NS_SUCCEEDED(enumerator->HasMoreElements(&hasMoreElements))
+          && hasMoreElements) {
       enumerator->GetNext(getter_AddRefs(childWeakRef));
       accessible = do_QueryReferent(childWeakRef);
       if (accessible) {
-        if (prevAcc)
-          prevAcc->SetNextSibling(accessible);
+        if (previousAccessible)
+          previousAccessible->SetNextSibling(accessible);
         else
           SetFirstChild(accessible);
 
-        prevAcc = nsAccUtils::QueryAccessible(accessible);
-        prevAcc->SetParent(this);
+        previousAccessible = do_QueryInterface(accessible);
+        previousAccessible->SetParent(this);
       }
     }
 

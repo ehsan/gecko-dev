@@ -46,7 +46,6 @@
 #ifndef __PHONETHXX__
 #define __PHONETHXX__
 
-#define HASHSIZE          256
 #define MAXPHONETLEN      256
 #define MAXPHONETUTF8LEN  (MAXPHONETLEN * 4)
 
@@ -55,7 +54,8 @@ struct phonetable {
   cs_info * lang;
   int num;
   char * * rules;
-  int hash[HASHSIZE];
+  static const int hash_size = 256;
+  int hash[hash_size];
 };
 
 void init_phonet_hash(phonetable & parms);

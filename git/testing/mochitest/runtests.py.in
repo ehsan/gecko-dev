@@ -42,17 +42,17 @@ Runs the Mochitest test harness.
 """
 
 from datetime import datetime
+import logging
 import optparse
 import os
 import os.path
+import re
 import sys
 import time
-import shutil
 from urllib import quote_plus as encodeURIComponent
 import urllib2
 import commands
 import automation
-from automationutils import addCommonOptions
 
 # Path to the test script on the server
 TEST_SERVER_HOST = "localhost:8888"
@@ -75,6 +75,8 @@ BROWSER_CHROME_URL = "chrome://browser/content/browser.xul"
 # (particularly after a build) takes forever.
 SERVER_STARTUP_TIMEOUT = 45
 
+INFINITY = 1.0e3000
+
 oldcwd = os.getcwd()
 SCRIPT_DIRECTORY = os.path.abspath(os.path.realpath(os.path.dirname(sys.argv[0])))
 os.chdir(SCRIPT_DIRECTORY)
@@ -83,23 +85,8 @@ PROFILE_DIRECTORY = os.path.abspath("./mochitesttestingprofile")
 
 LEAK_REPORT_FILE = PROFILE_DIRECTORY + "/" + "leaks-report.log"
 
-# Map of debugging programs to information about them, like default arguments
-# and whether or not they are interactive.
-DEBUGGER_INFO = {
-  # gdb requires that you supply the '--args' flag in order to pass arguments
-  # after the executable name to the executable.
-  "gdb": {
-    "interactive": True,
-    "args": "-q --args"
-  },
+log = logging.getLogger()
 
-  # valgrind doesn't explain much about leaks unless you set the
-  # '--leak-check=full' flag.
-  "valgrind": {
-    "interactive": False,
-    "args": "--leak-check=full"
-  }
-}
 
 #######################
 # COMMANDLINE OPTIONS #
@@ -111,9 +98,6 @@ class MochitestOptions(optparse.OptionParser):
     optparse.OptionParser.__init__(self, **kwargs)
     defaults = {}
 
-    # we want to pass down everything from automation.__all__
-    addCommonOptions(self, defaults=dict(zip(automation.__all__, [getattr(automation, x) for x in automation.__all__])))
-
     self.add_option("--close-when-done",
                     action = "store_true", dest = "closeWhenDone",
                     help = "close the application when tests are done running")
@@ -122,17 +106,7 @@ class MochitestOptions(optparse.OptionParser):
     self.add_option("--appname",
                     action = "store", type = "string", dest = "app",
                     help = "absolute path to application, overriding default")
-    defaults["app"] = os.path.join(SCRIPT_DIRECTORY, automation.DEFAULT_APP)
-
-    self.add_option("--utility-path",
-                    action = "store", type = "string", dest = "utilityPath",
-                    help = "absolute path to directory containing utility programs (xpcshell, ssltunnel, certutil)")
-    defaults["utilityPath"] = automation.DIST_BIN
-
-    self.add_option("--certificate-path",
-                    action = "store", type = "string", dest = "certPath",
-                    help = "absolute path to directory containing certificate store to use testing profile")
-    defaults["certPath"] = automation.CERTS_SRC_DIR
+    defaults["app"] = automation.DEFAULT_APP
 
     self.add_option("--log-file",
                     action = "store", type = "string",
@@ -202,32 +176,13 @@ class MochitestOptions(optparse.OptionParser):
                            "refcounted objects (or bytes in classes with "
                            "MOZ_COUNT_CTOR and MOZ_COUNT_DTOR) is greater "
                            "than the given number")
-    defaults["leakThreshold"] = 0
+    defaults["leakThreshold"] = INFINITY
 
     self.add_option("--fatal-assertions",
                     action = "store_true", dest = "fatalAssertions",
                     help = "abort testing whenever an assertion is hit "
                            "(requires a debug build to be effective)")
     defaults["fatalAssertions"] = False
-
-    self.add_option("--extra-profile-file",
-                    action = "append", dest = "extraProfileFiles",
-                    help = "copy specified files/dirs to testing profile")
-    defaults["extraProfileFiles"] = []
-
-    self.add_option("--debugger",
-                    action = "store", dest = "debugger",
-                    help = "use the given debugger to launch the application")
-
-    self.add_option("--debugger-args",
-                    action = "store", dest = "debuggerArgs",
-                    help = "pass the given args to the debugger _before_ "
-                           "the application on the command line")
-
-    self.add_option("--debugger-interactive",
-                    action = "store_true", dest = "debuggerInteractive",
-                    help = "prevents the test harness from redirecting stdout "
-                           "and stderr for interactive debuggers")
 
     # -h, --help are automatically handled by OptionParser
 
@@ -252,41 +207,33 @@ class MochitestServer:
 
   def __init__(self, options):
     self._closeWhenDone = options.closeWhenDone
-    self._utilityPath = options.utilityPath
-    self._xrePath = options.xrePath
 
   def start(self):
     "Run the Mochitest server, returning the process ID of the server."
     
     env = dict(os.environ)
     if automation.UNIXISH:
-      env["LD_LIBRARY_PATH"] = self._xrePath
-      env["MOZILLA_FIVE_HOME"] = self._xrePath
+      env["LD_LIBRARY_PATH"] = automation.DIST_BIN
+      env["MOZILLA_FIVE_HOME"] = automation.DIST_BIN
       env["XPCOM_DEBUG_BREAK"] = "warn"
-    elif automation.IS_MAC:
-      env["DYLD_LIBRARY_PATH"] = self._xrePath
-    elif automation.IS_WIN32:
-      env["PATH"] = env["PATH"] + ";" + self._xrePath
 
-    args = ["-g", self._xrePath,
-            "-v", "170",
+    args = ["-v", "170",
             "-f", "./" + "httpd.js",
             "-f", "./" + "server.js"]
 
-    xpcshell = os.path.join(self._utilityPath,
-                            "xpcshell" + automation.BIN_SUFFIX)
-    self._process = automation.Process([xpcshell] + args, env = env)
+    xpcshell = automation.DIST_BIN + "/" + "xpcshell";
+    self._process = automation.Process(xpcshell, args, env = env)
     pid = self._process.pid
     if pid < 0:
       print "Error starting server."
       sys.exit(2)
-    automation.log.info("INFO | runtests.py | Server pid: %d", pid)
+    log.info("Server pid: %d", pid)
     
 
   def ensureReady(self, timeout):
     assert timeout >= 0
 
-    aliveFile = os.path.join(PROFILE_DIRECTORY, "server_alive.txt")
+    aliveFile = PROFILE_DIRECTORY + "/" + "server_alive.txt"
     i = 0
     while i < timeout:
       if os.path.exists(aliveFile):
@@ -307,25 +254,6 @@ class MochitestServer:
     except:
       self._process.kill()
 
-def getFullPath(path):
-  "Get an absolute path relative to oldcwd."
-  return os.path.normpath(os.path.join(oldcwd, os.path.expanduser(path)))
-
-def searchPath(path):
-  "Go one step beyond getFullPath and try the various folders in PATH"
-  # Try looking in the current working directory first.
-  newpath = getFullPath(path)
-  if os.path.exists(newpath):
-    return newpath
-
-  # At this point we have to fail if a directory was given (to prevent cases
-  # like './gdb' from matching '/usr/bin/./gdb').
-  if not os.path.dirname(path):
-    for dir in os.environ['PATH'].split(os.pathsep):
-      newpath = os.path.join(dir, path)
-      if os.path.exists(newpath):
-        return newpath
-  return None
 
 #################
 # MAIN FUNCTION #
@@ -335,54 +263,18 @@ def main():
   parser = MochitestOptions()
   options, args = parser.parse_args()
 
-  if options.xrePath is None:
-    # default xrePath to the app path if not provided
-    # but only if an app path was explicitly provided
-    if options.app != parser.defaults['app']:
-      options.xrePath = os.path.dirname(options.app)
-    else:
-      # otherwise default to dist/bin
-      options.xrePath = automation.DIST_BIN
+  # If the leak threshold wasn't explicitly set, we override the default of
+  # infinity when the set of tests we're running are known to leak only a
+  # particular amount.  If for some reason you don't want a new leak threshold
+  # enforced, just pass an explicit --leak-threshold=N to prevent the override.
+  maybeForceLeakThreshold(options)
 
-  # allow relative paths
-  options.xrePath = getFullPath(options.xrePath)
-
-  options.app = getFullPath(options.app)
   if not os.path.exists(options.app):
     msg = """\
 Error: Path %(app)s doesn't exist.
 Are you executing $objdir/_tests/testing/mochitest/runtests.py?"""
     print msg % {"app": options.app}
     sys.exit(1)
-
-  options.utilityPath = getFullPath(options.utilityPath)
-  options.certPath = getFullPath(options.certPath)
-
-  debuggerInfo = None
-
-  if options.debugger:
-    debuggerPath = searchPath(options.debugger)
-    if not debuggerPath:
-      print "Error: Path %s doesn't exist." % options.debugger
-      sys.exit(1)
-
-    debuggerName = os.path.basename(debuggerPath).lower()
-
-    def getDebuggerInfo(type, default):
-      if debuggerName in DEBUGGER_INFO and type in DEBUGGER_INFO[debuggerName]:
-        return DEBUGGER_INFO[debuggerName][type]
-      return default
-
-    debuggerInfo = {
-      "path": debuggerPath,
-      "interactive" : getDebuggerInfo("interactive", False),
-      "args": getDebuggerInfo("args", "").split()
-    }
-
-    if options.debuggerArgs:
-      debuggerInfo["args"] = options.debuggerArgs.split()
-    if options.debuggerInteractive:
-      debuggerInfo["interactive"] = options.debuggerInteractive
 
   # browser environment
   browserEnv = dict(os.environ)
@@ -391,10 +283,9 @@ Are you executing $objdir/_tests/testing/mochitest/runtests.py?"""
   # via the commandline at your own risk.
   browserEnv["NO_EM_RESTART"] = "1"
   browserEnv["XPCOM_DEBUG_BREAK"] = "warn"
-  appDir = os.path.dirname(options.app)
   if automation.UNIXISH:
-    browserEnv["LD_LIBRARY_PATH"] = appDir
-    browserEnv["MOZILLA_FIVE_HOME"] = appDir
+    browserEnv["LD_LIBRARY_PATH"] = automation.DIST_BIN 
+    browserEnv["MOZILLA_FIVE_HOME"] = automation.DIST_BIN 
     browserEnv["GNOME_DISABLE_CRASH_DIALOG"] = "1"
 
   for v in options.environment:
@@ -406,7 +297,6 @@ Are you executing $objdir/_tests/testing/mochitest/runtests.py?"""
 
   automation.initializeProfile(PROFILE_DIRECTORY)
   manifest = addChromeToProfile(options)
-  copyExtraFilesToProfile(options)
   server = MochitestServer(options)
   server.start()
 
@@ -443,7 +333,7 @@ Are you executing $objdir/_tests/testing/mochitest/runtests.py?"""
 
   # allow relative paths for logFile
   if options.logFile:
-    options.logFile = getFullPath(options.logFile)
+    options.logFile = os.path.normpath(os.path.join(oldcwd, options.logFile))
   if options.browserChrome:
     makeTestConfig(options)
   else:
@@ -464,33 +354,108 @@ Are you executing $objdir/_tests/testing/mochitest/runtests.py?"""
   if options.fatalAssertions:
     browserEnv["XPCOM_DEBUG_BREAK"] = "stack-and-abort"
 
-  status = automation.runApp(testURL, browserEnv, options.app,
-                             PROFILE_DIRECTORY, options.browserArgs,
-                             runSSLTunnel = True,
-                             utilityPath = options.utilityPath,
-                             xrePath = options.xrePath,
-                             certPath=options.certPath,
-                             debuggerInfo=debuggerInfo,
-                             symbolsPath=options.symbolsPath)
+  start = automation.runApp(testURL, browserEnv, options.app, PROFILE_DIRECTORY,
+                            options.browserArgs)
 
   # Server's no longer needed, and perhaps more importantly, anything it might
   # spew to console shouldn't disrupt the leak information table we print next.
   server.stop()
 
-  automation.processLeakLog(LEAK_REPORT_FILE, options.leakThreshold)
+  if not os.path.exists(LEAK_REPORT_FILE):
+    log.info("WARNING refcount logging is off, so leaks can't be detected!")
+  else:
+    leaks = open(LEAK_REPORT_FILE, "r")
+    for line in leaks:
+      log.info(line.rstrip())
+    leaks.close()
+
+    threshold = options.leakThreshold
+    leaks = open(LEAK_REPORT_FILE, "r")
+    #                  Per-Inst  Leaked      Total  Rem ...
+    #   0 TOTAL              17     192  419115886    2 ...
+    # 833 nsTimerImpl        60     120      24726    2 ...
+    lineRe = re.compile(r"^\s*\d+\s+(?P<name>\S+)\s+"
+                        r"(?P<size>\d+)\s+(?P<bytesLeaked>\d+)\s+"
+                        r"\d+\s+(?P<numLeaked>\d+)")
+    thresholdExceeded = False
+    seenTotal = False
+    prefix = "TEST-PASS"
+    for line in leaks:
+      matches = lineRe.match(line)
+      if not matches:
+        continue
+      name = matches.group("name")
+      if "TOTAL" == name:
+        seenTotal = True
+        bytesLeaked = int(matches.group("bytesLeaked"))
+        if bytesLeaked > threshold:
+          thresholdExceeded = True
+          prefix = "TEST-UNEXPECTED-FAIL"
+          log.info("TEST-UNEXPECTED-FAIL | runtests-leaks | leaked %d bytes during test execution (should "
+                   "have leaked no more than %d bytes)",
+                   bytesLeaked, threshold)
+        elif bytesLeaked > 0:
+          log.info("TEST-PASS | runtests-leaks | WARNING leaked %d bytes during test execution",
+                   bytesLeaked)
+        else:
+          log.info("TEST-PASS | runtests-leaks | no leaks detected!")
+      else:
+        numLeaked = int(matches.group("numLeaked"))
+        if numLeaked != 0:
+          if numLeaked > 1:
+            instance = "instances"
+            rest = " each (%s bytes total)" % matches.group("bytesLeaked")
+          else:
+            instance = "instance"
+            rest = ""
+          log.info("%(prefix)s | runtests-leaks | leaked %(numLeaked)d %(instance)s of %(name)s "
+                   "with size %(size)s bytes%(rest)s" %
+                   { "prefix": prefix,
+                     "numLeaked": numLeaked,
+                     "instance": instance,
+                     "name": name,
+                     "size": matches.group("size"),
+                     "rest": rest })
+    if not seenTotal:
+      log.info("TEST-UNEXPECTED-FAIL | runtests-leaks | missing output line for total leaks!")
+    leaks.close()
+
+
+  # print test run times
+  finish = datetime.now()
+  log.info(" started: %s", str(start))
+  log.info("finished: %s", str(finish))
 
   # delete the profile and manifest
   os.remove(manifest)
 
   # hanging due to non-halting threads is no fun; assume we hit the errors we
-  # were going to hit already and exit.
-  sys.exit(status)
+  # were going to hit already and exit with a success code
+  sys.exit(0)
 
 
 
 #######################
 # CONFIGURATION SETUP #
 #######################
+
+def maybeForceLeakThreshold(options):
+  """
+  Modifies an unset leak threshold if it is known that a particular leak
+  threshold can be successfully forced for the particular Mochitest type
+  and platform in use.
+  """
+  if options.leakThreshold == INFINITY:
+    if options.chrome:
+      # We don't leak running the --chrome tests.
+      options.leakThreshold = 0
+    elif options.browserChrome:
+      # We still leak a nondeterministic amount running browser-chrome tests.
+      pass
+    else:
+      # We leak nothing on Windows or OS X running normal Mochitests.
+      if automation.IS_MAC or automation.IS_WIN32:
+        options.leakThreshold = 0
 
 def makeTestConfig(options):
   "Creates a test configuration file for customizing test execution."
@@ -512,7 +477,7 @@ def makeTestConfig(options):
          "logPath": logFile,
          "testPath": testPath}
 
-  config = open(os.path.join(PROFILE_DIRECTORY, "testConfig.js"), "w")
+  config = open(PROFILE_DIRECTORY + "/" + "testConfig.js", "w")
   config.write(content)
   config.close() 
 
@@ -520,7 +485,7 @@ def makeTestConfig(options):
 def addChromeToProfile(options):
   "Adds MochiKit chrome tests to the profile."
 
-  chromedir = os.path.join(PROFILE_DIRECTORY, "chrome")
+  chromedir = PROFILE_DIRECTORY + "/" + "chrome"
   os.mkdir(chromedir)
 
   chrome = []
@@ -540,7 +505,7 @@ toolbar#nav-bar {
 
 
   # write userChrome.css
-  chromeFile = open(os.path.join(PROFILE_DIRECTORY, "userChrome.css"), "a")
+  chromeFile = open(PROFILE_DIRECTORY + "/" + "userChrome.css", "a")
   chromeFile.write("".join(chrome))
   chromeFile.close()
 
@@ -552,7 +517,7 @@ toolbar#nav-bar {
 
 
   (path, leaf) = os.path.split(options.app)
-  manifest = os.path.join(path, "chrome", "mochikit.manifest")
+  manifest = path + "/" + "chrome/mochikit.manifest"
   manifestFile = open(manifest, "w")
   manifestFile.write("content mochikit " + chrometestDir + " contentaccessible=yes\n")
   if options.browserChrome:
@@ -562,16 +527,6 @@ toolbar#nav-bar {
   manifestFile.close()
 
   return manifest
-
-def copyExtraFilesToProfile(options):
-  "Copy extra files or dirs specified on the command line to the testing profile."
-  for f in options.extraProfileFiles:
-    abspath = getFullPath(f)
-    dest = os.path.join(PROFILE_DIRECTORY, os.path.basename(abspath))
-    if os.path.isdir(abspath):
-      shutil.copytree(abspath, dest)
-    else:
-      shutil.copy(abspath, dest)
 
 #########
 # DO IT #

@@ -47,7 +47,6 @@
 #include "nsIDOMHTMLCollection.h"
 #include "nsIScriptElement.h"
 #include "jsapi.h"
-#include "nsTArray.h"
 
 #include "pldhash.h"
 #include "nsIHttpChannel.h"
@@ -184,6 +183,13 @@ public:
     return !mIsRegularHTML;
   }
 
+#ifdef DEBUG
+  virtual nsresult CreateElem(nsIAtom *aName, nsIAtom *aPrefix,
+                              PRInt32 aNamespaceID,
+                              PRBool aDocumentDefaultType,
+                              nsIContent** aResult);
+#endif
+
   nsresult ChangeContentEditableCount(nsIContent *aElement, PRInt32 aChange);
 
   virtual EditingState GetEditingState()
@@ -229,8 +235,6 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  virtual NS_HIDDEN_(void) RemovedFromDocShell();
-
 protected:
   nsresult GetBodySize(PRInt32* aWidth,
                        PRInt32* aHeight);
@@ -258,16 +262,11 @@ protected:
   nsresult CreateAndAddWyciwygChannel(void);
   nsresult RemoveWyciwygChannel(void);
 
-  /**
-   * Like IsEditingOn(), but will flush as needed first.
-   */
-  PRBool IsEditingOnAfterFlush();
-
   void *GenerateParserKey(void);
 
   virtual PRInt32 GetDefaultNamespaceID() const
   {
-    return kNameSpaceID_XHTML;
+    return mIsRegularHTML ? kNameSpaceID_None : kNameSpaceID_XHTML;
   }
 
   nsCOMArray<nsIDOMHTMLMapElement> mImageMaps;
@@ -336,7 +335,7 @@ protected:
   // finishes processing that script.
   PRUint32 mWriteLevel;
 
-  nsAutoTArray<nsIScriptElement*, 1> mPendingScripts;
+  nsSmallVoidArray mPendingScripts;
 
   // Load flags of the document's channel
   PRUint32 mLoadFlags;
@@ -354,7 +353,6 @@ protected:
 
   nsresult TurnEditingOff();
   nsresult EditingStateChanged();
-  void MaybeEditingStateChanged();
 
   PRUint32 mContentEditableCount;
   EditingState mEditingState;
@@ -369,11 +367,5 @@ protected:
   // Parser used for constructing document fragments.
   nsCOMPtr<nsIParser> mFragmentParser;
 };
-
-#define NS_HTML_DOCUMENT_INTERFACE_TABLE_BEGIN(_class)                        \
-    NS_DOCUMENT_INTERFACE_TABLE_BEGIN(_class)                                 \
-    NS_INTERFACE_TABLE_ENTRY(_class, nsIHTMLDocument)                         \
-    NS_INTERFACE_TABLE_ENTRY(_class, nsIDOMHTMLDocument)                      \
-    NS_INTERFACE_TABLE_ENTRY(_class, nsIDOMNSHTMLDocument)
 
 #endif /* nsHTMLDocument_h___ */

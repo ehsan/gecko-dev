@@ -99,17 +99,8 @@ public:
 
     int CairoStatus();
 
-    enum GraphicsFilter {
-        FILTER_FAST,
-        FILTER_GOOD,
-        FILTER_BEST,
-        FILTER_NEAREST,
-        FILTER_BILINEAR,
-        FILTER_GAUSSIAN
-    };
-
-    void SetFilter(GraphicsFilter filter);
-    GraphicsFilter Filter() const;
+    void SetFilter(int filter);
+    int Filter() const;
 
     /* returns TRUE if it succeeded */
     PRBool GetSolidColor(gfxRGBA& aColor);

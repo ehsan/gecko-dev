@@ -47,7 +47,7 @@ class nsPrivateTextRange : public nsIPrivateTextRange
 	NS_DECL_ISUPPORTS
 public:
 
-	nsPrivateTextRange(const nsTextRange &aTextRange);
+	nsPrivateTextRange(PRUint16 aRangeStart, PRUint16 aRangeEnd, PRUint16 aRangeType);
 	virtual ~nsPrivateTextRange(void);
 
 	NS_IMETHOD    GetRangeStart(PRUint16* aRangeStart);
@@ -59,14 +59,11 @@ public:
 	NS_IMETHOD    GetRangeType(PRUint16* aRangeType);
 	NS_IMETHOD    SetRangeType(PRUint16 aRangeType);
 
-	NS_IMETHOD    GetRangeStyle(nsTextRangeStyle* aRangeStyle);
-
 protected:
 
 	PRUint16	mRangeStart;
 	PRUint16	mRangeEnd;
 	PRUint16	mRangeType;
-	nsTextRangeStyle mRangeStyle;
 };
 
 class nsPrivateTextRangeList: public nsIPrivateTextRangeList 
@@ -77,9 +74,9 @@ public:
 
 	void          AppendTextRange(nsRefPtr<nsPrivateTextRange>& aRange);
 
-	NS_IMETHOD_(PRUint16)    GetLength();
+	NS_IMETHOD    GetLength(PRUint16* aLength);
 
-	NS_IMETHOD_(already_AddRefed<nsIPrivateTextRange>)    Item(PRUint16 aIndex);
+	NS_IMETHOD    Item(PRUint16 aIndex, nsIPrivateTextRange** aReturn);
 protected:
 	nsTArray<nsRefPtr<nsPrivateTextRange> > mList;
 };

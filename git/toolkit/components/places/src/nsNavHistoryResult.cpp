@@ -23,7 +23,6 @@
  *   Brett Wilson <brettw@gmail.com> (original author)
  *   Dietrich Ayala <dietrich@mozilla.com>
  *   Asaf Romano <mano@mozilla.com>
- *   Marco Bonardo <mak77@bonardo.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -39,25 +38,39 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+
 #include <stdio.h>
 #include "nsNavHistory.h"
 #include "nsNavBookmarks.h"
-#include "nsFaviconService.h"
-#include "nsITaggingService.h"
-#include "nsAnnotationService.h"
 
+#include "nsIArray.h"
+#include "nsCOMPtr.h"
 #include "nsDebug.h"
+#include "nsFaviconService.h"
+#include "nsHashPropertyBag.h"
+#include "nsIComponentManager.h"
+#include "nsIDateTimeFormat.h"
+#include "nsIDOMElement.h"
+#include "nsILocalFile.h"
+#include "nsIDynamicContainer.h"
+#include "nsIServiceManager.h"
+#include "nsISupportsPrimitives.h"
+#ifdef MOZ_XUL
+#include "nsITreeColumns.h"
+#endif
+#include "nsIURI.h"
+#include "nsIURL.h"
+#include "nsIWritablePropertyBag.h"
+#include "nsITaggingService.h"
 #include "nsNetUtil.h"
 #include "nsPrintfCString.h"
+#include "nsPromiseFlatString.h"
 #include "nsString.h"
 #include "nsUnicharUtils.h"
 #include "prtime.h"
 #include "prprf.h"
-
-#include "nsIDynamicContainer.h"
-#include "nsHashPropertyBag.h"
-#include "nsIWritablePropertyBag.h"
 #include "mozStorageHelper.h"
+#include "nsAnnotationService.h"
 #include "nsCycleCollectionParticipant.h"
 
 // What we want is: NS_INTERFACE_MAP_ENTRY(self) for static IID accessors,
@@ -178,25 +191,30 @@ nsNavHistoryResultNode::GetTags(nsAString& aTags) {
     return NS_OK;
   }
 
-  // Fetch the tags
-  nsNavHistory* history = nsNavHistory::GetHistoryService();
-  NS_ENSURE_STATE(history);
-  mozIStorageStatement* getTagsStatement = history->DBGetTags();
-
-  mozStorageStatementScoper scoper(getTagsStatement);
-  nsresult rv = getTagsStatement->BindStringParameter(0, NS_LITERAL_STRING(", "));
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = getTagsStatement->BindInt64Parameter(1, history->GetTagsFolder());
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = getTagsStatement->BindUTF8StringParameter(2, mURI);
+  nsresult rv;
+  nsCOMPtr<nsITaggingService> svc =
+    do_GetService("@mozilla.org/browser/tagging-service;1", &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  PRBool hasTags = PR_FALSE;
-  if (NS_SUCCEEDED(getTagsStatement->ExecuteStep(&hasTags)) && hasTags) {
-    rv = getTagsStatement->GetString(0, mTags);
-    NS_ENSURE_SUCCESS(rv, rv);
-    aTags.Assign(mTags);
+  nsCOMPtr<nsIURI> uri;
+  rv = NS_NewURI(getter_AddRefs(uri), mURI);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // build the tags string
+  PRUnichar **tags;
+  PRUint32 count;
+  rv = svc->GetTagsForURI(uri, &count, &tags);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (count > 0) {
+    for (PRUint32 i=0; i < count; i++) {
+      mTags.Append(tags[i]);
+      if (i < count -1) { // separate with commas
+        mTags.Append(NS_LITERAL_STRING(", "));
+      }
+    }
+    NS_FREE_XPCOM_ALLOCATED_POINTER_ARRAY(count, tags);
   }
+  aTags.Assign(mTags);
 
   // If this node is a child of a history, we need to make sure
   // bookmarks-liveupdate is turned on for this query
@@ -378,13 +396,6 @@ nsNavHistoryContainerResultNode::nsNavHistoryContainerResultNode(
 {
 }
 
-nsNavHistoryContainerResultNode::~nsNavHistoryContainerResultNode()
-{
-  // Explicitly clean up array of children of this container.  We must ensure
-  // all references are gone and all of their destructors are called.
-  mChildren.Clear();
-}
-
 // nsNavHistoryContainerResultNode::OnRemoving
 //
 //    Containers should notify their children that they are being removed
@@ -499,8 +510,7 @@ nsNavHistoryContainerResultNode::CloseContainer(PRBool aUpdateView)
 
   // recursively close all child containers
   for (PRInt32 i = 0; i < mChildren.Count(); i ++) {
-    if (mChildren[i]->IsContainer() &&
-        mChildren[i]->GetAsContainer()->mExpanded)
+    if (mChildren[i]->IsContainer() && mChildren[i]->GetAsContainer()->mExpanded)
       mChildren[i]->GetAsContainer()->CloseContainer(PR_FALSE);
   }
 
@@ -509,25 +519,17 @@ nsNavHistoryContainerResultNode::CloseContainer(PRBool aUpdateView)
   nsresult rv;
   if (IsDynamicContainer()) {
     // notify dynamic containers that we are closing
-    nsCOMPtr<nsIDynamicContainer> svc =
-      do_GetService(mDynamicContainerType.get(), &rv);
+    nsCOMPtr<nsIDynamicContainer> svc = do_GetService(mDynamicContainerType.get(), &rv);
     if (NS_SUCCEEDED(rv))
       svc->OnContainerNodeClosed(this);
   }
 
-  nsNavHistoryResult* result = GetResult();
   if (aUpdateView) {
+    nsNavHistoryResult* result = GetResult();
     NS_ENSURE_TRUE(result, NS_ERROR_FAILURE);
     if (result->GetView())
       result->GetView()->ContainerClosed(this);
   }
-
-  // If this is the root container of a result, we can tell the result to stop
-  // observing changes, otherwise the result will stay in memory and updates
-  // itself till it is cycle collected.
-  if (result->mRootNode == this)
-    result->StopObserving();
-
   return NS_OK;
 }
 
@@ -839,7 +841,7 @@ PRInt32 nsNavHistoryContainerResultNode::SortComparison_StringLess(
 //    need to worry about tiebreaking. When there are no bookmark indices,
 //    everything will be -1 and we don't worry about sorting.
 
-PRInt32 nsNavHistoryContainerResultNode::SortComparison_Bookmark(
+PRInt32 PR_CALLBACK nsNavHistoryContainerResultNode::SortComparison_Bookmark(
     nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure)
 {
   return a->mBookmarkIndex - b->mBookmarkIndex;
@@ -854,7 +856,7 @@ PRInt32 nsNavHistoryContainerResultNode::SortComparison_Bookmark(
 //
 //    The collation object must be allocated before sorting on title!
 
-PRInt32 nsNavHistoryContainerResultNode::SortComparison_TitleLess(
+PRInt32 PR_CALLBACK nsNavHistoryContainerResultNode::SortComparison_TitleLess(
     nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure)
 {
   PRUint32 aType;
@@ -876,7 +878,7 @@ PRInt32 nsNavHistoryContainerResultNode::SortComparison_TitleLess(
   }
   return value;
 }
-PRInt32 nsNavHistoryContainerResultNode::SortComparison_TitleGreater(
+PRInt32 PR_CALLBACK nsNavHistoryContainerResultNode::SortComparison_TitleGreater(
     nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure)
 {
   return -SortComparison_TitleLess(a, b, closure);
@@ -887,7 +889,7 @@ PRInt32 nsNavHistoryContainerResultNode::SortComparison_TitleGreater(
 //    Equal times will be very unusual, but it is important that there is some
 //    deterministic ordering of the results so they don't move around.
 
-PRInt32 nsNavHistoryContainerResultNode::SortComparison_DateLess(
+PRInt32 PR_CALLBACK nsNavHistoryContainerResultNode::SortComparison_DateLess(
     nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure)
 {
   PRInt32 value = ComparePRTime(a->mTime, b->mTime);
@@ -899,7 +901,7 @@ PRInt32 nsNavHistoryContainerResultNode::SortComparison_DateLess(
   }
   return value;
 }
-PRInt32 nsNavHistoryContainerResultNode::SortComparison_DateGreater(
+PRInt32 PR_CALLBACK nsNavHistoryContainerResultNode::SortComparison_DateGreater(
     nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure)
 {
   return -nsNavHistoryContainerResultNode::SortComparison_DateLess(a, b, closure);
@@ -908,7 +910,7 @@ PRInt32 nsNavHistoryContainerResultNode::SortComparison_DateGreater(
 // nsNavHistoryContainerResultNode::SortComparison_DateAdded*
 //
 
-PRInt32 nsNavHistoryContainerResultNode::SortComparison_DateAddedLess(
+PRInt32 PR_CALLBACK nsNavHistoryContainerResultNode::SortComparison_DateAddedLess(
     nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure)
 {
   PRInt32 value = ComparePRTime(a->mDateAdded, b->mDateAdded);
@@ -920,7 +922,7 @@ PRInt32 nsNavHistoryContainerResultNode::SortComparison_DateAddedLess(
   }
   return value;
 }
-PRInt32 nsNavHistoryContainerResultNode::SortComparison_DateAddedGreater(
+PRInt32 PR_CALLBACK nsNavHistoryContainerResultNode::SortComparison_DateAddedGreater(
     nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure)
 {
   return -nsNavHistoryContainerResultNode::SortComparison_DateAddedLess(a, b, closure);
@@ -930,7 +932,7 @@ PRInt32 nsNavHistoryContainerResultNode::SortComparison_DateAddedGreater(
 // nsNavHistoryContainerResultNode::SortComparison_LastModified*
 //
 
-PRInt32 nsNavHistoryContainerResultNode::SortComparison_LastModifiedLess(
+PRInt32 PR_CALLBACK nsNavHistoryContainerResultNode::SortComparison_LastModifiedLess(
     nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure)
 {
   PRInt32 value = ComparePRTime(a->mLastModified, b->mLastModified);
@@ -942,7 +944,7 @@ PRInt32 nsNavHistoryContainerResultNode::SortComparison_LastModifiedLess(
   }
   return value;
 }
-PRInt32 nsNavHistoryContainerResultNode::SortComparison_LastModifiedGreater(
+PRInt32 PR_CALLBACK nsNavHistoryContainerResultNode::SortComparison_LastModifiedGreater(
     nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure)
 {
   return -nsNavHistoryContainerResultNode::SortComparison_LastModifiedLess(a, b, closure);
@@ -953,7 +955,7 @@ PRInt32 nsNavHistoryContainerResultNode::SortComparison_LastModifiedGreater(
 //    Certain types of parent nodes are treated specially because URIs are not
 //    valid (like days or hosts).
 
-PRInt32 nsNavHistoryContainerResultNode::SortComparison_URILess(
+PRInt32 PR_CALLBACK nsNavHistoryContainerResultNode::SortComparison_URILess(
     nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure)
 {
   PRInt32 value;
@@ -973,34 +975,34 @@ PRInt32 nsNavHistoryContainerResultNode::SortComparison_URILess(
   }
   return value;
 }
-PRInt32 nsNavHistoryContainerResultNode::SortComparison_URIGreater(
+PRInt32 PR_CALLBACK nsNavHistoryContainerResultNode::SortComparison_URIGreater(
     nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure)
 {
   return -SortComparison_URILess(a, b, closure);
 }
 
 // nsNavHistoryContainerResultNode::SortComparison_Keyword*
-PRInt32 nsNavHistoryContainerResultNode::SortComparison_KeywordLess(
+PRInt32 PR_CALLBACK nsNavHistoryContainerResultNode::SortComparison_KeywordLess(
     nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure)
 {
   PRInt32 value = 0;
   if (a->mItemId != -1 || b->mItemId != -1) {
     // compare the keywords
-    nsAutoString keywordA, keywordB;
+    nsAutoString aKeyword, bKeyword;
     nsNavBookmarks* bookmarks = nsNavBookmarks::GetBookmarksService();
     NS_ENSURE_TRUE(bookmarks, 0);
 
     nsresult rv;
     if (a->mItemId != -1) {
-      rv = bookmarks->GetKeywordForBookmark(a->mItemId, keywordA);
+      rv = bookmarks->GetKeywordForBookmark(a->mItemId, aKeyword);
       NS_ENSURE_SUCCESS(rv, 0);
     }
     if (b->mItemId != -1) {
-      rv = bookmarks->GetKeywordForBookmark(b->mItemId, keywordB);
+      rv = bookmarks->GetKeywordForBookmark(b->mItemId, aKeyword);
       NS_ENSURE_SUCCESS(rv, 0);
     }
 
-    value = SortComparison_StringLess(keywordA, keywordB);
+    value = SortComparison_StringLess(aKeyword, bKeyword);
   }
 
   // fall back to title sorting
@@ -1010,13 +1012,13 @@ PRInt32 nsNavHistoryContainerResultNode::SortComparison_KeywordLess(
   return value;
 }
 
-PRInt32 nsNavHistoryContainerResultNode::SortComparison_KeywordGreater(
+PRInt32 PR_CALLBACK nsNavHistoryContainerResultNode::SortComparison_KeywordGreater(
     nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure)
 {
   return -SortComparison_KeywordLess(a, b, closure);
 }
 
-PRInt32 nsNavHistoryContainerResultNode::SortComparison_AnnotationLess(
+PRInt32 PR_CALLBACK nsNavHistoryContainerResultNode::SortComparison_AnnotationLess(
     nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure)
 {
   nsCAutoString annoName(static_cast<char*>(closure));
@@ -1129,19 +1131,19 @@ PRInt32 nsNavHistoryContainerResultNode::SortComparison_AnnotationLess(
         PRInt32 a_val = 0, b_val = 0;
         GET_ANNOTATIONS_VALUES(GetItemAnnotationInt32,
                                GetPageAnnotationInt32, &a_val, &b_val);
-        value = (a_val < b_val) ? -1 : (a_val > b_val) ? 1 : 0;
+        value = (a < b) ? -1 : (a > b) ? 1 : 0;
       }
       else if (annoType == nsIAnnotationService::TYPE_INT64) {
         PRInt64 a_val = 0, b_val = 0;
         GET_ANNOTATIONS_VALUES(GetItemAnnotationInt64,
                                GetPageAnnotationInt64, &a_val, &b_val);
-        value = (a_val < b_val) ? -1 : (a_val > b_val) ? 1 : 0;
+        value = (a < b) ? -1 : (a > b) ? 1 : 0;
       }
       else if (annoType == nsIAnnotationService::TYPE_DOUBLE) {
         double a_val = 0, b_val = 0;
         GET_ANNOTATIONS_VALUES(GetItemAnnotationDouble,
                                GetPageAnnotationDouble, &a_val, &b_val);
-        value = (a_val < b_val) ? -1 : (a_val > b_val) ? 1 : 0;
+        value = (a < b) ? -1 : (a > b) ? 1 : 0;
       }
     }
   }
@@ -1154,7 +1156,7 @@ PRInt32 nsNavHistoryContainerResultNode::SortComparison_AnnotationLess(
 
   return value;
 }
-PRInt32 nsNavHistoryContainerResultNode::SortComparison_AnnotationGreater(
+PRInt32 PR_CALLBACK nsNavHistoryContainerResultNode::SortComparison_AnnotationGreater(
     nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure)
 {
   return -SortComparison_AnnotationLess(a, b, closure);
@@ -1164,7 +1166,7 @@ PRInt32 nsNavHistoryContainerResultNode::SortComparison_AnnotationGreater(
 //
 //    Fall back on dates for conflict resolution
 
-PRInt32 nsNavHistoryContainerResultNode::SortComparison_VisitCountLess(
+PRInt32 PR_CALLBACK nsNavHistoryContainerResultNode::SortComparison_VisitCountLess(
     nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure)
 {
   PRInt32 value = CompareIntegers(a->mAccessCount, b->mAccessCount);
@@ -1175,7 +1177,7 @@ PRInt32 nsNavHistoryContainerResultNode::SortComparison_VisitCountLess(
   }
   return value;
 }
-PRInt32 nsNavHistoryContainerResultNode::SortComparison_VisitCountGreater(
+PRInt32 PR_CALLBACK nsNavHistoryContainerResultNode::SortComparison_VisitCountGreater(
     nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure)
 {
   return -nsNavHistoryContainerResultNode::SortComparison_VisitCountLess(a, b, closure);
@@ -1183,7 +1185,7 @@ PRInt32 nsNavHistoryContainerResultNode::SortComparison_VisitCountGreater(
 
 
 // nsNavHistoryContainerResultNode::SortComparison_Tags*
-PRInt32 nsNavHistoryContainerResultNode::SortComparison_TagsLess(
+PRInt32 PR_CALLBACK nsNavHistoryContainerResultNode::SortComparison_TagsLess(
     nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure)
 {
   PRInt32 value = 0;
@@ -1204,7 +1206,7 @@ PRInt32 nsNavHistoryContainerResultNode::SortComparison_TagsLess(
   return value;
 }
 
-PRInt32 nsNavHistoryContainerResultNode::SortComparison_TagsGreater(
+PRInt32 PR_CALLBACK nsNavHistoryContainerResultNode::SortComparison_TagsGreater(
     nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure)
 {
   return -SortComparison_TagsLess(a, b, closure);
@@ -1380,8 +1382,8 @@ nsNavHistoryContainerResultNode::InsertSortedChild(
 
 PRBool
 nsNavHistoryContainerResultNode::EnsureItemPosition(PRUint32 aIndex) {
-  NS_ASSERTION(aIndex >= 0 && aIndex < (PRUint32)mChildren.Count(), "Invalid index");
-  if (aIndex < 0 || aIndex >= (PRUint32)mChildren.Count())
+  NS_ASSERTION(aIndex >= 0 && aIndex < mChildren.Count(), "Invalid index");
+  if (aIndex < 0 || aIndex >= mChildren.Count())
     return PR_FALSE;
 
   SortComparator comparator = GetSortingComparator(GetSortType());
@@ -1698,7 +1700,7 @@ nsNavHistoryContainerResultNode::UpdateURIs(PRBool aRecursive, PRBool aOnlyOne,
 //    should be sure to set recursive to false, since child folders will have
 //    their own callbacks registered.
 
-static void setTitleCallback(
+static void PR_CALLBACK setTitleCallback(
     nsNavHistoryResultNode* aNode, void* aClosure)
 {
   const nsACString* newTitle = reinterpret_cast<nsACString*>(aClosure);
@@ -1809,12 +1811,6 @@ nsNavHistoryContainerResultNode::AppendURINode(
   *_retval = nsnull;
   if (!IsDynamicContainer())
     return NS_ERROR_INVALID_ARG; // we must be a dynamic container
-
-  // If we are child of an ExcludeItems parent or root, we should not append
-  // URI Nodes.
-  if ((mResult && mResult->mRootNode->mOptions->ExcludeItems()) ||
-      (mParent && mParent->mOptions->ExcludeItems()))
-    return NS_OK;
 
   nsRefPtr<nsNavHistoryResultNode> result =
       new nsNavHistoryResultNode(aURI, aTitle, aAccessCount, aTime, aIconURI);
@@ -2068,16 +2064,6 @@ nsNavHistoryQueryResultNode::nsNavHistoryQueryResultNode(
                                                &mHasSearchTerms);
 }
 
-nsNavHistoryQueryResultNode::~nsNavHistoryQueryResultNode() {
-  // Remove this node from result's observers.  We don't need to be notified
-  // anymore.
-  if (mResult && mResult->mAllBookmarksObservers.IndexOf(this) !=
-                   mResult->mAllBookmarksObservers.NoIndex)
-    mResult->RemoveAllBookmarksObserver(this);
-  if (mResult && mResult->mHistoryObservers.IndexOf(this) !=
-                   mResult->mHistoryObservers.NoIndex)
-    mResult->RemoveHistoryObserver(this);
-}
 
 // nsNavHistoryQueryResultNode::CanExpand
 //
@@ -2092,9 +2078,8 @@ nsNavHistoryQueryResultNode::CanExpand()
   if (IsContainersQuery())
     return PR_TRUE;
 
-  // If we are child of an ExcludeItems parent or root, we should not expand.
-  if ((mResult && mResult->mRootNode->mOptions->ExcludeItems()) ||
-      (mParent && mParent->mOptions->ExcludeItems()))
+  // if we are child of an ExcludeItems root, we should not expand
+  if (mResult && mResult->mRootNode->mOptions->ExcludeItems())
     return PR_FALSE;
 
   nsNavHistoryQueryOptions* options = GetGeneratingOptions();
@@ -2209,10 +2194,7 @@ nsNavHistoryQueryResultNode::GetHasChildren(PRBool* aHasChildren)
     rv = hasTagsStatement->BindInt64Parameter(0, tagsFolderId);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = hasTagsStatement->ExecuteStep(aHasChildren);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    return NS_OK;
+    return hasTagsStatement->ExecuteStep(aHasChildren);
   }
 
   // For history containers query we must check if we have any history
@@ -2386,39 +2368,17 @@ nsNavHistoryQueryResultNode::FillChildren()
 
   PRUint16 sortType = GetSortType();
 
-  if (mResult->mNeedsToApplySortingMode) {
-    // We should repopulate container and then apply sortingMode.  To avoid
-    // sorting 2 times we simply do that here.
-    mResult->SetSortingMode(mResult->mSortingMode);
-  }
-  else if (mOptions->QueryType() != nsINavHistoryQueryOptions::QUERY_TYPE_HISTORY ||
-           sortType != nsINavHistoryQueryOptions::SORT_BY_NONE) {
-    // The default SORT_BY_NONE sorts by the bookmark index (position), 
-    // which we do not have for history queries.
-    // Once we've computed all tree stats, we can sort, because containers will
-    // then have proper visit counts and dates.
+  // The default SORT_BY_NONE sorts by the bookmark index (position), 
+  // which we do not have for history queries
+  if (mOptions->QueryType() != nsINavHistoryQueryOptions::QUERY_TYPE_HISTORY ||
+      sortType != nsINavHistoryQueryOptions::SORT_BY_NONE) {
+    // once we've computed all tree stats, we can sort, because containers will
+    // then have proper visit counts and dates
     SortComparator comparator = GetSortingComparator(GetSortType());
     if (comparator) {
       nsCAutoString sortingAnnotation;
       GetSortingAnnotation(sortingAnnotation);
-      // Usually containers queries results comes already sorted from the
-      // database, but some locales could have special rules to sort by title.
-      // RecursiveSort won't apply these rules to containers in containers
-      // queries because when setting sortingMode on the result we want to sort
-      // contained items (bug 473157).
-      // Base container RecursiveSort will sort both our children and all
-      // descendants, and is used in this case because we have to do manual
-      // title sorting.
-      // Query RecursiveSort will instead only sort descendants if we are a
-      // constinaersQuery, e.g. a grouped query that will return other queries.
-      // For other type of queries it will act as the base one.
-      if (IsContainersQuery() &&
-          sortType == mOptions->SortingMode() &&
-          (sortType == nsINavHistoryQueryOptions::SORT_BY_TITLE_ASCENDING ||
-           sortType == nsINavHistoryQueryOptions::SORT_BY_TITLE_DESCENDING))
-        nsNavHistoryContainerResultNode::RecursiveSort(sortingAnnotation.get(), comparator);
-      else
-        RecursiveSort(sortingAnnotation.get(), comparator);
+      RecursiveSort(sortingAnnotation.get(), comparator);
     }
   }
 
@@ -2426,7 +2386,7 @@ nsNavHistoryQueryResultNode::FillChildren()
   // mChildren array after sorting. This is done for root node only.
   // note, if count < max results, we won't do anything.
   if (!mParent && mOptions->MaxResults()) {
-    while ((PRUint32)mChildren.Count() > mOptions->MaxResults())
+    while (mChildren.Count() > mOptions->MaxResults())
       mChildren.RemoveObjectAt(mChildren.Count() - 1);
   }
 
@@ -2435,13 +2395,8 @@ nsNavHistoryQueryResultNode::FillChildren()
 
   if (mOptions->QueryType() == nsINavHistoryQueryOptions::QUERY_TYPE_HISTORY ||
       mOptions->QueryType() == nsINavHistoryQueryOptions::QUERY_TYPE_UNIFIED) {
-    // Date containers that contain site containers have no reason to observe
-    // history, if the inside site container is expanded it will update,
-    // otherwise we are going to refresh the parent query.
-    if (!mParent || mParent->mOptions->ResultType() != nsINavHistoryQueryOptions::RESULTS_AS_DATE_SITE_QUERY) {
-      // register with the result for history updates
-      result->AddHistoryObserver(this);
-    }
+    // register with the result for history updates
+    result->AddHistoryObserver(this);
   }
 
   if (mOptions->QueryType() == nsINavHistoryQueryOptions::QUERY_TYPE_BOOKMARKS ||
@@ -2493,6 +2448,14 @@ nsNavHistoryQueryResultNode::ClearChildren(PRBool aUnregister)
 nsresult
 nsNavHistoryQueryResultNode::Refresh()
 {
+  // Some queries can return other queries. In this case calling Refresh
+  // for each child query could cause a major slowdown. We should not refresh
+  // nested queries that are not currently expanded, since we are already 
+  // refreshing the containing one.
+  if (mOptions->ResultType() == nsINavHistoryQueryOptions::RESULTS_AS_TAG_CONTENTS &&
+      !mExpanded)
+    return NS_OK;
+
   // Ignore refreshes when there is a batch, EndUpdateBatch will do a refresh
   // to get all the changes.
   if (mBatchInProgress)
@@ -2504,14 +2467,8 @@ nsNavHistoryQueryResultNode::Refresh()
   if (mIndentLevel > -1 && !mParent)
     return NS_OK;
 
-  // Do not refresh if we are not expanded or if we are child of a query
-  // containing other queries. In this case calling Refresh for each child
-  // query could cause a major slowdown. We should not refresh nested
-  // queries, since we will already refresh the parent one.
-  if (!mExpanded ||
-      (mParent && mParent->IsQuery() &&
-       mParent->GetAsQuery()->IsContainersQuery())) {
-    // Don't update, just invalidate and unhook
+  if (! mExpanded) {
+    // when we are not expanded, we don't update, just invalidate and unhook
     ClearChildren(PR_TRUE);
     return NS_OK; // no updates in tree state
   }
@@ -2593,23 +2550,6 @@ nsNavHistoryQueryResultNode::GetSortingAnnotation(nsACString& aAnnotation) {
   else
     NS_NOTREACHED("We should always have a result");
 }
-
-void
-nsNavHistoryQueryResultNode::RecursiveSort(
-    const char* aData, SortComparator aComparator)
-{
-  void* data = const_cast<void*>(static_cast<const void*>(aData));
-
-  if (!IsContainersQuery())
-    mChildren.Sort(aComparator, data);
-
-  for (PRInt32 i = 0; i < mChildren.Count(); i++) {
-    if (mChildren[i]->IsContainer())
-      mChildren[i]->GetAsContainer()->RecursiveSort(aData, aComparator);
-  }
-}
-
-
 // nsNavHistoryResultNode::OnBeginUpdateBatch
 
 NS_IMETHODIMP
@@ -2711,9 +2651,10 @@ nsNavHistoryQueryResultNode::OnVisit(nsIURI* aURI, PRInt64 aVisitId,
       // now we know that our visit satisfies the time range, create a new node
       rv = history->VisitIdToResultNode(aVisitId, mOptions,
                                         getter_AddRefs(addition));
+      NS_ENSURE_SUCCESS(rv, rv);
 
       // We do not want to add this result to this node
-      if (NS_FAILED(rv) || !addition)
+      if (!addition)
           return NS_OK;
 
       break;
@@ -2723,8 +2664,8 @@ nsNavHistoryQueryResultNode::OnVisit(nsIURI* aURI, PRInt64 aVisitId,
       // in the result. We first have to construct a node for it to check.
       rv = history->VisitIdToResultNode(aVisitId, mOptions,
                                         getter_AddRefs(addition));
-      if (NS_FAILED(rv) || !addition ||
-          !history->EvaluateQueryForNode(mQueries, mOptions, addition))
+      NS_ENSURE_SUCCESS(rv, rv);
+      if (! history->EvaluateQueryForNode(mQueries, mOptions, addition))
         return NS_OK; // don't need to include in our query
       break;
     }
@@ -2797,7 +2738,7 @@ nsNavHistoryQueryResultNode::OnTitleChanged(nsIURI* aURI,
   }
 
   // compute what the new title should be
-  NS_ConvertUTF16toUTF8 newTitle(aPageTitle);
+  nsCAutoString newTitle = NS_ConvertUTF16toUTF8(aPageTitle);
 
   PRBool onlyOneEntry = (mOptions->ResultType() ==
                          nsINavHistoryQueryOptions::RESULTS_AS_URI ||
@@ -2807,12 +2748,6 @@ nsNavHistoryQueryResultNode::OnTitleChanged(nsIURI* aURI,
   return ChangeTitles(aURI, newTitle, PR_TRUE, onlyOneEntry);
 }
 
-
-NS_IMETHODIMP
-nsNavHistoryQueryResultNode::OnBeforeDeleteURI(nsIURI *aURI)
-{
-  return NS_OK;
-}
 
 // nsNavHistoryQueryResultNode::OnDeleteURI
 //
@@ -2861,7 +2796,7 @@ nsNavHistoryQueryResultNode::OnDeleteURI(nsIURI *aURI)
 NS_IMETHODIMP
 nsNavHistoryQueryResultNode::OnClearHistory()
 {
-  (void)Refresh();
+  Refresh();
   return NS_OK;
 }
 
@@ -2869,7 +2804,7 @@ nsNavHistoryQueryResultNode::OnClearHistory()
 // nsNavHistoryQueryResultNode::OnPageChanged
 //
 
-static void setFaviconCallback(
+static void PR_CALLBACK setFaviconCallback(
    nsNavHistoryResultNode* aNode, void* aClosure)
 {
   const nsCString* newFavicon = static_cast<nsCString*>(aClosure);
@@ -2888,7 +2823,7 @@ nsNavHistoryQueryResultNode::OnPageChanged(nsIURI *aURI, PRUint32 aWhat,
 
   switch (aWhat) {
     case nsINavHistoryObserver::ATTRIBUTE_FAVICON: {
-      NS_ConvertUTF16toUTF8 newFavicon(aValue);
+      nsCString newFavicon = NS_ConvertUTF16toUTF8(aValue);
       PRBool onlyOneEntry = (mOptions->ResultType() ==
                              nsINavHistoryQueryOptions::RESULTS_AS_URI ||
                              mOptions->ResultType() ==
@@ -2916,18 +2851,6 @@ nsNavHistoryQueryResultNode::OnPageExpired(nsIURI* aURI, PRTime aVisitTime,
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsNavHistoryQueryResultNode::OnItemAdded(PRInt64 aItemId,
-                                         PRInt64 aFolder,
-                                         PRInt32 aIndex)
-{
-  nsNavBookmarks* bookmarks = nsNavBookmarks::GetBookmarksService();
-  NS_ENSURE_TRUE(bookmarks, NS_ERROR_OUT_OF_MEMORY);
-  PRUint16 itemType;
-  nsresult rv = bookmarks->GetItemType(aItemId, &itemType);
-  NS_ENSURE_SUCCESS(rv, rv);
-  return OnItemAdded(aItemId, aFolder, aIndex, itemType);
-}
 
 // nsNavHistoryQueryResultNode bookmark observers
 //
@@ -2936,18 +2859,11 @@ nsNavHistoryQueryResultNode::OnItemAdded(PRInt64 aItemId,
 //    the bookmark system.
 
 NS_IMETHODIMP
-nsNavHistoryQueryResultNode::OnItemAdded(PRInt64 aItemId,
-                                         PRInt64 aFolder,
-                                         PRInt32 aIndex,
-                                         PRUint16 aItemType)
+nsNavHistoryQueryResultNode::OnItemAdded(PRInt64 aItemId, PRInt64 aFolder,
+                                          PRInt32 aIndex)
 {
   if (mLiveUpdate == QUERYUPDATE_COMPLEX_WITH_BOOKMARKS)
     return Refresh();
-  return NS_OK;
-}
-NS_IMETHODIMP
-nsNavHistoryQueryResultNode::OnBeforeItemRemoved(PRInt64 aItemId)
-{
   return NS_OK;
 }
 NS_IMETHODIMP
@@ -3275,27 +3191,20 @@ nsNavHistoryFolderResultNode::FillChildren()
   // nodes and the result node pointers on the containers
   FillStats();
 
-  if (mResult->mNeedsToApplySortingMode) {
-    // We should repopulate container and then apply sortingMode.  To avoid
-    // sorting 2 times we simply do that here.
-    mResult->SetSortingMode(mResult->mSortingMode);
-  }
-  else {
-    // once we've computed all tree stats, we can sort, because containers will
-    // then have proper visit counts and dates
-    SortComparator comparator = GetSortingComparator(GetSortType());
-    if (comparator) {
-      nsCAutoString sortingAnnotation;
-      GetSortingAnnotation(sortingAnnotation);
-      RecursiveSort(sortingAnnotation.get(), comparator);
-    }
+  // once we've computed all tree stats, we can sort, because containers will
+  // then have proper visit counts and dates
+  SortComparator comparator = GetSortingComparator(GetSortType());
+  if (comparator) {
+    nsCAutoString sortingAnnotation;
+    GetSortingAnnotation(sortingAnnotation);
+    RecursiveSort(sortingAnnotation.get(), comparator);
   }
 
   // if we are limiting our results remove items from the end of the
   // mChildren array after sorting. This is done for root node only.
   // note, if count < max results, we won't do anything.
   if (!mParent && mOptions->MaxResults()) {
-    while ((PRUint32)mChildren.Count() > mOptions->MaxResults())
+    while (mChildren.Count() > mOptions->MaxResults())
       mChildren.RemoveObjectAt(mChildren.Count() - 1);
   }
 
@@ -3347,9 +3256,8 @@ nsNavHistoryFolderResultNode::Refresh()
   }
 
   // ignore errors from FillChildren, since we will still want to refresh
-  // the tree (there just might not be anything in it on error). ClearChildren
-  // has unregistered us as an observer since FillChildren will try to
-  // re-register us.
+  // the tree (there just might not be anything in it on error). Need to
+  // unregister as an observer because FillChildren will try to re-register us.
   (void)FillChildren();
 
   nsNavHistoryResult* result = GetResult();
@@ -3395,7 +3303,7 @@ nsNavHistoryFolderResultNode::StartIncrementalUpdate()
   }
 
   // otherwise, we don't do incremental updates, invalidate and unregister
-  (void)Refresh();
+  Refresh();
   return PR_FALSE;
 }
 
@@ -3459,57 +3367,36 @@ nsNavHistoryFolderResultNode::OnEndUpdateBatch()
 }
 
 
-NS_IMETHODIMP
-nsNavHistoryFolderResultNode::OnItemAdded(PRInt64 aItemId,
-                                         PRInt64 aFolder,
-                                         PRInt32 aIndex)
-{
-  nsNavBookmarks* bookmarks = nsNavBookmarks::GetBookmarksService();
-  NS_ENSURE_TRUE(bookmarks, NS_ERROR_OUT_OF_MEMORY);
-  PRUint16 itemType;
-  nsresult rv = bookmarks->GetItemType(aItemId, &itemType);
-  NS_ENSURE_SUCCESS(rv, rv);
-  return OnItemAdded(aItemId, aFolder, aIndex, itemType);
-}
-
-
 // nsNavHistoryFolderResultNode::OnItemAdded (nsINavBookmarkObserver)
 
 NS_IMETHODIMP
 nsNavHistoryFolderResultNode::OnItemAdded(PRInt64 aItemId,
                                           PRInt64 aParentFolder,
-                                          PRInt32 aIndex,
-                                          PRUint16 aItemType)
+                                          PRInt32 aIndex)
 {
   NS_ASSERTION(aParentFolder == mItemId, "Got wrong bookmark update");
-
-  PRBool excludeItems = (mResult && mResult->mRootNode->mOptions->ExcludeItems()) ||
-                        (mParent && mParent->mOptions->ExcludeItems()) ||
-                        mOptions->ExcludeItems();
 
   // here, try to do something reasonable if the bookmark service gives us
   // a bogus index.
   if (aIndex < 0) {
     NS_NOTREACHED("Invalid index for item adding: <0");
     aIndex = 0;
-  }
-  else if (aIndex > mChildren.Count()) {
-    if (!excludeItems) {
-      // Something wrong happened while updating indexes.
-      NS_NOTREACHED("Invalid index for item adding: greater than count");
-    }
+  } else if (aIndex > mChildren.Count()) {
+    NS_NOTREACHED("Invalid index for item adding: greater than count");
     aIndex = mChildren.Count();
   }
 
   nsNavBookmarks* bookmarks = nsNavBookmarks::GetBookmarksService();
   NS_ENSURE_TRUE(bookmarks, NS_ERROR_OUT_OF_MEMORY);
 
-  nsresult rv;
+  PRUint16 itemType;
+  nsresult rv = bookmarks->GetItemType(aItemId, &itemType);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // check for query URIs, which are bookmarks, but treated as containers
   // in results and views.
   PRBool isQuery = PR_FALSE;
-  if (aItemType == nsINavBookmarksService::TYPE_BOOKMARK) {
+  if (itemType == nsINavBookmarksService::TYPE_BOOKMARK) {
     nsCOMPtr<nsIURI> itemURI;
     rv = bookmarks->GetBookmarkURI(aItemId, getter_AddRefs(itemURI));
     NS_ENSURE_SUCCESS(rv, rv);
@@ -3519,8 +3406,8 @@ nsNavHistoryFolderResultNode::OnItemAdded(PRInt64 aItemId,
     isQuery = IsQueryURI(itemURISpec);
   }
 
-  if (aItemType != nsINavBookmarksService::TYPE_FOLDER &&
-      !isQuery && excludeItems) {
+  if (itemType != nsINavBookmarksService::TYPE_FOLDER &&
+      !isQuery && mOptions->ExcludeItems()) {
     // don't update items when we aren't displaying them, but we still need
     // to adjust bookmark indices to account for the insertion
     ReindexRange(aIndex, PR_INT32_MAX, 1);
@@ -3534,28 +3421,24 @@ nsNavHistoryFolderResultNode::OnItemAdded(PRInt64 aItemId,
   ReindexRange(aIndex, PR_INT32_MAX, 1);
 
   nsRefPtr<nsNavHistoryResultNode> node;
-  if (aItemType == nsINavBookmarksService::TYPE_BOOKMARK) {
+  if (itemType == nsINavBookmarksService::TYPE_BOOKMARK) {
     nsNavHistory* history = nsNavHistory::GetHistoryService();
     NS_ENSURE_TRUE(history, NS_ERROR_OUT_OF_MEMORY);
     rv = history->BookmarkIdToResultNode(aItemId, mOptions, getter_AddRefs(node));
     NS_ENSURE_SUCCESS(rv, rv);
-    // Correctly set batch status for new query nodes.
-    if (mResult && node->IsQuery())
-      node->GetAsQuery()->mBatchInProgress = mResult->mBatchInProgress;
   }
-  else if (aItemType == nsINavBookmarksService::TYPE_FOLDER ||
-           aItemType == nsINavBookmarksService::TYPE_DYNAMIC_CONTAINER) {
+  else if (itemType == nsINavBookmarksService::TYPE_FOLDER) {
     rv = bookmarks->ResultNodeForContainer(aItemId, mOptions, getter_AddRefs(node));
     NS_ENSURE_SUCCESS(rv, rv);
   }
-  else if (aItemType == nsINavBookmarksService::TYPE_SEPARATOR) {
+  else if (itemType == nsINavBookmarksService::TYPE_SEPARATOR) {
     node = new nsNavHistorySeparatorResultNode();
     NS_ENSURE_TRUE(node, NS_ERROR_OUT_OF_MEMORY);
     node->mItemId = aItemId;
   }
   node->mBookmarkIndex = aIndex;
 
-  if (aItemType == nsINavBookmarksService::TYPE_SEPARATOR ||
+  if (itemType == nsINavBookmarksService::TYPE_SEPARATOR ||
       GetSortType() == nsINavHistoryQueryOptions::SORT_BY_NONE) {
     // insert at natural bookmarks position
     return InsertChildAt(node, aIndex);
@@ -3565,21 +3448,11 @@ nsNavHistoryFolderResultNode::OnItemAdded(PRInt64 aItemId,
 }
 
 
-// nsNavHistoryFolderResultNode::OnBeforeItemRemoved (nsINavBookmarkObserver)
-
-NS_IMETHODIMP
-nsNavHistoryFolderResultNode::OnBeforeItemRemoved(PRInt64 aItemId)
-{
-  return NS_OK;
-}
-
-
 // nsNavHistoryFolderResultNode::OnItemRemoved (nsINavBookmarkObserver)
 
 NS_IMETHODIMP
 nsNavHistoryFolderResultNode::OnItemRemoved(PRInt64 aItemId,
-                                            PRInt64 aParentFolder,
-                                            PRInt32 aIndex)
+                                            PRInt64 aParentFolder, PRInt32 aIndex)
 {
   // We only care about notifications when a child changes. When the deleted
   // item is us, our parent should also be registered and will remove us from
@@ -3587,26 +3460,19 @@ nsNavHistoryFolderResultNode::OnItemRemoved(PRInt64 aItemId,
   if (mItemId == aItemId)
     return NS_OK;
 
-  NS_ASSERTION(aParentFolder == mItemId, "Got wrong bookmark update");
-
-  PRBool excludeItems = (mResult && mResult->mRootNode->mOptions->ExcludeItems()) ||
-                        (mParent && mParent->mOptions->ExcludeItems()) ||
-                        mOptions->ExcludeItems();
-
   // don't trust the index from the bookmark service, find it ourselves. The
   // sorting could be different, or the bookmark services indices and ours might
   // be out of sync somehow.
   PRUint32 index;
   nsNavHistoryResultNode* node = FindChildById(aItemId, &index);
   if (!node) {
-    if (excludeItems)
-      return NS_OK;
-
     NS_NOTREACHED("Removing item we don't have");
     return NS_ERROR_FAILURE;
   }
 
-  if ((node->IsURI() || node->IsSeparator()) && excludeItems) {
+  NS_ASSERTION(aParentFolder == mItemId, "Got wrong bookmark update");
+
+  if ((node->IsURI() || node->IsSeparator()) && mOptions->ExcludeItems()) {
     // don't update items when we aren't displaying them, but we do need to
     // adjust everybody's bookmark indices to account for the removal
     ReindexRange(aIndex, PR_INT32_MAX, -1);
@@ -3725,10 +3591,7 @@ NS_IMETHODIMP
 nsNavHistoryFolderResultNode::OnItemVisited(PRInt64 aItemId,
                                             PRInt64 aVisitId, PRTime aTime)
 {
-  PRBool excludeItems = (mResult && mResult->mRootNode->mOptions->ExcludeItems()) ||
-                        (mParent && mParent->mOptions->ExcludeItems()) ||
-                        mOptions->ExcludeItems();
-  if (excludeItems)
+  if (mOptions->ExcludeItems())
     return NS_OK; // don't update items when we aren't displaying them
   if (! StartIncrementalUpdate())
     return NS_OK;
@@ -3828,7 +3691,7 @@ nsNavHistorySeparatorResultNode::nsNavHistorySeparatorResultNode()
 // nsNavHistoryResult **********************************************************
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsNavHistoryResult)
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 RemoveBookmarkFolderObserversCallback(nsTrimInt64HashKey::KeyType aKey,
                                       nsNavHistoryResult::FolderObserverList*& aData,
                                       void* userArg)
@@ -3841,11 +3704,9 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsNavHistoryResult)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mRootNode)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mView)
   tmp->mBookmarkFolderObservers.Enumerate(&RemoveBookmarkFolderObserversCallback, nsnull);
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSTARRAY(mAllBookmarksObservers)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSTARRAY(mHistoryObservers)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END 
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 TraverseBookmarkFolderObservers(nsTrimInt64HashKey::KeyType aKey,
                                 nsNavHistoryResult::FolderObserverList*& aData,
                                 void* aUserArg)
@@ -3866,8 +3727,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsNavHistoryResult)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mRootNode, nsINavHistoryContainerResultNode)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mView)
   tmp->mBookmarkFolderObservers.Enumerate(&TraverseBookmarkFolderObservers, &cb);
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSTARRAY_MEMBER(mAllBookmarksObservers, nsNavHistoryQueryResultNode)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSTARRAY_MEMBER(mHistoryObservers, nsNavHistoryQueryResultNode)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsNavHistoryResult)
@@ -3887,8 +3746,7 @@ nsNavHistoryResult::nsNavHistoryResult(nsNavHistoryContainerResultNode* aRoot) :
   mIsHistoryObserver(PR_FALSE),
   mIsBookmarkFolderObserver(PR_FALSE),
   mIsAllBookmarksObserver(PR_FALSE),
-  mBatchInProgress(PR_FALSE),
-  mNeedsToApplySortingMode(PR_FALSE)
+  mBatchInProgress(PR_FALSE)
 {
   mRootNode->mResult = this;
 }
@@ -3899,33 +3757,6 @@ nsNavHistoryResult::~nsNavHistoryResult()
   mBookmarkFolderObservers.Enumerate(&RemoveBookmarkFolderObserversCallback, nsnull);
 }
 
-void
-nsNavHistoryResult::StopObserving()
-{
-  if (mIsBookmarkFolderObserver || mIsAllBookmarksObserver) {
-    nsNavBookmarks* bookmarks = nsNavBookmarks::GetBookmarksService();
-    if (bookmarks) {
-      bookmarks->RemoveObserver(this);
-      mIsBookmarkFolderObserver = PR_FALSE;
-      mIsAllBookmarksObserver = PR_FALSE;
-    }
-  }
-  if (mIsHistoryObserver) {
-    nsNavHistory* history = nsNavHistory::GetHistoryService();
-    if (history) {
-      history->RemoveObserver(this);
-      mIsHistoryObserver = PR_FALSE;
-    }
-  }
-
-  // We stop observing when root node is closed, but when reopening it result
-  // will be out of sync.  Ensure we will call FillChildren again in such a
-  // case.
-  if (mRootNode->IsQuery())
-    mRootNode->GetAsQuery()->ClearChildren(PR_TRUE);
-  else if (mRootNode->IsFolder())
-    mRootNode->GetAsFolder()->ClearChildren(PR_TRUE);
-}
 
 // nsNavHistoryResult::Init
 //
@@ -3989,11 +3820,6 @@ nsNavHistoryResult::NewHistoryResult(nsINavHistoryQuery** aQueries,
     *result = nsnull;
     return rv;
   }
-
-  // Correctly set mBatchInProgress for the result based on the root node value.
-  if (aRoot->IsQuery())
-    (*result)->mBatchInProgress = aRoot->GetAsQuery()->mBatchInProgress;
-
   return NS_OK;
 }
 
@@ -4043,7 +3869,7 @@ nsNavHistoryResult::AddHistoryObserver(nsNavHistoryQueryResultNode* aNode)
       mIsHistoryObserver = PR_TRUE;
   }
   if (mHistoryObservers.IndexOf(aNode) != mHistoryObservers.NoIndex) {
-    NS_WARNING("Attempting to register as a history observer twice!");
+    NS_WARNING("Attempting to register an observer twice!");
     return;
   }
   mHistoryObservers.AppendElement(aNode);
@@ -4054,7 +3880,7 @@ nsNavHistoryResult::AddHistoryObserver(nsNavHistoryQueryResultNode* aNode)
 void
 nsNavHistoryResult::AddAllBookmarksObserver(nsNavHistoryQueryResultNode* aNode)
 {
-  if (!mIsAllBookmarksObserver && !mIsBookmarkFolderObserver) {
+  if (! mIsAllBookmarksObserver) {
     nsNavBookmarks* bookmarks = nsNavBookmarks::GetBookmarksService();
     if (! bookmarks) {
       NS_NOTREACHED("Can't create bookmark service");
@@ -4064,7 +3890,7 @@ nsNavHistoryResult::AddAllBookmarksObserver(nsNavHistoryQueryResultNode* aNode)
     mIsAllBookmarksObserver = PR_TRUE;
   }
   if (mAllBookmarksObservers.IndexOf(aNode) != mAllBookmarksObservers.NoIndex) {
-    NS_WARNING("Attempting to register an all bookmarks observer twice!");
+    NS_WARNING("Attempting to register an observer twice!");
     return;
   }
   mAllBookmarksObservers.AppendElement(aNode);
@@ -4077,11 +3903,11 @@ nsNavHistoryResult::AddAllBookmarksObserver(nsNavHistoryQueryResultNode* aNode)
 
 void
 nsNavHistoryResult::AddBookmarkFolderObserver(nsNavHistoryFolderResultNode* aNode,
-                                              PRInt64 aFolder)
+                                        PRInt64 aFolder)
 {
-  if (!mIsBookmarkFolderObserver && !mIsAllBookmarksObserver) {
+  if (! mIsBookmarkFolderObserver) {
     nsNavBookmarks* bookmarks = nsNavBookmarks::GetBookmarksService();
-    if (!bookmarks) {
+    if (! bookmarks) {
       NS_NOTREACHED("Can't create bookmark service");
       return;
     }
@@ -4091,7 +3917,7 @@ nsNavHistoryResult::AddBookmarkFolderObserver(nsNavHistoryFolderResultNode* aNod
 
   FolderObserverList* list = BookmarkFolderObserversForId(aFolder, PR_TRUE);
   if (list->IndexOf(aNode) != list->NoIndex) {
-    NS_NOTREACHED("Attempting to register as a folder observer twice!");
+    NS_NOTREACHED("Attempting to register an observer twice!");
     return;
   }
   list->AppendElement(aNode);
@@ -4169,12 +3995,6 @@ nsNavHistoryResult::SetSortingMode(PRUint16 aSortingMode)
 
   mSortingMode = aSortingMode;
 
-  if (!mRootNode->mExpanded) {
-    // Need to do this later when node will be expanded.
-    mNeedsToApplySortingMode = PR_TRUE;
-    return NS_OK;
-  }
-
   // actually do sorting
   nsNavHistoryContainerResultNode::SortComparator comparator =
       nsNavHistoryContainerResultNode::GetSortingComparator(aSortingMode);
@@ -4243,7 +4063,7 @@ nsNavHistoryResult::GetRoot(nsINavHistoryContainerResultNode** aRoot)
 // observers will requery themselves, which may cause the observer array to
 // be modified or added to.
 #define ENUMERATE_BOOKMARK_FOLDER_OBSERVERS(_folderId, _functionCall) \
-  PR_BEGIN_MACRO \
+  { \
     FolderObserverList* _fol = BookmarkFolderObserversForId(_folderId, PR_FALSE); \
     if (_fol) { \
       FolderObserverList _listCopy(*_fol); \
@@ -4252,19 +4072,23 @@ nsNavHistoryResult::GetRoot(nsINavHistoryContainerResultNode** aRoot)
           _listCopy[_fol_i]->_functionCall; \
       } \
     } \
-  PR_END_MACRO
-#define ENUMERATE_QUERY_OBSERVERS(_functionCall, _observersList, _conditionCall) \
-  PR_BEGIN_MACRO \
-    QueryObserverList _listCopy(_observersList); \
-    for (PRUint32 _obs_i = 0; _obs_i < _listCopy.Length(); _obs_i ++) { \
-      if (_listCopy[_obs_i] && _listCopy[_obs_i]->_conditionCall) \
-        _listCopy[_obs_i]->_functionCall; \
-    } \
-  PR_END_MACRO
+  }
 #define ENUMERATE_ALL_BOOKMARKS_OBSERVERS(_functionCall) \
-  ENUMERATE_QUERY_OBSERVERS(_functionCall, mAllBookmarksObservers, IsQuery())
+  { \
+    nsTArray<nsNavHistoryQueryResultNode*> observerCopy(mAllBookmarksObservers); \
+    for (PRUint32 _obs_i = 0; _obs_i < observerCopy.Length(); _obs_i ++) { \
+      if (observerCopy[_obs_i]) \
+      observerCopy[_obs_i]->_functionCall; \
+    } \
+  }
 #define ENUMERATE_HISTORY_OBSERVERS(_functionCall) \
-  ENUMERATE_QUERY_OBSERVERS(_functionCall, mHistoryObservers, IsQuery())
+  { \
+    nsTArray<nsNavHistoryQueryResultNode*> observerCopy(mHistoryObservers); \
+    for (PRUint32 _obs_i = 0; _obs_i < observerCopy.Length(); _obs_i ++) { \
+      if (observerCopy[_obs_i]) \
+      observerCopy[_obs_i]->_functionCall; \
+    } \
+  }
 
 // nsNavHistoryResult::OnBeginUpdateBatch (nsINavBookmark/HistoryObserver)
 
@@ -4301,28 +4125,10 @@ nsNavHistoryResult::OnItemAdded(PRInt64 aItemId,
                                 PRInt64 aFolder,
                                 PRInt32 aIndex)
 {
-  nsNavBookmarks* bookmarks = nsNavBookmarks::GetBookmarksService();
-  NS_ENSURE_TRUE(bookmarks, NS_ERROR_OUT_OF_MEMORY);
-
-  PRUint16 itemType;
-  nsresult rv = bookmarks->GetItemType(aItemId, &itemType);
-  NS_ENSURE_SUCCESS(rv, rv);
-
   ENUMERATE_BOOKMARK_FOLDER_OBSERVERS(aFolder,
-      OnItemAdded(aItemId, aFolder, aIndex, itemType));
-  ENUMERATE_HISTORY_OBSERVERS(OnItemAdded(aItemId, aFolder, aIndex, itemType));
-  ENUMERATE_ALL_BOOKMARKS_OBSERVERS(OnItemAdded(aItemId, aFolder, aIndex,
-                                                itemType));
-  return NS_OK;
-}
-
-
-// nsNavHistoryResult::OnBeforeItemRemoved (nsINavBookmarkObserver)
-
-NS_IMETHODIMP
-nsNavHistoryResult::OnBeforeItemRemoved(PRInt64 aItemId)
-{
-  // Nobody actually does anything with this method, so we do not need to notify
+      OnItemAdded(aItemId, aFolder, aIndex));
+  ENUMERATE_HISTORY_OBSERVERS(OnItemAdded(aItemId, aFolder, aIndex));
+  ENUMERATE_ALL_BOOKMARKS_OBSERVERS(OnItemAdded(aItemId, aFolder, aIndex));
   return NS_OK;
 }
 
@@ -4351,19 +4157,23 @@ nsNavHistoryResult::OnItemChanged(PRInt64 aItemId,
                                   PRBool aIsAnnotationProperty,
                                   const nsACString &aValue)
 {
+  nsNavBookmarks* bookmarkService = nsNavBookmarks::GetBookmarksService();
+  NS_ENSURE_TRUE(bookmarkService, NS_ERROR_OUT_OF_MEMORY);
+
   ENUMERATE_ALL_BOOKMARKS_OBSERVERS(
     OnItemChanged(aItemId, aProperty, aIsAnnotationProperty, aValue));
+
+  PRUint16 itemType;
+  nsresult rv = bookmarkService->GetItemType(aItemId, &itemType);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // Note: folder-nodes set their own bookmark observer only once they're
   // opened, meaning we cannot optimize this code path for changes done to
   // folder-nodes.
 
-  nsNavBookmarks* bookmarkService = nsNavBookmarks::GetBookmarksService();
-  NS_ENSURE_TRUE(bookmarkService, NS_ERROR_OUT_OF_MEMORY);
-
   // Find the changed items under the folders list
   PRInt64 folderId;
-  nsresult rv = bookmarkService->GetFolderIdForItem(aItemId, &folderId);
+  rv = bookmarkService->GetFolderIdForItem(aItemId, &folderId);
   NS_ENSURE_SUCCESS(rv, rv);
 
   FolderObserverList* list = BookmarkFolderObserversForId(folderId, PR_FALSE);
@@ -4374,13 +4184,11 @@ nsNavHistoryResult::OnItemChanged(PRInt64 aItemId,
     nsRefPtr<nsNavHistoryFolderResultNode> folder = list->ElementAt(i);
     if (folder) {
       PRUint32 nodeIndex;
-      nsRefPtr<nsNavHistoryResultNode> node =
-        folder->FindChildById(aItemId, &nodeIndex);
+      nsRefPtr<nsNavHistoryResultNode> node = folder->FindChildById(aItemId, &nodeIndex);
       // if ExcludeItems is true we don't update non visible items
-      PRBool excludeItems = (mRootNode->mOptions->ExcludeItems()) ||
-                             folder->mOptions->ExcludeItems();
       if (node &&
-          (!excludeItems || !(node->IsURI() || node->IsSeparator())) &&
+          (!folder->mOptions->ExcludeItems() ||
+           !(node->IsURI() || node->IsSeparator())) &&
           folder->StartIncrementalUpdate()) {
         node->OnItemChanged(aItemId, aProperty, aIsAnnotationProperty, aValue);
       }
@@ -4456,49 +4264,107 @@ nsNavHistoryResult::OnVisit(nsIURI* aURI, PRInt64 aVisitId, PRTime aTime,
   ENUMERATE_HISTORY_OBSERVERS(OnVisit(aURI, aVisitId, aTime, aSessionId,
                                       aReferringId, aTransitionType, &added));
 
-  if (!mRootNode->mExpanded)
-    return NS_OK;
+  if (!added && mRootNode->mExpanded) {
+    nsresult rv;
 
-  // If this visit is accepted by an overlapped container, and not all
-  // overlapped containers are visible, we should still call Refresh if the
-  // visit falls into any of them.
-  PRBool todayIsMissing = PR_FALSE;
-  PRUint32 resultType = mRootNode->mOptions->ResultType();
-  if (resultType == nsINavHistoryQueryOptions::RESULTS_AS_DATE_QUERY ||
-      resultType == nsINavHistoryQueryOptions::RESULTS_AS_DATE_SITE_QUERY) {
-    PRUint32 childCount;
-    nsresult rv = mRootNode->GetChildCount(&childCount);
-    NS_ENSURE_SUCCESS(rv, rv);
-    if (childCount) {
-      nsCOMPtr<nsINavHistoryResultNode> firstChild;
-      rv = mRootNode->GetChild(0, getter_AddRefs(firstChild));
-      NS_ENSURE_SUCCESS(rv, rv);
-      nsCAutoString title;
-      rv = firstChild->GetTitle(title);
-      NS_ENSURE_SUCCESS(rv, rv);
+    // None of registered query observers has accepted our URI, this means,
+    // that a matching query either was not expanded or it does not exist.
+    // If it just was not expanded, we can ignore it, but if it did not
+    // exist, we have to add the query to the right place.
+    PRUint32 resultType = mRootNode->mOptions->ResultType();
+    nsNavHistoryResultNode * siteRoot = mRootNode;
+    nsCAutoString dateRange;
+
+    // For day based queries we just check whether the first item is Today,
+    if (resultType == nsINavHistoryQueryOptions::RESULTS_AS_DATE_QUERY ||
+        resultType == nsINavHistoryQueryOptions::RESULTS_AS_DATE_SITE_QUERY) {
       nsNavHistory* history = nsNavHistory::GetHistoryService();
       NS_ENSURE_TRUE(history, 0);
+
+      // code borrowed from xpfe/components/history/src/nsGlobalHistory.cpp
+      // pass in a pre-normalized now and a date, and we'll find
+      // the difference since midnight on each of the days.
+      //
+      // USECS_PER_DAY == PR_USEC_PER_SEC * 60 * 60 * 24;
+      static const PRInt64 USECS_PER_DAY = LL_INIT(20, 500654080);
+
+      dateRange = nsPrintfCString(255,
+        "&beginTime=%lld&endTime=%lld",
+        history->NormalizeTime(
+          nsINavHistoryQuery::TIME_RELATIVE_TODAY, 0),
+        history->NormalizeTime(
+          nsINavHistoryQuery::TIME_RELATIVE_TODAY, USECS_PER_DAY));
+
+      PRBool todayIsMissing = PR_FALSE;
+      PRUint32 childCount;
+      rv = mRootNode->GetChildCount(&childCount);
+      NS_ENSURE_SUCCESS(rv, rv);
+
       nsCAutoString todayLabel;
       history->GetStringFromName(
         NS_LITERAL_STRING("finduri-AgeInDays-is-0").get(), todayLabel);
-      todayIsMissing = !todayLabel.Equals(title);
-    }
-  }
 
-  if (!added || todayIsMissing) {
-    // None of registered query observers has accepted our URI.  This means,
-    // that a matching query either was not expanded or it does not exist.
-    PRUint32 resultType = mRootNode->mOptions->ResultType();
-    if (resultType == nsINavHistoryQueryOptions::RESULTS_AS_DATE_QUERY ||
-        resultType == nsINavHistoryQueryOptions::RESULTS_AS_DATE_SITE_QUERY ||
-        resultType == nsINavHistoryQueryOptions::RESULTS_AS_SITE_QUERY)
-      (void)mRootNode->GetAsQuery()->Refresh();
-    else {
-      // We are result of a folder node, then we should run through history
-      // observers that are containers queries and refresh them.
-      // We use a copy of the observers array since requerying could potentially
-      // cause changes to the array.
-      ENUMERATE_QUERY_OBSERVERS(Refresh(), mHistoryObservers, IsContainersQuery());
+      if (!childCount) {
+        todayIsMissing = PR_TRUE;
+      } else {
+        nsCOMPtr<nsINavHistoryResultNode> firstChild;
+        rv = mRootNode->GetChild(0, getter_AddRefs(firstChild));
+        NS_ENSURE_SUCCESS(rv, rv);
+
+        nsCAutoString title;
+        rv = firstChild->GetTitle( title);
+        NS_ENSURE_SUCCESS(rv, rv);
+
+        if (todayLabel.Equals(title)) {
+          siteRoot = static_cast<nsNavHistoryResultNode *>(firstChild.get());
+        } else {
+          todayIsMissing = PR_TRUE;
+        }
+      }
+
+      if (todayIsMissing) { // Add "Today"
+        nsCAutoString queryUri;
+        queryUri = nsPrintfCString(255,
+          "place:type=%ld&sort=%ld%s",
+          resultType == nsINavHistoryQueryOptions::RESULTS_AS_DATE_QUERY
+            ?nsINavHistoryQueryOptions::RESULTS_AS_URI
+            :nsINavHistoryQueryOptions::RESULTS_AS_SITE_QUERY,
+          nsINavHistoryQueryOptions::SORT_BY_TITLE_ASCENDING,
+          dateRange.get());
+
+        nsRefPtr<nsNavHistoryQueryResultNode> todayNode;
+        todayNode = new nsNavHistoryQueryResultNode(todayLabel, 
+                                                    EmptyCString(), queryUri);
+        rv = mRootNode->InsertChildAt( todayNode, 0);
+        NS_ENSURE_SUCCESS(rv, rv);
+      }
+
+      // "Today" was missing or we had day query
+      if (resultType == nsINavHistoryQueryOptions::RESULTS_AS_DATE_QUERY || 
+          todayIsMissing)
+        return NS_OK; // No more processing necessary
+    }
+
+    if (siteRoot->IsQuery() && siteRoot->GetAsQuery()->mContentsValid &&
+         (resultType == nsINavHistoryQueryOptions::RESULTS_AS_DATE_SITE_QUERY ||
+          resultType == nsINavHistoryQueryOptions::RESULTS_AS_SITE_QUERY)) {
+      nsCAutoString host;
+      rv = aURI->GetAsciiHost(host);
+      NS_ENSURE_SUCCESS(rv, rv);
+
+      nsCAutoString queryUri;
+      queryUri = nsPrintfCString(255,
+        "place:type=%ld&sort=%ld&domain=%s&domainIsHost=true%s",
+        nsINavHistoryQueryOptions::RESULTS_AS_URI,
+        nsINavHistoryQueryOptions::SORT_BY_TITLE_ASCENDING,
+        host.get(),
+        dateRange.get());
+
+      nsRefPtr<nsNavHistoryQueryResultNode> siteNode;
+      siteNode = new nsNavHistoryQueryResultNode(host, EmptyCString(), queryUri);
+      rv = siteRoot->GetAsContainer()->InsertSortedChild(
+               siteNode, PR_FALSE, PR_TRUE/*Ignore duplicates*/);
+      NS_ENSURE_SUCCESS(rv, rv);
     }
   }
 
@@ -4512,14 +4378,6 @@ NS_IMETHODIMP
 nsNavHistoryResult::OnTitleChanged(nsIURI* aURI, const nsAString& aPageTitle)
 {
   ENUMERATE_HISTORY_OBSERVERS(OnTitleChanged(aURI, aPageTitle));
-  return NS_OK;
-}
-
-
-// nsNavHistoryResult::OnBeforeDeleteURI (nsINavHistoryObserver)
-NS_IMETHODIMP
-nsNavHistoryResult::OnBeforeDeleteURI(nsIURI *aURI)
-{
   return NS_OK;
 }
 

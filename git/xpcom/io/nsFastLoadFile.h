@@ -51,6 +51,7 @@
 #include "nsDebug.h"
 #include "nsID.h"
 #include "nsMemory.h"
+#include "nsVoidArray.h"
 
 #include "nsIFastLoadFileControl.h"
 #include "nsIFastLoadService.h"
@@ -401,7 +402,7 @@ class nsFastLoadFileReader
 };
 
 NS_COM nsresult
-NS_NewFastLoadFileReader(nsIObjectInputStream* *aResult NS_OUTPARAM,
+NS_NewFastLoadFileReader(nsIObjectInputStream* *aResult,
                          nsIInputStream* aSrcStream);
 
 /**
@@ -484,25 +485,25 @@ class nsFastLoadFileWriter
                                PRBool aIsStrongRef,
                                PRUint32 aQITag);
 
-    static PLDHashOperator
+    static PLDHashOperator PR_CALLBACK
     IDMapEnumerate(PLDHashTable *aTable,
                    PLDHashEntryHdr *aHdr,
                    PRUint32 aNumber,
                    void *aData);
 
-    static PLDHashOperator
+    static PLDHashOperator PR_CALLBACK
     ObjectMapEnumerate(PLDHashTable *aTable,
                        PLDHashEntryHdr *aHdr,
                        PRUint32 aNumber,
                        void *aData);
 
-    static PLDHashOperator
+    static PLDHashOperator PR_CALLBACK
     DocumentMapEnumerate(PLDHashTable *aTable,
                          PLDHashEntryHdr *aHdr,
                          PRUint32 aNumber,
                          void *aData);
 
-    static PLDHashOperator
+    static PLDHashOperator PR_CALLBACK
     DependencyMapEnumerate(PLDHashTable *aTable,
                            PLDHashEntryHdr *aHdr,
                            PRUint32 aNumber,
@@ -525,7 +526,7 @@ class nsFastLoadFileWriter
 };
 
 NS_COM nsresult
-NS_NewFastLoadFileWriter(nsIObjectOutputStream* *aResult NS_OUTPARAM,
+NS_NewFastLoadFileWriter(nsIObjectOutputStream* *aResult,
                          nsIOutputStream* aDestStream,
                          nsIFastLoadFileIO* aFileIO);
 
@@ -560,7 +561,7 @@ class nsFastLoadFileUpdater
     nsresult   Open(nsFastLoadFileReader* aReader);
     NS_IMETHOD Close();
 
-    static PLDHashOperator
+    static PLDHashOperator PR_CALLBACK
     CopyReadDocumentMapEntryToUpdater(PLDHashTable *aTable,
                                       PLDHashEntryHdr *aHdr,
                                       PRUint32 aNumber,
@@ -576,7 +577,7 @@ class nsFastLoadFileUpdater
 };
 
 NS_COM nsresult
-NS_NewFastLoadFileUpdater(nsIObjectOutputStream* *aResult NS_OUTPARAM,
+NS_NewFastLoadFileUpdater(nsIObjectOutputStream* *aResult,
                           nsIOutputStream* aOutputStream,
                           nsIObjectInputStream* aReaderAsStream);
 

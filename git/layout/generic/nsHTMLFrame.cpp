@@ -58,6 +58,7 @@
 
 // for focus
 #include "nsIDOMWindowInternal.h"
+#include "nsIFocusController.h"
 #include "nsIScrollableFrame.h"
 #include "nsIScrollableView.h"
 #include "nsIDocShell.h"
@@ -86,9 +87,7 @@ public:
   : nsHTMLContainerFrame(aContext), mDoPaintFocus(PR_FALSE),
     mAbsoluteContainer(nsGkAtoms::absoluteList) {}
 
-  NS_DECL_QUERYFRAME
-
-  // nsISupports (nsIScrollPositionListener)
+   // nsISupports
   NS_IMETHOD QueryInterface(const nsIID& aIID, void** aInstancePtr);
 
   NS_IMETHOD Init(nsIContent*      aContent,
@@ -189,11 +188,24 @@ NS_NewCanvasFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell)CanvasFrame(aContext);
 }
 
-NS_IMPL_QUERY_INTERFACE1(CanvasFrame, nsIScrollPositionListener)
+//--------------------------------------------------------------
+// Frames are not refcounted, no need to AddRef
+NS_IMETHODIMP
+CanvasFrame::QueryInterface(const nsIID& aIID, void** aInstancePtr)
+{
+  NS_PRECONDITION(aInstancePtr, "null out param");
 
-NS_QUERYFRAME_HEAD(CanvasFrame)
-  NS_QUERYFRAME_ENTRY(nsICanvasFrame)
-NS_QUERYFRAME_TAIL_INHERITING(nsHTMLContainerFrame)
+  if (aIID.Equals(NS_GET_IID(nsIScrollPositionListener))) {
+    *aInstancePtr = static_cast<nsIScrollPositionListener*>(this);
+    return NS_OK;
+  } 
+  if (aIID.Equals(NS_GET_IID(nsICanvasFrame))) {
+    *aInstancePtr = static_cast<nsICanvasFrame*>(this);
+    return NS_OK;
+  } 
+
+  return nsHTMLContainerFrame::QueryInterface(aIID, aInstancePtr);
+}
 
 NS_IMETHODIMP
 CanvasFrame::Init(nsIContent*      aContent,
@@ -202,7 +214,7 @@ CanvasFrame::Init(nsIContent*      aContent,
 {
   nsresult rv = nsHTMLContainerFrame::Init(aContent, aParent, aPrevInFlow);
 
-  mViewManager = PresContext()->GetPresShell()->GetViewManager();
+  mViewManager = PresContext()->GetViewManager();
 
   nsIScrollableView* scrollingView = nsnull;
   mViewManager->GetRootScrollableView(&scrollingView);
@@ -395,7 +407,8 @@ nsRect CanvasFrame::CanvasArea() const
 {
   nsRect result(GetOverflowRect());
 
-  nsIScrollableFrame *scrollableFrame = do_QueryFrame(GetParent());
+  nsIScrollableFrame *scrollableFrame;
+  CallQueryInterface(GetParent(), &scrollableFrame);
   if (scrollableFrame) {
     nsIScrollableView* scrollableView = scrollableFrame->GetScrollableView();
     nsRect vcr = scrollableView->View()->GetBounds();
@@ -432,7 +445,8 @@ public:
     nsCSSRendering::PaintBackground(mFrame->PresContext(), *aCtx, mFrame,
                                     aDirtyRect,
                                     nsRect(offset, mFrame->GetSize()),
-                                    0, &bgClipRect);
+                                    mFrame->HonorPrintBackgroundSettings(),
+                                    &bgClipRect);
   }
 
   NS_DISPLAY_DECL_NAME("CanvasBackground")
@@ -535,7 +549,9 @@ CanvasFrame::PaintFocus(nsIRenderingContext& aRenderingContext, nsPoint aPt)
 {
   nsRect focusRect(aPt, GetSize());
 
-  nsIScrollableFrame *scrollableFrame = do_QueryFrame(GetParent());
+  nsIScrollableFrame *scrollableFrame;
+  CallQueryInterface(GetParent(), &scrollableFrame);
+
   if (scrollableFrame) {
     nsIScrollableView* scrollableView = scrollableFrame->GetScrollableView();
     nsRect vcr = scrollableView->View()->GetBounds();
@@ -693,16 +709,9 @@ CanvasFrame::Reflow(nsPresContext*           aPresContext,
       viewport->Invalidate(nsRect(nsPoint(0, 0), viewport->GetSize()));
     }
     
-    // Return our desired size. Normally it's what we're told, but
-    // sometimes we can be given an unconstrained height (when a window
-    // is sizing-to-content), and we should compute our desired height.
+    // Return our desired size (which doesn't matter)
     aDesiredSize.width = aReflowState.ComputedWidth();
-    if (aReflowState.ComputedHeight() == NS_UNCONSTRAINEDSIZE) {
-      aDesiredSize.height = kidFrame->GetRect().height +
-        kidReflowState.mComputedMargin.TopBottom();
-    } else {
-      aDesiredSize.height = aReflowState.ComputedHeight();
-    }
+    aDesiredSize.height = aReflowState.ComputedHeight();
 
     aDesiredSize.mOverflowArea.UnionRect(
       nsRect(0, 0, aDesiredSize.width, aDesiredSize.height),

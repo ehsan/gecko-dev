@@ -46,7 +46,10 @@
 #include "nsIDOMWindow.h"
 #include "nsISupportsArray.h"
 #include "nsISupportsPrimitives.h"
+
+#ifdef MOZ_XUL_APP
 #include "nsICommandLine.h"
+#endif
 
 nsLayoutDebugCLH::nsLayoutDebugCLH()
 {
@@ -57,6 +60,8 @@ nsLayoutDebugCLH::~nsLayoutDebugCLH()
 }
 
 NS_IMPL_ISUPPORTS1(nsLayoutDebugCLH, ICOMMANDLINEHANDLER)
+
+#ifdef MOZ_XUL_APP
 
 NS_IMETHODIMP
 nsLayoutDebugCLH::Handle(nsICommandLine* aCmdLine)
@@ -116,3 +121,16 @@ nsLayoutDebugCLH::GetHelpInfo(nsACString& aResult)
     return NS_OK;
 }
 
+#else // !MOZ_XUL_APP
+
+CMDLINEHANDLER_IMPL(nsLayoutDebugCLH, "-layoutdebug",
+                    "general.startup.layoutdebug",
+                    "chrome://layoutdebug/content/",
+                    "Start with Layout Debugger",
+                    "@mozilla.org/commandlinehandler/general-startup;1?type=layoutdebug",
+                    "LayoutDebug Startup Handler",
+                    PR_TRUE,
+                    "",
+                    PR_TRUE)
+
+#endif

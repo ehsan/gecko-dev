@@ -62,7 +62,7 @@ struct ThreadInitInfo {
     nsToolkit *toolkit;
 };
 
-void RunPump(void* arg)
+void PR_CALLBACK RunPump(void* arg)
 {
     ThreadInitInfo *info = (ThreadInitInfo*)arg;
     ::PR_EnterMonitor(info->monitor);

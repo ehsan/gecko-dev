@@ -41,7 +41,6 @@
 
 #include "nsIDOMDataContainerEvent.h"
 #include "nsDOMEvent.h"
-#include "nsInterfaceHashtable.h"
 
 class nsDOMDataContainerEvent : public nsDOMEvent,
                                 public nsIDOMDataContainerEvent
@@ -58,7 +57,7 @@ public:
   NS_DECL_NSIDOMDATACONTAINEREVENT
 
 private:
-  static PLDHashOperator
+  static PLDHashOperator PR_CALLBACK
     TraverseEntry(const nsAString& aKey, nsIVariant *aDataItem, void* aUserArg);
 
   nsInterfaceHashtable<nsStringHashKey, nsIVariant> mData;

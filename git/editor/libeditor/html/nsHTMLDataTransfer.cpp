@@ -75,6 +75,7 @@
 #include "nsIDOMRange.h"
 #include "nsIDOMNSRange.h"
 #include "nsCOMArray.h"
+#include "nsVoidArray.h"
 #include "nsIFile.h"
 #include "nsIURL.h"
 #include "nsIComponentManager.h"
@@ -86,6 +87,8 @@
 #include "nsIParser.h"
 #include "nsParserCIID.h"
 #include "nsIImage.h"
+#include "nsAOLCiter.h"
+#include "nsInternetCiter.h"
 #include "nsXPCOM.h"
 #include "nsISupportsPrimitives.h"
 #include "nsLinebreakConverter.h"
@@ -498,6 +501,7 @@ nsHTMLEditor::InsertHTMLWithContext(const nsAString & aInputString,
     }
 
     // Loop over the node list and paste the nodes:
+    PRBool bDidInsert = PR_FALSE;
     nsCOMPtr<nsIDOMNode> parentBlock, lastInsertNode, insertedContextParent;
     PRInt32 listCount = nodeList.Count();
     PRInt32 j;
@@ -508,7 +512,6 @@ nsHTMLEditor::InsertHTMLWithContext(const nsAString & aInputString,
       
     for (j=0; j<listCount; j++)
     {
-      PRBool bDidInsert = PR_FALSE;
       nsCOMPtr<nsIDOMNode> curNode = nodeList[j];
 
       NS_ENSURE_TRUE(curNode, NS_ERROR_FAILURE);
@@ -534,13 +537,12 @@ nsHTMLEditor::InsertHTMLWithContext(const nsAString & aInputString,
         while (child)
         {
           res = InsertNodeAtPoint(child, address_of(parentNode), &offsetOfNewNode, PR_TRUE);
-          if (NS_FAILED(res))
-            break;
-
-          bDidInsert = PR_TRUE;
-          lastInsertNode = child;
-          offsetOfNewNode++;
-
+          if (NS_SUCCEEDED(res)) 
+          {
+            bDidInsert = PR_TRUE;
+            lastInsertNode = child;
+            offsetOfNewNode++;
+          }
           curNode->GetFirstChild(getter_AddRefs(child));
         }
       }
@@ -577,12 +579,12 @@ nsHTMLEditor::InsertHTMLWithContext(const nsAString & aInputString,
               }
             } 
             res = InsertNodeAtPoint(child, address_of(parentNode), &offsetOfNewNode, PR_TRUE);
-            if (NS_FAILED(res))
-              break;
-
-            bDidInsert = PR_TRUE;
-            lastInsertNode = child;
-            offsetOfNewNode++;
+            if (NS_SUCCEEDED(res)) 
+            {
+              bDidInsert = PR_TRUE;
+              lastInsertNode = child;
+              offsetOfNewNode++;
+            }
           }
           else
           {
@@ -600,19 +602,18 @@ nsHTMLEditor::InsertHTMLWithContext(const nsAString & aInputString,
         while (child)
         {
           res = InsertNodeAtPoint(child, address_of(parentNode), &offsetOfNewNode, PR_TRUE);
-          if (NS_FAILED(res))
-            break;
-
-          bDidInsert = PR_TRUE;
-          lastInsertNode = child;
-          offsetOfNewNode++;
-
+          if (NS_SUCCEEDED(res)) 
+          {
+            bDidInsert = PR_TRUE;
+            lastInsertNode = child;
+            offsetOfNewNode++;
+          }
           curNode->GetFirstChild(getter_AddRefs(child));
         }
       }
-
-      if (!bDidInsert || NS_FAILED(res))
+      else
       {
+        
         // try to insert
         res = InsertNodeAtPoint(curNode, address_of(parentNode), &offsetOfNewNode, PR_TRUE);
         if (NS_SUCCEEDED(res)) 
@@ -620,9 +621,9 @@ nsHTMLEditor::InsertHTMLWithContext(const nsAString & aInputString,
           bDidInsert = PR_TRUE;
           lastInsertNode = curNode;
         }
-
-        // Assume failure means no legal parent in the document hierarchy,
-        // try again with the parent of curNode in the paste hierarchy.
+          
+        // assume failure means no legal parent in the document heirarchy.
+        // try again with the parent of curNode in the paste heirarchy.
         nsCOMPtr<nsIDOMNode> parent;
         while (NS_FAILED(res) && curNode)
         {
@@ -640,7 +641,7 @@ nsHTMLEditor::InsertHTMLWithContext(const nsAString & aInputString,
           curNode = parent;
         }
       }
-      if (lastInsertNode)
+      if (bDidInsert)
       {
         res = GetNodeLocation(lastInsertNode, address_of(parentNode), &offsetOfNewNode);
         NS_ENSURE_SUCCESS(res, res);
@@ -1144,7 +1145,6 @@ NS_IMETHODIMP nsHTMLEditor::PrepareHTMLTransferable(nsITransferable **aTransfera
       }
     }
     (*aTransferable)->AddDataFlavor(kUnicodeMime);
-    (*aTransferable)->AddDataFlavor(kMozTextInternal);
   }
   
   return NS_OK;
@@ -1335,8 +1335,7 @@ NS_IMETHODIMP nsHTMLEditor::InsertFromTransferable(nsITransferable *transferable
                                    aDoDeleteSelection);
       }
     }
-    else if (0 == nsCRT::strcmp(bestFlavor, kUnicodeMime) ||
-             0 == nsCRT::strcmp(bestFlavor, kMozTextInternal))
+    else if (0 == nsCRT::strcmp(bestFlavor, kUnicodeMime))
     {
       nsCOMPtr<nsISupportsString> textDataObj(do_QueryInterface(genericDataObj));
       if (textDataObj && len > 0)

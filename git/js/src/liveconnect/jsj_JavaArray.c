@@ -48,7 +48,6 @@
 #include <string.h>
 
 #include "jsj_private.h"      /* LiveConnect internals */
-#include "jsobj.h"
 
 /* Shorthands for ASCII (7-bit) decimal and hex conversion. */
 #define JS7_ISDEC(c)    (((c) >= '0') && ((c) <= '9'))
@@ -404,14 +403,10 @@ JavaArray_checkAccess(JSContext *cx, JSObject *obj, jsid id,
     }
 }
 
-extern JSObjectOps JavaArray_ops;
-
-static const JSObjectMap JavaArrayMap = { &JavaArray_ops };
-
 JSObjectOps JavaArray_ops = {
-    &JavaArrayMap,                  /* objectMap */
-
     /* Mandatory non-null function pointer members. */
+    jsj_wrapper_newObjectMap,       /* newObjectMap */
+    jsj_wrapper_destroyObjectMap,   /* destroyObjectMap */
     JavaArray_lookupProperty,
     JavaArray_defineProperty,
     JavaArray_getPropertyById,      /* getProperty */
@@ -428,8 +423,11 @@ JSObjectOps JavaArray_ops = {
     NULL,                           /* dropProperty */
     NULL,                           /* call */
     NULL,                           /* construct */
+    NULL,                           /* xdrObject */
     NULL,                           /* hasInstance */
-    NULL,                           /* trace */
+    NULL,                           /* setProto */
+    NULL,                           /* setParent */
+    NULL,                           /* mark */
     NULL,                           /* clear */
     jsj_wrapper_getRequiredSlot,    /* getRequiredSlot */
     jsj_wrapper_setRequiredSlot     /* setRequiredSlot */

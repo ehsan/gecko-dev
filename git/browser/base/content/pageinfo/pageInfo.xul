@@ -48,8 +48,6 @@
 <!DOCTYPE window [
   <!ENTITY % pageInfoDTD SYSTEM "chrome://browser/locale/pageInfo.dtd">
   %pageInfoDTD;
-  <!ENTITY % global SYSTEM "chrome://global/locale/global.dtd">
-  %global;
 ]>
 
 #ifdef XP_MACOSX
@@ -90,12 +88,10 @@
     <command id="cmd_popupDef"      oncommand="onCheckboxClick('popup');"/>
     <command id="cmd_cookieDef"     oncommand="onCheckboxClick('cookie');"/>
     <command id="cmd_installDef"    oncommand="onCheckboxClick('install');"/>
-    <command id="cmd_geoDef"        oncommand="onCheckboxClick('geo');"/>
     <command id="cmd_imageToggle"   oncommand="onRadioClick('image');"/>
     <command id="cmd_popupToggle"   oncommand="onRadioClick('popup');"/>
     <command id="cmd_cookieToggle"  oncommand="onRadioClick('cookie');"/>
     <command id="cmd_installToggle" oncommand="onRadioClick('install');"/>
-    <command id="cmd_geoToggle"     oncommand="onRadioClick('geo');"/>
   </commandset>
 
   <keyset>
@@ -116,9 +112,8 @@
     <menuitem id="menu_copy"      label="&copy.label;"      command="cmd_copy"      accesskey="&copy.accesskey;"/>
   </menupopup>
 
-  <windowdragbox id="topBar" class="viewGroupWrapper">
-    <radiogroup id="viewGroup" class="chromeclass-toolbar" orient="horizontal"
-                chromedir="&locale.dir;">
+  <stack id="topStackBar">
+    <radiogroup id="viewGroup" class="viewSelector chromeclass-toolbar" orient="horizontal">
       <radio id="generalTab"  label="&generalTab;"  accesskey="&generalTab.accesskey;"
            oncommand="showTab('general');"/>
       <radio id="mediaTab"    label="&mediaTab;"    accesskey="&mediaTab.accesskey;"
@@ -131,7 +126,7 @@
            oncommand="showTab('security');"/>
       <!-- Others added by overlay -->
     </radiogroup>
-  </windowdragbox>
+  </stack>
 
   <deck id="mainDeck" flex="1">
     <!-- General page information -->
@@ -216,7 +211,7 @@
     <!-- Media information -->
     <vbox id="mediaPanel">
       <tree id="imagetree" onselect="onImageSelect();" contextmenu="picontext"
-            ondragstart="onBeginLinkDrag(event,'image-address','image-alt')">
+            ondraggesture="onBeginLinkDrag(event,'image-address','image-alt')">
         <treecols>
           <treecol sortSeparators="true" persist="hidden width" flex="10"
                         width="10" id="image-address" label="&mediaAddress;"/>
@@ -292,7 +287,7 @@
             <image id="thepreviewimage"/>
           </hbox>
           <hbox id="brokenimagecontainer" pack="center" collapsed="true">
-            <image id="brokenimage" src="resource:///res/broken-image.png"/>
+            <image id="brokenimage" src="resource:///res/broken-image.gif"/>
           </hbox>
         </vbox>
       </vbox>
@@ -362,18 +357,6 @@
             </radiogroup>
           </hbox>
         </vbox>
-
-        <vbox>
-          <label value="&permGeo;" control="permGeoGroup geoRadioGroup"/>
-          <hbox id="permGeoGroup" role="group">
-            <checkbox id="geoDef" command="cmd_geoDef" label="&permAskAlways;"/>
-            <spacer flex="1"/>
-            <radiogroup id="geoRadioGroup" orient="horizontal">
-              <radio id="geo#1" command="cmd_geoToggle" label="&permAllow;"/>
-              <radio id="geo#2" command="cmd_geoToggle" label="&permBlock;"/>
-            </radiogroup>
-          </hbox>
-        </vbox>
       </vbox>
     </vbox>
 
@@ -415,7 +398,9 @@
           </rows>
         </grid>
         <spacer flex="1"/>
-        <hbox pack="end"><!-- Cert button -->
+        <hbox align="center"><!-- Cert button -->
+          <description id="security-view-text" class="fieldLabel"
+                 control="security-view-cert" flex="1"/>
           <button id="security-view-cert" label="&securityView.certView;"
                   accesskey="&securityView.accesskey;"
                   oncommand="security.viewCert();"/>

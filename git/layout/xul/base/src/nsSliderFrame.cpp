@@ -59,7 +59,7 @@
 #include "nsIDOMMouseEvent.h"
 #include "nsIDocument.h"
 #include "nsScrollbarButtonFrame.h"
-#include "nsISliderListener.h"
+#include "nsIScrollbarListener.h"
 #include "nsIScrollbarMediator.h"
 #include "nsIScrollbarFrame.h"
 #include "nsILookAndFeel.h"
@@ -86,6 +86,26 @@ GetContentOfBox(nsIBox *aBox)
   return content;
 }
 
+// Helper function to collect the "scroll to click" metric. Beware of
+// caching this, users expect to be able to change the system preference
+// and see the browser change its behavior immediately.
+static PRBool
+GetScrollToClick()
+{
+  PRBool scrollToClick = PR_FALSE;
+  nsresult rv;
+  nsCOMPtr<nsILookAndFeel> lookNFeel =
+    do_GetService("@mozilla.org/widget/lookandfeel;1", &rv);
+  if (NS_SUCCEEDED(rv)) {
+    PRInt32 scrollToClickMetric;
+    rv = lookNFeel->GetMetric(nsILookAndFeel::eMetric_ScrollToClick,
+                              scrollToClickMetric);
+    if (NS_SUCCEEDED(rv) && scrollToClickMetric == 1)
+      scrollToClick = PR_TRUE;
+  }
+  return scrollToClick;
+}
+
 nsIFrame*
 NS_NewSliderFrame (nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
@@ -95,8 +115,8 @@ NS_NewSliderFrame (nsIPresShell* aPresShell, nsStyleContext* aContext)
 nsSliderFrame::nsSliderFrame(nsIPresShell* aPresShell, nsStyleContext* aContext):
   nsBoxFrame(aPresShell, aContext),
   mCurPos(0),
-  mChange(0),
-  mUserChanged(PR_FALSE)
+  mScrollbarListener(nsnull),
+  mChange(0)
 {
 }
 
@@ -119,8 +139,6 @@ nsSliderFrame::Init(nsIContent*      aContent,
     gMiddlePref = nsContentUtils::GetBoolPref("middlemouse.scrollbarPosition");
     gSnapMultiplier = nsContentUtils::GetIntPref("slider.snapMultiplier");
   }
-
-  mCurPos = GetCurrentPosition(aContent);
 
   CreateViewForFrame(PresContext(), this, GetStyleContext(), PR_TRUE);
   return rv;
@@ -210,48 +228,6 @@ nsSliderFrame::GetIntegerAttribute(nsIContent* content, nsIAtom* atom, PRInt32 d
     return defaultValue;
 }
 
-class nsValueChangedRunnable : public nsRunnable
-{
-public:
-  nsValueChangedRunnable(nsISliderListener* aListener,
-                         nsIAtom* aWhich,
-                         PRInt32 aValue,
-                         PRBool aUserChanged)
-  : mListener(aListener), mWhich(aWhich),
-    mValue(aValue), mUserChanged(aUserChanged)
-  {}
-
-  NS_IMETHODIMP Run()
-  {
-    nsAutoString which;
-    mWhich->ToString(which);
-    return mListener->ValueChanged(which, mValue, mUserChanged);
-  }
-
-  nsCOMPtr<nsISliderListener> mListener;
-  nsCOMPtr<nsIAtom> mWhich;
-  PRInt32 mValue;
-  PRBool mUserChanged;
-};
-
-class nsDragStateChangedRunnable : public nsRunnable
-{
-public:
-  nsDragStateChangedRunnable(nsISliderListener* aListener,
-                             PRBool aDragBeginning)
-  : mListener(aListener),
-    mDragBeginning(aDragBeginning)
-  {}
-
-  NS_IMETHODIMP Run()
-  {
-    return mListener->DragStateChanged(mDragBeginning);
-  }
-
-  nsCOMPtr<nsISliderListener> mListener;
-  PRBool mDragBeginning;
-};
-
 NS_IMETHODIMP
 nsSliderFrame::AttributeChanged(PRInt32 aNameSpaceID,
                                 nsIAtom* aAttribute,
@@ -275,18 +251,6 @@ nsSliderFrame::AttributeChanged(PRInt32 aNameSpaceID,
       PRInt32 current = GetCurrentPosition(scrollbar);
       PRInt32 min = GetMinPosition(scrollbar);
       PRInt32 max = GetMaxPosition(scrollbar);
-
-      // inform the parent <scale> that the minimum or maximum changed
-      nsIFrame* parent = GetParent();
-      if (parent) {
-        nsCOMPtr<nsISliderListener> sliderListener = do_QueryInterface(parent->GetContent());
-        if (sliderListener) {
-          nsContentUtils::AddScriptRunner(
-            new nsValueChangedRunnable(sliderListener, aAttribute,
-                                       aAttribute == nsGkAtoms::minpos ? min : max, PR_FALSE));
-        }
-      }
-
       if (current < min || current > max)
       {
         if (current < min || max < min)
@@ -295,7 +259,8 @@ nsSliderFrame::AttributeChanged(PRInt32 aNameSpaceID,
             current = max;
 
         // set the new position and notify observers
-        nsIScrollbarFrame* scrollbarFrame = do_QueryFrame(scrollbarBox);
+        nsIScrollbarFrame* scrollbarFrame;
+        CallQueryInterface(scrollbarBox, &scrollbarFrame);
         if (scrollbarFrame) {
           nsIScrollbarMediator* mediator = scrollbarFrame->GetScrollbarMediator();
           if (mediator) {
@@ -486,11 +451,6 @@ nsSliderFrame::HandleEvent(nsPresContext* aPresContext,
                                       nsGUIEvent* aEvent,
                                       nsEventStatus* aEventStatus)
 {
-  NS_ENSURE_ARG_POINTER(aEventStatus);
-  if (nsEventStatus_eConsumeNoDefault == *aEventStatus) {
-    return NS_OK;
-  }
-
   nsIBox* scrollbarBox = GetScrollbar();
   nsCOMPtr<nsIContent> scrollbar;
   scrollbar = GetContentOfBox(scrollbarBox);
@@ -577,7 +537,7 @@ nsSliderFrame::HandleEvent(nsPresContext* aPresContext,
               // On Mac the option key inverts the scroll-to-here preference.
               (static_cast<nsMouseEvent*>(aEvent)->isAlt != GetScrollToClick())) ||
 #else
-              (static_cast<nsMouseEvent*>(aEvent)->isShift != GetScrollToClick())) ||
+              static_cast<nsMouseEvent*>(aEvent)->isShift) ||
 #endif
              (gMiddlePref && aEvent->message == NS_MOUSE_BUTTON_DOWN &&
               static_cast<nsMouseEvent*>(aEvent)->button ==
@@ -621,40 +581,7 @@ nsSliderFrame::HandleEvent(nsPresContext* aPresContext,
   return nsFrame::HandleEvent(aPresContext, aEvent, aEventStatus);
 }
 
-// Helper function to collect the "scroll to click" metric. Beware of
-// caching this, users expect to be able to change the system preference
-// and see the browser change its behavior immediately.
-PRBool
-nsSliderFrame::GetScrollToClick()
-{
-  // if there is no parent scrollbar, check the movetoclick attribute. If set
-  // to true, always scroll to the click point. If false, never do this.
-  // Otherwise, the default is true on Mac and false on other platforms.
-  if (GetScrollbar() == this)
-#ifdef XP_MACOSX
-    return !mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::movetoclick,
-                                   nsGkAtoms::_false, eCaseMatters);
- 
-  // if there was no scrollbar, always scroll on click
-  PRBool scrollToClick = PR_FALSE;
-  nsresult rv;
-  nsCOMPtr<nsILookAndFeel> lookNFeel =
-    do_GetService("@mozilla.org/widget/lookandfeel;1", &rv);
-  if (NS_SUCCEEDED(rv)) {
-    PRInt32 scrollToClickMetric;
-    rv = lookNFeel->GetMetric(nsILookAndFeel::eMetric_ScrollToClick,
-                              scrollToClickMetric);
-    if (NS_SUCCEEDED(rv) && scrollToClickMetric == 1)
-      scrollToClick = PR_TRUE;
-  }
-  return scrollToClick;
 
-#else
-    return mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::movetoclick,
-                                  nsGkAtoms::_true, eCaseMatters);
-  return PR_FALSE;
-#endif
-}
 
 nsIBox*
 nsSliderFrame::GetScrollbar()
@@ -683,6 +610,9 @@ nsSliderFrame::PageUpDown(nscoord change)
   if (mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::dir,
                             nsGkAtoms::reverse, eCaseMatters))
     change = -change;
+
+  if (mScrollbarListener)
+    mScrollbarListener->PagedUpDown(); // Let the listener decide our increment.
 
   nscoord pageIncrement = GetPageIncrement(scrollbar);
   PRInt32 curpos = GetCurrentPosition(scrollbar);
@@ -756,17 +686,10 @@ nsSliderFrame::CurrentPositionChanged(nsPresContext* aPresContext,
   // Redraw the scrollbar
   InvalidateWithFlags(clientRect, aImmediateRedraw ? INVALIDATE_IMMEDIATE : 0);
 
-  mCurPos = curpospx;
+  if (mScrollbarListener)
+    mScrollbarListener->PositionChanged(aPresContext, mCurPos, curpospx);
 
-  // inform the parent <scale> if it exists that the value changed
-  nsIFrame* parent = GetParent();
-  if (parent) {
-    nsCOMPtr<nsISliderListener> sliderListener = do_QueryInterface(parent->GetContent());
-    if (sliderListener) {
-      nsContentUtils::AddScriptRunner(
-        new nsValueChangedRunnable(sliderListener, nsGkAtoms::curpos, mCurPos, mUserChanged));
-    }
-  }
+  mCurPos = curpospx;
 
   return NS_OK;
 }
@@ -844,10 +767,9 @@ nsSliderFrame::SetCurrentPositionInternal(nsIContent* aScrollbar, PRInt32 aNewPo
 {
   nsCOMPtr<nsIContent> scrollbar = aScrollbar;
   nsIBox* scrollbarBox = GetScrollbar();
+  nsIScrollbarFrame* scrollbarFrame;
+  CallQueryInterface(scrollbarBox, &scrollbarFrame);
 
-  mUserChanged = PR_TRUE;
-
-  nsIScrollbarFrame* scrollbarFrame = do_QueryFrame(scrollbarBox);
   if (scrollbarFrame) {
     // See if we have a mediator.
     nsIScrollbarMediator* mediator = scrollbarFrame->GetScrollbarMediator();
@@ -865,13 +787,11 @@ nsSliderFrame::SetCurrentPositionInternal(nsIContent* aScrollbar, PRInt32 aNewPo
             CurrentPositionChanged(frame->PresContext(), aImmediateRedraw);
         }
       }
-      mUserChanged = PR_FALSE;
       return;
     }
   }
 
   UpdateAttribute(scrollbar, aNewPos, PR_TRUE, aIsSmooth);
-  mUserChanged = PR_FALSE;
 
 #ifdef DEBUG_SLIDER
   printf("Current Pos=%d\n",aNewPos);
@@ -942,6 +862,11 @@ nsSliderFrame::MouseDown(nsIDOMEvent* aMouseEvent)
   if (button != 0) {
     scrollToClick = PR_TRUE;
   }
+
+  // Check if we should scroll-to-click regardless of the pressed button and
+  // modifiers
+  if (!scrollToClick)
+    scrollToClick = GetScrollToClick();
 #endif
 
   nsPoint pt =  nsLayoutUtils::GetDOMEventCoordinatesRelativeTo(mouseEvent,
@@ -1006,16 +931,6 @@ nsSliderFrame::MouseUp(nsIDOMEvent* aMouseEvent)
 void
 nsSliderFrame::DragThumb(PRBool aGrabMouseEvents)
 {
-  // inform the parent <scale> that a drag is beginning or ending
-  nsIFrame* parent = GetParent();
-  if (parent) {
-    nsCOMPtr<nsISliderListener> sliderListener = do_QueryInterface(parent->GetContent());
-    if (sliderListener) {
-      nsContentUtils::AddScriptRunner(
-        new nsDragStateChangedRunnable(sliderListener, aGrabMouseEvents));
-    }
-  }
-
   // get its view
   nsIView* view = GetView();
 
@@ -1090,7 +1005,7 @@ nsSliderFrame::HandlePress(nsPresContext* aPresContext,
   // On Mac the option key inverts the scroll-to-here preference.
   if (((nsMouseEvent *)aEvent)->isAlt != GetScrollToClick())
 #else
-  if (((nsMouseEvent *)aEvent)->isShift != GetScrollToClick())
+  if (((nsMouseEvent *)aEvent)->isShift)
 #endif
     return NS_OK;
 
@@ -1178,6 +1093,13 @@ nsSliderFrame::EnsureOrient()
       mState &= ~NS_STATE_IS_HORIZONTAL;
 }
 
+
+void
+nsSliderFrame::SetScrollbarListener(nsIScrollbarListener* aListener)
+{
+  // Don't addref/release this, since it's actually a frame.
+  mScrollbarListener = aListener;
+}
 
 void nsSliderFrame::Notify(void)
 {

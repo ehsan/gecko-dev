@@ -128,7 +128,7 @@ Events.prototype = {
     this._listeners = this._listeners.filter(hasFilter);
 
     function hasFilter(element) {
-      return (element.event != aEvent) || (element.listener != aListener);
+      return element.event != aEvent && element.listener != aListener;
     }
   },
 
@@ -616,6 +616,7 @@ extApplication.prototype = {
   // for nsIObserver
   observe: function app_observe(aSubject, aTopic, aData) {
     if (aTopic == "app-startup") {
+      this._extensions = new Extensions();
       this.events.dispatch("load", "application");
     }
     else if (aTopic == "final-ui-startup") {
@@ -674,9 +675,6 @@ extApplication.prototype = {
   },
 
   get extensions() {
-    if (this._extensions == null)
-      this._extensions = new Extensions();
-
     return this._extensions;
   },
 
@@ -696,7 +694,7 @@ extApplication.prototype = {
     os.notifyObservers(cancelQuit, "quit-application-requested", null);
     if (cancelQuit.data)
       return false; // somebody canceled our quit request
-
+    
     let appStartup = Components.classes['@mozilla.org/toolkit/app-startup;1']
                                .getService(Components.interfaces.nsIAppStartup);
     appStartup.quit(aFlags);

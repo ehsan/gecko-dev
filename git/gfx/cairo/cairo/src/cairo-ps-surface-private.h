@@ -67,16 +67,15 @@ typedef struct cairo_ps_surface {
     double height;
     int bbox_x1, bbox_y1, bbox_x2, bbox_y2;
     cairo_matrix_t cairo_to_ps;
-
-    /* XXX These 3 are used as temporary storage whilst emitting patterns */
     cairo_image_surface_t *image;
-    cairo_image_surface_t *acquired_image;
     void *image_extra;
-
     cairo_bool_t use_string_datasource;
 
     cairo_bool_t current_pattern_is_solid_color;
-    cairo_color_t current_color;
+    double current_color_red;
+    double current_color_green;
+    double current_color_blue;
+    double current_color_alpha;
 
     int num_pages;
 

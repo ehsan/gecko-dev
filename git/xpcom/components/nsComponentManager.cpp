@@ -84,8 +84,6 @@
 #include "xptinfo.h" // this after nsISupports, to pick up IID so that xpt stuff doesn't try to define it itself...
 #include "nsThreadUtils.h"
 #include "prthread.h"
-#include "private/pprthred.h"
-#include "nsTArray.h"
 
 #include "nsInt64.h"
 #include "nsManifestLineReader.h"
@@ -234,10 +232,10 @@ ArenaStrdup(const char *s, PLArenaPool *arena)
 // Hashtable Callbacks
 ////////////////////////////////////////////////////////////////////////////////
 
-PRBool
+PRBool PR_CALLBACK
 nsFactoryEntry_Destroy(nsHashKey *aKey, void *aData, void* closure);
 
-static PLDHashNumber
+PR_STATIC_CALLBACK(PLDHashNumber)
 factory_HashKey(PLDHashTable *aTable, const void *aKey)
 {
     const nsCID *cidp = reinterpret_cast<const nsCID*>(aKey);
@@ -245,7 +243,7 @@ factory_HashKey(PLDHashTable *aTable, const void *aKey)
     return cidp->m0;
 }
 
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 factory_MatchEntry(PLDHashTable *aTable, const PLDHashEntryHdr *aHdr,
                    const void *aKey)
 {
@@ -256,7 +254,7 @@ factory_MatchEntry(PLDHashTable *aTable, const PLDHashEntryHdr *aHdr,
     return (entry->mFactoryEntry->mCid).Equals(*cidp);
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 factory_ClearEntry(PLDHashTable *aTable, PLDHashEntryHdr *aHdr)
 {
     nsFactoryTableEntry* entry = static_cast<nsFactoryTableEntry*>(aHdr);
@@ -276,7 +274,7 @@ static const PLDHashTableOps factory_DHashTableOps = {
     PL_DHashFinalizeStub,
 };
 
-static void
+PR_STATIC_CALLBACK(void)
 contractID_ClearEntry(PLDHashTable *aTable, PLDHashEntryHdr *aHdr)
 {
     nsContractIDTableEntry* entry = static_cast<nsContractIDTableEntry*>(aHdr);
@@ -330,9 +328,9 @@ private:
     ~PLDHashTableEnumeratorImpl();
     void ReleaseElements();
 
-    nsTArray<nsISupports*> mElements;
-    PRInt32                mCount, mCurrent;
-    PRMonitor*             mMonitor;
+    nsVoidArray   mElements;
+    PRInt32       mCount, mCurrent;
+    PRMonitor*    mMonitor;
 
     struct Closure {
         PRBool                        succeeded;
@@ -341,14 +339,14 @@ private:
         PLDHashTableEnumeratorImpl    *impl;
     };
 
-    static PLDHashOperator Enumerator(PLDHashTable *table,
-                                      PLDHashEntryHdr *hdr,
-                                      PRUint32 number,
-                                      void *data);
+    static PLDHashOperator PR_CALLBACK Enumerator(PLDHashTable *table,
+                                                  PLDHashEntryHdr *hdr,
+                                                  PRUint32 number,
+                                                  void *data);
 };
 
 // static
-PLDHashOperator
+PLDHashOperator PR_CALLBACK
 PLDHashTableEnumeratorImpl::Enumerator(PLDHashTable *table,
                                        PLDHashEntryHdr *hdr,
                                        PRUint32 number,
@@ -402,7 +400,9 @@ void
 PLDHashTableEnumeratorImpl::ReleaseElements()
 {
     for (PRInt32 i = 0; i < mCount; i++) {
-        NS_IF_RELEASE(mElements[i]);
+        nsISupports *supports = reinterpret_cast<nsISupports *>
+                                                (mElements[i]);
+        NS_IF_RELEASE(supports);
     }
 }
 
@@ -475,7 +475,7 @@ PLDHashTableEnumeratorImpl::CurrentItem(nsISupports **retval)
     if (!mCount || mCurrent == mCount)
         return NS_ERROR_FAILURE;
 
-    *retval = mElements[mCurrent];
+    *retval = reinterpret_cast<nsISupports *>(mElements[mCurrent]);
     if (*retval)
         NS_ADDREF(*retval);
 
@@ -1083,7 +1083,7 @@ struct PersistentWriterArgs
     nsTArray<nsLoaderdata> *mLoaderData;
 };
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 ContractIDWriter(PLDHashTable *table,
                  PLDHashEntryHdr *hdr,
                  PRUint32 number,
@@ -1107,7 +1107,7 @@ ContractIDWriter(PLDHashTable *table,
     return PL_DHASH_NEXT;
 }
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 ClassIDWriter(PLDHashTable *table,
               PLDHashEntryHdr *hdr,
               PRUint32 number,
@@ -1163,9 +1163,9 @@ ClassIDWriter(PLDHashTable *table,
                (location   ? location   : ""));
 
     if (contractID)
-        NS_Free(contractID);
+        PR_Free(contractID);
     if (className)
-        NS_Free(className);
+        PR_Free(className);
 
     return PL_DHASH_NEXT;
 }
@@ -1298,7 +1298,7 @@ nsComponentManagerImpl::HashContractID(const char *aContractID,
     if(!aContractID || !aContractIDLen)
         return NS_ERROR_NULL_POINTER;
 
-    NS_ABORT_IF_FALSE(PR_InMonitor(mMon), "called from outside mMon");
+    nsAutoMonitor mon(mMon);
 
     nsContractIDTableEntry* contractIDTableEntry =
         static_cast<nsContractIDTableEntry*>
@@ -1426,7 +1426,7 @@ nsComponentManagerImpl::GetClassObject(const nsCID &aClass, const nsIID &aIID,
         char *buf = aClass.ToString();
         PR_LogPrint("nsComponentManager: GetClassObject(%s)", buf);
         if (buf)
-            NS_Free(buf);
+            PR_Free(buf);
     }
 #endif
 
@@ -1449,9 +1449,6 @@ nsComponentManagerImpl::GetClassObjectByContractID(const char *contractID,
                                                    const nsIID &aIID,
                                                    void **aResult)
 {
-    NS_ENSURE_ARG_POINTER(aResult);
-    NS_ENSURE_ARG_POINTER(contractID);
-
     nsresult rv;
 
     nsCOMPtr<nsIFactory> factory;
@@ -1462,6 +1459,8 @@ nsComponentManagerImpl::GetClassObjectByContractID(const char *contractID,
         PR_LogPrint("nsComponentManager: GetClassObject(%s)", contractID);
     }
 #endif
+
+    PR_ASSERT(aResult != nsnull);
 
     rv = FindFactory(contractID, strlen(contractID), getter_AddRefs(factory));
     if (NS_FAILED(rv)) return rv;
@@ -1483,8 +1482,13 @@ nsComponentManagerImpl::GetClassObjectByContractID(const char *contractID,
 NS_IMETHODIMP
 nsComponentManagerImpl::ContractIDToClassID(const char *aContractID, nsCID *aClass)
 {
-    NS_ENSURE_ARG_POINTER(aContractID);
-    NS_ENSURE_ARG_POINTER(aClass);
+    NS_PRECONDITION(aContractID != nsnull, "null ptr");
+    if (!aContractID)
+        return NS_ERROR_NULL_POINTER;
+
+    NS_PRECONDITION(aClass != nsnull, "null ptr");
+    if (!aClass)
+        return NS_ERROR_NULL_POINTER;
 
     nsresult rv = NS_ERROR_FACTORY_NOT_REGISTERED;
 
@@ -1502,7 +1506,7 @@ nsComponentManagerImpl::ContractIDToClassID(const char *aContractID, nsCID *aCla
                ("nsComponentManager: ContractIDToClassID(%s)->%s", aContractID,
                 NS_SUCCEEDED(rv) ? buf : "[FAILED]"));
         if (buf)
-            NS_Free(buf);
+            PR_Free(buf);
     }
 #endif
     return rv;
@@ -1532,7 +1536,7 @@ nsComponentManagerImpl::CLSIDToContractID(const nsCID &aClass,
                ("nsComponentManager: CLSIDToContractID(%s)->%s", buf,
                 NS_SUCCEEDED(rv) ? *aContractID : "[FAILED]"));
         if (buf)
-            NS_Free(buf);
+            PR_Free(buf);
     }
 #endif
     return rv;
@@ -1614,7 +1618,7 @@ nsComponentManagerImpl::CreateInstance(const nsCID &aClass,
                ("nsComponentManager: CreateInstance(%s) %s", buf,
                 NS_SUCCEEDED(rv) ? "succeeded" : "FAILED"));
         if (buf)
-            NS_Free(buf);
+            PR_Free(buf);
     }
 #endif
 
@@ -1636,8 +1640,6 @@ nsComponentManagerImpl::CreateInstanceByContractID(const char *aContractID,
                                                    const nsIID &aIID,
                                                    void **aResult)
 {
-    NS_ENSURE_ARG_POINTER(aContractID);
-
     // test this first, since there's no point in creating a component during
     // shutdown -- whether it's available or not would depend on the order it
     // occurs in the list
@@ -1703,7 +1705,7 @@ nsComponentManagerImpl::CreateInstanceByContractID(const char *aContractID,
 
 // Service Manager Impl
 static
-PLDHashOperator
+PLDHashOperator PR_CALLBACK
 FreeServiceFactoryEntryEnumerate(PLDHashTable *aTable,
                                  PLDHashEntryHdr *aHdr,
                                  PRUint32 aNumber,
@@ -1720,7 +1722,7 @@ FreeServiceFactoryEntryEnumerate(PLDHashTable *aTable,
 }
 
 static
-PLDHashOperator
+PLDHashOperator PR_CALLBACK
 FreeServiceContractIDEntryEnumerate(PLDHashTable *aTable,
                                     PLDHashEntryHdr *aHdr,
                                     PRUint32 aNumber,
@@ -1819,6 +1821,7 @@ nsComponentManagerImpl::GetService(const nsCID& aClass,
 
     nsAutoMonitor mon(mMon);
 
+    nsIDKey key(aClass);
     nsFactoryEntry* entry = nsnull;
     nsFactoryTableEntry* factoryTableEntry =
         static_cast<nsFactoryTableEntry*>
@@ -1997,7 +2000,6 @@ NS_IMETHODIMP
 nsComponentManagerImpl::RegisterService(const char* aContractID,
                                         nsISupports* aService)
 {
-    NS_ENSURE_ARG_POINTER(aContractID);
 
     nsAutoMonitor mon(mMon);
 
@@ -2464,7 +2466,7 @@ nsComponentManagerImpl::RegisterFactory(const nsCID &aClass,
                ("nsComponentManager: RegisterFactory(%s, %s)", buf,
                 (aContractID ? aContractID : "(null)")));
         if (buf)
-            NS_Free(buf);
+            PR_Free(buf);
     }
 #endif
     nsFactoryEntry *entry = nsnull;
@@ -2613,6 +2615,7 @@ nsComponentManagerImpl::RegisterComponentCommon(const nsCID &aClass,
 {
     nsresult rv;
 
+    nsIDKey key(aClass);
     nsAutoMonitor mon(mMon);
 
     nsFactoryEntry *entry = GetFactoryEntry(aClass);
@@ -2629,7 +2632,7 @@ nsComponentManagerImpl::RegisterComponentCommon(const nsCID &aClass,
                 contractID ? contractID : "(null)",
                 aRegistryName, aType));
         if (buf)
-            NS_Free(buf);
+            PR_Free(buf);
     }
 #endif
     if (entry && !aReplace) {
@@ -2786,7 +2789,7 @@ typedef struct
     nsIFactory* factory;
 } UnregisterConditions;
 
-static PLDHashOperator
+static PLDHashOperator PR_CALLBACK
 DeleteFoundCIDs(PLDHashTable *aTable,
                 PLDHashEntryHdr *aHdr,
                 PRUint32 aNumber,
@@ -2827,7 +2830,7 @@ nsComponentManagerImpl::UnregisterFactory(const nsCID &aClass,
         PR_LOG(nsComponentManagerLog, PR_LOG_WARNING,
                ("nsComponentManager: UnregisterFactory(%s)", buf));
         if (buf)
-            NS_Free(buf);
+            PR_Free(buf);
     }
 #endif
     nsFactoryEntry *old;
@@ -3456,7 +3459,6 @@ NS_IMETHODIMP
 nsComponentManagerImpl::IsContractIDRegistered(const char *aClass,
                                                PRBool *_retval)
 {
-    NS_ENSURE_ARG_POINTER(aClass);
     nsFactoryEntry *entry = GetFactoryEntry(aClass, strlen(aClass));
 
     if (entry)

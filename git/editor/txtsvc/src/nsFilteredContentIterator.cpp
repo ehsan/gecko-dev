@@ -46,7 +46,6 @@
 
 #include "nsIDOMNode.h"
 #include "nsIDOMRange.h"
-#include "nsIRange.h"
 
 //------------------------------------------------------------
 nsFilteredContentIterator::nsFilteredContentIterator(nsITextServicesFilter* aFilter) :
@@ -69,7 +68,7 @@ NS_IMPL_ISUPPORTS1(nsFilteredContentIterator, nsIContentIterator)
 
 //------------------------------------------------------------
 nsresult
-nsFilteredContentIterator::Init(nsINode* aRoot)
+nsFilteredContentIterator::Init(nsIContent* aRoot)
 {
   NS_ENSURE_TRUE(mPreIterator, NS_ERROR_FAILURE);
   NS_ENSURE_TRUE(mIterator, NS_ERROR_FAILURE);
@@ -112,18 +111,11 @@ nsFilteredContentIterator::Init(nsIDOMRange* aRange)
   return mIterator->Init(domRange);
 }
 
-nsresult
-nsFilteredContentIterator::Init(nsIRange* aRange)
-{
-  nsCOMPtr<nsIDOMRange> domRange = do_QueryInterface(aRange);
-  return Init(domRange);
-}
-
 //------------------------------------------------------------
 nsresult 
 nsFilteredContentIterator::SwitchDirections(PRPackedBool aChangeToForward)
 {
-  nsINode *node = mCurrentIterator->GetCurrentNode();
+  nsIContent *node = mCurrentIterator->GetCurrentNode();
 
   if (aChangeToForward) {
     mCurrentIterator = mPreIterator;
@@ -167,8 +159,8 @@ nsFilteredContentIterator::First()
     return;
   }
 
-  nsINode *currentNode = mCurrentIterator->GetCurrentNode();
-  nsCOMPtr<nsIDOMNode> node(do_QueryInterface(currentNode));
+  nsIContent *currentContent = mCurrentIterator->GetCurrentNode();
+  nsCOMPtr<nsIDOMNode> node(do_QueryInterface(currentContent));
 
   PRPackedBool didCross;
   CheckAdvNode(node, didCross, eForward);
@@ -198,8 +190,8 @@ nsFilteredContentIterator::Last()
     return;
   }
 
-  nsINode *currentNode = mCurrentIterator->GetCurrentNode();
-  nsCOMPtr<nsIDOMNode> node(do_QueryInterface(currentNode));
+  nsIContent *currentContent = mCurrentIterator->GetCurrentNode();
+  nsCOMPtr<nsIDOMNode> node(do_QueryInterface(currentContent));
 
   PRPackedBool didCross;
   CheckAdvNode(node, didCross, eBackward);
@@ -392,9 +384,9 @@ nsFilteredContentIterator::Next()
 
   // If we can't get the current node then 
   // don't check to see if we can skip it
-  nsINode *currentNode = mCurrentIterator->GetCurrentNode();
+  nsIContent *currentContent = mCurrentIterator->GetCurrentNode();
 
-  nsCOMPtr<nsIDOMNode> node(do_QueryInterface(currentNode));
+  nsCOMPtr<nsIDOMNode> node(do_QueryInterface(currentContent));
   CheckAdvNode(node, mDidSkip, eForward);
 }
 
@@ -424,13 +416,13 @@ nsFilteredContentIterator::Prev()
 
   // If we can't get the current node then 
   // don't check to see if we can skip it
-  nsINode *currentNode = mCurrentIterator->GetCurrentNode();
+  nsIContent *currentContent = mCurrentIterator->GetCurrentNode();
 
-  nsCOMPtr<nsIDOMNode> node(do_QueryInterface(currentNode));
+  nsCOMPtr<nsIDOMNode> node(do_QueryInterface(currentContent));
   CheckAdvNode(node, mDidSkip, eBackward);
 }
 
-nsINode *
+nsIContent *
 nsFilteredContentIterator::GetCurrentNode()
 {
   if (mIsOutOfRange || !mCurrentIterator) {
@@ -451,7 +443,7 @@ nsFilteredContentIterator::IsDone()
 }
 
 nsresult
-nsFilteredContentIterator::PositionAt(nsINode* aCurNode)
+nsFilteredContentIterator::PositionAt(nsIContent* aCurNode)
 {
   NS_ENSURE_TRUE(mCurrentIterator, NS_ERROR_FAILURE);
   mIsOutOfRange = PR_FALSE;

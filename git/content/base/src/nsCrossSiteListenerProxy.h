@@ -35,15 +35,15 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef nsCrossSiteListenerProxy_h__
-#define nsCrossSiteListenerProxy_h__
-
 #include "nsIStreamListener.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsCOMPtr.h"
 #include "nsString.h"
 #include "nsIURI.h"
 #include "nsTArray.h"
+#include "nsIContentSink.h"
+#include "nsIXMLContentSink.h"
+#include "nsIExpatSink.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIChannelEventSink.h"
 
@@ -78,12 +78,9 @@ public:
   NS_DECL_NSIINTERFACEREQUESTOR
   NS_DECL_NSICHANNELEVENTSINK
 
-  // Must be called at startup.
-  static void Startup();
-
 private:
   nsresult UpdateChannel(nsIChannel* aChannel);
-  nsresult CheckRequestApproved(nsIRequest* aRequest, PRBool aIsRedirect);
+  nsresult CheckRequestApproved(nsIRequest* aRequest);
 
   nsCOMPtr<nsIStreamListener> mOuterListener;
   nsCOMPtr<nsIPrincipal> mRequestingPrincipal;
@@ -95,5 +92,3 @@ private:
   nsCString mPreflightMethod;
   nsTArray<nsCString> mPreflightHeaders;
 };
-
-#endif

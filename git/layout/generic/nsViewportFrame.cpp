@@ -119,9 +119,9 @@ ViewportFrame::AppendFrames(nsIAtom*        aListName,
     rv = mFixedContainer.AppendFrames(this, aListName, aFrameList);
   }
   else {
-    NS_ASSERTION(!aListName, "unexpected child list");
-    NS_ASSERTION(!GetFirstChild(nsnull), "Shouldn't have any kids!");
-    rv = nsContainerFrame::AppendFrames(aListName, aFrameList);
+    // We only expect incremental changes for our fixed frames
+    NS_ERROR("unexpected child list");
+    rv = NS_ERROR_INVALID_ARG;
   }
 
   return rv;
@@ -138,9 +138,9 @@ ViewportFrame::InsertFrames(nsIAtom*        aListName,
     rv = mFixedContainer.InsertFrames(this, aListName, aPrevFrame, aFrameList);
   }
   else {
-    NS_ASSERTION(!aListName, "unexpected child list");
-    NS_ASSERTION(!GetFirstChild(nsnull), "Shouldn't have any kids!");
-    rv = nsContainerFrame::InsertFrames(aListName, aPrevFrame, aFrameList);
+    // We only expect incremental changes for our fixed frames
+    NS_ERROR("unexpected child list");
+    rv = NS_ERROR_INVALID_ARG;
   }
 
   return rv;
@@ -156,8 +156,9 @@ ViewportFrame::RemoveFrame(nsIAtom*        aListName,
     rv = mFixedContainer.RemoveFrame(this, aListName, aOldFrame);
   }
   else {
-    NS_ASSERTION(!aListName, "unexpected child list");
-    rv = nsContainerFrame::RemoveFrame(aListName, aOldFrame);
+    // We only expect incremental changes for our fixed frames
+    NS_ERROR("unexpected child list");
+    rv = NS_ERROR_INVALID_ARG;
   }
 
   return rv;
@@ -215,7 +216,7 @@ ViewportFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext)
 }
 
 nsPoint
-ViewportFrame::AdjustReflowStateForScrollbars(nsHTMLReflowState* aReflowState) const
+ ViewportFrame::AdjustReflowStateForScrollbars(nsHTMLReflowState* aReflowState) const
 {
   // Calculate how much room is available for fixed frames. That means
   // determining if the viewport is scrollable and whether the vertical and/or
@@ -223,22 +224,23 @@ ViewportFrame::AdjustReflowStateForScrollbars(nsHTMLReflowState* aReflowState) c
 
   // Get our prinicpal child frame and see if we're scrollable
   nsIFrame* kidFrame = mFrames.FirstChild();
-  nsIScrollableFrame *scrollingFrame = do_QueryFrame(kidFrame);
+  nsCOMPtr<nsIScrollableFrame> scrollingFrame(do_QueryInterface(kidFrame));
 
   if (scrollingFrame) {
     nsMargin scrollbars = scrollingFrame->GetActualScrollbarSizes();
     aReflowState->SetComputedWidth(aReflowState->ComputedWidth() -
                                    scrollbars.LeftRight());
     aReflowState->availableWidth -= scrollbars.LeftRight();
-    aReflowState->SetComputedHeightWithoutResettingResizeFlags(
-      aReflowState->ComputedHeight() - scrollbars.TopBottom());
+    aReflowState->SetComputedHeight(aReflowState->ComputedHeight() -
+                                    scrollbars.TopBottom());
+    // XXX why don't we also adjust "aReflowState->availableHeight"?
     return nsPoint(scrollbars.left, scrollbars.top);
   }
   return nsPoint(0, 0);
 }
 
 NS_IMETHODIMP
-ViewportFrame::Reflow(nsPresContext*           aPresContext,
+ViewportFrame::Reflow(nsPresContext*          aPresContext,
                       nsHTMLReflowMetrics&     aDesiredSize,
                       const nsHTMLReflowState& aReflowState,
                       nsReflowStatus&          aStatus)
@@ -276,7 +278,7 @@ ViewportFrame::Reflow(nsPresContext*           aPresContext,
                                          kidFrame, availableSpace);
 
       // Reflow the frame
-      kidReflowState.SetComputedHeight(aReflowState.ComputedHeight());
+      kidReflowState.SetComputedHeight(aReflowState.availableHeight);
       rv = ReflowChild(kidFrame, aPresContext, kidDesiredSize, kidReflowState,
                        0, 0, 0, aStatus);
       kidHeight = kidDesiredSize.height;
@@ -294,8 +296,8 @@ ViewportFrame::Reflow(nsPresContext*           aPresContext,
   aDesiredSize.width = aReflowState.availableWidth;
   // Being flowed initially at an unconstrained height means we should
   // return our child's intrinsic size.
-  aDesiredSize.height = aReflowState.ComputedHeight() != NS_UNCONSTRAINEDSIZE
-                          ? aReflowState.ComputedHeight()
+  aDesiredSize.height = aReflowState.availableHeight != NS_UNCONSTRAINEDSIZE
+                          ? aReflowState.availableHeight
                           : kidHeight;
 
   // Make a copy of the reflow state and change the computed width and height

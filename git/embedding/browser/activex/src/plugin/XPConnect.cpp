@@ -376,7 +376,7 @@ nsScriptablePeer::ConvertVariants(VARIANT *aIn, nsIVariant **aOut)
         if (hlib)
         {
             nsIComponentManager *pManager = nsnull; // A frozen interface, even in 1.0.x
-            typedef nsresult (*Moz1XGetComponentManagerFunc)(nsIComponentManager* *result);
+            typedef nsresult (PR_CALLBACK *Moz1XGetComponentManagerFunc)(nsIComponentManager* *result);
             Moz1XGetComponentManagerFunc compMgr = (Moz1XGetComponentManagerFunc)
                 ::GetProcAddress(hlib, "NS_GetComponentManager");
             if (compMgr)
@@ -452,7 +452,7 @@ nsScriptablePeer::InternalInvoke(const char *aMethod, unsigned int aNumArgs, nsI
     }
 
     USES_CONVERSION;
-    OLECHAR* szMember = A2OLE(aMethod);
+    OLECHAR FAR* szMember = A2OLE(aMethod);
     hr = disp->GetIDsOfNames(IID_NULL, &szMember, 1, LOCALE_USER_DEFAULT, &dispid);
     if (FAILED(hr))
     { 
@@ -562,7 +562,7 @@ nsScriptablePeer::GetProperty(const char *propertyName, nsIVariant **_retval)
         return NPERR_GENERIC_ERROR; 
     }
     USES_CONVERSION;
-    OLECHAR* szMember = A2OLE(propertyName);
+    OLECHAR FAR* szMember = A2OLE(propertyName);
     hr = disp->GetIDsOfNames(IID_NULL, &szMember, 1, LOCALE_USER_DEFAULT, &dispid);
     if (FAILED(hr))
     { 
@@ -604,7 +604,7 @@ nsScriptablePeer::SetProperty(const char *propertyName, nsIVariant *propertyValu
         return NPERR_GENERIC_ERROR; 
     }
     USES_CONVERSION;
-    OLECHAR* szMember = A2OLE(propertyName);
+    OLECHAR FAR* szMember = A2OLE(propertyName);
     hr = disp->GetIDsOfNames(IID_NULL, &szMember, 1, LOCALE_USER_DEFAULT, &dispid);
     if (FAILED(hr))
     { 

@@ -23,7 +23,6 @@
 #  Asaf Romano <mano@mozilla.com>
 #  Dan Mills <thunder@mozilla.com>
 #  Ryan Flint <rflint@dslr.net>
-#  Dietrich Ayala <dietrich@mozilla.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -71,7 +70,6 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 function MicrosummaryService() {
   this._obs.addObserver(this, "xpcom-shutdown", true);
-  this._ans.addObserver(this, false);
 
   Cc["@mozilla.org/preferences-service;1"].
     getService(Ci.nsIPrefService).
@@ -85,35 +83,39 @@ function MicrosummaryService() {
 
 MicrosummaryService.prototype = {
   // Bookmarks Service
+  __bms: null,
   get _bms() {
-    var svc = Cc["@mozilla.org/browser/nav-bookmarks-service;1"].
-              getService(Ci.nsINavBookmarksService);
-    this.__defineGetter__("_bms", function() svc);
-    return this._bms;
+    if (!this.__bms)
+      this.__bms = Cc["@mozilla.org/browser/nav-bookmarks-service;1"].
+                   getService(Ci.nsINavBookmarksService);
+    return this.__bms;
   },
 
   // Annotation Service
+  __ans: null,
   get _ans() {
-    var svc = Cc["@mozilla.org/browser/annotation-service;1"].
-              getService(Ci.nsIAnnotationService);
-    this.__defineGetter__("_ans", function() svc);
-    return this._ans;
+    if (!this.__ans)
+      this.__ans = Cc["@mozilla.org/browser/annotation-service;1"].
+                   getService(Ci.nsIAnnotationService);
+    return this.__ans;
   },
  
   // IO Service
+  __ios: null,
   get _ios() {
-    var svc = Cc["@mozilla.org/network/io-service;1"].
-              getService(Ci.nsIIOService);
-    this.__defineGetter__("_ios", function() svc);
-    return this._ios;
+    if (!this.__ios)
+      this.__ios = Cc["@mozilla.org/network/io-service;1"].
+                   getService(Ci.nsIIOService);
+    return this.__ios;
   },
 
   // Observer Service
+  __obs: null,
   get _obs() {
-    var svc = Cc["@mozilla.org/observer-service;1"].
-              getService(Ci.nsIObserverService);
-    this.__defineGetter__("_obs", function() svc);
-    return this._obs;
+    if (!this.__obs)
+      this.__obs = Cc["@mozilla.org/observer-service;1"].
+                   getService(Ci.nsIObserverService);
+    return this.__obs;
   },
 
   /**
@@ -156,7 +158,6 @@ MicrosummaryService.prototype = {
   classID: Components.ID("{460a9792-b154-4f26-a922-0f653e2c8f91}"),
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIMicrosummaryService, 
                                          Ci.nsISupportsWeakReference,
-                                         Ci.nsIAnnotationObserver,
                                          Ci.nsIObserver]),
 
   // nsIObserver
@@ -203,14 +204,12 @@ MicrosummaryService.prototype = {
   },
   
   _destroy: function MSS__destroy() {
-    this._obs.removeObserver(this, "xpcom-shutdown", true);
-    this._ans.removeObserver(this);
     this._timer.cancel();
     this._timer = null;
   },
 
   _updateMicrosummaries: function MSS__updateMicrosummaries() {
-    var bookmarks = this._bookmarks;
+    var bookmarks = this._getBookmarks();
 
     var now = Date.now();
     var updateInterval = this._updateInterval;
@@ -546,7 +545,7 @@ MicrosummaryService.prototype = {
    *
    */
   _changeField: function MSS__changeField(fieldName, oldValue, newValue) {
-    var bookmarks = this._bookmarks;
+    var bookmarks = this._getBookmarks();
 
     for ( var i = 0; i < bookmarks.length; i++ ) {
       var bookmarkID = bookmarks[i];
@@ -558,19 +557,27 @@ MicrosummaryService.prototype = {
   },
 
   /**
-   * Get the set of bookmarks that have microsummaries.
+   * Get the set of bookmarks with microsummaries.
    *
-   * This caches the list of microsummarized bookmarks. The cache is
-   * managed by observing the annotation service, and updating 
-   * when a microsummary annotation is added or removed.
+   * This is the internal version of this method, which is not accessible
+   * via XPCOM but is more performant; inside this component, use this version.
+   * Outside the component, use getBookmarks (no underscore prefix) instead.
    *
-   * @returns an array of item ids for microsummarized bookmarks
+   * @returns an array of place: uris representing bookmarks items
    *
    */
-  get _bookmarks() {
-    var bookmarks = this._ans.getItemsWithAnnotation(ANNO_MICSUM_GEN_URI, {});
-    this.__defineGetter__("_bookmarks", function() bookmarks);
-    return this._bookmarks;
+  _getBookmarks: function MSS__getBookmarks() {
+    var bookmarks;
+
+    // This try/catch block is a temporary workaround for bug 336194.
+    try {
+      bookmarks = this._ans.getItemsWithAnnotation(ANNO_MICSUM_GEN_URI, {});
+    }
+    catch(e) {
+      bookmarks = [];
+    }
+
+    return bookmarks;
   },
 
   _setAnnotation: function MSS__setAnnotation(aBookmarkId, aFieldName, aFieldValue) {
@@ -585,14 +592,14 @@ MicrosummaryService.prototype = {
    * Get the set of bookmarks with microsummaries.
    *
    * This is the external version of this method and is accessible via XPCOM.
-   * Use it outside this component. Inside the component, use _bookmarks
+   * Use it outside this component. Inside the component, use _getBookmarks
    * (with underscore prefix) instead for performance.
    *
    * @returns an nsISimpleEnumerator enumeration of bookmark IDs
    *
    */
   getBookmarks: function MSS_getBookmarks() {
-    return new ArrayEnumerator(this._bookmarks);
+    return new ArrayEnumerator(this._getBookmarks());
   },
 
   /**
@@ -680,15 +687,15 @@ MicrosummaryService.prototype = {
   /**
    * Whether or not the given bookmark has a current microsummary.
    *
-   * @param   bookmarkId
-   *          the bookmark id to check
+   * @param   bookmarkID
+   *          the bookmark for which to set the current microsummary
    *
    * @returns a boolean representing whether or not the given bookmark
-   *          currently has a microsummary
+   *          has a current microsummary
    *
    */
-  hasMicrosummary: function MSS_hasMicrosummary(aBookmarkId) {
-    return (this._bookmarks.indexOf(aBookmarkId) != -1);
+  hasMicrosummary: function MSS_hasMicrosummary(bookmarkID) {
+    return this._ans.itemHasAnnotation(bookmarkID, ANNO_MICSUM_GEN_URI);
   },
 
   /**
@@ -710,7 +717,7 @@ MicrosummaryService.prototype = {
       throw Cr.NS_ERROR_INVALID_ARG;
 
     if (this.hasMicrosummary(aBookmarkID)) {
-      var currentMicrosummarry = this.getMicrosummary(aBookmarkID);
+      currentMicrosummarry = this.getMicrosummary(aBookmarkID);
       if (aMicrosummary.equals(currentMicrosummarry))
         return true;
     }
@@ -759,9 +766,6 @@ MicrosummaryService.prototype = {
         try {
           this._svc._updateMicrosummary(this._bookmarkID, microsummary);
         }
-        catch (ex) {
-          Cu.reportError("refreshMicrosummary() observer: " + ex);
-        }
         finally {
           this._svc = null;
           this._bookmarkID = null;
@@ -781,23 +785,7 @@ MicrosummaryService.prototype = {
     microsummary.update();
     
     return microsummary;
-  },
-
-  // nsIAnnotationObserver
-  onItemAnnotationSet: function(aItemId, aAnnotationName) {
-    if (aAnnotationName == ANNO_MICSUM_GEN_URI &&
-        this._bookmarks.indexOf(aItemId) == -1)
-      this._bookmarks.push(aItemId);
-  },
-  onItemAnnotationRemoved: function(aItemId, aAnnotationName) {
-    var index = this._bookmarks.indexOf(aItemId);
-    var isMicsumAnno = aAnnotationName == ANNO_MICSUM_GEN_URI ||
-                       !aAnnotationName.length; /* all annos were removed */
-    if (index > -1 && isMicsumAnno)
-      this._bookmarks.splice(index, 1);
-  },
-  onPageAnnotationSet: function(aUri, aAnnotationName) {},
-  onPageAnnotationRemoved: function(aUri, aAnnotationName) {},
+  }
 };
 
 
@@ -1039,7 +1027,7 @@ Microsummary.prototype = {
 
   /**
    * Try to reinstall a missing local generator that was originally installed
-   * from a URL using nsSidebar::addMicrosummaryGenerator.
+   * from a URL using nsSidebar::addMicrosumaryGenerator.
    *
    */
   _reinstallMissingGenerator: function MS__reinstallMissingGenerator() {
@@ -1610,7 +1598,7 @@ MicrosummarySet.prototype = {
   },
 
   /**
-   * Determines whether the given microsummary is already represented in the
+   * Determines whether the given microsumary is already represented in the
    * set.
    */
   hasItemForMicrosummary: function MSSet_hasItemForMicrosummary(aMicrosummary) {

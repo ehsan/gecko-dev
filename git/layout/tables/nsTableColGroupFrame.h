@@ -109,9 +109,6 @@ public:
   static PRBool GetLastRealColGroup(nsTableFrame* aTableFrame, 
                                     nsIFrame**    aLastColGroup);
 
-  /** @see nsIFrame::DidSetStyleContext */
-  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
-
   /** @see nsIFrame::AppendFrames, InsertFrames, RemoveFrame
     */
   NS_IMETHOD AppendFrames(nsIAtom*        aListName,
@@ -146,6 +143,12 @@ public:
   /* needed only because we use Reflow in a hacky way, see
      nsTableFrame::ReflowColGroups */
   virtual PRBool IsContainingBlock() const;
+
+  virtual PRBool IsFrameOfType(PRUint32 aFlags) const
+  {
+    return nsHTMLContainerFrame::IsFrameOfType(aFlags &
+      ~nsIFrame::eExcludesIgnorableWhitespace);
+  }
 
   /**
    * Get the "type" of the frame

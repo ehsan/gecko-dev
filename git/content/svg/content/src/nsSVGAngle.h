@@ -93,8 +93,7 @@ private:
 
   struct DOMBaseVal : public nsIDOMSVGAngle
   {
-    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-    NS_DECL_CYCLE_COLLECTION_CLASS(DOMBaseVal)
+    NS_DECL_ISUPPORTS
 
     DOMBaseVal(nsSVGAngle* aVal, nsSVGElement *aSVGElement)
       : mVal(aVal), mSVGElement(aSVGElement) {}
@@ -133,8 +132,7 @@ private:
 
   struct DOMAnimVal : public nsIDOMSVGAngle
   {
-    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-    NS_DECL_CYCLE_COLLECTION_CLASS(DOMAnimVal)
+    NS_DECL_ISUPPORTS
 
     DOMAnimVal(nsSVGAngle* aVal, nsSVGElement *aSVGElement)
       : mVal(aVal), mSVGElement(aSVGElement) {}
@@ -170,8 +168,7 @@ private:
 
   struct DOMAnimatedAngle : public nsIDOMSVGAnimatedAngle
   {
-    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-    NS_DECL_CYCLE_COLLECTION_CLASS(DOMAnimatedAngle)
+    NS_DECL_ISUPPORTS
 
     DOMAnimatedAngle(nsSVGAngle* aVal, nsSVGElement *aSVGElement)
       : mVal(aVal), mSVGElement(aSVGElement) {}

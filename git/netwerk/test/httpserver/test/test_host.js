@@ -13,7 +13,7 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is httpd.js code.
+ * The Original Code is MozJSHTTP code.
  *
  * The Initial Developer of the Original Code is
  * Jeff Walden <jwalden+code@mit.edu>.
@@ -42,15 +42,11 @@
  */
 
 const PORT = 4444;
-const FAKE_PORT_ONE = 8888;
-const FAKE_PORT_TWO = 8889;
 
-var srv, id;
+var srv;
 
 function run_test()
 {
-  dumpn("*** run_test");
-
   srv = createServer();
 
   srv.registerPathHandler("/http/1.0-request", http10Request);
@@ -59,9 +55,12 @@ function run_test()
                           http11goodHostWackyPort);
   srv.registerPathHandler("/http/1.1-ip-host", http11ipHost);
 
+  const FAKE_PORT_ONE = 8888;
+  const FAKE_PORT_TWO = 8889;
+
   srv.start(FAKE_PORT_ONE);
 
-  id = srv.identity;
+  var id = srv.identity;
 
   // The default location is http://localhost:PORT, where PORT is whatever you
   // provided when you started the server.  http://127.0.0.1:PORT is also part
@@ -109,26 +108,7 @@ function run_test()
   // Okay, now that we've exercised that behavior, shut down the server and
   // restart it on the correct port, to exercise port-changing behaviors at
   // server start and stop.
-  do_test_pending();
-  srv.stop(function()
-  {
-    try
-    {
-      do_test_pending();
-      run_test_2();
-    }
-    finally
-    {
-      do_test_finished();
-    }
-  });
-}
-
-function run_test_2()
-{
-  dumpn("*** run_test_2");
-
-  do_test_finished();
+  srv.stop();
 
   // Our primary location is gone because it was dependent on the port on which
   // the server was running.
@@ -172,26 +152,7 @@ function run_test_2()
   do_check_false(id.has("http", "localhost", FAKE_PORT_ONE));
   do_check_false(id.has("http", "127.0.0.1", FAKE_PORT_ONE));
 
-  do_test_pending();
-  srv.stop(function()
-  {
-    try
-    {
-      do_test_pending();
-      run_test_3();
-    }
-    finally
-    {
-      do_test_finished();
-    }
-  });
-}
-
-function run_test_3()
-{
-  dumpn("*** run_test_3");
-
-  do_test_finished();
+  srv.stop();
 
   // Only the default added location disappears; any others stay around,
   // possibly as the primary location.  We may have removed the default primary
@@ -240,7 +201,7 @@ function run_test_3()
 
   // Okay, finally done with identity testing.  Our primary location is the one
   // we want it to be, so we're off!
-  runRawTests(tests, testComplete(srv));
+  runRawTests(tests, function() { srv.stop(); });
 }
 
 
@@ -289,6 +250,40 @@ function checkPrimariesThrow(id)
     threw = e === Cr.NS_ERROR_NOT_INITIALIZED;
   }
   do_check_true(threw);
+}
+
+/**
+ * Spew a bunch of HTTP metadata from request into the body of response.
+ *
+ * @param request : nsIHttpRequestMetadata
+ *   the request whose metadata should be output
+ * @param response : nsIHttpResponse
+ *   the response to which the metadata is written
+ */
+function writeDetails(request, response)
+{
+  response.write("Method:  " + request.method + "\r\n");
+  response.write("Path:    " + request.path + "\r\n");
+  response.write("Query:   " + request.queryString + "\r\n");
+  response.write("Version: " + request.httpVersion + "\r\n");
+  response.write("Scheme:  " + request.scheme + "\r\n");
+  response.write("Host:    " + request.host + "\r\n");
+  response.write("Port:    " + request.port);
+}
+
+/**
+ * Advances iter past all non-blank lines and a single blank line, after which
+ * point the body of the response will be returned next from the iterator.
+ *
+ * @param iter : Iterator
+ *   an iterator over the CRLF-delimited lines in an HTTP response, currently
+ *   just after the Request-Line
+ */
+function skipHeaders(iter)
+{
+  var line = iter.next();
+  while (line !== "")
+    line = iter.next();
 }
 
 /**

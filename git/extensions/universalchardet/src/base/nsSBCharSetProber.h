@@ -51,19 +51,19 @@
 
 typedef struct
 {
-  const unsigned char* const charToOrderMap;    // [256] table use to find a char's order
-  const char* const precedenceMatrix;           // [SAMPLE_SIZE][SAMPLE_SIZE]; table to find a 2-char sequence's frequency
+  unsigned char *charToOrderMap;    // [256] table use to find a char's order
+  char *precedenceMatrix;           // [SAMPLE_SIZE][SAMPLE_SIZE]; table to find a 2-char sequence's frequency
   float  mTypicalPositiveRatio;     // = freqSeqs / totalSeqs 
   PRBool keepEnglishLetter;         // says if this script contains English characters (not implemented)
-  const char* const charsetName;
+  const char* charsetName;
 } SequenceModel;
 
 
 class nsSingleByteCharSetProber : public nsCharSetProber{
 public:
-  nsSingleByteCharSetProber(const SequenceModel *model) 
+  nsSingleByteCharSetProber(SequenceModel *model) 
     :mModel(model), mReversed(PR_FALSE), mNameProber(0) { Reset(); }
-  nsSingleByteCharSetProber(const SequenceModel *model, PRBool reversed, nsCharSetProber* nameProber)
+  nsSingleByteCharSetProber(SequenceModel *model, PRBool reversed, nsCharSetProber* nameProber)
     :mModel(model), mReversed(reversed), mNameProber(nameProber) { Reset(); }
 
   virtual const char* GetCharSetName();
@@ -87,7 +87,7 @@ public:
 
 protected:
   nsProbingState mState;
-  const SequenceModel* const mModel;
+  const SequenceModel *mModel;
   const PRBool mReversed; // PR_TRUE if we need to reverse every pair in the model lookup
 
   //char order of last character
@@ -106,20 +106,19 @@ protected:
 };
 
 
-extern const SequenceModel Koi8rModel;
-extern const SequenceModel Win1251Model;
-extern const SequenceModel Latin5Model;
-extern const SequenceModel MacCyrillicModel;
-extern const SequenceModel Ibm866Model;
-extern const SequenceModel Ibm855Model;
-extern const SequenceModel Latin7Model;
-extern const SequenceModel Win1253Model;
-extern const SequenceModel Latin5BulgarianModel;
-extern const SequenceModel Win1251BulgarianModel;
-extern const SequenceModel Latin2HungarianModel;
-extern const SequenceModel Win1250HungarianModel;
-extern const SequenceModel Win1255Model;
-extern const SequenceModel TIS620ThaiModel;
+extern SequenceModel Koi8rModel;
+extern SequenceModel Win1251Model;
+extern SequenceModel Latin5Model;
+extern SequenceModel MacCyrillicModel;
+extern SequenceModel Ibm866Model;
+extern SequenceModel Ibm855Model;
+extern SequenceModel Latin7Model;
+extern SequenceModel Win1253Model;
+extern SequenceModel Latin5BulgarianModel;
+extern SequenceModel Win1251BulgarianModel;
+extern SequenceModel Latin2HungarianModel;
+extern SequenceModel Win1250HungarianModel;
+extern SequenceModel Win1255Model;
 
 #endif /* nsSingleByteCharSetProber_h__ */
 

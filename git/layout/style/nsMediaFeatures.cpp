@@ -59,33 +59,20 @@ static const PRInt32 kScanKeywords[] = {
   eCSSKeyword_UNKNOWN,                  -1
 };
 
-// A helper for four features below
-static nsSize
-GetSize(nsPresContext* aPresContext)
-{
-    nsSize size;
-    if (aPresContext->IsRootPaginatedDocument())
-        // We want the page size, including unprintable areas and margins.
-        size = aPresContext->GetPageSize();
-    else
-        size = aPresContext->GetVisibleArea().Size();
-    return size;
-}
-
-static nsresult
+PR_STATIC_CALLBACK(nsresult)
 GetWidth(nsPresContext* aPresContext, nsCSSValue& aResult)
 {
-    nsSize size = GetSize(aPresContext);
-    float pixelWidth = aPresContext->AppUnitsToFloatCSSPixels(size.width);
+    nscoord width = aPresContext->GetVisibleArea().width;
+    float pixelWidth = aPresContext->AppUnitsToFloatCSSPixels(width);
     aResult.SetFloatValue(pixelWidth, eCSSUnit_Pixel);
     return NS_OK;
 }
 
-static nsresult
+PR_STATIC_CALLBACK(nsresult)
 GetHeight(nsPresContext* aPresContext, nsCSSValue& aResult)
 {
-    nsSize size = GetSize(aPresContext);
-    float pixelHeight = aPresContext->AppUnitsToFloatCSSPixels(size.height);
+    nscoord height = aPresContext->GetVisibleArea().height;
+    float pixelHeight = aPresContext->AppUnitsToFloatCSSPixels(height);
     aResult.SetFloatValue(pixelHeight, eCSSUnit_Pixel);
     return NS_OK;
 }
@@ -106,44 +93,36 @@ GetDeviceContextFor(nsPresContext* aPresContext)
   return ctx;
 }
 
-// A helper for three features below.
-static nsSize
-GetDeviceSize(nsPresContext* aPresContext)
-{
-    nsSize size;
-    if (aPresContext->IsRootPaginatedDocument())
-        // We want the page size, including unprintable areas and margins.
-        // XXX The spec actually says we want the "page sheet size", but
-        // how is that different?
-        size = aPresContext->GetPageSize();
-    else
-        GetDeviceContextFor(aPresContext)->
-            GetDeviceSurfaceDimensions(size.width, size.height);
-    return size;
-}
-
-static nsresult
+PR_STATIC_CALLBACK(nsresult)
 GetDeviceWidth(nsPresContext* aPresContext, nsCSSValue& aResult)
 {
-    nsSize size = GetDeviceSize(aPresContext);
-    float pixelWidth = aPresContext->AppUnitsToFloatCSSPixels(size.width);
+    // XXX: I'm not sure if this is really the right thing for print:
+    // do we want to include unprintable areas / page margins?
+    nsIDeviceContext *dx = GetDeviceContextFor(aPresContext);
+    nscoord width, height;
+    dx->GetDeviceSurfaceDimensions(width, height);
+    float pixelWidth = aPresContext->AppUnitsToFloatCSSPixels(width);
     aResult.SetFloatValue(pixelWidth, eCSSUnit_Pixel);
     return NS_OK;
 }
 
-static nsresult
+PR_STATIC_CALLBACK(nsresult)
 GetDeviceHeight(nsPresContext* aPresContext, nsCSSValue& aResult)
 {
-    nsSize size = GetDeviceSize(aPresContext);
-    float pixelHeight = aPresContext->AppUnitsToFloatCSSPixels(size.height);
+    // XXX: I'm not sure if this is really the right thing for print:
+    // do we want to include unprintable areas / page margins?
+    nsIDeviceContext *dx = GetDeviceContextFor(aPresContext);
+    nscoord width, height;
+    dx->GetDeviceSurfaceDimensions(width, height);
+    float pixelHeight = aPresContext->AppUnitsToFloatCSSPixels(height);
     aResult.SetFloatValue(pixelHeight, eCSSUnit_Pixel);
     return NS_OK;
 }
 
-static nsresult
+PR_STATIC_CALLBACK(nsresult)
 GetOrientation(nsPresContext* aPresContext, nsCSSValue& aResult)
 {
-    nsSize size = GetSize(aPresContext);
+    nsSize size = aPresContext->GetVisibleArea().Size();
     PRInt32 orientation;
     if (size.width > size.height) {
         orientation = NS_STYLE_ORIENTATION_LANDSCAPE;
@@ -156,34 +135,40 @@ GetOrientation(nsPresContext* aPresContext, nsCSSValue& aResult)
     return NS_OK;
 }
 
-// Helper for two features below
-static nsresult
-MakeArray(const nsSize& aSize, nsCSSValue& aResult)
+PR_STATIC_CALLBACK(nsresult)
+GetAspectRatio(nsPresContext* aPresContext, nsCSSValue& aResult)
 {
     nsRefPtr<nsCSSValue::Array> a = nsCSSValue::Array::Create(2);
     NS_ENSURE_TRUE(a, NS_ERROR_OUT_OF_MEMORY);
 
-    a->Item(0).SetIntValue(aSize.width, eCSSUnit_Integer);
-    a->Item(1).SetIntValue(aSize.height, eCSSUnit_Integer);
+    nsSize size = aPresContext->GetVisibleArea().Size();
+    a->Item(0).SetIntValue(size.width, eCSSUnit_Integer);
+    a->Item(1).SetIntValue(size.height, eCSSUnit_Integer);
 
     aResult.SetArrayValue(a, eCSSUnit_Array);
     return NS_OK;
 }
 
-static nsresult
-GetAspectRatio(nsPresContext* aPresContext, nsCSSValue& aResult)
-{
-    return MakeArray(GetSize(aPresContext), aResult);
-}
-
-static nsresult
+PR_STATIC_CALLBACK(nsresult)
 GetDeviceAspectRatio(nsPresContext* aPresContext, nsCSSValue& aResult)
 {
-    return MakeArray(GetDeviceSize(aPresContext), aResult);
+    nsRefPtr<nsCSSValue::Array> a = nsCSSValue::Array::Create(2);
+    NS_ENSURE_TRUE(a, NS_ERROR_OUT_OF_MEMORY);
+
+    // XXX: I'm not sure if this is really the right thing for print:
+    // do we want to include unprintable areas / page margins?
+    nsIDeviceContext *dx = GetDeviceContextFor(aPresContext);
+    nscoord width, height;
+    dx->GetDeviceSurfaceDimensions(width, height);
+    a->Item(0).SetIntValue(width, eCSSUnit_Integer);
+    a->Item(1).SetIntValue(height, eCSSUnit_Integer);
+
+    aResult.SetArrayValue(a, eCSSUnit_Array);
+    return NS_OK;
 }
 
 
-static nsresult
+PR_STATIC_CALLBACK(nsresult)
 GetColor(nsPresContext* aPresContext, nsCSSValue& aResult)
 {
     // FIXME:  This implementation is bogus.  nsThebesDeviceContext
@@ -193,6 +178,11 @@ GetColor(nsPresContext* aPresContext, nsCSSValue& aResult)
     nsIDeviceContext *dx = GetDeviceContextFor(aPresContext);
     PRUint32 depth;
     dx->GetDepth(depth);
+    // Some graphics backends may claim 32-bit depth when it's really 24
+    // (because they're counting the Alpha component).
+    if (depth == 32) {
+        depth = 24;
+    }
     // The spec says to use bits *per color component*, so divide by 3,
     // and round down, since the spec says to use the smallest when the
     // color components differ.
@@ -201,7 +191,7 @@ GetColor(nsPresContext* aPresContext, nsCSSValue& aResult)
     return NS_OK;
 }
 
-static nsresult
+PR_STATIC_CALLBACK(nsresult)
 GetColorIndex(nsPresContext* aPresContext, nsCSSValue& aResult)
 {
     // We should return zero if the device does not use a color lookup
@@ -214,7 +204,7 @@ GetColorIndex(nsPresContext* aPresContext, nsCSSValue& aResult)
     return NS_OK;
 }
 
-static nsresult
+PR_STATIC_CALLBACK(nsresult)
 GetMonochrome(nsPresContext* aPresContext, nsCSSValue& aResult)
 {
     // For color devices we should return 0.
@@ -224,7 +214,7 @@ GetMonochrome(nsPresContext* aPresContext, nsCSSValue& aResult)
     return NS_OK;
 }
 
-static nsresult
+PR_STATIC_CALLBACK(nsresult)
 GetResolution(nsPresContext* aPresContext, nsCSSValue& aResult)
 {
     // Resolution values are in device pixels, not CSS pixels.
@@ -234,7 +224,7 @@ GetResolution(nsPresContext* aPresContext, nsCSSValue& aResult)
     return NS_OK;
 }
 
-static nsresult
+PR_STATIC_CALLBACK(nsresult)
 GetScan(nsPresContext* aPresContext, nsCSSValue& aResult)
 {
     // Since Gecko doesn't support the 'tv' media type, the 'scan'
@@ -243,7 +233,7 @@ GetScan(nsPresContext* aPresContext, nsCSSValue& aResult)
     return NS_OK;
 }
 
-static nsresult
+PR_STATIC_CALLBACK(nsresult)
 GetGrid(nsPresContext* aPresContext, nsCSSValue& aResult)
 {
     // Gecko doesn't support grid devices (e.g., ttys), so the 'grid'

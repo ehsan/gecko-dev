@@ -38,7 +38,7 @@
 #ifndef nsFileControlFrame_h___
 #define nsFileControlFrame_h___
 
-#include "nsBlockFrame.h"
+#include "nsAreaFrame.h"
 #include "nsIFormControlFrame.h"
 #include "nsIDOMMouseListener.h"
 #include "nsIAnonymousContentCreator.h"
@@ -47,7 +47,7 @@
 #include "nsTextControlFrame.h"
 typedef   nsTextControlFrame nsNewFrame;
 
-class nsFileControlFrame : public nsBlockFrame,
+class nsFileControlFrame : public nsAreaFrame,
                            public nsIFormControlFrame,
                            public nsIAnonymousContentCreator
 {
@@ -63,7 +63,7 @@ public:
                               const nsRect&           aDirtyRect,
                               const nsDisplayListSet& aLists);
 
-  NS_DECL_QUERYFRAME
+  NS_IMETHOD QueryInterface(const nsIID& aIID, void** aInstancePtr);
   
   // nsIFormControlFrame
   virtual nsresult SetFormProperty(nsIAtom* aName, const nsAString& aValue);
@@ -128,7 +128,7 @@ protected:
   
   virtual PRBool IsFrameOfType(PRUint32 aFlags) const
   {
-    return nsBlockFrame::IsFrameOfType(aFlags &
+    return nsAreaFrame::IsFrameOfType(aFlags &
       ~(nsIFrame::eReplaced | nsIFrame::eReplacedContainsBlock));
   }
 
@@ -183,6 +183,9 @@ private:
    */
   void SyncAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                 PRInt32 aWhichControls);
+
+  NS_IMETHOD_(nsrefcnt) AddRef() { return 1; }
+  NS_IMETHOD_(nsrefcnt) Release() { return 1; }
 };
 
 #endif

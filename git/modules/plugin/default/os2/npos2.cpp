@@ -37,8 +37,12 @@
 
 #include <os2.h>
 
+#ifndef _NPAPI_H_
 #include "npapi.h"
-#include "npfunctions.h"
+#endif
+#ifndef _NPUPP_H_
+#include "npupp.h"
+#endif
 
 #include "nsDefaultPlugin.h"
 
@@ -67,7 +71,7 @@ static NPPluginFuncs* g_pluginFuncs;
 //
 //    fills in the func table used by Navigator to call entry points in
 //    plugin DLL.  Note that these entry points ensure that DS is loaded
-//    by using the NP_LOADDS macro, when compiling for OS/2.
+//    by using the NP_LOADDS macro, when compiling for Win16
 //
 NPError OSCALL NP_EXPORT
 NP_GetEntryPoints(NPPluginFuncs* pFuncs)

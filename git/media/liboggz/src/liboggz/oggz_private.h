@@ -44,8 +44,6 @@
 #include "oggz_vector.h"
 #include "oggz_dlist.h"
 
-#define OGGZ_AUTO_MULT 1000Ull
-
 typedef struct _OGGZ OGGZ;
 typedef struct _OggzComment OggzComment;
 typedef struct _OggzIO OggzIO;
@@ -139,7 +137,6 @@ struct _OggzReader {
   ogg_int64_t current_unit;
   ogg_int64_t current_granulepos;
 
-  long current_page_bytes;
 #if 0
   oggz_off_t offset_page_end; /* offset of end of current page */
 #endif
@@ -280,18 +277,13 @@ oggz_get_granulerate (OGGZ * oggz, long serialno,
                                     ogg_int64_t * granulerate_d);
 
 int oggz_set_granuleshift (OGGZ * oggz, long serialno, int granuleshift);
-int oggz_get_granuleshift (OGGZ * oggz, long serialno);
 
-int oggz_set_preroll (OGGZ * oggz, long serialno, int preroll);
-int oggz_get_preroll (OGGZ * oggz, long serialno);
+int oggz_get_granuleshift (OGGZ * oggz, long serialno);
 
 /* oggz_auto */
  
 int
-oggz_auto_read_bos_page (OGGZ * oggz, ogg_page * og, long serialno,
-                         void * user_data);
-int
-oggz_auto_read_bos_packet (OGGZ * oggz, ogg_packet * op, long serialno, 
+oggz_auto_get_granulerate (OGGZ * oggz, ogg_packet * op, long serialno, 
                            void * user_data);
 
 int

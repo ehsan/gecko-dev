@@ -50,6 +50,9 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsIAccessible
+  NS_IMETHOD GetName(nsAString& aName);
+  NS_IMETHOD GetRole(PRUint32 *aRole); 
+  NS_IMETHOD GetState(PRUint32 *aState, PRUint32 *aExtraState);
   NS_IMETHOD GetValue(nsAString& aValue);
 
   NS_IMETHOD GetNumActions(PRUint8 *aNumActions);
@@ -58,10 +61,6 @@ public:
 
   // nsIAccessibleHyperLink
   NS_IMETHOD GetURI(PRInt32 aIndex, nsIURI **aURI);
-
-  // nsAccessible
-  virtual nsresult GetRoleInternal(PRUint32 *aRole);
-  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 
 protected:
   enum { eAction_Jump = 0 };

@@ -708,12 +708,15 @@ XPCWrappedNative::SweepTearOffs()
 inline JSBool
 xpc_ForcePropertyResolve(JSContext* cx, JSObject* obj, jsval idval)
 {
-    jsval prop;
-    jsid id;
+    JSProperty* prop;
+    JSObject* obj2;
+    jsid id;    
 
     if(!JS_ValueToId(cx, idval, &id) ||
-       !JS_LookupPropertyById(cx, obj, id, &prop))
+       !OBJ_LOOKUP_PROPERTY(cx, obj, id, &obj2, &prop))
         return JS_FALSE;
+    if(prop)
+        OBJ_DROP_PROPERTY(cx, obj2, prop);
     return JS_TRUE;
 }
 
@@ -725,31 +728,14 @@ xpc_NewSystemInheritingJSObject(JSContext *cx, JSClass *clasp, JSObject *proto,
                               JS_IsSystemObject(cx, parent));
 }
 
-inline JSBool
-xpc_SameScope(XPCWrappedNativeScope *objectscope, XPCWrappedNativeScope *xpcscope,
-              JSBool *sameOrigin)
-{
-    if (objectscope == xpcscope)
-    {
-        *sameOrigin = JS_TRUE;
-        return JS_TRUE;
-    }
-
-    nsIPrincipal *objectprincipal = objectscope->GetPrincipal();
-    nsIPrincipal *xpcprincipal = xpcscope->GetPrincipal();
-    if(!objectprincipal || !xpcprincipal ||
-       NS_FAILED(objectprincipal->Equals(xpcprincipal, sameOrigin)))
-    {
-        *sameOrigin = JS_FALSE;
-    }
-
-    return JS_FALSE;
-}
-
 inline jsval
 GetRTStringByIndex(JSContext *cx, uintN index)
 {
-  XPCJSRuntime *rt = nsXPConnect::GetRuntimeInstance();
+  XPCJSRuntime *rt = nsXPConnect::GetRuntime();
+
+  if (!rt)
+    return JSVAL_VOID;
+
   return ID_TO_VALUE(rt->GetStringID(index));
 }
 

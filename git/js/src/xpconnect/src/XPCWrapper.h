@@ -81,14 +81,6 @@ XPC_XOW_WrapperMoved(JSContext *cx, XPCWrappedNative *innerObj,
 nsresult
 CanAccessWrapper(JSContext *cx, JSObject *wrappedObj);
 
-// Used by UnwrapSOW below.
-JSBool
-AllowedToAct(JSContext *cx, jsval idval);
-
-JSBool
-XPCNativeWrapperCtor(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
-                     jsval *rval);
-
 inline JSBool
 XPC_XOW_ClassNeedsXOW(const char *name)
 {
@@ -111,9 +103,8 @@ XPC_XOW_ClassNeedsXOW(const char *name)
   return JS_FALSE;
 }
 
-extern JSExtendedClass sXPC_SJOW_JSClass;
-extern JSExtendedClass sXPC_SOW_JSClass;
 extern JSExtendedClass sXPC_XOW_JSClass;
+extern JSExtendedClass sXPC_SJOW_JSClass;
 
 // This class wraps some common functionality between the three existing
 // wrappers. Its main purpose is to allow XPCCrossOriginWrapper to act both
@@ -130,11 +121,11 @@ public:
   static const PRUint32 sWrappedObjSlot;
 
   /**
-   * Used by all wrappers to store flags about their state. For example,
-   * it is used when resolving a property to tell to the addProperty hook
-   * that it shouldn't perform any security checks.
+   * Used by the cross origin and safe wrappers: the slot that tells the
+   * AddProperty code that we're resolving a property, and therefore to not do
+   * a security check.
    */
-  static const PRUint32 sFlagsSlot;
+  static const PRUint32 sResolvingSlot;
 
   /**
    * The base number of slots needed by code using the above constants.
@@ -146,14 +137,6 @@ public:
    * which native is 'eval' for various purposes.
    */
   static JSNative sEvalNative;
-
-  enum FunctionObjectSlot {
-    eWrappedFunctionSlot = 0,
-    eAllAccessSlot = 1
-  };
-
-  // Helpful for keeping lines short:
-  static const PRUint32 sSecMgrSetProp, sSecMgrGetProp;
 
   /**
    * Given a context and a global object, fill our eval native.
@@ -219,24 +202,10 @@ public:
   }
 
   /**
-   * Given an arbitrary object, Unwrap will return the wrapped object if the
-   * passed-in object is a wrapper that Unwrap knows about *and* the
-   * currently running code has permission to access both the wrapper and
-   * wrapped object.
-   *
-   * Since this is meant to be called from functions like
-   * XPCWrappedNative::GetWrappedNativeOfJSObject, it does not set an
-   * exception on |cx|.
+   * Unwraps a XPCCrossOriginWrapper into its wrapped native.
    */
-  static JSObject *Unwrap(JSContext *cx, JSObject *wrapper);
-
-  /**
-   * Unwraps objects whose class is |xclasp|.
-   */
-  static JSObject *UnwrapGeneric(JSContext *cx, const JSExtendedClass *xclasp,
-                                 JSObject *wrapper)
-  {
-    if (STOBJ_GET_CLASS(wrapper) != &xclasp->base) {
+  static JSObject *Unwrap(JSContext *cx, JSObject *wrapper) {
+    if (STOBJ_GET_CLASS(wrapper) != &sXPC_XOW_JSClass.base) {
       return nsnull;
     }
 
@@ -250,39 +219,14 @@ public:
       return nsnull;
     }
 
-    return JSVAL_TO_OBJECT(v);
-  }
-
-  static JSObject *UnwrapSOW(JSContext *cx, JSObject *wrapper) {
-    wrapper = UnwrapGeneric(cx, &sXPC_SOW_JSClass, wrapper);
-    if (!wrapper) {
-      return nsnull;
-    }
-
-    if (!AllowedToAct(cx, JSVAL_VOID)) {
-      JS_ClearPendingException(cx);
-      wrapper = nsnull;
-    }
-
-    return wrapper;
-  }
-
-  /**
-   * Unwraps a XOW into its wrapped native.
-   */
-  static JSObject *UnwrapXOW(JSContext *cx, JSObject *wrapper) {
-    wrapper = UnwrapGeneric(cx, &sXPC_XOW_JSClass, wrapper);
-    if (!wrapper) {
-      return nsnull;
-    }
-
-    nsresult rv = CanAccessWrapper(cx, wrapper);
+    JSObject *wrappedObj = JSVAL_TO_OBJECT(v);
+    nsresult rv = CanAccessWrapper(cx, wrappedObj);
     if (NS_FAILED(rv)) {
       JS_ClearPendingException(cx);
-      wrapper = nsnull;
+      return nsnull;
     }
 
-    return wrapper;
+    return wrappedObj;
   }
 
   /**
@@ -327,8 +271,7 @@ public:
    * Called for the common part of adding a property to obj.
    */
   static JSBool AddProperty(JSContext *cx, JSObject *wrapperObj,
-                            JSBool wantGetterSetter, JSObject *innerObj,
-                            jsval id, jsval *vp);
+                            JSObject *innerObj, jsval id, jsval *vp);
 
   /**
    * Called for the common part of deleting a property from obj.
@@ -347,8 +290,8 @@ public:
    * and is therefore unsuitable for cross-origin resolution.
    */
   static JSBool NewResolve(JSContext *cx, JSObject *wrapperObj,
-                           JSBool preserveVal, JSObject *innerObj,
-                           jsval id, uintN flags, JSObject **objp);
+                           JSObject *innerObj, jsval id, uintN flags,
+                           JSObject **objp, JSBool preserveVal = JS_FALSE);
 
   /**
    * Resolve a native property named id from innerObj onto wrapperObj. The
@@ -376,18 +319,6 @@ public:
   static JSBool NativeToString(JSContext *cx, XPCWrappedNative *wrappedNative,
                                uintN argc, jsval *argv, jsval *rval,
                                JSBool isNativeWrapper);
-
-private:
-  /**
-   * Looks up a property on obj. If it exists, then the parameters are filled
-   * in with useful values.
-   *
-   * NB: All parameters must be initialized before the call.
-   */
-  static JSBool GetPropertyAttrs(JSContext *cx, JSObject *obj,
-                                 jsid interned_id, uintN flags,
-                                 JSBool wantDetails,
-                                 JSPropertyDescriptor *desc);
 };
 
 

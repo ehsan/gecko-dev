@@ -51,6 +51,7 @@ EXPORTS =				\
 	nsIDOMLoadListener.h		\
 	nsIDOMMouseListener.h		\
 	nsIDOMMouseMotionListener.h	\
+	nsIDOMDragListener.h		\
 	nsIDOMTextListener.h		\
 	nsIDOMCompositionListener.h	\
 	nsIDOMXULListener.h		\

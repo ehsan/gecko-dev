@@ -56,6 +56,7 @@
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIWebBrowserChrome.h"
 #include "nsPIDOMWindow.h"
+#include "nsIFocusController.h"
 #include "nsIDOMWindowInternal.h"
 #include "nsIWebProgress.h"
 #include "nsIWebProgressListener.h"
@@ -72,7 +73,6 @@
 #include "nsCWebBrowserPersist.h"
 #include "nsIServiceManager.h"
 #include "nsAutoPtr.h"
-#include "nsFocusManager.h"
 
 // for painting the background window
 #include "nsIRenderingContext.h"
@@ -123,6 +123,12 @@ nsWebBrowser::~nsWebBrowser()
    InternalDestroy();
 }
 
+PRBool PR_CALLBACK deleteListener(void *aElement, void *aData) {
+    nsWebBrowserListenerState *state = (nsWebBrowserListenerState*)aElement;
+    NS_DELETEXPCOM(state);
+    return PR_TRUE;
+}
+
 NS_IMETHODIMP nsWebBrowser::InternalDestroy()
 {
 
@@ -146,10 +152,7 @@ NS_IMETHODIMP nsWebBrowser::InternalDestroy()
       }
 
    if (mListenerArray) {
-      for (PRUint32 i = 0, end = mListenerArray->Length(); i < end; i++) {
-         nsWebBrowserListenerState *state = mListenerArray->ElementAt(i);
-         NS_DELETEXPCOM(state);
-      }
+      (void)mListenerArray->EnumerateForwards(deleteListener, nsnull);
       delete mListenerArray;
       mListenerArray = nsnull;
    }
@@ -239,7 +242,7 @@ NS_IMETHODIMP nsWebBrowser::AddWebBrowserListener(nsIWeakReference *aListener, c
         state->mID = aIID;
 
         if (!mListenerArray) {
-            NS_NEWXPCOM(mListenerArray, nsTArray<nsWebBrowserListenerState*>);
+            NS_NEWXPCOM(mListenerArray, nsVoidArray);
             if (!mListenerArray) {
                 return NS_ERROR_OUT_OF_MEMORY;
             }
@@ -292,9 +295,9 @@ NS_IMETHODIMP nsWebBrowser::RemoveWebBrowserListener(nsIWeakReference *aListener
         if (!mListenerArray) return NS_ERROR_FAILURE;
 
         // iterate the array and remove the queued listener
-        PRInt32 count = mListenerArray->Length();
+        PRInt32 count = mListenerArray->Count();
         while (count > 0) {
-            nsWebBrowserListenerState *state = mListenerArray->ElementAt(count);
+            nsWebBrowserListenerState *state = (nsWebBrowserListenerState*)mListenerArray->ElementAt(count);
             NS_ASSERTION(state, "list construction problem");
 
             if (state->Equals(aListener, aIID)) {
@@ -306,11 +309,8 @@ NS_IMETHODIMP nsWebBrowser::RemoveWebBrowserListener(nsIWeakReference *aListener
         }
 
         // if we've emptied the array, get rid of it.
-        if (0 >= mListenerArray->Length()) {
-            for (PRUint32 i = 0, end = mListenerArray->Length(); i < end; i++) {
-               nsWebBrowserListenerState *state = mListenerArray->ElementAt(i);
-               NS_DELETEXPCOM(state);
-            }
+        if (0 >= mListenerArray->Count()) {
+            (void)mListenerArray->EnumerateForwards(deleteListener, nsnull);
             NS_DELETEXPCOM(mListenerArray);
             mListenerArray = nsnull;
         }
@@ -766,12 +766,6 @@ NS_IMETHODIMP nsWebBrowser::SetProperty(PRUint32 aId, PRUint32 aValue)
            mDocShell->SetAllowImages(!!aValue);
         }
         break;
-    case nsIWebBrowserSetup::SETUP_ALLOW_DNS_PREFETCH:
-        {
-            NS_ENSURE_STATE(mDocShell);
-            NS_ENSURE_TRUE((aValue == PR_TRUE || aValue == PR_FALSE), NS_ERROR_INVALID_ARG);
-            mDocShell->SetAllowDNSPrefetch(!!aValue);
-        }
     case nsIWebBrowserSetup::SETUP_USE_GLOBAL_HISTORY:
         {
            NS_ENSURE_STATE(mDocShell);
@@ -1135,14 +1129,14 @@ NS_IMETHODIMP nsWebBrowser::Create()
         mContentType == typeChromeWrapper)? eContentTypeUI: eContentTypeContent;
 
       widgetInit.mWindowType = eWindowType_child;
-      nsIntRect bounds(mInitInfo->x, mInitInfo->y, mInitInfo->cx, mInitInfo->cy);
+      nsRect bounds(mInitInfo->x, mInitInfo->y, mInitInfo->cx, mInitInfo->cy);
       
       mInternalWidget->SetClientData(static_cast<nsWebBrowser *>(this));
       mInternalWidget->Create(mParentNativeWindow, bounds, nsWebBrowser::HandleEvent,
                               nsnull, nsnull, nsnull, &widgetInit);  
       }
 
-   nsCOMPtr<nsIDocShell> docShell(do_CreateInstance("@mozilla.org/docshell;1"));
+   nsCOMPtr<nsIDocShell> docShell(do_CreateInstance("@mozilla.org/webshell;1"));
    NS_ENSURE_SUCCESS(SetDocShell(docShell), NS_ERROR_FAILURE);
 
    // get the system default window background colour
@@ -1154,27 +1148,24 @@ NS_IMETHODIMP nsWebBrowser::Create()
    // the docshell has been set so we now have our listener registrars.
    if (mListenerArray) {
       // we had queued up some listeners, let's register them now.
-      PRUint32 count = mListenerArray->Length();
-      PRUint32 i = 0;
+      PRInt32 count = mListenerArray->Count();
+      PRInt32 i = 0;
       NS_ASSERTION(count > 0, "array construction problem");
       while (i < count) {
-          nsWebBrowserListenerState *state = mListenerArray->ElementAt(i);
+          nsWebBrowserListenerState *state = (nsWebBrowserListenerState*)mListenerArray->ElementAt(i);
           NS_ASSERTION(state, "array construction problem");
           nsCOMPtr<nsISupports> listener = do_QueryReferent(state->mWeakPtr);
           NS_ASSERTION(listener, "bad listener");
           (void)BindListener(listener, state->mID);
           i++;
       }
-      for (PRUint32 i = 0, end = mListenerArray->Length(); i < end; i++) {
-         nsWebBrowserListenerState *state = mListenerArray->ElementAt(i);
-         NS_DELETEXPCOM(state);
-      }
+      (void)mListenerArray->EnumerateForwards(deleteListener, nsnull);
       NS_DELETEXPCOM(mListenerArray);
       mListenerArray = nsnull;
    }
 
    // HACK ALERT - this registration registers the nsDocShellTreeOwner as a 
-   // nsIWebBrowserListener so it can setup its MouseListener in one of the 
+   // nsIWebBrowserListener so it can setup it's MouseListener in one of the 
    // progress callbacks. If we can register the MouseListener another way, this 
    // registration can go away, and nsDocShellTreeOwner can stop implementing
    // nsIWebProgressListener.
@@ -1326,7 +1317,7 @@ NS_IMETHODIMP nsWebBrowser::GetPositionAndSize(PRInt32* aX, PRInt32* aY,
       {
       if(mInternalWidget)
          {
-         nsIntRect bounds;
+         nsRect bounds;
          NS_ENSURE_SUCCESS(mInternalWidget->GetBounds(bounds), NS_ERROR_FAILURE);
 
          if(aX)
@@ -1463,11 +1454,12 @@ NS_IMETHODIMP nsWebBrowser::GetMainWidget(nsIWidget** mainWidget)
 
 NS_IMETHODIMP nsWebBrowser::SetFocus()
 {
-  nsCOMPtr<nsIDOMWindow> window = do_GetInterface(mDocShell);
-  NS_ENSURE_TRUE(window, NS_ERROR_FAILURE);
+   NS_ENSURE_STATE(mDocShell);
 
-  nsCOMPtr<nsIFocusManager> fm = do_GetService(FOCUSMANAGER_CONTRACTID);
-  return fm ? fm->SetFocusedWindow(window) : NS_OK;
+   if (NS_FAILED(mDocShellAsWin->SetFocus()))
+     return NS_ERROR_FAILURE;
+
+   return NS_OK;
 }
 
 NS_IMETHODIMP nsWebBrowser::GetTitle(PRUnichar** aTitle)
@@ -1619,10 +1611,6 @@ NS_IMETHODIMP nsWebBrowser::SetDocShell(nsIDocShell* aDocShell)
          mDocShellAsScrollable = scrollable;
          mDocShellAsTextScroll = textScroll;
          mWebProgress = progress;
-
-         // By default, do not allow DNS prefetch, so we don't break our frozen
-         // API.  Embeddors who decide to enable it should do so manually.
-         mDocShell->SetAllowDNSPrefetch(PR_FALSE);
      }
      else
      {
@@ -1659,7 +1647,7 @@ NS_IMETHODIMP nsWebBrowser::EnsureDocShellTreeOwner()
 }
 
 /* static */
-nsEventStatus nsWebBrowser::HandleEvent(nsGUIEvent *aEvent)
+nsEventStatus PR_CALLBACK nsWebBrowser::HandleEvent(nsGUIEvent *aEvent)
 {
   nsWebBrowser  *browser = nsnull;
   void          *data = nsnull;
@@ -1748,20 +1736,91 @@ NS_IMETHODIMP nsWebBrowser::GetPrimaryContentWindow(nsIDOMWindowInternal **aDOMW
 /* void activate (); */
 NS_IMETHODIMP nsWebBrowser::Activate(void)
 {
-  nsCOMPtr<nsIFocusManager> fm = do_GetService(FOCUSMANAGER_CONTRACTID);
-  nsCOMPtr<nsIDOMWindow> window = do_GetInterface(mDocShell);
-  if (fm && window)
-    return fm->WindowRaised(window);
+  // stop infinite recursion from windows with onfocus handlers that
+  // reactivate the window
+  if (mActivating)
+    return NS_OK;
+
+  mActivating = PR_TRUE;
+
+  // try to set focus on the last focused window as stored in the
+  // focus controller object.
+  nsCOMPtr<nsIDOMWindow> domWindowExternal;
+  GetContentDOMWindow(getter_AddRefs(domWindowExternal));
+  nsCOMPtr<nsPIDOMWindow> piWin(do_QueryInterface(domWindowExternal));
+  PRBool needToFocus = PR_TRUE;
+  if (piWin) {
+    nsIFocusController *focusController = piWin->GetRootFocusController();
+    if (focusController) {
+      // Go ahead and mark the focus controller as being active.  We have
+      // to do this even before the activate message comes in.
+      focusController->SetActive(PR_TRUE);
+
+      nsCOMPtr<nsIDOMWindowInternal> focusedWindow;
+      focusController->GetFocusedWindow(getter_AddRefs(focusedWindow));
+      if (focusedWindow) {
+        needToFocus = PR_FALSE;
+        focusController->SetSuppressFocus(PR_TRUE, "Activation Suppression");
+        piWin->Focus(); // This sets focus, but we'll ignore it.  
+                        // A subsequent activate will cause us to stop suppressing.
+      }
+    }
+  }
+
+  // If there wasn't a focus controller and focused window just set
+  // focus on the primary content shell.  If that wasn't focused,
+  // try and just set it on the toplevel DOM window.
+  if (needToFocus) {
+    nsCOMPtr<nsIDOMWindowInternal> contentDomWindow;
+    GetPrimaryContentWindow(getter_AddRefs(contentDomWindow));
+    if (contentDomWindow)
+      contentDomWindow->Focus();
+    else if (piWin)
+      piWin->Focus();
+  }
+
+  nsCOMPtr<nsIDOMWindow> win;
+  GetContentDOMWindow(getter_AddRefs(win));
+  if (win) {
+    // tell windowwatcher about the new active window
+    if (mWWatch)
+      mWWatch->SetActiveWindow(win);
+
+    /* Activate the window itself. Note that this method can be called during
+       window creation before the PresShell exists (for ex, Windows apps
+       responding to WM_ACTIVATE), which case nsGlobalWindow::Activate()
+       will return early.
+    */
+    nsCOMPtr<nsPIDOMWindow> privateDOMWindow = do_QueryInterface(win);
+    if (privateDOMWindow)
+      privateDOMWindow->Activate();
+  }
+
+  mActivating = PR_FALSE;
   return NS_OK;
 }
 
 /* void deactivate (); */
 NS_IMETHODIMP nsWebBrowser::Deactivate(void)
 {
-  nsCOMPtr<nsIFocusManager> fm = do_GetService(FOCUSMANAGER_CONTRACTID);
-  nsCOMPtr<nsIDOMWindow> window = do_GetInterface(mDocShell);
-  if (fm && window)
-    return fm->WindowLowered(window);
+  /* At this time we don't clear mWWatch's ActiveWindow; we just allow
+     the presumed other newly active window to set it when it comes in.
+     This seems harmless and maybe safer, but we have no real evidence
+     either way just yet. */
+
+  nsCOMPtr<nsIDOMWindow> domWindow;
+  GetContentDOMWindow(getter_AddRefs(domWindow));
+  if (domWindow) {
+    nsCOMPtr<nsPIDOMWindow> privateDOMWindow = do_QueryInterface(domWindow);
+    if(privateDOMWindow) {
+      nsIFocusController *focusController =
+          privateDOMWindow->GetRootFocusController();
+      if (focusController)
+        focusController->SetActive(PR_FALSE);
+      privateDOMWindow->Deactivate();
+    }
+  }
+
   return NS_OK;
 }
 
@@ -1780,40 +1839,59 @@ NS_IMETHODIMP nsWebBrowser::SetFocusAtLastElement(void)
 /* attribute nsIDOMWindow focusedWindow; */
 NS_IMETHODIMP nsWebBrowser::GetFocusedWindow(nsIDOMWindow * *aFocusedWindow)
 {
-  NS_ENSURE_ARG_POINTER(aFocusedWindow);
-  *aFocusedWindow = nsnull;
+    NS_ENSURE_ARG_POINTER(aFocusedWindow);
+    *aFocusedWindow = nsnull;
 
-  nsCOMPtr<nsIDOMWindow> window = do_GetInterface(mDocShell);
-  NS_ENSURE_TRUE(window, NS_ERROR_FAILURE);
+    nsresult rv;
+    nsCOMPtr<nsIDOMWindowInternal> focusedWindow;
 
-  nsCOMPtr<nsIDOMElement> focusedElement;
-  nsCOMPtr<nsIFocusManager> fm = do_GetService(FOCUSMANAGER_CONTRACTID);
-  return fm ? fm->GetFocusedElementForWindow(window, PR_TRUE, aFocusedWindow,
-                                             getter_AddRefs(focusedElement)) : NS_OK;
+    nsCOMPtr<nsIDOMWindow> domWindowExternal;
+    rv = GetContentDOMWindow(getter_AddRefs(domWindowExternal));
+    if (NS_FAILED(rv)) return rv;
+    nsCOMPtr<nsPIDOMWindow> piWin(do_QueryInterface(domWindowExternal /*domWindow*/, &rv));
+    if (NS_FAILED(rv)) return rv;
+    
+    nsIFocusController *focusController = piWin->GetRootFocusController();
+    if (focusController)
+      rv = focusController->GetFocusedWindow(getter_AddRefs(focusedWindow));
+    
+    *aFocusedWindow = focusedWindow;
+    NS_IF_ADDREF(*aFocusedWindow);
+    
+    return *aFocusedWindow ? NS_OK : NS_ERROR_FAILURE;
 }
-
 NS_IMETHODIMP nsWebBrowser::SetFocusedWindow(nsIDOMWindow * aFocusedWindow)
 {
-  nsCOMPtr<nsIFocusManager> fm = do_GetService(FOCUSMANAGER_CONTRACTID);
-  return fm ? fm->SetFocusedWindow(aFocusedWindow) : NS_OK;
+  return NS_OK;
 }
 
 /* attribute nsIDOMElement focusedElement; */
 NS_IMETHODIMP nsWebBrowser::GetFocusedElement(nsIDOMElement * *aFocusedElement)
 {
   NS_ENSURE_ARG_POINTER(aFocusedElement);
+  *aFocusedElement = nsnull;
+  
+  nsresult rv;
+  nsCOMPtr<nsIDOMElement> focusedElement;
 
-  nsCOMPtr<nsIDOMWindow> window = do_GetInterface(mDocShell);
-  NS_ENSURE_TRUE(window, NS_ERROR_FAILURE);
+  nsCOMPtr<nsIDOMWindow> domWindowExternal;
+  rv = GetContentDOMWindow(getter_AddRefs(domWindowExternal));
+  if (NS_FAILED(rv)) return rv;
+  nsCOMPtr<nsPIDOMWindow> piWin(do_QueryInterface(domWindowExternal, &rv));
+  if (NS_FAILED(rv)) return rv;
 
-  nsCOMPtr<nsIFocusManager> fm = do_GetService(FOCUSMANAGER_CONTRACTID);
-  return fm ? fm->GetFocusedElementForWindow(window, PR_TRUE, nsnull, aFocusedElement) : NS_OK;
+  nsIFocusController *focusController = piWin->GetRootFocusController();
+  if (focusController)
+  rv = focusController->GetFocusedElement(getter_AddRefs(focusedElement));
+
+  *aFocusedElement = focusedElement;
+  NS_IF_ADDREF(*aFocusedElement);
+  return *aFocusedElement ? NS_OK : NS_ERROR_FAILURE;
 }
 
 NS_IMETHODIMP nsWebBrowser::SetFocusedElement(nsIDOMElement * aFocusedElement)
 {
-  nsCOMPtr<nsIFocusManager> fm = do_GetService(FOCUSMANAGER_CONTRACTID);
-  return fm ? fm->SetFocus(aFocusedElement, 0) : NS_OK;
+  return NS_OK;
 }
 
 //*****************************************************************************

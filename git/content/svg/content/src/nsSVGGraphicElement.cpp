@@ -43,12 +43,12 @@
 #include "nsGkAtoms.h"
 #include "nsSVGMatrix.h"
 #include "nsIDOMEventTarget.h"
+#include "nsBindingManager.h"
 #include "nsIFrame.h"
 #include "nsISVGChildFrame.h"
 #include "nsIDOMSVGPoint.h"
 #include "nsSVGUtils.h"
 #include "nsDOMError.h"
-#include "nsSVGRect.h"
 
 //----------------------------------------------------------------------
 // nsISupports methods
@@ -75,8 +75,7 @@ nsSVGGraphicElement::nsSVGGraphicElement(nsINodeInfo *aNodeInfo)
 /* readonly attribute nsIDOMSVGElement nearestViewportElement; */
 NS_IMETHODIMP nsSVGGraphicElement::GetNearestViewportElement(nsIDOMSVGElement * *aNearestViewportElement)
 {
-  nsSVGUtils::GetNearestViewportElement(this, aNearestViewportElement);
-  return NS_OK; // we can't throw exceptions from this API.
+  return nsSVGUtils::GetNearestViewportElement(this, aNearestViewportElement);
 }
 
 /* readonly attribute nsIDOMSVGElement farthestViewportElement; */
@@ -95,17 +94,26 @@ NS_IMETHODIMP nsSVGGraphicElement::GetBBox(nsIDOMSVGRect **_retval)
   if (!frame || (frame->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD))
     return NS_ERROR_FAILURE;
 
-  nsISVGChildFrame* svgframe = do_QueryFrame(frame);
+  nsISVGChildFrame* svgframe;
+  CallQueryInterface(frame, &svgframe);
+  NS_ASSERTION(svgframe, "wrong frame type");
   if (svgframe) {
-    return NS_NewSVGRect(_retval, nsSVGUtils::GetBBox(frame));
+    svgframe->SetMatrixPropagation(PR_FALSE);
+    svgframe->NotifySVGChanged(nsISVGChildFrame::SUPPRESS_INVALIDATION |
+                               nsISVGChildFrame::TRANSFORM_CHANGED);
+    nsresult rv = svgframe->GetBBox(_retval);
+    svgframe->SetMatrixPropagation(PR_TRUE);
+    svgframe->NotifySVGChanged(nsISVGChildFrame::SUPPRESS_INVALIDATION |
+                               nsISVGChildFrame::TRANSFORM_CHANGED);
+    return rv;
   }
   return NS_ERROR_FAILURE;
 }
 
 /* Helper for GetCTM and GetScreenCTM */
 nsresult
-nsSVGGraphicElement::AppendTransform(nsIDOMSVGMatrix *aCTM,
-                                     nsIDOMSVGMatrix **_retval)
+nsSVGGraphicElement::AppendLocalTransform(nsIDOMSVGMatrix *aCTM,
+                                          nsIDOMSVGMatrix **_retval)
 {
   if (!mTransforms) {
     *_retval = aCTM;
@@ -128,15 +136,99 @@ nsSVGGraphicElement::AppendTransform(nsIDOMSVGMatrix *aCTM,
 }
 
 /* nsIDOMSVGMatrix getCTM (); */
-NS_IMETHODIMP nsSVGGraphicElement::GetCTM(nsIDOMSVGMatrix * *aCTM)
+NS_IMETHODIMP nsSVGGraphicElement::GetCTM(nsIDOMSVGMatrix **_retval)
 {
-  return nsSVGUtils::GetCTM(this, aCTM);
+  nsresult rv;
+  *_retval = nsnull;
+
+  nsIDocument* currentDoc = GetCurrentDoc();
+  if (currentDoc) {
+    // Flush all pending notifications so that our frames are uptodate
+    currentDoc->FlushPendingNotifications(Flush_Layout);
+  }
+
+  nsBindingManager *bindingManager = nsnull;
+  // XXXbz I _think_ this is right.  We want to be using the binding manager
+  // that would have attached the binding that gives us our anonymous parent.
+  // That's the binding manager for the document we actually belong to, which
+  // is our owner doc.
+  nsIDocument* ownerDoc = GetOwnerDoc();
+  if (ownerDoc) {
+    bindingManager = ownerDoc->BindingManager();
+  }
+
+  nsIContent* parent = nsnull;
+  nsCOMPtr<nsIDOMSVGMatrix> parentCTM;
+
+  if (bindingManager) {
+    // check for an anonymous parent first
+    parent = bindingManager->GetInsertionParent(this);
+  }
+  if (!parent) {
+    // if we didn't find an anonymous parent, use the explicit one
+    parent = GetParent();
+  }
+
+  nsCOMPtr<nsIDOMSVGLocatable> locatableElement = do_QueryInterface(parent);
+  if (!locatableElement) {
+    // we don't have an SVGLocatable parent so we aren't even rendered
+    NS_WARNING("SVGGraphicElement without an SVGLocatable parent");
+    return NS_ERROR_FAILURE;
+  }
+
+  // get our parent's CTM
+  rv = locatableElement->GetCTM(getter_AddRefs(parentCTM));
+  if (NS_FAILED(rv)) return rv;
+
+  return AppendLocalTransform(parentCTM, _retval);
 }
 
 /* nsIDOMSVGMatrix getScreenCTM (); */
-NS_IMETHODIMP nsSVGGraphicElement::GetScreenCTM(nsIDOMSVGMatrix * *aCTM)
+NS_IMETHODIMP nsSVGGraphicElement::GetScreenCTM(nsIDOMSVGMatrix **_retval)
 {
-  return nsSVGUtils::GetScreenCTM(this, aCTM);
+  nsresult rv;
+  *_retval = nsnull;
+
+  nsIDocument* currentDoc = GetCurrentDoc();
+  if (currentDoc) {
+    // Flush all pending notifications so that our frames are uptodate
+    currentDoc->FlushPendingNotifications(Flush_Layout);
+  }
+
+  nsBindingManager *bindingManager = nsnull;
+  // XXXbz I _think_ this is right.  We want to be using the binding manager
+  // that would have attached the binding that gives us our anonymous parent.
+  // That's the binding manager for the document we actually belong to, which
+  // is our owner doc.
+  nsIDocument* ownerDoc = GetOwnerDoc();
+  if (ownerDoc) {
+    bindingManager = ownerDoc->BindingManager();
+  }
+
+  nsIContent* parent = nsnull;
+  nsCOMPtr<nsIDOMSVGMatrix> parentScreenCTM;
+
+  if (bindingManager) {
+    // check for an anonymous parent first
+    parent = bindingManager->GetInsertionParent(this);
+  }
+  if (!parent) {
+    // if we didn't find an anonymous parent, use the explicit one
+    parent = GetParent();
+  }
+
+  nsCOMPtr<nsIDOMSVGLocatable> locatableElement = do_QueryInterface(parent);
+  if (!locatableElement) {
+    // we don't have an SVGLocatable parent so we aren't even rendered
+    NS_WARNING("SVGGraphicElement without an SVGLocatable parent");
+    return NS_ERROR_FAILURE;
+  }
+
+  // get our parent's "screen" CTM
+  rv = locatableElement->GetScreenCTM(getter_AddRefs(parentScreenCTM));
+  if (NS_FAILED(rv)) return rv;
+
+  return AppendLocalTransform(parentScreenCTM, _retval);
 }
 
 /* nsIDOMSVGMatrix getTransformToElement (in nsIDOMSVGElement element); */
@@ -202,24 +294,19 @@ nsSVGGraphicElement::IsEventName(nsIAtom* aName)
   return nsContentUtils::IsEventAttributeName(aName, EventNameType_SVGGraphic);
 }
 
-gfxMatrix
-nsSVGGraphicElement::PrependLocalTransformTo(const gfxMatrix &aMatrix)
+already_AddRefed<nsIDOMSVGMatrix>
+nsSVGGraphicElement::GetLocalTransformMatrix()
 {
   if (!mTransforms)
-    return aMatrix;
+    return nsnull;
 
   nsresult rv;
+
   nsCOMPtr<nsIDOMSVGTransformList> transforms;
   rv = mTransforms->GetAnimVal(getter_AddRefs(transforms));
-  NS_ENSURE_SUCCESS(rv, aMatrix);
-  PRUint32 count;
-  transforms->GetNumberOfItems(&count);
-  if (count == 0)
-    return aMatrix;
+  NS_ENSURE_SUCCESS(rv, nsnull);
 
-  nsCOMPtr<nsIDOMSVGMatrix> matrix =
-    nsSVGTransformList::GetConsolidationMatrix(transforms);
-  return gfxMatrix(aMatrix).PreMultiply(nsSVGUtils::ConvertSVGMatrixToThebes(matrix));
+  return nsSVGTransformList::GetConsolidationMatrix(transforms);
 }
 
 nsresult

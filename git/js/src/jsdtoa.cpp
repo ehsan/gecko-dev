@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -40,9 +40,9 @@
 /*
  * Portable double to alphanumeric string and back converters.
  */
+#include "jsstddef.h"
 #include "jslibmath.h"
 #include "jstypes.h"
-#include "jsstdint.h"
 #include "jsdtoa.h"
 #include "jsprf.h"
 #include "jsutil.h" /* Added by JSIFY */
@@ -389,7 +389,7 @@ JS_dtobasestr(int base, double dinput)
         LOCK_DTOA();
         /* Output the integer part of d with the digits in reverse order. */
         pInt = p;
-        dval(di) = floor(dval(d));
+        dval(di) = fd_floor(dval(d));
         if (dval(di) <= 4294967295.0) {
             uint32 n = (uint32)dval(di);
             if (n)

@@ -80,12 +80,7 @@ checkbox[disabled="true"] > .checkbox-check {
 }
 
 checkbox[disabled="true"] {
-  color: GrayText;
-}
-
-checkbox[disabled="true"]:-moz-system-metric(windows-classic) {
-  color: ThreeDShadow;
-  text-shadow: 1px 1px ThreeDHighlight;
+  color: GrayText !important;
 }
 
 /* ::::: checkmark image ::::: */

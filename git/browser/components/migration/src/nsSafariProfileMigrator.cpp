@@ -256,7 +256,7 @@ CFDictionaryRef CopySafariPrefs()
 
   safariPrefsFile->Append(SAFARI_PREFERENCES_FILE_NAME);
 
-  return static_cast<CFDictionaryRef>(CopyPListFromFile(safariPrefsFile));
+  return (CFDictionaryRef)CopyPListFromFile(safariPrefsFile);
 }
 
 char*
@@ -730,7 +730,7 @@ nsSafariProfileMigrator::CopyPreferences(PRBool aReplace)
   safariWebFoundationPrefsFile->Append(SAFARI_COOKIE_BEHAVIOR_FILE_NAME);
 
   CFDictionaryRef safariWebFoundationPrefs =
-    static_cast<CFDictionaryRef>(CopyPListFromFile(safariWebFoundationPrefsFile));
+                  (CFDictionaryRef)CopyPListFromFile(safariWebFoundationPrefsFile);
   if (safariWebFoundationPrefs) {
     // Mapping of Safari preference values to Firefox preference values:
     //
@@ -804,58 +804,18 @@ nsSafariProfileMigrator::CopyCookies(PRBool aReplace)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsSafariProfileMigrator::RunBatched(nsISupports* aUserData)
-{
-  PRUint8 batchAction;
-  nsCOMPtr<nsISupportsPRUint8> strWrapper(do_QueryInterface(aUserData));
-  NS_ASSERTION(strWrapper, "Unable to create nsISupportsPRUint8 wrapper!");
-  nsresult rv = strWrapper->GetData(&batchAction);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  switch (batchAction) {
-    case BATCH_ACTION_HISTORY:
-      rv = CopyHistoryBatched(PR_FALSE);
-      break;
-    case BATCH_ACTION_HISTORY_REPLACE:
-      rv = CopyHistoryBatched(PR_TRUE);
-      break;
-    case BATCH_ACTION_BOOKMARKS:
-      rv = CopyBookmarksBatched(PR_FALSE);
-      break;
-    case BATCH_ACTION_BOOKMARKS_REPLACE:
-      rv = CopyBookmarksBatched(PR_TRUE);
-      break;
-  }
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return NS_OK;
-}
-
 nsresult
 nsSafariProfileMigrator::CopyHistory(PRBool aReplace)
 {
   nsresult rv;
-  nsCOMPtr<nsINavHistoryService> history =
-    do_GetService(NS_NAVHISTORYSERVICE_CONTRACTID, &rv);
+  nsCOMPtr<nsINavHistoryService> history = do_GetService(NS_NAVHISTORYSERVICE_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
-
-  PRUint8 batchAction = aReplace ? BATCH_ACTION_HISTORY_REPLACE
-                                 : BATCH_ACTION_HISTORY;
-  nsCOMPtr<nsISupportsPRUint8> supports =
-    do_CreateInstance(NS_SUPPORTS_PRUINT8_CONTRACTID);
-  NS_ENSURE_TRUE(supports, NS_ERROR_OUT_OF_MEMORY);
-  rv = supports->SetData(batchAction);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = history->RunInBatchMode(this, supports);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return rv;
+ 
+  return history->RunInBatchMode(this, nsnull);
 }
  
-nsresult
-nsSafariProfileMigrator::CopyHistoryBatched(PRBool aReplace)
+NS_IMETHODIMP
+nsSafariProfileMigrator::RunBatched(nsISupports* aUserData)
 {
   nsCOMPtr<nsIProperties> fileLocator(do_GetService(NS_DIRECTORY_SERVICE_CONTRACTID));
   nsCOMPtr<nsILocalFile> safariHistoryFile;
@@ -864,8 +824,7 @@ nsSafariProfileMigrator::CopyHistoryBatched(PRBool aReplace)
   safariHistoryFile->Append(NS_LITERAL_STRING("Safari"));
   safariHistoryFile->Append(SAFARI_HISTORY_FILE_NAME);
 
-  CFDictionaryRef safariHistory =
-    static_cast<CFDictionaryRef>(CopyPListFromFile(safariHistoryFile));
+  CFDictionaryRef safariHistory = (CFDictionaryRef)CopyPListFromFile(safariHistoryFile);
   if (!safariHistory)
     return NS_OK;
 
@@ -913,64 +872,36 @@ nsSafariProfileMigrator::CopyHistoryBatched(PRBool aReplace)
 nsresult
 nsSafariProfileMigrator::CopyBookmarks(PRBool aReplace)
 {
-  nsresult rv;
-  nsCOMPtr<nsINavBookmarksService> bookmarks =
-    do_GetService(NS_NAVBOOKMARKSSERVICE_CONTRACTID, &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  PRUint8 batchAction = aReplace ? BATCH_ACTION_BOOKMARKS_REPLACE
-                                 : BATCH_ACTION_BOOKMARKS;
-  nsCOMPtr<nsISupportsPRUint8> supports =
-    do_CreateInstance(NS_SUPPORTS_PRUINT8_CONTRACTID);
-  NS_ENSURE_TRUE(supports, NS_ERROR_OUT_OF_MEMORY);
-  rv = supports->SetData(batchAction);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = bookmarks->RunInBatchMode(this, supports);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return NS_OK;
-}
-
-nsresult
-nsSafariProfileMigrator::CopyBookmarksBatched(PRBool aReplace)
-{
   // If "aReplace" is true, merge into the root level of bookmarks. Otherwise, create
   // a folder called "Imported Safari Favorites" and place all the Bookmarks there.
   nsresult rv;
 
-  nsCOMPtr<nsINavBookmarksService> bms =
-    do_GetService(NS_NAVBOOKMARKSSERVICE_CONTRACTID, &rv);
+  nsCOMPtr<nsINavBookmarksService> bms(do_GetService(NS_NAVBOOKMARKSSERVICE_CONTRACTID, &rv));
   NS_ENSURE_SUCCESS(rv, rv);
-  PRInt64 bookmarksMenuFolderId;
-  rv = bms->GetBookmarksMenuFolder(&bookmarksMenuFolderId);
+  PRInt64 root;
+  rv = bms->GetBookmarksMenuFolder(&root);
   NS_ENSURE_SUCCESS(rv, rv);
 
   PRInt64 folder;
   if (!aReplace) {
-    nsCOMPtr<nsIStringBundleService> bundleService =
-      do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv);
-    NS_ENSURE_SUCCESS(rv, rv);
+    nsCOMPtr<nsIStringBundleService> bundleService = do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv);
+    if (NS_FAILED(rv)) return rv;
+
     nsCOMPtr<nsIStringBundle> bundle;
-    rv = bundleService->CreateBundle(MIGRATION_BUNDLE, getter_AddRefs(bundle));
-    NS_ENSURE_SUCCESS(rv, rv);
+    bundleService->CreateBundle(MIGRATION_BUNDLE, getter_AddRefs(bundle));
 
     nsString sourceNameSafari;
-    rv = bundle->GetStringFromName(NS_LITERAL_STRING("sourceNameSafari").get(),
-                                   getter_Copies(sourceNameSafari));
-    NS_ENSURE_SUCCESS(rv, rv);
+    bundle->GetStringFromName(NS_LITERAL_STRING("sourceNameSafari").get(),
+                              getter_Copies(sourceNameSafari));
 
     const PRUnichar* sourceNameStrings[] = { sourceNameSafari.get() };
     nsString importedSafariBookmarksTitle;
-    rv = bundle->FormatStringFromName(NS_LITERAL_STRING("importedBookmarksFolder").get(),
-                                      sourceNameStrings, 1,
-                                      getter_Copies(importedSafariBookmarksTitle));
-    NS_ENSURE_SUCCESS(rv, rv);
+    bundle->FormatStringFromName(NS_LITERAL_STRING("importedBookmarksFolder").get(),
+                                 sourceNameStrings, 1,
+                                 getter_Copies(importedSafariBookmarksTitle));
 
-    rv = bms->CreateFolder(bookmarksMenuFolderId,
-                           NS_ConvertUTF16toUTF8(importedSafariBookmarksTitle),
-                           nsINavBookmarksService::DEFAULT_INDEX, &folder);
-    NS_ENSURE_SUCCESS(rv, rv);
+    bms->CreateFolder(root, NS_ConvertUTF16toUTF8(importedSafariBookmarksTitle),
+                      nsINavBookmarksService::DEFAULT_INDEX, &folder);
   }
   else {
     nsCOMPtr<nsIFile> profile;
@@ -978,7 +909,7 @@ nsSafariProfileMigrator::CopyBookmarksBatched(PRBool aReplace)
     rv = InitializeBookmarks(profile);
     NS_ENSURE_SUCCESS(rv, rv);
     // In replace mode we are merging at the top level.
-    folder = bookmarksMenuFolderId;
+    folder = root;
   }
 
   nsCOMPtr<nsIProperties> fileLocator(do_GetService(NS_DIRECTORY_SERVICE_CONTRACTID));
@@ -988,8 +919,7 @@ nsSafariProfileMigrator::CopyBookmarksBatched(PRBool aReplace)
   safariBookmarksFile->Append(NS_LITERAL_STRING("Safari"));
   safariBookmarksFile->Append(SAFARI_BOOKMARKS_FILE_NAME);
 
-  CFDictionaryRef safariBookmarks =
-    static_cast<CFDictionaryRef>(CopyPListFromFile(safariBookmarksFile));
+  CFDictionaryRef safariBookmarks = (CFDictionaryRef)CopyPListFromFile(safariBookmarksFile);
   if (!safariBookmarks)
     return NS_OK;
 
@@ -1012,6 +942,15 @@ nsSafariProfileMigrator::CopyBookmarksBatched(PRBool aReplace)
         (CFArrayRef)::CFDictionaryGetValue(safariBookmarks, CFSTR("Children"));
       if (children) {
         rv = ParseBookmarksFolder(children, folder, bms, PR_TRUE);
+        if (NS_SUCCEEDED(rv)) {
+          // after importing the favorites, 
+          // we need to set this pref so that on startup
+          // we don't blow away what we just imported
+          nsCOMPtr<nsIPrefBranch> pref(do_GetService(NS_PREFSERVICE_CONTRACTID));
+          NS_ENSURE_TRUE(pref, NS_ERROR_FAILURE);
+          rv = pref->SetBoolPref("browser.places.importBookmarksHTML", PR_FALSE);
+          NS_ENSURE_SUCCESS(rv, rv);
+        }
       }
     }
   }
@@ -1088,13 +1027,11 @@ nsSafariProfileMigrator::ParseBookmarksFolder(CFArrayRef aChildren,
       if (GetDictionaryStringValue(URIDictionary, CFSTR("title"), title) &&
           GetDictionaryCStringValue(entry, CFSTR("URLString"), url, kCFStringEncodingUTF8)) {
         nsCOMPtr<nsIURI> uri;
-        rv = NS_NewURI(getter_AddRefs(uri), url);
-        if (NS_SUCCEEDED(rv)) {
-          PRInt64 id;
-          rv = aBookmarksService->InsertBookmark(aParentFolder, uri,
-                                                 nsINavBookmarksService::DEFAULT_INDEX,
-                                                 NS_ConvertUTF16toUTF8(title), &id);
-        }
+        rv |= NS_NewURI(getter_AddRefs(uri), url);
+        PRInt64 id;
+        rv |= aBookmarksService->InsertBookmark(aParentFolder, uri,
+                                                nsINavBookmarksService::DEFAULT_INDEX,
+                                                NS_ConvertUTF16toUTF8(title), &id);
       }
     }
   }

@@ -46,7 +46,7 @@
 #define MAX_REL_THRESHOLD     1000
 
 //hiragana frequency category table
-extern const PRUint8 jp2CharContext[83][83];
+extern char jp2CharContext[83][83];
 
 class JapaneseContextAnalysis
 {
@@ -74,7 +74,7 @@ public:
     mLastCharOrder = order;
   }
 
-  float GetConfidence(PRBool aIsPreferredLanguage);
+  float GetConfidence();
   void      Reset(void);
   void      SetOpion(){}
   PRBool GotEnoughData() {return mTotalRel > ENOUGH_REL_THRESHOLD;}

@@ -41,9 +41,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef nsTreeBodyFrame_h
-#define nsTreeBodyFrame_h
-
 #include "nsLeafBoxFrame.h"
 #include "nsITreeView.h"
 #include "nsICSSPseudoComparator.h"
@@ -63,8 +60,6 @@
 #include "nsIScrollbarFrame.h"
 #include "nsThreadUtils.h"
 
-class nsOverflowChecker;
-
 // An entry in the tree's image cache
 struct nsTreeImageCacheEntry
 {
@@ -76,62 +71,21 @@ struct nsTreeImageCacheEntry
   nsCOMPtr<imgIDecoderObserver> listener;
 };
 
+static NS_DEFINE_CID(kTreeColumnImplCID, NS_TREECOLUMN_IMPL_CID);
+
 // The actual frame that paints the cells and rows.
-class NS_FINAL_CLASS nsTreeBodyFrame
-  : public nsLeafBoxFrame
-  , public nsICSSPseudoComparator
-  , public nsIScrollbarMediator
-  , public nsIReflowCallback
+class nsTreeBodyFrame : public nsLeafBoxFrame,
+                        public nsITreeBoxObject,
+                        public nsICSSPseudoComparator,
+                        public nsIScrollbarMediator,
+                        public nsIReflowCallback
 {
 public:
   nsTreeBodyFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
-  ~nsTreeBodyFrame();
+  virtual ~nsTreeBodyFrame();
 
-  NS_DECLARE_FRAME_ACCESSOR(nsTreeBodyFrame)
-
-  NS_DECL_QUERYFRAME
-
-  // non-virtual signatures like nsITreeBodyFrame
-  nsresult GetColumns(nsITreeColumns **aColumns);
-  nsresult GetView(nsITreeView **aView);
-  nsresult SetView(nsITreeView *aView);
-  nsresult GetFocused(PRBool *aFocused);
-  nsresult SetFocused(PRBool aFocused);
-  nsresult GetTreeBody(nsIDOMElement **aElement);
-  nsresult GetRowHeight(PRInt32 *aValue);
-  nsresult GetRowWidth(PRInt32 *aValue);
-  nsresult GetHorizontalPosition(PRInt32 *aValue);
-  nsresult GetSelectionRegion(nsIScriptableRegion **aRegion);
-  nsresult GetFirstVisibleRow(PRInt32 *aValue);
-  nsresult GetLastVisibleRow(PRInt32 *aValue);
-  nsresult GetPageLength(PRInt32 *aValue);
-  nsresult EnsureRowIsVisible(PRInt32 aRow);
-  nsresult EnsureCellIsVisible(PRInt32 aRow, nsITreeColumn *aCol);
-  nsresult ScrollToRow(PRInt32 aRow);
-  nsresult ScrollByLines(PRInt32 aNumLines);
-  nsresult ScrollByPages(PRInt32 aNumPages);
-  nsresult ScrollToCell(PRInt32 aRow, nsITreeColumn *aCol);
-  nsresult ScrollToColumn(nsITreeColumn *aCol);
-  nsresult ScrollToHorizontalPosition(PRInt32 aValue);
-  nsresult Invalidate();
-  nsresult InvalidateColumn(nsITreeColumn *aCol);
-  nsresult InvalidateRow(PRInt32 aRow);
-  nsresult InvalidateCell(PRInt32 aRow, nsITreeColumn *aCol);
-  nsresult InvalidateRange(PRInt32 aStart, PRInt32 aEnd);
-  nsresult InvalidateColumnRange(PRInt32 aStart, PRInt32 aEnd,
-                                 nsITreeColumn *aCol);
-  nsresult GetRowAt(PRInt32 aX, PRInt32 aY, PRInt32 *aValue);
-  nsresult GetCellAt(PRInt32 aX, PRInt32 aY, PRInt32 *aRow,
-                     nsITreeColumn **aCol, nsACString &aChildElt);
-  nsresult GetCoordsForCellItem(PRInt32 aRow, nsITreeColumn *aCol,
-                                const nsACString &aElt,
-                                PRInt32 *aX, PRInt32 *aY,
-                                PRInt32 *aWidth, PRInt32 *aHeight);
-  nsresult IsCellCropped(PRInt32 aRow, nsITreeColumn *aCol, PRBool *aResult);
-  nsresult RowCountChanged(PRInt32 aIndex, PRInt32 aCount);
-  nsresult BeginUpdateBatch();
-  nsresult EndUpdateBatch();
-  nsresult ClearStyleAndImageCaches();
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSITREEBOXOBJECT
 
   // nsIBox
   virtual nsSize GetMinSize(nsBoxLayoutState& aBoxLayoutState);
@@ -146,9 +100,9 @@ public:
   NS_IMETHOD PseudoMatches(nsIAtom* aTag, nsCSSSelector* aSelector, PRBool* aResult);
 
   // nsIScrollbarMediator
-  NS_IMETHOD PositionChanged(nsIScrollbarFrame* aScrollbar, PRInt32 aOldIndex, PRInt32& aNewIndex);
-  NS_IMETHOD ScrollbarButtonPressed(nsIScrollbarFrame* aScrollbar, PRInt32 aOldIndex, PRInt32 aNewIndex);
-  NS_IMETHOD VisibilityChanged(PRBool aVisible) { Invalidate(); return NS_OK; }
+  NS_IMETHOD PositionChanged(nsISupports* aScrollbar, PRInt32 aOldIndex, PRInt32& aNewIndex);
+  NS_IMETHOD ScrollbarButtonPressed(nsISupports* aScrollbar, PRInt32 aOldIndex, PRInt32 aNewIndex);
+  NS_IMETHOD VisibilityChanged(nsISupports* aScrollbar, PRBool aVisible) { Invalidate(); return NS_OK; }
 
   // Overridden from nsIFrame to cache our pres context.
   NS_IMETHOD Init(nsIContent*     aContent,
@@ -167,7 +121,7 @@ public:
                               const nsRect&           aDirtyRect,
                               const nsDisplayListSet& aLists);
 
-  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
+  NS_IMETHOD DidSetStyleContext();
 
   friend nsIFrame* NS_NewTreeBodyFrame(nsIPresShell* aPresShell);
   friend class nsTreeColumn;
@@ -187,8 +141,6 @@ public:
   nsITreeBoxObject* GetTreeBoxObject() const { return mTreeBoxObject; }
 
 protected:
-  friend class nsOverflowChecker;
-
   // This method paints a specific column background of the tree.
   void PaintColumn(nsTreeColumn*        aColumn,
                    const nsRect&        aColumnRect,
@@ -248,8 +200,7 @@ protected:
                  nsPresContext*      aPresContext,
                  nsIRenderingContext& aRenderingContext,
                  const nsRect&        aDirtyRect,
-                 nscoord&             aCurrX,
-                 PRBool               aTextRTL);
+                 nscoord&             aCurrX);
 
   // This method paints the checkbox inside a particular cell of the tree.
   void PaintCheckbox(PRInt32              aRowIndex, 
@@ -430,7 +381,7 @@ protected:
       return nsnull;
 
     nsTreeColumn* col;
-    aUnknownCol->QueryInterface(NS_GET_IID(nsTreeColumn), (void**)&col);
+    aUnknownCol->QueryInterface(kTreeColumnImplCID, (void**)&col);
     return col;
   }
 
@@ -493,6 +444,70 @@ protected:
 #endif
 
 protected: // Data Members
+  // The cached box object parent.
+  nsCOMPtr<nsITreeBoxObject> mTreeBoxObject;
+
+  // Cached column information.
+  nsRefPtr<nsTreeColumns> mColumns;
+
+  // The current view for this tree widget.  We get all of our row and cell data
+  // from the view.
+  nsCOMPtr<nsITreeView> mView;    
+
+  // A cache of all the style contexts we have seen for rows and cells of the tree.  This is a mapping from
+  // a list of atoms to a corresponding style context.  This cache stores every combination that
+  // occurs in the tree, so for n distinct properties, this cache could have 2 to the n entries
+  // (the power set of all row properties).
+  nsTreeStyleCache mStyleCache;
+
+  // A hashtable that maps from URLs to image request/listener pairs.  The URL
+  // is provided by the view or by the style context. The style context
+  // represents a resolved :-moz-tree-cell-image (or twisty) pseudo-element.
+  // It maps directly to an imgIRequest.
+  nsDataHashtable<nsStringHashKey, nsTreeImageCacheEntry> mImageCache;
+
+  // The index of the first visible row and the # of rows visible onscreen.  
+  // The tree only examines onscreen rows, starting from
+  // this index and going up to index+pageLength.
+  PRInt32 mTopRowIndex;
+  PRInt32 mPageLength;
+
+  // The horizontal scroll position
+  nscoord mHorzPosition;
+  // Our desired horizontal width (the width for which we actually have tree
+  // columns).
+  nscoord mHorzWidth;
+  // The amount by which to adjust the width of the last cell.
+  // This depends on whether or not the columnpicker and scrollbars are present.
+  nscoord mAdjustWidth;
+
+  // Cached heights and indent info.
+  nsRect mInnerBox;
+  PRInt32 mRowHeight;
+  PRInt32 mIndentation;
+  nscoord mStringWidth;
+
+  // A scratch array used when looking up cached style contexts.
+  nsCOMPtr<nsISupportsArray> mScratchArray;
+
+  // Whether or not we're currently focused.
+  PRPackedBool mFocused;
+
+  // Do we have a fixed number of onscreen rows?
+  PRPackedBool mHasFixedRowCount;
+
+  PRPackedBool mVerticalOverflow;
+  PRPackedBool mHorizontalOverflow;
+
+  PRPackedBool mReflowCallbackPosted;
+
+  PRInt32 mUpdateBatchNest;
+
+  // Cached row count.
+  PRInt32 mRowCount;
+
+  // The row the mouse is hovering over.
+  PRInt32 mMouseOverRow;
 
   class Slots {
     public:
@@ -534,71 +549,4 @@ protected: // Data Members
   Slots* mSlots;
 
   nsRevocableEventPtr<ScrollEvent> mScrollEvent;
-
-  // The cached box object parent.
-  nsCOMPtr<nsITreeBoxObject> mTreeBoxObject;
-
-  // Cached column information.
-  nsRefPtr<nsTreeColumns> mColumns;
-
-  // The current view for this tree widget.  We get all of our row and cell data
-  // from the view.
-  nsCOMPtr<nsITreeView> mView;
-
-  // A cache of all the style contexts we have seen for rows and cells of the tree.  This is a mapping from
-  // a list of atoms to a corresponding style context.  This cache stores every combination that
-  // occurs in the tree, so for n distinct properties, this cache could have 2 to the n entries
-  // (the power set of all row properties).
-  nsTreeStyleCache mStyleCache;
-
-  // A hashtable that maps from URLs to image request/listener pairs.  The URL
-  // is provided by the view or by the style context. The style context
-  // represents a resolved :-moz-tree-cell-image (or twisty) pseudo-element.
-  // It maps directly to an imgIRequest.
-  nsDataHashtable<nsStringHashKey, nsTreeImageCacheEntry> mImageCache;
-
-  // A scratch array used when looking up cached style contexts.
-  nsCOMPtr<nsISupportsArray> mScratchArray;
-
-  // The index of the first visible row and the # of rows visible onscreen.  
-  // The tree only examines onscreen rows, starting from
-  // this index and going up to index+pageLength.
-  PRInt32 mTopRowIndex;
-  PRInt32 mPageLength;
-
-  // The horizontal scroll position
-  nscoord mHorzPosition;
-  // Our desired horizontal width (the width for which we actually have tree
-  // columns).
-  nscoord mHorzWidth;
-  // The amount by which to adjust the width of the last cell.
-  // This depends on whether or not the columnpicker and scrollbars are present.
-  nscoord mAdjustWidth;
-
-  // Cached heights and indent info.
-  nsRect mInnerBox; // 4-byte aligned
-  PRInt32 mRowHeight;
-  PRInt32 mIndentation;
-  nscoord mStringWidth;
-
-  PRInt32 mUpdateBatchNest;
-
-  // Cached row count.
-  PRInt32 mRowCount;
-
-  // The row the mouse is hovering over.
-  PRInt32 mMouseOverRow;
-
-  // Whether or not we're currently focused.
-  PRPackedBool mFocused;
-
-  // Do we have a fixed number of onscreen rows?
-  PRPackedBool mHasFixedRowCount;
-
-  PRPackedBool mVerticalOverflow;
-  PRPackedBool mHorizontalOverflow;
-
-  PRPackedBool mReflowCallbackPosted;
 }; // class nsTreeBodyFrame
-
-#endif

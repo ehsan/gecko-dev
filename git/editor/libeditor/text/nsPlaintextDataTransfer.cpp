@@ -76,10 +76,7 @@ NS_IMETHODIMP nsPlaintextEditor::PrepareTransferable(nsITransferable **transfera
     return rv;
 
   // Get the nsITransferable interface for getting the data from the clipboard
-  if (transferable) {
-    (*transferable)->AddDataFlavor(kUnicodeMime);
-    (*transferable)->AddDataFlavor(kMozTextInternal);
-  };
+  if (transferable) (*transferable)->AddDataFlavor(kUnicodeMime);
   return NS_OK;
 }
 
@@ -124,8 +121,7 @@ NS_IMETHODIMP nsPlaintextEditor::InsertTextFromTransferable(nsITransferable *aTr
   nsCOMPtr<nsISupports> genericDataObj;
   PRUint32 len = 0;
   if (NS_SUCCEEDED(aTransferable->GetAnyTransferData(&bestFlavor, getter_AddRefs(genericDataObj), &len))
-      && bestFlavor && (0 == nsCRT::strcmp(bestFlavor, kUnicodeMime) ||
-                        0 == nsCRT::strcmp(bestFlavor, kMozTextInternal)))
+      && bestFlavor && 0 == nsCRT::strcmp(bestFlavor, kUnicodeMime))
   {
     nsAutoTxnsConserveSelection dontSpazMySelection(this);
     nsCOMPtr<nsISupportsString> textDataObj ( do_QueryInterface(genericDataObj) );

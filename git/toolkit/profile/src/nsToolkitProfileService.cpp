@@ -57,7 +57,7 @@
 #include "nsISimpleEnumerator.h"
 
 #ifdef XP_MACOSX
-#include <CoreFoundation/CoreFoundation.h>
+#include <CFURL.h>
 #include "nsILocalFileMac.h"
 #endif
 

@@ -47,14 +47,13 @@
 #include "nsISupports.h"
 #include "nsCOMArray.h"
 #include "nsString.h"
-#include "nsIHTMLCollection.h"
+#include "nsIDOMHTMLCollection.h"
 #include "nsIDOMNodeList.h"
 #include "nsINodeList.h"
 #include "nsStubMutationObserver.h"
 #include "nsIAtom.h"
 #include "nsINameSpaceManager.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsWrapperCache.h"
 
 // Magic namespace id that means "match all namespaces".  This is
 // negative so it won't collide with actual namespace constants.
@@ -75,9 +74,11 @@ class nsIDocument;
 class nsIDOMHTMLFormElement;
 
 
-class nsBaseContentList : public nsINodeList
+class nsBaseContentList : public nsIDOMNodeList,
+                          public nsINodeList
 {
 public:
+  nsBaseContentList();
   virtual ~nsBaseContentList();
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -86,10 +87,9 @@ public:
   NS_DECL_NSIDOMNODELIST
 
   // nsINodeList
-  virtual nsIContent* GetNodeAt(PRUint32 aIndex);
-  virtual PRInt32 IndexOf(nsIContent* aContent);
+  virtual nsINode* GetNodeAt(PRUint32 aIndex);
   
-  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsBaseContentList, nsINodeList)
+  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsBaseContentList, nsIDOMNodeList)
 
   void AppendElement(nsIContent *aContent);
   void RemoveElement(nsIContent *aContent);
@@ -183,9 +183,8 @@ protected:
  */
 class nsContentList : public nsBaseContentList,
                       protected nsContentListKey,
-                      public nsIHTMLCollection,
-                      public nsStubMutationObserver,
-                      public nsWrapperCache
+                      public nsIDOMHTMLCollection,
+                      public nsStubMutationObserver
 {
 public:
   NS_DECL_ISUPPORTS_INHERITED
@@ -243,12 +242,8 @@ public:
 
   // nsBaseContentList overrides
   virtual PRInt32 IndexOf(nsIContent *aContent, PRBool aDoFlush);
-  virtual nsIContent* GetNodeAt(PRUint32 aIndex);
-  virtual PRInt32 IndexOf(nsIContent* aContent);
-
-  // nsIHTMLCollection
-  virtual nsISupports* GetNodeAt(PRUint32 aIndex, nsresult* aResult);
-  virtual nsISupports* GetNamedItem(const nsAString& aName, nsresult* aResult);
+  virtual nsINode* GetNodeAt(PRUint32 aIndex);
+  
 
   // nsContentList public methods
   NS_HIDDEN_(nsISupports*) GetParentObject();
@@ -269,22 +264,6 @@ public:
   NS_DECL_NSIMUTATIONOBSERVER_NODEWILLBEDESTROYED
   
   static void OnDocumentDestroy(nsIDocument *aDocument);
-
-  static nsContentList* FromSupports(nsISupports* aSupports)
-  {
-    nsINodeList* list = static_cast<nsINodeList*>(aSupports);
-#ifdef DEBUG
-    {
-      nsCOMPtr<nsINodeList> list_qi = do_QueryInterface(aSupports);
-
-      // If this assertion fires the QI implementation for the object in
-      // question doesn't use the nsINodeList pointer as the nsISupports
-      // pointer. That must be fixed, or we'll crash...
-      NS_ASSERTION(list_qi == list, "Uh, fix QI!");
-    }
-#endif
-    return static_cast<nsContentList*>(list);
-  }
 
 protected:
   /**

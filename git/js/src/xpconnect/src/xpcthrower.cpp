@@ -41,7 +41,6 @@
 /* Code for throwing errors into JavaScript. */
 
 #include "xpcprivate.h"
-#include "XPCWrapper.h"
 
 JSBool XPCThrower::sVerbose = JS_TRUE;
 
@@ -261,36 +260,12 @@ XPCThrower::BuildAndThrowException(JSContext* cx, nsresult rv, const char* sz)
 }
 
 static PRBool
-IsCallerChrome(JSContext* cx)
+IsCallerChrome()
 {
-    nsresult rv;
-
-    nsCOMPtr<nsIScriptSecurityManager> secMan;
-    if(XPCPerThreadData::IsMainThread(cx))
-    {
-        secMan = XPCWrapper::GetSecurityManager();
-    }
-    else
-    {
-        nsXPConnect* xpc = nsXPConnect::GetXPConnect();
-        if(!xpc)
-            return PR_FALSE;
-
-        nsCOMPtr<nsIXPCSecurityManager> xpcSecMan;
-        PRUint16 flags = 0;
-        rv = xpc->GetSecurityManagerForJSContext(cx, getter_AddRefs(xpcSecMan),
-                                                 &flags);
-        if(NS_FAILED(rv) || !xpcSecMan)
-            return PR_FALSE;
-
-        secMan = do_QueryInterface(xpcSecMan);
-    }
-
-    if(!secMan)
-        return PR_FALSE;
-
-    PRBool isChrome;
-    rv = secMan->SubjectPrincipalIsSystem(&isChrome);
+    PRBool isChrome = PR_FALSE;
+    nsCOMPtr<nsIScriptSecurityManager> securityManager =
+        do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID);
+    nsresult rv = securityManager->SubjectPrincipalIsSystem(&isChrome);
     return NS_SUCCEEDED(rv) && isChrome;
 }
 
@@ -301,16 +276,16 @@ XPCThrower::ThrowExceptionObject(JSContext* cx, nsIException* e)
     JSBool success = JS_FALSE;
     if(e)
     {
-        nsCOMPtr<nsIXPCException> xpcEx;
+        nsCOMPtr<nsXPCException> xpcEx;
         jsval thrown;
         nsXPConnect* xpc;
 
         // If we stored the original thrown JS value in the exception
         // (see XPCConvert::ConstructException) and we are in a web
         // context (i.e., not chrome), rethrow the original value.
-        if(!IsCallerChrome(cx) &&
-           (xpcEx = do_QueryInterface(e)) &&
-           NS_SUCCEEDED(xpcEx->StealJSVal(&thrown)))
+        if((xpcEx = do_QueryInterface(e)) &&
+           xpcEx->GetThrownJSVal(&thrown) &&
+           !IsCallerChrome())
         {
             JS_SetPendingException(cx, thrown);
             success = JS_TRUE;

@@ -46,10 +46,10 @@
 #include "nsDebug.h"
 
 typedef void *
-(* IntervalSetAlloc)(size_t aBytes, void *aClosure);
+(* PR_CALLBACK IntervalSetAlloc)(size_t aBytes, void *aClosure);
 
 typedef void
-(* IntervalSetFree) (size_t aBytes, void *aPtr, void *aClosure);
+(* PR_CALLBACK IntervalSetFree) (size_t aBytes, void *aPtr, void *aClosure);
 
 /*
  * A list-based class (hopefully tree-based when I get around to it)

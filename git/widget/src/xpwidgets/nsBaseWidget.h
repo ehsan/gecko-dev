@@ -44,6 +44,7 @@
 #include "nsIAppShell.h"
 #include "nsILocalFile.h"
 #include "nsString.h"
+#include "nsVoidArray.h"
 #include "nsCOMPtr.h"
 #include "nsGUIEvent.h"
 
@@ -74,6 +75,7 @@ public:
   // nsIWidget interface
   NS_IMETHOD              CaptureMouse(PRBool aCapture);
   NS_IMETHOD              Validate();
+  NS_IMETHOD              InvalidateRegion(const nsIRegion *aRegion, PRBool aIsSynchronous);
   NS_IMETHOD              GetClientData(void*& aClientData);
   NS_IMETHOD              SetClientData(void* aClientData);
   NS_IMETHOD              Destroy();
@@ -104,7 +106,6 @@ public:
   NS_IMETHOD              SetWindowType(nsWindowType aWindowType);
   virtual void            SetTransparencyMode(nsTransparencyMode aMode);
   virtual nsTransparencyMode GetTransparencyMode();
-  NS_IMETHOD              SetWindowShadowStyle(PRInt32 aStyle);
   NS_IMETHOD              HideWindowChrome(PRBool aShouldHide);
   NS_IMETHOD              MakeFullScreen(PRBool aFullScreen);
   virtual nsIRenderingContext* GetRenderingContext();
@@ -112,35 +113,38 @@ public:
   virtual nsIToolkit*     GetToolkit();  
   virtual gfxASurface*    GetThebesSurface();
   NS_IMETHOD              SetModal(PRBool aModal); 
+  NS_IMETHOD              ModalEventFilter(PRBool aRealEvent, void *aEvent,
+                            PRBool *aForWindow);
   NS_IMETHOD              SetWindowClass(const nsAString& xulWinType);
   NS_IMETHOD              SetBorderStyle(nsBorderStyle aBorderStyle); 
   NS_IMETHOD              AddEventListener(nsIEventListener * aListener);
-  NS_IMETHOD              SetBounds(const nsIntRect &aRect);
-  NS_IMETHOD              GetBounds(nsIntRect &aRect);
-  NS_IMETHOD              GetClientBounds(nsIntRect &aRect);
-  NS_IMETHOD              GetScreenBounds(nsIntRect &aRect);
+  NS_IMETHOD              SetBounds(const nsRect &aRect);
+  NS_IMETHOD              GetBounds(nsRect &aRect);
+  NS_IMETHOD              GetClientBounds(nsRect &aRect);
+  NS_IMETHOD              GetScreenBounds(nsRect &aRect);
+  NS_IMETHOD              GetBorderSize(PRInt32 &aWidth, PRInt32 &aHeight);
+  NS_IMETHOD              ScrollRect(nsRect &aRect, PRInt32 aDx, PRInt32 aDy);
+  NS_IMETHOD              ScrollWidgets(PRInt32 aDx, PRInt32 aDy);
   NS_IMETHOD              EnableDragDrop(PRBool aEnable);
   NS_IMETHOD              GetAttention(PRInt32 aCycleCount);
-  virtual PRBool          HasPendingInputEvent();
+  NS_IMETHOD              GetLastInputEventTime(PRUint32& aTime);
   NS_IMETHOD              SetIcon(const nsAString &anIconSpec);
   NS_IMETHOD              BeginSecureKeyboardInput();
   NS_IMETHOD              EndSecureKeyboardInput();
   NS_IMETHOD              SetWindowTitlebarColor(nscolor aColor, PRBool aActive);
   virtual PRBool          ShowsResizeIndicator(nsIntRect* aResizerRect);
+  virtual void            ConvertToDeviceCoordinates(nscoord  &aX,nscoord &aY) {}
   virtual void            FreeNativeData(void * data, PRUint32 aDataType) {}
   NS_IMETHOD              BeginResizeDrag(nsGUIEvent* aEvent, PRInt32 aHorizontal, PRInt32 aVertical);
   virtual nsresult        ActivateNativeMenuItemAt(const nsAString& indexString) { return NS_ERROR_NOT_IMPLEMENTED; }
-  virtual nsresult        ForceUpdateNativeMenuAt(const nsAString& indexString) { return NS_ERROR_NOT_IMPLEMENTED; }
-  NS_IMETHOD              ResetInputState() { return NS_OK; }
+  virtual nsresult        ForceNativeMenuReload() { return NS_ERROR_NOT_IMPLEMENTED; }
+  NS_IMETHOD              ResetInputState() { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              SetIMEOpenState(PRBool aState) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              GetIMEOpenState(PRBool* aState) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              SetIMEEnabled(PRUint32 aState) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              GetIMEEnabled(PRUint32* aState) { return NS_ERROR_NOT_IMPLEMENTED; }
-  NS_IMETHOD              CancelIMEComposition() { return NS_OK; }
+  NS_IMETHOD              CancelIMEComposition() { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              GetToggledKeyState(PRUint32 aKeyCode, PRBool* aLEDState) { return NS_ERROR_NOT_IMPLEMENTED; }
-  NS_IMETHOD              OnIMEFocusChange(PRBool aFocus) { return NS_ERROR_NOT_IMPLEMENTED; }
-  NS_IMETHOD              OnIMETextChange(PRUint32 aStart, PRUint32 aOldEnd, PRUint32 aNewEnd) { return NS_ERROR_NOT_IMPLEMENTED; }
-  NS_IMETHOD              OnIMESelectionChange(void) { return NS_ERROR_NOT_IMPLEMENTED; }
 
 protected:
 
@@ -149,7 +153,7 @@ protected:
                                           nsILocalFile **aResult);
   virtual void            OnDestroy();
   virtual void            BaseCreate(nsIWidget *aParent,
-                                     const nsIntRect &aRect,
+                                     const nsRect &aRect,
                                      EVENT_CALLBACK aHandleEventFunction,
                                      nsIDeviceContext *aContext,
                                      nsIAppShell *aAppShell,
@@ -179,9 +183,13 @@ protected:
   nsCursor          mCursor;
   nsWindowType      mWindowType;
   nsBorderStyle     mBorderStyle;
+  PRPackedBool      mIsShiftDown;
+  PRPackedBool      mIsControlDown;
+  PRPackedBool      mIsAltDown;
+  PRPackedBool      mIsDestroying;
   PRPackedBool      mOnDestroyCalled;
-  nsIntRect         mBounds;
-  nsIntRect*        mOriginalBounds;
+  nsRect            mBounds;
+  nsRect*           mOriginalBounds;
   PRInt32           mZIndex;
   nsSizeMode        mSizeMode;
 
@@ -208,7 +216,7 @@ protected:
 
   static void debug_DumpInvalidate(FILE *                aFileOut,
                                    nsIWidget *           aWidget,
-                                   const nsIntRect *     aRect,
+                                   const nsRect *        aRect,
                                    PRBool                aIsSynchronous,
                                    const nsCAutoString & aWidgetName,
                                    PRInt32               aWindowID);

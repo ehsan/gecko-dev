@@ -38,7 +38,6 @@
 #include "nsPrintObject.h"
 #include "nsIContentViewer.h"
 #include "nsIDOMDocument.h"
-#include "nsContentUtils.h"
 
 //---------------------------------------------------
 //-- nsPrintObject Class Impl
@@ -54,8 +53,8 @@ nsPrintObject::nsPrintObject() :
 
 nsPrintObject::~nsPrintObject()
 {
-  for (PRUint32 i=0;i<mKids.Length();i++) {
-    nsPrintObject* po = mKids[i];
+  for (PRInt32 i=0;i<mKids.Count();i++) {
+    nsPrintObject* po = (nsPrintObject*)mKids[i];
     delete po;
   }
 
@@ -94,7 +93,6 @@ nsPrintObject::DestroyPresentation()
   mPresContext = nsnull;
   if (mPresShell) {
     mPresShell->EndObservingDocument();
-    nsAutoScriptBlocker scriptBlocker;
     mPresShell->Destroy();
   }
   mPresShell   = nsnull;

@@ -660,15 +660,14 @@ inDOMView::IsSorted(PRBool *_retval)
 }
 
 NS_IMETHODIMP
-inDOMView::CanDrop(PRInt32 index, PRInt32 orientation,
-                   nsIDOMDataTransfer* aDataTransfer, PRBool *_retval)
+inDOMView::CanDrop(PRInt32 index, PRInt32 orientation, PRBool *_retval)
 {
   *_retval = PR_FALSE;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-inDOMView::Drop(PRInt32 row, PRInt32 orientation, nsIDOMDataTransfer* aDataTransfer)
+inDOMView::Drop(PRInt32 row, PRInt32 orientation)
 {
   return NS_OK;
 }
@@ -981,13 +980,13 @@ inDOMView::ContentRemoved(nsIDocument *aDocument, nsIContent* aContainer, nsICon
 inDOMViewNode*
 inDOMView::GetNodeAt(PRInt32 aRow)
 {
-  return mNodes.ElementAt(aRow);
+  return (inDOMViewNode*)mNodes.ElementAt(aRow);
 }
 
 PRInt32
 inDOMView::GetRowCount()
 {
-  return mNodes.Length();
+  return mNodes.Count();
 }
 
 PRInt32
@@ -1027,7 +1026,7 @@ inDOMView::InsertNode(inDOMViewNode* aNode, PRInt32 aRow)
   if (RowOutOfBounds(aRow, 1))
     AppendNode(aNode);
   else
-    mNodes.InsertElementAt(aRow, aNode);
+    mNodes.InsertElementAt(aNode, aRow);
 }
 
 void
@@ -1047,16 +1046,16 @@ inDOMView::ReplaceNode(inDOMViewNode* aNode, PRInt32 aRow)
     return;
 
   delete GetNodeAt(aRow);
-  mNodes.ElementAt(aRow) = aNode;
+  mNodes.ReplaceElementAt(aNode, aRow);
 }
 
 void
-inDOMView::InsertNodes(nsTArray<inDOMViewNode*>& aNodes, PRInt32 aRow)
+inDOMView::InsertNodes(nsVoidArray& aNodes, PRInt32 aRow)
 {
   if (aRow < 0 || aRow > GetRowCount())
     return;
 
-  mNodes.InsertElementsAt(aRow, aNodes);
+  mNodes.InsertElementsAt(aNodes, aRow);
 }
 
 void
@@ -1095,14 +1094,14 @@ inDOMView::ExpandNode(PRInt32 aRow)
                    kids);
   PRInt32 kidCount = kids.Count();
 
-  nsTArray<inDOMViewNode*> list(kidCount);
+  nsVoidArray list(kidCount);
 
   inDOMViewNode* newNode = nsnull;
   inDOMViewNode* prevNode = nsnull;
 
   for (PRInt32 i = 0; i < kidCount; ++i) {
     newNode = CreateNode(kids[i], node);
-    list.AppendElement(newNode);
+    list.ReplaceElementAt(newNode, i);
 
     if (prevNode)
       prevNode->next = newNode;

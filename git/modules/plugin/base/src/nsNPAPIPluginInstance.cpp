@@ -48,13 +48,18 @@
 #include "nsPluginHostImpl.h"
 #include "nsPluginSafety.h"
 #include "nsPluginLogging.h"
-#include "nsIPrivateBrowsingService.h"
 
 #include "nsPIPluginInstancePeer.h"
+#include "nsPIDOMWindow.h"
 #include "nsIDocument.h"
 
 #include "nsJSNPRuntime.h"
 
+#ifdef XP_OS2
+#include "nsILegacyPluginWrapperOS2.h"
+#endif
+
+static NS_DEFINE_IID(kCPluginManagerCID, NS_PLUGINMANAGER_CID); // needed for NS_TRY_SAFE_CALL
 static NS_DEFINE_IID(kIPluginStreamListenerIID, NS_IPLUGINSTREAMLISTENER_IID);
 
 // nsNPAPIPluginStreamListener Methods
@@ -81,6 +86,7 @@ nsNPAPIPluginStreamListener::nsNPAPIPluginStreamListener(nsNPAPIPluginInstance* 
                                           sizeof("javascript:") - 1) == 0),
     mResponseHeaderBuf(nsnull)
 {
+  // Initialize the 4.x interface structure
   memset(&mNPStream, 0, sizeof(mNPStream));
 
   NS_IF_ADDREF(mInst);
@@ -151,7 +157,10 @@ nsresult nsNPAPIPluginStreamListener::CleanUpStream(NPReason reason)
     PRLibrary* lib = nsnull;
     lib = mInst->fLibrary;
     NPError error;
-    NS_TRY_SAFE_CALL_RETURN(error, (*callbacks->destroystream)(npp, &mNPStream, reason), lib, mInst);
+    NS_TRY_SAFE_CALL_RETURN(error, CallNPP_DestroyStreamProc(callbacks->destroystream,
+                                                               npp,
+                                                               &mNPStream,
+                                                               reason), lib, mInst);
 
     NPP_PLUGIN_LOG(PLUGIN_LOG_NORMAL,
     ("NPP DestroyStream called: this=%p, npp=%p, reason=%d, return=%d, url=%s\n",
@@ -191,7 +200,11 @@ void nsNPAPIPluginStreamListener::CallURLNotify(NPReason reason)
     NPP npp;
     mInst->GetNPP(&npp);
 
-    NS_TRY_SAFE_CALL_VOID((*callbacks->urlnotify)(npp, mNotifyURL, reason, mNotifyData), mInst->fLibrary, mInst);
+    NS_TRY_SAFE_CALL_VOID(CallNPP_URLNotifyProc(callbacks->urlnotify,
+                                                npp,
+                                                mNotifyURL,
+                                                reason,
+                                                mNotifyData), mInst->fLibrary, mInst);
 
     NPP_PLUGIN_LOG(PLUGIN_LOG_NORMAL,
     ("NPP URLNotify called: this=%p, npp=%p, notify=%p, reason=%d, url=%s\n",
@@ -237,7 +250,12 @@ nsNPAPIPluginStreamListener::OnStartBinding(nsIPluginStreamInfo* pluginInfo)
 
   mStreamInfo = pluginInfo;
 
-  NS_TRY_SAFE_CALL_RETURN(error, (*callbacks->newstream)(npp, (char*)contentType, &mNPStream, seekable, &streamType), mInst->fLibrary, mInst);
+  NS_TRY_SAFE_CALL_RETURN(error, CallNPP_NewStreamProc(callbacks->newstream,
+                                                       npp,
+                                                       (char *)contentType,
+                                                       &mNPStream,
+                                                       seekable,
+                                                       &streamType), mInst->fLibrary, mInst);
 
   NPP_PLUGIN_LOG(PLUGIN_LOG_NORMAL,
   ("NPP NewStream called: this=%p, npp=%p, mime=%s, seek=%d, type=%d, return=%d, url=%s\n",
@@ -280,6 +298,7 @@ nsNPAPIPluginStreamListener::SuspendRequest()
 
   if (!pluginInfoNPAPI || !(request = pluginInfoNPAPI->GetRequest())) {
     NS_ERROR("Trying to suspend a non-suspendable stream!");
+
     return NS_ERROR_FAILURE;
   }
 
@@ -300,8 +319,9 @@ nsNPAPIPluginStreamListener::ResumeRequest()
   nsIRequest *request = pluginInfoNPAPI->GetRequest();
 
   // request can be null if the network stream is done.
-  if (request)
+  if (request) {
     request->Resume();
+  }
 
   mIsSuspended = PR_FALSE;
 }
@@ -324,6 +344,7 @@ nsNPAPIPluginStreamListener::StopDataPump()
 {
   if (mDataPumpTimer) {
     mDataPumpTimer->Cancel();
+
     mDataPumpTimer = nsnull;
   }
 }
@@ -422,7 +443,8 @@ nsNPAPIPluginStreamListener::OnDataAvailable(nsIPluginStreamInfo* pluginInfo,
   nsresult rv = NS_OK;
   while (NS_SUCCEEDED(rv) && length > 0) {
     if (input && length) {
-      if (mStreamBufferSize < mStreamBufferByteCount + length && mIsSuspended) {
+      if (mStreamBufferSize < mStreamBufferByteCount + length &&
+          mIsSuspended) {
         // We're in the ::OnDataAvailable() call that we might get
         // after suspending a request, or we suspended the request
         // from within this ::OnDataAvailable() call while there's
@@ -430,7 +452,7 @@ nsNPAPIPluginStreamListener::OnDataAvailable(nsIPluginStreamInfo* pluginInfo,
         // store what we got off the network. Reallocate our internal
         // buffer.
         mStreamBufferSize = mStreamBufferByteCount + length;
-        char *buf = (char*)PR_Realloc(mStreamBuffer, mStreamBufferSize);
+        char *buf = (char *)PR_Realloc(mStreamBuffer, mStreamBufferSize);
         if (!buf)
           return NS_ERROR_OUT_OF_MEMORY;
 
@@ -476,7 +498,11 @@ nsNPAPIPluginStreamListener::OnDataAvailable(nsIPluginStreamInfo* pluginInfo,
     while (mStreamBufferByteCount > 0) {
       PRInt32 numtowrite;
       if (callbacks->writeready) {
-        NS_TRY_SAFE_CALL_RETURN(numtowrite, (*callbacks->writeready)(npp, &mNPStream), mInst->fLibrary, mInst);
+        NS_TRY_SAFE_CALL_RETURN(numtowrite, 
+                                CallNPP_WriteReadyProc(callbacks->writeready,
+                                                       npp, &mNPStream),
+                                mInst->fLibrary, mInst);
+
         NPP_PLUGIN_LOG(PLUGIN_LOG_NOISY,
                        ("NPP WriteReady called: this=%p, npp=%p, "
                         "return(towrite)=%d, url=%s\n",
@@ -523,7 +549,12 @@ nsNPAPIPluginStreamListener::OnDataAvailable(nsIPluginStreamInfo* pluginInfo,
       }
 
       PRInt32 writeCount = 0; // bytes consumed by plugin instance
-      NS_TRY_SAFE_CALL_RETURN(writeCount, (*callbacks->write)(npp, &mNPStream, streamPosition, numtowrite, ptrStreamBuffer), mInst->fLibrary, mInst);
+      NS_TRY_SAFE_CALL_RETURN(writeCount, 
+                              CallNPP_WriteProc(callbacks->write, npp,
+                                                &mNPStream, streamPosition,
+                                                numtowrite,
+                                                ptrStreamBuffer),
+                              mInst->fLibrary, mInst);
 
       NPP_PLUGIN_LOG(PLUGIN_LOG_NOISY,
                      ("NPP Write called: this=%p, npp=%p, pos=%d, len=%d, "
@@ -534,6 +565,7 @@ nsNPAPIPluginStreamListener::OnDataAvailable(nsIPluginStreamInfo* pluginInfo,
       if (!mStreamStarted) {
         // The plugin called NPN_DestroyStream() from within
         // NPP_Write(), kill the stream.
+
         return NS_BINDING_ABORTED;
       }
 
@@ -630,7 +662,10 @@ nsNPAPIPluginStreamListener::OnFileAvailable(nsIPluginStreamInfo* pluginInfo,
   PRLibrary* lib = nsnull;
   lib = mInst->fLibrary;
 
-  NS_TRY_SAFE_CALL_VOID((*callbacks->asfile)(npp, &mNPStream, fileName), lib, mInst);
+  NS_TRY_SAFE_CALL_VOID(CallNPP_StreamAsFileProc(callbacks->asfile,
+                                                   npp,
+                                                   &mNPStream,
+                                                   fileName), lib, mInst);
 
   NPP_PLUGIN_LOG(PLUGIN_LOG_NORMAL,
   ("NPP StreamAsFile called: this=%p, npp=%p, url=%s, file=%s\n",
@@ -696,7 +731,9 @@ nsNPAPIPluginStreamListener::Notify(nsITimer *aTimer)
 
   if (NS_FAILED(rv)) {
     // We ran into an error, no need to keep firing this timer then.
+
     aTimer->Cancel();
+
     return NS_OK;
   }
 
@@ -707,7 +744,9 @@ nsNPAPIPluginStreamListener::Notify(nsITimer *aTimer)
     // our buffer (or its empty and the stream is already
     // done). Resume the request so that we get more data off the
     // network.
+
     ResumeRequest();
+
     // Necko will pump data now that we've resumed the request.
     StopDataPump();
   }
@@ -744,7 +783,7 @@ nsInstanceStream::~nsInstanceStream()
 {
 }
 
-NS_IMPL_ISUPPORTS2(nsNPAPIPluginInstance, nsIPluginInstance,
+NS_IMPL_ISUPPORTS3(nsNPAPIPluginInstance, nsIPluginInstance, nsIScriptablePlugin,
                    nsIPluginInstanceInternal)
 
 nsNPAPIPluginInstance::nsNPAPIPluginInstance(NPPluginFuncs* callbacks,
@@ -827,7 +866,7 @@ NS_IMETHODIMP nsNPAPIPluginInstance::Stop(void)
   NPError error;
 
   // Make sure the plugin didn't leave popups enabled.
-  if (mPopupStates.Length() > 0) {
+  if (mPopupStates.Count() > 0) {
     nsCOMPtr<nsPIDOMWindow> window = GetDOMWindow();
 
     if (window) {
@@ -835,9 +874,8 @@ NS_IMETHODIMP nsNPAPIPluginInstance::Stop(void)
     }
   }
 
-  if (!mStarted) {
+  if (!mStarted)
     return NS_OK;
-  }
 
   // If there's code from this plugin instance on the stack, delay the
   // destroy.
@@ -853,9 +891,8 @@ NS_IMETHODIMP nsNPAPIPluginInstance::Stop(void)
 
   OnPluginDestroy(&fNPP);
 
-  if (fCallbacks->destroy == NULL) {
-    return NS_ERROR_FAILURE;
-  }
+  if (fCallbacks->destroy == NULL)
+    return NS_ERROR_FAILURE; // XXX right error?
 
   NPSavedData *sdata = 0;
 
@@ -874,7 +911,7 @@ NS_IMETHODIMP nsNPAPIPluginInstance::Stop(void)
       listener->CleanUpStream(NPRES_USER_BREAK);
   }
 
-  NS_TRY_SAFE_CALL_RETURN(error, (*fCallbacks->destroy)(&fNPP, &sdata), fLibrary, this);
+  NS_TRY_SAFE_CALL_RETURN(error, CallNPP_DestroyProc(fCallbacks->destroy, &fNPP, &sdata), fLibrary, this);
 
   NPP_PLUGIN_LOG(PLUGIN_LOG_NORMAL,
   ("NPP Destroy called: this=%p, npp=%p, return=%d\n", this, &fNPP, error));
@@ -891,18 +928,23 @@ already_AddRefed<nsPIDOMWindow>
 nsNPAPIPluginInstance::GetDOMWindow()
 {
   nsCOMPtr<nsPIPluginInstancePeer> pp (do_QueryInterface(mPeer));
-  if (!pp)
+  if (!pp) {
     return nsnull;
+  }
 
   nsCOMPtr<nsIPluginInstanceOwner> owner;
   pp->GetOwner(getter_AddRefs(owner));
-  if (!owner)
+
+  if (!owner) {
     return nsnull;
+  }
 
   nsCOMPtr<nsIDocument> doc;
   owner->GetDocument(getter_AddRefs(doc));
-  if (!doc)
+
+  if (!doc) {
     return nsnull;
+  }
 
   nsPIDOMWindow *window = doc->GetWindow();
   NS_IF_ADDREF(window);
@@ -939,10 +981,9 @@ nsresult nsNPAPIPluginInstance::InitializePlugin(nsIPluginInstancePeer* peer)
       const char* const* pnames = nsnull;
       const char* const* pvalues = nsnull;    
       if (NS_SUCCEEDED(taginfo->GetParameters(pcount, pnames, pvalues))) {
-        NS_ASSERTION(!values[count], "attribute/parameter array not setup correctly for NPAPI plugins");
+        NS_ASSERTION(nsnull == values[count], "attribute/parameter array not setup correctly for 4.x plugins");
         if (pcount)
-          count += ++pcount; // if it's all setup correctly, then all we need is to
-                             // change the count (attrs + PARAM/blank + params)
+          count += ++pcount; //if it's all setup correctly, then all we need is to change the count (attrs + PARAM/blank + params)
       }
     }
   }
@@ -1021,7 +1062,14 @@ nsresult nsNPAPIPluginInstance::InitializePlugin(nsIPluginInstancePeer* peer)
   PRBool oldVal = mInPluginInitCall;
   mInPluginInitCall = PR_TRUE;
 
-  NS_TRY_SAFE_CALL_RETURN(error, (*fCallbacks->newp)((char*)mimetype, &fNPP, (PRUint16)mode, count, (char**)names, (char**)values, NULL), fLibrary,this);
+  NS_TRY_SAFE_CALL_RETURN(error, CallNPP_NewProc(fCallbacks->newp,
+                                          (char *)mimetype,
+                                          &fNPP,
+                                          (PRUint16)mode,
+                                          count,
+                                          (char**)names,
+                                          (char**)values,
+                                          NULL), fLibrary,this);
 
   mInPluginInitCall = oldVal;
 
@@ -1040,9 +1088,17 @@ nsresult nsNPAPIPluginInstance::InitializePlugin(nsIPluginInstancePeer* peer)
   return NS_OK;
 }
 
+NS_IMETHODIMP nsNPAPIPluginInstance::Destroy(void)
+{
+  PLUGIN_LOG(PLUGIN_LOG_NORMAL, ("nsNPAPIPluginInstance::Destroy this=%p\n",this));
+
+  // destruction is handled in the Stop call
+  return NS_OK;
+}
+
 NS_IMETHODIMP nsNPAPIPluginInstance::SetWindow(nsPluginWindow* window)
 {
-  // XXX NPAPI plugins don't want a SetWindow(NULL).
+  // XXX 4.x plugins don't want a SetWindow(NULL).
   if (!window || !mStarted)
     return NS_OK;
 
@@ -1068,7 +1124,9 @@ NS_IMETHODIMP nsNPAPIPluginInstance::SetWindow(nsPluginWindow* window)
     PRBool oldVal = mInPluginInitCall;
     mInPluginInitCall = PR_TRUE;
 
-    NS_TRY_SAFE_CALL_RETURN(error, (*fCallbacks->setwindow)(&fNPP, (NPWindow*)window), fLibrary, this);
+    NS_TRY_SAFE_CALL_RETURN(error, CallNPP_SetWindowProc(fCallbacks->setwindow,
+                                  &fNPP,
+                                  (NPWindow*) window), fLibrary, this);
 
     mInPluginInitCall = oldVal;
 
@@ -1080,6 +1138,7 @@ NS_IMETHODIMP nsNPAPIPluginInstance::SetWindow(nsPluginWindow* window)
     // XXX In the old code, we'd just ignore any errors coming
     // back from the plugin's SetWindow(). Is this the correct
     // behavior?!?
+
   }
   return NS_OK;
 }
@@ -1107,9 +1166,9 @@ nsresult nsNPAPIPluginInstance::NewNotifyStream(nsIPluginStreamListener** listen
   is->mNext = mStreams;
   is->mPluginStreamListener = stream;
   mStreams = is;
-  stream->SetCallNotify(aCallNotify); // set flag in stream to call URLNotify
+  stream->SetCallNotify(aCallNotify);  // set flag in stream to call URLNotify
 
-  NS_ADDREF(stream); // Stabilize
+  NS_ADDREF(stream);  // Stabilize
     
   nsresult res = stream->QueryInterface(kIPluginStreamListenerIID, (void**)listener);
 
@@ -1128,7 +1187,7 @@ NS_IMETHODIMP nsNPAPIPluginInstance::Print(nsPluginPrint* platformPrint)
   NPPrint* thePrint = (NPPrint *)platformPrint;
 
   // to be compatible with the older SDK versions and to match what
-  // NPAPI and other browsers do, overwrite |window.type| field with one
+  // 4.x and other browsers do, overwrite |window.type| field with one
   // more copy of |platformPrint|. See bug 113264
   if (fCallbacks) {
     PRUint16 sdkmajorversion = (fCallbacks->version & 0xff00)>>8;
@@ -1147,8 +1206,11 @@ NS_IMETHODIMP nsNPAPIPluginInstance::Print(nsPluginPrint* platformPrint)
     }
   }
 
-  if (fCallbacks->print)
-      NS_TRY_SAFE_CALL_VOID((*fCallbacks->print)(&fNPP, thePrint), fLibrary, this);
+  if (fCallbacks->print) {
+      NS_TRY_SAFE_CALL_VOID(CallNPP_PrintProc(fCallbacks->print,
+                                              &fNPP,
+                                              thePrint), fLibrary, this);
+  }
 
   NPP_PLUGIN_LOG(PLUGIN_LOG_NORMAL,
   ("NPP PrintProc called: this=%p, pDC=%p, [x=%d,y=%d,w=%d,h=%d], clip[t=%d,b=%d,l=%d,r=%d]\n",
@@ -1180,7 +1242,9 @@ NS_IMETHODIMP nsNPAPIPluginInstance::HandleEvent(nsPluginEvent* event, PRBool* h
   
   if (fCallbacks->event) {
 #ifdef XP_MACOSX
-    result = (*fCallbacks->event)(&fNPP, (void*)event->event);
+    result = CallNPP_HandleEventProc(fCallbacks->event,
+                                     &fNPP,
+                                     (void*) event->event);
 
 #elif defined(XP_WIN) || defined(XP_OS2)
       NPEvent npEvent;
@@ -1188,10 +1252,14 @@ NS_IMETHODIMP nsNPAPIPluginInstance::HandleEvent(nsPluginEvent* event, PRBool* h
       npEvent.wParam = event->wParam;
       npEvent.lParam = event->lParam;
 
-      NS_TRY_SAFE_CALL_RETURN(result, (*fCallbacks->event)(&fNPP, (void*)&npEvent), fLibrary, this);
+      NS_TRY_SAFE_CALL_RETURN(result, CallNPP_HandleEventProc(fCallbacks->event,
+                                    &fNPP,
+                                    (void*)&npEvent), fLibrary, this);
 
 #else // MOZ_X11 or other
-      result = (*fCallbacks->event)(&fNPP, (void*)&event->event);
+      result = CallNPP_HandleEventProc(fCallbacks->event,
+                                       &fNPP,
+                                       (void*)&event->event);
 #endif
 
       NPP_PLUGIN_LOG(PLUGIN_LOG_NOISY,
@@ -1210,10 +1278,33 @@ nsresult nsNPAPIPluginInstance::GetValueInternal(NPPVariable variable, void* val
   if (fCallbacks->getvalue && mStarted) {
     PluginDestructionGuard guard(this);
 
-    NS_TRY_SAFE_CALL_RETURN(res, (*fCallbacks->getvalue)(&fNPP, variable, value), fLibrary, this);
+    NS_TRY_SAFE_CALL_RETURN(res, 
+                            CallNPP_GetValueProc(fCallbacks->getvalue, 
+                                                 &fNPP, 
+                                                 variable, 
+                                                 value), 
+                                                 fLibrary, this);
     NPP_PLUGIN_LOG(PLUGIN_LOG_NORMAL,
     ("NPP GetValue called: this=%p, npp=%p, var=%d, value=%d, return=%d\n", 
     this, &fNPP, variable, value, res));
+
+#ifdef XP_OS2
+    /* Query interface for legacy Flash plugin */
+    if (res == NS_OK && variable == NPPVpluginScriptableInstance)
+    {
+      nsCOMPtr<nsILegacyPluginWrapperOS2> wrapper =
+               do_GetService(NS_LEGACY_PLUGIN_WRAPPER_CONTRACTID, &res);
+      if (res == NS_OK)
+      {
+        nsIID *iid = nsnull; 
+        res = CallNPP_GetValueProc(fCallbacks->getvalue, &fNPP, 
+                                   NPPVpluginScriptableIID, (void *)&iid);
+        if (res == NS_OK)
+          res = wrapper->MaybeWrap(*iid, *(nsISupports**)value,
+                                   (nsISupports**)value);
+      }
+    }
+#endif
   }
 
   return res;
@@ -1255,7 +1346,7 @@ NS_IMETHODIMP nsNPAPIPluginInstance::GetValue(nsPluginInstanceVariable variable,
 
 nsresult nsNPAPIPluginInstance::GetNPP(NPP* aNPP) 
 {
-  if (aNPP)
+  if (aNPP != nsnull)
     *aNPP = &fNPP;
   else
     return NS_ERROR_NULL_POINTER;
@@ -1265,7 +1356,7 @@ nsresult nsNPAPIPluginInstance::GetNPP(NPP* aNPP)
 
 nsresult nsNPAPIPluginInstance::GetCallbacks(const NPPluginFuncs ** aCallbacks)
 {
-  if (aCallbacks)
+  if (aCallbacks != nsnull)
     *aCallbacks = fCallbacks;
   else
     return NS_ERROR_NULL_POINTER;
@@ -1302,6 +1393,26 @@ NPDrawingModel nsNPAPIPluginInstance::GetDrawingModel()
   return mDrawingModel;
 }
 #endif
+
+/* readonly attribute nsQIResult scriptablePeer; */
+NS_IMETHODIMP nsNPAPIPluginInstance::GetScriptablePeer(void * *aScriptablePeer)
+{
+  if (!aScriptablePeer)
+    return NS_ERROR_NULL_POINTER;
+
+  *aScriptablePeer = nsnull;
+  return GetValueInternal(NPPVpluginScriptableInstance, aScriptablePeer);
+}
+
+/* readonly attribute nsIIDPtr scriptableInterface; */
+NS_IMETHODIMP nsNPAPIPluginInstance::GetScriptableInterface(nsIID * *aScriptableInterface)
+{
+  if (!aScriptableInterface)
+    return NS_ERROR_NULL_POINTER;
+
+  *aScriptableInterface = nsnull;
+  return GetValueInternal(NPPVpluginScriptableIID, (void*)aScriptableInterface);
+}
 
 JSObject *
 nsNPAPIPluginInstance::GetJSObject(JSContext *cx)
@@ -1402,8 +1513,9 @@ nsNPAPIPluginInstance::PushPopupsEnabledState(PRBool aEnabled)
     window->PushPopupControlState(aEnabled ? openAllowed : openAbused,
                                   PR_TRUE);
 
-  if (!mPopupStates.AppendElement(oldState)) {
+  if (!mPopupStates.AppendElement(NS_INT32_TO_PTR(oldState))) {
     // Appending to our state stack failed, push what we just popped.
+
     window->PopPopupControlState(oldState);
   }
 }
@@ -1411,7 +1523,7 @@ nsNPAPIPluginInstance::PushPopupsEnabledState(PRBool aEnabled)
 void
 nsNPAPIPluginInstance::PopPopupsEnabledState()
 {
-  PRInt32 last = mPopupStates.Length() - 1;
+  PRInt32 last = mPopupStates.Count() - 1;
 
   if (last < 0) {
     // Nothing to pop.
@@ -1422,7 +1534,8 @@ nsNPAPIPluginInstance::PopPopupsEnabledState()
   if (!window)
     return;
 
-  PopupControlState &oldState = mPopupStates[last];
+  PopupControlState oldState =
+    (PopupControlState)NS_PTR_TO_INT32(mPopupStates[last]);
 
   window->PopPopupControlState(oldState);
 
@@ -1433,74 +1546,4 @@ PRUint16
 nsNPAPIPluginInstance::GetPluginAPIVersion()
 {
   return fCallbacks->version;
-}
-
-nsresult nsNPAPIPluginInstance::PrivateModeStateChanged()
-{
-  if (!mStarted)
-    return NS_OK;
-  
-  PLUGIN_LOG(PLUGIN_LOG_NORMAL, ("nsNPAPIPluginInstance informing plugin of private mode state change this=%p\n",this));
-  
-  if (fCallbacks->setvalue) {
-    PluginDestructionGuard guard(this);
-    
-    nsCOMPtr<nsIPrivateBrowsingService> pbs = do_GetService(NS_PRIVATE_BROWSING_SERVICE_CONTRACTID);
-    if (pbs) {
-      PRBool pme = PR_FALSE;
-      nsresult rv = pbs->GetPrivateBrowsingEnabled(&pme);
-      if (NS_FAILED(rv))
-        return rv;
-
-      NPError error;
-      NS_TRY_SAFE_CALL_RETURN(error, (*fCallbacks->setvalue)(&fNPP, NPNVprivateModeBool, &pme), fLibrary, this);
-      return (error == NPERR_NO_ERROR) ? NS_OK : NS_ERROR_FAILURE;
-    }
-  }
-  return NS_ERROR_FAILURE;
-}
-
-NS_IMETHODIMP
-nsNPAPIPluginInstance::InvalidateRect(nsPluginRect *invalidRect)
-{
-  nsCOMPtr<nsPIPluginInstancePeer> pp (do_QueryInterface(mPeer));
-  if (!pp)
-    return nsnull;
-
-  nsCOMPtr<nsIPluginInstanceOwner> owner;
-  pp->GetOwner(getter_AddRefs(owner));
-  if (!owner)
-    return NS_ERROR_FAILURE;
-
-  return owner->InvalidateRect(invalidRect);
-}
-
-NS_IMETHODIMP
-nsNPAPIPluginInstance::InvalidateRegion(nsPluginRegion invalidRegion)
-{
-  nsCOMPtr<nsPIPluginInstancePeer> pp (do_QueryInterface(mPeer));
-  if (!pp)
-    return nsnull;
-
-  nsCOMPtr<nsIPluginInstanceOwner> owner;
-  pp->GetOwner(getter_AddRefs(owner));
-  if (!owner)
-    return NS_ERROR_FAILURE;
-
-  return owner->InvalidateRegion(invalidRegion);
-}
-
-NS_IMETHODIMP
-nsNPAPIPluginInstance::ForceRedraw()
-{
-  nsCOMPtr<nsPIPluginInstancePeer> pp (do_QueryInterface(mPeer));
-  if (!pp)
-    return nsnull;
-
-  nsCOMPtr<nsIPluginInstanceOwner> owner;
-  pp->GetOwner(getter_AddRefs(owner));
-  if (!owner)
-    return NS_ERROR_FAILURE;
-
-  return owner->ForceRedraw();
 }

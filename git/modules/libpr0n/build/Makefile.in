@@ -50,6 +50,8 @@ MODULE_NAME	= nsImageLib2Module
 GRE_MODULE	= 1
 LIBXUL_LIBRARY = 1
 
+PACKAGE_FILE = imglib2.pkg
+
 REQUIRES	= xpcom \
 		  string \
 		  thebes \
@@ -60,7 +62,7 @@ REQUIRES	= xpcom \
 		  $(JPEG_REQUIRES) \
 		  $(PNG_REQUIRES) \
 		  $(ZLIB_REQUIRES) \
-		  qcms \
+		  $(LCMS_REQUIRES) \
 		  $(NULL)
 
 CPPSRCS = \
@@ -93,7 +95,7 @@ EXTRA_DSO_LDOPTS = \
 		$(LIBS_DIR) \
 		$(JPEG_LIBS) \
 		$(PNG_LIBS) $(ZLIB_LIBS) \
-		$(QCMS_LIBS) \
+		$(LCMS_LIBS) \
 		$(EXTRA_DSO_LIBS) \
 		$(MOZ_COMPONENT_LIBS) \
 		$(NULL)

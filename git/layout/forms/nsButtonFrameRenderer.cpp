@@ -91,44 +91,6 @@ nsButtonFrameRenderer::isDisabled()
                                        nsGkAtoms::disabled);
 }
 
-class nsDisplayButtonBoxShadowOuter : public nsDisplayItem {
-public:
-  nsDisplayButtonBoxShadowOuter(nsButtonFrameRenderer* aRenderer)
-    : nsDisplayItem(aRenderer->GetFrame()), mBFR(aRenderer) {
-    MOZ_COUNT_CTOR(nsDisplayButtonBoxShadowOuter);
-  }
-#ifdef NS_BUILD_REFCNT_LOGGING
-  virtual ~nsDisplayButtonBoxShadowOuter() {
-    MOZ_COUNT_DTOR(nsDisplayButtonBoxShadowOuter);
-  }
-#endif  
-  
-  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
-     const nsRect& aDirtyRect);
-  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder);
-  NS_DISPLAY_DECL_NAME("ButtonBoxShadowOuter")
-private:
-  nsButtonFrameRenderer* mBFR;
-};
-
-nsRect
-nsDisplayButtonBoxShadowOuter::GetBounds(nsDisplayListBuilder* aBuilder) {
-  return mFrame->GetOverflowRect() + aBuilder->ToReferenceFrame(mFrame);
-}
-
-void
-nsDisplayButtonBoxShadowOuter::Paint(nsDisplayListBuilder* aBuilder,
-                                     nsIRenderingContext* aCtx,
-                                     const nsRect& aDirtyRect) {
-  nsRect frameRect = nsRect(aBuilder->ToReferenceFrame(mFrame), mFrame->GetSize());
-
-  nsRect buttonRect;
-  mBFR->GetButtonRect(frameRect, buttonRect);
-
-  nsCSSRendering::PaintBoxShadowOuter(mFrame->PresContext(), *aCtx, mFrame,
-                                      buttonRect, aDirtyRect);
-}
-
 class nsDisplayButtonBorderBackground : public nsDisplayItem {
 public:
   nsDisplayButtonBorderBackground(nsButtonFrameRenderer* aRenderer)
@@ -202,12 +164,6 @@ nsButtonFrameRenderer::DisplayButton(nsDisplayListBuilder* aBuilder,
                                      nsDisplayList* aBackground,
                                      nsDisplayList* aForeground)
 {
-  if (mFrame->GetStyleBorder()->mBoxShadow) {
-    nsresult rv = aBackground->AppendNewToTop(new (aBuilder)
-        nsDisplayButtonBoxShadowOuter(this));
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
   nsresult rv = aBackground->AppendNewToTop(new (aBuilder)
       nsDisplayButtonBorderBackground(this));
   NS_ENSURE_SUCCESS(rv, rv);
@@ -269,9 +225,7 @@ nsButtonFrameRenderer::PaintBorderAndBackground(nsPresContext* aPresContext,
   const nsStyleBorder* border = context->GetStyleBorder();
 
   nsCSSRendering::PaintBackground(aPresContext, aRenderingContext, mFrame,
-                                  aDirtyRect, buttonRect, 0);
-  nsCSSRendering::PaintBoxShadowInner(aPresContext, aRenderingContext,
-                                      mFrame, buttonRect, aDirtyRect);
+                                  aDirtyRect, buttonRect, PR_FALSE);
   nsCSSRendering::PaintBorder(aPresContext, aRenderingContext, mFrame,
                               aDirtyRect, buttonRect, *border, context);
 }

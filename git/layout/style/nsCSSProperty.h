@@ -50,7 +50,7 @@
 enum nsCSSProperty {
   eCSSProperty_UNKNOWN = -1,
 
-  #define CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_) eCSSProperty_##id_,
+  #define CSS_PROP(name_, id_, method_, datastruct_, member_, type_, kwtable_) eCSSProperty_##id_,
   #include "nsCSSPropList.h"
   #undef CSS_PROP
 
@@ -58,14 +58,11 @@ enum nsCSSProperty {
   // Make the count continue where it left off:
   eCSSProperty_COUNT_DUMMY = eCSSProperty_COUNT_no_shorthands - 1,
 
-  #define CSS_PROP_SHORTHAND(name_, id_, method_, flags_) eCSSProperty_##id_,
+  #define CSS_PROP_SHORTHAND(name_, id_, method_) eCSSProperty_##id_,
   #include "nsCSSPropList.h"
   #undef CSS_PROP_SHORTHAND
 
-  eCSSProperty_COUNT,
-
-  // Extra dummy values for nsCSSParser internal use.
-  eCSSPropertyExtra_x_none_value
+  eCSSProperty_COUNT
 };
 
 // The types of values that can be in the nsCSS*/nsRuleData* structs.

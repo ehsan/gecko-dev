@@ -45,7 +45,7 @@ const PREF_APP_UPDATE_CHANNEL         = "app.update.channel";
 const PREF_GENERAL_USERAGENT_LOCALE   = "general.useragent.locale";
 
 // Get the HTTP server.
-do_load_httpd_js();
+do_import_script("netwerk/test/httpserver/httpd.js");
 var testserver;
 var gOSVersion;
 var gBlocklist;
@@ -98,7 +98,8 @@ function pathHandler(metadata, response) {
               gOSVersion + "&1.9&distribution&distribution-version");
   gBlocklist.observe(null, "quit-application", "");
   gBlocklist.observe(null, "xpcom-shutdown", "");
-  testserver.stop(do_test_finished);
+  testserver.stop();
+  do_test_finished();
 }
 
 function run_test() {
@@ -130,6 +131,7 @@ function run_test() {
   gBlocklist = Components.classes["@mozilla.org/extensions/blocklist;1"]
                          .getService(Components.interfaces.nsIBlocklistService)
                          .QueryInterface(Components.interfaces.nsIObserver);
+  gBlocklist.observe(null, "app-startup", "");
   gBlocklist.observe(null, "profile-after-change", "");
 
   do_check_true(timerService.hasTimer(BLOCKLIST_TIMER));

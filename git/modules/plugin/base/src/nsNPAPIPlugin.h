@@ -41,22 +41,24 @@
 #include "nsIFactory.h"
 #include "nsIPlugin.h"
 #include "nsIPluginInstancePeer.h"
+#include "nsIWindowlessPlugInstPeer.h"
 #include "prlink.h"
-#include "npfunctions.h"
+#include "npupp.h"
 #include "nsPluginHostImpl.h"
 
 /*
  * Use this macro before each exported function
  * (between the return address and the function
  * itself), to ensure that the function has the
- * right calling conventions on OS/2.
+ * right calling conventions on Win16.
  */
+// XXX NP_CALLBACK should be the same as NP_LOADDS in npapi.h which differs
+// for WIN16 and maybe WIN64?
 #ifdef XP_OS2
 #define NP_CALLBACK _System
 #else
 #define NP_CALLBACK
 #endif
-
 #if defined(XP_WIN)
 #define NS_NPAPIPLUGIN_CALLBACK(_type, _name) _type (__stdcall * _name)
 #elif defined(XP_OS2)
@@ -67,10 +69,10 @@
 
 typedef NS_NPAPIPLUGIN_CALLBACK(NPError, NP_GETENTRYPOINTS) (NPPluginFuncs* pCallbacks);
 typedef NS_NPAPIPLUGIN_CALLBACK(NPError, NP_PLUGININIT) (const NPNetscapeFuncs* pCallbacks);
-typedef NS_NPAPIPLUGIN_CALLBACK(NPError, NP_PLUGINUNIXINIT) (const NPNetscapeFuncs* pCallbacks, NPPluginFuncs* fCallbacks);
+typedef NS_NPAPIPLUGIN_CALLBACK(NPError, NP_PLUGINUNIXINIT) (const NPNetscapeFuncs* pCallbacks,NPPluginFuncs* fCallbacks);
 typedef NS_NPAPIPLUGIN_CALLBACK(NPError, NP_PLUGINSHUTDOWN) (void);
 #ifdef XP_MACOSX
-typedef NS_NPAPIPLUGIN_CALLBACK(NPError, NP_MAIN) (NPNetscapeFuncs* nCallbacks, NPPluginFuncs* pCallbacks, NPP_ShutdownProcPtr* unloadProcPtr);
+typedef NS_NPAPIPLUGIN_CALLBACK(NPError, NP_MAIN) (NPNetscapeFuncs* nCallbacks, NPPluginFuncs* pCallbacks, NPP_ShutdownUPP* unloadUpp);
 #endif
 
 class nsNPAPIPlugin : public nsIPlugin
@@ -84,9 +86,10 @@ public:
   NS_DECL_NSIFACTORY
   NS_DECL_NSIPLUGIN
 
-  // Constructs and initializes an nsNPAPIPlugin object. A NULL file path
-  // will prevent this from calling NP_Initialize.
-  static nsresult CreatePlugin(const char* aFilePath, PRLibrary* aLibrary,
+  // Constructs and initializes an nsNPAPIPlugin object
+  static nsresult CreatePlugin(const char* aFileName,
+                               const char* aFullPath,
+                               PRLibrary* aLibrary,
                                nsIPlugin** aResult);
 #ifdef XP_MACOSX
   void SetPluginRefNum(short aRefNum);
@@ -188,30 +191,6 @@ _releasevariantvalue(NPVariant *variant);
 
 void NP_CALLBACK
 _setexception(NPObject* npobj, const NPUTF8 *message);
-
-void NP_CALLBACK
-_pushpopupsenabledstate(NPP npp, NPBool enabled);
-
-void NP_CALLBACK
-_poppopupsenabledstate(NPP npp);
-
-typedef void(*PluginThreadCallback)(void *);
-void NP_CALLBACK
-_pluginthreadasynccall(NPP instance, PluginThreadCallback func,
-                       void *userData);
-
-NPError NP_CALLBACK
-_getvalueforurl(NPP instance, NPNURLVariable variable, const char *url,
-                char **value, uint32_t *len);
-NPError NP_CALLBACK
-_setvalueforurl(NPP instance, NPNURLVariable variable, const char *url,
-                const char *value, uint32_t len);
-
-NPError NP_CALLBACK
-_getauthenticationinfo(NPP instance, const char *protocol, const char *host,
-                       int32_t port, const char *scheme, const char *realm,
-                       char **username, uint32_t *ulen, char **password,
-                       uint32_t *plen);
 
 PR_END_EXTERN_C
 

@@ -40,9 +40,11 @@
 #include "nsIDOMSVGAnimatedRect.h"
 #include "nsIDOMSVGAnimTransformList.h"
 #include "nsSVGTransformList.h"
+#include "nsSVGAnimatedPreserveAspectRatio.h"
 #include "nsStyleContext.h"
 #include "nsINameSpaceManager.h"
 #include "nsISVGChildFrame.h"
+#include "nsIDOMSVGRect.h"
 #include "nsSVGMatrix.h"
 #include "nsSVGRect.h"
 #include "nsSVGUtils.h"
@@ -55,25 +57,35 @@
 #include "gfxPlatform.h"
 #include "gfxPattern.h"
 
+#ifdef DEBUG_scooter
+static void printCTM(char *msg, gfxMatrix aCTM);
+static void printCTM(char *msg, nsIDOMSVGMatrix *aCTM);
+static void printRect(char *msg, nsIDOMSVGRect *aRect);
+#endif
 
 //----------------------------------------------------------------------
 // Implementation
 
-nsSVGPatternFrame::nsSVGPatternFrame(nsStyleContext* aContext) :
+nsSVGPatternFrame::nsSVGPatternFrame(nsStyleContext* aContext,
+                                     nsIDOMSVGURIReference *aRef) :
   nsSVGPatternFrameBase(aContext),
   mLoopFlag(PR_FALSE), mPaintLoopFlag(PR_FALSE),
   mNoHRefURI(PR_FALSE)
 {
+  if (aRef) {
+    // Get the hRef
+    aRef->GetHref(getter_AddRefs(mHref));
+  }
 }
 
 //----------------------------------------------------------------------
 // nsIFrame methods:
 
-/* virtual */ void
-nsSVGPatternFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
+NS_IMETHODIMP
+nsSVGPatternFrame::DidSetStyleContext()
 {
   nsSVGEffects::InvalidateRenderingObservers(this);
-  nsSVGPatternFrameBase::DidSetStyleContext(aOldStyleContext);
+  return nsSVGPatternFrameBase::DidSetStyleContext();
 }
 
 NS_IMETHODIMP
@@ -107,19 +119,6 @@ nsSVGPatternFrame::AttributeChanged(PRInt32         aNameSpaceID,
                                                  aAttribute, aModType);
 }
 
-#ifdef DEBUG
-NS_IMETHODIMP
-nsSVGPatternFrame::Init(nsIContent* aContent,
-                        nsIFrame* aParent,
-                        nsIFrame* aPrevInFlow)
-{
-  nsCOMPtr<nsIDOMSVGPatternElement> patternElement = do_QueryInterface(aContent);
-  NS_ASSERTION(patternElement, "Content is not an SVG pattern");
-
-  return nsSVGPatternFrameBase::Init(aContent, aParent, aPrevInFlow);
-}
-#endif /* DEBUG */
-
 nsIAtom*
 nsSVGPatternFrame::GetType() const
 {
@@ -133,21 +132,26 @@ nsSVGPatternFrame::GetType() const
 // need to return *our current* transformation
 // matrix, which depends on our units parameters
 // and X, Y, Width, and Height
-gfxMatrix
+already_AddRefed<nsIDOMSVGMatrix>
 nsSVGPatternFrame::GetCanvasTM()
 {
+  nsIDOMSVGMatrix *rCTM;
+
   if (mCTM) {
-    return nsSVGUtils::ConvertSVGMatrixToThebes(mCTM);
+    rCTM = mCTM;
+    NS_IF_ADDREF(rCTM);
+  } else {
+    // Do we know our rendering parent?
+    if (mSource) {
+      // Yes, use it!
+      mSource->GetCanvasTM(&rCTM);
+    } else {
+      // No, return an identity
+      // We get here when geometry in the <pattern> container is updated
+      NS_NewSVGMatrix(&rCTM);
+    }
   }
-
-  // Do we know our rendering parent?
-  if (mSource) {
-    // Yes, use it!
-    return mSource->GetCanvasTM();
-  }
-
-  // We get here when geometry in the <pattern> container is updated
-  return gfxMatrix();
+  return rCTM;
 }
 
 nsresult
@@ -196,10 +200,10 @@ nsSVGPatternFrame::PaintPattern(gfxASurface** surface,
   // Get all of the information we need from our "caller" -- i.e.
   // the geometry that is being rendered with a pattern
   nsSVGElement *callerContent;
-  gfxRect callerBBox;
+  nsCOMPtr<nsIDOMSVGRect> callerBBox;
   nsCOMPtr<nsIDOMSVGMatrix> callerCTM;
-  if (NS_FAILED(GetTargetGeometry(getter_AddRefs(callerCTM),
-                                  &callerBBox,
+  if (NS_FAILED(GetCallerGeometry(getter_AddRefs(callerCTM),
+                                  getter_AddRefs(callerBBox),
                                   &callerContent, aSource)))
     return NS_ERROR_FAILURE;
 
@@ -211,16 +215,28 @@ nsSVGPatternFrame::PaintPattern(gfxASurface** surface,
   // Get the bounding box of the pattern.  This will be used to determine
   // the size of the surface, and will also be used to define the bounding
   // box for the pattern tile.
-  gfxRect bbox = GetPatternRect(callerBBox, callerCTM, callerContent);
+  nsCOMPtr<nsIDOMSVGRect> bbox;
+  if (NS_FAILED(GetPatternRect(getter_AddRefs(bbox),
+                               callerBBox, callerCTM,
+                               callerContent)))
+    return NS_ERROR_FAILURE;
 
   // Get the transformation matrix that we will hand to the renderer's pattern
   // routine.
   *patternMatrix = GetPatternMatrix(bbox, callerBBox, callerCTM);
 
+#ifdef DEBUG_scooter
+  printRect("Geometry Rect: ", callerBBox);
+  printRect("Pattern Rect: ", bbox);
+  printCTM("Pattern TM ", *patternMatrix);
+  printCTM("Child TM ", mCTM);
+#endif
+
   // Now that we have all of the necessary geometries, we can
   // create our surface.
-  float patternWidth = bbox.Width();
-  float patternHeight = bbox.Height();
+  float patternWidth, patternHeight;
+  bbox->GetWidth(&patternWidth);
+  bbox->GetHeight(&patternHeight);
 
   PRBool resultOverflows;
   gfxIntSize surfaceSize =
@@ -245,6 +261,10 @@ nsSVGPatternFrame::PaintPattern(gfxASurface** surface,
     patternMatrix->Scale(patternWidth / surfaceSize.width,
                          patternHeight / surfaceSize.height);
   }
+
+#ifdef DEBUG_scooter
+  printf("Creating %dX%d surface\n", int(surfaceSize.width), int(surfaceSize.height));
+#endif
 
   nsRefPtr<gfxASurface> tmpSurface =
     gfxPlatform::GetPlatform()->CreateOffscreenSurface(surfaceSize,
@@ -278,7 +298,7 @@ nsSVGPatternFrame::PaintPattern(gfxASurface** surface,
     mPaintLoopFlag = PR_TRUE;
     for (nsIFrame* kid = firstKid; kid;
          kid = kid->GetNextSibling()) {
-      nsSVGUtils::PaintFrameWithEffects(&tmpState, nsnull, kid);
+      nsSVGUtils::PaintChildWithEffects(&tmpState, nsnull, kid);
     }
     mPaintLoopFlag = PR_FALSE;
   }
@@ -356,46 +376,49 @@ nsSVGPatternFrame::GetPatternTransform()
   return matrix;
 }
 
-const nsSVGViewBox &
-nsSVGPatternFrame::GetViewBox()
+NS_IMETHODIMP
+nsSVGPatternFrame::GetViewBox(nsIDOMSVGRect **aViewBox)
 {
   nsSVGPatternElement *patternElement =
     GetPatternWithAttr(nsGkAtoms::viewBox, mContent);
 
-  return patternElement->mViewBox;
+  nsCOMPtr<nsIDOMSVGAnimatedRect> viewBox;
+  patternElement->GetViewBox(getter_AddRefs(viewBox));
+  return viewBox->GetAnimVal(aViewBox);
 }
 
-const nsSVGPreserveAspectRatio &
-nsSVGPatternFrame::GetPreserveAspectRatio()
+NS_IMETHODIMP
+nsSVGPatternFrame::GetPreserveAspectRatio(nsIDOMSVGAnimatedPreserveAspectRatio
+                                          **aPreserveAspectRatio)
 {
   nsSVGPatternElement *patternElement =
     GetPatternWithAttr(nsGkAtoms::preserveAspectRatio, mContent);
 
-  return patternElement->mPreserveAspectRatio;
+  return patternElement->GetPreserveAspectRatio(aPreserveAspectRatio);
 }
 
-const nsSVGLength2 *
+nsSVGLength2 *
 nsSVGPatternFrame::GetX()
 {
   nsSVGPatternElement *pattern = GetPatternWithAttr(nsGkAtoms::x, mContent);
   return &pattern->mLengthAttributes[nsSVGPatternElement::X];
 }
 
-const nsSVGLength2 *
+nsSVGLength2 *
 nsSVGPatternFrame::GetY()
 {
   nsSVGPatternElement *pattern = GetPatternWithAttr(nsGkAtoms::y, mContent);
   return &pattern->mLengthAttributes[nsSVGPatternElement::Y];
 }
 
-const nsSVGLength2 *
+nsSVGLength2 *
 nsSVGPatternFrame::GetWidth()
 {
   nsSVGPatternElement *pattern = GetPatternWithAttr(nsGkAtoms::width, mContent);
   return &pattern->mLengthAttributes[nsSVGPatternElement::WIDTH];
 }
 
-const nsSVGLength2 *
+nsSVGLength2 *
 nsSVGPatternFrame::GetHeight()
 {
   nsSVGPatternElement *pattern = GetPatternWithAttr(nsGkAtoms::height, mContent);
@@ -414,9 +437,8 @@ nsSVGPatternFrame::GetReferencedPattern()
 
   if (!property) {
     // Fetch our pattern element's xlink:href attribute
-    nsSVGPatternElement *pattern = static_cast<nsSVGPatternElement *>(mContent);
     nsAutoString href;
-    pattern->mStringAttributes[nsSVGPatternElement::HREF].GetAnimValue(href, pattern);
+    mHref->GetAnimVal(href);
     if (href.IsEmpty()) {
       mNoHRefURI = PR_TRUE;
       return nsnull; // no URL
@@ -472,10 +494,11 @@ nsSVGPatternFrame::GetPatternWithAttr(nsIAtom *aAttrName, nsIContent *aDefault)
 // Helper functions
 // -------------------------------------------------------------------------
 
-gfxRect
-nsSVGPatternFrame::GetPatternRect(const gfxRect &aTargetBBox,
-                                  nsIDOMSVGMatrix *aTargetCTM,
-                                  nsSVGElement *aTarget)
+nsresult
+nsSVGPatternFrame::GetPatternRect(nsIDOMSVGRect **patternRect,
+                                  nsIDOMSVGRect *bbox,
+                                  nsIDOMSVGMatrix *callerCTM,
+                                  nsSVGElement *content)
 {
   // Get our type
   PRUint16 type = GetPatternUnits();
@@ -484,37 +507,37 @@ nsSVGPatternFrame::GetPatternRect(const gfxRect &aTargetBBox,
   float x,y,width,height;
 
   // Get the pattern x,y,width, and height
-  const nsSVGLength2 *tmpX, *tmpY, *tmpHeight, *tmpWidth;
+  nsSVGLength2 *tmpX, *tmpY, *tmpHeight, *tmpWidth;
   tmpX = GetX();
   tmpY = GetY();
   tmpHeight = GetHeight();
   tmpWidth = GetWidth();
 
   if (type == nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_OBJECTBOUNDINGBOX) {
-    x = nsSVGUtils::ObjectSpace(aTargetBBox, tmpX);
-    y = nsSVGUtils::ObjectSpace(aTargetBBox, tmpY);
-    width = nsSVGUtils::ObjectSpace(aTargetBBox, tmpWidth);
-    height = nsSVGUtils::ObjectSpace(aTargetBBox, tmpHeight);
+    x = nsSVGUtils::ObjectSpace(bbox, tmpX);
+    y = nsSVGUtils::ObjectSpace(bbox, tmpY);
+    width = nsSVGUtils::ObjectSpace(bbox, tmpWidth);
+    height = nsSVGUtils::ObjectSpace(bbox, tmpHeight);
   } else {
-    float scale = nsSVGUtils::MaxExpansion(aTargetCTM);
-    x = nsSVGUtils::UserSpace(aTarget, tmpX) * scale;
-    y = nsSVGUtils::UserSpace(aTarget, tmpY) * scale;
-    width = nsSVGUtils::UserSpace(aTarget, tmpWidth) * scale;
-    height = nsSVGUtils::UserSpace(aTarget, tmpHeight) * scale;
+    float scale = nsSVGUtils::MaxExpansion(callerCTM);
+    x = nsSVGUtils::UserSpace(content, tmpX) * scale;
+    y = nsSVGUtils::UserSpace(content, tmpY) * scale;
+    width = nsSVGUtils::UserSpace(content, tmpWidth) * scale;
+    height = nsSVGUtils::UserSpace(content, tmpHeight) * scale;
   }
 
-  return gfxRect(x, y, width, height);
+  return NS_NewSVGRect(patternRect, x, y, width, height);
 }
 
 static float
-GetLengthValue(const nsSVGLength2 *aLength)
+GetLengthValue(nsSVGLength2 *aLength)
 {
   return aLength->GetAnimValue(static_cast<nsSVGSVGElement*>(nsnull));
 }
 
 nsresult
 nsSVGPatternFrame::ConstructCTM(nsIDOMSVGMatrix **aCTM,
-                                const gfxRect &callerBBox,
+                                nsIDOMSVGRect *callerBBox,
                                 nsIDOMSVGMatrix *callerCTM)
 {
   nsCOMPtr<nsIDOMSVGMatrix> tCTM, tempTM;
@@ -524,26 +547,41 @@ nsSVGPatternFrame::ConstructCTM(nsIDOMSVGMatrix **aCTM,
   PRUint16 type = GetPatternContentUnits();
 
   if (type == nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_OBJECTBOUNDINGBOX) {
-    NS_NewSVGMatrix(getter_AddRefs(tCTM), callerBBox.Width(), 0.0f, 0.0f,
-                    callerBBox.Height(), 0.0f, 0.0f);
+    // Use the bounding box
+    float width, height;
+    callerBBox->GetWidth(&width);
+    callerBBox->GetHeight(&height);
+    NS_NewSVGMatrix(getter_AddRefs(tCTM), width, 0.0f, 0.0f,
+                    height, 0.0f, 0.0f);
   } else {
     float scale = nsSVGUtils::MaxExpansion(callerCTM);
     NS_NewSVGMatrix(getter_AddRefs(tCTM), scale, 0, 0, scale, 0, 0);
   }
 
-  const nsSVGViewBoxRect viewBox = GetViewBox().GetAnimValue();
+  // Do we have a viewbox?
+  nsCOMPtr<nsIDOMSVGRect> viewRect;
+  GetViewBox(getter_AddRefs(viewRect));
 
-  if (viewBox.height > 0.0f && viewBox.width > 0.0f) {
+  // See if we really have something
+  float viewBoxX, viewBoxY, viewBoxHeight, viewBoxWidth;
+  viewRect->GetX(&viewBoxX);
+  viewRect->GetY(&viewBoxY);
+  viewRect->GetHeight(&viewBoxHeight);
+  viewRect->GetWidth(&viewBoxWidth);
+  if (viewBoxHeight > 0.0f && viewBoxWidth > 0.0f) {
 
     float viewportWidth = GetLengthValue(GetWidth());
     float viewportHeight = GetLengthValue(GetHeight());
     float refX = GetLengthValue(GetX());
     float refY = GetLengthValue(GetY());
 
+    nsCOMPtr<nsIDOMSVGAnimatedPreserveAspectRatio> par;
+    GetPreserveAspectRatio(getter_AddRefs(par));
+
     tempTM = nsSVGUtils::GetViewBoxTransform(viewportWidth, viewportHeight,
-                                             viewBox.x + refX, viewBox.y + refY,
-                                             viewBox.width, viewBox.height,
-                                             GetPreserveAspectRatio(),
+                                             viewBoxX + refX, viewBoxY + refY,
+                                             viewBoxWidth, viewBoxHeight,
+                                             par,
                                              PR_TRUE);
 
   } else {
@@ -555,21 +593,25 @@ nsSVGPatternFrame::ConstructCTM(nsIDOMSVGMatrix **aCTM,
 }
 
 gfxMatrix
-nsSVGPatternFrame::GetPatternMatrix(const gfxRect &bbox,
-                                    const gfxRect &callerBBox,
+nsSVGPatternFrame::GetPatternMatrix(nsIDOMSVGRect *bbox,
+                                    nsIDOMSVGRect *callerBBox,
                                     nsIDOMSVGMatrix *callerCTM)
 {
   // Get the pattern transform
   gfxMatrix patternTransform = GetPatternTransform();
 
   // We really want the pattern matrix to handle translations
-  float minx = bbox.X();
-  float miny = bbox.Y();
+  float minx, miny;
+  bbox->GetX(&minx);
+  bbox->GetY(&miny);
 
   PRUint16 type = GetPatternContentUnits();
   if (type == nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_OBJECTBOUNDINGBOX) {
-    minx += callerBBox.X();
-    miny += callerBBox.Y();
+    float x, y;
+    callerBBox->GetX(&x);
+    callerBBox->GetY(&y);
+    minx += x;
+    miny += y;
   }
 
   float scale = 1.0f / nsSVGUtils::MaxExpansion(callerCTM);
@@ -580,54 +622,81 @@ nsSVGPatternFrame::GetPatternMatrix(const gfxRect &bbox,
 }
 
 nsresult
-nsSVGPatternFrame::GetTargetGeometry(nsIDOMSVGMatrix **aCTM,
-                                     gfxRect *aBBox,
-                                     nsSVGElement **aTargetContent,
-                                     nsSVGGeometryFrame *aTarget)
+nsSVGPatternFrame::GetCallerGeometry(nsIDOMSVGMatrix **aCTM,
+                                     nsIDOMSVGRect **aBBox,
+                                     nsSVGElement **aContent,
+                                     nsSVGGeometryFrame *aSource)
 {
   *aCTM = nsnull;
-  *aTargetContent = nsnull;
+  *aBBox = nsnull;
+  *aContent = nsnull;
 
   // Make sure the callerContent is an SVG element.  If we are attempting
   // to paint a pattern for text, then the content will be the #text, so we
   // actually want the parent, which should be the <svg:text> or <svg:tspan>
   // element.
-  nsIAtom *callerType = aTarget->GetType();
+  nsIAtom *callerType = aSource->GetType();
   if (callerType ==  nsGkAtoms::svgGlyphFrame) {
-    *aTargetContent = static_cast<nsSVGElement*>
-                        (aTarget->GetContent()->GetParent());
+    *aContent = static_cast<nsSVGElement*>
+                           (aSource->GetContent()->GetParent());
   } else {
-    *aTargetContent = static_cast<nsSVGElement*>(aTarget->GetContent());
+    *aContent = static_cast<nsSVGElement*>(aSource->GetContent());
   }
-  NS_ASSERTION(aTargetContent,"Caller does not have any content!");
-  if (!aTargetContent)
+  NS_ASSERTION(aContent,"Caller does not have any content!");
+  if (!aContent)
     return NS_ERROR_FAILURE;
 
-  if (callerType == nsGkAtoms::svgGlyphFrame) {
-    *aBBox = nsSVGUtils::GetBBox(aTarget->GetParent());
-  } else {
-    *aBBox = nsSVGUtils::GetBBox(aTarget);
-  }
-  
+  // Get the calling geometry's bounding box.  This
+  // will be in *device coordinates*
+  nsISVGChildFrame *callerSVGFrame;
+  if (callerType == nsGkAtoms::svgGlyphFrame)
+    CallQueryInterface(aSource->GetParent(), &callerSVGFrame);
+  else
+    CallQueryInterface(aSource, &callerSVGFrame);
+
+  callerSVGFrame->SetMatrixPropagation(PR_FALSE);
+  callerSVGFrame->NotifySVGChanged(nsISVGChildFrame::SUPPRESS_INVALIDATION |
+                                   nsISVGChildFrame::TRANSFORM_CHANGED );
+  callerSVGFrame->GetBBox(aBBox);
+  callerSVGFrame->SetMatrixPropagation(PR_TRUE);
+  callerSVGFrame->NotifySVGChanged(nsISVGChildFrame::SUPPRESS_INVALIDATION |
+                                   nsISVGChildFrame::TRANSFORM_CHANGED);
+
   // Sanity check
   PRUint16 type = GetPatternUnits();
   if (type == nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_OBJECTBOUNDINGBOX) {
-    if (aBBox->Width() <= 0 || aBBox->Height() <= 0) {
+    float width, height;
+    (*aBBox)->GetWidth(&width);
+    (*aBBox)->GetHeight(&height);
+    if (width <= 0 || height <= 0) {
       return NS_ERROR_FAILURE;
     }
   }
 
   // Get the transformation matrix from our calling geometry
-  *aCTM = NS_NewSVGMatrix(aTarget->GetCanvasTM()).get();
+  aSource->GetCanvasTM(aCTM);
 
   // OK, now fix up the bounding box to reflect user coordinates
   // We handle device unit scaling in pattern matrix
   {
+    float x, y, width, height;
+    (*aBBox)->GetX(&x);
+    (*aBBox)->GetY(&y);
+    (*aBBox)->GetWidth(&width);
+    (*aBBox)->GetHeight(&height);
     float scale = nsSVGUtils::MaxExpansion(*aCTM);
-    if (scale <= 0) {
-      return NS_ERROR_FAILURE;
-    }
-    aBBox->Scale(scale);
+#ifdef DEBUG_scooter
+    fprintf(stderr, "pattern scale %f\n", scale);
+    fprintf(stderr, "x,y,width,height: %f %f %f %f\n", x, y, width, height);
+#endif
+    x *= scale;
+    y *= scale;
+    width *= scale;
+    height *= scale;
+    (*aBBox)->SetX(x);
+    (*aBBox)->SetY(y);
+    (*aBBox)->SetWidth(width);
+    (*aBBox)->SetHeight(height);
   }
   return NS_OK;
 }
@@ -683,8 +752,51 @@ nsSVGPatternFrame::SetupPaintServer(gfxContext *aContext,
 // -------------------------------------------------------------------------
 
 nsIFrame* NS_NewSVGPatternFrame(nsIPresShell*   aPresShell,
+                                nsIContent*     aContent,
                                 nsStyleContext* aContext)
 {
-  return new (aPresShell) nsSVGPatternFrame(aContext);
+  nsCOMPtr<nsIDOMSVGPatternElement> patternElement = do_QueryInterface(aContent);
+  if (!patternElement) {
+    NS_ERROR("Can't create frame! Content is not an SVG pattern");
+    return nsnull;
+  }
+
+  nsCOMPtr<nsIDOMSVGURIReference> ref = do_QueryInterface(aContent);
+  NS_ASSERTION(ref,
+               "NS_NewSVGPatternFrame -- Content doesn't support nsIDOMSVGURIReference");
+
+#ifdef DEBUG_scooter
+  printf("NS_NewSVGPatternFrame\n");
+#endif
+  return new (aPresShell) nsSVGPatternFrame(aContext, ref);
 }
 
+#ifdef DEBUG_scooter
+static void printCTM(char *msg, gfxMatrix aCTM)
+{
+  printf("%s {%f,%f,%f,%f,%f,%f}\n", msg,
+         aCTM.xx, aCTM.yx, aCTM.xy, aCTM.yy, aCTM.x0, aCTM.y0);
+}
+
+static void printCTM(char *msg, nsIDOMSVGMatrix *aCTM)
+{
+  float a,b,c,d,e,f;
+  aCTM->GetA(&a);
+  aCTM->GetB(&b);
+  aCTM->GetC(&c);
+  aCTM->GetD(&d);
+  aCTM->GetE(&e);
+  aCTM->GetF(&f);
+  printf("%s {%f,%f,%f,%f,%f,%f}\n",msg,a,b,c,d,e,f);
+}
+
+static void printRect(char *msg, nsIDOMSVGRect *aRect)
+{
+  float x,y,width,height;
+  aRect->GetX(&x);
+  aRect->GetY(&y);
+  aRect->GetWidth(&width);
+  aRect->GetHeight(&height);
+  printf("%s {%f,%f,%f,%f}\n",msg,x,y,width,height);
+}
+#endif

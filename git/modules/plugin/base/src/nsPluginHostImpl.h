@@ -35,9 +35,11 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef nsPluginHostImpl_h_
-#define nsPluginHostImpl_h_
+#ifndef nsPluginHostImpl_h__
+#define nsPluginHostImpl_h__
 
+#include "nsIPluginManager.h"
+#include "nsIPluginManager2.h"
 #include "nsIPluginHost.h"
 #include "nsIObserver.h"
 #include "nsPIPluginHost.h"
@@ -53,7 +55,10 @@
 #include "nsIPluginTagInfo2.h"
 #include "nsIPluginInstancePeer2.h"
 
+#include "nsIFileUtilities.h"
+#include "nsICookieStorage.h"
 #include "nsPluginsDir.h"
+#include "nsVoidArray.h"  // array for holding "active" streams
 #include "nsPluginDirServiceProvider.h"
 #include "nsAutoPtr.h"
 #include "nsWeakPtr.h"
@@ -64,6 +69,8 @@
 #include "nsWeakReference.h"
 #include "nsThreadUtils.h"
 #include "nsTArray.h"
+
+// XXX this file really doesn't think this is possible, but ...
 #include "nsIFactory.h"
 
 class nsNPAPIPlugin;
@@ -74,13 +81,16 @@ class nsIRegistry;
 class nsPluginHostImpl;
 
 #define NS_PLUGIN_FLAG_ENABLED      0x0001    // is this plugin enabled?
-#define NS_PLUGIN_FLAG_NPAPI        0x0002    // is this an NPAPI plugin?
+#define NS_PLUGIN_FLAG_OLDSCHOOL    0x0002    // is this a pre-xpcom plugin?
 #define NS_PLUGIN_FLAG_FROMCACHE    0x0004    // this plugintag info was loaded from cache
 #define NS_PLUGIN_FLAG_UNWANTED     0x0008    // this is an unwanted plugin
 #define NS_PLUGIN_FLAG_BLOCKLISTED  0x0010    // this is a blocklisted plugin
 
-// A linked-list of plugin information that is used for instantiating plugins
-// and reflecting plugin information into JavaScript.
+/**
+ * A linked-list of plugin information that is used for
+ * instantiating plugins and reflecting plugin information
+ * into JavaScript.
+ */
 class nsPluginTag : public nsIPluginTag
 {
 public:
@@ -165,9 +175,9 @@ private:
   nsresult EnsureMembersAreUTF8();
 };
 
-struct nsPluginInstanceTag
+struct nsActivePlugin
 {
-  nsPluginInstanceTag*   mNext;
+  nsActivePlugin*        mNext;
   char*                  mURL;
   nsIPluginInstancePeer* mPeer;
   nsRefPtr<nsPluginTag>  mPluginTag;
@@ -176,43 +186,46 @@ struct nsPluginInstanceTag
   PRPackedBool           mStopped;
   PRPackedBool           mDefaultPlugin;
   PRPackedBool           mXPConnected;
-  // Array holding all opened stream listeners for this entry
-  nsCOMPtr <nsISupportsArray> mStreams; 
+  //Array holding all opened stream listeners for this entry
+  nsCOMPtr <nsISupportsArray>  mStreams; 
 
-  nsPluginInstanceTag(nsPluginTag* aPluginTag,
-                      nsIPluginInstance* aInstance, 
-                      const char * url,
-                      PRBool aDefaultPlugin,
-                      nsIPluginInstancePeer *peer);
-  ~nsPluginInstanceTag();
+  nsActivePlugin(nsPluginTag* aPluginTag,
+                 nsIPluginInstance* aInstance, 
+                 const char * url,
+                 PRBool aDefaultPlugin,
+                 nsIPluginInstancePeer *peer);
+  ~nsActivePlugin();
 
   void setStopped(PRBool stopped);
 };
 
-class nsPluginInstanceTagList
+class nsActivePluginList
 {
 public:
-  nsPluginInstanceTag *mFirst;
-  nsPluginInstanceTag *mLast;
+  nsActivePlugin * mFirst;
+  nsActivePlugin * mLast;
   PRInt32 mCount;
 
-  nsPluginInstanceTagList();
-  ~nsPluginInstanceTagList();
+  nsActivePluginList();
+  ~nsActivePluginList();
 
-  void shutdown();
-  PRBool add(nsPluginInstanceTag *plugin);
-  PRBool remove(nsPluginInstanceTag *plugin);
-  nsPluginInstanceTag *find(nsIPluginInstance *instance);
-  nsPluginInstanceTag *find(const char *mimetype);
-  nsPluginInstanceTag *findStopped(const char *url);
+  void shut();
+  PRBool add(nsActivePlugin * plugin);
+  PRBool remove(nsActivePlugin * plugin);
+  nsActivePlugin * find(nsIPluginInstance* instance);
+  nsActivePlugin * find(const char * mimetype);
+  nsActivePlugin * findStopped(const char * url);
   PRUint32 getStoppedCount();
-  nsPluginInstanceTag *findOldestStopped();
+  nsActivePlugin * findOldestStopped();
   void removeAllStopped();
-  void stopRunning(nsISupportsArray *aReloadDocs, nsPluginTag *aPluginTag);
-  PRBool IsLastInstance(nsPluginInstanceTag *plugin);
+  void stopRunning(nsISupportsArray* aReloadDocs, nsPluginTag* aPluginTag);
+  PRBool IsLastInstance(nsActivePlugin * plugin);
 };
 
-class nsPluginHostImpl : public nsIPluginHost,
+class nsPluginHostImpl : public nsIPluginManager2,
+                         public nsIPluginHost,
+                         public nsIFileUtilities,
+                         public nsICookieStorage,
                          public nsIObserver,
                          public nsPIPluginHost,
                          public nsSupportsWeakReference
@@ -222,15 +235,23 @@ public:
   virtual ~nsPluginHostImpl();
 
   static nsPluginHostImpl* GetInst();
-  static const char *GetPluginName(nsIPluginInstance *aPluginInstance);
 
   NS_DECL_AND_IMPL_ZEROING_OPERATOR_NEW
 
   NS_DECL_ISUPPORTS
-  NS_DECL_NSIPLUGINHOST
-  NS_DECL_NSIFACTORY
-  NS_DECL_NSIOBSERVER
-  NS_DECL_NSPIPLUGINHOST
+
+  static const char *GetPluginName(nsIPluginInstance *aPluginInstance);
+
+  //nsIPluginManager interface - the main interface nsIPlugin communicates to
+
+  NS_IMETHOD
+  GetValue(nsPluginManagerVariable variable, void *value);
+
+  NS_IMETHOD
+  ReloadPlugins(PRBool reloadPages);
+
+  NS_IMETHOD
+  UserAgent(const char* *resultingAgentString);
 
   NS_IMETHOD
   GetURL(nsISupports* pluginInst, 
@@ -240,6 +261,17 @@ public:
            const char* altHost = NULL,
            const char* referrer = NULL,
            PRBool forceJSEnabled = PR_FALSE);
+
+  NS_IMETHOD
+  GetURLWithHeaders(nsISupports* pluginInst, 
+                    const char* url, 
+                    const char* target = NULL,
+                    nsIPluginStreamListener* streamListener = NULL,
+                    const char* altHost = NULL,
+                    const char* referrer = NULL,
+                    PRBool forceJSEnabled = PR_FALSE,
+                    PRUint32 getHeadersLength = 0, 
+                    const char* getHeaders = NULL);
   
   NS_IMETHOD
   PostURL(nsISupports* pluginInst,
@@ -255,7 +287,36 @@ public:
             PRUint32 postHeadersLength = 0, 
             const char* postHeaders = NULL);
 
-  nsresult
+  NS_IMETHOD
+  RegisterPlugin(REFNSIID aCID,
+                 const char* aPluginName,
+                 const char* aDescription,
+                 const char** aMimeTypes,
+                 const char** aMimeDescriptions,
+                 const char** aFileExtensions,
+                 PRInt32 aCount);
+
+  NS_IMETHOD
+  UnregisterPlugin(REFNSIID aCID);
+
+  //nsIPluginHost interface - used to communicate to the nsPluginInstanceOwner
+
+  NS_DECL_NSIPLUGINHOST
+  NS_DECL_NSIPLUGINMANAGER2
+
+  NS_IMETHOD
+  ProcessNextEvent(PRBool *bEventHandled);
+
+  // XXX not currently used?
+  NS_DECL_NSIFACTORY
+  NS_DECL_NSIFILEUTILITIES
+  NS_DECL_NSICOOKIESTORAGE
+  NS_DECL_NSIOBSERVER
+  NS_DECL_NSPIPLUGINHOST
+
+  /* Called by GetURL and PostURL */
+
+  NS_IMETHOD
   NewPluginURLStream(const nsString& aURL, 
                      nsIPluginInstance *aInstance, 
                      nsIPluginStreamListener *aListener,
@@ -266,25 +327,14 @@ public:
                      PRUint32 aHeadersDataLen = 0);
 
   nsresult
-  GetURLWithHeaders(nsISupports* pluginInst, 
-                    const char* url, 
-                    const char* target = NULL,
-                    nsIPluginStreamListener* streamListener = NULL,
-                    const char* altHost = NULL,
-                    const char* referrer = NULL,
-                    PRBool forceJSEnabled = PR_FALSE,
-                    PRUint32 getHeadersLength = 0, 
-                    const char* getHeaders = NULL);
-
-  nsresult
   DoURLLoadSecurityCheck(nsIPluginInstance *aInstance,
                          const char* aURL);
 
-  nsresult
+  NS_IMETHOD
   AddHeadersToChannel(const char *aHeadersData, PRUint32 aHeadersDataLen, 
                       nsIChannel *aGenericChannel);
 
-  nsresult
+  NS_IMETHOD
   AddUnusedLibrary(PRLibrary * aLibrary);
 
   static nsresult GetPluginTempDir(nsIFile **aDir);
@@ -297,11 +347,12 @@ public:
   // that does Java)
   static PRBool IsJavaMIMEType(const char *aType);
 
-  static nsresult GetPrompt(nsIPluginInstanceOwner *aOwner, nsIPrompt **aPrompt);
-
 private:
-  nsresult
+  NS_IMETHOD
   TrySetUpPluginInstance(const char *aMimeType, nsIURI *aURL, nsIPluginInstanceOwner *aOwner);
+
+  nsresult
+  LoadXPCOMPlugins(nsIComponentManager* aComponentManager);
 
   nsresult
   NewEmbeddedPluginStreamListener(nsIURI* aURL, nsIPluginInstanceOwner *aOwner,
@@ -359,9 +410,9 @@ private:
   // Loads all cached plugins info into mCachedPlugins
   nsresult ReadPluginInfo();
 
-  // Given a file path, returns the plugins info from our cache
+  // Given a filename, returns the plugins info from our cache
   // and removes it from the cache.
-  void RemoveCachedPluginsInfo(const char *filePath,
+  void RemoveCachedPluginsInfo(const char *filename,
                                nsPluginTag **result);
 
   //checks if the list already have the same plugin as given
@@ -372,6 +423,11 @@ private:
   PRBool IsDuplicatePlugin(nsPluginTag * aPluginTag);
 
   nsresult EnsurePrivateDirServiceProvider();
+
+  nsresult GetPrompt(nsIPluginInstanceOwner *aOwner, nsIPrompt **aPrompt);
+
+  // one-off hack to include nppl3260.dll from the components folder
+  nsresult ScanForRealInComponentsFolder(nsIComponentManager * aCompManager);
 
   // calls PostPluginUnloadEvent for each library in mUnusedLibraries
   void UnloadUnusedLibraries();
@@ -398,14 +454,14 @@ private:
   // Whether java is enabled
   PRPackedBool mJavaEnabled;
 
-  nsPluginInstanceTagList mPluginInstanceTagList;
-  nsTArray<PRLibrary*> mUnusedLibraries;
+  nsActivePluginList mActivePluginList;
+  nsVoidArray mUnusedLibraries;
 
-  nsCOMPtr<nsIFile> mPluginRegFile;
-  nsCOMPtr<nsIPrefBranch> mPrefService;
+  nsCOMPtr<nsIFile>                    mPluginRegFile;
+  nsCOMPtr<nsIPrefBranch>              mPrefService;
 #ifdef XP_WIN
   nsRefPtr<nsPluginDirServiceProvider> mPrivateDirServiceProvider;
-#endif
+#endif /* XP_WIN */
 
   nsWeakPtr mCurrentDocument; // weak reference, we use it to id document only
 

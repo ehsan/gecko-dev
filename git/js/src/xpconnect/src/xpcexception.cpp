@@ -151,28 +151,24 @@ nsXPCException::~nsXPCException()
     Reset();
 }
 
-/* [noscript] xpcexJSVal stealJSVal (); */
-NS_IMETHODIMP
-nsXPCException::StealJSVal(jsval *vp NS_OUTPARAM)
+PRBool
+nsXPCException::GetThrownJSVal(jsval *vp) const
 {
-    if(mThrownJSVal.IsHeld())
+    if(mThrownJSVal)
     {
-        *vp = mThrownJSVal.Release();
-        return NS_OK;
+        if(vp)
+            *vp = mThrownJSVal->GetJSVal();
+        return PR_TRUE;
     }
-    return NS_ERROR_FAILURE;
+    return PR_FALSE;
 }
 
-/* [noscript] void stowJSVal (in xpcexJSContextPtr cx, in xpcexJSVal val); */
-NS_IMETHODIMP
-nsXPCException::StowJSVal(JSContext* cx, jsval v)
+void
+nsXPCException::SetThrownJSVal(jsval v)
 {
-    if(mThrownJSVal.Hold(cx))
-    {
-        mThrownJSVal = v;
-        return NS_OK;
-    }
-    return NS_ERROR_FAILURE;
+    mThrownJSVal = JSVAL_IS_TRACEABLE(v)
+        ? new XPCTraceableVariant(nsXPConnect::GetRuntime(), v)
+        : new XPCVariant(v);
 }
 
 void

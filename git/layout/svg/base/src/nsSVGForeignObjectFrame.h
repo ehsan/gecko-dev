@@ -44,8 +44,6 @@
 #include "nsIDOMSVGMatrix.h"
 #include "nsRegion.h"
 #include "nsIPresShell.h"
-#include "gfxRect.h"
-#include "gfxMatrix.h"
 
 class nsSVGOuterSVGFrame;
 
@@ -55,13 +53,17 @@ class nsSVGForeignObjectFrame : public nsSVGForeignObjectFrameBase,
                                 public nsISVGChildFrame
 {
   friend nsIFrame*
-  NS_NewSVGForeignObjectFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
+  NS_NewSVGForeignObjectFrame(nsIPresShell* aPresShell, nsIContent* aContent, nsStyleContext* aContext);
 protected:
   nsSVGForeignObjectFrame(nsStyleContext* aContext);
   
-public:
-  NS_DECL_QUERYFRAME
+  // nsISupports interface:
+  NS_IMETHOD QueryInterface(const nsIID& aIID, void** aInstancePtr);
+private:
+  NS_IMETHOD_(nsrefcnt) AddRef() { return 1; }
+  NS_IMETHOD_(nsrefcnt) Release() { return 1; }
 
+public:
   // nsIFrame:  
   NS_IMETHOD  Init(nsIContent* aContent,
                    nsIFrame*   aParent,
@@ -118,8 +120,7 @@ public:
 #endif
 
   // nsISVGChildFrame interface:
-  NS_IMETHOD PaintSVG(nsSVGRenderState *aContext,
-                      const nsIntRect *aDirtyRect);
+  NS_IMETHOD PaintSVG(nsSVGRenderState *aContext, nsIntRect *aDirtyRect);
   NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint &aPoint);
   NS_IMETHOD_(nsRect) GetCoveredRegion();
   NS_IMETHOD UpdateCoveredRegion();
@@ -129,11 +130,20 @@ public:
   NS_IMETHOD NotifyRedrawUnsuspended();
   NS_IMETHOD SetMatrixPropagation(PRBool aPropagate);
   virtual PRBool GetMatrixPropagation();
-  virtual gfxRect GetBBoxContribution(const gfxMatrix &aToBBoxUserspace);
+  NS_IMETHOD SetOverrideCTM(nsIDOMSVGMatrix *aCTM);
+  virtual already_AddRefed<nsIDOMSVGMatrix> GetOverrideCTM();
+  NS_IMETHOD GetBBox(nsIDOMSVGRect **_retval);
   NS_IMETHOD_(PRBool) IsDisplayContainer() { return PR_TRUE; }
-  NS_IMETHOD_(PRBool) HasValidCoveredRect() { return PR_TRUE; }
+  NS_IMETHOD_(PRBool) HasValidCoveredRect() { return PR_FALSE; }
 
-  gfxMatrix GetCanvasTM();
+  // foreignobject public methods
+  /**
+   * @param aPt a point in the app unit coordinate system of the SVG outer frame
+   * Transforms the point to a point in this frame's app unit coordinate system
+   */
+  nsPoint TransformPointFromOuter(nsPoint aPt);
+
+  already_AddRefed<nsIDOMSVGMatrix> GetCanvasTM();
 
   // This method allows our nsSVGOuterSVGFrame to reflow us as necessary.
   void MaybeReflowFromOuterSVGFrame();
@@ -143,10 +153,8 @@ protected:
   void DoReflow();
   void RequestReflow(nsIPresShell::IntrinsicDirty aType);
   void UpdateGraphic();
-
-  // Returns GetCanvasTM followed by a scale from CSS px to Dev px. Used for
-  // painting, because children expect to paint to device space, not userspace.
-  gfxMatrix GetCanvasTMForChildren();
+  already_AddRefed<nsIDOMSVGMatrix> GetTMIncludingOffset();
+  nsresult TransformPointFromOuterPx(const nsPoint &aIn, nsPoint* aOut);
   void InvalidateDirtyRect(nsSVGOuterSVGFrame* aOuter,
                            const nsRect& aRect, PRUint32 aFlags);
   void FlushDirtyRegion();
@@ -155,13 +163,13 @@ protected:
   PRBool IsDisabled() const { return mRect.width <= 0 || mRect.height <= 0; }
 
   nsCOMPtr<nsIDOMSVGMatrix> mCanvasTM;
-
-  // Areas dirtied by changes to decendents that are in our document
+  nsCOMPtr<nsIDOMSVGMatrix> mOverrideCTM;
+  // Damage area due to in-this-doc invalidation
   nsRegion mSameDocDirtyRegion;
+  // Damage area due to cross-doc invalidation
+  nsRegion mCrossDocDirtyRegion;
 
-  // Areas dirtied by changes to sub-documents embedded by our decendents
-  nsRegion mSubDocDirtyRegion;
-
+  PRPackedBool mPropagateTransform;
   PRPackedBool mInReflow;
 };
 

@@ -124,8 +124,6 @@
 #include "nsIDocShellTreeOwner.h"
 #include "nsIXULWindow.h"
 #include "nsXULPopupManager.h"
-#include "nsCCUncollectableMarker.h"
-#include "nsURILoader.h"
 
 //----------------------------------------------------------------------
 //
@@ -307,7 +305,7 @@ NS_NewXULDocument(nsIXULDocument** result)
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsXULDocument)
 
-static PLDHashOperator
+static PLDHashOperator PR_CALLBACK
 TraverseTemplateBuilders(nsISupports* aKey, nsIXULTemplateBuilder* aData,
                          void* aContext)
 {
@@ -322,7 +320,7 @@ TraverseTemplateBuilders(nsISupports* aKey, nsIXULTemplateBuilder* aData,
     return PL_DHASH_NEXT;
 }
 
-static PLDHashOperator
+static PLDHashOperator PR_CALLBACK
 TraverseObservers(nsIURI* aKey, nsIObserver* aData, void* aContext)
 {
     nsCycleCollectionTraversalCallback *cb =
@@ -335,8 +333,6 @@ TraverseObservers(nsIURI* aKey, nsIObserver* aData, void* aContext)
 }
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXULDocument, nsXMLDocument)
-    NS_ASSERTION(!nsCCUncollectableMarker::InGeneration(tmp->GetMarkedCCGeneration()),
-                 "Shouldn't traverse nsXULDocument!");
     // XXX tmp->mForwardReferences?
     // XXX tmp->mContextStack?
 
@@ -377,13 +373,12 @@ NS_IMPL_RELEASE_INHERITED(nsXULDocument, nsXMLDocument)
 
 // QueryInterface implementation for nsXULDocument
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsXULDocument)
-    NS_DOCUMENT_INTERFACE_TABLE_BEGIN(nsXULDocument)
-      NS_INTERFACE_TABLE_ENTRY(nsXULDocument, nsIXULDocument)
-      NS_INTERFACE_TABLE_ENTRY(nsXULDocument, nsIDOMXULDocument)
-      NS_INTERFACE_TABLE_ENTRY(nsXULDocument, nsIStreamLoaderObserver)
-      NS_INTERFACE_TABLE_ENTRY(nsXULDocument, nsICSSLoaderObserver)
-    NS_OFFSET_AND_INTERFACE_TABLE_END
-    NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
+    NS_INTERFACE_TABLE_INHERITED4(nsXULDocument,
+                                  nsIXULDocument,
+                                  nsIDOMXULDocument,
+                                  nsIStreamLoaderObserver,
+                                  nsICSSLoaderObserver)
+    NS_INTERFACE_TABLE_TO_MAP_SEGUE
     NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(XULDocument)
 NS_INTERFACE_MAP_END_INHERITING(nsXMLDocument)
 
@@ -648,7 +643,7 @@ nsXULDocument::OnDocumentParserError()
   return PR_TRUE;
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 ClearBroadcasterMapEntry(PLDHashTable* aTable, PLDHashEntryHdr* aEntry)
 {
     BroadcasterMapEntry* entry =
@@ -679,28 +674,15 @@ CanBroadcast(PRInt32 aNameSpaceID, nsIAtom* aAttribute)
     return PR_TRUE;
 }
 
-struct nsAttrNameInfo
-{
-  nsAttrNameInfo(PRInt32 aNamespaceID, nsIAtom* aName, nsIAtom* aPrefix) :
-    mNamespaceID(aNamespaceID), mName(aName), mPrefix(aPrefix) {}
-  nsAttrNameInfo(const nsAttrNameInfo& aOther) :
-    mNamespaceID(aOther.mNamespaceID), mName(aOther.mName),
-    mPrefix(aOther.mPrefix) {}
-  PRInt32           mNamespaceID;
-  nsCOMPtr<nsIAtom> mName;
-  nsCOMPtr<nsIAtom> mPrefix;
-};
-
 void
 nsXULDocument::SynchronizeBroadcastListener(nsIDOMElement   *aBroadcaster,
                                             nsIDOMElement   *aListener,
                                             const nsAString &aAttr)
 {
-    if (!nsContentUtils::IsSafeToRunScript()) {
+    if (mUpdateNestLevel > 0) {
         nsDelayedBroadcastUpdate delayedUpdate(aBroadcaster, aListener,
                                                aAttr);
         mDelayedBroadcasters.AppendElement(delayedUpdate);
-        MaybeBroadcast();
         return;
     }
     nsCOMPtr<nsIContent> broadcaster = do_QueryInterface(aBroadcaster);
@@ -712,9 +694,8 @@ nsXULDocument::SynchronizeBroadcastListener(nsIDOMElement   *aBroadcaster,
 
     if (aAttr.EqualsLiteral("*")) {
         PRUint32 count = broadcaster->GetAttrCount();
-        nsTArray<nsAttrNameInfo> attributes(count);
-        for (PRUint32 i = 0; i < count; ++i) {
-            const nsAttrName* attrName = broadcaster->GetAttrNameAt(i);
+        while (count-- > 0) {
+            const nsAttrName* attrName = broadcaster->GetAttrNameAt(count);
             PRInt32 nameSpaceID = attrName->NamespaceID();
             nsIAtom* name = attrName->LocalName();
 
@@ -722,19 +703,10 @@ nsXULDocument::SynchronizeBroadcastListener(nsIDOMElement   *aBroadcaster,
             if (! CanBroadcast(nameSpaceID, name))
                 continue;
 
-            attributes.AppendElement(nsAttrNameInfo(nameSpaceID, name,
-                                                    attrName->GetPrefix()));
-        }
-
-        count = attributes.Length();
-        while (count-- > 0) {
-            PRInt32 nameSpaceID = attributes[count].mNamespaceID;
-            nsIAtom* name = attributes[count].mName;
             nsAutoString value;
-            if (broadcaster->GetAttr(nameSpaceID, name, value)) {
-              listener->SetAttr(nameSpaceID, name, attributes[count].mPrefix,
-                                value, mInitialLayoutComplete);
-            }
+            broadcaster->GetAttr(nameSpaceID, name, value);
+            listener->SetAttr(nameSpaceID, name, attrName->GetPrefix(), value, 
+                              mInitialLayoutComplete);
 
 #if 0
             // XXX we don't fire the |onbroadcast| handler during
@@ -998,9 +970,8 @@ nsXULDocument::AttributeChanged(nsIDocument* aDocument,
     nsresult rv;
 
     // Synchronize broadcast listeners
-    nsCOMPtr<nsIDOMElement> domele = do_QueryInterface(aElement);
-    if (domele && mBroadcasterMap &&
-        CanBroadcast(aNameSpaceID, aAttribute)) {
+    if (mBroadcasterMap && CanBroadcast(aNameSpaceID, aAttribute)) {
+        nsCOMPtr<nsIDOMElement> domele = do_QueryInterface(aElement);
         BroadcasterMapEntry* entry =
             static_cast<BroadcasterMapEntry*>
                        (PL_DHashTableOperate(mBroadcasterMap, domele.get(),
@@ -1011,6 +982,7 @@ nsXULDocument::AttributeChanged(nsIDocument* aDocument,
             nsAutoString value;
             PRBool attrSet = aElement->GetAttr(kNameSpaceID_None, aAttribute, value);
 
+            nsCOMArray<nsIContent> listenerArray;
             PRInt32 i;
             for (i = entry->mListeners.Count() - 1; i >= 0; --i) {
                 BroadcastListener* bl =
@@ -1018,42 +990,26 @@ nsXULDocument::AttributeChanged(nsIDocument* aDocument,
 
                 if ((bl->mAttribute == aAttribute) ||
                     (bl->mAttribute == nsGkAtoms::_asterix)) {
-                    nsCOMPtr<nsIDOMElement> listenerEl
+                    nsCOMPtr<nsIContent> listener
                         = do_QueryReferent(bl->mListener);
-                    nsCOMPtr<nsIContent> l = do_QueryInterface(listenerEl);
-                    if (l) {
-                        PRBool possibleCycle = PR_FALSE;
-                        for (PRUint32 j = 0; j < mDelayedAttrChangeBroadcasts.Length(); ++j) {
-                            if (mDelayedAttrChangeBroadcasts[j].mListener == listenerEl &&
-                                mDelayedAttrChangeBroadcasts[j].mAttrName == aAttribute) {
-                                possibleCycle = PR_TRUE;
-                                break;
-                            }
-                        }
-
-                        if (possibleCycle) {
-                            NS_WARNING("Broadcasting loop!");
-                        } else {
-                            nsAutoString currentValue;
-                            PRBool hasAttr = l->GetAttr(kNameSpaceID_None,
-                                                        aAttribute,
-                                                        currentValue);
-                            // We need to update listener only if we're
-                            // (1) removing an existing attribute,
-                            // (2) adding a new attribute or
-                            // (3) changing the value of an attribute.
-                            PRBool needsAttrChange =
-                                attrSet != hasAttr || !value.Equals(currentValue);
-                            nsDelayedBroadcastUpdate delayedUpdate(domele,
-                                                                   listenerEl,
-                                                                   aAttribute,
-                                                                   value,
-                                                                   attrSet,
-                                                                   needsAttrChange);
-                            mDelayedAttrChangeBroadcasts.AppendElement(delayedUpdate);
-                        }
+                    if (listener) {
+                      listenerArray.AppendObject(listener);
                     }
                 }
+            }
+
+            for (i = 0; i < listenerArray.Count(); ++i) {
+                nsIContent* listener = listenerArray[i];
+                if (attrSet) {
+                    listener->SetAttr(kNameSpaceID_None, aAttribute, value,
+                                      PR_TRUE);
+                }
+                else {
+                    listener->UnsetAttr(kNameSpaceID_None, aAttribute,
+                                        PR_TRUE);
+                }
+                nsCOMPtr<nsIDOMElement> listenerEl = do_QueryInterface(listener);
+                ExecuteOnBroadcastHandlerFor(aElement, listenerEl, aAttribute);
             }
         }
     }
@@ -1355,33 +1311,14 @@ nsXULDocument::Persist(const nsAString& aID,
 }
 
 
-PRBool
-nsXULDocument::IsCapabilityEnabled(const char* aCapabilityLabel)
-{
-    nsresult rv;
-
-    // NodePrincipal is guarantied to be non-null
-    PRBool enabled = PR_FALSE;
-    rv = NodePrincipal()->IsCapabilityEnabled(aCapabilityLabel, nsnull, &enabled);
-    if (NS_FAILED(rv))
-        return PR_FALSE;
- 
-    return enabled;
-}
-
-
 nsresult
 nsXULDocument::Persist(nsIContent* aElement, PRInt32 aNameSpaceID,
                        nsIAtom* aAttribute)
 {
-    // For non-chrome documents, persistance is simply broken
-    if (!IsCapabilityEnabled("UniversalBrowserWrite"))
-        return NS_ERROR_NOT_AVAILABLE;
-
     // First make sure we _have_ a local store to stuff the persisted
     // information into. (We might not have one if profile information
     // hasn't been loaded yet...)
-    if (!mLocalStore)
+    if (! mLocalStore)
         return NS_OK;
 
     nsresult rv;
@@ -1759,7 +1696,6 @@ nsXULDocument::AddElementToDocumentPost(nsIContent* aElement)
 NS_IMETHODIMP
 nsXULDocument::AddSubtreeToDocument(nsIContent* aElement)
 {
-    NS_ASSERTION(aElement->GetCurrentDoc() == this, "Element not in doc!");
     // From here on we only care about elements.
     if (!aElement->IsNodeOfType(nsINode::eELEMENT)) {
         return NS_OK;
@@ -1770,7 +1706,10 @@ nsXULDocument::AddSubtreeToDocument(nsIContent* aElement)
     if (NS_FAILED(rv)) return rv;
 
     // Recurse to children
-    PRUint32 count = aElement->GetChildCount();
+    nsXULElement *xulcontent = nsXULElement::FromContent(aElement);
+
+    PRUint32 count =
+        xulcontent ? xulcontent->PeekChildCount() : aElement->GetChildCount();
 
     while (count-- > 0) {
         rv = AddSubtreeToDocument(aElement->GetChildAt(count));
@@ -1949,6 +1888,7 @@ nsXULDocument::CloneNode(PRBool aDeep, nsIDOMNode** aReturn)
 nsresult
 nsXULDocument::Init()
 {
+    SetIdTableLive();
     mRefMap.Init();
 
     nsresult rv = nsXMLDocument::Init();
@@ -1999,6 +1939,19 @@ nsXULDocument::Init()
 nsresult
 nsXULDocument::StartLayout(void)
 {
+    if (!GetRootContent()) {
+#ifdef PR_LOGGING
+        if (PR_LOG_TEST(gXULLog, PR_LOG_WARNING)) {
+            nsCAutoString urlspec;
+            mDocumentURI->GetSpec(urlspec);
+
+            PR_LOG(gXULLog, PR_LOG_WARNING,
+                   ("xul: unable to layout '%s'; no root content", urlspec.get()));
+        }
+#endif
+        return NS_OK;
+    }
+
     nsPresShellIterator iter(this);
     nsCOMPtr<nsIPresShell> shell;
     while ((shell = iter.GetNextShell())) {
@@ -2018,6 +1971,8 @@ nsXULDocument::StartLayout(void)
         NS_ASSERTION(docShell != nsnull, "container is not a docshell");
         if (! docShell)
             return NS_ERROR_UNEXPECTED;
+
+        nsRect r = cx->GetVisibleArea();
 
         // Trigger a refresh before the call to InitialReflow(),
         // because the view manager's UpdateView() function is
@@ -2040,11 +1995,7 @@ nsXULDocument::StartLayout(void)
         }
 
         mMayStartLayout = PR_TRUE;
-
-        // Don't try to call GetVisibleArea earlier than this --- the EnableRefresh call
-        // above can flush reflows, which can cause a parent document to be flushed,
-        // calling ResizeReflow on our document which does SetVisibleArea.
-        nsRect r = cx->GetVisibleArea();
+        
         // Make sure we're holding a strong ref to |shell| before we call
         // InitialReflow()
         nsCOMPtr<nsIPresShell> shellGrip = shell;
@@ -2164,26 +2115,13 @@ nsXULDocument::PrepareToLoadPrototype(nsIURI* aURI, const char* aCommand,
 nsresult
 nsXULDocument::ApplyPersistentAttributes()
 {
-    // For non-chrome documents, persistance is simply broken
-    if (!IsCapabilityEnabled("UniversalBrowserRead"))
-        return NS_ERROR_NOT_AVAILABLE;
-
     // Add all of the 'persisted' attributes into the content
     // model.
-    if (!mLocalStore)
+    if (! mLocalStore)
         return NS_OK;
 
     mApplyingPersistedAttrs = PR_TRUE;
-    ApplyPersistentAttributesInternal();
-    mApplyingPersistedAttrs = PR_FALSE;
 
-    return NS_OK;
-}
-
-
-nsresult 
-nsXULDocument::ApplyPersistentAttributesInternal()
-{
     nsCOMArray<nsIContent> elements;
 
     nsCAutoString docurl;
@@ -2229,6 +2167,8 @@ nsXULDocument::ApplyPersistentAttributesInternal()
 
         ApplyPersistentAttributesToElements(resource, elements);
     }
+
+    mApplyingPersistedAttrs = PR_FALSE;
 
     return NS_OK;
 }
@@ -2449,7 +2389,7 @@ nsXULDocument::PrepareToWalk()
                      "No root content when preparing to walk overlay!");
     }
 
-    const nsTArray<nsRefPtr<nsXULPrototypePI> >& processingInstructions =
+    const nsTArray<nsXULPrototypePI*>& processingInstructions =
         mCurrentPrototype->GetProcessingInstructions();
 
     PRUint32 total = processingInstructions.Length();
@@ -2847,7 +2787,7 @@ nsXULDocument::LoadOverlayInternal(nsIURI* aURI, PRBool aIsDynamic,
     return NS_OK;
 }
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 FirePendingMergeNotification(nsIURI* aKey, nsCOMPtr<nsIObserver>& aObserver, void* aClosure)
 {
     aObserver->Observe(aKey, "xul-overlay-merged", EmptyString().get());
@@ -2889,7 +2829,7 @@ nsXULDocument::ResumeWalk()
             rv = mContextStack.Peek(&proto, getter_AddRefs(element), &indx);
             if (NS_FAILED(rv)) return rv;
 
-            if (indx >= (PRInt32)proto->mChildren.Length()) {
+            if (indx >= (PRInt32)proto->mNumChildren) {
                 if (element) {
                     // We've processed all of the prototype's children. If
                     // we're in the master prototype, do post-order
@@ -2980,7 +2920,7 @@ nsXULDocument::ResumeWalk()
 
                 // If it has children, push the element onto the context
                 // stack and begin to process them.
-                if (protoele->mChildren.Length() > 0) {
+                if (protoele->mNumChildren > 0) {
                     rv = mContextStack.Push(protoele, child);
                     if (NS_FAILED(rv)) return rv;
                 }
@@ -3137,7 +3077,8 @@ nsXULDocument::ResumeWalk()
     rv = ResolveForwardReferences();
     if (NS_FAILED(rv)) return rv;
 
-    ApplyPersistentAttributes();
+    rv = ApplyPersistentAttributes();
+    if (NS_FAILED(rv)) return rv;
 
     mStillWalking = PR_FALSE;
     if (mPendingSheets == 0) {
@@ -3203,7 +3144,7 @@ nsXULDocument::DoneWalking()
         NS_WARN_IF_FALSE(mUpdateNestLevel == 0,
                          "Constructing XUL document in middle of an update?");
         if (mUpdateNestLevel == 0) {
-            MaybeInitializeFinalizeFrameLoaders();
+            InitializeFinalizeFrameLoaders();
         }
 
         NS_DOCUMENT_NOTIFY_OBSERVERS(EndLoad, (this));
@@ -3286,45 +3227,10 @@ nsXULDocument::StyleSheetLoaded(nsICSSStyleSheet* aSheet,
 }
 
 void
-nsXULDocument::MaybeBroadcast()
+nsXULDocument::EndUpdate(nsUpdateType aUpdateType)
 {
-    // Only broadcast when not in an update and when safe to run scripts.
-    if (mUpdateNestLevel == 0 &&
-        (mDelayedAttrChangeBroadcasts.Length() ||
-         mDelayedBroadcasters.Length())) {
-        if (!nsContentUtils::IsSafeToRunScript()) {
-            if (!mInDestructor) {
-                nsContentUtils::AddScriptRunner(
-                  NS_NEW_RUNNABLE_METHOD(nsXULDocument, this, MaybeBroadcast));
-            }
-            return;
-        }
-        if (!mHandlingDelayedAttrChange) {
-            mHandlingDelayedAttrChange = PR_TRUE;
-            for (PRUint32 i = 0; i < mDelayedAttrChangeBroadcasts.Length(); ++i) {
-                nsIAtom* attrName = mDelayedAttrChangeBroadcasts[i].mAttrName;
-                if (mDelayedAttrChangeBroadcasts[i].mNeedsAttrChange) {
-                    nsCOMPtr<nsIContent> listener =
-                        do_QueryInterface(mDelayedAttrChangeBroadcasts[i].mListener);
-                    nsString value = mDelayedAttrChangeBroadcasts[i].mAttr;
-                    if (mDelayedAttrChangeBroadcasts[i].mSetAttr) {
-                        listener->SetAttr(kNameSpaceID_None, attrName, value,
-                                          PR_TRUE);
-                    } else {
-                        listener->UnsetAttr(kNameSpaceID_None, attrName,
-                                            PR_TRUE);
-                    }
-                }
-                nsCOMPtr<nsIContent> broadcaster =
-                    do_QueryInterface(mDelayedAttrChangeBroadcasts[i].mBroadcaster);
-                ExecuteOnBroadcastHandlerFor(broadcaster,
-                                             mDelayedAttrChangeBroadcasts[i].mListener,
-                                             attrName);
-            }
-            mDelayedAttrChangeBroadcasts.Clear();
-            mHandlingDelayedAttrChange = PR_FALSE;
-        }
-
+    nsXMLDocument::EndUpdate(aUpdateType);
+    if (mUpdateNestLevel == 0) {
         PRUint32 length = mDelayedBroadcasters.Length();
         if (length) {
             nsTArray<nsDelayedBroadcastUpdate> delayedBroadcasters;
@@ -3336,14 +3242,6 @@ nsXULDocument::MaybeBroadcast()
             }
         }
     }
-}
-
-void
-nsXULDocument::EndUpdate(nsUpdateType aUpdateType)
-{
-    nsXMLDocument::EndUpdate(aUpdateType);
-
-    MaybeBroadcast();
 }
 
 void
@@ -3412,18 +3310,6 @@ nsXULDocument::LoadScript(nsXULPrototypeScript* aScriptProto, PRBool* aBlock)
             *aBlock = PR_FALSE;
             return NS_OK;
         }
-    }
-
-    // Allow security manager and content policies to veto the load. Note that
-    // at this point we already lost context information of the script.
-    rv = nsScriptLoader::ShouldLoadScript(
-                            this,
-                            static_cast<nsIDocument*>(this),
-                            aScriptProto->mSrcURI,
-                            NS_LITERAL_STRING("application/x-javascript"));
-    if (NS_FAILED(rv)) {
-      *aBlock = PR_FALSE;
-      return rv;
     }
 
     // Set the current script prototype so that OnStreamComplete can report
@@ -3810,10 +3696,9 @@ nsXULDocument::CreateTemplateBuilder(nsIContent* aElement)
     // Check if need to construct a tree builder or content builder.
     PRBool isTreeBuilder = PR_FALSE;
 
-    // return successful if the element is not is a document, as an inline
-    // script could have removed it
-    nsIDocument *document = aElement->GetCurrentDoc();
-    NS_ENSURE_TRUE(document, NS_OK);
+    nsIDocument *document = aElement->GetOwnerDoc();
+    NS_ASSERTION(document, "no document");
+    NS_ENSURE_TRUE(document, NS_ERROR_UNEXPECTED);
 
     PRInt32 nameSpaceID;
     nsIAtom* baseTag = document->BindingManager()->
@@ -3868,7 +3753,17 @@ nsXULDocument::CreateTemplateBuilder(nsIContent* aElement)
             return NS_ERROR_FAILURE;
 
         builder->Init(aElement);
-        builder->CreateContents(aElement, PR_FALSE);
+
+        nsXULElement *xulContent = nsXULElement::FromContent(aElement);
+        if (xulContent) {
+            // Mark the XUL element as being lazy, so the template builder
+            // will run when layout first asks for these nodes.
+            xulContent->SetLazyState(nsXULElement::eChildrenMustBeRebuilt);
+        }
+        else {
+            // Force construction of immediate template sub-content _now_.
+            builder->CreateContents(aElement, PR_FALSE);
+        }
     }
 
     return NS_OK;
@@ -3888,8 +3783,7 @@ nsXULDocument::AddPrototypeSheets()
         nsCOMPtr<nsICSSStyleSheet> incompleteSheet;
         rv = CSSLoader()->LoadSheet(uri,
                                     mCurrentPrototype->DocumentPrincipal(),
-                                    EmptyCString(), this,
-                                    getter_AddRefs(incompleteSheet));
+                                    this, getter_AddRefs(incompleteSheet));
 
         // XXXldb We need to prevent bogus sheets from being held in the
         // prototype's list, but until then, don't propagate the failure
@@ -3919,8 +3813,10 @@ nsXULDocument::OverlayForwardReference::Resolve()
     nsresult rv;
     nsCOMPtr<nsIContent> target;
 
+    PRBool notify = PR_FALSE;
     nsIPresShell *shell = mDocument->GetPrimaryShell();
-    PRBool notify = shell && shell->DidInitialReflow();
+    if (shell)
+        shell->GetDidInitialReflow(&notify);
 
     nsAutoString id;
     mOverlay->GetAttr(kNameSpaceID_None, nsGkAtoms::id, id);
@@ -3962,11 +3858,8 @@ nsXULDocument::OverlayForwardReference::Resolve()
         if (NS_FAILED(rv)) return eResolve_Error;
     }
 
-    // Check if 'target' is still in our document --- it might not be!
-    if (!notify && target->GetCurrentDoc() == mDocument) {
+    if (!notify) {
         // Add child and any descendants to the element map
-        // XXX this is bogus, the content in 'target' might already be
-        // in the document
         rv = mDocument->AddSubtreeToDocument(target);
         if (NS_FAILED(rv)) return eResolve_Error;
     }
@@ -4414,8 +4307,6 @@ nsXULDocument::InsertElement(nsIContent* aParent, nsIContent* aChild, PRBool aNo
     if (!posStr.IsEmpty()) {
         nsCOMPtr<nsIDOMDocument> domDocument(
                do_QueryInterface(aParent->GetDocument()));
-        if (!domDocument) return NS_ERROR_FAILURE;
-
         nsCOMPtr<nsIDOMElement> domElement;
 
         char* str = ToNewCString(posStr);
@@ -4517,7 +4408,7 @@ NS_IMETHODIMP
 nsXULDocument::CachedChromeStreamListener::OnStartRequest(nsIRequest *request,
                                                           nsISupports* acontext)
 {
-    return NS_ERROR_PARSED_DATA_CACHED;
+    return NS_OK;
 }
 
 
@@ -4623,10 +4514,4 @@ nsXULDocument::GetFocusController(nsIFocusController** aFocusController)
         NS_IF_ADDREF(*aFocusController = windowPrivate->GetRootFocusController());
     } else
         *aFocusController = nsnull;
-}
-
-NS_IMETHODIMP
-nsXULDocument::GetBoxObjectFor(nsIDOMElement* aElement, nsIBoxObject** aResult)
-{
-    return nsDocument::GetBoxObjectFor(aElement, aResult);
 }

@@ -145,7 +145,7 @@ __try {
     return GetHRESULT(rv);
 
   *aOffset = offset;
-  return offset != -1 ? S_OK : S_FALSE;
+  return S_OK;
 
 } __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
   return E_FAIL;

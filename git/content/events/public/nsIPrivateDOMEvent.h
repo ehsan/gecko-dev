@@ -46,14 +46,14 @@ class nsPresContext;
  * Event listener manager interface.
  */
 #define NS_IPRIVATEDOMEVENT_IID \
-{ 0x1da4c501, 0xe87e, 0x49b4, \
-  { 0xb0, 0x49, 0xdf, 0x9f, 0xc3, 0x6b, 0x56, 0xd4 } }
+{ /* 25e6626c-8e54-409b-87b5-2beceaac399e */ \
+0x25e6626c, 0x8e54, 0x409b, \
+{0x87, 0xb5, 0x2b, 0xec, 0xea, 0xac, 0x39, 0x9e} }
 
 class nsIDOMEventTarget;
 class nsIDOMEvent;
 class nsEvent;
 class nsCommandEvent;
-class nsRegion;
 
 class nsIPrivateDOMEvent : public nsISupports
 {
@@ -62,9 +62,12 @@ public:
 
   NS_IMETHOD DuplicatePrivateData() = 0;
   NS_IMETHOD SetTarget(nsIDOMEventTarget* aTarget) = 0;
-  NS_IMETHOD_(PRBool) IsDispatchStopped() = 0;
-  NS_IMETHOD_(nsEvent*) GetInternalNSEvent() = 0;
-  NS_IMETHOD SetTrusted(PRBool aTrusted) = 0;
+  NS_IMETHOD SetCurrentTarget(nsIDOMEventTarget* aTarget) = 0;
+  NS_IMETHOD SetOriginalTarget(nsIDOMEventTarget* aTarget) = 0;
+  NS_IMETHOD IsDispatchStopped(PRBool* aIsDispatchPrevented) = 0;
+  NS_IMETHOD GetInternalNSEvent(nsEvent** aNSEvent) = 0;
+  NS_IMETHOD HasOriginalTarget(PRBool* aResult)=0;
+  NS_IMETHOD SetTrusted(PRBool aTrusted)=0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIPrivateDOMEvent, NS_IPRIVATEDOMEVENT_IID)
@@ -84,15 +87,15 @@ NS_NewDOMDragEvent(nsIDOMEvent** aInstancePtrResult, nsPresContext* aPresContext
 nsresult
 NS_NewDOMKeyboardEvent(nsIDOMEvent** aInstancePtrResult, nsPresContext* aPresContext, class nsKeyEvent *aEvent);
 nsresult
-NS_NewDOMMutationEvent(nsIDOMEvent** aResult NS_OUTPARAM, nsPresContext* aPresContext, class nsMutationEvent* aEvent);
+NS_NewDOMMutationEvent(nsIDOMEvent** aResult, nsPresContext* aPresContext, class nsMutationEvent* aEvent);
 nsresult
-NS_NewDOMPopupBlockedEvent(nsIDOMEvent** aResult, nsPresContext* aPresContext, nsEvent* aEvent);
+NS_NewDOMPopupBlockedEvent(nsIDOMEvent** aResult, nsPresContext* aPresContext, class nsPopupBlockedEvent* aEvent);
 nsresult
 NS_NewDOMTextEvent(nsIDOMEvent** aResult, nsPresContext* aPresContext, class nsTextEvent* aEvent);
 nsresult
-NS_NewDOMBeforeUnloadEvent(nsIDOMEvent** aResult, nsPresContext* aPresContext, nsEvent* aEvent);
+NS_NewDOMBeforeUnloadEvent(nsIDOMEvent** aResult, nsPresContext* aPresContext, class nsBeforePageUnloadEvent* aEvent);
 nsresult
-NS_NewDOMPageTransitionEvent(nsIDOMEvent** aResult, nsPresContext* aPresContext, nsEvent* aEvent);
+NS_NewDOMPageTransitionEvent(nsIDOMEvent** aResult, nsPresContext* aPresContext, class nsPageTransitionEvent* aEvent);
 #ifdef MOZ_SVG
 nsresult
 NS_NewDOMSVGEvent(nsIDOMEvent** aResult, nsPresContext* aPresContext, class nsEvent* aEvent);
@@ -108,11 +111,5 @@ NS_NewDOMMessageEvent(nsIDOMEvent** aInstancePtrResult, nsPresContext* aPresCont
 nsresult
 NS_NewDOMProgressEvent(nsIDOMEvent** aInstancePtrResult, nsPresContext* aPresContext, class nsEvent* aEvent);
 nsresult
-NS_NewDOMNotifyPaintEvent(nsIDOMEvent** aResult, nsPresContext* aPresContext,
-                          nsEvent* aEvent,
-                          PRUint32 aEventType = 0,
-                          const nsRegion* aSameOriginRegion = nsnull,
-                          const nsRegion* aCrossDocRegion = nsnull);
-nsresult
-NS_NewDOMSimpleGestureEvent(nsIDOMEvent** aInstancePtrResult, nsPresContext* aPresContext, class nsSimpleGestureEvent* aEvent);
+NS_NewDOMNotifyPaintEvent(nsIDOMEvent** aResult, nsPresContext* aPresContext, class nsNotifyPaintEvent* aEvent);
 #endif // nsIPrivateDOMEvent_h__

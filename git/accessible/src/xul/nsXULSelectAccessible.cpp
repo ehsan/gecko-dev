@@ -58,32 +58,23 @@ nsXULColumnsAccessible::
 {
 }
 
-nsresult
-nsXULColumnsAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP
+nsXULColumnsAccessible::GetRole(PRUint32 *aRole)
 {
+  NS_ENSURE_ARG_POINTER(aRole);
+
   *aRole = nsIAccessibleRole::ROLE_LIST;
   return NS_OK;
 }
 
-nsresult
-nsXULColumnsAccessible::GetStateInternal(PRUint32 *aState,
-                                         PRUint32 *aExtraState)
+NS_IMETHODIMP
+nsXULColumnsAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 {
   NS_ENSURE_ARG_POINTER(aState);
-  *aState = 0;
-
-  if (IsDefunct()) {
-    if (aExtraState)
-      *aExtraState = nsIAccessibleStates::EXT_STATE_DEFUNCT;
-
-    return NS_OK_DEFUNCT_OBJECT;
-  }
-
   *aState = nsIAccessibleStates::STATE_READONLY;
-
-  if (aExtraState)
-    *aExtraState = 0;
-
+  if (aExtraState) {
+    *aExtraState = mDOMNode ? 0 : nsIAccessibleStates::EXT_STATE_DEFUNCT ;
+  }
   return NS_OK;
 }
 
@@ -96,31 +87,32 @@ nsXULColumnItemAccessible::
 {
 }
 
-nsresult
-nsXULColumnItemAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP
+nsXULColumnItemAccessible::GetRole(PRUint32 *aRole)
 {
+  NS_ENSURE_ARG_POINTER(aRole);
+
   *aRole = nsIAccessibleRole::ROLE_COLUMNHEADER;
   return NS_OK;
 }
 
-nsresult
-nsXULColumnItemAccessible::GetStateInternal(PRUint32 *aState,
-                                            PRUint32 *aExtraState)
+NS_IMETHODIMP
+nsXULColumnItemAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 {
   NS_ENSURE_ARG_POINTER(aState);
-
-  if (IsDefunct()) {
-    if (aExtraState)
-      *aExtraState = nsIAccessibleStates::EXT_STATE_DEFUNCT;
-
-    return NS_OK_DEFUNCT_OBJECT;
-  }
-
   *aState = nsIAccessibleStates::STATE_READONLY;
-  if (aExtraState)
-    *aExtraState = 0;
-
+  if (aExtraState) {
+    *aExtraState = mDOMNode ? 0 : nsIAccessibleStates::EXT_STATE_DEFUNCT ;
+  }
   return NS_OK;
+}
+
+NS_IMETHODIMP
+nsXULColumnItemAccessible::GetName(nsAString& aName)
+{
+  aName.Truncate();
+
+  return GetXULName(aName);
 }
 
 NS_IMETHODIMP
@@ -193,9 +185,8 @@ nsXULListboxAccessible::IsTree()
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULListboxAccessible. nsIAccessible
 
-nsresult
-nsXULListboxAccessible::GetStateInternal(PRUint32 *aState,
-                                         PRUint32 *aExtraState)
+NS_IMETHODIMP
+nsXULListboxAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 {
   // As a nsXULListboxAccessible we can have the following states:
   //   STATE_FOCUSED
@@ -203,8 +194,11 @@ nsXULListboxAccessible::GetStateInternal(PRUint32 *aState,
   //   STATE_FOCUSABLE
 
   // Get focus status from base class
-  nsresult rv = nsAccessible::GetStateInternal(aState, aExtraState);
-  NS_ENSURE_A11Y_SUCCESS(rv, rv);
+  nsresult rv = nsAccessible::GetState(aState, aExtraState);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (!mDOMNode) {
+    return NS_OK;
+  }
 
 // see if we are multiple select if so set ourselves as such
   nsCOMPtr<nsIDOMElement> element (do_QueryInterface(mDOMNode));
@@ -235,8 +229,7 @@ NS_IMETHODIMP nsXULListboxAccessible::GetValue(nsAString& _retval)
   return NS_ERROR_FAILURE;
 }
 
-nsresult
-nsXULListboxAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP nsXULListboxAccessible::GetRole(PRUint32 *aRole)
 {
   nsCOMPtr<nsIContent> content = do_QueryInterface(mDOMNode);
   if (content) {
@@ -866,9 +859,14 @@ nsXULListitemAccessible::GetListAccessible()
   * If there is a Listcell as a child ( not anonymous ) use it, otherwise
   *   default to getting the name from GetXULName
   */
-nsresult
-nsXULListitemAccessible::GetNameInternal(nsAString& aName)
+NS_IMETHODIMP
+nsXULListitemAccessible::GetName(nsAString& aName)
 {
+  aName.Truncate();
+
+  if (!mDOMNode)
+    return NS_ERROR_FAILURE;
+
   nsCOMPtr<nsIDOMNode> child;
   if (NS_SUCCEEDED(mDOMNode->GetFirstChild(getter_AddRefs(child)))) {
     nsCOMPtr<nsIDOMElement> childElement (do_QueryInterface(child));
@@ -884,43 +882,45 @@ nsXULListitemAccessible::GetNameInternal(nsAString& aName)
   return GetXULName(aName);
 }
 
-nsresult
-nsXULListitemAccessible::GetRoleInternal(PRUint32 *aRole)
+/**
+  *
+  */
+NS_IMETHODIMP nsXULListitemAccessible::GetRole(PRUint32 *aRole)
 {
   nsCOMPtr<nsIAccessible> listAcc = GetListAccessible();
   NS_ENSURE_STATE(listAcc);
 
-  if (nsAccUtils::Role(listAcc) == nsIAccessibleRole::ROLE_TABLE) {
+  if (Role(listAcc) == nsIAccessibleRole::ROLE_TABLE) {
     *aRole = nsIAccessibleRole::ROLE_ROW;
     return NS_OK;
   }
 
   if (mIsCheckbox)
     *aRole = nsIAccessibleRole::ROLE_CHECKBUTTON;
-  else if (nsAccUtils::Role(mParent) == nsIAccessibleRole::ROLE_COMBOBOX_LIST)
+  else if (mParent && Role(mParent) == nsIAccessibleRole::ROLE_COMBOBOX_LIST)
     *aRole = nsIAccessibleRole::ROLE_COMBOBOX_OPTION;
   else
     *aRole = nsIAccessibleRole::ROLE_RICH_OPTION;
   return NS_OK;
 }
 
-nsresult
-nsXULListitemAccessible::GetStateInternal(PRUint32 *aState,
-                                          PRUint32 *aExtraState)
+/**
+  *
+  */
+NS_IMETHODIMP
+nsXULListitemAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 {
   if (mIsCheckbox) {
-    return nsXULMenuitemAccessible::GetStateInternal(aState, aExtraState);
+    return nsXULMenuitemAccessible::GetState(aState, aExtraState);
   }
 
   *aState = 0;
-
-  if (IsDefunct()) {
-    if (aExtraState)
+  if (!mDOMNode) {
+    if (aExtraState) {
       *aExtraState = nsIAccessibleStates::EXT_STATE_DEFUNCT;
-
-    return NS_OK_DEFUNCT_OBJECT;
+    }
+    return NS_OK;
   }
-
   if (aExtraState)
     *aExtraState = 0;
 
@@ -946,8 +946,7 @@ NS_IMETHODIMP nsXULListitemAccessible::GetActionName(PRUint8 aIndex, nsAString& 
   if (aIndex == eAction_Click && mIsCheckbox) {
     // check or uncheck
     PRUint32 state;
-    nsresult rv = GetStateInternal(&state, nsnull);
-    NS_ENSURE_SUCCESS(rv, rv);
+    GetState(&state, nsnull);
 
     if (state & nsIAccessibleStates::STATE_CHECKED)
       aName.AssignLiteral("uncheck");
@@ -959,11 +958,12 @@ NS_IMETHODIMP nsXULListitemAccessible::GetActionName(PRUint8 aIndex, nsAString& 
   return NS_ERROR_INVALID_ARG;
 }
 
-PRBool
-nsXULListitemAccessible::GetAllowsAnonChildAccessibles()
+NS_IMETHODIMP
+nsXULListitemAccessible::GetAllowsAnonChildAccessibles(PRBool *aAllowsAnonChildren)
 {
   // That indicates we should walk anonymous children for listitems
-  return PR_TRUE;
+  *aAllowsAnonChildren = PR_TRUE;
+  return NS_OK;
 }
 
 nsresult
@@ -991,9 +991,11 @@ nsXULListCellAccessible::
 {
 }
 
-nsresult
-nsXULListCellAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP
+nsXULListCellAccessible::GetRole(PRUint32 *aRole)
 {
+  NS_ENSURE_ARG_POINTER(aRole);
+
   *aRole = nsIAccessibleRole::ROLE_CELL;
   return NS_OK;
 }
@@ -1010,8 +1012,7 @@ nsAccessibleWrap(aDOMNode, aShell)
 {
 }
 
-nsresult
-nsXULComboboxAccessible::Init()
+NS_IMETHODIMP nsXULComboboxAccessible::Init()
 {
   nsresult rv = nsAccessibleWrap::Init();
   nsXULMenupopupAccessible::GenerateMenu(mDOMNode);
@@ -1019,8 +1020,7 @@ nsXULComboboxAccessible::Init()
 }
 
 /** We are a combobox */
-nsresult
-nsXULComboboxAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP nsXULComboboxAccessible::GetRole(PRUint32 *aRole)
 {
   nsCOMPtr<nsIContent> content = do_QueryInterface(mDOMNode);
   if (!content) {
@@ -1043,13 +1043,15 @@ nsXULComboboxAccessible::GetRoleInternal(PRUint32 *aRole)
   *     STATE_EXPANDED
   *     STATE_COLLAPSED
   */
-nsresult
-nsXULComboboxAccessible::GetStateInternal(PRUint32 *aState,
-                                          PRUint32 *aExtraState)
+NS_IMETHODIMP
+nsXULComboboxAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 {
   // Get focus status from base class
-  nsresult rv = nsAccessible::GetStateInternal(aState, aExtraState);
-  NS_ENSURE_A11Y_SUCCESS(rv, rv);
+  nsresult rv = nsAccessible::GetState(aState, aExtraState);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (!mDOMNode) {
+    return NS_OK;
+  }
 
   nsCOMPtr<nsIDOMXULMenuListElement> menuList(do_QueryInterface(mDOMNode));
   if (menuList) {
@@ -1105,13 +1107,13 @@ NS_IMETHODIMP nsXULComboboxAccessible::GetDescription(nsAString& aDescription)
   return NS_OK;
 }
 
-PRBool
-nsXULComboboxAccessible::GetAllowsAnonChildAccessibles()
+NS_IMETHODIMP
+nsXULComboboxAccessible::GetAllowsAnonChildAccessibles(PRBool *aAllowsAnonChildren)
 {
+  if (!mDOMNode)
+    return NS_ERROR_FAILURE;
+
   nsCOMPtr<nsIContent> content = do_QueryInterface(mDOMNode);
-  NS_ASSERTION(content, "No content during accessible tree building!");
-  if (!content)
-    return PR_FALSE;
 
   if (content->NodeInfo()->Equals(nsAccessibilityAtoms::textbox, kNameSpaceID_XUL) ||
       content->AttrValueIs(kNameSpaceID_None, nsAccessibilityAtoms::editable,
@@ -1119,12 +1121,13 @@ nsXULComboboxAccessible::GetAllowsAnonChildAccessibles()
     // Both the XUL <textbox type="autocomplete"> and <menulist editable="true"> widgets
     // use nsXULComboboxAccessible. We need to walk the anonymous children for these
     // so that the entry field is a child
-    return PR_TRUE;
+    *aAllowsAnonChildren = PR_TRUE;
+  } else {
+    // Argument of PR_FALSE indicates we don't walk anonymous children for
+    // menuitems
+    *aAllowsAnonChildren = PR_FALSE;
   }
-
-  // Argument of PR_FALSE indicates we don't walk anonymous children for
-  // menuitems
-  return PR_FALSE;
+  return NS_OK;
 }
 
 /** Just one action ( click ). */

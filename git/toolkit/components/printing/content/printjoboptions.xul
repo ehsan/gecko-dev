@@ -64,20 +64,14 @@
     <rows>
       <row id="jobTitleGroup">
         <hbox align="center" pack="end">
-          <label id="jobTitleLabel"
-                 value="&jobTitleInput.label;"
-                 accesskey="&jobTitleInput.accesskey;"
-                 control="jobTitleInput"/>
+          <label id="jobTitleLabel" control="jobTitleInput" value="&jobTitleInput.label;"/>
         </hbox>
         <textbox id="jobTitleInput" flex="1"/>
       </row>
 
       <row id="paperGroup">
         <hbox align="center" pack="end">
-          <label id="paperLabel"
-                 value="&paperInput.label;"
-                 accesskey="&paperInput.accesskey;"
-                 control="paperList"/>
+          <label id="paperLabel" control="paperList" value="&paperInput.label;"/>
         </hbox>
         <menulist id="paperList" flex="1">
           <menupopup/>
@@ -86,10 +80,7 @@
 
       <row id="plexGroup">
         <hbox align="center" pack="end">
-          <label id="plexLabel"
-                 value="&plexInput.label;"
-                 accesskey="&plexInput.accesskey;"
-                 control="plexList"/>
+          <label id="plexLabel" control="plexList" value="&plexInput.label;"/>
         </hbox>
         <menulist id="plexList" flex="1">
           <menupopup/>
@@ -98,10 +89,7 @@
 
       <row id="resolutionGroup">
         <hbox align="center" pack="end">
-          <label id="resolutionLabel"
-                 value="&resolutionInput.label;"
-                 accesskey="&resolutionInput.accesskey;"
-                 control="resolutionList"/>
+          <label id="resolutionLabel" control="resolutionList" value="&resolutionInput.label;"/>
         </hbox>
         <menulist id="resolutionList" flex="1">
           <menupopup/>
@@ -110,10 +98,7 @@
 
       <row id="colorspaceGroup">
         <hbox align="center" pack="end">
-          <label id="colorspaceLabel"
-                 value="&colorspaceInput.label;"
-                 accesskey="&colorspaceInput.accesskey;"
-                 control="colorspaceList"/>
+          <label id="colorspaceLabel" control="colorspaceList" value="&colorspaceInput.label;"/>
         </hbox>
         <menulist id="colorspaceList" flex="1">
           <menupopup/>
@@ -121,10 +106,7 @@
       </row>
 
       <row id="cmdGroup">
-        <label id="cmdLabel"
-               value="&cmdInput.label;"
-               accesskey="&cmdInput.accesskey;"
-               control="cmdInput"/>
+        <label id="cmdLabel" control="cmdInput" value="&cmdInput.label;"/>
         <textbox id="cmdInput" flex="1"/>
       </row>
 
@@ -133,22 +115,16 @@
           <label control="colorRadioGroup" value="&colorGroup.label;"/>
         </hbox>
         <radiogroup id="colorRadioGroup" orient="horizontal">
-          <radio id="grayRadio"
-                 label="&grayRadio.label;"
-                 accesskey="&grayRadio.accesskey;"/>
-          <radio id="colorRadio"
-                 label="&colorRadio.label;"
-                 accesskey="&colorRadio.accesskey;"/>
+          <radio id="grayRadio" label="&grayRadio.label;"/>
+          <radio id="colorRadio" label="&colorRadio.label;"/>
         </radiogroup>
       </row>
 
       <row id="fontsGroup">
         <hbox align="center" pack="end">
-          <label value="&fontsGroup.label;"/>
+          <label control="downloadFonts" value="&fontsGroup.label;"/>
         </hbox>
-        <checkbox id="downloadFonts"
-                  label="&downloadFonts.label;"
-                  accesskey="&downloadFonts.accesskey;"/>
+        <checkbox id="downloadFonts" label="&downloadFonts.label;" />
       </row>
     </rows>
   </grid>
@@ -163,31 +139,19 @@
         <caption label="&edgeMarginInput.label;"/>
         <hbox>
           <hbox align="center">
-            <label id="topLabel"
-                   value="&topInput.label;"
-                   accesskey="&topInput.accesskey;"
-                   control="topInput"/>
+            <label id="topLabel" control="topInput" value="&topInput.label;"/>
             <textbox id="topInput" style="width:5em;" onkeyup="checkDouble(this, 0.5)"/>
           </hbox>
           <hbox align="center">
-            <label id="bottomLabel"
-                   value="&bottomInput.label;"
-                   accesskey="&bottomInput.accesskey;"
-                   control="bottomInput"/>
+            <label id="bottomLabel" control="bottomInput" value="&bottomInput.label;"/>
             <textbox id="bottomInput" style="width:5em;" onkeyup="checkDouble(this, 0.5)"/>
           </hbox>
           <hbox align="center">
-            <label id="leftLabel"
-                   value="&leftInput.label;"
-                   accesskey="&leftInput.accesskey;"
-                   control="leftInput"/>
+            <label id="leftLabel" control="leftInput" value="&leftInput.label;"/>
             <textbox id="leftInput" style="width:5em;" onkeyup="checkDouble(this, 0.5)"/>
           </hbox>
           <hbox align="center">
-            <label id="rightLabel"
-                   value="&rightInput.label;"
-                   accesskey="&rightInput.accesskey;"
-                   control="rightInput"/>
+            <label id="rightLabel" control="rightInput" value="&rightInput.label;"/>
             <textbox id="rightInput" style="width:5em;" onkeyup="checkDouble(this, 0.5)"/>
           </hbox>
         </hbox>

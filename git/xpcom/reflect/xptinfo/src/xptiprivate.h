@@ -66,8 +66,9 @@
 #include "nsMemory.h"
 
 #include "nsISupportsArray.h"
-#include "nsCOMArray.h"
+#include "nsSupportsArray.h"
 #include "nsInt64.h"
+
 #include "nsQuickSort.h"
 
 #include "nsXPIDLString.h"
@@ -120,14 +121,14 @@ public:
     // No ctors or dtors so that we can be in a union in xptiInterfaceInfo.
     // Allow automatic shallow copies.
 
-    PRUint16 GetFileIndex()    const {return mFileIndex;}
-    PRUint16 GetZipItemIndex() const {return mZipItemIndex;}
+    uint16 GetFileIndex()    const {return mFileIndex;}
+    uint16 GetZipItemIndex() const {return mZipItemIndex;}
 
     enum {NOT_ZIP = 0xffff};
 
     PRBool IsZip() const {return mZipItemIndex != NOT_ZIP;}
 
-    void Init(PRUint16 aFileIndex, PRUint16 aZipItemIndex = NOT_ZIP)
+    void Init(uint16 aFileIndex, uint16 aZipItemIndex = NOT_ZIP)
         {mFileIndex = aFileIndex; mZipItemIndex = aZipItemIndex;}
 
     PRBool Equals(const xptiTypelib& r) const
@@ -135,8 +136,8 @@ public:
                 mZipItemIndex == r.mZipItemIndex;}
 
 private:
-    PRUint16 mFileIndex;
-    PRUint16 mZipItemIndex;
+    uint16 mFileIndex;
+    uint16 mZipItemIndex;
 };
 
 /***************************************************************************/
@@ -447,8 +448,8 @@ public:
 class xptiInterfaceGuts
 {
 public:
-    PRUint16                    mMethodBaseIndex;
-    PRUint16                    mConstantBaseIndex;
+    uint16                      mMethodBaseIndex;
+    uint16                      mConstantBaseIndex;
     xptiInterfaceEntry*         mParent;
     XPTInterfaceDescriptor*     mDescriptor;
     xptiTypelib                 mTypelib;
@@ -489,35 +490,35 @@ class xptiInfoFlags
 {
     enum {STATE_MASK = 3};
 public:
-    xptiInfoFlags(PRUint8 n) : mData(n) {}
+    xptiInfoFlags(uint8 n) : mData(n) {}
     xptiInfoFlags(const xptiInfoFlags& r) : mData(r.mData) {}
 
-    static PRUint8 GetStateMask()
-        {return PRUint8(STATE_MASK);}
+    static uint8 GetStateMask()
+        {return uint8(STATE_MASK);}
     
     void Clear()
         {mData = 0;}
 
-    PRUint8 GetData() const
+    uint8 GetData() const
         {return mData;}
 
-    PRUint8 GetState() const 
+    uint8 GetState() const 
         {return mData & GetStateMask();}
 
-    void SetState(PRUint8 state) 
+    void SetState(uint8 state) 
         {mData &= ~GetStateMask(); mData |= state;}                                   
 
-    void SetFlagBit(PRUint8 flag, PRBool on) 
+    void SetFlagBit(uint8 flag, PRBool on) 
         {if(on)
             mData |= ~GetStateMask() & flag;
          else
             mData &= GetStateMask() | ~flag;}
 
-    PRBool GetFlagBit(PRUint8 flag) const 
+    PRBool GetFlagBit(uint8 flag) const 
         {return (mData & flag) ? PR_TRUE : PR_FALSE;}
 
 private:
-    PRUint8 mData;    
+    uint8 mData;    
 };
 
 /****************************************************/
@@ -549,10 +550,10 @@ public:
     // Additional bit flags...
     enum {SCRIPTABLE = 4};
 
-    PRUint8 GetResolveState() const {return mFlags.GetState();}
+    uint8 GetResolveState() const {return mFlags.GetState();}
     
     PRBool IsFullyResolved() const 
-        {return GetResolveState() == (PRUint8) FULLY_RESOLVED;}
+        {return GetResolveState() == (uint8) FULLY_RESOLVED;}
 
     PRBool HasInterfaceRecord() const
         {int s = (int) GetResolveState(); 
@@ -578,9 +579,9 @@ public:
 #endif
 
     void   SetScriptableFlag(PRBool on)
-                {mFlags.SetFlagBit(PRUint8(SCRIPTABLE),on);}
+                {mFlags.SetFlagBit(uint8(SCRIPTABLE),on);}
     PRBool GetScriptableFlag() const
-                {return mFlags.GetFlagBit(PRUint8(SCRIPTABLE));}
+                {return mFlags.GetFlagBit(uint8(SCRIPTABLE));}
 
     const nsID* GetTheIID()  const {return &mIID;}
     const char* GetTheName() const {return mName;}
@@ -644,7 +645,7 @@ private:
     void* operator new(size_t, void* p) CPP_THROW_NEW {return p;}
 
     void SetResolvedState(int state) 
-        {mFlags.SetState(PRUint8(state));}
+        {mFlags.SetState(uint8(state));}
 
     PRBool Resolve(xptiWorkingSet* aWorkingSet = nsnull);
 
@@ -663,7 +664,7 @@ private:
                               xptiInterfaceEntry** entry);
 
     nsresult GetTypeInArray(const nsXPTParamInfo* param,
-                            PRUint16 dimension,
+                            uint16 dimension,
                             const XPTTypeDescriptor** type);
 
 private:
@@ -967,7 +968,7 @@ private:
     PRLock*                      mAutoRegLock;
     PRMonitor*                   mInfoMonitor;
     PRLock*                      mAdditionalManagersLock;
-    nsCOMArray<nsISupports>      mAdditionalManagers;
+    nsSupportsArray              mAdditionalManagers;
     nsCOMPtr<nsISupportsArray>   mSearchPath;
 };
 

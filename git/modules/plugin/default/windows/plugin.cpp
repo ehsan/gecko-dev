@@ -727,14 +727,14 @@ void CPlugin::onPaint(HWND hWnd)
 //**************************
 static LRESULT CALLBACK NP_LOADDS PluginWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
-  CPlugin *pPlugin = (CPlugin *)GetWindowLongPtr(hWnd, GWLP_USERDATA);
+  CPlugin *pPlugin = (CPlugin *)GetWindowLong(hWnd, GWL_USERDATA);
                         
   switch(message)
   {
     case WM_CREATE:
       pPlugin = (CPlugin *)(((CREATESTRUCT FAR*)lParam)->lpCreateParams);
       assert(pPlugin != NULL);
-      SetWindowLongPtr(hWnd, GWLP_USERDATA, (LONG_PTR)pPlugin);
+      SetWindowLong(hWnd, GWL_USERDATA, (LONG)pPlugin);
       pPlugin->onCreate(hWnd);
       return 0L;
     case WM_LBUTTONUP:

@@ -54,10 +54,12 @@
 #include "nsMenuPopupFrame.h"
 #include "nsMenuBarFrame.h"
 #include "nsIView.h"
+#include "nsIWidget.h"
 #include "nsIDocument.h"
 #include "nsIDOMNSDocument.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMElement.h"
+#include "nsISupportsArray.h"
 #include "nsIDOMText.h"
 #include "nsILookAndFeel.h"
 #include "nsIComponentManager.h"
@@ -80,7 +82,6 @@
 #include "nsContentUtils.h"
 #include "nsDisplayList.h"
 #include "nsIReflowCallback.h"
-#include "nsISound.h"
 
 #define NS_MENU_POPUP_LIST_INDEX 0
 
@@ -151,36 +152,40 @@ private:
 };
 
 //
-// NS_NewMenuFrame and NS_NewMenuItemFrame
+// NS_NewMenuFrame
 //
-// Wrappers for creating a new menu popup container
+// Wrapper for creating a new menu popup container
 //
 nsIFrame*
-NS_NewMenuFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
+NS_NewMenuFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRUint32 aFlags)
 {
   nsMenuFrame* it = new (aPresShell) nsMenuFrame (aPresShell, aContext);
   
-  if (it)
+  if ((it != nsnull) && aFlags)
     it->SetIsMenu(PR_TRUE);
 
   return it;
 }
 
-nsIFrame*
-NS_NewMenuItemFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
+NS_IMETHODIMP_(nsrefcnt) 
+nsMenuFrame::AddRef(void)
 {
-  nsMenuFrame* it = new (aPresShell) nsMenuFrame (aPresShell, aContext);
-
-  if (it)
-    it->SetIsMenu(PR_FALSE);
-
-  return it;
+  return NS_OK;
 }
 
-NS_QUERYFRAME_HEAD(nsMenuFrame)
-  NS_QUERYFRAME_ENTRY(nsIMenuFrame)
-  NS_QUERYFRAME_ENTRY(nsIScrollableViewProvider)
-NS_QUERYFRAME_TAIL_INHERITING(nsBoxFrame)
+NS_IMETHODIMP_(nsrefcnt)
+nsMenuFrame::Release(void)
+{
+    return NS_OK;
+}
+
+//
+// QueryInterface
+//
+NS_INTERFACE_MAP_BEGIN(nsMenuFrame)
+  NS_INTERFACE_MAP_ENTRY(nsIMenuFrame)
+  NS_INTERFACE_MAP_ENTRY(nsIScrollableViewProvider)
+NS_INTERFACE_MAP_END_INHERITING(nsBoxFrame)
 
 //
 // nsMenuFrame cntr
@@ -424,10 +429,6 @@ nsMenuFrame::HandleEvent(nsPresContext* aPresContext,
                          nsEventStatus*  aEventStatus)
 {
   NS_ENSURE_ARG_POINTER(aEventStatus);
-  if (nsEventStatus_eConsumeNoDefault == *aEventStatus) {
-    return NS_OK;
-  }
-
   nsWeakFrame weakFrame(this);
   if (*aEventStatus == nsEventStatus_eIgnore)
     *aEventStatus = nsEventStatus_eConsumeDoDefault;
@@ -440,17 +441,13 @@ nsMenuFrame::HandleEvent(nsPresContext* aPresContext,
 #ifdef XP_MACOSX
     // On mac, open menulist on either up/down arrow or space (w/o Cmd pressed)
     if (!IsOpen() && ((keyEvent->charCode == NS_VK_SPACE && !keyEvent->isMeta) ||
-        (keyCode == NS_VK_UP || keyCode == NS_VK_DOWN))) {
-      *aEventStatus = nsEventStatus_eConsumeNoDefault;
+        (keyCode == NS_VK_UP || keyCode == NS_VK_DOWN)))
       OpenMenu(PR_FALSE);
-    }
 #else
     // On other platforms, toggle menulist on unmodified F4 or Alt arrow
     if ((keyCode == NS_VK_F4 && !keyEvent->isAlt) ||
-        ((keyCode == NS_VK_UP || keyCode == NS_VK_DOWN) && keyEvent->isAlt)) {
-      *aEventStatus = nsEventStatus_eConsumeNoDefault;
+        ((keyCode == NS_VK_UP || keyCode == NS_VK_DOWN) && keyEvent->isAlt))
       ToggleMenuState();
-    }
 #endif
   }
   else if (aEvent->eventStructType == NS_MOUSE_EVENT &&
@@ -459,15 +456,12 @@ nsMenuFrame::HandleEvent(nsPresContext* aPresContext,
            !IsDisabled() && IsMenu()) {
     // The menu item was selected. Bring up the menu.
     // We have children.
-    // Don't prevent the default action here, since that will also cancel
-    // potential drag starts.
     if (!mMenuParent || mMenuParent->IsMenuBar()) {
       ToggleMenuState();
     }
     else {
-      if (!IsOpen()) {
+      if (!IsOpen())
         OpenMenu(PR_FALSE);
-      }
     }
   }
   else if (
@@ -500,7 +494,6 @@ nsMenuFrame::HandleEvent(nsPresContext* aPresContext,
            static_cast<nsMouseEvent*>(aEvent)->button == nsMouseEvent::eLeftButton &&
            !IsMenu() && !IsDisabled()) {
     // Execute the execute event handler.
-    *aEventStatus = nsEventStatus_eConsumeNoDefault;
     Execute(aEvent);
   }
   else if (aEvent->message == NS_MOUSE_EXIT_SYNTH) {
@@ -593,8 +586,7 @@ void
 nsMenuFrame::PopupClosed(PRBool aDeselectMenu)
 {
   nsWeakFrame weakFrame(this);
-  nsContentUtils::AddScriptRunner(
-    new nsUnsetAttrRunnable(mContent, nsGkAtoms::open));
+  mContent->UnsetAttr(kNameSpaceID_None, nsGkAtoms::open, PR_TRUE);
   if (!weakFrame.IsAlive())
     return;
 
@@ -776,7 +768,7 @@ nsMenuFrame::DoLayout(nsBoxLayoutState& aState)
 
     nsRect bounds(mPopupFrame->GetRect());
 
-    nsIScrollableFrame *scrollframe = do_QueryFrame(child);
+    nsCOMPtr<nsIScrollableFrame> scrollframe(do_QueryInterface(child));
     if (scrollframe &&
         scrollframe->GetScrollbarStyles().mVertical == NS_STYLE_OVERFLOW_AUTO) {
       if (bounds.height < prefSize.height) {
@@ -1178,10 +1170,6 @@ nsMenuFrame::Execute(nsGUIEvent *aEvent)
       }
     }
   }
-
-  nsCOMPtr<nsISound> sound(do_CreateInstance("@mozilla.org/sound;1"));
-  if (sound)
-    sound->PlaySystemSound(NS_SYSSOUND_MENU_EXECUTE);
 
   nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
   if (pm && mMenuParent)

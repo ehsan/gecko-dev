@@ -42,7 +42,7 @@
 
 #include "nsString.h"
 #include "nsIIOService2.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "nsPISocketTransportService.h" 
 #include "nsPIDNSService.h" 
 #include "nsIProtocolProxyService2.h"
@@ -50,6 +50,7 @@
 #include "nsURLHelper.h"
 #include "nsWeakPtr.h"
 #include "nsIURLParser.h"
+#include "nsSupportsArray.h"
 #include "nsIObserver.h"
 #include "nsWeakReference.h"
 #include "nsINetUtil.h"
@@ -76,6 +77,7 @@ class nsIPrefBranch2;
 class nsIOService : public nsIIOService2
                   , public nsIObserver
                   , public nsINetUtil
+                  , public nsINetUtil_MOZILLA_1_9_1
                   , public nsSupportsWeakReference
 {
 public:
@@ -84,6 +86,7 @@ public:
     NS_DECL_NSIIOSERVICE2
     NS_DECL_NSIOBSERVER
     NS_DECL_NSINETUTIL
+    NS_DECL_NSINETUTIL_MOZILLA_1_9_1
 
     // Gets the singleton instance of the IO Service, creating it as needed
     // Returns nsnull on out of memory or failure to initialize.
@@ -106,7 +109,6 @@ public:
     }
 
     PRBool IsOffline() { return mOffline; }
-    PRBool IsLinkUp();
 
 private:
     // These shouldn't be called directly:
@@ -133,14 +135,6 @@ private:
     PRPackedBool                         mOffline;
     PRPackedBool                         mOfflineForProfileChange;
     PRPackedBool                         mManageOfflineStatus;
-
-    // Used to handle SetOffline() reentrancy.  See the comment in
-    // SetOffline() for more details.
-    PRPackedBool                         mSettingOffline;
-    PRPackedBool                         mSetOfflineValue;
-
-    PRPackedBool                         mShutdown;
-
     nsCOMPtr<nsPISocketTransportService> mSocketTransportService;
     nsCOMPtr<nsPIDNSService>             mDNSService;
     nsCOMPtr<nsIProtocolProxyService2>   mProxyService;
@@ -153,7 +147,7 @@ private:
     nsCategoryCache<nsIChannelEventSink> mChannelEventSinks;
     nsCategoryCache<nsIContentSniffer>   mContentSniffers;
 
-    nsTArray<PRInt32>                    mRestrictedPortList;
+    nsVoidArray                          mRestrictedPortList;
 
 public:
     // Necko buffer cache. Used for all default buffer sizes that necko

@@ -319,9 +319,9 @@ public:
     gfxSize UserToDevice(const gfxSize& size) const;
 
     /**
-     * Converts a rectangle from user to device coordinates.  The
-     * resulting rectangle is the minimum device-space rectangle that
-     * encloses the user-space rectangle given.
+     * Converts a rectangle from user to device coordinates; this has the
+     * same effect as using UserToDevice on both the rectangle's point and
+     * size.
      */
     gfxRect UserToDevice(const gfxRect& rect) const;
 
@@ -337,19 +337,6 @@ public:
      * there is a rotation in the CTM.
      */
     PRBool UserToDevicePixelSnapped(gfxRect& rect, PRBool ignoreScale = PR_FALSE) const;
-
-    /**
-     * Takes the given point and tries to align it to device pixels.  If
-     * this succeeds, the method will return PR_TRUE, and the point will
-     * be in device coordinates (already transformed by the CTM).  If it 
-     * fails, the method will return PR_FALSE, and the point will not be
-     * changed.
-     *
-     * If ignoreScale is PR_TRUE, then snapping will take place even if
-     * the CTM has a scale applied.  Snapping never takes place if
-     * there is a rotation in the CTM.
-     */
-    PRBool UserToDevicePixelSnapped(gfxPoint& pt, PRBool ignoreScale = PR_FALSE) const;
 
     /**
      * Attempts to pixel snap the rectangle, add it to the current
@@ -578,8 +565,7 @@ public:
     void UpdateSurfaceClip();
 
     /**
-     * This will return the current bounds of the clip region in user
-     * space.
+     * This will return the current bounds of the clip region.
      */
     gfxRect GetClipExtents();
 
@@ -629,15 +615,7 @@ public:
          * When this flag is set, snapping to device pixels is disabled.
          * It simply never does anything.
          */
-        FLAG_DISABLE_SNAPPING = (1 << 1),
-        /**
-         * When this flag is set, rendering through this context
-         * is destined to be (eventually) drawn on the screen. It can be
-         * useful to know this, for example so that windowed plugins are
-         * not unnecessarily rendered (since they will already appear
-         * on the screen, thanks to their windows).
-         */
-        FLAG_DESTINED_FOR_SCREEN = (1 << 2)
+        FLAG_DISABLE_SNAPPING = (1 << 1)
     };
 
     void SetFlag(PRInt32 aFlag) { mFlags |= aFlag; }
@@ -675,16 +653,6 @@ public:
     NS_ASSERTION(!mContext, "Not going to call Restore() on some context!!!");
     mContext = aContext;
     mContext->Save();    
-  }
-
-  void Reset(gfxContext *aContext) {
-    // Do the equivalent of destroying and re-creating this object.
-    NS_PRECONDITION(aContext, "must provide a context");
-    if (mContext) {
-      mContext->Restore();
-    }
-    mContext = aContext;
-    mContext->Save();
   }
 
 private:
@@ -749,34 +717,6 @@ private:
     gfxContext *mContext;
 
     nsRefPtr<gfxPath> mPath;
-};
-
-/**
- * Sentry helper class for functions with multiple return points that need to
- * back up the current matrix of a context and have it automatically restored
- * before they return.
- */
-class THEBES_API gfxContextMatrixAutoSaveRestore
-{
-public:
-    gfxContextMatrixAutoSaveRestore(gfxContext *aContext) :
-        mContext(aContext), mMatrix(aContext->CurrentMatrix())
-    {
-    }
-
-    ~gfxContextMatrixAutoSaveRestore()
-    {
-        mContext->SetMatrix(mMatrix);
-    }
-
-    const gfxMatrix& Matrix()
-    {
-        return mMatrix;
-    }
-
-private:
-    gfxContext *mContext;
-    gfxMatrix   mMatrix;
 };
 
 #endif /* GFX_CONTEXT_H */

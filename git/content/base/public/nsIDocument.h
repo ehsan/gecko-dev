@@ -51,15 +51,9 @@
 #include "nsIAtom.h"
 #include "nsCompatibility.h"
 #include "nsTObserverArray.h"
-#include "nsTHashtable.h"
-#include "nsHashKeys.h"
 #include "nsNodeInfoManager.h"
 #include "nsIStreamListener.h"
 #include "nsIObserver.h"
-#include "nsAutoPtr.h"
-#ifdef MOZ_SMIL
-class nsSMILAnimationController;
-#endif // MOZ_SMIL
 
 class nsIContent;
 class nsPresContext;
@@ -72,11 +66,9 @@ class nsIViewManager;
 class nsIScriptGlobalObject;
 class nsPIDOMWindow;
 class nsIDOMEvent;
-class nsIDOMEventTarget;
 class nsIDeviceContext;
 class nsIParser;
 class nsIDOMNode;
-class nsIDOMElement;
 class nsIDOMDocumentFragment;
 class nsILineBreaker;
 class nsIWordBreaker;
@@ -101,12 +93,11 @@ class nsIDOMNodeList;
 class mozAutoSubtreeModified;
 struct JSObject;
 class nsFrameLoader;
-class nsIBoxObject;
 
 // IID for the nsIDocument interface
 #define NS_IDOCUMENT_IID      \
-  { 0x9abf0b96, 0xc9e2, 0x4d49, \
-    { 0x9c, 0x0a, 0x37, 0xc1, 0x22, 0x39, 0x83, 0x50 } }
+{ 0x189ebc9e, 0x779b, 0x4c49, \
+ { 0x90, 0x8b, 0x9a, 0x80, 0x25, 0x9b, 0xaf, 0xa7 } }
 
 // Flag for AddStyleSheet().
 #define NS_STYLESHEET_FROM_CATALOG                (1 << 0)
@@ -129,12 +120,8 @@ public:
       mCompatMode(eCompatibility_FullStandards),
       mIsInitialDocumentInWindow(PR_FALSE),
       mMayStartLayout(PR_TRUE),
-      // mAllowDNSPrefetch starts true, so that we can always reliably && it
-      // with various values that might disable it.  Since we never prefetch
-      // unless we get a window, and in that case the docshell value will get
-      // &&-ed in, this is safe.
-      mAllowDNSPrefetch(PR_TRUE),
-      mPartID(0)
+      mPartID(0),
+      mJSObject(nsnull)
   {
     mParentPtrBits |= PARENT_BIT_INDOCUMENT;
   }
@@ -582,6 +569,11 @@ public:
   virtual void SetScriptHandlingObject(nsIScriptGlobalObject* aScriptObject) = 0;
 
   /**
+   * Sets script handling object to null and marks that document has had one.
+   */
+  virtual void ClearScriptHandlingObject() = 0;
+
+  /**
    * Get the object that is used as the scope for all of the content
    * wrappers whose owner document is this document. Unlike the script global
    * object, this will only return null when the global object for this
@@ -632,10 +624,6 @@ public:
   virtual void EndUpdate(nsUpdateType aUpdateType) = 0;
   virtual void BeginLoad() = 0;
   virtual void EndLoad() = 0;
-
-  enum ReadyState { READYSTATE_UNINITIALIZED = 0, READYSTATE_LOADING = 1, READYSTATE_INTERACTIVE = 3, READYSTATE_COMPLETE = 4};
-  virtual void SetReadyStateInternal(ReadyState rs) = 0;
-
   // notify that one or two content nodes changed state
   // either may be nsnull, but not both
   virtual void ContentStatesChanged(nsIContent* aContent1,
@@ -693,6 +681,10 @@ public:
    */
   virtual void ResetToURI(nsIURI *aURI, nsILoadGroup* aLoadGroup,
                           nsIPrincipal* aPrincipal) = 0;
+
+  virtual void AddReference(void *aKey, nsISupports *aReference) = 0;
+  virtual nsISupports *GetReference(void *aKey) = 0;
+  virtual void RemoveReference(void *aKey) = 0;
 
   /**
    * Set the container (docshell) for this document.
@@ -792,7 +784,7 @@ public:
   /**
    * Enumerate all subdocuments.
    * The enumerator callback should return PR_TRUE to continue enumerating, or
-   * PR_FALSE to stop.  This will never get passed a null aDocument.
+   * PR_FALSE to stop.
    */
   typedef PRBool (*nsSubDocEnumFunc)(nsIDocument *aDocument, void *aData);
   virtual void EnumerateSubDocuments(nsSubDocEnumFunc aCallback,
@@ -861,14 +853,9 @@ public:
    * or to the page's presentation being restored into an existing DOM window.
    * This notification fires applicable DOM events to the content window.  See
    * nsIDOMPageTransitionEvent.idl for a description of the |aPersisted|
-   * parameter. If aDispatchStartTarget is null, the pageshow event is
-   * dispatched on the ScriptGlobalObject for this document, otherwise it's
-   * dispatched on aDispatchStartTarget.
-   * Note: if aDispatchStartTarget isn't null, the showing state of the
-   * document won't be altered.
+   * parameter.
    */
-  virtual void OnPageShow(PRBool aPersisted,
-                          nsIDOMEventTarget* aDispatchStartTarget) = 0;
+  virtual void OnPageShow(PRBool aPersisted) = 0;
 
   /**
    * Notification that the page has been hidden, for documents which are loaded
@@ -876,14 +863,9 @@ public:
    * to the document's presentation being saved but removed from an existing
    * DOM window.  This notification fires applicable DOM events to the content
    * window.  See nsIDOMPageTransitionEvent.idl for a description of the
-   * |aPersisted| parameter. If aDispatchStartTarget is null, the pagehide
-   * event is dispatched on the ScriptGlobalObject for this document,
-   * otherwise it's dispatched on aDispatchStartTarget.
-   * Note: if aDispatchStartTarget isn't null, the showing state of the
-   * document won't be altered.
+   * |aPersisted| parameter.
    */
-  virtual void OnPageHide(PRBool aPersisted,
-                          nsIDOMEventTarget* aDispatchStartTarget) = 0;
+  virtual void OnPageHide(PRBool aPersisted) = 0;
   
   /*
    * We record the set of links in the document that are relevant to
@@ -915,12 +897,6 @@ public:
   virtual void ClearBoxObjectFor(nsIContent *aContent) = 0;
 
   /**
-   * Get the box object for an element. This is not exposed through a
-   * scriptable interface except for XUL documents.
-   */
-  NS_IMETHOD GetBoxObjectFor(nsIDOMElement* aElement, nsIBoxObject** aResult) = 0;
-
-  /**
    * Get the compatibility mode for this document
    */
   nsCompatibility GetCompatibilityMode() const {
@@ -946,17 +922,6 @@ public:
    */
   virtual nsresult GetContentListFor(nsIContent* aContent,
                                      nsIDOMNodeList** aResult) = 0;
-
-  /**
-   * Helper for nsIDOMNSDocument::elementFromPoint implementation that allows
-   * ignoring the scroll frame and/or avoiding layout flushes.
-   *
-   * @see nsIDOMWindowUtils::elementFromPoint
-   */
-  virtual nsresult ElementFromPointHelper(PRInt32 aX, PRInt32 aY,
-                                          PRBool aIgnoreRootScrollFrame,
-                                          PRBool aFlushLayout,
-                                          nsIDOMElement** aReturn) = 0;
 
   /**
    * See FlushSkinBindings on nsBindingManager
@@ -1007,6 +972,16 @@ public:
   void SetMayStartLayout(PRBool aMayStartLayout)
   {
     mMayStartLayout = aMayStartLayout;
+  }
+
+  JSObject* GetJSObject() const
+  {
+    return mJSObject;
+  }
+
+  void SetJSObject(JSObject *aJSObject)
+  {
+    mJSObject = aJSObject;
   }
 
   // This method should return an addrefed nsIParser* or nsnull. Implementations
@@ -1115,45 +1090,11 @@ public:
   /**
    * Enumerate the external resource documents associated with this document.
    * The enumerator callback should return PR_TRUE to continue enumerating, or
-   * PR_FALSE to stop.  This callback will never get passed a null aDocument.
+   * PR_FALSE to stop.
    */
   virtual void EnumerateExternalResources(nsSubDocEnumFunc aCallback,
                                           void* aData) = 0;
-
-  /**
-   * Return whether the document is currently showing (in the sense of
-   * OnPageShow() having been called already and OnPageHide() not having been
-   * called yet.
-   */
-  PRBool IsShowing() { return mIsShowing; }
-
-  void RegisterFreezableElement(nsIContent* aContent);
-  PRBool UnregisterFreezableElement(nsIContent* aContent);
-  typedef void (* FreezableElementEnumerator)(nsIContent*, void*);
-  void EnumerateFreezableElements(FreezableElementEnumerator aEnumerator,
-                                  void* aData);
-
-#ifdef MOZ_SMIL
-  // Getter for this document's SMIL Animation Controller
-  virtual nsSMILAnimationController* GetAnimationController() = 0;
-#endif // MOZ_SMIL
-
-  /**
-   * Prevents user initiated events from being dispatched to the document and
-   * subdocuments.
-   */
-  virtual void SuppressEventHandling(PRUint32 aIncrease = 1) = 0;
-
-  /**
-   * Unsuppress event handling.
-   * @param aFireEvents If PR_TRUE, delayed events (focus/blur) will be fired
-   *                    asynchronously.
-   */
-  virtual void UnsuppressEventHandlingAndFireEvents(PRBool aFireEvents) = 0;
-
-  PRUint32 EventHandlingSuppressed() const { return mEventsSuppressed; }
-
-  PRBool IsDNSPrefetchAllowed() const { return mAllowDNSPrefetch; }
+  
 protected:
   ~nsIDocument()
   {
@@ -1197,12 +1138,6 @@ protected:
   nsNodeInfoManager* mNodeInfoManager; // [STRONG]
   nsICSSLoader* mCSSLoader; // [STRONG]
 
-  // The set of all object, embed, applet, video and audio elements for
-  // which this is the owner document. (They might not be in the document.)
-  // These are non-owning pointers, the elements are responsible for removing
-  // themselves when they go away.
-  nsAutoPtr<nsTHashtable<nsPtrHashKey<nsIContent> > > mFreezableElements;
-
   // Table of element properties for this document.
   nsPropertyTable mPropertyTable;
 
@@ -1233,13 +1168,6 @@ protected:
   // True iff we've ever fired a DOMTitleChanged event for this document
   PRPackedBool mHaveFiredTitleChange;
 
-  // True iff IsShowing() should be returning true
-  PRPackedBool mIsShowing;
-
-  // True iff DNS prefetch is allowed for this document.  Note that if the
-  // document has no window, DNS prefetch won't be performed no matter what.
-  PRPackedBool mAllowDNSPrefetch;
-  
   // The bidi options for this document.  What this bitfield means is
   // defined in nsBidiUtils.h
   PRUint32 mBidiOptions;
@@ -1268,7 +1196,11 @@ protected:
   // go to.
   nsCOMPtr<nsIDocument> mDisplayDocument;
 
-  PRUint32 mEventsSuppressed;
+private:
+  // JSObject cache. Only to be used for performance
+  // optimizations. This will be set once this document is touched
+  // from JS, and it will be unset once the JSObject is finalized.
+  JSObject *mJSObject;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIDocument, NS_IDOCUMENT_IID)
@@ -1330,11 +1262,6 @@ NS_NewSVGDocument(nsIDocument** aInstancePtrResult);
 nsresult
 NS_NewImageDocument(nsIDocument** aInstancePtrResult);
 
-#ifdef MOZ_MEDIA
-nsresult
-NS_NewVideoDocument(nsIDocument** aInstancePtrResult);
-#endif
-
 nsresult
 NS_NewDocumentFragment(nsIDOMDocumentFragment** aInstancePtrResult,
                        nsNodeInfoManager *aNodeInfoManager);
@@ -1353,13 +1280,5 @@ NS_NewDOMDocument(nsIDOMDocument** aInstancePtrResult,
                   PRBool aLoadedAsData);
 nsresult
 NS_NewPluginDocument(nsIDocument** aInstancePtrResult);
-
-inline nsIDocument*
-nsINode::GetOwnerDocument() const
-{
-  nsIDocument* ownerDoc = GetOwnerDoc();
-
-  return ownerDoc != this ? ownerDoc : nsnull;
-}
 
 #endif /* nsIDocument_h___ */

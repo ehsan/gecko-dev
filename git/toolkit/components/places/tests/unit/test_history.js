@@ -38,11 +38,12 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-// Get history services
-var histsvc = Cc["@mozilla.org/browser/nav-history-service;1"].
-              getService(Ci.nsINavHistoryService);
-var gh = histsvc.QueryInterface(Ci.nsIGlobalHistory2);
-var bh = histsvc.QueryInterface(Ci.nsIBrowserHistory);
+// Get history service
+try {
+  var histsvc = Cc["@mozilla.org/browser/nav-history-service;1"].getService(Ci.nsINavHistoryService);
+} catch(ex) {
+  do_throw("Could not get history service\n");
+} 
 
 /**
  * Adds a test URI visit to the database, and checks for a valid place ID.
@@ -60,9 +61,7 @@ function add_visit(aURI, aReferrer) {
                                  histsvc.TRANSITION_TYPED, // user typed in URL bar
                                  false, // not redirect
                                  0);
-  dump("### Added visit with id of " + placeID + "\n");
   do_check_true(placeID > 0);
-  do_check_true(gh.isVisited(aURI));
   return placeID;
 }
 
@@ -87,9 +86,6 @@ function uri_in_db(aURI) {
 
 // main
 function run_test() {
-  // we have a new profile, so we should have imported bookmarks
-  do_check_eq(histsvc.databaseStatus, histsvc.DATABASE_STATUS_CREATE);
-
   // add a visit
   var testURI = uri("http://mozilla.com");
   add_visit(testURI);
@@ -222,12 +218,14 @@ function run_test() {
   do_check_true(uri_in_db(referrerURI));
 
   // test to ensure history.dat gets deleted if all history is being cleared
-  var file = do_get_file("history.dat");
+  var file = do_get_file("toolkit/components/places/tests/unit/history.dat");
   var histFile = dirSvc.get("ProfD", Ci.nsIFile);
   file.copyTo(histFile, "history.dat");
   histFile.append("history.dat");
   do_check_true(histFile.exists());
 
-  bh.removeAllPages();
+  var globalHistory = Components.classes["@mozilla.org/browser/global-history;2"]
+                                .getService(Components.interfaces.nsIBrowserHistory);
+  globalHistory.removeAllPages();
   do_check_false(histFile.exists());
 }

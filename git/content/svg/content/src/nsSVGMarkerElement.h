@@ -43,8 +43,6 @@
 #include "nsSVGLength2.h"
 #include "nsSVGEnum.h"
 #include "nsSVGAngle.h"
-#include "nsSVGViewBox.h"
-#include "nsSVGPreserveAspectRatio.h"
 
 class nsSVGOrientType
 {
@@ -73,8 +71,7 @@ private:
 
   struct DOMAnimatedEnum : public nsIDOMSVGAnimatedEnumeration
   {
-    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-    NS_DECL_CYCLE_COLLECTION_CLASS(DOMAnimatedEnum)
+    NS_DECL_ISUPPORTS
 
     DOMAnimatedEnum(nsSVGOrientType* aVal,
                     nsSVGElement *aSVGElement)
@@ -104,6 +101,7 @@ protected:
   friend nsresult NS_NewSVGMarkerElement(nsIContent **aResult,
                                          nsINodeInfo *aNodeInfo);
   nsSVGMarkerElement(nsINodeInfo* aNodeInfo);
+  nsresult Init();
 
 public:
   // interfaces:
@@ -117,8 +115,12 @@ public:
   NS_FORWARD_NSIDOMELEMENT(nsSVGElement::)
   NS_FORWARD_NSIDOMSVGELEMENT(nsSVGElement::)
 
+  // nsISVGValueObserver
+  NS_IMETHOD DidModifySVGObservable (nsISVGValue* observable,
+                                     nsISVGValue::modificationType aModType);
+
   // nsIContent interface
-  NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* name) const;
+  NS_IMETHODIMP_(PRBool) IsAttributeMapped(const nsIAtom* name) const;
 
   virtual PRBool GetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                          nsAString& aResult) const;
@@ -127,8 +129,6 @@ public:
 
   // nsSVGElement specializations:
   virtual void DidChangeLength(PRUint8 aAttrEnum, PRBool aDoSetAttr);
-  virtual void DidChangeViewBox(PRBool aDoSetAttr);
-  virtual void DidChangePreserveAspectRatio(PRBool aDoSetAttr);
 
   // public helpers
   nsresult GetMarkerTransform(float aStrokeWidth,
@@ -149,8 +149,6 @@ protected:
   virtual LengthAttributesInfo GetLengthInfo();
   virtual AngleAttributesInfo GetAngleInfo();
   virtual EnumAttributesInfo GetEnumInfo();
-  virtual nsSVGViewBox *GetViewBox();
-  virtual nsSVGPreserveAspectRatio *GetPreserveAspectRatio();
 
   enum { REFX, REFY, MARKERWIDTH, MARKERHEIGHT };
   nsSVGLength2 mLengthAttributes[4];
@@ -165,13 +163,12 @@ protected:
   nsSVGAngle mAngleAttributes[1];
   static AngleInfo sAngleInfo[1];
 
-  nsSVGViewBox             mViewBox;
-  nsSVGPreserveAspectRatio mPreserveAspectRatio;
-
   // derived properties (from 'orient') handled separately
   nsSVGOrientType                        mOrientType;
 
   nsSVGSVGElement                       *mCoordCtx;
+  nsCOMPtr<nsIDOMSVGAnimatedRect>        mViewBox;
+  nsCOMPtr<nsIDOMSVGAnimatedPreserveAspectRatio> mPreserveAspectRatio;
   nsCOMPtr<nsIDOMSVGMatrix>         mViewBoxToViewportTransform;
 };
 

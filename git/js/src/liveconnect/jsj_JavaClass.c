@@ -57,7 +57,6 @@
 #include <string.h>
 
 #include "jsj_private.h"        /* LiveConnect internals */
-#include "jsobj.h"
 
 static JSBool
 JavaClass_convert(JSContext *cx, JSObject *obj, JSType type, jsval *vp)
@@ -529,14 +528,10 @@ done:
     return JS_TRUE;
 }
 
-extern JSObjectOps JavaClass_ops;
-
-static const JSObjectMap JavaClassMap = { &JavaClass_ops };
-
 JSObjectOps JavaClass_ops = {
-    &JavaClassMap,                  /* objectMap */
-
     /* Mandatory non-null function pointer members. */
+    jsj_wrapper_newObjectMap,       /* newObjectMap */
+    jsj_wrapper_destroyObjectMap,   /* destroyObjectMap */
     JavaClass_lookupProperty,
     JavaClass_defineProperty,
     JavaClass_getPropertyById,      /* getProperty */
@@ -553,8 +548,11 @@ JSObjectOps JavaClass_ops = {
     NULL,                           /* dropProperty */
     jsj_JavaConstructorWrapper,     /* call */
     jsj_JavaConstructorWrapper,     /* construct */
+    NULL,                           /* xdrObject */
     JavaClass_hasInstance,          /* hasInstance */
-    NULL,                           /* trace */
+    NULL,                           /* setProto */
+    NULL,                           /* setParent */
+    NULL,                           /* mark */
     NULL,                           /* clear */
     jsj_wrapper_getRequiredSlot,    /* getRequiredSlot */
     jsj_wrapper_setRequiredSlot     /* setRequiredSlot */

@@ -48,6 +48,7 @@
 #include "nsIRenderingContext.h"
 #include "nsIPresShell.h"
 #include "nsIImage.h"
+#include "nsIWidget.h"
 #include "nsGkAtoms.h"
 #include "nsIDocument.h"
 #include "nsINodeInfo.h"
@@ -185,9 +186,18 @@ nsImageFrame::~nsImageFrame()
 {
 }
 
-NS_QUERYFRAME_HEAD(nsImageFrame)
-  NS_QUERYFRAME_ENTRY(nsIImageFrame)
-NS_QUERYFRAME_TAIL_INHERITING(ImageFrameSuper)
+NS_IMETHODIMP
+nsImageFrame::QueryInterface(const nsIID& aIID, void** aInstancePtr)
+{
+  NS_PRECONDITION(aInstancePtr, "null out param");
+
+  if (aIID.Equals(NS_GET_IID(nsIImageFrame))) {
+    *aInstancePtr = static_cast<nsIImageFrame*>(this);
+    return NS_OK;
+  }
+
+  return ImageFrameSuper::QueryInterface(aIID, aInstancePtr);
+}
 
 #ifdef ACCESSIBILITY
 NS_IMETHODIMP nsImageFrame::GetAccessible(nsIAccessible** aAccessible)
@@ -201,6 +211,18 @@ NS_IMETHODIMP nsImageFrame::GetAccessible(nsIAccessible** aAccessible)
   return NS_ERROR_FAILURE;
 }
 #endif
+
+NS_IMETHODIMP_(nsrefcnt) nsImageFrame::AddRef(void)
+{
+  NS_WARNING("not supported for frames");
+  return 1;
+}
+
+NS_IMETHODIMP_(nsrefcnt) nsImageFrame::Release(void)
+{
+  NS_WARNING("not supported for frames");
+  return 1;
+}
 
 void
 nsImageFrame::Destroy()
@@ -281,7 +303,7 @@ nsImageFrame::UpdateIntrinsicSize(imgIContainer* aImage)
   PRBool intrinsicSizeChanged = PR_FALSE;
   
   if (aImage) {
-    nsIntSize imageSizeInPx;
+    nsSize imageSizeInPx;
     aImage->GetWidth(&imageSizeInPx.width);
     aImage->GetHeight(&imageSizeInPx.height);
     nsSize newSize(nsPresContext::CSSPixelsToAppUnits(imageSizeInPx.width),
@@ -296,7 +318,7 @@ nsImageFrame::UpdateIntrinsicSize(imgIContainer* aImage)
 }
 
 void
-nsImageFrame::RecalculateTransform(PRBool aInnerAreaChanged)
+nsImageFrame::RecalculateTransform()
 {
   // In any case, we need to translate this over appropriately.  Set
   // translation _before_ setting scaling so that it does not get
@@ -305,19 +327,15 @@ nsImageFrame::RecalculateTransform(PRBool aInnerAreaChanged)
   // XXXbz does this introduce rounding errors because of the cast to
   // float?  Should we just manually add that stuff in every time
   // instead?
-  if (aInnerAreaChanged) {
-    nsRect innerArea = GetInnerArea();
-    mTransform.SetToTranslate(float(innerArea.x),
-                              float(innerArea.y - GetContinuationOffset()));
-  }
+  nsRect innerArea = GetInnerArea();
+  mTransform.SetToTranslate(float(innerArea.x),
+                            float(innerArea.y - GetContinuationOffset()));
   
   // Set the scale factors
   if (mIntrinsicSize.width != 0 && mIntrinsicSize.height != 0 &&
       mIntrinsicSize != mComputedSize) {
-    mTransform.SetScale(float(mComputedSize.width)  / float(mIntrinsicSize.width),
+    mTransform.AddScale(float(mComputedSize.width)  / float(mIntrinsicSize.width),
                         float(mComputedSize.height) / float(mIntrinsicSize.height));
-  } else {
-    mTransform.SetScale(1.0f, 1.0f);
   }
 }
 
@@ -369,7 +387,7 @@ nsImageFrame::IsPendingLoad(imgIContainer* aContainer) const
 }
 
 nsRect
-nsImageFrame::SourceRectToDest(const nsIntRect& aRect)
+nsImageFrame::SourceRectToDest(const nsRect& aRect)
 {
   // When scaling the image, row N of the source image may (depending on
   // the scaling function) be used to draw any row in the destination image
@@ -497,24 +515,14 @@ nsImageFrame::OnStartContainer(imgIRequest *aRequest, imgIContainer *aImage)
   
   UpdateIntrinsicSize(aImage);
 
-  if (mState & IMAGE_GOTINITIALREFLOW) {
-    // If we previously set the intrinsic size (in EnsureIntrinsicSize)
-    // to the size of the loading-image icon and reflowed the frame,
-    // we'll have an mTransform computed from that intrinsic size.  But
-    // if we still have that transform when we get OnDataAvailable
-    // calls, we'll invalidate the wrong area.  So update the transform
-    // now.
-    RecalculateTransform(PR_FALSE);
-
-    // Now we need to reflow if we have an unconstrained size and have
-    // already gotten the initial reflow
-    if (!(mState & IMAGE_SIZECONSTRAINED)) { 
-      nsIPresShell *presShell = presContext->GetPresShell();
-      NS_ASSERTION(presShell, "No PresShell.");
-      if (presShell) { 
-        presShell->FrameNeedsReflow(this, nsIPresShell::eStyleChange,
-                                    NS_FRAME_IS_DIRTY);
-      }
+  // Now we need to reflow if we have an unconstrained size and have
+  // already gotten the initial reflow
+  if (!(mState & IMAGE_SIZECONSTRAINED) && (mState & IMAGE_GOTINITIALREFLOW)) { 
+    nsIPresShell *presShell = presContext->GetPresShell();
+    NS_ASSERTION(presShell, "No PresShell.");
+    if (presShell) { 
+      presShell->FrameNeedsReflow(this, nsIPresShell::eStyleChange,
+                                  NS_FRAME_IS_DIRTY);
     }
   }
 
@@ -524,7 +532,7 @@ nsImageFrame::OnStartContainer(imgIRequest *aRequest, imgIContainer *aImage)
 nsresult
 nsImageFrame::OnDataAvailable(imgIRequest *aRequest,
                               gfxIImageFrame *aFrame,
-                              const nsIntRect *aRect)
+                              const nsRect *aRect)
 {
   // XXX do we need to make sure that the reflow from the
   // OnStartContainer has been processed before we start calling
@@ -636,7 +644,7 @@ nsImageFrame::OnStopDecode(imgIRequest *aRequest,
 nsresult
 nsImageFrame::FrameChanged(imgIContainer *aContainer,
                            gfxIImageFrame *aNewFrame,
-                           nsIntRect *aDirtyRect)
+                           nsRect *aDirtyRect)
 {
   if (!GetStyleVisibility()->IsVisible()) {
     return NS_OK;
@@ -792,7 +800,7 @@ nsImageFrame::Reflow(nsPresContext*          aPresContext,
 
   mComputedSize = 
     nsSize(aReflowState.ComputedWidth(), aReflowState.ComputedHeight());
-  RecalculateTransform(PR_TRUE);
+  RecalculateTransform();
 
   aMetrics.width = mComputedSize.width;
   aMetrics.height = mComputedSize.height;
@@ -1061,8 +1069,7 @@ nsImageFrame::DisplayAltFeedback(nsIRenderingContext& aRenderingContext,
         nsRect dest((vis->mDirection == NS_STYLE_DIRECTION_RTL) ?
                     inner.XMost() - size : inner.x,
                     inner.y, size, size);
-        nsLayoutUtils::DrawSingleImage(&aRenderingContext, imgCon,
-          nsLayoutUtils::GetGraphicsFilterForFrame(this), dest, aDirtyRect);
+        nsLayoutUtils::DrawImage(&aRenderingContext, imgCon, dest, aDirtyRect);
         iconUsed = PR_TRUE;
       }
     }
@@ -1167,11 +1174,13 @@ nsImageFrame::PaintImage(nsIRenderingContext& aRenderingContext, nsPoint aPt,
   // the borders and padding)
   NS_ASSERTION(GetInnerArea().width == mComputedSize.width, "bad width");
   nsRect inner = GetInnerArea() + aPt;
+  nsRect clip;
+  clip.IntersectRect(inner, aDirtyRect);
+
   nsRect dest(inner.TopLeft(), mComputedSize);
   dest.y -= GetContinuationOffset();
 
-  nsLayoutUtils::DrawSingleImage(&aRenderingContext, aImage,
-    nsLayoutUtils::GetGraphicsFilterForFrame(this), dest, aDirtyRect);
+  nsLayoutUtils::DrawImage(&aRenderingContext, aImage, dest, clip);
 
   nsPresContext* presContext = PresContext();
   nsImageMap* map = GetImageMap(presContext);
@@ -1692,8 +1701,8 @@ nsresult nsImageFrame::LoadIcons(nsPresContext *aPresContext)
 {
   NS_ASSERTION(!gIconLoad, "called LoadIcons twice");
 
-  NS_NAMED_LITERAL_STRING(loadingSrc,"resource://gre/res/loading-image.png");
-  NS_NAMED_LITERAL_STRING(brokenSrc,"resource://gre/res/broken-image.png");
+  NS_NAMED_LITERAL_STRING(loadingSrc,"resource://gre/res/loading-image.gif"); 
+  NS_NAMED_LITERAL_STRING(brokenSrc,"resource://gre/res/broken-image.gif");
 
   gIconLoad = new IconLoad(mListener);
   if (!gIconLoad) 
@@ -1829,7 +1838,7 @@ NS_IMETHODIMP nsImageListener::OnStartContainer(imgIRequest *aRequest,
 
 NS_IMETHODIMP nsImageListener::OnDataAvailable(imgIRequest *aRequest,
                                                gfxIImageFrame *aFrame,
-                                               const nsIntRect *aRect)
+                                               const nsRect *aRect)
 {
   if (!mFrame)
     return NS_ERROR_FAILURE;
@@ -1849,7 +1858,7 @@ NS_IMETHODIMP nsImageListener::OnStopDecode(imgIRequest *aRequest,
 
 NS_IMETHODIMP nsImageListener::FrameChanged(imgIContainer *aContainer,
                                             gfxIImageFrame *newframe,
-                                            nsIntRect * dirtyRect)
+                                            nsRect * dirtyRect)
 {
   if (!mFrame)
     return NS_ERROR_FAILURE;

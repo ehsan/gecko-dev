@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  * vim: set ts=8 sw=4 et tw=78:
  *
  * ***** BEGIN LICENSE BLOCK *****
@@ -41,9 +41,9 @@
 /*
  * JS debugging API.
  */
+#include "jsstddef.h"
 #include <string.h>
 #include "jstypes.h"
-#include "jsstdint.h"
 #include "jsutil.h" /* Added by JSIFY */
 #include "jsclist.h"
 #include "jsapi.h"
@@ -60,7 +60,6 @@
 #include "jsparse.h"
 #include "jsscope.h"
 #include "jsscript.h"
-#include "jsstaticcheck.h"
 #include "jsstr.h"
 
 #include "jsautooplen.h"
@@ -125,7 +124,7 @@ js_UntrapScriptCode(JSContext *cx, JSScript *script)
                 if (!code)
                     break;
                 memcpy(code, script->code, nbytes);
-                JS_PURGE_GSN_CACHE(cx);
+                JS_CLEAR_GSN_CACHE(cx);
             }
             code[trap->pc - script->code] = trap->op;
         }
@@ -437,7 +436,7 @@ js_TraceWatchPoints(JSTracer *trc, JSObject *obj)
         if (wp->object == obj) {
             TRACE_SCOPE_PROPERTY(trc, wp->sprop);
             if ((wp->sprop->attrs & JSPROP_SETTER) && wp->setter) {
-                JS_CALL_OBJECT_TRACER(trc, js_CastAsObject(wp->setter),
+                JS_CALL_OBJECT_TRACER(trc, (JSObject *)wp->setter,
                                       "wp->setter");
             }
             JS_SET_TRACING_NAME(trc, "wp->closure");
@@ -641,7 +640,7 @@ js_watch_set(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
                     frame.callee = closure;
                     frame.fun = fun;
                     frame.argv = argv + 2;
-                    frame.down = js_GetTopStackFrame(cx);
+                    frame.down = cx->fp;
                     frame.scopeChain = OBJ_GET_PARENT(cx, closure);
 
                     cx->fp = &frame;
@@ -652,10 +651,9 @@ js_watch_set(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 #endif
                 ok = !wp->setter ||
                      ((sprop->attrs & JSPROP_SETTER)
-                      ? js_InternalCall(cx, obj,
-                                        js_CastAsObjectJSVal(wp->setter),
+                      ? js_InternalCall(cx, obj, OBJECT_TO_JSVAL(wp->setter),
                                         1, vp, vp)
-                      : wp->setter(cx, obj, userid, vp));
+                      : wp->setter(cx, OBJ_THIS_OBJECT(cx, obj), userid, vp));
                 if (injectFrame) {
                     /* Evil code can cause us to have an arguments object. */
                     if (frame.callobj)
@@ -676,7 +674,7 @@ js_watch_set(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
     return JS_TRUE;
 }
 
-JS_REQUIRES_STACK JSBool
+JSBool
 js_watch_set_wrapper(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
                      jsval *rval)
 {
@@ -685,6 +683,7 @@ js_watch_set_wrapper(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
     jsval userid;
 
     funobj = JSVAL_TO_OBJECT(argv[-2]);
+    JS_ASSERT(OBJ_GET_CLASS(cx, funobj) == &js_FunctionClass);
     wrapper = GET_FUNCTION_PRIVATE(cx, funobj);
     userid = ATOM_KEY(wrapper->atom);
     *rval = argv[0];
@@ -710,11 +709,11 @@ js_WrapWatchedSetter(JSContext *cx, jsid id, uintN attrs, JSPropertyOp setter)
         atom = NULL;
     }
     wrapper = js_NewFunction(cx, NULL, js_watch_set_wrapper, 1, 0,
-                             OBJ_GET_PARENT(cx, js_CastAsObject(setter)),
+                             OBJ_GET_PARENT(cx, (JSObject *)setter),
                              atom);
     if (!wrapper)
         return NULL;
-    return js_CastAsPropertyOp(FUN_OBJECT(wrapper));
+    return (JSPropertyOp) FUN_OBJECT(wrapper);
 }
 
 JS_PUBLIC_API(JSBool)
@@ -736,13 +735,10 @@ JS_SetWatchPoint(JSContext *cx, JSObject *obj, jsval idval,
         return JS_FALSE;
     }
 
-    if (JSVAL_IS_INT(idval)) {
+    if (JSVAL_IS_INT(idval))
         propid = INT_JSVAL_TO_JSID(idval);
-    } else {
-        if (!js_ValueToStringId(cx, idval, &propid))
-            return JS_FALSE;
-        CHECK_FOR_STRING_INDEX(propid);
-    }
+    else if (!js_ValueToStringId(cx, idval, &propid))
+        return JS_FALSE;
 
     if (!js_LookupProperty(cx, obj, propid, &pobj, &prop))
         return JS_FALSE;
@@ -979,7 +975,7 @@ JS_GetScriptPrincipals(JSContext *cx, JSScript *script)
 JS_PUBLIC_API(JSStackFrame *)
 JS_FrameIterator(JSContext *cx, JSStackFrame **iteratorp)
 {
-    *iteratorp = (*iteratorp == NULL) ? js_GetTopStackFrame(cx) : (*iteratorp)->down;
+    *iteratorp = (*iteratorp == NULL) ? cx->fp : (*iteratorp)->down;
     return *iteratorp;
 }
 
@@ -998,7 +994,14 @@ JS_GetFramePC(JSContext *cx, JSStackFrame *fp)
 JS_PUBLIC_API(JSStackFrame *)
 JS_GetScriptedCaller(JSContext *cx, JSStackFrame *fp)
 {
-    return js_GetScriptedCaller(cx, fp);
+    if (!fp)
+        fp = cx->fp;
+    while (fp) {
+        if (fp->script)
+            return fp;
+        fp = fp->down;
+    }
+    return NULL;
 }
 
 JS_PUBLIC_API(JSPrincipals *)
@@ -1109,7 +1112,7 @@ JS_GetFrameCallObject(JSContext *cx, JSStackFrame *fp)
      * XXX ill-defined: null return here means error was reported, unlike a
      *     null returned above or in the #else
      */
-    return js_GetCallObject(cx, fp);
+    return js_GetCallObject(cx, fp, NULL);
 }
 
 JS_PUBLIC_API(JSObject *)
@@ -1121,7 +1124,7 @@ JS_GetFrameThis(JSContext *cx, JSStackFrame *fp)
         return fp->thisp;
 
     /* js_ComputeThis gets confused if fp != cx->fp, so set it aside. */
-    if (js_GetTopStackFrame(cx) != fp) {
+    if (cx->fp != fp) {
         afp = cx->fp;
         if (afp) {
             afp->dormantNext = cx->dormantFrameChain;
@@ -1156,7 +1159,7 @@ JS_GetFrameFunctionObject(JSContext *cx, JSStackFrame *fp)
     if (!fp->fun)
         return NULL;
 
-    JS_ASSERT(HAS_FUNCTION_CLASS(fp->callee));
+    JS_ASSERT(OBJ_GET_CLASS(cx, fp->callee) == &js_FunctionClass);
     JS_ASSERT(OBJ_GET_PRIVATE(cx, fp->callee) == fp->fun);
     return fp->callee;
 }
@@ -1242,8 +1245,6 @@ JS_EvaluateUCInStackFrame(JSContext *cx, JSStackFrame *fp,
                           const char *filename, uintN lineno,
                           jsval *rval)
 {
-    JS_ASSERT_NOT_ON_TRACE(cx);
-
     JSObject *scobj;
     JSScript *script;
     JSBool ok;
@@ -1252,63 +1253,16 @@ JS_EvaluateUCInStackFrame(JSContext *cx, JSStackFrame *fp,
     if (!scobj)
         return JS_FALSE;
 
-    /*
-     * NB: This function breaks the assumption that the compiler can see all
-     * calls and properly compute a static level. In order to get around this,
-     * we use a static level that will cause us not to attempt to optimize
-     * variable references made by this frame.
-     */
-    script = JSCompiler::compileScript(cx, scobj, fp, JS_StackFramePrincipals(cx, fp),
-                                       TCF_COMPILE_N_GO |
-                                       TCF_PUT_STATIC_LEVEL(JS_DISPLAY_SIZE),
-                                       chars, length, NULL,
-                                       filename, lineno);
-
+    script = js_CompileScript(cx, scobj, fp, JS_StackFramePrincipals(cx, fp),
+                              TCF_COMPILE_N_GO |
+                              TCF_PUT_STATIC_DEPTH(fp->script->staticDepth + 1),
+                              chars, length, NULL,
+                              filename, lineno);
     if (!script)
         return JS_FALSE;
 
-    JSStackFrame *displayCopy[JS_DISPLAY_SIZE];
-    if (cx->fp != fp) {
-        memcpy(displayCopy, cx->display, sizeof displayCopy);
-
-        /*
-         * Set up cx->display as it would have been when fp was active.
-         *
-         * NB: To reconstruct cx->display for fp, we have to follow the frame
-         * chain from oldest to youngest, in the opposite direction to its
-         * single linkge. To avoid the obvious recursive reversal algorithm,
-         * which might use too much stack, we reverse in place and reverse
-         * again as we reconstruct the display. This is safe because cx is
-         * thread-local and we can't cause GC until the call to js_Execute
-         * below.
-         */
-        JSStackFrame *fp2 = fp, *last = NULL;
-        while (fp2) {
-            JSStackFrame *next = fp2->down;
-            fp2->down = last;
-            last = fp2;
-            fp2 = next;
-        }
-
-        fp2 = last;
-        last = NULL;
-        while (fp2) {
-            JSStackFrame *next = fp2->down;
-            fp2->down = last;
-            last = fp2;
-
-            JSScript *script = fp2->script;
-            if (script && script->staticLevel < JS_DISPLAY_SIZE)
-                cx->display[script->staticLevel] = fp2;
-            fp2 = next;
-        }
-    }
-
     ok = js_Execute(cx, scobj, script, fp, JSFRAME_DEBUGGER | JSFRAME_EVAL,
                     rval);
-
-    if (cx->fp != fp)
-        memcpy(cx->display, displayCopy, sizeof cx->display);
     js_DestroyScript(cx, script);
     return ok;
 }
@@ -1454,7 +1408,9 @@ JS_GetPropertyDescArray(JSContext *cx, JSObject *obj, JSPropertyDescArray *pda)
         return JS_TRUE;
     }
 
-    n = scope->entryCount;
+    n = STOBJ_NSLOTS(obj);
+    if (n > scope->entryCount)
+        n = scope->entryCount;
     pd = (JSPropertyDesc *) JS_malloc(cx, (size_t)n * sizeof(JSPropertyDesc));
     if (!pd)
         return JS_FALSE;
@@ -1589,7 +1545,7 @@ GetAtomTotalSize(JSContext *cx, JSAtom *atom)
     nbytes = sizeof(JSAtom *) + sizeof(JSDHashEntryStub);
     if (ATOM_IS_STRING(atom)) {
         nbytes += sizeof(JSString);
-        nbytes += (ATOM_TO_STRING(atom)->flatLength() + 1) * sizeof(jschar);
+        nbytes += (JSFLATSTR_LENGTH(ATOM_TO_STRING(atom)) + 1) * sizeof(jschar);
     } else if (ATOM_IS_DOUBLE(atom)) {
         nbytes += sizeof(jsdouble);
     }
@@ -1677,7 +1633,7 @@ JS_PUBLIC_API(uint32)
 JS_GetTopScriptFilenameFlags(JSContext *cx, JSStackFrame *fp)
 {
     if (!fp)
-        fp = js_GetTopStackFrame(cx);
+        fp = cx->fp;
     while (fp) {
         if (fp->script)
             return JS_GetScriptFilenameFlags(fp->script);
@@ -1793,7 +1749,6 @@ js_StartShark(JSContext *cx, JSObject *obj,
 {
     if (!JS_StartChudRemote()) {
         JS_ReportError(cx, "Error starting CHUD.");
-        return JS_FALSE;
     }
 
     return JS_TRUE;
@@ -1805,7 +1760,6 @@ js_StopShark(JSContext *cx, JSObject *obj,
 {
     if (!JS_StopChudRemote()) {
         JS_ReportError(cx, "Error stopping CHUD.");
-        return JS_FALSE;
     }
 
     return JS_TRUE;
@@ -1817,7 +1771,6 @@ js_ConnectShark(JSContext *cx, JSObject *obj,
 {
     if (!JS_ConnectShark()) {
         JS_ReportError(cx, "Error connecting to Shark.");
-        return JS_FALSE;
     }
 
     return JS_TRUE;
@@ -1829,7 +1782,6 @@ js_DisconnectShark(JSContext *cx, JSObject *obj,
 {
     if (!JS_DisconnectShark()) {
         JS_ReportError(cx, "Error disconnecting from Shark.");
-        return JS_FALSE;
     }
 
     return JS_TRUE;
@@ -1845,7 +1797,7 @@ JS_FRIEND_API(JSBool)
 js_StartCallgrind(JSContext *cx, JSObject *obj,
                   uintN argc, jsval *argv, jsval *rval)
 {
-    CALLGRIND_START_INSTRUMENTATION;
+    CALLGRIND_START_INSTRUMENTATION;    
     CALLGRIND_ZERO_STATS;
     return JS_TRUE;
 }
@@ -1867,7 +1819,7 @@ js_DumpCallgrind(JSContext *cx, JSObject *obj,
 
     if (argc > 0 && JSVAL_IS_STRING(argv[0])) {
         str = JSVAL_TO_STRING(argv[0]);
-        cstr = js_DeflateString(cx, str->chars(), str->length());
+        cstr = js_DeflateString(cx, JSSTRING_CHARS(str), JSSTRING_LENGTH(str));
         if (cstr) {
             CALLGRIND_DUMP_STATS_AT(cstr);
             JS_free(cx, cstr);
@@ -1915,9 +1867,9 @@ JS_FRIEND_API(JSBool)
 js_StartVtune(JSContext *cx, JSObject *obj,
               uintN argc, jsval *argv, jsval *rval)
 {
-    VTUNE_EVENT events[] = {
-        { 1000000, 0, 0, 0, "CPU_CLK_UNHALTED.CORE" },
-        { 1000000, 0, 0, 0, "INST_RETIRED.ANY" },
+    VTUNE_EVENT events[] = { 
+	{ 1000000, 0, 0, 0, "CPU_CLK_UNHALTED.CORE" },
+	{ 1000000, 0, 0, 0, "INST_RETIRED.ANY" },
     };
 
     U32 n_events = sizeof(events) / sizeof(VTUNE_EVENT);
@@ -1925,7 +1877,7 @@ js_StartVtune(JSContext *cx, JSObject *obj,
     JSString *str;
     U32 status;
 
-    VTUNE_SAMPLING_PARAMS params =
+    VTUNE_SAMPLING_PARAMS params = { 
         sizeof(VTUNE_SAMPLING_PARAMS),
         sizeof(VTUNE_EVENT),
         0, 0, /* Reserved fields */
@@ -1942,23 +1894,25 @@ js_StartVtune(JSContext *cx, JSObject *obj,
 
     if (argc > 0 && JSVAL_IS_STRING(argv[0])) {
         str = JSVAL_TO_STRING(argv[0]);
-        params.tb5Filename = js_DeflateString(cx, str->chars(), str->length());
+        params.tb5Filename = js_DeflateString(cx, 
+                                              JSSTRING_CHARS(str), 
+                                              JSSTRING_LENGTH(str));
     }
-
+    
     status = VTStartSampling(&params);
 
     if (params.tb5Filename != default_filename)
         JS_free(cx, params.tb5Filename);
-
-    if (status != 0) {
+    
+    if (status != 0) { 
         if (status == VTAPI_MULTIPLE_RUNS)
             VTStopSampling(0);
         if (status < sizeof(vtuneErrorMessages))
-            JS_ReportError(cx, "Vtune setup error: %s",
+            JS_ReportError(cx, "Vtune setup error: %s", 
                            vtuneErrorMessages[status]);
         else
-            JS_ReportError(cx, "Vtune setup error: %d",
-                           status);
+            JS_ReportError(cx, "Vtune setup error: %d", 
+                           status);            
         return JS_FALSE;
     }
     return JS_TRUE;
@@ -1971,10 +1925,10 @@ js_StopVtune(JSContext *cx, JSObject *obj,
     U32 status = VTStopSampling(1);
     if (status) {
         if (status < sizeof(vtuneErrorMessages))
-            JS_ReportError(cx, "Vtune shutdown error: %s",
+            JS_ReportError(cx, "Vtune shutdown error: %s", 
                            vtuneErrorMessages[status]);
         else
-            JS_ReportError(cx, "Vtune shutdown error: %d",
+            JS_ReportError(cx, "Vtune shutdown error: %d", 
                            status);
         return JS_FALSE;
     }

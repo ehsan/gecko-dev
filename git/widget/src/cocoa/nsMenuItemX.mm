@@ -74,10 +74,7 @@ nsMenuItemX::~nsMenuItemX()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  // autorelease the native menu item so that anything else happening to this
-  // object happens before the native menu item actually dies
   [mNativeMenuItem autorelease];
-
   if (mContent)
     mMenuBar->UnregisterForContentChanges(mContent);
   if (mCommandContent)
@@ -136,8 +133,9 @@ nsresult nsMenuItemX::Create(nsMenuX* aParent, const nsString& aLabel, EMenuItem
     mNativeMenuItem = [[NSMenuItem separatorItem] retain];
   }
   else {
-    NSString *newCocoaLabelString = nsMenuUtilsX::GetTruncatedCocoaLabel(aLabel);
+    NSString *newCocoaLabelString = nsMenuUtilsX::CreateTruncatedCocoaLabel(aLabel);
     mNativeMenuItem = [[NSMenuItem alloc] initWithTitle:newCocoaLabelString action:nil keyEquivalent:@""];
+    [newCocoaLabelString release];
 
     [mNativeMenuItem setEnabled:(BOOL)isEnabled];
 

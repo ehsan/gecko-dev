@@ -58,7 +58,6 @@
 #include "nsIDOMNSHTMLInputElement.h"
 #include "nsIDOMText.h"
 #include "nsIFocusController.h"
-#include "nsFocusManager.h"
 #include "nsIEventListenerManager.h"
 #include "nsIDOMEventTarget.h"
 #include "nsIDOMEventListener.h"
@@ -68,6 +67,7 @@
 #include "nsPIWindowRoot.h"
 #include "nsIDOMWindowInternal.h"
 #include "nsIServiceManager.h"
+#include "nsContentUtils.h"
 #include "nsIScriptError.h"
 #include "nsXPIDLString.h"
 #include "nsReadableUtils.h"
@@ -156,7 +156,7 @@ nsXBLPrototypeHandler::~nsXBLPrototypeHandler()
   }
 
   // We own the next handler in the chain, so delete it now.
-  NS_CONTENT_DELETE_LIST_MEMBER(nsXBLPrototypeHandler, this, mNextHandler);
+  delete mNextHandler;
 }
 
 already_AddRefed<nsIContent>
@@ -302,9 +302,11 @@ nsXBLPrototypeHandler::ExecuteHandler(nsPIDOMEventTarget* aTarget,
         return NS_OK;
     }
 
-    boundGlobal = boundDocument->GetScopeObject();
+    boundGlobal = boundDocument->GetScriptGlobalObject();
   }
 
+  // If we still don't have a 'boundGlobal', we're doomed. bug 95465.
+  NS_ASSERTION(boundGlobal, "failed to get the nsIScriptGlobalObject. bug 95465?");
   if (!boundGlobal)
     return NS_OK;
 
@@ -402,7 +404,8 @@ nsXBLPrototypeHandler::DispatchXBLCommand(nsPIDOMEventTarget* aTarget, nsIDOMEve
 
   nsCOMPtr<nsIPrivateDOMEvent> privateEvent = do_QueryInterface(aEvent);
   if (privateEvent) {
-    PRBool dispatchStopped = privateEvent->IsDispatchStopped();
+    PRBool dispatchStopped;
+    privateEvent->IsDispatchStopped(&dispatchStopped);
     if (dispatchStopped)
       return NS_OK;
   }
@@ -412,13 +415,12 @@ nsXBLPrototypeHandler::DispatchXBLCommand(nsPIDOMEventTarget* aTarget, nsIDOMEve
   nsCOMPtr<nsIController> controller;
   nsCOMPtr<nsIFocusController> focusController;
 
-  nsCOMPtr<nsPIDOMWindow> privateWindow;
   nsCOMPtr<nsPIWindowRoot> windowRoot(do_QueryInterface(aTarget));
   if (windowRoot) {
     windowRoot->GetFocusController(getter_AddRefs(focusController));
   }
   else {
-    privateWindow = do_QueryInterface(aTarget);
+    nsCOMPtr<nsPIDOMWindow> privateWindow(do_QueryInterface(aTarget));
     if (!privateWindow) {
       nsCOMPtr<nsIContent> elt(do_QueryInterface(aTarget));
       nsCOMPtr<nsIDocument> doc;
@@ -457,28 +459,16 @@ nsXBLPrototypeHandler::DispatchXBLCommand(nsPIDOMEventTarget* aTarget, nsIDOMEve
       mMisc == 1) {
     // get the focused element so that we can pageDown only at
     // certain times.
-
-    nsCOMPtr<nsPIDOMWindow> windowToCheck;
-    if (windowRoot)
-      windowToCheck = do_QueryInterface(windowRoot->GetWindow());
-    else
-      windowToCheck = privateWindow->GetPrivateRoot();
-
-    nsCOMPtr<nsIContent> focusedContent;
-    if (windowToCheck) {
-      nsCOMPtr<nsPIDOMWindow> focusedWindow;
-      focusedContent =
-        nsFocusManager::GetFocusedDescendant(windowToCheck, PR_TRUE, getter_AddRefs(focusedWindow));
-    }
-
+    nsCOMPtr<nsIDOMElement> focusedElement;
+    focusController->GetFocusedElement(getter_AddRefs(focusedElement));
     PRBool isLink = PR_FALSE;
+    nsCOMPtr<nsIContent> focusedContent = do_QueryInterface(focusedElement);
     nsIContent *content = focusedContent;
 
     // if the focused element is a link then we do want space to 
-    // scroll down. The focused element may be an element in a link,
-    // we need to check the parent node too. Only do this check if an
-    // element is focused and has a parent.
-    if (focusedContent && focusedContent->GetParent()) {
+    // scroll down. focused element may be an element in a link,
+    // we need to check the parent node too.
+    if (focusedContent) {
       while (content) {
         if (content->Tag() == nsGkAtoms::a &&
             content->IsNodeOfType(nsINode::eHTML)) {

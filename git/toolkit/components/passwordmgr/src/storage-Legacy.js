@@ -311,9 +311,6 @@ LoginManagerStorage_legacy.prototype = {
      *
      */
     modifyLogin : function (oldLogin, newLogin) {
-        if (newLogin instanceof Ci.nsIPropertyBag)
-            throw "legacy modifyLogin with propertybag not implemented.";
-        newLogin.QueryInterface(Ci.nsILoginInfo);
         // Throws if there are bogus values.
         this._checkLoginValues(newLogin);
 
@@ -343,45 +340,6 @@ LoginManagerStorage_legacy.prototype = {
 
         count.value = result.length; // needed for XPCOM
         return result;
-    },
-
-
-    /*
-     * getAllEncryptedLogins
-     *
-     * Returns an array of nsAccountInfo, each in the encrypted state.
-     */
-    getAllEncryptedLogins : function (count) {
-        var result = [];
-
-        // Each entry is an array -- append the array entries to |result|.
-        for each (var hostLogins in this._logins) {
-            // Return copies to the caller. Prevents callers from modifying
-            // our internal storage
-            for each (var login in hostLogins) {
-                var clone = new this._nsLoginInfo();
-                clone.init(login.hostname, login.formSubmitURL, login.httpRealm,
-                           login.wrappedJSObject.encryptedUsername,
-                           login.wrappedJSObject.encryptedPassword,
-                           login.usernameField, login.passwordField);
-                result.push(clone);
-            }
-        }
-
-        count.value = result.length; // needed for XPCOM
-        return result;
-    },
-
-
-    /*
-     * searchLogins
-     *
-     * Not implemented. This interface was added to perform arbitrary searches.
-     * Since the legacy storage module is no longer used, there is no need to
-     * implement it here.
-     */
-    searchLogins : function (count, matchData) {
-        throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
     },
 
 
@@ -826,9 +784,6 @@ LoginManagerStorage_legacy.prototype = {
         // encrypted username field (which contains an encrypted empty value)
         // (Don't do this if it's a form login, though.)
         if (username && !isFormLogin) {
-            if (isMailNews.test(aLogin.hostname))
-                username = decodeURIComponent(username);
-
             var [encUsername, userCanceled] = this._encrypt(username);
             if (!userCanceled)
                 aLogin.wrappedJSObject.encryptedUsername = encUsername;
@@ -856,11 +811,9 @@ LoginManagerStorage_legacy.prototype = {
          */
         const isHTTP = /^https?:\/\//;
         const isLDAP = /^ldaps?:\/\//;
-        const isNews = /^news?:\/\//;
         if (!isHTTP.test(aLogin.hostname) && !isFormLogin) {
-            // LDAP and News logins need to keep the path.
-            if (isLDAP.test(aLogin.hostname) ||
-                isNews.test(aLogin.hostname))
+            // LDAP logins need to keep the path.
+            if (isLDAP.test(aLogin.hostname))
                 aLogin.httpRealm = aLogin.hostname + pathname;
             else
                 aLogin.httpRealm = aLogin.hostname;
@@ -910,7 +863,6 @@ LoginManagerStorage_legacy.prototype = {
         var parseState = STATE.HEADER;
 
         var processEntry = false;
-        var discardEntry = false;
 
         do {
             var hasMore = lineStream.readLine(line);
@@ -981,15 +933,9 @@ LoginManagerStorage_legacy.prototype = {
                 // (or "." to indicate end of hostrealm)
                 case STATE.USERFIELD:
                     if (line.value == ".") {
-                        discardEntry = false;
                         parseState = STATE.REALM;
                         break;
                     }
-
-                    // If we're discarding the entry, keep looping in this
-                    // state until we hit the "." marking the end of the entry.
-                    if (discardEntry)
-                        break;
 
                     var entry = new this._nsLoginInfo();
                     entry.hostname  = hostname;
@@ -1008,12 +954,6 @@ LoginManagerStorage_legacy.prototype = {
                 // Line is the HTML 'name' attribute for the password field,
                 // with a leading '*' character
                 case STATE.PASSFIELD:
-                    if (line.value.charAt(0) != '*') {
-                        discardEntry = true;
-                        entry = null;
-                        parseState = STATE.USERFIELD;
-                        break;
-                    }
                     entry.passwordField = line.value.substr(1);
                     parseState++;
                     break;

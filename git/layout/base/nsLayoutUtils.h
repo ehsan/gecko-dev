@@ -59,11 +59,8 @@ class nsIFontMetrics;
 #include "nsIView.h"
 #include "nsIFrame.h"
 #include "nsThreadUtils.h"
-#include "nsIPresShell.h"
-#include "gfxPattern.h"
 
 class nsBlockFrame;
-class nsTextFragment;
 
 /**
  * nsLayoutUtils is a namespace class used for various helper
@@ -331,10 +328,10 @@ public:
   static PRUint8 CombineBreakType(PRUint8 aOrigBreakType, PRUint8 aNewBreakType);
 
   /**
-   * @return PR_TRUE if aFrame is the root element frame for
+   * @return PR_TRUE if aFrame is the CSS initial containing block for
    * its pres-shell
    */
-  static PRBool IsRootElementFrame(nsIFrame* aFrame);
+  static PRBool IsInitialContainingBlock(nsIFrame* aFrame);
 
   /**
    * Get the coordinates of a given DOM mouse event, relative to a given
@@ -410,12 +407,9 @@ public:
    * @param aPt the point, relative to the frame origin
    * @param aShouldIgnoreSuppression a boolean to control if the display
    * list builder should ignore paint suppression or not
-   * @param aIgnoreRootScrollFrame whether or not the display list builder
-   * should ignore the root scroll frame.
    */
   static nsIFrame* GetFrameForPoint(nsIFrame* aFrame, nsPoint aPt,
-                                    PRBool aShouldIgnoreSuppression = PR_FALSE,
-                                    PRBool aIgnoreRootScrollFrame = PR_FALSE);
+                                    PRBool aShouldIgnoreSuppression = PR_FALSE);
 
   /**
    * Given a point in the global coordinate space, returns that point expressed
@@ -628,12 +622,6 @@ public:
   static nsBlockFrame* FindNearestBlockAncestor(nsIFrame* aFrame);
 
   /**
-   * Find the nearest ancestor that's not for generated content. Will return
-   * aFrame if aFrame is not for generated content.
-   */
-  static nsIFrame* GetNonGeneratedAncestor(nsIFrame* aFrame);
-
-  /**
    * Cast aFrame to an nsBlockFrame* or return null if it's not
    * an nsBlockFrame.
    */
@@ -757,22 +745,12 @@ public:
                          nsIRenderingContext* aContext,
                          const PRUnichar*     aString,
                          PRInt32              aLength,
-                         nsPoint              aPoint,
-                         PRUint8              aDirection = NS_STYLE_DIRECTION_INHERIT);
+                         nsPoint              aPoint);
 
   static nscoord GetStringWidth(const nsIFrame*      aFrame,
                                 nsIRenderingContext* aContext,
                                 const PRUnichar*     aString,
                                 PRInt32              aLength);
-
-  /**
-   * Gets the baseline to vertically center text from a font within a
-   * line of specified height.
-   *
-   * Returns the baseline position relative to the top of the line.
-   */
-  static nscoord GetCenteredFontBaseline(nsIFontMetrics* aFontMetrics,
-                                         nscoord         aLineHeight);
 
   /**
    * Derive a baseline of |aFrame| (measured from its top border edge)
@@ -783,28 +761,6 @@ public:
    * Otherwise returns false.
    */
   static PRBool GetFirstLineBaseline(const nsIFrame* aFrame, nscoord* aResult);
-
-  /**
-   * Just like GetFirstLineBaseline, except also returns the top and
-   * bottom of the line with the baseline.
-   *
-   * Returns true if a line was found (and fills in aResult).
-   * Otherwise returns false.
-   */
-  struct LinePosition {
-    nscoord mTop, mBaseline, mBottom;
-
-    LinePosition operator+(nscoord aOffset) const {
-      LinePosition result;
-      result.mTop = mTop + aOffset;
-      result.mBaseline = mBaseline + aOffset;
-      result.mBottom = mBottom + aOffset;
-      return result;
-    }
-  };
-  static PRBool GetFirstLinePosition(const nsIFrame* aFrame,
-                                     LinePosition* aResult);
-
 
   /**
    * Derive a baseline of |aFrame| (measured from its top border edge)
@@ -837,102 +793,27 @@ public:
   static nsIFrame* GetClosestLayer(nsIFrame* aFrame);
 
   /**
-   * Gets the graphics filter for the frame
-   */
-  static gfxPattern::GraphicsFilter GetGraphicsFilterForFrame(nsIFrame* aFrame);
-
-  /* N.B. The only difference between variants of the Draw*Image
-   * functions below is the type of the aImage argument.
-   */
-
-  /**
-   * Draw an image.
-   * See https://wiki.mozilla.org/Gecko:Image_Snapping_and_Rendering
+   * Draw a single image.
    *   @param aRenderingContext Where to draw the image, set up with an
    *                            appropriate scale and transform for drawing in
-   *                            app units.
+   *                            app units (aDestRect).
    *   @param aImage            The image.
-   *   @param aDest             Where one copy of the image should mapped to.
-   *   @param aFill             The area to be filled with copies of the
-   *                            image.
-   *   @param aAnchor           A point in aFill which we will ensure is
-   *                            pixel-aligned in the output.
-   *   @param aDirty            Pixels outside this area may be skipped.
+   *   @param aDestRect         Where to draw the image (app units).
+   *   @param aDirtyRect        Draw only within this region (rounded to the
+   *                            nearest pixel); the intersection of
+   *                            invalidation and clipping (this is the
+   *                            destination clip)
+   *   @param aSourceRect       If null, draw the entire image so it fits in
+   *                            aDestRect.  If non-null, the subregion of the
+   *                            image that should be drawn (in app units, such
+   *                            that converting it to CSS pixels yields image
+   *                            pixels).
    */
   static nsresult DrawImage(nsIRenderingContext* aRenderingContext,
-                            imgIContainer*       aImage,
-                            gfxPattern::GraphicsFilter aGraphicsFilter,
-                            const nsRect&        aDest,
-                            const nsRect&        aFill,
-                            const nsPoint&       aAnchor,
-                            const nsRect&        aDirty);
-
-  static nsresult DrawImage(nsIRenderingContext* aRenderingContext,
-                            nsIImage*            aImage,
-                            gfxPattern::GraphicsFilter aGraphicsFilter,
-                            const nsRect&        aDest,
-                            const nsRect&        aFill,
-                            const nsPoint&       aAnchor,
-                            const nsRect&        aDirty);
-
-  /**
-   * Draw a whole image without scaling or tiling.
-   *
-   *   @param aRenderingContext Where to draw the image, set up with an
-   *                            appropriate scale and transform for drawing in
-   *                            app units.
-   *   @param aImage            The image.
-   *   @param aDest             The top-left where the image should be drawn
-   *   @param aDirty            Pixels outside this area may be skipped.
-   *   @param aSourceArea       If non-null, this area is extracted from
-   *                            the image and drawn at aDest. It's
-   *                            in appunits. For best results it should
-   *                            be aligned with image pixels.
-   */
-  static nsresult DrawSingleUnscaledImage(nsIRenderingContext* aRenderingContext,
-                                          imgIContainer*       aImage,
-                                          const nsPoint&       aDest,
-                                          const nsRect&        aDirty,
-                                          const nsRect*        aSourceArea = nsnull);
-
-  /**
-   * Draw a whole image without tiling.
-   *
-   *   @param aRenderingContext Where to draw the image, set up with an
-   *                            appropriate scale and transform for drawing in
-   *                            app units.
-   *   @param aImage            The image.
-   *   @param aDest             The area that the image should fill
-   *   @param aDirty            Pixels outside this area may be skipped.
-   *   @param aSourceArea       If non-null, this area is extracted from
-   *                            the image and drawn in aDest. It's
-   *                            in appunits. For best results it should
-   *                            be aligned with image pixels.
-   */
-  static nsresult DrawSingleImage(nsIRenderingContext* aRenderingContext,
-                                  imgIContainer*       aImage,
-                                  gfxPattern::GraphicsFilter aGraphicsFilter,
-                                  const nsRect&        aDest,
-                                  const nsRect&        aDirty,
-                                  const nsRect*        aSourceArea = nsnull);
-
-  static nsresult DrawSingleImage(nsIRenderingContext* aRenderingContext,
-                                  nsIImage*            aImage,
-                                  gfxPattern::GraphicsFilter aGraphicsFilter,
-                                  const nsRect&        aDest,
-                                  const nsRect&        aDirty,
-                                  const nsRect*        aSourceArea = nsnull);
-
-  /**
-   * Given a source area of an image (in appunits) and a destination area
-   * that we want to map that source area too, computes the area that
-   * would be covered by the whole image. This is useful for passing to
-   * the aDest parameter of DrawImage, when we want to draw a subimage
-   * of an overall image.
-   */
-  static nsRect GetWholeImageDestination(const nsIntSize& aWholeImageSize,
-                                         const nsRect& aImageSourceArea,
-                                         const nsRect& aDestArea);
+                            imgIContainer* aImage,
+                            const nsRect& aDestRect,
+                            const nsRect& aDirtyRect,
+                            const nsRect* aSourceRect = nsnull);
 
   /**
    * Set the font on aRC based on the style in aSC
@@ -951,13 +832,6 @@ public:
    * simpler to implement the test this way.
    */
   static PRBool HasNonZeroCorner(const nsStyleCorners& aCorners);
-
-  /**
-   * Determine if there is any corner radius on corners adjacent to the
-   * given side.
-   */
-  static PRBool HasNonZeroCornerOnSide(const nsStyleCorners& aCorners,
-                                       PRUint8 aSide);
 
   /**
    * Determine if a widget is likely to require transparency or translucency.
@@ -995,83 +869,10 @@ public:
   GetDeviceContextForScreenInfo(nsIDocShell* aDocShell);
 
   /**
-   * Some frames with 'position: fixed' (nsStylePosition::mDisplay ==
-   * NS_STYLE_POSITION_FIXED) are not really fixed positioned, since
-   * they're inside an element with -moz-transform.  This function says
-   * whether such an element is a real fixed-pos element.
-   */
-  static PRBool IsReallyFixedPos(nsIFrame* aFrame);
-
-  /**
    * Indicates if the nsIFrame::GetUsedXXX assertions in nsFrame.cpp should
    * disabled.
    */
   static PRBool sDisableGetUsedXAssertions;
-
-  /**
-   * Returns the text fragment, which aFrame should use for printing.
-   * @param aFrame The nsIFrame object, which uses text fragment data.
-   */
-  static nsTextFragment* GetTextFragmentForPrinting(const nsIFrame* aFrame);
-
-  /**
-   * Return whether aFrame is an inline frame in the first part of an {ib}
-   * split.
-   */
-  static PRBool FrameIsInFirstPartOfIBSplit(const nsIFrame* aFrame) {
-    return (aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL) &&
-      !aFrame->GetFirstContinuation()->
-        GetProperty(nsGkAtoms::IBSplitSpecialPrevSibling);
-  }
-
-  /**
-   * Return whether aFrame is an inline frame in the last part of an {ib}
-   * split.
-   */
-  static PRBool FrameIsInLastPartOfIBSplit(const nsIFrame* aFrame) {
-    return (aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL) &&
-      !aFrame->GetFirstContinuation()->
-        GetProperty(nsGkAtoms::IBSplitSpecialSibling);
-  }
-
-  /**
-   * Obtain a gfxASurface from the given DOM element, if possible.
-   * This obtains the most natural surface from the element; that
-   * is, the one that can be obtained with the fewest conversions.
-   *
-   * The flags below can modify the behaviour of this function.  The
-   * result is returned as a SurfaceFromElementResult struct, also
-   * defined below.
-   *
-   * Currently, this will do:
-   *  - HTML Canvas elements: will return the underlying canvas surface
-   *  - HTML Video elements: will return the current video frame
-   *  - Image elements: will return the image
-   *
-   * The above results are modified by the below flags (copying,
-   * forcing image surface, etc.).
-   */
-
-  enum {
-    /* Always create a new surface for the result */
-    SFE_WANT_NEW_SURFACE   = 1 << 0,
-    /* When creating a new surface, create an image surface */
-    SFE_WANT_IMAGE_SURFACE = 1 << 1
-  };
-
-  struct SurfaceFromElementResult {
-    /* mSurface will contain the resulting surface, or will be NULL on error */
-    nsRefPtr<gfxASurface> mSurface;
-    /* The size of the surface */
-    gfxIntSize mSize;
-    /* The principal associated with the element whose surface was returned */
-    nsCOMPtr<nsIPrincipal> mPrincipal;
-    /* Whether the element was "write only", that is, the bits should not be exposed to content */
-    PRBool mIsWriteOnly;
-  };
-
-  static SurfaceFromElementResult SurfaceFromElement(nsIDOMElement *aElement,
-                                                     PRUint32 aSurfaceFlags = 0);
 };
 
 class nsAutoDisableGetUsedXAssertions
@@ -1113,20 +914,6 @@ public:
 
   nsCOMPtr<nsIContent> mContent;
   nsCOMPtr<nsIAtom> mAttrName;
-};
-
-class nsReflowFrameRunnable : public nsRunnable
-{
-public:
-  nsReflowFrameRunnable(nsIFrame* aFrame,
-                        nsIPresShell::IntrinsicDirty aIntrinsicDirty,
-                        nsFrameState aBitToAdd);
-
-  NS_DECL_NSIRUNNABLE
-
-  nsWeakFrame mWeakFrame;
-  nsIPresShell::IntrinsicDirty mIntrinsicDirty;
-  nsFrameState mBitToAdd;
 };
 
 #endif // nsLayoutUtils_h__

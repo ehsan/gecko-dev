@@ -39,7 +39,7 @@
 #include "nsTraceRefcntImpl.h"
 #include "nscore.h"
 #include "nsISupports.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "prprf.h"
 #include "prlog.h"
 #include "plstr.h"
@@ -127,10 +127,10 @@ struct serialNumberRecord {
 };
 
 struct nsTraceRefcntStats {
-  PRUint64 mAddRefs;
-  PRUint64 mReleases;
-  PRUint64 mCreates;
-  PRUint64 mDestroys;
+  nsrefcnt mAddRefs;
+  nsrefcnt mReleases;
+  nsrefcnt mCreates;
+  nsrefcnt mDestroys;
   double mRefsOutstandingTotal;
   double mRefsOutstandingSquared;
   double mObjsOutstandingTotal;
@@ -147,25 +147,25 @@ struct nsTraceRefcntStats {
 // to the functions not called Default* to free the serialNumberRecord or
 // the BloatEntry.
 
-static void *
+static void * PR_CALLBACK
 DefaultAllocTable(void *pool, PRSize size)
 {
     return PR_MALLOC(size);
 }
 
-static void
+static void PR_CALLBACK
 DefaultFreeTable(void *pool, void *item)
 {
     PR_Free(item);
 }
 
-static PLHashEntry *
+static PLHashEntry * PR_CALLBACK
 DefaultAllocEntry(void *pool, const void *key)
 {
     return PR_NEW(PLHashEntry);
 }
 
-static void
+static void PR_CALLBACK
 SerialNumberFreeEntry(void *pool, PLHashEntry *he, PRUintn flag)
 {
     if (flag == HT_FREE_ENTRY) {
@@ -174,7 +174,7 @@ SerialNumberFreeEntry(void *pool, PLHashEntry *he, PRUintn flag)
     }
 }
 
-static void
+static void PR_CALLBACK
 TypesToLogFreeEntry(void *pool, PLHashEntry *he, PRUintn flag)
 {
     if (flag == HT_FREE_ENTRY) {
@@ -263,27 +263,27 @@ public:
   }
 
   void AccountRefs() {
-    PRUint64 cnt = (mNewStats.mAddRefs - mNewStats.mReleases);
+    PRInt32 cnt = (mNewStats.mAddRefs - mNewStats.mReleases);
     mNewStats.mRefsOutstandingTotal += cnt;
     mNewStats.mRefsOutstandingSquared += cnt * cnt;
   }
 
   void AccountObjs() {
-    PRUint64 cnt = (mNewStats.mCreates - mNewStats.mDestroys);
+    PRInt32 cnt = (mNewStats.mCreates - mNewStats.mDestroys);
     mNewStats.mObjsOutstandingTotal += cnt;
     mNewStats.mObjsOutstandingSquared += cnt * cnt;
   }
 
-  static PRIntn DumpEntry(PLHashEntry *he, PRIntn i, void *arg) {
+  static PRIntn PR_CALLBACK DumpEntry(PLHashEntry *he, PRIntn i, void *arg) {
     BloatEntry* entry = (BloatEntry*)he->value;
     if (entry) {
       entry->Accumulate();
-      static_cast<nsTArray<BloatEntry*>*>(arg)->AppendElement(entry);
+      static_cast<nsVoidArray*>(arg)->AppendElement(entry);
     }
     return HT_ENUMERATE_NEXT;
   }
 
-  static PRIntn TotalEntries(PLHashEntry *he, PRIntn i, void *arg) {
+  static PRIntn PR_CALLBACK TotalEntries(PLHashEntry *he, PRIntn i, void *arg) {
     BloatEntry* entry = (BloatEntry*)he->value;
     if (entry && nsCRT::strcmp(entry->mClassName, "TOTAL") != 0) {
       entry->Total((BloatEntry*)arg);
@@ -300,9 +300,9 @@ public:
     total->mAllStats.mRefsOutstandingSquared += mNewStats.mRefsOutstandingSquared + mAllStats.mRefsOutstandingSquared;
     total->mAllStats.mObjsOutstandingTotal += mNewStats.mObjsOutstandingTotal + mAllStats.mObjsOutstandingTotal;
     total->mAllStats.mObjsOutstandingSquared += mNewStats.mObjsOutstandingSquared + mAllStats.mObjsOutstandingSquared;
-    PRUint64 count = (mNewStats.mCreates + mAllStats.mCreates);
+    PRInt32 count = (mNewStats.mCreates + mAllStats.mCreates);
     total->mClassSize += mClassSize * count;    // adjust for average in DumpTotal
-    total->mTotalLeaked += (PRUint64)(mClassSize *
+    total->mTotalLeaked += (PRInt32)(mClassSize *
                                      ((mNewStats.mCreates + mAllStats.mCreates)
                                       -(mNewStats.mDestroys + mAllStats.mDestroys)));
   }
@@ -361,11 +361,11 @@ public:
         stats->mCreates != 0 ||
         meanObjs != 0 ||
         stddevObjs != 0) {
-      fprintf(out, "%4d %-40.40s %8d %8llu %8llu %8llu (%8.2f +/- %8.2f) %8llu %8llu (%8.2f +/- %8.2f)\n",
+      fprintf(out, "%4d %-40.40s %8d %8d %8d %8d (%8.2f +/- %8.2f) %8d %8d (%8.2f +/- %8.2f)\n",
               i+1, mClassName,
               (PRInt32)mClassSize,
               (nsCRT::strcmp(mClassName, "TOTAL"))
-                  ?(PRUint64)((stats->mCreates - stats->mDestroys) * mClassSize)
+                  ?(PRInt32)((stats->mCreates - stats->mDestroys) * mClassSize)
                   :mTotalLeaked,
               stats->mCreates,
               (stats->mCreates - stats->mDestroys),
@@ -381,12 +381,12 @@ public:
 protected:
   char*         mClassName;
   double        mClassSize;     // this is stored as a double because of the way we compute the avg class size for total bloat
-  PRUint64      mTotalLeaked; // used only for TOTAL entry
+  PRInt32       mTotalLeaked; // used only for TOTAL entry
   nsTraceRefcntStats mNewStats;
   nsTraceRefcntStats mAllStats;
 };
 
-static void
+static void PR_CALLBACK
 BloatViewFreeEntry(void *pool, PLHashEntry *he, PRUintn flag)
 {
     if (flag == HT_FREE_ENTRY) {
@@ -437,7 +437,7 @@ GetBloatEntry(const char* aTypeName, PRUint32 aInstanceSize)
   return entry;
 }
 
-static PRIntn DumpSerialNumbers(PLHashEntry* aHashEntry, PRIntn aIndex, void* aClosure)
+static PRIntn PR_CALLBACK DumpSerialNumbers(PLHashEntry* aHashEntry, PRIntn aIndex, void* aClosure)
 {
   serialNumberRecord* record = reinterpret_cast<serialNumberRecord *>(aHashEntry->value);
 #ifdef HAVE_CPP_DYNAMIC_CAST_TO_VOID_PTR
@@ -455,17 +455,6 @@ static PRIntn DumpSerialNumbers(PLHashEntry* aHashEntry, PRIntn aIndex, void* aC
   return HT_ENUMERATE_NEXT;
 }
 
-
-NS_SPECIALIZE_TEMPLATE
-class nsDefaultComparator <BloatEntry*, BloatEntry*> {
-  public:
-    PRBool Equals(BloatEntry* const& aA, BloatEntry* const& aB) const {
-      return PL_strcmp(aA->GetClassName(), aB->GetClassName()) == 0;
-    }
-    PRBool LessThan(BloatEntry* const& aA, BloatEntry* const& aB) const {
-      return PL_strcmp(aA->GetClassName(), aB->GetClassName()) < 0;
-    }
-};
 
 #endif /* NS_IMPL_REFCNT_LOGGING */
 
@@ -502,16 +491,28 @@ nsTraceRefcntImpl::DumpStatistics(StatisticsType type, FILE* out)
   }
   const PRBool leaked = total.PrintDumpHeader(out, msg, type);
 
-  nsTArray<BloatEntry*> entries;
+  nsVoidArray entries;
   PL_HashTableEnumerateEntries(gBloatView, BloatEntry::DumpEntry, &entries);
-  const PRUint32 count = entries.Length();
+  const PRInt32 count = entries.Count();
 
   if (!gLogLeaksOnly || leaked) {
     // Sort the entries alphabetically by classname.
-    entries.Sort();
+    PRInt32 i, j;
+    for (i = count - 1; i >= 1; --i) {
+      for (j = i - 1; j >= 0; --j) {
+        BloatEntry* left  = static_cast<BloatEntry*>(entries[i]);
+        BloatEntry* right = static_cast<BloatEntry*>(entries[j]);
 
-    for (PRUint32 i = 0; i < count; ++i) {
-      BloatEntry* entry = entries[i];
+        if (PL_strcmp(left->GetClassName(), right->GetClassName()) < 0) {
+          entries.ReplaceElementAt(right, i);
+          entries.ReplaceElementAt(left, j);
+        }
+      }
+    }
+
+    // Enumerate from back-to-front, so things come out in alpha order
+    for (i = 0; i < count; ++i) {
+      BloatEntry* entry = static_cast<BloatEntry*>(entries[i]);
       entry->Dump(i, out, type);
     }
 
@@ -652,7 +653,7 @@ static PRBool InitLog(const char* envVar, const char* msg, FILE* *result)
 }
 
 
-static PLHashNumber HashNumber(const void* aKey)
+static PLHashNumber PR_CALLBACK HashNumber(const void* aKey)
 {
   return PLHashNumber(NS_PTR_TO_INT32(aKey));
 }
@@ -825,7 +826,7 @@ static void InitTraceLog(void)
 
 extern "C" {
 
-static void PrintStackFrame(void *aPC, void *aClosure)
+PR_STATIC_CALLBACK(void) PrintStackFrame(void *aPC, void *aClosure)
 {
   FILE *stream = (FILE*)aClosure;
   nsCodeAddressDetails details;

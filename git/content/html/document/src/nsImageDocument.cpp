@@ -68,7 +68,7 @@
 #include "nsIDOMElement.h"
 #include "nsIDOMNSHTMLElement.h"
 #include "nsContentErrors.h"
-#include "nsURILoader.h"
+#include "ImageErrors.h"
 #include "nsIDocShell.h"
 #include "nsIContentViewer.h"
 #include "nsIMarkupDocumentViewer.h"
@@ -118,11 +118,9 @@ public:
   // nsIDOMEventListener
   NS_IMETHOD HandleEvent(nsIDOMEvent* aEvent);
 
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsImageDocument, nsMediaDocument)
-
   friend class ImageListener;
 protected:
-  virtual nsresult CreateSyntheticDocument();
+  nsresult CreateSyntheticDocument();
 
   nsresult CheckOverflowing(PRBool changeState);
 
@@ -235,9 +233,9 @@ ImageListener::OnStopRequest(nsIRequest* request, nsISupports *ctxt,
     imageLoader->RemoveObserver(imgDoc);
   }
 
-  // |status| is NS_ERROR_PARSED_DATA_CACHED if the image was found in
-  // the cache (bug 177747 comment 51, bug 475344).
-  if (status == NS_ERROR_PARSED_DATA_CACHED) {
+  // |status| is NS_IMAGELIB_ERROR_LOAD_ABORTED if the image was found in
+  // the cache (bug 177747 comment 51).
+  if (status == NS_IMAGELIB_ERROR_LOAD_ABORTED) {
     status = NS_OK;
   }
 
@@ -274,27 +272,18 @@ nsImageDocument::~nsImageDocument()
 {
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsImageDocument)
-
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsImageDocument, nsMediaDocument)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mImageContent)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsImageDocument, nsMediaDocument)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mImageContent)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
+// XXXbz shouldn't this participate in cycle collection?  It's got
+// mImageContent!
 NS_IMPL_ADDREF_INHERITED(nsImageDocument, nsMediaDocument)
 NS_IMPL_RELEASE_INHERITED(nsImageDocument, nsMediaDocument)
 
 NS_INTERFACE_TABLE_HEAD(nsImageDocument)
-  NS_HTML_DOCUMENT_INTERFACE_TABLE_BEGIN(nsImageDocument)
-    NS_INTERFACE_TABLE_ENTRY(nsImageDocument, nsIImageDocument)
-    NS_INTERFACE_TABLE_ENTRY(nsImageDocument, imgIDecoderObserver)
-    NS_INTERFACE_TABLE_ENTRY(nsImageDocument, imgIContainerObserver)
-    NS_INTERFACE_TABLE_ENTRY(nsImageDocument, nsIDOMEventListener)
-  NS_OFFSET_AND_INTERFACE_TABLE_END
-  NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
+  NS_INTERFACE_TABLE_INHERITED4(nsImageDocument,
+                                nsIImageDocument,
+                                imgIDecoderObserver,
+                                imgIContainerObserver,
+                                nsIDOMEventListener)
+  NS_INTERFACE_TABLE_TO_MAP_SEGUE
   NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(ImageDocument)
 NS_INTERFACE_MAP_END_INHERITING(nsMediaDocument)
 
@@ -479,8 +468,12 @@ nsImageDocument::ScrollImageTo(PRInt32 aX, PRInt32 aY, PRBool restoreImage)
   nsIPresShell *shell = GetPrimaryShell();
   if (!shell)
     return NS_OK;
-  
-  nsIViewManager* vm = shell->GetViewManager();
+
+  nsPresContext* context = shell->GetPresContext();
+  if (!context)
+    return NS_OK;
+
+  nsIViewManager* vm = context->GetViewManager();
   if (!vm)
     return NS_OK;
 
@@ -496,7 +489,7 @@ nsImageDocument::ScrollImageTo(PRInt32 aX, PRInt32 aY, PRBool restoreImage)
   nsRect portRect = view->View()->GetBounds();
   view->ScrollTo(nsPresContext::CSSPixelsToAppUnits(aX/ratio) - portRect.width/2,
                  nsPresContext::CSSPixelsToAppUnits(aY/ratio) - portRect.height/2,
-                 0);
+                 NS_VMREFRESH_IMMEDIATE);
   return NS_OK;
 }
 
@@ -627,7 +620,7 @@ nsImageDocument::CreateSyntheticDocument()
 
   nsCOMPtr<nsINodeInfo> nodeInfo;
   nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::img, nsnull,
-                                           kNameSpaceID_XHTML);
+                                           kNameSpaceID_None);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
   mImageContent = NS_NewHTMLImageElement(nodeInfo);

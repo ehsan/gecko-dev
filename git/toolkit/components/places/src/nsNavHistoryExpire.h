@@ -59,8 +59,6 @@ public:
   void OnExpirationChanged();
   nsresult ExpireItems(PRUint32 aNumToExpire, PRBool* aKeepGoing);
 
-  nsresult ExpireOrphans(PRUint32 aNumToExpire);
-
 protected:
 
   nsNavHistory* mHistory;
@@ -86,6 +84,7 @@ protected:
   nsresult DoPartialExpiration();
 
   nsresult ExpireAnnotations(mozIStorageConnection* aConnection);
+  nsresult ExpireEmbeddedLinks(mozIStorageConnection* aConnection);
 
   // parts of ExpireItems
   nsresult FindVisits(PRTime aExpireThreshold, PRUint32 aNumToExpire,

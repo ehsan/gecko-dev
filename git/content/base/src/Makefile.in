@@ -135,6 +135,7 @@ CPPSRCS		= \
 		nsFrameLoader.cpp \
 		nsGenConImageContent.cpp \
 		nsGenericDOMDataNode.cpp \
+		nsGenericDOMNodeList.cpp \
 		nsGenericElement.cpp \
 		nsGkAtoms.cpp \
 		nsHTMLContentSerializer.cpp \
@@ -168,7 +169,6 @@ CPPSRCS		= \
 		nsTextNode.cpp \
 		nsTraversal.cpp \
 		nsTreeWalker.cpp \
-		nsXHTMLContentSerializer.cpp \
 		nsXMLContentSerializer.cpp \
 		nsXMLHttpRequest.cpp \
 		nsXMLNameSpaceMap.cpp \
@@ -194,7 +194,7 @@ INCLUDES	+= \
 		-I$(srcdir)/../../xbl/src \
 		-I$(srcdir)/../../../layout/generic \
 		-I$(srcdir)/../../../layout/style \
-		-I$(srcdir)/../../../dom/base \
+		-I$(srcdir)/../../../dom/src/base \
 		-I$(srcdir)/../../xml/document/src \
 		-I$(topsrcdir)/xpcom/io \
 		$(NULL)

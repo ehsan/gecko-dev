@@ -71,23 +71,23 @@ REQUIRES	= xpcom \
 			unicharutil \
 			thebes \
 			cairo \
-			qcms \
 			$(NULL)
 
 CPPSRCS		= \
+	IEnumFE.cpp  \
 	nsWindow.cpp         \
 	nsAppShell.cpp       \
+	nsLookAndFeel.cpp    \
 	nsToolkit.cpp        \
+	nsKeyboardLayout.cpp \
+	nsDataObj.cpp  \
+	nsDataObjCollection.cpp  \
+	nsClipboard.cpp      \
+	nsNativeThemeWin.cpp \
+	nsUXThemeData.cpp \
 	nsFilePicker.cpp     \
 	nsScreenWin.cpp	\
 	nsScreenManagerWin.cpp \
-	nsLookAndFeel.cpp    \
-	nsUXThemeData.cpp \
-	nsNativeThemeWin.cpp \
-	nsWinGesture.cpp \
-	nsIdleServiceWin.cpp \
-	nsSound.cpp          \
-	nsIMM32Handler.cpp \
 	$(NULL)
 
 ifdef NS_PRINTING
@@ -98,23 +98,15 @@ CPPSRCS		+= \
 	$(NULL)
 endif
 
-ifeq ($(OS_ARCH), WINCE)
+ifneq ($(OS_ARCH), WINCE)
 CPPSRCS += \
-	nsClipboardCE.cpp \
-	$(NULL)
-else
-CPPSRCS += \
-	nsKeyboardLayout.cpp \
-	IEnumFE.cpp  \
-	nsDataObj.cpp  \
-	nsDataObjCollection.cpp  \
 	nsNativeDragTarget.cpp  \
 	nsNativeDragSource.cpp  \
 	nsDragService.cpp  \
-	nsClipboard.cpp      \
 	nsImageClipboard.cpp \
 	nsBidiKeyboard.cpp   \
-	nsTextStore.cpp \
+	nsSound.cpp          \
+	nsIdleServiceWin.cpp    \
 	$(NULL)
 endif
 
@@ -132,19 +124,12 @@ LOCAL_INCLUDES	= \
 		-I. \
 		-I$(srcdir)/../xpwidgets \
 		-I$(srcdir) \
-		-I$(topsrcdir)/toolkit/xre \
 		$(NULL)
 
 FORCE_STATIC_LIB = 1
-
-ifdef WINCE
-EXTRA_DSO_LDOPTS += ddraw.lib
-endif
 
 ifndef WINCE
 ENABLE_CXX_EXCEPTIONS = 1
 endif
 
 include $(topsrcdir)/config/rules.mk
-
-CXXFLAGS += $(MOZ_CAIRO_CFLAGS)

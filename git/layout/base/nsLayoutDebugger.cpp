@@ -159,7 +159,10 @@ PrintDisplayListTo(nsDisplayListBuilder* aBuilder, const nsDisplayList& aList,
       fputc(' ', aOutput);
     }
     nsIFrame* f = i->GetUnderlyingFrame();
-    nsIFrameDebug* fDebug = do_QueryFrame(f);
+    nsIFrameDebug* fDebug = nsnull;
+    if (f) {
+      CallQueryInterface(f, &fDebug);
+    }
     nsAutoString fName;
     if (fDebug) {
       fDebug->GetFrameName(fName);
@@ -185,10 +188,6 @@ PrintDisplayListTo(nsDisplayListBuilder* aBuilder, const nsDisplayList& aList,
     nsDisplayList* list = i->GetList();
     if (list) {
       PrintDisplayListTo(aBuilder, *list, aIndent + 4, aOutput);
-    }
-    if (i->GetType() == nsDisplayItem::TYPE_TRANSFORM) {
-      nsDisplayTransform* t = static_cast<nsDisplayTransform*>(i);
-      PrintDisplayListTo(aBuilder, *(t->GetStoredList()->GetList()), aIndent + 4, aOutput);
     }
   }
 }

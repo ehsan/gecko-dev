@@ -36,13 +36,13 @@
 
 #include "nsSVGPathGeometryFrame.h"
 #include "nsIDOMSVGMatrix.h"
+#include "nsIDOMSVGAnimPresAspRatio.h"
 #include "imgIContainer.h"
 #include "gfxIImageFrame.h"
 #include "nsStubImageDecoderObserver.h"
 #include "nsImageLoadingContent.h"
 #include "nsIDOMSVGImageElement.h"
-#include "nsLayoutUtils.h"
-#include "nsSVGImageElement.h"
+#include "nsSVGElement.h"
 #include "nsSVGUtils.h"
 #include "nsSVGMatrix.h"
 #include "gfxContext.h"
@@ -77,7 +77,7 @@ private:
 class nsSVGImageFrame : public nsSVGPathGeometryFrame
 {
   friend nsIFrame*
-  NS_NewSVGImageFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
+  NS_NewSVGImageFrame(nsIPresShell* aPresShell, nsIContent* aContent, nsStyleContext* aContext);
 
 protected:
   nsSVGImageFrame(nsStyleContext* aContext) : nsSVGPathGeometryFrame(aContext) {}
@@ -85,7 +85,7 @@ protected:
 
 public:
   // nsISVGChildFrame interface:
-  NS_IMETHOD PaintSVG(nsSVGRenderState *aContext, const nsIntRect *aDirtyRect);
+  NS_IMETHOD PaintSVG(nsSVGRenderState *aContext, nsIntRect *aDirtyRect);
   NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint &aPoint);
 
   // nsSVGPathGeometryFrame methods:
@@ -127,8 +127,14 @@ private:
 // Implementation
 
 nsIFrame*
-NS_NewSVGImageFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
+NS_NewSVGImageFrame(nsIPresShell* aPresShell, nsIContent* aContent, nsStyleContext* aContext)
 {
+  nsCOMPtr<nsIDOMSVGImageElement> Rect = do_QueryInterface(aContent);
+  if (!Rect) {
+    NS_ERROR("Can't create frame! Content is not an SVG image!");
+    return nsnull;
+  }
+
   return new (aPresShell) nsSVGImageFrame(aContext);
 }
 
@@ -150,11 +156,6 @@ nsSVGImageFrame::Init(nsIContent* aContent,
                       nsIFrame* aParent,
                       nsIFrame* aPrevInFlow)
 {
-#ifdef DEBUG
-  nsCOMPtr<nsIDOMSVGImageElement> image = do_QueryInterface(aContent);
-  NS_ASSERTION(image, "Content is not an SVG image!");
-#endif
-
   nsresult rv = nsSVGPathGeometryFrame::Init(aContent, aParent, aPrevInFlow);
   if (NS_FAILED(rv)) return rv;
   
@@ -192,21 +193,26 @@ nsSVGImageFrame::AttributeChanged(PRInt32         aNameSpaceID,
 already_AddRefed<nsIDOMSVGMatrix>
 nsSVGImageFrame::GetImageTransform()
 {
-  nsCOMPtr<nsIDOMSVGMatrix> ctm = NS_NewSVGMatrix(GetCanvasTM());
+  nsCOMPtr<nsIDOMSVGMatrix> ctm;
+  GetCanvasTM(getter_AddRefs(ctm));
 
   float x, y, width, height;
-  nsSVGImageElement *element = static_cast<nsSVGImageElement*>(mContent);
+  nsSVGElement *element = static_cast<nsSVGElement*>(mContent);
   element->GetAnimatedLengthValues(&x, &y, &width, &height, nsnull);
 
   PRInt32 nativeWidth, nativeHeight;
   mImageContainer->GetWidth(&nativeWidth);
   mImageContainer->GetHeight(&nativeHeight);
 
+  nsCOMPtr<nsIDOMSVGImageElement> image = do_QueryInterface(mContent);
+  nsCOMPtr<nsIDOMSVGAnimatedPreserveAspectRatio> ratio;
+  image->GetPreserveAspectRatio(getter_AddRefs(ratio));
+
   nsCOMPtr<nsIDOMSVGMatrix> trans, ctmXY, fini;
   trans = nsSVGUtils::GetViewBoxTransform(width, height,
                                           0, 0,
                                           nativeWidth, nativeHeight,
-                                          element->mPreserveAspectRatio);
+                                          ratio);
   ctm->Translate(x, y, getter_AddRefs(ctmXY));
   ctmXY->Multiply(trans, getter_AddRefs(fini));
 
@@ -218,8 +224,7 @@ nsSVGImageFrame::GetImageTransform()
 //----------------------------------------------------------------------
 // nsISVGChildFrame methods:
 NS_IMETHODIMP
-nsSVGImageFrame::PaintSVG(nsSVGRenderState *aContext,
-                          const nsIntRect *aDirtyRect)
+nsSVGImageFrame::PaintSVG(nsSVGRenderState *aContext, nsIntRect *aDirtyRect)
 {
   nsresult rv = NS_OK;
 
@@ -255,17 +260,17 @@ nsSVGImageFrame::PaintSVG(nsSVGRenderState *aContext,
   }
 
   if (thebesPattern) {
-
-    thebesPattern->SetFilter(nsLayoutUtils::GetGraphicsFilterForFrame(this));
-
     gfxContext *gfx = aContext->GetGfxContext();
 
     if (GetStyleDisplay()->IsScrollableOverflow()) {
       gfx->Save();
 
-      gfxRect clipRect =
-        nsSVGUtils::GetClipRectForFrame(this, x, y, width, height);
-      nsSVGUtils::SetClipRect(gfx, GetCanvasTM(), clipRect);
+      nsCOMPtr<nsIDOMSVGMatrix> ctm;
+      GetCanvasTM(getter_AddRefs(ctm));
+
+      if (ctm) {
+        nsSVGUtils::SetClipRect(gfx, ctm, x, y, width, height);
+      }
     }
 
     nsCOMPtr<nsIDOMSVGMatrix> fini = GetImageTransform();

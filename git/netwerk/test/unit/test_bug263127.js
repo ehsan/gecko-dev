@@ -1,4 +1,4 @@
-do_load_httpd_js();
+do_import_script("netwerk/test/httpserver/httpd.js");
 
 var server;
 const BUGID = "263127";
@@ -13,8 +13,7 @@ var listener = {
   },
 
   onDownloadComplete: function(downloader, request, ctxt, status, file) {
-    do_test_pending();
-    server.stop(do_test_finished);
+    server.stop();
 
     if (!file)
       do_throw("Download failed");

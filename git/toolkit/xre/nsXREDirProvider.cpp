@@ -130,8 +130,7 @@ nsXREDirProvider::Initialize(nsIFile *aXULAppDir,
     if (app) {
       PRBool per = PR_FALSE;
       app->GetFile(NS_APP_USER_PROFILE_50_DIR, &per, getter_AddRefs(mProfileDir));
-      NS_ASSERTION(per, "NS_APP_USER_PROFILE_50_DIR must be persistent!"); 
-      NS_ASSERTION(mProfileDir, "NS_APP_USER_PROFILE_50_DIR not defined! This shouldn't happen!"); 
+      NS_ASSERTION(per, "NS_APP_USER_PROFILE_50_DIR no defined! This shouldn't happen!"); 
     }
   }
 
@@ -772,14 +771,6 @@ nsXREDirProvider::GetFilesInternal(const char* aProperty,
                       kAppendPlugins,
                       directories);
 
-    if (mProfileDir) {
-      nsCOMArray<nsIFile> profileDir;
-      profileDir.AppendObject(mProfileDir);
-      LoadDirsIntoArray(profileDir,
-                        kAppendPlugins,
-                        directories);
-    }
-
     rv = NS_NewArrayEnumerator(aResult, directories);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -925,9 +916,6 @@ nsXREDirProvider::GetUpdateRootDir(nsIFile* *aResult)
   PRUint32 bufLength = longPath.GetMutableData(&buf, MAXPATHLEN);
   NS_ENSURE_TRUE(bufLength >= MAXPATHLEN, NS_ERROR_OUT_OF_MEMORY);
 
-#ifdef WINCE
-  longPath.Assign(appPath);
-#else
   DWORD len = GetLongPathNameW(appPath.get(), buf, bufLength);
 
   // Failing GetLongPathName() is not fatal.
@@ -935,7 +923,7 @@ nsXREDirProvider::GetUpdateRootDir(nsIFile* *aResult)
     longPath.Assign(appPath);
   else
     longPath.SetLength(len);
-#endif
+
   // Use <UserLocalDataDir>\updates\<relative path to app dir from
   // Program Files> if app dir is under Program Files to avoid the
   // folder virtualization mess on Windows Vista

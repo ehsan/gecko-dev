@@ -41,7 +41,9 @@
 #include "mozOSXSpell.h"
 #else
 #include "mozHunspell.h"
+#ifdef MOZ_XUL_APP
 #include "mozHunspellDirProvider.h"
+#endif
 #endif
 
 #include "mozSpellChecker.h"
@@ -70,7 +72,9 @@
 NS_GENERIC_FACTORY_CONSTRUCTOR(mozOSXSpell)
 #else
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(mozHunspell, Init)
+#ifdef MOZ_XUL_APP
 NS_GENERIC_FACTORY_CONSTRUCTOR(mozHunspellDirProvider)
+#endif
 #endif
 
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(mozSpellChecker, Init)
@@ -132,6 +136,7 @@ static nsModuleComponentInfo components[] = {
         MOZ_HUNSPELL_CONTRACTID,
         mozHunspellConstructor
     },
+#ifdef MOZ_XUL_APP
     {
         "mozHunspellDirProvider",
         HUNSPELLDIRPROVIDER_CID,
@@ -140,6 +145,7 @@ static nsModuleComponentInfo components[] = {
         mozHunspellDirProvider::Register,
         mozHunspellDirProvider::Unregister
     },
+#endif // MOZ_XUL_APP
 #endif // MOZ_MACBROWSER
   {
       NULL,

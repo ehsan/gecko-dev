@@ -57,6 +57,10 @@ MODULE_OPTIMIZE_FLAGS = -Os -fno-strict-aliasing $(MOZ_OPTIMIZE_SIZE_TWEAK)
 endif
 endif
 
+ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
+REQUIRES		+= macmorefiles
+endif
+
 CPPSRCS		= \
 		nsAppFileLocationProvider.cpp \
 		nsBinaryStream.cpp \
@@ -66,17 +70,15 @@ CPPSRCS		= \
 		nsLinebreakConverter.cpp \
 		nsLocalFileCommon.cpp \
 		nsMultiplexInputStream.cpp \
-		nsNativeCharsetUtils.cpp \
 		nsPipe3.cpp \
 		nsStreamUtils.cpp \
 		nsScriptableInputStream.cpp \
 		nsSegmentedBuffer.cpp \
+		SpecialSystemDirectory.cpp \
 		nsStorageStream.cpp \
 		nsStringStream.cpp \
 		nsUnicharInputStream.cpp \
-		nsIOUtil.cpp \
-		nsWildCard.cpp \
-		SpecialSystemDirectory.cpp \
+		nsNativeCharsetUtils.cpp \
 		$(NULL)
 
 ifndef MOZ_NO_FAST_LOAD
@@ -108,12 +110,11 @@ EXPORTS		= \
 		nsLinebreakConverter.h \
 		nsLocalFile.h \
 		nsMultiplexInputStream.h \
-		nsNativeCharsetUtils.h \
 		nsScriptableInputStream.h \
 		nsStorageStream.h \
 		nsStringStream.h \
 		nsStreamUtils.h \
-		nsWildCard.h \
+		nsNativeCharsetUtils.h \
 		$(NULL)			
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),os2)
@@ -155,7 +156,6 @@ XPIDLSRCS	= \
 		nsIUnicharOutputStream.idl \
 		nsIConverterInputStream.idl \
 		nsIConverterOutputStream.idl \
-		nsIIOUtil.idl \
 		$(NULL)
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),os2)

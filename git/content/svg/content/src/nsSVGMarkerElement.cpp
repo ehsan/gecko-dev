@@ -35,8 +35,11 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsGkAtoms.h"
+#include "nsSVGAnimatedRect.h"
+#include "nsSVGRect.h"
 #include "nsCOMPtr.h"
 #include "nsISVGValueUtils.h"
+#include "nsSVGAnimatedPreserveAspectRatio.h"
 #include "nsSVGPreserveAspectRatio.h"
 #include "nsSVGMatrix.h"
 #include "nsDOMError.h"
@@ -75,12 +78,10 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(Marker)
 //----------------------------------------------------------------------
 // nsISupports methods
 
-NS_SVG_VAL_IMPL_CYCLE_COLLECTION(nsSVGOrientType::DOMAnimatedEnum, mSVGElement)
+NS_IMPL_ADDREF(nsSVGOrientType::DOMAnimatedEnum)
+NS_IMPL_RELEASE(nsSVGOrientType::DOMAnimatedEnum)
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsSVGOrientType::DOMAnimatedEnum)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsSVGOrientType::DOMAnimatedEnum)
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGOrientType::DOMAnimatedEnum)
+NS_INTERFACE_MAP_BEGIN(nsSVGOrientType::DOMAnimatedEnum)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGAnimatedEnumeration)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
   NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGAnimatedEnumeration)
@@ -89,10 +90,12 @@ NS_INTERFACE_MAP_END
 NS_IMPL_ADDREF_INHERITED(nsSVGMarkerElement,nsSVGMarkerElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGMarkerElement,nsSVGMarkerElementBase)
 
-NS_INTERFACE_TABLE_HEAD(nsSVGMarkerElement)
-  NS_NODE_INTERFACE_TABLE5(nsSVGMarkerElement, nsIDOMNode, nsIDOMElement,
-                           nsIDOMSVGElement, nsIDOMSVGFitToViewBox,
-                           nsIDOMSVGMarkerElement)
+NS_INTERFACE_MAP_BEGIN(nsSVGMarkerElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMNode)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGFitToViewBox)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGMarkerElement)
   NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGMarkerElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGMarkerElementBase)
 
@@ -133,6 +136,42 @@ nsSVGMarkerElement::nsSVGMarkerElement(nsINodeInfo *aNodeInfo)
 {
 }
 
+nsresult
+nsSVGMarkerElement::Init()
+{
+  nsresult rv = nsSVGMarkerElementBase::Init();
+  NS_ENSURE_SUCCESS(rv,rv);
+
+  // Create mapped properties:
+
+  // DOM property: viewBox
+  {
+    nsCOMPtr<nsIDOMSVGRect> viewbox;
+    rv = NS_NewSVGRect(getter_AddRefs(viewbox));
+    NS_ENSURE_SUCCESS(rv,rv);
+    rv = NS_NewSVGAnimatedRect(getter_AddRefs(mViewBox), viewbox);
+    NS_ENSURE_SUCCESS(rv,rv);
+    rv = AddMappedSVGValue(nsGkAtoms::viewBox, mViewBox);
+    NS_ENSURE_SUCCESS(rv,rv);
+  }
+
+  // DOM property: preserveAspectRatio
+  {
+    nsCOMPtr<nsIDOMSVGPreserveAspectRatio> preserveAspectRatio;
+    rv = NS_NewSVGPreserveAspectRatio(getter_AddRefs(preserveAspectRatio));
+    NS_ENSURE_SUCCESS(rv,rv);
+    rv = NS_NewSVGAnimatedPreserveAspectRatio(
+      getter_AddRefs(mPreserveAspectRatio),
+      preserveAspectRatio);
+    NS_ENSURE_SUCCESS(rv,rv);
+    rv = AddMappedSVGValue(nsGkAtoms::preserveAspectRatio,
+                           mPreserveAspectRatio);
+    NS_ENSURE_SUCCESS(rv,rv);
+  }
+  
+  return NS_OK;
+}
+
 //----------------------------------------------------------------------
 // nsIDOMNode methods
 
@@ -144,15 +183,18 @@ NS_IMPL_ELEMENT_CLONE_WITH_INIT(nsSVGMarkerElement)
 /* readonly attribute nsIDOMSVGAnimatedRect viewBox; */
   NS_IMETHODIMP nsSVGMarkerElement::GetViewBox(nsIDOMSVGAnimatedRect * *aViewBox)
 {
-  return mViewBox.ToDOMAnimatedRect(aViewBox, this);
+  *aViewBox = mViewBox;
+  NS_ADDREF(*aViewBox);
+  return NS_OK;
 }
 
 /* readonly attribute nsIDOMSVGAnimatedPreserveAspectRatio preserveAspectRatio; */
 NS_IMETHODIMP
-nsSVGMarkerElement::GetPreserveAspectRatio(nsIDOMSVGAnimatedPreserveAspectRatio
-                                           **aPreserveAspectRatio)
+nsSVGMarkerElement::GetPreserveAspectRatio(nsIDOMSVGAnimatedPreserveAspectRatio * *aPreserveAspectRatio)
 {
-  return mPreserveAspectRatio.ToDOMAnimatedPreserveAspectRatio(aPreserveAspectRatio, this);
+  *aPreserveAspectRatio = mPreserveAspectRatio;
+  NS_ADDREF(*aPreserveAspectRatio);
+  return NS_OK;
 }
 
 //----------------------------------------------------------------------
@@ -222,6 +264,17 @@ NS_IMETHODIMP nsSVGMarkerElement::SetOrientToAngle(nsIDOMSVGAngle *angle)
 }
 
 //----------------------------------------------------------------------
+// nsISVGValueObserver methods:
+
+NS_IMETHODIMP
+nsSVGMarkerElement::DidModifySVGObservable(nsISVGValue* observable,
+                                           nsISVGValue::modificationType aModType)
+{
+  mViewBoxToViewportTransform = nsnull;
+  return NS_OK;
+}
+
+//----------------------------------------------------------------------
 // nsIContent methods
 
 NS_IMETHODIMP_(PRBool)
@@ -281,9 +334,12 @@ nsSVGMarkerElement::UnsetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
 {
   if (aNamespaceID == kNameSpaceID_None) {
     if (aName == nsGkAtoms::viewBox && mCoordCtx) {
-      mViewBox.SetBaseValue(0, 0, mLengthAttributes[MARKERWIDTH].GetAnimValue(mCoordCtx),
-                            mLengthAttributes[MARKERHEIGHT].GetAnimValue(mCoordCtx),
-                            this, PR_FALSE);
+      nsCOMPtr<nsIDOMSVGRect> vb;
+      mViewBox->GetAnimVal(getter_AddRefs(vb));
+      vb->SetX(0);
+      vb->SetY(0);
+      vb->SetWidth(mLengthAttributes[MARKERWIDTH].GetAnimValue(mCoordCtx));
+      vb->SetHeight(mLengthAttributes[MARKERHEIGHT].GetAnimValue(mCoordCtx));
       return nsGenericElement::UnsetAttr(aNamespaceID, aName, aNotify);
     } else if (aName == nsGkAtoms::orient) {
       mOrientType.SetBaseValue(SVG_MARKER_ORIENT_ANGLE);
@@ -305,26 +361,11 @@ nsSVGMarkerElement::DidChangeLength(PRUint8 aAttrEnum, PRBool aDoSetAttr)
 
   if (mCoordCtx && !HasAttr(kNameSpaceID_None, nsGkAtoms::viewBox) &&
       (aAttrEnum == MARKERWIDTH || aAttrEnum == MARKERHEIGHT)) {
-    mViewBox.SetBaseValue(0, 0, mLengthAttributes[MARKERWIDTH].GetAnimValue(mCoordCtx),
-                          mLengthAttributes[MARKERHEIGHT].GetAnimValue(mCoordCtx),
-                          this, PR_FALSE);
+    nsCOMPtr<nsIDOMSVGRect> vb;
+    mViewBox->GetAnimVal(getter_AddRefs(vb));
+    vb->SetWidth(mLengthAttributes[MARKERWIDTH].GetAnimValue(mCoordCtx));
+    vb->SetHeight(mLengthAttributes[MARKERHEIGHT].GetAnimValue(mCoordCtx));
   }
-}
-
-void
-nsSVGMarkerElement::DidChangeViewBox(PRBool aDoSetAttr)
-{
-  nsSVGMarkerElementBase::DidChangeViewBox(aDoSetAttr);
-
-  mViewBoxToViewportTransform = nsnull;
-}
-
-void
-nsSVGMarkerElement::DidChangePreserveAspectRatio(PRBool aDoSetAttr)
-{
-  nsSVGMarkerElementBase::DidChangePreserveAspectRatio(aDoSetAttr);
-
-  mViewBoxToViewportTransform = nsnull;
 }
 
 void 
@@ -334,9 +375,10 @@ nsSVGMarkerElement::SetParentCoordCtxProvider(nsSVGSVGElement *aContext)
   mViewBoxToViewportTransform = nsnull;
 
   if (mCoordCtx && !HasAttr(kNameSpaceID_None, nsGkAtoms::viewBox)) {
-    mViewBox.SetBaseValue(0, 0, mLengthAttributes[MARKERWIDTH].GetAnimValue(mCoordCtx),
-                          mLengthAttributes[MARKERHEIGHT].GetAnimValue(mCoordCtx),
-                          this, PR_FALSE);
+    nsCOMPtr<nsIDOMSVGRect> vb;
+    mViewBox->GetAnimVal(getter_AddRefs(vb));
+    vb->SetWidth(mLengthAttributes[MARKERWIDTH].GetAnimValue(mCoordCtx));
+    vb->SetHeight(mLengthAttributes[MARKERHEIGHT].GetAnimValue(mCoordCtx));
   }
 }
 
@@ -359,18 +401,6 @@ nsSVGMarkerElement::GetEnumInfo()
 {
   return EnumAttributesInfo(mEnumAttributes, sEnumInfo,
                             NS_ARRAY_LENGTH(sEnumInfo));
-}
-
-nsSVGViewBox *
-nsSVGMarkerElement::GetViewBox()
-{
-  return &mViewBox;
-}
-
-nsSVGPreserveAspectRatio *
-nsSVGMarkerElement::GetPreserveAspectRatio()
-{
-  return &mPreserveAspectRatio;
 }
 
 //----------------------------------------------------------------------
@@ -411,29 +441,38 @@ nsSVGMarkerElement::GetViewboxToViewportTransform(nsIDOMSVGMatrix **_retval)
       mLengthAttributes[MARKERWIDTH].GetAnimValue(mCoordCtx);
     float viewportHeight = 
       mLengthAttributes[MARKERHEIGHT].GetAnimValue(mCoordCtx);
-   
-    const nsSVGViewBoxRect& viewbox = mViewBox.GetAnimValue(); 
-
-    if (viewbox.width <= 0.0f || viewbox.height <= 0.0f) {
+    
+    float viewboxX, viewboxY, viewboxWidth, viewboxHeight;
+    {
+      nsCOMPtr<nsIDOMSVGRect> vb;
+      mViewBox->GetAnimVal(getter_AddRefs(vb));
+      NS_ASSERTION(vb, "could not get viewbox");
+      vb->GetX(&viewboxX);
+      vb->GetY(&viewboxY);
+      vb->GetWidth(&viewboxWidth);
+      vb->GetHeight(&viewboxHeight);
+    }
+    if (viewboxWidth <= 0.0f || viewboxHeight <= 0.0f) {
       return NS_ERROR_FAILURE; // invalid - don't paint element
     }
 
-    float refX = mLengthAttributes[REFX].GetAnimValue(mCoordCtx);
-    float refY = mLengthAttributes[REFY].GetAnimValue(mCoordCtx);
+    float refX =
+      mLengthAttributes[REFX].GetAnimValue(mCoordCtx);
+    float refY = 
+      mLengthAttributes[REFY].GetAnimValue(mCoordCtx);
 
     nsCOMPtr<nsIDOMSVGMatrix> vb2vp =
       nsSVGUtils::GetViewBoxTransform(viewportWidth, viewportHeight,
-                                      viewbox.x, viewbox.y,
-                                      viewbox.width, viewbox.height,
+                                      viewboxX, viewboxY,
+                                      viewboxWidth, viewboxHeight,
                                       mPreserveAspectRatio,
                                       PR_TRUE);
     NS_ENSURE_TRUE(vb2vp, NS_ERROR_OUT_OF_MEMORY);
-    gfxPoint ref = nsSVGUtils::ConvertSVGMatrixToThebes(vb2vp).
-                    Transform(gfxPoint(refX, refY));
+    nsSVGUtils::TransformPoint(vb2vp, &refX, &refY);
 
     nsCOMPtr<nsIDOMSVGMatrix> translate;
     NS_NewSVGMatrix(getter_AddRefs(translate),
-                    1.0f, 0.0f, 0.0f, 1.0f, -ref.x, -ref.y);
+                    1.0f, 0.0f, 0.0f, 1.0f, -refX, -refY);
     NS_ENSURE_TRUE(translate, NS_ERROR_OUT_OF_MEMORY);
     translate->Multiply(vb2vp, getter_AddRefs(mViewBoxToViewportTransform));
   }

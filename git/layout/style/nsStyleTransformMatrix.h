@@ -112,13 +112,10 @@ class nsStyleTransformMatrix
    * @param aData The nsCSSValue::Array* containing the transform function.
    * @param aContext The style context, used for unit conversion.
    * @param aPresContext The presentation context, used for unit conversion.
-   * @param aCanStoreInRuleTree Set to false if the result cannot be cached
-   *                            in the rule tree, otherwise untouched.
    */
   void SetToTransformFunction(const nsCSSValue::Array* aData,
                               nsStyleContext* aContext,
-                              nsPresContext* aPresContext,
-                              PRBool& aCanStoreInRuleTree);
+                              nsPresContext* aPresContext);
 
   /**
    * Sets this matrix to be the identity matrix.

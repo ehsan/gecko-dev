@@ -268,15 +268,13 @@ nsTreeSelection::nsTreeSelection(nsITreeBoxObject* aTree)
 nsTreeSelection::~nsTreeSelection()
 {
   delete mFirstRange;
-  if (mSelectTimer)
-    mSelectTimer->Cancel();
 }
 
 // QueryInterface implementation for nsBoxObject
 NS_INTERFACE_MAP_BEGIN(nsTreeSelection)
   NS_INTERFACE_MAP_ENTRY(nsITreeSelection)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(TreeSelection)
+  NS_INTERFACE_MAP_ENTRY_DOM_CLASSINFO(TreeSelection)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_ADDREF(nsTreeSelection)
@@ -301,9 +299,6 @@ NS_IMETHODIMP nsTreeSelection::SetTree(nsITreeBoxObject * aTree)
 
 NS_IMETHODIMP nsTreeSelection::GetSingle(PRBool* aSingle)
 {
-  if (!mTree)
-    return NS_ERROR_NULL_POINTER;
-
   nsCOMPtr<nsIBoxObject> boxObject = do_QueryInterface(mTree);
 
   nsCOMPtr<nsIDOMElement> element;
@@ -415,8 +410,8 @@ NS_IMETHODIMP nsTreeSelection::ToggleSelect(PRInt32 aIndex)
   else {
     if (!mFirstRange->Contains(aIndex)) {
       PRBool single;
-      rv = GetSingle(&single);
-      if (NS_SUCCEEDED(rv) && !single)
+      GetSingle(&single);
+      if (!single)
         rv = mFirstRange->Add(aIndex);
     }
     else
@@ -435,10 +430,7 @@ NS_IMETHODIMP nsTreeSelection::ToggleSelect(PRInt32 aIndex)
 NS_IMETHODIMP nsTreeSelection::RangedSelect(PRInt32 aStartIndex, PRInt32 aEndIndex, PRBool aAugment)
 {
   PRBool single;
-  nsresult rv = GetSingle(&single);
-  if (NS_FAILED(rv))
-    return rv;
-
+  GetSingle(&single);
   if ((mFirstRange || (aStartIndex != aEndIndex)) && single)
     return NS_OK;
 
@@ -460,7 +452,7 @@ NS_IMETHODIMP nsTreeSelection::RangedSelect(PRInt32 aStartIndex, PRInt32 aEndInd
   }
 
   mShiftSelectPivot = aStartIndex;
-  rv = SetCurrentIndex(aEndIndex);
+  nsresult rv = SetCurrentIndex(aEndIndex);
   if (NS_FAILED(rv))
     return rv;
   
@@ -542,10 +534,7 @@ NS_IMETHODIMP nsTreeSelection::SelectAll()
   PRInt32 rowCount;
   view->GetRowCount(&rowCount);
   PRBool single;
-  nsresult rv = GetSingle(&single);
-  if (NS_FAILED(rv))
-    return rv;
-
+  GetSingle(&single);
   if (rowCount == 0 || (rowCount > 1 && single))
     return NS_OK;
 
@@ -650,12 +639,11 @@ NS_IMETHODIMP nsTreeSelection::SetCurrentIndex(PRInt32 aIndex)
   nsCOMPtr<nsIDOMElement> treeElt;
   boxObject->GetElement(getter_AddRefs(treeElt));
 
-  nsCOMPtr<nsINode> treeDOMNode(do_QueryInterface(treeElt));
-  NS_ENSURE_STATE(treeDOMNode);
+  nsCOMPtr<nsIDOMNode> treeDOMNode(do_QueryInterface(treeElt));
+  NS_ENSURE_TRUE(treeDOMNode, NS_ERROR_UNEXPECTED);
 
-  nsRefPtr<nsPLDOMEvent> event =
-    new nsPLDOMEvent(treeDOMNode, NS_LITERAL_STRING("DOMMenuItemActive"),
-                     PR_FALSE);
+  nsRefPtr<nsPLDOMEvent> event = new nsPLDOMEvent(treeDOMNode,
+                                         NS_LITERAL_STRING("DOMMenuItemActive"));
   if (!event)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -670,9 +658,6 @@ NS_IMETHODIMP nsTreeSelection::GetCurrentColumn(nsITreeColumn** aCurrentColumn)
 
 NS_IMETHODIMP nsTreeSelection::SetCurrentColumn(nsITreeColumn* aCurrentColumn)
 {
-  if (!mTree) {
-    return NS_ERROR_UNEXPECTED;
-  }
   if (mCurrentColumn == aCurrentColumn) {
     return NS_OK;
   }
@@ -834,14 +819,26 @@ nsTreeSelection::FireOnSelectHandler()
      return NS_ERROR_UNEXPECTED;
   nsCOMPtr<nsIDOMElement> elt;
   boxObject->GetElement(getter_AddRefs(elt));
-  NS_ENSURE_STATE(elt);
 
-  nsCOMPtr<nsINode> node(do_QueryInterface(elt));
-  NS_ENSURE_STATE(node);
+  nsCOMPtr<nsIContent> content(do_QueryInterface(elt));
+  nsCOMPtr<nsIDocument> document = content->GetDocument();
+  
+  // we might be firing on a delay, so it's possible in rare cases that
+  // the document may have been destroyed by the time it fires
+  if (!document)
+    return NS_OK;
 
-  nsRefPtr<nsPLDOMEvent> event =
-    new nsPLDOMEvent(node, NS_LITERAL_STRING("select"), PR_FALSE);
-  event->RunDOMEventWhenSafe();
+  nsIPresShell *shell = document->GetPrimaryShell();
+  if (shell) {
+    // Retrieve the context in which our DOM event will fire.
+    nsCOMPtr<nsPresContext> aPresContext = shell->GetPresContext();
+
+    nsEventStatus status = nsEventStatus_eIgnore;
+    nsEvent event(PR_TRUE, NS_FORM_SELECTED);
+
+    nsEventDispatcher::Dispatch(content, aPresContext, &event, nsnull, &status);
+  }
+
   return NS_OK;
 }
 

@@ -59,7 +59,6 @@
 #include "nsIMenuFrame.h"
 #include "prlink.h"
 #include "nsIDOMHTMLInputElement.h"
-#include "nsIDOMNSHTMLInputElement.h"
 #include "nsWidgetAtoms.h"
 
 #include <gdk/gdkprivate.h>
@@ -72,6 +71,16 @@
 NS_IMPL_ISUPPORTS2(nsNativeThemeGTK, nsITheme, nsIObserver)
 
 static int gLastGdkError;
+
+static inline bool IsCheckboxWidgetType(PRUint8 aWidgetType)
+{
+  return (aWidgetType == NS_THEME_CHECKBOX || aWidgetType == NS_THEME_CHECKBOX_SMALL);
+}
+
+static inline bool IsRadioWidgetType(PRUint8 aWidgetType)
+{
+  return (aWidgetType == NS_THEME_RADIO || aWidgetType == NS_THEME_RADIO_SMALL);
+}
 
 nsNativeThemeGTK::nsNativeThemeGTK()
 {
@@ -118,14 +127,6 @@ nsNativeThemeGTK::RefreshWidgetWindow(nsIFrame* aFrame)
     return;
  
   vm->UpdateAllViews(NS_VMREFRESH_NO_SYNC);
-}
-
-static PRBool IsFrameContentNodeOfType(nsIFrame *aFrame, PRUint32 aFlags)
-{
-  nsIContent *content = aFrame ? aFrame->GetContent() : nsnull;
-  if (!content)
-    return false;
-  return content->IsNodeOfType(aFlags);
 }
 
 static PRBool IsWidgetTypeDisabled(PRUint8* aDisabledVector, PRUint8 aWidgetType) {
@@ -193,13 +194,14 @@ nsNativeThemeGTK::GetGtkWidgetAndState(PRUint8 aWidgetType, nsIFrame* aFrame,
       // For XUL checkboxes and radio buttons, the state of the parent
       // determines our state.
       nsIFrame *stateFrame = aFrame;
-      if (aFrame && ((aWidgetFlags && (aWidgetType == NS_THEME_CHECKBOX ||
-                                       aWidgetType == NS_THEME_RADIO)) ||
+      if (aFrame && ((aWidgetFlags && (IsCheckboxWidgetType(aWidgetType) ||
+                                       IsRadioWidgetType(aWidgetType))) ||
                      aWidgetType == NS_THEME_CHECKBOX_LABEL ||
                      aWidgetType == NS_THEME_RADIO_LABEL)) {
 
         nsIAtom* atom = nsnull;
-        if (IsFrameContentNodeOfType(aFrame, nsINode::eXUL)) {
+        nsIContent *content = aFrame->GetContent();
+        if (content->IsNodeOfType(nsINode::eXUL)) {
           if (aWidgetType == NS_THEME_CHECKBOX_LABEL ||
               aWidgetType == NS_THEME_RADIO_LABEL) {
             // Adjust stateFrame so GetContentState finds the correct state.
@@ -211,7 +213,7 @@ nsNativeThemeGTK::GetGtkWidgetAndState(PRUint8 aWidgetType, nsIFrame* aFrame,
           }
           if (aWidgetFlags) {
             if (!atom) {
-              atom = (aWidgetType == NS_THEME_CHECKBOX ||
+              atom = (IsCheckboxWidgetType(aWidgetType) ||
                       aWidgetType == NS_THEME_CHECKBOX_LABEL) ? nsWidgetAtoms::checked
                                                               : nsWidgetAtoms::selected;
             }
@@ -219,17 +221,12 @@ nsNativeThemeGTK::GetGtkWidgetAndState(PRUint8 aWidgetType, nsIFrame* aFrame,
           }
         } else {
           if (aWidgetFlags) {
-            nsCOMPtr<nsIDOMHTMLInputElement> inputElt(do_QueryInterface(aFrame->GetContent()));
-            *aWidgetFlags = 0;
+            nsCOMPtr<nsIDOMHTMLInputElement> inputElt(do_QueryInterface(content));
             if (inputElt) {
               PRBool isHTMLChecked;
               inputElt->GetChecked(&isHTMLChecked);
-              if (isHTMLChecked)
-                *aWidgetFlags |= MOZ_GTK_WIDGET_CHECKED;
+              *aWidgetFlags = isHTMLChecked;
             }
-
-            if (GetIndeterminate(aFrame))
-              *aWidgetFlags |= MOZ_GTK_WIDGET_INCONSISTENT;
           }
         }
       } else if (aWidgetType == NS_THEME_TOOLBAR_BUTTON_DROPDOWN ||
@@ -247,7 +244,7 @@ nsNativeThemeGTK::GetGtkWidgetAndState(PRUint8 aWidgetType, nsIFrame* aFrame,
       aState->canDefault = FALSE; // XXX fix me
       aState->depressed = FALSE;
 
-      if (IsFrameContentNodeOfType(aFrame, nsINode::eXUL)) {
+      if (aFrame && aFrame->GetContent()->IsNodeOfType(nsINode::eXUL)) {
         // For these widget types, some element (either a child or parent)
         // actually has element focus, so we check the focused attribute
         // to see whether to draw in the focused state.
@@ -258,8 +255,8 @@ nsNativeThemeGTK::GetGtkWidgetAndState(PRUint8 aWidgetType, nsIFrame* aFrame,
             aWidgetType == NS_THEME_RADIO_CONTAINER ||
             aWidgetType == NS_THEME_RADIO_LABEL) {
           aState->focused = IsFocused(aFrame);
-        } else if (aWidgetType == NS_THEME_RADIO ||
-                   aWidgetType == NS_THEME_CHECKBOX) {
+        } else if (IsRadioWidgetType(aWidgetType) ||
+                   IsCheckboxWidgetType(aWidgetType)) {
           // In XUL, checkboxes and radios shouldn't have focus rings, their labels do
           aState->focused = FALSE;
         }
@@ -314,7 +311,9 @@ nsNativeThemeGTK::GetGtkWidgetAndState(PRUint8 aWidgetType, nsIFrame* aFrame,
             aWidgetType == NS_THEME_MENUSEPARATOR ||
             aWidgetType == NS_THEME_MENUARROW) {
           PRBool isTopLevel = PR_FALSE;
-          nsIMenuFrame *menuFrame = do_QueryFrame(aFrame);
+          nsIMenuFrame *menuFrame;
+          CallQueryInterface(aFrame, &menuFrame);
+
           if (menuFrame) {
             isTopLevel = menuFrame->IsOnMenuBar();
           }
@@ -331,12 +330,9 @@ nsNativeThemeGTK::GetGtkWidgetAndState(PRUint8 aWidgetType, nsIFrame* aFrame,
         
           if (aWidgetType == NS_THEME_CHECKMENUITEM ||
               aWidgetType == NS_THEME_RADIOMENUITEM) {
-            *aWidgetFlags = 0;
-            if (aFrame && aFrame->GetContent()) {
-              *aWidgetFlags = aFrame->GetContent()->
-                AttrValueIs(kNameSpaceID_None, nsWidgetAtoms::checked,
-                            nsWidgetAtoms::_true, eIgnoreCase);
-            }
+            *aWidgetFlags = aFrame && aFrame->GetContent()->
+              AttrValueIs(kNameSpaceID_None, nsWidgetAtoms::checked,
+                          nsWidgetAtoms::_true, eIgnoreCase);
           }
         }
 
@@ -351,7 +347,7 @@ nsNativeThemeGTK::GetGtkWidgetAndState(PRUint8 aWidgetType, nsIFrame* aFrame,
           if (aWidgetType == NS_THEME_TOOLBAR_BUTTON_DROPDOWN)
             aFrame = aFrame->GetParent();
 
-          PRBool menuOpen = IsOpenButton(aFrame);
+          PRBool menuOpen = CheckBooleanAttr(aFrame, nsWidgetAtoms::open);
           aState->depressed = IsCheckedButton(aFrame) || menuOpen;
           // we must not highlight buttons with open drop down menus on hover.
           aState->inHover = aState->inHover && !menuOpen;
@@ -375,8 +371,10 @@ nsNativeThemeGTK::GetGtkWidgetAndState(PRUint8 aWidgetType, nsIFrame* aFrame,
     aGtkWidgetType = MOZ_GTK_BUTTON;
     break;
   case NS_THEME_CHECKBOX:
+  case NS_THEME_CHECKBOX_SMALL:
   case NS_THEME_RADIO:
-    aGtkWidgetType = (aWidgetType == NS_THEME_RADIO) ? MOZ_GTK_RADIOBUTTON : MOZ_GTK_CHECKBUTTON;
+  case NS_THEME_RADIO_SMALL:
+    aGtkWidgetType = IsRadioWidgetType(aWidgetType) ? MOZ_GTK_RADIOBUTTON : MOZ_GTK_CHECKBUTTON;
     break;
   case NS_THEME_SCROLLBAR_BUTTON_UP:
   case NS_THEME_SCROLLBAR_BUTTON_DOWN:
@@ -496,7 +494,8 @@ nsNativeThemeGTK::GetGtkWidgetAndState(PRUint8 aWidgetType, nsIFrame* aFrame,
   case NS_THEME_DROPDOWN:
     aGtkWidgetType = MOZ_GTK_DROPDOWN;
     if (aWidgetFlags)
-        *aWidgetFlags = IsFrameContentNodeOfType(aFrame, nsINode::eHTML);
+        *aWidgetFlags = aFrame && aFrame->GetContent()->
+                                        IsNodeOfType(nsINode::eHTML);
     break;
   case NS_THEME_DROPDOWN_TEXT:
     return PR_FALSE; // nothing to do, but prevents the bg from being drawn
@@ -671,11 +670,13 @@ GetExtraSizeForWidget(PRUint8 aWidgetType, nsIntMargin* aExtra)
 
   // Include the indicator spacing (the padding around the control).
   case NS_THEME_CHECKBOX:
+  case NS_THEME_CHECKBOX_SMALL:
   case NS_THEME_RADIO:
+  case NS_THEME_RADIO_SMALL:
     {
       gint indicator_size, indicator_spacing;
 
-      if (aWidgetType == NS_THEME_CHECKBOX) {
+      if (IsCheckboxWidgetType(aWidgetType)) {
         moz_gtk_checkbox_get_metrics(&indicator_size, &indicator_spacing);
       } else {
         moz_gtk_radio_get_metrics(&indicator_size, &indicator_spacing);
@@ -685,16 +686,6 @@ GetExtraSizeForWidget(PRUint8 aWidgetType, nsIntMargin* aExtra)
       aExtra->right = indicator_spacing;
       aExtra->bottom = indicator_spacing;
       aExtra->left = indicator_spacing;
-      return PR_TRUE;
-    }
-  case NS_THEME_BUTTON :
-    {
-      gint top, left, bottom, right;
-      moz_gtk_button_get_default_border(&top, &left, &bottom, &right);
-      aExtra->top = top;
-      aExtra->right = right;
-      aExtra->bottom = bottom;
-      aExtra->left = left;
       return PR_TRUE;
     }
   default:
@@ -823,7 +814,7 @@ nsNativeThemeGTK::DrawWidgetBackground(nsIRenderingContext* aContext,
 
 NS_IMETHODIMP
 nsNativeThemeGTK::GetWidgetBorder(nsIDeviceContext* aContext, nsIFrame* aFrame,
-                                  PRUint8 aWidgetType, nsIntMargin* aResult)
+                                  PRUint8 aWidgetType, nsMargin* aResult)
 {
   GtkTextDirection direction = GetTextDirection(aFrame);
   aResult->top = aResult->left = aResult->right = aResult->bottom = 0;
@@ -866,7 +857,8 @@ nsNativeThemeGTK::GetWidgetBorder(nsIDeviceContext* aContext, nsIFrame* aFrame,
                                nsnull))
         moz_gtk_get_widget_border(gtkWidgetType, &aResult->left, &aResult->top,
                                   &aResult->right, &aResult->bottom, direction,
-                                  IsFrameContentNodeOfType(aFrame, nsINode::eHTML));
+                                  aFrame && aFrame->GetContent()->
+                                        IsNodeOfType(nsINode::eHTML));
     }
   }
   return NS_OK;
@@ -875,7 +867,7 @@ nsNativeThemeGTK::GetWidgetBorder(nsIDeviceContext* aContext, nsIFrame* aFrame,
 PRBool
 nsNativeThemeGTK::GetWidgetPadding(nsIDeviceContext* aContext,
                                    nsIFrame* aFrame, PRUint8 aWidgetType,
-                                   nsIntMargin* aResult)
+                                   nsMargin* aResult)
 {
   switch (aWidgetType) {
     case NS_THEME_BUTTON_FOCUS:
@@ -888,7 +880,9 @@ nsNativeThemeGTK::GetWidgetPadding(nsIDeviceContext* aContext,
     // and have a meaningful baseline, so they can't have
     // author-specified padding.
     case NS_THEME_CHECKBOX:
+    case NS_THEME_CHECKBOX_SMALL:
     case NS_THEME_RADIO:
+    case NS_THEME_RADIO_SMALL:
       aResult->SizeTo(0, 0, 0, 0);
       return PR_TRUE;
   }
@@ -937,7 +931,7 @@ nsNativeThemeGTK::GetWidgetOverflow(nsIDeviceContext* aContext,
 NS_IMETHODIMP
 nsNativeThemeGTK::GetMinimumWidgetSize(nsIRenderingContext* aContext,
                                        nsIFrame* aFrame, PRUint8 aWidgetType,
-                                       nsIntSize* aResult, PRBool* aIsOverridable)
+                                       nsSize* aResult, PRBool* aIsOverridable)
 {
   aResult->width = aResult->height = 0;
   *aIsOverridable = PR_TRUE;
@@ -1055,11 +1049,13 @@ nsNativeThemeGTK::GetMinimumWidgetSize(nsIRenderingContext* aContext,
     }
     break;
   case NS_THEME_CHECKBOX:
+  case NS_THEME_CHECKBOX_SMALL:
   case NS_THEME_RADIO:
+  case NS_THEME_RADIO_SMALL:
     {
       gint indicator_size, indicator_spacing;
 
-      if (aWidgetType == NS_THEME_CHECKBOX) {
+      if (IsCheckboxWidgetType(aWidgetType)) {
         moz_gtk_checkbox_get_metrics(&indicator_size, &indicator_spacing);
       } else {
         moz_gtk_radio_get_metrics(&indicator_size, &indicator_spacing);
@@ -1091,7 +1087,7 @@ nsNativeThemeGTK::GetMinimumWidgetSize(nsIRenderingContext* aContext,
       nsCOMPtr<nsIDeviceContext> dc;
       aContext->GetDeviceContext(*getter_AddRefs(dc));
 
-      nsIntMargin border;
+      nsMargin border;
       nsNativeThemeGTK::GetWidgetBorder(dc, aFrame, aWidgetType, &border);
       aResult->width = border.left + border.right;
       aResult->height = border.top + border.bottom;
@@ -1221,7 +1217,9 @@ nsNativeThemeGTK::ThemeSupportsWidget(nsPresContext* aPresContext,
   case NS_THEME_BUTTON:
   case NS_THEME_BUTTON_FOCUS:
   case NS_THEME_RADIO:
+  case NS_THEME_RADIO_SMALL:
   case NS_THEME_CHECKBOX:
+  case NS_THEME_CHECKBOX_SMALL:
   case NS_THEME_TOOLBOX: // N/A
   case NS_THEME_TOOLBAR:
   case NS_THEME_TOOLBAR_BUTTON:
@@ -1299,7 +1297,7 @@ nsNativeThemeGTK::ThemeSupportsWidget(nsPresContext* aPresContext,
   case NS_THEME_DROPDOWN_BUTTON:
     // "Native" dropdown buttons cause padding and margin problems, but only
     // in HTML so allow them in XUL.
-    return (!aFrame || IsFrameContentNodeOfType(aFrame, nsINode::eXUL)) &&
+    return (!aFrame || aFrame->GetContent()->IsNodeOfType(nsINode::eXUL)) &&
            !IsWidgetStyled(aPresContext, aFrame, aWidgetType);
 
   }
@@ -1312,8 +1310,8 @@ nsNativeThemeGTK::WidgetIsContainer(PRUint8 aWidgetType)
 {
   // XXXdwh At some point flesh all of this out.
   if (aWidgetType == NS_THEME_DROPDOWN_BUTTON ||
-      aWidgetType == NS_THEME_RADIO ||
-      aWidgetType == NS_THEME_CHECKBOX ||
+      IsRadioWidgetType(aWidgetType) ||
+      IsCheckboxWidgetType(aWidgetType) ||
       aWidgetType == NS_THEME_TAB_SCROLLARROW_BACK ||
       aWidgetType == NS_THEME_TAB_SCROLLARROW_FORWARD)
     return PR_FALSE;
@@ -1335,10 +1333,4 @@ PRBool
 nsNativeThemeGTK::ThemeNeedsComboboxDropmarker()
 {
   return PR_FALSE;
-}
-
-nsTransparencyMode
-nsNativeThemeGTK::GetWidgetTransparency(PRUint8 aWidgetType)
-{
-  return eTransparencyOpaque;
 }

@@ -22,7 +22,6 @@
  * Contributor(s):
  *   Sungjoon Steve Won <stevewon@gmail.com> (Original Author)
  *   Asaf Romano <mano@mozilla.com>
- *   Marco Bonarco <mak77@bonardo.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -42,9 +41,8 @@ let Ci = Components.interfaces;
 let Cc = Components.classes;
 let Cr = Components.results;
 
-const LOAD_IN_SIDEBAR_ANNO = "bookmarkProperties/loadInSidebar";
-const DESCRIPTION_ANNO = "bookmarkProperties/description";
-
+const loadInSidebarAnno = "bookmarkProperties/loadInSidebar";
+const descriptionAnno = "bookmarkProperties/description";
 const CLASS_ID = Components.ID("c0844a84-5a12-4808-80a8-809cb002bb4f");
 const CONTRACT_ID = "@mozilla.org/browser/placesTransactionsService;1";
 
@@ -59,7 +57,7 @@ __defineGetter__("PlacesUtils", function() {
 
 // The minimum amount of transactions we should tell our observers to begin
 // batching (rather than letting them do incremental drawing).
-const MIN_TRANSACTIONS_FOR_BATCH = 5;
+const MIN_TRANSACTIONS_FOR_BATCH = 5;  
 
 function placesTransactionsService() {
   this.mTransactionManager = Cc["@mozilla.org/transactionmanager;1"].
@@ -74,159 +72,112 @@ placesTransactionsService.prototype = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIPlacesTransactionsService,
                                          Ci.nsITransactionManager]),
 
-  aggregateTransactions:
-  function placesTxn_aggregateTransactions(aName, aTransactions) {
-    return new placesAggregateTransactions(aName, aTransactions);
+  aggregateTransactions: function placesAggrTransactions(name, transactions) {
+    return new placesAggregateTransactions(name, transactions);
   },
 
-  createFolder:
-  function placesTxn_createFolder(aName, aContainer, aIndex,
-                                  aAnnotations, aChildItemsTransactions) {
+  createFolder: function placesCrtFldr(aName, aContainer, aIndex,
+                                       aAnnotations, aChildItemsTransactions) {
      return new placesCreateFolderTransactions(aName, aContainer, aIndex,
                                                aAnnotations, aChildItemsTransactions);
   },
 
-  createItem:
-  function placesTxn_createItem(aURI, aContainer, aIndex, aTitle,
-                                aKeyword, aAnnotations, aChildTransactions) {
+  createItem: function placesCrtItem(aURI, aContainer, aIndex, aTitle,
+                                     aKeyword, aAnnotations, aChildTransactions) {
     return new placesCreateItemTransactions(aURI, aContainer, aIndex, aTitle,
                                             aKeyword, aAnnotations, aChildTransactions);
   },
 
-  createSeparator:
-  function placesTxn_createSeparator(aContainer, aIndex) {
+  createSeparator: function placesCrtSpr(aContainer, aIndex) {
     return new placesCreateSeparatorTransactions(aContainer, aIndex);
   },
 
-  createLivemark:
-  function placesTxn_createLivemark(aFeedURI, aSiteURI, aName,
-                                    aContainer, aIndex, aAnnotations) {
+  createLivemark: function placesCrtLivemark(aFeedURI, aSiteURI, aName,
+                                             aContainer, aIndex, aAnnotations) {
     return new placesCreateLivemarkTransactions(aFeedURI, aSiteURI, aName,
                                                 aContainer, aIndex, aAnnotations);
   },
 
-  moveItem:
-  function placesTxn_moveItem(aItemId, aNewContainer, aNewIndex) {
+  moveItem: function placesMvItem(aItemId, aNewContainer, aNewIndex) {
     return new placesMoveItemTransactions(aItemId, aNewContainer, aNewIndex);
   },
 
-  removeItem:
-  function placesTxn_removeItem(aItemId) {
-    if (aItemId == PlacesUtils.tagsFolderId ||
-        aItemId == PlacesUtils.placesRootId ||
-        aItemId == PlacesUtils.bookmarksMenuFolderId ||
-        aItemId == PlacesUtils.toolbarFolderId)
+  removeItem: function placesRmItem(id) {
+    if (id == PlacesUtils.tagsFolderId || id == PlacesUtils.placesRootId ||
+        id == PlacesUtils.bookmarksMenuFolderId ||
+        id == PlacesUtils.toolbarFolderId)
       throw Cr.NS_ERROR_INVALID_ARG;
 
     // if the item lives within a tag container, use the tagging transactions
-    var parent = PlacesUtils.bookmarks.getFolderIdForItem(aItemId);
+    var parent = PlacesUtils.bookmarks.getFolderIdForItem(id);
     var grandparent = PlacesUtils.bookmarks.getFolderIdForItem(parent);
     if (grandparent == PlacesUtils.tagsFolderId) {
-      var uri = PlacesUtils.bookmarks.getBookmarkURI(aItemId);
+      var uri = PlacesUtils.bookmarks.getBookmarkURI(id);
       return this.untagURI(uri, [parent]);
     }
-    
-    // if the item is a livemark container we will not save its children and
-    // will use createLivemark to undo.
-    if (PlacesUtils.itemIsLivemark(aItemId))
-      return new placesRemoveLivemarkTransaction(aItemId);
 
-    return new placesRemoveItemTransaction(aItemId);
+    return new placesRemoveItemTransaction(id);
   },
 
-  editItemTitle:
-  function placesTxn_editItemTitle(aItemId, aNewTitle) {
-    return new placesEditItemTitleTransactions(aItemId, aNewTitle);
+  editItemTitle: function placesEditItmTitle(id, newTitle) {
+    return new placesEditItemTitleTransactions(id, newTitle);
   },
 
-  editBookmarkURI:
-  function placesTxn_editBookmarkURI(aItemId, aNewURI) {
-    return new placesEditBookmarkURITransactions(aItemId, aNewURI);
+  editBookmarkURI: function placesEditBkmkURI(aBookmarkId, aNewURI) {
+    return new placesEditBookmarkURITransactions(aBookmarkId, aNewURI);
   },
 
-  setItemAnnotation:
-  function placesTxn_setItemAnnotation(aItemId, aAnnotationObject) {
-    return new placesSetItemAnnotationTransactions(aItemId, aAnnotationObject);
+  setLoadInSidebar: function placesSetLdInSdbar(aBookmarkId, aLoadInSidebar) {
+    return new placesSetLoadInSidebarTransactions(aBookmarkId, aLoadInSidebar);
   },
 
-  setPageAnnotation:
-  function placesTxn_setPageAnnotation(aURI, aAnnotationObject) {
-    return new placesSetPageAnnotationTransactions(aURI, aAnnotationObject);
+  editItemDescription: function placesEditItmDesc(aItemId, aDescription) {
+    return new placesEditItemDescriptionTransactions(aItemId, aDescription);
   },
 
-  setLoadInSidebar:
-  function placesTxn_setLoadInSidebar(aItemId, aLoadInSidebar) {
-    var annoObj = { name: LOAD_IN_SIDEBAR_ANNO,
-                    type: Ci.nsIAnnotationService.TYPE_INT32,
-                    flags: 0,
-                    value: aLoadInSidebar,
-                    expires: Ci.nsIAnnotationService.EXPIRE_NEVER };
-    return this.setItemAnnotation(aItemId, annoObj);
+  editBookmarkKeyword: function placesEditBkmkKwd(aItemId, newKeyword) {
+    return new placesEditBookmarkKeywordTransactions(aItemId, newKeyword);
   },
 
-  editItemDescription:
-  function placesTxn_editItemDescription(aItemId, aDescription) {
-    var annoObj = { name: DESCRIPTION_ANNO,
-                    type: Ci.nsIAnnotationService.TYPE_STRING,
-                    flags: 0,
-                    value: aDescription,
-                    expires: Ci.nsIAnnotationService.EXPIRE_NEVER };
-    return this.setItemAnnotation(aItemId, annoObj);
-  },
-
-  editBookmarkKeyword:
-  function placesTxn_editBookmarkKeyword(aItemId, aNewKeyword) {
-    return new placesEditBookmarkKeywordTransactions(aItemId, aNewKeyword);
-  },
-
-  editBookmarkPostData:
-  function placesTxn_editBookmarkPostdata(aItemId, aPostData) {
+  editBookmarkPostData: function placesEditBookmarkPostdata(aItemId, aPostData) {
     return new placesEditBookmarkPostDataTransactions(aItemId, aPostData);
   },
 
-  editLivemarkSiteURI:
-  function placesTxn_editLivemarkSiteURI(aLivemarkId, aSiteURI) {
-    return new placesEditLivemarkSiteURITransactions(aLivemarkId, aSiteURI);
+  editLivemarkSiteURI: function placesEditLvmkSiteURI(folderId, uri) {
+    return new placesEditLivemarkSiteURITransactions(folderId, uri);
   },
 
-  editLivemarkFeedURI:
-  function placesTxn_editLivemarkFeedURI(aLivemarkId, aFeedURI) {
-    return new placesEditLivemarkFeedURITransactions(aLivemarkId, aFeedURI);
+  editLivemarkFeedURI: function placesEditLvmkFeedURI(folderId, uri) {
+    return new placesEditLivemarkFeedURITransactions(folderId, uri);
   },
 
-  editBookmarkMicrosummary:
-  function placesTxn_editBookmarkMicrosummary(aItemId, aNewMicrosummary) {
-    return new placesEditBookmarkMicrosummaryTransactions(aItemId, aNewMicrosummary);
+  editBookmarkMicrosummary: function placesEditBkmkMicrosummary(aID, newMicrosummary) {
+    return new placesEditBookmarkMicrosummaryTransactions(aID, newMicrosummary);
   },
 
-  editItemDateAdded:
-  function placesTxn_editItemDateAdded(aItemId, aNewDateAdded) {
-    return new placesEditItemDateAddedTransaction(aItemId, aNewDateAdded);
+  editItemDateAdded: function placesEditItemDateAdded(aID, aNewDateAdded) {
+    return new placesEditItemDateAddedTransaction(aID, aNewDateAdded);
   },
 
-  editItemLastModified:
-  function placesTxn_editItemLastModified(aItemId, aNewLastModified) {
-    return new placesEditItemLastModifiedTransaction(aItemId, aNewLastModified);
+  editItemLastModified: function placesEditItemLastModified(aID, aNewLastModified) {
+    return new placesEditItemLastModifiedTransaction(aID, aNewLastModified);
   },
 
-  sortFolderByName:
-  function placesTxn_sortFolderByName(aFolderId) {
+  sortFolderByName: function placesSortFldrByName(aFolderId) {
     return new placesSortFolderByNameTransactions(aFolderId);
   },
 
-  tagURI:
-  function placesTxn_tagURI(aURI, aTags) {
+  tagURI: function placesTagURI(aURI, aTags) {
     return new placesTagURITransaction(aURI, aTags);
   },
 
-  untagURI:
-  function placesTxn_untagURI(aURI, aTags) {
+  untagURI: function placesUntagURI(aURI, aTags) {
     return new placesUntagURITransaction(aURI, aTags);
   },
 
   // Update commands in the undo group of the active window
   // commands in inactive windows will are updated on-focus
-  _updateCommands: function placesTxn__updateCommands() {
+  _updateCommands: function() {
     var wm = Cc["@mozilla.org/appshell/window-mediator;1"].
              getService(Ci.nsIWindowMediator);
     var win = wm.getMostRecentWindow(null);
@@ -235,42 +186,24 @@ placesTransactionsService.prototype = {
   },
 
   // nsITransactionManager
-  beginBatch: function() {
-    this.mTransactionManager.beginBatch();
-
-    // A no-op transaction is pushed to the stack, in order to make safe and
-    // easy to implement "Undo" an unknown number of transactions (including 0),
-    // "above" beginBatch and endBatch. Otherwise,implementing Undo that way
-    // head to dataloss: for example, if no changes were done in the
-    // edit-item panel, the last transaction on the undo stack would be the
-    // initial createItem transaction, or even worse, the batched editing of
-    // some other item.
-    // DO NOT MOVE this to the window scope, that would leak (bug 490068)! 
-    this.doTransaction({ doTransaction: function() { },
-                         undoTransaction: function() { },
-                         redoTransaction: function() { },
-                         isTransient: false,
-                         merge: function() { return false; } });
-  },
-
-  endBatch: function() this.mTransactionManager.endBatch(),
-
-  doTransaction: function placesTxn_doTransaction(txn) {
+  doTransaction: function doTransaction(txn) {
     this.mTransactionManager.doTransaction(txn);
     this._updateCommands();
   },
 
-  undoTransaction: function placesTxn_undoTransaction() {
+  undoTransaction: function undoTransaction() {
     this.mTransactionManager.undoTransaction();
     this._updateCommands();
   },
 
-  redoTransaction: function placesTxn_redoTransaction() {
+  redoTransaction: function redoTransaction() {
     this.mTransactionManager.redoTransaction();
     this._updateCommands();
   },
 
   clear: function() this.mTransactionManager.clear(),
+  beginBatch: function() this.mTransactionManager.beginBatch(),
+  endBatch: function() this.mTransactionManager.endBatch(),
 
   get numberOfUndoItems() {
     return this.mTransactionManager.numberOfUndoItems;
@@ -329,29 +262,13 @@ function placesAggregateTransactions(name, transactions) {
   this._name = name;
   this.container = -1;
   this.redoTransaction = this.doTransaction;
-
-  // Check child transactions number.  We will batch if we have more than
-  // MIN_TRANSACTIONS_FOR_BATCH total number of transactions.
-  var countTransactions = function(aTransactions, aTxnCount) {
-    for (let i = 0;
-         i < aTransactions.length && aTxnCount < MIN_TRANSACTIONS_FOR_BATCH;
-         i++, aTxnCount++) {
-      let txn = aTransactions[i].wrappedJSObject;
-      if (txn && txn.childTransactions && txn.childTransactions.length)
-        aTxnCount = countTransactions(txn.childTransactions, aTxnCount);
-    }
-    return aTxnCount;
-  }
-
-  var txnCount = countTransactions(transactions, 0);
-  this._useBatch = txnCount >= MIN_TRANSACTIONS_FOR_BATCH;
 }
 
 placesAggregateTransactions.prototype = {
   __proto__: placesBaseTransaction.prototype,
 
   doTransaction: function PAT_doTransaction() {
-    if (this._useBatch) {
+    if (this._transactions.length >= MIN_TRANSACTIONS_FOR_BATCH) {
       var callback = {
         _self: this,
         runBatched: function() {
@@ -365,7 +282,7 @@ placesAggregateTransactions.prototype = {
   },
 
   undoTransaction: function PAT_undoTransaction() {
-    if (this._useBatch) {
+    if (this._transactions.length >= MIN_TRANSACTIONS_FOR_BATCH) {
       var callback = {
         _self: this,
         runBatched: function() {
@@ -379,9 +296,7 @@ placesAggregateTransactions.prototype = {
   },
 
   commit: function PAT_commit(aUndo) {
-    // Use a copy of the transactions array, so we won't reverse the original
-    // one on undoing.
-    var transactions = this._transactions.slice(0);
+    var transactions = this._transactions;
     if (aUndo)
       transactions.reverse();
     for (var i = 0; i < transactions.length; i++) {
@@ -404,7 +319,7 @@ function placesCreateFolderTransactions(aName, aContainer, aIndex,
   this._index = typeof(aIndex) == "number" ? aIndex : -1;
   this._annotations = aAnnotations;
   this._id = null;
-  this.childTransactions = aChildItemsTransactions || [];
+  this._childItemsTransactions = aChildItemsTransactions || [];
   this.redoTransaction = this.doTransaction;
 }
 
@@ -421,26 +336,18 @@ placesCreateFolderTransactions.prototype = {
     if (this._annotations && this._annotations.length > 0)
       PlacesUtils.setAnnotationsForItem(this._id, this._annotations);
 
-    if (this.childTransactions.length) {
-      // Set the new container id into child transactions.
-      for (var i = 0; i < this.childTransactions.length; ++i) {
-        this.childTransactions[i].wrappedJSObject.container = this._id;
-      }
-
-      let aggregateTxn = new placesAggregateTransactions("Create folder childTxn",
-                                                         this.childTransactions);
-      aggregateTxn.doTransaction();
+    for (var i = 0; i < this._childItemsTransactions.length; ++i) {
+      var txn = this._childItemsTransactions[i];
+      txn.wrappedJSObject.container = this._id;
+      txn.doTransaction();
     }
   },
 
   undoTransaction: function PCFT_undoTransaction() {
-    if (this.childTransactions.length) {
-      let aggregateTxn = new placesAggregateTransactions("Create folder childTxn",
-                                                         this.childTransactions);
-      aggregateTxn.undoTransaction();
+    for (var i = 0; i < this._childItemsTransactions.length; ++i) {
+      var txn = this._childItemsTransactions[i];
+      txn.undoTransaction();
     }
-
-    // Remove item only after all child transactions have been reverted.
     PlacesUtils.bookmarks.removeFolder(this._id);
   }
 };
@@ -454,7 +361,7 @@ function placesCreateItemTransactions(aURI, aContainer, aIndex, aTitle,
   this._title = aTitle;
   this._keyword = aKeyword;
   this._annotations = aAnnotations;
-  this.childTransactions = aChildTransactions || [];
+  this._childTransactions = aChildTransactions || [];
   this.redoTransaction = this.doTransaction;
 }
 
@@ -472,28 +379,20 @@ placesCreateItemTransactions.prototype = {
       PlacesUtils.bookmarks.setKeywordForBookmark(this._id, this._keyword);
     if (this._annotations && this._annotations.length > 0)
       PlacesUtils.setAnnotationsForItem(this._id, this._annotations);
- 
-    if (this.childTransactions.length) {
-      // Set the new item id into child transactions.
-      for (var i = 0; i < this.childTransactions.length; ++i) {
-        this.childTransactions[i].wrappedJSObject.id = this._id;
-      }
-      let aggregateTxn = new placesAggregateTransactions("Create item childTxn",
-                                                         this.childTransactions);
-      aggregateTxn.doTransaction();
+
+    for (var i = 0; i < this._childTransactions.length; ++i) {
+      var txn = this._childTransactions[i];
+      txn.wrappedJSObject.id = this._id;
+      txn.doTransaction();
     }
   },
 
   undoTransaction: function PCIT_undoTransaction() {
-    if (this.childTransactions.length) {
-      // Undo transactions should always be done in reverse order.
-      let aggregateTxn = new placesAggregateTransactions("Create item childTxn",
-                                                         this.childTransactions);
-      aggregateTxn.undoTransaction();
-    }
-
-    // Remove item only after all child transactions have been reverted.
     PlacesUtils.bookmarks.removeItem(this._id);
+    for (var i = 0; i < this._childTransactions.length; ++i) {
+      var txn = this._childTransactions[i];
+      txn.undoTransaction();
+    }
   }
 };
 
@@ -524,7 +423,6 @@ placesCreateSeparatorTransactions.prototype = {
 function placesCreateLivemarkTransactions(aFeedURI, aSiteURI, aName,
                                           aContainer, aIndex,
                                           aAnnotations) {
-  this.redoTransaction = this.doTransaction;
   this._feedURI = aFeedURI;
   this._siteURI = aSiteURI;
   this._name = aName;
@@ -550,48 +448,6 @@ placesCreateLivemarkTransactions.prototype = {
 
   undoTransaction: function PCLT_undoTransaction() {
     PlacesUtils.bookmarks.removeFolder(this._id);
-  }
-};
-
-function placesRemoveLivemarkTransaction(aFolderId) {
-  this.redoTransaction = this.doTransaction;
-  this._id = aFolderId;
-  this._title = PlacesUtils.bookmarks.getItemTitle(this._id);
-  this._container = PlacesUtils.bookmarks.getFolderIdForItem(this._id);
-  var annos = PlacesUtils.getAnnotationsForItem(this._id);
-  // Exclude livemark service annotations, those will be recreated automatically
-  var annosToExclude = ["livemark/feedURI",
-                        "livemark/siteURI",
-                        "livemark/expiration",
-                        "livemark/loadfailed",
-                        "livemark/loading"];
-  this._annotations = annos.filter(function(aValue, aIndex, aArray) {
-      return annosToExclude.indexOf(aValue.name) == -1;
-    });
-  this._feedURI = PlacesUtils.livemarks.getFeedURI(this._id);
-  this._siteURI = PlacesUtils.livemarks.getSiteURI(this._id);
-  this._dateAdded = PlacesUtils.bookmarks.getItemDateAdded(this._id);
-  this._lastModified = PlacesUtils.bookmarks.getItemLastModified(this._id);
-}
-
-placesRemoveLivemarkTransaction.prototype = {
-  __proto__: placesBaseTransaction.prototype,
-
-  doTransaction: function PRLT_doTransaction() {
-    this._index = PlacesUtils.bookmarks.getItemIndex(this._id);
-    PlacesUtils.bookmarks.removeItem(this._id);
-  },
-
-  undoTransaction: function PRLT_undoTransaction() {
-    this._id = PlacesUtils.livemarks.createLivemark(this._container,
-                                                    this._title,
-                                                    this._siteURI,
-                                                    this._feedURI,
-                                                    this._index);
-    PlacesUtils.bookmarks.setItemDateAdded(this._id, this._dateAdded);
-    PlacesUtils.bookmarks.setItemLastModified(this._id, this._lastModified);
-    // Restore annotations
-    PlacesUtils.setAnnotationsForItem(this._id, this._annotations);
   }
 };
 
@@ -628,37 +484,36 @@ function placesRemoveItemTransaction(aItemId) {
   this._id = aItemId;
   this._itemType = PlacesUtils.bookmarks.getItemType(this._id);
   if (this._itemType == Ci.nsINavBookmarksService.TYPE_FOLDER) {
-    this.childTransactions = this._getFolderContentsTransactions();
-    // Remove this folder itself.
-    let txn = PlacesUtils.bookmarks.getRemoveFolderTransaction(this._id);
-    this.childTransactions.push(txn);
+    this._transactions = [];
+    this._removeTxn = PlacesUtils.bookmarks
+                                 .getRemoveFolderTransaction(this._id);
   }
-  else if (this._itemType == Ci.nsINavBookmarksService.TYPE_BOOKMARK) {
-    this._uri = PlacesUtils.bookmarks.getBookmarkURI(this._id);
-    this._keyword = PlacesUtils.bookmarks.getKeywordForBookmark(this._id);
-  }
-
-  if (this._itemType != Ci.nsINavBookmarksService.TYPE_SEPARATOR)
-    this._title = PlacesUtils.bookmarks.getItemTitle(this._id);
-
-  this._oldContainer = PlacesUtils.bookmarks.getFolderIdForItem(this._id);
-  this._annotations = PlacesUtils.getAnnotationsForItem(this._id);
-  this._dateAdded = PlacesUtils.bookmarks.getItemDateAdded(this._id);
-  this._lastModified = PlacesUtils.bookmarks.getItemLastModified(this._id);
 }
 
 placesRemoveItemTransaction.prototype = {
   __proto__: placesBaseTransaction.prototype,
 
   doTransaction: function PRIT_doTransaction() {
+    this._oldContainer = PlacesUtils.bookmarks.getFolderIdForItem(this._id);
     this._oldIndex = PlacesUtils.bookmarks.getItemIndex(this._id);
+    this._title = PlacesUtils.bookmarks.getItemTitle(this._id);
+    this._annotations = PlacesUtils.getAnnotationsForItem(this._id);
+    this._dateAdded = PlacesUtils.bookmarks.getItemDateAdded(this._id);
+    this._lastModified = PlacesUtils.bookmarks.getItemLastModified(this._id);
 
     if (this._itemType == Ci.nsINavBookmarksService.TYPE_FOLDER) {
-      let aggregateTxn = new placesAggregateTransactions("Remove item childTxn",
-                                                         this.childTransactions);
-      aggregateTxn.doTransaction();
+      this._saveFolderContents();
+
+      // Remove children backwards to preserve parent-child relationships.
+      for (var i = this._transactions.length - 1; i >= 0; --i)
+        this._transactions[i].doTransaction();
+    
+      // Remove this folder itself. 
+      this._removeTxn.doTransaction();
     }
     else {
+      if (this._itemType == Ci.nsINavBookmarksService.TYPE_BOOKMARK)
+        this._uri = PlacesUtils.bookmarks.getBookmarkURI(this._id);
       PlacesUtils.bookmarks.removeItem(this._id);
       if (this._uri) {
         // if this was the last bookmark (excluding tag-items and livemark
@@ -680,13 +535,12 @@ placesRemoveItemTransaction.prototype = {
                                                       this._title);
       if (this._tags && this._tags.length > 0)
         PlacesUtils.tagging.tagURI(this._uri, this._tags);
-      if (this._keyword)
-        PlacesUtils.bookmarks.setKeywordForBookmark(this._id, this._keyword);
     }
     else if (this._itemType == Ci.nsINavBookmarksService.TYPE_FOLDER) {
-      let aggregateTxn = new placesAggregateTransactions("Remove item childTxn",
-                                                         this.childTransactions);
-      aggregateTxn.undoTransaction();
+      this._removeTxn.undoTransaction();
+      // Create children forwards to preserve parent-child relationships.
+      for (var i = 0; i < this._transactions.length; ++i)
+        this._transactions[i].undoTransaction();
     }
     else // TYPE_SEPARATOR
       this._id = PlacesUtils.bookmarks.insertSeparator(this._oldContainer, this._oldIndex);
@@ -699,21 +553,17 @@ placesRemoveItemTransaction.prototype = {
   },
 
   /**
-  * Returns a flat, ordered list of transactions for a depth-first recreation
+  * Create a flat, ordered list of transactions for a depth-first recreation
   * of items within this folder.
   */
-  _getFolderContentsTransactions:
-  function PRIT__getFolderContentsTransactions() {
-    var transactions = [];
+  _saveFolderContents: function PRIT__saveFolderContents() {
+    this._transactions = [];
     var contents =
       PlacesUtils.getFolderContents(this._id, false, false).root;
     for (var i = 0; i < contents.childCount; ++i) {
-      let txn = new placesRemoveItemTransaction(contents.getChild(i).itemId);
-      transactions.push(txn);
+      this._transactions
+          .push(new placesRemoveItemTransaction(contents.getChild(i).itemId));
     }
-    contents.containerOpen = false;
-    // Reverse transactions to preserve parent-child relationship.
-    return transactions.reverse();
   }
 };
 
@@ -771,82 +621,77 @@ placesEditBookmarkURITransactions.prototype = {
   }
 };
 
-function placesSetItemAnnotationTransactions(aItemId, aAnnotationObject) {
-  this.id = aItemId;
-  this._anno = aAnnotationObject;
-  // create an empty old anno
-  this._oldAnno = { name: this._anno.name,
-                    type: Ci.nsIAnnotationService.TYPE_STRING,
-                    flags: 0,
-                    value: null,
-                    expires: Ci.nsIAnnotationService.EXPIRE_NEVER };
+function placesSetLoadInSidebarTransactions(aBookmarkId, aLoadInSidebar) {
+  this.id = aBookmarkId;
+  this._loadInSidebar = aLoadInSidebar;
   this.redoTransaction = this.doTransaction;
 }
 
-placesSetItemAnnotationTransactions.prototype = {
+placesSetLoadInSidebarTransactions.prototype = {
   __proto__: placesBaseTransaction.prototype,
 
-  doTransaction: function PSIAT_doTransaction() {
-    // Since this can be used as a child transaction this.id will be known
-    // only at this point, after the external caller has set it.
-    if (PlacesUtils.annotations.itemHasAnnotation(this.id, this._anno.name)) {
-      // Save the old annotation if it is set.
-      var flags = {}, expires = {}, mimeType = {}, type = {};
-      PlacesUtils.annotations.getItemAnnotationInfo(this.id, this._anno.name,
-                                                    flags, expires, mimeType,
-                                                    type);
-      this._oldAnno.flags = flags.value;
-      this._oldAnno.expires = expires.value;
-      this._oldAnno.mimeType = mimeType.value;
-      this._oldAnno.type = type.value;
-      this._oldAnno.value = PlacesUtils.annotations
-                                       .getItemAnnotation(this.id,
-                                                          this._anno.name);
-    }
-
-    PlacesUtils.setAnnotationsForItem(this.id, [this._anno]);
+  _anno: {
+    name: loadInSidebarAnno,
+    type: Ci.nsIAnnotationService.TYPE_INT32,
+    value: 1,
+    flags: 0,
+    expires: Ci.nsIAnnotationService.EXPIRE_NEVER
   },
 
-  undoTransaction: function PSIAT_undoTransaction() {
-    PlacesUtils.setAnnotationsForItem(this.id, [this._oldAnno]);
+  doTransaction: function PSLIST_doTransaction() {
+    this._wasSet = PlacesUtils.annotations.itemHasAnnotation(this.id, this._anno.name);
+    if (this._loadInSidebar) {
+      PlacesUtils.setAnnotationsForItem(this.id, [this._anno]);
+    }
+    else {
+      try {
+        PlacesUtils.annotations.removeItemAnnotation(this.id, this._anno.name);
+      } catch(ex) { }
+    }
+  },
+
+  undoTransaction: function PSLIST_undoTransaction() {
+    if (this._wasSet != this._loadInSidebar) {
+      this._loadInSidebar = !this._loadInSidebar;
+      this.doTransaction();
+    }
   }
 };
 
-function placesSetPageAnnotationTransactions(aURI, aAnnotationObject) {
-  this._uri = aURI;
-  this._anno = aAnnotationObject;
-  // create an empty old anno
-  this._oldAnno = { name: this._anno.name,
-                    type: Ci.nsIAnnotationService.TYPE_STRING,
-                    flags: 0,
-                    value: null,
-                    expires: Ci.nsIAnnotationService.EXPIRE_NEVER };
-
-  if (PlacesUtils.annotations.pageHasAnnotation(this._uri, this._anno.name)) {
-    // fill the old anno if it is set
-    var flags = {}, expires = {}, mimeType = {}, type = {};
-    PlacesUtils.annotations.getPageAnnotationInfo(this._uri, this._anno.name,
-                                                  flags, expires, mimeType, type);
-    this._oldAnno.flags = flags.value;
-    this._oldAnno.expires = expires.value;
-    this._oldAnno.mimeType = mimeType.value;
-    this._oldAnno.type = type.value;
-    this._oldAnno.value = PlacesUtils.annotations
-                                     .getPageAnnotation(this._uri, this._anno.name);
-  }
-
+function placesEditItemDescriptionTransactions(aItemId, aDescription) {
+  this.id = aItemId;
+  this._newDescription = aDescription;
   this.redoTransaction = this.doTransaction;
 }
 
-placesSetPageAnnotationTransactions.prototype = {
+placesEditItemDescriptionTransactions.prototype = {
   __proto__: placesBaseTransaction.prototype,
 
-  doTransaction: function PSPAT_doTransaction() {
-    PlacesUtils.setAnnotationsForURI(this._uri, [this._anno]);
+  _oldDescription: "",
+
+  doTransaction: function PSLIST_doTransaction() {
+    const annos = PlacesUtils.annotations;
+    if (annos.itemHasAnnotation(this.id, descriptionAnno))
+      this._oldDescription = annos.getItemAnnotation(this.id, descriptionAnno);
+
+    if (this._newDescription) {
+      annos.setItemAnnotation(this.id, descriptionAnno,
+                              this._newDescription, 0,
+                              annos.EXPIRE_NEVER);
+    }
+    else if (this._oldDescription)
+      annos.removeItemAnnotation(this.id, descriptionAnno);
   },
 
-  undoTransaction: function PSPAT_undoTransaction() {
-    PlacesUtils.setAnnotationsForURI(this._uri, [this._oldAnno]);
+  undoTransaction: function PSLIST_undoTransaction() {
+    const annos = PlacesUtils.annotations;
+    if (this._oldDescription) {
+      annos.setItemAnnotationString(this.id, descriptionAnno,
+                                    this._oldDescription, 0,
+                                    annos.EXPIRE_NEVER);
+    }
+    else if (annos.itemHasAnnotation(this.id, descriptionAnno))
+      annos.removeItemAnnotation(this.id, descriptionAnno);
   }
 };
 
@@ -881,7 +726,7 @@ placesEditBookmarkPostDataTransactions.prototype = {
   __proto__: placesBaseTransaction.prototype,
 
   doTransaction: function PEUPDT_doTransaction() {
-    this._oldPostData = PlacesUtils.getPostDataForBookmark(this.id);
+    this._oldPostData = PlacesUtils.getPostDataForBookmark(this._id);
     PlacesUtils.setPostDataForBookmark(this.id, this._newPostData);
   },
 
@@ -932,8 +777,8 @@ placesEditLivemarkFeedURITransactions.prototype = {
   }
 };
 
-function placesEditBookmarkMicrosummaryTransactions(aItemId, newMicrosummary) {
-  this.id = aItemId;
+function placesEditBookmarkMicrosummaryTransactions(aID, newMicrosummary) {
+  this.id = aID;
   this._mss = Cc["@mozilla.org/microsummary/service;1"].
               getService(Ci.nsIMicrosummaryService);
   this._newMicrosummary = newMicrosummary;
@@ -1020,8 +865,7 @@ placesSortFolderByNameTransactions.prototype = {
   doTransaction: function PSSFBN_doTransaction() {
     this._oldOrder = [];
 
-    var contents =
-      PlacesUtils.getFolderContents(this._folderId, false, false).root;
+    var contents = PlacesUtils.getFolderContents(this._folderId, false, false).root;
     var count = contents.childCount;
 
     // sort between separators
@@ -1050,8 +894,6 @@ placesSortFolderByNameTransactions.prototype = {
       else
         preSep.push(item);
     }
-    contents.containerOpen = false;
-
     if (preSep.length > 0) {
       preSep.sort(sortingMethod);
       newOrder = newOrder.concat(preSep);

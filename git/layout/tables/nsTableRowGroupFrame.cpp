@@ -64,9 +64,38 @@ nsTableRowGroupFrame::~nsTableRowGroupFrame()
 {
 }
 
-NS_QUERYFRAME_HEAD(nsTableRowGroupFrame)
-  NS_QUERYFRAME_ENTRY(nsTableRowGroupFrame)
-NS_QUERYFRAME_TAIL_INHERITING(nsHTMLContainerFrame)
+/* ----------- nsTableRowGroupFrame ---------- */
+nsrefcnt nsTableRowGroupFrame::AddRef(void)
+{
+  return 1;//implementation of nsLineIterator
+}
+
+nsrefcnt nsTableRowGroupFrame::Release(void)
+{
+  return 1;//implementation of nsLineIterator
+}
+
+NS_IMETHODIMP
+nsTableRowGroupFrame::QueryInterface(const nsIID& aIID, void** aInstancePtr)
+{
+  NS_PRECONDITION(aInstancePtr, "null out param");
+
+  static NS_DEFINE_IID(kITableRowGroupIID, NS_ITABLEROWGROUPFRAME_IID);
+  if (aIID.Equals(kITableRowGroupIID)) {
+    *aInstancePtr = (void*)this;
+    return NS_OK;
+  }
+  if (aIID.Equals(NS_GET_IID(nsILineIteratorNavigator))) {
+    *aInstancePtr = static_cast<nsILineIteratorNavigator*>(this);
+    return NS_OK;
+  }
+  if (aIID.Equals(NS_GET_IID(nsILineIterator))) {
+    *aInstancePtr = static_cast<nsILineIterator*>(this);
+    return NS_OK;
+  }
+
+  return nsHTMLContainerFrame::QueryInterface(aIID, aInstancePtr);
+}
 
 /* virtual */ PRBool
 nsTableRowGroupFrame::IsContainingBlock() const
@@ -325,8 +354,8 @@ nsTableRowGroupFrame::InitChildReflowState(nsPresContext&     aPresContext,
   nsMargin* pCollapseBorder = nsnull;
   if (aBorderCollapse) {
     if (aReflowState.frame) {
-      nsTableRowFrame *rowFrame = do_QueryFrame(aReflowState.frame);
-      if (rowFrame) {
+      if (nsGkAtoms::tableRowFrame == aReflowState.frame->GetType()) {
+        nsTableRowFrame* rowFrame = (nsTableRowFrame*)aReflowState.frame;
         pCollapseBorder = rowFrame->GetBCBorderWidth(collapseBorder);
       }
     }
@@ -335,7 +364,7 @@ nsTableRowGroupFrame::InitChildReflowState(nsPresContext&     aPresContext,
 }
 
 static void
-CacheRowHeightsForPrinting(nsPresContext*   aPresContext,
+CacheRowHeightsForPrinting(nsPresContext*  aPresContext,
                            nsTableRowFrame* aFirstRow)
 {
   for (nsTableRowFrame* row = aFirstRow; row; row = row->GetNextRow()) {
@@ -378,8 +407,7 @@ nsTableRowGroupFrame::ReflowChildren(nsPresContext*         aPresContext,
   nsIFrame *prevKidFrame = nsnull;
   for (nsIFrame* kidFrame = GetFirstFrame(); kidFrame;
        prevKidFrame = kidFrame, kidFrame = kidFrame->GetNextSibling()) {
-    nsTableRowFrame *rowFrame = do_QueryFrame(kidFrame);
-    if (!rowFrame) {
+    if (kidFrame->GetType() != nsGkAtoms::tableRowFrame) {
       // XXXldb nsCSSFrameConstructor needs to enforce this!
       NS_NOTREACHED("yikes, a non-row child");
       continue;
@@ -434,7 +462,7 @@ nsTableRowGroupFrame::ReflowChildren(nsPresContext*         aPresContext,
       if (!reflowAllKids) {
         if (IsSimpleRowFrame(aReflowState.tableFrame, kidFrame)) {
           // Inform the row of its new height.
-          rowFrame->DidResize();
+          ((nsTableRowFrame*)kidFrame)->DidResize();
           // the overflow area may have changed inflate the overflow area
           const nsStylePosition *stylePos = GetStylePosition();
           nsStyleUnit unit = stylePos->mHeight.GetUnit();
@@ -462,7 +490,7 @@ nsTableRowGroupFrame::ReflowChildren(nsPresContext*         aPresContext,
       }
 
       if (isPaginated && aPageBreakBeforeEnd && !*aPageBreakBeforeEnd) {
-        nsTableRowFrame* nextRow = rowFrame->GetNextRow();
+        nsTableRowFrame* nextRow = ((nsTableRowFrame*)kidFrame)->GetNextRow();
         if (nextRow) {
           *aPageBreakBeforeEnd = nsTableFrame::PageBreakAfter(*kidFrame, nextRow);
         }
@@ -513,9 +541,8 @@ nsTableRowGroupFrame::GetFirstRow()
 {
   for (nsIFrame* childFrame = GetFirstFrame(); childFrame;
        childFrame = childFrame->GetNextSibling()) {
-    nsTableRowFrame *rowFrame = do_QueryFrame(childFrame);
-    if (rowFrame) {
-      return rowFrame;
+    if (nsGkAtoms::tableRowFrame == childFrame->GetType()) {
+      return (nsTableRowFrame*)childFrame;
     }
   }
   return nsnull;
@@ -1368,23 +1395,6 @@ nsTableRowGroupFrame::Reflow(nsPresContext*           aPresContext,
   return rv;
 }
 
-/* virtual */ void
-nsTableRowGroupFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
-{
-  if (!aOldStyleContext) //avoid this on init
-    return;
-     
-  nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
-    
-  if (tableFrame->IsBorderCollapse() &&
-      tableFrame->BCRecalcNeeded(aOldStyleContext, GetStyleContext())) {
-    nsRect damageArea(0, GetStartRowIndex(), tableFrame->GetColCount(),
-                      GetRowCount());
-    tableFrame->SetBCDamageArea(damageArea);
-  }
-  return;
-}
-
 NS_IMETHODIMP
 nsTableRowGroupFrame::AppendFrames(nsIAtom*        aListName,
                                    nsIFrame*       aFrameList)
@@ -1394,13 +1404,12 @@ nsTableRowGroupFrame::AppendFrames(nsIAtom*        aListName,
   ClearRowCursor();
 
   // collect the new row frames in an array
-  nsAutoTArray<nsTableRowFrame*, 8> rows;
-  for (nsIFrame* childFrame = aFrameList; childFrame;
-       childFrame = childFrame->GetNextSibling()) {
-    nsTableRowFrame *rowFrame = do_QueryFrame(childFrame);
-    if (rowFrame) {
+  nsAutoVoidArray rows;
+  for (nsIFrame* rowFrame = aFrameList; rowFrame;
+       rowFrame = rowFrame->GetNextSibling()) {
+    if (nsGkAtoms::tableRowFrame == rowFrame->GetType()) {
       NS_ASSERTION(NS_STYLE_DISPLAY_TABLE_ROW ==
-                     childFrame->GetStyleDisplay()->mDisplay,
+                     rowFrame->GetStyleDisplay()->mDisplay,
                    "wrong display type on rowframe");      
       rows.AppendElement(rowFrame);
     }
@@ -1410,7 +1419,7 @@ nsTableRowGroupFrame::AppendFrames(nsIAtom*        aListName,
   // Append the frames to the sibling chain
   mFrames.AppendFrames(nsnull, aFrameList);
 
-  if (rows.Length() > 0) {
+  if (rows.Count() > 0) {
     nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
     if (tableFrame) {
       tableFrame->AppendRows(*this, rowIndex, rows);
@@ -1440,18 +1449,17 @@ nsTableRowGroupFrame::InsertFrames(nsIAtom*        aListName,
     return NS_ERROR_NULL_POINTER;
 
   // collect the new row frames in an array
-  nsTArray<nsTableRowFrame*> rows;
+  nsVoidArray rows;
   PRBool gotFirstRow = PR_FALSE;
-  for (nsIFrame* childFrame = aFrameList; childFrame;
-       childFrame = childFrame->GetNextSibling()) {
-    nsTableRowFrame *rowFrame = do_QueryFrame(childFrame);
-    if (rowFrame) {
+  for (nsIFrame* rowFrame = aFrameList; rowFrame;
+       rowFrame = rowFrame->GetNextSibling()) {
+    if (nsGkAtoms::tableRowFrame == rowFrame->GetType()) {
       NS_ASSERTION(NS_STYLE_DISPLAY_TABLE_ROW ==
-                     childFrame->GetStyleDisplay()->mDisplay,
+                     rowFrame->GetStyleDisplay()->mDisplay,
                    "wrong display type on rowframe");      
       rows.AppendElement(rowFrame);
       if (!gotFirstRow) {
-        rowFrame->SetFirstInserted(PR_TRUE);
+        ((nsTableRowFrame*)rowFrame)->SetFirstInserted(PR_TRUE);
         gotFirstRow = PR_TRUE;
         tableFrame->SetRowInserted(PR_TRUE);
       }
@@ -1462,7 +1470,7 @@ nsTableRowGroupFrame::InsertFrames(nsIAtom*        aListName,
   // Insert the frames in the sibling chain
   mFrames.InsertFrames(nsnull, aPrevFrame, aFrameList);
 
-  PRInt32 numRows = rows.Length();
+  PRInt32 numRows = rows.Count();
   if (numRows > 0) {
     nsTableRowFrame* prevRow = (nsTableRowFrame *)nsTableFrame::GetFrameAtOrBefore(this, aPrevFrame, nsGkAtoms::tableRowFrame);
     PRInt32 rowIndex = (prevRow) ? prevRow->GetRowIndex() + 1 : startRowIndex;
@@ -1486,10 +1494,9 @@ nsTableRowGroupFrame::RemoveFrame(nsIAtom*        aListName,
 
   nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
   if (tableFrame) {
-    nsTableRowFrame *rowFrame = do_QueryFrame(aOldFrame);
-    if (rowFrame) {
+    if (nsGkAtoms::tableRowFrame == aOldFrame->GetType()) {
       // remove the rows from the table (and flag a rebalance)
-      tableFrame->RemoveRows(*rowFrame, 1, PR_TRUE);
+      tableFrame->RemoveRows((nsTableRowFrame &)*aOldFrame, 1, PR_TRUE);
 
       PresContext()->PresShell()->
         FrameNeedsReflow(this, nsIPresShell::eTreeChange,
@@ -1551,9 +1558,8 @@ nsTableRowGroupFrame::IsSimpleRowFrame(nsTableFrame* aTableFrame,
                                        nsIFrame*     aFrame)
 {
   // Make sure it's a row frame and not a row group frame
-  nsTableRowFrame *rowFrame = do_QueryFrame(aFrame);
-  if (rowFrame) {
-    PRInt32 rowIndex = rowFrame->GetRowIndex();
+  if (aFrame->GetType() == nsGkAtoms::tableRowFrame) {
+    PRInt32 rowIndex = ((nsTableRowFrame*)aFrame)->GetRowIndex();
     
     // It's a simple row frame if there are no cells that span into or
     // across the row
@@ -1630,18 +1636,23 @@ void nsTableRowGroupFrame::SetContinuousBCBorderWidth(PRUint8     aForSide,
 }
 
 //nsILineIterator methods
-PRInt32
-nsTableRowGroupFrame::GetNumLines()
+NS_IMETHODIMP
+nsTableRowGroupFrame::GetNumLines(PRInt32* aResult)
 {
-  return GetRowCount();
+  NS_ENSURE_ARG_POINTER(aResult);
+  *aResult = GetRowCount();
+  return NS_OK;
 }
 
-PRBool
-nsTableRowGroupFrame::GetDirection()
+NS_IMETHODIMP
+nsTableRowGroupFrame::GetDirection(PRBool* aIsRightToLeft)
 {
+  NS_ENSURE_ARG_POINTER(aIsRightToLeft);
+  // rtl is table wide @see nsTableIterator
   nsTableFrame* table = nsTableFrame::GetTableFrame(this);
-  return (NS_STYLE_DIRECTION_RTL ==
-          table->GetStyleVisibility()->mDirection);
+  *aIsRightToLeft = (NS_STYLE_DIRECTION_RTL ==
+                     table->GetStyleVisibility()->mDirection);
+  return NS_OK;
 }
   
 NS_IMETHODIMP
@@ -1686,24 +1697,28 @@ nsTableRowGroupFrame::GetLine(PRInt32    aLineNumber,
   return NS_ERROR_FAILURE;
 }
   
-PRInt32
-nsTableRowGroupFrame::FindLineContaining(nsIFrame* aFrame)
+NS_IMETHODIMP
+nsTableRowGroupFrame::FindLineContaining(nsIFrame* aFrame, 
+                                         PRInt32*  aLineNumberResult)
 {
   NS_ENSURE_ARG_POINTER(aFrame);
+  NS_ENSURE_ARG_POINTER(aLineNumberResult);
   
-  nsTableRowFrame *rowFrame = do_QueryFrame(aFrame);
-  NS_ASSERTION(rowFrame, "RowGroup contains a frame that is not a row");
+  NS_ASSERTION((aFrame->GetType() == nsGkAtoms::tableRowFrame),
+               "RowGroup contains a frame that is not a row");
 
-  return rowFrame->GetRowIndex() - GetStartRowIndex();
+  nsTableRowFrame* rowFrame = (nsTableRowFrame*)aFrame;
+  *aLineNumberResult = rowFrame->GetRowIndex() - GetStartRowIndex();
+
+  return NS_OK;
 }
 
-PRInt32
-nsTableRowGroupFrame::FindLineAt(nscoord  aY)
+NS_IMETHODIMP
+nsTableRowGroupFrame::FindLineAt(nscoord  aY, 
+                                 PRInt32* aLineNumberResult)
 {
-  NS_NOTREACHED("Not implemented");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
-
 #ifdef IBMBIDI
 NS_IMETHODIMP
 nsTableRowGroupFrame::CheckLineOrder(PRInt32                  aLine,

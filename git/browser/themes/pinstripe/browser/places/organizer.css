@@ -67,7 +67,8 @@
 }
 
 #placesToolbar {
-  padding: 0 4px 3px;
+  margin-top: -3px;
+  padding: 0 4px;
 }
 
 #placesView {
@@ -283,6 +284,7 @@
 }
 
 .small {
+  font-size: x-small;
   min-width: 0px;
   padding: 0px 4px 0px 4px;
   margin: 0px;  
@@ -328,7 +330,6 @@
 }
 
 #organizerScopeBar {
-  -moz-appearance: none;
   background: url("chrome://global/skin/icons/find-bar-background.png") repeat-x top center #D0D0D0;
   color: #474747;
   font-size: 105%;
@@ -396,10 +397,68 @@
   list-style-image: url("chrome://browser/skin/places/minus-active.png") !important;
 }
 
+menulist {
+  -moz-appearance: none;
+  margin: 0px 3px 0px 5px !important;
+  padding: 2px 0px 2px 0px;
+  background: url("chrome://global/skin/icons/round-button-leftcap.png") no-repeat center left;
+}
+
+menulist:active,
+menulist[open="true"]  {
+ background: url("chrome://global/skin/icons/round-button-active-leftcap.png") no-repeat center left !important;
+}
+  
+.menulist-label-box {
+  -moz-appearance: none;
+  margin: 0px 0px 0px 8px !important;
+  padding: 2px 0 2px 0px;
+  background: url("chrome://global/skin/icons/round-button-dropmarker.png") no-repeat center right;
+  border: none;
+}
+menulist:active > .menulist-label-box,
+menulist[open="true"] > .menulist-label-box {
+  background: url("chrome://global/skin/icons/round-button-active-dropmarker.png") no-repeat center right !important;
+}
+
+.menulist-label {
+  -moz-appearance: none;
+  margin: 0px 14px 0px 0px !important;
+  padding: 2px 0px 2px 0px;
+  background: url("chrome://global/skin/icons/round-button-middle.png") repeat-x center left;
+  border: none;
+}
+menulist:active > .menulist-label-box .menulist-label,
+menulist[open="true"] > .menulist-label-box  .menulist-label {
+  background: url("chrome://global/skin/icons/round-button-active-middle.png") repeat-x center left !important;
+}
+
+#editBMPanel_namePicker {
+  background: none !important;
+  margin: 0px !important;
+  padding:  0px !important;
+}
+#editBMPanel_namePicker[droppable="false"] > .menulist-editable-box {
+  -moz-appearance: textfield;
+  cursor: text;
+  margin: 4px 4px;
+  border: 3px solid;
+  -moz-border-top-colors: transparent #888888 #000000;
+  -moz-border-right-colors: transparent #FFFFFF #000000;
+  -moz-border-bottom-colors: transparent #FFFFFF #000000;
+  -moz-border-left-colors: transparent #888888 #000000;
+  -moz-border-radius-topright: 2px;
+  -moz-border-radius-bottomleft: 2px;
+  padding: 0;
+  background-color: -moz-Field;
+  color: -moz-FieldText;
+}
+
 #saveSearch {
   -moz-appearance: none;
   margin: 0;
-  padding: 4px 0 3px 8px;
+  padding: 4px 0 3px 0;
+  -moz-padding-start: 7px;
   background: url("chrome://global/skin/icons/round-button-leftcap.png") no-repeat center left;
   border: none;
 }
@@ -410,7 +469,7 @@
 
 #saveSearch .button-text {
   margin: 0 !important;
-  padding: 2px 8px 2px 0 !important;
+  padding: 2px 8px 2px 1px !important;
   background: url("chrome://global/skin/icons/round-button-right.png") no-repeat center right;
   font-size: 12px;
 }
@@ -553,10 +612,6 @@
   margin: 0;
   padding: 0;
   max-width: 0;
-}
-
-#infoBoxExpanderLabel {
-  display: none;
 }
 
 #infoBox[minimal="true"] #infoBoxExpander {

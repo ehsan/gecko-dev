@@ -91,12 +91,10 @@ CPPSRCS		= \
 		nsPLDOMEvent.cpp \
 		nsEventDispatcher.cpp \
 		nsIMEStateManager.cpp \
-		nsContentEventHandler.cpp \
+		nsQueryContentEventHandler.cpp \
 		nsDOMProgressEvent.cpp \
 		nsDOMDataTransfer.cpp \
 		nsDOMNotifyPaintEvent.cpp \
-		nsDOMSimpleGestureEvent.cpp \
-		nsDOMEventTargetHelper.cpp \
 		$(NULL)
 
 # we don't want the shared lib, but we want to force the creation of a static lib.
@@ -109,10 +107,9 @@ LOCAL_INCLUDES	= \
              -I$(srcdir)/../../html/base/src \
              -I$(srcdir)/../../xul/content/src \
              -I$(srcdir)/../../xml/content/src \
-             -I$(srcdir)/../../../dom/base \
+             -I$(srcdir)/../../../dom/src/base \
              -I$(srcdir)/../../../layout/generic \
              -I$(srcdir)/../../../layout/xul/base/src \
-             -I$(srcdir)/../../../layout/xul/base/src/tree/src \
              $(NULL)
 
 DEFINES += -D_IMPL_NS_LAYOUT

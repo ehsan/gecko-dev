@@ -80,6 +80,7 @@
 #include "nsIDOMKeyListener.h"
 #include "nsIDOMFormListener.h"
 #include "nsIDOMXULListener.h"
+#include "nsIDOMDragListener.h"
 #include "nsIDOMContextMenuListener.h"
 #include "nsIDOMEventGroup.h"
 #include "nsAttrName.h"
@@ -205,7 +206,6 @@ XBLResolve(JSContext *cx, JSObject *obj, jsval id, uintN flags,
   // Now we either resolve or fail
   PRBool didInstall;
   nsresult rv = field->InstallField(context, origObj,
-                                    content->NodePrincipal(),
                                     protoBinding->DocURI(),
                                     &didInstall);
   if (NS_FAILED(rv)) {
@@ -282,15 +282,12 @@ nsXBLBinding::nsXBLBinding(nsXBLPrototypeBinding* aBinding)
 
 nsXBLBinding::~nsXBLBinding(void)
 {
-  if (mContent) {
-    nsXBLBinding::UninstallAnonymousContent(mContent->GetOwnerDoc(), mContent);
-  }
   delete mInsertionPointTable;
   nsIXBLDocumentInfo* info = mPrototypeBinding->XBLDocumentInfo();
   NS_RELEASE(info);
 }
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 TraverseKey(nsISupports* aKey, nsInsertionPointList* aData, void* aClosure)
 {
   nsCycleCollectionTraversalCallback &cb = 
@@ -309,10 +306,6 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(nsXBLBinding)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_NATIVE(nsXBLBinding)
   // XXX Probably can't unlink mPrototypeBinding->XBLDocumentInfo(), because
   //     mPrototypeBinding is weak.
-  if (tmp->mContent) {
-    nsXBLBinding::UninstallAnonymousContent(tmp->mContent->GetOwnerDoc(),
-                                            tmp->mContent);
-  }
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mContent)
   // XXX What about mNextBinding and mInsertionPointTable?
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
@@ -367,8 +360,6 @@ nsXBLBinding::InstallAnonymousContent(nsIContent* aAnonParent, nsIContent* aElem
       return;
     }        
 
-    child->SetFlags(NODE_IS_ANONYMOUS);
-
 #ifdef MOZ_XUL
     // To make XUL templates work (and other goodies that happen when
     // an element is added to a XUL document), we need to notify the
@@ -376,29 +367,6 @@ nsXBLBinding::InstallAnonymousContent(nsIContent* aAnonParent, nsIContent* aElem
     nsCOMPtr<nsIXULDocument> xuldoc(do_QueryInterface(doc));
     if (xuldoc)
       xuldoc->AddSubtreeToDocument(child);
-#endif
-  }
-}
-
-void
-nsXBLBinding::UninstallAnonymousContent(nsIDocument* aDocument,
-                                        nsIContent* aAnonParent)
-{
-  nsAutoScriptBlocker scriptBlocker;
-  // Hold a strong ref while doing this, just in case.
-  nsCOMPtr<nsIContent> anonParent = aAnonParent;
-#ifdef MOZ_XUL
-  nsCOMPtr<nsIXULDocument> xuldoc =
-    do_QueryInterface(aDocument);
-#endif
-  PRUint32 childCount = aAnonParent->GetChildCount();
-  for (PRUint32 i = 0; i < childCount; ++i) {
-    nsIContent* child = aAnonParent->GetChildAt(i);
-    child->UnbindFromTree();
-#ifdef MOZ_XUL
-    if (xuldoc) {
-      xuldoc->RemoveSubtreeFromDocument(child);
-    }
 #endif
   }
 }
@@ -439,7 +407,7 @@ struct ContentListData : public EnumData {
   {}
 };
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 BuildContentLists(nsISupports* aKey,
                   nsAutoPtr<nsInsertionPointList>& aData,
                   void* aClosure)
@@ -532,7 +500,7 @@ BuildContentLists(nsISupports* aKey,
   return PL_DHASH_NEXT;
 }
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 RealizeDefaultContent(nsISupports* aKey,
                       nsAutoPtr<nsInsertionPointList>& aData,
                       void* aClosure)
@@ -593,7 +561,7 @@ RealizeDefaultContent(nsISupports* aKey,
   return PL_DHASH_NEXT;
 }
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 ChangeDocumentForDefaultContent(nsISupports* aKey,
                                 nsAutoPtr<nsInsertionPointList>& aData,
                                 void* aClosure)
@@ -756,9 +724,6 @@ nsXBLBinding::GenerateAnonymousContent()
                 if (ni->NamespaceID() != kNameSpaceID_XUL ||
                     (localName != nsGkAtoms::observes &&
                      localName != nsGkAtoms::_template)) {
-                  // Undo InstallAnonymousContent
-                  UninstallAnonymousContent(doc, mContent);
-
                   // Kill all anonymous content.
                   mContent = nsnull;
                   bindingManager->SetContentListFor(mBoundElement, nsnull);
@@ -835,15 +800,14 @@ nsXBLBinding::InstallEventHandlers()
     nsXBLPrototypeHandler* handlerChain = mPrototypeBinding->GetPrototypeHandlers();
 
     if (handlerChain) {
-      nsIEventListenerManager* manager =
-        mBoundElement->GetListenerManager(PR_TRUE);
+      nsCOMPtr<nsIEventListenerManager> manager;
+      mBoundElement->GetListenerManager(PR_TRUE, getter_AddRefs(manager));
       if (!manager)
         return;
 
       nsCOMPtr<nsIDOMEventGroup> systemEventGroup;
       PRBool isChromeDoc =
         nsContentUtils::IsChromeDoc(mBoundElement->GetOwnerDoc());
-      PRBool isChromeBinding = mPrototypeBinding->IsChrome();
       nsXBLPrototypeHandler* curr;
       for (curr = handlerChain; curr; curr = curr->GetNextHandler()) {
         // Fetch the event type.
@@ -863,8 +827,7 @@ nsXBLBinding::InstallEventHandlers()
         // This is a weak ref. systemEventGroup above is already a
         // strong ref, so we are guaranteed it will not go away.
         nsIDOMEventGroup* eventGroup = nsnull;
-        if ((curr->GetType() & (NS_HANDLER_TYPE_XBL_COMMAND | NS_HANDLER_TYPE_SYSTEM)) &&
-            (isChromeBinding || mBoundElement->IsInNativeAnonymousSubtree())) {
+        if (curr->GetType() & (NS_HANDLER_TYPE_XBL_COMMAND | NS_HANDLER_TYPE_SYSTEM)) {
           if (!systemEventGroup)
             manager->GetSystemEventGroupLM(getter_AddRefs(systemEventGroup));
           eventGroup = systemEventGroup;
@@ -902,8 +865,7 @@ nsXBLBinding::InstallEventHandlers()
         // This is a weak ref. systemEventGroup above is already a
         // strong ref, so we are guaranteed it will not go away.
         nsIDOMEventGroup* eventGroup = nsnull;
-        if ((handler->GetType() & (NS_HANDLER_TYPE_XBL_COMMAND | NS_HANDLER_TYPE_SYSTEM)) &&
-            (isChromeBinding || mBoundElement->IsInNativeAnonymousSubtree())) {
+        if (handler->GetType() & (NS_HANDLER_TYPE_XBL_COMMAND | NS_HANDLER_TYPE_SYSTEM)) {
           if (!systemEventGroup)
             manager->GetSystemEventGroupLM(getter_AddRefs(systemEventGroup));
           eventGroup = systemEventGroup;
@@ -996,13 +958,12 @@ nsXBLBinding::UnhookEventHandlers()
   nsXBLPrototypeHandler* handlerChain = mPrototypeBinding->GetPrototypeHandlers();
 
   if (handlerChain) {
-    nsCOMPtr<nsIEventListenerManager> manager =
-      mBoundElement->GetListenerManager(PR_FALSE);
+    nsCOMPtr<nsIEventListenerManager> manager;
+    mBoundElement->GetListenerManager(PR_FALSE, getter_AddRefs(manager));
     if (!manager) {
       return;
     }
                                       
-    PRBool isChromeBinding = mPrototypeBinding->IsChrome();
     nsCOMPtr<nsIDOMEventGroup> systemEventGroup;
     nsXBLPrototypeHandler* curr;
     for (curr = handlerChain; curr; curr = curr->GetNextHandler()) {
@@ -1031,8 +992,7 @@ nsXBLBinding::UnhookEventHandlers()
       // This is a weak ref. systemEventGroup above is already a
       // strong ref, so we are guaranteed it will not go away.
       nsIDOMEventGroup* eventGroup = nsnull;
-      if ((curr->GetType() & (NS_HANDLER_TYPE_XBL_COMMAND | NS_HANDLER_TYPE_SYSTEM)) &&
-          (isChromeBinding || mBoundElement->IsInNativeAnonymousSubtree())) {
+      if (curr->GetType() & (NS_HANDLER_TYPE_XBL_COMMAND | NS_HANDLER_TYPE_SYSTEM)) {
         if (!systemEventGroup)
           manager->GetSystemEventGroupLM(getter_AddRefs(systemEventGroup));
         eventGroup = systemEventGroup;
@@ -1060,8 +1020,7 @@ nsXBLBinding::UnhookEventHandlers()
       // This is a weak ref. systemEventGroup above is already a
       // strong ref, so we are guaranteed it will not go away.
       nsIDOMEventGroup* eventGroup = nsnull;
-      if ((handler->GetType() & (NS_HANDLER_TYPE_XBL_COMMAND | NS_HANDLER_TYPE_SYSTEM)) &&
-          (isChromeBinding || mBoundElement->IsInNativeAnonymousSubtree())) {
+      if (handler->GetType() & (NS_HANDLER_TYPE_XBL_COMMAND | NS_HANDLER_TYPE_SYSTEM)) {
         if (!systemEventGroup)
           manager->GetSystemEventGroupLM(getter_AddRefs(systemEventGroup));
         eventGroup = systemEventGroup;
@@ -1086,9 +1045,6 @@ nsXBLBinding::ChangeDocument(nsIDocument* aOldDocument, nsIDocument* aNewDocumen
           if (context) {
             JSContext *cx = (JSContext *)context->GetNativeContext();
  
-            nsCxPusher pusher;
-            pusher.Push(cx);
-
             nsCOMPtr<nsIXPConnectJSObjectHolder> wrapper;
             nsresult rv = nsContentUtils::XPConnect()->
               WrapNative(cx, global->GetGlobalJSObject(),
@@ -1181,7 +1137,20 @@ nsXBLBinding::ChangeDocument(nsIDocument* aOldDocument, nsIDocument* aNewDocumen
         mInsertionPointTable->Enumerate(ChangeDocumentForDefaultContent,
                                         nsnull);
 
-      nsXBLBinding::UninstallAnonymousContent(aOldDocument, anonymous);
+#ifdef MOZ_XUL
+      nsCOMPtr<nsIXULDocument> xuldoc(do_QueryInterface(aOldDocument));
+#endif
+
+      nsAutoScriptBlocker scriptBlocker;
+      anonymous->UnbindFromTree(); // Kill it.
+
+#ifdef MOZ_XUL
+      // To make XUL templates work (and other XUL-specific stuff),
+      // we'll need to notify it using its add & remove APIs. Grab the
+      // interface now...
+      if (xuldoc)
+        xuldoc->RemoveSubtreeFromDocument(anonymous);
+#endif
     }
 
     // Make sure that henceforth we don't claim that mBoundElement's children
@@ -1404,21 +1373,7 @@ nsXBLBinding::AllowScripts()
   PRBool canExecute;
   nsresult rv =
     mgr->CanExecuteScripts(cx, ourDocument->NodePrincipal(), &canExecute);
-  if (NS_FAILED(rv) || !canExecute) {
-    return PR_FALSE;
-  }
-
-  // Now one last check: make sure that we're not allowing a privilege
-  // escalation here.
-  PRBool haveCert;
-  doc->NodePrincipal()->GetHasCertificate(&haveCert);
-  if (!haveCert) {
-    return PR_TRUE;
-  }
-
-  PRBool subsumes;
-  rv = ourDocument->NodePrincipal()->Subsumes(doc->NodePrincipal(), &subsumes);
-  return NS_SUCCEEDED(rv) && subsumes;
+  return NS_SUCCEEDED(rv) && canExecute;
 }
 
 void
@@ -1580,11 +1535,14 @@ nsXBLBinding::ImplementsInterface(REFNSIID aIID) const
     (mNextBinding && mNextBinding->ImplementsInterface(aIID));
 }
 
-nsINodeList*
+already_AddRefed<nsIDOMNodeList>
 nsXBLBinding::GetAnonymousNodes()
 {
   if (mContent) {
-    return mContent->GetChildNodesList();
+    nsCOMPtr<nsIDOMElement> elt(do_QueryInterface(mContent));
+    nsIDOMNodeList *nodeList = nsnull;
+    elt->GetChildNodes(&nodeList);
+    return nodeList;
   }
 
   if (mNextBinding)

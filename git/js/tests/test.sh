@@ -80,8 +80,8 @@ usage: test.sh -p product -b branch -T buildtype -x executablepath -N profilenam
 
 variable            description
 ===============     ============================================================
--p product          required. firefox|thunderbird|js|fennec
--b branch           required. one of 1.8.0 1.8.1 1.9.0 1.9.1 1.9.2
+-p product          required. firefox|thunderbird|js
+-b branch           required. 1.8.0|1.8.1|1.9.0|1.9.1
 -s jsshellsourcepath       required for shell. path to js shell source directory mozilla/js/src
 -T buildtype        required. one of opt debug
 -x executablepath   required for browser. directory-tree containing executable 'product'
@@ -198,7 +198,7 @@ case $product in
         executable="$jsshellsourcepath/$JS_OBJDIR/js$EXE_EXT"
         ;;
 
-    firefox|thunderbird|fennec)
+    firefox|thunderbird)
         if [[ -z "$branch" || -z "$buildtype"  || -z "$executablepath" || -z "$profilename" ]]; then
             usage
         fi
@@ -322,9 +322,6 @@ if [[ -z "$includetests" ]]; then
         1.9.1)
             includetests="$includetests js1_7 js1_8 ecma_3_1 js1_8_1"
             ;;
-        1.9.2)
-            includetests="$includetests js1_7 js1_8 ecma_3_1 js1_8_1"
-            ;;
     esac
 fi
 
@@ -362,6 +359,15 @@ for e in $excludetests; do
     fi
 done
 
+# convert the numeric speed rating to a prose value
+if [[ $TEST_CPUSPEED -lt 4 ]]; then
+    TEST_CPUSPEED=slow
+elif [[ $TEST_CPUSPEED -lt 9 ]]; then
+    TEST_CPUSPEED=medium
+else
+    TEST_CPUSPEED=fast
+fi
+
 if [[ -z "$TEST_MOZILLA_HG" ]]; then
     repo=CVS
 else
@@ -369,17 +375,19 @@ else
 fi
 debug "repo=$repo"
 
-pattern="TEST_BRANCH=($branch|[.][*]), TEST_REPO=($repo|[.][*]), TEST_BUILDTYPE=($buildtype|[.][*]), TEST_TYPE=($testtype|[.][*]), TEST_OS=($OSID|[.][*]), TEST_KERNEL=($TEST_KERNEL|[.][*]), TEST_PROCESSORTYPE=($TEST_PROCESSORTYPE|[.][*]), TEST_MEMORY=($TEST_MEMORY|[.][*]),"
+pattern="TEST_BRANCH=($branch|[.][*]), TEST_REPO=($repo|[.][*]), TEST_BUILDTYPE=($buildtype|[.][*]), TEST_TYPE=($testtype|[.][*]), TEST_OS=($OSID|[.][*]), TEST_KERNEL=($TEST_KERNEL|[.][*]), TEST_PROCESSORTYPE=($TEST_PROCESSORTYPE|[.][*]), TEST_MEMORY=($TEST_MEMORY|[.][*]), TEST_CPUSPEED=($TEST_CPUSPEED|[.][*]),"
 
 if [[ -z "$timeouts" ]]; then
     echo "# exclude tests that time out" >> $excludetestsfile
-    egrep "$pattern .*TEST_EXITSTATUS=[^,]*TIMED OUT[^,]*," failures.txt | \
+    echo "$pattern .*TEST_EXITSTATUS=TIMED OUT," >> $excludetestsfile
+    egrep "$pattern .*TEST_EXITSTATUS=TIMED OUT," failures.txt | \
         sed 's/.*TEST_ID=\([^,]*\),.*/\1/' | sort -u >> $excludetestsfile
 fi
 
 if [[ -z "$crashes" ]]; then
     echo "# exclude tests that crash" >> $excludetestsfile
-    egrep "$pattern .*TEST_EXITSTATUS=[^,]*(CRASHED|ABNORMAL)[^,]*" failures.txt  | \
+    echo "$pattern .*TEST_EXITSTATUS=(CRASHED|ABNORMAL)" >> $excludetestsfile
+    egrep "$pattern .*TEST_EXITSTATUS=(CRASHED|ABNORMAL)" failures.txt  | \
         sed 's/.*TEST_ID=\([^,]*\),.*/\1/' | sort -u >> $excludetestsfile
 
 fi
@@ -399,45 +407,25 @@ case $testtype in
             if ! grep -q $jsfile $excludetestsfile; then
 
                 version=`shellfileversion $jsfile`
-
+                
                 subsuitetestdir=`dirname $jsfile`
                 suitetestdir=`dirname $subsuitetestdir`
                 echo "JavaScriptTest: Begin Test $jsfile"
-                if [[ -z "$NARCISSUS" ]]; then
-                    if eval $TIMECOMMAND timed_run.py $TEST_JSEACH_TIMEOUT \"$jsfile\" \
-                        $EXECUTABLE_DRIVER \
-                        $executable -v $version \
-                        -S 524288 \
-                        $gczealshell \
-                        $splitobjects \
-                        $jitshell \
-                        -f ./shell.js \
-                        -f $suitetestdir/shell.js \
-                        -f $subsuitetestdir/shell.js \
-                        -f ./$jsfile \
-                        -f ./js-test-driver-end.js; then
-                        true
-                    else
-                        rc=$?
-                    fi
+                if eval $TIMECOMMAND timed_run.py $TEST_JSEACH_TIMEOUT \"$jsfile\" \
+                    $EXECUTABLE_DRIVER \
+                    $executable -v $version \
+                    -S 524288 \
+                    $gczealshell \
+                    $splitobjects \
+                    $jitshell \
+                    -f ./shell.js \
+                    -f $suitetestdir/shell.js \
+                    -f $subsuitetestdir/shell.js \
+                    -f ./$jsfile \
+                    -f ./js-test-driver-end.js; then
+                    true
                 else
-                    if eval $TIMECOMMAND timed_run.py $TEST_JSEACH_TIMEOUT \"$jsfile\" \
-                        $EXECUTABLE_DRIVER \
-                        $executable -v $version \
-                        -S 524288 \
-                        $gczealshell \
-                        $splitobjects \
-                        $jitshell \
-                        -f $NARCISSUS \
-                        -e "evaluate\(\'load\(\\\"./shell.js\\\"\)\'\)" \
-                        -e "evaluate\(\'load\(\\\"$suitetestdir/shell.js\\\"\)\'\)" \
-                        -e "evaluate\(\'load\(\\\"$subsuitetestdir/shell.js\\\"\)\'\)" \
-                        -e "evaluate\(\'load\(\\\"./$jsfile\\\"\)\'\)" \
-                        -e "evaluate\(\'load\(\\\"./js-test-driver-end.js\\\"\)\'\)"; then
-                        true
-                    else
-                        rc=$?
-                    fi
+                    rc=$?
                 fi
                 if [[ $rc == 99 ]]; then
                     # note that this loop is executing in a sub-process

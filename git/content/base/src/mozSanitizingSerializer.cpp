@@ -107,7 +107,7 @@ mozSanitizingHTMLSerializer::~mozSanitizingHTMLSerializer()
 }
 
 //<copy from="xpcom/ds/nsProperties.cpp">
-PRBool
+PRBool PR_CALLBACK 
 mozSanitizingHTMLSerializer::ReleaseProperties(nsHashKey* key, void* data,
                                                void* closure)
 {

@@ -152,7 +152,7 @@ NS_NewHTMLOptionElement(nsINodeInfo *aNodeInfo, PRBool aFromParser)
     NS_ENSURE_TRUE(doc, nsnull);
 
     nodeInfo = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::option, nsnull,
-                                                   kNameSpaceID_XHTML);
+                                                   kNameSpaceID_None);
     NS_ENSURE_TRUE(nodeInfo, nsnull);
   }
 
@@ -179,14 +179,13 @@ NS_IMPL_RELEASE_INHERITED(nsHTMLOptionElement, nsGenericElement)
 
 
 // QueryInterface implementation for nsHTMLOptionElement
-NS_INTERFACE_TABLE_HEAD(nsHTMLOptionElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE4(nsHTMLOptionElement,
-                                   nsIDOMHTMLOptionElement,
-                                   nsIDOMNSHTMLOptionElement,
-                                   nsIJSNativeInitializer,
-                                   nsIOptionElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLOptionElement,
-                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_TABLE_HEAD(nsHTMLOptionElement,
+                                     nsGenericHTMLElement)
+  NS_INTERFACE_TABLE_INHERITED4(nsHTMLOptionElement,
+                                nsIDOMHTMLOptionElement,
+                                nsIDOMNSHTMLOptionElement,
+                                nsIJSNativeInitializer,
+                                nsIOptionElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLOptionElement)
 
 

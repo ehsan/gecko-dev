@@ -44,16 +44,13 @@
 #include "nsRefPtrHashtable.h"
 
 #include "gfxFontUtils.h"
-#ifdef MOZ_CORETEXT
-#include "gfxCoreTextFonts.h"
-#endif
 #include "gfxAtsuiFonts.h"
 #include "gfxPlatform.h"
 
 #include <Carbon/Carbon.h>
 
 #include "nsUnicharUtils.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 
 // used when picking fallback font
 struct FontSearch {
@@ -68,35 +65,33 @@ struct FontSearch {
 
 class MacOSFamilyEntry;
 class gfxQuartzFontCache;
-class FontEntryStandardFaceComparator;
 
 // a single member of a font family (i.e. a single face, such as Times Italic)
 class MacOSFontEntry : public gfxFontEntry
 {
 public:
     friend class gfxQuartzFontCache;
-    friend class FontEntryStandardFaceComparator;
 
     // initialize with Apple-type weight [1..14]
     MacOSFontEntry(const nsAString& aPostscriptName, PRInt32 aAppleWeight, PRUint32 aTraits, 
-                   PRBool aIsStandardFace = PR_FALSE);
+                    MacOSFamilyEntry *aFamily);
+
+    const nsString& FamilyName();
 
     PRUint32 Traits() { return mTraits; }
-
-    ATSFontRef GetFontRef();
+    
+    ATSUFontID GetFontID();
     nsresult ReadCMAP();
 
 protected:
     // for use with data fonts
-    MacOSFontEntry(const nsAString& aPostscriptName, ATSFontRef aFontRef,
-                   PRUint16 aWeight, PRUint16 aStretch, PRUint32 aItalicStyle,
-                   gfxUserFontData *aUserFontData);
+    MacOSFontEntry(ATSUFontID aFontID, PRUint16 aWeight, PRUint16 aStretch, PRUint32 aItalicStyle, gfxUserFontData *aUserFontData);
 
     PRUint32 mTraits;
+    MacOSFamilyEntry *mFamily;
 
-    ATSFontRef mATSFontRef;
-    PRPackedBool mATSFontRefInitialized;
-    PRPackedBool mStandardFace;
+    ATSUFontID mATSUFontID;
+    PRPackedBool mATSUIDInitialized;
 };
 
 // helper class for adding other family names back into font cache
@@ -154,9 +149,6 @@ public:
             mAvailableFonts[i]->mIsBadUnderlineFont = aIsBadUnderlineFont;
     }
 
-    // sort available fonts to put less-desirable faces towards the end
-    void SortAvailableFonts();
-
 protected:
     
     // add font entries into array that match specified traits, returned in array listed by weight
@@ -210,13 +202,11 @@ public:
     
     void GetFontList (const nsACString& aLangGroup,
                       const nsACString& aGenericFamily,
-                      nsTArray<nsString>& aListOfFonts);
+                      nsStringArray& aListOfFonts);
     PRBool ResolveFontName(const nsAString& aFontName,
                            nsAString& aResolvedFontName);
     PRBool GetStandardFamilyName(const nsAString& aFontName, nsAString& aFamilyName);
     void UpdateFontList() { InitFontList(); }
-
-    void ClearPrefFonts() { mPrefFonts.Clear(); }
 
     void GetFontFamilyList(nsTArray<nsRefPtr<MacOSFamilyEntry> >& aFamilyArray);
 
@@ -235,15 +225,14 @@ public:
     
     void AddOtherFamilyName(MacOSFamilyEntry *aFamilyEntry, nsAString& aOtherFamilyName);
 
-    gfxFontEntry* LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
-                                  const nsAString& aFontName);
+    gfxFontEntry* LookupLocalFont(const nsAString& aFontName);
     
-    gfxFontEntry* MakePlatformFont(const gfxFontEntry *aProxyEntry, const PRUint8 *aFontData, PRUint32 aLength);
+    gfxFontEntry* MakePlatformFont(const gfxFontEntry *aProxyEntry, const gfxDownloadedFontData* aFontData);
 
 private:
-    static PLDHashOperator FindFontForCharProc(nsStringHashKey::KeyType aKey,
-                                               nsRefPtr<MacOSFamilyEntry>& aFamilyEntry,
-                                               void* userArg);
+    static PLDHashOperator PR_CALLBACK FindFontForCharProc(nsStringHashKey::KeyType aKey,
+                                                             nsRefPtr<MacOSFamilyEntry>& aFamilyEntry,
+                                                             void* userArg);
 
     static gfxQuartzFontCache *sSharedFontCache;
 
@@ -271,14 +260,15 @@ private:
     // explicitly set font traits for all faces to fixed-pitch
     void SetFixedPitch(const nsAString& aFamilyName);
                                                              
-    static PLDHashOperator InitOtherFamilyNamesProc(nsStringHashKey::KeyType aKey,
-                                                    nsRefPtr<MacOSFamilyEntry>& aFamilyEntry,
-                                                    void* userArg);
+    static PLDHashOperator PR_CALLBACK InitOtherFamilyNamesProc(nsStringHashKey::KeyType aKey,
+                                                             nsRefPtr<MacOSFamilyEntry>& aFamilyEntry,
+                                                             void* userArg);
 
     void GenerateFontListKey(const nsAString& aKeyName, nsAString& aResult);
     static void ATSNotification(ATSFontNotificationInfoRef aInfo, void* aUserArg);
+    static int PR_CALLBACK PrefChangedCallback(const char *aPrefName, void *closure);
 
-    static PLDHashOperator
+    static PLDHashOperator PR_CALLBACK
         HashEnumFuncForFamilies(nsStringHashKey::KeyType aKey,
                                 nsRefPtr<MacOSFamilyEntry>& aFamilyEntry,
                                 void* aUserArg);

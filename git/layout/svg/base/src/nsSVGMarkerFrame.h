@@ -38,7 +38,6 @@
 #define __NS_SVGMARKERFRAME_H__
 
 #include "nsSVGContainerFrame.h"
-#include "gfxMatrix.h"
 
 class gfxContext;
 class nsSVGPathGeometryFrame;
@@ -51,7 +50,7 @@ typedef nsSVGContainerFrame nsSVGMarkerFrameBase;
 class nsSVGMarkerFrame : public nsSVGMarkerFrameBase
 {
   friend nsIFrame*
-  NS_NewSVGMarkerFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
+  NS_NewSVGMarkerFrame(nsIPresShell* aPresShell, nsIContent* aContent, nsStyleContext* aContext);
 protected:
   nsSVGMarkerFrame(nsStyleContext* aContext) :
     nsSVGMarkerFrameBase(aContext),
@@ -60,16 +59,6 @@ protected:
     mInUse2(PR_FALSE) {}
 
 public:
-  // nsIFrame interface:
-#ifdef DEBUG
-  NS_IMETHOD Init(nsIContent*      aContent,
-                  nsIFrame*        aParent,
-                  nsIFrame*        aPrevInFlow);
-#endif
-
-  NS_IMETHOD AttributeChanged(PRInt32         aNameSpaceID,
-                              nsIAtom*        aAttribute,
-                              PRInt32         aModType);
   /**
    * Get the "type" of the frame
    *
@@ -99,7 +88,7 @@ private:
   float mStrokeWidth, mX, mY, mAngle;
 
   // nsSVGContainerFrame methods:
-  virtual gfxMatrix GetCanvasTM();
+  virtual already_AddRefed<nsIDOMSVGMatrix> GetCanvasTM();
 
   // VC6 does not allow the inner class to access protected members
   // of the outer class
@@ -130,5 +119,8 @@ private:
   // second recursion prevention flag, for GetCanvasTM()
   PRPackedBool mInUse2;
 };
+
+nsIContent *
+NS_GetSVGMarkerElement(nsIURI *aURI, nsIContent *aContent);
 
 #endif

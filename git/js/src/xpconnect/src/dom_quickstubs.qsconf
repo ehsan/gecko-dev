@@ -66,13 +66,10 @@ members = [
     'nsIDOMWindow.name',
     'nsIDOMWindow.parent',
     'nsIDOMWindow.top',
-    # Several window properties are magically resolved, including
-    # location, _content, navigator, document, and window itself.
-    # These do not need quick stubs.
-    #'nsIDOMWindow.document',
+    'nsIDOMWindow.document',
     'nsIDOMWindow.getSelection',
-    'nsIDOMWindow.scrollByLines',
-    'nsIDOMJSWindow.dump',
+    'nsIDOMWindowCollection.item',
+    'nsIDOMWindowCollection.length',
     'nsIDOMScreen.top',
     'nsIDOMScreen.height',
     'nsIDOMScreen.width',
@@ -181,8 +178,6 @@ members = [
     'nsIDOMNode.attributes',
     'nsIDOMNodeList.item',
     'nsIDOMNodeList.length',
-    'nsIDOMNodeSelector.querySelector',
-    'nsIDOMNodeSelector.querySelectorAll',
     'nsIDOMText.splitText',
     'nsIDOM3Document.documentURI',
     'nsIDOM3Document.adoptNode',
@@ -217,9 +212,11 @@ members = [
     #'nsIDOMNSDocument.location',
     'nsIDOMNSDocument.elementFromPoint',
     'nsIDOMNSDocument.activeElement',
-    'nsIDOMXULDocument.getBoxObjectFor',
+    'nsIDOMNSDocument.getBoxObjectFor',
     'nsIDOMXMLDocument.evaluateXPointer',
     'nsIDOMXMLDocument.evaluateFIXptr',
+    'nsIDOMNSEditableElement.editor',
+    'nsIDOMNSEditableElement.setUserInput',
     'nsIDOMNSElement.getClientRects',
     'nsIDOMNSElement.getBoundingClientRect',
     'nsIDOMNSElement.getElementsByClassName',
@@ -272,6 +269,9 @@ members = [
     # the conflict is specially resolved in nsDOMClassInfo.cpp.
     # (See bug 453331.)
     #'nsIDOMEventTarget.addEventListener',
+    'nsIDOMEventListener.handleEvent',
+    'nsIDOMCustomEvent.setCurrentTarget',
+    'nsIDOMCustomEvent.setEventPhase',
     'nsIDOMDocumentEvent.createEvent',
     'nsIDOMMouseEvent.clientX',
     'nsIDOMMouseEvent.clientY',
@@ -285,7 +285,6 @@ members = [
     'nsIDOMMouseEvent.screenX',
     'nsIDOMNSEvent.originalTarget',
     'nsIDOMNSEvent.preventCapture',
-    'nsIDOMNSEvent.getPreventDefault',
     'nsIDOMKeyEvent.ctrlKey',
     'nsIDOMKeyEvent.shiftKey',
     'nsIDOMKeyEvent.keyCode',
@@ -297,6 +296,7 @@ members = [
     'nsIDOMMutationEvent.attrChange',
     'nsIDOMMutationEvent.newValue',
     'nsIDOMMutationEvent.prevValue',
+    'nsIDOMNSUIEvent.getPreventDefault',
     'nsIDOMNSUIEvent.which',
     'nsIDOMNSUIEvent.rangeParent',
     'nsIDOMNSUIEvent.rangeOffset',
@@ -310,7 +310,6 @@ members = [
     'nsIDOMHTMLAnchorElement.href',
     'nsIDOMHTMLAnchorElement.rel',
     'nsIDOMHTMLAnchorElement.target',
-    'nsIDOMHTMLAnchorElement.name',
     'nsIDOMHTMLBaseElement.href',
     'nsIDOMHTMLBaseElement.target',
     'nsIDOMHTMLButtonElement.name',
@@ -421,8 +420,6 @@ members = [
     'nsIDOMHTMLCanvasElement.getContext',
     # 'nsIDOMHTMLCanvasElement.toDataURL',  # uses GetCurrentNativeCallContext
     'nsIDOMNSHTMLAnchorElement.text',
-    'nsIDOMNSHTMLAnchorElement.search',
-    'nsIDOMNSHTMLAnchorElement.hash',
     'nsIDOMNSHTMLDocument.width',
     'nsIDOMNSHTMLDocument.height',
     'nsIDOMNSHTMLDocument.domain',
@@ -469,7 +466,6 @@ members = [
     'nsIDOMStorage.getItem',
     'nsIDOMStorage.key',
     'nsIDOMStorage.removeItem',
-    'nsIDOMStorage.clear',
     'nsIDOMStorageItem.value',
     'nsIDOMStorageWindow.sessionStorage',
     'nsIDOMStorageWindow.globalStorage',
@@ -517,53 +513,6 @@ irregularFilenames = {
 
     # stowaways
     'nsIDOMTextMetrics': 'nsIDOMCanvasRenderingContext2D',
+    'nsIDOMNSCSS2Properties': 'nsIDOMCSS2Properties',
     'nsIXPointerResult': 'nsIXPointer',
-    }
-
-customIncludes = [
-    'nsINode.h',
-    'nsIContent.h',
-    'nsIDocument.h',
-    'nsINodeList.h'
-    ]
-
-nsIDOMNode_GetChildNodes_customMethodCallCode = """
-    nsIDOMNodeList* result = self->GetChildNodesList();
-    if (!result)
-        return xpc_qsThrowGetterSetterFailed(cx, NS_ERROR_OUT_OF_MEMORY, JSVAL_TO_OBJECT(*vp), id);
-"""
-
-customMethodCalls = {
-    'nsIDOMNode_GetNextSibling': {
-        'thisType': 'nsINode',
-        'code': '    nsINode* result = self->GetSibling(1);'
-        },
-    'nsIDOMNode_GetFirstChild': {
-        'thisType': 'nsINode',
-        'code': '    nsINode* result = self->GetChildAt(0);'
-        },
-    'nsIDOMNode_GetChildNodes': {
-        'thisType': 'nsINode',
-        'code': nsIDOMNode_GetChildNodes_customMethodCallCode
-        },
-    'nsIDOMNode_GetPreviousSibling': {
-        'thisType': 'nsINode',
-        'code': '    nsINode* result = self->GetSibling(-1);'
-        },
-    'nsIDOMNode_GetLastChild': {
-        'thisType': 'nsINode',
-        'code': '    nsINode* result = self->GetLastChild();'
-        },
-    'nsIDOMNode_GetOwnerDocument': {
-        'thisType': 'nsINode',
-        'code': '    nsIDocument* result = self->GetOwnerDocument();'
-        },
-    'nsIDOMNode_GetParentNode': {
-        'thisType': 'nsINode',
-        'code': '    nsINode* result = self->GetNodeParent();'
-        },
-    'nsIDOMNodeList_Item': {
-        'thisType': 'nsINodeList',
-        'code': '    nsINode* result = self->GetNodeAt(arg0);'
-        }
     }

@@ -37,7 +37,7 @@
 
 // This file tests the download manager backend
 
-do_load_httpd_js();
+do_import_script("netwerk/test/httpserver/httpd.js");
 
 function createURI(aObj)
 {
@@ -90,7 +90,7 @@ if (!profileDir) {
  */
 function importDownloadsFile(aFName)
 {
-  var file = do_get_file(aFName);
+  var file = do_get_file("toolkit/components/downloads/test/unit/" + aFName);
   var newFile = dirSvc.get("ProfD", Ci.nsIFile);
   if (/\.rdf$/i.test(aFName))
     file.copyTo(newFile, "downloads.rdf");
@@ -112,13 +112,6 @@ function cleanup()
   if (dbFile.exists())
     try { dbFile.remove(true); } catch(e) { /* stupid windows box */ }
 
-  // remove places.sqlite since expiration won't work properly if we do not have
-  // a clean database file.
-  dbFile = dirSvc.get("ProfD", Ci.nsIFile);
-  dbFile.append("places.sqlite");
-  if (dbFile.exists())
-    try { dbFile.remove(true); } catch(e) { /* stupid windows box */ }
-
   // removing downloaded file
   var destFile = dirSvc.get("ProfD", Ci.nsIFile);
   destFile.append("download.result");
@@ -128,31 +121,11 @@ function cleanup()
 var gDownloadCount = 0;
 /**
  * Adds a download to the DM, and starts it.
- * @param aParams (optional): an optional object which contains the function
- *                            parameters:
- *                              resultFileName: leaf node for the target file
- *                              targetFile: nsIFile for the target (overrides resultFileName)
- *                              sourceURI: the download source URI
- *                              downloadName: the display name of the download
- *                              runBeforeStart: a function to run before starting the download
+ * @param aResultFileName (optional): the leafName of the download's target
+ *                                    file.
  */
-function addDownload(aParams)
+function addDownload(aResultFileName)
 {
-  if (!aParams)
-    aParams = {};
-  if (!("resultFileName" in aParams))
-    aParams.resultFileName = "download.result";
-  if (!("targetFile" in aParams)) {
-    aParams.targetFile = dirSvc.get("ProfD", Ci.nsIFile);
-    aParams.targetFile.append(aParams.resultFileName);
-  }
-  if (!("sourceURI" in aParams))
-    aParams.sourceURI = "http://localhost:4444/res/language.properties";
-  if (!("downloadName" in aParams))
-    aParams.downloadName = null;
-  if (!("runBeforeStart" in aParams))
-    aParams.runBeforeStart = function () {};
-
   const nsIWBP = Ci.nsIWebBrowserPersist;
   var persist = Cc["@mozilla.org/embedding/browser/nsWebBrowserPersist;1"]
                 .createInstance(Ci.nsIWebBrowserPersist);
@@ -160,19 +133,20 @@ function addDownload(aParams)
                          nsIWBP.PERSIST_FLAGS_BYPASS_CACHE |
                          nsIWBP.PERSIST_FLAGS_AUTODETECT_APPLY_CONVERSION;
 
+  var destFile = dirSvc.get("ProfD", Ci.nsIFile);
+  destFile.append(aResultFileName || "download.result");
+
   // it is part of the active downloads the moment addDownload is called
   gDownloadCount++;
 
-  var dl = dm.addDownload(Ci.nsIDownloadManager.DOWNLOAD_TYPE_DOWNLOAD,
-                          createURI(aParams.sourceURI),
-                          createURI(aParams.targetFile), aParams.downloadName, null,
+  var dl = dm.addDownload(nsIDownloadManager.DOWNLOAD_TYPE_DOWNLOAD,
+                          createURI("http://localhost:4444/res/language.properties"),
+                          createURI(destFile), null, null,
                           Math.round(Date.now() * 1000), null, persist);
 
   // This will throw if it isn't found, and that would mean test failure, so no
   // try catch block
   var test = dm.getDownload(dl.id);
-
-  aParams.runBeforeStart.call(undefined, dl);
 
   persist.progressListener = dl.QueryInterface(Ci.nsIWebProgressListener);
   persist.saveURI(dl.source, null, null, null, null, dl.targetFile);
@@ -195,11 +169,8 @@ function getDownloadListener()
         do_test_finished();
       }
 
-      if (gDownloadCount == 0 && typeof httpserv != "undefined" && httpserv)
-      {
-        do_test_pending();
-        httpserv.stop(do_test_finished);
-      }
+      if (gDownloadCount == 0)
+        httpserv.stop();
     },
     onStateChange: function(a, b, c, d, e) { },
     onProgressChange: function(a, b, c, d, e, f, g) { },

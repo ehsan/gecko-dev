@@ -51,12 +51,12 @@
 #include "nsAppShellWindowEnumerator.h"
 #include "nsWindowMediator.h"
 
-//
-// static helper functions
-//
+/********************************************************************/
+/************************ static helper functions *******************/
+/********************************************************************/
 
 static nsresult GetDOMWindow(nsIXULWindow* inWindow,
-                             nsCOMPtr<nsIDOMWindowInternal> &outDOMWindow);
+                  nsCOMPtr<nsIDOMWindowInternal> &outDOMWindow);
 static nsCOMPtr<nsIDOMNode> GetDOMNodeFromDocShell(nsIDocShell *aShell);
 static void GetAttribute(nsIXULWindow *inWindow, const nsAString &inAttribute,
                          nsAString &outValue);
@@ -72,6 +72,8 @@ nsresult GetDOMWindow(nsIXULWindow *aWindow, nsCOMPtr<nsIDOMWindowInternal> &aDO
   return aDOMWindow ? NS_OK : NS_ERROR_FAILURE;
 }
 
+
+// QueryInterface fu
 nsCOMPtr<nsIDOMNode> GetDOMNodeFromDocShell(nsIDocShell *aShell)
 {
   nsCOMPtr<nsIDOMNode> node;
@@ -104,6 +106,7 @@ void GetAttribute(nsIXULWindow *inWindow, const nsAString &inAttribute,
 {
   nsCOMPtr<nsIDocShell> shell;
   if (inWindow && NS_SUCCEEDED(inWindow->GetDocShell(getter_AddRefs(shell)))) {
+
     nsCOMPtr<nsIDOMNode> node(GetDOMNodeFromDocShell(shell));
     if (node) {
       nsCOMPtr<nsIDOMElement> webshellElement(do_QueryInterface(node));
@@ -120,9 +123,9 @@ void GetWindowType(nsIXULWindow* aWindow, nsString &outType)
   GetAttribute(aWindow, NS_LITERAL_STRING("windowtype"), outType);
 }
 
-//
-// nsWindowInfo
-//
+/********************************************************************/
+/**************************** nsWindowInfo **************************/
+/********************************************************************/
 
 nsWindowInfo::nsWindowInfo(nsIXULWindow* inWindow, PRInt32 inTimeStamp) :
   mWindow(inWindow),mTimeStamp(inTimeStamp),mZLevel(nsIXULWindow::normalZ)
@@ -133,7 +136,7 @@ nsWindowInfo::nsWindowInfo(nsIXULWindow* inWindow, PRInt32 inTimeStamp) :
 nsWindowInfo::~nsWindowInfo()
 {
 }
-
+  
 // return true if the window described by this WindowInfo has a type
 // equal to the given type
 PRBool nsWindowInfo::TypeEquals(const nsAString &aType)
@@ -145,8 +148,7 @@ PRBool nsWindowInfo::TypeEquals(const nsAString &aType)
 
 // insert the struct into their two linked lists, in position after the
 // given (independent) method arguments
-void nsWindowInfo::InsertAfter(nsWindowInfo *inOlder , nsWindowInfo *inHigher)
-{
+void nsWindowInfo::InsertAfter(nsWindowInfo *inOlder , nsWindowInfo *inHigher) {
   if (inOlder) {
     mOlder = inOlder;
     mYounger = inOlder->mYounger;
@@ -170,8 +172,8 @@ void nsWindowInfo::InsertAfter(nsWindowInfo *inOlder , nsWindowInfo *inHigher)
 }
 
 // remove the struct from its linked lists
-void nsWindowInfo::Unlink(PRBool inAge, PRBool inZ)
-{
+void nsWindowInfo::Unlink(PRBool inAge, PRBool inZ) {
+
   if (inAge) {
     mOlder->mYounger = mYounger;
     mYounger->mOlder = mOlder;
@@ -180,12 +182,12 @@ void nsWindowInfo::Unlink(PRBool inAge, PRBool inZ)
     mLower->mHigher = mHigher;
     mHigher->mLower = mLower;
   }
-  ReferenceSelf(inAge, inZ);
+  ReferenceSelf( inAge, inZ );
 }
 
 // initialize the struct to be a valid linked list of one element
-void nsWindowInfo::ReferenceSelf(PRBool inAge, PRBool inZ)
-{
+void nsWindowInfo::ReferenceSelf(PRBool inAge, PRBool inZ) {
+
   if (inAge) {
     mYounger = this;
     mOlder = this;
@@ -196,31 +198,33 @@ void nsWindowInfo::ReferenceSelf(PRBool inAge, PRBool inZ)
   }
 }
 
-//
-// nsAppShellWindowEnumerator
-//
+/********************************************************************/
+/*********************** nsAppShellWindowEnumerator *****************/
+/********************************************************************/
 
 NS_IMPL_ISUPPORTS1(nsAppShellWindowEnumerator, nsISimpleEnumerator)
 
-nsAppShellWindowEnumerator::nsAppShellWindowEnumerator(
+nsAppShellWindowEnumerator::nsAppShellWindowEnumerator (
     const PRUnichar* aTypeString,
     nsWindowMediator& aMediator) :
-      mWindowMediator(&aMediator), mType(aTypeString), mCurrentPosition(nsnull)
+
+    mWindowMediator(&aMediator), mType(aTypeString),
+    mCurrentPosition(0)
 {
   mWindowMediator->AddEnumerator(this);
   NS_ADDREF(mWindowMediator);
 }
 
-nsAppShellWindowEnumerator::~nsAppShellWindowEnumerator()
-{
+nsAppShellWindowEnumerator::~nsAppShellWindowEnumerator() {
+
   mWindowMediator->RemoveEnumerator(this);
   NS_RELEASE(mWindowMediator);
 }
 
 // after mCurrentPosition has been initialized to point to the beginning
 // of the appropriate list, adjust it if necessary
-void nsAppShellWindowEnumerator::AdjustInitialPosition()
-{
+void nsAppShellWindowEnumerator::AdjustInitialPosition() {
+
   if (!mType.IsEmpty() && mCurrentPosition && !mCurrentPosition->TypeEquals(mType))
     mCurrentPosition = FindNext();
 }
@@ -233,35 +237,35 @@ NS_IMETHODIMP nsAppShellWindowEnumerator::HasMoreElements(PRBool *retval)
   *retval = mCurrentPosition ? PR_TRUE : PR_FALSE;
   return NS_OK;
 }
-
+	
 // if a window is being removed adjust the iterator's current position
-void nsAppShellWindowEnumerator::WindowRemoved(nsWindowInfo *inInfo)
-{
+void nsAppShellWindowEnumerator::WindowRemoved(nsWindowInfo *inInfo) {
+
   if (mCurrentPosition == inInfo)
     mCurrentPosition = FindNext();
 }
 
-//
-// nsASDOMWindowEnumerator
-//
+/********************************************************************/
+/*********************** nsASDOMWindowEnumerator ********************/
+/********************************************************************/
 
 nsASDOMWindowEnumerator::nsASDOMWindowEnumerator(
     const PRUnichar* aTypeString,
     nsWindowMediator& aMediator) :
-      nsAppShellWindowEnumerator(aTypeString, aMediator)
-{
+
+  nsAppShellWindowEnumerator(aTypeString, aMediator) {
+
 }
 
-nsASDOMWindowEnumerator::~nsASDOMWindowEnumerator()
-{
+nsASDOMWindowEnumerator::~nsASDOMWindowEnumerator() {
 }
 
-NS_IMETHODIMP nsASDOMWindowEnumerator::GetNext(nsISupports **retval)
-{
+NS_IMETHODIMP nsASDOMWindowEnumerator::GetNext(nsISupports **retval) {
+
   if (!retval)
     return NS_ERROR_INVALID_ARG;
 
-  *retval = nsnull;
+  *retval = NULL;
   if (mCurrentPosition) {
     nsCOMPtr<nsIDOMWindowInternal> domWindow;
     GetDOMWindow(mCurrentPosition->mWindow, domWindow);
@@ -271,27 +275,27 @@ NS_IMETHODIMP nsASDOMWindowEnumerator::GetNext(nsISupports **retval)
   return NS_OK;
 }
 
-//
-// nsASXULWindowEnumerator
-//
+/********************************************************************/
+/*********************** nsASXULWindowEnumerator ********************/
+/********************************************************************/
 
 nsASXULWindowEnumerator::nsASXULWindowEnumerator(
     const PRUnichar* aTypeString,
     nsWindowMediator& aMediator) :
-      nsAppShellWindowEnumerator(aTypeString, aMediator)
-{
+
+  nsAppShellWindowEnumerator(aTypeString, aMediator) {
+
 }
 
-nsASXULWindowEnumerator::~nsASXULWindowEnumerator()
-{
+nsASXULWindowEnumerator::~nsASXULWindowEnumerator() {
 }
 
-NS_IMETHODIMP nsASXULWindowEnumerator::GetNext(nsISupports **retval)
-{
+NS_IMETHODIMP nsASXULWindowEnumerator::GetNext(nsISupports **retval) {
+
   if (!retval)
     return NS_ERROR_INVALID_ARG;
 
-  *retval = nsnull;
+  *retval = NULL;
   if (mCurrentPosition) {
     CallQueryInterface(mCurrentPosition->mWindow, retval);
     mCurrentPosition = FindNext();
@@ -299,32 +303,32 @@ NS_IMETHODIMP nsASXULWindowEnumerator::GetNext(nsISupports **retval)
   return NS_OK;
 }
 
-//
-// nsASDOMWindowEarlyToLateEnumerator
-//
+/********************************************************************/
+/****************** nsASDOMWindowEarlyToLateEnumerator **************/
+/********************************************************************/
 
 nsASDOMWindowEarlyToLateEnumerator::nsASDOMWindowEarlyToLateEnumerator(
     const PRUnichar *aTypeString,
     nsWindowMediator &aMediator) :
-      nsASDOMWindowEnumerator(aTypeString, aMediator)
-{
+
+  nsASDOMWindowEnumerator(aTypeString, aMediator) {
+
   mCurrentPosition = aMediator.mOldestWindow;
   AdjustInitialPosition();
 }
 
-nsASDOMWindowEarlyToLateEnumerator::~nsASDOMWindowEarlyToLateEnumerator()
-{
+nsASDOMWindowEarlyToLateEnumerator::~nsASDOMWindowEarlyToLateEnumerator() {
 }
 
-nsWindowInfo *nsASDOMWindowEarlyToLateEnumerator::FindNext()
-{
+nsWindowInfo *nsASDOMWindowEarlyToLateEnumerator::FindNext() {
+
   nsWindowInfo *info,
                *listEnd;
   PRBool        allWindows = mType.IsEmpty();
 
   // see nsXULWindowEarlyToLateEnumerator::FindNext
   if (!mCurrentPosition)
-    return nsnull;
+    return 0;
 
   info = mCurrentPosition->mYounger;
   listEnd = mWindowMediator->mOldestWindow;
@@ -335,28 +339,28 @@ nsWindowInfo *nsASDOMWindowEarlyToLateEnumerator::FindNext()
     info = info->mYounger;
   }
 
-  return nsnull;
+  return 0;
 }
 
-//
-// nsASXULWindowEarlyToLateEnumerator
-//
+/********************************************************************/
+/****************** nsASXULWindowEarlyToLateEnumerator **************/
+/********************************************************************/
 
 nsASXULWindowEarlyToLateEnumerator::nsASXULWindowEarlyToLateEnumerator(
     const PRUnichar *aTypeString,
     nsWindowMediator &aMediator) :
-      nsASXULWindowEnumerator(aTypeString, aMediator)
-{
+
+  nsASXULWindowEnumerator(aTypeString, aMediator) {
+
   mCurrentPosition = aMediator.mOldestWindow;
   AdjustInitialPosition();
 }
 
-nsASXULWindowEarlyToLateEnumerator::~nsASXULWindowEarlyToLateEnumerator()
-{
+nsASXULWindowEarlyToLateEnumerator::~nsASXULWindowEarlyToLateEnumerator() {
 }
 
-nsWindowInfo *nsASXULWindowEarlyToLateEnumerator::FindNext()
-{
+nsWindowInfo *nsASXULWindowEarlyToLateEnumerator::FindNext() {
+
   nsWindowInfo *info,
                *listEnd;
   PRBool        allWindows = mType.IsEmpty();
@@ -369,7 +373,7 @@ nsWindowInfo *nsASXULWindowEarlyToLateEnumerator::FindNext()
      pick up newly added windows anyway (if they occurred previous to our
      current position) so we just don't worry about that. */
   if (!mCurrentPosition)
-    return nsnull;
+    return 0;
 
   info = mCurrentPosition->mYounger;
   listEnd = mWindowMediator->mOldestWindow;
@@ -380,35 +384,35 @@ nsWindowInfo *nsASXULWindowEarlyToLateEnumerator::FindNext()
     info = info->mYounger;
   }
 
-  return nsnull;
+  return 0;
 }
 
-//
-// nsASDOMWindowFrontToBackEnumerator
-//
+/********************************************************************/
+/****************** nsASDOMWindowFrontToBackEnumerator **************/
+/********************************************************************/
 
 nsASDOMWindowFrontToBackEnumerator::nsASDOMWindowFrontToBackEnumerator(
     const PRUnichar *aTypeString,
     nsWindowMediator &aMediator) :
-      nsASDOMWindowEnumerator(aTypeString, aMediator)
-{
+
+  nsASDOMWindowEnumerator(aTypeString, aMediator) {
+
   mCurrentPosition = aMediator.mTopmostWindow;
   AdjustInitialPosition();
 }
 
-nsASDOMWindowFrontToBackEnumerator::~nsASDOMWindowFrontToBackEnumerator()
-{
+nsASDOMWindowFrontToBackEnumerator::~nsASDOMWindowFrontToBackEnumerator() {
 }
 
-nsWindowInfo *nsASDOMWindowFrontToBackEnumerator::FindNext()
-{
+nsWindowInfo *nsASDOMWindowFrontToBackEnumerator::FindNext() {
+
   nsWindowInfo *info,
                *listEnd;
   PRBool        allWindows = mType.IsEmpty();
 
   // see nsXULWindowEarlyToLateEnumerator::FindNext
   if (!mCurrentPosition)
-    return nsnull;
+    return 0;
 
   info = mCurrentPosition->mLower;
   listEnd = mWindowMediator->mTopmostWindow;
@@ -419,18 +423,19 @@ nsWindowInfo *nsASDOMWindowFrontToBackEnumerator::FindNext()
     info = info->mLower;
   }
 
-  return nsnull;
+  return 0;
 }
 
-//
-// nsASXULWindowFrontToBackEnumerator
-//
+/********************************************************************/
+/****************** nsASXULWindowFrontToBackEnumerator **************/
+/********************************************************************/
 
 nsASXULWindowFrontToBackEnumerator::nsASXULWindowFrontToBackEnumerator(
     const PRUnichar *aTypeString,
     nsWindowMediator &aMediator) :
-      nsASXULWindowEnumerator(aTypeString, aMediator)
-{
+
+  nsASXULWindowEnumerator(aTypeString, aMediator) {
+
   mCurrentPosition = aMediator.mTopmostWindow;
   AdjustInitialPosition();
 }
@@ -439,15 +444,15 @@ nsASXULWindowFrontToBackEnumerator::~nsASXULWindowFrontToBackEnumerator()
 {
 }
 
-nsWindowInfo *nsASXULWindowFrontToBackEnumerator::FindNext()
-{
+nsWindowInfo *nsASXULWindowFrontToBackEnumerator::FindNext() {
+
   nsWindowInfo *info,
                *listEnd;
   PRBool        allWindows = mType.IsEmpty();
 
   // see nsXULWindowEarlyToLateEnumerator::FindNext
   if (!mCurrentPosition)
-    return nsnull;
+    return 0;
 
   info = mCurrentPosition->mLower;
   listEnd = mWindowMediator->mTopmostWindow;
@@ -458,36 +463,36 @@ nsWindowInfo *nsASXULWindowFrontToBackEnumerator::FindNext()
     info = info->mLower;
   }
 
-  return nsnull;
+  return 0;
 }
 
-//
-// nsASDOMWindowBackToFrontEnumerator
-//
+/********************************************************************/
+/****************** nsASDOMWindowBackToFrontEnumerator **************/
+/********************************************************************/
 
 nsASDOMWindowBackToFrontEnumerator::nsASDOMWindowBackToFrontEnumerator(
     const PRUnichar *aTypeString,
     nsWindowMediator &aMediator) :
-  nsASDOMWindowEnumerator(aTypeString, aMediator)
-{
+
+  nsASDOMWindowEnumerator(aTypeString, aMediator) {
+
   mCurrentPosition = aMediator.mTopmostWindow ?
-                     aMediator.mTopmostWindow->mHigher : nsnull;
+                     aMediator.mTopmostWindow->mHigher : 0;
   AdjustInitialPosition();
 }
 
-nsASDOMWindowBackToFrontEnumerator::~nsASDOMWindowBackToFrontEnumerator()
-{
+nsASDOMWindowBackToFrontEnumerator::~nsASDOMWindowBackToFrontEnumerator() {
 }
 
-nsWindowInfo *nsASDOMWindowBackToFrontEnumerator::FindNext()
-{
+nsWindowInfo *nsASDOMWindowBackToFrontEnumerator::FindNext() {
+
   nsWindowInfo *info,
                *listEnd;
   PRBool        allWindows = mType.IsEmpty();
 
   // see nsXULWindowEarlyToLateEnumerator::FindNext
   if (!mCurrentPosition)
-    return nsnull;
+    return 0;
 
   info = mCurrentPosition->mHigher;
   listEnd = mWindowMediator->mTopmostWindow;
@@ -500,20 +505,21 @@ nsWindowInfo *nsASDOMWindowBackToFrontEnumerator::FindNext()
     info = info->mHigher;
   }
 
-  return nsnull;
+  return 0;
 }
 
-//
-// nsASXULWindowBackToFrontEnumerator
-//
+/********************************************************************/
+/****************** nsASXULWindowBackToFrontEnumerator **************/
+/********************************************************************/
 
 nsASXULWindowBackToFrontEnumerator::nsASXULWindowBackToFrontEnumerator(
     const PRUnichar *aTypeString,
     nsWindowMediator &aMediator) :
-      nsASXULWindowEnumerator(aTypeString, aMediator)
-{
+
+  nsASXULWindowEnumerator(aTypeString, aMediator) {
+
   mCurrentPosition = aMediator.mTopmostWindow ?
-                     aMediator.mTopmostWindow->mHigher : nsnull;
+                     aMediator.mTopmostWindow->mHigher : 0;
   AdjustInitialPosition();
 }
 
@@ -521,15 +527,15 @@ nsASXULWindowBackToFrontEnumerator::~nsASXULWindowBackToFrontEnumerator()
 {
 }
 
-nsWindowInfo *nsASXULWindowBackToFrontEnumerator::FindNext()
-{
+nsWindowInfo *nsASXULWindowBackToFrontEnumerator::FindNext() {
+
   nsWindowInfo *info,
                *listEnd;
   PRBool        allWindows = mType.IsEmpty();
 
   // see nsXULWindowEarlyToLateEnumerator::FindNext
   if (!mCurrentPosition)
-    return nsnull;
+    return 0;
 
   info = mCurrentPosition->mHigher;
   listEnd = mWindowMediator->mTopmostWindow;
@@ -542,5 +548,6 @@ nsWindowInfo *nsASXULWindowBackToFrontEnumerator::FindNext()
     info = info->mHigher;
   }
 
-  return nsnull;
+  return 0;
 }
+

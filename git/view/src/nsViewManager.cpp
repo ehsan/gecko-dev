@@ -63,6 +63,8 @@
 #include "nsThreadUtils.h"
 #include "nsContentUtils.h"
 #include "gfxContext.h"
+#define NS_STATIC_FOCUS_SUPPRESSOR
+#include "nsIFocusEventSuppressor.h"
 
 static NS_DEFINE_IID(kBlenderCID, NS_BLENDER_CID);
 static NS_DEFINE_IID(kRegionCID, NS_REGION_CID);
@@ -90,6 +92,10 @@ static NS_DEFINE_IID(kRenderingContextCID, NS_RENDERING_CONTEXT_CID);
 
 #ifdef NS_VM_PERF_METRICS
 #include "nsITimeRecorder.h"
+#endif
+
+#ifdef DEBUG_smaug
+#define DEBUG_FOCUS_SUPPRESSION
 #endif
 
 //-------------- Begin Invalidate Event Definition ------------------------
@@ -169,10 +175,12 @@ nsViewManager::nsViewManager()
 
   gViewManagers->AppendElement(this);
 
-  ++mVMCount;
-
+  if (++mVMCount == 1) {
+    NS_AddFocusSuppressorCallback(&nsViewManager::SuppressFocusEvents);
+  }
   // NOTE:  we use a zeroing operator new, so all data members are
   // assumed to be cleared here.
+  mDefaultBackgroundColor = NS_RGBA(0, 0, 0, 0);
   mHasPendingUpdates = PR_FALSE;
   mRecursiveRefreshPending = PR_FALSE;
   mUpdateBatchFlags = 0;
@@ -524,6 +532,32 @@ void nsViewManager::Refresh(nsView *aView, nsIRenderingContext *aContext,
 
 }
 
+// aRect is in app units and relative to the top-left of the aView->GetWidget()
+void nsViewManager::DefaultRefresh(nsView* aView, nsIRenderingContext *aContext, const nsRect* aRect)
+{
+  NS_PRECONDITION(aView, "Must have a view to work with!");
+  nsIWidget* widget = aView->GetNearestWidget(nsnull);
+  if (! widget)
+    return;
+
+  nsCOMPtr<nsIRenderingContext> context = aContext;
+  if (! aContext)
+    context = CreateRenderingContext(*aView);
+
+  if (! context)
+    return;
+
+  nscolor bgcolor = mDefaultBackgroundColor;
+
+  if (NS_GET_A(mDefaultBackgroundColor) == 0) {
+    NS_WARNING("nsViewManager: Asked to paint a default background, but no default background color is set!");
+    return;
+  }
+
+  context->SetColor(bgcolor);
+  context->FillRect(*aRect);
+}
+
 void nsViewManager::AddCoveringWidgetsToOpaqueRegion(nsRegion &aRgn, nsIDeviceContext* aContext,
                                                      nsView* aRootView) {
   NS_PRECONDITION(aRootView, "Must have root view");
@@ -547,10 +581,6 @@ void nsViewManager::AddCoveringWidgetsToOpaqueRegion(nsRegion &aRgn, nsIDeviceCo
     return;
   }
   
-  if (widget->GetTransparencyMode() == eTransparencyTransparent) {
-    return;
-  }
-
   for (nsIWidget* childWidget = widget->GetFirstChild();
        childWidget;
        childWidget = childWidget->GetNextSibling()) {
@@ -585,15 +615,9 @@ void nsViewManager::AddCoveringWidgetsToOpaqueRegion(nsRegion &aRgn, nsIDeviceCo
 void nsViewManager::RenderViews(nsView *aView, nsIRenderingContext& aRC,
                                 const nsRegion& aRegion)
 {
-  nsView* displayRoot = GetDisplayRootFor(aView);
-  // Make sure we call Paint from the view manager that owns displayRoot.
-  // (Bug 485275)
-  nsViewManager* displayRootVM = displayRoot->GetViewManager();
-  if (displayRootVM && displayRootVM != this)
-    return displayRootVM->RenderViews(aView, aRC, aRegion);
-
   if (mObserver) {
-    nsPoint offsetToRoot = aView->GetOffsetTo(displayRoot);
+    nsView* displayRoot = GetDisplayRootFor(aView);
+    nsPoint offsetToRoot = aView->GetOffsetTo(displayRoot); 
     nsRegion damageRegion(aRegion);
     damageRegion.MoveBy(offsetToRoot);
 
@@ -816,24 +840,22 @@ nsViewManager::UpdateWidgetArea(nsView *aWidgetView, const nsRegion &aDamagedReg
   // accumulate the union of all the child widget areas, or at least
   // some subset of that.
   nsRegion children;
-  if (widget->GetTransparencyMode() != eTransparencyTransparent) {
-    for (nsIWidget* childWidget = widget->GetFirstChild();
-         childWidget;
-         childWidget = childWidget->GetNextSibling()) {
-      nsView* view = nsView::GetViewFor(childWidget);
-      NS_ASSERTION(view != aWidgetView, "will recur infinitely");
-      if (view && view->GetVisibility() == nsViewVisibility_kShow) {
-        // Don't mess with views that are in completely different view
-        // manager trees
-        if (view->GetViewManager()->RootViewManager() == RootViewManager()) {
-          // get the damage region into 'view's coordinate system
-          nsRegion damage = intersection;
-          nsPoint offset = view->GetOffsetTo(aWidgetView);
-          damage.MoveBy(-offset);
-          UpdateWidgetArea(view, damage, aIgnoreWidgetView);
-          children.Or(children, view->GetDimensions() + offset);
-          children.SimplifyInward(20);
-        }
+  for (nsIWidget* childWidget = widget->GetFirstChild();
+       childWidget;
+       childWidget = childWidget->GetNextSibling()) {
+    nsView* view = nsView::GetViewFor(childWidget);
+    NS_ASSERTION(view != aWidgetView, "will recur infinitely");
+    if (view && view->GetVisibility() == nsViewVisibility_kShow) {
+      // Don't mess with views that are in completely different view
+      // manager trees
+      if (view->GetViewManager()->RootViewManager() == RootViewManager()) {
+        // get the damage region into 'view's coordinate system
+        nsRegion damage = intersection;
+        nsPoint offset = view->GetOffsetTo(aWidgetView);
+        damage.MoveBy(-offset);
+        UpdateWidgetArea(view, damage, aIgnoreWidgetView);
+        children.Or(children, view->GetDimensions() + offset);
+        children.SimplifyInward(20);
       }
     }
   }
@@ -846,7 +868,8 @@ nsViewManager::UpdateWidgetArea(nsView *aWidgetView, const nsRegion &aDamagedReg
 
     const nsRect* r;
     for (nsRegionRectIterator iter(leftOver); (r = iter.Next());) {
-      nsIntRect bounds = ViewToWidget(aWidgetView, aWidgetView, *r);
+      nsRect bounds = *r;
+      ViewToWidget(aWidgetView, aWidgetView, bounds);
       widget->Invalidate(bounds, PR_FALSE);
     }
   }
@@ -871,12 +894,28 @@ NS_IMETHODIMP nsViewManager::UpdateView(nsIView *aView, const nsRect &aRect, PRU
     return NS_OK;
   }
 
-  nsView* displayRoot = GetDisplayRootFor(view);
-  // Propagate the update to the displayRoot, since iframes, for example,
-  // can overlap each other and be translucent.  So we have to possibly
-  // invalidate our rect in each of the widgets we have lying about.
-  damagedRect.MoveBy(view->GetOffsetTo(displayRoot));
-  UpdateWidgetArea(displayRoot, nsRegion(damagedRect), nsnull);
+  // if this is a floating view, it isn't covered by any widgets other than
+  // its children. In that case we walk up to its parent widget and use
+  // that as the root to update from. This also means we update areas that
+  // may be outside the parent view(s), which is necessary for floats.
+  if (view->GetFloating()) {
+    nsView* widgetParent = view;
+
+    while (!widgetParent->HasWidget()) {
+      widgetParent->ConvertToParentCoords(&damagedRect.x, &damagedRect.y);
+      widgetParent = widgetParent->GetParent();
+    }
+
+    UpdateWidgetArea(widgetParent, nsRegion(damagedRect), nsnull);
+  } else {
+    // Propagate the update to the root widget of the root view manager, since
+    // iframes, for example, can overlap each other and be translucent.  So we
+    // have to possibly invalidate our rect in each of the widgets we have
+    // lying about.
+    damagedRect.MoveBy(ComputeViewOffset(view));
+
+    UpdateWidgetArea(RootViewManager()->GetRootView(), nsRegion(damagedRect), nsnull);
+  }
 
   RootViewManager()->IncrementUpdateCount();
 
@@ -913,6 +952,69 @@ void nsViewManager::UpdateViews(nsView *aView, PRUint32 aUpdateFlags)
     UpdateViews(childView, aUpdateFlags);
     childView = childView->GetNextSibling();
   }
+}
+
+nsView *nsViewManager::sCurrentlyFocusView = nsnull;
+nsView *nsViewManager::sViewFocusedBeforeSuppression = nsnull;
+PRBool nsViewManager::sFocusSuppressed = PR_FALSE;
+
+void nsViewManager::SuppressFocusEvents(PRBool aSuppress)
+{
+  if (aSuppress) {
+    sFocusSuppressed = PR_TRUE;
+    SetViewFocusedBeforeSuppression(GetCurrentlyFocusedView());
+    return;
+  }
+
+  sFocusSuppressed = PR_FALSE;
+  if (GetCurrentlyFocusedView() == GetViewFocusedBeforeSuppression()) {
+    return;
+  }
+  
+  // We're turning off suppression, synthesize LOSTFOCUS/GOTFOCUS.
+  nsIWidget *widget = nsnull;
+  nsEventStatus status;
+
+  // Backup what is focused before we send the blur. If the
+  // blur causes a focus change, keep that new focus change,
+  // don't overwrite with the old "currently focused view".
+  nsIView *currentFocusBeforeBlur = GetCurrentlyFocusedView();
+
+  // Send NS_LOSTFOCUS to widget that was focused before
+  // focus/blur suppression.
+  if (GetViewFocusedBeforeSuppression()) {
+    widget = GetViewFocusedBeforeSuppression()->GetWidget();
+    if (widget) {
+#ifdef DEBUG_FOCUS_SUPPRESSION
+      printf("*** 0 INFO TODO [CPEARCE] Unsuppressing, dispatching NS_LOSTFOCUS\n");
+#endif
+      nsGUIEvent event(PR_TRUE, NS_LOSTFOCUS, widget);
+      widget->DispatchEvent(&event, status);
+    }
+  }
+
+  // Send NS_GOTFOCUS to the widget that we think should be focused.
+  if (GetCurrentlyFocusedView() &&
+      currentFocusBeforeBlur == GetCurrentlyFocusedView())
+  {
+    widget = GetCurrentlyFocusedView()->GetWidget();
+    if (widget) {
+#ifdef DEBUG_FOCUS_SUPPRESSION
+      printf("*** 0 INFO TODO [CPEARCE] Unsuppressing, dispatching NS_GOTFOCUS\n");
+#endif
+      nsGUIEvent event(PR_TRUE, NS_GOTFOCUS, widget);
+      widget->DispatchEvent(&event, status); 
+    }
+  }
+
+}
+
+static void ConvertRectAppUnitsToIntPixels(nsRect& aRect, PRInt32 p2a)
+{
+  aRect.x = NSAppUnitsToIntPixels(aRect.x, p2a);
+  aRect.y = NSAppUnitsToIntPixels(aRect.y, p2a);
+  aRect.width = NSAppUnitsToIntPixels(aRect.width, p2a);
+  aRect.height = NSAppUnitsToIntPixels(aRect.height, p2a);
 }
 
 NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent, nsEventStatus *aStatus)
@@ -964,7 +1066,7 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent, nsEventStatus *aS
           if (NS_FAILED(CreateRegion(getter_AddRefs(region))))
             break;
 
-          const nsIntRect& damrect = *event->rect;
+          const nsRect& damrect = *event->rect;
           region->SetTo(damrect.x, damrect.y, damrect.width, damrect.height);
         }
         
@@ -1045,25 +1147,12 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent, nsEventStatus *aS
           }
         } else {
           // since we got an NS_PAINT event, we need to
-          // draw something so we don't get blank areas,
-          // unless there's no widget or it's transparent.
-          nsIntRect damIntRect;
-          region->GetBoundingBox(&damIntRect.x, &damIntRect.y,
-                                 &damIntRect.width, &damIntRect.height);
-          nsRect damRect =
-            damIntRect.ToAppUnits(mContext->AppUnitsPerDevPixel());
-
-          nsIWidget* widget = view->GetNearestWidget(nsnull);
-          if (widget && widget->GetTransparencyMode() == eTransparencyOpaque) {
-            nsCOMPtr<nsIRenderingContext> context = event->renderingContext;
-            if (!context)
-              context = CreateRenderingContext(*view);
-
-            if (context)
-              mObserver->PaintDefaultBackground(view, context, damRect);
-            else
-              NS_WARNING("nsViewManager: no rc for default refresh");
-          }
+          // draw something so we don't get blank areas.
+          nsRect damRect;
+          region->GetBoundingBox(&damRect.x, &damRect.y, &damRect.width, &damRect.height);
+          PRInt32 p2a = mContext->AppUnitsPerDevPixel();
+          damRect.ScaleRoundOut(float(p2a));
+          DefaultRefresh(view, event->renderingContext, &damRect);
         
           // Clients like the editor can trigger multiple
           // reflows during what the user perceives as a single
@@ -1088,7 +1177,7 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent, nsEventStatus *aS
           // async paint event for the *entire* ScrollPort or
           // ScrollingView's viewable area. (See bug 97674 for this
           // alternate patch.)
-
+          
           UpdateView(view, damRect, NS_VMREFRESH_NO_SYNC);
         }
 
@@ -1129,6 +1218,23 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent, nsEventStatus *aS
 
     default:
       {
+        if (aEvent->message == NS_GOTFOCUS) {
+#ifdef DEBUG_FOCUS_SUPPRESSION
+          printf("*** 0 INFO TODO [CPEARCE] Focus changing%s\n",
+            (nsViewManager::IsFocusSuppressed() ? " while suppressed" : ""));
+#endif
+          SetCurrentlyFocusedView(nsView::GetViewFor(aEvent->widget));
+        }
+        if ((aEvent->message == NS_GOTFOCUS || aEvent->message == NS_LOSTFOCUS) &&
+             nsViewManager::IsFocusSuppressed())
+        {
+#ifdef DEBUG_FOCUS_SUPPRESSION
+          printf("*** 0 INFO TODO [CPEARCE] Suppressing %s\n",
+            (aEvent->message == NS_GOTFOCUS ? "NS_GOTFOCUS" : "NS_LOSTFOCUS"));
+#endif          
+          break;
+        }
+        
         if ((NS_IS_MOUSE_EVENT(aEvent) &&
              // Ignore moves that we synthesize.
              static_cast<nsMouseEvent*>(aEvent)->reason ==
@@ -1139,8 +1245,7 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent, nsEventStatus *aS
              aEvent->message != NS_MOUSE_EXIT &&
              aEvent->message != NS_MOUSE_ENTER) ||
             NS_IS_KEY_EVENT(aEvent) ||
-            NS_IS_IME_EVENT(aEvent) ||
-            NS_IS_PLUGIN_EVENT(aEvent)) {
+            NS_IS_IME_EVENT(aEvent)) {
           gLastUserEventTime = PR_IntervalToMicroseconds(PR_IntervalNow());
         }
 
@@ -1156,8 +1261,7 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent, nsEventStatus *aS
         
         if (!NS_IS_KEY_EVENT(aEvent) && !NS_IS_IME_EVENT(aEvent) &&
             !NS_IS_CONTEXT_MENU_KEY(aEvent) && !NS_IS_FOCUS_EVENT(aEvent) &&
-            !NS_IS_QUERY_CONTENT_EVENT(aEvent) && !NS_IS_PLUGIN_EVENT(aEvent) &&
-            !NS_IS_SELECTION_EVENT(aEvent) &&
+            !NS_IS_QUERY_CONTENT_EVENT(aEvent) &&
              aEvent->eventStructType != NS_ACCESSIBLE_EVENT) {
           // will dispatch using coordinates. Pretty bogus but it's consistent
           // with what presshell does.
@@ -1180,16 +1284,14 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent, nsEventStatus *aS
           if ((aEvent->message == NS_MOUSE_MOVE &&
                static_cast<nsMouseEvent*>(aEvent)->reason ==
                  nsMouseEvent::eReal) ||
-              aEvent->message == NS_MOUSE_ENTER ||
-              aEvent->message == NS_MOUSE_BUTTON_DOWN ||
-              aEvent->message == NS_MOUSE_BUTTON_UP) {
+              aEvent->message == NS_MOUSE_ENTER) {
             // aEvent->point is relative to the widget, i.e. the view top-left,
             // so we need to add the offset to the view origin
             nsPoint rootOffset = baseView->GetDimensions().TopLeft();
             rootOffset += baseView->GetOffsetTo(RootViewManager()->mRootView);
             RootViewManager()->mMouseLocation = aEvent->refPoint +
-                nsIntPoint(NSAppUnitsToIntPixels(rootOffset.x, p2a),
-                           NSAppUnitsToIntPixels(rootOffset.y, p2a));
+                nsPoint(NSAppUnitsToIntPixels(rootOffset.x, p2a),
+                        NSAppUnitsToIntPixels(rootOffset.y, p2a));
 #ifdef DEBUG_MOUSE_LOCATION
             if (aEvent->message == NS_MOUSE_ENTER)
               printf("[vm=%p]got mouse enter for %p\n",
@@ -1207,7 +1309,7 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent, nsEventStatus *aS
             // won't matter at all since we'll get the mouse move or
             // enter after the mouse exit when the mouse moves from one
             // of our widgets into another.
-            RootViewManager()->mMouseLocation = nsIntPoint(NSCOORD_NONE, NSCOORD_NONE);
+            RootViewManager()->mMouseLocation = nsPoint(NSCOORD_NONE, NSCOORD_NONE);
 #ifdef DEBUG_MOUSE_LOCATION
             printf("[vm=%p]got mouse exit for %p\n",
                    this, aEvent->widget);
@@ -1244,6 +1346,26 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent, nsEventStatus *aS
           pt += offset;
 
           *aStatus = HandleEvent(view, pt, aEvent, capturedEvent);
+
+          //
+          // need to map the reply back into platform coordinates
+          //
+          switch (aEvent->message) {
+            case NS_TEXT_TEXT:
+              ConvertRectAppUnitsToIntPixels(
+                ((nsTextEvent*)aEvent)->theReply.mCursorPosition, p2a);
+              break;
+            case NS_COMPOSITION_START:
+            case NS_COMPOSITION_QUERY:
+              ConvertRectAppUnitsToIntPixels(
+                ((nsCompositionEvent*)aEvent)->theReply.mCursorPosition, p2a);
+              break;
+            case NS_QUERY_CHARACTER_RECT:
+            case NS_QUERY_CARET_RECT:
+              ConvertRectAppUnitsToIntPixels(
+                ((nsQueryContentEvent*)aEvent)->mReply.mRect, p2a);
+              break;
+          }
         }
     
         break;
@@ -1656,26 +1778,14 @@ void nsViewManager::UpdateWidgetsForView(nsView* aView)
 {
   NS_PRECONDITION(aView, "Must have view!");
 
-  nsWeakView parentWeakView = aView;
   if (aView->HasWidget()) {
-    aView->GetWidget()->Update();  // Flushes Layout!
-    if (!parentWeakView.IsAlive()) {
-      return;
-    }
+    aView->GetWidget()->Update();
   }
 
-  nsView* childView = aView->GetFirstChild();
-  while (childView) {
-    nsWeakView childWeakView = childView;
+  for (nsView* childView = aView->GetFirstChild();
+       childView;
+       childView = childView->GetNextSibling()) {
     UpdateWidgetsForView(childView);
-    if (NS_LIKELY(childWeakView.IsAlive())) {
-      childView = childView->GetNextSibling();
-    }
-    else {
-      // The current view was destroyed - restart at the first child if the
-      // parent is still alive.
-      childView = parentWeakView.IsAlive() ? aView->GetFirstChild() : nsnull;
-    }
   }
 }
 
@@ -1917,26 +2027,48 @@ NS_IMETHODIMP nsViewManager::ForceUpdate()
   return NS_OK;
 }
 
-nsIntRect nsViewManager::ViewToWidget(nsView *aView, nsView* aWidgetView, const nsRect &aRect) const
+nsPoint nsViewManager::ComputeViewOffset(const nsView *aView)
 {
-  nsRect rect = aRect;
+  NS_PRECONDITION(aView, "Null view in ComputeViewOffset?");
+  
+  nsPoint origin(0, 0);
+#ifdef DEBUG
+  const nsView* rootView;
+  const nsView* origView = aView;
+#endif
+
+  while (aView) {
+#ifdef DEBUG
+    rootView = aView;
+#endif
+    origin += aView->GetPosition();
+    aView = aView->GetParent();
+  }
+  NS_ASSERTION(rootView ==
+               origView->GetViewManager()->RootViewManager()->GetRootView(),
+               "Unexpected root view");
+  return origin;
+}
+
+void nsViewManager::ViewToWidget(nsView *aView, nsView* aWidgetView, nsRect &aRect) const
+{
   while (aView != aWidgetView) {
-    aView->ConvertToParentCoords(&rect.x, &rect.y);
+    aView->ConvertToParentCoords(&aRect.x, &aRect.y);
     aView = aView->GetParent();
   }
   
   // intersect aRect with bounds of aWidgetView, to prevent generating any illegal rectangles.
   nsRect bounds;
   aWidgetView->GetDimensions(bounds);
-  rect.IntersectRect(rect, bounds);
+  aRect.IntersectRect(aRect, bounds);
   // account for the view's origin not lining up with the widget's
-  rect.x -= bounds.x;
-  rect.y -= bounds.y;
+  aRect.x -= bounds.x;
+  aRect.y -= bounds.y;
 
-  rect += aView->ViewToWidgetOffset();
+  aRect += aView->ViewToWidgetOffset();
 
   // finally, convert to device coordinates.
-  return rect.ToOutsidePixels(mContext->AppUnitsPerDevPixel());
+  aRect.ScaleRoundOut(1.0f / mContext->AppUnitsPerDevPixel());
 }
 
 nsresult nsViewManager::GetVisibleRect(nsRect& aVisibleRect)
@@ -1994,7 +2126,7 @@ nsresult nsViewManager::GetAbsoluteRect(nsView *aView, const nsRect &aRect,
 
 NS_IMETHODIMP nsViewManager::GetRectVisibility(nsIView *aView, 
                                                const nsRect &aRect,
-                                               nscoord aMinTwips,
+                                               PRUint16 aMinTwips, 
                                                nsRectVisibility *aRectVisibility)
 {
   nsView* view = static_cast<nsView*>(aView);
@@ -2140,6 +2272,21 @@ nsViewManager::ProcessInvalidateEvent()
 }
 
 NS_IMETHODIMP
+nsViewManager::SetDefaultBackgroundColor(nscolor aColor)
+{
+  mDefaultBackgroundColor = aColor;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsViewManager::GetDefaultBackgroundColor(nscolor* aColor)
+{
+  *aColor = mDefaultBackgroundColor;
+  return NS_OK;
+}
+
+
+NS_IMETHODIMP
 nsViewManager::GetLastUserEventTime(PRUint32& aTime)
 {
   aTime = gLastUserEventTime;
@@ -2170,7 +2317,7 @@ nsViewManager::SynthesizeMouseMove(PRBool aFromScroll)
   if (!IsRootVM())
     return RootViewManager()->SynthesizeMouseMove(aFromScroll);
 
-  if (mMouseLocation == nsIntPoint(NSCOORD_NONE, NSCOORD_NONE))
+  if (mMouseLocation == nsPoint(NSCOORD_NONE, NSCOORD_NONE))
     return NS_OK;
 
   if (!mSynthMouseMoveEvent.IsPending()) {
@@ -2202,10 +2349,6 @@ nsViewManager::SynthesizeMouseMove(PRBool aFromScroll)
  */
 static nsView* FindFloatingViewContaining(nsView* aView, nsPoint aPt)
 {
-  if (aView->GetVisibility() == nsViewVisibility_kHide)
-    // No need to look into descendants.
-    return nsnull;
-
   for (nsView* v = aView->GetFirstChild(); v; v = v->GetNextSibling()) {
     nsView* r = FindFloatingViewContaining(v, aPt - v->GetOffsetTo(aView));
     if (r)
@@ -2213,33 +2356,9 @@ static nsView* FindFloatingViewContaining(nsView* aView, nsPoint aPt)
   }
 
   if (aView->GetFloating() && aView->HasWidget() &&
-      aView->GetDimensions().Contains(aPt))
+      aView->GetDimensions().Contains(aPt) && IsViewVisible(aView))
     return aView;
     
-  return nsnull;
-}
-
-/*
- * This finds the first view containing the given point in a postorder
- * traversal of the view tree that contains the point, assuming that the
- * point is not in a floating view.  It assumes that only floating views
- * extend outside the bounds of their parents.
- *
- * This methods should only be called if FindFloatingViewContaining
- * returns null.
- */
-static nsView* FindViewContaining(nsView* aView, nsPoint aPt)
-{
-  for (nsView* v = aView->GetFirstChild(); v; v = v->GetNextSibling()) {
-    if (aView->GetDimensions().Contains(aPt) &&
-        aView->GetVisibility() != nsViewVisibility_kHide) {
-      nsView* r = FindViewContaining(v, aPt - v->GetOffsetTo(aView));
-      if (r)
-        return r;
-      return v;
-    }
-  }
-
   return nsnull;
 }
 
@@ -2253,7 +2372,7 @@ nsViewManager::ProcessSynthMouseMoveEvent(PRBool aFromScroll)
 
   NS_ASSERTION(IsRootVM(), "Only the root view manager should be here");
 
-  if (mMouseLocation == nsIntPoint(NSCOORD_NONE, NSCOORD_NONE) || !mRootView) {
+  if (mMouseLocation == nsPoint(NSCOORD_NONE, NSCOORD_NONE) || !mRootView) {
     mSynthMouseMoveEvent.Forget();
     return;
   }
@@ -2267,25 +2386,20 @@ nsViewManager::ProcessSynthMouseMoveEvent(PRBool aFromScroll)
          this, mMouseLocation.x, mMouseLocation.y);
 #endif
                                                        
-  nsPoint pt;
+  nsPoint pt = mMouseLocation;
   PRInt32 p2a = mContext->AppUnitsPerDevPixel();
   pt.x = NSIntPixelsToAppUnits(mMouseLocation.x, p2a);
   pt.y = NSIntPixelsToAppUnits(mMouseLocation.y, p2a);
   // This could be a bit slow (traverses entire view hierarchy)
   // but it's OK to do it once per synthetic mouse event
   nsView* view = FindFloatingViewContaining(mRootView, pt);
-  nsIntPoint offset(0, 0);
-  nsViewManager *pointVM;
+  nsPoint offset(0, 0);
   if (!view) {
     view = mRootView;
-    nsView *pointView = FindViewContaining(mRootView, pt);
-    // pointView can be null in situations related to mouse capture
-    pointVM = (pointView ? pointView : view)->GetViewManager();
   } else {
-    nsPoint viewoffset = view->GetOffsetTo(mRootView);
-    offset.x = NSAppUnitsToIntPixels(viewoffset.x, p2a);
-    offset.y = NSAppUnitsToIntPixels(viewoffset.y, p2a);
-    pointVM = view->GetViewManager();
+    offset = view->GetOffsetTo(mRootView);
+    offset.x = NSAppUnitsToIntPixels(offset.x, p2a);
+    offset.y = NSAppUnitsToIntPixels(offset.y, p2a);
   }
   nsMouseEvent event(PR_TRUE, NS_MOUSE_MOVE, view->GetWidget(),
                      nsMouseEvent::eSynthesized);
@@ -2293,10 +2407,8 @@ nsViewManager::ProcessSynthMouseMoveEvent(PRBool aFromScroll)
   event.time = PR_IntervalNow();
   // XXX set event.isShift, event.isControl, event.isAlt, event.isMeta ?
 
-  nsCOMPtr<nsIViewObserver> observer = pointVM->GetViewObserver();
-  if (observer) {
-    observer->DispatchSynthMouseMove(&event, !aFromScroll);
-  }
+  nsEventStatus status;
+  view->GetViewManager()->DispatchEvent(&event, &status);
 
   if (!aFromScroll)
     mSynthMouseMoveEvent.Forget();

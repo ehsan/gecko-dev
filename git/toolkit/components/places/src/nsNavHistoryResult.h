@@ -51,6 +51,7 @@
 #include "nsCycleCollectionParticipant.h"
 
 class nsNavHistory;
+class nsIDateTimeFormat;
 class nsIWritablePropertyBag;
 class nsNavHistoryQuery;
 class nsNavHistoryQueryOptions;
@@ -97,9 +98,8 @@ private:
   NS_DECL_NSINAVBOOKMARKOBSERVER                                        \
   NS_IMETHOD OnVisit(nsIURI* aURI, PRInt64 aVisitId, PRTime aTime,      \
                      PRInt64 aSessionId, PRInt64 aReferringId,          \
-                     PRUint32 aTransitionType, PRUint32* aAdded);       \
+                     PRUint32 aTransitionType, PRUint32* aAdded);      \
   NS_IMETHOD OnTitleChanged(nsIURI* aURI, const nsAString& aPageTitle); \
-  NS_IMETHOD OnBeforeDeleteURI(nsIURI *aURI);                           \
   NS_IMETHOD OnDeleteURI(nsIURI *aURI);                                 \
   NS_IMETHOD OnClearHistory();                                          \
   NS_IMETHOD OnPageChanged(nsIURI *aURI, PRUint32 aWhat,                \
@@ -107,9 +107,6 @@ private:
   NS_IMETHOD OnPageExpired(nsIURI* aURI, PRTime aVisitTime,             \
                            PRBool aWholeEntry);
 
-#define NS_DECL_EXTENDED_BOOKMARK_OBSERVER                              \
-  NS_IMETHOD OnItemAdded(PRInt64 aItemId, PRInt64 aFolder,              \
-                         PRInt32 aIndex, PRUint16 aItemType);
 
 // nsNavHistoryResult
 //
@@ -155,7 +152,6 @@ public:
   void RemoveHistoryObserver(nsNavHistoryQueryResultNode* aNode);
   void RemoveBookmarkFolderObserver(nsNavHistoryFolderResultNode* aNode, PRInt64 aFolder);
   void RemoveAllBookmarksObserver(nsNavHistoryQueryResultNode* aNode);
-  void StopObserving();
 
   // returns the view. NOT-ADDREFED. May be NULL if there is no view
   nsINavHistoryResultViewer* GetView() const
@@ -164,7 +160,7 @@ public:
 public:
   // two-stage init, use NewHistoryResult to construct
   nsNavHistoryResult(nsNavHistoryContainerResultNode* mRoot);
-  virtual ~nsNavHistoryResult();
+  ~nsNavHistoryResult();
   nsresult Init(nsINavHistoryQuery** aQueries,
                 PRUint32 aQueryCount,
                 nsNavHistoryQueryOptions *aOptions);
@@ -177,10 +173,6 @@ public:
   // One of nsNavHistoryQueryOptions.SORY_BY_* This is initialized to mOptions.sortingMode,
   // but may be overridden if the user clicks on one of the columns.
   PRUint16 mSortingMode;
-  // If root node is closed and we try to apply a sortingMode, it would not
-  // work.  So we will apply it when the node will be reopened and populated.
-  // This var states the fact we need to apply sortingMode in such a situation.
-  PRBool mNeedsToApplySortingMode;
 
   // The sorting annotation to be used for in SORT_BY_ANNOTATION_* modes
   nsCString mSortingAnnotation;
@@ -195,12 +187,10 @@ public:
   PRBool mIsBookmarkFolderObserver;
   PRBool mIsAllBookmarksObserver;
 
-  typedef nsTArray< nsRefPtr<nsNavHistoryQueryResultNode> > QueryObserverList;
-  QueryObserverList mHistoryObservers;
-  QueryObserverList mAllBookmarksObservers;
-
-  typedef nsTArray< nsRefPtr<nsNavHistoryFolderResultNode> > FolderObserverList;
-  nsDataHashtable<nsTrimInt64HashKey, FolderObserverList*> mBookmarkFolderObservers;
+  nsTArray<nsNavHistoryQueryResultNode*> mHistoryObservers;
+  nsTArray<nsNavHistoryQueryResultNode*> mAllBookmarksObservers;
+  typedef nsTArray<nsRefPtr<nsNavHistoryFolderResultNode> > FolderObserverList;
+  nsDataHashtable<nsTrimInt64HashKey, FolderObserverList* > mBookmarkFolderObservers;
   FolderObserverList* BookmarkFolderObserversForId(PRInt64 aFolderId, PRBool aCreate);
 
   void RecursiveExpandCollapse(nsNavHistoryContainerResultNode* aContainer,
@@ -536,8 +526,6 @@ public:
     PRBool aReadOnly, const nsACString& aDynamicContainerType,
     nsNavHistoryQueryOptions* aOptions);
 
-  virtual ~nsNavHistoryContainerResultNode();
-
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_NAVHISTORYCONTAINERRESULTNODE_IID)
 
   NS_DECL_ISUPPORTS_INHERITED
@@ -601,43 +589,43 @@ public:
 
   static PRInt32 SortComparison_StringLess(const nsAString& a, const nsAString& b);
 
-  static int SortComparison_Bookmark(
+  PR_STATIC_CALLBACK(int) SortComparison_Bookmark(
       nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure);
-  static int SortComparison_TitleLess(
+  PR_STATIC_CALLBACK(int) SortComparison_TitleLess(
       nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure);
-  static int SortComparison_TitleGreater(
+  PR_STATIC_CALLBACK(int) SortComparison_TitleGreater(
       nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure);
-  static int SortComparison_DateLess(
+  PR_STATIC_CALLBACK(int) SortComparison_DateLess(
       nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure);
-  static int SortComparison_DateGreater(
+  PR_STATIC_CALLBACK(int) SortComparison_DateGreater(
       nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure);
-  static int SortComparison_URILess(
+  PR_STATIC_CALLBACK(int) SortComparison_URILess(
       nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure);
-  static int SortComparison_URIGreater(
+  PR_STATIC_CALLBACK(int) SortComparison_URIGreater(
       nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure);
-  static int SortComparison_VisitCountLess(
+  PR_STATIC_CALLBACK(int) SortComparison_VisitCountLess(
       nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure);
-  static int SortComparison_VisitCountGreater(
+  PR_STATIC_CALLBACK(int) SortComparison_VisitCountGreater(
       nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure);
-  static int SortComparison_KeywordLess(
+  PR_STATIC_CALLBACK(int) SortComparison_KeywordLess(
       nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure);
-  static int SortComparison_KeywordGreater(
+  PR_STATIC_CALLBACK(int) SortComparison_KeywordGreater(
       nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure);
-  static int SortComparison_AnnotationLess(
+  PR_STATIC_CALLBACK(int) SortComparison_AnnotationLess(
       nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure);
-  static int SortComparison_AnnotationGreater(
+  PR_STATIC_CALLBACK(int) SortComparison_AnnotationGreater(
       nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure);
-  static int SortComparison_DateAddedLess(
+  PR_STATIC_CALLBACK(int) SortComparison_DateAddedLess(
       nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure);
-  static int SortComparison_DateAddedGreater(
+  PR_STATIC_CALLBACK(int) SortComparison_DateAddedGreater(
       nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure);
-  static int SortComparison_LastModifiedLess(
+  PR_STATIC_CALLBACK(int) SortComparison_LastModifiedLess(
       nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure);
-  static int SortComparison_LastModifiedGreater(
+  PR_STATIC_CALLBACK(int) SortComparison_LastModifiedGreater(
       nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure);
-  static int SortComparison_TagsLess(
+  PR_STATIC_CALLBACK(int) SortComparison_TagsLess(
       nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure);
-  static int SortComparison_TagsGreater(
+  PR_STATIC_CALLBACK(int) SortComparison_TagsGreater(
       nsNavHistoryResultNode* a, nsNavHistoryResultNode* b, void* closure);
 
   // finding children: THESE DO NOT ADDREF
@@ -706,8 +694,6 @@ public:
                               const nsCOMArray<nsNavHistoryQuery>& aQueries,
                               nsNavHistoryQueryOptions* aOptions);
 
-  virtual ~nsNavHistoryQueryResultNode();
-
   NS_DECL_ISUPPORTS_INHERITED
   NS_FORWARD_COMMON_RESULTNODE_TO_BASE
   NS_IMETHOD GetType(PRUint32* type)
@@ -725,7 +711,6 @@ public:
   virtual nsresult OpenContainer();
 
   NS_DECL_BOOKMARK_HISTORY_OBSERVER
-  NS_DECL_EXTENDED_BOOKMARK_OBSERVER
   virtual void OnRemoving();
 
 public:
@@ -755,8 +740,6 @@ public:
 
   virtual PRUint16 GetSortType();
   virtual void GetSortingAnnotation(nsACString& aSortingAnnotation);
-  virtual void RecursiveSort(const char* aData,
-                             SortComparator aComparator);
 };
 
 
@@ -799,9 +782,9 @@ public:
   // the bookmark observers. This is called from the result's actual observer
   // and it knows all observers are FolderResultNodes
   NS_DECL_NSINAVBOOKMARKOBSERVER
-  NS_DECL_EXTENDED_BOOKMARK_OBSERVER
 
   virtual void OnRemoving();
+
 public:
 
   // this indicates whether the folder contents are valid, they don't go away

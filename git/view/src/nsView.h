@@ -39,6 +39,7 @@
 #define nsView_h___
 
 #include "nsIView.h"
+#include "nsIWidget.h"
 #include "nsRegion.h"
 #include "nsRect.h"
 #include "nsCRT.h"
@@ -191,7 +192,7 @@ public:
     return mViewToWidgetOffset;
   }
 
-  nsIntRect CalcWidgetBounds(nsWindowType aType);
+  nsRect CalcWidgetBounds(nsWindowType aType);
 
 protected:
   // Do the actual work of ResetWidgetBounds, unconditionally.  Don't

@@ -246,7 +246,7 @@ SECStatus PK11_MergeTokens(PK11SlotInfo *targetSlot, PK11SlotInfo *sourceSlot,
 /*
  * create and destroy merge logs needed by PK11_MergeTokens
  */
-PK11MergeLog * PK11_CreateMergeLog(void);
+PK11MergeLog * PK11_CreateMergeLog();
 void PK11_DestroyMergeLog(PK11MergeLog *log);
 
 
@@ -328,8 +328,6 @@ PK11SymKey * PK11_ListFixedKeysInSlot(PK11SlotInfo *slot, char *nickname,
 								void *wincx);
 PK11SymKey *PK11_GetNextSymKey(PK11SymKey *symKey);
 CK_KEY_TYPE PK11_GetSymKeyType(PK11SymKey *key);
-CK_OBJECT_HANDLE PK11_GetSymKeyHandle(PK11SymKey *symKey);
-
 
 /*
  * PK11_SetSymKeyUserData

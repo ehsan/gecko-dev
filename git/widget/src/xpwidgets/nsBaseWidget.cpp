@@ -99,6 +99,10 @@ nsBaseWidget::nsBaseWidget()
 , mCursor(eCursor_standard)
 , mWindowType(eWindowType_child)
 , mBorderStyle(eBorderStyle_none)
+, mIsShiftDown(PR_FALSE)
+, mIsControlDown(PR_FALSE)
+, mIsAltDown(PR_FALSE)
+, mIsDestroying(PR_FALSE)
 , mOnDestroyCalled(PR_FALSE)
 , mBounds(0,0,0,0)
 , mOriginalBounds(nsnull)
@@ -141,7 +145,7 @@ nsBaseWidget::~nsBaseWidget()
 //
 //-------------------------------------------------------------------------
 void nsBaseWidget::BaseCreate(nsIWidget *aParent,
-                              const nsIntRect &aRect,
+                              const nsRect &aRect,
                               EVENT_CALLBACK aHandleEventFunction,
                               nsIDeviceContext *aContext,
                               nsIAppShell *aAppShell,
@@ -219,6 +223,11 @@ NS_IMETHODIMP nsBaseWidget::Validate()
   return NS_OK;
 }
 
+NS_IMETHODIMP nsBaseWidget::InvalidateRegion(const nsIRegion *aRegion, PRBool aIsSynchronous)
+{
+  return NS_ERROR_FAILURE;
+}
+
 //-------------------------------------------------------------------------
 //
 // Accessor functions to get/set the client data
@@ -246,6 +255,7 @@ NS_METHOD nsBaseWidget::Destroy()
 {
   // Just in case our parent is the only ref to us
   nsCOMPtr<nsIWidget> kungFuDeathGrip(this);
+  
   // disconnect from the parent
   nsIWidget *parent = GetParent();
   if (parent) {
@@ -286,7 +296,7 @@ nsIWidget* nsBaseWidget::GetParent(void)
 //-------------------------------------------------------------------------
 nsIWidget* nsBaseWidget::GetTopLevelWidget(PRInt32* aLevelsUp)
 {
-  nsIWidget *topLevelWidget = nsnull, *widget = this;
+  nsIWidget *topLevelWidget, *widget = this;
   if (aLevelsUp)
     *aLevelsUp = -1;
   while (widget) {
@@ -560,17 +570,6 @@ nsTransparencyMode nsBaseWidget::GetTransparencyMode() {
 
 //-------------------------------------------------------------------------
 //
-// Set window shadow style
-//
-//-------------------------------------------------------------------------
-
-NS_IMETHODIMP nsBaseWidget::SetWindowShadowStyle(PRInt32 aMode)
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-//-------------------------------------------------------------------------
-//
 // Hide window borders/decorations for this widget
 //
 //-------------------------------------------------------------------------
@@ -592,7 +591,7 @@ NS_IMETHODIMP nsBaseWidget::MakeFullScreen(PRBool aFullScreen)
 
   if (aFullScreen) {
     if (!mOriginalBounds)
-      mOriginalBounds = new nsIntRect();
+      mOriginalBounds = new nsRect();
     GetScreenBounds(*mOriginalBounds);
 
     // Move to top-left corner of screen and size to the screen dimensions
@@ -740,7 +739,7 @@ NS_METHOD nsBaseWidget::AddEventListener(nsIEventListener * aListener)
 * If the implementation of nsWindow supports borders this method MUST be overridden
 *
 **/
-NS_METHOD nsBaseWidget::GetClientBounds(nsIntRect &aRect)
+NS_METHOD nsBaseWidget::GetClientBounds(nsRect &aRect)
 {
   return GetBounds(aRect);
 }
@@ -749,7 +748,7 @@ NS_METHOD nsBaseWidget::GetClientBounds(nsIntRect &aRect)
 * If the implementation of nsWindow supports borders this method MUST be overridden
 *
 **/
-NS_METHOD nsBaseWidget::GetBounds(nsIntRect &aRect)
+NS_METHOD nsBaseWidget::GetBounds(nsRect &aRect)
 {
   aRect = mBounds;
   return NS_OK;
@@ -760,7 +759,7 @@ NS_METHOD nsBaseWidget::GetBounds(nsIntRect &aRect)
 * this method must be overridden
 *
 **/
-NS_METHOD nsBaseWidget::GetScreenBounds(nsIntRect &aRect)
+NS_METHOD nsBaseWidget::GetScreenBounds(nsRect &aRect)
 {
   return GetBounds(aRect);
 }
@@ -769,7 +768,7 @@ NS_METHOD nsBaseWidget::GetScreenBounds(nsIntRect &aRect)
 * 
 *
 **/
-NS_METHOD nsBaseWidget::SetBounds(const nsIntRect &aRect)
+NS_METHOD nsBaseWidget::SetBounds(const nsRect &aRect)
 {
   mBounds = aRect;
 
@@ -777,6 +776,33 @@ NS_METHOD nsBaseWidget::SetBounds(const nsIntRect &aRect)
 }
  
 
+
+/**
+* Calculates the border width and height  
+*
+**/
+NS_METHOD nsBaseWidget::GetBorderSize(PRInt32 &aWidth, PRInt32 &aHeight)
+{
+  nsRect rectWin;
+  nsRect rect;
+  GetBounds(rectWin);
+  GetClientBounds(rect);
+
+  aWidth  = (rectWin.width - rect.width) / 2;
+  aHeight = (rectWin.height - rect.height) / 2;
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsBaseWidget::ScrollWidgets(PRInt32 aDx, PRInt32 aDy)
+{
+  return NS_ERROR_FAILURE;
+}
+
+NS_IMETHODIMP nsBaseWidget::ScrollRect(nsRect &aRect, PRInt32 aDx, PRInt32 aDy)
+{
+  return NS_ERROR_FAILURE;
+}
 
 NS_METHOD nsBaseWidget::EnableDragDrop(PRBool aEnable)
 {
@@ -788,15 +814,22 @@ NS_METHOD nsBaseWidget::SetModal(PRBool aModal)
   return NS_ERROR_FAILURE;
 }
 
+// generic xp assumption is that events should be processed
+NS_METHOD nsBaseWidget::ModalEventFilter(PRBool aRealEvent, void *aEvent,
+                            PRBool *aForWindow)
+{
+  *aForWindow = PR_TRUE;
+  return NS_OK;
+}
+
 NS_IMETHODIMP
 nsBaseWidget::GetAttention(PRInt32 aCycleCount) {
     return NS_OK;
 }
 
-PRBool
-nsBaseWidget::HasPendingInputEvent()
-{
-  return PR_FALSE;
+NS_IMETHODIMP
+nsBaseWidget::GetLastInputEventTime(PRUint32& aTime) {
+    return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
@@ -949,11 +982,13 @@ case _value: eventName.AssignWithConversion(_name) ; break
     _ASSIGN_eventName(NS_FORM_INPUT,"NS_FORM_INPUT");
     _ASSIGN_eventName(NS_FORM_RESET,"NS_FORM_RESET");
     _ASSIGN_eventName(NS_FORM_SUBMIT,"NS_FORM_SUBMIT");
+    _ASSIGN_eventName(NS_GOTFOCUS,"NS_GOTFOCUS");
     _ASSIGN_eventName(NS_IMAGE_ABORT,"NS_IMAGE_ABORT");
     _ASSIGN_eventName(NS_LOAD_ERROR,"NS_LOAD_ERROR");
     _ASSIGN_eventName(NS_KEY_DOWN,"NS_KEY_DOWN");
     _ASSIGN_eventName(NS_KEY_PRESS,"NS_KEY_PRESS");
     _ASSIGN_eventName(NS_KEY_UP,"NS_KEY_UP");
+    _ASSIGN_eventName(NS_LOSTFOCUS,"NS_LOSTFOCUS");
     _ASSIGN_eventName(NS_MENU_SELECTED,"NS_MENU_SELECTED");
     _ASSIGN_eventName(NS_MOUSE_ENTER,"NS_MOUSE_ENTER");
     _ASSIGN_eventName(NS_MOUSE_EXIT,"NS_MOUSE_EXIT");
@@ -1215,7 +1250,7 @@ nsBaseWidget::debug_DumpPaintEvent(FILE *                aFileOut,
 /* static */ void
 nsBaseWidget::debug_DumpInvalidate(FILE *                aFileOut,
                                    nsIWidget *           aWidget,
-                                   const nsIntRect *     aRect,
+                                   const nsRect *        aRect,
                                    PRBool                aIsSynchronous,
                                    const nsCAutoString & aWidgetName,
                                    PRInt32               aWindowID)

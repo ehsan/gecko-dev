@@ -59,6 +59,7 @@
 #include "nsEventListenerManager.h"
 #include "nsFrame.h"
 #include "nsGenericElement.h"  // for nsDOMEventRTTearoff
+#include "nsStyledElement.h"
 #include "nsGlobalWindow.h"
 #include "nsGkAtoms.h"
 #include "nsImageFrame.h"
@@ -66,7 +67,7 @@
 #include "nsNodeInfo.h"
 #include "nsRange.h"
 #include "nsRepeatService.h"
-#include "nsFloatManager.h"
+#include "nsSpaceManager.h"
 #include "nsSprocketLayout.h"
 #include "nsStackLayout.h"
 #include "nsStyleSet.h"
@@ -80,10 +81,9 @@
 #include "nsTextFragment.h"
 #include "nsCSSRuleProcessor.h"
 #include "nsXMLHttpRequest.h"
+#include "nsIFocusEventSuppressor.h"
 #include "nsDOMThreadService.h"
-#include "nsHTMLDNSPrefetch.h"
-#include "nsCrossSiteListenerProxy.h"
-#include "nsFocusManager.h"
+#include "nsHtml5Module.h"
 
 #ifdef MOZ_XUL
 #include "nsXULPopupManager.h"
@@ -112,12 +112,12 @@ PRBool NS_SVGEnabled();
 #endif
 
 #ifdef MOZ_MEDIA
-#include "nsMediaDecoder.h"
-#include "nsHTMLMediaElement.h"
+#include "nsVideoDecoder.h"
 #endif
 
-#ifdef MOZ_SYDNEYAUDIO
+#ifdef MOZ_OGG
 #include "nsAudioStream.h"
+#include "nsVideoDecoder.h"
 #endif
 
 #include "nsError.h"
@@ -125,8 +125,6 @@ PRBool NS_SVGEnabled();
 
 #include "nsCycleCollector.h"
 #include "nsJSEnvironment.h"
-
-extern void NS_ShutdownChainItemPool();
 
 static nsrefcnt sLayoutStaticRefcnt;
 
@@ -188,12 +186,6 @@ nsLayoutStatics::Initialize()
     return rv;
   }
 
-  rv = nsHTMLDNSPrefetch::Initialize();
-  if (NS_FAILED(rv)) {
-    NS_ERROR("Could not initialize HTML DNS prefetch");
-    return rv;
-  }
-
 #ifdef MOZ_XUL
   rv = nsXULContentUtils::Init();
   if (NS_FAILED(rv)) {
@@ -246,8 +238,6 @@ nsLayoutStatics::Initialize()
   }
 #endif
 
-  nsCSSRuleProcessor::Startup();
-
 #ifdef MOZ_XUL
   rv = nsXULPopupManager::Init();
   if (NS_FAILED(rv)) {
@@ -256,35 +246,31 @@ nsLayoutStatics::Initialize()
   }
 #endif
 
-  rv = nsFocusManager::Init();
-  if (NS_FAILED(rv)) {
-    NS_ERROR("Could not initialize nsFocusManager");
-    return rv;
-  }
-
 #ifdef MOZ_MEDIA
-  rv = nsMediaDecoder::InitLogger();
+  rv = nsVideoDecoder::InitLogger();
   if (NS_FAILED(rv)) {
-    NS_ERROR("Could not initialize nsMediaDecoder");
+    NS_ERROR("Could not initialize nsVideoDecoder");
     return rv;
   }
   
-  nsHTMLMediaElement::InitMediaTypes();
 #endif
 
-#ifdef MOZ_SYDNEYAUDIO
-  nsAudioStream::InitLibrary();
+#ifdef MOZ_OGG
+  rv = nsAudioStream::InitLibrary();
+  if (NS_FAILED(rv)) {
+    NS_ERROR("Could not initialize nsAudioStream");
+    return rv;
+  }
 #endif
 
-  nsCrossSiteListenerProxy::Startup();
-
+  nsHtml5Module::InitializeStatics();
+  
   return NS_OK;
 }
 
 void
 nsLayoutStatics::Shutdown()
 {
-  nsFocusManager::Shutdown();
 #ifdef MOZ_XUL
   nsXULPopupManager::Shutdown();
 #endif
@@ -298,7 +284,6 @@ nsLayoutStatics::Shutdown()
   CSSLoaderImpl::Shutdown();
   nsCSSRuleProcessor::FreeSystemMetrics();
   nsTextFrameTextRunCache::Shutdown();
-  nsHTMLDNSPrefetch::Shutdown();
   nsCSSRendering::Shutdown();
 #ifdef DEBUG
   nsFrame::DisplayReflowShutdown();
@@ -326,12 +311,14 @@ nsLayoutStatics::Shutdown()
 #endif
 
   nsCSSFrameConstructor::ReleaseGlobals();
-  nsFloatManager::Shutdown();
+  nsSpaceManager::Shutdown();
   nsImageFrame::ReleaseGlobals();
 
   nsCSSScanner::ReleaseGlobals();
 
+  NS_IF_RELEASE(nsContentDLF::gUAStyleSheet);
   NS_IF_RELEASE(nsRuleNode::gLangService);
+  nsStyledElement::Shutdown();
 
   nsTextFragment::Shutdown();
 
@@ -340,6 +327,7 @@ nsLayoutStatics::Shutdown()
   nsNodeInfo::ClearCache();
   nsLayoutStylesheetCache::Shutdown();
   NS_NameSpaceManagerShutdown();
+  nsStyleSet::FreeGlobals();
 
   nsJSRuntime::Shutdown();
   nsGlobalWindow::ShutDown();
@@ -355,16 +343,15 @@ nsLayoutStatics::Shutdown()
 
   nsDOMThreadService::Shutdown();
 
-#ifdef MOZ_MEDIA
-  nsHTMLMediaElement::ShutdownMediaTypes();
-#endif
-#ifdef MOZ_SYDNEYAUDIO
+  NS_ShutdownFocusSuppressor();
+
+#ifdef MOZ_OGG
   nsAudioStream::ShutdownLibrary();
 #endif
 
   nsXMLHttpRequest::ShutdownACCache();
-
-  NS_ShutdownChainItemPool();
+  
+  nsHtml5Module::ReleaseStatics();
 }
 
 void

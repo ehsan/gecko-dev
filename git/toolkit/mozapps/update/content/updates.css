@@ -16,10 +16,10 @@ link > label {
 }
 
 /**
- * Remote Content
+ * License Page
  */
-remotecontent {
-  -moz-binding: url("chrome://mozapps/content/update/updates.xml#remotecontent");
+license {
+  -moz-binding: url("chrome://mozapps/content/update/updates.xml#license");
   display: -moz-deck;
 }
 

@@ -154,7 +154,7 @@ class nsJAR : public nsIZipReader, public nsIJAR
     //-- Private functions
     PRFileDesc* OpenFile();
 
-    nsresult ParseManifest();
+    nsresult ParseManifest(nsISignatureVerifier* verifier);
     void     ReportError(const char* aFilename, PRInt16 errorCode);
     nsresult LoadEntry(const char* aFilename, char** aBuf, 
                        PRUint32* aBufLen = nsnull);
@@ -164,7 +164,7 @@ class nsJAR : public nsIZipReader, public nsIJAR
                          PRUint32 aLen);
 
     nsresult CalculateDigest(const char* aInBuf, PRUint32 aInBufLen,
-                             nsCString& digest);
+                             char** digest);
 
     //-- Debugging
     void DumpMetadata(const char* aMessage);

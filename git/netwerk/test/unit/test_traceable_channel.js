@@ -3,7 +3,7 @@
 // response. Make sure that body received by original channel's listener
 // is correctly modified.
 
-do_load_httpd_js();
+do_import_script("netwerk/test/httpserver/httpd.js");
 
 var httpserver = null;
 var originalBody = "original http response body";
@@ -57,7 +57,8 @@ TracingListener.prototype = {
 
   onStopRequest: function(request, context, statusCode) {
     this.listener.onStopRequest(request, context, statusCode);
-    httpserver.stop(do_test_finished);
+    httpserver.stop();
+    do_test_finished();
   },
 
   QueryInterface: function(iid) {

@@ -52,9 +52,8 @@ RequestExecutionLevel user
 
 !addplugindir ./
 
-; On Vista and above attempt to elevate Standard Users in addition to users that
-; are a member of the Administrators group.
-!define NONADMIN_ELEVATE
+; USE_UAC_PLUGIN is temporary until Thunderbird has been updated to use the UAC plugin
+!define USE_UAC_PLUGIN
 
 ; prevents compiling of the reg write logging.
 !define NO_LOG
@@ -66,6 +65,7 @@ Var TmpVal
 !include FileFunc.nsh
 !include LogicLib.nsh
 !include MUI.nsh
+!include TextFunc.nsh
 !include WinMessages.nsh
 !include WinVer.nsh
 !include WordFunc.nsh
@@ -87,13 +87,8 @@ Var TmpVal
 VIAddVersionKey "FileDescription" "${BrandShortName} Helper"
 VIAddVersionKey "OriginalFilename" "helper.exe"
 
-; Most commonly used macros for managing shortcuts
-!insertmacro _LoggingShortcutsCommon
-
 !insertmacro AddDDEHandlerValues
 !insertmacro CleanVirtualStore
-!insertmacro ElevateUAC
-!insertmacro FindSMProgramsDir
 !insertmacro GetLongPath
 !insertmacro GetPathFromString
 !insertmacro IsHandlerForInstallDir
@@ -110,7 +105,6 @@ VIAddVersionKey "OriginalFilename" "helper.exe"
 !insertmacro un.CleanUpdatesDir
 !insertmacro un.CleanVirtualStore
 !insertmacro un.DeleteRelativeProfiles
-!insertmacro un.DeleteShortcuts
 !insertmacro un.GetLongPath
 !insertmacro un.GetSecondInstallPath
 !insertmacro un.ManualCloseAppPrompt
@@ -223,19 +217,17 @@ Section "Uninstall"
   SetShellVarContext current  ; Set SHCTX to HKCU
   ${un.RegCleanMain} "Software\Mozilla"
   ${un.RegCleanUninstall}
-  ${un.DeleteShortcuts}
 
   ClearErrors
-  WriteRegStr HKLM "Software\Mozilla" "${BrandShortName}InstallerTest" "Write Test"
+  WriteRegStr HKLM "Software\Mozilla\InstallerTest" "InstallerTest" "Test"
   ${If} ${Errors}
     StrCpy $TmpVal "HKCU" ; used primarily for logging
   ${Else}
     SetShellVarContext all  ; Set SHCTX to HKLM
-    DeleteRegValue HKLM "Software\Mozilla" "${BrandShortName}InstallerTest"
+    DeleteRegKey HKLM "Software\Mozilla\InstallerTest"
     StrCpy $TmpVal "HKLM" ; used primarily for logging
     ${un.RegCleanMain} "Software\Mozilla"
     ${un.RegCleanUninstall}
-    ${un.DeleteShortcuts}
   ${EndIf}
 
   ${un.RegCleanAppHandler} "FirefoxURL"
@@ -391,8 +383,6 @@ Function un.leaveWelcome
   ${If} ${FileExists} "$INSTDIR\${FileMainEXE}"
     Banner::show /NOUNLOAD "$(BANNER_CHECK_EXISTING)"
 
-    ; If the message window has been found previously give the app an additional
-    ; five seconds to close.
     ${If} "$TmpVal" == "FoundMessageWindow"
       Sleep 5000
     ${EndIf}
@@ -403,14 +393,9 @@ Function un.leaveWelcome
 
     Banner::destroy
 
-    ; If there are files in use $TmpVal will be "true"
     ${If} "$TmpVal" == "true"
-      ; If the message window is found the call to ManualCloseAppPrompt will
-      ; abort leaving the value of $TmpVal set to "FoundMessageWindow".
       StrCpy $TmpVal "FoundMessageWindow"
       ${un.ManualCloseAppPrompt} "${WindowClass}" "$(WARN_MANUALLY_CLOSE_APP_UNINSTALL)"
-      ; If the message window is not found set $TmpVal to "true" so the restart
-      ; required message is displayed.
       StrCpy $TmpVal "true"
     ${EndIf}
   ${EndIf}
@@ -564,7 +549,7 @@ Function .onInit
 FunctionEnd
 
 Function un.onInit
-  ${un.GetParent} "$INSTDIR" $INSTDIR
+  GetFullPathName $INSTDIR "$INSTDIR\.."
   ${un.GetLongPath} "$INSTDIR" $INSTDIR
   ${Unless} ${FileExists} "$INSTDIR\${FileMainEXE}"
     Abort
@@ -576,8 +561,6 @@ Function un.onInit
   ; Initialize $hHeaderBitmap to prevent redundant changing of the bitmap if
   ; the user clicks the back button
   StrCpy $hHeaderBitmap ""
-
-  !insertmacro InitInstallOptionsFile "unconfirm.ini"
 FunctionEnd
 
 Function .onGUIEnd

@@ -74,12 +74,12 @@ public:
   // imgIDecoderObserver (override nsStubImageDecoderObserver)
   NS_IMETHOD OnStartContainer(imgIRequest *aRequest, imgIContainer *aImage);
   NS_IMETHOD OnDataAvailable(imgIRequest *aRequest, gfxIImageFrame *aFrame,
-                             const nsIntRect *aRect);
+                             const nsRect *aRect);
   NS_IMETHOD OnStopDecode(imgIRequest *aRequest, nsresult status,
                           const PRUnichar *statusArg);
   // imgIContainerObserver (override nsStubImageDecoderObserver)
   NS_IMETHOD FrameChanged(imgIContainer *aContainer, gfxIImageFrame *newframe,
-                          nsIntRect * dirtyRect);
+                          nsRect * dirtyRect);
 
   void SetFrame(nsImageFrame *frame) { mFrame = frame; }
 
@@ -96,7 +96,8 @@ class nsImageFrame : public ImageFrameSuper, public nsIImageFrame {
 public:
   nsImageFrame(nsStyleContext* aContext);
 
-  NS_DECL_QUERYFRAME
+  // nsISupports 
+  NS_IMETHOD QueryInterface(const nsIID& aIID, void** aInstancePtr);
 
   virtual void Destroy();
   NS_IMETHOD Init(nsIContent*      aContent,
@@ -176,6 +177,10 @@ public:
                                  InlineMinWidthData *aData);
 
 protected:
+  // nsISupports
+  NS_IMETHOD_(nsrefcnt) AddRef(void);
+  NS_IMETHOD_(nsrefcnt) Release(void);
+
   virtual ~nsImageFrame();
 
   void EnsureIntrinsicSize(nsPresContext* aPresContext);
@@ -220,13 +225,13 @@ protected:
   nsresult OnStartContainer(imgIRequest *aRequest, imgIContainer *aImage);
   nsresult OnDataAvailable(imgIRequest *aRequest,
                            gfxIImageFrame *aFrame,
-                           const nsIntRect *rect);
+                           const nsRect * rect);
   nsresult OnStopDecode(imgIRequest *aRequest,
                         nsresult aStatus,
                         const PRUnichar *aStatusArg);
   nsresult FrameChanged(imgIContainer *aContainer,
                         gfxIImageFrame *aNewframe,
-                        nsIntRect *aDirtyRect);
+                        nsRect *aDirtyRect);
 
 private:
   // random helpers
@@ -249,7 +254,7 @@ private:
   /**
    * This function will recalculate mTransform.
    */
-  void RecalculateTransform(PRBool aInnerAreaChanged);
+  void RecalculateTransform();
 
   /**
    * Helper functions to check whether the request or image container
@@ -263,7 +268,7 @@ private:
    * Function to convert a dirty rect in the source image to a dirty
    * rect for the image frame.
    */
-  nsRect SourceRectToDest(const nsIntRect & aRect);
+  nsRect SourceRectToDest(const nsRect & aRect);
 
   nsImageMap*         mImageMap;
 
@@ -302,11 +307,11 @@ private:
     {
       // in case the pref service releases us later
       if (mLoadingImage) {
-        mLoadingImage->CancelAndForgetObserver(NS_ERROR_FAILURE);
+        mLoadingImage->Cancel(NS_ERROR_FAILURE);
         mLoadingImage = nsnull;
       }
       if (mBrokenImage) {
-        mBrokenImage->CancelAndForgetObserver(NS_ERROR_FAILURE);
+        mBrokenImage->Cancel(NS_ERROR_FAILURE);
         mBrokenImage = nsnull;
       }
     }

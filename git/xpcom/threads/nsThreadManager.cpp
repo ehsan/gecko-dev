@@ -47,13 +47,13 @@ typedef nsTArray< nsRefPtr<nsThread> > nsThreadArray;
 
 //-----------------------------------------------------------------------------
 
-static void
+PR_STATIC_CALLBACK(void)
 ReleaseObject(void *data)
 {
   static_cast<nsISupports *>(data)->Release();
 }
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 AppendAndRemoveThread(const void *key, nsRefPtr<nsThread> &thread, void *arg)
 {
   nsThreadArray *threads = static_cast<nsThreadArray *>(arg);
@@ -154,11 +154,6 @@ nsThreadManager::Shutdown()
     nsAutoLock lock(mLock);
     mThreadsByPRThread.Clear();
   }
-
-  // Normally thread shutdown clears the observer for the thread, but since the
-  // main thread is special we do it manually here after we're sure all events
-  // have been processed.
-  mMainThread->SetObserver(nsnull);
 
   // Release main thread object.
   mMainThread = nsnull;

@@ -40,6 +40,7 @@
 #include "nsSVGNumber.h"
 #include "nsSVGValue.h"
 #include "nsWeakReference.h"
+#include "nsVoidArray.h"
 #include "nsDOMError.h"
 #include "nsReadableUtils.h"
 #include "nsCRT.h"
@@ -90,7 +91,7 @@ protected:
   
   void ReleaseNumbers();
   
-  nsAutoTArray<nsIDOMSVGNumber*, 8> mNumbers;
+  nsAutoVoidArray mNumbers;
 };
 
 
@@ -132,7 +133,8 @@ nsSVGNumberList::SetValueString(const nsAString& aValue)
 
   nsresult rv = NS_OK;
 
-  char* str = ToNewCString(aValue);
+  char* str;
+  str = ToNewCString(aValue);
 
   char* rest = str;
   char* token;
@@ -140,10 +142,10 @@ nsSVGNumberList::SetValueString(const nsAString& aValue)
 
   while ((token = nsCRT::strtok(rest, delimiters, &rest))) {
     char *left;
-    float val = float(PR_strtod(token, &left));
-    if (token!=left && NS_FloatIsFinite(val)) {
+    double value = PR_strtod(token, &left);
+    if (token!=left) {
       nsCOMPtr<nsIDOMSVGNumber> number;
-      NS_NewSVGNumber(getter_AddRefs(number), val);
+      NS_NewSVGNumber(getter_AddRefs(number), float(value));
       if (!number) {
         rv = NS_ERROR_FAILURE;
         break;
@@ -163,11 +165,11 @@ nsSVGNumberList::GetValueString(nsAString& aValue)
 {
   aValue.Truncate();
 
-  PRUint32 count = mNumbers.Length();
+  PRInt32 count = mNumbers.Count();
 
-  if (count == 0) return NS_OK;
+  if (count<=0) return NS_OK;
 
-  PRUint32 i = 0;
+  PRInt32 i = 0;
   
   while (1) {
     nsIDOMSVGNumber* number = ElementAt(i);
@@ -192,7 +194,7 @@ nsSVGNumberList::GetValueString(nsAString& aValue)
 /* readonly attribute unsigned long numberOfItems; */
 NS_IMETHODIMP nsSVGNumberList::GetNumberOfItems(PRUint32 *aNumberOfItems)
 {
-  *aNumberOfItems = mNumbers.Length();
+  *aNumberOfItems = mNumbers.Count();
   return NS_OK;
 }
 
@@ -220,7 +222,7 @@ NS_IMETHODIMP nsSVGNumberList::Initialize(nsIDOMSVGNumber *newItem,
 /* nsIDOMSVGNumber getItem (in unsigned long index); */
 NS_IMETHODIMP nsSVGNumberList::GetItem(PRUint32 index, nsIDOMSVGNumber **_retval)
 {
-  if (index >= mNumbers.Length()) {
+  if (index >= static_cast<PRUint32>(mNumbers.Count())) {
     *_retval = nsnull;
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
@@ -242,9 +244,10 @@ nsSVGNumberList::InsertItemBefore(nsIDOMSVGNumber *newItem,
 
   nsSVGValueAutoNotifier autonotifier(this);
 
-  PRUint32 count = mNumbers.Length();
+  PRInt32 idx = index;
+  PRInt32 count = mNumbers.Count();
 
-  if (!InsertElementAt(newItem, (index < count)? index: count)) {
+  if (!InsertElementAt(newItem, (idx < count)? idx: count)) {
     *_retval = nsnull;
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -274,7 +277,7 @@ nsSVGNumberList::ReplaceItem(nsIDOMSVGNumber *newItem,
 /* nsIDOMSVGNumberList removeItem (in unsigned long index); */
 NS_IMETHODIMP nsSVGNumberList::RemoveItem(PRUint32 index, nsIDOMSVGNumber **_retval)
 {
-  if (index >= mNumbers.Length()) {
+  if (index >= static_cast<PRUint32>(mNumbers.Count())) {
     *_retval = nsnull;
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
@@ -325,8 +328,8 @@ void
 nsSVGNumberList::ReleaseNumbers()
 {
   WillModify();
-  PRUint32 count = mNumbers.Length();
-  for (PRUint32 i = 0; i < count; ++i) {
+  PRInt32 count = mNumbers.Count();
+  for (PRInt32 i = 0; i < count; ++i) {
     nsIDOMSVGNumber* number = ElementAt(i);
     NS_REMOVE_SVGVALUE_OBSERVER(number);
     NS_RELEASE(number);
@@ -338,7 +341,7 @@ nsSVGNumberList::ReleaseNumbers()
 nsIDOMSVGNumber*
 nsSVGNumberList::ElementAt(PRInt32 index)
 {
-  return mNumbers.ElementAt(index);
+  return (nsIDOMSVGNumber*)mNumbers.ElementAt(index);
 }
 
 void
@@ -352,7 +355,7 @@ nsSVGNumberList::AppendElement(nsIDOMSVGNumber* aElement)
   // list':
   //  aElement->SetListOwner(this);
   
-  mNumbers.AppendElement(aElement);
+  mNumbers.AppendElement((void*)aElement);
   NS_ADD_SVGVALUE_OBSERVER(aElement);
   DidModify();
 }
@@ -372,19 +375,19 @@ nsSVGNumberList::RemoveElementAt(PRInt32 index)
 nsresult
 nsSVGNumberList::InsertElementAt(nsIDOMSVGNumber* aElement, PRInt32 index)
 {
+  nsresult rv;
+  WillModify();
+  NS_ADDREF(aElement);
+
   // The SVG specs state that 'if newItem is already in a list, it
   // is removed from its previous list before it is inserted into this
   // list':
   //  aElement->SetListOwner(this);
   
-  if (!mNumbers.InsertElementAt(index, aElement)) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
-  WillModify();
-  NS_ADDREF(aElement);
-  NS_ADD_SVGVALUE_OBSERVER(aElement);
+  if (!NS_FAILED(rv = mNumbers.InsertElementAt((void*)aElement, index)))
+    NS_ADD_SVGVALUE_OBSERVER(aElement);
   DidModify();
-  return NS_OK;
+  return rv;
 }
 
 

@@ -57,9 +57,8 @@
 #include <fontconfig/fontconfig.h>
 
 #include "nsMathUtils.h"
-#include "nsTArray.h"
 
-#include "qcms.h"
+#include "lcms.h"
 
 #include <ft2build.h>
 #include FT_FREETYPE_H
@@ -134,7 +133,7 @@ gfxQtPlatform::CreateOffscreenSurface(const gfxIntSize& size,
 nsresult
 gfxQtPlatform::GetFontList(const nsACString& aLangGroup,
                             const nsACString& aGenericFamily,
-                            nsTArray<nsString>& aListOfFonts)
+                            nsStringArray& aListOfFonts)
 {
     return sFontconfigUtils->GetFontList(aLangGroup, aGenericFamily,
                                          aListOfFonts);
@@ -338,8 +337,7 @@ gfxQtPlatform::GetStandardFamilyName(const nsAString& aFontName, nsAString& aFam
 
 gfxFontGroup *
 gfxQtPlatform::CreateFontGroup(const nsAString &aFamilies,
-                               const gfxFontStyle *aStyle,
-                               gfxUserFontSet* aUserFontSet)
+                               const gfxFontStyle *aStyle)
 {
     return new gfxFT2FontGroup(aFamilies, aStyle);
 }
@@ -354,7 +352,7 @@ gfxQtPlatform::InitDPI()
     }
 }
 
-qcms_profile*
+cmsHPROFILE
 gfxQtPlatform::GetPlatformCMSOutputProfile()
 {
     return nsnull;

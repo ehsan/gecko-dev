@@ -26,7 +26,6 @@
  *   Christian Biesinger <cbiesinger@web.de>
  *   Dan Mosedale <dmose@mozilla.org>
  *   Myk Melez <myk@mozilla.org>
- *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -92,9 +91,8 @@
 
 #ifdef XP_MACOSX
 #include "nsILocalFileMac.h"
-#ifndef __LP64__
+#include "nsIInternetConfigService.h"
 #include "nsIAppleFileDecoder.h"
-#endif
 #elif defined(XP_OS2)
 #include "nsILocalFileOS2.h"
 #endif
@@ -126,8 +124,6 @@
 #include "plbase64.h"
 #include "prmem.h"
 
-#include "nsIPrivateBrowsingService.h"
-
 // Buffer file writes in 32kb chunks
 #define BUFFERED_OUTPUT_SIZE (1024 * 32)
 
@@ -153,6 +149,8 @@ PRLogModuleInfo* nsExternalHelperAppService::mLog = nsnull;
 static const char NEVER_ASK_PREF_BRANCH[] = "browser.helperApps.neverAsk.";
 static const char NEVER_ASK_FOR_SAVE_TO_DISK_PREF[] = "saveToDisk";
 static const char NEVER_ASK_FOR_OPEN_FILE_PREF[]    = "openFile";
+
+static NS_DEFINE_CID(kPluginManagerCID, NS_PLUGINMANAGER_CID);
 
 /**
  * Contains a pointer to the helper app service, set in its constructor
@@ -318,14 +316,17 @@ static PRBool GetFilenameAndExtensionFromChannel(nsIChannel* aChannel,
     // XXXbz this code is duplicated in nsDocumentOpenInfo::DispatchContent.
     // Factor it out!  Maybe store it in the nsDocumentOpenInfo?
     if (NS_FAILED(rv) || 
-        (!dispToken.IsEmpty() &&
+        (// Some broken sites just send
+         // Content-Disposition: ; filename="file"
+         // screen those out here.
+         !dispToken.IsEmpty() &&
          !dispToken.LowerCaseEqualsLiteral("inline") &&
-         // Broken sites just send
-         // Content-Disposition: filename="file"
-         // without a disposition token... screen those out.
-         !dispToken.EqualsIgnoreCase("filename", 8) &&
-         // Also in use is Content-Disposition: name="file"
-         !dispToken.EqualsIgnoreCase("name", 4)))
+        // Broken sites just send
+        // Content-Disposition: filename="file"
+        // without a disposition token... screen those out.
+        !dispToken.EqualsIgnoreCase("filename", 8)) &&
+        // Also in use is Content-Disposition: name="file"
+        !dispToken.EqualsIgnoreCase("name", 4)) 
     {
       // We have a content-disposition of "attachment" or unknown
       handleExternally = PR_TRUE;
@@ -409,7 +410,7 @@ static nsresult GetDownloadDirectory(nsIFile **_directory)
     case NS_FOLDER_VALUE_CUSTOM:
       {
         (void) prefs->GetComplexValue(NS_PREF_DOWNLOAD_DIR,
-                                      NS_GET_IID(nsILocalFile),
+                                      NS_GET_IID(nsIFile),
                                       getter_AddRefs(dir));
         if (!dir) break;
 
@@ -489,6 +490,8 @@ struct nsExtraMimeTypeEntry {
   const char* mMimeType; 
   const char* mFileExtensions;
   const char* mDescription;
+  PRUint32 mMactype;
+  PRUint32 mMacCreator;
 };
 
 #ifdef XP_MACOSX
@@ -507,39 +510,34 @@ struct nsExtraMimeTypeEntry {
 static nsExtraMimeTypeEntry extraMimeEntries [] =
 {
 #if defined(VMS)
-  { APPLICATION_OCTET_STREAM, "exe,com,bin,sav,bck,pcsi,dcx_axpexe,dcx_vaxexe,sfx_axpexe,sfx_vaxexe", "Binary File" },
+  { APPLICATION_OCTET_STREAM, "exe,com,bin,sav,bck,pcsi,dcx_axpexe,dcx_vaxexe,sfx_axpexe,sfx_vaxexe", "Binary File", 0, 0 },
 #elif defined(XP_MACOSX) // don't define .bin on the mac...use internet config to look that up...
-  { APPLICATION_OCTET_STREAM, "exe,com", "Binary File" },
+  { APPLICATION_OCTET_STREAM, "exe,com", "Binary File", 0, 0 },
 #else
-  { APPLICATION_OCTET_STREAM, "exe,com,bin", "Binary File" },
+  { APPLICATION_OCTET_STREAM, "exe,com,bin", "Binary File", 0, 0 },
 #endif
-  { APPLICATION_GZIP2, "gz", "gzip" },
-  { "application/x-arj", "arj", "ARJ file" },
-  { APPLICATION_XPINSTALL, "xpi", "XPInstall Install" },
-  { APPLICATION_POSTSCRIPT, "ps,eps,ai", "Postscript File" },
-  { APPLICATION_JAVASCRIPT, "js", "Javascript Source File" },
-  { IMAGE_ART, "art", "ART Image" },
-  { IMAGE_BMP, "bmp", "BMP Image" },
-  { IMAGE_GIF, "gif", "GIF Image" },
-  { IMAGE_ICO, "ico,cur", "ICO Image" },
-  { IMAGE_JPG, "jpeg,jpg,jfif,pjpeg,pjp", "JPEG Image" },
-  { IMAGE_PNG, "png", "PNG Image" },
-  { IMAGE_TIFF, "tiff,tif", "TIFF Image" },
-  { IMAGE_XBM, "xbm", "XBM Image" },
-  { "image/svg+xml", "svg", "Scalable Vector Graphics" },
-  { MESSAGE_RFC822, "eml", "RFC-822 data" },
-  { TEXT_PLAIN, "txt,text", "Text File" },
-  { TEXT_HTML, "html,htm,shtml,ehtml", "HyperText Markup Language" },
-  { "application/xhtml+xml", "xhtml,xht", "Extensible HyperText Markup Language" },
-  { APPLICATION_RDF, "rdf", "Resource Description Framework" },
-  { TEXT_XUL, "xul", "XML-Based User Interface Language" },
-  { TEXT_XML, "xml,xsl,xbl", "Extensible Markup Language" },
-  { TEXT_CSS, "css", "Style Sheet" },
-  { VIDEO_OGG, "ogv", "Ogg Video" },
-  { VIDEO_OGG, "ogg", "Ogg Video" },
-  { APPLICATION_OGG, "ogg", "Ogg Video"},
-  { AUDIO_OGG, "oga", "Ogg Audio" },
-  { AUDIO_WAV, "wav", "Waveform Audio" }
+  { APPLICATION_GZIP2, "gz", "gzip", 0, 0 },
+  { "application/x-arj", "arj", "ARJ file", 0,0 },
+  { APPLICATION_XPINSTALL, "xpi", "XPInstall Install", MAC_TYPE('xpi*'), MAC_TYPE('MOSS') },
+  { APPLICATION_POSTSCRIPT, "ps,eps,ai", "Postscript File", 0, 0 },
+  { APPLICATION_JAVASCRIPT, "js", "Javascript Source File", MAC_TYPE('TEXT'), MAC_TYPE('ttxt') },
+  { IMAGE_ART, "art", "ART Image", 0, 0 },
+  { IMAGE_BMP, "bmp", "BMP Image", 0, 0 },
+  { IMAGE_GIF, "gif", "GIF Image", 0,0 },
+  { IMAGE_ICO, "ico,cur", "ICO Image", 0, 0 },
+  { IMAGE_JPG, "jpeg,jpg,jfif,pjpeg,pjp", "JPEG Image", 0, 0 },
+  { IMAGE_PNG, "png", "PNG Image", 0, 0 },
+  { IMAGE_TIFF, "tiff,tif", "TIFF Image", 0, 0 },
+  { IMAGE_XBM, "xbm", "XBM Image", 0, 0 },
+  { "image/svg+xml", "svg", "Scalable Vector Graphics", MAC_TYPE('svg '), MAC_TYPE('ttxt') },
+  { MESSAGE_RFC822, "eml", "RFC-822 data", MAC_TYPE('TEXT'), MAC_TYPE('MOSS') },
+  { TEXT_PLAIN, "txt,text", "Text File", MAC_TYPE('TEXT'), MAC_TYPE('ttxt') },
+  { TEXT_HTML, "html,htm,shtml,ehtml", "HyperText Markup Language", MAC_TYPE('TEXT'), MAC_TYPE('MOSS') },
+  { "application/xhtml+xml", "xhtml,xht", "Extensible HyperText Markup Language", MAC_TYPE('TEXT'), MAC_TYPE('ttxt') },
+  { APPLICATION_RDF, "rdf", "Resource Description Framework", MAC_TYPE('TEXT'), MAC_TYPE('ttxt') },
+  { TEXT_XUL, "xul", "XML-Based User Interface Language", MAC_TYPE('TEXT'), MAC_TYPE('ttxt') },
+  { TEXT_XML, "xml,xsl,xbl", "Extensible Markup Language", MAC_TYPE('TEXT'), MAC_TYPE('ttxt') },
+  { TEXT_CSS, "css", "Style Sheet", MAC_TYPE('TEXT'), MAC_TYPE('ttxt') },
 };
 
 #undef MAC_TYPE
@@ -565,19 +563,12 @@ NS_IMPL_ISUPPORTS6(
   nsIObserver,
   nsISupportsWeakReference)
 
-nsExternalHelperAppService::nsExternalHelperAppService() :
-  mInPrivateBrowsing(PR_FALSE)
+nsExternalHelperAppService::nsExternalHelperAppService()
 {
   gExtProtSvc = this;
 }
 nsresult nsExternalHelperAppService::Init()
 {
-  nsCOMPtr<nsIPrivateBrowsingService> pbs =
-    do_GetService(NS_PRIVATE_BROWSING_SERVICE_CONTRACTID);
-  if (pbs) {
-    pbs->GetPrivateBrowsingEnabled(&mInPrivateBrowsing);
-  }
-
   // Add an observer for profile change
   nsresult rv = NS_OK;
   nsCOMPtr<nsIObserverService> obs = do_GetService("@mozilla.org/observer-service;1", &rv);
@@ -591,9 +582,7 @@ nsresult nsExternalHelperAppService::Init()
   }
 #endif
 
-  rv = obs->AddObserver(this, "profile-before-change", PR_TRUE);
-  NS_ENSURE_SUCCESS(rv, rv);
-  return obs->AddObserver(this, NS_PRIVATE_BROWSING_SWITCH_TOPIC, PR_TRUE);
+  return obs->AddObserver(this, "profile-before-change", PR_TRUE);
 }
 
 nsExternalHelperAppService::~nsExternalHelperAppService()
@@ -937,10 +926,7 @@ NS_IMETHODIMP nsExternalHelperAppService::DeleteTemporaryFileOnExit(nsIFile * aT
   localFile->IsFile(&isFile);
   if (!isFile) return NS_OK;
 
-  if (mInPrivateBrowsing)
-    mTemporaryPrivateFilesList.AppendObject(localFile);
-  else
-    mTemporaryFilesList.AppendObject(localFile);
+  mTemporaryFilesList.AppendObject(localFile);
 
   return NS_OK;
 }
@@ -950,13 +936,13 @@ void nsExternalHelperAppService::FixFilePermissions(nsILocalFile* aFile)
   // This space intentionally left blank
 }
 
-void nsExternalHelperAppService::ExpungeTemporaryFilesHelper(nsCOMArray<nsILocalFile> &fileList)
+nsresult nsExternalHelperAppService::ExpungeTemporaryFiles()
 {
-  PRInt32 numEntries = fileList.Count();
+  PRInt32 numEntries = mTemporaryFilesList.Count();
   nsILocalFile* localFile;
   for (PRInt32 index = 0; index < numEntries; index++)
   {
-    localFile = fileList[index];
+    localFile = mTemporaryFilesList[index];
     if (localFile) {
       // First make the file writable, since the temp file is probably readonly.
       localFile->SetPermissions(0600);
@@ -964,17 +950,9 @@ void nsExternalHelperAppService::ExpungeTemporaryFilesHelper(nsCOMArray<nsILocal
     }
   }
 
-  fileList.Clear();
-}
+  mTemporaryFilesList.Clear();
 
-void nsExternalHelperAppService::ExpungeTemporaryFiles()
-{
-  ExpungeTemporaryFilesHelper(mTemporaryFilesList);
-}
-
-void nsExternalHelperAppService::ExpungeTemporaryPrivateFiles()
-{
-  ExpungeTemporaryFilesHelper(mTemporaryPrivateFilesList);
+  return NS_OK;
 }
 
 static const char kExternalWarningPrefPrefix[] = 
@@ -1063,13 +1041,6 @@ nsExternalHelperAppService::Observe(nsISupports *aSubject, const char *aTopic, c
 {
   if (!strcmp(aTopic, "profile-before-change")) {
     ExpungeTemporaryFiles();
-  } else if (!strcmp(aTopic, NS_PRIVATE_BROWSING_SWITCH_TOPIC)) {
-    if (NS_LITERAL_STRING(NS_PRIVATE_BROWSING_ENTER).Equals(someData))
-      mInPrivateBrowsing = PR_TRUE;
-    else if (NS_LITERAL_STRING(NS_PRIVATE_BROWSING_LEAVE).Equals(someData)) {
-      mInPrivateBrowsing = PR_FALSE;
-      ExpungeTemporaryPrivateFiles();
-    }
   }
   return NS_OK;
 }
@@ -1357,6 +1328,19 @@ nsresult nsExternalAppHandler::SetUpTempFile(nsIChannel * aChannel)
   mTempFile->IsExecutable(&mTempFileIsExecutable);
 #endif
 
+#ifdef XP_MACOSX
+  // Now that the file exists set Mac type if the file has no extension
+  // and we can determine a type.
+  if (ext.IsEmpty() && mMimeInfo) {
+    nsCOMPtr<nsILocalFileMac> macfile = do_QueryInterface(mTempFile);
+    if (macfile) {
+      PRUint32 type;
+      mMimeInfo->GetMacType(&type);
+      macfile->SetFileType(type);
+    }
+  }
+#endif
+
   nsCOMPtr<nsIOutputStream> outputStream;
   rv = NS_NewLocalFileOutputStream(getter_AddRefs(outputStream), mTempFile,
                                    PR_WRONLY | PR_CREATE_FILE, 0600);
@@ -1367,7 +1351,7 @@ nsresult nsExternalAppHandler::SetUpTempFile(nsIChannel * aChannel)
 
   mOutStream = NS_BufferOutputStream(outputStream, BUFFERED_OUTPUT_SIZE);
 
-#if defined(XP_MACOSX) && !defined(__LP64__)
+#ifdef XP_MACOSX
     nsCAutoString contentType;
     mMimeInfo->GetMIMEType(contentType);
     if (contentType.LowerCaseEqualsLiteral(APPLICATION_APPLEFILE) ||
@@ -2185,7 +2169,7 @@ nsresult nsExternalAppHandler::OpenWithApplication()
 
     // make the tmp file readonly so users won't edit it and lose the changes
     // only if we're going to delete the file
-    if (deleteTempFileOnExit || gExtProtSvc->InPrivateBrowsing())
+    if (deleteTempFileOnExit)
       mFinalFileDestination->SetPermissions(0400);
 
     rv = mMimeInfo->LaunchWithFile(mFinalFileDestination);        
@@ -2197,9 +2181,7 @@ nsresult nsExternalAppHandler::OpenWithApplication()
       SendStatusChange(kLaunchError, rv, nsnull, path);
       Cancel(rv); // Cancel, and clean up temp file.
     }
-    // Always schedule files to be deleted at the end of the private browsing
-    // mode, regardless of the value of the pref.
-    else if (deleteTempFileOnExit || gExtProtSvc->InPrivateBrowsing()) {
+    else if (deleteTempFileOnExit) {
       NS_ASSERTION(gExtProtSvc, "Service gone away!?");
       gExtProtSvc->DeleteTemporaryFileOnExit(mFinalFileDestination);
     }
@@ -2561,9 +2543,10 @@ NS_IMETHODIMP nsExternalHelperAppService::GetTypeFromExtension(const nsACString&
   const nsCString& flatExt = PromiseFlatCString(aFileExt);
   // Try the plugins
   const char* mimeType;
-  nsCOMPtr<nsIPluginHost> pluginHost (do_GetService(MOZ_PLUGIN_HOST_CONTRACTID, &rv));
+  nsCOMPtr<nsIPluginHost> pluginHost (do_GetService(kPluginManagerCID, &rv));
   if (NS_SUCCEEDED(rv)) {
-    if (NS_SUCCEEDED(pluginHost->IsPluginEnabledForExtension(flatExt.get(), mimeType))) {
+    if (NS_SUCCEEDED(pluginHost->IsPluginEnabledForExtension(flatExt.get(), mimeType)))
+    {
       aContentType = mimeType;
       return NS_OK;
     }
@@ -2676,10 +2659,28 @@ NS_IMETHODIMP nsExternalHelperAppService::GetTypeFromFile(nsIFile* aFile, nsACSt
       }
     }
   }
+  
+#ifdef XP_MACOSX
+  nsCOMPtr<nsILocalFileMac> macFile;
+  macFile = do_QueryInterface( aFile, &rv );
+  if (NS_SUCCEEDED( rv ) && fileExt.IsEmpty())
+  {
+    PRUint32 type, creator;
+    macFile->GetFileType( (OSType*)&type );
+    macFile->GetFileCreator( (OSType*)&creator );   
+    nsCOMPtr<nsIInternetConfigService> icService (do_GetService(NS_INTERNETCONFIGSERVICE_CONTRACTID));
+    if (icService)
+    {
+      rv = icService->GetMIMEInfoFromTypeCreator(type, creator, fileExt.get(), getter_AddRefs(info));
+      if (NS_SUCCEEDED(rv))
+        return info->GetMIMEType(aContentType);
+    }
+  }
+#endif
 
+  // Windows, unix and mac when no type match occured.   
   if (fileExt.IsEmpty())
-    return NS_ERROR_FAILURE;
-
+    return NS_ERROR_FAILURE;    
   return GetTypeFromExtension(fileExt, aContentType);
 }
 
@@ -2701,6 +2702,9 @@ nsresult nsExternalHelperAppService::FillMIMEInfoForMimeTypeFromExtras(
           // This is the one. Set attributes appropriately.
           aMIMEInfo->SetFileExtensions(nsDependentCString(extraMimeEntries[index].mFileExtensions));
           aMIMEInfo->SetDescription(NS_ConvertASCIItoUTF16(extraMimeEntries[index].mDescription));
+          aMIMEInfo->SetMacType(extraMimeEntries[index].mMactype);
+          aMIMEInfo->SetMacCreator(extraMimeEntries[index].mMacCreator);
+
           return NS_OK;
       }
   }

@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -40,26 +40,24 @@
 /*
  * JS boolean implementation.
  */
+#include "jsstddef.h"
 #include "jstypes.h"
-#include "jsstdint.h"
 #include "jsutil.h" /* Added by JSIFY */
 #include "jsapi.h"
 #include "jsatom.h"
 #include "jsbool.h"
 #include "jscntxt.h"
 #include "jsversion.h"
+#include "jsinterp.h"
 #include "jslock.h"
 #include "jsnum.h"
 #include "jsobj.h"
 #include "jsstr.h"
 
 /* Check pseudo-booleans values. */
-JS_STATIC_ASSERT(!(JSVAL_TRUE & JSVAL_HOLE_FLAG));
-JS_STATIC_ASSERT(!(JSVAL_FALSE & JSVAL_HOLE_FLAG));
-JS_STATIC_ASSERT(!(JSVAL_VOID & JSVAL_HOLE_FLAG));
-JS_STATIC_ASSERT((JSVAL_HOLE & JSVAL_HOLE_FLAG));
-JS_STATIC_ASSERT((JSVAL_HOLE & ~JSVAL_HOLE_FLAG) == JSVAL_VOID);
-JS_STATIC_ASSERT(!(JSVAL_ARETURN & JSVAL_HOLE_FLAG));
+JS_STATIC_ASSERT(JSVAL_VOID == JSVAL_TRUE + JSVAL_ALIGN);
+JS_STATIC_ASSERT(JSVAL_HOLE == JSVAL_VOID + JSVAL_ALIGN);
+JS_STATIC_ASSERT(JSVAL_ARETURN == JSVAL_HOLE + JSVAL_ALIGN);
 
 JSClass js_BooleanClass = {
     "Boolean",
@@ -123,7 +121,6 @@ static JSFunctionSpec boolean_methods[] = {
 #endif
     JS_FN(js_toString_str,  bool_toString,  0, JSFUN_THISP_BOOLEAN),
     JS_FN(js_valueOf_str,   bool_valueOf,   0, JSFUN_THISP_BOOLEAN),
-    JS_FN(js_toJSON_str,    bool_valueOf,   0, JSFUN_THISP_BOOLEAN),
     JS_FS_END
 };
 
@@ -135,7 +132,7 @@ Boolean(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     bval = (argc != 0)
            ? BOOLEAN_TO_JSVAL(js_ValueToBoolean(argv[0]))
            : JSVAL_FALSE;
-    if (!JS_IsConstructing(cx)) {
+    if (!(cx->fp->flags & JSFRAME_CONSTRUCTING)) {
         *rval = bval;
         return JS_TRUE;
     }
@@ -170,7 +167,7 @@ js_ValueToBoolean(jsval v)
     if (JSVAL_IS_OBJECT(v))
         return JS_TRUE;
     if (JSVAL_IS_STRING(v))
-        return JSVAL_TO_STRING(v)->length() != 0;
+        return JSSTRING_LENGTH(JSVAL_TO_STRING(v)) != 0;
     if (JSVAL_IS_INT(v))
         return JSVAL_TO_INT(v) != 0;
     if (JSVAL_IS_DOUBLE(v)) {

@@ -73,8 +73,6 @@ CHECK_VARS := \
  SHORT_LIBNAME \
  XPI_PKGNAME \
  INSTALL_EXTENSION_ID \
- SHARED_LIBRARY_NAME \
- STATIC_LIBRARY_NAME \
  $(NULL)
 
 # checks for internal spaces or trailing spaces in the variable
@@ -82,8 +80,6 @@ CHECK_VARS := \
 check-variable = $(if $(filter-out 0 1,$(words $($(x))z)),$(error Spaces are not allowed in $(x)))
 
 $(foreach x,$(CHECK_VARS),$(check-variable))
-
-core_abspath = $(if $(findstring :,$(1)),$(1),$(if $(filter /%,$(1)),$(1),$(CURDIR)/$(1)))
 
 # FINAL_TARGET specifies the location into which we copy end-user-shipped
 # build products (typelibs, components, chrome).
@@ -158,8 +154,8 @@ MOZ_UNICHARUTIL_LIBS = $(LIBXUL_DIST)/lib/$(LIB_PREFIX)unicharutil_s.$(LIB_SUFFI
 MOZ_WIDGET_SUPPORT_LIBS    = $(DIST)/lib/$(LIB_PREFIX)widgetsupport_s.$(LIB_SUFFIX)
 
 ifdef MOZ_MEMORY
-ifneq (,$(filter-out WINNT WINCE,$(OS_ARCH)))
-JEMALLOC_LIBS = $(MKSHLIB_FORCE_ALL) $(call EXPAND_LIBNAME_PATH,jemalloc,$(DIST)/lib) $(MKSHLIB_UNFORCE_ALL)
+ifneq ($(OS_ARCH),WINNT)
+JEMALLOC_LIBS = $(MKSHLIB_FORCE_ALL) $(call EXPAND_LIBNAME,jemalloc) $(MKSHLIB_UNFORCE_ALL)
 endif
 endif
 
@@ -245,7 +241,7 @@ OS_CFLAGS += $(_DEBUG_CFLAGS)
 OS_CXXFLAGS += $(_DEBUG_CFLAGS)
 OS_LDFLAGS += $(_DEBUG_LDFLAGS)
 
-# XXX: What does this? Bug 482434 filed for better explanation.
+# MOZ_PROFILE equivs for win32
 ifeq ($(OS_ARCH)_$(GNU_CC),WINNT_)
 ifdef MOZ_DEBUG
 ifneq (,$(MOZ_BROWSE_INFO)$(MOZ_BSCFILE))
@@ -253,14 +249,6 @@ OS_CFLAGS += -FR
 OS_CXXFLAGS += -FR
 endif
 else # ! MOZ_DEBUG
-
-# We don't build a static CRT when building a custom CRT,
-# it appears to be broken. So don't link to jemalloc if
-# the Makefile wants static CRT linking.
-ifeq ($(MOZ_MEMORY)_$(USE_STATIC_LIBS),1_)
-# Disable default CRT libs and add the right lib path for the linker
-OS_LDFLAGS += $(MOZ_MEMORY_LDFLAGS)
-endif
 
 # MOZ_DEBUG_SYMBOLS generates debug symbols in separate PDB files.
 # Used for generating an optimized build with debugging symbols.
@@ -371,18 +359,6 @@ DSO_PIC_CFLAGS=
 endif
 endif
 
-ifndef SHARED_LIBRARY_NAME
-ifdef LIBRARY_NAME
-SHARED_LIBRARY_NAME=$(LIBRARY_NAME)
-endif
-endif
-
-ifndef STATIC_LIBRARY_NAME
-ifdef LIBRARY_NAME
-STATIC_LIBRARY_NAME=$(LIBRARY_NAME)
-endif
-endif
-
 # This comes from configure
 ifdef MOZ_PROFILE_GUIDED_OPTIMIZE_DISABLE
 NO_PROFILE_GUIDED_OPTIMIZE = 1
@@ -466,10 +442,6 @@ ifdef USE_EXTENSION_MANIFEST
 MAKE_JARS_FLAGS += -e
 endif
 
-ifdef BOTH_MANIFESTS
-MAKE_JARS_FLAGS += --both-manifests
-endif
-
 TAR_CREATE_FLAGS = -cvhf
 
 ifeq ($(OS_ARCH),BSD_OS)
@@ -506,22 +478,44 @@ JAVA_GEN_DIR  = _javagen
 JAVA_DIST_DIR = $(DEPTH)/$(JAVA_GEN_DIR)
 JAVA_IFACES_PKG_NAME = org/mozilla/interfaces
 
-INCLUDES = \
-  $(LOCAL_INCLUDES) \
-  -I$(srcdir) \
-  -I. \
-  -I$(DIST)/include -I$(DIST)/include/nsprpub \
-  $(if $(LIBXUL_SDK),-I$(LIBXUL_SDK)/include -I$(LIBXUL_SDK)/include/nsprpub) \
-  $(OS_INCLUDES) \
-  $(NULL) 
+REQ_INCLUDES	= -I$(srcdir) -I. $(foreach d,$(REQUIRES),-I$(DIST)/include/$d) -I$(DIST)/include 
+ifdef LIBXUL_SDK
+REQ_INCLUDES_SDK = $(foreach d,$(REQUIRES),-I$(LIBXUL_SDK)/include/$d) -I$(LIBXUL_SDK)/include
+endif
 
-include $(topsrcdir)/config/static-checking-config.mk
+INCLUDES	= $(LOCAL_INCLUDES) $(REQ_INCLUDES) $(REQ_INCLUDES_SDK) -I$(PUBLIC) $(OS_INCLUDES)
 
-ifdef MOZ_SHARK
-OS_CFLAGS += -F/System/Library/PrivateFrameworks
-OS_CXXFLAGS += -F/System/Library/PrivateFrameworks
-OS_LDFLAGS += -F/System/Library/PrivateFrameworks -framework CHUD
-endif # ifdef MOZ_SHARK
+ifndef MOZILLA_INTERNAL_API
+INCLUDES	+= -I$(LIBXUL_DIST)/sdk/include
+endif
+
+# The entire tree should be subject to static analysis using the XPCOM
+# script. Additional scripts may be added by specific subdirectories.
+
+DEHYDRA_SCRIPT = $(topsrcdir)/xpcom/analysis/static-checking.js
+
+DEHYDRA_MODULES = \
+  $(topsrcdir)/xpcom/analysis/final.js \
+  $(NULL)
+
+TREEHYDRA_MODULES = \
+  $(topsrcdir)/xpcom/analysis/outparams.js \
+  $(topsrcdir)/xpcom/analysis/stack.js \
+  $(topsrcdir)/xpcom/analysis/flow.js \
+  $(NULL)
+
+DEHYDRA_ARGS = \
+  --topsrcdir=$(topsrcdir) \
+  --objdir=$(DEPTH) \
+  --dehydra-modules=$(subst $(NULL) ,$(COMMA),$(strip $(DEHYDRA_MODULES))) \
+  --treehydra-modules=$(subst $(NULL) ,$(COMMA),$(strip $(TREEHYDRA_MODULES))) \
+  $(NULL)
+
+DEHYDRA_FLAGS = -fplugin=$(DEHYDRA_PATH) -fplugin-arg="$(DEHYDRA_SCRIPT) $(DEHYDRA_ARGS)"
+
+ifdef DEHYDRA_PATH
+OS_CXXFLAGS += $(DEHYDRA_FLAGS)
+endif
 
 CFLAGS		= $(OS_CFLAGS)
 CXXFLAGS	= $(OS_CXXFLAGS)
@@ -561,6 +555,14 @@ HOST_CFLAGS	+= $(MOZ_OPTIMIZE_FLAGS)
 endif # MOZ_OPTIMIZE == 1
 endif # MOZ_OPTIMIZE
 endif # CROSS_COMPILE
+
+ifeq ($(MOZ_OS2_TOOLS),VACPP)
+ifdef USE_STATIC_LIBS
+RTL_FLAGS += -Gd-
+else # !USE_STATIC_LIBS
+RTL_FLAGS += -Gd+
+endif
+endif
 
 
 ifeq ($(OS_ARCH)_$(GNU_CC),WINNT_)
@@ -613,6 +615,7 @@ endif
 # put on the link line for binaries, and should
 # we link statically or dynamic?  Assuming dynamic for now.
 
+ifneq ($(MOZ_OS2_TOOLS),VACPP)
 ifneq (WINNT_,$(OS_ARCH)_$(GNU_CC))
 ifneq (,$(filter-out WINCE,$(OS_ARCH)))
 LIBS_DIR	= -L$(DIST)/bin -L$(DIST)/lib
@@ -621,15 +624,23 @@ LIBS_DIR	+= -L$(LIBXUL_SDK)/bin -L$(LIBXUL_SDK)/lib
 endif
 endif
 endif
+endif
 
 # Default location of include files
 IDL_DIR		= $(DIST)/idl
+ifdef MODULE
+PUBLIC		= $(DIST)/include/$(MODULE)
+else
+PUBLIC		= $(DIST)/include
+endif
 
 XPIDL_FLAGS = -I$(srcdir) -I$(IDL_DIR)
 ifdef LIBXUL_SDK
 XPIDL_FLAGS += -I$(LIBXUL_SDK)/idl
 endif
 
+SDK_PUBLIC  = $(DIST)/sdk/include
+SDK_IDL_DIR = $(DIST)/sdk/idl
 SDK_LIB_DIR = $(DIST)/sdk/lib
 SDK_BIN_DIR = $(DIST)/sdk/bin
 
@@ -660,6 +671,10 @@ endif
 endif
 
 ifeq ($(OS_ARCH),Darwin)
+ifdef USE_PREBINDING
+export LD_PREBIND=1
+export LD_SEG_ADDR_TABLE=$(shell cd $(topsrcdir); pwd)/config/prebind-address-table
+endif # USE_PREBINDING
 ifdef NEXT_ROOT
 export NEXT_ROOT
 PBBUILD = NEXT_ROOT= $(PBBUILD_BIN)
@@ -701,7 +716,7 @@ endif
 # Set link flags according to whether we want a console.
 ifdef MOZ_WINCONSOLE
 ifeq ($(MOZ_WINCONSOLE),1)
-ifeq ($(OS_ARCH),OS2)
+ifeq ($(MOZ_OS2_TOOLS),EMX)
 BIN_FLAGS	+= -Zlinker -PM:VIO
 endif
 ifeq ($(OS_ARCH),WINNT)
@@ -712,7 +727,10 @@ WIN32_EXE_LDFLAGS	+= -SUBSYSTEM:CONSOLE
 endif
 endif
 else # MOZ_WINCONSOLE
-ifeq ($(OS_ARCH),OS2)
+ifeq ($(MOZ_OS2_TOOLS),VACPP)
+LDFLAGS += -PM:PM
+endif
+ifeq ($(MOZ_OS2_TOOLS),EMX)
 BIN_FLAGS	+= -Zlinker -PM:PM
 endif
 ifeq ($(OS_ARCH),WINNT)
@@ -779,7 +797,7 @@ ifeq ($(OS_ARCH),Darwin)
 ifndef NSDISTMODE
 NSDISTMODE=absolute_symlink
 endif
-PWD := $(CURDIR)
+PWD := $(shell pwd)
 endif
 
 ifdef NSINSTALL_BIN
@@ -852,23 +870,11 @@ LOCALE_SRCDIR = $(call EXPAND_LOCALE_SRCDIR,$(relativesrcdir))
 endif
 
 ifdef LOCALE_SRCDIR
-# if LOCALE_MERGEDIR is set, use mergedir first, then the localization,
-# and finally en-US
-ifdef LOCALE_MERGEDIR
-MAKE_JARS_FLAGS += -c $(LOCALE_MERGEDIR)/$(subst /locales,,$(relativesrcdir))
-endif
 MAKE_JARS_FLAGS += -c $(LOCALE_SRCDIR)
-ifdef LOCALE_MERGEDIR
-MAKE_JARS_FLAGS += -c $(topsrcdir)/$(relativesrcdir)/en-US
-endif
 endif
 
 ifeq (,$(filter WINCE WINNT OS2,$(OS_ARCH)))
 RUN_TEST_PROGRAM = $(DIST)/bin/run-mozilla.sh
-endif
-
-ifeq ($(OS_ARCH),OS2)
-RUN_TEST_PROGRAM = $(topsrcdir)/build/os2/test_os2.cmd "$(DIST)"
 endif
 
 #
@@ -880,9 +886,4 @@ JAVAC_FLAGS += -source 1.4
 
 ifdef MOZ_DEBUG
 JAVAC_FLAGS += -g
-endif
-
-ifdef TIERS
-DIRS += $(foreach tier,$(TIERS),$(tier_$(tier)_dirs))
-STATIC_DIRS += $(foreach tier,$(TIERS),$(tier_$(tier)_staticdirs))
 endif

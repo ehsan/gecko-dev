@@ -575,9 +575,6 @@ nsPersistentProperties::SetStringProperty(const nsACString& aKey,
                                "the property %s already exists\n",
                                flatKey.get()).get());
   }
-  else {
-    aOldValue.Truncate();
-  }
 
   entry->mKey = ArenaStrdup(flatKey, &mArena);
   entry->mValue = ArenaStrdup(PromiseFlatString(aNewValue), &mArena);
@@ -618,7 +615,7 @@ nsPersistentProperties::GetStringProperty(const nsACString& aKey,
   return NS_OK;
 }
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 AddElemToArray(PLDHashTable* table, PLDHashEntryHdr *hdr,
                PRUint32 i, void *arg)
 {

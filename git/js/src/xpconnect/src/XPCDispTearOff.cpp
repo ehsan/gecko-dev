@@ -425,7 +425,7 @@ STDMETHODIMP XPCDispatchTearOff::Invoke(DISPID dispIdMember, REFIID riid,
                 }
                 // We'll assume in/out
                 // TODO: I'm not sure we tell out vs in/out
-                JS_SetPropertyById(cx, out_obj,
+                OBJ_SET_PROPERTY(cx, out_obj,
                         rt->GetStringID(XPCJSRuntime::IDX_VALUE),
                         &val);
                 *sp++ = OBJECT_TO_JSVAL(out_obj);
@@ -465,7 +465,7 @@ pre_call_clean_up:
             nsCOMPtr<nsIException> e;
 
             XPCConvert::ConstructException(code, sz, "IDispatch", name.get(),
-                                           nsnull, getter_AddRefs(e), nsnull, nsnull);
+                                           nsnull, getter_AddRefs(e), nsnull);
             xpcc->SetException(e);
             if(sz)
                 JS_smprintf_free(sz);
@@ -496,7 +496,7 @@ pre_call_clean_up:
             {
                 jsval val;
                 if(JSVAL_IS_PRIMITIVE(stackbase[i+2]) ||
-                        !JS_GetPropertyById(cx, JSVAL_TO_OBJECT(stackbase[i+2]),
+                        !OBJ_GET_PROPERTY(cx, JSVAL_TO_OBJECT(stackbase[i+2]),
                             rt->GetStringID(XPCJSRuntime::IDX_VALUE),
                             &val))
                 {

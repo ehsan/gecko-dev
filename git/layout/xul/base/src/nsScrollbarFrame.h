@@ -42,9 +42,11 @@
 #ifndef nsScrollbarFrame_h__
 #define nsScrollbarFrame_h__
 
+
 #include "nsBoxFrame.h"
 #include "nsIScrollbarFrame.h"
 
+class nsISupportsArray;
 class nsIScrollbarMediator;
 
 nsIFrame* NS_NewScrollbarFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
@@ -66,9 +68,11 @@ public:
                               nsIAtom* aAttribute,
                               PRInt32 aModType);
 
-  NS_DECL_QUERYFRAME
+  NS_IMETHOD QueryInterface(const nsIID& aIID, void** aInstancePtr);
+  NS_IMETHOD_(nsrefcnt) AddRef() { return NS_OK; }
+  NS_IMETHOD_(nsrefcnt) Release() { return NS_OK; }
 
-  NS_IMETHOD HandlePress(nsPresContext* aPresContext,
+   NS_IMETHOD HandlePress(nsPresContext* aPresContext,
                          nsGUIEvent *    aEvent,
                          nsEventStatus*  aEventStatus);
 
@@ -105,7 +109,7 @@ public:
 
   /**
    * Treat scrollbars as clipping their children; overflowing children
-   * will not be allowed to set an overflow rect on this
+   * will not be allowed to make NS_FRAME_OUTSIDE_CHILDREN on this
    * frame. This means that when the scroll code decides to hide a
    * scrollframe by setting its height or width to zero, that will
    * hide the children too.

@@ -94,7 +94,7 @@
     <description>
       <html:b> Testing XUL Tabbox's Tabpanel for Accessibility.. </html:b>
     </description>
-    <box orient="horizontal">
+    <box oreint="horizontal">
       <tabbox>
         <tabs>
           <tab label="Mail"/>

@@ -196,7 +196,8 @@ nsCSSCompressedDataBlock::MapRuleInfoInto(nsRuleData *aRuleData) const
                     if (target->GetUnit() == eCSSUnit_Null) {
                         const nsCSSValue *val = ValueAtCursor(cursor);
                         NS_ASSERTION(val->GetUnit() != eCSSUnit_Null, "oops");
-                        if (iProp == eCSSProperty_list_style_image) {
+                        if (iProp == eCSSProperty_background_image ||
+                            iProp == eCSSProperty_list_style_image) {
                             if (val->GetUnit() == eCSSUnit_URL) {
                                 val->StartImageLoad(
                                     aRuleData->mPresContext->Document());
@@ -217,6 +218,7 @@ nsCSSCompressedDataBlock::MapRuleInfoInto(nsRuleData *aRuleData) const
                         }
                         else if (iProp == eCSSProperty_color ||
                                  iProp == eCSSProperty_background_color ||
+                                 iProp == eCSSProperty_background_image ||
                                  iProp == eCSSProperty_border_top_color ||
                                  iProp == eCSSProperty_border_right_color_value ||
                                  iProp == eCSSProperty_border_right_color_ltr_source ||
@@ -231,13 +233,27 @@ nsCSSCompressedDataBlock::MapRuleInfoInto(nsRuleData *aRuleData) const
                                 if (iProp == eCSSProperty_background_color) {
                                     // Force non-'transparent' background
                                     // colors to the user's default.
-                                    if (target->IsNonTransparentColor()) {
+                                    // We have the value in the form it was
+                                    // specified at this point, so we have to
+                                    // look for both the keyword 'transparent'
+                                    // and its equivalent in rgba notation.
+                                    nsCSSUnit u = target->GetUnit();
+                                    nsDependentString buf;
+                                    
+                                    if ((u == eCSSUnit_Color &&
+                                         NS_GET_A(target->GetColorValue())
+                                         > 0) ||
+                                        (u == eCSSUnit_String &&
+                                         !nsGkAtoms::transparent->
+                                         Equals(target->GetStringValue(buf))) ||
+                                        (u == eCSSUnit_EnumColor)) {
                                         target->SetColorValue(aRuleData->
                                             mPresContext->
                                             DefaultBackgroundColor());
                                     }
                                 } else {
-                                    // Ignore 'color', 'border-*-color', etc.
+                                    // Ignore 'color', 'border-*-color', and
+                                    // 'background-image'
                                     *target = nsCSSValue();
                                 }
                             }
@@ -266,19 +282,15 @@ nsCSSCompressedDataBlock::MapRuleInfoInto(nsRuleData *aRuleData) const
                     NS_ASSERTION(val->mXValue.GetUnit() != eCSSUnit_Null ||
                                  val->mYValue.GetUnit() != eCSSUnit_Null, "oops");
                     nsCSSValuePair* target = static_cast<nsCSSValuePair*>(prop);
-                    NS_ASSERTION((target->mXValue.GetUnit() == eCSSUnit_Null)
-                              == (target->mYValue.GetUnit() == eCSSUnit_Null),
-                                 "half a property?");
-                    if (target->mXValue.GetUnit() == eCSSUnit_Null) {
+                    if (target->mXValue.GetUnit() == eCSSUnit_Null)
                         target->mXValue = val->mXValue;
+                    if (target->mYValue.GetUnit() == eCSSUnit_Null)
                         target->mYValue = val->mYValue;
-                    }
                     cursor += CDBValuePairStorage_advance;
                 } break;
 
                 case eCSSType_ValueList:
-                    if (iProp == eCSSProperty_background_image ||
-                        iProp == eCSSProperty_content) {
+                    if (iProp == eCSSProperty_content) {
                         for (nsCSSValueList* l = ValueListAtCursor(cursor);
                              l; l = l->mNext)
                             if (l->mValue.GetUnit() == eCSSUnit_URL)
@@ -305,8 +317,7 @@ nsCSSCompressedDataBlock::MapRuleInfoInto(nsRuleData *aRuleData) const
                         NS_ASSERTION(val, "oops");
                         *target = val;
 
-                        if (iProp == eCSSProperty_background_image ||
-                            iProp == eCSSProperty_border_top_colors ||
+                        if (iProp == eCSSProperty_border_top_colors ||
                             iProp == eCSSProperty_border_right_colors ||
                             iProp == eCSSProperty_border_bottom_colors ||
                             iProp == eCSSProperty_border_left_colors) {
@@ -459,10 +470,10 @@ nsCSSCompressedDataBlock::Clone() const
                         // fall through to keep gcc's uninitialized
                         // variable warning quiet
                     case eCSSType_ValueList:
-                        copy = ValueListAtCursor(cursor)->Clone();
+                        copy = new nsCSSValueList(*ValueListAtCursor(cursor));
                         break;
                     case eCSSType_ValuePairList:
-                        copy = ValuePairListAtCursor(cursor)->Clone();
+                        copy = new nsCSSValuePairList(*ValuePairListAtCursor(cursor));
                         break;
                 }
                 if (!copy) {
@@ -561,11 +572,11 @@ nsCSSExpandedDataBlock::~nsCSSExpandedDataBlock()
 
 const nsCSSExpandedDataBlock::PropertyOffsetInfo
 nsCSSExpandedDataBlock::kOffsetTable[eCSSProperty_COUNT_no_shorthands] = {
-    #define CSS_PROP_BACKENDONLY(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_) \
+    #define CSS_PROP_BACKENDONLY(name_, id_, method_, datastruct_, member_, type_, kwtable_) \
         { offsetof(nsCSSExpandedDataBlock, m##datastruct_.member_),           \
           size_t(-1),                                                         \
           size_t(-1) },
-    #define CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, type_, kwtable_) \
+    #define CSS_PROP(name_, id_, method_, datastruct_, member_, type_, kwtable_) \
         { offsetof(nsCSSExpandedDataBlock, m##datastruct_.member_),           \
           offsetof(nsRuleData, m##datastruct_##Data),                         \
           offsetof(nsRuleData##datastruct_, member_) },

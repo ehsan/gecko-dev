@@ -49,7 +49,6 @@
 #include "nsWeakReference.h"
 #include "nsWeakPtr.h"
 #include "nsVoidArray.h"
-#include "nsTArray.h"
 #include "nsHashSets.h"
 #include "nsIDOMXMLDocument.h"
 #include "nsIDOM3Document.h"
@@ -110,12 +109,7 @@
 #include "nsContentUtils.h"
 #include "nsThreadUtils.h"
 #include "nsIDocumentViewer.h"
-#include "nsIDOMXPathNSResolver.h"
 #include "nsIInterfaceRequestor.h"
-#include "nsILoadContext.h"
-#include "nsIProgressEventSink.h"
-#include "nsISecurityEventSink.h"
-#include "nsIChannelEventSink.h"
 
 #define XML_DECLARATION_BITS_DECLARATION_EXISTS   (1 << 0)
 #define XML_DECLARATION_BITS_ENCODING_EXISTS      (1 << 1)
@@ -134,10 +128,18 @@ class nsIFormControl;
 struct nsRadioGroupStruct;
 class nsOnloadBlocker;
 class nsUnblockOnloadEvent;
+struct PLEvent;
 class nsChildContentList;
-#ifdef MOZ_SMIL
-class nsSMILAnimationController;
-#endif // MOZ_SMIL
+
+PR_BEGIN_EXTERN_C
+/* Note that these typedefs declare functions, not pointer to
+   functions.  That's the only way in which they differ from
+   PLHandleEventProc and PLDestroyEventProc. */
+typedef void*
+(PR_CALLBACK EventHandlerFunc)(PLEvent* self);
+typedef void
+(PR_CALLBACK EventDestructorFunc)(PLEvent* self);
+PR_END_EXTERN_C
 
 /**
  * Hashentry using a PRUint32 key and a cheap set of nsIContent* owning
@@ -185,7 +187,7 @@ class nsUint32ToContentHashEntry : public PLDHashEntryHdr
     PRBool IsEmpty() { return mValOrHash == nsnull; }
 
   private:
-    typedef PRUptrdiff PtrBits;
+    typedef unsigned long PtrBits;
     typedef nsTHashtable<nsISupportsHashKey> HashSet;
     /** Get the hash pointer (or null if we're not a hash) */
     HashSet* GetHashSet()
@@ -258,11 +260,10 @@ public:
   /**
    * Returns the element if we know the element associated with this
    * id. Otherwise returns null.
+   * @param aIsNotInDocument if non-null, we set the output to true
+   * if we know for sure the element is not in the document.
    */
-  nsIContent* GetIdContent();
-  /**
-   * Append all the elements with this id to aElements
-   */
+  nsIContent* GetIdContent(PRBool* aIsNotInDocument = nsnull);
   void AppendAllIdContent(nsCOMArray<nsIContent>* aElements);
   /**
    * This can fire ID change callbacks.
@@ -275,6 +276,7 @@ public:
    * @return true if this map entry should be removed
    */
   PRBool RemoveIdContent(nsIContent* aContent);
+  void FlagIDNotInDocument();
 
   PRBool HasContentChangeCallback() { return mChangeCallbacks != nsnull; }
   void AddContentChangeCallback(nsIDocument::IDTargetObserver aCallback, void* aData);
@@ -308,8 +310,8 @@ public:
     static KeyTypePointer KeyToPointer(KeyType& aKey) { return &aKey; }
     static PLDHashNumber HashKey(KeyTypePointer aKey)
     {
-      return (NS_PTR_TO_INT32(aKey->mCallback) >> 2) ^
-             (NS_PTR_TO_INT32(aKey->mData));
+      return NS_PTR_TO_INT32(aKey->mCallback) >> 2 +
+             NS_PTR_TO_INT32(aKey->mData);
     }
     enum { ALLOW_MEMMOVE = PR_TRUE };
     
@@ -319,7 +321,8 @@ public:
 private:
   void FireChangeCallbacks(nsIContent* aOldContent, nsIContent* aNewContent);
 
-  // empty if there are no nodes with this ID
+  // The single element ID_NOT_IN_DOCUMENT, or empty to indicate we
+  // don't know what element(s) have this key as an ID
   nsSmallVoidArray mIdContentList;
   // NAME_NOT_VALID if this id cannot be used as a 'name'
   nsBaseContentList *mNameContentList;
@@ -364,24 +367,6 @@ public:
   virtual void StyleSheetRemoved(nsIDocument *aDocument,
                                  nsIStyleSheet* aStyleSheet,
                                  PRBool aDocumentSheet);
-
-  nsIStyleSheet* GetItemAt(PRUint32 aIndex);
-
-  static nsDOMStyleSheetList* FromSupports(nsISupports* aSupports)
-  {
-    nsIDOMStyleSheetList* list = static_cast<nsIDOMStyleSheetList*>(aSupports);
-#ifdef DEBUG
-    {
-      nsCOMPtr<nsIDOMStyleSheetList> list_qi = do_QueryInterface(aSupports);
-
-      // If this assertion fires the QI implementation for the object in
-      // question doesn't use the nsIDOMStyleSheetList pointer as the
-      // nsISupports pointer. That must be fixed, or we'll crash...
-      NS_ASSERTION(list_qi == list, "Uh, fix QI!");
-    }
-#endif
-    return static_cast<nsDOMStyleSheetList*>(list);
-  }
 
 protected:
   PRInt32       mLength;
@@ -493,42 +478,7 @@ protected:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIINTERFACEREQUESTOR
   private:
-    // The only reason it's safe to hold a strong ref here without leaking is
-    // that the notificationCallbacks on a loadgroup aren't the docshell itself
-    // but a shim that holds a weak reference to the docshell.
     nsCOMPtr<nsIInterfaceRequestor> mCallbacks;
-
-    // Use shims for interfaces that docshell implements directly so that we
-    // don't hand out references to the docshell.  The shims should all allow
-    // getInterface back on us, but other than that each one should only
-    // implement one interface.
-    
-    // XXXbz I wish we could just derive the _allcaps thing from _i
-#define DECL_SHIM(_i, _allcaps)                                              \
-    class _i##Shim : public nsIInterfaceRequestor,                           \
-                     public _i                                               \
-    {                                                                        \
-    public:                                                                  \
-      _i##Shim(nsIInterfaceRequestor* aIfreq, _i* aRealPtr)                  \
-        : mIfReq(aIfreq), mRealPtr(aRealPtr)                                 \
-      {                                                                      \
-        NS_ASSERTION(mIfReq, "Expected non-null here");                      \
-        NS_ASSERTION(mRealPtr, "Expected non-null here");                    \
-      }                                                                      \
-      NS_DECL_ISUPPORTS                                                      \
-      NS_FORWARD_NSIINTERFACEREQUESTOR(mIfReq->);                            \
-      NS_FORWARD_##_allcaps(mRealPtr->);                                     \
-    private:                                                                 \
-      nsCOMPtr<nsIInterfaceRequestor> mIfReq;                                \
-      nsCOMPtr<_i> mRealPtr;                                                 \
-    };
-
-    DECL_SHIM(nsILoadContext, NSILOADCONTEXT)
-    DECL_SHIM(nsIProgressEventSink, NSIPROGRESSEVENTSINK)
-    DECL_SHIM(nsIChannelEventSink, NSICHANNELEVENTSINK)
-    DECL_SHIM(nsISecurityEventSink, NSISECURITYEVENTSINK)
-    DECL_SHIM(nsIApplicationCacheContainer, NSIAPPLICATIONCACHECONTAINER)
-#undef DECL_SHIM
   };
   
   /**
@@ -574,7 +524,6 @@ class nsDocument : public nsIDocument,
                    public nsIRadioGroupContainer,
                    public nsIDOMNodeSelector,
                    public nsIApplicationCacheContainer,
-                   public nsIDOMXPathNSResolver,
                    public nsStubMutationObserver
 {
 public:
@@ -656,7 +605,7 @@ public:
 
   /**
    * Create a new presentation shell that will use aContext for
-   * its presentation context (presentation context's <b>must not</b> be
+   * it's presentation context (presentation context's <b>must not</b> be
    * shared among multiple presentation shell's).
    */
   virtual nsresult CreateShell(nsPresContext* aContext,
@@ -728,6 +677,12 @@ public:
     GetScriptHandlingObject(PRBool& aHasHadScriptHandlingObject) const;
   virtual void SetScriptHandlingObject(nsIScriptGlobalObject* aScriptObject);
 
+  virtual void ClearScriptHandlingObject()
+  {
+    mScriptObject = nsnull;
+    mHasHadScriptHandlingObject = PR_TRUE;
+  }
+
   virtual nsIScriptGlobalObject* GetScopeObject();
 
   /**
@@ -766,9 +721,6 @@ public:
   virtual void EndUpdate(nsUpdateType aUpdateType);
   virtual void BeginLoad();
   virtual void EndLoad();
-
-  virtual void SetReadyStateInternal(ReadyState rs);
-
   virtual void ContentStatesChanged(nsIContent* aContent1,
                                     nsIContent* aContent2,
                                     PRInt32 aStateMask);
@@ -786,6 +738,9 @@ public:
                                 nsIStyleRule* aStyleRule);
 
   virtual void FlushPendingNotifications(mozFlushType aType);
+  virtual void AddReference(void *aKey, nsISupports *aReference);
+  virtual nsISupports *GetReference(void *aKey);
+  virtual void RemoveReference(void *aKey);
   virtual nsIScriptEventManager* GetScriptEventManager();
   virtual void SetXMLDeclaration(const PRUnichar *aVersion,
                                  const PRUnichar *aEncoding,
@@ -795,8 +750,8 @@ public:
                                  nsAString& Standalone);
   virtual PRBool IsScriptEnabled();
 
-  virtual void OnPageShow(PRBool aPersisted, nsIDOMEventTarget* aDispatchStartTarget);
-  virtual void OnPageHide(PRBool aPersisted, nsIDOMEventTarget* aDispatchStartTarget);
+  virtual void OnPageShow(PRBool aPersisted);
+  virtual void OnPageHide(PRBool aPersisted);
   
   virtual void WillDispatchMutationEvent(nsINode* aTarget);
   virtual void MutationEventDispatched(nsINode* aTarget);
@@ -804,7 +759,7 @@ public:
   // nsINode
   virtual PRBool IsNodeOfType(PRUint32 aFlags) const;
   virtual nsIContent *GetChildAt(PRUint32 aIndex) const;
-  virtual nsIContent * const * GetChildArray(PRUint32* aChildCount) const;
+  virtual nsIContent * const * GetChildArray() const;
   virtual PRInt32 IndexOf(nsINode* aPossibleChild) const;
   virtual PRUint32 GetChildCount() const;
   virtual nsresult InsertChildAt(nsIContent* aKid, PRUint32 aIndex,
@@ -816,15 +771,16 @@ public:
   virtual nsresult DispatchDOMEvent(nsEvent* aEvent, nsIDOMEvent* aDOMEvent,
                                     nsPresContext* aPresContext,
                                     nsEventStatus* aEventStatus);
-  virtual nsIEventListenerManager* GetListenerManager(PRBool aCreateIfNotFound);
+  virtual nsresult GetListenerManager(PRBool aCreateIfNotFound,
+                                      nsIEventListenerManager** aResult);
   virtual nsresult AddEventListenerByIID(nsIDOMEventListener *aListener,
                                          const nsIID& aIID);
   virtual nsresult RemoveEventListenerByIID(nsIDOMEventListener *aListener,
                                             const nsIID& aIID);
   virtual nsresult GetSystemEventGroup(nsIDOMEventGroup** aGroup);
-  virtual nsIScriptContext* GetContextForEventHandlers(nsresult* aRv)
+  virtual nsresult GetContextForEventHandlers(nsIScriptContext** aContext)
   {
-    return nsContentUtils::GetContextForEventHandlers(this, aRv);
+    return nsContentUtils::GetContextForEventHandlers(this, aContext);
   }
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
   {
@@ -948,18 +904,11 @@ public:
   virtual NS_HIDDEN_(void) NotifyURIVisitednessChanged(nsIURI* aURI);
 
   NS_HIDDEN_(void) ClearBoxObjectFor(nsIContent* aContent);
-  NS_IMETHOD GetBoxObjectFor(nsIDOMElement* aElement, nsIBoxObject** aResult);
 
   virtual NS_HIDDEN_(nsresult) GetXBLChildNodesFor(nsIContent* aContent,
                                                    nsIDOMNodeList** aResult);
   virtual NS_HIDDEN_(nsresult) GetContentListFor(nsIContent* aContent,
                                                  nsIDOMNodeList** aResult);
-
-  virtual NS_HIDDEN_(nsresult) ElementFromPointHelper(PRInt32 aX, PRInt32 aY,
-                                                      PRBool aIgnoreRootScrollFrame,
-                                                      PRBool aFlushLayout,
-                                                      nsIDOMElement** aReturn);
-
   virtual NS_HIDDEN_(void) FlushSkinBindings();
 
   virtual NS_HIDDEN_(nsresult) InitializeFrameLoader(nsFrameLoader* aLoader);
@@ -972,16 +921,6 @@ public:
                             ExternalResourceLoad** aPendingLoad);
   virtual NS_HIDDEN_(void)
     EnumerateExternalResources(nsSubDocEnumFunc aCallback, void* aData);
-
-#ifdef MOZ_SMIL
-  nsSMILAnimationController* GetAnimationController();
-#endif // MOZ_SMIL
-
-  virtual void SuppressEventHandling(PRUint32 aIncrease);
-
-  virtual void UnsuppressEventHandlingAndFireEvents(PRBool aFireEvents);
-  
-  void DecreaseEventSuppression() { --mEventsSuppressed; }
 
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsDocument, nsIDocument)
 
@@ -1004,9 +943,6 @@ public:
 
   nsresult CloneDocHelper(nsDocument* clone) const;
 
-  void MaybeInitializeFinalizeFrameLoaders();
-
-  void MaybeEndOutermostXBLUpdate();
 protected:
 
   void RegisterNamedItems(nsIContent *aContent);
@@ -1025,6 +961,8 @@ protected:
   nsIdentifierMapEntry* GetElementByIdInternal(nsIAtom* aID);
 
   void DispatchContentLoadedEvents();
+
+  void InitializeFinalizeFrameLoaders();
 
   void RetrieveRelevantHeaders(nsIChannel *aChannel);
 
@@ -1078,9 +1016,8 @@ protected:
     return kNameSpaceID_None;
   }
 
-  void DispatchPageTransition(nsPIDOMEventTarget* aDispatchTarget,
-                              const nsAString& aType,
-                              PRBool aPersisted);
+  // Dispatch an event to the ScriptGlobalObject for this document
+  void DispatchEventToWindow(nsEvent *aEvent);
 
   // nsContentList match functions for GetElementsByClassName
   static PRBool MatchClassNames(nsIContent* aContent, PRInt32 aNamespaceID,
@@ -1102,7 +1039,7 @@ protected:
   nsCString mReferrer;
   nsString mLastModified;
 
-  nsTArray<nsIObserver*> mCharSetObservers;
+  nsVoidArray mCharSetObservers;
 
   PLDHashTable *mSubDocuments;
 
@@ -1151,8 +1088,8 @@ protected:
    * 1) Attribute changes affect the table immediately (removing and adding
    *    entries as needed).
    * 2) Removals from the DOM affect the table immediately
-   * 3) Additions to the DOM always update existing entries for names, and add
-   *    new ones for IDs.
+   * 3) Additions to the DOM always update existing entries, but only add new
+   *    ones if IdTableIsLive() is true.
    */
   nsTHashtable<nsIdentifierMapEntry> mIdentifierMap;
 
@@ -1188,13 +1125,28 @@ protected:
   // document was created entirely in memory
   PRPackedBool mHaveInputEncoding:1;
 
-  PRPackedBool mInXBLUpdate:1;
-
   PRUint8 mXMLDeclarationBits;
 
   PRUint8 mDefaultElementType;
 
+  PRBool IdTableIsLive() const {
+    // live if we've had over 63 misses
+    return (mIdMissCount & 0x40) != 0;
+  }
+  void SetIdTableLive() {
+    mIdMissCount = 0x40;
+  }
+  PRBool IdTableShouldBecomeLive() {
+    NS_ASSERTION(!IdTableIsLive(),
+                 "Shouldn't be called if table is already live!");
+    ++mIdMissCount;
+    return IdTableIsLive();
+  }
+
+  PRUint8 mIdMissCount;
+
   nsInterfaceHashtable<nsVoidPtrHashKey, nsPIBoxObject> *mBoxObjectTable;
+  nsInterfaceHashtable<nsVoidPtrHashKey, nsISupports> *mContentWrapperHash;
 
   // The channel that got passed to StartDocumentLoad(), if any
   nsCOMPtr<nsIChannel> mChannel;
@@ -1246,7 +1198,6 @@ private:
 
   PRUint32 mOnloadBlockCount;
   nsCOMPtr<nsIRequest> mOnloadBlocker;
-  ReadyState mReadyState;
   
   // A map from unvisited URI hashes to content elements
   nsTHashtable<nsUint32ToContentHashEntry> mLinkMap;
@@ -1258,29 +1209,10 @@ private:
 
   nsTArray<nsRefPtr<nsFrameLoader> > mInitializableFrameLoaders;
   nsTArray<nsRefPtr<nsFrameLoader> > mFinalizableFrameLoaders;
-  nsRefPtr<nsRunnableMethod<nsDocument> > mFrameLoaderRunner;
 
-  nsRevocableEventPtr<nsNonOwningRunnableMethod<nsDocument> >
-    mPendingTitleChangeEvent;
+  nsRevocableEventPtr<nsRunnableMethod<nsDocument> > mPendingTitleChangeEvent;
 
   nsExternalResourceMap mExternalResourceMap;
-
-#ifdef MOZ_SMIL
-  nsAutoPtr<nsSMILAnimationController> mAnimationController;
-#endif // MOZ_SMIL
 };
-
-#define NS_DOCUMENT_INTERFACE_TABLE_BEGIN(_class)                             \
-  NS_NODE_OFFSET_AND_INTERFACE_TABLE_BEGIN(_class)                            \
-  NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMDocument, nsDocument)      \
-  NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMNSDocument, nsDocument)    \
-  NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMDocumentEvent, nsDocument) \
-  NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMDocumentView, nsDocument)  \
-  NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMDocumentTraversal,         \
-                                     nsDocument)                              \
-  NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMEventTarget, nsDocument)   \
-  NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMNode, nsDocument)          \
-  NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOM3Node, nsDocument)         \
-  NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOM3Document, nsDocument)
 
 #endif /* nsDocument_h___ */

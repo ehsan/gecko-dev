@@ -45,6 +45,7 @@
 #include "nsGkAtoms.h"
 #include "nsINameSpaceManager.h"
 
+#include "nsIWidget.h"
 #include "nsPresContext.h"
 #include "nsIDocShell.h"
 #include "nsIDocShellTreeItem.h"
@@ -75,11 +76,6 @@ nsResizerFrame::HandleEvent(nsPresContext* aPresContext,
                             nsGUIEvent* aEvent,
                             nsEventStatus* aEventStatus)
 {
-  NS_ENSURE_ARG_POINTER(aEventStatus);
-  if (nsEventStatus_eConsumeNoDefault == *aEventStatus) {
-    return NS_OK;
-  }
-
   nsWeakFrame weakFrame(this);
   PRBool doDefault = PR_TRUE;
 
@@ -227,14 +223,12 @@ nsResizerFrame::GetDirection()
     {&nsGkAtoms::topleft,    &nsGkAtoms::top,    &nsGkAtoms::topright,
      &nsGkAtoms::left,                           &nsGkAtoms::right,
      &nsGkAtoms::bottomleft, &nsGkAtoms::bottom, &nsGkAtoms::bottomright,
-                                                 &nsGkAtoms::bottomend,
      nsnull};
 
   static const Direction directions[] =
     {{-1, -1}, {0, -1}, {1, -1},
      {-1,  0},          {1,  0},
-     {-1,  1}, {0,  1}, {1,  1},
-                        {1,  1}
+     {-1,  1}, {0,  1}, {1,  1}
     };
 
   if (!GetContent())
@@ -245,14 +239,8 @@ nsResizerFrame::GetDirection()
                                                 strings, eCaseMatters);
   if(index < 0)
     return directions[0]; // default: topleft
-  else if (index >= 8 && GetStyleVisibility()->mDirection == NS_STYLE_DIRECTION_RTL) {
-    // Directions 8 and higher are RTL-aware directions and should reverse the
-    // horizontal component if RTL.
-    Direction direction = directions[index];
-    direction.mHorizontal *= -1;
-    return direction;
-  }
-  return directions[index];
+  else
+    return directions[index];
 }
 
 void

@@ -39,14 +39,11 @@
 #ifndef __OGGPLAY_PRIVATE_H__
 #define __OGGPLAY_PRIVATE_H__
 
-#ifdef HAVE_CONFIG_H 
 #ifdef WIN32
 #include "config_win32.h"
 #else
 #include <config.h>
 #endif
-#endif
-
 #include <oggplay/oggplay.h>
 
 #include <oggz/oggz.h>
@@ -55,9 +52,6 @@
 
 #ifdef HAVE_KATE
 #include <kate/kate.h>
-#endif
-#ifdef HAVE_TIGER
-#include <tiger/tiger.h>
 #endif
 
 #ifdef WIN32
@@ -89,11 +83,6 @@ typedef struct {
   OggPlayDataHeader   header;
   OggPlayVideoData    data;
 } OggPlayVideoRecord;
-
-typedef struct {
-  OggPlayDataHeader   header;
-  OggPlayOverlayData  data;
-} OggPlayOverlayRecord;
 
 typedef struct {
   OggPlayDataHeader   header;
@@ -146,22 +135,22 @@ struct _OggPlayCallbackInfo {
  *                              track
  */
 typedef struct {
-  long                  serialno;           /**< identifies the logical bit stream */
-  int                   content_type;       
-  const char          * content_type_name;  
-  OggPlayDataType       decoded_type;       /**< type of the track @see OggPlayDataType */
-  ogg_int64_t           granuleperiod;      
-  ogg_int64_t           last_granulepos;    /**< last seen granule position */
-  ogg_int64_t           offset;             /**<  */
-  ogg_int64_t           current_loc;        /**< current location in the stream (in ) */
-  int                   active;             /**< indicates whether the track is active or not */
-  ogg_int64_t           final_granulepos;   /**<  */
-  struct _OggPlay     * player;             /**< reference to the OggPlay handle */
-  OggPlayDataHeader   * data_list;          
-  OggPlayDataHeader   * end_of_data_list;   
-  OggPlayDataHeader   * untimed_data_list;  
-  OggPlayStreamInfo     stream_info;        /**< @see OggPlayStreamInfo */
-  int                   preroll;            /**< num. of past content packets to take into account when decoding the current Ogg page */
+  long                  serialno;
+  int                   content_type;
+  const char          * content_type_name;
+  OggPlayDataType       decoded_type;
+  ogg_int64_t           granuleperiod;
+  ogg_int64_t           last_granulepos;
+  ogg_int64_t           offset;
+  ogg_int64_t           current_loc;
+  int                   active;
+  ogg_int64_t           final_granulepos;
+  struct _OggPlay     * player;
+  OggPlayDataHeader   * data_list;
+  OggPlayDataHeader   * end_of_data_list;
+  OggPlayDataHeader   * untimed_data_list;
+  OggPlayStreamInfo     stream_info;
+  int                   preroll;
 } OggPlayDecode;
 
 typedef struct {
@@ -179,7 +168,6 @@ typedef struct {
   int             uv_height;
   int             uv_stride;
   int             cached_keyframe;
-  int             convert_to_rgb;
 } OggPlayTheoraDecode;
 
 typedef struct {
@@ -193,9 +181,6 @@ typedef struct {
   int             granuleshift;
 } OggPlayCmmlDecode;
 
-/**
- * OggPlaySkeletonDecode
- */
 typedef struct {
   OggPlayDecode   decoder;
   ogg_int64_t     presentation_time;
@@ -207,12 +192,6 @@ typedef struct {
 #ifdef HAVE_KATE
   int             granuleshift;
   kate_state      k;
-  int             init;
-#ifdef HAVE_TIGER
-  int use_tiger;
-  int overlay_dest;
-  tiger_renderer *tr;
-#endif
 #endif
 } OggPlayKateDecode;
 
@@ -237,11 +216,10 @@ struct _OggPlay {
   ogg_int64_t               target;
   int                       active_tracks;
   volatile OggPlayBuffer  * buffer;
-  ogg_int64_t               presentation_time;  /**< presentation time in seconds in 32.32 fixed point format */
+  ogg_int64_t               presentation_time;
   OggPlaySeekTrash        * trash;
   int                       shutdown;
   int                       pt_update_valid;
-  ogg_int64_t               duration;	          /**< The value of the duration the last time it was retrieved.*/
 };
 
 void
@@ -251,9 +229,6 @@ oggplay_set_data_callback_force(OggPlay *me, OggPlayDataCallback callback,
 void
 oggplay_take_out_trash(OggPlay *me, OggPlaySeekTrash *trash);
 
-void
-oggplay_seek_cleanup(OggPlay *me, ogg_int64_t milliseconds);
-
 typedef struct {
   void (*init)(void *user_data);
   int (*callback)(OGGZ * oggz, ogg_packet * op, long serialno,
@@ -262,30 +237,47 @@ typedef struct {
   int size;
 } OggPlayCallbackFunctions;
 
-/**
- * Conversion function for fixed point 32.32 representation of time. 
- * 
- * OGGPLAY_TIME_INT_TO_FP(x)
- *  converts 'x' to a 32.32 fixed point integer
- *
- * OGGPLAY_TIME_FP_TO_INT 
- *  converts 'x' - a 32.32 fixed point integer - back to normal integer representation
- *  + changes the order of magnitude by 1000 
- *    e.g. if the fixed point number - 32.32 format - represents seconds
- *    then the macro will convert it to milliseconds.
- */
-#define OGGPLAY_TIME_INT_TO_FP(x) ((x) << 32)
-#define OGGPLAY_TIME_FP_TO_INT(x) (((((x) >> 16) * 1000) >> 16) & 0xFFFFFFFF)
-
-/* Allocate and free dynamic memory used by ogg.
- * By default they are the ones from stdlib */
-#define oggplay_malloc _ogg_malloc
-#define oggplay_calloc _ogg_calloc
-#define oggplay_realloc _ogg_realloc
-#define oggplay_free _ogg_free
-
 #include "oggplay_callback.h"
 #include "oggplay_data.h"
 #include "oggplay_buffer.h"
+
+#if 0
+static inline void _free(void *x) {
+  printf("%p\n", x);
+  free(x);
+}
+
+static inline void *_malloc(int s) {
+  void *x;
+  printf("%d ", s);
+  x = malloc(s);
+  printf("%p\n", x);
+  return x;
+}
+
+static inline void *_realloc(void *x, int s) {
+  void *y;
+  printf("%p %d ", x, s);
+  y = realloc(x, s);
+  printf("%p\n", y);
+  return y;
+}
+
+static inline void *_calloc(int n, int s) {
+  void *x;
+  printf("%d %d ", n, s);
+  x = calloc(n, s);
+  printf("%p\n", x);
+  return x;
+}
+
+#define free(x) {printf("FREE %s %d ", __FILE__, __LINE__); _free(x);}
+#define malloc(s) (printf("MALLOC %s %d ", __FILE__, __LINE__), \
+    _malloc(s))
+#define realloc(x, s) (printf("REALLOC %s %d ", __FILE__, __LINE__), \
+    _realloc(x, s))
+#define calloc(n, s) (printf("CALLOC %s %d ", __FILE__, __LINE__),  \
+    _calloc(n, s))
+#endif
 
 #endif

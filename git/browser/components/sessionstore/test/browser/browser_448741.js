@@ -86,7 +86,6 @@ function test() {
       // clean up
       tabbrowser.removeTab(tab);
       os.removeObserver(this, aTopic, false);
-      gPrefService.clearUserPref("browser.sessionstore.interval");
       finish();
     }
   };
@@ -94,7 +93,4 @@ function test() {
   // last added observers are invoked first
   os.addObserver(checkingObserver, "sessionstore-state-write", false);
   os.addObserver(cleaningObserver, "sessionstore-state-write", false);
-  
-  // trigger an immediate save operation
-  gPrefService.setIntPref("browser.sessionstore.interval", 0);
 }

@@ -1,4 +1,4 @@
-do_load_httpd_js();
+do_import_script("netwerk/test/httpserver/httpd.js");
 
 const BUGID = "369787";
 var server = null;
@@ -28,7 +28,8 @@ function after_channel_closed() {
   try {
     change_content_type();
   } finally {
-    server.stop(do_test_finished);
+    server.stop();
+    do_test_finished();
   }
 }
 

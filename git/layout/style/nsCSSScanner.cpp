@@ -268,7 +268,7 @@ nsCSSScanner::SetLowLevelError(nsresult aErrorCode)
 #ifdef CSS_REPORT_PARSE_ERRORS
 #define CSS_ERRORS_PREF "layout.css.report_errors"
 
-static int
+PR_STATIC_CALLBACK(int)
 CSSErrorsPrefChanged(const char *aPref, void *aClosure)
 {
   gReportErrors = nsContentUtils::GetBoolPref(CSS_ERRORS_PREF, PR_TRUE);
@@ -669,153 +669,168 @@ nsCSSScanner::LookAhead(PRUnichar aChar)
   return PR_FALSE;
 }
 
-void
+PRBool
 nsCSSScanner::EatWhiteSpace()
 {
+  PRBool eaten = PR_FALSE;
   for (;;) {
     PRInt32 ch = Read();
     if (ch < 0) {
       break;
     }
-    if ((ch != ' ') && (ch != '\n') && (ch != '\t')) {
-      Pushback(ch);
-      break;
+    if ((ch == ' ') || (ch == '\n') || (ch == '\t')) {
+      eaten = PR_TRUE;
+      continue;
     }
+    Pushback(ch);
+    break;
   }
+  return eaten;
+}
+
+PRBool
+nsCSSScanner::EatNewline()
+{
+  PRInt32 ch = Read();
+  if (ch < 0) {
+    return PR_FALSE;
+  }
+  PRBool eaten = PR_FALSE;
+  if (ch == '\n') {
+    eaten = PR_TRUE;
+  } else {
+    Pushback(ch);
+  }
+  return eaten;
 }
 
 PRBool
 nsCSSScanner::Next(nsCSSToken& aToken)
 {
-  for (;;) { // Infinite loop so we can restart after comments.
-    PRInt32 ch = Read();
-    if (ch < 0) {
-      return PR_FALSE;
-    }
+  PRInt32 ch = Read();
+  if (ch < 0) {
+    return PR_FALSE;
+  }
 
-    // IDENT
-    if (StartsIdent(ch, Peek()))
-      return ParseIdent(ch, aToken);
+  // IDENT
+  if (StartsIdent(ch, Peek()))
+    return ParseIdent(ch, aToken);
 
-    // AT_KEYWORD
-    if (ch == '@') {
-      PRInt32 nextChar = Read();
-      if (nextChar >= 0) {
-        PRInt32 followingChar = Peek();
-        Pushback(nextChar);
-        if (StartsIdent(nextChar, followingChar))
-          return ParseAtKeyword(ch, aToken);
-      }
+  // AT_KEYWORD
+  if (ch == '@') {
+    PRInt32 nextChar = Read();
+    if (nextChar >= 0) {
+      PRInt32 followingChar = Peek();
+      Pushback(nextChar);
+      if (StartsIdent(nextChar, followingChar))
+        return ParseAtKeyword(ch, aToken);
     }
+  }
 
-    // NUMBER or DIM
-    if ((ch == '.') || (ch == '+') || (ch == '-')) {
-      PRInt32 nextChar = Peek();
-      if (IsDigit(nextChar)) {
-        return ParseNumber(ch, aToken);
-      }
-      else if (('.' == nextChar) && ('.' != ch)) {
-        nextChar = Read();
-        PRInt32 followingChar = Peek();
-        Pushback(nextChar);
-        if (IsDigit(followingChar))
-          return ParseNumber(ch, aToken);
-      }
-    }
-    if (IsDigit(ch)) {
+  // NUMBER or DIM
+  if ((ch == '.') || (ch == '+') || (ch == '-')) {
+    PRInt32 nextChar = Peek();
+    if (IsDigit(nextChar)) {
       return ParseNumber(ch, aToken);
     }
-
-    // ID
-    if (ch == '#') {
-      return ParseRef(ch, aToken);
+    else if (('.' == nextChar) && ('.' != ch)) {
+      nextChar = Read();
+      PRInt32 followingChar = Peek();
+      Pushback(nextChar);
+      if (IsDigit(followingChar))
+        return ParseNumber(ch, aToken);
     }
+  }
+  if (IsDigit(ch)) {
+    return ParseNumber(ch, aToken);
+  }
 
-    // STRING
-    if ((ch == '"') || (ch == '\'')) {
-      return ParseString(ch, aToken);
-    }
+  // ID
+  if (ch == '#') {
+    return ParseRef(ch, aToken);
+  }
 
-    // WS
-    if (IsWhitespace(ch)) {
-      aToken.mType = eCSSToken_WhiteSpace;
-      aToken.mIdent.Assign(PRUnichar(ch));
-      EatWhiteSpace();
-      return PR_TRUE;
-    }
-    if (ch == '/') {
-      PRInt32 nextChar = Peek();
-      if (nextChar == '*') {
-        (void) Read();
+  // STRING
+  if ((ch == '"') || (ch == '\'')) {
+    return ParseString(ch, aToken);
+  }
+
+  // WS
+  if (IsWhitespace(ch)) {
+    aToken.mType = eCSSToken_WhiteSpace;
+    aToken.mIdent.Assign(PRUnichar(ch));
+    (void) EatWhiteSpace();
+    return PR_TRUE;
+  }
+  if (ch == '/') {
+    PRInt32 nextChar = Peek();
+    if (nextChar == '*') {
+      (void) Read();
 #if 0
-        // If we change our storage data structures such that comments are
-        // stored (for Editor), we should reenable this code, condition it
-        // on being in editor mode, and apply glazou's patch from bug
-        // 60290.
-        aToken.mIdent.SetCapacity(2);
-        aToken.mIdent.Assign(PRUnichar(ch));
-        aToken.mIdent.Append(PRUnichar(nextChar));
-        return ParseCComment(aToken);
+      // If we change our storage data structures such that comments are
+      // stored (for Editor), we should reenable this code, condition it
+      // on being in editor mode, and apply glazou's patch from bug
+      // 60290.
+      aToken.mIdent.SetCapacity(2);
+      aToken.mIdent.Assign(PRUnichar(ch));
+      aToken.mIdent.Append(PRUnichar(nextChar));
+      return ParseCComment(aToken);
 #endif
-        if (!SkipCComment()) {
-          return PR_FALSE;
-        }
-        continue; // start again at the beginning
-      }
+      return SkipCComment() && Next(aToken);
     }
-    if (ch == '<') {  // consume HTML comment tags
-      if (LookAhead('!')) {
-        if (LookAhead('-')) {
-          if (LookAhead('-')) {
-            aToken.mType = eCSSToken_HTMLComment;
-            aToken.mIdent.AssignLiteral("<!--");
-            return PR_TRUE;
-          }
-          Pushback('-');
-        }
-        Pushback('!');
-      }
-    }
-    if (ch == '-') {  // check for HTML comment end
+  }
+  if (ch == '<') {  // consume HTML comment tags
+    if (LookAhead('!')) {
       if (LookAhead('-')) {
-        if (LookAhead('>')) {
+        if (LookAhead('-')) {
           aToken.mType = eCSSToken_HTMLComment;
-          aToken.mIdent.AssignLiteral("-->");
+          aToken.mIdent.AssignLiteral("<!--");
           return PR_TRUE;
         }
         Pushback('-');
       }
+      Pushback('!');
     }
-
-    // INCLUDES ("~=") and DASHMATCH ("|=")
-    if (( ch == '|' ) || ( ch == '~' ) || ( ch == '^' ) ||
-        ( ch == '$' ) || ( ch == '*' )) {
-      PRInt32 nextChar = Read();
-      if ( nextChar == '=' ) {
-        if (ch == '~') {
-          aToken.mType = eCSSToken_Includes;
-        }
-        else if (ch == '|') {
-          aToken.mType = eCSSToken_Dashmatch;
-        }
-        else if (ch == '^') {
-          aToken.mType = eCSSToken_Beginsmatch;
-        }
-        else if (ch == '$') {
-          aToken.mType = eCSSToken_Endsmatch;
-        }
-        else if (ch == '*') {
-          aToken.mType = eCSSToken_Containsmatch;
-        }
-        return PR_TRUE;
-      } else if (nextChar >= 0) {
-        Pushback(nextChar);
-      }
-    }
-    aToken.mType = eCSSToken_Symbol;
-    aToken.mSymbol = ch;
-    return PR_TRUE;
   }
+  if (ch == '-') {  // check for HTML comment end
+    if (LookAhead('-')) {
+      if (LookAhead('>')) {
+        aToken.mType = eCSSToken_HTMLComment;
+        aToken.mIdent.AssignLiteral("-->");
+        return PR_TRUE;
+      }
+      Pushback('-');
+    }
+  }
+
+  // INCLUDES ("~=") and DASHMATCH ("|=")
+  if (( ch == '|' ) || ( ch == '~' ) || ( ch == '^' ) ||
+      ( ch == '$' ) || ( ch == '*' )) {
+    PRInt32 nextChar = Read();
+    if ( nextChar == '=' ) {
+      if (ch == '~') {
+        aToken.mType = eCSSToken_Includes;
+      }
+      else if (ch == '|') {
+        aToken.mType = eCSSToken_Dashmatch;
+      }
+      else if (ch == '^') {
+        aToken.mType = eCSSToken_Beginsmatch;
+      }
+      else if (ch == '$') {
+        aToken.mType = eCSSToken_Endsmatch;
+      }
+      else if (ch == '*') {
+        aToken.mType = eCSSToken_Containsmatch;
+      }
+      return PR_TRUE;
+    } else if (nextChar >= 0) {
+      Pushback(nextChar);
+    }
+  }
+  aToken.mType = eCSSToken_Symbol;
+  aToken.mSymbol = ch;
+  return PR_TRUE;
 }
 
 PRBool
@@ -835,8 +850,25 @@ nsCSSScanner::NextURL(nsCSSToken& aToken)
   if (IsWhitespace(ch)) {
     aToken.mType = eCSSToken_WhiteSpace;
     aToken.mIdent.Assign(PRUnichar(ch));
-    EatWhiteSpace();
+    (void) EatWhiteSpace();
     return PR_TRUE;
+  }
+  if (ch == '/') {
+    PRInt32 nextChar = Peek();
+    if (nextChar == '*') {
+      (void) Read();
+#if 0
+      // If we change our storage data structures such that comments are
+      // stored (for Editor), we should reenable this code, condition it
+      // on being in editor mode, and apply glazou's patch from bug
+      // 60290.
+      aToken.mIdent.SetCapacity(2);
+      aToken.mIdent.Assign(PRUnichar(ch));
+      aToken.mIdent.Append(PRUnichar(nextChar));
+      return ParseCComment(aToken);
+#endif
+      return SkipCComment() && Next(aToken);
+    }
   }
 
   // Process a url lexical token. A CSS1 url token can contain
@@ -870,7 +902,7 @@ nsCSSScanner::NextURL(nsCSSToken& aToken)
         ok = PR_FALSE;
       } else if (IsWhitespace(ch)) {
         // Whitespace is allowed at the end of the URL
-        EatWhiteSpace();
+        (void) EatWhiteSpace();
         if (LookAhead(')')) {
           Pushback(')');  // leave the closing symbol
           // done!
@@ -937,35 +969,25 @@ nsCSSScanner::ParseAndAppendEscape(nsString& aOutput)
     if (6 == i) { // look for trailing whitespace and eat it
       ch = Peek();
       if (IsWhitespace(ch)) {
-        (void) Read();
+        ch = Read();
       }
     }
     NS_ASSERTION(rv >= 0, "How did rv become negative?");
-    // "[at most six hexadecimal digits following a backslash] stand
-    // for the ISO 10646 character with that number, which must not be
-    // zero. (It is undefined in CSS 2.1 what happens if a style sheet
-    // does contain a character with Unicode codepoint zero.)"
-    //   -- CSS2.1 section 4.1.3
-    //
-    // Silently deleting \0 opens a content-filtration loophole (see
-    // bug 228856), so what we do instead is pretend the "cancels the
-    // meaning of special characters" rule applied.
     if (rv > 0) {
       AppendUCS4ToUTF16(ENSURE_VALID_CHAR(rv), aOutput);
-    } else {
-      while (i--)
-        aOutput.Append('0');
-      if (IsWhitespace(ch))
-        Pushback(ch);
     }
     return;
-  } 
-  // "Any character except a hexidecimal digit can be escaped to
-  // remove its special meaning by putting a backslash in front"
-  // -- CSS1 spec section 7.1
-  ch = Read();  // Consume the escaped character
-  if ((ch > 0) && (ch != '\n')) {
-    aOutput.Append(ch);
+  } else {
+    // "Any character except a hexidecimal digit can be escaped to
+    // remove its special meaning by putting a backslash in front"
+    // -- CSS1 spec section 7.1
+    if (!EatNewline()) { // skip escaped newline
+      (void) Read();
+      if (ch > 0) {
+        aOutput.Append(ch);
+      }
+    }
+    return;
   }
 }
 
@@ -1168,6 +1190,53 @@ nsCSSScanner::SkipCComment()
   REPORT_UNEXPECTED_EOF(PECommentEOF);
   return PR_FALSE;
 }
+
+#if 0
+PRBool
+nsCSSScanner::ParseCComment(nsCSSToken& aToken)
+{
+  nsString& ident = aToken.mIdent;
+  for (;;) {
+    PRInt32 ch = Read();
+    if (ch < 0) break;
+    if (ch == '*') {
+      if (LookAhead('/')) {
+        ident.Append(PRUnichar(ch));
+        ident.Append(PRUnichar('/'));
+        break;
+      }
+    }
+#ifdef COLLECT_WHITESPACE
+    ident.Append(PRUnichar(ch));
+#endif
+  }
+  aToken.mType = eCSSToken_WhiteSpace;
+  return PR_TRUE;
+}
+#endif
+
+#if 0
+PRBool
+nsCSSScanner::ParseEOLComment(nsCSSToken& aToken)
+{
+  nsString& ident = aToken.mIdent;
+  ident.SetLength(0);
+  for (;;) {
+    if (EatNewline()) {
+      break;
+    }
+    PRInt32 ch = Read();
+    if (ch < 0) {
+      break;
+    }
+#ifdef COLLECT_WHITESPACE
+    ident.Append(PRUnichar(ch));
+#endif
+  }
+  aToken.mType = eCSSToken_WhiteSpace;
+  return PR_TRUE;
+}
+#endif // 0
 
 PRBool
 nsCSSScanner::ParseString(PRInt32 aStop, nsCSSToken& aToken)

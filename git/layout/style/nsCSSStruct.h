@@ -47,26 +47,18 @@
 
 #include "nsCSSValue.h"
 #include "nsStyleConsts.h"
+#include <stdio.h>
 
 // Prefer nsCSSValue::Array for lists of fixed size.
 struct nsCSSValueList {
-  nsCSSValueList() : mNext(nsnull) { MOZ_COUNT_CTOR(nsCSSValueList); }
-  ~nsCSSValueList();
-
-  nsCSSValueList* Clone() const { return Clone(PR_TRUE); }
+  nsCSSValueList(void);
+  nsCSSValueList(const nsCSSValueList& aCopy);
+  ~nsCSSValueList(void);
 
   static PRBool Equal(nsCSSValueList* aList1, nsCSSValueList* aList2);
 
   nsCSSValue      mValue;
   nsCSSValueList* mNext;
-
-private:
-  nsCSSValueList(const nsCSSValueList& aCopy) // makes a shallow copy
-    : mValue(aCopy.mValue), mNext(nsnull)
-  {
-    MOZ_COUNT_CTOR(nsCSSValueList);
-  }
-  nsCSSValueList* Clone(PRBool aDeep) const;
 };
 
 struct nsCSSRect {
@@ -235,24 +227,15 @@ struct nsCSSValueListRect {
 
 // Maybe should be replaced with nsCSSValueList and nsCSSValue::Array?
 struct nsCSSValuePairList {
-  nsCSSValuePairList() : mNext(nsnull) { MOZ_COUNT_CTOR(nsCSSValuePairList); }
-  ~nsCSSValuePairList();
-
-  nsCSSValuePairList* Clone() const { return Clone(PR_TRUE); }
+  nsCSSValuePairList(void);
+  nsCSSValuePairList(const nsCSSValuePairList& aCopy);
+  ~nsCSSValuePairList(void);
 
   static PRBool Equal(nsCSSValuePairList* aList1, nsCSSValuePairList* aList2);
 
   nsCSSValue          mXValue;
   nsCSSValue          mYValue;
   nsCSSValuePairList* mNext;
-
-private:
-  nsCSSValuePairList(const nsCSSValuePairList& aCopy) // makes a shallow copy
-    : mXValue(aCopy.mXValue), mYValue(aCopy.mYValue), mNext(nsnull)
-  {
-    MOZ_COUNT_CTOR(nsCSSValuePairList);
-  }
-  nsCSSValuePairList* Clone(PRBool aDeep) const;
 };
 
 /****************************************************************************/
@@ -308,12 +291,12 @@ struct nsCSSColor : public nsCSSStruct  {
 
   nsCSSValue      mColor;
   nsCSSValue      mBackColor;
-  nsCSSValueList* mBackImage;
-  nsCSSValueList* mBackRepeat;
-  nsCSSValueList* mBackAttachment;
-  nsCSSValuePairList* mBackPosition;
-  nsCSSValueList* mBackClip;
-  nsCSSValueList* mBackOrigin;
+  nsCSSValue      mBackImage;
+  nsCSSValue      mBackRepeat;
+  nsCSSValue      mBackAttachment;
+  nsCSSValuePair  mBackPosition;
+  nsCSSValue      mBackClip;
+  nsCSSValue      mBackOrigin;
   nsCSSValue      mBackInlinePolicy;
 private:
   nsCSSColor(const nsCSSColor& aOther); // NOT IMPLEMENTED
@@ -321,11 +304,6 @@ private:
 
 struct nsRuleDataColor : public nsCSSColor {
   nsRuleDataColor() {}
-
-  // A little bit of a hack here:  now that background-image is
-  // represented by a value list, attribute mapping code needs a place
-  // to store one item in a value list in order to map a simple value.
-  nsCSSValueList mTempBackImage;
 private:
   nsRuleDataColor(const nsRuleDataColor& aOther); // NOT IMPLEMENTED
 };
@@ -582,7 +560,6 @@ struct nsCSSUserInterface : public nsCSSStruct  { // NEW
   nsCSSValueList* mCursor;
   nsCSSValue      mForceBrokenImageIcon;
   nsCSSValue      mIMEMode;
-  nsCSSValue      mWindowShadow;
 private:
   nsCSSUserInterface(const nsCSSUserInterface& aOther); // NOT IMPLEMENTED
 };
@@ -681,7 +658,6 @@ struct nsCSSSVG : public nsCSSStruct {
   nsCSSValue mFilter;
   nsCSSValue mFloodColor;
   nsCSSValue mFloodOpacity;
-  nsCSSValue mImageRendering;
   nsCSSValue mLightingColor;
   nsCSSValue mMarkerEnd;
   nsCSSValue mMarkerMid;

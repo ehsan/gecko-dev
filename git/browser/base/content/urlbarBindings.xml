@@ -52,7 +52,6 @@
         this.clickSelectsAll = this._prefs.getBoolPref("clickSelectsAll");
         this.doubleClickSelectsAll = this._prefs.getBoolPref("doubleClickSelectsAll");
         this.completeDefaultIndex = this._prefs.getBoolPref("autoFill");
-        this.timeout = this._prefs.getIntPref("delay");
 
         this._urlTooltip = document.getElementById("urlTooltip");
 
@@ -73,13 +72,14 @@
 
       <method name="handleRevert">
         <body><![CDATA[
+          var throbberElement = document.getElementById("navigator-throbber");
           var isScrolling = this.popupOpen;
 
           gBrowser.userTypedValue = null;
 
           // don't revert to last valid url unless page is NOT loading
           // and user is NOT key-scrolling through autocomplete list
-          if (!XULBrowserWindow.isBusy && !isScrolling) {
+          if ((!throbberElement || !throbberElement.hasAttribute("busy")) && !isScrolling) {
             URLBarSetURI();
 
             // If the value isn't empty and the urlbar has focus, select the value.
@@ -238,27 +238,22 @@
       </method>
 
       <method name="onDragOver">
-        <parameter name="aEvent"/>
         <body>
-          var types = aEvent.dataTransfer.types;
-          if (types.contains("application/x-moz-file") ||
-              types.contains("text/x-moz-url") ||
-              types.contains("text/uri-list") ||
-              types.contains("text/unicode"))
-            aEvent.preventDefault();
+          return true;
         </body>
       </method>
 
       <method name="onDrop">
         <parameter name="aEvent"/>
+        <parameter name="aXferData"/>
+        <parameter name="aDragSession"/>
         <body><![CDATA[
-          aEvent.stopPropagation();
-          var url = browserDragAndDrop.getDragURLFromDataTransfer(aEvent.dataTransfer)[0];
+          var url = transferUtils.retrieveURLFromData(aXferData.data, aXferData.flavour.contentType);
 
           // The URL bar automatically handles inputs with newline characters,
-          // so we can get away with treating text/x-moz-url flavours as text/plain.
+          // so we can get away with treating text/x-moz-url flavours as text/unicode.
           if (url) {
-            nsDragAndDrop.dragDropSecurityCheck(aEvent, null, url);
+            nsDragAndDrop.dragDropSecurityCheck(aEvent, aDragSession, url);
 
             this.value = url;
             SetPageProxyState("invalid");
@@ -274,30 +269,18 @@
         ]]></body>
       </method>
 
-      <method name="_getSelectedValueForClipboard">
+      <method name="getSupportedFlavours">
         <body><![CDATA[
-          var val = this.value.substring(this.selectionStart, this.selectionEnd);
+          var flavourSet = new FlavourSet();
 
-          // If the entire value is selected and it's a valid non-javascript,
-          // non-data URI, encode it.
-          if (val == this.value &&
-              this.getAttribute("pageproxystate") == "valid") {
-            let uri;
-            let ioService = Cc["@mozilla.org/network/io-service;1"]
-                              .getService(Ci.nsIIOService);
-            try {
-              uri = ioService.newURI(val, null, null);
-            } catch (e) {}
-
-            if (uri && !uri.schemeIs("javascript") && !uri.schemeIs("data")) {
-              val = uri.spec;
-
-              // Parentheses are known to confuse third-party applications (bug 458565).
-              val = val.replace(/[()]/g, function (c) escape(c));
-            }
-          }
-
-          return val;
+          // Favor text/x-moz-url since text/unicode coming from Win32 1.8 branch
+          // drops contains URL\ntext.  The previous comment here said that
+          // plain text drops often come with text/x-moz-url flavor, but I
+          // haven't seen that, so hopefully that behavior has changed.
+          flavourSet.appendFlavour("text/x-moz-url");
+          flavourSet.appendFlavour("text/unicode");
+          flavourSet.appendFlavour("application/x-moz-file", "nsIFile");
+          return flavourSet;
         ]]></body>
       </method>
 
@@ -306,18 +289,39 @@
           urlbar: this,
           doCommand: function(aCommand) {
             var urlbar = this.urlbar;
-            var val = urlbar._getSelectedValueForClipboard();
-            if (!val)
+            var start = urlbar.selectionStart;
+            var end = urlbar.selectionEnd;
+            if (start == end)
               return;
+            var val;
+            if (start == 0 && end == urlbar.textLength) {
+              val = urlbar.value;
 
-            if (aCommand == "cmd_cut" && this.isCommandEnabled(aCommand)) {
-              let start = urlbar.selectionStart;
-              let end = urlbar.selectionEnd;
-              urlbar.value = urlbar.value.substring(0, start) + urlbar.value.substring(end);
-              urlbar.selectionStart = urlbar.selectionEnd = start;
-              SetPageProxyState("invalid");
+              // If the entire value is selected and it's a valid non-javascript,
+              // non-data URI, encode it.
+              var uri;
+              if (urlbar.getAttribute("pageproxystate") == "valid") {
+                var ioService = Cc["@mozilla.org/network/io-service;1"]
+                                  .getService(Ci.nsIIOService);
+                try {
+                  uri = ioService.newURI(val, null, null);
+                } catch (e) {}
+              }
+              if (uri && !uri.schemeIs("javascript") && !uri.schemeIs("data"))
+                 val = uri.spec;
+
+              if (aCommand == "cmd_cut" && this.isCommandEnabled(aCommand)) {
+                urlbar.value = "";
+                SetPageProxyState("invalid");
+              }
+            } else {
+              val = urlbar.value.substring(start, end);
+              if (aCommand == "cmd_cut" && this.isCommandEnabled(aCommand)) {
+                urlbar.value = urlbar.value.substring(0, start) + urlbar.value.substring(end);
+                urlbar.selectionStart = urlbar.selectionEnd = start;
+                SetPageProxyState("invalid");
+              }
             }
-
             Cc["@mozilla.org/widget/clipboardhelper;1"]
               .getService(Ci.nsIClipboardHelper)
               .copyString(val);
@@ -352,9 +356,6 @@
                 break;
               case "autoFill":
                 this.completeDefaultIndex = this._prefs.getBoolPref(aData);
-                break;
-              case "delay":
-                this.timeout = this._prefs.getIntPref(aData);
                 break;
             }
           }
@@ -409,52 +410,9 @@
     </implementation>
 
     <handlers>
-      <handler event="draggesture" phase="capturing"><![CDATA[
-        // TODO: This should use dragstart but editor code is still using
-        //       the old drag & drop APIs, so we have to handle draggesture.
-        //       This can be changed once editor code is updated to the new API.
-        //       See bug 499008 for details.
-
-        // Drag only if the gesture starts from the input field.
-        if (event.originalTarget != this.inputField)
-          return;
-
-        // Drag only if the entire value is selected and it's a valid URI.
-        var isFullSelection = this.selectionStart == 0 &&
-                              this.selectionEnd == this.textLength;
-        if (!isFullSelection ||
-            this.getAttribute("pageproxystate") != "valid")
-          return;
-
-        var urlString = content.location.href;
-        var title = content.document.title || urlString;
-        var htmlString = "<a href=\"" + urlString + "\">" + urlString + "</a>";
-
-        var dt = event.dataTransfer;
-        dt.setData("text/x-moz-url", urlString + "\n" + title);
-        dt.setData("text/unicode", urlString);
-        dt.setData("text/html", htmlString);
-
-        dt.effectAllowed = "copyLink";
-        event.stopPropagation();
-      ]]></handler>
       <handler event="focus" phase="capturing" action="this._hideURLTooltip();"/>
-      <handler event="dragover" phase="capturing" action="this.onDragOver(event, this);"/>
-      <handler event="drop" phase="capturing" action="this.onDrop(event, this);"/>
-      <handler event="select"><![CDATA[
-        if (!Cc["@mozilla.org/widget/clipboard;1"]
-               .getService(Ci.nsIClipboard)
-               .supportsSelectionClipboard())
-          return;
-
-        var val = this._getSelectedValueForClipboard();
-        if (!val)
-          return;
-
-        Cc["@mozilla.org/widget/clipboardhelper;1"]
-          .getService(Ci.nsIClipboardHelper)
-          .copyStringToClipboard(val, Ci.nsIClipboard.kSelectionClipboard);
-      ]]></handler>
+      <handler event="dragover" phase="capturing" action="nsDragAndDrop.dragOver(event, this);"/>
+      <handler event="dragdrop" phase="capturing" action="nsDragAndDrop.drop(event, this);"/>
     </handlers>
 
   </binding>

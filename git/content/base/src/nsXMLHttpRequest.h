@@ -40,8 +40,11 @@
 
 #include "nsIXMLHttpRequest.h"
 #include "nsISupportsUtils.h"
+#include "nsCOMPtr.h"
 #include "nsString.h"
 #include "nsIDOMLoadListener.h"
+#include "nsIDOMEventTarget.h"
+#include "nsIDOMNSEventTarget.h"
 #include "nsIDOMDocument.h"
 #include "nsIURI.h"
 #include "nsIHttpChannel.h"
@@ -57,17 +60,18 @@
 #include "nsCOMArray.h"
 #include "nsJSUtils.h"
 #include "nsTArray.h"
+#include "nsCycleCollectionParticipant.h"
 #include "nsIJSNativeInitializer.h"
+#include "nsPIDOMWindow.h"
 #include "nsIDOMLSProgressEvent.h"
 #include "nsClassHashtable.h"
 #include "nsHashKeys.h"
 #include "prclist.h"
 #include "prtime.h"
+#include "nsIEventListenerManager.h"
 #include "nsIDOMNSEvent.h"
-#include "nsITimer.h"
 #include "nsIPrivateDOMEvent.h"
 #include "nsDOMProgressEvent.h"
-#include "nsDOMEventTargetHelper.h"
 
 class nsILoadGroup;
 
@@ -121,12 +125,11 @@ public:
 
   CacheEntry* GetEntry(nsIURI* aURI, nsIPrincipal* aPrincipal,
                        PRBool aWithCredentials, PRBool aCreate);
-  void RemoveEntries(nsIURI* aURI, nsIPrincipal* aPrincipal);
 
   void Clear();
 
 private:
-  static PLDHashOperator
+  PR_STATIC_CALLBACK(PLDHashOperator)
     RemoveExpiredEntries(const nsACString& aKey, nsAutoPtr<CacheEntry>& aValue,
                          void* aUserData);
 
@@ -137,54 +140,83 @@ private:
   PRCList mList;
 };
 
-class nsXHREventTarget : public nsDOMEventTargetHelper,
-                         public nsIXMLHttpRequestEventTarget,
-                         public nsWrapperCache
+class nsDOMEventListenerWrapper : public nsIDOMEventListener
 {
 public:
-  virtual ~nsXHREventTarget() {}
-  NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsXHREventTarget,
-                                           nsDOMEventTargetHelper)
-  NS_DECL_NSIXMLHTTPREQUESTEVENTTARGET
-  NS_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper::)
-  NS_FORWARD_NSIDOMNSEVENTTARGET(nsDOMEventTargetHelper::)
+  nsDOMEventListenerWrapper(nsIDOMEventListener* aListener)
+  : mListener(aListener) {}
 
-  void GetParentObject(nsIScriptGlobalObject **aParentObject)
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+  NS_DECL_CYCLE_COLLECTION_CLASS(nsDOMEventListenerWrapper)
+
+  NS_DECL_NSIDOMEVENTLISTENER
+
+  nsIDOMEventListener* GetInner() { return mListener; }
+protected:
+  nsCOMPtr<nsIDOMEventListener> mListener;
+};
+
+class nsXHREventTarget : public nsIXMLHttpRequestEventTarget,
+                         public nsPIDOMEventTarget,
+                         public nsIDOMNSEventTarget
+{
+public:
+  nsXHREventTarget() : mLang(nsIProgrammingLanguage::JAVASCRIPT) {}
+  virtual ~nsXHREventTarget() {}
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsXHREventTarget,
+                                           nsIXMLHttpRequestEventTarget)
+  NS_DECL_NSIDOMNSEVENTTARGET
+  NS_DECL_NSIXMLHTTPREQUESTEVENTTARGET
+  NS_DECL_NSIDOMEVENTTARGET
+  // nsPIDOMEventTarget
+  virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
+  virtual nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor);
+  virtual nsresult DispatchDOMEvent(nsEvent* aEvent, nsIDOMEvent* aDOMEvent,
+                                    nsPresContext* aPresContext,
+                                    nsEventStatus* aEventStatus);
+  virtual nsresult GetListenerManager(PRBool aCreateIfNotFound,
+                                      nsIEventListenerManager** aResult);
+  virtual nsresult AddEventListenerByIID(nsIDOMEventListener *aListener,
+                                         const nsIID& aIID);
+  virtual nsresult RemoveEventListenerByIID(nsIDOMEventListener *aListener,
+                                            const nsIID& aIID);
+  virtual nsresult GetSystemEventGroup(nsIDOMEventGroup** aGroup);
+  virtual nsresult GetContextForEventHandlers(nsIScriptContext** aContext);
+
+  PRBool HasListenersFor(const nsAString& aType)
+  {
+    return mListenerManager && mListenerManager->HasListenersFor(aType);
+  }
+  nsresult RemoveAddEventListener(const nsAString& aType,
+                                  nsRefPtr<nsDOMEventListenerWrapper>& aCurrent,
+                                  nsIDOMEventListener* aNew);
+
+  nsresult GetInnerEventListener(nsRefPtr<nsDOMEventListenerWrapper>& aWrapper,
+                                 nsIDOMEventListener** aListener);
+
+  nsresult CheckInnerWindowCorrectness()
   {
     if (mOwner) {
-      CallQueryInterface(mOwner, aParentObject);
+      NS_ASSERTION(mOwner->IsInnerWindow(), "Should have inner window here!\n");
+      nsPIDOMWindow* outer = mOwner->GetOuterWindow();
+      if (!outer || outer->GetCurrentInnerWindow() != mOwner) {
+        return NS_ERROR_FAILURE;
+      }
     }
-    else {
-      *aParentObject = nsnull;
-    }
+    return NS_OK;
   }
-
-  static nsXHREventTarget* FromSupports(nsISupports* aSupports)
-  {
-    nsPIDOMEventTarget* target =
-      static_cast<nsPIDOMEventTarget*>(aSupports);
-#ifdef DEBUG
-    {
-      nsCOMPtr<nsPIDOMEventTarget> target_qi =
-        do_QueryInterface(aSupports);
-
-      // If this assertion fires the QI implementation for the object in
-      // question doesn't use the nsPIDOMEventTarget pointer as the
-      // nsISupports pointer. That must be fixed, or we'll crash...
-      NS_ASSERTION(target_qi == target, "Uh, fix QI!");
-    }
-#endif
-
-    return static_cast<nsXHREventTarget*>(target);
-  }
-
 protected:
   nsRefPtr<nsDOMEventListenerWrapper> mOnLoadListener;
   nsRefPtr<nsDOMEventListenerWrapper> mOnErrorListener;
   nsRefPtr<nsDOMEventListenerWrapper> mOnAbortListener;
   nsRefPtr<nsDOMEventListenerWrapper> mOnLoadStartListener;
   nsRefPtr<nsDOMEventListenerWrapper> mOnProgressListener;
+  nsCOMPtr<nsIEventListenerManager> mListenerManager;
+  PRUint32 mLang;
+  // These may be null (native callers or xpcshell).
+  nsCOMPtr<nsIScriptContext> mScriptContext;
+  nsCOMPtr<nsPIDOMWindow>    mOwner; // Inner window.
 };
 
 class nsXMLHttpRequestUpload : public nsXHREventTarget,
@@ -197,7 +229,6 @@ public:
     mOwner = aOwner;
     mScriptContext = aScriptContext;
   }
-  virtual ~nsXMLHttpRequestUpload();
   NS_DECL_ISUPPORTS_INHERITED
   NS_FORWARD_NSIXMLHTTPREQUESTEVENTTARGET(nsXHREventTarget::)
   NS_FORWARD_NSIDOMEVENTTARGET(nsXHREventTarget::)
@@ -219,8 +250,7 @@ class nsXMLHttpRequest : public nsXHREventTarget,
                          public nsIProgressEventSink,
                          public nsIInterfaceRequestor,
                          public nsSupportsWeakReference,
-                         public nsIJSNativeInitializer,
-                         public nsITimerCallback
+                         public nsIJSNativeInitializer
 {
 public:
   nsXMLHttpRequest();
@@ -262,15 +292,10 @@ public:
   // nsIInterfaceRequestor
   NS_DECL_NSIINTERFACEREQUESTOR
 
-  // nsITimerCallback
-  NS_DECL_NSITIMERCALLBACK
-
   // nsIJSNativeInitializer
   NS_IMETHOD Initialize(nsISupports* aOwner, JSContext* cx, JSObject* obj,
                        PRUint32 argc, jsval* argv);
 
-  NS_FORWARD_NSIDOMEVENTTARGET(nsXHREventTarget::)
-  NS_FORWARD_NSIDOMNSEVENTTARGET(nsXHREventTarget::)
 
   // This creates a trusted readystatechange event, which is not cancelable and
   // doesn't bubble.
@@ -368,14 +393,12 @@ protected:
    */
   nsresult CheckChannelForCrossSiteRequest(nsIChannel* aChannel);
 
-  void StartProgressEventTimer();
-
   nsCOMPtr<nsISupports> mContext;
   nsCOMPtr<nsIPrincipal> mPrincipal;
   nsCOMPtr<nsIChannel> mChannel;
   // mReadRequest is different from mChannel for multipart requests
   nsCOMPtr<nsIRequest> mReadRequest;
-  nsCOMPtr<nsIDOMDocument> mResponseXML;
+  nsCOMPtr<nsIDOMDocument> mDocument;
   nsCOMPtr<nsIChannel> mACGetChannel;
   nsTArray<nsCString> mACUnsafeHeaders;
 
@@ -415,24 +438,14 @@ protected:
 
   nsIRequestObserver* mRequestObserver;
 
-  nsCOMPtr<nsIURI> mBaseURI;
-
   PRUint32 mState;
 
   nsRefPtr<nsXMLHttpRequestUpload> mUpload;
-  PRUint64 mUploadTransferred;
-  PRUint64 mUploadTotal;
+  PRUint32 mUploadTransferred;
+  PRUint32 mUploadTotal;
   PRPackedBool mUploadComplete;
-  PRUint64 mUploadProgress; // For legacy
-  PRUint64 mUploadProgressMax; // For legacy
 
   PRPackedBool mErrorLoad;
-
-  PRPackedBool mTimerIsActive;
-  PRPackedBool mProgressEventWasDelayed;
-  PRPackedBool mLoadLengthComputable;
-  PRUint64 mLoadTotal; // 0 if not known.
-  nsCOMPtr<nsITimer> mProgressNotifier;
 
   PRPackedBool mFirstStartRequestSeen;
 };
@@ -465,13 +478,25 @@ public:
   {
     return mInner->SetTarget(aTarget);
   }
-  NS_IMETHOD_(PRBool) IsDispatchStopped()
+  NS_IMETHOD SetCurrentTarget(nsIDOMEventTarget* aTarget)
   {
-    return mInner->IsDispatchStopped();
+    return mInner->SetCurrentTarget(aTarget);
   }
-  NS_IMETHOD_(nsEvent*) GetInternalNSEvent()
+  NS_IMETHOD SetOriginalTarget(nsIDOMEventTarget* aTarget)
   {
-    return mInner->GetInternalNSEvent();
+    return mInner->SetOriginalTarget(aTarget);
+  }
+  NS_IMETHOD IsDispatchStopped(PRBool* aIsDispatchPrevented)
+  {
+    return mInner->IsDispatchStopped(aIsDispatchPrevented);
+  }
+  NS_IMETHOD GetInternalNSEvent(nsEvent** aNSEvent)
+  {
+    return mInner->GetInternalNSEvent(aNSEvent);
+  }
+  NS_IMETHOD HasOriginalTarget(PRBool* aResult)
+  {
+    return mInner->HasOriginalTarget(aResult);
   }
   NS_IMETHOD SetTrusted(PRBool aTrusted)
   {

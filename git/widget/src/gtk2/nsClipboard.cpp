@@ -48,11 +48,13 @@
 #include "nsImageToPixbuf.h"
 #include "nsStringStream.h"
 
-#include <gtk/gtk.h>
+#include <gtk/gtkclipboard.h>
+#include <gtk/gtkinvisible.h>
 
 // For manipulation of the X event queue
 #include <X11/Xlib.h>
 #include <gdk/gdkx.h>
+#include <gtk/gtkmain.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -164,14 +166,6 @@ nsClipboard::SetData(nsITransferable *aTransferable,
         return NS_OK;
     }
 
-    nsresult rv;
-    if (!mPrivacyHandler) {
-        rv = NS_NewClipboardPrivacyHandler(getter_AddRefs(mPrivacyHandler));
-        NS_ENSURE_SUCCESS(rv, rv);
-    }
-    rv = mPrivacyHandler->PrepareDataForClipboard(aTransferable);
-    NS_ENSURE_SUCCESS(rv, rv);
-
     // Clear out the clipboard in order to set the new data
     EmptyClipboard(aWhichClipboard);
 
@@ -195,6 +189,7 @@ nsClipboard::SetData(nsITransferable *aTransferable,
     gtk_selection_clear_targets(mWidget, selectionAtom);
 
     // Get the types of supported flavors
+    nsresult rv;
     nsCOMPtr<nsISupportsArray> flavors;
 
     rv = aTransferable->FlavorsTransferableCanExport(getter_AddRefs(flavors));

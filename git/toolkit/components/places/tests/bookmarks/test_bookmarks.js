@@ -71,8 +71,6 @@ var observer = {
     this._itemAddedParent = folder;
     this._itemAddedIndex = index;
   },
-  onBeforeItemRemoved: function(id) {
-  },
   onItemRemoved: function(id, folder, index) {
     this._itemRemovedId = id;
     this._itemRemovedFolder = folder;
@@ -171,7 +169,7 @@ function run_test() {
 
   // after just inserting, modified should not be set
   var lastModified = bmsvc.getItemLastModified(newId);
-  do_check_eq(lastModified, dateAdded);
+  do_check_eq(lastModified, 0);
 
   // the time before we set the title, in microseconds
   var beforeSetTitle = Date.now() * 1000;
@@ -297,12 +295,6 @@ function run_test() {
 
   // test getIdForItemAt
   do_check_eq(bmsvc.getIdForItemAt(testRoot, 0), workFolder);
-  // wrong parent, should return -1
-  do_check_eq(bmsvc.getIdForItemAt(1337, 0), -1);
-  // wrong index, should return -1
-  do_check_eq(bmsvc.getIdForItemAt(testRoot, 1337), -1);
-  // wrong parent and index, should return -1
-  do_check_eq(bmsvc.getIdForItemAt(1337, 1337), -1);
 
   // move folder, appending, to different folder
   var oldParentCC = getChildCount(testRoot);
@@ -369,7 +361,7 @@ function run_test() {
     var dateAdded = bmsvc.getItemDateAdded(kwTestItemId);
     // after just inserting, modified should not be set
     var lastModified = bmsvc.getItemLastModified(kwTestItemId);
-    do_check_eq(lastModified, dateAdded);
+    do_check_eq(lastModified, 0);
 
     bmsvc.setKeywordForBookmark(kwTestItemId, "bar");
 
@@ -492,7 +484,7 @@ function run_test() {
   var dateAdded = bmsvc.getItemDateAdded(newId10);
   // after just inserting, modified should not be set
   var lastModified = bmsvc.getItemLastModified(newId10);
-  do_check_eq(lastModified, dateAdded);
+  do_check_eq(lastModified, 0);
 
   bmsvc.changeBookmarkURI(newId10, uri("http://foo11.com/"));
 
@@ -633,7 +625,8 @@ function run_test() {
                                      bmsvc.DEFAULT_INDEX, "");
   var dateAdded = bmsvc.getItemDateAdded(newId14);
   var lastModified = bmsvc.getItemLastModified(newId14);
-  do_check_eq(lastModified, dateAdded);
+  do_check_eq(lastModified, 0);
+  do_check_true(dateAdded > lastModified);
   bmsvc.setItemLastModified(newId14, 1234);
   var fakeLastModified = bmsvc.getItemLastModified(newId14);
   do_check_eq(fakeLastModified, 1234);
@@ -706,7 +699,7 @@ function testSimpleFolderResult() {
 
   var node = rootNode.getChild(0);
   do_check_true(node.dateAdded > 0);
-  do_check_eq(node.lastModified, node.dateAdded);
+  do_check_eq(node.lastModified, 0);
   do_check_eq(node.itemId, sep);
   do_check_eq(node.title, "");
   node = rootNode.getChild(1);

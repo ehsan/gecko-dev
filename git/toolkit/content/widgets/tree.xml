@@ -105,11 +105,6 @@
         true
 #endif
       </field>
-      <property name="keepCurrentInView"
-                onget="return (this.getAttribute('keepcurrentinview') == 'true');"
-                onset="if (val) this.setAttribute('keepcurrentinview', 'true');
-                       else this.removeAttribute('keepcurrentinview'); return val;"/>
-
       <property name="enableColumnDrag"
                 onget="return this.hasAttribute('enableColumnDrag');"
                 onset="if (val) this.setAttribute('enableColumnDrag', 'true');
@@ -214,12 +209,11 @@
           var col = this.columns.getFirstColumn();
           var lastCol = null;
           var currentX = this.boxObject.x;
-          var adjustedX = aX + this.treeBoxObject.horizontalPosition;
           while (col) {
             var cw = col.element.boxObject.width;
             if (cw > 0) {
               currentX += cw;
-              if (currentX - (cw * aThresh) > adjustedX)
+              if (currentX - (cw * aThresh) > aX)
                 return col.element;
             }
             lastCol = col;
@@ -265,13 +259,6 @@
           ]]>
         </getter>
       </property>
-
-      <constructor><![CDATA[
-          // Bindings that extend this one wouldn't inherit the
-          // chromedir attribute if it would only be set in <content>.
-          this.setAttribute("chromedir", "]]>&locale.dir;<![CDATA[");
-        ]]>
-      </constructor>
 
       <method name="_getNextColumn">
         <parameter name="row"/>
@@ -353,37 +340,23 @@
             var box = this.treeBoxObject;
             box.ensureCellIsVisible(row, column);
 
-            // Get the coordinates of the text inside the cell.
-            var textx = {}, texty = {}, textwidth = {}, textheight = {};
+            var outx = {}, outy = {}, outwidth = {}, outheight = {};
             var coords = box.getCoordsForCellItem(row, column, "text",
-                                                  textx, texty, textwidth, textheight);
+                                                  outx, outy, outwidth, outheight);
 
-            // Get the coordinates of the cell itself.
-            var cellx = {}, cellwidth = {};
-            coords = box.getCoordsForCellItem(row, column, "cell",
-                                              cellx, {}, cellwidth, {});
-
-            // Calculate the top offset of the textbox.
             var style = window.getComputedStyle(input, "");
             var topadj = parseInt(style.borderTopWidth) + parseInt(style.paddingTop);
-            input.top = texty.value - topadj;
+            input.top = outy.value - topadj;
 
-            // The leftside of the textbox is aligned to the left side of the text
-            // in LTR mode, and left side of the cell in RTL mode.
-            var left, widthdiff;
-            if (style.direction == "rtl") {
-              left = cellx.value;
-              widthdiff = cellx.value + cellwidth.value - textx.value - textwidth.value;
-            } else {
-              left = textx.value;
-              widthdiff = textx.value - cellx.value;
-            }
-
+            var left = outx.value;
             input.left = left;
-            input.height = textheight.value + topadj +
+            input.height = outheight.value + topadj +
                            parseInt(style.borderBottomWidth) +
                            parseInt(style.paddingBottom);
-            input.width = cellwidth.value - widthdiff;
+
+            coords = box.getCoordsForCellItem(row, column, "cell",
+                                              outx, outy, outwidth, outheight);
+            input.width = outwidth.value - (left - outx.value);
             input.hidden = false;
 
             input.value = this.view.getCellText(row, column);
@@ -656,7 +629,7 @@
     </implementation>
     
     <handlers>
-      <handler event="DOMMouseScroll">
+      <handler event="DOMMouseScroll" phase="capturing">
         <![CDATA[
           if (this._editingColumn)
             return;
@@ -670,22 +643,6 @@
             this.treeBoxObject.scrollByPages(1);
           else
             this.treeBoxObject.scrollByLines(rows);
-        ]]>
-      </handler>
-      <handler event="MozSwipeGesture">
-        <![CDATA[
-          // Figure out which row to show
-          let targetRow = 0;
-
-          // Only handle swipe gestures up and down
-          switch (event.direction) {
-            case event.DIRECTION_DOWN:
-              targetRow = this.view.rowCount - 1;
-              // Fall through for actual action
-            case event.DIRECTION_UP:
-              this.treeBoxObject.ensureRowIsVisible(targetRow);
-              break;
-          }
         ]]>
       </handler>
       <handler event="select" phase="target"
@@ -710,13 +667,11 @@
           if (this._editingColumn) {
             this.stopEditing(true);
             this.focus();
+            event.stopPropagation();
           }
           else {
-            if (!this.changeOpenState(this.currentIndex))
-              return; // don't consume the event if the open state wasn't changed
+            this.changeOpenState(this.currentIndex);
           }
-          event.stopPropagation();
-          event.preventDefault();
         ]]>
       </handler>
       <handler event="keypress" keycode="VK_RETURN">
@@ -724,13 +679,11 @@
           if (this._editingColumn) {
             this.stopEditing(true);
             this.focus();
+            event.stopPropagation();
           }
           else {
-            if (!this.changeOpenState(this.currentIndex))
-              return; // don't consume the event if the open state wasn't changed
+            this.changeOpenState(this.currentIndex);
           }
-          event.stopPropagation();
-          event.preventDefault();
         ]]>
       </handler>
       <handler event="keypress" keycode="VK_ESCAPE">
@@ -739,7 +692,6 @@
             this.stopEditing(false);
             this.focus();
             event.stopPropagation();
-            event.preventDefault();
           }
         ]]>
       </handler>
@@ -1330,13 +1282,6 @@
         <![CDATA[
           if (event.target != event.originalTarget)
             return;
-
-#ifdef XP_WIN
-          // On Windows multiple clicking on tree columns only cycles one time
-          // every 2 clicks.
-          if (event.detail % 2 == 0)
-            return;
-#endif
 
           var tree = this.parentNode.parentNode;
           var column = tree.columns.getColumnFor(this);

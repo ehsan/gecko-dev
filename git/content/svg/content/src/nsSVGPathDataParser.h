@@ -41,6 +41,7 @@
 
 #include "nsSVGDataParser.h"
 #include "nsCOMPtr.h"
+#include "nsVoidArray.h"
 #include "nsCOMArray.h"
 #include "nsIDOMSVGPathSeg.h"
 #include "nsTArray.h"

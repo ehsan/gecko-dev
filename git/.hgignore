@@ -4,11 +4,13 @@
 ~$
 \.pyc$
 (^|/)TAGS$
-(^|/)\.DS_Store$
+\.DS_Store$
 
 # User files that may appear at the root
-^\.mozconfig
-^mozconfig
+^\.mozconfig$
+^mozconfig$
+^\.mozconfig\.mk$
+^\.mozconfig\.out$
 ^configure$
 ^config\.cache$
 ^config\.log$
@@ -24,6 +26,3 @@
 _DBG\.OBJ/
 _OPT\.OBJ/
 
-# SpiderMonkey configury
-^js/src/configure$
-^js/src/autom4te.cache$

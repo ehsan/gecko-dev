@@ -91,9 +91,9 @@ NS_CYCLE_COLLECTION_CLASSNAME(nsXPCWrappedJS)::Traverse
 }
 
 NS_IMPL_CYCLE_COLLECTION_ROOT_BEGIN(nsXPCWrappedJS)
-    if(tmp->IsValid())
+    if(tmp->mRoot && !tmp->mRoot->HasWeakReferences() && tmp->IsValid())
     {
-        XPCJSRuntime* rt = nsXPConnect::GetRuntimeInstance();
+        XPCJSRuntime* rt = nsXPConnect::GetRuntime();
         if(rt)
         {
             if(tmp->mRoot == tmp)
@@ -116,7 +116,10 @@ NS_IMPL_CYCLE_COLLECTION_ROOT_BEGIN(nsXPCWrappedJS)
 NS_IMPL_CYCLE_COLLECTION_ROOT_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsXPCWrappedJS)
-    tmp->Unlink();
+    if(tmp->mRoot && !tmp->mRoot->HasWeakReferences())
+    {
+        tmp->Unlink();
+    }
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMETHODIMP
@@ -226,8 +229,7 @@ nsXPCWrappedJS::Release(void)
 
     // need to take the map lock here to prevent GetNewOrUsed from trying
     // to reuse a wrapper on one thread while it's being destroyed on another
-    XPCJSRuntime* rt = nsXPConnect::GetRuntimeInstance();
-    XPCAutoLock lock(rt->GetMapLock());
+    XPCAutoLock lock(nsXPConnect::GetRuntime()->GetMapLock());
 
 do_decrement:
 
@@ -242,7 +244,7 @@ do_decrement:
     if(1 == cnt)
     {
         if(IsValid())
-            RemoveFromRootSet(rt->GetJSRuntime());
+            RemoveFromRootSet(nsXPConnect::GetRuntime()->GetJSRuntime());
 
         // If we are not the root wrapper or if we are not being used from a
         // weak reference, then this extra ref is not needed and we can let
@@ -451,13 +453,19 @@ nsXPCWrappedJS::~nsXPCWrappedJS()
 
     if(mRoot == this)
     {
+        // Let the nsWeakReference object (if present) know of our demise.
+        ClearWeakReferences();
+
         // Remove this root wrapper from the map
-        XPCJSRuntime* rt = nsXPConnect::GetRuntimeInstance();
-        JSObject2WrappedJSMap* map = rt->GetWrappedJSMap();
-        if(map)
+        XPCJSRuntime* rt = nsXPConnect::GetRuntime();
+        if(rt)
         {
-            XPCAutoLock lock(rt->GetMapLock());
-            map->Remove(this);
+            JSObject2WrappedJSMap* map = rt->GetWrappedJSMap();
+            if(map)
+            {
+                XPCAutoLock lock(rt->GetMapLock());
+                map->Remove(this);
+            }
         }
     }
     Unlink();
@@ -466,11 +474,7 @@ nsXPCWrappedJS::~nsXPCWrappedJS()
 void
 nsXPCWrappedJS::Unlink()
 {
-    if(mRoot == this)
-    {
-        ClearWeakReferences();
-    }
-    else if(mRoot)
+    if(mRoot != this && mRoot)
     {
         // unlink this wrapper
         nsXPCWrappedJS* cur = mRoot;
@@ -491,8 +495,8 @@ nsXPCWrappedJS::Unlink()
     NS_IF_RELEASE(mClass);
     if (mOuter)
     {
-        XPCJSRuntime* rt = nsXPConnect::GetRuntimeInstance();
-        if (rt->GetThreadRunningGC())
+        XPCJSRuntime* rt = nsXPConnect::GetRuntime();
+        if (rt && rt->GetThreadRunningGC())
         {
             rt->DeferredRelease(mOuter);
             mOuter = nsnull;

@@ -89,9 +89,8 @@
 #include "nsRDFCID.h"
 #include "nsXULContentUtils.h"
 #include "nsString.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "nsXPIDLString.h"
-#include "nsWhitespaceTokenizer.h"
 #include "nsGkAtoms.h"
 #include "nsXULElement.h"
 #include "jsapi.h"
@@ -304,7 +303,7 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsXULTemplateBuilder)
   NS_INTERFACE_MAP_ENTRY(nsIMutationObserver)
   NS_INTERFACE_MAP_ENTRY(nsIObserver)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIXULTemplateBuilder)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(XULTemplateBuilder)
+  NS_INTERFACE_MAP_ENTRY_DOM_CLASSINFO(XULTemplateBuilder)
 NS_INTERFACE_MAP_END
 
 //----------------------------------------------------------------------
@@ -1109,9 +1108,7 @@ nsXULTemplateBuilder::AttributeChanged(nsIDocument* aDocument,
         // case we may need to nuke and rebuild the entire content model
         // beneath the element.
         if (aAttribute == nsGkAtoms::ref)
-            nsContentUtils::AddScriptRunner(
-                NS_NEW_RUNNABLE_METHOD(nsXULTemplateBuilder, this,
-                                       RunnableRebuild));
+            Rebuild();
 
         // Check for a change to the 'datasources' attribute. If so, setup
         // mDB by parsing the new value and rebuild.
@@ -1121,9 +1118,7 @@ nsXULTemplateBuilder::AttributeChanged(nsIDocument* aDocument,
             PRBool shouldDelay;
             LoadDataSources(aDocument, &shouldDelay);
             if (!shouldDelay)
-                nsContentUtils::AddScriptRunner(
-                    NS_NEW_RUNNABLE_METHOD(nsXULTemplateBuilder, this,
-                                           RunnableRebuild));
+                Rebuild();
         }
     }
 }
@@ -1149,11 +1144,13 @@ nsXULTemplateBuilder::ContentRemoved(nsIDocument* aDocument,
         if (xuldoc)
             xuldoc->SetTemplateBuilderFor(mRoot, nsnull);
 
-        // clear the template state when removing content so that template
-        // content will be regenerated again if the content is reinserted
+        // clear the lazy state when removing content so that it will be
+        // regenerated again if the content is reinserted
         nsXULElement *xulcontent = nsXULElement::FromContent(mRoot);
-        if (xulcontent)
-            xulcontent->ClearTemplateGenerated();
+        if (xulcontent) {
+            xulcontent->ClearLazyState(nsXULElement::eTemplateContentsBuilt);
+            xulcontent->ClearLazyState(nsXULElement::eContainerContentsBuilt);
+        }
 
         mDB = nsnull;
         mCompDB = nsnull;
@@ -1328,10 +1325,27 @@ nsXULTemplateBuilder::LoadDataSourceUrls(nsIDocument* aDocument,
         if (NS_FAILED(rv) || !uri)
             continue; // Necko will barf if our URI is weird
 
-        // don't add the uri to the list if the document is not allowed to
-        // load it
-        if (!isTrusted && NS_FAILED(docPrincipal->CheckMayLoad(uri, PR_TRUE)))
-          continue;
+        nsCOMPtr<nsIPrincipal> principal;
+        if (!isTrusted) {
+            // Our document is untrusted, so check to see if we can
+            // load the datasource that they've asked for.
+
+            rv = gScriptSecurityManager->GetCodebasePrincipal(uri, getter_AddRefs(principal));
+            NS_ASSERTION(NS_SUCCEEDED(rv), "unable to get codebase principal");
+            NS_ENSURE_SUCCESS(rv, rv);
+
+            PRBool same;
+            rv = docPrincipal->Equals(principal, &same);
+            NS_ASSERTION(NS_SUCCEEDED(rv), "unable to test same origin");
+            NS_ENSURE_SUCCESS(rv, rv);
+
+            if (! same)
+                continue;
+
+            // If we get here, we've run the gauntlet, and the
+            // datasource's URI has the same origin as our
+            // document. Let it load!
+        }
 
         uriList->AppendElement(uri, PR_FALSE);
     }
@@ -1344,6 +1358,7 @@ nsXULTemplateBuilder::LoadDataSourceUrls(nsIDocument* aDocument,
                                         aShouldDelayBuilding,
                                         getter_AddRefs(mDataSource));
     NS_ENSURE_SUCCESS(rv, rv);
+
 
     if (aIsRDFQuery && mDataSource) {  
         // check if we were given an inference engine type
@@ -1740,16 +1755,12 @@ nsXULTemplateBuilder::CompileQueries()
     mRoot->GetAttr(kNameSpaceID_None, nsGkAtoms::flags, flags);
 
     // if the dont-test-empty flag is set, containers should not be checked to
-    // see if they are empty. If dont-recurse is set, then don't process the
-    // template recursively and only show one level of results.
-    nsWhitespaceTokenizer tokenizer(flags);
-    while (tokenizer.hasMoreTokens()) {
-      const nsDependentSubstring& token(tokenizer.nextToken());
-      if (token.EqualsLiteral("dont-test-empty"))
+    // see if they are empty
+    if (flags.Find(NS_LITERAL_STRING("dont-test-empty")) >= 0)
         mFlags |= eDontTestEmpty;
-      else if (token.EqualsLiteral("dont-recurse"))
+
+    if (flags.Find(NS_LITERAL_STRING("dont-recurse")) >= 0)
         mFlags |= eDontRecurse;
-    }
 
     nsCOMPtr<nsIDOMNode> rootnode = do_QueryInterface(mRoot);
     nsresult rv =
@@ -2013,9 +2024,15 @@ nsXULTemplateBuilder::CompileTemplate(nsIContent* aTemplate,
                                                getter_AddRefs(aQuerySet->mCompiledQuery));
 
             if (aQuerySet->mCompiledQuery) {
-                nsTemplateRule* rule = aQuerySet->NewRule(aTemplate, rulenode, aQuerySet);
+                nsTemplateRule* rule = new nsTemplateRule(aTemplate, rulenode, aQuerySet);
                 if (! rule)
                     return NS_ERROR_OUT_OF_MEMORY;
+
+                rv = aQuerySet->AddRule(rule);
+                if (NS_FAILED(rv)) {
+                    delete rule;
+                    return rv;
+                }
 
                 rule->SetVars(mRefVariable, memberVariable);
 
@@ -2045,7 +2062,7 @@ nsXULTemplateBuilder::CompileExtendedQuery(nsIContent* aRuleElement,
     // a <conditions> child, an <action> child, and a <bindings> child.
     nsresult rv;
 
-    nsTemplateRule* rule = aQuerySet->NewRule(aRuleElement, aActionElement, aQuerySet);
+    nsTemplateRule* rule = new nsTemplateRule(aRuleElement, aActionElement, aQuerySet);
     if (! rule)
          return NS_ERROR_OUT_OF_MEMORY;
 
@@ -2062,7 +2079,13 @@ nsXULTemplateBuilder::CompileExtendedQuery(nsIContent* aRuleElement,
     rv = CompileConditions(rule, conditions);
     // If the rule compilation failed, then we have to bail.
     if (NS_FAILED(rv)) {
-        aQuerySet->RemoveRule(rule);
+        delete rule;
+        return rv;
+    }
+
+    rv = aQuerySet->AddRule(rule);
+    if (NS_FAILED(rv)) {
+        delete rule;
         return rv;
     }
 
@@ -2196,9 +2219,15 @@ nsXULTemplateBuilder::CompileSimpleQuery(nsIContent* aRuleElement,
         return NS_OK;
     }
 
-    nsTemplateRule* rule = aQuerySet->NewRule(aRuleElement, aRuleElement, aQuerySet);
+    nsTemplateRule* rule = new nsTemplateRule(aRuleElement, aRuleElement, aQuerySet);
     if (! rule)
         return NS_ERROR_OUT_OF_MEMORY;
+
+    rv = aQuerySet->AddRule(rule);
+    if (NS_FAILED(rv)) {
+        delete rule;
+        return rv;
+    }
 
     rule->SetVars(mRefVariable, memberVariable);
 
@@ -2456,15 +2485,15 @@ nsXULTemplateBuilder::AddSimpleRuleBindings(nsTemplateRule* aRule,
     // Crawl the content tree of a "simple" rule, adding a variable
     // assignment for any attribute whose value is "rdf:".
 
-    nsAutoTArray<nsIContent*, 8> elements;
+    nsAutoVoidArray elements;
 
-    if (elements.AppendElement(aElement) == nsnull)
+    if (!elements.AppendElement(aElement))
         return NS_ERROR_OUT_OF_MEMORY;
 
-    while (elements.Length()) {
+    while (elements.Count()) {
         // Pop the next element off the stack
-        PRUint32 i = elements.Length() - 1;
-        nsIContent* element = elements[i];
+        PRUint32 i = (PRUint32)(elements.Count() - 1);
+        nsIContent* element = static_cast<nsIContent*>(elements[i]);
         elements.RemoveElementAt(i);
 
         // Iterate through its attributes, looking for substitutions
@@ -2489,7 +2518,7 @@ nsXULTemplateBuilder::AddSimpleRuleBindings(nsTemplateRule* aRule,
         count = element->GetChildCount();
 
         while (count-- > 0) {
-            if (elements.AppendElement(element->GetChildAt(count)) == nsnull)
+            if (!elements.AppendElement(element->GetChildAt(count)))
                 return NS_ERROR_OUT_OF_MEMORY;
         }
     }

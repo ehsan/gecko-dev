@@ -93,13 +93,13 @@ nsCaret::nsCaret()
 , mDrawn(PR_FALSE)
 , mReadOnly(PR_FALSE)
 , mShowDuringSelection(PR_FALSE)
-, mIgnoreUserModify(PR_TRUE)
-#ifdef IBMBIDI
-, mKeyboardRTL(PR_FALSE)
-, mLastBidiLevel(0)
-#endif
 , mLastContentOffset(0)
 , mLastHint(nsFrameSelection::HINTLEFT)
+, mIgnoreUserModify(PR_TRUE)
+#ifdef IBMBIDI
+, mLastBidiLevel(0)
+, mKeyboardRTL(PR_FALSE)
+#endif
 {
 }
 
@@ -163,9 +163,6 @@ nsresult nsCaret::Init(nsIPresShell *inPresShell)
   {
     StartBlinking();
   }
-#ifdef IBMBIDI
-  mBidiUI = nsContentUtils::GetBoolPref("bidi.browser.ui");
-#endif
 
   return NS_OK;
 }
@@ -177,7 +174,7 @@ DrawCJKCaret(nsIFrame* aFrame, PRInt32 aOffset)
   const nsTextFragment* frag = content->GetText();
   if (!frag)
     return PR_FALSE;
-  if (aOffset < 0 || PRUint32(aOffset) >= frag->GetLength())
+  if (aOffset < 0 || aOffset >= frag->GetLength())
     return PR_FALSE;
   PRUnichar ch = frag->CharAt(aOffset);
   return 0x2e80 <= ch && ch <= 0xd7ff;
@@ -760,7 +757,8 @@ nsCaret::GetCaretFrameForNodeOffset(nsIContent*             aContentNode,
   // NS_STYLE_DIRECTION_LTR : LTR or Default
   // NS_STYLE_DIRECTION_RTL
   // NS_STYLE_DIRECTION_INHERIT
-  if (mBidiUI)
+  nsPresContext *presContext = presShell->GetPresContext();
+  if (presContext && presContext->BidiEnabled())
   {
     // If there has been a reflow, take the caret Bidi level to be the level of the current frame
     if (aBidiLevel & BIDI_LEVEL_UNDEFINED)
@@ -1015,7 +1013,7 @@ PRBool nsCaret::IsMenuPopupHidingCaret()
 #ifdef MOZ_XUL
   // Check if there are open popups.
   nsXULPopupManager *popMgr = nsXULPopupManager::GetInstance();
-  nsTArray<nsIFrame*> popups = popMgr->GetVisiblePopups();
+  nsTArray<nsIFrame*> popups = popMgr->GetOpenPopups();
 
   if (popups.Length() == 0)
     return PR_FALSE; // No popups, so caret can't be hidden by them.
@@ -1139,8 +1137,9 @@ nsresult nsCaret::UpdateCaretRects(nsIFrame* aFrame, PRInt32 aFrameOffset)
 
   nsPresContext *presContext = presShell->GetPresContext();
 
-  // If we got a zero-height frame we should figure out a height. We have to do
-  // this after we've got an RC.
+  // if we got a zero-height frame, it's probably a BR frame at the end of a non-empty line
+  // (see BRFrame::Reflow). In that case, figure out a height. We have to do this
+  // after we've got an RC.
   if (frameRect.height == 0)
   {
     nsCOMPtr<nsIFontMetrics> fm;
@@ -1152,12 +1151,8 @@ nsresult nsCaret::UpdateCaretRects(nsIFrame* aFrame, PRInt32 aFrameOffset)
       fm->GetMaxAscent(ascent);
       fm->GetMaxDescent(descent);
       frameRect.height = ascent + descent;
-
-      // If it's a BR frame then it's probably at the end of a non-empty line
-      // (see BRFrame::Reflow). BR frames sit on the baseline of the text, so we
-      // need to subtract the ascent to account for the frame height.
-      if (aFrame->GetType() == nsGkAtoms::brFrame)
-          frameRect.y -= ascent;
+      frameRect.y -= ascent; // BR frames sit on the baseline of the text, so we need to subtract
+      // the ascent to account for the frame height.
     }
   }
 
@@ -1187,7 +1182,8 @@ nsresult nsCaret::UpdateCaretRects(nsIFrame* aFrame, PRInt32 aFrameOffset)
   if (scrollFrame)
   {
     // First, use the scrollFrame to get at the scrollable view that we're in.
-    nsIScrollableFrame *scrollable = do_QueryFrame(scrollFrame);
+    nsIScrollableFrame *scrollable;
+    CallQueryInterface(scrollFrame, &scrollable);
     nsIScrollableView *scrollView = scrollable->GetScrollableView();
     nsIView *view;
     scrollView->GetScrolledView(view);
@@ -1222,6 +1218,7 @@ nsresult nsCaret::UpdateHookRect(nsPresContext* aPresContext,
 
 #ifdef IBMBIDI
   // Simon -- make a hook to draw to the left or right of the caret to show keyboard language direction
+  PRBool bidiEnabled;
   PRBool isCaretRTL=PR_FALSE;
   nsIBidiKeyboard* bidiKeyboard = nsContentUtils::GetBidiKeyboard();
   if (!bidiKeyboard || NS_FAILED(bidiKeyboard->IsLangRTL(&isCaretRTL)))
@@ -1229,7 +1226,14 @@ nsresult nsCaret::UpdateHookRect(nsPresContext* aPresContext,
     // keyboard direction, or the user has no right-to-left keyboard
     // installed, so we  never draw the hook.
     return NS_OK;
-  if (mBidiUI)
+  if (isCaretRTL)
+  {
+    bidiEnabled = PR_TRUE;
+    aPresContext->SetBidiEnabled();
+  }
+  else
+    bidiEnabled = aPresContext->BidiEnabled();
+  if (bidiEnabled)
   {
     if (isCaretRTL != mKeyboardRTL)
     {

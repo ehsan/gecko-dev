@@ -50,6 +50,8 @@ IS_COMPONENT	= 1
 MODULE_NAME	= nsFindComponent
 LIBXUL_LIBRARY	= 1
 
+PACKAGE_FILE = mozfind.pkg
+
 REQUIRES	= xpcom \
 		  string \
 		  $(NULL)

@@ -62,7 +62,7 @@
 #include "nsDOMCID.h"
 #include "nsNodeInfoManager.h"
 #include "nsContentUtils.h"
-#include "nsCCUncollectableMarker.h"
+
 #include "nsDOMJSUtils.h" // for GetScriptContextFromJSContext
 
 static NS_DEFINE_CID(kDOMScriptObjectFactoryCID,
@@ -115,7 +115,7 @@ nsXULPDGlobalObject* nsXULPrototypeDocument::gSystemGlobal;
 PRUint32 nsXULPrototypeDocument::gRefCnt;
 
 
-void
+void PR_CALLBACK
 nsXULPDGlobalObject_finalize(JSContext *cx, JSObject *obj)
 {
     nsISupports *nativeThis = (nsISupports*)JS_GetPrivate(cx, obj);
@@ -131,7 +131,7 @@ nsXULPDGlobalObject_finalize(JSContext *cx, JSObject *obj)
 }
 
 
-JSBool
+JSBool PR_CALLBACK
 nsXULPDGlobalObject_resolve(JSContext *cx, JSObject *obj, jsval id)
 {
     JSBool did_resolve = JS_FALSE;
@@ -177,6 +177,12 @@ nsXULPrototypeDocument::~nsXULPrototypeDocument()
     if (mGlobalObject) {
         // cleaup cycles etc.
         mGlobalObject->ClearGlobalObjectOwner();
+    }
+
+    PRUint32 count = mProcessingInstructions.Length();
+    for (PRUint32 i = 0; i < count; i++)
+    {
+        mProcessingInstructions[i]->Release();
     }
 
     if (mRoot)
@@ -230,8 +236,7 @@ NS_NewXULPrototypeDocument(nsXULPrototypeDocument** aResult)
 
 // Helper method that shares a system global among all prototype documents
 // that have the system principal as their security principal.   Called by
-// nsXULPrototypeDocument::Read and
-// nsXULPrototypeDocument::GetScriptGlobalObject.
+// nsXULPrototypeDocument::Read and nsXULPDGlobalObject::GetGlobalObject.
 // This method greatly reduces the number of nsXULPDGlobalObjects and their
 // nsIScriptContexts in apps that load many XUL documents via chrome: URLs.
 
@@ -302,23 +307,13 @@ nsXULPrototypeDocument::Read(nsIObjectInputStream* aStream)
     nsCOMArray<nsINodeInfo> nodeInfos;
 
     rv |= aStream->Read32(&count);
-    nsAutoString namespaceURI, prefixStr, localName;
-    PRBool prefixIsNull;
-    nsCOMPtr<nsIAtom> prefix;
+    nsAutoString namespaceURI, qualifiedName;
     for (i = 0; i < count; ++i) {
         rv |= aStream->ReadString(namespaceURI);
-        rv |= aStream->ReadBoolean(&prefixIsNull);
-        if (prefixIsNull) {
-            prefix = nsnull;
-        } else {
-            rv |= aStream->ReadString(prefixStr);
-            prefix = do_GetAtom(prefixStr);
-        }
-        rv |= aStream->ReadString(localName);
+        rv |= aStream->ReadString(qualifiedName);
 
         nsCOMPtr<nsINodeInfo> nodeInfo;
-        rv |= mNodeInfoManager->GetNodeInfo(localName, prefix, namespaceURI,
-                                            getter_AddRefs(nodeInfo));
+        rv |= mNodeInfoManager->GetNodeInfo(qualifiedName, namespaceURI, getter_AddRefs(nodeInfo));
         if (!nodeInfos.AppendObject(nodeInfo))
             rv |= NS_ERROR_OUT_OF_MEMORY;
     }
@@ -329,7 +324,7 @@ nsXULPrototypeDocument::Read(nsIObjectInputStream* aStream)
         rv |= aStream->Read32(&type);
 
         if ((nsXULPrototypeNode::Type)type == nsXULPrototypeNode::eType_PI) {
-            nsRefPtr<nsXULPrototypePI> pi = new nsXULPrototypePI();
+            nsXULPrototypePI* pi = new nsXULPrototypePI();
             if (! pi) {
                rv |= NS_ERROR_OUT_OF_MEMORY;
                break;
@@ -384,7 +379,7 @@ GetNodeInfos(nsXULPrototypeElement* aPrototype,
     }
 
     // Search children
-    for (i = 0; i < aPrototype->mChildren.Length(); ++i) {
+    for (i = 0; i < aPrototype->mNumChildren; ++i) {
         nsXULPrototypeNode* child = aPrototype->mChildren[i];
         if (child->mType == nsXULPrototypeNode::eType_Element) {
             rv = GetNodeInfos(static_cast<nsXULPrototypeElement*>(child),
@@ -433,17 +428,9 @@ nsXULPrototypeDocument::Write(nsIObjectOutputStream* aStream)
         rv |= nodeInfo->GetNamespaceURI(namespaceURI);
         rv |= aStream->WriteWStringZ(namespaceURI.get());
 
-        nsAutoString prefix;
-        nodeInfo->GetPrefix(prefix);
-        PRBool nullPrefix = DOMStringIsNull(prefix);
-        rv |= aStream->WriteBoolean(nullPrefix);
-        if (!nullPrefix) {
-            rv |= aStream->WriteWStringZ(prefix.get());
-        }
-
-        nsAutoString localName;
-        nodeInfo->GetName(localName);
-        rv |= aStream->WriteWStringZ(localName.get());
+        nsAutoString qualifiedName;
+        nodeInfo->GetQualifiedName(qualifiedName);
+        rv |= aStream->WriteWStringZ(qualifiedName.get());
     }
 
     // Now serialize the document contents
@@ -508,7 +495,7 @@ nsXULPrototypeDocument::AddProcessingInstruction(nsXULPrototypePI* aPI)
     return NS_OK;
 }
 
-const nsTArray<nsRefPtr<nsXULPrototypePI> >&
+const nsTArray<nsXULPrototypePI*>&
 nsXULPrototypeDocument::GetProcessingInstructions() const
 {
     return mProcessingInstructions;
@@ -693,7 +680,6 @@ nsXULPDGlobalObject::SetScriptContext(PRUint32 lang_id, nsIScriptContext *aScrip
   void *script_glob = nsnull;
 
   if (aScriptContext) {
-    aScriptContext->SetGCOnDestruction(PR_FALSE);
     aScriptContext->DidInitializeContext();
     script_glob = aScriptContext->GetNativeGlobal();
     NS_ASSERTION(script_glob, "GetNativeGlobal returned NULL!");

@@ -92,14 +92,14 @@ public:
   NS_FORWARD_NSIDOMSVGELEMENT(nsSVGPathElementBase::)
 
   // nsIContent interface
-  NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* name) const;
+  NS_IMETHODIMP_(PRBool) IsAttributeMapped(const nsIAtom* name) const;
 
   // nsISVGValueObserver
   NS_IMETHOD DidModifySVGObservable (nsISVGValue* observable,
                                      nsISVGValue::modificationType aModType);
 
   // nsSVGPathGeometryElement methods:
-  virtual PRBool AttributeDefinesGeometry(const nsIAtom *aName);
+  virtual PRBool IsDependentAttribute(nsIAtom *aName);
   virtual PRBool IsMarkable();
   virtual void GetMarkPoints(nsTArray<nsSVGMark> *aMarks);
   virtual void ConstructPath(gfxContext *aCtx);

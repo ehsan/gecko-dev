@@ -39,7 +39,7 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-/* $Id: ssl3con.c,v 1.116 2009/03/04 21:57:18 nelson%bolyard.com Exp $ */
+/* $Id: ssl3con.c,v 1.112 2008/03/18 01:32:18 julien.pierre.boogz%sun.com Exp $ */
 
 #include "cert.h"
 #include "ssl.h"
@@ -59,6 +59,7 @@
 
 #include "pk11func.h"
 #include "secmod.h"
+#include "ec.h"
 #include "blapi.h"
 
 #include <stdio.h>
@@ -134,7 +135,6 @@ static ssl3CipherSuiteCfg cipherSuites[ssl_V3_SUITES_IMPLEMENTED] = {
  { TLS_ECDH_ECDSA_WITH_RC4_128_SHA,        SSL_NOT_ALLOWED, PR_FALSE,PR_FALSE},
  { TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA,    SSL_NOT_ALLOWED, PR_FALSE,PR_FALSE},
 #endif /* NSS_ENABLE_ECC */
- { TLS_RSA_WITH_SEED_CBC_SHA,              SSL_NOT_ALLOWED, PR_FALSE,PR_FALSE}, 
  { TLS_RSA_WITH_CAMELLIA_128_CBC_SHA,  	   SSL_NOT_ALLOWED, PR_FALSE,PR_FALSE},
  { SSL_RSA_WITH_RC4_128_MD5,               SSL_NOT_ALLOWED, PR_TRUE, PR_FALSE},
  { SSL_RSA_WITH_RC4_128_SHA,               SSL_NOT_ALLOWED, PR_FALSE,PR_FALSE},
@@ -226,7 +226,6 @@ static const ssl3BulkCipherDef bulk_cipher_defs[] = {
     {cipher_aes_256,   calg_aes,      32, 32, type_block,  16,16, kg_strong},
     {cipher_camellia_128, calg_camellia,16, 16, type_block,  16,16, kg_strong},
     {cipher_camellia_256, calg_camellia,32, 32, type_block,  16,16, kg_strong},
-    {cipher_seed,      calg_seed,     16, 16, type_block,  16,16, kg_strong},
     {cipher_missing,   calg_null,      0,  0, type_stream,  0, 0, kg_null},
 };
 
@@ -324,8 +323,6 @@ static const ssl3CipherSuiteDef cipher_suite_defs[] =
     {TLS_DH_ANON_WITH_AES_256_CBC_SHA, 	cipher_aes_256, mac_sha, kea_dh_anon},
 #endif
 
-    {TLS_RSA_WITH_SEED_CBC_SHA,	    cipher_seed,   mac_sha, kea_rsa},
-
     {TLS_RSA_WITH_CAMELLIA_128_CBC_SHA, cipher_camellia_128, mac_sha, kea_rsa},
     {TLS_DHE_DSS_WITH_CAMELLIA_128_CBC_SHA,
      cipher_camellia_128, mac_sha, kea_dhe_dss},
@@ -405,7 +402,6 @@ static const SSLCipher2Mech alg2Mech[] = {
     { calg_fortezza , CKM_SKIPJACK_CBC64                },
     { calg_aes      , CKM_AES_CBC			},
     { calg_camellia , CKM_CAMELLIA_CBC			},
-    { calg_seed     , CKM_SEED_CBC			},
 /*  { calg_init     , (CK_MECHANISM_TYPE)0x7fffffffL    }  */
 };
 
@@ -440,7 +436,6 @@ const char * const ssl3_cipherName[] = {
     "AES-256",
     "Camellia-128",
     "Camellia-256",
-    "SEED-CBC",
     "missing"
 };
 
@@ -905,8 +900,7 @@ ssl3_VerifySignedHashes(SSL3Hashes *hash, CERTCertificate *cert,
     case dsaKey:
 	hashItem.data = hash->sha;
 	hashItem.len = sizeof(hash->sha);
-	/* Allow DER encoded DSA signatures in SSL 3.0 */
-	if (isTLS || buf->len != DSA_SIGNATURE_LEN) {
+	if (isTLS) {
 	    signature = DSAU_DecodeDerSig(buf);
 	    if (!signature) {
 	    	PORT_SetError(SSL_ERROR_BAD_HANDSHAKE_HASH_VALUE);
@@ -1322,16 +1316,6 @@ const ssl3BulkCipherDef *cipher_def;
 	pwSpec->destroy = (SSLDestroy) Camellia_DestroyContext;
 	break;
 
-    case ssl_calg_seed:
-      	initFn = (BLapiInitContextFunc)SEED_InitContext;
-	mode = NSS_SEED_CBC;
-	optArg1 = server_encrypts;
-	optArg2 = SEED_BLOCK_SIZE;
-	pwSpec->encode  = (SSLCipher) SEED_Encrypt;
-	pwSpec->decode  = (SSLCipher) SEED_Decrypt;
-	pwSpec->destroy = (SSLDestroy) SEED_DestroyContext;
-	break;
-
     case ssl_calg_idea:
     case ssl_calg_fortezza :
     default:
@@ -1350,16 +1334,12 @@ const ssl3BulkCipherDef *cipher_def;
 	goto bail_out;
     }
 
-    switch (calg) {
-    case ssl_calg_des:
-    case ssl_calg_3des:
-    case ssl_calg_aes:
-    case ssl_calg_camellia:
-    case ssl_calg_seed:
+    if (calg == ssl_calg_des || calg == ssl_calg_3des || calg == ssl_calg_aes
+	|| calg == ssl_calg_camellia) {
 	/* For block ciphers, if the server is encrypting, then the client
-	* is decrypting, and vice versa.
-	*/
-        optArg1 = !optArg1;
+	 * is decrypting, and vice versa.
+	 */
+	optArg1 = !optArg1;
     }
 
     rv = (*initFn)(clientContext,
@@ -1949,7 +1929,7 @@ spec_locked_loser:
 }
 
 /* Process the plain text before sending it.
- * Returns the number of bytes of plaintext that were successfully sent
+ * Returns the number of bytes of plaintext that were succesfully sent
  * 	plus the number of bytes of plaintext that were copied into the
  *	output (write) buffer.
  * Returns SECFailure on a hard IO error, memory error, or crypto error.
@@ -3825,7 +3805,6 @@ static const CK_MECHANISM_TYPE wrapMechanismList[SSL_NUM_WRAP_MECHS] = {
     CKM_SKIPJACK_CBC64,
     CKM_AES_ECB,
     CKM_CAMELLIA_ECB,
-    CKM_SEED_ECB,
     UNKNOWN_WRAP_MECHANISM
 };
 

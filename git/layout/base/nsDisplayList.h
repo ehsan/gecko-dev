@@ -395,8 +395,7 @@ public:
     TYPE_SVG_EFFECTS,
 #endif
     TYPE_WRAPLIST,
-    TYPE_TRANSFORM,
-    TYPE_BORDER
+    TYPE_TRANSFORM
   };
 
   struct HitTestState {
@@ -1002,50 +1001,10 @@ public:
   }
 #endif
 
-  virtual Type GetType() { return TYPE_BORDER; }
   virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
      const nsRect& aDirtyRect);
   virtual PRBool OptimizeVisibility(nsDisplayListBuilder* aBuilder, nsRegion* aVisibleRegion);
   NS_DISPLAY_DECL_NAME("Border")
-};
-
-/**
- * A simple display item that just renders a solid color across the
- * specified bounds. Used in cases where we can't draw the frame tree but
- * we want to draw something to avoid an ugly flash of white when
- * navigating between pages. Also used as a bottom item to ensure that
- * something is painted everywhere. The bounds can differ from the frame's
- * bounds -- this is needed when a frame/iframe is loading and there is not
- * yet a frame tree to go in the frame/iframe so we use the subdoc frame
- * of the parent document as a standin.
- */
-class nsDisplaySolidColor : public nsDisplayItem {
-public:
-  nsDisplaySolidColor(nsIFrame* aFrame, const nsRect& aBounds, nscolor aColor)
-    : nsDisplayItem(aFrame), mBounds(aBounds), mColor(aColor) {
-    MOZ_COUNT_CTOR(nsDisplaySolidColor);
-  }
-#ifdef NS_BUILD_REFCNT_LOGGING
-  virtual ~nsDisplaySolidColor() {
-    MOZ_COUNT_DTOR(nsDisplaySolidColor);
-  }
-#endif
-
-  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder) { return mBounds; }
-
-  virtual PRBool IsOpaque(nsDisplayListBuilder* aBuilder) {
-    return (NS_GET_A(mColor) == 255);
-  }
-
-  virtual PRBool IsUniform(nsDisplayListBuilder* aBuilder) { return PR_TRUE; }
-
-  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
-     const nsRect& aDirtyRect);
-
-  NS_DISPLAY_DECL_NAME("SolidColor")
-private:
-  nsRect  mBounds;
-  nscolor mColor;
 };
 
 /**
@@ -1078,43 +1037,23 @@ private:
 };
 
 /**
- * The standard display item to paint the outer CSS box-shadows of a frame.
+ * The standard display item to paint the CSS box-shadow of a frame.
  */
-class nsDisplayBoxShadowOuter : public nsDisplayItem {
+class nsDisplayBoxShadow : public nsDisplayItem {
 public:
-  nsDisplayBoxShadowOuter(nsIFrame* aFrame) : nsDisplayItem(aFrame) {
-    MOZ_COUNT_CTOR(nsDisplayBoxShadowOuter);
+  nsDisplayBoxShadow(nsIFrame* aFrame) : nsDisplayItem(aFrame) {
+    MOZ_COUNT_CTOR(nsDisplayBoxShadow);
   }
 #ifdef NS_BUILD_REFCNT_LOGGING
-  virtual ~nsDisplayBoxShadowOuter() {
-    MOZ_COUNT_DTOR(nsDisplayBoxShadowOuter);
+  virtual ~nsDisplayBoxShadow() {
+    MOZ_COUNT_DTOR(nsDisplayBoxShadow);
   }
 #endif
 
   virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
      const nsRect& aDirtyRect);
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder);
-  virtual PRBool OptimizeVisibility(nsDisplayListBuilder* aBuilder, nsRegion* aVisibleRegion);
-  NS_DISPLAY_DECL_NAME("BoxShadowOuter")
-};
-
-/**
- * The standard display item to paint the inner CSS box-shadows of a frame.
- */
-class nsDisplayBoxShadowInner : public nsDisplayItem {
-public:
-  nsDisplayBoxShadowInner(nsIFrame* aFrame) : nsDisplayItem(aFrame) {
-    MOZ_COUNT_CTOR(nsDisplayBoxShadowInner);
-  }
-#ifdef NS_BUILD_REFCNT_LOGGING
-  virtual ~nsDisplayBoxShadowInner() {
-    MOZ_COUNT_DTOR(nsDisplayBoxShadowInner);
-  }
-#endif
-
-  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
-     const nsRect& aDirtyRect);
-  NS_DISPLAY_DECL_NAME("BoxShadowInner")
+  NS_DISPLAY_DECL_NAME("BoxShadow")
 };
 
 /**
@@ -1386,10 +1325,6 @@ public:
   {
     return TYPE_TRANSFORM;
   }
-
-#ifdef NS_DEBUG
-  nsDisplayWrapList* GetStoredList() { return &mStoredList; }
-#endif
 
   virtual nsIFrame* HitTest(nsDisplayListBuilder *aBuilder, nsPoint aPt,
                             HitTestState *aState);

@@ -88,14 +88,13 @@ public:
   // nsICanvasElement
   NS_IMETHOD GetPrimaryCanvasFrame(nsIFrame **aFrame);
   NS_IMETHOD GetSize(PRUint32 *width, PRUint32 *height);
-  NS_IMETHOD RenderContexts(gfxContext *ctx, gfxPattern::GraphicsFilter aFilter);
+  NS_IMETHOD RenderContexts(gfxContext *ctx);
   virtual PRBool IsWriteOnly();
   virtual void SetWriteOnly();
   NS_IMETHOD InvalidateFrame ();
-  NS_IMETHOD InvalidateFrameSubrect (const gfxRect& damageRect);
+  NS_IMETHOD InvalidateFrameSubrect (const nsRect& damageRect);
   virtual PRInt32 CountContexts();
   virtual nsICanvasRenderingContextInternal *GetContextAtIndex (PRInt32 index);
-  virtual PRBool GetIsOpaque();
 
   NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
   nsMapRuleToAttributesFunc GetAttributeMappingFunction() const;
@@ -119,6 +118,7 @@ public:
 
 protected:
   nsIntSize GetWidthHeight();
+  PRBool GetIsOpaque();
 
   nsresult UpdateContext();
   nsresult ToDataURLImpl(const nsAString& aMimeType,
@@ -159,12 +159,10 @@ nsHTMLCanvasElement::~nsHTMLCanvasElement()
 NS_IMPL_ADDREF_INHERITED(nsHTMLCanvasElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLCanvasElement, nsGenericElement)
 
-NS_INTERFACE_TABLE_HEAD(nsHTMLCanvasElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE2(nsHTMLCanvasElement,
-                                   nsIDOMHTMLCanvasElement,
-                                   nsICanvasElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLCanvasElement,
-                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_TABLE_HEAD(nsHTMLCanvasElement, nsGenericHTMLElement)
+  NS_INTERFACE_TABLE_INHERITED2(nsHTMLCanvasElement,
+                                nsIDOMHTMLCanvasElement,
+                                nsICanvasElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLCanvasElement)
 
 NS_IMPL_ELEMENT_CLONE(nsHTMLCanvasElement)
@@ -193,6 +191,12 @@ nsHTMLCanvasElement::GetWidthHeight()
     size.height = DEFAULT_CANVAS_HEIGHT;
 
   return size;
+}
+
+PRBool
+nsHTMLCanvasElement::GetIsOpaque()
+{
+  return HasAttr(kNameSpaceID_None, nsGkAtoms::moz_opaque);
 }
 
 NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsHTMLCanvasElement, Width, width, DEFAULT_CANVAS_WIDTH)
@@ -521,12 +525,12 @@ nsHTMLCanvasElement::GetSize(PRUint32 *width, PRUint32 *height)
 }
 
 NS_IMETHODIMP
-nsHTMLCanvasElement::RenderContexts(gfxContext *ctx, gfxPattern::GraphicsFilter aFilter)
+nsHTMLCanvasElement::RenderContexts(gfxContext *ctx)
 {
   if (!mCurrentContext)
     return NS_OK;
 
-  return mCurrentContext->Render(ctx, aFilter);
+  return mCurrentContext->Render(ctx);
 }
 
 PRBool
@@ -555,29 +559,11 @@ nsHTMLCanvasElement::InvalidateFrame()
 }
 
 NS_IMETHODIMP
-nsHTMLCanvasElement::InvalidateFrameSubrect(const gfxRect& damageRect)
+nsHTMLCanvasElement::InvalidateFrameSubrect(const nsRect& damageRect)
 {
   nsIFrame *frame = GetPrimaryFrame(Flush_Frames);
   if (frame) {
-    nsRect contentArea(frame->GetContentRect());
-    nsIntSize size = GetWidthHeight();
-
-    // damageRect and size are in CSS pixels; contentArea is in appunits
-    // We want a rect in appunits; so avoid doing pixels-to-appunits and
-    // vice versa conversion here.
-    gfxRect realRect(damageRect);
-    realRect.Scale(contentArea.width / gfxFloat(size.width),
-                   contentArea.height / gfxFloat(size.height));
-    realRect.RoundOut();
-
-    // then make it a nsRect
-    nsRect invalRect(realRect.X(), realRect.Y(),
-                     realRect.Width(), realRect.Height());
-
-    // account for border/padding
-    invalRect.MoveBy(contentArea.TopLeft() - frame->GetPosition());
-
-    frame->Invalidate(invalRect);
+    frame->Invalidate(damageRect);
   }
 
   return NS_OK;
@@ -599,10 +585,4 @@ nsHTMLCanvasElement::GetContextAtIndex (PRInt32 index)
     return mCurrentContext.get();
 
   return NULL;
-}
-
-PRBool
-nsHTMLCanvasElement::GetIsOpaque()
-{
-  return HasAttr(kNameSpaceID_None, nsGkAtoms::moz_opaque);
 }

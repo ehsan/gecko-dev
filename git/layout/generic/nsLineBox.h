@@ -46,6 +46,7 @@
 #include "nsPlaceholderFrame.h"
 #include "nsILineIterator.h"
 
+class nsSpaceManager;
 class nsLineBox;
 class nsFloatCache;
 class nsFloatCacheList;
@@ -671,22 +672,22 @@ class nsLineList_iterator {
     // to keep AIX happy.
     PRBool operator==(const iterator_self_type aOther) const
     {
-      NS_ABORT_IF_FALSE(mListLink == aOther.mListLink, "comparing iterators over different lists");
+      NS_ASSERTION(mListLink == aOther.mListLink, "comparing iterators over different lists");
       return mCurrent == aOther.mCurrent;
     }
     PRBool operator!=(const iterator_self_type aOther) const
     {
-      NS_ABORT_IF_FALSE(mListLink == aOther.mListLink, "comparing iterators over different lists");
+      NS_ASSERTION(mListLink == aOther.mListLink, "comparing iterators over different lists");
       return mCurrent != aOther.mCurrent;
     }
     PRBool operator==(const iterator_self_type aOther)
     {
-      NS_ABORT_IF_FALSE(mListLink == aOther.mListLink, "comparing iterators over different lists");
+      NS_ASSERTION(mListLink == aOther.mListLink, "comparing iterators over different lists");
       return mCurrent == aOther.mCurrent;
     }
     PRBool operator!=(const iterator_self_type aOther)
     {
-      NS_ABORT_IF_FALSE(mListLink == aOther.mListLink, "comparing iterators over different lists");
+      NS_ASSERTION(mListLink == aOther.mListLink, "comparing iterators over different lists");
       return mCurrent != aOther.mCurrent;
     }
 
@@ -1507,23 +1508,24 @@ nsLineList_const_reverse_iterator::operator=(const nsLineList_const_reverse_iter
 
 //----------------------------------------------------------------------
 
-class NS_FINAL_CLASS nsLineIterator : public nsILineIterator
-{
+class nsLineIterator : public nsILineIteratorNavigator {
 public:
   nsLineIterator();
-  ~nsLineIterator();
+  virtual ~nsLineIterator();
 
-  virtual void DisposeLineIterator();
+  NS_DECL_ISUPPORTS
 
-  virtual PRInt32 GetNumLines();
-  virtual PRBool GetDirection();
+  NS_IMETHOD GetNumLines(PRInt32* aResult);
+  NS_IMETHOD GetDirection(PRBool* aIsRightToLeft);
   NS_IMETHOD GetLine(PRInt32 aLineNumber,
                      nsIFrame** aFirstFrameOnLine,
                      PRInt32* aNumFramesOnLine,
                      nsRect& aLineBounds,
                      PRUint32* aLineFlags);
-  virtual PRInt32 FindLineContaining(nsIFrame* aFrame);
-  virtual PRInt32 FindLineAt(nscoord aY);
+  NS_IMETHOD FindLineContaining(nsIFrame* aFrame,
+                                PRInt32* aLineNumberResult);
+  NS_IMETHOD FindLineAt(nscoord aY,
+                        PRInt32* aLineNumberResult);
   NS_IMETHOD FindFrameAt(PRInt32 aLineNumber,
                          nscoord aX,
                          nsIFrame** aFrameFound,
@@ -1539,7 +1541,15 @@ public:
 #endif
   nsresult Init(nsLineList& aLines, PRBool aRightToLeft);
 
-private:
+protected:
+  PRInt32 NumLines() const {
+    return mNumLines;
+  }
+
+  nsLineBox* CurrentLine() {
+    return mLines[mIndex];
+  }
+
   nsLineBox* PrevLine() {
     if (0 == mIndex) {
       return nsnull;

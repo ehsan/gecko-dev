@@ -174,7 +174,6 @@ nsHttpHandler::nsHttpHandler()
     , mProduct("Gecko")
     , mUserAgentIsDirty(PR_TRUE)
     , mUseCache(PR_TRUE)
-    , mPromptTempRedirect(PR_TRUE)
     , mSendSecureXSiteReferrer(PR_TRUE)
     , mEnablePersistentHttpsCaching(PR_FALSE)
 {
@@ -217,7 +216,7 @@ nsHttpHandler::Init()
     if (NS_FAILED(rv))
         return rv;
 
-    mIOService = do_GetService(NS_IOSERVICE_CONTRACTID, &rv);
+    mIOService = do_GetService(kIOServiceCID, &rv);
     if (NS_FAILED(rv)) {
         NS_WARNING("unable to continue without io service");
         return rv;
@@ -285,7 +284,6 @@ nsHttpHandler::Init()
         mObserverService->AddObserver(this, "profile-change-net-teardown", PR_TRUE);
         mObserverService->AddObserver(this, "profile-change-net-restore", PR_TRUE);
         mObserverService->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, PR_TRUE);
-        mObserverService->AddObserver(this, "net:clear-active-logins", PR_TRUE);
     }
  
     StartPruneDeadConnectionsTimer();
@@ -463,7 +461,7 @@ nsHttpHandler::GetStreamConverterService(nsIStreamConverterService **result)
 {
     if (!mStreamConvSvc) {
         nsresult rv;
-        mStreamConvSvc = do_GetService(NS_STREAMCONVERTERSERVICE_CONTRACTID, &rv);
+        mStreamConvSvc = do_GetService(kStreamConverterServiceCID, &rv);
         if (NS_FAILED(rv)) return rv;
     }
     *result = mStreamConvSvc;
@@ -475,7 +473,7 @@ nsICookieService *
 nsHttpHandler::GetCookieService()
 {
     if (!mCookieService)
-        mCookieService = do_GetService(NS_COOKIESERVICE_CONTRACTID);
+        mCookieService = do_GetService(kCookieServiceCID);
     return mCookieService;
 }
 
@@ -699,13 +697,13 @@ nsHttpHandler::InitUserAgentComponents()
 #elif defined (XP_MACOSX)
 #if defined(__ppc__)
     mOscpu.AssignLiteral("PPC Mac OS X");
-#elif defined(__i386__) || defined(__x86_64__)
+#elif defined(__i386__)
     mOscpu.AssignLiteral("Intel Mac OS X");
 #endif
-    SInt32 majorVersion, minorVersion;
+    long majorVersion, minorVersion;
     if ((::Gestalt(gestaltSystemVersionMajor, &majorVersion) == noErr) &&
         (::Gestalt(gestaltSystemVersionMinor, &minorVersion) == noErr)) {
-        mOscpu += nsPrintfCString(" %d.%d", majorVersion, minorVersion);
+        mOscpu += nsPrintfCString(" %ld.%ld", majorVersion, minorVersion);
     }
 #elif defined (XP_UNIX) || defined (XP_BEOS)
     struct utsname name;
@@ -1078,7 +1076,7 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
             else {
                 // verify that this socket type is actually valid
                 nsCOMPtr<nsISocketProviderService> sps(
-                        do_GetService(NS_SOCKETPROVIDERSERVICE_CONTRACTID));
+                        do_GetService(kSocketProviderServiceCID));
                 if (sps) {
                     nsCOMPtr<nsISocketProvider> sp;
                     rv = sps->GetSocketProvider(sval, getter_AddRefs(sp));
@@ -1088,13 +1086,6 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
                     }
                 }
             }
-        }
-    }
-
-    if (PREF_CHANGED(HTTP_PREF("prompt-temp-redirect"))) {
-        rv = prefs->GetBoolPref(HTTP_PREF("prompt-temp-redirect"), &cVar);
-        if (NS_SUCCEEDED(rv)) {
-            mPromptTempRedirect = cVar;
         }
     }
 
@@ -1518,7 +1509,7 @@ nsHttpHandler::NewProxiedChannel(nsIURI *uri,
 
         // HACK: make sure PSM gets initialized on the main thread.
         nsCOMPtr<nsISocketProviderService> spserv =
-                do_GetService(NS_SOCKETPROVIDERSERVICE_CONTRACTID);
+                do_GetService(kSocketProviderServiceCID);
         if (spserv) {
             nsCOMPtr<nsISocketProvider> provider;
             spserv->GetSocketProvider("ssl", getter_AddRefs(provider));
@@ -1735,9 +1726,6 @@ nsHttpHandler::Observe(nsISupports *subject,
 #endif
         if (mConnMgr)
             mConnMgr->PruneDeadConnections();
-    }
-    else if (strcmp(topic, "net:clear-active-logins") == 0) {
-        mAuthCache.ClearAll();
     }
 
     return NS_OK;

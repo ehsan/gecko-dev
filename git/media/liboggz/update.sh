@@ -5,7 +5,6 @@
 cp $1/config.h ./include/oggz/config.h
 echo "#undef DEBUG" >>./include/oggz/config.h
 cp $1/win32/config.h ./include/oggz/config_win32.h
-echo >>./include/oggz/config_win32.h
 echo "#undef DEBUG" >>./include/oggz/config_win32.h
 cp $1/include/oggz/oggz_write.h ./include/oggz/oggz_write.h
 cp $1/include/oggz/oggz_io.h ./include/oggz/oggz_io.h
@@ -41,13 +40,4 @@ sed s/\#include\ \"config.h\"/\#ifdef\ WIN32\\n\#include\ \"config_win32.h\"\\n\
 sed s/\#include\ \"config.h\"/\#ifdef\ WIN32\\n\#include\ \"config_win32.h\"\\n\#else\\n\#include\ \"config.h\"\\n\#endif/g $1/src/liboggz/oggz_seek.c >./src/liboggz/oggz_seek.c
 cp $1/src/liboggz/oggz_dlist.h ./src/liboggz/oggz_dlist.h
 sed s/\#include\ \"config.h\"/\#ifdef\ WIN32\\n\#include\ \"config_win32.h\"\\n\#else\\n\#include\ \"config.h\"\\n\#endif/g $1/src/liboggz/metric_internal.c >./src/liboggz/metric_internal.c
-cp $1/src/liboggz/dirac.h ./src/liboggz/dirac.h
-sed s/\#include\ \"config.h\"/\#ifdef\ WIN32\\n\#include\ \"config_win32.h\"\\n\#else\\n\#include\ \"config.h\"\\n\#endif/g $1/src/liboggz/dirac.c >./src/liboggz/dirac.c
 cp $1/AUTHORS ./AUTHORS
-patch -p3 <wince.patch
-patch -p3 <endian.patch
-patch -p3 <bounded_seek.patch
-patch -p3 <key_frame_seek.patch
-patch -p3 <offset_next.patch
-patch -p3 <bug487519.patch
-patch -p3 <bug496063.patch

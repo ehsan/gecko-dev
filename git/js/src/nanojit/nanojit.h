@@ -42,16 +42,12 @@
 #include <stddef.h>
 #include "avmplus.h"
 
-#ifdef FEATURE_NANOJIT
-
 #ifdef AVMPLUS_IA32
 #define NANOJIT_IA32
 #elif AVMPLUS_ARM
 #define NANOJIT_ARM
 #elif AVMPLUS_PPC
 #define NANOJIT_PPC
-#elif AVMPLUS_SPARC
-#define NANOJIT_SPARC
 #elif AVMPLUS_AMD64
 #define NANOJIT_AMD64
 #define NANOJIT_64BIT
@@ -59,55 +55,6 @@
 #error "unknown nanojit architecture"
 #endif
 
-/*
-	If we're using MMGC, using operator delete on a GCFinalizedObject is problematic:
-	in particular, calling it from inside a dtor is risky because the dtor for the sub-object
-	might already have been called, wrecking its vtable and ending up in the wrong version
-	of operator delete (the global version rather than the class-specific one). Calling GC::Free
-	directly is fine (since it ignores the vtable), so we macro-ize to make the distinction.
-	
-	macro-ization of operator new isn't strictly necessary, but is done to bottleneck both
-	sides of the new/delete pair to forestall future needs.
-*/
-#ifdef MMGC_API
-	
-	// separate overloads because GCObject and GCFinalizedObjects have different dtors 
-	// (GCFinalizedObject's is virtual, GCObject's is not)
-	inline void mmgc_delete(GCObject* o)
-	{
-		GC* g = GC::GetGC(o); 
-		if (g->Collecting()) 
-			g->Free(o); 
-		else 
-			delete o; 
-	}
-
-	inline void mmgc_delete(GCFinalizedObject* o)
-	{
-		GC* g = GC::GetGC(o); 
-		if (g->Collecting()) 
-			g->Free(o); 
-		else 
-			delete o; 
-	}
-
-	#define NJ_NEW(gc, cls)			new (gc) cls
-	#define NJ_DELETE(obj)			do { mmgc_delete(obj); } while (0)
-#else
-	#define NJ_NEW(gc, cls)			new (gc) cls
-	#define NJ_DELETE(obj)			do { delete obj; } while (0)
-#endif
-
-// Embed no-op macros that let Valgrind work with the JIT.
-#ifdef MOZ_VALGRIND
-#  define JS_VALGRIND
-#endif
-#ifdef JS_VALGRIND
-#  include <valgrind/valgrind.h>
-#else
-#  define VALGRIND_DISCARD_TRANSLATIONS(addr, szB)
-#endif
- 
 namespace nanojit
 {
 	/**
@@ -119,16 +66,12 @@ namespace nanojit
 	class LIns;
 	struct SideExit;
 	class RegAlloc;
-	struct Page;
 	typedef avmplus::AvmCore AvmCore;
 	typedef avmplus::OSDep OSDep;
 	typedef avmplus::GCSortedMap<const void*,Fragment*,avmplus::LIST_GCObjects> FragmentMap;
 	typedef avmplus::SortedMap<SideExit*,RegAlloc*,avmplus::LIST_GCObjects> RegAllocMap;
 	typedef avmplus::List<LIns*,avmplus::LIST_NonGCObjects>	InsList;
 	typedef avmplus::List<char*, avmplus::LIST_GCObjects> StringList;
-	typedef avmplus::List<Page*,avmplus::LIST_NonGCObjects>	PageList;
-
-    const uint32_t MAXARGS = 8;
 
 	#if defined(_MSC_VER) && _MSC_VER < 1400
 		static void NanoAssertMsgf(bool a,const char *f,...) {}
@@ -153,20 +96,6 @@ namespace nanojit
 		#define NanoAssert(a)             do { } while (0) /* no semi */
 	#endif
 
-	/*
-	 * Sun Studio C++ compiler has a bug
-	 * "sizeof expression not accepted as size of array parameter"
-	 * The bug number is 6688515. It is not public yet.
-	 * Turn off this assert for Sun Studio until this bug is fixed.
-	 */
-	#ifdef __SUNPRO_CC
-		#define NanoStaticAssert(condition)
-	#else
-		#define NanoStaticAssert(condition) \
-			extern void nano_static_assert(int arg[(condition) ? 1 : -1])
-	#endif
-
-
 	/**
 	 * -------------------------------------------
 	 * END AVM bridging definitions
@@ -179,23 +108,17 @@ namespace nanojit
 #define NJ_PROFILE 1
 #endif
 
-#if defined(_MSC_VER) && _MSC_VER < 1400
+#ifdef NJ_VERBOSE
 	#include <stdio.h>
 	#define verbose_output						if (verbose_enabled()) Assembler::output
 	#define verbose_outputf						if (verbose_enabled()) Assembler::outputf
 	#define verbose_enabled()					(_verbose)
 	#define verbose_only(x)						x
-#elif defined(NJ_VERBOSE)
-	#include <stdio.h>
-	#define verbose_output						if (verbose_enabled()) Assembler::output
-	#define verbose_outputf						if (verbose_enabled()) Assembler::outputf
-	#define verbose_enabled()					(_verbose)
-	#define verbose_only(...)					__VA_ARGS__
 #else
 	#define verbose_output
 	#define verbose_outputf
 	#define verbose_enabled()
-	#define verbose_only(...)
+	#define verbose_only(x)
 #endif /*NJ_VERBOSE*/
 
 #ifdef _DEBUG
@@ -237,30 +160,10 @@ namespace nanojit
 #define alignTo(x,s)		((((uintptr_t)(x)))&~(((uintptr_t)s)-1))
 #define alignUp(x,s)		((((uintptr_t)(x))+(((uintptr_t)s)-1))&~(((uintptr_t)s)-1))
 
-#define pageTop(x)          ( alignTo(x,NJ_PAGE_SIZE) )
-#define pageDataStart(x)    ( alignTo(x,NJ_PAGE_SIZE) + sizeof(PageHeader) )
-#define pageBottom(x)       ( alignTo(x,NJ_PAGE_SIZE) + NJ_PAGE_SIZE - 1 )
-#define samepage(x,y)       ( pageTop(x) == pageTop(y) )
-
-
-/* Debug printing stuff.  All Nanojit debug printing should be routed
-   through this function.  Don't use ad-hoc calls to printf,
-   fprintf(stderr, ...) etc. */
-
-#if defined(NJ_VERBOSE)
-
-# if defined(__GNUC__)
-# define PRINTF_CHECK(x, y) __attribute__((format(__printf__, x, y)))
-# else
-# define PRINTF_CHECK(x, y)
-# endif
-
-/* is in LIR.cpp */
-void nj_dprintf( const char* format, ... ) PRINTF_CHECK(1,2);
-
-#endif /* NJ_VERBOSE */
-
-
+#define pageTop(x)			( (int*)alignTo(x,NJ_PAGE_SIZE) )
+#define pageDataStart(x)    ( (int*)(alignTo(x,NJ_PAGE_SIZE) + sizeof(PageHeader)) )
+#define pageBottom(x)		( (int*)(alignTo(x,NJ_PAGE_SIZE)+NJ_PAGE_SIZE)-1 )
+#define samepage(x,y)		(pageTop(x) == pageTop(y))
 
 #include "Native.h"
 #include "LIR.h"
@@ -269,5 +172,4 @@ void nj_dprintf( const char* format, ... ) PRINTF_CHECK(1,2);
 #include "Assembler.h"
 #include "TraceTreeDrawer.h"
 
-#endif // FEATURE_NANOJIT
 #endif // __nanojit_h__

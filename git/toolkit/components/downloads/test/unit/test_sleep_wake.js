@@ -136,13 +136,17 @@ function run_test()
         // extra real-resume check for the server
         do_check_true(didResumeServer);
 
+        httpserv.stop();
         aDl.targetFile.remove(false);
-        httpserv.stop(do_test_finished);
+        // we're done with the test!
+        do_test_finished();
       }
       else if (aDl.state == nsIDM.DOWNLOAD_FAILED) {
         // this is only ok if we are not supposed to fail
         do_check_true(doNotError);
-        httpserv.stop(do_test_finished);
+        httpserv.stop();
+        // we're done with the test!
+        do_test_finished();
       }
     },
     onStateChange: function(a, b, aState, d, aDl) {
@@ -165,8 +169,6 @@ function run_test()
    */
   let destFile = dirSvc.get("ProfD", nsIF);
   destFile.append("sleep_wake");
-  if (destFile.exists())
-    destFile.remove(false);
   let persist = Cc["@mozilla.org/embedding/browser/nsWebBrowserPersist;1"].
                 createInstance(nsIWBP);
   persist.persistFlags = nsIWBP.PERSIST_FLAGS_REPLACE_EXISTING_FILES |

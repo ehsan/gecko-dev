@@ -22,7 +22,6 @@
  * Contributor(s):
  *  Darin Fisher <darin@meer.net>
  *  Ben Turner <mozilla@songbirdnest.com>
- *  Robert Strong <robert.bugzilla@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -52,7 +51,6 @@
 #include "nsPrintfCString.h"
 #include "prproces.h"
 #include "prlog.h"
-#include "nsVersionComparator.h"
 
 #ifdef XP_MACOSX
 #include "nsILocalFileMac.h"
@@ -110,9 +108,6 @@ static const char kUpdaterBin[] = "updater";
 static const char kUpdaterINI[] = "updater.ini";
 #ifdef XP_MACOSX
 static const char kUpdaterApp[] = "updater.app";
-#endif
-#if defined(XP_UNIX) && !defined(XP_MACOSX)
-static const char kUpdaterPNG[] = "updater.png";
 #endif
 
 static nsresult
@@ -180,7 +175,7 @@ GetXULRunnerStubPath(const char* argv0, nsILocalFile* *aResult)
 }
 #endif /* XP_MACOSX */
 
-static int
+PR_STATIC_CALLBACK(int)
 ScanDirComparator(nsIFile *a, nsIFile *b, void *unused)
 {
   // lexically compare the leaf names of these two files
@@ -227,16 +222,16 @@ GetFile(nsIFile *dir, const nsCSubstring &name, nsCOMPtr<nsILocalFile> &result)
 {
   nsresult rv;
   
-  nsCOMPtr<nsIFile> file;
-  rv = dir->Clone(getter_AddRefs(file));
+  nsCOMPtr<nsIFile> statusFile;
+  rv = dir->Clone(getter_AddRefs(statusFile));
   if (NS_FAILED(rv))
     return PR_FALSE;
 
-  rv = file->AppendNative(name);
+  rv = statusFile->AppendNative(name);
   if (NS_FAILED(rv))
     return PR_FALSE;
 
-  result = do_QueryInterface(file, &rv);
+  result = do_QueryInterface(statusFile, &rv);
   return NS_SUCCEEDED(rv);
 }
 
@@ -277,47 +272,6 @@ SetStatus(nsILocalFile *statusFile, const char *status)
   fprintf(fp, "%s\n", status);
   fclose(fp);
   return PR_TRUE;
-}
-
-static PRBool
-GetVersionFile(nsIFile *dir, nsCOMPtr<nsILocalFile> &result)
-{
-  return GetFile(dir, NS_LITERAL_CSTRING("update.version"), result);
-}
-
-// Compares the current application version with the update's application
-// version.
-static PRBool
-IsOlderVersion(nsILocalFile *versionFile, const char *&appVersion)
-{
-  nsresult rv;
-
-  FILE *fp;
-  rv = versionFile->OpenANSIFileDesc("r", &fp);
-  if (NS_FAILED(rv))
-    return PR_TRUE;
-
-  char buf[32];
-  char *result = fgets(buf, sizeof(buf), fp);
-  fclose(fp);
-  if (!result)
-    return PR_TRUE;
-
-  // Trim off any trailing newline
-  int len = strlen(result);
-  if (len > 0 && result[len - 1] == '\n')
-    result[len - 1] = '\0';
-
-  // If the update xml doesn't provide the application version the file will
-  // contain the string "null" and it is assumed that the update is not older.
-  const char kNull[] = "null";
-  if (strncmp(buf, kNull, sizeof(kNull) - 1) == 0)
-    return PR_FALSE;
-
-  if (NS_CompareVersions(appVersion, result) > 0)
-    return PR_TRUE;
-
-  return PR_FALSE;
 }
 
 static PRBool
@@ -362,13 +316,7 @@ CopyUpdaterIntoUpdateDir(nsIFile *greDir, nsIFile *appDir, nsIFile *updateDir,
     return PR_FALSE;
 #endif
   CopyFileIntoUpdateDir(appDir, kUpdaterINI, updateDir);
-#if defined(XP_UNIX) && !defined(XP_MACOSX)
-  nsCOMPtr<nsIFile> iconDir;
-  appDir->Clone(getter_AddRefs(iconDir));
-  iconDir->AppendNative(NS_LITERAL_CSTRING("icons"));
-  if (!CopyFileIntoUpdateDir(iconDir, kUpdaterPNG, updateDir))
-    return PR_FALSE;
-#endif
+
   // Finally, return the location of the updater binary.
   nsresult rv = updateDir->Clone(getter_AddRefs(updater));
   if (NS_FAILED(rv))
@@ -527,7 +475,7 @@ ApplyUpdate(nsIFile *greDir, nsIFile *updateDir, nsILocalFile *statusFile,
 #elif defined(XP_WIN)
   _wchdir(applyToDir.get());
 
-  if (!WinLaunchChild(updaterPathW.get(), appArgc + 4, argv))
+  if (!WinLaunchChild(updaterPathW.get(), appArgc + 4, argv, 0))
     return;
   _exit(0);
 #else
@@ -557,7 +505,7 @@ end:
 
 nsresult
 ProcessUpdates(nsIFile *greDir, nsIFile *appDir, nsIFile *updRootDir,
-               int argc, char **argv, const char *&appVersion)
+               int argc, char **argv)
 {
   nsresult rv;
 
@@ -585,16 +533,6 @@ ProcessUpdates(nsIFile *greDir, nsIFile *appDir, nsIFile *updRootDir,
   for (int i = 0; i < dirEntries.Count(); ++i) {
     nsCOMPtr<nsILocalFile> statusFile;
     if (GetStatusFile(dirEntries[i], statusFile) && IsPending(statusFile)) {
-      nsCOMPtr<nsILocalFile> versionFile;
-      // Remove the update if the update application version file doesn't exist
-      // or if the update's application version is less than the current
-      // application version.
-      if (!GetVersionFile(dirEntries[i], versionFile) ||
-          IsOlderVersion(versionFile, appVersion)) {
-        dirEntries[i]->Remove(PR_TRUE);
-        continue;
-      }
-
       ApplyUpdate(greDir, dirEntries[i], statusFile, appDir, argc, argv);
       break;
     }

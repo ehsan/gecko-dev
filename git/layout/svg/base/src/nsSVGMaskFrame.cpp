@@ -40,14 +40,22 @@
 #include "nsSVGMaskElement.h"
 #include "nsIDOMSVGMatrix.h"
 #include "gfxContext.h"
+#include "nsIDOMSVGRect.h"
 #include "gfxImageSurface.h"
 
 //----------------------------------------------------------------------
 // Implementation
 
 nsIFrame*
-NS_NewSVGMaskFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
+NS_NewSVGMaskFrame(nsIPresShell* aPresShell, nsIContent* aContent, nsStyleContext* aContext)
 {
+  nsCOMPtr<nsIDOMSVGMaskElement> mask = do_QueryInterface(aContent);
+
+  if (!mask) {
+    NS_ERROR("Can't create frame! Content is not an SVG mask");
+    return nsnull;
+  }
+
   return new (aPresShell) nsSVGMaskFrame(aContext);
 }
 
@@ -75,16 +83,19 @@ nsSVGMaskFrame::ComputeMaskAlpha(nsSVGRenderState *aContext,
 
     PRUint16 units =
       mask->mEnumAttributes[nsSVGMaskElement::MASKUNITS].GetAnimValue();
-    gfxRect bbox;
+    nsCOMPtr<nsIDOMSVGRect> bbox;
     if (units == nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_OBJECTBOUNDINGBOX) {
       bbox = nsSVGUtils::GetBBox(aParent);
+      if (!bbox)
+        return nsnull;
     }
 
     gfxRect maskArea = nsSVGUtils::GetRelativeRect(units,
       &mask->mLengthAttributes[nsSVGMaskElement::X], bbox, aParent);
 
     gfx->Save();
-    nsSVGUtils::SetClipRect(gfx, nsSVGUtils::ConvertSVGMatrixToThebes(aMatrix), maskArea);
+    nsSVGUtils::SetClipRect(gfx, aMatrix, maskArea.X(), maskArea.Y(),
+                            maskArea.Width(), maskArea.Height());
   }
 
   mMaskParent = aParent;
@@ -92,7 +103,7 @@ nsSVGMaskFrame::ComputeMaskAlpha(nsSVGRenderState *aContext,
 
   for (nsIFrame* kid = mFrames.FirstChild(); kid;
        kid = kid->GetNextSibling()) {
-    nsSVGUtils::PaintFrameWithEffects(aContext, nsnull, kid);
+    nsSVGUtils::PaintChildWithEffects(aContext, nsnull, kid);
   }
 
   gfxRect clipExtents = gfx->GetClipExtents();
@@ -159,37 +170,21 @@ nsSVGMaskFrame::ComputeMaskAlpha(nsSVGRenderState *aContext,
   return retval;
 }
 
-#ifdef DEBUG
-NS_IMETHODIMP
-nsSVGMaskFrame::Init(nsIContent* aContent,
-                     nsIFrame* aParent,
-                     nsIFrame* aPrevInFlow)
-{
-  nsCOMPtr<nsIDOMSVGMaskElement> mask = do_QueryInterface(aContent);
-  NS_ASSERTION(mask, "Content is not an SVG mask");
-
-  return nsSVGMaskFrameBase::Init(aContent, aParent, aPrevInFlow);
-}
-#endif /* DEBUG */
-
 nsIAtom *
 nsSVGMaskFrame::GetType() const
 {
   return nsGkAtoms::svgMaskFrame;
 }
 
-gfxMatrix
+already_AddRefed<nsIDOMSVGMatrix>
 nsSVGMaskFrame::GetCanvasTM()
 {
   NS_ASSERTION(mMaskParentMatrix, "null parent matrix");
 
   nsSVGMaskElement *mask = static_cast<nsSVGMaskElement*>(mContent);
 
-  nsCOMPtr<nsIDOMSVGMatrix> matrix =
-         nsSVGUtils::AdjustMatrixForUnits(mMaskParentMatrix,
+  return nsSVGUtils::AdjustMatrixForUnits(mMaskParentMatrix,
                                           &mask->mEnumAttributes[nsSVGMaskElement::MASKCONTENTUNITS],
                                           mMaskParent);
-  
-  return nsSVGUtils::ConvertSVGMatrixToThebes(matrix);
 }
 

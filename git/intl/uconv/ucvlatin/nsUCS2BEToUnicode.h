@@ -58,10 +58,7 @@ public:
 
 protected:
   PRUint8 mState;
-  // to store an odd byte left over between runs
-  PRUint8 mOddByte;
-  // to store an odd high surrogate left over between runs
-  PRUnichar mOddHighSurrogate;
+  PRUint8 mData;
 };
 
 // UTF-16 big endian
@@ -87,7 +84,6 @@ class nsUTF16ToUnicode : public nsUTF16ToUnicodeBase
 {
 public:
 
-  nsUTF16ToUnicode() { Reset();}
   NS_IMETHOD Convert(const char * aSrc, PRInt32 * aSrcLength,
       PRUnichar * aDest, PRInt32 * aDestLength); 
 

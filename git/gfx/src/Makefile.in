@@ -48,6 +48,8 @@ EXPORT_LIBRARY = 1
 GRE_MODULE	= 1
 LIBXUL_LIBRARY = 1
 
+PACKAGE_FILE = gfx.pkg
+
 REQUIRES	= xpcom \
 		  string \
 		  widget \
@@ -55,8 +57,6 @@ REQUIRES	= xpcom \
 		  view \
 		  unicharutil \
 		  thebes \
-		  js \
-		  xpconnect \
 		  $(NULL)
 
 DIRS        = shared thebes
@@ -67,6 +67,8 @@ endif
 
 CPPSRCS = \
         nsColor.cpp \
+        nsColorNames.cpp \
+        nsDeviceContext.cpp \
         nsFont.cpp \
         nsRect.cpp \
         nsRegion.cpp \
@@ -82,7 +84,6 @@ EXTRA_DSO_LDOPTS = \
         $(DEPTH)/modules/libutil/src/$(LIB_PREFIX)mozutil_s.$(LIB_SUFFIX) \
         $(MOZ_UNICHARUTIL_LIBS) \
         $(MOZ_COMPONENT_LIBS) \
-        $(MOZ_JS_LIBS) \
         $(NULL)
 
 ifneq (,$(filter cocoa,$(MOZ_WIDGET_TOOLKIT)))

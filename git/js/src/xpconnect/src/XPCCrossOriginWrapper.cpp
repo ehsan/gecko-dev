@@ -40,6 +40,7 @@
 #include "xpcprivate.h"
 #include "nsDOMError.h"
 #include "jsdbgapi.h"
+#include "jsobj.h"    // For OBJ_GET_PROPERTY.
 #include "jscntxt.h"  // For JSAutoTempValueRooter.
 #include "XPCWrapper.h"
 #include "nsIDOMWindow.h"
@@ -164,7 +165,21 @@ static inline
 JSObject *
 GetWrappedObject(JSContext *cx, JSObject *wrapper)
 {
-  return XPCWrapper::UnwrapGeneric(cx, &sXPC_XOW_JSClass, wrapper);
+  if (STOBJ_GET_CLASS(wrapper) != &sXPC_XOW_JSClass.base) {
+    return nsnull;
+  }
+
+  jsval v;
+  if (!JS_GetReservedSlot(cx, wrapper, XPCWrapper::sWrappedObjSlot, &v)) {
+    JS_ClearPendingException(cx);
+    return nsnull;
+  }
+
+  if (!JSVAL_IS_OBJECT(v)) {
+    return nsnull;
+  }
+
+  return JSVAL_TO_OBJECT(v);
 }
 
 JSBool
@@ -172,7 +187,7 @@ XPC_XOW_WrapperMoved(JSContext *cx, XPCWrappedNative *innerObj,
                      XPCWrappedNativeScope *newScope)
 {
   typedef WrappedNative2WrapperMap::Link Link;
-  XPCJSRuntime *rt = nsXPConnect::GetRuntimeInstance();
+  XPCJSRuntime *rt = nsXPConnect::GetRuntime();
   WrappedNative2WrapperMap *map = innerObj->GetScope()->GetWrapperMap();
   Link *link;
 
@@ -251,8 +266,7 @@ CanAccessWrapper(JSContext *cx, JSObject *wrappedObj)
     return NS_ERROR_NOT_INITIALIZED;
   }
 
-  JSStackFrame *fp = nsnull;
-  nsIPrincipal *subjectPrin = ssm->GetCxSubjectPrincipalAndFrame(cx, &fp);
+  nsIPrincipal *subjectPrin = ssm->GetCxSubjectPrincipal(cx);
 
   if (!subjectPrin) {
     ThrowException(NS_ERROR_FAILURE, cx);
@@ -269,18 +283,6 @@ CanAccessWrapper(JSContext *cx, JSObject *wrappedObj)
   // object principal in this case, since Subsumes() would return true.
   if (isSystem) {
     return NS_OK;
-  }
-
-  // There might be no code running, but if there is, we need to see if it is
-  // UniversalXPConnect enabled code.
-  if (fp) {
-    void *annotation = JS_GetFrameAnnotation(cx, fp);
-    rv = subjectPrin->IsCapabilityEnabled("UniversalXPConnect", annotation,
-                                          &isSystem);
-    NS_ENSURE_SUCCESS(rv, rv);
-    if (isSystem) {
-      return NS_OK;
-    }
   }
 
   nsCOMPtr<nsIPrincipal> objectPrin;
@@ -329,8 +331,7 @@ XPC_XOW_FunctionWrapper(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
 
   JSObject *funObj = JSVAL_TO_OBJECT(argv[-2]);
   jsval funToCall;
-  if (!JS_GetReservedSlot(cx, funObj, XPCWrapper::eWrappedFunctionSlot,
-                          &funToCall)) {
+  if (!JS_GetReservedSlot(cx, funObj, 0, &funToCall)) {
     return JS_FALSE;
   }
 
@@ -392,6 +393,13 @@ WrapSameOriginProp(JSContext *cx, JSObject *outerObj, jsval *vp)
     return XPC_XOW_WrapObject(cx, STOBJ_GET_PARENT(outerObj), vp);
   }
 
+  if (JS_ObjectIsFunction(cx, wrappedObj) &&
+      JS_GetFunctionNative(cx, reinterpret_cast<JSFunction *>
+                                               (xpc_GetJSPrivate(wrappedObj))) ==
+      XPCWrapper::sEvalNative) {
+    return XPC_XOW_WrapFunction(cx, outerObj, wrappedObj, vp);
+  }
+
   return JS_TRUE;
 }
 
@@ -418,15 +426,11 @@ XPC_XOW_WrapFunction(JSContext *cx, JSObject *outerObj, JSObject *funobj,
   }
 
   JSObject *funWrapperObj = JS_GetFunctionObject(funWrapper);
-  *rval = OBJECT_TO_JSVAL(funWrapperObj);
-
-  if (!JS_SetReservedSlot(cx, funWrapperObj, XPCWrapper::eWrappedFunctionSlot,
-                          funobjVal) ||
-      !JS_SetReservedSlot(cx, funWrapperObj, XPCWrapper::eAllAccessSlot,
-                          JSVAL_FALSE)) {
+  if (!JS_SetReservedSlot(cx, funWrapperObj, 0, funobjVal)) {
     return JS_FALSE;
   }
 
+  *rval = OBJECT_TO_JSVAL(funWrapperObj);
   return JS_TRUE;
 }
 
@@ -455,31 +459,24 @@ XPC_XOW_RewrapIfNeeded(JSContext *cx, JSObject *outerObj, jsval *vp)
 }
 
 JSBool
-XPC_XOW_WrapObject(JSContext *cx, JSObject *parent, jsval *vp,
-                   XPCWrappedNative* wn)
+XPC_XOW_WrapObject(JSContext *cx, JSObject *parent, jsval *vp)
 {
-  NS_ASSERTION(XPCPerThreadData::IsMainThread(cx),
-               "Can't do this off the main thread!");
-
-  // Our argument should be a wrapped native object, but the caller may have
-  // passed it in as an optimization.
+  // Our argument should be a wrapped native object.
   JSObject *wrappedObj;
+  XPCWrappedNative *wn;
   if (!JSVAL_IS_OBJECT(*vp) ||
       !(wrappedObj = JSVAL_TO_OBJECT(*vp)) ||
-      STOBJ_GET_CLASS(wrappedObj) == &sXPC_XOW_JSClass.base) {
-    return JS_TRUE;
-  }
-
-  if (!wn &&
+      STOBJ_GET_CLASS(wrappedObj) == &sXPC_XOW_JSClass.base ||
       !(wn = XPCWrappedNative::GetWrappedNativeOfJSObject(cx, wrappedObj))) {
     return JS_TRUE;
   }
 
-  XPCJSRuntime *rt = nsXPConnect::GetRuntimeInstance();
+  XPCJSRuntime *rt = nsXPConnect::GetRuntime();
+  XPCCallContext ccx(NATIVE_CALLER, cx);
+  NS_ENSURE_TRUE(ccx.IsValid(), JS_FALSE);
 
   // The parent must be the inner global object for its scope.
   parent = JS_GetGlobalForObject(cx, parent);
-
   JSClass *clasp = STOBJ_GET_CLASS(parent);
   if (clasp->flags & JSCLASS_IS_EXTENDED) {
     JSExtendedClass *xclasp = reinterpret_cast<JSExtendedClass *>(clasp);
@@ -492,7 +489,7 @@ XPC_XOW_WrapObject(JSContext *cx, JSObject *parent, jsval *vp,
   }
 
   XPCWrappedNativeScope *parentScope =
-    XPCWrappedNativeScope::FindInJSObjectScope(cx, parent, nsnull, rt);
+    XPCWrappedNativeScope::FindInJSObjectScope(ccx, parent);
 
 #ifdef DEBUG_mrbkap_off
   printf("Wrapping object at %p (%s) [%p]\n",
@@ -503,7 +500,11 @@ XPC_XOW_WrapObject(JSContext *cx, JSObject *parent, jsval *vp,
   JSObject *outerObj = nsnull;
   WrappedNative2WrapperMap *map = parentScope->GetWrapperMap();
 
-  outerObj = map->Find(wrappedObj);
+  { // Scoped lock
+    XPCAutoLock al(rt->GetMapLock());
+    outerObj = map->Find(wrappedObj);
+  }
+
   if (outerObj) {
     NS_ASSERTION(STOBJ_GET_CLASS(outerObj) == &sXPC_XOW_JSClass.base,
                               "What crazy object are we getting here?");
@@ -524,8 +525,8 @@ XPC_XOW_WrapObject(JSContext *cx, JSObject *parent, jsval *vp,
   }
 
   if (!JS_SetReservedSlot(cx, outerObj, XPCWrapper::sWrappedObjSlot, *vp) ||
-      !JS_SetReservedSlot(cx, outerObj, XPCWrapper::sFlagsSlot,
-                          JSVAL_ZERO) ||
+      !JS_SetReservedSlot(cx, outerObj, XPCWrapper::sResolvingSlot,
+                          JSVAL_FALSE) ||
       !JS_SetReservedSlot(cx, outerObj, XPC_XOW_ScopeSlot,
                           PRIVATE_TO_JSVAL(parentScope))) {
     return JS_FALSE;
@@ -533,7 +534,10 @@ XPC_XOW_WrapObject(JSContext *cx, JSObject *parent, jsval *vp,
 
   *vp = OBJECT_TO_JSVAL(outerObj);
 
-  map->Add(wn->GetScope()->GetWrapperMap(), wrappedObj, outerObj);
+  { // Scoped lock
+    XPCAutoLock al(rt->GetMapLock());
+    map->Add(wn->GetScope()->GetWrapperMap(), wrappedObj, outerObj);
+  }
 
   return JS_TRUE;
 }
@@ -546,11 +550,11 @@ XPC_XOW_AddProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 
   obj = GetWrapper(obj);
   jsval resolving;
-  if (!JS_GetReservedSlot(cx, obj, XPCWrapper::sFlagsSlot, &resolving)) {
+  if (!JS_GetReservedSlot(cx, obj, XPCWrapper::sResolvingSlot, &resolving)) {
     return JS_FALSE;
   }
 
-  if (HAS_FLAGS(resolving, FLAG_RESOLVING)) {
+  if (JSVAL_TO_BOOLEAN(resolving)) {
     // Allow us to define a property on ourselves.
     return JS_TRUE;
   }
@@ -575,7 +579,7 @@ XPC_XOW_AddProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
   }
 
   // Same origin, pass this request along.
-  return XPCWrapper::AddProperty(cx, obj, JS_TRUE, wrappedObj, id, vp);
+  return XPCWrapper::AddProperty(cx, obj, wrappedObj, id, vp);
 }
 
 static JSBool
@@ -659,10 +663,13 @@ XPC_XOW_GetOrSetProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp,
       if (!ssm) {
         return ThrowException(NS_ERROR_NOT_INITIALIZED, cx);
       }
+
+      PRUint32 check = isSet
+                       ? (PRUint32)nsIXPCSecurityManager::ACCESS_SET_PROPERTY
+                       : (PRUint32)nsIXPCSecurityManager::ACCESS_GET_PROPERTY;
       rv = ssm->CheckPropertyAccess(cx, wrappedObj,
                                     STOBJ_GET_CLASS(wrappedObj)->name,
-                                    id, isSet ? XPCWrapper::sSecMgrSetProp
-                                              : XPCWrapper::sSecMgrGetProp);
+                                    id, check);
       if (NS_FAILED(rv)) {
         // The security manager threw an exception for us.
         return JS_FALSE;
@@ -693,8 +700,8 @@ XPC_XOW_GetOrSetProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp,
   }
 
   JSBool ok = isSet
-              ? JS_SetPropertyById(cx, wrappedObj, asId, vp)
-              : JS_GetPropertyById(cx, wrappedObj, asId, vp);
+              ? OBJ_SET_PROPERTY(cx, wrappedObj, asId, vp)
+              : OBJ_GET_PROPERTY(cx, wrappedObj, asId, vp);
   if (!ok) {
     return JS_FALSE;
   }
@@ -703,7 +710,7 @@ XPC_XOW_GetOrSetProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp,
     JSObject *newProto = STOBJ_GET_PROTO(wrappedObj);
 
     // If code is trying to set obj.__proto__ and we're on obj's
-    // prototype chain, then the JS_GetPropertyById above will do the
+    // prototype chain, then the OBJ_SET_PROPERTY above will do the
     // wrong thing if wrappedObj still delegates to Object.prototype.
     // However, it's hard to figure out if wrappedObj still does
     // delegate to Object.prototype so check to see if proto changed as a
@@ -827,26 +834,23 @@ XPC_XOW_NewResolve(JSContext *cx, JSObject *obj, jsval id, uintN flags,
 
   if (id == GetRTStringByIndex(cx, XPCJSRuntime::IDX_TO_STRING)) {
     jsval oldSlotVal;
-    if (!JS_GetReservedSlot(cx, obj, XPCWrapper::sFlagsSlot, &oldSlotVal) ||
-        !JS_SetReservedSlot(cx, obj, XPCWrapper::sFlagsSlot,
-                            INT_TO_JSVAL(JSVAL_TO_INT(oldSlotVal) |
-                                         FLAG_RESOLVING))) {
+    if (!::JS_GetReservedSlot(cx, obj, XPCWrapper::sResolvingSlot, &oldSlotVal) ||
+        !::JS_SetReservedSlot(cx, obj, XPCWrapper::sResolvingSlot, JSVAL_TRUE)) {
       return JS_FALSE;
     }
 
     JSBool ok = JS_DefineFunction(cx, obj, "toString",
                                   XPC_XOW_toString, 0, 0) != nsnull;
 
-    JS_SetReservedSlot(cx, obj, XPCWrapper::sFlagsSlot, oldSlotVal);
-
-    if (ok) {
+    if (ok && (ok = ::JS_SetReservedSlot(cx, obj, XPCWrapper::sResolvingSlot,
+                                         oldSlotVal))) {
       *objp = obj;
     }
 
     return ok;
   }
 
-  return XPCWrapper::NewResolve(cx, obj, JS_TRUE, wrappedObj, id, flags, objp);
+  return XPCWrapper::NewResolve(cx, obj, wrappedObj, id, flags, objp);
 }
 
 static JSBool
@@ -996,12 +1000,15 @@ XPC_XOW_Construct(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
     return JS_FALSE;
   }
 
-  if (!JS_CallFunctionValue(cx, obj, OBJECT_TO_JSVAL(wrappedObj), argc, argv,
+  JSObject *callee = JSVAL_TO_OBJECT(argv[-2]);
+  NS_ASSERTION(GetWrappedObject(cx, callee), "How'd we get here?");
+  callee = GetWrappedObject(cx, callee);
+  if (!JS_CallFunctionValue(cx, obj, OBJECT_TO_JSVAL(callee), argc, argv,
                             rval)) {
     return JS_FALSE;
   }
 
-  return XPC_XOW_RewrapIfNeeded(cx, wrappedObj, rval);
+  return XPC_XOW_RewrapIfNeeded(cx, callee, rval);
 }
 
 static JSBool
@@ -1123,8 +1130,8 @@ XPC_XOW_Iterator(JSContext *cx, JSObject *obj, JSBool keysonly)
   // Initialize our XOW.
   jsval v = OBJECT_TO_JSVAL(wrappedObj);
   if (!JS_SetReservedSlot(cx, wrapperIter, XPCWrapper::sWrappedObjSlot, v) ||
-      !JS_SetReservedSlot(cx, wrapperIter, XPCWrapper::sFlagsSlot,
-                          JSVAL_ZERO) ||
+      !JS_SetReservedSlot(cx, wrapperIter, XPCWrapper::sResolvingSlot,
+                          JSVAL_FALSE) ||
       !JS_SetReservedSlot(cx, wrapperIter, XPC_XOW_ScopeSlot,
                           PRIVATE_TO_JSVAL(nsnull))) {
     return nsnull;

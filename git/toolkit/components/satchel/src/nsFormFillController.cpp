@@ -39,9 +39,13 @@
 
 #include "nsFormFillController.h"
 
+#ifdef MOZ_STORAGE_SATCHEL
 #include "nsStorageFormHistory.h"
-#include "nsIFormAutoComplete.h"
 #include "nsIAutoCompleteSimpleResult.h"
+#else
+#include "nsFormHistory.h"
+#include "nsIAutoCompleteResultTypes.h"
+#endif
 #include "nsString.h"
 #include "nsReadableUtils.h"
 #include "nsIServiceManager.h"
@@ -217,9 +221,8 @@ nsFormFillController::SetPopupOpen(PRBool aPopupOpen)
       presShell->ScrollContentIntoView(content,
                                        NS_PRESSHELL_SCROLL_IF_NOT_VISIBLE,
                                        NS_PRESSHELL_SCROLL_IF_NOT_VISIBLE);
-      // mFocusedPopup can be destroyed after ScrollContentIntoView, see bug 420089
-      if (mFocusedPopup)
-        mFocusedPopup->OpenAutocompletePopup(this, mFocusedInput);
+
+      mFocusedPopup->OpenAutocompletePopup(this, mFocusedInput);
     } else
       mFocusedPopup->ClosePopup();
   }
@@ -497,7 +500,6 @@ NS_IMETHODIMP
 nsFormFillController::StartSearch(const nsAString &aSearchString, const nsAString &aSearchParam,
                                   nsIAutoCompleteResult *aPreviousResult, nsIAutoCompleteObserver *aListener)
 {
-  nsresult rv;
   nsCOMPtr<nsIAutoCompleteResult> result;
 
   // If the login manager has indicated it's responsible for this field, let it
@@ -506,21 +508,26 @@ nsFormFillController::StartSearch(const nsAString &aSearchString, const nsAStrin
   if (mPwmgrInputs.Get(mFocusedInput, &dummy)) {
     // XXX aPreviousResult shouldn't ever be a historyResult type, since we're not letting
     // satchel manage the field?
-    rv = mLoginManager->AutoCompleteSearch(aSearchString,
+    mLoginManager->AutoCompleteSearch(aSearchString,
                                          aPreviousResult,
                                          mFocusedInput,
                                          getter_AddRefs(result));
   } else {
-    nsCOMPtr <nsIFormAutoComplete> formAutoComplete =
-      do_GetService("@mozilla.org/satchel/form-autocomplete;1", &rv);
-    NS_ENSURE_SUCCESS(rv, rv);
+#ifdef MOZ_STORAGE_SATCHEL
+    nsCOMPtr<nsIAutoCompleteSimpleResult> historyResult;
+#else
+    nsCOMPtr<nsIAutoCompleteMdbResult2> historyResult;
+#endif
+    historyResult = do_QueryInterface(aPreviousResult);
 
-    rv = formAutoComplete->AutoCompleteSearch(aSearchParam,
-                                              aSearchString,
-                                              aPreviousResult,
-                                              getter_AddRefs(result));
+    nsFormHistory *history = nsFormHistory::GetInstance();
+    if (history) {
+      history->AutoCompleteSearch(aSearchParam,
+                                  aSearchString,
+                                  historyResult,
+                                  getter_AddRefs(result));
+    }
   }
-  NS_ENSURE_SUCCESS(rv, rv);
 
   aListener->OnSearchResult(this, result);  
   
@@ -564,7 +571,7 @@ nsFormFillController::HandleEvent(nsIDOMEvent* aEvent)
 }
 
 
-/* static */ PLDHashOperator
+/* static */ PLDHashOperator PR_CALLBACK
 nsFormFillController::RemoveForDOMDocumentEnumerator(nsISupports* aKey,
                                                   PRInt32& aEntry,
                                                   void* aUserData)
@@ -1117,7 +1124,7 @@ nsFormFillController::GetIndexOfDocShell(nsIDocShell *aDocShell)
 
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsFormHistory, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsFormFillController)
-#ifdef MOZ_MORKREADER
+#if defined(MOZ_STORAGE_SATCHEL) && defined(MOZ_MORKREADER)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsFormHistoryImporter)
 #endif
 
@@ -1138,7 +1145,7 @@ static const nsModuleComponentInfo components[] =
     NS_FORMHISTORYAUTOCOMPLETE_CONTRACTID,
     nsFormFillControllerConstructor },
 
-#ifdef MOZ_MORKREADER
+#if defined(MOZ_STORAGE_SATCHEL) && defined(MOZ_MORKREADER)
   { "Form History Importer",
     NS_FORMHISTORYIMPORTER_CID,
     NS_FORMHISTORYIMPORTER_CONTRACTID,

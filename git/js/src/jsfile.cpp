@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  * vim: set ts=8 sw=4 et tw=78:
  *
  * ***** BEGIN LICENSE BLOCK *****
@@ -43,8 +43,8 @@
  */
 #if JS_HAS_FILE_OBJECT
 
+#include "jsstddef.h"
 #include "jsfile.h"
-#include "jsstdint.h"
 
 /* ----------------- Platform-specific includes and defines ----------------- */
 #if defined(XP_WIN) || defined(XP_OS2)
@@ -57,23 +57,11 @@
 #   define CURRENT_DIR          "c:\\"
 #   define POPEN                _popen
 #   define PCLOSE               _pclose
-#elif defined(SYMBIAN)
-#   include <strings.h>
-#   include <stdio.h>
-#   include <stdlib.h>
-#   include <unistd.h>
-#   include <limits.h>
-#   define FILESEPARATOR        '\\'
-#   define FILESEPARATOR2       '/'
-#   define CURRENT_DIR          "c:\\"
-#   define POPEN                popen
-#   define PCLOSE               pclose
 #elif defined(XP_UNIX) || defined(XP_BEOS)
 #   include <strings.h>
 #   include <stdio.h>
 #   include <stdlib.h>
 #   include <unistd.h>
-#   include <limits.h>
 #   define FILESEPARATOR        '/'
 #   define FILESEPARATOR2       '\0'
 #   define CURRENT_DIR          "/"
@@ -117,11 +105,7 @@
 #define utfstring               "binary"
 #define unicodestring           "unicode"
 
-#ifdef PATH_MAX
-#define MAX_PATH_LENGTH         PATH_MAX
-#else
 #define MAX_PATH_LENGTH         1024
-#endif
 #define MODE_SIZE               256
 #define NUMBER_SIZE             32
 #define MAX_LINE_LENGTH         256
@@ -275,7 +259,7 @@ js_filenameHasAPipe(const char *filename)
 static JSBool
 js_isAbsolute(const char *name)
 {
-#if defined(XP_WIN) || defined(XP_OS2) || defined(SYMBIAN)
+#if defined(XP_WIN) || defined(XP_OS2)
     return *name && name[1] == ':';
 #else
     return (name[0]
@@ -320,7 +304,7 @@ js_fileBaseName(JSContext *cx, const char *pathname)
 
     index = strlen(pathname)-1;
 
-    /* Chop off trailing separators. */
+    /* Chop off trailing seperators. */
     while (index > 0 && (pathname[index]==FILESEPARATOR ||
                          pathname[index]==FILESEPARATOR2)) {
         --index;
@@ -2197,7 +2181,7 @@ file_constructor(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
     JSString *str;
     JSFile   *file;
 
-    if (!JS_IsConstructing(cx)) {
+    if (!(cx->fp->flags & JSFRAME_CONSTRUCTING)) {
         /* Replace obj with a new File object. */
         obj = JS_NewObject(cx, &js_FileClass, NULL, NULL);
         if (!obj)

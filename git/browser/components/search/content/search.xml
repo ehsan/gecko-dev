@@ -81,15 +81,19 @@
         <xul:button class="searchbar-engine-button"
                     type="menu"
                     anonid="searchbar-engine-button"
+                    popup="_child"
                     chromedir="&locale.dir;">
           <xul:image class="searchbar-engine-image" xbl:inherits="src"/>
           <xul:image class="searchbar-dropmarker-image"/>
           <xul:menupopup class="searchbar-popup"
-                         anonid="searchbar-popup">
+                         anonid="searchbar-popup"
+                         position="after_start">
             <xul:menuseparator/>
             <xul:menuitem class="open-engine-manager"
                           anonid="open-engine-manager"
                           label="&cmd_engineManager.label;"
+# The empty tooltiptext attribute is here to avoid bug 336231
+                          tooltiptext=""
                           oncommand="openManager(event);"/>
           </xul:menupopup>
         </xul:button>
@@ -773,7 +777,7 @@
                action="return this.openSearch();"/>
 #endif
 
-      <handler event="drop" phase="capturing">
+      <handler event="dragdrop" phase="capturing">
         nsDragAndDrop.drop(event, this.searchbarDNDObserver);
       </handler>
 

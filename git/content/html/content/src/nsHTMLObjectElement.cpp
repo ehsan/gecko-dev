@@ -91,8 +91,6 @@ public:
   virtual nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom *aName,
                            nsIAtom *aPrefix, const nsAString &aValue,
                            PRBool aNotify);
-  virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
-                             PRBool aNotify);
 
   virtual PRBool IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex);
   virtual PRUint32 GetDesiredIMEState();
@@ -124,10 +122,8 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  void StartObjectLoad() { StartObjectLoad(PR_TRUE); }
-
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsHTMLObjectElement,
-                                                     nsGenericHTMLFormElement)
+                                                     nsGenericHTMLElement)
 
 private:
   /**
@@ -147,12 +143,10 @@ nsHTMLObjectElement::nsHTMLObjectElement(nsINodeInfo *aNodeInfo,
   : nsGenericHTMLFormElement(aNodeInfo),
     mIsDoneAddingChildren(!aFromParser)
 {
-  RegisterFreezableElement();
 }
 
 nsHTMLObjectElement::~nsHTMLObjectElement()
 {
-  UnregisterFreezableElement();
   DestroyImageLoadingContent();
 }
 
@@ -184,8 +178,9 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_ADDREF_INHERITED(nsHTMLObjectElement, nsGenericElement) 
 NS_IMPL_RELEASE_INHERITED(nsHTMLObjectElement, nsGenericElement) 
 
-NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLObjectElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE_BEGIN(nsHTMLObjectElement)
+NS_HTML_CONTENT_CC_INTERFACE_TABLE_HEAD(nsHTMLObjectElement,
+                                        nsGenericHTMLFormElement)
+  NS_INTERFACE_TABLE_BEGIN
     NS_INTERFACE_TABLE_ENTRY(nsHTMLObjectElement, nsIDOMHTMLObjectElement)
     NS_INTERFACE_TABLE_ENTRY(nsHTMLObjectElement, imgIDecoderObserver)
     NS_INTERFACE_TABLE_ENTRY(nsHTMLObjectElement, nsIRequestObserver)
@@ -199,9 +194,7 @@ NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLObjectElement)
 #ifdef MOZ_SVG
     NS_INTERFACE_TABLE_ENTRY(nsHTMLObjectElement, nsIDOMGetSVGDocument)
 #endif
-  NS_OFFSET_AND_INTERFACE_TABLE_END
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLObjectElement,
-                                               nsGenericHTMLFormElement)
+  NS_INTERFACE_TABLE_END
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLObjectElement)
 
 NS_IMPL_ELEMENT_CLONE(nsHTMLObjectElement)
@@ -226,9 +219,9 @@ nsHTMLObjectElement::BindToTree(nsIDocument *aDocument,
 
   // If we already have all the children, start the load.
   if (mIsDoneAddingChildren) {
-    nsContentUtils::AddScriptRunner(
-      new nsRunnableMethod<nsHTMLObjectElement>(this,
-                                                &nsHTMLObjectElement::StartObjectLoad));
+    // Don't need to notify: We have no frames yet, since we weren't in a
+    // document
+    StartObjectLoad(PR_FALSE);
   }
 
   return NS_OK;
@@ -269,17 +262,6 @@ nsHTMLObjectElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom *aName,
                                            aValue, aNotify);
 }
 
-nsresult
-nsHTMLObjectElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
-                               PRBool aNotify)
-{
-  if (aNameSpaceID == kNameSpaceID_None && aAttribute == nsGkAtoms::data) {
-    Fallback(aNotify);
-  }
-
-  return nsGenericHTMLFormElement::UnsetAttr(aNameSpaceID, aAttribute, aNotify);
-}
-
 PRBool
 nsHTMLObjectElement::IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex)
 {
@@ -302,7 +284,7 @@ PRUint32
 nsHTMLObjectElement::GetDesiredIMEState()
 {
   if (Type() == eType_Plugin) {
-    return nsIContent::IME_STATUS_PLUGIN;
+    return nsIContent::IME_STATUS_ENABLE;
   }
    
   return nsGenericHTMLFormElement::GetDesiredIMEState();
@@ -327,7 +309,11 @@ nsHTMLObjectElement::SubmitNamesValues(nsIFormSubmission *aFormSubmission,
 
   nsIFrame* frame = GetPrimaryFrame();
 
-  nsIObjectFrame *objFrame = do_QueryFrame(frame);
+  nsIObjectFrame *objFrame = nsnull;
+  if (frame) {
+    CallQueryInterface(frame, &objFrame);
+  }
+
   if (!objFrame) {
     // No frame, nothing to submit.
 

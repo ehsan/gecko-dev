@@ -203,13 +203,8 @@ __try {
       if (widget) {
         hwnd = (HWND)widget->GetNativeData(NS_NATIVE_WINDOW);
         NS_ASSERTION(hwnd, "No window handle for window");
-
-        nsIViewManager* viewManager = view->GetViewManager();
-        if (!viewManager)
-          return E_UNEXPECTED;
-
         nsIView *rootView;
-        viewManager->GetRootView(rootView);
+        view->GetViewManager()->GetRootView(rootView);
         if (rootView == view) {
           // If the current object has a widget but was created by an
           // outer object with its own outer window, then
@@ -221,7 +216,8 @@ __try {
       else {
         // If a frame is a scrollable frame, then it has one window for the client area,
         // not an extra parent window for just the scrollbars
-        nsIScrollableFrame *scrollFrame = do_QueryFrame(frame);
+        nsIScrollableFrame *scrollFrame = nsnull;
+        CallQueryInterface(frame, &scrollFrame);
         if (scrollFrame) {
           hwnd = (HWND)scrollFrame->GetScrolledFrame()->GetWindow()->GetNativeData(NS_NATIVE_WINDOW);
           NS_ASSERTION(hwnd, "No window handle for window");
@@ -250,8 +246,9 @@ STDMETHODIMP nsAccessibleWrap::get_accChildCount( long __RPC_FAR *pcountChildren
 {
 __try {
   *pcountChildren = 0;
-  if (nsAccUtils::MustPrune(this))
+  if (MustPrune(this)) {
     return NS_OK;
+  }
 
   PRInt32 numChildren;
   GetChildCount(&numChildren);
@@ -277,7 +274,7 @@ __try {
   }
 
   nsCOMPtr<nsIAccessible> childAccessible;
-  if (!nsAccUtils::MustPrune(this)) {
+  if (!MustPrune(this)) {
     GetChildAt(varChild.lVal - 1, getter_AddRefs(childAccessible));
     if (childAccessible) {
       *ppdispChild = NativeAccessible(childAccessible);
@@ -392,17 +389,19 @@ __try {
       // use the ARIA owns property to calculate that if it's present.
       PRInt32 numChildren = 0;
 
-      PRUint32 currentRole = nsAccUtils::Role(xpAccessible);
-      if (currentRole == nsIAccessibleRole::ROLE_OUTLINEITEM) {
+      PRUint32 currentRole = 0;
+      rv = xpAccessible->GetFinalRole(&currentRole);
+      if (NS_SUCCEEDED(rv) &&
+          currentRole == nsIAccessibleRole::ROLE_OUTLINEITEM) {
         nsCOMPtr<nsIAccessible> child;
         xpAccessible->GetFirstChild(getter_AddRefs(child));
         while (child) {
-          currentRole = nsAccUtils::Role(child);
+          child->GetFinalRole(&currentRole);
           if (currentRole == nsIAccessibleRole::ROLE_GROUPING) {
             nsCOMPtr<nsIAccessible> groupChild;
             child->GetFirstChild(getter_AddRefs(groupChild));
             while (groupChild) {
-              currentRole = nsAccUtils::Role(groupChild);
+              groupChild->GetFinalRole(&currentRole);
               numChildren +=
                 (currentRole == nsIAccessibleRole::ROLE_OUTLINEITEM);
               nsCOMPtr<nsIAccessible> nextGroupChild;
@@ -474,12 +473,11 @@ __try {
     return E_FAIL;
 
 #ifdef DEBUG_A11Y
-  NS_ASSERTION(nsAccUtils::IsTextInterfaceSupportCorrect(xpAccessible),
-               "Does not support nsIAccessibleText when it should");
+  NS_ASSERTION(nsAccessible::IsTextInterfaceSupportCorrect(xpAccessible), "Does not support nsIAccessibleText when it should");
 #endif
 
   PRUint32 xpRole = 0, msaaRole = 0;
-  if (NS_FAILED(xpAccessible->GetRole(&xpRole)))
+  if (NS_FAILED(xpAccessible->GetFinalRole(&xpRole)))
     return E_FAIL;
 
   msaaRole = gWindowsRoleMap[xpRole].msaaRole;
@@ -491,8 +489,9 @@ __try {
   // We need this because ARIA has a role of "row" for both grid and treegrid
   if (xpRole == nsIAccessibleRole::ROLE_ROW) {
     nsCOMPtr<nsIAccessible> parent = GetParent();
-    if (nsAccUtils::Role(parent) == nsIAccessibleRole::ROLE_TREE_TABLE)
+    if (parent && Role(parent) == nsIAccessibleRole::ROLE_TREE_TABLE) {
       msaaRole = ROLE_SYSTEM_OUTLINEITEM;
+    }
   }
   
   // -- Try enumerated role
@@ -511,7 +510,7 @@ __try {
     return E_FAIL;
 
   accessNode->GetDOMNode(getter_AddRefs(domNode));
-  nsIContent *content = nsCoreUtils::GetRoleContent(domNode);
+  nsIContent *content = GetRoleContent(domNode);
   if (!content)
     return E_FAIL;
 
@@ -553,7 +552,7 @@ __try {
     return E_FAIL;
 
   PRUint32 state = 0;
-  if (NS_FAILED(xpAccessible->GetState(&state, nsnull)))
+  if (NS_FAILED(xpAccessible->GetFinalState(&state, nsnull)))
     return E_FAIL;
 
   pvarState->lVal = state;
@@ -914,12 +913,14 @@ __try {
       xpAccessibleStart->GetAccessibleBelow(getter_AddRefs(xpAccessibleResult));
       break;
     case NAVDIR_FIRSTCHILD:
-      if (!nsAccUtils::MustPrune(xpAccessibleStart))
+      if (!MustPrune(xpAccessibleStart)) {
         xpAccessibleStart->GetFirstChild(getter_AddRefs(xpAccessibleResult));
+      }
       break;
     case NAVDIR_LASTCHILD:
-      if (!nsAccUtils::MustPrune(xpAccessibleStart))
+      if (!MustPrune(xpAccessibleStart)) {
         xpAccessibleStart->GetLastChild(getter_AddRefs(xpAccessibleResult));
+      }
       break;
     case NAVDIR_LEFT:
       xpAccessibleStart->GetAccessibleToLeft(getter_AddRefs(xpAccessibleResult));
@@ -990,8 +991,13 @@ __try {
 
   pvarEndUpAt->vt = VT_EMPTY;
 
-  if (xpRelation)
-    xpAccessibleResult = nsRelUtils::GetRelatedAccessible(this, xpRelation);
+  if (xpRelation) {
+    nsresult rv = GetAccessibleRelated(xpRelation,
+                                       getter_AddRefs(xpAccessibleResult));
+    if (rv == NS_ERROR_NOT_IMPLEMENTED) {
+      return E_NOTIMPL;
+    }
+  }
 
   if (xpAccessibleResult) {
     pvarEndUpAt->pdispVal = NativeAccessible(xpAccessibleResult);
@@ -1016,7 +1022,7 @@ __try {
   xLeft = xLeft;
   yTop = yTop;
 
-  if (nsAccUtils::MustPrune(this)) {
+  if (MustPrune(this)) {
     xpAccessible = this;
   }
   else {
@@ -1280,7 +1286,7 @@ __try {
   *aRole = 0;
 
   PRUint32 xpRole = 0;
-  nsresult rv = GetRole(&xpRole);
+  nsresult rv = GetFinalRole(&xpRole);
   if (NS_FAILED(rv))
     return GetHRESULT(rv);
 
@@ -1357,7 +1363,7 @@ __try {
   // XXX: bug 344674 should come with better approach that we have here.
 
   PRUint32 states = 0, extraStates = 0;
-  nsresult rv = GetState(&states, &extraStates);
+  nsresult rv = GetFinalState(&states, &extraStates);
   if (NS_FAILED(rv))
     return GetHRESULT(rv);
 
@@ -1623,9 +1629,9 @@ NS_IMETHODIMP nsAccessibleWrap::GetNativeInterface(void **aOutAccessible)
   return NS_OK;
 }
 
-// nsAccessible
+// nsPIAccessible
 
-nsresult
+NS_IMETHODIMP
 nsAccessibleWrap::FireAccessibleEvent(nsIAccessibleEvent *aEvent)
 {
   NS_ENSURE_ARG(aEvent);
@@ -1725,12 +1731,14 @@ PRInt32 nsAccessibleWrap::GetChildIDFor(nsIAccessible* aAccessible)
 HWND
 nsAccessibleWrap::GetHWNDFor(nsIAccessible *aAccessible)
 {
-  nsRefPtr<nsAccessNode> accessNode = nsAccUtils::QueryAccessNode(aAccessible);
-  if (!accessNode)
+  nsCOMPtr<nsIAccessNode> accessNode(do_QueryInterface(aAccessible));
+  nsCOMPtr<nsPIAccessNode> privateAccessNode(do_QueryInterface(accessNode));
+  if (!privateAccessNode)
     return 0;
 
   HWND hWnd = 0;
-  nsIFrame *frame = accessNode->GetFrame();
+
+  nsIFrame *frame = privateAccessNode->GetFrame();
   if (frame) {
     nsIWidget *window = frame->GetWindow();
     PRBool isVisible;
@@ -1873,7 +1881,7 @@ void nsAccessibleWrap::GetXPAccessibleFor(const VARIANT& aVarChild, nsIAccessibl
   if (aVarChild.lVal == CHILDID_SELF) {
     *aXPAccessible = static_cast<nsIAccessible*>(this);
   }
-  else if (nsAccUtils::MustPrune(this)) {
+  else if (MustPrune(this)) {
     return;
   }
   else {
@@ -1914,7 +1922,7 @@ void nsAccessibleWrap::UpdateSystemCaret()
   }
 
   nsIWidget *widget;
-  nsIntRect caretRect = caretAccessible->GetCaretRect(&widget);
+  nsRect caretRect = caretAccessible->GetCaretRect(&widget);        
   HWND caretWnd; 
   if (caretRect.IsEmpty() || !(caretWnd = (HWND)widget->GetNativeData(NS_NATIVE_WINDOW))) {
     return;

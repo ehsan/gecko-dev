@@ -75,10 +75,10 @@ struct nsNavHistoryExpireRecord {
 // actually better. If expiration takes an unusually long period of time, it
 // will interfere with video playback in the browser, for example. Such a blip
 // is not likely to be noticable when the page has just appeared.
-#define PARTIAL_EXPIRATION_TIMEOUT (3.5 * PR_MSEC_PER_SEC)
+#define PARTIAL_EXPIRATION_TIMEOUT 3500
 
 // The time in ms to wait after the initial expiration run for additional ones
-#define SUBSEQUENT_EXPIRATION_TIMEOUT (20 * PR_MSEC_PER_SEC)
+#define SUBSEQUENT_EXPIRATION_TIMEOUT 20000
 
 // Number of expirations we'll do after the most recent page is loaded before
 // stopping. We don't want to keep the computer chugging forever expiring
@@ -96,6 +96,12 @@ struct nsNavHistoryExpireRecord {
 const PRTime EXPIRATION_POLICY_DAYS = ((PRTime)7 * 86400 * PR_USEC_PER_SEC);
 const PRTime EXPIRATION_POLICY_WEEKS = ((PRTime)30 * 86400 * PR_USEC_PER_SEC);
 const PRTime EXPIRATION_POLICY_MONTHS = ((PRTime)180 * 86400 * PR_USEC_PER_SEC);
+
+// Expiration policy for embedded links (bug #401722)
+const PRTime EMBEDDED_LINK_LIFETIME = ((PRTime)1 * 86400 * PR_USEC_PER_SEC);
+
+// Expiration cap for embedded visits
+#define EXPIRATION_CAP_EMBEDDED 500
 
 // Expiration cap for dangling moz_places records
 #define EXPIRATION_CAP_PLACES 500
@@ -195,20 +201,35 @@ nsNavHistoryExpire::OnQuit()
   if (NS_FAILED(rv))
     NS_WARNING("ExpireForDegenerateRuns failed.");
 
+  // Expire embedded links
+  // NOTE: This must come before ExpireHistoryParanoid, or the moz_places
+  // records won't be immediately deleted.
+  rv = ExpireEmbeddedLinks(connection);
+  if (NS_FAILED(rv))
+    NS_WARNING("ExpireEmbeddedLinks failed.");
+
   // Determine whether we can skip partially expiration of dangling entries
   // because we be doing a full expiration on shutdown in ClearHistory()
   nsCOMPtr<nsIPrefBranch> prefs(do_GetService("@mozilla.org/preferences-service;1"));
-  PRBool sanitizeOnShutdown = PR_FALSE;
-  PRBool sanitizeHistory = PR_FALSE;
-  (void)prefs->GetBoolPref(PREF_SANITIZE_ON_SHUTDOWN, &sanitizeOnShutdown);
-  (void)prefs->GetBoolPref(PREF_SANITIZE_ITEM_HISTORY, &sanitizeHistory);
+  PRBool sanitizeOnShutdown, sanitizeHistory;
+  prefs->GetBoolPref(PREF_SANITIZE_ON_SHUTDOWN, &sanitizeOnShutdown);
+  prefs->GetBoolPref(PREF_SANITIZE_ITEM_HISTORY, &sanitizeHistory);
   if (sanitizeHistory && sanitizeOnShutdown)
     return;
 
-  // Get rid of all records orphaned due to expiration.
-  rv = ExpireOrphans(EXPIRATION_CAP_PLACES);
+  // vacuum up dangling items
+  rv = ExpireHistoryParanoid(connection, EXPIRATION_CAP_PLACES);
   if (NS_FAILED(rv))
-    NS_WARNING("ExpireOrphans failed.");
+    NS_WARNING("ExpireHistoryParanoid failed.");
+  rv = ExpireFaviconsParanoid(connection);
+  if (NS_FAILED(rv))
+    NS_WARNING("ExpireFaviconsParanoid failed.");
+  rv = ExpireAnnotationsParanoid(connection);
+  if (NS_FAILED(rv))
+    NS_WARNING("ExpireAnnotationsParanoid failed.");
+  rv = ExpireInputHistoryParanoid(connection);
+  if (NS_FAILED(rv))
+    NS_WARNING("ExpireInputHistoryParanoid failed.");
 }
 
 
@@ -231,21 +252,20 @@ nsNavHistoryExpire::ClearHistory()
   // idle query to figure out which places to recalcuate frecency first.
   // We must do this before deleting visits
   nsresult rv = connection->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
-    "UPDATE moz_places_view SET frecency = -MAX(visit_count, 1) "
+    "UPDATE moz_places SET frecency = -MAX(visit_count, 1) "
     "WHERE id IN("
-      "SELECT h.id FROM moz_places_temp h "
-      "WHERE "
+      "SELECT h.id FROM moz_places h WHERE "
         "EXISTS (SELECT id FROM moz_bookmarks WHERE fk = h.id) "
-      "UNION ALL "
-      "SELECT h.id FROM moz_places h "
-      "WHERE "
-        "EXISTS (SELECT id FROM moz_bookmarks WHERE fk = h.id) "
-    ")"));
-  NS_ENSURE_SUCCESS(rv, rv);
+        "OR EXISTS "
+        "(SELECT id FROM moz_annos WHERE place_id = h.id AND expiration = ") +
+      nsPrintfCString("%d", nsIAnnotationService::EXPIRE_NEVER) +
+      NS_LITERAL_CSTRING(")"));
+  if (NS_FAILED(rv))
+    NS_WARNING("failed to recent frecency");
 
   // expire visits, then let the paranoid functions do the cleanup for us
   rv = connection->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
-      "DELETE FROM moz_historyvisits_view"));
+      "DELETE FROM moz_historyvisits"));
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = ExpireHistoryParanoid(connection, -1);
@@ -409,37 +429,6 @@ nsNavHistoryExpire::ExpireItems(PRUint32 aNumToExpire, PRBool* aKeepGoing)
   return NS_OK;
 }
 
-// nsNavHistoryExpire::ExpireOrphans
-//
-//    Try to expire aNumToExpire items that are orphans.  aNumToExpire only
-//    limits how many moz_places we worry about.  Everything else (favicons,
-//    annotations, and input history) is completely expired.
-
-nsresult
-nsNavHistoryExpire::ExpireOrphans(PRUint32 aNumToExpire)
-{
-  mozIStorageConnection* connection = mHistory->GetStorageConnection();
-  NS_ENSURE_TRUE(connection, NS_ERROR_OUT_OF_MEMORY);
-
-  mozStorageTransaction transaction(connection, PR_FALSE);
-
-  nsresult rv = ExpireHistoryParanoid(connection, aNumToExpire);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = ExpireFaviconsParanoid(connection);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = ExpireAnnotationsParanoid(connection);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = ExpireInputHistoryParanoid(connection);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = transaction.Commit();
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return NS_OK;
-}
 
 // nsNavHistoryExpireRecord::nsNavHistoryExpireRecord
 //
@@ -482,25 +471,11 @@ nsNavHistoryExpire::FindVisits(PRTime aExpireThreshold, PRUint32 aNumToExpire,
   // Select a limited number of visits older than a time
   nsCOMPtr<mozIStorageStatement> selectStatement;
   nsresult rv = aConnection->CreateStatement(NS_LITERAL_CSTRING(
-      "SELECT v.id, v.place_id, v.visit_date, IFNULL(h_t.url, h.url), "
-             "IFNULL(h_t.favicon_id, h.favicon_id), "
-             "IFNULL(h_t.hidden, h.hidden), b.fk "
-      "FROM moz_historyvisits_temp v "
-      "LEFT JOIN moz_places_temp AS h_t ON h_t.id = v.place_id "
-      "LEFT JOIN moz_places AS h ON h.id = v.place_id "
-      "LEFT JOIN moz_bookmarks b ON b.fk = v.place_id "
-      "WHERE visit_date < ?1 "
-      "UNION ALL "
-      "SELECT v.id, v.place_id, v.visit_date, IFNULL(h_t.url, h.url), "
-             "IFNULL(h_t.favicon_id, h.favicon_id), "
-             "IFNULL(h_t.hidden, h.hidden), b.fk "
-      "FROM moz_historyvisits v "
-      "LEFT JOIN moz_places_temp AS h_t ON h_t.id = v.place_id "
-      "LEFT JOIN moz_places AS h ON h.id = v.place_id "
-      "LEFT JOIN moz_bookmarks b ON b.fk = v.place_id "
-      "WHERE visit_date < ?1 "
-      "ORDER BY v.visit_date ASC "
-      "LIMIT ?2 "),
+      "SELECT v.id, v.place_id, v.visit_date, h.url, h.favicon_id, h.hidden, "
+        "(SELECT fk FROM moz_bookmarks WHERE fk = h.id) "
+      "FROM moz_places h JOIN moz_historyvisits v ON h.id = v.place_id "
+      "WHERE v.visit_date < ?1 "
+      "ORDER BY v.visit_date ASC LIMIT ?2"),
     getter_AddRefs(selectStatement));
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -526,10 +501,7 @@ nsNavHistoryExpire::FindVisits(PRTime aExpireThreshold, PRUint32 aNumToExpire,
     // check the number of visited unique urls in the db.
     nsCOMPtr<mozIStorageStatement> countStatement;
     rv = aConnection->CreateStatement(NS_LITERAL_CSTRING(
-        "SELECT "
-          "(SELECT count(*) FROM moz_places_temp WHERE visit_count > 0) + "
-          "(SELECT count(*) FROM moz_places WHERE visit_count > 0 AND "
-            "id NOT IN (SELECT id FROM moz_places_temp))"),
+        "SELECT count(*) FROM moz_places WHERE visit_count > 0"),
       getter_AddRefs(countStatement));
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -604,44 +576,23 @@ nsNavHistoryExpire::EraseVisits(mozIStorageConnection* aConnection,
   // keep the old frecencies when possible as an estimate for the new frecency
   // unless we know it has to be invalidated.
   // We must do this before deleting visits
-  nsresult rv = aConnection->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
-    "UPDATE moz_places_view "
-    "SET frecency = -MAX(visit_count, 1) "
-    "WHERE id IN ( "
-      "SELECT h.id FROM moz_places_temp h "
-      "WHERE "
-        "NOT EXISTS (SELECT id FROM moz_bookmarks WHERE fk = h.id) AND "
-        "NOT EXISTS ( "
-          "SELECT v.id FROM moz_historyvisits_temp v "
-          "WHERE v.place_id = h.id "
-          "AND v.id NOT IN (") + deletedVisitIds + NS_LITERAL_CSTRING(") "
-        ") AND "
-        "NOT EXISTS ( "
-          "SELECT v.id FROM moz_historyvisits v "
-          "WHERE v.place_id = h.id "
-          "AND v.id NOT IN (") + deletedVisitIds + NS_LITERAL_CSTRING(") "
-        ") AND "
-        "h.id IN (") + placeIds + NS_LITERAL_CSTRING(") "
-      "UNION ALL "
-      "SELECT h.id FROM moz_places h "
-      "WHERE "
-        "NOT EXISTS (SELECT id FROM moz_bookmarks WHERE fk = h.id) AND "
-        "NOT EXISTS ( "
-          "SELECT v.id FROM moz_historyvisits_temp v "
-          "WHERE v.place_id = h.id "
-          "AND v.id NOT IN (") + deletedVisitIds + NS_LITERAL_CSTRING(") "
-        ") AND "
-        "NOT EXISTS ( "
-          "SELECT v.id FROM moz_historyvisits v "
-          "WHERE v.place_id = h.id "
-          "AND v.id NOT IN (") + deletedVisitIds + NS_LITERAL_CSTRING(") "
-        ") AND "
-        "h.id IN (") + placeIds + NS_LITERAL_CSTRING(") "
-    ")"));
+  nsresult rv = aConnection->ExecuteSimpleSQL(
+    NS_LITERAL_CSTRING(
+      "UPDATE moz_places "
+      "SET frecency = -MAX(visit_count, 1) "
+      "WHERE id IN ("
+        "SELECT h.id FROM moz_places h "
+        "WHERE NOT EXISTS (SELECT b.id FROM moz_bookmarks b WHERE b.fk = h.id) "
+          "AND NOT EXISTS "
+            "(SELECT v.id FROM moz_historyvisits v WHERE v.place_id = h.id AND "
+              "v.id NOT IN (") + deletedVisitIds +
+              NS_LITERAL_CSTRING(")) AND "
+              "h.id IN (") + placeIds +
+    NS_LITERAL_CSTRING("))"));
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = aConnection->ExecuteSimpleSQL(
-    NS_LITERAL_CSTRING("DELETE FROM moz_historyvisits_view WHERE id IN (") +
+    NS_LITERAL_CSTRING("DELETE FROM moz_historyvisits WHERE id IN (") +
     deletedVisitIds +
     NS_LITERAL_CSTRING(")"));
   NS_ENSURE_SUCCESS(rv, rv);
@@ -685,33 +636,17 @@ nsNavHistoryExpire::EraseHistory(mozIStorageConnection* aConnection,
   if (deletedPlaceIds.IsEmpty())
     return NS_OK;
 
-  nsresult rv = aConnection->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
-      "DELETE FROM moz_places_view WHERE id IN( "
-        "SELECT h.id "
-        "FROM moz_places h "
-        "WHERE h.id IN(") + deletedPlaceIds + NS_LITERAL_CSTRING(") "
+  return aConnection->ExecuteSimpleSQL(
+    NS_LITERAL_CSTRING("DELETE FROM moz_places WHERE id IN( "
+      "SELECT h.id "
+      "FROM moz_places h "
+      "WHERE h.id IN(") +
+        deletedPlaceIds +
+        NS_LITERAL_CSTRING(") AND NOT EXISTS "
+          "(SELECT id FROM moz_historyvisits WHERE place_id = h.id LIMIT 1) "
           "AND NOT EXISTS "
-            "(SELECT id FROM moz_historyvisits WHERE place_id = h.id LIMIT 1) "
-          "AND NOT EXISTS "
-            "(SELECT id FROM moz_historyvisits_temp WHERE place_id = h.id LIMIT 1) "
-          "AND NOT EXISTS "
-            "(SELECT id FROM moz_bookmarks WHERE fk = h.id LIMIT 1) "
-          "AND SUBSTR(h.url, 1, 6) <> 'place:' "
-        "UNION ALL "
-        "SELECT h.id "
-        "FROM moz_places_temp h "
-        "WHERE h.id IN(") + deletedPlaceIds + NS_LITERAL_CSTRING(") "
-          "AND NOT EXISTS "
-            "(SELECT id FROM moz_historyvisits WHERE place_id = h.id LIMIT 1) "
-          "AND NOT EXISTS "
-            "(SELECT id FROM moz_historyvisits_temp WHERE place_id = h.id LIMIT 1) "
-          "AND NOT EXISTS "
-            "(SELECT id FROM moz_bookmarks WHERE fk = h.id LIMIT 1) "
-          "AND SUBSTR(h.url, 1, 6) <> 'place:' "
-      ")"));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return NS_OK;
+          "(SELECT id FROM moz_bookmarks WHERE fk = h.id LIMIT 1) "
+          "AND SUBSTR(h.url,0,6) <> 'place:')"));
 }
 
 
@@ -741,19 +676,13 @@ nsNavHistoryExpire::EraseFavicons(mozIStorageConnection* aConnection,
   if (deletedFaviconIds.IsEmpty())
     return NS_OK;
 
-  // delete only if favicon id is not referenced
-  nsresult rv = aConnection->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
-      "DELETE FROM moz_favicons WHERE id IN ( "
-        "SELECT f.id FROM moz_favicons f "
-        "LEFT JOIN moz_places h ON f.id = h.favicon_id "
-        "LEFT JOIN moz_places_temp h_t ON f.id = h_t.favicon_id "
-        "WHERE f.id IN (") + deletedFaviconIds + NS_LITERAL_CSTRING(") "
-        "AND h.favicon_id IS NULL "
-        "AND h_t.favicon_id IS NULL "
-      ")"));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return NS_OK;
+  // delete only if id is not referenced in moz_places
+  return aConnection->ExecuteSimpleSQL(
+    NS_LITERAL_CSTRING("DELETE FROM moz_favicons WHERE id IN ( "
+      "SELECT f.id FROM moz_favicons f "
+      "LEFT OUTER JOIN moz_places h ON f.id = h.favicon_id "
+      "WHERE f.id IN (") + deletedFaviconIds +
+      NS_LITERAL_CSTRING(") AND h.favicon_id IS NULL)"));
 }
 
 
@@ -806,16 +735,12 @@ nsNavHistoryExpire::ExpireAnnotations(mozIStorageConnection* aConnection)
   PRTime now = PR_Now();
   nsCOMPtr<mozIStorageStatement> expirePagesStatement;
   nsresult rv = aConnection->CreateStatement(NS_LITERAL_CSTRING(
-      "DELETE FROM moz_annos "
-      "WHERE expiration = ?1 AND "
-        "(?2 > MAX(COALESCE(lastModified, 0), dateAdded))"),
+      "DELETE FROM moz_annos WHERE expiration = ?1 AND (?2 > MAX(COALESCE(lastModified, 0), dateAdded))"),
     getter_AddRefs(expirePagesStatement));
   NS_ENSURE_SUCCESS(rv, rv);
   nsCOMPtr<mozIStorageStatement> expireItemsStatement;
   rv = aConnection->CreateStatement(NS_LITERAL_CSTRING(
-      "DELETE FROM moz_items_annos "
-      "WHERE expiration = ?1 AND "
-        "(?2 > MAX(COALESCE(lastModified, 0), dateAdded))"),
+      "DELETE FROM moz_items_annos WHERE expiration = ?1 AND (?2 > MAX(COALESCE(lastModified, 0), dateAdded))"),
     getter_AddRefs(expireItemsStatement));
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -826,17 +751,13 @@ nsNavHistoryExpire::ExpireAnnotations(mozIStorageConnection* aConnection)
   NS_ENSURE_SUCCESS(rv, rv);
   rv = expirePagesStatement->Execute();
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = expirePagesStatement->Reset();
-  NS_ENSURE_SUCCESS(rv, rv);
-
+  
   // remove days item annos
   rv = expireItemsStatement->BindInt32Parameter(0, nsIAnnotationService::EXPIRE_DAYS);
   NS_ENSURE_SUCCESS(rv, rv);
   rv = expireItemsStatement->BindInt64Parameter(1, (now - EXPIRATION_POLICY_DAYS));
   NS_ENSURE_SUCCESS(rv, rv);
   rv = expireItemsStatement->Execute();
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = expireItemsStatement->Reset();
   NS_ENSURE_SUCCESS(rv, rv);
 
   // remove weeks annos
@@ -846,8 +767,6 @@ nsNavHistoryExpire::ExpireAnnotations(mozIStorageConnection* aConnection)
   NS_ENSURE_SUCCESS(rv, rv);
   rv = expirePagesStatement->Execute();
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = expirePagesStatement->Reset();
-  NS_ENSURE_SUCCESS(rv, rv);
 
   // remove weeks item annos
   rv = expireItemsStatement->BindInt32Parameter(0, nsIAnnotationService::EXPIRE_WEEKS);
@@ -855,8 +774,6 @@ nsNavHistoryExpire::ExpireAnnotations(mozIStorageConnection* aConnection)
   rv = expireItemsStatement->BindInt64Parameter(1, (now - EXPIRATION_POLICY_WEEKS));
   NS_ENSURE_SUCCESS(rv, rv);
   rv = expireItemsStatement->Execute();
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = expireItemsStatement->Reset();
   NS_ENSURE_SUCCESS(rv, rv);
 
   // remove months annos
@@ -880,9 +797,6 @@ nsNavHistoryExpire::ExpireAnnotations(mozIStorageConnection* aConnection)
       "DELETE FROM moz_annos WHERE expiration = ") +
         nsPrintfCString("%d", nsIAnnotationService::EXPIRE_WITH_HISTORY) +
         NS_LITERAL_CSTRING(" AND NOT EXISTS "
-          "(SELECT id FROM moz_historyvisits_temp "
-          "WHERE place_id = moz_annos.place_id LIMIT 1) "
-        "AND NOT EXISTS "
           "(SELECT id FROM moz_historyvisits "
           "WHERE place_id = moz_annos.place_id LIMIT 1)"));
   NS_ENSURE_SUCCESS(rv, rv);
@@ -892,6 +806,33 @@ nsNavHistoryExpire::ExpireAnnotations(mozIStorageConnection* aConnection)
 
   return NS_OK;
 }
+
+
+// nsNavHistoryExpire::ExpireEmbeddedLinks
+
+nsresult
+nsNavHistoryExpire::ExpireEmbeddedLinks(mozIStorageConnection* aConnection)
+{
+  PRTime maxEmbeddedAge = PR_Now() - EMBEDDED_LINK_LIFETIME;
+  nsCOMPtr<mozIStorageStatement> expireEmbeddedLinksStatement;
+  // Note: This query also removes visit_type = 0 entries, for bug #375777.
+  nsresult rv = aConnection->CreateStatement(NS_LITERAL_CSTRING(
+    "DELETE FROM moz_historyvisits WHERE id IN ("
+      "SELECT id FROM moz_historyvisits WHERE visit_date < ?1 "
+      "AND (visit_type = ?2 OR visit_type = 0) LIMIT ?3)"),
+    getter_AddRefs(expireEmbeddedLinksStatement));
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = expireEmbeddedLinksStatement->BindInt64Parameter(0, maxEmbeddedAge);
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = expireEmbeddedLinksStatement->BindInt32Parameter(1, nsINavHistoryService::TRANSITION_EMBED);
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = expireEmbeddedLinksStatement->BindInt32Parameter(2, EXPIRATION_CAP_EMBEDDED);
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = expireEmbeddedLinksStatement->Execute();
+  NS_ENSURE_SUCCESS(rv, rv);
+  return NS_OK;
+}
+
 
 // nsNavHistoryExpire::ExpireHistoryParanoid
 //
@@ -906,24 +847,11 @@ nsNavHistoryExpire::ExpireHistoryParanoid(mozIStorageConnection* aConnection,
                                           PRInt32 aMaxRecords)
 {
   nsCAutoString query(
-    "DELETE FROM moz_places_view WHERE id IN ("
+    "DELETE FROM moz_places WHERE id IN ("
       "SELECT h.id FROM moz_places h "
-      "LEFT JOIN moz_historyvisits v ON h.id = v.place_id "
-      "LEFT JOIN moz_historyvisits_temp v_t ON h.id = v_t.place_id "
-      "LEFT JOIN moz_bookmarks b ON h.id = b.fk "
-      "WHERE v.id IS NULL "
-        "AND v_t.id IS NULL "
-        "AND b.id IS NULL "
-        "AND SUBSTR(h.url, 1, 6) <> 'place:' "
-      "UNION ALL "
-      "SELECT h.id FROM moz_places_temp h "
-      "LEFT JOIN moz_historyvisits v ON h.id = v.place_id "
-      "LEFT JOIN moz_historyvisits_temp v_t ON h.id = v_t.place_id "
-      "LEFT JOIN moz_bookmarks b ON h.id = b.fk "
-      "WHERE v.id IS NULL "
-        "AND v_t.id IS NULL "
-        "AND b.id IS NULL "
-        "AND SUBSTR(h.url, 1, 6) <> 'place:'");
+        "LEFT OUTER JOIN moz_historyvisits v ON h.id = v.place_id "
+        "LEFT OUTER JOIN moz_bookmarks b ON h.id = b.fk "
+      "WHERE v.id IS NULL AND b.id IS NULL AND SUBSTR(h.url,0,6) <> 'place:'");
   if (aMaxRecords != -1) {
     query.AppendLiteral(" LIMIT ");
     query.AppendInt(aMaxRecords);
@@ -943,13 +871,10 @@ nsresult
 nsNavHistoryExpire::ExpireFaviconsParanoid(mozIStorageConnection* aConnection)
 {
   nsresult rv = aConnection->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
-      "DELETE FROM moz_favicons WHERE id IN ("
-        "SELECT f.id FROM moz_favicons f "
-        "LEFT JOIN moz_places h ON f.id = h.favicon_id "
-        "LEFT JOIN moz_places_temp h_t ON f.id = h_t.favicon_id "
-        "WHERE h.favicon_id IS NULL "
-          "AND h_t.favicon_id IS NULL "
-      ")"));
+    "DELETE FROM moz_favicons WHERE id IN "
+    "(SELECT f.id FROM moz_favicons f "
+     "LEFT OUTER JOIN moz_places h ON f.id = h.favicon_id "
+     "WHERE h.favicon_id IS NULL)"));
   NS_ENSURE_SUCCESS(rv, rv);
   return rv;
 }
@@ -973,17 +898,14 @@ nsNavHistoryExpire::ExpireAnnotationsParanoid(mozIStorageConnection* aConnection
   // delete all uri annos w/o a corresponding place id
   // or without any visits *and* not EXPIRE_NEVER.
   rv = aConnection->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
-      "DELETE FROM moz_annos WHERE id IN ("
-        "SELECT a.id FROM moz_annos a "
-        "LEFT JOIN moz_places h ON a.place_id = h.id "
-        "LEFT JOIN moz_places_temp h_t ON a.place_id = h_t.id "
-        "LEFT JOIN moz_historyvisits v ON a.place_id = v.place_id "
-        "LEFT JOIN moz_historyvisits_temp v_t ON a.place_id = v_t.place_id "
-        "WHERE (h.id IS NULL AND h_t.id IS NULL) "
-          "OR (v.id IS NULL AND v_t.id IS NULL AND a.expiration != ") +
-            nsPrintfCString("%d", nsIAnnotationService::EXPIRE_NEVER) +
-          NS_LITERAL_CSTRING(")"
-      ")"));
+    "DELETE FROM moz_annos WHERE id IN "
+      "(SELECT a.id FROM moz_annos a "
+      "LEFT OUTER JOIN moz_places p ON a.place_id = p.id "
+      "LEFT OUTER JOIN moz_historyvisits v ON a.place_id = v.place_id "
+      "WHERE p.id IS NULL "
+      "OR (v.id IS NULL AND a.expiration != ") +
+      nsPrintfCString("%d", nsIAnnotationService::EXPIRE_NEVER) +
+      NS_LITERAL_CSTRING("))"));
   NS_ENSURE_SUCCESS(rv, rv);
 
   // delete item annos w/o a corresponding item id
@@ -994,15 +916,16 @@ nsNavHistoryExpire::ExpireAnnotationsParanoid(mozIStorageConnection* aConnection
       "WHERE b.id IS NULL)"));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // delete all anno names w/o a corresponding anno
+  // delete all anno names w/o a corresponding uri or item entry
   rv = aConnection->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
-      "DELETE FROM moz_anno_attributes WHERE id IN (" 
-        "SELECT n.id FROM moz_anno_attributes n "
-        "LEFT JOIN moz_annos a ON n.id = a.anno_attribute_id "
-        "LEFT JOIN moz_items_annos t ON n.id = t.anno_attribute_id "
-        "WHERE a.anno_attribute_id IS NULL "
-          "AND t.anno_attribute_id IS NULL "
-      ")"));
+    "DELETE FROM moz_anno_attributes WHERE " 
+    "id NOT IN (SELECT DISTINCT a.id FROM moz_anno_attributes a "
+      "JOIN moz_annos b ON b.anno_attribute_id = a.id "
+      "JOIN moz_places p ON b.place_id = p.id) "
+    "AND "
+    "id NOT IN (SELECT DISTINCT a.id FROM moz_anno_attributes a "
+      "JOIN moz_items_annos c ON c.anno_attribute_id = a.id "
+      "JOIN moz_bookmarks p ON c.item_id = p.id)"));
   NS_ENSURE_SUCCESS(rv, rv);
   return NS_OK;
 }
@@ -1010,20 +933,24 @@ nsNavHistoryExpire::ExpireAnnotationsParanoid(mozIStorageConnection* aConnection
 
 // nsNavHistoryExpire::ExpireInputHistoryParanoid
 //
-//    Deletes dangling input history
+//    Deletes dangling input history, decay potentially unused entries
 
 nsresult
 nsNavHistoryExpire::ExpireInputHistoryParanoid(mozIStorageConnection* aConnection)
 {
   // Delete dangling input history that have no associated pages
   nsresult rv = aConnection->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
-      "DELETE FROM moz_inputhistory WHERE place_id IN ( "
-        "SELECT place_id FROM moz_inputhistory "
-        "LEFT JOIN moz_places h ON h.id = place_id "
-        "LEFT JOIN moz_places_temp h_t ON h_t.id = place_id "
-        "WHERE h.id IS NULL "
-          "AND h_t.id IS NULL "
-      ")"));
+    "DELETE FROM moz_inputhistory WHERE place_id IN "
+    "(SELECT i.place_id FROM moz_inputhistory i "
+      "LEFT OUTER JOIN moz_places h ON i.place_id = h.id "
+      "WHERE h.id IS NULL)"));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // Decay potentially unused entries (e.g. those that are at 1) to allow
+  // better chances for new entries that will start at 1
+  rv = aConnection->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
+    "UPDATE moz_inputhistory "
+    "SET use_count = use_count * .9"));
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;

@@ -40,8 +40,6 @@
 #include "nscore.h"
 #include "jsapi.h"
 
-class nsIPrincipal;
-
 class XPCNativeWrapper
 {
 public:
@@ -49,7 +47,7 @@ public:
                                            JSObject *aGlobalObject);
 
   static JSObject *GetNewOrUsed(JSContext *cx, XPCWrappedNative *wrapper,
-                                nsIPrincipal *aObjectPrincipal);
+                                JSObject *callee);
 
   static PRBool IsNativeWrapperClass(JSClass *clazz)
   {
@@ -61,15 +59,10 @@ public:
     return STOBJ_GET_CLASS(obj) == &sXPC_NW_JSClass.base;
   }
 
-  static JSBool GetWrappedNative(JSContext *cx, JSObject *obj,
-                                 XPCWrappedNative **aWrappedNative);
-
-  // NB: Use the following carefully.
-  static XPCWrappedNative *SafeGetWrappedNative(JSObject *obj)
+  static XPCWrappedNative *GetWrappedNative(JSObject *obj)
   {
-      return static_cast<XPCWrappedNative *>(xpc_GetJSPrivate(obj));
+    return (XPCWrappedNative *)xpc_GetJSPrivate(obj);
   }
-
 
   static JSClass *GetJSClass()
   {

@@ -56,14 +56,14 @@ nsDOMProgressEvent::GetLengthComputable(PRBool* aLengthComputable)
 }
 
 NS_IMETHODIMP
-nsDOMProgressEvent::GetLoaded(PRUint64* aLoaded)
+nsDOMProgressEvent::GetLoaded(PRUint32* aLoaded)
 {
   *aLoaded = mLoaded;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsDOMProgressEvent::GetTotal(PRUint64* aTotal)
+nsDOMProgressEvent::GetTotal(PRUint32* aTotal)
 {
   *aTotal = mTotal;
   return NS_OK;
@@ -74,8 +74,8 @@ nsDOMProgressEvent::InitProgressEvent(const nsAString& aType,
                                       PRBool aCanBubble,
                                       PRBool aCancelable,
                                       PRBool aLengthComputable,
-                                      PRUint64 aLoaded,
-                                      PRUint64 aTotal)
+                                      PRUint32 aLoaded,
+                                      PRUint32 aTotal)
 {
   nsresult rv = nsDOMEvent::InitEvent(aType, aCanBubble, aCancelable);
   NS_ENSURE_SUCCESS(rv, rv);

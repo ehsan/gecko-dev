@@ -18,7 +18,7 @@ var parentRunner = null;
 if (typeof(parent) != "undefined" && parent.TestRunner) {
     parentRunner = parent.TestRunner;
 } else if (parent && parent.wrappedJSObject &&
-           parent.wrappedJSObject.TestRunner) {
+	   parent.wrappedJSObject.TestRunner) {
     parentRunner = parent.wrappedJSObject.TestRunner;
 }
 
@@ -107,12 +107,6 @@ SimpleTest.report = function () {
     var passed = 0;
     var failed = 0;
     var todo = 0;
-
-    // Report tests which did not actually check anything.
-    if (SimpleTest._tests.length == 0)
-      // ToDo: Do s/todo/ok/ when all the tests are fixed. (Bug 483407)
-      SimpleTest.todo(false, "[SimpleTest.report()] No checks actually run.");
-
     var results = MochiKit.Base.map(
         function (test) {
             var cls, msg;
@@ -120,7 +114,7 @@ SimpleTest.report = function () {
                 todo++;
                 cls = "test_todo";
                 msg = "todo - " + test.name + " " + test.diag;
-            } else if (test.result && !test.todo) {
+            } else if (test.result &&!test.todo) {
                 passed++;
                 cls = "test_ok";
                 msg = "ok - " + test.name;
@@ -133,10 +127,7 @@ SimpleTest.report = function () {
         },
         SimpleTest._tests
     );
-
-    var summary_class = failed != 0 ? 'some_fail' :
-                          passed == 0 ? 'todo_only' : 'all_pass';
-
+    var summary_class = ((failed == 0) ? 'all_pass' : 'some_fail');
     return DIV({'class': 'tests_report'},
         DIV({'class': 'tests_summary ' + summary_class},
             DIV({'class': 'tests_passed'}, "Passed: " + passed),
@@ -172,17 +163,15 @@ SimpleTest.toggleByClass = function (cls, evt) {
 **/
 
 SimpleTest.showReport = function() {
-    var togglePassed = A({'href': '#'}, "Toggle passed checks");
-    var toggleFailed = A({'href': '#'}, "Toggle failed checks");
-    var toggleTodo = A({'href': '#'}, "Toggle todo checks");
+    var togglePassed = A({'href': '#'}, "Toggle passed tests");
+    var toggleFailed = A({'href': '#'}, "Toggle failed tests");
     togglePassed.onclick = partial(SimpleTest.toggleByClass, 'test_ok');
     toggleFailed.onclick = partial(SimpleTest.toggleByClass, 'test_not_ok');
-    toggleTodo.onclick = partial(SimpleTest.toggleByClass, 'test_todo');
     var body = document.body;  // Handles HTML documents
     if (!body) {
-        // Do the XML thing.
-        body = document.getElementsByTagNameNS("http://www.w3.org/1999/xhtml",
-                                               "body")[0];
+	// Do the XML thing
+	body = document.getElementsByTagNameNS("http://www.w3.org/1999/xhtml",
+					       "body")[0]
     }
     var firstChild = body.childNodes[0];
     var addNode;
@@ -198,8 +187,6 @@ SimpleTest.showReport = function() {
     addNode(togglePassed);
     addNode(SPAN(null, " "));
     addNode(toggleFailed);
-    addNode(SPAN(null, " "));
-    addNode(toggleTodo);
     addNode(SimpleTest.report());
 };
 
@@ -213,26 +200,6 @@ SimpleTest.showReport = function() {
 SimpleTest.waitForExplicitFinish = function () {
     SimpleTest._stopOnLoad = false;
 };
-
-/**
- * Executes a function shortly after the call, but lets the caller continue
- * working (or finish).
- */
-SimpleTest.executeSoon = function(aFunc) {
-    if ("Components" in window && "classes" in window.Components) {
-        netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-        var tm = Components.classes["@mozilla.org/thread-manager;1"]
-                   .getService(Components.interfaces.nsIThreadManager);
-
-        tm.mainThread.dispatch({
-            run: function() {
-                aFunc();
-            }
-        }, Components.interfaces.nsIThread.DISPATCH_NORMAL);
-    } else {
-        setTimeout(aFunc, 0);
-    }
-}
 
 /**
  * Talks to the TestRunner if being ran on a iframe and the parent has a
@@ -407,7 +374,7 @@ SimpleTest._formatStack = function (stack) {
         if (val == null) {
             val = 'undefined';
         } else {
-            val == SimpleTest.DNE ? "Does not exist" : "'" + val + "'";
+             val == SimpleTest.DNE ? "Does not exist" : "'" + val + "'";
         }
     }
 
@@ -464,24 +431,17 @@ var todo = SimpleTest.todo;
 var todo_is = SimpleTest.todo_is;
 var todo_isnot = SimpleTest.todo_isnot;
 var isDeeply = SimpleTest.isDeeply;
-
-const oldOnError = window.onerror;
+var oldOnError = window.onerror;
 window.onerror = function (ev) {
-  // Log the error.
-  ok(false, "[SimpleTest/SimpleTest.js, window.onerror] An error occurred: [ " + ev + " ]");
-
-  // Call previous handler.
-  if (oldOnError) {
-    try {
-      oldOnError(ev);
-    } catch (e) {
-      // Log the exception.
-      ok(false, "[SimpleTest/SimpleTest.js, window.onerror] Exception thrown by oldOnError(): [ " + e + " ]");
+    is(0, 1, "Error thrown during test: " + ev);
+    if (oldOnError) {
+	try {
+	  oldOnError(ev);
+	} catch (e) {
+	}
     }
-  }
-
-  if (!SimpleTest._stopOnLoad) {
-    // Need to finish() manually here, yet let the test actually end first.
-    SimpleTest.executeSoon(SimpleTest.finish);
-  }
+    if (SimpleTest._stopOnLoad == false) {
+      // Need to finish() manually here
+      SimpleTest.finish();
+    }
 }

@@ -45,7 +45,6 @@
 #include "nsIPercentHeightObserver.h"
 #include "nsGkAtoms.h"
 #include "nsLayoutUtils.h"
-#include "nsTArray.h"
 
 class nsTableFrame;
 
@@ -73,8 +72,8 @@ class nsTableCellFrame : public nsHTMLContainerFrame,
 {
 public:
 
-  NS_DECLARE_FRAME_ACCESSOR(nsTableCellFrame)
-  NS_DECL_QUERYFRAME
+  // nsISupports
+  NS_DECL_ISUPPORTS_INHERITED
 
   // default constructor supplied by the compiler
 
@@ -93,10 +92,7 @@ public:
                                nsIAtom*        aAttribute,
                                PRInt32         aModType);
 
-  /** @see nsIFrame::DidSetStyleContext */
-  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
-  
-  // table cells contain a block frame which does most of the work, and
+  // table cells contain an area frame which does most of the work, and
   // so these functions should never be called. They assert and return
   // NS_ERROR_NOT_IMPLEMENTED
   NS_IMETHOD AppendFrames(nsIAtom*        aListName,
@@ -252,6 +248,13 @@ protected:
    * handle invalidation correctly for dynamic border changes.
    */
   virtual void GetSelfOverflow(nsRect& aOverflowArea);
+
+private:  
+
+  // All these methods are support methods for RecalcLayoutData
+  nsIFrame* GetFrameAt(nsVoidArray* aList,  PRInt32 aIndex);
+
+protected:
 
   friend class nsTableRowFrame;
 

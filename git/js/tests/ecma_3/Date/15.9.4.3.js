@@ -187,24 +187,24 @@ function test()
 
   //
 
-  expect = true;
-  actual = isNaN(new Date(Date.UTC(2006, 0, -Infinity)).getUTCDate());
+  expect = 31;
+  actual = (new Date(Date.UTC(2006, 0, -Infinity)).getUTCDate());
   reportCompare(expect, actual, summary + ': date -Infinity');
 
-  expect = true;
-  actual = isNaN(new Date(Date.UTC(2006, 0, 0, -Infinity)).getUTCHours());
+  expect = 0;
+  actual = (new Date(Date.UTC(2006, 0, 0, -Infinity)).getUTCHours());
   reportCompare(expect, actual, summary + ': hours -Infinity');
 
-  expect = true;
-  actual = isNaN(new Date(Date.UTC(2006, 0, 0, 0, -Infinity)).getUTCMinutes());
+  expect = 0;
+  actual = (new Date(Date.UTC(2006, 0, 0, 0, -Infinity)).getUTCMinutes());
   reportCompare(expect, actual, summary + ': minutes -Infinity');
 
-  expect = true;
-  actual = isNaN(new Date(Date.UTC(2006, 0, 0, 0, 0, -Infinity)).getUTCSeconds());
+  expect = 0;
+  actual = (new Date(Date.UTC(2006, 0, 0, 0, 0, -Infinity)).getUTCSeconds());
   reportCompare(expect, actual, summary + ': seconds -Infinity');
 
-  expect = true;
-  actual = isNaN(new Date(Date.UTC(2006, 0, 0, 0, 0, 0, -Infinity)).getUTCMilliseconds());
+  expect = 0;
+  actual = (new Date(Date.UTC(2006, 0, 0, 0, 0, 0, -Infinity)).getUTCMilliseconds());
   reportCompare(expect, actual, summary + ': milliseconds -Infinity');
 
   //

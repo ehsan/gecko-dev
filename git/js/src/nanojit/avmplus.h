@@ -45,15 +45,6 @@
 #endif
 
 #include "jstypes.h"
-#include "jsstdint.h"
-
-#if !defined(AVMPLUS_LITTLE_ENDIAN) && !defined(AVMPLUS_BIG_ENDIAN)
-#ifdef IS_BIG_ENDIAN
-#define AVMPLUS_BIG_ENDIAN
-#else
-#define AVMPLUS_LITTLE_ENDIAN
-#endif
-#endif
 
 #define FASTCALL JS_FASTCALL
 
@@ -90,6 +81,23 @@ void NanoAssertFail();
 #define AvmAssert(x) assert(x)
 #define AvmAssertMsg(x, y) 
 #define AvmDebugLog(x) printf x
+
+#ifdef _MSC_VER
+/*
+ * Can we just take a moment to think about what it means that MSVC doesn't have stdint.h in 2008?
+ * Thanks for your time.
+ */
+typedef JSUint8  uint8_t;
+typedef JSInt8   int8_t;
+typedef JSUint16 uint16_t;
+typedef JSInt16  int16_t;
+typedef JSUint32 uint32_t;
+typedef JSInt32  int32_t;
+typedef JSUint64 uint64_t;
+typedef JSInt64  int64_t;
+#else
+#include <stdint.h>
+#endif
 
 #if defined(AVMPLUS_IA32)
 #if defined(_MSC_VER)
@@ -154,138 +162,189 @@ static __inline__ unsigned long long rdtsc(void)
 
 struct JSContext;
 
-namespace avmplus {
-    
-    class GC;
-    
-    class GCObject 
-    {
-    public:
-        inline void*
-        operator new(size_t size, GC* gc)
-        {
-            return calloc(1, size);
-        }
-        
-        static void operator delete (void *gcObject)
-        {
-            free(gcObject); 
-        }
-    };
-    
-    #define MMGC_SUBCLASS_DECL : public avmplus::GCObject
-    
-    class GCFinalizedObject : public GCObject
-    {
-    public:
-        static void operator delete (void *gcObject)
-        {
-            free(gcObject); 
-        }
-    };
-    
-    class GCHeap
-    {
-    public:
-        int32_t kNativePageSize;
-    
-        GCHeap()
-        {
-    #if defined _SC_PAGE_SIZE
-            kNativePageSize = sysconf(_SC_PAGE_SIZE);
-    #else
-            kNativePageSize = 4096; // @todo: what is this?
-    #endif
-        }
-        
-        inline void*
-        Alloc(uint32_t pages) 
-        {
-    #ifdef XP_WIN
-            return VirtualAlloc(NULL, 
-                                pages * kNativePageSize,
-                                MEM_COMMIT | MEM_RESERVE, 
-                                PAGE_EXECUTE_READWRITE);
-    #elif defined AVMPLUS_UNIX
-            /**
-             * Don't use normal heap with mprotect+PROT_EXEC for executable code.
-             * SELinux and friends don't allow this.
-             */
-            return mmap(NULL, 
-                        pages * kNativePageSize,
-                        PROT_READ | PROT_WRITE | PROT_EXEC,
-                        MAP_PRIVATE | MAP_ANON,
-                        -1,
-                        0);
-    #else
-            return valloc(pages * kNativePageSize); 
-    #endif
-        }
-        
-        inline void
-        Free(void* p, uint32_t pages)
-        {
-    #ifdef XP_WIN
-            VirtualFree(p, 0, MEM_RELEASE);
-    #elif defined AVMPLUS_UNIX
-            #if defined SOLARIS
-            munmap((char*)p, pages * kNativePageSize); 
-            #else
-            munmap(p, pages * kNativePageSize); 
-            #endif
-    #else
-            free(p);
-    #endif
-        }
-        
-    };
-    
-    class GC 
-    {
-        static GCHeap heap;
-        
-    public:
-		/**
-		* flags to be passed as second argument to alloc
-		*/
-		enum AllocFlags
-		{
-			kZero=1,
-			kContainsPointers=2,
-			kFinalize=4,
-			kRCObject=8
-		};
+namespace nanojit
+{
+	class Fragment;
 
-        static inline void*
-        Alloc(uint32_t bytes, int flags=kZero)
-        {
-          if (flags & kZero)
-            return calloc(1, bytes);
-          else
-            return malloc(bytes);
-        }
+	enum ExitType {
+	    BRANCH_EXIT, 
+	    LOOP_EXIT, 
+	    NESTED_EXIT,
+	    MISMATCH_EXIT,
+	    OOM_EXIT,
+	    OVERFLOW_EXIT
+	};
+	
+	struct SideExit
+	{
+        intptr_t ip_adj;
+        intptr_t sp_adj;
+        intptr_t rp_adj;
+        Fragment *target;
+        Fragment *from;
+        int32_t calldepth;
+        uint32 numGlobalSlots;
+        uint32 numStackSlots;
+        uint32 numStackSlotsBelowCurrentFrame;
+        uint8 *typeMap;
+        ExitType exitType;
+#if defined NJ_VERBOSE
+		uint32_t sid;
+#endif
+	};
+
+	class LIns;
+
+	struct GuardRecord
+	{
+		Fragment *target;
+		Fragment *from;
+		void *jmp;
+		void *origTarget;
+		SideExit *exit;
+		GuardRecord *outgoing;
+		GuardRecord *next;
+		LIns *guard;
+		int32_t calldepth;
+#if defined NJ_VERBOSE
+		uint32_t compileNbr;
+		uint32_t sid;
+#endif
+	};
+
+	#define GuardRecordSize(g) sizeof(GuardRecord)
+    #define SideExitSize(e) sizeof(SideExit)
+}
+
+class GC;
+
+class GCObject 
+{
+public:
+    inline void*
+    operator new(size_t size, GC* gc)
+    {
+        return calloc(1, size);
+    }
+
+    static void operator delete (void *gcObject)
+    {
+        free(gcObject); 
+    }
+};
+
+#define MMGC_SUBCLASS_DECL : public GCObject
+
+class GCFinalizedObject : public GCObject
+{
+public:
+    static void operator delete (void *gcObject)
+    {
+        free(gcObject); 
+    }
+};
+
+class GCHeap
+{
+public:
+    int32_t kNativePageSize;
+
+    GCHeap()
+    {
+#if defined _SC_PAGE_SIZE
+        kNativePageSize = sysconf(_SC_PAGE_SIZE);
+#else
+        kNativePageSize = 4096; // @todo: what is this?
+#endif
+    }
     
-        static inline void
-        Free(void* p)
-        {
-            free(p);
-        }
-        
-        static inline GCHeap*
-        GetGCHeap()
-        {
-            return &heap;
-        }
-    };
+    inline void*
+    Alloc(uint32_t pages) 
+    {
+#ifdef XP_WIN
+        return VirtualAlloc(NULL, 
+                            pages * kNativePageSize,
+                            MEM_COMMIT | MEM_RESERVE, 
+                            PAGE_EXECUTE_READWRITE);
+#elif defined AVMPLUS_UNIX
+        /**
+         * Don't use normal heap with mprotect+PROT_EXEC for executable code.
+         * SELinux and friends don't allow this.
+         */
+        return mmap(NULL, 
+                    pages * kNativePageSize,
+                    PROT_READ | PROT_WRITE | PROT_EXEC,
+                    MAP_PRIVATE | MAP_ANON,
+                    -1,
+                    0);
+#else
+        return valloc(pages * kNativePageSize); 
+#endif
+    }
+    
+    inline void
+    Free(void* p, uint32_t pages)
+    {
+#ifdef XP_WIN
+        VirtualFree(p, 0, MEM_RELEASE);
+#elif defined AVMPLUS_UNIX
+        #if defined SOLARIS
+        munmap((char*)p, pages * kNativePageSize); 
+        #else
+        munmap(p, pages * kNativePageSize); 
+        #endif
+#else
+        free(p);
+#endif
+    }
+    
+};
+
+class GC 
+{
+    static GCHeap heap;
+    
+public:
+    static inline void*
+    Alloc(uint32_t bytes)
+    {
+        return calloc(1, bytes);
+    }
+
+    static inline void
+    Free(void* p)
+    {
+        free(p);
+    }
+    
+    static inline GCHeap*
+    GetGCHeap()
+    {
+        return &heap;
+    }
+};
 
 #define DWB(x) x
 #define DRCWB(x) x
-#define WB(gc, container, addr, value) do { *(addr) = (value); } while(0)
-#define WBRC(gc, container, addr, value) do { *(addr) = (value); } while(0)
 
 #define MMGC_MEM_TYPE(x)
 
-    typedef int FunctionID;
+typedef int FunctionID;
+
+namespace avmplus
+{
+    struct InterpState
+    {
+        void* sp; /* native stack pointer, stack[0] is spbase[0] */
+        void* rp; /* call stack pointer */
+        void* gp; /* global frame pointer */
+        JSContext *cx; /* current VM context handle */
+        void* eos; /* first unusable word after the native stack */
+        void* eor; /* first unusable word after the call stack */
+        nanojit::GuardRecord* lastTreeExitGuard; /* guard we exited on during a tree call */
+        nanojit::GuardRecord* lastTreeCallGuard; /* guard we want to grow from if the tree
+                                                    call exit guard mismatched */
+    };
 
     class String
     {
@@ -317,11 +376,11 @@ namespace avmplus {
 
     typedef String* Stringp;
 
-    class Config
+    class AvmConfiguration
     {
     public:
-        Config() {
-            memset(this, 0, sizeof(Config));
+        AvmConfiguration() {
+            memset(this, 0, sizeof(AvmConfiguration));
 #ifdef DEBUG
             verbose = getenv("TRACEMONKEY") && strstr(getenv("TRACEMONKEY"), "verbose");
             verbose_addrs = 1;
@@ -329,6 +388,7 @@ namespace avmplus {
             verbose_live = 1;
             show_stats = 1;
 #endif
+            tree_opt = 0;
         }
         
         uint32_t tree_opt:1;
@@ -338,51 +398,6 @@ namespace avmplus {
         uint32_t verbose_live:1;
         uint32_t verbose_exits:1;
         uint32_t show_stats:1;
-
-#if defined (AVMPLUS_IA32)
-	// Whether or not we can use SSE2 instructions and conditional moves.
-        bool sse2;
-        bool use_cmov;
-#endif
-
-#if defined (AVMPLUS_ARM)
-        // Whether or not to generate VFP instructions.
-# if defined (NJ_FORCE_SOFTFLOAT)
-        static const bool vfp = false;
-# else
-        bool vfp;
-# endif
-
-        // The ARM architecture version.
-# if defined (NJ_FORCE_ARM_ARCH_VERSION)
-        static const unsigned int arch = NJ_FORCE_ARM_ARCH_VERSION;
-# else
-        unsigned int arch;
-# endif
-
-        // Support for Thumb, even if it isn't used by nanojit. This is used to
-        // determine whether or not to generate interworking branches.
-# if defined (NJ_FORCE_NO_ARM_THUMB)
-        static const bool thumb = false;
-# else
-        bool thumb;
-# endif
-
-        // Support for Thumb2, even if it isn't used by nanojit. This is used to
-        // determine whether or not to use some of the ARMv6T2 instructions.
-# if defined (NJ_FORCE_NO_ARM_THUMB2)
-        static const bool thumb2 = false;
-# else
-        bool thumb2;
-# endif
-
-#endif
-
-#if defined (NJ_FORCE_SOFTFLOAT)
-        static const bool soft_float = true;
-#else
-        bool soft_float;
-#endif
     };
 
     static const int kstrconst_emptyString = 0;
@@ -425,27 +440,23 @@ namespace avmplus {
     public:
         AvmInterpreter interp;
         AvmConsole console;
-        
-        static Config config;
+
+        static AvmConfiguration config;
         static GC* gc;
         static String* k_str[];
+        static bool sse2_available;
+        static bool cmov_available;
 
-#ifdef AVMPLUS_IA32
         static inline bool
         use_sse2()
         {
-            return config.sse2;
+            return sse2_available;
         }
-#endif
         
         static inline bool
         use_cmov()
         {
-#ifdef AVMPLUS_IA32
-            return config.use_cmov;
-#else
-	    return true;
-#endif
+            return cmov_available;
         }
 
         static inline bool
@@ -498,11 +509,7 @@ namespace avmplus {
      * array use the [] operators.  
      */
 
-    enum ListElementType {
-        LIST_NonGCObjects = 0,
-        LIST_GCObjects = 1,
-        LIST_RCObjects = 2
-    };
+    enum ListElementType { LIST_NonGCObjects, LIST_GCObjects };
 
     template <typename T, ListElementType kElementType>
     class List
@@ -528,8 +535,6 @@ namespace avmplus {
             if (data)
                 free(data);
         }
-
-        const T *getData() const { return data; }
         
         // 'this' steals the guts of 'that' and 'that' gets reset.
         void FASTCALL become(List& that)
@@ -580,15 +585,6 @@ namespace avmplus {
             wb(index, value);
         }
         
-        void add(const List<T, kElementType>& l)
-        {
-            ensureCapacity(len+l.size());
-            // FIXME: make RCObject version
-            AvmAssert(kElementType != LIST_RCObjects);
-            arraycopy(l.getData(), 0, data, len, l.size());
-            len += l.size();
-        }
-
         inline void clear()
         {
             zero_range(0, len);
@@ -611,7 +607,7 @@ namespace avmplus {
             return -1;
         }   
         
-        inline T last() const
+        inline T last()
         {
             return get(len-1);
         }
@@ -681,21 +677,6 @@ namespace avmplus {
             ensureCapacity(newMax);
         }
         
-        void arraycopy(const T* src, int srcStart, T* dst, int dstStart, int nbr)
-        {
-            // we have 2 cases, either closing a gap or opening it.
-            if ((src == dst) && (srcStart > dstStart) )
-            {
-                for(int i=0; i<nbr; i++)
-                    dst[i+dstStart] = src[i+srcStart];  
-            }
-            else
-            {
-                for(int i=nbr-1; i>=0; i--)
-                    dst[i+dstStart] = src[i+srcStart];
-            }
-        }
-
         inline void do_wb_nongc(T* slot, T value)
         {   
             *slot = value;

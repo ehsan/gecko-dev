@@ -118,6 +118,7 @@ public:
 protected:
 
   virtual PRIntn GetSkipSides() const;
+  nsIFrame* MaybeSetLegend(nsIFrame* aFrameList, nsIAtom* aListName);
   void ReParentFrameList(nsIFrame* aFrameList);
 
   nsIFrame* mLegendFrame;
@@ -214,12 +215,6 @@ nsFieldSetFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   // the background/border display item won't do anything, and if it isn't empty,
   // we need to paint the outline
   if (IsVisibleForPainting(aBuilder)) {
-    if (GetStyleBorder()->mBoxShadow) {
-      nsresult rv = aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
-          nsDisplayBoxShadowOuter(this));
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-
     // don't bother checking to see if we really have a border or background.
     // we usually will have a border.
     nsresult rv = aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
@@ -278,10 +273,7 @@ nsFieldSetFrame::PaintBorderBackground(nsIRenderingContext& aRenderingContext,
   nsRect rect(aPt.x, aPt.y + yoff, mRect.width, mRect.height - yoff);
 
   nsCSSRendering::PaintBackground(presContext, aRenderingContext, this,
-                                  aDirtyRect, rect, 0);
-
-  nsCSSRendering::PaintBoxShadowInner(presContext, aRenderingContext,
-                                      this, rect, aDirtyRect);
+                                  aDirtyRect, rect, PR_TRUE);
 
    if (mLegendFrame) {
 
@@ -430,9 +422,7 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
     reflowLegend = mLegendFrame && NS_SUBTREE_DIRTY(mLegendFrame);
   }
 
-  // We don't allow fieldsets to break vertically. If we did, we'd
-  // need logic here to push and pull overflow frames.
-  nsSize availSize(aReflowState.ComputedWidth(), NS_UNCONSTRAINEDSIZE);
+  nsSize availSize(aReflowState.ComputedWidth(), aReflowState.availableHeight);
   NS_ASSERTION(!mContentFrame ||
       nsLayoutUtils::IntrinsicForContainer(aReflowState.rendContext,
                                            mContentFrame,
@@ -485,6 +475,12 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
     // content area as well.
     if (mLegendSpace != oldSpace && mContentFrame) {
       reflowContent = PR_TRUE;
+    }
+
+    // if we are contrained then remove the legend from our available height.
+    if (NS_INTRINSICSIZE != availSize.height) {
+      availSize.height -= mLegendSpace;
+      availSize.height = PR_MAX(availSize.height, 0);
     }
 
     FinishReflowChild(mLegendFrame, aPresContext, &legendReflowState, 
@@ -614,8 +610,8 @@ NS_IMETHODIMP
 nsFieldSetFrame::AppendFrames(nsIAtom*       aListName,
                               nsIFrame*      aFrameList)
 {
+  aFrameList = MaybeSetLegend(aFrameList, aListName);
   if (aFrameList) {
-    // aFrameList is not allowed to contain "the legend" for this fieldset
     ReParentFrameList(aFrameList);
     return mContentFrame->AppendFrames(aListName, aFrameList);
   }
@@ -631,8 +627,8 @@ nsFieldSetFrame::InsertFrames(nsIAtom*       aListName,
                aPrevFrame->GetParent() == mContentFrame,
                "inserting after sibling frame with different parent");
 
+  aFrameList = MaybeSetLegend(aFrameList, aListName);
   if (aFrameList) {
-    // aFrameList is not allowed to contain "the legend" for this fieldset
     ReParentFrameList(aFrameList);
     if (NS_UNLIKELY(aPrevFrame == mLegendFrame)) {
       aPrevFrame = nsnull;
@@ -647,7 +643,17 @@ nsFieldSetFrame::RemoveFrame(nsIAtom*       aListName,
                              nsIFrame*      aOldFrame)
 {
   // For reference, see bug 70648, bug 276104 and bug 236071.
-  NS_ASSERTION(aOldFrame != mLegendFrame, "Cannot remove mLegendFrame here");
+  if (aOldFrame == mLegendFrame) {
+    NS_ASSERTION(!aListName, "Unexpected frame list when removing legend frame");
+    NS_ASSERTION(mLegendFrame->GetParent() == this, "Legend Parent has wrong parent");
+    NS_ASSERTION(mLegendFrame->GetNextSibling() == mContentFrame, "mContentFrame is not next sibling");
+
+    mFrames.DestroyFrame(mLegendFrame);
+    mLegendFrame = nsnull;
+    PresContext()->PresShell()->
+      FrameNeedsReflow(this, nsIPresShell::eTreeChange, NS_FRAME_IS_DIRTY);
+    return NS_OK;
+  }
   return mContentFrame->RemoveFrame(aListName, aOldFrame);
 }
 
@@ -664,13 +670,27 @@ NS_IMETHODIMP nsFieldSetFrame::GetAccessible(nsIAccessible** aAccessible)
 }
 #endif
 
+nsIFrame*
+nsFieldSetFrame::MaybeSetLegend(nsIFrame* aFrameList, nsIAtom* aListName)
+{
+  if (!mLegendFrame && aFrameList->GetType() == nsGkAtoms::legendFrame) {
+    NS_ASSERTION(!aListName, "Unexpected frame list when adding legend frame");
+    mLegendFrame = aFrameList;
+    aFrameList = mLegendFrame->GetNextSibling();
+    mLegendFrame->SetNextSibling(mContentFrame);
+    mFrames.SetFrames(mLegendFrame);
+    PresContext()->PresShell()->
+      FrameNeedsReflow(this, nsIPresShell::eTreeChange,
+                       NS_FRAME_HAS_DIRTY_CHILDREN);
+  }
+  return aFrameList;
+}
+
 void
 nsFieldSetFrame::ReParentFrameList(nsIFrame* aFrameList)
 {
   nsFrameManager* frameManager = PresContext()->FrameManager();
   for (nsIFrame* frame = aFrameList; frame; frame = frame->GetNextSibling()) {
-    NS_ASSERTION(mLegendFrame || frame->GetType() != nsGkAtoms::legendFrame,
-                 "The fieldset's legend is not allowed in this list");
     frame->SetParent(mContentFrame);
     frameManager->ReParentStyleContext(frame);
   }

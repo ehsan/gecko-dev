@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * vim: sw=2 ts=2 et lcs=trail\:.,tab\:>~ :
+ * vim: sw=2 ts=2 sts=2 expandtab
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -39,7 +39,6 @@
 
 #include "nsIXPConnect.h"
 #include "mozStorageStatement.h"
-#include "mozStorageService.h"
 
 #include "nsMemory.h"
 #include "nsString.h"
@@ -52,29 +51,33 @@
 
 #include "jsapi.h"
 
-namespace mozilla {
-namespace storage {
-
-////////////////////////////////////////////////////////////////////////////////
-//// Global Functions
+static nsIXPConnect *sXPConnect = nsnull;
+static inline
+nsIXPConnect *
+XPConnect()
+{
+  if (!sXPConnect) {
+    (void)CallGetService(nsIXPConnect::GetCID(), &sXPConnect);
+    NS_ASSERTION(sXPConnect, "Could not get XPConnect!");
+  }
+  return sXPConnect;
+}
 
 static
 JSBool
-stepFunc(JSContext *aCtx,
-         PRUint32,
-         jsval *_vp)
+stepFunc(JSContext *aCtx, PRUint32, jsval *_vp)
 {
-  nsCOMPtr<nsIXPConnect> xpc(Service::getXPConnect());
   nsCOMPtr<nsIXPConnectWrappedNative> wrapper;
-  nsresult rv = xpc->GetWrappedNativeOfJSObject(
+  nsresult rv = XPConnect()->GetWrappedNativeOfJSObject(
     aCtx, JS_THIS_OBJECT(aCtx, _vp), getter_AddRefs(wrapper)
   );
   if (NS_FAILED(rv)) {
-    ::JS_ReportError(aCtx, "mozIStorageStatement::step() could not obtain native statement");
+    JS_ReportError(aCtx, "mozIStorageStatement::step() could not obtain native statement");
     return JS_FALSE;
   }
 
-  Statement *stmt = static_cast<Statement *>(wrapper->Native());
+  mozStorageStatement *stmt =
+    static_cast<mozStorageStatement *>(wrapper->Native());
 
 #ifdef DEBUG
   {
@@ -92,7 +95,7 @@ stepFunc(JSContext *aCtx,
   }
 
   if (NS_FAILED(rv)) {
-    ::JS_ReportError(aCtx, "mozIStorageStatement::step() returned an error");
+    JS_ReportError(aCtx, "mozIStorageStatement::step() returned an error");
     return JS_FALSE;
   }
 
@@ -100,36 +103,26 @@ stepFunc(JSContext *aCtx,
   return JS_TRUE;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-//// StatementJSHelper
-
 nsresult
-StatementJSHelper::getRow(Statement *aStatement,
-                          JSContext *aCtx,
-                          JSObject *aScopeObj,
-                          jsval *_row)
+mozStorageStatementJSHelper::getRow(mozStorageStatement *aStatement,
+                                    JSContext *aCtx, JSObject *aScopeObj,
+                                    jsval *_row)
 {
   nsresult rv;
 
-#ifdef DEBUG
   PRInt32 state;
   (void)aStatement->GetState(&state);
-  NS_ASSERTION(state == mozIStorageStatement::MOZ_STORAGE_STATEMENT_EXECUTING,
-               "Invalid state to get the row object - all calls will fail!");
-#endif
+  if (state != mozIStorageStatement::MOZ_STORAGE_STATEMENT_EXECUTING)
+    return NS_ERROR_UNEXPECTED;
 
   if (!aStatement->mStatementRowHolder) {
-    nsCOMPtr<mozIStorageStatementRow> row(new StatementRow(aStatement));
+    nsCOMPtr<mozIStorageStatementRow> row =
+      new mozStorageStatementRow(aStatement);
     NS_ENSURE_TRUE(row, NS_ERROR_OUT_OF_MEMORY);
 
-    nsCOMPtr<nsIXPConnect> xpc(Service::getXPConnect());
-    rv = xpc->WrapNative(
-      aCtx,
-      ::JS_GetGlobalForObject(aCtx, aScopeObj),
-      row,
-      NS_GET_IID(mozIStorageStatementRow),
-      getter_AddRefs(aStatement->mStatementRowHolder)
-    );
+    rv = XPConnect()->WrapNative(aCtx, ::JS_GetGlobalForObject(aCtx, aScopeObj),
+                                 row, NS_GET_IID(mozIStorageStatementRow),
+                                 getter_AddRefs(aStatement->mStatementRowHolder));
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -142,33 +135,25 @@ StatementJSHelper::getRow(Statement *aStatement,
 }
 
 nsresult
-StatementJSHelper::getParams(Statement *aStatement,
-                             JSContext *aCtx,
-                             JSObject *aScopeObj,
-                             jsval *_params)
+mozStorageStatementJSHelper::getParams(mozStorageStatement *aStatement,
+                                       JSContext *aCtx, JSObject *aScopeObj,
+                                       jsval *_params)
 {
   nsresult rv;
 
-#ifdef DEBUG
   PRInt32 state;
   (void)aStatement->GetState(&state);
-  NS_ASSERTION(state == mozIStorageStatement::MOZ_STORAGE_STATEMENT_READY,
-               "Invalid state to get the params object - all calls will fail!");
-#endif
+  if (state != mozIStorageStatement::MOZ_STORAGE_STATEMENT_READY)
+    return NS_ERROR_UNEXPECTED;
 
   if (!aStatement->mStatementParamsHolder) {
     nsCOMPtr<mozIStorageStatementParams> params =
-      new StatementParams(aStatement);
+      new mozStorageStatementParams(aStatement);
     NS_ENSURE_TRUE(params, NS_ERROR_OUT_OF_MEMORY);
 
-    nsCOMPtr<nsIXPConnect> xpc(Service::getXPConnect());
-    rv = xpc->WrapNative(
-      aCtx,
-      ::JS_GetGlobalForObject(aCtx, aScopeObj),
-      params,
-      NS_GET_IID(mozIStorageStatementParams),
-      getter_AddRefs(aStatement->mStatementParamsHolder)
-    );
+    rv = XPConnect()->WrapNative(aCtx, ::JS_GetGlobalForObject(aCtx, aScopeObj),
+                                 params, NS_GET_IID(mozIStorageStatementParams),
+                                 getter_AddRefs(aStatement->mStatementParamsHolder));
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -180,9 +165,9 @@ StatementJSHelper::getParams(Statement *aStatement,
   return NS_OK;
 }
 
-NS_IMETHODIMP_(nsrefcnt) StatementJSHelper::AddRef() { return 2; }
-NS_IMETHODIMP_(nsrefcnt) StatementJSHelper::Release() { return 1; }
-NS_INTERFACE_MAP_BEGIN(StatementJSHelper)
+NS_IMETHODIMP_(nsrefcnt) mozStorageStatementJSHelper::AddRef() { return 2; }
+NS_IMETHODIMP_(nsrefcnt) mozStorageStatementJSHelper::Release() { return 1; }
+NS_INTERFACE_MAP_BEGIN(mozStorageStatementJSHelper)
   NS_INTERFACE_MAP_ENTRY(nsIXPCScriptable)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
@@ -190,25 +175,24 @@ NS_INTERFACE_MAP_END
 ////////////////////////////////////////////////////////////////////////////////
 //// nsIXPCScriptable
 
-#define XPC_MAP_CLASSNAME StatementJSHelper
-#define XPC_MAP_QUOTED_CLASSNAME "StatementJSHelper"
+#define XPC_MAP_CLASSNAME mozStorageStatementJSHelper
+#define XPC_MAP_QUOTED_CLASSNAME "mozStorageStatementJSHelper"
 #define XPC_MAP_WANT_GETPROPERTY
 #define XPC_MAP_WANT_NEWRESOLVE
 #define XPC_MAP_FLAGS nsIXPCScriptable::ALLOW_PROP_MODS_DURING_RESOLVE
 #include "xpc_map_end.h"
 
 NS_IMETHODIMP
-StatementJSHelper::GetProperty(nsIXPConnectWrappedNative *aWrapper,
-                               JSContext *aCtx,
-                               JSObject *aScopeObj,
-                               jsval aId,
-                               jsval *_result,
-                               PRBool *_retval)
+mozStorageStatementJSHelper::GetProperty(nsIXPConnectWrappedNative *aWrapper,
+                                         JSContext *aCtx, JSObject *aScopeObj,
+                                         jsval aId, jsval *_result,
+                                         PRBool *_retval)
 {
   if (!JSVAL_IS_STRING(aId))
     return NS_OK;
 
-  Statement *stmt = static_cast<Statement *>(aWrapper->Native());
+  mozStorageStatement *stmt =
+    static_cast<mozStorageStatement *>(aWrapper->Native());
 
 #ifdef DEBUG
   {
@@ -217,11 +201,11 @@ StatementJSHelper::GetProperty(nsIXPConnectWrappedNative *aWrapper,
   }
 #endif
 
-  const char *propName = ::JS_GetStringBytes(JSVAL_TO_STRING(aId));
-  if (::strcmp(propName, "row") == 0)
+  const char *propName = JS_GetStringBytes(JSVAL_TO_STRING(aId));
+  if (strcmp(propName, "row") == 0)
     return getRow(stmt, aCtx, aScopeObj, _result);
 
-  if (::strcmp(propName, "params") == 0)
+  if (strcmp(propName, "params") == 0)
     return getParams(stmt, aCtx, aScopeObj, _result);
 
   return NS_OK;
@@ -229,26 +213,20 @@ StatementJSHelper::GetProperty(nsIXPConnectWrappedNative *aWrapper,
 
 
 NS_IMETHODIMP
-StatementJSHelper::NewResolve(nsIXPConnectWrappedNative *aWrapper,
-                              JSContext *aCtx,
-                              JSObject *aScopeObj,
-                              jsval aId,
-                              PRUint32 aFlags,
-                              JSObject **_objp,
-                              PRBool *_retval)
+mozStorageStatementJSHelper::NewResolve(nsIXPConnectWrappedNative *aWrapper,
+                                        JSContext *aCtx, JSObject *aScopeObj,
+                                        jsval aId, PRUint32 aFlags,
+                                        JSObject **_objp, PRBool *_retval)
 {
   if (!JSVAL_IS_STRING(aId))
     return NS_OK;
 
-  const char *name = ::JS_GetStringBytes(JSVAL_TO_STRING(aId));
-  if (::strcmp(name, "step") == 0) {
-    *_retval = ::JS_DefineFunction(aCtx, aScopeObj, "step", (JSNative)stepFunc,
-                                   0, JSFUN_FAST_NATIVE) != nsnull;
+  const char *name = JS_GetStringBytes(JSVAL_TO_STRING(aId));
+  if (strcmp(name, "step") == 0) {
+    *_retval = JS_DefineFunction(aCtx, aScopeObj, "step", (JSNative)stepFunc, 0,
+                                 JSFUN_FAST_NATIVE) != nsnull;
     *_objp = aScopeObj;
     return NS_OK;
   }
   return NS_OK;
 }
-
-} // namespace storage
-} // namespace mozilla

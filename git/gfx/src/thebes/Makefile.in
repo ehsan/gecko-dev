@@ -57,18 +57,12 @@ REQUIRES =  xpcom \
             string \
             thebes \
             widget \
-            locale \
             view \
             pref \
             unicharutil \
             imglib2 \
             $(ZLIB_REQUIRES) \
-            qcms \
             $(NULL)
-
-ifeq (,$(filter windows,$(MOZ_WIDGET_TOOLKIT)))
-REQUIRES += uconv
-endif
 
 CPPSRCS		= \
 		nsThebesDeviceContext.cpp \
@@ -98,7 +92,6 @@ CPPSRCS		+= nsSystemFontsWin.cpp \
 
 REQUIRES	+= \
 		cairo \
-		qcms \
 		$(NULL)
 
 _OS_LIBS	= usp10
@@ -115,8 +108,8 @@ ifeq ($(MOZ_WIDGET_TOOLKIT),beos)
 CPPSRCS		+= nsSystemFontsBeOS.cpp
 endif
 
-ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
-CMMSRCS		= nsSystemFontsMac.mm
+ifneq (,$(filter $(MOZ_WIDGET_TOOLKIT),mac cocoa))
+CPPSRCS          += nsSystemFontsMac.cpp
 endif
 
 EXPORTS         += nsIThebesFontMetrics.h
@@ -144,7 +137,8 @@ endif
 
 include $(topsrcdir)/config/rules.mk
 
-CXXFLAGS  += $(TK_CFLAGS) $(MOZ_CAIRO_CFLAGS)
+CXXFLAGS  += $(TK_CFLAGS)
+CFLAGS    += $(TK_CFLAGS)
 
 ifdef MOZ_ENABLE_GTK2
 DEFINES += -DMOZ_ENABLE_GTK2

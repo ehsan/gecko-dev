@@ -38,6 +38,15 @@
 
 #ifdef USE_SSE2
 
+#ifdef _MSC_VER
+#undef inline
+#define inline __forceinline
+#endif
+
+#ifdef __GNUC__
+#    define inline __inline__ __attribute__ ((__always_inline__))
+#endif
+
 /* -------------------------------------------------------------------------------------------------
  * Locals
  */
@@ -70,20 +79,20 @@ static __m128i Mask565FixG;
 /* -------------------------------------------------------------------------------------------------
  * SSE2 Inlines
  */
-static force_inline __m128i
+static inline __m128i
 unpack_32_1x128 (uint32_t data)
 {
     return _mm_unpacklo_epi8 (_mm_cvtsi32_si128 (data), _mm_setzero_si128());
 }
 
-static force_inline void
+static inline void
 unpack_128_2x128 (__m128i data, __m128i* dataLo, __m128i* dataHi)
 {
     *dataLo = _mm_unpacklo_epi8 (data, _mm_setzero_si128 ());
     *dataHi = _mm_unpackhi_epi8 (data, _mm_setzero_si128 ());
 }
 
-static force_inline __m128i
+static inline __m128i
 unpack565to8888 (__m128i lo)
 {
     __m128i r, g, b, rb, t;
@@ -104,7 +113,7 @@ unpack565to8888 (__m128i lo)
     return _mm_or_si128 (rb, g);
 }
 
-static force_inline void
+static inline void
 unpack565_128_4x128 (__m128i data, __m128i* data0, __m128i* data1, __m128i* data2, __m128i* data3)
 {
     __m128i lo, hi;
@@ -119,19 +128,19 @@ unpack565_128_4x128 (__m128i data, __m128i* data0, __m128i* data1, __m128i* data
     unpack_128_2x128 (hi, data2, data3);
 }
 
-static force_inline uint16_t
+static inline uint16_t
 pack565_32_16 (uint32_t pixel)
 {
     return (uint16_t) (((pixel>>8) & 0xf800) | ((pixel>>5) & 0x07e0) | ((pixel>>3) & 0x001f));
 }
 
-static force_inline __m128i
+static inline __m128i
 pack_2x128_128 (__m128i lo, __m128i hi)
 {
     return _mm_packus_epi16 (lo, hi);
 }
 
-static force_inline __m128i
+static inline __m128i
 pack565_2x128_128 (__m128i lo, __m128i hi)
 {
     __m128i data;
@@ -147,13 +156,13 @@ pack565_2x128_128 (__m128i lo, __m128i hi)
     return _mm_or_si128 (_mm_or_si128 (_mm_or_si128 (r, g1), g2), b);
 }
 
-static force_inline __m128i
+static inline __m128i
 pack565_4x128_128 (__m128i* xmm0, __m128i* xmm1, __m128i* xmm2, __m128i* xmm3)
 {
     return _mm_packus_epi16 (pack565_2x128_128 (*xmm0, *xmm1), pack565_2x128_128 (*xmm2, *xmm3));
 }
 
-static force_inline uint32_t
+static inline uint32_t
 packAlpha (__m128i x)
 {
     return _mm_cvtsi128_si32 (_mm_packus_epi16 (_mm_packus_epi16 (_mm_srli_epi32 (x, 24),
@@ -161,19 +170,19 @@ packAlpha (__m128i x)
                                                 _mm_setzero_si128 ()));
 }
 
-static force_inline __m128i
+static inline __m128i
 expandPixel_32_1x128 (uint32_t data)
 {
     return _mm_shuffle_epi32 (unpack_32_1x128 (data), _MM_SHUFFLE(1, 0, 1, 0));
 }
 
-static force_inline __m128i
+static inline __m128i
 expandAlpha_1x128 (__m128i data)
 {
     return _mm_shufflehi_epi16 (_mm_shufflelo_epi16 (data, _MM_SHUFFLE(3, 3, 3, 3)), _MM_SHUFFLE(3, 3, 3, 3));
 }
 
-static force_inline void
+static inline void
 expandAlpha_2x128 (__m128i dataLo, __m128i dataHi, __m128i* alphaLo, __m128i* alphaHi)
 {
     __m128i lo, hi;
@@ -184,7 +193,7 @@ expandAlpha_2x128 (__m128i dataLo, __m128i dataHi, __m128i* alphaLo, __m128i* al
     *alphaHi = _mm_shufflehi_epi16 (hi, _MM_SHUFFLE(3, 3, 3, 3));
 }
 
-static force_inline void
+static inline void
 expandAlphaRev_2x128 (__m128i dataLo, __m128i dataHi, __m128i* alphaLo, __m128i* alphaHi)
 {
     __m128i lo, hi;
@@ -195,7 +204,7 @@ expandAlphaRev_2x128 (__m128i dataLo, __m128i dataHi, __m128i* alphaLo, __m128i*
     *alphaHi = _mm_shufflehi_epi16 (hi, _MM_SHUFFLE(0, 0, 0, 0));
 }
 
-static force_inline void
+static inline void
 pixMultiply_2x128 (__m128i* dataLo, __m128i* dataHi, __m128i* alphaLo, __m128i* alphaHi, __m128i* retLo, __m128i* retHi)
 {
     __m128i lo, hi;
@@ -208,7 +217,7 @@ pixMultiply_2x128 (__m128i* dataLo, __m128i* dataHi, __m128i* alphaLo, __m128i* 
     *retHi = _mm_mulhi_epu16 (hi, Mask0101);
 }
 
-static force_inline void
+static inline void
 pixAddMultiply_2x128 (__m128i* srcLo, __m128i* srcHi, __m128i* alphaDstLo, __m128i* alphaDstHi,
                       __m128i* dstLo, __m128i* dstHi, __m128i* alphaSrcLo, __m128i* alphaSrcHi,
                       __m128i* retLo, __m128i* retHi)
@@ -228,14 +237,14 @@ pixAddMultiply_2x128 (__m128i* srcLo, __m128i* srcHi, __m128i* alphaDstLo, __m12
     *retHi = _mm_mulhi_epu16 (hi, Mask0101);
 }
 
-static force_inline void
+static inline void
 negate_2x128 (__m128i dataLo, __m128i dataHi, __m128i* negLo, __m128i* negHi)
 {
     *negLo = _mm_xor_si128 (dataLo, Mask00ff);
     *negHi = _mm_xor_si128 (dataHi, Mask00ff);
 }
 
-static force_inline void
+static inline void
 invertColors_2x128 (__m128i dataLo, __m128i dataHi, __m128i* invLo, __m128i* invHi)
 {
     __m128i lo, hi;
@@ -246,7 +255,7 @@ invertColors_2x128 (__m128i dataLo, __m128i dataHi, __m128i* invLo, __m128i* inv
     *invHi = _mm_shufflehi_epi16 (hi, _MM_SHUFFLE(3, 0, 1, 2));
 }
 
-static force_inline void
+static inline void
 over_2x128 (__m128i* srcLo, __m128i* srcHi, __m128i* alphaLo, __m128i* alphaHi, __m128i* dstLo, __m128i* dstHi)
 {
     __m128i t1, t2;
@@ -259,7 +268,7 @@ over_2x128 (__m128i* srcLo, __m128i* srcHi, __m128i* alphaLo, __m128i* alphaHi, 
     *dstHi = _mm_adds_epu8 (*srcHi, *dstHi);
 }
 
-static force_inline void
+static inline void
 overRevNonPre_2x128 (__m128i srcLo, __m128i srcHi, __m128i* dstLo, __m128i* dstHi)
 {
     __m128i lo, hi;
@@ -277,7 +286,7 @@ overRevNonPre_2x128 (__m128i srcLo, __m128i srcHi, __m128i* dstLo, __m128i* dstH
     over_2x128 (&lo, &hi, &alphaLo, &alphaHi, dstLo, dstHi);
 }
 
-static force_inline void
+static inline void
 inOver_2x128 (__m128i* srcLo,  __m128i* srcHi,  __m128i*  alphaLo, __m128i*  alphaHi,
               __m128i* maskLo, __m128i* maskHi, __m128i* dstLo,   __m128i* dstHi)
 {
@@ -290,48 +299,48 @@ inOver_2x128 (__m128i* srcLo,  __m128i* srcHi,  __m128i*  alphaLo, __m128i*  alp
     over_2x128 (&sLo, &sHi, &aLo, &aHi, dstLo, dstHi);
 }
 
-static force_inline void
+static inline void
 cachePrefetch (__m128i* addr)
 {
     _mm_prefetch (addr, _MM_HINT_T0);
 }
 
-static force_inline void
+static inline void
 cachePrefetchNext (__m128i* addr)
 {
     _mm_prefetch (addr + 4, _MM_HINT_T0); // 64 bytes ahead
 }
 
 /* load 4 pixels from a 16-byte boundary aligned address */
-static force_inline __m128i
+static inline __m128i
 load128Aligned (__m128i* src)
 {
     return _mm_load_si128 (src);
 }
 
 /* load 4 pixels from a unaligned address */
-static force_inline __m128i
+static inline __m128i
 load128Unaligned (__m128i* src)
 {
     return _mm_loadu_si128 (src);
 }
 
 /* save 4 pixels using Write Combining memory on a 16-byte boundary aligned address */
-static force_inline void
+static inline void
 save128WriteCombining (__m128i* dst, __m128i data)
 {
     _mm_stream_si128 (dst, data);
 }
 
 /* save 4 pixels on a 16-byte boundary aligned address */
-static force_inline void
+static inline void
 save128Aligned (__m128i* dst, __m128i data)
 {
     _mm_store_si128 (dst, data);
 }
 
 /* save 4 pixels on a unaligned address */
-static force_inline void
+static inline void
 save128Unaligned (__m128i* dst, __m128i data)
 {
     _mm_storeu_si128 (dst, data);
@@ -341,31 +350,31 @@ save128Unaligned (__m128i* dst, __m128i data)
  * MMX inlines
  */
 
-static force_inline __m64
+static inline __m64
 unpack_32_1x64 (uint32_t data)
 {
     return _mm_unpacklo_pi8 (_mm_cvtsi32_si64 (data), _mm_setzero_si64());
 }
 
-static force_inline __m64
+static inline __m64
 expandAlpha_1x64 (__m64 data)
 {
     return _mm_shuffle_pi16 (data, _MM_SHUFFLE(3, 3, 3, 3));
 }
 
-static force_inline __m64
+static inline __m64
 expandAlphaRev_1x64 (__m64 data)
 {
     return _mm_shuffle_pi16 (data, _MM_SHUFFLE(0, 0, 0, 0));
 }
 
-static force_inline __m64
+static inline __m64
 expandPixel_8_1x64 (uint8_t data)
 {
     return _mm_shuffle_pi16 (unpack_32_1x64 ((uint32_t)data), _MM_SHUFFLE(0, 0, 0, 0));
 }
 
-static force_inline __m64
+static inline __m64
 pixMultiply_1x64 (__m64 data, __m64 alpha)
 {
     return _mm_mulhi_pu16 (_mm_adds_pu16 (_mm_mullo_pi16 (data, alpha),
@@ -373,7 +382,7 @@ pixMultiply_1x64 (__m64 data, __m64 alpha)
                            xMask0101);
 }
 
-static force_inline __m64
+static inline __m64
 pixAddMultiply_1x64 (__m64* src, __m64* alphaDst, __m64* dst, __m64* alphaSrc)
 {
     return _mm_mulhi_pu16 (_mm_adds_pu16 (_mm_adds_pu16 (_mm_mullo_pi16 (*src, *alphaDst),
@@ -382,25 +391,25 @@ pixAddMultiply_1x64 (__m64* src, __m64* alphaDst, __m64* dst, __m64* alphaSrc)
                            xMask0101);
 }
 
-static force_inline __m64
+static inline __m64
 negate_1x64 (__m64 data)
 {
     return _mm_xor_si64 (data, xMask00ff);
 }
 
-static force_inline __m64
+static inline __m64
 invertColors_1x64 (__m64 data)
 {
     return _mm_shuffle_pi16 (data, _MM_SHUFFLE(3, 0, 1, 2));
 }
 
-static force_inline __m64
+static inline __m64
 over_1x64 (__m64 src, __m64 alpha, __m64 dst)
 {
     return _mm_adds_pu8 (src, pixMultiply_1x64 (dst, negate_1x64 (alpha)));
 }
 
-static force_inline __m64
+static inline __m64
 inOver_1x64 (__m64* src, __m64* alpha, __m64* mask, __m64* dst)
 {
     return over_1x64 (pixMultiply_1x64 (*src, *mask),
@@ -408,7 +417,7 @@ inOver_1x64 (__m64* src, __m64* alpha, __m64* mask, __m64* dst)
                       *dst);
 }
 
-static force_inline __m64
+static inline __m64
 overRevNonPre_1x64 (__m64 src, __m64 dst)
 {
     __m64 alpha = expandAlpha_1x64 (src);
@@ -419,7 +428,7 @@ overRevNonPre_1x64 (__m64 src, __m64 dst)
                       dst);
 }
 
-static force_inline uint32_t
+static inline uint32_t
 pack_1x64_32( __m64 data )
 {
     return _mm_cvtsi64_si32 (_mm_packs_pu16 (data, _mm_setzero_si64()));
@@ -439,7 +448,7 @@ pack_1x64_32( __m64 data )
  * Note the trick here - the top word is shifted by another nibble to
  * avoid it bumping into the middle word
  */
-static force_inline __m64
+static inline __m64
 expand565_16_1x64 (uint16_t pixel)
 {
     __m64 p;
@@ -461,7 +470,7 @@ expand565_16_1x64 (uint16_t pixel)
 /* -------------------------------------------------------------------------------------------------
  * Compose Core transformations
  */
-static force_inline uint32_t
+static inline uint32_t
 coreCombineOverUPixelsse2 (uint32_t src, uint32_t dst)
 {
     uint8_t     a;
@@ -482,7 +491,7 @@ coreCombineOverUPixelsse2 (uint32_t src, uint32_t dst)
     return dst;
 }
 
-static force_inline void
+static inline void
 coreCombineOverUsse2 (uint32_t* pd, const uint32_t* ps, int w)
 {
     uint32_t pa;
@@ -557,7 +566,7 @@ coreCombineOverUsse2 (uint32_t* pd, const uint32_t* ps, int w)
     }
 }
 
-static force_inline void
+static inline void
 coreCombineOverReverseUsse2 (uint32_t* pd, const uint32_t* ps, int w)
 {
     uint32_t s, d;
@@ -620,7 +629,7 @@ coreCombineOverReverseUsse2 (uint32_t* pd, const uint32_t* ps, int w)
     }
 }
 
-static force_inline uint32_t
+static inline uint32_t
 coreCombineInUPixelsse2 (uint32_t src, uint32_t dst)
 {
     uint32_t maska = src >> 24;
@@ -637,7 +646,7 @@ coreCombineInUPixelsse2 (uint32_t src, uint32_t dst)
     return dst;
 }
 
-static force_inline void
+static inline void
 coreCombineInUsse2 (uint32_t* pd, const uint32_t* ps, int w)
 {
     uint32_t s, d;
@@ -694,7 +703,7 @@ coreCombineInUsse2 (uint32_t* pd, const uint32_t* ps, int w)
     }
 }
 
-static force_inline void
+static inline void
 coreCombineReverseInUsse2 (uint32_t* pd, const uint32_t* ps, int w)
 {
     uint32_t s, d;
@@ -751,7 +760,7 @@ coreCombineReverseInUsse2 (uint32_t* pd, const uint32_t* ps, int w)
     }
 }
 
-static force_inline void
+static inline void
 coreCombineReverseOutUsse2 (uint32_t* pd, const uint32_t* ps, int w)
 {
     /* call prefetch hint to optimize cache load*/
@@ -808,7 +817,7 @@ coreCombineReverseOutUsse2 (uint32_t* pd, const uint32_t* ps, int w)
     }
 }
 
-static force_inline void
+static inline void
 coreCombineOutUsse2 (uint32_t* pd, const uint32_t* ps, int w)
 {
     /* call prefetch hint to optimize cache load*/
@@ -865,7 +874,7 @@ coreCombineOutUsse2 (uint32_t* pd, const uint32_t* ps, int w)
     }
 }
 
-static force_inline uint32_t
+static inline uint32_t
 coreCombineAtopUPixelsse2 (uint32_t src, uint32_t dst)
 {
     __m64 s = unpack_32_1x64 (src);
@@ -877,7 +886,7 @@ coreCombineAtopUPixelsse2 (uint32_t src, uint32_t dst)
     return pack_1x64_32 (pixAddMultiply_1x64 (&s, &da, &d, &sa));
 }
 
-static force_inline void
+static inline void
 coreCombineAtopUsse2 (uint32_t* pd, const uint32_t* ps, int w)
 {
     uint32_t s, d;
@@ -942,7 +951,7 @@ coreCombineAtopUsse2 (uint32_t* pd, const uint32_t* ps, int w)
     }
 }
 
-static force_inline uint32_t
+static inline uint32_t
 coreCombineReverseAtopUPixelsse2 (uint32_t src, uint32_t dst)
 {
     __m64 s = unpack_32_1x64 (src);
@@ -954,7 +963,7 @@ coreCombineReverseAtopUPixelsse2 (uint32_t src, uint32_t dst)
     return pack_1x64_32 (pixAddMultiply_1x64 (&s, &da, &d, &sa));
 }
 
-static force_inline void
+static inline void
 coreCombineReverseAtopUsse2 (uint32_t* pd, const uint32_t* ps, int w)
 {
     uint32_t s, d;
@@ -1019,7 +1028,7 @@ coreCombineReverseAtopUsse2 (uint32_t* pd, const uint32_t* ps, int w)
     }
 }
 
-static force_inline uint32_t
+static inline uint32_t
 coreCombineXorUPixelsse2 (uint32_t src, uint32_t dst)
 {
     __m64 s = unpack_32_1x64 (src);
@@ -1031,7 +1040,7 @@ coreCombineXorUPixelsse2 (uint32_t src, uint32_t dst)
     return pack_1x64_32 (pixAddMultiply_1x64 (&s, &negD, &d, &negS));
 }
 
-static force_inline void
+static inline void
 coreCombineXorUsse2 (uint32_t* dst, const uint32_t* src, int width)
 {
     int w = width;
@@ -1100,7 +1109,7 @@ coreCombineXorUsse2 (uint32_t* dst, const uint32_t* src, int width)
     }
 }
 
-static force_inline void
+static inline void
 coreCombineAddUsse2 (uint32_t* dst, const uint32_t* src, int width)
 {
     int w = width;
@@ -1146,7 +1155,7 @@ coreCombineAddUsse2 (uint32_t* dst, const uint32_t* src, int width)
     }
 }
 
-static force_inline uint32_t
+static inline uint32_t
 coreCombineSaturateUPixelsse2 (uint32_t src, uint32_t dst)
 {
     __m64 ms = unpack_32_1x64 (src);
@@ -1162,7 +1171,7 @@ coreCombineSaturateUPixelsse2 (uint32_t src, uint32_t dst)
     return pack_1x64_32 (_mm_adds_pu16 (md, ms));
 }
 
-static force_inline void
+static inline void
 coreCombineSaturateUsse2 (uint32_t *pd, const uint32_t *ps, int w)
 {
     uint32_t s,d;
@@ -1236,7 +1245,7 @@ coreCombineSaturateUsse2 (uint32_t *pd, const uint32_t *ps, int w)
     }
 }
 
-static force_inline void
+static inline void
 coreCombineSrcCsse2 (uint32_t* pd, const uint32_t* ps, const uint32_t *pm, int w)
 {
     uint32_t s, m;
@@ -1295,7 +1304,7 @@ coreCombineSrcCsse2 (uint32_t* pd, const uint32_t* ps, const uint32_t *pm, int w
     }
 }
 
-static force_inline uint32_t
+static inline uint32_t
 coreCombineOverCPixelsse2 (uint32_t src, uint32_t mask, uint32_t dst)
 {
     __m64 s = unpack_32_1x64 (src);
@@ -1306,7 +1315,7 @@ coreCombineOverCPixelsse2 (uint32_t src, uint32_t mask, uint32_t dst)
     return pack_1x64_32 (inOver_1x64 (&s, &expAlpha, &unpkMask, &unpkDst));
 }
 
-static force_inline void
+static inline void
 coreCombineOverCsse2 (uint32_t* pd, const uint32_t* ps, const uint32_t *pm, int w)
 {
     uint32_t s, m, d;
@@ -1374,7 +1383,7 @@ coreCombineOverCsse2 (uint32_t* pd, const uint32_t* ps, const uint32_t *pm, int 
     }
 }
 
-static force_inline uint32_t
+static inline uint32_t
 coreCombineOverReverseCPixelsse2 (uint32_t src, uint32_t mask, uint32_t dst)
 {
     __m64 d = unpack_32_1x64 (dst);
@@ -1382,7 +1391,7 @@ coreCombineOverReverseCPixelsse2 (uint32_t src, uint32_t mask, uint32_t dst)
 	return pack_1x64_32(over_1x64 (d, expandAlpha_1x64 (d), pixMultiply_1x64 (unpack_32_1x64 (src), unpack_32_1x64 (mask))));
 }
 
-static force_inline void
+static inline void
 coreCombineOverReverseCsse2 (uint32_t* pd, const uint32_t* ps, const uint32_t *pm, int w)
 {
     uint32_t s, m, d;
@@ -1451,7 +1460,7 @@ coreCombineOverReverseCsse2 (uint32_t* pd, const uint32_t* ps, const uint32_t *p
     }
 }
 
-static force_inline void
+static inline void
 coreCombineInCsse2 (uint32_t *pd, uint32_t *ps, uint32_t *pm, int w)
 {
     uint32_t s, m, d;
@@ -1522,7 +1531,7 @@ coreCombineInCsse2 (uint32_t *pd, uint32_t *ps, uint32_t *pm, int w)
     }
 }
 
-static force_inline void
+static inline void
 coreCombineInReverseCsse2 (uint32_t *pd, uint32_t *ps, uint32_t *pm, int w)
 {
     uint32_t s, m, d;
@@ -1595,7 +1604,7 @@ coreCombineInReverseCsse2 (uint32_t *pd, uint32_t *ps, uint32_t *pm, int w)
     }
 }
 
-static force_inline void
+static inline void
 coreCombineOutCsse2 (uint32_t *pd, uint32_t *ps, uint32_t *pm, int w)
 {
     uint32_t s, m, d;
@@ -1667,7 +1676,7 @@ coreCombineOutCsse2 (uint32_t *pd, uint32_t *ps, uint32_t *pm, int w)
     }
 }
 
-static force_inline void
+static inline void
 coreCombineOutReverseCsse2 (uint32_t *pd, uint32_t *ps, uint32_t *pm, int w)
 {
     uint32_t s, m, d;
@@ -1743,7 +1752,7 @@ coreCombineOutReverseCsse2 (uint32_t *pd, uint32_t *ps, uint32_t *pm, int w)
     }
 }
 
-static force_inline uint32_t
+static inline uint32_t
 coreCombineAtopCPixelsse2 (uint32_t src, uint32_t mask, uint32_t dst)
 {
     __m64 m = unpack_32_1x64 (mask);
@@ -1758,7 +1767,7 @@ coreCombineAtopCPixelsse2 (uint32_t src, uint32_t mask, uint32_t dst)
     return pack_1x64_32 (pixAddMultiply_1x64 (&d, &m, &s, &da));
 }
 
-static force_inline void
+static inline void
 coreCombineAtopCsse2 (uint32_t *pd, uint32_t *ps, uint32_t *pm, int w)
 {
     uint32_t s, m, d;
@@ -1835,7 +1844,7 @@ coreCombineAtopCsse2 (uint32_t *pd, uint32_t *ps, uint32_t *pm, int w)
     }
 }
 
-static force_inline uint32_t
+static inline uint32_t
 coreCombineReverseAtopCPixelsse2 (uint32_t src, uint32_t mask, uint32_t dst)
 {
     __m64 m = unpack_32_1x64 (mask);
@@ -1851,7 +1860,7 @@ coreCombineReverseAtopCPixelsse2 (uint32_t src, uint32_t mask, uint32_t dst)
     return pack_1x64_32 (pixAddMultiply_1x64 (&d, &m, &s, &da));
 }
 
-static force_inline void
+static inline void
 coreCombineReverseAtopCsse2 (uint32_t *pd, uint32_t *ps, uint32_t *pm, int w)
 {
     uint32_t s, m, d;
@@ -1928,7 +1937,7 @@ coreCombineReverseAtopCsse2 (uint32_t *pd, uint32_t *ps, uint32_t *pm, int w)
     }
 }
 
-static force_inline uint32_t
+static inline uint32_t
 coreCombineXorCPixelsse2 (uint32_t src, uint32_t mask, uint32_t dst)
 {
     __m64 a = unpack_32_1x64 (mask);
@@ -1945,7 +1954,7 @@ coreCombineXorCPixelsse2 (uint32_t src, uint32_t mask, uint32_t dst)
                                               &alphaSrc));
 }
 
-static force_inline void
+static inline void
 coreCombineXorCsse2 (uint32_t *pd, uint32_t *ps, uint32_t *pm, int w)
 {
     uint32_t s, m, d;
@@ -2023,7 +2032,7 @@ coreCombineXorCsse2 (uint32_t *pd, uint32_t *ps, uint32_t *pm, int w)
     }
 }
 
-static force_inline void
+static inline void
 coreCombineAddCsse2 (uint32_t *pd, uint32_t *ps, uint32_t *pm, int w)
 {
     uint32_t s, m, d;
@@ -2096,25 +2105,25 @@ coreCombineAddCsse2 (uint32_t *pd, uint32_t *ps, uint32_t *pm, int w)
 /* -------------------------------------------------------------------------------------------------
  * fbComposeSetupSSE2
  */
-static force_inline __m64
+static inline __m64
 createMask_16_64 (uint16_t mask)
 {
     return _mm_set1_pi16 (mask);
 }
 
-static force_inline __m128i
+static inline __m128i
 createMask_16_128 (uint16_t mask)
 {
     return _mm_set1_epi16 (mask);
 }
 
-static force_inline __m64
+static inline __m64
 createMask_2x32_64 (uint32_t mask0, uint32_t mask1)
 {
     return _mm_set_pi32 (mask0, mask1);
 }
 
-static force_inline __m128i
+static inline __m128i
 createMask_2x32_128 (uint32_t mask0, uint32_t mask1)
 {
     return _mm_set_epi32 (mask0, mask1, mask0, mask1);
@@ -2348,11 +2357,11 @@ fbComposeSetupSSE2(void)
         pixman_composeFunctions.combineC[PIXMAN_OP_ADD] = sse2CombineAddC;
 
         pixman_composeFunctions.combineMaskU = sse2CombineMaskU;
-
-	_mm_empty();
     }
 
     initialized = TRUE;
+
+    _mm_empty();
 }
 
 
@@ -2930,7 +2939,7 @@ fbCompositeSrc_8888x8888sse2 (pixman_op_t op,
 /* -------------------------------------------------------------------------------------------------
  * fbCompositeSrc_8888x0565
  */
-static force_inline uint16_t
+static inline uint16_t
 fbCompositeSrc_8888x0565pixel (uint32_t src, uint16_t dst)
 {
     __m64       ms;

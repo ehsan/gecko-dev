@@ -25,7 +25,6 @@
  *   Gordon Sheridan  <gordon@netscape.com>
  *   Patrick C. Beard <beard@netscape.com>
  *   Darin Fisher     <darin@netscape.com>
- *   Ehsan Akhgari    <ehsan.akhgari@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -150,16 +149,12 @@ public:
     static void      OnProfileChanged();
 
     static void      SetDiskCacheEnabled(PRBool  enabled);
-    // Sets the disk cache capacity (in kilobytes)
     static void      SetDiskCacheCapacity(PRInt32  capacity);
 
     static void      SetOfflineCacheEnabled(PRBool  enabled);
-    // Sets the offline cache capacity (in kilobytes)
     static void      SetOfflineCacheCapacity(PRInt32  capacity);
 
     static void      SetMemoryCache();
-
-    static void      OnEnterExitPrivateBrowsing();
 
     nsresult         Init();
     void             Shutdown();
@@ -218,15 +213,15 @@ private:
     void             DoomActiveEntries(void);
 
     static
-    PLDHashOperator  DeactivateAndClearEntry(PLDHashTable *    table,
-                                             PLDHashEntryHdr * hdr,
-                                             PRUint32          number,
-                                             void *            arg);
+    PLDHashOperator PR_CALLBACK  DeactivateAndClearEntry(PLDHashTable *    table,
+                                                         PLDHashEntryHdr * hdr,
+                                                         PRUint32          number,
+                                                         void *            arg);
     static
-    PLDHashOperator  RemoveActiveEntry(PLDHashTable *    table,
-                                       PLDHashEntryHdr * hdr,
-                                       PRUint32          number,
-                                       void *            arg);
+    PLDHashOperator PR_CALLBACK  RemoveActiveEntry(PLDHashTable *    table,
+                                                   PLDHashEntryHdr * hdr,
+                                                   PRUint32          number,
+                                                   void *            arg);
 #if defined(PR_LOGGING)
     void LogCacheStatistics();
 #endif

@@ -99,18 +99,12 @@ bug413093obs.prototype = {
       ww.unregisterNotification(this);
 
       // Let the UI finish doing whatever it needs to do
-      SimpleTest.executeSoon(function() {
+      executeSoon(function() {
         setPref(false);
 
         let dmui = Cc["@mozilla.org/download-manager-ui;1"].
                    getService(Ci.nsIDownloadManagerUI);
         ok(!dmui.visible, "Download Manager UI is not showing");
-
-        // reset the changed config values to default value
-        let prefs = Cc["@mozilla.org/preferences-service;1"].
-                    getService(Ci.nsIPrefService);
-        prefs.clearUserPref("browser.download.manager.retention");
-        prefs.clearUserPref("browser.download.manager.closeWhenDone");
 
         SimpleTest.finish();
       });

@@ -156,8 +156,8 @@ private:
 
 public:
 
-  // nsQueryFrame
-  NS_DECL_QUERYFRAME
+  // nsISupports
+  NS_IMETHOD  QueryInterface(const nsIID& aIID, void** aInstancePtr);
 
   // nsIFrame
   NS_IMETHOD  Init(nsIContent*      aContent,
@@ -234,7 +234,8 @@ public:
   NS_IMETHOD  List(FILE* out, PRInt32 aIndent) const;
   NS_IMETHOD  GetFrameName(nsAString& aResult) const;
   NS_IMETHOD_(nsFrameState) GetDebugStateBits() const;
-  NS_IMETHOD  DumpRegressionData(nsPresContext* aPresContext, FILE* out, PRInt32 aIndent);
+  NS_IMETHOD  DumpRegressionData(nsPresContext* aPresContext, FILE* out, PRInt32 aIndent, PRBool aIncludeStyleData);
+  NS_IMETHOD  VerifyTree() const;
 #endif
 
   NS_IMETHOD  SetSelected(nsPresContext* aPresContext, nsIDOMRange *aRange,PRBool aSelected, nsSpread aSpread, SelectionType aType);
@@ -344,8 +345,7 @@ public:
 
   NS_IMETHOD HandleMultiplePress(nsPresContext* aPresContext,
                          nsGUIEvent *    aEvent,
-                         nsEventStatus*  aEventStatus,
-                         PRBool          aControlHeld);
+                         nsEventStatus*  aEventStatus);
 
   NS_IMETHOD HandleDrag(nsPresContext* aPresContext,
                         nsGUIEvent *    aEvent,
@@ -359,8 +359,7 @@ public:
                                     nsSelectionAmount aAmountForward,
                                     PRInt32 aStartPos,
                                     nsPresContext* aPresContext,
-                                    PRBool aJumpLines,
-                                    PRBool aMultipleSelection);
+                                    PRBool aJumpLines);
 
 
   // Helper for GetContentAndOffsetsFromPoint; calculation of content offsets
@@ -435,24 +434,25 @@ public:
   // object. Returns -1 on error or if the frame doesn't have a content object
   static PRInt32 ContentIndexInContainer(const nsIFrame* aFrame);
 
-  static void IndentBy(FILE* out, PRInt32 aIndent) {
-    while (--aIndent >= 0) fputs("  ", out);
-  }
-  
   void ListTag(FILE* out) const {
     ListTag(out, (nsIFrame*)this);
   }
 
   static void ListTag(FILE* out, nsIFrame* aFrame) {
     nsAutoString tmp;
-    nsIFrameDebug*  frameDebug = do_QueryFrame(aFrame);
-    if (frameDebug) {
+    nsIFrameDebug*  frameDebug;
+
+    if (NS_SUCCEEDED(aFrame->QueryInterface(NS_GET_IID(nsIFrameDebug), (void**)&frameDebug))) {
       frameDebug->GetFrameName(tmp);
     }
     fputs(NS_LossyConvertUTF16toASCII(tmp).get(), out);
     fprintf(out, "@%p", static_cast<void*>(aFrame));
   }
 
+  static void IndentBy(FILE* out, PRInt32 aIndent) {
+    while (--aIndent >= 0) fputs("  ", out);
+  }
+  
   static void XMLQuote(nsString& aString);
 
   /**
@@ -464,7 +464,7 @@ public:
    * some custom behavior that requires changing how the outer "frame"
    * XML container is dumped.
    */
-  virtual void DumpBaseRegressionData(nsPresContext* aPresContext, FILE* out, PRInt32 aIndent);
+  virtual void DumpBaseRegressionData(nsPresContext* aPresContext, FILE* out, PRInt32 aIndent, PRBool aIncludeStyleData);
   
   nsresult MakeFrameName(const nsAString& aKind, nsAString& aResult) const;
 
@@ -555,7 +555,7 @@ protected:
   PRInt16 DisplaySelection(nsPresContext* aPresContext, PRBool isOkToTurnOn = PR_FALSE);
   
   // Style post processing hook
-  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
+  NS_IMETHOD DidSetStyleContext();
 
 public:
   //given a frame five me the first/last leaf available
@@ -563,13 +563,8 @@ public:
   static void GetLastLeaf(nsPresContext* aPresContext, nsIFrame **aFrame);
   static void GetFirstLeaf(nsPresContext* aPresContext, nsIFrame **aFrame);
 
-  // Return the line number of the aFrame, and (optionally) the containing block
-  // frame.
-  // If aScrollLock is true, don't break outside scrollframes when looking for a
-  // containing block frame.
-  static PRInt32 GetLineNumber(nsIFrame *aFrame,
-                               PRBool aLockScroll,
-                               nsIFrame** aContainingBlock = nsnull);
+  // return the line number of the aFrame, and (optionally) the containing block frame.
+  static PRInt32 GetLineNumber(nsIFrame *aFrame, nsIFrame** aContainingBlock = nsnull);
 
 protected:
 
@@ -597,6 +592,9 @@ protected:
   virtual void GetBoxName(nsAutoString& aName);
 #endif
 
+  virtual PRBool GetWasCollapsed(nsBoxLayoutState& aState);
+  virtual void SetWasCollapsed(nsBoxLayoutState& aState, PRBool aWas);
+
   void InitBoxMetrics(PRBool aClear);
   nsBoxLayoutMetrics* BoxMetrics() const;
 
@@ -616,7 +614,9 @@ private:
 
   NS_IMETHODIMP RefreshSizeCache(nsBoxLayoutState& aState);
 
-  virtual nsILineIterator* GetLineIterator();
+protected:
+  NS_IMETHOD_(nsrefcnt) AddRef(void);
+  NS_IMETHOD_(nsrefcnt) Release(void);
 };
 
 // Start Display Reflow Debugging

@@ -48,7 +48,6 @@
 #ifdef MOZ_PANGO
 #include "gfxPangoFonts.h"
 #include "gfxContext.h"
-#include "gfxUserFontSet.h"
 #else
 #include <ft2build.h>
 #include FT_FREETYPE_H
@@ -63,12 +62,6 @@
 #include <gdk/gdkx.h>
 #include "gfxXlibSurface.h"
 #include "cairo-xlib.h"
-
-/* Undefine the Status from Xlib since it will conflict with system headers on OSX */
-#if defined(__APPLE__) && defined(Status)
-#undef Status
-#endif
-
 #endif /* MOZ_X11 */
 
 #ifdef MOZ_DFB
@@ -83,7 +76,7 @@
 
 #include "nsMathUtils.h"
 
-#define GDK_PIXMAP_SIZE_MAX 32767
+#include "lcms.h"
 
 #ifndef MOZ_PANGO
 #include <ft2build.h>
@@ -156,11 +149,6 @@ gfxPlatformGtk::CreateOffscreenSurface(const gfxIntSize& size,
                                        gfxASurface::gfxImageFormat imageFormat)
 {
     nsRefPtr<gfxASurface> newSurface = nsnull;
-    PRBool sizeOk = PR_TRUE;
-
-    if (size.width >= GDK_PIXMAP_SIZE_MAX ||
-        size.height >= GDK_PIXMAP_SIZE_MAX)
-        sizeOk = PR_FALSE;
 
 #ifdef MOZ_X11
     int glitzf;
@@ -197,7 +185,7 @@ gfxPlatformGtk::CreateOffscreenSurface(const gfxIntSize& size,
     XRenderPictFormat* xrenderFormat =
         XRenderFindStandardFormat(display, xrenderFormatID);
 
-    if (xrenderFormat && sizeOk) {
+    if (xrenderFormat) {
         pixmap = gdk_pixmap_new(nsnull, size.width, size.height,
                                 xrenderFormat->depth);
 
@@ -223,20 +211,17 @@ gfxPlatformGtk::CreateOffscreenSurface(const gfxIntSize& size,
         if (pixmap)
             g_object_unref(pixmap);
     }
+
+    if (!newSurface) {
+        // We don't have Render or we couldn't create an xlib surface for
+        // whatever reason; fall back to image surface for the data.
+        newSurface = new gfxImageSurface(gfxIntSize(size.width, size.height), imageFormat);
+    }
 #endif
 
 #ifdef MOZ_DFB
-    if (sizeOk)
-        newSurface = new gfxDirectFBSurface(size, imageFormat);
+    newSurface = new gfxDirectFBSurface(size, imageFormat);
 #endif
-
-
-    if (!newSurface) {
-        // We couldn't create a native surface for whatever reason;
-        // e.g., no RENDER, bad size, etc.
-        // Fall back to image surface for the data.
-        newSurface = new gfxImageSurface(gfxIntSize(size.width, size.height), imageFormat);
-    }
 
     if (newSurface) {
         gfxContext tmpCtx(newSurface);
@@ -252,7 +237,7 @@ gfxPlatformGtk::CreateOffscreenSurface(const gfxIntSize& size,
 nsresult
 gfxPlatformGtk::GetFontList(const nsACString& aLangGroup,
                             const nsACString& aGenericFamily,
-                            nsTArray<nsString>& aListOfFonts)
+                            nsStringArray& aListOfFonts)
 {
     return sFontconfigUtils->GetFontList(aLangGroup, aGenericFamily,
                                          aListOfFonts);
@@ -288,58 +273,12 @@ gfxPlatformGtk::CreateFontGroup(const nsAString &aFamilies,
     return new gfxPangoFontGroup(aFamilies, aStyle, aUserFontSet);
 }
 
-gfxFontEntry*
-gfxPlatformGtk::LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
-                                const nsAString& aFontName)
-{
-    return gfxPangoFontGroup::NewFontEntry(*aProxyEntry, aFontName);
-}
-
-gfxFontEntry* 
-gfxPlatformGtk::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry, 
-                                 nsISupports *aLoader,
-                                 const PRUint8 *aFontData, PRUint32 aLength)
-{
-    // Just being consistent with other platforms.
-    // This will mean that only fonts in SFNT formats will be accepted.
-    if (!gfxFontUtils::ValidateSFNTHeaders(aFontData, aLength))
-        return nsnull;
-
-    return gfxPangoFontGroup::NewFontEntry(*aProxyEntry, aLoader,
-                                           aFontData, aLength);
-}
-
-PRBool
-gfxPlatformGtk::IsFontFormatSupported(nsIURI *aFontURI, PRUint32 aFormatFlags)
-{
-    // check for strange format flags
-    NS_ASSERTION(!(aFormatFlags & gfxUserFontSet::FLAG_FORMAT_NOT_USED),
-                 "strange font format hint set");
-
-    // accept supported formats
-    // Pango doesn't apply features from AAT TrueType extensions.
-    // Assume that if this is the only SFNT format specified,
-    // then AAT extensions are required for complex script support.
-    if (aFormatFlags & (gfxUserFontSet::FLAG_FORMAT_OPENTYPE | 
-                        gfxUserFontSet::FLAG_FORMAT_TRUETYPE)) {
-        return PR_TRUE;
-    }
-
-    // reject all other formats, known and unknown
-    if (aFormatFlags != 0) {
-        return PR_FALSE;
-    }
-
-    // no format hint set, need to look at data
-    return PR_TRUE;
-}
-
 #else
 
 nsresult
 gfxPlatformGtk::GetFontList(const nsACString& aLangGroup,
                             const nsACString& aGenericFamily,
-                            nsTArray<nsString>& aListOfFonts)
+                            nsStringArray& aListOfFonts)
 {
     return sFontconfigUtils->GetFontList(aLangGroup, aGenericFamily,
                                          aListOfFonts);
@@ -512,8 +451,7 @@ gfxPlatformGtk::GetStandardFamilyName(const nsAString& aFontName, nsAString& aFa
 
 gfxFontGroup *
 gfxPlatformGtk::CreateFontGroup(const nsAString &aFamilies,
-                               const gfxFontStyle *aStyle,
-                                gfxUserFontSet * /*aUserFontSet*/)
+                               const gfxFontStyle *aStyle)
 {
     return new gfxFT2FontGroup(aFamilies, aStyle);
 }
@@ -533,7 +471,7 @@ gfxPlatformGtk::InitDPI()
     }
 }
 
-qcms_profile *
+cmsHPROFILE
 gfxPlatformGtk::GetPlatformCMSOutputProfile()
 {
 #ifdef MOZ_X11
@@ -563,10 +501,8 @@ gfxPlatformGtk::GetPlatformCMSOutputProfile()
                                &retAtom, &retFormat, &retLength,
                                &retAfter, &retProperty);
 
-            qcms_profile* profile = NULL;
-
-            if (retLength > 0)
-                profile = qcms_profile_from_memory(retProperty, retLength);
+            cmsHPROFILE profile =
+                cmsOpenProfileFromMem(retProperty, retLength);
 
             XFree(retProperty);
 
@@ -588,8 +524,8 @@ gfxPlatformGtk::GetPlatformCMSOutputProfile()
                                           &retAtom, &retFormat, &retLength,
                                           &retAfter, &retProperty)) {
             double gamma;
-            qcms_CIE_xyY whitePoint;
-            qcms_CIE_xyYTRIPLE primaries;
+            cmsCIExyY whitePoint;
+            cmsCIExyYTRIPLE primaries;
 
             if (retLength != 128) {
 #ifdef DEBUG_tor
@@ -607,23 +543,23 @@ gfxPlatformGtk::GetPlatformCMSOutputProfile()
                             (retProperty[0x1a] >> 0 & 3)) / 1024.0;
             whitePoint.Y = 1.0;
 
-            primaries.red.x = ((retProperty[0x1b] << 2) |
+            primaries.Red.x = ((retProperty[0x1b] << 2) |
                                (retProperty[0x19] >> 6 & 3)) / 1024.0;
-            primaries.red.y = ((retProperty[0x1c] << 2) |
+            primaries.Red.y = ((retProperty[0x1c] << 2) |
                                (retProperty[0x19] >> 4 & 3)) / 1024.0;
-            primaries.red.Y = 1.0;
+            primaries.Red.Y = 1.0;
 
-            primaries.green.x = ((retProperty[0x1d] << 2) |
+            primaries.Green.x = ((retProperty[0x1d] << 2) |
                                  (retProperty[0x19] >> 2 & 3)) / 1024.0;
-            primaries.green.y = ((retProperty[0x1e] << 2) |
+            primaries.Green.y = ((retProperty[0x1e] << 2) |
                                  (retProperty[0x19] >> 0 & 3)) / 1024.0;
-            primaries.green.Y = 1.0;
+            primaries.Green.Y = 1.0;
 
-            primaries.blue.x = ((retProperty[0x1f] << 2) |
+            primaries.Blue.x = ((retProperty[0x1f] << 2) |
                                (retProperty[0x1a] >> 6 & 3)) / 1024.0;
-            primaries.blue.y = ((retProperty[0x20] << 2) |
+            primaries.Blue.y = ((retProperty[0x20] << 2) |
                                (retProperty[0x1a] >> 4 & 3)) / 1024.0;
-            primaries.blue.Y = 1.0;
+            primaries.Blue.Y = 1.0;
 
             XFree(retProperty);
 
@@ -637,8 +573,17 @@ gfxPlatformGtk::GetPlatformCMSOutputProfile()
                     primaries.Blue.x, primaries.Blue.y, primaries.Blue.Y);
 #endif
 
-            qcms_profile* profile =
-                qcms_profile_create_rgb_with_gamma(whitePoint, primaries, gamma);
+            LPGAMMATABLE gammaTable[3];
+            gammaTable[0] = gammaTable[1] = gammaTable[2] =
+                cmsBuildGamma(256, gamma);
+
+            if (!gammaTable[0])
+                return nsnull;
+
+            cmsHPROFILE profile =
+                cmsCreateRGBProfile(&whitePoint, &primaries, gammaTable);
+
+            cmsFreeGamma(gammaTable[0]);
 
 #ifdef DEBUG_tor
             if (profile) {
@@ -697,7 +642,7 @@ gfxPlatformGtk::SetGdkDrawable(gfxASurface *target,
     if (target->CairoStatus())
         return;
 
-    g_object_ref(drawable);
+    gdk_drawable_ref(drawable);
 
     cairo_surface_set_user_data (target->CairoSurface(),
                                  &cairo_gdk_drawable_key,

@@ -73,6 +73,12 @@
 #define MATHML_MODULES
 #endif
 
+#ifdef MOZ_IPCD
+#define IPC_MODULE MODULE(ipcdclient)
+#else
+#define IPC_MODULE
+#endif
+
 #define GFX_MODULES MODULE(nsGfxModule)
 
 #ifdef XP_WIN
@@ -103,6 +109,12 @@
 #define RDF_MODULE MODULE(nsRDFModule)
 #else
 #define RDF_MODULE
+#endif
+
+#ifdef OJI
+#define OJI_MODULES MODULE(nsCJVMManagerModule)
+#else
+#define OJI_MODULES
 #endif
 
 #ifdef MOZ_PLAINTEXT_EDITOR_ONLY
@@ -209,7 +221,8 @@
 #else
 #if (defined(MOZ_MORK) && defined(MOZ_XUL))
 #define PLACES_MODULES \
-    MODULE(nsMorkModule)
+    MODULE(nsMorkModule)                     \
+    MODULE(nsToolkitHistory)
 #else
 #define PLACES_MODULES
 #endif
@@ -254,12 +267,6 @@
 #define OSXPROXY_MODULE
 #endif
 
-#if defined(XP_WIN)
-#define WINDOWSPROXY_MODULE MODULE(nsWindowsProxyModule)
-#else
-#define WINDOWSPROXY_MODULE
-#endif
-
 #define XUL_MODULES                          \
     MODULE(xpconnect)                        \
     MATHML_MODULES                           \
@@ -270,6 +277,7 @@
     MODULE(necko)                            \
     PERMISSIONS_MODULES                      \
     AUTH_MODULE                              \
+    IPC_MODULE                               \
     MODULE(nsJarModule)                      \
     ZIPWRITER_MODULE                         \
     MODULE(nsPrefModule)                     \
@@ -287,6 +295,7 @@
     MODULE(docshell_provider)                \
     MODULE(embedcomponents)                  \
     MODULE(Browser_Embedding_Module)         \
+    OJI_MODULES                              \
     ACCESS_MODULES                           \
     MODULE(appshell)                         \
     MODULE(nsTransactionManagerModule)       \
@@ -311,7 +320,6 @@
     LAYOUT_DEBUG_MODULE                      \
     UNIXPROXY_MODULE                         \
     OSXPROXY_MODULE                          \
-    WINDOWSPROXY_MODULE                      \
     /* end of list */
 
 #define MODULE(_name) \

@@ -53,12 +53,6 @@
 
 #include "nsNativeCharsetUtils.h"
 
-#ifndef SND_PURGE
-// Not available on Windows CE, and according to MSDN
-// doesn't do anything on recent windows either.
-#define SND_PURGE 0
-#endif
-
 NS_IMPL_ISUPPORTS2(nsSound, nsISound, nsIStreamLoaderObserver)
 
 
@@ -74,8 +68,8 @@ nsSound::~nsSound()
 
 void nsSound::PurgeLastSound() {
   if (mLastSound) {
-    // Halt any currently playing sound.
-    ::PlaySound(nsnull, nsnull, SND_PURGE);
+    // Purge the current sound buffer.
+    ::PlaySound(nsnull, nsnull, SND_PURGE); // This call halts the sound if it was still playing.
 
     // Now delete the buffer.
     free(mLastSound);
@@ -160,7 +154,7 @@ NS_IMETHODIMP nsSound::Init()
   // it is initialized.
   // If we wait until the first sound is played, there will
   // be a time lag as the library gets loaded.
-  ::PlaySound(nsnull, nsnull, SND_PURGE);
+  ::PlaySound(nsnull, nsnull, SND_PURGE); 
 
   return NS_OK;
 }
@@ -170,28 +164,12 @@ NS_IMETHODIMP nsSound::PlaySystemSound(const nsAString &aSoundAlias)
 {
   PurgeLastSound();
 
-  if (!NS_IsMozAliasSound(aSoundAlias)) {
-    ::PlaySoundW(PromiseFlatString(aSoundAlias).get(), nsnull,
-                 SND_NODEFAULT | SND_ALIAS | SND_ASYNC);
-    return NS_OK;
+  if (aSoundAlias.EqualsLiteral("_moz_mailbeep")) {
+    ::PlaySoundW(L"MailBeep", nsnull, SND_ALIAS | SND_ASYNC);
   }
-
-  // Win32 plays no sounds at NS_SYSSOUND_PROMPT_DIALOG and
-  // NS_SYSSOUND_SELECT_DIALOG.
-  const wchar_t *sound = nsnull;
-  if (aSoundAlias.Equals(NS_SYSSOUND_MAIL_BEEP))
-    sound = L"MailBeep";
-  else if (aSoundAlias.Equals(NS_SYSSOUND_CONFIRM_DIALOG))
-    sound = L"SystemQuestion";
-  else if (aSoundAlias.Equals(NS_SYSSOUND_ALERT_DIALOG))
-    sound = L"SystemExclamation";
-  else if (aSoundAlias.Equals(NS_SYSSOUND_MENU_EXECUTE))
-    sound = L"MenuCommand";
-  else if (aSoundAlias.Equals(NS_SYSSOUND_MENU_POPUP))
-    sound = L"MenuPopup";
-
-  if (sound)
-    ::PlaySoundW(sound, nsnull, SND_NODEFAULT | SND_ALIAS | SND_ASYNC);
+  else {
+    ::PlaySoundW(PromiseFlatString(aSoundAlias).get(), nsnull, SND_ALIAS | SND_ASYNC);
+  }
 
   return NS_OK;
 }

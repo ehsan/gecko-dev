@@ -250,26 +250,21 @@ pk11_isID0(PK11SlotInfo *slot, CK_OBJECT_HANDLE certID)
 
 /*
  * Create an NSSCertificate from a slot/certID pair, return it as a
- * CERTCertificate.  Optionally, output the nickname string.
+ * CERTCertificate.
  */
-static CERTCertificate *
-pk11_fastCert(PK11SlotInfo *slot, CK_OBJECT_HANDLE certID, 
-	      CK_ATTRIBUTE *privateLabel, char **nickptr)
+static CERTCertificate
+*pk11_fastCert(PK11SlotInfo *slot, CK_OBJECT_HANDLE certID, 
+			CK_ATTRIBUTE *privateLabel, char **nickptr)
 {
     NSSCertificate *c;
-    nssCryptokiObject *co = NULL;
+    nssCryptokiObject *co;
     nssPKIObject *pkio;
     NSSToken *token;
     NSSTrustDomain *td = STAN_GetDefaultTrustDomain();
-    PRStatus status;
 
     /* Get the cryptoki object from the handle */
     token = PK11Slot_GetNSSToken(slot);
-    if (token->defaultSession) {
-	co = nssCryptokiObject_Create(token, token->defaultSession, certID);
-    } else {
-	PORT_SetError(SEC_ERROR_NO_TOKEN);
-    }
+    co = nssCryptokiObject_Create(token, token->defaultSession, certID);
     if (!co) {
 	return NULL;
     }
@@ -288,30 +283,19 @@ pk11_fastCert(PK11SlotInfo *slot, CK_OBJECT_HANDLE certID,
 	return NULL;
     }
 
-    /* Build and output a nickname, if desired. 
-     * This must be done before calling nssTrustDomain_AddCertsToCache
-     * because that function may destroy c, pkio and co!
-     */
+    nssTrustDomain_AddCertsToCache(td, &c, 1);
+
+    /* Build the old-fashioned nickname */
     if ((nickptr) && (co->label)) {
 	CK_ATTRIBUTE label, id;
-
 	label.type = CKA_LABEL;
 	label.pValue = co->label;
 	label.ulValueLen = PORT_Strlen(co->label);
-
 	id.type = CKA_ID;
 	id.pValue = c->id.data;
 	id.ulValueLen = c->id.size;
-
 	*nickptr = pk11_buildNickname(slot, &label, privateLabel, &id);
     }
-
-    /* This function may destroy the cert in "c" and all its subordinate
-     * structures, and replace the value in "c" with the address of a 
-     * different NSSCertificate that it found in the cache.
-     * Presumably, the nickname which we just output above remains valid. :)
-     */
-    status = nssTrustDomain_AddCertsToCache(td, &c, 1);
     return STAN_GetCERTCertificateOrRelease(c);
 }
 
@@ -330,12 +314,11 @@ PK11_MakeCertFromHandle(PK11SlotInfo *slot,CK_OBJECT_HANDLE certID,
     PRBool swapNickname = PR_FALSE;
 
     cert = pk11_fastCert(slot,certID,privateLabel, &nickname);
-    if (cert == NULL) 
-    	goto loser;
+    if (cert == NULL) goto loser;
 	
     if (nickname) {
 	if (cert->nickname != NULL) {
-	    cert->dbnickname = cert->nickname;
+		cert->dbnickname = cert->nickname;
 	} 
 	cert->nickname = PORT_ArenaStrdup(cert->arena,nickname);
 	PORT_Free(nickname);
@@ -354,10 +337,11 @@ PK11_MakeCertFromHandle(PK11SlotInfo *slot,CK_OBJECT_HANDLE certID,
     }
 
     trust = (CERTCertTrust*)PORT_ArenaAlloc(cert->arena, sizeof(CERTCertTrust));
-    if (trust == NULL) 
-    	goto loser;
+    if (trust == NULL) goto loser;
     PORT_Memset(trust,0, sizeof(CERTCertTrust));
     cert->trust = trust;
+
+    
 
     if(! pk11_HandleTrustObject(slot, cert, trust) ) {
 	unsigned int type;
@@ -398,13 +382,12 @@ PK11_MakeCertFromHandle(PK11SlotInfo *slot,CK_OBJECT_HANDLE certID,
 	trust->emailFlags |= CERTDB_USER;
 	/*    trust->objectSigningFlags |= CERTDB_USER; */
     }
+
     return cert;
 
 loser:
-    if (nickname) 
-    	PORT_Free(nickname);
-    if (cert) 
-    	CERT_DestroyCertificate(cert);
+    if (nickname) PORT_Free(nickname);
+    if (cert) CERT_DestroyCertificate(cert);
     return NULL;
 }
 
@@ -935,11 +918,8 @@ PK11_ImportCert(PK11SlotInfo *slot, CERTCertificate *cert,
     SECITEM_FreeItem(keyID,PR_TRUE);
     return SECSuccess;
 loser:
-    CERT_MapStanError();
     SECITEM_FreeItem(keyID,PR_TRUE);
-    if (PORT_GetError() != SEC_ERROR_TOKEN_NOT_LOGGED_IN) {
-	PORT_SetError(SEC_ERROR_ADDING_CERT);
-    }
+    PORT_SetError(SEC_ERROR_ADDING_CERT);
     return SECFailure;
 }
 

@@ -284,18 +284,6 @@ nsFrameList::FrameAt(PRInt32 aIndex) const
   return frame;
 }
 
-PRInt32
-nsFrameList::IndexOf(nsIFrame* aFrame) const
-{
-  PRInt32 count = 0;
-  for (nsIFrame* f = mFirstChild; f; f = f->GetNextSibling()) {
-    if (f == aFrame)
-      return count;
-    ++count;
-  }
-  return -1;
-}
-
 PRBool
 nsFrameList::ContainsFrame(const nsIFrame* aFrame) const
 {
@@ -339,25 +327,28 @@ nsFrameList::GetLength() const
   return count;
 }
 
-static int CompareByContentOrder(const nsIFrame* aF1, const nsIFrame* aF2)
+static int PR_CALLBACK CompareByContentOrder(const void* aF1, const void* aF2,
+                                             void* aDummy)
 {
-  if (aF1->GetContent() != aF2->GetContent()) {
-    return nsLayoutUtils::CompareTreePosition(aF1->GetContent(), aF2->GetContent());
+  const nsIFrame* f1 = static_cast<const nsIFrame*>(aF1);
+  const nsIFrame* f2 = static_cast<const nsIFrame*>(aF2);
+  if (f1->GetContent() != f2->GetContent()) {
+    return nsLayoutUtils::CompareTreePosition(f1->GetContent(), f2->GetContent());
   }
 
-  if (aF1 == aF2) {
+  if (f1 == f2) {
     return 0;
   }
 
   const nsIFrame* f;
-  for (f = aF2; f; f = f->GetPrevInFlow()) {
-    if (f == aF1) {
+  for (f = f2; f; f = f->GetPrevInFlow()) {
+    if (f == f1) {
       // f1 comes before f2 in the flow
       return -1;
     }
   }
-  for (f = aF1; f; f = f->GetPrevInFlow()) {
-    if (f == aF2) {
+  for (f = f1; f; f = f->GetPrevInFlow()) {
+    if (f == f2) {
       // f1 comes after f2 in the flow
       return 1;
     }
@@ -367,32 +358,21 @@ static int CompareByContentOrder(const nsIFrame* aF1, const nsIFrame* aF2)
   return 0;
 }
 
-class CompareByContentOrderComparator
-{
-  public:
-  PRBool Equals(const nsIFrame* aA, const nsIFrame* aB) const {
-    return aA == aB;
-  }
-  PRBool LessThan(const nsIFrame* aA, const nsIFrame* aB) const {
-    return CompareByContentOrder(aA, aB) < 0;
-  }
-};
-
 void
 nsFrameList::SortByContentOrder()
 {
   if (!mFirstChild)
     return;
 
-  nsAutoTArray<nsIFrame*, 8> array;
+  nsAutoVoidArray array;
   nsIFrame* f;
   for (f = mFirstChild; f; f = f->GetNextSibling()) {
     array.AppendElement(f);
   }
-  array.Sort(CompareByContentOrderComparator());
-  f = mFirstChild = array.ElementAt(0);
-  for (PRUint32 i = 1; i < array.Length(); ++i) {
-    nsIFrame* ff = array.ElementAt(i);
+  array.Sort(CompareByContentOrder, nsnull);
+  f = mFirstChild = static_cast<nsIFrame*>(array.FastElementAt(0));
+  for (PRInt32 i = 1; i < array.Count(); ++i) {
+    nsIFrame* ff = static_cast<nsIFrame*>(array.FastElementAt(i));
     f->SetNextSibling(ff);
     f = ff;
   }
@@ -435,8 +415,8 @@ nsFrameList::List(FILE* out) const
   fputs("<\n", out);
   for (nsIFrame* frame = mFirstChild; frame;
        frame = frame->GetNextSibling()) {
-    nsIFrameDebug *frameDebug = do_QueryFrame(frame);
-    if (frameDebug) {
+    nsIFrameDebug*  frameDebug;
+    if (NS_SUCCEEDED(frame->QueryInterface(NS_GET_IID(nsIFrameDebug), (void**)&frameDebug))) {
       frameDebug->List(out, 1);
     }
   }
@@ -448,6 +428,8 @@ nsFrameList::List(FILE* out) const
 nsIFrame*
 nsFrameList::GetPrevVisualFor(nsIFrame* aFrame) const
 {
+  nsCOMPtr<nsILineIterator> iter;
+
   if (!mFirstChild)
     return nsnull;
   
@@ -458,8 +440,8 @@ nsFrameList::GetPrevVisualFor(nsIFrame* aFrame) const
   nsBidiLevel baseLevel = nsBidiPresUtils::GetFrameBaseLevel(mFirstChild);  
   nsBidiPresUtils* bidiUtils = mFirstChild->PresContext()->GetBidiUtils();
 
-  nsAutoLineIterator iter = parent->GetLineIterator();
-  if (!iter) { 
+  nsresult result = parent->QueryInterface(NS_GET_IID(nsILineIterator), getter_AddRefs(iter));
+  if (NS_FAILED(result) || !iter) { 
     // Parent is not a block Frame
     if (parent->GetType() == nsGkAtoms::lineFrame) {
       // Line frames are not bidi-splittable, so need to consider bidi reordering
@@ -484,11 +466,11 @@ nsFrameList::GetPrevVisualFor(nsIFrame* aFrame) const
 
   PRInt32 thisLine;
   if (aFrame) {
-    thisLine = iter->FindLineContaining(aFrame);
-    if (thisLine < 0)
+    result = iter->FindLineContaining(aFrame, &thisLine);
+    if (NS_FAILED(result) || thisLine < 0)
       return nsnull;
   } else {
-    thisLine = iter->GetNumLines();
+    iter->GetNumLines(&thisLine);
   }
 
   nsIFrame* frame = nsnull;
@@ -523,6 +505,8 @@ nsFrameList::GetPrevVisualFor(nsIFrame* aFrame) const
 nsIFrame*
 nsFrameList::GetNextVisualFor(nsIFrame* aFrame) const
 {
+  nsCOMPtr<nsILineIterator> iter;
+
   if (!mFirstChild)
     return nsnull;
   
@@ -533,8 +517,8 @@ nsFrameList::GetNextVisualFor(nsIFrame* aFrame) const
   nsBidiLevel baseLevel = nsBidiPresUtils::GetFrameBaseLevel(mFirstChild);
   nsBidiPresUtils* bidiUtils = mFirstChild->PresContext()->GetBidiUtils();
   
-  nsAutoLineIterator iter = parent->GetLineIterator();
-  if (!iter) { 
+  nsresult result = parent->QueryInterface(NS_GET_IID(nsILineIterator), getter_AddRefs(iter));
+  if (NS_FAILED(result) || !iter) { 
     // Parent is not a block Frame
     if (parent->GetType() == nsGkAtoms::lineFrame) {
       // Line frames are not bidi-splittable, so need to consider bidi reordering
@@ -559,8 +543,8 @@ nsFrameList::GetNextVisualFor(nsIFrame* aFrame) const
   
   PRInt32 thisLine;
   if (aFrame) {
-    thisLine = iter->FindLineContaining(aFrame);
-    if (thisLine < 0)
+    result = iter->FindLineContaining(aFrame, &thisLine);
+    if (NS_FAILED(result) || thisLine < 0)
       return nsnull;
   } else {
     thisLine = -1;
@@ -582,7 +566,8 @@ nsFrameList::GetNextVisualFor(nsIFrame* aFrame) const
     }
   }
   
-  PRInt32 numLines = iter->GetNumLines();
+  PRInt32 numLines;
+  iter->GetNumLines(&numLines);
   if (!frame && thisLine < numLines - 1) {
     // Get the first frame of the next line
     iter->GetLine(thisLine + 1, &firstFrameOnLine, &numFramesOnLine, lineBounds, &lineFlags);

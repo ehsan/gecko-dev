@@ -116,7 +116,7 @@ static const nsModuleComponentInfo gComponents[] = {
 
 static PRBool gInitialized = PR_FALSE;
 
-static nsresult
+PR_STATIC_CALLBACK(nsresult)
 Initialize(nsIModule* aSelf)
 {
   if (!gInitialized) {
@@ -142,7 +142,7 @@ Initialize(nsIModule* aSelf)
   return nsParser::Init();
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 Shutdown(nsIModule* aSelf)
 {
   if (gInitialized) {

@@ -92,6 +92,8 @@ public:
   virtual PRBool IsLink(nsIURI** aURI) const;
   virtual void GetLinkTarget(nsAString& aTarget);
 
+  virtual void SetFocus(nsPresContext* aPresContext);
+
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
                               PRBool aCompileEventHandlers);
@@ -134,14 +136,12 @@ NS_IMPL_RELEASE_INHERITED(nsHTMLAreaElement, nsGenericElement)
 
 
 // QueryInterface implementation for nsHTMLAreaElement
-NS_INTERFACE_TABLE_HEAD(nsHTMLAreaElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE4(nsHTMLAreaElement,
-                                   nsIDOMHTMLAreaElement,
-                                   nsIDOMNSHTMLAreaElement,
-                                   nsIDOMNSHTMLAreaElement2,
-                                   nsILink)
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLAreaElement,
-                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_TABLE_HEAD(nsHTMLAreaElement, nsGenericHTMLElement)
+  NS_INTERFACE_TABLE_INHERITED4(nsHTMLAreaElement,
+                                nsIDOMHTMLAreaElement,
+                                nsIDOMNSHTMLAreaElement,
+                                nsIDOMNSHTMLAreaElement2,
+                                nsILink)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLAreaElement)
 
 
@@ -195,6 +195,21 @@ nsHTMLAreaElement::GetLinkTarget(nsAString& aTarget)
   GetAttr(kNameSpaceID_None, nsGkAtoms::target, aTarget);
   if (aTarget.IsEmpty()) {
     GetBaseTarget(aTarget);
+  }
+}
+
+void
+nsHTMLAreaElement::SetFocus(nsPresContext* aPresContext)
+{
+  if (!aPresContext ||
+      !aPresContext->EventStateManager()->SetContentState(this, 
+                                                          NS_EVENT_STATE_FOCUS)) {
+    return;
+  }
+  nsCOMPtr<nsIPresShell> presShell = aPresContext->GetPresShell();
+  if (presShell) {
+    presShell->ScrollContentIntoView(this, NS_PRESSHELL_SCROLL_ANYWHERE,
+                                     NS_PRESSHELL_SCROLL_ANYWHERE);
   }
 }
 
@@ -280,27 +295,204 @@ nsHTMLAreaElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
   return nsGenericHTMLElement::UnsetAttr(aNameSpaceID, aAttribute, aNotify);
 }
 
-#define IMPL_URI_PART(_part)                                 \
-  NS_IMETHODIMP                                              \
-  nsHTMLAreaElement::Get##_part(nsAString& a##_part)         \
-  {                                                          \
-    return Get##_part##FromHrefURI(a##_part);                \
-  }                                                          \
-  NS_IMETHODIMP                                              \
-  nsHTMLAreaElement::Set##_part(const nsAString& a##_part)   \
-  {                                                          \
-    return Set##_part##InHrefURI(a##_part);                  \
-  }
+NS_IMETHODIMP    
+nsHTMLAreaElement::GetProtocol(nsAString& aProtocol)
+{
+  nsAutoString href;
+  
+  nsresult rv = GetHref(href);
+  if (NS_FAILED(rv))
+    return rv;
 
-IMPL_URI_PART(Protocol)
-IMPL_URI_PART(Host)
-IMPL_URI_PART(Hostname)
-IMPL_URI_PART(Pathname)
-IMPL_URI_PART(Search)
-IMPL_URI_PART(Port)
-IMPL_URI_PART(Hash)
+  // XXX this should really use GetHrefURI and not do so much string stuff
+  return GetProtocolFromHrefString(href, aProtocol, GetOwnerDoc());
+}
 
-#undef IMPL_URI_PART
+NS_IMETHODIMP
+nsHTMLAreaElement::SetProtocol(const nsAString& aProtocol)
+{
+  nsAutoString href, new_href;
+  nsresult rv = GetHref(href);
+  if (NS_FAILED(rv))
+    return rv;
+  
+  rv = SetProtocolInHrefString(href, aProtocol, new_href);
+  if (NS_FAILED(rv))
+    // Ignore failures to be compatible with NS4
+    return NS_OK;
+
+  return SetHref(new_href);
+}
+
+NS_IMETHODIMP    
+nsHTMLAreaElement::GetHost(nsAString& aHost)
+{
+  nsAutoString href;
+  
+  nsresult rv = GetHref(href);
+  if (NS_FAILED(rv))
+    return rv;
+
+  return GetHostFromHrefString(href, aHost);
+}
+
+NS_IMETHODIMP
+nsHTMLAreaElement::SetHost(const nsAString& aHost)
+{
+  nsAutoString href, new_href;
+  nsresult rv = GetHref(href);
+  if (NS_FAILED(rv))
+    return rv;
+
+  rv = SetHostInHrefString(href, aHost, new_href);
+  if (NS_FAILED(rv))
+    // Ignore failures to be compatible with NS4
+    return NS_OK;
+
+  return SetHref(new_href);
+}
+
+NS_IMETHODIMP    
+nsHTMLAreaElement::GetHostname(nsAString& aHostname)
+{
+  nsAutoString href;
+  nsresult rv = GetHref(href);
+  if (NS_FAILED(rv))
+    return rv;
+
+  return GetHostnameFromHrefString(href, aHostname);
+}
+
+NS_IMETHODIMP
+nsHTMLAreaElement::SetHostname(const nsAString& aHostname)
+{
+  nsAutoString href, new_href;
+  nsresult rv = GetHref(href);
+  if (NS_FAILED(rv))
+    return rv;
+
+  rv = SetHostnameInHrefString(href, aHostname, new_href);
+  if (NS_FAILED(rv))
+    // Ignore failures to be compatible with NS4
+    return NS_OK;
+  
+  return SetHref(new_href);
+}
+
+NS_IMETHODIMP    
+nsHTMLAreaElement::GetPathname(nsAString& aPathname)
+{
+  nsAutoString href;
+ 
+  nsresult rv = GetHref(href);
+  if (NS_FAILED(rv))
+    return rv;
+
+  return GetPathnameFromHrefString(href, aPathname);
+}
+
+NS_IMETHODIMP
+nsHTMLAreaElement::SetPathname(const nsAString& aPathname)
+{
+  nsAutoString href, new_href;
+  nsresult rv = GetHref(href);
+  if (NS_FAILED(rv))
+    return rv;
+
+  rv = SetPathnameInHrefString(href, aPathname, new_href);
+  if (NS_FAILED(rv))
+    // Ignore failures to be compatible with NS4
+    return NS_OK;
+
+  return SetHref(new_href);
+}
+
+NS_IMETHODIMP    
+nsHTMLAreaElement::GetSearch(nsAString& aSearch)
+{
+  nsAutoString href;
+
+  nsresult rv = GetHref(href);
+  if (NS_FAILED(rv))
+    return rv;
+
+  return GetSearchFromHrefString(href, aSearch);
+}
+
+NS_IMETHODIMP
+nsHTMLAreaElement::SetSearch(const nsAString& aSearch)
+{
+  nsAutoString href, new_href;
+  nsresult rv = GetHref(href);
+
+  if (NS_FAILED(rv))
+    return rv;
+
+  rv = SetSearchInHrefString(href, aSearch, new_href);
+  if (NS_FAILED(rv))
+    // Ignore failures to be compatible with NS4
+    return NS_OK;
+
+  return SetHref(new_href);
+}
+
+NS_IMETHODIMP
+nsHTMLAreaElement::GetPort(nsAString& aPort)
+{
+  nsAutoString href;
+  
+  nsresult rv = GetHref(href);
+  if (NS_FAILED(rv))
+    return rv;
+
+  return GetPortFromHrefString(href, aPort);
+}
+
+NS_IMETHODIMP
+nsHTMLAreaElement::SetPort(const nsAString& aPort)
+{
+  nsAutoString href, new_href;
+  nsresult rv = GetHref(href);
+
+  if (NS_FAILED(rv))
+    return rv;
+
+  rv = SetPortInHrefString(href, aPort, new_href);
+  if (NS_FAILED(rv))
+    // Ignore failures to be compatible with NS4
+    return NS_OK;
+  
+  return SetHref(new_href);
+}
+
+NS_IMETHODIMP    
+nsHTMLAreaElement::GetHash(nsAString& aHash)
+{
+  nsAutoString href;
+
+  nsresult rv = GetHref(href);
+  if (NS_FAILED(rv))
+    return rv;
+
+  return GetHashFromHrefString(href, aHash);
+}
+
+NS_IMETHODIMP
+nsHTMLAreaElement::SetHash(const nsAString& aHash)
+{
+  nsAutoString href, new_href;
+  nsresult rv = GetHref(href);
+
+  if (NS_FAILED(rv))
+    return rv;
+
+  rv = SetHashInHrefString(href, aHash, new_href);
+  if (NS_FAILED(rv))
+    // Ignore failures to be compatible with NS4
+    return NS_OK;
+
+  return SetHref(new_href);
+}
 
 NS_IMETHODIMP
 nsHTMLAreaElement::ToString(nsAString& aSource)

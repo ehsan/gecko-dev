@@ -43,20 +43,18 @@
 #include "nsCOMPtr.h"
 
 #include "nsIDragDropHandler.h"
-#include "nsIDOMEventTarget.h"
-#include "nsIDOMEventListener.h"
+#include "nsIDOMDragListener.h"
+#include "nsPIDOMEventTarget.h"
 #include "nsITransferable.h"
 
 class nsIDOMNode;
-class nsIDOMWindow;
-class nsIDOMDocument;
-class nsIDOMDragEvent;
 class nsISelection;
 class nsITransferable;
 class nsIImage;
 class nsIPresShell;
 class nsPresContext;
 class nsIContent;
+class nsIDocument;
 class nsIURI;
 class nsIFile;
 class nsISimpleEnumerator;
@@ -78,8 +76,8 @@ class nsDOMDataTransfer;
 // AddChromeListeners() and removes itself with
 // RemoveChromeListeners().
 //
-class nsContentAreaDragDrop : public nsIDragDropHandler,
-                              public nsIDOMEventListener
+class nsContentAreaDragDrop : public nsIDOMDragListener,
+                              public nsIDragDropHandler
 {
 public:
   NS_DECL_ISUPPORTS
@@ -88,6 +86,14 @@ public:
   nsContentAreaDragDrop();
   virtual ~nsContentAreaDragDrop();
 
+  // nsIDOMDragListener
+  NS_IMETHOD DragEnter(nsIDOMEvent* aMouseEvent);
+  NS_IMETHOD DragOver(nsIDOMEvent* aMouseEvent);
+  NS_IMETHOD DragExit(nsIDOMEvent* aMouseEvent);
+  NS_IMETHOD DragDrop(nsIDOMEvent* aMouseEvent);
+  NS_IMETHOD DragGesture(nsIDOMEvent* aMouseEvent);
+  NS_IMETHOD Drag(nsIDOMEvent* aMouseEvent);
+  NS_IMETHOD DragEnd(nsIDOMEvent* aMouseEvent);
   NS_IMETHOD HandleEvent(nsIDOMEvent *event);
 
   /**
@@ -123,9 +129,6 @@ private:
   nsresult AddDragListener();
   nsresult RemoveDragListener();
 
-  nsresult DragOver(nsIDOMDragEvent* aDragEvent);
-  nsresult Drop(nsIDOMDragEvent* aDragEvent);
-
   // utility routines
   static void NormalizeSelection(nsIDOMNode* inBaseNode,
                                  nsISelection* inSelection);
@@ -136,7 +139,9 @@ private:
                                  nsISupports* inDataWrapper, PRUint32 inDataLen,
                                  nsAString & outURL);
 
-  nsCOMPtr<nsIDOMEventTarget> mEventTarget;
+  PRPackedBool mListenerInstalled;
+
+  nsCOMPtr<nsPIDOMEventTarget> mEventTarget;
 
   // weak ref, this is probably my owning webshell
   // FIXME: we set this and never null it out.  That's bad!  See bug 332187.

@@ -12,8 +12,6 @@
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"></script>
   <script type="application/javascript"
           src="chrome://mochikit/content/a11y/accessible/common.js"></script>
-  <script type="application/javascript"
-          src="chrome://mochikit/content/a11y/accessible/events.js"></script>
 
   <script type="application/javascript">
     ////////////////////////////////////////////////////////////////////////////
@@ -96,10 +94,10 @@
             unregisterA11yEventListener(nsIAccessibleEvent.EVENT_FOCUS, this);
 
             ok(aFocusMgr.mIsFocusHandled,
-               "Focus wasn't received for element with ID " + aFocusMgr.mName + ".");
+               "Focus wasn't recieved for element with ID " + aFocusMgr.mName + ".");
 
             var states = {}, extraStates = {};
-            aFocusMgr.mAcc.getState(states, extraStates);
+            aFocusMgr.mAcc.getFinalState(states, extraStates);
 // XXX see bug 455840. Only fails on aria-link, the other two are OK.
 // When fixing this bug, remove the if statement and else block and "todo" statement.
             if (states.value & nsIAccessibleStates.STATE_FOCUSED)

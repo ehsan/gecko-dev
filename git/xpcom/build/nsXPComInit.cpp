@@ -37,17 +37,18 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/XPCOM.h"
-
+#include "nsXPCOM.h"
 #include "nsXPCOMPrivate.h"
 #include "nsXPCOMCIDInternal.h"
-
+#include "nscore.h"
+#include "nsIClassInfoImpl.h"
 #include "nsStaticComponents.h"
 #include "prlink.h"
-
+#include "nsCOMPtr.h"
 #include "nsObserverList.h"
 #include "nsObserverService.h"
 #include "nsProperties.h"
+#include "nsIProperties.h"
 #include "nsPersistentProperties.h"
 #include "nsScriptableInputStream.h"
 #include "nsBinaryStream.h"
@@ -74,10 +75,6 @@
 
 #include "nsThreadManager.h"
 #include "nsThreadPool.h"
-
-#ifdef DEBUG
-#include "BlockingResourceBase.h"
-#endif // ifdef DEBUG
 
 #include "nsIProxyObjectManager.h"
 #include "nsProxyEventPrivate.h"  // access to the impl of nsProxyObjectManager for the generic factory registration.
@@ -123,8 +120,6 @@ NS_DECL_CLASSINFO(nsStringInputStream)
 
 #include "nsUUIDGenerator.h"
 
-#include "nsIOUtil.h"
-
 #ifdef GC_LEAK_DETECTOR
 #include "nsLeakDetector.h"
 #endif
@@ -132,7 +127,7 @@ NS_DECL_CLASSINFO(nsStringInputStream)
 
 #include "SpecialSystemDirectory.h"
 
-#if defined(XP_WIN)
+#if defined(XP_WIN) && !defined(WINCE)
 #include "nsWindowsRegKey.h"
 #endif
 
@@ -144,8 +139,6 @@ NS_DECL_CLASSINFO(nsStringInputStream)
 #include "nsMemoryReporterManager.h"
 
 #include <locale.h>
-
-using mozilla::TimeStamp;
 
 // Registry Factory creation function defined in nsRegistry.cpp
 // We hook into this function locally to create and register the registry
@@ -168,6 +161,7 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsProcess)
 
 #define NS_ENVIRONMENT_CLASSNAME "Environment Service"
 
+#include "nsXPCOM.h"
 // ds/nsISupportsPrimitives
 #define NS_SUPPORTS_ID_CLASSNAME "Supports ID"
 #define NS_SUPPORTS_CSTRING_CLASSNAME "Supports String"
@@ -205,6 +199,7 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsSupportsDoubleImpl)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsSupportsVoidImpl)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsSupportsInterfacePointerImpl)
 
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsArray)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsConsoleService, Init)
 NS_DECL_CLASSINFO(nsConsoleService)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsAtomService)
@@ -236,8 +231,6 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsMacUtilsImpl)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsSystemInfo, Init)
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsMemoryReporterManager)
-
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsIOUtil)
 
 static NS_METHOD
 nsThreadManagerGetSingleton(nsISupports* outer,
@@ -271,7 +264,7 @@ nsXPTIInterfaceInfoManagerGetSingleton(nsISupports* outer,
 }
 
 
-static nsresult
+PR_STATIC_CALLBACK(nsresult)
 RegisterGenericFactory(nsIComponentRegistrar* registrar,
                        const nsModuleComponentInfo *info)
 {
@@ -296,21 +289,6 @@ RegisterGenericFactory(nsIComponentRegistrar* registrar,
 static PRBool CheckUpdateFile()
 {
     nsresult rv;
-    nsCOMPtr<nsIFile> compregFile;
-    rv = nsDirectoryService::gService->Get(NS_XPCOM_COMPONENT_REGISTRY_FILE,
-                                           NS_GET_IID(nsIFile),
-                                           getter_AddRefs(compregFile));
-
-    if (NS_FAILED(rv)) {
-        NS_WARNING("Getting NS_XPCOM_COMPONENT_REGISTRY_FILE failed");
-        return PR_FALSE;
-    }
-
-    PRInt64 compregModTime;
-    rv = compregFile->GetLastModifiedTime(&compregModTime);
-    if (NS_FAILED(rv))
-        return PR_TRUE;
-    
     nsCOMPtr<nsIFile> file;
     rv = nsDirectoryService::gService->Get(NS_XPCOM_CURRENT_PROCESS_DIR, 
                                            NS_GET_IID(nsIFile), 
@@ -322,49 +300,31 @@ static PRBool CheckUpdateFile()
     }
 
     file->AppendNative(nsDependentCString(".autoreg"));
+    
+    PRBool exists;
+    file->Exists(&exists);
+    if (!exists)
+        return PR_FALSE;
 
-    // superfluous cast
-    PRInt64 nowTime = PR_Now() / PR_USEC_PER_MSEC;
-    PRInt64 autoregModTime;
-    rv = file->GetLastModifiedTime(&autoregModTime);
-    if (NS_FAILED(rv))
-        goto next;
-
-    if (autoregModTime > compregModTime) {
-        if (autoregModTime < nowTime) {
-            return PR_TRUE;
-        } else {
-            NS_WARNING("Screwy timestamps, ignoring .autoreg");
-        }
-    }
-
-next:
-    nsCOMPtr<nsIFile> greFile;
-    rv = nsDirectoryService::gService->Get(NS_GRE_DIR,
+    nsCOMPtr<nsIFile> compregFile;
+    rv = nsDirectoryService::gService->Get(NS_XPCOM_COMPONENT_REGISTRY_FILE,
                                            NS_GET_IID(nsIFile),
-                                           getter_AddRefs(greFile));
+                                           getter_AddRefs(compregFile));
 
+    
     if (NS_FAILED(rv)) {
-        NS_WARNING("Getting NS_GRE_DIR failed");
+        NS_WARNING("Getting NS_XPCOM_COMPONENT_REGISTRY_FILE failed");
         return PR_FALSE;
     }
 
-    greFile->AppendNative(nsDependentCString(".autoreg"));
+    if (NS_FAILED(compregFile->Exists(&exists)) || !exists)
+        return PR_TRUE;
 
-    PRBool equals;
-    rv = greFile->Equals(file, &equals);
-    if (NS_SUCCEEDED(rv) && equals)
-        return PR_FALSE;
+    PRInt64 compregModTime, autoregModTime;
+    compregFile->GetLastModifiedTime(&compregModTime);
+    file->GetLastModifiedTime(&autoregModTime);
 
-    rv = greFile->GetLastModifiedTime(&autoregModTime);
-    if (NS_FAILED(rv))
-        return PR_FALSE;
-
-    if (autoregModTime > nowTime) {
-        NS_WARNING("Screwy timestamps, ignoring .autoreg");
-        return PR_FALSE;
-    }
-    return autoregModTime > compregModTime; 
+    return LL_CMP(autoregModTime, >, compregModTime);
 }
 
 
@@ -478,7 +438,7 @@ static const nsModuleComponentInfo components[] = {
 
     COMPONENT(UUID_GENERATOR, nsUUIDGeneratorConstructor),
 
-#if defined(XP_WIN)
+#if defined(XP_WIN) && !defined(WINCE)
     COMPONENT(WINDOWSREGKEY, nsWindowsRegKeyConstructor),
 #endif
 
@@ -489,7 +449,6 @@ static const nsModuleComponentInfo components[] = {
     COMPONENT(SYSTEMINFO, nsSystemInfoConstructor),
 #define NS_MEMORY_REPORTER_MANAGER_CLASSNAME "Memory Reporter Manager"
     COMPONENT(MEMORY_REPORTER_MANAGER, nsMemoryReporterManagerConstructor),
-    COMPONENT(IOUTIL, nsIOUtilConstructor),
 };
 
 #undef COMPONENT
@@ -550,10 +509,6 @@ NS_InitXPCOM3(nsIServiceManager* *result,
     gXPCOMShuttingDown = PR_FALSE;
 
     NS_LogInit();
-
-    // Set up TimeStamp
-    rv = TimeStamp::Startup();
-    NS_ENSURE_SUCCESS(rv, rv);
 
     // Establish the main thread here.
     rv = nsThreadManager::get()->Init();
@@ -741,14 +696,6 @@ NS_InitXPCOM3(nsIServiceManager* *result,
 EXPORT_XPCOM_API(nsresult)
 NS_ShutdownXPCOM(nsIServiceManager* servMgr)
 {
-    return mozilla::ShutdownXPCOM(servMgr);
-}
-
-namespace mozilla {
-
-nsresult
-ShutdownXPCOM(nsIServiceManager* servMgr)
-{
     NS_ENSURE_STATE(NS_IsMainThread());
 
     nsresult rv;
@@ -886,7 +833,6 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
     nsComponentManagerImpl::gComponentManager = nsnull;
 
 #ifdef DEBUG
-    // FIXME BUG 456272: this should disappear
     _FreeAutoLockStatics();
 #endif
 
@@ -896,24 +842,6 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
 
     NS_IF_RELEASE(gDebug);
 
-    TimeStamp::Shutdown();
-
-#ifdef DEBUG
-    /* FIXME bug 491977: This is only going to operate on the
-     * BlockingResourceBase which is compiled into
-     * libxul/libxpcom_core.so. Anyone using external linkage will
-     * have their own copy of BlockingResourceBase statics which will
-     * not be freed by this method.
-     *
-     * It sounds like what we really want is to be able to register a
-     * callback function to call at XPCOM shutdown.  Note that with
-     * this solution, however, we need to guarantee that
-     * BlockingResourceBase::Shutdown() runs after all other shutdown
-     * functions.
-     */
-    BlockingResourceBase::Shutdown();
-#endif
-    
     NS_LogTerm();
 
 #ifdef GC_LEAK_DETECTOR
@@ -923,5 +851,3 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
 
     return NS_OK;
 }
-
-} // namespace mozilla

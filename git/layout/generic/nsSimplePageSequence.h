@@ -84,7 +84,8 @@ class nsSimplePageSequenceFrame : public nsContainerFrame,
 public:
   friend nsIFrame* NS_NewSimplePageSequenceFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
-  NS_DECL_QUERYFRAME
+  // nsISupports
+  NS_IMETHOD  QueryInterface(const nsIID& aIID, void** aInstancePtr);
 
   // nsIFrame
   NS_IMETHOD  Reflow(nsPresContext*      aPresContext,
@@ -148,31 +149,32 @@ protected:
   void SetDateTimeStr(PRUnichar * aDateTimeStr);
   void SetPageNumberFormat(PRUnichar * aFormatStr, PRBool aForPageNumOnly);
 
+  NS_IMETHOD_(nsrefcnt) AddRef(void) {return nsContainerFrame::AddRef();}
+  NS_IMETHOD_(nsrefcnt) Release(void) {return nsContainerFrame::Release();}
+
   nsMargin mMargin;
-
-  // I18N date formatter service which we'll want to cache locally.
-  nsCOMPtr<nsIDateTimeFormat> mDateFormatter;
-
-  nsSize       mSize;
-  nsSharedPageData* mPageData; // data shared by all the nsPageFrames
+  PRBool   mIsPrintingSelection;
 
   // Asynch Printing
-  nsIFrame *   mCurrentPageFrame;
   PRInt32      mPageNum;
   PRInt32      mTotalPages;
+  nsIFrame *   mCurrentPageFrame;
+  PRPackedBool mDoingPageRange;
   PRInt32      mPrintRangeType;
   PRInt32      mFromPageNum;
   PRInt32      mToPageNum;
+  PRPackedBool mPrintThisPage;
+
+  nsSize       mSize;
+  nsSharedPageData* mPageData; // data shared by all the nsPageFrames
 
   // Selection Printing Info
   nscoord      mSelectionHeight;
   nscoord      mYSelOffset;
 
-  // Asynch Printing
-  PRPackedBool mPrintThisPage;
-  PRPackedBool mDoingPageRange;
+  // I18N date formatter service which we'll want to cache locally.
+  nsCOMPtr<nsIDateTimeFormat> mDateFormatter;
 
-  PRPackedBool mIsPrintingSelection;
 };
 
 #endif /* nsSimplePageSequence_h___ */

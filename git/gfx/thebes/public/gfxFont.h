@@ -51,7 +51,6 @@
 #include "gfxSkipChars.h"
 #include "gfxRect.h"
 #include "nsExpirationTracker.h"
-#include "gfxFontConstants.h"
 
 #ifdef DEBUG
 #include <stdio.h>
@@ -65,24 +64,21 @@ class gfxFontGroup;
 class gfxUserFontSet;
 class gfxUserFontData;
 
-// We should eliminate these synonyms when it won't cause many merge conflicts.
-#define FONT_STYLE_NORMAL              NS_FONT_STYLE_NORMAL
-#define FONT_STYLE_ITALIC              NS_FONT_STYLE_ITALIC
-#define FONT_STYLE_OBLIQUE             NS_FONT_STYLE_OBLIQUE
+#define FONT_STYLE_NORMAL              0
+#define FONT_STYLE_ITALIC              1
+#define FONT_STYLE_OBLIQUE             2
 
-// We should eliminate these synonyms when it won't cause many merge conflicts.
-#define FONT_WEIGHT_NORMAL             NS_FONT_WEIGHT_NORMAL
-#define FONT_WEIGHT_BOLD               NS_FONT_WEIGHT_BOLD
+#define FONT_WEIGHT_NORMAL             400
+#define FONT_WEIGHT_BOLD               700
 
 #define FONT_MAX_SIZE                  2000.0
 
 struct THEBES_API gfxFontStyle {
     gfxFontStyle();
-    gfxFontStyle(PRUint8 aStyle, PRUint16 aWeight, PRInt16 aStretch,
-                 gfxFloat aSize, const nsACString& aLangGroup,
+    gfxFontStyle(PRUint8 aStyle, PRUint16 aWeight, gfxFloat aSize,
+                 const nsACString& aLangGroup,
                  float aSizeAdjust, PRPackedBool aSystemFont,
-                 PRPackedBool aFamilyNameQuirks,
-                 PRPackedBool aPrinterFont);
+                 PRPackedBool aFamilyNameQuirks);
     gfxFontStyle(const gfxFontStyle& aStyle);
 
     // The style of font (normal, italic, oblique)
@@ -92,9 +88,6 @@ struct THEBES_API gfxFontStyle {
     // require certain fixup that we do for fonts from untrusted
     // sources.
     PRPackedBool systemFont : 1;
-
-    // Say that this font is used for print or print preview.
-    PRPackedBool printerFont : 1;
 
     // True if the character set quirks (for treatment of "Symbol",
     // "Wingdings", etc.) should be applied.
@@ -106,10 +99,6 @@ struct THEBES_API gfxFontStyle {
     // 400, 700, and 900, a weight of 898 should lead to the weight 400
     // font being used, since it is two weights lighter than 900.
     PRUint16 weight;
-
-    // The stretch of the font (the sum of various NS_FONT_STRETCH_*
-    // constants; see gfxFontConstants.h).
-    PRInt16 stretch;
 
     // The logical size of the font, in pixels
     gfxFloat size;
@@ -144,10 +133,8 @@ struct THEBES_API gfxFontStyle {
         return (size == other.size) &&
             (style == other.style) &&
             (systemFont == other.systemFont) &&
-            (printerFont == other.printerFont) &&
             (familyNameQuirks == other.familyNameQuirks) &&
             (weight == other.weight) &&
-            (stretch == other.stretch) &&
             (langGroup.Equals(other.langGroup)) &&
             (sizeAdjust == other.sizeAdjust);
     }
@@ -158,18 +145,17 @@ public:
     THEBES_INLINE_DECL_REFCOUNTING(gfxFontEntry)
 
     gfxFontEntry(const nsAString& aName) : 
-        mName(aName), mItalic(PR_FALSE), mFixedPitch(PR_FALSE),
-        mIsProxy(PR_FALSE), mIsValid(PR_TRUE), 
-        mIsBadUnderlineFont(PR_FALSE), mIsUserFont(PR_FALSE),
-        mWeight(500), mStretch(NS_FONT_STRETCH_NORMAL),
+        mName(aName), mIsProxy(PR_FALSE), mIsValid(PR_TRUE), 
+        mIsBadUnderlineFont(PR_FALSE), 
         mCmapInitialized(PR_FALSE), mUserFontData(nsnull)
     { }
 
     gfxFontEntry(const gfxFontEntry& aEntry) : 
         mName(aEntry.mName), mItalic(aEntry.mItalic), 
-        mFixedPitch(aEntry.mFixedPitch), mIsProxy(aEntry.mIsProxy), 
+        mFixedPitch(aEntry.mFixedPitch), mUnicodeFont(aEntry.mUnicodeFont), 
+        mSymbolFont(aEntry.mSymbolFont), mTrueType(aEntry.mTrueType),
+        mIsType1(aEntry.mIsType1), mIsProxy(aEntry.mIsProxy), 
         mIsValid(aEntry.mIsValid), mIsBadUnderlineFont(aEntry.mIsBadUnderlineFont),
-        mIsUserFont(aEntry.mIsUserFont),
         mWeight(aEntry.mWeight), mCmapInitialized(aEntry.mCmapInitialized),
         mCharacterMap(aEntry.mCharacterMap), mUserFontData(aEntry.mUserFontData)
     { }
@@ -181,7 +167,6 @@ public:
 
     PRInt32 Weight() { return mWeight; }
 
-    PRBool IsUserFont() { return mIsUserFont; }
     PRBool IsFixedPitch() { return mFixedPitch; }
     PRBool IsItalic() { return mItalic; }
     PRBool IsBold() { return mWeight >= 600; } // bold == weights 600 and above
@@ -200,10 +185,15 @@ public:
 
     PRPackedBool     mItalic      : 1;
     PRPackedBool     mFixedPitch  : 1;
+
+    PRPackedBool     mUnicodeFont : 1;
+    PRPackedBool     mSymbolFont  : 1;
+    PRPackedBool     mTrueType    : 1;
+    PRPackedBool     mIsType1     : 1;
     PRPackedBool     mIsProxy     : 1;
     PRPackedBool     mIsValid     : 1;
+
     PRPackedBool     mIsBadUnderlineFont : 1;
-    PRPackedBool     mIsUserFont  : 1;
 
     PRUint16         mWeight;
     PRUint16         mStretch;
@@ -211,6 +201,12 @@ public:
     PRPackedBool     mCmapInitialized;
     gfxSparseBitSet  mCharacterMap;
     gfxUserFontData* mUserFontData;
+
+protected:
+    gfxFontEntry() :
+        mIsProxy(PR_FALSE), mIsValid(PR_TRUE), 
+        mCmapInitialized(PR_FALSE), mUserFontData(nsnull)
+    { }
 };
 
 
@@ -508,33 +504,6 @@ protected:
 public:
     virtual ~gfxFont();
 
-    // options for the kind of bounding box to return from measurement
-    typedef enum {
-        LOOSE_INK_EXTENTS,
-            // A box that encloses all the painted pixels, and may
-            // include sidebearings and/or additional ascent/descent
-            // within the glyph cell even if the ink is smaller.
-        TIGHT_INK_EXTENTS,
-            // A box that tightly encloses all the painted pixels
-            // (although actually on Windows, at least, it may be
-            // slightly larger than strictly necessary because
-            // we can't get precise extents with ClearType).
-        TIGHT_HINTED_OUTLINE_EXTENTS
-            // A box that tightly encloses the glyph outline,
-            // ignoring possible antialiasing pixels that extend
-            // beyond this.
-            // NOTE: The default implementation of gfxFont::Measure(),
-            // which works with the glyph extents cache, does not
-            // differentiate between this and TIGHT_INK_EXTENTS.
-            // Whether the distinction is important depends on the
-            // antialiasing behavior of the platform; currently the
-            // distinction is only implemented in the gfxWindowsFont
-            // subclass, because of ClearType's tendency to paint
-            // outside the hinted outline.
-            // Also NOTE: it is relatively expensive to request this,
-            // as it does not use cached glyph extents in the font.
-    } BoundingBoxType;
-
     const nsString& GetName() const { return mFontEntry->Name(); }
     const gfxFontStyle *GetStyle() const { return &mStyle; }
 
@@ -549,6 +518,7 @@ public:
         gfxFloat strikeoutOffset;
         gfxFloat underlineSize;
         gfxFloat underlineOffset;
+        gfxFloat height;
 
         gfxFloat internalLeading;
         gfxFloat externalLeading;
@@ -603,7 +573,7 @@ public:
         gfxFloat mDescent; // always non-negative
         
         // Bounding box that is guaranteed to include everything drawn.
-        // If a tight boundingBox was requested when these metrics were
+        // If aTightBoundingBox was set to true when these metrics were
         // generated, this will tightly wrap the glyphs, otherwise it is
         // "loose" and may be larger than the true bounding box.
         // Coordinates are relative to the baseline left origin, so typically
@@ -660,7 +630,7 @@ public:
      */
     virtual RunMetrics Measure(gfxTextRun *aTextRun,
                                PRUint32 aStart, PRUint32 aEnd,
-                               BoundingBoxType aBoundingBoxType,
+                               PRBool aTightBoundingBox,
                                gfxContext *aContextForTightBoundingBox,
                                Spacing *aSpacing);
     /**
@@ -865,7 +835,7 @@ public:
     PRBool CanBreakLineBefore(PRUint32 aPos) {
         NS_ASSERTION(0 <= aPos && aPos < mCharacterCount, "aPos out of range");
         return mCharacterGlyphs[aPos].CanBreakBefore();
-    }
+    }    
 
     PRUint32 GetLength() { return mCharacterCount; }
 
@@ -977,10 +947,10 @@ public:
     /**
      * Computes the ReflowMetrics for a substring.
      * Uses GetSpacing from aBreakProvider.
-     * @param aBoundingBoxType which kind of bounding box (loose/tight)
+     * @param aTightBoundingBox if true, we make the bounding box tight
      */
     Metrics MeasureText(PRUint32 aStart, PRUint32 aLength,
-                        gfxFont::BoundingBoxType aBoundingBoxType,
+                        PRBool aTightBoundingBox,
                         gfxContext *aRefContextForTightBoundingBox,
                         PropertyProvider *aProvider);
 
@@ -1059,9 +1029,9 @@ public:
      * Trimmed spaces are still counted in the "characters fit" result.
      * @param aMetrics if non-null, we fill this in for the returned substring.
      * If a hyphenation break was used, the hyphen is NOT included in the returned metrics.
-     * @param aBoundingBoxType whether to make the bounding box in aMetrics tight
+     * @param aTightBoundingBox if true, we make the bounding box in aMetrics tight
      * @param aRefContextForTightBoundingBox a reference context to get the
-     * tight bounding box, if requested
+     * tight bounding box, if aTightBoundingBox is true
      * @param aUsedHyphenation if non-null, records if we selected a hyphenation break
      * @param aLastBreak if non-null and result is aMaxLength, we set this to
      * the maximal N such that
@@ -1086,8 +1056,7 @@ public:
                                  PropertyProvider *aProvider,
                                  PRBool aSuppressInitialBreak,
                                  gfxFloat *aTrimWhitespace,
-                                 Metrics *aMetrics,
-                                 gfxFont::BoundingBoxType aBoundingBoxType,
+                                 Metrics *aMetrics, PRBool aTightBoundingBox,
                                  gfxContext *aRefContextForTightBoundingBox,
                                  PRBool *aUsedHyphenation,
                                  PRUint32 *aLastBreak,
@@ -1231,11 +1200,6 @@ public:
         PRBool IsLigatureGroupStart() const {
             return (mValue & FLAG_IS_SIMPLE_GLYPH) || !(mValue & FLAG_NOT_LIGATURE_GROUP_START);
         }
-        PRBool IsLigatureContinuation() const {
-            return (mValue & FLAG_IS_SIMPLE_GLYPH) == 0 &&
-                (mValue & (FLAG_NOT_LIGATURE_GROUP_START | FLAG_NOT_MISSING)) ==
-                    (FLAG_NOT_LIGATURE_GROUP_START | FLAG_NOT_MISSING);
-        }
 
         PRBool CanBreakBefore() const { return (mValue & FLAG_CAN_BREAK_BEFORE) != 0; }
         // Returns FLAG_CAN_BREAK_BEFORE if the setting changed, 0 otherwise
@@ -1372,7 +1336,6 @@ public:
     nsresult AddGlyphRun(gfxFont *aFont, PRUint32 aStartCharIndex, PRBool aForceNewRun = PR_FALSE);
     void ResetGlyphRuns() { mGlyphRuns.Clear(); }
     void SortGlyphRuns();
-    void SanitizeGlyphRuns();
 
     // Call the following glyph-setters during initialization or during reshaping
     // only. It is OK to overwrite existing data for a character.
@@ -1397,7 +1360,7 @@ public:
     
     /**
      * Prefetch all the glyph extents needed to ensure that Measure calls
-     * on this textrun not requesting tight boundingBoxes will succeed. Note
+     * on this textrun with aTightBoundingBox false will succeed. Note
      * that some glyph extents might not be fetched due to OOM or other
      * errors.
      */
@@ -1450,9 +1413,6 @@ public:
 #ifdef DEBUG
     // number of entries referencing this textrun in the gfxTextRunWordCache
     PRUint32 mCachedWords;
-    // generation of gfxTextRunWordCache that refers to this textrun;
-    // if the cache gets cleared, then mCachedWords is no longer meaningful
-    PRUint32 mCacheGeneration;
     
     void Dump(FILE* aOutput);
 #endif
@@ -1507,15 +1467,14 @@ private:
     // result in appunits
     gfxFloat GetPartialLigatureWidth(PRUint32 aStart, PRUint32 aEnd, PropertyProvider *aProvider);
     void AccumulatePartialLigatureMetrics(gfxFont *aFont,
-                                          PRUint32 aStart, PRUint32 aEnd,
-                                          gfxFont::BoundingBoxType aBoundingBoxType,
+                                          PRUint32 aStart, PRUint32 aEnd, PRBool aTight,
                                           gfxContext *aRefContext,
                                           PropertyProvider *aProvider,
                                           Metrics *aMetrics);
 
     // **** measurement helper ****
-    void AccumulateMetricsForRun(gfxFont *aFont, PRUint32 aStart, PRUint32 aEnd,
-                                 gfxFont::BoundingBoxType aBoundingBoxType,
+    void AccumulateMetricsForRun(gfxFont *aFont, PRUint32 aStart,
+                                 PRUint32 aEnd, PRBool aTight,
                                  gfxContext *aRefContext,
                                  PropertyProvider *aProvider,
                                  PRUint32 aSpacingStart, PRUint32 aSpacingEnd,
@@ -1564,16 +1523,6 @@ public:
     virtual ~gfxFontGroup();
 
     virtual gfxFont *GetFontAt(PRInt32 i) {
-        // If it turns out to be hard for all clients that cache font
-        // groups to call UpdateFontList at appropriate times, we could
-        // instead consider just calling UpdateFontList from someplace
-        // more central (such as here).
-        NS_ASSERTION(!mUserFontSet || mCurrGeneration == GetGeneration(),
-                     "Whoever was caching this font group should have "
-                     "called UpdateFontList on it");
-        NS_ASSERTION(mFonts.Length() > PRUint32(i), 
-                     "Requesting a font index that doesn't exist");
-
         return static_cast<gfxFont*>(mFonts[i]);
     }
     virtual PRUint32 FontListLength() const {
@@ -1643,7 +1592,7 @@ public:
     // The value should be lower value of first font's metrics and the bad font's metrics.
     // Otherwise, this returns from first font's metrics.
     enum { UNDERLINE_OFFSET_NOT_SET = PR_INT16_MAX };
-    virtual gfxFloat GetUnderlineOffset() {
+    gfxFloat GetUnderlineOffset() {
         if (mUnderlineOffset == UNDERLINE_OFFSET_NOT_SET)
             mUnderlineOffset = GetFontAt(0)->GetMetrics().underlineOffset;
         return mUnderlineOffset;
@@ -1658,6 +1607,7 @@ public:
     void ComputeRanges(nsTArray<gfxTextRange>& mRanges, const PRUnichar *aString, PRUint32 begin, PRUint32 end);
 
     gfxUserFontSet* GetUserFontSet();
+    void SetUserFontSet(gfxUserFontSet *aUserFontSet);
 
     // With downloadable fonts, the composition of the font group can change as fonts are downloaded
     // for each change in state of the user font set, the generation value is bumped to avoid picking up
@@ -1665,8 +1615,6 @@ public:
     // with no @font-face rule, this always returns 0.
     PRUint64 GetGeneration();
 
-    // If there is a user font set, check to see whether the font list or any
-    // caches need updating.
     virtual void UpdateFontList() { }
 
 protected:
@@ -1677,10 +1625,6 @@ protected:
 
     gfxUserFontSet* mUserFontSet;
     PRUint64 mCurrGeneration;  // track the current user font set generation, rebuild font list if needed
-
-    // Used for construction/destruction.  Not intended to change the font set
-    // as invalidation of font lists and caches is not considered.
-    void SetUserFontSet(gfxUserFontSet *aUserFontSet);
 
     // Init this font group's font metrics. If there no bad fonts, you don't need to call this.
     // But if there are one or more bad fonts which have bad underline offset,

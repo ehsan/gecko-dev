@@ -2,13 +2,12 @@
  * ***** BEGIN LICENSE BLOCK *****
  * Version: BSD
  *
- * Copyright (C) 2006-2008 Mozilla Corporation.  All rights reserved.
+ * Copyright (C) 2006 Mozilla Corporation.  All rights reserved.
  *
  * Contributor(s):
  *   Vladimir Vukicevic <vladimir@pobox.com>
  *   Masayuki Nakano <masayuki@d-toybox.com>
  *   John Daggett <jdaggett@mozilla.com>
- *   Jonathan Kew <jfkthame@gmail.com>
  * 
  * Copyright (C) 2006 Apple Computer, Inc.  All rights reserved.
  *
@@ -38,7 +37,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include <Carbon/Carbon.h>
+#include <Carbon.h>
 
 #import <AppKit/AppKit.h>
 
@@ -47,10 +46,8 @@
 #include "gfxAtsuiFonts.h"
 #include "gfxUserFontSet.h"
 
-#include "nsIPrefService.h"
-#include "nsIPrefBranch2.h"  // for pref changes callback notification
+#include "nsIPref.h"  // for pref changes callback notification
 #include "nsServiceManagerUtils.h"
-#include "nsTArray.h"
 
 #include "nsDirectoryServiceUtils.h"
 #include "nsDirectoryServiceDefs.h"
@@ -59,6 +56,10 @@
 #include <unistd.h>
 #include <time.h>
 
+// _atsFontID is private; add it in our new category to NSFont
+@interface NSFont (MozillaCategory)
+- (ATSUFontID)_atsFontID;
+@end
 
 // font info loader constants
 static const PRUint32 kDelayBeforeLoadingCmaps = 8 * 1000; // 8secs
@@ -71,8 +72,6 @@ static const PRUint32 kNumFontsPerSlice = 10; // read in info 10 fonts at a time
 #define INDEX_FONT_TRAITS 3
 
 static const int kAppleMaxWeight = 14;
-static const int kAppleExtraLightWeight = 3;
-static const int kAppleUltraLightWeight = 2;
 
 static const int gAppleWeightToCSSWeight[] = {
     0,
@@ -107,26 +106,6 @@ static NSString* GetNSStringForString(const nsAString& aSrc)
 
 static PRLogModuleInfo *gFontInfoLog = PR_NewLogModule("fontInfoLog");
 
-class gfxQuartzFontCachePrefObserver : public nsIObserver {
-public:
-    NS_DECL_ISUPPORTS
-    NS_DECL_NSIOBSERVER
-};
-
-NS_IMPL_ISUPPORTS1(gfxQuartzFontCachePrefObserver, nsIObserver)
-
-NS_IMETHODIMP
-gfxQuartzFontCachePrefObserver::Observe(nsISupports     *aSubject,
-                                        const char      *aTopic,
-                                        const PRUnichar *aData)
-{
-    NS_ASSERTION(!strcmp(aTopic, NS_PREFBRANCH_PREFCHANGE_TOPIC_ID), "invalid topic");
-    // XXX this could be made to only clear out the cache for the prefs that were changed
-    // but it probably isn't that big a deal.
-    gfxQuartzFontCache::SharedFontCache()->ClearPrefFonts();
-    return NS_OK;
-}
-
 void
 gfxQuartzFontCache::GenerateFontListKey(const nsAString& aKeyName, nsAString& aResult)
 {
@@ -138,47 +117,66 @@ gfxQuartzFontCache::GenerateFontListKey(const nsAString& aKeyName, nsAString& aR
 #pragma mark-
 
 MacOSFontEntry::MacOSFontEntry(const nsAString& aPostscriptName, 
-                               PRInt32 aWeight, PRUint32 aTraits,
-                               PRBool aIsStandardFace)
-    : gfxFontEntry(aPostscriptName), mTraits(aTraits), mATSFontRef(0),
-      mATSFontRefInitialized(PR_FALSE), mStandardFace(aIsStandardFace)
+                                PRInt32 aAppleWeight, PRUint32 aTraits, MacOSFamilyEntry *aFamily)
+    : gfxFontEntry(aPostscriptName), mTraits(aTraits), mFamily(aFamily), mATSUFontID(0),
+        mATSUIDInitialized(0)
 {
-    mWeight = aWeight;
+    mWeight = gfxQuartzFontCache::AppleWeightToCSSWeight(aAppleWeight) * 100;
 
     mItalic = (mTraits & NSItalicFontMask ? 1 : 0);
     mFixedPitch = (mTraits & NSFixedPitchFontMask ? 1 : 0);
 }
 
-MacOSFontEntry::MacOSFontEntry(const nsAString& aPostscriptName, ATSFontRef aFontRef,
-                               PRUint16 aWeight, PRUint16 aStretch, PRUint32 aItalicStyle,
-                               gfxUserFontData *aUserFontData)
-    : gfxFontEntry(aPostscriptName), mATSFontRef(aFontRef),
-      mATSFontRefInitialized(PR_TRUE), mStandardFace(PR_FALSE)
+MacOSFontEntry::MacOSFontEntry(ATSUFontID aFontID, PRUint16 aWeight, PRUint16 aStretch, PRUint32 aItalicStyle, gfxUserFontData *aUserFontData)
 {
     // xxx - stretch is basically ignored for now
-
+    
+    mATSUIDInitialized = PR_TRUE;
+    mATSUFontID = aFontID;
     mUserFontData = aUserFontData;
     mWeight = aWeight;
     mStretch = aStretch;
     mFixedPitch = PR_FALSE; // xxx - do we need this for downloaded fonts?
     mItalic = (aItalicStyle & (FONT_STYLE_ITALIC | FONT_STYLE_OBLIQUE)) != 0;
-    mIsUserFont = aUserFontData != nsnull;
-
+    
     mTraits = (mItalic ? NSItalicFontMask : NSUnitalicFontMask) |
               (mFixedPitch ? NSFixedPitchFontMask : 0) |
               (mWeight >= 600 ? NSBoldFontMask : NSUnboldFontMask);
+              
+    // get the postscript name
+    OSStatus err;
+    NSString *psname = NULL;
+
+    // now lookup the Postscript name
+    err = ATSFontGetPostScriptName((ATSFontRef) aFontID, kATSOptionFlagsDefault, (CFStringRef*) (&psname));
+    if (err == noErr) {
+        GetStringForNSString(psname, mName);
+        [psname release];
+    } else {
+        mIsValid = PR_FALSE;
+#if DEBUG
+        char warnBuf[1024];
+        sprintf(warnBuf, "ATSFontGetPostScriptName err = %d", (PRInt32)err);
+        NS_WARNING(warnBuf);
+#endif    
+    }
 }
 
-ATSFontRef
-MacOSFontEntry::GetFontRef() 
+const nsString& 
+MacOSFontEntry::FamilyName()
 {
-    if (!mATSFontRefInitialized) {
-        mATSFontRefInitialized = PR_TRUE;
+    return mFamily->Name();
+}
+
+ATSUFontID MacOSFontEntry::GetFontID() 
+{
+    if (!mATSUIDInitialized) {
+        mATSUIDInitialized = PR_TRUE;
         NSString *psname = GetNSStringForString(mName);
-        mATSFontRef = ATSFontFindFromPostScriptName(CFStringRef(psname),
-                                                    kATSOptionFlagsDefault);
+        NSFont *font = [NSFont fontWithName:psname size:0.0];
+        if (font) mATSUFontID = [font _atsFontID];
     }
-    return mATSFontRef;
+    return mATSUFontID; 
 }
 
 // ATSUI requires AAT-enabled fonts to render complex scripts correctly.
@@ -212,14 +210,12 @@ MacOSFontEntry::ReadCMAP()
     ByteCount size, cmapSize;
 
     if (mCmapInitialized) return NS_OK;
-    ATSFontRef fontRef = GetFontRef();
+    ATSUFontID fontID = GetFontID();
 
     // attempt this once, if errors occur leave a blank cmap
     mCmapInitialized = PR_TRUE;
 
-    PRUint32 kCMAP = TRUETYPE_TAG('c','m','a','p');
-    
-    status = ATSFontGetTable(fontRef, kCMAP, 0, 0, 0, &size);
+    status = ATSFontGetTable(fontID, 'cmap', 0, 0, 0, &size);
     cmapSize = size;
     //printf( "cmap size: %s %d", NS_ConvertUTF16toUTF8(mName).get(), size );
 #if DEBUG
@@ -236,7 +232,7 @@ MacOSFontEntry::ReadCMAP()
         return NS_ERROR_OUT_OF_MEMORY;
     PRUint8 *cmap = buffer.Elements();
 
-    status = ATSFontGetTable(fontRef, kCMAP, 0, size, cmap, &size);
+    status = ATSFontGetTable(fontID, 'cmap', 0, size, cmap, &size);
     NS_ENSURE_TRUE(status == noErr, NS_ERROR_FAILURE);
 
     nsresult rv = NS_ERROR_FAILURE;
@@ -256,13 +252,13 @@ MacOSFontEntry::ReadCMAP()
             
             // check for mort/morx table, if haven't already
             if (!checkedForMorphTable) {
-                status = ATSFontGetTable(fontRef, TRUETYPE_TAG('m','o','r','x'), 0, 0, 0, &size);
+                status = ATSFontGetTable(fontID, 'morx', 0, 0, 0, &size);
                 if (status == noErr) {
                     checkedForMorphTable = PR_TRUE;
                     hasMorphTable = PR_TRUE;
                 } else {
                     // check for a mort table
-                    status = ATSFontGetTable(fontRef, TRUETYPE_TAG('m','o','r','t'), 0, 0, 0, &size);
+                    status = ATSFontGetTable(fontID, 'mort', 0, 0, 0, &size);
                     checkedForMorphTable = PR_TRUE;
                     if (status == noErr) {
                         hasMorphTable = PR_TRUE;
@@ -508,23 +504,6 @@ MacOSFamilyEntry::FindWeightsForStyle(gfxFontEntry* aFontsForWeights[], const gf
     return found;
 }
 
-class FontEntryStandardFaceComparator {
-  public:
-    PRBool Equals(const nsRefPtr<MacOSFontEntry>& a, const nsRefPtr<MacOSFontEntry>& b) const {
-        return a->mStandardFace == b->mStandardFace;
-    }
-    PRBool LessThan(const nsRefPtr<MacOSFontEntry>& a, const nsRefPtr<MacOSFontEntry>& b) const {
-        return (a->mStandardFace == PR_TRUE && b->mStandardFace == PR_FALSE);
-    }
-};
-
-void
-MacOSFamilyEntry::SortAvailableFonts()
-{
-    mAvailableFonts.Sort(FontEntryStandardFaceComparator());
-}
-
-
 static NSString* CreateNameFromBuffer(const UInt8 *aBuf, ByteCount aLength, 
         FontPlatformCode aPlatformCode, FontScriptCode aScriptCode, FontLanguageCode aLangCode)
 {
@@ -567,13 +546,11 @@ enum {
 
 // returns true if other names were found, false otherwise
 static PRBool ReadOtherFamilyNamesForFace(AddOtherFamilyNameFunctor& aOtherFamilyFunctor, MacOSFamilyEntry *aFamilyEntry,
-                                        NSString *familyName, ATSFontRef aFontRef, bool useFullName = false)
+                                        NSString *familyName, ATSUFontID fontID, bool useFullName = false)
 {
     OSStatus err;
     ItemCount i, nameCount;
     PRBool foundNames = PR_FALSE;
-
-    ATSUFontID fontID = FMGetFontFromATSFontRef(aFontRef);
 
     if (fontID == kATSUInvalidFontID)
         return foundNames;
@@ -641,7 +618,7 @@ MacOSFamilyEntry::ReadOtherFamilyNames(AddOtherFamilyNameFunctor& aOtherFamilyFu
     // read in other family names for the first face in the list
     MacOSFontEntry *fe = mAvailableFonts[0];
 
-    mHasOtherFamilyNames = ReadOtherFamilyNamesForFace(aOtherFamilyFunctor, this, familyName, fe->GetFontRef());
+    mHasOtherFamilyNames = ReadOtherFamilyNamesForFace(aOtherFamilyFunctor, this, familyName, fe->GetFontID());
 
     // read in other names for the first face in the list with the assumption
     // that if extra names don't exist in that face then they don't exist in
@@ -654,7 +631,7 @@ MacOSFamilyEntry::ReadOtherFamilyNames(AddOtherFamilyNameFunctor& aOtherFamilyFu
         numFonts = mAvailableFonts.Length();
         for (i = 1; i < numFonts; i++) {
             fe = mAvailableFonts[i];
-            ReadOtherFamilyNamesForFace(aOtherFamilyFunctor, this, familyName, fe->GetFontRef());
+            ReadOtherFamilyNamesForFace(aOtherFamilyFunctor, this, familyName, fe->GetFontID());
         }
     }
 }
@@ -693,7 +670,7 @@ void SingleFaceFamily::ReadOtherFamilyNames(AddOtherFamilyNameFunctor& aOtherFam
     MacOSFontEntry *fe = mAvailableFonts[0];
 
     // read in other names, using the full font names as the family names
-    mHasOtherFamilyNames = ReadOtherFamilyNamesForFace(aOtherFamilyFunctor, this, familyName, fe->GetFontRef(), true);    
+    mHasOtherFamilyNames = ReadOtherFamilyNamesForFace(aOtherFamilyFunctor, this, familyName, fe->GetFontID(), true);    
 }
 
 /* gfxQuartzFontCache */
@@ -717,17 +694,11 @@ gfxQuartzFontCache::gfxQuartzFontCache()
                                    (void*)this, nsnull);
 
     // pref changes notification setup
-    gfxQuartzFontCachePrefObserver *observer = new gfxQuartzFontCachePrefObserver();
-    if (observer) {
-        nsCOMPtr<nsIPrefBranch2> pref = do_GetService(NS_PREFSERVICE_CONTRACTID);
-        if (pref) {
-            pref->AddObserver("font.", observer, PR_FALSE);
-            pref->AddObserver("font.name-list.", observer, PR_FALSE);
-            pref->AddObserver("intl.accept_languages", observer, PR_FALSE);  // hmmmm...
-        } else {
-            delete observer;
-        }
-    }
+    nsCOMPtr<nsIPref> pref = do_GetService(NS_PREF_CONTRACTID);
+    pref->RegisterCallback("font.", PrefChangedCallback, this);
+    pref->RegisterCallback("font.name-list.", PrefChangedCallback, this);
+    pref->RegisterCallback("intl.accept_languages", PrefChangedCallback, this);  // hmmmm...
+
 }
 
 const PRUint32 kNonNormalTraits = NSItalicFontMask | NSBoldFontMask | NSNarrowFontMask | NSExpandedFontMask | NSCondensedFontMask | NSCompressedFontMask;
@@ -735,7 +706,7 @@ const PRUint32 kNonNormalTraits = NSItalicFontMask | NSBoldFontMask | NSNarrowFo
 void
 gfxQuartzFontCache::InitFontList()
 {
-    ATSGeneration currentGeneration = ATSGetGeneration();
+    ATSGeneration currentGeneration = ATSGeneration();
     
     // need to ignore notifications after adding each font
     if (mATSGeneration == currentGeneration)
@@ -743,12 +714,6 @@ gfxQuartzFontCache::InitFontList()
 
     mATSGeneration = currentGeneration;
     PR_LOG(gFontInfoLog, PR_LOG_DEBUG, ("(fontinit) updating to generation: %d", mATSGeneration));                                         
-    
-    // Bug 420981 - under 10.5, UltraLight and Light have the same weight value
-    PRBool needToCheckLightFaces = PR_FALSE;
-    if (gfxPlatformMac::GetPlatform()->OSXVersion() >= MAC_OS_X_VERSION_10_5_HEX) {
-        needToCheckLightFaces = PR_TRUE;
-    }
     
     mFontFamilies.Clear();
     mOtherFamilyNames.Clear();
@@ -781,18 +746,8 @@ gfxQuartzFontCache::InitFontList()
         for (faceIndex = 0; faceIndex < faceCount; faceIndex++) {
             NSArray *face = [fontfaces objectAtIndex:faceIndex];
             NSString *psname = [face objectAtIndex:INDEX_FONT_POSTSCRIPT_NAME];
-            PRInt32 appKitWeight = [[face objectAtIndex:INDEX_FONT_WEIGHT] unsignedIntValue];
+            PRInt32 weight = [[face objectAtIndex:INDEX_FONT_WEIGHT] unsignedIntValue];
             PRUint32 traits = [[face objectAtIndex:INDEX_FONT_TRAITS] unsignedIntValue];
-            NSString *facename = [face objectAtIndex:INDEX_FONT_FACE_NAME];
-            PRBool isStandardFace = PR_FALSE;
-
-            if (needToCheckLightFaces && appKitWeight == kAppleExtraLightWeight) {
-                // if the facename contains UltraLight, set the weight to the ultralight weight value
-                NSRange range = [facename rangeOfString:@"ultralight" options:NSCaseInsensitiveSearch];
-                if (range.location != NSNotFound) {
-                    appKitWeight = kAppleUltraLightWeight;
-                }
-            }
             
             // 10.5 doesn't set NSUnitalicFontMask and NSUnboldFontMask - manually set these for consistency 
             if (!(traits & NSBoldFontMask))
@@ -800,34 +755,20 @@ gfxQuartzFontCache::InitFontList()
             if (!(traits & NSItalicFontMask))
                 traits |= NSUnitalicFontMask;
             
-            PRInt32 cssWeight = gfxQuartzFontCache::AppleWeightToCSSWeight(appKitWeight) * 100;
-            
             PR_LOG(gFontInfoLog, PR_LOG_DEBUG, ("(fontinit) family: %s, psname: %s, face: %s, apple-weight: %d, css-weight: %d, traits: %8.8x\n", 
-                [availableFamily UTF8String], [psname UTF8String], [facename UTF8String], appKitWeight, cssWeight, traits));
+                [availableFamily UTF8String], [psname UTF8String], [[face objectAtIndex:INDEX_FONT_FACE_NAME] UTF8String], weight, gfxQuartzFontCache::AppleWeightToCSSWeight(weight), traits));
 
             // make a nsString
             GetStringForNSString(psname, postscriptFontName);
-
-            if ([facename isEqualToString:@"Regular"] ||
-                [facename isEqualToString:@"Bold"] ||
-                [facename isEqualToString:@"Italic"] ||
-                [facename isEqualToString:@"Oblique"] ||
-                [facename isEqualToString:@"Bold Italic"] ||
-                [facename isEqualToString:@"Bold Oblique"])
-            {
-                isStandardFace = PR_TRUE;
-            }
-
+        
             // create a font entry
-            MacOSFontEntry *fontEntry = new MacOSFontEntry(postscriptFontName, cssWeight, traits, isStandardFace);
+            MacOSFontEntry *fontEntry = new MacOSFontEntry(postscriptFontName, weight, traits, familyEntry);
             if (!fontEntry) break;            
             
             // insert into font entry array of family
             familyEntry->AddFontEntry(fontEntry);
         }
-
-        familyEntry->SortAvailableFonts();
-
+        
         // add the family entry to the hash table
         ToLowerCase(availableFamilyName);
         mFontFamilies.Put(availableFamilyName, familyEntry);
@@ -843,7 +784,7 @@ gfxQuartzFontCache::InitFontList()
     // clean up various minor 10.4 font problems for specific fonts
     if (gfxPlatformMac::GetPlatform()->OSXVersion() < MAC_OS_X_VERSION_10_5_HEX) {
         // Cocoa calls report that italic faces exist for Courier and Helvetica,
-        // even though only bold faces exist so test for this using ATS font refs (10.5 has proper faces)
+        // even though only bold faces exist so test for this using ATSUI id's (10.5 has proper faces)
         EliminateDuplicateFaces(NS_LITERAL_STRING("Courier"));
         EliminateDuplicateFaces(NS_LITERAL_STRING("Helvetica"));
         
@@ -930,6 +871,7 @@ gfxQuartzFontCache::InitSingleFaceList()
                         mFontFamilies.Put(key, familyEntry);
                         PR_LOG(gFontInfoLog, PR_LOG_DEBUG, ("(fontinit-singleface) family: %s, psname: %s\n", [display UTF8String], [faceName UTF8String]));
                     }
+                    fontEntry->mFamily = familyEntry;
                 }
             }
         }
@@ -972,8 +914,8 @@ gfxQuartzFontCache::EliminateDuplicateFaces(const nsAString& aFamilyName)
     MacOSFontEntry *italic, *nonitalic;
     PRUint32 boldtraits[2] = { 0, NSBoldFontMask };
 
-    // if normal and italic have the same ATS font ref, delete italic
-    // if bold and bold-italic have the same ATS font ref, delete bold-italic
+    // if normal and italic have the same ATSUI id, delete italic
+    // if bold and bold-italic have the same ATSUI id, delete bold-italic
 
     // two iterations, one for normal, one for bold
     for (bold = 0; bold < 2; bold++) {
@@ -1001,11 +943,9 @@ gfxQuartzFontCache::EliminateDuplicateFaces(const nsAString& aFamilyName)
                 }
             }
 
-            // if italic face and non-italic face have matching ATS refs,
-            // or if the italic returns 0 rather than an actual ATSFontRef,
-            // then the italic face is bogus so remove it
-            if (italic && (italic->GetFontRef() == 0 ||
-                           italic->GetFontRef() == nonitalic->GetFontRef())) {
+            // if italic face and non-italic face have matching ATSUI id's, 
+            // the italic face is bogus so remove it
+            if (italic && italic->GetFontID() == nonitalic->GetFontID()) {
                 fontlist.RemoveElementAt(italicIndex);
             }
         }
@@ -1116,6 +1056,16 @@ gfxQuartzFontCache::ATSNotification(ATSFontNotificationInfoRef aInfo,
     qfc->UpdateFontList();
 }
 
+int PR_CALLBACK
+gfxQuartzFontCache::PrefChangedCallback(const char *aPrefName, void *closure)
+{
+    // XXX this could be made to only clear out the cache for the prefs that were changed
+    // but it probably isn't that big a deal.
+    gfxQuartzFontCache *qfc = static_cast<gfxQuartzFontCache *>(closure);
+    qfc->mPrefFonts.Clear();
+    return 0;
+}
+
 MacOSFontEntry*
 gfxQuartzFontCache::GetDefaultFont(const gfxFontStyle* aStyle, PRBool& aNeedsBold)
 {
@@ -1129,12 +1079,12 @@ gfxQuartzFontCache::GetDefaultFont(const gfxFontStyle* aStyle, PRBool& aNeedsBol
 struct FontListData {
     FontListData(const nsACString& aLangGroup,
                  const nsACString& aGenericFamily,
-                 nsTArray<nsString>& aListOfFonts) :
+                 nsStringArray& aListOfFonts) :
         mLangGroup(aLangGroup), mGenericFamily(aGenericFamily),
         mListOfFonts(aListOfFonts) {}
     const nsACString& mLangGroup;
     const nsACString& mGenericFamily;
-    nsTArray<nsString>& mListOfFonts;
+    nsStringArray& mListOfFonts;
 };
 
 PLDHashOperator PR_CALLBACK
@@ -1146,14 +1096,14 @@ gfxQuartzFontCache::HashEnumFuncForFamilies(nsStringHashKey::KeyType aKey,
 
     nsAutoString localizedFamilyName;
     aFamilyEntry->LocalizedName(localizedFamilyName);
-    data->mListOfFonts.AppendElement(localizedFamilyName);
+    data->mListOfFonts.AppendString(localizedFamilyName);
     return PL_DHASH_NEXT;
 }
 
 void
 gfxQuartzFontCache::GetFontList (const nsACString& aLangGroup,
                                  const nsACString& aGenericFamily,
-                                 nsTArray<nsString>& aListOfFonts)
+                                 nsStringArray& aListOfFonts)
 {
     FontListData data(aLangGroup, aGenericFamily, aListOfFonts);
 
@@ -1319,42 +1269,30 @@ gfxQuartzFontCache::AddOtherFamilyName(MacOSFamilyEntry *aFamilyEntry, nsAString
 }
 
 gfxFontEntry* 
-gfxQuartzFontCache::LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
-                                    const nsAString& aFontName)
+gfxQuartzFontCache::LookupLocalFont(const nsAString& aFontName)
 {
     NSString *faceName = GetNSStringForString(aFontName);
-    
-    // first lookup a single face based on postscript name
-    ATSFontRef fontRef = ATSFontFindFromPostScriptName(CFStringRef(faceName), 
-                                                       kATSOptionFlagsDefault);
+    NSFont *font = [NSFont fontWithName:faceName size:0.0];
 
-    // if not found, lookup using full font name
-    if (fontRef == kInvalidFont)
-        fontRef = ATSFontFindFromName(CFStringRef(faceName), 
-                                      kATSOptionFlagsDefault);
-                                      
-    // not found                                  
-    if (fontRef == kInvalidFont)
-        return nsnull;
+    if (font) {
+        nsAutoString availableFamilyName;
+        NSString *availableFamily = [font familyName];
+        GetStringForNSString(availableFamily, availableFamilyName);
 
-    PRUint16 w = aProxyEntry->mWeight;
-    NS_ASSERTION(w >= 100 && w <= 900, "bogus font weight value!");
+        MacOSFamilyEntry *familyEntry = FindFamily(availableFamilyName);
+        if (familyEntry) {
+            MacOSFontEntry *fontEntry = familyEntry->FindFont(aFontName);
+            return fontEntry;
+        }
+    }
 
-    MacOSFontEntry *newFontEntry =
-        new MacOSFontEntry(aFontName, 
-                           FMGetFontFromATSFontRef(fontRef),
-                           w, aProxyEntry->mStretch, 
-                           (PRUint32(aProxyEntry->mItalic) ? 
-                           FONT_STYLE_ITALIC : 
-                           FONT_STYLE_NORMAL), 
-                           nsnull);
-
-    return newFontEntry;
+    // didn't find the font
+    return nsnull;
 }
 
 // grumble, another non-publised Apple API dependency (found in Webkit code)
 // activated with this value, font will not be found via system lookup routines
-// it can only be used via the created ATSFontRef
+// it can only be used via the created ATSUFontID
 // needed to prevent one doc from finding a font used in a separate doc
 
 enum {
@@ -1363,8 +1301,10 @@ enum {
 
 class MacOSUserFontData : public gfxUserFontData {
 public:
-    MacOSUserFontData(ATSFontContainerRef aContainerRef)
-        : mContainerRef(aContainerRef)
+    MacOSUserFontData(ATSFontContainerRef aContainerRef, nsIFile *aFontFile, 
+                      nsISupports *aDownloader)
+        : mContainerRef(aContainerRef), mFontFile(aFontFile), 
+          mDownloader(aDownloader)
     { }
 
     virtual ~MacOSUserFontData()
@@ -1372,160 +1312,111 @@ public:
         // deactivate font
         if (mContainerRef)
             ATSFontDeactivate(mContainerRef, NULL, kATSOptionFlagsDefault);
+
+        if (mFontFile) {
+            mFontFile->Remove(PR_FALSE); // ignore errors
+        }
     }
 
     ATSFontContainerRef     mContainerRef;
+    nsCOMPtr<nsIFile>       mFontFile;
+
+    // maintaining a ref to this keeps temp file around or cache file pinned
+    nsCOMPtr<nsISupports>   mDownloader;  
 };
+
+static OSStatus
+MakeFSSpec(FSSpec *aFSSpec, NSString *path)
+{
+    FSRef fsref;
+    OSStatus err = FSPathMakeRef((UInt8*)([path fileSystemRepresentation]), &fsref, NULL);
+
+    if (err == noErr)
+        err = FSGetCatalogInfo(&fsref, kFSCatInfoNone, NULL, NULL, aFSSpec, NULL);
+
+    return err;
+}
 
 gfxFontEntry* 
 gfxQuartzFontCache::MakePlatformFont(const gfxFontEntry *aProxyEntry, 
-                                     const PRUint8 *aFontData, PRUint32 aLength)
+                                     const gfxDownloadedFontData* aFontData)
 {
     OSStatus err;
-    
-    NS_ASSERTION(aFontData && aLength != 0, 
-                 "MakePlatformFont called with null data ptr");
-                 
-    // do simple validation check on font data before 
-    // attempting to activate it
-    if (!gfxFontUtils::ValidateSFNTHeaders(aFontData, aLength)) {
-#if DEBUG
-        char warnBuf[1024];
-        const gfxProxyFontEntry *proxyEntry = 
-            static_cast<const gfxProxyFontEntry*> (aProxyEntry);
-        sprintf(warnBuf, "downloaded font error, invalid font data for (%s)",
-                NS_ConvertUTF16toUTF8(proxyEntry->mFamily->Name()).get());
-        NS_WARNING(warnBuf);
-#endif    
-        return nsnull;
-    }
+    FSSpec spec;
+    nsAutoString filePath;
 
-    ATSFontRef fontRef;
+    NS_ASSERTION(aFontData && aFontData->mFontFile, 
+                 "MakePlatformFont called with null file ptr");
+
+    if (!aFontData->mFontFile)
+        return nsnull;
+
+    aFontData->mFontFile->GetPath(filePath);
+
+    NSString *path = GetNSStringForString(filePath);
+    if (!path)
+        return nsnull;
+
+    // assumption: filename is already in the form xxx.ttf, otherwise
+    // ATS will reject
+
+    err = MakeFSSpec(&spec, path);
+    if (err != noErr)
+        return nsnull;
+
+    ATSUFontID fontID;
     ATSFontContainerRef containerRef;
 
-    // we get occasional failures when multiple fonts are activated in quick succession
-    // if the ATS font cache is damaged; to work around this, we can retry the activation
-    const PRUint32 kMaxRetries = 3;
-    PRUint32 retryCount = 0;
-    while (retryCount++ < kMaxRetries) {
-        err = ATSFontActivateFromMemory(const_cast<PRUint8*>(aFontData), aLength, 
-                                        kPrivateATSFontContextPrivate,
-                                        kATSFontFormatUnspecified,
-                                        NULL, 
-                                        kATSOptionFlagsDoNotNotify, 
-                                        &containerRef);
-        mATSGeneration = ATSGetGeneration();
+    err = ATSFontActivateFromFileSpecification(&spec, 
+                                               kPrivateATSFontContextPrivate, 
+                                               kATSFontFormatUnspecified,
+                                               NULL, 
+                                               kATSOptionFlagsDoNotNotify, 
+                                               &containerRef);
+    if (err != noErr)
+        return nsnull;
 
-        if (err != noErr) {
-#if DEBUG
-            char warnBuf[1024];
-            const gfxProxyFontEntry *proxyEntry = 
-                static_cast<const gfxProxyFontEntry*> (aProxyEntry);
-            sprintf(warnBuf, "downloaded font error, ATSFontActivateFromMemory err: %d for (%s)",
-                    PRInt32(err),
-                    NS_ConvertUTF16toUTF8(proxyEntry->mFamily->Name()).get());
-            NS_WARNING(warnBuf);
-#endif    
-            return nsnull;
-        }
+    mATSGeneration = ATSGeneration();
 
-        // ignoring containers with multiple fonts, use the first face only for now
-        err = ATSFontFindFromContainer(containerRef, kATSOptionFlagsDefault, 1, 
-                                       &fontRef, NULL);
-        if (err != noErr) {
-#if DEBUG
-            char warnBuf[1024];
-            const gfxProxyFontEntry *proxyEntry = 
-                static_cast<const gfxProxyFontEntry*> (aProxyEntry);
-            sprintf(warnBuf, "downloaded font error, ATSFontFindFromContainer err: %d for (%s)",
-                    PRInt32(err),
-                    NS_ConvertUTF16toUTF8(proxyEntry->mFamily->Name()).get());
-            NS_WARNING(warnBuf);
-#endif  
-            ATSFontDeactivate(containerRef, NULL, kATSOptionFlagsDefault);
-            return nsnull;
-        }
-    
-        // now lookup the Postscript name; this may fail if the font cache is bad
-        OSStatus err;
-        NSString *psname = NULL;
-        err = ATSFontGetPostScriptName(fontRef, kATSOptionFlagsDefault, (CFStringRef*) (&psname));
-        if (err == noErr) {
-            [psname release];
-        } else {
-#ifdef DEBUG
-            char warnBuf[1024];
-            const gfxProxyFontEntry *proxyEntry = 
-                static_cast<const gfxProxyFontEntry*> (aProxyEntry);
-            sprintf(warnBuf, "ATSFontGetPostScriptName err = %d for (%s), retries = %d", (PRInt32)err,
-                    NS_ConvertUTF16toUTF8(proxyEntry->mFamily->Name()).get(), retryCount);
-            NS_WARNING(warnBuf);
-#endif
-            ATSFontDeactivate(containerRef, NULL, kATSOptionFlagsDefault);
-            // retry the activation a couple of times if this fails
-            // (may be a transient failure due to ATS font cache issues)
-            continue;
-        }
+    // ignoring containers with multiple fonts, use the first face only for now
+    err = ATSFontFindFromContainer(containerRef, kATSOptionFlagsDefault, 1, 
+                                   (ATSFontRef*)&fontID, NULL);
+    if (err != noErr)
+        return nsnull;
 
-        // font entry will own this
-        MacOSUserFontData *userFontData = new MacOSUserFontData(containerRef);
+    // font entry will own this
+    MacOSUserFontData *userFontData = new MacOSUserFontData(containerRef, 
+                                                            aFontData->mFontFile, 
+                                                            aFontData->mDownloader);
+    if (!userFontData)
+        return nsnull;
 
-        if (!userFontData) {
-            ATSFontDeactivate(containerRef, NULL, kATSOptionFlagsDefault);
-            return nsnull;
-        }
+    PRUint16 w = aProxyEntry->mWeight;
+    NS_ASSERTION(w >= 100 && w <= 900, "bogus font weight value!");
 
-        PRUint16 w = aProxyEntry->mWeight;
-        NS_ASSERTION(w >= 100 && w <= 900, "bogus font weight value!");
+    MacOSFontEntry *newFontEntry = 
+        new MacOSFontEntry(fontID, w, aProxyEntry->mStretch, 
+                           (PRUint32(aProxyEntry->mItalic) ? 
+                                       FONT_STYLE_ITALIC : 
+                                       FONT_STYLE_NORMAL), 
+                           userFontData);
 
-        // create the font entry
-        nsAutoString uniqueName;
-
-        nsresult rv = gfxFontUtils::MakeUniqueUserFontName(uniqueName);
-        if (NS_FAILED(rv)) {
-            delete userFontData;
-            return nsnull;
-        }
-        
-        MacOSFontEntry *newFontEntry = 
-            new MacOSFontEntry(uniqueName,
-                               FMGetFontFromATSFontRef(fontRef),
-                               w, aProxyEntry->mStretch, 
-                               (PRUint32(aProxyEntry->mItalic) ? 
-                                           FONT_STYLE_ITALIC : 
-                                           FONT_STYLE_NORMAL), 
-                               userFontData);
-
-        if (!newFontEntry) {
-            delete userFontData;
-            return nsnull;
-        }
-
-        // if we succeeded (which should always be the case), return the new font
-        if (newFontEntry->mIsValid)
-            return newFontEntry;
-
-        // if something is funky about this font, delete immediately
+    // if something is funky about this font, delete immediately
+    if (newFontEntry && !newFontEntry->mIsValid) {
 #if DEBUG
         char warnBuf[1024];
         const gfxProxyFontEntry *proxyEntry = 
             static_cast<const gfxProxyFontEntry*> (aProxyEntry);
-        sprintf(warnBuf, "downloaded font not loaded properly, removed face for (%s)", 
+        sprintf(warnBuf, "downloaded font not loaded properly, removed (%s) for (%s)", 
+                [path UTF8String], 
                 NS_ConvertUTF16toUTF8(proxyEntry->mFamily->Name()).get());
         NS_WARNING(warnBuf);
 #endif    
         delete newFontEntry;
-
-        // We don't retry from here; the ATS font cache issue would have caused failure earlier
-        // so if we get here, there's something else bad going on within our font data structures.
-        // Currently, there should be no way to reach here, as fontentry creation cannot fail
-        // except by memory allocation failure.
-        NS_WARNING("invalid font entry for a newly activated font");
-        break;
+        return nsnull;
     }
 
-    // if we get here, the activation failed (even with possible retries); can't use this font
-    return nsnull;
+    return newFontEntry;
 }
 
 

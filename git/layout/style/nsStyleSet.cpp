@@ -58,37 +58,16 @@
 #include "nsIFrame.h"
 #include "nsContentUtils.h"
 
-NS_IMPL_ISUPPORTS1(nsEmptyStyleRule, nsIStyleRule)
-
-NS_IMETHODIMP
-nsEmptyStyleRule::MapRuleInfoInto(nsRuleData* aRuleData)
-{
-  return NS_OK;
-}
-
-#ifdef DEBUG
-NS_IMETHODIMP
-nsEmptyStyleRule::List(FILE* out, PRInt32 aIndent) const
-{
-  return NS_OK;
-}
-#endif
-
-static const nsStyleSet::sheetType gCSSSheetTypes[] = {
-  nsStyleSet::eAgentSheet,
-  nsStyleSet::eUserSheet,
-  nsStyleSet::eDocSheet,
-  nsStyleSet::eOverrideSheet
-};
+nsIURI *nsStyleSet::gQuirkURI = 0;
 
 nsStyleSet::nsStyleSet()
   : mRuleTree(nsnull),
     mRuleWalker(nsnull),
     mDestroyedCount(0),
     mBatching(0),
+    mOldRuleTree(nsnull),
     mInShutdown(PR_FALSE),
     mAuthorStyleDisabled(PR_FALSE),
-    mInReconstruct(PR_FALSE),
     mDirty(0)
 {
 }
@@ -96,10 +75,10 @@ nsStyleSet::nsStyleSet()
 nsresult
 nsStyleSet::Init(nsPresContext *aPresContext)
 {
-  mFirstLineRule = new nsEmptyStyleRule;
-  mFirstLetterRule = new nsEmptyStyleRule;
-  if (!mFirstLineRule || !mFirstLetterRule) {
-    return NS_ERROR_OUT_OF_MEMORY;
+  if (!gQuirkURI) {
+    static const char kQuirk_href[] = "resource://gre/res/quirk.css";
+    NS_NewURI(&gQuirkURI, kQuirk_href);
+    NS_ENSURE_TRUE(gQuirkURI, NS_ERROR_OUT_OF_MEMORY);
   }
 
   if (!BuildDefaultStyleData(aPresContext)) {
@@ -126,7 +105,7 @@ nsStyleSet::Init(nsPresContext *aPresContext)
 nsresult
 nsStyleSet::BeginReconstruct()
 {
-  NS_ASSERTION(!mInReconstruct, "Unmatched begin/end?");
+  NS_ASSERTION(!mOldRuleTree, "Unmatched begin/end?");
   NS_ASSERTION(mRuleTree, "Reconstructing before first construction?");
 
   // Create a new rule tree root
@@ -141,19 +120,12 @@ nsStyleSet::BeginReconstruct()
   }
 
   // Save the old rule tree so we can destroy it later
-  if (!mOldRuleTrees.AppendElement(mRuleTree)) {
-    delete ruleWalker;
-    newTree->Destroy();
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
+  mOldRuleTree = mRuleTree;
   // Delete mRuleWalker because it holds a reference to the rule tree root
   delete mRuleWalker;
+  // Clear out the old style contexts; we don't need them anymore
+  mRoots.Clear();
 
-  // We need to keep mRoots so that the rule tree GC will only free the
-  // rule trees that really aren't referenced anymore (which should be
-  // all of them, if there are no bugs in reresolution code).
-
-  mInReconstruct = PR_TRUE;
   mRuleTree = newTree;
   mRuleWalker = ruleWalker;
 
@@ -163,38 +135,13 @@ nsStyleSet::BeginReconstruct()
 void
 nsStyleSet::EndReconstruct()
 {
-  NS_ASSERTION(mInReconstruct, "Unmatched begin/end?");
-  mInReconstruct = PR_FALSE;
-#ifdef DEBUG
-  for (PRInt32 i = mRoots.Length() - 1; i >= 0; --i) {
-    nsRuleNode *n = mRoots[i]->GetRuleNode();
-    while (n->GetParent()) {
-      n = n->GetParent();
-    }
-    // Since nsStyleContext's mParent and mRuleNode are immutable, and
-    // style contexts own their parents, and nsStyleContext asserts in
-    // its constructor that the style context and its parent are in the
-    // same rule tree, we don't need to check any of the children of
-    // mRoots; we only need to check the rule nodes of mRoots
-    // themselves.
-
-    NS_ASSERTION(n == mRuleTree, "style context has old rule node");
-  }
-#endif
-  // This *should* destroy the only element of mOldRuleTrees, but in
-  // case of some bugs (which would trigger the above assertions), it
-  // won't.
-  GCRuleTrees();
-}
-
-void
-nsStyleSet::SetQuirkStyleSheet(nsIStyleSheet* aQuirkStyleSheet)
-{
-  NS_ASSERTION(aQuirkStyleSheet, "Must have quirk sheet if this is called");
-  NS_ASSERTION(!mQuirkStyleSheet, "Multiple calls to SetQuirkStyleSheet?");
-  NS_ASSERTION(mSheets[eAgentSheet].IndexOf(aQuirkStyleSheet) != -1,
-               "Quirk style sheet not one of our agent sheets?");
-  mQuirkStyleSheet = aQuirkStyleSheet;
+  NS_ASSERTION(mOldRuleTree, "Unmatched begin/end?");
+  // Reset the destroyed count; it's no longer valid
+  mDestroyedCount = 0;
+  // Destroy the old rule tree (all the associated style contexts should have
+  // been destroyed by the caller beforehand)
+  mOldRuleTree->Destroy();
+  mOldRuleTree = nsnull;
 }
 
 nsresult
@@ -222,8 +169,7 @@ nsStyleSet::GatherRuleProcessors(sheetType aType)
           NS_ASSERTION(cssSheet, "not a CSS sheet");
           cssSheets.AppendObject(cssSheet);
         }
-        mRuleProcessors[aType] = new nsCSSRuleProcessor(cssSheets, 
-                                                        PRUint8(aType));
+        mRuleProcessors[aType] = new nsCSSRuleProcessor(cssSheets);
       } break;
 
       default:
@@ -395,26 +341,50 @@ nsStyleSet::EndUpdate()
 void
 nsStyleSet::EnableQuirkStyleSheet(PRBool aEnable)
 {
-#ifdef DEBUG
-  PRBool oldEnabled;
-  {
-    nsCOMPtr<nsIDOMCSSStyleSheet> domSheet =
-      do_QueryInterface(mQuirkStyleSheet);
-    domSheet->GetDisabled(&oldEnabled);
-    oldEnabled = !oldEnabled;
+  if (!mQuirkStyleSheet) {
+    // first find the quirk sheet:
+    // - run through all of the agent sheets and check for a CSSStyleSheet that
+    //   has the URL we want
+    PRInt32 nSheets = mSheets[eAgentSheet].Count();
+    for (PRInt32 i = 0; i < nSheets; ++i) {
+      nsIStyleSheet *sheet = mSheets[eAgentSheet].ObjectAt(i);
+      NS_ASSERTION(sheet, "mAgentSheets should not contain null sheets");
+
+      nsICSSStyleSheet *cssSheet = static_cast<nsICSSStyleSheet*>(sheet);
+      NS_ASSERTION(nsCOMPtr<nsICSSStyleSheet>(do_QueryInterface(sheet)) == cssSheet,
+                   "Agent sheet must be a CSSStyleSheet");
+
+      nsCOMPtr<nsIStyleSheet> quirkSheet;
+      PRBool bHasSheet = PR_FALSE;
+      if (NS_SUCCEEDED(cssSheet->ContainsStyleSheet(gQuirkURI, bHasSheet, 
+                                                    getter_AddRefs(quirkSheet))) 
+          && bHasSheet) {
+        NS_ASSERTION(quirkSheet, "QuirkSheet must be set: ContainsStyleSheet is hosed");
+        // cache the sheet for faster lookup next time
+        mQuirkStyleSheet = quirkSheet;
+        // only one quirk style sheet can exist, so stop looking
+        break;
+      }
+    }
   }
-#endif
-  mQuirkStyleSheet->SetEnabled(aEnable);
+  NS_ASSERTION(mQuirkStyleSheet, "no quirk stylesheet");
+  if (mQuirkStyleSheet) {
 #ifdef DEBUG
-  // This should always be OK, since SetEnabled should call
-  // ClearRuleCascades.
-  // Note that we can hit this codepath multiple times when document.open()
-  // (potentially implied) happens multiple times.
-  if (mRuleProcessors[eAgentSheet] && aEnable != oldEnabled) {
-    static_cast<nsCSSRuleProcessor*>(static_cast<nsIStyleRuleProcessor*>(
-      mRuleProcessors[eAgentSheet]))->AssertQuirksChangeOK();
-  }
+    if (mRuleProcessors[eAgentSheet]) {
+      static_cast<nsCSSRuleProcessor*>(static_cast<nsIStyleRuleProcessor*>(
+        mRuleProcessors[eAgentSheet]))->AssertQuirksChangeOK();
+    }
 #endif
+#ifdef DEBUG_dbaron_off // XXX Make this |DEBUG| once it stops firing.
+    PRBool applicableNow;
+    mQuirkStyleSheet->GetApplicable(applicableNow);
+    NS_ASSERTION(!mRuleProcessors[eAgentSheet] || aEnable == applicableNow,
+                 "enabling/disabling quirk stylesheet too late or incomplete quirk stylesheet");
+    if (mRuleProcessors[eAgentSheet] && aEnable == applicableNow)
+      printf("WARNING: We set the quirks mode too many times.\n"); // we do!
+#endif
+    mQuirkStyleSheet->SetEnabled(aEnable);
+  }
 }
 
 static PRBool
@@ -733,17 +703,6 @@ nsStyleSet::ResolveStyleForNonElement(nsStyleContext* aParentContext)
   return result;
 }
 
-void
-nsStyleSet::WalkRestrictionRule(nsIAtom* aPseudoType)
-{
-  // This needs to match GetPseudoRestriction in nsRuleNode.cpp.
-  if (aPseudoType) {
-    if (aPseudoType == nsCSSPseudoElements::firstLetter)
-      mRuleWalker->Forward(mFirstLetterRule);
-    else if (aPseudoType == nsCSSPseudoElements::firstLine)
-      mRuleWalker->Forward(mFirstLineRule);
-  }
-}
 
 static PRBool
 EnumPseudoRulesMatching(nsIStyleRuleProcessor* aProcessor, void* aData)
@@ -780,7 +739,6 @@ nsStyleSet::ResolvePseudoStyleFor(nsIContent* aParentContent,
   if (aPseudoTag && presContext) {
     PseudoRuleProcessorData data(presContext, aParentContent, aPseudoTag,
                                  aComparator, mRuleWalker);
-    WalkRestrictionRule(aPseudoTag);
     FileRules(EnumPseudoRulesMatching, &data);
 
     result = GetContext(presContext, aParentContext, aPseudoTag).get();
@@ -818,12 +776,9 @@ nsStyleSet::ProbePseudoStyleFor(nsIContent* aParentContent,
   if (aPseudoTag && presContext) {
     PseudoRuleProcessorData data(presContext, aParentContent, aPseudoTag,
                                  nsnull, mRuleWalker);
-    WalkRestrictionRule(aPseudoTag);
-    // not the root if there was a restriction rule
-    nsRuleNode *adjustedRoot = mRuleWalker->GetCurrentNode();
     FileRules(EnumPseudoRulesMatching, &data);
 
-    if (mRuleWalker->GetCurrentNode() != adjustedRoot)
+    if (!mRuleWalker->AtRoot())
       result = GetContext(presContext, aParentContext, aPseudoTag).get();
 
     // Now reset the walker back to the root of the tree.
@@ -849,21 +804,6 @@ nsStyleSet::ProbePseudoStyleFor(nsIContent* aParentContent,
   return result;
 }
 
-PRBool
-nsStyleSet::AppendFontFaceRules(nsPresContext* aPresContext,
-                                nsTArray<nsFontFaceRuleContainer>& aArray)
-{
-  NS_ENSURE_FALSE(mInShutdown, PR_FALSE);
-
-  for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(gCSSSheetTypes); ++i) {
-    nsCSSRuleProcessor *ruleProc = static_cast<nsCSSRuleProcessor*>
-                                    (mRuleProcessors[gCSSSheetTypes[i]].get());
-    if (ruleProc && !ruleProc->AppendFontFaceRules(aPresContext, aArray))
-      return PR_FALSE;
-  }
-  return PR_TRUE;
-}
-
 void
 nsStyleSet::BeginShutdown(nsPresContext* aPresContext)
 {
@@ -879,15 +819,6 @@ nsStyleSet::Shutdown(nsPresContext* aPresContext)
 
   mRuleTree->Destroy();
   mRuleTree = nsnull;
-
-  // We can have old rule trees either because:
-  //   (1) we failed the assertions in EndReconstruct, or
-  //   (2) we're shutting down within a reconstruct (see bug 462392)
-  for (PRUint32 i = mOldRuleTrees.Length(); i > 0; ) {
-    --i;
-    mOldRuleTrees[i]->Destroy();
-  }
-  mOldRuleTrees.Clear();
 
   mDefaultStyleData.Destroy(0, aPresContext);
 }
@@ -909,43 +840,27 @@ nsStyleSet::NotifyStyleContextDestroyed(nsPresContext* aPresContext,
     mRoots.RemoveElement(aStyleContext);
   }
 
-  if (mInReconstruct)
+  if (mOldRuleTree)
     return;
 
   if (++mDestroyedCount == kGCInterval) {
-    GCRuleTrees();
-  }
-}
+    mDestroyedCount = 0;
 
-void
-nsStyleSet::GCRuleTrees()
-{
-  mDestroyedCount = 0;
-
-  // Mark the style context tree by marking all style contexts which
-  // have no parent, which will mark all descendants.  This will reach
-  // style contexts in the undisplayed map and "additional style
-  // contexts" since they are descendants of the roots.
-  for (PRInt32 i = mRoots.Length() - 1; i >= 0; --i) {
-    mRoots[i]->Mark();
-  }
-
-  // Sweep the rule tree.
-#ifdef DEBUG
-  PRBool deleted =
-#endif
-    mRuleTree->Sweep();
-  NS_ASSERTION(!deleted, "Root node must not be gc'd");
-
-  // Sweep the old rule trees.
-  for (PRUint32 i = mOldRuleTrees.Length(); i > 0; ) {
-    --i;
-    if (mOldRuleTrees[i]->Sweep()) {
-      // It was deleted, as it should be.
-      mOldRuleTrees.RemoveElementAt(i);
-    } else {
-      NS_NOTREACHED("old rule tree still referenced");
+    // Mark the style context tree by marking all roots, which will mark
+    // all descendants.  This will reach style contexts in the
+    // undisplayed map and "additional style contexts" since they are
+    // descendants of the root.
+    for (PRInt32 i = mRoots.Length() - 1; i >= 0; --i) {
+      mRoots[i]->Mark();
     }
+
+    // Sweep the rule tree.
+#ifdef DEBUG
+    PRBool deleted =
+#endif
+      mRuleTree->Sweep();
+
+    NS_ASSERTION(!deleted, "Root node must not be gc'd");
   }
 }
 

@@ -57,11 +57,6 @@
 #include "nsSVGIntegrationUtils.h"
 #endif
 
-#include "imgIContainer.h"
-#include "gfxIImageFrame.h"
-#include "nsIInterfaceRequestorUtils.h"
-#include "nsIImage.h"
-
 nsDisplayListBuilder::nsDisplayListBuilder(nsIFrame* aReferenceFrame,
     PRBool aIsForEvents, PRBool aBuildCaret)
     : mReferenceFrame(aReferenceFrame),
@@ -171,8 +166,6 @@ nsDisplayListBuilder::EnterPresShell(nsIFrame* aReferenceFrame,
   state->mCaretFrame = nsnull;
   state->mFirstFrameMarkedForDisplay = mFramesMarkedForDisplay.Length();
 
-  state->mPresShell->UpdateCanvasBackground();
-
   if (!mBuildCaret)
     return;
 
@@ -194,7 +187,8 @@ nsDisplayListBuilder::EnterPresShell(nsIFrame* aReferenceFrame,
 
 void
 nsDisplayListBuilder::LeavePresShell(nsIFrame* aReferenceFrame,
-                                     const nsRect& aDirtyRect) {
+                                     const nsRect& aDirtyRect)
+{
   if (CurrentPresShellState()->mPresShell != aReferenceFrame->PresContext()->PresShell()) {
     // Must have not allocated a state for this presshell, presumably due
     // to OOM.
@@ -255,7 +249,7 @@ nsDisplayItem::OptimizeVisibility(nsDisplayListBuilder* aBuilder,
     if (isMoving) {
       // The display list should include items for both the before and after
       // states (see nsLayoutUtils::ComputeRepaintRegionForCopy. So the
-      // only area we want to cover is the area that was opaque in the
+      // only area we want to cover is the the area that was opaque in the
       // before state and in the after state.
       opaqueArea.IntersectRect(bounds - aBuilder->GetMoveDelta(), bounds);
     }
@@ -492,42 +486,6 @@ void nsDisplayList::Sort(nsDisplayListBuilder* aBuilder,
   ::Sort(this, Count(), aCmp, aClosure);
 }
 
-void nsDisplaySolidColor::Paint(nsDisplayListBuilder* aBuilder,
-     nsIRenderingContext* aCtx, const nsRect& aDirtyRect) {
-  nsRect dirty;
-  dirty.IntersectRect(GetBounds(aBuilder), aDirtyRect);
-  aCtx->SetColor(mColor);
-  aCtx->FillRect(dirty);
-}
-
-// Returns TRUE if aContainedRect is guaranteed to be contained in
-// the rounded rect defined by aRoundedRect and aRadii. Complex cases are
-// handled conservatively by returning FALSE in some situations where
-// a more thorough analysis could return TRUE.
-static PRBool RoundedRectContainsRect(const nsRect& aRoundedRect,
-                                      const nscoord aRadii[8],
-                                      const nsRect& aContainedRect) {
-  // rectFullHeight and rectFullWidth together will approximately contain
-  // the total area of the frame minus the rounded corners.
-  nsRect rectFullHeight = aRoundedRect;
-  nscoord xDiff = PR_MAX(aRadii[NS_CORNER_TOP_LEFT_X], aRadii[NS_CORNER_BOTTOM_LEFT_X]);
-  rectFullHeight.x += xDiff;
-  rectFullHeight.width -= PR_MAX(aRadii[NS_CORNER_TOP_RIGHT_X],
-                                 aRadii[NS_CORNER_BOTTOM_RIGHT_X]) + xDiff;
-  if (rectFullHeight.Contains(aContainedRect))
-    return PR_TRUE;
-
-  nsRect rectFullWidth = aRoundedRect;
-  nscoord yDiff = PR_MAX(aRadii[NS_CORNER_TOP_LEFT_Y], aRadii[NS_CORNER_TOP_RIGHT_Y]);
-  rectFullWidth.y += yDiff;
-  rectFullWidth.height -= PR_MAX(aRadii[NS_CORNER_BOTTOM_LEFT_Y],
-                                 aRadii[NS_CORNER_BOTTOM_RIGHT_Y]) + yDiff;
-  if (rectFullWidth.Contains(aContainedRect))
-    return PR_TRUE;
-
-  return PR_FALSE;
-}
-
 PRBool
 nsDisplayBackground::IsOpaque(nsDisplayListBuilder* aBuilder) {
   // theme background overrides any other background
@@ -535,43 +493,15 @@ nsDisplayBackground::IsOpaque(nsDisplayListBuilder* aBuilder) {
     return PR_FALSE;
 
   const nsStyleBackground* bg;
+  PRBool isCanvas; // not used
+  PRBool hasBG =
+    nsCSSRendering::FindBackground(mFrame->PresContext(), mFrame,
+                                   &bg, &isCanvas);
 
-  if (!nsCSSRendering::FindBackground(mFrame->PresContext(), mFrame, &bg))
-    return PR_FALSE;
-
-  const nsStyleBackground::Layer& bottomLayer = bg->BottomLayer();
-
-  // bottom layer's clip is used for the color
-  if (bottomLayer.mClip != NS_STYLE_BG_CLIP_BORDER ||
-      nsLayoutUtils::HasNonZeroCorner(mFrame->GetStyleBorder()->mBorderRadius))
-    return PR_FALSE;
-
-  if (NS_GET_A(bg->mBackgroundColor) == 255)
-    return PR_TRUE;
-
-  if (bottomLayer.mRepeat == NS_STYLE_BG_REPEAT_XY) {
-    if (bottomLayer.mImage) {
-      nsCOMPtr<imgIContainer> container;
-      bottomLayer.mImage->GetImage(getter_AddRefs(container));
-      if (container) {
-        PRUint32 nframes;
-        container->GetNumFrames(&nframes);
-        if (nframes == 1) {
-          nsCOMPtr<gfxIImageFrame> imgFrame;
-          container->GetCurrentFrame(getter_AddRefs(imgFrame));
-          if (imgFrame) {
-            nsCOMPtr<nsIImage> img(do_GetInterface(imgFrame));
-
-            PRBool hasMask = img->GetHasAlphaMask();
-
-            return !hasMask;
-          }
-        }
-      }
-    }
-  }
-
-  return PR_FALSE;
+  return (hasBG && NS_GET_A(bg->mBackgroundColor) == 255 &&
+          bg->mBackgroundClip == NS_STYLE_BG_CLIP_BORDER &&
+          !nsLayoutUtils::HasNonZeroCorner(mFrame->GetStyleBorder()->
+                                         mBorderRadius));
 }
 
 PRBool
@@ -580,15 +510,15 @@ nsDisplayBackground::IsUniform(nsDisplayListBuilder* aBuilder) {
   if (mIsThemed)
     return PR_FALSE;
 
+  PRBool isCanvas;
   const nsStyleBackground* bg;
   PRBool hasBG =
-    nsCSSRendering::FindBackground(mFrame->PresContext(), mFrame, &bg);
+    nsCSSRendering::FindBackground(mFrame->PresContext(), mFrame, &bg, &isCanvas);
   if (!hasBG)
     return PR_TRUE;
-  if (!bg->BottomLayer().mImage &&
-      bg->mImageCount == 1 &&
+  if ((bg->mBackgroundFlags & NS_STYLE_BG_IMAGE_NONE) &&
       !nsLayoutUtils::HasNonZeroCorner(mFrame->GetStyleBorder()->mBorderRadius) &&
-      bg->BottomLayer().mClip == NS_STYLE_BG_CLIP_BORDER)
+      bg->mBackgroundClip == NS_STYLE_BG_CLIP_BORDER)
     return PR_TRUE;
   return PR_FALSE;
 }
@@ -600,9 +530,10 @@ nsDisplayBackground::IsVaryingRelativeToMovingFrame(nsDisplayListBuilder* aBuild
               "IsVaryingRelativeToMovingFrame called on non-moving frame!");
 
   nsPresContext* presContext = mFrame->PresContext();
+  PRBool isCanvas;
   const nsStyleBackground* bg;
   PRBool hasBG =
-    nsCSSRendering::FindBackground(presContext, mFrame, &bg);
+    nsCSSRendering::FindBackground(presContext, mFrame, &bg, &isCanvas);
   if (!hasBG)
     return PR_FALSE;
   if (!bg->HasFixedBackground())
@@ -622,15 +553,9 @@ void
 nsDisplayBackground::Paint(nsDisplayListBuilder* aBuilder,
      nsIRenderingContext* aCtx, const nsRect& aDirtyRect) {
   nsPoint offset = aBuilder->ToReferenceFrame(mFrame);
-  PRUint32 flags = 0;
-  nsDisplayItem* nextItem = GetAbove();
-  if (nextItem && nextItem->GetUnderlyingFrame() == mFrame &&
-      nextItem->GetType() == TYPE_BORDER) {
-    flags |= nsCSSRendering::PAINT_WILL_PAINT_BORDER;
-  }
   nsCSSRendering::PaintBackground(mFrame->PresContext(), *aCtx, mFrame,
                                   aDirtyRect, nsRect(offset, mFrame->GetSize()),
-                                  flags);
+                                  mFrame->HonorPrintBackgroundSettings());
 }
 
 nsRect
@@ -722,49 +647,16 @@ nsDisplayBorder::Paint(nsDisplayListBuilder* aBuilder,
 }
 
 void
-nsDisplayBoxShadowOuter::Paint(nsDisplayListBuilder* aBuilder,
+nsDisplayBoxShadow::Paint(nsDisplayListBuilder* aBuilder,
      nsIRenderingContext* aCtx, const nsRect& aDirtyRect) {
   nsPoint offset = aBuilder->ToReferenceFrame(mFrame);
-  nsCSSRendering::PaintBoxShadowOuter(mFrame->PresContext(), *aCtx, mFrame,
-                                      nsRect(offset, mFrame->GetSize()), aDirtyRect);
+  nsCSSRendering::PaintBoxShadow(mFrame->PresContext(), *aCtx,
+                                 mFrame, offset);
 }
 
 nsRect
-nsDisplayBoxShadowOuter::GetBounds(nsDisplayListBuilder* aBuilder) {
+nsDisplayBoxShadow::GetBounds(nsDisplayListBuilder* aBuilder) {
   return mFrame->GetOverflowRect() + aBuilder->ToReferenceFrame(mFrame);
-}
-
-PRBool
-nsDisplayBoxShadowOuter::OptimizeVisibility(nsDisplayListBuilder* aBuilder,
-                                            nsRegion* aVisibleRegion) {
-  if (!nsDisplayItem::OptimizeVisibility(aBuilder, aVisibleRegion))
-    return PR_FALSE;
-
-  nsPoint origin = aBuilder->ToReferenceFrame(mFrame);
-  nsRect frameRect(origin, mFrame->GetSize());
-  const nsRect visibleBounds = aVisibleRegion->GetBounds();
-  if (!frameRect.Contains(visibleBounds))
-    return PR_TRUE;
-
-  // the visible region is entirely inside the border-rect, and box shadows
-  // never render within the border-rect (unless there's a border radius).
-  nscoord twipsRadii[8];
-  PRBool hasBorderRadii =
-     nsCSSRendering::GetBorderRadiusTwips(mFrame->GetStyleBorder()->mBorderRadius,
-                                          frameRect.width,
-                                          twipsRadii);
-  if (!hasBorderRadii)
-    return PR_FALSE;
-
-  return !RoundedRectContainsRect(frameRect, twipsRadii, visibleBounds);
-}
-
-void
-nsDisplayBoxShadowInner::Paint(nsDisplayListBuilder* aBuilder,
-     nsIRenderingContext* aCtx, const nsRect& aDirtyRect) {
-  nsPoint offset = aBuilder->ToReferenceFrame(mFrame);
-  nsCSSRendering::PaintBoxShadowInner(mFrame->PresContext(), *aCtx, mFrame,
-                                      nsRect(offset, mFrame->GetSize()), aDirtyRect);
 }
 
 nsDisplayWrapList::nsDisplayWrapList(nsIFrame* aFrame, nsDisplayList* aList)

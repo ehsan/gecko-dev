@@ -144,7 +144,14 @@ function getManifestProperty(id, property) {
  */
 function do_get_addon(name)
 {
-  return do_get_file("addons/" + name + ".xpi");
+  var lf = gTestRoot.clone();
+  lf.append("unit");
+  lf.append("addons");
+  lf.append(name + ".xpi");
+  if (!lf.exists())
+    do_throw("Addon "+name+" does not exist.");
+
+  return lf;
 }
 
 /**
@@ -209,6 +216,7 @@ function startupEM()
                   .getService(Components.interfaces.nsIExtensionManager);
   
   gEM.QueryInterface(Components.interfaces.nsIObserver);
+  gEM.observe(null, "app-startup", null);
   gEM.observe(null, "profile-after-change", "startup");
 
   // First run is a new profile which nsAppRunner would consider as an update
@@ -225,7 +233,7 @@ function startupEM()
   }
 
   if (!upgraded || !needsRestart)
-    needsRestart = gEM.start();
+    needsRestart = gEM.start(null);
 }
 
 /**
@@ -245,16 +253,22 @@ function shutdownEM()
  */
 function restartEM()
 {
-  var needsRestart = gEM.start();
+  var needsRestart = gEM.start(null);
   if (needsRestart)
-    gEM.start();
+    gEM.start(null);
 }
 
 var gDirSvc = Components.classes["@mozilla.org/file/directory_service;1"]
                         .getService(Components.interfaces.nsIProperties);
+var gTestRoot = gDirSvc.get("CurProcD", Components.interfaces.nsILocalFile);
+gTestRoot = gTestRoot.parent.parent;
+gTestRoot.append("_tests");
+gTestRoot.append("xpcshell-simple");
+gTestRoot.append("test_extensionmanager");
+gTestRoot.normalize();
 
 // Need to create and register a profile folder.
-var gProfD = do_get_cwd();
+var gProfD = gTestRoot.clone();
 gProfD.append("profile");
 if (gProfD.exists())
   gProfD.remove(true);

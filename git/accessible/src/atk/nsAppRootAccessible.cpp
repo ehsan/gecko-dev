@@ -526,7 +526,7 @@ nsApplicationAccessibleWrap::~nsApplicationAccessibleWrap()
     nsAccessibleWrap::ShutdownAtkObject();
 }
 
-nsresult
+NS_IMETHODIMP
 nsApplicationAccessibleWrap::Init()
 {
     // XXX following code is copied from widget/src/gtk2/nsWindow.cpp
@@ -562,9 +562,6 @@ nsApplicationAccessibleWrap::Init()
         // Initialize the MAI Utility class
         // it will overwrite gail_util
         g_type_class_unref(g_type_class_ref(MAI_TYPE_UTIL));
-
-        // Init atk-bridge now
-        PR_SetEnv("NO_AT_BRIDGE=0");
 
         // load and initialize atk-bridge library
         rv = LoadGtkModule(sAtkBridge);

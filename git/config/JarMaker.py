@@ -121,9 +121,6 @@ class JarMaker(object):
                  help="verbose output")
     p.add_option('-e', action="store_true",
                  help="create chrome.manifest instead of jarfile.manifest")
-    p.add_option('--both-manifests', action="store_true",
-                 dest="bothManifests",
-                 help="create chrome.manifest and jarfile.manifest")
     p.add_option('-s', type="string", action="append", default=[],
                  help="source directory")
     p.add_option('-t', type="string",
@@ -257,11 +254,13 @@ class JarMaker(object):
     if self.outputFormat == 'jar':
       #jar
       jarfilepath = jarfile + '.jar'
-      try:
-        os.makedirs(os.path.dirname(jarfilepath))
-      except OSError:
-        pass
-      jf = ZipFile(jarfilepath, 'a', lock = True)
+      if os.path.isfile(jarfilepath) and \
+            os.path.getsize(jarfilepath) > 0:
+        jf = ZipFile(jarfilepath, 'a', lock = True)
+      else:
+        if not os.path.isdir(os.path.dirname(jarfilepath)):
+          os.makedirs(os.path.dirname(jarfilepath))
+        jf = ZipFile(jarfilepath, 'w', lock = True)
       outHelper = self.OutputHelper_jar(jf)
     else:
       outHelper = getattr(self, 'OutputHelper_' + self.outputFormat)(jarfile)
@@ -418,9 +417,6 @@ def main():
   if options.e:
     jm.useChromeManifest = True
     jm.useJarfileManifest = False
-  if options.bothManifests:
-    jm.useChromeManifest = True
-    jm.useJarfileManifest = True
   noise = logging.INFO
   if options.verbose is not None:
     noise = (options.verbose and logging.DEBUG) or logging.WARN
@@ -429,14 +425,14 @@ def main():
   else:
     logging.basicConfig()
   logging.getLogger().setLevel(noise)
-  topsrc = options.t
-  topsrc = os.path.normpath(os.path.abspath(topsrc))
   if not args:
     jm.makeJar(infile=sys.stdin,
-               sourcedirs=options.s, topsourcedir=topsrc,
+               sourcedirs=options.s, topsourcedir=options.t,
                localedirs=options.l10n_src,
                jardir=options.j)
     return
+  topsrc = options.t
+  topsrc = os.path.normpath(os.path.abspath(topsrc))
   for infile in args:
     # guess srcdir and l10n dirs from jar.mn path and topsrcdir
     # srcdir is the dir of the jar.mn and
@@ -450,12 +446,10 @@ def main():
     rell10ndir = l10ndir[len(topsrc):].lstrip(os.sep)
     l10ndirs = map(lambda d: os.path.join(d, rell10ndir), options.l10n_base)
     if options.l10n_src is not None:
-      l10ndirs += map(lambda s: os.path.normpath(os.path.abspath(s)),
-                      options.l10n_src)
-    srcdirs = map(lambda s: os.path.normpath(os.path.abspath(s)), options.s) + \
-        [srcdir]
+      l10ndirs += options.l10n_src
+    srcdirs = options.s + [srcdir]
     jm.makeJar(infile=infile,
-               sourcedirs=srcdirs, topsourcedir=topsrc,
+               sourcedirs=srcdirs, topsourcedir=options.t,
                localedirs=l10ndirs,
                jardir=options.j)
 

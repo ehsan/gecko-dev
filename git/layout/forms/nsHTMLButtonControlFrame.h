@@ -65,7 +65,7 @@ public:
 
   virtual void Destroy();
 
-  NS_DECL_QUERYFRAME
+  NS_IMETHOD  QueryInterface(const nsIID& aIID, void** aInstancePtr);
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
@@ -116,8 +116,6 @@ public:
   }
 #endif
 
-  virtual PRBool HonorPrintBackgroundSettings() { return PR_FALSE; }
-
   // nsIFormControlFrame
   void SetFocus(PRBool aOn, PRBool aRepaint);
   virtual nsresult SetFormProperty(nsIAtom* aName, const nsAString& aValue);
@@ -143,6 +141,9 @@ protected:
                             nsIFrame* aFirstKid,
                             nsMargin aFocusPadding,
                             nsReflowStatus& aStatus);
+
+  NS_IMETHOD_(nsrefcnt) AddRef(void);
+  NS_IMETHOD_(nsrefcnt) Release(void);
 
   PRIntn GetSkipSides() const;
   nsButtonFrameRenderer mRenderer;

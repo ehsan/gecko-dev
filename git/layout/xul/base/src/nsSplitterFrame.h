@@ -45,6 +45,7 @@
 
 #include "nsBoxFrame.h"
 
+class nsISupportsArray;
 class nsSplitterFrameInner;
 
 nsIFrame* NS_NewSplitterFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
@@ -74,6 +75,10 @@ public:
                        nsIFrame::Cursor& aCursor);
 
   NS_IMETHOD DoLayout(nsBoxLayoutState& aBoxLayoutState);
+
+  NS_IMETHOD QueryInterface(REFNSIID aIID, void** aInstancePtr); 
+  NS_IMETHOD_(nsrefcnt) AddRef(void) { return NS_OK; }
+  NS_IMETHOD_(nsrefcnt) Release(void) { return NS_OK; }
 
   NS_IMETHOD HandlePress(nsPresContext* aPresContext,
                          nsGUIEvent *    aEvent,

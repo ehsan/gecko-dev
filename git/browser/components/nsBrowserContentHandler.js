@@ -135,13 +135,6 @@ function needHomepageOverride(prefb) {
                          .getService(nsIHttpProtocolHandler).misc;
 
   if (mstone != savedmstone) {
-    // Bug 462254. Previous releases had a default pref to suppress the EULA
-    // agreement if the platform's installer had already shown one. Now with
-    // about:rights we've removed the EULA stuff and default pref, but we need
-    // a way to make existing profiles retain the default that we removed.
-    if (savedmstone)
-      prefb.setBoolPref("browser.rights.3.shown", true);
-    
     prefb.setCharPref("browser.startup.homepage_override.mstone", mstone);
     return (savedmstone ? OVERRIDE_NEW_MSTONE : OVERRIDE_NEW_PROFILE);
   }
@@ -257,11 +250,48 @@ function getMostRecentWindow(aType) {
   return wm.getMostRecentWindow(aType);
 }
 
+#ifdef XP_UNIX
+#ifndef XP_MACOSX
+#define BROKEN_WM_Z_ORDER
+#endif
+#endif
+#ifdef XP_OS2
+#define BROKEN_WM_Z_ORDER
+#endif
+
 // this returns the most recent non-popup browser window
 function getMostRecentBrowserWindow() {
-  var browserGlue = Components.classes["@mozilla.org/browser/browserglue;1"]
-                              .getService(Components.interfaces.nsIBrowserGlue);
-  return browserGlue.getMostRecentBrowserWindow();
+  var wm = Components.classes["@mozilla.org/appshell/window-mediator;1"]
+                     .getService(Components.interfaces.nsIWindowMediator);
+
+#ifdef BROKEN_WM_Z_ORDER
+  var win = wm.getMostRecentWindow("navigator:browser", true);
+
+  // if we're lucky, this isn't a popup, and we can just return this
+  if (win && win.document.documentElement.getAttribute("chromehidden")) {
+    var windowList = wm.getEnumerator("navigator:browser", true);
+    // this is oldest to newest, so this gets a bit ugly
+    while (windowList.hasMoreElements()) {
+      var nextWin = windowList.getNext();
+      if (!nextWin.document.documentElement.getAttribute("chromehidden"))
+        win = nextWin;
+    }
+  }
+#else
+  var windowList = wm.getZOrderDOMWindowEnumerator("navigator:browser", true);
+  if (!windowList.hasMoreElements())
+    return null;
+
+  var win = windowList.getNext();
+  while (win.document.documentElement.getAttribute("chromehidden")) {
+    if (!windowList.hasMoreElements()) 
+      return null;
+
+    win = windowList.getNext();
+  }
+#endif
+
+  return win;
 }
 
 function doSearch(searchTerm, cmdLine) {
@@ -475,18 +505,6 @@ var nsBrowserContentHandler = {
     var searchParam = cmdLine.handleFlagWithParam("search", false);
     if (searchParam) {
       doSearch(searchParam, cmdLine);
-      cmdLine.preventDefault = true;
-    }
-
-    var fileParam = cmdLine.handleFlagWithParam("file", false);
-    if (fileParam) {
-      var file = cmdLine.resolveFile(fileParam);
-      var ios = Components.classes["@mozilla.org/network/io-service;1"]
-                          .getService(Components.interfaces.nsIIOService);
-      var uri = ios.newFileURI(file);
-      openWindow(null, this.chromeURL, "_blank", 
-                 "chrome,dialog=no,all" + this.getFeatures(cmdLine),
-                 uri.spec);
       cmdLine.preventDefault = true;
     }
 

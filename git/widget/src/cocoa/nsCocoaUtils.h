@@ -44,9 +44,8 @@
 #import <Cocoa/Cocoa.h>
 
 #include "nsRect.h"
+#include "nsIWidget.h"
 #include "nsObjCExceptions.h"
-
-class nsIWidget;
 
 // "Borrowed" in part from the QTKit framework's QTKitDefines.h.  This is
 // needed when building on OS X Tiger (10.4.X) or with a 10.4 SDK.  It won't
@@ -96,12 +95,7 @@ private:
 // cache" in order to deactivate it.  The "window cache" is an undocumented
 // subsystem, all of whose methods are included in the NSWindowCache category
 // of the NSApplication class (in header files generated using class-dump).
-// Present in all versions of OS X from (at least) 10.2.8 through 10.5.
 - (void)_removeWindowFromCache:(NSWindow *)aWindow;
-
-// Send an event to the current Cocoa app-modal session.  Present in all
-// versions of OS X from (at least) 10.2.8 through 10.5.
-- (void)_modalSession:(NSModalSession)aSession sendEvent:(NSEvent *)theEvent;
 
 @end
 
@@ -121,10 +115,10 @@ class nsCocoaUtils
   // (NSRect) contain an origin (x,y) in a coordinate system with (0,0)
   // in the bottom-left of the primary screen. Both nsRect and NSRect
   // contain width/height info, with no difference in their use.
-  static NSRect GeckoRectToCocoaRect(const nsIntRect &geckoRect);
+  static NSRect GeckoRectToCocoaRect(const nsRect &geckoRect);
   
   // See explanation for geckoRectToCocoaRect, guess what this does...
-  static nsIntRect CocoaRectToGeckoRect(const NSRect &cocoaRect);
+  static nsRect CocoaRectToGeckoRect(const NSRect &cocoaRect);
   
   // Gives the location for the event in screen coordinates. Do not call this
   // unless the window the event was originally targeted at is still alive!

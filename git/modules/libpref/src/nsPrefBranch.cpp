@@ -75,10 +75,10 @@ struct PrefCallbackData {
 
 
 // Prototypes
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
   pref_enumChild(PLDHashTable *table, PLDHashEntryHdr *heh,
                  PRUint32 i, void *arg);
-static nsresult
+PR_STATIC_CALLBACK(nsresult)
   NotifyObserver(const char *newpref, void *data);
 
 /*
@@ -657,7 +657,7 @@ NS_IMETHODIMP nsPrefBranch::AddObserver(const char *aDomain, nsIObserver *aObser
   }
 
   mObservers->AppendElement(pCallback);
-  mObserverDomains.AppendElement(nsCString(aDomain));
+  mObserverDomains.AppendCString(nsCString(aDomain));
 
   // We must pass a fully qualified preference name to the callback
   pref = getPrefName(aDomain); // aDomain == nsnull only possible failure, trapped above
@@ -689,7 +689,7 @@ NS_IMETHODIMP nsPrefBranch::RemoveObserver(const char *aDomain, nsIObserver *aOb
     pCallback = (PrefCallbackData *)mObservers->ElementAt(i);
     if (pCallback) {
       if (pCallback->pObserver == aObserver) {
-        domain = mObserverDomains[i];
+        mObserverDomains.CStringAt(i, domain);
         if (domain.Equals(aDomain)) {
           // We must pass a fully qualified preference name to remove the callback
           pref = getPrefName(aDomain); // aDomain == nsnull only possible failure, trapped above
@@ -698,7 +698,7 @@ NS_IMETHODIMP nsPrefBranch::RemoveObserver(const char *aDomain, nsIObserver *aOb
             // Remove this observer from our array so that nobody else can remove
             // what we're trying to remove ourselves right now.
             mObservers->RemoveElementAt(i);
-            mObserverDomains.RemoveElementAt(i);
+            mObserverDomains.RemoveCStringAt(i);
             if (pCallback->pWeakRef) {
               NS_RELEASE(pCallback->pWeakRef);
             } else {
@@ -724,7 +724,7 @@ NS_IMETHODIMP nsPrefBranch::Observe(nsISupports *aSubject, const char *aTopic, c
   return NS_OK;
 }
 
-static nsresult NotifyObserver(const char *newpref, void *data)
+PR_STATIC_CALLBACK(nsresult) NotifyObserver(const char *newpref, void *data)
 {
   PrefCallbackData *pData = (PrefCallbackData *)data;
 
@@ -768,7 +768,7 @@ void nsPrefBranch::freeObserverList(void)
       for (i = 0; i < count; ++i) {
         pCallback = (PrefCallbackData *)mObservers->ElementAt(i);
         if (pCallback) {
-          domain = mObserverDomains[i];
+          mObserverDomains.CStringAt(i, domain);
           // We must pass a fully qualified preference name to remove the callback
           pref = getPrefName(domain.get()); // can't fail because domain must be valid
           // Remove this observer from our array so that nobody else can remove
@@ -865,7 +865,7 @@ nsresult nsPrefBranch::getValidatedPrefName(const char *aPrefName, const char **
   return NS_OK;
 }
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 pref_enumChild(PLDHashTable *table, PLDHashEntryHdr *heh,
                PRUint32 i, void *arg)
 {

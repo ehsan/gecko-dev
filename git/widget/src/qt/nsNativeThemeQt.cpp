@@ -129,7 +129,7 @@ nsNativeThemeQt::DrawWidgetBackground(nsIRenderingContext* aContext,
         ctm.y0 = NSToCoordRound(ctm.y0);
     }
 
-    QMatrix qctm(ctm.xx, ctm.yx, ctm.xy, ctm.yy, ctm.x0, ctm.y0);
+    QMatrix qctm(ctm.xx, ctm.xy, ctm.yx, ctm.yy, ctm.x0, ctm.y0);
     qPainter->setWorldMatrix(qctm, true);
 
     PRInt32 p2a = GetAppUnitsPerDevPixel(aContext);
@@ -141,11 +141,14 @@ nsNativeThemeQt::DrawWidgetBackground(nsIRenderingContext* aContext,
 
     switch (aWidgetType) {
     case NS_THEME_RADIO:
-    case NS_THEME_CHECKBOX: {
+    case NS_THEME_RADIO_SMALL: 
+    case NS_THEME_CHECKBOX:
+    case NS_THEME_CHECKBOX_SMALL: {
         QStyleOptionButton opt;
         InitButtonStyle (aWidgetType, aFrame, r, opt);
 
-        if (aWidgetType == NS_THEME_CHECKBOX)
+        if (aWidgetType == NS_THEME_CHECKBOX ||
+            aWidgetType == NS_THEME_CHECKBOX_SMALL)
         {
             style->drawPrimitive (QStyle::PE_IndicatorCheckBox, &opt, qPainter);
         } else {
@@ -281,7 +284,7 @@ NS_IMETHODIMP
 nsNativeThemeQt::GetWidgetBorder(nsIDeviceContext* aContext,
                                  nsIFrame* aFrame,
                                  PRUint8 aWidgetType,
-                                 nsIntMargin* aResult)
+                                 nsMargin* aResult)
 {
     (*aResult).top = (*aResult).bottom = (*aResult).left = (*aResult).right = 0;
 
@@ -303,7 +306,7 @@ nsNativeThemeQt::GetWidgetBorder(nsIDeviceContext* aContext,
 PRBool
 nsNativeThemeQt::GetWidgetPadding(nsIDeviceContext* ,
                                   nsIFrame*, PRUint8 aWidgetType,
-                                  nsIntMargin* aResult)
+                                  nsMargin* aResult)
 {
     // XXX: Where to get padding values, framewidth?
     if (aWidgetType == NS_THEME_TEXTFIELD ||
@@ -319,7 +322,7 @@ nsNativeThemeQt::GetWidgetPadding(nsIDeviceContext* ,
 NS_IMETHODIMP
 nsNativeThemeQt::GetMinimumWidgetSize(nsIRenderingContext* aContext, nsIFrame* aFrame,
                                       PRUint8 aWidgetType,
-                                      nsIntSize* aResult, PRBool* aIsOverridable)
+                                      nsSize* aResult, PRBool* aIsOverridable)
 {
     (*aResult).width = (*aResult).height = 0;
     *aIsOverridable = PR_TRUE;
@@ -329,7 +332,9 @@ nsNativeThemeQt::GetMinimumWidgetSize(nsIRenderingContext* aContext, nsIFrame* a
     PRInt32 p2a = GetAppUnitsPerDevPixel(aContext);
 
     switch (aWidgetType) {
+    case NS_THEME_RADIO_SMALL:
     case NS_THEME_RADIO:
+    case NS_THEME_CHECKBOX_SMALL:
     case NS_THEME_CHECKBOX: {
         nsRect frameRect = aFrame->GetRect();
 
@@ -340,7 +345,7 @@ nsNativeThemeQt::GetMinimumWidgetSize(nsIRenderingContext* aContext, nsIFrame* a
         InitButtonStyle(aWidgetType, aFrame, qRect, option);
 
         QRect rect = s->subElementRect(
-            (aWidgetType == NS_THEME_CHECKBOX) ?
+            (aWidgetType == NS_THEME_CHECKBOX || aWidgetType == NS_THEME_CHECKBOX_SMALL ) ?
                 QStyle::SE_CheckBoxIndicator :
                 QStyle::SE_RadioButtonIndicator,
             &option,
@@ -515,7 +520,9 @@ nsNativeThemeQt::ThemeSupportsWidget(nsPresContext* aPresContext,
     case NS_THEME_SCROLLBAR_TRACK_HORIZONTAL:
     case NS_THEME_SCROLLBAR_TRACK_VERTICAL:
     case NS_THEME_RADIO:
+    case NS_THEME_RADIO_SMALL:
     case NS_THEME_CHECKBOX:
+    case NS_THEME_CHECKBOX_SMALL:
     case NS_THEME_BUTTON_BEVEL:
     case NS_THEME_BUTTON:
     case NS_THEME_DROPDOWN:
@@ -563,12 +570,6 @@ nsNativeThemeQt::ThemeNeedsComboboxDropmarker()
     return PR_TRUE;
 }
 
-nsTransparencyMode
-nsNativeThemeQt::GetWidgetTransparency(PRUint8 aWidgetType)
-{
-  return eTransparencyOpaque;
-}
-
 void
 nsNativeThemeQt::InitButtonStyle(PRUint8 aWidgetType,
                                  nsIFrame* aFrame,
@@ -594,7 +595,9 @@ nsNativeThemeQt::InitButtonStyle(PRUint8 aWidgetType,
 
     switch (aWidgetType) {
     case NS_THEME_RADIO:
+    case NS_THEME_RADIO_SMALL:
     case NS_THEME_CHECKBOX:
+    case NS_THEME_CHECKBOX_SMALL:
         if (IsChecked(aFrame))
             opt.state |= QStyle::State_On;
         else

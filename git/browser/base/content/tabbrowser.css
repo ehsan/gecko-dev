@@ -6,8 +6,14 @@
   -moz-binding: url("chrome://browser/content/tabbrowser.xml#tabbrowser-tab");
 }
 
+%ifdef XP_MACOSX
 .tabbrowser-arrowscrollbox {
   -moz-binding: url("chrome://browser/content/tabbrowser.xml#tabbrowser-arrowscrollbox");
+}
+%endif
+
+.tabs-alltabs-popup {
+  -moz-binding: url("chrome://browser/content/tabbrowser.xml#tabbrowser-alltabs-popup");
 }
 
 .tab-close-button, .tabs-closebutton {
@@ -24,13 +30,4 @@
 
 .tabbrowser-tabs[closebuttons="alltabs"] > .tabbrowser-tab:not(:only-child) > .tab-close-button {
   display: -moz-box;
-}
-
-.tabs-container:not([overflow="true"]) > .tabs-newtab-button,
-.tabs-container[overflow="true"] > .tabbrowser-arrowscrollbox > .tabs-newtab-button {
-  visibility: collapse;
-}
-
-.tabs-newtab-button > .toolbarbutton-text {
-  display: none;
 }

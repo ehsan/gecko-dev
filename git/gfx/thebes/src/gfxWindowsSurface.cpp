@@ -57,13 +57,12 @@ gfxWindowsSurface::gfxWindowsSurface(HDC dc, PRUint32 flags) :
     if (flags & FLAG_TAKE_DC)
         mOwnsDC = PR_TRUE;
 
-#ifdef NS_PRINTING
     if (flags & FLAG_FOR_PRINTING) {
         Init(cairo_win32_printing_surface_create(mDC));
         mForPrinting = PR_TRUE;
-    } else
-#endif
+    } else {
         Init(cairo_win32_surface_create(mDC));
+    }
 }
 
 gfxWindowsSurface::gfxWindowsSurface(const gfxIntSize& size, gfxImageFormat imageFormat) :
@@ -169,11 +168,9 @@ gfxWindowsSurface::OptimizeToDDB(HDC dc, const gfxIntSize& size, gfxImageFormat 
     return raw;
 }
 
-nsresult
-gfxWindowsSurface::BeginPrinting(const nsAString& aTitle,
-                                 const nsAString& aPrintToFileName)
+nsresult gfxWindowsSurface::BeginPrinting(const nsAString& aTitle,
+                                          const nsAString& aPrintToFileName)
 {
-#ifdef NS_PRINTING
 #define DOC_TITLE_LENGTH 30
     DOCINFOW docinfo;
 
@@ -193,68 +190,44 @@ gfxWindowsSurface::BeginPrinting(const nsAString& aTitle,
     ::StartDocW(mDC, &docinfo);
 
     return NS_OK;
-#else
-    return NS_ERROR_FAILURE;
-#endif
 }
 
-nsresult
-gfxWindowsSurface::EndPrinting()
+nsresult gfxWindowsSurface::EndPrinting()
 {
-#ifdef NS_PRINTING
     int result = ::EndDoc(mDC);
     if (result <= 0)
         return NS_ERROR_FAILURE;
 
     return NS_OK;
-#else
-    return NS_ERROR_FAILURE;
-#endif
 }
 
-nsresult
-gfxWindowsSurface::AbortPrinting()
+nsresult gfxWindowsSurface::AbortPrinting()
 {
-#ifdef NS_PRINTING
     int result = ::AbortDoc(mDC);
     if (result <= 0)
         return NS_ERROR_FAILURE;
     return NS_OK;
-#else
-    return NS_ERROR_FAILURE;
-#endif
 }
 
-nsresult
-gfxWindowsSurface::BeginPage()
+nsresult gfxWindowsSurface::BeginPage()
 {
-#ifdef NS_PRINTING
     int result = ::StartPage(mDC);
     if (result <= 0)
         return NS_ERROR_FAILURE;
     return NS_OK;
-#else
-    return NS_ERROR_FAILURE;
-#endif
 }
 
-nsresult
-gfxWindowsSurface::EndPage()
+nsresult gfxWindowsSurface::EndPage()
 {
-#ifdef NS_PRINTING
     if (mForPrinting)
         cairo_surface_show_page(CairoSurface());
     int result = ::EndPage(mDC);
     if (result <= 0)
         return NS_ERROR_FAILURE;
     return NS_OK;
-#else
-    return NS_ERROR_FAILURE;
-#endif
 }
 
-PRInt32
-gfxWindowsSurface::GetDefaultContextFlags() const
+PRInt32 gfxWindowsSurface::GetDefaultContextFlags() const
 {
     if (mForPrinting)
         return gfxContext::FLAG_SIMPLIFY_OPERATORS |

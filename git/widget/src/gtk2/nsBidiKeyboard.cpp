@@ -45,7 +45,7 @@
 
 static PRLibrary *gtklib = nsnull;
 
-typedef gboolean (*GdkKeymapHaveBidiLayoutsType)(GdkKeymap *keymap);
+typedef gboolean (PR_CALLBACK *GdkKeymapHaveBidiLayoutsType)(GdkKeymap *keymap);
 static GdkKeymapHaveBidiLayoutsType GdkKeymapHaveBidiLayouts = nsnull;
 
 

@@ -55,7 +55,7 @@ function testThis(aID, aAcc, aNames, aRoles, aStates, aUndesiredStates, aIndex)
 
   is(aAcc.name, aNames[aIndex],
      "wrong name for " + aID + " at index " + aIndex + "!");
-  var role = getRole(aAcc);
+  var role = aAcc.role;
   is(role, aRoles[aIndex],
      "Wrong role for " + aID + " at index " + aIndex + "!");
   testStates(aID, aAcc, aStates, aUndesiredStates, aIndex);
@@ -101,7 +101,7 @@ function testThis(aID, aAcc, aNames, aRoles, aStates, aUndesiredStates, aIndex)
 function testStates(aID, aAcc, aStates, aUndesiredStates, aIndex)
 {
   var state = {}, extraState = {};
-  aAcc.getState(state, extraState);
+  aAcc.getFinalState(state, extraState);
   if (aStates[aIndex] != 0)
     is(state.value & aStates[aIndex], aStates[aIndex],
        "Wrong state bits for " + aID + " at index " + aIndex + "!");

@@ -85,7 +85,7 @@ public:
   virtual PRBool HasScriptContent();
 
   // nsSVGElement specializations:
-  virtual void DidChangeString(PRUint8 aAttrEnum);
+  virtual void DidChangeString(PRUint8 aAttrEnum, PRBool aDoSetAttr);
 
   // nsIContent specializations:
   virtual nsresult DoneAddingChildren(PRBool aHaveNotified);
@@ -101,6 +101,10 @@ protected:
   enum { HREF };
   nsSVGString mStringAttributes[1];
   static StringInfo sStringInfo[1];
+
+  PRUint32 mLineNumber;
+  PRPackedBool mIsEvaluated;
+  PRPackedBool mEvaluating;
 };
 
 nsSVGElement::StringInfo nsSVGScriptElement::sStringInfo[1] =
@@ -116,11 +120,15 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(Script)
 NS_IMPL_ADDREF_INHERITED(nsSVGScriptElement,nsSVGScriptElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGScriptElement,nsSVGScriptElementBase)
 
-NS_INTERFACE_TABLE_HEAD(nsSVGScriptElement)
-  NS_NODE_INTERFACE_TABLE8(nsSVGScriptElement, nsIDOMNode, nsIDOMElement,
-                           nsIDOMSVGElement, nsIDOMSVGScriptElement,
-                           nsIDOMSVGURIReference, nsIScriptLoaderObserver,
-                           nsIScriptElement, nsIMutationObserver)
+NS_INTERFACE_MAP_BEGIN(nsSVGScriptElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMNode)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGScriptElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGURIReference)
+  NS_INTERFACE_MAP_ENTRY(nsIScriptLoaderObserver)
+  NS_INTERFACE_MAP_ENTRY(nsIScriptElement)
+  NS_INTERFACE_MAP_ENTRY(nsIMutationObserver)
   NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGScriptElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGScriptElementBase)
 
@@ -128,7 +136,10 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGScriptElementBase)
 // Implementation
 
 nsSVGScriptElement::nsSVGScriptElement(nsINodeInfo *aNodeInfo)
-  : nsSVGScriptElementBase(aNodeInfo)
+  : nsSVGScriptElementBase(aNodeInfo),
+    mLineNumber(0),
+    mIsEvaluated(PR_FALSE),
+    mEvaluating(PR_FALSE)
 {
   AddMutationObserver(this);
 }
@@ -136,30 +147,7 @@ nsSVGScriptElement::nsSVGScriptElement(nsINodeInfo *aNodeInfo)
 //----------------------------------------------------------------------
 // nsIDOMNode methods
 
-nsresult
-nsSVGScriptElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
-{
-  *aResult = nsnull;
-
-  nsSVGScriptElement* it = new nsSVGScriptElement(aNodeInfo);
-  if (!it) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
-
-  nsCOMPtr<nsINode> kungFuDeathGrip = it;
-  nsresult rv = it->Init();
-  rv |= CopyInnerTo(it);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // The clone should be marked evaluated if we are.
-  it->mIsEvaluated = mIsEvaluated;
-  it->mLineNumber = mLineNumber;
-  it->mMalformed = mMalformed;
-
-  kungFuDeathGrip.swap(*aResult);
-
-  return NS_OK;
-}
+NS_IMPL_ELEMENT_CLONE_WITH_INIT(nsSVGScriptElement)
 
 //----------------------------------------------------------------------
 // nsIDOMSVGScriptElement methods
@@ -205,8 +193,7 @@ already_AddRefed<nsIURI>
 nsSVGScriptElement::GetScriptURI()
 {
   nsIURI *uri = nsnull;
-  nsAutoString src;
-  mStringAttributes[HREF].GetAnimValue(src, this);
+  const nsString &src = mStringAttributes[HREF].GetAnimValue();
   if (!src.IsEmpty()) {
     nsCOMPtr<nsIURI> baseURI = GetBaseURI();
     NS_NewURI(&uri, src, nsnull, baseURI);
@@ -238,9 +225,7 @@ nsSVGScriptElement::GetScriptDeferred()
 PRBool
 nsSVGScriptElement::HasScriptContent()
 {
-  nsAutoString str;
-  mStringAttributes[HREF].GetAnimValue(str, this);
-  return !str.IsEmpty() ||
+  return !mStringAttributes[HREF].GetAnimValue().IsEmpty() ||
          nsContentUtils::HasNonEmptyTextContent(this);
 }
 
@@ -248,9 +233,9 @@ nsSVGScriptElement::HasScriptContent()
 // nsSVGElement methods
 
 void
-nsSVGScriptElement::DidChangeString(PRUint8 aAttrEnum)
+nsSVGScriptElement::DidChangeString(PRUint8 aAttrEnum, PRBool aDoSetAttr)
 {
-  nsSVGScriptElementBase::DidChangeString(aAttrEnum);
+  nsSVGScriptElementBase::DidChangeString(aAttrEnum, aDoSetAttr);
 
   if (aAttrEnum == HREF) {
     MaybeProcessScript();
@@ -290,4 +275,3 @@ nsSVGScriptElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 
   return NS_OK;
 }
-

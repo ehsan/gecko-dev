@@ -136,7 +136,6 @@ public:
   nsXBLPrototypeBinding* GetBasePrototype() { return mBaseBinding; }
 
   nsIXBLDocumentInfo* XBLDocumentInfo() const { return mXBLDocInfoWeak; }
-  PRBool IsChrome() { return mXBLDocInfoWeak->IsChrome(); }
   
   PRBool HasBasePrototype() { return mHasBaseProto; }
   void SetHasBasePrototype(PRBool aHasBase) { mHasBaseProto = aHasBase; }
@@ -156,8 +155,6 @@ public:
 
   void InstantiateInsertionPoints(nsXBLBinding* aBinding);
 
-  // XXXbz this aIndex has nothing to do with an index into the child
-  // list of the insertion parent or anything.
   nsIContent* GetInsertionPoint(nsIContent* aBoundElement,
                                 nsIContent* aCopyRoot, nsIContent *aChild,
                                 PRUint32* aIndex);

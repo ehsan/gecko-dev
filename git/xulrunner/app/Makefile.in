@@ -87,14 +87,10 @@ CPPSRCS = nsXULRunnerApp.cpp
 ifneq (,$(filter WINNT WINCE,$(OS_ARCH)))
 CPPSRCS += nsRegisterGREWin.cpp
 else
-ifeq (OS2,$(OS_ARCH))
-CPPSRCS += nsRegisterGREVoid.cpp
-else
-ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+ifneq (,$(filter OS2 Darwin,$(OS_ARCH)))
 CPPSRCS += nsRegisterGREVoid.cpp
 else
 CPPSRCS += nsRegisterGREUnix.cpp
-endif
 endif
 endif
 
@@ -108,7 +104,7 @@ TK_LIBS := -framework Cocoa $(TK_LIBS)
 endif
 
 ifndef MOZ_ENABLE_LIBXUL
-ifeq (bundle,$(MOZ_FS_LAYOUT))
+ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
 LIBS += $(DIST)/bin/XUL
 else
 EXTRA_DSO_LIBS += xul
@@ -126,7 +122,7 @@ LIBS += \
 
 # Add explicit X11 dependency when building against X11 toolkits
 ifneq (,$(filter gtk gtk2 xlib,$(MOZ_WIDGET_TOOLKIT)))
-LIBS += $(XLDFLAGS) $(XLIBS) $(XEXT_LIBS) $(XCOMPOSITE_LIBS)
+LIBS += $(XLDFLAGS) $(XLIBS)
 endif
 
 ifdef MOZ_JPROF
@@ -142,8 +138,6 @@ endif
 endif
 DEFINES += -DMOZ_WINCONSOLE=$(MOZ_WINCONSOLE)
 
-# This switches $(INSTALL) to copy mode, like $(SYSINSTALL), so things that
-# shouldn't get 755 perms need $(IFLAGS1) for either way of calling nsinstall.
 NSDISTMODE = copy
 
 include $(topsrcdir)/config/config.mk
@@ -210,13 +204,12 @@ LDFLAGS += /HEAP:0x40000
 endif
 endif
 
-ifneq (,$(filter-out OS2 WINCE WINNT BeOS,$(OS_ARCH)))
-ifeq (unix, $(MOZ_FS_LAYOUT))
+ifneq (,$(filter-out OS2 WINCE WINNT Darwin BeOS,$(OS_ARCH)))
 
-xulrunner:: $(topsrcdir)/build/unix/mozilla.in $(GLOBAL_DEPS)
-	cat $< | sed -e "s|%MOZAPPDIR%|$(installdir)|" \
+xulrunner:: mozilla.in Makefile.in Makefile $(DEPTH)/config/autoconf.mk
+	cat $< | sed -e "s|%MOZAPPDIR%|$(mozappdir)|" \
                 -e "s|%MOZ_USER_DIR%|.mozilla/xulrunner|" \
-                -e "s|%MOZ_APP_DISPLAYNAME%|$(MOZ_APP_DISPLAYNAME)|" > $@
+		-e "s|%MREDIR%|$(mredir)|" > $@
 	chmod +x $@
 
 libs:: xulrunner
@@ -226,7 +219,6 @@ install:: xulrunner
 	$(SYSINSTALL) $< $(DESTDIR)$(bindir)
 
 GARBAGE += xulrunner
-endif
 endif
 
 ifneq (,$(filter gtk gtk2,$(MOZ_WIDGET_TOOLKIT)))
@@ -238,7 +230,7 @@ ICON_FILES	= \
 		$(NULL)
 
 libs:: $(ICON_FILES)
-	$(INSTALL) $(IFLAGS1) $^ $(DIST)/bin/icons
+	$(SYSINSTALL) $^ $(DIST)/bin/icons
 
 install::
 	$(SYSINSTALL) $(IFLAGS1) $(ICON_FILES) $(DESTDIR)$(mozappdir)/icons
@@ -246,9 +238,9 @@ endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
 libs::
-	$(INSTALL) $(IFLAGS1) $(DIST)/branding/default16.png $(DIST)/bin/chrome/icons/default
-	$(INSTALL) $(IFLAGS1) $(DIST)/branding/default32.png $(DIST)/bin/chrome/icons/default
-	$(INSTALL) $(IFLAGS1) $(DIST)/branding/default48.png $(DIST)/bin/chrome/icons/default
+	$(INSTALL) $(DIST)/branding/default16.png $(DIST)/bin/chrome/icons/default
+	$(INSTALL) $(DIST)/branding/default32.png $(DIST)/bin/chrome/icons/default
+	$(INSTALL) $(DIST)/branding/default48.png $(DIST)/bin/chrome/icons/default
 endif
 
 # XXX applications would need to supply this file
@@ -307,5 +299,5 @@ endif
 README_FILE = $(topsrcdir)/README.txt
 
 libs::
-	$(INSTALL) $(IFLAGS1) $(README_FILE) $(DIST)/bin
-	$(INSTALL) $(IFLAGS1) $(topsrcdir)/LICENSE	$(DIST)/bin
+	$(SYSINSTALL) $(README_FILE) $(DIST)/bin
+	$(SYSINSTALL) $(topsrcdir)/LICENSE	$(DIST)/bin

@@ -62,10 +62,7 @@
 
 #include <direct.h>
 #include <windows.h>
-
-#ifndef WINCE
 #include <aclapi.h>
-#endif
 
 #include "shellapi.h"
 #include "shlguid.h"
@@ -98,11 +95,6 @@ unsigned char *_mbsstr( const unsigned char *str,
 }
 #endif
 
-#ifndef FILE_ATTRIBUTE_NOT_CONTENT_INDEXED
-#define FILE_ATTRIBUTE_NOT_CONTENT_INDEXED  0x00002000
-#endif
-
-#ifndef WINCE
 class nsDriveEnumerator : public nsISimpleEnumerator
 {
 public:
@@ -112,19 +104,19 @@ public:
     NS_DECL_NSISIMPLEENUMERATOR
     nsresult Init();
 private:
-    /* mDrives stores the null-separated drive names.
+    /* mDrives and mLetter share data
      * Init sets them.
-     * HasMoreElements checks mStartOfCurrentDrive.
-     * GetNext advances mStartOfCurrentDrive.
+     * HasMoreElements reads mLetter.
+     * GetNext advances mLetter.
      */
-    nsString mDrives;
-    nsAString::const_iterator mStartOfCurrentDrive;
-    nsAString::const_iterator mEndOfDrivesString;
+    nsCString mDrives;
+    const char *mLetter;
 };
 
 //----------------------------------------------------------------------------
 // short cut resolver
 //----------------------------------------------------------------------------
+#ifndef WINCE
 class ShortcutResolver
 {
 public:
@@ -235,7 +227,6 @@ static void NS_DestroyShortcutResolver()
     delete gResolver;
     gResolver = nsnull;
 }
-
 #endif
 
 
@@ -405,10 +396,6 @@ OpenFile(const nsAFlatString &name, PRIntn osflags, PRIntn mode,
             flags = OPEN_EXISTING;
     }
 
-    if (osflags & nsILocalFile::DELETE_ON_CLOSE) {
-      flag6 |= FILE_FLAG_DELETE_ON_CLOSE;
-    }
-
     HANDLE file = ::CreateFileW(name.get(), access,
                                 FILE_SHARE_READ|FILE_SHARE_WRITE,
                                 NULL, flags, flag6, NULL);
@@ -523,20 +510,6 @@ OpenDir(const nsAFlatString &name, nsDir * *dir)
     if ( d->handle == INVALID_HANDLE_VALUE )
     {
         PR_Free(d);
-
-#ifdef WINCE
-        /* On WinCE, there is no . or .. directory, so an empty directory will
-           return an error.  We don't want to throw an error, so instead just
-           return success here, if the last error was ERROR_NO_MORE_FILES.
-
-           Errors like the path not existing should be handled higher up, but
-           would return ERROR_PATH_NOT_FOUND, so we would still throw.
-         */
-
-        if (GetLastError() == ERROR_NO_MORE_FILES)
-            return NS_OK;
-#endif
-
         return ConvertWinError(GetLastError());
     }
     d->firstEntry = PR_TRUE;
@@ -922,21 +895,36 @@ nsLocalFile::InitWithPath(const nsAString &filePath)
 
     // just do a sanity check.  if it has any forward slashes, it is not a Native path
     // on windows.  Also, it must have a colon at after the first char.
-    if (FindCharInReadable(L'/', begin, end))
-        return NS_ERROR_FILE_UNRECOGNIZED_PATH;
 
+    PRUnichar *path = nsnull;
+    PRInt32 pathLen = 0;
+
+    if ( ( (secondChar == L':') && !FindCharInReadable(L'/', begin, end) ) ||  // normal path
 #ifdef WINCE
-    if (firstChar != L'\\')
+         ( (firstChar == L'\\') )   // wince absolute path or network path
 #else
-    if (secondChar != L':' && (secondChar != L'\\' || firstChar != L'\\'))
+         ( (firstChar == L'\\') && (secondChar == L'\\') )   // network path
 #endif
+         )
+    {
+        // This is a native path
+        path = ToNewUnicode(filePath);
+        pathLen = filePath.Length();
+    }
+
+    if (path == nsnull) {
         return NS_ERROR_FILE_UNRECOGNIZED_PATH;
+    }
 
-    mWorkingPath = filePath;
     // kill any trailing '\'
-    if (mWorkingPath.Last() == L'\\')
-        mWorkingPath.Truncate(mWorkingPath.Length() - 1);
+    PRInt32 len = pathLen - 1;
+    if (path[len] == L'\\')
+    {
+        path[len] = L'\0';
+        pathLen = len;
+    }
 
+    mWorkingPath.Adopt(path, pathLen);
     return NS_OK;
 
 }
@@ -1042,14 +1030,6 @@ nsLocalFile::Create(PRUint32 type, PRUint32 attributes)
                       &file);
         if (file)
             PR_Close(file);
-
-        if (rv == NS_ERROR_FILE_ACCESS_DENIED)
-        {
-            // need to return already-exists for directories (bug 452217)
-            PRBool isdir;
-            if (NS_SUCCEEDED(IsDirectory(&isdir)) && isdir)
-                rv = NS_ERROR_FILE_ALREADY_EXISTS;
-        }
         return rv;
     }
 
@@ -1460,38 +1440,28 @@ nsLocalFile::CopySingleFile(nsIFile *sourceFile, nsIFile *destParent,
 
     if (!move)
         copyOK = ::CopyFileW(filePath.get(), destPath.get(), PR_TRUE);
-    else {
-#ifndef WINCE
+    else
         copyOK = ::MoveFileExW(filePath.get(), destPath.get(),
                                MOVEFILE_REPLACE_EXISTING |
                                MOVEFILE_COPY_ALLOWED |
                                MOVEFILE_WRITE_THROUGH);
-#else
-        DeleteFile(destPath.get());
-        copyOK = :: MoveFileW(filePath.get(), destPath.get());
-#endif
-    }
 
     if (!copyOK)  // CopyFile and MoveFileEx return zero at failure.
         rv = ConvertWinError(GetLastError());
 
-#ifndef WINCE
-    else if (move) // Set security permissions to inherit from parent.
+    if(move) //Set security permissions to inherit from parent.
     {
-        PACL pOldDACL = NULL;
-        PSECURITY_DESCRIPTOR pSD = NULL;
-        ::GetNamedSecurityInfoW((LPWSTR)destPath.get(), SE_FILE_OBJECT,
-                                DACL_SECURITY_INFORMATION,
-                                NULL, NULL, &pOldDACL, NULL, &pSD);
-        if (pOldDACL)
-            ::SetNamedSecurityInfoW((LPWSTR)destPath.get(), SE_FILE_OBJECT,
-                                    DACL_SECURITY_INFORMATION |
-                                    UNPROTECTED_DACL_SECURITY_INFORMATION,
-                                    NULL, NULL, pOldDACL, NULL);
-        if (pSD)
-            LocalFree((HLOCAL)pSD);
+        ACL empty_acl;
+        if (InitializeAcl(&empty_acl, (DWORD) sizeof(ACL), ACL_REVISION))
+        {
+        ::SetNamedSecurityInfoW((LPWSTR)destPath.get(), SE_FILE_OBJECT, 
+                                DACL_SECURITY_INFORMATION |
+                                UNPROTECTED_DACL_SECURITY_INFORMATION, 
+                                NULL, NULL, &empty_acl, NULL);
+        }
     }
-#endif
+
+
     return rv;
 }
 
@@ -1854,15 +1824,17 @@ nsLocalFile::Remove(PRBool recursive)
                     file->Remove(recursive);
             }
         }
-        if (RemoveDirectoryW(mWorkingPath.get()) == 0)
-            return ConvertWinError(GetLastError());
+        rv = _wrmdir(mWorkingPath.get());
     }
     else
     {
-        if (DeleteFileW(mWorkingPath.get()) == 0)
-            return ConvertWinError(GetLastError());
+        rv = _wremove(mWorkingPath.get());
     }
 
+    // fixup error code if necessary...
+    if (rv == (nsresult)-1)
+        rv = NSRESULT_FOR_ERRNO();
+    
     MakeDirty();
     return rv;
 }
@@ -2060,7 +2032,6 @@ nsLocalFile::SetPermissions(PRUint32 aPermissions)
     nsresult rv = ResolveAndStat();
     if (NS_FAILED(rv))
         return rv;
-#ifndef WINCE
 
     // windows only knows about the following permissions
     int mode = 0;
@@ -2073,26 +2044,11 @@ nsLocalFile::SetPermissions(PRUint32 aPermissions)
         return NS_ERROR_FAILURE;
 
     return NS_OK;
-#else
-
-    // windows ce only knows about the following permissions
-    DWORD mode = 0;
-    if (!(aPermissions & (PR_IWUSR|PR_IWGRP|PR_IWOTH)))    // any write
-        mode = FILE_ATTRIBUTE_READONLY;
-	else
-		mode = FILE_ATTRIBUTE_NORMAL;
-
-    if (SetFileAttributesW(mResolvedPath.get(), mode) == 0)
-        return NS_ERROR_FAILURE;
-
-    return NS_OK;
-#endif
 }
 
 NS_IMETHODIMP
 nsLocalFile::SetPermissionsOfLink(PRUint32 aPermissions)
 {
-#ifndef WINCE
     // The caller is assumed to have already called IsSymlink 
     // and to have found that this file is a link. 
 
@@ -2107,9 +2063,6 @@ nsLocalFile::SetPermissionsOfLink(PRUint32 aPermissions)
         return NS_ERROR_FAILURE;
 
     return NS_OK;
-#else
-    return NS_ERROR_NOT_AVAILABLE;
-#endif
 }
 
 
@@ -2626,7 +2579,6 @@ nsLocalFile::GetDirectoryEntries(nsISimpleEnumerator * *entries)
     nsresult rv;
 
     *entries = nsnull;
-#ifndef WINCE
     if (mWorkingPath.EqualsLiteral("\\\\.")) {
         nsDriveEnumerator *drives = new nsDriveEnumerator;
         if (!drives)
@@ -2640,7 +2592,6 @@ nsLocalFile::GetDirectoryEntries(nsISimpleEnumerator * *entries)
         *entries = drives;
         return NS_OK;
     }
-#endif
 
     PRBool isDir;
     rv = IsDirectory(&isDir);
@@ -2661,7 +2612,6 @@ nsLocalFile::GetDirectoryEntries(nsISimpleEnumerator * *entries)
     }
 
     *entries = dirEnum;
-
     return NS_OK;
 }
 
@@ -2681,67 +2631,14 @@ nsLocalFile::SetPersistentDescriptor(const nsACString &aPersistentDescriptor)
         return InitWithNativePath(aPersistentDescriptor);
 }   
 
-/* attrib unsigned long fileAttributesWin; */
-static PRBool IsXPOrGreater()
-{
-#ifdef WINCE
-    return PR_FALSE;
-#endif
-    OSVERSIONINFO osvi;
-
-    ZeroMemory(&osvi, sizeof(OSVERSIONINFO));
-    osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
-
-    GetVersionEx(&osvi);
-
-    return ((osvi.dwMajorVersion > 5) ||
-       ((osvi.dwMajorVersion == 5) && (osvi.dwMinorVersion >= 1)));
-}
-
-NS_IMETHODIMP
-nsLocalFile::GetFileAttributesWin(PRUint32 *aAttribs)
-{
-    *aAttribs = 0;
-    DWORD dwAttrs = GetFileAttributesW(mWorkingPath.get());
-    if (dwAttrs == INVALID_FILE_ATTRIBUTES)
-      return NS_ERROR_FILE_INVALID_PATH;
-
-    if (!(dwAttrs & FILE_ATTRIBUTE_NOT_CONTENT_INDEXED))
-        *aAttribs |= WFA_SEARCH_INDEXED;
-
-    return NS_OK;
-}   
-    
-NS_IMETHODIMP
-nsLocalFile::SetFileAttributesWin(PRUint32 aAttribs)
-{
-    DWORD dwAttrs = GetFileAttributesW(mWorkingPath.get());
-    if (dwAttrs == INVALID_FILE_ATTRIBUTES)
-      return NS_ERROR_FILE_INVALID_PATH;
-
-    if (IsXPOrGreater()) {
-      if (aAttribs & WFA_SEARCH_INDEXED) {
-          dwAttrs &= ~FILE_ATTRIBUTE_NOT_CONTENT_INDEXED;
-      } else {
-          dwAttrs |= FILE_ATTRIBUTE_NOT_CONTENT_INDEXED;
-      }
-    }
-
-    if (SetFileAttributesW(mWorkingPath.get(), dwAttrs) == 0)
-      return NS_ERROR_FAILURE;
-    return NS_OK;
-}   
-
-
 NS_IMETHODIMP
 nsLocalFile::Reveal()
 {
-#ifndef WINCE
     // make sure mResolvedPath is set
     nsresult rv = ResolveAndStat();
     if (NS_FAILED(rv) && rv != NS_ERROR_FILE_NOT_FOUND)
         return rv;
-    
+
     // use the full path to explorer for security
     nsCOMPtr<nsILocalFile> winDir;
     rv = GetSpecialSystemDirectory(Win_WindowsDirectory, getter_AddRefs(winDir));
@@ -2750,7 +2647,7 @@ nsLocalFile::Reveal()
     rv = winDir->GetPath(explorerPath);  
     NS_ENSURE_SUCCESS(rv, rv);
     explorerPath.Append(L"\\explorer.exe");
-    
+
     // Always open a new window for files because Win2K doesn't appear to select
     // the file if a window showing that folder was already open. If the resolved 
     // path is a directory then instead of opening the parent and selecting it, 
@@ -2761,82 +2658,57 @@ nsLocalFile::Reveal()
     explorerParams.Append(L'\"');
     explorerParams.Append(mResolvedPath);
     explorerParams.Append(L'\"');
-    
+
     if (::ShellExecuteW(NULL, L"open", explorerPath.get(), explorerParams.get(),
                         NULL, SW_SHOWNORMAL) <= (HINSTANCE) 32)
         return NS_ERROR_FAILURE;
-    
+
     return NS_OK;
-#else
-    return NS_ERROR_NOT_AVAILABLE;
-#endif
 }
-#ifdef WINCE 
-#ifndef UNICODE
-#error "we don't support narrow char wince"
-#endif
 
-#define SHELLEXECUTEINFOW SHELLEXECUTEINFO
-#define ShellExecuteExW ShellExecuteEx
-
-#endif
 
 NS_IMETHODIMP
 nsLocalFile::Launch()
 {
     const nsString &path = mWorkingPath;
-    
+
     // use the app registry name to launch a shell execute....
-    SHELLEXECUTEINFOW seinfo;
-    memset(&seinfo, 0, sizeof(seinfo));
-    seinfo.cbSize = sizeof(SHELLEXECUTEINFOW);
-    seinfo.fMask  = NULL;
-    seinfo.hwnd   = NULL;
-    seinfo.lpVerb = NULL;
-    seinfo.lpFile = path.get();
-    seinfo.lpParameters =  NULL;
-    seinfo.lpDirectory  = NULL;
-    seinfo.nShow  = SW_SHOWNORMAL;
-    
-    if (ShellExecuteExW(&seinfo))
-        return NS_OK;
-    DWORD r = GetLastError();
+    LONG r = (LONG) ::ShellExecuteW(NULL, NULL, path.get(), NULL, NULL,
+                                    SW_SHOWNORMAL);
+
     // if the file has no association, we launch windows' "what do you want to do" dialog
     if (r == SE_ERR_NOASSOC) {
         nsAutoString shellArg;
         shellArg.Assign(NS_LITERAL_STRING("shell32.dll,OpenAs_RunDLL ") + path);
-        seinfo.lpFile = L"RUNDLL32.EXE";
-        seinfo.lpParameters = shellArg.get();
-        if (ShellExecuteExW(&seinfo))
-            return NS_OK;
-        r = GetLastError();
+        r = (LONG) ::ShellExecuteW(NULL, NULL, L"RUNDLL32.EXE", shellArg.get(),
+                                   NULL, SW_SHOWNORMAL);
     }
     if (r < 32) {
         switch (r) {
           case 0:
           case SE_ERR_OOM:
-              return NS_ERROR_OUT_OF_MEMORY;
+            return NS_ERROR_OUT_OF_MEMORY;
           case ERROR_FILE_NOT_FOUND:
-              return NS_ERROR_FILE_NOT_FOUND;
+            return NS_ERROR_FILE_NOT_FOUND;
           case ERROR_PATH_NOT_FOUND:
-              return NS_ERROR_FILE_UNRECOGNIZED_PATH;
+            return NS_ERROR_FILE_UNRECOGNIZED_PATH;
           case ERROR_BAD_FORMAT:
-              return NS_ERROR_FILE_CORRUPTED;
+            return NS_ERROR_FILE_CORRUPTED;
           case SE_ERR_ACCESSDENIED:
-              return NS_ERROR_FILE_ACCESS_DENIED;
+            return NS_ERROR_FILE_ACCESS_DENIED;
           case SE_ERR_ASSOCINCOMPLETE:
           case SE_ERR_NOASSOC:
-              return NS_ERROR_UNEXPECTED;
+            return NS_ERROR_UNEXPECTED;
           case SE_ERR_DDEBUSY:
           case SE_ERR_DDEFAIL:
           case SE_ERR_DDETIMEOUT:
-              return NS_ERROR_NOT_AVAILABLE;
+            return NS_ERROR_NOT_AVAILABLE;
           case SE_ERR_DLLNOTFOUND:
-              return NS_ERROR_FAILURE;
+            return NS_ERROR_FAILURE;
           case SE_ERR_SHARE:
-              return NS_ERROR_FILE_IS_LOCKED;
+            return NS_ERROR_FILE_IS_LOCKED;
           default:
-              return NS_ERROR_FILE_EXECUTION_FAILED;
+            return NS_ERROR_FILE_EXECUTION_FAILED;
         }
     }
     return NS_OK;
@@ -2850,7 +2722,7 @@ NS_NewLocalFile(const nsAString &path, PRBool followLinks, nsILocalFile* *result
     if (file == nsnull)
         return NS_ERROR_OUT_OF_MEMORY;
     NS_ADDREF(file);
-    
+
     file->SetFollowLinks(followLinks);
 
     if (!path.IsEmpty()) {
@@ -3089,10 +2961,10 @@ nsLocalFile::GlobalShutdown()
 #endif
 }
 
-#ifndef WINCE
 NS_IMPL_ISUPPORTS1(nsDriveEnumerator, nsISimpleEnumerator)
 
 nsDriveEnumerator::nsDriveEnumerator()
+ : mLetter(0)
 {
 }
 
@@ -3102,47 +2974,54 @@ nsDriveEnumerator::~nsDriveEnumerator()
 
 nsresult nsDriveEnumerator::Init()
 {
+#ifdef WINCE
+    return NS_OK;
+#else
     /* If the length passed to GetLogicalDriveStrings is smaller
      * than the length of the string it would return, it returns
      * the length required for the string. */
-    DWORD length = GetLogicalDriveStringsW(0, 0);
+    DWORD length = GetLogicalDriveStrings(0, 0);
     /* The string is null terminated */
     if (!EnsureStringLength(mDrives, length+1))
         return NS_ERROR_OUT_OF_MEMORY;
-    if (!GetLogicalDriveStringsW(length, mDrives.BeginWriting()))
+    if (!GetLogicalDriveStrings(length, mDrives.BeginWriting()))
         return NS_ERROR_FAILURE;
-    mDrives.BeginReading(mStartOfCurrentDrive);
-    mDrives.EndReading(mEndOfDrivesString);
+    mLetter = mDrives.get();
     return NS_OK;
+#endif
 }
 
 NS_IMETHODIMP nsDriveEnumerator::HasMoreElements(PRBool *aHasMore)
 {
-    *aHasMore = *mStartOfCurrentDrive != L'\0';
+#ifdef WINCE
+    *aHasMore = FALSE;
+#else
+    *aHasMore = *mLetter != '\0';
+#endif
     return NS_OK;
 }
 
 NS_IMETHODIMP nsDriveEnumerator::GetNext(nsISupports **aNext)
 {
-    /* GetLogicalDrives stored in mDrives is a concatenation
-     * of null terminated strings, followed by a null terminator.
-     * mStartOfCurrentDrive is an iterator pointing at the first
-     * character of the current drive. */
-    if (*mStartOfCurrentDrive == L'\0') {
+#ifdef WINCE
+    nsILocalFile *file;
+    nsresult rv = NS_NewLocalFile(NS_LITERAL_STRING("\\"), PR_FALSE, &file);
+    *aNext = file;
+#else
+    /* GetLogicalDrives stored in mLetter is a concatenation
+     * of null terminated strings, followed by a null terminator. */
+    if (!*mLetter) {
         *aNext = nsnull;
         return NS_OK;
     }
-
-    nsAString::const_iterator driveEnd = mStartOfCurrentDrive;
-    FindCharInReadable(L'\0', driveEnd, mEndOfDrivesString);
-    nsString drive(Substring(mStartOfCurrentDrive, driveEnd));
-    mStartOfCurrentDrive = ++driveEnd;
-
+    NS_ConvertASCIItoUTF16 drive(mLetter);
+    mLetter += drive.Length() + 1;
     nsILocalFile *file;
-    nsresult rv = NS_NewLocalFile(drive, PR_FALSE, &file);
+    nsresult rv = 
+        NS_NewLocalFile(drive, PR_FALSE, &file);
 
     *aNext = file;
+#endif
     return rv;
 }
-#endif
 

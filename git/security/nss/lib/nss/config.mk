@@ -53,7 +53,6 @@ RESNAME = $(LIBRARY_NAME).rc
 ifdef NS_USE_GCC
 EXTRA_SHARED_LIBS += \
 	-L$(DIST)/lib \
-	-L$(NSSUTIL_LIB_DIR) \
 	-lnssutil3 \
 	-L$(NSPR_LIB_DIR) \
 	-lplc4 \
@@ -75,7 +74,6 @@ else
 # $(EXTRA_SHARED_LIBS) come before $(OS_LIBS), except on AIX.
 EXTRA_SHARED_LIBS += \
 	-L$(DIST)/lib \
-	-L$(NSSUTIL_LIB_DIR) \
 	-lnssutil3 \
 	-L$(NSPR_LIB_DIR) \
 	-lplc4 \
@@ -128,6 +126,11 @@ SHARED_LIBRARY_DIRS = \
 	../libpkix/pkix_pl_nss/system \
 	../libpkix/pkix_pl_nss/module \
 	$(NULL)
+
+ifeq ($(OS_ARCH), Darwin)
+EXTRA_SHARED_LIBS += -dylib_file @executable_path/libsqlite3.dylib:$(DIST)/lib/libsqlite3.dylib
+endif
+
 
 ifeq ($(OS_TARGET),SunOS)
 ifeq ($(BUILD_SUN_PKG), 1)

@@ -5,10 +5,16 @@
 }
 
 findbar {
+  -moz-appearance: none !important;
   border-top: 2px solid;
-  -moz-border-top-colors: ThreeDShadow ThreeDHighlight;
-  padding-bottom: 1px;
+  -moz-border-top-colors: ThreeDShadow ThreeDHighlight !important;
+  border-bottom: 1px solid;
+  -moz-border-bottom-colors: transparent;
   min-width: 1px;
+}
+
+.find-buttons-container {
+  -moz-box-direction: reverse;
 }
 
 /* find-next button */
@@ -80,16 +86,26 @@ findbar {
   list-style-image: url("moz-icon://stock/gtk-dialog-error?size=menu");
 }
 
-.findbar-textbox[status="notfound"] {
-  -moz-box-shadow: 0 0 0 1em #f66 inset;
-  color: white;
+.findbar-textbox {
+  -moz-binding: url("chrome://global/content/bindings/findbar.xml#findbar-textbox");
+  -moz-appearance: none;
+  border: none;
+  margin: 0;
 }
 
-.findbar-textbox[flash="true"] {
-  -moz-box-shadow: 0 0 0 1em yellow inset;
-  color: black;
+.findbar-textbox[status="notfound"] {
+  background-color: #FF6666;
+  color: #FFFFFF;
+}
+
+findbar[flash="true"] > .findbar-container > .find-field-container > .findbar-textbox {
+  background-color: yellow;
 }
 
 .find-status-icon[status="wrapped"] {
   list-style-image: url("chrome://global/skin/icons/wrap.png");
+}
+
+.find-field-container {
+  -moz-appearance: textfield;
 }

@@ -22,7 +22,6 @@
  * Contributor(s):
  *   Brett Wilson <brettw@gmail.com> (original author)
  *   Edward Lee <edward.lee@engineering.uiuc.edu>
- *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -51,7 +50,6 @@
 #include "nsDataHashtable.h"
 #include "nsINavHistoryService.h"
 #include "nsPIPlacesDatabase.h"
-#include "nsPIPlacesHistoryListenersNotifier.h"
 #ifdef MOZ_XUL
 #include "nsIAutoCompleteController.h"
 #include "nsIAutoCompleteInput.h"
@@ -62,6 +60,7 @@
 #endif
 #include "nsIBrowserHistory.h"
 #include "nsICollation.h"
+#include "nsIDateTimeFormat.h"
 #include "nsIGlobalHistory.h"
 #include "nsIGlobalHistory3.h"
 #include "nsIDownloadHistory.h"
@@ -78,6 +77,7 @@
 #include "nsITreeView.h"
 #endif
 #include "nsString.h"
+#include "nsVoidArray.h"
 #include "nsWeakReference.h"
 #include "nsTArray.h"
 #include "nsINavBookmarksService.h"
@@ -89,8 +89,8 @@
 
 #include "nsICharsetResolver.h"
 
-#include "nsIPrivateBrowsingService.h"
-#include "nsNetCID.h"
+// define to maintain sqlite temporary tables in memory rather than on disk
+#define IN_MEMORY_SQLITE_TEMP_STORE
 
 // define to enable lazy link adding
 #define LAZY_ADD
@@ -101,12 +101,12 @@
 #define QUERYUPDATE_COMPLEX_WITH_BOOKMARKS 3
 #define QUERYUPDATE_HOST 4
 
-// This magic number specified an uninitialized value for the
-// mInPrivateBrowsing member
-#define PRIVATEBROWSING_NOTINITED (PRBool(0xffffffff))
-
-#define PLACES_INIT_COMPLETE_EVENT_TOPIC "places-init-complete"
-#define PLACES_DB_LOCKED_EVENT_TOPIC "places-database-locked"
+// this is a work-around for a problem with the optimizer of sqlite
+// A sub-select on MAX(visit_date) is slower than this query with our indexes
+// see Bug #392399 for more details
+#define SQL_STR_FRAGMENT_MAX_VISIT_DATE( place_relation ) \
+  "(SELECT visit_date FROM moz_historyvisits WHERE place_id = " place_relation \
+  " AND visit_type NOT IN (0,4,7) ORDER BY visit_date DESC LIMIT 1)"
 
 struct AutoCompleteIntermediateResult;
 class AutoCompleteResultComparator;
@@ -120,18 +120,17 @@ class PlacesSQLQueryBuilder;
 
 // nsNavHistory
 
-class nsNavHistory : public nsSupportsWeakReference
-                   , public nsINavHistoryService
-                   , public nsIObserver
-                   , public nsIBrowserHistory
-                   , public nsIGlobalHistory3
-                   , public nsIDownloadHistory
-                   , public nsICharsetResolver
+class nsNavHistory : public nsSupportsWeakReference,
+                     public nsINavHistoryService,
+                     public nsIObserver,
+                     public nsIBrowserHistory,
+                     public nsIGlobalHistory3,
+                     public nsIDownloadHistory,
+                     public nsICharsetResolver
                    , public nsPIPlacesDatabase
-                   , public nsPIPlacesHistoryListenersNotifier
 #ifdef MOZ_XUL
-                   , public nsIAutoCompleteSearch
-                   , public nsIAutoCompleteSimpleResultListener
+                     , public nsIAutoCompleteSearch,
+                     public nsIAutoCompleteSimpleResultListener
 #endif
 {
   friend class AutoCompleteIntermediateResultSet;
@@ -150,7 +149,6 @@ public:
   NS_DECL_NSIBROWSERHISTORY
   NS_DECL_NSIOBSERVER
   NS_DECL_NSPIPLACESDATABASE
-  NS_DECL_NSPIPLACESHISTORYLISTENERSNOTIFIER
 #ifdef MOZ_XUL
   NS_DECL_NSIAUTOCOMPLETESEARCH
   NS_DECL_NSIAUTOCOMPLETESIMPLERESULTLISTENER
@@ -184,6 +182,17 @@ public:
     return gHistoryService;
   }
 
+  /**
+   * Call this function before doing any database reads. It will ensure that
+   * any data not flushed to the DB yet is flushed.
+   */
+  void SyncDB()
+  {
+    #ifdef LAZY_ADD
+      CommitLazyMessages();
+    #endif
+  }
+
 #ifdef LAZY_ADD
   /**
    * Adds a lazy message for adding a favicon. Used by the favicon service so
@@ -202,19 +211,8 @@ public:
 
   nsresult CalculateFullVisitCount(PRInt64 aPlaceId, PRInt32 *aVisitCount);
 
-  nsresult UpdateFrecency(PRInt64 aPlaceId, PRBool aIsBookmark);
-  nsresult UpdateFrecencyInternal(PRInt64 aPlaceId, PRInt32 aTyped,
-                                  PRInt32 aHidden, PRInt32 aOldFrecency,
-                                  PRBool aIsBookmark);
+  nsresult UpdateFrecency(PRInt64 aPageID, PRBool isBookmark);
 
-  /**
-   * Calculate frecencies for places that don't have a valid value yet
-   */
-  nsresult FixInvalidFrecencies();
-
-  /**
-   * Set the frecencies of excluded places so they don't show up in queries
-   */
   nsresult FixInvalidFrecenciesForExcludedPlaces();
 
   /**
@@ -234,18 +232,20 @@ public:
 
   /**
    * These functions return non-owning references to the locale-specific
-   * objects for places components.
+   * objects for places components. Guaranteed to return non-NULL.
    */
-  nsIStringBundle* GetBundle();
-  nsIStringBundle* GetDateFormatBundle();
-  nsICollation* GetCollation();
+  nsIStringBundle* GetBundle()
+    { return mBundle; }
+  nsILocale* GetLocale()
+    { return mLocale; }
+  nsICollation* GetCollation()
+    { return mCollation; }
+  nsIDateTimeFormat* GetDateFormatter()
+    { return mDateFormatter; }
   void GetStringFromName(const PRUnichar* aName, nsACString& aResult);
-  void GetAgeInDaysString(PRInt32 aInt, const PRUnichar *aName,
-                          nsACString& aResult);
-  void GetMonthName(PRInt32 aIndex, nsACString& aResult);
 
   // returns true if history has been disabled
-  PRBool IsHistoryDisabled() { return mExpireDaysMax == 0 || InPrivateBrowsingMode(); }
+  PRBool IsHistoryDisabled() { return mExpireDaysMax == 0; }
 
   // get the statement for selecting a history row by URL
   mozIStorageStatement* DBGetURLPageInfo() { return mDBGetURLPageInfo; }
@@ -262,9 +262,6 @@ public:
 
   // select a history row by id
   mozIStorageStatement* DBGetIdPageInfo() { return mDBGetIdPageInfo; }
-
-  mozIStorageStatement* DBGetTags() { return mDBGetTags; }
-  PRInt64 GetTagsFolder();
 
   // Constants for the columns returned by the above statement
   // (in addition to the ones above).
@@ -348,54 +345,31 @@ public:
 
   // Import-friendly version of AddVisit.
   // This method adds a page to history along with a single last visit.
+  // It is an error to call this method if aURI might already be in history.
+  // The given aVisitCount should include the given last-visit date.
   // aLastVisitDate can be -1 if there is no last visit date to record.
   //
-  // This is only for use by the import of history.dat on first-run of Places,
-  // which currently occurs if no places.sqlite file previously exists.
-  nsresult AddPageWithVisits(nsIURI *aURI,
-                             const nsString &aTitle,
-                             PRInt32 aVisitCount,
-                             PRInt32 aTransitionType,
-                             PRTime aFirstVisitDate,
-                             PRTime aLastVisitDate);
+  // NOTE: This will *replace* existing records for a given URI, creating a
+  // new place id, and breaking all existing relationships with for that
+  // id, eg: bookmarks, annotations, tags, etc. This is only for use by
+  // the import of history.dat on first-run of Places, which currently occurs
+  // if no places.sqlite file previously exists.
+  nsresult AddPageWithVisit(nsIURI *aURI,
+                            const nsString &aTitle,
+                            PRBool aHidden, PRBool aTyped,
+                            PRInt32 aVisitCount,
+                            PRInt32 aLastVisitTransition,
+                            PRTime aLastVisitDate);
 
   // Checks the database for any duplicate URLs.  If any are found,
   // all but the first are removed.  This must be called after using
-  // AddPageWithVisits, to ensure that the database is in a consistent state.
+  // AddPageWithVisit, to ensure that the database is in a consistent state.
   nsresult RemoveDuplicateURIs();
 
   // sets the schema version in the database to match SCHEMA_VERSION
   nsresult UpdateSchemaVersion();
 
-  // Returns true if we are currently in private browsing mode
-  PRBool InPrivateBrowsingMode()
-  {
-    if (mInPrivateBrowsing == PRIVATEBROWSING_NOTINITED) {
-      mInPrivateBrowsing = PR_FALSE;
-      nsCOMPtr<nsIPrivateBrowsingService> pbs =
-        do_GetService(NS_PRIVATE_BROWSING_SERVICE_CONTRACTID);
-      if (pbs) {
-        pbs->GetPrivateBrowsingEnabled(&mInPrivateBrowsing);
-      }
-    }
-
-    return mInPrivateBrowsing;
-  }
-
   typedef nsDataHashtable<nsCStringHashKey, nsCString> StringHash;
-
-  /**
-   * Helper method to finalize a statement
-   */
-  static nsresult
-  FinalizeStatement(mozIStorageStatement *aStatement) {
-    nsresult rv;
-    if (aStatement) {
-      rv = aStatement->Finalize();
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-    return NS_OK;
-  }
 
  private:
   ~nsNavHistory();
@@ -430,30 +404,36 @@ protected:
   nsCOMPtr<mozIStorageStatement> mDBAddNewPage; // used by InternalAddNewPage
   nsCOMPtr<mozIStorageStatement> mDBGetTags; // used by FilterResultSet
   nsCOMPtr<mozIStorageStatement> mFoldersWithAnnotationQuery;  // used by StartSearch and FilterResultSet
-  nsCOMPtr<mozIStorageStatement> mDBSetPlaceTitle; // used by SetPageTitleInternal
 
   // these are used by VisitIdToResultNode for making new result nodes from IDs
-  // Consumers need to use the getters since these statements are lazily created
-  mozIStorageStatement *GetDBVisitToURLResult();
   nsCOMPtr<mozIStorageStatement> mDBVisitToURLResult; // kGetInfoIndex_* results
-  mozIStorageStatement *GetDBVisitToVisitResult();
   nsCOMPtr<mozIStorageStatement> mDBVisitToVisitResult; // kGetInfoIndex_* results
-  mozIStorageStatement *GetDBBookmarkToUrlResult();
+  nsCOMPtr<mozIStorageStatement> mDBUrlToUrlResult; // kGetInfoIndex_* results
   nsCOMPtr<mozIStorageStatement> mDBBookmarkToUrlResult; // kGetInfoIndex_* results
-
-  /**
-   * Finalize all internal statements.
-   */
-  nsresult FinalizeStatements();
 
   // nsICharsetResolver
   NS_DECL_NSICHARSETRESOLVER
 
+  /**
+   * Recalculates aCount frecencies.  If aRecalcOld, it will also calculate
+   * the frecency of aCount history visits that have not occurred recently.
+   *
+   * @param aCount
+   *        The number of entries to update.
+   * @param aRecalcOld
+   *        Indicates that we should update old visits as well.
+   */
+  nsresult RecalculateFrecencies(PRInt32 aCount, PRBool aRecalcOld);
+  nsresult RecalculateFrecenciesInternal(mozIStorageStatement *aStatement, PRInt32 aCount);
+
   nsresult CalculateFrecency(PRInt64 aPageID, PRInt32 aTyped, PRInt32 aVisitCount, nsCAutoString &aURL, PRInt32 *aFrecency);
   nsresult CalculateFrecencyInternal(PRInt64 aPageID, PRInt32 aTyped, PRInt32 aVisitCount, PRBool aIsBookmarked, PRInt32 *aFrecency);
   nsCOMPtr<mozIStorageStatement> mDBVisitsForFrecency;
+  nsCOMPtr<mozIStorageStatement> mDBInvalidFrecencies;
+  nsCOMPtr<mozIStorageStatement> mDBOldFrecencies;
   nsCOMPtr<mozIStorageStatement> mDBUpdateFrecencyAndHidden;
   nsCOMPtr<mozIStorageStatement> mDBGetPlaceVisitStats;
+  nsCOMPtr<mozIStorageStatement> mDBGetBookmarkParentsForPlace;
   nsCOMPtr<mozIStorageStatement> mDBFullVisitCount;
 
   /**
@@ -472,29 +452,27 @@ protected:
    * database.  All migration is done inside a transaction that is rolled back
    * if any error occurs.  Upon initialization, history is imported, and some
    * preferences that are used are set.
+   *
+   * @param aMadeChanges [out]
+   *        Returns a constant indicating what occurred:
+   *        DB_MIGRATION_NONE
+   *          No migration occurred.
+   *        DB_MIGRATION_CREATED
+   *          The database did not exist in the past, and was created.
+   *        DB_MIGRATION_UPDATED
+   *          The database was migrated to a new version.
    */
-  nsresult InitDB();
-
-  /**
-   * Initializes additional database items like: views, temp tables, functions
-   * and statements.
-   */
-  nsresult InitAdditionalDBItems();
-  nsresult InitTempTables();
-  nsresult InitViews();
+  nsresult InitDB(PRInt16 *aMadeChanges);
   nsresult InitFunctions();
   nsresult InitStatements();
   nsresult ForceMigrateBookmarksDB(mozIStorageConnection *aDBConn);
   nsresult MigrateV3Up(mozIStorageConnection *aDBConn);
   nsresult MigrateV6Up(mozIStorageConnection *aDBConn);
   nsresult MigrateV7Up(mozIStorageConnection *aDBConn);
-  nsresult MigrateV8Up(mozIStorageConnection *aDBConn);
-  nsresult MigrateV9Up(mozIStorageConnection *aDBConn);
-  nsresult MigrateV10Up(mozIStorageConnection *aDBConn);
+  nsresult EnsureCurrentSchema(mozIStorageConnection* aDBConn, PRBool *aMadeChanges);
+  nsresult CleanUpOnQuit();
 
   nsresult RemovePagesInternal(const nsCString& aPlaceIdsQueryString);
-  nsresult PreparePlacesForVisitsDelete(const nsCString& aPlaceIdsQueryString);
-  nsresult CleanupPlacesOnVisitsDelete(const nsCString& aPlaceIdsQueryString);
 
   nsresult AddURIInternal(nsIURI* aURI, PRTime aTime, PRBool aRedirect,
                           PRBool aToplevel, nsIURI* aReferrer);
@@ -604,6 +582,9 @@ protected:
                          nsNavHistoryQueryOptions* aOptions,
                          nsCOMArray<nsNavHistoryResultNode>* aResults);
 
+  void GetAgeInDaysString(PRInt32 aInt, const PRUnichar *aName, 
+                          nsACString& aResult);
+
   void TitleForDomain(const nsCString& domain, nsACString& aTitle);
 
   nsresult SetPageTitleInternal(nsIURI* aURI, const nsAString& aTitle);
@@ -623,8 +604,9 @@ protected:
 
   // localization
   nsCOMPtr<nsIStringBundle> mBundle;
-  nsCOMPtr<nsIStringBundle> mDateFormatBundle;
+  nsCOMPtr<nsILocale> mLocale;
   nsCOMPtr<nsICollation> mCollation;
+  nsCOMPtr<nsIDateTimeFormat> mDateFormatter;
 
   // annotation service : MAY BE NULL!
   //nsCOMPtr<mozIAnnotationService> mAnnotationService;
@@ -646,7 +628,7 @@ protected:
   };
   typedef nsDataHashtable<nsCStringHashKey, RedirectInfo> RedirectHash;
   RedirectHash mRecentRedirects;
-  static PLDHashOperator ExpireNonrecentRedirects(
+  PR_STATIC_CALLBACK(PLDHashOperator) ExpireNonrecentRedirects(
       nsCStringHashKey::KeyType aKey, RedirectInfo& aData, void* aUserArg);
   PRBool GetRedirectFor(const nsACString& aDestination, nsACString& aSource,
                         PRTime* aTime, PRUint32* aRedirectType);
@@ -665,20 +647,14 @@ protected:
   static const PRInt32 kAutoCompleteIndex_BookmarkTitle;
   static const PRInt32 kAutoCompleteIndex_Tags;
   static const PRInt32 kAutoCompleteIndex_VisitCount;
-  static const PRInt32 kAutoCompleteIndex_Typed;
   nsCOMPtr<mozIStorageStatement> mDBCurrentQuery; //  kAutoCompleteIndex_* results
   nsCOMPtr<mozIStorageStatement> mDBAutoCompleteQuery; //  kAutoCompleteIndex_* results
-  nsCOMPtr<mozIStorageStatement> mDBAutoCompleteTypedQuery; //  kAutoCompleteIndex_* results
-  mozIStorageStatement* GetDBAutoCompleteHistoryQuery();
   nsCOMPtr<mozIStorageStatement> mDBAutoCompleteHistoryQuery; //  kAutoCompleteIndex_* results
-  mozIStorageStatement* GetDBAutoCompleteStarQuery();
   nsCOMPtr<mozIStorageStatement> mDBAutoCompleteStarQuery; //  kAutoCompleteIndex_* results
-  mozIStorageStatement* GetDBAutoCompleteTagsQuery();
   nsCOMPtr<mozIStorageStatement> mDBAutoCompleteTagsQuery; //  kAutoCompleteIndex_* results
   nsCOMPtr<mozIStorageStatement> mDBPreviousQuery; //  kAutoCompleteIndex_* results
   nsCOMPtr<mozIStorageStatement> mDBAdaptiveQuery; //  kAutoCompleteIndex_* results
   nsCOMPtr<mozIStorageStatement> mDBKeywordQuery; //  kAutoCompleteIndex_* results
-  mozIStorageStatement* GetDBFeedbackIncrease();
   nsCOMPtr<mozIStorageStatement> mDBFeedbackIncrease;
 
   /**
@@ -694,7 +670,7 @@ protected:
 
   nsresult InitAutoComplete();
   nsresult CreateAutoCompleteQueries();
-  PRBool mAutoCompleteEnabled;
+  PRBool mAutoCompleteOnlyTyped;
   MatchType mAutoCompleteMatchBehavior;
   PRBool mAutoCompleteFilterJavascript;
   PRInt32 mAutoCompleteMaxResults;
@@ -703,26 +679,21 @@ protected:
   nsString mAutoCompleteRestrictTag;
   nsString mAutoCompleteMatchTitle;
   nsString mAutoCompleteMatchUrl;
-  nsString mAutoCompleteRestrictTyped;
   PRInt32 mAutoCompleteSearchChunkSize;
   PRInt32 mAutoCompleteSearchTimeout;
   nsCOMPtr<nsITimer> mAutoCompleteTimer;
 
-  static const PRInt32 kAutoCompleteBehaviorHistory;
-  static const PRInt32 kAutoCompleteBehaviorBookmark;
-  static const PRInt32 kAutoCompleteBehaviorTag;
-  static const PRInt32 kAutoCompleteBehaviorTitle;
-  static const PRInt32 kAutoCompleteBehaviorUrl;
-  static const PRInt32 kAutoCompleteBehaviorTyped;
-
-  PRInt32 mAutoCompleteDefaultBehavior; // kAutoCompleteBehavior* bitmap
-  PRInt32 mAutoCompleteCurrentBehavior; // kAutoCompleteBehavior* bitmap
+  PRBool mRestrictHistory;
+  PRBool mRestrictBookmark;
+  PRBool mRestrictTag;
+  PRBool mMatchTitle;
+  PRBool mMatchUrl;
 
   // Original search string for case-sensitive usage
   nsString mOrigSearchString;
   // Search string and tokens for case-insensitive matching
   nsString mCurrentSearchString;
-  nsTArray<nsString> mCurrentSearchTokens;
+  nsStringArray mCurrentSearchTokens;
   void GenerateSearchTokens();
   void AddSearchToken(nsAutoString &aToken);
   void ProcessTokensForSpecialSearch();
@@ -779,6 +750,9 @@ protected:
 
   // frecency prefs
   PRInt32 mNumVisitsForFrecency;
+  PRInt32 mNumCalculateFrecencyOnIdle;
+  PRInt32 mNumCalculateFrecencyOnMigrate;
+  PRInt32 mFrecencyUpdateIdleTime;
   PRInt32 mFirstBucketCutoffInDays;
   PRInt32 mSecondBucketCutoffInDays;
   PRInt32 mThirdBucketCutoffInDays;
@@ -814,10 +788,7 @@ protected:
   nsresult OnIdle();
 
   PRInt64 mTagsFolder;
-
-  PRBool mInPrivateBrowsing;
-
-  PRUint16 mDatabaseStatus;
+  PRInt64 GetTagsFolder();
 };
 
 /**

@@ -142,35 +142,26 @@ public:
 #ifdef MOZ_MEDIA
     eDOMEvents_loadstart,
     eDOMEvents_progress,
-    eDOMEvents_suspend,
+    eDOMEvents_loadedmetadata,
+    eDOMEvents_loadedfirstframe,
     eDOMEvents_emptied,
     eDOMEvents_stalled,
     eDOMEvents_play,
     eDOMEvents_pause,
-    eDOMEvents_loadedmetadata,
-    eDOMEvents_loadeddata,
     eDOMEvents_waiting,
-    eDOMEvents_playing,
-    eDOMEvents_canplay,
-    eDOMEvents_canplaythrough,
     eDOMEvents_seeking,
     eDOMEvents_seeked,
     eDOMEvents_timeupdate,
     eDOMEvents_ended,
+    eDOMEvents_dataunavailable,
+    eDOMEvents_canshowcurrentframe,
+    eDOMEvents_canplay,
+    eDOMEvents_canplaythrough,
     eDOMEvents_ratechange,
     eDOMEvents_durationchange,
     eDOMEvents_volumechange,
 #endif
-    eDOMEvents_afterpaint,
-    eDOMEvents_MozSwipeGesture,
-    eDOMEvents_MozMagnifyGestureStart,
-    eDOMEvents_MozMagnifyGestureUpdate,
-    eDOMEvents_MozMagnifyGesture,
-    eDOMEvents_MozRotateGestureStart,
-    eDOMEvents_MozRotateGestureUpdate,
-    eDOMEvents_MozRotateGesture,
-    eDOMEvents_MozTapGesture,
-    eDOMEvents_MozPressTapGesture
+    eDOMEvents_afterpaint
   };
 
   nsDOMEvent(nsPresContext* aPresContext, nsEvent* aEvent);
@@ -188,8 +179,11 @@ public:
   // nsIPrivateDOMEvent interface
   NS_IMETHOD    DuplicatePrivateData();
   NS_IMETHOD    SetTarget(nsIDOMEventTarget* aTarget);
-  NS_IMETHOD_(PRBool)    IsDispatchStopped();
-  NS_IMETHOD_(nsEvent*)    GetInternalNSEvent();
+  NS_IMETHOD    SetCurrentTarget(nsIDOMEventTarget* aCurrentTarget);
+  NS_IMETHOD    SetOriginalTarget(nsIDOMEventTarget* aOriginalTarget);
+  NS_IMETHOD    IsDispatchStopped(PRBool* aIsDispatchStopped);
+  NS_IMETHOD    GetInternalNSEvent(nsEvent** aNSEvent);
+  NS_IMETHOD    HasOriginalTarget(PRBool* aResult);
   NS_IMETHOD    SetTrusted(PRBool aTrusted);
 
   static PopupControlState GetEventPopupControlState(nsEvent *aEvent);
@@ -204,7 +198,6 @@ protected:
   nsresult SetEventType(const nsAString& aEventTypeArg);
   static const char* GetEventName(PRUint32 aEventType);
   already_AddRefed<nsIDOMEventTarget> GetTargetFromFrame();
-  nsresult ReportWrongPropertyAccessWarning(const char* aPropertyName);
 
   nsEvent*                    mEvent;
   nsCOMPtr<nsPresContext>     mPresContext;

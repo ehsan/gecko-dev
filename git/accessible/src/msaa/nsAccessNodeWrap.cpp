@@ -137,13 +137,6 @@ STDMETHODIMP nsAccessNodeWrap::QueryInterface(REFIID iid, void** ppv)
 STDMETHODIMP
 nsAccessNodeWrap::QueryService(REFGUID guidService, REFIID iid, void** ppv)
 {
-  static const GUID IID_SimpleDOMDeprecated = {0x0c539790,0x12e4,0x11cf,0xb6,0x61,0x00,0xaa,0x00,0x4c,0xd6,0xd8};
-  if (guidService != IID_ISimpleDOMNode &&
-      guidService != IID_SimpleDOMDeprecated &&
-      guidService != IID_IAccessible &&  guidService != IID_IAccessible2 &&
-      guidService != IID_IAccessibleApplication)
-    return E_INVALIDARG;
-
   // Can get to IAccessibleApplication from any node via QS
   if (iid == IID_IAccessibleApplication) {
     nsRefPtr<nsApplicationAccessibleWrap> app =
@@ -323,8 +316,7 @@ __try{
     return E_FAIL;
 
   nsCOMPtr<nsIDOMCSSStyleDeclaration> cssDecl;
-  nsCoreUtils::GetComputedStyleDeclaration(EmptyString(), mDOMNode,
-                                           getter_AddRefs(cssDecl));
+  GetComputedStyleDeclaration(EmptyString(), mDOMNode, getter_AddRefs(cssDecl));
   NS_ENSURE_TRUE(cssDecl, E_FAIL);
 
   PRUint32 length;
@@ -359,8 +351,7 @@ __try {
     return E_FAIL;
  
   nsCOMPtr<nsIDOMCSSStyleDeclaration> cssDecl;
-  nsCoreUtils::GetComputedStyleDeclaration(EmptyString(), mDOMNode,
-                                           getter_AddRefs(cssDecl));
+  GetComputedStyleDeclaration(EmptyString(), mDOMNode, getter_AddRefs(cssDecl));
   NS_ENSURE_TRUE(cssDecl, E_FAIL);
 
   PRUint32 index;

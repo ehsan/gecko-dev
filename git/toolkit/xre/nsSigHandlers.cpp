@@ -118,7 +118,7 @@ void abnormal_exit_handler(int signum)
 
 extern "C" {
 
-static void PrintStackFrame(void *aPC, void *aClosure)
+PR_STATIC_CALLBACK(void) PrintStackFrame(void *aPC, void *aClosure)
 {
   char buf[1024];
   nsCodeAddressDetails details;
@@ -149,8 +149,6 @@ ah_crap_handler(int signum)
   sleep(_gdb_sleep_duration);
 
   printf("Done sleeping...\n");
-
-  _exit(signum);
 }
 #endif // CRAWL_STACK_ON_SIGSEGV
 

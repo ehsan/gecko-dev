@@ -47,7 +47,6 @@
 #include "nsUnicharUtils.h"
 #include "nsParserUtils.h"
 #include "nsGkAtoms.h"
-#include "nsThreadUtils.h"
 
 class nsXMLStylesheetPI : public nsXMLProcessingInstruction,
                           public nsStyleLinkElement
@@ -90,10 +89,9 @@ protected:
 
 // nsISupports implementation
 
-NS_INTERFACE_TABLE_HEAD(nsXMLStylesheetPI)
-  NS_NODE_INTERFACE_TABLE4(nsXMLStylesheetPI, nsIDOMNode,
-                           nsIDOMProcessingInstruction, nsIDOMLinkStyle,
-                           nsIStyleSheetLinkingElement)
+NS_INTERFACE_MAP_BEGIN(nsXMLStylesheetPI)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMLinkStyle)
+  NS_INTERFACE_MAP_ENTRY(nsIStyleSheetLinkingElement)
   NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(XMLStylesheetProcessingInstruction)
 NS_INTERFACE_MAP_END_INHERITING(nsXMLProcessingInstruction)
 
@@ -124,9 +122,7 @@ nsXMLStylesheetPI::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                                                        aCompileEventHandlers);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsContentUtils::AddScriptRunner(
-    new nsRunnableMethod<nsXMLStylesheetPI>(this,
-                                            &nsXMLStylesheetPI::UpdateStyleSheetInternal));
+  UpdateStyleSheetInternal(nsnull);
 
   return rv;  
 }
@@ -174,7 +170,8 @@ nsXMLStylesheetPI::GetStyleSheetURL(PRBool* aIsInline,
   *aURI = nsnull;
 
   nsAutoString href;
-  if (!GetAttrValue(nsGkAtoms::href, href)) {
+  GetAttrValue(nsGkAtoms::href, href);
+  if (href.IsEmpty()) {
     return;
   }
 

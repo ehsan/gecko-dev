@@ -174,7 +174,7 @@
     * XXX OS X over-commits, so we should probably use mmap() instead of
     * vm_allocate(), so that MALLOC_PAGEFILE works.
     */
-#define MALLOC_PAGEFILE
+#  define MALLOC_PAGEFILE
 #endif
 
 #ifdef MALLOC_PAGEFILE
@@ -190,28 +190,20 @@
 #endif
 #endif
 
-#ifndef MOZ_MEMORY_WINCE
 #include <sys/types.h>
 
 #include <errno.h>
-#include <stdlib.h>
-#endif
 #include <limits.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #ifdef MOZ_MEMORY_WINDOWS
-#ifndef MOZ_MEMORY_WINCE
 #include <cruntime.h>
 #include <internal.h>
-#include <io.h>
-#else
-#include <cmnintrin.h>
-#include <crtdefs.h>
-#define SIZE_MAX UINT_MAX
-#endif
 #include <windows.h>
+#include <io.h>
 
 #pragma warning( disable: 4267 4996 4146 )
 
@@ -223,19 +215,12 @@
 #define	PATH_MAX MAX_PATH
 #define	vsnprintf _vsnprintf
 
-#ifndef NO_TLS
 static unsigned long tlsIndex = 0xffffffff;
-#endif 
 
 #define	__thread
-#ifdef MOZ_MEMORY_WINCE
-#define	_pthread_self() GetCurrentThreadId()
-#else
 #define	_pthread_self() __threadid()
-#endif
 #define	issetugid() 0
 
-#ifndef MOZ_MEMORY_WINCE
 /* use MSVC intrinsics */
 #pragma intrinsic(_BitScanForward)
 static __forceinline int
@@ -263,19 +248,6 @@ getenv(const char *name)
 
 	return (NULL);
 }
-
-#else /* WIN CE */
-
-#define ENOMEM          12
-#define EINVAL          22
-
-static __forceinline int
-ffs(int x)
-{
-
-	return 32 - _CountLeadingZeros((-x) & x);
-}
-#endif
 
 typedef unsigned char uint8_t;
 typedef unsigned uint32_t;
@@ -368,19 +340,8 @@ __FBSDID("$FreeBSD: head/lib/libc/stdlib/malloc.c 180599 2008-07-18 19:35:44Z ja
 
 #include "jemalloc.h"
 
-#undef bool
-#define bool jemalloc_bool
-
 #ifdef MOZ_MEMORY_DARWIN
 static const bool __isthreaded = true;
-#endif
-
-#if defined(MOZ_MEMORY_SOLARIS) && defined(MAP_ALIGN) && !defined(JEMALLOC_NEVER_USES_MAP_ALIGN)
-#define JEMALLOC_USES_MAP_ALIGN	 /* Required on Solaris 10. Might improve performance elsewhere. */
-#endif
-
-#if defined(MOZ_MEMORY_WINCE) && !defined(MOZ_MEMORY_WINCE6)
-#define JEMALLOC_USES_MAP_ALIGN	 /* Required for Windows CE < 6 */
 #endif
 
 #define __DECONST(type, var) ((type)(uintptr_t)(const void *)(var))
@@ -482,11 +443,8 @@ static const bool __isthreaded = true;
  * Size and alignment of memory chunks that are allocated by the OS's virtual
  * memory system.
  */
-#if defined(MOZ_MEMORY_WINCE) && !defined(MOZ_MEMORY_WINCE6)
-#define	CHUNK_2POW_DEFAULT	21
-#else
 #define	CHUNK_2POW_DEFAULT	20
-#endif
+
 /* Maximum number of dirty pages per arena. */
 #define	DIRTY_MAX_DEFAULT	(1U << 10)
 
@@ -1204,7 +1162,7 @@ static size_t	opt_chunk_2pow = CHUNK_2POW_DEFAULT;
 static int	opt_reserve_min_lshift = 0;
 static int	opt_reserve_range_lshift = 0;
 #ifdef MALLOC_PAGEFILE
-static bool	opt_pagefile = false;
+static bool	opt_pagefile = true;
 #endif
 #ifdef MALLOC_UTRACE
 static bool	opt_utrace = false;
@@ -1328,9 +1286,6 @@ static uint64_t	reserve_notify(reserve_cnd_t cnd, size_t size, uint64_t seq);
 static uint64_t	reserve_crit(size_t size, const char *fname, uint64_t seq);
 static void	reserve_fail(size_t size, const char *fname);
 
-void		_malloc_prefork(void);
-void		_malloc_postfork(void);
-
 /*
  * End function prototypes.
  */
@@ -1361,17 +1316,6 @@ umax2s(uintmax_t x, char *s)
 static void
 wrtmessage(const char *p1, const char *p2, const char *p3, const char *p4)
 {
-#ifdef MOZ_MEMORY_WINCE
-       wchar_t buf[1024];
-#define WRT_PRINT(s) \
-       MultiByteToWideChar(CP_ACP, 0, s, -1, buf, 1024); \
-       OutputDebugStringW(buf)
-
-       WRT_PRINT(p1);
-       WRT_PRINT(p2);
-       WRT_PRINT(p3);
-       WRT_PRINT(p4);
-#else
 #if defined(MOZ_MEMORY) && !defined(MOZ_MEMORY_WINDOWS)
 #define	_write	write
 #endif
@@ -1379,8 +1323,6 @@ wrtmessage(const char *p1, const char *p2, const char *p3, const char *p4)
 	_write(STDERR_FILENO, p2, (unsigned int) strlen(p2));
 	_write(STDERR_FILENO, p3, (unsigned int) strlen(p3));
 	_write(STDERR_FILENO, p4, (unsigned int) strlen(p4));
-#endif
-
 }
 
 #define _malloc_message malloc_message
@@ -1412,9 +1354,7 @@ void	(*_malloc_message)(const char *p1, const char *p2, const char *p3,
 static bool
 malloc_mutex_init(malloc_mutex_t *mutex)
 {
-#if defined(MOZ_MEMORY_WINCE)
-	InitializeCriticalSection(mutex);
-#elif defined(MOZ_MEMORY_WINDOWS)
+#if defined(MOZ_MEMORY_WINDOWS)
 	if (__isthreaded)
 		if (! __crtInitCritSecAndSpinCount(mutex, _CRT_SPINCOUNT))
 			return (true);
@@ -1476,9 +1416,7 @@ malloc_mutex_unlock(malloc_mutex_t *mutex)
 static bool
 malloc_spin_init(malloc_spinlock_t *lock)
 {
-#if defined(MOZ_MEMORY_WINCE)
-	InitializeCriticalSection(lock);
-#elif defined(MOZ_MEMORY_WINDOWS)
+#if defined(MOZ_MEMORY_WINDOWS)
 	if (__isthreaded)
 		if (! __crtInitCritSecAndSpinCount(lock, _CRT_SPINCOUNT))
 			return (true);
@@ -1759,7 +1697,6 @@ _getprogname(void)
 static void
 malloc_printf(const char *format, ...)
 {
-#ifndef WINCE
 	char buf[4096];
 	va_list ap;
 
@@ -1767,7 +1704,6 @@ malloc_printf(const char *format, ...)
 	vsnprintf(buf, sizeof(buf), format, ap);
 	va_end(ap);
 	_malloc_message(buf, "", "", "");
-#endif
 }
 #endif
 
@@ -2146,79 +2082,22 @@ rb_wrap(static, extent_tree_ad_, extent_tree_t, extent_node_t, link_ad,
  */
 
 #ifdef MOZ_MEMORY_WINDOWS
-#ifdef MOZ_MEMORY_WINCE
-#define ALIGN_ADDR2OFFSET(al, ad) \
-	((uintptr_t)ad & (al - 1))
-static void *
-pages_map_align(size_t size, int pfd, size_t alignment)
-{
-	
-	void *ret; 
-	int offset;
-	if (size % alignment)
-		size += (alignment - (size % alignment));
-	assert(size >= alignment);
-	ret = pages_map(NULL, size, pfd);
-	offset = ALIGN_ADDR2OFFSET(alignment, ret);
-	if (offset) {  
-		/* try to over allocate by the ammount we're offset */
-		void *tmp;
-		pages_unmap(ret, size);
-		tmp = VirtualAlloc(NULL, size + alignment - offset, 
-					 MEM_RESERVE, PAGE_NOACCESS);
-		if (offset == ALIGN_ADDR2OFFSET(alignment, tmp))
-			ret = VirtualAlloc((void*)((intptr_t)tmp + alignment 
-						   - offset), size, MEM_COMMIT,
-					   PAGE_READWRITE);
-		else 
-			VirtualFree(tmp, 0, MEM_RELEASE);
-		offset = ALIGN_ADDR2OFFSET(alignment, ret);
-		
-	
-		if (offset) {  
-			/* over allocate to ensure we have an aligned region */
-			ret = VirtualAlloc(NULL, size + alignment, MEM_RESERVE, 
-					   PAGE_NOACCESS);
-			offset = ALIGN_ADDR2OFFSET(alignment, ret);
-			ret = VirtualAlloc((void*)((intptr_t)ret + 
-						   alignment - offset),
-					   size, MEM_COMMIT, PAGE_READWRITE);
-		}
-	}
-	return (ret);
-}
-#endif
-
 static void *
 pages_map(void *addr, size_t size, int pfd)
 {
-	void *ret = NULL;
-#if defined(MOZ_MEMORY_WINCE) && !defined(MOZ_MEMORY_WINCE6)
-	void *va_ret;
-	assert(addr == NULL);
-	va_ret = VirtualAlloc(addr, size, MEM_RESERVE, PAGE_NOACCESS);
-	if (va_ret)
-		ret = VirtualAlloc(va_ret, size, MEM_COMMIT, PAGE_READWRITE);
-	assert(va_ret == ret);
-#else
+	void *ret;
+
 	ret = VirtualAlloc(addr, size, MEM_COMMIT | MEM_RESERVE,
 	    PAGE_READWRITE);
-#endif
+
 	return (ret);
 }
 
 static void
 pages_unmap(void *addr, size_t size)
 {
+
 	if (VirtualFree(addr, 0, MEM_RELEASE) == 0) {
-#if defined(MOZ_MEMORY_WINCE) && !defined(MOZ_MEMORY_WINCE6)
-		if (GetLastError() == ERROR_INVALID_PARAMETER) {
-			MEMORY_BASIC_INFORMATION info;
-			VirtualQuery(addr, &info, sizeof(info));
-			if (VirtualFree(info.AllocationBase, 0, MEM_RELEASE))
-				return;
-		}
-#endif
 		_malloc_message(_getprogname(),
 		    ": (malloc) Error in VirtualFree()\n", "", "");
 		if (opt_abort)
@@ -2278,34 +2157,6 @@ pages_copy(void *dest, const void *src, size_t n)
 	    (vm_address_t)dest);
 }
 #else /* MOZ_MEMORY_DARWIN */
-#ifdef JEMALLOC_USES_MAP_ALIGN
-static void *
-pages_map_align(size_t size, int pfd, size_t alignment)
-{
-	void *ret;
-
-	/*
-	 * We don't use MAP_FIXED here, because it can cause the *replacement*
-	 * of existing mappings, and we only want to create new mappings.
-	 */
-#ifdef MALLOC_PAGEFILE
-	if (pfd != -1) {
-		ret = mmap((void *)alignment, size, PROT_READ | PROT_WRITE, MAP_PRIVATE |
-		    MAP_NOSYNC | MAP_ALIGN, pfd, 0);
-	} else
-#endif
-	       {
-		ret = mmap((void *)alignment, size, PROT_READ | PROT_WRITE, MAP_PRIVATE |
-		    MAP_NOSYNC | MAP_ALIGN | MAP_ANON, -1, 0);
-	}
-	assert(ret != NULL);
-
-	if (ret == MAP_FAILED)
-		ret = NULL;
-	return (ret);
-}
-#endif
-
 static void *
 pages_map(void *addr, size_t size, int pfd)
 {
@@ -2380,7 +2231,7 @@ malloc_rtree_new(unsigned bits)
 		height++;
 	assert(height * bits_per_level >= bits);
 
-	ret = (malloc_rtree_t*)base_calloc(1, sizeof(malloc_rtree_t) + (sizeof(unsigned) *
+	ret = base_calloc(1, sizeof(malloc_rtree_t) + (sizeof(unsigned) *
 	    (height - 1)));
 	if (ret == NULL)
 		return (NULL);
@@ -2394,7 +2245,7 @@ malloc_rtree_new(unsigned bits)
 	for (i = 1; i < height; i++)
 		ret->level2bits[i] = bits_per_level;
 
-	ret->root = (void**)base_calloc(1, sizeof(void *) << ret->level2bits[0]);
+	ret->root = base_calloc(1, sizeof(void *) << ret->level2bits[0]);
 	if (ret->root == NULL) {
 		/*
 		 * We leak the rtree here, since there's no generic base
@@ -2421,7 +2272,7 @@ malloc_rtree_get(malloc_rtree_t *rtree, uintptr_t key)
 	    i++, lshift += bits, node = child) {
 		bits = rtree->level2bits[i];
 		subkey = (key << lshift) >> ((SIZEOF_PTR << 3) - bits);
-		child = (void**)node[subkey];
+		child = node[subkey];
 		if (child == NULL) {
 			malloc_spin_unlock(&rtree->lock);
 			return (NULL);
@@ -2450,9 +2301,9 @@ malloc_rtree_set(malloc_rtree_t *rtree, uintptr_t key, void *val)
 	    i++, lshift += bits, node = child) {
 		bits = rtree->level2bits[i];
 		subkey = (key << lshift) >> ((SIZEOF_PTR << 3) - bits);
-		child = (void**)node[subkey];
+		child = node[subkey];
 		if (child == NULL) {
-			child = (void**)base_calloc(1, sizeof(void *) <<
+			child = base_calloc(1, sizeof(void *) <<
 			    rtree->level2bits[i+1]);
 			if (child == NULL) {
 				malloc_spin_unlock(&rtree->lock);
@@ -2476,9 +2327,7 @@ static void *
 chunk_alloc_mmap(size_t size, bool pagefile)
 {
 	void *ret;
-#ifndef JEMALLOC_USES_MAP_ALIGN
 	size_t offset;
-#endif
 	int pfd;
 
 #ifdef MALLOC_PAGEFILE
@@ -2500,9 +2349,6 @@ chunk_alloc_mmap(size_t size, bool pagefile)
 	 * since it reduces the number of page files.
 	 */
 
-#ifdef JEMALLOC_USES_MAP_ALIGN
-	ret = pages_map_align(size, pfd, chunksize);
-#else
 	ret = pages_map(NULL, size, pfd);
 	if (ret == NULL)
 		goto RETURN;
@@ -2539,8 +2385,8 @@ chunk_alloc_mmap(size_t size, bool pagefile)
 			 */
 		}
 	}
+
 RETURN:
-#endif
 #ifdef MALLOC_PAGEFILE
 	if (pfd != -1)
 		pagefile_close(pfd);
@@ -2683,9 +2529,7 @@ chunk_recycle_reserve(size_t size, bool zero)
 				do {
 					seq = reserve_notify(RESERVE_CND_LOW,
 					    size, seq);
-					if (seq == 0)
-						goto MALLOC_OUT;
-				} while (reserve_cur < reserve_min);
+				} while (reserve_cur < reserve_min && seq != 0);
 			} else {
 				extent_node_t *node;
 
@@ -2697,13 +2541,11 @@ chunk_recycle_reserve(size_t size, bool zero)
 					do {
 						seq = reserve_notify(
 						    RESERVE_CND_LOW, size, seq);
-						if (seq == 0)
-							goto MALLOC_OUT;
-					} while (reserve_cur < reserve_min);
+					} while (reserve_cur < reserve_min &&
+					    seq != 0);
 				}
 			}
 		}
-MALLOC_OUT:
 		malloc_mutex_unlock(&reserve_mtx);
 
 #ifdef MALLOC_DECOMMIT
@@ -2892,7 +2734,7 @@ choose_arena(void)
 	}
 
 #  ifdef MOZ_MEMORY_WINDOWS
-	ret = (arena_t*)TlsGetValue(tlsIndex);
+	ret = TlsGetValue(tlsIndex);
 #  else
 	ret = arenas_map;
 #  endif
@@ -3437,7 +3279,7 @@ arena_run_alloc(arena_t *arena, arena_bin_t *bin, size_t size, bool large,
 		key.bits = size | CHUNK_MAP_KEY;
 		mapelm = arena_avail_tree_nsearch(&arena->runs_avail, &key);
 		if (mapelm != NULL) {
-			arena_chunk_t *run_chunk = (arena_chunk_t*)CHUNK_ADDR2BASE(mapelm);
+			arena_chunk_t *run_chunk = CHUNK_ADDR2BASE(mapelm);
 			size_t pageind = ((uintptr_t)mapelm -
 			    (uintptr_t)run_chunk->map) /
 			    sizeof(arena_chunk_map_t);
@@ -4169,13 +4011,13 @@ arena_palloc(arena_t *arena, size_t alignment, size_t size, size_t alloc_size)
 	assert((offset & pagesize_mask) == 0);
 	assert(offset < alloc_size);
 	if (offset == 0)
-		arena_run_trim_tail(arena, chunk, (arena_run_t*)ret, alloc_size, size, false);
+		arena_run_trim_tail(arena, chunk, ret, alloc_size, size, false);
 	else {
 		size_t leadsize, trailsize;
 
 		leadsize = alignment - offset;
 		if (leadsize > 0) {
-			arena_run_trim_head(arena, chunk, (arena_run_t*)ret, alloc_size,
+			arena_run_trim_head(arena, chunk, ret, alloc_size,
 			    alloc_size - leadsize);
 			ret = (void *)((uintptr_t)ret + leadsize);
 		}
@@ -4184,7 +4026,7 @@ arena_palloc(arena_t *arena, size_t alignment, size_t size, size_t alloc_size)
 		if (trailsize != 0) {
 			/* Trim trailing space. */
 			assert(trailsize < alloc_size);
-			arena_run_trim_tail(arena, chunk, (arena_run_t*)ret, size + trailsize,
+			arena_run_trim_tail(arena, chunk, ret, size + trailsize,
 			    size, false);
 		}
 	}
@@ -4462,7 +4304,7 @@ arena_dalloc_small(arena_t *arena, arena_chunk_t *chunk, void *ptr,
 			/* Switch runcur. */
 			if (bin->runcur->nfree > 0) {
 				arena_chunk_t *runcur_chunk =
-				    (arena_chunk_t*)CHUNK_ADDR2BASE(bin->runcur);
+				    CHUNK_ADDR2BASE(bin->runcur);
 				size_t runcur_pageind =
 				    (((uintptr_t)bin->runcur -
 				    (uintptr_t)runcur_chunk)) >> pagesize_2pow;
@@ -5028,9 +4870,6 @@ huge_palloc(size_t alignment, size_t size)
 	} else
 #endif
 		pfd = -1;
-#ifdef JEMALLOC_USES_MAP_ALIGN
-		ret = pages_map_align(chunk_size, pfd, alignment);
-#else
 	do {
 		void *over;
 
@@ -5052,7 +4891,7 @@ huge_palloc(size_t alignment, size_t size)
 		 * again.
 		 */
 	} while (ret == NULL);
-#endif
+
 	/* Insert node into huge. */
 	node->addr = ret;
 #ifdef MALLOC_DECOMMIT
@@ -5257,9 +5096,8 @@ malloc_ncpus(void)
 {
 	unsigned ret;
 	int fd, nread, column;
-	char buf[1024];
+	char buf[1];
 	static const char matchstr[] = "processor\t:";
-	int i;
 
 	/*
 	 * sysconf(3) would be the preferred method for determining the number
@@ -5279,23 +5117,20 @@ malloc_ncpus(void)
 		nread = read(fd, &buf, sizeof(buf));
 		if (nread <= 0)
 			break; /* EOF or error. */
-		for (i = 0;i < nread;i++) {
-			char c = buf[i];
-			if (c == '\n')
-				column = 0;
-			else if (column != -1) {
-				if (c == matchstr[column]) {
-					column++;
-					if (column == sizeof(matchstr) - 1) {
-						column = -1;
-						ret++;
-					}
-				} else
+
+		if (buf[0] == '\n')
+			column = 0;
+		else if (column != -1) {
+			if (buf[0] == matchstr[column]) {
+				column++;
+				if (column == sizeof(matchstr) - 1) {
 					column = -1;
-			}
+					ret++;
+				}
+			} else
+				column = -1;
 		}
 	}
-
 	if (ret == 0)
 		ret = 1; /* Something went wrong in the parser. */
 	close(fd);
@@ -5509,7 +5344,7 @@ malloc_print_stats(void)
  * implementation has to take pains to avoid infinite recursion during
  * initialization.
  */
-#if (defined(MOZ_MEMORY_WINDOWS) || defined(MOZ_MEMORY_DARWIN)) && !defined(MOZ_MEMORY_WINCE)
+#if (defined(MOZ_MEMORY_WINDOWS) || defined(MOZ_MEMORY_DARWIN))
 #define	malloc_init() false
 #else
 static inline bool
@@ -5523,7 +5358,7 @@ malloc_init(void)
 }
 #endif
 
-#if !defined(MOZ_MEMORY_WINDOWS) || defined(MOZ_MEMORY_WINCE) 
+#ifndef MOZ_MEMORY_WINDOWS
 static
 #endif
 bool
@@ -5856,11 +5691,6 @@ MALLOC_OUT:
 #endif
 	}
 
-#if (!defined(MOZ_MEMORY_WINDOWS) && !defined(MOZ_MEMORY_DARWIN))
-	/* Prevent potential deadlock on malloc locks after fork. */
-	pthread_atfork(_malloc_prefork, _malloc_postfork, _malloc_postfork);
-#endif
-
 	/* Set variables according to the value of opt_small_max_2pow. */
 	if (opt_small_max_2pow < opt_quantum_2pow)
 		opt_small_max_2pow = opt_quantum_2pow;
@@ -5904,15 +5734,6 @@ MALLOC_OUT:
 	}
 	arena_maxclass = chunksize - (arena_chunk_header_npages <<
 	    pagesize_2pow);
-
-#ifdef JEMALLOC_USES_MAP_ALIGN
-	/*
-	 * When using MAP_ALIGN, the alignment parameter must be a power of two
-	 * multiple of the system pagesize, or mmap will fail.
-	 */
-	assert((chunksize % pagesize) == 0);
-	assert((1 << (ffs(chunksize / pagesize) - 1)) == (chunksize/pagesize));
-#endif
 
 	UTRACE(0, 0, 0);
 
@@ -6123,9 +5944,8 @@ malloc_shutdown()
 #  define ZONE_INLINE
 #endif
 
-/* Mangle standard interfaces on Darwin and Windows CE, 
-   in order to avoid linking problems. */
-#if defined(MOZ_MEMORY_DARWIN)
+/* Mangle standard interfaces on Darwin, in order to avoid linking problems. */
+#ifdef MOZ_MEMORY_DARWIN
 #define	malloc(a)	moz_malloc(a)
 #define	valloc(a)	moz_valloc(a)
 #define	calloc(a, b)	moz_calloc(a, b)
@@ -6933,7 +6753,7 @@ reserve_min_set(size_t min)
 			size_t i, n;
 
 			n = size >> opt_chunk_2pow;
-			chunks = (void**)imalloc(n * sizeof(void *));
+			chunks = imalloc(n * sizeof(void *));
 			if (chunks == NULL)
 				return (true);
 			for (i = 0; i < n; i++) {

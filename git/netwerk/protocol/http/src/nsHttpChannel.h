@@ -70,7 +70,7 @@
 #include "nsICacheEntryDescriptor.h"
 #include "nsICacheListener.h"
 #include "nsIApplicationCache.h"
-#include "nsIApplicationCacheChannel.h"
+#include "nsIApplicationCacheContainer.h"
 #include "nsIEncodedChannel.h"
 #include "nsITransport.h"
 #include "nsIUploadChannel.h"
@@ -108,7 +108,7 @@ class nsHttpChannel : public nsHashPropertyBag
                     , public nsIProtocolProxyCallback
                     , public nsIProxiedChannel
                     , public nsITraceableChannel
-                    , public nsIApplicationCacheChannel
+                    , public nsIApplicationCacheContainer
 {
 public:
     NS_DECL_ISUPPORTS_INHERITED
@@ -129,7 +129,6 @@ public:
     NS_DECL_NSIPROXIEDCHANNEL
     NS_DECL_NSITRACEABLECHANNEL
     NS_DECL_NSIAPPLICATIONCACHECONTAINER
-    NS_DECL_NSIAPPLICATIONCACHECHANNEL
 
     nsHttpChannel();
     virtual ~nsHttpChannel();
@@ -153,10 +152,7 @@ private:
     }
 
     // AsyncCall may be used to call a member function asynchronously.
-    // retval isn't refcounted and is set only when event was successfully
-    // posted, the event is returned for the purpose of cancelling when needed
-    nsresult AsyncCall(nsAsyncCallback funcPtr,
-                       nsRunnableMethod<nsHttpChannel> **retval = nsnull);
+    nsresult AsyncCall(nsAsyncCallback funcPtr);
 
     PRBool   RequestIsConditional();
     nsresult Connect(PRBool firstTime = PR_TRUE);
@@ -172,8 +168,6 @@ private:
     nsresult ProcessNormal();
     nsresult ProcessNotModified();
     nsresult ProcessRedirection(PRUint32 httpStatus);
-    PRBool   ShouldSSLProxyResponseContinue(PRUint32 httpStatus);
-    nsresult ProcessFailedSSLConnect(PRUint32 httpStatus);
     nsresult ProcessAuthentication(PRUint32 httpStatus);
     nsresult ProcessFallback(PRBool *fallingBack);
     PRBool   ResponseWouldVary();
@@ -194,7 +188,7 @@ private:
     // cache specific methods
     nsresult OpenCacheEntry(PRBool offline, PRBool *delayed);
     nsresult OpenOfflineCacheEntryForWriting();
-    nsresult GenerateCacheKey(PRUint32 postID, nsACString &key);
+    nsresult GenerateCacheKey(nsACString &key);
     nsresult UpdateExpirationTime();
     nsresult CheckCache();
     nsresult ShouldUpdateOfflineCacheEntry(PRBool *shouldCacheForOfflineUse);
@@ -208,9 +202,6 @@ private:
     nsresult FinalizeCacheEntry();
     nsresult InstallCacheListener(PRUint32 offset = 0);
     nsresult InstallOfflineCacheListener();
-    void     MaybeInvalidateCacheEntryForSubsequentGet();
-    nsCacheStoragePolicy DetermineStoragePolicy();
-    void     AsyncOnExamineCachedResponse();
 
     // Handle the bogus Content-Encoding Apache sometimes sends
     void ClearBogusContentEncodingIfNeeded();
@@ -235,7 +226,6 @@ private:
     void     AddAuthorizationHeaders();
     nsresult GetCurrentPath(nsACString &);
     nsresult DoAuthRetry(nsAHttpConnection *);
-    PRBool   MustValidateBasedOnQueryUrl();
 
 private:
     nsCOMPtr<nsIURI>                  mOriginalURI;
@@ -339,11 +329,7 @@ private:
     // True if we are loading a fallback cache entry from the
     // application cache.
     PRUint32                          mFallbackChannel          : 1;
-    PRUint32                          mInheritApplicationCache  : 1;
-    PRUint32                          mChooseApplicationCache   : 1;
-    PRUint32                          mLoadedFromApplicationCache : 1;
     PRUint32                          mTracingEnabled           : 1;
-    PRUint32                          mForceAllowThirdPartyCookie : 1;
 
     class nsContentEncodings : public nsIUTF8StringEnumerator
     {

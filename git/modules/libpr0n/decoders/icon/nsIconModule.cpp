@@ -110,13 +110,13 @@ static const nsModuleComponentInfo components[] =
     }
 };
 
-static nsresult
+PR_STATIC_CALLBACK(nsresult)
 IconDecoderModuleCtor(nsIModule* aSelf)
 {
   return NS_OK;
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 IconDecoderModuleDtor(nsIModule* aSelf)
 {
 #ifdef MOZ_WIDGET_GTK2

@@ -113,8 +113,6 @@
     <command id="Browser:ReloadSkipCache" oncommand="BrowserReloadSkipCache()" disabled="true">
       <observes element="Browser:Reload" attribute="disabled"/>
     </command>
-    <command id="Browser:NextTab" oncommand="gBrowser.mTabContainer.advanceSelectedTab(1, true);"/>
-    <command id="Browser:PrevTab" oncommand="gBrowser.mTabContainer.advanceSelectedTab(-1, true);"/>
     <command id="cmd_fullZoomReduce"  oncommand="FullZoom.reduce()"/>
     <command id="cmd_fullZoomEnlarge" oncommand="FullZoom.enlarge()"/>
     <command id="cmd_fullZoomReset"   oncommand="FullZoom.reset()"/>
@@ -126,9 +124,7 @@
     <command id="Tools:Addons" oncommand="BrowserOpenAddonsMgr();"/>
     <command id="Tools:Sanitize"
      oncommand="Cc[GLUE_CID].getService(Ci.nsIBrowserGlue).sanitize(window || null);"/>
-    <command id="Tools:PrivateBrowsing" oncommand="gPrivateBrowsingUI.toggleMode();"/>
     <command id="History:UndoCloseTab" oncommand="undoCloseTab();"/>
-    <command id="History:UndoCloseWindow" oncommand="undoCloseWindow();"/>
   </commandset>
 
   <commandset id="placesCommands">
@@ -216,7 +212,7 @@
 #endif
 #ifdef XP_GNOME
     <key id="key_search2" key="&searchFocusUnix.commandkey;" command="Tools:Search" modifiers="accel"/>
-    <key id="key_openDownloads" key="&downloadsUnix.commandkey;" command="Tools:Downloads" modifiers="accel,shift"/>
+    <key id="key_openDownloads" key="&downloadsUnix.commandkey;" command="Tools:Downloads" modifiers="accel"/>
 #else
     <key id="key_openDownloads" key="&downloads.commandkey;" command="Tools:Downloads" modifiers="accel"/>
 #endif
@@ -282,15 +278,13 @@
 # Accel+Shift+A-F are reserved on GTK2
 #ifndef MOZ_WIDGET_GTK2
     <key id="bookmarkAllTabsKb" key="&bookmarkThisPageCmd.commandkey;" command="Browser:BookmarkAllTabs" modifiers="accel,shift"/>
-    <key id="manBookmarkKb" key="&bookmarksCmd.commandkey;" command="Browser:ShowAllBookmarks" modifiers="accel,shift"/>
-#else
-    <key id="manBookmarkKb" key="&bookmarksGtkCmd.commandkey;" command="Browser:ShowAllBookmarks" modifiers="accel,shift"/>
+    <key id="manBookmarkKb" key="&bookmarksSidebarCmd.commandkey;" command="Browser:ShowAllBookmarks" modifiers="accel,shift"/>
 #endif
-    <key id="viewBookmarksSidebarKb" key="&bookmarksCmd.commandkey;" command="viewBookmarksSidebar" modifiers="accel"/>
+    <key id="viewBookmarksSidebarKb" key="&bookmarksSidebarCmd.commandkey;" command="viewBookmarksSidebar" modifiers="accel"/>
 #ifdef XP_WIN
 # Cmd+I is conventially mapped to Info on MacOS X, thus it should not be 
 # overridden for other purposes there. 
-    <key id="viewBookmarksSidebarWinKb" key="&bookmarksWinCmd.commandkey;" command="viewBookmarksSidebar" modifiers="accel"/>
+    <key id="viewBookmarksSidebarWinKb" key="&bookmarksSidebarWinCmd.commandkey;" command="viewBookmarksSidebar" modifiers="accel"/>
 #endif
 
 # don't use |command="Browser:Stop"|, ESC is being used to freeze animated gifs,
@@ -320,7 +314,6 @@
     
     <key id="key_switchTextDirection" key="&bidiSwitchTextDirectionItem.commandkey;" command="cmd_switchTextDirection" modifiers="accel,shift" />
 
-    <key id="key_privatebrowsing" command="Tools:PrivateBrowsing" key="&privateBrowsingCmd.commandkey;" modifiers="accel,shift"/>
     <key id="key_sanitize" command="Tools:Sanitize" keycode="VK_DELETE" modifiers="accel,shift"/>
 #ifdef XP_MACOSX
     <key id="key_sanitize_mac" command="Tools:Sanitize" keycode="VK_BACK" modifiers="accel,shift"/>
@@ -330,7 +323,6 @@
 #endif
 
     <key id="key_undoCloseTab" command="History:UndoCloseTab" key="&tabCmd.commandkey;" modifiers="accel,shift"/>
-    <key id="key_undoCloseWindow" command="History:UndoCloseWindow" key="&newNavigatorCmd.key;" modifiers="accel,shift"/>
 
 #ifdef XP_GNOME
 #define NUM_SELECT_TAB_MODIFIER alt

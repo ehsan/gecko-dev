@@ -31,11 +31,8 @@ function run_test() {
     var StringBundle = 
 	Components.classes["@mozilla.org/intl/stringbundle;1"]
 	 .getService(Components.interfaces.nsIStringBundleService);
-    var ios = Components.classes["@mozilla.org/network/io-service;1"]
-	 .getService(Components.interfaces.nsIIOService);
-    var bundleURI = ios.newFileURI(do_get_file("strres.properties"));
 
-    var bundle = StringBundle.createBundle(bundleURI.spec);
+    var bundle = StringBundle.createBundle("resource://gre/res/strres.properties");
 
     var bundle_file = bundle.GetStringFromName(name_file);
     do_check_eq(bundle_file, value_file);

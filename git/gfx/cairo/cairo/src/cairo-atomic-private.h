@@ -37,17 +37,15 @@
 #ifndef CAIRO_ATOMIC_PRIVATE_H
 #define CAIRO_ATOMIC_PRIVATE_H
 
-# include "cairo-compiler-private.h"
-
 #if HAVE_CONFIG_H
 #include "config.h"
 #endif
 
 CAIRO_BEGIN_DECLS
 
-#if HAVE_INTEL_ATOMIC_PRIMITIVES
+#define CAIRO_HAS_ATOMIC_OPS 1
 
-#define HAS_ATOMIC_OPS 1
+#if CAIRO_HAS_INTEL_ATOMIC_PRIMITIVES
 
 typedef int cairo_atomic_int_t;
 
@@ -55,10 +53,11 @@ typedef int cairo_atomic_int_t;
 # define _cairo_atomic_int_dec_and_test(x) (__sync_fetch_and_add(x, -1) == 1)
 # define _cairo_atomic_int_cmpxchg(x, oldv, newv) __sync_val_compare_and_swap (x, oldv, newv)
 
-#endif
+#else
 
+# include "cairo-compiler-private.h"
 
-#ifndef HAS_ATOMIC_OPS
+# undef CAIRO_HAS_ATOMIC_OPS
 
 typedef int cairo_atomic_int_t;
 
@@ -74,7 +73,7 @@ _cairo_atomic_int_cmpxchg (int *x, int oldv, int newv);
 #endif
 
 
-#ifdef ATOMIC_OP_NEEDS_MEMORY_BARRIER
+#ifdef CAIRO_ATOMIC_OP_NEEDS_MEMORY_BARRIER
 
 # include "cairo-compiler-private.h"
 

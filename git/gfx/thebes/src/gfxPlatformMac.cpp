@@ -46,58 +46,18 @@
 #include "gfxAtsuiFonts.h"
 #include "gfxUserFontSet.h"
 
-#ifdef MOZ_CORETEXT
-#include "gfxCoreTextFonts.h"
-#endif
-
 #include "nsIPrefBranch.h"
 #include "nsIPrefService.h"
 #include "nsIPrefLocalizedString.h"
 #include "nsServiceManagerUtils.h"
 #include "nsCRT.h"
-#include "nsTArray.h"
-#include "nsUnicodeRange.h"
 
-#include "qcms.h"
+#include "lcms.h"
 
 gfxPlatformMac::gfxPlatformMac()
 {
     mOSXVersion = 0;
     mFontAntiAliasingThreshold = ReadAntiAliasingThreshold();
-
-#ifndef __LP64__
-    // On 64-bit, we only have CoreText, no ATSUI;
-    // for 32-bit, check whether we can and should use CoreText
-    mUseCoreText = PR_FALSE;
-
-#ifdef MOZ_CORETEXT
-    if (&CTLineCreateWithAttributedString != NULL) {
-        mUseCoreText = PR_TRUE;
-        nsCOMPtr<nsIPrefBranch> prefbranch = do_GetService(NS_PREFSERVICE_CONTRACTID);
-        if (prefbranch) {
-            PRBool enabled;
-            nsresult rv = prefbranch->GetBoolPref("gfx.force_atsui_text", &enabled);
-            if (NS_SUCCEEDED(rv) && enabled)
-                mUseCoreText = PR_FALSE;
-        }
-    }
-#ifdef DEBUG_jonathan
-    printf("Using %s for font & glyph shaping support\n",
-           mUseCoreText ? "CoreText" : "ATSUI");
-#endif
-#endif /* MOZ_CORETEXT */
-
-#endif /* not __LP64__ */
-}
-
-gfxPlatformMac::~gfxPlatformMac()
-{
-#ifdef MOZ_CORETEXT
-#ifndef __LP64__
-    if (mUseCoreText)
-#endif
-        gfxCoreTextFont::Shutdown();
-#endif
 }
 
 already_AddRefed<gfxASurface>
@@ -159,63 +119,42 @@ gfxPlatformMac::CreateFontGroup(const nsAString &aFamilies,
                                 const gfxFontStyle *aStyle,
                                 gfxUserFontSet *aUserFontSet)
 {
-#ifdef __LP64__
-    return new gfxCoreTextFontGroup(aFamilies, aStyle, aUserFontSet);
-#else
-#ifdef MOZ_CORETEXT
-    if (mUseCoreText)
-        return new gfxCoreTextFontGroup(aFamilies, aStyle, aUserFontSet);
-#endif
     return new gfxAtsuiFontGroup(aFamilies, aStyle, aUserFontSet);
-#endif
 }
 
 gfxFontEntry* 
-gfxPlatformMac::LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
-                                const nsAString& aFontName)
+gfxPlatformMac::LookupLocalFont(const nsAString& aFontName)
 {
-    return gfxQuartzFontCache::SharedFontCache()->LookupLocalFont(aProxyEntry, 
-                                                                  aFontName);
+    return gfxQuartzFontCache::SharedFontCache()->LookupLocalFont(aFontName);
 }
 
 gfxFontEntry* 
-gfxPlatformMac::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
-                                 nsISupports *aLoader,
-                                 const PRUint8 *aFontData, PRUint32 aLength)
+gfxPlatformMac::MakePlatformFont(const gfxFontEntry *aProxyEntry, const gfxDownloadedFontData* aFontData)
 {
-    return gfxQuartzFontCache::SharedFontCache()->MakePlatformFont(aProxyEntry, aFontData, aLength);
+    return gfxQuartzFontCache::SharedFontCache()->MakePlatformFont(aProxyEntry, aFontData);
 }
 
 PRBool
 gfxPlatformMac::IsFontFormatSupported(nsIURI *aFontURI, PRUint32 aFormatFlags)
 {
-    // check for strange format flags
-    NS_ASSERTION(!(aFormatFlags & gfxUserFontSet::FLAG_FORMAT_NOT_USED),
-                 "strange font format hint set");
-
-    // accept supported formats
-    if (aFormatFlags & (gfxUserFontSet::FLAG_FORMAT_OPENTYPE | 
-                        gfxUserFontSet::FLAG_FORMAT_TRUETYPE | 
-                        gfxUserFontSet::FLAG_FORMAT_TRUETYPE_AAT)) {
-        return PR_TRUE;
-    }
-
-    // reject all other formats, known and unknown
-    if (aFormatFlags != 0) {
+    // reject based on format flags
+    if (aFormatFlags & (gfxUserFontSet::FLAG_FORMAT_EOT | gfxUserFontSet::FLAG_FORMAT_SVG)) {
         return PR_FALSE;
     }
 
-    // no format hint set, need to look at data
+    // reject based on filetype in URI
+
+    // otherwise, return true
     return PR_TRUE;
 }
 
 nsresult
 gfxPlatformMac::GetFontList(const nsACString& aLangGroup,
                             const nsACString& aGenericFamily,
-                            nsTArray<nsString>& aListOfFonts)
+                            nsStringArray& aListOfFonts)
 {
-    gfxQuartzFontCache::SharedFontCache()->GetFontList(aLangGroup, aGenericFamily, aListOfFonts);
-
+    gfxQuartzFontCache::SharedFontCache()->
+        GetFontList(aLangGroup, aGenericFamily, aListOfFonts);
     return NS_OK;
 }
 
@@ -231,7 +170,7 @@ gfxPlatformMac::OSXVersion()
 {
     if (!mOSXVersion) {
         // minor version is not accurate, use gestaltSystemVersionMajor, gestaltSystemVersionMinor, gestaltSystemVersionBugFix for these
-        OSErr err = ::Gestalt(gestaltSystemVersion, (SInt32*) &mOSXVersion);
+        OSErr err = ::Gestalt(gestaltSystemVersion, (long int*) &mOSXVersion);
         if (err != noErr) {
             //This should probably be changed when our minimum version changes
             NS_ERROR("Couldn't determine OS X version, assuming 10.4");
@@ -315,18 +254,18 @@ gfxPlatformMac::AppendCJKPrefLangs(eFontPrefLang aPrefLangs[], PRUint32 &aLen, e
                 p++;
             }
         }
-
+    
         // Prefer the system locale if it is CJK.
-        TextEncoding sysScript = ::GetApplicationTextEncoding();
+        ScriptCode sysScript = ::GetScriptManagerVariable(smSysScript);
         // XXX Is not there the HK locale?
         switch (sysScript) {
-            case kTextEncodingMacJapanese:    AppendPrefLang(tempPrefLangs, tempLen, eFontPrefLang_Japanese); break;
-            case kTextEncodingMacChineseTrad: AppendPrefLang(tempPrefLangs, tempLen, eFontPrefLang_ChineseTW); break;
-            case kTextEncodingMacKorean:      AppendPrefLang(tempPrefLangs, tempLen, eFontPrefLang_Korean); break;
-            case kTextEncodingMacChineseSimp: AppendPrefLang(tempPrefLangs, tempLen, eFontPrefLang_ChineseCN); break;
-            default:                          break;
+            case smJapanese:    AppendPrefLang(tempPrefLangs, tempLen, eFontPrefLang_Japanese); break;
+            case smTradChinese: AppendPrefLang(tempPrefLangs, tempLen, eFontPrefLang_ChineseTW); break;
+            case smKorean:      AppendPrefLang(tempPrefLangs, tempLen, eFontPrefLang_Korean); break;
+            case smSimpChinese: AppendPrefLang(tempPrefLangs, tempLen, eFontPrefLang_ChineseCN); break;
+            default:            break;
         }
-
+    
         // last resort... (the order is same as old gfx.)
         AppendPrefLang(tempPrefLangs, tempLen, eFontPrefLang_Japanese);
         AppendPrefLang(tempPrefLangs, tempLen, eFontPrefLang_Korean);
@@ -384,7 +323,7 @@ gfxPlatformMac::ReadAntiAliasingThreshold()
     return threshold;
 }
 
-qcms_profile *
+cmsHPROFILE
 gfxPlatformMac::GetPlatformCMSOutputProfile()
 {
     CMProfileLocation device;
@@ -395,15 +334,14 @@ gfxPlatformMac::GetPlatformCMSOutputProfile()
     if (err != noErr)
         return nsnull;
 
-    qcms_profile *profile = nsnull;
+    cmsHPROFILE profile = nsnull;
     switch (device.locType) {
-#ifndef __LP64__
     case cmFileBasedProfile: {
         FSRef fsRef;
         if (!FSpMakeFSRef(&device.u.fileLoc.spec, &fsRef)) {
             char path[512];
             if (!FSRefMakePath(&fsRef, (UInt8*)(path), sizeof(path))) {
-                profile = qcms_profile_from_path(path);
+                profile = cmsOpenProfileFromFile(path, "r");
 #ifdef DEBUG_tor
                 if (profile)
                     fprintf(stderr,
@@ -413,9 +351,8 @@ gfxPlatformMac::GetPlatformCMSOutputProfile()
         }
         break;
     }
-#endif
     case cmPathBasedProfile:
-        profile = qcms_profile_from_path(device.u.pathLoc.path);
+        profile = cmsOpenProfileFromFile(device.u.pathLoc.path, "r");
 #ifdef DEBUG_tor
         if (profile)
             fprintf(stderr,
@@ -431,68 +368,4 @@ gfxPlatformMac::GetPlatformCMSOutputProfile()
     }
 
     return profile;
-}
-
-void
-gfxPlatformMac::SetupClusterBoundaries(gfxTextRun *aTextRun, const PRUnichar *aString)
-{
-    TextBreakLocatorRef locator;
-    OSStatus status = UCCreateTextBreakLocator(NULL, 0, kUCTextBreakClusterMask,
-                                               &locator);
-    if (status != noErr)
-        return;
-    UniCharArrayOffset breakOffset = 0;
-    UCTextBreakOptions options = kUCTextBreakLeadingEdgeMask;
-    PRUint32 length = aTextRun->GetLength();
-    while (breakOffset < length) {
-        UniCharArrayOffset next;
-        status = UCFindTextBreak(locator, kUCTextBreakClusterMask, options,
-                                 aString, length, breakOffset, &next);
-        if (status != noErr)
-            break;
-        options |= kUCTextBreakIterateMask;
-        PRUint32 i;
-        for (i = breakOffset + 1; i < next; ++i) {
-            gfxTextRun::CompressedGlyph g;
-            // Remember that this character is not the start of a cluster by
-            // setting its glyph data to "not a cluster start", "is a
-            // ligature start", with no glyphs.
-            aTextRun->SetGlyphs(i, g.SetComplex(PR_FALSE, PR_TRUE, 0), nsnull);
-        }
-        breakOffset = next;
-    }
-    UCDisposeTextBreakLocator(&locator);
-}
-
-
-eFontPrefLang
-gfxPlatformMac::GetFontPrefLangFor(PRUint8 aUnicodeRange)
-{
-    switch (aUnicodeRange) {
-        case kRangeSetLatin:   return eFontPrefLang_Western;
-        case kRangeCyrillic:   return eFontPrefLang_Cyrillic;
-        case kRangeGreek:      return eFontPrefLang_Greek;
-        case kRangeTurkish:    return eFontPrefLang_Turkish;
-        case kRangeHebrew:     return eFontPrefLang_Hebrew;
-        case kRangeArabic:     return eFontPrefLang_Arabic;
-        case kRangeBaltic:     return eFontPrefLang_Baltic;
-        case kRangeThai:       return eFontPrefLang_Thai;
-        case kRangeKorean:     return eFontPrefLang_Korean;
-        case kRangeJapanese:   return eFontPrefLang_Japanese;
-        case kRangeSChinese:   return eFontPrefLang_ChineseCN;
-        case kRangeTChinese:   return eFontPrefLang_ChineseTW;
-        case kRangeDevanagari: return eFontPrefLang_Devanagari;
-        case kRangeTamil:      return eFontPrefLang_Tamil;
-        case kRangeArmenian:   return eFontPrefLang_Armenian;
-        case kRangeBengali:    return eFontPrefLang_Bengali;
-        case kRangeCanadian:   return eFontPrefLang_Canadian;
-        case kRangeEthiopic:   return eFontPrefLang_Ethiopic;
-        case kRangeGeorgian:   return eFontPrefLang_Georgian;
-        case kRangeGujarati:   return eFontPrefLang_Gujarati;
-        case kRangeGurmukhi:   return eFontPrefLang_Gurmukhi;
-        case kRangeKhmer:      return eFontPrefLang_Khmer;
-        case kRangeMalayalam:  return eFontPrefLang_Malayalam;
-        case kRangeSetCJK:     return eFontPrefLang_CJKSet;
-        default:               return eFontPrefLang_Others;
-    }
 }

@@ -298,7 +298,6 @@ function showView(aView) {
                         ["availableUpdateURL", "?availableUpdateURL"],
                         ["availableUpdateVersion", "?availableUpdateVersion"],
                         ["blocklisted", "?blocklisted"],
-                        ["blocklistedsoft", "?blocklistedsoft"],
                         ["compatible", "?compatible"],
                         ["description", "?description"],
                         ["downloadURL", "?downloadURL"],
@@ -330,6 +329,7 @@ function showView(aView) {
   var showCheckUpdatesAll = true;
   var showInstallUpdatesAll = false;
   var showSkip = false;
+  var showContinue = false;
   switch (aView) {
     case "search":
       var bindingList = [ [ ["action", "?action"],
@@ -385,7 +385,6 @@ function showView(aView) {
                         ["availableUpdateVersion", "?availableUpdateVersion"],
                         ["availableUpdateInfo", "?availableUpdateInfo"],
                         ["blocklisted", "?blocklisted"],
-                        ["blocklistedsoft", "?blocklistedsoft"],
                         ["homepageURL", "?homepageURL"],
                         ["iconURL", "?iconURL"],
                         ["internalName", "?internalName"],
@@ -407,12 +406,13 @@ function showView(aView) {
       showInstallFile = false;
       showCheckUpdatesAll = false;
       showInstallUpdatesAll = false;
+      if (gUpdatesOnly)
+        showContinue = true;
       bindingList = [ [ ["aboutURL", "?aboutURL"],
                         ["addonID", "?addonID"],
                         ["availableUpdateURL", "?availableUpdateURL"],
                         ["availableUpdateVersion", "?availableUpdateVersion"],
                         ["blocklisted", "?blocklisted"],
-                        ["blocklistedsoft", "?blocklistedsoft"],
                         ["compatible", "?compatible"],
                         ["description", "?description"],
                         ["downloadURL", "?downloadURL"],
@@ -469,6 +469,7 @@ function showView(aView) {
   document.getElementById("checkUpdatesAllButton").hidden = !showCheckUpdatesAll;
   document.getElementById("installUpdatesAllButton").hidden = !showInstallUpdatesAll;
   document.getElementById("skipDialogButton").hidden = !showSkip;
+  document.getElementById("continueDialogButton").hidden = !showContinue;
   document.getElementById("themePreviewArea").hidden = !isThemes;
   document.getElementById("themeSplitter").hidden = !isThemes;
   document.getElementById("showUpdateInfoButton").hidden = aView != "updates";
@@ -486,6 +487,11 @@ function showView(aView) {
     window.setTimeout(function () { button.focus(); }, 0);
   } else
     document.getElementById("installUpdatesAllButton").removeAttribute("default");
+
+  if (showContinue)
+    document.getElementById("continueDialogButton").setAttribute("default", "true");
+  else
+    document.getElementById("continueDialogButton").removeAttribute("default");
 
   if (isThemes)
     onAddonSelect();
@@ -538,7 +544,11 @@ function getIDFromResourceURI(aURI)
 
 function showProgressBar() {
   var progressBox = document.getElementById("progressBox");
-  progressBox.parentNode.selectedPanel = progressBox;
+  var height = document.defaultView.getComputedStyle(progressBox.parentNode, "")
+                       .getPropertyValue("height");
+  progressBox.parentNode.style.height = height;
+  document.getElementById("viewGroup").hidden = true;
+  progressBox.hidden = false;
 }
 
 function flushDataSource()
@@ -917,8 +927,6 @@ function rebuildPluginsDS()
     gPlugins[name][desc].plugins.push(plugin);
   }
 
-  var blocklist = Components.classes["@mozilla.org/extensions/blocklist;1"]
-                            .getService(Components.interfaces.nsIBlocklistService);
   for (var pluginName in gPlugins) {
     for (var pluginDesc in gPlugins[pluginName]) {
       plugin = gPlugins[pluginName][pluginDesc];
@@ -953,12 +961,6 @@ function rebuildPluginsDS()
       gPluginsDS.Assert(pluginNode,
                         gRDF.GetResource(PREFIX_NS_EM + "blocklisted"),
                         gRDF.GetLiteral(plugin.blocklisted ? "true" : "false"),
-                        true);
-      var softblocked = blocklist.getPluginBlocklistState(plugin) == 
-                        Components.interfaces.nsIBlocklistService.STATE_SOFTBLOCKED;
-      gPluginsDS.Assert(pluginNode,
-                        gRDF.GetResource(PREFIX_NS_EM + "blocklistedsoft"),
-                        gRDF.GetLiteral(softblocked ? "true" : "false"),
                         true);
       gPluginsDS.Assert(pluginNode,
                         gRDF.GetResource(PREFIX_NS_EM + "compatible"),
@@ -1112,7 +1114,7 @@ function Startup()
         // menuitems that can open a browser window.
         gUpdateContextMenus = gUpdateContextMenusNoBrowser;
 #endif
-        document.getElementById("topBar").hidden = true;
+        document.getElementById("viewGroup").hidden = true;
         document.getElementById("extensionsView").setAttribute("norestart", "");
         showView("updates");
         showMessage(URI_NOTIFICATION_ICON_INFO,
@@ -1166,56 +1168,8 @@ function Startup()
 
   gPref.setBoolPref(PREF_UPDATE_NOTIFYUSER, false);
 
-  if (gUpdatesOnly && gExtensionsView.children.length == 0) {
+  if (gUpdatesOnly && gExtensionsView.children.length == 0)
     window.close();
-    return;
-  }
-
-  // Left/right switches panes, up/down/pageUp/pageDown/home/end switches items in
-  // the current pane, whenever either the radiogroup or the richlistbox is focused.
-  window.addEventListener("keypress", function (event) {
-    if (event.target != viewGroup &&
-        event.target != gExtensionsView)
-      return;
-
-    var contextMenu = document.getElementById("addonContextMenu");
-    if (contextMenu.state == "open" ||
-        contextMenu.state == "showing")
-      return;
-
-    switch (event.keyCode) {
-      case event.DOM_VK_LEFT:
-      case event.DOM_VK_RIGHT:
-        let nextFlag = (event.keyCode == event.DOM_VK_RIGHT);
-        if (getComputedStyle(viewGroup, "").direction == "rtl")
-          nextFlag = !nextFlag;
-        viewGroup.checkAdjacentElement(nextFlag);
-        break;
-      case event.DOM_VK_UP:
-        gExtensionsView._moveByOffsetFromUserEvent(-1, event);
-        break;
-      case event.DOM_VK_DOWN:
-        gExtensionsView._moveByOffsetFromUserEvent(1, event);
-        break;
-      case event.DOM_VK_PAGE_UP:
-        gExtensionsView._moveByOffsetFromUserEvent(gExtensionsView.scrollOnePage(-1), event);
-        break;
-      case event.DOM_VK_PAGE_DOWN:
-        gExtensionsView._moveByOffsetFromUserEvent(gExtensionsView.scrollOnePage(1), event);
-        break;
-      case event.DOM_VK_HOME:
-        gExtensionsView._moveByOffsetFromUserEvent(-gExtensionsView.currentIndex, event);
-        break;
-      case event.DOM_VK_END:
-        gExtensionsView._moveByOffsetFromUserEvent(gExtensionsView.getRowCount() -
-                                                   gExtensionsView.currentIndex - 1, event);
-        break;
-      default:
-        return; // don't consume the event
-    }
-    event.stopPropagation();
-    event.preventDefault();
-  }, true);
 }
 
 function Shutdown()
@@ -1388,12 +1342,8 @@ XPInstallDownloadManager.prototype = {
   {
   },
 
-  _failed: false,
   onInstallEnded: function(aAddon, aStatus)
   {
-    if (aStatus < 0)
-      this._failed = true;
-
     // From nsInstall.h
     // USER_CANCELLED = -210
     // All other xpinstall errors are <= -200
@@ -1421,15 +1371,8 @@ XPInstallDownloadManager.prototype = {
     gInstalling = false;
     gExtensionManager.sortTypeByProperty(nsIUpdateItem.TYPE_ANY, "name", true);
     if (gUpdatesOnly) {
-      if (this._failed) {
-        let continueButton = document.getElementById("continueDialogButton");
-        setElementDisabledByID("cmd_continue", false);
-        continueButton.hidden = false;
-        continueButton.setAttribute("default", "true");
-        continueButton.focus();
-      } else {
-        setTimeout(closeEM, 2000);
-      }
+      setElementDisabledByID("cmd_continue", false);
+      document.getElementById("continueDialogButton").focus();
     }
     else {
       updateOptionalViews();
@@ -1491,8 +1434,9 @@ UpdateCheckListener.prototype = {
   onUpdateEnded: function() {
     if (!document)
       return;
-    var viewGroup = document.getElementById("viewGroup").parentNode;
-    viewGroup.parentNode.selectedPanel = viewGroup;
+    document.getElementById("progressBox").hidden = true;
+    var viewGroup = document.getElementById("viewGroup");
+    viewGroup.hidden = false;
     gExtensionsView.removeAttribute("update-operation");
     gExtensionsViewController.onCommandUpdate();
     updateOptionalViews();
@@ -1888,6 +1832,7 @@ function buildContextMenu(aEvent)
 var gExtensionsDNDObserver =
 {
   _ioServ: null,
+  _canDrop: false,
 
   _ensureServices: function ()
   {
@@ -1897,38 +1842,31 @@ var gExtensionsDNDObserver =
   },
 
   // returns a JS object whose properties are used by xpinstall
-  _getDragData: function (dataTransfer, aIndex)
+  _getDataFromDragSession: function (aDragSession, aPosition)
   {
     var fileData = { };
     // if this fails we do not have valid data to drop
     try {
-      var url = dataTransfer.mozGetDataAt("text/uri-list", aIndex);
-      if (!url) {
-        url = dataTransfer.mozGetDataAt("text/x-moz-url", aIndex);
-        url = url ? url.split("\n")[0] : null;
-        if (!url) {
-          var file = dataTransfer.mozGetDataAt("application/x-moz-file", aIndex);
+      var xfer = Components.classes["@mozilla.org/widget/transferable;1"]
+                           .createInstance(Components.interfaces.nsITransferable);
+      xfer.addDataFlavor("text/x-moz-url");
+      xfer.addDataFlavor("application/x-moz-file", "nsIFile");
+      aDragSession.getData(xfer, aPosition);
 
-          var ioService = Components.classes["@mozilla.org/network/io-service;1"]
-                                     .getService(Components.interfaces.nsIIOService);
-          var fileHandler = this._ioServ.getProtocolHandler("file")
-                                .QueryInterface(Components.interfaces.nsIFileProtocolHandler);
-          url = fileHandler.getURLSpecFromFile(file);
-        }
-      }
+      var flavour = { }, data = { }, length = { };
+      xfer.getAnyTransferData(flavour, data, length);
+      var selectedFlavour = this.getSupportedFlavours().flavourTable[flavour.value];
+      var xferData = new FlavourData(data.value, length.value, selectedFlavour);
 
-      if (!url) {
-        url = dataTransfer.mozGetDataAt("text/plain", aIndex)
-        if (!url)
-          return null;
-      }
+      var fileURL = transferUtils.retrieveURLFromData(xferData.data,
+                                                      xferData.flavour.contentType);
+      fileData.fileURL = fileURL;
 
-      fileData.fileURL = url;
+      var uri = this._ioServ.newURI(fileURL, null, null);
+      var url = uri.QueryInterface(nsIURL);
+      fileData.fileName = url.fileName;
 
-      var uri = this._ioServ.newURI(url, null, null).QueryInterface(nsIURL);
-      fileData.fileName = uri.fileName;
-
-      switch (uri.fileExtension) {
+      switch (url.fileExtension) {
         case "xpi":
           fileData.type = nsIUpdateItem.TYPE_EXTENSION;
           break;
@@ -1946,16 +1884,31 @@ var gExtensionsDNDObserver =
     return fileData;
   },
 
-  onDragOver: function (aEvent)
+  canDrop: function (aEvent, aDragSession) { return this._canDrop; },
+
+  onDragEnter: function (aEvent, aDragSession)
   {
-    var types = aEvent.dataTransfer.types;
-    if (types.contains("text/uri-list") ||
-        types.contains("text/x-moz-url") ||
-        types.contains("application/x-moz-file"))
-      aEvent.preventDefault();
+    // XXXrstrong - bug 269568, GTK2 drag and drop is returning invalid data for
+    // dragenter and dragover. To workaround this we always set canDrop to true
+    // and just use the xfer data returned in ondrop which is valid.
+#ifndef MOZ_WIDGET_GTK2
+    this._ensureServices();
+
+    var count = aDragSession.numDropItems;
+    for (var i = 0; i < count; ++i) {
+      var fileData = this._getDataFromDragSession(aDragSession, i);
+      if (!fileData) {
+        this._canDrop = false;
+        return;
+      }
+    }
+#endif
+    this._canDrop = true;
   },
 
-  onDrop: function(aEvent)
+  onDragOver: function (aEvent, aFlavor, aDragSession) { },
+
+  onDrop: function(aEvent, aXferData, aDragSession)
   {
     if (!isXPInstallEnabled())
       return;
@@ -1967,10 +1920,9 @@ var gExtensionsDNDObserver =
     var xpiCount = 0;
     var themeCount = 0;
 
-    var dataTransfer = aEvent.dataTransfer; 
-    var count = dataTransfer.mozItemCount;
+    var count = aDragSession.numDropItems;
     for (var i = 0; i < count; ++i) {
-      var fileData = this._getDragData(dataTransfer, i);
+      var fileData = this._getDataFromDragSession(aDragSession, i);
       if (!fileData)
         continue;
 
@@ -1987,6 +1939,16 @@ var gExtensionsDNDObserver =
 
     if (xpiCount > 0)
       InstallTrigger.install(xpinstallObj);
+  },
+  _flavourSet: null,
+  getSupportedFlavours: function ()
+  {
+    if (!this._flavourSet) {
+      this._flavourSet = new FlavourSet();
+      this._flavourSet.appendFlavour("text/x-moz-url");
+      this._flavourSet.appendFlavour("application/x-moz-file", "nsIFile");
+    }
+    return this._flavourSet;
   }
 };
 
@@ -2140,7 +2102,6 @@ function updateOptionalViews() {
   var elements = ctr.GetElements();
   var showLocales = false;
   var showUpdates = false;
-  var showThemes = false;
   var showInstalls = gInstalling;
   gPendingActions = false;
 
@@ -2149,14 +2110,12 @@ function updateOptionalViews() {
 
   while (elements.hasMoreElements()) {
     var e = elements.getNext().QueryInterface(Components.interfaces.nsIRDFResource);
-    if (!showLocales || !showThemes) {
+    if (!showLocales) {
       var typeArc = gRDF.GetResource(PREFIX_NS_EM + "type");
       var type = ds.GetTarget(e, typeArc, true);
       if (type && type instanceof Components.interfaces.nsIRDFInt) {
         if (type.Value & nsIUpdateItem.TYPE_LOCALE)
           showLocales = true;
-        else if (type.Value & nsIUpdateItem.TYPE_THEME)
-          showThemes = true;
       }
     }
 
@@ -2195,7 +2154,6 @@ function updateOptionalViews() {
   document.getElementById("locales-view").hidden = !showLocales;
   document.getElementById("updates-view").hidden = !showUpdates;
   document.getElementById("installs-view").hidden = !showInstalls;
-  document.getElementById("themes-view").hidden = !showThemes;
   updateVisibilityFlags();
 
   // fall back to the previously selected view or "search" since "installs" became hidden

@@ -49,6 +49,7 @@
 #include "nsGkAtoms.h"
 #include "nsLayoutUtils.h"
 #include "nsCSSAnonBoxes.h"
+#include "nsIWidget.h"
 #include "nsILinkHandler.h"
 #include "nsGUIEvent.h"
 #include "nsIDocument.h"
@@ -201,12 +202,10 @@ nsDisplayTextShadow::Paint(nsDisplayListBuilder* aBuilder,
   gfxRect shadowRect = gfxRect(pt.x, pt.y, innerWidthInAppUnits, mFrame->GetSize().height);
   gfxContext* thebesCtx = aCtx->ThebesContext();
 
-  gfxRect dirtyRect(aDirtyRect.x, aDirtyRect.y, aDirtyRect.width, aDirtyRect.height);
-
   nsContextBoxBlur contextBoxBlur;
   gfxContext* shadowCtx = contextBoxBlur.Init(shadowRect, mBlurRadius,
                                               mFrame->PresContext()->AppUnitsPerDevPixel(),
-                                              thebesCtx, dirtyRect);
+                                              thebesCtx);
   if (!shadowCtx)
     return;
 
@@ -361,7 +360,7 @@ nsHTMLContainerFrame::PaintTextDecorationLine(
               PresContext()->AppUnitsToGfxUnits(bp.top + aPt.y));
   gfxSize size(PresContext()->AppUnitsToGfxUnits(innerWidth), aSize);
   nsCSSRendering::PaintDecorationLine(aCtx, aColor, pt, size, aAscent, aOffset,
-                    aDecoration, nsCSSRendering::DECORATION_STYLE_SOLID);
+                                      aDecoration, NS_STYLE_BORDER_STYLE_SOLID);
 }
 
 void
@@ -676,6 +675,7 @@ nsHTMLContainerFrame::ReparentFrameViewList(nsPresContext* aPresContext,
 
 nsresult
 nsHTMLContainerFrame::CreateViewForFrame(nsIFrame* aFrame,
+                                         nsIFrame* aContentParentFrame,
                                          PRBool aForce)
 {
   if (aFrame->HasView()) {

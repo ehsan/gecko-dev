@@ -73,19 +73,19 @@ struct nsNamedVector : public nsVoidArray {
     }
 };
 
-static void *
+static void * PR_CALLBACK
 _hash_alloc_table(void *pool, PRSize size)
 {
     return operator new(size);
 }
 
-static void 
+static void  PR_CALLBACK
 _hash_free_table(void *pool, void *item)
 {
     operator delete(item);
 }
 
-static PLHashEntry *
+static PLHashEntry * PR_CALLBACK
 _hash_alloc_entry(void *pool, const void *key)
 {
     return new PLHashEntry;
@@ -109,7 +109,7 @@ _hash_alloc_entry(void *pool, const void *key)
  * XXX so we should have nsLock, nsMonitor, etc. and strongly type their
  * XXX nsAutoXXX counterparts to take only the non-auto types as inputs
  */
-static void 
+static void  PR_CALLBACK
 _hash_free_entry(void *pool, PLHashEntry *entry, PRUintn flag)
 {
     nsNamedVector* vec = (nsNamedVector*) entry->value;
@@ -126,7 +126,7 @@ static const PLHashAllocOps _hash_alloc_ops = {
     _hash_alloc_entry, _hash_free_entry
 };
 
-static PRIntn
+PR_STATIC_CALLBACK(PRIntn)
 _purge_one(PLHashEntry* he, PRIntn cnt, void* arg)
 {
     nsNamedVector* vec = (nsNamedVector*) he->value;
@@ -137,7 +137,7 @@ _purge_one(PLHashEntry* he, PRIntn cnt, void* arg)
     return HT_ENUMERATE_NEXT;
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 OnSemaphoreRecycle(void* addr)
 {
     if (OrderTable) { 
@@ -147,7 +147,7 @@ OnSemaphoreRecycle(void* addr)
     }
 }
 
-static PLHashNumber
+PR_STATIC_CALLBACK(PLHashNumber)
 _hash_pointer(const void* key)
 {
     return PLHashNumber(NS_PTR_TO_INT32(key)) >> 2;

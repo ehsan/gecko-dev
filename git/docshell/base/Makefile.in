@@ -85,7 +85,6 @@ REQUIRES	= xpcom \
 		  windowwatcher \
 		  imglib2 \
 		  jar \
-		  prefetch \
 		  $(NULL)
 
 SDK_XPIDLSRCS = \
@@ -93,6 +92,7 @@ SDK_XPIDLSRCS = \
 		$(NULL)
 
 XPIDLSRCS	= \
+		nsCDocShell.idl			\
 		nsCDefaultURIFixup.idl		\
 		nsIDocShell.idl			\
 		nsIDocShellLoadInfo.idl	\
@@ -115,14 +115,14 @@ XPIDLSRCS	= \
 		nsIWebPageDescriptor.idl	\
 		nsIURIClassifier.idl		\
 		nsIChannelClassifier.idl	\
-		nsIDownloadHistory.idl          \
-		nsILoadContext.idl              \
+		nsIDownloadHistory.idl \
 		$(NULL)
 
 EXPORTS		= nsDocShellLoadTypes.h
 
 CPPSRCS		= \
 		nsDocShell.cpp		\
+		nsWebShell.cpp		\
 		nsDocShellLoadInfo.cpp		\
 		nsDocShellEditorData.cpp	\
 		nsDocShellTransferableHooks.cpp \

@@ -45,14 +45,6 @@
 #include "mozIStorageValueArray.h"
 #include "mozIStorageStatement.h"
 
-// Favicons bigger than this size should not be saved to the db to avoid
-// bloating it with large image blobs.
-// This still allows us to accept a favicon even if we cannot optimize it.
-#define MAX_FAVICON_SIZE 10240
-
-// forward class definitions
-class mozIStorageStatementCallback;
-
 // forward definition for friend class
 class FaviconLoadListener;
 
@@ -98,27 +90,9 @@ public:
   static nsresult OptimizeFaviconImage(const PRUint8* aData, PRUint32 aDataLen,
                                        const nsACString& aMimeType,
                                        nsACString& aNewData, nsACString& aNewMimeType);
-
-  /**
-   * Obtains the favicon data asynchronously.
-   *
-   * @param aFaviconURI
-   *        The URI representing the favicon we are looking for.
-   * @param aCallback
-   *        The callback where results or errors will be dispatch to.  In the
-   *        returned result, the favicon binary data will be at index 0, and the
-   *        mime type will be at index 1.
-   */
-  nsresult GetFaviconDataAsync(nsIURI *aFaviconURI,
-                               mozIStorageStatementCallback *aCallback);
-
-  /**
-   * Finalize all internal statements.
-   */
-  nsresult FinalizeStatements();
-
   NS_DECL_ISUPPORTS
   NS_DECL_NSIFAVICONSERVICE
+
 
 private:
   ~nsFaviconService();
@@ -142,15 +116,11 @@ private:
    */
   nsCOMPtr<nsIURI> mDefaultIcon;
 
-  // Set to true during expiration, addition of new favicons won't be allowed
-  // till expiration has finished.
-  bool mExpirationRunning;
-
   PRUint32 mFailedFaviconSerial;
   nsDataHashtable<nsCStringHashKey, PRUint32> mFailedFavicons;
 
   nsresult SetFaviconUrlForPageInternal(nsIURI* aURI, nsIURI* aFavicon,
-                                        PRBool* aHasData);
+                                        PRBool* aHasData, PRTime* aExpiration);
 
   nsresult UpdateBookmarkRedirectFavicon(nsIURI* aPage, nsIURI* aFavicon);
   void SendFaviconNotifications(nsIURI* aPage, nsIURI* aFaviconURI);

@@ -36,9 +36,9 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#include "nsSVGLength.h"
 #include "nsCOMPtr.h"
 #include "nsSVGForeignObjectElement.h"
-#include "nsSVGMatrix.h"
 
 nsSVGElement::LengthInfo nsSVGForeignObjectElement::sLengthInfo[4] =
 {
@@ -56,9 +56,11 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(ForeignObject)
 NS_IMPL_ADDREF_INHERITED(nsSVGForeignObjectElement,nsSVGForeignObjectElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGForeignObjectElement,nsSVGForeignObjectElementBase)
 
-NS_INTERFACE_TABLE_HEAD(nsSVGForeignObjectElement)
-  NS_NODE_INTERFACE_TABLE4(nsSVGForeignObjectElement, nsIDOMNode, nsIDOMElement,
-                           nsIDOMSVGElement, nsIDOMSVGForeignObjectElement)
+NS_INTERFACE_MAP_BEGIN(nsSVGForeignObjectElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMNode)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGForeignObjectElement)
   NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGForeignObjectElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGForeignObjectElementBase)
 
@@ -100,40 +102,6 @@ NS_IMETHODIMP nsSVGForeignObjectElement::GetWidth(nsIDOMSVGAnimatedLength * *aWi
 NS_IMETHODIMP nsSVGForeignObjectElement::GetHeight(nsIDOMSVGAnimatedLength * *aHeight)
 {
   return mLengthAttributes[HEIGHT].ToDOMAnimatedLength(aHeight, this);
-}
-
-//----------------------------------------------------------------------
-// nsSVGElement methods
-
-/* virtual */ gfxMatrix
-nsSVGForeignObjectElement::PrependLocalTransformTo(const gfxMatrix &aMatrix)
-{
-  // 'transform' attribute:
-  gfxMatrix matrix = nsSVGForeignObjectElementBase::PrependLocalTransformTo(aMatrix);
-  
-  // now translate by our 'x' and 'y':
-  float x, y;
-  GetAnimatedLengthValues(&x, &y, nsnull);
-  return gfxMatrix().Translate(gfxPoint(x, y)) * matrix;
-}
-
-nsresult
-nsSVGForeignObjectElement::AppendTransform(nsIDOMSVGMatrix *aCTM,
-                                           nsIDOMSVGMatrix **_retval)
-{
-  nsresult rv;
-  // foreignObject is one of establishing-viewport elements.
-  // so we are translated by foreignObject's x and y attribs.
-  float x, y;
-  GetAnimatedLengthValues(&x, &y, nsnull);
-  nsCOMPtr<nsIDOMSVGMatrix> translate;
-  rv = NS_NewSVGMatrix(getter_AddRefs(translate), 1, 0, 0, 1, x, y);
-  if (NS_FAILED(rv)) return rv;
-  nsCOMPtr<nsIDOMSVGMatrix> tmp;
-  rv = aCTM->Multiply(translate, getter_AddRefs(tmp));
-  if (NS_FAILED(rv)) return rv;
-
-  return nsSVGGraphicElement::AppendTransform(tmp, _retval);
 }
 
 //----------------------------------------------------------------------

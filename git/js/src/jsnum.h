@@ -39,7 +39,6 @@
 
 #ifndef jsnum_h___
 #define jsnum_h___
-
 /*
  * JS number (IEEE double) interface.
  *
@@ -178,16 +177,23 @@ extern const char js_parseInt_str[];
 extern JSBool
 js_NewNumberInRootedValue(JSContext *cx, jsdouble d, jsval *vp);
 
-/*
- * Create a weakly rooted integer or double jsval as appropriate for the given
- * jsdouble.
- */
-extern JSBool
-js_NewWeaklyRootedNumber(JSContext *cx, jsdouble d, jsval *vp);
-
 /* Convert a number to a GC'ed string. */
 extern JSString * JS_FASTCALL
 js_NumberToString(JSContext *cx, jsdouble d);
+
+/*
+ * Convert int to C string. The buf must be big enough for MIN_INT to fit
+ * including '-' and '\0'.
+ */
+char *
+js_IntToCString(jsint i, char *buf, size_t bufSize);
+
+/*
+ * Convert a number to C string. The buf must be at least
+ * DTOSTR_STANDARD_BUFFER_SIZE.
+ */
+char *
+js_NumberToCString(JSContext *cx, jsdouble d, char *buf, size_t bufSize);
 
 /*
  * Convert a value to a number. On exit JSVAL_IS_NULL(*vp) iff there was an

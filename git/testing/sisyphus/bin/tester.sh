@@ -101,12 +101,6 @@ for data in $datalist; do
     TEST_DATE=`date -u +%Y-%m-%d-%H-%M-%S``date +%z`
     TEST_LOG="${TEST_DIR}/results/${TEST_DATE},$data,$OSID,${TEST_MACHINE},$TEST_SUITE.log"
 
-    if [[ "$OSID" == "nt" ]]; then
-        # If on Windows, set up the Windbg/CDB debug log file
-        # name to point to our log. 
-        export _NT_DEBUG_LOG_FILE="`cygpath -w $TEST_LOG`"
-    fi
-
     # tell caller what the log files are
     echo "log: $TEST_LOG "
 
@@ -123,7 +117,7 @@ for data in $datalist; do
             nt)
                 ;;
             linux)
-                if findprogram fix-linux-stack.pl; then
+                if which fix-linux-stack.pl > /dev/null; then
                     fix-linux-stack.pl < $TEST_LOG > $TEST_LOG.tmp
                     mv $TEST_LOG.tmp $TEST_LOG
                 else
@@ -131,7 +125,7 @@ for data in $datalist; do
                 fi
                 ;;
             darwin)
-                if findprogram fix-macosx-stack.pl; then
+                if which fix-macosx-stack.pl > /dev/null; then
                     fix-macosx-stack.pl < $TEST_LOG > $TEST_LOG.tmp
                     mv $TEST_LOG.tmp $TEST_LOG
                 else

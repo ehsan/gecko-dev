@@ -129,17 +129,11 @@ protected:
    * Some data that is better calculated during reflow
    */
   struct ColumnBalanceData {
-    // The maximum "content height" of any column
     nscoord mMaxHeight;
-    // The sum of the "content heights" for all columns
     nscoord mSumHeight;
-    // The "content height" of the last column
     nscoord mLastHeight;
-    // The maximum "content height" of all columns that overflowed
-    // their available height
-    nscoord mMaxOverflowingHeight;
     void Reset() {
-      mMaxHeight = mSumHeight = mLastHeight = mMaxOverflowingHeight = 0;
+      mMaxHeight = mSumHeight = mLastHeight = 0;
     }
   };
   
@@ -455,7 +449,6 @@ static void MoveChildTo(nsIFrame* aParent, nsIFrame* aChild, nsPoint aOrigin) {
 nscoord
 nsColumnSetFrame::GetMinWidth(nsIRenderingContext *aRenderingContext) {
   nscoord width = 0;
-  DISPLAY_MIN_WIDTH(this, width);
   if (mFrames.FirstChild()) {
     width = mFrames.FirstChild()->GetMinWidth(aRenderingContext);
   }
@@ -489,8 +482,6 @@ nsColumnSetFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext) {
   // the child's preferred width, times the number of columns, plus the width
   // of any required column gaps
   // XXX what about forced column breaks here?
-  nscoord result = 0;
-  DISPLAY_PREF_WIDTH(this, result);
   const nsStyleColumn* colStyle = GetStyleColumn();
   nscoord colGap = GetColumnGap(this, colStyle);
 
@@ -512,8 +503,7 @@ nsColumnSetFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext) {
   nscoord width = colWidth*numColumns + colGap*(numColumns - 1);
   // The multiplication above can make 'width' negative (integer overflow),
   // so use PR_MAX to protect against that.
-  result = PR_MAX(width, colWidth);
-  return result;
+  return PR_MAX(width, colWidth);
 }
 
 PRBool
@@ -584,17 +574,10 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
     // Try to skip reflowing the child. We can't skip if the child is dirty. We also can't
     // skip if the next column is dirty, because the next column's first line(s)
     // might be pullable back to this column. We can't skip if it's the last child
-    // because we need to obtain the bottom margin. We can't skip
-    // if this is the last column and we're supposed to assign unbounded
-    // height to it, because that could change the available height from
-    // the last time we reflowed it and we should try to pull all the
-    // content from its next sibling. (Note that it might be the last
-    // column, but not be the last child because the desired number of columns
-    // has changed.)
+    // because we need to obtain the bottom margin.
     PRBool skipIncremental = !(GetStateBits() & NS_FRAME_IS_DIRTY)
       && !NS_SUBTREE_DIRTY(child)
       && child->GetNextSibling()
-      && !(aUnboundedLastColumn && columnCount == aConfig.mBalanceColCount - 1)
       && !NS_SUBTREE_DIRTY(child->GetNextSibling());
     // If we need to pull up content from the prev-in-flow then this is not just
     // a height shrink. The prev in flow will have set the dirty bit.
@@ -655,10 +638,10 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
     
       nsHTMLReflowMetrics kidDesiredSize(aDesiredSize.mFlags);
 
-      // XXX it would be cool to consult the float manager for the
+      // XXX it would be cool to consult the space manager for the
       // previous block to figure out the region of floats from the
       // previous column that extend into this column, and subtract
-      // that region from the new float manager.  So you could stick a
+      // that region from the new space manager.  So you could stick a
       // really big float in the first column and text in following
       // columns would flow around it.
 
@@ -686,10 +669,6 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
       if (childContentBottom > aConfig.mColMaxHeight) {
         allFit = PR_FALSE;
       }
-      if (childContentBottom > availSize.height) {
-        aColData.mMaxOverflowingHeight = PR_MAX(childContentBottom,
-            aColData.mMaxOverflowingHeight);
-      }
     }
 
     contentRect.UnionRect(contentRect, child->GetRect());
@@ -704,7 +683,6 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
 
     if (NS_FRAME_IS_FULLY_COMPLETE(aStatus) && !NS_FRAME_IS_TRUNCATED(aStatus)) {
       NS_ASSERTION(!kidNextInFlow, "next in flow should have been deleted");
-      child = nsnull;
       break;
     } else {
       ++columnCount;
@@ -721,7 +699,6 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
         
         if (NS_FAILED(rv)) {
           NS_NOTREACHED("Couldn't create continuation");
-          child = nsnull;
           break;
         }
       }
@@ -753,19 +730,8 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
           SetOverflowFrames(PresContext(), continuationColumns);
           child->SetNextSibling(nsnull);
         }
-        child = nsnull;
         break;
       }
-    }
-
-    if (PresContext()->HasPendingInterrupt()) {
-      // Stop the loop now while |child| still points to the frame that bailed
-      // out.  We could keep going here and condition a bunch of the code in
-      // this loop on whether there's an interrupt, or even just keep going and
-      // trying to reflow the blocks (even though we know they'll interrupt
-      // right after their first line), but stopping now is conceptually the
-      // simplest (and probably fastest) thing.
-      break;
     }
 
     // Advance to the next column
@@ -781,21 +747,6 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
 #ifdef DEBUG_roc
       printf("*** NEXT CHILD ORIGIN.x = %d\n", childOrigin.x);
 #endif
-    }
-  }
-
-  if (PresContext()->CheckForInterrupt(this) &&
-      (GetStateBits() & NS_FRAME_IS_DIRTY)) {
-    // Mark all our kids starting with |child| dirty
-
-    // Note that this is a CheckForInterrupt call, not a HasPendingInterrupt,
-    // because we might have interrupted while reflowing |child|, and since
-    // we're about to add a dirty bit to |child| we need to make sure that
-    // |this| is scheduled to have dirty bits marked on it and its ancestors.
-    // Otherwise, when we go to mark dirty bits on |child|'s ancestors we'll
-    // bail out immediately, since it'll already have a dirty bit.
-    for (; child; child = child->GetNextSibling()) {
-      child->AddStateBits(NS_FRAME_IS_DIRTY);
     }
   }
   
@@ -925,7 +876,7 @@ nsColumnSetFrame::Reflow(nsPresContext*           aPresContext,
   PRBool feasible = ReflowChildren(aDesiredSize, aReflowState,
     aStatus, config, unboundedLastColumn, &carriedOutBottomMargin, colData);
 
-  if (isBalancing && !aPresContext->HasPendingInterrupt()) {
+  if (isBalancing) {
     nscoord availableContentHeight = GetAvailableContentHeight(aReflowState);
   
     // Termination of the algorithm below is guaranteed because
@@ -938,7 +889,7 @@ nsColumnSetFrame::Reflow(nsPresContext*           aPresContext,
     // search)
     PRBool maybeContinuousBreakingDetected = PR_FALSE;
 
-    while (!aPresContext->HasPendingInterrupt()) {
+    while (1) {
       nscoord lastKnownFeasibleHeight = knownFeasibleHeight;
 
       // Record what we learned from the last reflow
@@ -957,11 +908,6 @@ nsColumnSetFrame::Reflow(nsPresContext*           aPresContext,
         }
       } else {
         knownInfeasibleHeight = PR_MAX(knownInfeasibleHeight, mLastBalanceHeight);
-        // If a column didn't fit in its available height, then its current
-        // height must be the minimum height for unbreakable content in
-        // the column, and therefore no smaller height can be feasible.
-        knownInfeasibleHeight = PR_MAX(knownInfeasibleHeight,
-                                       colData.mMaxOverflowingHeight - 1);
 
         if (unboundedLastColumn) {
           // The last column is unbounded, so all content got reflowed, so the
@@ -1030,7 +976,7 @@ nsColumnSetFrame::Reflow(nsPresContext*           aPresContext,
                                 &carriedOutBottomMargin, colData);
     }
 
-    if (!feasible && !aPresContext->HasPendingInterrupt()) {
+    if (!feasible) {
       // We may need to reflow one more time at the feasible height to
       // get a valid layout.
       PRBool skip = PR_FALSE;
@@ -1043,23 +989,11 @@ nsColumnSetFrame::Reflow(nsPresContext*           aPresContext,
         config.mColMaxHeight = knownFeasibleHeight;
       }
       if (!skip) {
-        // If our height is unconstrained, make sure that the last column is
-        // allowed to have arbitrary height here, even though we were balancing.
-        // Otherwise we'd have to split, and it's not clear what we'd do with
-        // that.
         AddStateBits(NS_FRAME_IS_DIRTY);
         ReflowChildren(aDesiredSize, aReflowState, aStatus, config,
-                       availableContentHeight == NS_UNCONSTRAINEDSIZE,
-                       &carriedOutBottomMargin, colData);
+                       PR_FALSE, &carriedOutBottomMargin, colData);
       }
     }
-  }
-
-  if (aPresContext->HasPendingInterrupt() &&
-      aReflowState.availableHeight == NS_UNCONSTRAINEDSIZE) {
-    // In this situation, we might be lying about our reflow status, because
-    // our last kid (the one that got interrupted) was incomplete.  Fix that.
-    aStatus = NS_FRAME_COMPLETE;
   }
   
   CheckInvalidateSizeChange(aDesiredSize);
@@ -1068,10 +1002,6 @@ nsColumnSetFrame::Reflow(nsPresContext*           aPresContext,
   aDesiredSize.mCarriedOutBottomMargin = carriedOutBottomMargin;
 
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aDesiredSize);
-
-  NS_ASSERTION(NS_FRAME_IS_COMPLETE(aStatus) ||
-               aReflowState.availableHeight != NS_UNCONSTRAINEDSIZE,
-               "Column set should be complete if the available height is unconstrained");
 
   return NS_OK;
 }

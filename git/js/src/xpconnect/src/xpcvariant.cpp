@@ -71,7 +71,7 @@ XPCTraceableVariant::~XPCTraceableVariant()
         nsVariant::Cleanup(&mData);
 
     if(!JSVAL_IS_NULL(mJSVal))
-        RemoveFromRootSet(nsXPConnect::GetRuntimeInstance()->GetJSRuntime());
+        RemoveFromRootSet(nsXPConnect::GetRuntime()->GetJSRuntime());
 }
 
 void XPCTraceableVariant::TraceJS(JSTracer* trc)
@@ -108,7 +108,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(XPCVariant)
     if(JSVAL_IS_TRACEABLE(tmp->mJSVal))
     {
         XPCTraceableVariant *v = static_cast<XPCTraceableVariant*>(tmp);
-        v->RemoveFromRootSet(nsXPConnect::GetRuntimeInstance()->GetJSRuntime());
+        v->RemoveFromRootSet(nsXPConnect::GetRuntime()->GetJSRuntime());
     }
     tmp->mJSVal = JSVAL_NULL;
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
@@ -156,7 +156,7 @@ private:
     };
 
     // Table has tUnk as a state (column) but not as a type (row).
-    static const Type StateTable[tTypeCount][tTypeCount-1];
+    static Type StateTable[tTypeCount][tTypeCount-1];
 
 public:
     static JSBool GetTypeForArray(XPCCallContext& ccx, JSObject* array, 
@@ -169,7 +169,7 @@ public:
 // Current type is the row along the top. 
 // New state is in the box at the intersection.
 
-const XPCArrayHomogenizer::Type 
+XPCArrayHomogenizer::Type 
 XPCArrayHomogenizer::StateTable[tTypeCount][tTypeCount-1] = {
 /*          tNull,tInt ,tDbl ,tBool,tStr ,tID  ,tArr ,tISup */
 /* tNull */{tNull,tVar ,tVar ,tVar ,tStr ,tID  ,tVar ,tISup },

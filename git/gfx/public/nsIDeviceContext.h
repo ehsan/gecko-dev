@@ -42,6 +42,7 @@
 #include "nsISupports.h"
 #include "nsCoord.h"
 #include "nsRect.h"
+#include "nsIWidget.h"
 #include "nsIRenderingContext.h"
 // XXX we need only gfxTypes.h, but we cannot include it directly.
 #include "gfxPoint.h"
@@ -168,10 +169,10 @@ const PRUint8 kUseAltDCFor_CREATERC_PAINT  = 0x04; // Use when creating Renderin
 const PRUint8 kUseAltDCFor_SURFACE_DIM     = 0x08; // Use it for getting the Surface Dimensions
 #endif
 
-// 40aebd88-a82b-48b0-8a44-be51510064a7
+// 92a1e76c-adbd-441e-aae6-243d6004e0ee
 #define NS_IDEVICE_CONTEXT_IID   \
-{ 0x40aebd88, 0xa82b, 0x48b0, \
-  { 0x8a, 0x44, 0xbe, 0x51, 0x51, 0x00, 0x64, 0xa7 } }
+{ 0x92a1e76c, 0xadbd, 0x441e, \
+ { 0xaa, 0xe6, 0x24, 0x3d, 0x60, 0x4, 0xe0, 0xee } }
 
 //a cross platform way of specifying a native palette handle
 typedef void * nsPalette;
@@ -214,10 +215,10 @@ public:
 
   /**
    * Initialize the device context from a widget
-   * @param aWidget a widget to initialize the device context from
+   * @param aWidget a native widget to initialize the device context from
    * @return error status
    */
-  NS_IMETHOD  Init(nsIWidget* aWidget) = 0;
+  NS_IMETHOD  Init(nsNativeWidget aWidget) = 0;
 
   /**
    * Initialize the device context from a device context spec
@@ -334,8 +335,8 @@ public:
    * @return error status
    */
   NS_IMETHOD  GetMetricsFor(const nsFont& aFont, nsIAtom* aLangGroup,
-                            gfxUserFontSet* aUserFontSet,
-                            nsIFontMetrics*& aMetrics) = 0;
+                            nsIFontMetrics*& aMetrics, 
+                            gfxUserFontSet *aUserFontSet = nsnull) = 0;
 
   /**
    * Get the nsIFontMetrics that describe the properties of
@@ -345,8 +346,8 @@ public:
    * @param aUserFontSet user font set
    * @return error status
    */
-  NS_IMETHOD  GetMetricsFor(const nsFont& aFont, gfxUserFontSet* aUserFontSet,
-                            nsIFontMetrics*& aMetrics) = 0;
+  NS_IMETHOD  GetMetricsFor(const nsFont& aFont, nsIFontMetrics*& aMetrics, 
+                            gfxUserFontSet *aUserFontSet = nsnull) = 0;
 
   /**
    * Check to see if a particular named font exists.

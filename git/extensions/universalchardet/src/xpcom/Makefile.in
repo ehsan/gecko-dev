@@ -61,6 +61,8 @@ REQUIRES	= xpcom \
 		  chardet \
 		  $(NULL)
 
+PACKAGE_FILE = universalchardet.pkg
+
 CPPSRCS = \
 		nsUniversalCharDetModule.cpp \
 		nsUdetXPCOMWrapper.cpp \

@@ -119,12 +119,9 @@ struct InlineBackgroundData
                            NS_STYLE_DIRECTION_RTL);      
       nscoord curOffset = aFrame->GetOffsetTo(mBlockFrame).x;
 
-      // No need to use our GetPrevContinuation/GetNextContinuation methods
-      // here, since ib special siblings are certainly not on the same line.
-      
       nsIFrame* inlineFrame = aFrame->GetPrevContinuation();
       // If the continuation is fluid we know inlineFrame is not on the same line.
-      // If it's not fluid, we need to test further to be sure.
+      // If it's not fluid, we need to test furhter to be sure.
       while (inlineFrame && !inlineFrame->GetNextInFlow() &&
              AreOnSameLine(aFrame, inlineFrame)) {
         nscoord frameXOffset = inlineFrame->GetOffsetTo(mBlockFrame).x;
@@ -179,18 +176,19 @@ struct InlineBackgroundData
 
 protected:
   nsIFrame*     mFrame;
-  nsBlockFrame* mBlockFrame;
-  nsRect        mBoundingBox;
   nscoord       mContinuationPoint;
   nscoord       mUnbrokenWidth;
-  nscoord       mLineContinuationPoint;
+  nsRect        mBoundingBox;
+
   PRBool        mBidiEnabled;
+  nsBlockFrame* mBlockFrame;
+  nscoord       mLineContinuationPoint;
   
   void SetFrame(nsIFrame* aFrame)
   {
     NS_PRECONDITION(aFrame, "Need a frame");
 
-    nsIFrame *prevContinuation = GetPrevContinuation(aFrame);
+    nsIFrame *prevContinuation = aFrame->GetPrevContinuation();
 
     if (!prevContinuation || mFrame != prevContinuation) {
       // Ok, we've got the wrong frame.  We have to start from scratch.
@@ -212,56 +210,18 @@ protected:
     mFrame = aFrame;
   }
 
-  nsIFrame* GetPrevContinuation(nsIFrame* aFrame)
-  {
-    nsIFrame* prevCont = aFrame->GetPrevContinuation();
-    if (!prevCont && (aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL)) {
-      nsIFrame* block =
-        static_cast<nsIFrame*>
-                   (aFrame->GetProperty(nsGkAtoms::IBSplitSpecialPrevSibling));
-      if (block) {
-        // The {ib} properties are only stored on first continuations
-        block = block->GetFirstContinuation();
-        prevCont =
-          static_cast<nsIFrame*>
-                     (block->GetProperty(nsGkAtoms::IBSplitSpecialPrevSibling));
-        NS_ASSERTION(prevCont, "How did that happen?");
-      }
-    }
-    return prevCont;
-  }
-
-  nsIFrame* GetNextContinuation(nsIFrame* aFrame)
-  {
-    nsIFrame* nextCont = aFrame->GetNextContinuation();
-    if (!nextCont && (aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL)) {
-      // The {ib} properties are only stored on first continuations
-      aFrame = aFrame->GetFirstContinuation();
-      nsIFrame* block =
-        static_cast<nsIFrame*>
-                   (aFrame->GetProperty(nsGkAtoms::IBSplitSpecialSibling));
-      if (block) {
-        nextCont =
-          static_cast<nsIFrame*>
-                     (block->GetProperty(nsGkAtoms::IBSplitSpecialSibling));
-        NS_ASSERTION(nextCont, "How did that happen?");
-      }
-    }
-    return nextCont;
-  }
-
   void Init(nsIFrame* aFrame)
   {    
     // Start with the previous flow frame as our continuation point
     // is the total of the widths of the previous frames.
-    nsIFrame* inlineFrame = GetPrevContinuation(aFrame);
+    nsIFrame* inlineFrame = aFrame->GetPrevContinuation();
 
     while (inlineFrame) {
       nsRect rect = inlineFrame->GetRect();
       mContinuationPoint += rect.width;
       mUnbrokenWidth += rect.width;
       mBoundingBox.UnionRect(mBoundingBox, rect);
-      inlineFrame = GetPrevContinuation(inlineFrame);
+      inlineFrame = inlineFrame->GetPrevContinuation();
     }
 
     // Next add this frame and subsequent frames to the bounding box and
@@ -271,7 +231,7 @@ protected:
       nsRect rect = inlineFrame->GetRect();
       mUnbrokenWidth += rect.width;
       mBoundingBox.UnionRect(mBoundingBox, rect);
-      inlineFrame = GetNextContinuation(inlineFrame);
+      inlineFrame = inlineFrame->GetNextContinuation();
     }
 
     mFrame = aFrame;
@@ -280,13 +240,14 @@ protected:
     if (mBidiEnabled) {
       // Find the containing block frame
       nsIFrame* frame = aFrame;
-      do {
+      nsresult rv = NS_ERROR_FAILURE;
+      while (frame &&
+             frame->IsFrameOfType(nsIFrame::eLineParticipant) &&
+             NS_FAILED(rv)) {
         frame = frame->GetParent();
-        mBlockFrame = do_QueryFrame(frame);
+        rv = frame->QueryInterface(kBlockFrameCID, (void**)&mBlockFrame);
       }
-      while (frame && frame->IsFrameOfType(nsIFrame::eLineParticipant));
-
-      NS_ASSERTION(mBlockFrame, "Cannot find containing block.");
+      NS_ASSERTION(NS_SUCCEEDED(rv) && mBlockFrame, "Cannot find containing block.");
 
       mLineContinuationPoint = mContinuationPoint;
     }
@@ -302,37 +263,44 @@ protected:
 };
 
 /* Local functions */
-static void PaintBackgroundLayer(nsPresContext* aPresContext,
-                                 nsIRenderingContext& aRenderingContext,
-                                 nsIFrame* aForFrame,
-                                 const nsRect& aDirtyRect,
-                                 const nsRect& aBorderArea,
-                                 const nsRect& aBGClipRect,
-                                 const nsStyleBackground& aBackground,
-                                 const nsStyleBackground::Layer& aLayer,
-                                 const nsStyleBorder& aBorder,
-                                 PRBool aUsePrintSettings);
-
 static void DrawBorderImage(nsPresContext* aPresContext,
                             nsIRenderingContext& aRenderingContext,
                             nsIFrame* aForFrame,
                             const nsRect& aBorderArea,
-                            const nsStyleBorder& aBorderStyle,
-                            const nsRect& aDirtyRect);
+                            const nsStyleBorder& aBorderStyle);
 
-static void DrawBorderImageComponent(nsIRenderingContext& aRenderingContext,
-                                     nsIFrame* aForFrame,
-                                     nsIImage* aImage,
-                                     const nsRect& aDirtyRect,
-                                     const nsRect& aFill,
-                                     const nsIntRect& aSrc,
-                                     PRUint8 aHFill,
-                                     PRUint8 aVFill,
-                                     const nsSize& aUnitSize);
+static void DrawBorderImageSide(gfxContext *aThebesContext,
+                                nsIDeviceContext* aDeviceContext,
+                                imgIContainer* aImage,
+                                gfxRect& aDestRect,
+                                gfxSize& aInterSize,
+                                gfxRect& aSourceRect,
+                                PRUint8 aHFillType,
+                                PRUint8 aVFillType);
+
+static void PaintBackgroundColor(nsPresContext* aPresContext,
+                                 nsIRenderingContext& aRenderingContext,
+                                 nsIFrame* aForFrame,
+                                 const nsRect& aBgClipArea,
+                                 const nsStyleBackground& aColor,
+                                 const nsStyleBorder& aBorder,
+                                 PRBool aCanPaintNonWhite);
 
 static nscolor MakeBevelColor(PRIntn whichSide, PRUint8 style,
                               nscolor aBackgroundColor,
                               nscolor aBorderColor);
+
+static gfxRect GetTextDecorationRectInternal(const gfxPoint& aPt,
+                                             const gfxSize& aLineSize,
+                                             const gfxFloat aAscent,
+                                             const gfxFloat aOffset,
+                                             const PRUint8 aDecoration,
+                                             const PRUint8 aStyle);
+
+/* Returns FALSE iff all returned aTwipsRadii == 0, TRUE otherwise */
+static PRBool GetBorderRadiusTwips(const nsStyleCorners& aBorderRadius,
+                                   const nscoord& aFrameWidth,
+                                   nscoord aTwipsRadii[8]);
 
 static InlineBackgroundData* gInlineBGData = nsnull;
 
@@ -396,6 +364,31 @@ MakeBevelColor(PRIntn whichSide, PRUint8 style,
     break;
   }
   return theColor;
+}
+
+nscolor
+nsCSSRendering::TransformColor(nscolor  aMapColor,PRBool aNoBackGround)
+{
+PRUint16  hue,sat,value;
+nscolor   newcolor;
+
+  newcolor = aMapColor;
+  if (PR_TRUE == aNoBackGround){
+    // convert the RBG to HSV so we can get the lightness (which is the v)
+    NS_RGB2HSV(newcolor,hue,sat,value);
+    // The goal here is to send white to black while letting colored
+    // stuff stay colored... So we adopt the following approach.
+    // Something with sat = 0 should end up with value = 0.  Something
+    // with a high sat can end up with a high value and it's ok.... At
+    // the same time, we don't want to make things lighter.  Do
+    // something simple, since it seems to work.
+    if (value > sat) {
+      value = sat;
+      // convert this color back into the RGB color space.
+      NS_HSV2RGB(newcolor,hue,sat,value);
+    }
+  }
+  return newcolor;
 }
 
 //----------------------------------------------------------------------
@@ -519,7 +512,7 @@ nsCSSRendering::PaintBorder(nsPresContext* aPresContext,
 
   if (aBorderStyle.IsBorderImageLoaded()) {
     DrawBorderImage(aPresContext, aRenderingContext, aForFrame,
-                    aBorderArea, aBorderStyle, aDirtyRect);
+                    aBorderArea, aBorderStyle);
     return;
   }
   
@@ -528,9 +521,8 @@ nsCSSRendering::PaintBorder(nsPresContext* aPresContext,
 
   // in NavQuirks mode we want to use the parent's context as a starting point
   // for determining the background color
-  nsStyleContext* bgContext = nsCSSRendering::FindNonTransparentBackground
+  const nsStyleBackground* bgColor = nsCSSRendering::FindNonTransparentBackground
     (aStyleContext, compatMode == eCompatibility_NavQuirks ? PR_TRUE : PR_FALSE);
-  const nsStyleBackground* bgColor = bgContext->GetStyleBackground();
 
   border = aBorderStyle.GetComputedBorder();
   if ((0 == border.left) && (0 == border.right) &&
@@ -655,9 +647,8 @@ nsCSSRendering::PaintOutline(nsPresContext* aPresContext,
     return;
   }
 
-  nsStyleContext* bgContext = nsCSSRendering::FindNonTransparentBackground
+  const nsStyleBackground* bgColor = nsCSSRendering::FindNonTransparentBackground
     (aStyleContext, PR_FALSE);
-  const nsStyleBackground* bgColor = bgContext->GetStyleBackground();
 
   // get the radius for our outline
   GetBorderRadiusTwips(aOutlineStyle.mOutlineRadius, aBorderArea.width,
@@ -822,55 +813,117 @@ nsCSSRendering::PaintFocus(nsPresContext* aPresContext,
 
 //----------------------------------------------------------------------
 
-/**
- * Computes the placement of a background image.
- *
- * @param aOriginBounds is the box to which the tiling position should be
- * relative
- * This should correspond to 'background-origin' for the frame,
- * except when painting on the canvas, in which case the origin bounds
- * should be the bounds of the root element's frame.
- * @param aTopLeft the top-left corner where an image tile should be drawn
- * @param aAnchorPoint a point which should be pixel-aligned by
- * nsLayoutUtils::DrawImage. This is the same as aTopLeft, unless CSS
- * specifies a percentage (including 'right' or 'bottom'), in which case
- * it's that percentage within of aOriginBounds. So 'right' would set
- * aAnchorPoint.x to aOriginBounds.XMost().
- * 
- * Points are returned relative to aOriginBounds.
- */
+// Returns the anchor point to use for the background image. The
+// anchor point is the (x, y) location where the first tile should
+// be placed
+//
+// For repeated tiling, the anchor values are normalized wrt to the upper-left
+// edge of the bounds, and are always in the range:
+// -(aTileWidth - 1) <= anchor.x <= 0
+// -(aTileHeight - 1) <= anchor.y <= 0
+//
+// i.e., they are either 0 or a negative number whose absolute value is
+// less than the tile size in that dimension
+//
+// aOriginBounds is the box to which the tiling position should be relative
+// aClipBounds is the box in which the tiling will actually be done
+// They should correspond to 'background-origin' and 'background-clip',
+// except when painting on the canvas, in which case the origin bounds
+// should be the bounds of the root element's frame and the clip bounds
+// should be the bounds of the canvas frame.
 static void
-ComputeBackgroundAnchorPoint(const nsStyleBackground::Layer& aLayer,
-                             const nsSize& aOriginBounds,
-                             const nsSize& aImageSize,
-                             nsPoint* aTopLeft,
-                             nsPoint* aAnchorPoint)
+ComputeBackgroundAnchorPoint(const nsStyleBackground& aColor,
+                             const nsRect& aOriginBounds,
+                             const nsRect& aClipBounds,
+                             nscoord aTileWidth, nscoord aTileHeight,
+                             nsPoint& aResult)
 {
-  if (!aLayer.mPosition.mXIsPercent) {
-    aTopLeft->x = aAnchorPoint->x = aLayer.mPosition.mXPosition.mCoord;
+  nscoord x;
+  if (NS_STYLE_BG_X_POSITION_LENGTH & aColor.mBackgroundFlags) {
+    x = aColor.mBackgroundXPosition.mCoord;
+  }
+  else if (NS_STYLE_BG_X_POSITION_PERCENT & aColor.mBackgroundFlags) {
+    PRFloat64 percent = PRFloat64(aColor.mBackgroundXPosition.mFloat);
+    nscoord tilePos = nscoord(percent * PRFloat64(aTileWidth));
+    nscoord boxPos = nscoord(percent * PRFloat64(aOriginBounds.width));
+    x = boxPos - tilePos;
   }
   else {
-    double percent = aLayer.mPosition.mXPosition.mFloat;
-    aAnchorPoint->x = NSToCoordRound(percent*aOriginBounds.width);
-    aTopLeft->x = NSToCoordRound(percent*(aOriginBounds.width - aImageSize.width));
+    x = 0;
   }
+  x += aOriginBounds.x - aClipBounds.x;
+  if (NS_STYLE_BG_REPEAT_X & aColor.mBackgroundRepeat) {
+    // When we are tiling in the x direction the loop will run from
+    // the left edge of the box to the right edge of the box. We need
+    // to adjust the starting coordinate to lie within the band being
+    // rendered.
+    if (x < 0) {
+      x = -x;
+      if (x < 0) {
+        // Some joker gave us max-negative-integer.
+        x = 0;
+      }
+      x %= aTileWidth;
+      x = -x;
+    }
+    else if (x != 0) {
+      x %= aTileWidth;
+      if (x > 0) {
+        x = x - aTileWidth;
+      }
+    }
 
-  if (!aLayer.mPosition.mYIsPercent) {
-    aTopLeft->y = aAnchorPoint->y = aLayer.mPosition.mYPosition.mCoord;
+    NS_POSTCONDITION((x >= -(aTileWidth - 1)) && (x <= 0), "bad computed anchor value");
+  }
+  aResult.x = x;
+
+  nscoord y;
+  if (NS_STYLE_BG_Y_POSITION_LENGTH & aColor.mBackgroundFlags) {
+    y = aColor.mBackgroundYPosition.mCoord;
+  }
+  else if (NS_STYLE_BG_Y_POSITION_PERCENT & aColor.mBackgroundFlags){
+    PRFloat64 percent = PRFloat64(aColor.mBackgroundYPosition.mFloat);
+    nscoord tilePos = nscoord(percent * PRFloat64(aTileHeight));
+    nscoord boxPos = nscoord(percent * PRFloat64(aOriginBounds.height));
+    y = boxPos - tilePos;
   }
   else {
-    double percent = aLayer.mPosition.mYPosition.mFloat;
-    aAnchorPoint->y = NSToCoordRound(percent*aOriginBounds.height);
-    aTopLeft->y = NSToCoordRound(percent*(aOriginBounds.height - aImageSize.height));
+    y = 0;
   }
+  y += aOriginBounds.y - aClipBounds.y;
+  if (NS_STYLE_BG_REPEAT_Y & aColor.mBackgroundRepeat) {
+    // When we are tiling in the y direction the loop will run from
+    // the top edge of the box to the bottom edge of the box. We need
+    // to adjust the starting coordinate to lie within the band being
+    // rendered.
+    if (y < 0) {
+      y = -y;
+      if (y < 0) {
+        // Some joker gave us max-negative-integer.
+        y = 0;
+      }
+      y %= aTileHeight;
+      y = -y;
+    }
+    else if (y != 0) {
+      y %= aTileHeight;
+      if (y > 0) {
+        y = y - aTileHeight;
+      }
+    }
+    
+    NS_POSTCONDITION((y >= -(aTileHeight - 1)) && (y <= 0), "bad computed anchor value");
+  }
+  aResult.y = y;
 }
 
-nsStyleContext*
+const nsStyleBackground*
 nsCSSRendering::FindNonTransparentBackground(nsStyleContext* aContext,
                                              PRBool aStartAtParent /*= PR_FALSE*/)
 {
   NS_ASSERTION(aContext, "Cannot find NonTransparentBackground in a null context" );
   
+  const nsStyleBackground* result = nsnull;
   nsStyleContext* context = nsnull;
   if (aStartAtParent) {
     context = aContext->GetParent();
@@ -880,76 +933,15 @@ nsCSSRendering::FindNonTransparentBackground(nsStyleContext* aContext,
   }
   
   while (context) {
-    const nsStyleBackground* bg = context->GetStyleBackground();
-    if (NS_GET_A(bg->mBackgroundColor) > 0)
+    result = context->GetStyleBackground();
+    if (NS_GET_A(result->mBackgroundColor) > 0)
       break;
 
-    const nsStyleDisplay* display = context->GetStyleDisplay();
-    if (display->mAppearance)
-      break;
-
-    nsStyleContext* parent = context->GetParent();
-    if (!parent)
-      break;
-
-    context = parent;
+    context = context->GetParent();
   }
-  return context;
+  return result;
 }
 
-// Returns true if aFrame is a canvas frame.
-// We need to treat the viewport as canvas because, even though
-// it does not actually paint a background, we need to get the right
-// background style so we correctly detect transparent documents.
-PRBool
-nsCSSRendering::IsCanvasFrame(nsIFrame* aFrame)
-{
-  nsIAtom* frameType = aFrame->GetType();
-  return frameType == nsGkAtoms::canvasFrame ||
-         frameType == nsGkAtoms::rootFrame ||
-         frameType == nsGkAtoms::pageFrame ||
-         frameType == nsGkAtoms::pageContentFrame ||
-         frameType == nsGkAtoms::viewportFrame;
-}
-
-nsIFrame*
-nsCSSRendering::FindRootFrame(nsIFrame* aForFrame)
-{
-  const nsStyleBackground* result = aForFrame->GetStyleBackground();
-
-  // Check if we need to do propagation from BODY rather than HTML.
-  if (result->IsTransparent()) {
-    nsIContent* content = aForFrame->GetContent();
-    // The root element content can't be null. We wouldn't know what
-    // frame to create for aFrame.
-    // Use |GetOwnerDoc| so it works during destruction.
-    if (content) {
-      nsIDocument* document = content->GetOwnerDoc();
-      nsCOMPtr<nsIHTMLDocument> htmlDoc = do_QueryInterface(document);
-      if (htmlDoc) {
-        nsIContent* bodyContent = htmlDoc->GetBodyContentExternal();
-        // We need to null check the body node (bug 118829) since
-        // there are cases, thanks to the fix for bug 5569, where we
-        // will reflow a document with no body.  In particular, if a
-        // SCRIPT element in the head blocks the parser and then has a
-        // SCRIPT that does "document.location.href = 'foo'", then
-        // nsParser::Terminate will call |DidBuildModel| methods
-        // through to the content sink, which will call |StartLayout|
-        // and thus |InitialReflow| on the pres shell.  See bug 119351
-        // for the ugly details.
-        if (bodyContent) {
-          nsIFrame *bodyFrame = aForFrame->PresContext()->GetPresShell()->
-            GetPrimaryFrameFor(bodyContent);
-          if (bodyFrame) {
-            return bodyFrame;
-          }
-        }
-      }
-    }
-  }
-
-  return aForFrame;
-}
 
 /**
  * |FindBackground| finds the correct style data to use to paint the
@@ -976,26 +968,71 @@ nsCSSRendering::FindRootFrame(nsIFrame* aForFrame)
  *
  * |FindBackground| returns true if a background should be painted, and
  * the resulting style context to use for the background information
- * will be filled in to |aBackground|.
+ * will be filled in to |aBackground|.  It fills in a boolean indicating
+ * whether the frame is the canvas frame to allow PaintBackground to
+ * ensure that it always paints something non-transparent for the
+ * canvas.
  */
-const nsStyleBackground*
-nsCSSRendering::FindRootFrameBackground(nsIFrame* aForFrame)
+
+// Returns true if aFrame is a canvas frame.
+// We need to treat the viewport as canvas because, even though
+// it does not actually paint a background, we need to get the right
+// background style so we correctly detect transparent documents.
+inline PRBool
+IsCanvasFrame(nsIFrame *aFrame)
 {
-  return FindRootFrame(aForFrame)->GetStyleBackground();
+  nsIAtom* frameType = aFrame->GetType();
+  return frameType == nsGkAtoms::canvasFrame ||
+         frameType == nsGkAtoms::rootFrame ||
+         frameType == nsGkAtoms::pageFrame ||
+         frameType == nsGkAtoms::pageContentFrame ||
+         frameType == nsGkAtoms::viewportFrame;
 }
 
-inline void
+inline PRBool
 FindCanvasBackground(nsIFrame* aForFrame, nsIFrame* aRootElementFrame,
                      const nsStyleBackground** aBackground)
 {
   if (aRootElementFrame) {
-    *aBackground = nsCSSRendering::FindRootFrameBackground(aRootElementFrame);
+    const nsStyleBackground* result = aRootElementFrame->GetStyleBackground();
+
+    // Check if we need to do propagation from BODY rather than HTML.
+    if (result->IsTransparent()) {
+      nsIContent* content = aRootElementFrame->GetContent();
+      // The root element content can't be null. We wouldn't know what
+      // frame to create for aRootElementFrame.
+      // Use |GetOwnerDoc| so it works during destruction.
+      nsIDocument* document = content->GetOwnerDoc();
+      nsCOMPtr<nsIHTMLDocument> htmlDoc = do_QueryInterface(document);
+      if (htmlDoc) {
+        nsIContent* bodyContent = htmlDoc->GetBodyContentExternal();
+        // We need to null check the body node (bug 118829) since
+        // there are cases, thanks to the fix for bug 5569, where we
+        // will reflow a document with no body.  In particular, if a
+        // SCRIPT element in the head blocks the parser and then has a
+        // SCRIPT that does "document.location.href = 'foo'", then
+        // nsParser::Terminate will call |DidBuildModel| methods
+        // through to the content sink, which will call |StartLayout|
+        // and thus |InitialReflow| on the pres shell.  See bug 119351
+        // for the ugly details.
+        if (bodyContent) {
+          nsIFrame *bodyFrame = aForFrame->PresContext()->GetPresShell()->
+            GetPrimaryFrameFor(bodyContent);
+          if (bodyFrame)
+            result = bodyFrame->GetStyleBackground();
+        }
+      }
+    }
+
+    *aBackground = result;
   } else {
     // This should always give transparent, so we'll fill it in with the
     // default color if needed.  This seems to happen a bit while a page is
     // being loaded.
     *aBackground = aForFrame->GetStyleBackground();
   }
+  
+  return PR_TRUE;
 }
 
 inline PRBool
@@ -1044,16 +1081,16 @@ FindElementBackground(nsIFrame* aForFrame, nsIFrame* aRootElementFrame,
 PRBool
 nsCSSRendering::FindBackground(nsPresContext* aPresContext,
                                nsIFrame* aForFrame,
-                               const nsStyleBackground** aBackground)
+                               const nsStyleBackground** aBackground,
+                               PRBool* aIsCanvas)
 {
   nsIFrame* rootElementFrame =
     aPresContext->PresShell()->FrameConstructor()->GetRootElementStyleFrame();
-  if (IsCanvasFrame(aForFrame)) {
-    FindCanvasBackground(aForFrame, rootElementFrame, aBackground);
-    return PR_TRUE;
-  } else {
-    return FindElementBackground(aForFrame, rootElementFrame, aBackground);
-  }
+  PRBool isCanvasFrame = IsCanvasFrame(aForFrame);
+  *aIsCanvas = isCanvasFrame;
+  return isCanvasFrame
+      ? FindCanvasBackground(aForFrame, rootElementFrame, aBackground)
+      : FindElementBackground(aForFrame, rootElementFrame, aBackground);
 }
 
 void
@@ -1062,10 +1099,9 @@ nsCSSRendering::DidPaint()
   gInlineBGData->Reset();
 }
 
-PRBool
-nsCSSRendering::GetBorderRadiusTwips(const nsStyleCorners& aBorderRadius,
-                                     const nscoord& aFrameWidth,
-                                     nscoord aRadii[8])
+static PRBool
+GetBorderRadiusTwips(const nsStyleCorners& aBorderRadius,
+                     const nscoord& aFrameWidth, nscoord aTwipsRadii[8])
 {
   PRBool result = PR_FALSE;
   
@@ -1075,64 +1111,60 @@ nsCSSRendering::GetBorderRadiusTwips(const nsStyleCorners& aBorderRadius,
 
     switch (c.GetUnit()) {
       case eStyleUnit_Percent:
-        aRadii[i] = (nscoord)(c.GetPercentValue() * aFrameWidth);
+        aTwipsRadii[i] = (nscoord)(c.GetPercentValue() * aFrameWidth);
         break;
 
       case eStyleUnit_Coord:
-        aRadii[i] = c.GetCoordValue();
+        aTwipsRadii[i] = c.GetCoordValue();
         break;
 
       default:
         NS_NOTREACHED("GetBorderRadiusTwips: bad unit");
-        aRadii[i] = 0;
+        aTwipsRadii[i] = 0;
         break;
     }
 
-    if (aRadii[i])
+    if (aTwipsRadii[i])
       result = PR_TRUE;
   }
   return result;
 }
 
 void
-nsCSSRendering::PaintBoxShadowOuter(nsPresContext* aPresContext,
-                                    nsIRenderingContext& aRenderingContext,
-                                    nsIFrame* aForFrame,
-                                    const nsRect& aFrameArea,
-                                    const nsRect& aDirtyRect)
+nsCSSRendering::PaintBoxShadow(nsPresContext* aPresContext,
+                               nsIRenderingContext& aRenderingContext,
+                               nsIFrame* aForFrame,
+                               const nsPoint& aForFramePt)
 {
-  nsCSSShadowArray* shadows = aForFrame->GetEffectiveBoxShadows();
-  if (!shadows)
-    return;
+  nsMargin      borderValues;
+  PRIntn        sidesToSkip;
+  nsRect        frameRect;
+
   const nsStyleBorder* styleBorder = aForFrame->GetStyleBorder();
-  PRIntn sidesToSkip = aForFrame->GetSkipSides();
+  borderValues = styleBorder->GetActualBorder();
+  sidesToSkip = aForFrame->GetSkipSides();
+  frameRect = nsRect(aForFramePt, aForFrame->GetSize());
 
   // Get any border radius, since box-shadow must also have rounded corners if the frame does
   nscoord twipsRadii[8];
   PRBool hasBorderRadius = GetBorderRadiusTwips(styleBorder->mBorderRadius,
-                                                aFrameArea.width, twipsRadii);
+                                                frameRect.width, twipsRadii);
   nscoord twipsPerPixel = aPresContext->DevPixelsToAppUnits(1);
 
   gfxCornerSizes borderRadii;
-  ComputePixelRadii(twipsRadii, aFrameArea, sidesToSkip,
+  ComputePixelRadii(twipsRadii, frameRect, sidesToSkip,
                     twipsPerPixel, &borderRadii);
 
-  gfxRect frameGfxRect = RectToGfxRect(aFrameArea, twipsPerPixel);
-  frameGfxRect.Round();
-  gfxRect dirtyGfxRect = RectToGfxRect(aDirtyRect, twipsPerPixel);
-
-  for (PRUint32 i = shadows->Length(); i > 0; --i) {
-    nsCSSShadowItem* shadowItem = shadows->ShadowAt(i - 1);
-    if (shadowItem->mInset)
-      continue;
-
-    gfxRect shadowRect(aFrameArea.x, aFrameArea.y, aFrameArea.width, aFrameArea.height);
+  gfxRect frameGfxRect = RectToGfxRect(frameRect, twipsPerPixel);
+  for (PRUint32 i = styleBorder->mBoxShadow->Length(); i > 0; --i) {
+    nsCSSShadowItem* shadowItem = styleBorder->mBoxShadow->ShadowAt(i - 1);
+    gfxRect shadowRect(frameRect.x, frameRect.y, frameRect.width, frameRect.height);
     shadowRect.MoveBy(gfxPoint(shadowItem->mXOffset, shadowItem->mYOffset));
     shadowRect.Outset(shadowItem->mSpread);
 
     gfxRect shadowRectPlusBlur = shadowRect;
     shadowRect.ScaleInverse(twipsPerPixel);
-    shadowRect.Round();
+    shadowRect.RoundOut();
 
     // shadowRect won't include the blur, so make an extra rect here that includes the blur
     // for use in the even-odd rule below.
@@ -1145,9 +1177,9 @@ nsCSSRendering::PaintBoxShadowOuter(nsPresContext* aPresContext,
     nsRefPtr<gfxContext> shadowContext;
     nsContextBoxBlur blurringArea;
 
-    // shadowRect is already in device pixels, pass 1 as the appunits/pixel value
+    // shadowRect has already been converted to device pixels, pass 1 as the appunits/pixel value
     blurRadius /= twipsPerPixel;
-    shadowContext = blurringArea.Init(shadowRect, blurRadius, 1, renderContext, dirtyGfxRect);
+    shadowContext = blurringArea.Init(shadowRect, blurRadius, 1, renderContext);
     if (!shadowContext)
       continue;
 
@@ -1178,141 +1210,10 @@ nsCSSRendering::PaintBoxShadowOuter(nsPresContext* aPresContext,
     // (renderContext == shadowContext) which is why we set up the color and clip
     // before doing this.
     shadowContext->NewPath();
-    if (hasBorderRadius) {
-      gfxCornerSizes clipRectRadii;
-      gfxFloat spreadDistance = -shadowItem->mSpread / twipsPerPixel;
-      gfxFloat borderSizes[4] = {
-        spreadDistance, spreadDistance,
-        spreadDistance, spreadDistance
-      };
-      nsCSSBorderRenderer::ComputeInnerRadii(borderRadii, borderSizes,
-                                             &clipRectRadii);
-      shadowContext->RoundedRectangle(shadowRect, clipRectRadii);
-    } else {
-      shadowContext->Rectangle(shadowRect);
-    }
-    shadowContext->Fill();
-
-    blurringArea.DoPaint();
-    renderContext->Restore();
-  }
-}
-
-void
-nsCSSRendering::PaintBoxShadowInner(nsPresContext* aPresContext,
-                                    nsIRenderingContext& aRenderingContext,
-                                    nsIFrame* aForFrame,
-                                    const nsRect& aFrameArea,
-                                    const nsRect& aDirtyRect)
-{
-  nsCSSShadowArray* shadows = aForFrame->GetEffectiveBoxShadows();
-  if (!shadows)
-    return;
-  const nsStyleBorder* styleBorder = aForFrame->GetStyleBorder();
-
-  // Get any border radius, since box-shadow must also have rounded corners if the frame does
-  nscoord twipsRadii[8];
-  PRBool hasBorderRadius = GetBorderRadiusTwips(styleBorder->mBorderRadius,
-                                                aFrameArea.width, twipsRadii);
-  nscoord twipsPerPixel = aPresContext->DevPixelsToAppUnits(1);
-
-  nsRect paddingRect = aFrameArea;
-  nsMargin border = aForFrame->GetUsedBorder();
-  aForFrame->ApplySkipSides(border);
-  paddingRect.Deflate(border);
-
-  gfxCornerSizes innerRadii;
-  if (hasBorderRadius) {
-    gfxCornerSizes borderRadii;
-    PRIntn sidesToSkip = aForFrame->GetSkipSides();
-
-    ComputePixelRadii(twipsRadii, aFrameArea, sidesToSkip,
-                      twipsPerPixel, &borderRadii);
-    gfxFloat borderSizes[4] = {
-      border.top / twipsPerPixel, border.right / twipsPerPixel,
-      border.bottom / twipsPerPixel, border.left / twipsPerPixel
-    };
-    nsCSSBorderRenderer::ComputeInnerRadii(borderRadii, borderSizes,
-                                           &innerRadii);
-  }
-
-  gfxRect dirtyGfxRect = RectToGfxRect(aDirtyRect, twipsPerPixel);
-  for (PRUint32 i = shadows->Length(); i > 0; --i) {
-    nsCSSShadowItem* shadowItem = shadows->ShadowAt(i - 1);
-    if (!shadowItem->mInset)
-      continue;
-
-    /*
-     * shadowRect: the frame's padding rect
-     * shadowPaintRect: the area to paint on the temp surface, larger than shadowRect
-     *                  so that blurs still happen properly near the edges
-     * shadowClipRect: the area on the temporary surface within shadowPaintRect
-     *                 that we will NOT paint in
-     */
-    nscoord blurRadius = shadowItem->mRadius;
-    gfxRect shadowRect(paddingRect.x, paddingRect.y, paddingRect.width, paddingRect.height);
-    gfxRect shadowPaintRect = shadowRect;
-    shadowPaintRect.Outset(blurRadius);
-
-    gfxRect shadowClipRect = shadowRect;
-    shadowClipRect.MoveBy(gfxPoint(shadowItem->mXOffset, shadowItem->mYOffset));
-    shadowClipRect.Inset(shadowItem->mSpread);
-
-    shadowRect.ScaleInverse(twipsPerPixel);
-    shadowRect.Round();
-    shadowPaintRect.ScaleInverse(twipsPerPixel);
-    shadowPaintRect.RoundOut();
-    shadowClipRect.ScaleInverse(twipsPerPixel);
-    shadowClipRect.Round();
-
-    gfxContext* renderContext = aRenderingContext.ThebesContext();
-    nsRefPtr<gfxContext> shadowContext;
-    nsContextBoxBlur blurringArea;
-
-    // shadowPaintRect is already in device pixels, pass 1 as the appunits/pixel value
-    blurRadius /= twipsPerPixel;
-    shadowContext = blurringArea.Init(shadowPaintRect, blurRadius, 1, renderContext, dirtyGfxRect);
-    if (!shadowContext)
-      continue;
-
-    // Set the shadow color; if not specified, use the foreground color
-    nscolor shadowColor;
-    if (shadowItem->mHasColor)
-      shadowColor = shadowItem->mColor;
-    else
-      shadowColor = aForFrame->GetStyleColor()->mColor;
-
-    renderContext->Save();
-    renderContext->SetColor(gfxRGBA(shadowColor));
-
-    // Clip the context to the area of the frame's padding rect, so no part of the
-    // shadow is painted outside
-    renderContext->NewPath();
     if (hasBorderRadius)
-      renderContext->RoundedRectangle(shadowRect, innerRadii, PR_FALSE);
+      shadowContext->RoundedRectangle(shadowRect, borderRadii);
     else
-      renderContext->Rectangle(shadowRect);
-    renderContext->Clip();
-
-    // Fill the temporary surface minus the area within the frame that we should
-    // not paint in, and blur and apply it
-    shadowContext->NewPath();
-    shadowContext->Rectangle(shadowPaintRect);
-    if (hasBorderRadius) {
-      // Calculate the radii the inner clipping rect will have
-      gfxCornerSizes clipRectRadii;
-      gfxFloat spreadDistance = shadowItem->mSpread / twipsPerPixel;
-      gfxFloat borderSizes[4] = {
-        spreadDistance, spreadDistance,
-        spreadDistance, spreadDistance
-      };
-      nsCSSBorderRenderer::ComputeInnerRadii(innerRadii, borderSizes,
-                                             &clipRectRadii);
-      shadowContext->RoundedRectangle(shadowClipRect, clipRectRadii, PR_FALSE);
-    } else {
-      shadowContext->Rectangle(shadowClipRect);
-    }
-    shadowContext->SetFillRule(gfxContext::FILL_RULE_EVEN_ODD);
+      shadowContext->Rectangle(shadowRect);
     shadowContext->Fill();
 
     blurringArea.DoPaint();
@@ -1326,14 +1227,17 @@ nsCSSRendering::PaintBackground(nsPresContext* aPresContext,
                                 nsIFrame* aForFrame,
                                 const nsRect& aDirtyRect,
                                 const nsRect& aBorderArea,
-                                PRUint32 aFlags,
+                                PRBool aUsePrintSettings,
                                 nsRect* aBGClipRect)
 {
   NS_PRECONDITION(aForFrame,
                   "Frame is expected to be provided to PaintBackground");
 
+  PRBool isCanvas;
   const nsStyleBackground *color;
-  if (!FindBackground(aPresContext, aForFrame, &color)) {
+  const nsStyleBorder* border = aForFrame->GetStyleBorder();
+
+  if (!FindBackground(aPresContext, aForFrame, &color, &isCanvas)) {
     // we don't want to bail out of moz-appearance is set on a root
     // node. If it has a parent content node, bail because it's not
     // a root, other wise keep going in order to let the theme stuff
@@ -1350,11 +1254,118 @@ nsCSSRendering::PaintBackground(nsPresContext* aPresContext,
         
     color = aForFrame->GetStyleBackground();
   }
+  if (!isCanvas) {
+    PaintBackgroundWithSC(aPresContext, aRenderingContext, aForFrame,
+                          aDirtyRect, aBorderArea, *color, *border,
+                          aUsePrintSettings, aBGClipRect);
+    return;
+  }
+
+  nsStyleBackground canvasColor(*color);
+
+  nsIViewManager* vm = aPresContext->GetViewManager();
+
+  if (NS_GET_A(canvasColor.mBackgroundColor) < 255) {
+    // If the window is intended to be opaque, ensure that we always
+    // paint an opaque color for its root element, in case there's no
+    // background at all or a partly transparent image.
+    nsIView* rView;
+    vm->GetRootView(rView);
+    if (!rView->GetParent() &&
+        (!rView->HasWidget() ||
+         rView->GetWidget()->GetTransparencyMode() == eTransparencyOpaque)) {
+      nscolor backColor = aPresContext->DefaultBackgroundColor();
+      NS_ASSERTION(NS_GET_A(backColor) == 255,
+                   "default background color is not opaque");
+
+      canvasColor.mBackgroundColor =
+        NS_ComposeColors(backColor, canvasColor.mBackgroundColor);
+    }
+  }
+
+  vm->SetDefaultBackgroundColor(canvasColor.mBackgroundColor);
 
   PaintBackgroundWithSC(aPresContext, aRenderingContext, aForFrame,
-                        aDirtyRect, aBorderArea, *color,
-                        *aForFrame->GetStyleBorder(), aFlags,
-                        aBGClipRect);
+                        aDirtyRect, aBorderArea, canvasColor,
+                        *border, aUsePrintSettings, aBGClipRect);
+}
+
+inline nscoord IntDivFloor(nscoord aDividend, nscoord aDivisor)
+{
+  NS_PRECONDITION(aDivisor > 0,
+                  "this function only works for positive divisors");
+  // ANSI C, ISO 9899:1999 section 6.5.5 defines integer division as
+  // truncation of the result towards zero.  Earlier C standards, as
+  // well as the C++ standards (1998 and 2003) do not, but we depend
+  // on it elsewhere.
+  return (aDividend < 0 ? (aDividend - aDivisor + 1) : aDividend) / aDivisor;
+}
+
+inline nscoord IntDivCeil(nscoord aDividend, nscoord aDivisor)
+{
+  NS_PRECONDITION(aDivisor > 0,
+                  "this function only works for positive divisors");
+  // ANSI C, ISO 9899:1999 section 6.5.5 defines integer division as
+  // truncation of the result towards zero.  Earlier C standards, as
+  // well as the C++ standards (1998 and 2003) do not, but we depend
+  // on it elsewhere.
+  return (aDividend > 0 ? (aDividend + aDivisor - 1) : aDividend) / aDivisor;
+}
+
+/**
+ * Return the largest 'v' such that v = aTileOffset + N*aTileSize, for some
+ * integer N, and v <= aDirtyStart.
+ */
+static nscoord
+FindTileStart(nscoord aDirtyStart, nscoord aTileOffset, nscoord aTileSize)
+{
+  // Find largest integer N such that aTileOffset + N*aTileSize <= aDirtyStart
+  return aTileOffset +
+         IntDivFloor(aDirtyStart - aTileOffset, aTileSize) * aTileSize;
+}
+
+/**
+ * Return the smallest 'v' such that v = aTileOffset + N*aTileSize, for some
+ * integer N, and v >= aDirtyEnd.
+ */
+static nscoord
+FindTileEnd(nscoord aDirtyEnd, nscoord aTileOffset, nscoord aTileSize)
+{
+  // Find smallest integer N such that aTileOffset + N*aTileSize >= aDirtyEnd
+  return aTileOffset +
+         IntDivCeil(aDirtyEnd - aTileOffset, aTileSize) * aTileSize;
+}
+
+static void
+PixelSnapRectangle(gfxContext* aContext, nsIDeviceContext *aDC, nsRect& aRect)
+{
+  gfxRect tmpRect;
+  tmpRect.pos.x = aDC->AppUnitsToGfxUnits(aRect.x);
+  tmpRect.pos.y = aDC->AppUnitsToGfxUnits(aRect.y);
+  tmpRect.size.width = aDC->AppUnitsToGfxUnits(aRect.width);
+  tmpRect.size.height = aDC->AppUnitsToGfxUnits(aRect.height);
+  if (aContext->UserToDevicePixelSnapped(tmpRect)) {
+    tmpRect = aContext->DeviceToUser(tmpRect);
+    aRect.x = aDC->GfxUnitsToAppUnits(tmpRect.pos.x);
+    aRect.y = aDC->GfxUnitsToAppUnits(tmpRect.pos.y);
+    aRect.width = aDC->GfxUnitsToAppUnits(tmpRect.XMost()) - aRect.x;
+    aRect.height = aDC->GfxUnitsToAppUnits(tmpRect.YMost()) - aRect.y;
+  }
+}
+
+static void
+PixelSnapPoint(gfxContext* aContext, nsIDeviceContext *aDC, nsPoint& aPoint)
+{
+  gfxRect tmpRect;
+  tmpRect.pos.x = aDC->AppUnitsToGfxUnits(aPoint.x);
+  tmpRect.pos.y = aDC->AppUnitsToGfxUnits(aPoint.y);
+  tmpRect.size.width = 0;
+  tmpRect.size.height = 0;
+  if (aContext->UserToDevicePixelSnapped(tmpRect)) {
+    tmpRect = aContext->DeviceToUser(tmpRect);
+    aPoint.x = aDC->GfxUnitsToAppUnits(tmpRect.pos.x);
+    aPoint.y = aDC->GfxUnitsToAppUnits(tmpRect.pos.y);
+  }
 }
 
 static PRBool
@@ -1365,22 +1376,9 @@ IsSolidBorderEdge(const nsStyleBorder& aBorder, PRUint32 aSide)
   if (aBorder.GetBorderStyle(aSide) != NS_STYLE_BORDER_STYLE_SOLID)
     return PR_FALSE;
 
-  // If we're using a border image, assume it's not fully opaque,
-  // because we may not even have the image loaded at this point, and
-  // even if we did, checking whether the relevant tile is fully
-  // opaque would be too much work.
-  if (aBorder.GetBorderImage())
-    return PR_FALSE;
-
   nscolor color;
   PRBool isForeground;
   aBorder.GetBorderColor(aSide, color, isForeground);
-
-  // We don't know the foreground color here, so if it's being used
-  // we must assume it might be transparent.
-  if (isForeground)
-    return PR_FALSE;
-
   return NS_GET_A(color) == 255;
 }
 
@@ -1390,110 +1388,14 @@ IsSolidBorderEdge(const nsStyleBorder& aBorder, PRUint32 aSide)
 static PRBool
 IsSolidBorder(const nsStyleBorder& aBorder)
 {
-  if (aBorder.mBorderColors)
+  if (aBorder.mBorderColors ||
+      nsLayoutUtils::HasNonZeroCorner(aBorder.mBorderRadius))
     return PR_FALSE;
   for (PRUint32 i = 0; i < 4; ++i) {
     if (!IsSolidBorderEdge(aBorder, i))
       return PR_FALSE;
   }
   return PR_TRUE;
-}
-
-static PRBool
-UseImageRequestForBackground(imgIRequest *aRequest)
-{
-  if (!aRequest)
-    return PR_FALSE;
-
-  PRUint32 status = imgIRequest::STATUS_ERROR;
-  aRequest->GetImageStatus(&status);
-
-  return (status & imgIRequest::STATUS_FRAME_COMPLETE) &&
-         (status & imgIRequest::STATUS_SIZE_AVAILABLE);
-}
-
-static inline void
-SetupDirtyRects(const nsRect& aBGClipArea, const nsRect& aCallerDirtyRect,
-                nscoord aAppUnitsPerPixel,
-                /* OUT: */
-                nsRect* aDirtyRect, gfxRect* aDirtyRectGfx)
-{
-  aDirtyRect->IntersectRect(aBGClipArea, aCallerDirtyRect);
-
-  // Compute the Thebes equivalent of the dirtyRect.
-  *aDirtyRectGfx = RectToGfxRect(*aDirtyRect, aAppUnitsPerPixel);
-  NS_WARN_IF_FALSE(aDirtyRect->IsEmpty() || !aDirtyRectGfx->IsEmpty(),
-                   "converted dirty rect should not be empty");
-  NS_ABORT_IF_FALSE(!aDirtyRect->IsEmpty() || aDirtyRectGfx->IsEmpty(),
-                    "second should be empty if first is");
-}
-
-static void
-SetupBackgroundClip(gfxContext *aCtx, PRUint8 aBackgroundClip,
-                    nsIFrame* aForFrame, const nsRect& aBorderArea,
-                    const nsRect& aCallerDirtyRect, PRBool aHaveRoundedCorners,
-                    const gfxCornerSizes& aBGRadii, nscoord aAppUnitsPerPixel,
-                    gfxContextAutoSaveRestore* aAutoSR,
-                    /* OUT: */
-                    nsRect* aBGClipArea, nsRect* aDirtyRect,
-                    gfxRect* aDirtyRectGfx)
-{
-  *aBGClipArea = aBorderArea;
-  PRBool radiiAreOuter = PR_TRUE;
-  gfxCornerSizes clippedRadii = aBGRadii;
-  if (aBackgroundClip != NS_STYLE_BG_CLIP_BORDER) {
-    NS_ASSERTION(aBackgroundClip == NS_STYLE_BG_CLIP_PADDING,
-                 "unexpected background-clip");
-    nsMargin border = aForFrame->GetUsedBorder();
-    aForFrame->ApplySkipSides(border);
-    aBGClipArea->Deflate(border);
-
-    if (aHaveRoundedCorners) {
-      gfxFloat borderSizes[4] = {
-        border.top / aAppUnitsPerPixel, border.right / aAppUnitsPerPixel,
-        border.bottom / aAppUnitsPerPixel, border.left / aAppUnitsPerPixel
-      };
-      nsCSSBorderRenderer::ComputeInnerRadii(aBGRadii, borderSizes,
-                                             &clippedRadii);
-      radiiAreOuter = PR_FALSE;
-    }
-  }
-
-  SetupDirtyRects(*aBGClipArea, aCallerDirtyRect, aAppUnitsPerPixel,
-                  aDirtyRect, aDirtyRectGfx);
-
-  if (aDirtyRectGfx->IsEmpty()) {
-    // Our caller won't draw anything under this condition, so no need
-    // to set more up.
-    return;
-  }
-
-  // If we have rounded corners, clip all subsequent drawing to the
-  // rounded rectangle defined by bgArea and bgRadii (we don't know
-  // whether the rounded corners intrude on the dirtyRect or not).
-  // Do not do this if we have a caller-provided clip rect --
-  // as above with bgArea, arguably a bug, but table painting seems
-  // to depend on it.
-
-  if (aHaveRoundedCorners) {
-    gfxRect bgAreaGfx(RectToGfxRect(*aBGClipArea, aAppUnitsPerPixel));
-    bgAreaGfx.Round();
-    bgAreaGfx.Condition();
-
-    if (bgAreaGfx.IsEmpty()) {
-      // I think it's become possible to hit this since
-      // http://hg.mozilla.org/mozilla-central/rev/50e934e4979b landed.
-      NS_WARNING("converted background area should not be empty");
-      // Make our caller not do anything.
-      aDirtyRectGfx->size.SizeTo(0.0, 0.0);
-      return;
-    }
-
-    aAutoSR->Reset(aCtx);
-    aCtx->NewPath();
-    aCtx->RoundedRectangle(bgAreaGfx, clippedRadii, radiiAreOuter);
-    aCtx->Clip();
-  }
 }
 
 void
@@ -1504,20 +1406,26 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
                                       const nsRect& aBorderArea,
                                       const nsStyleBackground& aColor,
                                       const nsStyleBorder& aBorder,
-                                      PRUint32 aFlags,
+                                      PRBool aUsePrintSettings,
                                       nsRect* aBGClipRect)
 {
   NS_PRECONDITION(aForFrame,
                   "Frame is expected to be provided to PaintBackground");
 
+  PRBool canDrawBackgroundImage = PR_TRUE;
+  PRBool canDrawBackgroundColor = PR_TRUE;
+
+  if (aUsePrintSettings) {
+    canDrawBackgroundImage = aPresContext->GetBackgroundImageDraw();
+    canDrawBackgroundColor = aPresContext->GetBackgroundColorDraw();
+  }
+
   // Check to see if we have an appearance defined.  If so, we let the theme
   // renderer draw the background and bail out.
-  // XXXzw this ignores aBGClipRect.
   const nsStyleDisplay* displayData = aForFrame->GetStyleDisplay();
   if (displayData->mAppearance) {
     nsITheme *theme = aPresContext->GetTheme();
-    if (theme && theme->ThemeSupportsWidget(aPresContext, aForFrame,
-                                            displayData->mAppearance)) {
+    if (theme && theme->ThemeSupportsWidget(aPresContext, aForFrame, displayData->mAppearance)) {
       nsRect dirty;
       dirty.IntersectRect(aDirtyRect, aBorderArea);
       theme->DrawWidgetBackground(&aRenderingContext, aForFrame, 
@@ -1526,263 +1434,182 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
     }
   }
 
-  // Determine whether we are drawing background images and/or
-  // background colors.
-  PRBool drawBackgroundImage = PR_TRUE;
-  PRBool drawBackgroundColor = PR_TRUE;
-  PRBool usePrintSettings = aForFrame->HonorPrintBackgroundSettings();
-  if (usePrintSettings) {
-    drawBackgroundImage = aPresContext->GetBackgroundImageDraw();
-    drawBackgroundColor = aPresContext->GetBackgroundColorDraw();
-  }
-
-  imgIRequest *bottomImage = aColor.BottomLayer().mImage;
-  if (!drawBackgroundImage || !UseImageRequestForBackground(bottomImage)) {
-    bottomImage = nsnull;
-  }
-
-  // If GetBackgroundColorDraw() is false, we are still expected to
-  // draw color in the background of any frame that's not completely
-  // transparent, but we are expected to use white instead of whatever
-  // color was specified.
-  nscolor bgColor;
-  if (drawBackgroundColor) {
-    bgColor = aColor.mBackgroundColor;
-    if (NS_GET_A(bgColor) == 0)
-      drawBackgroundColor = PR_FALSE;
-  } else {
-    bgColor = NS_RGB(255, 255, 255);
-    if (drawBackgroundImage || !aColor.IsTransparent())
-      drawBackgroundColor = PR_TRUE;
-  }
-
-  // At this point, drawBackgroundImage and drawBackgroundColor are
-  // true if and only if we are actually supposed to paint an image or
-  // color into aDirtyRect, respectively.
-  if (!drawBackgroundImage && !drawBackgroundColor)
-    return;
-
-  // Compute the outermost boundary of the area that might be painted.
-  gfxContext *ctx = aRenderingContext.ThebesContext();
-  nscoord appUnitsPerPixel = aPresContext->AppUnitsPerDevPixel();
-
-  // Same coordinate space as aBorderArea & aBGClipRect
-  gfxCornerSizes bgRadii;
-  PRBool haveRoundedCorners;
-  {
-    nscoord radii[8];
-    haveRoundedCorners =
-      GetBorderRadiusTwips(aBorder.mBorderRadius, aForFrame->GetSize().width,
-                           radii);
-    if (haveRoundedCorners)
-      ComputePixelRadii(radii, aBorderArea, aForFrame->GetSkipSides(),
-                        appUnitsPerPixel, &bgRadii);
-  }
-  
-  // The 'bgClipArea' (used only by the image tiling logic, far below)
-  // is the caller-provided aBGClipRect if any, or else the area
-  // determined by the value of 'background-clip' in
-  // SetupCurrentBackgroundClip.  (Arguably it should be the
-  // intersection, but that breaks the table painter -- in particular,
-  // taking the intersection breaks reftests/bugs/403429-1[ab].)
-  nsRect bgClipArea, dirtyRect;
-  gfxRect dirtyRectGfx;
-  PRUint8 currentBackgroundClip;
-  PRBool isSolidBorder;
-  gfxContextAutoSaveRestore autoSR;
+  nsRect bgClipArea;
   if (aBGClipRect) {
     bgClipArea = *aBGClipRect;
-    SetupDirtyRects(bgClipArea, aDirtyRect, appUnitsPerPixel,
-                    &dirtyRect, &dirtyRectGfx);
-  } else {
-    // The background is rendered over the 'background-clip' area,
-    // which is normally equal to the border area but may be reduced
-    // to the padding area by CSS.  Also, if the border is solid, we
-    // don't need to draw outside the padding area.  In either case,
-    // if the borders are rounded, make sure we use the same inner
-    // radii as the border code will.
-    // The background-color is drawn based on the bottom
-    // background-clip.
-    currentBackgroundClip = aColor.BottomLayer().mClip;
-    isSolidBorder =
-      (aFlags & PAINT_WILL_PAINT_BORDER) && IsSolidBorder(aBorder);
-    if (isSolidBorder)
-      currentBackgroundClip = NS_STYLE_BG_CLIP_PADDING;
-    SetupBackgroundClip(ctx, currentBackgroundClip, aForFrame,
-                        aBorderArea, aDirtyRect, haveRoundedCorners,
-                        bgRadii, appUnitsPerPixel, &autoSR,
-                        &bgClipArea, &dirtyRect, &dirtyRectGfx);
+  }
+  else {
+    // The background is rendered over the 'background-clip' area.
+    bgClipArea = aBorderArea;
+    // If the border is solid, then clip the background to the padding-box
+    // so that we don't draw unnecessary tiles.
+    if (aColor.mBackgroundClip != NS_STYLE_BG_CLIP_BORDER ||
+        IsSolidBorder(aBorder)) {
+      nsMargin border = aForFrame->GetUsedBorder();
+      aForFrame->ApplySkipSides(border);
+      bgClipArea.Deflate(border);
+    }
   }
 
-  // If we might be using a background color, go ahead and set it now.
-  if (drawBackgroundColor)
-    ctx->SetColor(gfxRGBA(bgColor));
+  nsIDeviceContext *dc = aPresContext->DeviceContext();
+  gfxContext *ctx = aRenderingContext.ThebesContext();
 
-  // If there is no background image, draw a color.  (If there is
-  // neither a background image nor a color, we wouldn't have gotten
-  // this far.)
-  if (!drawBackgroundImage) {
-    if (!dirtyRectGfx.IsEmpty()) {
-      ctx->NewPath();
-      ctx->Rectangle(dirtyRectGfx, PR_TRUE);
-      ctx->Fill();
-    }
+  // Snap bgClipArea to device pixel boundaries.  (We have to snap
+  // bgOriginArea below; if we don't do this as well then we could make
+  // incorrect decisions about various optimizations.)
+  PixelSnapRectangle(ctx, dc, bgClipArea);
+
+  // The actual dirty rect is the intersection of the 'background-clip'
+  // area and the dirty rect we were given
+  nsRect dirtyRect;
+  if (!dirtyRect.IntersectRect(bgClipArea, aDirtyRect)) {
+    // Nothing to paint
     return;
   }
 
-  // Ensure we get invalidated for loads of the image.  We need to do
-  // this here because this might be the only code that knows about the
-  // association of the style data with the frame.
-  aPresContext->SetupBackgroundImageLoaders(aForFrame, &aColor);
-
-  if (bottomImage &&
-      aColor.BottomLayer().mRepeat == NS_STYLE_BG_REPEAT_XY &&
-      drawBackgroundColor) {
-    nsCOMPtr<imgIContainer> image;
-    bottomImage->GetImage(getter_AddRefs(image));
-    // If the image is completely opaque, we may not need to paint
-    // the background color.
-    nsCOMPtr<gfxIImageFrame> gfxImgFrame;
-    image->GetCurrentFrame(getter_AddRefs(gfxImgFrame));
-    if (gfxImgFrame) {
-      gfxImgFrame->GetNeedsBackground(&drawBackgroundColor);
-      if (!drawBackgroundColor) {
-        // If the current frame is smaller than its container, we
-        // need to paint the background color even if the frame
-        // itself is opaque.
-        nsIntSize iSize;
-        image->GetWidth(&iSize.width);
-        image->GetHeight(&iSize.height);
-        nsIntRect iframeRect;
-        gfxImgFrame->GetRect(iframeRect);
-        if (iSize.width != iframeRect.width ||
-            iSize.height != iframeRect.height) {
-          drawBackgroundColor = PR_TRUE;
-        }
-      }
-    }
+  // if there is no background image or background images are turned off, try a color.
+  if (!aColor.mBackgroundImage || !canDrawBackgroundImage) {
+    PaintBackgroundColor(aPresContext, aRenderingContext, aForFrame, bgClipArea,
+                         aColor, aBorder, canDrawBackgroundColor);
+    return;
   }
 
-  // The background color is rendered over the entire dirty area,
-  // even if the image isn't.
-  if (drawBackgroundColor) {
-    if (!dirtyRectGfx.IsEmpty()) {
-      ctx->NewPath();
-      ctx->Rectangle(dirtyRectGfx, PR_TRUE);
-      ctx->Fill();
-    }
-  }
+  // We have a background image
 
-  if (drawBackgroundImage) {
-    NS_FOR_VISIBLE_BACKGROUND_LAYERS_BACK_TO_FRONT(i, &aColor) {
-      const nsStyleBackground::Layer &layer = aColor.mLayers[i];
-      if (!aBGClipRect) {
-        PRUint8 newBackgroundClip =
-          isSolidBorder ? NS_STYLE_BG_CLIP_PADDING : layer.mClip;
-        if (currentBackgroundClip != newBackgroundClip) {
-          currentBackgroundClip = newBackgroundClip;
-          SetupBackgroundClip(ctx, currentBackgroundClip, aForFrame,
-                              aBorderArea, aDirtyRect, haveRoundedCorners,
-                              bgRadii, appUnitsPerPixel, &autoSR,
-                              &bgClipArea, &dirtyRect, &dirtyRectGfx);
-        }
-      }
-      if (!dirtyRectGfx.IsEmpty()) {
-        PaintBackgroundLayer(aPresContext, aRenderingContext, aForFrame,
-                             dirtyRect, aBorderArea, bgClipArea, aColor,
-                             layer, aBorder, usePrintSettings);
-      }
-    }
-  }
-}
-
-static void
-PaintBackgroundLayer(nsPresContext* aPresContext,
-                     nsIRenderingContext& aRenderingContext,
-                     nsIFrame* aForFrame,
-                     const nsRect& aDirtyRect, // intersected with aBGClipRect
-                     const nsRect& aBorderArea,
-                     const nsRect& aBGClipRect,
-                     const nsStyleBackground& aBackground,
-                     const nsStyleBackground::Layer& aLayer,
-                     const nsStyleBorder& aBorder,
-                     PRBool aUsePrintSettings)
-{
   // Lookup the image
-  imgIRequest *req = aLayer.mImage;
-  if (!UseImageRequestForBackground(req)) {
-    // There's no image or it's not ready to be painted.
+  imgIRequest *req = aPresContext->LoadImage(aColor.mBackgroundImage,
+                                             aForFrame);
+
+  PRUint32 status = imgIRequest::STATUS_ERROR;
+  if (req)
+    req->GetImageStatus(&status);
+
+  if (!req || !(status & imgIRequest::STATUS_FRAME_COMPLETE) || !(status & imgIRequest::STATUS_SIZE_AVAILABLE)) {
+    PaintBackgroundColor(aPresContext, aRenderingContext, aForFrame, bgClipArea,
+                         aColor, aBorder, canDrawBackgroundColor);
     return;
   }
 
   nsCOMPtr<imgIContainer> image;
   req->GetImage(getter_AddRefs(image));
 
-  nsIntSize imageIntSize;
-  image->GetWidth(&imageIntSize.width);
-  image->GetHeight(&imageIntSize.height);
-
   nsSize imageSize;
-  imageSize.width = nsPresContext::CSSPixelsToAppUnits(imageIntSize.width);
-  imageSize.height = nsPresContext::CSSPixelsToAppUnits(imageIntSize.height);
+  image->GetWidth(&imageSize.width);
+  image->GetHeight(&imageSize.height);
+
+  imageSize.width = nsPresContext::CSSPixelsToAppUnits(imageSize.width);
+  imageSize.height = nsPresContext::CSSPixelsToAppUnits(imageSize.height);
 
   req = nsnull;
 
-  // relative to aBorderArea
-  nsRect bgOriginRect(0, 0, 0, 0);
+  nsRect bgOriginArea;
 
   nsIAtom* frameType = aForFrame->GetType();
-  nsIFrame* geometryFrame = aForFrame;
   if (frameType == nsGkAtoms::inlineFrame ||
       frameType == nsGkAtoms::positionedInlineFrame) {
-    switch (aBackground.mBackgroundInlinePolicy) {
+    switch (aColor.mBackgroundInlinePolicy) {
     case NS_STYLE_BG_INLINE_POLICY_EACH_BOX:
-      bgOriginRect = nsRect(nsPoint(0,0), aBorderArea.Size());
+      bgOriginArea = aBorderArea;
       break;
     case NS_STYLE_BG_INLINE_POLICY_BOUNDING_BOX:
-      bgOriginRect = gInlineBGData->GetBoundingRect(aForFrame);
+      bgOriginArea = gInlineBGData->GetBoundingRect(aForFrame) +
+                     aBorderArea.TopLeft();
       break;
     default:
       NS_ERROR("Unknown background-inline-policy value!  "
                "Please, teach me what to do.");
     case NS_STYLE_BG_INLINE_POLICY_CONTINUOUS:
-      bgOriginRect = gInlineBGData->GetContinuousRect(aForFrame);
+      bgOriginArea = gInlineBGData->GetContinuousRect(aForFrame) +
+                     aBorderArea.TopLeft();
       break;
     }
-  } else if (frameType == nsGkAtoms::canvasFrame) {
-    geometryFrame = aForFrame->GetFirstChild(nsnull);
-    // geometryFrame might be null if this canvas is a page created
-    // as an overflow container (e.g. the in-flow content has already
-    // finished and this page only displays the continuations of
-    // absolutely positioned content).
-    if (geometryFrame) {
-      bgOriginRect = geometryFrame->GetRect();
-    }
-  } else {
-    bgOriginRect = nsRect(nsPoint(0,0), aBorderArea.Size());
+  }
+  else {
+    bgOriginArea = aBorderArea;
   }
 
   // Background images are tiled over the 'background-clip' area
   // but the origin of the tiling is based on the 'background-origin' area
-  if (aLayer.mOrigin != NS_STYLE_BG_ORIGIN_BORDER && geometryFrame) {
-    nsMargin border = geometryFrame->GetUsedBorder();
-    geometryFrame->ApplySkipSides(border);
-    bgOriginRect.Deflate(border);
-    if (aLayer.mOrigin != NS_STYLE_BG_ORIGIN_PADDING) {
-      nsMargin padding = geometryFrame->GetUsedPadding();
-      geometryFrame->ApplySkipSides(padding);
-      bgOriginRect.Deflate(padding);
-      NS_ASSERTION(aLayer.mOrigin == NS_STYLE_BG_ORIGIN_CONTENT,
+  if (aColor.mBackgroundOrigin != NS_STYLE_BG_ORIGIN_BORDER) {
+    nsMargin border = aForFrame->GetUsedBorder();
+    aForFrame->ApplySkipSides(border);
+    bgOriginArea.Deflate(border);
+    if (aColor.mBackgroundOrigin != NS_STYLE_BG_ORIGIN_PADDING) {
+      nsMargin padding = aForFrame->GetUsedPadding();
+      aForFrame->ApplySkipSides(padding);
+      bgOriginArea.Deflate(padding);
+      NS_ASSERTION(aColor.mBackgroundOrigin == NS_STYLE_BG_ORIGIN_CONTENT,
                    "unknown background-origin value");
     }
   }
 
+  // Snap bgOriginArea to device pixel boundaries to avoid variations in
+  // tiling when the subpixel position of the element changes.
+  PixelSnapRectangle(ctx, dc, bgOriginArea);
+
+  // Based on the repeat setting, compute how many tiles we should
+  // lay down for each axis. The value computed is the maximum based
+  // on the dirty rect before accounting for the background-position.
+  nscoord tileWidth = imageSize.width;
+  nscoord tileHeight = imageSize.height;
+  PRBool  needBackgroundColor = NS_GET_A(aColor.mBackgroundColor) > 0;
+  PRIntn  repeat = aColor.mBackgroundRepeat;
+
+  switch (repeat) {
+    case NS_STYLE_BG_REPEAT_X:
+      break;
+    case NS_STYLE_BG_REPEAT_Y:
+      break;
+    case NS_STYLE_BG_REPEAT_XY:
+      if (needBackgroundColor) {
+        // If the image is completely opaque, we do not need to paint the
+        // background color
+        nsCOMPtr<gfxIImageFrame> gfxImgFrame;
+        image->GetCurrentFrame(getter_AddRefs(gfxImgFrame));
+        if (gfxImgFrame) {
+          gfxImgFrame->GetNeedsBackground(&needBackgroundColor);
+
+          /* check for tiling of a image where frame smaller than container */
+          nsSize iSize;
+          image->GetWidth(&iSize.width);
+          image->GetHeight(&iSize.height);
+          nsRect iframeRect;
+          gfxImgFrame->GetRect(iframeRect);
+          if (iSize.width != iframeRect.width ||
+              iSize.height != iframeRect.height) {
+            needBackgroundColor = PR_TRUE;
+          }
+        }
+      }
+      break;
+    case NS_STYLE_BG_REPEAT_OFF:
+    default:
+      NS_ASSERTION(repeat == NS_STYLE_BG_REPEAT_OFF, "unknown background-repeat value");
+      break;
+  }
+
+  // The background color is rendered over the 'background-clip' area
+  if (needBackgroundColor) {
+    PaintBackgroundColor(aPresContext, aRenderingContext, aForFrame, bgClipArea,
+                         aColor, aBorder, canDrawBackgroundColor);
+  }
+
+  if ((tileWidth == 0) || (tileHeight == 0) || dirtyRect.IsEmpty()) {
+    // Nothing left to paint
+    return;
+  }
+
+  nsPoint borderAreaOriginSnapped = aBorderArea.TopLeft();
+  PixelSnapPoint(ctx, dc, borderAreaOriginSnapped);
+
   // Compute the anchor point.
   //
-  // relative to aBorderArea.TopLeft() (which is where the top-left
-  // of aForFrame's border-box will be rendered)
-  nsPoint imageTopLeft, anchor;
-  if (NS_STYLE_BG_ATTACHMENT_FIXED == aLayer.mAttachment) {
+  // When tiling, the anchor coordinate values will be negative offsets
+  // from the background-origin area.
+
+  // relative to the origin of aForFrame
+  nsPoint anchor;
+  if (NS_STYLE_BG_ATTACHMENT_FIXED == aColor.mBackgroundAttachment) {
     // If it's a fixed background attachment, then the image is placed
     // relative to the viewport, which is the area of the root frame
     // in a screen context or the page content frame in a print context.
@@ -1803,7 +1630,7 @@ PaintBackgroundLayer(nsPresContext* aPresContext,
       // else this is an embedded shell and its root frame is what we want
     }
 
-    nsRect viewportArea(nsPoint(0, 0), topFrame->GetSize());
+    nsRect viewportArea = topFrame->GetRect();
 
     if (!pageContentFrame) {
       // Subtract the size of scrollbars.
@@ -1816,335 +1643,713 @@ PaintBackgroundLayer(nsPresContext* aPresContext,
     }
      
     // Get the anchor point, relative to the viewport.
-    ComputeBackgroundAnchorPoint(aLayer, viewportArea.Size(), imageSize,
-                                 &imageTopLeft, &anchor);
+    ComputeBackgroundAnchorPoint(aColor, viewportArea, viewportArea, tileWidth, tileHeight, anchor);
 
     // Convert the anchor point from viewport coordinates to aForFrame
     // coordinates.
-    nsPoint offset = viewportArea.TopLeft() - aForFrame->GetOffsetTo(topFrame);
-    imageTopLeft += offset;
-    anchor += offset;
+    anchor -= aForFrame->GetOffsetTo(topFrame);
   } else {
-    ComputeBackgroundAnchorPoint(aLayer, bgOriginRect.Size(), imageSize,
-                                 &imageTopLeft, &anchor);
-    imageTopLeft += bgOriginRect.TopLeft();
-    anchor += bgOriginRect.TopLeft();
+    if (frameType == nsGkAtoms::canvasFrame) {
+      // If the frame is the canvas, the image is placed relative to
+      // the root element's (first) frame (see bug 46446)
+      nsRect firstRootElementFrameArea;
+      nsIFrame* firstRootElementFrame = aForFrame->GetFirstChild(nsnull);
+      NS_ASSERTION(firstRootElementFrame, "A canvas with a background "
+        "image had no child frame, which is impossible according to CSS. "
+        "Make sure there isn't a background image specified on the "
+        "|:viewport| pseudo-element in |html.css|.");
+
+      // temporary null check -- see bug 97226
+      if (firstRootElementFrame) {
+        firstRootElementFrameArea = firstRootElementFrame->GetRect();
+
+        // Take the border out of the frame's rect
+        const nsStyleBorder* borderStyle = firstRootElementFrame->GetStyleBorder();
+        firstRootElementFrameArea.Deflate(borderStyle->GetActualBorder());
+
+        // Get the anchor point
+        ComputeBackgroundAnchorPoint(aColor, firstRootElementFrameArea +
+            aBorderArea.TopLeft(), bgClipArea, tileWidth, tileHeight, anchor);
+      } else {
+        ComputeBackgroundAnchorPoint(aColor, bgOriginArea, bgClipArea, tileWidth, tileHeight, anchor);
+      }
+    } else {
+      // Otherwise, it is the normal case, and the background is
+      // simply placed relative to the frame's background-clip area
+      ComputeBackgroundAnchorPoint(aColor, bgOriginArea, bgClipArea, tileWidth, tileHeight, anchor);
+    }
+
+    // For scrolling attachment, the anchor is within the 'background-clip'
+    anchor.x += bgClipArea.x - borderAreaOriginSnapped.x;
+    anchor.y += bgClipArea.y - borderAreaOriginSnapped.y;
   }
 
-  nsRect destArea(imageTopLeft + aBorderArea.TopLeft(), imageSize);
-  nsRect fillArea = destArea;
-  PRIntn repeat = aLayer.mRepeat;
+  // Pixel-snap the anchor point so that we don't end up with blurry
+  // images due to subpixel positions.  But round 0.5 down rather than
+  // up, since that's what we've always done.  (And do that by just
+  // snapping the negative of the point.)
+  anchor.x = -anchor.x; anchor.y = -anchor.y;
+  PixelSnapPoint(ctx, dc, anchor);
+  anchor.x = -anchor.x; anchor.y = -anchor.y;
+
+  ctx->Save();
+
+  nscoord appUnitsPerPixel = aPresContext->DevPixelsToAppUnits(1);
+
+  ctx->NewPath();
+  ctx->Rectangle(RectToGfxRect(dirtyRect, appUnitsPerPixel), PR_TRUE);
+  ctx->Clip();
+
+  nscoord borderRadii[8];
+  PRBool haveRadius = GetBorderRadiusTwips(aBorder.mBorderRadius,
+                                           aForFrame->GetSize().width,
+                                           borderRadii);
+
+  if (haveRadius) {
+    gfxCornerSizes radii;
+    ComputePixelRadii(borderRadii, bgClipArea,
+                      aForFrame ? aForFrame->GetSkipSides() : 0,
+                      appUnitsPerPixel, &radii);
+
+    gfxRect oRect(RectToGfxRect(bgClipArea, appUnitsPerPixel));
+    oRect.Round();
+    oRect.Condition();
+
+    ctx->NewPath();
+    ctx->RoundedRectangle(oRect, radii);
+    ctx->Clip();
+  }      
+
+  // Compute the x and y starting points and limits for tiling
+
+  /* An Overview Of The Following Logic
+
+          A........ . . . . . . . . . . . . . .
+          :   +---:-------.-------.-------.----  /|\
+          :   |   :       .       .       .       |  nh 
+          :.......: . . . x . . . . . . . . . .  \|/   
+          .   |   .       .       .       .        
+          .   |   .       .  ###########  .        
+          . . . . . . . . . .#. . . . .#. . . .     
+          .   |   .       .  ###########  .      /|\
+          .   |   .       .       .       .       |  h
+          . . | . . . . . . . . . . . . . z . .  \|/
+          .   |   .       .       .       .    
+          |<-----nw------>|       |<--w-->|
+
+       ---- = the background clip area edge. The painting is done within
+              to this area.  If the background is positioned relative to the 
+              viewport ('fixed') then this is the viewport edge.
+
+       .... = the primary tile.
+
+       . .  = the other tiles.
+
+       #### = the dirtyRect. This is the minimum region we want to cover.
+
+          A = The anchor point. This is the point at which the tile should
+              start. Always negative or zero.
+
+          x = x0 and y0 in the code. The point at which tiling must start
+              so that the fewest tiles are laid out while completely
+              covering the dirtyRect area.
+
+          z = x1 and y1 in the code. The point at which tiling must end so
+              that the fewest tiles are laid out while completely covering
+              the dirtyRect area.
+
+          w = the width of the tile (tileWidth).
+
+          h = the height of the tile (tileHeight).
+
+          n = the number of whole tiles that fit between 'A' and 'x'.
+              (the vertical n and the horizontal n are different)
+
+
+       Therefore, 
+
+          x0 = bgClipArea.x + anchor.x + n * tileWidth;
+
+       ...where n is an integer greater or equal to 0 fitting:
+
+          n * tileWidth <= 
+                      dirtyRect.x - (bgClipArea.x + anchor.x) <=
+                                                             (n+1) * tileWidth
+
+       ...i.e.,
+
+          n <= (dirtyRect.x - (bgClipArea.x + anchor.x)) / tileWidth < n + 1
+
+       ...which, treating the division as an integer divide rounding down, gives:
+
+          n = (dirtyRect.x - (bgClipArea.x + anchor.x)) / tileWidth
+
+       Substituting into the original expression for x0:
+
+          x0 = bgClipArea.x + anchor.x +
+               ((dirtyRect.x - (bgClipArea.x + anchor.x)) / tileWidth) *
+               tileWidth;
+
+       From this x1 is determined,
+
+          x1 = x0 + m * tileWidth;
+
+       ...where m is an integer greater than 0 fitting:
+
+          (m - 1) * tileWidth <
+                            dirtyRect.x + dirtyRect.width - x0 <=
+                                                               m * tileWidth
+
+       ...i.e.,
+
+          m - 1 < (dirtyRect.x + dirtyRect.width - x0) / tileWidth <= m
+
+       ...which, treating the division as an integer divide, and making it
+          round up, gives:
+
+          m = (dirtyRect.x + dirtyRect.width - x0 + tileWidth - 1) / tileWidth
+
+       Substituting into the original expression for x1:
+
+          x1 = x0 + ((dirtyRect.x + dirtyRect.width - x0 + tileWidth - 1) /
+                     tileWidth) * tileWidth
+
+       The vertical case is analogous. If the background is fixed, then 
+       bgClipArea.x and bgClipArea.y are set to zero when finding the parent
+       viewport, above.
+
+  */
+
+  // relative to aBorderArea.TopLeft()
+  // ... but pixel-snapped, so that it comes out correctly relative to
+  // all the other pixel-snapped things
+  nsRect tileRect(anchor, nsSize(tileWidth, tileHeight));
+  // Whether we take the single-image path or the tile path should not
+  // depend on the dirty rect. So decide now which path to take. We
+  // can take the single image path if the anchored image tile
+  // contains the total background area.
+  PRBool useSingleImagePath =
+    tileRect.Contains(bgClipArea - borderAreaOriginSnapped);
+
   if (repeat & NS_STYLE_BG_REPEAT_X) {
-    fillArea.x = aBGClipRect.x;
-    fillArea.width = aBGClipRect.width;
+    // When tiling in the x direction, adjust the starting position of the
+    // tile to account for dirtyRect.x. When tiling in x, the anchor.x value
+    // will be a negative value used to adjust the starting coordinate.
+    nscoord x0 = FindTileStart(dirtyRect.x - borderAreaOriginSnapped.x, anchor.x, tileWidth);
+    nscoord x1 = FindTileEnd(dirtyRect.XMost() - borderAreaOriginSnapped.x, anchor.x, tileWidth);
+    tileRect.x = x0;
+    tileRect.width = x1 - x0;
   }
   if (repeat & NS_STYLE_BG_REPEAT_Y) {
-    fillArea.y = aBGClipRect.y;
-    fillArea.height = aBGClipRect.height;
+    // When tiling in the y direction, adjust the starting position of the
+    // tile to account for dirtyRect.y. When tiling in y, the anchor.y value
+    // will be a negative value used to adjust the starting coordinate.
+    nscoord y0 = FindTileStart(dirtyRect.y - borderAreaOriginSnapped.y, anchor.y, tileHeight);
+    nscoord y1 = FindTileEnd(dirtyRect.YMost() - borderAreaOriginSnapped.y, anchor.y, tileHeight);
+    tileRect.y = y0;
+    tileRect.height = y1 - y0;
   }
-  fillArea.IntersectRect(fillArea, aBGClipRect);
 
-  nsLayoutUtils::DrawImage(&aRenderingContext, image,
-      nsLayoutUtils::GetGraphicsFilterForFrame(aForFrame),
-      destArea, fillArea, anchor + aBorderArea.TopLeft(), aDirtyRect);
+  // Take the intersection again to paint only the required area.
+  nsRect absTileRect = tileRect + borderAreaOriginSnapped;
+  
+  nsRect drawRect;
+  if (drawRect.IntersectRect(absTileRect, dirtyRect)) {
+    // Note that due to the way FindTileStart works we're guaranteed
+    // that drawRect overlaps the top-left-most tile when repeating.
+    NS_ASSERTION(drawRect.x >= absTileRect.x && drawRect.y >= absTileRect.y,
+                 "Bogus intersection");
+    NS_ASSERTION(drawRect.x < absTileRect.x + tileWidth,
+                 "Bogus x coord for draw rect");
+    NS_ASSERTION(drawRect.y < absTileRect.y + tileHeight,
+                 "Bogus y coord for draw rect");
+    // Figure out whether we can get away with not tiling at all.
+    nsRect sourceRect = drawRect - absTileRect.TopLeft();
+    // Compute the subimage rectangle that we expect to be sampled.
+    // This is the tile rectangle, clipped to the bgClipArea, and then
+    // passed in relative to the image top-left.
+    nsRect destRect; // The rectangle we would draw ignoring dirty-rect
+    destRect.IntersectRect(absTileRect, bgClipArea);
+    nsRect subimageRect = destRect - borderAreaOriginSnapped - tileRect.TopLeft();
+    if (useSingleImagePath) {
+      NS_ASSERTION(sourceRect.XMost() <= tileWidth && sourceRect.YMost() <= tileHeight,
+                   "We shouldn't need to tile here");
+      // The entire drawRect is contained inside a single tile; just
+      // draw the corresponding part of the image once.
+      nsLayoutUtils::DrawImage(&aRenderingContext, image,
+              destRect, drawRect, &subimageRect);
+    } else {
+      // Note that the subimage is in tile space so it may cover
+      // multiple tiles of the image.
+      subimageRect.ScaleRoundOutInverse(nsIDeviceContext::AppUnitsPerCSSPixel());
+      aRenderingContext.DrawTile(image, absTileRect.x, absTileRect.y,
+              &drawRect, &subimageRect);
+    }
+  }
+
+  ctx->Restore();
+
 }
 
 static void
-DrawBorderImage(nsPresContext*       aPresContext,
+DrawBorderImage(nsPresContext* aPresContext,
                 nsIRenderingContext& aRenderingContext,
-                nsIFrame*            aForFrame,
-                const nsRect&        aBorderArea,
-                const nsStyleBorder& aBorderStyle,
-                const nsRect&        aDirtyRect)
+                nsIFrame* aForFrame, const nsRect& aBorderArea,
+                const nsStyleBorder& aBorderStyle)
 {
-  if (aDirtyRect.IsEmpty())
-    return;
+    float percent;
+    nsStyleCoord borderImageSplit[4];
+    PRInt32 borderImageSplitInt[4];
+    nsMargin border;
+    gfxFloat borderTop, borderRight, borderBottom, borderLeft;
+    gfxFloat borderImageSplitGfx[4];
 
-  // Ensure we get invalidated for loads and animations of the image.
-  // We need to do this here because this might be the only code that
-  // knows about the association of the style data with the frame.
-  // XXX We shouldn't really... since if anybody is passing in a
-  // different style, they'll potentially have the wrong size for the
-  // border too.
-  aPresContext->SetupBorderImageLoaders(aForFrame, &aBorderStyle);
-
-  imgIRequest *req = aBorderStyle.GetBorderImage();
-
-#ifdef DEBUG
-  {
-    PRUint32 status = imgIRequest::STATUS_ERROR;
-    if (req)
-      req->GetImageStatus(&status);
-
-    NS_ASSERTION(req && (status & imgIRequest::STATUS_FRAME_COMPLETE),
-                 "no image to draw");
-  }
-#endif
-
-  // Get the actual image, and determine where the split points are.
-  // Note that mBorderImageSplit is in image pixels, not necessarily
-  // CSS pixels.
-
-  nsCOMPtr<imgIContainer> imgContainer;
-  req->GetImage(getter_AddRefs(imgContainer));
-
-  nsIntSize imageSize;
-  imgContainer->GetWidth(&imageSize.width);
-  imgContainer->GetHeight(&imageSize.height);
-
-  nsCOMPtr<gfxIImageFrame> imgFrame;
-  imgContainer->GetCurrentFrame(getter_AddRefs(imgFrame));
-
-  nsIntRect innerRect;
-  imgFrame->GetRect(innerRect);
-
-  nsCOMPtr<nsIImage> img(do_GetInterface(imgFrame));
-  // The inner rectangle should precisely enclose the image pixels for
-  // this frame.
-  NS_ASSERTION(innerRect.width == img->GetWidth(), "img inner width off");
-  NS_ASSERTION(innerRect.height == img->GetHeight(), "img inner height off");
-
-  // Convert percentages and clamp values to the image size.
-  nsIntMargin split;
-  NS_FOR_CSS_SIDES(s) {
-    nsStyleCoord coord = aBorderStyle.mBorderImageSplit.Get(s);
-    PRInt32 imgDimension = ((s == NS_SIDE_TOP || s == NS_SIDE_BOTTOM)
-                            ? imageSize.height
-                            : imageSize.width);
-    double value;
-    switch (coord.GetUnit()) {
-      case eStyleUnit_Percent:
-        value = coord.GetPercentValue() * imgDimension;
-        break;
-      case eStyleUnit_Factor:
-        value = coord.GetFactorValue();
-        break;
-      default:
-        NS_ASSERTION(coord.GetUnit() == eStyleUnit_Null,
-                     "unexpected CSS unit for image split");
-        value = 0;
-        break;
+    border = aBorderStyle.GetActualBorder();
+    if ((0 == border.left) && (0 == border.right) &&
+        (0 == border.top) && (0 == border.bottom)) {
+      // Empty border area
+      return;
     }
-    if (value < 0)
-      value = 0;
-    if (value > imgDimension)
-      value = imgDimension;
-    split.side(s) = NS_lround(value);
-  }
 
-  nsMargin border(aBorderStyle.GetActualBorder());
+    borderImageSplit[NS_SIDE_TOP] = aBorderStyle.mBorderImageSplit.GetTop();
+    borderImageSplit[NS_SIDE_RIGHT] = aBorderStyle.mBorderImageSplit.GetRight();
+    borderImageSplit[NS_SIDE_BOTTOM] = aBorderStyle.mBorderImageSplit.GetBottom();
+    borderImageSplit[NS_SIDE_LEFT] = aBorderStyle.mBorderImageSplit.GetLeft();
 
-  // These helper tables recharacterize the 'split' and 'border' margins
-  // in a more convenient form: they are the x/y/width/height coords
-  // required for various bands of the border, and they have been transformed
-  // to be relative to the innerRect (for 'split') or the page (for 'border').
-  enum {
-    LEFT, MIDDLE, RIGHT,
-    TOP = LEFT, BOTTOM = RIGHT
-  };
-  const nscoord borderX[3] = {
-    aBorderArea.x + 0,
-    aBorderArea.x + border.left,
-    aBorderArea.x + aBorderArea.width - border.right,
-  };
-  const nscoord borderY[3] = {
-    aBorderArea.y + 0,
-    aBorderArea.y + border.top,
-    aBorderArea.y + aBorderArea.height - border.bottom,
-  };
-  const nscoord borderWidth[3] = {
-    border.left,
-    aBorderArea.width - border.left - border.right,
-    border.right,
-  };
-  const nscoord borderHeight[3] = {
-    border.top,
-    aBorderArea.height - border.top - border.bottom,
-    border.bottom,
-  };
+    imgIRequest *req = aPresContext->LoadBorderImage(aBorderStyle.GetBorderImage(), aForFrame);
 
-  const PRInt32 splitX[3] = {
-    -innerRect.x + 0,
-    -innerRect.x + split.left,
-    -innerRect.x + imageSize.width - split.right,
-  };
-  const PRInt32 splitY[3] = {
-    -innerRect.y + 0,
-    -innerRect.y + split.top,
-    -innerRect.y + imageSize.height - split.bottom,
-  };
-  const PRInt32 splitWidth[3] = {
-    split.left,
-    imageSize.width - split.left - split.right,
-    split.right,
-  };
-  const PRInt32 splitHeight[3] = {
-    split.top,
-    imageSize.height - split.top - split.bottom,
-    split.bottom,
-  };
+    nsCOMPtr<imgIContainer> image;
+    req->GetImage(getter_AddRefs(image));
 
-  // In all the 'factor' calculations below, 'border' measurements are
-  // in app units but 'split' measurements are in image/CSS pixels, so
-  // the factor corresponding to no additional scaling is
-  // CSSPixelsToAppUnits(1), not simply 1.
-  for (int i = LEFT; i <= RIGHT; i++) {
-    for (int j = TOP; j <= BOTTOM; j++) {
-      nsRect destArea(borderX[i], borderY[j], borderWidth[i], borderHeight[j]);
-      nsIntRect subArea(splitX[i], splitY[j], splitWidth[i], splitHeight[j]);
+    nsSize imageSize;
+    image->GetWidth(&imageSize.width);
+    image->GetHeight(&imageSize.height);
+    imageSize.width = nsPresContext::CSSPixelsToAppUnits(imageSize.width);
+    imageSize.height = nsPresContext::CSSPixelsToAppUnits(imageSize.height);
 
-      PRUint8 fillStyleH, fillStyleV;
-      nsSize unitSize;
-
-      if (i == MIDDLE && j == MIDDLE) {
-        // css-background:
-        //     The middle image's width is scaled by the same factor as the
-        //     top image unless that factor is zero or infinity, in which
-        //     case the scaling factor of the bottom is substituted, and
-        //     failing that, the width is not scaled. The height of the
-        //     middle image is scaled by the same factor as the left image
-        //     unless that factor is zero or infinity, in which case the
-        //     scaling factor of the right image is substituted, and failing
-        //     that, the height is not scaled.
-        gfxFloat hFactor, vFactor;
-
-        if (0 < border.left && 0 < split.left)
-          vFactor = gfxFloat(border.left)/split.left;
-        else if (0 < border.right && 0 < split.right)
-          vFactor = gfxFloat(border.right)/split.right;
-        else
-          vFactor = nsPresContext::CSSPixelsToAppUnits(1);
-
-        if (0 < border.top && 0 < split.top)
-          hFactor = gfxFloat(border.top)/split.top;
-        else if (0 < border.bottom && 0 < split.bottom)
-          hFactor = gfxFloat(border.bottom)/split.bottom;
-        else
-          hFactor = nsPresContext::CSSPixelsToAppUnits(1);
-
-        unitSize.width = splitWidth[i]*hFactor;
-        unitSize.height = splitHeight[j]*vFactor;
-        fillStyleH = aBorderStyle.mBorderImageHFill;
-        fillStyleV = aBorderStyle.mBorderImageVFill;
-
-      } else if (i == MIDDLE) { // top, bottom
-        // Sides are always stretched to the thickness of their border,
-        // and stretched proportionately on the other axis.
-        gfxFloat factor;
-        if (0 < borderHeight[j] && 0 < splitHeight[j])
-          factor = gfxFloat(borderHeight[j])/splitHeight[j];
-        else
-          factor = nsPresContext::CSSPixelsToAppUnits(1);
-
-        unitSize.width = splitWidth[i]*factor;
-        unitSize.height = borderHeight[j];
-        fillStyleH = aBorderStyle.mBorderImageHFill;
-        fillStyleV = NS_STYLE_BORDER_IMAGE_STRETCH;
-
-      } else if (j == MIDDLE) { // left, right
-        gfxFloat factor;
-        if (0 < borderWidth[i] && 0 < splitWidth[i])
-          factor = gfxFloat(borderWidth[i])/splitWidth[i];
-        else
-          factor = nsPresContext::CSSPixelsToAppUnits(1);
-
-        unitSize.width = borderWidth[i];
-        unitSize.height = splitHeight[j]*factor;
-        fillStyleH = NS_STYLE_BORDER_IMAGE_STRETCH;
-        fillStyleV = aBorderStyle.mBorderImageVFill;
-
-      } else {
-        // Corners are always stretched to fit the corner.
-        unitSize.width = borderWidth[i];
-        unitSize.height = borderHeight[j];
-        fillStyleH = NS_STYLE_BORDER_IMAGE_STRETCH;
-        fillStyleV = NS_STYLE_BORDER_IMAGE_STRETCH;
+    // convert percentage values
+    NS_FOR_CSS_SIDES(side) {
+      borderImageSplitInt[side] = 0;
+      switch (borderImageSplit[side].GetUnit()) {
+        case eStyleUnit_Percent:
+          percent = borderImageSplit[side].GetPercentValue();
+          if (side == NS_SIDE_TOP || side == NS_SIDE_BOTTOM)
+            borderImageSplitInt[side] = (nscoord)(percent * imageSize.height);
+          else
+            borderImageSplitInt[side] = (nscoord)(percent * imageSize.width);
+          break;
+        case eStyleUnit_Integer:
+          borderImageSplitInt[side] = nsPresContext::CSSPixelsToAppUnits(borderImageSplit[side].
+                                          GetIntValue());
+          break;
+        case eStyleUnit_Factor:
+          borderImageSplitInt[side] = nsPresContext::CSSPixelsToAppUnits(borderImageSplit[side].GetFactorValue());
+          break;
+        default:
+          break;
       }
-
-      DrawBorderImageComponent(aRenderingContext, aForFrame,
-                               img, aDirtyRect,
-                               destArea, subArea,
-                               fillStyleH, fillStyleV, unitSize);
     }
-  }
+
+    gfxContext *thebesCtx = aRenderingContext.ThebesContext();
+    nsCOMPtr<nsIDeviceContext> dc;
+    aRenderingContext.GetDeviceContext(*getter_AddRefs(dc));
+
+    NS_FOR_CSS_SIDES(side) {
+      borderImageSplitGfx[side] = nsPresContext::AppUnitsToFloatCSSPixels(borderImageSplitInt[side]);
+    }
+
+    borderTop = dc->AppUnitsToGfxUnits(border.top);
+    borderRight = dc->AppUnitsToGfxUnits(border.right);
+    borderBottom = dc->AppUnitsToGfxUnits(border.bottom);
+    borderLeft = dc->AppUnitsToGfxUnits(border.left);
+
+    gfxSize gfxImageSize;
+    gfxImageSize.width = nsPresContext::AppUnitsToFloatCSSPixels(imageSize.width);
+    gfxImageSize.height = nsPresContext::AppUnitsToFloatCSSPixels(imageSize.height);
+
+    nsRect outerRect(aBorderArea);
+    gfxRect rectToDraw,
+            rectToDrawSource;
+
+    gfxRect clipRect;
+    clipRect.pos.x = dc->AppUnitsToGfxUnits(outerRect.x);
+    clipRect.pos.y = dc->AppUnitsToGfxUnits(outerRect.y);
+    clipRect.size.width = dc->AppUnitsToGfxUnits(outerRect.width);
+    clipRect.size.height = dc->AppUnitsToGfxUnits(outerRect.height);
+    thebesCtx->UserToDevicePixelSnapped(clipRect);
+
+    thebesCtx->Save();
+    thebesCtx->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
+
+    gfxSize middleSize(clipRect.size.width - (borderLeft + borderRight),
+                       clipRect.size.height - (borderTop + borderBottom));
+
+    // middle size in source space
+    gfxIntSize middleSizeSource(gfxImageSize.width - (borderImageSplitGfx[NS_SIDE_RIGHT] + borderImageSplitGfx[NS_SIDE_LEFT]), 
+                                gfxImageSize.height - (borderImageSplitGfx[NS_SIDE_TOP] + borderImageSplitGfx[NS_SIDE_BOTTOM]));
+
+    gfxSize interSizeTop, interSizeBottom, interSizeLeft, interSizeRight,
+            interSizeMiddle;
+    gfxFloat topScale = borderTop/borderImageSplitGfx[NS_SIDE_TOP];
+    gfxFloat bottomScale = borderBottom/borderImageSplitGfx[NS_SIDE_BOTTOM];
+    gfxFloat leftScale = borderLeft/borderImageSplitGfx[NS_SIDE_LEFT];
+    gfxFloat rightScale = borderRight/borderImageSplitGfx[NS_SIDE_RIGHT];
+    gfxFloat middleScaleH,
+             middleScaleV;
+    // TODO: check for nan and properly check for inf
+    if (topScale != 0.0 && borderImageSplitGfx[NS_SIDE_TOP] != 0.0) {
+      middleScaleH = topScale;
+    } else if (bottomScale != 0.0 && borderImageSplitGfx[NS_SIDE_BOTTOM] != 0.0) {
+      middleScaleH = bottomScale;
+    } else {
+      middleScaleH = 1.0;
+    }
+
+    if (leftScale != 0.0 && borderImageSplitGfx[NS_SIDE_LEFT] != 0.0) {
+      middleScaleV = leftScale;
+    } else if (rightScale != 0.0 && borderImageSplitGfx[NS_SIDE_RIGHT] != 0.0) {
+      middleScaleV = rightScale;
+    } else {
+      middleScaleV = 1.0;
+    }
+
+    interSizeTop.height = borderTop;
+    interSizeTop.width = middleSizeSource.width*topScale;
+
+    interSizeBottom.height = borderBottom;
+    interSizeBottom.width = middleSizeSource.width*bottomScale;
+
+    interSizeLeft.width = borderLeft;
+    interSizeLeft.height = middleSizeSource.height*leftScale;
+
+    interSizeRight.width = borderRight;
+    interSizeRight.height = middleSizeSource.height*rightScale;
+
+    interSizeMiddle.width = middleSizeSource.width*middleScaleH;
+    interSizeMiddle.height = middleSizeSource.height*middleScaleV;
+
+    // draw top left corner
+    rectToDraw = clipRect;
+    rectToDraw.size.width = borderLeft;
+    rectToDraw.size.height = borderTop;
+    rectToDrawSource.pos.x = 0;
+    rectToDrawSource.pos.y = 0;
+    rectToDrawSource.size.width = borderImageSplitGfx[NS_SIDE_LEFT];
+    rectToDrawSource.size.height = borderImageSplitGfx[NS_SIDE_TOP];
+    DrawBorderImageSide(thebesCtx, dc, image,
+                        rectToDraw, rectToDraw.size, rectToDrawSource,
+                        NS_STYLE_BORDER_IMAGE_STRETCH, NS_STYLE_BORDER_IMAGE_STRETCH);
+
+    // draw top
+    rectToDraw = clipRect;
+    rectToDraw.pos.x += borderLeft;
+    rectToDraw.size.width = middleSize.width;
+    rectToDraw.size.height = borderTop;
+    rectToDrawSource.pos.x = borderImageSplitGfx[NS_SIDE_LEFT];
+    rectToDrawSource.pos.y = 0;
+    rectToDrawSource.size.width = middleSizeSource.width;
+    rectToDrawSource.size.height = borderImageSplitGfx[NS_SIDE_TOP];
+    DrawBorderImageSide(thebesCtx, dc, image,
+                        rectToDraw, interSizeTop, rectToDrawSource, 
+                        aBorderStyle.mBorderImageHFill, NS_STYLE_BORDER_IMAGE_STRETCH);
+    
+    // draw top right corner
+    rectToDraw = clipRect;
+    rectToDraw.pos.x += clipRect.size.width - borderRight;
+    rectToDraw.size.width = borderRight;
+    rectToDraw.size.height = borderTop;
+    rectToDrawSource.pos.x = gfxImageSize.width - borderImageSplitGfx[NS_SIDE_RIGHT];
+    rectToDrawSource.pos.y = 0;
+    rectToDrawSource.size.width = borderImageSplitGfx[NS_SIDE_RIGHT];
+    rectToDrawSource.size.height = borderImageSplitGfx[NS_SIDE_TOP];
+    DrawBorderImageSide(thebesCtx, dc, image,
+                        rectToDraw, rectToDraw.size, rectToDrawSource,
+                        NS_STYLE_BORDER_IMAGE_STRETCH, NS_STYLE_BORDER_IMAGE_STRETCH);
+    
+    // draw right
+    rectToDraw = clipRect;
+    rectToDraw.pos.x += clipRect.size.width - borderRight;
+    rectToDraw.pos.y += borderTop;
+    rectToDraw.size.width = borderRight;
+    rectToDraw.size.height = middleSize.height;
+    rectToDrawSource.pos.x = gfxImageSize.width - borderImageSplitGfx[NS_SIDE_RIGHT];
+    rectToDrawSource.pos.y = borderImageSplitGfx[NS_SIDE_TOP];
+    rectToDrawSource.size.width = borderImageSplitGfx[NS_SIDE_RIGHT];
+    rectToDrawSource.size.height = middleSizeSource.height;
+    DrawBorderImageSide(thebesCtx, dc, image,
+                        rectToDraw, interSizeRight, rectToDrawSource, 
+                        NS_STYLE_BORDER_IMAGE_STRETCH, aBorderStyle.mBorderImageVFill);
+    
+    // draw bottom right corner
+    rectToDraw = clipRect;
+    rectToDraw.pos.x += clipRect.size.width - borderRight;
+    rectToDraw.pos.y += clipRect.size.height - borderBottom;
+    rectToDraw.size.width = borderRight;
+    rectToDraw.size.height = borderBottom;
+    rectToDrawSource.pos.x = gfxImageSize.width - borderImageSplitGfx[NS_SIDE_RIGHT];
+    rectToDrawSource.pos.y = gfxImageSize.height - borderImageSplitGfx[NS_SIDE_BOTTOM];
+    rectToDrawSource.size.width = borderImageSplitGfx[NS_SIDE_RIGHT];
+    rectToDrawSource.size.height = borderImageSplitGfx[NS_SIDE_BOTTOM];
+    DrawBorderImageSide(thebesCtx, dc, image,
+                        rectToDraw, rectToDraw.size, rectToDrawSource,
+                        NS_STYLE_BORDER_IMAGE_STRETCH, NS_STYLE_BORDER_IMAGE_STRETCH);
+    
+    // draw bottom
+    rectToDraw = clipRect;
+    rectToDraw.pos.x += borderLeft;
+    rectToDraw.pos.y += clipRect.size.height - borderBottom;
+    rectToDraw.size.width = middleSize.width;
+    rectToDraw.size.height = borderBottom;
+    rectToDrawSource.pos.x = borderImageSplitGfx[NS_SIDE_LEFT];
+    rectToDrawSource.pos.y = gfxImageSize.height - borderImageSplitGfx[NS_SIDE_BOTTOM];
+    rectToDrawSource.size.width = middleSizeSource.width;
+    rectToDrawSource.size.height = borderImageSplitGfx[NS_SIDE_BOTTOM];
+    DrawBorderImageSide(thebesCtx, dc, image,
+                        rectToDraw, interSizeBottom, rectToDrawSource, 
+                        aBorderStyle.mBorderImageHFill, NS_STYLE_BORDER_IMAGE_STRETCH);
+    
+    // draw bottom left corner
+    rectToDraw = clipRect;
+    rectToDraw.pos.y += clipRect.size.height - borderBottom;
+    rectToDraw.size.width = borderLeft;
+    rectToDraw.size.height = borderBottom;
+    rectToDrawSource.pos.x = 0;
+    rectToDrawSource.pos.y = gfxImageSize.height - borderImageSplitGfx[NS_SIDE_BOTTOM];
+    rectToDrawSource.size.width = borderImageSplitGfx[NS_SIDE_LEFT];
+    rectToDrawSource.size.height = borderImageSplitGfx[NS_SIDE_BOTTOM];
+    DrawBorderImageSide(thebesCtx, dc, image,
+                        rectToDraw, rectToDraw.size, rectToDrawSource,
+                        NS_STYLE_BORDER_IMAGE_STRETCH, NS_STYLE_BORDER_IMAGE_STRETCH);
+    
+    // draw left
+    rectToDraw = clipRect;
+    rectToDraw.pos.y += borderTop;
+    rectToDraw.size.width = borderLeft;
+    rectToDraw.size.height = middleSize.height;
+    rectToDrawSource.pos.x = 0;
+    rectToDrawSource.pos.y = borderImageSplitGfx[NS_SIDE_TOP];
+    rectToDrawSource.size.width = borderImageSplitGfx[NS_SIDE_LEFT];
+    rectToDrawSource.size.height = middleSizeSource.height;
+    DrawBorderImageSide(thebesCtx, dc, image,
+                        rectToDraw, interSizeLeft, rectToDrawSource, 
+                        NS_STYLE_BORDER_IMAGE_STRETCH, aBorderStyle.mBorderImageVFill);
+
+    // Draw middle
+    rectToDraw = clipRect;
+    rectToDraw.pos.x += borderLeft;
+    rectToDraw.pos.y += borderTop;
+    rectToDraw.size.width = middleSize.width;
+    rectToDraw.size.height = middleSize.height;
+    rectToDrawSource.pos.x = borderImageSplitGfx[NS_SIDE_LEFT];
+    rectToDrawSource.pos.y = borderImageSplitGfx[NS_SIDE_TOP];
+    rectToDrawSource.size = middleSizeSource;
+    DrawBorderImageSide(thebesCtx, dc, image,
+                        rectToDraw, interSizeMiddle, rectToDrawSource,
+                        aBorderStyle.mBorderImageHFill, aBorderStyle.mBorderImageVFill);
+
+    thebesCtx->PopGroupToSource();
+    thebesCtx->SetOperator(gfxContext::OPERATOR_OVER);
+    thebesCtx->Paint();
+    thebesCtx->Restore();
 }
 
 static void
-DrawBorderImageComponent(nsIRenderingContext& aRenderingContext,
-                         nsIFrame*            aForFrame,
-                         nsIImage*            aImage,
-                         const nsRect&        aDirtyRect,
-                         const nsRect&        aFill,
-                         const nsIntRect&     aSrc,
-                         PRUint8              aHFill,
-                         PRUint8              aVFill,
-                         const nsSize&        aUnitSize)
+DrawBorderImageSide(gfxContext *aThebesContext,
+                    nsIDeviceContext* aDeviceContext,
+                    imgIContainer* aImage,
+                    gfxRect& aDestRect,
+                    gfxSize& aInterSize,
+                    gfxRect& aSourceRect,
+                    PRUint8 aHFillType,
+                    PRUint8 aVFillType)
 {
-  if (aFill.IsEmpty() || aSrc.IsEmpty())
-    return;
-
-  nsCOMPtr<nsIImage> subImage;
-  if (NS_FAILED(aImage->Extract(aSrc, getter_AddRefs(subImage))))
-    return;
-
-  gfxPattern::GraphicsFilter graphicsFilter =
-    nsLayoutUtils::GetGraphicsFilterForFrame(aForFrame);
-
-  // If we have no tiling in either direction, we can skip the intermediate
-  // scaling step.
-  if ((aHFill == NS_STYLE_BORDER_IMAGE_STRETCH &&
-       aVFill == NS_STYLE_BORDER_IMAGE_STRETCH) ||
-      (aUnitSize.width == aFill.width &&
-       aUnitSize.height == aFill.height)) {
-    nsLayoutUtils::DrawSingleImage(&aRenderingContext, subImage,
-                                   graphicsFilter,
-                                   aFill, aDirtyRect);
+  if (aDestRect.size.width < 1.0 || aDestRect.size.height < 1.0 ||
+      aSourceRect.size.width < 1.0 || aSourceRect.size.height < 1.0) {
     return;
   }
 
-  // Compute the scale and position of the master copy of the image.
-  nsRect tile;
-  switch (aHFill) {
-  case NS_STYLE_BORDER_IMAGE_STRETCH:
-    tile.x = aFill.x;
-    tile.width = aFill.width;
-    break;
-  case NS_STYLE_BORDER_IMAGE_REPEAT:
-    tile.x = aFill.x + aFill.width/2 - aUnitSize.width/2;
-    tile.width = aUnitSize.width;
-    break;
+  gfxIntSize gfxSourceSize((PRInt32)aSourceRect.size.width,
+                           (PRInt32)aSourceRect.size.height);
 
-  case NS_STYLE_BORDER_IMAGE_ROUND:
-    tile.x = aFill.x;
-    tile.width = aFill.width / ceil(gfxFloat(aFill.width)/aUnitSize.width);
-    break;
+  // where the actual border ends up being rendered
+  aThebesContext->UserToDevicePixelSnapped(aDestRect);
+  aThebesContext->UserToDevicePixelSnapped(aSourceRect);
 
-  default:
-    NS_NOTREACHED("unrecognized border-image fill style");
+  if (aDestRect.size.height < 1.0 ||
+     aDestRect.size.width < 1.0)
+    return;
+
+  if (aInterSize.width < 1.0 ||
+     aInterSize.height < 1.0)
+    return;
+
+  // Surface will hold just the part of the source image specified by the aSourceRect
+  // but at a different size
+  nsRefPtr<gfxASurface> interSurface =
+    gfxPlatform::GetPlatform()->CreateOffscreenSurface(
+        gfxSourceSize, gfxASurface::ImageFormatARGB32);
+
+  gfxMatrix srcMatrix;
+  // Adjust the matrix scale for Step 1 of the spec
+  srcMatrix.Scale(aSourceRect.size.width/aInterSize.width,
+                  aSourceRect.size.height/aInterSize.height);
+  {
+    nsCOMPtr<gfxIImageFrame> frame;
+    nsresult rv = aImage->GetCurrentFrame(getter_AddRefs(frame));
+    if(NS_FAILED(rv))
+      return;
+    nsCOMPtr<nsIImage> image;
+    image = do_GetInterface(frame);
+    if(!image)
+      return;
+
+    // surface for the whole image
+    nsRefPtr<gfxPattern> imagePattern;
+    rv = image->GetPattern(getter_AddRefs(imagePattern));
+    if(NS_FAILED(rv) || !imagePattern)
+      return;
+
+    gfxMatrix mat;
+    mat.Translate(aSourceRect.pos);
+    imagePattern->SetMatrix(mat);
+
+    // Straightforward blit - no resizing
+    nsRefPtr<gfxContext> srcCtx = new gfxContext(interSurface);
+    srcCtx->SetPattern(imagePattern);
+    srcCtx->SetOperator(gfxContext::OPERATOR_SOURCE);
+    srcCtx->Paint();
+    srcCtx = nsnull;
+
   }
 
-  switch (aVFill) {
-  case NS_STYLE_BORDER_IMAGE_STRETCH:
-    tile.y = aFill.y;
-    tile.height = aFill.height;
-    break;
-  case NS_STYLE_BORDER_IMAGE_REPEAT:
-    tile.y = aFill.y + aFill.height/2 - aUnitSize.height/2;
-    tile.height = aUnitSize.height;
-    break;
+  // offset to make the middle tile centered in the middle of the border
+  gfxPoint renderOffset(0, 0);
+  gfxSize rectSize(aDestRect.size);
 
-  case NS_STYLE_BORDER_IMAGE_ROUND:
-    tile.y = aFill.y;
-    tile.height = aFill.height/ceil(gfxFloat(aFill.height)/aUnitSize.height);
-    break;
+  aThebesContext->Save();
+  aThebesContext->Clip(aDestRect);
 
-  default:
-    NS_NOTREACHED("unrecognized border-image fill style");
+  gfxFloat hScale(1.0), vScale(1.0);
+
+  nsRefPtr<gfxPattern> pattern = new gfxPattern(interSurface);
+  pattern->SetExtend(gfxPattern::EXTEND_PAD_EDGE);
+  switch (aHFillType) {
+    case NS_STYLE_BORDER_IMAGE_REPEAT:
+      renderOffset.x = (rectSize.width - aInterSize.width*NS_ceil(rectSize.width/aInterSize.width))*-0.5;
+      aDestRect.pos.x -= renderOffset.x;
+      pattern->SetExtend(gfxPattern::EXTEND_REPEAT);
+      break;
+    case NS_STYLE_BORDER_IMAGE_ROUND:
+      hScale = aInterSize.width*(NS_ceil(aDestRect.size.width/aInterSize.width)/aDestRect.size.width);
+      pattern->SetExtend(gfxPattern::EXTEND_REPEAT);
+      break;
+    case NS_STYLE_BORDER_IMAGE_STRETCH:
+    default:
+      hScale = aInterSize.width/aDestRect.size.width;
+      break;
   }
 
-  nsLayoutUtils::DrawImage(&aRenderingContext, subImage, graphicsFilter,
-                           tile, aFill, tile.TopLeft(), aDirtyRect);
+  switch (aVFillType) {
+    case NS_STYLE_BORDER_IMAGE_REPEAT:
+      renderOffset.y = (rectSize.height - aInterSize.height*NS_ceil(rectSize.height/aInterSize.height))*-0.5;
+      aDestRect.pos.y -= renderOffset.y;
+      pattern->SetExtend(gfxPattern::EXTEND_REPEAT);
+      break;
+    case NS_STYLE_BORDER_IMAGE_ROUND:
+      vScale = aInterSize.height*(NS_ceil(aDestRect.size.height/aInterSize.height)/aDestRect.size.height);
+      pattern->SetExtend(gfxPattern::EXTEND_REPEAT);
+      break;
+    case NS_STYLE_BORDER_IMAGE_STRETCH:
+    default:
+      vScale = aInterSize.height/aDestRect.size.height;
+      break;
+  }
+
+  // Adjust the matrix scale for Step 2 of the spec
+  srcMatrix.Scale(hScale,vScale);
+  pattern->SetMatrix(srcMatrix);
+
+  // render
+  aThebesContext->Translate(aDestRect.pos);
+  aThebesContext->SetPattern(pattern);
+  aThebesContext->NewPath();
+  aThebesContext->Rectangle(gfxRect(renderOffset, rectSize));
+  aThebesContext->SetOperator(gfxContext::OPERATOR_ADD);
+  aThebesContext->Fill();
+  aThebesContext->Restore();
 }
+
+static void
+PaintBackgroundColor(nsPresContext* aPresContext,
+                     nsIRenderingContext& aRenderingContext,
+                     nsIFrame* aForFrame,
+                     const nsRect& aBgClipArea,
+                     const nsStyleBackground& aColor,
+                     const nsStyleBorder& aBorder,
+                     PRBool aCanPaintNonWhite)
+{
+  // If we're only allowed to paint white, then don't bail out on transparent
+  // color if we're not completely transparent.  See the corresponding check
+  // for whether we're allowed to paint background images in
+  // PaintBackgroundWithSC before the first call to PaintBackgroundColor.
+  if (NS_GET_A(aColor.mBackgroundColor) == 0 &&
+      (aCanPaintNonWhite || aColor.IsTransparent())) {
+    // nothing to paint
+    return;
+  }
+
+  nscolor color = aColor.mBackgroundColor;
+  if (!aCanPaintNonWhite) {
+    color = NS_RGB(255, 255, 255);
+  }
+  aRenderingContext.SetColor(color);
+
+  if (!nsLayoutUtils::HasNonZeroCorner(aBorder.mBorderRadius)) {
+    aRenderingContext.FillRect(aBgClipArea);
+    return;
+  }
+
+  gfxContext *ctx = aRenderingContext.ThebesContext();
+
+  // needed for our border thickness
+  nscoord appUnitsPerPixel = aPresContext->AppUnitsPerDevPixel();
+
+  nscoord borderRadii[8];
+  GetBorderRadiusTwips(aBorder.mBorderRadius, aForFrame->GetSize().width,
+                       borderRadii);
+
+  // the bgClipArea is the outside
+  gfxRect oRect(RectToGfxRect(aBgClipArea, appUnitsPerPixel));
+  oRect.Round();
+  oRect.Condition();
+  if (oRect.IsEmpty())
+    return;
+
+  // convert the radii
+  gfxCornerSizes radii;
+  ComputePixelRadii(borderRadii, aBgClipArea,
+                    aForFrame ? aForFrame->GetSkipSides() : 0,
+                    appUnitsPerPixel, &radii);
+
+  // Add 1.0 to any border radii; if we don't, the border and background
+  // curves will combine to have fringing at the rounded corners.  Since
+  // alpha is used for coverage, we have problems because the border and
+  // background should have identical coverage, and the border should
+  // overlay the background exactly.  The way to avoid this is by using
+  // a supersampling scheme, but we don't have the mechanism in place to do
+  // this.  So, this will do for now.
+  for (int i = 0; i < 4; i++) {
+    if (radii[i].width > 0.0)
+      radii[i].width += 1.0;
+    if (radii[i].height > 0.0)
+      radii[i].height += 1.0;
+  }
+
+  ctx->NewPath();
+  ctx->RoundedRectangle(oRect, radii);
+  ctx->Fill();
+}
+
 
 // Begin table border-collapsing section
 // These functions were written to not disrupt the normal ones and yet satisfy some additional requirements
@@ -2270,7 +2475,7 @@ GetDashInfo(nscoord  aBorderLength,
     aEndDashLength = 0;
   }
   else {
-    aNumDashSpaces = (aBorderLength - aDashLength)/ (2 * aDashLength); // round down
+    aNumDashSpaces = aBorderLength / (2 * aDashLength); // round down
     nscoord extra = aBorderLength - aStartDashLength - aEndDashLength - (((2 * aNumDashSpaces) - 1) * aDashLength);
     if (extra > 0) {
       nscoord half = RoundIntToPixel(extra / 2, aTwipsPerPixel);
@@ -2516,14 +2721,11 @@ nsCSSRendering::PaintDecorationLine(gfxContext* aGfxContext,
                                     const gfxFloat aAscent,
                                     const gfxFloat aOffset,
                                     const PRUint8 aDecoration,
-                                    const PRUint8 aStyle,
-                                    const gfxFloat aDescentLimit)
+                                    const PRUint8 aStyle)
 {
-  NS_ASSERTION(aStyle != DECORATION_STYLE_NONE, "aStyle is none");
-
   gfxRect rect =
     GetTextDecorationRectInternal(aPt, aLineSize, aAscent, aOffset,
-                                  aDecoration, aStyle, aDescentLimit);
+                                  aDecoration, aStyle);
   if (rect.IsEmpty())
     return;
 
@@ -2542,27 +2744,23 @@ nsCSSRendering::PaintDecorationLine(gfxContext* aGfxContext,
   nsRefPtr<gfxPattern> oldPattern;
 
   switch (aStyle) {
-    case DECORATION_STYLE_SOLID:
-    case DECORATION_STYLE_DOUBLE:
+    case NS_STYLE_BORDER_STYLE_SOLID:
+    case NS_STYLE_BORDER_STYLE_DOUBLE:
       oldLineWidth = aGfxContext->CurrentLineWidth();
       oldPattern = aGfxContext->GetPattern();
       break;
-    case DECORATION_STYLE_DASHED: {
+    case NS_STYLE_BORDER_STYLE_DASHED: {
       aGfxContext->Save();
       contextIsSaved = PR_TRUE;
-      aGfxContext->Clip(rect);
       gfxFloat dashWidth = lineHeight * DOT_LENGTH * DASH_LENGTH;
       gfxFloat dash[2] = { dashWidth, dashWidth };
       aGfxContext->SetLineCap(gfxContext::LINE_CAP_BUTT);
       aGfxContext->SetDash(dash, 2, 0.0);
-      // We should continue to draw the last dash even if it is not in the rect.
-      rect.size.width += dashWidth;
       break;
     }
-    case DECORATION_STYLE_DOTTED: {
+    case NS_STYLE_BORDER_STYLE_DOTTED: {
       aGfxContext->Save();
       contextIsSaved = PR_TRUE;
-      aGfxContext->Clip(rect);
       gfxFloat dashWidth = lineHeight * DOT_LENGTH;
       gfxFloat dash[2];
       if (lineHeight > 2.0) {
@@ -2574,23 +2772,8 @@ nsCSSRendering::PaintDecorationLine(gfxContext* aGfxContext,
         dash[1] = dashWidth;
       }
       aGfxContext->SetDash(dash, 2, 0.0);
-      // We should continue to draw the last dot even if it is not in the rect.
-      rect.size.width += dashWidth;
       break;
     }
-    case DECORATION_STYLE_WAVY:
-      aGfxContext->Save();
-      contextIsSaved = PR_TRUE;
-      aGfxContext->Clip(rect);
-      if (lineHeight > 2.0) {
-        aGfxContext->SetAntialiasMode(gfxContext::MODE_COVERAGE);
-      } else {
-        // Don't use anti-aliasing here.  Because looks like lighter color wavy
-        // line at this case.  And probably, users don't think the
-        // non-anti-aliased wavy line is not pretty.
-        aGfxContext->SetAntialiasMode(gfxContext::MODE_ALIASED);
-      }
-      break;
     default:
       NS_ERROR("Invalid style value!");
       return;
@@ -2602,27 +2785,13 @@ nsCSSRendering::PaintDecorationLine(gfxContext* aGfxContext,
   aGfxContext->SetColor(gfxRGBA(aColor));
   aGfxContext->SetLineWidth(lineHeight);
   switch (aStyle) {
-    case DECORATION_STYLE_SOLID:
+    case NS_STYLE_BORDER_STYLE_SOLID:
       aGfxContext->NewPath();
       aGfxContext->MoveTo(rect.TopLeft());
       aGfxContext->LineTo(rect.TopRight());
       aGfxContext->Stroke();
       break;
-    case DECORATION_STYLE_DOUBLE:
-      /**
-       *  We are drawing double line as:
-       *
-       * +-------------------------------------------+
-       * |XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX| ^
-       * |XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX| | lineHeight
-       * |XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX| v
-       * |                                           |
-       * |                                           |
-       * |XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX| ^
-       * |XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX| | lineHeight
-       * |XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX| v
-       * +-------------------------------------------+
-       */
+    case NS_STYLE_BORDER_STYLE_DOUBLE:
       aGfxContext->NewPath();
       aGfxContext->MoveTo(rect.TopLeft());
       aGfxContext->LineTo(rect.TopRight());
@@ -2631,72 +2800,13 @@ nsCSSRendering::PaintDecorationLine(gfxContext* aGfxContext,
       aGfxContext->LineTo(rect.BottomRight());
       aGfxContext->Stroke();
       break;
-    case DECORATION_STYLE_DOTTED:
-    case DECORATION_STYLE_DASHED:
+    case NS_STYLE_BORDER_STYLE_DOTTED:
+    case NS_STYLE_BORDER_STYLE_DASHED:
       aGfxContext->NewPath();
       aGfxContext->MoveTo(rect.TopLeft());
       aGfxContext->LineTo(rect.TopRight());
       aGfxContext->Stroke();
       break;
-    case DECORATION_STYLE_WAVY: {
-      /**
-       *  We are drawing wavy line as:
-       *
-       *  P: Path, X: Painted pixel
-       *
-       *     +---------------------------------------+
-       *   XX|X            XXXXXX            XXXXXX  |
-       *   PP|PX          XPPPPPPX          XPPPPPPX |    ^
-       *   XX|XPX        XPXXXXXXPX        XPXXXXXXPX|    |
-       *     | XPX      XPX      XPX      XPX      XP|X   |adv
-       *     |  XPXXXXXXPX        XPXXXXXXPX        X|PX  |
-       *     |   XPPPPPPX          XPPPPPPX          |XPX v
-       *     |    XXXXXX            XXXXXX           | XX
-       *     +---------------------------------------+
-       *      <---><--->                                ^
-       *      adv  flatLengthAtVertex                   rightMost
-       *
-       *  1. Always starts from top-left of the drawing area, however, we need
-       *     to draw  the line from outside of the rect.  Because the start
-       *     point of the line is not good style if we draw from inside it.
-       *  2. First, draw horizontal line from outside the rect to top-left of
-       *     the rect;
-       *  3. Goes down to bottom of the area at 45 degrees.
-       *  4. Slides to right horizontaly, see |flatLengthAtVertex|.
-       *  5. Goes up to top of the area at 45 degrees.
-       *  6. Slides to right horizontaly.
-       *  7. Repeat from 2 until reached to right-most edge of the area.
-       */
-
-      rect.pos.x += lineHeight / 2.0;
-      aGfxContext->NewPath();
-
-      gfxPoint pt(rect.pos);
-      gfxFloat rightMost = pt.x + rect.Width() + lineHeight;
-      gfxFloat adv = rect.Height() - lineHeight;
-      gfxFloat flatLengthAtVertex = PR_MAX((lineHeight - 1.0) * 2.0, 1.0);
-
-      pt.x -= lineHeight;
-      aGfxContext->MoveTo(pt); // 1
-
-      pt.x = rect.pos.x;
-      aGfxContext->LineTo(pt); // 2
-
-      PRBool goDown = PR_TRUE;
-      while (pt.x < rightMost) {
-        pt.x += adv;
-        pt.y += goDown ? adv : -adv;
-
-        aGfxContext->LineTo(pt); // 3 and 5
-
-        pt.x += flatLengthAtVertex;
-        aGfxContext->LineTo(pt); // 4 and 6
-
-        goDown = !goDown;
-      }
-      aGfxContext->Stroke();
-      break;
-    }
     default:
       NS_ERROR("Invalid style value!");
       break;
@@ -2716,15 +2826,13 @@ nsCSSRendering::GetTextDecorationRect(nsPresContext* aPresContext,
                                       const gfxFloat aAscent,
                                       const gfxFloat aOffset,
                                       const PRUint8 aDecoration,
-                                      const PRUint8 aStyle,
-                                      const gfxFloat aDescentLimit)
+                                      const PRUint8 aStyle)
 {
   NS_ASSERTION(aPresContext, "aPresContext is null");
-  NS_ASSERTION(aStyle != DECORATION_STYLE_NONE, "aStyle is none");
 
   gfxRect rect =
     GetTextDecorationRectInternal(gfxPoint(0, 0), aLineSize, aAscent, aOffset,
-                                  aDecoration, aStyle, aDescentLimit);
+                                  aDecoration, aStyle);
   // The rect values are already rounded to nearest device pixels.
   nsRect r;
   r.x = aPresContext->GfxUnitsToAppUnits(rect.X());
@@ -2734,122 +2842,42 @@ nsCSSRendering::GetTextDecorationRect(nsPresContext* aPresContext,
   return r;
 }
 
-gfxRect
-nsCSSRendering::GetTextDecorationRectInternal(const gfxPoint& aPt,
-                                              const gfxSize& aLineSize,
-                                              const gfxFloat aAscent,
-                                              const gfxFloat aOffset,
-                                              const PRUint8 aDecoration,
-                                              const PRUint8 aStyle,
-                                              const gfxFloat aDescentLimit)
+static gfxRect
+GetTextDecorationRectInternal(const gfxPoint& aPt,
+                              const gfxSize& aLineSize,
+                              const gfxFloat aAscent,
+                              const gfxFloat aOffset,
+                              const PRUint8 aDecoration,
+                              const PRUint8 aStyle)
 {
-  NS_ASSERTION(aStyle <= DECORATION_STYLE_WAVY, "Invalid aStyle value");
-
-  if (aStyle == DECORATION_STYLE_NONE)
-    return gfxRect(0, 0, 0, 0);
-
-  PRBool canLiftUnderline = aDescentLimit >= 0.0;
-
   gfxRect r;
   r.pos.x = NS_floor(aPt.x + 0.5);
   r.size.width = NS_round(aLineSize.width);
 
-  gfxFloat lineHeight = NS_round(aLineSize.height);
-  lineHeight = PR_MAX(lineHeight, 1.0);
-
-  gfxFloat ascent = NS_round(aAscent);
-  gfxFloat descentLimit = NS_round(aDescentLimit);
-
-  gfxFloat suggestedMaxRectHeight = PR_MAX(PR_MIN(ascent, descentLimit), 1.0);
-  gfxFloat underlineOffsetAdjust = 0.0;
-  r.size.height = lineHeight;
-  if (aStyle == DECORATION_STYLE_DOUBLE) {
-    /**
-     *  We will draw double line as:
-     *
-     * +-------------------------------------------+
-     * |XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX| ^
-     * |XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX| | lineHeight
-     * |XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX| v
-     * |                                           | ^
-     * |                                           | | gap
-     * |                                           | v
-     * |XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX| ^
-     * |XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX| | lineHeight
-     * |XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX| v
-     * +-------------------------------------------+
-     */
-    gfxFloat gap = NS_round(lineHeight / 2.0);
+  gfxFloat basesize = NS_round(aLineSize.height);
+  basesize = PR_MAX(basesize, 1.0);
+  r.size.height = basesize;
+  if (aStyle == NS_STYLE_BORDER_STYLE_DOUBLE) {
+    gfxFloat gap = NS_round(basesize / 2.0);
     gap = PR_MAX(gap, 1.0);
-    r.size.height = lineHeight * 2.0 + gap;
-    if (canLiftUnderline) {
-      if (r.Height() > suggestedMaxRectHeight) {
-        // Don't shrink the line height, because the thickness has some meaning.
-        // We can just shrink the gap at this time.
-        r.size.height = PR_MAX(suggestedMaxRectHeight, lineHeight * 2.0 + 1.0);
-      }
-    }
-  } else if (aStyle == DECORATION_STYLE_WAVY) {
-    /**
-     *  We will draw wavy line as:
-     *
-     * +-------------------------------------------+
-     * |XXXXX            XXXXXX            XXXXXX  | ^
-     * |XXXXXX          XXXXXXXX          XXXXXXXX | | lineHeight
-     * |XXXXXXX        XXXXXXXXXX        XXXXXXXXXX| v
-     * |     XXX      XXX      XXX      XXX      XX|
-     * |      XXXXXXXXXX        XXXXXXXXXX        X|
-     * |       XXXXXXXX          XXXXXXXX          |
-     * |        XXXXXX            XXXXXX           |
-     * +-------------------------------------------+
-     */
-    r.size.height = lineHeight > 2.0 ? lineHeight * 4.0 : lineHeight * 3.0;
-    if (canLiftUnderline) {
-      // Wavy line's top edge can overlap to the baseline, because even if the
-      // wavy line overlaps the baseline of the text, that shouldn't cause
-      // unreadability.
-      descentLimit += lineHeight;
-      // Recompute suggestedMaxRectHeight with new descentLimit value.
-      suggestedMaxRectHeight = PR_MAX(PR_MIN(ascent, descentLimit), 1.0);
-      if (r.Height() > suggestedMaxRectHeight) {
-        // Don't shrink the line height even if there is not enough space,
-        // because the thickness has some meaning.  E.g., the 1px wavy line and
-        // 2px wavy line can be used for different meaning in IME selections
-        // at same time.
-        r.size.height = PR_MAX(suggestedMaxRectHeight, lineHeight * 2.0);
-      }
-    }
-    // If this is underline, the middle of the rect should be aligned to the
-    // specified underline offset.  So, wavy line's top edge can overlap to
-    // baseline.  Because even if the wavy line overlaps the baseline of the
-    // text, that shouldn't cause unreadability.
-    underlineOffsetAdjust = r.Height() / 2.0;
+    r.size.height = basesize * 2.0 + gap;
+  } else {
+    r.size.height = basesize;
   }
 
   gfxFloat baseline = NS_floor(aPt.y + aAscent + 0.5);
-  gfxFloat offset = 0.0;
+  gfxFloat offset = 0;
   switch (aDecoration) {
     case NS_STYLE_TEXT_DECORATION_UNDERLINE:
-      offset = aOffset + underlineOffsetAdjust;
-      if (canLiftUnderline) {
-        if (descentLimit < -offset + r.Height()) {
-          // If we can ignore the offset and the decoration line is overflowing,
-          // we should align the bottom edge of the decoration line rect if it's
-          // possible.  Otherwise, we should lift up the top edge of the rect as
-          // far as possible.
-          gfxFloat offsetBottomAligned = -descentLimit + r.Height();
-          gfxFloat offsetTopAligned = underlineOffsetAdjust;
-          offset = PR_MIN(offsetBottomAligned, offsetTopAligned);
-        }
-      }
+      offset = aOffset;
       break;
     case NS_STYLE_TEXT_DECORATION_OVERLINE:
-      offset = aOffset - lineHeight + r.Height();
+      offset = aOffset - basesize + r.Height();
       break;
     case NS_STYLE_TEXT_DECORATION_LINE_THROUGH: {
       gfxFloat extra = NS_floor(r.Height() / 2.0 + 0.5);
-      extra = PR_MAX(extra, lineHeight);
-      offset = aOffset - lineHeight + extra;
+      extra = PR_MAX(extra, basesize);
+      offset = aOffset - basesize + extra;
       break;
     }
     default:
@@ -2865,8 +2893,7 @@ nsCSSRendering::GetTextDecorationRectInternal(const gfxPoint& aPt,
 gfxContext*
 nsContextBoxBlur::Init(const gfxRect& aRect, nscoord aBlurRadius,
                        PRInt32 aAppUnitsPerDevPixel,
-                       gfxContext* aDestinationCtx,
-                       const gfxRect& aDirtyRect)
+                       gfxContext* aDestinationCtx)
 {
   mDestinationCtx = aDestinationCtx;
 
@@ -2887,13 +2914,9 @@ nsContextBoxBlur::Init(const gfxRect& aRect, nscoord aBlurRadius,
     return mContext;
   }
 
-  gfxRect dirtyRect = aDirtyRect;
-  dirtyRect.ScaleInverse(aAppUnitsPerDevPixel);
-
   mDestinationCtx = aDestinationCtx;
 
-  // Create the temporary surface for blurring
-  mContext = blur.Init(rect, gfxIntSize(blurRadius, blurRadius), &dirtyRect);
+  mContext = blur.Init(rect, gfxIntSize(blurRadius, blurRadius));
   return mContext;
 }
 
@@ -2911,4 +2934,3 @@ nsContextBoxBlur::GetContext()
 {
   return mContext;
 }
-

@@ -106,53 +106,6 @@ error()
 if [[ -z "$LIBRARYSH" ]]; then
     # skip remainder of script if it has already included
 
-    checkProductBranch()
-    {
-        local product=$1
-        local branch=$2
-
-        case $product in
-            js|firefox|thunderbird|fennec)
-                ;;
-            *)
-                error "product \"$product\" must be one of firefox, thunderbird, or fennec" $LINENO
-        esac
-
-        case $branch in
-            1.8.0|1.8.1|1.9.0|1.9.1|1.9.2)
-                ;;
-            *)
-                error "branch \"$branch\" must be one of 1.8.0, 1.8.1, 1.9.0 1.9.1 1.9.2" $LINENO
-        esac
-
-        # special case thunderbird and fennec due to their different
-        # repository and build tree structures.
-        case "$product" in
-            "thunderbird")
-                if [[ $branch == "1.9.2" ]]; then
-                    error "thunderbird on branch 1.9.2 is not supported"
-                fi
-                ;;
-            "fennec")
-                if [[ $branch != "1.9.1" && "$branch" != "1.9.2" ]]; then
-                    error "fennec on branch $branch is not supported"
-                fi
-                ;;
-        esac
-     } 
-
-    # Darwin 8.11.1's |which| does not return a non-zero exit code if the 
-    # program can not be found. Therefore, kludge around it.
-    findprogram()
-    {
-        local program=$1
-        local location=`which $program 2>&1`
-        if [[ ! -x $location ]]; then
-            return 1
-        fi
-        return 0
-    }
-
     debug()
     {
         if [[ -n "$DEBUG" ]]; then
@@ -220,7 +173,7 @@ if [[ -z "$LIBRARYSH" ]]; then
         if [[ -e /proc/meminfo ]]; then
             cat /proc/meminfo | sed 's|^|meminfo:|'
         fi
-        if findprogram system_profiler; then
+        if which system_profiler 2> /dev/null; then
             system_profiler | sed 's|^|system_profiler:|'
         fi
     }
@@ -307,19 +260,6 @@ if [[ -z "$LIBRARYSH" ]]; then
         echo $script
     }
 
-    xbasename()
-    {
-        local path=$1
-        local suffix=$2
-        local result
-
-        if ! result=`basename -s $suffix $path 2>&1`; then
-            result=`basename $path $suffix`
-        fi
-
-        echo $result
-    }
-
     LIBRARYSH=1
 
     MALLOC_CHECK_=${MALLOC_CHECK_:-2}
@@ -368,6 +308,7 @@ if [[ -z "$LIBRARYSH" ]]; then
     #leak gauge
     #NSPR_LOG_MODULES=DOMLeak:5,DocumentLeak:5,nsDocShellLeak:5
 
+    TEST_CPUSPEED="`mips.pl`"
     TEST_MEMORY="`memory.pl`"
 
     # debug msg

@@ -67,6 +67,7 @@ REQUIRES	= xpcom \
 		  plugin \
 		  docshell \
 		  webbrwsr \
+		  oji \
 		  unicharutil \
 		  lwbrk \
 		  imglib2 \
@@ -82,7 +83,6 @@ REQUIRES	+= accessibility
 endif
 
 EXPORTS		= \
-		nsQueryFrame.h \
 		nsFrameList.h \
 		nsHTMLParts.h \
 		nsHTMLReflowMetrics.h \
@@ -112,7 +112,9 @@ endif
 
 CPPSRCS		= \
 		nsAbsoluteContainingBlock.cpp \
+		nsAreaFrame.cpp \
 		nsBRFrame.cpp \
+		nsBlockBandData.cpp \
 		nsBlockFrame.cpp \
 		nsBlockReflowContext.cpp \
 		nsBlockReflowState.cpp \
@@ -120,7 +122,6 @@ CPPSRCS		= \
 		nsColumnSetFrame.cpp \
 		nsContainerFrame.cpp \
 		nsFirstLetterFrame.cpp \
-		nsFloatManager.cpp \
 		nsFrame.cpp \
 		nsFrameFrame.cpp \
 		nsFrameList.cpp \
@@ -144,6 +145,7 @@ CPPSRCS		= \
 		nsPlaceholderFrame.cpp \
 		nsSelection.cpp \
 		nsSimplePageSequence.cpp \
+		nsSpaceManager.cpp \
 		nsSpacerFrame.cpp \
 		nsSplittableFrame.cpp \
 		nsTextFrameThebes.cpp \
@@ -169,8 +171,8 @@ RESOURCES_HTML = \
 		$(NULL)
 
 RESOURCES = \
-		$(srcdir)/broken-image.png \
-		$(srcdir)/loading-image.png \
+		$(srcdir)/broken-image.gif \
+		$(srcdir)/loading-image.gif \
 		$(NULL)
 
 FORCE_STATIC_LIB = 1
@@ -186,7 +188,7 @@ LOCAL_INCLUDES += \
 		-I$(srcdir)/../../content/xul/content/src \
 		-I$(srcdir)/../../content/base/src \
 		-I$(srcdir)/../../content/html/content/src \
-		-I$(srcdir)/../../dom/base \
+		-I$(srcdir)/../../dom/src/base \
 		$(MOZ_CAIRO_CFLAGS) \
 		$(NULL)
 

@@ -57,19 +57,43 @@ NS_IMPL_ISUPPORTS_INHERITED1(nsHTMLLinkAccessible, nsHyperTextAccessibleWrap,
 ////////////////////////////////////////////////////////////////////////////////
 // nsIAccessible
 
-nsresult
-nsHTMLLinkAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP
+nsHTMLLinkAccessible::GetName(nsAString& aName)
+{ 
+  aName.Truncate();
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
+  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
+  nsresult rv = AppendFlatStringFromSubtree(content, &aName);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (aName.IsEmpty()) {
+    // Probably an image without alt or title inside, try to get the name on
+    // the link by usual way.
+    return GetHTMLName(aName, PR_FALSE);
+  }
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsHTMLLinkAccessible::GetRole(PRUint32 *aRole)
 {
+  NS_ENSURE_ARG_POINTER(aRole);
+
   *aRole = nsIAccessibleRole::ROLE_LINK;
   return NS_OK;
 }
 
-nsresult
-nsHTMLLinkAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
+NS_IMETHODIMP
+nsHTMLLinkAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 {
-  nsresult rv = nsHyperTextAccessibleWrap::GetStateInternal(aState,
-                                                            aExtraState);
-  NS_ENSURE_A11Y_SUCCESS(rv, rv);
+  nsresult rv = nsHyperTextAccessibleWrap::GetState(aState, aExtraState);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (!mDOMNode)
+    return NS_OK;
 
   *aState  &= ~nsIAccessibleStates::STATE_READONLY;
 
@@ -91,8 +115,8 @@ nsHTMLLinkAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
     // This is a either named anchor (a link with also a name attribute) or
     // it doesn't have any attributes. Check if 'click' event handler is
     // registered, otherwise bail out.
-    PRBool isOnclick = nsCoreUtils::HasListener(content,
-                                                NS_LITERAL_STRING("click"));
+    PRBool isOnclick = nsAccUtils::HasListener(content,
+                                               NS_LITERAL_STRING("click"));
     if (!isOnclick)
       return NS_OK;
   }

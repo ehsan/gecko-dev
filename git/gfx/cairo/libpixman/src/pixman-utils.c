@@ -29,11 +29,39 @@
 
 #include "pixman-private.h"
 #include "pixman-mmx.h"
-#include "pixman-sse2.h"
 
-#if defined(USE_SSE2) && defined(__GNUC__) && !defined(__x86_64__) && !defined(__amd64__)
-__attribute__((__force_align_arg_pointer__))
-#endif
+PIXMAN_EXPORT pixman_bool_t
+pixman_transform_point_3d (pixman_transform_t *transform,
+			   pixman_vector_t *vector)
+{
+    pixman_vector_t		result;
+    int				i, j;
+    pixman_fixed_32_32_t	partial;
+    pixman_fixed_48_16_t	v;
+
+    for (j = 0; j < 3; j++)
+    {
+	v = 0;
+	for (i = 0; i < 3; i++)
+	{
+	    partial = ((pixman_fixed_48_16_t) transform->matrix[j][i] *
+		       (pixman_fixed_48_16_t) vector->vector[i]);
+	    v += partial >> 16;
+	}
+
+	if (v > pixman_max_fixed_48_16 || v < pixman_min_fixed_48_16)
+	    return FALSE;
+
+	result.vector[j] = (pixman_fixed_48_16_t) v;
+    }
+
+    if (!result.vector[2])
+	return FALSE;
+
+    *vector = result;
+    return TRUE;
+}
+
 PIXMAN_EXPORT pixman_bool_t
 pixman_blt (uint32_t *src_bits,
 	    uint32_t *dst_bits,
@@ -45,14 +73,6 @@ pixman_blt (uint32_t *src_bits,
 	    int dst_x, int dst_y,
 	    int width, int height)
 {
-#ifdef USE_SSE2
-    if (pixman_have_sse2())
-    {
-	return pixmanBltsse2 (src_bits, dst_bits, src_stride, dst_stride, src_bpp, dst_bpp,
-			      src_x, src_y, dst_x, dst_y, width, height);
-    }
-    else
-#endif
 #ifdef USE_MMX
     if (pixman_have_mmx())
     {
@@ -136,9 +156,6 @@ pixman_fill32 (uint32_t *bits,
     }
 }
 
-#if defined(USE_SSE2) && defined(__GNUC__) && !defined(__x86_64__) && !defined(__amd64__)
-__attribute__((__force_align_arg_pointer__))
-#endif
 PIXMAN_EXPORT pixman_bool_t
 pixman_fill (uint32_t *bits,
 	     int stride,
@@ -154,33 +171,28 @@ pixman_fill (uint32_t *bits,
 	    x, y, width, height, stride, bpp, xor);
 #endif
 
-#ifdef USE_SSE2
-    if (pixman_have_sse2() && pixmanFillsse2 (bits, stride, bpp, x, y, width, height, xor))
-	return TRUE;
-#endif
-
 #ifdef USE_MMX
-    if (pixman_have_mmx() && pixman_fill_mmx (bits, stride, bpp, x, y, width, height, xor))
-	return TRUE;
+    if (!pixman_have_mmx() || !pixman_fill_mmx (bits, stride, bpp, x, y, width, height, xor))
 #endif
-    
-    switch (bpp)
     {
-    case 8:
-	pixman_fill8 (bits, stride, x, y, width, height, xor);
-	break;
-	
-    case 16:
-	pixman_fill16 (bits, stride, x, y, width, height, xor);
-	break;
-	
-    case 32:
-	pixman_fill32 (bits, stride, x, y, width, height, xor);
-	break;
-	
-    default:
-	return FALSE;
-	break;
+	switch (bpp)
+	{
+	case 8:
+	    pixman_fill8 (bits, stride, x, y, width, height, xor);
+	    break;
+
+	case 16:
+	    pixman_fill16 (bits, stride, x, y, width, height, xor);
+	    break;
+
+	case 32:
+	    pixman_fill32 (bits, stride, x, y, width, height, xor);
+	    break;
+
+	default:
+	    return FALSE;
+	    break;
+	}
     }
 
     return TRUE;

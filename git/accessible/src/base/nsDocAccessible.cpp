@@ -68,7 +68,7 @@
 #include "nsUnicharUtils.h"
 #include "nsIURI.h"
 #include "nsIWebNavigation.h"
-#include "nsFocusManager.h"
+#include "nsIFocusController.h"
 #ifdef MOZ_XUL
 #include "nsIXULDocument.h"
 #endif
@@ -117,7 +117,7 @@ nsDocAccessible::nsDocAccessible(nsIDOMNode *aDOMNode, nsIWeakReference* aShell)
   mAccessNodeCache.Init(kDefaultCacheSize);
 
   nsCOMPtr<nsIDocShellTreeItem> docShellTreeItem =
-    nsCoreUtils::GetDocShellTreeItemFor(mDOMNode);
+    nsAccUtils::GetDocShellTreeItemFor(mDOMNode);
   nsCOMPtr<nsIDocShell> docShell = do_QueryInterface(docShellTreeItem);
   if (docShell) {
     PRUint32 busyFlags;
@@ -138,7 +138,7 @@ nsDocAccessible::~nsDocAccessible()
 ////////////////////////////////////////////////////////////////////////////////
 // nsDocAccessible. nsISupports
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 ElementTraverser(const void *aKey, nsIAccessNode *aAccessNode,
                  void *aUserArg)
 {
@@ -149,18 +149,6 @@ ElementTraverser(const void *aKey, nsIAccessNode *aAccessNode,
   cb->NoteXPCOMChild(aAccessNode);
   return PL_DHASH_NEXT;
 }
-
-// What we want is: NS_INTERFACE_MAP_ENTRY(self) for static IID accessors,
-// but some of our classes have an ambiguous base class of nsISupports which
-// prevents this from working (the default macro converts it to nsISupports,
-// then addrefs it, then returns it). Therefore, we expand the macro here and
-// change it so that it works. Yuck.
-#define NS_INTERFACE_MAP_STATIC_AMBIGUOUS(_class) \
-  if (aIID.Equals(NS_GET_IID(_class))) { \
-    NS_ADDREF(this); \
-    *aInstancePtr = this; \
-    return NS_OK; \
-  } else
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsDocAccessible)
 
@@ -175,21 +163,20 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsDocAccessible, nsAccessible)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsDocAccessible)
-  NS_INTERFACE_MAP_STATIC_AMBIGUOUS(nsDocAccessible)
   NS_INTERFACE_MAP_ENTRY(nsIAccessibleDocument)
+  NS_INTERFACE_MAP_ENTRY(nsPIAccessibleDocument)
   NS_INTERFACE_MAP_ENTRY(nsIDocumentObserver)
   NS_INTERFACE_MAP_ENTRY(nsIMutationObserver)
   NS_INTERFACE_MAP_ENTRY(nsIScrollPositionListener)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
-  NS_INTERFACE_MAP_ENTRY(nsIObserver)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIAccessibleDocument)
+  NS_INTERFACE_MAP_ENTRY(nsIObserver)
 NS_INTERFACE_MAP_END_INHERITING(nsHyperTextAccessible)
 
 NS_IMPL_ADDREF_INHERITED(nsDocAccessible, nsHyperTextAccessible)
 NS_IMPL_RELEASE_INHERITED(nsDocAccessible, nsHyperTextAccessible)
 
-NS_IMETHODIMP
-nsDocAccessible::GetName(nsAString& aName)
+NS_IMETHODIMP nsDocAccessible::GetName(nsAString& aName)
 {
   nsresult rv = NS_OK;
   aName.Truncate();
@@ -197,8 +184,7 @@ nsDocAccessible::GetName(nsAString& aName)
     rv = mParent->GetName(aName); // Allow owning iframe to override the name
   }
   if (aName.IsEmpty()) {
-    // Allow name via aria-labelledby or title attribute
-    rv = nsAccessible::GetName(aName);
+    rv = nsAccessible::GetName(aName); // Allow name via aria-labelledby or title attribute
   }
   if (aName.IsEmpty()) {
     rv = GetTitle(aName);   // Try title element
@@ -210,13 +196,12 @@ nsDocAccessible::GetName(nsAString& aName)
   return rv;
 }
 
-nsresult
-nsDocAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP nsDocAccessible::GetRole(PRUint32 *aRole)
 {
   *aRole = nsIAccessibleRole::ROLE_PANE; // Fall back
 
   nsCOMPtr<nsIDocShellTreeItem> docShellTreeItem =
-    nsCoreUtils::GetDocShellTreeItemFor(mDOMNode);
+    nsAccUtils::GetDocShellTreeItemFor(mDOMNode);
   if (docShellTreeItem) {
     nsCOMPtr<nsIDocShellTreeItem> sameTypeRoot;
     docShellTreeItem->GetSameTypeRootTreeItem(getter_AddRefs(sameTypeRoot));
@@ -248,21 +233,15 @@ nsDocAccessible::GetRoleInternal(PRUint32 *aRole)
   return NS_OK;
 }
 
-void
-nsDocAccessible::SetRoleMapEntry(nsRoleMapEntry* aRoleMapEntry)
+NS_IMETHODIMP nsDocAccessible::SetRoleMapEntry(nsRoleMapEntry* aRoleMapEntry)
 {
-  NS_ASSERTION(mDocument, "No document during initialization!");
-  if (!mDocument)
-    return;
+  NS_ENSURE_STATE(mDocument);
 
   mRoleMapEntry = aRoleMapEntry;
 
   // Allow use of ARIA role from outer to override
   nsIDocument *parentDoc = mDocument->GetParentDocument();
-  NS_ASSERTION(parentDoc, "No parent document during initialization!");
-  if (!parentDoc)
-    return;
-
+  NS_ENSURE_TRUE(parentDoc, NS_ERROR_FAILURE);
   nsIContent *ownerContent = parentDoc->FindContentForSubDocument(mDocument);
   nsCOMPtr<nsIDOMNode> ownerNode(do_QueryInterface(ownerContent));
   if (ownerNode) {
@@ -270,6 +249,8 @@ nsDocAccessible::SetRoleMapEntry(nsRoleMapEntry* aRoleMapEntry)
     if (roleMapEntry)
       mRoleMapEntry = roleMapEntry; // Override
   }
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP 
@@ -280,20 +261,20 @@ nsDocAccessible::GetDescription(nsAString& aDescription)
 
   if (aDescription.IsEmpty()) {
     nsAutoString description;
-    nsTextEquivUtils::
-      GetTextEquivFromIDRefs(this, nsAccessibilityAtoms::aria_describedby,
-                             description);
+    GetTextFromRelationID(nsAccessibilityAtoms::aria_describedby, description);
     aDescription = description;
   }
 
   return NS_OK;
 }
 
-nsresult
-nsDocAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
+NS_IMETHODIMP
+nsDocAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 {
-  nsresult rv = nsAccessible::GetStateInternal(aState, aExtraState);
-  NS_ENSURE_A11Y_SUCCESS(rv, rv);
+  // nsAccessible::GetState() always fail for document accessible.
+  nsAccessible::GetState(aState, aExtraState);
+  if (!mDOMNode)
+    return NS_OK;
 
 #ifdef MOZ_XUL
   nsCOMPtr<nsIXULDocument> xulDoc(do_QueryInterface(mDocument));
@@ -339,17 +320,17 @@ nsDocAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
   return NS_OK;
 }
 
-nsresult
-nsDocAccessible::GetARIAState(PRUint32 *aState, PRUint32 *aExtraState)
+NS_IMETHODIMP
+nsDocAccessible::GetARIAState(PRUint32 *aState)
 {
   // Combine with states from outer doc
   NS_ENSURE_ARG_POINTER(aState);
-  nsresult rv = nsAccessible::GetARIAState(aState, aExtraState);
+  nsresult rv = nsAccessible::GetARIAState(aState);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsRefPtr<nsAccessible> parent = nsAccUtils::QueryAccessible(mParent);
-  if (parent)  // Allow iframe/frame etc. to have final state override via ARIA
-    return parent->GetARIAState(aState, aExtraState);
+  nsCOMPtr<nsPIAccessible> privateParentAccessible = do_QueryInterface(mParent);
+  if (privateParentAccessible)  // Allow iframe/frame etc. to have final state override via ARIA
+    return privateParentAccessible->GetARIAState(aState);
 
   return rv;
 }
@@ -366,7 +347,6 @@ nsDocAccessible::GetAttributes(nsIPersistentProperties **aAttributes)
 
 NS_IMETHODIMP nsDocAccessible::GetFocusedChild(nsIAccessible **aFocusedChild)
 {
-  // XXXndeakin P3 accessibility shouldn't be caching the focus
   if (!gLastFocusedNode) {
     *aFocusedChild = nsnull;
     return NS_OK;
@@ -383,25 +363,30 @@ NS_IMETHODIMP nsDocAccessible::TakeFocus()
 {
   NS_ENSURE_TRUE(mDocument, NS_ERROR_FAILURE);
   PRUint32 state;
-  GetStateInternal(&state, nsnull);
+  GetState(&state, nsnull);
   if (0 == (state & nsIAccessibleStates::STATE_FOCUSABLE)) {
     return NS_ERROR_FAILURE; // Not focusable
   }
 
-  nsCOMPtr<nsIFocusManager> fm = do_GetService(FOCUSMANAGER_CONTRACTID);
-  if (fm) {
-    nsCOMPtr<nsIDOMDocument> domDocument;
-    mDOMNode->GetOwnerDocument(getter_AddRefs(domDocument));
-    nsCOMPtr<nsIDocument> document(do_QueryInterface(domDocument));
-    if (document) {
-      // focus the document
-      nsCOMPtr<nsIDOMElement> newFocus;
-      return fm->MoveFocus(document->GetWindow(), nsnull,
-                           nsIFocusManager::MOVEFOCUS_ROOT, 0,
-                           getter_AddRefs(newFocus));
-    }
+  nsCOMPtr<nsIDocShellTreeItem> treeItem =
+    nsAccUtils::GetDocShellTreeItemFor(mDOMNode);
+  nsCOMPtr<nsIDocShell> docShell = do_QueryInterface(treeItem);
+  NS_ENSURE_TRUE(docShell, NS_ERROR_FAILURE);
+
+  nsCOMPtr<nsIPresShell> shell(GetPresShell());
+  if (!shell) {
+    NS_WARNING("Was not shutdown properly via InvalidateCacheSubtree()");
+    return NS_ERROR_FAILURE;
   }
-  return NS_ERROR_FAILURE;
+  nsIEventStateManager *esm = shell->GetPresContext()->EventStateManager();
+  NS_ENSURE_TRUE(esm, NS_ERROR_FAILURE);
+
+  // Focus the document
+  nsresult rv = docShell->SetHasFocus(PR_TRUE);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // Clear out any existing focus state
+  return esm->SetContentState(nsnull, NS_EVENT_STATE_FOCUS);
 }
 
 // ------- nsIAccessibleDocument Methods (5) ---------------
@@ -510,21 +495,12 @@ NS_IMETHODIMP nsDocAccessible::GetDocument(nsIDOMDocument **aDOMDoc)
 NS_IMETHODIMP nsDocAccessible::GetAssociatedEditor(nsIEditor **aEditor)
 {
   NS_ENSURE_ARG_POINTER(aEditor);
+
   *aEditor = nsnull;
+  NS_ENSURE_TRUE(mDocument, NS_ERROR_FAILURE);
 
-  if (!mDocument)
-    return NS_ERROR_FAILURE;
-
-  // Check if document is editable (designMode="on" case). Otherwise check if
-  // the html:body (for HTML document case) or document element is editable.
   if (!mDocument->HasFlag(NODE_IS_EDITABLE)) {
-    nsCOMPtr<nsIDOMNode> DOMDocument(do_QueryInterface(mDocument));
-    nsCOMPtr<nsIDOMElement> DOMElement =
-      nsCoreUtils::GetDOMElementFor(DOMDocument);
-    nsCOMPtr<nsIContent> content(do_QueryInterface(DOMElement));
-
-    if (!content || !content->HasFlag(NODE_IS_EDITABLE))
-      return NS_OK;
+    return NS_OK; // Document not editable
   }
 
   nsCOMPtr<nsISupports> container = mDocument->GetContainer();
@@ -554,18 +530,20 @@ NS_IMETHODIMP nsDocAccessible::GetCachedAccessNode(void *aUniqueID, nsIAccessNod
   // when they were first cached, and no invalidation
   // ever corrected parent accessible's child cache.
   nsCOMPtr<nsIAccessible> accessible = do_QueryInterface(*aAccessNode);
-  nsRefPtr<nsAccessible> acc = nsAccUtils::QueryAccessible(accessible);
-  if (acc) {
-    nsCOMPtr<nsIAccessible> parent = acc->GetCachedParent();
-    nsRefPtr<nsAccessible> parentAcc(nsAccUtils::QueryAccessible(parent));
-    if (parentAcc)
-      parentAcc->TestChildCache(accessible);
+  nsCOMPtr<nsPIAccessible> privateAccessible = do_QueryInterface(accessible);
+  if (privateAccessible) {
+    nsCOMPtr<nsIAccessible> parent;
+    privateAccessible->GetCachedParent(getter_AddRefs(parent));
+    nsCOMPtr<nsPIAccessible> privateParent(do_QueryInterface(parent));
+    if (privateParent) {
+      privateParent->TestChildCache(accessible);
+    }
   }
 #endif
   return NS_OK;
 }
 
-void
+NS_IMETHODIMP
 nsDocAccessible::CacheAccessNode(void *aUniqueID, nsIAccessNode *aAccessNode)
 {
   // If there is an access node for the given unique ID then let's shutdown it.
@@ -575,11 +553,12 @@ nsDocAccessible::CacheAccessNode(void *aUniqueID, nsIAccessNode *aAccessNode)
   nsCOMPtr<nsIAccessNode> accessNode;
   GetCacheEntry(mAccessNodeCache, aUniqueID, getter_AddRefs(accessNode));
   if (accessNode) {
-    nsRefPtr<nsAccessNode> accNode = nsAccUtils::QueryAccessNode(accessNode);
-    accNode->Shutdown();
+    nsCOMPtr<nsPIAccessNode> prAccessNode = do_QueryInterface(accessNode);
+    prAccessNode->Shutdown();
   }
 
   PutCacheEntry(mAccessNodeCache, aUniqueID, aAccessNode);
+  return NS_OK;
 }
 
 NS_IMETHODIMP nsDocAccessible::GetParent(nsIAccessible **aParent)
@@ -608,8 +587,7 @@ NS_IMETHODIMP nsDocAccessible::GetParent(nsIAccessible **aParent)
   return mParent ? nsAccessible::GetParent(aParent) : NS_ERROR_FAILURE;
 }
 
-nsresult
-nsDocAccessible::Init()
+NS_IMETHODIMP nsDocAccessible::Init()
 {
   PutCacheEntry(gGlobalDocAccessibleCache, mDocument, this);
 
@@ -621,15 +599,14 @@ nsDocAccessible::Init()
   return nsHyperTextAccessibleWrap::Init();
 }
 
-nsresult
-nsDocAccessible::Shutdown()
+NS_IMETHODIMP nsDocAccessible::Shutdown()
 {
   if (!mWeakShell) {
     return NS_OK;  // Already shutdown
   }
 
   nsCOMPtr<nsIDocShellTreeItem> treeItem =
-    nsCoreUtils::GetDocShellTreeItemFor(mDOMNode);
+    nsAccUtils::GetDocShellTreeItemFor(mDOMNode);
   ShutdownChildDocuments(treeItem);
 
   RemoveEventListeners();
@@ -682,17 +659,15 @@ void nsDocAccessible::ShutdownChildDocuments(nsIDocShellTreeItem *aStart)
       }
       nsCOMPtr<nsIAccessibleDocument> docAccessible =
         GetDocAccessibleFor(treeItemChild);
-      if (docAccessible) {
-        nsRefPtr<nsAccessNode> docAccNode =
-          nsAccUtils::QueryAccessNode(docAccessible);
-        docAccNode->Shutdown();
+      nsCOMPtr<nsPIAccessNode> accessNode = do_QueryInterface(docAccessible);
+      if (accessNode) {
+        accessNode->Shutdown();
       }
     }
   }
 }
 
-nsIFrame*
-nsDocAccessible::GetFrame()
+nsIFrame* nsDocAccessible::GetFrame()
 {
   nsCOMPtr<nsIPresShell> shell(do_QueryReferent(mWeakShell));
 
@@ -701,15 +676,6 @@ nsDocAccessible::GetFrame()
     root = shell->GetRootFrame();
 
   return root;
-}
-
-PRBool
-nsDocAccessible::IsDefunct()
-{
-  if (nsHyperTextAccessibleWrap::IsDefunct())
-    return PR_TRUE;
-
-  return !mDocument;
 }
 
 void nsDocAccessible::GetBoundsRect(nsRect& aBounds, nsIFrame** aRelativeFrame)
@@ -842,12 +808,11 @@ nsresult nsDocAccessible::RemoveEventListeners()
   return NS_OK;
 }
 
-void
-nsDocAccessible::FireAnchorJumpEvent()
+NS_IMETHODIMP nsDocAccessible::FireAnchorJumpEvent()
 {
-  if (!mIsContentLoaded || !mDocument)
-    return;
-
+  if (!mIsContentLoaded || !mDocument) {
+    return NS_OK;
+  }
   nsCOMPtr<nsISupports> container = mDocument->GetContainer();
   nsCOMPtr<nsIWebNavigation> webNav(do_GetInterface(container));
   nsCAutoString theURL;
@@ -875,13 +840,15 @@ nsDocAccessible::FireAnchorJumpEvent()
     mIsAnchorJumped = PR_TRUE;
     lastAnchor.Assign(currentAnchor);
   }
+
+  return NS_OK;
 }
 
-void
-nsDocAccessible::FireDocLoadEvents(PRUint32 aEventType)
+NS_IMETHODIMP nsDocAccessible::FireDocLoadEvents(PRUint32 aEventType)
 {
-  if (IsDefunct())
-    return;
+  if (!mDocument || !mWeakShell) {
+    return NS_OK;  // Document has been shut down
+  }
 
   PRBool isFinished = 
              (aEventType == nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_COMPLETE ||
@@ -890,16 +857,15 @@ nsDocAccessible::FireDocLoadEvents(PRUint32 aEventType)
   mIsContentLoaded = isFinished;
   if (isFinished) {
     if (mIsLoadCompleteFired)
-      return;
-
+      return NS_OK;
     mIsLoadCompleteFired = PR_TRUE;
   }
 
   nsCOMPtr<nsIDocShellTreeItem> treeItem =
-    nsCoreUtils::GetDocShellTreeItemFor(mDOMNode);
-  if (!treeItem)
-    return;
-
+    nsAccUtils::GetDocShellTreeItemFor(mDOMNode);
+  if (!treeItem) {
+    return NS_OK;
+  }
   nsCOMPtr<nsIDocShellTreeItem> sameTypeRoot;
   treeItem->GetSameTypeRootTreeItem(getter_AddRefs(sameTypeRoot));
 
@@ -907,12 +873,11 @@ nsDocAccessible::FireDocLoadEvents(PRUint32 aEventType)
     // Need to wait until scrollable view is available
     AddScrollListener();
     nsCOMPtr<nsIAccessible> parent(nsAccessible::GetParent());
-    nsRefPtr<nsAccessible> acc(nsAccUtils::QueryAccessible(parent));
-    if (acc) {
+    nsCOMPtr<nsPIAccessible> privateAccessible(do_QueryInterface(parent));
+    if (privateAccessible) {
       // Make the parent forget about the old document as a child
-      acc->InvalidateChildren();
+      privateAccessible->InvalidateChildren();
     }
-
     if (sameTypeRoot != treeItem) {
       // Fire show/hide events to indicate frame/iframe content is new, rather than
       // doc load event which causes screen readers to act is if entire page is reloaded
@@ -921,7 +886,7 @@ nsDocAccessible::FireDocLoadEvents(PRUint32 aEventType)
     // Fire STATE_CHANGE event for doc load finish if focus is in same doc tree
     if (gLastFocusedNode) {
       nsCOMPtr<nsIDocShellTreeItem> focusedTreeItem =
-        nsCoreUtils::GetDocShellTreeItemFor(gLastFocusedNode);
+        nsAccUtils::GetDocShellTreeItemFor(gLastFocusedNode);
       if (focusedTreeItem) {
         nsCOMPtr<nsIDocShellTreeItem> sameTypeRootOfFocus;
         focusedTreeItem->GetSameTypeRootTreeItem(getter_AddRefs(sameTypeRootOfFocus));
@@ -948,6 +913,7 @@ nsDocAccessible::FireDocLoadEvents(PRUint32 aEventType)
 
     nsAccUtils::FireAccEvent(aEventType, this);
   }
+  return NS_OK;
 }
 
 void nsDocAccessible::ScrollTimerCallback(nsITimer *aTimer, void *aClosure)
@@ -1063,7 +1029,7 @@ nsDocAccessible::AttributeChanged(nsIDocument *aDocument, nsIContent* aContent,
     nsCOMPtr<nsIAccessible> focusedAccessible;
     GetAccService()->GetAccessibleFor(targetNode, getter_AddRefs(focusedAccessible));
     if (focusedAccessible) {
-      gLastFocusedAccessiblesState = nsAccUtils::State(focusedAccessible);
+      gLastFocusedAccessiblesState = State(focusedAccessible);
     }
   }
 }
@@ -1081,13 +1047,7 @@ nsDocAccessible::AttributeChangedImpl(nsIContent* aContent, PRInt32 aNameSpaceID
   // For example, if an <img>'s usemap attribute is modified
   // Otherwise it may just be a state change, for example an object changing
   // its visibility
-  // 
-  // XXX todo: report aria state changes for "undefined" literal value changes
-  // filed as bug 472142
-  //
-  // XXX todo:  invalidate accessible when aria state changes affect exposed role
-  // filed as bug 472143
-  
+
   nsCOMPtr<nsISupports> container = mDocument->GetContainer();
   nsCOMPtr<nsIDocShell> docShell = do_QueryInterface(container);
   if (!docShell) {
@@ -1107,8 +1067,9 @@ nsDocAccessible::AttributeChangedImpl(nsIContent* aContent, PRInt32 aNameSpaceID
 
   nsCOMPtr<nsIDOMNode> targetNode(do_QueryInterface(aContent));
   NS_ASSERTION(targetNode, "No node for attr modified");
-  if (!targetNode || !nsAccUtils::IsNodeRelevant(targetNode))
+  if (!targetNode || !IsNodeRelevant(targetNode)) {
     return;
+  }
 
   // Since we're in synchronous code, we can store whether the current attribute
   // change is from user input or not. If the attribute change causes an asynchronous
@@ -1149,7 +1110,8 @@ nsDocAccessible::AttributeChangedImpl(nsIContent* aContent, PRInt32 aNameSpaceID
 
   if (aAttribute == nsAccessibilityAtoms::role ||
       aAttribute == nsAccessibilityAtoms::href ||
-      aAttribute == nsAccessibilityAtoms::onclick) {
+      aAttribute == nsAccessibilityAtoms::onclick ||
+      aAttribute == nsAccessibilityAtoms::aria_droppable) {
     // Not worth the expense to ensure which namespace these are in
     // It doesn't kill use to recreate the accessible even if the attribute was used
     // in the wrong namespace or an element that doesn't support it
@@ -1158,9 +1120,7 @@ nsDocAccessible::AttributeChangedImpl(nsIContent* aContent, PRInt32 aNameSpaceID
   }
   
   if (aAttribute == nsAccessibilityAtoms::alt ||
-      aAttribute == nsAccessibilityAtoms::title ||
-      aAttribute == nsAccessibilityAtoms::aria_label ||
-      aAttribute == nsAccessibilityAtoms::aria_labelledby) {
+      aAttribute == nsAccessibilityAtoms::title) {
     FireDelayedToolkitEvent(nsIAccessibleEvent::EVENT_NAME_CHANGE,
                             targetNode);
     return;
@@ -1169,8 +1129,7 @@ nsDocAccessible::AttributeChangedImpl(nsIContent* aContent, PRInt32 aNameSpaceID
   if (aAttribute == nsAccessibilityAtoms::selected ||
       aAttribute == nsAccessibilityAtoms::aria_selected) {
     // ARIA or XUL selection
-    nsCOMPtr<nsIAccessible> multiSelect =
-      nsAccUtils::GetMultiSelectFor(targetNode);
+    nsCOMPtr<nsIAccessible> multiSelect = GetMultiSelectFor(targetNode);
     // Multi selects use selection_add and selection_remove
     // Single select widgets just mirror event_selection for
     // whatever gets event_focus, which is done in
@@ -1241,7 +1200,7 @@ nsDocAccessible::ARIAAttributeChanged(nsIContent* aContent, nsIAtom* aAttribute)
     // The activedescendant universal property redirects accessible focus events
     // to the element with the id that activedescendant points to
     nsCOMPtr<nsIDOMNode> currentFocus = GetCurrentFocus();
-    if (SameCOMIdentity(nsCoreUtils::GetRoleContent(currentFocus), targetNode)) {
+    if (SameCOMIdentity(GetRoleContent(currentFocus), targetNode)) {
       nsRefPtr<nsRootAccessible> rootAcc = GetRootAccessible();
       if (rootAcc)
         rootAcc->FireAccessibleFocusEvent(nsnull, currentFocus, nsnull, PR_TRUE);
@@ -1275,8 +1234,7 @@ nsDocAccessible::ARIAAttributeChanged(nsIContent* aContent, nsIAtom* aAttribute)
       event->GetAccessible(getter_AddRefs(accessible));
       if (accessible) {
         PRBool wasMixed = (gLastFocusedAccessiblesState & nsIAccessibleStates::STATE_MIXED) != 0;
-        PRBool isMixed  =
-          (nsAccUtils::State(accessible) & nsIAccessibleStates::STATE_MIXED) != 0;
+        PRBool isMixed  = (State(accessible) & nsIAccessibleStates::STATE_MIXED) != 0;
         if (wasMixed != isMixed) {
           nsCOMPtr<nsIAccessibleStateChangeEvent> event =
             new nsAccStateChangeEvent(targetNode,
@@ -1307,16 +1265,9 @@ nsDocAccessible::ARIAAttributeChanged(nsIContent* aContent, nsIAtom* aAttribute)
     return;
   }
 
-  // Fire value change event whenever aria-valuetext is changed, or
-  // when aria-valuenow is changed and aria-valuetext is empty
-  if (aAttribute == nsAccessibilityAtoms::aria_valuetext ||      
-      (aAttribute == nsAccessibilityAtoms::aria_valuenow &&
-       (!aContent->HasAttr(kNameSpaceID_None,
-           nsAccessibilityAtoms::aria_valuetext) ||
-        aContent->AttrValueIs(kNameSpaceID_None,
-            nsAccessibilityAtoms::aria_valuetext, nsAccessibilityAtoms::_empty,
-            eCaseMatters)))) {
-    FireDelayedToolkitEvent(nsIAccessibleEvent::EVENT_VALUE_CHANGE, targetNode);
+  if (aAttribute == nsAccessibilityAtoms::aria_valuenow) {
+    FireDelayedToolkitEvent(nsIAccessibleEvent::EVENT_VALUE_CHANGE,
+                            targetNode);
     return;
   }
 
@@ -1407,7 +1358,7 @@ nsDocAccessible::ParentChainChanged(nsIContent *aContent)
 void
 nsDocAccessible::FireValueChangeForTextFields(nsIAccessible *aPossibleTextFieldAccessible)
 {
-  if (nsAccUtils::Role(aPossibleTextFieldAccessible) != nsIAccessibleRole::ROLE_ENTRY)
+  if (Role(aPossibleTextFieldAccessible) != nsIAccessibleRole::ROLE_ENTRY)
     return;
 
   // Dependent value change event for text changes in textfields
@@ -1518,10 +1469,10 @@ nsDocAccessible::CreateTextChangeEventForNode(nsIAccessible *aContainerAccessibl
         do_QueryInterface(changeAccessible);
       nsCOMPtr<nsIDOMNode> childNode;
       childAccessNode->GetDOMNode(getter_AddRefs(childNode));
-      if (!nsCoreUtils::IsAncestorOf(aChangeNode, childNode)) {
+      if (!nsAccUtils::IsAncestorOf(aChangeNode, childNode)) {
         break;  // We only want accessibles with DOM nodes as children of this node
       }
-      length += nsAccUtils::TextLength(child);
+      length += TextLength(child);
       child->GetNextSibling(getter_AddRefs(changeAccessible));
       if (!changeAccessible) {
         break;
@@ -1532,9 +1483,8 @@ nsDocAccessible::CreateTextChangeEventForNode(nsIAccessible *aContainerAccessibl
   else {
     NS_ASSERTION(!changeAccessible || changeAccessible == aAccessibleForChangeNode,
                  "Hypertext is reporting a different accessible for this node");
-
-    length = nsAccUtils::TextLength(aAccessibleForChangeNode);
-    if (nsAccUtils::Role(aAccessibleForChangeNode) == nsIAccessibleRole::ROLE_WHITESPACE) {  // newline
+    length = TextLength(aAccessibleForChangeNode);
+    if (Role(aAccessibleForChangeNode) == nsIAccessibleRole::ROLE_WHITESPACE) {  // newline
       // Don't fire event for the first html:br in an editor.
       nsCOMPtr<nsIEditor> editor;
       textAccessible->GetAssociatedEditor(getter_AddRefs(editor));
@@ -1588,14 +1538,14 @@ nsDocAccessible::FireDelayedAccessibleEvent(nsIAccessibleEvent *aEvent)
     // so that event gets fired via FlushEventsCallback
     NS_ADDREF_THIS(); // Kung fu death grip to prevent crash in callback
     mFireEventTimer->InitWithFuncCallback(FlushEventsCallback,
-                                          this, 0, nsITimer::TYPE_ONE_SHOT);
+                                          static_cast<nsPIAccessibleDocument*>(this),
+                                          0, nsITimer::TYPE_ONE_SHOT);
   }
 
   return NS_OK;
 }
 
-void
-nsDocAccessible::FlushPendingEvents()
+NS_IMETHODIMP nsDocAccessible::FlushPendingEvents()
 {
   mInFlushPendingEvents = PR_TRUE;
   PRUint32 length = mEventsToFire.Count();
@@ -1603,17 +1553,8 @@ nsDocAccessible::FlushPendingEvents()
   nsCOMPtr<nsIPresShell> presShell = GetPresShell();
   if (!presShell)
     length = 0; // The doc is now shut down, don't fire events in it anymore
-  else {
-    // Flush layout so that all the frame construction, reflow, and styles are
-    // up-to-date. This will ensure we can get frames for the related nodes, as
-    // well as get the most current information for calculating things like
-    // visibility. We don't flush the display because we don't care about
-    // painting. If no flush is necessary the method will simple return.
-    presShell->FlushPendingNotifications(Flush_Layout);
-
-    // filter events
+  else
     nsAccEvent::ApplyEventRules(mEventsToFire);
-  }
   
   for (PRUint32 index = 0; index < length; index ++) {
     nsCOMPtr<nsIAccessibleEvent> accessibleEvent(
@@ -1669,10 +1610,10 @@ nsDocAccessible::FlushPendingEvents()
 
       if (eventType == nsIAccessibleEvent::EVENT_ASYNCH_SHOW) {
         // For asynch show, delayed invalidatation of parent's children
-        nsRefPtr<nsAccessible> containerAcc =
-          nsAccUtils::QueryAccessible(containerAccessible);
-        if (containerAcc)
-          containerAcc->InvalidateChildren();
+        nsCOMPtr<nsPIAccessible> privateContainerAccessible =
+          do_QueryInterface(containerAccessible);
+        if (privateContainerAccessible)
+          privateContainerAccessible->InvalidateChildren();
 
         // Some show events in the subtree may have been removed to 
         // avoid firing redundant events. But, we still need to make sure any
@@ -1704,12 +1645,12 @@ nsDocAccessible::FlushPendingEvents()
 
     if (accessible) {
       if (eventType == nsIAccessibleEvent::EVENT_INTERNAL_LOAD) {
-        nsRefPtr<nsDocAccessible> docAcc =
-          nsAccUtils::QueryAccessibleDocument(accessible);
-        NS_ASSERTION(docAcc, "No doc accessible for doc load event");
-
-        if (docAcc)
-          docAcc->FireDocLoadEvents(nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_COMPLETE);
+        nsCOMPtr<nsPIAccessibleDocument> docAccessible =
+          do_QueryInterface(accessible);
+        NS_ASSERTION(docAccessible, "No doc accessible for doc load event");
+        if (docAccessible) {
+          docAccessible->FireDocLoadEvents(nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_COMPLETE);
+        }
       }
       else if (eventType == nsIAccessibleEvent::EVENT_TEXT_CARET_MOVED) {
         nsCOMPtr<nsIAccessibleText> accessibleText = do_QueryInterface(accessible);
@@ -1742,17 +1683,6 @@ nsDocAccessible::FlushPendingEvents()
           }
         } 
       }
-      else if (eventType == nsIAccessibleEvent::EVENT_REORDER) {
-        // Fire reorder event if it's unconditional (see InvalidateCacheSubtree
-        // method) or if changed node (that is the reason of this reorder event)
-        // is accessible or has accessible children.
-        nsCOMPtr<nsAccReorderEvent> reorderEvent = do_QueryInterface(accessibleEvent);
-        if (reorderEvent->IsUnconditionalEvent() ||
-            reorderEvent->HasAccessibleInReasonSubtree()) {
-          nsAccEvent::PrepareForEvent(accessibleEvent);
-          FireAccessibleEvent(accessibleEvent);
-        }
-      }
       else {
         // The input state was previously stored with the nsIAccessibleEvent,
         // so use that state now when firing the event
@@ -1778,11 +1708,12 @@ nsDocAccessible::FlushPendingEvents()
   nsAccEvent::ResetLastInputState();
 
   mInFlushPendingEvents = PR_FALSE;
+  return NS_OK;
 }
 
 void nsDocAccessible::FlushEventsCallback(nsITimer *aTimer, void *aClosure)
 {
-  nsDocAccessible *accessibleDoc = static_cast<nsDocAccessible*>(aClosure);
+  nsPIAccessibleDocument *accessibleDoc = static_cast<nsPIAccessibleDocument*>(aClosure);
   NS_ASSERTION(accessibleDoc, "How did we get here without an accessible document?");
   if (accessibleDoc) {
     // A lot of crashes were happening here, so now we're reffing the doc
@@ -1795,9 +1726,9 @@ void nsDocAccessible::InvalidateChildrenInSubtree(nsIDOMNode *aStartNode)
 {
   nsCOMPtr<nsIAccessNode> accessNode;
   GetCachedAccessNode(aStartNode, getter_AddRefs(accessNode));
-  nsRefPtr<nsAccessible> acc(nsAccUtils::QueryAccessible(accessNode));
-  if (acc)
-    acc->InvalidateChildren();
+  nsCOMPtr<nsPIAccessible> accessible(do_QueryInterface(accessNode));
+  if (accessible)
+    accessible->InvalidateChildren();
 
   // Invalidate accessible children in the DOM subtree 
   nsCOMPtr<nsINode> node = do_QueryInterface(aStartNode);
@@ -1823,7 +1754,7 @@ void nsDocAccessible::RefreshNodes(nsIDOMNode *aStartNode)
   nsCOMPtr<nsIAccessible> accessible(do_QueryInterface(accessNode));
   if (accessible) {
     // Fire menupopup end if a menu goes away
-    PRUint32 role = nsAccUtils::Role(accessible);
+    PRUint32 role = Role(accessible);
     if (role == nsIAccessibleRole::ROLE_MENUPOPUP) {
       nsCOMPtr<nsIDOMNode> domNode;
       accessNode->GetDOMNode(getter_AddRefs(domNode));
@@ -1835,11 +1766,12 @@ void nsDocAccessible::RefreshNodes(nsIDOMNode *aStartNode)
                                  accessible);
       }
     }
-    nsRefPtr<nsAccessible> acc = nsAccUtils::QueryAccessible(accessible);
+    nsCOMPtr<nsPIAccessible> privateAccessible = do_QueryInterface(accessible);
+    NS_ASSERTION(privateAccessible, "No nsPIAccessible for nsIAccessible");
 
-    // We only need to shutdown the accessibles here if one of them has been
-    // created.
-    nsCOMPtr<nsIAccessible> childAccessible = acc->GetCachedFirstChild();
+    nsCOMPtr<nsIAccessible> childAccessible;
+    // we only need to shutdown the accessibles here if one of them has been created
+    privateAccessible->GetCachedFirstChild(getter_AddRefs(childAccessible));
     if (childAccessible) {
       nsCOMPtr<nsIArray> children;
       // use GetChildren() to fetch children at one time, instead of using
@@ -1891,16 +1823,15 @@ void nsDocAccessible::RefreshNodes(nsIDOMNode *aStartNode)
   // Shut down the actual accessible or access node
   void *uniqueID;
   accessNode->GetUniqueID(&uniqueID);
-  nsRefPtr<nsAccessNode> accNode = nsAccUtils::QueryAccessNode(accessNode);
-  accNode->Shutdown();
+  nsCOMPtr<nsPIAccessNode> privateAccessNode(do_QueryInterface(accessNode));
+  privateAccessNode->Shutdown();
 
   // Remove from hash table as well
   mAccessNodeCache.Remove(uniqueID);
 }
 
-void
-nsDocAccessible::InvalidateCacheSubtree(nsIContent *aChild,
-                                        PRUint32 aChangeEventType)
+NS_IMETHODIMP nsDocAccessible::InvalidateCacheSubtree(nsIContent *aChild,
+                                                      PRUint32 aChangeEventType)
 {
   PRBool isHiding = 
     aChangeEventType == nsIAccessibleEvent::EVENT_ASYNCH_HIDE ||
@@ -1927,12 +1858,11 @@ nsDocAccessible::InvalidateCacheSubtree(nsIContent *aChild,
   // instead of just the accessible tree, although that would be faster
   // Otherwise we might miss the nsAccessNode's that are not nsAccessible's.
 
-  NS_ENSURE_TRUE(mDOMNode,);
-
+  NS_ENSURE_TRUE(mDOMNode, NS_ERROR_FAILURE);
   nsCOMPtr<nsIDOMNode> childNode = aChild ? do_QueryInterface(aChild) : mDOMNode;
 
   nsCOMPtr<nsIPresShell> presShell = GetPresShell();
-  NS_ENSURE_TRUE(presShell,);
+  NS_ENSURE_TRUE(presShell, NS_ERROR_FAILURE);
   
   if (!mIsContentLoaded) {
     // Still loading document
@@ -1944,13 +1874,10 @@ nsDocAccessible::InvalidateCacheSubtree(nsIContent *aChild,
       // document and listen to these changes until after the page is first loaded
       // Leave early, and ensure mAccChildCount stays uninitialized instead of 0,
       // which it is if anyone asks for its children right now.
-      InvalidateChildren();
-      return;
+      return InvalidateChildren();
     }
-
     nsIEventStateManager *esm = presShell->GetPresContext()->EventStateManager();
-    NS_ENSURE_TRUE(esm,);
-
+    NS_ENSURE_TRUE(esm, NS_ERROR_FAILURE);
     if (!esm->IsHandlingUserInputExternal()) {
       // Changes during page load, but not caused by user input
       // Just invalidate accessible hierarchy and return,
@@ -1960,11 +1887,8 @@ nsDocAccessible::InvalidateCacheSubtree(nsIContent *aChild,
       if (!containerAccessible) {
         containerAccessible = this;
       }
-
-      nsRefPtr<nsAccessible> containerAcc =
-        nsAccUtils::QueryAccessible(containerAccessible);
-      containerAcc->InvalidateChildren();
-      return;
+      nsCOMPtr<nsPIAccessible> privateContainer = do_QueryInterface(containerAccessible);
+      return privateContainer->InvalidateChildren();
     }     
     // else: user input, so we must fall through and for full handling,
     // e.g. fire the mutation events. Note: user input could cause DOM_CREATE
@@ -2020,7 +1944,7 @@ nsDocAccessible::InvalidateCacheSubtree(nsIContent *aChild,
             // This often happens when visibility is cleared for node,
             // which hides an entire subtree -- we get notified for each
             // node in the subtree and need to collate the hide events ourselves.
-            return;
+            return NS_OK;
           }
         }
       }
@@ -2032,8 +1956,7 @@ nsDocAccessible::InvalidateCacheSubtree(nsIContent *aChild,
     // Fire an event if the accessible existed for node being hidden, otherwise
     // for the first line accessible descendants. Fire before the accessible(s) away.
     nsresult rv = FireShowHideEvents(childNode, PR_FALSE, removalEventType, PR_TRUE, PR_FALSE);
-    NS_ENSURE_SUCCESS(rv,);
-
+    NS_ENSURE_SUCCESS(rv, rv);
     if (childNode != mDOMNode) { // Fire text change unless the node being removed is for this doc
       // When a node is hidden or removed, the text in an ancestor hyper text will lose characters
       // At this point we still have the frame and accessible for this node if there was one
@@ -2060,11 +1983,11 @@ nsDocAccessible::InvalidateCacheSubtree(nsIContent *aChild,
     if (!isAsynch) {
       // DOM already updated with new objects -- invalidate parent's children now
       // For asynch we must wait until layout updates before we invalidate the children
-      nsRefPtr<nsAccessible> containerAcc =
-        nsAccUtils::QueryAccessible(containerAccessible);
-      if (containerAcc)
-        containerAcc->InvalidateChildren();
-
+      nsCOMPtr<nsPIAccessible> privateContainerAccessible =
+        do_QueryInterface(containerAccessible);
+      if (privateContainerAccessible) {
+        privateContainerAccessible->InvalidateChildren();
+      }
     }
     // Fire EVENT_SHOW, EVENT_MENUPOPUP_START for newly visible content.
     // Fire after a short timer, because we want to make sure the view has been
@@ -2106,28 +2029,17 @@ nsDocAccessible::InvalidateCacheSubtree(nsIContent *aChild,
 
   FireValueChangeForTextFields(containerAccessible);
 
-  // Fire an event so the MSAA clients know the children have changed. Also
-  // the event is used internally by MSAA part.
+  if (childAccessible) {
+    // Fire an event so the MSAA clients know the children have changed. Also
+    // the event is used internally by MSAA part.
+    nsCOMPtr<nsIAccessibleEvent> reorderEvent =
+      new nsAccEvent(nsIAccessibleEvent::EVENT_REORDER, containerAccessible,
+                     isAsynch, nsAccEvent::eCoalesceFromSameSubtree);
+    NS_ENSURE_TRUE(reorderEvent, NS_ERROR_OUT_OF_MEMORY);
+    FireDelayedAccessibleEvent(reorderEvent);
+  }
 
-  // We need to fire a delayed reorder event for the accessible parent of the
-  // changed node. We fire an unconditional reorder event if the changed node or
-  // one of its children is already accessible. In the case of show events, the
-  // accessible object might not be created yet for an otherwise accessible
-  // changed node (because its frame might not be constructed yet). In this case
-  // we fire a conditional reorder event, so that we will later check whether
-  // the changed node is accessible or has accessible children.
-  // Filtering/coalescing of these events happens during the queue flush.
-
-  PRBool isUnconditionalEvent = childAccessible ||
-    aChild && nsAccUtils::HasAccessibleChildren(childNode);
-
-  nsCOMPtr<nsIAccessibleEvent> reorderEvent =
-    new nsAccReorderEvent(containerAccessible, isAsynch,
-                          isUnconditionalEvent,
-                          aChild ? childNode.get() : nsnull);
-  NS_ENSURE_TRUE(reorderEvent,);
-
-  FireDelayedAccessibleEvent(reorderEvent);
+  return NS_OK;
 }
 
 NS_IMETHODIMP

@@ -205,26 +205,6 @@ nsTableColGroupFrame::SetInitialChildList(nsIAtom*        aListName,
   return NS_OK;
 }
 
-/* virtual */ void
-nsTableColGroupFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
-{
-  if (!aOldStyleContext) //avoid this on init
-    return;
-     
-  nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
-
-  if (tableFrame->IsBorderCollapse() &&
-      tableFrame->BCRecalcNeeded(aOldStyleContext, GetStyleContext())) {
-    PRInt32 colCount = GetColCount();
-    if (!colCount)
-      return; // this is a degenerated colgroup 
-    nsRect damageArea(GetFirstColumn()->GetColIndex(), 0, colCount,
-                      tableFrame->GetRowCount());
-    tableFrame->SetBCDamageArea(damageArea);
-  }
-  return;
-}
-
 NS_IMETHODIMP
 nsTableColGroupFrame::AppendFrames(nsIAtom*        aListName,
                                    nsIFrame*       aFrameList)
@@ -267,14 +247,8 @@ nsTableColGroupFrame::InsertFrames(nsIAtom*        aListName,
     // real column below, spanned anonymous columns should be removed,
     // since the HTML spec says to ignore the span of a colgroup if it
     // has content columns in it.
+    NS_ASSERTION(col != aPrevFrame, "Bad aPrevFrame");
     nextCol = col->GetNextCol();
-    if (col == aPrevFrame) {
-      // This can happen when we're being appended to
-      NS_ASSERTION(!nextCol || nextCol->GetColType() != eColAnonymousColGroup,
-                   "Inserting in the middle of our anonymous cols?");
-      // We'll want to insert at the beginning
-      aPrevFrame = nsnull;
-    }
     RemoveFrame(nsnull, col);
     col = nextCol;
   }
@@ -302,7 +276,11 @@ nsTableColGroupFrame::InsertColsReflow(PRInt32         aColIndex,
 {
   AddColsToTable(aColIndex, PR_TRUE, aFirstFrame, aLastFrame);
 
-  PresContext()->PresShell()->FrameNeedsReflow(this,
+  nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
+  if (!tableFrame)
+    return;
+
+  PresContext()->PresShell()->FrameNeedsReflow(tableFrame,
                                                nsIPresShell::eTreeChange,
                                                NS_FRAME_HAS_DIRTY_CHILDREN);
 }
@@ -330,8 +308,11 @@ nsTableColGroupFrame::RemoveChild(nsTableColFrame& aChild,
       }
     }
   }
+  nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
+  if (!tableFrame)
+    return;
 
-  PresContext()->PresShell()->FrameNeedsReflow(this,
+  PresContext()->PresShell()->FrameNeedsReflow(tableFrame,
                                                nsIPresShell::eTreeChange,
                                                NS_FRAME_HAS_DIRTY_CHILDREN);
 }
@@ -361,7 +342,6 @@ nsTableColGroupFrame::RemoveFrame(nsIAtom*        aListName,
     }
     
     PRInt32 colIndex = colFrame->GetColIndex();
-    // The RemoveChild call handles calling FrameNeedsReflow on us.
     RemoveChild(*colFrame, PR_TRUE);
     
     nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
@@ -369,6 +349,10 @@ nsTableColGroupFrame::RemoveFrame(nsIAtom*        aListName,
       return NS_ERROR_NULL_POINTER;
 
     tableFrame->RemoveCol(this, colIndex, PR_TRUE, PR_TRUE);
+
+    PresContext()->PresShell()->FrameNeedsReflow(tableFrame,
+                                                 nsIPresShell::eTreeChange,
+                                                 NS_FRAME_HAS_DIRTY_CHILDREN);
   }
   else {
     mFrames.DestroyFrame(aOldFrame);

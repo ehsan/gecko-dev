@@ -40,29 +40,26 @@
 #define nsMenuUtilsX_h_
 
 #include "nscore.h"
-#include "nsEvent.h"
+#include "nsGUIEvent.h"
 #include "nsMenuBaseX.h"
 
 #import <Cocoa/Cocoa.h>
-#import <Carbon/Carbon.h>
 
 class nsIContent;
 class nsString;
 class nsMenuBarX;
 
-extern "C" MenuRef _NSGetCarbonMenu(NSMenu* aMenu);
-
 // Namespace containing utility functions used in our native menu implementation.
 namespace nsMenuUtilsX
 {
   nsEventStatus DispatchCommandTo(nsIContent* aTargetContent);
-  NSString*     GetTruncatedCocoaLabel(const nsString& itemLabel);
+  NSString*     CreateTruncatedCocoaLabel(const nsString& itemLabel); // returned object is not retained
   PRUint8       GeckoModifiersForNodeAttribute(const nsString& modifiersAttribute);
   unsigned int  MacModifiersForGeckoModifiers(PRUint8 geckoModifiers);
   nsMenuBarX*   GetHiddenWindowMenuBar(); // returned object is not retained
   NSMenuItem*   GetStandardEditMenuItem(); // returned object is not retained
   PRBool        NodeIsHiddenOrCollapsed(nsIContent* inContent);
-  int           CalculateNativeInsertionPoint(nsMenuObjectX* aParent, nsMenuObjectX* aChild);
+  nsresult      CountVisibleBefore(nsMenuObjectX* aMenuObject, nsMenuObjectX* aChild, PRUint32* outVisibleBefore);
 }
 
 #endif // nsMenuUtilsX_h_

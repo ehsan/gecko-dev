@@ -106,7 +106,6 @@ nsTextFragment::Shutdown()
 nsTextFragment::~nsTextFragment()
 {
   ReleaseText();
-  MOZ_COUNT_DTOR(nsTextFragment);
 }
 
 void

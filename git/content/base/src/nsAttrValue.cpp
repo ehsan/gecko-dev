@@ -51,14 +51,9 @@
 #include "nsTPtrArray.h"
 #include "nsContentUtils.h"
 #include "nsReadableUtils.h"
-#include "nsIURI.h"
-#include "prprf.h"
 #ifdef MOZ_SVG
 #include "nsISVGValue.h"
 #endif
-
-#define MISC_STR_PTR(_cont) \
-  reinterpret_cast<void*>((_cont)->mStringBits & NS_ATTRVALUE_POINTERVALUE_MASK)
 
 nsTPtrArray<const nsAttrValue::EnumTable>* nsAttrValue::sEnumTableArray = nsnull;
 
@@ -255,16 +250,6 @@ nsAttrValue::SetTo(const nsAttrValue& aOther)
       break;
     }
 #endif
-    case eFloatValue:
-    {
-      cont->mFloatValue = otherCont->mFloatValue;
-      break;
-    }
-    case eLazyURIValue:
-    {
-      NS_IF_ADDREF(cont->mURI = otherCont->mURI);
-      break;
-    }
     default:
     {
       NS_NOTREACHED("unknown type stored in MiscContainer");
@@ -272,7 +257,8 @@ nsAttrValue::SetTo(const nsAttrValue& aOther)
     }
   }
 
-  void* otherPtr = MISC_STR_PTR(otherCont);
+  void* otherPtr =
+    reinterpret_cast<void*>(otherCont->mStringBits & NS_ATTRVALUE_POINTERVALUE_MASK);
   if (otherPtr) {
     if (static_cast<ValueBaseType>(otherCont->mStringBits & NS_ATTRVALUE_BASETYPE_MASK) ==
         eStringBase) {
@@ -340,7 +326,8 @@ nsAttrValue::ToString(nsAString& aResult) const
   MiscContainer* cont = nsnull;
   if (BaseType() == eOtherBase) {
     cont = GetMiscContainer();
-    void* ptr = MISC_STR_PTR(cont);
+    void* ptr =
+      reinterpret_cast<void*>(cont->mStringBits & NS_ATTRVALUE_POINTERVALUE_MASK);
     if (ptr) {
       if (static_cast<ValueBaseType>(cont->mStringBits & NS_ATTRVALUE_BASETYPE_MASK) ==
           eStringBase) {
@@ -388,17 +375,8 @@ nsAttrValue::ToString(nsAString& aResult) const
     {
       nscolor v;
       GetColorValue(v);
-      if (NS_GET_A(v) == 255) {
-        char buf[10];
-        PR_snprintf(buf, sizeof(buf), "#%02x%02x%02x",
-                    NS_GET_R(v), NS_GET_G(v), NS_GET_B(v));
-        CopyASCIItoUTF16(buf, aResult);
-      } else if (v == NS_RGBA(0,0,0,0)) {
-        aResult.AssignLiteral("transparent");
-      } else {
-        NS_NOTREACHED("translucent color attribute cannot be stringified");
-        aResult.Truncate();
-      }
+      NS_RGBToHex(v, aResult);
+
       break;
     }
     case eEnum:
@@ -456,16 +434,6 @@ nsAttrValue::ToString(nsAString& aResult) const
       aResult = str;
       break;
     }
-    // No need to do for eLazyURIValue, since that always stores the
-    // original string.
-#ifdef DEBUG
-    case eLazyURIValue:
-    {
-      NS_NOTREACHED("Shouldn't get here");
-      aResult.Truncate();
-      break;
-    }
-#endif
     default:
     {
       aResult.Truncate();
@@ -609,22 +577,6 @@ nsAttrValue::HashValue() const
       return NS_PTR_TO_INT32(cont->mSVGValue);
     }
 #endif
-    case eFloatValue:
-    {
-      // XXX this is crappy, but oh well
-      return cont->mFloatValue;
-    }
-    case eLazyURIValue:
-    {
-      NS_ASSERTION(static_cast<ValueBaseType>(cont->mStringBits &
-                                              NS_ATTRVALUE_BASETYPE_MASK) ==
-                   eStringBase,
-                   "Unexpected type");
-      nsStringBuffer* str = static_cast<nsStringBuffer*>(MISC_STR_PTR(cont));
-      NS_ASSERTION(str, "How did that happen?");
-      PRUint32 len = str->StorageSize()/sizeof(PRUnichar) - 1;
-      return nsCRT::BufferHashCode(static_cast<PRUnichar*>(str->Data()), len);
-    }
     default:
     {
       NS_NOTREACHED("unknown type stored in MiscContainer");
@@ -720,15 +672,6 @@ nsAttrValue::Equals(const nsAttrValue& aOther) const
       return thisCont->mSVGValue == otherCont->mSVGValue;
     }
 #endif
-    case eFloatValue:
-    {
-      return thisCont->mFloatValue == otherCont->mFloatValue;
-    }
-    case eLazyURIValue:
-    {
-      needsStringComparison = PR_TRUE;
-      break;
-    }
     default:
     {
       NS_NOTREACHED("unknown type stored in MiscContainer");
@@ -1174,58 +1117,6 @@ PRBool nsAttrValue::ParseFloatValue(const nsAString& aString)
   return PR_FALSE;
 }
 
-PRBool nsAttrValue::ParseLazyURIValue(const nsAString& aString)
-{
-  ResetIfSet();
-
-  if (EnsureEmptyMiscContainer()) {
-    MiscContainer* cont = GetMiscContainer();
-    cont->mURI = nsnull;
-    cont->mType = eLazyURIValue;
-
-    // Don't use SetMiscAtomOrString because atomizing URIs is not
-    // likely to do us much good.
-    nsStringBuffer* buf = GetStringBuffer(aString);
-    if (!buf) {
-      return PR_FALSE;
-    }
-    cont->mStringBits = reinterpret_cast<PtrBits>(buf) | eStringBase;
-    
-    return PR_TRUE;
-  }
-
-  return PR_FALSE;
-}
-
-void
-nsAttrValue::CacheURIValue(nsIURI* aURI)
-{
-  NS_PRECONDITION(Type() == eLazyURIValue, "wrong type");
-  NS_PRECONDITION(!GetMiscContainer()->mURI, "Why are we being called?");
-  NS_IF_ADDREF(GetMiscContainer()->mURI = aURI);
-}
-
-void
-nsAttrValue::DropCachedURI()
-{
-  NS_PRECONDITION(Type() == eLazyURIValue, "wrong type");
-  NS_IF_RELEASE(GetMiscContainer()->mURI);
-}
-
-const nsCheapString
-nsAttrValue::GetURIStringValue() const
-{
-  NS_PRECONDITION(Type() == eLazyURIValue, "wrong type");
-  NS_PRECONDITION(static_cast<ValueBaseType>(GetMiscContainer()->mStringBits &
-                                             NS_ATTRVALUE_BASETYPE_MASK) ==
-                  eStringBase,
-                  "Unexpected type");
-  NS_PRECONDITION(MISC_STR_PTR(GetMiscContainer()),
-                  "Should have a string buffer here!");
-  return nsCheapString(static_cast<nsStringBuffer*>
-                                  (MISC_STR_PTR(GetMiscContainer())));
-}
-
 void
 nsAttrValue::SetMiscAtomOrString(const nsAString* aValue)
 {
@@ -1254,7 +1145,7 @@ void
 nsAttrValue::ResetMiscAtomOrString()
 {
   MiscContainer* cont = GetMiscContainer();
-  void* ptr = MISC_STR_PTR(cont);
+  void* ptr = reinterpret_cast<void*>(cont->mStringBits & NS_ATTRVALUE_POINTERVALUE_MASK);
   if (ptr) {
     if (static_cast<ValueBaseType>(cont->mStringBits & NS_ATTRVALUE_BASETYPE_MASK) ==
         eStringBase) {
@@ -1291,11 +1182,6 @@ nsAttrValue::EnsureEmptyMiscContainer()
         break;
       }
 #endif
-      case eLazyURIValue:
-      {
-        NS_IF_RELEASE(cont->mURI);
-        break;
-      }
       default:
       {
         break;

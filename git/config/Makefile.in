@@ -55,15 +55,15 @@ HOST_CSRCS	= nsinstall.c pathsub.c
 endif
 endif
 
-PLSRCS		= nfspwd.pl
+PLSRCS		= nfspwd.pl revdepth.pl
 
 TARGETS		= $(HOST_PROGRAM) $(PLSRCS:.pl=) $(SIMPLE_PROGRAMS)
 
 ifndef CROSS_COMPILE
 ifdef USE_ELF_DYNSTR_GC
 TARGETS		+= elf-dynstr-gc
-# Compiling the above will create dependency files.
-NEED_MDDEPDIR	= 1
+MAKE_DIRS	+= $(MDDEPDIR)
+GARBAGE_DIRS	+= $(MDDEPDIR)
 endif
 endif
 
@@ -128,8 +128,9 @@ export::
 		-DMOZ_NATIVE_ZLIB=$(MOZ_NATIVE_ZLIB) \
 		-DMOZ_NATIVE_PNG=$(MOZ_NATIVE_PNG) \
 		-DMOZ_NATIVE_JPEG=$(MOZ_NATIVE_JPEG) \
+		-DMOZ_NATIVE_LCMS=$(MOZ_NATIVE_LCMS) \
 		$(srcdir)/system-headers | $(PERL) $(topsrcdir)/nsprpub/config/make-system-wrappers.pl system_wrappers
-	$(INSTALL) system_wrappers $(DIST)
+	$(INSTALL) system_wrappers $(DIST)/include
 
 GARBAGE_DIRS += system_wrappers
 endif
@@ -142,7 +143,7 @@ GARBAGE += \
 
 ifndef CROSS_COMPILE
 ifdef USE_ELF_DYNSTR_GC
-elf-dynstr-gc: elf-dynstr-gc.c $(GLOBAL_DEPS)
+elf-dynstr-gc: elf-dynstr-gc.c Makefile Makefile.in
 	$(CC) $(COMPILE_CFLAGS) $(GLIB_CFLAGS) -o $@ $< $(LDFLAGS) $(GLIB_LIBS) 
 endif
 endif
@@ -154,21 +155,20 @@ clean clobber realclean clobber_all::
 	cd $(MKDEPEND_DIR); $(MAKE) $@
 endif
 
-PYUNITS := unit-Expression.py unit-Preprocessor.py unit-nsinstall.py \
-           unit-printprereleasesuffix.py
+PYUNITS := unit-Expression.py unit-Preprocessor.py
 
-check:: check-python-modules check-jar-mn
+check:: check-preprocessor check-jar-mn
 
-check-python-modules::
+check-preprocessor::
 	@$(EXIT_ON_ERROR) \
 	for test in $(PYUNITS); do \
 	  $(PYTHON) $(srcdir)/tests/$$test ; \
 	done
 
 check-jar-mn::
-	$(MAKE) -C tests/src-simple check-jar
-	$(MAKE) -C tests/src-simple check-flat
-	$(MAKE) -C tests/src-simple check-flat USE_EXTENSION_MANIFEST=1
-ifneq (,$(filter-out WINNT OS2,$(OS_ARCH)))
-	$(MAKE) -C tests/src-simple check-symlink
+	make -C tests/src-simple check-jar
+	make -C tests/src-simple check-flat
+	make -C tests/src-simple check-flat USE_EXTENSION_MANIFEST=1
+ifneq ($(OS_ARCH), WINNT)
+	make -C tests/src-simple check-symlink
 endif

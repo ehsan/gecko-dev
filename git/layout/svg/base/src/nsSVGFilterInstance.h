@@ -38,6 +38,7 @@
 #define __NS_SVGFILTERINSTANCE_H__
 
 #include "nsIDOMSVGLength.h"
+#include "nsIDOMSVGRect.h"
 #include "nsIDOMSVGFilters.h"
 #include "nsRect.h"
 #include "nsIContent.h"
@@ -52,7 +53,6 @@ class nsSVGLength2;
 class nsSVGElement;
 class nsSVGFilterElement;
 class nsSVGFilterPaintCallback;
-struct gfxRect;
 
 /**
  * This class performs all filter processing.
@@ -69,7 +69,7 @@ public:
   nsSVGFilterInstance(nsIFrame *aTargetFrame,
                       nsSVGFilterPaintCallback *aPaintCallback,
                       nsSVGFilterElement *aFilterElement,
-                      const gfxRect &aTargetBBox,
+                      nsIDOMSVGRect *aTargetBBox,
                       const gfxRect& aFilterRect,
                       const nsIntSize& aFilterSpaceSize,
                       nsIDOMSVGMatrix *aFilterSpaceToDeviceSpaceTransform,
@@ -184,7 +184,7 @@ private:
   nsIFrame*               mTargetFrame;
   nsSVGFilterPaintCallback* mPaintCallback;
   nsSVGFilterElement*     mFilterElement;
-  gfxRect                 mTargetBBox;
+  nsCOMPtr<nsIDOMSVGRect> mTargetBBox;
   nsCOMPtr<nsIDOMSVGMatrix> mFilterSpaceToDeviceSpaceTransform;
   gfxRect                 mFilterRect;
   nsIntSize               mFilterSpaceSize;

@@ -109,8 +109,7 @@ nsImageLoadingContent::nsImageLoadingContent()
     // mBroken starts out true, since an image without a URI is broken....
     mBroken(PR_TRUE),
     mUserDisabled(PR_FALSE),
-    mSuppressed(PR_FALSE),
-    mIsImageStateForced(PR_FALSE)    
+    mSuppressed(PR_FALSE)
 {
   if (!nsContentUtils::GetImgLoader()) {
     mLoadingEnabled = PR_FALSE;
@@ -122,11 +121,11 @@ nsImageLoadingContent::DestroyImageLoadingContent()
 {
   // Cancel our requests so they won't hold stale refs to us
   if (mCurrentRequest) {
-    mCurrentRequest->CancelAndForgetObserver(NS_ERROR_FAILURE);
+    mCurrentRequest->Cancel(NS_ERROR_FAILURE);
     mCurrentRequest = nsnull;
   }
   if (mPendingRequest) {
-    mPendingRequest->CancelAndForgetObserver(NS_ERROR_FAILURE);
+    mPendingRequest->Cancel(NS_ERROR_FAILURE);
     mPendingRequest = nsnull;
   }
 }
@@ -159,7 +158,7 @@ nsImageLoadingContent::~nsImageLoadingContent()
 NS_IMETHODIMP
 nsImageLoadingContent::FrameChanged(imgIContainer* aContainer,
                                     gfxIImageFrame* aFrame,
-                                    nsIntRect* aDirtyRect)
+                                    nsRect* aDirtyRect)
 {
   LOOP_OVER_OBSERVERS(FrameChanged(aContainer, aFrame, aDirtyRect));
   return NS_OK;
@@ -205,7 +204,7 @@ nsImageLoadingContent::OnStartFrame(imgIRequest* aRequest,
 NS_IMETHODIMP
 nsImageLoadingContent::OnDataAvailable(imgIRequest* aRequest,
                                        gfxIImageFrame* aFrame,
-                                       const nsIntRect* aRect)
+                                       const nsRect* aRect)
 {
   LOOP_OVER_OBSERVERS(OnDataAvailable(aRequest, aFrame, aRect));
   return NS_OK;
@@ -500,8 +499,6 @@ nsImageLoadingContent::LoadImage(const nsAString& aNewURI,
     // and then incurring the significant cost of establishing a new TCP channel.
     // This is generally triggered from <img src=""> 
     // In light of that, just skip loading it..
-    // Do make sure to drop our existing image, if any
-    CancelImageRequests(aNotify);
     return NS_OK;
   }
 
@@ -618,18 +615,10 @@ nsImageLoadingContent::LoadImage(nsIURI* aNewURI,
   return NS_OK;
 }
 
-nsresult
-nsImageLoadingContent::ForceImageState(PRBool aForce, PRInt32 aState)
-{
-  mIsImageStateForced = aForce;
-  mForcedImageState = aState;
-  return NS_OK;
-}
-
 PRInt32
 nsImageLoadingContent::ImageState() const
 {
-  return mIsImageStateForced ? mForcedImageState :
+  return
     (mBroken * NS_EVENT_STATE_BROKEN) |
     (mUserDisabled * NS_EVENT_STATE_USERDISABLED) |
     (mSuppressed * NS_EVENT_STATE_SUPPRESSED) |
@@ -694,9 +683,10 @@ void
 nsImageLoadingContent::CancelImageRequests(PRBool aNotify)
 {
   // Make sure to null out mCurrentURI here, so we no longer look like an image
-  AutoStateChanger changer(this, aNotify);
   mCurrentURI = nsnull;
   CancelImageRequests(NS_BINDING_ABORTED, PR_TRUE, nsIContentPolicy::ACCEPT);
+  NS_ASSERTION(!mStartingLoad, "Whence a state changer here?");
+  UpdateImageState(aNotify);
 }
 
 void
@@ -750,8 +740,6 @@ nsImageLoadingContent::UseAsPrimaryRequest(imgIRequest* aRequest,
 {
   // Use an AutoStateChanger so that the clone call won't
   // automatically notify from inside OnStopDecode.
-  // Also, make sure to use the CancelImageRequests which doesn't
-  // notify, so that the changer is handling the notifications.
   NS_PRECONDITION(aRequest, "Must have a request here!");
   AutoStateChanger changer(this, aNotify);
   mCurrentURI = nsnull;

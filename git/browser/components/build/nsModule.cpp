@@ -40,17 +40,13 @@
 
 #include "nsBrowserCompsCID.h"
 #include "nsPlacesImportExportService.h"
-
-#if defined(XP_WIN)
+#ifdef XP_WIN
 #include "nsWindowsShellService.h"
 #elif defined(XP_MACOSX)
 #include "nsMacShellService.h"
 #elif defined(MOZ_WIDGET_GTK2)
 #include "nsGNOMEShellService.h"
 #endif
-
-#ifndef WINCE
-
 #include "nsProfileMigrator.h"
 #if !defined(XP_BEOS)
 #include "nsDogbertProfileMigrator.h"
@@ -69,30 +65,21 @@
 #include "nsCaminoProfileMigrator.h"
 #include "nsICabProfileMigrator.h"
 #endif
-
-#endif // WINCE
-
 #include "rdf.h"
 #include "nsFeedSniffer.h"
 #include "nsAboutFeeds.h"
 #include "nsIAboutModule.h"
 
-#include "nsPrivateBrowsingServiceWrapper.h"
-#include "nsNetCID.h"
-
 /////////////////////////////////////////////////////////////////////////////
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsPlacesImportExportService)
-#if defined(XP_WIN)
+#ifdef XP_WIN
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsWindowsShellService)
 #elif defined(XP_MACOSX)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsMacShellService)
 #elif defined(MOZ_WIDGET_GTK2)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsGNOMEShellService, Init)
 #endif
-
-#ifndef WINCE
-
 #if !defined(XP_BEOS)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsDogbertProfileMigrator)
 #endif
@@ -111,12 +98,7 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsMacIEProfileMigrator)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsCaminoProfileMigrator)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsICabProfileMigrator)
 #endif
-
-#endif
-
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsFeedSniffer)
-
-NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsPrivateBrowsingServiceWrapper, Init)
 
 /////////////////////////////////////////////////////////////////////////////
 
@@ -153,8 +135,6 @@ static const nsModuleComponentInfo components[] =
     NS_ABOUT_MODULE_CONTRACTID_PREFIX "feeds",
     nsAboutFeeds::Create
   },
-
-#ifndef WINCE
 
   { "Profile Migrator",
     NS_FIREFOX_PROFILEMIGRATOR_CID,
@@ -222,14 +202,7 @@ static const nsModuleComponentInfo components[] =
   { "Seamonkey Profile Migrator",
     NS_SEAMONKEYPROFILEMIGRATOR_CID,
     NS_BROWSERPROFILEMIGRATOR_CONTRACTID_PREFIX "seamonkey",
-    nsSeamonkeyProfileMigratorConstructor },
-
-#endif /* WINCE */
-
-  { "PrivateBrowsing Service C++ Wrapper",
-    NS_PRIVATE_BROWSING_SERVICE_WRAPPER_CID,
-    NS_PRIVATE_BROWSING_SERVICE_CONTRACTID,
-    nsPrivateBrowsingServiceWrapperConstructor }
+    nsSeamonkeyProfileMigratorConstructor }
 };
 
 NS_IMPL_NSGETMODULE(nsBrowserCompsModule, components)

@@ -323,7 +323,7 @@ public:
     JSBool IsMarked() const;
 private:
     JSBool mMarked;
-    nsTArray<jsid> mIDArray;
+    nsVoidArray mIDArray;
 };
 
 /**
@@ -367,7 +367,7 @@ public:
          */
         PRUint32 Length() const;
     private:
-        nsTArray<FUNCDESC> mArray;
+        nsVoidArray      mArray;
         /**
          * Initializes a function description object
          * @param ccx XPConnect context

@@ -82,7 +82,7 @@ private:
 
   PRBool ShuttingDown() { return mShutdownContext != nsnull; }
 
-  static void ThreadFunc(void *arg);
+  PR_STATIC_CALLBACK(void) ThreadFunc(void *arg);
 
   // Helper
   already_AddRefed<nsIThreadObserver> GetObserver() {

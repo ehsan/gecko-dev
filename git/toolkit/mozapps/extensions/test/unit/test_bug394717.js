@@ -68,7 +68,7 @@ const checkListener = {
 }
 
 // Get the HTTP server.
-do_load_httpd_js();
+do_import_script("netwerk/test/httpserver/httpd.js");
 var testserver;
 
 /**
@@ -92,5 +92,6 @@ function run_test_pt2() {
   dump("Checking onUpdateEnded\n");
   do_check_true(checkListener._onUpdateEndedCalled);
   do_check_eq(checkListener._onAddonUpdateStartedCount, checkListener._onAddonUpdateEndedCount);
-  testserver.stop(do_test_finished);
+  testserver.stop();
+  do_test_finished();
 }

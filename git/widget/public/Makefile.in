@@ -47,11 +47,11 @@ XPIDL_MODULE	= widget
 GRE_MODULE	= 1
 
 EXPORTS		= \
+		widgetCore.h \
+		nsStringUtil.h \
 		nsIWidget.h \
 		nsGUIEvent.h \
 		nsEvent.h \
-		nsNativeWidget.h \
-		nsWidgetInitData.h \
 		nsIEventListener.h \
 		nsWidgetsCID.h \
 		nsILookAndFeel.h \

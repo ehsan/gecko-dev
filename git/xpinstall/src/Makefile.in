@@ -63,6 +63,8 @@ MODULE_NAME	= nsSoftwareUpdate
 GRE_MODULE	= 1
 LIBXUL_LIBRARY	= 1
 
+PACKAGE_FILE = base.pkg
+
 REQUIRES	= xpcom \
 		  string \
 		  jar \

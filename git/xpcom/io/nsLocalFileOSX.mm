@@ -24,7 +24,6 @@
  *  Jungshik Shin <jshin@mailaps.org>
  *  Asaf Romano <mozilla.mano@sent.com>
  *  Mark Mentovai <mark@moxienet.com>
- *  Josh Aas <josh@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -44,38 +43,55 @@
 #include "nsDirectoryServiceDefs.h"
 
 #include "nsObjCExceptions.h"
-#include "nsAutoPtr.h"
 #include "nsString.h"
 #include "nsReadableUtils.h"
 #include "nsIDirectoryEnumerator.h"
 #include "nsISimpleEnumerator.h"
 #include "nsITimelineService.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 
 #include "plbase64.h"
 #include "prmem.h"
 #include "nsCRT.h"
 #include "nsHashKeys.h"
 
+#include "MoreFilesX.h"
+#include "FSCopyObject.h"
+#include "nsTArray.h"
 #include "nsTraceRefcntImpl.h"
 
+// Mac Includes
 #include <Carbon/Carbon.h>
 #import <Cocoa/Cocoa.h>
 
+// Unix Includes
 #include <unistd.h>
 #include <sys/stat.h>
-#include <sys/statvfs.h>
 #include <stdlib.h>
-#include <utime.h>
 
-#define CHECK_mBaseURL()                        \
+#if !defined(MAC_OS_X_VERSION_10_4) || MAC_OS_X_VERSION_MIN_REQUIRED < MAC_OS_X_VERSION_10_4
+#define GetAliasSizeFromRecord(aliasRecord) aliasRecord.aliasSize
+#else
+#define GetAliasSizeFromRecord(aliasRecord) GetAliasSizeFromPtr(&aliasRecord)
+#endif
+
+#define CHECK_mBaseRef()                        \
     PR_BEGIN_MACRO                              \
-        if (!mBaseURL)                          \
+        if (!mBaseRef)                          \
             return NS_ERROR_NOT_INITIALIZED;    \
     PR_END_MACRO
 
+//*****************************************************************************
+//  Static Function Prototypes
+//*****************************************************************************
+
 static nsresult MacErrorMapper(OSErr inErr);
+static OSErr FindRunningAppBySignature(OSType aAppSig, ProcessSerialNumber& outPsn);
 static void CopyUTF8toUTF16NFC(const nsACString& aSrc, nsAString& aResult);
+
+//*****************************************************************************
+//  Local Helper Classes
+//*****************************************************************************
 
 #pragma mark -
 #pragma mark [FSRef operator==]
@@ -192,7 +208,7 @@ class nsDirEnumerator : public nsISimpleEnumerator,
             }
 
             if (mArrayIndex < mArrayCnt) {
-              nsRefPtr<nsLocalFile> newFile = new nsLocalFile;
+              nsLocalFile *newFile = new nsLocalFile;
               if (!newFile)
                 return NS_ERROR_OUT_OF_MEMORY;
               FSRef fsRef = mFSRefsArray[mArrayIndex];
@@ -222,7 +238,7 @@ class nsDirEnumerator : public nsISimpleEnumerator,
             rv = HasMoreElements(&hasMore);
             if (NS_FAILED(rv)) return rv;
 
-            *result = mNext; // might return nsnull
+            *result = mNext;        // might return nsnull
             NS_IF_ADDREF(*result);
 
             mNext = nsnull;
@@ -281,28 +297,66 @@ class nsDirEnumerator : public nsISimpleEnumerator,
 
 NS_IMPL_ISUPPORTS2(nsDirEnumerator, nsISimpleEnumerator, nsIDirectoryEnumerator)
 
+#pragma mark -
+#pragma mark [StAEDesc]
+
+class StAEDesc: public AEDesc
+{
+public:
+    StAEDesc()
+    {
+      descriptorType = typeNull;
+      dataHandle = nil;
+    }
+              
+    ~StAEDesc()
+    {
+      NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
+      ::AEDisposeDesc(this);
+
+      NS_OBJC_END_TRY_ABORT_BLOCK;
+    }
+};
+
 #define FILENAME_BUFFER_SIZE 512
 
-const char kPathSepChar = '/';
+//*****************************************************************************
+//  nsLocalFile
+//*****************************************************************************
+
+const char      nsLocalFile::kPathSepChar = '/';
+const PRUnichar nsLocalFile::kPathSepUnichar = '/';
+
+// The HFS+ epoch is Jan. 1, 1904 GMT - differs from HFS in which times were local
+// The NSPR epoch is Jan. 1, 1970 GMT
+// 2082844800 is the difference in seconds between those dates
+const PRInt64   nsLocalFile::kJanuaryFirst1970Seconds = 2082844800LL;
 
 #pragma mark -
 #pragma mark [CTORs/DTOR]
 
 nsLocalFile::nsLocalFile() :
-  mBaseURL(nsnull),
-  mFollowLinks(PR_TRUE)
+  mBaseRef(nsnull),
+  mTargetRef(nsnull),
+  mFollowLinks(PR_TRUE),
+  mFollowLinksDirty(PR_TRUE)
 {
 }
 
 nsLocalFile::nsLocalFile(const nsLocalFile& src) :
-  mBaseURL(src.mBaseURL),
-  mFollowLinks(src.mFollowLinks)
+  mBaseRef(src.mBaseRef),
+  mTargetRef(src.mTargetRef),
+  mFollowLinks(src.mFollowLinks),
+  mFollowLinksDirty(src.mFollowLinksDirty)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  // CFURL objects are immutable so no need to copy, just retain.
-  if (mBaseURL)
-    ::CFRetain(mBaseURL);
+  // A CFURLRef is immutable so no need to copy, just retain.
+  if (mBaseRef)
+    ::CFRetain(mBaseRef);
+  if (mTargetRef)
+    ::CFRetain(mTargetRef);
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
@@ -311,12 +365,18 @@ nsLocalFile::~nsLocalFile()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  if (mBaseURL)
-    ::CFRelease(mBaseURL);
+  if (mBaseRef)
+    ::CFRelease(mBaseRef);
+  if (mTargetRef)
+    ::CFRelease(mTargetRef);
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
+
+//*****************************************************************************
+//  nsLocalFile::nsISupports
+//*****************************************************************************
 #pragma mark -
 #pragma mark [nsISupports]
 
@@ -344,20 +404,26 @@ NS_IMETHODIMP nsLocalFile::nsLocalFileConstructor(nsISupports* outer, const nsII
   return NS_OK;
 }
 
+
+//*****************************************************************************
+//  nsLocalFile::nsIFile
+//*****************************************************************************
 #pragma mark -
 #pragma mark [nsIFile]
 
+/* void append (in AString node); */
 NS_IMETHODIMP nsLocalFile::Append(const nsAString& aNode)
 {
   return AppendNative(NS_ConvertUTF16toUTF8(aNode));
 }
 
+/* [noscript] void appendNative (in ACString node); */
 NS_IMETHODIMP nsLocalFile::AppendNative(const nsACString& aNode)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
   // Check we are correctly initialized.
-  CHECK_mBaseURL();
+  CHECK_mBaseRef();
 
   nsACString::const_iterator start, end;
   aNode.BeginReading(start);
@@ -370,10 +436,10 @@ NS_IMETHODIMP nsLocalFile::AppendNative(const nsACString& aNode)
                                   kCFStringEncodingUTF8);
   if (nodeStrRef) {
     CFURLRef newRef = ::CFURLCreateCopyAppendingPathComponent(kCFAllocatorDefault,
-                                  mBaseURL, nodeStrRef, PR_FALSE);
+                                  mBaseRef, nodeStrRef, PR_FALSE);
     ::CFRelease(nodeStrRef);
     if (newRef) {
-      SetBaseURL(newRef);
+      SetBaseRef(newRef);
       ::CFRelease(newRef);
       return NS_OK;
     }
@@ -383,20 +449,28 @@ NS_IMETHODIMP nsLocalFile::AppendNative(const nsACString& aNode)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+/* void normalize (); */
 NS_IMETHODIMP nsLocalFile::Normalize()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  CHECK_mBaseURL();
+  // Check we are correctly initialized.
+  CHECK_mBaseRef();
 
   // CFURL doesn't doesn't seem to resolve paths containing relative
   // components, so we'll nick the stdlib code from nsLocalFileUnix
   UInt8 path[PATH_MAX] = "";
-  if (!::CFURLGetFileSystemRepresentation(mBaseURL, true, path, PATH_MAX))
+  Boolean success;
+  success = ::CFURLGetFileSystemRepresentation(mBaseRef, true, path, PATH_MAX);
+  if (!success)
     return NS_ERROR_FAILURE;
 
   char resolved_path[PATH_MAX] = "";
-  if (!realpath((char*)path, resolved_path))
+  char *resolved_path_ptr = nsnull;
+  resolved_path_ptr = realpath((char*)path, resolved_path);
+
+  // if there is an error, the return is null.
+  if (!resolved_path_ptr)
       return NSRESULT_FOR_ERRNO();
 
   // Need to know whether we're a directory to create a new CFURLRef
@@ -405,15 +479,16 @@ NS_IMETHODIMP nsLocalFile::Normalize()
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = NS_ERROR_FAILURE;
-  CFStringRef pathStrRef = ::CFStringCreateWithCString(kCFAllocatorDefault,
-                                                       resolved_path,
-                                                       kCFStringEncodingUTF8);
+  CFStringRef pathStrRef =
+    ::CFStringCreateWithCString(kCFAllocatorDefault,
+                                resolved_path,
+                                kCFStringEncodingUTF8);
   if (pathStrRef) {
     CFURLRef newURLRef =
       ::CFURLCreateWithFileSystemPath(kCFAllocatorDefault, pathStrRef,
                                       kCFURLPOSIXPathStyle, isDirectory);
     if (newURLRef) {
-      SetBaseURL(newURLRef);
+      SetBaseRef(newURLRef);
       ::CFRelease(newURLRef);
       rv = NS_OK;
     }
@@ -425,6 +500,7 @@ NS_IMETHODIMP nsLocalFile::Normalize()
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+/* void create (in unsigned long type, in unsigned long permissions); */
 NS_IMETHODIMP nsLocalFile::Create(PRUint32 type, PRUint32 permissions)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
@@ -433,10 +509,10 @@ NS_IMETHODIMP nsLocalFile::Create(PRUint32 type, PRUint32 permissions)
     return NS_ERROR_FILE_UNKNOWN_TYPE;
 
   // Check we are correctly initialized.
-  CHECK_mBaseURL();
+  CHECK_mBaseRef();
   
-  nsTArray<nsString> nonExtantNodes;
-  CFURLRef pathURLRef = mBaseURL;
+  nsStringArray nonExtantNodes;
+  CFURLRef pathURLRef = mBaseRef;
   FSRef pathFSRef;
   CFStringRef leafStrRef = nsnull;
   nsAutoTArray<UniChar, FILENAME_BUFFER_SIZE> buffer;
@@ -454,7 +530,7 @@ NS_IMETHODIMP nsLocalFile::Create(PRUint32 type, PRUint32 permissions)
       break;
     ::CFStringGetCharacters(leafStrRef, CFRangeMake(0, leafLen), buffer.Elements());
     buffer[leafLen] = '\0';
-    nonExtantNodes.AppendElement(nsString(nsDependentString(buffer.Elements())));
+    nonExtantNodes.AppendString(nsString(nsDependentString(buffer.Elements())));
     ::CFRelease(leafStrRef);
     leafStrRef = nsnull;
     
@@ -462,24 +538,24 @@ NS_IMETHODIMP nsLocalFile::Create(PRUint32 type, PRUint32 permissions)
     CFURLRef parent = ::CFURLCreateCopyDeletingLastPathComponent(NULL, pathURLRef);
     if (!parent)
       break;
-    if (pathURLRef != mBaseURL)
+    if (pathURLRef != mBaseRef)
       ::CFRelease(pathURLRef);
     pathURLRef = parent;
   }
-  if (pathURLRef != mBaseURL)
+  if (pathURLRef != mBaseRef)
     ::CFRelease(pathURLRef);
   if (leafStrRef != nsnull)
     ::CFRelease(leafStrRef);
   if (!success)
     return NS_ERROR_FAILURE;
-  PRInt32 nodesToCreate = PRInt32(nonExtantNodes.Length());
+  PRInt32 nodesToCreate = nonExtantNodes.Count();
   if (nodesToCreate == 0)
     return NS_ERROR_FILE_ALREADY_EXISTS;
   
   OSErr err;    
   nsAutoString nextNodeName;
   for (PRInt32 i = nodesToCreate - 1; i > 0; i--) {
-    nextNodeName = nonExtantNodes[i];
+    nonExtantNodes.StringAt(i, nextNodeName);
     err = ::FSCreateDirectoryUnicode(&pathFSRef,
                                       nextNodeName.Length(),
                                       (const UniChar *)nextNodeName.get(),
@@ -488,7 +564,7 @@ NS_IMETHODIMP nsLocalFile::Create(PRUint32 type, PRUint32 permissions)
     if (err != noErr)
       return MacErrorMapper(err);
   }
-  nextNodeName = nonExtantNodes[0];
+  nonExtantNodes.StringAt(0, nextNodeName);
   if (type == NORMAL_FILE_TYPE) {
     err = ::FSCreateFileUnicode(&pathFSRef,
                                 nextNodeName.Length(),
@@ -509,14 +585,19 @@ NS_IMETHODIMP nsLocalFile::Create(PRUint32 type, PRUint32 permissions)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+/* attribute AString leafName; */
 NS_IMETHODIMP nsLocalFile::GetLeafName(nsAString& aLeafName)
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
   nsCAutoString nativeString;
   nsresult rv = GetNativeLeafName(nativeString);
   if (NS_FAILED(rv))
     return rv;
   CopyUTF8toUTF16NFC(nativeString, aLeafName);
   return NS_OK;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 NS_IMETHODIMP nsLocalFile::SetLeafName(const nsAString& aLeafName)
@@ -524,14 +605,16 @@ NS_IMETHODIMP nsLocalFile::SetLeafName(const nsAString& aLeafName)
   return SetNativeLeafName(NS_ConvertUTF16toUTF8(aLeafName));
 }
 
+/* [noscript] attribute ACString nativeLeafName; */
 NS_IMETHODIMP nsLocalFile::GetNativeLeafName(nsACString& aNativeLeafName)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  CHECK_mBaseURL();
+  // Check we are correctly initialized.
+  CHECK_mBaseRef();
 
   nsresult rv = NS_ERROR_FAILURE;
-  CFStringRef leafStrRef = ::CFURLCopyLastPathComponent(mBaseURL);
+  CFStringRef leafStrRef = ::CFURLCopyLastPathComponent(mBaseRef);
   if (leafStrRef) {
     rv = CFStringReftoUTF8(leafStrRef, aNativeLeafName);
     ::CFRelease(leafStrRef);
@@ -545,10 +628,11 @@ NS_IMETHODIMP nsLocalFile::SetNativeLeafName(const nsACString& aNativeLeafName)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  CHECK_mBaseURL();
+  // Check we are correctly initialized.
+  CHECK_mBaseRef();
 
   nsresult rv = NS_ERROR_FAILURE;
-  CFURLRef parentURLRef = ::CFURLCreateCopyDeletingLastPathComponent(kCFAllocatorDefault, mBaseURL);
+  CFURLRef parentURLRef = ::CFURLCreateCopyDeletingLastPathComponent(kCFAllocatorDefault, mBaseRef);
   if (parentURLRef) {
     CFStringRef nodeStrRef = ::CFStringCreateWithCString(kCFAllocatorDefault,
                                     PromiseFlatCString(aNativeLeafName).get(),
@@ -558,7 +642,7 @@ NS_IMETHODIMP nsLocalFile::SetNativeLeafName(const nsACString& aNativeLeafName)
       CFURLRef newURLRef = ::CFURLCreateCopyAppendingPathComponent(kCFAllocatorDefault,
                                     parentURLRef, nodeStrRef, PR_FALSE);
       if (newURLRef) {
-        SetBaseURL(newURLRef);
+        SetBaseRef(newURLRef);
         ::CFRelease(newURLRef);
         rv = NS_OK;
       }
@@ -571,36 +655,43 @@ NS_IMETHODIMP nsLocalFile::SetNativeLeafName(const nsACString& aNativeLeafName)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+/* void copyTo (in nsIFile newParentDir, in AString newName); */
 NS_IMETHODIMP nsLocalFile::CopyTo(nsIFile *newParentDir, const nsAString& newName)
 {
   return CopyInternal(newParentDir, newName, PR_FALSE);
 }
 
+/* [noscrpit] void CopyToNative (in nsIFile newParentDir, in ACString newName); */
 NS_IMETHODIMP nsLocalFile::CopyToNative(nsIFile *newParentDir, const nsACString& newName)
 {
   return CopyInternal(newParentDir, NS_ConvertUTF8toUTF16(newName), PR_FALSE);
 }
 
+/* void copyToFollowingLinks (in nsIFile newParentDir, in AString newName); */
 NS_IMETHODIMP nsLocalFile::CopyToFollowingLinks(nsIFile *newParentDir, const nsAString& newName)
 {
   return CopyInternal(newParentDir, newName, PR_TRUE);
 }
 
+/* [noscript] void copyToFollowingLinksNative (in nsIFile newParentDir, in ACString newName); */
 NS_IMETHODIMP nsLocalFile::CopyToFollowingLinksNative(nsIFile *newParentDir, const nsACString& newName)
 {
   return CopyInternal(newParentDir, NS_ConvertUTF8toUTF16(newName), PR_TRUE);
 }
 
+/* void moveTo (in nsIFile newParentDir, in AString newName); */
 NS_IMETHODIMP nsLocalFile::MoveTo(nsIFile *newParentDir, const nsAString& newName)
 {
   return MoveToNative(newParentDir, NS_ConvertUTF16toUTF8(newName));
 }
 
+/* [noscript] void moveToNative (in nsIFile newParentDir, in ACString newName); */
 NS_IMETHODIMP nsLocalFile::MoveToNative(nsIFile *newParentDir, const nsACString& newName)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  CHECK_mBaseURL();
+  // Check we are correctly initialized.
+  CHECK_mBaseRef();
 
   StFollowLinksState followLinks(*this, PR_FALSE);
 
@@ -674,7 +765,7 @@ NS_IMETHODIMP nsLocalFile::MoveToNative(nsIFile *newParentDir, const nsACString&
                                              destPath.Length(), isDirectory);
   if (!newBaseRef)
     return NS_ERROR_FAILURE;
-  SetBaseURL(newBaseRef);
+  SetBaseRef(newBaseRef);
   ::CFRelease(newBaseRef);
 
   return rv;
@@ -682,13 +773,15 @@ NS_IMETHODIMP nsLocalFile::MoveToNative(nsIFile *newParentDir, const nsACString&
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+/* void remove (in boolean recursive); */
 NS_IMETHODIMP nsLocalFile::Remove(PRBool recursive)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  CHECK_mBaseURL();
+  // Check we are correctly initialized.
+  CHECK_mBaseRef();
 
-  // if we're a symlink, never remove target
+  // XXX If we're an alias, never remove target
   StFollowLinksState followLinks(*this, PR_FALSE);
 
   PRBool isDirectory;
@@ -697,15 +790,14 @@ NS_IMETHODIMP nsLocalFile::Remove(PRBool recursive)
     return rv;
 
   if (recursive && isDirectory) {
-    CFURLRef urlRef;
-    rv = GetCFURL(&urlRef);
-    if (NS_SUCCEEDED(rv) && urlRef) {
-      NSAutoreleasePool* ap = [[NSAutoreleasePool alloc] init];
-      BOOL removeSuccess = [[NSFileManager defaultManager] removeFileAtPath:[(NSURL*)urlRef path] handler:nil];
-      [ap release];
-      ::CFRelease(urlRef);
-      rv = removeSuccess ? NS_OK : NS_ERROR_FAILURE;
-    }
+    FSRef fsRef;
+    rv = GetFSRefInternal(fsRef);
+    if (NS_FAILED(rv))
+      return rv;
+
+    // Call MoreFilesX to do a recursive removal.
+    OSStatus err = ::FSDeleteContainer(&fsRef);
+    rv = MacErrorMapper(err);
   }
   else {
     nsCAutoString path;
@@ -729,40 +821,53 @@ NS_IMETHODIMP nsLocalFile::Remove(PRBool recursive)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
-// Only send back permissions bits: maybe we want to send back the whole
-// mode_t to permit checks against other file types?
-#define NORMALIZE_PERMS(mode)    ((mode)& (S_IRWXU | S_IRWXG | S_IRWXO))
-
+/* attribute unsigned long permissions; */
 NS_IMETHODIMP nsLocalFile::GetPermissions(PRUint32 *aPermissions)
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
   NS_ENSURE_ARG_POINTER(aPermissions);
-
-  CHECK_mBaseURL();
-
-  struct STAT buf;
-  nsresult rv = FillStatBufferInternal(&buf);
+  
+  FSRef fsRef;
+  nsresult rv = GetFSRefInternal(fsRef);
   if (NS_FAILED(rv))
-    return NSRESULT_FOR_ERRNO();
-
-  *aPermissions = NORMALIZE_PERMS(buf.st_mode);
+    return rv;
+    
+  FSCatalogInfo catalogInfo;
+  OSErr err = ::FSGetCatalogInfo(&fsRef, kFSCatInfoPermissions, &catalogInfo,
+                  nsnull, nsnull, nsnull);
+  if (err != noErr)
+    return MacErrorMapper(err);
+  FSPermissionInfo *permPtr = (FSPermissionInfo*)catalogInfo.permissions;
+  *aPermissions = permPtr->mode;
   return NS_OK;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 NS_IMETHODIMP nsLocalFile::SetPermissions(PRUint32 aPermissions)
 {
-  CHECK_mBaseURL();
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  nsCAutoString path;
-  nsresult rv = GetPathInternal(path);
+  FSRef fsRef;
+  nsresult rv = GetFSRefInternal(fsRef);
   if (NS_FAILED(rv))
     return rv;
+  
+  FSCatalogInfo catalogInfo;
+  OSErr err = ::FSGetCatalogInfo(&fsRef, kFSCatInfoPermissions, &catalogInfo,
+                  nsnull, nsnull, nsnull);
+  if (err != noErr)
+    return MacErrorMapper(err);
+  FSPermissionInfo *permPtr = (FSPermissionInfo*)catalogInfo.permissions;
+  permPtr->mode = (UInt16)aPermissions;
+  err = ::FSSetCatalogInfo(&fsRef, kFSCatInfoPermissions, &catalogInfo);
+  return MacErrorMapper(err);
 
-  if (chmod(path.get(), aPermissions) < 0)
-    return NSRESULT_FOR_ERRNO();
-
-  return NS_OK;
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+/* attribute unsigned long permissionsOfLink; */
 NS_IMETHODIMP nsLocalFile::GetPermissionsOfLink(PRUint32 *aPermissionsOfLink)
 {
     NS_ERROR("NS_ERROR_NOT_IMPLEMENTED");
@@ -775,93 +880,113 @@ NS_IMETHODIMP nsLocalFile::SetPermissionsOfLink(PRUint32 aPermissionsOfLink)
     return NS_ERROR_NOT_IMPLEMENTED;
 }
 
+/* attribute PRInt64 lastModifiedTime; */
 NS_IMETHODIMP nsLocalFile::GetLastModifiedTime(PRInt64 *aLastModifiedTime)
 {
-  NS_ENSURE_ARG_POINTER(aLastModifiedTime);
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  nsCAutoString path;
-  nsresult rv = GetPathInternal(path);
+  // Check we are correctly initialized.
+  CHECK_mBaseRef();
+
+  NS_ENSURE_ARG_POINTER(aLastModifiedTime);
+  
+  FSRef fsRef;
+  nsresult rv = GetFSRefInternal(fsRef);
   if (NS_FAILED(rv))
     return rv;
-
-  PRFileInfo64 info;
-  if (PR_GetFileInfo64(path.get(), &info) != PR_SUCCESS)
-    return NSRESULT_FOR_ERRNO();
-  PRInt64 modTime = PRInt64(info.modifyTime);
-  if (modTime == 0)
-    *aLastModifiedTime = 0;
-  else
-    *aLastModifiedTime = modTime / PRInt64(PR_USEC_PER_MSEC);
-
+    
+  FSCatalogInfo catalogInfo;
+  OSErr err = ::FSGetCatalogInfo(&fsRef, kFSCatInfoContentMod, &catalogInfo,
+                                nsnull, nsnull, nsnull);
+  if (err != noErr)
+    return MacErrorMapper(err);
+  *aLastModifiedTime = HFSPlustoNSPRTime(catalogInfo.contentModDate);  
   return NS_OK;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 NS_IMETHODIMP nsLocalFile::SetLastModifiedTime(PRInt64 aLastModifiedTime)
 {
-  nsCAutoString path;
-  nsresult rv = GetPathInternal(path);
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
+  // Check we are correctly initialized.
+  CHECK_mBaseRef();
+
+  OSErr err;
+  nsresult rv;
+  FSRef fsRef;
+  FSCatalogInfo catalogInfo;
+
+  rv = GetFSRefInternal(fsRef);
   if (NS_FAILED(rv))
     return rv;
 
-  int result;
-  if (aLastModifiedTime != 0) {
-    struct STAT statBuf;
-    nsresult rv = FillStatBufferInternal(&statBuf);
-    if (NS_FAILED(rv))
-      return rv;
+  FSRef parentRef;
+  PRBool notifyParent;
 
-    struct utimbuf ut;
-    ut.actime = statBuf.st_atime;
+  /* Get the node flags, the content modification date and time, and the parent ref */
+  err = ::FSGetCatalogInfo(&fsRef, kFSCatInfoNodeFlags + kFSCatInfoContentMod,
+                           &catalogInfo, NULL, NULL, &parentRef);
+  if (err != noErr)
+    return MacErrorMapper(err);
+  
+  /* Notify the parent if this is a file */
+  notifyParent = (0 == (catalogInfo.nodeFlags & kFSNodeIsDirectoryMask));
 
-    // convert milliseconds to seconds since the unix epoch
-    ut.modtime = (time_t)(PRFloat64(aLastModifiedTime) / PR_MSEC_PER_SEC);
-    result = utime(path.get(), &ut);
-  } else {
-    result = utime(path.get(), nsnull);
-  }
-  return NSRESULT_FOR_RETURN(result);
+  NSPRtoHFSPlusTime(aLastModifiedTime, catalogInfo.contentModDate);
+  err = ::FSSetCatalogInfo(&fsRef, kFSCatInfoContentMod, &catalogInfo);
+  if (err != noErr)
+    return MacErrorMapper(err);
+
+  /* Send a notification for the parent of the file, or for the directory */
+  err = FNNotify(notifyParent ? &parentRef : &fsRef, kFNDirectoryModifiedMessage, kNilOptions);
+  if (err != noErr)
+    return MacErrorMapper(err);
+
+  return NS_OK;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+/* attribute PRInt64 lastModifiedTimeOfLink; */
 NS_IMETHODIMP nsLocalFile::GetLastModifiedTimeOfLink(PRInt64 *aLastModifiedTimeOfLink)
 {
-  NS_ENSURE_ARG(aLastModifiedTimeOfLink);
-
-  nsCAutoString path;
-  nsresult rv = GetPathInternal(path);
-  if (NS_FAILED(rv))
-    return rv;
-
-  struct STAT sbuf;
-  if (LSTAT(path.get(), &sbuf) == -1)
-    return NSRESULT_FOR_ERRNO();
-  *aLastModifiedTimeOfLink = PRInt64(sbuf.st_mtime) * PRInt64(PR_MSEC_PER_SEC);
-
-  return NS_OK;
+    NS_ERROR("NS_ERROR_NOT_IMPLEMENTED");
+    return NS_ERROR_NOT_IMPLEMENTED;
 }
-
 NS_IMETHODIMP nsLocalFile::SetLastModifiedTimeOfLink(PRInt64 aLastModifiedTimeOfLink)
 {
-  return SetLastModifiedTime(aLastModifiedTimeOfLink);
+    NS_ERROR("NS_ERROR_NOT_IMPLEMENTED");
+    return NS_ERROR_NOT_IMPLEMENTED;
 }
 
+/* attribute PRInt64 fileSize; */
 NS_IMETHODIMP nsLocalFile::GetFileSize(PRInt64 *aFileSize)
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
   NS_ENSURE_ARG_POINTER(aFileSize);
   *aFileSize = 0;
-
-  nsCAutoString path;
-  nsresult rv = GetPathInternal(path);
+  
+  FSRef fsRef;
+  nsresult rv = GetFSRefInternal(fsRef);
   if (NS_FAILED(rv))
     return rv;
-
-  struct STAT buf;
-  if (STAT(path.get(), &buf) != 0)
-    return NSRESULT_FOR_ERRNO();
-
-  if (!S_ISDIR(buf.st_mode))
-    *aFileSize = (PRInt64)buf.st_size;
-
+      
+  FSCatalogInfo catalogInfo;
+  OSErr err = ::FSGetCatalogInfo(&fsRef, kFSCatInfoNodeFlags + kFSCatInfoDataSizes, &catalogInfo,
+                                  nsnull, nsnull, nsnull);
+  if (err != noErr)
+    return MacErrorMapper(err);
+  
+  // FSGetCatalogInfo can return a bogus size for directories sometimes, so only
+  // rely on the answer for files
+  if ((catalogInfo.nodeFlags & kFSNodeIsDirectoryMask) == 0)
+      *aFileSize = catalogInfo.dataLogicalSize;
   return NS_OK;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 NS_IMETHODIMP nsLocalFile::SetFileSize(PRInt64 aFileSize)
@@ -869,18 +994,14 @@ NS_IMETHODIMP nsLocalFile::SetFileSize(PRInt64 aFileSize)
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
   // Check we are correctly initialized.
-  CHECK_mBaseURL();
+  CHECK_mBaseRef();
 
   FSRef fsRef;
   nsresult rv = GetFSRefInternal(fsRef);
   if (NS_FAILED(rv))
     return rv;
   
-#ifdef __LP64__
-  FSIORefNum refNum;
-#else
-  SInt16 refNum;
-#endif
+  SInt16 refNum;    
   OSErr err = ::FSOpenFork(&fsRef, 0, nsnull, fsWrPerm, &refNum);
   if (err != noErr)
     return MacErrorMapper(err);
@@ -892,9 +1013,11 @@ NS_IMETHODIMP nsLocalFile::SetFileSize(PRInt64 aFileSize)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+/* readonly attribute PRInt64 fileSizeOfLink; */
 NS_IMETHODIMP nsLocalFile::GetFileSizeOfLink(PRInt64 *aFileSizeOfLink)
 {
-  CHECK_mBaseURL();
+  // Check we are correctly initialized.
+  CHECK_mBaseRef();
 
   NS_ENSURE_ARG_POINTER(aFileSizeOfLink);
   
@@ -902,6 +1025,7 @@ NS_IMETHODIMP nsLocalFile::GetFileSizeOfLink(PRInt64 *aFileSizeOfLink)
   return GetFileSize(aFileSizeOfLink);
 }
 
+/* readonly attribute AString target; */
 NS_IMETHODIMP nsLocalFile::GetTarget(nsAString& aTarget)
 {
   nsCAutoString nativeString;
@@ -912,36 +1036,25 @@ NS_IMETHODIMP nsLocalFile::GetTarget(nsAString& aTarget)
   return NS_OK;
 }
 
+/* [noscript] readonly attribute ACString nativeTarget; */
 NS_IMETHODIMP nsLocalFile::GetNativeTarget(nsACString& aNativeTarget)
 {
-  CHECK_mBaseURL();
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  PRBool isSymLink = PR_FALSE;
-  nsresult rv = IsSymlink(&isSymLink);
-  if (NS_FAILED(rv))
-    return rv;
+  if (!mTargetRef)
+    return NS_ERROR_NOT_INITIALIZED;
+  nsresult rv = NS_ERROR_FAILURE;
+  CFStringRef pathStrRef = ::CFURLCopyFileSystemPath(mTargetRef, kCFURLPOSIXPathStyle);
+  if (pathStrRef) {
+    rv = CFStringReftoUTF8(pathStrRef, aNativeTarget);
+    ::CFRelease(pathStrRef);
+  }
+  return rv;
 
-  if (!isSymLink)
-    return NS_ERROR_FILE_INVALID_PATH;
-
-  nsCAutoString nativeString;
-  rv = GetNativePath(nativeString);
-  if (NS_FAILED(rv))
-    return rv;
-
-  char resolvedPathBuf[PATH_MAX];
-  if (!realpath(nativeString.get(), resolvedPathBuf))
-    return NS_ERROR_FILE_INVALID_PATH;
-
-  unsigned int resolvedPathLength = strlen(resolvedPathBuf);
-  aNativeTarget.SetLength(resolvedPathLength);
-  if (aNativeTarget.Length() != (unsigned int)resolvedPathLength)
-    return NS_ERROR_OUT_OF_MEMORY;
-  strncpy(aNativeTarget.BeginWriting(), resolvedPathBuf, resolvedPathLength);
-
-  return NS_OK;
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+/* readonly attribute AString path; */
 NS_IMETHODIMP nsLocalFile::GetPath(nsAString& aPath)
 {
   nsCAutoString nativeString;
@@ -952,14 +1065,16 @@ NS_IMETHODIMP nsLocalFile::GetPath(nsAString& aPath)
   return NS_OK;
 }
 
+/* [noscript] readonly attribute ACString nativePath; */
 NS_IMETHODIMP nsLocalFile::GetNativePath(nsACString& aNativePath)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  CHECK_mBaseURL();
+  // Check we are correctly initialized.
+  CHECK_mBaseRef();
 
   nsresult rv = NS_ERROR_FAILURE;
-  CFStringRef pathStrRef = ::CFURLCopyFileSystemPath(mBaseURL, kCFURLPOSIXPathStyle);
+  CFStringRef pathStrRef = ::CFURLCopyFileSystemPath(mBaseRef, kCFURLPOSIXPathStyle);
   if (pathStrRef) {
     rv = CFStringReftoUTF8(pathStrRef, aNativePath);
     ::CFRelease(pathStrRef);
@@ -969,61 +1084,74 @@ NS_IMETHODIMP nsLocalFile::GetNativePath(nsACString& aNativePath)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+/* boolean exists (); */
 NS_IMETHODIMP nsLocalFile::Exists(PRBool *_retval)
 {
+  // Check we are correctly initialized.
+  CHECK_mBaseRef();
+
   NS_ENSURE_ARG_POINTER(_retval);
-
-  nsCAutoString path;
-  nsresult rv = GetPathInternal(path);
-  if (NS_FAILED(rv))
-    return rv;
-
-  struct STAT buf;
-  *_retval = (STAT(path.get(), &buf) == 0);
-
+  *_retval = PR_FALSE;
+  
+  FSRef fsRef;
+  if (NS_SUCCEEDED(GetFSRefInternal(fsRef))) {
+    *_retval = PR_TRUE;
+  }
+  
   return NS_OK;
 }
 
+/* boolean isWritable (); */
 NS_IMETHODIMP nsLocalFile::IsWritable(PRBool *_retval)
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+    NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  CHECK_mBaseURL();
+    // Check we are correctly initialized.
+    CHECK_mBaseRef();
 
-  NS_ENSURE_ARG_POINTER(_retval);
-  *_retval = PR_FALSE;
+    NS_ENSURE_ARG_POINTER(_retval);
+    *_retval = PR_FALSE;
+    
+    FSRef fsRef;
+    nsresult rv = GetFSRefInternal(fsRef);
+    if (NS_FAILED(rv))
+      return rv;
+    if (::FSCheckLock(&fsRef) == noErr) {      
+      PRUint32 permissions;
+      rv = GetPermissions(&permissions);
+      if (NS_FAILED(rv))
+        return rv;
+      *_retval = ((permissions & S_IWUSR) != 0);
+    }
+    return NS_OK;
 
-  NSAutoreleasePool* ap = [[NSAutoreleasePool alloc] init];
-  // don't bother resolving, this always traverses symbolic links
-  *_retval = (PRBool)[[NSFileManager defaultManager] isWritableFileAtPath:[(NSURL*)mBaseURL path]];
-  [ap release];
-
-  return NS_OK;
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
+    NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+/* boolean isReadable (); */
 NS_IMETHODIMP nsLocalFile::IsReadable(PRBool *_retval)
 {
-  CHECK_mBaseURL();
+    // Check we are correctly initialized.
+    CHECK_mBaseRef();
 
-  NS_ENSURE_ARG_POINTER(_retval);
-  *_retval = PR_FALSE;
-
-  PRUint32 permissions;
-  nsresult rv = GetPermissions(&permissions);
-  if (NS_FAILED(rv))
-    return rv;
-  *_retval = ((permissions & S_IRUSR) != 0);
-  return NS_OK;
+    NS_ENSURE_ARG_POINTER(_retval);
+    *_retval = PR_FALSE;
+    
+    PRUint32 permissions;
+    nsresult rv = GetPermissions(&permissions);
+    if (NS_FAILED(rv))
+      return rv;
+    *_retval = ((permissions & S_IRUSR) != 0);
+    return NS_OK;
 }
 
+/* boolean isExecutable (); */
 NS_IMETHODIMP nsLocalFile::IsExecutable(PRBool *_retval)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
   // Check we are correctly initialized.
-  CHECK_mBaseURL();
+  CHECK_mBaseRef();
 
   NS_ENSURE_ARG_POINTER(_retval);
   *_retval = PR_FALSE;
@@ -1044,6 +1172,7 @@ NS_IMETHODIMP nsLocalFile::IsExecutable(PRBool *_retval)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+/* boolean isHidden (); */
 NS_IMETHODIMP nsLocalFile::IsHidden(PRBool *_retval)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
@@ -1077,70 +1206,87 @@ NS_IMETHODIMP nsLocalFile::IsHidden(PRBool *_retval)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+/* boolean isDirectory (); */
 NS_IMETHODIMP nsLocalFile::IsDirectory(PRBool *_retval)
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
   NS_ENSURE_ARG_POINTER(_retval);
   *_retval = PR_FALSE;
-
-  struct STAT buf;
-  nsresult rv = FillStatBufferInternal(&buf);
+  
+  FSRef fsRef;
+  nsresult rv = GetFSRefInternal(fsRef);
   if (NS_FAILED(rv))
     return rv;
-
-  *_retval = S_ISDIR(buf.st_mode);
-
+    
+  FSCatalogInfo catalogInfo;
+  OSErr err = ::FSGetCatalogInfo(&fsRef, kFSCatInfoNodeFlags, &catalogInfo,
+                                nsnull, nsnull, nsnull);
+  if (err != noErr)
+    return MacErrorMapper(err);
+  *_retval = ((catalogInfo.nodeFlags & kFSNodeIsDirectoryMask) != 0);
   return NS_OK;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+/* boolean isFile (); */
 NS_IMETHODIMP nsLocalFile::IsFile(PRBool *_retval)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
   NS_ENSURE_ARG_POINTER(_retval);
   *_retval = PR_FALSE;
-
-  struct STAT buf;
-  nsresult rv = FillStatBufferInternal(&buf);
+  
+  FSRef fsRef;
+  nsresult rv = GetFSRefInternal(fsRef);
   if (NS_FAILED(rv))
     return rv;
-
-  *_retval = S_ISREG(buf.st_mode);
-
+    
+  FSCatalogInfo catalogInfo;
+  OSErr err = ::FSGetCatalogInfo(&fsRef, kFSCatInfoNodeFlags, &catalogInfo,
+                                nsnull, nsnull, nsnull);
+  if (err != noErr)
+    return MacErrorMapper(err);
+  *_retval = ((catalogInfo.nodeFlags & kFSNodeIsDirectoryMask) == 0);
   return NS_OK;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+/* boolean isSymlink (); */
 NS_IMETHODIMP nsLocalFile::IsSymlink(PRBool *_retval)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  CHECK_mBaseURL();
+  // Check we are correctly initialized.
+  CHECK_mBaseRef();
 
   NS_ENSURE_ARG(_retval);
   *_retval = PR_FALSE;
 
-  // First see if we are an actual symlink
-  nsCAutoString path;
-  nsresult rv = GetNativePath(path);
-  if (NS_FAILED(rv))
-    return rv;
-  struct stat symStat;
-  if (lstat(path.get(), &symStat) < 0)
-    return NSRESULT_FOR_ERRNO();
-  *_retval = S_ISLNK(symStat.st_mode);
+  // Check we are correctly initialized.
+  CHECK_mBaseRef();
 
+  FSRef fsRef;
+  if (::CFURLGetFSRef(mBaseRef, &fsRef)) {
+    Boolean isAlias, isFolder;
+    if (::FSIsAliasFile(&fsRef, &isAlias, &isFolder) == noErr)
+        *_retval = isAlias;
+  }
   return NS_OK;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+/* boolean isSpecial (); */
 NS_IMETHODIMP nsLocalFile::IsSpecial(PRBool *_retval)
 {
-  NS_ERROR("NS_ERROR_NOT_IMPLEMENTED");
-  return NS_ERROR_NOT_IMPLEMENTED;
+    NS_ERROR("NS_ERROR_NOT_IMPLEMENTED");
+    return NS_ERROR_NOT_IMPLEMENTED;
 }
 
+/* nsIFile clone (); */
 NS_IMETHODIMP nsLocalFile::Clone(nsIFile **_retval)
 {
     // Just copy-construct ourselves
@@ -1153,9 +1299,10 @@ NS_IMETHODIMP nsLocalFile::Clone(nsIFile **_retval)
     return NS_OK;
 }
 
+/* boolean equals (in nsIFile inFile); */
 NS_IMETHODIMP nsLocalFile::Equals(nsIFile *inFile, PRBool *_retval)
 {
-  return EqualsInternal(inFile, _retval);
+    return EqualsInternal(inFile, _retval);
 }
 
 nsresult
@@ -1194,10 +1341,11 @@ nsLocalFile::EqualsInternal(nsISupports* inFile, PRBool *_retval)
   return NS_OK;
 }
 
+/* boolean contains (in nsIFile inFile, in boolean recur); */
 NS_IMETHODIMP nsLocalFile::Contains(nsIFile *inFile, PRBool recur, PRBool *_retval)
 {
   // Check we are correctly initialized.
-  CHECK_mBaseURL();
+  CHECK_mBaseRef();
 
   NS_ENSURE_ARG_POINTER(_retval);
   *_retval = PR_FALSE;
@@ -1222,6 +1370,7 @@ NS_IMETHODIMP nsLocalFile::Contains(nsIFile *inFile, PRBool recur, PRBool *_retv
   return NS_OK;
 }
 
+/* readonly attribute nsIFile parent; */
 NS_IMETHODIMP nsLocalFile::GetParent(nsIFile * *aParent)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
@@ -1230,23 +1379,25 @@ NS_IMETHODIMP nsLocalFile::GetParent(nsIFile * *aParent)
   *aParent = nsnull;
 
   // Check we are correctly initialized.
-  CHECK_mBaseURL();
+  CHECK_mBaseRef();
+
+  nsLocalFile *newFile = nsnull;
 
   // If it can be determined without error that a file does not
   // have a parent, return nsnull for the parent and NS_OK as the result.
   // See bug 133617.
   nsresult rv = NS_OK;
-  CFURLRef parentURLRef = ::CFURLCreateCopyDeletingLastPathComponent(kCFAllocatorDefault, mBaseURL);
+  CFURLRef parentURLRef = ::CFURLCreateCopyDeletingLastPathComponent(kCFAllocatorDefault, mBaseRef);
   if (parentURLRef) {
     // If the parent path is longer than file's path then 
     // CFURLCreateCopyDeletingLastPathComponent must have simply added
     // two dots at the end - in this case indicate that there is no parent.
     // See bug 332389.
-    CFStringRef path = ::CFURLGetString(mBaseURL);
+    CFStringRef path = ::CFURLGetString(mBaseRef);
     CFStringRef newPath = ::CFURLGetString(parentURLRef);
     if (::CFStringGetLength(newPath) < ::CFStringGetLength(path)) {
       rv = NS_ERROR_FAILURE;
-      nsRefPtr<nsLocalFile> newFile = new nsLocalFile;
+      newFile = new nsLocalFile;
       if (newFile) {
         rv = newFile->InitWithCFURL(parentURLRef);
         if (NS_SUCCEEDED(rv)) {
@@ -1262,6 +1413,7 @@ NS_IMETHODIMP nsLocalFile::GetParent(nsIFile * *aParent)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+/* readonly attribute nsISimpleEnumerator directoryEntries; */
 NS_IMETHODIMP nsLocalFile::GetDirectoryEntries(nsISimpleEnumerator **aDirectoryEntries)
 {
   NS_ENSURE_ARG_POINTER(aDirectoryEntries);
@@ -1289,14 +1441,20 @@ NS_IMETHODIMP nsLocalFile::GetDirectoryEntries(nsISimpleEnumerator **aDirectoryE
   return NS_OK;
 }
 
+
+//*****************************************************************************
+//  nsLocalFile::nsILocalFile
+//*****************************************************************************
 #pragma mark -
 #pragma mark [nsILocalFile]
 
+/* void initWithPath (in AString filePath); */
 NS_IMETHODIMP nsLocalFile::InitWithPath(const nsAString& filePath)
 {
   return InitWithNativePath(NS_ConvertUTF16toUTF8(filePath));
 }
 
+/* [noscript] void initWithNativePath (in ACString filePath); */
 NS_IMETHODIMP nsLocalFile::InitWithNativePath(const nsACString& filePath)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
@@ -1339,7 +1497,7 @@ NS_IMETHODIMP nsLocalFile::InitWithNativePath(const nsACString& filePath)
     ::CFRelease(pathAsCFString);
     return NS_ERROR_FAILURE;
   }
-  SetBaseURL(pathAsCFURL);
+  SetBaseRef(pathAsCFURL);
   ::CFRelease(pathAsCFURL);
   ::CFRelease(pathAsCFString);
   return NS_OK;
@@ -1347,6 +1505,7 @@ NS_IMETHODIMP nsLocalFile::InitWithNativePath(const nsACString& filePath)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+/* void initWithFile (in nsILocalFile aFile); */
 NS_IMETHODIMP nsLocalFile::InitWithFile(nsILocalFile *aFile)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
@@ -1367,6 +1526,7 @@ NS_IMETHODIMP nsLocalFile::InitWithFile(nsILocalFile *aFile)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+/* attribute PRBool followLinks; */
 NS_IMETHODIMP nsLocalFile::GetFollowLinks(PRBool *aFollowLinks)
 {
   NS_ENSURE_ARG_POINTER(aFollowLinks);
@@ -1377,11 +1537,14 @@ NS_IMETHODIMP nsLocalFile::GetFollowLinks(PRBool *aFollowLinks)
 
 NS_IMETHODIMP nsLocalFile::SetFollowLinks(PRBool aFollowLinks)
 {
-  mFollowLinks = aFollowLinks;
-
+  if (aFollowLinks != mFollowLinks) {
+    mFollowLinks = aFollowLinks;
+    UpdateTargetRef();
+  }
   return NS_OK;
 }
 
+/* [noscript] PRFileDescStar openNSPRFileDesc (in long flags, in long mode); */
 NS_IMETHODIMP nsLocalFile::OpenNSPRFileDesc(PRInt32 flags, PRInt32 mode, PRFileDesc **_retval)
 {
   NS_ENSURE_ARG_POINTER(_retval);
@@ -1395,13 +1558,10 @@ NS_IMETHODIMP nsLocalFile::OpenNSPRFileDesc(PRInt32 flags, PRInt32 mode, PRFileD
   if (! *_retval)
     return NS_ErrorAccordingToNSPR();
 
-  if (flags & DELETE_ON_CLOSE) {
-    PR_Delete(path.get());
-  }
-
   return NS_OK;
 }
 
+/* [noscript] FILE openANSIFileDesc (in string mode); */
 NS_IMETHODIMP nsLocalFile::OpenANSIFileDesc(const char *mode, FILE **_retval)
 {
   NS_ENSURE_ARG_POINTER(_retval);
@@ -1418,9 +1578,11 @@ NS_IMETHODIMP nsLocalFile::OpenANSIFileDesc(const char *mode, FILE **_retval)
   return NS_OK;
 }
 
+/* [noscript] PRLibraryStar load (); */
 NS_IMETHODIMP nsLocalFile::Load(PRLibrary **_retval)
 {
-  CHECK_mBaseURL();
+  // Check we are correctly initialized.
+  CHECK_mBaseRef();
 
   NS_ENSURE_ARG_POINTER(_retval);
 
@@ -1450,32 +1612,47 @@ NS_IMETHODIMP nsLocalFile::Load(PRLibrary **_retval)
   return NS_OK;
 }
 
+/* readonly attribute PRInt64 diskSpaceAvailable; */
 NS_IMETHODIMP nsLocalFile::GetDiskSpaceAvailable(PRInt64 *aDiskSpaceAvailable)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  NS_ENSURE_ARG_POINTER(aDiskSpaceAvailable);
+  // Check we are correctly initialized.
+  CHECK_mBaseRef();
 
-  nsCAutoString path;
-  nsresult rv = GetPathInternal(path);
+  NS_ENSURE_ARG_POINTER(aDiskSpaceAvailable);
+  
+  FSRef fsRef;
+  nsresult rv = GetFSRefInternal(fsRef);
   if (NS_FAILED(rv))
     return rv;
-
-  struct STATVFS fs_buf;
-  if (STATVFS(path.get(), &fs_buf) < 0)
-    return NS_ERROR_FAILURE;
-  // minus one block for fuzz
-  *aDiskSpaceAvailable = (PRInt64)fs_buf.f_frsize * (fs_buf.f_bavail - 1);
+    
+  OSErr err;
+  FSCatalogInfo catalogInfo;
+  err = ::FSGetCatalogInfo(&fsRef, kFSCatInfoVolume, &catalogInfo,
+                           nsnull, nsnull, nsnull);
+  if (err != noErr)
+    return MacErrorMapper(err);
+  
+  FSVolumeInfo volumeInfo;  
+  err = ::FSGetVolumeInfo(catalogInfo.volume, 0, nsnull, kFSVolInfoSizes,
+                          &volumeInfo, nsnull, nsnull);
+  if (err != noErr)
+    return MacErrorMapper(err);
+    
+  *aDiskSpaceAvailable = volumeInfo.freeBytes;
   return NS_OK;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+/* void appendRelativePath (in AString relativeFilePath); */
 NS_IMETHODIMP nsLocalFile::AppendRelativePath(const nsAString& relativeFilePath)
 {
   return AppendRelativeNativePath(NS_ConvertUTF16toUTF8(relativeFilePath));
 }
 
+/* [noscript] void appendRelativeNativePath (in ACString relativeFilePath); */
 NS_IMETHODIMP nsLocalFile::AppendRelativeNativePath(const nsACString& relativeFilePath)
 {  
   if (relativeFilePath.IsEmpty())
@@ -1502,6 +1679,7 @@ NS_IMETHODIMP nsLocalFile::AppendRelativeNativePath(const nsACString& relativeFi
   return NS_OK;
 }
 
+/* attribute ACString persistentDescriptor; */
 NS_IMETHODIMP nsLocalFile::GetPersistentDescriptor(nsACString& aPersistentDescriptor)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
@@ -1556,7 +1734,7 @@ NS_IMETHODIMP nsLocalFile::SetPersistentDescriptor(const nsACString& aPersistent
   
   // Cast to an alias record and resolve.
   AliasRecord aliasHeader = *(AliasPtr)decodedData;
-  PRInt32 aliasSize = ::GetAliasSizeFromPtr(&aliasHeader);
+  PRInt32 aliasSize = GetAliasSizeFromRecord(aliasHeader);
   if (aliasSize > ((PRInt32)dataSize * 3) / 4) { // be paranoid about having too few data
     PR_Free(decodedData);
     return NS_ERROR_FAILURE;
@@ -1585,57 +1763,89 @@ NS_IMETHODIMP nsLocalFile::SetPersistentDescriptor(const nsACString& aPersistent
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+/* void reveal (); */
 NS_IMETHODIMP nsLocalFile::Reveal()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  BOOL success = NO;
-
-  CFURLRef urlRef;
-  if (NS_SUCCEEDED(GetCFURL(&urlRef)) && urlRef) {
-    NSAutoreleasePool* ap = [[NSAutoreleasePool alloc] init];
-    success = [[NSWorkspace sharedWorkspace] selectFile:[(NSURL*)urlRef path] inFileViewerRootedAtPath:@""];
-    [ap release];
-
-    ::CFRelease(urlRef);
+  FSRef             fsRefToReveal;
+  AppleEvent        aeEvent = {0, nil};
+  AppleEvent        aeReply = {0, nil};
+  StAEDesc          aeDirDesc, listElem, myAddressDesc, fileList;
+  OSErr             err;
+  ProcessSerialNumber   process;
+    
+  nsresult rv = GetFSRefInternal(fsRefToReveal);
+  if (NS_FAILED(rv))
+    return rv;
+  
+  err = ::FindRunningAppBySignature ('MACS', process);
+  if (err == noErr) { 
+    err = ::AECreateDesc(typeProcessSerialNumber, (Ptr)&process, sizeof(process), &myAddressDesc);
+    if (err == noErr) {
+      // Create the FinderEvent
+      err = ::AECreateAppleEvent(kAEMiscStandards, kAEMakeObjectsVisible, &myAddressDesc,
+                        kAutoGenerateReturnID, kAnyTransactionID, &aeEvent);   
+      if (err == noErr) {
+        // Create the file list
+        err = ::AECreateList(nil, 0, false, &fileList);
+        if (err == noErr) {
+          FSSpec fsSpecToReveal;
+          err = ::FSRefMakeFSSpec(&fsRefToReveal, &fsSpecToReveal);
+          if (err == noErr) {
+            err = ::AEPutPtr(&fileList, 0, typeFSS, &fsSpecToReveal, sizeof(FSSpec));
+            if (err == noErr) {
+              err = ::AEPutParamDesc(&aeEvent, keyDirectObject, &fileList);
+              if (err == noErr) {
+                err = ::AESend(&aeEvent, &aeReply, kAENoReply, kAENormalPriority, kAEDefaultTimeout, nil, nil);
+                if (err == noErr)
+                  ::SetFrontProcess(&process);
+              }
+            }
+          }
+        }
+      }
+    }
   }
-
-  return (success ? NS_OK : NS_ERROR_FAILURE);
+    
+  return NS_OK;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+/* void launch (); */
 NS_IMETHODIMP nsLocalFile::Launch()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  BOOL success = NO;
+  FSRef fsRef;
+  nsresult rv = GetFSRefInternal(fsRef);
+  if (NS_FAILED(rv))
+    return rv;
 
-  CFURLRef urlRef;
-  if (NS_SUCCEEDED(GetCFURL(&urlRef)) && urlRef) {
-    NSAutoreleasePool* ap = [[NSAutoreleasePool alloc] init];
-    success = [[NSWorkspace sharedWorkspace] openURL:(NSURL*)urlRef];
-    [ap release];
-
-    ::CFRelease(urlRef);
-  }
-
-  return (success ? NS_OK : NS_ERROR_FAILURE);
+  OSErr err = ::LSOpenFSRef(&fsRef, NULL);
+  return MacErrorMapper(err);
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+
+//*****************************************************************************
+//  nsLocalFile::nsILocalFileMac
+//*****************************************************************************
 #pragma mark -
 #pragma mark [nsILocalFileMac]
 
+/* void initWithCFURL (in CFURLRef aCFURL); */
 NS_IMETHODIMP nsLocalFile::InitWithCFURL(CFURLRef aCFURL)
 {
   NS_ENSURE_ARG(aCFURL);
   
-  SetBaseURL(aCFURL);
+  SetBaseRef(aCFURL);
   return NS_OK;
 }
 
+/* void initWithFSRef ([const] in FSRefPtr aFSRef); */
 NS_IMETHODIMP nsLocalFile::InitWithFSRef(const FSRef *aFSRef)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
@@ -1645,7 +1855,7 @@ NS_IMETHODIMP nsLocalFile::InitWithFSRef(const FSRef *aFSRef)
   
   CFURLRef newURLRef = ::CFURLCreateFromFSRef(kCFAllocatorDefault, aFSRef);
   if (newURLRef) {
-    SetBaseURL(newURLRef);
+    SetBaseRef(newURLRef);
     ::CFRelease(newURLRef);
     rv = NS_OK;
   }
@@ -1654,6 +1864,51 @@ NS_IMETHODIMP nsLocalFile::InitWithFSRef(const FSRef *aFSRef)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+/* void initWithFSSpec ([const] in FSSpecPtr aFileSpec); */
+NS_IMETHODIMP nsLocalFile::InitWithFSSpec(const FSSpec *aFileSpec)
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
+  NS_ENSURE_ARG(aFileSpec);
+  
+  FSRef fsRef;
+  OSErr err = ::FSpMakeFSRef(aFileSpec, &fsRef);
+  if (err == noErr)
+    return InitWithFSRef(&fsRef);
+  else if (err == fnfErr) {
+    CInfoPBRec  pBlock;
+    FSSpec parentDirSpec;
+    
+    memset(&pBlock, 0, sizeof(CInfoPBRec));
+    parentDirSpec.name[0] = 0;
+    pBlock.dirInfo.ioVRefNum = aFileSpec->vRefNum;
+    pBlock.dirInfo.ioDrDirID = aFileSpec->parID;
+    pBlock.dirInfo.ioNamePtr = (StringPtr)parentDirSpec.name;
+    pBlock.dirInfo.ioFDirIndex = -1;        //get info on parID
+    err = ::PBGetCatInfoSync(&pBlock);
+    if (err != noErr)
+      return MacErrorMapper(err);
+    
+    parentDirSpec.vRefNum = aFileSpec->vRefNum;
+    parentDirSpec.parID = pBlock.dirInfo.ioDrParID;
+    err = ::FSpMakeFSRef(&parentDirSpec, &fsRef);
+    if (err != noErr)
+      return MacErrorMapper(err);
+    HFSUniStr255 unicodeName;
+    err = ::HFSNameGetUnicodeName(aFileSpec->name, kTextEncodingUnknown, &unicodeName);
+    if (err != noErr)
+      return MacErrorMapper(err);
+    nsresult rv = InitWithFSRef(&fsRef);
+    if (NS_FAILED(rv))
+      return rv;
+    return Append(nsDependentString(unicodeName.unicode, unicodeName.length));  
+  }
+  return MacErrorMapper(err);
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
+}
+
+/* void initToAppWithCreatorCode (in OSType aAppCreator); */
 NS_IMETHODIMP nsLocalFile::InitToAppWithCreatorCode(OSType aAppCreator)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
@@ -1667,63 +1922,80 @@ NS_IMETHODIMP nsLocalFile::InitToAppWithCreatorCode(OSType aAppCreator)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+/* CFURLRef getCFURL (); */
 NS_IMETHODIMP nsLocalFile::GetCFURL(CFURLRef *_retval)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  CHECK_mBaseURL();
-
-  if (mFollowLinks) {
-    nsCAutoString nativePath;
-    nsresult rv = GetNativeTarget(nativePath);
-    if (NS_SUCCEEDED(rv)) {
-      // This is a symlink if we can get a target path.
-      // We can assume this is not a directory if we know it is a symlink.
-      // I'll say this anyway because it is so dangerous: Do not call IsDirectory
-      // here because that ultimately ends up calling GetCFURL and you get a loop.
-      CFURLRef targetURL = ::CFURLCreateFromFileSystemRepresentation(kCFAllocatorDefault,
-                                                                     (UInt8*)nativePath.BeginWriting(),
-                                                                     nativePath.Length(),
-                                                                     false);
-      if (!targetURL)
-        return NS_ERROR_FAILURE;
-      *_retval = targetURL;
-      return NS_OK;
-    }
-  }
-
-  ::CFRetain(mBaseURL);
-  *_retval = mBaseURL;
-
-  return NS_OK;
+  NS_ENSURE_ARG_POINTER(_retval);
+  CFURLRef whichURLRef = mFollowLinks ? mTargetRef : mBaseRef;
+  if (whichURLRef)
+    ::CFRetain(whichURLRef);
+  *_retval = whichURLRef;
+  return whichURLRef ? NS_OK : NS_ERROR_FAILURE;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+/* FSRef getFSRef (); */
 NS_IMETHODIMP nsLocalFile::GetFSRef(FSRef *_retval)
 {
   NS_ENSURE_ARG_POINTER(_retval);
   return GetFSRefInternal(*_retval);
 }
 
+/* FSSpec getFSSpec (); */
 NS_IMETHODIMP nsLocalFile::GetFSSpec(FSSpec *_retval)
-{
+{  
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
   NS_ENSURE_ARG_POINTER(_retval);
-  CHECK_mBaseURL();
 
+  // Check we are correctly initialized.
+  CHECK_mBaseRef();
+
+  OSErr err;
   FSRef fsRef;
   nsresult rv = GetFSRefInternal(fsRef);
   if (NS_SUCCEEDED(rv)) {
-    OSErr err = ::FSGetCatalogInfo(&fsRef, kFSCatInfoNone, nsnull, nsnull, _retval, nsnull);
+    // If the leaf node exists, things are simple.
+    err = ::FSGetCatalogInfo(&fsRef, kFSCatInfoNone,
+              nsnull, nsnull, _retval, nsnull);
     return MacErrorMapper(err); 
+  }
+  else if (rv == NS_ERROR_FILE_NOT_FOUND) {
+    // If the parent of the leaf exists, make an FSSpec from that.
+    CFURLRef parentURLRef = ::CFURLCreateCopyDeletingLastPathComponent(kCFAllocatorDefault, mBaseRef);
+    if (!parentURLRef)
+      return NS_ERROR_FAILURE;
+
+    err = fnfErr;
+    if (::CFURLGetFSRef(parentURLRef, &fsRef)) {
+      FSCatalogInfo catalogInfo;
+      if ((err = ::FSGetCatalogInfo(&fsRef,
+                        kFSCatInfoVolume + kFSCatInfoNodeID + kFSCatInfoTextEncoding,
+                        &catalogInfo, nsnull, nsnull, nsnull)) == noErr) {
+        nsAutoString leafName;
+        if (NS_SUCCEEDED(GetLeafName(leafName))) {
+          Str31 hfsName;
+          if ((err = ::UnicodeNameGetHFSName(leafName.Length(),
+                          leafName.get(),
+                          catalogInfo.textEncodingHint,
+                          catalogInfo.nodeID == fsRtDirID,
+                          hfsName)) == noErr)
+            err = ::FSMakeFSSpec(catalogInfo.volume, catalogInfo.nodeID, hfsName, _retval);        
+        }
+      }
+    }
+    ::CFRelease(parentURLRef);
+    rv = MacErrorMapper(err);
   }
   return rv;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+/* readonly attribute PRInt64 fileSizeWithResFork; */
 NS_IMETHODIMP nsLocalFile::GetFileSizeWithResFork(PRInt64 *aFileSizeWithResFork)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
@@ -1747,26 +2019,24 @@ NS_IMETHODIMP nsLocalFile::GetFileSizeWithResFork(PRInt64 *aFileSizeWithResFork)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+/* attribute OSType fileType; */
 NS_IMETHODIMP nsLocalFile::GetFileType(OSType *aFileType)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
   NS_ENSURE_ARG_POINTER(aFileType);
-
-  CHECK_mBaseURL();
   
-  nsresult rv = NS_ERROR_FAILURE;
-
-  NSAutoreleasePool* ap = [[NSAutoreleasePool alloc] init];
-  NSDictionary* dict = [[NSFileManager defaultManager] fileAttributesAtPath:[(NSURL*)mBaseURL path] traverseLink:YES];
-  NSNumber* typeNum = (NSNumber*)[dict objectForKey:NSFileHFSTypeCode];
-  if (typeNum) {
-    *aFileType = [typeNum unsignedLongValue];
-    rv = NS_OK;
-  }
-  [ap release];
-
-  return rv;
+  FSRef fsRef;
+  nsresult rv = GetFSRefInternal(fsRef);
+  if (NS_FAILED(rv))
+    return rv;
+  
+  FinderInfo fInfo;  
+  OSErr err = ::FSGetFinderInfo(&fsRef, &fInfo, nsnull, nsnull);
+  if (err != noErr)
+    return MacErrorMapper(err);
+  *aFileType = fInfo.file.fileType;
+  return NS_OK;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
@@ -1775,37 +2045,35 @@ NS_IMETHODIMP nsLocalFile::SetFileType(OSType aFileType)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  CHECK_mBaseURL();
-
-  NSAutoreleasePool* ap = [[NSAutoreleasePool alloc] init];
-  NSDictionary* dict = [NSDictionary dictionaryWithObject:[NSNumber numberWithUnsignedLong:aFileType] forKey:NSFileHFSTypeCode];
-  BOOL success = [[NSFileManager defaultManager] changeFileAttributes:dict atPath:[(NSURL*)mBaseURL path]];
-  [ap release];
-  return (success ? NS_OK : NS_ERROR_FAILURE);
+  FSRef fsRef;
+  nsresult rv = GetFSRefInternal(fsRef);
+  if (NS_FAILED(rv))
+    return rv;
+    
+  OSErr err = ::FSChangeCreatorType(&fsRef, 0, aFileType);
+  return MacErrorMapper(err);
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+/* attribute OSType fileCreator; */
 NS_IMETHODIMP nsLocalFile::GetFileCreator(OSType *aFileCreator)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
   NS_ENSURE_ARG_POINTER(aFileCreator);
-
-  CHECK_mBaseURL();
-
-  nsresult rv = NS_ERROR_FAILURE;
-
-  NSAutoreleasePool* ap = [[NSAutoreleasePool alloc] init];
-  NSDictionary* dict = [[NSFileManager defaultManager] fileAttributesAtPath:[(NSURL*)mBaseURL path] traverseLink:YES];
-  id creatorNum = (NSNumber*)[dict objectForKey:NSFileHFSCreatorCode];
-  if (creatorNum) {
-    *aFileCreator = [creatorNum unsignedLongValue];
-    rv = NS_OK;
-  }
-  [ap release];
-
-  return rv;
+  
+  FSRef fsRef;
+  nsresult rv = GetFSRefInternal(fsRef);
+  if (NS_FAILED(rv))
+    return rv;
+  
+  FinderInfo fInfo;  
+  OSErr err = ::FSGetFinderInfo(&fsRef, &fInfo, nsnull, nsnull);
+  if (err != noErr)
+    return MacErrorMapper(err);
+  *aFileCreator = fInfo.file.fileCreator;
+  return NS_OK;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
@@ -1814,17 +2082,34 @@ NS_IMETHODIMP nsLocalFile::SetFileCreator(OSType aFileCreator)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  CHECK_mBaseURL();
-
-  NSAutoreleasePool* ap = [[NSAutoreleasePool alloc] init];
-  NSDictionary* dict = [NSDictionary dictionaryWithObject:[NSNumber numberWithUnsignedLong:aFileCreator] forKey:NSFileHFSCreatorCode];
-  BOOL success = [[NSFileManager defaultManager] changeFileAttributes:dict atPath:[(NSURL*)mBaseURL path]];
-  [ap release];
-  return (success ? NS_OK : NS_ERROR_FAILURE);
+  FSRef fsRef;
+  nsresult rv = GetFSRefInternal(fsRef);
+  if (NS_FAILED(rv))
+    return rv;
+    
+  OSErr err = ::FSChangeCreatorType(&fsRef, aFileCreator, 0);
+  return MacErrorMapper(err);
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+/* void setFileTypeAndCreatorFromMIMEType (in string aMIMEType); */
+NS_IMETHODIMP nsLocalFile::SetFileTypeAndCreatorFromMIMEType(const char *aMIMEType)
+{
+  // XXX - This should be cut from the API. Would create an evil dependency.
+  NS_ERROR("NS_ERROR_NOT_IMPLEMENTED");
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+/* void setFileTypeAndCreatorFromExtension (in string aExtension); */
+NS_IMETHODIMP nsLocalFile::SetFileTypeAndCreatorFromExtension(const char *aExtension)
+{
+  // XXX - This should be cut from the API. Would create an evil dependency.
+  NS_ERROR("NS_ERROR_NOT_IMPLEMENTED");
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+/* void launchWithDoc (in nsILocalFile aDocToLoad, in boolean aLaunchInBackground); */
 NS_IMETHODIMP nsLocalFile::LaunchWithDoc(nsILocalFile *aDocToLoad, PRBool aLaunchInBackground)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
@@ -1871,6 +2156,7 @@ NS_IMETHODIMP nsLocalFile::LaunchWithDoc(nsILocalFile *aDocToLoad, PRBool aLaunc
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+/* void openDocWithApp (in nsILocalFile aAppToOpenWith, in boolean aLaunchInBackground); */
 NS_IMETHODIMP nsLocalFile::OpenDocWithApp(nsILocalFile *aAppToOpenWith, PRBool aLaunchInBackground)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
@@ -1931,6 +2217,7 @@ NS_IMETHODIMP nsLocalFile::OpenDocWithApp(nsILocalFile *aAppToOpenWith, PRBool a
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+/* boolean isPackage (); */
 NS_IMETHODIMP nsLocalFile::IsPackage(PRBool *_retval)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
@@ -2000,20 +2287,61 @@ nsLocalFile::GetBundleIdentifier(nsACString& outBundleIdentifier)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+
+//*****************************************************************************
+//  nsLocalFile Methods
+//*****************************************************************************
 #pragma mark -
 #pragma mark [Protected Methods]
 
-nsresult nsLocalFile::SetBaseURL(CFURLRef aCFURLRef)
+nsresult nsLocalFile::SetBaseRef(CFURLRef aCFURLRef)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
   NS_ENSURE_ARG(aCFURLRef);
-
+  
   ::CFRetain(aCFURLRef);
-  if (mBaseURL)
-    ::CFRelease(mBaseURL);
-  mBaseURL = aCFURLRef;
+  if (mBaseRef)
+    ::CFRelease(mBaseRef);
+  mBaseRef = aCFURLRef;
 
+  mFollowLinksDirty = PR_TRUE;  
+  UpdateTargetRef();
+  return NS_OK;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
+}
+
+nsresult nsLocalFile::UpdateTargetRef()
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
+  // Check we are correctly initialized.
+  CHECK_mBaseRef();
+  
+  if (mFollowLinksDirty) {
+    if (mTargetRef) {
+      ::CFRelease(mTargetRef);
+      mTargetRef = nsnull;
+    }
+    if (mFollowLinks) {
+      mTargetRef = mBaseRef;
+      ::CFRetain(mTargetRef);
+
+      FSRef fsRef;
+      if (::CFURLGetFSRef(mBaseRef, &fsRef)) {
+        Boolean targetIsFolder, wasAliased;
+        if (FSResolveAliasFile(&fsRef, true /*resolveAliasChains*/, 
+            &targetIsFolder, &wasAliased) == noErr && wasAliased) {
+          ::CFRelease(mTargetRef);
+          mTargetRef = CFURLCreateFromFSRef(NULL, &fsRef);
+          if (!mTargetRef)
+            return NS_ERROR_FAILURE;
+        }
+      }
+      mFollowLinksDirty = PR_FALSE;
+    }
+  }
   return NS_OK;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
@@ -2023,9 +2351,14 @@ nsresult nsLocalFile::GetFSRefInternal(FSRef& aFSRef)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  CHECK_mBaseURL();
+  CFURLRef whichURLRef = mFollowLinks ? mTargetRef : mBaseRef;
+  NS_ENSURE_TRUE(whichURLRef, NS_ERROR_NULL_POINTER);
+  if (::CFURLGetFSRef(whichURLRef, &aFSRef))
+    return NS_OK;
 
-  return (::CFURLGetFSRef(mBaseURL, &aFSRef) ? NS_OK : NS_ERROR_FAILURE);
+  // We have to make an assumption about why CFURLGetFSRef failed as it only
+  // returns a bool. This is the most likely reason for failure.
+  return NS_ERROR_FILE_NOT_FOUND;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
@@ -2034,22 +2367,17 @@ nsresult nsLocalFile::GetPathInternal(nsACString& path)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  CHECK_mBaseURL();
-
-  CFURLRef urlRef;
-  nsresult rv = GetCFURL(&urlRef);
-  if (NS_FAILED(rv))
-    return rv;
-
-  path.SetLength(PATH_MAX);
-  if (path.Length() != (unsigned int)PATH_MAX) {
-    ::CFRelease(urlRef);
-    return NS_ERROR_OUT_OF_MEMORY;
+  nsresult rv = NS_ERROR_FAILURE;
+  
+  CFURLRef whichURLRef = mFollowLinks ? mTargetRef : mBaseRef;
+  NS_ENSURE_TRUE(whichURLRef, NS_ERROR_NULL_POINTER);
+   
+  CFStringRef pathStrRef = ::CFURLCopyFileSystemPath(whichURLRef, kCFURLPOSIXPathStyle);
+  if (pathStrRef) {
+    rv = CFStringReftoUTF8(pathStrRef, path);
+    ::CFRelease(pathStrRef);
   }
-  Boolean gotPath = ::CFURLGetFileSystemRepresentation(urlRef, true, (UInt8*)path.BeginWriting(), PATH_MAX);
-  ::CFRelease(urlRef);
-
-  return (gotPath ? NS_OK : NS_ERROR_FAILURE);
+  return rv;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
@@ -2060,13 +2388,14 @@ nsresult nsLocalFile::CopyInternal(nsIFile* aParentDir,
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  CHECK_mBaseURL();
+  // Check we are correctly initialized.
+  CHECK_mBaseRef();
 
   StFollowLinksState srcFollowState(*this, followLinks);
 
   nsresult rv;
   OSErr err;
-  FSRef srcFSRef;
+  FSRef srcFSRef, newFSRef;
 
   rv = GetFSRefInternal(srcFSRef);
   if (NS_FAILED(rv))
@@ -2101,58 +2430,61 @@ nsresult nsLocalFile::CopyInternal(nsIFile* aParentDir,
   if (NS_FAILED(rv))
     return rv;
 
-  CFStringRef destNameStr = NULL;
-  if (newName.Length() > 0) {
-    destNameStr = ::CFStringCreateWithCharacters(kCFAllocatorDefault,
-                                                 PromiseFlatString(newName).get(),
-                                                 newName.Length());
-  }
-  err = ::FSCopyObjectSync(&srcFSRef, &destFSRef, destNameStr, NULL, kFSFileOperationDefaultOptions);
-  if (destNameStr)
-    ::CFRelease(destNameStr);
+  err =
+   ::FSCopyObject(&srcFSRef, &destFSRef, newName.Length(),
+                  newName.Length() ? PromiseFlatString(newName).get() : NULL,
+                  0, kFSCatInfoNone, false, false, NULL, NULL, &newFSRef);
 
   return MacErrorMapper(err);
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
-nsresult nsLocalFile::FillStatBufferInternal(struct STAT *statBuffer)
+const PRInt64 kMillisecsPerSec = 1000LL;
+const PRInt64 kUTCDateTimeFractionDivisor = 65535LL;
+
+PRInt64 nsLocalFile::HFSPlustoNSPRTime(const UTCDateTime& utcTime)
 {
-  CHECK_mBaseURL();
+  // Start with seconds since Jan. 1, 1904 GMT
+  PRInt64 result = ((PRInt64)utcTime.highSeconds << 32) + (PRInt64)utcTime.lowSeconds; 
+  // Subtract to convert to NSPR epoch of 1970
+  result -= kJanuaryFirst1970Seconds;
+  // Convert to millisecs
+  result *= kMillisecsPerSec;
+  // Convert the fraction to millisecs and add it
+  result += ((PRInt64)utcTime.fraction * kMillisecsPerSec) / kUTCDateTimeFractionDivisor;
 
-  char path[PATH_MAX] = "";
-  Boolean gotPath = ::CFURLGetFileSystemRepresentation(mBaseURL, true, (UInt8*)path, PATH_MAX);
-  if (!gotPath)
-    return NS_ERROR_FAILURE;
+  return result;
+}
 
-  if (STAT(path, statBuffer) == -1) {
-    if (LSTAT(path, statBuffer) == -1)
-      return NSRESULT_FOR_ERRNO();
-  }
-
-  return NS_OK;
+void nsLocalFile::NSPRtoHFSPlusTime(PRInt64 nsprTime, UTCDateTime& utcTime)
+{
+  PRInt64 fraction = nsprTime % kMillisecsPerSec;
+  PRInt64 seconds = (nsprTime / kMillisecsPerSec) + kJanuaryFirst1970Seconds;
+  utcTime.highSeconds = (UInt16)((PRUint64)seconds >> 32);
+  utcTime.lowSeconds = (UInt32)seconds;
+  utcTime.fraction = (UInt16)((fraction * kUTCDateTimeFractionDivisor) / kMillisecsPerSec);
 }
 
 nsresult nsLocalFile::CFStringReftoUTF8(CFStringRef aInStrRef, nsACString& aOutStr)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  // first see if the conversion would succeed and find the length of the result
+  nsresult rv = NS_ERROR_FAILURE;
   CFIndex usedBufLen, inStrLen = ::CFStringGetLength(aInStrRef);
   CFIndex charsConverted = ::CFStringGetBytes(aInStrRef, CFRangeMake(0, inStrLen),
-                                              kCFStringEncodingUTF8, 0, PR_FALSE,
-                                              NULL, 0, &usedBufLen);
+                              kCFStringEncodingUTF8, 0, PR_FALSE, nsnull, 0, &usedBufLen);
   if (charsConverted == inStrLen) {
-    // all characters converted, do the actual conversion
     aOutStr.SetLength(usedBufLen);
     if (aOutStr.Length() != (unsigned int)usedBufLen)
       return NS_ERROR_OUT_OF_MEMORY;
-    UInt8 *buffer = (UInt8*)aOutStr.BeginWriting();
-    ::CFStringGetBytes(aInStrRef, CFRangeMake(0, inStrLen), kCFStringEncodingUTF8,
-                       0, false, buffer, usedBufLen, &usedBufLen);
-    return NS_OK;
+    UInt8 *buffer = (UInt8*) aOutStr.BeginWriting();
+
+    ::CFStringGetBytes(aInStrRef, CFRangeMake(0, inStrLen),
+                       kCFStringEncodingUTF8, 0, false, buffer, usedBufLen, &usedBufLen);
+    rv = NS_OK;
   }
-  return NS_ERROR_FAILURE;
+  return rv;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
@@ -2162,7 +2494,7 @@ nsresult nsLocalFile::CFStringReftoUTF8(CFStringRef aInStrRef, nsACString& aOutS
 NS_IMETHODIMP
 nsLocalFile::Equals(nsIHashable* aOther, PRBool *aResult)
 {
-  return EqualsInternal(aOther, aResult);
+    return EqualsInternal(aOther, aResult);
 }
 
 NS_IMETHODIMP
@@ -2170,7 +2502,7 @@ nsLocalFile::GetHashCode(PRUint32 *aResult)
 {
     NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-    CFStringRef pathStrRef = ::CFURLCopyFileSystemPath(mBaseURL, kCFURLPOSIXPathStyle);
+    CFStringRef pathStrRef = ::CFURLCopyFileSystemPath(mBaseRef, kCFURLPOSIXPathStyle);
     nsCAutoString path;
     CFStringReftoUTF8(pathStrRef, path);
     ::CFRelease(pathStrRef);
@@ -2180,6 +2512,9 @@ nsLocalFile::GetHashCode(PRUint32 *aResult)
     NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+//*****************************************************************************
+//  Global Functions
+//*****************************************************************************
 #pragma mark -
 #pragma mark [Global Functions]
 
@@ -2216,6 +2551,24 @@ nsresult NS_NewNativeLocalFile(const nsACString& path, PRBool followLinks, nsILo
     return NS_NewLocalFile(NS_ConvertUTF8toUTF16(path), followLinks, result);
 }
 
+nsresult NS_NewLocalFileWithFSSpec(const FSSpec* inSpec, PRBool followLinks, nsILocalFileMac **result)
+{
+    nsLocalFile* file = new nsLocalFile();
+    if (file == nsnull)
+        return NS_ERROR_OUT_OF_MEMORY;
+    NS_ADDREF(file);
+
+    file->SetFollowLinks(followLinks);
+
+    nsresult rv = file->InitWithFSSpec(inSpec);
+    if (NS_FAILED(rv)) {
+        NS_RELEASE(file);
+        return rv;
+    }
+    *result = file;
+    return NS_OK;
+}
+
 nsresult NS_NewLocalFileWithFSRef(const FSRef* aFSRef, PRBool aFollowLinks, nsILocalFileMac** result)
 {
     nsLocalFile* file = new nsLocalFile();
@@ -2234,26 +2587,9 @@ nsresult NS_NewLocalFileWithFSRef(const FSRef* aFSRef, PRBool aFollowLinks, nsIL
     return NS_OK;
 }
 
-nsresult NS_NewLocalFileWithCFURL(const CFURLRef aURL, PRBool aFollowLinks, nsILocalFileMac** result)
-{
-  nsLocalFile* file = new nsLocalFile();
-  if (file == nsnull)
-    return NS_ERROR_OUT_OF_MEMORY;
-  NS_ADDREF(file);
-
-  file->SetFollowLinks(aFollowLinks);
-
-  nsresult rv = file->InitWithCFURL(aURL);
-  if (NS_FAILED(rv)) {
-    NS_RELEASE(file);
-    return rv;
-  }
-  *result = file;
-  return NS_OK;
-}
-
-#pragma mark -
-#pragma mark [Static Functions]
+//*****************************************************************************
+//  Static Functions
+//*****************************************************************************
 
 static nsresult MacErrorMapper(OSErr inErr)
 {
@@ -2306,46 +2642,98 @@ static nsresult MacErrorMapper(OSErr inErr)
     return outErr;
 }
 
+static OSErr FindRunningAppBySignature(OSType aAppSig, ProcessSerialNumber& outPsn)
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
+
+  ProcessInfoRec info;
+  OSErr err = noErr;
+  
+  outPsn.highLongOfPSN = 0;
+  outPsn.lowLongOfPSN  = kNoProcess;
+  
+  while (PR_TRUE)
+  {
+    err = ::GetNextProcess(&outPsn);
+    if (err == procNotFound)
+      break;
+    if (err != noErr)
+      return err;
+    info.processInfoLength = sizeof(ProcessInfoRec);
+    info.processName = nil;
+    info.processAppSpec = nil;
+    err = ::GetProcessInformation(&outPsn, &info);
+    if (err != noErr)
+      return err;
+    
+    if (info.processSignature == aAppSig)
+      return noErr;
+  }
+  return procNotFound;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(procNotFound);
+}
+
 // Convert a UTF-8 string to a UTF-16 string while normalizing to
 // Normalization Form C (composed Unicode). We need this because
 // Mac OS X file system uses NFD (Normalization Form D : decomposed Unicode)
 // while most other OS', server-side programs usually expect NFC.
+
+typedef void (*UnicodeNormalizer) (CFMutableStringRef, CFStringNormalizationForm);
 static void CopyUTF8toUTF16NFC(const nsACString& aSrc, nsAString& aResult)
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+    NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  const nsAFlatCString &inFlatSrc = PromiseFlatCString(aSrc);
+    static PRBool sChecked = PR_FALSE;
+    static UnicodeNormalizer sUnicodeNormalizer = NULL;
 
-  // The number of 16bit code units in a UTF-16 string will never be
-  // larger than the number of bytes in the corresponding UTF-8 string.
-  CFMutableStringRef inStr = ::CFStringCreateMutable(NULL, inFlatSrc.Length());
-
-  if (!inStr) {
-    CopyUTF8toUTF16(aSrc, aResult);
-    return;
-  }
-
-  ::CFStringAppendCString(inStr, inFlatSrc.get(), kCFStringEncodingUTF8);
-
-  ::CFStringNormalize(inStr, kCFStringNormalizationFormC);
-
-  CFIndex length = ::CFStringGetLength(inStr);
-  const UniChar* chars = ::CFStringGetCharactersPtr(inStr);
-
-  if (chars) {
-    aResult.Assign(chars, length);
-  }
-  else {
-    nsAutoTArray<UniChar, FILENAME_BUFFER_SIZE> buffer;
-    if (!buffer.SetLength(length)) {
-      CopyUTF8toUTF16(aSrc, aResult);
+    // CFStringNormalize was not introduced until Mac OS 10.2
+    if (!sChecked) {
+        CFBundleRef carbonBundle =
+            CFBundleGetBundleWithIdentifier(CFSTR("com.apple.Carbon"));
+        if (carbonBundle)
+            sUnicodeNormalizer = (UnicodeNormalizer)
+                ::CFBundleGetFunctionPointerForName(carbonBundle,
+                                                    CFSTR("CFStringNormalize"));
+        sChecked = PR_TRUE;
     }
+
+    if (!sUnicodeNormalizer) {  // OS X 10.2 or earlier
+        CopyUTF8toUTF16(aSrc, aResult);
+        return;  
+    }
+
+    const nsAFlatCString &inFlatSrc = PromiseFlatCString(aSrc);
+
+    // The number of 16bit code units in a UTF-16 string will never be
+    // larger than the number of bytes in the corresponding UTF-8 string.
+    CFMutableStringRef inStr =
+        ::CFStringCreateMutable(NULL, inFlatSrc.Length());
+
+    if (!inStr) {
+        CopyUTF8toUTF16(aSrc, aResult);
+        return;  
+    }
+     
+    ::CFStringAppendCString(inStr, inFlatSrc.get(), kCFStringEncodingUTF8); 
+
+    sUnicodeNormalizer(inStr, kCFStringNormalizationFormC);
+
+    CFIndex length = CFStringGetLength(inStr);
+    const UniChar* chars = CFStringGetCharactersPtr(inStr);
+
+    if (chars) 
+        aResult.Assign(chars, length);
     else {
-      ::CFStringGetCharacters(inStr, ::CFRangeMake(0, length), buffer.Elements());
-      aResult.Assign(buffer.Elements(), length);
+        nsAutoTArray<UniChar, FILENAME_BUFFER_SIZE> buffer;
+        if (!buffer.SetLength(length))
+            CopyUTF8toUTF16(aSrc, aResult);
+        else {
+            CFStringGetCharacters(inStr, CFRangeMake(0, length), buffer.Elements());
+            aResult.Assign(buffer.Elements(), length);
+        }
     }
-  }
-  ::CFRelease(inStr);
+    CFRelease(inStr);
 
-  NS_OBJC_END_TRY_ABORT_BLOCK;
+    NS_OBJC_END_TRY_ABORT_BLOCK;
 }

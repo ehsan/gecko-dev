@@ -41,15 +41,15 @@
 #define nsNPAPIPluginInstance_h_
 
 #include "nsCOMPtr.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "nsIPlugin.h"
 #include "nsIPluginInstance.h"
 #include "nsIPluginInstancePeer.h"
 #include "nsIPluginTagInfo2.h"
+#include "nsIScriptablePlugin.h"
 #include "nsIPluginInstanceInternal.h"
-#include "nsPIDOMWindow.h"
 
-#include "npfunctions.h"
+#include "npupp.h"
 #include "prlink.h"
 
 class nsNPAPIPluginStreamListener;
@@ -65,12 +65,14 @@ struct nsInstanceStream
 };
 
 class nsNPAPIPluginInstance : public nsIPluginInstance,
+                              public nsIScriptablePlugin,
                               public nsIPluginInstanceInternal
 {
 public:
 
     NS_DECL_ISUPPORTS
     NS_DECL_NSIPLUGININSTANCE
+    NS_DECL_NSISCRIPTABLEPLUGIN
 
     // nsIPluginInstanceInternal methods
 
@@ -87,6 +89,7 @@ public:
 
     // nsNPAPIPluginInstance-specific methods
 
+    // Return the 4.x-style interface object.
     nsresult GetNPP(NPP * aNPP);
 
     // Return the callbacks for the plugin instance.
@@ -108,6 +111,8 @@ public:
                              PRBool aCallNotify,
                              const char * aURL);
 
+    // Construct a new 4.x plugin instance with the specified peer
+    // and callbacks.
     nsNPAPIPluginInstance(NPPluginFuncs* callbacks, PRLibrary* aLibrary);
 
     // Use Release() to destroy this
@@ -116,7 +121,7 @@ public:
     // returns the state of mStarted
     PRBool IsStarted(void);
 
-    // cache this NPAPI plugin like an XPCOM plugin
+    // cache this 4.x plugin like an XPCOM plugin
     nsresult SetCached(PRBool aCache) { mCached = aCache; return NS_OK; }
 
     // Non-refcounting accessor for faster access to the peer.
@@ -127,7 +132,6 @@ public:
 
     already_AddRefed<nsPIDOMWindow> GetDOMWindow();
 
-    nsresult PrivateModeStateChanged();
 protected:
 
     nsresult InitializePlugin(nsIPluginInstancePeer* peer);
@@ -143,8 +147,8 @@ protected:
     // and is common for all plugins of the class.
     NPPluginFuncs* fCallbacks;
 
-    // The structure used to communicate between the plugin instance and
-    // the browser.
+    // The 4.x-style structure used to communicate between the plugin
+    // instance and the browser.
     NPP_t fNPP;
 
 #ifdef XP_MACOSX
@@ -166,7 +170,7 @@ public:
     PRLibrary* fLibrary;
     nsInstanceStream *mStreams;
 
-    nsTArray<PopupControlState> mPopupStates;
+    nsVoidArray mPopupStates;
 };
 
 #endif // nsNPAPIPluginInstance_h_

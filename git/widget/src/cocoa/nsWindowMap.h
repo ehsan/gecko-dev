@@ -63,7 +63,6 @@
 
 + (WindowDataMap*)sharedWindowDataMap;
 
-- (void)ensureDataForWindow:(NSWindow*)inWindow;
 - (id)dataForWindow:(NSWindow*)inWindow;
 
 // set data for a given window. inData is retained (and any previously set data
@@ -76,8 +75,6 @@
 @end
 
 
-@class ChildView;
-
 // 
 //  TopLevelWindowData
 // 
@@ -87,6 +84,7 @@
 @interface TopLevelWindowData : NSObject
 {
 @private
+
 }
 
 - (id)initWithWindow:(NSWindow*)inWindow;

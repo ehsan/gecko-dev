@@ -39,29 +39,23 @@
 #include "cairoint.h"
 
 static void
-_cairo_cache_shrink_to_accommodate (cairo_cache_t *cache,
-				    unsigned long  additional);
+_cairo_cache_remove (cairo_cache_t	 *cache,
+		     cairo_cache_entry_t *entry);
 
-static cairo_bool_t
-_cairo_cache_entry_is_non_zero (const void *entry)
-{
-    return ((const cairo_cache_entry_t *) entry)->size;
-}
+static void
+_cairo_cache_shrink_to_accommodate (cairo_cache_t *cache,
+				   unsigned long  additional);
 
 static cairo_status_t
 _cairo_cache_init (cairo_cache_t		*cache,
 		   cairo_cache_keys_equal_func_t keys_equal,
-		   cairo_cache_predicate_func_t  predicate,
 		   cairo_destroy_func_t		 entry_destroy,
 		   unsigned long		 max_size)
 {
     cache->hash_table = _cairo_hash_table_create (keys_equal);
-    if (unlikely (cache->hash_table == NULL))
+    if (cache->hash_table == NULL)
 	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
 
-    if (predicate == NULL)
-	predicate = _cairo_cache_entry_is_non_zero;
-    cache->predicate = predicate;
     cache->entry_destroy = entry_destroy;
 
     cache->max_size = max_size;
@@ -73,19 +67,24 @@ _cairo_cache_init (cairo_cache_t		*cache,
 }
 
 static void
-_cairo_cache_pluck (void *entry, void *closure)
-{
-    _cairo_cache_remove (closure, entry);
-}
-
-static void
 _cairo_cache_fini (cairo_cache_t *cache)
 {
-    _cairo_hash_table_foreach (cache->hash_table,
-			       _cairo_cache_pluck,
-			       cache);
-    assert (cache->size == 0);
+    cairo_cache_entry_t *entry;
+
+    /* We have to manually remove all entries from the cache ourselves
+     * rather than relying on _cairo_hash_table_destroy() to do that
+     * since otherwise the cache->entry_destroy callback would not get
+     * called on each entry. */
+
+    while (1) {
+	entry = _cairo_hash_table_random_entry (cache->hash_table, NULL);
+	if (entry == NULL)
+	    break;
+	_cairo_cache_remove (cache, entry);
+    }
+
     _cairo_hash_table_destroy (cache->hash_table);
+    cache->size = 0;
 }
 
 /**
@@ -93,7 +92,6 @@ _cairo_cache_fini (cairo_cache_t *cache)
  * @keys_equal: a function to return %TRUE if two keys are equal
  * @entry_destroy: destroy notifier for cache entries
  * @max_size: the maximum size for this cache
- * Returns: the newly created #cairo_cache_t
  *
  * Creates a new cache using the keys_equal() function to determine
  * the equality of entries.
@@ -121,10 +119,11 @@ _cairo_cache_fini (cairo_cache_t *cache)
  * _cairo_cache_freeze() and _cairo_cache_thaw() calls can be
  * used to establish a window during which no automatic removal of
  * entries will occur.
+ *
+ * Return value:
  **/
 cairo_cache_t *
 _cairo_cache_create (cairo_cache_keys_equal_func_t keys_equal,
-		     cairo_cache_predicate_func_t  predicate,
 		     cairo_destroy_func_t	   entry_destroy,
 		     unsigned long		   max_size)
 {
@@ -132,17 +131,13 @@ _cairo_cache_create (cairo_cache_keys_equal_func_t keys_equal,
     cairo_cache_t *cache;
 
     cache = malloc (sizeof (cairo_cache_t));
-    if (unlikely (cache == NULL)) {
+    if (cache == NULL) {
 	status = _cairo_error (CAIRO_STATUS_NO_MEMORY);
 	return NULL;
     }
 
-    status = _cairo_cache_init (cache,
-				keys_equal,
-				predicate,
-				entry_destroy,
-				max_size);
-    if (unlikely (status)) {
+    status = _cairo_cache_init (cache, keys_equal, entry_destroy, max_size);
+    if (status) {
 	free (cache);
 	return NULL;
     }
@@ -228,12 +223,14 @@ _cairo_cache_thaw (cairo_cache_t *cache)
  * @key, (which will now be in *entry_return). %FALSE otherwise, (in
  * which case *entry_return will be %NULL).
  **/
-void *
+cairo_bool_t
 _cairo_cache_lookup (cairo_cache_t	  *cache,
-		     cairo_cache_entry_t  *key)
+		     cairo_cache_entry_t  *key,
+		     cairo_cache_entry_t **entry_return)
 {
     return _cairo_hash_table_lookup (cache->hash_table,
-				     (cairo_hash_entry_t *) key);
+				     (cairo_hash_entry_t *) key,
+				     (cairo_hash_entry_t **) entry_return);
 }
 
 /**
@@ -250,9 +247,8 @@ _cairo_cache_remove_random (cairo_cache_t *cache)
 {
     cairo_cache_entry_t *entry;
 
-    entry = _cairo_hash_table_random_entry (cache->hash_table,
-					    cache->predicate);
-    if (unlikely (entry == NULL))
+    entry = _cairo_hash_table_random_entry (cache->hash_table, NULL);
+    if (entry == NULL)
 	return FALSE;
 
     _cairo_cache_remove (cache, entry);
@@ -305,7 +301,7 @@ _cairo_cache_insert (cairo_cache_t	 *cache,
 
     status = _cairo_hash_table_insert (cache->hash_table,
 				       (cairo_hash_entry_t *) entry);
-    if (unlikely (status))
+    if (status)
 	return status;
 
     cache->size += entry->size;
@@ -319,8 +315,13 @@ _cairo_cache_insert (cairo_cache_t	 *cache,
  * @entry: an entry that exists in the cache
  *
  * Remove an existing entry from the cache.
+ *
+ * (Note: If any caller wanted access to a non-static version of this
+ * function, an improved version would require only a key rather than
+ * an entry. Fixing that would require fixing _cairo_hash_table_remove
+ * to return (a copy of?) the entry being removed.)
  **/
-void
+static void
 _cairo_cache_remove (cairo_cache_t	 *cache,
 		     cairo_cache_entry_t *entry)
 {
@@ -343,7 +344,7 @@ _cairo_cache_remove (cairo_cache_t	 *cache,
  * non-specified order.
  **/
 void
-_cairo_cache_foreach (cairo_cache_t		      *cache,
+_cairo_cache_foreach (cairo_cache_t	 	      *cache,
 		      cairo_cache_callback_func_t      cache_callback,
 		      void			      *closure)
 {
@@ -356,20 +357,8 @@ unsigned long
 _cairo_hash_string (const char *c)
 {
     /* This is the djb2 hash. */
-    unsigned long hash = _CAIRO_HASH_INIT_VALUE;
+    unsigned long hash = 5381;
     while (c && *c)
 	hash = ((hash << 5) + hash) + *c++;
-    return hash;
-}
-
-unsigned long
-_cairo_hash_bytes (unsigned long hash,
-		   const void *ptr,
-		   unsigned int length)
-{
-    const uint8_t *bytes = ptr;
-    /* This is the djb2 hash. */
-    while (length--)
-	hash = ((hash << 5) + hash) + *bytes++;
     return hash;
 }

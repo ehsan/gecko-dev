@@ -47,7 +47,7 @@
 #include "nsIDOMTreeWalker.h"
 #include "nsTraversal.h"
 #include "nsCOMPtr.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "nsCycleCollectionParticipant.h"
 
 class nsINode;
@@ -74,8 +74,9 @@ private:
     /*
      * Array with all child indexes up the tree. This should only be
      * considered a hint and the value could be wrong.
+     * The array contains casted PRInt32's
      */
-    nsAutoTArray<PRInt32, 8> mPossibleIndexes;
+    nsAutoVoidArray mPossibleIndexes;
     
     /*
      * Position of mCurrentNode in mPossibleIndexes
@@ -146,7 +147,7 @@ private:
                      nsINode** _retval);
 
     /*
-     * Gets the child index of a node within its parent. Gets a possible index
+     * Gets the child index of a node within it's parent. Gets a possible index
      * from mPossibleIndexes to gain speed. If the value in mPossibleIndexes
      * isn't correct it'll get the index the usual way.
      * @param aParent   in which to get the index
@@ -167,10 +168,9 @@ private:
      */
     void SetChildIndex(PRInt32 aIndexPos, PRInt32 aChildIndex)
     {
-        if (aIndexPos >= 0 &&
-            mPossibleIndexes.EnsureLengthAtLeast(aIndexPos+1)) {
-            mPossibleIndexes.ElementAt(aIndexPos) = aChildIndex;
-        }
+        if (aIndexPos != -1)
+            mPossibleIndexes.ReplaceElementAt(NS_INT32_TO_PTR(aChildIndex),
+                                              aIndexPos);
     }
 };
 

@@ -45,8 +45,8 @@
 #include "nsCOMPtr.h"
 
 #if defined(XP_MACOSX)
-#include <Carbon/Carbon.h>
-#include <CoreFoundation/CoreFoundation.h>
+#include <Processes.h>
+#include <CFBundle.h>
 #endif
 
 #ifdef XP_UNIX
@@ -505,12 +505,8 @@ nsresult nsProfileLock::Lock(nsILocalFile* aProfileDir,
 
             if (ioBytes == sizeof(LockProcessInfo))
             {
-#ifdef __LP64__
-                processInfo.processAppRef = NULL;
-#else
-                processInfo.processAppSpec = NULL;
-#endif
-                processInfo.processName = NULL;
+                processInfo.processAppSpec = nsnull;
+                processInfo.processName = nsnull;
                 processInfo.processInfoLength = sizeof(ProcessInfoRec);
                 if (::GetProcessInformation(&lockProcessInfo.psn, &processInfo) == noErr &&
                     processInfo.processLaunchDate == lockProcessInfo.launchDate)
@@ -577,23 +573,12 @@ nsresult nsProfileLock::Lock(nsILocalFile* aProfileDir,
     rv = lockFile->GetPath(filePath);
     if (NS_FAILED(rv))
         return rv;
-#ifdef WINCE
-    // WinCE doesn't have FILE_FLAG_DELETE_ON_CLOSE, so let's just try
-    // to delete the file first before creating it.  This will fail
-    // if it's already open.
-    DeleteFileW(filePath.get());
-#endif
-
     mLockFileHandle = CreateFileW(filePath.get(),
                                   GENERIC_READ | GENERIC_WRITE,
                                   0, // no sharing - of course
                                   nsnull,
                                   OPEN_ALWAYS,
-#ifndef WINCE
                                   FILE_FLAG_DELETE_ON_CLOSE,
-#else
-                                  FILE_ATTRIBUTE_NORMAL,
-#endif
                                   nsnull);
     if (mLockFileHandle == INVALID_HANDLE_VALUE) {
         // XXXbsmedberg: provide a profile-unlocker here!
@@ -629,15 +614,15 @@ nsresult nsProfileLock::Lock(nsILocalFile* aProfileDir,
     mLockFileDesc = open_noshr(filePath.get(), O_CREAT, 0666);
     if (mLockFileDesc == -1)
     {
-        if ((errno == EVMSERR) && (vaxc$errno == RMS$_FLK))
-        {
-            return NS_ERROR_FILE_ACCESS_DENIED;
-        }
-        else
-        {
-            NS_ERROR("Failed to open lock file.");
-            return NS_ERROR_FAILURE;
-        }
+	if ((errno == EVMSERR) && (vaxc$errno == RMS$_FLK))
+	{
+	    return NS_ERROR_FILE_ACCESS_DENIED;
+	}
+	else
+	{
+	    NS_ERROR("Failed to open lock file.");
+	    return NS_ERROR_FAILURE;
+	}
     }
 #endif
 

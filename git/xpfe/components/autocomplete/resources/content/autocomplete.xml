@@ -39,16 +39,13 @@
       <children includes="menupopup"/>
     </content>
 
-    <implementation implements="nsIDOMXULMenuListElement, nsIAccessibleProvider, nsIDOMEventListener">
+    <implementation implements="nsIDOMXULMenuListElement, nsIAccessibleProvider">
 
       <constructor><![CDATA[
         // XXX bug 90337 band-aid until we figure out what's going on here
         if (this.value != this.mInputElt.value)
           this.mInputElt.value = this.value;
         delete this.value;
-
-        // listen for menubar activation
-        window.top.addEventListener("DOMMenuBarActive", this, true);
 
         // set default property values
         this.ifSetAttribute("timeout", 50);
@@ -70,7 +67,6 @@
 
       <destructor><![CDATA[
         this.clearResults(false);
-        window.top.removeEventListener("DOMMenuBarActive", this, true);
       ]]></destructor>
       
       <!-- =================== PUBLIC PROPERTIES =================== -->
@@ -158,6 +154,10 @@
 
       <!-- if the resulting match string is not at the beginning of the typed string,
            this will optionally autofill like this "bar |>> foobar|" -->
+      <property name="autoFillAfterMatch"
+                onset="this.setAttribute('autofillaftermatch', val); return val;"
+                onget="return this.getAttribute('autofillaftermatch') == 'true';"/>
+
       <property name="completeDefaultIndex"
                 onset="this.setAttribute('completedefaultindex', val); return val;"
                 onget="return this.getAttribute('completedefaultindex') == 'true';"/>
@@ -235,16 +235,6 @@
       <field name="resultsPopup"><![CDATA[
         document.getAnonymousElementByAttribute(this, "anonid", "popup");
       ]]></field>
-
-      <!-- nsIDOMEventListener -->
-      <method name="handleEvent">
-        <parameter name="aEvent"/>
-        <body><![CDATA[
-          this.finishAutoComplete(false, false, aEvent);
-          this.clearTimer();
-          this.closeResultPopup();
-        ]]></body>
-      </method>
 
       <!-- nsIAccessibleProvider --> 
       <property name="accessibleType" readonly="true">
@@ -608,7 +598,6 @@
         <body><![CDATA[
           var str = this.currentSearchString;
           if (!str) {
-            this.clearResults(false);
             this.closeResultPopup();
             return;
           }
@@ -781,10 +770,9 @@
               this.setTextValue(val);
               this.mNeedToFinish = false;
             } else if (this.mTransientValue || 
-                       !(this.forceComplete ||
-                        (aForceComplete &&
-                         this.mDefaultMatchFilled &&
-                         this.mNeedToComplete))) {
+                       !(this.forceComplete || this.mDefaultMatchFilled) ||
+                       !(this.forceComplete || aForceComplete) ||
+                       !(this.mNeedToComplete || aForceComplete)) {
               this.mNeedToFinish = false;
             } else if (this.isWaiting) {
               // if the user typed, the search results are out of date, so let
@@ -852,7 +840,7 @@
           var val = this.resultsPopup.overrideValue;
             if (val)
               this.setTextValue(val);
-          else if (this.resultsPopup.selectedIndex != -1) {
+          else if (this.resultsPopup.selectedIndex != -1 && !this.noMatch) {
             if (this.getSessionStatusAt(this.resultsPopup.selectedIndex) ==
                 Components.interfaces.nsIAutoCompleteStatus.failureItems) {
               this.setTextValue(this.currentSearchString);
@@ -923,11 +911,13 @@
           // stop the queued up lookup on a timer
           this.clearTimer();
 
+          if (this.ignoreInputEvent)
+            return;
+          
           if (this.disableAutoComplete)
             return;
 
           this.userAction = "typing";
-          this.mFinishAfterSearch = false;
           this.mNeedToFinish = true;
           this.mTransientValue = false;
           this.mNeedToComplete = true;
@@ -936,6 +926,18 @@
           this.resultsPopup.clearSelection();
           
           this.mAutoCompleteTimer = setTimeout(this.callListener, this.timeout, this, "startLookup");
+        ]]></body>
+      </method>
+
+      <!--  -->
+      <method name="processKeyDown">
+        <parameter name="aEvent"/>
+        <body><![CDATA[
+          if (aEvent.keyCode && aEvent.keyCode == this.mMenuAccessKey) {
+              this.finishAutoComplete(false, false, aEvent);
+              this.clearTimer();
+              this.closeResultPopup();
+          }
         ]]></body>
       </method>
 
@@ -986,9 +988,7 @@
   
             case KeyEvent.DOM_VK_LEFT:
             case KeyEvent.DOM_VK_RIGHT:
-            case KeyEvent.DOM_VK_HOME:
-            case KeyEvent.DOM_VK_END:
-              this.finishAutoComplete(true, false, aEvent);
+              this.finishAutoComplete(false, false, aEvent);
               this.clearTimer();
               this.closeResultPopup();
               break;
@@ -1136,7 +1136,7 @@
                 this.setTextValue(this.value + resultValue.substr(endPoint));
                 this.mInputElt.setSelectionRange(endPoint, this.value.length);
               } else {
-                if (this.completeDefaultIndex) {
+                if (this.autoFillAfterMatch || this.completeDefaultIndex) {
                   this.setTextValue(this.value + " >> " + resultValue);
                   this.mInputElt.setSelectionRange(entry.length, this.value.length);
                 } else {
@@ -1436,7 +1436,10 @@
 
     <handlers>
       <handler event="input"
-               action="if (!this.ignoreInputEvent) this.processInput();"/>
+               action="this.processInput();"/>
+
+      <handler event="keydown" phase="capturing"
+                action="return this.processKeyDown(event);"/>
 
       <handler event="keypress" phase="capturing"
                 action="return this.processKeyPress(event);"/>
@@ -1627,6 +1630,7 @@
             this.tree.view = aInput.controller;
             this.view = this.tree.view;
             this.showCommentColumn = aInput.showCommentColumn;
+            this.input = aInput;
             this.invalidate();
 
             var viewer = aElement
@@ -1645,8 +1649,6 @@
               ? nsIPopupBoxObject.ROLLUP_CONSUME
               : nsIPopupBoxObject.ROLLUP_NO_CONSUME);
             this.openPopup(aElement, "after_start", 0, 0, false, false);
-            if (this.state != "closed")
-              this.input = aInput;
           }
         ]]></body>
       </method>

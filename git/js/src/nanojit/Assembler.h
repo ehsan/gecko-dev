@@ -46,6 +46,10 @@ namespace nanojit
 	/**
 	 * Some notes on this Assembler (Emitter).
 	 * 
+	 *     LIR_call is a generic call operation that is encoded using form [2].  The 24bit
+	 *     integer is used as an index into a function look-up table that contains information
+	 *     about the target that is to be called; including address, # parameters, etc.
+	 * 
 	 *   The class RegAlloc is essentially the register allocator from MIR
 	 * 
 	 *   The Assembler class parses the LIR instructions starting at any point and converts 
@@ -63,13 +67,67 @@ namespace nanojit
 
 	#define STACK_GRANULARITY		sizeof(void *)
 
+	/**
+	 * The Assembler is only concerned with transforming LIR to native instructions
+	 */
+    struct Reservation
+	{
+		uint32_t arIndex:16;	/* index into stack frame.  displ is -4*arIndex */
+		Register reg:8;			/* register UnkownReg implies not in register */
+        int cost:8;
+	};
+
 	struct AR
 	{
 		LIns*			entry[ NJ_MAX_STACK_ENTRY ];	/* maps to 4B contiguous locations relative to the frame pointer */
 		uint32_t		tos;							/* current top of stack entry */
 		uint32_t		highwatermark;					/* max tos hit */
 		uint32_t		lowwatermark;					/* we pre-allocate entries from 0 upto this index-1; so dynamic entries are added above this index */
+		LIns*			parameter[ NJ_MAX_PARAMETERS ]; /* incoming parameters */
 	};
+
+    enum ArgSize {
+	    ARGSIZE_NONE = 0,
+	    ARGSIZE_F = 1,
+	    ARGSIZE_LO = 2,
+	    ARGSIZE_Q = 3,
+	    _ARGSIZE_MASK_INT = 2, 
+        _ARGSIZE_MASK_ANY = 3
+    };
+
+	struct CallInfo
+	{
+		intptr_t	_address;
+		uint16_t	_argtypes;		// 6 2-bit fields indicating arg type, by ARGSIZE above (including ret type): a1 a2 a3 a4 a5 ret
+		uint8_t		_cse;			// true if no side effects
+		uint8_t		_fold;			// true if no side effects
+		verbose_only ( const char* _name; )
+		
+		uint32_t FASTCALL _count_args(uint32_t mask) const;
+        uint32_t get_sizes(ArgSize*) const;
+
+		inline uint32_t FASTCALL count_args() const { return _count_args(_ARGSIZE_MASK_ANY); }
+		inline uint32_t FASTCALL count_iargs() const { return _count_args(_ARGSIZE_MASK_INT); }
+		// fargs = args - iargs
+	};
+
+	#define FUNCTIONID(name) CI_avmplus_##name
+
+	#define INTERP_FOPCODE_LIST_BEGIN											enum FunctionID {
+	#define INTERP_FOPCODE_LIST_ENTRY_PRIM(nm)									
+	#define INTERP_FOPCODE_LIST_ENTRY_FUNCPRIM(nm,argtypes,cse,fold,ret,args)	FUNCTIONID(nm),
+	#define INTERP_FOPCODE_LIST_ENTRY_SUPER(nm,off)								
+	#define INTERP_FOPCODE_LIST_ENTRY_EXTERN(nm,off)							
+	#define INTERP_FOPCODE_LIST_ENTRY_LITC(nm,i)								
+	#define INTERP_FOPCODE_LIST_END												CI_Max } ;
+	#include "vm_fops.h"
+	#undef INTERP_FOPCODE_LIST_BEGIN
+	#undef INTERP_FOPCODE_LIST_ENTRY_PRIM
+	#undef INTERP_FOPCODE_LIST_ENTRY_FUNCPRIM
+	#undef INTERP_FOPCODE_LIST_ENTRY_SUPER
+	#undef INTERP_FOPCODE_LIST_ENTRY_EXTERN
+	#undef INTERP_FOPCODE_LIST_ENTRY_LITC
+	#undef INTERP_FOPCODE_LIST_END
 
 	#ifdef AVMPLUS_WIN32
 		#define AVMPLUS_ALIGN16(type) __declspec(align(16)) type
@@ -84,10 +142,6 @@ namespace nanojit
 		counter_define(spills;)
 		counter_define(native;)
         counter_define(exitnative;)
-		
-		int32_t pages;
-		NIns* codeStart;
-		NIns* codeExitStart;
 
 		DECLARE_PLATFORM_STATS()
 #ifdef __GNUC__
@@ -104,40 +158,16 @@ namespace nanojit
 		 None = 0
 		,OutOMem
 		,StackFull
+		,ResvFull
 		,RegionFull
         ,MaxLength
         ,MaxExit
         ,MaxXJump
         ,UnknownPrim
-        ,UnknownBranch
 	};
 
 	typedef avmplus::List<NIns*, avmplus::LIST_NonGCObjects> NInsList;
-	typedef avmplus::SortedMap<LIns*,NIns*,avmplus::LIST_NonGCObjects> InsMap;
-	typedef avmplus::SortedMap<NIns*,LIns*,avmplus::LIST_NonGCObjects> NInsMap;
 
-    class LabelState MMGC_SUBCLASS_DECL
-    {
-    public:
-        RegAlloc regs;
-        NIns *addr;
-        LabelState(NIns *a, RegAlloc &r) : regs(r), addr(a)
-        {}
-    };
-
-    class LabelStateMap
-    {
-        avmplus::GC *gc;
-        avmplus::SortedMap<LIns*, LabelState*, avmplus::LIST_GCObjects> labels;
-    public:
-        LabelStateMap(avmplus::GC *gc) : gc(gc), labels(gc)
-        {}
-        ~LabelStateMap();
-
-        void clear();
-        void add(LIns *label, NIns *addr, RegAlloc &regs);
-        LabelState *get(LIns *);
-    };
     /**
  	 * Information about the activation record for the method is built up 
  	 * as we generate machine code.  As part of the prologue, we issue
@@ -147,19 +177,18 @@ namespace nanojit
 	 */
 	class Assembler MMGC_SUBCLASS_DECL
 	{
+		friend class DeadCodeFilter;
 		friend class VerboseBlockReader;
 		public:
 			#ifdef NJ_VERBOSE
 			static char  outline[8192]; 
-			static char  outlineEOL[512];  // string to be added to the end of the line
 			static char* outputAlign(char* s, int col); 
 
-			void FASTCALL outputForEOL(const char* format, ...);
 			void FASTCALL output(const char* s); 
 			void FASTCALL outputf(const char* format, ...); 
 			void FASTCALL output_asm(const char* s); 
 			
-			bool _verbose, outputAddr, vpad[2];  // if outputAddr=true then next asm instr. will include address in output
+			bool _verbose, vpad[3];
 			void printActivationState();
 
 			StringList* _outputCache;
@@ -174,15 +203,11 @@ namespace nanojit
 			void		copyRegisters(RegAlloc* copyTo);
 			void		releaseRegisters();
             void        patch(GuardRecord *lr);
-            void        patch(SideExit *exit);
-#ifdef NANOJIT_IA32
-			void        patch(SideExit* exit, SwitchInfo* si);
-#endif
+			void		unpatch(GuardRecord *lr);
 			AssmError   error()	{ return _err; }
 			void		setError(AssmError e) { _err = e; }
 			void		setCallTable(const CallInfo *functions);
 			void		pageReset();
-			int32_t		codeBytes();
 			Page*		handoverPages(bool exitPages=false);
 
 			debug_only ( void		pageValidate(); )
@@ -190,32 +215,38 @@ namespace nanojit
 			
 			// support calling out from a fragment ; used to debug the jit
 			debug_only( void		resourceConsistencyCheck(); )
-			debug_only( void		registerConsistencyCheck(); )
+			debug_only( void		registerConsistencyCheck(LIns** resv); )
 			
 			Stats		_stats;		
-            int hasLoop;
+
+			const CallInfo* callInfoFor(uint32_t fid);
+			const CallInfo* callInfoFor(LInsp call)
+			{
+				return callInfoFor(call->fid());
+			}
 
 		private:
 			
 			void		gen(LirFilter* toCompile, NInsList& loopJumps);
-			NIns*		genPrologue();
-			NIns*		genEpilogue();
+			NIns*		genPrologue(RegisterMask);
+			NIns*		genEpilogue(RegisterMask);
+
+			bool		ignoreInstruction(LInsp ins);
+
+			GuardRecord* placeGuardRecord(LInsp guard);
+			void		initGuardRecord(LInsp guard, GuardRecord*);
 
 			uint32_t	arReserve(LIns* l);
-			void    	arFree(uint32_t idx);
+			uint32_t	arFree(uint32_t idx);
 			void		arReset();
 
 			Register	registerAlloc(RegisterMask allow);
 			void		registerResetAll();
-			void		evictRegs(RegisterMask regs);
-            void        evictScratchRegs();
-			void		intersectRegisterState(RegAlloc& saved);
-			void		unionRegisterState(RegAlloc& saved);
-            void        assignSaved(RegAlloc &saved, RegisterMask skip);
-	        LInsp       findVictim(RegAlloc& regs, RegisterMask allow);
-
-            Register    getBaseReg(LIns *i, int &d, RegisterMask allow);
-            int			findMemFor(LIns* i);
+			void		restoreCallerSaved();
+			void		mergeRegisterState(RegAlloc& saved);
+	        LInsp       findVictim(RegAlloc& regs, RegisterMask allow, RegisterMask prefer);
+		
+			int			findMemFor(LIns* i);
 			Register	findRegFor(LIns* i, RegisterMask allow);
 			void		findRegFor2(RegisterMask allow, LIns* ia, Reservation* &ra, LIns *ib, Reservation* &rb);
 			Register	findSpecificRegFor(LIns* i, Register w);
@@ -224,27 +255,26 @@ namespace nanojit
 			void		evict(Register r);
 			RegisterMask hint(LIns*i, RegisterMask allow);
 
-            void        resetInstructionPointer();
-            void        recordStartingInstructionPointer();
-
 			NIns*		pageAlloc(bool exitPage=false);
 			void		pagesFree(Page*& list);
 			void		internalReset();
-            bool        canRemat(LIns*);
 
-			Reservation* getresv(LIns *x) {
-                Reservation* r = x->resv();
-                return r->used ? r : 0;
-            }
+			Reservation* reserveAlloc(LInsp i);
+			void		reserveFree(LInsp i);
+			void		reserveReset();
+
+			Reservation* getresv(LIns *x) { return x->resv() ? &_resvTable[x->resv()] : 0; }
 
 			DWB(Fragmento*)		_frago;
-			avmplus::GC*		_gc;
+            GC*					_gc;
             DWB(Fragment*)		_thisfrag;
 			RegAllocMap*		_branchStateMap;
+			GuardRecord*		_latestGuard;
 		
+			const CallInfo	*_functions;
+			
 			NIns*		_nIns;			// current native instruction
 			NIns*		_nExitIns;		// current instruction in exit fragment page
-			NIns*		_startingIns;	// starting location of code compilation for error handling
 			NIns*       _epilogue;
 			Page*		_nativePages;	// list of NJ_PAGE_SIZE pages that have been alloc'd
 			Page*		_nativeExitPages; // list of pages that have been allocated for exit code
@@ -253,15 +283,14 @@ namespace nanojit
 			AR			_activation;
 			RegAlloc	_allocator;
 
-			LabelStateMap	_labels; 
-			NInsMap		_patches;
-			bool		_inExit, vpad2[3];
-            InsList     pending_lives;
+			Reservation _resvTable[ NJ_MAX_STACK_ENTRY ]; // table where we house stack and register information
+			uint32_t	_resvFree;
+			bool		_inExit,vpad2[3];
 
 			void		asm_cmp(LIns *cond);
+#ifndef NJ_SOFTFLOAT
 			void		asm_fcmp(LIns *cond);
-            void        asm_setcc(Register res, LIns *cond);
-            NIns *      asm_jmpcc(bool brOnFalse, LIns *cond, NIns *target);
+#endif
 			void		asm_mmq(Register rd, int dd, Register rs, int ds);
             NIns*       asm_exit(LInsp guard);
 			NIns*		asm_leave_trace(LInsp guard);
@@ -269,60 +298,35 @@ namespace nanojit
             void        asm_store32(LIns *val, int d, LIns *base);
             void        asm_store64(LIns *val, int d, LIns *base);
 			void		asm_restore(LInsp, Reservation*, Register);
-			void		asm_load(int d, Register r);
-			void		asm_spilli(LInsp i, Reservation *resv, bool pop);
-			void		asm_spill(Register rr, int d, bool pop, bool quad);
+			void		asm_spill(LInsp i, Reservation *resv, bool pop);
 			void		asm_load64(LInsp i);
 			void		asm_pusharg(LInsp p);
+			NIns*		asm_adjustBranch(NIns* at, NIns* target);
 			void		asm_quad(LInsp i);
-			void		asm_loop(LInsp i, NInsList& loopJumps);
-			void		asm_fcond(LInsp i);
-			void		asm_cond(LInsp i);
-			void		asm_arith(LInsp i);
-			void		asm_neg_not(LInsp i);
-			void		asm_ld(LInsp i);
-			void		asm_cmov(LInsp i);
-			void		asm_param(LInsp i);
-			void		asm_int(LInsp i);
-			void		asm_short(LInsp i);
-			void		asm_qlo(LInsp i);
-			void		asm_qhi(LInsp i);
+			bool		asm_qlo(LInsp ins, LInsp q);
 			void		asm_fneg(LInsp ins);
 			void		asm_fop(LInsp ins);
 			void		asm_i2f(LInsp ins);
 			void		asm_u2f(LInsp ins);
 			Register	asm_prep_fcall(Reservation *rR, LInsp ins);
 			void		asm_nongp_copy(Register r, Register s);
+			void		asm_bailout(LInsp guard, Register state);
 			void		asm_call(LInsp);
             void        asm_arg(ArgSize, LInsp, Register);
 			Register	asm_binop_rhs_reg(LInsp ins);
-			NIns*		asm_branch(bool branchOnFalse, LInsp cond, NIns* targ, bool isfar);
-			void        asm_switch(LIns* ins, NIns* target);
-			void        emitJumpTable(SwitchInfo* si, NIns* target);
-            void        assignSavedRegs();
-            void        reserveSavedRegs();
-            void        assignParamRegs();
-            void        handleLoopCarriedExprs();
-			
-			// flag values for nMarkExecute
-			enum 
-			{
-				PAGE_READ = 0x0,	// here only for clarity: all permissions include READ
-				PAGE_WRITE = 0x01,
-				PAGE_EXEC = 0x02
-			};
-			
+
 			// platform specific implementation (see NativeXXX.cpp file)
+			void		nInit(uint32_t flags);
 			void		nInit(AvmCore *);
 			Register	nRegisterAllocFromSet(int32_t set);
 			void		nRegisterResetAll(RegAlloc& a);
-			void		nMarkExecute(Page* page, int flags);
-			NIns*    	nPatchBranch(NIns* branch, NIns* location);
+			void		nMarkExecute(Page* page, int32_t count=1, bool enable=true);
+			void		nFrameRestore(RegisterMask rmask);
+			static void	nPatchBranch(NIns* branch, NIns* location);
 			void		nFragExit(LIns* guard);
 
 			// platform specific methods
         public:
-			const static Register savedRegs[NumSavedRegs];
 			DECLARE_PLATFORM_ASSEMBLER()
 
 		private:
@@ -340,9 +344,9 @@ namespace nanojit
 			// these pointers are required to store
 			// the address range where code has been
 			// modified so we can flush the instruction cache.
+			void* _endJit1Addr;
 			void* _endJit2Addr;
 	#endif // AVMPLUS_PORTING_API
-			avmplus::Config &config;
 	};
 
 	inline int32_t disp(Reservation* r) 

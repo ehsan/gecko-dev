@@ -361,17 +361,17 @@ private:
     }
   };
 
-  static PLDHashNumber
+  static PR_CALLBACK PLDHashNumber
   ChildrenHashHashKey(PLDHashTable *aTable, const void *aKey);
 
-  static PRBool
+  static PR_CALLBACK PRBool
   ChildrenHashMatchEntry(PLDHashTable *aTable,
                          const PLDHashEntryHdr *aHdr,
                          const void *aKey);
 
   static PLDHashTableOps ChildrenHashOps;
 
-  static PLDHashOperator
+  static PR_CALLBACK PLDHashOperator
   EnqueueRuleNodeChildren(PLDHashTable *table, PLDHashEntryHdr *hdr,
                           PRUint32 number, void *arg);
 
@@ -384,11 +384,7 @@ private:
   // rules, we use this mapping to transition from node to node
   // (constructing new nodes as needed to flesh out the tree).
 
-  union {
-    void* asVoid;
-    nsRuleNode* asList;
-    PLDHashTable* asHash;
-  } mChildren; // Accessed only through the methods below.
+  void *mChildrenTaggedPtr; // Accessed only through the methods below.
 
   enum {
     kTypeMask = 0x1,
@@ -401,30 +397,30 @@ private:
     kMaxChildrenInList = 32
   };
 
-  PRBool HaveChildren() const {
-    return mChildren.asVoid != nsnull;
+  PRBool HaveChildren() {
+    return mChildrenTaggedPtr != nsnull;
   }
   PRBool ChildrenAreHashed() {
-    return (PRWord(mChildren.asVoid) & kTypeMask) == kHashType;
+    return (PRWord(mChildrenTaggedPtr) & kTypeMask) == kHashType;
   }
   nsRuleNode* ChildrenList() {
-    return mChildren.asList;
+    return reinterpret_cast<nsRuleNode*>(mChildrenTaggedPtr);
   }
   nsRuleNode** ChildrenListPtr() {
-    return &mChildren.asList;
+    return reinterpret_cast<nsRuleNode**>(&mChildrenTaggedPtr);
   }
   PLDHashTable* ChildrenHash() {
-    return (PLDHashTable*) (PRWord(mChildren.asHash) & ~PRWord(kTypeMask));
+    return (PLDHashTable*) (PRWord(mChildrenTaggedPtr) & ~PRWord(kTypeMask));
   }
   void SetChildrenList(nsRuleNode *aList) {
     NS_ASSERTION(!(PRWord(aList) & kTypeMask),
                  "pointer not 2-byte aligned");
-    mChildren.asList = aList;
+    mChildrenTaggedPtr = aList;
   }
   void SetChildrenHash(PLDHashTable *aHashtable) {
     NS_ASSERTION(!(PRWord(aHashtable) & kTypeMask),
                  "pointer not 2-byte aligned");
-    mChildren.asHash = (PLDHashTable*)(PRWord(aHashtable) | kHashType);
+    mChildrenTaggedPtr = (void*)(PRWord(aHashtable) | kHashType);
   }
   void ConvertChildrenToHash();
 
@@ -475,164 +471,141 @@ protected:
     ComputeDisplayData(void* aStartStruct,
                        const nsRuleDataStruct& aData,
                        nsStyleContext* aContext, nsRuleNode* aHighestNode,
-                       RuleDetail aRuleDetail,
-                       const PRBool aCanStoreInRuleTree);
+                       RuleDetail aRuleDetail, PRBool aInherited);
 
   NS_HIDDEN_(const void*)
     ComputeVisibilityData(void* aStartStruct,
                           const nsRuleDataStruct& aData,
                           nsStyleContext* aContext, nsRuleNode* aHighestNode,
-                          RuleDetail aRuleDetail,
-                          const PRBool aCanStoreInRuleTree);
+                          RuleDetail aRuleDetail, PRBool aInherited);
 
   NS_HIDDEN_(const void*)
     ComputeFontData(void* aStartStruct,
                     const nsRuleDataStruct& aData,
                     nsStyleContext* aContext, nsRuleNode* aHighestNode,
-                    RuleDetail aRuleDetail,
-                    const PRBool aCanStoreInRuleTree);
+                    RuleDetail aRuleDetail, PRBool aInherited);
 
   NS_HIDDEN_(const void*)
     ComputeColorData(void* aStartStruct,
                      const nsRuleDataStruct& aData,
                      nsStyleContext* aContext, nsRuleNode* aHighestNode,
-                     RuleDetail aRuleDetail,
-                     const PRBool aCanStoreInRuleTree);
+                     RuleDetail aRuleDetail, PRBool aInherited);
 
   NS_HIDDEN_(const void*)
     ComputeBackgroundData(void* aStartStruct,
                           const nsRuleDataStruct& aData, 
                           nsStyleContext* aContext, nsRuleNode* aHighestNode,
-                          RuleDetail aRuleDetail,
-                          const PRBool aCanStoreInRuleTree);
+                          RuleDetail aRuleDetail, PRBool aInherited);
 
   NS_HIDDEN_(const void*)
     ComputeMarginData(void* aStartStruct,
                       const nsRuleDataStruct& aData, 
                       nsStyleContext* aContext, nsRuleNode* aHighestNode,
-                      RuleDetail aRuleDetail,
-                      const PRBool aCanStoreInRuleTree);
+                      RuleDetail aRuleDetail, PRBool aInherited);
 
   NS_HIDDEN_(const void*)
     ComputeBorderData(void* aStartStruct,
                       const nsRuleDataStruct& aData, 
                       nsStyleContext* aContext, nsRuleNode* aHighestNode,
-                      RuleDetail aRuleDetail,
-                      const PRBool aCanStoreInRuleTree);
+                      RuleDetail aRuleDetail, PRBool aInherited);
 
   NS_HIDDEN_(const void*)
     ComputePaddingData(void* aStartStruct,
                        const nsRuleDataStruct& aData, 
                        nsStyleContext* aContext, nsRuleNode* aHighestNode,
-                       RuleDetail aRuleDetail,
-                       const PRBool aCanStoreInRuleTree);
+                       RuleDetail aRuleDetail, PRBool aInherited);
 
   NS_HIDDEN_(const void*)
     ComputeOutlineData(void* aStartStruct,
                        const nsRuleDataStruct& aData, 
                        nsStyleContext* aContext, nsRuleNode* aHighestNode,
-                       RuleDetail aRuleDetail,
-                       const PRBool aCanStoreInRuleTree);
+                       RuleDetail aRuleDetail, PRBool aInherited);
 
   NS_HIDDEN_(const void*)
     ComputeListData(void* aStartStruct,
                     const nsRuleDataStruct& aData,
                     nsStyleContext* aContext, nsRuleNode* aHighestNode,
-                    RuleDetail aRuleDetail,
-                    const PRBool aCanStoreInRuleTree);
+                    RuleDetail aRuleDetail, PRBool aInherited);
 
   NS_HIDDEN_(const void*)
     ComputePositionData(void* aStartStruct,
                         const nsRuleDataStruct& aData, 
                         nsStyleContext* aContext, nsRuleNode* aHighestNode,
-                        RuleDetail aRuleDetail,
-                        const PRBool aCanStoreInRuleTree);
+                        RuleDetail aRuleDetail, PRBool aInherited);
 
   NS_HIDDEN_(const void*)
     ComputeTableData(void* aStartStruct,
                      const nsRuleDataStruct& aData, 
                      nsStyleContext* aContext, nsRuleNode* aHighestNode,
-                     RuleDetail aRuleDetail,
-                     const PRBool aCanStoreInRuleTree);
+                     RuleDetail aRuleDetail, PRBool aInherited);
 
   NS_HIDDEN_(const void*)
     ComputeTableBorderData(void* aStartStruct,
                            const nsRuleDataStruct& aData, 
                            nsStyleContext* aContext, nsRuleNode* aHighestNode,
-                           RuleDetail aRuleDetail,
-                           const PRBool aCanStoreInRuleTree);
+                           RuleDetail aRuleDetail, PRBool aInherited);
 
   NS_HIDDEN_(const void*)
     ComputeContentData(void* aStartStruct,
                        const nsRuleDataStruct& aData,
                        nsStyleContext* aContext, nsRuleNode* aHighestNode,
-                       RuleDetail aRuleDetail,
-                       const PRBool aCanStoreInRuleTree);
+                       RuleDetail aRuleDetail, PRBool aInherited);
 
   NS_HIDDEN_(const void*)
     ComputeQuotesData(void* aStartStruct,
                       const nsRuleDataStruct& aData, 
                       nsStyleContext* aContext, nsRuleNode* aHighestNode,
-                      RuleDetail aRuleDetail,
-                      const PRBool aCanStoreInRuleTree);
+                      RuleDetail aRuleDetail, PRBool aInherited);
 
   NS_HIDDEN_(const void*)
     ComputeTextData(void* aStartStruct,
                     const nsRuleDataStruct& aData, 
                     nsStyleContext* aContext, nsRuleNode* aHighestNode,
-                    RuleDetail aRuleDetail,
-                    const PRBool aCanStoreInRuleTree);
+                    RuleDetail aRuleDetail, PRBool aInherited);
 
   NS_HIDDEN_(const void*)
     ComputeTextResetData(void* aStartStruct,
                          const nsRuleDataStruct& aData,
                          nsStyleContext* aContext, nsRuleNode* aHighestNode,
-                         RuleDetail aRuleDetail,
-                         const PRBool aCanStoreInRuleTree);
+                         RuleDetail aRuleDetail, PRBool aInherited);
 
   NS_HIDDEN_(const void*)
     ComputeUserInterfaceData(void* aStartStruct,
                              const nsRuleDataStruct& aData, 
                              nsStyleContext* aContext,
                              nsRuleNode* aHighestNode,
-                             RuleDetail aRuleDetail,
-                             const PRBool aCanStoreInRuleTree);
+                             RuleDetail aRuleDetail, PRBool aInherited);
 
   NS_HIDDEN_(const void*)
     ComputeUIResetData(void* aStartStruct,
                        const nsRuleDataStruct& aData,
                        nsStyleContext* aContext, nsRuleNode* aHighestNode,
-                       RuleDetail aRuleDetail,
-                       const PRBool aCanStoreInRuleTree);
+                       RuleDetail aRuleDetail, PRBool aInherited);
 
   NS_HIDDEN_(const void*)
     ComputeXULData(void* aStartStruct,
                    const nsRuleDataStruct& aData, 
                    nsStyleContext* aContext, nsRuleNode* aHighestNode,
-                   RuleDetail aRuleDetail,
-                   const PRBool aCanStoreInRuleTree);
+                   RuleDetail aRuleDetail, PRBool aInherited);
 
   NS_HIDDEN_(const void*)
     ComputeColumnData(void* aStartStruct,
                       const nsRuleDataStruct& aData,
                       nsStyleContext* aContext, nsRuleNode* aHighestNode,
-                      RuleDetail aRuleDetail,
-                      const PRBool aCanStoreInRuleTree);
+                      RuleDetail aRuleDetail, PRBool aInherited);
 
 #ifdef MOZ_SVG
   NS_HIDDEN_(const void*)
     ComputeSVGData(void* aStartStruct,
                    const nsRuleDataStruct& aData, 
                    nsStyleContext* aContext, nsRuleNode* aHighestNode,
-                   RuleDetail aRuleDetail,
-                   const PRBool aCanStoreInRuleTree);
+                   RuleDetail aRuleDetail, PRBool aInherited);
 
   NS_HIDDEN_(const void*)
     ComputeSVGResetData(void* aStartStruct,
                         const nsRuleDataStruct& aData, 
                         nsStyleContext* aContext, nsRuleNode* aHighestNode,
-                        RuleDetail aRuleDetail,
-                        const PRBool aCanStoreInRuleTree);
+                        RuleDetail aRuleDetail, PRBool aInherited);
 #endif
 
   // helpers for |ComputeFontData| that need access to |mNoneBits|:
@@ -645,8 +618,7 @@ protected:
                                       nscoord aParentSize,
                                       nscoord aScriptLevelAdjustedParentSize,
                                       PRBool aUsedStartStruct,
-                                      PRBool aAtRoot,
-                                      PRBool& aCanStoreInRuleTree);
+                                      PRBool& aInherited);
 
   static NS_HIDDEN_(void) SetFont(nsPresContext* aPresContext,
                                   nsStyleContext* aContext,
@@ -655,8 +627,7 @@ protected:
                                   const nsRuleDataFont& aFontData,
                                   const nsStyleFont* aParentFont,
                                   nsStyleFont* aFont,
-                                  PRBool aStartStruct,
-                                  PRBool& aCanStoreInRuleTree);
+                                  PRBool aStartStruct, PRBool& aInherited);
 
   static NS_HIDDEN_(void) SetGenericFont(nsPresContext* aPresContext,
                                          nsStyleContext* aContext,
@@ -671,7 +642,7 @@ protected:
                                         const nsCSSValue& aRTLLogicalValue,
                                         PRUint8 aSide,
                                         nsCSSRect& aValueRect,
-                                        PRBool& aCanStoreInRuleTree);
+                                        PRBool& aInherited);
 
   inline RuleDetail CheckSpecifiedProperties(const nsStyleStructID aSID, const nsRuleDataStruct& aRuleDataStruct);
 
@@ -712,7 +683,7 @@ protected:
   NS_HIDDEN_(already_AddRefed<nsCSSShadowArray>)
                           GetShadowData(nsCSSValueList* aList,
                                         nsStyleContext* aContext,
-                                        PRBool aIsBoxShadow,
+                                        PRBool aUsesSpread,
                                         PRBool& inherited);
 
 private:
@@ -766,9 +737,7 @@ public:
   NS_HIDDEN_(PRBool) Sweep();
 
   static PRBool
-    HasAuthorSpecifiedRules(nsStyleContext* aStyleContext,
-                            PRUint32 ruleTypeMask,
-                            PRBool aAuthorColorsAllowed);
+    HasAuthorSpecifiedRules(nsStyleContext* aStyleContext, PRUint32 ruleTypeMask);
 
   // Expose this so media queries can use it
   static nscoord CalcLengthWithInitialFont(nsPresContext* aPresContext,
@@ -777,16 +746,7 @@ public:
   static nscoord CalcLength(const nsCSSValue& aValue,
                             nsStyleContext* aStyleContext,
                             nsPresContext* aPresContext,
-                            PRBool& aCanStoreInRuleTree);
-
-  // Return whether the rule tree for which this node is the root has
-  // cached data such that we need to do dynamic change handling for
-  // changes that change the results of media queries or require
-  // rebuilding all style data.
-  PRBool TreeHasCachedData() const {
-    NS_ASSERTION(IsRoot(), "should only be called on root of rule tree");
-    return HaveChildren() || mStyleData.mInheritedData || mStyleData.mResetData;
-  }
+                            PRBool& aInherited);
 };
 
 #endif

@@ -254,10 +254,8 @@
                 onget="return this._docShell || (this._docShell = this.boxObject.QueryInterface(Components.interfaces.nsIContainerBoxObject).docShell);"
                 readonly="true"/>
 
-      <field name="_webNavigation">null</field>
-
       <property name="webNavigation"
-                onget="return this._webNavigation || (this._webNavigation = this.docShell.QueryInterface(Components.interfaces.nsIWebNavigation));"
+                onget="return this.docShell.QueryInterface(Components.interfaces.nsIWebNavigation);"
                 readonly="true"/>
 
       <field name="_webBrowserFind">null</field>
@@ -313,11 +311,9 @@
                 readonly="true"
                 onget="return this.docShell.QueryInterface(Components.interfaces.nsIInterfaceRequestor).getInterface(Components.interfaces.nsIWebProgress);"/>
 
-      <field name="_contentWindow">null</field>
-
       <property name="contentWindow"
                 readonly="true"
-                onget="return this._contentWindow || (this._contentWindow = this.docShell.QueryInterface(Components.interfaces.nsIInterfaceRequestor).getInterface(Components.interfaces.nsIDOMWindow));"/>
+                onget="return this.docShell.QueryInterface(Components.interfaces.nsIInterfaceRequestor).getInterface(Components.interfaces.nsIDOMWindow);"/>
 
       <property name="sessionHistory"
                 onget="return this.webNavigation.sessionHistory;"
@@ -616,6 +612,14 @@
         false
       </field>
       
+      <field name="focusedWindow">
+        null
+      </field>
+
+      <field name="focusedElement">
+        null
+      </field>
+      
       <field name="isShowingMessage">
         false
       </field>
@@ -694,9 +698,6 @@
           
           this._fastFind = null;
           this._webBrowserFind = null;
-          
-          // The feeds cache can keep the document inside this browser alive.
-          this.feeds = null;
 
           this.removeEventListener("pageshow", this.onPageShow, true);
           this.removeEventListener("pagehide", this.onPageHide, true);
@@ -768,7 +769,7 @@
           <![CDATA[
             const XUL_NS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
             var popup = document.createElementNS(XUL_NS, "popup");
-            popup.className = "autoscroller";
+            popup.id = "autoscroller";
             return popup;
           ]]>
         </body>
@@ -961,13 +962,8 @@
         <parameter name="aOtherBrowser"/>
         <body>
         <![CDATA[
-          // We need to swap fields that are tied to our docshell or related to
-          // the loaded page
-          // Fields which are built as a result of notifactions (pageshow/hide,
-          // DOMLinkAdded/Removed, onStateChange) should not be swapped here,
-          // because these notifications are dispatched again once the docshells
-          // are swapped.
-          var fieldsToSwap = [ "_docShell", "_webBrowserFind", "_contentWindow", "_webNavigation"];
+          // We need to swap fields that are tied to our docshell
+          var fieldsToSwap = [ "_docShell", "_webBrowserFind" ];
 
           var ourTabBrowser = this.getTabBrowser();
 
@@ -1000,10 +996,6 @@
       <handler event="keypress" keycode="VK_F7" group="system">
         <![CDATA[
           if (event.getPreventDefault() || !event.isTrusted)
-            return;
-
-          var isEnabled = this.mPrefs.getBoolPref("accessibility.browsewithcaret_shortcut.enabled");
-          if (!isEnabled)
             return;
 
           // Toggle browse with caret mode

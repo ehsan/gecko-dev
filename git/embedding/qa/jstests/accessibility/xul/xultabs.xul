@@ -126,7 +126,7 @@
     <description>
       <html:b> Testing XUL Tabbox's Tabs for Accessibility.. </html:b>
     </description>
-    <box orient="horizontal">
+    <box oreint="horizontal">
       <tabbox>
         <tabs accesskey="t">
           <tab label="Mail"/>

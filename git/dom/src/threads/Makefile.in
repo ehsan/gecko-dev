@@ -51,17 +51,14 @@ FORCE_STATIC_LIB = 1
 REQUIRES = \
   caps \
   content \
-  docshell \
   gfx \
   js \
   layout \
   locale \
   necko \
-  plugin \
   pref \
   string \
   thebes \
-  uconv \
   widget \
   xpcom \
   xpconnect \
@@ -69,21 +66,18 @@ REQUIRES = \
 
 CPPSRCS = \
   nsDOMThreadService.cpp \
-  nsDOMWorker.cpp \
-  nsDOMWorkerEvents.cpp \
-  nsDOMWorkerMessageHandler.cpp \
-  nsDOMWorkerNavigator.cpp \
+  nsDOMWorkerBase.cpp \
   nsDOMWorkerPool.cpp \
   nsDOMWorkerScriptLoader.cpp \
   nsDOMWorkerSecurityManager.cpp \
+  nsDOMWorkerThread.cpp \
   nsDOMWorkerTimeout.cpp \
   nsDOMWorkerXHR.cpp \
   nsDOMWorkerXHRProxy.cpp \
   $(NULL)
 
 LOCAL_INCLUDES = \
-  -I$(topsrcdir)/dom/base \
-  -I$(topsrcdir)/dom/src/json \
+  -I$(topsrcdir)/dom/src/base \
   -I$(topsrcdir)/content/base/src \
   -I$(topsrcdir)/content/events/src \
   $(NULL)
@@ -93,3 +87,5 @@ DIRS += test
 endif
 
 include $(topsrcdir)/config/rules.mk
+
+#CXXFLAGS += $(WARNINGS_AS_ERRORS)

@@ -94,14 +94,16 @@ NS_IMPL_ISUPPORTS_INHERITED1(nsHTMLImageAccessible, nsAccessible,
 ////////////////////////////////////////////////////////////////////////////////
 // nsIAccessible
 
-nsresult
-nsHTMLImageAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
+NS_IMETHODIMP
+nsHTMLImageAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 {
   // The state is a bitfield, get our inherited state, then logically OR it with
   // STATE_ANIMATED if this is an animated image.
 
-  nsresult rv = nsLinkableAccessible::GetStateInternal(aState, aExtraState);
-  NS_ENSURE_A11Y_SUCCESS(rv, rv);
+  nsresult rv = nsLinkableAccessible::GetState(aState, aExtraState);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (!mDOMNode)
+    return NS_OK;
 
   nsCOMPtr<nsIImageLoadingContent> content(do_QueryInterface(mDOMNode));
   nsCOMPtr<imgIRequest> imageRequest;
@@ -124,34 +126,47 @@ nsHTMLImageAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
   return NS_OK;
 }
 
-nsresult
-nsHTMLImageAccessible::GetNameInternal(nsAString& aName)
+
+/* wstring getName (); */
+NS_IMETHODIMP nsHTMLImageAccessible::GetName(nsAString& aName)
 {
+  aName.Truncate();
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+  
   nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
+  NS_ASSERTION(content, "Image node always supports nsIContent");
+    
+  // No alt attribute means AT can repair if there is no accessible name
+  // alt="" with no title or aria-labelledby means image is presentational and 
+  // AT should leave accessible name empty
   PRBool hasAltAttrib =
     content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::alt, aName);
-  if (!aName.IsEmpty())
-    return NS_OK;
-
-  nsresult rv = nsAccessible::GetNameInternal(aName);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (aName.IsEmpty() && hasAltAttrib) {
-    // No accessible name but empty 'alt' attribute is present. If further name
-    // computation algorithm doesn't provide non empty name then it means
-    // an empty 'alt' attribute was used to indicate a decorative image (see
-    // nsIAccessible::name attribute for details).
-    return NS_OK_EMPTY_NAME;
+  if (aName.IsEmpty()) {
+    if (content->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_label) ||
+        content->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_labelledby)) {
+      // Use HTML label or DHTML accessibility's label or labelledby attribute for name
+      // GetHTMLName will also try title attribute as a last resort
+      GetHTMLName(aName, PR_FALSE);
+    }
+    if (aName.IsEmpty()) { // No name from alt or aria-labelledby
+      content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::title, aName);
+      if (!hasAltAttrib && aName.IsEmpty()) { 
+        // Still no accessible name and no alt attribute is present.
+        // SetIsVoid() is different from empty string -- this means a name was not 
+        // provided by author and AT repair of the name is allowed.
+        aName.SetIsVoid(PR_TRUE);
+      }
+    }
   }
-
   return NS_OK;
 }
 
-nsresult
-nsHTMLImageAccessible::GetRoleInternal(PRUint32 *aRole)
+/* wstring getRole (); */
+NS_IMETHODIMP nsHTMLImageAccessible::GetRole(PRUint32 *_retval)
 {
-  *aRole = mMapElement ? nsIAccessibleRole::ROLE_IMAGE_MAP :
-                         nsIAccessibleRole::ROLE_GRAPHIC;
+  *_retval = mMapElement ? nsIAccessibleRole::ROLE_IMAGE_MAP :
+                           nsIAccessibleRole::ROLE_GRAPHIC;
   return NS_OK;
 }
 
@@ -177,18 +192,21 @@ void nsHTMLImageAccessible::CacheChildren()
   PRInt32 childCount = 0;
   
   nsCOMPtr<nsIAccessible> areaAccessible;
-  nsRefPtr<nsAccessible> prevAcc;
+  nsCOMPtr<nsPIAccessible> privatePrevAccessible;
   while (childCount < (PRInt32)numMapAreas && 
          (areaAccessible = GetAreaAccessible(mapAreas, childCount)) != nsnull) {
-    if (prevAcc)
-      prevAcc->SetNextSibling(areaAccessible);
-    else
+    if (privatePrevAccessible) {
+      privatePrevAccessible->SetNextSibling(areaAccessible);
+    }
+    else {
       SetFirstChild(areaAccessible);
+    }
 
     ++ childCount;
 
-    prevAcc = nsAccUtils::QueryAccessible(areaAccessible);
-    prevAcc->SetParent(this);
+    privatePrevAccessible = do_QueryInterface(areaAccessible);
+    NS_ASSERTION(privatePrevAccessible, "nsIAccessible impl's should always support nsPIAccessible as well");
+    privatePrevAccessible->SetParent(this);
   }
   mAccChildCount = childCount;
 }
@@ -336,9 +354,9 @@ nsHTMLImageAccessible::GetImageSize(PRInt32 *aWidth, PRInt32 *aHeight)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// nsHTMLImageAccessible. nsAccessNode
+// nsPIAccessNode
 
-nsresult
+NS_IMETHODIMP
 nsHTMLImageAccessible::Shutdown()
 {
   nsLinkableAccessible::Shutdown();
@@ -409,8 +427,11 @@ nsHTMLImageAccessible::GetAreaAccessible(nsIDOMHTMLCollection *aAreaCollection,
     if (!accessNode)
       return nsnull;
     
-    nsRefPtr<nsAccessNode> accNode = nsAccUtils::QueryAccessNode(accessNode);
-    nsresult rv = accNode->Init();
+    nsCOMPtr<nsPIAccessNode> privateAccessNode(do_QueryInterface(accessNode));
+    NS_ASSERTION(privateAccessNode,
+                 "Accessible doesn't implement nsPIAccessNode");
+    
+    nsresult rv = privateAccessNode->Init();
     if (NS_FAILED(rv))
       return nsnull;
     

@@ -101,7 +101,7 @@ nsLeafBoxFrame::Init(
    // see if we need a widget
   if (aParent && aParent->IsBoxFrame()) {
     if (aParent->ChildrenMustHaveWidgets()) {
-        rv = nsHTMLContainerFrame::CreateViewForFrame(this, PR_TRUE); 
+        rv = nsHTMLContainerFrame::CreateViewForFrame(this, nsnull, PR_TRUE); 
         NS_ENSURE_SUCCESS(rv, rv);
 
         nsIView* view = GetView();
@@ -351,7 +351,7 @@ nsLeafBoxFrame::Reflow(nsPresContext*   aPresContext,
   aDesiredSize.height = mRect.height;
   aDesiredSize.ascent = GetBoxAscent(state);
 
-  // the overflow rect is set in SetBounds() above
+  // NS_FRAME_OUTSIDE_CHILDREN is set in SetBounds() above
   aDesiredSize.mOverflowArea = GetOverflowRect();
 
 #ifdef DO_NOISY_REFLOW
@@ -382,6 +382,18 @@ nsIAtom*
 nsLeafBoxFrame::GetType() const
 {
   return nsGkAtoms::leafBoxFrame;
+}
+
+NS_IMETHODIMP_(nsrefcnt) 
+nsLeafBoxFrame::AddRef(void)
+{
+  return NS_OK;
+}
+
+NS_IMETHODIMP_(nsrefcnt)
+nsLeafBoxFrame::Release(void)
+{
+    return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -434,4 +446,16 @@ NS_IMETHODIMP
 nsLeafBoxFrame::DoLayout(nsBoxLayoutState& aState)
 {
     return nsBox::DoLayout(aState);
+}
+
+PRBool
+nsLeafBoxFrame::GetWasCollapsed(nsBoxLayoutState& aState)
+{
+    return nsBox::GetWasCollapsed(aState);
+}
+
+void
+nsLeafBoxFrame::SetWasCollapsed(nsBoxLayoutState& aState, PRBool aWas)
+{
+    nsBox::SetWasCollapsed(aState, aWas);
 }

@@ -219,8 +219,8 @@ class nsCOMArray : public nsCOMArray_base
 
     // Enumerator callback function. Return PR_FALSE to stop
     // Here's a more readable form:
-    // PRBool enumerate(T* aElement, void* aData)
-    typedef PRBool (* nsCOMArrayEnumFunc)
+    // PRBool PR_CALLBACK enumerate(T* aElement, void* aData)
+    typedef PRBool (* PR_CALLBACK nsCOMArrayEnumFunc)
         (T* aElement, void *aData);
     
     // enumerate through the array with a callback. 
@@ -234,7 +234,7 @@ class nsCOMArray : public nsCOMArray_base
                                                   aData);
     }
     
-    typedef int (* nsCOMArrayComparatorFunc)
+    typedef int (* PR_CALLBACK nsCOMArrayComparatorFunc)
         (T* aElement1, T* aElement2, void* aData);
         
     void Sort(nsCOMArrayComparatorFunc aFunc, void* aData) {

@@ -227,8 +227,8 @@ XPCNativeMember::Resolve(XPCCallContext& ccx, XPCNativeInterface* iface)
 
     AUTO_MARK_JSVAL(ccx, OBJECT_TO_JSVAL(funobj));
 
-    STOBJ_CLEAR_PARENT(funobj);
-    STOBJ_CLEAR_PROTO(funobj);
+    STOBJ_SET_PARENT(funobj, nsnull);
+    STOBJ_SET_PROTO(funobj, nsnull);
 
     if(!JS_SetReservedSlot(ccx, funobj, 0, PRIVATE_TO_JSVAL(iface))||
        !JS_SetReservedSlot(ccx, funobj, 1, PRIVATE_TO_JSVAL(this)))
@@ -745,9 +745,11 @@ out:
 void 
 XPCNativeSet::ClearCacheEntryForClassInfo(nsIClassInfo* classInfo)
 {
-    XPCJSRuntime* rt = nsXPConnect::GetRuntimeInstance();
-    ClassInfo2NativeSetMap* map = rt->GetClassInfo2NativeSetMap();
-    if(map)
+    XPCJSRuntime* rt;
+    ClassInfo2NativeSetMap* map;
+    
+    if(nsnull != (rt = nsXPConnect::GetRuntime()) && 
+       nsnull != (map = rt->GetClassInfo2NativeSetMap()))
     {   // scoped lock
         XPCAutoLock lock(rt->GetMapLock());
         map->Remove(classInfo);

@@ -262,7 +262,7 @@ struct AtomTableEntry : public PLDHashEntryHdr {
   }
 };
 
-static PLDHashNumber
+PR_STATIC_CALLBACK(PLDHashNumber)
 AtomTableGetHash(PLDHashTable *table, const void *key)
 {
   const AtomTableEntry *e = static_cast<const AtomTableEntry*>(key);
@@ -277,7 +277,7 @@ AtomTableGetHash(PLDHashTable *table, const void *key)
   return nsCRT::HashCode(e->getUTF8String(), e->getLength());
 }
 
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 AtomTableMatchKey(PLDHashTable *table, const PLDHashEntryHdr *entry,
                   const void *key)
 {
@@ -309,7 +309,7 @@ AtomTableMatchKey(PLDHashTable *table, const PLDHashEntryHdr *entry,
   return memcmp(atomString, str, length * sizeof(char)) == 0;
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 AtomTableClearEntry(PLDHashTable *table, PLDHashEntryHdr *entry)
 {
   AtomTableEntry *he = static_cast<AtomTableEntry*>(entry);
@@ -335,7 +335,7 @@ AtomTableClearEntry(PLDHashTable *table, PLDHashEntryHdr *entry)
   he->ClearAtom();
 }
 
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 AtomTableInitEntry(PLDHashTable *table, PLDHashEntryHdr *entry,
                    const void *key)
 {
@@ -362,7 +362,7 @@ static const PLDHashTableOps AtomTableOps = {
 
 #ifdef DEBUG
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 DumpAtomLeaks(PLDHashTable *table, PLDHashEntryHdr *he,
               PRUint32 index, void *arg)
 {
@@ -403,8 +403,7 @@ NS_PurgeAtomTable()
 {
   if (gAtomTable.ops) {
 #ifdef DEBUG
-    const char *dumpAtomLeaks = PR_GetEnv("MOZ_DUMP_ATOM_LEAKS");
-    if (dumpAtomLeaks && *dumpAtomLeaks) {
+    if (PR_GetEnv("MOZ_DUMP_ATOM_LEAKS")) {
       PRUint32 leaked = 0;
       printf("*** %d atoms still exist (including permanent):\n",
              gAtomTable.entryCount);

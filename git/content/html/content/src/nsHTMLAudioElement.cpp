@@ -59,7 +59,6 @@
 #include "nsIScriptSecurityManager.h"
 #include "nsIXPConnect.h"
 #include "jsapi.h"
-#include "nsJSUtils.h"
 
 #include "nsIRenderingContext.h"
 #include "nsITimer.h"
@@ -69,36 +68,13 @@
 #include "nsIDOMProgressEvent.h"
 #include "nsHTMLMediaError.h"
 
-nsGenericHTMLElement*
-NS_NewHTMLAudioElement(nsINodeInfo *aNodeInfo, PRBool aFromParser)
-{
-  /*
-   * nsHTMLAudioElement's will be created without a nsINodeInfo passed in
-   * if someone says "var audio = new Audio();" in JavaScript, in a case like
-   * that we request the nsINodeInfo from the document's nodeinfo list.
-   */
-  nsCOMPtr<nsINodeInfo> nodeInfo(aNodeInfo);
-  if (!nodeInfo) {
-    nsCOMPtr<nsIDocument> doc =
-      do_QueryInterface(nsContentUtils::GetDocumentFromCaller());
-    NS_ENSURE_TRUE(doc, nsnull);
-
-    nodeInfo = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::audio, nsnull,
-                                                   kNameSpaceID_None);
-    NS_ENSURE_TRUE(nodeInfo, nsnull);
-  }
-
-  return new nsHTMLAudioElement(nodeInfo, aFromParser);
-}
+NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(Audio)
 
 NS_IMPL_ADDREF_INHERITED(nsHTMLAudioElement, nsHTMLMediaElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLAudioElement, nsHTMLMediaElement)
 
-NS_INTERFACE_TABLE_HEAD(nsHTMLAudioElement)
-NS_HTML_CONTENT_INTERFACE_TABLE3(nsHTMLAudioElement, nsIDOMHTMLMediaElement,
-                                 nsIDOMHTMLAudioElement, nsIJSNativeInitializer)
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLAudioElement,
-                                               nsHTMLMediaElement)
+NS_HTML_CONTENT_INTERFACE_TABLE_HEAD(nsHTMLAudioElement, nsHTMLMediaElement)
+  NS_INTERFACE_TABLE_INHERITED1(nsHTMLAudioElement, nsIDOMHTMLAudioElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLAudioElement)
 
 NS_IMPL_ELEMENT_CLONE(nsHTMLAudioElement)
@@ -113,20 +89,32 @@ nsHTMLAudioElement::~nsHTMLAudioElement()
 {
 }
 
-NS_IMETHODIMP
-nsHTMLAudioElement::Initialize(nsISupports* aOwner, JSContext* aContext,
-                               JSObject *aObj, PRUint32 argc, jsval *argv)
+nsresult nsHTMLAudioElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
+                                        nsIContent* aBindingParent,
+                                        PRBool aCompileEventHandlers)
 {
-  if (argc <= 0) {
-    // Nothing to do here if we don't get any arguments.
-    return NS_OK;
-  }
+  if (mDecoder)
+    mDecoder->ElementAvailable(this);
 
-  // The only (optional) argument is the url of the audio
-  JSString* jsstr = JS_ValueToString(aContext, argv[0]);
-  if (!jsstr)
-    return NS_ERROR_FAILURE;
+  return nsHTMLMediaElement::BindToTree(aDocument, 
+                                        aParent, 
+                                        aBindingParent, 
+                                        aCompileEventHandlers);
+}
 
-  nsDependentJSString str(jsstr);
-  return SetAttr(kNameSpaceID_None, nsGkAtoms::src, str, PR_TRUE);
+void nsHTMLAudioElement::UnbindFromTree(PRBool aDeep,
+                                        PRBool aNullParent)
+{
+  if (mDecoder) 
+    mDecoder->ElementUnavailable();
+
+  nsHTMLMediaElement::UnbindFromTree(aDeep, aNullParent);
+}
+
+nsresult nsHTMLAudioElement::InitializeDecoder(nsAString& aChosenMediaResource)
+{
+  if (mDecoder) 
+    mDecoder->ElementAvailable(this);
+
+  return nsHTMLMediaElement::InitializeDecoder(aChosenMediaResource);
 }

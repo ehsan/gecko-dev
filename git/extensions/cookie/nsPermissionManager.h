@@ -199,7 +199,7 @@ private:
                                 PRUint32   *aPermission,
                                 PRBool      aExactHostMatch);
 
-  nsresult InitDB(PRBool aRemoveFile);
+  nsresult InitDB();
   nsresult CreateTable();
   nsresult Import();
   nsresult Read();

@@ -94,6 +94,7 @@ class nsICharsetConverterManager;
 class nsICharsetAlias;
 class nsIDTD;
 class nsScanner;
+class nsIProgressEventSink;
 class nsSpeculativeScriptThread;
 class nsIThreadPool;
 
@@ -103,9 +104,11 @@ class nsIThreadPool;
 
 
 class nsParser : public nsIParser,
-                 public nsIStreamListener
-{
+                 public nsIStreamListener{
+
+  
   public:
+    friend class CTokenHandler;
     /**
      * Called on module init
      */
@@ -179,6 +182,14 @@ class nsParser : public nsIParser,
 
 
     NS_IMETHOD_(void) SetParserFilter(nsIParserFilter* aFilter);
+
+    /**
+     *  Retrieve the scanner from the topmost parser context
+     *  
+     *  @update  gess 6/9/98
+     *  @return  ptr to scanner
+     */
+    NS_IMETHOD_(nsDTDMode) GetParseMode(void);
 
     /**
      * Cause parser to parse input from given URL 
@@ -331,7 +342,7 @@ class nsParser : public nsIParser,
      *  @return PR_TRUE if parser can be interrupted, PR_FALSE if it can not be interrupted.
      *  @update  kmcclusk 5/18/98
      */
-    virtual PRBool CanInterrupt();
+    PRBool CanInterrupt(void);
 
     /**  
      *  Set to parser state to indicate whether parsing tokens can be interrupted
@@ -379,10 +390,6 @@ class nsParser : public nsIParser,
 
     nsIThreadPool* ThreadPool() {
       return sSpeculativeThreadPool;
-    }
-
-    PRBool IsScriptExecuting() {
-      return mSink && mSink->IsScriptExecuting();
     }
 
  protected:
@@ -454,7 +461,6 @@ protected:
     
       
     CParserContext*              mParserContext;
-    nsCOMPtr<nsIDTD>             mDTD;
     nsCOMPtr<nsIRequestObserver> mObserver;
     nsCOMPtr<nsIContentSink>     mSink;
     nsIRunnable*                 mContinueEvent;  // weak ref

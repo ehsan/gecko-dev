@@ -45,6 +45,7 @@ function test() {
   };
   
   // make sure we do save form data
+  let privacy_level = gPrefService.getIntPref("browser.sessionstore.privacy_level");
   gPrefService.setIntPref("browser.sessionstore.privacy_level", 0);
   
   let testURL = "chrome://mochikit/content/browser/" +
@@ -56,8 +57,9 @@ function test() {
       doc.getElementById(id).value = fieldValues[id];
     
     gBrowser.removeTab(tab);
+    undoCloseTab();
     
-    tab = undoCloseTab();
+    tab = gBrowser.selectedTab;
     tab.linkedBrowser.addEventListener("load", function(aEvent) {
       let doc = tab.linkedBrowser.contentDocument;
       for (let id in fieldValues) {
@@ -69,11 +71,7 @@ function test() {
       }
       
       // clean up
-      gPrefService.clearUserPref("browser.sessionstore.privacy_level");
-      // undoCloseTab can reuse a single blank tab, so we have to
-      // make sure not to close the window when closing our last tab
-      if (gBrowser.tabContainer.childNodes.length == 1)
-        gBrowser.addTab();
+      gPrefService.setIntPref("browser.sessionstore.privacy_level", privacy_level);
       gBrowser.removeTab(tab);
       finish();
     }, true);

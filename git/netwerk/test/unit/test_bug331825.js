@@ -1,4 +1,4 @@
-do_load_httpd_js();
+do_import_script("netwerk/test/httpserver/httpd.js");
 
 var server;
 const BUGID = "331825";
@@ -11,7 +11,8 @@ TestListener.prototype.onStopRequest = function(request, context, status) {
   var channel = request.QueryInterface(Components.interfaces.nsIHttpChannel);
   do_check_eq(channel.responseStatus, 304);
 
-  server.stop(do_test_finished);
+  server.stop();
+  do_test_finished();
 }
 
 function run_test() {

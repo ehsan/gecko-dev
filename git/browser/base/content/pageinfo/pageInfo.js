@@ -41,8 +41,12 @@
 # ***** END LICENSE BLOCK *****
 
 //******** define a js object to implement nsITreeView
-function pageInfoTreeView(copycol)
+function pageInfoTreeView(columnids, copycol)
 {
+  // columnids is an array of strings indicating the names of the columns, in order
+  this.columnids = columnids;
+  this.colcount = columnids.length;
+
   // copycol is the index number for the column that we want to add to
   // the copy-n-paste buffer when the user hits accel-c
   this.copycol = copycol;
@@ -67,7 +71,8 @@ pageInfoTreeView.prototype = {
   {
     // row can be null, but js arrays are 0-indexed.
     // colidx cannot be null, but can be larger than the number
-    // of columns in the array. In this case it's the fault of
+    // of columns in the array (when column is a string not in
+    // this.columnids.) In this case it's the fault of
     // whoever typoed while calling this function.
     return this.data[row][column.index] || "";
   },
@@ -162,8 +167,10 @@ const COPYCOL_META_CONTENT = 1;
 const COPYCOL_IMAGE = COL_IMAGE_ADDRESS;
 
 // one nsITreeView for each tree in the window
-var gMetaView = new pageInfoTreeView(COPYCOL_META_CONTENT);
-var gImageView = new pageInfoTreeView(COPYCOL_IMAGE);
+var gMetaView = new pageInfoTreeView(["meta-name","meta-content"], COPYCOL_META_CONTENT);
+var gImageView = new pageInfoTreeView(["image-address","image-type","image-size",
+                                       "image-alt","image-count","image-node","image-bg"],
+                                      COPYCOL_IMAGE);
 
 gImageView.getCellProperties = function(row, col, props) {
   var aserv = Components.classes[ATOM_CONTRACTID]
@@ -306,9 +313,6 @@ function onLoadPageInfo()
   radioGroup.selectedItem = initialTab;
   radioGroup.selectedItem.doCommand();
   radioGroup.focus();
-  Components.classes["@mozilla.org/observer-service;1"]
-            .getService(Components.interfaces.nsIObserverService)
-            .notifyObservers(window, "page-info-dialog-loaded", null);
 }
 
 function loadPageInfo()
@@ -858,7 +862,7 @@ function makePreview(row)
       item instanceof HTMLLinkElement)
     mimeType = item.type;
 
-  if (!mimeType && !isBG && item instanceof nsIImageLoadingContent) {
+  if (!mimeType && item instanceof nsIImageLoadingContent) {
     var imageRequest = item.getRequest(nsIImageLoadingContent.CURRENT_REQUEST);
     if (imageRequest) {
       mimeType = imageRequest.mimeType;
@@ -870,28 +874,23 @@ function makePreview(row)
   if (!mimeType)
     mimeType = getContentTypeFromHeaders(cacheEntryDescriptor);
 
-  var imageType;
   if (mimeType) {
     // We found the type, try to display it nicely
     var imageMimeType = /^image\/(.*)/.exec(mimeType);
     if (imageMimeType) {
-      imageType = imageMimeType[1].toUpperCase();
+      mimeType = imageMimeType[1].toUpperCase();
       if (numFrames > 1)
-        imageType = gBundle.getFormattedString("mediaAnimatedImageType",
-                                               [imageType, numFrames]);
+        mimeType = gBundle.getFormattedString("mediaAnimatedImageType",
+                                              [mimeType, numFrames]);
       else
-        imageType = gBundle.getFormattedString("mediaImageType", [imageType]);
-    }
-    else {
-      // the MIME type doesn't begin with image/, display the raw type
-      imageType = mimeType;
+        mimeType = gBundle.getFormattedString("mediaImageType", [mimeType]);
     }
   }
   else {
     // We couldn't find the type, fall back to the value in the treeview
-    imageType = gImageView.data[row][COL_IMAGE_TYPE];
+    mimeType = gImageView.data[row][COL_IMAGE_TYPE];
   }
-  setItemValue("imagetypetext", imageType);
+  setItemValue("imagetypetext", mimeType);
 
   var imageContainer = document.getElementById("theimagecontainer");
   var oldImage = document.getElementById("thepreviewimage");

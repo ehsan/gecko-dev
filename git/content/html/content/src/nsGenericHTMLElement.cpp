@@ -76,7 +76,6 @@
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
 #include "nsIDocShell.h"
-#include "nsIDocShellTreeItem.h"
 #include "nsINameSpaceManager.h"
 #include "nsDOMError.h"
 #include "nsScriptLoader.h"
@@ -94,11 +93,11 @@
 #include "nsIDOMEvent.h"
 #include "nsIDOMNSEvent.h"
 #include "nsDOMCSSDeclaration.h"
+#include "nsICSSOMFactory.h"
 #include "nsITextControlFrame.h"
 #include "nsIForm.h"
 #include "nsIFormControl.h"
 #include "nsIDOMHTMLFormElement.h"
-#include "nsFocusManager.h"
 
 #include "nsMutationEvent.h"
 
@@ -112,7 +111,6 @@
 #include "nsLayoutUtils.h"
 #include "nsContentCreatorFunctions.h"
 #include "mozAutoDocUpdate.h"
-#include "nsIFocusController.h"
 
 class nsINodeInfo;
 class nsIDOMNodeList;
@@ -307,7 +305,7 @@ nsGenericHTMLElement::SetAttribute(const nsAString& aName,
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsCOMPtr<nsIAtom> nameAtom;
-    if (IsInHTMLDocument()) {
+    if (mNodeInfo->NamespaceEquals(kNameSpaceID_None)) {
       nsAutoString lower;
       ToLowerCase(aName, lower);
       nameAtom = do_GetAtom(lower);
@@ -329,8 +327,23 @@ nsGenericHTMLElement::GetNodeName(nsAString& aNodeName)
 {
   mNodeInfo->GetQualifiedName(aNodeName);
 
-  if (IsInHTMLDocument())
+  if (mNodeInfo->NamespaceEquals(kNameSpaceID_None))
     ToUpperCase(aNodeName);
+
+  return NS_OK;
+}
+
+nsresult
+nsGenericHTMLElement::GetLocalName(nsAString& aLocalName)
+{
+  mNodeInfo->GetLocalName(aLocalName);
+
+  if (mNodeInfo->NamespaceEquals(kNameSpaceID_None)) {
+    // No namespace, this means we're dealing with a good ol' HTML
+    // element, so uppercase the local name.
+
+    ToUpperCase(aLocalName);
+  }
 
   return NS_OK;
 }
@@ -341,11 +354,29 @@ nsGenericHTMLElement::GetElementsByTagName(const nsAString& aTagname,
 {
   nsAutoString tagName(aTagname);
 
-  // Only lowercase the name if this is an HTML document.
-  if (IsInHTMLDocument())
+  // Only lowercase the name if this element has no namespace (i.e.
+  // it's a HTML element, not an XHTML element).
+  if (mNodeInfo && mNodeInfo->NamespaceEquals(kNameSpaceID_None))
     ToLowerCase(tagName);
 
   return nsGenericHTMLElementBase::GetElementsByTagName(tagName, aReturn);
+}
+
+nsresult
+nsGenericHTMLElement::GetElementsByTagNameNS(const nsAString& aNamespaceURI,
+                                             const nsAString& aLocalName,
+                                             nsIDOMNodeList** aReturn)
+{
+  nsAutoString localName(aLocalName);
+
+  // Only lowercase the name if this element has no namespace (i.e.
+  // it's a HTML element, not an XHTML element).
+  if (mNodeInfo && mNodeInfo->NamespaceEquals(kNameSpaceID_None))
+    ToLowerCase(localName);
+
+  return nsGenericHTMLElementBase::GetElementsByTagNameNS(aNamespaceURI,
+                                                          localName,
+                                                          aReturn);
 }
 
 // Implementation for nsIDOMHTMLElement
@@ -640,7 +671,8 @@ nsGenericHTMLElement::GetInnerHTML(nsAString& aInnerHTML)
   nsresult rv = NS_OK;
 
   nsAutoString contentType;
-  if (IsInHTMLDocument()) {
+  if (!doc->IsCaseSensitive()) {
+    // All case-insensitive documents are HTML as far as we're concerned
     contentType.AssignLiteral("text/html");
   } else {
     doc->GetContentType(contentType);
@@ -1027,15 +1059,26 @@ nsGenericHTMLElement::GetHrefURIForAnchors(nsIURI** aURI) const
   // Get href= attribute (relative URI).
 
   // We use the nsAttrValue's copy of the URI string to avoid copying.
-  GetURIAttr(nsGkAtoms::href, nsnull, PR_FALSE, aURI);
+  const nsAttrValue* attr = mAttrsAndChildren.GetAttr(nsGkAtoms::href);
+  if (attr) {
+    // Get base URI.
+    nsCOMPtr<nsIURI> baseURI = GetBaseURI();
+
+    // Get absolute URI.
+    nsresult rv = nsContentUtils::NewURIWithDocumentCharset(aURI,
+                                                            attr->GetStringValue(),
+                                                            GetOwnerDoc(),
+                                                            baseURI);
+    if (NS_FAILED(rv)) {
+      *aURI = nsnull;
+    }
+  }
+  else {
+    // Absolute URI is null to say we have no HREF.
+    *aURI = nsnull;
+  }
 
   return NS_OK;
-}
-
-void
-nsGenericHTMLElement::GetHrefURIToMutate(nsIURI** aURI)
-{
-  GetURIAttr(nsGkAtoms::href, nsnull, PR_TRUE, aURI);
 }
 
 nsresult
@@ -1083,11 +1126,10 @@ nsGenericHTMLElement::GetEventListenerManagerForAttr(nsIEventListenerManager** a
       nsCOMPtr<nsPIDOMEventTarget> piTarget(do_QueryInterface(win));
       NS_ENSURE_TRUE(piTarget, NS_ERROR_FAILURE);
 
-      *aManager = piTarget->GetListenerManager(PR_TRUE);
+      rv = piTarget->GetListenerManager(PR_TRUE, aManager);
 
-      if (*aManager) {
+      if (NS_SUCCEEDED(rv)) {
         NS_ADDREF(*aTarget = win);
-        NS_ADDREF(*aManager);
       }
       *aDefer = PR_FALSE;
     } else {
@@ -1114,7 +1156,6 @@ nsGenericHTMLElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
   PRInt32 change;
   if (contentEditable) {
     change = GetContentEditableValue() == eTrue ? -1 : 0;
-    SetFlags(NODE_MAY_HAVE_CONTENT_EDITABLE_ATTR);
   }
 
   nsresult rv = nsGenericElement::SetAttr(aNameSpaceID, aName, aPrefix, aValue,
@@ -1136,38 +1177,31 @@ nsresult
 nsGenericHTMLElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                                 PRBool aNotify)
 {
-  PRBool contentEditable = PR_FALSE;
-  PRInt32 contentEditableChange;
-
-  if (aNameSpaceID == kNameSpaceID_None) {
-    contentEditable = PR_TRUE;
-    contentEditableChange = GetContentEditableValue() == eTrue ? -1 : 0;
-  }
-
   // Check for event handlers
   if (aNameSpaceID == kNameSpaceID_None) {
-    if (nsContentUtils::IsEventAttributeName(aAttribute, EventNameType_HTML)) {
-      nsIEventListenerManager* manager = GetListenerManager(PR_FALSE);
+    if (aAttribute == nsGkAtoms::contenteditable) {
+      ChangeEditableState(GetContentEditableValue() == eTrue ? -1 : 0);
+    }
+    else if (nsContentUtils::IsEventAttributeName(aAttribute,
+                                                  EventNameType_HTML)) {
+      nsCOMPtr<nsIEventListenerManager> manager;
+      GetListenerManager(PR_FALSE, getter_AddRefs(manager));
+
       if (manager) {
         manager->RemoveScriptEventListener(aAttribute);
       }
     }
   }
 
-  nsresult rv = nsGenericHTMLElementBase::UnsetAttr(aNameSpaceID, aAttribute,
-                                                    aNotify);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (contentEditable) {
-    ChangeEditableState(contentEditableChange);
-  }
-
-  return NS_OK;
+  return nsGenericHTMLElementBase::UnsetAttr(aNameSpaceID, aAttribute,
+                                             aNotify);
 }
 
 already_AddRefed<nsIURI>
 nsGenericHTMLElement::GetBaseURI() const
 {
+  nsIDocument* doc = GetOwnerDoc();
+
   void* prop;
   if (HasFlag(NODE_HAS_PROPERTIES) && (prop = GetProperty(nsGkAtoms::htmlBaseHref))) {
     nsIURI* uri = static_cast<nsIURI*>(prop);
@@ -1178,12 +1212,15 @@ nsGenericHTMLElement::GetBaseURI() const
 
   // If we are a plain old HTML element (not XHTML), don't bother asking the
   // base class -- our base URI is determined solely by the document base.
-  if (IsInHTMLDocument()) {
-    // If we got here, GetOwnerDoc() is not null
-    nsIURI *uri = GetOwnerDoc()->GetBaseURI();
-    NS_IF_ADDREF(uri);
+  if (mNodeInfo->NamespaceEquals(kNameSpaceID_None)) {
+    if (doc) {
+      nsIURI *uri = doc->GetBaseURI();
+      NS_IF_ADDREF(uri);
 
-    return uri;
+      return uri;
+    }
+
+    return nsnull;
   }
 
   return nsGenericHTMLElementBase::GetBaseURI();
@@ -1271,12 +1308,14 @@ nsGenericHTMLElement::GetFormControlFrameFor(nsIContent* aContent,
                                              PRBool aFlushContent)
 {
   if (aFlushContent) {
-    // Cause a flush of the frames, so we get up-to-date frame information
-    aDocument->FlushPendingNotifications(Flush_Frames);
+    // Cause a flush of content, so we get up-to-date frame
+    // information
+    aDocument->FlushPendingNotifications(Flush_Layout);
   }
   nsIFrame* frame = GetPrimaryFrameFor(aContent, aDocument);
   if (frame) {
-    nsIFormControlFrame* form_frame = do_QueryFrame(frame);
+    nsIFormControlFrame* form_frame = nsnull;
+    CallQueryInterface(frame, &form_frame);
     if (form_frame) {
       return form_frame;
     }
@@ -1286,7 +1325,7 @@ nsGenericHTMLElement::GetFormControlFrameFor(nsIContent* aContent,
     for (frame = frame->GetFirstChild(nsnull);
          frame;
          frame = frame->GetNextSibling()) {
-      form_frame = do_QueryFrame(frame);
+      CallQueryInterface(frame, &form_frame);
       if (form_frame) {
         return form_frame;
       }
@@ -1313,12 +1352,10 @@ nsGenericHTMLElement::GetPrimaryPresState(nsGenericHTMLElement* aContent,
     // Get the pres state for this key, if it doesn't exist, create one
     result = history->GetState(key, aPresState);
     if (!*aPresState) {
-      *aPresState = new nsPresState();
-      if (!*aPresState) {
-        return NS_ERROR_OUT_OF_MEMORY;
+      result = NS_NewPresState(aPresState);
+      if (NS_SUCCEEDED(result)) {
+        result = history->AddState(key, *aPresState);
       }
-        
-      result = history->AddState(key, *aPresState);
     }
   }
 
@@ -1617,9 +1654,9 @@ nsGenericHTMLElement::MapCommonAttributesInto(const nsMappedAttributes* aAttribu
           ui->mUserModify.SetIntValue(NS_STYLE_USER_MODIFY_READ_WRITE,
                                       eCSSUnit_Enumerated);
         }
-        else if (value->Equals(nsGkAtoms::_false, eIgnoreCase)) {
-            ui->mUserModify.SetIntValue(NS_STYLE_USER_MODIFY_READ_ONLY,
-                                        eCSSUnit_Enumerated);
+        else {
+          ui->mUserModify.SetIntValue(NS_STYLE_USER_MODIFY_READ_ONLY,
+                                      eCSSUnit_Enumerated);
         }
       }
     }
@@ -1628,7 +1665,7 @@ nsGenericHTMLElement::MapCommonAttributesInto(const nsMappedAttributes* aAttribu
     const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::lang);
     if (value && value->Type() == nsAttrValue::eString) {
       aData->mDisplayData->mLang.SetStringValue(value->GetStringValue(),
-                                                eCSSUnit_Ident);
+                                                eCSSUnit_String);
     }
   }
 }
@@ -1891,7 +1928,8 @@ nsGenericHTMLElement::MapBackgroundInto(const nsMappedAttributes* aAttributes,
     return;
 
   nsPresContext* presContext = aData->mPresContext;
-  if (!aData->mColorData->mBackImage && presContext->UseDocumentColors()) {
+  if (aData->mColorData->mBackImage.GetUnit() == eCSSUnit_Null &&
+      presContext->UseDocumentColors()) {
     // background
     const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::background);
     if (value && value->Type() == nsAttrValue::eString) {
@@ -1921,11 +1959,7 @@ nsGenericHTMLElement::MapBackgroundInto(const nsMappedAttributes* aAttributes,
                                     doc->NodePrincipal(), doc);
             buffer->Release();
             if (NS_LIKELY(img != 0)) {
-              // Use nsRuleDataColor's temporary mTempBackImage to
-              // make a value list.
-              aData->mColorData->mTempBackImage.mValue.SetImageValue(img);
-              aData->mColorData->mBackImage =
-                &aData->mColorData->mTempBackImage;
+              aData->mColorData->mBackImage.SetImageValue(img);
             }
           }
         }
@@ -1933,10 +1967,7 @@ nsGenericHTMLElement::MapBackgroundInto(const nsMappedAttributes* aAttributes,
       else if (presContext->CompatibilityMode() == eCompatibility_NavQuirks) {
         // in NavQuirks mode, allow the empty string to set the
         // background to empty
-        // Use nsRuleDataColor's temporary mTempBackImage to make a value list.
-        aData->mColorData->mBackImage = nsnull;
-        aData->mColorData->mTempBackImage.mValue.SetNoneValue();
-        aData->mColorData->mBackImage = &aData->mColorData->mTempBackImage;
+        aData->mColorData->mBackImage.SetNoneValue();
       }
     }
   }
@@ -2102,78 +2133,51 @@ nsGenericHTMLElement::SetFloatAttr(nsIAtom* aAttr, float aValue)
 nsresult
 nsGenericHTMLElement::GetURIAttr(nsIAtom* aAttr, nsIAtom* aBaseAttr, nsAString& aResult)
 {
-  nsCOMPtr<nsIURI> uri;
-  PRBool hadAttr = GetURIAttr(aAttr, aBaseAttr, PR_FALSE, getter_AddRefs(uri));
-  if (!hadAttr) {
+  nsAutoString attrValue;
+  if (!GetAttr(kNameSpaceID_None, aAttr, attrValue)) {
     aResult.Truncate();
+
     return NS_OK;
   }
 
-  if (!uri) {
-    // Just return the attr value
-    GetAttr(kNameSpaceID_None, aAttr, aResult);
-    return NS_OK;
-  }
-
-  nsCAutoString spec;
-  uri->GetSpec(spec);
-  CopyUTF8toUTF16(spec, aResult);
-  return NS_OK;
-}
-
-PRBool
-nsGenericHTMLElement::GetURIAttr(nsIAtom* aAttr, nsIAtom* aBaseAttr,
-                                 PRBool aCloneIfCached, nsIURI** aURI) const
-{
-  *aURI = nsnull;
-
-  const nsAttrValue* attr = mAttrsAndChildren.GetAttr(aAttr);
-  if (!attr) {
-    return PR_FALSE;
-  }
-
-  PRBool isURIAttr = (attr->Type() == nsAttrValue::eLazyURIValue);
-
-  if (isURIAttr && (*aURI = attr->GetURIValue())) {
-    if (aCloneIfCached) {
-      nsIURI* clone = nsnull;
-      (*aURI)->Clone(&clone);
-      *aURI = clone;
-    } else {
-      NS_ADDREF(*aURI);
-    }
-    return PR_TRUE;
-  }
-  
   nsCOMPtr<nsIURI> baseURI = GetBaseURI();
+  nsresult rv;
 
   if (aBaseAttr) {
     nsAutoString baseAttrValue;
     if (GetAttr(kNameSpaceID_None, aBaseAttr, baseAttrValue)) {
       nsCOMPtr<nsIURI> baseAttrURI;
-      nsresult rv =
-        nsContentUtils::NewURIWithDocumentCharset(getter_AddRefs(baseAttrURI),
-                                                  baseAttrValue, GetOwnerDoc(),
-                                                  baseURI);
+      rv = nsContentUtils::NewURIWithDocumentCharset(getter_AddRefs(baseAttrURI),
+                                                     baseAttrValue, GetOwnerDoc(),
+                                                     baseURI);
       if (NS_FAILED(rv)) {
-        return PR_TRUE;
+        // Just use the attr value as the result...
+        aResult = attrValue;
+
+        return NS_OK;
       }
       baseURI.swap(baseAttrURI);
     }
   }
 
-  // Don't care about return value.  If it fails, we still want to
-  // return PR_TRUE, and *aURI will be null.
-  nsContentUtils::NewURIWithDocumentCharset(aURI,
-                                            isURIAttr ?
-                                              attr->GetURIStringValue() :
-                                              attr->GetStringValue(),
-                                            GetOwnerDoc(), baseURI);
+  nsCOMPtr<nsIURI> attrURI;
+  rv = nsContentUtils::NewURIWithDocumentCharset(getter_AddRefs(attrURI),
+                                                 attrValue, GetOwnerDoc(),
+                                                 baseURI);
+  if (NS_FAILED(rv)) {
+    // Just use the attr value as the result...
+    aResult = attrValue;
 
-  if (isURIAttr) {
-    const_cast<nsAttrValue*>(attr)->CacheURIValue(*aURI);
+    return NS_OK;
   }
-  return PR_TRUE;
+
+  NS_ASSERTION(attrURI,
+               "nsContentUtils::NewURIWithDocumentCharset return value lied");
+
+  nsCAutoString spec;
+  attrURI->GetSpec(spec);
+  CopyUTF8toUTF16(spec, aResult);
+  return NS_OK;
 }
 
 nsresult
@@ -2594,35 +2598,6 @@ nsGenericHTMLFormElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                             aValue, aNotify);
 }
 
-nsresult
-nsGenericHTMLFormElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
-{
-  if (NS_IS_TRUSTED_EVENT(aVisitor.mEvent)) {
-    switch (aVisitor.mEvent->message) {
-      case NS_FOCUS_CONTENT:
-      {
-        // Check to see if focus has bubbled up from a form control's
-        // child textfield or button.  If that's the case, don't focus
-        // this parent file control -- leave focus on the child.
-        nsIFormControlFrame* formControlFrame = GetFormControlFrame(PR_TRUE);
-        if (formControlFrame &&
-            aVisitor.mEvent->originalTarget == static_cast<nsINode*>(this))
-          formControlFrame->SetFocus(PR_TRUE, PR_TRUE);
-        break;
-      }
-      case NS_BLUR_CONTENT:
-      {
-        nsIFormControlFrame* formControlFrame = GetFormControlFrame(PR_TRUE);
-        if (formControlFrame)
-          formControlFrame->SetFocus(PR_FALSE, PR_FALSE);
-        break;
-      }
-    }
-  }
-
-  return nsGenericHTMLElement::PreHandleEvent(aVisitor);
-}
-
 PRBool
 nsGenericHTMLFormElement::CanBeDisabled() const
 {
@@ -2678,39 +2653,21 @@ nsGenericHTMLFormElement::IntrinsicState() const
   return state;
 }
 
-nsGenericHTMLFormElement::FocusTristate
-nsGenericHTMLFormElement::FocusState()
+void
+nsGenericHTMLFormElement::SetFocusAndScrollIntoView(nsPresContext* aPresContext)
 {
-  // We can't be focused if we aren't in a document
-  nsIDocument* doc = GetCurrentDoc();
-  if (!doc)
-    return eUnfocusable;
-
-  // first see if we are disabled or not. If disabled then do nothing.
-  if (HasAttr(kNameSpaceID_None, nsGkAtoms::disabled)) {
-    return eUnfocusable;
-  }
-
-  // If the window is not active, do not allow the focus to bring the
-  // window to the front.  We update the focus controller, but do
-  // nothing else.
-  nsCOMPtr<nsIDocShellTreeItem> dsti = do_GetInterface(doc->GetWindow());
-  if (dsti) {
-    nsCOMPtr<nsIDocShellTreeItem> root;
-    dsti->GetRootTreeItem(getter_AddRefs(root));
-    nsCOMPtr<nsIDOMWindow> rootWindow = do_GetInterface(root);
-
-    nsCOMPtr<nsIFocusManager> fm = do_GetService(FOCUSMANAGER_CONTRACTID);
-    if (fm && rootWindow) {
-      nsCOMPtr<nsIDOMWindow> activeWindow;
-      fm->GetActiveWindow(getter_AddRefs(activeWindow));
-      if (activeWindow == rootWindow) {
-        return eActiveWindow;
+  nsIEventStateManager *esm = aPresContext->EventStateManager();
+  if (esm->SetContentState(this, NS_EVENT_STATE_FOCUS)) {
+    nsIFormControlFrame* formControlFrame = GetFormControlFrame(PR_TRUE);
+    if (formControlFrame) {
+      formControlFrame->SetFocus(PR_TRUE, PR_TRUE);
+      nsCOMPtr<nsIPresShell> presShell = aPresContext->GetPresShell();
+      if (presShell) {
+        presShell->ScrollContentIntoView(this, NS_PRESSHELL_SCROLL_IF_NOT_VISIBLE,
+                                         NS_PRESSHELL_SCROLL_IF_NOT_VISIBLE);
       }
     }
   }
-
-  return eInactiveWindow;
 }
 
 //----------------------------------------------------------------------
@@ -2847,8 +2804,6 @@ nsGenericHTMLFrameElement::BindToTree(nsIDocument* aDocument,
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (aDocument) {
-    NS_ASSERTION(!nsContentUtils::IsSafeToRunScript(),
-                 "Missing a script blocker!");
     // We're in a document now.  Kick off the frame load.
     LoadSrc();
   }
@@ -2902,19 +2857,34 @@ nsGenericHTMLFrameElement::DestroyContent()
 
 //----------------------------------------------------------------------
 
+void
+nsGenericHTMLElement::SetElementFocus(PRBool aDoFocus)
+{
+  nsCOMPtr<nsPresContext> presContext = GetPresContext();
+  if (!presContext)
+    return;
+
+  if (aDoFocus) {
+    if (IsInDoc()) {
+      // Make sure that our frames are up to date so we focus the right thing.
+      GetCurrentDoc()->FlushPendingNotifications(Flush_Frames);
+    }
+
+    SetFocus(presContext);
+
+    presContext->EventStateManager()->MoveCaretToFocus();
+    return;
+  }
+
+  RemoveFocus(presContext);
+}
+
 nsresult
 nsGenericHTMLElement::Blur()
 {
-  if (!ShouldBlur(this))
-    return NS_OK;
-
-  nsIDocument* doc = GetCurrentDoc();
-  if (!doc)
-    return NS_OK;
-
-  nsIDOMWindow* win = doc->GetWindow();
-  nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-  return (win && fm) ? fm->ClearFocus(win) : NS_OK;
+  if (ShouldBlur(this)) {
+    SetElementFocus(PR_FALSE);
+  }
 
   return NS_OK;
 }
@@ -2922,9 +2892,33 @@ nsGenericHTMLElement::Blur()
 nsresult
 nsGenericHTMLElement::Focus()
 {
-  nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-  nsCOMPtr<nsIDOMElement> elem = do_QueryInterface(this);
-  return fm ? fm->SetFocus(elem, 0) : NS_OK;
+  // Generic HTML elements are focusable only if tabindex explicitly set.
+  // SetFocus() will check to see if we're focusable and then
+  // call into esm to do the work of focusing.
+  if (ShouldFocus(this)) {
+    SetElementFocus(PR_TRUE);
+  }
+
+  return NS_OK;
+}
+
+void
+nsGenericHTMLElement::RemoveFocus(nsPresContext *aPresContext)
+{
+  if (!aPresContext) 
+    return;
+
+  if (IsNodeOfType(eHTML_FORM_CONTROL)) {
+    nsIFormControlFrame* formControlFrame = GetFormControlFrame(PR_TRUE);
+    if (formControlFrame) {
+      formControlFrame->SetFocus(PR_FALSE, PR_FALSE);
+    }
+  }
+  
+  if (IsInDoc()) {
+    aPresContext->EventStateManager()->SetContentState(nsnull,
+                                                       NS_EVENT_STATE_FOCUS);
+  }
 }
 
 PRBool
@@ -2945,13 +2939,14 @@ nsGenericHTMLElement::IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex)
   PRInt32 tabIndex = 0;   // Default value for non HTML elements with -moz-user-focus
   GetTabIndex(&tabIndex);
 
-  PRBool override, disabled = PR_FALSE;
+  PRBool override, disabled;
   if (IsEditableRoot()) {
     // Editable roots should always be focusable.
     override = PR_TRUE;
 
     // Ignore the disabled attribute in editable contentEditable/designMode
     // roots.
+    disabled = PR_FALSE;
     if (!HasAttr(kNameSpaceID_None, nsGkAtoms::tabindex)) {
       // The default value for tabindex should be 0 for editable
       // contentEditable roots.
@@ -2961,7 +2956,7 @@ nsGenericHTMLElement::IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex)
   else {
     override = PR_FALSE;
 
-    // Just check for disabled attribute on form controls
+    // Just check for disabled attribute on all HTML elements
     disabled = HasAttr(kNameSpaceID_None, nsGkAtoms::disabled);
     if (disabled) {
       tabIndex = -1;
@@ -3012,12 +3007,12 @@ nsGenericHTMLElement::PerformAccesskey(PRBool aKeyCausesActivation,
   if (!presContext)
     return;
 
+  nsIEventStateManager *esm = presContext->EventStateManager();
+  if (!esm)
+    return;
+
   // It's hard to say what HTML4 wants us to do in all cases.
-  nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-  if (fm) {
-    nsCOMPtr<nsIDOMElement> elem = do_QueryInterface(this);
-    fm->SetFocus(elem, nsIFocusManager::FLAG_BYKEY);
-  }
+  esm->ChangeFocusWith(this, nsIEventStateManager::eEventFocusedByKey);
 
   if (aKeyCausesActivation) {
     // Click on it if the users prefs indicate to do so.
@@ -3031,30 +3026,17 @@ nsGenericHTMLElement::PerformAccesskey(PRBool aKeyCausesActivation,
   }
 }
 
-void
-nsGenericHTMLElement::SetHrefToURI(nsIURI* aURI)
-{
-  nsCAutoString newHref;
-  aURI->GetSpec(newHref);
-  SetAttrHelper(nsGkAtoms::href, NS_ConvertUTF8toUTF16(newHref));
-  const nsAttrValue* attr = mAttrsAndChildren.GetAttr(nsGkAtoms::href);
-  // Might already have a URI value, if we didn't actually change the
-  // string value of our attribute.
-  if (attr && attr->Type() == nsAttrValue::eLazyURIValue &&
-      !attr->GetURIValue()) {
-    const_cast<nsAttrValue*>(attr)->CacheURIValue(aURI);
-  }
-}
-
+// static
 nsresult
-nsGenericHTMLElement::SetProtocolInHrefURI(const nsAString &aProtocol)
+nsGenericHTMLElement::SetProtocolInHrefString(const nsAString &aHref,
+                                              const nsAString &aProtocol,
+                                              nsAString &aResult)
 {
+  aResult.Truncate();
   nsCOMPtr<nsIURI> uri;
-  GetHrefURIToMutate(getter_AddRefs(uri));
-  if (!uri) {
-    // Ignore failures to be compatible with NS4
-    return NS_OK;
-  }
+  nsresult rv = NS_NewURI(getter_AddRefs(uri), aHref);
+  if (NS_FAILED(rv))
+    return rv;
 
   nsAString::const_iterator start, end;
   aProtocol.BeginReading(start);
@@ -3062,169 +3044,237 @@ nsGenericHTMLElement::SetProtocolInHrefURI(const nsAString &aProtocol)
   nsAString::const_iterator iter(start);
   FindCharInReadable(':', iter, end);
   uri->SetScheme(NS_ConvertUTF16toUTF8(Substring(start, iter)));
+   
+  nsCAutoString newHref;
+  uri->GetSpec(newHref);
 
-  SetHrefToURI(uri);
+  CopyUTF8toUTF16(newHref, aResult);
+
   return NS_OK;
 }
 
+// static
 nsresult
-nsGenericHTMLElement::SetHostnameInHrefURI(const nsAString &aHostname)
+nsGenericHTMLElement::SetHostnameInHrefString(const nsAString &aHref,
+                                              const nsAString &aHostname,
+                                              nsAString &aResult)
 {
+  aResult.Truncate();
   nsCOMPtr<nsIURI> uri;
-  GetHrefURIToMutate(getter_AddRefs(uri));
-  if (!uri) {
-    // Ignore failures to be compatible with NS4
-    return NS_OK;
-  }
+  nsresult rv = NS_NewURI(getter_AddRefs(uri), aHref);
+  if (NS_FAILED(rv))
+    return rv;
 
   uri->SetHost(NS_ConvertUTF16toUTF8(aHostname));
 
-  SetHrefToURI(uri);
+  nsCAutoString newHref;
+  uri->GetSpec(newHref);
+
+  CopyUTF8toUTF16(newHref, aResult);
+
   return NS_OK;
 }
 
+// static
 nsresult
-nsGenericHTMLElement::SetPathnameInHrefURI(const nsAString &aPathname)
+nsGenericHTMLElement::SetPathnameInHrefString(const nsAString &aHref,
+                                              const nsAString &aPathname,
+                                              nsAString &aResult)
 {
+  aResult.Truncate();
   nsCOMPtr<nsIURI> uri;
-  GetHrefURIToMutate(getter_AddRefs(uri));
-  nsCOMPtr<nsIURL> url = do_QueryInterface(uri);
-  if (!url) {
-    // Ignore failures to be compatible with NS4
-    return NS_OK;
-  }
+  nsresult rv = NS_NewURI(getter_AddRefs(uri), aHref);
+  if (NS_FAILED(rv))
+    return rv;
+
+  nsCOMPtr<nsIURL> url(do_QueryInterface(uri, &rv));
+  if (NS_FAILED(rv))
+    return rv;
 
   url->SetFilePath(NS_ConvertUTF16toUTF8(aPathname));
 
-  SetHrefToURI(uri);
+  nsCAutoString newHref;
+  uri->GetSpec(newHref);
+
+  CopyUTF8toUTF16(newHref, aResult);
 
   return NS_OK;
 }
 
+// static
 nsresult
-nsGenericHTMLElement::SetHostInHrefURI(const nsAString &aHost)
+nsGenericHTMLElement::SetHostInHrefString(const nsAString &aHref,
+                                          const nsAString &aHost,
+                                          nsAString &aResult)
 {
   // Can't simply call nsURI::SetHost, because that would treat the name as an
   // IPv6 address (like http://[server:443]/)
-  // And can't call SetHostPort, because that's not implemented.  Very sad.
-  
+
+  aResult.Truncate();
   nsCOMPtr<nsIURI> uri;
-  GetHrefURIToMutate(getter_AddRefs(uri));
-  if (!uri) {
-    // Ignore failures to be compatible with NS4
-    return NS_OK;
-  }
+  nsresult rv = NS_NewURI(getter_AddRefs(uri), aHref);
+  if (NS_FAILED(rv))
+    return rv;
 
-  nsAString::const_iterator start, end;
-  aHost.BeginReading(start);
-  aHost.EndReading(end);
-  nsAString::const_iterator iter(start);
-  FindCharInReadable(':', iter, end);
-  uri->SetHost(NS_ConvertUTF16toUTF8(Substring(start, iter)));
-  if (iter != end) {
-    ++iter;
-    if (iter != end) {
-      nsAutoString portStr(Substring(iter, end));
-      nsresult rv;
-      PRInt32 port;
-      port = portStr.ToInteger((PRInt32*)&rv);
-      if (NS_SUCCEEDED(rv)) {
-        uri->SetPort(port);
-      }
-    }
-  }
+  nsCAutoString scheme, userpass, path;
+  uri->GetScheme(scheme);
+  uri->GetUserPass(userpass);
+  uri->GetPath(path);
 
-  SetHrefToURI(uri);
+  CopyASCIItoUTF16(scheme, aResult);
+  aResult.AppendLiteral("://");
+  if (!userpass.IsEmpty()) {
+    AppendUTF8toUTF16(userpass, aResult);
+    aResult.Append(PRUnichar('@'));
+  }
+  aResult.Append(aHost);
+  AppendUTF8toUTF16(path, aResult);
+
   return NS_OK;
 }
 
+// static
 nsresult
-nsGenericHTMLElement::SetSearchInHrefURI(const nsAString &aSearch)
+nsGenericHTMLElement::SetSearchInHrefString(const nsAString &aHref,
+                                            const nsAString &aSearch,
+                                            nsAString &aResult)
 {
+  aResult.Truncate();
   nsCOMPtr<nsIURI> uri;
-  GetHrefURIToMutate(getter_AddRefs(uri));
-  nsCOMPtr<nsIURL> url = do_QueryInterface(uri);
-  if (!url) {
-    // Ignore failures to be compatible with NS4
-    return NS_OK;
-  }
+
+  nsresult rv = NS_NewURI(getter_AddRefs(uri), aHref);
+  if (NS_FAILED(rv))
+    return rv;
+
+  nsCOMPtr<nsIURL> url(do_QueryInterface(uri, &rv));
+  if (NS_FAILED(rv))
+    return rv;
 
   url->SetQuery(NS_ConvertUTF16toUTF8(aSearch));
 
-  SetHrefToURI(uri);
+  nsCAutoString newHref;
+  uri->GetSpec(newHref);
+
+  CopyUTF8toUTF16(newHref, aResult);
+
   return NS_OK;
 }
 
+// static
 nsresult
-nsGenericHTMLElement::SetHashInHrefURI(const nsAString &aHash)
+nsGenericHTMLElement::SetHashInHrefString(const nsAString &aHref,
+                                          const nsAString &aHash,
+                                          nsAString &aResult)
 {
+  aResult.Truncate();
   nsCOMPtr<nsIURI> uri;
-  GetHrefURIToMutate(getter_AddRefs(uri));
-  nsCOMPtr<nsIURL> url = do_QueryInterface(uri);
-  if (!url) {
-    // Ignore failures to be compatible with NS4
-    return NS_OK;
-  }
 
-  url->SetRef(NS_ConvertUTF16toUTF8(aHash));
-
-  SetHrefToURI(uri);
-  return NS_OK;
-}
-
-nsresult
-nsGenericHTMLElement::SetPortInHrefURI(const nsAString &aPort)
-{
-  nsCOMPtr<nsIURI> uri;
-  GetHrefURIToMutate(getter_AddRefs(uri));
-  if (!uri) {
-    // Ignore failures to be compatible with NS4
-    return NS_OK;
-  }
-
-  nsresult rv;
-  PRInt32 port = nsString(aPort).ToInteger((PRInt32*)&rv);
+  nsresult rv = NS_NewURI(getter_AddRefs(uri), aHref);
   if (NS_FAILED(rv))
-    return NS_OK;
+    return rv;
+
+  nsCOMPtr<nsIURL> url(do_QueryInterface(uri, &rv));
+  if (NS_FAILED(rv))
+    return rv;
+
+  rv = url->SetRef(NS_ConvertUTF16toUTF8(aHash));
+
+  nsCAutoString newHref;
+  uri->GetSpec(newHref);
+
+  CopyUTF8toUTF16(newHref, aResult);
+
+  return NS_OK;
+}
+
+// static
+nsresult
+nsGenericHTMLElement::SetPortInHrefString(const nsAString &aHref,
+                                          const nsAString &aPort,
+                                          nsAString &aResult)
+{
+  aResult.Truncate();
+  nsCOMPtr<nsIURI> uri;
+  nsresult rv = NS_NewURI(getter_AddRefs(uri), aHref);
+
+  if (NS_FAILED(rv))
+    return rv;
+
+  PRInt32 port;
+  port = nsString(aPort).ToInteger((PRInt32*)&rv);
+  if (NS_FAILED(rv))
+    return rv;
 
   uri->SetPort(port);
-  SetHrefToURI(uri);
+
+  nsCAutoString newHref;
+  uri->GetSpec(newHref);
+
+  CopyUTF8toUTF16(newHref, aResult);
 
   return NS_OK;
 }
 
+// static
 nsresult
-nsGenericHTMLElement::GetProtocolFromHrefURI(nsAString& aProtocol)
+nsGenericHTMLElement::GetProtocolFromHrefString(const nsAString& aHref,
+                                                nsAString& aProtocol,
+                                                nsIDocument *aDocument)
 {
-  nsCOMPtr<nsIURI> uri;
-  GetHrefURIForAnchors(getter_AddRefs(uri));
+  aProtocol.Truncate();
 
-  if (!uri) {
-    aProtocol.AssignLiteral("http");
+  nsIIOService* ioService = nsContentUtils::GetIOService();
+  NS_ENSURE_TRUE(ioService, NS_ERROR_FAILURE);
+
+  nsCAutoString protocol;
+
+  nsresult rv =
+    ioService->ExtractScheme(NS_ConvertUTF16toUTF8(aHref), protocol);
+
+  if (NS_SUCCEEDED(rv)) {
+    CopyASCIItoUTF16(protocol, aProtocol);
   } else {
-    nsCAutoString scheme;
-    uri->GetScheme(scheme);
-    CopyASCIItoUTF16(scheme, aProtocol);
+    // set the protocol to the protocol of the base URI.
+
+    if (aDocument) {
+      nsIURI *uri = aDocument->GetBaseURI();
+      if (uri) {
+        uri->GetScheme(protocol);
+      }
+    }
+
+    if (protocol.IsEmpty()) {
+      // set the protocol to http since it is the most likely protocol
+      // to be used.
+      aProtocol.AssignLiteral("http");
+    } else {
+      CopyASCIItoUTF16(protocol, aProtocol);
+    }
   }
   aProtocol.Append(PRUnichar(':'));
+
   return NS_OK;
 }
 
+// static
 nsresult
-nsGenericHTMLElement::GetHostFromHrefURI(nsAString& aHost)
+nsGenericHTMLElement::GetHostFromHrefString(const nsAString& aHref,
+                                            nsAString& aHost)
 {
   aHost.Truncate();
-
   nsCOMPtr<nsIURI> uri;
-  GetHrefURIForAnchors(getter_AddRefs(uri));
-  if (!uri) {
-    // Don't throw from these methods!  Not a valid URI means return
-    // empty string.
-    return NS_OK;
+  nsresult rv = NS_NewURI(getter_AddRefs(uri), aHref);
+  if (NS_FAILED(rv)) {
+    if (rv == NS_ERROR_MALFORMED_URI) {
+      // Don't throw from these methods!  Not a valid URI means return
+      // empty string.
+      rv = NS_OK;
+    }
+    return rv;
   }
 
   nsCAutoString hostport;
-  nsresult rv = uri->GetHostPort(hostport);
+  rv = uri->GetHostPort(hostport);
 
   // Failure to get the hostport from the URI isn't necessarily an
   // error. Some URI's just don't have a hostport.
@@ -3236,20 +3286,25 @@ nsGenericHTMLElement::GetHostFromHrefURI(nsAString& aHost)
   return NS_OK;
 }
 
+// static
 nsresult
-nsGenericHTMLElement::GetHostnameFromHrefURI(nsAString& aHostname)
+nsGenericHTMLElement::GetHostnameFromHrefString(const nsAString& aHref,
+                                                nsAString& aHostname)
 {
   aHostname.Truncate();
-  nsCOMPtr<nsIURI> uri;
-  GetHrefURIForAnchors(getter_AddRefs(uri));
-  if (!uri) {
-    // Don't throw from these methods!  Not a valid URI means return
-    // empty string.
-    return NS_OK;
+  nsCOMPtr<nsIURI> url;
+  nsresult rv = NS_NewURI(getter_AddRefs(url), aHref);
+  if (NS_FAILED(rv)) {
+    if (rv == NS_ERROR_MALFORMED_URI) {
+      // Don't throw from these methods!  Not a valid URI means return
+      // empty string.
+      rv = NS_OK;
+    }
+    return rv;
   }
 
   nsCAutoString host;
-  nsresult rv = uri->GetHost(host);
+  rv = url->GetHost(host);
 
   if (NS_SUCCEEDED(rv)) {
     // Failure to get the host from the URI isn't necessarily an
@@ -3261,17 +3316,20 @@ nsGenericHTMLElement::GetHostnameFromHrefURI(nsAString& aHostname)
   return NS_OK;
 }
 
+// static
 nsresult
-nsGenericHTMLElement::GetPathnameFromHrefURI(nsAString& aPathname)
+nsGenericHTMLElement::GetPathnameFromHrefString(const nsAString& aHref,
+                                                nsAString& aPathname)
 {
   aPathname.Truncate();
-
   nsCOMPtr<nsIURI> uri;
-  GetHrefURIForAnchors(getter_AddRefs(uri));
-  if (!uri) {
-    // Don't throw from these methods!  Not a valid URI means return
-    // empty string.
-    return NS_OK;
+
+  nsresult rv = NS_NewURI(getter_AddRefs(uri), aHref);
+  if (NS_FAILED(rv)) {
+    if (rv == NS_ERROR_MALFORMED_URI) {
+      rv = NS_OK;
+    }
+    return rv;
   }
 
   nsCOMPtr<nsIURL> url(do_QueryInterface(uri));
@@ -3283,7 +3341,7 @@ nsGenericHTMLElement::GetPathnameFromHrefURI(nsAString& aPathname)
   }
 
   nsCAutoString file;
-  nsresult rv = url->GetFilePath(file);
+  rv = url->GetFilePath(file);
   if (NS_FAILED(rv))
     return rv;
 
@@ -3292,23 +3350,34 @@ nsGenericHTMLElement::GetPathnameFromHrefURI(nsAString& aPathname)
   return NS_OK;
 }
 
+// static
 nsresult
-nsGenericHTMLElement::GetSearchFromHrefURI(nsAString& aSearch)
+nsGenericHTMLElement::GetSearchFromHrefString(const nsAString& aHref,
+                                              nsAString& aSearch)
 {
   aSearch.Truncate();
   nsCOMPtr<nsIURI> uri;
-  GetHrefURIForAnchors(getter_AddRefs(uri));
+
+  nsresult rv = NS_NewURI(getter_AddRefs(uri), aHref);
+  if (NS_FAILED(rv)) {
+    if (rv == NS_ERROR_MALFORMED_URI) {
+      rv = NS_OK;
+    }
+    return rv;
+  }
+
   nsCOMPtr<nsIURL> url(do_QueryInterface(uri));
+
   if (!url) {
-    // Don't throw from these methods!  Not a valid URI means return
-    // empty string.
+    // If this is not a URL, we can't get the query from the URI
+
     return NS_OK;
   }
 
   nsCAutoString search;
-  nsresult rv = url->GetQuery(search);
+  rv = url->GetQuery(search);
   if (NS_FAILED(rv))
-    return NS_OK;
+    return rv;
 
   if (!search.IsEmpty()) {
     CopyUTF8toUTF16(NS_LITERAL_CSTRING("?") + search, aSearch);
@@ -3317,20 +3386,23 @@ nsGenericHTMLElement::GetSearchFromHrefURI(nsAString& aSearch)
   return NS_OK;
 }
 
+// static
 nsresult
-nsGenericHTMLElement::GetPortFromHrefURI(nsAString& aPort)
+nsGenericHTMLElement::GetPortFromHrefString(const nsAString& aHref,
+                                            nsAString& aPort)
 {
   aPort.Truncate();
   nsCOMPtr<nsIURI> uri;
-  GetHrefURIForAnchors(getter_AddRefs(uri));
-  if (!uri) {
-    // Don't throw from these methods!  Not a valid URI means return
-    // empty string.
-    return NS_OK;
+  nsresult rv = NS_NewURI(getter_AddRefs(uri), aHref);
+  if (NS_FAILED(rv)) {
+    if (rv == NS_ERROR_MALFORMED_URI) {
+      rv = NS_OK;
+    }
+    return rv;
   }
 
   PRInt32 port;
-  nsresult rv = uri->GetPort(&port);
+  rv = uri->GetPort(&port);
 
   if (NS_SUCCEEDED(rv)) {
     // Failure to get the port from the URI isn't necessarily an
@@ -3348,28 +3420,39 @@ nsGenericHTMLElement::GetPortFromHrefURI(nsAString& aPort)
   return NS_OK;
 }
 
+// static
 nsresult
-nsGenericHTMLElement::GetHashFromHrefURI(nsAString& aHash)
+nsGenericHTMLElement::GetHashFromHrefString(const nsAString& aHref,
+                                            nsAString& aHash)
 {
   aHash.Truncate();
   nsCOMPtr<nsIURI> uri;
-  GetHrefURIForAnchors(getter_AddRefs(uri));
+
+  nsresult rv = NS_NewURI(getter_AddRefs(uri), aHref);
+  if (NS_FAILED(rv)) {
+    if (rv == NS_ERROR_MALFORMED_URI) {
+      rv = NS_OK;
+    }
+    return rv;
+  }
+
   nsCOMPtr<nsIURL> url(do_QueryInterface(uri));
+
   if (!url) {
-    // Don't throw from these methods!  Not a valid URI means return
-    // empty string.
+    // If this is not a URL, we can't get the hash part from the URI
+
     return NS_OK;
   }
 
   nsCAutoString ref;
-  nsresult rv = url->GetRef(ref);
+  rv = url->GetRef(ref);
   if (NS_FAILED(rv))
-    return NS_OK;
+    return rv;
   NS_UnescapeURL(ref); // XXX may result in random non-ASCII bytes!
 
   if (!ref.IsEmpty()) {
     aHash.Assign(PRUnichar('#'));
-    AppendUTF8toUTF16(ref, aHash);
+    AppendASCIItoUTF16(ref, aHash);
   }
   return NS_OK;
 }
@@ -3377,7 +3460,7 @@ nsGenericHTMLElement::GetHashFromHrefURI(nsAString& aHash)
 const nsAttrName*
 nsGenericHTMLElement::InternalGetExistingAttrNameFromQName(const nsAString& aStr) const
 {
-  if (IsInHTMLDocument()) {
+  if (mNodeInfo->NamespaceEquals(kNameSpaceID_None)) {
     nsAutoString lower;
     ToLowerCase(aStr, lower);
     return mAttrsAndChildren.GetExistingAttrNameFromQName(
@@ -3406,7 +3489,8 @@ nsGenericHTMLElement::GetEditorInternal(nsIEditor** aEditor)
 
   nsIFormControlFrame *fcFrame = GetFormControlFrame(PR_FALSE);
   if (fcFrame) {
-    nsITextControlFrame *textFrame = do_QueryFrame(fcFrame);
+    nsITextControlFrame *textFrame = nsnull;
+    CallQueryInterface(fcFrame, &textFrame);
     if (textFrame) {
       return textFrame->GetEditor(aEditor);
     }

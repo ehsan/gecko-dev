@@ -35,18 +35,24 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef nsPluginInstancePeer_h_
-#define nsPluginInstancePeer_h_
+#ifndef nsPluginInstancePeer_h___
+#define nsPluginInstancePeer_h___
 
 #include "nsIPluginInstancePeer2.h"
+#include "nsIWindowlessPlugInstPeer.h"
 #include "nsIPluginTagInfo2.h"
 #include "nsIPluginInstanceOwner.h"
+#ifdef OJI
+#include "nsIJVMPluginTagInfo.h"
+#endif
 #include "nsPIPluginInstancePeer.h"
 
-#include "nsCOMPtr.h"
-
-class nsPluginInstancePeerImpl : public nsIPluginInstancePeer3,
+class nsPluginInstancePeerImpl : public nsIPluginInstancePeer2,
+                                 public nsIWindowlessPluginInstancePeer,
                                  public nsIPluginTagInfo2,
+#ifdef OJI
+                                 public nsIJVMPluginTagInfo,
+#endif
                                  public nsPIPluginInstancePeer
 								
 {
@@ -56,8 +62,8 @@ public:
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIPLUGININSTANCEPEER
+  NS_DECL_NSIWINDOWLESSPLUGININSTANCEPEER
   NS_DECL_NSIPLUGININSTANCEPEER2
-  NS_DECL_NSIPLUGININSTANCEPEER3
   NS_DECL_NSIPLUGINTAGINFO
   NS_DECL_NSIPLUGINTAGINFO2
 
@@ -89,9 +95,8 @@ public:
   nsresult SetOwner(nsIPluginInstanceOwner *aOwner);
 
 private:
-  // Weak pointer to the owner. The owner nulls this out (by calling
-  // InvalidateOwner()) when it's no longer our owner.
-  nsIPluginInstanceOwner  *mOwner;
+  nsIPluginInstance       *mInstance; //we don't add a ref to this
+  nsIPluginInstanceOwner  *mOwner;    //we don't add a ref to this
   nsMIMEType              mMIMEType;
   PRUint32                mThreadID;
   PRBool                  mStopped;

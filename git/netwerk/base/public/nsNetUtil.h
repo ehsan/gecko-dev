@@ -48,7 +48,6 @@
 #include "nsCOMPtr.h"
 #include "prio.h" // for read/write flags, permissions, etc.
 
-#include "nsCRT.h"
 #include "nsIURI.h"
 #include "nsIInputStream.h"
 #include "nsIOutputStream.h"
@@ -62,7 +61,6 @@
 #include "nsIIOService.h"
 #include "nsIServiceManager.h"
 #include "nsIChannel.h"
-#include "nsChannelProperties.h"
 #include "nsIInputStreamChannel.h"
 #include "nsITransport.h"
 #include "nsIStreamTransportService.h"
@@ -97,7 +95,6 @@
 #include "nsIMutable.h"
 #include "nsIPropertyBag2.h"
 #include "nsIIDNService.h"
-#include "nsIChannelEventSink.h"
 
 // Helper, to simplify getting the I/O service.
 inline const nsGetServiceByContractIDWithError
@@ -177,8 +174,8 @@ NS_NewChannel(nsIChannel           **result,
     nsCOMPtr<nsIIOService> grip;
     rv = net_EnsureIOService(&ioService, grip);
     if (ioService) {
-        nsCOMPtr<nsIChannel> chan;
-        rv = ioService->NewChannelFromURI(uri, getter_AddRefs(chan));
+        nsIChannel *chan;
+        rv = ioService->NewChannelFromURI(uri, &chan);
         if (NS_SUCCEEDED(rv)) {
             if (loadGroup)
                 rv |= chan->SetLoadGroup(loadGroup);
@@ -187,23 +184,12 @@ NS_NewChannel(nsIChannel           **result,
             if (loadFlags != nsIRequest::LOAD_NORMAL)
                 rv |= chan->SetLoadFlags(loadFlags);
             if (NS_SUCCEEDED(rv))
-                chan.forget(result);
+                *result = chan;
+            else
+                NS_RELEASE(chan);
         }
     }
     return rv;
-}
-
-// For now, works only with JARChannel.  Future: with all channels that may
-// have Content-Disposition header (JAR, nsIHttpChannel, and nsIMultiPartChannel).
-inline nsresult
-NS_GetContentDisposition(nsIRequest     *channel,
-                         nsACString     &result)
-{
-    nsCOMPtr<nsIPropertyBag2> props(do_QueryInterface(channel));
-    if (props)
-        return props->GetPropertyAsACString(NS_CHANNEL_PROP_CONTENT_DISPOSITION,
-                                            result);
-    return NS_ERROR_NOT_AVAILABLE;
 }
 
 // Use this function with CAUTION. It creates a stream that blocks when you
@@ -466,16 +452,13 @@ NS_NewAsyncStreamCopier(nsIAsyncStreamCopier **result,
                         nsIEventTarget        *target,
                         PRBool                 sourceBuffered = PR_TRUE,
                         PRBool                 sinkBuffered = PR_TRUE,
-                        PRUint32               chunkSize = 0,
-                        PRBool                 closeSource = PR_TRUE,
-                        PRBool                 closeSink = PR_TRUE)
+                        PRUint32               chunkSize = 0)
 {
     nsresult rv;
     nsCOMPtr<nsIAsyncStreamCopier> copier =
         do_CreateInstance(NS_ASYNCSTREAMCOPIER_CONTRACTID, &rv);
     if (NS_SUCCEEDED(rv)) {
-        rv = copier->Init(source, sink, target, sourceBuffered, sinkBuffered,
-                          chunkSize, closeSource, closeSink);
+        rv = copier->Init(source, sink, target, sourceBuffered, sinkBuffered, chunkSize);
         if (NS_SUCCEEDED(rv)) {
             *result = nsnull;
             copier.swap(*result);
@@ -1459,42 +1442,28 @@ NS_GetFinalChannelURI(nsIChannel* channel, nsIURI** uri)
     return channel->GetOriginalURI(uri);
 }
 
-// NS_SecurityHashURI must return the same hash value for any two URIs that
-// compare equal according to NS_SecurityCompareURIs.  Unfortunately, in the
-// case of files, it's not clear we can do anything better than returning
-// the schemeHash, so hashing files degenerates to storing them in a list.
-inline PRUint32
-NS_SecurityHashURI(nsIURI* aURI)
+/**
+ * Checks whether a document at the given URI should have access
+ * to the offline cache.
+ * @param uri
+ *        The URI to check
+ * @param prefBranch
+ *        The pref branch to use to check the
+ *        offline-apps.allow_by_default pref.  If not specified,
+ *        the pref service will be used.
+ */
+inline PRBool
+NS_OfflineAppAllowed(nsIURI *aURI, nsIPrefBranch *aPrefBranch = nsnull)
 {
-    nsCOMPtr<nsIURI> baseURI = NS_GetInnermostURI(aURI);
+    nsresult rv;
+    nsCOMPtr<nsINetUtil_MOZILLA_1_9_1> util = do_GetIOService(&rv);
+    NS_ENSURE_SUCCESS(rv, PR_FALSE);
 
-    nsCAutoString scheme;
-    PRUint32 schemeHash = 0;
-    if (NS_SUCCEEDED(baseURI->GetScheme(scheme)))
-        schemeHash = nsCRT::HashCode(scheme.get());
+    PRBool allowed;
+    rv = util->OfflineAppAllowed(aURI, aPrefBranch, &allowed);
+    NS_ENSURE_SUCCESS(rv, PR_FALSE);
 
-    // TODO figure out how to hash file:// URIs
-    if (scheme.EqualsLiteral("file"))
-        return schemeHash; // sad face
-
-    if (scheme.EqualsLiteral("imap") ||
-        scheme.EqualsLiteral("mailbox") ||
-        scheme.EqualsLiteral("news"))
-    {
-        nsCAutoString spec;
-        PRUint32 specHash = baseURI->GetSpec(spec);
-        if (NS_SUCCEEDED(specHash))
-            specHash = nsCRT::HashCode(spec.get());
-        return specHash;
-    }
-
-    nsCAutoString host;
-    PRUint32 hostHash = 0;
-    if (NS_SUCCEEDED(baseURI->GetHost(host)))
-        hostHash = nsCRT::HashCode(host.get());
-
-    // XOR to combine hash values
-    return schemeHash ^ hostHash ^ NS_GetRealPort(baseURI);
+    return allowed;
 }
 
 inline PRBool
@@ -1594,28 +1563,31 @@ NS_SecurityCompareURIs(nsIURI* aSourceURI,
         return PR_FALSE;
     }
 
-    return NS_GetRealPort(targetBaseURI) == NS_GetRealPort(sourceBaseURI);
-}
+    // Compare ports
+    PRInt32 targetPort;
+    nsresult rv = targetBaseURI->GetPort(&targetPort);
+    PRInt32 sourcePort;
+    if (NS_SUCCEEDED(rv))
+        rv = sourceBaseURI->GetPort(&sourcePort);
+    PRBool result = NS_SUCCEEDED(rv) && targetPort == sourcePort;
+    // If the port comparison failed, see if either URL has a
+    // port of -1. If so, replace -1 with the default port
+    // for that scheme.
+    if (NS_SUCCEEDED(rv) && !result &&
+        (sourcePort == -1 || targetPort == -1))
+    {
+        PRInt32 defaultPort = NS_GetDefaultPort(targetScheme.get());
+        if (defaultPort == -1)
+            return PR_FALSE; // No default port for this scheme
 
-inline PRBool
-NS_IsInternalSameURIRedirect(nsIChannel *aOldChannel,
-                             nsIChannel *aNewChannel,
-                             PRUint32 aFlags)
-{
-  if (!(aFlags & nsIChannelEventSink::REDIRECT_INTERNAL)) {
-    return PR_FALSE;
-  }
+        if (sourcePort == -1)
+            sourcePort = defaultPort;
+        else if (targetPort == -1)
+            targetPort = defaultPort;
+        result = targetPort == sourcePort;
+    }
 
-  nsCOMPtr<nsIURI> oldURI, newURI;
-  aOldChannel->GetURI(getter_AddRefs(oldURI));
-  aNewChannel->GetURI(getter_AddRefs(newURI));
-
-  if (!oldURI || !newURI) {
-    return PR_FALSE;
-  }
-
-  PRBool res;
-  return NS_SUCCEEDED(oldURI->Equals(newURI, &res)) && res;
+    return result;
 }
 
 #endif // !nsNetUtil_h__

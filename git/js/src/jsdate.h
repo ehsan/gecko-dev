@@ -51,6 +51,9 @@ extern JSClass js_DateClass;
 extern JSObject *
 js_InitDateClass(JSContext *cx, JSObject *obj);
 
+extern JSBool
+js_date_now(JSContext *cx, uintN argc, jsval *vp);
+
 /*
  * These functions provide a C interface to the date/time object
  */
@@ -118,11 +121,6 @@ js_DateSetSeconds(JSContext *cx, JSObject *obj, int seconds);
 
 extern JS_FRIEND_API(jsdouble)
 js_DateGetMsecSinceEpoch(JSContext *cx, JSObject *obj);
-
-typedef uint32 JSIntervalTime;
-
-extern JS_FRIEND_API(JSIntervalTime)
-js_IntervalNow();
 
 JS_END_EXTERN_C
 

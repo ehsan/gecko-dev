@@ -63,7 +63,6 @@ typedef struct _cairo_pdf_group_resources {
 typedef struct _cairo_pdf_pattern {
     double width;
     double height;
-    cairo_rectangle_int_t extents;
     cairo_pattern_t *pattern;
     cairo_pdf_resource_t pattern_res;
     cairo_pdf_resource_t gstate_res;
@@ -97,7 +96,7 @@ typedef struct _cairo_pdf_smask_group
     int			  num_glyphs;
     cairo_text_cluster_t *clusters;
     int                   num_clusters;
-    cairo_bool_t          cluster_flags;
+    cairo_bool_t          backward;
     cairo_scaled_font_t	 *scaled_font;
 } cairo_pdf_smask_group_t;
 
@@ -128,14 +127,12 @@ struct _cairo_pdf_surface {
     cairo_pdf_resource_t next_available_resource;
     cairo_pdf_resource_t pages_resource;
 
-    cairo_pdf_version_t pdf_version;
     cairo_bool_t compress_content;
 
     cairo_pdf_resource_t content;
     cairo_pdf_resource_t content_resources;
     cairo_pdf_group_resources_t resources;
     cairo_bool_t has_fallback_images;
-    cairo_bool_t header_emitted;
 
     struct {
 	cairo_bool_t active;

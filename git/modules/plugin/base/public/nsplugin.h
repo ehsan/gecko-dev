@@ -80,6 +80,7 @@
  *  +---------------------+                                        
  *  | nsIPluginManager    |                                        
  *  | nsIPluginManager2   |                                        
+ *  | nsIFileUtilities    |                                        
  *  | nsIPref             |                                        
  *  | nsICacheManager ... |                            
  *  +---------------------+                                        
@@ -114,6 +115,12 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 /**
+ * The plugin manager which is the main point of interaction with the browser 
+ * and provides general operations needed by a plugin.
+ */
+#include "nsIPluginManager.h"
+
+/**
  * A plugin instance peer gets created by the browser and associated with each
  * plugin instance to represent tag information and other callbacks needed by
  * the plugin instance.
@@ -128,11 +135,35 @@
  */
 #include "nsIPluginTagInfo.h"
 
+/**
+ * The nsIWindowlessPluginInstancePeer provides additional operations for 
+ * windowless plugins. 
+ *
+ * To obtain: QueryInterface on nsIPluginInstancePeer
+ */
+#include "nsIWindowlessPlugInstPeer.h"
+
 ////////////////////////////////////////////////////////////////////////////////
 /**
  * <B>Interfaces implemented by the browser (new for 5.0):
  */
 ////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * The nsIPluginManager2 interface provides additional plugin manager features
+ * only available in Communicator 5.0. 
+ *
+ * To obtain: QueryInterface on nsIPluginManager
+ */
+#include "nsIPluginManager2.h"
+
+/**
+ * The nsIFileUtilities interface provides operations to manage temporary
+ * files and directories.
+ *
+ * To obtain: QueryInterface on nsIPluginManager
+ */
+#include "nsIFileUtilities.h"
 
 /**
  * The nsIPluginTagInfo2 interface provides additional html tag information

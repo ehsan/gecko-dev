@@ -75,6 +75,8 @@ XPCCallContext::XPCCallContext(XPCContext::LangType callerLanguage,
     if(!mXPC)
         return;
 
+    NS_ADDREF(mXPC);
+
     mThreadData = XPCPerThreadData::GetData(mJSContext);
 
     if(!mThreadData)
@@ -85,8 +87,7 @@ XPCCallContext::XPCCallContext(XPCContext::LangType callerLanguage,
 
     if(!stack || NS_FAILED(stack->Peek(&topJSContext)))
     {
-        // If we don't have a stack we're probably in shutdown.
-        NS_ASSERTION(!stack, "Bad, Peek failed!");
+        NS_ERROR("bad!");
         mJSContext = nsnull;
         return;
     }
@@ -123,16 +124,24 @@ XPCCallContext::XPCCallContext(XPCContext::LangType callerLanguage,
         mContextPopRequired = JS_TRUE;
     }
 
-    mXPCContext = XPCContext::GetXPCContext(mJSContext);
+    // Try to get the JSContext -> XPCContext mapping from the cache.
+    // FWIW... quicky tests show this hitting ~ 95% of the time.
+    // That is a *lot* of locking we can skip in nsXPConnect::GetContext.
+    mXPCContext = mThreadData->GetRecentXPCContext(mJSContext);
+
+    if(!mXPCContext)
+    {
+        if(!(mXPCContext = nsXPConnect::GetContext(mJSContext, mXPC)))
+            return;
+
+        // Fill the cache.
+        mThreadData->SetRecentContext(mJSContext, mXPCContext);
+    }
+
     mPrevCallerLanguage = mXPCContext->SetCallingLangType(mCallerLanguage);
 
     // hook into call context chain for our thread
     mPrevCallContext = mThreadData->SetCallContext(this);
-
-    // We only need to addref xpconnect once so only do it if this is the first
-    // context in the chain.
-    if(!mPrevCallContext)
-        NS_ADDREF(mXPC);
 
     mState = HAVE_CONTEXT;
 
@@ -218,8 +227,6 @@ void
 XPCCallContext::SetCallInfo(XPCNativeInterface* iface, XPCNativeMember* member,
                             JSBool isSetter)
 {
-    CHECK_STATE(HAVE_CONTEXT);
-
     // We are going straight to the method info and need not do a lookup
     // by id.
 
@@ -300,8 +307,6 @@ XPCCallContext::~XPCCallContext()
 {
     // do cleanup...
 
-    PRBool shouldReleaseXPC = PR_FALSE;
-
     if(mXPCContext)
     {
         mXPCContext->SetCallingLangType(mPrevCallerLanguage);
@@ -312,8 +317,6 @@ XPCCallContext::~XPCCallContext()
 #else
         (void) mThreadData->SetCallContext(mPrevCallContext);
 #endif
-
-        shouldReleaseXPC = mPrevCallContext == nsnull;
     }
 
     if(mContextPopRequired)
@@ -340,7 +343,7 @@ XPCCallContext::~XPCCallContext()
         if(mDestroyJSContextInDestructor)
         {
 #ifdef DEBUG_xpc_hacker
-            printf("!xpc - doing deferred destruction of JSContext @ %p\n", 
+            printf("!xpc - doing deferred destruction of JSContext @ %0x\n", 
                    mJSContext);
 #endif
             NS_ASSERTION(!mThreadData->GetJSContextStack() || 
@@ -349,13 +352,14 @@ XPCCallContext::~XPCCallContext()
                          "JSContext still in threadjscontextstack!");
         
             JS_DestroyContext(mJSContext);
+            mXPC->SyncJSContexts();
         }
         else
         {
             // Don't clear newborns if JS frames (compilation or execution)
             // are active!  Doing so violates ancient invariants in the JS
             // engine, and it's not necessary to fix JS component leaks.
-            if(!JS_IsRunning(mJSContext))
+            if(!mJSContext->fp)
                 JS_ClearNewbornRoots(mJSContext);
         }
     }
@@ -373,8 +377,7 @@ XPCCallContext::~XPCCallContext()
     }
 #endif
 
-    if(shouldReleaseXPC && mXPC)
-        NS_RELEASE(mXPC);
+    NS_IF_RELEASE(mXPC);
 }
 
 XPCReadableJSStringWrapper *
@@ -530,8 +533,6 @@ void
 XPCCallContext::SetIDispatchInfo(XPCNativeInterface* iface, 
                                  void * member)
 {
-    CHECK_STATE(HAVE_CONTEXT);
-
     // We are going straight to the method info and need not do a lookup
     // by id.
 
@@ -550,19 +551,3 @@ XPCCallContext::SetIDispatchInfo(XPCNativeInterface* iface,
 }
 
 #endif
-
-NS_IMETHODIMP
-XPCCallContext::GetPreviousCallContext(nsAXPCNativeCallContext **aResult)
-{
-  NS_ENSURE_ARG_POINTER(aResult);
-  *aResult = GetPrevCallContext();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-XPCCallContext::GetLanguage(PRUint16 *aResult)
-{
-  NS_ENSURE_ARG_POINTER(aResult);
-  *aResult = GetCallerLanguage();
-  return NS_OK;
-}

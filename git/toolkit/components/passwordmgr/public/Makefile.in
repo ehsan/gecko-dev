@@ -46,7 +46,6 @@ XPIDL_MODULE  = loginmgr
 
 XPIDLSRCS = \
 		nsILoginInfo.idl \
-		nsILoginMetaInfo.idl \
 		nsILoginManager.idl \
 		nsILoginManagerStorage.idl \
 		nsILoginManagerPrompter.idl \

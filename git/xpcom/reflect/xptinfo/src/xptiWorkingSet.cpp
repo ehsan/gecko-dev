@@ -48,13 +48,13 @@
 
 /***************************************************************************/
 
-static PLDHashNumber
+PR_STATIC_CALLBACK(PLDHashNumber)
 IIDHash(PLDHashTable *table, const void *key)
 {
     return (PLDHashNumber) ((const nsIID*)key)->m0;        
 }
 
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 IIDMatch(PLDHashTable *table,
          const PLDHashEntryHdr *entry,
          const void *key)
@@ -78,7 +78,7 @@ const static struct PLDHashTableOps IIDTableOps =
 
 /***************************************************************************/
 
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 NameMatch(PLDHashTable *table,
           const PLDHashEntryHdr *entry,
           const void *key)
@@ -135,14 +135,14 @@ xptiWorkingSet::IsValid() const
             mIIDTable;          
 }
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 xpti_Remover(PLDHashTable *table, PLDHashEntryHdr *hdr,
              PRUint32 number, void *arg)
 {
     return PL_DHASH_REMOVE;
 }       
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 xpti_Invalidator(PLDHashTable *table, PLDHashEntryHdr *hdr,
                  PRUint32 number, void *arg)
 {

@@ -49,6 +49,7 @@
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "nsCOMArray.h"
+#include "nsVoidArray.h"
 #include "nsInterfaceHashtable.h"
 #include "nsClassHashtable.h"
 #include "nsHashSets.h"
@@ -175,6 +176,7 @@ public:
                                         const nsCSubstring &clientID);
   PRBool                  IsActiveCache(const nsCSubstring &group,
                                         const nsCSubstring &clientID);
+  nsresult                DeactivateGroup(const nsCSubstring &group);
   nsresult                GetGroupForCache(const nsCSubstring &clientID,
                                            nsCString &out);
 
@@ -234,9 +236,6 @@ private:
   nsresult AddNamespace(const nsCString &clientID,
                         nsIApplicationCacheNamespace *ns);
 
-  nsresult GetUsage(const nsACString &clientID,
-                    PRUint32 *usage);
-
   nsresult RunSimpleQuery(mozIStorageStatement *statment,
                           PRUint32 resultIndex,
                           PRUint32 * count,
@@ -246,7 +245,7 @@ private:
   nsRefPtr<nsOfflineCacheEvictionFunction> mEvictionFunction;
 
   nsCOMPtr<mozIStorageStatement>  mStatement_CacheSize;
-  nsCOMPtr<mozIStorageStatement>  mStatement_ApplicationCacheSize;
+  nsCOMPtr<mozIStorageStatement>  mStatement_DomainSize;
   nsCOMPtr<mozIStorageStatement>  mStatement_EntryCount;
   nsCOMPtr<mozIStorageStatement>  mStatement_UpdateEntry;
   nsCOMPtr<mozIStorageStatement>  mStatement_UpdateEntrySize;
@@ -266,10 +265,9 @@ private:
   nsCOMPtr<mozIStorageStatement>  mStatement_DeactivateGroup;
   nsCOMPtr<mozIStorageStatement>  mStatement_FindClient;
   nsCOMPtr<mozIStorageStatement>  mStatement_FindClientByNamespace;
-  nsCOMPtr<mozIStorageStatement>  mStatement_EnumerateGroups;
 
   nsCOMPtr<nsILocalFile>          mCacheDirectory;
-  PRUint32                        mCacheCapacity; // in bytes
+  PRUint32                        mCacheCapacity;
   PRInt32                         mDeltaCounter;
 
   nsInterfaceHashtable<nsCStringHashKey, nsIWeakReference> mCaches;
