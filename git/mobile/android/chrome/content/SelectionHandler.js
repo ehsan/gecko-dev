@@ -39,10 +39,6 @@ var SelectionHandler = {
   // Keeps track of data about the dimensions of the selection. Coordinates
   // stored here are relative to the _contentWindow window.
   _cache: null,
-  _targetIsRTL: false,
-  _anchorIsRTL: false,
-  _focusIsRTL: false,
-
   _activeType: 0, // TYPE_NONE
 
   _draggingHandles: false, // True while user drags text selection handles
@@ -81,6 +77,8 @@ var SelectionHandler = {
     return BrowserApp.selectedBrowser.contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).
                                                     getInterface(Ci.nsIDOMWindowUtils);
   },
+
+  _isRTL: false,
 
   _addObservers: function sh_addObservers() {
     Services.obs.addObserver(this, "Gesture:SingleTap", false);
@@ -798,7 +796,7 @@ var SelectionHandler = {
 
     this._stopDraggingHandles();
     this._contentWindow = aElement.ownerDocument.defaultView;
-    this._targetIsRTL = (this._contentWindow.getComputedStyle(aElement, "").direction == "rtl");
+    this._isRTL = (this._contentWindow.getComputedStyle(aElement, "").direction == "rtl");
 
     this._addObservers();
   },
@@ -1045,6 +1043,7 @@ var SelectionHandler = {
       Messaging.sendRequest({
         type: "TextSelection:PositionHandles",
         positions: positions,
+        rtl: this._isRTL
       });
     }
   },
@@ -1110,7 +1109,7 @@ var SelectionHandler = {
 
     this._contentWindow = null;
     this._targetElement = null;
-    this._targetIsRTL = false;
+    this._isRTL = false;
     this._cache = null;
     this._ignoreCompositionChanges = false;
     this._prevHandlePositions = [];
@@ -1166,53 +1165,25 @@ var SelectionHandler = {
   /*
    * Updates the TYPE_SELECTION cache, with the handle anchor/focus point values
    * of the current selection. Passed to Java for UI positioning only.
-   *
-   * Note that the anchor handle and focus handle can reference text in nodes
-   * with mixed direction. (ie a.direction = "rtl" while f.direction = "ltr").
    */
   _updateCacheForSelection: function() {
-    let selection = this._getSelection();
-    let rects = selection.getRangeAt(0).getClientRects();
+    let rects = this._getSelection().getRangeAt(0).getClientRects();
     if (rects.length == 0) {
       // nsISelection object exists, but there's nothing actually selected
       throw "Failed to update cache for invalid selection";
     }
 
-    // Right-to-Left (ie: Hebrew) anchorPt is on right,
-    // Left-to-Right (ie: English) anchorPt is on left.
-    this._anchorIsRTL = this._isNodeRTL(selection.anchorNode);
     let anchorIdx = 0;
-    this._cache.anchorPt = (this._anchorIsRTL) ?
-      new Point(rects[anchorIdx].right, rects[anchorIdx].bottom) :
-      new Point(rects[anchorIdx].left, rects[anchorIdx].bottom);
-
-    // Right-to-Left (ie: Hebrew) focusPt is on left,
-    // Left-to-Right (ie: English) focusPt is on right.
-    this._focusIsRTL = this._isNodeRTL(selection.focusNode);
     let focusIdx = rects.length - 1;
-    this._cache.focusPt = (this._focusIsRTL) ?
-      new Point(rects[focusIdx].left, rects[focusIdx].bottom) :
-      new Point(rects[focusIdx].right, rects[focusIdx].bottom);
-  },
-
-  /*
-   * Return true if text associated with a node is RTL.
-   */
-  _isNodeRTL: function(node) {
-    // Find containing node that supports .direction attribute (needed
-    // when target node is #text for example).
-    while (node && !(node instanceof Element)) {
-      node = node.parentNode;
+    if (this._isRTL) {
+      // Right-to-Left (ie: Hebrew) anchorPt is on right, focusPt is on left.
+      this._cache.anchorPt = new Point(rects[anchorIdx].right, rects[anchorIdx].bottom);
+      this._cache.focusPt = new Point(rects[focusIdx].left, rects[focusIdx].bottom);
+    } else {
+      // Left-to-Right (ie: English) anchorPt is on left, focusPt is on right.
+      this._cache.anchorPt = new Point(rects[anchorIdx].left, rects[anchorIdx].bottom);
+      this._cache.focusPt = new Point(rects[focusIdx].right, rects[focusIdx].bottom);
     }
-
-    // Worst case, use original direction from _targetElement.
-    if (!node) {
-      return this._targetIsRTL;
-    }
-
-    let nodeWin = node.ownerDocument.defaultView;
-    let nodeStyle = nodeWin.getComputedStyle(node, "");
-    return (nodeStyle.direction == "rtl");
   },
 
   _getHandlePositions: function sh_getHandlePositions(scroll) {
@@ -1243,7 +1214,6 @@ var SelectionHandler = {
       return [{ handle: this.HANDLE_TYPE_CARET,
                 left: x + scroll.X,
                 top: y + scroll.Y,
-                rtl: this._targetIsRTL,
                 hidden: checkHidden(x, y) }];
     } else {
       let anchorX = this._cache.anchorPt.x;
@@ -1258,12 +1228,10 @@ var SelectionHandler = {
       return  [{ handle: this.HANDLE_TYPE_ANCHOR,
                  left: anchorX + offset.x + scroll.X,
                  top: anchorY + offset.y + scroll.Y,
-                 rtl: this._anchorIsRTL,
                  hidden: checkHidden(anchorX, anchorY) },
                { handle: this.HANDLE_TYPE_FOCUS,
                  left: focusX + offset.x + scroll.X,
                  top: focusY + offset.y + scroll.Y,
-                 rtl: this._focusIsRTL,
                  hidden: checkHidden(focusX, focusY) }];
     }
   },
@@ -1279,7 +1247,6 @@ var SelectionHandler = {
       for (let i = 0; i < aPrev.length; i++) {
         if (aPrev[i].left != aCurr[i].left ||
             aPrev[i].top != aCurr[i].top ||
-            aPrev[i].rtl != aCurr[i].rtl ||
             aPrev[i].hidden != aCurr[i].hidden) {
           return false;
         }
@@ -1304,6 +1271,7 @@ var SelectionHandler = {
     Messaging.sendRequest({
       type: "TextSelection:PositionHandles",
       positions: positions,
+      rtl: this._isRTL
     });
     this._prevHandlePositions = positions;
 

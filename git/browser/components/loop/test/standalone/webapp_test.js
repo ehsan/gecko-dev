@@ -72,7 +72,7 @@ describe("loop.webapp", function() {
     });
 
     it("should dispatch a ExtractTokenInfo action with the hash", function() {
-      sandbox.stub(loop.shared.utils, "locationData").returns({
+      sandbox.stub(loop.shared.utils.Helper.prototype, "locationData").returns({
         hash: "#call/faketoken",
         pathname: "invalid"
       });
@@ -88,7 +88,7 @@ describe("loop.webapp", function() {
 
     it("should dispatch a ExtractTokenInfo action with the path if there is no hash",
       function() {
-        sandbox.stub(loop.shared.utils, "locationData").returns({
+        sandbox.stub(loop.shared.utils.Helper.prototype, "locationData").returns({
           hash: "",
           pathname: "/c/faketoken"
         });
@@ -123,6 +123,7 @@ describe("loop.webapp", function() {
       });
       conversation.set("loopToken", "fakeToken");
       ocView = mountTestComponent({
+        helper: new sharedUtils.Helper(),
         client: client,
         conversation: conversation,
         notifications: notifications,
@@ -643,7 +644,7 @@ describe("loop.webapp", function() {
   });
 
   describe("WebappRootView", function() {
-    var sdk, conversationModel, client, props, standaloneAppStore;
+    var helper, sdk, conversationModel, client, props, standaloneAppStore;
     var activeRoomStore;
 
     function mountTestComponent() {
@@ -651,6 +652,7 @@ describe("loop.webapp", function() {
         React.createElement(
           loop.webapp.WebappRootView, {
             client: client,
+            helper: helper,
             dispatcher: dispatcher,
             notifications: notifications,
             sdk: sdk,
@@ -661,6 +663,7 @@ describe("loop.webapp", function() {
     }
 
     beforeEach(function() {
+      helper = new sharedUtils.Helper();
       sdk = {
         checkSystemRequirements: function() { return true; }
       };
@@ -677,6 +680,7 @@ describe("loop.webapp", function() {
       standaloneAppStore = new loop.store.StandaloneAppStore({
         dispatcher: dispatcher,
         sdk: sdk,
+        helper: helper,
         conversation: conversationModel
       });
       // Stub this to stop the StartConversationView kicking in the request and
@@ -1100,7 +1104,7 @@ describe("loop.webapp", function() {
       it("should not render when using Firefox", function() {
         var comp = TestUtils.renderIntoDocument(
           React.createElement(loop.webapp.PromoteFirefoxView, {
-            isFirefox: true
+            helper: {isFirefox: function() { return true; }}
           }));
 
         expect(comp.getDOMNode().querySelectorAll("h3").length).eql(0);
@@ -1110,7 +1114,7 @@ describe("loop.webapp", function() {
         var comp = TestUtils.renderIntoDocument(
           React.createElement(
             loop.webapp.PromoteFirefoxView, {
-              isFirefox: false
+              helper: {isFirefox: function() { return false; }}
             }));
 
         expect(comp.getDOMNode().querySelectorAll("h3").length).eql(1);
