@@ -3413,9 +3413,7 @@ nsCanvasRenderingContext2D::DrawWindow(nsIDOMWindow* aWindow, float aX, float aY
     }
 
     // Flush layout updates
-    PRBool skipFlush =
-        (flags & nsIDOMCanvasRenderingContext2D::DRAWWINDOW_DO_NOT_FLUSH) != 0;
-    if (!skipFlush)
+    if (!(flags & nsIDOMCanvasRenderingContext2D::DRAWWINDOW_DO_NOT_FLUSH))
         FlushLayoutForTree(aWindow);
 
     nsCOMPtr<nsPresContext> presContext;
@@ -3445,11 +3443,7 @@ nsCanvasRenderingContext2D::DrawWindow(nsIDOMWindow* aWindow, float aX, float aY
     if (flags & nsIDOMCanvasRenderingContext2D::DRAWWINDOW_DRAW_CARET) {
         renderDocFlags |= nsIPresShell::RENDER_CARET;
     }
-
-    PRBool oldDisableValue = nsLayoutUtils::sDisableGetUsedXAssertions;
-    nsLayoutUtils::sDisableGetUsedXAssertions = oldDisableValue || skipFlush;
     presShell->RenderDocument(r, renderDocFlags, bgColor, mThebes);
-    nsLayoutUtils::sDisableGetUsedXAssertions = oldDisableValue;
 
     // get rid of the pattern surface ref, just in case
     mThebes->SetColor(gfxRGBA(1,1,1,1));
