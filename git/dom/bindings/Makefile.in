@@ -45,8 +45,6 @@ globalgen_targets := \
   PrototypeList.h \
   RegisterBindings.h \
   RegisterBindings.cpp \
-  UnionTypes.h \
-  UnionConversions.h \
   $(NULL)
 
 CPPSRCS = \
@@ -68,8 +66,6 @@ EXPORTS_$(binding_include_path) = \
   Nullable.h \
   TypedArray.h \
   BindingUtils.h \
-  UnionTypes.h \
-  UnionConversions.h \
   $(exported_binding_headers) \
   $(NULL)
 

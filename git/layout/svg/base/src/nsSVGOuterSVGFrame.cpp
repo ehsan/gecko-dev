@@ -396,7 +396,9 @@ nsSVGOuterSVGFrame::Reflow(nsPresContext*           aPresContext,
   // Now that we've marked the necessary children as dirty, call
   // UpdateBounds() on them:
 
+#ifdef DEBUG
   mCallingUpdateBounds = true;
+#endif
 
   if (!(mState & NS_STATE_SVG_NONDISPLAY_CHILD)) {
     nsIFrame* kid = mFrames.FirstChild();
@@ -409,7 +411,9 @@ nsSVGOuterSVGFrame::Reflow(nsPresContext*           aPresContext,
     }
   }
 
+#ifdef DEBUG
   mCallingUpdateBounds = false;
+#endif
 
   // Make sure we scroll if we're too big:
   // XXX Use the bounding box of our descendants? (See bug 353460 comment 14.)
