@@ -578,8 +578,8 @@ var allTabs = {
     if (this.canOpen) {
       // Without setTimeout, the menupopup won't stay open when invoking
       // "View > Show All Tabs" and the menu bar auto-hides.
-      setTimeout(() => {
-        this.toolbarButton.open = true;
+      setTimeout(function () {
+        allTabs.toolbarButton.open = true;
       }, 0);
     }
   }
