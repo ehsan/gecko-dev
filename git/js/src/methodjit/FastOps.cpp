@@ -136,7 +136,7 @@ mjit::Compiler::jsop_rsh_unknown_const(FrameEntry *lhs, FrameEntry *rhs)
     lhsTruncateGuard.linkTo(stubcc.masm.label(), &stubcc.masm);
 
     frame.sync(stubcc.masm, Uses(2));
-    OOL_STUBCALL(stubs::Rsh);
+    stubcc.call(stubs::Rsh);
 
     if (shiftAmount)
         masm.rshift32(Imm32(shiftAmount), lhsData);
@@ -159,7 +159,7 @@ mjit::Compiler::jsop_rsh_const_unknown(FrameEntry *lhs, FrameEntry *rhs)
     Jump rhsIntGuard = masm.testInt32(Assembler::NotEqual, rhsType);
     stubcc.linkExit(rhsIntGuard, Uses(2));
     stubcc.leave();
-    OOL_STUBCALL(stubs::Rsh);
+    stubcc.call(stubs::Rsh);
     masm.move(Imm32(lhs->getValue().toInt32()), result);
     masm.rshift32(rhsData, result);
     frame.freeReg(rhsData);
@@ -181,7 +181,7 @@ mjit::Compiler::jsop_rsh_int_unknown(FrameEntry *lhs, FrameEntry *rhs)
     Jump rhsIntGuard = masm.testInt32(Assembler::NotEqual, rhsType);
     stubcc.linkExit(rhsIntGuard, Uses(2));
     stubcc.leave();
-    OOL_STUBCALL(stubs::Rsh);
+    stubcc.call(stubs::Rsh);
 
     masm.rshift32(rhsData, lhsData);
     frame.freeReg(rhsData);
@@ -236,7 +236,7 @@ mjit::Compiler::jsop_rsh_unknown_any(FrameEntry *lhs, FrameEntry *rhs)
     if (rhsIntGuard.isSet())
         stubcc.linkExitDirect(rhsIntGuard.getJump(), stubcc.masm.label());
     frame.sync(stubcc.masm, Uses(2));
-    OOL_STUBCALL(stubs::Rsh);
+    stubcc.call(stubs::Rsh);
 
     masm.rshift32(rhsData, lhsData);
 
@@ -258,7 +258,7 @@ mjit::Compiler::jsop_rsh()
 
     if (lhs->isNotType(JSVAL_TYPE_INT32) || rhs->isNotType(JSVAL_TYPE_INT32)) {
         prepareStubCall(Uses(2));
-        INLINE_STUBCALL(stubs::Rsh);
+        stubCall(stubs::Rsh);
         frame.popn(2);
         frame.pushSyncedType(JSVAL_TYPE_INT32);
         return;
@@ -293,7 +293,7 @@ mjit::Compiler::jsop_bitnot()
     /* We only want to handle integers here. */
     if (top->isTypeKnown() && top->getKnownType() != JSVAL_TYPE_INT32) {
         prepareStubCall(Uses(1));
-        INLINE_STUBCALL(stubs::BitNot);
+        stubCall(stubs::BitNot);
         frame.pop();
         frame.pushSyncedType(JSVAL_TYPE_INT32);
         return;
@@ -310,7 +310,7 @@ mjit::Compiler::jsop_bitnot()
 
     if (stubNeeded) {
         stubcc.leave();
-        OOL_STUBCALL(stubs::BitNot);
+        stubcc.call(stubs::BitNot);
     }
 
     RegisterID reg = frame.ownRegForData(top);
@@ -375,7 +375,7 @@ mjit::Compiler::jsop_bitop(JSOp op)
         Jump truncateGuard = masm.branchTruncateDoubleToInt32(FPRegisters::First, reg);
         stubcc.linkExit(truncateGuard, Uses(2));
         stubcc.leave();
-        OOL_STUBCALL(stub);
+        stubcc.call(stub);
         
         if (isInt.isSet())
             isInt.get().linkTo(masm.label(), &masm);
@@ -389,7 +389,7 @@ mjit::Compiler::jsop_bitop(JSOp op)
     if (rhs->isNotType(JSVAL_TYPE_INT32) || lhs->isNotType(JSVAL_TYPE_INT32) || 
         (op == JSOP_URSH && rhs->isConstant() && rhs->getValue().toInt32() % 32 == 0)) {
         prepareStubCall(Uses(2));
-        INLINE_STUBCALL(stub);
+        stubCall(stub);
         frame.popn(2);
         if (op == JSOP_URSH)
             frame.pushSynced();
@@ -503,7 +503,7 @@ mjit::Compiler::jsop_bitop(JSOp op)
             }
             if (stubNeeded) {
                 stubcc.leave();
-                OOL_STUBCALL(stub);
+                stubcc.call(stub);
             }
             frame.popn(2);
             
@@ -560,7 +560,7 @@ mjit::Compiler::jsop_bitop(JSOp op)
 
     if (stubNeeded) {
         stubcc.leave();
-        OOL_STUBCALL(stub);
+        stubcc.call(stub);
     }
 
     frame.pop();
@@ -810,7 +810,7 @@ mjit::Compiler::jsop_not()
           default:
           {
             prepareStubCall(Uses(1));
-            INLINE_STUBCALL(stubs::ValueToBoolean);
+            stubCall(stubs::ValueToBoolean);
 
             RegisterID reg = Registers::ReturnReg;
             frame.takeReg(reg);
@@ -867,7 +867,7 @@ mjit::Compiler::jsop_not()
 
     /* Leave. */
     stubcc.leave();
-    OOL_STUBCALL(stubs::Not);
+    stubcc.call(stubs::Not);
 
     frame.pop();
     frame.pushTypedPayload(JSVAL_TYPE_BOOLEAN, data);
@@ -913,7 +913,7 @@ mjit::Compiler::jsop_typeof()
     }
 
     prepareStubCall(Uses(1));
-    INLINE_STUBCALL(stubs::TypeOf);
+    stubCall(stubs::TypeOf);
     frame.pop();
     frame.takeReg(Registers::ReturnReg);
     frame.pushTypedPayload(JSVAL_TYPE_STRING, Registers::ReturnReg);
@@ -971,8 +971,15 @@ mjit::Compiler::booleanJumpScript(JSOp op, jsbytecode *target)
 
     if (!fe->isTypeKnown() ||
         !(fe->isType(JSVAL_TYPE_BOOLEAN) || fe->isType(JSVAL_TYPE_INT32))) {
-        stubcc.masm.infallibleVMCall(JS_FUNC_TO_DATA_PTR(void *, stubs::ValueToBoolean),
-                                     frame.frameDepth());
+        stubcc.masm.fixScriptStack(frame.frameDepth());
+        stubcc.masm.setupVMFrame();
+#if defined(JS_NO_FASTCALL) && defined(JS_CPU_X86)
+        stubcc.masm.push(Registers::ArgReg0);
+#endif
+        stubcc.masm.call(JS_FUNC_TO_DATA_PTR(void *, stubs::ValueToBoolean));
+#if defined(JS_NO_FASTCALL) && defined(JS_CPU_X86)
+        stubcc.masm.pop();
+#endif
 
         jmpCvtExecScript.setJump(stubcc.masm.branchTest32(cond, Registers::ReturnReg,
                                                           Registers::ReturnReg));
@@ -1125,9 +1132,9 @@ mjit::Compiler::jsop_localinc(JSOp op, uint32 slot, bool popped)
 
     stubcc.masm.move(Imm32(slot), Registers::ArgReg1);
     if (op == JSOP_LOCALINC || op == JSOP_INCLOCAL)
-        OOL_STUBCALL(stubs::IncLocal);
+        stubcc.call(stubs::IncLocal);
     else
-        OOL_STUBCALL(stubs::DecLocal);
+        stubcc.call(stubs::DecLocal);
 
     frame.pop();
     frame.pushTypedPayload(JSVAL_TYPE_INT32, reg);
@@ -1322,9 +1329,9 @@ mjit::Compiler::jsop_setelem()
     stubcc.leave();
 #ifdef JS_POLYIC
     passICAddress(&ic);
-    ic.slowPathCall = OOL_STUBCALL(STRICT_VARIANT(ic::SetElement));
+    ic.slowPathCall = stubcc.call(STRICT_VARIANT(ic::SetElement));
 #else
-    OOL_STUBCALL(STRICT_VARIANT(stubs::SetElem));
+    stubcc.call(STRICT_VARIANT(stubs::SetElem));
 #endif
 
     ic.fastPathRejoin = masm.label();
@@ -1481,14 +1488,14 @@ mjit::Compiler::jsop_getelem(bool isCall)
 #ifdef JS_POLYIC
     passICAddress(&ic);
     if (isCall)
-        ic.slowPathCall = OOL_STUBCALL(ic::CallElement);
+        ic.slowPathCall = stubcc.call(ic::CallElement);
     else
-        ic.slowPathCall = OOL_STUBCALL(ic::GetElement);
+        ic.slowPathCall = stubcc.call(ic::GetElement);
 #else
     if (isCall)
-        ic.slowPathCall = OOL_STUBCALL(stubs::CallElem);
+        ic.slowPathCall = stubcc.call(stubs::CallElem);
     else
-        ic.slowPathCall = OOL_STUBCALL(stubs::GetElem);
+        ic.slowPathCall = stubcc.call(stubs::GetElem);
 #endif
 
     ic.fastPathRejoin = masm.label();
@@ -1662,9 +1669,9 @@ mjit::Compiler::jsop_stricteq(JSOp op)
         prepareStubCall(Uses(2));
 
         if (op == JSOP_STRICTEQ)
-            INLINE_STUBCALL(stubs::StrictEq);
+            stubCall(stubs::StrictEq);
         else
-            INLINE_STUBCALL(stubs::StrictNe);
+            stubCall(stubs::StrictNe);
 
         frame.popn(2);
         frame.pushSyncedType(JSVAL_TYPE_BOOLEAN);
@@ -1716,9 +1723,9 @@ mjit::Compiler::jsop_stricteq(JSOp op)
     if (needStub) {
         stubcc.leave();
         if (op == JSOP_STRICTEQ)
-            OOL_STUBCALL(stubs::StrictEq);
+            stubcc.call(stubs::StrictEq);
         else
-            OOL_STUBCALL(stubs::StrictNe);
+            stubcc.call(stubs::StrictNe);
     }
 
     frame.popn(2);
@@ -1731,9 +1738,9 @@ mjit::Compiler::jsop_stricteq(JSOp op)
     prepareStubCall(Uses(2));
 
     if (op == JSOP_STRICTEQ)
-        INLINE_STUBCALL(stubs::StrictEq);
+        stubCall(stubs::StrictEq);
     else
-        INLINE_STUBCALL(stubs::StrictNe);
+        stubCall(stubs::StrictNe);
 
     frame.popn(2);
     frame.pushSyncedType(JSVAL_TYPE_BOOLEAN);
@@ -1750,7 +1757,7 @@ mjit::Compiler::jsop_pos()
         if (top->getKnownType() <= JSVAL_TYPE_INT32)
             return;
         prepareStubCall(Uses(1));
-        INLINE_STUBCALL(stubs::Pos);
+        stubCall(stubs::Pos);
         frame.pop();
         frame.pushSynced();
         return;
@@ -1766,7 +1773,7 @@ mjit::Compiler::jsop_pos()
     stubcc.linkExit(j, Uses(1));
 
     stubcc.leave();
-    OOL_STUBCALL(stubs::Pos);
+    stubcc.call(stubs::Pos);
 
     stubcc.rejoin(Changes(1));
 }

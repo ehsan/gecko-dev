@@ -175,21 +175,17 @@ typedef JSC::MacroAssembler::ImmPtr ImmPtr;
 typedef JSC::MacroAssembler::Imm32 Imm32;
 
 JSC::MacroAssembler::Call
-StubCompiler::emitStubCall(void *ptr, uint32 id)
+StubCompiler::stubCall(void *ptr)
 {
-    return emitStubCall(ptr, frame.stackDepth() + script->nfixed, id);
+    return stubCall(ptr, frame.stackDepth() + script->nfixed);
 }
 
 JSC::MacroAssembler::Call
-StubCompiler::emitStubCall(void *ptr, int32 slots, uint32 id)
+StubCompiler::stubCall(void *ptr, uint32 slots)
 {
     JaegerSpew(JSpew_Insns, " ---- BEGIN SLOW CALL CODE ---- \n");
-    Call cl = masm.fallibleVMCall(ptr, cc.getPC(), slots);
+    Call cl = masm.stubCall(ptr, cc.getPC(), slots);
     JaegerSpew(JSpew_Insns, " ---- END SLOW CALL CODE ---- \n");
-    if (cc.debugMode()) {
-        Compiler::InternalCallSite site(masm.callReturnOffset(cl), cc.getPC(), id, true, true);
-        cc.addCallSite(site);
-    }
     return cl;
 }
 
@@ -243,7 +239,7 @@ StubCompiler::vpInc(JSOp op, uint32 depth)
         break;
     }
 
-    return emitStubCall(JS_FUNC_TO_DATA_PTR(void *, stub), slots, __LINE__);
+    return stubCall(JS_FUNC_TO_DATA_PTR(void *, stub), slots);
 }
 
 void
