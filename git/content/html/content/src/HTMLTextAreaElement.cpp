@@ -5,38 +5,39 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/dom/HTMLTextAreaElement.h"
-
-#include "mozAutoDocUpdate.h"
-#include "mozilla/Attributes.h"
 #include "mozilla/dom/HTMLTextAreaElementBinding.h"
 #include "mozilla/Util.h"
-#include "nsAttrValueInlines.h"
-#include "nsContentCID.h"
-#include "nsContentCreatorFunctions.h"
-#include "nsError.h"
-#include "nsEventDispatcher.h"
-#include "nsFocusManager.h"
-#include "nsFormSubmission.h"
-#include "nsGUIEvent.h"
-#include "nsIComponentManager.h"
-#include "nsIConstraintValidation.h"
+#include "base/compiler_specific.h"
+
 #include "nsIControllers.h"
-#include "nsIDocument.h"
+#include "nsFocusManager.h"
+#include "nsPIDOMWindow.h"
+#include "nsContentCID.h"
+#include "nsIComponentManager.h"
 #include "nsIDOMHTMLFormElement.h"
-#include "nsIFormControlFrame.h"
 #include "nsIFormControl.h"
 #include "nsIForm.h"
-#include "nsIFrame.h"
-#include "nsISupportsPrimitives.h"
-#include "nsITextControlFrame.h"
-#include "nsLayoutUtils.h"
-#include "nsLinebreakConverter.h"
-#include "nsMappedAttributes.h"
-#include "nsPIDOMWindow.h"
+#include "nsFormSubmission.h"
+#include "nsAttrValueInlines.h"
+#include "nsStyleConsts.h"
 #include "nsPresContext.h"
+#include "nsMappedAttributes.h"
+#include "nsIFormControlFrame.h"
+#include "nsITextControlFrame.h"
+#include "nsLinebreakConverter.h"
+#include "nsIDocument.h"
+#include "nsIFrame.h"
+#include "nsGUIEvent.h"
 #include "nsPresState.h"
 #include "nsReadableUtils.h"
-#include "nsStyleConsts.h"
+#include "nsEventDispatcher.h"
+#include "nsLayoutUtils.h"
+#include "nsError.h"
+#include "mozAutoDocUpdate.h"
+#include "nsISupportsPrimitives.h"
+#include "nsContentCreatorFunctions.h"
+#include "nsIConstraintValidation.h"
+
 #include "nsTextEditorState.h"
 
 static NS_DEFINE_CID(kXULControllersCID,  NS_XULCONTROLLERS_CID);
@@ -58,7 +59,7 @@ HTMLTextAreaElement::HTMLTextAreaElement(already_AddRefed<nsINodeInfo> aNodeInfo
     mDisabledChanged(false),
     mCanShowInvalidUI(true),
     mCanShowValidUI(true),
-    mState(MOZ_THIS_IN_INITIALIZER_LIST())
+    ALLOW_THIS_IN_INITIALIZER_LIST(mState(this))
 {
   AddMutationObserver(this);
 

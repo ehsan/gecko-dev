@@ -36,7 +36,7 @@
 #include <stdio.h> // for FILE definition
 #include "nsChangeHint.h"
 #include "nsGUIEvent.h"
-#include "nsRefPtrHashtable.h"
+#include "nsInterfaceHashtable.h"
 #include "nsEventStates.h"
 #include "nsPresArena.h"
 #include "nsIImageLoadingContent.h"
@@ -1129,7 +1129,7 @@ public:
 
   static CapturingContentInfo gCaptureInfo;
 
-  static nsRefPtrHashtable<nsUint32HashKey, mozilla::dom::Touch> gCaptureTouchList;
+  static nsInterfaceHashtable<nsUint32HashKey, nsIDOMTouch> gCaptureTouchList;
   static bool gPreventMouseEvents;
 
   /**

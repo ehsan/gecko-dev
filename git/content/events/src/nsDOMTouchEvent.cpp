@@ -10,67 +10,58 @@
 #include "mozilla/Preferences.h"
 #include "nsPresContext.h"
 #include "mozilla/dom/Touch.h"
-#include "mozilla/dom/TouchListBinding.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
 
 // TouchList
+nsDOMTouchList::nsDOMTouchList(nsTArray<nsCOMPtr<nsIDOMTouch> > &aTouches)
+{
+  mPoints.AppendElements(aTouches);
+  nsJSContext::LikelyShortLivingObjectCreated();
+}
+
+DOMCI_DATA(TouchList, nsDOMTouchList)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsDOMTouchList)
-  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
   NS_INTERFACE_MAP_ENTRY(nsISupports)
   NS_INTERFACE_MAP_ENTRY(nsIDOMTouchList)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(TouchList)
 NS_INTERFACE_MAP_END
 
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_2(nsDOMTouchList, mParent, mPoints)
+NS_IMPL_CYCLE_COLLECTION_1(nsDOMTouchList, mPoints)
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsDOMTouchList)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsDOMTouchList)
 
-/* virtual */ JSObject*
-nsDOMTouchList::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
-{
-  return TouchListBinding::Wrap(aCx, aScope, this);
-}
-
-/* static */ bool
-nsDOMTouchList::PrefEnabled()
-{
-  return nsDOMTouchEvent::PrefEnabled();
-}
-
 NS_IMETHODIMP
 nsDOMTouchList::GetLength(uint32_t* aLength)
 {
-  *aLength = Length();
+  *aLength = mPoints.Length();
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDOMTouchList::Item(uint32_t aIndex, nsIDOMTouch** aRetVal)
 {
-  NS_IF_ADDREF(*aRetVal = Item(aIndex));
+  NS_IF_ADDREF(*aRetVal = mPoints.SafeElementAt(aIndex, nullptr));
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDOMTouchList::IdentifiedTouch(int32_t aIdentifier, nsIDOMTouch** aRetVal)
 {
-  NS_IF_ADDREF(*aRetVal = IdentifiedTouch(aIdentifier));
-  return NS_OK;
-}
-
-Touch*
-nsDOMTouchList::IdentifiedTouch(int32_t aIdentifier) const
-{
+  *aRetVal = nullptr;
   for (uint32_t i = 0; i < mPoints.Length(); ++i) {
-    Touch* point = mPoints[i];
-    if (point && point->Identifier() == aIdentifier) {
-      return point;
+    nsCOMPtr<nsIDOMTouch> point = mPoints[i];
+    int32_t identifier;
+    if (point && NS_SUCCEEDED(point->GetIdentifier(&identifier)) &&
+        aIdentifier == identifier) {
+      point.swap(*aRetVal);
+      break;
     }
   }
-  return nullptr;
+  return NS_OK;
 }
 
 // TouchEvent
@@ -160,16 +151,16 @@ nsDOMTouchEvent::Touches()
     nsTouchEvent* touchEvent = static_cast<nsTouchEvent*>(mEvent);
     if (mEvent->message == NS_TOUCH_END || mEvent->message == NS_TOUCH_CANCEL) {
       // for touchend events, remove any changed touches from the touches array
-      nsTArray< nsRefPtr<Touch> > unchangedTouches;
-      const nsTArray< nsRefPtr<Touch> >& touches = touchEvent->touches;
+      nsTArray<nsCOMPtr<nsIDOMTouch> > unchangedTouches;
+      const nsTArray<nsCOMPtr<nsIDOMTouch> >& touches = touchEvent->touches;
       for (uint32_t i = 0; i < touches.Length(); ++i) {
         if (!touches[i]->mChanged) {
           unchangedTouches.AppendElement(touches[i]);
         }
       }
-      mTouches = new nsDOMTouchList(ToSupports(this), unchangedTouches);
+      mTouches = new nsDOMTouchList(unchangedTouches);
     } else {
-      mTouches = new nsDOMTouchList(ToSupports(this), touchEvent->touches);
+      mTouches = new nsDOMTouchList(touchEvent->touches);
     }
   }
   return mTouches;
@@ -187,20 +178,21 @@ nsDOMTouchList*
 nsDOMTouchEvent::TargetTouches()
 {
   if (!mTargetTouches) {
-    nsTArray< nsRefPtr<Touch> > targetTouches;
+    nsTArray<nsCOMPtr<nsIDOMTouch> > targetTouches;
     nsTouchEvent* touchEvent = static_cast<nsTouchEvent*>(mEvent);
-    const nsTArray< nsRefPtr<Touch> >& touches = touchEvent->touches;
+    const nsTArray<nsCOMPtr<nsIDOMTouch> >& touches = touchEvent->touches;
     for (uint32_t i = 0; i < touches.Length(); ++i) {
       // for touchend/cancel events, don't append to the target list if this is a
       // touch that is ending
       if ((mEvent->message != NS_TOUCH_END &&
            mEvent->message != NS_TOUCH_CANCEL) || !touches[i]->mChanged) {
-        if (touches[i]->mTarget == mEvent->originalTarget) {
+        EventTarget* targetPtr = touches[i]->GetTarget();
+        if (targetPtr == mEvent->originalTarget) {
           targetTouches.AppendElement(touches[i]);
         }
       }
     }
-    mTargetTouches = new nsDOMTouchList(ToSupports(this), targetTouches);
+    mTargetTouches = new nsDOMTouchList(targetTouches);
   }
   return mTargetTouches;
 }
@@ -217,15 +209,15 @@ nsDOMTouchList*
 nsDOMTouchEvent::ChangedTouches()
 {
   if (!mChangedTouches) {
-    nsTArray< nsRefPtr<Touch> > changedTouches;
+    nsTArray<nsCOMPtr<nsIDOMTouch> > changedTouches;
     nsTouchEvent* touchEvent = static_cast<nsTouchEvent*>(mEvent);
-    const nsTArray< nsRefPtr<Touch> >& touches = touchEvent->touches;
+    const nsTArray<nsCOMPtr<nsIDOMTouch> >& touches = touchEvent->touches;
     for (uint32_t i = 0; i < touches.Length(); ++i) {
       if (touches[i]->mChanged) {
         changedTouches.AppendElement(touches[i]);
       }
     }
-    mChangedTouches = new nsDOMTouchList(ToSupports(this), changedTouches);
+    mChangedTouches = new nsDOMTouchList(changedTouches);
   }
   return mChangedTouches;
 }

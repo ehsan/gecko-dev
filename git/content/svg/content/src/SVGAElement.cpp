@@ -4,14 +4,13 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/dom/SVGAElement.h"
-
-#include "mozilla/Attributes.h"
+#include "base/compiler_specific.h"
 #include "mozilla/dom/SVGAElementBinding.h"
-#include "nsCOMPtr.h"
-#include "nsContentUtils.h"
-#include "nsGkAtoms.h"
 #include "nsILink.h"
 #include "nsSVGString.h"
+#include "nsCOMPtr.h"
+#include "nsGkAtoms.h"
+#include "nsContentUtils.h"
 
 NS_IMPL_NS_NEW_NAMESPACED_SVG_ELEMENT(A)
 
@@ -46,8 +45,8 @@ NS_IMPL_ISUPPORTS_INHERITED5(SVGAElement, SVGAElementBase,
 // Implementation
 
 SVGAElement::SVGAElement(already_AddRefed<nsINodeInfo> aNodeInfo)
-  : SVGAElementBase(aNodeInfo)
-  , Link(MOZ_THIS_IN_INITIALIZER_LIST())
+  : SVGAElementBase(aNodeInfo),
+    ALLOW_THIS_IN_INITIALIZER_LIST(Link(this))
 {
 }
 

@@ -9297,7 +9297,7 @@ NS_IMETHODIMP
 nsDocument::CreateTouchList(nsIVariant* aPoints,
                             nsIDOMTouchList** aRetVal)
 {
-  nsRefPtr<nsDOMTouchList> retval = new nsDOMTouchList(ToSupports(this));
+  nsRefPtr<nsDOMTouchList> retval = new nsDOMTouchList();
   if (aPoints) {
     uint16_t type;
     aPoints->GetDataType(&type);
@@ -9334,18 +9334,18 @@ nsDocument::CreateTouchList(nsIVariant* aPoints,
   return NS_OK;
 }
 
-already_AddRefed<nsDOMTouchList>
+already_AddRefed<nsIDOMTouchList>
 nsIDocument::CreateTouchList()
 {
-  nsRefPtr<nsDOMTouchList> retval = new nsDOMTouchList(ToSupports(this));
+  nsRefPtr<nsDOMTouchList> retval = new nsDOMTouchList();
   return retval.forget();
 }
 
-already_AddRefed<nsDOMTouchList>
+already_AddRefed<nsIDOMTouchList>
 nsIDocument::CreateTouchList(Touch& aTouch,
                              const Sequence<OwningNonNull<Touch> >& aTouches)
 {
-  nsRefPtr<nsDOMTouchList> retval = new nsDOMTouchList(ToSupports(this));
+  nsRefPtr<nsDOMTouchList> retval = new nsDOMTouchList();
   retval->Append(&aTouch);
   for (uint32_t i = 0; i < aTouches.Length(); ++i) {
     retval->Append(aTouches[i].get());
@@ -9353,10 +9353,10 @@ nsIDocument::CreateTouchList(Touch& aTouch,
   return retval.forget();
 }
 
-already_AddRefed<nsDOMTouchList>
+already_AddRefed<nsIDOMTouchList>
 nsIDocument::CreateTouchList(const Sequence<OwningNonNull<Touch> >& aTouches)
 {
-  nsRefPtr<nsDOMTouchList> retval = new nsDOMTouchList(ToSupports(this));
+  nsRefPtr<nsDOMTouchList> retval = new nsDOMTouchList();
   for (uint32_t i = 0; i < aTouches.Length(); ++i) {
     retval->Append(aTouches[i].get());
   }

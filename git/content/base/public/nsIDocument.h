@@ -32,7 +32,6 @@ class nsAString;
 class nsBindingManager;
 class nsCSSStyleSheet;
 class nsDOMNavigationTiming;
-class nsDOMTouchList;
 class nsEventStates;
 class nsFrameLoader;
 class nsHTMLCSSStyleSheet;
@@ -51,6 +50,7 @@ class nsIDOMDocumentFragment;
 class nsIDOMDocumentType;
 class nsIDOMElement;
 class nsIDOMNodeList;
+class nsIDOMTouchList;
 class nsIDOMXPathExpression;
 class nsIDOMXPathNSResolver;
 class nsILayoutHistoryState;
@@ -2099,11 +2099,11 @@ public:
                 int32_t aScreenX, int32_t aScreenY, int32_t aClientX,
                 int32_t aClientY, int32_t aRadiusX, int32_t aRadiusY,
                 float aRotationAngle, float aForce);
-  already_AddRefed<nsDOMTouchList> CreateTouchList();
-  already_AddRefed<nsDOMTouchList>
+  already_AddRefed<nsIDOMTouchList> CreateTouchList();
+  already_AddRefed<nsIDOMTouchList>
     CreateTouchList(mozilla::dom::Touch& aTouch,
                     const mozilla::dom::Sequence<mozilla::dom::OwningNonNull<mozilla::dom::Touch> >& aTouches);
-  already_AddRefed<nsDOMTouchList>
+  already_AddRefed<nsIDOMTouchList>
     CreateTouchList(const mozilla::dom::Sequence<mozilla::dom::OwningNonNull<mozilla::dom::Touch> >& aTouches);
 
   void SetStyleSheetChangeEventsEnabled(bool aValue)

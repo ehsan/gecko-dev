@@ -265,7 +265,7 @@ NS_IMETHODIMP nsScrollBoxObject::GetPosition(int32_t *x, int32_t *y)
   if (!sf)
      return NS_ERROR_FAILURE;
 
-  CSSIntPoint pt = sf->GetScrollPositionCSSPixels();
+  nsIntPoint pt = sf->GetScrollPositionCSSPixels();
   *x = pt.x;
   *y = pt.y;
 
