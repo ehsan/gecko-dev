@@ -28,17 +28,16 @@ function finishTest() {
   info("Currently preferred source: " + gSources.preferredValue);
   info("Currently selected source: " + gSources.selectedValue);
 
-  is(getSourceURL(gSources, gSources.preferredValue), PREFERRED_URL,
+  is(gSources.preferredValue, PREFERRED_URL,
     "The preferred source url wasn't set correctly.");
-  is(getSourceURL(gSources, gSources.selectedValue), PREFERRED_URL,
+  is(gSources.selectedValue, PREFERRED_URL,
     "The selected source isn't the correct one.");
 
   closeDebuggerAndFinish(gPanel);
 }
 
 function prepareDebugger(aPanel) {
-  let sources = aPanel._view.Sources;
-  sources.preferredSource = getSourceActor(sources, PREFERRED_URL);
+  aPanel._view.Sources.preferredSource = PREFERRED_URL;
 }
 
 registerCleanupFunction(function() {

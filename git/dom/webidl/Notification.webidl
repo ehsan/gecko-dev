@@ -72,7 +72,6 @@ dictionary GetNotificationOptions {
 dictionary NotificationBehavior {
   boolean noscreen = false;
   boolean noclear = false;
-  boolean showOnlyOnce = false;
   DOMString soundFile = "";
   sequence<unsigned long> vibrationPattern;
 };

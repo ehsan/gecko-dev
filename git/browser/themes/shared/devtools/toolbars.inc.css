@@ -741,8 +741,7 @@
   opacity: 1;
 }
 
-.devtools-tabbar .devtools-tab[selected],
-.devtools-tabbar .devtools-tab[selected]:hover:active {
+.devtools-tabbar .devtools-tab[selected] {
   color: var(--theme-selection-color);
   background-color: var(--theme-selection-background);
 }

@@ -26,8 +26,8 @@ function run_test()
 function test_simple_breakpoint()
 {
   gThreadClient.addOneTimeListener("paused", function (aEvent, aPacket) {
-    let source = gThreadClient.source(aPacket.frame.where.source);
-    source.setBreakpoint({
+    gThreadClient.setBreakpoint({
+      url: "test.js",
       line: 3,
       condition: "throw new Error()"
     }, function (aResponse, bpClient) {

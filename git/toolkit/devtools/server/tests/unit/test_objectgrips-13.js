@@ -12,9 +12,9 @@ function run_test()
 {
   initTestDebuggerServer();
   gDebuggee = addTestGlobal("test-grips");
-  Components.utils.evalInSandbox(function stopMe() {
+  gDebuggee.eval(function stopMe() {
     debugger;
-  }.toString(), gDebuggee);
+  }.toString());
 
   gClient = new DebuggerClient(DebuggerServer.connectPipe());
   gClient.connect(function() {
@@ -39,17 +39,17 @@ function add_pause_listener()
 }
 
 function eval_code() {
-  Components.utils.evalInSandbox([
+  gDebuggee.eval([
     "this.line0 = Error().lineNumber;",
     "function f() {}",
     "stopMe(f, {});"
-  ].join("\n"), gDebuggee);
+  ].join("\n"));
 }
 
 function test_definition_site(func, obj) {
-  func.getDefinitionSite(({ error, source, line, column }) => {
+  func.getDefinitionSite(({ error, url, line, column }) => {
     do_check_true(!error);
-    do_check_eq(source.url, getFilePath("test_objectgrips-13.js"));
+    do_check_eq(url, getFilePath("test_objectgrips-13.js"));
     do_check_eq(line, gDebuggee.line0 + 1);
     do_check_eq(column, 0);
 

@@ -32,11 +32,11 @@ function test() {
 
   function addBreakpoints() {
     return promise.resolve(null)
-      .then(() => gPanel.addBreakpoint({ actor: gSources.values[0], line: 5 }))
-      .then(() => gPanel.addBreakpoint({ actor: gSources.values[1], line: 6 }))
-      .then(() => gPanel.addBreakpoint({ actor: gSources.values[1], line: 7 }))
-      .then(() => gPanel.addBreakpoint({ actor: gSources.values[1], line: 8 }))
-      .then(() => gPanel.addBreakpoint({ actor: gSources.values[1], line: 9 }))
+      .then(() => gPanel.addBreakpoint({ url: gSources.values[0], line: 5 }))
+      .then(() => gPanel.addBreakpoint({ url: gSources.values[1], line: 6 }))
+      .then(() => gPanel.addBreakpoint({ url: gSources.values[1], line: 7 }))
+      .then(() => gPanel.addBreakpoint({ url: gSources.values[1], line: 8 }))
+      .then(() => gPanel.addBreakpoint({ url: gSources.values[1], line: 9 }))
       .then(() => ensureThreadClientState(gPanel, "resumed"));
   }
 
@@ -79,8 +79,7 @@ function test() {
 
   function pauseAndCheck() {
     let finished = waitForSourceAndCaretAndScopes(gPanel, "-01.js", 5).then(() => {
-      let source = gSources.selectedItem.attachment.source;
-      is(source.url, EXAMPLE_URL + "code_script-switching-01.js",
+      is(gSources.selectedValue, EXAMPLE_URL + "code_script-switching-01.js",
         "The currently selected source is incorrect (3).");
       is(gSources.selectedIndex, 0,
         "The currently selected source is incorrect (4).");
@@ -88,8 +87,7 @@ function test() {
         "The editor location is correct after pausing.");
     });
 
-    let source = gSources.selectedItem.attachment.source;
-    is(source.url, EXAMPLE_URL + "code_script-switching-02.js",
+    is(gSources.selectedValue, EXAMPLE_URL + "code_script-switching-02.js",
       "The currently selected source is incorrect (1).");
     is(gSources.selectedIndex, 1,
       "The currently selected source is incorrect (2).");

@@ -1336,12 +1336,8 @@ EventTooltip.prototype = {
           line = matches[2];
         }
 
-        let item = DebuggerView.Sources.getItemForAttachment(
-          a => a.source.url === uri
-        );
-        if (item) {
-          let actor = item.attachment.source.actor;
-          DebuggerView.setEditorLocation(actor, line, {noDebug: true}).then(() => {
+        if (DebuggerView.Sources.containsValue(uri)) {
+          DebuggerView.setEditorLocation(uri, line, {noDebug: true}).then(() => {
             if (dom0) {
               let text = DebuggerView.editor.getText();
               let index = text.indexOf(searchString);

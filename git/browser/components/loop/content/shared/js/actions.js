@@ -163,12 +163,6 @@ loop.shared.actions = (function() {
     }),
 
     /**
-     * Used for notifying that local media has been obtained.
-     */
-    GotMediaPermission: Action.define("gotMediaPermission", {
-    }),
-
-    /**
      * Used for notifying that the media is now up for the call.
      */
     MediaConnected: Action.define("mediaConnected", {
@@ -328,13 +322,6 @@ loop.shared.actions = (function() {
       sessionToken: String,
       sessionId: String,
       expires: Number
-    }),
-
-    /**
-     * Used to indicate that the feedback cycle is completed and the countdown
-     * finished.
-     */
-    FeedbackComplete: Action.define("feedbackComplete", {
     }),
 
     /**

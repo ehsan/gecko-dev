@@ -1450,7 +1450,7 @@ CssRuleView.prototype = {
     if (refreshOnPrefs.indexOf(pref) > -1) {
       let element = this._viewedElement;
       this._viewedElement = null;
-      this.selectElement(element);
+      this.highlight(element);
     }
   },
 
@@ -1529,12 +1529,12 @@ CssRuleView.prototype = {
   },
 
   /**
-   * Update the view with a new selected element.
+   * Update the highlighted element.
    *
    * @param {NodeActor} aElement
    *        The node whose style rules we'll inspect.
    */
-  selectElement: function(aElement) {
+  highlight: function(aElement) {
     if (this._viewedElement === aElement) {
       return promise.resolve(undefined);
     }

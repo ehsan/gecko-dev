@@ -10,6 +10,7 @@ const NUM_BREAKPOINTS = 10;
 var gDebuggee;
 var gClient;
 var gThreadClient;
+var gPath = getFilePath('test_breakpoint-12.js');
 var gBpActor;
 var gCount;
 var gCallback;
@@ -40,17 +41,15 @@ function run_test_with_server(aServer, aCallback)
 function test_child_skip_breakpoint()
 {
   gThreadClient.addOneTimeListener("paused", function (aEvent, aPacket) {
-    let source = gThreadClient.source(aPacket.frame.where.source);
-    let location = { line: gDebuggee.line0 + 3};
-
-    source.setBreakpoint(location, function (aResponse, bpClient) {
+    let location = { url: gPath, line: gDebuggee.line0 + 3};
+    gThreadClient.setBreakpoint(location, function (aResponse, bpClient) {
       // Check that the breakpoint has properly skipped forward one line.
-      do_check_eq(aResponse.actualLocation.source.actor, source.actor);
+      do_check_eq(aResponse.actualLocation.url, location.url);
       do_check_eq(aResponse.actualLocation.line, location.line + 1);
       gBpActor = aResponse.actor;
 
       // Set more breakpoints at the same location.
-      set_breakpoints(source, location);
+      set_breakpoints(location);
     });
 
   });
@@ -66,17 +65,17 @@ function test_child_skip_breakpoint()
 }
 
 // Set many breakpoints at the same location.
-function set_breakpoints(source, location) {
+function set_breakpoints(location) {
   do_check_neq(gCount, NUM_BREAKPOINTS);
-  source.setBreakpoint(location, function (aResponse, bpClient) {
+  gThreadClient.setBreakpoint(location, function (aResponse, bpClient) {
     // Check that the breakpoint has properly skipped forward one line.
-    do_check_eq(aResponse.actualLocation.source.actor, source.actor);
+    do_check_eq(aResponse.actualLocation.url, location.url);
     do_check_eq(aResponse.actualLocation.line, location.line + 1);
     // Check that the same breakpoint actor was returned.
     do_check_eq(aResponse.actor, gBpActor);
 
     if (++gCount < NUM_BREAKPOINTS) {
-      set_breakpoints(source, location);
+      set_breakpoints(location);
       return;
     }
 
@@ -85,7 +84,7 @@ function set_breakpoints(source, location) {
     gThreadClient.addOneTimeListener("paused", function (aEvent, aPacket) {
       // Check the return value.
       do_check_eq(aPacket.type, "paused");
-      do_check_eq(aPacket.frame.where.source.actor, source.actor);
+      do_check_eq(aPacket.frame.where.url, gPath);
       do_check_eq(aPacket.frame.where.line, location.line + 1);
       do_check_eq(aPacket.why.type, "breakpoint");
       do_check_eq(aPacket.why.actors[0], bpClient.actor);

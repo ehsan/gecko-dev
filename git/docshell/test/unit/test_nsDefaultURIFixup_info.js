@@ -20,7 +20,6 @@ Services.search.defaultEngine = Services.search.getEngineByName(kSearchEngineID)
 let selectedName = Services.search.defaultEngine.name;
 do_check_eq(selectedName, kSearchEngineID);
 
-const kForceHostLookup = "browser.fixup.dns_first_for_single_words";
 do_register_cleanup(function() {
   if (oldDefaultEngine) {
     Services.search.defaultEngine = oldDefaultEngine;
@@ -31,7 +30,6 @@ do_register_cleanup(function() {
   }
   Services.prefs.clearUserPref("keyword.enabled");
   Services.prefs.clearUserPref("browser.fixup.typo.scheme");
-  Services.prefs.clearUserPref(kForceHostLookup);
 });
 
 let flagInputs = [
@@ -58,7 +56,6 @@ flagInputs.concat([
     protocolChange: false, // Whether a protocol change is expected
     affectedByWhitelist: false, // Whether the input host is affected by the whitelist
     inWhitelist: false, // Whether the input host is in the whitelist
-    affectedByDNSForSingleHosts: false, // Whether the input host could be a host, but is normally assumed to be a keyword query
   }
 */
 let testcases = [ {
@@ -119,7 +116,6 @@ let testcases = [ {
     fixedURI: "http://1.2.3/",
     keywordLookup: true,
     protocolChange: true,
-    affectedByDNSForSingleHosts: true,
   }, {
     input: "1.2.3/",
     fixedURI: "http://1.2.3/",
@@ -133,7 +129,6 @@ let testcases = [ {
     fixedURI: "http://1.2.3:8000/",
     keywordLookup: true,
     protocolChange: true,
-    affectedByDNSForSingleHosts: true,
   }, {
     input: "1.2.3:8000/",
     fixedURI: "http://1.2.3:8000/",
@@ -203,8 +198,7 @@ let testcases = [ {
     alternateURI: "http://[::1][100/",
     keywordLookup: true,
     protocolChange: true,
-    affectedByWhitelist: true,
-    affectedByDNSForSingleHosts: true,
+    affectedByWhitelist: true
   }, {
     input: "[::1]]",
     keywordLookup: true,
@@ -216,7 +210,6 @@ let testcases = [ {
     keywordLookup: true,
     protocolChange: true,
     affectedByWhitelist: true,
-    affectedByDNSForSingleHosts: true,
   }, {
     input: "host/foo.txt",
     fixedURI: "http://host/foo.txt",
@@ -230,7 +223,6 @@ let testcases = [ {
     keywordLookup: true,
     protocolChange: true,
     affectedByWhitelist: true,
-    affectedByDNSForSingleHosts: true,
   }, {
     input: "test.",
     fixedURI: "http://test./",
@@ -238,14 +230,12 @@ let testcases = [ {
     keywordLookup: true,
     protocolChange: true,
     affectedByWhitelist: true,
-    affectedByDNSForSingleHosts: true,
   }, {
     input: ".test",
     fixedURI: "http://.test/",
     alternateURI: "http://www..test/",
     keywordLookup: true,
     protocolChange: true,
-    affectedByDNSForSingleHosts: true,
   }, {
     input: "mozilla is amazing",
     keywordLookup: true,
@@ -273,7 +263,6 @@ let testcases = [ {
     keywordLookup: true,
     protocolChange: true,
     affectedByWhitelist: true,
-    affectedByDNSForSingleHosts: true,
   }, {
     input: "   mozilla  ",
     fixedURI: "http://mozilla/",
@@ -281,7 +270,6 @@ let testcases = [ {
     keywordLookup: true,
     protocolChange: true,
     affectedByWhitelist: true,
-    affectedByDNSForSingleHosts: true,
   }, {
     input: "mozilla \\",
     keywordLookup: true,
@@ -302,7 +290,6 @@ let testcases = [ {
     keywordLookup: true,
     protocolChange: true,
     affectedByWhitelist: true,
-    affectedByDNSForSingleHosts: true,
   }, {
     input: "mozilla \r\n",
     fixedURI: "http://mozilla/",
@@ -310,7 +297,6 @@ let testcases = [ {
     keywordLookup: true,
     protocolChange: true,
     affectedByWhitelist: true,
-    affectedByDNSForSingleHosts: true,
   }, {
     input: "moz\r\nfirefox\nos\r",
     fixedURI: "http://mozfirefoxos/",
@@ -318,7 +304,6 @@ let testcases = [ {
     keywordLookup: true,
     protocolChange: true,
     affectedByWhitelist: true,
-    affectedByDNSForSingleHosts: true,
   }, {
     input: "moz\r\n firefox\n",
     keywordLookup: true,
@@ -346,35 +331,30 @@ let testcases = [ {
     input: "47.6182,-122.830",
     fixedURI: "http://47.6182,-122.830/",
     keywordLookup: true,
-    protocolChange: true,
-    affectedByDNSForSingleHosts: true,
+    protocolChange: true
   }, {
     input: "-47.6182,-23.51",
     fixedURI: "http://-47.6182,-23.51/",
     keywordLookup: true,
-    protocolChange: true,
-    affectedByDNSForSingleHosts: true,
+    protocolChange: true
   }, {
     input: "-22.14,23.51-",
     fixedURI: "http://-22.14,23.51-/",
     keywordLookup: true,
-    protocolChange: true,
-    affectedByDNSForSingleHosts: true,
+    protocolChange: true
   }, {
     input: "32.7",
     fixedURI: "http://32.7/",
     alternateURI: "http://www.32.7/",
     keywordLookup: true,
-    protocolChange: true,
-    affectedByDNSForSingleHosts: true,
+    protocolChange: true
   }, {
     input: "5+2",
     fixedURI: "http://5+2/",
     alternateURI: "http://www.5+2.com/",
     keywordLookup: true,
     protocolChange: true,
-    affectedByWhitelist: true,
-    affectedByDNSForSingleHosts: true,
+    affectedByWhitelist: true
   }, {
     input: "moz ?.::%27",
     keywordLookup: true,
@@ -470,7 +450,6 @@ if (Services.appinfo.OS.toLowerCase().startsWith("win")) {
     keywordLookup: true,
     protocolChange: true,
     affectedByWhitelist: true,
-    affectedByDNSForSingleHosts: true,
   });
 } else {
   testcases.push({
@@ -490,7 +469,6 @@ if (Services.appinfo.OS.toLowerCase().startsWith("win")) {
     keywordLookup: true,
     protocolChange: true,
     affectedByWhitelist: true,
-    affectedByDNSForSingleHosts: true,
   });
 }
 
@@ -498,47 +476,20 @@ function sanitize(input) {
   return input.replace(/\r|\n/g, "").trim();
 }
 
-
-let gSingleWordHostLookup = false;
 function run_test() {
-  // Only keywordlookup things should be affected by requiring a DNS lookup for single-word hosts:
-  do_print("Check only keyword lookup testcases should be affected by requiring DNS for single hosts");
-  let affectedTests = testcases.filter(t => !t.keywordLookup && t.affectedByDNSForSingleHosts);
-  if (affectedTests.length) {
-    for (let testcase of affectedTests) {
-      do_print("Affected: " + testcase.input);
-    }
-  }
-  do_check_eq(affectedTests.length, 0);
-  do_single_test_run();
-  gSingleWordHostLookup = true;
-  do_single_test_run();
-}
-
-function do_single_test_run() {
-  Services.prefs.setBoolPref(kForceHostLookup, gSingleWordHostLookup);
-
-  let relevantTests = gSingleWordHostLookup ? testcases.filter(t => t.keywordLookup) :
-                                              testcases;
-
   for (let { input: testInput,
              fixedURI: expectedFixedURI,
              alternateURI: alternativeURI,
              keywordLookup: expectKeywordLookup,
              protocolChange: expectProtocolChange,
              affectedByWhitelist: affectedByWhitelist,
-             inWhitelist: inWhitelist,
-             affectedByDNSForSingleHosts: affectedByDNSForSingleHosts,
-           } of relevantTests) {
+             inWhitelist: inWhitelist } of testcases) {
 
     // Explicitly force these into a boolean
     expectKeywordLookup = !!expectKeywordLookup;
     expectProtocolChange = !!expectProtocolChange;
     affectedByWhitelist = !!affectedByWhitelist;
     inWhitelist = !!inWhitelist;
-    affectedByDNSForSingleHosts = !!affectedByDNSForSingleHosts;
-
-    expectKeywordLookup = expectKeywordLookup && (!affectedByDNSForSingleHosts || !gSingleWordHostLookup);
 
     for (let flags of flagInputs) {
       let info;
@@ -560,8 +511,7 @@ function do_single_test_run() {
         continue;
       }
 
-      do_print("Checking \"" + testInput + "\" with flags " + flags +
-               " (host lookup for single words: " + (gSingleWordHostLookup ? "yes" : "no") + ")");
+      do_print("Checking \"" + testInput + "\" with flags " + flags);
 
       // Both APIs should then also be using the same spec.
       do_check_eq(!!fixupURIOnly, !!info.preferredURI);
@@ -605,10 +555,8 @@ function do_single_test_run() {
           do_check_eq(info.preferredURI.spec, info.fixedURI.spec);
         }
       } else if (requiresWhitelistedDomain) {
-        // Not a keyword search, but we want to enforce the host whitelist.
-        // If we always do DNS lookups, we should always havea  preferred URI here - unless the
-        // input starts with '?' in which case preferredURI will just be null...
-        if (!affectedByWhitelist || (affectedByWhitelist && inWhitelist) || (gSingleWordHostLookup && !testInput.startsWith("?")))
+        // Not a keyword search, but we want to enforce the host whitelist
+        if (!affectedByWhitelist || (affectedByWhitelist && inWhitelist))
           do_check_eq(info.preferredURI.spec, info.fixedURI.spec);
         else
           do_check_eq(info.preferredURI, null);
