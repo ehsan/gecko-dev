@@ -75,8 +75,6 @@ public:
     BUFFER_WHITE, // The buffer with white background, only valid with component alpha.
     BUFFER_BOTH // The combined black/white buffers, only valid for writing operations, not reading.
   };
-  // It is the callers repsonsibility to ensure aTarget is flushed after calling
-  // this method.
   void DrawBufferWithRotation(gfx::DrawTarget* aTarget, ContextSource aSource,
                               float aOpacity = 1.0,
                               gfx::CompositionOp aOperator = gfx::OP_OVER,
@@ -398,10 +396,6 @@ protected:
    */
   bool EnsureBuffer();
   bool EnsureBufferOnWhite();
-
-  // Flush our buffers if they are mapped.
-  void FlushBuffers();
-
   /**
    * True if we have a buffer where we can get it (but not necessarily
    * mapped currently).

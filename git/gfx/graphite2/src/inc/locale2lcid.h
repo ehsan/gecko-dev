@@ -273,11 +273,6 @@ public:
                 while (old[len]) len++;
                 len += 2;
                 mLangLookup[a][b] = gralloc<const IsoLangEntry *>(len);
-                if (!mLangLookup[a][b])
-                {
-                    mLangLookup[a][b] = old;
-                    continue;
-                }
                 mLangLookup[a][b][--len] = NULL;
                 mLangLookup[a][b][--len] = &LANG_ENTRIES[i];
                 while (--len >= 0)
@@ -290,7 +285,6 @@ public:
             else
             {
                 mLangLookup[a][b] = gralloc<const IsoLangEntry *>(2);
-                if (!mLangLookup[a][b]) continue;
                 mLangLookup[a][b][1] = NULL;
                 mLangLookup[a][b][0] = &LANG_ENTRIES[i];
             }
@@ -301,8 +295,8 @@ public:
     ~Locale2Lang()
     {
         for (int i = 0; i != 26; ++i)
-            for (int j = 0; j != 26; ++j)
-                free(mLangLookup[i][j]);
+        	for (int j = 0; j != 26; ++j)
+        		free(mLangLookup[i][j]);
     }
     unsigned short getMsId(const char * locale) const
     {
@@ -399,7 +393,7 @@ public:
                             ++i;
                             continue;
                         }
-                        if (region && (strncmp(mLangLookup[a][b][i]->maCountry, region, regionLength) == 0))
+                        if (strcmp(mLangLookup[a][b][i]->maCountry, region) == 0)
                         {
                             langId = mLangLookup[a][b][i]->mnLang;
                             break;

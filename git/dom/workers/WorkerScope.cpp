@@ -99,18 +99,9 @@ WorkerGlobalScope::Navigator()
   mWorkerPrivate->AssertIsOnWorkerThread();
 
   if (!mNavigator) {
-    mNavigator = WorkerNavigator::Create(mWorkerPrivate->OnLine());
+    mNavigator = WorkerNavigator::Create();
     MOZ_ASSERT(mNavigator);
   }
-
-  nsRefPtr<WorkerNavigator> navigator = mNavigator;
-  return navigator.forget();
-}
-
-already_AddRefed<WorkerNavigator>
-WorkerGlobalScope::GetExistingNavigator() const
-{
-  mWorkerPrivate->AssertIsOnWorkerThread();
 
   nsRefPtr<WorkerNavigator> navigator = mNavigator;
   return navigator.forget();

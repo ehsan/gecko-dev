@@ -1,6 +1,6 @@
 /*  GRAPHITE2 LICENSING
 
-    Copyright 2012, SIL International
+    Copyright 2010, SIL International
     All rights reserved.
 
     This library is free software; you can redistribute it and/or modify
@@ -117,7 +117,6 @@ float Segment::justify(Slot *pSlot, const Font *font, float width, GR_MAYBE_UNUS
     }
 
     JustifyTotal *stats = new JustifyTotal[numLevels];
-    if (!stats) return -1.0;
     for (s = pFirst; s != end; s = s->nextSibling())
     {
         float w = s->origin().x / scale + s->advance() - base;
@@ -180,7 +179,6 @@ float Segment::justify(Slot *pSlot, const Font *font, float width, GR_MAYBE_UNUS
     {
         m_first = pSlot = addLineEnd(pSlot);
         m_last = pLast = addLineEnd(end);
-        if (!m_first || !m_last) return -1.0;
     }
     else
     {
@@ -193,7 +191,7 @@ float Segment::justify(Slot *pSlot, const Font *font, float width, GR_MAYBE_UNUS
     json * const dbgout = m_face->logger();
     if (dbgout)
         *dbgout << json::object
-                    << "justifies"  << objectid(this)
+                    << "justifies"	<< objectid(this)
                     << "passes"     << json::array;
 #endif
 
@@ -208,8 +206,8 @@ float Segment::justify(Slot *pSlot, const Font *font, float width, GR_MAYBE_UNUS
         Slot *lEnd = pLast->nextSibling();
         *dbgout << "output" << json::array;
         for(Slot * t = pSlot; t != lEnd; t = t->next())
-            *dbgout     << dslot(this, t);
-        *dbgout         << json::close << json::close;
+            *dbgout		<< dslot(this, t);
+        *dbgout			<< json::close << json::close;
     }
 #endif
 
@@ -228,7 +226,6 @@ float Segment::justify(Slot *pSlot, const Font *font, float width, GR_MAYBE_UNUS
 Slot *Segment::addLineEnd(Slot *nSlot)
 {
     Slot *eSlot = newSlot();
-    if (!eSlot) return NULL;
     const uint16 gid = silf()->endLineGlyphid();
     const GlyphFace * theGlyph = m_face->glyphs().glyphSafe(gid);
     eSlot->setGlyph(this, gid, theGlyph);

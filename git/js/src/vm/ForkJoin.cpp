@@ -6,8 +6,6 @@
 
 #include "vm/ForkJoin.h"
 
-#include "mozilla/ThreadLocal.h"
-
 #include "jscntxt.h"
 #include "jslock.h"
 #include "jsprf.h"
@@ -29,8 +27,6 @@
 using namespace js;
 using namespace js::parallel;
 using namespace js::jit;
-
-using mozilla::ThreadLocal;
 
 ///////////////////////////////////////////////////////////////////////////
 // Degenerate configurations
@@ -70,6 +66,12 @@ ForkJoinSlice::releaseContext()
 
 bool
 ForkJoinSlice::isMainThread() const
+{
+    return true;
+}
+
+bool
+ForkJoinSlice::InitializeTLS()
 {
     return true;
 }
@@ -172,18 +174,6 @@ ExecuteSequentially(JSContext *cx, HandleValue funVal, bool *complete)
     return true;
 }
 
-ThreadLocal<ForkJoinSlice*> ForkJoinSlice::tlsForkJoinSlice;
-
-/* static */ bool
-ForkJoinSlice::initialize()
-{
-    if (!tlsForkJoinSlice.initialized()) {
-        if (!tlsForkJoinSlice.init())
-            return false;
-    }
-    return true;
-}
-
 ///////////////////////////////////////////////////////////////////////////
 // Parallel configurations
 //
@@ -229,6 +219,9 @@ enum ForkJoinMode {
 
     NumForkJoinModes
 };
+
+unsigned ForkJoinSlice::ThreadPrivateIndex;
+bool ForkJoinSlice::TLSInitialized;
 
 class ParallelDo
 {
@@ -452,11 +445,11 @@ class AutoSetForkJoinSlice
 {
   public:
     AutoSetForkJoinSlice(ForkJoinSlice *threadCx) {
-        ForkJoinSlice::tlsForkJoinSlice.set(threadCx);
+        PR_SetThreadPrivate(ForkJoinSlice::ThreadPrivateIndex, threadCx);
     }
 
     ~AutoSetForkJoinSlice() {
-        ForkJoinSlice::tlsForkJoinSlice.set(nullptr);
+        PR_SetThreadPrivate(ForkJoinSlice::ThreadPrivateIndex, nullptr);
     }
 };
 
@@ -1206,7 +1199,7 @@ js::ParallelDo::parallelExecution(ExecutionStatus *status)
     // Recursive use of the ThreadPool is not supported.  Right now we
     // cannot get here because parallel code cannot invoke native
     // functions such as ForkJoin().
-    JS_ASSERT(ForkJoinSlice::current() == nullptr);
+    JS_ASSERT(ForkJoinSlice::Current() == nullptr);
 
     ForkJoinActivation activation(cx_);
 
@@ -1770,6 +1763,17 @@ ForkJoinSlice::check()
         return true;
 }
 
+bool
+ForkJoinSlice::InitializeTLS()
+{
+    if (!TLSInitialized) {
+        if (PR_NewThreadPrivateIndex(&ThreadPrivateIndex, nullptr) != PR_SUCCESS)
+            return false;
+        TLSInitialized = true;
+    }
+    return true;
+}
+
 void
 ForkJoinSlice::requestGC(JS::gcreason::Reason reason)
 {
@@ -1980,7 +1984,7 @@ class ParallelSpewer
         // doesn't get interrupted when running with multiple threads.
         char buf[BufferSize];
 
-        if (ForkJoinSlice *slice = ForkJoinSlice::current()) {
+        if (ForkJoinSlice *slice = ForkJoinSlice::Current()) {
             JS_snprintf(buf, BufferSize, "[%sParallel:%u%s] ",
                         sliceColor(slice->sliceId), slice->sliceId, reset());
         } else {
@@ -2206,7 +2210,7 @@ parallel::SpewBailoutIR(IonLIRTraceData *data)
 bool
 js::InExclusiveParallelSection()
 {
-    return InParallelSection() && ForkJoinSlice::current()->hasAcquiredContext();
+    return InParallelSection() && ForkJoinSlice::Current()->hasAcquiredContext();
 }
 
 bool

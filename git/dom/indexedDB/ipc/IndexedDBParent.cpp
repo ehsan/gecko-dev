@@ -131,7 +131,7 @@ IndexedDBParent::CloneProtocol(Channel* aChannel,
 
 bool
 IndexedDBParent::CheckPermissionInternal(const nsAString& aDatabaseName,
-                                         const nsACString& aPermission)
+                                         const nsDependentCString& aPermission)
 {
   MOZ_ASSERT(!mASCIIOrigin.IsEmpty());
   MOZ_ASSERT(mManagerContent || mManagerTab);

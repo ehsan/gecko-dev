@@ -7,8 +7,6 @@
 #ifndef vm_ForkJoin_h
 #define vm_ForkJoin_h
 
-#include "mozilla/ThreadLocal.h"
-
 #include "jscntxt.h"
 
 #include "gc/GCInternals.h"
@@ -374,17 +372,20 @@ class ForkJoinSlice : public ThreadSafeContext
     bool hasAcquiredContext() const;
 
     // Check the current state of parallel execution.
-    static inline ForkJoinSlice *current();
+    static inline ForkJoinSlice *Current();
 
     // Initializes the thread-local state.
-    static bool initialize();
+    static bool InitializeTLS();
 
   private:
     friend class AutoRendezvous;
     friend class AutoSetForkJoinSlice;
 
-    // Initialized by initialize()
-    static mozilla::ThreadLocal<ForkJoinSlice*> tlsForkJoinSlice;
+#if defined(JS_THREADSAFE) && defined(JS_ION)
+    // Initialized by InitializeTLS()
+    static unsigned ThreadPrivateIndex;
+    static bool TLSInitialized;
+#endif
 
     ForkJoinShared *const shared;
 
@@ -430,6 +431,17 @@ class LockedJSContext
     operator JSContext *() { return cx_; }
     JSContext *operator->() { return cx_; }
 };
+
+static inline bool
+InParallelSection()
+{
+#ifdef JS_THREADSAFE
+    ForkJoinSlice *current = ForkJoinSlice::Current();
+    return current != nullptr;
+#else
+    return false;
+#endif
+}
 
 bool InExclusiveParallelSection();
 
@@ -499,19 +511,13 @@ static inline void SpewBailoutIR(IonLIRTraceData *data) { }
 } // namespace js
 
 /* static */ inline js::ForkJoinSlice *
-js::ForkJoinSlice::current()
+js::ForkJoinSlice::Current()
 {
-    return tlsForkJoinSlice.get();
+#if defined(JS_THREADSAFE) && defined(JS_ION)
+    return (ForkJoinSlice*) PR_GetThreadPrivate(ThreadPrivateIndex);
+#else
+    return nullptr;
+#endif
 }
-
-namespace js {
-
-static inline bool
-InParallelSection()
-{
-    return ForkJoinSlice::current() != nullptr;
-}
-
-} // namespace js
 
 #endif /* vm_ForkJoin_h */

@@ -40,7 +40,7 @@ class Wait(object):
             # every 5 seconds.
             wait = Wait(marionette, timeout=30, interval=5,
                         ignored_exceptions=errors.NoSuchWindowException)
-            window = wait.until(lambda m: m.switch_to_window(42))
+            window = wait.until(lambda marionette: marionette.switch_to_window(42))
 
         :param marionette: The input value to be provided to
             conditions, usually a Marionette instance.
@@ -78,6 +78,7 @@ class Wait(object):
                 exceptions.append(ignored_exceptions)
         self.exceptions = tuple(set(exceptions))
 
+
     def until(self, condition, is_true=None):
         """Repeatedly runs condition until its return value evaluates to true,
         or its timeout expires or the predicate evaluates to true.
@@ -108,7 +109,6 @@ class Wait(object):
         rv = None
         last_exc = None
         until = is_true or until_pred
-        start = self.clock.now
 
         while not until(self.clock, self.end):
             try:
@@ -130,8 +130,7 @@ class Wait(object):
         if last_exc is not None:
             raise last_exc
 
-        raise errors.TimeoutException(
-            "Timed out after %s seconds" % (self.clock.now - start))
+        raise errors.TimeoutException
 
 def until_pred(clock, end):
     return clock.now >= end
