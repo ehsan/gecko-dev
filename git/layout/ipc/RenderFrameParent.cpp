@@ -780,8 +780,7 @@ RenderFrameParent::ContentViewScaleChanged(nsContentView* aView)
 void
 RenderFrameParent::ShadowLayersUpdated(LayerTransactionParent* aLayerTree,
                                        const TargetConfig& aTargetConfig,
-                                       bool aIsFirstPaint,
-                                       bool aScheduleComposite)
+                                       bool isFirstPaint)
 {
   // View map must only contain views that are associated with the current
   // shadow layer tree. We must always update the map when shadow layers
@@ -1112,6 +1111,15 @@ RenderFrameParent::UpdateZoomConstraints(uint32_t aPresShellId,
   if (GetApzcTreeManager()) {
     GetApzcTreeManager()->UpdateZoomConstraints(ScrollableLayerGuid(mLayersId, aPresShellId, aViewId),
                                                 aAllowZoom, aMinZoom, aMaxZoom);
+  }
+}
+
+void
+RenderFrameParent::UpdateScrollOffset(uint32_t aPresShellId, ViewID aViewId, const CSSIntPoint& aScrollOffset)
+{
+  if (GetApzcTreeManager()) {
+    GetApzcTreeManager()->UpdateScrollOffset(ScrollableLayerGuid(mLayersId, aPresShellId, aViewId),
+                                             aScrollOffset);
   }
 }
 

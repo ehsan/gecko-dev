@@ -335,13 +335,6 @@ CompositorParent::RecvFlushRendering()
 }
 
 bool
-CompositorParent::RecvForceComposite()
-{
-  ScheduleComposition();
-  return true;
-}
-
-bool
 CompositorParent::RecvNotifyRegionInvalidated(const nsIntRegion& aRegion)
 {
   if (mLayerManager) {
@@ -506,7 +499,7 @@ CompositorParent::ScheduleTask(CancelableTask* task, int time)
 }
 
 void
-CompositorParent::NotifyShadowTreeTransaction(uint64_t aId, bool aIsFirstPaint, bool aScheduleComposite)
+CompositorParent::NotifyShadowTreeTransaction(uint64_t aId, bool aIsFirstPaint)
 {
   if (mApzcTreeManager &&
       mLayerManager &&
@@ -516,9 +509,7 @@ CompositorParent::NotifyShadowTreeTransaction(uint64_t aId, bool aIsFirstPaint, 
 
     mCompositor->NotifyLayersTransaction();
   }
-  if (aScheduleComposite) {
-    ScheduleComposition();
-  }
+  ScheduleComposition();
 }
 
 // Used when layout.frame_rate is -1. Needs to be kept in sync with
@@ -677,10 +668,9 @@ SetShadowProperties(Layer* aLayer)
 void
 CompositorParent::ShadowLayersUpdated(LayerTransactionParent* aLayerTree,
                                       const TargetConfig& aTargetConfig,
-                                      bool aIsFirstPaint,
-                                      bool aScheduleComposite)
+                                      bool isFirstPaint)
 {
-  if (!aIsFirstPaint &&
+  if (!isFirstPaint &&
       !mCompositionManager->IsFirstPaint() &&
       mCompositionManager->RequiresReorientation(aTargetConfig.orientation())) {
     if (mForceCompositionTask != nullptr) {
@@ -695,13 +685,13 @@ CompositorParent::ShadowLayersUpdated(LayerTransactionParent* aLayerTree,
   // race condition.
   mLayerManager->UpdateRenderBounds(aTargetConfig.clientBounds());
 
-  mCompositionManager->Updated(aIsFirstPaint, aTargetConfig);
+  mCompositionManager->Updated(isFirstPaint, aTargetConfig);
   Layer* root = aLayerTree->GetRoot();
   mLayerManager->SetRoot(root);
 
   if (mApzcTreeManager) {
     AutoResolveRefLayers resolve(mCompositionManager);
-    mApzcTreeManager->UpdatePanZoomControllerTree(this, root, aIsFirstPaint, mRootLayerTreeID);
+    mApzcTreeManager->UpdatePanZoomControllerTree(this, root, isFirstPaint, mRootLayerTreeID);
   }
 
   if (root) {
@@ -710,9 +700,7 @@ CompositorParent::ShadowLayersUpdated(LayerTransactionParent* aLayerTree,
       mCompositionManager->TransformShadowTree(mTestTime);
     }
   }
-  if (aScheduleComposite) {
-    ScheduleComposition();
-  }
+  ScheduleComposition();
   mCompositor->NotifyLayersTransaction();
 }
 
@@ -990,7 +978,6 @@ public:
                                 SurfaceDescriptor* aOutSnapshot)
   { return true; }
   virtual bool RecvFlushRendering() MOZ_OVERRIDE { return true; }
-  virtual bool RecvForceComposite() MOZ_OVERRIDE { return true; }
   virtual bool RecvNotifyRegionInvalidated(const nsIntRegion& aRegion) { return true; }
   virtual bool RecvStartFrameTimeRecording(const int32_t& aBufferSize, uint32_t* aOutStartIndex) MOZ_OVERRIDE { return true; }
   virtual bool RecvStopFrameTimeRecording(const uint32_t& aStartIndex, InfallibleTArray<float>* intervals) MOZ_OVERRIDE  { return true; }
@@ -1005,8 +992,7 @@ public:
 
   virtual void ShadowLayersUpdated(LayerTransactionParent* aLayerTree,
                                    const TargetConfig& aTargetConfig,
-                                   bool aIsFirstPaint,
-                                   bool aScheduleComposite) MOZ_OVERRIDE;
+                                   bool isFirstPaint) MOZ_OVERRIDE;
 
 private:
   void DeferredDestroy();
@@ -1142,8 +1128,7 @@ void
 CrossProcessCompositorParent::ShadowLayersUpdated(
   LayerTransactionParent* aLayerTree,
   const TargetConfig& aTargetConfig,
-  bool aIsFirstPaint,
-  bool aScheduleComposite)
+  bool isFirstPaint)
 {
   uint64_t id = aLayerTree->GetId();
   MOZ_ASSERT(id != 0);
@@ -1153,7 +1138,7 @@ CrossProcessCompositorParent::ShadowLayersUpdated(
   }
   UpdateIndirectTree(id, shadowRoot, aTargetConfig);
 
-  sIndirectLayerTrees[id].mParent->NotifyShadowTreeTransaction(id, aIsFirstPaint, aScheduleComposite);
+  sIndirectLayerTrees[id].mParent->NotifyShadowTreeTransaction(id, isFirstPaint);
 }
 
 void

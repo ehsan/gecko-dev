@@ -415,7 +415,7 @@ let FormAssistant = {
           this.scrollIntoViewTimeout = content.setTimeout(function () {
             this.scrollIntoViewTimeout = null;
             if (this.focusedElement && !FormVisibility.isVisible(this.focusedElement)) {
-              scrollSelectionOrElementIntoView(this.focusedElement);
+              this.focusedElement.scrollIntoView(false);
             }
           }.bind(this), RESIZE_SCROLL_DELAY);
         }
@@ -1014,23 +1014,6 @@ function setSelectionRange(element, start, end) {
     while (getContentEditableSelectionLength(element, sel) < selectionLength) {
       sel.modify("extend", "forward", "character");
     }
-  }
-}
-
-/**
- * Scroll the given element into view.
- *
- * Calls scrollSelectionIntoView for contentEditable elements.
- */
-function scrollSelectionOrElementIntoView(element) {
-  let editor = getPlaintextEditor(element);
-  if (editor) {
-    editor.selectionController.scrollSelectionIntoView(
-      Ci.nsISelectionController.SELECTION_NORMAL,
-      Ci.nsISelectionController.SELECTION_FOCUS_REGION,
-      Ci.nsISelectionController.SCROLL_SYNCHRONOUS);
-  } else {
-      element.scrollIntoView(false);
   }
 }
 

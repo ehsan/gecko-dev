@@ -78,8 +78,7 @@ public:
 
   virtual void ShadowLayersUpdated(LayerTransactionParent* aLayerTree,
                                    const TargetConfig& aTargetConfig,
-                                   bool aIsFirstPaint,
-                                   bool aScheduleComposite) MOZ_OVERRIDE;
+                                   bool isFirstPaint) MOZ_OVERRIDE;
 
   void BuildDisplayList(nsDisplayListBuilder* aBuilder,
                         nsSubDocumentFrame* aFrame,
@@ -123,6 +122,10 @@ public:
                              bool aAllowZoom,
                              const CSSToScreenScale& aMinZoom,
                              const CSSToScreenScale& aMaxZoom);
+
+  void UpdateScrollOffset(uint32_t aPresShellId,
+                          ViewID aViewId,
+                          const CSSIntPoint& aScrollOffset);
 
   bool HitTest(const nsRect& aRect);
 

@@ -434,7 +434,7 @@ NewGCThing(ThreadSafeContext *cx, AllocKind kind, size_t thingSize, InitialHeap 
         JS_OOM_POSSIBLY_FAIL_REPORT(ncx);
 
 #ifdef JS_GC_ZEAL
-        if (allowGC && rt->needZealousGC())
+        if (rt->needZealousGC() && allowGC)
             js::gc::RunDebugGC(ncx);
 #endif
 

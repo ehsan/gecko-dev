@@ -10,7 +10,6 @@
 #define jsinfer_h
 
 #include "mozilla/MemoryReporting.h"
-#include "mozilla/TypedEnum.h"
 
 #include "jsalloc.h"
 #include "jsfriendapi.h"
@@ -326,7 +325,7 @@ public:
 };
 
 /* Flags and other state stored in TypeSet::flags */
-enum MOZ_ENUM_TYPE(uint32_t) {
+enum {
     TYPE_FLAG_UNDEFINED =  0x1,
     TYPE_FLAG_NULL      =  0x2,
     TYPE_FLAG_BOOLEAN   =  0x4,
@@ -376,7 +375,7 @@ enum MOZ_ENUM_TYPE(uint32_t) {
 typedef uint32_t TypeFlags;
 
 /* Flags and other state stored in TypeObject::flags */
-enum MOZ_ENUM_TYPE(uint32_t) {
+enum {
     /* Whether this type object is associated with some allocation site. */
     OBJECT_FLAG_FROM_ALLOCATION_SITE  = 0x1,
 
@@ -527,13 +526,11 @@ class TypeSet
         flags |= TYPE_FLAG_CONFIGURED_PROPERTY;
     }
     bool canSetDefinite(unsigned slot) {
-        // Note: the cast is required to work around an MSVC issue.
-        return (slot + 1) <= (unsigned(TYPE_FLAG_DEFINITE_MASK) >> TYPE_FLAG_DEFINITE_SHIFT);
+        return (slot + 1) <= (TYPE_FLAG_DEFINITE_MASK >> TYPE_FLAG_DEFINITE_SHIFT);
     }
     void setDefinite(unsigned slot) {
         JS_ASSERT(canSetDefinite(slot));
         flags |= ((slot + 1) << TYPE_FLAG_DEFINITE_SHIFT);
-        JS_ASSERT(definiteSlot() == slot);
     }
 
     /* Whether any values in this set might have the specified type. */

@@ -307,10 +307,8 @@ nsGlobalWindow::DOMMinTimeoutValue() const {
   PR_BEGIN_MACRO                                                              \
   if (IsInnerWindow()) {                                                      \
     nsGlobalWindow *outer = GetOuterWindowInternal();                         \
-    if (!outer || outer->GetCurrentInnerWindow() != this) {                   \
-      NS_WARNING(outer ?                                                      \
-                 "Inner window is not its outer's current inner window." :    \
-                 "No outer window available!");                               \
+    if (!outer) {                                                             \
+      NS_WARNING("No outer window available!");                               \
       return err_rval;                                                        \
     }                                                                         \
     return outer->method args;                                                \
@@ -324,12 +322,9 @@ nsGlobalWindow::DOMMinTimeoutValue() const {
     if (!outer) {                                                             \
       NS_WARNING("No outer window available!");                               \
       errorresult.Throw(NS_ERROR_NOT_INITIALIZED);                            \
-    } else if (outer->GetCurrentInnerWindow() != this) {                      \
-      errorresult.Throw(NS_ERROR_XPC_SECURITY_MANAGER_VETO);                  \
-    } else {                                                                  \
-      return outer->method args;                                              \
+      return err_rval;                                                        \
     }                                                                         \
-    return err_rval;                                                          \
+    return outer->method args;                                                \
   }                                                                           \
   PR_END_MACRO
 
@@ -337,10 +332,8 @@ nsGlobalWindow::DOMMinTimeoutValue() const {
   PR_BEGIN_MACRO                                                              \
   if (IsInnerWindow()) {                                                      \
     nsGlobalWindow *outer = GetOuterWindowInternal();                         \
-    if (!outer || outer->GetCurrentInnerWindow() != this) {                   \
-      NS_WARNING(outer ?                                                      \
-                 "Inner window is not its outer's current inner window." :    \
-                 "No outer window available!");                               \
+    if (!outer) {                                                             \
+      NS_WARNING("No outer window available!");                               \
       return;                                                                 \
     }                                                                         \
     outer->method args;                                                       \
@@ -352,10 +345,8 @@ nsGlobalWindow::DOMMinTimeoutValue() const {
   PR_BEGIN_MACRO                                                              \
   if (IsInnerWindow()) {                                                      \
     nsGlobalWindow *outer = GetOuterWindowInternal();                         \
-    if (!outer || outer->GetCurrentInnerWindow() != this) {                   \
-      NS_WARNING(outer ?                                                      \
-                 "Inner window is not its outer's current inner window." :    \
-                 "No outer window available!");                               \
+    if (!outer) {                                                             \
+      NS_WARNING("No outer window available!");                               \
       return err_rval;                                                        \
     }                                                                         \
     return ((nsGlobalChromeWindow *)outer)->method args;                      \
@@ -377,10 +368,8 @@ nsGlobalWindow::DOMMinTimeoutValue() const {
   PR_BEGIN_MACRO                                                              \
   if (IsInnerWindow()) {                                                      \
     nsGlobalWindow *outer = GetOuterWindowInternal();                         \
-    if (!outer || outer->GetCurrentInnerWindow() != this) {                   \
-      NS_WARNING(outer ?                                                      \
-                 "Inner window is not its outer's current inner window." :    \
-                 "No outer window available!");                               \
+    if (!outer) {                                                             \
+      NS_WARNING("No outer window available!");                               \
       return err_rval;                                                        \
     }                                                                         \
     return ((nsGlobalModalWindow *)outer)->method args;                       \
@@ -1839,25 +1828,21 @@ nsGlobalWindow::UnmarkGrayTimers()
 nsresult
 nsGlobalWindow::EnsureScriptEnvironment()
 {
-  nsGlobalWindow* outer = GetOuterWindowInternal();
-  if (!outer) {
-    NS_WARNING("No outer window available!");
-    return NS_ERROR_FAILURE;
-  }
+  FORWARD_TO_OUTER(EnsureScriptEnvironment, (), NS_ERROR_NOT_INITIALIZED);
 
-  if (outer->mJSObject) {
+  if (mJSObject) {
     return NS_OK;
   }
 
-  NS_ASSERTION(!outer->GetCurrentInnerWindowInternal(),
+  NS_ASSERTION(!GetCurrentInnerWindowInternal(),
                "mJSObject is null, but we have an inner window?");
 
   // If this window is a [i]frame, don't bother GC'ing when the frame's context
   // is destroyed since a GC will happen when the frameset or host document is
   // destroyed anyway.
-  nsCOMPtr<nsIScriptContext> context = new nsJSContext(!IsFrame(), outer);
+  nsCOMPtr<nsIScriptContext> context = new nsJSContext(!IsFrame(), this);
 
-  NS_ASSERTION(!outer->mContext, "Will overwrite mContext!");
+  NS_ASSERTION(!mContext, "Will overwrite mContext!");
 
   // should probably assert the context is clean???
   context->WillInitializeContext();
@@ -1865,15 +1850,26 @@ nsGlobalWindow::EnsureScriptEnvironment()
   nsresult rv = context->InitContext();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  outer->mContext = context;
+  mContext = context;
   return NS_OK;
 }
 
 nsIScriptContext *
 nsGlobalWindow::GetScriptContext()
 {
-  nsGlobalWindow* outer = GetOuterWindowInternal();
-  return outer ? outer->mContext : nullptr;
+  FORWARD_TO_OUTER(GetScriptContext, (), nullptr);
+  return mContext;
+}
+
+nsIScriptContext *
+nsGlobalWindow::GetContext()
+{
+  FORWARD_TO_OUTER(GetContext, (), nullptr);
+
+  // check GetContext is indeed identical to GetScriptContext()
+  NS_ASSERTION(mContext == GetScriptContext(),
+               "GetContext confused?");
+  return mContext;
 }
 
 JSObject *
@@ -3040,7 +3036,7 @@ nsGlobalWindow::DialogsAreBeingAbused()
 bool
 nsGlobalWindow::ConfirmDialogIfNeeded()
 {
-  MOZ_ASSERT(IsOuterWindow());
+  FORWARD_TO_OUTER(ConfirmDialogIfNeeded, (), false);
 
   NS_ENSURE_TRUE(mDocShell, false);
   nsCOMPtr<nsIPromptService> promptSvc =
@@ -3201,7 +3197,8 @@ nsGlobalWindow::PoisonOuterWindowProxy(JSObject *aObject)
 nsresult
 nsGlobalWindow::SetArguments(nsIArray *aArguments)
 {
-  MOZ_ASSERT(IsOuterWindow());
+  FORWARD_TO_OUTER(SetArguments, (aArguments),
+                   NS_ERROR_NOT_INITIALIZED);
   nsresult rv;
 
   // Historically, we've used the same machinery to handle openDialog arguments
@@ -3627,15 +3624,39 @@ nsGlobalWindow::GetRealParent(nsIDOMWindow** aParent)
   return NS_OK;
 }
 
-static nsresult
-GetTopImpl(nsGlobalWindow* aWin, nsIDOMWindow** aTop, bool aScriptable)
+/**
+ * GetScriptableTop is called when script reads window.top.
+ *
+ * In contrast to GetRealTop, GetScriptableTop respects <iframe mozbrowser>
+ * boundaries.  If we encounter a window owned by an <iframe mozbrowser> while
+ * walking up the window hierarchy, we'll stop and return that window.
+ */
+NS_IMETHODIMP
+nsGlobalWindow::GetScriptableTop(nsIDOMWindow **aTop)
 {
+  return GetTopImpl(aTop, /* aScriptable = */ true);
+}
+
+/**
+ * nsIDOMWindow::GetTop (when called from C++) is just a wrapper around
+ * GetRealTop.
+ */
+NS_IMETHODIMP
+nsGlobalWindow::GetRealTop(nsIDOMWindow** aTop)
+{
+  return GetTopImpl(aTop, /* aScriptable = */ false);
+}
+
+nsresult
+nsGlobalWindow::GetTopImpl(nsIDOMWindow** aTop, bool aScriptable)
+{
+  FORWARD_TO_OUTER(GetTopImpl, (aTop, aScriptable), NS_ERROR_NOT_INITIALIZED);
   *aTop = nullptr;
 
   // Walk up the parent chain.
 
-  nsCOMPtr<nsIDOMWindow> prevParent = aWin;
-  nsCOMPtr<nsIDOMWindow> parent = aWin;
+  nsCOMPtr<nsIDOMWindow> prevParent = this;
+  nsCOMPtr<nsIDOMWindow> parent = this;
   do {
     if (!parent) {
       break;
@@ -3662,40 +3683,6 @@ GetTopImpl(nsGlobalWindow* aWin, nsIDOMWindow** aTop, bool aScriptable)
   }
 
   return NS_OK;
-}
-
-/**
- * GetScriptableTop is called when script reads window.top.
- *
- * In contrast to GetRealTop, GetScriptableTop respects <iframe mozbrowser>
- * boundaries.  If we encounter a window owned by an <iframe mozbrowser> while
- * walking up the window hierarchy, we'll stop and return that window.
- */
-NS_IMETHODIMP
-nsGlobalWindow::GetScriptableTop(nsIDOMWindow **aTop)
-{
-  FORWARD_TO_OUTER(GetScriptableTop, (aTop), NS_ERROR_NOT_INITIALIZED);
-  return GetTopImpl(this, aTop, /* aScriptable = */ true);
-}
-
-/**
- * nsIDOMWindow::GetTop (when called from C++) is just a wrapper around
- * GetRealTop.
- */
-NS_IMETHODIMP
-nsGlobalWindow::GetRealTop(nsIDOMWindow** aTop)
-{
-  nsGlobalWindow* outer;
-  if (IsInnerWindow()) {
-    outer = GetOuterWindowInternal();
-    if (!outer) {
-      NS_WARNING("No outer window available!");
-      return NS_ERROR_NOT_INITIALIZED;
-    }
-  } else {
-    outer = this;
-  }
-  return GetTopImpl(outer, aTop, /* aScriptable = */ false);
 }
 
 JSObject*
@@ -3817,14 +3804,7 @@ nsGlobalWindow::GetScriptableContent(JSContext* aCx, JS::Value* aVal)
 NS_IMETHODIMP
 nsGlobalWindow::GetPrompter(nsIPrompt** aPrompt)
 {
-  if (IsInnerWindow()) {
-    nsGlobalWindow* outer = GetOuterWindowInternal();
-    if (!outer) {
-      NS_WARNING("No outer window available!");
-      return NS_ERROR_NOT_INITIALIZED;
-    }
-    return outer->GetPrompter(aPrompt);
-  }
+  FORWARD_TO_OUTER(GetPrompter, (aPrompt), NS_ERROR_NOT_INITIALIZED);
 
   if (!mDocShell)
     return NS_ERROR_FAILURE;
@@ -5575,8 +5555,6 @@ nsGlobalWindow::WindowExists(const nsAString& aName,
 already_AddRefed<nsIWidget>
 nsGlobalWindow::GetMainWidget()
 {
-  FORWARD_TO_OUTER(GetMainWidget, (), nullptr);
-
   nsCOMPtr<nsIBaseWindow> treeOwnerAsWin = GetTreeOwnerWindow();
 
   nsCOMPtr<nsIWidget> widget;
@@ -7127,7 +7105,7 @@ nsGlobalWindow::PopupWhitelisted()
 PopupControlState
 nsGlobalWindow::RevisePopupAbuseLevel(PopupControlState aControl)
 {
-  MOZ_ASSERT(IsOuterWindow());
+  FORWARD_TO_OUTER(RevisePopupAbuseLevel, (aControl), aControl);
 
   NS_ASSERTION(mDocShell, "Must have docshell");
   
@@ -9143,7 +9121,7 @@ nsGlobalWindow::GetContextForEventHandlers(nsresult* aRv)
 nsPIDOMWindow*
 nsGlobalWindow::GetPrivateParent()
 {
-  MOZ_ASSERT(IsOuterWindow());
+  FORWARD_TO_OUTER(GetPrivateParent, (), nullptr);
 
   nsCOMPtr<nsIDOMWindow> parent;
   GetParent(getter_AddRefs(parent));
@@ -9171,17 +9149,23 @@ nsGlobalWindow::GetPrivateParent()
 nsPIDOMWindow*
 nsGlobalWindow::GetPrivateRoot()
 {
-  if (IsInnerWindow()) {
-    nsGlobalWindow* outer = GetOuterWindowInternal();
-    if (!outer) {
-      NS_WARNING("No outer window available!");
-      return nullptr;
-    }
-    return outer->GetPrivateRoot();
-  }
+  FORWARD_TO_OUTER(GetPrivateRoot, (), nullptr);
 
   nsCOMPtr<nsIDOMWindow> top;
   GetTop(getter_AddRefs(top));
+
+  nsCOMPtr<nsPIDOMWindow> ptop = do_QueryInterface(top);
+  NS_ASSERTION(ptop, "cannot get ptop");
+  if (!ptop)
+    return nullptr;
+
+  nsIDocShell *docShell = ptop->GetDocShell();
+
+  // Get the chrome event handler from the doc shell, since we only
+  // want to deal with XUL chrome handlers and not the new kind of
+  // window root handler.
+  nsCOMPtr<nsIDOMEventTarget> chromeEventHandler;
+  docShell->GetChromeEventHandler(getter_AddRefs(chromeEventHandler));
 
   nsCOMPtr<nsIContent> chromeElement(do_QueryInterface(mChromeEventHandler));
   if (chromeElement) {
@@ -10147,35 +10131,31 @@ nsGlobalWindow::GetInterface(const nsIID & aIID, void **aSink)
   *aSink = nullptr;
 
   if (aIID.Equals(NS_GET_IID(nsIDocCharset))) {
-    nsGlobalWindow* outer = GetOuterWindowInternal();
-    NS_ENSURE_TRUE(outer, NS_ERROR_NOT_INITIALIZED);
+    FORWARD_TO_OUTER(GetInterface, (aIID, aSink), NS_ERROR_NOT_INITIALIZED);
 
     NS_WARNING("Using deprecated nsIDocCharset: use nsIDocShell.GetCharset() instead ");
-    nsCOMPtr<nsIDocCharset> docCharset(do_QueryInterface(outer->mDocShell));
+    nsCOMPtr<nsIDocCharset> docCharset(do_QueryInterface(mDocShell));
     docCharset.forget(aSink);
   }
   else if (aIID.Equals(NS_GET_IID(nsIWebNavigation))) {
-    nsGlobalWindow* outer = GetOuterWindowInternal();
-    NS_ENSURE_TRUE(outer, NS_ERROR_NOT_INITIALIZED);
+    FORWARD_TO_OUTER(GetInterface, (aIID, aSink), NS_ERROR_NOT_INITIALIZED);
 
-    nsCOMPtr<nsIWebNavigation> webNav(do_QueryInterface(outer->mDocShell));
+    nsCOMPtr<nsIWebNavigation> webNav(do_QueryInterface(mDocShell));
     webNav.forget(aSink);
   }
   else if (aIID.Equals(NS_GET_IID(nsIDocShell))) {
-    nsGlobalWindow* outer = GetOuterWindowInternal();
-    NS_ENSURE_TRUE(outer, NS_ERROR_NOT_INITIALIZED);
+    FORWARD_TO_OUTER(GetInterface, (aIID, aSink), NS_ERROR_NOT_INITIALIZED);
 
-    nsCOMPtr<nsIDocShell> docShell = outer->mDocShell;
+    nsCOMPtr<nsIDocShell> docShell = mDocShell;
     docShell.forget(aSink);
   }
 #ifdef NS_PRINTING
   else if (aIID.Equals(NS_GET_IID(nsIWebBrowserPrint))) {
-    nsGlobalWindow* outer = GetOuterWindowInternal();
-    NS_ENSURE_TRUE(outer, NS_ERROR_NOT_INITIALIZED);
+    FORWARD_TO_OUTER(GetInterface, (aIID, aSink), NS_ERROR_NOT_INITIALIZED);
 
-    if (outer->mDocShell) {
+    if (mDocShell) {
       nsCOMPtr<nsIContentViewer> viewer;
-      outer->mDocShell->GetContentViewer(getter_AddRefs(viewer));
+      mDocShell->GetContentViewer(getter_AddRefs(viewer));
       if (viewer) {
         nsCOMPtr<nsIWebBrowserPrint> webBrowserPrint(do_QueryInterface(viewer));
         webBrowserPrint.forget(aSink);
@@ -10184,21 +10164,19 @@ nsGlobalWindow::GetInterface(const nsIID & aIID, void **aSink)
   }
 #endif
   else if (aIID.Equals(NS_GET_IID(nsIDOMWindowUtils))) {
-    nsGlobalWindow* outer = GetOuterWindowInternal();
-    NS_ENSURE_TRUE(outer, NS_ERROR_NOT_INITIALIZED);
+    FORWARD_TO_OUTER(GetInterface, (aIID, aSink), NS_ERROR_NOT_INITIALIZED);
 
     if (!mWindowUtils) {
-      mWindowUtils = new nsDOMWindowUtils(outer);
+      mWindowUtils = new nsDOMWindowUtils(this);
     }
 
     *aSink = mWindowUtils;
     NS_ADDREF(((nsISupports *) *aSink));
   }
   else if (aIID.Equals(NS_GET_IID(nsILoadContext))) {
-    nsGlobalWindow* outer = GetOuterWindowInternal();
-    NS_ENSURE_TRUE(outer, NS_ERROR_NOT_INITIALIZED);
+    FORWARD_TO_OUTER(GetInterface, (aIID, aSink), NS_ERROR_NOT_INITIALIZED);
 
-    nsCOMPtr<nsILoadContext> loadContext(do_QueryInterface(outer->mDocShell));
+    nsCOMPtr<nsILoadContext> loadContext(do_QueryInterface(mDocShell));
     loadContext.forget(aSink);
   }
   else {
@@ -11051,14 +11029,7 @@ nsGlobalWindow::FireDelayedDOMEvents()
 nsIDOMWindow *
 nsGlobalWindow::GetParentInternal()
 {
-  if (IsInnerWindow()) {
-    nsGlobalWindow* outer = GetOuterWindowInternal();
-    if (!outer) {
-      NS_WARNING("No outer window available!");
-      return nullptr;
-    }
-    return outer->GetParentInternal();
-  }
+  FORWARD_TO_OUTER(GetParentInternal, (), nullptr);
 
   nsCOMPtr<nsIDOMWindow> parent;
   GetParent(getter_AddRefs(parent));
@@ -12179,7 +12150,7 @@ nsGlobalWindow::GetTreeOwner()
 already_AddRefed<nsIBaseWindow>
 nsGlobalWindow::GetTreeOwnerWindow()
 {
-  MOZ_ASSERT(IsOuterWindow());
+  FORWARD_TO_OUTER(GetTreeOwnerWindow, (), nullptr);
 
   nsCOMPtr<nsIDocShellTreeOwner> treeOwner;
 
