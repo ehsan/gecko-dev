@@ -11,51 +11,45 @@ const BOUNDARY_ATTRIBUTE_RANGE = nsIAccessibleText.BOUNDARY_ATTRIBUTE_RANGE;
 const kTextEndOffset = nsIAccessibleText.TEXT_OFFSET_END_OF_TEXT;
 const kCaretOffset = nsIAccessibleText.TEXT_OFFSET_CARET;
 
-const kTodo = 1; // a test is expected to fail
-const kOk = 2; // a test doesn't fail
+const kTodo = 1;
+const kOk = 2;
 
 /**
  * Test characterCount for the given array of accessibles.
  *
- * @param aCount    [in] the expected character count
- * @param aIDs      [in] array of accessible identifiers to test
- * @param aTodoFlag [in, optional] either kOk or kTodo
+ * @param aCount  [in] the expected character count
+ * @param aIDs    [in] array of accessible identifiers to test
  */
-function testCharacterCount(aIDs, aCount, aTodoFlag)
+function testCharacterCount(aIDs, aCount)
 {
-  var ids = (aIDs instanceof Array) ? aIDs : [ aIDs ];
-  var isFunc = (aTodoFlag == kTodo) ? todo_is : is;
-  for (var i = 0; i < ids.length; i++) {
-    var textacc = getAccessible(ids[i], [nsIAccessibleText]);
-    isFunc(textacc.characterCount, aCount,
-           "Wrong character count for " + prettyName(ids[i]));
+  for (var i = 0; i < aIDs.length; i++) {
+    var textacc = getAccessible(aIDs[i], [nsIAccessibleText]);
+    is(textacc.characterCount, aCount,
+       "Wrong character count for " + prettyName(aIDs[i]));
   }
 }
 
 /**
- * Test text between two given offsets.
+ * Test text between two given offsets
  *
  * @param aIDs          [in] an array of accessible IDs to test
  * @param aStartOffset  [in] the start offset within the text to test
  * @param aEndOffset    [in] the end offset up to which the text is tested
  * @param aText         [in] the expected result from the test
- * @param aTodoFlag     [in, optional] either kOk or kTodo
  */
-function testText(aIDs, aStartOffset, aEndOffset, aText, aTodoFlag)
+function testText(aIDs, aStartOffset, aEndOffset, aText)
 {
-  var ids = (aIDs instanceof Array) ? aIDs : [ aIDs ];
-  var isFunc = (aTodoFlag == kTodo) ? todo_is : is;
-  for (var i = 0; i < ids.length; i++) {
-    var acc = getAccessible(ids[i], nsIAccessibleText);
+  for (var i = 0; i < aIDs.length; i++)
+  {
+    var acc = getAccessible(aIDs[i], nsIAccessibleText);
     try {
-      isFunc(acc.getText(aStartOffset, aEndOffset), aText,
-             "getText: wrong text between start and end offsets '" +
-             aStartOffset + "', '" + aEndOffset + " for '" +
-             prettyName(ids[i]) + "'");
+      is(acc.getText(aStartOffset, aEndOffset), aText,
+         "getText: wrong text between start and end offsets '" + aStartOffset +
+         "', '" + aEndOffset + " for '" + prettyName(aIDs[i]) + "'");
     } catch (e) {
       ok(false,
-        "getText fails between start and end offsets '" + aStartOffset +
-        "', '" + aEndOffset + " for '" + prettyName(ids[i]) + "'");
+         "getText fails between start and end offsets '" + aStartOffset +
+         "', '" + aEndOffset + " for '" + prettyName(aIDs[i]) + "'");
     }
   }
 }

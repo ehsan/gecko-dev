@@ -8,12 +8,12 @@
 #define nsCycleCollectionJSRuntime_h__
 
 class nsCycleCollectionParticipant;
-class nsCycleCollectionNoteRootCallback;
+class nsCycleCollectionTraversalCallback;
 
 // Various methods the cycle collector needs to deal with Javascript.
 struct nsCycleCollectionJSRuntime
 {
-  virtual nsresult BeginCycleCollection(nsCycleCollectionNoteRootCallback &aCb) = 0;
+  virtual nsresult BeginCycleCollection(nsCycleCollectionTraversalCallback &aCb) = 0;
 
   /**
    * Called before/after transitioning to/from the main thread.

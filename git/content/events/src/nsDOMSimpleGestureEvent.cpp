@@ -3,6 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "nsDOMClassInfoID.h"
 #include "nsDOMSimpleGestureEvent.h"
 
 nsDOMSimpleGestureEvent::nsDOMSimpleGestureEvent(mozilla::dom::EventTarget* aOwner,
@@ -35,8 +36,11 @@ nsDOMSimpleGestureEvent::~nsDOMSimpleGestureEvent()
 NS_IMPL_ADDREF_INHERITED(nsDOMSimpleGestureEvent, nsDOMUIEvent)
 NS_IMPL_RELEASE_INHERITED(nsDOMSimpleGestureEvent, nsDOMUIEvent)
 
+DOMCI_DATA(SimpleGestureEvent, nsDOMSimpleGestureEvent)
+
 NS_INTERFACE_MAP_BEGIN(nsDOMSimpleGestureEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSimpleGestureEvent)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SimpleGestureEvent)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMMouseEvent)
 
 /* attribute unsigned long allowedDirections; */

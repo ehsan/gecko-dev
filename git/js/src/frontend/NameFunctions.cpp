@@ -246,8 +246,6 @@ class NameResolver
             return NULL;
 
         JSAtom *atom = buf.finishAtom();
-        if (!atom)
-            return NULL;
         fun->setGuessedAtom(atom);
         return atom;
     }

@@ -16,8 +16,10 @@
 #include "nsEventStateManager.h"
 #include "nsIFrame.h"
 #include "nsIScrollableFrame.h"
+#include "DictionaryHelpers.h"
 #include "mozilla/Util.h"
 #include "mozilla/Assertions.h"
+#include "nsDOMClassInfoID.h"
 
 using namespace mozilla;
 
@@ -102,8 +104,11 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_ADDREF_INHERITED(nsDOMUIEvent, nsDOMEvent)
 NS_IMPL_RELEASE_INHERITED(nsDOMUIEvent, nsDOMEvent)
 
+DOMCI_DATA(UIEvent, nsDOMUIEvent)
+
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsDOMUIEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMUIEvent)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(UIEvent)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMEvent)
 
 static nsIntPoint
@@ -179,6 +184,16 @@ nsDOMUIEvent::InitUIEvent(const nsAString& typeArg,
   mView = viewArg;
 
   return NS_OK;
+}
+
+nsresult
+nsDOMUIEvent::InitFromCtor(const nsAString& aType,
+                           JSContext* aCx, JS::Value* aVal)
+{
+  mozilla::idl::UIEventInit d;
+  nsresult rv = d.Init(aCx, aVal);
+  NS_ENSURE_SUCCESS(rv, rv);
+  return InitUIEvent(aType, d.bubbles, d.cancelable, d.view, d.detail);
 }
 
 // ---- nsDOMNSUIEvent implementation -------------------

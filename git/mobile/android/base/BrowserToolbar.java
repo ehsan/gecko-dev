@@ -321,7 +321,11 @@ public class BrowserToolbar implements Tabs.OnTabsChangedListener,
             public void onClick(View view) {
                 Tab tab = Tabs.getInstance().getSelectedTab();
                 if (tab != null) {
-                    tab.toggleReaderMode();
+                    if (ReaderModeUtils.isAboutReader(tab.getURL())) {
+                        tab.doBack();
+                    } else {
+                        tab.readerMode();
+                    }
                 }
             }
         });

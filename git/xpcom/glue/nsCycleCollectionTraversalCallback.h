@@ -22,6 +22,10 @@ public:
   NS_IMETHOD_(void) DescribeGCedNode(bool ismarked,
                                      const char* objname) = 0;
 
+  NS_IMETHOD_(void) NoteXPCOMRoot(nsISupports *root) = 0;
+  NS_IMETHOD_(void) NoteJSRoot(void *root) = 0;
+  NS_IMETHOD_(void) NoteNativeRoot(void *root, nsCycleCollectionParticipant *participant) = 0;
+
   NS_IMETHOD_(void) NoteXPCOMChild(nsISupports *child) = 0;
   NS_IMETHOD_(void) NoteJSChild(void *child) = 0;
   NS_IMETHOD_(void) NoteNativeChild(void *child,
@@ -32,6 +36,8 @@ public:
   // Callbacks who care about this should set WANT_DEBUG_INFO in the
   // flags.
   NS_IMETHOD_(void) NoteNextEdgeName(const char* name) = 0;
+
+  NS_IMETHOD_(void) NoteWeakMapping(void *map, void *key, void *kdelegate, void *val) = 0;
 
   enum {
     // Values for flags:

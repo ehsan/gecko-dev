@@ -865,7 +865,7 @@ GrallocTextureHostOGL::GetFormat() const
 }
 
 void
-GrallocTextureHostOGL::SetBuffer(SurfaceDescriptor* aBuffer, ISurfaceAllocator* aAllocator)
+GrallocTextureHostOGL::SetBuffer(SurfaceDescriptor* aBuffer, ISurfaceAllocator* aAllocator) MOZ_OVERRIDE
 {
   MOZ_ASSERT(!mBuffer, "Will leak the old mBuffer");
   mBuffer = aBuffer;

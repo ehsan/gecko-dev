@@ -1191,8 +1191,7 @@ public:
 
     void cmpq_im(int imm, int offset, RegisterID base)
     {
-        spew("cmpq       $%d, %s0x%x(%s)",
-             imm, PRETTY_PRINT_OFFSET(offset), nameIReg(base));
+        FIXME_INSN_PRINTING;
         if (CAN_SIGN_EXTEND_8_32(imm)) {
             m_formatter.oneByteOp64(OP_GROUP1_EvIb, GROUP1_OP_CMP, base, offset);
             m_formatter.immediate8(imm);
@@ -1833,7 +1832,7 @@ public:
         // is in the range ESP-EDI, and the src would not have required a REX).  Unneeded
         // REX prefixes are defined to be silently ignored by the processor.
         spew("movzbl      %s, %s",
-             nameIReg(1,src), nameIReg(4,dst));
+             nameIReg(4,src), nameIReg(4,dst));
         m_formatter.twoByteOp8(OP2_MOVZX_GvEb, dst, src);
     }
 
@@ -2094,7 +2093,7 @@ public:
 
     void cvtss2sd_rr(XMMRegisterID src, XMMRegisterID dst)
     {
-        spew("cvtss2sd   %s, %s",
+        spew("cvtps2pd   %s, %s",
              nameFPReg(src), nameFPReg(dst));
         m_formatter.prefix(PRE_SSE_F3);
         m_formatter.twoByteOp(OP2_CVTSS2SD_VsdEd, (RegisterID)dst, (RegisterID)src);
@@ -2102,7 +2101,7 @@ public:
 
     void cvtsd2ss_rr(XMMRegisterID src, XMMRegisterID dst)
     {
-        spew("cvtss2sd   %s, %s",
+        spew("cvtps2pd   %s, %s",
              nameFPReg(src), nameFPReg(dst));
         m_formatter.prefix(PRE_SSE_F2);
         m_formatter.twoByteOp(OP2_CVTSD2SS_VsdEd, (RegisterID)dst, (RegisterID)src);

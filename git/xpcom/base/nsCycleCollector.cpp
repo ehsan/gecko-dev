@@ -103,7 +103,6 @@
 
 #include "nsCycleCollectionJSRuntime.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsCycleCollectionNoteRootCallback.h"
 #include "nsCycleCollectorUtils.h"
 #include "nsIProgrammingLanguage.h"
 #include "nsBaseHashtable.h"
@@ -1729,8 +1728,7 @@ static PLDHashTableOps PtrNodeOps = {
     nullptr
 };
 
-class GCGraphBuilder : public nsCycleCollectionTraversalCallback,
-                       public nsCycleCollectionNoteRootCallback
+class GCGraphBuilder : public nsCycleCollectionTraversalCallback
 {
 private:
     nsCycleCollector *mCollector;
@@ -1754,11 +1752,6 @@ public:
     ~GCGraphBuilder();
     bool Initialized();
 
-    bool WantAllTraces() const
-    {
-        return nsCycleCollectionNoteRootCallback::WantAllTraces();
-    }
-
     uint32_t Count() const { return mPtrToNodeMap.entryCount; }
 
     PtrInfo* AddNode(void *s, nsCycleCollectionParticipant *aParticipant);
@@ -1773,22 +1766,22 @@ private:
     }
 
 public:
-    // nsCycleCollectionNoteRootCallback methods.
-    NS_IMETHOD_(void) NoteXPCOMRoot(nsISupports *root);
-    NS_IMETHOD_(void) NoteJSRoot(void *root);
-    NS_IMETHOD_(void) NoteNativeRoot(void *root, nsCycleCollectionParticipant *participant);
-    NS_IMETHOD_(void) NoteWeakMapping(void *map, void *key, void *kdelegate, void *val);
-
     // nsCycleCollectionTraversalCallback methods.
     NS_IMETHOD_(void) DescribeRefCountedNode(nsrefcnt refCount,
                                              const char *objName);
     NS_IMETHOD_(void) DescribeGCedNode(bool isMarked, const char *objName);
 
+    NS_IMETHOD_(void) NoteXPCOMRoot(nsISupports *root);
+    NS_IMETHOD_(void) NoteJSRoot(void *root);
+    NS_IMETHOD_(void) NoteNativeRoot(void *root, nsCycleCollectionParticipant *participant);
+
     NS_IMETHOD_(void) NoteXPCOMChild(nsISupports *child);
     NS_IMETHOD_(void) NoteJSChild(void *child);
     NS_IMETHOD_(void) NoteNativeChild(void *child,
                                       nsCycleCollectionParticipant *participant);
+
     NS_IMETHOD_(void) NoteNextEdgeName(const char* name);
+    NS_IMETHOD_(void) NoteWeakMapping(void *map, void *key, void *kdelegate, void *val);
 
 private:
     NS_IMETHOD_(void) NoteRoot(void *root,
@@ -1856,16 +1849,12 @@ GCGraphBuilder::GCGraphBuilder(nsCycleCollector *aCollector,
         mListener->GetWantAllTraces(&all);
         if (all) {
             flags |= nsCycleCollectionTraversalCallback::WANT_ALL_TRACES;
-            mWantAllTraces = true; // for nsCycleCollectionNoteRootCallback
         }
     }
 
     mFlags |= flags;
 
     mMergeZones = mMergeZones && MOZ_LIKELY(!WantAllTraces());
-
-    MOZ_ASSERT(nsCycleCollectionNoteRootCallback::WantAllTraces() ==
-               nsCycleCollectionTraversalCallback::WantAllTraces());
 }
 
 GCGraphBuilder::~GCGraphBuilder()
@@ -2109,7 +2098,12 @@ public:
                                              const char *objname) {}
     NS_IMETHOD_(void) DescribeGCedNode(bool ismarked,
                                        const char *objname) {}
+    NS_IMETHOD_(void) NoteXPCOMRoot(nsISupports *root) {}
+    NS_IMETHOD_(void) NoteJSRoot(void *root) {}
+    NS_IMETHOD_(void) NoteNativeRoot(void *root,
+                                     nsCycleCollectionParticipant *helper) {}
     NS_IMETHOD_(void) NoteNextEdgeName(const char* name) {}
+    NS_IMETHOD_(void) NoteWeakMapping(void *map, void *key, void *kdelegate, void *val) {}
     bool MayHaveChild() {
         return mMayHaveChild;
     }

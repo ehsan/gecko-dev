@@ -39,3 +39,9 @@ interface nsIDOMUIEvent : nsIDOMEvent
 
   readonly attribute boolean            isChar;
 };
+
+dictionary UIEventInit : EventInit
+{
+  nsIDOMWindow view;
+  long         detail;
+};

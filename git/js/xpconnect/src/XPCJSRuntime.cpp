@@ -24,7 +24,6 @@
 #include "nsLayoutStatics.h"
 #include "nsContentUtils.h"
 #include "nsCCUncollectableMarker.h"
-#include "nsCycleCollectionNoteRootCallback.h"
 #include "nsCycleCollectorUtils.h"
 #include "nsScriptLoader.h"
 #include "jsfriendapi.h"
@@ -449,7 +448,7 @@ void XPCJSRuntime::TraceXPConnectRoots(JSTracer *trc)
 struct Closure
 {
     bool cycleCollectionEnabled;
-    nsCycleCollectionNoteRootCallback *cb;
+    nsCycleCollectionTraversalCallback *cb;
 };
 
 static void
@@ -484,7 +483,7 @@ NoteJSHolder(void *holder, nsScriptObjectTracer *&tracer, void *arg)
 // static
 void
 XPCJSRuntime::SuspectWrappedNative(XPCWrappedNative *wrapper,
-                                   nsCycleCollectionNoteRootCallback &cb)
+                                   nsCycleCollectionTraversalCallback &cb)
 {
     if (!wrapper->IsValid() || wrapper->IsWrapperExpired())
         return;
@@ -529,7 +528,7 @@ CanSkipWrappedJS(nsXPCWrappedJS *wrappedJS)
 }
 
 void
-XPCJSRuntime::AddXPConnectRoots(nsCycleCollectionNoteRootCallback &cb)
+XPCJSRuntime::AddXPConnectRoots(nsCycleCollectionTraversalCallback &cb)
 {
     // For all JS objects that are held by native objects but aren't held
     // through rooting or locking, we need to add all the native objects that
@@ -1078,18 +1077,6 @@ class AutoLockWatchdog {
     }
 };
 
-bool
-XPCJSRuntime::IsRuntimeActive()
-{
-    return mRuntimeState == RUNTIME_ACTIVE;
-}
-
-PRTime
-XPCJSRuntime::TimeSinceLastRuntimeStateChange()
-{
-    return PR_Now() - mTimeAtLastRuntimeStateChange;
-}
-
 //static
 void
 XPCJSRuntime::WatchdogMain(void *arg)
@@ -1104,19 +1091,14 @@ XPCJSRuntime::WatchdogMain(void *arg)
     PRIntervalTime sleepInterval;
     while (self->mWatchdogThread) {
         // Sleep only 1 second if recently (or currently) active; otherwise, hibernate
-        if (self->IsRuntimeActive() || self->TimeSinceLastRuntimeStateChange() <= PRTime(2*PR_USEC_PER_SEC))
+        if (self->mLastActiveTime == -1 || PR_Now() - self->mLastActiveTime <= PRTime(2*PR_USEC_PER_SEC))
             sleepInterval = PR_TicksPerSecond();
         else {
             sleepInterval = PR_INTERVAL_NO_TIMEOUT;
             self->mWatchdogHibernating = true;
         }
         MOZ_ALWAYS_TRUE(PR_WaitCondVar(self->mWatchdogWakeup, sleepInterval) == PR_SUCCESS);
-
-        // Don't trigger the operation callback if activity started less than one second ago.
-        // The callback is only used for detecting long running scripts, and triggering the
-        // callback from off the main thread can be expensive.
-        if (self->IsRuntimeActive() && self->TimeSinceLastRuntimeStateChange() >= PRTime(PR_USEC_PER_SEC))
-            JS_TriggerOperationCallback(self->mJSRuntime);
+        JS_TriggerOperationCallback(self->mJSRuntime);
     }
 
     /* Wake up the main thread waiting for the watchdog to terminate. */
@@ -1130,14 +1112,15 @@ XPCJSRuntime::ActivityCallback(void *arg, JSBool active)
     XPCJSRuntime* self = static_cast<XPCJSRuntime*>(arg);
 
     AutoLockWatchdog lock(self);
-
-    self->mTimeAtLastRuntimeStateChange = PR_Now();
-    self->mRuntimeState = active ? RUNTIME_ACTIVE : RUNTIME_INACTIVE;
-
-    // Wake the watchdog up if it is hibernating due to a long period of inactivity.
-    if (active && self->mWatchdogHibernating) {
-        self->mWatchdogHibernating = false;
-        PR_NotifyCondVar(self->mWatchdogWakeup);
+    
+    if (active) {
+        self->mLastActiveTime = -1;
+        if (self->mWatchdogHibernating) {
+            self->mWatchdogHibernating = false;
+            PR_NotifyCondVar(self->mWatchdogWakeup);
+        }
+    } else {
+        self->mLastActiveTime = PR_Now();
     }
 }
 
@@ -2669,8 +2652,7 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
    mWatchdogWakeup(nullptr),
    mWatchdogThread(nullptr),
    mWatchdogHibernating(false),
-   mRuntimeState(RUNTIME_INACTIVE),
-   mTimeAtLastRuntimeStateChange(PR_Now()),
+   mLastActiveTime(-1),
    mJunkScope(nullptr),
    mExceptionManagerNotAvailable(false)
 #ifdef DEBUG

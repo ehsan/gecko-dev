@@ -5262,6 +5262,7 @@ JS::CompileOptions::CompileOptions(JSContext *cx)
       forEval(false),
       noScriptRval(cx->hasOption(JSOPTION_NO_SCRIPT_RVAL)),
       selfHostingMode(false),
+      userBit(false),
       sourcePolicy(SAVE_SOURCE)
 {
 }

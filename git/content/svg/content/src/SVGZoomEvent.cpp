@@ -10,6 +10,8 @@
 #include "nsIDocument.h"
 #include "mozilla/dom/Element.h"
 
+DOMCI_DATA(SVGZoomEvent, mozilla::dom::SVGZoomEvent)
+
 namespace mozilla {
 namespace dom {
 

@@ -522,7 +522,7 @@ public:
     virtual void NotifyEnterCycleCollectionThread();
     virtual void NotifyLeaveCycleCollectionThread();
     virtual void NotifyEnterMainThread();
-    virtual nsresult BeginCycleCollection(nsCycleCollectionNoteRootCallback &cb);
+    virtual nsresult BeginCycleCollection(nsCycleCollectionTraversalCallback &cb);
     virtual nsCycleCollectionParticipant *GetParticipant();
     virtual bool UsefulToMergeZones();
     virtual void FixWeakMappingGrayBits();
@@ -786,7 +786,7 @@ public:
     static void TraceBlackJS(JSTracer* trc, void* data);
     static void TraceGrayJS(JSTracer* trc, void* data);
     void TraceXPConnectRoots(JSTracer *trc);
-    void AddXPConnectRoots(nsCycleCollectionNoteRootCallback& cb);
+    void AddXPConnectRoots(nsCycleCollectionTraversalCallback& cb);
     void UnmarkSkippableJSHolders();
 
     static void GCCallback(JSRuntime *rt, JSGCStatus status);
@@ -808,7 +808,7 @@ public:
 #endif
 
     static void SuspectWrappedNative(XPCWrappedNative *wrapper,
-                                     nsCycleCollectionNoteRootCallback &cb);
+                                     nsCycleCollectionTraversalCallback &cb);
 
     void DebugDump(int16_t depth);
 
@@ -905,8 +905,6 @@ private:
     static void WatchdogMain(void *arg);
 
     void ReleaseIncrementally(nsTArray<nsISupports *> &array);
-    bool IsRuntimeActive();
-    PRTime TimeSinceLastRuntimeStateChange();
 
     static const char* mStrings[IDX_TOTAL_COUNT];
     jsid mStrIDs[IDX_TOTAL_COUNT];
@@ -942,8 +940,7 @@ private:
     PRThread *mWatchdogThread;
     nsTArray<JSGCCallback> extraGCCallbacks;
     bool mWatchdogHibernating;
-    enum { RUNTIME_ACTIVE, RUNTIME_INACTIVE } mRuntimeState;
-    PRTime mTimeAtLastRuntimeStateChange;
+    PRTime mLastActiveTime; // -1 if active NOW
     nsRefPtr<XPCIncrementalReleaseRunnable> mReleaseRunnable;
     JS::GCSliceCallback mPrevGCSliceCallback;
     JSObject* mJunkScope;
@@ -1627,7 +1624,7 @@ public:
     }
 
     static void
-    SuspectAllWrappers(XPCJSRuntime* rt, nsCycleCollectionNoteRootCallback &cb);
+    SuspectAllWrappers(XPCJSRuntime* rt, nsCycleCollectionTraversalCallback &cb);
 
     static void
     StartFinalizationPhaseOfGC(JSFreeOp *fop, XPCJSRuntime* rt);

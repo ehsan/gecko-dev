@@ -357,10 +357,7 @@ class CGList(CGThing):
     """
     def __init__(self, children, joiner=""):
         CGThing.__init__(self)
-        # Make a copy of the kids into a list, because if someone passes in a
-        # generator we won't be able to both declare and define ourselves, or
-        # define ourselves more than once!
-        self.children = list(children)
+        self.children = children
         self.joiner = joiner
     def append(self, child):
         self.children.append(child)
@@ -2290,21 +2287,13 @@ class CastableObjectUnwrapper():
     called by the name in the "target" argument.
 
     codeOnFailure is the code to run if unwrapping fails.
-
-    If isCallbackReturnValue is "JSImpl" and our descriptor is also
-    JS-implemented, fall back to just creating the right object if what we
-    have isn't one already.
     """
-    def __init__(self, descriptor, source, target, codeOnFailure,
-                 exceptionCode=None, isCallbackReturnValue=False):
-        if not exceptionCode:
-            exceptionCode = codeOnFailure
+    def __init__(self, descriptor, source, target, codeOnFailure):
         self.substitution = { "type" : descriptor.nativeType,
                               "protoID" : "prototypes::id::" + descriptor.name,
                               "source" : source,
                               "target" : target,
-                              "codeOnFailure" : CGIndenter(CGGeneric(codeOnFailure)).define(),
-                              "exceptionCode" : CGIndenter(CGGeneric(exceptionCode), 4).define() }
+                              "codeOnFailure" : CGIndenter(CGGeneric(codeOnFailure), 4).define() }
         if descriptor.hasXPConnectImpls:
             # We don't use xpc_qsUnwrapThis because it will always throw on
             # unwrap failure, whereas we want to control whether we throw or
@@ -2322,26 +2311,6 @@ class CastableObjectUnwrapper():
                 "// We should have an object, too!\n"
                 "MOZ_ASSERT(objPtr);\n"
                 "${target} = objPtr;").substitute(self.substitution)), 4).define()
-        elif (isCallbackReturnValue == "JSImpl" and
-              descriptor.interface.isJSImplemented()):
-            self.substitution["codeOnFailure"] = CGIndenter(CGGeneric(string.Template(
-                "// Be careful to not wrap random DOM objects here, even if\n"
-                "// they're wrapped in opaque security wrappers for some reason.\n"
-                "// XXXbz Wish we could check for a JS-implemented object\n"
-                "// that already has a content reflection...\n"
-                "if (!IsDOMObject(js::UncheckedUnwrap(${source}))) {\n"
-                "  nsCOMPtr<nsPIDOMWindow> ourWindow;\n"
-                "  if (!GetWindowForJSImplementedObject(cx, Callback(), getter_AddRefs(ourWindow))) {\n"
-                "${exceptionCode}\n"
-                "  }\n"
-                "  JS::Rooted<JSObject*> jsImplSourceObj(cx, ${source});\n"
-                "  ${target} = new ${type}(jsImplSourceObj, ourWindow);\n"
-                "} else {\n"
-                "${codeOnFailure}\n"
-                "}").substitute(self.substitution)), 4).define()
-        else:
-            self.substitution["codeOnFailure"] = CGIndenter(
-                CGGeneric(self.substitution["codeOnFailure"])).define()
 
     def __str__(self):
         return string.Template(
@@ -2356,14 +2325,11 @@ class FailureFatalCastableObjectUnwrapper(CastableObjectUnwrapper):
     """
     As CastableObjectUnwrapper, but defaulting to throwing if unwrapping fails
     """
-    def __init__(self, descriptor, source, target, exceptionCode,
-                 isCallbackReturnValue):
+    def __init__(self, descriptor, source, target, exceptionCode):
         CastableObjectUnwrapper.__init__(
             self, descriptor, source, target,
             'ThrowErrorMessage(cx, MSG_DOES_NOT_IMPLEMENT_INTERFACE, "%s");\n'
-            '%s' % (descriptor.name, exceptionCode),
-            exceptionCode,
-            isCallbackReturnValue)
+            '%s' % (descriptor.name, exceptionCode))
 
 class CallbackObjectUnwrapper:
     """
@@ -2553,13 +2519,9 @@ def getJSToNativeConversionInfo(type, descriptorProvider, failureCode=None,
     If allowTreatNonCallableAsNull is true, then [TreatNonCallableAsNull]
     extended attributes on nullable callback functions will be honored.
 
-    If isCallbackReturnValue is "JSImpl" or "Callback", then the declType may be
-    adjusted to make it easier to return from a callback.  Since that type is
-    never directly observable by any consumers of the callback code, this is OK.
-    Furthermore, if isCallbackReturnValue is "JSImpl", that affects the behavior
-    of the FailureFatalCastableObjectUnwrapper conversion; this is used for
-    implementing auto-wrapping of JS-implemented return values from a
-    JS-implemented interface.
+    If isCallbackReturnValue is true, then the declType may be adjusted to make
+    it easier to return from a callback.  Since that type is never directly
+    observable by any consumers of the callback code, this is OK.
 
     The return value from this function is a JSToNativeConversionInfo.
     """
@@ -3036,14 +2998,9 @@ for (uint32_t i = 0; i < length; ++i) {
                         isCallbackReturnValue)
 
         # Sequences and non-worker callbacks have to hold a strong ref to the
-        # thing being passed down.  Also, callback return values always end up
-        # addrefing anyway, so there is no point trying to avoid it here and it
-        # makes other things simpler since we can assume the return value is a
-        # strong ref.
-        forceOwningType = ((descriptor.interface.isCallback() and
-                            not descriptor.workers) or
-                           isMember or
-                           isCallbackReturnValue)
+        # thing being passed down.
+        forceOwningType = (descriptor.interface.isCallback() and
+                           not descriptor.workers) or isMember
 
         typeName = descriptor.nativeType
         typePtr = typeName + "*"
@@ -3093,8 +3050,7 @@ for (uint32_t i = 0; i < length; ++i) {
                         descriptor,
                         "&${val}.toObject()",
                         "${declName}",
-                        exceptionCode,
-                        isCallbackReturnValue))
+                        exceptionCode))
         elif descriptor.workers:
             return handleJSObjectType(type, isMember, failureCode)
         else:
@@ -8319,7 +8275,7 @@ class CGBindingRoot(CGThing):
         return self.root.deps()
 
 class CGNativeMember(ClassMethod):
-    def __init__(self, descriptorProvider, member, name, signature, extendedAttrs,
+    def __init__(self, descriptor, member, name, signature, extendedAttrs,
                  breakAfter=True, passCxAsNeeded=True, visibility="public",
                  jsObjectsArePtr=False, variadicIsSequence=False):
         """
@@ -8330,10 +8286,10 @@ class CGNativeMember(ClassMethod):
         JSContext* based on the return and argument types.  We can
         still pass it based on 'implicitJSContext' annotations.
         """
-        self.descriptorProvider = descriptorProvider
+        self.descriptor = descriptor
         self.member = member
         self.extendedAttrs = extendedAttrs
-        self.resultAlreadyAddRefed = isResultAlreadyAddRefed(self.descriptorProvider,
+        self.resultAlreadyAddRefed = isResultAlreadyAddRefed(self.descriptor,
                                                              self.extendedAttrs)
         self.passCxAsNeeded = passCxAsNeeded
         self.jsObjectsArePtr = jsObjectsArePtr
@@ -8398,7 +8354,7 @@ class CGNativeMember(ClassMethod):
             return enumName, defaultValue, "return ${declName};"
         if type.isGeckoInterface():
             iface = type.unroll().inner;
-            nativeType = self.descriptorProvider.getDescriptor(
+            nativeType = self.descriptor.getDescriptor(
                 iface.identifier.name).nativeType
             # Now trim off unnecessary namespaces
             nativeType = nativeType.split("::")
@@ -8421,10 +8377,25 @@ class CGNativeMember(ClassMethod):
                                    post=">")
             else:
                 result = CGWrapper(result, post="*")
-            # Since we always force an owning type for callback return values,
-            # our ${declName} is an OwningNonNull or nsRefPtr.  So we can just
-            # .forget() to get our already_AddRefed.
-            return result.define(), "nullptr", "return ${declName}.forget();"
+            if iface.isExternal():
+                # The holder is an nsRefPtr.  If we're nullable and end up null,
+                # the holder will be null anyway, so it's safe to just always
+                # return it here.
+                returnCode = ("(void)${declName}; // avoid warning. May end up not being read\n"
+                              "return ${holderName}.forget();")
+            elif iface.isCallback():
+                # The decl is an OwningNonNull or nsRefPtr, depending
+                # on whether we're nullable.
+                returnCode = "return ${declName}.forget();"
+            elif type.nullable():
+                # Decl is a raw pointer
+                returnCode = ("NS_IF_ADDREF(${declName});\n"
+                              "return dont_AddRef(${declName});")
+            else:
+                # Decl is a non-null raw pointer.
+                returnCode = ("NS_ADDREF(${declName});\n"
+                              "return dont_AddRef(${declName});")
+            return result.define(), "nullptr", returnCode
         if type.isCallback():
             return ("already_AddRefed<%s>" % type.unroll().identifier.name,
                     "nullptr", "return ${declName}.forget();")
@@ -8488,12 +8459,12 @@ class CGNativeMember(ClassMethod):
             args.insert(0, Argument("JS::Value", "aThisVal"))
         # And jscontext bits.
         if needCx(returnType, argList, self.extendedAttrs,
-                  self.descriptorProvider, self.passCxAsNeeded):
+                  self.descriptor, self.passCxAsNeeded):
             args.insert(0, Argument("JSContext*", "cx"))
         # And if we're static, a global
         if self.member.isStatic():
             globalObjectType = "GlobalObject"
-            if self.descriptorProvider.workers:
+            if self.descriptor.workers:
                 globalObjectType = "Worker" + globalObjectType
             args.insert(0, Argument("const %s&" % globalObjectType, "global"))
         return args
@@ -8543,7 +8514,7 @@ class CGNativeMember(ClassMethod):
                 else:
                     typeDecl = "%s&"
             return ((typeDecl %
-                     self.descriptorProvider.getDescriptor(iface.identifier.name).nativeType),
+                     self.descriptor.getDescriptor(iface.identifier.name).nativeType),
                     False, False)
 
         if type.isSpiderMonkeyInterface():
@@ -8604,8 +8575,8 @@ class CGNativeMember(ClassMethod):
             return declType, False, False
 
         if type.isDictionary():
-            typeName = CGDictionary.makeDictionaryName(
-                type.inner, self.descriptorProvider.workers)
+            typeName = CGDictionary.makeDictionaryName(type.inner,
+                                                       self.descriptor.workers)
             return typeName, True, True
 
         if type.isDate():
@@ -8943,7 +8914,6 @@ class CGJSImplMethod(CGNativeMember):
                                 variadicIsSequence=True,
                                 passCxAsNeeded=False)
         self.signature = signature
-        self.descriptor = descriptor
         if isConstructor:
             self.body = self.getConstructorImpl()
         else:
@@ -9189,10 +9159,6 @@ class CGJSImplClass(CGBindingImplClass):
     def getGetParentObjectBody(self):
         return "return mParent;"
 
-def isJSImplementedDescriptor(descriptorProvider):
-    return (isinstance(descriptorProvider, Descriptor) and
-            descriptorProvider.interface.isJSImplemented())
-
 class CGCallback(CGClass):
     def __init__(self, idlObject, descriptorProvider, baseName, methods,
                  getters=[], setters=[]):
@@ -9201,7 +9167,7 @@ class CGCallback(CGClass):
         name = idlObject.identifier.name
         if descriptorProvider.workers:
             name += "Workers"
-        if isJSImplementedDescriptor(descriptorProvider):
+        if isinstance(descriptorProvider, Descriptor) and descriptorProvider.interface.isJSImplemented():
             name = jsImplName(name)
         # For our public methods that needThisHandling we want most of the
         # same args and the same return type as what CallbackMember
@@ -9425,15 +9391,11 @@ class CallbackMember(CGNativeMember):
             "obj": "nullptr"
             }
 
-        if isJSImplementedDescriptor(self.descriptorProvider):
-            isCallbackReturnValue = "JSImpl"
-        else:
-            isCallbackReturnValue = "Callback"
         convertType = instantiateJSToNativeConversion(
             getJSToNativeConversionInfo(self.retvalType,
-                                        self.descriptorProvider,
+                                        self.descriptor,
                                         exceptionCode=self.exceptionCode,
-                                        isCallbackReturnValue=isCallbackReturnValue),
+                                        isCallbackReturnValue=True),
             replacements)
         assignRetval = string.Template(
             self.getRetvalInfo(self.retvalType,
@@ -9481,7 +9443,7 @@ class CallbackMember(CGNativeMember):
             prepend = ""
 
         conversion = prepend + wrapForType(
-            arg.type, self.descriptorProvider,
+            arg.type, self.descriptor,
             {
                 'result' : result,
                 'successCode' : "continue;" if arg.variadic else "break;",

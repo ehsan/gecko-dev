@@ -13,7 +13,6 @@
 
 #include "sigslot.h"
 
-#include "logging.h"
 #include "nspr.h"
 #include "nss.h"
 #include "ssl.h"
@@ -22,6 +21,7 @@
 #include "nsThreadUtils.h"
 #include "nsXPCOM.h"
 
+#include "logging.h"
 #include "nricectx.h"
 #include "nricemediastream.h"
 #include "nriceresolverfake.h"

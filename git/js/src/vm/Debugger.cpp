@@ -1945,8 +1945,7 @@ Debugger::addAllGlobalsAsDebuggees(JSContext *cx, unsigned argc, Value *vp)
         GlobalObject *global = c->maybeGlobal();
         if (global) {
             Rooted<GlobalObject*> rg(cx, global);
-            if (!dbg->addDebuggeeGlobal(cx, rg, dmgc))
-                return false;
+            dbg->addDebuggeeGlobal(cx, rg, dmgc);
         }
     }
 

@@ -838,9 +838,7 @@ CodeGenerator::visitOsrEntry(LOsrEntry *lir)
     setOsrEntryOffset(masm.size());
 
     // Allocate the full frame for this function.
-    uint32_t size = frameSize();
-    if (size != 0)
-        masm.subPtr(Imm32(size), StackPointer);
+    masm.subPtr(Imm32(frameSize()), StackPointer);
     return true;
 }
 

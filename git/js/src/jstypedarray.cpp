@@ -1738,8 +1738,6 @@ class TypedArrayTemplate
                                 ? UseNewTypeForInitializer(cx, script, pc, fastClass())
                                 : GenericObject;
         RootedObject obj(cx, NewBuiltinClassInstance(cx, fastClass(), newKind));
-        if (!obj)
-            return NULL;
 
         if (script) {
             if (!types::SetInitializerObjectType(cx, script, pc, obj, newKind))

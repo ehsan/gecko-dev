@@ -20,3 +20,9 @@ interface nsIDOMClipboardEvent : nsIDOMEvent
                                      in boolean cancelableArg,
                                      in nsIDOMDataTransfer clipboardData);
 };
+
+dictionary ClipboardEventInit : EventInit
+{
+  DOMString data;
+  DOMString dataType;
+};

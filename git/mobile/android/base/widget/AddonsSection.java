@@ -22,7 +22,6 @@ import android.graphics.Rect;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.text.SpannableString;
-import android.text.TextUtils;
 import android.text.style.TextAppearanceSpan;
 import android.util.AttributeSet;
 import android.util.Log;
@@ -207,16 +206,12 @@ public class AddonsSection extends AboutHomeSection {
 
         // homepageURL may point to non-AMO installs. For now we use learnmoreURL instead
         // which is more likely to point to a mobile AMO page
-        String homepageUrl = addonJSON.optString("learnmoreURL");
-        if (TextUtils.isEmpty(homepageUrl)) {
-            homepageUrl = addonJSON.getString("homepageURL");
-        }
-        final String addonUrl = homepageUrl;
+        final String homepageUrl = addonJSON.getString("learnmoreURL");
         row.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 if (mUriLoadListener != null)
-                    mUriLoadListener.onAboutHomeUriLoad(addonUrl);
+                    mUriLoadListener.onAboutHomeUriLoad(homepageUrl);
             }
         });
         row.setOnKeyListener(GamepadUtils.getClickDispatcher());

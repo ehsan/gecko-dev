@@ -256,13 +256,6 @@ struct nsStyleImage {
     return !(*this == aOther);
   }
 
-  bool ImageDataEquals(const nsStyleImage& aOther) const
-  {
-    return GetType() == eStyleImageType_Image &&
-           aOther.GetType() == eStyleImageType_Image &&
-           GetImageData() == aOther.GetImageData();
-  }
-
 private:
   void DoCopy(const nsStyleImage& aOther);
 

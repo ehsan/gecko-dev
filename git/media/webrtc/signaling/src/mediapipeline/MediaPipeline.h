@@ -97,7 +97,9 @@ class MediaPipeline : public sigslot::has_slots<> {
         description_() {
   }
 
-  virtual ~MediaPipeline();
+  virtual ~MediaPipeline() {
+    MOZ_ASSERT(!stream_);  // Check that we have shut down already.
+  }
 
   // Must be called on the STS thread.  Must be called after ShutdownMedia_m().
   void ShutdownTransport_s();

@@ -9,7 +9,6 @@
 #include <queue>
 #include <algorithm>
 
-#include "logging.h"
 #include "ssl.h"
 #include "sslerr.h"
 #include "sslproto.h"
@@ -23,6 +22,7 @@
 #include "nsServiceManagerUtils.h"
 
 #include "dtlsidentity.h"
+#include "logging.h"
 #include "transportflow.h"
 #include "transportlayerdtls.h"
 
