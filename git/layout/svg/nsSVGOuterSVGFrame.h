@@ -112,6 +112,7 @@ public:
   virtual nsresult PaintSVG(nsRenderingContext* aContext,
                             const nsIntRect *aDirtyRect,
                             nsIFrame* aTransformRoot = nullptr) MOZ_OVERRIDE;
+
   virtual SVGBBox GetBBoxContribution(const Matrix &aToBBoxUserspace,
                                       uint32_t aFlags) MOZ_OVERRIDE;
 

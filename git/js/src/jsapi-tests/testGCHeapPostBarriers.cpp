@@ -27,13 +27,6 @@ BEGIN_TEST(testGCHeapPostBarriers)
     return true;
 }
 
-MOZ_NEVER_INLINE bool
-Passthrough(bool value)
-{
-    /* Work around a Win64 optimization bug in VS2010. (Bug 1033146) */
-    return value;
-}
-
 template <typename T>
 bool
 TestHeapPostBarriers(T initialObj)
@@ -44,7 +37,7 @@ TestHeapPostBarriers(T initialObj)
     /* Construct Heap<> wrapper. */
     JS::Heap<T> *heapData = new JS::Heap<T>();
     CHECK(heapData);
-    CHECK(Passthrough(heapData->get() == nullptr));
+    CHECK(heapData->get() == nullptr);
     heapData->set(initialObj);
 
     /* Store the pointer as an integer so that the hazard analysis will miss it. */

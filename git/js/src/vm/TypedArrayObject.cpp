@@ -883,7 +883,7 @@ class TypedArrayObjectTemplate : public TypedArrayObject
     static bool
     canConvertInfallibly(const Value &v)
     {
-        return v.isNumber() || v.isBoolean() || v.isNull() || v.isUndefined() || v.isSymbol();
+        return v.isNumber() || v.isBoolean() || v.isNull() || v.isUndefined();
     }
 
     static NativeType
@@ -898,7 +898,7 @@ class TypedArrayObjectTemplate : public TypedArrayObject
         if (v.isNull())
             return NativeType(0);
 
-        MOZ_ASSERT(v.isUndefined() || v.isSymbol());
+        MOZ_ASSERT(v.isUndefined());
         return ArrayTypeIsFloatingPoint() ? NativeType(GenericNaN()) : NativeType(0);
     }
 

@@ -356,13 +356,9 @@ nsSVGUtils::GetOuterSVGFrameAndCoveredRegion(nsIFrame* aFrame, nsRect* aRect)
   nsISVGChildFrame* svg = do_QueryFrame(aFrame);
   if (!svg)
     return nullptr;
-  nsSVGOuterSVGFrame* outer = GetOuterSVGFrame(aFrame);
-  if (outer == svg) {
-    return nullptr;
-  }
   *aRect = (aFrame->GetStateBits() & NS_FRAME_IS_NONDISPLAY) ?
              nsRect(0, 0, 0, 0) : svg->GetCoveredRegion();
-  return outer;
+  return GetOuterSVGFrame(aFrame);
 }
 
 gfxMatrix

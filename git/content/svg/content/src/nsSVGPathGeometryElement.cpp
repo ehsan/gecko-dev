@@ -111,3 +111,15 @@ nsSVGPathGeometryElement::GetFillRule()
 
   return fillRule;
 }
+
+Float
+nsSVGPathGeometryElement::GetStrokeWidth()
+{
+  nsRefPtr<nsStyleContext> styleContext =
+    nsComputedDOMStyle::GetStyleContextForElementNoFlush(this, nullptr,
+                                                         nullptr);
+  return styleContext ?
+    SVGContentUtils::CoordToFloat(this,
+                                  styleContext->StyleSVG()->mStrokeWidth) :
+    0.0f;
+}

@@ -11,10 +11,8 @@
 #include "DOMSVGPathSegList.h"
 #include "DOMSVGPoint.h"
 #include "gfx2DGlue.h"
-#include "gfxPlatform.h"
 #include "mozilla/dom/SVGPathElementBinding.h"
 #include "mozilla/gfx/2D.h"
-#include "mozilla/RefPtr.h"
 #include "nsCOMPtr.h"
 #include "nsComputedDOMStyle.h"
 #include "nsGkAtoms.h"
@@ -372,7 +370,7 @@ SVGPathElement::GetPathLengthScale(PathLengthScaleForType aFor)
 }
 
 TemporaryRef<Path>
-SVGPathElement::BuildPath(PathBuilder* aBuilder)
+SVGPathElement::BuildPath()
 {
   // The Moz2D PathBuilder that our SVGPathData will be using only cares about
   // the fill rule. However, in order to fulfill the requirements of the SVG
@@ -394,28 +392,19 @@ SVGPathElement::BuildPath(PathBuilder* aBuilder)
     // opacity here.
     if (style->mStrokeLinecap == NS_STYLE_STROKE_LINECAP_SQUARE) {
       strokeLineCap = style->mStrokeLinecap;
-      strokeWidth = SVGContentUtils::GetStrokeWidth(this, styleContext, nullptr);
+      strokeWidth = GetStrokeWidth();
     }
   }
 
-  RefPtr<PathBuilder> builder;
-  if (aBuilder) {
-    builder = aBuilder;
-  } else {
-    RefPtr<DrawTarget> drawTarget =
-      gfxPlatform::GetPlatform()->ScreenReferenceDrawTarget();
-    // The fill rule that we pass must be the current computed value of our
-    // CSS 'fill-rule' property if the path that we return will be used for
-    // painting or hit-testing. For all other uses (bounds calculatons, length
-    // measurement, position-at-offset calculations) the fill rule that we pass
-    // doesn't matter. As a result we can just pass the current computed value
-    // regardless of who's calling us, or what they're going to do with the
-    // path that we return.
-    RefPtr<PathBuilder> builder =
-      drawTarget->CreatePathBuilder(GetFillRule());
-  }
+  // The fill rule that we pass must be the current
+  // computed value of our CSS 'fill-rule' property if the path that we return
+  // will be used for painting or hit-testing. For all other uses (bounds
+  // calculatons, length measurement, position-at-offset calculations) the fill
+  // rule that we pass doesn't matter. As a result we can just pass the current
+  // computed value regardless of who's calling us, or what they're going to do
+  // with the path that we return.
 
-  return mD.GetAnimValue().BuildPath(builder, strokeLineCap, strokeWidth);
+  return mD.GetAnimValue().BuildPath(GetFillRule(), strokeLineCap, strokeWidth);
 }
 
 } // namespace dom

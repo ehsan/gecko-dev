@@ -1005,9 +1005,7 @@ gfxUtils::ConvertYCbCrToRGB(const PlanarYCbCrData& aData,
   }
 }
 
-/* static */ void gfxUtils::ClearThebesSurface(gfxASurface* aSurface,
-                                               nsIntRect* aRect,
-                                               const gfxRGBA& aColor)
+/* static */ void gfxUtils::ClearThebesSurface(gfxASurface* aSurface)
 {
   if (aSurface->CairoStatus()) {
     return;
@@ -1017,16 +1015,8 @@ gfxUtils::ConvertYCbCrToRGB(const PlanarYCbCrData& aData,
     return;
   }
   cairo_t* ctx = cairo_create(surf);
-  cairo_set_source_rgba(ctx, aColor.r, aColor.g, aColor.b, aColor.a);
-  cairo_set_operator(ctx, CAIRO_OPERATOR_SOURCE);
-  nsIntRect bounds;
-  if (aRect) {
-    bounds = *aRect;
-  } else {
-    bounds = nsIntRect(nsIntPoint(0, 0), aSurface->GetSize());
-  }
-  cairo_rectangle(ctx, bounds.x, bounds.y, bounds.width, bounds.height);
-  cairo_fill(ctx);
+  cairo_set_operator(ctx, CAIRO_OPERATOR_CLEAR);
+  cairo_paint_with_alpha(ctx, 1.0);
   cairo_destroy(ctx);
 }
 
