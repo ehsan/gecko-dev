@@ -767,9 +767,6 @@ protected:
   // root prescontext's root frame.
   nsIntPoint mCachedMousePoint;
 
-  // cached modifiers
-  PRInt8 mCachedModifiers;
-
   // set to the currently active menu bar, if any
   nsMenuBarFrame* mActiveMenuBar;
 

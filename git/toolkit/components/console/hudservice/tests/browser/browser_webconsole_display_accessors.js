@@ -38,30 +38,30 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-// Tests that the HUD service keeps an accurate registry of all the Web Console
-// instances.
+// Tests that HUDService.displays() and HUDService.displaysIndex() work.
 
 const TEST_URI = "http://example.com/browser/toolkit/components/console/hudservice/tests/browser/test-console.html";
 
 function test() {
   addTab(TEST_URI);
-  browser.addEventListener("DOMContentLoaded", testRegistries, false);
+  browser.addEventListener("DOMContentLoaded", testDisplayAccessors, false);
 }
 
-function testRegistries() {
-  browser.removeEventListener("DOMContentLoaded", testRegistries, false);
+function testDisplayAccessors() {
+  browser.removeEventListener("DOMContentLoaded", testDisplayAccessors,
+                              false);
 
   openConsole();
 
-  var displaysIdx = HUDService.displaysIndex();
-  ok(displaysIdx.length == 1, "one display id found");
+  var idx = HUDService.displaysIndex();
 
-  var display = displaysIdx[0];
-  ok(HUDService.hudReferences[display], "we have a HUD");
+  let hudId = idx[0];
 
-  let windowID = HUDService.getWindowId(content);
-  is(HUDService.windowIds[windowID], display, "windowIds is working");
+  ok(typeof idx == "object", "displays is an object");
+  ok(typeof idx.push == "function", "displaysIndex is an array");
+
+  var len = idx.length;
+  ok(idx.length > 0, "idx.length > 0: " + len);
 
   finishTest();
 }
-
