@@ -22,7 +22,8 @@ const PAGE_CONTENT = [
   '    padding-left: 70px;',
   '  }',
   '</style>',
-  '<div class="test-element">test element</div>'
+  '<div class="test-element">test element</div>',
+  '<div class="test-element-2">test element 2</div>'
 ].join("\n");
 
 function test() {
@@ -49,6 +50,8 @@ function createDocument() {
 }
 
 function startTests() {
+  // let testElement = contentDoc.querySelector(".test-element");
+
   inspector.selection.setNode(contentDoc.body);
   inspector.once("inspector-updated", testBodyRuleView);
 }
@@ -78,10 +81,9 @@ function testBodyRuleView() {
   ok(panel, "XUL panel exists");
 
   // Get the background-image property inside the rule view
-  let {valueSpan} = getRuleViewProperty("background-image");
-  let uriSpan = valueSpan.querySelector(".theme-link");
+  let {nameSpan, valueSpan} = getRuleViewProperty("background-image");
   // And verify that the tooltip gets shown on this property
-  assertTooltipShownOn(ruleView.previewTooltip, uriSpan, () => {
+  assertTooltipShownOn(ruleView.previewTooltip, valueSpan, () => {
     let images = panel.getElementsByTagName("image");
     is(images.length, 1, "Tooltip contains an image");
     ok(images[0].src.indexOf("iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHe") !== -1, "The image URL seems fine");
@@ -97,7 +99,7 @@ function testDivRuleView() {
   let panel = ruleView.previewTooltip.panel;
 
   // Get the background property inside the rule view
-  let {valueSpan} = getRuleViewProperty("background");
+  let {nameSpan, valueSpan} = getRuleViewProperty("background");
   let uriSpan = valueSpan.querySelector(".theme-link");
 
   // And verify that the tooltip gets shown on this property
@@ -108,29 +110,8 @@ function testDivRuleView() {
 
     ruleView.previewTooltip.hide();
 
-    testTooltipAppearsEvenInEditMode();
+    testComputedView();
   });
-}
-
-function testTooltipAppearsEvenInEditMode() {
-  let panel = ruleView.previewTooltip.panel;
-
-  // Switch one field to edit mode
-  let brace = ruleView.doc.querySelector(".ruleview-ruleclose");
-  waitForEditorFocus(brace.parentNode, editor => {
-    // Now try to show the tooltip
-    let {valueSpan} = getRuleViewProperty("background");
-    let uriSpan = valueSpan.querySelector(".theme-link");
-    assertTooltipShownOn(ruleView.previewTooltip, uriSpan, () => {
-      is(ruleView.doc.activeElement, editor.input,
-        "Tooltip was shown in edit mode, and inplace-editor still focused");
-
-      ruleView.previewTooltip.hide();
-
-      testComputedView();
-    });
-  });
-  brace.click();
 }
 
 function testComputedView() {
@@ -141,7 +122,7 @@ function testComputedView() {
   let doc = computedView.styleDocument;
 
   let panel = computedView.tooltip.panel;
-  let {valueSpan} = getComputedViewProperty("background-image");
+  let {nameSpan, valueSpan} = getComputedViewProperty("background-image");
 
   assertTooltipShownOn(computedView.tooltip, valueSpan, () => {
     let images = panel.getElementsByTagName("image");

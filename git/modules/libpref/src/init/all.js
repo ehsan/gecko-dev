@@ -969,14 +969,6 @@ pref("network.protocol-handler.external.disks", false);
 pref("network.protocol-handler.external.afp", false);
 pref("network.protocol-handler.external.moz-icon", false);
 
-// Don't allow  external protocol handlers for common typos
-pref("network.protocol-handler.external.ttp", false);  // http
-pref("network.protocol-handler.external.ttps", false); // https
-pref("network.protocol-handler.external.tps", false);  // https
-pref("network.protocol-handler.external.ps", false);   // https
-pref("network.protocol-handler.external.ile", false);  // file
-pref("network.protocol-handler.external.le", false);   // file
-
 // An exposed protocol handler is one that can be used in all contexts.  A
 // non-exposed protocol handler is one that can only be used internally by the
 // application.  For example, a non-exposed protocol would not be loaded by the
@@ -3983,8 +3975,6 @@ pref("print.postscript.print_command", "lpr ${MOZ_PRINTER_NAME:+-P\"$MOZ_PRINTER
 pref("ui.panel.default_level_parent", true);
 
 pref("mousewheel.system_scroll_override_on_root_content.enabled", false);
-
-pref("ui.key.menuAccessKeyFocuses", true);
 
 # XP_UNIX
 #endif

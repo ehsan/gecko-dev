@@ -527,16 +527,13 @@ class MarionetteTestRunner(object):
     def run_tests(self, tests):
         self.reset_test_stats()
         starttime = datetime.utcnow()
-        counter = self.repeat
-        while counter >=0:
-            round = self.repeat - counter
-            if round > 0:
-                self.logger.info('\nREPEAT %d\n-------' % round)
+        while self.repeat >=0:
+            self.logger.info('\nROUND %d\n-------' % self.repeat)
             if self.shuffle:
                 random.shuffle(tests)
             for test in tests:
                 self.run_test(test)
-            counter -= 1
+            self.repeat -= 1
         self.logger.info('\nSUMMARY\n-------')
         self.logger.info('passed: %d' % self.passed)
         self.logger.info('failed: %d' % self.failed)

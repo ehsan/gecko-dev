@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
+//#define LOG_NDEBUG 0
 #define LOG_TAG "AMPEG4ElementaryAssembler"
-#include "RtspPrlog.h"
+#include <utils/Log.h>
 
 #include "AMPEG4ElementaryAssembler.h"
 

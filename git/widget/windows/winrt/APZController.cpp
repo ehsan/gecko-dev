@@ -83,22 +83,19 @@ GetDOMTargets(uint64_t aScrollId,
 class RequestContentRepaintEvent : public nsRunnable
 {
   typedef mozilla::layers::FrameMetrics FrameMetrics;
-  typedef mozilla::layers::ScrollableLayerGuid ScrollableLayerGuid;
 
 public:
   RequestContentRepaintEvent(const FrameMetrics& aFrameMetrics,
                              nsIWidgetListener* aListener,
-                             CSSIntPoint* aLastOffsetOut,
-                             ScrollableLayerGuid* aLastScrollId) :
+                             CSSIntPoint* aLastOffsetOut) :
     mFrameMetrics(aFrameMetrics),
     mWidgetListener(aListener),
-    mLastOffsetOut(aLastOffsetOut),
-    mLastScrollIdOut(aLastScrollId)
+    mLastOffsetOut(aLastOffsetOut)
   {
   }
 
   NS_IMETHOD Run() {
-    // This must be on the gecko thread since we access the dom
+    // This event shuts down the worker thread and so must be main thread.
     MOZ_ASSERT(NS_IsMainThread());
 
 #ifdef DEBUG_CONTROLLER
@@ -142,10 +139,6 @@ public:
         if (mLastOffsetOut) {
           *mLastOffsetOut = actualScrollOffset;
         }
-        if (mLastScrollIdOut) {
-          mLastScrollIdOut->mScrollId = mFrameMetrics.mScrollId;
-          mLastScrollIdOut->mPresShellId = mFrameMetrics.mPresShellId;
-        }
 
 #ifdef DEBUG_CONTROLLER
         WinUtils::Log("APZController: %I64d mDisplayPort: %0.2f %0.2f %0.2f %0.2f",
@@ -163,7 +156,6 @@ protected:
   FrameMetrics mFrameMetrics;
   nsIWidgetListener* mWidgetListener;
   CSSIntPoint* mLastOffsetOut;
-  ScrollableLayerGuid* mLastScrollIdOut;
 };
 
 void
@@ -233,19 +225,19 @@ APZController::ReceiveInputEvent(WidgetInputEvent* aInEvent,
 void
 APZController::RequestContentRepaint(const FrameMetrics& aFrameMetrics)
 {
+  // Send the result back to the main thread so that it can shutdown
   if (!mWidgetListener) {
     NS_WARNING("Can't update display port, !mWidgetListener");
     return;
   }
 
 #ifdef DEBUG_CONTROLLER
-  WinUtils::Log("APZController::RequestContentRepaint scrollid=%I64d",
+  WinUtils::Log("APZController::RequestContentRepaint scroll id = %I64d",
     aFrameMetrics.mScrollId);
 #endif
   nsCOMPtr<nsIRunnable> r1 = new RequestContentRepaintEvent(aFrameMetrics,
                                                             mWidgetListener,
-                                                            &mLastScrollOffset,
-                                                            &mLastScrollLayerGuid);
+                                                            &mLastScrollOffset);
   if (!NS_IsMainThread()) {
     NS_DispatchToMainThread(r1);
   } else {
@@ -261,20 +253,12 @@ APZController::UpdateScrollOffset(const mozilla::layers::ScrollableLayerGuid& aS
                                   CSSIntPoint& aScrollOffset)
 {
 #ifdef DEBUG_CONTROLLER
-  WinUtils::Log("APZController::UpdateScrollOffset: scrollid:%I64d == %I64d offsets: %d,%d == %d,%d",
-    aScrollLayerId.mScrollId, aScrollLayerId.mScrollId,
+  WinUtils::Log("APZController::UpdateScrollOffset: %d %d == %d %d",
     aScrollOffset.x, aScrollOffset.y,
     mLastScrollOffset.x, mLastScrollOffset.y);
 #endif
-
-  // Bail if this the same scroll guid the apzc just scrolled and the offsets
-  // equal the offset the apzc set.
-  if (!sAPZC || (mLastScrollLayerGuid.mScrollId == aScrollLayerId.mScrollId &&
-                 mLastScrollLayerGuid.mPresShellId == aScrollLayerId.mPresShellId &&
-                 mLastScrollOffset == aScrollOffset)) {
-#ifdef DEBUG_CONTROLLER
-    WinUtils::Log("Skipping UpdateScrollOffset");
-#endif
+  
+  if (!sAPZC || mLastScrollOffset == aScrollOffset) {
     return;
   }
   sAPZC->UpdateScrollOffset(aScrollLayerId, aScrollOffset);

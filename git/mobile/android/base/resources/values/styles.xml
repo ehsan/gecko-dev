@@ -83,14 +83,7 @@
     <style name="Widget.MenuItemActionView">
         <item name="android:divider">@drawable/divider_vertical</item>
         <item name="android:showDividers">middle</item>
-        <item name="android:dividerPadding">12dip</item>
-        <item name="android:gravity">left</item>
-    </style>
-
-    <style name="Widget.MenuItemShareActionButton">
-        <item name="android:padding">10dip</item>
-        <item name="android:background">@drawable/action_bar_button</item>
-        <item name="android:scaleType">centerInside</item>
+        <item name="android:dividerPadding">8dip</item>
     </style>
 
     <style name="Widget.MenuItemDefault">

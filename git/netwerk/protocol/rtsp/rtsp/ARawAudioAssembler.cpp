@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
+//#define LOG_NDEBUG 0
 #define LOG_TAG "ARawAudioAssembler"
-#include "RtspPrlog.h"
+#include <utils/Log.h>
 
 #include "ARawAudioAssembler.h"
 

@@ -24,7 +24,6 @@ const XHTML_NS = "http://www.w3.org/1999/xhtml";
 const SPECTRUM_FRAME = "chrome://browser/content/devtools/spectrum-frame.xhtml";
 const ESCAPE_KEYCODE = Ci.nsIDOMKeyEvent.DOM_VK_ESCAPE;
 const ENTER_KEYCODE = Ci.nsIDOMKeyEvent.DOM_VK_RETURN;
-const SHOW_TIMEOUT = 50;
 
 /**
  * Tooltip widget.
@@ -192,12 +191,8 @@ Tooltip.prototype = {
    * @param {node} anchor
    *        Which node should the tooltip be shown on
    * @param {string} position
-   *        Optional tooltip position. Defaults to before_start
    *        https://developer.mozilla.org/en-US/docs/XUL/PopupGuide/Positioning
-   * @param {number} x
-   *        Optional x offset. Defaults to 0
-   * @param {number} y
-   *        Optional y offset. Defaults to 0
+   *        Defaults to before_start
    */
   show: function(anchor,
     position = this.defaultPosition,
@@ -244,14 +239,14 @@ Tooltip.prototype = {
 
     this.content = null;
 
-    if (this._basedNode) {
-      this.stopTogglingOnHover();
-    }
-
     this.doc = null;
 
     this.panel.parentNode.removeChild(this.panel);
     this.panel = null;
+
+    if (this._basedNode) {
+      this.stopTogglingOnHover();
+    }
   },
 
   /**
@@ -284,12 +279,16 @@ Tooltip.prototype = {
    *        tooltip if needed. If omitted, the tooltip will be shown everytime.
    * @param {Number} showDelay
    *        An optional delay that will be observed before showing the tooltip.
-   *        Defaults to SHOW_TIMEOUT
+   *        Defaults to 750ms
    */
-  startTogglingOnHover: function(baseNode, targetNodeCb, showDelay=SHOW_TIMEOUT) {
+  startTogglingOnHover: function(baseNode, targetNodeCb, showDelay = 750) {
     if (this._basedNode) {
       this.stopTogglingOnHover();
     }
+
+    // If no targetNodeCb callback is provided, then we need to hide the tooltip
+    // on mouseleave since baseNode is the target node itself
+    this._hideOnMouseLeave = !targetNodeCb;
 
     this._basedNode = baseNode;
     this._showDelay = showDelay;
@@ -323,7 +322,7 @@ Tooltip.prototype = {
   _onBaseNodeMouseMove: function(event) {
     if (event.target !== this._lastHovered) {
       this.hide();
-      this._lastHovered = event.target;
+      this._lastHovered = null;
       setNamedTimeout(this.uid, this._showDelay, () => {
         this._showOnHover(event.target);
       });
@@ -333,13 +332,16 @@ Tooltip.prototype = {
   _showOnHover: function(target) {
     if (this._targetNodeCb(target, this)) {
       this.show(target);
+      this._lastHovered = target;
     }
   },
 
   _onBaseNodeMouseLeave: function() {
     clearNamedTimeout(this.uid);
     this._lastHovered = null;
-    this.hide();
+    if (this._hideOnMouseLeave) {
+      this.hide();
+    }
   },
 
   /**
@@ -363,7 +365,7 @@ Tooltip.prototype = {
   /**
    * Sets some text as the content of this tooltip.
    *
-   * @param {string[]} messages
+   * @param string[] messages
    *        A list of text messages.
    */
   setTextContent: function(...messages) {

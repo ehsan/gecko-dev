@@ -500,7 +500,12 @@ var Scratchpad = {
             reject(aResponse);
           }
           else {
-            this.writeAsComment(aResponse.displayString);
+            let string = aResponse.displayString;
+            if (string && string.type == "null") {
+              string = "Exception: " +
+                       this.strings.GetStringFromName("stringConversionFailed");
+            }
+            this.writeAsComment(string);
             resolve();
           }
         });

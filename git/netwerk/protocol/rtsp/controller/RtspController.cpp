@@ -302,7 +302,7 @@ class SendOnDisconnectedTask : public nsRunnable
 public:
   SendOnDisconnectedTask(nsIStreamingProtocolListener *listener,
                          uint8_t index,
-                         nsresult reason)
+                         uint32_t reason)
     : mListener(listener)
     , mIndex(index)
     , mReason(reason)
@@ -318,14 +318,14 @@ public:
 private:
   nsCOMPtr<nsIStreamingProtocolListener> mListener;
   uint8_t mIndex;
-  nsresult mReason;
+  uint32_t mReason;
 };
 
 NS_IMETHODIMP
 RtspController::OnDisconnected(uint8_t index,
-                               nsresult reason)
+                               uint32_t reason)
 {
-  LOG(("RtspController::OnDisconnected() for track %d reason = 0x%x", index, reason));
+  LOG(("RtspController::OnDisconnected()"));
   mState = DISCONNECTED;
   if (mListener) {
     nsRefPtr<SendOnDisconnectedTask> task =
