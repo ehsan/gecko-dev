@@ -69,7 +69,7 @@ private:
   nsCheapSet<nsUint32HashKey> mIndices;
 };
 
-class MOZ_STACK_CLASS SafeOptionListMutation
+class NS_STACK_CLASS SafeOptionListMutation
 {
 public:
   /**

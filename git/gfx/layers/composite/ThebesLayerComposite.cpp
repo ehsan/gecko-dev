@@ -48,14 +48,13 @@ ThebesLayerComposite::SetCompositableHost(CompositableHost* aHost)
 }
 
 void
-ThebesLayerComposite::EnsureBuffer(CompositableType aType)
+ThebesLayerComposite::EnsureBuffer(CompositableType aHostType)
 {
-  MOZ_ASSERT(aType == BUFFER_TILED,
-             "Should only be called for tiled layers.");
+  MOZ_ASSERT(aHostType == BUFFER_TILED, "Should only be called for tiled layers.");
   if (!mBuffer ||
-      mBuffer->GetType() != aType) {
+      mBuffer->GetType() != aHostType) {
     RefPtr<CompositableHost> bufferHost
-      = CompositableHost::Create(TextureInfo(aType), mCompositeManager->GetCompositor());
+      = CompositableHost::Create(aHostType, mCompositeManager->GetCompositor());
     NS_ASSERTION(bufferHost->GetType() == BUFFER_TILED, "bad buffer type");
     mBuffer = static_cast<ContentHost*>(bufferHost.get());
     mRequiresTiledProperties = true;

@@ -50,6 +50,10 @@ NS_NewDOMDocumentType(nsNodeInfoManager* aNodeInfoManager,
                                   kNameSpaceID_None,
                                   nsIDOMNode::DOCUMENT_TYPE_NODE,
                                   aName);
+  if (!ni) {
+    rv.Throw(NS_ERROR_OUT_OF_MEMORY);
+    return nullptr;
+  }
 
   nsRefPtr<mozilla::dom::DocumentType> docType =
     new mozilla::dom::DocumentType(ni.forget(), aPublicId, aSystemId, aInternalSubset);

@@ -207,6 +207,7 @@ nsXULContextMenuBuilder::CreateElement(nsIAtom* aTag,
 
   nsCOMPtr<nsINodeInfo> nodeInfo = mDocument->NodeInfoManager()->GetNodeInfo(
     aTag, nullptr, kNameSpaceID_XUL, nsIDOMNode::ELEMENT_NODE);
+  NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
   nsresult rv = NS_NewElement(aResult, nodeInfo.forget(), NOT_FROM_PARSER);
   if (NS_FAILED(rv)) {

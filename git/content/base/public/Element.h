@@ -650,7 +650,8 @@ public:
   already_AddRefed<Attr> RemoveAttributeNode(Attr& aOldAttr,
                                              ErrorResult& aError);
   Attr* GetAttributeNodeNS(const nsAString& aNamespaceURI,
-                           const nsAString& aLocalName);
+                           const nsAString& aLocalName,
+                           ErrorResult& aError);
   already_AddRefed<Attr> SetAttributeNodeNS(Attr& aNewAttr,
                                             ErrorResult& aError);
 
@@ -1064,7 +1065,8 @@ protected:
   }
 
   Attr* GetAttributeNodeNSInternal(const nsAString& aNamespaceURI,
-                                   const nsAString& aLocalName);
+                                   const nsAString& aLocalName,
+                                   ErrorResult& aError);
 
   void RegisterFreezableElement() {
     OwnerDoc()->RegisterFreezableElement(this);
@@ -1411,9 +1413,11 @@ NS_IMETHOD GetAttributeNodeNS(const nsAString& namespaceURI,                  \
                               const nsAString& localName,                     \
                               nsIDOMAttr** _retval) MOZ_FINAL                 \
 {                                                                             \
+  mozilla::ErrorResult rv;                                                    \
   NS_IF_ADDREF(*_retval = Element::GetAttributeNodeNS(namespaceURI,           \
-                                                      localName));            \
-  return NS_OK;                                                               \
+                                                      localName,              \
+                                                      rv));                   \
+  return rv.ErrorCode();                                                      \
 }                                                                             \
 NS_IMETHOD SetAttributeNodeNS(nsIDOMAttr* newAttr,                            \
                               nsIDOMAttr** _retval) MOZ_FINAL                 \

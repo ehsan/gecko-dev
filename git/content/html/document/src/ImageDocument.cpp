@@ -664,6 +664,7 @@ ImageDocument::CreateSyntheticDocument()
     nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::style, nullptr,
                                              kNameSpaceID_XHTML,
                                              nsIDOMNode::ELEMENT_NODE);
+    NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
     nsRefPtr<nsGenericHTMLElement> styleContent = NS_NewHTMLStyleElement(nodeInfo.forget());
     NS_ENSURE_TRUE(styleContent, NS_ERROR_OUT_OF_MEMORY);
 
@@ -683,6 +684,7 @@ ImageDocument::CreateSyntheticDocument()
   nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::img, nullptr,
                                            kNameSpaceID_XHTML,
                                            nsIDOMNode::ELEMENT_NODE);
+  NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
   mImageContent = NS_NewHTMLImageElement(nodeInfo.forget());
   if (!mImageContent) {

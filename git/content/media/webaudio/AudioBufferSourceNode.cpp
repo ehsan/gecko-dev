@@ -10,24 +10,13 @@
 #include "AudioNodeEngine.h"
 #include "AudioNodeStream.h"
 #include "AudioDestinationNode.h"
-#include "PannerNode.h"
 #include "speex/speex_resampler.h"
 
 namespace mozilla {
 namespace dom {
 
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(AudioBufferSourceNode, AudioNode)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mBuffer)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mPlaybackRate)
-  if (tmp->Context()) {
-    tmp->Context()->UnregisterAudioBufferSourceNode(tmp);
-  }
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(AudioBufferSourceNode, AudioNode)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mBuffer)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mPlaybackRate)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+NS_IMPL_CYCLE_COLLECTION_INHERITED_2(AudioBufferSourceNode, AudioNode,
+                                     mBuffer, mPlaybackRate)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(AudioBufferSourceNode)
 NS_INTERFACE_MAP_END_INHERITING(AudioNode)
@@ -44,7 +33,6 @@ public:
     mOffset(0), mDuration(0),
     mLoopStart(0), mLoopEnd(0),
     mSampleRate(0), mPosition(0), mChannels(0), mPlaybackRate(1.0f),
-    mDopplerShift(1.0f),
     mDestination(static_cast<AudioNodeStream*>(aDestination->Stream())),
     mPlaybackRateTimeline(1.0f), mLoop(false)
   {}
@@ -68,8 +56,7 @@ public:
     LOOP,
     LOOPSTART,
     LOOPEND,
-    PLAYBACKRATE,
-    DOPPLERSHIFT
+    PLAYBACKRATE
   };
   virtual void SetTimelineParameter(uint32_t aIndex, const dom::AudioParamTimeline& aValue)
   {
@@ -100,16 +87,6 @@ public:
       NS_ERROR("Bad AudioBufferSourceNodeEngine StreamTimeParameter");
     }
   }
-  virtual void SetDoubleParameter(uint32_t aIndex, double aParam)
-  {
-    switch (aIndex) {
-      case DOPPLERSHIFT:
-        mDopplerShift = aParam;
-        break;
-      default:
-        NS_ERROR("Bad AudioBufferSourceNodeEngine double parameter.");
-    };
-  }
   virtual void SetInt32Parameter(uint32_t aIndex, int32_t aParam)
   {
     switch (aIndex) {
@@ -138,7 +115,7 @@ public:
     if (!mResampler) {
       mChannels = aChannels;
       mResampler = speex_resampler_init(mChannels, mSampleRate,
-                                        ComputeFinalOutSampleRate(),
+                                        IdealAudioRate(),
                                         SPEEX_RESAMPLER_QUALITY_DEFAULT,
                                         nullptr);
     }
@@ -188,7 +165,9 @@ public:
                                          uint32_t aAvailableInInputBuffer,
                                          uint32_t& aFramesRead,
                                          uint32_t& aFramesWritten) {
-    double finalPlaybackRate = static_cast<double>(mSampleRate) / ComputeFinalOutSampleRate();
+    // Compute the sample rate we want to resample to.
+    double finalSampleRate = mSampleRate / mPlaybackRate;
+    double finalPlaybackRate = finalSampleRate / IdealAudioRate();
     uint32_t availableInOuputBuffer = WEBAUDIO_BLOCK_SIZE - aBufferOffset;
     uint32_t inputSamples, outputSamples;
 
@@ -268,7 +247,9 @@ public:
     uint32_t numFrames = std::min(std::min(WEBAUDIO_BLOCK_SIZE - *aOffsetWithinBlock,
                                            aBufferMax - aBufferOffset),
                                   uint32_t(mStop - *aCurrentPosition));
-    if (numFrames == WEBAUDIO_BLOCK_SIZE && !ShouldResample()) {
+    if (numFrames == WEBAUDIO_BLOCK_SIZE &&
+        mSampleRate == IdealAudioRate() &&
+        mPlaybackRate == 1.0f) {
       BorrowFromInputBuffer(aOutput, aChannels, aBufferOffset);
       *aOffsetWithinBlock += numFrames;
       *aCurrentPosition += numFrames;
@@ -278,7 +259,7 @@ public:
         MOZ_ASSERT(*aOffsetWithinBlock == 0);
         AllocateAudioBlock(aChannels, aOutput);
       }
-      if (!ShouldResample()) {
+      if (mSampleRate == IdealAudioRate() && mPlaybackRate == 1.0f) {
         CopyFromInputBuffer(aOutput, aChannels, aBufferOffset, *aOffsetWithinBlock, numFrames);
         *aOffsetWithinBlock += numFrames;
         *aCurrentPosition += numFrames;
@@ -304,37 +285,6 @@ public:
     return mStart + mPosition;
   }
 
-  int32_t ComputeFinalOutSampleRate() const
-  {
-    return static_cast<uint32_t>(IdealAudioRate() / (mPlaybackRate * mDopplerShift));
-  }
-
-  bool ShouldResample() const
-  {
-    return !(mPlaybackRate == 1.0 &&
-             mDopplerShift == 1.0 &&
-             mSampleRate == IdealAudioRate());
-  }
-
-  void UpdateSampleRateIfNeeded(AudioNodeStream* aStream)
-  {
-    if (mPlaybackRateTimeline.HasSimpleValue()) {
-      mPlaybackRate = mPlaybackRateTimeline.GetValue();
-    } else {
-      mPlaybackRate = mPlaybackRateTimeline.GetValueAtTime<TrackTicks>(aStream->GetCurrentPosition());
-    }
-
-    uint32_t currentOutSampleRate, currentInSampleRate;
-    if (ShouldResample()) {
-      SpeexResamplerState* resampler = Resampler(mChannels);
-      speex_resampler_get_rate(resampler, &currentInSampleRate, &currentOutSampleRate);
-      uint32_t finalSampleRate = ComputeFinalOutSampleRate();
-      if (currentOutSampleRate != finalSampleRate) {
-        speex_resampler_set_rate(resampler, currentInSampleRate, finalSampleRate);
-      }
-    }
-  }
-
   virtual void ProduceAudioBlock(AudioNodeStream* aStream,
                                  const AudioChunk& aInput,
                                  AudioChunk* aOutput,
@@ -352,7 +302,16 @@ public:
     // WebKit treats the playbackRate as a k-rate parameter in their code,
     // despite the spec saying that it should be an a-rate parameter. We treat
     // it as k-rate. Spec bug: https://www.w3.org/Bugs/Public/show_bug.cgi?id=21592
-    UpdateSampleRateIfNeeded(aStream);
+    float newPlaybackRate;
+    if (mPlaybackRateTimeline.HasSimpleValue()) {
+      newPlaybackRate = mPlaybackRateTimeline.GetValue();
+    } else {
+      newPlaybackRate = mPlaybackRateTimeline.GetValueAtTime<TrackTicks>(aStream->GetCurrentPosition());
+    }
+    if (newPlaybackRate != mPlaybackRate) {
+      mPlaybackRate = newPlaybackRate;
+      speex_resampler_set_rate(Resampler(mChannels), mSampleRate, mSampleRate / mPlaybackRate);
+    }
 
     uint32_t written = 0;
     TrackTicks currentPosition = GetPosition(aStream);
@@ -403,7 +362,6 @@ public:
   uint32_t mPosition;
   uint32_t mChannels;
   float mPlaybackRate;
-  float mDopplerShift;
   AudioNodeStream* mDestination;
   AudioParamTimeline mPlaybackRateTimeline;
   bool mLoop;
@@ -416,7 +374,6 @@ AudioBufferSourceNode::AudioBufferSourceNode(AudioContext* aContext)
   , mLoop(false)
   , mStartCalled(false)
   , mPlaybackRate(new AudioParam(this, SendPlaybackRateToStream, 1.0f))
-  , mPannerNode(nullptr)
 {
   SetProduceOwnOutput(true);
   mStream = aContext->Graph()->CreateAudioNodeStream(
@@ -427,10 +384,6 @@ AudioBufferSourceNode::AudioBufferSourceNode(AudioContext* aContext)
 
 AudioBufferSourceNode::~AudioBufferSourceNode()
 {
-  // 
-  if (Context()) {
-    Context()->UnregisterAudioBufferSourceNode(this);
-  }
   DestroyMediaStream();
 }
 
@@ -537,12 +490,6 @@ AudioBufferSourceNode::SendPlaybackRateToStream(AudioNode* aNode)
 {
   AudioBufferSourceNode* This = static_cast<AudioBufferSourceNode*>(aNode);
   SendTimelineParameterToStream(This, AudioBufferSourceNodeEngine::PLAYBACKRATE, *This->mPlaybackRate);
-}
-
-void
-AudioBufferSourceNode::SendDopplerShiftToStream(double aDopplerShift)
-{
-  SendDoubleParameterToStream(AudioBufferSourceNodeEngine::DOPPLERSHIFT, aDopplerShift);
 }
 
 }

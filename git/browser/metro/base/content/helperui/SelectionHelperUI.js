@@ -351,8 +351,6 @@ var SelectionHelperUI = {
     if (!this.isActive) {
       this._init(aBrowser);
       this._setupDebugOptions();
-    } else {
-      this._hideMonocles();
     }
 
     this._lastPoint = { xPos: aX, yPos: aY };

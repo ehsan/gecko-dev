@@ -200,9 +200,3 @@ LIRGeneratorX64::visitAsmJSLoadFuncPtr(MAsmJSLoadFuncPtr *ins)
 {
     return define(new LAsmJSLoadFuncPtr(useRegister(ins->index()), temp()), ins);
 }
-
-LGetPropertyCacheT *
-LIRGeneratorX64::newLGetPropertyCacheT(MGetPropertyCache *ins)
-{
-    return new LGetPropertyCacheT(useRegister(ins->object()), LDefinition::BogusTemp());
-}

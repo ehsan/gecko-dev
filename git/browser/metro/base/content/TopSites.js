@@ -264,7 +264,7 @@ TopSitesView.prototype = {
       if (!iconURLfromSiteURL) {
         return;
       }
-      aTileNode.iconSrc = iconURLfromSiteURL.spec;
+      aTileNode.iconSrc = iconURLfromSiteURL;
       let faviconURL = (PlacesUtils.favicons.getFaviconLinkForIcon(iconURLfromSiteURL)).spec;
       let xpFaviconURI = Util.makeURI(faviconURL.replace("moz-anno:favicon:",""));
       ColorUtils.getForegroundAndBackgroundIconColors(xpFaviconURI, function(foreground, background) {
@@ -398,15 +398,15 @@ let TopSitesStartView = {
   },
 
   show: function show() {
-    this._grid.arrangeItems();
+    this._grid.arrangeItems(3, 3);
   },
 };
 
 let TopSitesSnappedView = {
-  get _grid() { return document.getElementById("snapped-topsites-grid"); },
+  get _grid() { return document.getElementById("snapped-topsite-grid"); },
 
   show: function show() {
-    this._grid.arrangeItems();
+    this._grid.arrangeItems(1, 8);
   },
 
   init: function() {
@@ -415,19 +415,8 @@ let TopSitesSnappedView = {
       let topsitesVbox = document.getElementById("snapped-topsites");
       topsitesVbox.setAttribute("hidden", "true");
     }
-    Services.obs.addObserver(this, "metro_viewstate_dom_snapped", false);
   },
-
   uninit: function uninit() {
     this._view.destruct();
-    Services.obs.removeObserver(this, "metro_viewstate_dom_snapped");
-  },
-
-  observe: function(aSubject, aTopic, aData) {
-    switch (aTopic) {
-      case "metro_viewstate_dom_snapped":
-          this._grid.arrangeItems();
-        break;
-    }
   },
 };

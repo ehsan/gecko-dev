@@ -75,13 +75,11 @@ ImageClient::UpdatePictureRect(nsIntRect aRect)
 }
 
 ImageClientSingle::ImageClientSingle(CompositableForwarder* aFwd,
-                                     TextureFlags aFlags,
-                                     CompositableType aType)
+                                       TextureFlags aFlags,
+                                       CompositableType aType)
   : ImageClient(aFwd, aType)
-  , mTextureInfo(aType)
-{
-  mTextureInfo.mTextureFlags = aFlags;
-}
+  , mFlags(aFlags)
+{}
 
 void
 ImageClientSingle::EnsureTextureClient(TextureClientType aType)
@@ -91,7 +89,7 @@ ImageClientSingle::EnsureTextureClient(TextureClientType aType)
   if (mTextureClient && mTextureClient->SupportsType(aType)) {
     return;
   }
-  mTextureClient = CreateTextureClient(aType);
+  mTextureClient = CreateTextureClient(aType, mFlags);
 }
 
 bool
@@ -191,7 +189,7 @@ ImageClientSingle::UpdateImage(ImageContainer* aContainer,
 void
 ImageClientSingle::Updated()
 {
-  mForwarder->UpdateTexture(this, 1, mTextureClient->GetDescriptor());
+  mTextureClient->Updated();
 }
 
 ImageClientBridge::ImageClientBridge(CompositableForwarder* aFwd,

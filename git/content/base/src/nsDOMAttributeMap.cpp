@@ -349,8 +349,10 @@ nsDOMAttributeMap::RemoveNamedItem(const nsAString& aName,
 
 
 Attr*
-nsDOMAttributeMap::GetItemAt(uint32_t aIndex)
+nsDOMAttributeMap::GetItemAt(uint32_t aIndex, nsresult *aResult)
 {
+  *aResult = NS_OK;
+
   Attr* node = nullptr;
 
   const nsAttrName* name;
@@ -361,7 +363,12 @@ nsDOMAttributeMap::GetItemAt(uint32_t aIndex)
     ni = mContent->NodeInfo()->NodeInfoManager()->
       GetNodeInfo(name->LocalName(), name->GetPrefix(), name->NamespaceID(),
                   nsIDOMNode::ATTRIBUTE_NODE);
-    node = GetAttribute(ni, true);
+    if (ni) {
+      node = GetAttribute(ni, true);
+    }
+    else {
+      *aResult = NS_ERROR_OUT_OF_MEMORY;
+    }
   }
 
   return node;
@@ -370,8 +377,9 @@ nsDOMAttributeMap::GetItemAt(uint32_t aIndex)
 NS_IMETHODIMP
 nsDOMAttributeMap::Item(uint32_t aIndex, nsIDOMAttr** aReturn)
 {
-  NS_IF_ADDREF(*aReturn = GetItemAt(aIndex));
-  return NS_OK;
+  nsresult rv;
+  NS_IF_ADDREF(*aReturn = GetItemAt(aIndex, &rv));
+  return rv;
 }
 
 nsresult
@@ -394,15 +402,17 @@ nsDOMAttributeMap::GetNamedItemNS(const nsAString& aNamespaceURI,
                                   const nsAString& aLocalName,
                                   nsIDOMAttr** aReturn)
 {
-  NS_IF_ADDREF(*aReturn = GetNamedItemNS(aNamespaceURI, aLocalName));
-  return NS_OK;
+  ErrorResult rv;
+  NS_IF_ADDREF(*aReturn = GetNamedItemNS(aNamespaceURI, aLocalName, rv));
+  return rv.ErrorCode();
 }
 
 Attr*
 nsDOMAttributeMap::GetNamedItemNS(const nsAString& aNamespaceURI,
-                                  const nsAString& aLocalName)
+                                  const nsAString& aLocalName,
+                                  ErrorResult& aError)
 {
-  nsCOMPtr<nsINodeInfo> ni = GetAttrNodeInfo(aNamespaceURI, aLocalName);
+  nsCOMPtr<nsINodeInfo> ni = GetAttrNodeInfo(aNamespaceURI, aLocalName, aError);
   if (!ni) {
     return nullptr;
   }
@@ -412,7 +422,8 @@ nsDOMAttributeMap::GetNamedItemNS(const nsAString& aNamespaceURI,
 
 already_AddRefed<nsINodeInfo>
 nsDOMAttributeMap::GetAttrNodeInfo(const nsAString& aNamespaceURI,
-                                   const nsAString& aLocalName)
+                                   const nsAString& aLocalName,
+                                   mozilla::ErrorResult& aError)
 {
   if (!mContent) {
     return nullptr;
@@ -441,6 +452,9 @@ nsDOMAttributeMap::GetAttrNodeInfo(const nsAString& aNamespaceURI,
       ni = mContent->NodeInfo()->NodeInfoManager()->
         GetNodeInfo(nameAtom, name->GetPrefix(), nameSpaceID,
                     nsIDOMNode::ATTRIBUTE_NODE);
+      if (!ni) {
+        aError.Throw(NS_ERROR_OUT_OF_MEMORY);
+      }
 
       return ni.forget();
     }
@@ -457,7 +471,11 @@ nsDOMAttributeMap::RemoveNamedItemNS(const nsAString& aNamespaceURI,
   NS_ENSURE_ARG_POINTER(aReturn);
   *aReturn = nullptr;
 
-  nsCOMPtr<nsINodeInfo> ni = GetAttrNodeInfo(aNamespaceURI, aLocalName);
+  ErrorResult error;
+  nsCOMPtr<nsINodeInfo> ni = GetAttrNodeInfo(aNamespaceURI, aLocalName, error);
+  if (error.Failed()) {
+    return error.ErrorCode();
+  }
 
   if (!ni) {
     return NS_ERROR_DOM_NOT_FOUND_ERR;

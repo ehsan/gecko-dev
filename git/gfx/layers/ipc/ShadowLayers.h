@@ -155,12 +155,10 @@ public:
   void Connect(CompositableClient* aCompositable);
 
   virtual void CreatedSingleBuffer(CompositableClient* aCompositable,
-                                   const SurfaceDescriptor& aDescriptor,
-                                   const TextureInfo& aTextureInfo) MOZ_OVERRIDE;
+                                   TextureClient* aBuffer) MOZ_OVERRIDE;
   virtual void CreatedDoubleBuffer(CompositableClient* aCompositable,
-                                   const SurfaceDescriptor& aFrontDescriptor,
-                                   const SurfaceDescriptor& aBackDescriptor,
-                                   const TextureInfo& aTextureInfo) MOZ_OVERRIDE;
+                                   TextureClient* aFront,
+                                   TextureClient* aBack) MOZ_OVERRIDE;
   virtual void DestroyThebesBuffer(CompositableClient* aCompositable) MOZ_OVERRIDE;
 
   /**
@@ -272,9 +270,8 @@ public:
    * Communicate to the compositor that the texture identified by aLayer
    * and aIdentifier has been updated to aImage.
    */
-  virtual void UpdateTexture(CompositableClient* aCompositable,
-                             TextureIdentifier aTextureId,
-                             SurfaceDescriptor* aDescriptor) MOZ_OVERRIDE;
+  void UpdateTexture(TextureClient* aTexture,
+                     const SurfaceDescriptor& aImage);
 
   /**
    * Communicate to the compositor that aRegion in the texture identified by aLayer

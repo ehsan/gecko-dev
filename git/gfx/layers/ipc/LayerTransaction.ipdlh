@@ -11,6 +11,7 @@ include protocol PCompositor;
 include protocol PGrallocBuffer;
 include protocol PLayer;
 include protocol PRenderFrame;
+include protocol PTexture;
 
 include "mozilla/WidgetUtils.h";
 include "mozilla/TimeStamp.h";
@@ -27,7 +28,7 @@ using mozilla::TimeStamp;
 using mozilla::ScreenRotation;
 using nsCSSProperty;
 using mozilla::dom::ScreenOrientation;
-using mozilla::layers::TextureInfo;
+using mozilla::layers::CompositableType;
 using mozilla::gfx::Margin;
 
 namespace mozilla {
@@ -241,11 +242,17 @@ struct OpPaintTiledLayerBuffer {
   uintptr_t tiledLayerBuffer;
 };
 
-struct OpCreatedTexture {
+struct OpCreatedSingleBuffer {
   PCompositable compositable;
-  uint32_t textureId;
+  PTexture buffer;
   SurfaceDescriptor descriptor;
-  TextureInfo textureInfo;
+};
+struct OpCreatedDoubleBuffer {
+  PCompositable compositable;
+  PTexture front;
+  SurfaceDescriptor frontDescriptor;
+  PTexture back;
+  SurfaceDescriptor backDescriptor;
 };
 
 struct OpDestroyThebesBuffer {
@@ -253,8 +260,7 @@ struct OpDestroyThebesBuffer {
 };
 
 struct OpPaintTexture {
-  PCompositable compositable;
-  uint32_t textureId;
+  PTexture texture;
   SurfaceDescriptor image;
 };
 
@@ -272,7 +278,8 @@ struct OpUpdatePictureRect {
 union CompositableOperation {
   OpUpdatePictureRect;
 
-  OpCreatedTexture;
+  OpCreatedSingleBuffer;
+  OpCreatedDoubleBuffer;
   OpDestroyThebesBuffer;
 
   OpPaintTexture;
@@ -313,8 +320,7 @@ struct OpContentBufferSwap {
 };
 
 struct OpTextureSwap {
-  PCompositable compositable;
-  uint32_t textureId;
+  PTexture texture;
   SurfaceDescriptor image;
 };
 
@@ -324,6 +330,12 @@ union EditReply {
   OpContentBufferSwap;
   OpTextureSwap;
 };
+
+struct OpTextureReply {
+  PTexture texture;
+  SurfaceDescriptor image;
+};
+
 
 } // namespace
 } // namespace

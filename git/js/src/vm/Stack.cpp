@@ -407,7 +407,8 @@ StackFrame::epilogue(JSContext *cx)
     if (cx->compartment->debugMode())
         DebugScopes::onPopCall(this, cx);
 
-    if (isConstructing() && thisValue().isObject() && returnValue().isPrimitive())
+
+    if (isConstructing() && returnValue().isPrimitive())
         setReturnValue(ObjectValue(constructorThis()));
 }
 

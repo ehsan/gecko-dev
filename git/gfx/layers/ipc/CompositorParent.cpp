@@ -233,9 +233,7 @@ CompositorParent::RecvWillStop()
   RemoveCompositor(mCompositorID);
 
   // Ensure that the layer manager is destroyed before CompositorChild.
-  if (mLayerManager) {
-    mLayerManager->Destroy();
-  }
+  mLayerManager->Destroy();
 
   return true;
 }
@@ -280,18 +278,6 @@ CompositorParent::RecvMakeSnapshot(const SurfaceDescriptor& aInSnapshot,
   *aOutSnapshot = aInSnapshot;
   return true;
 }
-
-void
-CompositorParent::ActorDestroy(ActorDestroyReason why)
-{
-  mPaused = true;
-  RemoveCompositor(mCompositorID);
-
-  if (mLayerManager) {
-    mLayerManager->Destroy();
-  }
-}
-
 
 void
 CompositorParent::ScheduleRenderOnCompositorThread()
@@ -468,7 +454,7 @@ CompositorParent::SetTransformation(float aScale, nsIntPoint aScrollOffset)
  * to the layer tree, if found.  On exiting scope, detaches all
  * resolved referents.
  */
-class MOZ_STACK_CLASS AutoResolveRefLayers {
+class NS_STACK_CLASS AutoResolveRefLayers {
 public:
   /**
    * |aRoot| must remain valid in the scope of this, which should be
@@ -677,10 +663,6 @@ CompositorParent::TransformFixedLayers(Layer* aLayer,
       transformedClipRect.MoveBy(translation.x, translation.y);
       shadow->SetShadowClipRect(&transformedClipRect);
     }
-
-    // The transform has now been applied, so there's no need to iterate over
-    // child layers.
-    return;
   }
 
   for (Layer* child = aLayer->GetFirstChild();
@@ -1113,6 +1095,28 @@ CompositorParent::SyncViewportInfo(const nsIntRect& aDisplayPort,
                                             aScrollOffset, aScaleX, aScaleY, aFixedLayerMargins);
 #endif
 }
+
+/*
+void
+CompositorParent::ShadowLayersUpdated(ShadowLayersParent* aLayerTree,
+                                      const TargetConfig& aTargetConfig,
+                                      bool isFirstPaint)
+{
+  mTargetConfig = aTargetConfig;
+  mIsFirstPaint = mIsFirstPaint || isFirstPaint;
+  mLayersUpdated = true;
+  Layer* root = aLayerTree->GetRoot();
+  mLayerManager->SetRoot(root);
+  if (root) {
+    SetShadowProperties(root);
+  }
+  ScheduleComposition();
+  ShadowLayerManager *shadow = mLayerManager->AsShadowManager();
+  if (shadow) {
+    shadow->NotifyShadowTreeTransaction();
+  }
+}
+*/
 
 PLayersParent*
 CompositorParent::AllocPLayers(const LayersBackend& aBackendHint,

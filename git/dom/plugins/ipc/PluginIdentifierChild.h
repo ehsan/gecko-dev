@@ -45,7 +45,7 @@ public:
 
   void MakePermanent();
 
-  class MOZ_STACK_CLASS StackIdentifier
+  class NS_STACK_CLASS StackIdentifier
   {
   public:
     StackIdentifier(PPluginIdentifierChild* actor)

@@ -11,5 +11,4 @@ elif CONFIG['OS_ARCH'] == 'Darwin':
 elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gtk2':
     DIRS += ['gtk2']
 
-DIRS += ['locales']
 TEST_DIRS += ['test']

@@ -96,6 +96,8 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(HTMLObjectElement,
                                            nsGenericHTMLFormElement)
 
+  virtual nsXPCClassInfo* GetClassInfo();
+
   virtual nsIDOMNode* AsDOMNode() { return this; }
 
   // Web IDL binding methods
@@ -244,6 +246,8 @@ private:
   virtual void SetItemValueText(const nsAString& text);
 
   virtual JSObject* WrapNode(JSContext *aCx, JSObject *aScope) MOZ_OVERRIDE;
+  virtual JSObject* GetCanonicalPrototype(JSContext* aCx,
+                                          JSObject* aGlobal) MOZ_OVERRIDE;
 
   bool mIsDoneAddingChildren;
 };

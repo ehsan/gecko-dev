@@ -20,6 +20,7 @@
 #include "ShadowLayerUtils.h"
 #include "TiledLayerBuffer.h"
 #include "gfxPlatform.h"
+#include "mozilla/layers/TextureParent.h"
 #include "CompositableHost.h"
 
 typedef std::vector<mozilla::layers::EditReply> EditReplyVector;
@@ -43,6 +44,13 @@ cast(const PCompositableParent* in)
 {
   return const_cast<CompositableParent*>(
     static_cast<const CompositableParent*>(in));
+}
+
+template<class OpPaintT>
+static TextureHost*
+AsTextureHost(const OpPaintT& op)
+{
+  return static_cast<TextureParent*>(op.textureParent())->GetTextureHost();
 }
 
 template<class OpCreateT>
@@ -502,9 +510,9 @@ ShadowLayersParent::DeallocPLayer(PLayerParent* actor)
 }
 
 PCompositableParent*
-ShadowLayersParent::AllocPCompositable(const TextureInfo& aInfo)
+ShadowLayersParent::AllocPCompositable(const CompositableType& aType)
 {
-  return new CompositableParent(this, aInfo);
+  return new CompositableParent(this, aType);
 }
 
 bool

@@ -195,7 +195,7 @@ MacroAssemblerX86::callWithABI(const Address &fun, Result result)
 }
 
 void
-MacroAssemblerX86::handleFailureWithHandler(void *handler)
+MacroAssemblerX86::handleException()
 {
     // Reserve space for exception information.
     subl(Imm32(sizeof(ResumeFromException)), esp);
@@ -204,7 +204,7 @@ MacroAssemblerX86::handleFailureWithHandler(void *handler)
     // Ask for an exception handler.
     setupUnalignedABICall(1, ecx);
     passABIArg(eax);
-    callWithABI(handler);
+    callWithABI(JS_FUNC_TO_DATA_PTR(void *, ion::HandleException));
 
     Label catch_;
     Label entryFrame;

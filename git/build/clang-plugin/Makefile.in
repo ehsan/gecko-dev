@@ -16,7 +16,6 @@ CPPSRCS := \
 
 TESTSRCS := \
 	TestMustOverride.cpp \
-	TestStackClass.cpp \
 	$(NULL)
 
 OBJS := $(patsubst %.cpp,%.o,$(CPPSRCS))
@@ -31,7 +30,7 @@ $(OBJS): %.o: %.cpp Makefile
 
 $(PLUGIN): $(OBJS)
 	rm -f $@
-	$(CXX) -shared -o $@ $(CXXFLAGS) $(LDFLAGS) $(OBJS) -lclangASTMatchers
+	$(CXX) -shared -o $@ $(CXXFLAGS) $(LDFLAGS) $(OBJS)
 
 TESTFLAGS := -fsyntax-only -Xclang -verify \
 	-Xclang -load -Xclang $(CURDIR)/$(PLUGIN) \

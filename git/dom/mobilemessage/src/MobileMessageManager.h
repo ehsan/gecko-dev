@@ -42,9 +42,11 @@ private:
    */
   nsresult Delete(int32_t aId, nsIDOMDOMRequest** aRequest);
 
-  nsresult DispatchTrustedSmsEventToSelf(const char* aTopic,
-                                         const nsAString& aEventName,
-                                         nsISupports* aMsg);
+  nsresult DispatchTrustedSmsEventToSelf(const nsAString& aEventName,
+                                         nsIDOMMozSmsMessage* aMessage);
+
+  nsresult DispatchTrustedMmsEventToSelf(const nsAString& aEventName,
+                                         nsIDOMMozMmsMessage* aMessage);
 };
 
 } // namespace dom

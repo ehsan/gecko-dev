@@ -74,6 +74,7 @@ ContentClientRemote::DestroyBuffers()
   }
 
   MOZ_ASSERT(mTextureClient->GetAccessMode() == TextureClient::ACCESS_READ_WRITE);
+  // dont't call m*mTextureClient->Destroyed();
   mTextureClient = nullptr;
 
   DestroyFrontBuffer();
@@ -118,15 +119,15 @@ ContentClientRemote::CreateDTBuffer(ContentType aType,
     mOldTextures.AppendElement(mTextureClient);
     DestroyBuffers();
   }
-  mTextureInfo.mTextureFlags = aFlags | HostRelease;
-  mTextureClient = CreateTextureClient(TEXTURE_CONTENT);
+  mTextureClient = CreateTextureClient(TEXTURE_CONTENT, aFlags | HostRelease);
 
   mContentType = aType;
   mSize = gfx::IntSize(aRect.width, aRect.height);
   mTextureClient->EnsureAllocated(mSize, mContentType);
-  MOZ_ASSERT(IsSurfaceDescriptorValid(*mTextureClient->GetDescriptor()));
+  // note that LockSurfaceDescriptor doesn't actually lock anything
+  MOZ_ASSERT(IsSurfaceDescriptorValid(*mTextureClient->LockSurfaceDescriptor()));
 
-  CreateFrontBufferAndNotify(aRect);
+  CreateFrontBufferAndNotify(aRect, aFlags | HostRelease);
 
   RefPtr<DrawTarget> ret = mTextureClient->LockDrawTarget();
   return ret.forget();
@@ -146,15 +147,15 @@ ContentClientRemote::CreateBuffer(ContentType aType,
     mOldTextures.AppendElement(mTextureClient);
     DestroyBuffers();
   }
-  mTextureInfo.mTextureFlags = aFlags | HostRelease;
-  mTextureClient = CreateTextureClient(TEXTURE_CONTENT);
+  mTextureClient = CreateTextureClient(TEXTURE_CONTENT, aFlags | HostRelease);
 
   mContentType = aType;
   mSize = gfx::IntSize(aRect.width, aRect.height);
   mTextureClient->EnsureAllocated(mSize, mContentType);
-  MOZ_ASSERT(IsSurfaceDescriptorValid(*mTextureClient->GetDescriptor()));
+  // note that LockSurfaceDescriptor doesn't actually lock anything
+  MOZ_ASSERT(IsSurfaceDescriptorValid(*mTextureClient->LockSurfaceDescriptor()));
 
-  CreateFrontBufferAndNotify(aRect);
+  CreateFrontBufferAndNotify(aRect, aFlags | HostRelease);
 
   nsRefPtr<gfxASurface> ret = mTextureClient->LockSurface();
   return ret.forget();
@@ -196,6 +197,7 @@ ContentClientRemote::Updated(const nsIntRegion& aRegionToDraw,
                                                aVisibleRegion,
                                                aDidSelfCopy);
 
+  // don't call m*Client->Updated*()
   MOZ_ASSERT(mTextureClient);
   mTextureClient->SetAccessMode(TextureClient::ACCESS_NONE);
   LockFrontBuffer();
@@ -240,18 +242,16 @@ ContentClientDoubleBuffered::~ContentClientDoubleBuffered()
 }
 
 void
-ContentClientDoubleBuffered::CreateFrontBufferAndNotify(const nsIntRect& aBufferRect)
+ContentClientDoubleBuffered::CreateFrontBufferAndNotify(const nsIntRect& aBufferRect,
+                                                        uint32_t aFlags)
 {
-  mFrontClient = CreateTextureClient(TEXTURE_CONTENT);
+  mFrontClient = CreateTextureClient(TEXTURE_CONTENT, aFlags);
   mFrontClient->EnsureAllocated(mSize, mContentType);
 
   mFrontBufferRect = aBufferRect;
   mFrontBufferRotation = nsIntPoint();
 
-  mForwarder->CreatedDoubleBuffer(this,
-                                  *mFrontClient->GetDescriptor(),
-                                  *mTextureClient->GetDescriptor(),
-                                  mTextureInfo);
+  mForwarder->CreatedDoubleBuffer(this, mFrontClient, mTextureClient);
 }
 
 void
@@ -260,6 +260,7 @@ ContentClientDoubleBuffered::DestroyFrontBuffer()
   MOZ_ASSERT(mFrontClient);
   MOZ_ASSERT(mFrontClient->GetAccessMode() != TextureClient::ACCESS_NONE);
 
+  // dont't call mFrontClient->Destroyed();
   mFrontClient = nullptr;
 }
 
@@ -414,11 +415,10 @@ ContentClientSingleBuffered::~ContentClientSingleBuffered()
 }
 
 void
-ContentClientSingleBuffered::CreateFrontBufferAndNotify(const nsIntRect& aBufferRect)
+ContentClientSingleBuffered::CreateFrontBufferAndNotify(const nsIntRect& aBufferRect,
+                                                        uint32_t aFlags)
 {
-  mForwarder->CreatedSingleBuffer(this,
-                                  *mTextureClient->GetDescriptor(),
-                                  mTextureInfo);
+  mForwarder->CreatedSingleBuffer(this, mTextureClient);
 }
 
 void

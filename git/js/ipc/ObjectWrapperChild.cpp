@@ -24,7 +24,7 @@ using namespace js;
 
 namespace {
 
-    class MOZ_STACK_CLASS AutoContextPusher {
+    class AutoContextPusher {
 
         nsCxPusher mStack;
         JSAutoRequest mRequest;

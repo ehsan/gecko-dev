@@ -11,6 +11,11 @@ this.EXPORTED_SYMBOLS = ["TelURIParser"];
  */
 this.TelURIParser = {
   parseURI: function(scheme, uri) {
+    // Ignore MWI and USSD codes. See 794034.
+    if (uri.indexOf('*') != -1 || uri.indexOf('#') != -1) {
+      return null;
+    }
+
     // https://www.ietf.org/rfc/rfc2806.txt
     let subscriber = uri.slice((scheme + ':').length);
 
@@ -107,11 +112,6 @@ this.TelURIParser = {
         // global-network-prefix | local-network-prefix | private-prefi
         number = subscriber.substring(pos, subscriber.length) + number;
       }
-    }
-
-    // Ignore MWI and USSD codes. See 794034.
-    if (number.match(/[#\*]/) && !number.match(/^[#\*]\d+$/)) {
-      return null;
     }
 
     return number || null;

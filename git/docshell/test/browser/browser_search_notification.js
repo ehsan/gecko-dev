@@ -13,8 +13,7 @@ function test() {
 
     let engine = Services.search.defaultEngine;
     ok(engine, "Have default search engine.");
-    is(engine, subject, "Notification subject is engine.");
-    is("firefox health report", data, "Notification data is search term.");
+    is(engine.name, data, "Notification data is engine name.");
 
     executeSoon(function cleanup() {
       gBrowser.removeTab(tab);

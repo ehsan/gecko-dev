@@ -6,7 +6,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /* ECC code moved here from ssl3con.c */
-/* $Id$ */
+/* $Id: ssl3ecc.c,v 1.29 2012/06/11 02:38:30 emaldona%redhat.com Exp $ */
 
 #include "nss.h"
 #include "cert.h"

@@ -11,9 +11,8 @@ namespace mozilla {
 using namespace gfx;
 namespace layers {
 
-ContentHostBase::ContentHostBase(const TextureInfo& aTextureInfo,
-                                 Compositor* aCompositor)
-  : ContentHost(aTextureInfo, aCompositor)
+ContentHostBase::ContentHostBase(Compositor* aCompositor)
+  : ContentHost(aCompositor)
   , mPaintWillResample(false)
   , mInitialised(false)
 {}
@@ -205,24 +204,12 @@ ContentHostSingleBuffered::~ContentHostSingleBuffered()
   DestroyFrontHost();
 }
 
-bool
-ContentHostSingleBuffered::EnsureTextureHost(TextureIdentifier aTextureId,
-                                             const SurfaceDescriptor& aSurface,
-                                             ISurfaceAllocator* aAllocator,
-                                             const TextureInfo& aTextureInfo)
+void
+ContentHostSingleBuffered::SetTextureHosts(TextureHost* aNewFront,
+                                           TextureHost* aNewBack /*=nullptr*/)
 {
-  MOZ_ASSERT(aTextureId == TextureFront);
-  mNewFrontHost = TextureHost::CreateTextureHost(aSurface.type(),
-                                                 aTextureInfo.mTextureHostFlags,
-                                                 aTextureInfo.mTextureFlags);
-
-  mNewFrontHost->SetBuffer(new SurfaceDescriptor(aSurface), aAllocator);
-  Compositor* compositor = GetCompositor();
-  if (compositor) {
-    mNewFrontHost->SetCompositor(compositor);
-  }
-
-  return true;
+  MOZ_ASSERT(!aNewBack);
+  mNewFrontHost = aNewFront;
 }
 
 void
@@ -288,36 +275,17 @@ ContentHostDoubleBuffered::~ContentHostDoubleBuffered()
   DestroyFrontHost();
 }
 
-bool
-ContentHostDoubleBuffered::EnsureTextureHost(TextureIdentifier aTextureId,
-                                             const SurfaceDescriptor& aSurface,
-                                             ISurfaceAllocator* aAllocator,
-                                             const TextureInfo& aTextureInfo)
+void
+ContentHostDoubleBuffered::SetTextureHosts(TextureHost* aNewFront,
+                                           TextureHost* aNewBack /*=nullptr*/)
 {
-  RefPtr<TextureHost> newHost = TextureHost::CreateTextureHost(aSurface.type(),
-                                                               aTextureInfo.mTextureHostFlags,
-                                                               aTextureInfo.mTextureFlags);
-
-  newHost->SetBuffer(new SurfaceDescriptor(aSurface), aAllocator);
-
-  Compositor* compositor = GetCompositor();
-  if (compositor) {
-    newHost->SetCompositor(compositor);
-  }
-
-  if (aTextureId == TextureFront) {
-    mNewFrontHost = newHost;
-    return true;
-  }
-  if (aTextureId == TextureBack) {
-    mBackHost = newHost;
-    mBufferRect = nsIntRect();
-    mBufferRotation = nsIntPoint();
-    return true;
-  }
-
-  NS_ERROR("Bad texture identifier");
-  return false;
+  MOZ_ASSERT(aNewBack);
+  // the actual TextureHosts are created in reponse to the PTexture constructor
+  // we just match them up here
+  mNewFrontHost = aNewFront;
+  mBackHost = aNewBack;
+  mBufferRect = nsIntRect();
+  mBufferRotation = nsIntPoint();
 }
 
 void

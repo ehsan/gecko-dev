@@ -126,8 +126,8 @@ class TiledContentHost : public ContentHost,
                          public TiledLayerComposer
 {
 public:
-  TiledContentHost(const TextureInfo& aTextureInfo, Compositor* aCompositor)
-    : ContentHost(aTextureInfo, aCompositor)
+  TiledContentHost(Compositor* aCompositor)
+    : ContentHost(aCompositor)
     , mVideoMemoryTiledBuffer(aCompositor)
     , mLowPrecisionVideoMemoryTiledBuffer(aCompositor)
     , mPendingUpload(false)
@@ -181,13 +181,10 @@ public:
 
   virtual TiledLayerComposer* AsTiledLayerComposer() { return this; }
 
-  virtual bool EnsureTextureHost(TextureIdentifier aTextureId,
-                                 const SurfaceDescriptor& aSurface,
-                                 ISurfaceAllocator* aAllocator,
-                                 const TextureInfo& aTextureInfo) MOZ_OVERRIDE
+  virtual void AddTextureHost(TextureHost* aTextureHost,
+                              ISurfaceAllocator* aAllocator = nullptr)
   {
-    MOZ_NOT_REACHED("Does nothing");
-    return false;
+    MOZ_ASSERT(false, "Does nothing");
   }
 
 #ifdef MOZ_LAYERS_HAVE_LOG

@@ -3021,7 +3021,7 @@ XPCJSRuntime::GetJunkScope()
     if (!mJunkScope) {
         JS::Value v;
         SafeAutoJSContext cx;
-        SandboxOptions options(cx);
+        SandboxOptions options;
         options.sandboxName.AssignASCII("XPConnect Junk Compartment");
         JSAutoRequest ac(cx);
         nsresult rv = xpc_CreateSandboxObject(cx, &v,
@@ -3030,7 +3030,7 @@ XPCJSRuntime::GetJunkScope()
 
         NS_ENSURE_SUCCESS(rv, nullptr);
 
-        mJunkScope = js::UncheckedUnwrap(&v.toObject());
+        mJunkScope = js::UnwrapObject(&v.toObject());
         JS_AddNamedObjectRoot(cx, &mJunkScope, "XPConnect Junk Compartment");
     }
     return mJunkScope;

@@ -62,7 +62,7 @@ function run_test() {
       // Test exporting a Places canonical json file.
       // 1. export to bookmarks.exported.json
       try {
-        yield BookmarkJSONUtils.exportToFile(jsonFile);
+        PlacesUtils.backups.saveBookmarksToJSONFile(jsonFile);
       } catch(ex) { do_throw("couldn't export to file: " + ex); }
       LOG("exported json");
 

@@ -153,7 +153,7 @@ public:
 
   void MoveBy(nsPoint aPoint);
 
-#ifdef MOZ_DUMP_PAINTING
+#ifdef DEBUG
   nsCString ToString() const;
 #endif
 

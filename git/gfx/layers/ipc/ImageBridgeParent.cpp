@@ -48,7 +48,8 @@ ImageBridgeParent::RecvUpdate(const EditArray& aEdits, EditReplyArray* aReply)
 {
   EditReplyVector replyv;
   for (EditArray::index_type i = 0; i < aEdits.Length(); ++i) {
-    ReceiveCompositableUpdate(aEdits[i], replyv);
+    ReceiveCompositableUpdate(aEdits[i],
+                              replyv);
   }
 
   aReply->SetCapacity(replyv.size());
@@ -139,12 +140,12 @@ ImageBridgeParent::DeallocPGrallocBuffer(PGrallocBufferParent* actor)
 }
 
 PCompositableParent*
-ImageBridgeParent::AllocPCompositable(const TextureInfo& aInfo,
-                                      uint64_t* aID)
+ImageBridgeParent::AllocPCompositable(const CompositableType& aType,
+                                                         uint64_t* aID)
 {
   uint64_t id = GenImageContainerID();
   *aID = id;
-  return new CompositableParent(this, aInfo, id);
+  return new CompositableParent(this, aType, id);
 }
 
 bool ImageBridgeParent::DeallocPCompositable(PCompositableParent* aActor)

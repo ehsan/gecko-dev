@@ -9,7 +9,6 @@
 
 #include "AudioNode.h"
 #include "AudioBuffer.h"
-#include "AudioParam.h"
 #include "mozilla/dom/BindingUtils.h"
 
 namespace mozilla {
@@ -37,18 +36,6 @@ public:
   {
     return 0;
   }
-  virtual AudioBufferSourceNode* AsAudioBufferSourceNode() MOZ_OVERRIDE
-  {
-    return this;
-  }
-
-  void UnregisterPannerNode() {
-    mPannerNode = nullptr;
-  }
-
-  void RegisterPannerNode(PannerNode* aPannerNode) {
-    mPannerNode = aPannerNode;
-  }
 
   void JSBindingFinalized()
   {
@@ -67,22 +54,7 @@ public:
 
   void Start(JSContext* aCx, double aWhen, double aOffset,
              const Optional<double>& aDuration, ErrorResult& aRv);
-  void NoteOn(JSContext* aCx, double aWhen, ErrorResult& aRv)
-  {
-    Start(aCx, aWhen, 0.0, Optional<double>(), aRv);
-  }
-  void NoteGrainOn(JSContext* aCx, double aWhen, double aOffset,
-                   double aDuration, ErrorResult& aRv)
-  {
-    Optional<double> duration;
-    duration.Construct(aDuration);
-    Start(aCx, aWhen, aOffset, duration, aRv);
-  }
   void Stop(double aWhen, ErrorResult& aRv);
-  void NoteOff(double aWhen, ErrorResult& aRv)
-  {
-    Stop(aWhen, aRv);
-  }
 
   AudioBuffer* GetBuffer() const
   {
@@ -120,7 +92,6 @@ public:
   {
     mLoopEnd = aEnd;
   }
-  void SendDopplerShiftToStream(double aDopplerShift);
 
   virtual void NotifyMainThreadStateChanged() MOZ_OVERRIDE;
 
@@ -132,7 +103,6 @@ private:
   bool mLoop;
   bool mStartCalled;
   nsRefPtr<AudioParam> mPlaybackRate;
-  PannerNode* mPannerNode;
 };
 
 }

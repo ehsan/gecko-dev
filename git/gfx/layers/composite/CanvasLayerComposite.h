@@ -72,6 +72,8 @@ protected:
 #endif
 
 private:
+  void EnsureImageHost(CompositableType aHostType);
+
   RefPtr<ImageHost> mImageHost;
 };
 

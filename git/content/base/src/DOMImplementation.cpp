@@ -9,7 +9,6 @@
 #include "nsContentUtils.h"
 #include "nsDOMClassInfoID.h"
 #include "DocumentType.h"
-#include "nsTextNode.h"
 
 namespace mozilla {
 namespace dom {
@@ -220,7 +219,9 @@ DOMImplementation::CreateHTMLDocument(const nsAString& aTitle,
     rv = head->AppendChildTo(title, false);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsRefPtr<nsTextNode> titleText = new nsTextNode(doc->NodeInfoManager());
+    nsCOMPtr<nsIContent> titleText;
+    rv = NS_NewTextNode(getter_AddRefs(titleText), doc->NodeInfoManager());
+    NS_ENSURE_SUCCESS(rv, rv);
     rv = titleText->SetText(aTitle, false);
     NS_ENSURE_SUCCESS(rv, rv);
     rv = title->AppendChildTo(titleText, false);

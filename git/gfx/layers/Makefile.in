@@ -175,10 +175,12 @@ EXPORTS_mozilla/layers =\
         SharedPlanarYCbCrImage.h \
         ShmemYCbCrImage.h \
         TaskThrottler.h \
+        TextureChild.h \
         TextureClient.h \
         TextureHost.h \
         TextureClientOGL.h \
         TextureHostOGL.h \
+        TextureParent.h \
         TiledContentClient.h \
         $(NULL)
 
@@ -212,8 +214,10 @@ CPPSRCS += \
         ISurfaceAllocator.cpp \
         TextureClient.cpp \
         TextureClientOGL.cpp \
-        TextureHost.cpp \
         TextureHostOGL.cpp \
+        TextureChild.cpp \
+        TextureHost.cpp \
+        TextureParent.cpp \
         TiledContentClient.cpp \
         TiledContentHost.cpp \
         $(NULL)

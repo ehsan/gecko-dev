@@ -67,6 +67,7 @@ class SpecificLayerAttributes;
 class SurfaceDescriptor;
 class Compositor;
 class LayerComposite;
+struct TextureIdentifier;
 struct TextureFactoryIdentifier;
 struct EffectMask;
 
@@ -156,12 +157,7 @@ public:
    * for its widget going away.  After this call, only user data calls
    * are valid on the layer manager.
    */
-  virtual void Destroy()
-  {
-    mDestroyed = true;
-    mUserData.Destroy();
-    mRoot = nullptr;
-  }
+  virtual void Destroy() { mDestroyed = true; mUserData.Destroy(); }
   bool IsDestroyed() { return mDestroyed; }
 
   virtual ShadowLayerForwarder* AsShadowForwarder()

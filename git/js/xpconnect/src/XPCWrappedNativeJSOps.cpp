@@ -15,8 +15,6 @@
 #include "mozilla/Preferences.h"
 
 using namespace mozilla;
-using namespace JS;
-
 /***************************************************************************/
 
 // All of the exceptions thrown into JS from this file go through here.
@@ -142,19 +140,19 @@ XPC_WN_Shared_ToSource(JSContext *cx, unsigned argc, jsval *vp)
 static JSObject*
 GetDoubleWrappedJSObject(XPCCallContext& ccx, XPCWrappedNative* wrapper)
 {
-    RootedObject obj(ccx);
+    JSObject* obj = nullptr;
     nsCOMPtr<nsIXPConnectWrappedJS>
         underware = do_QueryInterface(wrapper->GetIdentityObject());
     if (underware) {
-        RootedObject mainObj(ccx);
-        if (NS_SUCCEEDED(underware->GetJSObject(mainObj.address())) && mainObj) {
-            RootedId id(ccx, ccx.GetRuntime()->
-                            GetStringID(XPCJSRuntime::IDX_WRAPPED_JSOBJECT));
+        JSObject* mainObj = nullptr;
+        if (NS_SUCCEEDED(underware->GetJSObject(&mainObj)) && mainObj) {
+            jsid id = ccx.GetRuntime()->
+                    GetStringID(XPCJSRuntime::IDX_WRAPPED_JSOBJECT);
 
             JSAutoCompartment ac(ccx, mainObj);
 
-            RootedValue val(ccx);
-            if (JS_GetPropertyById(ccx, mainObj, id, val.address()) &&
+            jsval val;
+            if (JS_GetPropertyById(ccx, mainObj, id, &val) &&
                 !JSVAL_IS_PRIMITIVE(val)) {
                 obj = JSVAL_TO_OBJECT(val);
             }
@@ -169,7 +167,7 @@ GetDoubleWrappedJSObject(XPCCallContext& ccx, XPCWrappedNative* wrapper)
 static JSBool
 XPC_WN_DoubleWrappedGetter(JSContext *cx, unsigned argc, jsval *vp)
 {
-    RootedObject obj(cx, JS_THIS_OBJECT(cx, vp));
+    JSObject *obj = JS_THIS_OBJECT(cx, vp);
     if (!obj)
         return false;
 
@@ -180,7 +178,7 @@ XPC_WN_DoubleWrappedGetter(JSContext *cx, unsigned argc, jsval *vp)
 
     NS_ASSERTION(JS_TypeOfValue(cx, JS_CALLEE(cx, vp)) == JSTYPE_FUNCTION, "bad function");
 
-    RootedObject realObject(cx, GetDoubleWrappedJSObject(ccx, wrapper));
+    JSObject* realObject = GetDoubleWrappedJSObject(ccx, wrapper);
     if (!realObject) {
         // This is pretty unexpected at this point. The object originally
         // responded to this get property call and now gives no object.
@@ -234,8 +232,7 @@ XPC_WN_DoubleWrappedGetter(JSContext *cx, unsigned argc, jsval *vp)
 
 static JSBool
 DefinePropertyIfFound(XPCCallContext& ccx,
-                      HandleObject obj,
-                      HandleId idArg,
+                      JSObject *obj, jsid id,
                       XPCNativeSet* set,
                       XPCNativeInterface* iface,
                       XPCNativeMember* member,
@@ -247,7 +244,6 @@ DefinePropertyIfFound(XPCCallContext& ccx,
                       unsigned propFlags,
                       JSBool* resolved)
 {
-    RootedId id(ccx, idArg);
     XPCJSRuntime* rt = ccx.GetRuntime();
     JSBool found;
     const char* name;
@@ -295,7 +291,7 @@ DefinePropertyIfFound(XPCCallContext& ccx,
                 call = nullptr;
 
             if (call) {
-                RootedFunction fun(ccx, JS_NewFunction(ccx, call, 0, 0, obj, name));
+                JSFunction* fun = JS_NewFunction(ccx, call, 0, 0, obj, name);
                 if (!fun) {
                     JS_ReportOutOfMemory(ccx);
                     return false;
@@ -319,7 +315,7 @@ DefinePropertyIfFound(XPCCallContext& ccx,
             JSAutoByteString name;
             AutoMarkingNativeInterfacePtr iface2(ccx);
             XPCWrappedNativeTearOff* to;
-            RootedObject jso(ccx);
+            JSObject* jso;
             nsresult rv = NS_OK;
 
             if (JSID_IS_STRING(id) &&
@@ -359,7 +355,7 @@ DefinePropertyIfFound(XPCCallContext& ccx,
             if (!fun)
                 return false;
 
-            RootedObject funobj(ccx, JS_GetFunctionObject(fun));
+            JSObject* funobj = JS_GetFunctionObject(fun);
             if (!funobj)
                 return false;
 
@@ -371,7 +367,7 @@ DefinePropertyIfFound(XPCCallContext& ccx,
                 *resolved = true;
             return JS_DefinePropertyById(ccx, obj, id, JSVAL_VOID,
                                          JS_DATA_TO_FUNC_PTR(JSPropertyOp,
-                                                             funobj.get()),
+                                                             funobj),
                                          nullptr, propFlags);
         }
 
@@ -387,7 +383,7 @@ DefinePropertyIfFound(XPCCallContext& ccx,
 
             if (!to)
                 return false;
-            RootedObject jso(ccx, to->GetJSObject());
+            JSObject* jso = to->GetJSObject();
             if (!jso)
                 return false;
 
@@ -404,11 +400,11 @@ DefinePropertyIfFound(XPCCallContext& ccx,
     }
 
     if (member->IsConstant()) {
-        RootedValue val(ccx);
+        jsval val;
         AutoResolveName arn(ccx, id);
         if (resolved)
             *resolved = true;
-        return member->GetConstantValue(ccx, iface, val.address()) &&
+        return member->GetConstantValue(ccx, iface, &val) &&
                JS_DefinePropertyById(ccx, obj, id, val, nullptr, nullptr,
                                      propFlags);
     }
@@ -420,8 +416,8 @@ DefinePropertyIfFound(XPCCallContext& ccx,
          id == rt->GetStringID(XPCJSRuntime::IDX_QUERY_INTERFACE)))
         propFlags &= ~JSPROP_ENUMERATE;
 
-    RootedValue funval(ccx);
-    if (!member->NewFunctionObject(ccx, iface, obj, funval.address()))
+    jsval funval;
+    if (!member->NewFunctionObject(ccx, iface, obj, &funval))
         return false;
 
     // protect funobj until it is actually attached
@@ -735,9 +731,9 @@ XPC_WN_OuterObject(JSContext *cx, JSHandleObject obj_)
 
     XPCNativeScriptableInfo* si = wrapper->GetScriptableInfo();
     if (si && si->GetFlags().WantOuterObject()) {
-        RootedObject newThis(cx);
+        JSObject *newThis;
         nsresult rv =
-            si->GetCallback()->OuterObject(wrapper, cx, obj, newThis.address());
+            si->GetCallback()->OuterObject(wrapper, cx, obj, &newThis);
 
         if (NS_FAILED(rv)) {
             Throw(rv, cx);
@@ -854,7 +850,7 @@ XPC_WN_MaybeResolvingStrictPropertyStub(JSContext *cx, JSHandleObject obj, JSHan
 #define PRE_HELPER_STUB                                                       \
     XPCWrappedNative* wrapper;                                                \
     nsIXPCScriptable* si;                                                     \
-    JSObject *unwrapped = js::CheckedUnwrap(obj, false);                \
+    JSObject *unwrapped = js::UnwrapObjectChecked(obj, false);                \
     if (!unwrapped) {                                                         \
         JS_ReportError(cx, "Permission denied to operate on object.");        \
         return false;                                                         \
@@ -938,7 +934,7 @@ static JSBool
 XPC_WN_Helper_Call(JSContext *cx, unsigned argc, jsval *vp)
 {
     // N.B. we want obj to be the callee, not JS_THIS(cx, vp)
-    RootedObject obj(cx, JSVAL_TO_OBJECT(JS_CALLEE(cx, vp)));
+    JSObject *obj = JSVAL_TO_OBJECT(JS_CALLEE(cx, vp));
 
     XPCCallContext ccx(JS_CALLER, cx, obj, nullptr, JSID_VOID,
                        argc, JS_ARGV(cx, vp), vp);
@@ -956,7 +952,7 @@ XPC_WN_Helper_Call(JSContext *cx, unsigned argc, jsval *vp)
 static JSBool
 XPC_WN_Helper_Construct(JSContext *cx, unsigned argc, jsval *vp)
 {
-    RootedObject obj(cx, JSVAL_TO_OBJECT(JS_CALLEE(cx, vp)));
+    JSObject *obj = JSVAL_TO_OBJECT(JS_CALLEE(cx, vp));
     if (!obj)
         return false;
 
@@ -996,7 +992,7 @@ XPC_WN_Helper_NewResolve(JSContext *cx, JSHandleObject obj, JSHandleId id, unsig
 {
     nsresult rv = NS_OK;
     bool retval = true;
-    RootedObject obj2FromScriptable(cx);
+    JSObject* obj2FromScriptable = nullptr;
     if (IS_SLIM_WRAPPER(obj)) {
         XPCNativeScriptableInfo *si =
             GetSlimWrapperProto(obj)->GetScriptableInfo();
@@ -1008,7 +1004,7 @@ XPC_WN_Helper_NewResolve(JSContext *cx, JSHandleObject obj, JSHandleId id, unsig
                      "We don't support these flags for slim wrappers!");
 
         rv = si->GetCallback()->NewResolve(nullptr, cx, obj, id, flags,
-                                           obj2FromScriptable.address(), &retval);
+                                           &obj2FromScriptable, &retval);
         if (NS_FAILED(rv))
             return Throw(rv, cx);
 
@@ -1022,7 +1018,7 @@ XPC_WN_Helper_NewResolve(JSContext *cx, JSHandleObject obj, JSHandleId id, unsig
     XPCWrappedNative* wrapper = ccx.GetWrapper();
     THROW_AND_RETURN_IF_BAD_WRAPPER(cx, wrapper);
 
-    RootedId old(cx, ccx.SetResolveName(id));
+    jsid old = ccx.SetResolveName(id);
 
     XPCNativeScriptableInfo* si = wrapper->GetScriptableInfo();
     if (si && si->GetFlags().WantNewResolve()) {
@@ -1033,7 +1029,7 @@ XPC_WN_Helper_NewResolve(JSContext *cx, JSHandleObject obj, JSHandleId id, unsig
             oldResolvingWrapper = ccx.SetResolvingWrapper(wrapper);
 
         rv = si->GetCallback()->NewResolve(wrapper, cx, obj, id, flags,
-                                           obj2FromScriptable.address(), &retval);
+                                           &obj2FromScriptable, &retval);
 
         if (allowPropMods)
             (void)ccx.SetResolvingWrapper(oldResolvingWrapper);
@@ -1210,7 +1206,7 @@ XPC_WN_JSOp_Enumerate(JSContext *cx, JSHandleObject obj, JSIterateOp enum_op,
 
 namespace {
 
-class MOZ_STACK_CLASS AutoPopJSContext
+NS_STACK_CLASS class AutoPopJSContext
 {
 public:
   AutoPopJSContext(XPCJSContextStack *stack)
@@ -1431,9 +1427,9 @@ JSBool
 XPC_WN_CallMethod(JSContext *cx, unsigned argc, jsval *vp)
 {
     NS_ASSERTION(JS_TypeOfValue(cx, JS_CALLEE(cx, vp)) == JSTYPE_FUNCTION, "bad function");
-    RootedObject funobj(cx, JSVAL_TO_OBJECT(JS_CALLEE(cx, vp)));
+    JSObject* funobj = JSVAL_TO_OBJECT(JS_CALLEE(cx, vp));
 
-    RootedObject obj(cx, JS_THIS_OBJECT(cx, vp));
+    JSObject* obj = JS_THIS_OBJECT(cx, vp);
     if (!obj)
         return false;
 
@@ -1467,9 +1463,9 @@ JSBool
 XPC_WN_GetterSetter(JSContext *cx, unsigned argc, jsval *vp)
 {
     NS_ASSERTION(JS_TypeOfValue(cx, JS_CALLEE(cx, vp)) == JSTYPE_FUNCTION, "bad function");
-    RootedObject funobj(cx, JSVAL_TO_OBJECT(JS_CALLEE(cx, vp)));
+    JSObject* funobj = JSVAL_TO_OBJECT(JS_CALLEE(cx, vp));
 
-    RootedObject obj(cx, JS_THIS_OBJECT(cx, vp));
+    JSObject* obj = JS_THIS_OBJECT(cx, vp);
     if (!obj)
         return false;
 

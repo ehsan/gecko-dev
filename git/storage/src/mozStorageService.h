@@ -182,6 +182,8 @@ private:
 
   static int32_t sSynchronousPref;
   static int32_t sDefaultPageSize;
+
+  friend class ServiceMainThreadInitializer;
 };
 
 } // namespace storage

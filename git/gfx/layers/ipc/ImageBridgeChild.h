@@ -165,7 +165,7 @@ public:
    */
   MessageLoop * GetMessageLoop() const;
 
-  PCompositableChild* AllocPCompositable(const TextureInfo& aInfo, uint64_t* aID) MOZ_OVERRIDE;
+  PCompositableChild* AllocPCompositable(const CompositableType& aType, uint64_t* aID) MOZ_OVERRIDE;
   bool DeallocPCompositable(PCompositableChild* aActor) MOZ_OVERRIDE;
 
   /**
@@ -231,12 +231,11 @@ public:
   virtual void Connect(CompositableClient* aCompositable) MOZ_OVERRIDE;
 
   /**
-   * Communicate to the compositor that the texture identified by aCompositable
-   * and aTextureId has been updated to aDescriptor.
+   * Communicate to the compositor that the texture identified by aLayer
+   * and aIdentifier has been updated to aImage.
    */
-  virtual void UpdateTexture(CompositableClient* aCompositable,
-                             TextureIdentifier aTextureId,
-                             SurfaceDescriptor* aDescriptor) MOZ_OVERRIDE;
+  virtual void UpdateTexture(TextureClient* aTexture,
+                             const SurfaceDescriptor& aImage) MOZ_OVERRIDE;
 
   /**
    * Communicate the picture rect of a YUV image in aLayer to the compositor
@@ -248,14 +247,12 @@ public:
   // at the moment we don't need to implement these. They are only used for
   // thebes layers which don't support async updates.
   virtual void CreatedSingleBuffer(CompositableClient* aCompositable,
-                                   const SurfaceDescriptor& aDescriptor,
-                                   const TextureInfo& aTextureInfo) MOZ_OVERRIDE {
+                                   TextureClient* aBuffer) MOZ_OVERRIDE {
     NS_RUNTIMEABORT("should not be called");
   }
   virtual void CreatedDoubleBuffer(CompositableClient* aCompositable,
-                                   const SurfaceDescriptor& aFrontDescriptor,
-                                   const SurfaceDescriptor& aBackDescriptor,
-                                   const TextureInfo& aTextureInfo) MOZ_OVERRIDE {
+                                   TextureClient* aFront,
+                                   TextureClient* aBack) MOZ_OVERRIDE {
     NS_RUNTIMEABORT("should not be called");
   }
   virtual void DestroyThebesBuffer(CompositableClient* aCompositable) MOZ_OVERRIDE {

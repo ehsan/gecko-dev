@@ -101,7 +101,6 @@
 #include "nsIFormControl.h"
 #include "nsIForm.h"
 #include "nsIFragmentContentSink.h"
-#include "nsIFrame.h"
 #include "nsIHTMLDocument.h"
 #include "nsIIdleService.h"
 #include "nsIImageLoadingContent.h"
@@ -158,7 +157,6 @@
 #include "nsSVGFeatures.h"
 #include "nsTextEditorState.h"
 #include "nsTextFragment.h"
-#include "nsTextNode.h"
 #include "nsThreadUtils.h"
 #include "nsUnicharUtilCIID.h"
 #include "nsUnicodeProperties.h"
@@ -2931,7 +2929,7 @@ nsContentUtils::NameChanged(nsINodeInfo* aNodeInfo, nsIAtom* aName,
                                 aNodeInfo->NamespaceID(),
                                 aNodeInfo->NodeType(),
                                 aNodeInfo->GetExtraName()).get();
-  return NS_OK;
+  return *aResult ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
 
 
@@ -4154,7 +4152,7 @@ nsContentUtils::CreateContextualFragment(nsINode* aContextNode,
 
   if (isHTML) {
     nsRefPtr<DocumentFragment> frag =
-      new DocumentFragment(document->NodeInfoManager());
+      NS_NewDocumentFragment(document->NodeInfoManager(), aRv);
     
     nsCOMPtr<nsIContent> contextAsContent = do_QueryInterface(aContextNode);
     if (contextAsContent && !contextAsContent->IsElement()) {
@@ -4480,12 +4478,14 @@ nsContentUtils::SetNodeTextContent(nsIContent* aContent,
     return NS_OK;
   }
 
-  nsRefPtr<nsTextNode> textContent =
-    new nsTextNode(aContent->NodeInfo()->NodeInfoManager());
+  nsCOMPtr<nsIContent> textContent;
+  nsresult rv = NS_NewTextNode(getter_AddRefs(textContent),
+                               aContent->NodeInfo()->NodeInfoManager());
+  NS_ENSURE_SUCCESS(rv, rv);
 
   textContent->SetText(aValue, true);
 
-  nsresult rv = aContent->AppendChildTo(textContent, true);
+  rv = aContent->AppendChildTo(textContent, true);
   mb.NodesAdded();
   return rv;
 }
@@ -6749,40 +6749,6 @@ nsContentUtils::TraceWrapper(nsWrapperCache* aCache, TraceCallback aCallback,
       aCallback(wrapper, "Preserved wrapper", aClosure);
     }
   }
-}
-
-// static
-int32_t
-nsContentUtils::GetAdjustedOffsetInTextControl(nsIFrame* aOffsetFrame,
-                                               int32_t aOffset)
-{
-  // The structure of the anonymous frames within a text control frame is
-  // an optional block frame, followed by an optional br frame.
-
-  // If the offset frame has a child, then this frame is the block which
-  // has the text frames (containing the content) as its children. This will
-  // be the case if we click to the right of any of the text frames, or at the
-  // bottom of the text area.
-  nsIFrame* firstChild = aOffsetFrame->GetFirstPrincipalChild();
-  if (firstChild) {
-    // In this case, the passed-in offset is incorrect, and we want the length
-    // of the entire content in the text control frame.
-    return firstChild->GetContent()->Length();
-  }
-
-  if (aOffsetFrame->GetPrevSibling() &&
-      !aOffsetFrame->GetNextSibling()) {
-    // In this case, we're actually within the last frame, which is a br
-    // frame. Our offset should therefore be the length of the first child of
-    // our parent.
-    int32_t aOutOffset =
-      aOffsetFrame->GetParent()->GetFirstPrincipalChild()->GetContent()->Length();
-    return aOutOffset;
-  }
-
-  // Otherwise, we're within one of the text frames, in which case our offset
-  // has already been correctly calculated.
-  return aOffset;
 }
 
 // static

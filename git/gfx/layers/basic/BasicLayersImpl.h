@@ -74,7 +74,7 @@ protected:
  * This helper class manages the gfxASurface-or-SurfaceDescriptor
  * logic.
  */
-class MOZ_STACK_CLASS AutoMaskData {
+class NS_STACK_CLASS AutoMaskData {
 public:
   AutoMaskData() { }
   ~AutoMaskData() { }

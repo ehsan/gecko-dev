@@ -125,7 +125,6 @@
 #include "nsRefreshDriver.h"
 #include "nsRuleProcessorData.h"
 #include "GeckoProfiler.h"
-#include "nsTextNode.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -680,7 +679,7 @@ nsAbsoluteItems::AddChild(nsIFrame* aChild)
 
 // Structure for saving the existing state when pushing/poping containing
 // blocks. The destructor restores the state to its previous state
-class MOZ_STACK_CLASS nsFrameConstructorSaveState {
+class NS_STACK_CLASS nsFrameConstructorSaveState {
 public:
   typedef nsIFrame::ChildListID ChildListID;
   nsFrameConstructorSaveState();
@@ -722,7 +721,7 @@ struct PendingBinding : public LinkedListElement<PendingBinding>
 
 // Structure used for maintaining state information during the
 // frame construction process
-class MOZ_STACK_CLASS nsFrameConstructorState {
+class NS_STACK_CLASS nsFrameConstructorState {
 public:
   typedef nsIFrame::ChildListID ChildListID;
 
@@ -861,7 +860,7 @@ public:
    */
   class PendingBindingAutoPusher;
   friend class PendingBindingAutoPusher;
-  class MOZ_STACK_CLASS PendingBindingAutoPusher {
+  class NS_STACK_CLASS PendingBindingAutoPusher {
   public:
     PendingBindingAutoPusher(nsFrameConstructorState& aState,
                              PendingBinding* aPendingBinding) :
@@ -1527,10 +1526,17 @@ nsCSSFrameConstructor::CreateGenConTextNode(nsFrameConstructorState& aState,
                                             nsCOMPtr<nsIDOMCharacterData>* aText,
                                             nsGenConInitializer* aInitializer)
 {
-  nsRefPtr<nsTextNode> content = new nsTextNode(mDocument->NodeInfoManager());
+  nsCOMPtr<nsIContent> content;
+  NS_NewTextNode(getter_AddRefs(content), mDocument->NodeInfoManager());
+  if (!content) {
+    // XXX The quotes/counters code doesn't like the text pointer
+    // being null in case of dynamic changes!
+    NS_ASSERTION(!aText, "this OOM case isn't handled very well");
+    return nullptr;
+  }
   content->SetText(aString, false);
   if (aText) {
-    *aText = content;
+    *aText = do_QueryInterface(content);
   }
   if (aInitializer) {
     content->SetProperty(nsGkAtoms::genConInitializerProperty, aInitializer,
@@ -3565,7 +3571,6 @@ nsCSSFrameConstructor::ConstructFrameFromItemInternal(FrameConstructionItem& aIt
 
     // If we need to create a block formatting context to wrap our
     // kids, do it now.
-    const nsStyleDisplay* maybeAbsoluteContainingBlockDisplay = display;
     nsIFrame* maybeAbsoluteContainingBlock = newFrame;
     nsIFrame* possiblyLeafFrame = newFrame;
     if (bits & FCDATA_CREATE_BLOCK_WRAPPER_FOR_ALL_KIDS) {
@@ -3585,7 +3590,6 @@ nsCSSFrameConstructor::ConstructFrameFromItemInternal(FrameConstructionItem& aIt
       // positioned, otherwise the former.
       const nsStyleDisplay* blockDisplay = blockContext->StyleDisplay();
       if (blockDisplay->IsPositioned(blockFrame)) {
-        maybeAbsoluteContainingBlockDisplay = blockDisplay;
         maybeAbsoluteContainingBlock = blockFrame;
       }
       
@@ -3618,11 +3622,7 @@ nsCSSFrameConstructor::ConstructFrameFromItemInternal(FrameConstructionItem& aIt
     } else if (!(bits & FCDATA_SKIP_ABSPOS_PUSH)) {
       nsIFrame* cb = maybeAbsoluteContainingBlock;
       cb->AddStateBits(NS_FRAME_CAN_HAVE_ABSPOS_CHILDREN);
-      if ((maybeAbsoluteContainingBlockDisplay->IsAbsolutelyPositionedStyle() ||
-           maybeAbsoluteContainingBlockDisplay->IsRelativelyPositionedStyle() ||
-           (maybeAbsoluteContainingBlockDisplay->HasTransformStyle() &&
-            cb->IsFrameOfType(nsIFrame::eSupportsCSSTransforms))) &&
-          !cb->IsSVGText()) {
+      if (cb->IsPositioned()) {
         aState.PushAbsoluteContainingBlock(cb, absoluteSaveState);
       }
     }

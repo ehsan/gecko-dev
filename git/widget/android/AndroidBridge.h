@@ -367,7 +367,7 @@ public:
                             nsACString & aResult);
 protected:
     static AndroidBridge *sBridge;
-    nsTArray<nsCOMPtr<nsIMobileMessageCallback> > mSmsRequests;
+    static StaticAutoPtr<nsTArray<nsCOMPtr<nsIMobileMessageCallback> > > sSmsRequests;
 
     // the global JavaVM
     JavaVM *mJavaVM;

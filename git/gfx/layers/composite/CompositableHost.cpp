@@ -7,6 +7,7 @@
 #include "ImageHost.h"
 #include "ContentHost.h"
 #include "TiledContentHost.h"
+#include "mozilla/layers/TextureParent.h"
 #include "Effects.h"
 #include "mozilla/layers/CompositableTransactionParent.h"
 
@@ -43,24 +44,24 @@ CompositableHost::AddMaskEffect(EffectChain& aEffects,
 }
 
 /* static */ TemporaryRef<CompositableHost>
-CompositableHost::Create(const TextureInfo& aTextureInfo, Compositor* aCompositor)
+CompositableHost::Create(CompositableType aType, Compositor* aCompositor)
 {
   RefPtr<CompositableHost> result;
-  switch (aTextureInfo.mCompositableType) {
+  switch (aType) {
   case BUFFER_IMAGE_BUFFERED:
-    result = new ImageHostBuffered(aTextureInfo, aCompositor);
+    result = new ImageHostBuffered(aCompositor, aType);
     return result;
   case BUFFER_IMAGE_SINGLE:
-    result = new ImageHostSingle(aTextureInfo, aCompositor);
+    result = new ImageHostSingle(aCompositor, aType);
     return result;
   case BUFFER_TILED:
-    result = new TiledContentHost(aTextureInfo, aCompositor);
+    result = new TiledContentHost(aCompositor);
     return result;
   case BUFFER_CONTENT:
-    result = new ContentHostSingleBuffered(aTextureInfo, aCompositor);
+    result = new ContentHostSingleBuffered(aCompositor);
     return result;
   case BUFFER_CONTENT_DIRECT:
-    result = new ContentHostDoubleBuffered(aTextureInfo, aCompositor);
+    result = new ContentHostDoubleBuffered(aCompositor);
     return result;
   default:
     MOZ_NOT_REACHED("Unknown CompositableType");
@@ -68,24 +69,30 @@ CompositableHost::Create(const TextureInfo& aTextureInfo, Compositor* aComposito
   }
 }
 
-void
-CompositableParent::ActorDestroy(ActorDestroyReason why)
+PTextureParent*
+CompositableParent::AllocPTexture(const TextureInfo& aInfo)
 {
-  if (mHost) {
-    mHost->Detach();
-  }
+  return new TextureParent(aInfo, this);
 }
 
+bool
+CompositableParent::DeallocPTexture(PTextureParent* aActor)
+{
+  delete aActor;
+  return true;
+}
+
+
 CompositableParent::CompositableParent(CompositableParentManager* aMgr,
-                                       const TextureInfo& aTextureInfo,
+                                       CompositableType aType,
                                        uint64_t aID)
 : mManager(aMgr)
-, mType(aTextureInfo.mCompositableType)
+, mType(aType)
 , mID(aID)
 , mCompositorID(0)
 {
   MOZ_COUNT_CTOR(CompositableParent);
-  mHost = CompositableHost::Create(aTextureInfo);
+  mHost = CompositableHost::Create(aType);
   if (aID) {
     CompositableMap::Set(aID, this);
   }

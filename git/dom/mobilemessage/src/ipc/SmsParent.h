@@ -65,9 +65,6 @@ protected:
 
   virtual bool
   DeallocPMobileMessageCursor(PMobileMessageCursorParent* aActor) MOZ_OVERRIDE;
-
-  bool
-  GetMobileMessageDataFromMessage(nsISupports* aMsg, MobileMessageData& aData);
 };
 
 class SmsRequestParent : public PSmsRequestParent
@@ -98,9 +95,6 @@ protected:
 
   bool
   DoRequest(const SendMessageRequest& aRequest);
-
-  bool
-  DoRequest(const RetrieveMessageRequest& aRequest);
 
   bool
   DoRequest(const GetMessageRequest& aRequest);

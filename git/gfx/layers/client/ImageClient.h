@@ -38,6 +38,11 @@ public:
 
   virtual ~ImageClient() {}
 
+  virtual CompositableType GetType() const MOZ_OVERRIDE
+  {
+    return mType;
+  }
+
   /**
    * Update this ImageClient from aContainer in aLayer
    * returns false if this is the wrong kind of ImageClient for aContainer.
@@ -86,21 +91,9 @@ public:
   void EnsureTextureClient(TextureClientType aType);
 
   virtual void Updated();
-
-  virtual void SetDescriptorFromReply(TextureIdentifier aTextureId,
-                                      const SurfaceDescriptor& aDescriptor) MOZ_OVERRIDE
-  {
-    mTextureClient->SetDescriptorFromReply(aDescriptor);
-  }
-
-  virtual TextureInfo GetTextureInfo() const MOZ_OVERRIDE
-  {
-    return mTextureInfo;
-  }
-
 private:
   RefPtr<TextureClient> mTextureClient;
-  TextureInfo mTextureInfo;
+  TextureFlags mFlags;
 };
 
 /**
@@ -120,11 +113,6 @@ public:
   void SetLayer(ShadowableLayer* aLayer)
   {
     mLayer = aLayer;
-  }
-
-  virtual TextureInfo GetTextureInfo() const MOZ_OVERRIDE
-  {
-    return TextureInfo(mType);
   }
 
 protected:

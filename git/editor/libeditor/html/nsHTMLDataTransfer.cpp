@@ -6,7 +6,6 @@
 
 #include <string.h>
 
-#include "mozilla/dom/DocumentFragment.h"
 #include "mozilla/Base64.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Selection.h"
@@ -93,7 +92,6 @@ class nsILoadContext;
 class nsISupports;
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 const PRUnichar nbsp = 160;
 
@@ -2283,8 +2281,10 @@ nsresult nsHTMLEditor::ParseFragment(const nsAString & aFragStr,
 {
   nsAutoScriptBlockerSuppressNodeRemoved autoBlocker;
 
-  nsRefPtr<DocumentFragment> fragment =
-    new DocumentFragment(aTargetDocument->NodeInfoManager());
+  nsCOMPtr<nsIDOMDocumentFragment> frag;
+  NS_NewDocumentFragment(getter_AddRefs(frag),
+                         aTargetDocument->NodeInfoManager());
+  nsCOMPtr<nsIContent> fragment = do_QueryInterface(frag);
   nsresult rv = nsContentUtils::ParseFragmentHTML(aFragStr,
                                                   fragment,
                                                   aContextLocalName ?
@@ -2298,7 +2298,7 @@ nsresult nsHTMLEditor::ParseFragment(const nsAString & aFragStr,
                               nsIParserUtils::SanitizerAllowComments);
     sanitizer.Sanitize(fragment);
   }
-  *outNode = fragment.forget();
+  *outNode = do_QueryInterface(frag);
   return rv;
 }
 

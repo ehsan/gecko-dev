@@ -13,27 +13,62 @@
 #include "mozilla/layers/ContentHost.h"
 #include "ShadowLayerParent.h"
 #include "TiledLayerBuffer.h"
+#include "mozilla/layers/TextureParent.h"
 #include "LayerManagerComposite.h"
 #include "CompositorParent.h"
 
 namespace mozilla {
 namespace layers {
 
+//--------------------------------------------------
+// Convenience accessors
+template<class OpPaintT>
+Layer* GetLayerFromOpPaint(const OpPaintT& op)
+{
+  PTextureParent* textureParent = op.textureParent();
+  CompositableHost* compoHost
+    = static_cast<CompositableParent*>(textureParent->Manager())->GetCompositableHost();
+  return compoHost ? compoHost->GetLayer() : nullptr;
+}
+
 bool
 CompositableParentManager::ReceiveCompositableUpdate(const CompositableOperation& aEdit,
                                                      EditReplyVector& replyv)
 {
   switch (aEdit.type()) {
-    case CompositableOperation::TOpCreatedTexture: {
-      MOZ_LAYERS_LOG(("[ParentSide] Created texture"));
-      const OpCreatedTexture& op = aEdit.get_OpCreatedTexture();
-      CompositableParent* compositableParent =
-        static_cast<CompositableParent*>(op.compositableParent());
-      CompositableHost* compositable = compositableParent->GetCompositableHost();
+    case CompositableOperation::TOpCreatedSingleBuffer: {
+      MOZ_LAYERS_LOG(("[ParentSide] Created single buffer"));
+      const OpCreatedSingleBuffer& op = aEdit.get_OpCreatedSingleBuffer();
+      CompositableParent* compositableParent = static_cast<CompositableParent*>(op.compositableParent());
+      TextureParent* textureParent = static_cast<TextureParent*>(op.bufferParent());
 
-      compositable->EnsureTextureHost(op.textureId(), op.descriptor(),
-                                      compositableParent->GetCompositableManager(),
-                                      op.textureInfo());
+      textureParent->EnsureTextureHost(op.descriptor().type());
+      textureParent->GetTextureHost()->SetBuffer(new SurfaceDescriptor(op.descriptor()),
+                                                 compositableParent->GetCompositableManager());
+
+      ContentHostBase* content = static_cast<ContentHostBase*>(compositableParent->GetCompositableHost());
+      content->SetTextureHosts(textureParent->GetTextureHost());
+
+      break;
+    }
+    case CompositableOperation::TOpCreatedDoubleBuffer: {
+      MOZ_LAYERS_LOG(("[ParentSide] Created double buffer"));
+      const OpCreatedDoubleBuffer& op = aEdit.get_OpCreatedDoubleBuffer();
+      CompositableParent* compositableParent = static_cast<CompositableParent*>(op.compositableParent());
+      TextureParent* frontParent = static_cast<TextureParent*>(op.frontParent());
+      TextureParent* backParent = static_cast<TextureParent*>(op.backParent());
+
+
+      frontParent->EnsureTextureHost(op.frontDescriptor().type());
+      backParent->EnsureTextureHost(op.backDescriptor().type());
+      frontParent->GetTextureHost()->SetBuffer(new SurfaceDescriptor(op.frontDescriptor()),
+                                               compositableParent->GetCompositableManager());
+      backParent->GetTextureHost()->SetBuffer(new SurfaceDescriptor(op.backDescriptor()),
+                                              compositableParent->GetCompositableManager());
+
+      ContentHostBase* content = static_cast<ContentHostBase*>(compositableParent->GetCompositableHost());
+      content->SetTextureHosts(frontParent->GetTextureHost(),
+                               backParent->GetTextureHost());
 
       break;
     }
@@ -50,12 +85,9 @@ CompositableParentManager::ReceiveCompositableUpdate(const CompositableOperation
       MOZ_LAYERS_LOG(("[ParentSide] Paint Texture X"));
       const OpPaintTexture& op = aEdit.get_OpPaintTexture();
 
-      CompositableParent* compositableParent =
-        static_cast<CompositableParent*>(op.compositableParent());
-      CompositableHost* compositable =
-        compositableParent->GetCompositableHost();
-
-      Layer* layer = compositable ? compositable->GetLayer() : nullptr;
+      TextureParent* textureParent = static_cast<TextureParent*>(op.textureParent());
+      CompositableHost* compositable = textureParent->GetCompositableHost();
+      Layer* layer = GetLayerFromOpPaint(op);
       ShadowLayer* shadowLayer = layer ? layer->AsShadowLayer() : nullptr;
       if (shadowLayer) {
         Compositor* compositor = static_cast<LayerManagerComposite*>(layer->Manager())->GetCompositor();
@@ -73,21 +105,18 @@ CompositableParentManager::ReceiveCompositableUpdate(const CompositableOperation
       }
 
       const SurfaceDescriptor& descriptor = op.image();
-      compositable->EnsureTextureHost(op.textureId(),
-                                      descriptor,
-                                      compositableParent->GetCompositableManager(),
-                                      TextureInfo());
-      MOZ_ASSERT(compositable->GetTextureHost());
+      textureParent->EnsureTextureHost(descriptor.type());
+      MOZ_ASSERT(textureParent->GetTextureHost());
 
       SurfaceDescriptor newBack;
-      bool shouldRecomposite = compositable->Update(descriptor, &newBack);
+      bool shouldRecomposite = compositable->Update(op.image(), &newBack);
       if (IsSurfaceDescriptorValid(newBack)) {
-        replyv.push_back(OpTextureSwap(compositableParent, nullptr, op.textureId(), newBack));
+        replyv.push_back(OpTextureSwap(op.textureParent(), nullptr, newBack));
       }
 
-      if (shouldRecomposite && compositableParent->GetCompositorID()) {
+      if (shouldRecomposite && textureParent->GetCompositorID()) {
         CompositorParent* cp
-          = CompositorParent::GetCompositor(compositableParent->GetCompositorID());
+          = CompositorParent::GetCompositor(textureParent->GetCompositorID());
         if (cp) {
           cp->ScheduleComposition();
         }

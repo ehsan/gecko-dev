@@ -24,28 +24,13 @@ ImageHostSingle::SetCompositor(Compositor* aCompositor) {
   }
 }
 
-bool
-ImageHostSingle::EnsureTextureHost(TextureIdentifier aTextureId,
-                                   const SurfaceDescriptor& aSurface,
-                                   ISurfaceAllocator* aAllocator,
-                                   const TextureInfo& aTextureInfo)
+void
+ImageHostSingle::AddTextureHost(TextureHost* aHost, ISurfaceAllocator* aAllocator)
 {
-  if (mTextureHost &&
-      mTextureHost->GetBuffer() &&
-      mTextureHost->GetBuffer()->type() == aSurface.type()) {
-    return false;
+  mTextureHost = aHost;
+  if (mCompositor) {
+    mTextureHost->SetCompositor(mCompositor);
   }
-
-  mTextureHost = TextureHost::CreateTextureHost(aSurface.type(),
-                                                mTextureInfo.mTextureHostFlags,
-                                                mTextureInfo.mTextureFlags);
-
-  Compositor* compositor = GetCompositor();
-  if (compositor) {
-    mTextureHost->SetCompositor(compositor);
-  }
-
-  return true;
 }
 
 void
@@ -149,22 +134,18 @@ ImageHostBuffered::Update(const SurfaceDescriptor& aImage,
   return GetTextureHost()->IsValid();
 }
 
-bool
-ImageHostBuffered::EnsureTextureHost(TextureIdentifier aTextureId,
-                                     const SurfaceDescriptor& aSurface,
-                                     ISurfaceAllocator* aAllocator,
-                                     const TextureInfo& aTextureInfo)
+void
+ImageHostBuffered::AddTextureHost(TextureHost* aHost,
+                                  ISurfaceAllocator* aAllocator)
 {
-  bool result = ImageHostSingle::EnsureTextureHost(aTextureId,
-                                                   aSurface,
-                                                   aAllocator,
-                                                   aTextureInfo);
-  if (result) {
-    mTextureHost->SetBuffer(new SurfaceDescriptor(null_t()), aAllocator);
-    mPictureRect = nsIntRect(0, 0, -1, -1);
+  MOZ_ASSERT(aAllocator);
+  mTextureHost = aHost;
+  if (mCompositor) {
+    mTextureHost->SetCompositor(mCompositor);
   }
-
-  return result;
+  mTextureHost->SetBuffer(new SurfaceDescriptor(null_t()),
+                          aAllocator);
+  mPictureRect = nsIntRect(0, 0, -1, -1);
 }
 
 }

@@ -43,7 +43,6 @@ webidl_files = \
   CSSValue.webidl \
   CSSValueList.webidl \
   DelayNode.webidl \
-  DesktopNotification.webidl \
   Document.webidl \
   DocumentFragment.webidl \
   DocumentType.webidl \
@@ -326,12 +325,6 @@ webidl_files += \
   SpeechSynthesisUtterance.webidl \
   SpeechSynthesisVoice.webidl \
   SpeechSynthesis.webidl \
-  $(NULL)
-endif
-
-ifdef MOZ_GAMEPAD
-webidl_files += \
-  Gamepad.webidl \
   $(NULL)
 endif
 

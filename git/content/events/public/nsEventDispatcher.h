@@ -196,7 +196,7 @@ public:
  * before handling the system event group.
  * This is used in nsPresShell.
  */
-class MOZ_STACK_CLASS nsDispatchingCallback {
+class NS_STACK_CLASS nsDispatchingCallback {
 public:
   virtual void HandleEvent(nsEventChainPostVisitor& aVisitor) = 0;
 };
