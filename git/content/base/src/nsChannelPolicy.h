@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -12,18 +12,17 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is Mozilla Communicator client code.
+ * The Original Code is mozilla.org code channel policy container code.
  *
  * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
- * the Initial Developer. All Rights Reserved.
+ *   Mozilla Corporation
  *
  * Contributor(s):
+ *   Brandon Sterne <bsterne@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
  * in which case the provisions of the GPL or the LGPL are applicable instead
  * of those above. If you wish to allow use of your version of this file only
  * under the terms of either the GPL or the LGPL, and not to allow others to
@@ -35,33 +34,34 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef nsPIBoxObject_h___
-#define nsPIBoxObject_h___
+#ifndef nsChannelPolicy_h___
+#define nsChannelPolicy_h___
 
-// {2b8bb262-1b0f-4572-ba87-5d4ae4954445}
-#define NS_PIBOXOBJECT_IID \
-{ 0x2b8bb262, 0x1b0f, 0x4572, \
-  { 0xba, 0x87, 0x5d, 0x4a, 0xe4, 0x95, 0x44, 0x45 } }
+#include "nsCOMPtr.h"
+#include "nsIChannelPolicy.h"
 
+#define NSCHANNELPOLICY_CONTRACTID "@mozilla.org/nschannelpolicy;1"
+#define NSCHANNELPOLICY_CID \
+{ 0xd396b3cd, 0xf164, 0x4ce8, \
+  { 0x93, 0xa7, 0xe3, 0x85, 0xe1, 0x46, 0x56, 0x3c } }
 
-class nsIContent;
-
-class nsPIBoxObject : public nsIBoxObject
+class nsChannelPolicy : public nsIChannelPolicy
 {
 public:
-  NS_DECLARE_STATIC_IID_ACCESSOR(NS_PIBOXOBJECT_IID)
+    NS_DECL_ISUPPORTS
+    NS_DECL_NSICHANNELPOLICY
 
-  virtual nsresult Init(nsIContent* aContent) = 0;
+    nsChannelPolicy();
+    virtual ~nsChannelPolicy();
 
-  // Drop the weak ref to the content node as needed
-  virtual void Clear() = 0;
+protected:
+    /* Represents the type of content being loaded in the channel per
+     * nsIContentPolicy, e.g. TYPE_IMAGE, TYPE_SCRIPT
+     */
+    unsigned long mLoadType;
 
-  // The values cached by the implementation of this interface should be
-  // cleared when this method is called.
-  virtual void ClearCachedValues() = 0;
+    /* pointer to a Content Security Policy object if available */
+    nsCOMPtr<nsISupports> mCSP;
 };
 
-NS_DEFINE_STATIC_IID_ACCESSOR(nsPIBoxObject, NS_PIBOXOBJECT_IID)
-
-#endif
-
+#endif /* nsChannelPolicy_h___ */
