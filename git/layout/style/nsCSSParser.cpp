@@ -74,6 +74,7 @@
 #include "nsXMLNameSpaceMap.h"
 #include "nsThemeConstants.h"
 #include "nsContentErrors.h"
+#include "nsPrintfCString.h"
 #include "nsIMediaList.h"
 #include "nsILookAndFeel.h"
 #include "nsStyleUtil.h"
@@ -87,7 +88,6 @@
 #include "prlog.h"
 #include "CSSCalc.h"
 #include "nsMediaFeatures.h"
-#include "nsLayoutUtils.h"
 
 namespace css = mozilla::css;
 
@@ -121,7 +121,6 @@ namespace css = mozilla::css;
 #define VARIANT_ZERO_ANGLE    0x02000000  // unitless zero for angles
 #define VARIANT_CALC          0x04000000  // eCSSUnit_Calc
 #define VARIANT_ELEMENT       0x08000000  // eCSSUnit_Element
-#define VARIANT_POSITIVE_LENGTH 0x10000000 // Only lengths greater than 0.0
 
 // Common combinations of variants
 #define VARIANT_AL   (VARIANT_AUTO | VARIANT_LENGTH)
@@ -492,7 +491,6 @@ protected:
 
   // for 'clip' and '-moz-image-region'
   PRBool ParseRect(nsCSSProperty aPropID);
-  PRBool ParseColumns();
   PRBool ParseContent();
   PRBool ParseCounterData(nsCSSProperty aPropID);
   PRBool ParseCursor();
@@ -514,7 +512,6 @@ protected:
   PRBool ParseSize();
   PRBool ParseTextDecoration();
   PRBool ParseTextDecorationLine(nsCSSValue& aValue);
-  PRBool ParseTextOverflow(nsCSSValue& aValue);
 
   PRBool ParseShadowItem(nsCSSValue& aValue, PRBool aIsBoxShadow);
   PRBool ParseShadowList(nsCSSProperty aProperty);
@@ -589,7 +586,7 @@ protected:
   }
 
   /* Functions for -moz-transform Parsing */
-  PRBool ParseSingleTransform(nsCSSValue& aValue, PRBool& aIs3D);
+  PRBool ParseSingleTransform(nsCSSValue& aValue);
   PRBool ParseFunction(const nsString &aFunction, const PRInt32 aAllowedTypes[],
                        PRUint16 aMinElems, PRUint16 aMaxElems,
                        nsCSSValue &aValue);
@@ -598,8 +595,9 @@ protected:
                                 PRUint16 aMaxElems,
                                 nsTArray<nsCSSValue>& aOutput);
 
-  /* Functions for -moz-transform-origin/-moz-perspective-origin Parsing */
-  PRBool ParseMozTransformOrigin(PRBool aPerspective);
+  /* Functions for -moz-transform-origin Parsing */
+  PRBool ParseMozTransformOrigin();
+
 
   /* Find and return the namespace ID associated with aPrefix.
      If aPrefix has not been declared in an @namespace rule, returns
@@ -1895,7 +1893,8 @@ CSSParserImpl::ParseMediaQueryExpression(nsMediaQuery* aQuery)
       rv = GetToken(PR_TRUE);
       if (!rv)
         break;
-      rv = mToken.mType == eCSSToken_Dimension && mToken.mNumber > 0.0f;
+      rv = mToken.mType == eCSSToken_Dimension &&
+           mToken.mIntegerValid && mToken.mNumber > 0.0f;
       if (!rv) {
         UngetToken();
         break;
@@ -4546,12 +4545,6 @@ CSSParserImpl::ParseVariant(nsCSSValue& aValue,
       ((aVariantMask & (VARIANT_LENGTH | VARIANT_ZERO_ANGLE)) != 0 &&
        eCSSToken_Number == tk->mType &&
        tk->mNumber == 0.0f)) {
-    if ((aVariantMask & VARIANT_POSITIVE_LENGTH) != 0 && 
-        eCSSToken_Number == tk->mType &&
-        tk->mNumber <= 0.0) {
-        UngetToken();
-        return PR_FALSE;
-    }
     if (TranslateDimension(aValue, aVariantMask, tk->mNumber, tk->mIdent)) {
       return PR_TRUE;
     }
@@ -5493,8 +5486,6 @@ CSSParserImpl::ParsePropertyByFunction(nsCSSProperty aPropID)
 
   case eCSSProperty_clip:
     return ParseRect(eCSSProperty_clip);
-  case eCSSProperty__moz_columns:
-    return ParseColumns();
   case eCSSProperty__moz_column_rule:
     return ParseBorderSide(kColumnRuleIDs, PR_FALSE);
   case eCSSProperty_content:
@@ -5551,9 +5542,7 @@ CSSParserImpl::ParsePropertyByFunction(nsCSSProperty aPropID)
   case eCSSProperty__moz_transform:
     return ParseMozTransform();
   case eCSSProperty__moz_transform_origin:
-    return ParseMozTransformOrigin(PR_FALSE);
-  case eCSSProperty_perspective_origin:
-    return ParseMozTransformOrigin(PR_TRUE);
+    return ParseMozTransformOrigin();
   case eCSSProperty_transition:
     return ParseTransition();
   case eCSSProperty_animation:
@@ -5590,10 +5579,6 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
     return ParseVariant(aValue, VARIANT_NONE | VARIANT_INHERIT, nsnull);
   }
 
-  if (aPropID == eCSSPropertyExtra_x_auto_value) {
-    return ParseVariant(aValue, VARIANT_AUTO | VARIANT_INHERIT, nsnull);
-  }
-
   if (aPropID < 0 || aPropID >= eCSSProperty_COUNT_no_shorthands) {
     NS_ABORT_IF_FALSE(PR_FALSE, "not a single value property");
     return PR_FALSE;
@@ -5609,8 +5594,6 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
         return ParseMarks(aValue);
       case eCSSProperty_text_decoration_line:
         return ParseTextDecorationLine(aValue);
-      case eCSSProperty_text_overflow:
-        return ParseTextOverflow(aValue);
       default:
         NS_ABORT_IF_FALSE(PR_FALSE, "should not reach here");
         return PR_FALSE;
@@ -6853,48 +6836,6 @@ CSSParserImpl::ParseRect(nsCSSProperty aPropID)
   return PR_TRUE;
 }
 
-PRBool
-CSSParserImpl::ParseColumns()
-{
-  // We use a similar "fake value" hack to ParseListStyle, because
-  // "auto" is acceptable for both column-count and column-width.
-  // If the fake "auto" value is found, and one of the real values isn't,
-  // that means the fake auto value is meant for the real value we didn't
-  // find.
-  static const nsCSSProperty columnIDs[] = {
-    eCSSPropertyExtra_x_auto_value,
-    eCSSProperty__moz_column_count,
-    eCSSProperty__moz_column_width
-  };
-  const PRInt32 numProps = NS_ARRAY_LENGTH(columnIDs);
-
-  nsCSSValue values[numProps];
-  PRInt32 found = ParseChoice(values, columnIDs, numProps);
-  if (found < 1 || !ExpectEndProperty()) {
-    return PR_FALSE;
-  }
-  if ((found & (1|2|4)) == (1|2|4) &&
-      values[0].GetUnit() ==  eCSSUnit_Auto) {
-    // We filled all 3 values, which is invalid
-    return PR_FALSE;
-  }
-
-  if ((found & 2) == 0) {
-    // Provide auto column-count
-    values[1].SetAutoValue();
-  }
-  if ((found & 4) == 0) {
-    // Provide auto column-width
-    values[2].SetAutoValue();
-  }
-
-  // Start at index 1 to skip the fake auto value.
-  for (PRInt32 index = 1; index < numProps; index++) {
-    AppendValue(columnIDs[index], values[index]);
-  }
-  return PR_TRUE;
-}
-
 #define VARIANT_CONTENT (VARIANT_STRING | VARIANT_URL | VARIANT_COUNTER | VARIANT_ATTR | \
                          VARIANT_KEYWORD)
 PRBool
@@ -7323,55 +7264,37 @@ CSSParserImpl::ParseFunction(const nsString &aFunction,
 static PRBool GetFunctionParseInformation(nsCSSKeyword aToken,
                                           PRUint16 &aMinElems,
                                           PRUint16 &aMaxElems,
-                                          const PRInt32 *& aVariantMask,
-                                          PRBool &aIs3D)
+                                          const PRInt32 *& aVariantMask)
 {
 /* These types represent the common variant masks that will be used to
    * parse out the individual functions.  The order in the enumeration
    * must match the order in which the masks are declared.
    */
   enum { eLengthPercentCalc,
-         eLengthCalc,
          eTwoLengthPercentCalcs,
-         eTwoLengthPercentCalcsOneLengthCalc,
          eAngle,
          eTwoAngles,
          eNumber,
-         ePositiveLength,
          eTwoNumbers,
-         eThreeNumbers,
-         eThreeNumbersOneAngle,
          eMatrix,
-         eMatrix3d,
          eNumVariantMasks };
-  static const PRInt32 kMaxElemsPerFunction = 16;
+  static const PRInt32 kMaxElemsPerFunction = 6;
   static const PRInt32 kVariantMasks[eNumVariantMasks][kMaxElemsPerFunction] = {
     {VARIANT_TRANSFORM_LPCALC},
-    {VARIANT_LENGTH|VARIANT_CALC},
     {VARIANT_TRANSFORM_LPCALC, VARIANT_TRANSFORM_LPCALC},
-    {VARIANT_TRANSFORM_LPCALC, VARIANT_TRANSFORM_LPCALC, VARIANT_LENGTH|VARIANT_CALC},
     {VARIANT_ANGLE_OR_ZERO},
     {VARIANT_ANGLE_OR_ZERO, VARIANT_ANGLE_OR_ZERO},
     {VARIANT_NUMBER},
-    {VARIANT_LENGTH|VARIANT_POSITIVE_LENGTH},
     {VARIANT_NUMBER, VARIANT_NUMBER},
-    {VARIANT_NUMBER, VARIANT_NUMBER, VARIANT_NUMBER},
-    {VARIANT_NUMBER, VARIANT_NUMBER, VARIANT_NUMBER, VARIANT_ANGLE_OR_ZERO},
     {VARIANT_NUMBER, VARIANT_NUMBER, VARIANT_NUMBER, VARIANT_NUMBER,
-     VARIANT_TRANSFORM_LPCALC, VARIANT_TRANSFORM_LPCALC},
-    {VARIANT_NUMBER, VARIANT_NUMBER, VARIANT_NUMBER, VARIANT_NUMBER,
-     VARIANT_NUMBER, VARIANT_NUMBER, VARIANT_NUMBER, VARIANT_NUMBER,
-     VARIANT_NUMBER, VARIANT_NUMBER, VARIANT_NUMBER, VARIANT_NUMBER,
-     VARIANT_NUMBER, VARIANT_NUMBER, VARIANT_NUMBER, VARIANT_NUMBER}};
+     VARIANT_TRANSFORM_LPCALC, VARIANT_TRANSFORM_LPCALC}};
 
 #ifdef DEBUG
   static const PRUint8 kVariantMaskLengths[eNumVariantMasks] =
-    {1, 1, 2, 3, 1, 2, 1, 1, 2, 3, 4, 6, 16};
+    {1, 2, 1, 2, 1, 2, 6};
 #endif
 
   PRInt32 variantIndex = eNumVariantMasks;
-
-  aIs3D = PR_FALSE;
 
   switch (aToken) {
   case eCSSKeyword_translatex:
@@ -7381,51 +7304,23 @@ static PRBool GetFunctionParseInformation(nsCSSKeyword aToken,
     aMinElems = 1U;
     aMaxElems = 1U;
     break;
-  case eCSSKeyword_translatez:
-    /* Exactly one length */
-    variantIndex = eLengthCalc;
+  case eCSSKeyword_scalex:
+    /* Exactly one scale factor. */
+    variantIndex = eNumber;
     aMinElems = 1U;
     aMaxElems = 1U;
-    aIs3D = PR_TRUE;
     break;
-  case eCSSKeyword_translate3d:
-    /* Exactly two lengthds or percents and a number */
-    variantIndex = eTwoLengthPercentCalcsOneLengthCalc;
-    aMinElems = 3U;
-    aMaxElems = 3U;
-    aIs3D = PR_TRUE;
-    break;
-  case eCSSKeyword_scalez:
-    aIs3D = PR_TRUE;
-  case eCSSKeyword_scalex:
   case eCSSKeyword_scaley:
     /* Exactly one scale factor. */
     variantIndex = eNumber;
     aMinElems = 1U;
     aMaxElems = 1U;
     break;
-  case eCSSKeyword_scale3d:
-    /* Exactly three scale factors. */
-    variantIndex = eThreeNumbers;
-    aMinElems = 3U;
-    aMaxElems = 3U;
-    aIs3D = PR_TRUE;
-    break;
-  case eCSSKeyword_rotatex:
-  case eCSSKeyword_rotatey:
-    aIs3D = PR_TRUE;
   case eCSSKeyword_rotate:
-  case eCSSKeyword_rotatez:
     /* Exactly one angle. */
     variantIndex = eAngle;
     aMinElems = 1U;
     aMaxElems = 1U;
-    break;
-  case eCSSKeyword_rotate3d:
-    variantIndex = eThreeNumbersOneAngle;
-    aMinElems = 4U;
-    aMaxElems = 4U;
-    aIs3D = PR_TRUE;
     break;
   case eCSSKeyword_translate:
     /* One or two lengths or percents. */
@@ -7462,21 +7357,7 @@ static PRBool GetFunctionParseInformation(nsCSSKeyword aToken,
     variantIndex = eMatrix;
     aMinElems = 6U;
     aMaxElems = 6U;
-    break;
-  case eCSSKeyword_matrix3d:
-    /* 16 matrix values, all numbers */
-    variantIndex = eMatrix3d;
-    aMinElems = 16U;
-    aMaxElems = 16U;
-    aIs3D = PR_TRUE;
-    break;
-  case eCSSKeyword_perspective:
-    /* Exactly one scale number. */
-    variantIndex = ePositiveLength;
-    aMinElems = 1U;
-    aMaxElems = 1U;
-    aIs3D = PR_TRUE;
-    break;
+    break;    
   default:
     /* Oh dear, we didn't match.  Report an error. */
     return PR_FALSE;
@@ -7502,7 +7383,7 @@ static PRBool GetFunctionParseInformation(nsCSSKeyword aToken,
  * error if something goes wrong.
  */
 PRBool
-CSSParserImpl::ParseSingleTransform(nsCSSValue& aValue, PRBool& aIs3D)
+CSSParserImpl::ParseSingleTransform(nsCSSValue& aValue)
 {
   if (!GetToken(PR_TRUE))
     return PR_FALSE;
@@ -7514,10 +7395,8 @@ CSSParserImpl::ParseSingleTransform(nsCSSValue& aValue, PRBool& aIs3D)
 
   const PRInt32* variantMask;
   PRUint16 minElems, maxElems;
-  nsCSSKeyword keyword = nsCSSKeywords::LookupKeyword(mToken.mIdent);
-
-  if (!GetFunctionParseInformation(keyword,
-                                   minElems, maxElems, variantMask, aIs3D))
+  if (!GetFunctionParseInformation(nsCSSKeywords::LookupKeyword(mToken.mIdent),
+                                   minElems, maxElems, variantMask))
     return PR_FALSE;
 
   return ParseFunction(mToken.mIdent, variantMask, minElems, maxElems, aValue);
@@ -7537,11 +7416,7 @@ PRBool CSSParserImpl::ParseMozTransform()
   } else {
     nsCSSValueList* cur = value.SetListValue();
     for (;;) {
-      PRBool is3D;
-      if (!ParseSingleTransform(cur->mValue, is3D)) {
-        return PR_FALSE;
-      }
-      if (is3D && !nsLayoutUtils::Are3DTransformsEnabled()) {
+      if (!ParseSingleTransform(cur->mValue)) {
         return PR_FALSE;
       }
       if (CheckEndProperty()) {
@@ -7555,19 +7430,11 @@ PRBool CSSParserImpl::ParseMozTransform()
   return PR_TRUE;
 }
 
-PRBool CSSParserImpl::ParseMozTransformOrigin(PRBool aPerspective)
+PRBool CSSParserImpl::ParseMozTransformOrigin()
 {
   nsCSSValuePair position;
-  if (!ParseBoxPositionValues(position, PR_TRUE))
+  if (!ParseBoxPositionValues(position, PR_TRUE) || !ExpectEndProperty())
     return PR_FALSE;
-
-  nsCSSProperty prop = eCSSProperty__moz_transform_origin;
-  if (aPerspective) {
-    if (!ExpectEndProperty()) {
-      return PR_FALSE;
-    }
-    prop = eCSSProperty_perspective_origin;
-  }
 
   // Unlike many other uses of pairs, this position should always be stored
   // as a pair, even if the values are the same, so it always serializes as
@@ -7576,21 +7443,11 @@ PRBool CSSParserImpl::ParseMozTransformOrigin(PRBool aPerspective)
       position.mXValue.GetUnit() == eCSSUnit_Initial) {
     NS_ABORT_IF_FALSE(position.mXValue == position.mYValue,
                       "inherit/initial only half?");
-    AppendValue(prop, position.mXValue);
+    AppendValue(eCSSProperty__moz_transform_origin, position.mXValue);
   } else {
-    nsCSSValue value;
-    if (aPerspective) {
-      value.SetPairValue(position.mXValue, position.mYValue);
-    } else {
-      nsCSSValue depth;
-      if (!ParseVariant(depth, VARIANT_LENGTH | VARIANT_CALC, nsnull) ||
-          !nsLayoutUtils::Are3DTransformsEnabled()) {
-        depth.Reset();
-      }
-      value.SetTripletValue(position.mXValue, position.mYValue, depth);
-    }
-
-    AppendValue(prop, value);
+    nsCSSValue pair;
+    pair.SetPairValue(&position);
+    AppendValue(eCSSProperty__moz_transform_origin, pair);
   }
   return PR_TRUE;
 }
@@ -8170,27 +8027,6 @@ CSSParserImpl::ParseTextDecorationLine(nsCSSValue& aValue)
   return PR_FALSE;
 }
 
-PRBool
-CSSParserImpl::ParseTextOverflow(nsCSSValue& aValue)
-{
-  if (ParseVariant(aValue, VARIANT_INHERIT, nsnull)) {
-    // 'inherit' and 'initial' must be alone
-    return PR_TRUE;
-  }
-
-  nsCSSValue left;
-  if (!ParseVariant(left, VARIANT_KEYWORD | VARIANT_STRING,
-                    nsCSSProps::kTextOverflowKTable))
-    return PR_FALSE;
-
-  nsCSSValue right;
-  if (ParseVariant(right, VARIANT_KEYWORD | VARIANT_STRING,
-                    nsCSSProps::kTextOverflowKTable))
-    aValue.SetPairValue(left, right);
-  else
-    aValue.SetPairValue(left, left);
-  return PR_TRUE;
-}
 
 PRBool
 CSSParserImpl::ParseTransitionProperty()

@@ -273,11 +273,6 @@ struct JSStmtInfo {
 #define TCF_FUN_EXTENSIBLE_SCOPE 0x20000000
 
 /*
- * The caller is JS_Compile*Script*.
- */
-#define TCF_NEED_SCRIPT_OBJECT 0x40000000
-
-/*
  * Flags to check for return; vs. return expr; in a function.
  */
 #define TCF_RETURN_FLAGS        (TCF_RETURN_EXPR | TCF_RETURN_VOID)
@@ -370,7 +365,7 @@ struct JSTreeContext {              /* tree context for semantic checks */
         topStmt(NULL), topScopeStmt(NULL), blockChainBox(NULL), blockNode(NULL),
         decls(prs->context), parser(prs), yieldNode(NULL), argumentsNode(NULL), scopeChain_(NULL),
         lexdeps(prs->context), parent(prs->tc), staticLevel(0), funbox(NULL), functionList(NULL),
-        innermostWith(NULL), bindings(prs->context, prs->emptyCallShape), sharpSlotBase(-1)
+        innermostWith(NULL), bindings(prs->context), sharpSlotBase(-1)
     {
         prs->tc = this;
     }
@@ -649,8 +644,7 @@ struct JSCodeGenerator : public JSTreeContext
                                        cloned during execution */
 
     js::OwnedAtomIndexMapPtr upvarIndices; /* map of atoms to upvar indexes */
-
-    js::UpvarCookies upvarMap;      /* indexed upvar slot locations */
+    JSUpvarArray    upvarMap;       /* indexed upvar pairs (JS_realloc'ed) */
 
     typedef js::Vector<js::GlobalSlotArray::Entry, 16> GlobalUseVector;
 
@@ -663,6 +657,7 @@ struct JSCodeGenerator : public JSTreeContext
     SlotVector      closedVars;
 
     uint16          traceIndex;     /* index for the next JSOP_TRACE instruction */
+    uint16          typesetIndex;   /* index for the next instruction with a type set */
 
     /*
      * Initialize cg to allocate bytecode space from codePool, source note
@@ -985,7 +980,6 @@ typedef enum JSSrcNoteType {
     SRC_CONT2LABEL  = 17,       /* JSOP_GOTO for 'continue label' with atomid */
     SRC_SWITCH      = 18,       /* JSOP_*SWITCH with offset to end of switch,
                                    2nd off to first JSOP_CASE if condswitch */
-    SRC_SWITCHBREAK = 18,       /* JSOP_GOTO is a break in a switch */
     SRC_FUNCDEF     = 19,       /* JSOP_NOP for function f() with atomid */
     SRC_CATCH       = 20,       /* catch block has guard */
     SRC_EXTENDED    = 21,       /* extended source note, 32-159, in next byte */

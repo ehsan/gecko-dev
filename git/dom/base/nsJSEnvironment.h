@@ -114,8 +114,11 @@ public:
                                     nsIArray *argv, nsIVariant **rv);
   virtual nsresult BindCompiledEventHandler(nsISupports *aTarget,
                                             void *aScope,
-                                            void *aHandler,
-                                            nsScriptObjectHolder& aBoundHandler);
+                                            nsIAtom *aName,
+                                            void *aHandler);
+  virtual nsresult GetBoundEventHandler(nsISupports* aTarget, void *aScope,
+                                        nsIAtom* aName,
+                                        nsScriptObjectHolder &aHandler);
   virtual nsresult CompileFunction(void* aTarget,
                                    const nsACString& aName,
                                    PRUint32 aArgCount,
@@ -359,15 +362,5 @@ nsresult NS_CreateJSRuntime(nsIScriptRuntime **aRuntime);
 
 /* prototypes */
 void NS_ScriptErrorReporter(JSContext *cx, const char *message, JSErrorReport *report);
-
-JSObject* NS_DOMReadStructuredClone(JSContext* cx,
-                                    JSStructuredCloneReader* reader, uint32 tag,
-                                    uint32 data, void* closure);
-
-JSBool NS_DOMWriteStructuredClone(JSContext* cx,
-                                  JSStructuredCloneWriter* writer,
-                                  JSObject* obj, void *closure);
-
-void NS_DOMStructuredCloneError(JSContext* cx, uint32 errorid);
 
 #endif /* nsJSEnvironment_h___ */

@@ -107,7 +107,6 @@
 #include "nsXULTemplateQueryProcessorRDF.h"
 #include "nsXULTemplateQueryProcessorXML.h"
 #include "nsXULTemplateQueryProcessorStorage.h"
-#include "nsContentUtils.h"
 
 using namespace mozilla::dom;
 
@@ -2127,10 +2126,9 @@ nsXULTemplateBuilder::DetermineMemberVariable(nsIContent* aElement)
 {
     // recursively iterate over the children looking for an element
     // with uri="?..."
-    for (nsIContent* child = aElement->GetFirstChild();
-         child;
-         child = child->GetNextSibling()) {
+    for (nsINode::ChildIterator iter(aElement); !iter.IsDone(); iter.Next()) {
         nsAutoString uri;
+        nsIContent *child = iter;
         child->GetAttr(kNameSpaceID_None, nsGkAtoms::uri, uri);
         if (!uri.IsEmpty() && uri[0] == PRUnichar('?')) {
             return NS_NewAtom(uri);

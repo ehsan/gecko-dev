@@ -182,9 +182,11 @@ nsresult nsOggCodecState::PageIn(ogg_page* aPage) {
   return NS_OK;
 }
 
-nsresult nsOggCodecState::PacketOutUntilGranulepos(PRBool& aFoundGranulepos) {
+PRBool
+nsOggCodecState::PacketOutUntilGranulepos()
+{
   int r;
-  aFoundGranulepos = PR_FALSE;
+  PRBool foundGp = PR_FALSE;
   // Extract packets from the sync state until either no more packets
   // come out, or we get a data packet with non -1 granulepos.
   do {
@@ -200,15 +202,15 @@ nsresult nsOggCodecState::PacketOutUntilGranulepos(PRBool& aFoundGranulepos) {
         // then use the granulepos to figure out the granulepos of the
         // preceeding packets.
         mUnstamped.AppendElement(clone);
-        aFoundGranulepos = packet.granulepos > 0;
+        foundGp = packet.granulepos != -1;
       }
     }
-  } while (r != 0 && !aFoundGranulepos);
+  } while (r != 0 && !foundGp);
   if (ogg_stream_check(&mState)) {
     NS_WARNING("Unrecoverable error in ogg_stream_packetout");
     return NS_ERROR_FAILURE;
   }
-  return NS_OK;
+  return foundGp;
 }
 
 nsTheoraState::nsTheoraState(ogg_page* aBosPage) :
@@ -375,10 +377,7 @@ nsTheoraState::PageIn(ogg_page* aPage)
                "Page must be for this stream!");
   if (ogg_stream_pagein(&mState, aPage) == -1)
     return NS_ERROR_FAILURE;
-  PRBool foundGp;
-  nsresult res = PacketOutUntilGranulepos(foundGp);
-  if (NS_FAILED(res))
-    return res;
+  PRBool foundGp = PacketOutUntilGranulepos();
   if (foundGp && mDoneReadingHeaders) {
     // We've found a packet with a granulepos, and we've loaded our metadata
     // and initialized our decoder. Determine granulepos of buffered packets.
@@ -623,10 +622,7 @@ nsVorbisState::PageIn(ogg_page* aPage)
                "Page must be for this stream!");
   if (ogg_stream_pagein(&mState, aPage) == -1)
     return NS_ERROR_FAILURE;
-  PRBool foundGp;
-  nsresult res = PacketOutUntilGranulepos(foundGp);
-  if (NS_FAILED(res))
-    return res;
+  PRBool foundGp = PacketOutUntilGranulepos();
   if (foundGp && mDoneReadingHeaders) {
     // We've found a packet with a granulepos, and we've loaded our metadata
     // and initialized our decoder. Determine granulepos of buffered packets.
@@ -678,12 +674,6 @@ nsresult nsVorbisState::ReconstructVorbisGranulepos()
     if (packet->granulepos == -1) {
       packet->granulepos = mGranulepos + samples;
     }
-
-    // Account for a partial last frame
-    if (packet->e_o_s && packet->granulepos >= mGranulepos) {
-       samples = packet->granulepos - mGranulepos;
-    }
- 
     mGranulepos = packet->granulepos;
     RecordVorbisPacketSamples(packet, samples);
     return NS_OK;

@@ -48,7 +48,6 @@
 #include "nsOSHelperAppService.h"
 #include "nsWindow.h"
 #include "mozilla/Preferences.h"
-#include "nsINetworkLinkService.h"
 
 #ifdef DEBUG
 #define ALOG_BRIDGE(args...) ALOG(args)
@@ -142,13 +141,10 @@ AndroidBridge::Init(JNIEnv *jEnv,
     jSetKeepScreenOn = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "setKeepScreenOn", "(Z)V");
     jIsNetworkLinkUp = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "isNetworkLinkUp", "()Z");
     jIsNetworkLinkKnown = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "isNetworkLinkKnown", "()Z");
-    jGetNetworkLinkType = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "getNetworkLinkType", "()I");
     jSetSelectedLocale = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "setSelectedLocale", "(Ljava/lang/String;)V");
     jScanMedia = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "scanMedia", "(Ljava/lang/String;Ljava/lang/String;)V");
     jGetSystemColors = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "getSystemColors", "()[I");
     jGetIconForExtension = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "getIconForExtension", "(Ljava/lang/String;I)[B");
-    jCreateShortcut = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "createShortcut", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V");
-    jGetShowPasswordSetting = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "getShowPasswordSetting", "()Z");
 
     jEGLContextClass = (jclass) jEnv->NewGlobalRef(jEnv->FindClass("javax/microedition/khronos/egl/EGLContext"));
     jEGL10Class = (jclass) jEnv->NewGlobalRef(jEnv->FindClass("javax/microedition/khronos/egl/EGL10"));
@@ -539,7 +535,7 @@ AndroidBridge::SetClipboardText(const nsAString& aText)
     AutoLocalJNIFrame jniFrame;
     jstring jstr = mJNIEnv->NewString(nsPromiseFlatString(aText).get(),
                                       aText.Length());
-    mJNIEnv->CallStaticVoidMethod(mGeckoAppShellClass, jSetClipboardText, jstr);
+    mJNIEnv->CallStaticObjectMethod(mGeckoAppShellClass, jSetClipboardText, jstr);
 }
 
 bool
@@ -560,7 +556,7 @@ void
 AndroidBridge::EmptyClipboard()
 {
     ALOG_BRIDGE("AndroidBridge::EmptyClipboard");
-    mJNIEnv->CallStaticVoidMethod(mGeckoAppShellClass, jSetClipboardText, nsnull);
+    mJNIEnv->CallStaticObjectMethod(mGeckoAppShellClass, jSetClipboardText, nsnull);
 }
 
 void
@@ -673,13 +669,6 @@ AndroidBridge::IsNetworkLinkKnown()
     return !!mJNIEnv->CallStaticBooleanMethod(mGeckoAppShellClass, jIsNetworkLinkKnown);
 }
 
-int
-AndroidBridge::GetNetworkLinkType()
-{
-    ALOG_BRIDGE("AndroidBridge::GetNetworkLinkType");
-    return (int) mJNIEnv->CallStaticIntMethod(mGeckoAppShellClass, jGetNetworkLinkType);
-}
-
 void
 AndroidBridge::SetSelectedLocale(const nsAString& aLocale)
 {
@@ -754,13 +743,6 @@ AndroidBridge::GetIconForExtension(const nsACString& aFileExt, PRUint32 aIconSiz
         memcpy(aBuf, elements, bufSize);
 
     mJNIEnv->ReleaseByteArrayElements(arr, elements, 0);
-}
-
-bool
-AndroidBridge::GetShowPasswordSetting()
-{
-    ALOG_BRIDGE("AndroidBridge::GetShowPasswordSetting");
-    return mJNIEnv->CallStaticBooleanMethod(mGeckoAppShellClass, jGetShowPasswordSetting);
 }
 
 void
@@ -911,21 +893,6 @@ AndroidBridge::ScanMedia(const nsAString& aFile, const nsACString& aMimeType)
     mJNIEnv->CallStaticVoidMethod(mGeckoAppShellClass, jScanMedia, jstrFile, jstrMimeTypes);
 }
 
-void
-AndroidBridge::CreateShortcut(const nsAString& aTitle, const nsAString& aURI, const nsAString& aIconData, const nsAString& aIntent)
-{
-  AutoLocalJNIFrame jniFrame;
-  jstring jstrTitle = mJNIEnv->NewString(nsPromiseFlatString(aTitle).get(), aTitle.Length());
-  jstring jstrURI = mJNIEnv->NewString(nsPromiseFlatString(aURI).get(), aURI.Length());
-  jstring jstrIconData = mJNIEnv->NewString(nsPromiseFlatString(aIconData).get(), aIconData.Length());
-  jstring jstrIntent = mJNIEnv->NewString(nsPromiseFlatString(aIntent).get(), aIntent.Length());
-  
-  if (!jstrURI || !jstrTitle || !jstrIconData)
-    return;
-    
-  mJNIEnv->CallStaticVoidMethod(mGeckoAppShellClass, jCreateShortcut, jstrTitle, jstrURI, jstrIconData, jstrIntent);
-}
-
 bool
 AndroidBridge::HasNativeBitmapAccess()
 {
@@ -1006,3 +973,4 @@ AndroidBridge::UnlockBitmap(jobject bitmap)
     if ((err = AndroidBitmap_unlockPixels(JNI(), bitmap)) != 0)
         ALOG_BRIDGE("AndroidBitmap_unlockPixels failed! (error %d)", err);
 }
+

@@ -60,6 +60,7 @@
 #include "jsbool.h"
 #include "jsval.h"
 #include "jsvalue.h"
+#include "jsinferinlines.h"
 #include "jsobjinlines.h"
 #include "jsobj.h"
 #include "jsarray.h"
@@ -231,11 +232,11 @@ class NodeBuilder
             if (!newNodeLoc(pos, &loc))
                 return false;
             Value argv[] = { loc };
-            return Invoke(cx, userv, fun, JS_ARRAY_LENGTH(argv), argv, dst);
+            return ExternalInvoke(cx, userv, fun, JS_ARRAY_LENGTH(argv), argv, dst);
         }
 
         Value argv[] = { NullValue() }; /* no zero-length arrays allowed! */
-        return Invoke(cx, userv, fun, 0, argv, dst);
+        return ExternalInvoke(cx, userv, fun, 0, argv, dst);
     }
 
     bool callback(Value fun, Value v1, TokenPos *pos, Value *dst) {
@@ -244,11 +245,11 @@ class NodeBuilder
             if (!newNodeLoc(pos, &loc))
                 return false;
             Value argv[] = { v1, loc };
-            return Invoke(cx, userv, fun, JS_ARRAY_LENGTH(argv), argv, dst);
+            return ExternalInvoke(cx, userv, fun, JS_ARRAY_LENGTH(argv), argv, dst);
         }
 
         Value argv[] = { v1 };
-        return Invoke(cx, userv, fun, JS_ARRAY_LENGTH(argv), argv, dst);
+        return ExternalInvoke(cx, userv, fun, JS_ARRAY_LENGTH(argv), argv, dst);
     }
 
     bool callback(Value fun, Value v1, Value v2, TokenPos *pos, Value *dst) {
@@ -257,11 +258,11 @@ class NodeBuilder
             if (!newNodeLoc(pos, &loc))
                 return false;
             Value argv[] = { v1, v2, loc };
-            return Invoke(cx, userv, fun, JS_ARRAY_LENGTH(argv), argv, dst);
+            return ExternalInvoke(cx, userv, fun, JS_ARRAY_LENGTH(argv), argv, dst);
         }
 
         Value argv[] = { v1, v2 };
-        return Invoke(cx, userv, fun, JS_ARRAY_LENGTH(argv), argv, dst);
+        return ExternalInvoke(cx, userv, fun, JS_ARRAY_LENGTH(argv), argv, dst);
     }
 
     bool callback(Value fun, Value v1, Value v2, Value v3, TokenPos *pos, Value *dst) {
@@ -270,11 +271,11 @@ class NodeBuilder
             if (!newNodeLoc(pos, &loc))
                 return false;
             Value argv[] = { v1, v2, v3, loc };
-            return Invoke(cx, userv, fun, JS_ARRAY_LENGTH(argv), argv, dst);
+            return ExternalInvoke(cx, userv, fun, JS_ARRAY_LENGTH(argv), argv, dst);
         }
 
         Value argv[] = { v1, v2, v3 };
-        return Invoke(cx, userv, fun, JS_ARRAY_LENGTH(argv), argv, dst);
+        return ExternalInvoke(cx, userv, fun, JS_ARRAY_LENGTH(argv), argv, dst);
     }
 
     bool callback(Value fun, Value v1, Value v2, Value v3, Value v4, TokenPos *pos, Value *dst) {
@@ -283,11 +284,11 @@ class NodeBuilder
             if (!newNodeLoc(pos, &loc))
                 return false;
             Value argv[] = { v1, v2, v3, v4, loc };
-            return Invoke(cx, userv, fun, JS_ARRAY_LENGTH(argv), argv, dst);
+            return ExternalInvoke(cx, userv, fun, JS_ARRAY_LENGTH(argv), argv, dst);
         }
 
         Value argv[] = { v1, v2, v3, v4 };
-        return Invoke(cx, userv, fun, JS_ARRAY_LENGTH(argv), argv, dst);
+        return ExternalInvoke(cx, userv, fun, JS_ARRAY_LENGTH(argv), argv, dst);
     }
 
     bool callback(Value fun, Value v1, Value v2, Value v3, Value v4, Value v5,
@@ -297,11 +298,11 @@ class NodeBuilder
             if (!newNodeLoc(pos, &loc))
                 return false;
             Value argv[] = { v1, v2, v3, v4, v5, loc };
-            return Invoke(cx, userv, fun, JS_ARRAY_LENGTH(argv), argv, dst);
+            return ExternalInvoke(cx, userv, fun, JS_ARRAY_LENGTH(argv), argv, dst);
         }
 
         Value argv[] = { v1, v2, v3, v4, v5 };
-        return Invoke(cx, userv, fun, JS_ARRAY_LENGTH(argv), argv, dst);
+        return ExternalInvoke(cx, userv, fun, JS_ARRAY_LENGTH(argv), argv, dst);
     }
 
     Value opt(Value v) {
@@ -1882,7 +1883,10 @@ ASTSerializer::blockStatement(JSParseNode *pn, Value *dst)
 bool
 ASTSerializer::program(JSParseNode *pn, Value *dst)
 {
-    JS_ASSERT(pn->pn_pos.begin.lineno == lineno);
+    JS_ASSERT(pn);
+
+    /* Workaround for bug 588061: parser's reported start position is always 0:0. */
+    pn->pn_pos.begin.lineno = lineno;
 
     NodeVector stmts(cx);
     return statements(pn, stmts) &&
@@ -2182,12 +2186,12 @@ ASTSerializer::statement(JSParseNode *pn, Value *dst)
         if (PN_TYPE(head) == TOK_IN) {
             Value var, expr;
 
-            return (!head->pn_kid1
-                    ? pattern(head->pn_kid2, NULL, &var)
-                    : variableDeclaration(head->pn_kid1,
-                                          PN_TYPE(head->pn_kid1) == TOK_LET,
-                                          &var)) &&
-                   expression(head->pn_kid3, &expr) &&
+            return (PN_TYPE(head->pn_left) == TOK_VAR
+                    ? variableDeclaration(head->pn_left, false, &var)
+                    : PN_TYPE(head->pn_left) == TOK_LET
+                    ? variableDeclaration(head->pn_left, true, &var)
+                    : pattern(head->pn_left, NULL, &var)) &&
+                   expression(head->pn_right, &expr) &&
                    builder.forInStatement(var, expr, stmt, isForEach, &pn->pn_pos, dst);
         }
 
@@ -2205,13 +2209,40 @@ ASTSerializer::statement(JSParseNode *pn, Value *dst)
         LOCAL_ASSERT(pn->pn_count == 2);
 
         JSParseNode *prelude = pn->pn_head;
-        JSParseNode *loop = prelude->pn_next;
+        JSParseNode *body = prelude->pn_next;
 
-        LOCAL_ASSERT(PN_TYPE(prelude) == TOK_VAR && PN_TYPE(loop) == TOK_FOR);
+        LOCAL_ASSERT((PN_TYPE(prelude) == TOK_VAR && PN_TYPE(body) == TOK_FOR) ||
+                     (PN_TYPE(prelude) == TOK_SEMI && PN_TYPE(body) == TOK_LEXICALSCOPE));
 
+        JSParseNode *loop;
         Value var;
-        if (!variableDeclaration(prelude, false, &var))
-            return false;
+
+        if (PN_TYPE(prelude) == TOK_VAR) {
+            loop = body;
+
+            if (!variableDeclaration(prelude, false, &var))
+                return false;
+        } else {
+            loop = body->pn_expr;
+
+            LOCAL_ASSERT(PN_TYPE(loop->pn_left) == TOK_IN &&
+                         PN_TYPE(loop->pn_left->pn_left) == TOK_LET &&
+                         loop->pn_left->pn_left->pn_count == 1);
+
+            JSParseNode *pnlet = loop->pn_left->pn_left;
+
+            VarDeclKind kind = VARDECL_LET;
+            NodeVector dtors(cx);
+            Value patt, init, dtor;
+
+            if (!pattern(pnlet->pn_head, &kind, &patt) ||
+                !expression(prelude->pn_kid, &init) ||
+                !builder.variableDeclarator(patt, init, &pnlet->pn_pos, &dtor) ||
+                !dtors.append(dtor) ||
+                !builder.variableDeclaration(dtors, kind, &pnlet->pn_pos, &var)) {
+                return false;
+            }
+        }
 
         JSParseNode *head = loop->pn_left;
         JS_ASSERT(PN_TYPE(head) == TOK_IN);
@@ -2220,7 +2251,7 @@ ASTSerializer::statement(JSParseNode *pn, Value *dst)
 
         Value expr, stmt;
 
-        return expression(head->pn_kid3, &expr) &&
+        return expression(head->pn_right, &expr) &&
                statement(loop->pn_right, &stmt) &&
                builder.forInStatement(var, expr, stmt, isForEach, &pn->pn_pos, dst);
       }
@@ -2325,8 +2356,8 @@ ASTSerializer::comprehensionBlock(JSParseNode *pn, Value *dst)
     bool isForEach = pn->pn_iflags & JSITER_FOREACH;
 
     Value patt, src;
-    return pattern(in->pn_kid2, NULL, &patt) &&
-           expression(in->pn_kid3, &src) &&
+    return pattern(in->pn_left, NULL, &patt) &&
+           expression(in->pn_right, &src) &&
            builder.comprehensionBlock(patt, src, isForEach, &in->pn_pos, dst);
 }
 
@@ -3239,6 +3270,13 @@ JS_InitReflect(JSContext *cx, JSObject *obj)
 {
     JSObject *Reflect = NewNonFunction<WithProto::Class>(cx, &js_ObjectClass, NULL, obj);
     if (!Reflect)
+        return NULL;
+
+    types::TypeObject *type = cx->compartment->types.newTypeObject(cx, NULL,
+                                                                   "Reflect", "",
+                                                                   JSProto_Object,
+                                                                   Reflect->getProto());
+    if (!type || !Reflect->setTypeAndUniqueShape(cx, type))
         return NULL;
 
     if (!JS_DefineProperty(cx, obj, "Reflect", OBJECT_TO_JSVAL(Reflect),

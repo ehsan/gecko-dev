@@ -11,12 +11,12 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIMEMORYREPORTER
 
-  nsMemoryReporter(nsACString& process,
-                   nsACString& path, 
+  nsMemoryReporter(nsCString& process,
+                   nsCString& path, 
                    PRInt32 kind,
                    PRInt32 units,
                    PRInt64 amount,
-                   nsACString& desc);
+                   nsCString& desc);
 
   ~nsMemoryReporter();
 

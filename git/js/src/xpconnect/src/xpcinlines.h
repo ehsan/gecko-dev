@@ -44,6 +44,8 @@
 #ifndef xpcinlines_h___
 #define xpcinlines_h___
 
+#include "jsfriendapi.h"
+
 /***************************************************************************/
 PRBool
 xpc::PtrAndPrincipalHashKey::KeyEquals(const PtrAndPrincipalHashKey* aKey) const
@@ -122,6 +124,16 @@ XPCCallContext::GetJSContext() const
 {
     CHECK_STATE(HAVE_CONTEXT);
     return mJSContext;
+}
+
+inline JSContext*
+XPCCallContext::GetSafeJSContext() const
+{
+    CHECK_STATE(HAVE_CONTEXT);
+    JSContext* cx;
+    if(NS_SUCCEEDED(mThreadData->GetJSContextStack()->GetSafeJSContext(&cx)))
+        return cx;
+    return nsnull;
 }
 
 inline JSBool
@@ -665,19 +677,42 @@ xpc_ForcePropertyResolve(JSContext* cx, JSObject* obj, jsid id)
 
 inline JSObject*
 xpc_NewSystemInheritingJSObject(JSContext *cx, JSClass *clasp, JSObject *proto,
-                                JSObject *parent)
+                                bool uniqueType, JSObject *parent)
 {
     JSObject *obj;
     if (clasp->flags & JSCLASS_IS_GLOBAL) {
         obj = JS_NewGlobalObject(cx, clasp);
         if (obj && proto)
-            JS_SetPrototype(cx, obj, proto);
+            JS_SplicePrototype(cx, obj, proto);
+    } else if (uniqueType) {
+        obj = JS_NewObjectWithUniqueType(cx, clasp, proto, parent);
     } else {
         obj = JS_NewObject(cx, clasp, proto, parent);
     }
     if (obj && JS_IsSystemObject(cx, parent) && !JS_MakeSystemObject(cx, obj))
         obj = NULL;
     return obj;
+}
+
+inline JSBool
+xpc_SameScope(XPCWrappedNativeScope *objectscope, XPCWrappedNativeScope *xpcscope,
+              JSBool *sameOrigin)
+{
+    if (objectscope == xpcscope)
+    {
+        *sameOrigin = JS_TRUE;
+        return JS_TRUE;
+    }
+
+    nsIPrincipal *objectprincipal = objectscope->GetPrincipal();
+    nsIPrincipal *xpcprincipal = xpcscope->GetPrincipal();
+    if(!objectprincipal || !xpcprincipal ||
+       NS_FAILED(objectprincipal->Equals(xpcprincipal, sameOrigin)))
+    {
+        *sameOrigin = JS_FALSE;
+    }
+
+    return JS_FALSE;
 }
 
 inline jsid

@@ -52,6 +52,7 @@
 #include "nsIDocument.h"
 #include "nsIDOMNodeList.h"
 #include "nsIDOMDocument.h"
+#include "nsIDOMText.h"
 #include "nsIContentIterator.h"
 #include "nsEventListenerManager.h"
 #include "nsFocusManager.h"
@@ -130,7 +131,6 @@
 #include "nsCSSRuleProcessor.h"
 #include "nsRuleProcessorData.h"
 #include "nsPLDOMEvent.h"
-#include "nsTextNode.h"
 
 #ifdef MOZ_XUL
 #include "nsIXULDocument.h"
@@ -142,12 +142,10 @@
 #include "mozAutoDocUpdate.h"
 
 #include "nsCSSParser.h"
+#include "nsTPtrArray.h"
 #include "prprf.h"
 
 #include "nsSVGFeatures.h"
-#include "nsDOMMemoryReporter.h"
-
-#include "xpcpublic.h"
 
 using namespace mozilla::dom;
 namespace css = mozilla::css;
@@ -171,22 +169,6 @@ nsINode::nsSlots::~nsSlots()
 
   if (mWeakReference) {
     mWeakReference->NoticeNodeDestruction();
-  }
-}
-
-void
-nsINode::nsSlots::Traverse(nsCycleCollectionTraversalCallback &cb)
-{
-  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mSlots->mChildNodes");
-  cb.NoteXPCOMChild(mChildNodes);
-}
-
-void
-nsINode::nsSlots::Unlink()
-{
-  if (mChildNodes) {
-    mChildNodes->DropReference();
-    NS_RELEASE(mChildNodes);
   }
 }
 
@@ -625,20 +607,19 @@ nsINode::Normalize()
                    "mutation events messed us up");
       if (!hasRemoveListeners ||
           (target && target->NodeType() == nsIDOMNode::TEXT_NODE)) {
-        nsTextNode* t = static_cast<nsTextNode*>(target);
         if (text->Is2b()) {
-          t->AppendTextForNormalize(text->Get2b(), text->GetLength(), PR_TRUE, node);
+          target->AppendText(text->Get2b(), text->GetLength(), PR_TRUE);
         }
         else {
           tmpStr.Truncate();
           text->AppendTo(tmpStr);
-          t->AppendTextForNormalize(tmpStr.get(), tmpStr.Length(), PR_TRUE, node);
+          target->AppendText(tmpStr.get(), tmpStr.Length(), PR_TRUE);
         }
       }
     }
 
     // Remove node
-    nsCOMPtr<nsINode> parent = node->GetNodeParent();
+    nsINode* parent = node->GetNodeParent();
     NS_ASSERTION(parent || hasRemoveListeners,
                  "Should always have a parent unless "
                  "mutation events messed us up");
@@ -774,7 +755,7 @@ nsINode::CompareDocPosition(nsINode* aOtherNode)
     return 0;
   }
 
-  nsAutoTArray<nsINode*, 32> parents1, parents2;
+  nsAutoTPtrArray<nsINode, 32> parents1, parents2;
 
   nsINode *node1 = aOtherNode, *node2 = this;
 
@@ -1077,9 +1058,8 @@ nsINode::AddEventListener(const nsAString& aType,
 
   nsEventListenerManager* listener_manager = GetListenerManager(PR_TRUE);
   NS_ENSURE_STATE(listener_manager);
-  listener_manager->AddEventListener(aType, aListener, aUseCapture,
-                                     aWantsUntrusted);
-  return NS_OK;
+  return listener_manager->AddEventListener(aType, aListener, aUseCapture,
+                                            aWantsUntrusted);
 }
 
 NS_IMETHODIMP
@@ -1146,6 +1126,26 @@ nsINode::DispatchDOMEvent(nsEvent* aEvent,
                                              aPresContext, aEventStatus);
 }
 
+nsresult
+nsINode::AddEventListenerByIID(nsIDOMEventListener *aListener,
+                               const nsIID& aIID)
+{
+  nsEventListenerManager* elm = GetListenerManager(PR_TRUE);
+  NS_ENSURE_STATE(elm);
+  return elm->AddEventListenerByIID(aListener, aIID, NS_EVENT_FLAG_BUBBLE);
+}
+
+nsresult
+nsINode::RemoveEventListenerByIID(nsIDOMEventListener *aListener,
+                                  const nsIID& aIID)
+{
+  nsEventListenerManager* elm = GetListenerManager(PR_FALSE);
+  if (elm) {
+    elm->RemoveEventListenerByIID(aListener, aIID, NS_EVENT_FLAG_BUBBLE);
+  }
+  return NS_OK;
+}
+
 nsEventListenerManager*
 nsINode::GetListenerManager(PRBool aCreateIfNotFound)
 {
@@ -1156,63 +1156,6 @@ nsIScriptContext*
 nsINode::GetContextForEventHandlers(nsresult* aRv)
 {
   return nsContentUtils::GetContextForEventHandlers(this, aRv);
-}
-
-/* static */
-void
-nsINode::Trace(nsINode *tmp, TraceCallback cb, void *closure)
-{
-  nsContentUtils::TraceWrapper(tmp, cb, closure);
-}
-
-/* static */
-bool
-nsINode::Traverse(nsINode *tmp, nsCycleCollectionTraversalCallback &cb)
-{
-  nsIDocument *currentDoc = tmp->GetCurrentDoc();
-  if (currentDoc &&
-      nsCCUncollectableMarker::InGeneration(cb, currentDoc->GetMarkedCCGeneration())) {
-    return false;
-  }
-
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mNodeInfo)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_RAWPTR(GetParent())
-
-  nsSlots *slots = tmp->GetExistingSlots();
-  if (slots) {
-    slots->Traverse(cb);
-  }
-
-  if (tmp->HasProperties()) {
-    nsNodeUtils::TraverseUserData(tmp, cb);
-  }
-
-  if (tmp->HasFlag(NODE_HAS_LISTENERMANAGER)) {
-    nsContentUtils::TraverseListenerManager(tmp, cb);
-  }
-
-  return true;
-}
-
-/* static */
-void
-nsINode::Unlink(nsINode *tmp)
-{
-  nsContentUtils::ReleaseWrapper(tmp, tmp);
-
-  nsSlots *slots = tmp->GetExistingSlots();
-  if (slots) {
-    slots->Unlink();
-  }
-
-  if (tmp->HasFlag(NODE_HAS_LISTENERMANAGER)) {
-    nsContentUtils::RemoveListenerManager(tmp);
-    tmp->UnsetFlags(NODE_HAS_LISTENERMANAGER);
-  }
-
-  if (tmp->HasProperties()) {
-    nsNodeUtils::UnlinkUserData(tmp);
-  }
 }
 
 //----------------------------------------------------------------------
@@ -1282,20 +1225,24 @@ nsGenericElement::UpdateEditableState(PRBool aNotify)
 {
   nsIContent *parent = GetParent();
 
+  PRBool oldEditable = IsEditable();
   SetEditableFlag(parent && parent->HasFlag(NODE_IS_EDITABLE));
-  if (aNotify) {
-    UpdateState(aNotify);
-  } else {
-    // Avoid calling UpdateState in this very common case, because
-    // this gets called for pretty much every single element on
-    // insertion into the document and UpdateState can be slow for
-    // some kinds of elements even when not notifying.
-    if (IsEditable()) {
-      RemoveStatesSilently(NS_EVENT_STATE_MOZ_READONLY);
-      AddStatesSilently(NS_EVENT_STATE_MOZ_READWRITE);
+  PRBool newEditable = IsEditable();
+  if (oldEditable != newEditable) {
+    if (aNotify) {
+      UpdateState(aNotify);
     } else {
-      RemoveStatesSilently(NS_EVENT_STATE_MOZ_READWRITE);
-      AddStatesSilently(NS_EVENT_STATE_MOZ_READONLY);
+      // Avoid calling UpdateState in this very common case, because
+      // this gets called for pretty much every single element on
+      // insertion into the document and UpdateState can be slow for
+      // some kinds of elements even when not notifying.
+      if (oldEditable) {
+        RemoveStatesSilently(NS_EVENT_STATE_MOZ_READWRITE);
+        AddStatesSilently(NS_EVENT_STATE_MOZ_READONLY);
+      } else {
+        RemoveStatesSilently(NS_EVENT_STATE_MOZ_READONLY);
+        AddStatesSilently(NS_EVENT_STATE_MOZ_READWRITE);
+      }
     }
   }
 }
@@ -1383,7 +1330,7 @@ nsIContent*
 nsIContent::GetEditingHost()
 {
   // If this isn't editable, return NULL.
-  NS_ENSURE_TRUE(IsEditableInternal(), nsnull);
+  NS_ENSURE_TRUE(HasFlag(NODE_IS_EDITABLE), nsnull);
 
   nsIDocument* doc = GetCurrentDoc();
   NS_ENSURE_TRUE(doc, nsnull);
@@ -2111,13 +2058,6 @@ nsNSElementTearoff::GetBoundingClientRect(nsIDOMClientRect** aResult)
 }
 
 nsresult
-nsGenericElement::GetElementsByClassName(const nsAString& aClasses,
-                                         nsIDOMNodeList** aReturn)
-{
-  return nsContentUtils::GetElementsByClassName(this, aClasses, aReturn);
-}
-
-nsresult
 nsGenericElement::GetClientRects(nsIDOMClientRectList** aResult)
 {
   *aResult = nsnull;
@@ -2225,28 +2165,6 @@ nsNodeSelectorTearoff::QuerySelectorAll(const nsAString& aSelector,
 }
 
 //----------------------------------------------------------------------
-
-NS_IMPL_CYCLE_COLLECTION_1(nsTouchEventReceiverTearoff, mElement)
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsTouchEventReceiverTearoff)
-  NS_INTERFACE_MAP_ENTRY(nsITouchEventReceiver)
-NS_INTERFACE_MAP_END_AGGREGATED(mElement)
-
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsTouchEventReceiverTearoff)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsTouchEventReceiverTearoff)
-
-//----------------------------------------------------------------------
-
-NS_IMPL_CYCLE_COLLECTION_1(nsInlineEventHandlersTearoff, mElement)
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsInlineEventHandlersTearoff)
-  NS_INTERFACE_MAP_ENTRY(nsIInlineEventHandlers)
-NS_INTERFACE_MAP_END_AGGREGATED(mElement)
-
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsInlineEventHandlersTearoff)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsInlineEventHandlersTearoff)
-
-//----------------------------------------------------------------------
 nsGenericElement::nsDOMSlots::nsDOMSlots()
   : nsINode::nsSlots(),
     mDataset(nsnull),
@@ -2263,45 +2181,6 @@ nsGenericElement::nsDOMSlots::~nsDOMSlots()
   if (mClassList) {
     mClassList->DropReference();
   }
-}
-
-void
-nsGenericElement::nsDOMSlots::Traverse(nsCycleCollectionTraversalCallback &cb, bool aIsXUL)
-{
-  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mSlots->mStyle");
-  cb.NoteXPCOMChild(mStyle.get());
-
-#ifdef MOZ_SMIL
-  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mSlots->mSMILOverrideStyle");
-  cb.NoteXPCOMChild(mSMILOverrideStyle.get());
-#endif // MOZ_SMIL
-
-  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mSlots->mAttributeMap");
-  cb.NoteXPCOMChild(mAttributeMap.get());
-
-  if (aIsXUL) {
-    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mSlots->mControllers");
-    cb.NoteXPCOMChild(mControllers);
-  }
-
-  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mSlots->mChildrenList");
-  cb.NoteXPCOMChild(NS_ISUPPORTS_CAST(nsIDOMNodeList*, mChildrenList));
-}
-
-void
-nsGenericElement::nsDOMSlots::Unlink(bool aIsXUL)
-{
-  mStyle = nsnull;
-#ifdef MOZ_SMIL
-  mSMILOverrideStyle = nsnull;
-#endif // MOZ_SMIL
-  if (mAttributeMap) {
-    mAttributeMap->DropReference();
-    mAttributeMap = nsnull;
-  }
-  if (aIsXUL)
-    NS_IF_RELEASE(mControllers);
-  mChildrenList = nsnull;
 }
 
 nsGenericElement::nsGenericElement(already_AddRefed<nsINodeInfo> aNodeInfo)
@@ -2324,9 +2203,6 @@ nsGenericElement::~nsGenericElement()
 {
   NS_PRECONDITION(!IsInDoc(),
                   "Please remove this from the document properly");
-  if (GetParent()) {
-    NS_RELEASE(mParent);
-  }
 }
 
 NS_IMETHODIMP
@@ -2949,9 +2825,6 @@ nsGenericElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 
   // Now set the parent and set the "Force attach xbl" flag if needed.
   if (aParent) {
-    if (!GetParent()) {
-      NS_ADDREF(aParent);
-    }
     mParent = aParent;
 
     if (aParent->HasFlag(NODE_FORCE_XBL_BINDINGS)) {
@@ -3060,11 +2933,7 @@ nsGenericElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
     HasFlag(NODE_FORCE_XBL_BINDINGS) ? GetOwnerDoc() : GetCurrentDoc();
 
   if (aNullParent) {
-    if (GetParent()) {
-      NS_RELEASE(mParent);
-    } else {
-      mParent = nsnull;
-    }
+    mParent = nsnull;
     SetParentIsContent(false);
   }
   ClearInDocument();
@@ -3688,19 +3557,6 @@ nsINode::doRemoveChildAt(PRUint32 aIndex, PRBool aNotify,
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsGenericElement::GetTextContent(nsAString &aTextContent)
-{
-  nsContentUtils::GetNodeTextContent(this, PR_TRUE, aTextContent);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsGenericElement::SetTextContent(const nsAString& aTextContent)
-{
-  return nsContentUtils::SetNodeTextContent(this, aTextContent, PR_FALSE);
-}
-
 /* static */
 nsresult
 nsGenericElement::DispatchEvent(nsPresContext* aPresContext,
@@ -3735,7 +3591,6 @@ nsGenericElement::DispatchClickEvent(nsPresContext* aPresContext,
                                      nsInputEvent* aSourceEvent,
                                      nsIContent* aTarget,
                                      PRBool aFullDispatch,
-                                     PRUint32 aFlags,
                                      nsEventStatus* aStatus)
 {
   NS_PRECONDITION(aTarget, "Must have target");
@@ -3753,7 +3608,7 @@ nsGenericElement::DispatchClickEvent(nsPresContext* aPresContext,
     pressure = static_cast<nsMouseEvent*>(aSourceEvent)->pressure;
     inputSource = static_cast<nsMouseEvent*>(aSourceEvent)->inputSource;
   } else if (aSourceEvent->eventStructType == NS_KEY_EVENT) {
-    inputSource = nsIDOMMouseEvent::MOZ_SOURCE_KEYBOARD;
+    inputSource = nsIDOMNSMouseEvent::MOZ_SOURCE_KEYBOARD;
   }
   event.pressure = pressure;
   event.clickCount = clickCount;
@@ -3762,7 +3617,6 @@ nsGenericElement::DispatchClickEvent(nsPresContext* aPresContext,
   event.isControl = aSourceEvent->isControl;
   event.isAlt = aSourceEvent->isAlt;
   event.isMeta = aSourceEvent->isMeta;
-  event.flags |= aFlags; // Be careful not to overwrite existing flags!
 
   return DispatchEvent(aPresContext, &event, aTarget, aFullDispatch, aStatus);
 }
@@ -4081,7 +3935,7 @@ nsINode::ReplaceOrInsertBefore(PRBool aReplace, nsINode* aNewChild,
   }
 
   // Remove the new child from the old parent if one exists
-  nsCOMPtr<nsINode> oldParent = newContent->GetNodeParent();
+  nsINode* oldParent = newContent->GetNodeParent();
   if (oldParent) {
     PRInt32 removeIndex = oldParent->IndexOf(newContent);
     if (removeIndex < 0) {
@@ -4142,7 +3996,7 @@ nsINode::ReplaceOrInsertBefore(PRBool aReplace, nsINode* aNewChild,
 
     PRBool appending =
       !IsNodeOfType(eDOCUMENT) && PRUint32(insPos) == GetChildCount();
-    PRInt32 firstInsPos = insPos;
+    PRBool firstInsPos = insPos;
     nsIContent* firstInsertedContent = fragChildren[0];
 
     // Iterate through the fragment's children, and insert them in the new
@@ -4222,7 +4076,9 @@ nsINode::IsSameNode(nsIDOMNode* aOther, PRBool* aReturn)
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsGenericElement)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsGenericElement)
-  nsINode::Unlink(tmp);
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_LISTENERMANAGER
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_USERDATA
 
   if (tmp->HasProperties() && tmp->IsXUL()) {
     tmp->DeleteProperty(nsGkAtoms::contextmenulistener);
@@ -4250,7 +4106,17 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsGenericElement)
   {
     nsDOMSlots *slots = tmp->GetExistingDOMSlots();
     if (slots) {
-      slots->Unlink(tmp->IsXUL());
+      slots->mStyle = nsnull;
+#ifdef MOZ_SMIL
+      slots->mSMILOverrideStyle = nsnull;
+#endif // MOZ_SMIL
+      if (slots->mAttributeMap) {
+        slots->mAttributeMap->DropReference();
+        slots->mAttributeMap = nsnull;
+      }
+      if (tmp->IsXUL())
+        NS_IF_RELEASE(slots->mControllers);
+      slots->mChildrenList = nsnull;
     }
   }
 
@@ -4263,7 +4129,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsGenericElement)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsGenericElement)
-  nsINode::Trace(tmp, aCallback, aClosure);
+  NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 static const char* kNSURIs[] = {
@@ -4304,7 +4170,9 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsGenericElement)
   // if we're uncollectable.
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 
-  if (!nsINode::Traverse(tmp, cb)) {
+  nsIDocument* currentDoc = tmp->GetCurrentDoc();
+  if (currentDoc && nsCCUncollectableMarker::InGeneration(
+                      cb, currentDoc->GetMarkedCCGeneration())) {
     return NS_SUCCESS_INTERRUPTED_TRAVERSE;
   }
 
@@ -4312,6 +4180,9 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsGenericElement)
   if (ownerDoc) {
     ownerDoc->BindingManager()->Traverse(tmp, cb);
   }
+
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_LISTENERMANAGER
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_USERDATA
 
   if (tmp->HasProperties() && tmp->IsXUL()) {
     nsISupports* property =
@@ -4343,11 +4214,27 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsGenericElement)
     }
   }
 
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mNodeInfo)
+
   // Traverse any DOM slots of interest.
   {
     nsDOMSlots *slots = tmp->GetExistingDOMSlots();
     if (slots) {
-      slots->Traverse(cb, tmp->IsXUL());
+      NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "slots mStyle");
+      cb.NoteXPCOMChild(slots->mStyle.get());
+
+#ifdef MOZ_SMIL
+      NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "slots mSMILOverrideStyle");
+      cb.NoteXPCOMChild(slots->mSMILOverrideStyle.get());
+#endif // MOZ_SMIL
+
+      NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "slots mAttributeMap");
+      cb.NoteXPCOMChild(slots->mAttributeMap.get());
+
+      if (tmp->IsXUL())
+        cb.NoteXPCOMChild(slots->mControllers);
+      cb.NoteXPCOMChild(
+        static_cast<nsIDOMNodeList*>(slots->mChildrenList.get()));
     }
   }
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
@@ -4366,10 +4253,6 @@ NS_INTERFACE_MAP_BEGIN(nsGenericElement)
                                  new nsNodeSelectorTearoff(this))
   NS_INTERFACE_MAP_ENTRY_TEAROFF(nsIDOMXPathNSResolver,
                                  new nsNode3Tearoff(this))
-  NS_INTERFACE_MAP_ENTRY_TEAROFF(nsITouchEventReceiver,
-                                 new nsTouchEventReceiverTearoff(this))
-  NS_INTERFACE_MAP_ENTRY_TEAROFF(nsIInlineEventHandlers,
-                                 new nsInlineEventHandlersTearoff(this))
   // nsNodeSH::PreCreate() depends on the identity pointer being the
   // same as nsINode (which nsIContent inherits), so if you change the
   // below line, make sure nsNodeSH::PreCreate() still does the right
@@ -4419,15 +4302,20 @@ nsGenericElement::AddScriptEventListener(nsIAtom* aEventName,
   }
 
   NS_PRECONDITION(aEventName, "Must have event name!");
+  nsCOMPtr<nsISupports> target;
   PRBool defer = PR_TRUE;
-  nsEventListenerManager* manager = GetEventListenerManagerForAttr(&defer);
+  nsRefPtr<nsEventListenerManager> manager;
+
+  GetEventListenerManagerForAttr(getter_AddRefs(manager),
+                                 getter_AddRefs(target),
+                                 &defer);
   if (!manager) {
     return NS_OK;
   }
 
   defer = defer && aDefer; // only defer if everyone agrees...
   PRUint32 lang = GetScriptTypeID();
-  manager->AddScriptEventListener(aEventName, aValue, lang, defer,
+  manager->AddScriptEventListener(target, aEventName, aValue, lang, defer,
                                   !nsContentUtils::IsChromeDoc(ownerDoc));
   return NS_OK;
 }
@@ -4696,11 +4584,17 @@ nsGenericElement::SetMappedAttribute(nsIDocument* aDocument,
   return PR_FALSE;
 }
 
-nsEventListenerManager*
-nsGenericElement::GetEventListenerManagerForAttr(PRBool* aDefer)
+nsresult
+nsGenericElement::GetEventListenerManagerForAttr(nsEventListenerManager** aManager,
+                                                 nsISupports** aTarget,
+                                                 PRBool* aDefer)
 {
+  *aManager = GetListenerManager(PR_TRUE);
   *aDefer = PR_TRUE;
-  return GetListenerManager(PR_TRUE);
+  NS_ENSURE_STATE(*aManager);
+  NS_ADDREF(*aManager);
+  NS_ADDREF(*aTarget = static_cast<nsIContent*>(this));
+  return NS_OK;
 }
 
 nsGenericElement::nsAttrInfo
@@ -5143,7 +5037,7 @@ nsGenericElement::CheckHandleEventForLinksPrecondition(nsEventChainVisitor& aVis
        (aVisitor.mEvent->message != NS_KEY_PRESS) &&
        (aVisitor.mEvent->message != NS_UI_ACTIVATE)) ||
       !aVisitor.mPresContext ||
-      (aVisitor.mEvent->flags & NS_EVENT_FLAG_PREVENT_MULTIPLE_ACTIONS)) {
+      (aVisitor.mEvent->flags & NS_EVENT_FLAG_PREVENT_ANCHOR_ACTIONS)) {
     return PR_FALSE;
   }
 
@@ -5189,7 +5083,7 @@ nsGenericElement::PreHandleEventForLinks(nsEventChainPreVisitor& aVisitor)
       nsContentUtils::TriggerLink(this, aVisitor.mPresContext, absURI, target,
                                   PR_FALSE, PR_TRUE, PR_TRUE);
       // Make sure any ancestor links don't also TriggerLink
-      aVisitor.mEvent->flags |= NS_EVENT_FLAG_PREVENT_MULTIPLE_ACTIONS;
+      aVisitor.mEvent->flags |= NS_EVENT_FLAG_PREVENT_ANCHOR_ACTIONS;
     }
     break;
 
@@ -5199,7 +5093,7 @@ nsGenericElement::PreHandleEventForLinks(nsEventChainPreVisitor& aVisitor)
   case NS_BLUR_CONTENT:
     rv = LeaveLink(aVisitor.mPresContext);
     if (NS_SUCCEEDED(rv)) {
-      aVisitor.mEvent->flags |= NS_EVENT_FLAG_PREVENT_MULTIPLE_ACTIONS;
+      aVisitor.mEvent->flags |= NS_EVENT_FLAG_PREVENT_ANCHOR_ACTIONS;
     }
     break;
 
@@ -5247,7 +5141,7 @@ nsGenericElement::PostHandleEventForLinks(nsEventChainPostVisitor& aVisitor)
         if (handler && document) {
           nsIFocusManager* fm = nsFocusManager::GetFocusManager();
           if (fm) {
-            aVisitor.mEvent->flags |= NS_EVENT_FLAG_PREVENT_MULTIPLE_ACTIONS;
+            aVisitor.mEvent->flags |= NS_EVENT_FLAG_PREVENT_ANCHOR_ACTIONS;
             nsCOMPtr<nsIDOMElement> elem = do_QueryInterface(this);
             fm->SetFocus(elem, nsIFocusManager::FLAG_BYMOUSE |
                                nsIFocusManager::FLAG_NOSCROLL);
@@ -5303,7 +5197,7 @@ nsGenericElement::PostHandleEventForLinks(nsEventChainPostVisitor& aVisitor)
         if (keyEvent->keyCode == NS_VK_RETURN) {
           nsEventStatus status = nsEventStatus_eIgnore;
           rv = DispatchClickEvent(aVisitor.mPresContext, keyEvent, this,
-                                  PR_FALSE, 0, &status);
+                                  PR_FALSE, &status);
           if (NS_SUCCEEDED(rv)) {
             aVisitor.mEventStatus = nsEventStatus_eConsumeNoDefault;
           }
@@ -5478,56 +5372,3 @@ nsNSElementTearoff::MozMatchesSelector(const nsAString& aSelector, PRBool* aRetu
 
   return rv;
 }
-
-PRInt64
-nsINode::SizeOf() const
-{
-  PRInt64 size = sizeof(*this);
-
-  nsEventListenerManager* elm =
-    const_cast<nsINode*>(this)->GetListenerManager(PR_FALSE);
-  if (elm) {
-    size += elm->SizeOf();
-  }
-
-  return size;
-}
-
-PRInt64
-nsGenericElement::SizeOf() const
-{
-  PRInt64 size = MemoryReporter::GetBasicSize<nsGenericElement, Element>(this);
-
-  size -= sizeof(mAttrsAndChildren);
-  size += mAttrsAndChildren.SizeOf();
-
-  return size;
-}
-
-#define EVENT(name_, id_, type_, struct_)                                    \
-  NS_IMETHODIMP nsINode::GetOn##name_(JSContext *cx, jsval *vp) {            \
-    nsEventListenerManager *elm = GetListenerManager(PR_FALSE);              \
-    if (elm) {                                                               \
-      elm->GetJSEventListener(nsGkAtoms::on##name_, vp);                     \
-    } else {                                                                 \
-      *vp = JSVAL_NULL;                                                      \
-    }                                                                        \
-    return NS_OK;                                                            \
-  }                                                                          \
-  NS_IMETHODIMP nsINode::SetOn##name_(JSContext *cx, const jsval &v) {       \
-    nsEventListenerManager *elm = GetListenerManager(PR_TRUE);               \
-    if (!elm) {                                                              \
-      return NS_ERROR_OUT_OF_MEMORY;                                         \
-    }                                                                        \
-                                                                             \
-    JSObject *obj = GetWrapper();                                            \
-    if (!obj) {                                                              \
-      /* Just silently do nothing */                                         \
-      return NS_OK;                                                          \
-    }                                                                        \
-    return elm->SetJSEventListenerToJsval(nsGkAtoms::on##name_, cx, obj, v); \
-}
-#define TOUCH_EVENT EVENT
-#include "nsEventNameList.h"
-#undef TOUCH_EVENT
-#undef EVENT

@@ -53,8 +53,6 @@
 #include "nsINameSpaceManager.h"
 #include "nsIURI.h"
 
-using namespace mozilla::a11y;
-
 ////////////////////////////////////////////////////////////////////////////////
 // nsLeafAccessible
 ////////////////////////////////////////////////////////////////////////////////
@@ -138,10 +136,13 @@ nsLinkableAccessible::GetValue(nsAString& aValue)
 }
 
 
-PRUint8
-nsLinkableAccessible::ActionCount()
+NS_IMETHODIMP
+nsLinkableAccessible::GetNumActions(PRUint8 *aNumActions)
 {
-  return (mIsOnclick || mIsLink) ? 1 : 0;
+  NS_ENSURE_ARG_POINTER(aNumActions);
+
+  *aNumActions = (mIsOnclick || mIsLink) ? 1 : 0;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -174,11 +175,13 @@ nsLinkableAccessible::DoAction(PRUint8 aIndex)
     nsAccessibleWrap::DoAction(aIndex);
 }
 
-KeyBinding
-nsLinkableAccessible::AccessKey() const
+NS_IMETHODIMP
+nsLinkableAccessible::GetKeyboardShortcut(nsAString& aKeyboardShortcut)
 {
-  return mActionAcc ?
-    mActionAcc->AccessKey() : nsAccessible::AccessKey();
+  aKeyboardShortcut.Truncate();
+
+  return mActionAcc ? mActionAcc->GetKeyboardShortcut(aKeyboardShortcut) :
+    nsAccessible::GetKeyboardShortcut(aKeyboardShortcut);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -233,8 +236,8 @@ nsLinkableAccessible::BindToParent(nsAccessible* aParent,
   // on non accessible node in parent chain but this node is skipped when tree
   // is traversed.
   nsAccessible* walkUpAcc = this;
-  while ((walkUpAcc = walkUpAcc->Parent()) && !walkUpAcc->IsDoc()) {
-    if (walkUpAcc->Role() == nsIAccessibleRole::ROLE_LINK &&
+  while ((walkUpAcc = walkUpAcc->GetParent()) && !walkUpAcc->IsDoc()) {
+    if (walkUpAcc && walkUpAcc->Role() == nsIAccessibleRole::ROLE_LINK &&
         walkUpAcc->State() & states::LINKED) {
       mIsLink = PR_TRUE;
       mActionAcc = walkUpAcc;

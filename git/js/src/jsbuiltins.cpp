@@ -310,13 +310,17 @@ js_NewNullClosure(JSContext* cx, JSObject* funobj, JSObject* proto, JSObject* pa
     JS_ASSERT(JS_ON_TRACE(cx));
 
     JSFunction *fun = (JSFunction*) funobj;
-    JS_ASSERT(funobj->getFunctionPrivate() == fun);
+    JS_ASSERT(GET_FUNCTION_PRIVATE(cx, funobj) == fun);
+
+    types::TypeObject *type = proto->getNewType(cx);
+    if (!type)
+        return NULL;
 
     JSObject* closure = js_NewGCObject(cx, gc::FINALIZE_OBJECT2);
     if (!closure)
         return NULL;
 
-    if (!closure->initSharingEmptyShape(cx, &js_FunctionClass, proto, parent,
+    if (!closure->initSharingEmptyShape(cx, &js_FunctionClass, type, parent,
                                         fun, gc::FINALIZE_OBJECT2)) {
         return NULL;
     }

@@ -46,8 +46,8 @@ nsFontFace::nsFontFace(gfxFontEntry*      aFontEntry,
                        PRUint8            aMatchType,
                        nsCSSFontFaceRule* aRule)
   : mFontEntry(aFontEntry),
-    mRule(aRule),
-    mMatchType(aMatchType)
+    mMatchType(aMatchType),
+    mRule(aRule)
 {
 }
 

@@ -20,7 +20,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Mats Palmgren <matspal@gmail.com>
+ *   Mats Palmgren <mats.palmgren@bredband.net>
  *   Geoff Lankow <geoff@darktrojan.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
@@ -69,7 +69,7 @@
 #include "nsContentCreatorFunctions.h"
 #include "nsContentUtils.h"
 #include "nsDisplayList.h"
-#include "nsIDOMNSEvent.h"
+#include "nsIDOMNSUIEvent.h"
 #include "nsIDOMHTMLInputElement.h"
 #include "nsEventListenerManager.h"
 #ifdef ACCESSIBILITY
@@ -189,7 +189,7 @@ PRBool CapturePickerAcceptCallback(const nsAString& aAccept, void* aClosure)
                        NS_LITERAL_STRING("image/"))) {
     rv = closure->picker->ModeMayBeAvailable(nsICapturePicker::MODE_STILL,
                                              &captureEnabled);
-    NS_ENSURE_SUCCESS(rv, PR_TRUE);
+    NS_ENSURE_SUCCESS(rv, rv);
     if (captureEnabled) {
       *closure->mode = nsICapturePicker::MODE_STILL;
       return PR_FALSE;
@@ -198,7 +198,7 @@ PRBool CapturePickerAcceptCallback(const nsAString& aAccept, void* aClosure)
                               NS_LITERAL_STRING("audio/"))) {
     rv = closure->picker->ModeMayBeAvailable(nsICapturePicker::MODE_AUDIO_CLIP,
                                              &captureEnabled);
-    NS_ENSURE_SUCCESS(rv, PR_TRUE);
+    NS_ENSURE_SUCCESS(rv, rv);
     if (captureEnabled) {
       *closure->mode = nsICapturePicker::MODE_AUDIO_CLIP;
       return PR_FALSE;
@@ -207,17 +207,17 @@ PRBool CapturePickerAcceptCallback(const nsAString& aAccept, void* aClosure)
                               NS_LITERAL_STRING("video/"))) {
     rv = closure->picker->ModeMayBeAvailable(nsICapturePicker::MODE_VIDEO_CLIP,
                                              &captureEnabled);
-    NS_ENSURE_SUCCESS(rv, PR_TRUE);
+    NS_ENSURE_SUCCESS(rv, rv);
     if (captureEnabled) {
       *closure->mode = nsICapturePicker::MODE_VIDEO_CLIP;
       return PR_FALSE;
     }
     rv = closure->picker->ModeMayBeAvailable(nsICapturePicker::MODE_VIDEO_NO_SOUND_CLIP,
                                              &captureEnabled);
-    NS_ENSURE_SUCCESS(rv, PR_TRUE);
+    NS_ENSURE_SUCCESS(rv, rv);
     if (captureEnabled) {
       *closure->mode = nsICapturePicker::MODE_VIDEO_NO_SOUND_CLIP;
-      return PR_FALSE;
+      return PR_FALSE;;
     }
   }
   return PR_TRUE;
@@ -389,10 +389,10 @@ PRBool ShouldProcessMouseClick(nsIDOMEvent* aMouseEvent)
 {
   // only allow the left button
   nsCOMPtr<nsIDOMMouseEvent> mouseEvent = do_QueryInterface(aMouseEvent);
-  nsCOMPtr<nsIDOMNSEvent> domNSEvent = do_QueryInterface(aMouseEvent);
-  NS_ENSURE_TRUE(mouseEvent && domNSEvent, PR_FALSE);
+  nsCOMPtr<nsIDOMNSUIEvent> uiEvent = do_QueryInterface(aMouseEvent);
+  NS_ENSURE_TRUE(mouseEvent && uiEvent, PR_FALSE);
   PRBool defaultPrevented = PR_FALSE;
-  domNSEvent->GetPreventDefault(&defaultPrevented);
+  uiEvent->GetPreventDefault(&defaultPrevented);
   if (defaultPrevented) {
     return PR_FALSE;
   }
@@ -422,7 +422,7 @@ nsFileControlFrame::CaptureMouseListener::HandleEvent(nsIDOMEvent* aMouseEvent)
   if (!ShouldProcessMouseClick(aMouseEvent))
     return NS_OK;
 
-  // Get parent nsPIDOMWindow object.
+  // Get parent nsIDOMWindowInternal object.
   nsIContent* content = mFrame->GetContent();
   if (!content)
     return NS_ERROR_FAILURE;
@@ -521,10 +521,10 @@ nsFileControlFrame::BrowseMouseListener::HandleEvent(nsIDOMEvent* aEvent)
     return input ? input->FireAsyncClickHandler() : NS_OK;
   }
 
-  nsCOMPtr<nsIDOMNSEvent> domNSEvent = do_QueryInterface(aEvent);
-  NS_ENSURE_STATE(domNSEvent);
+  nsCOMPtr<nsIDOMNSUIEvent> uiEvent = do_QueryInterface(aEvent);
+  NS_ENSURE_STATE(uiEvent);
   PRBool defaultPrevented = PR_FALSE;
-  domNSEvent->GetPreventDefault(&defaultPrevented);
+  uiEvent->GetPreventDefault(&defaultPrevented);
   if (defaultPrevented) {
     return NS_OK;
   }
@@ -620,7 +620,7 @@ nsFileControlFrame::GetTextControlFrame(nsPresContext* aPresContext, nsIFrame* a
   nsNewFrame* result = nsnull;
 #ifndef DEBUG_NEWFRAME
   // find the text control frame.
-  nsIFrame* childFrame = aStart->GetFirstPrincipalChild();
+  nsIFrame* childFrame = aStart->GetFirstChild(nsnull);
 
   while (childFrame) {
     // see if the child is a text control

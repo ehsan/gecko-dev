@@ -80,6 +80,7 @@
 #include "nsUnicharUtils.h"
 #include "nsICookieService.h"
 #include "nsIPrompt.h"
+#include "nsIDOMWindowInternal.h"
 #include "nsIChannel.h"
 #include "nsIPrincipal.h"
 #include "nsXMLPrettyPrinter.h"
@@ -594,13 +595,6 @@ nsXMLContentSink::CloseElement(nsIContent* aContent)
     ) {
     mConstrainSize = PR_TRUE; 
 
-    if (mPreventScriptExecution) {
-      nsCOMPtr<nsIScriptElement> sele = do_QueryInterface(aContent);
-      NS_ASSERTION(sele, "script did QI correctly!");
-      sele->PreventExecution();
-      return rv;
-    }
-
     // Now tell the script that it's ready to go. This may execute the script
     // or return NS_ERROR_HTMLPARSER_BLOCK. Or neither if the script doesn't
     // need executing.
@@ -638,10 +632,8 @@ nsXMLContentSink::CloseElement(nsIContent* aContent)
       ssle->SetEnableUpdates(PR_TRUE);
       PRBool willNotify;
       PRBool isAlternate;
-      rv = ssle->UpdateStyleSheet(mFragmentMode ? nsnull : this,
-                                  &willNotify,
-                                  &isAlternate);
-      if (NS_SUCCEEDED(rv) && willNotify && !isAlternate && !mFragmentMode) {
+      rv = ssle->UpdateStyleSheet(this, &willNotify, &isAlternate);
+      if (NS_SUCCEEDED(rv) && willNotify && !isAlternate) {
         ++mPendingSheetCount;
         mScriptLoader->AddExecuteBlocker();
       }
@@ -1070,8 +1062,7 @@ nsXMLContentSink::HandleStartElement(const PRUnichar *aName,
   // properly (eg form state restoration).
   if (nodeInfo->NamespaceID() == kNameSpaceID_XHTML) {
     if (nodeInfo->NameAtom() == nsGkAtoms::input ||
-        nodeInfo->NameAtom() == nsGkAtoms::button ||
-        nodeInfo->NameAtom() == nsGkAtoms::menuitem) {
+        nodeInfo->NameAtom() == nsGkAtoms::button) {
       content->DoneCreatingElement();
     } else if (nodeInfo->NameAtom() == nsGkAtoms::head && !mCurrentHead) {
       mCurrentHead = content;
@@ -1317,14 +1308,12 @@ nsXMLContentSink::HandleProcessingInstruction(const PRUnichar *aTarget,
     ssle->SetEnableUpdates(PR_TRUE);
     PRBool willNotify;
     PRBool isAlternate;
-    rv = ssle->UpdateStyleSheet(mFragmentMode ? nsnull : this,
-                                &willNotify,
-                                &isAlternate);
+    rv = ssle->UpdateStyleSheet(this, &willNotify, &isAlternate);
     NS_ENSURE_SUCCESS(rv, rv);
     
     if (willNotify) {
       // Successfully started a stylesheet load
-      if (!isAlternate && !mFragmentMode) {
+      if (!isAlternate) {
         ++mPendingSheetCount;
         mScriptLoader->AddExecuteBlocker();
       }

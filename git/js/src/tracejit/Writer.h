@@ -110,10 +110,10 @@ enum LC_TMBits {
  * - ACCSET_OBJ_CLASP:     The 'clasp'    field of all JSObjects.
  * - ACCSET_OBJ_FLAGS:     The 'flags'    field of all JSObjects.
  * - ACCSET_OBJ_SHAPE:     The 'shape'    field of all JSObjects.
- * - ACCSET_OBJ_PROTO:     The 'proto'    field of all JSObjects.
+ * - ACCSET_OBJ_TYPE:      The 'type'     field of all JSObjects, and the 'proto' field of TypeObjects.
  * - ACCSET_OBJ_PARENT:    The 'parent'   field of all JSObjects.
  * - ACCSET_OBJ_PRIVATE:   The 'private'  field of all JSObjects.
- * - ACCSET_OBJ_CAPACITY:  The 'capacity' field of all JSObjects.
+ * - ACCSET_OBJ_CAPACITY:  The 'capacity' or 'initializedLength' field of all JSObjects.
  * - ACCSET_OBJ_SLOTS:     The 'slots'    field of all JSObjects.
  * - ACCSET_SLOTS:         The slots (be they fixed or dynamic) of all JSObjects.
  * - ACCSET_TARRAY:        All TypedArray structs.
@@ -142,7 +142,7 @@ static const nanojit::AccSet ACCSET_RUNTIME       = (1 <<  9);
 static const nanojit::AccSet ACCSET_OBJ_CLASP     = (1 << 10);
 static const nanojit::AccSet ACCSET_OBJ_FLAGS     = (1 << 11);
 static const nanojit::AccSet ACCSET_OBJ_SHAPE     = (1 << 12);
-static const nanojit::AccSet ACCSET_OBJ_PROTO     = (1 << 13);
+static const nanojit::AccSet ACCSET_OBJ_TYPE      = (1 << 13);
 static const nanojit::AccSet ACCSET_OBJ_PARENT    = (1 << 14);
 static const nanojit::AccSet ACCSET_OBJ_PRIVATE   = (1 << 15);
 static const nanojit::AccSet ACCSET_OBJ_CAPACITY  = (1 << 16);
@@ -495,7 +495,9 @@ class Writer
     }
 
     nj::LIns *ldpObjProto(nj::LIns *obj) const {
-        return name(lir->insLoad(nj::LIR_ldp, obj, offsetof(JSObject, proto), ACCSET_OBJ_PROTO),
+        nj::LIns *type = name(lir->insLoad(nj::LIR_ldp, obj, offsetof(JSObject, type), ACCSET_OBJ_TYPE),
+                              "type");
+        return name(lir->insLoad(nj::LIR_ldp, type, offsetof(types::TypeObject, proto), ACCSET_OBJ_TYPE),
                     "proto");
     }
 
@@ -522,8 +524,8 @@ class Writer
                     "private_uint32");
     }
 
-    nj::LIns *ldiDenseArrayCapacity(nj::LIns *array) const {
-        return name(lir->insLoad(nj::LIR_ldi, array, offsetof(JSObject, capacity),
+    nj::LIns *ldiDenseArrayInitializedLength(nj::LIns *array) const {
+        return name(lir->insLoad(nj::LIR_ldi, array, offsetof(JSObject, initializedLength),
                                  ACCSET_OBJ_CAPACITY),
                     "capacity");
     }
@@ -533,31 +535,16 @@ class Writer
                     "slots");
     }
 
-    nj::LIns *ldpObjFixedSlots(nj::LIns *obj) const {
-        //return name(lir->insLoad(nj::LIR_ldp, obj, sizeof(JSObject), ACCSET_SLOTS),
-#if JS_BITS_PER_WORD == 32
-        return name(lir->ins2(nj::LIR_addp, obj, lir->insImmI(sizeof(JSObject))),
-#else
-        return name(lir->ins2(nj::LIR_addp, obj, lir->insImmQ(sizeof(JSObject))),
-#endif
-                "fixed_slots");
-    }
-
     nj::LIns *ldiConstTypedArrayLength(nj::LIns *array) const {
-        return name(lir->insLoad(nj::LIR_ldi, array, sizeof(Value) * js::TypedArray::FIELD_LENGTH + sPayloadOffset, ACCSET_TARRAY,
+        return name(lir->insLoad(nj::LIR_ldi, array, js::TypedArray::lengthOffset(), ACCSET_TARRAY,
                                  nj::LOAD_CONST),
                     "typedArrayLength");
     }
 
-    nj::LIns *ldiConstTypedArrayByteOffset(nj::LIns *array) const {
-        return name(lir->insLoad(nj::LIR_ldi, array, sizeof(Value) * js::TypedArray::FIELD_BYTEOFFSET + sPayloadOffset, ACCSET_TARRAY,
+    nj::LIns *ldpConstTypedArrayData(nj::LIns *array) const {
+        return name(lir->insLoad(nj::LIR_ldp, array, js::TypedArray::dataOffset(), ACCSET_TARRAY,
                                  nj::LOAD_CONST),
-                    "typedArrayByteOffset");
-    }
-
-    nj::LIns *ldpConstTypedArrayData(nj::LIns *obj) const {
-        uint32 offset = offsetof(JSObject, privateData);
-        return name(lir->insLoad(nj::LIR_ldp, obj, offset, ACCSET_TARRAY, nj::LOAD_CONST), "typedArrayData");
+                    "typedElems");
     }
 
     nj::LIns *ldc2iTypedArrayElement(nj::LIns *elems, nj::LIns *index) const {
@@ -1186,18 +1173,15 @@ class Writer
     /*
      * Nb: this "Privatized" refers to the Private API in jsvalue.h.  It
      * doesn't refer to the JSObj::privateData slot!  Confusing.
+     * This should only be used for slots which are known to always be fixed.
      */
     nj::LIns *getObjPrivatizedSlot(nj::LIns *obj, uint32 slot) const {
+        uint32 offset = JSObject::getFixedSlotOffset(slot) + sPayloadOffset;
 #if JS_BITS_PER_WORD == 32
-        nj::LIns *vaddr_ins = ldpObjSlots(obj);
-        return lir->insLoad(nj::LIR_ldi, vaddr_ins,
-                            slot * sizeof(Value) + sPayloadOffset, ACCSET_SLOTS, nj::LOAD_CONST);
-
+        return lir->insLoad(nj::LIR_ldi, obj, offset, ACCSET_SLOTS, nj::LOAD_CONST);
 #elif JS_BITS_PER_WORD == 64
         /* N.B. On 64-bit, privatized value are encoded differently from other pointers. */
-        nj::LIns *vaddr_ins = ldpObjSlots(obj);
-        nj::LIns *v_ins = lir->insLoad(nj::LIR_ldq, vaddr_ins,
-                                       slot * sizeof(Value) + sPayloadOffset,
+        nj::LIns *v_ins = lir->insLoad(nj::LIR_ldq, obj, offset,
                                        ACCSET_SLOTS, nj::LOAD_CONST);
         return lshqN(v_ins, 1);
 #endif

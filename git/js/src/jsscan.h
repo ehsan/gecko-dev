@@ -22,7 +22,6 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Nick Fitzgerald <nfitzgerald@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -486,14 +485,6 @@ class TokenStream
         return matchToken(tt);
     }
 
-    /*
-     * Give up responsibility for managing the sourceMap filename's memory.
-     */
-    const jschar *releaseSourceMap() {
-        const jschar* sm = sourceMap;
-        sourceMap = NULL;
-        return sm;
-    }
 
   private:
     /*
@@ -598,7 +589,6 @@ class TokenStream
     bool matchUnicodeEscapeIdent(int32 *c);
     bool peekChars(intN n, jschar *cp);
     bool getAtLine();
-    bool getAtSourceMappingURL();
 
     bool getXMLEntity();
     bool getXMLTextOrTag(TokenKind *ttp, Token **tpp);
@@ -636,7 +626,6 @@ class TokenStream
     const jschar        *prevLinebase;  /* start of previous line;  NULL if on the first line */
     TokenBuf            userbuf;        /* user input buffer */
     const char          *filename;      /* input filename or null */
-    jschar              *sourceMap;     /* source map's filename or null */
     void                *listenerTSData;/* listener data for this TokenStream */
     CharBuffer          tokenbuf;       /* current token string buffer */
     int8                oneCharTokens[128];  /* table of one-char tokens */

@@ -41,7 +41,7 @@
 #define nsWebSocket_h__
 
 #include "nsISupportsUtils.h"
-#include "nsIMozWebSocket.h"
+#include "nsIWebSocket.h"
 #include "nsCOMPtr.h"
 #include "nsString.h"
 #include "nsIJSNativeInitializer.h"
@@ -50,7 +50,6 @@
 #include "nsIDOMEventListener.h"
 #include "nsDOMEventTargetWrapperCache.h"
 #include "nsAutoPtr.h"
-#include "nsIDOMDOMStringList.h"
 
 #define DEFAULT_WS_SCHEME_PORT  80
 #define DEFAULT_WSS_SCHEME_PORT 443
@@ -67,7 +66,7 @@ class nsWebSocketEstablishedConnection;
 class nsWSCloseEvent;
 
 class nsWebSocket: public nsDOMEventTargetWrapperCache,
-                   public nsIMozWebSocket,
+                   public nsIWebSocket,
                    public nsIJSNativeInitializer
 {
 friend class nsWSNetAddressComparator;
@@ -80,7 +79,7 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsWebSocket,
                                            nsDOMEventTargetWrapperCache)
-  NS_DECL_NSIMOZWEBSOCKET
+  NS_DECL_NSIWEBSOCKET
 
   // nsIJSNativeInitializer
   NS_IMETHOD Initialize(nsISupports* aOwner, JSContext* aContext,
@@ -99,18 +98,18 @@ public:
   // Determine if preferences allow WebSocket
   static PRBool PrefEnabled();
 
-  const PRUint64 InnerWindowID() const { return mInnerWindowID; }
+  const PRUint64 WindowID() const { return mWindowID; }
   const nsCString& GetScriptFile() const { return mScriptFile; }
   const PRUint32 GetScriptLine() const { return mScriptLine; }
 
 protected:
   nsresult ParseURL(const nsString& aURL);
+  nsresult SetProtocol(const nsString& aProtocol);
   nsresult EstablishConnection();
 
   nsresult CreateAndDispatchSimpleEvent(const nsString& aName);
   nsresult CreateAndDispatchMessageEvent(const nsACString& aData);
-  nsresult CreateAndDispatchCloseEvent(PRBool aWasClean, PRUint16 aCode,
-                                       const nsString &aReason);
+  nsresult CreateAndDispatchCloseEvent(PRBool aWasClean);
 
   // called from mConnection accordingly to the situation
   void SetReadyState(PRUint16 aNewReadyState);
@@ -137,20 +136,13 @@ protected:
   PRPackedBool mCheckMustKeepAlive;
   PRPackedBool mTriggeredCloseEvent;
 
-  nsCString mClientReason;
-  PRUint16  mClientReasonCode;
-  nsString  mServerReason;
-  PRUint16  mServerReasonCode;
-
   nsCString mAsciiHost;  // hostname
   PRUint32  mPort;
   nsCString mResource; // [filepath[?query]]
   nsString  mUTF16Origin;
   
   nsCOMPtr<nsIURI> mURI;
-  nsCString mRequestedProtocolList;
-  nsCString mEstablishedProtocol;
-  nsCString mEstablishedExtensions;
+  nsCString mProtocol;
 
   PRUint16 mReadyState;
 
@@ -164,12 +156,12 @@ protected:
   // Web Socket owner information:
   // - the script file name, UTF8 encoded.
   // - source code line number where the Web Socket object was constructed.
-  // - the ID of the inner window where the script lives. Note that this may not
-  //   be the same as the Web Socket owner window.
+  // - the window ID of the outer window where the script lives. Note that this 
+  // may not be the same as the Web Socket owner window.
   // These attributes are used for error reporting.
   nsCString mScriptFile;
   PRUint32 mScriptLine;
-  PRUint64 mInnerWindowID;
+  PRUint64 mWindowID;
 
 private:
   nsWebSocket(const nsWebSocket& x);   // prevent bad usage

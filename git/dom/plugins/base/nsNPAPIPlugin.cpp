@@ -2010,7 +2010,7 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
   switch(variable) {
 #if defined(XP_UNIX) && !defined(XP_MACOSX)
   case NPNVxDisplay : {
-#if defined(MOZ_X11)
+#if defined(MOZ_WIDGET_GTK2) || defined(MOZ_WIDGET_QT)
     if (npp) {
       nsNPAPIPluginInstance *inst = (nsNPAPIPluginInstance *) npp->ndata;
       PRBool windowless = PR_FALSE;
@@ -2300,9 +2300,8 @@ _setvalue(NPP npp, NPPVariable variable, void *result)
       }
 
     case NPPVpluginKeepLibraryInMemory: {
-      // This variable is not supported any more but we'll pretend it is
-      // so that plugins don't fail on an error return.
-      return NS_OK;
+      NPBool bCached = (result != nsnull);
+      return inst->SetCached(bCached);
     }
 
     case NPPVpluginUsesDOMForCursorBool: {

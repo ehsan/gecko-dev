@@ -1230,20 +1230,23 @@ nsXMLHttpRequest::GetResponseHeader(const nsACString& header,
   return rv;
 }
 
-already_AddRefed<nsILoadGroup>
-nsXMLHttpRequest::GetLoadGroup() const
+nsresult
+nsXMLHttpRequest::GetLoadGroup(nsILoadGroup **aLoadGroup)
 {
+  NS_ENSURE_ARG_POINTER(aLoadGroup);
+  *aLoadGroup = nsnull;
+
   if (mState & XML_HTTP_REQUEST_BACKGROUND) {
-    return nsnull;
+    return NS_OK;
   }
 
   nsCOMPtr<nsIDocument> doc =
     nsContentUtils::GetDocumentFromScriptContext(mScriptContext);
   if (doc) {
-    return doc->GetDocumentLoadGroup();
+    *aLoadGroup = doc->GetDocumentLoadGroup().get();  // already_AddRefed
   }
 
-  return nsnull;
+  return NS_OK;
 }
 
 nsresult
@@ -1343,12 +1346,6 @@ nsXMLHttpRequest::GetCurrentHttpChannel()
   }
 
   return httpChannel;
-}
-
-bool
-nsXMLHttpRequest::IsSystemXHR()
-{
-  return !!nsContentUtils::IsSystemPrincipal(mPrincipal);
 }
 
 nsresult
@@ -1490,7 +1487,8 @@ nsXMLHttpRequest::Open(const nsACString& method, const nsACString& url,
   // When we are called from JS we can find the load group for the page,
   // and add ourselves to it. This way any pending requests
   // will be automatically aborted if the user leaves the page.
-  nsCOMPtr<nsILoadGroup> loadGroup = GetLoadGroup();
+  nsCOMPtr<nsILoadGroup> loadGroup;
+  GetLoadGroup(getter_AddRefs(loadGroup));
 
   // get Content Security Policy from principal to pass into channel
   nsCOMPtr<nsIChannelPolicy> channelPolicy;
@@ -1602,6 +1600,13 @@ void nsXMLHttpRequest::CreateResponseBlob(nsIRequest *request)
   nsCOMPtr<nsICachingChannel> cc(do_QueryInterface(request));
   if (cc) {
     cc->GetCacheFile(getter_AddRefs(file));
+    if (!file) {
+      // cacheAsFile returns false if caching is inhibited
+      PRBool cacheAsFile = PR_FALSE;
+      if (NS_SUCCEEDED(cc->GetCacheAsFile(&cacheAsFile)) && cacheAsFile) {
+        
+      }
+    }
   } else {
     nsCOMPtr<nsIFileChannel> fc = do_QueryInterface(request);
     if (fc) {
@@ -1616,8 +1621,20 @@ void nsXMLHttpRequest::CreateResponseBlob(nsIRequest *request)
       cc->GetCacheToken(getter_AddRefs(cacheToken));
     }
 
-    mResponseBlob =
-      new nsDOMFileFile(file, NS_ConvertASCIItoUTF16(contentType), cacheToken);
+    NS_ConvertASCIItoUTF16 wideContentType(contentType);
+
+    nsCOMPtr<nsIDOMBlob> blob =
+      new nsDOMFile(file, wideContentType, cacheToken);
+
+    // XXXkhuey this is a complete hack ... but we need to get 6 out the door
+    // The response blob here should not be a File object, it should only
+    // be a Blob.  Unfortunately, because nsDOMFile has grown through
+    // accretion over the years and is in dangerous need of a refactoring,
+    // slicing it is the easiest way to get there ...
+    PRUint64 size = 0;
+    blob->GetSize(&size);
+    blob->MozSlice(0, size, wideContentType, 2, getter_AddRefs(mResponseBlob));
+    
     mResponseBody.Truncate();
     mResponseBodyUnicode.SetIsVoid(PR_TRUE);
   }
@@ -1724,7 +1741,6 @@ nsXMLHttpRequest::OnStartRequest(nsIRequest *request, nsISupports *ctxt)
   mResponseBody.Truncate();
   mResponseBodyUnicode.SetIsVoid(PR_TRUE);
   mResponseBlob = nsnull;
-  mResultArrayBuffer = nsnull;
 
   // Set up responseXML
   PRBool parseBody = mResponseType == XML_HTTP_RESPONSE_TYPE_DEFAULT ||
@@ -1890,9 +1906,19 @@ nsXMLHttpRequest::OnStopRequest(nsIRequest *request, nsISupports *ctxt, nsresult
       if (blobData) {
         memcpy(blobData, mResponseBody.BeginReading(), blobLen);
 
-        mResponseBlob =
-          new nsDOMMemoryFile(blobData, blobLen,
-                              NS_ConvertASCIItoUTF16(contentType));
+        NS_ConvertASCIItoUTF16 wideContentType(contentType);
+        nsCOMPtr<nsIDOMBlob> blob =
+          new nsDOMMemoryFile(blobData, blobLen, EmptyString(),
+                              wideContentType);
+
+        // XXXkhuey this is a complete hack ... but we need to get 6 out the door
+        // The response blob here should not be a File object, it should only
+        // be a Blob.  Unfortunately, because nsDOMFile has grown through
+        // accretion over the years and is in dangerous need of a refactoring,
+        // slicing it is the easiest way to get there ...
+        blob->MozSlice(0, blobLen, wideContentType,
+                       2, getter_AddRefs(mResponseBlob));
+
         mResponseBody.Truncate();
       }
       NS_ASSERTION(mResponseBodyUnicode.IsVoid(),
@@ -2072,7 +2098,7 @@ GetRequestBody(nsIVariant* aBody, nsIInputStream** aResult,
     // nsIInputStream?
     nsCOMPtr<nsIInputStream> stream = do_QueryInterface(supports);
     if (stream) {
-      stream.forget(aResult);
+      *aResult = stream.forget().get();
       aCharset.Truncate();
 
       return NS_OK;
@@ -2495,7 +2521,9 @@ nsXMLHttpRequest::SetRequestHeader(const nsACString& header,
     }
   }
 
-  if (!(mState & XML_HTTP_REQUEST_OPENED))
+  PRUint16 state;
+  rv = GetReadyState(&state);
+  if (NS_FAILED(rv) || state != OPENED)
     return NS_ERROR_IN_PROGRESS;
 
   if (!mChannel)             // open() initializes mChannel, and open()

@@ -588,7 +588,7 @@ nsSimplePageSequenceFrame::PrintNextPage()
     height -= mMargin.top + mMargin.bottom;
     width  -= mMargin.left + mMargin.right;
     nscoord selectionY = height;
-    nsIFrame* conFrame = mCurrentPageFrame->GetFirstPrincipalChild();
+    nsIFrame* conFrame = mCurrentPageFrame->GetFirstChild(nsnull);
     if (mSelectionHeight >= 0) {
       conFrame->SetPosition(conFrame->GetPosition() + nsPoint(0, -mYSelOffset));
       nsContainerFrame::PositionChildViews(conFrame);
@@ -613,6 +613,19 @@ nsSimplePageSequenceFrame::PrintNextPage()
       nsRefPtr<nsRenderingContext> renderingContext;
       dc->CreateRenderingContext(*getter_AddRefs(renderingContext));
       NS_ENSURE_TRUE(renderingContext, NS_ERROR_OUT_OF_MEMORY);
+
+#if defined(XP_UNIX) && !defined(XP_MACOSX)
+      // On linux, need to rotate landscape-mode output on printed surfaces
+      PRInt32 orientation;
+      mPageData->mPrintSettings->GetOrientation(&orientation);
+      if (nsIPrintSettings::kLandscapeOrientation == orientation) {
+        // Shift up by one landscape-page-height (in points) before we rotate.
+        float offset = POINTS_PER_INCH_FLOAT *
+           (mCurrentPageFrame->GetSize().height / float(dc->AppUnitsPerCSSInch()));
+        renderingContext->ThebesContext()->Translate(gfxPoint(offset, 0));
+        renderingContext->ThebesContext()->Rotate(M_PI/2);
+      }
+#endif // XP_UNIX && !XP_MACOSX
 
       nsRect drawingRect(nsPoint(0, 0),
                          mCurrentPageFrame->GetSize());
@@ -680,7 +693,7 @@ nsSimplePageSequenceFrame::PaintPageSequence(nsRenderingContext& aRenderingConte
 
   // Now the rect and the rendering coordinates are are relative to this frame.
   // Loop over the pages and paint them.
-  nsIFrame* child = GetFirstPrincipalChild();
+  nsIFrame* child = GetFirstChild(nsnull);
   while (child) {
     nsPoint pt = child->GetPosition();
     // The rendering context has to be translated before each call to PaintFrame

@@ -52,16 +52,14 @@
 #include "nsCOMPtr.h"
 #include "nsIPluginInstanceOwner.h"
 #include "nsIPluginTagInfo.h"
-#include "nsIDOMEventListener.h"
+#include "nsIDOMMouseListener.h"
+#include "nsIDOMMouseMotionListener.h"
+#include "nsIDOMKeyListener.h"
+#include "nsIDOMFocusListener.h"
 #include "nsIScrollPositionListener.h"
 #include "nsPluginHost.h"
 #include "nsPluginNativeWindow.h"
 #include "gfxRect.h"
-
-// X.h defines KeyPress
-#ifdef KeyPress
-#undef KeyPress
-#endif
 
 #ifdef XP_MACOSX
 #include "nsCoreAnimationSupport.h"
@@ -83,25 +81,15 @@ class gfxXlibSurface;
 #endif
 
 #ifdef MOZ_WIDGET_QT
-#ifdef MOZ_X11
 #include "gfxQtNativeRenderer.h"
-#endif
-#endif
-
-#ifdef XP_OS2
-#define INCL_PM
-#define INCL_GPI
-#include <os2.h>
-#endif
-
-// X.h defines KeyPress
-#ifdef KeyPress
-#undef KeyPress
 #endif
 
 class nsPluginInstanceOwner : public nsIPluginInstanceOwner,
                               public nsIPluginTagInfo,
-                              public nsIDOMEventListener,
+                              public nsIDOMMouseListener,
+                              public nsIDOMMouseMotionListener,
+                              public nsIDOMKeyListener,
+                              public nsIDOMFocusListener,
                               public nsIScrollPositionListener
 {
 public:
@@ -125,14 +113,32 @@ public:
   //nsIPluginTagInfo interface
   NS_DECL_NSIPLUGINTAGINFO
   
-  // nsIDOMEventListener interfaces 
-  NS_DECL_NSIDOMEVENTLISTENER
+  // nsIDOMMouseListener interfaces 
+  NS_IMETHOD MouseDown(nsIDOMEvent* aMouseEvent);
+  NS_IMETHOD MouseUp(nsIDOMEvent* aMouseEvent);
+  NS_IMETHOD MouseClick(nsIDOMEvent* aMouseEvent);
+  NS_IMETHOD MouseDblClick(nsIDOMEvent* aMouseEvent);
+  NS_IMETHOD MouseOver(nsIDOMEvent* aMouseEvent);
+  NS_IMETHOD MouseOut(nsIDOMEvent* aMouseEvent);
+  NS_IMETHOD HandleEvent(nsIDOMEvent* aEvent);     
   
-  nsresult MouseDown(nsIDOMEvent* aKeyEvent);
-  nsresult KeyPress(nsIDOMEvent* aKeyEvent);
-
+  // nsIDOMMouseMotionListener interfaces
+  NS_IMETHOD MouseMove(nsIDOMEvent* aMouseEvent);
+  NS_IMETHOD DragMove(nsIDOMEvent* aMouseEvent) { return NS_OK; }
+  
+  // nsIDOMKeyListener interfaces
+  NS_IMETHOD KeyDown(nsIDOMEvent* aKeyEvent);
+  NS_IMETHOD KeyUp(nsIDOMEvent* aKeyEvent);
+  NS_IMETHOD KeyPress(nsIDOMEvent* aKeyEvent);
+  
+  // nsIDOMFocusListener interfaces
+  NS_IMETHOD Focus(nsIDOMEvent * aFocusEvent);
+  NS_IMETHOD Blur(nsIDOMEvent * aFocusEvent);
+  
   nsresult Destroy();  
-
+  
+  void PrepareToStop(PRBool aDelayedStop);
+  
 #ifdef XP_WIN
   void Paint(const RECT& aDirty, HDC aDC);
 #elif defined(XP_MACOSX)
@@ -159,11 +165,14 @@ public:
   
   //locals
   
-  nsresult Init(nsObjectFrame* aFrame, nsIContent* aContent);
+  nsresult Init(nsPresContext* aPresContext, nsObjectFrame* aFrame,
+                nsIContent* aContent);
   
   void* GetPluginPortFromWidget();
   void ReleasePluginPort(void* pluginPort);
-
+  
+  void SetPluginHost(nsIPluginHost* aHost);
+  
   nsEventStatus ProcessEvent(const nsGUIEvent & anEvent);
   
 #ifdef XP_MACOSX
@@ -199,13 +208,17 @@ public:
 #else // XP_MACOSX
   void UpdateWindowPositionAndClipRect(PRBool aSetWindow);
   void UpdateWindowVisibility(PRBool aVisible);
-  void UpdateDocumentActiveState(PRBool aIsActive);
 #endif // XP_MACOSX
   void CallSetWindow();
-
-  void SetFrame(nsObjectFrame *aFrame);
-  nsObjectFrame* GetFrame();
-
+  
+  void SetOwner(nsObjectFrame *aOwner)
+  {
+    mObjectFrame = aOwner;
+  }
+  nsObjectFrame* GetOwner() {
+    return mObjectFrame;
+  }
+  
   PRUint32 GetLastEventloopNestingLevel() const {
     return mLastEventloopNestingLevel; 
   }
@@ -298,11 +311,10 @@ private:
   
   nsPluginNativeWindow       *mPluginWindow;
   nsRefPtr<nsNPAPIPluginInstance> mInstance;
-  nsObjectFrame              *mObjectFrame;
-  nsIContent                 *mContent; // WEAK, content owns us
+  nsObjectFrame              *mObjectFrame; // owns nsPluginInstanceOwner
+  nsCOMPtr<nsIContent>        mContent;
   nsCString                   mDocumentBase;
   char                       *mTagText;
-  PRBool                      mWidgetCreationComplete;
   nsCOMPtr<nsIWidget>         mWidget;
   nsRefPtr<nsPluginHost>      mPluginHost;
   
@@ -312,7 +324,7 @@ private:
   NP_Port                                   mQDPluginPortCopy;
 #endif
   PRInt32                                   mInCGPaintLevel;
-  nsRefPtr<nsIOSurface>                     mIOSurface;
+  nsIOSurface                              *mIOSurface;
   nsCARenderer                              mCARenderer;
   CGColorSpaceRef                           mColorProfile;
   static nsCOMPtr<nsITimer>                *sCATimer;
@@ -337,8 +349,10 @@ private:
   PRPackedBool                mFlash10Quirks;
 #endif
   PRPackedBool                mPluginWindowVisible;
-  PRPackedBool                mPluginDocumentActiveState;
-
+  
+  // If true, destroy the widget on destruction. Used when plugin stop
+  // is being delayed to a safer point in time.
+  PRPackedBool                mDestroyWidget;
   PRUint16          mNumCachedAttrs;
   PRUint16          mNumCachedParams;
   char              **mCachedAttrParamNames;

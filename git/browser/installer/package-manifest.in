@@ -45,9 +45,6 @@
 @BINPATH@/@DLL_PREFIX@xpcom@DLL_SUFFIX@
 @BINPATH@/@DLL_PREFIX@nspr4@DLL_SUFFIX@
 @BINPATH@/@DLL_PREFIX@mozalloc@DLL_SUFFIX@
-#ifdef MOZ_MEMORY_DARWIN
-@BINPATH@/@DLL_PREFIX@jemalloc@DLL_SUFFIX@
-#endif
 #ifdef XP_MACOSX
 @BINPATH@/XUL
 #else
@@ -61,8 +58,14 @@
 #endif
 #ifdef XP_WIN32
 #ifdef MOZ_MEMORY
+#ifdef WIN32_OLD_STYLE_JEMALLOC
+@BINPATH@/mozcrt19.dll
+@BINPATH@/mozcpp19.dll
+#else
 @BINPATH@/jemalloc.dll
 #endif
+#endif
+#else
 #if _MSC_VER == 1400
 @BINPATH@/Microsoft.VC80.CRT.manifest
 @BINPATH@/msvcm80.dll
@@ -95,12 +98,16 @@
 #else
 @BINPATH@/mozsqlt3@DLL_SUFFIX@
 #endif
+@BINPATH@/README.txt
 @BINPATH@/blocklist.xml
 #ifdef XP_UNIX
 @BINPATH@/run-mozilla.sh
 #ifndef XP_MACOSX
 @BINPATH@/mozilla-xremote-client
 #endif
+#endif
+#ifdef MOZ_SPLASHSCREEN
+@BINPATH@/splash.bmp
 #endif
 
 ; [Components]
@@ -250,7 +257,6 @@
 @BINPATH@/components/xpcom_xpti.xpt
 @BINPATH@/components/xpconnect.xpt
 @BINPATH@/components/xulapp.xpt
-@BINPATH@/components/xul.xpt
 @BINPATH@/components/xuldoc.xpt
 @BINPATH@/components/xultmpl.xpt
 @BINPATH@/components/zipwriter.xpt

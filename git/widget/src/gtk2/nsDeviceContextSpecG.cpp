@@ -425,6 +425,16 @@ NS_IMETHODIMP nsDeviceContextSpecGTK::GetSurfaceForPrinter(gfxASurface **aSurfac
   double width, height;
   mPrintSettings->GetEffectivePageSize(&width, &height);
 
+  // If we're in landscape mode, we'll be rotating the output --
+  // need to swap width & height.
+  PRInt32 orientation;
+  mPrintSettings->GetOrientation(&orientation);
+  if (nsIPrintSettings::kLandscapeOrientation == orientation) {
+    double tmp = width;
+    width = height;
+    height = tmp;
+  }
+
   // convert twips to points
   width  /= TWIPS_PER_POINT_FLOAT;
   height /= TWIPS_PER_POINT_FLOAT;
@@ -497,13 +507,7 @@ NS_IMETHODIMP nsDeviceContextSpecGTK::GetSurfaceForPrinter(gfxASurface **aSurfac
   if (format == nsIPrintSettings::kOutputFormatPDF) {
     surface = new gfxPDFSurface(stream, surfaceSize);
   } else {
-    PRInt32 orientation;
-    mPrintSettings->GetOrientation(&orientation);
-    if (nsIPrintSettings::kPortraitOrientation == orientation) {
-      surface = new gfxPSSurface(stream, surfaceSize, gfxPSSurface::PORTRAIT);
-    } else {
-      surface = new gfxPSSurface(stream, surfaceSize, gfxPSSurface::LANDSCAPE);
-    }
+    surface = new gfxPSSurface(stream, surfaceSize);
   }
 
   if (!surface)
@@ -973,9 +977,11 @@ nsresult GlobalPrinters::InitializeGlobalPrinters ()
   }
 
   mGlobalPrinterList = new nsTArray<nsString>();
+  if (!mGlobalPrinterList) 
+    return NS_ERROR_OUT_OF_MEMORY;
 
   nsPSPrinterList psMgr;
-  if (psMgr.Enabled()) {
+  if (NS_SUCCEEDED(psMgr.Init()) && psMgr.Enabled()) {
     /* Get the list of PostScript-module printers */
     // XXX: this function is the only user of GetPrinterList
     // So it may be interesting to convert the nsCStrings

@@ -47,10 +47,6 @@
 #include "nsIDOMXULPopupElement.h"
 #include "nsIDOMXULMultSelectCntrlEl.h"
 #include "nsIDOMXULSelectCntrlItemEl.h"
-#include "nsIDOMNodeList.h"
-#include "nsComponentManagerUtils.h"
-
-using namespace mozilla::a11y;
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULColumnsAccessible
@@ -97,10 +93,13 @@ nsXULColumnItemAccessible::NativeState()
   return states::READONLY;
 }
 
-PRUint8
-nsXULColumnItemAccessible::ActionCount()
+NS_IMETHODIMP
+nsXULColumnItemAccessible::GetNumActions(PRUint8 *aNumActions)
 {
-  return 1;
+  NS_ENSURE_ARG_POINTER(aNumActions);
+
+  *aNumActions = 1;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -999,11 +998,11 @@ nsXULListCellAccessible::GetTable(nsIAccessibleTable **aTable)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  nsAccessible* thisRow = Parent();
+  nsAccessible* thisRow = GetParent();
   if (!thisRow || thisRow->Role() != nsIAccessibleRole::ROLE_ROW)
     return NS_OK;
 
-  nsAccessible* table = thisRow->Parent();
+  nsAccessible* table = thisRow->GetParent();
   if (!table || table->Role() != nsIAccessibleRole::ROLE_TABLE)
     return NS_OK;
 
@@ -1020,7 +1019,7 @@ nsXULListCellAccessible::GetColumnIndex(PRInt32 *aColumnIndex)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  nsAccessible* row = Parent();
+  nsAccessible* row = GetParent();
   if (!row)
     return NS_OK;
 
@@ -1049,11 +1048,11 @@ nsXULListCellAccessible::GetRowIndex(PRInt32 *aRowIndex)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  nsAccessible* row = Parent();
+  nsAccessible* row = GetParent();
   if (!row)
     return NS_OK;
 
-  nsAccessible* table = row->Parent();
+  nsAccessible* table = row->GetParent();
   if (!table)
     return NS_OK;
 

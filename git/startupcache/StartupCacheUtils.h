@@ -46,8 +46,8 @@ namespace mozilla {
 namespace scache {
 
 NS_EXPORT nsresult
-NewObjectInputStreamFromBuffer(char* buffer, PRUint32 len, 
-                               nsIObjectInputStream** stream);
+NS_NewObjectInputStreamFromBuffer(char* buffer, PRUint32 len, 
+                                  nsIObjectInputStream** stream);
 
 // We can't retrieve the wrapped stream from the objectOutputStream later,
 // so we return it here. We give callers in debug builds the option 
@@ -56,16 +56,16 @@ NewObjectInputStreamFromBuffer(char* buffer, PRUint32 len,
 // This could cause them to be deserialized incorrectly (as multiple copies
 // instead of references).
 NS_EXPORT nsresult
-NewObjectOutputWrappedStorageStream(nsIObjectOutputStream **wrapperStream,
-                                    nsIStorageStream** stream,
-                                    PRBool wantDebugStream);
+NS_NewObjectOutputWrappedStorageStream(nsIObjectOutputStream **wrapperStream,
+                                       nsIStorageStream** stream,
+                                       PRBool wantDebugStream);
 
 NS_EXPORT nsresult
-NewBufferFromStorageStream(nsIStorageStream *storageStream, 
-                           char** buffer, PRUint32* len);
+NS_NewBufferFromStorageStream(nsIStorageStream *storageStream, 
+                              char** buffer, PRUint32* len);
 
 NS_EXPORT nsresult
-PathifyURI(nsIURI *in, nsACString &out);
+NS_PathifyURI(nsIURI *in, nsACString &out);
 }
 }
 #endif //nsStartupCacheUtils_h_

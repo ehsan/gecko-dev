@@ -245,7 +245,10 @@ _TEST_FILES1 = 	test_bug5141.html \
 		file_bug445225_multipart.txt^headers^ \
 		test_title.html \
 		test_bug453521.html \
+		test_bug391728.html \
+		file_bug391728.html \
 		test_bug454325.html \
+		file_bug391728_2.html \
 		test_bug456262.html \
 		test_bug482935.html \
 		     bug482935.sjs \
@@ -499,11 +502,7 @@ _TEST_FILES2 = \
 		somedatas.resource \
 		somedatas.resource^headers^ \
 		delayedServerEvents.sjs \
-		test_bug664916.html \
 		test_bug666604.html \
-		test_bug675121.html \
-		file_bug675121.sjs \
-		test_bug654352.html \
 		$(NULL)
 
 _CHROME_FILES =	\

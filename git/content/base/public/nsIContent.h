@@ -43,7 +43,6 @@
 #include "nsChangeHint.h"
 #include "nsINode.h"
 #include "nsIDocument.h" // for IsInHTMLDocument
-#include "nsDOMMemoryReporter.h"
 
 // Forward declarations
 class nsIAtom;
@@ -77,8 +76,8 @@ enum nsLinkState {
 
 // IID for the nsIContent interface
 #define NS_ICONTENT_IID       \
-{ 0x4aad2c06, 0xd6c3, 0x4f44, \
- { 0x94, 0xf9, 0xd5, 0xac, 0xe5, 0x04, 0x67, 0xec } }
+{ 0x860ee35b, 0xe505, 0x438f, \
+ { 0xa7, 0x7b, 0x65, 0xb9, 0xf5, 0x0b, 0xe5, 0x29 } }
 
 /**
  * A node of content in a document's content model. This interface
@@ -100,8 +99,6 @@ public:
 #endif // MOZILLA_INTERNAL_API
 
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_ICONTENT_IID)
-
-  NS_DECL_AND_IMPL_DOM_MEMORY_REPORTER_SIZEOF(nsIContent, nsINode);
 
   /**
    * Bind this content node to a tree.  If this method throws, the caller must
@@ -944,35 +941,14 @@ public:
    */
   nsIContent* GetEditingHost();
 
-  /**
-   * Determing language. Look at the nearest ancestor element that has a lang
-   * attribute in the XML namespace or is an HTML element and has a lang in
-   * no namespace attribute.
-   */
-  void GetLang(nsAString& aResult) const {
-    for (const nsIContent* content = this; content; content = content->GetParent()) {
-      if (content->GetAttrCount() > 0) {
-        // xml:lang has precedence over lang on HTML elements (see
-        // XHTML1 section C.7).
-        PRBool hasAttr = content->GetAttr(kNameSpaceID_XML, nsGkAtoms::lang,
-                                          aResult);
-        if (!hasAttr && content->IsHTML()) {
-          hasAttr = content->GetAttr(kNameSpaceID_None, nsGkAtoms::lang,
-                                     aResult);
-        }
-        NS_ASSERTION(hasAttr || aResult.IsEmpty(),
-                     "GetAttr that returns false should not make string non-empty");
-        if (hasAttr) {
-          return;
-        }
-      }
-    }
-  }
-
   // Overloaded from nsINode
   virtual already_AddRefed<nsIURI> GetBaseURI() const;
 
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
+
+  PRInt64 SizeOf() const {
+    return sizeof(*this);
+  }
 
 protected:
   /**
@@ -1026,5 +1002,29 @@ public:
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIContent, NS_ICONTENT_IID)
+
+// Some cycle-collecting helper macros for nsIContent subclasses
+
+#define NS_IMPL_CYCLE_COLLECTION_TRAVERSE_LISTENERMANAGER \
+  if (tmp->HasFlag(NODE_HAS_LISTENERMANAGER)) {           \
+    nsContentUtils::TraverseListenerManager(tmp, cb);     \
+  }
+
+#define NS_IMPL_CYCLE_COLLECTION_TRAVERSE_USERDATA \
+  if (tmp->HasProperties()) {                      \
+    nsNodeUtils::TraverseUserData(tmp, cb);        \
+  }
+
+#define NS_IMPL_CYCLE_COLLECTION_UNLINK_LISTENERMANAGER \
+  if (tmp->HasFlag(NODE_HAS_LISTENERMANAGER)) {         \
+    nsContentUtils::RemoveListenerManager(tmp);         \
+    tmp->UnsetFlags(NODE_HAS_LISTENERMANAGER);          \
+  }
+
+#define NS_IMPL_CYCLE_COLLECTION_UNLINK_USERDATA \
+  if (tmp->HasProperties()) {                    \
+    nsNodeUtils::UnlinkUserData(tmp);            \
+  }
+
 
 #endif /* nsIContent_h___ */

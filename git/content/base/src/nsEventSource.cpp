@@ -57,7 +57,6 @@
 #include "nsICharsetConverterManager.h"
 #include "nsIChannelPolicy.h"
 #include "nsIContentSecurityPolicy.h"
-#include "nsContentUtils.h"
 #include "mozilla/Preferences.h"
 
 using namespace mozilla;
@@ -85,7 +84,7 @@ nsEventSource::nsEventSource() :
   mLastConvertionResult(NS_OK),
   mReadyState(nsIEventSource::CONNECTING),
   mScriptLine(0),
-  mInnerWindowID(0)
+  mWindowID(0)
 {
 }
 
@@ -253,7 +252,7 @@ nsEventSource::Init(nsIPrincipal* aPrincipal,
       mScriptFile.AssignASCII(filename);
     }
 
-    mInnerWindowID = nsJSUtils::GetCurrentlyRunningCodeInnerWindowID(cx);
+    mWindowID = nsJSUtils::GetCurrentlyRunningCodeWindowID(cx);
   }
 
   // Get the load group for the page. When requesting we'll add ourselves to it.
@@ -1072,7 +1071,7 @@ nsEventSource::PrintErrorOnConsole(const char *aBundleURI,
                            nsnull,
                            mScriptLine, 0,
                            nsIScriptError::errorFlag,
-                           "Event Source", mInnerWindowID);
+                           "Event Source", mWindowID);
 
   // print the error message directly to the JS console
   nsCOMPtr<nsIScriptError> logError = do_QueryInterface(errObj);

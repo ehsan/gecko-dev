@@ -43,7 +43,7 @@
 #include "nsDOMUIEvent.h"
 #include "nsIPresShell.h"
 #include "nsIInterfaceRequestorUtils.h"
-#include "nsIDOMWindow.h"
+#include "nsIDOMWindowInternal.h"
 #include "nsIDOMNode.h"
 #include "nsIContent.h"
 #include "nsContentUtils.h"
@@ -95,7 +95,7 @@ nsDOMUIEvent::nsDOMUIEvent(nsPresContext* aPresContext, nsGUIEvent* aEvent)
     nsCOMPtr<nsISupports> container = mPresContext->GetContainer();
     if (container)
     {
-       nsCOMPtr<nsIDOMWindow> window = do_GetInterface(container);
+       nsCOMPtr<nsIDOMWindowInternal> window = do_GetInterface(container);
        if (window)
           mView = do_QueryInterface(window);
     }
@@ -119,6 +119,7 @@ DOMCI_DATA(UIEvent, nsDOMUIEvent)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsDOMUIEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMUIEvent)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMNSUIEvent)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(UIEvent)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMEvent)
 
@@ -248,7 +249,10 @@ nsDOMUIEvent::GetPageY(PRInt32* aPageY)
 NS_IMETHODIMP
 nsDOMUIEvent::GetWhich(PRUint32* aWhich)
 {
-  return Which(aWhich);
+  NS_ENSURE_ARG_POINTER(aWhich);
+  // Usually we never reach here, as this is reimplemented for mouse and keyboard events.
+  *aWhich = 0;
+  return NS_OK;
 }
 
 NS_IMETHODIMP

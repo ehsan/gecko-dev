@@ -170,10 +170,6 @@ public:
   already_AddRefed<CanvasLayer> GetCanvasLayer(nsDisplayListBuilder* aBuilder,
                                                CanvasLayer *aOldLayer,
                                                LayerManager *aManager);
-  // Should return true if the canvas layer should always be marked inactive.
-  // We should return true here if we can't do accelerated compositing with
-  // a non-BasicCanvasLayer.
-  PRBool ShouldForceInactiveLayer(LayerManager *aManager);
 
   // Call this whenever we need future changes to the canvas
   // to trigger fresh invalidation requests. This needs to be called
@@ -197,7 +193,6 @@ protected:
                             const nsAString& aType,
                             nsIDOMFile** aResult);
   nsresult GetContextHelper(const nsAString& aContextId,
-                            PRBool aForceThebes,
                             nsICanvasRenderingContextInternal **aContext);
 
   nsString mCurrentContextId;

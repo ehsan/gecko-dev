@@ -569,9 +569,9 @@ NP_GetPluginVersion()
 static char sMimeDescription[] = "application/x-test:tst:Test mimetype";
 
 #if defined(XP_UNIX)
-NP_EXPORT(const char*) NP_GetMIMEDescription()
+NP_EXPORT(char*) NP_GetMIMEDescription()
 #elif defined(XP_WIN) || defined(XP_OS2)
-const char* NP_GetMIMEDescription()
+char* NP_GetMIMEDescription()
 #endif
 {
   return sMimeDescription;

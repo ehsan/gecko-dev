@@ -55,6 +55,9 @@
 #include "jslibmath.h"
 #include "jscompartment.h"
 
+#include "jsinferinlines.h"
+#include "jsobjinlines.h"
+
 using namespace js;
 
 #ifndef M_E
@@ -124,7 +127,7 @@ js_math_abs(JSContext *cx, uintN argc, Value *vp)
         vp->setDouble(js_NaN);
         return JS_TRUE;
     }
-    if (!ToNumber(cx, vp[2], &x))
+    if (!ValueToNumber(cx, vp[2], &x))
         return JS_FALSE;
     z = fabs(x);
     vp->setNumber(z);
@@ -140,7 +143,7 @@ math_acos(JSContext *cx, uintN argc, Value *vp)
         vp->setDouble(js_NaN);
         return JS_TRUE;
     }
-    if (!ToNumber(cx, vp[2], &x))
+    if (!ValueToNumber(cx, vp[2], &x))
         return JS_FALSE;
 #if defined(SOLARIS) && defined(__GNUC__)
     if (x < -1 || 1 < x) {
@@ -165,7 +168,7 @@ math_asin(JSContext *cx, uintN argc, Value *vp)
         vp->setDouble(js_NaN);
         return JS_TRUE;
     }
-    if (!ToNumber(cx, vp[2], &x))
+    if (!ValueToNumber(cx, vp[2], &x))
         return JS_FALSE;
 #if defined(SOLARIS) && defined(__GNUC__)
     if (x < -1 || 1 < x) {
@@ -190,7 +193,7 @@ math_atan(JSContext *cx, uintN argc, Value *vp)
         vp->setDouble(js_NaN);
         return JS_TRUE;
     }
-    if (!ToNumber(cx, vp[2], &x))
+    if (!ValueToNumber(cx, vp[2], &x))
         return JS_FALSE;
     MathCache *mathCache = GetMathCache(cx);
     if (!mathCache)
@@ -239,7 +242,9 @@ math_atan2(JSContext *cx, uintN argc, Value *vp)
         vp->setDouble(js_NaN);
         return JS_TRUE;
     }
-    if (!ToNumber(cx, vp[2], &x) || !ToNumber(cx, vp[3], &y))
+    if (!ValueToNumber(cx, vp[2], &x))
+        return JS_FALSE;
+    if (!ValueToNumber(cx, vp[3], &y))
         return JS_FALSE;
     z = math_atan2_kernel(x, y);
     vp->setDouble(z);
@@ -265,7 +270,7 @@ js_math_ceil(JSContext *cx, uintN argc, Value *vp)
         vp->setDouble(js_NaN);
         return JS_TRUE;
     }
-    if (!ToNumber(cx, vp[2], &x))
+    if (!ValueToNumber(cx, vp[2], &x))
         return JS_FALSE;
     z = js_math_ceil_impl(x);
     vp->setNumber(z);
@@ -281,7 +286,7 @@ math_cos(JSContext *cx, uintN argc, Value *vp)
         vp->setDouble(js_NaN);
         return JS_TRUE;
     }
-    if (!ToNumber(cx, vp[2], &x))
+    if (!ValueToNumber(cx, vp[2], &x))
         return JS_FALSE;
     MathCache *mathCache = GetMathCache(cx);
     if (!mathCache)
@@ -314,7 +319,7 @@ math_exp(JSContext *cx, uintN argc, Value *vp)
         vp->setDouble(js_NaN);
         return JS_TRUE;
     }
-    if (!ToNumber(cx, vp[2], &x))
+    if (!ValueToNumber(cx, vp[2], &x))
         return JS_FALSE;
     MathCache *mathCache = GetMathCache(cx);
     if (!mathCache)
@@ -339,7 +344,7 @@ js_math_floor(JSContext *cx, uintN argc, Value *vp)
         vp->setDouble(js_NaN);
         return JS_TRUE;
     }
-    if (!ToNumber(cx, vp[2], &x))
+    if (!ValueToNumber(cx, vp[2], &x))
         return JS_FALSE;
     z = js_math_floor_impl(x);
     vp->setNumber(z);
@@ -355,7 +360,7 @@ math_log(JSContext *cx, uintN argc, Value *vp)
         vp->setDouble(js_NaN);
         return JS_TRUE;
     }
-    if (!ToNumber(cx, vp[2], &x))
+    if (!ValueToNumber(cx, vp[2], &x))
         return JS_FALSE;
 #if defined(SOLARIS) && defined(__GNUC__)
     if (x < 0) {
@@ -384,7 +389,7 @@ js_math_max(JSContext *cx, uintN argc, Value *vp)
     }
     argv = vp + 2;
     for (i = 0; i < argc; i++) {
-        if (!ToNumber(cx, argv[i], &x))
+        if (!ValueToNumber(cx, argv[i], &x))
             return JS_FALSE;
         if (JSDOUBLE_IS_NaN(x)) {
             vp->setDouble(js_NaN);
@@ -414,7 +419,7 @@ js_math_min(JSContext *cx, uintN argc, Value *vp)
     }
     argv = vp + 2;
     for (i = 0; i < argc; i++) {
-        if (!ToNumber(cx, argv[i], &x))
+        if (!ValueToNumber(cx, argv[i], &x))
             return JS_FALSE;
         if (JSDOUBLE_IS_NaN(x)) {
             vp->setDouble(js_NaN);
@@ -459,8 +464,8 @@ powi(jsdouble x, jsint y)
     }
 }
 
-static JSBool
-math_pow(JSContext *cx, uintN argc, Value *vp)
+JSBool
+js_math_pow(JSContext *cx, uintN argc, Value *vp)
 {
     jsdouble x, y, z;
 
@@ -468,7 +473,9 @@ math_pow(JSContext *cx, uintN argc, Value *vp)
         vp->setDouble(js_NaN);
         return JS_TRUE;
     }
-    if (!ToNumber(cx, vp[2], &x) || !ToNumber(cx, vp[3], &y))
+    if (!ValueToNumber(cx, vp[2], &x))
+        return JS_FALSE;
+    if (!ValueToNumber(cx, vp[3], &y))
         return JS_FALSE;
     /*
      * Special case for square roots. Note that pow(x, 0.5) != sqrt(x)
@@ -590,7 +597,7 @@ js_math_round(JSContext *cx, uintN argc, Value *vp)
         vp->setDouble(js_NaN);
         return JS_TRUE;
     }
-    if (!ToNumber(cx, vp[2], &x))
+    if (!ValueToNumber(cx, vp[2], &x))
         return JS_FALSE;
     z = js_copysign(floor(x + 0.5), x);
     vp->setNumber(z);
@@ -606,7 +613,7 @@ math_sin(JSContext *cx, uintN argc, Value *vp)
         vp->setDouble(js_NaN);
         return JS_TRUE;
     }
-    if (!ToNumber(cx, vp[2], &x))
+    if (!ValueToNumber(cx, vp[2], &x))
         return JS_FALSE;
     MathCache *mathCache = GetMathCache(cx);
     if (!mathCache)
@@ -616,8 +623,8 @@ math_sin(JSContext *cx, uintN argc, Value *vp)
     return JS_TRUE;
 }
 
-static JSBool
-math_sqrt(JSContext *cx, uintN argc, Value *vp)
+JSBool
+js_math_sqrt(JSContext *cx, uintN argc, Value *vp)
 {
     jsdouble x, z;
 
@@ -625,7 +632,7 @@ math_sqrt(JSContext *cx, uintN argc, Value *vp)
         vp->setDouble(js_NaN);
         return JS_TRUE;
     }
-    if (!ToNumber(cx, vp[2], &x))
+    if (!ValueToNumber(cx, vp[2], &x))
         return JS_FALSE;
     MathCache *mathCache = GetMathCache(cx);
     if (!mathCache)
@@ -644,7 +651,7 @@ math_tan(JSContext *cx, uintN argc, Value *vp)
         vp->setDouble(js_NaN);
         return JS_TRUE;
     }
-    if (!ToNumber(cx, vp[2], &x))
+    if (!ValueToNumber(cx, vp[2], &x))
         return JS_FALSE;
     MathCache *mathCache = GetMathCache(cx);
     if (!mathCache)
@@ -676,7 +683,7 @@ MATH_BUILTIN_1(js_math_abs, fabs)
 MATH_BUILTIN_1(math_atan, atan)
 MATH_BUILTIN_1(math_sin, sin)
 MATH_BUILTIN_1(math_cos, cos)
-MATH_BUILTIN_1(math_sqrt, sqrt)
+MATH_BUILTIN_1(js_math_sqrt, sqrt)
 MATH_BUILTIN_1(math_tan, tan)
 
 static jsdouble FASTCALL
@@ -813,7 +820,7 @@ JS_DEFINE_TRCINFO_1(js_math_max,
     (2, (static, DOUBLE, math_max_tn, DOUBLE, DOUBLE,   1, nanojit::ACCSET_NONE)))
 JS_DEFINE_TRCINFO_1(js_math_min,
     (2, (static, DOUBLE, math_min_tn, DOUBLE, DOUBLE,   1, nanojit::ACCSET_NONE)))
-JS_DEFINE_TRCINFO_1(math_pow,
+JS_DEFINE_TRCINFO_1(js_math_pow,
     (2, (static, DOUBLE, math_pow_tn, DOUBLE, DOUBLE,   1, nanojit::ACCSET_NONE)))
 JS_DEFINE_TRCINFO_1(math_random,
     (1, (static, DOUBLE, math_random_tn, CONTEXT,       0, nanojit::ACCSET_STORE_ANY)))
@@ -840,11 +847,11 @@ static JSFunctionSpec math_static_methods[] = {
     JS_TN("log",            math_log,             1, 0, &math_log_trcinfo),
     JS_TN("max",            js_math_max,          2, 0, &js_math_max_trcinfo),
     JS_TN("min",            js_math_min,          2, 0, &js_math_min_trcinfo),
-    JS_TN("pow",            math_pow,             2, 0, &math_pow_trcinfo),
+    JS_TN("pow",            js_math_pow,          2, 0, &js_math_pow_trcinfo),
     JS_TN("random",         math_random,          0, 0, &math_random_trcinfo),
     JS_TN("round",          js_math_round,        1, 0, &js_math_round_trcinfo),
     JS_TN("sin",            math_sin,             1, 0, &math_sin_trcinfo),
-    JS_TN("sqrt",           math_sqrt,            1, 0, &math_sqrt_trcinfo),
+    JS_TN("sqrt",           js_math_sqrt,         1, 0, &js_math_sqrt_trcinfo),
     JS_TN("tan",            math_tan,             1, 0, &math_tan_trcinfo),
     JS_FS_END
 };
@@ -862,11 +869,17 @@ js_IsMathFunction(JSNative native)
 JSObject *
 js_InitMathClass(JSContext *cx, JSObject *obj)
 {
-    JSObject *Math;
-
-    Math = JS_NewObject(cx, Jsvalify(&js_MathClass), NULL, obj);
+    JSObject *Math = NewNonFunction<WithProto::Class>(cx, &js_MathClass, NULL, obj);
     if (!Math)
         return NULL;
+
+    types::TypeObject *type = cx->compartment->types.newTypeObject(cx, NULL, js_Math_str, "",
+                                                                   JSProto_Object,
+                                                                   Math->getProto());
+    if (!type || !Math->setTypeAndUniqueShape(cx, type))
+        return NULL;
+    type->singleton = Math;
+
     if (!JS_DefineProperty(cx, obj, js_Math_str, OBJECT_TO_JSVAL(Math),
                            JS_PropertyStub, JS_StrictPropertyStub, 0)) {
         return NULL;

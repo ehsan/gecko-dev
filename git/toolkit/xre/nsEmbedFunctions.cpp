@@ -105,8 +105,6 @@
 #include "mozilla/ipc/TestShellParent.h"
 #include "mozilla/ipc/XPCShellEnvironment.h"
 
-#include "mozilla/Util.h" // for DebugOnly
-
 #ifdef MOZ_IPDL_TESTS
 #include "mozilla/_ipdltest/IPDLUnitTests.h"
 #include "mozilla/_ipdltest/IPDLUnitTestProcessChild.h"
@@ -419,7 +417,7 @@ XRE_InitChildProcess(int aArgc,
   NS_ABORT_IF_FALSE(!*end, "invalid parent PID");
 
   base::ProcessHandle parentHandle;
-  mozilla::DebugOnly<bool> ok = base::OpenProcessHandle(parentPID, &parentHandle);
+  bool ok = base::OpenProcessHandle(parentPID, &parentHandle);
   NS_ABORT_IF_FALSE(ok, "can't open handle to parent");
 
 #if defined(XP_WIN)
@@ -685,7 +683,7 @@ XRE_ShutdownChildProcess()
 {
   NS_ABORT_IF_FALSE(MessageLoopForUI::current(), "Wrong thread!");
 
-  mozilla::DebugOnly<MessageLoop*> ioLoop = XRE_GetIOMessageLoop();
+  MessageLoop* ioLoop = XRE_GetIOMessageLoop();
   NS_ABORT_IF_FALSE(!!ioLoop, "Bad shutdown order");
 
   // Quit() sets off the following chain of events
@@ -712,7 +710,7 @@ TestShellParent* gTestShellParent = nsnull;
 TestShellParent* GetOrCreateTestShellParent()
 {
     if (!gTestShellParent) {
-        ContentParent* parent = ContentParent::GetNewOrUsed();
+        ContentParent* parent = ContentParent::GetSingleton();
         NS_ENSURE_TRUE(parent, nsnull);
         gTestShellParent = parent->CreateTestShell();
         NS_ENSURE_TRUE(gTestShellParent, nsnull);
@@ -758,8 +756,7 @@ XRE_ShutdownTestShell()
 {
   if (!gTestShellParent)
     return true;
-  return static_cast<ContentParent*>(gTestShellParent->Manager())->
-    DestroyTestShell(gTestShellParent);
+  return ContentParent::GetSingleton()->DestroyTestShell(gTestShellParent);
 }
 
 #ifdef MOZ_X11

@@ -45,9 +45,9 @@
 #
 
 # Define an include-at-most-once flag
-ifdef INCLUDED_CONFIG_MK
-$(error Don't include config.mk twice!)
-endif
+#ifdef INCLUDED_CONFIG_MK
+#$(error Don't include config.mk twice!)
+#endif
 INCLUDED_CONFIG_MK = 1
 
 EXIT_ON_ERROR = set -e; # Shell loops continue past errors without this.
@@ -88,9 +88,6 @@ space :=$(nullstr) # EOL
 
 core_winabspath = $(firstword $(subst /, ,$(call core_abspath,$(1)))):$(subst $(space),,$(patsubst %,\\%,$(wordlist 2,$(words $(subst /, ,$(call core_abspath,$(1)))), $(strip $(subst /, ,$(call core_abspath,$(1)))))))
 
-# LIBXUL_DIST is not defined under js/src, thus we make it mean DIST there.
-LIBXUL_DIST ?= $(DIST)
-
 # FINAL_TARGET specifies the location into which we copy end-user-shipped
 # build products (typelibs, components, chrome).
 #
@@ -129,7 +126,7 @@ endif
 # but save the version to allow multiple versions of the same base
 # platform to be built in the same tree.
 #
-ifneq (,$(filter FreeBSD HP-UX Linux NetBSD OpenBSD OSF1 SunOS,$(OS_ARCH)))
+ifneq (,$(filter FreeBSD HP-UX IRIX Linux NetBSD OpenBSD OSF1 SunOS,$(OS_ARCH)))
 OS_RELEASE	:= $(basename $(OS_RELEASE))
 
 # Allow the user to ignore the OS_VERSION, which is usually irrelevant.
@@ -165,13 +162,6 @@ CXX := $(CXX_WRAPPER) $(CXX)
 MKDIR ?= mkdir
 SLEEP ?= sleep
 TOUCH ?= touch
-
-ifndef .PYMAKE
-PYTHON_PATH = $(PYTHON) $(topsrcdir)/config/pythonpath.py
-else
-PYCOMMANDPATH += $(topsrcdir)/config
-PYTHON_PATH = %pythonpath main
-endif
 
 # determine debug-related options
 _DEBUG_CFLAGS :=
@@ -259,7 +249,7 @@ endif # WINNT && !GNU_CC
 #
 _ENABLE_PIC=1
 
-# Determine if module being compiled is destined
+# Determine if module being compiled is destined 
 # to be merged into libxul
 
 ifdef LIBXUL_LIBRARY
@@ -394,6 +384,7 @@ MY_RULES	:= $(DEPTH)/config/myrules.mk
 # Default command macros; can be overridden in <arch>.mk.
 #
 CCC = $(CXX)
+NFSPWD = $(CONFIG_TOOLS)/nfspwd
 PURIFY = purify $(PURIFYOPTIONS)
 QUANTIFY = quantify $(QUANTIFYOPTIONS)
 ifdef CROSS_COMPILE
@@ -415,7 +406,7 @@ INCLUDES = \
   -I$(DIST)/include -I$(DIST)/include/nsprpub \
   $(if $(LIBXUL_SDK),-I$(LIBXUL_SDK)/include -I$(LIBXUL_SDK)/include/nsprpub) \
   $(OS_INCLUDES) \
-  $(NULL)
+  $(NULL) 
 
 include $(topsrcdir)/config/static-checking-config.mk
 
@@ -513,22 +504,17 @@ RTL_FLAGS=-MD          # Dynamically linked, multithreaded RTL
 ifneq (,$(MOZ_DEBUG)$(NS_TRACE_MALLOC))
 ifndef MOZ_NO_DEBUG_RTL
 RTL_FLAGS=-MDd         # Dynamically linked, multithreaded MSVC4.0 debug RTL
-endif
+endif 
 endif # MOZ_DEBUG || NS_TRACE_MALLOC
 endif # USE_STATIC_LIBS
 endif # WINNT && !GNU_CC
 
 ifeq ($(OS_ARCH),Darwin)
-# Compiling ObjC requires an Apple compiler anyway, so it's ok to set
-# host CMFLAGS here.
+# Darwin doesn't cross-compile, so just set both types of flags here.
 HOST_CMFLAGS += -fobjc-exceptions
 HOST_CMMFLAGS += -fobjc-exceptions
 OS_COMPILE_CMFLAGS += -fobjc-exceptions
 OS_COMPILE_CMMFLAGS += -fobjc-exceptions
-ifeq ($(MOZ_WIDGET_TOOLKIT),uikit)
-OS_COMPILE_CMFLAGS += -fobjc-abi-version=2 -fobjc-legacy-dispatch
-OS_COMPILE_CMMFLAGS += -fobjc-abi-version=2 -fobjc-legacy-dispatch
-endif
 endif
 
 COMPILE_CFLAGS	= $(VISIBILITY_FLAGS) $(DEFINES) $(INCLUDES) $(DSO_CFLAGS) $(DSO_PIC_CFLAGS) $(CFLAGS) $(RTL_FLAGS) $(OS_COMPILE_CFLAGS)
@@ -691,23 +677,26 @@ endif # NSINSTALL_BIN
 ifeq (,$(CROSS_COMPILE)$(filter-out WINNT OS2, $(OS_ARCH)))
 INSTALL		= $(NSINSTALL)
 else
-
-# This isn't laid out as conditional directives so that NSDISTMODE can be
-# target-specific.
-INSTALL         = $(if $(filter copy, $(NSDISTMODE)), $(NSINSTALL) -t, $(if $(filter absolute_symlink, $(NSDISTMODE)), $(NSINSTALL) -L $(PWD), $(NSINSTALL) -R))
-
+ifeq ($(NSDISTMODE),copy)
+# copy files, but preserve source mtime
+INSTALL		= $(NSINSTALL) -t
+else
+ifeq ($(NSDISTMODE),absolute_symlink)
+# install using absolute symbolic links
+ifeq ($(OS_ARCH),Darwin)
+INSTALL		= $(NSINSTALL) -L $(PWD)
+else
+INSTALL		= $(NSINSTALL) -L `$(NFSPWD)`
+endif # Darwin
+else
+# install using relative symbolic links
+INSTALL		= $(NSINSTALL) -R
+endif # absolute_symlink
+endif # copy
 endif # WINNT/OS2
 
 # Use nsinstall in copy mode to install files on the system
 SYSINSTALL	= $(NSINSTALL) -t
-
-# Directory nsinstall. Windows and OS/2 nsinstall can't recursively copy
-# directories.
-ifneq (,$(filter WINNT os2-emx,$(HOST_OS_ARCH)))
-DIR_INSTALL = $(PYTHON) $(topsrcdir)/config/nsinstall.py
-else
-DIR_INSTALL = $(INSTALL)
-endif # WINNT/OS2
 
 #
 # Localization build automation
@@ -751,10 +740,10 @@ endif
 MERGE_FILES = $(foreach f,$(1),$(call MERGE_FILE,$(f)))
 
 ifeq (OS2,$(OS_ARCH))
-RUN_TEST_PROGRAM = $(topsrcdir)/build/os2/test_os2.cmd "$(LIBXUL_DIST)"
+RUN_TEST_PROGRAM = $(topsrcdir)/build/os2/test_os2.cmd "$(DIST)"
 else
 ifneq (WINNT,$(OS_ARCH))
-RUN_TEST_PROGRAM = $(LIBXUL_DIST)/bin/run-mozilla.sh
+RUN_TEST_PROGRAM = $(DIST)/bin/run-mozilla.sh
 endif # ! WINNT
 endif # ! OS2
 

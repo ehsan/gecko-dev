@@ -232,13 +232,6 @@ class MochitestOptions(optparse.OptionParser):
                            "inside a VMware Workstation 7.0 or later VM")
     defaults["vmwareRecording"] = False
 
-    self.add_option("--loops",
-                    action = "store", type = "int",
-                    dest = "loops", metavar = "LOOPS",
-                    help = "repeats the test or set of tests the given number of times "
-                           "without restarting the browser (given number > 0)")
-    defaults["loops"] = 0
-
     # -h, --help are automatically handled by OptionParser
 
     self.set_defaults(**defaults)
@@ -410,9 +403,8 @@ class WebSocketServer(object):
 
 class Mochitest(object):
   # Path to the test script on the server
-  TEST_PATH = "tests"
-  CHROME_PATH = "redirect.html"
-  PLAIN_LOOP_PATH = "plain-loop.html"
+  TEST_PATH = "/tests/"
+  CHROME_PATH = "/redirect.html";
   urlOpts = []
   runSSLTunnel = True
   vmwareHelper = None
@@ -440,15 +432,13 @@ class Mochitest(object):
   def buildTestPath(self, options):
     """ Build the url path to the specific test harness and test file or directory """
     testHost = "http://mochi.test:8888"
-    testURL = ("/").join([testHost, self.TEST_PATH, options.testPath])
-    if os.path.isfile(os.path.join(self.oldcwd, os.path.dirname(__file__), self.TEST_PATH, options.testPath)) and options.loops > 0:
-       testURL = ("/").join([testHost, self.PLAIN_LOOP_PATH])
+    testURL = testHost + self.TEST_PATH + options.testPath
     if options.chrome or options.a11y:
-       testURL = ("/").join([testHost, self.CHROME_PATH])
+       testURL = testHost + self.CHROME_PATH
     elif options.browserChrome:
       testURL = "about:blank"
     elif options.ipcplugins:
-      testURL = ("/").join([testHost, self.TEST_PATH, "dom/plugins/test"])
+      testURL = testHost + self.TEST_PATH + "dom/plugins/test"
     return testURL
 
   def startWebSocketServer(self, options, debuggerInfo):
@@ -510,7 +500,12 @@ class Mochitest(object):
     manifest = self.addChromeToProfile(options)
     self.copyExtraFilesToProfile(options)
 
-    self.installSpecialPowersExtension(options)
+    # We only need special powers in non-chrome harnesses
+    if (not options.browserChrome and
+        not options.chrome and
+        not options.a11y):
+      self.installSpecialPowersExtension(options)
+
     self.installExtensionsToProfile(options)
     return manifest
 
@@ -536,19 +531,17 @@ class Mochitest(object):
 
     return browserEnv
 
-  def buildURLOptions(self, options, env):
+  def buildURLOptions(self, options):
     """ Add test control options from the command line to the url 
 
         URL parameters to test URL:
 
         autorun -- kick off tests automatically
         closeWhenDone -- runs quit.js after tests
-        hideResultsTable -- hides the table of individual test results
         logFile -- logs test run to an absolute path
         totalChunks -- how many chunks to split tests into
         thisChunk -- which chunk to run
         timeout -- per-test timeout in seconds
-        loops -- How many times to run the test
     """
   
     # allow relative paths for logFile
@@ -575,12 +568,6 @@ class Mochitest(object):
         self.urlOpts.append("chunkByDir=%d" % options.chunkByDir)
       if options.shuffle:
         self.urlOpts.append("shuffle=1")
-      if "MOZ_HIDE_RESULTS_TABLE" in env and env["MOZ_HIDE_RESULTS_TABLE"] == "1":
-        self.urlOpts.append("hideResultsTable=1")
-      if options.loops:
-        self.urlOpts.append("loops=%d" % options.loops)
-      if os.path.isfile(os.path.join(self.oldcwd, os.path.dirname(__file__), self.TEST_PATH, options.testPath)) and options.loops > 0:
-        self.urlOpts.append("testname=%s" % ("/").join([self.TEST_PATH, options.testPath]))
 
   def cleanup(self, manifest, options):
     """ remove temporary files and profile """
@@ -636,7 +623,7 @@ class Mochitest(object):
     self.startWebSocketServer(options, debuggerInfo)
 
     testURL = self.buildTestPath(options)
-    self.buildURLOptions(options, browserEnv)
+    self.buildURLOptions(options)
     if len(self.urlOpts) > 0:
       testURL += "?" + "&".join(self.urlOpts)
 
@@ -719,9 +706,6 @@ class Mochitest(object):
     elif (options.a11y):
       testRoot = 'a11y'
  
-    if "MOZ_HIDE_RESULTS_TABLE" in os.environ and os.environ["MOZ_HIDE_RESULTS_TABLE"] == "1":
-      options.hideResultsTable = True
-
     #TODO: when we upgrade to python 2.6, just use json.dumps(options.__dict__)
     content = "{"
     content += '"testRoot": "%s", ' % (testRoot) 

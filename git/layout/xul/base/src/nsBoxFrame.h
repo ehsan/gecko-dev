@@ -71,7 +71,7 @@ class nsBoxLayoutState;
 nsIFrame* NS_NewBoxFrame(nsIPresShell* aPresShell,
                          nsStyleContext* aContext,
                          PRBool aIsRoot,
-                         nsBoxLayout* aLayoutManager);
+                         nsIBoxLayout* aLayoutManager);
 nsIFrame* NS_NewBoxFrame(nsIPresShell* aPresShell,
                          nsStyleContext* aContext);
 
@@ -83,7 +83,7 @@ public:
   friend nsIFrame* NS_NewBoxFrame(nsIPresShell* aPresShell, 
                                   nsStyleContext* aContext,
                                   PRBool aIsRoot,
-                                  nsBoxLayout* aLayoutManager);
+                                  nsIBoxLayout* aLayoutManager);
   friend nsIFrame* NS_NewBoxFrame(nsIPresShell* aPresShell,
                                   nsStyleContext* aContext);
 
@@ -91,8 +91,8 @@ public:
   // call this method to get the rect so you don't draw on the debug border or outer border.
 
   // ------ nsIBox -------------
-  virtual void SetLayoutManager(nsBoxLayout* aLayout) { mLayoutManager = aLayout; }
-  virtual nsBoxLayout* GetLayoutManager() { return mLayoutManager; }
+  virtual void SetLayoutManager(nsIBoxLayout* aLayout) { mLayoutManager = aLayout; }
+  virtual nsIBoxLayout* GetLayoutManager() { return mLayoutManager; }
 
   NS_IMETHOD RelayoutChildAtOrdinal(nsBoxLayoutState& aState, nsIBox* aChild);
 
@@ -133,19 +133,19 @@ public:
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus&          aStatus);
 
-  NS_IMETHOD  AppendFrames(ChildListID     aListID,
+  NS_IMETHOD  AppendFrames(nsIAtom*        aListName,
                            nsFrameList&    aFrameList);
 
-  NS_IMETHOD  InsertFrames(ChildListID     aListID,
+  NS_IMETHOD  InsertFrames(nsIAtom*        aListName,
                            nsIFrame*       aPrevFrame,
                            nsFrameList&    aFrameList);
 
-  NS_IMETHOD  RemoveFrame(ChildListID     aListID,
+  NS_IMETHOD  RemoveFrame(nsIAtom*        aListName,
                           nsIFrame*       aOldFrame);
 
   virtual nsIFrame* GetContentInsertionFrame();
 
-  NS_IMETHOD  SetInitialChildList(ChildListID     aListID,
+  NS_IMETHOD  SetInitialChildList(nsIAtom*        aListName,
                                   nsFrameList&    aChildList);
 
   virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
@@ -181,7 +181,7 @@ public:
 
   virtual ~nsBoxFrame();
   
-  nsBoxFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRBool aIsRoot = PR_FALSE, nsBoxLayout* aLayoutManager = nsnull);
+  nsBoxFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRBool aIsRoot = PR_FALSE, nsIBoxLayout* aLayoutManager = nsnull);
 
   // virtual so nsStackFrame, nsButtonBoxFrame, nsSliderFrame and nsMenuFrame
   // can override it
@@ -240,7 +240,7 @@ protected:
     nscoord mFlex;
     nscoord mAscent;
 
-    nsCOMPtr<nsBoxLayout> mLayoutManager;
+    nsCOMPtr<nsIBoxLayout> mLayoutManager;
 
 protected:
     nsresult RegUnregAccessKey(PRBool aDoReg);

@@ -63,14 +63,6 @@ public:
   NS_SCRIPTABLE NS_IMETHOD GetAdapterRAM(nsAString & aAdapterRAM);
   NS_SCRIPTABLE NS_IMETHOD GetAdapterDriverVersion(nsAString & aAdapterDriverVersion);
   NS_SCRIPTABLE NS_IMETHOD GetAdapterDriverDate(nsAString & aAdapterDriverDate);
-  NS_SCRIPTABLE NS_IMETHOD GetAdapterDescription2(nsAString & aAdapterDescription);
-  NS_SCRIPTABLE NS_IMETHOD GetAdapterDriver2(nsAString & aAdapterDriver);
-  NS_SCRIPTABLE NS_IMETHOD GetAdapterVendorID2(PRUint32 *aAdapterVendorID);
-  NS_SCRIPTABLE NS_IMETHOD GetAdapterDeviceID2(PRUint32 *aAdapterDeviceID);
-  NS_SCRIPTABLE NS_IMETHOD GetAdapterRAM2(nsAString & aAdapterRAM);
-  NS_SCRIPTABLE NS_IMETHOD GetAdapterDriverVersion2(nsAString & aAdapterDriverVersion);
-  NS_SCRIPTABLE NS_IMETHOD GetAdapterDriverDate2(nsAString & aAdapterDriverDate);
-  NS_SCRIPTABLE NS_IMETHOD GetIsGPU2Active(PRBool *aIsGPU2Active);
   using GfxInfoBase::GetFeatureStatus;
   using GfxInfoBase::GetFeatureSuggestedDriverVersion;
   using GfxInfoBase::GetWebGLParameter;
@@ -87,8 +79,7 @@ private:
   nsCString mVersion;
   nsCString mAdapterDescription;
   bool mIsMesa, mIsNVIDIA, mIsFGLRX;
-  bool mHasTextureFromPixmap;
-  int mMajorVersion, mMinorVersion, mRevisionVersion;
+  int mMajorVersion, mMinorVersion;
 
   void AddCrashReportAnnotations();
   void GetData();

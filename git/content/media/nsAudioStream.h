@@ -74,23 +74,22 @@ public:
   static nsAudioStream* AllocateStream();
 
   // Initialize the audio stream. aNumChannels is the number of audio channels 
-  // (1 for mono, 2 for stereo, etc) and aRate is the frequency of the audio 
+  // (1 for mono, 2 for stereo, etc) and aRate is the frequency of the sound 
   // samples (22050, 44100, etc).
-  // Unsafe to call with the decoder monitor held.
   virtual nsresult Init(PRInt32 aNumChannels, PRInt32 aRate, SampleFormat aFormat) = 0;
 
   // Closes the stream. All future use of the stream is an error.
-  // Unsafe to call with the decoder monitor held.
   virtual void Shutdown() = 0;
 
-  // Write audio data to the audio hardware.  aBuf is an array of samples in
+  // Write sound data to the audio hardware.  aBuf is an array of samples in
   // the format specified by mFormat of length aCount.  aCount should be
-  // evenly divisible by the number of channels in this audio stream.  If
-  // aCount is larger than the result of Available(), the write will block
-  // until sufficient buffer space is available.
-  virtual nsresult Write(const void* aBuf, PRUint32 aCount) = 0;
+  // evenly divisible by the number of channels in this audio stream.
+  // When aBlocking is PR_TRUE, we'll block until the write has completed,
+  // otherwise we'll buffer any data we can't write immediately, and write
+  // it in a later call.
+  virtual nsresult Write(const void* aBuf, PRUint32 aCount, PRBool aBlocking) = 0;
 
-  // Return the number of audio samples that can be written to the audio device
+  // Return the number of sound samples that can be written to the audio device
   // without blocking.
   virtual PRUint32 Available() = 0;
 
@@ -99,7 +98,6 @@ public:
   virtual void SetVolume(double aVolume) = 0;
 
   // Block until buffered audio data has been consumed.
-  // Unsafe to call with the decoder monitor held.
   virtual void Drain() = 0;
 
   // Pause audio playback
@@ -121,7 +119,6 @@ public:
 
   // Returns the minimum number of samples which must be written before
   // you can be sure that something will be played.
-  // Unsafe to call with the decoder monitor held.
   virtual PRInt32 GetMinWriteSamples() = 0;
 
 protected:

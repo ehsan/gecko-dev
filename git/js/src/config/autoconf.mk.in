@@ -43,6 +43,7 @@ USE_AUTOCONF 	= 1
 MOZILLA_CLIENT	= 1
 target          = @target@
 ac_configure_args = @ac_configure_args@
+BUILD_MODULES	= @BUILD_MODULES@
 MOZILLA_VERSION = @MOZILLA_VERSION@
 
 MOZ_BUILD_APP = @MOZ_BUILD_APP@
@@ -89,7 +90,6 @@ MOZ_JPROF       = @MOZ_JPROF@
 MOZ_SHARK       = @MOZ_SHARK@
 MOZ_CALLGRIND   = @MOZ_CALLGRIND@
 MOZ_VTUNE       = @MOZ_VTUNE@
-MOZ_ETW       = @MOZ_ETW@
 JS_HAS_CTYPES = @JS_HAS_CTYPES@
 DEHYDRA_PATH    = @DEHYDRA_PATH@
 
@@ -114,6 +114,7 @@ MOZ_FIX_LINK_PATHS=@MOZ_FIX_LINK_PATHS@
 
 XPCOM_FROZEN_LDOPTS=@XPCOM_FROZEN_LDOPTS@
 XPCOM_LIBS=@XPCOM_LIBS@
+MOZ_TIMELINE=@MOZ_TIMELINE@
 
 ENABLE_STRIP	= @ENABLE_STRIP@
 PKG_SKIP_STRIP	= @PKG_SKIP_STRIP@
@@ -168,7 +169,6 @@ AS_DASH_C_FLAG	= @AS_DASH_C_FLAG@
 LD		= @LD@
 RC		= @RC@
 RCFLAGS		= @RCFLAGS@
-MC		= @MC@
 WINDRES		= @WINDRES@
 IMPLIB		= @IMPLIB@
 FILTER		= @FILTER@
@@ -188,7 +188,7 @@ USE_N32		= @USE_N32@
 HAVE_64BIT_OS	= @HAVE_64BIT_OS@
 
 # Temp hack.  It is not my intention to leave this crap in here for ever.
-# Im talking to fur right now to solve the problem without introducing
+# Im talking to fur right now to solve the problem without introducing 
 # NS_USE_NATIVE to the build system -ramiro.
 NS_USE_NATIVE = @NS_USE_NATIVE@
 
@@ -245,10 +245,6 @@ NSINSTALL_BIN	= @NSINSTALL_BIN@
 NSPR_CONFIG	= @NSPR_CONFIG@
 NSPR_CFLAGS	= @NSPR_CFLAGS@
 NSPR_LIBS	= @NSPR_LIBS@
-
-MOZ_NATIVE_FFI	= @MOZ_NATIVE_FFI@
-MOZ_FFI_LIBS	= @MOZ_FFI_LIBS@
-MOZ_FFI_CFLAGS	= @MOZ_FFI_CFLAGS@
 
 USE_DEPENDENT_LIBS = @USE_DEPENDENT_LIBS@
 

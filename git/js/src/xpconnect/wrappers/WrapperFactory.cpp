@@ -111,7 +111,7 @@ WrapperFactory::WaiveXray(JSContext *cx, JSObject *obj)
                 return nsnull;
 
             JSAutoEnterCompartment ac;
-            if (!ac.enter(cx, obj) || !JS_WrapObject(cx, &proto))
+            if (!ac.enter(cx, obj))
                 return nsnull;
             wobj = JSWrapper::New(cx, obj, proto, JS_GetGlobalForObject(cx, obj),
                                   &WaiveXrayWrapperWrapper);
@@ -431,7 +431,7 @@ JSObject *
 WrapperFactory::WrapSOWObject(JSContext *cx, JSObject *obj)
 {
     JSObject *wrapperObj =
-        JSWrapper::New(cx, obj, obj->getProto(), JS_GetGlobalForObject(cx, obj),
+        JSWrapper::New(cx, obj, JS_GetPrototype(cx, obj), JS_GetGlobalForObject(cx, obj),
                        &FilteringWrapper<JSWrapper,
                                          OnlyIfSubjectIsSystem>::singleton);
     return wrapperObj;

@@ -67,7 +67,7 @@
 #include "pldhash.h"
 #include "prprf.h"
 
-using namespace mozilla;
+namespace css = mozilla::css;
 
 nsGenericDOMDataNode::nsGenericDOMDataNode(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsIContent(aNodeInfo)
@@ -85,15 +85,12 @@ nsGenericDOMDataNode::~nsGenericDOMDataNode()
 {
   NS_PRECONDITION(!IsInDoc(),
                   "Please remove this from the document properly");
-  if (GetParent()) {
-    NS_RELEASE(mParent);
-  }
 }
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsGenericDOMDataNode)
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsGenericDOMDataNode)
-  nsINode::Trace(tmp, aCallback, aClosure);
+  NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsGenericDOMDataNode)
@@ -101,18 +98,27 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsGenericDOMDataNode)
   // if we're uncollectable.
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 
-  if (!nsINode::Traverse(tmp, cb)) {
+  nsIDocument* currentDoc = tmp->GetCurrentDoc();
+  if (currentDoc && nsCCUncollectableMarker::InGeneration(
+                      cb, currentDoc->GetMarkedCCGeneration())) {
     return NS_SUCCESS_INTERRUPTED_TRAVERSE;
   }
+
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mNodeInfo)
 
   nsIDocument* ownerDoc = tmp->GetOwnerDoc();
   if (ownerDoc) {
     ownerDoc->BindingManager()->Traverse(tmp, cb);
   }
+
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_LISTENERMANAGER
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_USERDATA
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsGenericDOMDataNode)
-  nsINode::Unlink(tmp);
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_LISTENERMANAGER
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_USERDATA
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN(nsGenericDOMDataNode)
@@ -277,8 +283,7 @@ nsGenericDOMDataNode::ReplaceData(PRUint32 aOffset, PRUint32 aCount,
 nsresult
 nsGenericDOMDataNode::SetTextInternal(PRUint32 aOffset, PRUint32 aCount,
                                       const PRUnichar* aBuffer,
-                                      PRUint32 aLength, PRBool aNotify,
-                                      CharacterDataChangeInfo::Details* aDetails)
+                                      PRUint32 aLength, PRBool aNotify)
 {
   NS_PRECONDITION(aBuffer || !aLength,
                   "Null buffer passed to SetTextInternal!");
@@ -321,8 +326,7 @@ nsGenericDOMDataNode::SetTextInternal(PRUint32 aOffset, PRUint32 aCount,
       aOffset == textLength,
       aOffset,
       endOffset,
-      aLength,
-      aDetails
+      aLength
     };
     nsNodeUtils::CharacterDataWillChange(this, &info);
   }
@@ -368,8 +372,7 @@ nsGenericDOMDataNode::SetTextInternal(PRUint32 aOffset, PRUint32 aCount,
       aOffset == textLength,
       aOffset,
       endOffset,
-      aLength,
-      aDetails
+      aLength
     };
     nsNodeUtils::CharacterDataChanged(this, &info);
 
@@ -495,9 +498,6 @@ nsGenericDOMDataNode::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 
   // Set parent
   if (aParent) {
-    if (!GetParent()) {
-      NS_ADDREF(aParent);
-    }
     mParent = aParent;
   }
   else {
@@ -546,11 +546,7 @@ nsGenericDOMDataNode::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
   }
 
   if (aNullParent) {
-    if (GetParent()) {
-      NS_RELEASE(mParent);
-    } else {
-      mParent = nsnull;
-    }
+    mParent = nsnull;
     SetParentIsContent(false);
   }
   ClearInDocument();
@@ -737,23 +733,25 @@ nsGenericDOMDataNode::SplitData(PRUint32 aOffset, nsIContent** aReturn,
     return rv;
   }
 
-  // Use Clone for creating the new node so that the new node is of same class
-  // as this node!
-  nsCOMPtr<nsIContent> newContent = CloneDataNode(mNodeInfo, PR_FALSE);
-  if (!newContent) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
-  newContent->SetText(cutText, PR_TRUE); // XXX should be PR_FALSE?
-
-  CharacterDataChangeInfo::Details details = {
-    CharacterDataChangeInfo::Details::eSplit, newContent
-  };
-  rv = SetTextInternal(cutStartOffset, cutLength, nsnull, 0, PR_TRUE, &details);
+  rv = DeleteData(cutStartOffset, cutLength);
   if (NS_FAILED(rv)) {
     return rv;
   }
 
+  /*
+   * Use Clone for creating the new node so that the new node is of same class
+   * as this node!
+   */
+
+  nsCOMPtr<nsIContent> newContent = CloneDataNode(mNodeInfo, PR_FALSE);
+  if (!newContent) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+
+  newContent->SetText(cutText, PR_TRUE);
+
   nsCOMPtr<nsINode> parent = GetNodeParent();
+
   if (parent) {
     PRInt32 insertionIndex = parent->IndexOf(this);
     if (aCloneAfterOriginal) {
@@ -1067,13 +1065,3 @@ nsGenericDOMDataNode::GetClassAttributeName() const
 {
   return nsnull;
 }
-
-PRInt64
-nsGenericDOMDataNode::SizeOf() const
-{
-  PRInt64 size = dom::MemoryReporter::GetBasicSize<nsGenericDOMDataNode,
-                                                   nsIContent>(this);
-  size += mText.SizeOf() - sizeof(mText);
-  return size;
-}
-

@@ -18,7 +18,9 @@ function onTabViewWindowLoaded() {
   is(gBrowser.tabs.length, 1, "There is one tab on startup");
   let groupItem = contentWindow.GroupItems.groupItems[0];
 
-  hideGroupItem(groupItem, function () {
+  groupItem.addSubscriber(groupItem, "groupHidden", function() {
+    groupItem.removeSubscriber(groupItem, "groupHidden");
+
     let onTabViewHidden = function() {
       window.removeEventListener("tabviewhidden", onTabViewHidden, false);
       is(contentWindow.GroupItems.groupItems.length, 1, 
@@ -33,4 +35,5 @@ function onTabViewWindowLoaded() {
 
     TabView.hide();
   });
+  groupItem.closeAll();
 }

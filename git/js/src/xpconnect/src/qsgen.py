@@ -465,7 +465,7 @@ argumentUnboxingTemplates = {
         "        return JS_FALSE;\n",
 
     'boolean':
-        "    JSBool ${name};\n"
+        "    PRBool ${name};\n"
         "    JS_ValueToBoolean(cx, ${argVal}, &${name});\n",
 
     '[astring]':

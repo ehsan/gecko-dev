@@ -52,7 +52,6 @@
 #include "GLContextProvider.h"
 
 #include "gfxCrashReporterUtils.h"
-#include "gfxUtils.h"
 
 #include "mozilla/Util.h" // for DebugOnly
 
@@ -434,8 +433,6 @@ static const char *sExtensionNames[] = {
     "GL_ARB_texture_non_power_of_two",
     "GL_ARB_pixel_buffer_object",
     "GL_ARB_ES2_compatibility",
-    "GL_OES_texture_float",
-    "GL_ARB_texture_float",
     NULL
 };
 
@@ -575,8 +572,20 @@ BasicTextureImage::BeginUpdate(nsIntRegion& aRegion)
     NS_ASSERTION(!mUpdateSurface, "BeginUpdate() without EndUpdate()?");
 
     // determine the region the client will need to repaint
-    GetUpdateRegion(aRegion);
-    mUpdateRegion = aRegion;
+    ImageFormat format =
+        (GetContentType() == gfxASurface::CONTENT_COLOR) ?
+        gfxASurface::ImageFormatRGB24 : gfxASurface::ImageFormatARGB32;
+    if (mTextureState != Valid)
+    {
+        // if the texture hasn't been initialized yet, or something important
+        // changed, we need to recreate our backing surface and force the
+        // client to paint everything
+        mUpdateRegion = nsIntRect(nsIntPoint(0, 0), mSize);
+    } else {
+        mUpdateRegion = aRegion;
+    }
+
+    aRegion = mUpdateRegion;
 
     nsIntRect rgnSize = mUpdateRegion.GetBounds();
     if (!nsIntRect(nsIntPoint(0, 0), mSize).Contains(rgnSize)) {
@@ -584,10 +593,7 @@ BasicTextureImage::BeginUpdate(nsIntRegion& aRegion)
         return NULL;
     }
 
-    ImageFormat format =
-        (GetContentType() == gfxASurface::CONTENT_COLOR) ?
-        gfxASurface::ImageFormatRGB24 : gfxASurface::ImageFormatARGB32;
-    mUpdateSurface =
+    mUpdateSurface = 
         GetSurfaceForUpdate(gfxIntSize(rgnSize.width, rgnSize.height), format);
 
     if (!mUpdateSurface || mUpdateSurface->CairoStatus()) {
@@ -598,16 +604,6 @@ BasicTextureImage::BeginUpdate(nsIntRegion& aRegion)
     mUpdateSurface->SetDeviceOffset(gfxPoint(-rgnSize.x, -rgnSize.y));
 
     return mUpdateSurface;
-}
-
-void
-BasicTextureImage::GetUpdateRegion(nsIntRegion& aForRegion)
-{
-  // if the texture hasn't been initialized yet, or something important
-  // changed, we need to recreate our backing surface and force the
-  // client to paint everything
-  if (mTextureState != Valid)
-      aForRegion = nsIntRect(nsIntPoint(0, 0), mSize);
 }
 
 void
@@ -640,7 +636,7 @@ void
 BasicTextureImage::BindTexture(GLenum aTextureUnit)
 {
     mGLContext->fActiveTexture(aTextureUnit);
-    mGLContext->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexture);
+    mGLContext->fBindTexture(LOCAL_GL_TEXTURE_2D, Texture());
     mGLContext->fActiveTexture(LOCAL_GL_TEXTURE0);
 }
 
@@ -663,7 +659,7 @@ BasicTextureImage::FinishedSurfaceUpload()
 }
 
 bool 
-BasicTextureImage::DirectUpdate(gfxASurface* aSurf, const nsIntRegion& aRegion, const nsIntPoint& aFrom /* = nsIntPoint(0, 0) */)
+BasicTextureImage::DirectUpdate(gfxASurface *aSurf, const nsIntRegion& aRegion)
 {
     nsIntRect bounds = aRegion.GetBounds();
     nsIntRegion region;
@@ -679,7 +675,7 @@ BasicTextureImage::DirectUpdate(gfxASurface* aSurf, const nsIntRegion& aRegion, 
                                            region,
                                            mTexture,
                                            mTextureState == Created,
-                                           bounds.TopLeft() + aFrom,
+                                           bounds.TopLeft(),
                                            PR_FALSE);
     mTextureState = Valid;
     return true;
@@ -704,259 +700,6 @@ BasicTextureImage::Resize(const nsIntSize& aSize)
 
     mTextureState = Allocated;
     mSize = aSize;
-}
-
-TiledTextureImage::TiledTextureImage(GLContext* aGL,
-                                     nsIntSize aSize,
-                                     TextureImage::ContentType aContentType,
-                                     PRBool aUseNearestFilter)
-    : TextureImage(aSize, LOCAL_GL_CLAMP_TO_EDGE, aContentType, aUseNearestFilter)
-    , mCurrentImage(0)
-    , mInUpdate(PR_FALSE)
-    , mGL(aGL)
-    , mUseNearestFilter(aUseNearestFilter)
-    , mTextureState(Created)
-{
-    mTileSize = mGL->GetMaxTextureSize();
-    if (aSize != nsIntSize(0,0)) {
-        Resize(aSize);
-    }
-}
-
-TiledTextureImage::~TiledTextureImage()
-{
-}
-
-bool 
-TiledTextureImage::DirectUpdate(gfxASurface* aSurf, const nsIntRegion& aRegion, const nsIntPoint& aFrom /* = nsIntPoint(0, 0) */)
-{
-    nsIntRegion region;
-    if (mTextureState != Valid) {
-        nsIntRect bounds = nsIntRect(0, 0, mSize.width, mSize.height);
-        region = nsIntRegion(bounds);
-    } else {
-        region = aRegion;
-    }
-
-    PRBool result = PR_TRUE;
-    for (unsigned i = 0; i < mImages.Length(); i++) {
-        int xPos = (i % mColumns) * mTileSize;
-        int yPos = (i / mColumns) * mTileSize;
-        nsIntRegion tileRegion;
-        tileRegion.And(region, nsIntRect(nsIntPoint(xPos,yPos), mImages[i]->GetSize())); // intersect with tile
-        if (tileRegion.IsEmpty())
-            continue;
-        tileRegion.MoveBy(-xPos, -yPos); // translate into tile local space
-        result &= mImages[i]->DirectUpdate(aSurf,
-                                           tileRegion,
-                                           aFrom + nsIntPoint(xPos, yPos));
-    }
-    mShaderType = mImages[0]->GetShaderProgramType();
-    mIsRGBFormat = mImages[0]->IsRGB();
-    mTextureState = Valid;
-    return result;
-}
-
-void
-TiledTextureImage::GetUpdateRegion(nsIntRegion& aForRegion)
-{
-    if (mTextureState != Valid) {
-        // if the texture hasn't been initialized yet, or something important
-        // changed, we need to recreate our backing surface and force the
-        // client to paint everything
-        aForRegion = nsIntRect(nsIntPoint(0, 0), mSize);
-        return;
-    }
-
-    nsIntRegion newRegion;
-
-    // We need to query each texture with the region it will be drawing and
-    // set aForRegion to be the combination of all of these regions
-    for (unsigned i = 0; i < mImages.Length(); i++) {
-        int xPos = (i % mColumns) * mTileSize;
-        int yPos = (i / mColumns) * mTileSize;
-        nsIntRect imageRect = nsIntRect(nsIntRect(nsIntPoint(xPos,yPos), mImages[i]->GetSize()));
-
-        if (aForRegion.Intersects(imageRect)) {
-            // Make a copy of the region
-            nsIntRegion subRegion;
-            subRegion.And(aForRegion, imageRect);
-            // Translate it into tile-space
-            subRegion.MoveBy(-xPos, -yPos);
-            // Query region
-            mImages[i]->GetUpdateRegion(subRegion);
-            // Translate back
-            subRegion.MoveBy(xPos, yPos);
-            // Add to the accumulated region
-            newRegion.Or(newRegion, subRegion);
-        }
-    }
-
-    aForRegion = newRegion;
-}
-
-gfxASurface*
-TiledTextureImage::BeginUpdate(nsIntRegion& aRegion)
-{
-    NS_ASSERTION(!mInUpdate, "nested update");
-    mInUpdate = PR_TRUE;
-
-    // Note, we don't call GetUpdateRegion here as if the updated region is
-    // fully contained in a single tile, we get to avoid iterating through
-    // the tiles again (and a little copying).
-    if (mTextureState != Valid)
-    {
-        // if the texture hasn't been initialized yet, or something important
-        // changed, we need to recreate our backing surface and force the
-        // client to paint everything
-        aRegion = nsIntRect(nsIntPoint(0, 0), mSize);
-    }
-
-    nsIntRect bounds = aRegion.GetBounds();
-
-    for (unsigned i = 0; i < mImages.Length(); i++) {
-        int xPos = (i % mColumns) * mTileSize;
-        int yPos = (i / mColumns) * mTileSize;
-        nsIntRegion imageRegion = nsIntRegion(nsIntRect(nsIntPoint(xPos,yPos), mImages[i]->GetSize()));
-
-        // a single Image can handle this update request
-        if (imageRegion.Contains(aRegion)) {
-            // adjust for tile offset
-            aRegion.MoveBy(-xPos, -yPos);
-            // forward the actual call
-            nsRefPtr<gfxASurface> surface = mImages[i]->BeginUpdate(aRegion);
-            // caller expects container space
-            aRegion.MoveBy(xPos, yPos);
-            // Correct the device offset
-            gfxPoint offset = surface->GetDeviceOffset();
-            surface->SetDeviceOffset(gfxPoint(offset.x - xPos,
-                                              offset.y - yPos));
-            // we don't have a temp surface
-            mUpdateSurface = nsnull;
-            // remember which image to EndUpdate
-            mCurrentImage = i;
-            return surface.get();
-        }
-    }
-
-    // Get the real updated region, taking into account the capabilities of
-    // each TextureImage tile
-    GetUpdateRegion(aRegion);
-    mUpdateRegion = aRegion;
-    bounds = aRegion.GetBounds();
-
-    // update covers multiple Images - create a temp surface to paint in
-    gfxASurface::gfxImageFormat format =
-        (GetContentType() == gfxASurface::CONTENT_COLOR) ?
-        gfxASurface::ImageFormatRGB24 : gfxASurface::ImageFormatARGB32;
-    mUpdateSurface = gfxPlatform::GetPlatform()->
-        CreateOffscreenSurface(gfxIntSize(bounds.width, bounds.height), gfxASurface::ContentFromFormat(format));
-    mUpdateSurface->SetDeviceOffset(gfxPoint(-bounds.x, -bounds.y));
-
-    return mUpdateSurface;
-}
-
-void
-TiledTextureImage::EndUpdate()
-{
-    NS_ASSERTION(mInUpdate, "EndUpdate not in update");
-    if (!mUpdateSurface) { // update was to a single TextureImage
-        mImages[mCurrentImage]->EndUpdate();
-        mInUpdate = PR_FALSE;
-        mTextureState = Valid;
-        mShaderType = mImages[mCurrentImage]->GetShaderProgramType();
-        mIsRGBFormat = mImages[mCurrentImage]->IsRGB();
-        return;
-    }
-
-    // upload tiles from temp surface
-    for (unsigned i = 0; i < mImages.Length(); i++) {
-        int xPos = (i % mColumns) * mTileSize;
-        int yPos = (i / mColumns) * mTileSize;
-        nsIntRect imageRect = nsIntRect(nsIntPoint(xPos,yPos), mImages[i]->GetSize());
-
-        nsIntRegion subregion;
-        subregion.And(mUpdateRegion, imageRect);
-        if (subregion.IsEmpty())
-            continue;
-        subregion.MoveBy(-xPos, -yPos); // Tile-local space
-        // copy tile from temp surface
-        gfxASurface* surf = mImages[i]->BeginUpdate(subregion);
-        nsRefPtr<gfxContext> ctx = new gfxContext(surf);
-        gfxUtils::ClipToRegion(ctx, subregion);
-        ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
-        ctx->SetSource(mUpdateSurface, gfxPoint(-xPos, -yPos));
-        ctx->Paint();
-        mImages[i]->EndUpdate();
-    }
-
-    mUpdateSurface = nsnull;
-    mInUpdate = PR_FALSE;
-    mShaderType = mImages[0]->GetShaderProgramType();
-    mIsRGBFormat = mImages[0]->IsRGB();
-    mTextureState = Valid;
-}
-
-void TiledTextureImage::BeginTileIteration()
-{
-    mCurrentImage = 0;
-}
-
-PRBool TiledTextureImage::NextTile()
-{
-    if (mCurrentImage + 1 < mImages.Length()) {
-        mCurrentImage++;
-        return PR_TRUE;
-    }
-    return PR_FALSE;
-}
-
-nsIntRect TiledTextureImage::GetTileRect()
-{
-    nsIntRect rect = mImages[mCurrentImage]->GetTileRect();
-    unsigned int xPos = (mCurrentImage % mColumns) * mTileSize;
-    unsigned int yPos = (mCurrentImage / mColumns) * mTileSize;
-    rect.MoveBy(xPos, yPos);
-    return rect;
-}
-
-void
-TiledTextureImage::BindTexture(GLenum aTextureUnit)
-{
-    mImages[mCurrentImage]->BindTexture(aTextureUnit);
-}
-
-/*
- * simple resize, just discards everything. we can be more clever just
- * adding or discarding tiles, but do we want this?
- */
-void TiledTextureImage::Resize(const nsIntSize& aSize)
-{
-    if (mSize == aSize && mTextureState != Created) {
-        return;
-    }
-    mSize = aSize;
-    mImages.Clear();
-    // calculate rows and columns, rounding up
-    mColumns = (aSize.width  + mTileSize - 1) / mTileSize;
-    mRows    = (aSize.height + mTileSize - 1) / mTileSize;
-
-    for (unsigned int row = 0; row < mRows; row++) {
-      for (unsigned int col = 0; col < mColumns; col++) {
-          nsIntSize size( // use tilesize first, then the remainder
-                  (col+1) * mTileSize > (unsigned int)aSize.width  ? aSize.width  % mTileSize : mTileSize,
-                  (row+1) * mTileSize > (unsigned int)aSize.height ? aSize.height % mTileSize : mTileSize);
-          nsRefPtr<TextureImage> teximg =
-                  mGL->TileGenFunc(size, mContentType, mUseNearestFilter);
-          mImages.AppendElement(teximg.forget());
-      }
-    }
-    mTextureState = Allocated;
-}
-
-PRUint32 TiledTextureImage::GetTileCount()
-{
-    return mImages.Length();
 }
 
 PRBool
@@ -1069,22 +812,21 @@ GLContext::ResizeOffscreenFBO(const gfxIntSize& aSize)
             if (mIsGLES2) {
                 if (IsExtensionSupported(OES_depth32)) {
                     depthType = LOCAL_GL_DEPTH_COMPONENT32;
-                    cf.depth = 32;
                 } else if (IsExtensionSupported(OES_depth24)) {
                     depthType = LOCAL_GL_DEPTH_COMPONENT24;
-                    cf.depth = 24;
                 } else {
                     depthType = LOCAL_GL_DEPTH_COMPONENT16;
-                   cf.depth = 16;
                 }
             } else {
                 depthType = LOCAL_GL_DEPTH_COMPONENT24;
-                cf.depth = 24;
             }
 
             fBindRenderbuffer(LOCAL_GL_RENDERBUFFER, mOffscreenDepthRB);
-            fRenderbufferStorage(LOCAL_GL_RENDERBUFFER, depthType,
+            fRenderbufferStorage(LOCAL_GL_RENDERBUFFER,
+                                 mIsGLES2 ? LOCAL_GL_DEPTH_COMPONENT16
+                                          : LOCAL_GL_DEPTH_COMPONENT24,
                                  aSize.width, aSize.height);
+            cf.depth = mIsGLES2 ? 16 : 24;
         }
 
         if (stencil) {
@@ -1503,9 +1245,6 @@ GLContext::BlitTextureImage(TextureImage *aSrc, const nsIntRect& aSrcRect,
     NS_ASSERTION(!aSrc->InUpdate(), "Source texture is in update!");
     NS_ASSERTION(!aDst->InUpdate(), "Destination texture is in update!");
 
-    if (aSrcRect.IsEmpty() || aDstRect.IsEmpty())
-        return;
-
     // only save/restore this stuff on Qualcomm Adreno, to work
     // around an apparent bug
     int savedFb = 0;
@@ -1516,114 +1255,57 @@ GLContext::BlitTextureImage(TextureImage *aSrc, const nsIntRect& aSrcRect,
     fDisable(LOCAL_GL_SCISSOR_TEST);
     fDisable(LOCAL_GL_BLEND);
 
-    // 2.0 means scale up by two
-    float blitScaleX = float(aDstRect.width) / float(aSrcRect.width);
-    float blitScaleY = float(aDstRect.height) / float(aSrcRect.height);
+    SetBlitFramebufferForDestTexture(aDst->Texture());
 
-    // We start iterating over all destination tiles
-    aDst->BeginTileIteration();
-    do {
-        // calculate portion of the tile that is going to be painted to
-        nsIntRect dstSubRect;
-        nsIntRect dstTextureRect = aDst->GetTileRect();
-        dstSubRect.IntersectRect(aDstRect, dstTextureRect);
+    UseBlitProgram();
 
-        // this tile is not part of the destination rectangle aDstRect
-        if (dstSubRect.IsEmpty())
-            continue;
+    nsIntSize srcSize = aSrc->GetSize();
+    nsIntSize dstSize = aDst->GetSize();
 
-        // (*) transform the rect of this tile into the rectangle defined by aSrcRect...
-        nsIntRect dstInSrcRect(dstSubRect);
-        dstInSrcRect.MoveBy(-aDstRect.TopLeft());
-        // ...which might be of different size, hence scale accordingly
-        dstInSrcRect.ScaleRoundOut(1.0f / blitScaleX, 1.0f / blitScaleY);
-        dstInSrcRect.MoveBy(aSrcRect.TopLeft());
+    PushViewportRect(nsIntRect(0, 0, dstSize.width, dstSize.height));
 
-        SetBlitFramebufferForDestTexture(aDst->GetTextureID());
-        UseBlitProgram();
+    float dx0 = 2.0 * float(aDstRect.x) / float(dstSize.width) - 1.0;
+    float dy0 = 2.0 * float(aDstRect.y) / float(dstSize.height) - 1.0;
+    float dx1 = 2.0 * float(aDstRect.x + aDstRect.width) / float(dstSize.width) - 1.0;
+    float dy1 = 2.0 * float(aDstRect.y + aDstRect.height) / float(dstSize.height) - 1.0;
 
-        aSrc->BeginTileIteration();
-        // now iterate over all tiles in the source Image...
-        do {
-            // calculate portion of the source tile that is in the source rect
-            nsIntRect srcSubRect;
-            nsIntRect srcTextureRect = aSrc->GetTileRect();
-            srcSubRect.IntersectRect(aSrcRect, srcTextureRect);
+    RectTriangles rects;
+    if (aSrc->GetWrapMode() == LOCAL_GL_REPEAT) {
+        rects.addRect(/* dest rectangle */
+                      dx0, dy0, dx1, dy1,
+                      /* tex coords */
+                      aSrcRect.x / float(srcSize.width),
+                      aSrcRect.y / float(srcSize.height),
+                      aSrcRect.XMost() / float(srcSize.width),
+                      aSrcRect.YMost() / float(srcSize.height));
+    } else {
+        DecomposeIntoNoRepeatTriangles(aSrcRect, srcSize, rects);
 
-            // this tile is not part of the source rect
-            if (srcSubRect.IsEmpty()) {
-                continue;
-            }
-            // calculate intersection of source rect with destination rect
-            srcSubRect.IntersectRect(srcSubRect, dstInSrcRect);
-            // this tile does not overlap the current destination tile
-            if (srcSubRect.IsEmpty()) {
-                continue;
-            }
-            // We now have the intersection of 
-            //     the current source tile 
-            // and the desired source rectangle
-            // and the destination tile
-            // and the desired destination rectange
-            // in destination space.
-            // We need to transform this back into destination space, inverting the transform from (*)
-            nsIntRect srcSubInDstRect(srcSubRect);
-            srcSubInDstRect.MoveBy(-aSrcRect.TopLeft());
-            srcSubInDstRect.ScaleRoundOut(blitScaleX, blitScaleY);
-            srcSubInDstRect.MoveBy(aDstRect.TopLeft());
+        // now put the coords into the d[xy]0 .. d[xy]1 coordinate space
+        // from the 0..1 that it comes out of decompose
+        RectTriangles::vert_coord* v = (RectTriangles::vert_coord*)rects.vertexPointer();
+        for (int i = 0; i < rects.elements(); ++i) {
+            v[i].x = (v[i].x * (dx1 - dx0)) + dx0;
+            v[i].y = (v[i].y * (dy1 - dy0)) + dy0;
+        }
+    }
 
-            // we transform these rectangles to be relative to the current src and dst tiles, respectively
-            nsIntSize srcSize = srcTextureRect.Size();
-            nsIntSize dstSize = dstTextureRect.Size();
-            srcSubRect.MoveBy(-srcTextureRect.x, -srcTextureRect.y);
-            srcSubInDstRect.MoveBy(-dstTextureRect.x, -dstTextureRect.y);
 
-            float dx0 = 2.0 * float(srcSubInDstRect.x) / float(dstSize.width) - 1.0;
-            float dy0 = 2.0 * float(srcSubInDstRect.y) / float(dstSize.height) - 1.0;
-            float dx1 = 2.0 * float(srcSubInDstRect.x + srcSubInDstRect.width) / float(dstSize.width) - 1.0;
-            float dy1 = 2.0 * float(srcSubInDstRect.y + srcSubInDstRect.height) / float(dstSize.height) - 1.0;
-            PushViewportRect(nsIntRect(0, 0, dstSize.width, dstSize.height));
+    fActiveTexture(LOCAL_GL_TEXTURE0);
+    fBindTexture(LOCAL_GL_TEXTURE_2D, aSrc->Texture());
 
-            RectTriangles rects;
-            if (aSrc->GetWrapMode() == LOCAL_GL_REPEAT) {
-                rects.addRect(/* dest rectangle */
-                        dx0, dy0, dx1, dy1,
-                        /* tex coords */
-                        srcSubRect.x / float(srcSize.width),
-                        srcSubRect.y / float(srcSize.height),
-                        srcSubRect.XMost() / float(srcSize.width),
-                        srcSubRect.YMost() / float(srcSize.height));
-            } else {
-                DecomposeIntoNoRepeatTriangles(srcSubRect, srcSize, rects);
+    fBindBuffer(LOCAL_GL_ARRAY_BUFFER, 0);
 
-                // now put the coords into the d[xy]0 .. d[xy]1 coordinate space
-                // from the 0..1 that it comes out of decompose
-                RectTriangles::vert_coord* v = (RectTriangles::vert_coord*)rects.vertexPointer();
+    fVertexAttribPointer(0, 2, LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0, rects.vertexPointer());
+    fVertexAttribPointer(1, 2, LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0, rects.texCoordPointer());
 
-                for (unsigned int i = 0; i < rects.elements(); ++i) {
-                    v[i].x = (v[i].x * (dx1 - dx0)) + dx0;
-                    v[i].y = (v[i].y * (dy1 - dy0)) + dy0;
-                }
-            }
+    fEnableVertexAttribArray(0);
+    fEnableVertexAttribArray(1);
 
-            TextureImage::ScopedBindTexture texBind(aSrc, LOCAL_GL_TEXTURE0);
+    fDrawArrays(LOCAL_GL_TRIANGLES, 0, rects.elements());
 
-            fBindBuffer(LOCAL_GL_ARRAY_BUFFER, 0);
-
-            fVertexAttribPointer(0, 2, LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0, rects.vertexPointer());
-            fVertexAttribPointer(1, 2, LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0, rects.texCoordPointer());
-
-            fEnableVertexAttribArray(0);
-            fEnableVertexAttribArray(1);
-
-            fDrawArrays(LOCAL_GL_TRIANGLES, 0, rects.elements());
-
-            fDisableVertexAttribArray(0);
-            fDisableVertexAttribArray(1);
-
-            PopViewportRect();
-        } while (aSrc->NextTile());
-    } while (aDst->NextTile());
+    fDisableVertexAttribArray(0);
+    fDisableVertexAttribArray(1);
 
     fVertexAttribPointer(0, 2, LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0, NULL);
     fVertexAttribPointer(1, 2, LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0, NULL);
@@ -1643,6 +1325,8 @@ GLContext::BlitTextureImage(TextureImage *aSrc, const nsIntRect& aSrcRect,
 
     fEnable(LOCAL_GL_SCISSOR_TEST);
     fEnable(LOCAL_GL_BLEND);
+
+    PopViewportRect();
 }
 
 static unsigned int 
@@ -1760,9 +1444,10 @@ GLContext::UploadSurfaceToTexture(gfxASurface *aSurface,
             shader = ShaderProgramType(0);
     }
 
-    PRInt32 stride = imageSurface->Stride();
-
 #ifndef USE_GLES2
+    fPixelStorei(LOCAL_GL_UNPACK_ROW_LENGTH, 
+                 imageSurface->Stride() / pixelSize);
+
     internalformat = LOCAL_GL_RGBA;
 #else
     internalformat = format;
@@ -1781,168 +1466,69 @@ GLContext::UploadSurfaceToTexture(gfxASurface *aSurface,
         unsigned char *rectData = 
             data + DataOffset(imageSurface, iterRect->TopLeft() - topLeft);
 
-        NS_ASSERTION(textureInited || (iterRect->x == 0 && iterRect->y == 0), 
-                     "Must be uploading to the origin when we don't have an existing texture");
+#ifdef USE_GLES2
+        if (imageSurface->Stride() != iterRect->width * pixelSize) {
+            // Not using the whole row of texture data and GLES doesn't 
+            // support GL_UNPACK_ROW_LENGTH. We need to upload each row
+            // separately.
+            if (!textureInited) {
+                fTexImage2D(LOCAL_GL_TEXTURE_2D,
+                            0,
+                            internalformat,
+                            iterRect->width,
+                            iterRect->height,
+                            0,
+                            format,
+                            type,
+                            NULL);
+            }
+
+            for (int h = 0; h < iterRect->height; h++) {
+                fTexSubImage2D(LOCAL_GL_TEXTURE_2D,
+                               0,
+                               iterRect->x,
+                               iterRect->y+h,
+                               iterRect->width,
+                               1,
+                               format,
+                               type,
+                               rectData);
+                rectData += imageSurface->Stride();
+            }
+
+            continue;
+        }
+#endif
 
         if (textureInited) {
-            TexSubImage2D(LOCAL_GL_TEXTURE_2D,
-                          0,
-                          iterRect->x,
-                          iterRect->y,
-                          iterRect->width,
-                          iterRect->height,
-                          stride,
-                          pixelSize,
-                          format,
-                          type,
-                          rectData);
+            fTexSubImage2D(LOCAL_GL_TEXTURE_2D,
+                           0,
+                           iterRect->x,
+                           iterRect->y,
+                           iterRect->width,
+                           iterRect->height,
+                           format,
+                           type,
+                           rectData);
         } else {
-            TexImage2D(LOCAL_GL_TEXTURE_2D,
-                       0,
-                       internalformat,
-                       iterRect->width,
-                       iterRect->height,
-                       stride,
-                       pixelSize,
-                       0,
-                       format,
-                       type,
-                       rectData);
+            fTexImage2D(LOCAL_GL_TEXTURE_2D,
+                        0,
+                        internalformat,
+                        iterRect->width,
+                        iterRect->height,
+                        0,
+                        format,
+                        type,
+                        rectData);
         }
 
     }
+
+#ifndef USE_GLES2
+    fPixelStorei(LOCAL_GL_UNPACK_ROW_LENGTH, 0);
+#endif
 
     return shader;
-}
-
-static GLint GetAddressAlignment(ptrdiff_t aAddress)
-{
-    if (!(aAddress & 0x7)) {
-       return 8;
-    } else if (!(aAddress & 0x3)) {
-        return 4;
-    } else if (!(aAddress & 0x1)) {
-        return 2;
-    } else {
-        return 1;
-    }
-}
-
-void
-GLContext::TexImage2D(GLenum target, GLint level, GLint internalformat, 
-                      GLsizei width, GLsizei height, GLsizei stride,
-                      GLint pixelsize, GLint border, GLenum format, 
-                      GLenum type, const GLvoid *pixels)
-{
-    fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, 
-                 NS_MIN(GetAddressAlignment((ptrdiff_t)pixels),
-                        GetAddressAlignment((ptrdiff_t)stride)));
-
-#ifndef USE_GLES2
-    fPixelStorei(LOCAL_GL_UNPACK_ROW_LENGTH, stride/pixelsize);
-#else
-    if (stride != width * pixelsize) {
-        // Not using the whole row of texture data and GLES doesn't 
-        // support GL_UNPACK_ROW_LENGTH. We need to upload each row
-        // separately.
-        fTexImage2D(target,
-                    border,
-                    internalformat,
-                    width,
-                    height,
-                    border,
-                    format,
-                    type,
-                    NULL);
-
-        const unsigned char *row = (const unsigned char *)pixels; 
-        for (int h = 0; h < height; h++) {
-            fTexSubImage2D(target,
-                           level,
-                           0,
-                           h,
-                           width,
-                           1,
-                           format,
-                           type,
-                           row);
-
-            row += stride;
-        }
-
-        fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, 4);
-        return;
-    }
-#endif
-
-    fTexImage2D(target,
-                level,
-                internalformat,
-                width,
-                height,
-                border,
-                format,
-                type,
-                pixels);
-
-#ifndef USE_GLES2
-    fPixelStorei(LOCAL_GL_UNPACK_ROW_LENGTH, 0);
-#endif
-    fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, 4);
-}
-
-void
-GLContext::TexSubImage2D(GLenum target, GLint level, 
-                         GLint xoffset, GLint yoffset, 
-                         GLsizei width, GLsizei height, GLsizei stride,
-                         GLint pixelsize, GLenum format, 
-                         GLenum type, const GLvoid* pixels)
-{
-    fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, 
-                 NS_MIN(GetAddressAlignment((ptrdiff_t)pixels),
-                        GetAddressAlignment((ptrdiff_t)stride)));
-
-#ifndef USE_GLES2
-    fPixelStorei(LOCAL_GL_UNPACK_ROW_LENGTH, stride/pixelsize);
-#else
-    if (stride != width * pixelsize) {
-        // Not using the whole row of texture data and GLES doesn't 
-        // support GL_UNPACK_ROW_LENGTH. We need to upload each row
-        // separately.
-        const unsigned char *row = (const unsigned char *)pixels; 
-        for (int h = 0; h < height; h++) {
-            fTexSubImage2D(target,
-                           level,
-                           xoffset,
-                           yoffset+h,
-                           width,
-                           1,
-                           format,
-                           type,
-                           row);
-
-            row += stride;
-        }
-
-        fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, 4);
-        return;
-    }
-#endif
-
-    fTexSubImage2D(target,
-                   level,
-                   xoffset,
-                   yoffset,
-                   width,
-                   height,
-                   format,
-                   type,
-                   pixels);
-
-#ifndef USE_GLES2
-    fPixelStorei(LOCAL_GL_UNPACK_ROW_LENGTH, 0);
-#endif
-    fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, 4);
 }
 
 void

@@ -4,7 +4,6 @@
 // found in the LICENSE file.
 //
 
-#include "compiler/DetectRecursion.h"
 #include "compiler/Initialize.h"
 #include "compiler/ParseHelper.h"
 #include "compiler/ShHandle.h"
@@ -146,16 +145,13 @@ bool TCompiler::compile(const char* const shaderStrings[],
         TIntermNode* root = parseContext.treeRoot;
         success = intermediate.postProcess(root);
 
-        if (success)
-            success = detectRecursion(root);
-
         if (success && (compileOptions & SH_VALIDATE_LOOP_INDEXING))
             success = validateLimitations(root);
 
         // Call mapLongVariableNames() before collectAttribsUniforms() so in
         // collectAttribsUniforms() we already have the mapped symbol names and
         // we could composite mapped and original variable names.
-        if (success && (compileOptions & SH_MAP_LONG_VARIABLE_NAMES))
+        if (compileOptions & SH_MAP_LONG_VARIABLE_NAMES)
             mapLongVariableNames(root);
 
         if (success && (compileOptions & SH_ATTRIBUTES_UNIFORMS))
@@ -195,25 +191,6 @@ void TCompiler::clearResults()
 
     attribs.clear();
     uniforms.clear();
-}
-
-bool TCompiler::detectRecursion(TIntermNode* root)
-{
-    DetectRecursion detect;
-    root->traverse(&detect);
-    switch (detect.detectRecursion()) {
-        case DetectRecursion::kErrorNone:
-            return true;
-        case DetectRecursion::kErrorMissingMain:
-            infoSink.info.message(EPrefixError, "Missing main()");
-            return false;
-        case DetectRecursion::kErrorRecursion:
-            infoSink.info.message(EPrefixError, "Function recursion detected");
-            return false;
-        default:
-            UNREACHABLE();
-            return false;
-    }
 }
 
 bool TCompiler::validateLimitations(TIntermNode* root) {

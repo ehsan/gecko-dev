@@ -46,7 +46,6 @@
 #include "nsIScriptSecurityManager.h"
 #include "nsIXPConnect.h"
 #include "jsapi.h"
-#include "nsContentUtils.h"
 #include "nsJSUtils.h"
 #include "nsMathUtils.h"
 #include "mozilla/Preferences.h"
@@ -228,9 +227,6 @@ nsHTMLCanvasElement::ExtractData(const nsAString& aType,
   nsIntSize size = GetWidthHeight();
   if (!mCurrentContext) {
     emptyCanvas = new gfxImageSurface(gfxIntSize(size.width, size.height), gfxASurface::ImageFormatARGB32);
-    if (emptyCanvas->CairoStatus()) {
-      return NS_ERROR_INVALID_ARG;
-    }
   }
 
   nsresult rv;
@@ -316,35 +312,9 @@ nsHTMLCanvasElement::ToDataURLImpl(const nsAString& aMimeType,
     }
   }
 
-  // If we haven't parsed the params check for proprietary options.
-  // The proprietary option -moz-parse-options will take a image lib encoder
-  // parse options string as is and pass it to the encoder.
-  PRBool usingCustomParseOptions = PR_FALSE;
-  if (params.Length() == 0) {
-    NS_NAMED_LITERAL_STRING(mozParseOptions, "-moz-parse-options:");
-    nsAutoString paramString;
-    if (NS_SUCCEEDED(aEncoderOptions->GetAsAString(paramString)) && 
-        StringBeginsWith(paramString, mozParseOptions)) {
-      nsDependentSubstring parseOptions = Substring(paramString, 
-                                                    mozParseOptions.Length(), 
-                                                    paramString.Length() - 
-                                                    mozParseOptions.Length());
-      params.Append(parseOptions);
-      usingCustomParseOptions = PR_TRUE;
-    }
-  }
-
   nsCOMPtr<nsIInputStream> stream;
   nsresult rv = ExtractData(type, params, getter_AddRefs(stream),
                             fallbackToPNG);
-
-  // If there are unrecognized custom parse options, we should fall back to 
-  // the default values for the encoder without any options at all.
-  if (rv == NS_ERROR_INVALID_ARG && usingCustomParseOptions) {
-    fallbackToPNG = false;
-    rv = ExtractData(type, EmptyString(), getter_AddRefs(stream), fallbackToPNG);
-  }
-
   NS_ENSURE_SUCCESS(rv, rv);
 
   // build data URL string
@@ -410,12 +380,11 @@ nsHTMLCanvasElement::MozGetAsFileImpl(const nsAString& aName,
 
 nsresult
 nsHTMLCanvasElement::GetContextHelper(const nsAString& aContextId,
-                                      PRBool aForceThebes,
                                       nsICanvasRenderingContextInternal **aContext)
 {
   NS_ENSURE_ARG(aContext);
 
-  NS_ConvertUTF16toUTF8 ctxId(aContextId);
+  NS_LossyConvertUTF16toASCII ctxId(aContextId);
 
   // check that ctxId is clamped to A-Za-z0-9_-
   for (PRUint32 i = 0; i < ctxId.Length(); i++) {
@@ -432,10 +401,6 @@ nsHTMLCanvasElement::GetContextHelper(const nsAString& aContextId,
 
   nsCString ctxString("@mozilla.org/content/canvas-rendering-context;1?id=");
   ctxString.Append(ctxId);
-
-  if (aForceThebes && ctxId.EqualsASCII("2d")) {
-    ctxString.AssignASCII("@mozilla.org/content/2dthebes-canvas-rendering-context;1");
-  }
 
   nsresult rv;
   nsCOMPtr<nsICanvasRenderingContextInternal> ctx =
@@ -468,10 +433,8 @@ nsHTMLCanvasElement::GetContext(const nsAString& aContextId,
 {
   nsresult rv;
 
-  PRBool forceThebes = PR_FALSE;
-
-  while (mCurrentContextId.IsEmpty()) {
-    rv = GetContextHelper(aContextId, forceThebes, getter_AddRefs(mCurrentContext));
+  if (mCurrentContextId.IsEmpty()) {
+    rv = GetContextHelper(aContextId, getter_AddRefs(mCurrentContext));
     NS_ENSURE_SUCCESS(rv, rv);
     if (!mCurrentContext) {
       return NS_OK;
@@ -542,18 +505,12 @@ nsHTMLCanvasElement::GetContext(const nsAString& aContextId,
 
     rv = UpdateContext(contextProps);
     if (NS_FAILED(rv)) {
-      if (!forceThebes) {
-        // Try again with a Thebes context
-        forceThebes = PR_TRUE;
-        continue;
-      }
+      mCurrentContext = nsnull;
       return rv;
     }
 
     mCurrentContextId.Assign(aContextId);
-    break;
-  }
-  if (!mCurrentContextId.Equals(aContextId)) {
+  } else if (!mCurrentContextId.Equals(aContextId)) {
     //XXX eventually allow for more than one active context on a given canvas
     return NS_OK;
   }
@@ -578,7 +535,7 @@ nsHTMLCanvasElement::MozGetIPCContext(const nsAString& aContextId,
   nsresult rv;
 
   if (mCurrentContextId.IsEmpty()) {
-    rv = GetContextHelper(aContextId, PR_FALSE, getter_AddRefs(mCurrentContext));
+    rv = GetContextHelper(aContextId, getter_AddRefs(mCurrentContext));
     NS_ENSURE_SUCCESS(rv, rv);
     if (!mCurrentContext) {
       return NS_OK;
@@ -587,7 +544,10 @@ nsHTMLCanvasElement::MozGetIPCContext(const nsAString& aContextId,
     mCurrentContext->SetIsIPC(PR_TRUE);
 
     rv = UpdateContext();
-    NS_ENSURE_SUCCESS(rv, rv);
+    if (NS_FAILED(rv)) {
+      mCurrentContext = nsnull;
+      return rv;
+    }
 
     mCurrentContextId.Assign(aContextId);
   } else if (!mCurrentContextId.Equals(aContextId)) {
@@ -611,21 +571,18 @@ nsHTMLCanvasElement::UpdateContext(nsIPropertyBag *aNewContextOptions)
   rv = mCurrentContext->SetIsOpaque(GetIsOpaque());
   if (NS_FAILED(rv)) {
     mCurrentContext = nsnull;
-    mCurrentContextId.AssignLiteral("");
     return rv;
   }
 
   rv = mCurrentContext->SetContextOptions(aNewContextOptions);
   if (NS_FAILED(rv)) {
     mCurrentContext = nsnull;
-    mCurrentContextId.AssignLiteral("");
     return rv;
   }
 
   rv = mCurrentContext->SetDimensions(sz.width, sz.height);
   if (NS_FAILED(rv)) {
     mCurrentContext = nsnull;
-    mCurrentContextId.AssignLiteral("");
     return rv;
   }
 
@@ -741,12 +698,6 @@ nsHTMLCanvasElement::GetCanvasLayer(nsDisplayListBuilder* aBuilder,
     return nsnull;
 
   return mCurrentContext->GetCanvasLayer(aBuilder, aOldLayer, aManager);
-}
-
-PRBool
-nsHTMLCanvasElement::ShouldForceInactiveLayer(LayerManager *aManager)
-{
-  return !mCurrentContext || mCurrentContext->ShouldForceInactiveLayer(aManager);
 }
 
 void

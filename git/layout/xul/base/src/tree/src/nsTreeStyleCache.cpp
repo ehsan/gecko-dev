@@ -40,7 +40,6 @@
 #include "nsTreeStyleCache.h"
 #include "nsISupportsArray.h"
 #include "nsStyleSet.h"
-#include "mozilla/dom/Element.h"
 
 // The style context cache impl
 nsStyleContext*
@@ -61,6 +60,8 @@ nsTreeStyleCache::GetStyleContext(nsICSSPseudoComparator* aComparator,
     // Automatic miss. Build the table
     mTransitionTable =
       new nsObjectHashtable(nsnull, nsnull, DeleteDFAState, nsnull);
+    if (!mTransitionTable)
+      return nsnull;
   }
 
   // The first transition is always made off the supplied pseudo-element.
@@ -70,6 +71,8 @@ nsTreeStyleCache::GetStyleContext(nsICSSPseudoComparator* aComparator,
   if (!currState) {
     // We had a miss. Make a new state and add it to our hash.
     currState = new nsDFAState(mNextState);
+    if (!currState)
+      return nsnull;
     mNextState++;
     mTransitionTable->Put(&key, currState);
   }
@@ -82,6 +85,9 @@ nsTreeStyleCache::GetStyleContext(nsICSSPseudoComparator* aComparator,
     if (!currState) {
       // We had a miss. Make a new state and add it to our hash.
       currState = new nsDFAState(mNextState);
+      if (!currState)
+        return nsnull;
+
       mNextState++;
       mTransitionTable->Put(&key, currState);
     }
@@ -101,6 +107,8 @@ nsTreeStyleCache::GetStyleContext(nsICSSPseudoComparator* aComparator,
     // Put the style context in our table, transferring the owning reference to the table.
     if (!mCache) {
       mCache = new nsObjectHashtable(nsnull, nsnull, ReleaseStyleContext, nsnull);
+      if (!mCache)
+        return nsnull;
     }
     mCache->Put(currState, result);
   }

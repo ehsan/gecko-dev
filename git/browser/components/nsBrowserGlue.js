@@ -51,7 +51,6 @@ const XULNS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/AddonManager.jsm");
 
 XPCOMUtils.defineLazyGetter(this, "NetUtil", function() {
   Cu.import("resource://gre/modules/NetUtil.jsm");
@@ -152,8 +151,9 @@ BrowserGlue.prototype = {
     }
     delay = delay <= MAX_DELAY ? delay : MAX_DELAY;
 
-    Cu.import("resource://services-sync/main.js");
-    Weave.SyncScheduler.delayedAutoConnect(delay);
+    let syncTemp = {};
+    Cu.import("resource://services-sync/service.js", syncTemp);
+    syncTemp.Weave.Service.delayedAutoConnect(delay);
   },
 #endif
 
@@ -378,11 +378,9 @@ BrowserGlue.prototype = {
     // Show about:rights notification, if needed.
     if (this._shouldShowRights()) {
       this._showRightsNotification();
-#ifdef MOZ_TELEMETRY_REPORTING
     } else {
       // Only show telemetry notification when about:rights notification is not shown.
       this._showTelemetryNotification();
-#endif
     }
 
 
@@ -400,21 +398,6 @@ BrowserGlue.prototype = {
     // been warned about them yet, open the plugins update page.
     if (Services.prefs.getBoolPref(PREF_PLUGINS_NOTIFYUSER))
       this._showPluginUpdatePage();
-
-    // For any add-ons that were installed disabled and can be enabled offer
-    // them to the user
-    var win = this.getMostRecentBrowserWindow();
-    var browser = win.gBrowser;
-    var changedIDs = AddonManager.getStartupChanges(AddonManager.STARTUP_CHANGE_INSTALLED);
-    AddonManager.getAddonsByIDs(changedIDs, function(aAddons) {
-      aAddons.forEach(function(aAddon) {
-        // If the add-on isn't user disabled or can't be enabled then skip it
-        if (!aAddon.userDisabled || !(aAddon.permissions & AddonManager.PERM_CAN_ENABLE))
-          return;
-
-        browser.selectedTab = browser.addTab("about:newaddon?id=" + aAddon.id);
-      })
-    });
   },
 
   _onQuitRequest: function BG__onQuitRequest(aCancelQuit, aQuitType) {
@@ -757,7 +740,6 @@ BrowserGlue.prototype = {
     }
   },
 
-#ifdef MOZ_TELEMETRY_REPORTING
   _showTelemetryNotification: function BG__showTelemetryNotification() {
     const PREF_TELEMETRY_PROMPTED = "toolkit.telemetry.prompted";
     const PREF_TELEMETRY_ENABLED  = "toolkit.telemetry.enabled";
@@ -823,7 +805,6 @@ BrowserGlue.prototype = {
     let description = notification.ownerDocument.getAnonymousElementByAttribute(notification, "anonid", "messageText");
     description.appendChild(link);
   },
-#endif
 
   _showPluginUpdatePage: function BG__showPluginUpdatePage() {
     Services.prefs.setBoolPref(PREF_PLUGINS_NOTIFYUSER, false);

@@ -60,6 +60,7 @@
 #include "prerr.h"
 
 #include "nsIServiceManager.h"
+#include "nsIProxyObjectManager.h"
 #include "nsISocketProviderService.h"
 #include "nsISocketProvider.h"
 #include "nsISSLSocketControl.h"
@@ -1272,8 +1273,6 @@ nsSocketTransport::RecoverFromError()
 
     // try next ip address only if past the resolver stage...
     if (mState == STATE_CONNECTING && mDNSRecord) {
-        mDNSRecord->ReportUnusable(SocketPort());
-        
         nsresult rv = mDNSRecord->GetNextAddr(SocketPort(), &mNetAddr);
         if (NS_SUCCEEDED(rv)) {
             SOCKET_LOG(("  trying again with next ip address\n"));

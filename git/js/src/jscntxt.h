@@ -54,6 +54,7 @@
 #include "jsgc.h"
 #include "jsgcchunk.h"
 #include "jshashtable.h"
+#include "jsinfer.h"
 #include "jsinterp.h"
 #include "jsobj.h"
 #include "jspropertycache.h"
@@ -138,7 +139,7 @@ struct GSNCache {
 
     void purge();
 };
-
+ 
 inline GSNCache *
 GetGSNCache(JSContext *cx);
 
@@ -212,7 +213,7 @@ struct ThreadData {
     ~ThreadData();
 
     bool init();
-
+    
     void mark(JSTracer *trc) {
         stackSpace.mark(trc);
     }
@@ -226,12 +227,6 @@ struct ThreadData {
 
     /* This must be called with the GC lock held. */
     void triggerOperationCallback(JSRuntime *rt);
-
-    /*
-     * Frames currently running in js::Interpret. See InterpreterFrames for
-     * details.
-     */
-    InterpreterFrames *interpreterFrames;
 };
 
 } /* namespace js */
@@ -269,7 +264,7 @@ struct JSThread {
         suspendCount(0)
 # ifdef DEBUG
       , checkRequestDepth(0)
-# endif
+# endif        
     {
         JS_INIT_CLIST(&contextList);
     }
@@ -381,31 +376,8 @@ struct JSRuntime {
     uint32              protoHazardShape;
 
     /* Garbage collector state, used by jsgc.c. */
-
-    /*
-     * Set of all GC chunks with at least one allocated thing. The
-     * conservative GC uses it to quickly check if a possible GC thing points
-     * into an allocated chunk.
-     */
     js::GCChunkSet      gcChunkSet;
-
-    /*
-     * Doubly-linked lists of chunks from user and system compartments. The GC
-     * allocates its arenas from the corresponding list and when all arenas
-     * in the list head are taken, then the chunk is removed from the list.
-     * During the GC when all arenas in a chunk become free, that chunk is
-     * removed from the list and scheduled for release.
-     */
-    js::gc::Chunk       *gcSystemAvailableChunkListHead;
-    js::gc::Chunk       *gcUserAvailableChunkListHead;
-
-    /*
-     * Singly-linked list of empty chunks and its length. We use the list not
-     * to release empty chunks immediately so they can be used for future
-     * allocations. This avoids very high overhead of chunk release/allocation.
-     */
-    js::gc::Chunk       *gcEmptyChunkListHead;
-    size_t              gcEmptyChunkCount;
+    js::GCChunkSet      gcSystemChunkSet;
 
     js::RootedValueMap  gcRootsHash;
     js::GCLocks         gcLocksHash;
@@ -415,6 +387,7 @@ struct JSRuntime {
     size_t              gcLastBytes;
     size_t              gcMaxBytes;
     size_t              gcMaxMallocBytes;
+    size_t              gcChunksWaitingToExpire;
     uint32              gcEmptyArenaPoolLifespan;
     uint32              gcNumber;
     js::GCMarker        *gcMarkingTracer;
@@ -439,12 +412,6 @@ struct JSRuntime {
 
     /* Compartment that is currently involved in per-compartment GC */
     JSCompartment       *gcCurrentCompartment;
-
-    /*
-     * If this is non-NULL, all marked objects must belong to this compartment.
-     * This is used to look for compartment bugs.
-     */
-    JSCompartment       *gcCheckCompartment;
 
     /*
      * We can pack these flags as only the GC thread writes to them. Atomic
@@ -526,7 +493,7 @@ struct JSRuntime {
     js::Value           negativeInfinityValue;
     js::Value           positiveInfinityValue;
 
-    JSAtom              *emptyString;
+    JSFlatString        *emptyString;
 
     /* List of active contexts sharing this runtime; protected by gcLock. */
     JSCList             contextList;
@@ -534,8 +501,13 @@ struct JSRuntime {
     /* Per runtime debug hooks -- see jsprvtd.h and jsdbgapi.h. */
     JSDebugHooks        globalDebugHooks;
 
-    /* If true, new compartments are initially in debug mode. */
-    bool                debugMode;
+    /*
+     * Right now, we only support runtime-wide debugging.
+     */
+    JSBool              debugMode;
+
+    /* Had an out-of-memory error which did not populate an exception. */
+    JSBool              hadOutOfMemory;
 
 #ifdef JS_TRACER
     /* True if any debug hooks not supported by the JIT are enabled. */
@@ -545,11 +517,9 @@ struct JSRuntime {
     }
 #endif
 
-    /*
-     * Linked list of all js::Debugger objects. This may be accessed by the GC
-     * thread, if any, or a thread that is in a request and holds gcLock.
-     */
-    JSCList             debuggerList;
+    /* More debugging state, see jsdbgapi.c. */
+    JSCList             trapList;
+    JSCList             watchPointList;
 
     /* Client opaque pointers */
     void                *data;
@@ -574,14 +544,15 @@ struct JSRuntime {
     PRCondVar           *stateChange;
 
     /*
-     * Mapping from NSPR thread identifiers to JSThreads.
-     *
-     * This map can be accessed by the GC thread; or by the thread that holds
-     * gcLock, if GC is not running.
+     * Lock serializing trapList and watchPointList accesses, and count of all
+     * mutations to trapList and watchPointList made by debugger threads.  To
+     * keep the code simple, we define debuggerMutations for the thread-unsafe
+     * case too.
      */
+    PRLock              *debuggerLock;
+
     JSThread::Map       threads;
 #endif /* JS_THREADSAFE */
-
     uint32              debuggerMutations;
 
     /*
@@ -629,12 +600,6 @@ struct JSRuntime {
 
 #define JS_THREAD_DATA(cx)      (&(cx)->runtime->threadData)
 #endif
-
-  private:
-    JSPrincipals        *trustedPrincipals_;
-  public:
-    void setTrustedPrincipals(JSPrincipals *p) { trustedPrincipals_ = p; }
-    JSPrincipals *trustedPrincipals() const { return trustedPrincipals_; }
 
     /*
      * Object shape (property cache structural type) identifier generator.
@@ -686,7 +651,7 @@ struct JSRuntime {
             return infoEnabled;
         }
 
-        /*
+        /* 
          * Circular buffer with GC data.
          * count may grow >= INFO_LIMIT, which would indicate data loss.
          */
@@ -971,6 +936,8 @@ struct JSContext
     /* GC heap compartment. */
     JSCompartment       *compartment;
 
+    inline void setCompartment(JSCompartment *compartment);
+
     /* Current execution stack. */
     js::ContextStack    stack;
 
@@ -1150,6 +1117,9 @@ struct JSContext
                                                without the corresponding
                                                JS_EndRequest. */
     JSCList             threadLinks;        /* JSThread contextList linkage */
+
+#define CX_FROM_THREAD_LINKS(tl) \
+    ((JSContext *)((char *)(tl) - offsetof(JSContext, threadLinks)))
 #endif
 
     /* Stack of thread-stack-allocated GC roots. */
@@ -1167,7 +1137,7 @@ struct JSContext
     /* Random number generator state, used by jsmath.cpp. */
     int64               rngSeed;
 
-    /* Location to stash the iteration value between JSOP_MOREITER and JSOP_ITERNEXT. */
+    /* Location to stash the iteration value between JSOP_MOREITER and JSOP_FOR*. */
     js::Value           iterValue;
 
 #ifdef JS_TRACER
@@ -1190,6 +1160,10 @@ struct JSContext
 
     inline js::mjit::JaegerCompartment *jaegerCompartment();
 #endif
+
+    bool                 inferenceEnabled;
+
+    bool typeInferenceEnabled() { return inferenceEnabled; }
 
     /* Caller must be holding runtime->gcLock. */
     void updateJITEnabled();
@@ -1320,24 +1294,6 @@ struct JSContext
      * stack iteration, defaults to true.
      */
     bool stackIterAssertionEnabled;
-#endif
-
-    /*
-     * See JS_SetTrustedPrincipals in jsapi.h.
-     * Note: !cx->compartment is treated as trusted.
-     */
-    bool runningWithTrustedPrincipals() const;
-
-    static inline JSContext *fromLinkField(JSCList *link) {
-        JS_ASSERT(link);
-        return reinterpret_cast<JSContext *>(uintptr_t(link) - offsetof(JSContext, link));
-    }
-
-#ifdef JS_THREADSAFE
-    static inline JSContext *fromThreadLinks(JSCList *link) {
-        JS_ASSERT(link);
-        return reinterpret_cast<JSContext *>(uintptr_t(link) - offsetof(JSContext, threadLinks));
-    }
 #endif
 
   private:
@@ -1483,7 +1439,8 @@ class AutoGCRooter {
         IDVECTOR =    -15, /* js::AutoIdVector */
         BINDINGS =    -16, /* js::Bindings */
         SHAPEVECTOR = -17, /* js::AutoShapeVector */
-        OBJVECTOR =   -18  /* js::AutoObjectVector */
+        TYPE =        -18, /* js::types::AutoTypeRooter */
+        VALARRAY =    -19  /* js::AutoValueArrayRooter */
     };
 
     private:
@@ -2153,36 +2110,6 @@ class ThreadDataIter
 
 #endif  /* !JS_THREADSAFE */
 
-/*
- * Enumerate all contexts in a runtime that are in the same thread as a given
- * context.
- */
-class ThreadContextRange {
-    JSCList *begin;
-    JSCList *end;
-
-public:
-    explicit ThreadContextRange(JSContext *cx) {
-#ifdef JS_THREADSAFE
-        end = &cx->thread()->contextList;
-#else
-        end = &cx->runtime->contextList;
-#endif
-        begin = end->next;
-    }
-
-    bool empty() const { return begin == end; }
-    void popFront() { JS_ASSERT(!empty()); begin = begin->next; }
-
-    JSContext *front() const {
-#ifdef JS_THREADSAFE
-        return JSContext::fromThreadLinks(begin);
-#else
-        return JSContext::fromLinkField(begin);
-#endif
-    }
-};
-
 } /* namespace js */
 
 /*
@@ -2194,6 +2121,13 @@ js_NewContext(JSRuntime *rt, size_t stackChunkSize);
 
 extern void
 js_DestroyContext(JSContext *cx, JSDestroyContextMode mode);
+
+static JS_INLINE JSContext *
+js_ContextFromLinkField(JSCList *link)
+{
+    JS_ASSERT(link);
+    return reinterpret_cast<JSContext *>(uintptr_t(link) - offsetof(JSContext, link));
+}
 
 /*
  * If unlocked, acquire and release rt->gcLock around *iterp update; otherwise
@@ -2343,14 +2277,16 @@ TriggerAllOperationCallbacks(JSRuntime *rt);
 
 } /* namespace js */
 
+/*
+ * Get the topmost scripted frame in a context. Note: if the topmost frame is
+ * in the middle of an inline call, that call will be expanded. To avoid this,
+ * use cx->stack.currentScript or cx->stack.currentScriptedScopeChain.
+ */
 extern js::StackFrame *
 js_GetScriptedCaller(JSContext *cx, js::StackFrame *fp);
 
 extern jsbytecode*
 js_GetCurrentBytecodePC(JSContext* cx);
-
-extern JSScript *
-js_GetCurrentScript(JSContext* cx);
 
 extern bool
 js_CurrentPCIsInImacro(JSContext *cx);
@@ -2363,18 +2299,33 @@ LeaveTrace(JSContext *cx);
 extern bool
 CanLeaveTrace(JSContext *cx);
 
+#ifdef JS_METHODJIT
+namespace mjit {
+    void ExpandInlineFrames(JSContext *cx, bool all);
+}
+#endif
+
 } /* namespace js */
 
 /*
  * Get the current frame, first lazily instantiating stack frames if needed.
  * (Do not access cx->fp() directly except in JS_REQUIRES_STACK code.)
  *
- * Defined in jstracer.cpp if JS_TRACER is defined.
+ * LeaveTrace is defined in jstracer.cpp if JS_TRACER is defined.
+ *
+ * If the stack contains frames inlined by the method JIT, kind specifies
+ * which ones to expand.
  */
 static JS_FORCES_STACK JS_INLINE js::StackFrame *
-js_GetTopStackFrame(JSContext *cx)
+js_GetTopStackFrame(JSContext *cx, js::FrameExpandKind expand)
 {
     js::LeaveTrace(cx);
+
+#ifdef JS_METHODJIT
+    if (expand != js::FRAME_EXPAND_NONE)
+        js::mjit::ExpandInlineFrames(cx, expand == js::FRAME_EXPAND_ALL);
+#endif
+
     return cx->maybefp();
 }
 
@@ -2488,19 +2439,6 @@ class AutoValueVector : public AutoVectorRooter<Value>
     JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
-class AutoObjectVector : public AutoVectorRooter<JSObject *>
-{
-  public:
-    explicit AutoObjectVector(JSContext *cx
-                              JS_GUARD_OBJECT_NOTIFIER_PARAM)
-        : AutoVectorRooter<JSObject *>(cx, OBJVECTOR)
-    {
-        JS_GUARD_OBJECT_NOTIFIER_INIT;
-    }
-
-    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
-};
-
 class AutoIdVector : public AutoVectorRooter<jsid>
 {
   public:
@@ -2523,6 +2461,25 @@ class AutoShapeVector : public AutoVectorRooter<const Shape *>
     {
         JS_GUARD_OBJECT_NOTIFIER_INIT;
     }
+
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
+};
+
+class AutoValueArray : public AutoGCRooter
+{
+    js::Value *start_;
+    unsigned length_;
+
+  public:
+    AutoValueArray(JSContext *cx, js::Value *start, unsigned length
+                   JS_GUARD_OBJECT_NOTIFIER_PARAM)
+        : AutoGCRooter(cx, VALARRAY), start_(start), length_(length)
+    {
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
+    }
+
+    Value *start() const { return start_; }
+    unsigned length() const { return length_; }
 
     JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };

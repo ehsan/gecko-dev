@@ -68,6 +68,7 @@
 #include "nsIViewManager.h"
 #include "nsIContentViewer.h"
 #include "nsGUIEvent.h"
+#include "nsIDOMNSUIEvent.h"
 #include "nsIDOMXULElement.h"
 #include "nsIPrivateDOMEvent.h"
 #include "nsIRDFNode.h"
@@ -2725,6 +2726,9 @@ nsXULDocument::LoadOverlayInternal(nsIURI* aURI, PRBool aIsDynamic,
     //        The .xul file must be parsed from disk.
 
     PRBool useXULCache = nsXULPrototypeCache::GetInstance()->IsEnabled();
+    if (aIsDynamic)
+        mIsWritingFastLoad = useXULCache;
+
     if (useXULCache && mCurrentPrototype) {
         PRBool loaded;
         rv = mCurrentPrototype->AwaitLoadDone(this, &loaded);
@@ -4046,8 +4050,7 @@ nsXULDocument::OverlayForwardReference::Merge(nsIContent* aTargetNode,
         if (attr == nsGkAtoms::removeelement &&
             value.EqualsLiteral("true")) {
 
-            nsCOMPtr<nsIContent> parent = aTargetNode->GetParent();
-            rv = RemoveElement(parent, aTargetNode);
+            rv = RemoveElement(aTargetNode->GetParent(), aTargetNode);
             if (NS_FAILED(rv)) return rv;
 
             return NS_OK;

@@ -111,7 +111,7 @@ endif
 
 tier_platform_dirs	+= \
 		modules/libjar \
-		storage \
+		db \
 		$(NULL)
 
 ifdef MOZ_PERMISSIONS
@@ -119,6 +119,10 @@ tier_platform_dirs += \
 		extensions/cookie \
 		extensions/permissions \
 		$(NULL)
+endif
+
+ifdef MOZ_STORAGE
+tier_platform_dirs += storage
 endif
 
 ifdef MOZ_RDF

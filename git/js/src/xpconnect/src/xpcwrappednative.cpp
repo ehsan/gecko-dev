@@ -1168,7 +1168,7 @@ XPCWrappedNative::Init(XPCCallContext& ccx,
     }
 
     mFlatJSObject = xpc_NewSystemInheritingJSObject(ccx, js::Jsvalify(jsclazz),
-                                                    protoJSObject, parent);
+                                                    protoJSObject, false, parent);
     if(!mFlatJSObject)
         return JS_FALSE;
 
@@ -2152,7 +2152,7 @@ XPCWrappedNative::InitTearOffJSObject(XPCCallContext& ccx,
     JSObject* obj =
         xpc_NewSystemInheritingJSObject(ccx, js::Jsvalify(&XPC_WN_Tearoff_JSClass),
                                         GetScope()->GetPrototypeJSObject(),
-                                        mFlatJSObject);
+                                        false, mFlatJSObject);
 
     if(!obj || !JS_SetPrivate(ccx, obj, to))
         return JS_FALSE;
@@ -2769,9 +2769,6 @@ CallMethodHelper::InitializeDispatchParams()
         if(wantsOptArgc)
             // Need to bump mOptArgcIndex up one here.
             mJSContextIndex = mOptArgcIndex++;
-        else if(mMethodInfo->IsSetter() || mMethodInfo->IsGetter())
-            // For attributes, we always put the JSContext* first.
-            mJSContextIndex = 0;
         else
             mJSContextIndex = paramCount - hasRetval;
     }
@@ -3252,9 +3249,7 @@ NS_IMETHODIMP XPCWrappedNative::RefreshPrototype()
     if(newProto.get() == oldProto.get())
         return NS_OK;
 
-    if(!JS_SetPrototype(ccx, GetFlatJSObject(),
-                        newProto->GetJSProtoObject()))
-        return UnexpectedFailure(NS_ERROR_FAILURE);
+    JS_SplicePrototype(ccx, GetFlatJSObject(), newProto->GetJSProtoObject());
 
     SetProto(newProto);
 
@@ -4019,7 +4014,7 @@ ConstructSlimWrapper(XPCCallContext &ccx,
 
     wrapper = xpc_NewSystemInheritingJSObject(ccx, jsclazz,
                                               xpcproto->GetJSProtoObject(),
-                                              parent);
+                                              false, parent);
     if(!wrapper ||
        !JS_SetPrivate(ccx, wrapper, identityObj) ||
        !JS_SetReservedSlot(ccx, wrapper, 0, PRIVATE_TO_JSVAL(xpcproto.get())))

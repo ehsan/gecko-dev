@@ -39,21 +39,20 @@
 
 #include "nsHTMLTableAccessible.h"
 
-#include "Relation.h"
 #include "States.h"
 #include "nsAccessibilityService.h"
 #include "nsAccTreeWalker.h"
 #include "nsAccUtils.h"
 #include "nsDocAccessible.h"
+#include "nsRelUtils.h"
 #include "nsTextEquivUtils.h"
 
-#include "nsIAccessibleRelation.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMRange.h"
+#include "nsISelection2.h"
 #include "nsISelectionPrivate.h"
 #include "nsINameSpaceManager.h"
-#include "nsIDOMNodeList.h"
 #include "nsIDOMHTMLCollection.h"
 #include "nsIDOMHTMLTableCellElement.h"
 #include "nsIDOMHTMLTableElement.h"
@@ -66,9 +65,6 @@
 #include "nsFrameSelection.h"
 #include "nsLayoutErrors.h"
 #include "nsArrayUtils.h"
-#include "nsComponentManagerUtils.h"
-
-using namespace mozilla::a11y;
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsHTMLTableCellAccessible
@@ -270,7 +266,7 @@ already_AddRefed<nsIAccessibleTable>
 nsHTMLTableCellAccessible::GetTableAccessible()
 {
   nsAccessible* parent = this;
-  while ((parent = parent->Parent())) {
+  while ((parent = parent->GetParent())) {
     PRUint32 role = parent->Role();
     if (role == nsIAccessibleRole::ROLE_TABLE ||
         role == nsIAccessibleRole::ROLE_TREE_TABLE) {
@@ -507,14 +503,18 @@ nsHTMLTableAccessible::GetAttributesInternal(nsIPersistentProperties *aAttribute
 ////////////////////////////////////////////////////////////////////////////////
 // nsHTMLTableAccessible: nsIAccessible implementation
 
-Relation
-nsHTMLTableAccessible::RelationByType(PRUint32 aType)
+NS_IMETHODIMP
+nsHTMLTableAccessible::GetRelationByType(PRUint32 aRelationType,
+                                         nsIAccessibleRelation **aRelation)
 {
-  Relation rel = nsAccessibleWrap::RelationByType(aType);
-  if (aType == nsIAccessibleRelation::RELATION_LABELLED_BY)
-    rel.AppendTarget(Caption());
+  nsresult rv = nsAccessibleWrap::GetRelationByType(aRelationType,
+                                                    aRelation);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  return rel;
+  if (aRelationType == nsIAccessibleRelation::RELATION_DESCRIBED_BY)
+    return nsRelUtils::AddTarget(aRelationType, aRelation, Caption());
+
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1520,14 +1520,21 @@ nsHTMLTableAccessible::IsProbablyForLayout(PRBool *aIsProbablyForLayout)
 // nsHTMLCaptionAccessible
 ////////////////////////////////////////////////////////////////////////////////
 
-Relation
-nsHTMLCaptionAccessible::RelationByType(PRUint32 aType)
+NS_IMETHODIMP
+nsHTMLCaptionAccessible::GetRelationByType(PRUint32 aRelationType,
+                                           nsIAccessibleRelation **aRelation)
 {
-  Relation rel = nsHyperTextAccessible::RelationByType(aType);
-  if (aType == nsIAccessibleRelation::RELATION_LABEL_FOR)
-    rel.AppendTarget(Parent());
+  nsresult rv = nsHyperTextAccessible::GetRelationByType(aRelationType,
+                                                         aRelation);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  return rel;
+  if (aRelationType == nsIAccessibleRelation::RELATION_DESCRIPTION_FOR) {
+    nsCOMPtr<nsIAccessible> accParent;
+    GetParent(getter_AddRefs(accParent));
+    return nsRelUtils::AddTarget(aRelationType, aRelation, accParent);
+  }
+
+  return NS_OK;
 }
 
 PRUint32

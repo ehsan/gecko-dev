@@ -454,11 +454,6 @@ public:
 
   virtual PRUint8* AllocateBuffer(PRUint32 aSize);
 
-  /**
-   * Return the number of bytes of heap memory used to store this image.
-   */
-  virtual PRUint32 GetDataSize() = 0;
-
 protected:
   PlanarYCbCrImage(void* aImplData) : Image(aImplData, PLANAR_YCBCR) {}
 };

@@ -141,6 +141,10 @@ ThebesLayerBufferOGL::RenderTo(const nsIntPoint& aOffset,
     mTexImageOnWhite->EndUpdate();
   }
 
+  // Bind textures.
+  TextureImage::ScopedBindTexture texBind(mTexImage, LOCAL_GL_TEXTURE0);
+  TextureImage::ScopedBindTexture texOnWhiteBind(mTexImageOnWhite, LOCAL_GL_TEXTURE1);
+
   PRInt32 passes = mTexImageOnWhite ? 2 : 1;
   for (PRInt32 pass = 1; pass <= passes; ++pass) {
     LayerProgram *program;
@@ -190,98 +194,17 @@ ThebesLayerBufferOGL::RenderTo(const nsIntPoint& aOffset,
     } else {
       renderRegion = &visibleRegion;
     }
+    nsIntRegionRectIterator iter(*renderRegion);
+    while (const nsIntRect *iterRect = iter.Next()) {
+      nsIntRect quadRect = *iterRect;
+      program->SetLayerQuadRect(quadRect);
 
-    nsIntRegion region(*renderRegion);
-    nsIntPoint origin = GetOriginOffset();
-    region.MoveBy(-origin);           // translate into TexImage space, buffer origin might not be at texture (0,0)
+      quadRect.MoveBy(-GetOriginOffset());
 
-    // Figure out the intersecting draw region
-    nsIntSize texSize = mTexImage->GetSize();
-    nsIntRect textureRect = nsIntRect(0, 0, texSize.width, texSize.height);
-    textureRect.MoveBy(region.GetBounds().TopLeft());
-    nsIntRegion subregion;
-    subregion.And(region, textureRect);
-    if (subregion.IsEmpty())  // Region is empty, nothing to draw
-      return;
-
-    nsIntRegion screenRects;
-    nsIntRegion regionRects;
-
-    // Collect texture/screen coordinates for drawing
-    nsIntRegionRectIterator iter(subregion);
-    while (const nsIntRect* iterRect = iter.Next()) {
-        nsIntRect regionRect = *iterRect;
-        nsIntRect screenRect = regionRect;
-        screenRect.MoveBy(origin);
-
-        screenRects.Or(screenRects, screenRect);
-        regionRects.Or(regionRects, regionRect);
+      aManager->BindAndDrawQuadWithTextureRect(program, quadRect,
+                                               mTexImage->GetSize(),
+                                               mTexImage->GetWrapMode());
     }
-
-    mTexImage->BeginTileIteration();
-    if (mTexImageOnWhite) {
-      NS_ASSERTION(mTexImage->GetTileCount() == mTexImageOnWhite->GetTileCount(),
-                   "Tile count mismatch on component alpha texture");
-      mTexImageOnWhite->BeginTileIteration();
-    }
-
-    bool usingTiles = (mTexImage->GetTileCount() > 1);
-    do {
-      if (mTexImageOnWhite) {
-        NS_ASSERTION(mTexImageOnWhite->GetTileRect() == mTexImage->GetTileRect(), "component alpha textures should be the same size.");
-      }
-
-      nsIntRect tileRect = mTexImage->GetTileRect();
-
-      // Bind textures.
-      TextureImage::ScopedBindTexture texBind(mTexImage, LOCAL_GL_TEXTURE0);
-      TextureImage::ScopedBindTexture texOnWhiteBind(mTexImageOnWhite, LOCAL_GL_TEXTURE1);
-
-      // Draw texture. If we're using tiles, we do repeating manually, as texture
-      // repeat would cause each individual tile to repeat instead of the
-      // compound texture as a whole. This involves drawing at most 4 sections,
-      // 2 for each axis that has texture repeat.
-      for (int y = 0; y < (usingTiles ? 2 : 1); y++) {
-        for (int x = 0; x < (usingTiles ? 2 : 1); x++) {
-          nsIntRect currentTileRect(tileRect);
-          currentTileRect.MoveBy(x * texSize.width, y * texSize.height);
-
-          nsIntRegionRectIterator screenIter(screenRects);
-          nsIntRegionRectIterator regionIter(regionRects);
-
-          const nsIntRect* screenRect;
-          const nsIntRect* regionRect;
-          while ((screenRect = screenIter.Next()) &&
-                 (regionRect = regionIter.Next())) {
-              nsIntRect tileScreenRect(*screenRect);
-              nsIntRect tileRegionRect(*regionRect);
-
-              // When we're using tiles, find the intersection between the tile
-              // rect and this region rect. Tiling is then handled by the
-              // outer for-loops and modifying the tile rect.
-              if (usingTiles) {
-                  tileScreenRect.MoveBy(-origin);
-                  tileScreenRect = tileScreenRect.Intersect(currentTileRect);
-                  tileScreenRect.MoveBy(origin);
-
-                  if (tileScreenRect.IsEmpty())
-                    continue;
-
-                  tileRegionRect = regionRect->Intersect(currentTileRect);
-                  tileRegionRect.MoveBy(-currentTileRect.TopLeft());
-              }
-
-              program->SetLayerQuadRect(tileScreenRect);
-              aManager->BindAndDrawQuadWithTextureRect(program, tileRegionRect,
-                                                       tileRect.Size(),
-                                                       mTexImage->GetWrapMode());
-          }
-        }
-      }
-
-      if (mTexImageOnWhite)
-          mTexImageOnWhite->NextTile();
-    } while (mTexImage->NextTile());
   }
 
   if (mTexImageOnWhite) {
@@ -666,16 +589,7 @@ BasicBufferOGL::BeginPaint(ContentType aContentType,
   // Move rgnToPaint back into position so that the thebes callback
   // gets the right coordintes.
   result.mRegionToDraw.MoveBy(-offset);
-
-  // If we do partial updates, we have to clip drawing to the regionToDraw.
-  // If we don't clip, background images will be fillrect'd to the region correctly,
-  // while text or lines will paint outside of the regionToDraw. This becomes apparent
-  // with concave regions. Right now the scrollbars invalidate a narrow strip of the awesomebar
-  // although they never cover it. This leads to two draw rects, the narow strip and the actually
-  // newly exposed area. It would be wise to fix this glitch in any way to have simpler
-  // clip and draw regions.
-  gfxUtils::ClipToRegion(result.mContext, result.mRegionToDraw);
-
+  
   return result;
 }
 
@@ -846,18 +760,6 @@ ShadowBufferOGL::Upload(gfxASurface* aUpdate, const nsIntRegion& aUpdated,
   // top-left is 0,0
   nsIntPoint visTopLeft = mLayer->GetVisibleRegion().GetBounds().TopLeft();
   destRegion.MoveBy(-visTopLeft);
-
-  // Correct for rotation
-  destRegion.MoveBy(aRotation);
-  nsIntRect destBounds = destRegion.GetBounds();
-  destRegion.MoveBy((destBounds.x >= size.width) ? -size.width : 0,
-                    (destBounds.y >= size.height) ? -size.height : 0);
-
-  // There's code to make sure that updated regions don't cross rotation
-  // boundaries, so assert here that this is the case
-  NS_ASSERTION(((destBounds.x % size.width) + destBounds.width <= size.width) &&
-               ((destBounds.y % size.height) + destBounds.height <= size.height),
-               "Updated region lies across rotation boundaries!");
 
   // NB: this gfxContext must not escape EndUpdate() below
   mTexImage->DirectUpdate(aUpdate, destRegion);

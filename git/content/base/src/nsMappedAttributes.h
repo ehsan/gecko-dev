@@ -108,8 +108,6 @@ public:
   virtual void List(FILE* out = stdout, PRInt32 aIndent = 0) const;
 #endif
 
-  PRInt64 SizeOf() const;
-
 private:
   nsMappedAttributes(const nsMappedAttributes& aCopy);
   ~nsMappedAttributes();

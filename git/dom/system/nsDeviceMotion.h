@@ -64,7 +64,7 @@ public:
 
 private:
   nsCOMArray<nsIDeviceMotionListener> mListeners;
-  nsTArray<nsIDOMWindow*> mWindowListeners;
+  nsCOMArray<nsIDOMWindow> mWindowListeners;
 
   void StartDisconnectTimer();
 

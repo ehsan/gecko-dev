@@ -5,6 +5,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=484181
 -->
 <head>
   <title>Test for Bug 484181</title>
+  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
   <script type="text/javascript" src="/tests/SimpleTest/EventUtils.js"></script>  
@@ -45,6 +46,7 @@ function append(str) {
   netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
 
   var edit = document.getElementById("edit");
+  edit.focus();
   var editor = getEditor();
   var sel = editor.selection;
   sel.selectAllChildren(edit);
@@ -57,19 +59,16 @@ function append(str) {
 
 function runTest() {
   gMisspeltWords = ["haz", "cheezburger"];
+  is(isSpellingCheckOk(), true, "All misspellings before editing are accounted for.");
+
   var edit = document.getElementById("edit");
-  edit.focus();
+  append(" becaz I'm a lolcat!");
   SimpleTest.executeSoon(function() {
-      is(isSpellingCheckOk(), true, "All misspellings before editing are accounted for.");
+  gMisspeltWords.push("becaz");
+  gMisspeltWords.push("lolcat");
+  is(isSpellingCheckOk(), true, "All misspellings after typing are accounted for.");
 
-      append(" becaz I'm a lolcat!");
-      SimpleTest.executeSoon(function() {
-      gMisspeltWords.push("becaz");
-      gMisspeltWords.push("lolcat");
-      is(isSpellingCheckOk(), true, "All misspellings after typing are accounted for.");
-
-      SimpleTest.finish();
-      });
+  SimpleTest.finish();
   });
 }
 

@@ -274,9 +274,6 @@ PluginInstanceParent::AnswerNPN_GetValue_NPNVnetscapeWindow(NativeWindowHandle* 
 #elif defined(ANDROID)
 #warning Need Android impl
     int id;
-#elif defined(MOZ_WIDGET_QT)
-#  warning Need Qt non X impl
-    int id;
 #else
 #warning Implement me
 #endif
@@ -522,21 +519,18 @@ PluginInstanceParent::RecvShow(const NPRect& updatedRect,
     else if (newSurface.type() == SurfaceDescriptor::TIOSurfaceDescriptor) {
         IOSurfaceDescriptor iodesc = newSurface.get_IOSurfaceDescriptor();
     
-        nsRefPtr<nsIOSurface> newIOSurface = nsIOSurface::LookupSurface(iodesc.surfaceId());
+        nsIOSurface *newIOSurface = nsIOSurface::LookupSurface(iodesc.surfaceId());
 
         if (!newIOSurface) {
             NS_WARNING("Got bad IOSurfaceDescriptor in RecvShow");
             return false;
         }
       
-        if (mFrontIOSurface)
-            *prevSurface = IOSurfaceDescriptor(mFrontIOSurface->GetIOSurfaceID());
-        else
-            *prevSurface = null_t();
-
         mFrontIOSurface = newIOSurface;
 
         RecvNPN_InvalidateRect(updatedRect);
+
+        *prevSurface = null_t();
 
         PLUGIN_LOG_DEBUG(("   (RecvShow invalidated for surface %p)",
                           mFrontSurface.get()));

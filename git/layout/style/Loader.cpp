@@ -69,6 +69,7 @@
 #include "nsCRT.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsContentPolicyUtils.h"
+#include "nsITimelineService.h"
 #include "nsIHttpChannel.h"
 #include "nsIScriptError.h"
 #include "nsMimeTypes.h"
@@ -815,6 +816,11 @@ SheetLoadData::OnStreamComplete(nsIUnicharStreamLoader* aLoader,
 
   mSheet->SetPrincipal(principal);
 
+#ifdef MOZ_TIMELINE
+  NS_TIMELINE_OUTDENT();
+  NS_TIMELINE_MARK_CHANNEL("SheetLoadData::OnStreamComplete(%s)", channel);
+#endif // MOZ_TIMELINE
+
   // If it's an HTTP channel, we want to make sure this is not an
   // error document we got.
   nsCOMPtr<nsIHttpChannel> httpChannel(do_QueryInterface(channel));
@@ -1435,6 +1441,11 @@ Loader::LoadSheet(SheetLoadData* aLoadData, StyleSheetState aSheetState)
     }
   }
 
+#ifdef MOZ_TIMELINE
+  NS_TIMELINE_MARK_URI("Loading style sheet: %s", aLoadData->mURI);
+  NS_TIMELINE_INDENT();
+#endif
+
   nsCOMPtr<nsIChannel> channel;
   rv = NS_NewChannel(getter_AddRefs(channel),
                      aLoadData->mURI, nsnull, loadGroup, nsnull,
@@ -1869,36 +1880,6 @@ Loader::LoadStyleLink(nsIContent* aElement,
   return rv;
 }
 
-static PRBool
-HaveAncestorDataWithURI(SheetLoadData *aData, nsIURI *aURI)
-{
-  if (!aData->mURI) {
-    // Inline style; this won't have any ancestors
-    NS_ABORT_IF_FALSE(!aData->mParentData,
-                      "How does inline style have a parent?");
-    return PR_FALSE;
-  }
-
-  PRBool equal;
-  if (NS_FAILED(aData->mURI->Equals(aURI, &equal)) || equal) {
-    return PR_TRUE;
-  }
-
-  // Datas down the mNext chain have the same URI as aData, so we
-  // don't have to compare to them.  But they might have different
-  // parents, and we have to check all of those.
-  while (aData) {
-    if (aData->mParentData &&
-        HaveAncestorDataWithURI(aData->mParentData, aURI)) {
-      return PR_TRUE;
-    }
-
-    aData = aData->mNext;
-  }
-
-  return PR_FALSE;
-}
-
 nsresult
 Loader::LoadChildSheet(nsCSSStyleSheet* aParentSheet,
                        nsIURI* aURL,
@@ -1953,11 +1934,16 @@ Loader::LoadChildSheet(nsCSSStyleSheet* aParentSheet,
     LOG(("  Have a parent load"));
     parentData = mParsingDatas.ElementAt(count - 1);
     // Check for cycles
-    if (HaveAncestorDataWithURI(parentData, aURL)) {
-      // Houston, we have a loop, blow off this child and pretend this never
-      // happened
-      LOG_ERROR(("  @import cycle detected, dropping load"));
-      return NS_OK;
+    SheetLoadData* data = parentData;
+    while (data && data->mURI) {
+      PRBool equal;
+      if (NS_SUCCEEDED(data->mURI->Equals(aURL, &equal)) && equal) {
+        // Houston, we have a loop, blow off this child and pretend this never
+        // happened
+        LOG_ERROR(("  @import cycle detected, dropping load"));
+        return NS_OK;
+      }
+      data = data->mParentData;
     }
 
     NS_ASSERTION(parentData->mSheet == aParentSheet,

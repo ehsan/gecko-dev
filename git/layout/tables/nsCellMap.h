@@ -40,7 +40,7 @@
 #include "nscore.h"
 #include "celldata.h"
 #include "nsTArray.h"
-#include "nsTArray.h"
+#include "nsTPtrArray.h"
 #include "nsRect.h"
 #include "nsCOMPtr.h"
 #include "nsAlgorithm.h"
@@ -311,7 +311,7 @@ public:
     */
   ~nsCellMap();
 
-  static void Init();
+  static nsresult Init();
   static void Shutdown();
 
   nsCellMap* GetNextSibling() const;
@@ -460,7 +460,7 @@ public:
                               PRInt32     aColIndex,
                               PRBool&     aIsZeroColSpan) const;
 
-  typedef nsTArray<CellData*> CellDataArray;
+  typedef nsTPtrArray<CellData> CellDataArray;
 
   /** dump a representation of the cell map to stdout for debugging */
 #ifdef NS_DEBUG

@@ -1258,7 +1258,7 @@ nsPipeOutputStream::AsyncWait(nsIOutputStreamCallback *callback,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-nsresult
+NS_COM nsresult
 NS_NewPipe(nsIInputStream **pipeIn,
            nsIOutputStream **pipeOut,
            PRUint32 segmentSize,
@@ -1288,7 +1288,7 @@ NS_NewPipe(nsIInputStream **pipeIn,
     return NS_OK;
 }
 
-nsresult
+NS_COM nsresult
 NS_NewPipe2(nsIAsyncInputStream **pipeIn,
             nsIAsyncOutputStream **pipeOut,
             PRBool nonBlockingInput,

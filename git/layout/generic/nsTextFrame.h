@@ -299,6 +299,14 @@ public:
   // The private DrawText() is what applies the text to a graphics context
   void PaintText(nsRenderingContext* aRenderingContext, nsPoint aPt,
                  const nsRect& aDirtyRect, const nsCharClipDisplayItem& aItem);
+  // helper: paint quirks-mode CSS text decorations
+  void PaintTextDecorations(gfxContext* aCtx, const gfxRect& aDirtyRect,
+                            const gfxPoint& aFramePt,
+                            const gfxPoint& aTextBaselinePt,
+                            nsTextPaintStyle& aTextStyle,
+                            PropertyProvider& aProvider,
+                            const nsCharClipDisplayItem::ClipEdges& aClipEdges,
+                            const nscolor* aOverrideColor = nsnull);
   // helper: paint text frame when we're impacted by at least one selection.
   // Return false if the text was not painted and we should continue with
   // the fast path.
@@ -325,8 +333,7 @@ public:
                                     PRUint32 aContentLength,
                                     nsTextPaintStyle& aTextPaintStyle,
                                     SelectionDetails* aDetails,
-                                    SelectionType* aAllTypes,
-                            const nsCharClipDisplayItem::ClipEdges& aClipEdges);
+                                    SelectionType* aAllTypes);
   // helper: paint text decorations for text selected by aSelectionType
   void PaintTextSelectionDecorations(gfxContext* aCtx,
                                      const gfxPoint& aFramePt,
@@ -432,11 +439,19 @@ protected:
   // return value, if that return value is not null.  Calling
   // DestroySelectionDetails() on a null value is still OK, just not necessary.
   SelectionDetails* GetSelectionDetails();
+  
+  void UnionTextDecorationOverflow(nsPresContext* aPresContext,
+                                   PropertyProvider& aProvider,
+                                   nsRect* aVisualOverflowRect);
 
-  void UnionAdditionalOverflow(nsPresContext* aPresContext,
-                               PropertyProvider& aProvider,
-                               nsRect* aVisualOverflowRect,
-                               bool aIncludeTextDecorations);
+  void DrawText(gfxContext* aCtx,
+                const gfxPoint& aTextBaselinePt,
+                PRUint32 aOffset,
+                PRUint32 aLength,
+                const gfxRect* aDirtyRect,
+                PropertyProvider* aProvider,
+                gfxFloat& aAdvanceWidth,
+                PRBool aDrawSoftHyphen);
 
   void PaintOneShadow(PRUint32 aOffset,
                       PRUint32 aLength,
@@ -450,93 +465,40 @@ protected:
                       const nsCharClipDisplayItem::ClipEdges& aClipEdges,
                       nscoord aLeftSideOffset);
 
-  struct LineDecoration {
-    nsIFrame* mFrame;
-
-    // This is represents the offset from our baseline to mFrame's baseline;
-    // positive offsets are *above* the baseline and negative offsets below
-    nscoord mBaselineOffset;
-
-    nscolor mColor;
-    PRUint8 mStyle;
-
-    LineDecoration(nsIFrame *const aFrame,
-                   const nscoord aOff,
-                   const nscolor aColor,
-                   const PRUint8 aStyle)
-      : mFrame(aFrame),
-        mBaselineOffset(aOff),
-        mColor(aColor),
-        mStyle(aStyle)
-    {}
-
-    LineDecoration(const LineDecoration& aOther)
-      : mFrame(aOther.mFrame),
-        mBaselineOffset(aOther.mBaselineOffset),
-        mColor(aOther.mColor),
-        mStyle(aOther.mStyle)
-    {}
-
-    bool operator==(const LineDecoration& aOther) const {
-      return mFrame == aOther.mFrame &&
-             mStyle == aOther.mStyle &&
-             mColor == aOther.mColor &&
-             mBaselineOffset == aOther.mBaselineOffset;
-    }
-  };
   struct TextDecorations {
-    nsAutoTArray<LineDecoration, 1> mOverlines, mUnderlines, mStrikes;
+    PRUint8 mDecorations;
+    PRUint8 mOverStyle;
+    PRUint8 mUnderStyle;
+    PRUint8 mStrikeStyle;
+    nscolor mOverColor;
+    nscolor mUnderColor;
+    nscolor mStrikeColor;
 
-    TextDecorations() { }
+    TextDecorations() :
+      mDecorations(0), mOverStyle(NS_STYLE_TEXT_DECORATION_STYLE_SOLID),
+      mUnderStyle(NS_STYLE_TEXT_DECORATION_STYLE_SOLID),
+      mStrikeStyle(NS_STYLE_TEXT_DECORATION_STYLE_SOLID),
+      mOverColor(NS_RGB(0, 0, 0)), mUnderColor(NS_RGB(0, 0, 0)),
+      mStrikeColor(NS_RGB(0, 0, 0))
+    { }
 
-    PRBool HasDecorationLines() const {
+    PRBool HasDecorationlines() {
       return HasUnderline() || HasOverline() || HasStrikeout();
     }
-    PRBool HasUnderline() const {
-      return !mUnderlines.IsEmpty();
+    PRBool HasUnderline() {
+      return (mDecorations & NS_STYLE_TEXT_DECORATION_LINE_UNDERLINE) &&
+             mUnderStyle != NS_STYLE_TEXT_DECORATION_STYLE_NONE;
     }
-    PRBool HasOverline() const {
-      return !mOverlines.IsEmpty();
+    PRBool HasOverline() {
+      return (mDecorations & NS_STYLE_TEXT_DECORATION_LINE_OVERLINE) &&
+             mOverStyle != NS_STYLE_TEXT_DECORATION_STYLE_NONE;
     }
-    PRBool HasStrikeout() const {
-      return !mStrikes.IsEmpty();
+    PRBool HasStrikeout() {
+      return (mDecorations & NS_STYLE_TEXT_DECORATION_LINE_LINE_THROUGH) &&
+             mStrikeStyle != NS_STYLE_TEXT_DECORATION_STYLE_NONE;
     }
   };
-  void GetTextDecorations(nsPresContext* aPresContext,
-                          TextDecorations& aDecorations);
-
-  void DrawTextRun(gfxContext* const aCtx,
-                   const gfxPoint& aTextBaselinePt,
-                   PRUint32 aOffset,
-                   PRUint32 aLength,
-                   PropertyProvider& aProvider,
-                   gfxFloat& aAdvanceWidth,
-                   PRBool aDrawSoftHyphen);
-
-  void DrawTextRunAndDecorations(gfxContext* const aCtx,
-                                 const gfxPoint& aFramePt,
-                                 const gfxPoint& aTextBaselinePt,
-                                 PRUint32 aOffset,
-                                 PRUint32 aLength,
-                                 PropertyProvider& aProvider,
-                                 const nsTextPaintStyle& aTextStyle,
-                             const nsCharClipDisplayItem::ClipEdges& aClipEdges,
-                                 gfxFloat& aAdvanceWidth,
-                                 PRBool aDrawSoftHyphen,
-                                 const TextDecorations& aDecorations,
-                                 const nscolor* const aDecorationOverrideColor);
-
-  void DrawText(gfxContext* const aCtx,
-                const gfxPoint& aFramePt,
-                const gfxPoint& aTextBaselinePt,
-                PRUint32 aOffset,
-                PRUint32 aLength,
-                PropertyProvider& aProvider,
-                const nsTextPaintStyle& aTextStyle,
-                const nsCharClipDisplayItem::ClipEdges& aClipEdges,
-                gfxFloat& aAdvanceWidth,
-                PRBool aDrawSoftHyphen,
-                const nscolor* const aDecorationOverrideColor = nsnull);
+  TextDecorations GetTextDecorations(nsPresContext* aPresContext);
 
   // Set non empty rect to aRect, it should be overflow rect or frame rect.
   // If the result rect is larger than the given rect, this returns PR_TRUE.

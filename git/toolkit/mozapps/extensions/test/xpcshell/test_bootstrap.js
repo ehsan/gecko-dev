@@ -1085,12 +1085,10 @@ function check_test_23() {
         do_check_eq(list.length, 0);
 
         restartManager();
-        AddonManager.getAddonByID("bootstrap1@tests.mozilla.org", function(b1) {
-          b1.uninstall();
-          restartManager();
+        b1.uninstall();
+        restartManager();
 
-          testserver.stop(run_test_24);
-        });
+        testserver.stop(run_test_24);
       });
     });
   });

@@ -57,6 +57,7 @@
 #include "nsFrameManager.h"
 
 // for focus
+#include "nsIDOMWindowInternal.h"
 #include "nsIScrollableFrame.h"
 #include "nsIDocShell.h"
 
@@ -122,34 +123,33 @@ nsCanvasFrame::SetHasFocus(PRBool aHasFocus)
 }
 
 NS_IMETHODIMP
-nsCanvasFrame::SetInitialChildList(ChildListID     aListID,
+nsCanvasFrame::SetInitialChildList(nsIAtom*        aListName,
                                    nsFrameList&    aChildList)
 {
-  if (kAbsoluteList == aListID)
-    return mAbsoluteContainer.SetInitialChildList(this, aListID, aChildList);
+  if (nsGkAtoms::absoluteList == aListName)
+    return mAbsoluteContainer.SetInitialChildList(this, aListName, aChildList);
 
-  NS_ASSERTION(aListID != kPrincipalList ||
-               aChildList.IsEmpty() || aChildList.OnlyChild(),
+  NS_ASSERTION(aListName || aChildList.IsEmpty() || aChildList.OnlyChild(),
                "Primary child list can have at most one frame in it");
-  return nsHTMLContainerFrame::SetInitialChildList(aListID, aChildList);
+  return nsHTMLContainerFrame::SetInitialChildList(aListName, aChildList);
 }
 
 NS_IMETHODIMP
-nsCanvasFrame::AppendFrames(ChildListID     aListID,
+nsCanvasFrame::AppendFrames(nsIAtom*        aListName,
                             nsFrameList&    aFrameList)
 {
-  if (kAbsoluteList == aListID)
-    return mAbsoluteContainer.AppendFrames(this, aListID, aFrameList);
+  if (nsGkAtoms::absoluteList == aListName)
+    return mAbsoluteContainer.AppendFrames(this, aListName, aFrameList);
 
-  NS_ASSERTION(aListID == kPrincipalList, "unexpected child list ID");
+  NS_ASSERTION(!aListName, "unexpected child list name");
   NS_PRECONDITION(mFrames.IsEmpty(), "already have a child frame");
-  if (aListID != kPrincipalList) {
-    // We only support the Principal and Absolute child lists.
+  if (aListName) {
+    // We only support unnamed principal child list
     return NS_ERROR_INVALID_ARG;
   }
 
   if (!mFrames.IsEmpty()) {
-    // We only allow a single principal child frame.
+    // We only allow a single child frame
     return NS_ERROR_INVALID_ARG;
   }
 
@@ -169,12 +169,12 @@ nsCanvasFrame::AppendFrames(ChildListID     aListID,
 }
 
 NS_IMETHODIMP
-nsCanvasFrame::InsertFrames(ChildListID     aListID,
+nsCanvasFrame::InsertFrames(nsIAtom*        aListName,
                             nsIFrame*       aPrevFrame,
                             nsFrameList&    aFrameList)
 {
-  if (kAbsoluteList == aListID)
-    return mAbsoluteContainer.InsertFrames(this, aListID, aPrevFrame, aFrameList);
+  if (nsGkAtoms::absoluteList == aListName)
+    return mAbsoluteContainer.InsertFrames(this, aListName, aPrevFrame, aFrameList);
 
   // Because we only support a single child frame inserting is the same
   // as appending
@@ -182,21 +182,21 @@ nsCanvasFrame::InsertFrames(ChildListID     aListID,
   if (aPrevFrame)
     return NS_ERROR_UNEXPECTED;
 
-  return AppendFrames(aListID, aFrameList);
+  return AppendFrames(aListName, aFrameList);
 }
 
 NS_IMETHODIMP
-nsCanvasFrame::RemoveFrame(ChildListID     aListID,
+nsCanvasFrame::RemoveFrame(nsIAtom*        aListName,
                            nsIFrame*       aOldFrame)
 {
-  if (kAbsoluteList == aListID) {
-    mAbsoluteContainer.RemoveFrame(this, aListID, aOldFrame);
+  if (nsGkAtoms::absoluteList == aListName) {
+    mAbsoluteContainer.RemoveFrame(this, aListName, aOldFrame);
     return NS_OK;
   }
 
-  NS_ASSERTION(aListID == kPrincipalList, "unexpected child list ID");
-  if (aListID != kPrincipalList) {
-    // We only support the Principal and Absolute child lists.
+  NS_ASSERTION(!aListName, "unexpected child list name");
+  if (aListName) {
+    // We only support the unnamed principal child list
     return NS_ERROR_INVALID_ARG;
   }
 
@@ -218,20 +218,22 @@ nsCanvasFrame::RemoveFrame(ChildListID     aListID,
   return NS_OK;
 }
 
-nsFrameList
-nsCanvasFrame::GetChildList(ChildListID aListID) const
+nsIAtom*
+nsCanvasFrame::GetAdditionalChildListName(PRInt32 aIndex) const
 {
-  if (kAbsoluteList == aListID)
-    return mAbsoluteContainer.GetChildList();
+  if (CANVAS_ABS_POS_CHILD_LIST == aIndex)
+    return nsGkAtoms::absoluteList;
 
-  return nsHTMLContainerFrame::GetChildList(aListID);
+  return nsHTMLContainerFrame::GetAdditionalChildListName(aIndex);
 }
 
-void
-nsCanvasFrame::GetChildLists(nsTArray<ChildList>* aLists) const
+nsFrameList
+nsCanvasFrame::GetChildList(nsIAtom* aListName) const
 {
-  nsHTMLContainerFrame::GetChildLists(aLists);
-  mAbsoluteContainer.AppendChildList(aLists, kAbsoluteList);
+  if (nsGkAtoms::absoluteList == aListName)
+    return mAbsoluteContainer.GetChildList();
+
+  return nsHTMLContainerFrame::GetChildList(aListName);
 }
 
 nsRect nsCanvasFrame::CanvasArea() const
@@ -329,7 +331,7 @@ nsCanvasFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   }
 
   nsIFrame* kid;
-  for (kid = GetFirstPrincipalChild(); kid; kid = kid->GetNextSibling()) {
+  for (kid = GetFirstChild(nsnull); kid; kid = kid->GetNextSibling()) {
     // Put our child into its own pseudo-stack.
     rv = BuildDisplayListForChild(aBuilder, kid, aDirtyRect, aLists);
     NS_ENSURE_SUCCESS(rv, rv);

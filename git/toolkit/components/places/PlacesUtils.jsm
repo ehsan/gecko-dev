@@ -2166,6 +2166,10 @@ XPCOMUtils.defineLazyGetter(PlacesUtils, "ghistory2", function() {
   return PlacesUtils.history.QueryInterface(Ci.nsIGlobalHistory2);
 });
 
+XPCOMUtils.defineLazyGetter(PlacesUtils, "ghistory3", function() {
+  return PlacesUtils.history.QueryInterface(Ci.nsIGlobalHistory3);
+});
+
 XPCOMUtils.defineLazyServiceGetter(PlacesUtils, "favicons",
                                    "@mozilla.org/browser/favicon-service;1",
                                    "nsIFaviconService");
@@ -2220,7 +2224,7 @@ XPCOMUtils.defineLazyServiceGetter(this, "focusManager",
 function updateCommandsOnActiveWindow()
 {
   let win = focusManager.activeWindow;
-  if (win && win instanceof Ci.nsIDOMWindow) {
+  if (win && win instanceof Ci.nsIDOMWindowInternal) {
     // Updating "undo" will cause a group update including "redo".
     win.updateCommands("undo");
   }
@@ -2259,9 +2263,7 @@ BaseTransaction.prototype = {
 
 function PlacesAggregatedTransaction(aName, aTransactions)
 {
-  // Copy the transactions array to decouple it from its prototype, which
-  // otherwise keeps alive its associated global object.
-  this._transactions = Array.slice(aTransactions);
+  this._transactions = aTransactions;
   this._name = aName;
   this.container = -1;
 
@@ -2348,12 +2350,9 @@ function PlacesCreateFolderTransaction(aName, aContainer, aIndex, aAnnotations,
   this._name = aName;
   this._container = aContainer;
   this._index = typeof(aIndex) == "number" ? aIndex : -1;
+  this._annotations = aAnnotations;
   this._id = null;
-  // Copy the array to decouple it from its prototype, which otherwise keeps
-  // alive its associated global object.
-  this._annotations = aAnnotations ? Array.slice(aAnnotations) : [];
-  this.childTransactions = aChildItemsTransactions ?
-                             Array.slice(aChildItemsTransactions) : [];
+  this.childTransactions = aChildItemsTransactions || [];
 }
 
 PlacesCreateFolderTransaction.prototype = {
@@ -2438,10 +2437,8 @@ function PlacesCreateBookmarkTransaction(aURI, aContainer, aIndex, aTitle,
   this._index = typeof(aIndex) == "number" ? aIndex : -1;
   this._title = aTitle;
   this._keyword = aKeyword;
-  // Copy the array to decouple it from its prototype, which otherwise keeps
-  // alive its associated global object.
-  this._annotations = aAnnotations ? Array.slice(aAnnotations) : [];
-  this.childTransactions = aChildTransactions ? Array.slice(aChildTransactions) : [];
+  this._annotations = aAnnotations;
+  this.childTransactions = aChildTransactions || [];
 }
 
 PlacesCreateBookmarkTransaction.prototype = {
@@ -2562,9 +2559,7 @@ function PlacesCreateLivemarkTransaction(aFeedURI, aSiteURI, aName, aContainer,
   this._name = aName;
   this._container = aContainer;
   this._index = typeof(aIndex) == "number" ? aIndex : -1;
-  // Copy the array to decouple it from its prototype, which otherwise keeps
-  // alive its associated global object.
-  this._annotations = aAnnotations ? Array.slice(aAnnotations) : [];
+  this._annotations = aAnnotations;
 }
 
 PlacesCreateLivemarkTransaction.prototype = {
@@ -3313,10 +3308,8 @@ PlacesSortFolderByNameTransaction.prototype = {
 function PlacesTagURITransaction(aURI, aTags)
 {
   this._uri = aURI;
+  this._tags = aTags;
   this._unfiledItemId = -1;
-  // Copy the array to decouple it from its prototype, which otherwise keeps
-  // alive its associated global object.
-  this._tags = Array.slice(aTags);
 }
 
 PlacesTagURITransaction.prototype = {
@@ -3369,14 +3362,11 @@ function PlacesUntagURITransaction(aURI, aTags)
 {
   this._uri = aURI;
   if (aTags) {    
-    // Copy the array to decouple it from its prototype, which otherwise keeps
-    // alive its associated global object.
-    this._tags = Array.slice(aTags);
-
     // Within this transaction, we cannot rely on tags given by itemId
     // since the tag containers may be gone after we call untagURI.
     // Thus, we convert each tag given by its itemId to name.
-    for (let i = 0; i < this._tags.length; ++i) {
+    this._tags = aTags;
+    for (let i = 0; i < aTags.length; ++i) {
       if (typeof(this._tags[i]) == "number")
         this._tags[i] = PlacesUtils.bookmarks.getItemTitle(this._tags[i]);
     }

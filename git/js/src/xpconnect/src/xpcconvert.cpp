@@ -547,7 +547,6 @@ XPCConvert::JSData2Native(XPCCallContext& ccx, void* d, jsval s,
     int32    ti;
     uint32   tu;
     jsdouble td;
-    JSBool   tb;
     JSBool isDOMString = JS_TRUE;
 
     if(pErr)
@@ -627,8 +626,7 @@ XPCConvert::JSData2Native(XPCCallContext& ccx, void* d, jsval s,
             return JS_FALSE;
         break;
     case nsXPTType::T_BOOL   :
-        JS_ValueToBoolean(cx, s, &tb);
-        *((PRBool*)d) = tb;
+        JS_ValueToBoolean(cx, s, (JSBool*)d);
         break;
     case nsXPTType::T_CHAR   :
         {
@@ -1827,7 +1825,7 @@ XPCConvert::JSErrorToXPCException(XPCCallContext& ccx,
                                (const PRUnichar *)report->uclinebuf, report->lineno,
                                report->uctokenptr - report->uclinebuf, report->flags,
                                "XPConnect JavaScript",
-                               nsJSUtils::GetCurrentlyRunningCodeInnerWindowID(ccx.GetJSContext()));
+                               nsJSUtils::GetCurrentlyRunningCodeWindowID(ccx.GetJSContext()));
     }
 
     if(data)

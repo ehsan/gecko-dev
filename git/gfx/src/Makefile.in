@@ -55,6 +55,8 @@ FORCE_USE_PIC  = 1
 XPIDLSRCS = \
 	nsIFontEnumerator.idl \
 	nsIScriptableRegion.idl \
+	gfxIFormats.idl \
+	gfxidltypes.idl \
 	$(NULL)
         
 EXPORTS	= \
@@ -75,6 +77,7 @@ EXPORTS	= \
 	nsFontMetrics.h \
 	nsDeviceContext.h \
 	nsGfxCIID.h \
+	nsIRegion.h \
 	nsITheme.h \
 	nsThemeConstants.h \
 	nsBoundingMetrics.h \
@@ -95,6 +98,7 @@ CPPSRCS = \
         nsScriptableRegion.cpp \
         gfxCrashReporterUtils.cpp \
         nsDeviceContext.cpp \
+        nsThebesRegion.cpp \
         nsThebesGfxFactory.cpp \
         nsRenderingContext.cpp \
         nsFontMetrics.cpp \

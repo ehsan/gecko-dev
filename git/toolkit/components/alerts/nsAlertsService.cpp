@@ -40,6 +40,7 @@
 
 #include "mozilla/dom/ContentChild.h"
 #include "nsXULAppAPI.h"
+using mozilla::dom::ContentChild;
 
 #include "nsAlertsService.h"
 
@@ -51,9 +52,9 @@
 #include "nsXPCOM.h"
 #include "nsISupportsPrimitives.h"
 #include "nsIServiceManager.h"
-#include "nsIDOMWindow.h"
+#include "nsIDOMWindowInternal.h"
 #include "nsIWindowWatcher.h"
-#include "nsPromiseFlatString.h"
+#include "nsDependentString.h"
 #include "nsWidgetsCID.h"
 #include "nsILookAndFeel.h"
 #include "nsToolkitCompsCID.h"
@@ -63,8 +64,6 @@ static NS_DEFINE_CID(kLookAndFeelCID, NS_LOOKANDFEEL_CID);
 #define ALERT_CHROME_URL "chrome://global/content/alerts/alert.xul"
 
 #endif // !ANDROID
-
-using mozilla::dom::ContentChild;
 
 NS_IMPL_THREADSAFE_ISUPPORTS2(nsAlertsService, nsIAlertsService, nsIAlertsProgressListener)
 
@@ -85,7 +84,7 @@ NS_IMETHODIMP nsAlertsService::ShowAlertNotification(const nsAString & aImageUrl
     ContentChild* cpc = ContentChild::GetSingleton();
 
     if (aAlertListener)
-      cpc->AddRemoteAlertObserver(PromiseFlatString(aAlertCookie), aAlertListener);
+      cpc->AddRemoteAlertObserver(nsDependentString(aAlertCookie), aAlertListener);
 
     cpc->SendShowAlertNotification(nsAutoString(aImageUrl),
                                    nsAutoString(aAlertTitle),

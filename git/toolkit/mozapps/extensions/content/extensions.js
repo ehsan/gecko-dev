@@ -35,8 +35,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-"use strict";
-
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
@@ -62,7 +60,7 @@ const PREF_UI_LASTCATEGORY = "extensions.ui.lastCategory";
 
 const BRANCH_REGEXP = /^([^\.]+\.[0-9]+[a-z]*).*/gi;
 
-#ifdef MOZ_COMPATIBILITY_NIGHTLY
+#ifdef MOZ_COMPATABILITY_NIGHTLY
 const PREF_CHECK_COMPATIBILITY = PREF_CHECK_COMPATIBILITY_BASE +
                                  ".nightly";
 #else
@@ -227,14 +225,13 @@ var HTML5History = {
   },
 
   popState: function() {
-    function onStatePopped(aEvent) {
-      window.removeEventListener("popstate", onStatePopped, true);
+    window.addEventListener("popstate", function(event) {
+      window.removeEventListener("popstate", arguments.callee, true);
       // TODO To ensure we can't go forward again we put an additional entry
       // for the current state into the history. Ideally we would just strip
       // the history but there doesn't seem to be a way to do that. Bug 590661
-      window.history.pushState(aEvent.state, document.title);
-    }
-    window.addEventListener("popstate", onStatePopped, true);
+      window.history.pushState(event.state, document.title);
+    }, true);
     window.history.back();
     gViewController.updateCommand("cmd_back");
     gViewController.updateCommand("cmd_forward");
@@ -815,6 +812,7 @@ var gViewController = {
         var numUpdated = 0;
         var numManualUpdates = 0;
         var restartNeeded = false;
+        var autoUpdateDefault = AddonManager.autoUpdateDefault;
         var self = this;
 
         function updateStatus() {
@@ -866,7 +864,7 @@ var gViewController = {
           onUpdateAvailable: function(aAddon, aInstall) {
             gEventManager.delegateAddonEvent("onUpdateAvailable",
                                              [aAddon, aInstall]);
-            if (AddonManager.shouldAutoUpdate(aAddon)) {
+            if (shouldAutoUpdate(aAddon, autoUpdateDefault)) {
               aInstall.addListener(updateInstallListener);
               aInstall.install();
             } else {
@@ -911,7 +909,7 @@ var gViewController = {
           onUpdateAvailable: function(aAddon, aInstall) {
             gEventManager.delegateAddonEvent("onUpdateAvailable",
                                              [aAddon, aInstall]);
-            if (AddonManager.shouldAutoUpdate(aAddon))
+            if (shouldAutoUpdate(aAddon))
               aInstall.install();
           },
           onNoUpdateAvailable: function(aAddon) {
@@ -1106,7 +1104,7 @@ var gViewController = {
             if (installs.length > 0) {
               // Display the normal install confirmation for the installs
               AddonManager.installAddonsFromWebpage("application/x-xpinstall",
-                                                    window, null, installs);
+                                                    this, null, installs);
             }
             return;
           }
@@ -1243,6 +1241,17 @@ function isPending(aAddon, aAction) {
 function isInState(aInstall, aState) {
   var state = AddonManager["STATE_" + aState.toUpperCase()];
   return aInstall.state == state;
+}
+
+
+function shouldAutoUpdate(aAddon, aDefault) {
+  if (!("applyBackgroundUpdates" in aAddon))
+    return false;
+  if (aAddon.applyBackgroundUpdates == AddonManager.AUTOUPDATE_ENABLE)
+    return true;
+  if (aAddon.applyBackgroundUpdates == AddonManager.AUTOUPDATE_DISABLE)
+    return false;
+  return aDefault !== undefined ? aDefault : AddonManager.autoUpdateDefault;
 }
 
 function shouldShowVersionNumber(aAddon) {
@@ -1486,7 +1495,7 @@ var gCategories = {
     // If there was no last view or no existing category matched the last view
     // then the list will default to selecting the search category and we never
     // want to show that as the first view so switch to the default category
-    if (!this.node.selectedItem || this.node.selectedItem == this._search)
+    if (this.node.selectedItem == this._search)
       this.node.value = VIEW_DEFAULT;
 
     var self = this;
@@ -2663,7 +2672,7 @@ var gDetailView = {
     if ("applyBackgroundUpdates" in aAddon) {
       this._autoUpdate.hidden = false;
       this._autoUpdate.value = aAddon.applyBackgroundUpdates;
-      let hideFindUpdates = AddonManager.shouldAutoUpdate(this._addon);
+      let hideFindUpdates = shouldAutoUpdate(this._addon);
       document.getElementById("detail-findUpdates-btn").hidden = hideFindUpdates;
     } else {
       this._autoUpdate.hidden = true;
@@ -2928,7 +2937,7 @@ var gDetailView = {
   onPropertyChanged: function(aProperties) {
     if (aProperties.indexOf("applyBackgroundUpdates") != -1) {
       this._autoUpdate.value = this._addon.applyBackgroundUpdates;
-      let hideFindUpdates = AddonManager.shouldAutoUpdate(this._addon);
+      let hideFindUpdates = shouldAutoUpdate(this._addon);
       document.getElementById("detail-findUpdates-btn").hidden = hideFindUpdates;
     }
   },
@@ -2957,6 +2966,7 @@ var gUpdatesView = {
   _emptyNotice: null,
   _sorters: null,
   _updateSelected: null,
+  _updatePrefs: null,
   _categoryItem: null,
 
   initialize: function() {
@@ -2973,6 +2983,9 @@ var gUpdatesView = {
       gUpdatesView.installSelected();
     }, false);
 
+    this._updatePrefs = Services.prefs.getBranch("extensions.update.");
+    this._updatePrefs.QueryInterface(Ci.nsIPrefBranch2);
+    this._updatePrefs.addObserver("", this, false);
     this.updateAvailableCount(true);
 
     AddonManager.addAddonListener(this);
@@ -2982,6 +2995,8 @@ var gUpdatesView = {
   shutdown: function() {
     AddonManager.removeAddonListener(this);
     AddonManager.removeInstallListener(this);
+    this._updatePrefs.removeObserver("", this);
+    delete this._updatePrefs;
   },
 
   show: function(aType, aRequest) {
@@ -3088,10 +3103,15 @@ var gUpdatesView = {
 
   isManualUpdate: function(aInstall, aOnlyAvailable) {
     var isManual = aInstall.existingAddon &&
-                   !AddonManager.shouldAutoUpdate(aInstall.existingAddon);
+                   !shouldAutoUpdate(aInstall.existingAddon);
     if (isManual && aOnlyAvailable)
       return isInState(aInstall, "available");
     return isManual;
+  },
+
+  observe: function(aSubject, aTopic, aData) {
+    if (aTopic != "nsPref:changed")
+      return;
   },
 
   maybeRefresh: function() {

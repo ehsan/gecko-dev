@@ -112,9 +112,8 @@ nsEventListenerInfo::GetJSVal(jsval* aJSVal)
 
   nsCOMPtr<nsIJSEventListener> jsl = do_QueryInterface(mListener);
   if (jsl) {
-    void *handler = jsl->GetHandler();
-    if (handler) {
-      *aJSVal = OBJECT_TO_JSVAL(static_cast<JSObject*>(handler));
+    nsresult rv = jsl->GetJSVal(mType, aJSVal);
+    if (NS_SUCCEEDED(rv)) {
       return PR_TRUE;
     }
   }
@@ -281,8 +280,7 @@ nsEventListenerService::AddSystemEventListener(nsIDOMEventTarget *aTarget,
                                 NS_EVENT_FLAG_SYSTEM_EVENT :
                                 NS_EVENT_FLAG_BUBBLE |
                                 NS_EVENT_FLAG_SYSTEM_EVENT;
-  manager->AddEventListenerByType(aListener, aType, flags);
-  return NS_OK;
+  return manager->AddEventListenerByType(aListener, aType, flags);
 }
 
 NS_IMETHODIMP

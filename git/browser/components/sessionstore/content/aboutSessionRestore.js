@@ -48,8 +48,12 @@ window.onload = function() {
   // (for when the tab is closed or the session crashes right again)
   var sessionData = document.getElementById("sessionData");
   if (!sessionData.value) {
-    document.getElementById("errorTryAgain").disabled = true;
-    return;
+    var ss = Cc["@mozilla.org/browser/sessionstartup;1"].getService(Ci.nsISessionStartup);
+    sessionData.value = ss.state;
+    if (!sessionData.value) {
+      document.getElementById("errorTryAgain").disabled = true;
+      return;
+    }
   }
 
   // remove unneeded braces (added for compatibility with Firefox 2.0 and 3.0)
@@ -59,7 +63,7 @@ window.onload = function() {
     gStateObject = JSON.parse(sessionData.value);
   }
   catch (exJSON) {
-    var s = new Cu.Sandbox("about:blank", {sandboxName: 'aboutSessionRestore'});
+    var s = new Cu.Sandbox("about:blank");
     gStateObject = Cu.evalInSandbox("(" + sessionData.value + ")", s);
     // If we couldn't parse the string with JSON.parse originally, make sure
     // that the value in the textbox will be parsable.
@@ -285,7 +289,6 @@ var treeView = {
   isSeparator: function(idx)         { return false; },
   isSorted: function()               { return false; },
   isEditable: function(idx, column)  { return false; },
-  canDrop: function(idx, orientation, dt) { return false; },
   getLevel: function(idx)            { return this.isContainer(idx) ? 0 : 1; },
 
   getParentIndex: function(idx) {

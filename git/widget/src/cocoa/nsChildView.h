@@ -168,59 +168,6 @@ extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
 - (long long)_scrollPhase;
 @end
 
-// The following section, required to support fluid swipe tracking on OS X 10.7
-// and up, contains defines/declarations that are only available on 10.7 and up.
-// [NSEvent trackSwipeEventWithOptions:...] also requires that the compiler
-// support "blocks"
-// (http://developer.apple.com/library/mac/#documentation/Cocoa/Conceptual/Blocks/Articles/00_Introduction.html)
-// -- which it does on 10.6 and up (using the 10.6 SDK or higher).
-//
-// MAC_OS_X_VERSION_MAX_ALLOWED "controls which OS functionality, if used,
-// will result in a compiler error because that functionality is not
-// available" (quoting from AvailabilityMacros.h).  The compiler initializes
-// it to the version of the SDK being used.  Its value does *not* prevent the
-// binary from running on higher OS versions.  MAC_OS_X_VERSION_10_7 and
-// friends are defined (in AvailabilityMacros.h) as decimal numbers (not
-// hexadecimal numbers).
-#if !defined(MAC_OS_X_VERSION_10_7) || MAC_OS_X_VERSION_MAX_ALLOWED < MAC_OS_X_VERSION_10_7
-#ifdef __LP64__
-enum {
-  NSEventPhaseNone        = 0,
-  NSEventPhaseBegan       = 0x1 << 0,
-  NSEventPhaseStationary  = 0x1 << 1,
-  NSEventPhaseChanged     = 0x1 << 2,
-  NSEventPhaseEnded       = 0x1 << 3,
-  NSEventPhaseCancelled   = 0x1 << 4,
-};
-typedef NSUInteger NSEventPhase;
-
-enum {
-  NSEventSwipeTrackingLockDirection = 0x1 << 0,
-  NSEventSwipeTrackingClampGestureAmount = 0x1 << 1
-};
-typedef NSUInteger NSEventSwipeTrackingOptions;
-
-enum {
-  NSEventGestureAxisNone = 0,
-  NSEventGestureAxisHorizontal,
-  NSEventGestureAxisVertical
-};
-typedef NSInteger NSEventGestureAxis;
-
-@interface NSEvent (FluidSwipeTracking)
-+ (BOOL)isSwipeTrackingFromScrollEventsEnabled;
-- (BOOL)hasPreciseScrollingDeltas;
-- (CGFloat)scrollingDeltaX;
-- (CGFloat)scrollingDeltaY;
-- (NSEventPhase)phase;
-- (void)trackSwipeEventWithOptions:(NSEventSwipeTrackingOptions)options
-          dampenAmountThresholdMin:(CGFloat)minDampenThreshold
-                               max:(CGFloat)maxDampenThreshold
-                      usingHandler:(void (^)(CGFloat gestureAmount, NSEventPhase phase, BOOL isComplete, BOOL *stop))trackingHandler;
-@end
-#endif // #ifdef __LP64__
-#endif // #if !defined(MAC_OS_X_VERSION_10_7) || MAC_OS_X_VERSION_MAX_ALLOWED < MAC_OS_X_VERSION_10_7
-
 @interface ChildView : NSView<
 #ifdef ACCESSIBILITY
                               mozAccessible,
@@ -245,6 +192,20 @@ typedef NSInteger NSEventGestureAxis;
   NPEventModel mPluginEventModel;
   NPDrawingModel mPluginDrawingModel;
 
+  // The following variables are only valid during key down event processing.
+  // Their current usage needs to be fixed to avoid problems with nested event
+  // loops that can confuse them. Once a variable is set during key down event
+  // processing, if an event spawns a nested event loop the previously set value
+  // will be wiped out.
+  NSEvent* mCurKeyEvent;
+  PRBool mKeyDownHandled;
+  // While we process key down events we need to keep track of whether or not
+  // we sent a key press event. This helps us make sure we do send one
+  // eventually.
+  BOOL mKeyPressSent;
+  // Valid when mKeyPressSent is true.
+  PRBool mKeyPressHandled;
+
   // when mouseDown: is called, we store its event here (strong)
   NSEvent* mLastMouseDownEvent;
 
@@ -265,6 +226,18 @@ typedef NSInteger NSEventGestureAxis;
   // re-establish the connection to the service manager many times per second
   // when handling |draggingUpdated:| messages.
   nsIDragService* mDragService;
+
+#ifndef NP_NO_CARBON
+  // For use with plugins, so that we can support IME in them.  We can't use
+  // Cocoa TSM documents (those created and managed by the NSTSMInputContext
+  // class) -- for some reason TSMProcessRawKeyEvent() doesn't work with them.
+  TSMDocumentID mPluginTSMDoc;
+  BOOL mPluginTSMInComposition;
+#endif
+  BOOL mPluginComplexTextInputRequested;
+
+  // When this is YES the next key up event (keyUp:) will be ignored.
+  BOOL mIgnoreNextKeyUpEvent;
 
   NSOpenGLContext *mGLContext;
 
@@ -292,11 +265,6 @@ typedef NSInteger NSEventGestureAxis;
   float mCumulativeRotation;
 
   BOOL mDidForceRefreshOpenGL;
-
-  // Support for fluid swipe tracking.
-#ifdef __LP64__
-  BOOL *mSwipeAnimationCancelled;
-#endif
 }
 
 // class initialization
@@ -318,6 +286,11 @@ typedef NSInteger NSEventGestureAxis;
 - (void)sendMouseEnterOrExitEvent:(NSEvent*)aEvent
                             enter:(BOOL)aEnter
                              type:(nsMouseEvent::exitType)aType;
+
+#ifndef NP_NO_CARBON
+- (void) processPluginKeyEvent:(EventRef)aKeyEvent;
+#endif
+- (void)pluginRequestsComplexTextInputForCurrentEvent;
 
 - (void)update;
 - (void)lockFocus;
@@ -344,12 +317,6 @@ typedef NSInteger NSEventGestureAxis;
 - (void)magnifyWithEvent:(NSEvent *)anEvent;
 - (void)rotateWithEvent:(NSEvent *)anEvent;
 - (void)endGestureWithEvent:(NSEvent *)anEvent;
-
-// Support for fluid swipe tracking.
-#ifdef __LP64__
-- (void)maybeTrackScrollEventAsSwipe:(NSEvent *)anEvent
-                      scrollOverflow:(PRInt32)overflow;
-#endif
 @end
 
 class ChildViewMouseTracker {
@@ -357,21 +324,17 @@ class ChildViewMouseTracker {
 public:
 
   static void MouseMoved(NSEvent* aEvent);
-  static void MouseScrolled(NSEvent* aEvent);
   static void OnDestroyView(ChildView* aView);
-  static void OnDestroyWindow(NSWindow* aWindow);
   static BOOL WindowAcceptsEvent(NSWindow* aWindow, NSEvent* aEvent,
                                  ChildView* aView, BOOL isClickThrough = NO);
-  static void MouseExitedWindow(NSEvent* aEvent);
-  static void MouseEnteredWindow(NSEvent* aEvent);
   static void ReEvaluateMouseEnterState(NSEvent* aEvent = nil);
-  static void ResendLastMouseMoveEvent();
   static ChildView* ViewForEvent(NSEvent* aEvent);
 
   static ChildView* sLastMouseEventView;
-  static NSEvent* sLastMouseMoveEvent;
-  static NSWindow* sWindowUnderMouse;
-  static NSPoint sLastScrollEventScreenLocation;
+
+private:
+
+  static NSWindow* WindowForEvent(NSEvent* aEvent);
 };
 
 //-------------------------------------------------------------------------
@@ -519,12 +482,6 @@ public:
   nsCocoaWindow*    GetXULWindowWidget();
 
   NS_IMETHOD        ReparentNativeWidget(nsIWidget* aNewParent);
-
-  mozilla::widget::TextInputHandler* GetTextInputHandler()
-  {
-    return mTextInputHandler;
-  }
-
 protected:
 
   PRBool            ReportDestroyEvent();

@@ -155,10 +155,8 @@ class TokenStream;
 struct Token;
 struct TokenPos;
 struct TokenPtr;
-class UpvarCookie;
 
 class TempAllocPolicy;
-class RuntimeAllocPolicy;
 
 template <class T,
           size_t MinInlineCapacity = 0,
@@ -194,17 +192,9 @@ class Bindings;
 class MultiDeclRange;
 class ParseMapPool;
 class DefnOrHeader;
-typedef InlineMap<JSAtom *, JSDefinition *, 24> AtomDefnMap;
-typedef InlineMap<JSAtom *, jsatomid, 24> AtomIndexMap;
-typedef InlineMap<JSAtom *, DefnOrHeader, 24> AtomDOHMap;
-typedef Vector<UpvarCookie, 8> UpvarCookies;
-
-class Breakpoint;
-class BreakpointSite;
-typedef HashMap<jsbytecode *, BreakpointSite *, DefaultHasher<jsbytecode *>, RuntimeAllocPolicy>
-    BreakpointSiteMap;
-class Debugger;
-class WatchpointMap;
+typedef js::InlineMap<JSAtom *, JSDefinition *, 24> AtomDefnMap;
+typedef js::InlineMap<JSAtom *, jsatomid, 24> AtomIndexMap;
+typedef js::InlineMap<JSAtom *, DefnOrHeader, 24> AtomDOHMap;
 
 } /* namespace js */
 

@@ -70,7 +70,7 @@ NS_IMPL_FRAMEARENA_HELPERS(nsDeckFrame)
 nsDeckFrame::nsDeckFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   : nsBoxFrame(aPresShell, aContext), mIndex(0)
 {
-  nsCOMPtr<nsBoxLayout> layout;
+  nsCOMPtr<nsIBoxLayout> layout;
   NS_NewStackLayout(aPresShell, layout);
   SetLayoutManager(layout);
 }
@@ -119,28 +119,28 @@ CreateViewsForFrames(const nsFrameList& aFrames)
 }
 
 NS_IMETHODIMP
-nsDeckFrame::SetInitialChildList(ChildListID     aListID,
+nsDeckFrame::SetInitialChildList(nsIAtom*        aListName,
                                  nsFrameList&    aChildList)
 {
   CreateViewsForFrames(aChildList);
-  return nsBoxFrame::SetInitialChildList(aListID, aChildList);
+  return nsBoxFrame::SetInitialChildList(aListName, aChildList);
 }
 
 NS_IMETHODIMP
-nsDeckFrame::AppendFrames(ChildListID     aListID,
+nsDeckFrame::AppendFrames(nsIAtom*        aListName,
                           nsFrameList&    aFrameList)
 {
   CreateViewsForFrames(aFrameList);
-  return nsBoxFrame::AppendFrames(aListID, aFrameList);
+  return nsBoxFrame::AppendFrames(aListName, aFrameList);
 }
 
 NS_IMETHODIMP
-nsDeckFrame::InsertFrames(ChildListID     aListID,
+nsDeckFrame::InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
                           nsFrameList&    aFrameList)
 {
   CreateViewsForFrames(aFrameList);
-  return nsBoxFrame::InsertFrames(aListID, aPrevFrame, aFrameList);
+  return nsBoxFrame::InsertFrames(aListName, aPrevFrame, aFrameList);
 }
 
 void

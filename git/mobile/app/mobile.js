@@ -72,7 +72,6 @@ pref("toolkit.zoomManager.zoomValues", ".2,.3,.5,.67,.8,.9,1,1.1,1.2,1.33,1.5,1.
 
 // Device pixel to CSS px ratio, in percent. Set to -1 to calculate based on display density.
 pref("browser.viewport.scaleRatio", -1);
-pref("browser.viewport.desktopWidth", 980);
 
 /* allow scrollbars to float above chrome ui */
 pref("ui.scrollbarsCanOverlapContent", 1);
@@ -131,6 +130,7 @@ pref("browser.display.remotetabs.timeout", 10);
 /* session history */
 pref("browser.sessionhistory.max_total_viewers", 1);
 pref("browser.sessionhistory.max_entries", 50);
+pref("browser.sessionhistory.optimize_eviction", true);
 
 /* session store */
 pref("browser.sessionstore.resume_session_once", false);
@@ -163,9 +163,6 @@ pref("alerts.slideIncrement", 1);
 pref("alerts.slideIncrementTime", 10);
 pref("alerts.totalOpenTime", 6000);
 pref("alerts.height", 50);
-
-/* download helper */
-pref("browser.helperApps.deleteTempFileOnExit", false);
 
 /* password manager */
 pref("signon.rememberSignons", true);
@@ -373,7 +370,7 @@ pref("plugins.force.wmode", "opaque");
 pref("browser.geolocation.warning.infoURL", "http://www.mozilla.com/%LOCALE%/firefox/geolocation/");
 
 // base url for the wifi geolocation network provider
-pref("geo.wifi.uri", "https://maps.googleapis.com/maps/api/browserlocation/json");
+pref("geo.wifi.uri", "https://www.google.com/loc/json");
 
 // enable geo
 pref("geo.enabled", true);
@@ -385,22 +382,13 @@ pref("content.sink.pending_event_mode", 0);
 pref("content.sink.perf_deflect_count", 1000000);
 pref("content.sink.perf_parse_time", 50000000);
 
-// Disable methodjit in chrome to save memory
-pref("javascript.options.methodjit.chrome",  false);
-
 pref("javascript.options.mem.high_water_mark", 32);
-
-// Disable the JS engine's gc on memory pressure, since we do one in the mobile
-// browser (bug 669346).
-pref("javascript.options.gc_on_memory_pressure", false);
 
 pref("dom.max_chrome_script_run_time", 0); // disable slow script dialog for chrome
 pref("dom.max_script_run_time", 20);
 
 // JS error console
 pref("devtools.errorconsole.enabled", false);
-
-pref("browser.ui.layout.tablet", 0); // on: 1, off: 0, auto: -1
 
 // kinetic tweakables
 pref("browser.ui.kinetic.updateInterval", 16);
@@ -561,7 +549,6 @@ pref("services.sync.prefs.sync.lightweightThemes.isThemeSelected", true);
 pref("services.sync.prefs.sync.lightweightThemes.usedThemes", true);
 pref("services.sync.prefs.sync.network.cookie.cookieBehavior", true);
 pref("services.sync.prefs.sync.permissions.default.image", true);
-pref("services.sync.prefs.sync.privacy.donottrackheader.enabled", true);
 pref("services.sync.prefs.sync.signon.rememberSignons", true);
 #endif
 
@@ -660,13 +647,3 @@ pref("browser.firstrun.show.localepicker", true);
 
 // initiated by a user
 pref("content.ime.strict_policy", true);
-
-// True if you always want dump() to work
-//
-// On Android, you also need to do the following for the output
-// to show up in logcat:
-//
-// $ adb shell stop
-// $ adb shell setprop log.redirect-stdio true
-// $ adb shell start
-pref("browser.dom.window.dump.enabled", false);

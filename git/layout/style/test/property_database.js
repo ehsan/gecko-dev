@@ -472,16 +472,6 @@ var gCSSProperties = {
 		other_values: [ "border-box", "padding-box" ],
 		invalid_values: [ "margin-box", "content", "padding", "border", "margin" ]
 	},
-	"-moz-columns": {
-		domProp: "MozColumns",
-		inherited: false,
-		type: CSS_TYPE_TRUE_SHORTHAND,
-		subproperties: [ "-moz-column-count", "-moz-column-width" ],
-		initial_values: [ "auto", "auto auto" ],
-		other_values: [ "3", "20px", "2 10px", "10px 2", "2 auto", "auto 2", "auto 50px", "50px auto" ],
-		invalid_values: [ "5%", "-1px", "-1", "3 5", "10px 4px", "10 2px 5in", "30px -1",
-		                  "auto 3 5px", "5 auto 20px", "auto auto auto" ]
-	},
 	"-moz-column-count": {
 		domProp: "MozColumnCount",
 		inherited: false,
@@ -976,57 +966,6 @@ var gCSSProperties = {
 		invalid_values: ["red", "auto", "none", "0.5 0.5", "40px #0000ff",
 						 "border", "center red", "right diagonal",
 						 "#00ffff bottom"]
-	},
-    "-moz-perspective-origin": {
-        domProp: "MozPerspectiveOrigin",
-        inherited: false,
-        type: CSS_TYPE_LONGHAND,
-        /* no subproperties */
-        prerequisites: { "width": "10px", "height": "10px", "display": "block"},
-        initial_values: [ "50% 50%", "center", "center center" ],
-        other_values: [ "25% 25%", "5px 5px", "20% 3em", "0 0", "0in 1in",
-                        "top", "bottom","top left", "top right",
-                        "top center", "center left", "center right",
-                        "bottom left", "bottom right", "bottom center",
-                        "20% center", "5px center", "13in bottom",
-                        "left 50px", "right 13%", "center 40px",
-                        "-moz-calc(20px)",
-                        "-moz-calc(20px) 10px",
-                        "10px -moz-calc(20px)",
-                        "-moz-calc(20px) 25%",
-                        "25% -moz-calc(20px)",
-                        "-moz-calc(20px) -moz-calc(20px)",
-                        "-moz-calc(20px + 1em) -moz-calc(20px / 2)",
-                        "-moz-calc(20px + 50%) -moz-calc(50% - 10px)",
-                        "-moz-calc(-20px) -moz-calc(-50%)",
-                        "-moz-calc(-20%) -moz-calc(-50%)" ],
-        invalid_values: [ "red", "auto", "none", "0.5 0.5", "40px #0000ff",
-                          "border", "center red", "right diagonal",
-                          "#00ffff bottom"]
-    },
-    "-moz-perspective": {
-		domProp: "MozPerspective",
-		inherited: false,
-		type: CSS_TYPE_LONGHAND,
-		initial_values: [ "none", "0" ],
-		other_values: [ "1000px", "500.2px", "-100px", "-27.2em" ],
-		invalid_values: [ "pants", "200" ]
-	},
-    "-moz-backface-visibility": {
-        domProp: "MozBackfaceVisibility",
-        inherited: false,
-        type: CSS_TYPE_LONGHAND,
-        initial_values: [ "visible" ],
-        other_values: [ "hidden" ],
-        invalid_values: [ "collapse" ]
-    },
-	"-moz-transform-style": {
-		domProp: "MozTransformStyle",
-		inherited: false,
-		type: CSS_TYPE_LONGHAND,
-		initial_values: [ "flat" ],
-		other_values: [ "preserve-3d" ],
-		invalid_values: []
 	},
 	"-moz-user-focus": {
 		domProp: "MozUserFocus",
@@ -2564,9 +2503,9 @@ var gCSSProperties = {
 		domProp: "textOverflow",
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
-		initial_values: [ "clip", "clip clip" ],
-		other_values: [ "ellipsis", '""', "''", '"hello"', 'clip ellipsis', 'clip ""', '"hello" ""', '"" ellipsis' ],
-		invalid_values: [ "none", "auto", '"hello" inherit', 'inherit "hello"', 'clip initial', 'initial clip', 'initial inherit', 'inherit initial', 'inherit none']
+		initial_values: [ "clip" ],
+		other_values: [ "ellipsis", '""', "''", '"hello"' ],
+		invalid_values: [ "none", "auto" ]
 	},
 	"text-shadow": {
 		domProp: "textShadow",

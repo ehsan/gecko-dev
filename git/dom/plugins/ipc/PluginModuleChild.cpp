@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* vim: set sw=4 ts=4 et : */
+/* vim: sw=4 ts=4 et : */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -44,7 +44,6 @@
 #endif
 
 #include "mozilla/plugins/PluginModuleChild.h"
-#include "mozilla/ipc/SyncChannel.h"
 
 #ifdef MOZ_WIDGET_GTK2
 #include <gtk/gtk.h>
@@ -129,7 +128,6 @@ PluginModuleChild::PluginModuleChild()
     memset(&mFunctions, 0, sizeof(mFunctions));
     memset(&mSavedData, 0, sizeof(mSavedData));
     gInstance = this;
-    mUserAgent.SetIsVoid(PR_TRUE);
 #ifdef XP_MACOSX
     mac_plugin_interposing::child::SetUpCocoaInterposing();
 #endif
@@ -516,24 +514,6 @@ PluginModuleChild::ExitedCxxStack()
 #endif
 
 bool
-PluginModuleChild::RecvSetParentHangTimeout(const uint32_t& aSeconds)
-{
-#ifdef XP_WIN
-    SetReplyTimeoutMs(((aSeconds > 0) ? (1000 * aSeconds) : 0));
-#endif
-    return true;
-}
-
-bool
-PluginModuleChild::ShouldContinueFromReplyTimeout()
-{
-#ifdef XP_WIN
-    NS_RUNTIMEABORT("terminating child process");
-#endif
-    return true;
-}
-
-bool
 PluginModuleChild::InitGraphics()
 {
 #if defined(MOZ_WIDGET_GTK2)
@@ -730,7 +710,7 @@ PluginModuleChild::CleanUp()
 const char*
 PluginModuleChild::GetUserAgent()
 {
-    if (mUserAgent.IsVoid() && !CallNPN_UserAgent(&mUserAgent))
+    if (!CallNPN_UserAgent(&mUserAgent))
         return NULL;
 
     return NullableStringGet(mUserAgent);
@@ -1536,19 +1516,7 @@ _setexception(NPObject* aNPObj,
 {
     PLUGIN_LOG_DEBUG_FUNCTION;
     ENSURE_PLUGIN_THREAD_VOID();
-
-    PluginModuleChild* self = PluginModuleChild::current();
-    PluginScriptableObjectChild* actor = NULL;
-    if (aNPObj) {
-        actor = self->GetActorForNPObject(aNPObj);
-        if (!actor) {
-            NS_ERROR("Failed to get actor!");
-            return;
-        }
-    }
-
-    self->SendNPN_SetException(static_cast<PPluginScriptableObjectChild*>(actor),
-                               NullableString(aMessage));
+    NS_WARNING("Not yet implemented!");
 }
 
 void NP_CALLBACK
@@ -1942,7 +1910,6 @@ PluginModuleChild::InitQuirksModes(const nsCString& aMimeType)
         mQuirks |= QUIRK_SILVERLIGHT_DEFAULT_TRANSPARENT;
 #ifdef OS_WIN
         mQuirks |= QUIRK_WINLESS_TRACKPOPUP_HOOK;
-        mQuirks |= QUIRK_SILVERLIGHT_FOCUS_CHECK_PARENT;
 #endif
     }
 
@@ -2006,7 +1973,7 @@ PluginModuleChild::AnswerPPluginInstanceConstructor(PPluginInstanceChild* aActor
                           argv,
                           0);
     if (NPERR_NO_ERROR != *rv) {
-        return true;
+        return false;
     }
 
 #if defined(XP_MACOSX) && defined(__i386__)
@@ -2309,13 +2276,12 @@ PluginModuleChild::NestedInputEventHook(int nCode, WPARAM wParam, LPARAM lParam)
     PluginModuleChild* self = current();
     PRUint32 len = self->mIncallPumpingStack.Length();
     if (nCode >= 0 && len && !self->mIncallPumpingStack[len - 1]._spinning) {
-        MessageLoop* loop = MessageLoop::current();
         self->SendProcessNativeEventsInRPCCall();
         IncallFrame& f = self->mIncallPumpingStack[len - 1];
         f._spinning = true;
+        MessageLoop* loop = MessageLoop::current();
         f._savedNestableTasksAllowed = loop->NestableTasksAllowed();
         loop->SetNestableTasksAllowed(true);
-        loop->set_os_modal_loop(true);
     }
 
     return CallNextHookEx(NULL, nCode, wParam, lParam);

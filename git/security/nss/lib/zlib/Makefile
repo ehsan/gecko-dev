@@ -79,9 +79,10 @@ export:: private_export
 
 test: $(PROGRAMS)
 	@cd $(OBJDIR); \
-	if echo hello world | ./minigzip | ./minigzip -d && ./example; then \
+	echo hello world | ./minigzip | ./minigzip -d || \
+	  echo '		*** minigzip test FAILED ***' ; \
+	if ./example; then \
 	  echo '		*** zlib test OK ***'; \
 	else \
-	  echo '		*** zlib test FAILED ***'; false; \
+	  echo '		*** zlib test FAILED ***'; \
 	fi
-	-@rm -f foo.gz

@@ -242,7 +242,10 @@ private:
 class CreateIndexHelper : public AsyncConnectionHelper
 {
 public:
-  CreateIndexHelper(IDBTransaction* aTransaction, IDBIndex* aIndex);
+  CreateIndexHelper(IDBTransaction* aTransaction,
+                    IDBIndex* aIndex)
+  : AsyncConnectionHelper(aTransaction, nsnull), mIndex(aIndex)
+  { }
 
   nsresult DoDatabaseWork(mozIStorageConnection* aConnection);
 
@@ -265,16 +268,9 @@ public:
 private:
   nsresult InsertDataFromObjectStore(mozIStorageConnection* aConnection);
 
-  static void DestroyTLSEntry(void* aPtr);
-
-  static PRUintn sTLSIndex;
-
   // In-params.
   nsRefPtr<IDBIndex> mIndex;
 };
-
-static const PRUintn BAD_TLS_INDEX = (PRUint32)-1;
-PRUintn CreateIndexHelper::sTLSIndex = BAD_TLS_INDEX;
 
 class DeleteIndexHelper : public AsyncConnectionHelper
 {
@@ -595,7 +591,7 @@ nsresult
 IDBObjectStore::GetKeyPathValueFromStructuredData(const PRUint8* aData,
                                                   PRUint32 aDataLength,
                                                   const nsAString& aKeyPath,
-                                                  JSContext* aCx,
+                                                  JSContext** aCx,
                                                   Key& aValue)
 {
   NS_ASSERTION(aData, "Null pointer!");
@@ -603,10 +599,18 @@ IDBObjectStore::GetKeyPathValueFromStructuredData(const PRUint8* aData,
   NS_ASSERTION(!aKeyPath.IsEmpty(), "Empty keyPath!");
   NS_ASSERTION(aCx, "Null pointer!");
 
-  JSAutoRequest ar(aCx);
+  nsresult rv;
+
+  if (!*aCx) {
+    rv = nsContentUtils::ThreadJSContextStack()->GetSafeJSContext(aCx);
+    NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  }
+  JSContext*& cx = *aCx;
+
+  JSAutoRequest ar(cx);
 
   jsval clone;
-  if (!JS_ReadStructuredClone(aCx, reinterpret_cast<const uint64*>(aData),
+  if (!JS_ReadStructuredClone(cx, reinterpret_cast<const uint64*>(aData),
                               aDataLength, JS_STRUCTURED_CLONE_VERSION,
                               &clone, NULL, NULL)) {
     return NS_ERROR_DOM_DATA_CLONE_ERR;
@@ -625,10 +629,10 @@ IDBObjectStore::GetKeyPathValueFromStructuredData(const PRUint8* aData,
   const size_t keyPathLen = aKeyPath.Length();
 
   jsval keyVal;
-  JSBool ok = JS_GetUCProperty(aCx, obj, keyPathChars, keyPathLen, &keyVal);
+  JSBool ok = JS_GetUCProperty(cx, obj, keyPathChars, keyPathLen, &keyVal);
   NS_ENSURE_TRUE(ok, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
-  nsresult rv = GetKeyFromJSVal(keyVal, aCx, aValue);
+  rv = GetKeyFromJSVal(keyVal, *aCx, aValue);
   if (NS_FAILED(rv)) {
     // If the object doesn't have a value that we can use for our index then we
     // leave it unset.
@@ -835,9 +839,19 @@ IDBObjectStore::GetStructuredCloneDataFromStatement(
   nsresult rv = aStatement->GetSharedBlob(aIndex, &dataLength, &data);
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
-  return aBuffer.copy(reinterpret_cast<const uint64_t *>(data), dataLength) ?
-         NS_OK :
-         NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
+  JSContext* cx;
+  rv = nsContentUtils::ThreadJSContextStack()->GetSafeJSContext(&cx);
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+
+  JSAutoRequest ar(cx);
+
+  uint64* newData = static_cast<uint64*>(JS_malloc(cx, dataLength));
+  NS_ENSURE_TRUE(newData, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+
+  memcpy(newData, data, dataLength);
+  aBuffer.adopt(cx, newData, dataLength);
+
+  return NS_OK;
 }
 
 // static
@@ -845,7 +859,18 @@ void
 IDBObjectStore::ClearStructuredCloneBuffer(JSAutoStructuredCloneBuffer& aBuffer)
 {
   if (aBuffer.data()) {
-    aBuffer.clear();
+    JSContext* cx;
+    if (NS_SUCCEEDED(nsContentUtils::ThreadJSContextStack()->
+                     GetSafeJSContext(&cx))) {
+      JSAutoRequest ar(cx);
+      aBuffer.clear(cx);
+    }
+    else {
+      NS_WARNING("Couldn't get safe JSContext! Leaking data!");
+      uint64* data;
+      size_t length;
+      aBuffer.steal(&data, &length);
+    }
   }
 }
 
@@ -868,7 +893,7 @@ IDBObjectStore::DeserializeValue(JSContext* aCx,
 
   JSAutoRequest ar(aCx);
 
-  return aBuffer.read(aCx, aValue, aCallbacks, aClosure);
+  return aBuffer.read(aValue, aCx, aCallbacks, aClosure);
 }
 
 // static
@@ -1875,7 +1900,7 @@ AddHelper::GetSuccessResult(JSContext* aCx,
 {
   NS_ASSERTION(!mKey.IsUnset(), "Badness!");
 
-  mCloneBuffer.clear();
+  mCloneBuffer.clear(aCx);
 
   return IDBObjectStore::GetJSValFromKey(mKey, aCx, aVal);
 }
@@ -1930,7 +1955,7 @@ GetHelper::GetSuccessResult(JSContext* aCx,
 {
   bool result = IDBObjectStore::DeserializeValue(aCx, mCloneBuffer, aVal);
 
-  mCloneBuffer.clear();
+  mCloneBuffer.clear(aCx);
 
   NS_ENSURE_TRUE(result, NS_ERROR_FAILURE);
   return NS_OK;
@@ -2200,93 +2225,6 @@ OpenCursorHelper::GetSuccessResult(JSContext* aCx,
   return WrapNative(aCx, cursor, aVal);
 }
 
-class ThreadLocalJSRuntime
-{
-  JSRuntime* mRuntime;
-  JSContext* mContext;
-  JSObject* mGlobal;
-
-  static JSClass sGlobalClass;
-  static const unsigned sRuntimeHeapSize = 64 * 1024;  // should be enough for anyone
-
-  ThreadLocalJSRuntime()
-  : mRuntime(NULL), mContext(NULL), mGlobal(NULL)
-  {
-      MOZ_COUNT_CTOR(ThreadLocalJSRuntime);
-  }
-
-  nsresult Init()
-  {
-    mRuntime = JS_NewRuntime(sRuntimeHeapSize);
-    NS_ENSURE_TRUE(mRuntime, NS_ERROR_OUT_OF_MEMORY);
-
-    mContext = JS_NewContext(mRuntime, 0);
-    NS_ENSURE_TRUE(mContext, NS_ERROR_OUT_OF_MEMORY);
-
-    JSAutoRequest ar(mContext);
-
-    mGlobal = JS_NewCompartmentAndGlobalObject(mContext, &sGlobalClass, NULL);
-    NS_ENSURE_TRUE(mGlobal, NS_ERROR_OUT_OF_MEMORY);
-
-    JS_SetGlobalObject(mContext, mGlobal);
-    return NS_OK;
-  }
-
- public:
-  static ThreadLocalJSRuntime *Create()
-  {
-    ThreadLocalJSRuntime *entry = new ThreadLocalJSRuntime();
-    NS_ENSURE_TRUE(entry, nsnull);
-
-    if (NS_FAILED(entry->Init())) {
-      delete entry;
-      return nsnull;
-    }
-
-    return entry;
-  }
-
-  JSContext *Context() const
-  {
-    return mContext;
-  }
-
-  ~ThreadLocalJSRuntime()
-  {
-    MOZ_COUNT_DTOR(ThreadLocalJSRuntime);
-
-    if (mContext) {
-      JS_DestroyContext(mContext);
-    }
-
-    if (mRuntime) {
-      JS_DestroyRuntime(mRuntime);
-    }
-  }
-};
-
-JSClass ThreadLocalJSRuntime::sGlobalClass = {
-  "IndexedDBTransactionThreadGlobal",
-  JSCLASS_GLOBAL_FLAGS,
-  JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
-  JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, JS_FinalizeStub
-};
-
-CreateIndexHelper::CreateIndexHelper(IDBTransaction* aTransaction,
-                                     IDBIndex* aIndex)
-  : AsyncConnectionHelper(aTransaction, nsnull), mIndex(aIndex)
-{
-  if (sTLSIndex == BAD_TLS_INDEX) {
-    PR_NewThreadPrivateIndex(&sTLSIndex, DestroyTLSEntry);
-  }
-}
-
-void
-CreateIndexHelper::DestroyTLSEntry(void* aPtr)
-{
-  delete reinterpret_cast<ThreadLocalJSRuntime *>(aPtr);
-}
-
 nsresult
 CreateIndexHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 {
@@ -2417,22 +2355,11 @@ CreateIndexHelper::InsertDataFromObjectStore(mozIStorageConnection* aConnection)
     rv = stmt->GetSharedBlob(1, &dataLength, &data);
     NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
-    NS_ENSURE_TRUE(sTLSIndex != BAD_TLS_INDEX, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-    ThreadLocalJSRuntime* tlsEntry =
-      reinterpret_cast<ThreadLocalJSRuntime*>(PR_GetThreadPrivate(sTLSIndex));
-
-    if (!tlsEntry) {
-      tlsEntry = ThreadLocalJSRuntime::Create();
-      NS_ENSURE_TRUE(tlsEntry, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-      PR_SetThreadPrivate(sTLSIndex, tlsEntry);
-    }
-
     Key key;
+    JSContext* cx = nsnull;
     rv = IDBObjectStore::GetKeyPathValueFromStructuredData(data, dataLength,
                                                            mIndex->KeyPath(),
-                                                           tlsEntry->Context(), key);
+                                                           &cx, key);
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (key.IsUnset()) {
@@ -2603,7 +2530,7 @@ GetAllHelper::GetSuccessResult(JSContext* aCx,
   nsresult rv = ConvertCloneBuffersToArray(aCx, mCloneBuffers, aVal);
 
   for (PRUint32 index = 0; index < mCloneBuffers.Length(); index++) {
-    mCloneBuffers[index].clear();
+    mCloneBuffers[index].clear(aCx);
   }
 
   NS_ENSURE_SUCCESS(rv, rv);

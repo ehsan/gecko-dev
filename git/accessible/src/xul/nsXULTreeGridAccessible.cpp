@@ -46,9 +46,6 @@
 #include "States.h"
 
 #include "nsITreeSelection.h"
-#include "nsComponentManagerUtils.h"
-
-using namespace mozilla::a11y;
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeGridAccessible
@@ -851,10 +848,13 @@ NS_IMPL_RELEASE_INHERITED(nsXULTreeGridCellAccessible, nsLeafAccessible)
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeGridCellAccessible: nsIAccessible implementation
 
-nsAccessible*
-nsXULTreeGridCellAccessible::FocusedChild()
+NS_IMETHODIMP
+nsXULTreeGridCellAccessible::GetFocusedChild(nsIAccessible **aFocusedChild) 
 {
-  return nsnull;
+  NS_ENSURE_ARG_POINTER(aFocusedChild);
+  *aFocusedChild = nsnull;
+
+  return IsDefunct() ? NS_ERROR_FAILURE : NS_OK;
 }
 
 NS_IMETHODIMP
@@ -920,20 +920,28 @@ nsXULTreeGridCellAccessible::GetBounds(PRInt32 *aX, PRInt32 *aY,
   return NS_OK;
 }
 
-PRUint8
-nsXULTreeGridCellAccessible::ActionCount()
+NS_IMETHODIMP
+nsXULTreeGridCellAccessible::GetNumActions(PRUint8 *aActionsCount)
 {
+  NS_ENSURE_ARG_POINTER(aActionsCount);
+  *aActionsCount = 0;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   PRBool isCycler = PR_FALSE;
   mColumn->GetCycler(&isCycler);
-  if (isCycler)
-    return 1;
+  if (isCycler) {
+    *aActionsCount = 1;
+    return NS_OK;
+  }
 
   PRInt16 type;
   mColumn->GetType(&type);
   if (type == nsITreeColumn::TYPE_CHECKBOX && IsEditable())
-    return 1;
+    *aActionsCount = 1;
 
-  return 0;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -1008,10 +1016,7 @@ nsXULTreeGridCellAccessible::GetTable(nsIAccessibleTable **aTable)
   if (IsDefunct())
     return NS_OK;
 
-  nsAccessible* grandParent = mParent->Parent();
-  if (grandParent)
-    CallQueryInterface(grandParent, aTable);
-
+  CallQueryInterface(mParent->GetParent(), aTable);
   return NS_OK;
 }
 
@@ -1166,12 +1171,9 @@ nsXULTreeGridCellAccessible::GetAttributesInternal(nsIPersistentProperties *aAtt
     return NS_ERROR_FAILURE;
 
   // "table-cell-index" attribute
-  nsAccessible* grandParent = mParent->Parent();
-  if (!grandParent)
-    return NS_OK;
-
-  nsCOMPtr<nsIAccessibleTable> tableAccessible =
-    do_QueryInterface(static_cast<nsIAccessible*>(grandParent));
+  nsCOMPtr<nsIAccessible> accessible;
+  mParent->GetParent(getter_AddRefs(accessible));
+  nsCOMPtr<nsIAccessibleTable> tableAccessible = do_QueryInterface(accessible);
 
   // XXX - temp fix for crash bug 516047
   if (!tableAccessible)
@@ -1306,7 +1308,7 @@ nsXULTreeGridCellAccessible::GetSiblingAtOffset(PRInt32 aOffset,
   if (!columnAtOffset)
     return nsnull;
 
-  nsRefPtr<nsXULTreeItemAccessibleBase> rowAcc = do_QueryObject(Parent());
+  nsRefPtr<nsXULTreeItemAccessibleBase> rowAcc = do_QueryObject(GetParent());
   return rowAcc->GetCellAccessible(columnAtOffset);
 }
 

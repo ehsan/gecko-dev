@@ -91,10 +91,15 @@ js_InitFunctionAndObjectClasses(JSContext *cx, JSObject *obj)
     if (!obj_proto)
         return NULL;
 
-    /* Function.prototype and the global object delegate to Object.prototype. */
-    fun_proto->setProto(obj_proto);
-    if (!obj->getProto())
-        obj->setProto(obj_proto);
+    /*
+     * Function.prototype and the global object delegate to Object.prototype.
+     * Don't update the prototype if the __proto__ of either object was cleared
+     * after the objects started getting used.
+     */
+    if (!fun_proto->getProto() && fun_proto->getType() != types::GetTypeEmpty(cx))
+        fun_proto->getType()->splicePrototype(cx, obj_proto);
+    if (!obj->getProto() && obj->getType() != types::GetTypeEmpty(cx))
+        obj->getType()->splicePrototype(cx, obj_proto);
 
     return fun_proto;
 }
@@ -110,6 +115,14 @@ GlobalObject::create(JSContext *cx, Class *clasp)
     if (!obj)
         return NULL;
 
+    types::TypeObject *type = cx->compartment->types.newTypeObject(cx, NULL, "Global", "",
+                                                                   JSProto_Object, NULL);
+    if (!type || !obj->setTypeAndUniqueShape(cx, type))
+        return NULL;
+    if (clasp->ext.equality)
+        MarkTypeObjectFlags(cx, type, types::OBJECT_FLAG_SPECIAL_EQUALITY);
+    type->singleton = obj;
+
     GlobalObject *globalObj = obj->asGlobal();
     globalObj->makeVarObj();
     globalObj->syncSpecialEquality();
@@ -120,6 +133,7 @@ GlobalObject::create(JSContext *cx, Class *clasp)
         return NULL;
     globalObj->setSlot(REGEXP_STATICS, ObjectValue(*res));
     globalObj->setFlags(0);
+
     return globalObj;
 }
 
@@ -196,142 +210,10 @@ GlobalObject::isRuntimeCodeGenEnabled(JSContext *cx)
          * If there are callbacks, make sure that the CSP callback is installed
          * and that it permits runtime code generation, then cache the result.
          */
-        v = BooleanValue((!callbacks || !callbacks->contentSecurityPolicyAllows) ||
-                         callbacks->contentSecurityPolicyAllows(cx));
+        v.setBoolean((!callbacks || !callbacks->contentSecurityPolicyAllows) ||
+                     callbacks->contentSecurityPolicyAllows(cx));
     }
     return !v.isFalse();
-}
-
-JSFunction *
-GlobalObject::createConstructor(JSContext *cx, Native ctor, Class *clasp, JSAtom *name,
-                                uintN length)
-{
-    JSFunction *fun = js_NewFunction(cx, NULL, ctor, length, JSFUN_CONSTRUCTOR, this, name);
-    if (!fun)
-        return NULL;
-
-    /*
-     * Remember the class this function is a constructor for so that we know to
-     * create an object of this class when we call the constructor.
-     */
-    fun->setConstructorClass(clasp);
-    return fun;
-}
-
-static JSObject *
-CreateBlankProto(JSContext *cx, Class *clasp, JSObject &proto, GlobalObject &global)
-{
-    JS_ASSERT(clasp != &js_ObjectClass);
-    JS_ASSERT(clasp != &js_FunctionClass);
-
-    JSObject *blankProto = NewNonFunction<WithProto::Given>(cx, clasp, &proto, &global);
-    if (!blankProto)
-        return NULL;
-
-    /*
-     * Supply the created prototype object with an empty shape for the benefit
-     * of callers of JSObject::initSharingEmptyShape.
-     */
-    if (!blankProto->getEmptyShape(cx, clasp, gc::FINALIZE_OBJECT0))
-        return NULL;
-
-    return blankProto;
-}
-
-JSObject *
-GlobalObject::createBlankPrototype(JSContext *cx, Class *clasp)
-{
-    JSObject *objectProto;
-    if (!js_GetClassPrototype(cx, this, JSProto_Object, &objectProto))
-        return NULL;
-
-    return CreateBlankProto(cx, clasp, *objectProto, *this);
-}
-
-JSObject *
-GlobalObject::createBlankPrototypeInheriting(JSContext *cx, Class *clasp, JSObject &proto)
-{
-    return CreateBlankProto(cx, clasp, proto, *this);
-}
-
-bool
-LinkConstructorAndPrototype(JSContext *cx, JSObject *ctor, JSObject *proto)
-{
-    return ctor->defineProperty(cx, ATOM_TO_JSID(cx->runtime->atomState.classPrototypeAtom),
-                                ObjectValue(*proto), PropertyStub, StrictPropertyStub,
-                                JSPROP_PERMANENT | JSPROP_READONLY) &&
-           proto->defineProperty(cx, ATOM_TO_JSID(cx->runtime->atomState.constructorAtom),
-                                 ObjectValue(*ctor), PropertyStub, StrictPropertyStub, 0);
-}
-
-bool
-DefinePropertiesAndBrand(JSContext *cx, JSObject *obj, JSPropertySpec *ps, JSFunctionSpec *fs)
-{
-    if ((ps && !JS_DefineProperties(cx, obj, ps)) || (fs && !JS_DefineFunctions(cx, obj, fs)))
-        return false;
-    obj->brand(cx);
-    return true;
-}
-
-void
-GlobalDebuggees_finalize(JSContext *cx, JSObject *obj)
-{
-    cx->delete_((GlobalObject::DebuggerVector *) obj->getPrivate());
-}
-
-static Class
-GlobalDebuggees_class = {
-    "GlobalDebuggee", JSCLASS_HAS_PRIVATE,
-    PropertyStub, PropertyStub, PropertyStub, StrictPropertyStub,
-    EnumerateStub, ResolveStub, ConvertStub, GlobalDebuggees_finalize
-};
-
-GlobalObject::DebuggerVector *
-GlobalObject::getDebuggers()
-{
-    Value debuggers = getReservedSlot(DEBUGGERS);
-    if (debuggers.isUndefined())
-        return NULL;
-    JS_ASSERT(debuggers.toObject().clasp == &GlobalDebuggees_class);
-    return (DebuggerVector *) debuggers.toObject().getPrivate();
-}
-
-GlobalObject::DebuggerVector *
-GlobalObject::getOrCreateDebuggers(JSContext *cx)
-{
-    assertSameCompartment(cx, this);
-    DebuggerVector *debuggers = getDebuggers();
-    if (debuggers)
-        return debuggers;
-
-    JSObject *obj = NewNonFunction<WithProto::Given>(cx, &GlobalDebuggees_class, NULL, this);
-    if (!obj)
-        return NULL;
-    debuggers = cx->new_<DebuggerVector>();
-    if (!debuggers)
-        return NULL;
-    obj->setPrivate(debuggers);
-    setReservedSlot(DEBUGGERS, ObjectValue(*obj));
-    return debuggers;
-}
-
-bool
-GlobalObject::addDebugger(JSContext *cx, Debugger *dbg)
-{
-    DebuggerVector *debuggers = getOrCreateDebuggers(cx);
-    if (!debuggers)
-        return false;
-#ifdef DEBUG
-    for (Debugger **p = debuggers->begin(); p != debuggers->end(); p++)
-        JS_ASSERT(*p != dbg);
-#endif
-    if (debuggers->empty() && !compartment()->addDebuggee(cx, this))
-        return false;
-    if (!debuggers->append(dbg)) {
-        compartment()->removeDebuggee(cx, this);
-        return false;
-    }
-    return true;
 }
 
 } // namespace js

@@ -327,7 +327,6 @@ gfxGDIFont::Initialize()
         }
     }
 
-    mAdjustedSize = ROUND(mAdjustedSize);
     FillLogFont(logFont, mAdjustedSize);
     mFont = ::CreateFontIndirectW(&logFont);
 

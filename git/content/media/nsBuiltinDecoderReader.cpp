@@ -50,6 +50,8 @@ using namespace mozilla;
 using mozilla::layers::ImageContainer;
 using mozilla::layers::PlanarYCbCrImage;
 
+using mozilla::layers::PlanarYCbCrImage;
+
 // Verify these values are sane. Once we've checked the frame sizes, we then
 // can do less integer overflow checking.
 PR_STATIC_ASSERT(MAX_VIDEO_WIDTH < PlanarYCbCrImage::MAX_DIMENSION);
@@ -188,7 +190,8 @@ VideoData* VideoData::Create(nsVideoInfo& aInfo,
 }
 
 nsBuiltinDecoderReader::nsBuiltinDecoderReader(nsBuiltinDecoder* aDecoder)
-  : mDecoder(aDecoder)
+  : mReentrantMonitor("media.decoderreader"),
+    mDecoder(aDecoder)
 {
   MOZ_COUNT_CTOR(nsBuiltinDecoderReader);
 }
@@ -211,8 +214,7 @@ nsresult nsBuiltinDecoderReader::ResetDecode()
 
 VideoData* nsBuiltinDecoderReader::FindStartTime(PRInt64& aOutStartTime)
 {
-  NS_ASSERTION(mDecoder->OnStateMachineThread() || mDecoder->OnDecodeThread(),
-               "Should be on state machine or decode thread.");
+  NS_ASSERTION(mDecoder->OnStateMachineThread(), "Should be on state machine thread.");
 
   // Extract the start times of the bitstreams in order to calculate
   // the duration.
@@ -228,10 +230,10 @@ VideoData* nsBuiltinDecoderReader::FindStartTime(PRInt64& aOutStartTime)
     }
   }
   if (HasAudio()) {
-    AudioData* audioData = DecodeToFirstData(&nsBuiltinDecoderReader::DecodeAudioData,
+    SoundData* soundData = DecodeToFirstData(&nsBuiltinDecoderReader::DecodeAudioData,
                                              mAudioQueue);
-    if (audioData) {
-      audioStartTime = audioData->mTime;
+    if (soundData) {
+      audioStartTime = soundData->mTime;
     }
   }
 
@@ -272,6 +274,7 @@ nsresult nsBuiltinDecoderReader::DecodeToTarget(PRInt64 aTarget)
         PRBool skip = PR_FALSE;
         eof = !DecodeVideoFrame(skip, 0);
         {
+          ReentrantMonitorAutoExit exitReaderMon(mReentrantMonitor);
           ReentrantMonitorAutoEnter decoderMon(mDecoder->GetReentrantMonitor());
           if (mDecoder->GetDecodeState() == nsBuiltinDecoderStateMachine::DECODER_STATE_SHUTDOWN) {
             return NS_ERROR_FAILURE;
@@ -296,6 +299,7 @@ nsresult nsBuiltinDecoderReader::DecodeToTarget(PRInt64 aTarget)
       }
     }
     {
+      ReentrantMonitorAutoExit exitReaderMon(mReentrantMonitor);
       ReentrantMonitorAutoEnter decoderMon(mDecoder->GetReentrantMonitor());
       if (mDecoder->GetDecodeState() == nsBuiltinDecoderStateMachine::DECODER_STATE_SHUTDOWN) {
         return NS_ERROR_FAILURE;
@@ -306,79 +310,26 @@ nsresult nsBuiltinDecoderReader::DecodeToTarget(PRInt64 aTarget)
 
   if (HasAudio()) {
     // Decode audio forward to the seek target.
-    PRInt64 targetSample = 0;
-    if (!UsecsToSamples(aTarget, mInfo.mAudioRate, targetSample)) {
-      return NS_ERROR_FAILURE;
-    }
     PRBool eof = PR_FALSE;
     while (HasAudio() && !eof) {
       while (!eof && mAudioQueue.GetSize() == 0) {
         eof = !DecodeAudioData();
         {
+          ReentrantMonitorAutoExit exitReaderMon(mReentrantMonitor);
           ReentrantMonitorAutoEnter decoderMon(mDecoder->GetReentrantMonitor());
           if (mDecoder->GetDecodeState() == nsBuiltinDecoderStateMachine::DECODER_STATE_SHUTDOWN) {
             return NS_ERROR_FAILURE;
           }
         }
       }
-      const AudioData* audio = mAudioQueue.PeekFront();
-      if (!audio)
-        break;
-      PRInt64 startSample = 0;
-      if (!UsecsToSamples(audio->mTime, mInfo.mAudioRate, startSample)) {
-        return NS_ERROR_FAILURE;
-      }
-      if (startSample + audio->mSamples <= targetSample) {
-        // Our seek target lies after the samples in this AudioData. Pop it
-        // off the queue, and keep decoding forwards.
-        delete mAudioQueue.PopFront();
+      nsAutoPtr<SoundData> audio(mAudioQueue.PeekFront());
+      if (audio && audio->mTime + audio->mDuration <= aTarget) {
+        mAudioQueue.PopFront();
         audio = nsnull;
-        continue;
-      }
-      if (startSample > targetSample) {
-        // The seek target doesn't lie in the audio block just after the last
-        // audio samples we've seen which were before the seek target. This
-        // could have been the first audio data we've seen after seek, i.e. the
-        // seek terminated after the seek target in the audio stream. Just
-        // abort the audio decode-to-target, the state machine will play
-        // silence to cover the gap. Typically this happens in poorly muxed
-        // files.
-        NS_WARNING("Audio not synced after seek, maybe a poorly muxed file?");
+      } else {
+        audio.forget();
         break;
       }
-
-      // The seek target lies somewhere in this AudioData's samples, strip off
-      // any samples which lie before the seek target, so we'll begin playback
-      // exactly at the seek target.
-      NS_ASSERTION(targetSample >= startSample, "Target must at or be after data start.");
-      NS_ASSERTION(targetSample < startSample + audio->mSamples, "Data must end after target.");
-
-      PRInt64 samplesToPrune = targetSample - startSample;
-      if (samplesToPrune > audio->mSamples) {
-        // We've messed up somehow. Don't try to trim samples, the |samples|
-        // variable below will overflow.
-        NS_WARNING("Can't prune more samples that we have!");
-        break;
-      }
-      PRUint32 samples = audio->mSamples - static_cast<PRUint32>(samplesToPrune);
-      PRUint32 channels = audio->mChannels;
-      nsAutoArrayPtr<AudioDataValue> audioData(new AudioDataValue[samples * channels]);
-      memcpy(audioData.get(),
-             audio->mAudioData.get() + (samplesToPrune * channels),
-             samples * channels * sizeof(AudioDataValue));
-      PRInt64 duration;
-      if (!SamplesToUsecs(samples, mInfo.mAudioRate, duration)) {
-        return NS_ERROR_FAILURE;
-      }
-      nsAutoPtr<AudioData> data(new AudioData(audio->mOffset,
-                                              aTarget,
-                                              duration,
-                                              samples,
-                                              audioData.forget(),
-                                              channels));
-      delete mAudioQueue.PopFront();
-      mAudioQueue.PushFront(data.forget());
-      break;
     }
   }
   return NS_OK;

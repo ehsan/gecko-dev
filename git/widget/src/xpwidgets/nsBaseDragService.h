@@ -44,7 +44,6 @@
 #include "nsISupportsArray.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMDataTransfer.h"
-#include "nsIContent.h"
 #include "nsCOMPtr.h"
 #include "nsPoint.h"
 
@@ -130,11 +129,6 @@ protected:
   ConvertToUnscaledDevPixels(nsPresContext* aPresContext,
                              PRInt32* aScreenX, PRInt32* aScreenY);
 
-  /**
-   * If the drag image is a popup, open the popup when the drag begins.
-   */
-  void OpenDragPopup();
-
   PRPackedBool mCanDrop;
   PRPackedBool mOnlyChromeDrop;
   PRPackedBool mDoingDrag;
@@ -159,10 +153,6 @@ protected:
   // set if a selection is being dragged
   nsCOMPtr<nsISelection> mSelection;
 
-  // set if the image in mImage is a popup. If this case, the popup will be opened
-  // and moved instead of using a drag image.
-  nsCOMPtr<nsIContent> mDragPopup;
-
   // the screen position where drag gesture occurred, used for positioning the
   // drag image when no image is specified. If a value is -1, no event was
   // supplied so the screen position is not known
@@ -174,7 +164,7 @@ protected:
 
   PRUint32 mSuppressLevel;
 
-  // The input source of the drag event. Possible values are from nsIDOMMouseEvent.
+  // The input source of the drag event. Possible values are from nsIDOMNSMouseEvent.
   PRUint16 mInputSource;
 };
 

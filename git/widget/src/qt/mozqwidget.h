@@ -296,14 +296,15 @@ private slots:
 
     void VisibleScreenAreaChanged(const QRect& rect) {
         if (mTopLevelWidget) {
-            QRegion region(scene()->views()[0]->rect());
-            region -= rect;
-            QRectF bounds = mapRectFromScene(region.boundingRect());
+            QRect r = mTopLevelWidget->geometry().toRect();
+            if (rect.height()) {
+                r.setHeight(rect.height());
+            }
 
             nsCOMPtr<nsIObserverService> observerService = mozilla::services::GetObserverService();
             if (observerService) {
                 QString rect = QString("{\"left\": %1, \"top\": %2, \"right\": %3, \"bottom\": %4}")
-                                       .arg(bounds.x()).arg(bounds.y()).arg(bounds.width()).arg(bounds.height());
+                                       .arg(r.x()).arg(r.y()).arg(r.width()).arg(r.height());
                 observerService->NotifyObservers(nsnull, "softkb-change", rect.utf16());
             }
         }
@@ -321,7 +322,7 @@ private:
 */
 class MozMGraphicsView : public MWindow
 {
-    Q_OBJECT
+
 public:
     MozMGraphicsView(MozQWidget* aTopLevel, QWidget* aParent = nsnull)
      : MWindow(aParent)
@@ -330,22 +331,6 @@ public:
     {
         MozMSceneWindow* page = new MozMSceneWindow(aTopLevel);
         page->appear(this);
-        QObject::connect(this, SIGNAL(switcherEntered()), this, SLOT(onSwitcherEntered()));
-        QObject::connect(this, SIGNAL(switcherExited()), this, SLOT(onSwitcherExited()));
-    }
-
-public Q_SLOTS:
-    void onSwitcherEntered() {
-        nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
-        if (!os)
-            return;
-        os->NotifyObservers(nsnull, "application-background", nsnull);
-    }
-    void onSwitcherExited() {
-        nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
-        if (!os)
-            return;
-        os->NotifyObservers(nsnull, "application-foreground", nsnull);
     }
 
 protected:

@@ -51,7 +51,6 @@
 #include "nsMappedAttributes.h"
 #include "nsUnicharUtils.h"
 #include "nsAutoPtr.h"
-#include "nsContentUtils.h" // nsAutoScriptBlocker
 
 /*
 CACHE_POINTER_SHIFT indicates how many steps to downshift the |this| pointer.
@@ -575,13 +574,7 @@ nsAttrAndChildArray::SetAndTakeMappedAttr(nsIAtom* aLocalName,
                                           nsHTMLStyleSheet* aSheet)
 {
   nsRefPtr<nsMappedAttributes> mapped;
-
-  PRBool willAdd = PR_TRUE;
-  if (mImpl && mImpl->mMappedAttrs) {
-    willAdd = mImpl->mMappedAttrs->GetAttr(aLocalName) == nsnull;
-  }
-
-  nsresult rv = GetModifiableMapped(aContent, aSheet, willAdd,
+  nsresult rv = GetModifiableMapped(aContent, aSheet, PR_TRUE,
                                     getter_AddRefs(mapped));
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -854,27 +847,3 @@ nsAttrAndChildArray::SetChildAtPos(void** aPos, nsIContent* aChild,
     next->mPreviousSibling = aChild;
   }
 }
-
-PRInt64
-nsAttrAndChildArray::SizeOf() const
-{
-  PRInt64 size = sizeof(*this);
-
-  if (mImpl) {
-    // Don't add the size taken by *mMappedAttrs because it's shared.
-
-    // mBuffer cointains InternalAttr and nsIContent* (even if it's void**)
-    // so, we just have to compute the size of *mBuffer given that this object
-    // doesn't own the children list.
-    size += mImpl->mBufferSize * sizeof(*(mImpl->mBuffer)) + NS_IMPL_EXTRA_SIZE;
-
-    PRUint32 slotCount = AttrSlotCount();
-    for (PRUint32 i = 0; i < slotCount && AttrSlotIsTaken(i); ++i) {
-      nsAttrValue* value = &ATTRS(mImpl)[i].mValue;
-      size += value->SizeOf() - sizeof(*value);
-    }
-  }
-
-  return size;
-}
-

@@ -36,7 +36,6 @@
  * ***** END LICENSE BLOCK ***** */
 #include "nsIDOMHTMLTableCellElement.h"
 #include "nsIDOMHTMLTableRowElement.h"
-#include "nsHTMLTableElement.h"
 #include "nsIDOMHTMLCollection.h"
 #include "nsIDOMEventTarget.h"
 #include "nsMappedAttributes.h"
@@ -45,7 +44,6 @@
 #include "nsStyleConsts.h"
 #include "nsPresContext.h"
 #include "nsRuleData.h"
-#include "nsRuleWalker.h"
 #include "nsIDocument.h"
 #include "celldata.h"
 
@@ -205,22 +203,26 @@ nsHTMLTableCellElement::WalkContentStyleRules(nsRuleWalker* aRuleWalker)
   nsresult rv = nsGenericHTMLElement::WalkContentStyleRules(aRuleWalker);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsIContent* node = GetTable();
-  if (node && node->IsHTML(nsGkAtoms::table)) {
-    nsHTMLTableElement* table = static_cast<nsHTMLTableElement*>(node);
-    nsMappedAttributes* tableInheritedAttributes =
-      table->GetAttributesMappedForCell();
-    if (tableInheritedAttributes)
-      aRuleWalker->Forward(tableInheritedAttributes);
+  // Add style information from the mapped attributes of the table
+  // element.  This depends on the strange behavior of the
+  // |MapAttributesIntoRule| in nsHTMLTableElement.cpp, which is
+  // technically incorrect since it's violating the nsIStyleRule
+  // contract.  However, things are OK (except for the incorrect
+  // dependence on display type rather than tag) since tables and cells
+  // match different, less specific, rules.
+  nsIContent* table = GetTable();
+  if (table) {
+    rv = table->WalkContentStyleRules(aRuleWalker);
   }
-  return NS_OK;
+
+  return rv;
 }
 
 
 NS_IMPL_STRING_ATTR(nsHTMLTableCellElement, Abbr, abbr)
 NS_IMPL_STRING_ATTR(nsHTMLTableCellElement, Axis, axis)
 NS_IMPL_STRING_ATTR(nsHTMLTableCellElement, BgColor, bgcolor)
-NS_IMPL_STRING_ATTR(nsHTMLTableCellElement, Ch, _char)
+NS_IMPL_STRING_ATTR_DEFAULT_VALUE(nsHTMLTableCellElement, Ch, _char, ".")
 NS_IMPL_STRING_ATTR(nsHTMLTableCellElement, ChOff, charoff)
 NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsHTMLTableCellElement, ColSpan, colspan, 1)
 NS_IMPL_STRING_ATTR(nsHTMLTableCellElement, Headers, headers)
@@ -228,7 +230,7 @@ NS_IMPL_STRING_ATTR(nsHTMLTableCellElement, Height, height)
 NS_IMPL_BOOL_ATTR(nsHTMLTableCellElement, NoWrap, nowrap)
 NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsHTMLTableCellElement, RowSpan, rowspan, 1)
 NS_IMPL_STRING_ATTR(nsHTMLTableCellElement, Scope, scope)
-NS_IMPL_STRING_ATTR(nsHTMLTableCellElement, VAlign, valign)
+NS_IMPL_STRING_ATTR_DEFAULT_VALUE(nsHTMLTableCellElement, VAlign, valign, "middle")
 NS_IMPL_STRING_ATTR(nsHTMLTableCellElement, Width, width)
 
 

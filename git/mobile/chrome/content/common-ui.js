@@ -174,7 +174,6 @@ var PageActions = {
 #endif
     this.register("pageaction-share", this.updateShare, this);
     this.register("pageaction-search", BrowserSearch.updatePageSearchEngines, BrowserSearch);
-    this.register("pageaction-webapps-install", WebappsUI.updateWebappsInstall, WebappsUI);
   },
 
   handleEvent: function handleEvent(aEvent) {
@@ -437,17 +436,7 @@ var NewTabPopup = {
     setTimeout((function() {
       let boxRect = this.box.getBoundingClientRect();
       this.box.top = tabRect.top + (tabRect.height / 2) - (boxRect.height / 2);
-
-      let tabs = document.getElementById("tabs");
-
-      // We don't use anchorTo() here because the tab
-      // being anchored to might be overflowing the tabs
-      // scrollbox which confuses the dynamic arrow direction
-      // calculation (see bug 662520).
-      if (tabs.getBoundingClientRect().left < 0)
-        this.box.pointLeftAt(aTab);
-      else
-        this.box.pointRightAt(aTab);
+      this.box.anchorTo(aTab);
     }).bind(this), 0);
 
     if (this._timeout)
@@ -1263,7 +1252,7 @@ var SelectionHelper = {
     return this._end = document.getElementById("selectionhandle-end");
   },
 
-  showPopup: function sh_showPopup(aMessage) {
+  showPopup: function ch_showPopup(aMessage) {
     if (!this.enabled || aMessage.json.types.indexOf("content-text") == -1)
       return false;
 
@@ -1284,16 +1273,21 @@ var SelectionHelper = {
       dragMove: function dragMove(dx, dy, scroller) { return false; }
     };
 
+    this._start.addEventListener("TapDown", this, true);
     this._start.addEventListener("TapUp", this, true);
+
+    this._end.addEventListener("TapDown", this, true);
     this._end.addEventListener("TapUp", this, true);
 
     messageManager.addMessageListener("Browser:SelectionRange", this);
     messageManager.addMessageListener("Browser:SelectionCopied", this);
 
+    Services.prefs.setBoolPref("accessibility.browsewithcaret", true);
     this.popupState.target.messageManager.sendAsyncMessage("Browser:SelectionStart", { x: this.popupState.x, y: this.popupState.y });
 
+    BrowserUI.pushPopup(this, [this._start, this._end]);
+
     // Hide the selection handles
-    window.addEventListener("TapDown", this, true);
     window.addEventListener("resize", this, true);
     window.addEventListener("keypress", this, true);
     Elements.browsers.addEventListener("URLChanged", this, true);
@@ -1307,80 +1301,47 @@ var SelectionHelper = {
     return true;
   },
 
-  hide: function sh_hide(aEvent) {
+  hide: function ch_hide() {
     if (this._start.hidden)
       return;
 
-    let pos = this.popupState.target.transformClientToBrowser(aEvent.clientX || 0, aEvent.clientY || 0);
-    let json = {
-      x: pos.x,
-      y: pos.y
-    };
-
-    try {
-      this.popupState.target.messageManager.sendAsyncMessage("Browser:SelectionEnd", json);
-    } catch (e) {
-      Cu.reportError(e);
-    }
-
+    this.popupState.target.messageManager.sendAsyncMessage("Browser:SelectionEnd", {});
     this.popupState = null;
+    Services.prefs.setBoolPref("accessibility.browsewithcaret", false);
 
     this._start.hidden = true;
     this._end.hidden = true;
 
+    this._start.removeEventListener("TapDown", this, true);
     this._start.removeEventListener("TapUp", this, true);
+
+    this._end.removeEventListener("TapDown", this, true);
     this._end.removeEventListener("TapUp", this, true);
 
     messageManager.removeMessageListener("Browser:SelectionRange", this);
 
-    window.removeEventListener("TapDown", this, true);
     window.removeEventListener("resize", this, true);
     window.removeEventListener("keypress", this, true);
     Elements.browsers.removeEventListener("URLChanged", this, true);
     Elements.browsers.removeEventListener("SizeChanged", this, true);
     Elements.browsers.removeEventListener("ZoomChanged", this, true);
+
+    BrowserUI.popPopup(this);
   },
 
   handleEvent: function handleEvent(aEvent) {
     switch (aEvent.type) {
-      case "PanBegin":
-        window.removeEventListener("PanBegin", this, true);
-        window.removeEventListener("TapUp", this, true);
-        window.addEventListener("PanFinished", this, true);
-        this._start.hidden = true;
-        this._end.hidden = true;
-        break;
-      case "PanFinished":
-        window.removeEventListener("PanFinished", this, true);
-        try {
-          this.popupState.target.messageManager.sendAsyncMessage("Browser:SelectionMeasure", {});
-        } catch (e) {
-          Cu.reportError(e);
-        }
-        break
       case "TapDown":
-        if (aEvent.target == this._start || aEvent.target == this._end) {
-          this.target = aEvent.target;
-          this.deltaX = (aEvent.clientX - this.target.left);
-          this.deltaY = (aEvent.clientY - this.target.top);
-          window.addEventListener("TapMove", this, true);
-        } else {
-          window.addEventListener("PanBegin", this, true);
-          window.addEventListener("TapUp", this, true);
-          this.target = null;
-        }
+        this.target = aEvent.target;
+        this.deltaX = (aEvent.clientX - this.target.left);
+        this.deltaY = (aEvent.clientY - this.target.top);
+        window.addEventListener("TapMove", this, true);
         break;
       case "TapUp":
-        if (this.target) {
-          window.removeEventListener("TapMove", this, true);
-          this.target = null;
-          this.deltaX = -1;
-          this.deltaY = -1;
-        } else {
-          window.removeEventListener("PanBegin", this, true);
-          window.removeEventListener("TapUp", this, true);
-          this.hide(aEvent);
-        }
+        window.removeEventListener("TapMove", this, true);
+        this.target = null;
+        this.deltaX = -1;
+        this.deltaY = -1;
         break;
       case "TapMove":
         if (this.target) {
@@ -1398,19 +1359,11 @@ var SelectionHelper = {
         }
         break;
       case "resize":
+      case "keypress":
+      case "URLChanged":
       case "SizeChanged":
       case "ZoomChanged":
-      {
-        try {
-          this.popupState.target.messageManager.sendAsyncMessage("Browser:SelectionMeasure", {});
-        } catch (e) {
-          Cu.reportError(e);
-        }
-        break        
-      }
-      case "URLChanged":
-      case "keypress":
-        this.hide(aEvent);
+        this.hide();
         break;
     }
   },
@@ -1490,16 +1443,7 @@ var BadgeHandlers = {
       aPopup.registerBadgeHandler(handlers[i].url, handlers[i]);
   },
 
-  get _pk11DB() {
-    delete this._pk11DB;
-    return this._pk11DB = Cc["@mozilla.org/security/pk11tokendb;1"].getService(Ci.nsIPK11TokenDB);
-  },
-
   getLogin: function(aURL) {
-    let token = this._pk11DB.getInternalKeyToken();
-    if (!token.isLoggedIn())
-      return {username: "", password: ""};
-
     let lm = Cc["@mozilla.org/login-manager;1"].getService(Ci.nsILoginManager);
     let logins = lm.findLogins({}, aURL, aURL, null);
     let username = logins.length > 0 ? logins[0].username : "";
@@ -1584,10 +1528,11 @@ var FullScreenVideo = {
 
   createBrowser: function fsv_createBrowser() {
     let browser = this.browser = document.createElement("browser");
+    browser.className = "window-width window-height full-screen";
     browser.setAttribute("type", "content");
     browser.setAttribute("remote", "true");
     browser.setAttribute("src", "chrome://browser/content/fullscreen-video.xhtml");
-    document.getElementById("stack").appendChild(browser);
+    document.getElementById("main-window").appendChild(browser);
 
     let mm = browser.messageManager;
     mm.loadFrameScript("chrome://browser/content/fullscreen-video.js", true);
@@ -1712,141 +1657,4 @@ var CharsetMenu = {
     history.setCharsetForURI(browser.documentURI, aCharset);
   }
 
-};
-
-var WebappsUI = {
-  _dialog: null,
-  _manifest: null,
-  _perms: [],
-  
-  checkBox: function(aEvent) {
-    let elem = aEvent.originalTarget;
-    let perm = elem.getAttribute("perm");
-    if (this._manifest.capabilities && this._manifest.capabilities.indexOf(perm) != -1) {
-      if (elem.checked) {
-        elem.classList.remove("webapps-noperm");
-        elem.classList.add("webapps-perm");
-      } else {
-        elem.classList.remove("webapps-perm");
-        elem.classList.add("webapps-noperm");
-      }
-    }
-  },
-
-  show: function show(aManifest) {
-    if (!aManifest) {
-      // Try every way to get an icon
-      let browser = Browser.selectedBrowser;
-      let icon = browser.appIcon.href;
-      if (!icon)
-        icon = browser.mIconURL;
-      if (!icon) 
-        icon = gFaviconService.getFaviconImageForPage(browser.currentURI).spec;
-
-      // Create a simple manifest
-      aManifest = {
-        uri: browser.currentURI.spec,
-        name: browser.contentTitle,
-        icon: icon,
-        capabilities: [],
-      };
-    }
-
-    this._manifest = aManifest;
-    this._dialog = importDialog(window, "chrome://browser/content/webapps.xul", null);
-
-    if (aManifest.name)
-      document.getElementById("webapps-title").value = aManifest.name;
-    if (aManifest.icon)
-      document.getElementById("webapps-icon").src = aManifest.icon;  
-
-    let uri = Services.io.newURI(aManifest.uri, null, null);
-
-    let perms = [["offline", "offline-app"], ["geoloc", "geo"], ["notifications", "desktop-notification"]];
-    let self = this;
-    perms.forEach(function(tuple) {
-      let elem = document.getElementById("webapps-" + tuple[0] + "-checkbox");
-      let currentPerm = Services.perms.testExactPermission(uri, tuple[1]);
-      self._perms[tuple[1]] = (currentPerm == Ci.nsIPermissionManager.ALLOW_ACTION);
-      if ((aManifest.capabilities && (aManifest.capabilities.indexOf(tuple[1]) != -1)) || (currentPerm == Ci.nsIPermissionManager.ALLOW_ACTION))
-        elem.checked = true;
-      else
-        elem.checked = (currentPerm == Ci.nsIPermissionManager.ALLOW_ACTION);
-      elem.classList.remove("webapps-noperm");
-      elem.classList.add("webapps-perm");
-    });
-
-    BrowserUI.pushPopup(this, this._dialog);
-
-    // Force a modal dialog
-    this._dialog.waitForClose();
-  },
-
-  hide: function hide() {
-    this._dialog.close();
-    this._dialog = null;
-    BrowserUI.popPopup(this);
-  },
-
-  _updatePermission: function updatePermission(aId, aPerm) {
-    try {
-      let uri = Services.io.newURI(this._manifest.uri, null, null);
-      let currentState = document.getElementById(aId).checked;
-      if (currentState != this._perms[aPerm])
-        Services.perms.add(uri, aPerm, currentState ? Ci.nsIPermissionManager.ALLOW_ACTION : Ci.nsIPermissionManager.DENY_ACTION);
-    } catch(e) {
-      Cu.reportError(e);
-    }
-  },
-  
-  launch: function launch() {
-    let title = document.getElementById("webapps-title").value;
-    if (!title)
-      return;
-
-    this._updatePermission("webapps-offline-checkbox", "offline-app");
-    this._updatePermission("webapps-geoloc-checkbox", "geo");
-    this._updatePermission("webapps-notifications-checkbox", "desktop-notification");
-
-    this.hide();
-    this.install(this._manifest.uri, title, this._manifest.icon);
-  },
-  
-  updateWebappsInstall: function updateWebappsInstall(aNode) {
-    if (document.getElementById("main-window").hasAttribute("webapp"))
-      return false;
-
-    let browser = Browser.selectedBrowser;
-
-    let webapp = Cc["@mozilla.org/webapps/support;1"].getService(Ci.nsIWebappsSupport);
-    return !(webapp && webapp.isApplicationInstalled(browser.currentURI.spec));
-  },
-  
-  install: function(aURI, aTitle, aIcon) {
-    const kIconSize = 64;
-    
-    let canvas = document.createElementNS("http://www.w3.org/1999/xhtml", "canvas");
-    canvas.setAttribute("style", "display: none");
-
-    let self = this;
-    let image = new Image();
-    image.onload = function() {
-      canvas.width = canvas.height = kIconSize; // clears the canvas
-      let ctx = canvas.getContext("2d");
-      ctx.drawImage(image, 0, 0, kIconSize, kIconSize);
-      let data = canvas.toDataURL("image/png", "");
-      canvas = null;
-      try {
-        let webapp = Cc["@mozilla.org/webapps/support;1"].getService(Ci.nsIWebappsSupport);
-        webapp.installApplication(aTitle, aURI, aIcon, data);
-      } catch(e) {
-        Cu.reportError(e);
-      }
-    }
-    image.onerror = function() {
-      // can't load the icon (bad URI) : fallback to the default one from chrome
-      self.install(aURI, aTitle, "chrome://browser/skin/images/favicon-default-30.png");
-    }
-    image.src = aIcon;
-  }
 };

@@ -52,7 +52,7 @@
 #include "nsThreadUtils.h"
 #include "mozilla/Services.h"
 
-#include "IndexedDatabaseManager.h"
+#include "IDBFactory.h"
 
 #define PERMISSION_INDEXEDDB_UNLIMITED "indexedDB-unlimited"
 
@@ -202,7 +202,8 @@ CheckQuotaHelper::Run()
     }
   }
   else if (mPromptResult == nsIPermissionManager::UNKNOWN_ACTION) {
-    PRUint32 quota = IndexedDatabaseManager::GetIndexedDBQuotaMB();
+    PRUint32 quota = IDBFactory::GetIndexedDBQuota();
+    NS_ASSERTION(quota, "Shouldn't get here if quota is disabled!");
 
     nsString quotaString;
     quotaString.AppendInt(quota);

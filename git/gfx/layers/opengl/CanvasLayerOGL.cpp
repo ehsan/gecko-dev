@@ -72,6 +72,12 @@ CanvasLayerOGL::Destroy()
       cx->MakeCurrent();
       cx->fDeleteTextures(1, &mTexture);
     }
+#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
+    if (mPixmap) {
+        sGLXLibrary.DestroyPixmap(mPixmap);
+        mPixmap = 0;
+    }
+#endif
 
     mDestroyed = PR_TRUE;
   }
@@ -95,17 +101,14 @@ CanvasLayerOGL::Initialize(const Data& aData)
     mCanvasSurface = aData.mSurface;
     mNeedsYFlip = PR_FALSE;
 #if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
-    if (aData.mSurface->GetType() == gfxASurface::SurfaceTypeXlib) {
-        gfxXlibSurface *xsurf = static_cast<gfxXlibSurface*>(aData.mSurface);
-        mPixmap = xsurf->GetGLXPixmap();
-        if (mPixmap) {
-            if (aData.mSurface->GetContentType() == gfxASurface::CONTENT_COLOR_ALPHA) {
-                mLayerProgram = gl::RGBALayerProgramType;
-            } else {
-                mLayerProgram = gl::RGBXLayerProgramType;
-            }
-            MakeTexture();
+    mPixmap = sGLXLibrary.CreatePixmap(aData.mSurface);
+    if (mPixmap) {
+        if (aData.mSurface->GetContentType() == gfxASurface::CONTENT_COLOR_ALPHA) {
+            mLayerProgram = gl::RGBALayerProgramType;
+        } else {
+            mLayerProgram = gl::RGBXLayerProgramType;
         }
+        MakeTexture();
     }
 #endif
   } else if (aData.mGLContext) {
@@ -363,21 +366,19 @@ ShadowCanvasLayerOGL::RenderLayer(int aPreviousFrameBuffer,
 {
   mOGLManager->MakeCurrent();
 
+  gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
+  gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexImage->Texture());
   ColorTextureLayerProgram *program =
     mOGLManager->GetColorTextureLayerProgram(mTexImage->GetShaderProgramType());
 
   ApplyFilter(mFilter);
 
   program->Activate();
+  program->SetLayerQuadRect(nsIntRect(nsIntPoint(0, 0), mTexImage->GetSize()));
   program->SetLayerTransform(GetEffectiveTransform());
   program->SetLayerOpacity(GetEffectiveOpacity());
   program->SetRenderOffset(aOffset);
   program->SetTextureUnit(0);
 
-  mTexImage->BeginTileIteration();
-  do {
-    TextureImage::ScopedBindTexture texBind(mTexImage, LOCAL_GL_TEXTURE0);
-    program->SetLayerQuadRect(mTexImage->GetTileRect());
-    mOGLManager->BindAndDrawQuad(program, mNeedsYFlip); // FIXME flip order of tiles?
-  } while (mTexImage->NextTile());
+  mOGLManager->BindAndDrawQuad(program, mNeedsYFlip ? true : false);
 }

@@ -639,6 +639,21 @@ public:
         m_assembler.xorpd_rr(src, dest);
     }
 
+    void andDouble(FPRegisterID src, FPRegisterID dest)
+    {
+        ASSERT(isSSE2Present());
+        m_assembler.andpd_rr(src, dest);
+    }
+
+    void absDouble(FPRegisterID src, FPRegisterID dest)
+    {
+        ASSERT(isSSE2Present());
+        /* Compile abs(x) as x & -x. */
+        zeroDouble(dest);
+        subDouble(src, dest);
+        andDouble(src, dest);
+    }
+
     void convertInt32ToDouble(RegisterID src, FPRegisterID dest)
     {
         ASSERT(isSSE2Present());
@@ -696,6 +711,7 @@ public:
     void branchConvertDoubleToInt32(FPRegisterID src, RegisterID dest, JumpList& failureCases, FPRegisterID fpTemp)
     {
         ASSERT(isSSE2Present());
+        ASSERT(src != fpTemp); 
         m_assembler.cvttsd2si_rr(src, dest);
 
         // If the result is zero, it might have been -0.0, and the double comparison won't catch this!
@@ -1319,7 +1335,7 @@ private:
              : "%eax", "%ecx", "%edx"
              );
 #endif
-#elif WTF_COMPILER_SUNCC
+#elif WTF_COMPILER_SUNPRO
 #if WTF_CPU_X86_64
         asm (
              "movl $0x1, %%eax;"

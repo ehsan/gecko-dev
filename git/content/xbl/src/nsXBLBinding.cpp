@@ -62,6 +62,8 @@
 #include "nsIXMLContentSink.h"
 #include "nsContentCID.h"
 #include "nsXMLDocument.h"
+#include "nsIDOMElement.h"
+#include "nsIDOMText.h"
 #include "jsapi.h"
 #include "nsXBLService.h"
 #include "nsXBLInsertionPoint.h"
@@ -71,7 +73,13 @@
 
 // Event listeners
 #include "nsEventListenerManager.h"
-#include "nsIDOMEventListener.h"
+#include "nsIDOMMouseListener.h"
+#include "nsIDOMMouseMotionListener.h"
+#include "nsIDOMLoadListener.h"
+#include "nsIDOMFocusListener.h"
+#include "nsIDOMKeyListener.h"
+#include "nsIDOMFormListener.h"
+#include "nsIDOMContextMenuListener.h"
 #include "nsAttrName.h"
 
 #include "nsGkAtoms.h"
@@ -95,8 +103,6 @@
 // (e.g. WrapNative and ThrowJSException) over to nsContentUtils?
 #include "nsDOMClassInfo.h"
 #include "nsJSUtils.h"
-
-#include "mozilla/dom/Element.h"
 
 // Helper classes
 

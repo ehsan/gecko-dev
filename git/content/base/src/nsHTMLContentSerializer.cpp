@@ -47,6 +47,7 @@
 #include "nsHTMLContentSerializer.h"
 
 #include "nsIDOMElement.h"
+#include "nsIDOMText.h"
 #include "nsIContent.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
@@ -72,7 +73,6 @@
 #include "nsIEditor.h"
 #include "nsIHTMLEditor.h"
 #include "mozilla/dom/Element.h"
-#include "nsParserConstants.h"
 
 using namespace mozilla::dom;
 

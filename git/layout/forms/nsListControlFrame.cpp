@@ -84,7 +84,6 @@
 #include "nsIDOMEventListener.h"
 #include "nsLayoutUtils.h"
 #include "nsDisplayList.h"
-#include "nsContentUtils.h"
 
 // Constants
 const nscoord kMaxDropDownRows          = 20; // This matches the setting for 4.x browsers
@@ -304,7 +303,7 @@ void nsListControlFrame::PaintFocus(nsRenderingContext& aRC, nsPoint aPt)
     if (!childframe) {
       // Failing all else, try the first thing we have, but only if
       // it's an element.  Text frames need not apply.
-      childframe = containerFrame->GetFirstPrincipalChild();
+      childframe = containerFrame->GetFirstChild(nsnull);
       if (childframe && !childframe->GetContent()->IsElement()) {
         childframe = nsnull;
       }
@@ -387,7 +386,7 @@ static nscoord
 GetMaxOptionHeight(nsIFrame* aContainer)
 {
   nscoord result = 0;
-  for (nsIFrame* option = aContainer->GetFirstPrincipalChild();
+  for (nsIFrame* option = aContainer->GetFirstChild(nsnull);
        option; option = option->GetNextSibling()) {
     nscoord optionHeight;
     if (nsCOMPtr<nsIDOMHTMLOptGroupElement>
@@ -404,21 +403,32 @@ GetMaxOptionHeight(nsIFrame* aContainer)
   return result;
 }
 
+static inline PRBool
+IsOptGroup(nsIContent *aContent)
+{
+  return (aContent->NodeInfo()->Equals(nsGkAtoms::optgroup) &&
+          aContent->IsHTML());
+}
+
+static inline PRBool
+IsOption(nsIContent *aContent)
+{
+  return (aContent->NodeInfo()->Equals(nsGkAtoms::option) &&
+          aContent->IsHTML());
+}
+
 static PRUint32
 GetNumberOfOptionsRecursive(nsIContent* aContent)
 {
-  if (!aContent) {
-    return 0;
-  }
-
   PRUint32 optionCount = 0;
-  for (nsIContent* cur = aContent->GetFirstChild();
-       cur;
-       cur = cur->GetNextSibling()) {
-    if (cur->IsHTML(nsGkAtoms::option)) {
+  const PRUint32 childCount = aContent ? aContent->GetChildCount() : 0;
+  for (PRUint32 index = 0; index < childCount; ++index) {
+    nsIContent* child = aContent->GetChildAt(index);
+    if (::IsOption(child)) {
       ++optionCount;
-    } else if (cur->IsHTML(nsGkAtoms::optgroup)) {
-      optionCount += GetNumberOfOptionsRecursive(cur);
+    }
+    else if (::IsOptGroup(child)) {
+      optionCount += ::GetNumberOfOptionsRecursive(child);
     }
   }
   return optionCount;
@@ -752,6 +762,21 @@ nsListControlFrame::ShouldPropagateComputedHeightToScrolledContent() const
 }
 
 //---------------------------------------------------------
+PRBool 
+nsListControlFrame::IsOptionElement(nsIContent* aContent)
+{
+  PRBool result = PR_FALSE;
+ 
+  nsCOMPtr<nsIDOMHTMLOptionElement> optElem;
+  if (NS_SUCCEEDED(aContent->QueryInterface(NS_GET_IID(nsIDOMHTMLOptionElement),(void**) getter_AddRefs(optElem)))) {      
+    if (optElem != nsnull) {
+      result = PR_TRUE;
+    }
+  }
+ 
+  return result;
+}
+
 nsIFrame*
 nsListControlFrame::GetContentInsertionFrame() {
   return GetOptionsContainer()->GetContentInsertionFrame();
@@ -765,7 +790,7 @@ nsIContent *
 nsListControlFrame::GetOptionFromContent(nsIContent *aContent) 
 {
   for (nsIContent* content = aContent; content; content = content->GetParent()) {
-    if (content->IsHTML(nsGkAtoms::option)) {
+    if (IsOptionElement(content)) {
       return content;
     }
   }
@@ -1032,7 +1057,7 @@ nsListControlFrame::HandleEvent(nsPresContext* aPresContext,
 
 //---------------------------------------------------------
 NS_IMETHODIMP
-nsListControlFrame::SetInitialChildList(ChildListID    aListID,
+nsListControlFrame::SetInitialChildList(nsIAtom*       aListName,
                                         nsFrameList&   aChildList)
 {
   // First check to see if all the content has been added
@@ -1041,7 +1066,7 @@ nsListControlFrame::SetInitialChildList(ChildListID    aListID,
     mIsAllFramesHere    = PR_FALSE;
     mHasBeenInitialized = PR_FALSE;
   }
-  nsresult rv = nsHTMLScrollFrame::SetInitialChildList(aListID, aChildList);
+  nsresult rv = nsHTMLScrollFrame::SetInitialChildList(aListName, aChildList);
 
   // If all the content is here now check
   // to see if all the frames have been created
@@ -2624,10 +2649,9 @@ nsListControlFrame::KeyPress(nsIDOMEvent* aKeyEvent)
   // Actually process the new index and let the selection code
   // do the scrolling for us
   if (newIndex != kNothingSelected) {
-    // If you hold control, but not shift, no key will actually do anything
-    // except space.
+    // If you hold control, no key will actually do anything except space.
     PRBool wasChanged = PR_FALSE;
-    if (isControl && !isShift && charcode != ' ') {
+    if (isControl && charcode != ' ') {
       mStartSelectionIndex = newIndex;
       mEndSelectionIndex = newIndex;
       InvalidateFocus();

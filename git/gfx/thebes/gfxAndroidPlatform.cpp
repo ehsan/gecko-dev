@@ -157,7 +157,7 @@ public:
     typedef nsAutoTArray<PRUint32, 8> IndexList;
     PLDHashTableOps ops;
     FontNameCache() : mWriteNeeded(PR_FALSE) {
-        ops = (PLDHashTableOps) {
+        ops = {
             PL_DHashAllocTable,
             PL_DHashFreeTable,
             StringHash,
@@ -417,23 +417,6 @@ void
 gfxAndroidPlatform::FindFontsInDirectory(const nsCString& aFontsDir,
                                          FontNameCache* aFontCache)
 {
-    static const char* sStandardFonts[] = {
-        "DroidSans.ttf",
-        "DroidSans-Bold.ttf",
-        "DroidSerif-Regular.ttf",
-        "DroidSerif-Bold.ttf",
-        "DroidSerif-Italic.ttf",
-        "DroidSerif-BoldItalic.ttf",
-        "DroidSansMono.ttf",
-        "DroidSansArabic.ttf",
-        "DroidSansHebrew.ttf",
-        "DroidSansThai.ttf",
-        "MTLmr3m.ttf",
-        "MTLc3m.ttf",
-        "DroidSansJapanese.ttf",
-        "DroidSansFallback.ttf"
-    };
-
     DIR *d = opendir(aFontsDir.get());
     struct dirent *ent = NULL;
     while(d && (ent = readdir(d)) != NULL) {
@@ -441,25 +424,14 @@ gfxAndroidPlatform::FindFontsInDirectory(const nsCString& aFontsDir,
         if (namelen > 4 &&
             strcasecmp(ent->d_name + namelen - 4, ".ttf") == 0)
         {
-            bool isStdFont = false;
-            for (unsigned int i = 0; i < NS_ARRAY_LENGTH(sStandardFonts) && !isStdFont; i++) {
-                isStdFont = strcmp(sStandardFonts[i], ent->d_name) == 0;
-            }
-            if (!isStdFont) {
-                nsCString s(aFontsDir);
-                s.Append(nsDependentCString(ent->d_name));
+            nsCString s(aFontsDir);
+            s.Append(nsDependentCString(ent->d_name));
 
-                AppendFacesFromFontFile(s.get(), aFontCache, &mFontList);
-            }
+            AppendFacesFromFontFile(nsPromiseFlatCString(s).get(),
+                                    aFontCache, &mFontList);
         }
     }
     closedir(d);
-    for (unsigned int i = 0; i < NS_ARRAY_LENGTH(sStandardFonts); i++) {
-        nsCString s(aFontsDir);
-        s.Append(nsDependentCString(sStandardFonts[i]));
-
-        AppendFacesFromFontFile(s.get(), aFontCache, &mFontList);
-    }
 }
 
 void
@@ -670,8 +642,8 @@ gfxAndroidPlatform::FindFontForChar(PRUint32 aCh, gfxFont *aFont)
 
     if (data.mBestMatch) {
         nsRefPtr<gfxFT2Font> font =
-            gfxFT2Font::GetOrMakeFont(static_cast<FontEntry*>(data.mBestMatch.get()),
-                                      aFont->GetStyle());
+            gfxFT2Font::GetOrMakeFont(static_cast<FontEntry*>(data.mBestMatch.get()), 
+                                      aFont->GetStyle()); 
         gfxFont* ret = font.forget().get();
         return already_AddRefed<gfxFont>(ret);
     }

@@ -53,6 +53,7 @@
 #include "prthread.h"
 #include "nsIObserver.h"
 #include "nsString.h"
+#include "nsProxiedService.h"
 #include "nsTArray.h"
 #include "mozilla/CondVar.h"
 #include "mozilla/Mutex.h"
@@ -130,9 +131,6 @@ public:
 
     static
     nsCacheService * GlobalInstance()   { return gService; }
-
-    static
-    PRInt64 MemoryDeviceSize();
     
     static nsresult  DoomEntry(nsCacheEntry * entry);
 

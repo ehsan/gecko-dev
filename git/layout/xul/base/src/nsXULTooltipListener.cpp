@@ -61,8 +61,6 @@
 #include "nsIRootBox.h"
 #include "nsEventDispatcher.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/dom/Element.h"
-
 
 using namespace mozilla;
 
@@ -608,7 +606,7 @@ nsXULTooltipListener::FindTooltip(nsIContent* aTarget, nsIContent** aTooltip)
 #ifdef MOZ_XUL
       mNeedTitletip = PR_FALSE;
 #endif
-      tooltipEl.forget(aTooltip);
+      *aTooltip = tooltipEl.forget().get();
       return NS_OK;
     }
   }

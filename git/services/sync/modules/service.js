@@ -21,7 +21,6 @@
  *  Dan Mills <thunder@mozilla.com>
  *  Myk Melez <myk@mozilla.org>
  *  Anant Narayanan <anant@kix.in>
- *  Philipp von Weitershausen <philipp@weitershausen.de>
  *  Richard Newman <rnewman@mozilla.com>
  *  Marina Samuel <msamuel@mozilla.com>
  *
@@ -58,9 +57,6 @@ const KEYS_WBO = "keys";
 
 const LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S";
 
-const LOG_PREFIX_SUCCESS = "success-";
-const LOG_PREFIX_ERROR   = "error-";
-
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://services-sync/record.js");
 Cu.import("resource://services-sync/constants.js");
@@ -70,16 +66,10 @@ Cu.import("resource://services-sync/ext/Preferences.js");
 Cu.import("resource://services-sync/identity.js");
 Cu.import("resource://services-sync/log4moz.js");
 Cu.import("resource://services-sync/resource.js");
-Cu.import("resource://services-sync/rest.js");
 Cu.import("resource://services-sync/status.js");
 Cu.import("resource://services-sync/policies.js");
 Cu.import("resource://services-sync/util.js");
 Cu.import("resource://services-sync/main.js");
-
-const STORAGE_INFO_TYPES = [INFO_COLLECTIONS,
-                            INFO_COLLECTION_USAGE,
-                            INFO_COLLECTION_COUNTS,
-                            INFO_QUOTA];
 
 /*
  * Service singleton
@@ -412,6 +402,13 @@ WeaveSvc.prototype = {
     if (status != STATUS_DISABLED && status != CLIENT_NOT_CONFIGURED)
       Svc.Obs.notify("weave:engine:start-tracking");
 
+    // Applications can specify this preference if they want autoconnect
+    // to happen after a fixed delay.
+    let delay = Svc.Prefs.get("autoconnectDelay");
+    if (delay) {
+      this.delayedAutoConnect(delay);
+    }
+
     // Send an event now that Weave service is ready.  We don't do this
     // synchronously so that observers can import this module before
     // registering an observer.
@@ -482,12 +479,12 @@ WeaveSvc.prototype = {
     root.addAppender(fapp);
   },
 
-  _resetFileLog: function _resetFileLog(flushToFile, filenamePrefix) {
+  _resetFileLog: function resetFileLog(flushToFile) {
     let inStream = this._logAppender.getInputStream();
     this._logAppender.reset();
     if (flushToFile && inStream) {
       try {
-        let filename = filenamePrefix + Date.now() + ".txt";
+        let filename = Date.now() + ".log";
         let file = FileUtils.getFile("ProfD", ["weave", "logs", filename]);
         let outStream = FileUtils.openFileOutputStream(file);
         NetUtil.asyncCopy(inStream, outStream, function () {
@@ -534,8 +531,7 @@ WeaveSvc.prototype = {
             !Services.io.offline) {
           this._ignorableErrorCount += 1;
         } else {
-          this._resetFileLog(Svc.Prefs.get("log.appender.file.logOnError"),
-                             LOG_PREFIX_ERROR);
+          this._resetFileLog(Svc.Prefs.get("log.appender.file.logOnError"));
         }
         break;
       case "weave:service:sync:error":
@@ -549,14 +545,12 @@ WeaveSvc.prototype = {
             this.logout();
             break;
           default:
-            this._resetFileLog(Svc.Prefs.get("log.appender.file.logOnError"),
-                               LOG_PREFIX_ERROR);
+            this._resetFileLog(Svc.Prefs.get("log.appender.file.logOnError"));
             break;
         }
         break;
       case "weave:service:sync:finish":
-        this._resetFileLog(Svc.Prefs.get("log.appender.file.logOnSuccess"),
-                           LOG_PREFIX_SUCCESS);
+        this._resetFileLog(Svc.Prefs.get("log.appender.file.logOnSuccess"));
         this._ignorableErrorCount = 0;
         break;
       case "weave:engine:sync:applied":
@@ -1031,6 +1025,7 @@ WeaveSvc.prototype = {
     this._ignorePrefObserver = true;
     Svc.Prefs.resetBranch("");
     this._ignorePrefObserver = false;
+    SyncScheduler.setDefaults();
 
     Svc.Prefs.set("lastversion", WEAVE_VERSION);
     // Find weave logins and remove them.
@@ -1039,6 +1034,51 @@ WeaveSvc.prototype = {
     Services.logins.findLogins({}, PWDMGR_HOST, "", "").map(function(login) {
       Services.logins.removeLogin(login);
     });
+  },
+
+ /**
+  * Automatically start syncing after the given delay (in seconds).
+  *
+  * Applications can define the `services.sync.autoconnectDelay` preference
+  * to have this called automatically during start-up with the pref value as
+  * the argument. Alternatively, they can call it themselves to control when
+  * Sync should first start to sync.
+  */
+  delayedAutoConnect: function delayedAutoConnect(delay) {
+    if (this._checkSetup() == STATUS_OK) {
+      Utils.namedTimer(this._autoConnect, delay * 1000, this, "_autoTimer");
+    }
+  },
+
+  _autoConnect: function _autoConnect() {
+    let isLocked = Utils.mpLocked();
+    if (isLocked) {
+      // There's no reason to back off if we're locked: we'll just try to login
+      // during sync. Clear our timer, see if we should go ahead and sync, then
+      // just return.
+      this._log.trace("Autoconnect skipped: master password still locked.");
+
+      if (this._autoTimer)
+        this._autoTimer.clear();
+
+      SyncScheduler.checkSyncStatus();
+
+      return;
+    }
+
+    let reason = this._checkSync([kSyncNotLoggedIn, kFirstSyncChoiceNotMade]);
+
+    // Can't autoconnect if we're missing these values.
+    if (!reason) {
+      if (!this.username || !this.password || !this.passphrase)
+        return;
+
+      Utils.nextTick(this.sync, this);
+    }
+
+    // Once _autoConnect is called we no longer need _autoTimer.
+    if (this._autoTimer)
+      this._autoTimer.clear();
   },
 
   persistLogin: function persistLogin() {
@@ -1352,6 +1392,8 @@ WeaveSvc.prototype = {
     else if ((Status.login == MASTER_PASSWORD_LOCKED) &&
              Utils.mpLocked())
       reason = kSyncMasterPasswordLocked;
+    else if (!this._loggedIn)
+      reason = kSyncNotLoggedIn;
     else if (Svc.Prefs.get("firstSync") == "notReady")
       reason = kFirstSyncChoiceNotMade;
 
@@ -1371,7 +1413,6 @@ WeaveSvc.prototype = {
 
   sync: function sync() {
     let dateStr = new Date().toLocaleFormat(LOG_DATE_FORMAT);
-    this._log.debug("User-Agent: " + SyncStorageRequest.prototype.userAgent);
     this._log.info("Starting sync at " + dateStr);
     this._catch(function () {
       // Make sure we're logged in.
@@ -1461,9 +1502,10 @@ WeaveSvc.prototype = {
         break;
     }
 
+    // Process the incoming commands if we have any
     if (Clients.localCommands) {
       try {
-        if (!(Clients.processIncomingCommands())) {
+        if (!(this.processCommands())) {
           Status.sync = ABORT_SYNC_COMMAND;
           throw "aborting sync, process commands said so";
         }
@@ -1577,7 +1619,7 @@ WeaveSvc.prototype = {
     }
 
     // Any remaining engines were either enabled locally or disabled remotely.
-    for each (let engineName in enabled) {
+    for each (engineName in enabled) {
       let engine = Engines.get(engineName);
       if (Svc.Prefs.get("engineStatusChanged." + engine.prefName, false)) {
         this._log.trace("The " + engineName + " engine was enabled locally.");
@@ -1816,22 +1858,20 @@ WeaveSvc.prototype = {
    */
   wipeRemote: function WeaveSvc_wipeRemote(engines)
     this._catch(this._notify("wipe-remote", "", function() {
-      // Make sure stuff gets uploaded.
+      // Make sure stuff gets uploaded
       this.resetClient(engines);
 
-      // Clear out any server data.
+      // Clear out any server data
       this.wipeServer(engines);
 
-      // Only wipe the engines provided.
-      if (engines) {
-        engines.forEach(function(e) Clients.sendCommand("wipeEngine", [e]), this);
-      }
-      // Tell the remote machines to wipe themselves.
-      else {
-        Clients.sendCommand("wipeAll", []);
-      }
+      // Only wipe the engines provided
+      if (engines)
+        engines.forEach(function(e) this.prepCommand("wipeEngine", [e]), this);
+      // Tell the remote machines to wipe themselves
+      else
+        this.prepCommand("wipeAll", []);
 
-      // Make sure the changed clients get updated.
+      // Make sure the changed clients get updated
       Clients.sync();
     }))(),
 
@@ -1873,52 +1913,106 @@ WeaveSvc.prototype = {
     }))(),
 
   /**
-   * Fetch storage info from the server.
-   *
-   * @param type
-   *        String specifying what info to fetch from the server. Must be one
-   *        of the INFO_* values. See Sync Storage Server API spec for details.
-   * @param callback
-   *        Callback function with signature (error, data) where `data' is
-   *        the return value from the server already parsed as JSON.
-   *
-   * @return RESTRequest instance representing the request, allowing callers
-   *         to cancel the request.
+   * A hash of valid commands that the client knows about. The key is a command
+   * and the value is a hash containing information about the command such as
+   * number of arguments and description.
    */
-  getStorageInfo: function getStorageInfo(type, callback) {
-    if (STORAGE_INFO_TYPES.indexOf(type) == -1) {
-      throw "Invalid value for 'type': " + type;
+  _commands: [
+    ["resetAll", 0, "Clear temporary local data for all engines"],
+    ["resetEngine", 1, "Clear temporary local data for engine"],
+    ["wipeAll", 0, "Delete all client data for all engines"],
+    ["wipeEngine", 1, "Delete all client data for engine"],
+    ["logout", 0, "Log out client"],
+  ].reduce(function WeaveSvc__commands(commands, entry) {
+    commands[entry[0]] = {};
+    for (let [i, attr] in Iterator(["args", "desc"]))
+      commands[entry[0]][attr] = entry[i + 1];
+    return commands;
+  }, {}),
+
+  /**
+   * Check if the local client has any remote commands and perform them.
+   *
+   * @return False to abort sync
+   */
+  processCommands: function WeaveSvc_processCommands()
+    this._notify("process-commands", "", function() {
+      // Immediately clear out the commands as we've got them locally
+      let commands = Clients.localCommands;
+      Clients.clearCommands();
+
+      // Process each command in order
+      for each ({command: command, args: args} in commands) {
+        this._log.debug("Processing command: " + command + "(" + args + ")");
+
+        let engines = [args[0]];
+        switch (command) {
+          case "resetAll":
+            engines = null;
+            // Fallthrough
+          case "resetEngine":
+            this.resetClient(engines);
+            break;
+          case "wipeAll":
+            engines = null;
+            // Fallthrough
+          case "wipeEngine":
+            this.wipeClient(engines);
+            break;
+          case "logout":
+            this.logout();
+            return false;
+          default:
+            this._log.debug("Received an unknown command: " + command);
+            break;
+        }
+      }
+
+      return true;
+    })(),
+
+  /**
+   * Prepare to send a command to each remote client. Calling this doesn't
+   * actually sync the command data to the server. If the client already has
+   * the command/args pair, it won't get a duplicate action.
+   *
+   * @param command
+   *        Command to invoke on remote clients
+   * @param args
+   *        Array of arguments to give to the command
+   */
+  prepCommand: function WeaveSvc_prepCommand(command, args) {
+    let commandData = this._commands[command];
+    // Don't send commands that we don't know about
+    if (commandData == null) {
+      this._log.error("Unknown command to send: " + command);
+      return;
+    }
+    // Don't send a command with the wrong number of arguments
+    else if (args == null || args.length != commandData.args) {
+      this._log.error("Expected " + commandData.args + " args for '" +
+                      command + "', but got " + args);
+      return;
     }
 
-    let info_type = "info/" + type;
-    this._log.trace("Retrieving '" + info_type + "'...");
-    let url = this.userBaseURL + info_type;
-    return new SyncStorageRequest(url).get(function onComplete(error) {
-      // Note: 'this' is the request.
-      if (error) {
-        this._log.debug("Failed to retrieve '" + info_type + "': " +
-                        Utils.exceptionStr(error));
-        return callback(error);
-      }
-      if (this.response.status != 200) {
-        this._log.debug("Failed to retrieve '" + info_type +
-                        "': server responded with HTTP" +
-                        this.response.status);
-        return callback(this.response);
-      }
+    // Send the command to all remote clients
+    this._log.debug("Sending clients: " + [command, args, commandData.desc]);
+    Clients.sendCommand(command, args);
+  },
 
-      let result;
-      try {
-        result = JSON.parse(this.response.body);
-      } catch (ex) {
-        this._log.debug("Server returned invalid JSON for '" + info_type +
-                        "': " + this.response.body);
-        return callback(ex);
-      }
-      this._log.trace("Successfully retrieved '" + info_type + "'.");
-      return callback(null, result);
-    });
-  }
+  _getInfo: function _getInfo(what)
+    this._catch(this._notify(what, "", function() {
+      let url = this.userBaseURL + "info/" + what;
+      let response = new Resource(url).get();
+      if (response.status != 200)
+        return null;
+      return response.obj;
+    }))(),
+
+  getCollectionUsage: function getCollectionUsage()
+    this._getInfo("collection_usage"),
+
+  getQuota: function getQuota() this._getInfo("quota")
 
 };
 

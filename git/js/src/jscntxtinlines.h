@@ -52,6 +52,25 @@
 
 namespace js {
 
+struct PreserveRegsGuard
+{
+    PreserveRegsGuard(JSContext *cx, FrameRegs &regs)
+      : prevContextRegs(cx->maybeRegs()), cx(cx), regs_(regs) {
+        cx->stack.repointRegs(&regs_);
+    }
+    ~PreserveRegsGuard() {
+        JS_ASSERT(cx->maybeRegs() == &regs_);
+        *prevContextRegs = regs_;
+        cx->stack.repointRegs(prevContextRegs);
+    }
+
+    FrameRegs *prevContextRegs;
+
+  private:
+    JSContext *cx;
+    FrameRegs &regs_;
+};
+
 static inline GlobalObject *
 GetGlobalForScopeChain(JSContext *cx)
 {
@@ -69,8 +88,11 @@ GetGlobalForScopeChain(JSContext *cx)
         return cx->fp()->scopeChain().getGlobal();
 
     JSObject *scope = cx->globalObject;
-    if (!NULLABLE_OBJ_TO_INNER_OBJECT(cx, scope))
+    if (!scope) {
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_INACTIVE);
         return NULL;
+    }
+    OBJ_TO_INNER_OBJECT(cx, scope);
     return scope->asGlobal();
 }
 
@@ -349,7 +371,7 @@ CallSetter(JSContext *cx, JSObject *obj, jsid id, js::StrictPropertyOp op, uintN
            uintN shortid, JSBool strict, js::Value *vp)
 {
     if (attrs & JSPROP_SETTER)
-        return InvokeGetterOrSetter(cx, obj, CastAsObjectJsval(op), 1, vp, vp);
+        return ExternalGetOrSet(cx, obj, id, CastAsObjectJsval(op), JSACC_WRITE, 1, vp, vp);
 
     if (attrs & JSPROP_GETTER)
         return js_ReportGetterOnlyAssignment(cx);
@@ -374,7 +396,7 @@ DeepBail(JSContext *cx);
 static JS_INLINE void
 LeaveTraceIfGlobalObject(JSContext *cx, JSObject *obj)
 {
-    if (!obj->getParent())
+    if (!obj->parent)
         LeaveTrace(cx);
 }
 

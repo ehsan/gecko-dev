@@ -46,13 +46,11 @@
  * Date             Modified by     Description of modification
  * 04/20/2000       IBM Corp.      Added PR_CALLBACK for Optlink use in OS2
  */
-
 #include <stdlib.h>
 #include "nscore.h"
 #include "nsISupports.h"
 #include "nspr.h"
 #include "nsCRT.h" // for atoll
-
 // Arena used by component manager for storing contractid string, dll
 // location strings and small objects
 // CAUTION: Arena align mask needs to be defined before including plarena.h
@@ -91,7 +89,6 @@
 #include "prio.h"
 #include "mozilla/FunctionTimer.h"
 #include "ManifestParser.h"
-#include "mozilla/Services.h"
 
 #include "nsManifestLineReader.h"
 #include "mozilla/GenericFactory.h"
@@ -109,7 +106,7 @@ static NS_DEFINE_CID(kZipReaderCID, NS_ZIPREADER_CID);
 
 using namespace mozilla;
 
-PRLogModuleInfo* nsComponentManagerLog = nsnull;
+NS_COM PRLogModuleInfo* nsComponentManagerLog = nsnull;
 
 #if 0 || defined (DEBUG_timeless)
  #define SHOW_DENIED_ON_SHUTDOWN
@@ -409,7 +406,7 @@ nsresult nsComponentManagerImpl::Init()
         nsCOMPtr<nsIZipReader> reader = do_CreateInstance(kZipReaderCID, &rv);
         rv = reader->Open(l.location);
         if (NS_SUCCEEDED(rv))
-            RegisterJarManifest(l.type, reader, "chrome.manifest", false);
+            RegisterJarManifest(reader, "chrome.manifest", false);
     }
 
     nsCategoryManager::GetSingleton()->SuppressNotifications(false);
@@ -545,7 +542,7 @@ LoadEntry(nsIZipReader* aReader, const char* aName)
 }
 
 void
-nsComponentManagerImpl::RegisterJarManifest(NSLocationType aType, nsIZipReader* aReader,
+nsComponentManagerImpl::RegisterJarManifest(nsIZipReader* aReader,
                                             const char* aPath, bool aChromeOnly)
 {
     nsCOMPtr<nsIInputStream> is = LoadEntry(aReader, aPath);
@@ -579,7 +576,7 @@ nsComponentManagerImpl::RegisterJarManifest(NSLocationType aType, nsIZipReader* 
 
     whole[flen] = '\0';
 
-    ParseManifest(aType, aReader, aPath,
+    ParseManifest(NS_COMPONENT_LOCATION, aReader, aPath,
                   whole, aChromeOnly);
 }
 
@@ -677,7 +674,7 @@ nsComponentManagerImpl::ManifestManifest(ManifestProcessingContext& cx, int line
         nsCAutoString manifest(cx.mPath);
         AppendFileToManifestPath(manifest, file);
 
-        RegisterJarManifest(cx.mType, cx.mReader, manifest.get(), cx.mChromeOnly);
+        RegisterJarManifest(cx.mReader, manifest.get(), cx.mChromeOnly);
     }
     else {
 #ifdef TRANSLATE_SLASHES
@@ -914,7 +911,7 @@ nsComponentManagerImpl::RereadChromeManifests()
         if (NS_SUCCEEDED(rv))
             rv = reader->Open(l.location);
         if (NS_SUCCEEDED(rv))
-            RegisterJarManifest(l.type, reader, "chrome.manifest", true);
+            RegisterJarManifest(reader, "chrome.manifest", true);
     }
 }
 
@@ -1995,7 +1992,7 @@ nsFactoryEntry::GetFactory()
 // Static Access Functions
 ////////////////////////////////////////////////////////////////////////////////
 
-nsresult
+NS_COM nsresult
 NS_GetComponentManager(nsIComponentManager* *result)
 {
     if (!nsComponentManagerImpl::gComponentManager)
@@ -2005,7 +2002,7 @@ NS_GetComponentManager(nsIComponentManager* *result)
     return NS_OK;
 }
 
-nsresult
+NS_COM nsresult
 NS_GetServiceManager(nsIServiceManager* *result)
 {
     if (!nsComponentManagerImpl::gComponentManager)
@@ -2016,7 +2013,7 @@ NS_GetServiceManager(nsIServiceManager* *result)
 }
 
 
-nsresult
+NS_COM nsresult
 NS_GetComponentRegistrar(nsIComponentRegistrar* *result)
 {
     if (!nsComponentManagerImpl::gComponentManager)
@@ -2037,57 +2034,6 @@ XRE_AddStaticComponent(const mozilla::Module* aComponent)
         nsComponentManagerImpl::gComponentManager->RegisterModule(aComponent, NULL);
 
     return NS_OK;
-}
-
-NS_IMETHODIMP
-nsComponentManagerImpl::AddBootstrappedManifestLocation(nsILocalFile* aLocation)
-{
-  nsString path;
-  nsresult rv = aLocation->GetPath(path);
-  if (NS_FAILED(rv))
-    return rv;
-
-  if (Substring(path, path.Length() - 4).Equals(NS_LITERAL_STRING(".xpi"))) {
-    return XRE_AddJarManifestLocation(NS_BOOTSTRAPPED_LOCATION, aLocation);
-  }
-
-  nsCOMPtr<nsILocalFile> manifest =
-    CloneAndAppend(aLocation, NS_LITERAL_CSTRING("chrome.manifest"));
-  return XRE_AddManifestLocation(NS_BOOTSTRAPPED_LOCATION, manifest);
-}
-
-NS_IMETHODIMP
-nsComponentManagerImpl::RemoveBootstrappedManifestLocation(nsILocalFile* aLocation)
-{
-  nsCOMPtr<nsIChromeRegistry> cr = mozilla::services::GetChromeRegistryService();
-  if (!cr)
-    return NS_ERROR_FAILURE;
-
-  bool isJar = false;
-  nsCOMPtr<nsILocalFile> manifest;
-  nsString path;
-  nsresult rv = aLocation->GetPath(path);
-  if (NS_FAILED(rv))
-    return rv;
-
-  if (Substring(path, path.Length() - 4).Equals(NS_LITERAL_STRING(".xpi"))) {
-    isJar = true;
-    manifest = aLocation;
-  } else {
-    manifest = CloneAndAppend(aLocation, NS_LITERAL_CSTRING("chrome.manifest"));
-  }
-
-  nsComponentManagerImpl::ComponentLocation elem = {
-    NS_BOOTSTRAPPED_LOCATION,
-    manifest,
-    isJar
-  };
-
-  // Remove reference.
-  nsComponentManagerImpl::sModuleLocations->RemoveElement(elem, ComponentLocationComparator());
-
-  rv = cr->CheckForNewChrome();
-  return rv;
 }
 
 EXPORT_XPCOM_API(nsresult)
@@ -2127,7 +2073,7 @@ XRE_AddJarManifestLocation(NSLocationType aType, nsILocalFile* aLocation)
 
     rv = reader->Open(c->location);
     if (NS_SUCCEEDED(rv))
-        nsComponentManagerImpl::gComponentManager->RegisterJarManifest(aType, reader, "chrome.manifest", false);
+        nsComponentManagerImpl::gComponentManager->RegisterJarManifest(reader, "chrome.manifest", false);
 
     return NS_OK;
 }

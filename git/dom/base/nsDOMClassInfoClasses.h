@@ -38,7 +38,6 @@
 
 DOMCI_CLASS(Window)
 DOMCI_CLASS(Location)
-DOMCI_CLASS(CaretPosition)
 DOMCI_CLASS(Navigator)
 DOMCI_CLASS(Plugin)
 DOMCI_CLASS(PluginArray)
@@ -115,13 +114,13 @@ DOMCI_CLASS(HTMLHtmlElement)
 DOMCI_CLASS(HTMLIFrameElement)
 DOMCI_CLASS(HTMLImageElement)
 DOMCI_CLASS(HTMLInputElement)
+DOMCI_CLASS(HTMLIsIndexElement)
 DOMCI_CLASS(HTMLLIElement)
 DOMCI_CLASS(HTMLLabelElement)
 DOMCI_CLASS(HTMLLegendElement)
 DOMCI_CLASS(HTMLLinkElement)
 DOMCI_CLASS(HTMLMapElement)
 DOMCI_CLASS(HTMLMenuElement)
-DOMCI_CLASS(HTMLMenuItemElement)
 DOMCI_CLASS(HTMLMetaElement)
 DOMCI_CLASS(HTMLModElement)
 DOMCI_CLASS(HTMLOListElement)
@@ -463,6 +462,9 @@ DOMCI_CLASS(MozTouchEvent)
 
 DOMCI_CLASS(MathMLElement)
 
+DOMCI_CLASS(Worker)
+DOMCI_CLASS(ChromeWorker)
+
 // WebGL
 DOMCI_CLASS(WebGLRenderingContext)
 DOMCI_CLASS(WebGLBuffer)
@@ -495,7 +497,7 @@ DOMCI_CLASS(DesktopNotification)
 DOMCI_CLASS(DesktopNotificationCenter)
 
 // WebSocket
-DOMCI_CLASS(MozWebSocket)
+DOMCI_CLASS(WebSocket)
 DOMCI_CLASS(CloseEvent)
 
 DOMCI_CLASS(IDBFactory)

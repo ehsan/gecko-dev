@@ -23,7 +23,7 @@
  * Contributor(s):
  *   Dan Rosen <dr@netscape.com>
  *   Roland Mainz <roland.mainz@informatik.med.uni-giessen.de>
- *   Mats Palmgren <matspal@gmail.com>
+ *   Mats Palmgren <mats.palmgren@bredband.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -110,6 +110,7 @@
 #include "nsIXULDocument.h"
 #include "nsXULPopupManager.h"
 #endif
+#include "nsPrintfCString.h"
 
 #include "nsIClipboardHelper.h"
 
@@ -121,6 +122,7 @@
 
 #include "nsIScrollableFrame.h"
 #include "nsIHTMLDocument.h"
+#include "nsITimelineService.h"
 #include "nsGfxCIID.h"
 #include "nsStyleSheetService.h"
 #include "nsURILoader.h"
@@ -193,8 +195,6 @@ static const char sPrintOptionsContractID[]         = "@mozilla.org/gfx/printset
 
 //switch to page layout
 #include "nsGfxCIID.h"
-
-#include "mozilla/dom/Element.h"
 
 using namespace mozilla;
 
@@ -1068,6 +1068,22 @@ DocumentViewerImpl::LoadComplete(nsresult aStatus)
       if (timing) {
         timing->NotifyLoadEventEnd();
       }
+#ifdef MOZ_TIMELINE
+      // if navigator.xul's load is complete, the main nav window is visible
+      // mark that point.
+
+      nsIURI *uri = mDocument ? mDocument->GetDocumentURI() : nsnull;
+
+      if (uri) {
+        //printf("DEBUG: getting spec for uri (%p)\n", uri.get());
+        nsCAutoString spec;
+        uri->GetSpec(spec);
+        if (spec.EqualsLiteral("chrome://navigator/content/navigator.xul") ||
+            spec.EqualsLiteral("chrome://browser/content/browser.xul")) {
+          NS_TIMELINE_MARK("Navigator Window visible now");
+        }
+      }
+#endif /* MOZ_TIMELINE */
     }
   } else {
     // XXX: Should fire error event to the document...
@@ -1980,7 +1996,7 @@ DocumentViewerImpl::Show(void)
         printf("About to evict content viewers: prev=%d, loaded=%d\n",
                prevIndex, loadedIndex);
 #endif
-        historyInt->EvictOutOfRangeContentViewers(loadedIndex);
+        historyInt->EvictContentViewers(prevIndex, loadedIndex);
       }
     }
   }
@@ -2657,9 +2673,9 @@ DocumentViewerImpl::Print(PRBool            aSilent,
 #endif
 }
 
-/* [noscript] void printWithParent (in nsIDOMWindow aParentWin, in nsIPrintSettings aThePrintSettings, in nsIWebProgressListener aWPListener); */
+/* [noscript] void printWithParent (in nsIDOMWindowInternal aParentWin, in nsIPrintSettings aThePrintSettings, in nsIWebProgressListener aWPListener); */
 NS_IMETHODIMP 
-DocumentViewerImpl::PrintWithParent(nsIDOMWindow*, nsIPrintSettings *aThePrintSettings, nsIWebProgressListener *aWPListener)
+DocumentViewerImpl::PrintWithParent(nsIDOMWindowInternal *aParentWin, nsIPrintSettings *aThePrintSettings, nsIWebProgressListener *aWPListener)
 {
 #ifdef NS_PRINTING
   return Print(aThePrintSettings, aWPListener);
@@ -3633,7 +3649,6 @@ DocumentViewerImpl::Print(nsIPrintSettings*       aPrintSettings,
   }
 
   nsPrintEventDispatcher beforeAndAfterPrint(mDocument);
-  NS_ENSURE_STATE(!GetIsPrinting());
   // If we are hosting a full-page plugin, tell it to print
   // first. It shows its own native print UI.
   nsCOMPtr<nsIPluginDocument> pDoc(do_QueryInterface(mDocument));
@@ -3707,7 +3722,6 @@ DocumentViewerImpl::PrintPreview(nsIPrintSettings* aPrintSettings,
   NS_ENSURE_STATE(doc);
 
   nsPrintEventDispatcher beforeAndAfterPrint(doc);
-  NS_ENSURE_STATE(!GetIsPrinting());
   if (!mPrintEngine) {
     mPrintEngine = new nsPrintEngine();
 
@@ -3783,7 +3797,7 @@ DocumentViewerImpl::PrintPreviewNavigate(PRInt16 aType, PRInt32 aPageNum)
   // Now, locate the current page we are on and
   // and the page of the page number
   nscoord gap = 0;
-  nsIFrame* pageFrame = seqFrame->GetFirstPrincipalChild();
+  nsIFrame* pageFrame = seqFrame->GetFirstChild(nsnull);
   while (pageFrame != nsnull) {
     nsRect pageRect = pageFrame->GetRect();
     if (pageNum == 1) {
@@ -4272,7 +4286,7 @@ DocumentViewerImpl::OnDonePrinting()
     if (mDeferredWindowClose) {
       mDeferredWindowClose = PR_FALSE;
       nsCOMPtr<nsISupports> container = do_QueryReferent(mContainer);
-      nsCOMPtr<nsIDOMWindow> win = do_GetInterface(container);
+      nsCOMPtr<nsIDOMWindowInternal> win = do_GetInterface(container);
       if (win)
         win->Close();
     } else if (mClosingWhilePrinting) {

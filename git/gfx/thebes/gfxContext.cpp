@@ -63,15 +63,6 @@ gfxContext::gfxContext(gfxASurface *surface) :
 
     mCairo = cairo_create(surface->CairoSurface());
     mFlags = surface->GetDefaultContextFlags();
-    if (mSurface->GetRotateForLandscape()) {
-        // Rotate page 90 degrees to draw landscape page on portrait paper
-        gfxIntSize size = mSurface->GetSize();
-        Translate(gfxPoint(0, size.width));
-        gfxMatrix matrix(0, -1,
-                         1,  0,
-                         0,  0);
-        Multiply(matrix);
-    }
 }
 gfxContext::~gfxContext()
 {
@@ -694,29 +685,6 @@ gfxContext::GetClipExtents()
     double xmin, ymin, xmax, ymax;
     cairo_clip_extents(mCairo, &xmin, &ymin, &xmax, &ymax);
     return gfxRect(xmin, ymin, xmax - xmin, ymax - ymin);
-}
-
-PRBool
-gfxContext::ClipContainsRect(const gfxRect& aRect)
-{
-    cairo_rectangle_list_t *clip =
-        cairo_copy_clip_rectangle_list(mCairo);
-
-    PRBool result = PR_FALSE;
-
-    if (clip->status == CAIRO_STATUS_SUCCESS) {
-        for (int i = 0; i < clip->num_rectangles; i++) {
-            gfxRect rect(clip->rectangles[i].x, clip->rectangles[i].y,
-                         clip->rectangles[i].width, clip->rectangles[i].height);
-            if (rect.Contains(aRect)) {
-                result = PR_TRUE;
-                break;
-            }
-        }
-    }
-
-   cairo_rectangle_list_destroy(clip);
-   return result;
 }
 
 // rendering sources

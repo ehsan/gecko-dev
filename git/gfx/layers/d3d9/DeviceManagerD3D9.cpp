@@ -181,7 +181,6 @@ SwapChainD3D9::Reset()
 
 DeviceManagerD3D9::DeviceManagerD3D9()
   : mDeviceResetCount(0)
-  , mMaxTextureSize(0)
   , mHasDynamicTextures(false)
   , mDeviceWasRemoved(false)
 {
@@ -647,7 +646,6 @@ DeviceManagerD3D9::VerifyCaps()
       caps.MaxTextureWidth < 4096) {
     return false;
   }
-  mMaxTextureSize = NS_MIN(caps.MaxTextureHeight, caps.MaxTextureWidth);
 
   if ((caps.PixelShaderVersion & 0xffff) < 0x200 ||
       (caps.VertexShaderVersion & 0xffff) < 0x200) {

@@ -115,10 +115,9 @@ public:
   NS_IMETHOD              MakeFullScreen(PRBool aFullScreen);
   virtual nsDeviceContext* GetDeviceContext();
   virtual nsIToolkit*     GetToolkit();
-  virtual LayerManager*   GetLayerManager(PLayersChild* aShadowManager = nsnull,
-                                          LayersBackend aBackendHint = LayerManager::LAYERS_NONE,
-                                          LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
+  virtual LayerManager*   GetLayerManager(LayerManagerPersistence aPersistence,
                                           bool* aAllowRetaining = nsnull);
+  using nsIWidget::GetLayerManager;
 
   virtual void            DrawOver(LayerManager* aManager, nsIntRect aRect) {}
   virtual void            UpdateThemeGeometries(const nsTArray<ThemeGeometry>& aThemeGeometries) {}
@@ -170,7 +169,6 @@ public:
               nsIToolkit       *aToolkit = nsnull,
               nsWidgetInitData *aInitData = nsnull,
               PRBool           aForceUseIWidgetParent = PR_FALSE);
-  NS_IMETHOD              SetEventCallback(EVENT_CALLBACK aEventFunction, nsDeviceContext *aContext);
   NS_IMETHOD              AttachViewToTopLevel(EVENT_CALLBACK aViewEventFunction, nsDeviceContext *aContext);
   virtual ViewWrapper*    GetAttachedViewPtr();
   NS_IMETHOD              SetAttachedViewPtr(ViewWrapper* aViewWrapper);

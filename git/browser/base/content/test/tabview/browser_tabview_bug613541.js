@@ -20,6 +20,23 @@ function test() {
     return groupItem;
   }
 
+  let hideGroupItem = function (groupItem, callback) {
+    groupItem.addSubscriber(groupItem, 'groupHidden', function () {
+      groupItem.removeSubscriber(groupItem, 'groupHidden');
+      callback();
+    });
+    groupItem.closeAll();
+  }
+
+  let closeGroupItem = function (groupItem, callback) {
+    afterAllTabsLoaded(function () {
+      hideGroupItem(groupItem, function () {
+        groupItem.closeHidden();
+        callback();
+      });
+    });
+  }
+
   let tests = [];
 
   let next = function () {

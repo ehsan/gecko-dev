@@ -40,7 +40,7 @@
 #define _nsAccessible_H_
 
 #include "nsAccessNodeWrap.h"
-#include "mozilla/a11y/States.h"
+#include "States.h"
 
 #include "nsIAccessible.h"
 #include "nsIAccessibleHyperLink.h"
@@ -57,12 +57,10 @@
 class AccEvent;
 class AccGroupInfo;
 class EmbeddedObjCollector;
-class KeyBinding;
 class nsAccessible;
 class nsHyperTextAccessible;
 class nsHTMLLIAccessible;
 struct nsRoleMapEntry;
-class Relation;
 class nsTextAccessible;
 
 struct nsRect;
@@ -219,11 +217,6 @@ public:
                                      EWhichChildAtPoint aWhichChild);
 
   /**
-   * Return the focused child if any.
-   */
-  virtual nsAccessible* FocusedChild();
-
-  /**
    * Return calculated group level based on accessible hierarchy.
    */
   virtual PRInt32 GetLevelInternal();
@@ -237,11 +230,6 @@ public:
    */
   virtual void GetPositionAndSizeInternal(PRInt32 *aPosInSet,
                                           PRInt32 *aSetSize);
-
-  /**
-   * Get the relation of the given type.
-   */
-  virtual Relation RelationByType(PRUint32 aType);
 
   //////////////////////////////////////////////////////////////////////////////
   // Initializing methods
@@ -290,7 +278,7 @@ public:
   /**
    * Return parent accessible.
    */
-  nsAccessible* Parent() const { return mParent; }
+  nsAccessible* GetParent() const { return mParent; }
 
   /**
    * Return child accessible at the given index.
@@ -318,20 +306,12 @@ public:
   PRBool HasChildren() { return !!GetChildAt(0); }
 
   /**
-   * Return first/last/next/previous sibling of the accessible.
+   * Return next/previous sibling of the accessible.
    */
   inline nsAccessible* NextSibling() const
     {  return GetSiblingAtOffset(1); }
   inline nsAccessible* PrevSibling() const
     { return GetSiblingAtOffset(-1); }
-  inline nsAccessible* FirstChild()
-    { return GetChildCount() != 0 ? GetChildAt(0) : nsnull; }
-  inline nsAccessible* LastChild()
-  {
-    PRUint32 childCount = GetChildCount();
-    return childCount != 0 ? GetChildAt(childCount - 1) : nsnull;
-  }
-
 
   /**
    * Return embedded accessible children count.
@@ -422,25 +402,6 @@ public:
   nsTextAccessible* AsTextLeaf();
 
   //////////////////////////////////////////////////////////////////////////////
-  // ActionAccessible
-
-  /**
-   * Return the number of actions that can be performed on this accessible.
-   */
-  virtual PRUint8 ActionCount();
-
-  /**
-   * Return access key, such as Alt+D.
-   */
-  virtual KeyBinding AccessKey() const;
-
-  /**
-   * Return global keyboard shortcut for default action, such as Ctrl+O for
-   * Open file menuitem.
-   */
-  virtual KeyBinding KeyboardShortcut() const;
-
-  //////////////////////////////////////////////////////////////////////////////
   // HyperLinkAccessible
 
   /**
@@ -469,7 +430,7 @@ public:
     // Perhaps we can get information about invalid links from the cache
     // In the mean time authors can use role="link" aria-invalid="true"
     // to force it for links they internally know to be invalid
-    return (0 == (State() & mozilla::a11y::states::INVALID));
+    return (0 == (State() & states::INVALID));
   }
 
   /**
@@ -673,7 +634,7 @@ protected:
    *  Get the container node for an atomic region, defined by aria-atomic="true"
    *  @return the container node
    */
-  nsIContent* GetAtomicRegion() const;
+  nsIDOMNode* GetAtomicRegion();
 
   /**
    * Get numeric value of the given ARIA attribute.
@@ -687,7 +648,7 @@ protected:
 
   /**
    * Return the action rule based on ARIA enum constants EActionRule
-   * (see nsARIAMap.h). Used by ActionCount() and GetActionName().
+   * (see nsARIAMap.h). Used by GetNumActions() and GetActionName().
    *
    * @param aStates  [in] states of the accessible
    */
@@ -730,62 +691,5 @@ protected:
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsAccessible,
                               NS_ACCESSIBLE_IMPL_IID)
-
-
-/**
- * Represent key binding associated with accessible (such as access key and
- * global keyboard shortcuts).
- */
-class KeyBinding
-{
-public:
-  /**
-   * Modifier mask values.
-   */
-  static const PRUint32 kShift = 1;
-  static const PRUint32 kControl = 2;
-  static const PRUint32 kAlt = 4;
-  static const PRUint32 kMeta = 8;
-
-  KeyBinding() : mKey(0), mModifierMask(0) {}
-  KeyBinding(PRUint32 aKey, PRUint32 aModifierMask) :
-    mKey(aKey), mModifierMask(aModifierMask) {};
-
-  inline bool IsEmpty() const { return !mKey; }
-  inline PRUint32 Key() const { return mKey; }
-  inline PRUint32 ModifierMask() const { return mModifierMask; }
-
-  enum Format {
-    ePlatformFormat,
-    eAtkFormat
-  };
-
-  /**
-   * Return formatted string for this key binding depending on the given format.
-   */
-  inline void ToString(nsAString& aValue,
-                       Format aFormat = ePlatformFormat) const
-  {
-    aValue.Truncate();
-    AppendToString(aValue, aFormat);
-  }
-  inline void AppendToString(nsAString& aValue,
-                             Format aFormat = ePlatformFormat) const
-  {
-    if (mKey) {
-      if (aFormat == ePlatformFormat)
-        ToPlatformFormat(aValue);
-      else
-        ToAtkFormat(aValue);
-    }
-  }
-
-private:
-  void ToPlatformFormat(nsAString& aValue) const;
-  void ToAtkFormat(nsAString& aValue) const;
-
-  PRUint32 mKey;
-  PRUint32 mModifierMask;
-};
 
 #endif

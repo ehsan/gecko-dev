@@ -47,7 +47,6 @@
 #include "gfxRect.h"
 #include "gfxMatrix.h"
 #include "nsSVGMatrix.h"
-#include "nsTextFragment.h"
 
 class nsSVGTextFrame;
 class nsSVGTextPathFrame;

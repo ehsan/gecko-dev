@@ -124,13 +124,30 @@ InvokeSessionGuard::invoke(JSContext *cx)
     /* Prevent spurious accessing-callee-after-rval assert. */
     args_.calleeHasBeenReset();
 
-#ifdef JS_METHODJIT
-    void *code;
-    if (!optimized() || !(code = script_->getJIT(false /* !constructing */)->invokeEntry))
-#else
     if (!optimized())
-#endif
         return Invoke(cx, args_);
+
+    /*
+     * Update the types of each argument. The 'this' type and missing argument
+     * types were handled when the invoke session was created.
+     */
+    for (unsigned i = 0; i < Min(argc(), nformals_); i++)
+        script_->types.setArgument(cx, i, (*this)[i]);
+
+#ifdef JS_METHODJIT
+    mjit::JITScript *jit = script_->getJIT(false /* !constructing */);
+    if (!jit) {
+        /* Watch in case the code was thrown away due a recompile. */
+        mjit::CompileStatus status = mjit::TryCompile(cx, ifg_.fp());
+        if (status == mjit::Compile_Error)
+            return false;
+        JS_ASSERT(status == mjit::Compile_Okay);
+        jit = script_->getJIT(false);
+    }
+    void *code;
+    if (!(code = jit->invokeEntry))
+        return Invoke(cx, args_);
+#endif
 
     /* Clear any garbage left from the last Invoke. */
     StackFrame *fp = ifg_.fp();
@@ -209,28 +226,41 @@ GetPrimitiveThis(JSContext *cx, Value *vp, T *v)
 
 /*
  * Compute the implicit |this| parameter for a call expression where the callee
- * funval was resolved from an unqualified name reference to a property on obj
- * (an object on the scope chain).
+ * is an unqualified name reference.
  *
  * We can avoid computing |this| eagerly and push the implicit callee-coerced
- * |this| value, undefined, if any of these conditions hold:
+ * |this| value, undefined, according to this decision tree:
  *
- * 1. The callee funval is not an object.
+ * 1. If the called value, funval, is not an object, bind |this| to undefined.
  *
- * 2. The nominal |this|, obj, is a global object.
- *
- * 3. The nominal |this|, obj, has one of Block, Call, or DeclEnv class (this
+ * 2. The nominal |this|, obj, has one of Block, Call, or DeclEnv class (this
  *    is what IsCacheableNonGlobalScope tests). Such objects-as-scopes must be
- *    censored with undefined.
+ *    censored.
  *
- * Only if funval is an object and obj is neither a declarative scope object to
- * be censored, nor a global object, do we bind |this| to obj->thisObject().
- * Only |with| statements and embedding-specific scope objects fall into this
- * last ditch.
+ * 3. obj is a global. There are several sub-cases:
  *
- * If funval is a strict mode function, then code implementing JSOP_THIS in the
- * interpreter and JITs will leave undefined as |this|. If funval is a function
- * not in strict mode, JSOP_THIS code replaces undefined with funval's global.
+ * a) obj is a proxy: we try unwrapping it (see jswrapper.cpp) in order to find
+ *    a function object inside. If the proxy is not a wrapper, or else it wraps
+ *    a non-function, then bind |this| to undefined per ES5-strict/Harmony.
+ *
+ *    [Else fall through with callee pointing to an unwrapped function object.]
+ *
+ * b) If callee is a function (after unwrapping if necessary), check whether it
+ *    is interpreted and in strict mode. If so, then bind |this| to undefined
+ *    per ES5 strict.
+ *
+ * c) Now check that callee is scoped by the same global object as the object
+ *    in which its unqualified name was bound as a property. ES1-3 bound |this|
+ *    to the name's "Reference base object", which in the context of multiple
+ *    global objects may not be the callee's global. If globals match, bind
+ *    |this| to undefined.
+ *
+ *    This is a backward compatibility measure; see bug 634590.
+ *
+ * 4. Finally, obj is neither a declarative scope object to be censored, nor a
+ *    global where the callee requires no backward-compatible special handling
+ *    or future-proofing based on (explicit or imputed by Harmony status in the
+ *    proxy case) strict mode opt-in. Bind |this| to obj->thisObject().
  *
  * We set *vp to undefined early to reduce code size and bias this code for the
  * common and future-friendly cases.
@@ -243,11 +273,25 @@ ComputeImplicitThis(JSContext *cx, JSObject *obj, const Value &funval, Value *vp
     if (!funval.isObject())
         return true;
 
-    if (obj->isGlobal())
-        return true;
+    if (!obj->isGlobal()) {
+        if (IsCacheableNonGlobalScope(obj))
+            return true;
+    } else {
+        JSObject *callee = &funval.toObject();
 
-    if (IsCacheableNonGlobalScope(obj))
-        return true;
+        if (callee->isProxy()) {
+            callee = callee->unwrap();
+            if (!callee->isFunction())
+                return true; // treat any non-wrapped-function proxy as strict
+        }
+        if (callee->isFunction()) {
+            JSFunction *fun = callee->getFunctionPrivate();
+            if (fun->isInterpreted() && fun->inStrictMode())
+                return true;
+        }
+        if (callee->getGlobal() == cx->fp()->scopeChain().getGlobal())
+            return true;;
+    }
 
     obj = obj->thisObject(cx);
     if (!obj)
@@ -315,19 +359,19 @@ ValuePropertyBearer(JSContext *cx, const Value &v, int spindex)
 }
 
 inline bool
-ScriptPrologue(JSContext *cx, StackFrame *fp)
+ScriptPrologue(JSContext *cx, StackFrame *fp, bool newType)
 {
     JS_ASSERT_IF(fp->isNonEvalFunctionFrame() && fp->fun()->isHeavyweight(), fp->hasCallObj());
 
     if (fp->isConstructing()) {
-        JSObject *obj = js_CreateThisForFunction(cx, &fp->callee());
+        JSObject *obj = js_CreateThisForFunction(cx, &fp->callee(), newType);
         if (!obj)
             return false;
         fp->functionThis().setObject(*obj);
     }
 
     Probes::enterJSFun(cx, fp->maybeFun(), fp->script());
-    if (cx->compartment->debugMode())
+    if (cx->compartment->debugMode)
         ScriptDebugPrologue(cx, fp);
 
     return true;
@@ -337,7 +381,7 @@ inline bool
 ScriptEpilogue(JSContext *cx, StackFrame *fp, bool ok)
 {
     Probes::exitJSFun(cx, fp->maybeFun(), fp->script());
-    if (cx->compartment->debugMode())
+    if (cx->compartment->debugMode)
         ok = ScriptDebugEpilogue(cx, fp, ok);
 
     /*
@@ -353,11 +397,11 @@ ScriptEpilogue(JSContext *cx, StackFrame *fp, bool ok)
 }
 
 inline bool
-ScriptPrologueOrGeneratorResume(JSContext *cx, StackFrame *fp)
+ScriptPrologueOrGeneratorResume(JSContext *cx, StackFrame *fp, bool newType)
 {
     if (!fp->isGeneratorFrame())
-        return ScriptPrologue(cx, fp);
-    if (cx->compartment->debugMode())
+        return ScriptPrologue(cx, fp, newType);
+    if (cx->compartment->debugMode)
         ScriptDebugPrologue(cx, fp);
     return true;
 }
@@ -367,7 +411,7 @@ ScriptEpilogueOrGeneratorYield(JSContext *cx, StackFrame *fp, bool ok)
 {
     if (!fp->isYielding())
         return ScriptEpilogue(cx, fp, ok);
-    if (cx->compartment->debugMode())
+    if (cx->compartment->debugMode)
         return ScriptDebugEpilogue(cx, fp, ok);
     return ok;
 }

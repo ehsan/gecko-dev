@@ -60,7 +60,6 @@
 #define COMPLETE_LENGTH 32
 
 class nsUrlClassifierDBServiceWorker;
-class nsIThread;
 
 // This is a proxy class that just creates a background thread and delagates
 // calls to the background thread.
@@ -87,8 +86,6 @@ public:
                       nsIUrlClassifierHashCompleter** completer);
   nsresult CacheCompletions(nsTArray<nsUrlClassifierLookupResult> *results);
 
-  static nsIThread* BackgroundThread();
-
 private:
   // No subclassing
   ~nsUrlClassifierDBService();
@@ -103,7 +100,7 @@ private:
   nsresult Shutdown();
   
   nsCOMPtr<nsUrlClassifierDBServiceWorker> mWorker;
-  nsCOMPtr<nsIUrlClassifierDBServiceWorker> mWorkerProxy;
+  nsCOMPtr<nsUrlClassifierDBServiceWorker> mWorkerProxy;
 
   nsInterfaceHashtable<nsCStringHashKey, nsIUrlClassifierHashCompleter> mCompleters;
 
@@ -123,9 +120,6 @@ private:
 
   // The list of tables that can use the default hash completer object.
   nsTArray<nsCString> mGethashWhitelist;
-
-  // Thread that we do the updates on.
-  static nsIThread* gDbBackgroundThread;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsUrlClassifierDBService, NS_URLCLASSIFIERDBSERVICE_CID)

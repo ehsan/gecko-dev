@@ -38,7 +38,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/layers/PLayers.h"
 #include "mozilla/layers/ShadowLayers.h"
 
 #include "ImageLayers.h"
@@ -46,7 +45,6 @@
 #include "gfxPlatform.h"
 #include "ReadbackLayer.h"
 #include "gfxUtils.h"
-#include "nsPrintfCString.h"
 #include "mozilla/Util.h"
 
 using namespace mozilla::layers;
@@ -391,12 +389,6 @@ Layer::GetEffectiveOpacity()
   return opacity;
 }
 
-void
-ContainerLayer::FillSpecificAttributes(SpecificLayerAttributes& aAttrs)
-{
-  aAttrs = ContainerLayerAttributes(GetFrameMetrics());
-}
-
 PRBool
 ContainerLayer::HasMultipleChildren()
 {
@@ -429,9 +421,7 @@ ContainerLayer::DefaultComputeEffectiveTransforms(const gfx3DMatrix& aTransformT
   } else {
     useIntermediateSurface = PR_FALSE;
     gfxMatrix contTransform;
-    if (!mEffectiveTransform.Is2D(&contTransform)) {
-     useIntermediateSurface = PR_TRUE;   
-    } else if (
+    if (!mEffectiveTransform.Is2D(&contTransform) ||
 #ifdef MOZ_GFX_OPTIMIZE_MOBILE
         !contTransform.PreservesAxisAlignedRectangles()) {
 #else
@@ -504,6 +494,7 @@ PlanarYCbCrImage::CopyData(Data& aDest, gfxIntSize& aDestSize,
 {
   aDest = aData;
 
+  /* We always have a multiple of 16 width so we can force the stride */
   aDest.mYStride = aDest.mYSize.width;
   aDest.mCbCrStride = aDest.mCbCrSize.width;
 

@@ -91,14 +91,14 @@ public:
   NS_IMETHOD DoLayout(nsBoxLayoutState& aBoxLayoutState);
 
   // nsIFrame overrides
-  NS_IMETHOD  AppendFrames(ChildListID     aListID,
+  NS_IMETHOD  AppendFrames(nsIAtom*        aListName,
                            nsFrameList&    aFrameList);
 
-  NS_IMETHOD  InsertFrames(ChildListID     aListID,
+  NS_IMETHOD  InsertFrames(nsIAtom*        aListName,
                            nsIFrame*       aPrevFrame,
                            nsFrameList&    aFrameList);
 
-  NS_IMETHOD  RemoveFrame(ChildListID     aListID,
+  NS_IMETHOD  RemoveFrame(nsIAtom*        aListName,
                           nsIFrame*       aOldFrame);
 
   virtual void DestroyFrom(nsIFrame* aDestructRoot);
@@ -124,7 +124,7 @@ public:
                          nsGUIEvent* aEvent,
                          nsEventStatus* aEventStatus);
 
-  NS_IMETHOD SetInitialChildList(ChildListID     aListID,
+  NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
                                  nsFrameList&    aChildList);
 
   virtual nsIAtom* GetType() const;

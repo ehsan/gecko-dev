@@ -76,7 +76,6 @@ class InlineFrameAssembler {
     Assembler &masm;
     FrameSize  frameSize;       // size of the caller's frame
     RegisterID funObjReg;       // register containing the function object (callee)
-    jsbytecode *pc;             // bytecode location at the caller call site
     uint32     flags;           // frame flags
 
   public:
@@ -87,7 +86,7 @@ class InlineFrameAssembler {
     Registers  tempRegs;
 
     InlineFrameAssembler(Assembler &masm, ic::CallICInfo &ic, uint32 flags)
-      : masm(masm), pc(ic.pc), flags(flags)
+      : masm(masm), flags(flags), tempRegs(Registers::AvailRegs)
     {
         frameSize = ic.frameSize;
         funObjReg = ic.funObjReg;
@@ -96,7 +95,7 @@ class InlineFrameAssembler {
     }
 
     InlineFrameAssembler(Assembler &masm, Compiler::CallGenInfo &gen, uint32 flags)
-      : masm(masm), pc(gen.pc), flags(flags)
+      : masm(masm), flags(flags), tempRegs(Registers::AvailRegs)
     {
         frameSize = gen.frameSize;
         funObjReg = gen.funObjReg;
@@ -131,7 +130,7 @@ class InlineFrameAssembler {
              * dynamic number of arguments) to VMFrame.regs, so we just load it
              * here to get the new frame pointer.
              */
-            RegisterID newfp = tempRegs.takeAnyReg();
+            RegisterID newfp = tempRegs.takeAnyReg().reg();
             masm.loadPtr(FrameAddress(offsetof(VMFrame, regs.sp)), newfp);
 
             Address flagsAddr(newfp, StackFrame::offsetOfFlags());

@@ -56,7 +56,9 @@ else
 HOST_CSRCS	= nsinstall.c pathsub.c
 endif
 
-TARGETS		= $(HOST_PROGRAM) $(SIMPLE_PROGRAMS)
+PLSRCS		= nfspwd.pl
+
+TARGETS		= $(HOST_PROGRAM) $(PLSRCS:.pl=) $(SIMPLE_PROGRAMS)
 
 ifndef CROSS_COMPILE
 ifdef USE_ELF_DYNSTR_GC

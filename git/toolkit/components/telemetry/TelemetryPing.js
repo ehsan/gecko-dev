@@ -11,6 +11,8 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
+ * The Original Code is the nsTryToClose component.
+ *
  * The Initial Developer of the Original Code is
  * the Mozilla Foundation
  * Portions created by the Initial Developer are Copyright (C) 2011
@@ -40,7 +42,6 @@ const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource://gre/modules/LightweightThemeManager.jsm");
 
 // When modifying the payload in incompatible ways, please bump this version number
 const PAYLOAD_VERSION = 1;
@@ -48,29 +49,19 @@ const PAYLOAD_VERSION = 1;
 const PREF_SERVER = "toolkit.telemetry.server";
 const PREF_ENABLED = "toolkit.telemetry.enabled";
 // Do not gather data more than once a minute
-const TELEMETRY_INTERVAL = 60000;
+const TELEMETRY_INTERVAL = 60;
 // Delay before intializing telemetry (ms)
 const TELEMETRY_DELAY = 60000;
 // about:memory values to turn into histograms
 const MEM_HISTOGRAMS = {
   "js-gc-heap": "MEMORY_JS_GC_HEAP",
-  "js-compartments-system": "MEMORY_JS_COMPARTMENTS_SYSTEM",
-  "js-compartments-user": "MEMORY_JS_COMPARTMENTS_USER",
   "resident": "MEMORY_RESIDENT",
-  "explicit/storage/sqlite": "MEMORY_STORAGE_SQLITE",
+  "explicit/layout/all": "MEMORY_LAYOUT_ALL",
   "explicit/images/content/used/uncompressed":
     "MEMORY_IMAGES_CONTENT_USED_UNCOMPRESSED",
-  "heap-allocated": "MEMORY_HEAP_ALLOCATED",
-  "page-faults-hard": "PAGE_FAULTS_HARD"
+  "heap-used": "MEMORY_HEAP_USED",
+  "hard-page-faults": "HARD_PAGE_FAULTS"
 };
-
-var gLastMemoryPoll = null;
-
-function getLocale() {
-  return Cc["@mozilla.org/chrome/chrome-registry;1"].
-         getService(Ci.nsIXULChromeRegistry).
-         getSelectedLocale('global');
-}
 
 XPCOMUtils.defineLazyGetter(this, "Telemetry", function () {
   return Cc["@mozilla.org/base/telemetry;1"].getService(Ci.nsITelemetry);
@@ -152,7 +143,6 @@ function getMetadata(reason) {
     appName: ai.name,
     appBuildID: ai.appBuildID,
     platformBuildID: ai.platformBuildID,
-    locale: getLocale(),
   };
 
   // sysinfo fields is not always available, get what we can.
@@ -189,19 +179,11 @@ function getSimpleMeasurements() {
     // uptime in minutes
     uptime: Math.round((new Date() - si.process) / 60000)
   }
-
-  if (si.process) {
-    for each (let field in ["main", "firstPaint", "sessionRestored"]) {
-      if (!(field in si))
-        continue;
-      ret[field] = si[field] - si.process
-    }
+  for each (let field in ["main", "firstPaint", "sessionRestored"]) {
+    if (!(field in si))
+      continue;
+    ret[field] = si[field] - si.process
   }
-
-  ret.js = Cc["@mozilla.org/js/xpc/XPConnect;1"]
-           .getService(Ci.nsIJSEngineTelemetryStats)
-           .telemetryValue;
-
   return ret;
 }
 
@@ -219,54 +201,6 @@ TelemetryPing.prototype = {
       this._histograms[name] = h;
     }
     h.add(val);
-  },
-
-  /**
-   * Descriptive metadata
-   * 
-   * @param  reason
-   *         The reason for the telemetry ping, this will be included in the
-   *         returned metadata,
-   * @return The metadata as a JS object
-   */
-  getMetadata: function getMetadata(reason) {
-    let ai = Services.appinfo;
-    let ret = {
-      reason: reason,
-      OS: ai.OS,
-      appID: ai.ID,
-      appVersion: ai.version,
-      appName: ai.name,
-      appBuildID: ai.appBuildID,
-      platformBuildID: ai.platformBuildID,
-    };
-
-    // sysinfo fields are not always available, get what we can.
-    let sysInfo = Cc["@mozilla.org/system-info;1"].getService(Ci.nsIPropertyBag2);
-    let fields = ["cpucount", "memsize", "arch", "version", "device", "manufacturer", "hardware"];
-    for each (let field in fields) {
-      let value;
-      try {
-        value = sysInfo.getProperty(field);
-      } catch (e) {
-        continue
-      }
-      if (field == "memsize") {
-        // Send RAM size in megabytes. Rounding because sysinfo doesn't
-        // always provide RAM in multiples of 1024.
-        value = Math.round(value / 1024 / 1024)
-      }
-      ret[field] = value
-    }
-
-    let theme = LightweightThemeManager.currentTheme;
-    if (theme)
-      ret.persona = theme.id;
-
-    if (this._addons)
-      ret.addons = this._addons;
-
-    return ret;
   },
 
   /**
@@ -295,11 +229,8 @@ TelemetryPing.prototype = {
         val = Math.floor(mr.amount / 1024);
       }
       else if (mr.units == Ci.nsIMemoryReporter.UNITS_COUNT) {
-        val = mr.amount;
-      }
-      else if (mr.units == Ci.nsIMemoryReporter.UNITS_COUNT_CUMULATIVE) {
-        // If the reporter gives us a cumulative count, we'll report the
-        // difference in its value between now and our previous ping.
+        // If the reporter gives us a count, we'll report the difference in its
+        // value between now and our previous ping.
 
         // Read mr.amount just once so our arithmetic is consistent.
         let curVal = mr.amount;
@@ -320,11 +251,9 @@ TelemetryPing.prototype = {
       }
       this.addValue(mr.path, id, val);
     }
+    // XXX: bug 660731 will enable this
     // "explicit" is found differently.
-    let explicit = mgr.explicit;    // Get it only once, it's reasonably expensive
-    if (explicit != -1) {
-      this.addValue("explicit", "MEMORY_EXPLICIT", Math.floor(explicit / 1024));
-    }
+    //this.addValue("explicit", "MEMORY_EXPLICIT", Math.floor(mgr.explicit / 1024));
   },
   
   /**
@@ -335,11 +264,10 @@ TelemetryPing.prototype = {
     this.gatherMemory();
     let payload = {
       ver: PAYLOAD_VERSION,
-      info: this.getMetadata(reason),
+      info: getMetadata(reason),
       simpleMeasurements: getSimpleMeasurements(),
       histograms: getHistograms()
     };
-
     let isTestPing = (reason == "test-ping");
     // Generate a unique id once per session so the server can cope with duplicate submissions.
     // Use a deterministic url for testing.
@@ -379,15 +307,19 @@ TelemetryPing.prototype = {
   attachObservers: function attachObservers() {
     if (!this._initialized)
       return;
-    Services.obs.addObserver(this, "cycle-collector-begin", false);
+    let idleService = Cc["@mozilla.org/widget/idleservice;1"].
+                      getService(Ci.nsIIdleService);
+    idleService.addIdleObserver(this, TELEMETRY_INTERVAL);
     Services.obs.addObserver(this, "idle-daily", false);
   },
 
   detachObservers: function detachObservers() {
     if (!this._initialized)
       return;
+    let idleService = Cc["@mozilla.org/widget/idleservice;1"].
+                      getService(Ci.nsIIdleService);
+    idleService.removeIdleObserver(this, TELEMETRY_INTERVAL);
     Services.obs.removeObserver(this, "idle-daily");
-    Services.obs.removeObserver(this, "cycle-collector-begin");
   },
 
   /**
@@ -441,22 +373,14 @@ TelemetryPing.prototype = {
     var server = this._server;
 
     switch (aTopic) {
-    case "Add-ons":
-      this._addons = aData;
-      break;
     case "profile-after-change":
       this.setup();
       break;
     case "profile-before-change":
       this.uninstall();
       break;
-    case "cycle-collector-begin":
-      let now = new Date();
-      if (!gLastMemoryPoll
-          || (TELEMETRY_INTERVAL <= now - gLastMemoryPoll)) {
-        gLastMemoryPoll = now;
-        this.gatherMemory();
-      }
+    case "idle":
+      this.gatherMemory();
       break;
     case "private-browsing":
       Telemetry.canRecord = aData == "exit";

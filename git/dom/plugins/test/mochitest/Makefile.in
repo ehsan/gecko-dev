@@ -99,17 +99,13 @@ _MOCHITEST_FILES = \
   test_npruntime_construct.html \
   307-xo-redirect.sjs \
   test_redirect_handling.html \
+  test_clear_site_data.html \
   test_zero_opacity.html \
   test_NPPVpluginWantsAllNetworkStreams.html \
-  test_npruntime_npnsetexception.html \
-  test_display_none.html \
-  test_instance_re-parent.html \
-  test_instance_unparent1.html \
-  test_instance_unparent2.html \
-  test_instance_unparent3.html \
   $(NULL)
 
 #  test_plugin_scroll_painting.html \ bug 596491
+#  test_npruntime_npnsetexception.html \ Disabled for e10s
 
 ifeq ($(OS_ARCH),WINNT)
 _MOCHITEST_FILES += \
@@ -122,7 +118,6 @@ endif
 
 _MOCHICHROME_FILES = \
   utils.js \
-  test_clear_site_data.html \
   test_npruntime.xul   \
   test_privatemode.xul \
   test_wmode.xul \
@@ -131,7 +126,6 @@ _MOCHICHROME_FILES = \
 
 ifneq ($(MOZ_WIDGET_TOOLKIT),cocoa)
 _MOCHITEST_FILES += \
-  test_instance_re-parent-windowed.html \
   test_visibility.html \
   $(NULL)
 

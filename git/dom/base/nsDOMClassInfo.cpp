@@ -94,8 +94,6 @@
 #include "nsDOMWindowUtils.h"
 #include "nsIDOMGlobalPropertyInitializer.h"
 #include "mozilla/Preferences.h"
-#include "nsLocation.h"
-#include "nsIDOMCaretPosition.h"
 
 // Window scriptable helper includes
 #include "nsIDocShell.h"
@@ -116,7 +114,7 @@
 #include "nsIDOMMimeTypeArray.h"
 #include "nsIDOMMimeType.h"
 #include "nsIDOMLocation.h"
-#include "nsIDOMWindow.h"
+#include "nsIDOMWindowInternal.h"
 #include "nsPIDOMWindow.h"
 #include "nsIDOMJSWindow.h"
 #include "nsIDOMWindowCollection.h"
@@ -200,6 +198,7 @@
 #include "nsIPresShell.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMCSSStyleDeclaration.h"
+#include "nsStyleSet.h"
 #include "nsStyleContext.h"
 #include "nsAutoPtr.h"
 #include "nsMemory.h"
@@ -229,6 +228,7 @@
 #include "nsIDOMComment.h"
 #include "nsIDOMCDATASection.h"
 #include "nsIDOMProcessingInstruction.h"
+#include "nsIDOMNSEvent.h"
 #include "nsIDOMDataContainerEvent.h"
 #include "nsIDOMKeyEvent.h"
 #include "nsIDOMMouseEvent.h"
@@ -279,13 +279,13 @@
 #include "nsIDOMHTMLIFrameElement.h"
 #include "nsIDOMHTMLImageElement.h"
 #include "nsIDOMHTMLInputElement.h"
+#include "nsIDOMHTMLIsIndexElement.h"
 #include "nsIDOMHTMLLIElement.h"
 #include "nsIDOMHTMLLabelElement.h"
 #include "nsIDOMHTMLLegendElement.h"
 #include "nsIDOMHTMLLinkElement.h"
 #include "nsIDOMHTMLMapElement.h"
 #include "nsIDOMHTMLMenuElement.h"
-#include "nsIDOMHTMLMenuItemElement.h"
 #include "nsIDOMHTMLMetaElement.h"
 #include "nsIDOMHTMLModElement.h"
 #include "nsIDOMHTMLOListElement.h"
@@ -315,6 +315,7 @@
 #include "nsIDOMHTMLVideoElement.h"
 #include "nsIDOMHTMLAudioElement.h"
 #include "nsIDOMProgressEvent.h"
+#include "nsIDOMNSUIEvent.h"
 #include "nsIDOMCSS2Properties.h"
 #include "nsIDOMCSSCharsetRule.h"
 #include "nsIDOMCSSImportRule.h"
@@ -341,6 +342,7 @@
 #include "nsIDOMCRMFObject.h"
 #include "nsIControllers.h"
 #include "nsISelection.h"
+#include "nsISelection3.h"
 #include "nsIBoxObject.h"
 #ifdef MOZ_XUL
 #include "nsITreeSelection.h"
@@ -458,7 +460,7 @@
 #include "nsIDOMGeoPositionError.h"
 
 // Workers
-#include "mozilla/dom/workers/Workers.h"
+#include "nsDOMWorker.h"
 
 #include "nsDOMFile.h"
 #include "nsDOMFileReader.h"
@@ -473,6 +475,9 @@
 
 // Simple gestures include
 #include "nsIDOMSimpleGestureEvent.h"
+
+#include "nsIDOMNSMouseEvent.h"
+
 #include "nsIDOMMozTouchEvent.h"
 
 #include "nsIEventListenerService.h"
@@ -518,6 +523,7 @@ static const char kDOMStringBundleURL[] =
  (nsIXPCScriptable::WANT_GETPROPERTY |                                        \
   nsIXPCScriptable::WANT_SETPROPERTY |                                        \
   nsIXPCScriptable::WANT_PRECREATE |                                          \
+  nsIXPCScriptable::WANT_ADDPROPERTY |                                        \
   nsIXPCScriptable::WANT_FINALIZE |                                           \
   nsIXPCScriptable::WANT_EQUALITY |                                           \
   nsIXPCScriptable::WANT_ENUMERATE |                                          \
@@ -593,6 +599,9 @@ DOMCI_DATA(ContentFrameMessageManager, void)
 DOMCI_DATA(DOMPrototype, void)
 DOMCI_DATA(DOMConstructor, void)
 
+DOMCI_DATA(Worker, void)
+DOMCI_DATA(ChromeWorker, void)
+
 #define NS_DEFINE_CLASSINFO_DATA_WITH_NAME(_class, _name, _helper,            \
                                            _flags)                            \
   { #_name,                                                                   \
@@ -659,9 +668,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
   NS_DEFINE_CLASSINFO_DATA(Location, nsLocationSH,
                            (DOM_DEFAULT_SCRIPTABLE_FLAGS &
                             ~nsIXPCScriptable::ALLOW_PROP_MODS_TO_PROTOTYPE))
-
-  NS_DEFINE_CLASSINFO_DATA(CaretPosition, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
   NS_DEFINE_CLASSINFO_DATA(Navigator, nsNavigatorSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS |
@@ -782,7 +788,7 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            ELEMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(HTMLBaseElement, nsElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(HTMLBodyElement, nsElementSH,
+  NS_DEFINE_CLASSINFO_DATA(HTMLBodyElement, nsHTMLBodyElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(HTMLButtonElement, nsElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
@@ -822,6 +828,8 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            ELEMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(HTMLInputElement, nsElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
+  NS_DEFINE_CLASSINFO_DATA(HTMLIsIndexElement, nsElementSH,
+                           ELEMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(HTMLLIElement, nsElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(HTMLLabelElement, nsElementSH,
@@ -833,8 +841,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
   NS_DEFINE_CLASSINFO_DATA(HTMLMapElement, nsElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(HTMLMenuElement, nsElementSH,
-                           ELEMENT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(HTMLMenuItemElement, nsElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(HTMLMetaElement, nsElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
@@ -1425,6 +1431,11 @@ static nsDOMClassInfoData sClassInfoData[] = {
   NS_DEFINE_CLASSINFO_DATA_WITH_NAME(MathMLElement, Element, nsElementSH,
                                      ELEMENT_SCRIPTABLE_FLAGS)
 
+  NS_DEFINE_CLASSINFO_DATA(Worker, nsDOMGenericSH,
+                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
+  NS_DEFINE_CHROME_ONLY_CLASSINFO_DATA(ChromeWorker, nsDOMGenericSH,
+                                       DOM_DEFAULT_SCRIPTABLE_FLAGS)
+
   NS_DEFINE_CLASSINFO_DATA(WebGLRenderingContext, nsWebGLViewportHandlerSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(WebGLBuffer, nsDOMGenericSH,
@@ -1474,7 +1485,7 @@ static nsDOMClassInfoData sClassInfoData[] = {
   NS_DEFINE_CLASSINFO_DATA(DesktopNotificationCenter, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
-  NS_DEFINE_CLASSINFO_DATA(MozWebSocket, nsEventTargetSH,
+  NS_DEFINE_CLASSINFO_DATA(WebSocket, nsEventTargetSH,
                            EVENTTARGET_SCRIPTABLE_FLAGS)
 
   NS_DEFINE_CLASSINFO_DATA(CloseEvent, nsDOMGenericSH,
@@ -1543,7 +1554,7 @@ static const nsContractIDMapData kConstructorMap[] =
   NS_DEFINE_CONSTRUCTOR_DATA(FormData, NS_FORMDATA_CONTRACTID)
   NS_DEFINE_CONSTRUCTOR_DATA(XMLSerializer, NS_XMLSERIALIZER_CONTRACTID)
   NS_DEFINE_CONSTRUCTOR_DATA(XMLHttpRequest, NS_XMLHTTPREQUEST_CONTRACTID)
-  NS_DEFINE_CONSTRUCTOR_DATA(MozWebSocket, NS_WEBSOCKET_CONTRACTID)
+  NS_DEFINE_CONSTRUCTOR_DATA(WebSocket, NS_WEBSOCKET_CONTRACTID)
   NS_DEFINE_CONSTRUCTOR_DATA(XPathEvaluator, NS_XPATH_EVALUATOR_CONTRACTID)
   NS_DEFINE_CONSTRUCTOR_DATA(XSLTProcessor,
                              "@mozilla.org/document-transformer;1?type=xslt")
@@ -1561,7 +1572,9 @@ struct nsConstructorFuncMapData
 
 static const nsConstructorFuncMapData kConstructorFuncMap[] =
 {
-  NS_DEFINE_CONSTRUCTOR_FUNC_DATA(File, nsDOMFileFile::NewFile)
+  NS_DEFINE_CONSTRUCTOR_FUNC_DATA(Worker, nsDOMWorker::NewWorker)
+  NS_DEFINE_CONSTRUCTOR_FUNC_DATA(ChromeWorker, nsDOMWorker::NewChromeWorker)
+  NS_DEFINE_CONSTRUCTOR_FUNC_DATA(File, nsDOMFile::NewFile)
   NS_DEFINE_CONSTRUCTOR_FUNC_DATA(MozBlobBuilder, NS_NewBlobBuilder)
 };
 
@@ -1594,6 +1607,45 @@ jsid nsDOMClassInfo::sScreenX_id         = JSID_VOID;
 jsid nsDOMClassInfo::sScreenY_id         = JSID_VOID;
 jsid nsDOMClassInfo::sStatus_id          = JSID_VOID;
 jsid nsDOMClassInfo::sName_id            = JSID_VOID;
+jsid nsDOMClassInfo::sOnmousedown_id     = JSID_VOID;
+jsid nsDOMClassInfo::sOnmouseup_id       = JSID_VOID;
+jsid nsDOMClassInfo::sOnclick_id         = JSID_VOID;
+jsid nsDOMClassInfo::sOndblclick_id      = JSID_VOID;
+jsid nsDOMClassInfo::sOncontextmenu_id   = JSID_VOID;
+jsid nsDOMClassInfo::sOnmouseover_id     = JSID_VOID;
+jsid nsDOMClassInfo::sOnmouseout_id      = JSID_VOID;
+jsid nsDOMClassInfo::sOnkeydown_id       = JSID_VOID;
+jsid nsDOMClassInfo::sOnkeyup_id         = JSID_VOID;
+jsid nsDOMClassInfo::sOnkeypress_id      = JSID_VOID;
+jsid nsDOMClassInfo::sOnmousemove_id     = JSID_VOID;
+jsid nsDOMClassInfo::sOnfocus_id         = JSID_VOID;
+jsid nsDOMClassInfo::sOnblur_id          = JSID_VOID;
+jsid nsDOMClassInfo::sOnsubmit_id        = JSID_VOID;
+jsid nsDOMClassInfo::sOnreset_id         = JSID_VOID;
+jsid nsDOMClassInfo::sOnchange_id        = JSID_VOID;
+jsid nsDOMClassInfo::sOninput_id         = JSID_VOID;
+jsid nsDOMClassInfo::sOninvalid_id       = JSID_VOID;
+jsid nsDOMClassInfo::sOnselect_id        = JSID_VOID;
+jsid nsDOMClassInfo::sOnload_id          = JSID_VOID;
+jsid nsDOMClassInfo::sOnpopstate_id      = JSID_VOID;
+jsid nsDOMClassInfo::sOnbeforeunload_id  = JSID_VOID;
+jsid nsDOMClassInfo::sOnunload_id        = JSID_VOID;
+jsid nsDOMClassInfo::sOnhashchange_id    = JSID_VOID;
+jsid nsDOMClassInfo::sOnreadystatechange_id = JSID_VOID;
+jsid nsDOMClassInfo::sOnpageshow_id      = JSID_VOID;
+jsid nsDOMClassInfo::sOnpagehide_id      = JSID_VOID;
+jsid nsDOMClassInfo::sOnabort_id         = JSID_VOID;
+jsid nsDOMClassInfo::sOnerror_id         = JSID_VOID;
+jsid nsDOMClassInfo::sOnpaint_id         = JSID_VOID;
+jsid nsDOMClassInfo::sOnresize_id        = JSID_VOID;
+jsid nsDOMClassInfo::sOnscroll_id        = JSID_VOID;
+jsid nsDOMClassInfo::sOndrag_id          = JSID_VOID;
+jsid nsDOMClassInfo::sOndragend_id       = JSID_VOID;
+jsid nsDOMClassInfo::sOndragenter_id     = JSID_VOID;
+jsid nsDOMClassInfo::sOndragleave_id     = JSID_VOID;
+jsid nsDOMClassInfo::sOndragover_id      = JSID_VOID;
+jsid nsDOMClassInfo::sOndragstart_id     = JSID_VOID;
+jsid nsDOMClassInfo::sOndrop_id          = JSID_VOID;
 jsid nsDOMClassInfo::sScrollX_id         = JSID_VOID;
 jsid nsDOMClassInfo::sScrollY_id         = JSID_VOID;
 jsid nsDOMClassInfo::sScrollMaxX_id      = JSID_VOID;
@@ -1612,15 +1664,51 @@ jsid nsDOMClassInfo::sAddEventListener_id= JSID_VOID;
 jsid nsDOMClassInfo::sBaseURIObject_id   = JSID_VOID;
 jsid nsDOMClassInfo::sNodePrincipal_id   = JSID_VOID;
 jsid nsDOMClassInfo::sDocumentURIObject_id=JSID_VOID;
+jsid nsDOMClassInfo::sOncopy_id          = JSID_VOID;
+jsid nsDOMClassInfo::sOncut_id           = JSID_VOID;
+jsid nsDOMClassInfo::sOnpaste_id         = JSID_VOID;
 jsid nsDOMClassInfo::sJava_id            = JSID_VOID;
 jsid nsDOMClassInfo::sPackages_id        = JSID_VOID;
+jsid nsDOMClassInfo::sOnloadstart_id     = JSID_VOID;
+jsid nsDOMClassInfo::sOnprogress_id      = JSID_VOID;
+jsid nsDOMClassInfo::sOnsuspend_id       = JSID_VOID;
+jsid nsDOMClassInfo::sOnemptied_id       = JSID_VOID;
+jsid nsDOMClassInfo::sOnstalled_id       = JSID_VOID;
+jsid nsDOMClassInfo::sOnplay_id          = JSID_VOID;
+jsid nsDOMClassInfo::sOnpause_id         = JSID_VOID;
+jsid nsDOMClassInfo::sOnloadedmetadata_id= JSID_VOID;
+jsid nsDOMClassInfo::sOnloadeddata_id    = JSID_VOID;
+jsid nsDOMClassInfo::sOnwaiting_id       = JSID_VOID;
+jsid nsDOMClassInfo::sOnplaying_id       = JSID_VOID;
+jsid nsDOMClassInfo::sOncanplay_id       = JSID_VOID;
+jsid nsDOMClassInfo::sOncanplaythrough_id= JSID_VOID;
+jsid nsDOMClassInfo::sOnseeking_id       = JSID_VOID;
+jsid nsDOMClassInfo::sOnseeked_id        = JSID_VOID;
+jsid nsDOMClassInfo::sOntimeupdate_id    = JSID_VOID;
+jsid nsDOMClassInfo::sOnended_id         = JSID_VOID;
+jsid nsDOMClassInfo::sOnratechange_id    = JSID_VOID;
+jsid nsDOMClassInfo::sOndurationchange_id= JSID_VOID;
+jsid nsDOMClassInfo::sOnvolumechange_id  = JSID_VOID;
+jsid nsDOMClassInfo::sOnmessage_id       = JSID_VOID;
+jsid nsDOMClassInfo::sOnbeforescriptexecute_id = JSID_VOID;
+jsid nsDOMClassInfo::sOnafterscriptexecute_id = JSID_VOID;
 jsid nsDOMClassInfo::sWrappedJSObject_id = JSID_VOID;
 jsid nsDOMClassInfo::sURL_id             = JSID_VOID;
 jsid nsDOMClassInfo::sKeyPath_id         = JSID_VOID;
 jsid nsDOMClassInfo::sAutoIncrement_id   = JSID_VOID;
 jsid nsDOMClassInfo::sUnique_id          = JSID_VOID;
-jsid nsDOMClassInfo::sOnload_id          = JSID_VOID;
-jsid nsDOMClassInfo::sOnerror_id         = JSID_VOID;
+
+jsid nsDOMClassInfo::sOntouchstart_id    = JSID_VOID;
+jsid nsDOMClassInfo::sOntouchend_id      = JSID_VOID;
+jsid nsDOMClassInfo::sOntouchmove_id     = JSID_VOID;
+jsid nsDOMClassInfo::sOntouchenter_id    = JSID_VOID;
+jsid nsDOMClassInfo::sOntouchleave_id    = JSID_VOID;
+jsid nsDOMClassInfo::sOntouchcancel_id   = JSID_VOID;
+jsid nsDOMClassInfo::sOnbeforeprint_id   = JSID_VOID;
+jsid nsDOMClassInfo::sOnafterprint_id    = JSID_VOID;
+
+jsid nsDOMClassInfo::sOndevicemotion_id       = JSID_VOID;
+jsid nsDOMClassInfo::sOndeviceorientation_id  = JSID_VOID;
 
 static const JSClass *sObjectClass = nsnull;
 
@@ -1702,7 +1790,7 @@ PrintWarningOnConsole(JSContext *cx, const char *stringBundleProperty)
                                               0, // column for error is not available
                                               nsIScriptError::warningFlag,
                                               "DOM:HTML",
-                                              nsJSUtils::GetCurrentlyRunningCodeInnerWindowID(cx));
+                                              nsJSUtils::GetCurrentlyRunningCodeWindowID(cx));
 
   if (NS_SUCCEEDED(rv)){
     nsCOMPtr<nsIScriptError> logError = do_QueryInterface(scriptError);
@@ -1857,6 +1945,45 @@ nsDOMClassInfo::DefineStaticJSVals(JSContext *cx)
   SET_JSID_TO_STRING(sScreenY_id,         cx, "screenY");
   SET_JSID_TO_STRING(sStatus_id,          cx, "status");
   SET_JSID_TO_STRING(sName_id,            cx, "name");
+  SET_JSID_TO_STRING(sOnmousedown_id,     cx, "onmousedown");
+  SET_JSID_TO_STRING(sOnmouseup_id,       cx, "onmouseup");
+  SET_JSID_TO_STRING(sOnclick_id,         cx, "onclick");
+  SET_JSID_TO_STRING(sOndblclick_id,      cx, "ondblclick");
+  SET_JSID_TO_STRING(sOncontextmenu_id,   cx, "oncontextmenu");
+  SET_JSID_TO_STRING(sOnmouseover_id,     cx, "onmouseover");
+  SET_JSID_TO_STRING(sOnmouseout_id,      cx, "onmouseout");
+  SET_JSID_TO_STRING(sOnkeydown_id,       cx, "onkeydown");
+  SET_JSID_TO_STRING(sOnkeyup_id,         cx, "onkeyup");
+  SET_JSID_TO_STRING(sOnkeypress_id,      cx, "onkeypress");
+  SET_JSID_TO_STRING(sOnmousemove_id,     cx, "onmousemove");
+  SET_JSID_TO_STRING(sOnfocus_id,         cx, "onfocus");
+  SET_JSID_TO_STRING(sOnblur_id,          cx, "onblur");
+  SET_JSID_TO_STRING(sOnsubmit_id,        cx, "onsubmit");
+  SET_JSID_TO_STRING(sOnreset_id,         cx, "onreset");
+  SET_JSID_TO_STRING(sOnchange_id,        cx, "onchange");
+  SET_JSID_TO_STRING(sOninput_id,         cx, "oninput");
+  SET_JSID_TO_STRING(sOninvalid_id,       cx, "oninvalid");
+  SET_JSID_TO_STRING(sOnselect_id,        cx, "onselect");
+  SET_JSID_TO_STRING(sOnload_id,          cx, "onload");
+  SET_JSID_TO_STRING(sOnpopstate_id,      cx, "onpopstate");
+  SET_JSID_TO_STRING(sOnbeforeunload_id,  cx, "onbeforeunload");
+  SET_JSID_TO_STRING(sOnunload_id,        cx, "onunload");
+  SET_JSID_TO_STRING(sOnhashchange_id,    cx, "onhashchange");
+  SET_JSID_TO_STRING(sOnreadystatechange_id, cx, "onreadystatechange");
+  SET_JSID_TO_STRING(sOnpageshow_id,      cx, "onpageshow");
+  SET_JSID_TO_STRING(sOnpagehide_id,      cx, "onpagehide");
+  SET_JSID_TO_STRING(sOnabort_id,         cx, "onabort");
+  SET_JSID_TO_STRING(sOnerror_id,         cx, "onerror");
+  SET_JSID_TO_STRING(sOnpaint_id,         cx, "onpaint");
+  SET_JSID_TO_STRING(sOnresize_id,        cx, "onresize");
+  SET_JSID_TO_STRING(sOnscroll_id,        cx, "onscroll");
+  SET_JSID_TO_STRING(sOndrag_id,          cx, "ondrag");
+  SET_JSID_TO_STRING(sOndragend_id,       cx, "ondragend");
+  SET_JSID_TO_STRING(sOndragenter_id,     cx, "ondragenter");
+  SET_JSID_TO_STRING(sOndragleave_id,     cx, "ondragleave");
+  SET_JSID_TO_STRING(sOndragover_id,      cx, "ondragover");
+  SET_JSID_TO_STRING(sOndragstart_id,     cx, "ondragstart");
+  SET_JSID_TO_STRING(sOndrop_id,          cx, "ondrop");
   SET_JSID_TO_STRING(sScrollX_id,         cx, "scrollX");
   SET_JSID_TO_STRING(sScrollY_id,         cx, "scrollY");
   SET_JSID_TO_STRING(sScrollMaxX_id,      cx, "scrollMaxX");
@@ -1875,16 +2002,54 @@ nsDOMClassInfo::DefineStaticJSVals(JSContext *cx)
   SET_JSID_TO_STRING(sBaseURIObject_id,   cx, "baseURIObject");
   SET_JSID_TO_STRING(sNodePrincipal_id,   cx, "nodePrincipal");
   SET_JSID_TO_STRING(sDocumentURIObject_id,cx,"documentURIObject");
+  SET_JSID_TO_STRING(sOncopy_id,          cx, "oncopy");
+  SET_JSID_TO_STRING(sOncut_id,           cx, "oncut");
+  SET_JSID_TO_STRING(sOnpaste_id,         cx, "onpaste");
   SET_JSID_TO_STRING(sJava_id,            cx, "java");
   SET_JSID_TO_STRING(sPackages_id,        cx, "Packages");
+#ifdef MOZ_MEDIA
+  SET_JSID_TO_STRING(sOnloadstart_id,     cx, "onloadstart");
+  SET_JSID_TO_STRING(sOnprogress_id,      cx, "onprogress");
+  SET_JSID_TO_STRING(sOnsuspend_id,       cx, "onsuspend");
+  SET_JSID_TO_STRING(sOnemptied_id,       cx, "onemptied");
+  SET_JSID_TO_STRING(sOnstalled_id,       cx, "onstalled");
+  SET_JSID_TO_STRING(sOnplay_id,          cx, "onplay");
+  SET_JSID_TO_STRING(sOnpause_id,         cx, "onpause");
+  SET_JSID_TO_STRING(sOnloadedmetadata_id,cx, "onloadedmetadata");
+  SET_JSID_TO_STRING(sOnloadeddata_id,    cx, "onloadeddata");
+  SET_JSID_TO_STRING(sOnwaiting_id,       cx, "onwaiting");
+  SET_JSID_TO_STRING(sOnplaying_id,       cx, "onplaying");
+  SET_JSID_TO_STRING(sOncanplay_id,       cx, "oncanplay");
+  SET_JSID_TO_STRING(sOncanplaythrough_id,cx, "oncanplaythrough");
+  SET_JSID_TO_STRING(sOnseeking_id,       cx, "onseeking");
+  SET_JSID_TO_STRING(sOnseeked_id,        cx, "onseeked");
+  SET_JSID_TO_STRING(sOntimeupdate_id,    cx, "ontimeupdate");
+  SET_JSID_TO_STRING(sOnended_id,         cx, "onended");
+  SET_JSID_TO_STRING(sOnratechange_id,    cx, "onratechange");
+  SET_JSID_TO_STRING(sOndurationchange_id,cx, "ondurationchange");
+  SET_JSID_TO_STRING(sOnvolumechange_id,  cx, "onvolumechange");
+  SET_JSID_TO_STRING(sOnmessage_id,       cx, "onmessage");
+  SET_JSID_TO_STRING(sOnbeforescriptexecute_id, cx, "onbeforescriptexecute");
+  SET_JSID_TO_STRING(sOnafterscriptexecute_id, cx, "onafterscriptexecute");
+#endif // MOZ_MEDIA
   SET_JSID_TO_STRING(sWrappedJSObject_id, cx, "wrappedJSObject");
   SET_JSID_TO_STRING(sURL_id,             cx, "URL");
   SET_JSID_TO_STRING(sKeyPath_id,         cx, "keyPath");
   SET_JSID_TO_STRING(sAutoIncrement_id,   cx, "autoIncrement");
   SET_JSID_TO_STRING(sUnique_id,          cx, "unique");
-  SET_JSID_TO_STRING(sOnload_id,          cx, "onload");
-  SET_JSID_TO_STRING(sOnerror_id,         cx, "onerror");
 
+  SET_JSID_TO_STRING(sOntouchstart_id,    cx, "ontouchstart");
+  SET_JSID_TO_STRING(sOntouchend_id,      cx, "ontouchend");
+  SET_JSID_TO_STRING(sOntouchmove_id,     cx, "ontouchmove");
+  SET_JSID_TO_STRING(sOntouchenter_id,    cx, "ontouchenter");
+  SET_JSID_TO_STRING(sOntouchleave_id,    cx, "ontouchleave");
+  SET_JSID_TO_STRING(sOntouchcancel_id,   cx, "ontouchcancel");
+  SET_JSID_TO_STRING(sOnbeforeprint_id,   cx, "onbeforeprint");
+  SET_JSID_TO_STRING(sOnafterprint_id,   cx, "onafterprint");
+
+  SET_JSID_TO_STRING(sOndevicemotion_id,      cx, "ondevicemotion");
+  SET_JSID_TO_STRING(sOndeviceorientation_id, cx, "ondeviceorientation");
+  
   return NS_OK;
 }
 
@@ -2151,27 +2316,9 @@ nsDOMClassInfo::RegisterExternalClasses()
 #define DOM_CLASSINFO_MAP_ENTRY(_if)                                          \
       &NS_GET_IID(_if),
 
-#define DOM_CLASSINFO_MAP_CONDITIONAL_ENTRY(_if, _cond)                       \
-      (_cond) ? &NS_GET_IID(_if) : nsnull,
-
 #define DOM_CLASSINFO_MAP_END                                                 \
       nsnull                                                                  \
     };                                                                        \
-                                                                              \
-    /* Compact the interface list */                                          \
-    size_t count = NS_ARRAY_LENGTH(interface_list);                           \
-    /* count is the number of array entries, which is one greater than the */ \
-    /* number of interfaces due to the terminating null */                    \
-    for (size_t i = 0; i < count - 1; ++i) {                                  \
-      if (!interface_list[i]) {                                               \
-        memmove(&interface_list[i], &interface_list[i+1],                     \
-                sizeof(nsIID*) * (count - i));                                \
-        /* Make sure to examine the new pointer we ended up with at this */   \
-        /* slot, since it may be null too */                                  \
-        --i;                                                                  \
-        --count;                                                              \
-      }                                                                       \
-    }                                                                         \
                                                                               \
     d.mInterfaces = interface_list;                                           \
   }
@@ -2180,10 +2327,7 @@ nsDOMClassInfo::RegisterExternalClasses()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMDocumentXBL)                                \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)                                \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMXPathEvaluator)                             \
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNodeSelector)                               \
-    DOM_CLASSINFO_MAP_ENTRY(nsIInlineEventHandlers)                           \
-    DOM_CLASSINFO_MAP_CONDITIONAL_ENTRY(nsIDOMDocumentTouch,                  \
-                                        nsDOMTouchEvent::PrefEnabled())
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNodeSelector)
 
 
 #define DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES                                \
@@ -2191,10 +2335,7 @@ nsDOMClassInfo::RegisterExternalClasses()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMElementCSSInlineStyle)                      \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)                                \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSElement)                                  \
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNodeSelector)                               \
-    DOM_CLASSINFO_MAP_ENTRY(nsIInlineEventHandlers)                           \
-    DOM_CLASSINFO_MAP_CONDITIONAL_ENTRY(nsITouchEventReceiver,                \
-                                        nsDOMTouchEvent::PrefEnabled())
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNodeSelector)
 
 #define DOM_CLASSINFO_EVENT_MAP_ENTRIES                                       \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEvent)                                      \
@@ -2202,6 +2343,7 @@ nsDOMClassInfo::RegisterExternalClasses()
 
 #define DOM_CLASSINFO_UI_EVENT_MAP_ENTRIES                                    \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMUIEvent)                                    \
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSUIEvent)                                  \
     DOM_CLASSINFO_EVENT_MAP_ENTRIES
 
 nsresult
@@ -2245,18 +2387,47 @@ nsDOMClassInfo::Init()
   rv = stack->GetSafeJSContext(&cx);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  DOM_CLASSINFO_MAP_BEGIN(Window, nsIDOMWindow)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindow)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMJSWindow)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
-    DOM_CLASSINFO_MAP_ENTRY(nsIInlineEventHandlers)
-    DOM_CLASSINFO_MAP_CONDITIONAL_ENTRY(nsIDOMStorageIndexedDB,
-                                        nsGlobalWindow::HasIndexedDBSupport())
-    DOM_CLASSINFO_MAP_CONDITIONAL_ENTRY(nsIDOMWindowPerformance,
-                                        nsGlobalWindow::HasPerformanceSupport())
-    DOM_CLASSINFO_MAP_CONDITIONAL_ENTRY(nsITouchEventReceiver,
-                                        nsDOMTouchEvent::PrefEnabled())
-  DOM_CLASSINFO_MAP_END
+  if (nsGlobalWindow::HasIndexedDBSupport()) {
+    if (nsGlobalWindow::HasPerformanceSupport()) {
+      DOM_CLASSINFO_MAP_BEGIN(Window, nsIDOMWindow)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindow)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMJSWindow)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindowInternal)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorageWindow)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorageIndexedDB)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindowPerformance)
+      DOM_CLASSINFO_MAP_END
+    } else {
+      DOM_CLASSINFO_MAP_BEGIN(Window, nsIDOMWindow)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindow)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMJSWindow)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindowInternal)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorageWindow)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorageIndexedDB)
+      DOM_CLASSINFO_MAP_END
+    }
+  } else {
+    if (nsGlobalWindow::HasPerformanceSupport()) {
+      DOM_CLASSINFO_MAP_BEGIN(Window, nsIDOMWindow)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindow)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMJSWindow)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindowInternal)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorageWindow)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindowPerformance)
+      DOM_CLASSINFO_MAP_END
+    } else {
+      DOM_CLASSINFO_MAP_BEGIN(Window, nsIDOMWindow)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindow)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMJSWindow)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindowInternal)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorageWindow)
+      DOM_CLASSINFO_MAP_END
+    }
+  }
 
   DOM_CLASSINFO_MAP_BEGIN(WindowUtils, nsIDOMWindowUtils)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindowUtils)
@@ -2266,17 +2437,20 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMLocation)
   DOM_CLASSINFO_MAP_END
 
-  DOM_CLASSINFO_MAP_BEGIN(CaretPosition, nsIDOMCaretPosition)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMCaretPosition)
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(Navigator, nsIDOMNavigator)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNavigator)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNavigatorGeolocation)
-    DOM_CLASSINFO_MAP_CONDITIONAL_ENTRY(nsIDOMNavigatorDesktopNotification,
-                                        nsNavigator::HasDesktopNotificationSupport())
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMClientInformation)
-  DOM_CLASSINFO_MAP_END
+  if (nsNavigator::HasDesktopNotificationSupport()) {
+    DOM_CLASSINFO_MAP_BEGIN(Navigator, nsIDOMNavigator)
+      DOM_CLASSINFO_MAP_ENTRY(nsIDOMNavigator)
+      DOM_CLASSINFO_MAP_ENTRY(nsIDOMNavigatorGeolocation)
+      DOM_CLASSINFO_MAP_ENTRY(nsIDOMNavigatorDesktopNotification)
+      DOM_CLASSINFO_MAP_ENTRY(nsIDOMClientInformation)
+    DOM_CLASSINFO_MAP_END
+  } else {
+    DOM_CLASSINFO_MAP_BEGIN(Navigator, nsIDOMNavigator)
+      DOM_CLASSINFO_MAP_ENTRY(nsIDOMNavigator)
+      DOM_CLASSINFO_MAP_ENTRY(nsIDOMNavigatorGeolocation)
+      DOM_CLASSINFO_MAP_ENTRY(nsIDOMClientInformation)
+    DOM_CLASSINFO_MAP_END
+  }
 
   DOM_CLASSINFO_MAP_BEGIN(Plugin, nsIDOMPlugin)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMPlugin)
@@ -2329,11 +2503,20 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMDOMConstructor)
   DOM_CLASSINFO_MAP_END
 
-  DOM_CLASSINFO_MAP_BEGIN(XMLDocument, nsIDOMXMLDocument)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMDocument)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMXMLDocument)
-    DOM_CLASSINFO_DOCUMENT_MAP_ENTRIES
-  DOM_CLASSINFO_MAP_END
+  if (nsDOMTouchEvent::PrefEnabled()) {
+    DOM_CLASSINFO_MAP_BEGIN(XMLDocument, nsIDOMXMLDocument)
+      DOM_CLASSINFO_MAP_ENTRY(nsIDOMDocument)
+      DOM_CLASSINFO_MAP_ENTRY(nsIDOMXMLDocument)
+      DOM_CLASSINFO_MAP_ENTRY(nsIDOMDocumentTouch)
+      DOM_CLASSINFO_DOCUMENT_MAP_ENTRIES
+    DOM_CLASSINFO_MAP_END
+  } else {
+    DOM_CLASSINFO_MAP_BEGIN(XMLDocument, nsIDOMXMLDocument)
+      DOM_CLASSINFO_MAP_ENTRY(nsIDOMDocument)
+      DOM_CLASSINFO_MAP_ENTRY(nsIDOMXMLDocument)
+      DOM_CLASSINFO_DOCUMENT_MAP_ENTRIES
+    DOM_CLASSINFO_MAP_END
+  }
 
   DOM_CLASSINFO_MAP_BEGIN(DocumentType, nsIDOMDocumentType)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMDocumentType)
@@ -2368,9 +2551,6 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNodeSelector)
-    DOM_CLASSINFO_MAP_ENTRY(nsIInlineEventHandlers)
-    DOM_CLASSINFO_MAP_CONDITIONAL_ENTRY(nsITouchEventReceiver,
-                                        nsDOMTouchEvent::PrefEnabled())
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(Attr, nsIDOMAttr)
@@ -2460,18 +2640,21 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(MouseEvent, nsIDOMMouseEvent)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMMouseEvent)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSMouseEvent)
     DOM_CLASSINFO_UI_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(MouseScrollEvent, nsIDOMMouseScrollEvent)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMMouseScrollEvent)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMMouseEvent)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSMouseEvent)
     DOM_CLASSINFO_UI_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(DragEvent, nsIDOMDragEvent)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMDragEvent)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMMouseEvent)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSMouseEvent)
     DOM_CLASSINFO_UI_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
@@ -2485,10 +2668,18 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
-  DOM_CLASSINFO_MAP_BEGIN(HTMLDocument, nsIDOMHTMLDocument)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLDocument)
-    DOM_CLASSINFO_DOCUMENT_MAP_ENTRIES
-  DOM_CLASSINFO_MAP_END
+  if (nsDOMTouchEvent::PrefEnabled()) {
+    DOM_CLASSINFO_MAP_BEGIN(HTMLDocument, nsIDOMHTMLDocument)
+      DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLDocument)
+      DOM_CLASSINFO_MAP_ENTRY(nsIDOMDocumentTouch)
+      DOM_CLASSINFO_DOCUMENT_MAP_ENTRIES
+    DOM_CLASSINFO_MAP_END
+  } else {
+    DOM_CLASSINFO_MAP_BEGIN(HTMLDocument, nsIDOMHTMLDocument)
+      DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLDocument)
+      DOM_CLASSINFO_DOCUMENT_MAP_ENTRIES
+    DOM_CLASSINFO_MAP_END
+  }
 
   DOM_CLASSINFO_MAP_BEGIN(HTMLOptionsCollection, nsIDOMHTMLOptionsCollection)
     // Order is significant.  nsIDOMHTMLOptionsCollection.length shadows
@@ -2632,6 +2823,11 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
+  DOM_CLASSINFO_MAP_BEGIN(HTMLIsIndexElement, nsIDOMHTMLIsIndexElement)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLIsIndexElement)
+    DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES
+  DOM_CLASSINFO_MAP_END
+
   DOM_CLASSINFO_MAP_BEGIN(HTMLLIElement, nsIDOMHTMLLIElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLLIElement)
     DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES
@@ -2660,11 +2856,6 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(HTMLMenuElement, nsIDOMHTMLMenuElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLMenuElement)
-    DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(HTMLMenuItemElement, nsIDOMHTMLMenuItemElement)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLMenuItemElement)
     DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
@@ -2884,14 +3075,24 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(Selection, nsISelection)
     DOM_CLASSINFO_MAP_ENTRY(nsISelection)
+    DOM_CLASSINFO_MAP_ENTRY(nsISelection3)
   DOM_CLASSINFO_MAP_END
 
 #ifdef MOZ_XUL
-  DOM_CLASSINFO_MAP_BEGIN(XULDocument, nsIDOMXULDocument)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMDocument)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMXULDocument)
-    DOM_CLASSINFO_DOCUMENT_MAP_ENTRIES
-  DOM_CLASSINFO_MAP_END
+  if (nsDOMTouchEvent::PrefEnabled()) {
+    DOM_CLASSINFO_MAP_BEGIN(XULDocument, nsIDOMXULDocument)
+      DOM_CLASSINFO_MAP_ENTRY(nsIDOMDocument)
+      DOM_CLASSINFO_MAP_ENTRY(nsIDOMXULDocument)
+      DOM_CLASSINFO_MAP_ENTRY(nsIDOMDocumentTouch)
+      DOM_CLASSINFO_DOCUMENT_MAP_ENTRIES
+    DOM_CLASSINFO_MAP_END
+  } else {
+    DOM_CLASSINFO_MAP_BEGIN(XULDocument, nsIDOMXULDocument)
+      DOM_CLASSINFO_MAP_ENTRY(nsIDOMDocument)
+      DOM_CLASSINFO_MAP_ENTRY(nsIDOMXULDocument)
+      DOM_CLASSINFO_DOCUMENT_MAP_ENTRIES
+    DOM_CLASSINFO_MAP_END  
+  }
 
   DOM_CLASSINFO_MAP_BEGIN(XULElement, nsIDOMXULElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMXULElement)
@@ -2899,9 +3100,6 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMElementCSSInlineStyle)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNodeSelector)
-    DOM_CLASSINFO_MAP_ENTRY(nsIInlineEventHandlers)
-    DOM_CLASSINFO_MAP_CONDITIONAL_ENTRY(nsITouchEventReceiver,
-                                        nsDOMTouchEvent::PrefEnabled())
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(XULCommandDispatcher, nsIDOMXULCommandDispatcher)
@@ -2942,15 +3140,14 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
   DOM_CLASSINFO_MAP_END
 
-  // FIXME: bug 680903. Should ChromeWindow really not have touch,
-  // performance apis?
   DOM_CLASSINFO_MAP_BEGIN_NO_CLASS_IF(ChromeWindow, nsIDOMWindow)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindow)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMJSWindow)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindowInternal)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMChromeWindow)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorageWindow)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorageIndexedDB)
-    DOM_CLASSINFO_MAP_ENTRY(nsIInlineEventHandlers)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(RangeException, nsIDOMRangeException)
@@ -3007,14 +3204,11 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
-#define DOM_CLASSINFO_SVG_ELEMENT_MAP_ENTRIES                           \
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)                          \
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGElement)                           \
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSElement)                            \
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNodeSelector)                         \
-    DOM_CLASSINFO_MAP_ENTRY(nsIInlineEventHandlers)                     \
-    DOM_CLASSINFO_MAP_CONDITIONAL_ENTRY(nsITouchEventReceiver,          \
-                                        nsDOMTouchEvent::PrefEnabled())
+#define DOM_CLASSINFO_SVG_ELEMENT_MAP_ENTRIES    \
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)   \
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGElement)    \
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSElement)     \
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNodeSelector)
 
 #define DOM_CLASSINFO_SVG_GRAPHIC_ELEMENT_MAP_ENTRIES \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGLocatable)       \
@@ -3029,13 +3223,24 @@ nsDOMClassInfo::Init()
 
   // The SVG document
 
-  DOM_CLASSINFO_MAP_BEGIN(SVGDocument, nsIDOMSVGDocument)
-    // Order is significant.  nsIDOMDocument.title shadows
-    // nsIDOMSVGDocument.title, which is readonly.
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMDocument)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGDocument)
-    DOM_CLASSINFO_DOCUMENT_MAP_ENTRIES
-  DOM_CLASSINFO_MAP_END
+  if (nsDOMTouchEvent::PrefEnabled()) {
+    DOM_CLASSINFO_MAP_BEGIN(SVGDocument, nsIDOMSVGDocument)
+      // Order is significant.  nsIDOMDocument.title shadows
+      // nsIDOMSVGDocument.title, which is readonly.
+      DOM_CLASSINFO_MAP_ENTRY(nsIDOMDocument)
+      DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGDocument)
+      DOM_CLASSINFO_MAP_ENTRY(nsIDOMDocumentTouch)
+      DOM_CLASSINFO_DOCUMENT_MAP_ENTRIES
+    DOM_CLASSINFO_MAP_END
+  } else {
+    DOM_CLASSINFO_MAP_BEGIN(SVGDocument, nsIDOMSVGDocument)
+      // Order is significant.  nsIDOMDocument.title shadows
+      // nsIDOMSVGDocument.title, which is readonly.
+      DOM_CLASSINFO_MAP_ENTRY(nsIDOMDocument)
+      DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGDocument)
+      DOM_CLASSINFO_DOCUMENT_MAP_ENTRIES
+    DOM_CLASSINFO_MAP_END
+  }
 
   // SVG element classes
 
@@ -3830,15 +4035,14 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMDOMStringMap)
   DOM_CLASSINFO_MAP_END
 
-  // FIXME: Bug 680903.  Should ModalContentWindow really not have
-  // touch, performance apis and have unconditional indexeddb??
   DOM_CLASSINFO_MAP_BEGIN_NO_CLASS_IF(ModalContentWindow, nsIDOMWindow)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindow)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMJSWindow)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindowInternal)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorageWindow)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorageIndexedDB)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMModalContentWindow)
-    DOM_CLASSINFO_MAP_ENTRY(nsIInlineEventHandlers)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(DataContainerEvent, nsIDOMDataContainerEvent)
@@ -3934,12 +4138,14 @@ nsDOMClassInfo::Init()
   DOM_CLASSINFO_MAP_BEGIN(SimpleGestureEvent, nsIDOMSimpleGestureEvent)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMSimpleGestureEvent)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMMouseEvent)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSMouseEvent)
     DOM_CLASSINFO_UI_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(MozTouchEvent, nsIDOMMozTouchEvent)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMMozTouchEvent)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMMouseEvent)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSMouseEvent)
     DOM_CLASSINFO_UI_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
@@ -3948,9 +4154,18 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNodeSelector)
-    DOM_CLASSINFO_MAP_ENTRY(nsIInlineEventHandlers)
-    DOM_CLASSINFO_MAP_CONDITIONAL_ENTRY(nsITouchEventReceiver,
-                                        nsDOMTouchEvent::PrefEnabled())
+  DOM_CLASSINFO_MAP_END
+
+  DOM_CLASSINFO_MAP_BEGIN(Worker, nsIWorker)
+    DOM_CLASSINFO_MAP_ENTRY(nsIWorker)
+    DOM_CLASSINFO_MAP_ENTRY(nsIAbstractWorker)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
+  DOM_CLASSINFO_MAP_END
+
+  DOM_CLASSINFO_MAP_BEGIN(ChromeWorker, nsIWorker)
+    DOM_CLASSINFO_MAP_ENTRY(nsIWorker)
+    DOM_CLASSINFO_MAP_ENTRY(nsIAbstractWorker)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(WebGLRenderingContext, nsIDOMWebGLRenderingContext)
@@ -4039,8 +4254,8 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMDesktopNotificationCenter)
   DOM_CLASSINFO_MAP_END
 
-  DOM_CLASSINFO_MAP_BEGIN(MozWebSocket, nsIMozWebSocket)
-    DOM_CLASSINFO_MAP_ENTRY(nsIMozWebSocket)
+  DOM_CLASSINFO_MAP_BEGIN(WebSocket, nsIWebSocket)
+    DOM_CLASSINFO_MAP_ENTRY(nsIWebSocket)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
   DOM_CLASSINFO_MAP_END
 
@@ -4848,6 +5063,44 @@ nsDOMClassInfo::ShutDown()
   sScreenY_id         = JSID_VOID;
   sStatus_id          = JSID_VOID;
   sName_id            = JSID_VOID;
+  sOnmousedown_id     = JSID_VOID;
+  sOnmouseup_id       = JSID_VOID;
+  sOnclick_id         = JSID_VOID;
+  sOndblclick_id      = JSID_VOID;
+  sOncontextmenu_id   = JSID_VOID;
+  sOnmouseover_id     = JSID_VOID;
+  sOnmouseout_id      = JSID_VOID;
+  sOnkeydown_id       = JSID_VOID;
+  sOnkeyup_id         = JSID_VOID;
+  sOnkeypress_id      = JSID_VOID;
+  sOnmousemove_id     = JSID_VOID;
+  sOnfocus_id         = JSID_VOID;
+  sOnblur_id          = JSID_VOID;
+  sOnsubmit_id        = JSID_VOID;
+  sOnreset_id         = JSID_VOID;
+  sOnchange_id        = JSID_VOID;
+  sOninput_id         = JSID_VOID;
+  sOninvalid_id       = JSID_VOID;
+  sOnselect_id        = JSID_VOID;
+  sOnload_id          = JSID_VOID;
+  sOnbeforeunload_id  = JSID_VOID;
+  sOnunload_id        = JSID_VOID;
+  sOnhashchange_id    = JSID_VOID;
+  sOnreadystatechange_id = JSID_VOID;
+  sOnpageshow_id      = JSID_VOID;
+  sOnpagehide_id      = JSID_VOID;
+  sOnabort_id         = JSID_VOID;
+  sOnerror_id         = JSID_VOID;
+  sOnpaint_id         = JSID_VOID;
+  sOnresize_id        = JSID_VOID;
+  sOnscroll_id        = JSID_VOID;
+  sOndrag_id          = JSID_VOID;
+  sOndragend_id       = JSID_VOID;
+  sOndragenter_id     = JSID_VOID;
+  sOndragleave_id     = JSID_VOID;
+  sOndragover_id      = JSID_VOID;
+  sOndragstart_id     = JSID_VOID;
+  sOndrop_id          = JSID_VOID;
   sScrollX_id         = JSID_VOID;
   sScrollY_id         = JSID_VOID;
   sScrollMaxX_id      = JSID_VOID;
@@ -4865,14 +5118,47 @@ nsDOMClassInfo::ShutDown()
   sBaseURIObject_id   = JSID_VOID;
   sNodePrincipal_id   = JSID_VOID;
   sDocumentURIObject_id=JSID_VOID;
+  sOncopy_id          = JSID_VOID;
+  sOncut_id           = JSID_VOID;
+  sOnpaste_id         = JSID_VOID;
   sJava_id            = JSID_VOID;
   sPackages_id        = JSID_VOID;
+  sOnloadstart_id     = JSID_VOID;
+  sOnprogress_id      = JSID_VOID;
+  sOnsuspend_id       = JSID_VOID;
+  sOnemptied_id       = JSID_VOID;
+  sOnstalled_id       = JSID_VOID;
+  sOnplay_id          = JSID_VOID;
+  sOnpause_id         = JSID_VOID;
+  sOnloadedmetadata_id= JSID_VOID;
+  sOnloadeddata_id    = JSID_VOID;
+  sOnwaiting_id       = JSID_VOID;
+  sOnplaying_id       = JSID_VOID;
+  sOncanplay_id       = JSID_VOID;
+  sOncanplaythrough_id= JSID_VOID;
+  sOnseeking_id       = JSID_VOID;
+  sOnseeked_id        = JSID_VOID;
+  sOntimeupdate_id    = JSID_VOID;
+  sOnended_id         = JSID_VOID;
+  sOnratechange_id    = JSID_VOID;
+  sOndurationchange_id= JSID_VOID;
+  sOnvolumechange_id  = JSID_VOID;
+  sOnmessage_id       = JSID_VOID;
+  sOnbeforescriptexecute_id = JSID_VOID;
+  sOnafterscriptexecute_id = JSID_VOID;
   sWrappedJSObject_id = JSID_VOID;
   sKeyPath_id         = JSID_VOID;
   sAutoIncrement_id   = JSID_VOID;
   sUnique_id          = JSID_VOID;
-  sOnload_id          = JSID_VOID;
-  sOnerror_id         = JSID_VOID;
+
+  sOntouchstart_id    = JSID_VOID;
+  sOntouchend_id      = JSID_VOID;
+  sOntouchmove_id     = JSID_VOID;
+  sOntouchenter_id    = JSID_VOID;
+  sOntouchleave_id    = JSID_VOID;
+  sOntouchcancel_id   = JSID_VOID;
+  sOnbeforeprint_id   = JSID_VOID;
+  sOnafterprint_id    = JSID_VOID;
 
   NS_IF_RELEASE(sXPConnect);
   NS_IF_RELEASE(sSecMan);
@@ -5083,7 +5369,7 @@ nsWindowSH::InvalidateGlobalScopePolluter(JSContext *cx, JSObject *obj)
 
       // Pull the global scope polluter out of the prototype chain so
       // that it can be freed.
-      ::JS_SetPrototype(cx, obj, ::JS_GetPrototype(cx, proto));
+      ::JS_SplicePrototype(cx, obj, ::JS_GetPrototype(cx, proto));
 
       break;
     }
@@ -5105,7 +5391,7 @@ nsWindowSH::InstallGlobalScopePolluter(JSContext *cx, JSObject *obj,
 
   JSAutoRequest ar(cx);
 
-  JSObject *gsp = ::JS_NewObject(cx, &sGlobalScopePolluterClass, nsnull, obj);
+  JSObject *gsp = ::JS_NewObjectWithUniqueType(cx, &sGlobalScopePolluterClass, nsnull, obj);
   if (!gsp) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -5118,9 +5404,7 @@ nsWindowSH::InstallGlobalScopePolluter(JSContext *cx, JSObject *obj,
   while ((proto = ::JS_GetPrototype(cx, o))) {
     if (JS_GET_CLASS(cx, proto) == sObjectClass) {
       // Set the global scope polluters prototype to Object.prototype
-      if (!::JS_SetPrototype(cx, gsp, proto)) {
-        return NS_ERROR_UNEXPECTED;
-      }
+      ::JS_SplicePrototype(cx, gsp, proto);
 
       break;
     }
@@ -5130,9 +5414,7 @@ nsWindowSH::InstallGlobalScopePolluter(JSContext *cx, JSObject *obj,
 
   // And then set the prototype of the object whose prototype was
   // Object.prototype to be the global scope polluter.
-  if (!::JS_SetPrototype(cx, o, gsp)) {
-    return NS_ERROR_UNEXPECTED;
-  }
+  ::JS_SplicePrototype(cx, o, gsp);
 
   if (!::JS_SetPrivate(cx, gsp, doc)) {
     return NS_ERROR_UNEXPECTED;
@@ -5147,7 +5429,7 @@ nsWindowSH::InstallGlobalScopePolluter(JSContext *cx, JSObject *obj,
 
 static
 already_AddRefed<nsIDOMWindow>
-GetChildFrame(nsGlobalWindow *win, PRUint32 index)
+GetChildFrame(nsGlobalWindow *win, jsid id)
 {
   nsCOMPtr<nsIDOMWindowCollection> frames;
   win->GetFrames(getter_AddRefs(frames));
@@ -5155,7 +5437,7 @@ GetChildFrame(nsGlobalWindow *win, PRUint32 index)
   nsIDOMWindow *frame = nsnull;
 
   if (frames) {
-    frames->Item(index, &frame);
+    frames->Item(JSID_TO_INT(id), &frame);
   }
 
   return frame;
@@ -5192,14 +5474,16 @@ nsWindowSH::GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
   // whacky, that's because this method is *extremely* performace
   // critical. Don't touch this unless you know what you're doing.
 
-  if (JSID_IS_INT(id) && JSID_TO_INT(id) >= 0) {
+  if (JSID_IS_INT(id)) {
     // If we're accessing a numeric property we'll treat that as if
     // window.frames[n] is accessed (since window.frames === window),
     // if window.frames[n] is a child frame, wrap the frame and return
     // it without doing a security check.
-    PRUint32 index = PRUint32(JSID_TO_INT(id));
+
+    nsCOMPtr<nsIDOMWindow> frame = GetChildFrame(win, id);
     nsresult rv = NS_OK;
-    if (nsCOMPtr<nsIDOMWindow> frame = GetChildFrame(win, index)) {
+
+    if (frame) {
       // A numeric property accessed and the numeric property is a
       // child frame, wrap the child frame without doing a security
       // check and return.
@@ -5283,7 +5567,7 @@ nsWindowSH::SetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
     JSString *val = ::JS_ValueToString(cx, *vp);
     NS_ENSURE_TRUE(val, NS_ERROR_UNEXPECTED);
 
-    nsCOMPtr<nsIDOMWindow> window = do_QueryWrappedNative(wrapper);
+    nsCOMPtr<nsIDOMWindowInternal> window(do_QueryWrappedNative(wrapper));
     NS_ENSURE_TRUE(window, NS_ERROR_UNEXPECTED);
 
     nsCOMPtr<nsIDOMLocation> location;
@@ -5303,7 +5587,7 @@ nsWindowSH::SetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
     return NS_FAILED(rv) ? rv : NS_SUCCESS_I_DID_SOMETHING;
   }
 
-  return NS_OK;
+  return nsEventReceiverSH::SetProperty(wrapper, cx, obj, id, vp, _retval);
 }
 
 NS_IMETHODIMP
@@ -5497,6 +5781,62 @@ DefineInterfaceConstants(JSContext *cx, JSObject *obj, const nsIID *aIID)
   }
 
   return NS_OK;
+}
+
+NS_IMETHODIMP
+nsHTMLBodyElementSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext
+                                *cx, JSObject *obj, jsid id, PRUint32 flags,
+                                JSObject **objp, PRBool *_retval)
+{
+  if (id == sOnhashchange_id) {
+    // Special handling so |"onhashchange" in document.body| returns true.
+    if (!JS_DefinePropertyById(cx, obj, id, JSVAL_VOID,
+                               nsnull, nsnull, JSPROP_ENUMERATE)) {
+      *_retval = PR_FALSE;
+      return NS_ERROR_FAILURE;
+    }
+
+    *objp = obj;
+    return NS_OK;
+  }
+
+  return nsElementSH::NewResolve(wrapper, cx, obj, id, flags, objp, _retval);
+}
+
+NS_IMETHODIMP
+nsHTMLBodyElementSH::GetProperty(nsIXPConnectWrappedNative *wrapper,
+                                 JSContext *cx, JSObject *obj, jsid id,
+                                 jsval *vp, PRBool *_retval)
+{
+  if (id == sOnhashchange_id) {
+    // Forward the request to the Window.
+    if (!JS_GetPropertyById(cx, JS_GetGlobalForObject(cx, obj), id, vp)) {
+      *_retval = PR_FALSE;
+      return NS_ERROR_FAILURE;
+    }
+
+    return NS_OK;
+  }
+
+  return nsElementSH::GetProperty(wrapper, cx, obj, id, vp, _retval);
+}
+
+NS_IMETHODIMP
+nsHTMLBodyElementSH::SetProperty(nsIXPConnectWrappedNative *wrapper,
+                                 JSContext *cx, JSObject *obj,
+                                 jsid id, jsval *vp, PRBool *_retval)
+{
+  if (id == sOnhashchange_id) {
+    // Forward the request to the Window.
+    if (!JS_SetPropertyById(cx, JS_GetGlobalForObject(cx, obj), id, vp)) {
+      *_retval = PR_FALSE;
+      return NS_ERROR_FAILURE;
+    }
+
+    return NS_OK;
+  }
+
+  return nsElementSH::SetProperty(wrapper, cx, obj, id, vp, _retval);
 }
 
 class nsDOMConstructor : public nsIDOMDOMConstructor
@@ -5734,30 +6074,8 @@ nsDOMConstructor::HasInstance(nsIXPConnectWrappedNative *wrapper,
 
   const nsGlobalNameStruct *name_struct;
   rv = GetNameStruct(NS_ConvertASCIItoUTF16(dom_class->name), &name_struct);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
-
   if (!name_struct) {
-    // This isn't a normal DOM object, see if this constructor lives on its
-    // prototype chain.
-    jsval val;
-    if (!JS_GetProperty(cx, obj, "prototype", &val)) {
-      return NS_ERROR_UNEXPECTED;
-    }
-
-    JS_ASSERT(!JSVAL_IS_PRIMITIVE(val));
-    JSObject *dot_prototype = JSVAL_TO_OBJECT(val);
-
-    JSObject *proto = JS_GetPrototype(cx, dom_obj);
-    for ( ; proto; proto = JS_GetPrototype(cx, proto)) {
-      if (proto == dot_prototype) {
-        *bp = PR_TRUE;
-        break;
-      }
-    }
-
-    return NS_OK;
+    return rv;
   }
 
   if (name_struct->mType != nsGlobalNameStruct::eTypeClassConstructor &&
@@ -6200,7 +6518,7 @@ nsWindowSH::GlobalResolve(nsGlobalWindow *aWin, JSContext *cx,
     }
 
     // For now don't expose web sockets unless user has explicitly enabled them
-    if (name_struct->mDOMClassInfoID == eDOMClassInfo_MozWebSocket_id) {
+    if (name_struct->mDOMClassInfoID == eDOMClassInfo_WebSocket_id) {
       if (!nsWebSocket::PrefEnabled()) {
         return NS_OK;
       }
@@ -6392,10 +6710,6 @@ ContentWindowGetter(JSContext *cx, uintN argc, jsval *vp)
   return ::JS_GetProperty(cx, obj, "content", vp);
 }
 
-static JSNewResolveOp sOtherResolveFuncs[] = {
-  mozilla::dom::workers::ResolveWorkerClasses
-};
-
 NS_IMETHODIMP
 nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                        JSObject *obj, jsid id, PRUint32 flags,
@@ -6404,17 +6718,19 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
   nsGlobalWindow *win = nsGlobalWindow::FromWrapper(wrapper);
 
   if (!JSID_IS_STRING(id)) {
-    if (JSID_IS_INT(id) && JSID_TO_INT(id) >= 0 && !(flags & JSRESOLVE_ASSIGNING)) {
+    if (JSID_IS_INT(id) && !(flags & JSRESOLVE_ASSIGNING)) {
       // If we're resolving a numeric property, treat that as if
       // window.frames[n] is resolved (since window.frames ===
       // window), if window.frames[n] is a child frame, define a
       // property for this index.
-      PRUint32 index = PRUint32(JSID_TO_INT(id));
-      if (nsCOMPtr<nsIDOMWindow> frame = GetChildFrame(win, index)) {
+
+      nsCOMPtr<nsIDOMWindow> frame = GetChildFrame(win, id);
+
+      if (frame) {
         // A numeric property accessed and the numeric property is a
         // child frame. Define a property for this index.
 
-        *_retval = ::JS_DefineElement(cx, obj, index, JSVAL_VOID,
+        *_retval = ::JS_DefineElement(cx, obj, JSID_TO_INT(id), JSVAL_VOID,
                                       nsnull, nsnull, JSPROP_SHARED);
 
         if (*_retval) {
@@ -6595,7 +6911,7 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
         jsval v;
         nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
         rv = WrapNative(cx, wrapperObj, child_win,
-                        &NS_GET_IID(nsIDOMWindow), PR_TRUE, &v,
+                        &NS_GET_IID(nsIDOMWindowInternal), PR_TRUE, &v,
                         getter_AddRefs(holder));
         NS_ENSURE_SUCCESS(rv, rv);
 
@@ -6620,21 +6936,11 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
   if (!(flags & JSRESOLVE_ASSIGNING)) {
     JSAutoRequest ar(cx);
 
-    // Resolve special classes.
-    for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(sOtherResolveFuncs); i++) {
-      if (!sOtherResolveFuncs[i](cx, obj, id, flags, objp)) {
-        return NS_ERROR_FAILURE;
-      }
-      if (*objp) {
-        return NS_OK;
-      }
-    }
-
     // Call GlobalResolve() after we call FindChildWithName() so
     // that named child frames will override external properties
     // which have been registered with the script namespace manager.
 
-    PRBool did_resolve = PR_FALSE;
+    JSBool did_resolve = JS_FALSE;
     rv = GlobalResolve(win, cx, obj, id, &did_resolve);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -6673,6 +6979,18 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 
     *objp = obj;
 
+    return NS_OK;
+  }
+
+  if (id == sOnhashchange_id) {
+    // Special handling so |"onhashchange" in window| returns true
+    if (!JS_DefinePropertyById(cx, obj, id, JSVAL_VOID,
+                                nsnull, nsnull, JSPROP_ENUMERATE)) {
+      *_retval = PR_FALSE;
+      return NS_ERROR_FAILURE;
+    }
+
+    *objp = obj;
     return NS_OK;
   }
 
@@ -6762,7 +7080,7 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 
         win->InitJavaProperties(); 
 
-        JSBool hasProp;
+        PRBool hasProp;
         PRBool ok = ::JS_HasPropertyById(cx, obj, id, &hasProp);
 
         isResolvingJavaProperties = PR_FALSE;
@@ -6798,8 +7116,8 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
   }
 
   JSObject *oldobj = *objp;
-  rv = nsDOMGenericSH::NewResolve(wrapper, cx, obj, id, flags, objp,
-                                  _retval);
+  rv = nsEventReceiverSH::NewResolve(wrapper, cx, obj, id, flags, objp,
+                                     _retval);
 
   if (NS_FAILED(rv) || *objp != oldobj) {
     // Something went wrong, or the property got resolved. Return.
@@ -7203,7 +7521,7 @@ nsNodeSH::AddProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                       JSObject *obj, jsid id, jsval *vp, PRBool *_retval)
 {
   nsNodeSH::PreserveWrapper(GetNative(wrapper, obj));
-  return NS_OK;
+  return nsEventReceiverSH::AddProperty(wrapper, cx, obj, id, vp, _retval);
 }
 
 NS_IMETHODIMP
@@ -7219,15 +7537,11 @@ nsNodeSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
   if (id == sOnload_id || id == sOnerror_id) {
     // Make sure that this node can't go away while waiting for a
     // network load that could fire an event handler.
-    // XXXbz won't this fail if the listener is added using
-    // addEventListener?  On the other hand, even if I comment this
-    // code out I can't seem to reproduce the bug it was trying to
-    // fix....
     nsNodeSH::PreserveWrapper(GetNative(wrapper, obj));
   }
 
-  return nsDOMGenericSH::NewResolve(wrapper, cx, obj, id, flags, objp,
-                                    _retval);
+  return nsEventReceiverSH::NewResolve(wrapper, cx, obj, id, flags, objp,
+                                       _retval);
 }
 
 NS_IMETHODIMP
@@ -7284,7 +7598,7 @@ nsNodeSH::SetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
     return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
   }
 
-  return NS_OK;
+  return nsEventReceiverSH::SetProperty(wrapper, cx, obj, id, vp,_retval);
 }
 
 NS_IMETHODIMP
@@ -7300,6 +7614,248 @@ nsNodeSH::PreserveWrapper(nsISupports *aNative)
 {
   nsINode *node = static_cast<nsINode*>(aNative);
   nsContentUtils::PreserveWrapper(aNative, node);
+}
+
+// EventReceiver helper
+
+// static
+PRBool
+nsEventReceiverSH::ReallyIsEventName(jsid id, jschar aFirstChar)
+{
+  // I wonder if this is faster than using a hash...
+
+  switch (aFirstChar) {
+  case 'a' :
+    return (id == sOnabort_id ||
+            id == sOnafterscriptexecute_id ||
+            id == sOnafterprint_id);
+  case 'b' :
+    return (id == sOnbeforeunload_id ||
+            id == sOnbeforescriptexecute_id ||
+            id == sOnblur_id ||
+            id == sOnbeforeprint_id);
+  case 'c' :
+    return (id == sOnchange_id       ||
+            id == sOnclick_id        ||
+            id == sOncontextmenu_id  ||
+            id == sOncopy_id         ||
+            id == sOncut_id          ||
+            id == sOncanplay_id      ||
+            id == sOncanplaythrough_id);
+  case 'd' :
+    return (id == sOndblclick_id     || 
+            id == sOndrag_id         ||
+            id == sOndragend_id      ||
+            id == sOndragenter_id    ||
+            id == sOndragleave_id    ||
+            id == sOndragover_id     ||
+            id == sOndragstart_id    ||
+            id == sOndrop_id         ||
+            id == sOndurationchange_id ||
+            id == sOndeviceorientation_id ||
+            id == sOndevicemotion_id );
+  case 'e' :
+    return (id == sOnerror_id ||
+            id == sOnemptied_id ||
+            id == sOnended_id);
+  case 'f' :
+    return id == sOnfocus_id;
+  case 'h' :
+    return id == sOnhashchange_id;
+  case 'i' :
+    return (id == sOninput_id ||
+            id == sOninvalid_id);
+  case 'k' :
+    return (id == sOnkeydown_id      ||
+            id == sOnkeypress_id     ||
+            id == sOnkeyup_id);
+  case 'l' :
+    return (id == sOnload_id           ||
+            id == sOnloadeddata_id     ||
+            id == sOnloadedmetadata_id ||
+            id == sOnloadstart_id);
+  case 'm' :
+    return (id == sOnmousemove_id    ||
+            id == sOnmouseout_id     ||
+            id == sOnmouseover_id    ||
+            id == sOnmouseup_id      ||
+            id == sOnmousedown_id    ||
+            id == sOnmessage_id);
+  case 'p' :
+    return (id == sOnpaint_id        ||
+            id == sOnpageshow_id     ||
+            id == sOnpagehide_id     ||
+            id == sOnpaste_id        ||
+            id == sOnpopstate_id     ||
+            id == sOnpause_id        ||
+            id == sOnplay_id         ||
+            id == sOnplaying_id      ||
+            id == sOnprogress_id);
+  case 'r' :
+    return (id == sOnreadystatechange_id ||
+            id == sOnreset_id            ||
+            id == sOnresize_id           ||
+            id == sOnratechange_id);
+  case 's' :
+    return (id == sOnscroll_id       ||
+            id == sOnselect_id       ||
+            id == sOnsubmit_id       || 
+            id == sOnseeked_id       ||
+            id == sOnseeking_id      ||
+            id == sOnstalled_id      ||
+            id == sOnsuspend_id);
+  case 't':
+    return id == sOntimeupdate_id ||
+      (nsDOMTouchEvent::PrefEnabled() &&
+       (id == sOntouchstart_id ||
+        id == sOntouchend_id ||
+        id == sOntouchmove_id ||
+        id == sOntouchenter_id ||
+        id == sOntouchleave_id ||
+        id == sOntouchcancel_id));
+    
+  case 'u' :
+    return id == sOnunload_id;
+  case 'v':
+    return id == sOnvolumechange_id;
+  case 'w':
+    return id == sOnwaiting_id;
+  }
+
+  return PR_FALSE;
+}
+
+nsresult
+nsEventReceiverSH::RegisterCompileHandler(nsIXPConnectWrappedNative *wrapper,
+                                          JSContext *cx, JSObject *obj,
+                                          jsid id, PRBool compile,
+                                          PRBool remove,
+                                          PRBool *did_define)
+{
+  NS_PRECONDITION(!compile || !remove,
+                  "Can't both compile and remove at the same time");
+  *did_define = PR_FALSE;
+
+  if (!IsEventName(id)) {
+    return NS_OK;
+  }
+
+  if (ObjectIsNativeWrapper(cx, obj)) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+
+  nsIScriptContext *script_cx = nsJSUtils::GetStaticScriptContext(cx, obj);
+  NS_ENSURE_TRUE(script_cx, NS_ERROR_UNEXPECTED);
+
+  nsCOMPtr<nsIDOMEventTarget> target =
+    do_QueryWrappedNative(wrapper, obj);
+  if (!target) {
+    // Doesn't do events
+    NS_WARNING("Doesn't QI to nsIDOMEventTarget?");
+    return NS_OK;
+  }
+  
+  nsEventListenerManager* manager = target->GetListenerManager(PR_TRUE);
+  NS_ENSURE_TRUE(manager, NS_ERROR_UNEXPECTED);
+
+  nsCOMPtr<nsIAtom> atom(do_GetAtom(nsDependentJSString(id)));
+  NS_ENSURE_TRUE(atom, NS_ERROR_OUT_OF_MEMORY);
+
+  JSObject *scope = ::JS_GetGlobalForObject(cx, obj);
+
+  if (compile) {
+    nsresult rv = manager->CompileScriptEventListener(script_cx, scope, target,
+                                                      atom, did_define);
+    NS_ENSURE_SUCCESS(rv, rv);
+  } else if (remove) {
+    manager->RemoveScriptEventListener(atom);
+  } else {
+    manager->RegisterScriptEventListener(script_cx, scope, target, atom);
+  }
+
+  return NS_SUCCESS_I_DID_SOMETHING;
+}
+
+NS_IMETHODIMP
+nsEventReceiverSH::NewResolve(nsIXPConnectWrappedNative *wrapper,
+                              JSContext *cx, JSObject *obj, jsid id,
+                              PRUint32 flags, JSObject **objp, PRBool *_retval)
+{
+  if (!JSID_IS_STRING(id)) {
+    return NS_OK;
+  }
+
+  if (flags & JSRESOLVE_ASSIGNING) {
+    if (!IsEventName(id)) {
+      // Bail out.  We don't care about this assignment.
+      return NS_OK;
+    }
+
+    // If we're assigning to an on* property, just resolve to null for
+    // now; the assignment will then set the right value. Only do this
+    // in the case where the property isn't already defined on the
+    // object's prototype chain though.
+    JSAutoRequest ar(cx);
+
+    JSObject *proto = ::JS_GetPrototype(cx, obj);
+    PRBool ok = PR_TRUE, hasProp = PR_FALSE;
+    if (!proto || ((ok = ::JS_HasPropertyById(cx, proto, id, &hasProp)) &&
+                   !hasProp)) {
+      // Make sure the flags here match those in
+      // nsJSContext::BindCompiledEventHandler
+      if (!::JS_DefinePropertyById(cx, obj, id, JSVAL_NULL, nsnull, nsnull,
+                                   JSPROP_ENUMERATE | JSPROP_PERMANENT)) {
+        return NS_ERROR_FAILURE;
+      }
+
+      *objp = obj;
+      return NS_OK;
+    }
+
+    return ok ? NS_OK : NS_ERROR_FAILURE;
+  }
+
+  if (id == sAddEventListener_id) {
+    return NS_OK;
+  }
+
+  PRBool did_define = PR_FALSE;
+  nsresult rv = RegisterCompileHandler(wrapper, cx, obj, id, PR_TRUE, PR_FALSE,
+                                       &did_define);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (did_define) {
+    *objp = obj;
+  }
+
+  return nsDOMGenericSH::NewResolve(wrapper, cx, obj, id, flags, objp,
+                                    _retval);
+}
+
+NS_IMETHODIMP
+nsEventReceiverSH::SetProperty(nsIXPConnectWrappedNative *wrapper,
+                               JSContext *cx, JSObject *obj, jsid id,
+                               jsval *vp, PRBool *_retval)
+{
+  JSAutoRequest ar(cx);
+
+  if ((::JS_TypeOfValue(cx, *vp) != JSTYPE_FUNCTION && !JSVAL_IS_NULL(*vp)) ||
+      !JSID_IS_STRING(id) || id == sAddEventListener_id) {
+    return NS_OK;
+  }
+
+  PRBool did_compile; // Ignored here.
+
+  return RegisterCompileHandler(wrapper, cx, obj, id, PR_FALSE,
+                                JSVAL_IS_NULL(*vp), &did_compile);
+}
+
+NS_IMETHODIMP
+nsEventReceiverSH::AddProperty(nsIXPConnectWrappedNative *wrapper,
+                               JSContext *cx, JSObject *obj, jsid id,
+                               jsval *vp, PRBool *_retval)
+{
+  return nsEventReceiverSH::SetProperty(wrapper, cx, obj, id, vp, _retval);
 }
 
 // EventTarget helper
@@ -7555,9 +8111,8 @@ nsGenericArraySH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
     nsresult rv = GetLength(wrapper, cx, obj, &length);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    PRUint32 index = PRUint32(n);
-    if (index < length) {
-      *_retval = ::JS_DefineElement(cx, obj, index, JSVAL_VOID, nsnull, nsnull,
+    if ((PRUint32)n < length) {
+      *_retval = ::JS_DefineElement(cx, obj, n, JSVAL_VOID, nsnull, nsnull,
                                     JSPROP_ENUMERATE | JSPROP_SHARED);
       *objp = obj;
     }
@@ -8583,7 +9138,12 @@ nsHTMLDocumentSH::DocumentAllNewResolve(JSContext *cx, JSObject *obj, jsid id,
   JSBool ok = JS_TRUE;
 
   if (v != JSVAL_VOID) {
-    ok = ::JS_DefinePropertyById(cx, obj, id, v, nsnull, nsnull, 0);
+    if (JSID_IS_STRING(id)) {
+      ok = ::JS_DefinePropertyById(cx, obj, id, v, nsnull, nsnull, 0);
+    } else {
+      ok = ::JS_DefineElement(cx, obj, JSID_TO_INT(id), v, nsnull, nsnull, 0);
+    }
+
     *objp = obj;
   }
 
@@ -9126,7 +9686,7 @@ nsHTMLSelectElementSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext 
       nsISupports *node = options->GetNodeAt(n);
       if (node) {
         *objp = obj;
-        *_retval = JS_DefineElement(cx, obj, PRUint32(n), JSVAL_VOID, nsnull, nsnull,
+        *_retval = JS_DefineElement(cx, obj, n, JSVAL_VOID, nsnull, nsnull,
                                     JSPROP_ENUMERATE | JSPROP_SHARED);
 
         return NS_OK;
@@ -9234,7 +9794,14 @@ nsHTMLPluginObjElementSH::GetPluginInstanceIfSafe(nsIXPConnectWrappedNative *wra
   nsCOMPtr<nsIObjectLoadingContent> objlc(do_QueryInterface(content));
   NS_ASSERTION(objlc, "Object nodes must implement nsIObjectLoadingContent");
 
-  return objlc->GetPluginInstance(_result);
+  // If it's not safe to run script we'll only return the instance if it
+  // exists.
+  if (!nsContentUtils::IsSafeToRunScript()) {
+    return objlc->GetPluginInstance(_result);
+  }
+
+  // Make sure that there is a plugin
+  return objlc->EnsureInstantiation(_result);
 }
 
 // Check if proto is already in obj's prototype chain.
@@ -9338,8 +9905,19 @@ nsHTMLPluginObjElementSH::SetupProtoChain(nsIXPConnectWrappedNative *wrapper,
 
   if (!pi_obj) {
     // Didn't get a plugin instance JSObject, nothing we can do then.
+
     return NS_OK;
   }
+
+  if (IsObjInProtoChain(cx, obj, pi_obj)) {
+    // We must have re-entered ::PostCreate() from nsObjectFrame()
+    // (through the EnsureInstantiation() call in
+    // GetPluginInstanceIfSafe()), this means that we've already done what
+    // we're about to do in this function so we can just return here.
+
+    return NS_OK;
+  }
+
 
   // If we got an xpconnect-wrapped plugin object, set obj's
   // prototype's prototype to the scriptable plugin.
@@ -9458,14 +10036,24 @@ nsHTMLPluginObjElementSH::GetProperty(nsIXPConnectWrappedNative *wrapper,
   JSBool found = PR_FALSE;
 
   if (!ObjectIsNativeWrapper(cx, obj)) {
-    *_retval = ::JS_HasPropertyById(cx, pi_obj, id, &found);
+    if (JSID_IS_STRING(id)) {
+      *_retval = ::JS_HasPropertyById(cx, pi_obj, id, &found);
+    } else {
+      *_retval = ::JS_HasElement(cx, pi_obj, JSID_TO_INT(id), &found);
+    }
+
     if (!*_retval) {
       return NS_ERROR_UNEXPECTED;
     }
   }
 
   if (found) {
-    *_retval = ::JS_GetPropertyById(cx, pi_obj, id, vp);
+    if (JSID_IS_STRING(id)) {
+      *_retval = ::JS_GetPropertyById(cx, pi_obj, id, vp);
+    } else {
+      *_retval = ::JS_GetElement(cx, pi_obj, JSID_TO_INT(id), vp);
+    }
+
     return *_retval ? NS_SUCCESS_I_DID_SOMETHING : NS_ERROR_FAILURE;
   }
 
@@ -9487,14 +10075,24 @@ nsHTMLPluginObjElementSH::SetProperty(nsIXPConnectWrappedNative *wrapper,
   JSBool found = PR_FALSE;
 
   if (!ObjectIsNativeWrapper(cx, obj)) {
-    *_retval = ::JS_HasPropertyById(cx, pi_obj, id, &found);
+    if (JSID_IS_STRING(id)) {
+      *_retval = ::JS_HasPropertyById(cx, pi_obj, id, &found);
+    } else {
+      *_retval = ::JS_HasElement(cx, pi_obj, JSID_TO_INT(id), &found);
+    }
+
     if (!*_retval) {
       return NS_ERROR_UNEXPECTED;
     }
   }
 
   if (found) {
-    *_retval = ::JS_SetPropertyById(cx, pi_obj, id, vp);
+    if (JSID_IS_STRING(id)) {
+      *_retval = ::JS_SetPropertyById(cx, pi_obj, id, vp);
+    } else {
+      *_retval = ::JS_SetElement(cx, pi_obj, JSID_TO_INT(id), vp);
+    }
+
     return *_retval ? NS_SUCCESS_I_DID_SOMETHING : NS_ERROR_FAILURE;
   }
 

@@ -45,8 +45,6 @@
 #include "nsIDOMDocumentXBL.h"
 #include "nsIFrame.h"
 
-using namespace mozilla::a11y;
-
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULSliderAccessible
 ////////////////////////////////////////////////////////////////////////////////
@@ -97,10 +95,13 @@ nsXULSliderAccessible::GetValue(nsAString& aValue)
   return GetSliderAttr(nsAccessibilityAtoms::curpos, aValue);
 }
 
-PRUint8
-nsXULSliderAccessible::ActionCount()
+NS_IMETHODIMP
+nsXULSliderAccessible::GetNumActions(PRUint8 *aCount)
 {
-  return 1;
+  NS_ENSURE_ARG_POINTER(aCount);
+
+  *aCount = 1;
+  return NS_OK;
 }
 
 NS_IMETHODIMP

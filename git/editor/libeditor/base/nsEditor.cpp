@@ -112,7 +112,6 @@
 
 #include "mozilla/FunctionTimer.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/dom/Element.h"
 
 #define NS_ERROR_EDITOR_NO_SELECTION NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_EDITOR,1)
 #define NS_ERROR_EDITOR_NO_TEXTNODE  NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_EDITOR,2)
@@ -289,7 +288,14 @@ nsEditor::PostCreate()
     mDidPostCreate = PR_TRUE;
 
     // Set up listeners
-    CreateEventListeners();
+    rv = CreateEventListeners();
+    if (NS_FAILED(rv))
+    {
+      RemoveEventListeners();
+
+      return rv;
+    }
+
     rv = InstallEventListeners();
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -321,14 +327,14 @@ nsEditor::PostCreate()
   return NS_OK;
 }
 
-/* virtual */
-void
+nsresult
 nsEditor::CreateEventListeners()
 {
   // Don't create the handler twice
   if (!mEventListener) {
     mEventListener = new nsEditorEventListener();
   }
+  return NS_OK;
 }
 
 nsresult
@@ -481,26 +487,6 @@ nsEditor::SetFlags(PRUint32 aFlags)
       nsIMEStateManager::UpdateIMEState(newState, focusedContent);
     }
   }
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsEditor::GetIsSelectionEditable(PRBool *aIsSelectionEditable)
-{
-  NS_ENSURE_ARG_POINTER(aIsSelectionEditable);
-
-  // get current selection
-  nsCOMPtr<nsISelection> selection;
-  nsresult res = GetSelection(getter_AddRefs(selection));
-  NS_ENSURE_SUCCESS(res, res);
-  NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
-
-  // XXX we just check that the anchor node is editable at the moment
-  //     we should check that all nodes in the selection are editable
-  nsCOMPtr<nsIDOMNode> anchorNode;
-  selection->GetAnchorNode(getter_AddRefs(anchorNode));
-  *aIsSelectionEditable = anchorNode && IsEditable(anchorNode);
 
   return NS_OK;
 }
@@ -775,6 +761,7 @@ nsEditor::Undo(PRUint32 aCount)
     }
   }
 
+  NotifyEditorObservers();  
   return result;
 }
 
@@ -826,6 +813,7 @@ nsEditor::Redo(PRUint32 aCount)
     }
   }
 
+  NotifyEditorObservers();  
   return result;
 }
 
@@ -3411,52 +3399,54 @@ nsEditor::GetNextNodeImpl(nsIDOMNode  *aCurrentNode,
 }
 
 
-already_AddRefed<nsIDOMNode>
+nsCOMPtr<nsIDOMNode>
 nsEditor::GetRightmostChild(nsIDOMNode *aCurrentNode, 
                             PRBool bNoBlockCrossing)
 {
   NS_ENSURE_TRUE(aCurrentNode, nsnull);
-  nsCOMPtr<nsIDOMNode> resultNode, temp = aCurrentNode;
+  nsCOMPtr<nsIDOMNode> resultNode, temp=aCurrentNode;
   PRBool hasChildren;
   aCurrentNode->HasChildNodes(&hasChildren);
-  while (hasChildren) {
+  while (hasChildren)
+  {
     temp->GetLastChild(getter_AddRefs(resultNode));
-    if (resultNode) {
-      if (bNoBlockCrossing && IsBlockNode(resultNode)) {
-        return resultNode.forget();
-      }
+    if (resultNode)
+    {
+      if (bNoBlockCrossing && IsBlockNode(resultNode))
+         return resultNode;
       resultNode->HasChildNodes(&hasChildren);
       temp = resultNode;
-    } else {
-      hasChildren = PR_FALSE;
     }
+    else 
+      hasChildren = PR_FALSE;
   }
 
-  return resultNode.forget();
+  return resultNode;
 }
 
-already_AddRefed<nsIDOMNode>
+nsCOMPtr<nsIDOMNode>
 nsEditor::GetLeftmostChild(nsIDOMNode *aCurrentNode,
                            PRBool bNoBlockCrossing)
 {
   NS_ENSURE_TRUE(aCurrentNode, nsnull);
-  nsCOMPtr<nsIDOMNode> resultNode, temp = aCurrentNode;
+  nsCOMPtr<nsIDOMNode> resultNode, temp=aCurrentNode;
   PRBool hasChildren;
   aCurrentNode->HasChildNodes(&hasChildren);
-  while (hasChildren) {
+  while (hasChildren)
+  {
     temp->GetFirstChild(getter_AddRefs(resultNode));
-    if (resultNode) {
-      if (bNoBlockCrossing && IsBlockNode(resultNode)) {
-        return resultNode.forget();
-      }
+    if (resultNode)
+    {
+      if (bNoBlockCrossing && IsBlockNode(resultNode))
+         return resultNode;
       resultNode->HasChildNodes(&hasChildren);
       temp = resultNode;
-    } else {
-      hasChildren = PR_FALSE;
     }
+    else 
+      hasChildren = PR_FALSE;
   }
 
-  return resultNode.forget();
+  return resultNode;
 }
 
 PRBool 
@@ -3809,20 +3799,7 @@ nsEditor::GetChildAt(nsIDOMNode *aParent, PRInt32 aOffset)
 
   return resultNode;
 }
-
-///////////////////////////////////////////////////////////////////////////
-// GetNodeAtRangeOffsetPoint: returns the node at this position in a range,
-// assuming that aParentOrNode is the node itself if it's a text node, or
-// the node's parent otherwise.
-//
-nsCOMPtr<nsIDOMNode>
-nsEditor::GetNodeAtRangeOffsetPoint(nsIDOMNode* aParentOrNode, PRInt32 aOffset)
-{
-  if (IsTextNode(aParentOrNode)) {
-    return aParentOrNode;
-  }
-  return GetChildAt(aParentOrNode, aOffset);
-}
+  
 
 
 ///////////////////////////////////////////////////////////////////////////
@@ -5327,14 +5304,5 @@ nsEditor::BeginKeypressHandling(nsIDOMNSEvent* aEvent)
     PRBool isTrusted = PR_FALSE;
     aEvent->GetIsTrusted(&isTrusted);
     mLastKeypressEventWasTrusted = isTrusted ? eTriTrue : eTriFalse;
-  }
-}
-
-void
-nsEditor::OnFocus(nsIDOMEventTarget* aFocusEventTarget)
-{
-  InitializeSelection(aFocusEventTarget);
-  if (mInlineSpellChecker) {
-    mInlineSpellChecker->UpdateCurrentDictionary();
   }
 }

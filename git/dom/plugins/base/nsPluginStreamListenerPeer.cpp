@@ -658,6 +658,7 @@ nsPluginStreamListenerPeer::OnStartRequest(nsIRequest *request,
         mOwner->GetInstance(getter_AddRefs(pluginInstRefPtr));
         mPluginInstance = pluginInstRefPtr.get();
         if (mPluginInstance) {
+          mPluginInstance->Start();
           mOwner->CreateWidget();
           // If we've got a native window, the let the plugin know about it.
           mOwner->SetWindow();
@@ -890,7 +891,8 @@ nsresult nsPluginStreamListenerPeer::ServeStreamAsFile(nsIRequest *request,
 PRBool
 nsPluginStreamListenerPeer::UseExistingPluginCacheFile(nsPluginStreamListenerPeer* psi)
 {
-  NS_ENSURE_TRUE(psi, PR_FALSE);
+  
+  NS_ENSURE_ARG_POINTER(psi);
   
   if (psi->mLength == mLength &&
       psi->mModified == mModified &&

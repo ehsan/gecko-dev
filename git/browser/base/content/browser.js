@@ -216,12 +216,6 @@ XPCOMUtils.defineLazyServiceGetter(this, "gCrashReporter",
                                    "nsICrashReporter");
 #endif
 
-XPCOMUtils.defineLazyGetter(this, "PageMenu", function() {
-  let tmp = {};
-  Cu.import("resource://gre/modules/PageMenu.jsm", tmp);
-  return new tmp.PageMenu();
-});
-
 /**
 * We can avoid adding multiple load event listeners and save some time by adding
 * one listener that calls all real handlers.
@@ -360,9 +354,6 @@ const gSessionHistoryObserver = {
     backCommand.setAttribute("disabled", "true");
     var fwdCommand = document.getElementById("Browser:Forward");
     fwdCommand.setAttribute("disabled", "true");
-
-    // Hide session restore button on about:home
-    window.messageManager.sendAsyncMessage("Browser:HideSessionRestoreButton");
 
     if (gURLBar) {
       // Clear undo history of the URL bar
@@ -1424,8 +1415,6 @@ function prepareForStartup() {
     return;
   }
 
-  messageManager.loadFrameScript("chrome://browser/content/content.js", true);
-
   // initialize observers and listeners
   // and give C++ access to gBrowser
   gBrowser.init();
@@ -1470,13 +1459,9 @@ function prepareForStartup() {
     Components.utils.reportError("Places database may be locked: " + ex);
   }
 
-#ifdef MOZ_E10S_COMPAT
-  // Bug 666801 - WebProgress support for e10s
-#else
   // hook up UI through progress listener
   gBrowser.addProgressListener(window.XULBrowserWindow);
   gBrowser.addTabsProgressListener(window.TabsProgressListener);
-#endif
 
   // setup our common DOMLinkAdded listener
   gBrowser.addEventListener("DOMLinkAdded", DOMLinkHandler, false);
@@ -1598,13 +1583,9 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
     Components.utils.reportError("Failed to init content pref service:\n" + ex);
   }
 
-#ifdef MOZ_E10S_COMPAT
-  // Bug 666804 - NetworkPrioritizer support for e10s
-#else
   let NP = {};
   Cu.import("resource:///modules/NetworkPrioritizer.jsm", NP);
   NP.trackBrowserWindow(window);
-#endif
 
   // initialize the session-restore service (in case it's not already running)
   try {
@@ -1655,12 +1636,8 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
   gBrowser.mPanelContainer.addEventListener("PreviewBrowserTheme", LightWeightThemeWebInstaller, false, true);
   gBrowser.mPanelContainer.addEventListener("ResetBrowserThemePreview", LightWeightThemeWebInstaller, false, true);
 
-#ifdef MOZ_E10S_COMPAT
-  // Bug 666808 - AeroPeek support for e10s
-#else
   if (Win7Features)
     Win7Features.onOpenWindow();
-#endif
 
   // called when we go into full screen, even if it is
   // initiated by a web page script
@@ -4180,15 +4157,11 @@ var XULBrowserWindow = {
   init: function () {
     this.throbberElement = document.getElementById("navigator-throbber");
 
-#ifdef MOZ_E10S_COMPAT
-    // Bug 666809 - SecurityUI support for e10s
-#else
     // Initialize the security button's state and tooltip text.  Remember to reset
     // _hostChanged, otherwise onSecurityChange will short circuit.
     var securityUI = gBrowser.securityUI;
     this._hostChanged = true;
     this.onSecurityChange(null, null, securityUI.state);
-#endif
   },
 
   destroy: function () {
@@ -6285,14 +6258,13 @@ var IndexedDBPromptHelper = {
     var contentDocument = contentWindow.document;
     var browserWindow =
       OfflineApps._getBrowserWindowForContentWindow(contentWindow);
+    var browser =
+      OfflineApps._getBrowserForContentWindow(browserWindow, contentWindow);
 
-    if (browserWindow != window) {
+    if (!browser) {
       // Must belong to some other window.
       return;
     }
-
-    var browser =
-      OfflineApps._getBrowserForContentWindow(browserWindow, contentWindow);
 
     var host = contentDocument.documentURIObject.asciiHost;
 
@@ -6807,9 +6779,9 @@ var gPluginHandler = {
   submitReport : function(pluginDumpID, browserDumpID) {
     // The crash reporter wants a DOM element it can append an IFRAME to,
     // which it uses to submit a form. Let's just give it gBrowser.
-    this.CrashSubmit.submit(pluginDumpID);
+    this.CrashSubmit.submit(pluginDumpID, gBrowser, null, null);
     if (browserDumpID)
-      this.CrashSubmit.submit(browserDumpID);
+      this.CrashSubmit.submit(browserDumpID, gBrowser, null, null);
   },
 
   // Callback for user clicking a "reload page" link
@@ -7331,7 +7303,8 @@ var FeedHandler = {
    * a page is loaded or the user switches tabs to a page that has feeds.
    */
   updateFeeds: function() {
-    clearTimeout(this._updateFeedTimeout);
+    if (this._updateFeedTimeout)
+      clearTimeout(this._updateFeedTimeout);
 
     var feeds = gBrowser.selectedBrowser.feeds;
     var haveFeeds = feeds && feeds.length > 0;

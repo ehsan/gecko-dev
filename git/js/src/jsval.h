@@ -102,15 +102,17 @@ JS_ENUM_HEADER(JSValueType, uint8)
     JSVAL_TYPE_NULL                = 0x06,
     JSVAL_TYPE_OBJECT              = 0x07,
 
-    /* The below types never appear in a jsval; they are only used in tracing. */
+    /* The below types never appear in a jsval; they are only used in tracing and type inference. */
+
+    JSVAL_TYPE_UNKNOWN             = 0x20,
 
     JSVAL_TYPE_NONFUNOBJ           = 0x57,
     JSVAL_TYPE_FUNOBJ              = 0x67,
 
-    JSVAL_TYPE_STRORNULL           = 0x77,
-    JSVAL_TYPE_OBJORNULL           = 0x78,
+    JSVAL_TYPE_STRORNULL           = 0x97,
+    JSVAL_TYPE_OBJORNULL           = 0x98,
 
-    JSVAL_TYPE_BOXED               = 0x79
+    JSVAL_TYPE_BOXED               = 0x99
 } JS_ENUM_FOOTER(JSValueType);
 
 JS_STATIC_ASSERT(sizeof(JSValueType) == 1);
@@ -120,7 +122,7 @@ JS_STATIC_ASSERT(sizeof(JSValueType) == 1);
 /* Remember to propagate changes to the C defines below. */
 JS_ENUM_HEADER(JSValueTag, uint32)
 {
-    JSVAL_TAG_CLEAR                = 0xFFFFFF80,
+    JSVAL_TAG_CLEAR                = 0xFFFF0000,
     JSVAL_TAG_INT32                = JSVAL_TAG_CLEAR | JSVAL_TYPE_INT32,
     JSVAL_TAG_UNDEFINED            = JSVAL_TAG_CLEAR | JSVAL_TYPE_UNDEFINED,
     JSVAL_TAG_STRING               = JSVAL_TAG_CLEAR | JSVAL_TYPE_STRING,
@@ -178,15 +180,15 @@ typedef uint8 JSValueType;
 #define JSVAL_TYPE_OBJECT            ((uint8)0x07)
 #define JSVAL_TYPE_NONFUNOBJ         ((uint8)0x57)
 #define JSVAL_TYPE_FUNOBJ            ((uint8)0x67)
-#define JSVAL_TYPE_STRORNULL         ((uint8)0x77)
-#define JSVAL_TYPE_OBJORNULL         ((uint8)0x78)
-#define JSVAL_TYPE_BOXED             ((uint8)0x79)
-#define JSVAL_TYPE_UNINITIALIZED     ((uint8)0x7d)
+#define JSVAL_TYPE_STRORNULL         ((uint8)0x97)
+#define JSVAL_TYPE_OBJORNULL         ((uint8)0x98)
+#define JSVAL_TYPE_BOXED             ((uint8)0x99)
+#define JSVAL_TYPE_UNINITIALIZED     ((uint8)0xcd)
 
 #if JS_BITS_PER_WORD == 32
 
 typedef uint32 JSValueTag;
-#define JSVAL_TAG_CLEAR              ((uint32)(0xFFFFFF80))
+#define JSVAL_TAG_CLEAR              ((uint32)(0xFFFF0000))
 #define JSVAL_TAG_INT32              ((uint32)(JSVAL_TAG_CLEAR | JSVAL_TYPE_INT32))
 #define JSVAL_TAG_UNDEFINED          ((uint32)(JSVAL_TAG_CLEAR | JSVAL_TYPE_UNDEFINED))
 #define JSVAL_TAG_STRING             ((uint32)(JSVAL_TAG_CLEAR | JSVAL_TYPE_STRING))
@@ -264,6 +266,7 @@ typedef enum JSWhyMagic
     JS_THIS_POISON,              /* used in debug builds to catch tracing errors */
     JS_ARG_POISON,               /* used in debug builds to catch tracing errors */
     JS_SERIALIZE_NO_NODE,        /* an empty subnode in the AST serializer */
+    JS_LAZY_ARGUMENTS,           /* lazy arguments value on the stack */
     JS_GENERIC_MAGIC             /* for local use */
 } JSWhyMagic;
 
@@ -313,11 +316,11 @@ typedef union jsval_layout
             int32          i32;
             uint32         u32;
             JSWhyMagic     why;
+            jsuword        word;
         } payload;
     } s;
     double asDouble;
     void *asPtr;
-    jsuword asWord;
 } jsval_layout;
 # endif  /* JS_BITS_PER_WORD */
 #else   /* defined(IS_LITTLE_ENDIAN) */
@@ -350,21 +353,18 @@ typedef union jsval_layout
         uint64             payload47 : 47;
     } debugView;
     struct {
-        uint32             padding;
         union {
             int32          i32;
             uint32         u32;
             JSWhyMagic     why;
+            jsuword        word;
         } payload;
     } s;
     double asDouble;
     void *asPtr;
-    jsuword asWord;
 } jsval_layout;
 # endif /* JS_BITS_PER_WORD */
 #endif  /* defined(IS_LITTLE_ENDIAN) */
-
-JS_STATIC_ASSERT(sizeof(jsval_layout) == 8);
 
 #if JS_BITS_PER_WORD == 32
 

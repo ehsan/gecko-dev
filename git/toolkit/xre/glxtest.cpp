@@ -114,9 +114,6 @@ static void glxtest()
   typedef GLXFBConfig* (* PFNGLXQUERYEXTENSION) (Display *, int *, int *);
   PFNGLXQUERYEXTENSION glXQueryExtension = cast<PFNGLXQUERYEXTENSION>(dlsym(libgl, "glXQueryExtension"));
 
-  typedef GLXFBConfig* (* PFNGLXQUERYVERSION) (Display *, int *, int *);
-  PFNGLXQUERYVERSION glXQueryVersion = cast<PFNGLXQUERYVERSION>(dlsym(libgl, "glXQueryVersion"));
-
   typedef GLXFBConfig* (* PFNGLXCHOOSEFBCONFIG) (Display *, int, const int *, int *);
   PFNGLXCHOOSEFBCONFIG glXChooseFBConfig = cast<PFNGLXCHOOSEFBCONFIG>(dlsym(libgl, "glXChooseFBConfig"));
 
@@ -141,11 +138,7 @@ static void glxtest()
   typedef GLubyte* (* PFNGLGETSTRING) (GLenum);
   PFNGLGETSTRING glGetString = cast<PFNGLGETSTRING>(dlsym(libgl, "glGetString"));
 
-  typedef void* (* PFNGLXGETPROCADDRESS) (const char *);
-  PFNGLXGETPROCADDRESS glXGetProcAddress = cast<PFNGLXGETPROCADDRESS>(dlsym(libgl, "glXGetProcAddress"));
-
   if (!glXQueryExtension ||
-      !glXQueryVersion ||
       !glXChooseFBConfig ||
       !glXGetVisualFromFBConfig ||
       !glXCreatePixmap ||
@@ -153,8 +146,7 @@ static void glxtest()
       !glXMakeCurrent ||
       !glXDestroyPixmap ||
       !glXDestroyContext ||
-      !glGetString ||
-      !glXGetProcAddress)
+      !glGetString)
   {
     fatal_error("Unable to find required symbols in libGL.so.1");
   }
@@ -166,14 +158,6 @@ static void glxtest()
   ///// Check that the GLX extension is present /////
   if (!glXQueryExtension(dpy, NULL, NULL))
     fatal_error("GLX extension missing");
-  
-  ///// Check that the GLX version is >= 1.3, needed for glXCreatePixmap, bug 659932 /////
-  int majorVersion, minorVersion;
-  if (!glXQueryVersion(dpy, &majorVersion, &minorVersion))
-    fatal_error("Unable to query GLX version");
-
-  if (majorVersion < 1 || (majorVersion == 1 && minorVersion < 3))
-    fatal_error("GLX version older than the required 1.3");
 
   XSetErrorHandler(x_error_handler);
 
@@ -199,9 +183,6 @@ static void glxtest()
   GLXContext context = glXCreateNewContext(dpy, fbConfigs[0], GLX_RGBA_TYPE, NULL, True);
   glXMakeCurrent(dpy, glxpixmap, context);
 
-  ///// Look for this symbol to determine texture_from_pixmap support /////
-  void* glXBindTexImageEXT = glXGetProcAddress("glXBindTexImageEXT"); 
-
   ///// Get GL vendor/renderer/versions strings /////
   enum { bufsize = 1024 };
   char buf[bufsize];
@@ -213,11 +194,10 @@ static void glxtest()
     fatal_error("glGetString returned null");
 
   int length = snprintf(buf, bufsize,
-                        "VENDOR\n%s\nRENDERER\n%s\nVERSION\n%s\nTFP\n%s\n",
+                        "VENDOR\n%s\nRENDERER\n%s\nVERSION\n%s\n",
                         vendorString,
                         rendererString,
-                        versionString,
-                        glXBindTexImageEXT ? "TRUE" : "FALSE");
+                        versionString);
   if (length >= bufsize)
     fatal_error("GL strings length too large for buffer size");
 

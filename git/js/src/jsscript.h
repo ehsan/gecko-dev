@@ -47,6 +47,7 @@
 #include "jsprvtd.h"
 #include "jsdbgapi.h"
 #include "jsclist.h"
+#include "jsinfer.h"
 
 /*
  * Type of try note associated with each catch or finally block, and also with
@@ -176,7 +177,7 @@ class Bindings {
     bool hasExtensibleParents;
 
   public:
-    inline Bindings(JSContext *cx, EmptyShape *emptyCallShape);
+    inline Bindings(JSContext *cx);
 
     /*
      * Transfers ownership of bindings data from bindings into this fresh
@@ -202,6 +203,9 @@ class Bindings {
 
     bool hasUpvars() const { return nupvars > 0; }
     bool hasLocalNames() const { return countLocalNames() > 0; }
+
+    /* Ensure these bindings have a shape lineage. */
+    inline bool ensureShape(JSContext *cx);
 
     /* Returns the shape lineage generated for these bindings. */
     inline js::Shape *lastShape() const;
@@ -375,14 +379,10 @@ enum JITScriptStatus {
     JITScript_Valid
 };
 
-namespace js {
-namespace mjit {
-
-struct JITScript;
-
-}
-}
+namespace js { namespace mjit { struct JITScript; } }
 #endif
+
+namespace js { namespace analyze { class ScriptAnalysis; } }
 
 class JSPCCounters {
     size_t numBytecodes;
@@ -420,11 +420,6 @@ class JSPCCounters {
     }
 };
 
-static const uint32 JS_SCRIPT_COOKIE = 0xc00cee;
-
-static JSObject * const JS_NEW_SCRIPT = (JSObject *)0x12345678;
-static JSObject * const JS_CACHED_SCRIPT = (JSObject *)0x12341234;
-
 struct JSScript {
     /*
      * Two successively less primitive ways to make a new JSScript.  The first
@@ -440,7 +435,8 @@ struct JSScript {
     static JSScript *NewScript(JSContext *cx, uint32 length, uint32 nsrcnotes, uint32 natoms,
                                uint32 nobjects, uint32 nupvars, uint32 nregexps,
                                uint32 ntrynotes, uint32 nconsts, uint32 nglobals,
-                               uint16 nClosedArgs, uint16 nClosedVars, JSVersion version);
+                               uint16 nClosedArgs, uint16 nClosedVars, uint32 nTypeSets,
+                               JSVersion version);
 
     static JSScript *NewScriptFromCG(JSContext *cx, JSCodeGenerator *cg);
 
@@ -449,27 +445,18 @@ struct JSScript {
     jsbytecode      *code;      /* bytecodes and their immediate operands */
     uint32          length;     /* length of code vector */
 
-#ifdef JS_CRASH_DIAGNOSTICS
-    uint32          cookie1;
-#endif
-
   private:
+    size_t          useCount_;  /* Number of times the script has been called
+                                 * or has had backedges taken. Reset if the
+                                 * script's JIT code is forcibly discarded. */
+
     uint16          version;    /* JS version under which script was compiled */
 
   public:
     uint16          nfixed;     /* number of slots besides stack operands in
                                    slot array */
-  private:
-    size_t          callCount_; /* Number of times the script has been called. */
-
-    /*
-     * When non-zero, compile script in single-step mode. The top bit is set and
-     * cleared by setStepMode, as used by JSD. The lower bits are a count,
-     * adjusted by changeStepModeCount, used by the Debugger object. Only
-     * when the bit is clear and the count is zero may we compile the script
-     * without single-step support.
-     */
-    uint32          stepMode;
+    uint16          nTypeSets;  /* number of type sets used in this script for
+                                   dynamic type monitoring */
 
     /*
      * Offsets to various array structures from the end of this script, or
@@ -489,7 +476,7 @@ struct JSScript {
 
     bool            noScriptRval:1; /* no need for result value of last
                                        expression statement */
-    bool            savedCallerFun:1; /* can call getCallerFunction() */
+    bool            savedCallerFun:1; /* object 0 is caller function */
     bool            hasSharps:1;      /* script uses sharp variables */
     bool            strictModeCode:1; /* code is in strict mode */
     bool            compileAndGo:1;   /* script was compiled with TCF_COMPILE_N_GO */
@@ -498,9 +485,20 @@ struct JSScript {
     bool            warnedAboutTwoArgumentEval:1; /* have warned about use of
                                                      obsolete eval(s, o) in
                                                      this script */
+    bool            warnedAboutUndefinedProp:1; /* have warned about uses of
+                                                   undefined properties in this
+                                                   script */
     bool            hasSingletons:1;  /* script has singleton objects */
+    bool            isActiveEval:1;   /* script came from eval(), and is still active */
+    bool            isCachedEval:1;   /* script came from eval(), and is in eval cache */
+    bool            isUncachedEval:1; /* script came from EvaluateScript */
+    bool            calledWithNew:1;  /* script has been called using 'new' */
+    bool            usedLazyArgs:1;   /* script has used lazy arguments at some point */
+    bool            ranInference:1;   /* script has been analyzed by type inference */
 #ifdef JS_METHODJIT
     bool            debugMode:1;      /* script was compiled in debug mode */
+    bool            singleStepMode:1; /* compile script in single-step mode */
+    bool            failedBoundsCheck:1; /* script has had hoisted bounds checks fail */
 #endif
 
     jsbytecode      *main;      /* main entry point, after predef'ing prolog */
@@ -515,14 +513,6 @@ struct JSScript {
     js::Bindings    bindings;   /* names of top-level variables in this script
                                    (and arguments if this is a function script) */
     JSPrincipals    *principals;/* principals for this script */
-    jschar          *sourceMap; /* source map file or null */
-
-#ifdef JS_CRASH_DIAGNOSTICS
-    JSObject        *ownerObject;
-#endif
-
-    void setOwnerObject(JSObject *owner);
-
     union {
         /*
          * A script object of class js_ScriptClass, to ensure the script is GC'd.
@@ -533,6 +523,12 @@ struct JSScript {
          * - Temporary scripts created by obj_eval, JS_EvaluateScript, and
          *   similar functions never have these objects; such scripts are
          *   explicitly destroyed by the code that created them.
+         * Debugging API functions (JSDebugHooks::newScriptHook;
+         * JS_GetFunctionScript) may reveal sans-script-object Function and
+         * temporary scripts to clients, but clients must never call
+         * JS_NewScriptObject on such scripts: doing so would double-free them,
+         * once from the explicit call to js_DestroyScript, and once when the
+         * script object is garbage collected.
          */
         JSObject    *object;
         JSScript    *nextToGC;  /* next to GC in rt->scriptsToGC list */
@@ -547,11 +543,61 @@ struct JSScript {
     /* array of execution counters for every JSOp in the script, by runmode */
     JSPCCounters    pcCounters;
 
-#ifdef JS_CRASH_DIAGNOSTICS
-    uint32          cookie2;
+  public:
+
+    /* Function this script is the body for, if there is one. */
+    JSFunction *fun;
+
+    /*
+     * Associates this script with a specific function, constructing a new type
+     * object for the function.
+     */
+    bool typeSetFunction(JSContext *cx, JSFunction *fun);
+
+    /* Global object for this script, if compileAndGo. */
+    js::GlobalObject *global_;
+    inline bool hasGlobal() const;
+    inline js::GlobalObject *global() const;
+
+    inline bool hasClearedGlobal() const;
+
+#ifdef DEBUG
+    /*
+     * Unique identifier within the compartment for this script, used for
+     * printing analysis information.
+     */
+    unsigned id_;
+    unsigned id() { return id_; }
+#else
+    unsigned id() { return 0; }
 #endif
 
+    /*
+     * Bytecode analysis and type inference results for this script. Destroyed
+     * on every GC.
+     */
+  private:
+    js::analyze::ScriptAnalysis *analysis_;
+    void makeAnalysis(JSContext *cx);
   public:
+
+    bool hasAnalysis() { return analysis_ != NULL; }
+
+    js::analyze::ScriptAnalysis *analysis(JSContext *cx) {
+        if (!analysis_)
+            makeAnalysis(cx);
+        return analysis_;
+    }
+
+    /* Ensure the script has current type inference results. */
+    inline bool ensureRanInference(JSContext *cx);
+
+    /* Persistent type information retained across GCs. */
+    js::types::TypeScript types;
+
+    inline bool isAboutToBeFinalized(JSContext *cx);
+    void sweepAnalysis(JSContext *cx);
+
 #ifdef JS_METHODJIT
     // Fast-cached pointers to make calls faster. These are also used to
     // quickly test whether there is JIT code; a NULL value means no
@@ -576,8 +622,10 @@ struct JSScript {
         return constructing ? jitCtor : jitNormal;
     }
 
-    size_t callCount() const  { return callCount_; }
-    size_t incCallCount() { return ++callCount_; }
+    size_t useCount() const  { return useCount_; }
+    size_t incUseCount() { return ++useCount_; }
+    size_t *addressOfUseCount() { return &useCount_; }
+    void resetUseCount() { useCount_ = 0; }
 
     JITScriptStatus getJITStatus(bool constructing) {
         void *addr = constructing ? jitArityCheckCtor : jitArityCheckNormal;
@@ -659,7 +707,6 @@ struct JSScript {
     }
 
     inline JSFunction *getFunction(size_t index);
-    inline JSFunction *getCallerFunction();
 
     inline JSObject *getRegExp(size_t index);
 
@@ -687,42 +734,6 @@ struct JSScript {
     }
 
     void copyClosedSlotsTo(JSScript *other);
-
-  private:
-    static const uint32 stepFlagMask = 0x80000000U;
-    static const uint32 stepCountMask = 0x7fffffffU;
-
-    /*
-     * Attempt to recompile with or without single-stepping support, as directed
-     * by stepModeEnabled().
-     */
-    bool recompileForStepMode(JSContext *cx);
-
-    /* Attempt to change this->stepMode to |newValue|. */
-    bool tryNewStepMode(JSContext *cx, uint32 newValue);
-
-  public:
-    /*
-     * Set or clear the single-step flag. If the flag is set or the count
-     * (adjusted by changeStepModeCount) is non-zero, then the script is in
-     * single-step mode. (JSD uses an on/off-style interface; Debugger uses a
-     * count-style interface.)
-     */
-    bool setStepModeFlag(JSContext *cx, bool step);
-    
-    /*
-     * Increment or decrement the single-step count. If the count is non-zero or
-     * the flag (set by setStepModeFlag) is set, then the script is in
-     * single-step mode. (JSD uses an on/off-style interface; Debugger uses a
-     * count-style interface.)
-     */
-    bool changeStepModeCount(JSContext *cx, int delta);
-
-    bool stepModeEnabled() { return !!stepMode; }
-
-#ifdef DEBUG
-    uint32 stepModeCount() { return stepMode & stepCountMask; }
-#endif
 };
 
 #define SHARP_NSLOTS            2       /* [#array, #depth] slots if the script
@@ -755,11 +766,30 @@ extern JS_FRIEND_DATA(js::Class) js_ScriptClass;
 extern JSObject *
 js_InitScriptClass(JSContext *cx, JSObject *obj);
 
+namespace js {
+
+extern bool
+InitRuntimeScriptState(JSRuntime *rt);
+
+/*
+ * On JS_DestroyRuntime(rt), forcibly free script filename prefixes and any
+ * script filename table entries that have not been GC'd.
+ *
+ * This allows script filename prefixes to outlive any context in rt.
+ */
+extern void
+FreeRuntimeScriptState(JSRuntime *rt);
+
+} /* namespace js */
+
 extern void
 js_MarkScriptFilename(const char *filename);
 
 extern void
-js_SweepScriptFilenames(JSCompartment *comp);
+js_MarkScriptFilenames(JSRuntime *rt);
+
+extern void
+js_SweepScriptFilenames(JSRuntime *rt);
 
 /*
  * New-script-hook calling is factored from js_NewScriptFromCG so that it
@@ -778,10 +808,10 @@ js_CallDestroyScriptHook(JSContext *cx, JSScript *script);
  * only on the current thread.
  */
 extern void
-js_DestroyScript(JSContext *cx, JSScript *script, uint32 caller);
+js_DestroyScript(JSContext *cx, JSScript *script);
 
 extern void
-js_DestroyScriptFromGC(JSContext *cx, JSScript *script, JSObject *owner);
+js_DestroyScriptFromGC(JSContext *cx, JSScript *script);
 
 /*
  * Script objects may be cached and reused, in which case their JSD-visible
@@ -793,7 +823,7 @@ extern void
 js_DestroyCachedScript(JSContext *cx, JSScript *script);
 
 extern void
-js_TraceScript(JSTracer *trc, JSScript *script, JSObject *owner);
+js_TraceScript(JSTracer *trc, JSScript *script);
 
 extern JSObject *
 js_NewScriptObject(JSContext *cx, JSScript *script);

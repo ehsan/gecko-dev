@@ -74,7 +74,7 @@ ViewportFrame::DestroyFrom(nsIFrame* aDestructRoot)
 }
 
 NS_IMETHODIMP
-ViewportFrame::SetInitialChildList(ChildListID     aListID,
+ViewportFrame::SetInitialChildList(nsIAtom*        aListName,
                                    nsFrameList&    aChildList)
 {
   nsresult rv = NS_OK;
@@ -83,11 +83,11 @@ ViewportFrame::SetInitialChildList(ChildListID     aListID,
 #ifdef NS_DEBUG
   nsFrame::VerifyDirtyBitSet(aChildList);
 #endif
-  if (kFixedList == aListID) {
-    rv = mFixedContainer.SetInitialChildList(this, aListID, aChildList);
+  if (nsGkAtoms::fixedList == aListName) {
+    rv = mFixedContainer.SetInitialChildList(this, aListName, aChildList);
   } 
   else {
-    rv = nsContainerFrame::SetInitialChildList(aListID, aChildList);
+    rv = nsContainerFrame::SetInitialChildList(aListName, aChildList);
   }
 
   return rv;
@@ -116,74 +116,79 @@ ViewportFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 }
 
 NS_IMETHODIMP
-ViewportFrame::AppendFrames(ChildListID     aListID,
+ViewportFrame::AppendFrames(nsIAtom*        aListName,
                             nsFrameList&    aFrameList)
 {
   nsresult rv = NS_OK;
 
-  if (kFixedList == aListID) {
-    rv = mFixedContainer.AppendFrames(this, aListID, aFrameList);
+  if (nsGkAtoms::fixedList == aListName) {
+    rv = mFixedContainer.AppendFrames(this, aListName, aFrameList);
   }
   else {
-    NS_ASSERTION(aListID == kPrincipalList, "unexpected child list");
-    NS_ASSERTION(GetChildList(aListID).IsEmpty(), "Shouldn't have any kids!");
-    rv = nsContainerFrame::AppendFrames(aListID, aFrameList);
+    NS_ASSERTION(!aListName, "unexpected child list");
+    NS_ASSERTION(GetChildList(nsnull).IsEmpty(), "Shouldn't have any kids!");
+    rv = nsContainerFrame::AppendFrames(aListName, aFrameList);
   }
 
   return rv;
 }
 
 NS_IMETHODIMP
-ViewportFrame::InsertFrames(ChildListID     aListID,
+ViewportFrame::InsertFrames(nsIAtom*        aListName,
                             nsIFrame*       aPrevFrame,
                             nsFrameList&    aFrameList)
 {
   nsresult rv = NS_OK;
 
-  if (kFixedList == aListID) {
-    rv = mFixedContainer.InsertFrames(this, aListID, aPrevFrame, aFrameList);
+  if (nsGkAtoms::fixedList == aListName) {
+    rv = mFixedContainer.InsertFrames(this, aListName, aPrevFrame, aFrameList);
   }
   else {
-    NS_ASSERTION(aListID == kPrincipalList, "unexpected child list");
-    NS_ASSERTION(GetChildList(aListID).IsEmpty(), "Shouldn't have any kids!");
-    rv = nsContainerFrame::InsertFrames(aListID, aPrevFrame, aFrameList);
+    NS_ASSERTION(!aListName, "unexpected child list");
+    NS_ASSERTION(GetChildList(nsnull).IsEmpty(), "Shouldn't have any kids!");
+    rv = nsContainerFrame::InsertFrames(aListName, aPrevFrame, aFrameList);
   }
 
   return rv;
 }
 
 NS_IMETHODIMP
-ViewportFrame::RemoveFrame(ChildListID     aListID,
+ViewportFrame::RemoveFrame(nsIAtom*        aListName,
                            nsIFrame*       aOldFrame)
 {
   nsresult rv = NS_OK;
 
-  if (kFixedList == aListID) {
-    mFixedContainer.RemoveFrame(this, aListID, aOldFrame);
+  if (nsGkAtoms::fixedList == aListName) {
+    mFixedContainer.RemoveFrame(this, aListName, aOldFrame);
     rv = NS_OK;
   }
   else {
-    NS_ASSERTION(aListID == kPrincipalList, "unexpected child list");
-    rv = nsContainerFrame::RemoveFrame(aListID, aOldFrame);
+    NS_ASSERTION(!aListName, "unexpected child list");
+    rv = nsContainerFrame::RemoveFrame(aListName, aOldFrame);
   }
 
   return rv;
 }
 
-nsFrameList
-ViewportFrame::GetChildList(ChildListID aListID) const
+nsIAtom*
+ViewportFrame::GetAdditionalChildListName(PRInt32 aIndex) const
 {
-  if (kFixedList == aListID)
-    return mFixedContainer.GetChildList();
+  NS_PRECONDITION(aIndex >= 0, "illegal index");
 
-  return nsContainerFrame::GetChildList(aListID);
+  if (0 == aIndex) {
+    return nsGkAtoms::fixedList;
+  }
+
+  return nsnull;
 }
 
-void
-ViewportFrame::GetChildLists(nsTArray<ChildList>* aLists) const
+nsFrameList
+ViewportFrame::GetChildList(nsIAtom* aListName) const
 {
-  nsContainerFrame::GetChildLists(aLists);
-  mFixedContainer.AppendChildList(aLists, kFixedList);
+  if (nsGkAtoms::fixedList == aListName)
+    return mFixedContainer.GetChildList();
+
+  return nsContainerFrame::GetChildList(aListName);
 }
 
 /* virtual */ nscoord

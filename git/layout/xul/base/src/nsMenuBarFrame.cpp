@@ -53,6 +53,7 @@
 #include "nsMenuPopupFrame.h"
 #include "nsGUIEvent.h"
 #include "nsUnicharUtils.h"
+#include "nsIDOMWindowInternal.h"
 #include "nsIDOMDocument.h"
 #include "nsPIDOMWindow.h"
 #include "nsIInterfaceRequestorUtils.h"
@@ -234,7 +235,7 @@ nsMenuBarFrame::FindMenuWithShortcut(nsIDOMKeyEvent* aKeyEvent)
   // Find a most preferred accesskey which should be returned.
   nsIFrame* foundMenu = nsnull;
   PRUint32 foundIndex = accessKeys.NoIndex;
-  nsIFrame* currFrame = immediateParent->GetFirstPrincipalChild();
+  nsIFrame* currFrame = immediateParent->GetFirstChild(nsnull);
 
   while (currFrame) {
     nsIContent* current = currFrame->GetContent();

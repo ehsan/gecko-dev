@@ -42,7 +42,6 @@
 #include "nsIAnonymousContentCreator.h"
 #include "nsCOMPtr.h"
 
-class nsBaseContentList;
 
 class nsProgressFrame : public nsHTMLContainerFrame,
                         public nsIAnonymousContentCreator
@@ -83,9 +82,6 @@ public:
                                  nsSize aCBSize, nscoord aAvailableWidth,
                                  nsSize aMargin, nsSize aBorder,
                                  nsSize aPadding, PRBool aShrinkWrap);
-
-  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
-  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
 
   virtual PRBool IsFrameOfType(PRUint32 aFlags) const
   {

@@ -56,10 +56,9 @@
           <body>
           <![CDATA[
               var timeString;
-              time = Math.round(time / 1000);
-              var hours = Math.floor(time / 3600);
-              var mins  = Math.floor((time % 3600) / 60);
-              var secs  = Math.floor(time % 60);
+              var hours = Math.floor(time / 3600000);
+              var mins  = Math.floor(time % 3600000 / 60000);
+              var secs  = Math.floor(time % 60000 / 1000);
               if (secs < 10)
                   secs = "0" + secs;
               if (hours || this.showHours) {
@@ -227,7 +226,49 @@
         </stack>
     </xbl:content>
 
-    <implementation>
+    <implementation implements="nsISecurityCheckedComponent">
+        <!-- nsISecurityCheckedComponent -->
+        <method name="canCreateWrapper">
+            <parameter name="aIID"/>
+            <body>
+                return "AllAccess";
+            </body>
+        </method> 
+
+        <method name="canCallMethod">
+            <parameter name="aIID"/>
+            <parameter name="aMethodName"/> 
+            <body>
+                return "AllAccess";
+            </body>
+        </method> 
+
+        <method name="canGetProperty">
+            <parameter name="aIID"/>
+            <parameter name="aPropertyName"/> 
+            <body>
+                return "AllAccess";
+            </body>
+        </method> 
+
+        <method name="canSetProperty">
+            <parameter name="aIID"/>
+            <parameter name="aPropertyName"/>
+            <body>
+                return "AllAccess";
+            </body>
+        </method> 
+
+        <method name="QueryInterface">
+            <parameter name="aIID"/>
+            <body>
+            <![CDATA[
+            if (!iid.equals(Components.interfaces.nsISecurityCheckedComponent))
+                throw Components.results.NS_ERROR_NO_INTERFACE;
+            return this;
+            ]]>
+            </body>
+        </method>
 
         <constructor>
             <![CDATA[
@@ -261,11 +302,12 @@
                                "loadstart", "timeupdate", "progress",
                                "playing", "waiting", "canplay", "canplaythrough",
                                "seeking", "seeked", "emptied", "loadedmetadata",
-                               "error", "suspend", "stalled"],
+                               "error", "suspend"],
 
                 firstFrameShown : false,
                 timeUpdateCount : 0,
                 maxCurrentTimeSeen : 0,
+                lastDurationSeen : NaN,
                 isAudioOnly : false,
 
                 setupStatusFader : function(immediate) {
@@ -420,13 +462,7 @@
                             this.setPlayButtonState(true);
                             break;
                         case "progress":
-                            this.statusIcon.removeAttribute("stalled");
                             this.showBuffered();
-                            this.setupStatusFader();
-                            break;
-                        case "stalled":
-                            this.statusIcon.setAttribute("stalled", "true");
-                            this.statusIcon.setAttribute("type", "throbber");
                             this.setupStatusFader();
                             break;
                         case "suspend":
@@ -505,13 +541,12 @@
                         this.video.removeEventListener(event, this, false);
                     this.log("--- videocontrols terminated ---");
                 },
-
+                
                 formatTime : function(aTime) {
                     // Format the duration as "h:mm:ss" or "m:ss"
-                    aTime = Math.round(aTime / 1000);
-                    let hours = Math.floor(aTime / 3600);
-                    let mins  = Math.floor((aTime % 3600) / 60);
-                    let secs  = Math.floor(aTime % 60);
+                    let hours = Math.floor(aTime / 3600000);
+                    let mins  = Math.floor(aTime % 3600000 / 60000);
+                    let secs  = Math.floor(aTime % 60000 / 1000);
                     let timeString;
                     if (secs < 10)
                         secs = "0" + secs;
@@ -526,14 +561,15 @@
                 },
 
                 showDuration : function (duration) {
-                    let isInfinite = (duration == Infinity);
-                    this.log("Duration is " + duration + "ms.\n");
-
-                    if (isNaN(duration) || isInfinite)
+                    if (isNaN(duration))
                         duration = this.maxCurrentTimeSeen;
+                    if (duration == this.lastDurationSeen)
+                        return;
+                    this.lastDurationSeen = duration;
+                    this.log("Duration is " + duration + "ms");
 
                     // Format the duration as "h:mm:ss" or "m:ss"
-                    let timeString = isInfinite ? "" : this.formatTime(duration);
+                    let timeString = this.formatTime(duration);
                     this.durationLabel.setAttribute("value", timeString);
 
                     // "durationValue" property is used by scale binding to
@@ -569,6 +605,8 @@
                     // by using the maximum playback position that's been seen.
                     if (currentTime > this.maxCurrentTimeSeen)
                         this.maxCurrentTimeSeen = currentTime;
+                    if (isNaN(duration))
+                      duration = this.maxCurrentTimeSeen;
                     this.showDuration(duration);
 
                     this.log("time update @ " + currentTime + "ms of " + duration + "ms");

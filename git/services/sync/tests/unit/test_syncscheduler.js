@@ -162,7 +162,9 @@ add_test(function test_masterpassword_locked_retry_interval() {
   Service.verifyLogin = Service._verifyLogin;
   SyncScheduler.scheduleAtInterval = SyncScheduler._scheduleAtInterval;
 
-  Service.startOver();
+  Svc.Prefs.resetBranch("");
+  SyncScheduler.setDefaults();
+  Clients.resetClient();
   server.stop(run_next_test);
 });
 
@@ -202,7 +204,6 @@ add_test(function test_scheduleNextSync() {
       Svc.Prefs.resetBranch("");
       SyncScheduler.syncTimer.clear();
       Svc.Obs.remove("weave:service:sync:finish", onSyncFinish);
-      Service.startOver();
       server.stop(run_next_test);
     }, this);
   });
@@ -242,8 +243,12 @@ add_test(function test_handleSyncError() {
   let server = sync_httpd_setup();
   setUp();
  
-  // Force sync to fail.
-  Svc.Prefs.set("firstSync", "notReady");
+  let origLockedSync = Service._lockedSync;
+  Service._lockedSync = function () {
+    // Force a sync fail.
+    Service._loggedIn = false;
+    origLockedSync.call(Service);
+  };
 
   _("Ensure expected initial environment.");
   do_check_eq(SyncScheduler._syncErrors, 0);
@@ -293,7 +298,8 @@ add_test(function test_handleSyncError() {
   do_check_true(Status.enforceBackoff);
   SyncScheduler.syncTimer.clear();
 
-  Service.startOver();
+  Service._lockedSync = origLockedSync;
+  SyncScheduler.setDefaults();
   server.stop(run_next_test);
 });
 
@@ -328,141 +334,27 @@ add_test(function test_client_sync_finish_updateClientMode() {
   do_check_false(SyncScheduler.numClients > 1);
   do_check_false(SyncScheduler.idle);
 
-  Service.startOver();
+  Svc.Prefs.resetBranch("");
+  SyncScheduler.setDefaults();
+  Clients.resetClient();
   server.stop(run_next_test);
 });
 
-add_test(function test_autoconnect() {
+add_test(function test_sync_at_startup() {
   Svc.Obs.add("weave:service:sync:finish", function onSyncFinish() {
     Svc.Obs.remove("weave:service:sync:finish", onSyncFinish);
 
-    Service.startOver();
+    Svc.Prefs.resetBranch("");
+    SyncScheduler.setDefaults();
+    Clients.resetClient();
+
     server.stop(run_next_test);
   });
 
   let server = sync_httpd_setup();
   setUp();
 
-  SyncScheduler.delayedAutoConnect(0);
-});
-
-add_test(function test_autoconnect_mp_locked() {
-  let server = sync_httpd_setup();
-  setUp();
-
-  // Pretend user did not unlock master password.
-  let origLocked = Utils.mpLocked;
-  Utils.mpLocked = function() true;
-
-  let origPP = Service.__lookupGetter__("passphrase");
-  delete Service.passphrase;
-  Service.__defineGetter__("passphrase", function() {
-    throw "User canceled Master Password entry";
-  });
-
-  // A locked master password will still trigger a sync, but then we'll hit
-  // MASTER_PASSWORD_LOCKED and hence MASTER_PASSWORD_LOCKED_RETRY_INTERVAL.
-  Svc.Obs.add("weave:service:login:error", function onLoginError() {
-    Svc.Obs.remove("weave:service:login:error", onLoginError);
-    Utils.nextTick(function aLittleBitAfterLoginError() {
-      do_check_eq(Status.login, MASTER_PASSWORD_LOCKED);
-
-      Utils.mpLocked = origLocked;
-      delete Service.passphrase;
-      Service.__defineGetter__("passphrase", origPP);
-
-      Service.startOver();
-      server.stop(run_next_test);
-    });
-  });
-
-  SyncScheduler.delayedAutoConnect(0);
-});
-
-let timer;
-add_test(function test_no_autoconnect_during_wizard() {
-  let server = sync_httpd_setup();
-  setUp();
-
-  // Simulate the Sync setup wizard.
-  Svc.Prefs.set("firstSync", "notReady");
-
-  // Ensure we don't actually try to sync (or log in for that matter).
-  function onLoginStart() {
-    do_throw("Should not get here!");
-  }
-  Svc.Obs.add("weave:service:login:start", onLoginStart);
-
-  // First wait >100ms (nsITimers can take up to that much time to fire, so
-  // we can account for the timer in delayedAutoconnect) and then two event
-  // loop ticks (to account for the Utils.nextTick() in autoConnect).
-  let ticks = 2;
-  function wait() {
-    if (ticks) {
-      ticks -= 1;
-      Utils.nextTick(wait);
-      return;
-    }
-    Svc.Obs.remove("weave:service:login:start", onLoginStart);
-
-    Service.startOver();
-    server.stop(run_next_test);    
-  }
-  timer = Utils.namedTimer(wait, 150, {}, "timer");
-
-  SyncScheduler.delayedAutoConnect(0);
-});
-
-add_test(function test_no_autoconnect_status_not_ok() {
-  let server = sync_httpd_setup();
-
-  // Ensure we don't actually try to sync (or log in for that matter).
-  function onLoginStart() {
-    do_throw("Should not get here!");
-  }
-  Svc.Obs.add("weave:service:login:start", onLoginStart);
-
-  // First wait >100ms (nsITimers can take up to that much time to fire, so
-  // we can account for the timer in delayedAutoconnect) and then two event
-  // loop ticks (to account for the Utils.nextTick() in autoConnect).
-  let ticks = 2;
-  function wait() {
-    if (ticks) {
-      ticks -= 1;
-      Utils.nextTick(wait);
-      return;
-    }
-    Svc.Obs.remove("weave:service:login:start", onLoginStart);
-
-    do_check_eq(Status.service, CLIENT_NOT_CONFIGURED);
-    do_check_eq(Status.login, LOGIN_FAILED_NO_USERNAME);
-    
-    Service.startOver();
-    server.stop(run_next_test); 
-  }
-  timer = Utils.namedTimer(wait, 150, {}, "timer");
-
-  SyncScheduler.delayedAutoConnect(0);
-});
-
-add_test(function test_autoconnectDelay_pref() {
-  Svc.Obs.add("weave:service:sync:finish", function onSyncFinish() {
-    Svc.Obs.remove("weave:service:sync:finish", onSyncFinish);
-
-    Service.startOver();
-    server.stop(run_next_test);
-  });
-
-  Svc.Prefs.set("autoconnectDelay", 1);
-
-  let server = sync_httpd_setup();
-  setUp();
-
-  Svc.Obs.notify("weave:service:ready");
-
-  // autoconnectDelay pref is multiplied by 1000.
-  do_check_eq(SyncScheduler._autoTimer.delay, 1000);
-  do_check_eq(Status.service, STATUS_OK);
+  Service.delayedAutoConnect(0);
 });
 
 add_test(function test_idle_adjustSyncInterval() {

@@ -39,7 +39,7 @@
 #define MOZILLA_GFX_PATHD2D_H_
 
 #include "2D.h"
-#include <d2d1.h>
+#include <D2D1.h>
 
 namespace mozilla {
 namespace gfx {
@@ -106,11 +106,6 @@ public:
                                                              FillRule aFillRule = FILL_WINDING) const;
 
   virtual bool ContainsPoint(const Point &aPoint, const Matrix &aTransform) const;
-
-  virtual Rect GetBounds(const Matrix &aTransform = Matrix()) const;
-
-  virtual Rect GetStrokedBounds(const StrokeOptions &aStrokeOptions,
-                                const Matrix &aTransform = Matrix()) const;
 
   virtual FillRule GetFillRule() const { return mFillRule; }
 

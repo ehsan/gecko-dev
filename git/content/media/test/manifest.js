@@ -94,10 +94,10 @@ var gPlayTests = [
   { name:"chain.ogv", type:"video/ogg", duration:Number.NaN },
   { name:"bug523816.ogv", type:"video/ogg", duration:0.533 },
   { name:"bug495129.ogv", type:"video/ogg", duration:2.41 },
+  
   { name:"bug498380.ogv", type:"video/ogg", duration:0.533 },
   { name:"bug495794.ogg", type:"audio/ogg", duration:0.3 },
   { name:"bug557094.ogv", type:"video/ogg", duration:0.24 },
-  { name:"multiple-bos.ogg", type:"video/ogg", duration:0.431 },
   { name:"audio-overhang.ogg", type:"audio/ogg", duration:2.3 },
   { name:"video-overhang.ogg", type:"audio/ogg", duration:3.966 },
 
@@ -123,6 +123,7 @@ var gPlayTests = [
   { name:"spacestorm-1000Hz-100ms.ogg", type:"audio/ogg", duration:0.099 },
 
   { name:"bogus.duh", type:"bogus/duh", duration:Number.NaN }
+  
 ];
 
 // Converts a path/filename to a file:// URI which we can load from disk.
@@ -144,19 +145,6 @@ function fileUriToSrc(path, mustExist) {
     ok(false, "We expected '" + path + "' to exist, but it doesn't!");
   }
   return f.path;
-}
-
-// Returns true if two nsTimeRanges are equal, false otherwise
-function range_equals(r1, r2) {
-  if (r1.length != r2.length) {
-    return false;
-  }
-  for (var i = 0; i < r1.length; i++) {
-    if (r1.start(i) != r2.start(i) || r1.end(i) != r2.end(i)) {
-      return false;
-    }
-  }
-  return true;
 }
 
 // These are URIs to files that we use to check that we don't leak any state
@@ -265,12 +253,6 @@ var gDecodeErrorTests = [
 
   { name:"bogus.duh", type:"bogus/duh" }
 ];
-
-// These are files that are used for media fragments tests
-var gFragmentTests = [
-  { name:"big.wav", type:"audio/x-wav", duration:9.28, size:102444 }
-];
-
 
 function checkMetadata(msg, e, test) {
   if (test.width) {

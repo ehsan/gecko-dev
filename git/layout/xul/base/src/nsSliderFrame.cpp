@@ -60,7 +60,7 @@
 #include "nsScrollbarButtonFrame.h"
 #include "nsISliderListener.h"
 #include "nsIScrollbarMediator.h"
-#include "nsScrollbarFrame.h"
+#include "nsIScrollbarFrame.h"
 #include "nsILookAndFeel.h"
 #include "nsRepeatService.h"
 #include "nsBoxLayoutState.h"
@@ -130,10 +130,10 @@ nsSliderFrame::Init(nsIContent*      aContent,
 }
 
 NS_IMETHODIMP
-nsSliderFrame::RemoveFrame(ChildListID     aListID,
+nsSliderFrame::RemoveFrame(nsIAtom*        aListName,
                            nsIFrame*       aOldFrame)
 {
-  nsresult rv = nsBoxFrame::RemoveFrame(aListID, aOldFrame);
+  nsresult rv = nsBoxFrame::RemoveFrame(aListName, aOldFrame);
   if (mFrames.IsEmpty())
     RemoveListener();
 
@@ -141,12 +141,12 @@ nsSliderFrame::RemoveFrame(ChildListID     aListID,
 }
 
 NS_IMETHODIMP
-nsSliderFrame::InsertFrames(ChildListID     aListID,
+nsSliderFrame::InsertFrames(nsIAtom*        aListName,
                             nsIFrame*       aPrevFrame,
                             nsFrameList&    aFrameList)
 {
   PRBool wasEmpty = mFrames.IsEmpty();
-  nsresult rv = nsBoxFrame::InsertFrames(aListID, aPrevFrame, aFrameList);
+  nsresult rv = nsBoxFrame::InsertFrames(aListName, aPrevFrame, aFrameList);
   if (wasEmpty)
     AddListener();
 
@@ -154,13 +154,13 @@ nsSliderFrame::InsertFrames(ChildListID     aListID,
 }
 
 NS_IMETHODIMP
-nsSliderFrame::AppendFrames(ChildListID     aListID,
+nsSliderFrame::AppendFrames(nsIAtom*        aListName,
                             nsFrameList&    aFrameList)
 {
   // if we have no children and on was added then make sure we add the
   // listener
   PRBool wasEmpty = mFrames.IsEmpty();
-  nsresult rv = nsBoxFrame::AppendFrames(aListID, aFrameList);
+  nsresult rv = nsBoxFrame::AppendFrames(aListName, aFrameList);
   if (wasEmpty)
     AddListener();
 
@@ -297,7 +297,7 @@ nsSliderFrame::AttributeChanged(PRInt32 aNameSpaceID,
             current = max;
 
         // set the new position and notify observers
-        nsScrollbarFrame* scrollbarFrame = do_QueryFrame(scrollbarBox);
+        nsIScrollbarFrame* scrollbarFrame = do_QueryFrame(scrollbarBox);
         if (scrollbarFrame) {
           nsIScrollbarMediator* mediator = scrollbarFrame->GetScrollbarMediator();
           if (mediator) {
@@ -812,7 +812,7 @@ nsSliderFrame::SetCurrentPositionInternal(nsIContent* aScrollbar, PRInt32 aNewPo
 
   mUserChanged = PR_TRUE;
 
-  nsScrollbarFrame* scrollbarFrame = do_QueryFrame(scrollbarBox);
+  nsIScrollbarFrame* scrollbarFrame = do_QueryFrame(scrollbarBox);
   if (scrollbarFrame) {
     // See if we have a mediator.
     nsIScrollbarMediator* mediator = scrollbarFrame->GetScrollbarMediator();
@@ -848,10 +848,10 @@ nsSliderFrame::GetType() const
 }
 
 NS_IMETHODIMP
-nsSliderFrame::SetInitialChildList(ChildListID     aListID,
+nsSliderFrame::SetInitialChildList(nsIAtom*        aListName,
                                    nsFrameList&    aChildList)
 {
-  nsresult r = nsBoxFrame::SetInitialChildList(aListID, aChildList);
+  nsresult r = nsBoxFrame::SetInitialChildList(aListName, aChildList);
 
   AddListener();
 

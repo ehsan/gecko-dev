@@ -464,12 +464,26 @@ nsHtml5Parser::Terminate()
 
 NS_IMETHODIMP
 nsHtml5Parser::ParseFragment(const nsAString& aSourceBuffer,
-                             nsTArray<nsString>& aTagStack)
+                             void* aKey,
+                             nsTArray<nsString>& aTagStack,
+                             PRBool aXMLMode,
+                             const nsACString& aContentType,
+                             nsDTDMode aMode)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-nsresult
+NS_IMETHODIMP
+nsHtml5Parser::ParseFragment(const nsAString& aSourceBuffer,
+                        nsIContent* aTargetNode,
+                        nsIAtom* aContextLocalName,
+                        PRInt32 aContextNamespace,
+                        PRBool aQuirks)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
 nsHtml5Parser::ParseHtml5Fragment(const nsAString& aSourceBuffer,
                                   nsIContent* aTargetNode,
                                   nsIAtom* aContextLocalName,
@@ -498,9 +512,6 @@ nsHtml5Parser::ParseHtml5Fragment(const nsAString& aSourceBuffer,
 
 #ifdef DEBUG
   if (!aPreventScriptExecution) {
-    NS_ASSERTION(!aTargetNode->IsInDoc(),
-        "If script execution isn't prevented, "
-        "the target node must not be in doc.");
     nsCOMPtr<nsIDOMDocumentFragment> domFrag = do_QueryInterface(aTargetNode);
     NS_ASSERTION(domFrag,
         "If script execution isn't prevented, must parse to DOM fragment.");

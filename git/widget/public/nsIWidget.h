@@ -47,7 +47,6 @@
 #include "nsStringGlue.h"
 
 #include "prthread.h"
-#include "Layers.h"
 #include "nsEvent.h"
 #include "nsCOMPtr.h"
 #include "nsITheme.h"
@@ -72,11 +71,11 @@ class   nsIContent;
 class   ViewWrapper;
 
 namespace mozilla {
+namespace layers {
+class LayerManager;
+}
 namespace dom {
 class PBrowserChild;
-}
-namespace layers {
-class PLayersChild;
 }
 }
 
@@ -118,8 +117,8 @@ typedef nsEventStatus (* EVENT_CALLBACK)(nsGUIEvent *event);
 #endif
 
 #define NS_IWIDGET_IID \
-  { 0xEAAF1019, 0x0CD8, 0x4DD8, \
-    { 0xBE, 0xB9, 0x8D, 0x8D, 0xEB, 0x52, 0xFC, 0xF6 } }
+  { 0xac809e35, 0x632c, 0x448d, \
+    { 0x9e, 0x34, 0x11, 0x62, 0x32, 0x60, 0x5e, 0xe6 } }
 
 /*
  * Window shadow styles
@@ -275,8 +274,6 @@ class nsIWidget : public nsISupports {
 
   public:
     typedef mozilla::layers::LayerManager LayerManager;
-    typedef LayerManager::LayersBackend LayersBackend;
-    typedef mozilla::layers::PLayersChild PLayersChild;
 
     // Used in UpdateThemeGeometries.
     struct ThemeGeometry {
@@ -364,14 +361,6 @@ class nsIWidget : public nsISupports {
                 PRBool           aForceUseIWidgetParent = PR_FALSE) = 0;
 
     /**
-     * Set the event callback for a widget. If a device context is not
-     * provided then the existing device context will remain, it will
-     * not be nulled out.
-     */
-    NS_IMETHOD SetEventCallback(EVENT_CALLBACK aEventFunction,
-                                nsDeviceContext *aContext) = 0;
-
-    /**
      * Attach to a top level widget. 
      *
      * In cases where a top level chrome widget is being used as a content
@@ -413,7 +402,7 @@ class nsIWidget : public nsISupports {
     /**
      * Reparent a widget
      *
-     * Change the widget's parent. Null parents are allowed.
+     * Change the widgets parent
      *
      * @param     aNewParent   new parent 
      */
@@ -905,12 +894,6 @@ class nsIWidget : public nsISupports {
 
     virtual nsIToolkit* GetToolkit() = 0;    
 
-    enum LayerManagerPersistence
-    {
-      LAYER_MANAGER_CURRENT = 0,
-      LAYER_MANAGER_PERSISTENT
-    };
-
     /**
      * Return the widget's LayerManager. The layer tree for that
      * LayerManager is what gets rendered to the widget.
@@ -920,25 +903,17 @@ class nsIWidget : public nsISupports {
      */
     inline LayerManager* GetLayerManager(bool* aAllowRetaining = nsnull)
     {
-        return GetLayerManager(nsnull, LayerManager::LAYERS_NONE,
-                               LAYER_MANAGER_CURRENT, aAllowRetaining);
+        return GetLayerManager(LAYER_MANAGER_CURRENT, aAllowRetaining);
     }
 
-    inline LayerManager* GetLayerManager(LayerManagerPersistence aPersistence,
-                                         bool* aAllowRetaining = nsnull)
+
+    enum LayerManagerPersistence
     {
-        return GetLayerManager(nsnull, LayerManager::LAYERS_NONE,
-                               aPersistence, aAllowRetaining);
-    }
+      LAYER_MANAGER_CURRENT = 0,
+      LAYER_MANAGER_PERSISTENT
+    };
 
-    /**
-     * Like GetLayerManager(), but prefers creating a layer manager of
-     * type |aBackendHint| instead of what would normally be created.
-     * LAYERS_NONE means "no hint".
-     */
-    virtual LayerManager* GetLayerManager(PLayersChild* aShadowManager,
-                                          LayersBackend aBackendHint,
-                                          LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
+    virtual LayerManager *GetLayerManager(LayerManagerPersistence aPersistence,
                                           bool* aAllowRetaining = nsnull) = 0;
 
     /**

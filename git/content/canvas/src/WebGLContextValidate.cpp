@@ -39,7 +39,8 @@
 
 #include "WebGLContext.h"
 
-#include "mozilla/Preferences.h"
+#include "nsIPrefService.h"
+#include "nsServiceManagerUtils.h"
 
 #include "CheckedInt.h"
 
@@ -328,62 +329,6 @@ PRBool WebGLContext::ValidateDrawModeEnum(WebGLenum mode, const char *info)
     }
 }
 
-bool WebGLContext::ValidateGLSLVariableName(const nsAString& name, const char *info)
-{
-    const PRUint32 maxSize = 255;
-    if (name.Length() > maxSize) {
-        ErrorInvalidValue("%s: identifier is %d characters long, exceeds the maximum allowed length of %d characters",
-                          info, name.Length(), maxSize);
-        return false;
-    }
-
-    if (!ValidateGLSLString(name, info)) {
-        return false;
-    }
-
-    return true;
-}
-
-bool WebGLContext::ValidateGLSLString(const nsAString& string, const char *info)
-{
-    for (PRUint32 i = 0; i < string.Length(); ++i) {
-        if (!ValidateGLSLCharacter(string.CharAt(i))) {
-             ErrorInvalidValue("%s: string contains the illegal character '%d'", info, string.CharAt(i));
-             return false;
-        }
-    }
-
-    return true;
-}
-
-PRUint32 WebGLContext::GetTexelSize(WebGLenum format, WebGLenum type)
-{
-    if (type == LOCAL_GL_UNSIGNED_BYTE || type == LOCAL_GL_FLOAT) {
-        int multiplier = type == LOCAL_GL_FLOAT ? 4 : 1;
-        switch (format) {
-            case LOCAL_GL_ALPHA:
-            case LOCAL_GL_LUMINANCE:
-                return 1 * multiplier;
-            case LOCAL_GL_LUMINANCE_ALPHA:
-                return 2 * multiplier;
-            case LOCAL_GL_RGB:
-                return 3 * multiplier;
-            case LOCAL_GL_RGBA:
-                return 4 * multiplier;
-            default:
-                break;
-        }
-    } else if (type == LOCAL_GL_UNSIGNED_SHORT_4_4_4_4 ||
-               type == LOCAL_GL_UNSIGNED_SHORT_5_5_5_1 ||
-               type == LOCAL_GL_UNSIGNED_SHORT_5_6_5)
-    {
-        return 2;
-    }
-
-    NS_ABORT();
-    return 0;
-}
-
 PRBool WebGLContext::ValidateTexFormatAndType(WebGLenum format, WebGLenum type, int jsArrayType,
                                               PRUint32 *texelSize, const char *info)
 {
@@ -504,7 +449,7 @@ WebGLContext::InitAndValidateGL()
     }
 
     mActiveTexture = 0;
-    mWebGLError = LOCAL_GL_NO_ERROR;
+    mSynthesizedGLError = LOCAL_GL_NO_ERROR;
 
     mAttribBuffers.Clear();
 
@@ -574,7 +519,7 @@ WebGLContext::InitAndValidateGL()
         // and check OpenGL error for INVALID_ENUM.
 
         // before we start, we check that no error already occurred, to prevent hiding it in our subsequent error handling
-        error = gl->GetAndClearError();
+        error = gl->fGetError();
         if (error != LOCAL_GL_NO_ERROR) {
             LogMessage("GL error 0x%x occurred during WebGL context initialization!", error);
             return PR_FALSE;
@@ -627,10 +572,10 @@ WebGLContext::InitAndValidateGL()
     }
 
     // Check the shader validator pref
-    NS_ENSURE_TRUE(Preferences::GetRootBranch(), PR_FALSE);
+    nsCOMPtr<nsIPrefBranch> prefService = do_GetService(NS_PREFSERVICE_CONTRACTID);
+    NS_ENSURE_TRUE(prefService != nsnull, NS_ERROR_FAILURE);
 
-    mShaderValidation =
-        Preferences::GetBool("webgl.shader_validator", mShaderValidation);
+    prefService->GetBoolPref("webgl.shader_validator", &mShaderValidation);
 
 #if defined(USE_ANGLE)
     // initialize shader translator
@@ -642,9 +587,9 @@ WebGLContext::InitAndValidateGL()
     }
 #endif
 
-    // notice that the point of calling GetAndClearError here is not only to check for error,
-    // it is also to reset the error flags so that a subsequent WebGL getError call will give the correct result.
-    error = gl->GetAndClearError();
+    // notice that the point of calling GetError here is not only to check for error,
+    // it is also to reset the error flag so that a subsequent WebGL getError call will give the correct result.
+    error = gl->fGetError();
     if (error != LOCAL_GL_NO_ERROR) {
         LogMessage("GL error 0x%x occurred during WebGL context initialization!", error);
         return PR_FALSE;

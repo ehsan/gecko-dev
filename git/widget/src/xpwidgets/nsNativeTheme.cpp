@@ -53,8 +53,7 @@
 #include "nsIComponentManager.h"
 #include "nsPIDOMWindow.h"
 #include "nsProgressFrame.h"
-#include "nsMenuFrame.h"
-#include "mozilla/dom/Element.h"
+#include "nsIMenuFrame.h"
 
 nsNativeTheme::nsNativeTheme()
 : mAnimatedContentTimeout(PR_UINT32_MAX)
@@ -206,18 +205,6 @@ nsNativeTheme::IsButtonTypeMenu(nsIFrame* aFrame)
   return content->AttrValueIs(kNameSpaceID_None, nsWidgetAtoms::type,
                               NS_LITERAL_STRING("menu"), eCaseMatters);
 }
-
-PRBool
-nsNativeTheme::IsPressedButton(nsIFrame* aFrame)
-{
-  nsEventStates eventState = GetContentState(aFrame, NS_THEME_TOOLBAR_BUTTON);
-  if (IsDisabled(aFrame, eventState))
-    return PR_FALSE;
-
-  return IsOpenButton(aFrame) ||
-         eventState.HasAllStates(NS_EVENT_STATE_ACTIVE | NS_EVENT_STATE_HOVER);
-}
-
 
 PRBool
 nsNativeTheme::GetIndeterminate(nsIFrame* aFrame)
@@ -412,13 +399,26 @@ nsNativeTheme::IsFirstTab(nsIFrame* aFrame)
   if (!aFrame)
     return PR_FALSE;
 
-  nsIFrame* first = aFrame->GetParent()->GetFirstPrincipalChild();
+  nsIFrame* first = aFrame->GetParent()->GetFirstChild(nsnull);
   while (first) {
     if (first->GetRect().width > 0 && first->GetContent()->Tag() == nsWidgetAtoms::tab)
       return (first == aFrame);
     first = first->GetNextSibling();
   }
   return PR_FALSE;
+}
+
+PRBool
+nsNativeTheme::IsLastTab(nsIFrame* aFrame)
+{
+  if (!aFrame)
+    return PR_FALSE;
+
+  while ((aFrame = aFrame->GetNextSibling())) {
+    if (aFrame->GetRect().width > 0 && aFrame->GetContent()->Tag() == nsWidgetAtoms::tab)
+      return PR_FALSE;
+  }
+  return PR_TRUE;
 }
 
 PRBool
@@ -443,7 +443,7 @@ nsNativeTheme::IsNextToSelectedTab(nsIFrame* aFrame, PRInt32 aOffset)
 
   PRInt32 thisTabIndex = -1, selectedTabIndex = -1;
 
-  nsIFrame* currentTab = aFrame->GetParent()->GetFirstPrincipalChild();
+  nsIFrame* currentTab = aFrame->GetParent()->GetFirstChild(NULL);
   for (PRInt32 i = 0; currentTab; currentTab = currentTab->GetNextSibling()) {
     if (currentTab->GetRect().width == 0)
       continue;
@@ -465,7 +465,7 @@ PRBool
 nsNativeTheme::IsIndeterminateProgress(nsIFrame* aFrame,
                                        nsEventStates aEventStates)
 {
-  if (!aFrame || !aFrame->GetContent())
+  if (!aFrame)
     return PR_FALSE;
 
   if (aFrame->GetContent()->IsHTML(nsWidgetAtoms::progress)) {
@@ -514,7 +514,7 @@ nsNativeTheme::IsSubmenu(nsIFrame* aFrame, PRBool* aLeftOfParent)
 PRBool
 nsNativeTheme::IsRegularMenuItem(nsIFrame *aFrame)
 {
-  nsMenuFrame *menuFrame = do_QueryFrame(aFrame);
+  nsIMenuFrame *menuFrame = do_QueryFrame(aFrame);
   return !(menuFrame && (menuFrame->IsOnMenuBar() ||
                          menuFrame->GetParentMenuListType() != eNotMenuList));
 }
@@ -587,26 +587,4 @@ nsNativeTheme::Notify(nsITimer* aTimer)
   mAnimatedContentList.Clear();
   mAnimatedContentTimeout = PR_UINT32_MAX;
   return NS_OK;
-}
-
-nsIFrame*
-nsNativeTheme::GetAdjacentSiblingFrameWithSameAppearance(nsIFrame* aFrame,
-                                                         PRBool aNextSibling)
-{
-  if (!aFrame)
-    return nsnull;
-
-  // Find the next visible sibling.
-  nsIFrame* sibling = aFrame;
-  do {
-    sibling = aNextSibling ? sibling->GetNextSibling() : sibling->GetPrevSibling();
-  } while (sibling && sibling->GetRect().width == 0);
-
-  // Check same appearance and adjacency.
-  if (!sibling ||
-      sibling->GetStyleDisplay()->mAppearance != aFrame->GetStyleDisplay()->mAppearance ||
-      (sibling->GetRect().XMost() != aFrame->GetRect().x &&
-       aFrame->GetRect().XMost() != sibling->GetRect().x))
-    return nsnull;
-  return sibling;
 }

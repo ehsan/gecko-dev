@@ -90,9 +90,6 @@ static RedirEntry kRedirMap[] = {
       nsIAboutModule::ALLOW_SCRIPT },
     { "addons", "chrome://mozapps/content/extensions/extensions.xul",
       nsIAboutModule::ALLOW_SCRIPT },
-    { "newaddon", "chrome://mozapps/content/extensions/newaddon.xul",
-      nsIAboutModule::ALLOW_SCRIPT |
-      nsIAboutModule::HIDE_FROM_ABOUTABOUT },
     { "support", "chrome://global/content/aboutSupport.xhtml",
       nsIAboutModule::ALLOW_SCRIPT }
 };

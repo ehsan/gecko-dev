@@ -112,7 +112,7 @@ dnl ========================================================
 PERL_VERSION=5.006
 PYTHON_VERSION=2.5
 WINDRES_VERSION=2.14.90
-W32API_VERSION=3.14
+W32API_VERSION=3.8
 
 MSMANIFEST_TOOL=
 
@@ -260,12 +260,6 @@ MOZ_ARG_WITH_STRING(android-platform,
                            location of platform dir, default NDK/build/platforms/android-5/arch-arm],
     android_platform=$withval)
 
-MOZ_ARG_ENABLE_BOOL(android-libstdcxx,
-[  --enable-android-libstdcxx
-                          use GNU libstdc++ instead of STLPort for NDK >= 5],
-    MOZ_ANDROID_LIBSTDCXX=1,
-    MOZ_ANDROID_LIBSTDCXX= )
-
 case "$target" in
 arm-linux*-android*|*-linuxandroid*)
     android_tool_prefix="arm-linux-androideabi"
@@ -294,39 +288,11 @@ case "$target" in
     fi
 
     if test -z "$android_toolchain" ; then
-        AC_MSG_CHECKING([for android toolchain directory])
-
-        kernel_name=`uname -s | tr "[[:upper:]]" "[[:lower:]]"`
-
-        android_toolchain="$android_ndk"/build/prebuilt/$kernel_name-x86/arm-eabi-4.4.0
-
-        # With newer NDK, the toolchain path has changed.
-        if ! test -d "$android_toolchain" ; then
-            android_toolchain="$android_ndk"/toolchains/arm-$kernel_name-androideabi-4.4.3/prebuilt/$kernel_name-x86
-        fi
-
-        if test -d "$android_toolchain" ; then
-            AC_MSG_RESULT([$android_toolchain])
-        else
-            AC_MSG_ERROR([not found. You have to specify --with-android-toolchain=/path/to/ndk/toolchain.])
-        fi
+        android_toolchain="$android_ndk"/build/prebuilt/`uname -s | tr "[[:upper:]]" "[[:lower:]]"`-x86/arm-eabi-4.4.0
     fi
 
     if test -z "$android_platform" ; then
-        AC_MSG_CHECKING([for android platform directory])
-
-        android_platform="$android_ndk"/build/platforms/android-"$android_version"/arch-"$target_cpu"
-
-        # With newer NDK, the platform path has changed.
-        if ! test -d "$android_platform" ; then
-            android_platform="$android_ndk"/platforms/android-"$android_version"/arch-"$target_cpu"
-        fi
-
-        if test -d "$android_platform" ; then
-            AC_MSG_RESULT([$android_platform])
-        else
-            AC_MSG_ERROR([not found. You have to specify --with-android-platform=/path/to/ndk/platform.])
-        fi
+       android_platform="$android_ndk"/build/platforms/android-"$android_version"/arch-"$target_cpu"
     fi
 
     dnl set up compilers
@@ -339,36 +305,21 @@ case "$target" in
     RANLIB="$android_toolchain"/bin/"$android_tool_prefix"-ranlib
     STRIP="$android_toolchain"/bin/"$android_tool_prefix"-strip
 
-    if test -n "$MOZ_ANDROID_LIBSTDCXX" ; then
-       if test ! -e "$android_ndk/sources/cxx-stl/gnu-libstdc++/libs/armeabi-v7a/libstdc++.a" ; then
-          AC_MSG_ERROR([Cannot find path to libstdc++ (NDK version >= 5?)])
-       fi
-       STLPORT_CPPFLAGS="-I$android_ndk/sources/cxx-stl/gnu-libstdc++/include -I$android_ndk/sources/cxx-stl/gnu-libstdc++/libs/armeabi-v7a/include -D_GLIBCXX_PERMIT_BACKWARD_HASH"
-       STLPORT_LDFLAGS="-L$android_ndk/sources/cxx-stl/gnu-libstdc++/libs/armeabi-v7a"
-       STLPORT_LIBS="-lstdc++"
-    elif test -e "$android_ndk/sources/cxx-stl/stlport/libs/armeabi-v7a/libstlport_static.a" ; then
+    if test -e "$android_ndk/sources/cxx-stl/stlport/libs/armeabi-v7a/libstlport_static.a" ; then
        STLPORT_CPPFLAGS="-I$android_ndk/sources/cxx-stl/stlport/stlport"
-       STLPORT_LDFLAGS="-L$android_ndk/sources/cxx-stl/stlport/libs/armeabi-v7a/"
-       STLPORT_LIBS="-lstlport_static"
-    elif  test -e "$android_ndk/tmp/ndk-digit/build/install/sources/cxx-stl/stlport/libs/armeabi-v7a/libstlport_static.a" ; then
-       STLPORT_CPPFLAGS="-I$android_ndk/sources/cxx-stl/stlport/stlport"
-       STLPORT_LDFLAGS="-L$android_ndk/tmp/ndk-digit/build/install/sources/cxx-stl/stlport/libs/armeabi-v7a"
-       STLPORT_LIBS="-lstlport_static"
-    elif test "$target" != "arm-android-eabi"; then
-       dnl fail if we're not building with NDKr4
-       AC_MSG_ERROR([Couldn't find path to stlport in the android ndk])
+       STLPORT_LDFLAGS="-L$android_ndk/sources/cxx-stl/stlport/libs/armeabi-v7a/  -lstlport_static"
     fi
 
     CPPFLAGS="-I$android_platform/usr/include $STLPORT_CPPFLAGS $CPPFLAGS"
     CFLAGS="-mandroid -I$android_platform/usr/include -fno-short-enums -fno-exceptions $CFLAGS"
     CXXFLAGS="-mandroid -I$android_platform/usr/include -fno-short-enums -fno-exceptions $CXXFLAGS"
-    LIBS="$LIBS $STLPORT_LIBS"
+    LIBS="$LIBS $STLPORT_LDFLAGS"
 
     dnl Add -llog by default, since we use it all over the place.
     dnl Add --allow-shlib-undefined, because libGLESv2 links to an
     dnl undefined symbol (present on the hardware, just not in the
     dnl NDK.)
-    LDFLAGS="-mandroid $STLPORT_LDFLAGS -L$android_platform/usr/lib -Wl,-rpath-link=$android_platform/usr/lib --sysroot=$android_platform -llog -Wl,--allow-shlib-undefined $LDFLAGS"
+    LDFLAGS="-mandroid -L$android_platform/usr/lib -L$android_ndk/sources/cxx-stl/stlport/libs/armeabi-v7a -Wl,-rpath-link=$android_platform/usr/lib --sysroot=$android_platform -llog -Wl,--allow-shlib-undefined $LDFLAGS"
 
     dnl prevent cross compile section from using these flags as host flags
     if test -z "$HOST_CPPFLAGS" ; then
@@ -385,8 +336,8 @@ case "$target" in
     fi
 
     ANDROID_NDK="${android_ndk}"
-    ANDROID_TOOLCHAIN="${android_toolchain}"
-    ANDROID_PLATFORM="${android_platform}"
+    ANDROID_TOOLCHAIN="{android_toolchain}"
+    ANDROID_PLATFORM="{android_platform}"
     ANDROID_SDK="${android_sdk}"
     ANDROID_PLATFORM_TOOLS="${android_platform_tools}"
     ANDROID_VERSION="${android_version}"
@@ -471,7 +422,7 @@ if test "$target" != "$host"; then
     LDFLAGS="$HOST_LDFLAGS"
 
     AC_MSG_CHECKING([whether the host c compiler ($HOST_CC $HOST_CFLAGS $HOST_LDFLAGS) works])
-    AC_TRY_COMPILE([], [return(0);],
+    AC_TRY_COMPILE([], [return(0);], 
 	[ac_cv_prog_hostcc_works=1 AC_MSG_RESULT([yes])],
 	AC_MSG_ERROR([installation or configuration problem: host compiler $HOST_CC cannot create executables.]) )
 
@@ -479,10 +430,10 @@ if test "$target" != "$host"; then
     CFLAGS="$HOST_CXXFLAGS"
 
     AC_MSG_CHECKING([whether the host c++ compiler ($HOST_CXX $HOST_CXXFLAGS $HOST_LDFLAGS) works])
-    AC_TRY_COMPILE([], [return(0);],
+    AC_TRY_COMPILE([], [return(0);], 
 	[ac_cv_prog_hostcxx_works=1 AC_MSG_RESULT([yes])],
 	AC_MSG_ERROR([installation or configuration problem: host compiler $HOST_CXX cannot create executables.]) )
-
+    
     CC=$_SAVE_CC
     CFLAGS=$_SAVE_CFLAGS
     LDFLAGS=$_SAVE_LDFLAGS
@@ -703,11 +654,11 @@ case "$target" in
             [ unsigned *test = new unsigned(42); ],,
             AC_MSG_ERROR([\$(CXX) test failed.  You must have MS VC++ in your path to build.]) )
         AC_LANG_RESTORE
-
+        
         changequote(,)
         _MSVC_VER_FILTER='s|.* ([0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?).*|\1|p'
         changequote([,])
-
+        
         # Determine compiler version
         CC_VERSION=`"${CC}" -v 2>&1 | sed -nre "$_MSVC_VER_FILTER"`
         _CC_MAJOR_VERSION=`echo ${CC_VERSION} | $AWK -F\. '{ print $1 }'`
@@ -920,7 +871,8 @@ EOF
             AC_MSG_ERROR([windres version $WINDRES_VERSION or higher is required to build.])
         fi
 
-        MOZ_WINSDK_MAXVER=0x06010000
+        # Server 2003 is the highest version supported
+        MOZ_WINSDK_MAXVER=0x05020000
     fi # !GNU_CC
 
     AC_DEFINE_UNQUOTED(WINVER,0x$WINVER)
@@ -1043,7 +995,7 @@ if test "$_perl_res" != 0; then
     AC_MSG_RESULT([no])
     AC_MSG_ERROR([Cannot find Config.pm or \$Config{archlib}.  A full perl installation is required.])
 else
-    AC_MSG_RESULT([yes])
+    AC_MSG_RESULT([yes])    
 fi
 
 MOZ_PATH_PROGS(PYTHON, $PYTHON python2.7 python2.6 python2.5 python)
@@ -1119,7 +1071,6 @@ MOZ_ARG_ENABLE_STRING(macos-target,
                           Set the minimum MacOS version needed at runtime],
                       [_MACOSX_DEPLOYMENT_TARGET=$enableval])
 
-if test "$target_cpu" != "arm"; then
 case "$target" in
 *-darwin*)
     if test -n "$_MACOSX_DEPLOYMENT_TARGET" ; then
@@ -1142,7 +1093,6 @@ case "$target" in
     fi
     ;;
 esac
-fi
 
 AC_SUBST(MACOSX_DEPLOYMENT_TARGET)
 
@@ -1348,6 +1298,9 @@ BSD_386)
 dgux)
     HOST_OS_ARCH=DGUX
     ;;
+IRIX64)
+    HOST_OS_ARCH=IRIX
+    ;;
 UNIX_SV)
     if "`cat /etc/bcheckrc | grep -c NCR 2>/dev/null`" != "0"; then
         HOST_OS_ARCH=NCR
@@ -1365,6 +1318,8 @@ OSF1)
     ;;
 OS_2)
     HOST_OS_ARCH=OS2
+    ;;
+QNX)
     ;;
 SCO_SV)
     HOST_OS_ARCH=SCOOS
@@ -1424,6 +1379,9 @@ BSD_386)
 dgux)
     OS_ARCH=DGUX
     ;;
+IRIX64)
+    OS_ARCH=IRIX
+    ;;
 UNIX_SV)
     if "`cat /etc/bcheckrc | grep -c NCR 2>/dev/null`" != "0"; then
         OS_ARCH=NCR
@@ -1456,6 +1414,14 @@ OS_2)
     OS_TARGET=OS2
     OS_RELEASE=`uname -v`
     ;;
+QNX)
+    if test "$OS_TARGET" != "NTO"; then
+        changequote(,)
+        OS_RELEASE=`uname -v | sed 's/^\([0-9]\)\([0-9]*\)$/\1.\2/'`
+        changequote([,])
+    fi
+    OS_TEST=x86
+    ;;
 SCO_SV)
     OS_ARCH=SCOOS
     OS_RELEASE=5.0
@@ -1474,7 +1440,7 @@ Darwin)
         OS_TEST=ppc
         ;;
     i*86*)
-        OS_TEST=i386
+        OS_TEST=i386 
         ;;
     x86_64)
         OS_TEST=x86_64
@@ -1915,7 +1881,7 @@ case "$target" in
     if test ! "$GNU_CC"; then
         if test ! "$HAVE_64BIT_OS"; then
             # Compiling with Visual Age C++ object model compat is the
-            # default. To compile with object model ibm, add
+            # default. To compile with object model ibm, add 
             # AIX_OBJMODEL=ibm to .mozconfig.
             if test "$AIX_OBJMODEL" = "ibm"; then
                 CXXFLAGS="$CXXFLAGS -qobjmodel=ibm"
@@ -1943,10 +1909,10 @@ case "$target" in
                  #endif],
                 _BAD_COMPILER=,_BAD_COMPILER=1)
             if test -n "$_BAD_COMPILER"; then
-                AC_MSG_RESULT([no])
+                AC_MSG_RESULT([no])    
                 AC_MSG_ERROR([IBM XLC/C++ 9.0.0.7 or higher is required to build.])
             else
-                AC_MSG_RESULT([yes])
+                AC_MSG_RESULT([yes])    
             fi
             AC_LANG_RESTORE
             TARGET_COMPILER_ABI="ibmc"
@@ -1985,16 +1951,15 @@ case "$target" in
     esac
     ;;
 
-*-darwin*)
+*-darwin*) 
     MKSHLIB='$(CXX) $(CXXFLAGS) $(DSO_PIC_CFLAGS) $(DSO_LDOPTS) -o $@'
     MKCSHLIB='$(CC) $(CFLAGS) $(DSO_PIC_CFLAGS) $(DSO_LDOPTS) -o $@'
     # If we're building with --enable-profiling, we need a frame pointer.
     if test -z "$MOZ_PROFILING"; then
-        MOZ_FRAMEPTR_FLAGS="-fomit-frame-pointer"
+        MOZ_OPTIMIZE_FLAGS="-O3 -fomit-frame-pointer"
     else
-        MOZ_FRAMEPTR_FLAGS="-fno-omit-frame-pointer"
+        MOZ_OPTIMIZE_FLAGS="-O3 -fno-omit-frame-pointer"
     fi
-    MOZ_OPTIMIZE_FLAGS="-O3 $MOZ_FRAMEPTR_FLAGS -fno-stack-protector"
     _PEDANTIC=
     CFLAGS="$CFLAGS -fpascal-strings -fno-common"
     CXXFLAGS="$CXXFLAGS -fpascal-strings -fno-common"
@@ -2003,22 +1968,12 @@ case "$target" in
     STRIP="$STRIP -x -S"
     _PLATFORM_DEFAULT_TOOLKIT='cairo-cocoa'
     TARGET_NSPR_MDCPUCFG='\"md/_darwin.cfg\"'
-    LDFLAGS="$LDFLAGS -lobjc"
+    LDFLAGS="$LDFLAGS -framework Cocoa -lobjc"
     LIBXUL_LIBS='$(XPCOM_FROZEN_LDOPTS) $(LIBXUL_DIST)/bin/XUL'
     # The ExceptionHandling framework is needed for Objective-C exception
     # logging code in nsObjCExceptions.h. Currently we only use that in debug
     # builds.
-    _SAVE_LDFLAGS=$LDFLAGS
-     AC_MSG_CHECKING([for -framework ExceptionHandling])
-    LDFLAGS="$LDFLAGS -framework ExceptionHandling"
-    AC_TRY_LINK(,[return 0;],
-                ac_cv_have_framework_exceptionhandling="yes",
-                ac_cv_have_framework_exceptionhandling="no")
-    AC_MSG_RESULT([$ac_cv_have_framework_exceptionhandling])
-    if test  "$ac_cv_have_framework_exceptionhandling" = "yes"; then
-      MOZ_DEBUG_LDFLAGS="$MOZ_DEBUG_LDFLAGS -framework ExceptionHandling";
-    fi
-    LDFLAGS=$_SAVE_LDFLAGS
+    MOZ_DEBUG_LDFLAGS="$MOZ_DEBUG_LDFLAGS -framework ExceptionHandling"
 
     if test "x$lto_is_enabled" = "xyes"; then
         echo "Skipping -dead_strip because lto is enabled."
@@ -2038,7 +1993,7 @@ case "$target" in
         else
             AC_MSG_RESULT([no])
         fi
-
+        
         LDFLAGS=$_SAVE_LDFLAGS
     fi
     MOZ_FIX_LINK_PATHS='-Wl,-executable_path,$(LIBXUL_DIST)/bin'
@@ -2052,7 +2007,7 @@ case "$target" in
     if test ! "$GNU_CC"; then
 	DSO_LDOPTS="-Bshareable $DSO_LDOPTS"
     fi
-    ;;
+    ;; 
 
 ia64*-hpux*)
     DLL_SUFFIX=".so"
@@ -2092,6 +2047,66 @@ ia64*-hpux*)
     AC_DEFINE(NSCAP_DISABLE_DEBUG_PTR_TYPES)
     ;;
 
+*-irix5*)
+    AC_DEFINE(IRIX)
+    DSO_LDOPTS='-elf -shared'
+
+    if test "$GNU_CC"; then
+       MKSHLIB='$(CXX) $(CXXFLAGS) $(DSO_PIC_CFLAGS) $(DSO_LDOPTS) -o $@'
+       MKCSHLIB='$(CC) $(CFLAGS) $(DSO_PIC_CFLAGS) $(DSO_LDOPTS) -o $@'
+       MKSHLIB_FORCE_ALL='-Wl,-all'
+       MKSHLIB_UNFORCE_ALL='-Wl,-none'
+       CXXFLAGS="$CXXFLAGS -D_LANGUAGE_C_PLUS_PLUS"
+    else
+       MKSHLIB='$(LD) $(DSO_LDOPTS) -o $@'
+       MKCSHLIB='$(LD) $(DSO_LDOPTS) -o $@'
+       MKSHLIB_FORCE_ALL='-all'
+       MKSHLIB_UNFORCE_ALL='-none'
+    fi
+    ;;
+
+*-irix6*)
+    AC_DEFINE(IRIX)
+    dnl the irix specific xptcinvoke code is written against the n32 ABI so we *must* 
+    dnl compile and link using -n32
+    USE_N32=1
+    TARGET_COMPILER_ABI=n32
+    DSO_LDOPTS='-elf -shared'
+    MKSHLIB='$(CCC) $(CXXFLAGS) $(DSO_PIC_CFLAGS) $(DSO_LDOPTS) -o $@'
+    MKCSHLIB='$(CC) $(CFLAGS) $(DSO_PIC_CFLAGS) $(DSO_LDOPTS) -o $@'
+    _MOZ_EXCEPTIONS_FLAGS_OFF="-LANG:exceptions=OFF"
+    _MOZ_EXCEPTIONS_FLAGS_ON="-LANG:exceptions=ON"
+    if test "$GNU_CC"; then
+       MKSHLIB_FORCE_ALL='-Wl,-all'
+       MKSHLIB_UNFORCE_ALL='-Wl,-none'
+       _WARNINGS_CFLAGS="-Wall"
+       _WARNINGS_CXXFLAGS="-Wall"
+       CXXFLAGS="$CXXFLAGS -D_LANGUAGE_C_PLUS_PLUS"
+    else
+       MKSHLIB_FORCE_ALL='-all'
+       MKSHLIB_UNFORCE_ALL='-none'
+	   AR_LIST="$AR t"
+	   AR_EXTRACT="$AR x"
+	   AR_DELETE="$AR d"
+	   AR='$(CXX) -ar'
+	   AR_FLAGS='-o $@'
+       CFLAGS="$CFLAGS -woff 3262 -G 4"
+       CXXFLAGS="$CXXFLAGS -woff 3262 -G 4"
+       if test -n "$USE_N32"; then
+	   ASFLAGS="$ASFLAGS -n32"
+	   CFLAGS="$CFLAGS -n32"
+	   CXXFLAGS="$CXXFLAGS -n32"
+	   LDFLAGS="$LDFLAGS -n32"
+       fi
+       AC_DEFINE(NSCAP_DISABLE_DEBUG_PTR_TYPES)
+       AC_MSG_WARN([Clearing MOZ_FIX_LINK_PATHS for OSF/1 as fix for bug 333545 (till the reference bug 332075 is fixed.])
+       MOZ_FIX_LINK_PATHS=
+    fi
+    if test -z "$GNU_CXX"; then
+      MIPSPRO_CXX=1
+    fi
+    ;;
+
 *-android*|*-linuxandroid*)
     AC_DEFINE(NO_PW_GECOS)
     no_x=yes
@@ -2101,11 +2116,10 @@ ia64*-hpux*)
     MOZ_GFX_OPTIMIZE_MOBILE=1
     # If we're building with --enable-profiling, we need a frame pointer.
     if test -z "$MOZ_PROFILING"; then
-        MOZ_FRAMEPTR_FLAGS="-fomit-frame-pointer"
+        MOZ_OPTIMIZE_FLAGS="-Os -freorder-blocks -fno-reorder-functions -fomit-frame-pointer"
     else
-        MOZ_FRAMEPTR_FLAGS="-fno-omit-frame-pointer"
+        MOZ_OPTIMIZE_FLAGS="-Os -freorder-blocks -fno-reorder-functions -fno-omit-frame-pointer"
     fi
-    MOZ_OPTIMIZE_FLAGS="-O3 -freorder-blocks -fno-reorder-functions $MOZ_FRAMEPTR_FLAGS"
     # The Maemo builders don't know about this flag
     MOZ_ARM_VFP_FLAGS="-mfpu=vfp"
     ;;
@@ -2132,7 +2146,7 @@ ia64*-hpux*)
             MOZ_FRAMEPTR_FLAGS="-fno-omit-frame-pointer"
         fi
         MOZ_PGO_OPTIMIZE_FLAGS="-O3 $MOZ_FRAMEPTR_FLAGS"
-        MOZ_OPTIMIZE_FLAGS="-O3 -freorder-blocks $MOZ_OPTIMIZE_SIZE_TWEAK $MOZ_FRAMEPTR_FLAGS"
+        MOZ_OPTIMIZE_FLAGS="-Os -freorder-blocks $MOZ_OPTIMIZE_SIZE_TWEAK $MOZ_FRAMEPTR_FLAGS"
         MOZ_DEBUG_FLAGS="-g"
     fi
 
@@ -2147,11 +2161,8 @@ ia64*-hpux*)
         MOZ_DEBUG_FLAGS="-g" # We want inlining
     ;;
     esac
-
-    if test -z "$MC"; then
-        MC=mc.exe
-    fi
     ;;
+
 *-symbian*)
 
     AC_DEFINE(XP_UNIX)
@@ -2185,8 +2196,7 @@ ia64*-hpux*)
     DSO_PIC_CFLAGS=
     DLL_SUFFIX=.dll
     RC=rc.exe
-    MC=mc.exe
-    # certain versions of cygwin's makedepend barf on the
+    # certain versions of cygwin's makedepend barf on the 
     # #include <string> vs -I./dist/include/string issue so don't use it
     SYSTEM_MAKEDEPEND=
     if test -n "$GNU_CC"; then
@@ -2254,11 +2264,10 @@ ia64*-hpux*)
         WARNINGS_AS_ERRORS='-WX'
         # If we're building with --enable-profiling, we need -Oy-, which forces a frame pointer.
         if test -z "$MOZ_PROFILING"; then
-            MOZ_FRAMEPTR_FLAGS=
+            MOZ_OPTIMIZE_FLAGS='-O1'
         else
-            MOZ_FRAMEPTR_FLAGS='-Oy-'
+            MOZ_OPTIMIZE_FLAGS='-O1 -Oy-'
         fi
-        MOZ_OPTIMIZE_FLAGS="-O2 $MOZ_FRAMEPTR_FLAGS"
         MOZ_JS_LIBS='$(libdir)/mozjs.lib'
         MOZ_FIX_LINK_PATHS=
         DYNAMIC_XPCOM_LIBS='$(LIBXUL_DIST)/lib/xpcom.lib $(LIBXUL_DIST)/lib/xpcom_core.lib $(LIBXUL_DIST)/lib/mozalloc.lib'
@@ -2325,7 +2334,7 @@ ia64*-hpux*)
             AC_MSG_ERROR([\$MOZ_TOOLS\\bin must be in your path.])
         fi
         ;;
-    esac
+    esac 
 
     case "$host_os" in
     cygwin*|msvc*|mks*)
@@ -2388,6 +2397,32 @@ ia64*-hpux*)
     MKCSHLIB='$(CC) $(CFLAGS) $(DSO_PIC_CFLAGS) $(DSO_LDOPTS) -Wl,-soname,lib$(LIBRARY_NAME)$(DLL_SUFFIX) -o $@'
     ;;
 
+*-nto*) 
+	AC_DEFINE(NTO)	
+	AC_DEFINE(_QNX_SOURCE)
+	AC_DEFINE(_i386)
+	OS_TARGET=NTO
+	WARNINGS_AS_ERRORS=''
+	MOZ_OPTIMIZE_FLAGS="-O"
+	MOZ_DEBUG_FLAGS="-gstabs"
+	USE_PTHREADS=1
+	_PEDANTIC=
+	LIBS="$LIBS -lsocket -lstdc++"
+	_DEFINES_CFLAGS='-include $(DEPTH)/js-confdefs.h -DMOZILLA_CLIENT -D_POSIX_C_SOURCE=199506'
+	_DEFINES_CXXFLAGS='-DMOZILLA_CLIENT -include $(DEPTH)/js-confdefs.h -D_POSIX_C_SOURCE=199506'
+	if test "$with_x" != "yes"
+	then
+		_PLATFORM_DEFAULT_TOOLKIT="photon"
+	    TK_CFLAGS='-I/usr/include/photon'
+		TK_LIBS='-lph'
+	fi
+	case "${target_cpu}" in
+	ppc*)
+	AC_DEFINE(HAVE_VA_LIST_AS_ARRAY)	
+	;;
+	esac
+	;;
+
 *-openbsd*)
     DLL_SUFFIX=".so.1.0"
     DSO_CFLAGS=''
@@ -2430,7 +2465,6 @@ ia64*-hpux*)
     TARGET_MD_ARCH=os2
     _PLATFORM_DEFAULT_TOOLKIT="cairo-os2"
     RC=rc.exe
-    MC=mc.exe
     RCFLAGS='-n'
     MOZ_USER_DIR="Mozilla"
 
@@ -2488,7 +2522,21 @@ alpha*-*-osf*)
     AC_DEFINE(NEED_USLEEP_PROTOTYPE)
     ;;
 
-*-sco*)
+*-qnx*) 
+    DIRENT_INO=d_stat.st_ino
+    dnl Solves the problems the QNX compiler has with nsCOMPtr.h.
+    AC_DEFINE(NSCAP_DISABLE_TEST_DONTQUERY_CASES)
+    AC_DEFINE(NSCAP_DISABLE_DEBUG_PTR_TYPES)
+    dnl Explicit set STDC_HEADERS to workaround QNX 6.0's failing of std test
+    AC_DEFINE(STDC_HEADERS)
+    if test "$no_x" = "yes"; then
+	    _PLATFORM_DEFAULT_TOOLKIT='photon'
+	    TK_CFLAGS='-I/usr/nto/include/photon'
+	    TK_LIBS='-lphoton -lphrender'
+    fi
+    ;;
+
+*-sco*) 
     AC_DEFINE(NSCAP_DISABLE_TEST_DONTQUERY_CASES)
     AC_DEFINE(NSCAP_DISABLE_DEBUG_PTR_TYPES)
     CXXFLAGS="$CXXFLAGS -I/usr/include/CC"
@@ -2497,7 +2545,7 @@ alpha*-*-osf*)
     fi
     ;;
 
-*-solaris*)
+*-solaris*) 
     AC_DEFINE(SOLARIS)
     TARGET_NSPR_MDCPUCFG='\"md/_solaris.cfg\"'
     if test -z "$CROSS_COMPILE" && pkginfo -q SUNWpr && pkginfo -q SUNWprd; then
@@ -2521,7 +2569,7 @@ alpha*-*-osf*)
        LDFLAGS="-xildoff $LDFLAGS"
        if test -z "$CROSS_COMPILE" -a -f /usr/lib/ld/map.noexstk; then
            _SAVE_LDFLAGS=$LDFLAGS
-           LDFLAGS="-M /usr/lib/ld/map.noexstk $LDFLAGS"
+           LDFLAGS="-M /usr/lib/ld/map.noexstk $LDFLAGS" 
            AC_TRY_LINK([#include <stdio.h>],
                        [printf("Hello World\n");],
                        ,
@@ -2588,7 +2636,7 @@ alpha*-*-osf*)
     fi
     ;;
 
-*-sunos*)
+*-sunos*) 
     DSO_LDOPTS='-Bdynamic'
     MKSHLIB='-$(LD) $(DSO_LDOPTS) -o $@'
     MKCSHLIB='-$(LD) $(DSO_LDOPTS) -o $@'
@@ -2601,7 +2649,7 @@ alpha*-*-osf*)
     esac
     ;;
 
-*-sysv4.2uw7*)
+*-sysv4.2uw7*) 
 	NSPR_LIBS="-lnspr$NSPR_VERSION -lplc$NSPR_VERSION -lplds$NSPR_VERSION -L/usr/ccs/lib -lcrt"
     ;;
 
@@ -2661,7 +2709,7 @@ case "$target" in
          fi
         fi
         ;;
-    *-nto*)
+    *-nto*) 
         MOZ_COMPONENTS_VERSION_SCRIPT_LDFLAGS='-Wl,--version-script,$(BUILD_TOOLS)/gnu-ld-scripts/components-version-script'
         ;;
     *-darwin*)
@@ -2708,7 +2756,6 @@ arm*-*)
     ENABLE_METHODJIT=1
     ENABLE_MONOIC=1
     ENABLE_POLYIC=1
-    ENABLE_POLYIC_TYPED_ARRAY=1
     AC_DEFINE(JS_CPU_ARM)
     AC_DEFINE(JS_NUNBOX32)
     ;;
@@ -3012,7 +3059,7 @@ AC_LANG_CPLUSPLUS
 AC_MSG_CHECKING(for uname.domainname)
 AC_CACHE_VAL(ac_cv_have_uname_domainname_field,
     [AC_TRY_COMPILE([#include <sys/utsname.h>],
-        [ struct utsname *res; char *domain;
+        [ struct utsname *res; char *domain; 
             (void)uname(res);  if (res != 0) { domain = res->domainname; } ],
         [ac_cv_have_uname_domainname_field=true],
         [ac_cv_have_uname_domainname_field=false])])
@@ -3027,7 +3074,7 @@ fi
 AC_MSG_CHECKING(for uname.__domainname)
 AC_CACHE_VAL(ac_cv_have_uname_us_domainname_field,
     [AC_TRY_COMPILE([#include <sys/utsname.h>],
-        [ struct utsname *res; char *domain;
+        [ struct utsname *res; char *domain; 
             (void)uname(res);  if (res != 0) { domain = res->__domainname; } ],
         [ac_cv_have_uname_us_domainname_field=true],
         [ac_cv_have_uname_us_domainname_field=false])])
@@ -3163,8 +3210,6 @@ fi         # Sun Studio on Solaris
 AC_SUBST(WRAP_SYSTEM_INCLUDES)
 AC_SUBST(VISIBILITY_FLAGS)
 
-MOZ_GCC_PR49911
-
 dnl Check for __force_align_arg_pointer__ for SSE2 on gcc
 dnl ========================================================
 if test "$GNU_CC"; then
@@ -3277,8 +3322,8 @@ case $target in
 *-os2*)
     ;;
 *)
-    AC_SEARCH_LIBS(dlopen, dl,
-        AC_CHECK_HEADER(dlfcn.h,
+    AC_SEARCH_LIBS(dlopen, dl, 
+        AC_CHECK_HEADER(dlfcn.h, 
         AC_DEFINE(HAVE_DLOPEN)))
     ;;
 esac
@@ -3333,7 +3378,7 @@ darwin*)
 esac
 
 dnl ========================================================
-dnl Check the command line for --with-pthreads
+dnl Check the command line for --with-pthreads 
 dnl ========================================================
 MOZ_ARG_WITH_BOOL(pthreads,
 [  --with-pthreads         Force use of system pthread library with NSPR ],
@@ -3415,34 +3460,81 @@ then
 			;;
 
 	    *-*-linux*|*-*-kfreebsd*-gnu|*-*-gnu*)
-			AC_DEFINE(_REENTRANT)
+			AC_DEFINE(_REENTRANT) 
 			;;
 
-	    *-*-nto*)
-			AC_DEFINE(_REENTRANT)
+	    *-*-nto*) 
+			AC_DEFINE(_REENTRANT) 
 			;;
 
 	    *-aix4.3*|*-aix5*)
-			AC_DEFINE(_REENTRANT)
+			AC_DEFINE(_REENTRANT) 
 			;;
 
 	    *-hpux11.*)
-			AC_DEFINE(_REENTRANT)
+			AC_DEFINE(_REENTRANT) 
 			;;
 
 	    alpha*-*-osf*)
 			AC_DEFINE(_REENTRANT)
 			;;
 
-	    *-*-solaris*)
+	    *-*-solaris*) 
 			AC_DEFINE(_REENTRANT)
 			if test "$SOLARIS_SUNPRO_CC"; then
-				CFLAGS="$CFLAGS -mt"
-				CXXFLAGS="$CXXFLAGS -mt"
+				CFLAGS="$CFLAGS -mt" 
+				CXXFLAGS="$CXXFLAGS -mt" 
 			fi
 			;;
 	esac
     LDFLAGS="${_PTHREAD_LDFLAGS} ${LDFLAGS}"
+fi
+
+dnl ========================================================
+dnl See if mmap sees writes
+dnl For cross compiling, just define it as no, which is a safe default
+dnl ========================================================
+AC_MSG_CHECKING(whether mmap() sees write()s)
+
+changequote(,)
+mmap_test_prog='
+    #include <stdlib.h>
+    #include <unistd.h>
+    #include <sys/mman.h>
+    #include <sys/types.h>
+    #include <sys/stat.h>
+    #include <fcntl.h>
+
+    char fname[] = "conftest.file";
+    char zbuff[1024]; /* Fractional page is probably worst case */
+
+    int main() {
+	char *map;
+	int fd;
+	int i;
+	unlink(fname);
+	fd = open(fname, O_RDWR | O_CREAT, 0660);
+	if(fd<0) return 1;
+	unlink(fname);
+	write(fd, zbuff, sizeof(zbuff));
+	lseek(fd, 0, SEEK_SET);
+	map = (char*)mmap(0, sizeof(zbuff), PROT_READ, MAP_SHARED, fd, 0);
+	if(map==(char*)-1) return 2;
+	for(i=0; fname[i]; i++) {
+	    int rc = write(fd, &fname[i], 1);
+	    if(map[i]!=fname[i]) return 4;
+	}
+	return 0;
+    }
+'
+changequote([,])
+
+AC_TRY_RUN($mmap_test_prog , result="yes", result="no", result="yes")
+
+AC_MSG_RESULT("$result")
+
+if test "$result" = "no"; then
+    AC_DEFINE(MMAP_MISSES_WRITES)
 fi
 
 
@@ -3548,7 +3640,7 @@ AC_CACHE_CHECK(
         ],
         [const char *glibc_version = gnu_get_libc_version();],
         [ac_cv_func_gnu_get_libc_version=yes],
-        [ac_cv_func_gnu_get_libc_version=no]
+        [ac_cv_func_gnu_get_libc_version=no] 
         )]
     )
 
@@ -3560,7 +3652,7 @@ case $target_os in
     darwin*|mingw*|os2*)
         ;;
     *)
-
+    
 AC_CHECK_LIB(c, iconv, [_ICONV_LIBS="$_ICONV_LIBS"],
     AC_CHECK_LIB(iconv, iconv, [_ICONV_LIBS="$_ICONV_LIBS -liconv"],
         AC_CHECK_LIB(iconv, libiconv, [_ICONV_LIBS="$_ICONV_LIBS -liconv"])))
@@ -3579,7 +3671,7 @@ AC_CACHE_CHECK(
             iconv_close(h);
         ],
         [ac_cv_func_iconv=yes],
-        [ac_cv_func_iconv=no]
+        [ac_cv_func_iconv=no] 
         )]
     )
 if test "$ac_cv_func_iconv" = "yes"; then
@@ -3601,7 +3693,7 @@ if test "$ac_cv_func_iconv" = "yes"; then
                 iconv_close(h);
             ],
             [ac_cv_func_const_iconv=yes],
-            [ac_cv_func_const_iconv=no]
+            [ac_cv_func_const_iconv=no] 
             )]
         )
     if test "$ac_cv_func_const_iconv" = "yes"; then
@@ -3689,6 +3781,63 @@ if test "x$ac_cv_va_val_copy" = "xno"; then
 fi
 AC_MSG_RESULT($ac_cv_va_val_copy)
 
+dnl Check for dll-challenged libc's.
+dnl This check is apparently only needed for Linux.
+case "$target" in
+	*-linux*)
+	    dnl ===================================================================
+	    _curdir=`pwd`
+	    export _curdir
+	    rm -rf conftest* _conftest
+	    mkdir _conftest
+	    cat >> conftest.C <<\EOF
+#include <stdio.h>
+#include <link.h>
+#include <dlfcn.h>
+#ifdef _dl_loaded
+void __dump_link_map(void) {
+  struct link_map *map = _dl_loaded;
+  while (NULL != map) {printf("0x%08x %s\n", map->l_addr, map->l_name); map = map->l_next;}
+}
+int main() {
+  dlopen("./conftest1.so",RTLD_LAZY);
+  dlopen("./../_conftest/conftest1.so",RTLD_LAZY);
+  dlopen("CURDIR/_conftest/conftest1.so",RTLD_LAZY);
+  dlopen("CURDIR/_conftest/../_conftest/conftest1.so",RTLD_LAZY);
+  __dump_link_map();
+}
+#else
+/* _dl_loaded isn't defined, so this should be either a libc5 (glibc1) system, or a glibc2 system that doesn't have the multiple load bug (i.e., RH6.0).*/
+int main() { printf("./conftest1.so\n"); }
+#endif
+EOF
+
+	    $PERL -p -i -e "s/CURDIR/\$ENV{_curdir}/g;" conftest.C
+
+	    cat >> conftest1.C <<\EOF
+#include <stdio.h>
+void foo(void) {printf("foo in dll called\n");}
+EOF
+	    ${CXX-g++} -fPIC -c -g conftest1.C
+	    ${CXX-g++} -shared -Wl,-h -Wl,conftest1.so -o conftest1.so conftest1.o
+	    ${CXX-g++} -g conftest.C -o conftest -ldl
+	    cp -f conftest1.so conftest _conftest
+	    cd _conftest
+	    if test `./conftest | grep conftest1.so | wc -l` -gt 1
+	    then
+		echo
+		echo "*** Your libc has a bug that can result in loading the same dynamic"
+		echo "*** library multiple times.  This bug is known to be fixed in glibc-2.0.7-32"
+		echo "*** or later.  However, if you choose not to upgrade, the only effect"
+		echo "*** will be excessive memory usage at runtime."
+		echo
+	    fi
+	    cd ${_curdir}
+	    rm -rf conftest* _conftest
+	    dnl ===================================================================
+	    ;;
+esac
+
 dnl ===================================================================
 dnl ========================================================
 dnl Put your C++ language/feature checks below
@@ -3740,6 +3889,42 @@ if test "$GNU_CC"; then
 fi
 AC_SUBST(HAVE_GCC3_ABI)
 
+
+AC_CACHE_CHECK(for C++ \"explicit\" keyword,
+               ac_cv_cpp_explicit,
+               [AC_TRY_COMPILE(class X {
+                               public: explicit X(int i) : i_(i) {}
+                               private: int i_;
+                               };,
+                               X x(3);,
+                               ac_cv_cpp_explicit=yes,
+                               ac_cv_cpp_explicit=no)])
+if test "$ac_cv_cpp_explicit" = yes ; then
+   AC_DEFINE(HAVE_CPP_EXPLICIT)
+fi
+
+AC_CACHE_CHECK(for C++ \"typename\" keyword,
+               ac_cv_cpp_typename,
+               [AC_TRY_COMPILE(class param {
+                               public:
+                                   typedef unsigned long num_type;
+                               };
+
+                               template <class T> class tplt {
+                               public:
+                                   typedef typename T::num_type t_num_type;
+                                   t_num_type foo(typename T::num_type num) {
+                                       return num;
+                                   }
+                               };,
+                               tplt<param> A;
+                               A.foo(0);,
+                               ac_cv_cpp_typename=yes,
+                               ac_cv_cpp_typename=no)])
+if test "$ac_cv_cpp_typename" = yes ; then
+   AC_DEFINE(HAVE_CPP_TYPENAME)
+fi
+
 dnl Check for support of modern template specialization syntax
 dnl Test code and requirement from scc@netscape.com.
 dnl Autoconf cut-and-paste job by waterson@netscape.com
@@ -3769,10 +3954,113 @@ if test "$ac_cv_cpp_partial_specialization" = yes ; then
   AC_DEFINE(HAVE_CPP_PARTIAL_SPECIALIZATION)
 fi
 
+dnl Some compilers have limited support for operators with templates;
+dnl specifically, it is necessary to define derived operators when a base
+dnl class's operator declaration should suffice.
+AC_CACHE_CHECK(whether operators must be re-defined for templates derived from templates,
+               ac_cv_need_derived_template_operators,
+               [AC_TRY_COMPILE([template <class T> class Base { };
+                                template <class T>
+                                Base<T> operator+(const Base<T>& lhs, const Base<T>& rhs) { return lhs; }
+                                template <class T> class Derived : public Base<T> { };],
+                               [Derived<char> a, b;
+                                Base<char> c = a + b;
+                                return 0;],
+                               ac_cv_need_derived_template_operators=no,
+                               ac_cv_need_derived_template_operators=yes)])
+if test "$ac_cv_need_derived_template_operators" = yes ; then
+  AC_DEFINE(NEED_CPP_DERIVED_TEMPLATE_OPERATORS)
+fi
+
+
+dnl Some compilers have trouble detecting that a template class
+dnl that derives from another template is actually an instance
+dnl of the base class. This test checks for that.
+AC_CACHE_CHECK(whether we need to cast a derived template to pass as its base class,
+               ac_cv_need_cpp_template_cast_to_base,
+               [AC_TRY_COMPILE([template <class T> class Base { };
+                                template <class T> class Derived : public Base<T> { };
+                                template <class T> int foo(const Base<T>&) { return 0; }],
+                               [Derived<char> bar; return foo(bar);],
+                               ac_cv_need_cpp_template_cast_to_base=no,
+                               ac_cv_need_cpp_template_cast_to_base=yes)])
+if test "$ac_cv_need_cpp_template_cast_to_base" = yes ; then
+  AC_DEFINE(NEED_CPP_TEMPLATE_CAST_TO_BASE)
+fi
+
+dnl Some compilers have trouble resolving the ambiguity between two
+dnl functions whose arguments differ only by cv-qualifications.
+AC_CACHE_CHECK(whether the compiler can resolve const ambiguities for templates,
+               ac_cv_can_resolve_const_ambiguity,
+               [AC_TRY_COMPILE([
+                                template <class T> class ptrClass {
+                                  public: T* ptr;
+                                };
+
+                                template <class T> T* a(ptrClass<T> *arg) {
+                                  return arg->ptr;
+                                }
+
+                                template <class T>
+                                const T* a(const ptrClass<T> *arg) {
+                                  return arg->ptr;
+                                }
+                               ],
+                               [ ptrClass<int> i;
+                                 a(&i); ],
+                               ac_cv_can_resolve_const_ambiguity=yes,
+                               ac_cv_can_resolve_const_ambiguity=no)])
+if test "$ac_cv_can_resolve_const_ambiguity" = no ; then
+  AC_DEFINE(CANT_RESOLVE_CPP_CONST_AMBIGUITY)
+fi
+
+dnl
+dnl We don't do exceptions on unix.  The only reason this used to be here
+dnl is that mozilla/xpcom/tests/TestCOMPtr.cpp has a test which uses 
+dnl exceptions.  But, we turn exceptions off by default and this test breaks.
+dnl So im commenting this out until someone writes some artificial 
+dnl intelligence to detect not only if the compiler has exceptions, but if 
+dnl they are enabled as well.
+dnl 
+dnl AC_CACHE_CHECK(for C++ \"exceptions\",
+dnl                ac_cv_cpp_exceptions,
+dnl                [AC_TRY_COMPILE(class X { public: X() {} };
+dnl                                static void F() { throw X(); },
+dnl                                try { F(); } catch(X & e) { },
+dnl                                ac_cv_cpp_exceptions=yes,
+dnl                                ac_cv_cpp_exceptions=no)])
+dnl if test $ac_cv_cpp_exceptions = yes ; then
+dnl    AC_DEFINE(HAVE_CPP_EXCEPTIONS)
+dnl fi
+
+dnl Some compilers have marginal |using| support; for example, gcc-2.7.2.3
+dnl supports it well enough to allow us to use it to change access, but not
+dnl to resolve ambiguity. The next two tests determine how well the |using|
+dnl keyword is supported.
+dnl
+dnl Check to see if we can change access with |using|.  Test both a
+dnl legal and an illegal example.
+AC_CACHE_CHECK(whether the C++ \"using\" keyword can change access,
+               ac_cv_cpp_access_changing_using2,
+               [AC_TRY_COMPILE(
+                   class A { protected: int foo() { return 0; } };
+                   class B : public A { public: using A::foo; };,
+                   B b; return b.foo();,
+                   [AC_TRY_COMPILE(
+                       class A { public: int foo() { return 1; } };
+                       class B : public A { private: using A::foo; };,
+                       B b; return b.foo();,
+                       ac_cv_cpp_access_changing_using2=no,
+                       ac_cv_cpp_access_changing_using2=yes)],
+                   ac_cv_cpp_access_changing_using2=no)])
+if test "$ac_cv_cpp_access_changing_using2" = yes ; then
+   AC_DEFINE(HAVE_CPP_ACCESS_CHANGING_USING)
+fi
+
 dnl Check to see if we can resolve ambiguity with |using|.
 AC_CACHE_CHECK(whether the C++ \"using\" keyword resolves ambiguity,
                ac_cv_cpp_ambiguity_resolving_using,
-               [AC_TRY_COMPILE(class X {
+               [AC_TRY_COMPILE(class X { 
                                  public: int go(const X&) {return 3;}
                                          int jo(const X&) {return 3;}
                                };
@@ -3787,6 +4075,48 @@ AC_CACHE_CHECK(whether the C++ \"using\" keyword resolves ambiguity,
                                ac_cv_cpp_ambiguity_resolving_using=no)])
 if test "$ac_cv_cpp_ambiguity_resolving_using" = yes ; then
    AC_DEFINE(HAVE_CPP_AMBIGUITY_RESOLVING_USING)
+fi
+
+dnl Check to see if the |std| namespace is supported. If so, we'll want
+dnl to qualify any standard library calls with "std::" to ensure that
+dnl those functions can be resolved.
+AC_CACHE_CHECK(for \"std::\" namespace,
+               ac_cv_cpp_namespace_std,
+               [AC_TRY_COMPILE([#include <algorithm>],
+                               [return std::min(0, 1);],
+                               ac_cv_cpp_namespace_std=yes,
+                               ac_cv_cpp_namespace_std=no)])
+if test "$ac_cv_cpp_namespace_std" = yes ; then
+   AC_DEFINE(HAVE_CPP_NAMESPACE_STD)
+fi
+
+dnl Older compilers are overly ambitious with respect to using the standard
+dnl template library's |operator!=()| when |operator==()| is defined. In
+dnl which case, defining |operator!=()| in addition to |operator==()| causes
+dnl ambiguity at compile-time. This test checks for that case.
+AC_CACHE_CHECK(whether standard template operator!=() is ambiguous,
+               ac_cv_cpp_unambiguous_std_notequal,
+               [AC_TRY_COMPILE([#include <algorithm>
+                                struct T1 {};
+                                int operator==(const T1&, const T1&) { return 0; }
+                                int operator!=(const T1&, const T1&) { return 0; }],
+                               [T1 a,b; return a != b;],
+                               ac_cv_cpp_unambiguous_std_notequal=unambiguous,
+                               ac_cv_cpp_unambiguous_std_notequal=ambiguous)])
+if test "$ac_cv_cpp_unambiguous_std_notequal" = unambiguous ; then
+  AC_DEFINE(HAVE_CPP_UNAMBIGUOUS_STD_NOTEQUAL)
+fi
+
+
+AC_CACHE_CHECK(for C++ reinterpret_cast,
+               ac_cv_cpp_reinterpret_cast,
+               [AC_TRY_COMPILE(struct X { int i; };
+                               struct Y { int i; };,
+                               X x; X*const z = &x;Y*y = reinterpret_cast<Y*>(z);,
+                               ac_cv_cpp_reinterpret_cast=yes,
+                               ac_cv_cpp_reinterpret_cast=no)])
+if test "$ac_cv_cpp_reinterpret_cast" = yes ; then
+   AC_DEFINE(HAVE_CPP_NEW_CASTS)
 fi
 
 dnl See if a dynamic_cast to void* gives the most derived object.
@@ -3847,11 +4177,8 @@ if test "$ac_cv_trouble_comparing_to_zero" = yes ; then
 fi
 
 # try harder, when checking for __thread support, see bug 521750 comment #33 and below
-# We pass MOZ_OPTIMIZE_LDFLAGS to the linker because if dead_strip is
-# enabled, the linker in xcode 4.1 will crash. Without this it would crash when
-# linking XUL.
 _SAVE_LDFLAGS=$LDFLAGS
-LDFLAGS="$LDFLAGS $DSO_PIC_CFLAGS $DSO_LDOPTS $MOZ_OPTIMIZE_LDFLAGS"
+LDFLAGS="$LDFLAGS $DSO_PIC_CFLAGS $DSO_LDOPTS"
 AC_CACHE_CHECK(for __thread keyword for TLS variables,
                ac_cv_thread_keyword,
                [AC_TRY_LINK([__thread bool tlsIsMainThread = false;],
@@ -3921,7 +4248,7 @@ AC_CACHE_CHECK(for __attribute__((noreturn)),
                                [],
                                ac_cv_attribute_noreturn=yes,
                                ac_cv_attribute_noreturn=no)])
-
+ 
 dnl End of C++ language/feature checks
 AC_LANG_C
 
@@ -4054,25 +4381,6 @@ if test -n "$MOZ_NATIVE_NSPR"; then
 fi
 
 dnl ========================================================
-dnl system libffi Support
-dnl ========================================================
-MOZ_ARG_ENABLE_BOOL(system-ffi,
-[  --enable-system-ffi       Use system libffi (located with pkgconfig)],
-    MOZ_NATIVE_FFI=1 )
-
-if test -n "$MOZ_NATIVE_FFI"; then
-    # Vanilla libffi 3.0.9 needs a few patches from upcoming version 3.0.10
-    # for non-GCC compilers.
-    if test -z "$GNU_CC"; then
-        PKG_CHECK_MODULES(MOZ_FFI, libffi > 3.0.9)
-    else
-        PKG_CHECK_MODULES(MOZ_FFI, libffi >= 3.0.9)
-    fi
-fi
-
-AC_SUBST(MOZ_NATIVE_FFI)
-
-dnl ========================================================
 dnl =
 dnl = Application
 dnl =
@@ -4104,7 +4412,7 @@ fi
 dnl ========================================================
 dnl =
 dnl = Components & Features
-dnl =
+dnl = 
 dnl ========================================================
 MOZ_ARG_HEADER(Components and Features)
 
@@ -4137,17 +4445,14 @@ dnl = ARM toolchain tweaks
 dnl ========================================================
 
 dnl Defaults
-case "${CPU_ARCH}-${OS_TARGET}" in
-arm-Android)
+case "${target}" in
+arm-android*|arm-linuxandroid*)
     MOZ_THUMB=yes
     MOZ_ARCH=armv7-a
     MOZ_FPU=vfp
     MOZ_FLOAT_ABI=softfp
     ;;
-arm-Darwin)
-    MOZ_THUMB=yes
-    ;;
-arm-*)
+arm*-*)
     if test -n "$MOZ_PLATFORM_MAEMO"; then
         MOZ_THUMB=no
         MOZ_ARCH=armv7-a
@@ -4337,7 +4642,7 @@ AC_SUBST(HAVE_ARM_NEON)
 dnl ========================================================
 dnl =
 dnl = Debugging Options
-dnl =
+dnl = 
 dnl ========================================================
 MOZ_ARG_HEADER(Debugging and Optimizations)
 
@@ -4378,7 +4683,7 @@ if test -n "$MOZ_DEBUG"; then
     AC_MSG_CHECKING([for valid debug flags])
     _SAVE_CFLAGS=$CFLAGS
     CFLAGS="$CFLAGS $MOZ_DEBUG_FLAGS"
-    AC_TRY_COMPILE([#include <stdio.h>],
+    AC_TRY_COMPILE([#include <stdio.h>], 
         [printf("Hello World\n");],
         _results=yes,
         _results=no)
@@ -4414,7 +4719,7 @@ if test -n "$MOZ_OPTIMIZE"; then
     AC_MSG_CHECKING([for valid optimization flags])
     _SAVE_CFLAGS=$CFLAGS
     CFLAGS="$CFLAGS $MOZ_OPTIMIZE_FLAGS"
-    AC_TRY_COMPILE([#include <stdio.h>],
+    AC_TRY_COMPILE([#include <stdio.h>], 
         [printf("Hello World\n");],
         _results=yes,
         _results=no)
@@ -4508,7 +4813,7 @@ fi
 
 if test "$MOZ_MEMORY"; then
 
-  dnl Don't try to run compiler tests on Windows
+  dnl Don't try to run compiler tests on Windows  
   if test "$OS_ARCH" = "WINNT"; then
     if test -z "$HAVE_64BIT_OS"; then
       AC_DEFINE_UNQUOTED([MOZ_MEMORY_SIZEOF_PTR_2POW], 2)
@@ -4657,9 +4962,7 @@ if test -n "$MOZ_VALGRIND"; then
         AC_MSG_ERROR(
             [--enable-valgrind specified but Valgrind is not installed]))
     AC_DEFINE(MOZ_VALGRIND)
-    MOZ_VALGRIND=1
 fi
-AC_SUBST(MOZ_VALGRIND)
 
 dnl ========================================================
 dnl jprof
@@ -4689,11 +4992,10 @@ dnl ========================================================
 dnl callgrind
 dnl ========================================================
 MOZ_ARG_ENABLE_BOOL(callgrind,
-[  --enable-callgrind      Enable callgrind profiling. Implies --enable-profiling.],
+[  --enable-callgrind      Enable callgrind profiling],
     MOZ_CALLGRIND=1,
     MOZ_CALLGRIND= )
 if test -n "$MOZ_CALLGRIND"; then
-    MOZ_PROFILING=1
     AC_DEFINE(MOZ_CALLGRIND)
 fi
 
@@ -4707,27 +5009,6 @@ MOZ_ARG_ENABLE_BOOL(vtune,
 if test -n "$MOZ_VTUNE"; then
     MOZ_PROFILING=1
     AC_DEFINE(MOZ_VTUNE)
-fi
-
-dnl ========================================================
-dnl ETW - Event Tracing for Windows
-dnl ========================================================
-MOZ_ARG_ENABLE_BOOL(ETW,
-[  --enable-ETW            Enable ETW (Event Tracing for Windows) event reporting
-                          (needs Windows Vista+ SDK)],
-    MOZ_ETW=1,
-    MOZ_ETW= )
-if test -n "$MOZ_ETW"; then
-    AC_DEFINE(MOZ_ETW)
-    WINVER=600
-fi
-
-if test -n "$MOZ_ETW"; then
-    if test -z "$MOZ_WINSDK_TARGETVER"; then
-        AC_MSG_ERROR([--enable-ETW is only valid on Windows])
-    elif test "$MOZ_WINSDK_TARGETVER" -lt "06000000"; then
-        AC_MSG_ERROR([--enable-ETW requires the Windows Vista SDK or newer])
-    fi
 fi
 
 dnl ========================================================
@@ -4746,18 +5027,6 @@ MOZ_ARG_ENABLE_BOOL(gczeal,
     JS_GC_ZEAL= )
 if test -n "$JS_GC_ZEAL"; then
     AC_DEFINE(JS_GC_ZEAL)
-fi
-
-dnl ========================================================
-dnl JS opt-mode assertions and minidump instrumentation
-dnl ========================================================
-MOZ_ARG_ENABLE_BOOL(js-diagnostics,
-[  --enable-js-diagnostics
-                          Enable JS diagnostic assertions and breakpad data],
-    JS_CRASH_DIAGNOSTICS=1,
-    JS_CRASH_DIAGNOSTICS= )
-if test -n "$JS_CRASH_DIAGNOSTICS"; then
-    AC_DEFINE(JS_CRASH_DIAGNOSTICS)
 fi
 
 dnl ======================================================
@@ -4822,11 +5091,24 @@ MOZ_ARG_ENABLE_BOOL(install-strip,
     PKG_SKIP_STRIP=1)
 
 dnl ========================================================
-dnl =
+dnl = 
 dnl = Profiling and Instrumenting
-dnl =
+dnl = 
 dnl ========================================================
 MOZ_ARG_HEADER(Profiling and Instrumenting)
+
+dnl ========================================================
+dnl = Enable timeline service, which provides lightweight
+dnl = instrumentation of mozilla for performance measurement.
+dnl = Timeline is off by default.
+dnl ========================================================
+MOZ_ARG_ENABLE_BOOL(timeline,
+[  --enable-timeline       Enable timeline services ],
+    MOZ_TIMELINE=1,
+    MOZ_TIMELINE= )
+if test -n "$MOZ_TIMELINE"; then
+    AC_DEFINE(MOZ_TIMELINE)
+fi
 
 dnl ========================================================
 dnl = Support for Quantify (Windows)
@@ -4864,7 +5146,7 @@ fi
 dnl ========================================================
 dnl =
 dnl = Misc. Options
-dnl =
+dnl = 
 dnl ========================================================
 MOZ_ARG_HEADER(Misc. Options)
 
@@ -4880,7 +5162,7 @@ if test -z "$SKIP_COMPILER_CHECKS"; then
 dnl ========================================================
 dnl =
 dnl = Compiler Options
-dnl =
+dnl = 
 dnl ========================================================
 MOZ_ARG_HEADER(Compiler Options)
 
@@ -4993,6 +5275,36 @@ if test "$_PEDANTIC"; then
 fi
 
 dnl ========================================================
+dnl Test for correct temporary object destruction order
+dnl ========================================================
+dnl We want to make sure the compiler follows the C++ spec here as 
+dnl xpcom and the string classes depend on it (bug 235381).
+AC_MSG_CHECKING([for correct temporary object destruction order])
+AC_TRY_RUN([ class A {
+             public:  A(int& x) : mValue(x) {}
+                      ~A() { mValue--; }
+                      operator char**() { return 0; }
+             private:  int& mValue;
+             };
+             void func(char **arg) {}
+             int m=2;
+             void test() {
+                  func(A(m));
+                  if (m==1) m = 0;
+             }
+             int main() {
+                 test();
+                 return(m);
+             }
+             ],
+     result="yes", result="no", result="maybe")
+AC_MSG_RESULT([$result])
+
+if test "$result" = "no"; then
+    AC_MSG_ERROR([Your compiler does not follow the C++ specification for temporary object destruction order.])
+fi
+
+dnl ========================================================
 dnl Autoconf test for gcc 2.7.2.x (and maybe others?) so that we don't
 dnl provide non-const forms of the operator== for comparing nsCOMPtrs to
 dnl raw pointers in nsCOMPtr.h.  (VC++ has the same bug.)
@@ -5008,13 +5320,13 @@ AC_CACHE_CHECK(for correct overload resolution with const and templates,
                         public:
                           T* myPtr;
                         };
-
+                      
                       template <class T, class U>
                       int operator==(const Pointer<T>& rhs, U* lhs)
                         {
                           return rhs.myPtr == lhs;
                         }
-
+                      
                       template <class T, class U>
                       int operator==(const Pointer<T>& rhs, const U* lhs)
                         {
@@ -5066,7 +5378,7 @@ fi
 AC_SUBST(_MOZ_RTTI_FLAGS_ON)
 
 dnl ========================================================
-dnl C++ exceptions (g++/VC/Sun only - for now)
+dnl C++ exceptions (g++/VC/irix6/Sun only - for now)
 dnl Should be smarter and check that the compiler does indeed have exceptions
 dnl ========================================================
 MOZ_ARG_ENABLE_BOOL(cpp-exceptions,
@@ -5083,9 +5395,9 @@ fi
 
 AC_SUBST(_MOZ_EXCEPTIONS_FLAGS_ON)
 
-# OSF native compilers do not like exception declarations
+# Irix & OSF native compilers do not like exception declarations 
 # when exceptions are disabled
-if test -n "$COMPAQ_CXX" -o -n "$VACPP"; then
+if test -n "$MIPSPRO_CXX" -o -n "$COMPAQ_CXX" -o -n "$VACPP"; then
     AC_DEFINE(CPP_THROW_NEW, [])
 else
     AC_DEFINE(CPP_THROW_NEW, [throw()])
@@ -5242,7 +5554,7 @@ AC_SUBST(EDITLINE_LIBS)
 dnl ========================================================
 dnl =
 dnl = Standalone module options
-dnl =
+dnl = 
 dnl ========================================================
 MOZ_ARG_HEADER(Standalone module options (Not for building Mozilla))
 
@@ -5292,7 +5604,6 @@ AC_SUBST(AS_DASH_C_FLAG)
 AC_SUBST(LD)
 AC_SUBST(RC)
 AC_SUBST(RCFLAGS)
-AC_SUBST(MC)
 AC_SUBST(WINDRES)
 AC_SUBST(IMPLIB)
 AC_SUBST(FILTER)
@@ -5312,7 +5623,6 @@ AC_SUBST(MOZ_JPROF)
 AC_SUBST(MOZ_SHARK)
 AC_SUBST(MOZ_CALLGRIND)
 AC_SUBST(MOZ_VTUNE)
-AC_SUBST(MOZ_ETW)
 AC_SUBST(MOZ_PROFILING)
 AC_SUBST(MOZ_QUANTIFY)
 AC_SUBST(LIBICONV)
@@ -5334,6 +5644,7 @@ AC_SUBST(MOZ_OS2_TOOLS)
 
 AC_SUBST(MOZ_POST_DSO_LIB_COMMAND)
 AC_SUBST(MOZ_POST_PROGRAM_COMMAND)
+AC_SUBST(MOZ_TIMELINE)
 
 AC_SUBST(MOZ_APP_NAME)
 AC_SUBST(MOZ_APP_DISPLAYNAME)
@@ -5480,7 +5791,7 @@ if test "$MOZ_X11"; then
             fprintf(stderr, ": can't open %s\n", XDisplayName(NULL));
             exit(1);
         }
-    ], [],
+    ], [], 
     [ AC_MSG_ERROR([Could not compile basic X program.]) ])
     CFLAGS="$_SAVE_CFLAGS"
 
@@ -5567,19 +5878,10 @@ if test -n "$_NON_GLOBAL_ACDEFINES"; then
     done
 fi
 _EGREP_PATTERN="${_EGREP_PATTERN}dummy_never_defined)"
-
+ 
   sort confdefs.h | egrep -v "$_EGREP_PATTERN" >> $_CONFIG_TMP
 
-  if test "$?" != 0; then
-    AC_MSG_ERROR([Error outputting config definitions])
-  fi
-
   cat >> $_CONFIG_TMP <<\EOF
-
-/* The c99 defining the limit macros (UINT32_MAX for example), says:
- * C++ implementations should define these macros only when __STDC_LIMIT_MACROS
- * is defined before <stdint.h> is included. */
-#define __STDC_LIMIT_MACROS
 
 #endif /* _JS_CONFDEFS_H_ */
 
@@ -5600,9 +5902,6 @@ dnl Probably shouldn't call this manually but we always want the output of DEFS
 rm -f confdefs.h.save
 mv confdefs.h confdefs.h.save
 egrep -v "$_EGREP_PATTERN" confdefs.h.save > confdefs.h
-if test "$?" != 0; then
-  AC_MSG_ERROR([Error outputting confdefs.h])
-fi
 AC_OUTPUT_MAKE_DEFS()
 MOZ_DEFINES=$DEFS
 AC_SUBST(MOZ_DEFINES)
@@ -5627,7 +5926,7 @@ editline/Makefile
 "
 fi
 
-dnl
+dnl 
 dnl Run a perl script to quickly create the makefiles.
 dnl If it succeeds, it outputs a shell command to set CONFIG_FILES
 dnl   for the files it cannot handle correctly. This way, config.status
@@ -5660,7 +5959,7 @@ AC_MSG_RESULT(invoking make to create js-config script)
 $GMAKE js-config
 
 # Build jsctypes if it's enabled.
-if test "$JS_HAS_CTYPES" -a -z "$MOZ_NATIVE_FFI"; then
+if test "$JS_HAS_CTYPES"; then
   # Run the libffi 'configure' script.
   ac_configure_args="--disable-shared --enable-static --disable-raw-api"
   if test "$MOZ_DEBUG"; then

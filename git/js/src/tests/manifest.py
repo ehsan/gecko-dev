@@ -32,7 +32,7 @@ class XULInfo:
             self.os,
             self.abi,
             str(self.isdebug).lower(),
-            str(self.os == "Android").lower())
+            self.os == "Android")
 
     @classmethod
     def create(cls, jsdir):

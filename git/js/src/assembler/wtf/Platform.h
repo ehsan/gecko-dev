@@ -329,7 +329,7 @@
 /* WTF_CPU_ARMV5_OR_LOWER - ARM instruction set v5 or earlier */
 /* On ARMv5 and below the natural alignment is required. 
    And there are some other differences for v5 or earlier. */
-#if !defined(ARMV5_OR_LOWER) && WTF_CPU_ARM && !(WTF_ARM_ARCH_VERSION >= 6)
+#if !defined(ARMV5_OR_LOWER) && WTF_CPU_ARM && WTF_ARM_ARCH_VERSION >= 6
 #define WTF_CPU_ARMV5_OR_LOWER 1
 #endif
 
@@ -476,11 +476,6 @@
     || defined(__unix)      \
     || defined(__unix__)
 #define WTF_OS_UNIX 1
-#endif
-
-/* WTF_OS_OS2 - OS/2 */
-#if defined (__OS2__)
-#define WTF_OS_OS2 1
 #endif
 
 /* Operating environments */
@@ -851,18 +846,6 @@
 #define HAVE_SYS_PARAM_H 1
 #define HAVE_SYS_TIME_H 1
 
-#elif WTF_OS_OS2
-
-#define USE_SYSTEM_MALLOC 1
-#define HAVE_ERRNO_H 1
-#define HAVE_LANGINFO_H 1
-#define HAVE_MMAP 0
-#define HAVE_POSIX_MEMALIGN 1
-#define HAVE_SBRK 1
-#define HAVE_SYS_PARAM_H 1
-#define HAVE_SYS_TIME_H 1
-#define HAVE_STRINGS_H 1
-
 #else
 
 /* FIXME: is this actually used or do other platforms generate their own config.h? */
@@ -1026,9 +1009,9 @@
 #define ENABLE_JIT 0
 #endif
 
-/* The JIT is enabled by default on all x86, x64-64, ARM platforms. */
+/* The JIT is enabled by default on all x86, x64-64, ARM & MIPS platforms. */
 #if !defined(ENABLE_JIT) \
-    && (WTF_CPU_X86 || WTF_CPU_X86_64 || WTF_CPU_ARM || WTF_CPU_SPARC32) \
+    && (WTF_CPU_X86 || WTF_CPU_X86_64 || WTF_CPU_ARM || WTF_CPU_MIPS || WTF_CPU_SPARC32) \
     && (WTF_OS_DARWIN || !WTF_COMPILER_GCC || GCC_VERSION_AT_LEAST(4, 1, 0)) \
     && !WTF_OS_WINCE
 #define ENABLE_JIT 1
@@ -1115,8 +1098,7 @@
 /* Setting this flag prevents the assembler from using RWX memory; this may improve
    security but currectly comes at a significant performance cost. */
 #if WTF_PLATFORM_IOS
-//XXX: this doesn't currently compile in the spidermonkey build
-#define ENABLE_ASSEMBLER_WX_EXCLUSIVE 0
+#define ENABLE_ASSEMBLER_WX_EXCLUSIVE 1
 #endif
 
 /* Pick which allocator to use; we only need an executable allocator if the assembler is compiled in.

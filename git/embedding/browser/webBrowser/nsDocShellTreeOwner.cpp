@@ -72,7 +72,7 @@
 #include "nsIDOMSVGTitleElement.h"
 #include "nsIDOMEvent.h"
 #include "nsIDOMMouseEvent.h"
-#include "nsIDOMNSEvent.h"
+#include "nsIDOMNSUIEvent.h"
 #include "nsIDOMNamedNodeMap.h"
 #include "nsIFormControl.h"
 #include "nsIDOMHTMLInputElement.h"
@@ -887,13 +887,15 @@ nsDocShellTreeOwner::AddChromeListeners()
   GetDOMEventTarget(mWebBrowser, getter_AddRefs(target));
 
   nsEventListenerManager* elmP = target->GetListenerManager(PR_TRUE);
-  if (elmP) {
-    elmP->AddEventListenerByType(this, NS_LITERAL_STRING("dragover"),
-                                 NS_EVENT_FLAG_BUBBLE |
-                                 NS_EVENT_FLAG_SYSTEM_EVENT);
-    elmP->AddEventListenerByType(this, NS_LITERAL_STRING("drop"),
-                                 NS_EVENT_FLAG_BUBBLE |
-                                 NS_EVENT_FLAG_SYSTEM_EVENT);
+  if (elmP)
+  {
+    rv = elmP->AddEventListenerByType(this, NS_LITERAL_STRING("dragover"),
+                                      NS_EVENT_FLAG_BUBBLE |
+                                      NS_EVENT_FLAG_SYSTEM_EVENT);
+    NS_ENSURE_SUCCESS(rv, rv);
+    rv = elmP->AddEventListenerByType(this, NS_LITERAL_STRING("drop"),
+                                      NS_EVENT_FLAG_BUBBLE |
+                                      NS_EVENT_FLAG_SYSTEM_EVENT);
   }
 
   return rv;
@@ -938,10 +940,10 @@ nsDocShellTreeOwner::HandleEvent(nsIDOMEvent* aEvent)
   nsCOMPtr<nsIDOMDragEvent> dragEvent = do_QueryInterface(aEvent);
   NS_ENSURE_TRUE(dragEvent, NS_ERROR_INVALID_ARG);
 
-  nsCOMPtr<nsIDOMNSEvent> domNSEvent = do_QueryInterface(aEvent);
-  if (domNSEvent) {
+  nsCOMPtr<nsIDOMNSUIEvent> nsuiEvent = do_QueryInterface(aEvent);
+  if (nsuiEvent) {
     PRBool defaultPrevented;
-    domNSEvent->GetPreventDefault(&defaultPrevented);
+    nsuiEvent->GetPreventDefault(&defaultPrevented);
     if (defaultPrevented)
       return NS_OK;
   }
@@ -978,37 +980,49 @@ nsDocShellTreeOwner::HandleEvent(nsIDOMEvent* aEvent)
 already_AddRefed<nsIWebBrowserChrome>
 nsDocShellTreeOwner::GetWebBrowserChrome()
 {
-  nsCOMPtr<nsIWebBrowserChrome> chrome;
-  if (mWebBrowserChromeWeak) {
-    chrome = do_QueryReferent(mWebBrowserChromeWeak);
+  nsIWebBrowserChrome* chrome = nsnull;
+  if (mWebBrowserChromeWeak != nsnull) {
+    mWebBrowserChromeWeak->
+                        QueryReferent(NS_GET_IID(nsIWebBrowserChrome),
+                                      reinterpret_cast<void**>(&chrome));
   } else if (mWebBrowserChrome) {
     chrome = mWebBrowserChrome;
+    NS_ADDREF(mWebBrowserChrome);
   }
-  return chrome.forget();
+
+  return chrome;
 }
 
 already_AddRefed<nsIEmbeddingSiteWindow>
 nsDocShellTreeOwner::GetOwnerWin()
 {
-  nsCOMPtr<nsIEmbeddingSiteWindow> win;
-  if (mWebBrowserChromeWeak) {
-    win = do_QueryReferent(mWebBrowserChromeWeak);
+  nsIEmbeddingSiteWindow* win = nsnull;
+  if (mWebBrowserChromeWeak != nsnull) {
+    mWebBrowserChromeWeak->
+                        QueryReferent(NS_GET_IID(nsIEmbeddingSiteWindow),
+                                      reinterpret_cast<void**>(&win));
   } else if (mOwnerWin) {
     win = mOwnerWin;
+    NS_ADDREF(mOwnerWin);
   }
-  return win.forget();
+
+  return win;
 }
 
 already_AddRefed<nsIInterfaceRequestor>
 nsDocShellTreeOwner::GetOwnerRequestor()
 {
-  nsCOMPtr<nsIInterfaceRequestor> req;
-  if (mWebBrowserChromeWeak) {
-    req = do_QueryReferent(mWebBrowserChromeWeak);
+  nsIInterfaceRequestor* req = nsnull;
+  if (mWebBrowserChromeWeak != nsnull) {
+    mWebBrowserChromeWeak->
+                        QueryReferent(NS_GET_IID(nsIInterfaceRequestor),
+                                      reinterpret_cast<void**>(&req));
   } else if (mOwnerRequestor) {
     req = mOwnerRequestor;
+    NS_ADDREF(mOwnerRequestor);
   }
-  return req.forget();
+
+  return req;
 }
 
 
@@ -1684,11 +1698,11 @@ ChromeContextMenuListener::HandleEvent(nsIDOMEvent* aMouseEvent)
   nsCOMPtr<nsIDOMMouseEvent> mouseEvent = do_QueryInterface(aMouseEvent);
   NS_ENSURE_TRUE(mouseEvent, NS_ERROR_UNEXPECTED);
 
-  nsCOMPtr<nsIDOMNSEvent> domNSEvent = do_QueryInterface(aMouseEvent);
+  nsCOMPtr<nsIDOMNSUIEvent> uievent(do_QueryInterface(aMouseEvent));
 
-  if (domNSEvent) {
+  if (uievent) {
     PRBool isDefaultPrevented = PR_FALSE;
-    domNSEvent->GetPreventDefault(&isDefaultPrevented);
+    uievent->GetPreventDefault(&isDefaultPrevented);
 
     if (isDefaultPrevented) {
       return NS_OK;

@@ -78,7 +78,7 @@
 #include "nsIPresShell.h"
 #include "nsCSSRendering.h"
 #include "nsIServiceManager.h"
-#include "nsBoxLayout.h"
+#include "nsIBoxLayout.h"
 #include "nsSprocketLayout.h"
 #include "nsIDocument.h"
 #include "nsIScrollableFrame.h"
@@ -120,7 +120,7 @@ nsIBox* nsBoxFrame::mDebugChild = nsnull;
 #endif
 
 nsIFrame*
-NS_NewBoxFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRBool aIsRoot, nsBoxLayout* aLayoutManager)
+NS_NewBoxFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRBool aIsRoot, nsIBoxLayout* aLayoutManager)
 {
   return new (aPresShell) nsBoxFrame(aPresShell, aContext, aIsRoot, aLayoutManager);
 }
@@ -136,7 +136,7 @@ NS_IMPL_FRAMEARENA_HELPERS(nsBoxFrame)
 nsBoxFrame::nsBoxFrame(nsIPresShell* aPresShell,
                        nsStyleContext* aContext,
                        PRBool aIsRoot,
-                       nsBoxLayout* aLayoutManager) :
+                       nsIBoxLayout* aLayoutManager) :
   nsContainerFrame(aContext)
 {
   mState |= NS_STATE_IS_HORIZONTAL;
@@ -149,7 +149,7 @@ nsBoxFrame::nsBoxFrame(nsIPresShell* aPresShell,
   mHalign = hAlign_Left;
   
   // if no layout manager specified us the static sprocket layout
-  nsCOMPtr<nsBoxLayout> layout = aLayoutManager;
+  nsCOMPtr<nsIBoxLayout> layout = aLayoutManager;
 
   if (layout == nsnull) {
     NS_NewSprocketLayout(aPresShell, layout);
@@ -163,10 +163,10 @@ nsBoxFrame::~nsBoxFrame()
 }
 
 NS_IMETHODIMP
-nsBoxFrame::SetInitialChildList(ChildListID     aListID,
+nsBoxFrame::SetInitialChildList(nsIAtom*        aListName,
                                 nsFrameList&    aChildList)
 {
-  nsresult r = nsContainerFrame::SetInitialChildList(aListID, aChildList);
+  nsresult r = nsContainerFrame::SetInitialChildList(aListName, aChildList);
   if (r == NS_OK) {
     // initialize our list of infos.
     nsBoxLayoutState state(PresContext());
@@ -995,10 +995,10 @@ nsBoxFrame::MarkIntrinsicWidthsDirty()
 }
 
 NS_IMETHODIMP
-nsBoxFrame::RemoveFrame(ChildListID     aListID,
+nsBoxFrame::RemoveFrame(nsIAtom*        aListName,
                         nsIFrame*       aOldFrame)
 {
-  NS_PRECONDITION(aListID == kPrincipalList, "We don't support out-of-flow kids");
+  NS_PRECONDITION(!aListName, "We don't support out-of-flow kids");
   nsPresContext* presContext = PresContext();
   nsBoxLayoutState state(presContext);
 
@@ -1020,7 +1020,7 @@ nsBoxFrame::RemoveFrame(ChildListID     aListID,
 }
 
 NS_IMETHODIMP
-nsBoxFrame::InsertFrames(ChildListID     aListID,
+nsBoxFrame::InsertFrames(nsIAtom*        aListName,
                          nsIFrame*       aPrevFrame,
                          nsFrameList&    aFrameList)
 {
@@ -1028,7 +1028,7 @@ nsBoxFrame::InsertFrames(ChildListID     aListID,
                 "inserting after sibling frame with different parent");
    NS_ASSERTION(!aPrevFrame || mFrames.ContainsFrame(aPrevFrame),
                 "inserting after sibling frame not in our child list");
-   NS_PRECONDITION(aListID == kPrincipalList, "We don't support out-of-flow kids");
+   NS_PRECONDITION(!aListName, "We don't support out-of-flow kids");
    nsBoxLayoutState state(PresContext());
 
    // insert the child frames
@@ -1059,10 +1059,10 @@ nsBoxFrame::InsertFrames(ChildListID     aListID,
 
 
 NS_IMETHODIMP
-nsBoxFrame::AppendFrames(ChildListID     aListID,
+nsBoxFrame::AppendFrames(nsIAtom*        aListName,
                          nsFrameList&    aFrameList)
 {
-   NS_PRECONDITION(aListID == kPrincipalList, "We don't support out-of-flow kids");
+   NS_PRECONDITION(!aListName, "We don't support out-of-flow kids");
    nsBoxLayoutState state(PresContext());
 
    // append the new frames
@@ -1097,7 +1097,7 @@ nsBoxFrame::AppendFrames(ChildListID     aListID,
 nsBoxFrame::GetContentInsertionFrame()
 {
   if (GetStateBits() & NS_STATE_BOX_WRAPS_KIDS_IN_BLOCK)
-    return GetFirstPrincipalChild()->GetContentInsertionFrame();
+    return GetFirstChild(nsnull)->GetContentInsertionFrame();
   return nsContainerFrame::GetContentInsertionFrame();
 }
 
@@ -1224,7 +1224,7 @@ nsBoxFrame::AttributeChanged(PRInt32 aNameSpaceID,
     // If our parent is not a box, there's not much we can do... but in that
     // case our ordinal doesn't matter anyway, so that's ok.
     // Also don't bother with popup frames since they are kept on the 
-    // kPopupList and RelayoutChildAtOrdinal() only handles
+    // nsGkAtoms::popupList and RelayoutChildAtOrdinal() only handles
     // principal children.
     if (parent && !(GetStateBits() & NS_FRAME_OUT_OF_FLOW) &&
         GetStyleDisplay()->mDisplay != NS_STYLE_DISPLAY_POPUP) {

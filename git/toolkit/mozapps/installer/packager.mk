@@ -90,20 +90,7 @@ JSSHELL_BINS  = \
 ifndef MOZ_NATIVE_NSPR
 JSSHELL_BINS += $(DIST)/bin/$(LIB_PREFIX)nspr4$(DLL_SUFFIX)
 ifeq ($(OS_ARCH),WINNT)
-ifdef MOZ_MEMORY
-JSSHELL_BINS += $(DIST)/bin/jemalloc$(DLL_SUFFIX)
-endif
-ifeq ($(_MSC_VER),1400)
-JSSHELL_BINS += $(DIST)/bin/Microsoft.VC80.CRT.manifest
-JSSHELL_BINS += $(DIST)/bin/msvcr80.dll
-endif
-ifeq ($(_MSC_VER),1500)
-JSSHELL_BINS += $(DIST)/bin/Microsoft.VC90.CRT.manifest
-JSSHELL_BINS += $(DIST)/bin/msvcr90.dll
-endif
-ifeq ($(_MSC_VER),1500)
-JSSHELL_BINS += $(DIST)/bin/msvcr100.dll
-endif
+JSSHELL_BINS += $(DIST)/bin/mozcrt19$(DLL_SUFFIX)
 else
 JSSHELL_BINS += \
   $(DIST)/bin/$(LIB_PREFIX)plds4$(DLL_SUFFIX) \
@@ -396,32 +383,6 @@ MAKE_SDK = $(CREATE_FINAL_TAR) - $(MOZ_APP_NAME)-sdk | bzip2 -vf > $(SDK)
 endif
 
 ifdef MOZ_OMNIJAR
-
-ifdef GENERATE_CACHE
-ifneq (1_,$(if $(CROSS_COMPILE),1,0)_$(UNIVERSAL_BINARY))
-ifdef RUN_TEST_PROGRAM
-_ABS_RUN_TEST_PROGRAM = $(call core_abspath,$(RUN_TEST_PROGRAM))
-endif
-
-ifdef LIBXUL_SDK
-PRECOMPILE_DIR=XCurProcD
-PRECOMPILE_RESOURCE=app
-PRECOMPILE_GRE=$(LIBXUL_DIST)/bin
-else
-PRECOMPILE_DIR=GreD
-PRECOMPILE_RESOURCE=gre
-PRECOMPILE_GRE=$$PWD
-endif
-
-GENERATE_CACHE = \
-  $(_ABS_RUN_TEST_PROGRAM) $(LIBXUL_DIST)/bin/xpcshell$(BIN_SUFFIX) -g "$(PRECOMPILE_GRE)" -a "$$PWD" -f $(MOZILLA_DIR)/toolkit/mozapps/installer/precompile_cache.js -e "populate_startupcache('$(PRECOMPILE_DIR)', 'omni.jar', 'startupCache.zip');" && \
-  rm -rf jsloader && \
-  $(UNZIP) startupCache.zip && \
-  rm startupCache.zip && \
-  $(ZIP) -r9m omni.jar jsloader/resource/$(PRECOMPILE_RESOURCE)
-endif
-endif
-
 GENERATE_CACHE ?= true
 
 OMNIJAR_FILES	= \
@@ -447,23 +408,19 @@ NON_OMNIJAR_FILES += \
 PACK_OMNIJAR	= \
   rm -f omni.jar components/binary.manifest && \
   grep -h '^binary-component' components/*.manifest > binary.manifest ; \
-  for m in components/*.manifest; do \
-    sed -e 's/^binary-component/\#binary-component/' $$m > tmp.manifest && \
-    mv tmp.manifest $$m; \
-  done; \
-  $(ZIP) -r9m omni.jar $(OMNIJAR_FILES) -x $(NON_OMNIJAR_FILES) && \
+  sed -e 's/^binary-component/\#binary-component/' components/components.manifest > components.manifest && \
+  mv components.manifest components && \
+  zip -r9m omni.jar $(OMNIJAR_FILES) -x $(NON_OMNIJAR_FILES) && \
   $(GENERATE_CACHE) && \
   $(OPTIMIZE_JARS_CMD) --optimize $(JARLOG_DIR_AB_CD) ./ ./ && \
   mv binary.manifest components && \
   printf "manifest components/binary.manifest\n" > chrome.manifest
 UNPACK_OMNIJAR	= \
   $(OPTIMIZE_JARS_CMD) --deoptimize $(JARLOG_DIR_AB_CD) ./ ./ && \
-  $(UNZIP) -o omni.jar && \
+  unzip -o omni.jar && \
   rm -f components/binary.manifest && \
-  for m in components/*.manifest; do \
-    sed -e 's/^\#binary-component/binary-component/' $$m > tmp.manifest && \
-    mv tmp.manifest $$m; \
-  done
+  sed -e 's/^\#binary-component/binary-component/' components/components.manifest > components.manifest && \
+  mv components.manifest components
 
 MAKE_PACKAGE	= (cd $(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH) && $(PACK_OMNIJAR)) && \
 	              (cd $(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH) && $(CREATE_PRECOMPLETE_CMD)) && $(INNER_MAKE_PACKAGE)
@@ -518,6 +475,7 @@ endif # !CROSS_COMPILE
 NO_PKG_FILES += \
 	core \
 	bsdecho \
+	gtscc \
 	js \
 	js-config \
 	jscpucfg \
@@ -572,6 +530,9 @@ endif
 
 GARBAGE		+= $(DIST)/$(PACKAGE) $(PACKAGE)
 
+ifeq ($(OS_ARCH),IRIX)
+STRIP_FLAGS	= -f
+endif
 ifeq ($(OS_ARCH),OS2)
 STRIP		= $(MOZILLA_DIR)/toolkit/mozapps/installer/os2/strip.cmd
 endif
@@ -726,9 +687,6 @@ endif
 ifdef MOZ_PKG_REMOVALS
 	$(SYSINSTALL) $(IFLAGS1) $(MOZ_PKG_REMOVALS_GEN) $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH)
 endif # MOZ_PKG_REMOVALS
-ifdef MOZ_POST_STAGING_CMD
-	cd $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH) && $(MOZ_POST_STAGING_CMD)
-endif # MOZ_POST_STAGING_CMD
 ifndef LIBXUL_SDK
 # Package JavaScript Shell
 	@echo "Packaging JavaScript Shell..."

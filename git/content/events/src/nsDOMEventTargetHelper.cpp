@@ -126,8 +126,7 @@ nsDOMEventTargetHelper::AddEventListener(const nsAString& aType,
 
   nsEventListenerManager* elm = GetListenerManager(PR_TRUE);
   NS_ENSURE_STATE(elm);
-  elm->AddEventListener(aType, aListener, aUseCapture, aWantsUntrusted);
-  return NS_OK;
+  return elm->AddEventListener(aType, aListener, aUseCapture, aWantsUntrusted);
 }
 
 NS_IMETHODIMP
@@ -205,6 +204,26 @@ nsDOMEventTargetHelper::GetListenerManager(PRBool aCreateIfNotFound)
   }
 
   return mListenerManager;
+}
+
+nsresult
+nsDOMEventTargetHelper::AddEventListenerByIID(nsIDOMEventListener *aListener,
+                                              const nsIID& aIID)
+{
+  nsEventListenerManager* elm = GetListenerManager(PR_TRUE);
+  NS_ENSURE_STATE(elm);
+  return elm->AddEventListenerByIID(aListener, aIID, NS_EVENT_FLAG_BUBBLE);
+}
+
+nsresult
+nsDOMEventTargetHelper::RemoveEventListenerByIID(nsIDOMEventListener *aListener,
+                                                 const nsIID& aIID)
+{
+  nsEventListenerManager* elm = GetListenerManager(PR_FALSE);
+  if (elm) {
+    elm->RemoveEventListenerByIID(aListener, aIID, NS_EVENT_FLAG_BUBBLE);
+  }
+  return NS_OK;
 }
 
 nsIScriptContext*

@@ -87,7 +87,9 @@
 #include "nsIDOMEventListener.h"//observe documents to send onchangenotifications
 #include "nsGUIEvent.h"
 #include "nsIDOMNSEvent.h"
+#include "nsIDOMNSUIEvent.h"
 
+#include "nsIDOMFocusListener.h" //onchange events
 #include "nsIDOMCharacterData.h" //for selection setting helper func
 #include "nsIDOMNodeList.h" //for selection setting helper func
 #include "nsIDOMRange.h" //for selection setting helper func
@@ -103,6 +105,7 @@
 #include "nsIDOMText.h" //for multiline getselection
 #include "nsNodeInfoManager.h"
 #include "nsContentCreatorFunctions.h"
+#include "nsIDOMKeyListener.h"
 #include "nsINativeKeyBindings.h"
 #include "nsIJSContextStack.h"
 #include "nsFocusManager.h"
@@ -267,7 +270,7 @@ nsTextControlFrame::CalcIntrinsicSize(nsRenderingContext* aRenderingContext,
     // been reflowed yet, so we can't get its used padding, but it shouldn't be
     // using percentage padding anyway.
     nsMargin childPadding;
-    nsIFrame* firstChild = GetFirstPrincipalChild();
+    nsIFrame* firstChild = GetFirstChild(nsnull);
     if (firstChild && firstChild->GetStylePadding()->GetPadding(childPadding)) {
       aIntrinsicSize.width += childPadding.LeftRight();
     } else {
@@ -292,7 +295,7 @@ nsTextControlFrame::CalcIntrinsicSize(nsRenderingContext* aRenderingContext,
 
   // Add in the size of the scrollbars for textarea
   if (IsTextArea()) {
-    nsIFrame* first = GetFirstPrincipalChild();
+    nsIFrame* first = GetFirstChild(nsnull);
 
     nsIScrollableFrame *scrollableFrame = do_QueryFrame(first);
     NS_ASSERTION(scrollableFrame, "Child must be scrollable");
@@ -431,13 +434,6 @@ nsTextControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
 
   // textareas are eagerly initialized
   PRBool initEagerly = !IsSingleLineTextControl();
-  if (!initEagerly) {
-    // Also, input elements which have a cached selection should get eager
-    // editor initialization.
-    nsCOMPtr<nsITextControlElement> txtCtrl = do_QueryInterface(GetContent());
-    NS_ASSERTION(txtCtrl, "Content not a text control element");
-    initEagerly = txtCtrl->HasCachedSelection();
-  }
   if (!initEagerly) {
     nsCOMPtr<nsIDOMNSHTMLElement> element = do_QueryInterface(txtCtrl);
     if (element) {
@@ -809,8 +805,7 @@ nsresult
 nsTextControlFrame::SetSelectionInternal(nsIDOMNode *aStartNode,
                                          PRInt32 aStartOffset,
                                          nsIDOMNode *aEndNode,
-                                         PRInt32 aEndOffset,
-                                         nsITextControlFrame::SelectionDirection aDirection)
+                                         PRInt32 aEndOffset)
 {
   // Create a new range to represent the new selection.
   // Note that we use a new range to avoid having to do
@@ -835,24 +830,10 @@ nsTextControlFrame::SetSelectionInternal(nsIDOMNode *aStartNode,
   selCon->GetSelection(nsISelectionController::SELECTION_NORMAL, getter_AddRefs(selection));  
   NS_ENSURE_TRUE(selection, NS_ERROR_FAILURE);
 
-  nsCOMPtr<nsISelectionPrivate> selPriv = do_QueryInterface(selection, &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsDirection direction;
-  if (aDirection == eNone) {
-    // Preserve the direction
-    direction = selPriv->GetSelectionDirection();
-  } else {
-    direction = (aDirection == eBackward) ? eDirPrevious : eDirNext;
-  }
-
   rv = selection->RemoveAllRanges();
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = selection->AddRange(range);  // NOTE: can destroy the world
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  selPriv->SetSelectionDirection(direction);
   return rv;
 }
 
@@ -925,8 +906,7 @@ nsTextControlFrame::SelectAllOrCollapseToEndOfText(PRBool aSelect)
 }
 
 nsresult
-nsTextControlFrame::SetSelectionEndPoints(PRInt32 aSelStart, PRInt32 aSelEnd,
-                                          nsITextControlFrame::SelectionDirection aDirection)
+nsTextControlFrame::SetSelectionEndPoints(PRInt32 aSelStart, PRInt32 aSelEnd)
 {
   NS_ASSERTION(aSelStart <= aSelEnd, "Invalid selection offsets!");
 
@@ -956,12 +936,11 @@ nsTextControlFrame::SetSelectionEndPoints(PRInt32 aSelStart, PRInt32 aSelEnd,
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  return SetSelectionInternal(startNode, startOffset, endNode, endOffset, aDirection);
+  return SetSelectionInternal(startNode, startOffset, endNode, endOffset);
 }
 
 NS_IMETHODIMP
-nsTextControlFrame::SetSelectionRange(PRInt32 aSelStart, PRInt32 aSelEnd,
-                                      nsITextControlFrame::SelectionDirection aDirection)
+nsTextControlFrame::SetSelectionRange(PRInt32 aSelStart, PRInt32 aSelEnd)
 {
   nsresult rv = EnsureEditorInitialized();
   NS_ENSURE_SUCCESS(rv, rv);
@@ -973,7 +952,7 @@ nsTextControlFrame::SetSelectionRange(PRInt32 aSelStart, PRInt32 aSelEnd,
     aSelStart   = aSelEnd;
   }
 
-  return SetSelectionEndPoints(aSelStart, aSelEnd, aDirection);
+  return SetSelectionEndPoints(aSelStart, aSelEnd);
 }
 
 
@@ -1131,23 +1110,14 @@ nsTextControlFrame::OffsetToDOMPoint(PRInt32 aOffset,
 }
 
 NS_IMETHODIMP
-nsTextControlFrame::GetSelectionRange(PRInt32* aSelectionStart,
-                                      PRInt32* aSelectionEnd,
-                                      SelectionDirection* aDirection)
+nsTextControlFrame::GetSelectionRange(PRInt32* aSelectionStart, PRInt32* aSelectionEnd)
 {
   // make sure we have an editor
   nsresult rv = EnsureEditorInitialized();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (aSelectionStart) {
-    *aSelectionStart = 0;
-  }
-  if (aSelectionEnd) {
-    *aSelectionEnd = 0;
-  }
-  if (aDirection) {
-    *aDirection = eNone;
-  }
+  *aSelectionStart = 0;
+  *aSelectionEnd = 0;
 
   nsCOMPtr<nsITextControlElement> txtCtrl = do_QueryInterface(GetContent());
   NS_ASSERTION(txtCtrl, "Content not a text control element");
@@ -1165,24 +1135,6 @@ nsTextControlFrame::GetSelectionRange(PRInt32* aSelectionStart,
     return NS_OK;
 
   // We only operate on the first range in the selection!
-
-  if (aDirection) {
-    nsCOMPtr<nsISelectionPrivate> selPriv = do_QueryInterface(selection);
-    if (selPriv) {
-      nsDirection direction = selPriv->GetSelectionDirection();
-      if (direction == eDirNext) {
-        *aDirection = eForward;
-      } else if (direction == eDirPrevious) {
-        *aDirection = eBackward;
-      } else {
-        NS_NOTREACHED("Invalid nsDirection enum value");
-      }
-    }
-  }
-
-  if (!aSelectionStart || !aSelectionEnd) {
-    return NS_OK;
-  }
 
   nsCOMPtr<nsIDOMRange> firstRange;
   rv = selection->GetRangeAt(0, getter_AddRefs(firstRange));
@@ -1415,12 +1367,12 @@ nsTextControlFrame::CheckFireOnChange()
 // END IMPLEMENTING NS_IFORMCONTROLFRAME
 
 NS_IMETHODIMP
-nsTextControlFrame::SetInitialChildList(ChildListID     aListID,
+nsTextControlFrame::SetInitialChildList(nsIAtom*        aListName,
                                         nsFrameList&    aChildList)
 {
-  nsresult rv = nsBoxFrame::SetInitialChildList(aListID, aChildList);
+  nsresult rv = nsBoxFrame::SetInitialChildList(aListName, aChildList);
 
-  nsIFrame* first = GetFirstPrincipalChild();
+  nsIFrame* first = GetFirstChild(nsnull);
 
   // Mark the scroll frame as being a reflow root. This will allow
   // incremental reflows to be initiated at the scroll frame, rather

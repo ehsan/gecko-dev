@@ -1,6 +1,7 @@
-// |jit-test| error: RangeError
+try {
 function g(a, b, c, d) {}
 function f(a, b, c) {
-        arguments.length = getMaxArgs() + 1;
+        arguments.length=8.64e15;
         g.apply(this, arguments);
 }f();
+} catch (e) {}

@@ -49,7 +49,7 @@
 #include "nsIContentViewer.h"
 #include "nsIDocShell.h"
 #include "nsIDOMDocument.h"
-#include "nsIDOMWindow.h"
+#include "nsIDOMWindowInternal.h"
 #include "nsPIDOMWindow.h"
 #include "nsIObjectLoadingContent.h"
 #include "nsIInterfaceRequestorUtils.h"
@@ -116,7 +116,7 @@ nsSVGMutationObserver::AttributeChanged(nsIDocument* aDocument,
 void
 nsSVGMutationObserver::UpdateTextFragmentTrees(nsIFrame *aFrame)
 {
-  nsIFrame* kid = aFrame->GetFirstPrincipalChild();
+  nsIFrame* kid = aFrame->GetFirstChild(nsnull);
   while (kid) {
     if (kid->GetType() == nsGkAtoms::svgTextFrame) {
       nsSVGTextFrame* textFrame = static_cast<nsSVGTextFrame*>(kid);
@@ -837,7 +837,7 @@ nsSVGOuterSVGFrame::IsRootOfReplacedElementSubDoc(nsIFrame **aEmbeddingFrame)
   if (!mContent->GetParent()) {
     // Our content is the document element
     nsCOMPtr<nsISupports> container = PresContext()->GetContainer();
-    nsCOMPtr<nsIDOMWindow> window = do_GetInterface(container);
+    nsCOMPtr<nsIDOMWindowInternal> window = do_GetInterface(container);
     if (window) {
       nsCOMPtr<nsIDOMElement> frameElement;
       window->GetFrameElement(getter_AddRefs(frameElement));

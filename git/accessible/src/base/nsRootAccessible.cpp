@@ -38,16 +38,15 @@
 #define CreateEvent CreateEventA
 #include "nsIDOMDocument.h"
 
+#include "States.h"
 #include "nsAccessibilityService.h"
 #include "nsApplicationAccessibleWrap.h"
 #include "nsAccUtils.h"
 #include "nsCoreUtils.h"
-#include "Relation.h"
-#include "States.h"
+#include "nsRelUtils.h"
 
 #include "mozilla/dom/Element.h"
 #include "nsHTMLSelectAccessible.h"
-#include "nsIAccessibleRelation.h"
 #include "nsIDocShell.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsIDocShellTreeNode.h"
@@ -68,7 +67,7 @@
 #include "nsIDocument.h"
 #include "nsEventListenerManager.h"
 #include "nsIFrame.h"
-#include "nsMenuFrame.h"
+#include "nsIMenuFrame.h"
 #include "nsIHTMLDocument.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsISelectionPrivate.h"
@@ -87,7 +86,6 @@
 #endif
 
 using namespace mozilla;
-using namespace mozilla::a11y;
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsISupports
@@ -355,6 +353,8 @@ nsRootAccessible::FireAccessibleFocusEvent(nsAccessible* aFocusAccessible,
   nsDocAccessible* focusDocument = focusAccessible->GetDocAccessible();
   NS_ASSERTION(focusDocument, "No document while accessible is in document?!");
 
+  gLastFocusedAccessiblesState = focusAccessible->State();
+
   // Fire menu start/end events for ARIA menus.
   if (focusAccessible->ARIARole() == nsIAccessibleRole::ROLE_MENUITEM) {
     // The focus is inside a menu.
@@ -393,10 +393,10 @@ nsRootAccessible::FireAccessibleFocusEvent(nsAccessible* aFocusAccessible,
 
   // Coalesce focus events from the same document, because DOM focus event might
   // be fired for the document node and then for the focused DOM element.
-  nsRefPtr<AccEvent> focusEvent =
-    new AccEvent(nsIAccessibleEvent::EVENT_FOCUS, focusAccessible,
-                 aIsFromUserInput, AccEvent::eCoalesceFromSameDocument);
-  focusDocument->FireDelayedAccessibleEvent(focusEvent);
+  focusDocument->FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_FOCUS,
+                                            focusNode,
+                                            AccEvent::eCoalesceFromSameDocument,
+                                            aIsFromUserInput);
 }
 
 void
@@ -666,6 +666,7 @@ nsRootAccessible::ProcessDOMEvent(nsIDOMEvent* aDOMEvent)
   }
   else if (eventType.EqualsLiteral("blur")) {
     NS_IF_RELEASE(gLastFocusedNode);
+    gLastFocusedAccessiblesState = 0;
   }
   else if (eventType.EqualsLiteral("AlertActive")) { 
     nsEventShell::FireEvent(nsIAccessibleEvent::EVENT_ALERT, accessible);
@@ -687,25 +688,28 @@ nsRootAccessible::ProcessDOMEvent(nsIDOMEvent* aDOMEvent)
         return; // Tree with nothing selected
       }
 #endif
+      nsIFrame* menuFrame = accessible->GetFrame();
+      if (!menuFrame)
+        return;
 
-      nsMenuFrame* menuFrame = do_QueryFrame(accessible->GetFrame());
-      if (menuFrame)
+      nsIMenuFrame* imenuFrame = do_QueryFrame(menuFrame);
+      if (imenuFrame)
         fireFocus = PR_TRUE;
-      // QI failed for nsMenuFrame means it's not on menu bar
-      if (menuFrame && menuFrame->IsOnMenuBar() &&
-                       !menuFrame->IsOnActiveMenuBar()) {
+      // QI failed for nsIMenuFrame means it's not on menu bar
+      if (imenuFrame && imenuFrame->IsOnMenuBar() &&
+                       !imenuFrame->IsOnActiveMenuBar()) {
         // It is a top level menuitem. Only fire a focus event when the menu bar
         // is active.
         return;
       } else {
-        nsAccessible* container = accessible->Parent();
-        if (!container)
+        nsAccessible *containerAccessible = accessible->GetParent();
+        if (!containerAccessible)
           return;
         // It is not top level menuitem
         // Only fire focus event if it is not inside collapsed popup
         // and not a listitem of a combo box
-        if (container->State() & states::COLLAPSED) {
-          nsAccessible* containerParent = container->Parent();
+        if (containerAccessible->State() & states::COLLAPSED) {
+          nsAccessible *containerParent = containerAccessible->GetParent();
           if (!containerParent)
             return;
           if (containerParent->Role() != nsIAccessibleRole::ROLE_COMBOBOX) {
@@ -795,7 +799,7 @@ nsRootAccessible::GetContentDocShell(nsIDocShellTreeItem *aStart)
     // If ancestor chain of accessibles is not completely visible,
     // don't use this one. This happens for example if it's inside
     // a background tab (tabbed browsing)
-    nsAccessible* parent = accDoc->Parent();
+    nsAccessible *parent = accDoc->GetParent();
     while (parent) {
       if (parent->State() & states::INVISIBLE)
         return nsnull;
@@ -803,7 +807,7 @@ nsRootAccessible::GetContentDocShell(nsIDocShellTreeItem *aStart)
       if (parent == this)
         break; // Don't check past original root accessible we started with
 
-      parent = parent->Parent();
+      parent = parent->GetParent();
     }
 
     NS_ADDREF(aStart);
@@ -828,20 +832,27 @@ nsRootAccessible::GetContentDocShell(nsIDocShellTreeItem *aStart)
 }
 
 // nsIAccessible method
-Relation
-nsRootAccessible::RelationByType(PRUint32 aType)
+NS_IMETHODIMP
+nsRootAccessible::GetRelationByType(PRUint32 aRelationType,
+                                    nsIAccessibleRelation **aRelation)
 {
-  if (!mDocument || aType != nsIAccessibleRelation::RELATION_EMBEDS)
-    return nsDocAccessibleWrap::RelationByType(aType);
+  NS_ENSURE_ARG_POINTER(aRelation);
+  *aRelation = nsnull;
+
+  if (!mDocument || aRelationType != nsIAccessibleRelation::RELATION_EMBEDS) {
+    return nsDocAccessibleWrap::GetRelationByType(aRelationType, aRelation);
+  }
 
   nsCOMPtr<nsIDocShellTreeItem> treeItem =
     nsCoreUtils::GetDocShellTreeItemFor(mDocument);
   nsCOMPtr<nsIDocShellTreeItem> contentTreeItem = GetContentDocShell(treeItem);
   // there may be no content area, so we need a null check
-  if (!contentTreeItem)
-    return Relation();
+  if (contentTreeItem) {
+    nsDocAccessible *accDoc = nsAccUtils::GetDocAccessibleFor(contentTreeItem);
+    return nsRelUtils::AddTarget(aRelationType, aRelation, accDoc);
+  }
 
-  return Relation(nsAccUtils::GetDocAccessibleFor(contentTreeItem));
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -870,7 +881,7 @@ nsRootAccessible::HandlePopupShownEvent(nsAccessible* aAccessible)
 
   if (role == nsIAccessibleRole::ROLE_COMBOBOX_LIST) {
     // Fire expanded state change event for comboboxes and autocompeletes.
-    nsAccessible* combobox = aAccessible->Parent();
+    nsAccessible* combobox = aAccessible->GetParent();
     if (!combobox)
       return;
 
@@ -906,7 +917,7 @@ nsRootAccessible::HandlePopupHidingEvent(nsINode* aNode,
       aAccessible->Role() != nsIAccessibleRole::ROLE_COMBOBOX_LIST)
     return;
 
-  nsAccessible* combobox = aAccessible->Parent();
+  nsAccessible* combobox = aAccessible->GetParent();
   if (!combobox)
     return;
 

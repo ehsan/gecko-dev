@@ -43,18 +43,17 @@
 #define nsScrollbarFrame_h__
 
 #include "nsBoxFrame.h"
+#include "nsIScrollbarFrame.h"
 
 class nsIScrollbarMediator;
 
 nsIFrame* NS_NewScrollbarFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
-class nsScrollbarFrame : public nsBoxFrame
+class nsScrollbarFrame : public nsBoxFrame, public nsIScrollbarFrame
 {
 public:
     nsScrollbarFrame(nsIPresShell* aShell, nsStyleContext* aContext):
       nsBoxFrame(aShell, aContext), mScrollbarMediator(nsnull) {}
-
-  NS_DECL_QUERYFRAME_TARGET(nsScrollbarFrame)
 
 #ifdef DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const {
@@ -100,8 +99,9 @@ public:
 
   virtual nsIAtom* GetType() const;  
 
-  void SetScrollbarMediatorContent(nsIContent* aMediator);
-  nsIScrollbarMediator* GetScrollbarMediator();
+  // nsIScrollbarFrame
+  virtual void SetScrollbarMediatorContent(nsIContent* aMediator);
+  virtual nsIScrollbarMediator* GetScrollbarMediator();
 
   // nsBox methods
 

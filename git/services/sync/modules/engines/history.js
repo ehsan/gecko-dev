@@ -22,7 +22,6 @@
  *   Dan Mills <thunder@mozilla.com>
  *   Philipp von Weitershausen <philipp@weitershausen.de>
  *   Richard Newman <rnewman@mozilla.com>
- *   Allison Naaktgeboren <ally@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -46,6 +45,7 @@ const Cu = Components.utils;
 const Cr = Components.results;
 
 const HISTORY_TTL = 5184000; // 60 days
+const TOPIC_UPDATEPLACES_COMPLETE = "places-updatePlaces-complete";
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://services-sync/constants.js");
@@ -161,7 +161,6 @@ HistoryStore.prototype = {
 
   get _visitStm() {
     return this._getStmt(
-      "/* do not warn (bug 599936) */ " +
       "SELECT visit_type type, visit_date date " +
       "FROM moz_historyvisits " +
       "WHERE place_id = (SELECT id FROM moz_places WHERE url = :url) " +
@@ -253,15 +252,19 @@ HistoryStore.prototype = {
       return failed;
     }
 
-    let updatePlacesCallback = { 
-      handleResult: function handleResult() {},
-      handleError: function handleError(resultCode, placeInfo) {
+    let cb = Async.makeSyncCallback();
+    let onPlace = function onPlace(result, placeInfo) {
+      if (!Components.isSuccessCode(result)) {
         failed.push(placeInfo.guid);
-      },
-      handleCompletion: Async.makeSyncCallback()
+      }
     };
-    this._asyncHistory.updatePlaces(records, updatePlacesCallback);
-    Async.waitForSyncCallback(updatePlacesCallback.handleCompletion);
+    let onComplete = function onComplete(subject, topic, data) {
+      Svc.Obs.remove(TOPIC_UPDATEPLACES_COMPLETE, onComplete);
+      cb();
+    };
+    Svc.Obs.add(TOPIC_UPDATEPLACES_COMPLETE, onComplete);
+    this._asyncHistory.updatePlaces(records, onPlace);
+    Async.waitForSyncCallback(cb);
     return failed;
   },
 

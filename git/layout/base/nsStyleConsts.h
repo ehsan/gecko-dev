@@ -858,13 +858,6 @@ static inline mozilla::css::Side operator++(mozilla::css::Side& side, int) {
 #define NS_STYLE_COLOR_INTERPOLATION_SRGB           1
 #define NS_STYLE_COLOR_INTERPOLATION_LINEARRGB      2
 
-// 3d Transforms - Backface visibility
-#define NS_STYLE_BACKFACE_VISIBILITY_VISIBLE        1
-#define NS_STYLE_BACKFACE_VISIBILITY_HIDDEN         0
-
-#define NS_STYLE_TRANSFORM_STYLE_FLAT               0
-#define NS_STYLE_TRANSFORM_STYLE_PRESERVE_3D        1
-
 /*****************************************************************************
  * Constants for media features.                                             *
  *****************************************************************************/

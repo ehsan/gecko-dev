@@ -57,9 +57,10 @@
 #include "nsXULPopupManager.h"
 #include "nsEventStateManager.h"
 #include "nsIScriptContext.h"
-#include "nsIDOMWindow.h"
+#include "nsIDOMWindowInternal.h"
 #include "nsIDOMXULDocument.h"
 #include "nsIDocument.h"
+#include "nsIDOMNSUIEvent.h"
 #include "nsIDOMEventTarget.h"
 #include "nsIDOMNSEvent.h"
 #include "nsServiceManagerUtils.h"
@@ -70,7 +71,6 @@
 #include "nsHTMLReflowState.h"
 #include "nsIObjectLoadingContent.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/dom/Element.h"
 
 // for event firing in context menus
 #include "nsPresContext.h"
@@ -79,6 +79,7 @@
 #include "nsPIDOMWindow.h"
 #include "nsIViewManager.h"
 #include "nsDOMError.h"
+#include "nsIMenuFrame.h"
 
 using namespace mozilla;
 
@@ -129,8 +130,9 @@ nsXULPopupListener::HandleEvent(nsIDOMEvent* aEvent)
   }
 
   // check if someone has attempted to prevent this action.
-  nsCOMPtr<nsIDOMNSEvent> domNSEvent = do_QueryInterface(mouseEvent);
-  if (!domNSEvent) {
+  nsCOMPtr<nsIDOMNSUIEvent> nsUIEvent;
+  nsUIEvent = do_QueryInterface(mouseEvent);
+  if (!nsUIEvent) {
     return NS_OK;
   }
 
@@ -158,7 +160,7 @@ nsXULPopupListener::HandleEvent(nsIDOMEvent* aEvent)
   }
 
   PRBool preventDefault;
-  domNSEvent->GetPreventDefault(&preventDefault);
+  nsUIEvent->GetPreventDefault(&preventDefault);
   if (preventDefault && targetNode && mIsContext) {
     // Someone called preventDefault on a context menu.
     // Let's make sure they are allowed to do so.

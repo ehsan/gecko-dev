@@ -111,9 +111,6 @@ protected:
         return MediateRace(parent, child);
     }
 
-    NS_OVERRIDE
-    virtual bool ShouldContinueFromReplyTimeout();
-
     // Implement the PPluginModuleChild interface
     virtual bool AnswerNP_GetEntryPoints(NPError* rv);
     virtual bool AnswerNP_Initialize(NativeThreadId* tid, NPError* rv);
@@ -170,9 +167,6 @@ protected:
     RecvSetAudioSessionData(const nsID& aId,
                             const nsString& aDisplayName,
                             const nsString& aIconPath);
-
-    virtual bool
-    RecvSetParentHangTimeout(const uint32_t& aSeconds);
 
     virtual void
     ActorDestroy(ActorDestroyReason why);
@@ -300,10 +294,6 @@ public:
         // Win: QuickTime steals focus on SetWindow calls even if it's hidden.
         // Avoid calling SetWindow in that case.
         QUIRK_QUICKTIME_AVOID_SETWINDOW                 = 1 << 7,
-        // Win: Check to make sure the parent window has focus before calling
-        // set focus on the child. Addresses a full screen dialog prompt
-        // problem in Silverlight.
-        QUIRK_SILVERLIGHT_FOCUS_CHECK_PARENT            = 1 << 8,
     };
 
     int GetQuirks() { return mQuirks; }

@@ -79,7 +79,6 @@ struct TreeMatchContext;
 class nsFrameManager : public nsFrameManagerBase
 {
   typedef mozilla::css::RestyleTracker RestyleTracker;
-  typedef nsIFrame::ChildListID ChildListID;
 
 public:
   nsFrameManager() NS_HIDDEN;
@@ -124,18 +123,18 @@ public:
 
   // Functions for manipulating the frame model
   NS_HIDDEN_(nsresult) AppendFrames(nsIFrame*       aParentFrame,
-                                    ChildListID     aListID,
+                                    nsIAtom*        aListName,
                                     nsFrameList&    aFrameList)
   {
-    return aParentFrame->AppendFrames(aListID, aFrameList);
+    return aParentFrame->AppendFrames(aListName, aFrameList);
   }
 
   NS_HIDDEN_(nsresult) InsertFrames(nsIFrame*       aParentFrame,
-                                    ChildListID     aListID,
+                                    nsIAtom*        aListName,
                                     nsIFrame*       aPrevFrame,
                                     nsFrameList&    aFrameList);
 
-  NS_HIDDEN_(nsresult) RemoveFrame(ChildListID     aListID,
+  NS_HIDDEN_(nsresult) RemoveFrame(nsIAtom*        aListName,
                                    nsIFrame*       aOldFrame);
 
   /*

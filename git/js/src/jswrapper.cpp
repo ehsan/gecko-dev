@@ -41,7 +41,6 @@
 
 #include "jsapi.h"
 #include "jscntxt.h"
-#include "jsexn.h"
 #include "jsgc.h"
 #include "jsgcmark.h"
 #include "jsiter.h"
@@ -72,19 +71,6 @@ bool
 JSObject::isWrapper() const
 {
     return isProxy() && getProxyHandler()->family() == &sWrapperFamily;
-}
-
-bool
-JSObject::isCrossCompartmentWrapper() const
-{
-    return isWrapper() && !!(getWrapperHandler()->flags() & JSWrapper::CROSS_COMPARTMENT);
-}
-
-JSWrapper *
-JSObject::getWrapperHandler() const
-{
-    JS_ASSERT(isWrapper());
-    return static_cast<JSWrapper *>(getProxyHandler());
 }
 
 JSObject *
@@ -346,6 +332,18 @@ JSWrapper::trace(JSTracer *trc, JSObject *wrapper)
     MarkObject(trc, *wrappedObject(wrapper), "wrappedObject");
 }
 
+JSObject *
+JSWrapper::wrappedObject(const JSObject *wrapper)
+{
+    return wrapper->getProxyPrivate().toObjectOrNull();
+}
+
+JSWrapper *
+JSWrapper::wrapperHandler(const JSObject *wrapper)
+{
+    return static_cast<JSWrapper *>(wrapper->getProxyHandler());
+}
+
 bool
 JSWrapper::enter(JSContext *cx, JSObject *wrapper, jsid id, Action act, bool *bp)
 {
@@ -409,12 +407,11 @@ ForceFrame::enter()
     LeaveTrace(context);
 
     JS_ASSERT(context->compartment == target->compartment());
-    JSCompartment *destination = context->compartment;
 
     JSObject *scopeChain = target->getGlobal();
     JS_ASSERT(scopeChain->isNative());
 
-    return context->stack.pushDummyFrame(context, destination, *scopeChain, frame);
+    return context->stack.pushDummyFrame(context, *scopeChain, frame);
 }
 
 AutoCompartment::AutoCompartment(JSContext *cx, JSObject *target)
@@ -439,12 +436,15 @@ AutoCompartment::enter()
     if (origin != destination) {
         LeaveTrace(context);
 
+        context->setCompartment(destination);
         JSObject *scopeChain = target->getGlobal();
         JS_ASSERT(scopeChain->isNative());
 
         frame.construct();
-        if (!context->stack.pushDummyFrame(context, destination, *scopeChain, &frame.ref()))
+        if (!context->stack.pushDummyFrame(context, *scopeChain, &frame.ref())) {
+            context->setCompartment(origin);
             return false;
+        }
 
         if (context->isExceptionPending())
             context->wrapPendingException();
@@ -462,24 +462,6 @@ AutoCompartment::leave()
         context->resetCompartment();
     }
     entered = false;
-}
-
-ErrorCopier::~ErrorCopier()
-{
-    JSContext *cx = ac.context;
-    if (cx->compartment == ac.destination &&
-        ac.origin != ac.destination &&
-        cx->isExceptionPending())
-    {
-        Value exc = cx->getPendingException();
-        if (exc.isObject() && exc.toObject().isError() && exc.toObject().getPrivate()) {
-            cx->clearPendingException();
-            ac.leave();
-            JSObject *copyobj = js_CopyErrorObject(cx, &exc.toObject(), scope);
-            if (copyobj)
-                cx->setPendingException(ObjectValue(*copyobj));
-        }
-    }
 }
 
 /* Cross compartment wrappers. */
@@ -680,6 +662,10 @@ Reify(JSContext *cx, JSCompartment *origin, Value *vp)
 bool
 JSCrossCompartmentWrapper::iterate(JSContext *cx, JSObject *wrapper, uintN flags, Value *vp)
 {
+    /* Notify type inference of custom iterators, see GetCustomIterator. */
+    if (!(flags & JSITER_OWNONLY))
+        types::MarkIteratorUnknown(cx);
+
     PIERCE(cx, wrapper, GET,
            NOTHING,
            JSWrapper::iterate(cx, wrapper, flags, vp),
@@ -786,12 +772,6 @@ JSCrossCompartmentWrapper::defaultValue(JSContext *cx, JSObject *wrapper, JSType
 
     call.leave();
     return call.origin->wrap(cx, vp);
-}
-
-void
-JSCrossCompartmentWrapper::trace(JSTracer *trc, JSObject *wrapper)
-{
-    MarkCrossCompartmentObject(trc, *wrappedObject(wrapper), "wrappedObject");
 }
 
 JSCrossCompartmentWrapper JSCrossCompartmentWrapper::singleton(0u);

@@ -93,37 +93,37 @@ public:
 #ifdef MOZ_TREMOR
 #include <ogg/os_types.h>
 typedef ogg_int32_t VorbisPCMValue;
-typedef short AudioDataValue;
+typedef short SoundDataValue;
 
-#define MOZ_AUDIO_DATA_FORMAT (nsAudioStream::FORMAT_S16_LE)
+#define MOZ_SOUND_DATA_FORMAT (nsAudioStream::FORMAT_S16_LE)
 #define MOZ_CLIP_TO_15(x) ((x)<-32768?-32768:(x)<=32767?(x):32767)
-// Convert the output of vorbis_synthesis_pcmout to a AudioDataValue
+// Convert the output of vorbis_synthesis_pcmout to a SoundDataValue
 #define MOZ_CONVERT_VORBIS_SAMPLE(x) \
- (static_cast<AudioDataValue>(MOZ_CLIP_TO_15((x)>>9)))
-// Convert a AudioDataValue to a float for the Audio API
-#define MOZ_CONVERT_AUDIO_SAMPLE(x) ((x)*(1.F/32768))
+ (static_cast<SoundDataValue>(MOZ_CLIP_TO_15((x)>>9)))
+// Convert a SoundDataValue to a float for the Audio API
+#define MOZ_CONVERT_SOUND_SAMPLE(x) ((x)*(1.F/32768))
 #define MOZ_SAMPLE_TYPE_S16LE 1
 
 #else /*MOZ_VORBIS*/
 
 typedef float VorbisPCMValue;
-typedef float AudioDataValue;
+typedef float SoundDataValue;
 
-#define MOZ_AUDIO_DATA_FORMAT (nsAudioStream::FORMAT_FLOAT32)
+#define MOZ_SOUND_DATA_FORMAT (nsAudioStream::FORMAT_FLOAT32)
 #define MOZ_CONVERT_VORBIS_SAMPLE(x) (x)
-#define MOZ_CONVERT_AUDIO_SAMPLE(x) (x)
+#define MOZ_CONVERT_SOUND_SAMPLE(x) (x)
 #define MOZ_SAMPLE_TYPE_FLOAT32 1
 
 #endif
 
-// Holds chunk a decoded audio samples.
-class AudioData {
+// Holds chunk a decoded sound samples.
+class SoundData {
 public:
-  AudioData(PRInt64 aOffset,
+  SoundData(PRInt64 aOffset,
             PRInt64 aTime,
             PRInt64 aDuration,
             PRUint32 aSamples,
-            AudioDataValue* aData,
+            SoundDataValue* aData,
             PRUint32 aChannels)
   : mOffset(aOffset),
     mTime(aTime),
@@ -132,13 +132,13 @@ public:
     mChannels(aChannels),
     mAudioData(aData)
   {
-    MOZ_COUNT_CTOR(AudioData);
+    MOZ_COUNT_CTOR(SoundData);
   }
 
-  AudioData(PRInt64 aOffset,
+  SoundData(PRInt64 aOffset,
             PRInt64 aDuration,
             PRUint32 aSamples,
-            AudioDataValue* aData,
+            SoundDataValue* aData,
             PRUint32 aChannels)
   : mOffset(aOffset),
     mTime(-1),
@@ -147,12 +147,12 @@ public:
     mChannels(aChannels),
     mAudioData(aData)
   {
-    MOZ_COUNT_CTOR(AudioData);
+    MOZ_COUNT_CTOR(SoundData);
   }
 
-  ~AudioData()
+  ~SoundData()
   {
-    MOZ_COUNT_DTOR(AudioData);
+    MOZ_COUNT_DTOR(SoundData);
   }
 
   PRUint32 AudioDataLength() {
@@ -167,7 +167,7 @@ public:
   const PRInt64 mDuration; // In usecs.
   const PRUint32 mSamples;
   const PRUint32 mChannels;
-  nsAutoArrayPtr<AudioDataValue> mAudioData;
+  nsAutoArrayPtr<SoundDataValue> mAudioData;
 };
 
 // Holds a decoded video frame, in YCbCr format. These are queued in the reader.
@@ -390,23 +390,20 @@ template <class T> class MediaQueue : private nsDeque {
     return last->mTime - first->mTime;
   }
 
-  void LockedForEach(nsDequeFunctor& aFunctor) const {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-    ForEach(aFunctor);
-  }
-
 private:
-  mutable ReentrantMonitor mReentrantMonitor;
+  ReentrantMonitor mReentrantMonitor;
 
   // PR_TRUE when we've decoded the last frame of data in the
   // bitstream for which we're queueing sample-data.
   PRBool mEndOfStream;
 };
 
-// Encapsulates the decoding and reading of media data. Reading can only be
-// done on the decode thread thread. Never hold the decoder monitor when
-// calling into this class. Unless otherwise specified, methods and fields of
-// this class can only be accessed on the decode thread.
+// Encapsulates the decoding and reading of media data. Reading can be done
+// on either the state machine thread (when loading and seeking) or on
+// the reader thread (when it's reading and decoding). The reader encapsulates
+// the reading state and maintains it's own monitor to ensure thread safety
+// and correctness. Never hold the nsBuiltinDecoder's monitor when calling into
+// this class.
 class nsBuiltinDecoderReader : public nsRunnable {
 public:
   typedef mozilla::ReentrantMonitor ReentrantMonitor;
@@ -455,12 +452,10 @@ public:
                         PRInt64 aEndTime,
                         PRInt64 aCurrentTime) = 0;
 
-  // Queue of audio samples. This queue is threadsafe, and is accessed from
-  // the audio, decoder, state machine, and main threads.
-  MediaQueue<AudioData> mAudioQueue;
+  // Queue of audio samples. This queue is threadsafe.
+  MediaQueue<SoundData> mAudioQueue;
 
-  // Queue of video samples. This queue is threadsafe, and is accessed from
-  // the decoder, state machine, and main threads.
+  // Queue of video samples. This queue is threadsafe.
   MediaQueue<VideoData> mVideoQueue;
 
   // Populates aBuffered with the time ranges which are buffered. aStartTime
@@ -469,51 +464,6 @@ public:
   // should only be called on the main thread.
   virtual nsresult GetBuffered(nsTimeRanges* aBuffered,
                                PRInt64 aStartTime) = 0;
-
-  class VideoQueueMemoryFunctor : public nsDequeFunctor {
-  public:
-    VideoQueueMemoryFunctor() : mResult(0) {}
-
-    virtual void* operator()(void* anObject) {
-      const VideoData* v = static_cast<const VideoData*>(anObject);
-      if (!v->mImage) {
-        return nsnull;
-      }
-      NS_ASSERTION(v->mImage->GetFormat() == mozilla::layers::Image::PLANAR_YCBCR,
-                   "Wrong format?");
-      mozilla::layers::PlanarYCbCrImage* vi = static_cast<mozilla::layers::PlanarYCbCrImage*>(v->mImage.get());
-
-      mResult += vi->GetDataSize();
-      return nsnull;
-    }
-
-    PRInt64 mResult;
-  };
-
-  PRInt64 VideoQueueMemoryInUse() {
-    VideoQueueMemoryFunctor functor;
-    mVideoQueue.LockedForEach(functor);
-    return functor.mResult;
-  }
-
-  class AudioQueueMemoryFunctor : public nsDequeFunctor {
-  public:
-    AudioQueueMemoryFunctor() : mResult(0) {}
-
-    virtual void* operator()(void* anObject) {
-      const AudioData* audioData = static_cast<const AudioData*>(anObject);
-      mResult += audioData->mSamples * audioData->mChannels * sizeof(AudioDataValue);
-      return nsnull;
-    }
-
-    PRInt64 mResult;
-  };
-
-  PRInt64 AudioQueueMemoryInUse() {
-    AudioQueueMemoryFunctor functor;
-    mAudioQueue.LockedForEach(functor);
-    return functor.mResult;
-  }
 
   // Only used by nsWebMReader for now, so stub here rather than in every
   // reader than inherits from nsBuiltinDecoderReader.
@@ -542,10 +492,16 @@ protected:
     return DecodeVideoFrame(f, 0);
   }
 
-  // Reference to the owning decoder object.
+  // The lock which we hold whenever we read or decode. This ensures the thread
+  // safety of the reader and its data fields.
+  ReentrantMonitor mReentrantMonitor;
+
+  // Reference to the owning decoder object. Do not hold the
+  // reader's monitor when accessing this.
   nsBuiltinDecoder* mDecoder;
 
-  // Stores presentation info required for playback.
+  // Stores presentation info required for playback. The reader's monitor
+  // must be held when accessing this.
   nsVideoInfo mInfo;
 };
 

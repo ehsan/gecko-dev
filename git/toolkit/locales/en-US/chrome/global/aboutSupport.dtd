@@ -20,7 +20,6 @@
 <!ENTITY aboutSupport.appBasicsEnabledPlugins "Enabled Plugins">
 <!ENTITY aboutSupport.appBasicsBuildConfig "Build Configuration">
 <!ENTITY aboutSupport.appBasicsUserAgent "User Agent">
-<!ENTITY aboutSupport.appBasicsCrashIDs "Crash Reports">
 
 <!ENTITY aboutSupport.show.label "Open Containing Folder">
 

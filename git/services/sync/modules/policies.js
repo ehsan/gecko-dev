@@ -92,15 +92,8 @@ let SyncScheduler = {
     Svc.Obs.add("weave:service:logout:finish", this);
     Svc.Obs.add("weave:service:sync:error", this);
     Svc.Obs.add("weave:service:backoff:interval", this);
-    Svc.Obs.add("weave:service:ready", this);
     Svc.Obs.add("weave:engine:sync:applied", this);
-    Svc.Obs.add("weave:service:setup-complete", this);
-    Svc.Obs.add("weave:service:start-over", this);
-				
-    if (Status.checkSetup() == STATUS_OK) {
-      Svc.Idle.addIdleObserver(this, Svc.Prefs.get("scheduler.idleTime"));
-    }
-
+    Svc.Idle.addIdleObserver(this, Svc.Prefs.get("scheduler.idleTime"));
   },
 
   observe: function observe(subject, topic, data) {
@@ -138,7 +131,7 @@ let SyncScheduler = {
         this.scheduleNextSync(sync_interval);
         break;
       case "weave:engine:sync:finish":
-        if (data == "clients") {
+        if (subject == "clients") {
           // Update the client mode because it might change what we sync.
           this.updateClientMode();
         }
@@ -160,9 +153,6 @@ let SyncScheduler = {
         this.checkSyncStatus();
         break; 
       case "weave:service:sync:error":
-        // There may be multiple clients but if the sync fails, client mode
-        // should still be updated so that the next sync has a correct interval.
-        this.updateClientMode();
         this.adjustSyncInterval();
         this.handleSyncError();
         break;
@@ -171,27 +161,12 @@ let SyncScheduler = {
         Status.backoffInterval = interval;
         Status.minimumNextSync = Date.now() + data;
         break;
-      case "weave:service:ready":
-        // Applications can specify this preference if they want autoconnect
-        // to happen after a fixed delay.
-        let delay = Svc.Prefs.get("autoconnectDelay");
-        if (delay) {
-          this.delayedAutoConnect(delay);
-        }
-        break;
       case "weave:engine:sync:applied":
         let numItems = subject.applied;
         this._log.trace("Engine " + data + " applied " + numItems + " items.");
         if (numItems) 
           this.hasIncomingItems = true;
         break;
-      case "weave:service:setup-complete":
-         Svc.Idle.addIdleObserver(this, Svc.Prefs.get("scheduler.idleTime"));
-         break;
-      case "weave:service:start-over":
-         Svc.Idle.removeIdleObserver(this, Svc.Prefs.get("scheduler.idleTime"));
-         SyncScheduler.setDefaults();
-         break;
       case "idle":
         this._log.trace("We're idle.");
         this.idle = true;
@@ -236,7 +211,7 @@ let SyncScheduler = {
   },
 
   calculateScore: function calculateScore() {
-    let engines = [Clients].concat(Engines.getEnabled());
+    var engines = Engines.getEnabled();
     for (let i = 0;i < engines.length;i++) {
       this._log.trace(engines[i].name + ": score: " + engines[i].score);
       this.globalScore += engines[i].score;
@@ -274,8 +249,16 @@ let SyncScheduler = {
    */
   checkSyncStatus: function checkSyncStatus() {
     // Should we be syncing now, if not, cancel any sync timers and return
-    // if we're in backoff, we'll schedule the next sync.
-    let ignore = [kSyncBackoffNotMet, kSyncMasterPasswordLocked];
+    // if we're in backoff, we'll schedule the next sync
+    let ignore = [kSyncBackoffNotMet];
+
+    // We're ready to sync even if we're not logged in... so long as the
+    // master password isn't locked.
+    if (Utils.mpLocked()) {
+      ignore.push(kSyncNotLoggedIn);
+      ignore.push(kSyncMasterPasswordLocked);
+    }
+
     let skip = Weave.Service._checkSync(ignore);
     this._log.trace("_checkSync returned \"" + skip + "\".");
     if (skip) {
@@ -320,7 +303,7 @@ let SyncScheduler = {
     if (interval == null || interval == undefined) {
       // Check if we had a pending sync from last time
       if (this.nextSync != 0)
-        interval = Math.min(this.syncInterval, (this.nextSync - Date.now()));
+        interval = this.nextSync - Date.now();
       // Use the bigger of default sync interval and backoff
       else
         interval = Math.max(this.syncInterval, Status.backoffInterval);
@@ -353,31 +336,6 @@ let SyncScheduler = {
     this._log.config("Starting backoff, next sync at:" + d.toString());
 
     this.scheduleNextSync(interval);
-  },
-
- /**
-  * Automatically start syncing after the given delay (in seconds).
-  *
-  * Applications can define the `services.sync.autoconnectDelay` preference
-  * to have this called automatically during start-up with the pref value as
-  * the argument. Alternatively, they can call it themselves to control when
-  * Sync should first start to sync.
-  */
-  delayedAutoConnect: function delayedAutoConnect(delay) {
-    if (Weave.Service._checkSetup() == STATUS_OK) {
-      Utils.namedTimer(this.autoConnect, delay * 1000, this, "_autoTimer");
-    }
-  },
-
-  autoConnect: function autoConnect() {
-    if (Weave.Service._checkSetup() == STATUS_OK && !Weave.Service._checkSync()) {
-      Utils.nextTick(Weave.Service.sync, Weave.Service);
-    }
-
-    // Once autoConnect is called we no longer need _autoTimer.
-    if (this._autoTimer) {
-      this._autoTimer.clear();
-    }
   },
 
   _syncErrors: 0,

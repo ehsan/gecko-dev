@@ -69,6 +69,8 @@
 using namespace mozilla;
 using namespace mozilla::scache;
 
+static NS_DEFINE_CID(kXULPrototypeCacheCID, NS_XULPROTOTYPECACHE_CID);
+
 static PRBool gDisableXULCache = PR_FALSE; // enabled by default
 static const char kDisableXULCachePref[] = "nglayout.debug.disable_xul_cache";
 static const char kXULCacheInfoKey[] = "nsXULPrototypeCache.startupCache";
@@ -107,37 +109,65 @@ nsXULPrototypeCache::~nsXULPrototypeCache()
 }
 
 
-NS_IMPL_THREADSAFE_ISUPPORTS1(nsXULPrototypeCache, nsIObserver)
+NS_IMPL_THREADSAFE_ISUPPORTS2(nsXULPrototypeCache,
+                              nsIXULPrototypeCache,
+                              nsIObserver)
+
+
+nsresult
+NS_NewXULPrototypeCache(nsISupports* aOuter, REFNSIID aIID, void** aResult)
+{
+    NS_PRECONDITION(! aOuter, "no aggregation");
+    if (aOuter)
+        return NS_ERROR_NO_AGGREGATION;
+
+    nsRefPtr<nsXULPrototypeCache> result = new nsXULPrototypeCache();
+    if (! result)
+        return NS_ERROR_OUT_OF_MEMORY;
+
+    if (!(result->mPrototypeTable.Init() &&
+          result->mStyleSheetTable.Init() &&
+          result->mScriptTable.Init() &&
+          result->mXBLDocTable.Init())) {
+        return NS_ERROR_OUT_OF_MEMORY;
+    }
+
+    if (!(result->mCacheURITable.Init() &&
+          result->mInputStreamTable.Init() &&
+          result->mOutputStreamTable.Init())) {
+        return NS_ERROR_OUT_OF_MEMORY;
+    }
+
+    // XXX Ignore return values.
+    gDisableXULCache =
+        Preferences::GetBool(kDisableXULCachePref, gDisableXULCache);
+    Preferences::RegisterCallback(DisableXULCacheChangedCallback,
+                                  kDisableXULCachePref);
+
+    nsresult rv = result->QueryInterface(aIID, aResult);
+
+    nsCOMPtr<nsIObserverService> obsSvc =
+        mozilla::services::GetObserverService();
+    if (obsSvc && NS_SUCCEEDED(rv)) {
+        nsXULPrototypeCache *p = result;
+        obsSvc->AddObserver(p, "chrome-flush-skin-caches", PR_FALSE);
+        obsSvc->AddObserver(p, "chrome-flush-caches", PR_FALSE);
+        obsSvc->AddObserver(p, "startupcache-invalidate", PR_FALSE);
+    }
+
+    return rv;
+}
 
 /* static */ nsXULPrototypeCache*
 nsXULPrototypeCache::GetInstance()
 {
+    // Theoretically this can return nsnull and callers should handle that.
     if (!sInstance) {
-        NS_ADDREF(sInstance = new nsXULPrototypeCache());
+        nsIXULPrototypeCache* cache;
 
-        sInstance->mPrototypeTable.Init();
-        sInstance->mStyleSheetTable.Init();
-        sInstance->mScriptTable.Init();
-        sInstance->mXBLDocTable.Init();
+        CallGetService(kXULPrototypeCacheCID, &cache);
 
-        sInstance->mCacheURITable.Init();
-        sInstance->mInputStreamTable.Init();
-        sInstance->mOutputStreamTable.Init();
-
-        gDisableXULCache =
-            Preferences::GetBool(kDisableXULCachePref, gDisableXULCache);
-        Preferences::RegisterCallback(DisableXULCacheChangedCallback,
-                                      kDisableXULCachePref);
-
-        nsCOMPtr<nsIObserverService> obsSvc =
-            mozilla::services::GetObserverService();
-        if (obsSvc) {
-            nsXULPrototypeCache *p = sInstance;
-            obsSvc->AddObserver(p, "chrome-flush-skin-caches", PR_FALSE);
-            obsSvc->AddObserver(p, "chrome-flush-caches", PR_FALSE);
-            obsSvc->AddObserver(p, "startupcache-invalidate", PR_FALSE);
-        }
-		
+        sInstance = static_cast<nsXULPrototypeCache*>(cache);
     }
     return sInstance;
 }
@@ -427,7 +457,7 @@ nsresult
 nsXULPrototypeCache::GetInputStream(nsIURI* uri, nsIObjectInputStream** stream) 
 {
     nsCAutoString spec(kXULCachePrefix);
-    nsresult rv = PathifyURI(uri, spec);
+    nsresult rv = NS_PathifyURI(uri, spec);
     if (NS_FAILED(rv)) 
         return NS_ERROR_NOT_AVAILABLE;
     
@@ -441,7 +471,7 @@ nsXULPrototypeCache::GetInputStream(nsIURI* uri, nsIObjectInputStream** stream)
     if (NS_FAILED(rv)) 
         return NS_ERROR_NOT_AVAILABLE;
 
-    rv = NewObjectInputStreamFromBuffer(buf, len, getter_AddRefs(ois));
+    rv = NS_NewObjectInputStreamFromBuffer(buf, len, getter_AddRefs(ois));
     NS_ENSURE_SUCCESS(rv, rv);
     buf.forget();
 
@@ -471,9 +501,9 @@ nsXULPrototypeCache::GetOutputStream(nsIURI* uri, nsIObjectOutputStream** stream
             = do_QueryInterface(storageStream);
         objectOutput->SetOutputStream(outputStream);
     } else {
-        rv = NewObjectOutputWrappedStorageStream(getter_AddRefs(objectOutput), 
-                                                 getter_AddRefs(storageStream),
-                                                 false);
+        rv = NS_NewObjectOutputWrappedStorageStream(getter_AddRefs(objectOutput), 
+                                                    getter_AddRefs(storageStream),
+                                                    false);
         NS_ENSURE_SUCCESS(rv, rv);
         mOutputStreamTable.Put(uri, storageStream);
     }
@@ -498,12 +528,12 @@ nsXULPrototypeCache::FinishOutputStream(nsIURI* uri)
     
     nsAutoArrayPtr<char> buf;
     PRUint32 len;
-    rv = NewBufferFromStorageStream(storageStream, getter_Transfers(buf), 
-                                    &len);
+    rv = NS_NewBufferFromStorageStream(storageStream, getter_Transfers(buf), 
+                                       &len);
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsCAutoString spec(kXULCachePrefix);
-    rv = PathifyURI(uri, spec);
+    rv = NS_PathifyURI(uri, spec);
     if (NS_FAILED(rv))
         return NS_ERROR_NOT_AVAILABLE;
     rv = gStartupCache->PutBuffer(spec.get(), buf, len);
@@ -523,7 +553,7 @@ nsXULPrototypeCache::HasData(nsIURI* uri, PRBool* exists)
         return NS_OK;
     }
     nsCAutoString spec(kXULCachePrefix);
-    nsresult rv = PathifyURI(uri, spec);
+    nsresult rv = NS_PathifyURI(uri, spec);
     if (NS_FAILED(rv)) {
         *exists = PR_FALSE;
         return NS_OK;
@@ -557,7 +587,9 @@ CachePrefChangedCallback(const char* aPref, void* aClosure)
                              gDisableXULDiskCache);
 
     if (wasEnabled && gDisableXULDiskCache) {
-        nsXULPrototypeCache* cache = nsXULPrototypeCache::GetInstance();
+        static NS_DEFINE_CID(kXULPrototypeCacheCID, NS_XULPROTOTYPECACHE_CID);
+        nsCOMPtr<nsIXULPrototypeCache> cache =
+            do_GetService(kXULPrototypeCacheCID);
 
         if (cache)
             cache->AbortCaching();
@@ -636,7 +668,7 @@ nsXULPrototypeCache::BeginCaching(nsIURI* aURI)
     rv = startupCache->GetBuffer(kXULCacheInfoKey, getter_Transfers(buf), 
                                  &len);
     if (NS_SUCCEEDED(rv))
-        rv = NewObjectInputStreamFromBuffer(buf, len, getter_AddRefs(objectInput));
+        rv = NS_NewObjectInputStreamFromBuffer(buf, len, getter_AddRefs(objectInput));
     
     if (NS_SUCCEEDED(rv)) {
         buf.forget();
@@ -660,9 +692,9 @@ nsXULPrototypeCache::BeginCaching(nsIURI* aURI)
         nsCOMPtr<nsIObjectOutputStream> objectOutput;
         nsCOMPtr<nsIInputStream> inputStream;
         nsCOMPtr<nsIStorageStream> storageStream;
-        rv = NewObjectOutputWrappedStorageStream(getter_AddRefs(objectOutput),
-                                                 getter_AddRefs(storageStream),
-                                                 false);
+        rv = NS_NewObjectOutputWrappedStorageStream(getter_AddRefs(objectOutput),
+                                                    getter_AddRefs(storageStream),
+                                                    false);
         if (NS_SUCCEEDED(rv)) {
             rv = objectOutput->WriteStringZ(locale.get());
             rv |= objectOutput->WriteStringZ(chromePath.get());

@@ -548,10 +548,10 @@ nsImageFrame::OnStartContainer(imgIRequest *aRequest, imgIContainer *aImage)
     return NS_OK;
   }
   
-  PRBool intrinsicSizeChanged = UpdateIntrinsicSize(aImage);
-  intrinsicSizeChanged = UpdateIntrinsicRatio(aImage) || intrinsicSizeChanged;
+  UpdateIntrinsicSize(aImage);
+  UpdateIntrinsicRatio(aImage);
 
-  if (intrinsicSizeChanged && (mState & IMAGE_GOTINITIALREFLOW)) {
+  if (mState & IMAGE_GOTINITIALREFLOW) {
     // Now we need to reflow if we have an unconstrained size and have
     // already gotten the initial reflow
     if (!(mState & IMAGE_SIZECONSTRAINED)) { 
@@ -971,11 +971,10 @@ nsImageFrame::DisplayAltText(nsPresContext*      aPresContext,
 {
   // Set font and color
   aRenderingContext.SetColor(GetStyleColor()->mColor);
-  nsRefPtr<nsFontMetrics> fm;
-  nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
-  aRenderingContext.SetFont(fm);
+  nsLayoutUtils::SetFontFromStyle(&aRenderingContext, mStyleContext);
 
   // Format the text to display within the formatting rect
+  nsFontMetrics* fm = aRenderingContext.FontMetrics();
 
   nscoord maxAscent = fm->MaxAscent();
   nscoord maxDescent = fm->MaxDescent();
@@ -1004,17 +1003,21 @@ nsImageFrame::DisplayAltText(nsPresContext*      aPresContext,
     nsresult rv = NS_ERROR_FAILURE;
 
     if (aPresContext->BidiEnabled()) {
-      const nsStyleVisibility* vis = GetStyleVisibility();
-      if (vis->mDirection == NS_STYLE_DIRECTION_RTL)
-        rv = nsBidiPresUtils::RenderText(str, maxFit, NSBIDI_RTL,
-                                         aPresContext, aRenderingContext,
-                                         aRenderingContext,
-                                         aRect.XMost() - strWidth, y + maxAscent);
-      else
-        rv = nsBidiPresUtils::RenderText(str, maxFit, NSBIDI_LTR,
-                                         aPresContext, aRenderingContext,
-                                         aRenderingContext,
-                                         aRect.x, y + maxAscent);
+      nsBidiPresUtils* bidiUtils =  aPresContext->GetBidiUtils();
+      
+      if (bidiUtils) {
+        const nsStyleVisibility* vis = GetStyleVisibility();
+        if (vis->mDirection == NS_STYLE_DIRECTION_RTL)
+          rv = bidiUtils->RenderText(str, maxFit, NSBIDI_RTL,
+                                     aPresContext, aRenderingContext,
+                                     aRenderingContext,
+                                     aRect.XMost() - strWidth, y + maxAscent);
+        else
+          rv = bidiUtils->RenderText(str, maxFit, NSBIDI_LTR,
+                                     aPresContext, aRenderingContext,
+                                     aRenderingContext,
+                                     aRect.x, y + maxAscent);
+      }
     }
     if (NS_FAILED(rv))
       aRenderingContext.DrawString(str, maxFit, aRect.x, y + maxAscent);
@@ -1791,7 +1794,6 @@ nsImageFrame::LoadIcon(const nsAString& aSpec,
                                        relevant for cookies, so does not
                                        apply to icons. */
                        nsnull,      /* referrer (not relevant for icons) */
-                       nsnull,      /* principal (not relevant for icons) */
                        loadGroup,
                        gIconLoad,
                        nsnull,      /* Not associated with any particular document */

@@ -66,6 +66,13 @@
 #include "nsIDOMAttr.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMElement.h"
+#include "nsIDOMMouseListener.h"
+#include "nsIDOMMouseMotionListener.h"
+#include "nsIDOMLoadListener.h"
+#include "nsIDOMFocusListener.h"
+#include "nsIDOMKeyListener.h"
+#include "nsIDOMFormListener.h"
+#include "nsIDOMContextMenuListener.h"
 #include "nsIDOMEventListener.h"
 #include "nsIDOMNodeList.h"
 #include "nsIDOMXULCommandDispatcher.h"
@@ -131,6 +138,7 @@
 #include "nsIDOMXULDocument.h"
 
 #include "nsReadableUtils.h"
+#include "nsITimelineService.h"
 #include "nsIFrame.h"
 #include "nsNodeInfoManager.h"
 #include "nsXBLBinding.h"
@@ -159,6 +167,7 @@ public:
 
     // nsIScriptEventHandlerOwner
     virtual nsresult CompileEventHandler(nsIScriptContext* aContext,
+                                         nsISupports* aTarget,
                                          nsIAtom *aName,
                                          const nsAString& aBody,
                                          const char* aURL,
@@ -251,13 +260,6 @@ nsXULElement::nsXULSlots::~nsXULSlots()
     if (mFrameLoader) {
         mFrameLoader->Destroy();
     }
-}
-
-void
-nsXULElement::nsXULSlots::Traverse(nsCycleCollectionTraversalCallback &cb)
-{
-    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mSlots->mFrameLoader");
-    cb.NoteXPCOMChild(NS_ISUPPORTS_CAST(nsIFrameLoader*, mFrameLoader));
 }
 
 nsINode::nsSlots*
@@ -379,7 +381,10 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXULElement,
     {
         nsXULSlots* slots = static_cast<nsXULSlots*>(tmp->GetExistingSlots());
         if (slots) {
-            slots->Traverse(cb);
+            NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mFrameLoader");
+            nsISupports *frameLoader =
+                static_cast<nsIFrameLoader*>(slots->mFrameLoader);
+            cb.NoteXPCOMChild(frameLoader);
         }
     }
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
@@ -508,15 +513,17 @@ nsXULElement::GetElementsByAttributeNS(const nsAString& aNamespaceURI,
     return NS_OK;
 }
 
-nsEventListenerManager*
-nsXULElement::GetEventListenerManagerForAttr(PRBool* aDefer)
+nsresult
+nsXULElement::GetEventListenerManagerForAttr(nsEventListenerManager** aManager,
+                                             nsISupports** aTarget,
+                                             PRBool* aDefer)
 {
     // XXXbz sXBL/XBL2 issue: should we instead use GetCurrentDoc()
     // here, override BindToTree for those classes and munge event
     // listeners there?
     nsIDocument* doc = GetOwnerDoc();
     if (!doc)
-        return nsnull; // XXX
+        return NS_ERROR_UNEXPECTED; // XXX
 
     nsPIDOMWindow *window;
     Element *root = doc->GetRootElement();
@@ -524,12 +531,20 @@ nsXULElement::GetEventListenerManagerForAttr(PRBool* aDefer)
         (window = doc->GetInnerWindow()) && window->IsInnerWindow()) {
 
         nsCOMPtr<nsIDOMEventTarget> piTarget = do_QueryInterface(window);
+        if (!piTarget)
+            return NS_ERROR_UNEXPECTED;
 
         *aDefer = PR_FALSE;
-        return piTarget->GetListenerManager(PR_TRUE);
+        *aManager = piTarget->GetListenerManager(PR_TRUE);
+        NS_ENSURE_STATE(*aManager);
+        NS_ADDREF(*aManager);
+        NS_ADDREF(*aTarget = window);
+        return NS_OK;
     }
 
-    return nsStyledElement::GetEventListenerManagerForAttr(aDefer);
+    return nsStyledElement::GetEventListenerManagerForAttr(aManager,
+                                                           aTarget,
+                                                           aDefer);
 }
 
 // returns true if the element is not a list
@@ -698,7 +713,7 @@ nsXULElement::PerformAccesskey(PRBool aKeyCausesActivation,
           }
         }
         if (aKeyCausesActivation && tag != nsGkAtoms::textbox && tag != nsGkAtoms::menulist) {
-          elm->ClickWithInputSource(nsIDOMMouseEvent::MOZ_SOURCE_KEYBOARD);
+          elm->ClickWithInputSource(nsIDOMNSMouseEvent::MOZ_SOURCE_KEYBOARD);
         }
     }
     else {
@@ -746,6 +761,7 @@ nsScriptEventHandlerOwnerTearoff::GetCompiledEventHandler(
 nsresult
 nsScriptEventHandlerOwnerTearoff::CompileEventHandler(
                                                 nsIScriptContext* aContext,
+                                                nsISupports* aTarget,
                                                 nsIAtom *aName,
                                                 const nsAString& aBody,
                                                 const char* aURL,
@@ -788,6 +804,8 @@ nsScriptEventHandlerOwnerTearoff::CompileEventHandler(
         NS_ENSURE_TRUE(context, NS_ERROR_UNEXPECTED);
     }
     else {
+        // We don't have a prototype, so the passed context is ok.
+        NS_ASSERTION(aTarget != nsnull, "no prototype and no target?!");
         context = aContext;
     }
 
@@ -806,6 +824,12 @@ nsScriptEventHandlerOwnerTearoff::CompileEventHandler(
                                       aBody, aURL, aLineNo,
                                       SCRIPTVERSION_DEFAULT,  // for now?
                                       aHandler);
+    if (NS_FAILED(rv)) return rv;
+
+    // XXX: Shouldn't this use context and not aContext?
+    // XXXmarkh - is GetNativeGlobal() the correct scope?
+    rv = aContext->BindCompiledEventHandler(aTarget, aContext->GetNativeGlobal(),
+                                            aName, aHandler);
     if (NS_FAILED(rv)) return rv;
 
     nsXULPrototypeAttribute *attr =
@@ -2081,7 +2105,7 @@ nsXULElement::Blur()
 NS_IMETHODIMP
 nsXULElement::Click()
 {
-  return ClickWithInputSource(nsIDOMMouseEvent::MOZ_SOURCE_UNKNOWN);
+  return ClickWithInputSource(nsIDOMNSMouseEvent::MOZ_SOURCE_UNKNOWN);
 }
 
 nsresult
@@ -2422,29 +2446,6 @@ nsXULElement::SetDrawsInTitlebar(PRBool aState)
     }
 }
 
-class MarginSetter : public nsRunnable
-{
-public:
-    MarginSetter(nsIWidget* aWidget) :
-        mWidget(aWidget), mMargin(-1, -1, -1, -1)
-    {}
-    MarginSetter(nsIWidget *aWidget, const nsIntMargin& aMargin) :
-        mWidget(aWidget), mMargin(aMargin)
-    {}
-
-    NS_IMETHOD Run()
-    {
-        // SetNonClientMargins can dispatch native events, hence doing
-        // it off a script runner.
-        mWidget->SetNonClientMargins(mMargin);
-        return NS_OK;
-    }
-
-private:
-    nsCOMPtr<nsIWidget> mWidget;
-    nsIntMargin mMargin;
-};
-
 void
 nsXULElement::SetChromeMargins(const nsAString* aValue)
 {
@@ -2463,7 +2464,7 @@ nsXULElement::SetChromeMargins(const nsAString* aValue)
     data.Assign(*aValue);
     if (attrValue.ParseIntMarginValue(data) &&
         attrValue.GetIntMarginValue(margins)) {
-        nsContentUtils::AddScriptRunner(new MarginSetter(mainWidget, margins));
+        mainWidget->SetNonClientMargins(margins);
     }
 }
 
@@ -2474,7 +2475,8 @@ nsXULElement::ResetChromeMargins()
     if (!mainWidget)
         return;
     // See nsIWidget
-    nsContentUtils::AddScriptRunner(new MarginSetter(mainWidget));
+    nsIntMargin margins(-1,-1,-1,-1);
+    mainWidget->SetNonClientMargins(margins);
 }
 
 PRBool
@@ -3000,6 +3002,7 @@ nsXULPrototypeScript::Deserialize(nsIObjectInputStream* aStream,
                                   nsIURI* aDocumentURI,
                                   const nsCOMArray<nsINodeInfo> *aNodeInfos)
 {
+    NS_TIMELINE_MARK_FUNCTION("chrome script deserialize");
     nsresult rv;
 
     NS_ASSERTION(!mSrcLoading || mSrcLoadWaiters != nsnull ||
@@ -3169,35 +3172,6 @@ nsXULPrototypeScript::Compile(const PRUnichar* aText,
 
     Set(newScriptObject);
     return rv;
-}
-
-void
-nsXULPrototypeScript::UnlinkJSObjects()
-{
-    if (mScriptObject.mObject) {
-        nsContentUtils::DropScriptObjects(mScriptObject.mLangID, this,
-                                          &NS_CYCLE_COLLECTION_NAME(nsXULPrototypeNode));
-        mScriptObject.mObject = nsnull;
-    }
-}
-
-void
-nsXULPrototypeScript::Set(void *aObject)
-{
-    NS_ASSERTION(!mScriptObject.mObject, "Leaking script object.");
-    if (!aObject) {
-        mScriptObject.mObject = nsnull;
-
-        return;
-    }
-
-    nsresult rv = nsContentUtils::HoldScriptObject(mScriptObject.mLangID,
-                                                   this,
-                                                   &NS_CYCLE_COLLECTION_NAME(nsXULPrototypeNode),
-                                                   aObject, PR_FALSE);
-    if (NS_SUCCEEDED(rv)) {
-        mScriptObject.mObject = aObject;
-    }
 }
 
 //----------------------------------------------------------------------

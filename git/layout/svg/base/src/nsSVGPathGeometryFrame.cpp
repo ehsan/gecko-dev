@@ -153,14 +153,14 @@ nsSVGPathGeometryFrame::PaintSVG(nsSVGRenderState *aContext,
 NS_IMETHODIMP_(nsIFrame*)
 nsSVGPathGeometryFrame::GetFrameForPoint(const nsPoint &aPoint)
 {
-  PRUint16 fillRule, hitTestFlags;
+  PRUint16 fillRule, mask;
   if (GetStateBits() & NS_STATE_SVG_CLIPPATH_CHILD) {
-    hitTestFlags = SVG_HIT_TEST_FILL;
+    mask = HITTEST_MASK_FILL;
     fillRule = GetClipRule();
   } else {
-    hitTestFlags = GetHitTestFlags();
-    if (!hitTestFlags || ((hitTestFlags & SVG_HIT_TEST_CHECK_MRECT) &&
-                          !mRect.Contains(aPoint)))
+    mask = GetHittestMask();
+    if (!mask || ((mask & HITTEST_MASK_CHECK_MRECT) &&
+                  !mRect.Contains(aPoint)))
       return nsnull;
     fillRule = GetStyleSVG()->mFillRule;
   }
@@ -180,9 +180,9 @@ nsSVGPathGeometryFrame::GetFrameForPoint(const nsPoint &aPoint)
   else
     context->SetFillRule(gfxContext::FILL_RULE_WINDING);
 
-  if (hitTestFlags & SVG_HIT_TEST_FILL)
+  if (mask & HITTEST_MASK_FILL)
     isHit = context->PointInFill(userSpacePoint);
-  if (!isHit && (hitTestFlags & SVG_HIT_TEST_STROKE)) {
+  if (!isHit && (mask & HITTEST_MASK_STROKE)) {
     SetupCairoStrokeHitGeometry(context);
     isHit = context->PointInStroke(userSpacePoint);
   }

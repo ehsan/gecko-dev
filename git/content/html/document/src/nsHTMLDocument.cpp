@@ -56,7 +56,12 @@
 #include "nsIDOMNode.h" // for Find
 #include "nsIDOMNodeList.h"
 #include "nsIDOMElement.h"
+#include "nsIDOMText.h"
+#include "nsIDOMComment.h"
+#include "nsIDOMDOMImplementation.h"
+#include "nsIDOMDocumentType.h"
 #include "nsPIDOMWindow.h"
+#include "nsIDOMHTMLFormElement.h"
 #include "nsDOMString.h"
 #include "nsIStreamListener.h"
 #include "nsIURI.h"
@@ -280,6 +285,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsHTMLDocument, nsDocument)
                                                        nsIDOMNodeList)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mWyciwygChannel)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mMidasCommandManager)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mFragmentParser)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsHTMLDocument, nsDocument)
@@ -292,6 +298,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsHTMLDocument, nsDocument)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mFormControls)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mWyciwygChannel)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mMidasCommandManager)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mFragmentParser)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_ADDREF_INHERITED(nsHTMLDocument, nsDocument)
@@ -1492,7 +1499,6 @@ nsHTMLDocument::SetCookie(const nsAString& aCookie)
       window->GetPrompter(getter_AddRefs(prompt));
     }
 
-    // The for getting the URI matches nsNavigator::GetCookieEnabled
     nsCOMPtr<nsIURI> codebaseURI;
     NodePrincipal()->GetURI(getter_AddRefs(codebaseURI));
 
@@ -1522,7 +1528,7 @@ nsHTMLDocument::Open(const nsAString& aContentTypeOrUrl,
 
   // When called with 3 or more arguments, document.open() calls window.open().
   if (aOptionalArgCount > 2) {
-    nsCOMPtr<nsIDOMWindow> window = GetWindowInternal();
+    nsCOMPtr<nsIDOMWindowInternal> window = GetWindowInternal();
     if (!window) {
       return NS_OK;
     }
@@ -2164,8 +2170,16 @@ nsHTMLDocument::GetEmbeds(nsIDOMHTMLCollection** aEmbeds)
 }
 
 NS_IMETHODIMP
-nsHTMLDocument::GetSelection(nsISelection** aReturn)
+nsHTMLDocument::GetSelection(nsAString& aReturn)
 {
+  aReturn.Truncate();
+
+  nsCOMPtr<nsIJSContextStack> stack = do_GetService("@mozilla.org/js/xpc/ContextStack;1");
+  JSContext* ccx = nsnull;
+  if (stack && NS_SUCCEEDED(stack->Peek(&ccx)) && ccx) {
+    JS_ReportWarning(ccx, "Deprecated method document.getSelection() called.  Please use window.getSelection() instead.");
+  }
+
   nsCOMPtr<nsIDOMWindow> window = do_QueryInterface(GetScopeObject());
   nsCOMPtr<nsPIDOMWindow> pwin = do_QueryInterface(window);
   NS_ENSURE_TRUE(pwin, NS_OK);
@@ -2174,8 +2188,17 @@ nsHTMLDocument::GetSelection(nsISelection** aReturn)
                  pwin->GetOuterWindow()->GetCurrentInnerWindow() == pwin,
                  NS_OK);
 
-  return window->GetSelection(aReturn);
-  
+  nsCOMPtr<nsISelection> selection;
+  nsresult rv = window->GetSelection(getter_AddRefs(selection));
+  NS_ENSURE_TRUE(selection && NS_SUCCEEDED(rv), rv);
+
+  nsXPIDLString str;
+
+  rv = selection->ToString(getter_Copies(str));
+
+  aReturn.Assign(str);
+
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -2579,12 +2602,7 @@ nsHTMLDocument::DeferredContentEditableCountChange(nsIContent *aElement)
         NS_ENSURE_SUCCESS(rv, );
 
         rv = range->SelectNode(node);
-        if (NS_FAILED(rv)) {
-          // The node might be detached from the document at this point,
-          // which would cause this call to fail.  In this case, we can
-          // safely ignore the contenteditable count change.
-          return;
-        }
+        NS_ENSURE_SUCCESS(rv, );
 
         nsCOMPtr<nsIInlineSpellChecker> spellChecker;
         rv = editor->GetInlineSpellChecker(PR_FALSE,
@@ -2940,7 +2958,7 @@ nsHTMLDocument::EditingStateChanged()
 
   if (updateState) {
     nsAutoScriptBlocker scriptBlocker;
-    NotifyEditableStateChange(this, this, designMode);
+    NotifyEditableStateChange(this, this, !designMode);
   }
 
   // Resync the editor's spellcheck state.
@@ -3394,9 +3412,9 @@ nsHTMLDocument::QueryCommandEnabled(const nsAString & commandID,
   if (!window)
     return NS_ERROR_FAILURE;
 
-  nsCAutoString cmdToDispatch;
+  nsCAutoString cmdToDispatch, paramStr;
   if (!ConvertToMidasInternalCommand(commandID, cmdToDispatch))
-    return NS_OK; // queryCommandEnabled returns false on unsupported commands
+    return NS_ERROR_NOT_IMPLEMENTED;
 
   return cmdMgr->IsCommandEnabled(cmdToDispatch.get(), window, _retval);
 }
@@ -3517,18 +3535,7 @@ nsHTMLDocument::QueryCommandSupported(const nsAString & commandID,
   if (!IsEditingOnAfterFlush())
     return NS_ERROR_FAILURE;
 
-  // get command manager
-  nsCOMPtr<nsICommandManager> cmdMgr;
-  GetMidasCommandManager(getter_AddRefs(cmdMgr));
-  if (!cmdMgr)
-    return NS_ERROR_FAILURE;
-
-  // commandID is supported if it can be converted to a Midas command
-  nsCAutoString cmdToDispatch;
-  if (ConvertToMidasInternalCommand(commandID, cmdToDispatch))
-    *_retval = PR_TRUE;
-
-  return NS_OK;
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 /* DOMString queryCommandText(in DOMString commandID); */

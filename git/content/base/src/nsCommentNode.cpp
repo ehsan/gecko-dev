@@ -41,11 +41,8 @@
 
 #include "nsIDOMComment.h"
 #include "nsGenericDOMDataNode.h"
-
 #include "nsCOMPtr.h"
 #include "nsIDocument.h"
-#include "nsGenericElement.h" // DOMCI_NODE_DATA
-#include "nsDOMMemoryReporter.h"
 
 class nsCommentNode : public nsGenericDOMDataNode,
                       public nsIDOMComment
@@ -62,10 +59,6 @@ public:
 
   // nsIDOMCharacterData
   NS_FORWARD_NSIDOMCHARACTERDATA(nsGenericDOMDataNode::)
-
-  // DOM Memory Reporter participant.
-  NS_DECL_AND_IMPL_DOM_MEMORY_REPORTER_SIZEOF(nsCommentNode,
-                                              nsGenericDOMDataNode)
 
   // nsIDOMComment
   // Empty interface

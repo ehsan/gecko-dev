@@ -333,7 +333,14 @@ public:
                      nsIDocument* aDocument,
                      nsIScriptGlobalObjectOwner* aGlobalOwner);
 
-    void UnlinkJSObjects();
+    void UnlinkJSObjects()
+    {
+        if (mScriptObject.mObject) {
+            nsContentUtils::DropScriptObjects(mScriptObject.mLangID, this,
+                                              &NS_CYCLE_COLLECTION_NAME(nsXULPrototypeNode));
+            mScriptObject.mObject = nsnull;
+        }
+    }
 
     void Set(nsScriptObjectHolder &aHolder)
     {
@@ -343,7 +350,23 @@ public:
         mScriptObject.mLangID = aHolder.getScriptTypeID();
         Set((void*)aHolder);
     }
-    void Set(void *aObject);
+    void Set(void *aObject)
+    {
+        NS_ASSERTION(!mScriptObject.mObject, "Leaking script object.");
+        if (!aObject) {
+            mScriptObject.mObject = nsnull;
+
+            return;
+        }
+
+        nsresult rv = nsContentUtils::HoldScriptObject(mScriptObject.mLangID,
+                                                       this,
+                                                       &NS_CYCLE_COLLECTION_NAME(nsXULPrototypeNode),
+                                                       aObject, PR_FALSE);
+        if (NS_SUCCEEDED(rv)) {
+            mScriptObject.mObject = aObject;
+        }
+    }
 
     struct ScriptObjectHolder
     {
@@ -593,12 +616,10 @@ protected:
     class nsXULSlots : public nsGenericElement::nsDOMSlots
     {
     public:
-        nsXULSlots();
-        virtual ~nsXULSlots();
+       nsXULSlots();
+       virtual ~nsXULSlots();
 
-        void Traverse(nsCycleCollectionTraversalCallback &cb);
-
-        nsRefPtr<nsFrameLoader> mFrameLoader;
+       nsRefPtr<nsFrameLoader> mFrameLoader;
     };
 
     virtual nsINode::nsSlots* CreateSlots();
@@ -636,8 +657,10 @@ protected:
                                   const nsAString& aValue,
                                   nsAttrValue& aResult);
 
-    virtual nsEventListenerManager*
-      GetEventListenerManagerForAttr(PRBool* aDefer);
+    virtual nsresult
+      GetEventListenerManagerForAttr(nsEventListenerManager** aManager,
+                                     nsISupports** aTarget,
+                                     PRBool* aDefer);
   
     /**
      * Return our prototype's attribute, if one exists.

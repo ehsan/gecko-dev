@@ -40,6 +40,7 @@
 #include "nsCOMPtr.h"
 #include "nsWindowRoot.h"
 #include "nsPIDOMWindow.h"
+#include "nsIDOMWindow.h"
 #include "nsIDOMDocument.h"
 #include "nsIDocument.h"
 #include "nsEventListenerManager.h"
@@ -47,8 +48,10 @@
 #include "nsLayoutCID.h"
 #include "nsContentCID.h"
 #include "nsIPrivateDOMEvent.h"
+#include "nsIDOMWindowInternal.h"
 #include "nsString.h"
 #include "nsEventDispatcher.h"
+#include "nsIProgrammingLanguage.h"
 #include "nsGUIEvent.h"
 #include "nsGlobalWindow.h"
 #include "nsFocusManager.h"
@@ -146,7 +149,24 @@ nsWindowRoot::AddEventListener(const nsAString& aType,
 
   nsEventListenerManager* elm = GetListenerManager(PR_TRUE);
   NS_ENSURE_STATE(elm);
-  elm->AddEventListener(aType, aListener, aUseCapture, aWantsUntrusted);
+  return elm->AddEventListener(aType, aListener, aUseCapture, aWantsUntrusted);
+}
+
+nsresult
+nsWindowRoot::AddEventListenerByIID(nsIDOMEventListener *aListener, const nsIID& aIID)
+{
+  nsEventListenerManager* manager = GetListenerManager(PR_TRUE);
+  NS_ENSURE_STATE(manager);
+  return manager->AddEventListenerByIID(aListener, aIID, NS_EVENT_FLAG_BUBBLE);
+}
+  
+nsresult
+nsWindowRoot::RemoveEventListenerByIID(nsIDOMEventListener *aListener, const nsIID& aIID)
+{
+  nsEventListenerManager* manager = GetListenerManager(PR_TRUE);
+  if (manager) {
+    manager->RemoveEventListenerByIID(aListener, aIID, NS_EVENT_FLAG_BUBBLE);
+  }
   return NS_OK;
 }
 
@@ -224,7 +244,7 @@ nsWindowRoot::GetControllers(nsIControllers** aResult)
       return focusedWindow->GetControllers(aResult);
   }
   else {
-    nsCOMPtr<nsIDOMWindow> domWindow = do_QueryInterface(focusedWindow);
+    nsCOMPtr<nsIDOMWindowInternal> domWindow = do_QueryInterface(focusedWindow);
     if (domWindow)
       return domWindow->GetControllers(aResult);
   }
@@ -254,7 +274,7 @@ nsWindowRoot::GetControllerForCommand(const char * aCommand,
   nsCOMPtr<nsPIDOMWindow> focusedWindow;
   nsFocusManager::GetFocusedDescendant(mWindow, PR_TRUE, getter_AddRefs(focusedWindow));
   while (focusedWindow) {
-    nsCOMPtr<nsIDOMWindow> domWindow(do_QueryInterface(focusedWindow));
+    nsCOMPtr<nsIDOMWindowInternal> domWindow(do_QueryInterface(focusedWindow));
 
     nsCOMPtr<nsIControllers> controllers2;
     domWindow->GetControllers(getter_AddRefs(controllers2));
@@ -271,7 +291,7 @@ nsWindowRoot::GetControllerForCommand(const char * aCommand,
     nsCOMPtr<nsPIDOMWindow> piWindow = do_QueryInterface(focusedWindow); 
     nsGlobalWindow *win =
       static_cast<nsGlobalWindow *>
-                 (static_cast<nsIDOMWindow*>(piWindow));
+                 (static_cast<nsIDOMWindowInternal *>(piWindow));
     focusedWindow = win->GetPrivateParent();
   }
   

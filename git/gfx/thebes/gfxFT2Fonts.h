@@ -126,8 +126,7 @@ class gfxFT2Font : public gfxFT2FontBase {
 public: // new functions
     gfxFT2Font(cairo_scaled_font_t *aCairoFont,
                FontEntry *aFontEntry,
-               const gfxFontStyle *aFontStyle,
-               PRBool aNeedsBold);
+               const gfxFontStyle *aFontStyle);
     virtual ~gfxFT2Font ();
 
     cairo_font_face_t *CairoFontFace();
@@ -135,9 +134,9 @@ public: // new functions
     FontEntry *GetFontEntry();
 
     static already_AddRefed<gfxFT2Font>
-    GetOrMakeFont(const nsAString& aName, const gfxFontStyle *aStyle, PRBool aNeedsBold = PR_FALSE);
+    GetOrMakeFont(const nsAString& aName, const gfxFontStyle *aStyle);
     static already_AddRefed<gfxFT2Font>
-    GetOrMakeFont(FontEntry *aFontEntry, const gfxFontStyle *aStyle, PRBool aNeedsBold = PR_FALSE);
+    GetOrMakeFont(FontEntry *aFontEntry, const gfxFontStyle *aStyle);
 
     struct CachedGlyphData {
         CachedGlyphData()
@@ -200,7 +199,6 @@ protected: // new functions
 
     static PRBool FontCallback (const nsAString & fontName, 
                                 const nsACString & genericName, 
-                                PRBool aUseFontSet,
                                 void *closure);
     PRBool mEnableKerning;
 

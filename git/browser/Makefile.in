@@ -51,7 +51,6 @@ PARALLEL_DIRS = \
   $(NULL)
 
 DIRS = \
-  devtools \
   app \
   $(NULL)
 

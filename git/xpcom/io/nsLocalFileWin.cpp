@@ -75,6 +75,7 @@
 
 #include "nsXPIDLString.h"
 #include "prproces.h"
+#include "nsITimelineService.h"
 
 #include "mozilla/Mutex.h"
 #include "SpecialSystemDirectory.h"
@@ -1356,8 +1357,7 @@ nsLocalFile::GetVersionInfoField(const char* aField, nsAString& _retval)
 nsresult
 nsLocalFile::CopySingleFile(nsIFile *sourceFile, nsIFile *destParent,
                             const nsAString &newName, 
-                            PRBool followSymlinks, PRBool move,
-                            PRBool skipNtfsAclReset)
+                            PRBool followSymlinks, PRBool move)
 {
     nsresult rv;
     nsAutoString filePath;
@@ -1443,10 +1443,8 @@ nsLocalFile::CopySingleFile(nsIFile *sourceFile, nsIFile *destParent,
 
     if (!copyOK)  // CopyFileEx and MoveFileEx return zero at failure.
         rv = ConvertWinError(GetLastError());
-    else if (move && !skipNtfsAclReset)
+    else if (move) // Set security permissions to inherit from parent.
     {
-        // Set security permissions to inherit from parent.
-        // Note: propagates to all children: slow for big file trees
         PACL pOldDACL = NULL;
         PSECURITY_DESCRIPTOR pSD = NULL;
         ::GetNamedSecurityInfoW((LPWSTR)destPath.get(), SE_FILE_OBJECT,
@@ -1479,6 +1477,7 @@ nsLocalFile::CopyMove(nsIFile *aParentDir, const nsAString &newName, PRBool foll
     if (!newParentDir)
     {
         // no parent was specified.  We must rename.
+
         if (newName.IsEmpty())
             return NS_ERROR_INVALID_ARG;
 
@@ -1544,8 +1543,7 @@ nsLocalFile::CopyMove(nsIFile *aParentDir, const nsAString &newName, PRBool foll
     if (move || !isDir || (isSymlink && !followSymlinks))
     {
         // Copy/Move single file, or move a directory
-        rv = CopySingleFile(this, newParentDir, newName, followSymlinks, move,
-                            !aParentDir);
+        rv = CopySingleFile(this, newParentDir, newName, followSymlinks, move);
         done = NS_SUCCEEDED(rv);
         // If we are moving a directory and that fails, fallback on directory
         // enumeration.  See bug 231300 for details.
@@ -1739,6 +1737,8 @@ nsLocalFile::Load(PRLibrary * *_retval)
     if (! isFile)
         return NS_ERROR_FILE_IS_DIRECTORY;
 
+    NS_TIMELINE_START_TIMER("PR_LoadLibraryWithFlags");
+
 #ifdef NS_BUILD_REFCNT_LOGGING
     nsTraceRefcntImpl::SetActivityIsLegal(PR_FALSE);
 #endif
@@ -1751,6 +1751,10 @@ nsLocalFile::Load(PRLibrary * *_retval)
 #ifdef NS_BUILD_REFCNT_LOGGING
     nsTraceRefcntImpl::SetActivityIsLegal(PR_TRUE);
 #endif
+
+    NS_TIMELINE_STOP_TIMER("PR_LoadLibraryWithFlags");
+    NS_TIMELINE_MARK_TIMER1("PR_LoadLibraryWithFlags",
+                            NS_ConvertUTF16toUTF8(mResolvedPath).get());
 
     if (*_retval)
         return NS_OK;
@@ -2136,15 +2140,6 @@ nsLocalFile::GetDiskSpaceAvailable(PRInt64 *aDiskSpaceAvailable)
     NS_ENSURE_ARG(aDiskSpaceAvailable);
 
     ResolveAndStat();
-
-    if (mFileInfo64.type == PR_FILE_FILE) {
-      // Since GetDiskFreeSpaceExW works only on directories, use the parent.
-      nsCOMPtr<nsIFile> parent;
-      if (NS_SUCCEEDED(GetParent(getter_AddRefs(parent))) && parent) {
-        nsCOMPtr<nsILocalFile> localParent = do_QueryInterface(parent);
-        return localParent->GetDiskSpaceAvailable(aDiskSpaceAvailable);
-      }
-    }
 
     ULARGE_INTEGER liFreeBytesAvailableToCaller, liTotalNumberOfBytes;
     if (::GetDiskFreeSpaceExW(mResolvedPath.get(), &liFreeBytesAvailableToCaller, 

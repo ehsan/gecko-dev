@@ -20,7 +20,6 @@
  *
  * Contributor(s):
  *  Dan Mills <thunder@mozilla.com>
- *  Philipp von Weitershausen <philipp@weitershausen.de>
  *  Richard Newman <rnewman@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
@@ -42,6 +41,7 @@ let EXPORTED_SYMBOLS = [((this[key] = val), key) for ([key, val] in Iterator({
 
 WEAVE_CHANNEL:                         "@weave_channel@",
 WEAVE_VERSION:                         "@weave_version@",
+WEAVE_ID:                              "@weave_id@",
 
 // Sync Server API version that the client supports.
 SYNC_API_VERSION:                      "1.1",
@@ -123,6 +123,18 @@ SCORE_INCREMENT_XLARGE:                300 + 1, //MULTI_DEVICE_THRESHOLD + 1
 // Delay before incrementing global score
 SCORE_UPDATE_DELAY:                    100,
 
+// File IO Flags
+MODE_RDONLY:                           0x01,
+MODE_WRONLY:                           0x02,
+MODE_CREATE:                           0x08,
+MODE_APPEND:                           0x10,
+MODE_TRUNCATE:                         0x20,
+
+// File Permission flags
+PERMS_FILE:                            0644,
+PERMS_PASSFILE:                        0600,
+PERMS_DIRECTORY:                       0755,
+
 // Number of records to upload in a single POST (multiple POSTS if exceeded)
 // FIXME: Record size limit is 256k (new cluster), so this can be quite large!
 // (Bug 569295)
@@ -147,10 +159,10 @@ ENGINE_SUCCEEDED:                      "success.engine",
 // login failure status codes:
 LOGIN_FAILED_NO_USERNAME:              "error.login.reason.no_username",
 LOGIN_FAILED_NO_PASSWORD:              "error.login.reason.no_password2",
-LOGIN_FAILED_NO_PASSPHRASE:            "error.login.reason.no_recoverykey",
+LOGIN_FAILED_NO_PASSPHRASE:            "error.login.reason.no_synckey",
 LOGIN_FAILED_NETWORK_ERROR:            "error.login.reason.network",
 LOGIN_FAILED_SERVER_ERROR:             "error.login.reason.server",
-LOGIN_FAILED_INVALID_PASSPHRASE:       "error.login.reason.recoverykey",
+LOGIN_FAILED_INVALID_PASSPHRASE:       "error.login.reason.synckey",
 LOGIN_FAILED_LOGIN_REJECTED:           "error.login.reason.account",
 
 // sync failure status codes
@@ -184,15 +196,10 @@ JPAKE_ERROR_KEYMISMATCH:               "jpake.error.keymismatch",
 JPAKE_ERROR_WRONGMESSAGE:              "jpake.error.wrongmessage",
 JPAKE_ERROR_USERABORT:                 "jpake.error.userabort",
 
-// info types for Service.getStorageInfo
-INFO_COLLECTIONS:                      "collections",
-INFO_COLLECTION_USAGE:                 "collection_usage",
-INFO_COLLECTION_COUNTS:                "collection_counts",
-INFO_QUOTA:                            "quota",
-
 // Ways that a sync can be disabled (messages only to be printed in debug log)
 kSyncMasterPasswordLocked:             "User elected to leave Master Password locked",
 kSyncWeaveDisabled:                    "Weave is disabled",
+kSyncNotLoggedIn:                      "User is not logged in",
 kSyncNetworkOffline:                   "Network is offline",
 kSyncBackoffNotMet:                    "Trying to sync before the server said it's okay",
 kFirstSyncChoiceNotMade:               "User has not selected an action for first sync",

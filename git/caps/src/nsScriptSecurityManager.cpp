@@ -91,6 +91,7 @@
 #include "nsIURIFixup.h"
 #include "nsCDefaultURIFixup.h"
 #include "nsIChromeRegistry.h"
+#include "nsPrintfCString.h"
 #include "nsIContentSecurityPolicy.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
 #include "mozilla/Preferences.h"
@@ -1737,8 +1738,7 @@ nsScriptSecurityManager::CheckFunctionAccess(JSContext *aCx, void *aFunObj,
     {
 #ifdef DEBUG
         {
-            JS_ASSERT(JS_ObjectIsFunction(aCx, (JSObject *)aFunObj));
-            JSFunction *fun = (JSFunction *)JS_GetPrivate(aCx, (JSObject *)aFunObj);
+            JSFunction *fun = GET_FUNCTION_PRIVATE(cx, (JSObject *)aFunObj);
             JSScript *script = JS_GetFunctionScript(aCx, fun);
 
             NS_ASSERTION(!script, "Null principal for non-native function!");
@@ -2219,7 +2219,7 @@ nsScriptSecurityManager::GetFunctionObjectPrincipal(JSContext *cx,
         return result;
     }
 
-    JSFunction *fun = (JSFunction *)JS_GetPrivate(cx, obj);
+    JSFunction *fun = GET_FUNCTION_PRIVATE(cx, obj);
     JSScript *script = JS_GetFunctionScript(cx, fun);
 
     if (!script)
@@ -2285,7 +2285,7 @@ nsScriptSecurityManager::GetFramePrincipal(JSContext *cx,
 #ifdef DEBUG
     if (NS_SUCCEEDED(*rv) && !result)
     {
-        JSFunction *fun = (JSFunction *)JS_GetPrivate(cx, obj);
+        JSFunction *fun = GET_FUNCTION_PRIVATE(cx, obj);
         JSScript *script = JS_GetFunctionScript(cx, fun);
 
         NS_ASSERTION(!script, "Null principal for non-native function!");
@@ -2640,7 +2640,7 @@ nsScriptSecurityManager::IsCapabilityEnabled(const char *capability,
         // the JS engine via JS_EvaluateScript or similar APIs.
         if (JS_IsGlobalFrame(cx, fp))
             break;
-    } while (fp != target && (fp = JS_FrameIterator(cx, &fp)) != nsnull);
+    } while ((fp = JS_FrameIterator(cx, &fp)) != nsnull);
 
     if (!previousPrincipal)
     {
@@ -2712,7 +2712,7 @@ nsScriptSecurityManager::CheckConfirmDialog(JSContext* cx, nsIPrincipal* aPrinci
         nsIScriptContext *scriptContext = GetScriptContext(cx);
         if (scriptContext)
         {
-            nsCOMPtr<nsIDOMWindow> domWin =
+            nsCOMPtr<nsIDOMWindowInternal> domWin =
                 do_QueryInterface(scriptContext->GetGlobalObject());
             if (domWin)
                 domWin->GetPrompter(getter_AddRefs(prompter));
@@ -3379,8 +3379,7 @@ nsresult nsScriptSecurityManager::Init()
     nsRefPtr<nsSystemPrincipal> system = new nsSystemPrincipal();
     NS_ENSURE_TRUE(system, NS_ERROR_OUT_OF_MEMORY);
 
-    JSPrincipals *jsprin;
-    rv = system->Init(&jsprin);
+    rv = system->Init();
     NS_ENSURE_SUCCESS(rv, rv);
 
     mSystemPrincipal = system;
@@ -3407,8 +3406,6 @@ nsresult nsScriptSecurityManager::Init()
     JS_SetRuntimeSecurityCallbacks(sRuntime, &securityCallbacks);
     NS_ASSERTION(!oldcallbacks, "Someone else set security callbacks!");
 
-    JS_SetTrustedPrincipals(sRuntime, jsprin);
-
     return NS_OK;
 }
 
@@ -3432,7 +3429,6 @@ nsScriptSecurityManager::Shutdown()
 {
     if (sRuntime) {
         JS_SetRuntimeSecurityCallbacks(sRuntime, NULL);
-        JS_SetTrustedPrincipals(sRuntime, NULL);
         sRuntime = nsnull;
     }
     sEnabledID = JSID_VOID;

@@ -48,12 +48,13 @@
 #include "jsregexp.h"
 #include "jsscript.h"
 #include "jsscope.h"
+#include "vm/GlobalObject.h"
 
 namespace js {
 
 inline
-Bindings::Bindings(JSContext *cx, EmptyShape *emptyCallShape)
-  : lastBinding(emptyCallShape), nargs(0), nvars(0), nupvars(0),
+Bindings::Bindings(JSContext *cx)
+  : lastBinding(NULL), nargs(0), nvars(0), nupvars(0),
     hasExtensibleParents(false)
 {
 }
@@ -61,7 +62,7 @@ Bindings::Bindings(JSContext *cx, EmptyShape *emptyCallShape)
 inline void
 Bindings::transfer(JSContext *cx, Bindings *bindings)
 {
-    JS_ASSERT(lastBinding == cx->compartment->emptyCallShape);
+    JS_ASSERT(!lastBinding);
 
     *this = *bindings;
 #ifdef DEBUG
@@ -69,20 +70,22 @@ Bindings::transfer(JSContext *cx, Bindings *bindings)
 #endif
 
     /* Preserve back-pointer invariants across the lastBinding transfer. */
-    if (lastBinding->inDictionary())
+    if (lastBinding && lastBinding->inDictionary())
         lastBinding->listp = &this->lastBinding;
 }
 
 inline void
 Bindings::clone(JSContext *cx, Bindings *bindings)
 {
-    JS_ASSERT(lastBinding == cx->compartment->emptyCallShape);
+    JS_ASSERT(!lastBinding);
 
     /*
      * Non-dictionary bindings are fine to share, as are dictionary bindings if
      * they're copy-on-modification.
      */
-    JS_ASSERT(!bindings->lastBinding->inDictionary() || bindings->lastBinding->frozen());
+    JS_ASSERT(!bindings->lastBinding ||
+              !bindings->lastBinding->inDictionary() ||
+              bindings->lastBinding->frozen());
 
     *this = *bindings;
 }
@@ -93,6 +96,17 @@ Bindings::lastShape() const
     JS_ASSERT(lastBinding);
     JS_ASSERT_IF(lastBinding->inDictionary(), lastBinding->frozen());
     return lastBinding;
+}
+
+bool
+Bindings::ensureShape(JSContext *cx)
+{
+    if (!lastBinding) {
+        lastBinding = EmptyShape::create(cx, &js_CallClass);
+        if (!lastBinding)
+            return false;
+    }
+    return true;
 }
 
 extern const char *
@@ -120,15 +134,8 @@ JSScript::getFunction(size_t index)
     JS_ASSERT(funobj->isFunction());
     JS_ASSERT(funobj == (JSObject *) funobj->getPrivate());
     JSFunction *fun = (JSFunction *) funobj;
-    JS_ASSERT(fun->isInterpreted());
+    JS_ASSERT(FUN_INTERPRETED(fun));
     return fun;
-}
-
-inline JSFunction *
-JSScript::getCallerFunction()
-{
-    JS_ASSERT(savedCallerFun);
-    return getFunction(0);
 }
 
 inline JSObject *
@@ -151,6 +158,30 @@ JSScript::isEmpty() const
     if (noScriptRval && JSOp(*pc) == JSOP_FALSE)
         ++pc;
     return JSOp(*pc) == JSOP_STOP;
+}
+
+inline bool
+JSScript::hasGlobal() const
+{
+    /*
+     * Make sure that we don't try to query information about global objects
+     * which have had their scopes cleared. compileAndGo code should not run
+     * anymore against such globals.
+     */
+    return global_ && !global_->isCleared();
+}
+
+inline js::GlobalObject *
+JSScript::global() const
+{
+    JS_ASSERT(hasGlobal());
+    return global_;
+}
+
+inline bool
+JSScript::hasClearedGlobal() const
+{
+    return global_ && global_->isCleared();
 }
 
 #endif /* jsscriptinlines_h___ */

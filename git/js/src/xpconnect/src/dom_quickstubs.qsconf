@@ -56,7 +56,7 @@ members = [
     #   - nsIDOMLocation.reload
     #   - nsIDOMNSHistory.go
     #   - nsIDOMJSPluginArray.refresh
-    #   - nsIDOMWindow.postMessage
+    #   - nsIDOMWindowInternal.postMessage
     #   - nsIDOMJSWindow.{prompt,setTimeout,setInterval,open,openDialog}
     #
     # (And nsIDOMModalContentWindow.returnValue is an attribute of type
@@ -72,9 +72,6 @@ members = [
     'nsIDOMWindow.getSelection',
     'nsIDOMWindow.scrollByLines',
     'nsIDOMWindow.getComputedStyle',
-    'nsIDOMWindow.sessionStorage',
-    'nsIDOMWindow.localStorage',
-    'nsIDOMWindow.globalStorage',
     'nsIDOMJSWindow.dump',
     'nsIDOMScreen.top',
     'nsIDOMScreen.height',
@@ -181,12 +178,12 @@ members = [
     #XXX Can't quickstub initProgressEvent because it has long long parameters.
     'nsIDOMNSEvent.originalTarget',
     'nsIDOMNSEvent.getPreventDefault',
-    'nsIDOMUIEvent.which',
-    'nsIDOMUIEvent.rangeParent',
-    'nsIDOMUIEvent.rangeOffset',
-    'nsIDOMUIEvent.pageX',
-    'nsIDOMUIEvent.pageY',
-    'nsIDOMUIEvent.isChar',
+    'nsIDOMNSUIEvent.which',
+    'nsIDOMNSUIEvent.rangeParent',
+    'nsIDOMNSUIEvent.rangeOffset',
+    'nsIDOMNSUIEvent.pageX',
+    'nsIDOMNSUIEvent.pageY',
+    'nsIDOMNSUIEvent.isChar',
 
     'nsIDOMTouch.*',
     'nsIDOMTouchList.*',
@@ -213,7 +210,6 @@ members = [
     # but it is also present in other objects where it isn't shadowed.
     # Quick stubs handle the shadowing the same as XPConnect.
     'nsIDOMHTMLCollection.length',
-    'nsIDOMHTMLCommandElement.*',
     'nsIDOMHTMLDocument.body',
     'nsIDOMHTMLDocument.getElementsByName',
     'nsIDOMHTMLDocument.anchors',
@@ -259,11 +255,8 @@ members = [
     'nsIDOMHTMLInputElement.textLength',
     'nsIDOMHTMLInputElement.selectionStart',
     'nsIDOMHTMLInputElement.selectionEnd',
-    'nsIDOMHTMLInputElement.selectionDirection',
     'nsIDOMHTMLInputElement.setSelectionRange',
     'nsIDOMHTMLLinkElement.disabled',
-    'nsIDOMHTMLMenuElement.*',
-    'nsIDOMHTMLMenuItemElement.*',
     'nsIDOMHTMLOptionElement.index',
     'nsIDOMHTMLOptionElement.selected',
     'nsIDOMHTMLOptionElement.form',
@@ -321,7 +314,6 @@ members = [
     'nsIDOMHTMLTextAreaElement.setSelectionRange',
     'nsIDOMHTMLTextAreaElement.selectionStart',
     'nsIDOMHTMLTextAreaElement.selectionEnd',
-    'nsIDOMHTMLTextAreaElement.selectionDirection',
     'nsIDOMHTMLTextAreaElement.textLength',
     'nsIDOMHTMLTextAreaElement.wrap',
     'nsIDOMHTMLTitleElement.text',
@@ -365,6 +357,7 @@ members = [
     'nsIDOMStorage.removeItem',
     'nsIDOMStorage.clear',
     'nsIDOMStorageItem.value',
+    'nsIDOMStorageWindow.*',
 
     # dom/interfaces/stylesheets - None.
 
@@ -426,7 +419,7 @@ members = [
     '-nsIXMLHttpRequest.upload',
 
     # WebSocket
-    'nsIMozWebSocket.*',
+    'nsIWebSocket.*',
 
     # webgl
     'nsIDOMWebGLRenderingContext.*',
@@ -883,7 +876,7 @@ customMethodCalls = {
         'thisType': 'nsGenericElement'
         },
     'nsIDOMElement_GetTagName': {
-        'thisType': 'nsGenericElement',
+        'thisType': 'nsINode',
         'code': 'nsString result = self->NodeName();',
         'canFail': False
         },

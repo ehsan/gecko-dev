@@ -45,6 +45,7 @@
 #include "nsIViewManager.h"
 #include "nsITextToSubURI.h"
 #include "nsIURL.h"
+#include "nsPrintfCString.h"
 #include "nsIContentViewer.h"
 #include "nsIMarkupDocumentViewer.h"
 #include "nsIDocShell.h"
@@ -149,8 +150,6 @@ MediaDocument::Init()
     stringService->CreateBundle(NSMEDIADOCUMENT_PROPERTIES_URI,
                                 getter_AddRefs(mStringBundle));
   }
-
-  mIsSyntheticDocument = PR_TRUE;
 
   return NS_OK;
 }

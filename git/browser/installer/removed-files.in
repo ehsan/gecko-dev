@@ -226,11 +226,9 @@ greprefs/all.js
 greprefs/security-prefs.js
 greprefs/xpinstall.js
 install.rdf
-modules/ISO8601DateUtils.jsm
 modules/JSON.jsm
 mozilla-runtime@BIN_SUFFIX@
 old-homepage-default.properties
-README.txt
 res/arrow.gif
 res/arrowd.gif
 res/broken-image.gif
@@ -942,6 +940,7 @@ xpicleanup@BIN_SUFFIX@
   modules/Geometry.jsm
   modules/HUDService.jsm
   modules/InlineSpellChecker.jsm
+  modules/ISO8601DateUtils.jsm
   modules/LightweightThemeConsumer.jsm
   modules/LightweightThemeManager.jsm
   modules/Microformats.js
@@ -992,6 +991,7 @@ xpicleanup@BIN_SUFFIX@
   modules/services-sync/type_records/prefs.js
   modules/services-sync/type_records/tabs.js
   modules/services-sync/util.js
+  modules/SpatialNavigation.js
   modules/stylePanel.jsm
   modules/tabview/AllTabs.jsm
   modules/tabview/groups.jsm
@@ -1272,8 +1272,14 @@ xpicleanup@BIN_SUFFIX@
   components/nsPostUpdateWin.js
   js3250.dll
   plugins/npnul32.dll
-  mozcrt19.dll
-  mozcpp19.dll
+  #ifdef MOZ_MEMORY
+    Microsoft.VC80.CRT.manifest
+    msvcm80.dll
+    msvcp80.dll
+    msvcr80.dll
+  #else
+    mozcrt19.dll
+  #endif
 #endif
 @DLL_PREFIX@xpcom_core@DLL_SUFFIX@
 components/@DLL_PREFIX@jar50@DLL_SUFFIX@

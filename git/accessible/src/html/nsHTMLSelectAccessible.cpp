@@ -57,8 +57,6 @@
 #include "nsIServiceManager.h"
 #include "nsIMutableArray.h"
 
-using namespace mozilla::a11y;
-
 ////////////////////////////////////////////////////////////////////////////////
 // nsHTMLSelectListAccessible
 ////////////////////////////////////////////////////////////////////////////////
@@ -302,7 +300,7 @@ nsHTMLSelectOptionAccessible::NativeState()
     // visibility implementation unless they get reimplemented in layout
     state &= ~states::OFFSCREEN;
     // <select> is not collapsed: compare bounds to calculate OFFSCREEN
-    nsAccessible* listAcc = Parent();
+    nsAccessible* listAcc = GetParent();
     if (listAcc) {
       PRInt32 optionX, optionY, optionWidth, optionHeight;
       PRInt32 listX, listY, listWidth, listHeight;
@@ -371,10 +369,10 @@ NS_IMETHODIMP nsHTMLSelectOptionAccessible::GetActionName(PRUint8 aIndex, nsAStr
   return NS_ERROR_INVALID_ARG;
 }
 
-PRUint8
-nsHTMLSelectOptionAccessible::ActionCount()
+NS_IMETHODIMP nsHTMLSelectOptionAccessible::GetNumActions(PRUint8 *_retval)
 {
-  return 1;
+  *_retval = 1;
+  return NS_OK;
 }
 
 NS_IMETHODIMP nsHTMLSelectOptionAccessible::DoAction(PRUint8 index)
@@ -384,9 +382,8 @@ NS_IMETHODIMP nsHTMLSelectOptionAccessible::DoAction(PRUint8 index)
     if (!newHTMLOption) 
       return NS_ERROR_FAILURE;
     // Clear old selection
-    nsAccessible* parent = Parent();
-    if (!parent)
-      return NS_OK;
+    nsAccessible* parent = GetParent();
+    NS_ASSERTION(parent, "No parent!");
 
     nsCOMPtr<nsIContent> oldHTMLOptionContent =
       GetFocusedOption(parent->GetContent());
@@ -616,10 +613,9 @@ NS_IMETHODIMP nsHTMLSelectOptGroupAccessible::GetActionName(PRUint8 aIndex, nsAS
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-PRUint8
-nsHTMLSelectOptGroupAccessible::ActionCount()
+NS_IMETHODIMP nsHTMLSelectOptGroupAccessible::GetNumActions(PRUint8 *_retval)
 {
-  return 0;
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -774,10 +770,11 @@ NS_IMETHODIMP nsHTMLComboboxAccessible::GetValue(nsAString& aValue)
   return option ? option->GetName(aValue) : NS_OK;
 }
 
-PRUint8
-nsHTMLComboboxAccessible::ActionCount()
+/** Just one action ( click ). */
+NS_IMETHODIMP nsHTMLComboboxAccessible::GetNumActions(PRUint8 *aNumActions)
 {
-  return 1;
+  *aNumActions = 1;
+  return NS_OK;
 }
 
 /**
@@ -894,7 +891,7 @@ void nsHTMLComboboxListAccessible::GetBoundsRect(nsRect& aBounds, nsIFrame** aBo
 {
   *aBoundingFrame = nsnull;
 
-  nsAccessible* comboAcc = Parent();
+  nsAccessible* comboAcc = GetParent();
   if (!comboAcc)
     return;
 

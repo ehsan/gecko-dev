@@ -73,13 +73,13 @@
 #include "nsXBLWindowKeyHandler.h"
 #include "txMozillaXSLTProcessor.h"
 #include "nsDOMStorage.h"
-#include "nsTreeSanitizer.h"
 #include "nsCellMap.h"
 #include "nsTextFrameTextRunCache.h"
 #include "nsCCUncollectableMarker.h"
 #include "nsTextFragment.h"
 #include "nsCSSRuleProcessor.h"
 #include "nsCrossSiteListenerProxy.h"
+#include "nsDOMThreadService.h"
 #include "nsHTMLDNSPrefetch.h"
 #include "nsHtml5Module.h"
 #include "nsCrossSiteListenerProxy.h"
@@ -122,7 +122,6 @@
 #include "nsRefreshDriver.h"
 
 #include "nsHyphenationManager.h"
-#include "nsEditorSpellCheck.h"
 #include "nsDOMMemoryReporter.h"
 
 extern void NS_ShutdownChainItemPool();
@@ -177,7 +176,11 @@ nsLayoutStatics::Initialize()
     return rv;
   }
 
-  nsCellMap::Init();
+  rv = nsCellMap::Init();
+  if (NS_FAILED(rv)) {
+    NS_ERROR("Could not initialize nsCellMap");
+    return rv;
+  }
 
   nsCSSRendering::Init();
 
@@ -263,7 +266,12 @@ nsLayoutStatics::Initialize()
 
   NS_SealStaticAtomTable();
 
+// TODO: DOM_MEMORY_REPORTER should not be defined in a regular build for the
+// moment. This protection will be removed when bug 663271 will be close enough
+// to a shippable state.
+#ifdef DOM_MEMORY_REPORTER
   nsDOMMemoryReporter::Init();
+#endif
 
   return NS_OK;
 }
@@ -336,6 +344,8 @@ nsLayoutStatics::Shutdown()
   nsHTMLEditor::Shutdown();
   nsTextServicesDocument::Shutdown();
 
+  nsDOMThreadService::Shutdown();
+
 #ifdef MOZ_SYDNEYAUDIO
   nsAudioStream::ShutdownLibrary();
 #endif
@@ -343,8 +353,6 @@ nsLayoutStatics::Shutdown()
   nsCORSListenerProxy::Shutdown();
   
   nsIPresShell::ReleaseStatics();
-
-  nsTreeSanitizer::ReleaseStatics();
 
   nsHtml5Module::ReleaseStatics();
 
@@ -359,5 +367,4 @@ nsLayoutStatics::Shutdown()
   nsLayoutUtils::Shutdown();
 
   nsHyphenationManager::Shutdown();
-  nsEditorSpellCheck::ShutDown();
 }

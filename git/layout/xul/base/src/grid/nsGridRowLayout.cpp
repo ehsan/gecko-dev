@@ -128,7 +128,7 @@ nsGridRowLayout::GetGrid(nsIBox* aBox, PRInt32* aIndex, nsGridRowLayout* aReques
      // if there is a scrollframe walk inside it to its child
      nsIBox* childBox = nsGrid::GetScrolledBox(child);
 
-     nsBoxLayout* layout = childBox->GetLayoutManager();
+     nsIBoxLayout* layout = childBox->GetLayoutManager();
      nsIGridPart* gridRow = nsGrid::GetPartFromBox(childBox);
      if (gridRow) 
      {

@@ -49,7 +49,9 @@
 #include "nsIMarkupDocumentViewer.h"
 #include "nsHTMLParts.h"
 #include "nsIComponentManager.h"
+#include "nsIDOMComment.h"
 #include "nsIDOMElement.h"
+#include "nsIDOMText.h"
 #include "nsIBaseWindow.h"
 #include "nsIDOMWindow.h"
 #include "nsIDOMDocumentType.h"
@@ -382,8 +384,8 @@ nsXMLDocument::Load(const nsAString& aUrl, PRBool *aReturn)
                                          nsnull, 0, 0, nsIScriptError::warningFlag,
                                          "DOM",
                                          callingDoc ?
-                                           callingDoc->InnerWindowID() :
-                                           this->InnerWindowID());
+                                           callingDoc->OuterWindowID() :
+                                           this->OuterWindowID());
 
       NS_ENSURE_SUCCESS(rv, rv);
 

@@ -74,6 +74,7 @@
 #include "nsContentUtils.h"
 #include "nsCSSFrameConstructor.h"
 #include "nsEventStateManager.h"
+#include "nsIBoxLayout.h"
 #include "nsIPopupBoxObject.h"
 #include "nsPIWindowRoot.h"
 #include "nsIReflowCallback.h"
@@ -85,7 +86,6 @@
 #include "nsIScreenManager.h"
 #include "nsIServiceManager.h"
 #include "nsThemeConstants.h"
-#include "nsDisplayList.h"
 #include "mozilla/Preferences.h"
 
 using namespace mozilla;
@@ -115,7 +115,6 @@ nsMenuPopupFrame::nsMenuPopupFrame(nsIPresShell* aShell, nsStyleContext* aContex
   mPopupState(ePopupClosed),
   mPopupAlignment(POPUPALIGNMENT_NONE),
   mPopupAnchor(POPUPALIGNMENT_NONE),
-  mConsumeRollupEvent(nsIPopupBoxObject::ROLLUP_DEFAULT),
   mFlipBoth(PR_FALSE),
   mIsOpenChanged(PR_FALSE),
   mIsContextMenu(PR_FALSE),
@@ -123,9 +122,9 @@ nsMenuPopupFrame::nsMenuPopupFrame(nsIPresShell* aShell, nsStyleContext* aContex
   mGeneratedChildren(PR_FALSE),
   mMenuCanOverlapOSBar(PR_FALSE),
   mShouldAutoPosition(PR_TRUE),
+  mConsumeRollupEvent(nsIPopupBoxObject::ROLLUP_DEFAULT),
   mInContentShell(PR_TRUE),
   mIsMenuLocked(PR_FALSE),
-  mIsDragPopup(PR_FALSE),
   mHFlip(PR_FALSE),
   mVFlip(PR_FALSE)
 {
@@ -150,7 +149,7 @@ nsMenuPopupFrame::Init(nsIContent*      aContent,
 
   // lookup if we're allowed to overlap the OS bar (menubar/taskbar) from the
   // look&feel object
-  PRInt32 tempBool;
+  PRBool tempBool;
   presContext->LookAndFeel()->
     GetMetric(nsILookAndFeel::eMetric_MenusCanOverlapOSBar, tempBool);
   mMenuCanOverlapOSBar = tempBool;
@@ -176,12 +175,6 @@ nsMenuPopupFrame::Init(nsIContent*      aContent,
       else if (tag == nsGkAtoms::tooltip)
         mPopupType = ePopupTypeTooltip;
     }
-  }
-
-  if (mPopupType == ePopupTypePanel &&
-      aContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::type,
-                            nsGkAtoms::drag, eIgnoreCase)) {
-    mIsDragPopup = PR_TRUE;
   }
 
   nsCOMPtr<nsISupports> cont = PresContext()->GetContainer();
@@ -266,7 +259,7 @@ nsMenuPopupFrame::EnsureWidget()
 {
   nsIView* ourView = GetView();
   if (!ourView->HasWidget()) {
-    NS_ASSERTION(!mGeneratedChildren && !GetFirstPrincipalChild(),
+    NS_ASSERTION(!mGeneratedChildren && !GetFirstChild(nsnull),
                  "Creating widget for MenuPopupFrame with children");
     CreateWidgetForView(ourView);
   }
@@ -282,7 +275,6 @@ nsMenuPopupFrame::CreateWidgetForView(nsIView* aView)
   widgetData.clipSiblings = PR_TRUE;
   widgetData.mPopupHint = mPopupType;
   widgetData.mNoAutoHide = IsNoAutoHide();
-  widgetData.mIsDragPopup = mIsDragPopup;
 
   nsAutoString title;
   if (mContent && widgetData.mNoAutoHide) {
@@ -385,13 +377,13 @@ private:
 };
 
 NS_IMETHODIMP
-nsMenuPopupFrame::SetInitialChildList(ChildListID  aListID,
+nsMenuPopupFrame::SetInitialChildList(nsIAtom* aListName,
                                       nsFrameList& aChildList)
 {
   // unless the list is empty, indicate that children have been generated.
   if (aChildList.NotEmpty())
     mGeneratedChildren = PR_TRUE;
-  return nsBoxFrame::SetInitialChildList(aListID, aChildList);
+  return nsBoxFrame::SetInitialChildList(aListName, aChildList);
 }
 
 PRBool
@@ -1075,7 +1067,6 @@ nsMenuPopupFrame::FlipOrResize(nscoord& aScreenPoint, nscoord aSize,
           aScreenPoint = aScreenEnd - aSize;
         }
         else {
-          aScreenPoint = endpos + aMarginBegin;
           popupSize = aScreenEnd - aScreenPoint;
         }
       }
@@ -1100,22 +1091,7 @@ nsMenuPopupFrame::FlipOrResize(nscoord& aScreenPoint, nscoord aSize,
     }
   }
 
-  // Make sure that the point is within the screen boundaries and that the
-  // size isn't off the edge of the screen. This can happen when a large
-  // positive or negative margin is used.
-  if (aScreenPoint < aScreenBegin) {
-    aScreenPoint = aScreenBegin;
-  }
-  if (aScreenPoint > aScreenEnd) {
-    aScreenPoint = aScreenEnd - aSize;
-  }
-
-  // If popupSize ended up being negative, or the original size was actually
-  // smaller than the calculated popup size, just use the original size instead.
-  if (popupSize <= 0 || aSize < popupSize) {
-    popupSize = aSize;
-  }
-  return NS_MIN(popupSize, aScreenEnd - aScreenPoint);
+  return popupSize;
 }
 
 nsresult
@@ -1123,12 +1099,6 @@ nsMenuPopupFrame::SetPopupPosition(nsIFrame* aAnchorFrame, PRBool aIsMove)
 {
   if (!mShouldAutoPosition)
     return NS_OK;
-
-  // If this is due to a move, return early if the popup hasn't been laid out
-  // yet. On Windows, this can happen when using a drag popup before it opens.
-  if (aIsMove && (mPrefSize.width == -1 || mPrefSize.height == -1)) {
-    return NS_OK;
-  }
 
   nsPresContext* presContext = PresContext();
   nsIFrame* rootFrame = presContext->PresShell()->FrameManager()->GetRootFrame();
@@ -1194,8 +1164,10 @@ nsMenuPopupFrame::SetPopupPosition(nsIFrame* aAnchorFrame, PRBool aIsMove)
 
   nsDeviceContext* devContext = presContext->DeviceContext();
   nscoord offsetForContextMenu = 0;
-
-  if (IsAnchored()) {
+  // if mScreenXPos and mScreenYPos are -1, then we are anchored. If they
+  // have other values, then the popup appears unanchored at that screen
+  // coordinate.
+  if (mScreenXPos == -1 && mScreenYPos == -1) {
     // if we are anchored, there are certain things we don't want to do when
     // repositioning the popup to fit on the screen, such as end up positioned
     // over the anchor, for instance a popup appearing over the menu label.
@@ -1483,7 +1455,7 @@ nsIScrollableFrame* nsMenuPopupFrame::GetScrollFrame(nsIFrame* aStart)
   // try children
   currFrame = aStart;
   do {
-    nsIFrame* childFrame = currFrame->GetFirstPrincipalChild();
+    nsIFrame* childFrame = currFrame->GetFirstChild(nsnull);
     nsIScrollableFrame* sf = GetScrollFrame(childFrame);
     if (sf)
       return sf;
@@ -1656,7 +1628,7 @@ nsMenuPopupFrame::FindMenuWithShortcut(nsIDOMKeyEvent* aKeyEvent, PRBool& doActi
   //       been destroyed already.  One strategy would be to 
   //       setTimeout(<func>,0) as detailed in:
   //       <http://bugzilla.mozilla.org/show_bug.cgi?id=126675#c32>
-  currFrame = immediateParent->GetFirstPrincipalChild();
+  currFrame = immediateParent->GetFirstChild(nsnull);
 
   PRInt32 menuAccessKey = -1;
   nsMenuBarListener::GetMenuAccessKey(&menuAccessKey);
@@ -1781,19 +1753,6 @@ void
 nsMenuPopupFrame::AttachedDismissalListener()
 {
   mConsumeRollupEvent = nsIPopupBoxObject::ROLLUP_DEFAULT;
-}
-
-nsresult
-nsMenuPopupFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                   const nsRect&           aDirtyRect,
-                                   const nsDisplayListSet& aLists)
-{
-  // don't pass events to drag popups
-  if (aBuilder->IsForEventDelivery() && mIsDragPopup) {
-    return NS_OK;
-  }
-
-  return nsBoxFrame::BuildDisplayList(aBuilder, aDirtyRect, aLists);
 }
 
 // helpers /////////////////////////////////////////////////////////////

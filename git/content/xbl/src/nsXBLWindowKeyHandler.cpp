@@ -42,6 +42,7 @@
 #include "nsXBLWindowKeyHandler.h"
 #include "nsIContent.h"
 #include "nsIAtom.h"
+#include "nsIDOMNSUIEvent.h"
 #include "nsIDOMKeyEvent.h"
 #include "nsIDOMEventTarget.h"
 #include "nsIDOMNSEvent.h"
@@ -53,6 +54,7 @@
 #include "nsINativeKeyBindings.h"
 #include "nsIController.h"
 #include "nsIControllers.h"
+#include "nsIDOMWindowInternal.h"
 #include "nsFocusManager.h"
 #include "nsPIWindowRoot.h"
 #include "nsIURI.h"
@@ -68,7 +70,6 @@
 #include "nsISelectionController.h"
 #include "nsGUIEvent.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/dom/Element.h"
 
 using namespace mozilla;
 
@@ -318,13 +319,15 @@ DoCommandCallback(const char *aCommand, void *aData)
 nsresult
 nsXBLWindowKeyHandler::WalkHandlers(nsIDOMKeyEvent* aKeyEvent, nsIAtom* aEventType)
 {
-  nsCOMPtr<nsIDOMNSEvent> domNSEvent = do_QueryInterface(aKeyEvent);
+  nsCOMPtr<nsIDOMNSUIEvent> evt = do_QueryInterface(aKeyEvent);
   PRBool prevent;
-  domNSEvent->GetPreventDefault(&prevent);
+  evt->GetPreventDefault(&prevent);
   if (prevent)
     return NS_OK;
 
+  nsCOMPtr<nsIDOMNSEvent> domNSEvent = do_QueryInterface(aKeyEvent);
   PRBool trustedEvent = PR_FALSE;
+
   if (domNSEvent) {
     //Don't process the event if it was not dispatched from a trusted source
     domNSEvent->GetIsTrusted(&trustedEvent);
@@ -341,7 +344,7 @@ nsXBLWindowKeyHandler::WalkHandlers(nsIDOMKeyEvent* aKeyEvent, nsIAtom* aEventTy
   if (!el) {
     if (mUserHandler) {
       WalkHandlersInternal(aKeyEvent, aEventType, mUserHandler);
-      domNSEvent->GetPreventDefault(&prevent);
+      evt->GetPreventDefault(&prevent);
       if (prevent)
         return NS_OK; // Handled by the user bindings. Our work here is done.
     }

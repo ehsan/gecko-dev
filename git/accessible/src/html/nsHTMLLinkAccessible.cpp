@@ -43,9 +43,6 @@
 #include "nsCoreUtils.h"
 
 #include "nsEventStates.h"
-#include "mozilla/dom/Element.h"
-
-using namespace mozilla::a11y;
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsHTMLLinkAccessible
@@ -120,10 +117,16 @@ nsHTMLLinkAccessible::GetValue(nsAString& aValue)
   return presShell->GetLinkLocation(DOMNode, aValue);
 }
 
-PRUint8
-nsHTMLLinkAccessible::ActionCount()
+NS_IMETHODIMP
+nsHTMLLinkAccessible::GetNumActions(PRUint8 *aNumActions)
 {
-  return IsLinked() ? 1 : nsHyperTextAccessible::ActionCount();
+  NS_ENSURE_ARG_POINTER(aNumActions);
+
+  if (!IsLinked())
+    return nsHyperTextAccessible::GetNumActions(aNumActions);
+
+  *aNumActions = 1;
+  return NS_OK;
 }
 
 NS_IMETHODIMP

@@ -50,7 +50,6 @@ function SpecialPowers(window) {
   this._pongHandlers = [];
   this._messageListener = this._messageReceived.bind(this);
   addMessageListener("SPPingService", this._messageListener);
-  this._consoleListeners = [];
 }
 
 function bindDOMWindowUtils(sp, window) {
@@ -69,11 +68,7 @@ function bindDOMWindowUtils(sp, window) {
   function rebind(desc, prop) {
     if (prop in desc && typeof(desc[prop]) == "function") {
       var oldval = desc[prop];
-      try {
-        desc[prop] = function() { return oldval.apply(util, arguments); };
-      } catch (ex) {
-        dump("WARNING: Special Powers failed to rebind function: " + desc + "::" + prop + "\n");
-      }
+      desc[prop] = function() { return oldval.apply(util, arguments); };
     }
   }
   for (var i in proto) {
@@ -136,11 +131,7 @@ SpecialPowers.prototype = {
     } else {
       msg = {'op':'get', 'prefName': aPrefName,'prefType': aPrefType};
     }
-    var val = sendSyncMessage('SPPrefService', msg);
-
-    if (val == null || val[0] == null)
-      throw "Error getting pref";
-    return val[0];
+    return(sendSyncMessage('SPPrefService', msg)[0]);
   },
   _setPref: function(aPrefName, aPrefType, aValue, aIid) {
     var msg = {};
@@ -199,32 +190,6 @@ SpecialPowers.prototype = {
     removeEventListener(type, listener, capture);
   },
 
-  addErrorConsoleListener: function(listener) {
-    var consoleListener = {
-      userListener: listener,
-      observe: function(consoleMessage) {
-        this.userListener(consoleMessage.message);
-      }
-    };
-
-    Cc["@mozilla.org/consoleservice;1"].getService(Ci.nsIConsoleService)
-                                       .registerListener(consoleListener);
-
-    this._consoleListeners.push(consoleListener);
-  },
-
-  removeErrorConsoleListener: function(listener) {
-    for (var index in this._consoleListeners) {
-      var consoleListener = this._consoleListeners[index];
-      if (consoleListener.userListener == listener) {
-        Cc["@mozilla.org/consoleservice;1"].getService(Ci.nsIConsoleService)
-                                           .unregisterListener(consoleListener);
-        this._consoleListeners = this._consoleListeners.splice(index, 1);
-        break;
-      }
-    }
-  },
-
   getFullZoom: function(window) {
     return this._getMUDV(window).fullZoom;
   },
@@ -243,26 +208,6 @@ SpecialPowers.prototype = {
              .createInstance(Ci.nsIXMLHttpRequest);
   },
 
-  loadURI: function(window, uri, referrer, charset, x, y) {
-    var webNav = window.QueryInterface(Ci.nsIInterfaceRequestor)
-                       .getInterface(Ci.nsIWebNavigation);
-    webNav.loadURI(uri, referrer, charset, x, y);
-  },
-
-  snapshotWindow: function (win, withCaret) {
-    var el = this.window.document.createElementNS("http://www.w3.org/1999/xhtml", "canvas");
-    el.width = win.innerWidth;
-    el.height = win.innerHeight;
-    var ctx = el.getContext("2d");
-    var flags = 0;
-
-    ctx.drawWindow(win, win.scrollX, win.scrollY,
-                   win.innerWidth, win.innerHeight,
-                   "rgb(255,255,255)",
-                   withCaret ? ctx.DRAWWINDOW_DRAW_CARET : 0);
-    return el;
-  },
-
   gc: function() {
     this.DOMWindowUtils.garbageCollect();
   },
@@ -278,34 +223,6 @@ SpecialPowers.prototype = {
     } catch (e) {
       return true;
     }
-  },
-
-  _xpcomabi: null,
-
-  get XPCOMABI() {
-    if (this._xpcomabi != null)
-      return this._xpcomabi;
-
-    var xulRuntime = Cc["@mozilla.org/xre/app-info;1"]
-                        .getService(Components.interfaces.nsIXULAppInfo)
-                        .QueryInterface(Components.interfaces.nsIXULRuntime);
-
-    this._xpcomabi = xulRuntime.XPCOMABI;
-    return this._xpcomabi;
-  },
-
-  _os: null,
-
-  get OS() {
-    if (this._os != null)
-      return this._os;
-
-    var xulRuntime = Cc["@mozilla.org/xre/app-info;1"]
-                        .getService(Components.interfaces.nsIXULAppInfo)
-                        .QueryInterface(Components.interfaces.nsIXULRuntime);
-
-    this._os = xulRuntime.OS;
-    return this._os;
   },
 
   registerProcessCrashObservers: function() {
@@ -380,27 +297,15 @@ SpecialPowers.prototype = {
   },
 
   addSystemEventListener: function(target, type, listener, useCapture) {
-    Cc["@mozilla.org/eventlistenerservice;1"].
-      getService(Ci.nsIEventListenerService).
+    Components.classes["@mozilla.org/eventlistenerservice;1"].
+      getService(Components.interfaces.nsIEventListenerService).
       addSystemEventListener(target, type, listener, useCapture);
   },
   removeSystemEventListener: function(target, type, listener, useCapture) {
-    Cc["@mozilla.org/eventlistenerservice;1"].
-      getService(Ci.nsIEventListenerService).
+    Components.classes["@mozilla.org/eventlistenerservice;1"].
+      getService(Components.interfaces.nsIEventListenerService).
       removeSystemEventListener(target, type, listener, useCapture);
-  },
-
-  setLogFile: function(path) {
-    this._mfl = new MozillaFileLogger(path);
-  },
-
-  log: function(data) {
-    this._mfl.log(data);
-  },
-
-  closeLogFile: function() {
-    this._mfl.close();
-  },
+  }
 };
 
 // Expose everything but internal APIs (starting with underscores) to
@@ -437,9 +342,12 @@ SpecialPowersManager.prototype = {
   handleEvent: function handleEvent(aEvent) {
     var window = aEvent.target.defaultView;
 
-    // only add SpecialPowers to data pages, not about:*
+    // Need to make sure we are called on what we care about -
+    // content windows. DOMWindowCreated is called on *all* HTMLDocuments,
+    // some of which belong to chrome windows or other special content.
+    //
     var uri = window.document.documentURIObject;
-    if (uri.spec.split(":")[0] == "about") {
+    if (uri.scheme === "chrome" || uri.spec.split(":")[0] == "about") {
       return;
     }
 

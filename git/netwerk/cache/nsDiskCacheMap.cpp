@@ -234,10 +234,7 @@ nsDiskCacheMap::FlushHeader()
     if (sizeof(nsDiskCacheHeader) != bytesWritten) {
         return NS_ERROR_UNEXPECTED;
     }
-
-    PRStatus err = PR_Sync(mMapFD);
-    if (err != PR_SUCCESS) return NS_ERROR_UNEXPECTED;
-
+    
     return NS_OK;
 }
 
@@ -325,9 +322,9 @@ nsDiskCacheMap::GrowRecords()
         memmove(newRecords,
                 newArray + bucketIndex * oldRecordsPerBucket,
                 count * sizeof(nsDiskCacheRecord));
-        // clear unused records
-        memset(newRecords + count, 0,
-               (newRecordsPerBucket - count) * sizeof(nsDiskCacheRecord));
+        // Clear the new empty entries
+        for (PRUint32 i = count; i < newRecordsPerBucket; ++i)
+            newRecords[i].SetHashNumber(0);
     }
 
     // Set as the new record array

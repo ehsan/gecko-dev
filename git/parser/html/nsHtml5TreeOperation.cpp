@@ -127,6 +127,7 @@ nsHtml5TreeOperation::~nsHtml5TreeOperation()
     case eTreeOpAppendCommentToDocument:
       delete[] mTwo.unicharPtr;
       break;
+    case eTreeOpSetDocumentCharset:
     case eTreeOpNeedsCharsetSwitchTo:
       delete[] mOne.charPtr;
       break;
@@ -140,7 +141,7 @@ nsHtml5TreeOperation::~nsHtml5TreeOperation()
 
 nsresult
 nsHtml5TreeOperation::AppendTextToTextNode(const PRUnichar* aBuffer,
-                                           PRUint32 aLength,
+                                           PRInt32 aLength,
                                            nsIContent* aTextNode,
                                            nsHtml5TreeOpExecutor* aBuilder)
 {
@@ -172,7 +173,7 @@ nsHtml5TreeOperation::AppendTextToTextNode(const PRUnichar* aBuffer,
 
 nsresult
 nsHtml5TreeOperation::AppendText(const PRUnichar* aBuffer,
-                                 PRUint32 aLength,
+                                 PRInt32 aLength,
                                  nsIContent* aParent,
                                  nsHtml5TreeOpExecutor* aBuilder)
 {
@@ -209,10 +210,8 @@ nsHtml5TreeOperation::Append(nsIContent* aNode,
 
   if (NS_LIKELY(executorDoc == parentDoc)) {
     // the usual case. the parent is in the parser's doc
+    aBuilder->PostPendingAppendNotification(aParent, aNode);
     rv = aParent->AppendChildTo(aNode, PR_FALSE);
-    if (NS_SUCCEEDED(rv)) {
-      aBuilder->PostPendingAppendNotification(aParent, aNode);
-    }
     return rv;
   }
 
@@ -221,9 +220,8 @@ nsHtml5TreeOperation::Append(nsIContent* aNode,
 
   PRUint32 childCount = aParent->GetChildCount();
   rv = aParent->AppendChildTo(aNode, PR_FALSE);
-  if (NS_SUCCEEDED(rv)) {
-    nsNodeUtils::ContentAppended(aParent, aNode, childCount);
-  }
+  nsNodeUtils::ContentAppended(aParent, aNode, childCount);
+
   parentDoc->EndUpdate(UPDATE_CONTENT_MODEL);
   return rv;
 }
@@ -280,7 +278,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
     case eTreeOpDetach: {
       nsIContent* node = *(mOne.node);
       aBuilder->FlushPendingAppendNotifications();
-      nsCOMPtr<nsIContent> parent = node->GetParent();
+      nsIContent* parent = node->GetParent();
       if (parent) {
         nsHtml5OtherDocUpdate update(parent->GetOwnerDoc(),
                                      aBuilder->GetDocument());
@@ -292,7 +290,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       return rv;
     }
     case eTreeOpAppendChildrenToNewParent: {
-      nsCOMPtr<nsIContent> node = *(mOne.node);
+      nsIContent* node = *(mOne.node);
       nsIContent* parent = *(mTwo.node);
       aBuilder->FlushPendingAppendNotifications();
 
@@ -496,7 +494,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
     case eTreeOpAppendText: {
       nsIContent* parent = *mOne.node;
       PRUnichar* buffer = mTwo.unicharPtr;
-      PRUint32 length = mInt;
+      PRInt32 length = mInt;
       return AppendText(buffer, length, parent, aBuilder);
     }
     case eTreeOpAppendIsindexPrompt: {
@@ -518,7 +516,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
     case eTreeOpFosterParentText: {
       nsIContent* stackParent = *mOne.node;
       PRUnichar* buffer = mTwo.unicharPtr;
-      PRUint32 length = mInt;
+      PRInt32 length = mInt;
       nsIContent* table = *mThree.node;
       
       nsIContent* foster = table->GetParent();
@@ -627,6 +625,13 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
     }
     case eTreeOpFlushPendingAppendNotifications: {
       aBuilder->FlushPendingAppendNotifications();
+      return rv;
+    }
+    case eTreeOpSetDocumentCharset: {
+      char* str = mOne.charPtr;
+      PRInt32 charsetSource = mInt;
+      nsDependentCString dependentString(str);
+      aBuilder->SetDocumentCharsetAndSource(dependentString, charsetSource);
       return rv;
     }
     case eTreeOpNeedsCharsetSwitchTo: {

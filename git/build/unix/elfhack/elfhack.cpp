@@ -398,11 +398,10 @@ int do_relocation_section(Elf *elf, unsigned int rel_type, unsigned int rel_type
     assert(section->getType() == Rel_Type::sh_type);
 
     Elf32_Shdr relhack32_section =
-        { 0, SHT_PROGBITS, SHF_ALLOC, 0, (Elf32_Off)-1, 0, SHN_UNDEF, 0,
+        { 0, SHT_PROGBITS, SHF_ALLOC, 0, -1, 0, SHN_UNDEF, 0,
           Elf_RelHack::size(elf->getClass()), Elf_RelHack::size(elf->getClass()) }; // TODO: sh_addralign should be an alignment, not size
     Elf32_Shdr relhackcode32_section =
-        { 0, SHT_PROGBITS, SHF_ALLOC | SHF_EXECINSTR, 0, (Elf32_Off)-1, 0,
-          SHN_UNDEF, 0, 1, 0 };
+        { 0, SHT_PROGBITS, SHF_ALLOC | SHF_EXECINSTR, 0, -1, 0, SHN_UNDEF, 0, 1, 0 };
     Elf_Shdr relhack_section(relhack32_section);
     Elf_Shdr relhackcode_section(relhackcode32_section);
     ElfRelHack_Section *relhack = new ElfRelHack_Section(relhack_section);
@@ -417,9 +416,6 @@ int do_relocation_section(Elf *elf, unsigned int rel_type, unsigned int rel_type
     int entry_sz = (elf->getClass() == ELFCLASS32) ? 4 : 8;
     for (typename std::vector<Rel_Type>::iterator i = section->rels.begin();
          i != section->rels.end(); i++) {
-        // We don't need to keep R_*_NONE relocations
-        if (!ELF32_R_TYPE(i->r_info))
-            continue;
         ElfSection *section = elf->getSectionAt(i->r_offset);
         // __cxa_pure_virtual is a function used in vtables to point at pure
         // virtual methods. The __cxa_pure_virtual function usually abort()s.

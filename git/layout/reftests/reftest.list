@@ -206,9 +206,6 @@ include object/reftest.list
 # ogg-video/
 include ogg-video/reftest.list
 
-# webm-video/
-include webm-video/reftest.list
-
 # parser/
 include ../../parser/htmlparser/tests/reftest/reftest.list
 
@@ -287,9 +284,6 @@ include xul-document-load/reftest.list
 
 # xul/
 include xul/reftest.list
-
-# xul
-include ../xul/base/reftest/reftest.list
 
 # xul grid
 include ../xul/base/src/grid/reftests/reftest.list

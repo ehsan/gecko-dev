@@ -272,33 +272,31 @@ var BrowserUI = {
     let awesomePanel = document.getElementById("awesome-panels");
     let awesomeHeader = document.getElementById("awesome-header");
 
-    let willHidePanel = (this._activePanel && !aPanel);
-    if (willHidePanel) {
-      awesomePanel.hidden = true;
-      awesomeHeader.hidden = false;
-      this._edit.reset();
-      this._edit.detachController();
-    }
-
-    if (this._activePanel) {
-      this.popDialog();
-      this._activePanel.close();
-    }
-
     let willShowPanel = (!this._activePanel && aPanel);
     if (willShowPanel) {
+      this.pushDialog(aPanel);
       this._edit.attachController();
       this._editURI();
       awesomePanel.hidden = awesomeHeader.hidden = false;
     };
 
     if (aPanel) {
-      this.pushDialog(aPanel);
       aPanel.open();
-
       if (this._edit.value == "")
         this._showURI();
     }
+
+    let willHidePanel = (this._activePanel && !aPanel);
+    if (willHidePanel) {
+      awesomePanel.hidden = true;
+      awesomeHeader.hidden = false;
+      this._edit.reset();
+      this._edit.detachController();
+      this.popDialog();
+    }
+
+    if (this._activePanel)
+      this._activePanel.close();
 
     // If the keyboard will cover the full screen, we do not want to show it right away.
     let isReadOnly = (aPanel != AllPagesList || this._isKeyboardFullscreen() || (!willShowPanel && this._edit.readOnly));
@@ -438,6 +436,11 @@ var BrowserUI = {
     return this._sidebarW = Elements.controls.getBoundingClientRect().width;
   },
 
+  get starButton() {
+    delete this.starButton;
+    return this.starButton = document.getElementById("tool-star");
+  },
+
   sizeControls: function(windowW, windowH) {
     // tabs
     document.getElementById("tabs").resize();
@@ -540,7 +543,6 @@ var BrowserUI = {
       WeaveGlue.init();
 #endif
 
-      Services.prefs.addObserver("browser.ui.layout.tablet", BrowserUI, false);
       Services.obs.addObserver(BrowserSearch, "browser-search-engine-modified", false);
       messageManager.addMessageListener("Browser:MozApplicationManifest", OfflineApps);
 
@@ -599,23 +601,9 @@ var BrowserUI = {
 
   uninit: function() {
     Services.obs.removeObserver(BrowserSearch, "browser-search-engine-modified");
-    Services.prefs.removeObserver("browser.ui.layout.tablet", BrowserUI);
     messageManager.removeMessageListener("Browser:MozApplicationManifest", OfflineApps);
     ExtensionsView.uninit();
     ConsoleView.uninit();
-  },
-
-  observe: function observe(aSubject, aTopic, aData) {
-    if (aTopic == "nsPref:changed" && aData == "browser.ui.layout.tablet")
-      this.updateTabletLayout();
-  },
-
-  updateTabletLayout: function updateTabletLayout() {
-    let tabletPref = Services.prefs.getIntPref("browser.ui.layout.tablet");
-    if (tabletPref == 1 || (tabletPref == -1 && Util.isTablet()))
-      Elements.urlbarState.setAttribute("tablet", "true");
-    else
-      Elements.urlbarState.removeAttribute("tablet");
   },
 
   update: function(aState) {
@@ -765,23 +753,16 @@ var BrowserUI = {
   updateStar: function() {
     let uri = getBrowser().currentURI;
     if (uri.spec == "about:blank") {
-      this._setStar(false);
+      this.starButton.removeAttribute("starred");
       return;
     }
 
-    PlacesUtils.asyncGetBookmarkIds(uri, function(aItemIds) {
-      this._setStar(aItemIds.length > 0)
-    }, this);
-  },
-
-  _setStar: function _setStar(aIsStarred) {
-    let buttons = document.getElementsByClassName("tool-star");
-    for (let i = 0; i < buttons.length; i++) {
-      if (aIsStarred)
-        buttons[i].setAttribute("starred", "true");
+    PlacesUtils.asyncGetBookmarkIds(uri, function (aItemIds) {
+      if (aItemIds.length)
+        this.starButton.setAttribute("starred", "true");
       else
-        buttons[i].removeAttribute("starred");
-    }
+        this.starButton.removeAttribute("starred");
+    }, this);
   },
 
   newTab: function newTab(aURI, aOwner) {
@@ -876,8 +857,8 @@ var BrowserUI = {
 
   switchTask: function switchTask() {
     try {
-      let shell = Cc["@mozilla.org/browser/shell-service;1"].createInstance(Ci.nsIShellService);
-      shell.switchTask();
+      let phone = Cc["@mozilla.org/phone/support;1"].createInstance(Ci.nsIPhoneSupport);
+      phone.switchTask();
     } catch(e) { }
   },
 
@@ -890,16 +871,16 @@ var BrowserUI = {
       return;
     }
 
-    // Check open dialogs
-    let dialog = this.activeDialog;
-    if (dialog && dialog != this.activePanel) {
-      dialog.close();
-      return;
-    }
-
     // Check active panel
     if (this.activePanel) {
       this.activePanel = null;
+      return;
+    }
+
+    // Check open dialogs
+    let dialog = this.activeDialog;
+    if (dialog) {
+      dialog.close();
       return;
     }
 
@@ -1057,35 +1038,6 @@ var BrowserUI = {
         return this._domWindowClose(browser);
         break;
       case "DOMLinkAdded":
-        // checks for an icon to use for a web app
-        // apple-touch-icon size is 57px and default size is 16px
-        let rel = json.rel.toLowerCase().split(" ");
-        if (rel.indexOf("icon") != -1) {
-          // We use the sizes attribute if available
-          // see http://www.whatwg.org/specs/web-apps/current-work/multipage/links.html#rel-icon
-          let size = 16;
-          if (json.sizes) {
-            let sizes = json.sizes.toLowerCase().split(" ");
-            sizes.forEach(function(item) {
-              if (item != "any") {
-                let [w, h] = item.split("x");
-                size = Math.max(Math.min(w, h), size);
-              }
-            });
-          }
-          if (size > browser.appIcon.size) {
-            browser.appIcon.href = json.href;
-            browser.appIcon.size = size;
-          }
-        }
-        else if ((rel.indexOf("apple-touch-icon") != -1) && (browser.appIcon.size < 57)) {
-          // XXX should we support apple-touch-icon-precomposed ?
-          // see http://developer.apple.com/safari/library/documentation/appleapplications/reference/safariwebcontent/configuringwebapplications/configuringwebapplications.html
-          browser.appIcon.href = json.href;
-          browser.appIcon.size = 57;
-        }
-
-        // Handle favicon changes
         if (Browser.selectedBrowser == browser)
           this._updateIcon(Browser.selectedBrowser.mIconURL);
         break;
@@ -1158,7 +1110,6 @@ var BrowserUI = {
       case "cmd_quit":
       case "cmd_close":
       case "cmd_menu":
-      case "cmd_showTabs":
       case "cmd_newTab":
       case "cmd_closeTab":
       case "cmd_undoCloseTab":
@@ -1227,7 +1178,8 @@ var BrowserUI = {
       case "cmd_star":
       {
         BookmarkPopup.toggle();
-        this._setStar(true);
+        if (!this.starButton.hasAttribute("starred"))
+          this.starButton.setAttribute("starred", "true");
 
         let bookmarkURI = browser.currentURI;
         PlacesUtils.asyncGetBookmarkIds(bookmarkURI, function (aItemIds) {
@@ -1263,13 +1215,11 @@ var BrowserUI = {
         break;
       case "cmd_remoteTabs":
         if (Weave.Status.checkSetup() == Weave.CLIENT_NOT_CONFIGURED) {
-          // We have to set activePanel before showing sync's dialog
-          // to make the sure the dialog stacking is correct.
-          this.activePanel = RemoteTabsList;
           WeaveGlue.open();
         } else if (!Weave.Service.isLoggedIn && !Services.prefs.getBoolPref("browser.sync.enabled")) {
           // unchecked the relative command button
           document.getElementById("remotetabs-button").removeAttribute("checked");
+          this.activePanel = null;
 
           BrowserUI.showPanel("prefs-container");
           let prefsBox = document.getElementById("prefs-list");
@@ -1281,23 +1231,20 @@ var BrowserUI = {
               prefsBox.scrollBoxObject.scrollTo(0, syncAreaY - prefsBoxY);
             }, 0);
           }
-        } else {
-          this.activePanel = RemoteTabsList;
+
+          return;
         }
 
+        this.activePanel = RemoteTabsList;
         break;
       case "cmd_quit":
-        // Only close one window
-        this._closeOrQuit();
+        GlobalOverlay.goQuitApplication();
         break;
       case "cmd_close":
         this._closeOrQuit();
         break;
       case "cmd_menu":
         AppMenu.toggle();
-        break;
-      case "cmd_showTabs":
-        TabsPopup.toggle();
         break;
       case "cmd_newTab":
         this.newTab();

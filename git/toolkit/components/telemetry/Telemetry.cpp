@@ -177,7 +177,7 @@ ReflectHistogramSnapshot(JSContext *cx, JSObject *obj, Histogram *h)
   if (!(JS_DefineProperty(cx, obj, "min", INT_TO_JSVAL(h->declared_min()), NULL, NULL, JSPROP_ENUMERATE)
         && JS_DefineProperty(cx, obj, "max", INT_TO_JSVAL(h->declared_max()), NULL, NULL, JSPROP_ENUMERATE)
         && JS_DefineProperty(cx, obj, "histogram_type", INT_TO_JSVAL(h->histogram_type()), NULL, NULL, JSPROP_ENUMERATE)
-        && JS_DefineProperty(cx, obj, "sum", DOUBLE_TO_JSVAL(ss.sum()), NULL, NULL, JSPROP_ENUMERATE)
+        && JS_DefineProperty(cx, obj, "sum", INT_TO_JSVAL(ss.sum()), NULL, NULL, JSPROP_ENUMERATE)
         && (rarray = JS_NewArrayObject(cx, count, NULL))
         && JS_DefineProperty(cx, obj, "ranges", OBJECT_TO_JSVAL(rarray), NULL, NULL, JSPROP_ENUMERATE)
         && FillRanges(cx, rarray, h)
@@ -233,7 +233,7 @@ JSHistogram_Snapshot(JSContext *cx, uintN argc, jsval *vp)
   Histogram *h = static_cast<Histogram*>(JS_GetPrivate(cx, obj));
   JSObject *snapshot = JS_NewObject(cx, NULL, NULL, NULL);
   if (!snapshot)
-    return JS_FALSE;
+    return NS_ERROR_FAILURE;
   JS_SET_RVAL(cx, vp, OBJECT_TO_JSVAL(snapshot));
   return ReflectHistogramSnapshot(cx, snapshot, h);
 }
@@ -259,7 +259,7 @@ WrapAndReturnHistogram(Histogram *h, JSContext *cx, jsval *ret)
 }
 
 TelemetryImpl::TelemetryImpl():
-mCanRecord(XRE_GetProcessType() == GeckoProcessType_Default)
+mCanRecord(true)
 {
   mHistogramMap.Init(Telemetry::HistogramCount);
 }

@@ -105,7 +105,7 @@ static nsGetKnownFolderPath gGetKnownFolderPath = NULL;
 static HINSTANCE gShell32DLLInst = NULL;
 #endif
 
-void StartupSpecialSystemDirectory()
+NS_COM void StartupSpecialSystemDirectory()
 {
 #if defined (XP_WIN)
     // SHGetKnownFolderPath is only available on Windows Vista
@@ -119,7 +119,7 @@ void StartupSpecialSystemDirectory()
 #endif
 }
 
-void ShutdownSpecialSystemDirectory()
+NS_COM void ShutdownSpecialSystemDirectory()
 {
 #if defined (XP_WIN)
     if (gShell32DLLInst)
@@ -563,7 +563,7 @@ GetSpecialSystemDirectory(SystemDirectories aSystemSystemDirectory,
             }
             return NS_NewNativeLocalFile(tString, PR_TRUE, aFile);
         }
-#elif defined(MOZ_WIDGET_COCOA)
+#elif defined(XP_MACOSX)
         {
             return GetOSXFolderType(kUserDomain, kTemporaryFolderType, aFile);
         }
@@ -897,7 +897,7 @@ GetSpecialSystemDirectory(SystemDirectories aSystemSystemDirectory,
     return NS_ERROR_NOT_AVAILABLE;
 }
 
-#if defined (MOZ_WIDGET_COCOA)
+#if defined (XP_MACOSX)
 nsresult
 GetOSXFolderType(short aDomain, OSType aFolderType, nsILocalFile **localFile)
 {

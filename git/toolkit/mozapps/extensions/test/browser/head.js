@@ -20,7 +20,6 @@ const TESTROOT = "http://example.com/" + RELATIVE_DIR;
 const TESTROOT2 = "http://example.org/" + RELATIVE_DIR;
 const CHROMEROOT = pathParts.join("/") + "/";
 const PREF_DISCOVERURL = "extensions.webservice.discoverURL";
-const PREF_UPDATEURL = "extensions.update.url";
 
 const MANAGER_URI = "about:addons";
 const INSTALL_URI = "chrome://mozapps/content/xpinstall/xpinstallConfirm.xul";
@@ -34,7 +33,6 @@ var gTestStart = null;
 var gUseInContentUI = !gTestInWindow && ("switchToTabHavingURI" in window);
 
 var gDiscoveryURL = Services.prefs.getCharPref(PREF_DISCOVERURL);
-var gUpdateURL = Services.prefs.getCharPref(PREF_UPDATEURL);
 
 // Turn logging on for all tests
 Services.prefs.setBoolPref(PREF_LOGGING_ENABLED, true);
@@ -49,7 +47,6 @@ registerCleanupFunction(function() {
   }
 
   Services.prefs.setCharPref(PREF_DISCOVERURL, gDiscoveryURL);
-  Services.prefs.setCharPref(PREF_UPDATEURL, gUpdateURL);
 
   // Throw an error if the add-ons manager window is open anywhere
   var windows = Services.wm.getEnumerator("Addons:Manager");
@@ -307,7 +304,7 @@ function wait_for_window_open(aCallback) {
       Services.wm.removeListener(this);
 
       let domwindow = aWindow.QueryInterface(Ci.nsIInterfaceRequestor)
-                             .getInterface(Ci.nsIDOMWindow);
+                             .getInterface(Ci.nsIDOMWindowInternal);
       domwindow.addEventListener("load", function() {
         domwindow.removeEventListener("load", arguments.callee, false);
         executeSoon(function() {
@@ -630,10 +627,6 @@ MockProvider.prototype = {
       }
       if (!addon.optionsType && !!addon.optionsURL)
         addon.optionsType = AddonManager.OPTIONS_TYPE_DIALOG;
-
-      // Make sure the active state matches the passed in properties
-      addon.isActive = addon.shouldBeActive;
-
       this.addAddon(addon);
       newAddons.push(addon);
     }, this);

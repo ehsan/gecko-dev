@@ -152,7 +152,8 @@ nsresult nsWaveReader::Init(nsBuiltinDecoderReader* aCloneDonor)
 
 nsresult nsWaveReader::ReadMetadata(nsVideoInfo* aInfo)
 {
-  NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
+  NS_ASSERTION(mDecoder->OnStateMachineThread(), "Should be on state machine thread.");
+  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
 
   PRBool loaded = LoadRIFFChunk() && LoadFormatChunk() && FindDataOffset();
   if (!loaded) {
@@ -166,7 +167,8 @@ nsresult nsWaveReader::ReadMetadata(nsVideoInfo* aInfo)
 
   *aInfo = mInfo;
 
-  ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
+  ReentrantMonitorAutoExit exitReaderMon(mReentrantMonitor);
+  ReentrantMonitorAutoEnter decoderMon(mDecoder->GetReentrantMonitor());
 
   mDecoder->GetStateMachine()->SetDuration(
     static_cast<PRInt64>(BytesToTime(GetDataLength()) * USECS_PER_S));
@@ -176,7 +178,9 @@ nsresult nsWaveReader::ReadMetadata(nsVideoInfo* aInfo)
 
 PRBool nsWaveReader::DecodeAudioData()
 {
-  NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
+  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+  NS_ASSERTION(mDecoder->OnStateMachineThread() || mDecoder->OnDecodeThread(),
+               "Should be on state machine thread or decode thread.");
 
   PRInt64 pos = GetPosition() - mWavePCMOffset;
   PRInt64 len = GetDataLength();
@@ -187,9 +191,9 @@ PRBool nsWaveReader::DecodeAudioData()
   PRInt64 readSize = NS_MIN(BLOCK_SIZE, remaining);
   PRInt64 samples = readSize / mSampleSize;
 
-  PR_STATIC_ASSERT(PRUint64(BLOCK_SIZE) < UINT_MAX / sizeof(AudioDataValue) / MAX_CHANNELS);
+  PR_STATIC_ASSERT(PRUint64(BLOCK_SIZE) < UINT_MAX / sizeof(SoundDataValue) / MAX_CHANNELS);
   const size_t bufferSize = static_cast<size_t>(samples * mChannels);
-  nsAutoArrayPtr<AudioDataValue> sampleBuffer(new AudioDataValue[bufferSize]);
+  nsAutoArrayPtr<SoundDataValue> sampleBuffer(new SoundDataValue[bufferSize]);
 
   PR_STATIC_ASSERT(PRUint64(BLOCK_SIZE) < UINT_MAX / sizeof(char));
   nsAutoArrayPtr<char> dataBuffer(new char[static_cast<size_t>(readSize)]);
@@ -201,7 +205,7 @@ PRBool nsWaveReader::DecodeAudioData()
 
   // convert data to samples
   const char* d = dataBuffer.get();
-  AudioDataValue* s = sampleBuffer.get();
+  SoundDataValue* s = sampleBuffer.get();
   for (int i = 0; i < samples; ++i) {
     for (unsigned int j = 0; j < mChannels; ++j) {
       if (mSampleFormat == nsAudioStream::FORMAT_U8) {
@@ -229,7 +233,7 @@ PRBool nsWaveReader::DecodeAudioData()
   NS_ASSERTION(readSizeTime <= PR_INT64_MAX / USECS_PER_S, "readSizeTime overflow");
   NS_ASSERTION(samples < PR_INT32_MAX, "samples overflow");
 
-  mAudioQueue.Push(new AudioData(pos,
+  mAudioQueue.Push(new SoundData(pos,
                                  static_cast<PRInt64>(posTime * USECS_PER_S),
                                  static_cast<PRInt64>(readSizeTime * USECS_PER_S),
                                  static_cast<PRInt32>(samples),
@@ -242,14 +246,18 @@ PRBool nsWaveReader::DecodeAudioData()
 PRBool nsWaveReader::DecodeVideoFrame(PRBool &aKeyframeSkip,
                                       PRInt64 aTimeThreshold)
 {
-  NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
+  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+  NS_ASSERTION(mDecoder->OnStateMachineThread() || mDecoder->OnDecodeThread(),
+               "Should be on state machine or decode thread.");
 
   return PR_FALSE;
 }
 
 nsresult nsWaveReader::Seek(PRInt64 aTarget, PRInt64 aStartTime, PRInt64 aEndTime, PRInt64 aCurrentTime)
 {
-  NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
+  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+  NS_ASSERTION(mDecoder->OnStateMachineThread(),
+               "Should be on state machine thread.");
   LOG(PR_LOG_DEBUG, ("%p About to seek to %lld", mDecoder, aTarget));
   if (NS_FAILED(ResetDecode())) {
     return NS_ERROR_FAILURE;

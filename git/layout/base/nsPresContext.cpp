@@ -369,6 +369,8 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsPresContext)
   // NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mLangService); // a service
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mPrintSettings);
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mPrefChangedTimer);
+  if (tmp->mBidiUtils)
+    tmp->mBidiUtils->Traverse(cb);
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsPresContext)
@@ -393,6 +395,8 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsPresContext)
     tmp->mPrefChangedTimer->Cancel();
     tmp->mPrefChangedTimer = nsnull;
   }
+  if (tmp->mBidiUtils)
+    tmp->mBidiUtils->Unlink();
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 
@@ -645,6 +649,10 @@ nsPresContext::GetUserPreferences()
     // get a presshell.
     return;
   }
+    
+  mFontScaler =
+    Preferences::GetInt("browser.display.base_font_scaler", mFontScaler);
+
 
   mAutoQualityMinFontSizePixelsPref =
     Preferences::GetInt("browser.display.auto_quality_min_font_size");
@@ -1059,6 +1067,15 @@ nsPresContext::SetShell(nsIPresShell* aShell)
       }
     }
   } else {
+    // Destroy image loaders now that the presshell is going away.
+    // This is important since imageloaders can have pointers to frames and
+    // we don't want those pointers to outlive the destruction of the frame
+    // arena.
+    for (PRUint32 i = 0; i < IMAGE_LOAD_TYPE_COUNT; ++i) {
+      mImageLoaders[i].Enumerate(destroy_loads, nsnull);
+      mImageLoaders[i].Clear();
+    }
+
     if (mTransitionManager) {
       mTransitionManager->Disconnect();
       mTransitionManager = nsnull;
@@ -1067,18 +1084,6 @@ nsPresContext::SetShell(nsIPresShell* aShell)
       mAnimationManager->Disconnect();
       mAnimationManager = nsnull;
     }
-  }
-}
-
-void
-nsPresContext::DestroyImageLoaders()
-{
-  // Destroy image loaders. This is important to do when frames are being
-  // destroyed because imageloaders can have pointers to frames and we don't
-  // want those pointers to outlive the destruction of the frame arena.
-  for (PRUint32 i = 0; i < IMAGE_LOAD_TYPE_COUNT; ++i) {
-    mImageLoaders[i].Enumerate(destroy_loads, nsnull);
-    mImageLoaders[i].Clear();
   }
 }
 
@@ -1282,6 +1287,16 @@ nsPresContext::SetImageAnimationModeExternal(PRUint16 aMode)
   SetImageAnimationModeInternal(aMode);
 }
 
+already_AddRefed<nsFontMetrics>
+nsPresContext::GetMetricsFor(const nsFont& aFont, PRBool aUseUserFontSet)
+{
+  nsFontMetrics* metrics = nsnull;
+  mDeviceContext->GetMetricsFor(aFont, mLanguage,
+                                aUseUserFontSet ? GetUserFontSet() : nsnull,
+                                metrics);
+  return metrics;
+}
+
 const nsFont*
 nsPresContext::GetDefaultFont(PRUint8 aFontID) const
 {
@@ -1450,6 +1465,15 @@ nsPresContext::SetBidiEnabled() const
   }
 }
 
+nsBidiPresUtils*
+nsPresContext::GetBidiUtils()
+{
+  if (!mBidiUtils)
+    mBidiUtils = new nsBidiPresUtils;
+
+  return mBidiUtils;
+}
+
 void
 nsPresContext::SetBidi(PRUint32 aSource, PRBool aForceRestyle)
 {
@@ -1490,6 +1514,15 @@ PRUint32
 nsPresContext::GetBidi() const
 {
   return Document()->GetBidiOptions();
+}
+
+PRUint32
+nsPresContext::GetBidiMemoryUsed()
+{
+  if (!mBidiUtils)
+    return 0;
+
+  return mBidiUtils->EstimateMemoryUsed();
 }
 
 #endif //IBMBIDI

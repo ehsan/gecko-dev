@@ -44,14 +44,15 @@
 #include "nscore.h"
 #include "nsILocalFile.h"
 
-#ifdef MOZ_WIDGET_COCOA
+#ifdef XP_MACOSX
 #include <Carbon/Carbon.h>
 #include "nsILocalFileMac.h"
 #include "prenv.h"
 #endif
 
-extern void StartupSpecialSystemDirectory();
-extern void ShutdownSpecialSystemDirectory();
+
+extern NS_COM void StartupSpecialSystemDirectory();
+extern NS_COM void ShutdownSpecialSystemDirectory();
 
 
 enum SystemDirectories {
@@ -131,7 +132,7 @@ enum SystemDirectories {
 nsresult
 GetSpecialSystemDirectory(SystemDirectories aSystemSystemDirectory,
                           nsILocalFile** aFile);
-#ifdef MOZ_WIDGET_COCOA
+#ifdef XP_MACOSX
 nsresult
 GetOSXFolderType(short aDomain, OSType aFolderType, nsILocalFile **localFile);
 #endif

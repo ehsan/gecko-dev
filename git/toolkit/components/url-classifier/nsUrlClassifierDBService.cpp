@@ -59,12 +59,11 @@
 #include "nsIPrefBranch2.h"
 #include "nsIPrefService.h"
 #include "nsIProperties.h"
+#include "nsIProxyObjectManager.h"
 #include "nsToolkitCompsCID.h"
 #include "nsIUrlClassifierUtils.h"
-#include "nsIRandomGenerator.h"
 #include "nsUrlClassifierDBService.h"
 #include "nsUrlClassifierUtils.h"
-#include "nsUrlClassifierProxies.h"
 #include "nsURILoader.h"
 #include "nsString.h"
 #include "nsReadableUtils.h"
@@ -78,6 +77,7 @@
 #include "prprf.h"
 #include "prnetdb.h"
 #include "zlib.h"
+#include "mozilla/Preferences.h"
 
 // Needed to interpert mozIStorageConnection::GetLastError
 #include <sqlite3.h>
@@ -181,7 +181,8 @@ class nsUrlClassifierDBServiceWorker;
 // Singleton instance.
 static nsUrlClassifierDBService* sUrlClassifierDBService;
 
-nsIThread* nsUrlClassifierDBService::gDbBackgroundThread = nsnull;
+// Thread that we do the updates on.
+static nsIThread* gDbBackgroundThread = nsnull;
 
 // Once we've committed to shutting down, don't do work in the background
 // thread.
@@ -480,6 +481,10 @@ public:
                             PRBool before,
                             nsTArray<nsUrlClassifierEntry> &entries);
 
+  // Ask the db for a random number.  This is temporary, and should be
+  // replaced with nsIRandomGenerator when 419739 is fixed.
+  nsresult RandomNumber(PRInt64 *randomNum);
+
 protected:
   nsresult ReadEntries(mozIStorageStatement *statement,
                        nsTArray<nsUrlClassifierEntry>& entries);
@@ -497,6 +502,8 @@ protected:
   nsCOMPtr<mozIStorageStatement> mPartialEntriesAfterStatement;
   nsCOMPtr<mozIStorageStatement> mLastPartialEntriesStatement;
   nsCOMPtr<mozIStorageStatement> mPartialEntriesBeforeStatement;
+
+  nsCOMPtr<mozIStorageStatement> mRandomStatement;
 };
 
 nsresult
@@ -553,6 +560,11 @@ nsUrlClassifierStore::Init(nsUrlClassifierDBServiceWorker *worker,
      getter_AddRefs(mPartialEntriesBeforeStatement));
   NS_ENSURE_SUCCESS(rv, rv);
 
+  rv = mConnection->CreateStatement
+    (NS_LITERAL_CSTRING("SELECT abs(random())"),
+     getter_AddRefs(mRandomStatement));
+  NS_ENSURE_SUCCESS(rv, rv);
+
   return NS_OK;
 }
 
@@ -570,6 +582,7 @@ nsUrlClassifierStore::Close()
   mPartialEntriesAfterStatement = nsnull;
   mPartialEntriesBeforeStatement = nsnull;
   mLastPartialEntriesStatement = nsnull;
+  mRandomStatement = nsnull;
 
   mConnection = nsnull;
 }
@@ -750,6 +763,21 @@ nsUrlClassifierStore::ReadNoiseEntries(PRInt64 rowID,
   NS_ENSURE_SUCCESS(rv, rv);
 
   return ReadEntries(wraparoundStatement, entries);
+}
+
+nsresult
+nsUrlClassifierStore::RandomNumber(PRInt64 *randomNum)
+{
+  mozStorageStatementScoper randScoper(mRandomStatement);
+  PRBool exists;
+  nsresult rv = mRandomStatement->ExecuteStep(&exists);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (!exists)
+    return NS_ERROR_NOT_AVAILABLE;
+
+  *randomNum = mRandomStatement->AsInt64(0);
+
+  return NS_OK;
 }
 
 // -------------------------------------------------------------------------
@@ -1725,16 +1753,9 @@ nsUrlClassifierDBServiceWorker::AddNoise(PRInt64 nearID,
     return NS_OK;
   }
 
-  nsCOMPtr<nsIRandomGenerator> rg =
-    do_GetService("@mozilla.org/security/random-generator;1");
-  NS_ENSURE_STATE(rg);
-
-  PRInt32 randomNum;
-  PRUint8 *temp;
-  nsresult rv = rg->GenerateRandomBytes(sizeof(randomNum), &temp);
+  PRInt64 randomNum;
+  nsresult rv = mMainStore.RandomNumber(&randomNum);
   NS_ENSURE_SUCCESS(rv, rv);
-  memcpy(&randomNum, temp, sizeof(randomNum));
-  NS_Free(temp);
 
   PRInt32 numBefore = randomNum % count;
 
@@ -1778,7 +1799,6 @@ nsUrlClassifierDBServiceWorker::GetTables(nsIUrlClassifierCallback* c)
 
   nsresult rv = OpenDb();
   if (NS_FAILED(rv)) {
-    NS_ERROR("Unable to open database");
     return NS_ERROR_FAILURE;
   }
 
@@ -2893,7 +2913,6 @@ nsUrlClassifierDBServiceWorker::BeginUpdate(nsIUrlClassifierUpdateObserver *obse
 
   nsresult rv = OpenDb();
   if (NS_FAILED(rv)) {
-    NS_ERROR("Unable to open database");
     return NS_ERROR_FAILURE;
   }
 
@@ -3041,7 +3060,6 @@ nsUrlClassifierDBServiceWorker::UpdateStream(const nsACString& chunk)
   LOG(("Update from Stream."));
   nsresult rv = OpenDb();
   if (NS_FAILED(rv)) {
-    NS_ERROR("Unable to open database");
     return NS_ERROR_FAILURE;
   }
 
@@ -3346,6 +3364,15 @@ nsUrlClassifierDBServiceWorker::OpenDb()
   // Connection already open, don't do anything.
   if (mConnection)
     return NS_OK;
+
+  // If we're turned off, refuse to open the DB
+  PRBool openDB =
+    Preferences::GetBool(CHECK_MALWARE_PREF, CHECK_MALWARE_DEFAULT) ||
+    Preferences::GetBool(CHECK_PHISHING_PREF, CHECK_PHISHING_DEFAULT);
+  if (!openDB) {
+    NS_WARNING("Not opening url-classifier DB");
+    return NS_ERROR_NOT_AVAILABLE;
+  }
 
   LOG(("Opening db\n"));
 
@@ -3919,7 +3946,12 @@ nsUrlClassifierDBService::Init()
   }
 
   // Proxy for calling the worker on the background thread
-  mWorkerProxy = new UrlClassifierDBServiceWorkerProxy(mWorker);
+  rv = NS_GetProxyForObject(gDbBackgroundThread,
+                            NS_GET_IID(nsIUrlClassifierDBServiceWorker),
+                            mWorker,
+                            NS_PROXY_ASYNC,
+                            getter_AddRefs(mWorkerProxy));
+  NS_ENSURE_SUCCESS(rv, rv);
 
   mCompleters.Init();
 
@@ -4032,8 +4064,14 @@ nsUrlClassifierDBService::LookupURI(nsIURI* uri,
   if (!callback)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  nsCOMPtr<nsIUrlClassifierLookupCallback> proxyCallback =
-    new UrlClassifierLookupCallbackProxy(callback);
+  nsCOMPtr<nsIUrlClassifierLookupCallback> proxyCallback;
+  // The proxy callback uses the current thread.
+  rv = NS_GetProxyForObject(NS_PROXY_TO_CURRENT_THREAD,
+                            NS_GET_IID(nsIUrlClassifierLookupCallback),
+                            callback,
+                            NS_PROXY_ASYNC,
+                            getter_AddRefs(proxyCallback));
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // Queue this lookup and call the lookup function to flush the queue if
   // necessary.
@@ -4050,8 +4088,13 @@ nsUrlClassifierDBService::GetTables(nsIUrlClassifierCallback* c)
 
   nsresult rv;
   // The proxy callback uses the current thread.
-  nsCOMPtr<nsIUrlClassifierCallback> proxyCallback =
-    new UrlClassifierCallbackProxy(c);
+  nsCOMPtr<nsIUrlClassifierCallback> proxyCallback;
+  rv = NS_GetProxyForObject(NS_PROXY_TO_CURRENT_THREAD,
+                            NS_GET_IID(nsIUrlClassifierCallback),
+                            c,
+                            NS_PROXY_ASYNC,
+                            getter_AddRefs(proxyCallback));
+  NS_ENSURE_SUCCESS(rv, rv);
 
   return mWorkerProxy->GetTables(proxyCallback);
 }
@@ -4086,8 +4129,13 @@ nsUrlClassifierDBService::BeginUpdate(nsIUrlClassifierUpdateObserver *observer,
   nsresult rv;
 
   // The proxy observer uses the current thread
-  nsCOMPtr<nsIUrlClassifierUpdateObserver> proxyObserver =
-    new UrlClassifierUpdateObserverProxy(observer);
+  nsCOMPtr<nsIUrlClassifierUpdateObserver> proxyObserver;
+  rv = NS_GetProxyForObject(NS_PROXY_TO_CURRENT_THREAD,
+                            NS_GET_IID(nsIUrlClassifierUpdateObserver),
+                            observer,
+                            NS_PROXY_ASYNC,
+                            getter_AddRefs(proxyObserver));
+  NS_ENSURE_SUCCESS(rv, rv);
 
   return mWorkerProxy->BeginUpdate(proxyObserver, updateTables, clientKey);
 }
@@ -4262,10 +4310,3 @@ nsUrlClassifierDBService::Shutdown()
 
   return NS_OK;
 }
-
-nsIThread*
-nsUrlClassifierDBService::BackgroundThread()
-{
-  return gDbBackgroundThread;
-}
-

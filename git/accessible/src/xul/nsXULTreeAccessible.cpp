@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 et sw=2 tw=80: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -43,18 +42,15 @@
 #include "nsAccUtils.h"
 #include "nsCoreUtils.h"
 #include "nsDocAccessible.h"
-#include "Relation.h"
+#include "nsRelUtils.h"
 #include "States.h"
 
-#include "nsIAccessibleRelation.h"
 #include "nsIDOMXULElement.h"
 #include "nsIDOMXULMultSelectCntrlEl.h"
 #include "nsIDOMXULTreeElement.h"
 #include "nsITreeSelection.h"
 #include "nsIMutableArray.h"
 #include "nsComponentManagerUtils.h"
-
-using namespace mozilla::a11y;
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeAccessible
@@ -204,11 +200,17 @@ nsXULTreeAccessible::NativeRole()
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeAccessible: nsIAccessible implementation
 
-nsAccessible*
-nsXULTreeAccessible::FocusedChild()
+NS_IMETHODIMP
+nsXULTreeAccessible::GetFocusedChild(nsIAccessible **aFocusedChild) 
 {
+  NS_ENSURE_ARG_POINTER(aFocusedChild);
+  *aFocusedChild = nsnull;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   if (gLastFocusedNode != mContent)
-    return nsnull;
+    return NS_OK;
 
   nsCOMPtr<nsIDOMXULMultiSelectControlElement> multiSelect =
     do_QueryInterface(mContent);
@@ -216,10 +218,10 @@ nsXULTreeAccessible::FocusedChild()
     PRInt32 row = -1;
     multiSelect->GetCurrentIndex(&row);
     if (row >= 0)
-      return GetTreeItemAccessible(row);
+      NS_IF_ADDREF(*aFocusedChild = GetTreeItemAccessible(row));
   }
 
-  return nsnull;
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -659,11 +661,17 @@ NS_IMPL_RELEASE_INHERITED(nsXULTreeItemAccessibleBase, nsAccessible)
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeItemAccessibleBase: nsIAccessible implementation
 
-nsAccessible*
-nsXULTreeItemAccessibleBase::FocusedChild()
+NS_IMETHODIMP
+nsXULTreeItemAccessibleBase::GetFocusedChild(nsIAccessible **aFocusedChild) 
 {
+  NS_ENSURE_ARG_POINTER(aFocusedChild);
+  *aFocusedChild = nsnull;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   if (gLastFocusedNode != mContent)
-    return nsnull;
+    return NS_OK;
 
   nsCOMPtr<nsIDOMXULMultiSelectControlElement> multiSelect =
     do_QueryInterface(mContent);
@@ -672,10 +680,10 @@ nsXULTreeItemAccessibleBase::FocusedChild()
     PRInt32 row = -1;
     multiSelect->GetCurrentIndex(&row);
     if (row == mRow)
-      return this;
+      NS_ADDREF(*aFocusedChild = this);
   }
 
-  return nsnull;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -758,34 +766,47 @@ nsXULTreeItemAccessibleBase::TakeFocus()
   return nsAccessible::TakeFocus();
 }
 
-Relation
-nsXULTreeItemAccessibleBase::RelationByType(PRUint32 aType)
+NS_IMETHODIMP
+nsXULTreeItemAccessibleBase::GetRelationByType(PRUint32 aRelationType,
+                                               nsIAccessibleRelation **aRelation)
 {
-  if (aType != nsIAccessibleRelation::RELATION_NODE_CHILD_OF)
-    return nsAccessible::RelationByType(aType);
+  NS_ENSURE_ARG_POINTER(aRelation);
+  *aRelation = nsnull;
 
-  Relation rel;
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
+  if (aRelationType == nsIAccessibleRelation::RELATION_NODE_CHILD_OF) {
     PRInt32 parentIndex;
-  if (!NS_SUCCEEDED(mTreeView->GetParentIndex(mRow, &parentIndex)))
-    return rel;
+    if (NS_SUCCEEDED(mTreeView->GetParentIndex(mRow, &parentIndex))) {
+      if (parentIndex == -1)
+        return nsRelUtils::AddTarget(aRelationType, aRelation, mParent);
 
-  if (parentIndex == -1) {
-    rel.AppendTarget(mParent);
-    return rel;
+      nsRefPtr<nsXULTreeAccessible> treeAcc = do_QueryObject(mParent);
+
+      nsAccessible *logicalParent = treeAcc->GetTreeItemAccessible(parentIndex);
+      return nsRelUtils::AddTarget(aRelationType, aRelation, logicalParent);
+    }
+
+    return NS_OK;
   }
 
-  nsRefPtr<nsXULTreeAccessible> treeAcc = do_QueryObject(mParent);
-
-  rel.AppendTarget(treeAcc->GetTreeItemAccessible(parentIndex));
-  return rel;
+  return nsAccessible::GetRelationByType(aRelationType, aRelation);
 }
 
-PRUint8
-nsXULTreeItemAccessibleBase::ActionCount()
+NS_IMETHODIMP
+nsXULTreeItemAccessibleBase::GetNumActions(PRUint8 *aActionsCount)
 {
+  NS_ENSURE_ARG_POINTER(aActionsCount);
+  *aActionsCount = 0;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   // "activate" action is available for all treeitems, "expand/collapse" action
   // is avaible for treeitem which is container.
-  return IsExpandable() ? 2 : 1;
+  *aActionsCount = IsExpandable() ? 2 : 1;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -1204,7 +1225,7 @@ nsXULTreeColumnsAccessible::GetSiblingAtOffset(PRInt32 aOffset,
       PRInt32 rowCount = 0;
       treeView->GetRowCount(&rowCount);
       if (rowCount > 0 && aOffset <= rowCount) {
-        nsRefPtr<nsXULTreeAccessible> treeAcc = do_QueryObject(Parent());
+        nsRefPtr<nsXULTreeAccessible> treeAcc = do_QueryObject(GetParent());
 
         if (treeAcc)
           return treeAcc->GetTreeItemAccessible(aOffset - 1);
