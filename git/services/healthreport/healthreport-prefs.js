@@ -19,7 +19,6 @@ pref("datareporting.healthreport.uploadEnabled", true);
 
 pref("datareporting.healthreport.service.enabled", true);
 pref("datareporting.healthreport.service.loadDelayMsec", 10000);
-pref("datareporting.healthreport.service.loadDelayFirstRunMsec", 60000);
 pref("datareporting.healthreport.service.providerCategories", "healthreport-js-provider");
 
 pref("datareporting.healthreport.about.glossaryUrl", "https://services.mozilla.com/healthreport/glossary.html");
