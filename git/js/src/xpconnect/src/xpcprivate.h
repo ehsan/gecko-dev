@@ -97,7 +97,7 @@
 #include "nsXPIDLString.h"
 #include "nsAutoJSValHolder.h"
 #include "mozilla/AutoRestore.h"
-#include "mozilla/ReentrantMonitor.h"
+#include "mozilla/Monitor.h"
 #include "mozilla/Mutex.h"
 #include "nsDataHashtable.h"
 
@@ -335,7 +335,7 @@ typedef nsDataHashtable<xpc::PtrAndPrincipalHashKey, JSCompartment *> XPCCompart
 #pragma warning(disable : 4355) // OK to pass "this" in member initializer
 #endif
 
-typedef mozilla::ReentrantMonitor XPCLock;
+typedef mozilla::Monitor XPCLock;
 
 static inline void xpc_Wait(XPCLock* lock) 
     {
@@ -363,7 +363,7 @@ class NS_STACK_CLASS XPCAutoLock {
 public:
 
     static XPCLock* NewLock(const char* name)
-                        {return new mozilla::ReentrantMonitor(name);}
+                        {return new mozilla::Monitor(name);}
     static void     DestroyLock(XPCLock* lock)
                         {delete lock;}
 

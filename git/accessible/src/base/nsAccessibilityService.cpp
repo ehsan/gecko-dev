@@ -65,7 +65,7 @@
 #include "nsIDOMHTMLOptionElement.h"
 #include "nsIDOMXULElement.h"
 #include "nsIHTMLDocument.h"
-#include "nsImageFrame.h"
+#include "nsIImageFrame.h"
 #include "nsILink.h"
 #include "nsIObserverService.h"
 #include "nsIPluginInstance.h"
@@ -1266,7 +1266,7 @@ nsAccessibilityService::GetAreaAccessible(nsIFrame* aImageFrame,
                                           nsAccessible** aImageAccessible)
 {
   // Check if frame is an image frame, and content is <area>.
-  nsImageFrame *imageFrame = do_QueryFrame(aImageFrame);
+  nsIImageFrame *imageFrame = do_QueryFrame(aImageFrame);
   if (!imageFrame)
     return nsnull;
 

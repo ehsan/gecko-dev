@@ -44,7 +44,7 @@
 #include "nsIServiceManager.h"
 #include "nsIPrivateDOMEvent.h"
 #include "nsIDOMDocumentEvent.h"
-#include "nsIDOMDeviceOrientationEvent.h"
+#include "nsIDOMOrientationEvent.h"
 #include "nsIServiceManager.h"
 #include "nsIPrefService.h"
 
@@ -54,21 +54,21 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIACCELERATION
 
-  nsAcceleration(double alpha, double beta, double gamma);
+  nsAcceleration(double x, double y, double z);
 
 private:
   ~nsAcceleration();
 
 protected:
   /* additional members */
-  double mAlpha, mBeta, mGamma;
+  double mX, mY, mZ;
 };
 
 /* Implementation file */
 NS_IMPL_ISUPPORTS1(nsAcceleration, nsIAcceleration)
 
-nsAcceleration::nsAcceleration(double alpha, double beta, double gamma)
-:mAlpha(alpha), mBeta(beta), mGamma(gamma)
+nsAcceleration::nsAcceleration(double x, double y, double z)
+:mX(x), mY(y), mZ(z)
 {
 }
 
@@ -76,33 +76,33 @@ nsAcceleration::~nsAcceleration()
 {
 }
 
-NS_IMETHODIMP nsAcceleration::GetAlpha(double *aAlpha)
+NS_IMETHODIMP nsAcceleration::GetX(double *aX)
 {
-  NS_ENSURE_ARG_POINTER(aAlpha);
-  *aAlpha = mAlpha;
+  NS_ENSURE_ARG_POINTER(aX);
+  *aX = mX;
   return NS_OK;
 }
 
-NS_IMETHODIMP nsAcceleration::GetBeta(double *aBeta)
+NS_IMETHODIMP nsAcceleration::GetY(double *aY)
 {
-  NS_ENSURE_ARG_POINTER(aBeta);
-  *aBeta = mBeta;
+  NS_ENSURE_ARG_POINTER(aY);
+  *aY = mY;
   return NS_OK;
 }
 
-NS_IMETHODIMP nsAcceleration::GetGamma(double *aGamma)
+NS_IMETHODIMP nsAcceleration::GetZ(double *aZ)
 {
-  NS_ENSURE_ARG_POINTER(aGamma);
-  *aGamma = mGamma;
+  NS_ENSURE_ARG_POINTER(aZ);
+  *aZ = mZ;
   return NS_OK;
 }
 
 NS_IMPL_ISUPPORTS2(nsAccelerometer, nsIAccelerometer, nsIAccelerometerUpdate)
 
 nsAccelerometer::nsAccelerometer()
-: mLastAlpha(-200), /* initialize to values that can't be possible */
-  mLastBeta(-200),
-  mLastGamma(-200),
+: mLastX(10), /* initialize to values that can't be possible */
+  mLastY(10),
+  mLastZ(10),
   mStarted(PR_FALSE),
   mNewListener(PR_FALSE),
   mUpdateInterval(50), /* default to 50 ms */
@@ -213,41 +213,39 @@ NS_IMETHODIMP nsAccelerometer::RemoveWindowListener(nsIDOMWindow *aWindow)
 }
 
 NS_IMETHODIMP
-nsAccelerometer::AccelerationChanged(double alpha, double beta, double gamma)
+nsAccelerometer::AccelerationChanged(double x, double y, double z)
 {
   if (!mEnabled)
     return NS_ERROR_NOT_INITIALIZED;
 
-  if (alpha > 360)
-    alpha = 360;
-  if (alpha < 0)
-    alpha = 0;
-
-  if (beta > 180)
-    beta = 180;
-  if (beta < -180)
-    beta = -180;
-
-  if (gamma > 90)
-    gamma = 90;
-  if (gamma < -90)
-    gamma = -90;
+  if (x > 1)
+    x = 1;
+  if (y > 1)
+    y = 1;
+  if (z > 1)
+    z = 1;
+  if (x < -1)
+    x = -1;
+  if (y < -1)
+    y = -1;
+  if (z < -1)
+    z = -1;
 
   if (!mNewListener) {
-    if (PR_ABS(mLastAlpha - alpha) < 1 &&
-        PR_ABS(mLastBeta - beta) < 1 &&
-        PR_ABS(mLastGamma - gamma) < 1)
+    if (PR_ABS(mLastX - x) < .01 &&
+        PR_ABS(mLastY - y) < .01 &&
+        PR_ABS(mLastZ - z) < .01)
       return NS_OK;
   }
 
-  mLastAlpha = alpha;
-  mLastBeta = beta;
-  mLastGamma = gamma;
+  mLastX = x;
+  mLastY = y;
+  mLastZ = z;
   mNewListener = PR_FALSE;
 
   for (PRUint32 i = mListeners.Count(); i > 0 ; ) {
     --i;
-    nsRefPtr<nsIAcceleration> a = new nsAcceleration(alpha, beta, gamma);
+    nsRefPtr<nsIAcceleration> a = new nsAcceleration(x, y, z);
     mListeners[i]->OnAccelerationChange(a);
   }
 
@@ -263,24 +261,23 @@ nsAccelerometer::AccelerationChanged(double alpha, double beta, double gamma)
     PRBool defaultActionEnabled = PR_TRUE;
 
     if (docevent) {
-      docevent->CreateEvent(NS_LITERAL_STRING("DeviceOrientationEvent"), getter_AddRefs(event));
+      docevent->CreateEvent(NS_LITERAL_STRING("orientation"), getter_AddRefs(event));
 
-      nsCOMPtr<nsIDOMDeviceOrientationEvent> oe = do_QueryInterface(event);
+      nsCOMPtr<nsIDOMOrientationEvent> oe = do_QueryInterface(event);
 
       if (event) {
-        oe->InitDeviceOrientationEvent(NS_LITERAL_STRING("deviceorientation"),
-                                       PR_TRUE,
-                                       PR_FALSE,
-                                       alpha,
-                                       beta,
-                                       gamma,
-                                       PR_TRUE);
+        oe->InitOrientationEvent(NS_LITERAL_STRING("MozOrientation"),
+                                 PR_TRUE,
+                                 PR_FALSE,
+                                 x,
+                                 y,
+                                 z);
 
         nsCOMPtr<nsIPrivateDOMEvent> privateEvent = do_QueryInterface(event);
         if (privateEvent)
           privateEvent->SetTrusted(PR_TRUE);
         
-        nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(mWindowListeners[i]);
+        nsCOMPtr<nsIDOMEventTarget> target(do_QueryInterface(mWindowListeners[i]));
         target->DispatchEvent(event, &defaultActionEnabled);
       }
     }

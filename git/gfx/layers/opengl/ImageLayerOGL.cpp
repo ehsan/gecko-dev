@@ -233,7 +233,7 @@ ImageContainerOGL::SetCurrentImage(Image *aImage)
   nsRefPtr<Image> oldImage;
 
   {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+    MonitorAutoEnter mon(mMonitor);
 
     oldImage = mActiveImage.forget();
     mActiveImage = aImage;
@@ -247,7 +247,7 @@ ImageContainerOGL::SetCurrentImage(Image *aImage)
 already_AddRefed<Image>
 ImageContainerOGL::GetCurrentImage()
 {
-  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+  MonitorAutoEnter mon(mMonitor);
 
   nsRefPtr<Image> retval = mActiveImage;
   return retval.forget();
@@ -256,7 +256,7 @@ ImageContainerOGL::GetCurrentImage()
 already_AddRefed<gfxASurface>
 ImageContainerOGL::GetCurrentAsSurface(gfxIntSize *aSize)
 {
-  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+  MonitorAutoEnter mon(mMonitor);
 
   if (!mActiveImage) {
     *aSize = gfxIntSize(0,0);
@@ -314,7 +314,7 @@ ImageContainerOGL::GetCurrentAsSurface(gfxIntSize *aSize)
 gfxIntSize
 ImageContainerOGL::GetCurrentSize()
 {
-  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+  MonitorAutoEnter mon(mMonitor);
   if (!mActiveImage) {
     return gfxIntSize(0,0);
   }

@@ -555,12 +555,7 @@ ifdef MOZ_OPTIONAL_PKG_LIST
 	  "$(call core_abspath,$(DEPTH)/installer-stage/optional)", \
 	  "$(MOZ_PKG_MANIFEST)", "$(PKGCP_OS)", 1, 0, 1 \
 	  $(foreach pkg,$(MOZ_OPTIONAL_PKG_LIST),$(PKG_ARG)) )
-	if test -d $(DEPTH)/installer-stage/optional/extensions ; then \
-		cd $(DEPTH)/installer-stage/optional/extensions; find -maxdepth 1 -mindepth 1 -exec rm -r ../../core/extensions/{} \; ; \
-	fi
-	if test -d $(DEPTH)/installer-stage/optional/distribution/extensions/ ; then \
-		cd $(DEPTH)/installer-stage/optional/distribution/extensions/; find -maxdepth 1 -mindepth 1 -exec rm -r ../../../core/distribution/extensions/{} \; ; \
-	fi
+	@cd $(DEPTH)/installer-stage/optional/extensions; find -maxdepth 1 -mindepth 1 -exec rm -r ../../core/extensions/{} \;
 endif
 
 elfhack:

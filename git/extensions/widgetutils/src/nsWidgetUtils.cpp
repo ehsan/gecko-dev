@@ -22,7 +22,6 @@
  * Contributor(s):
  *   Oleg Romashin <romaxa@gmail.com> (original author)
  *   Brad Lassey <blassey@mozilla.com>
- *   Ms2ger <ms2ger@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -40,7 +39,9 @@
 
 #include "nsCURILoader.h"
 #include "nsICategoryManager.h"
+#include "nsIDOMAbstractView.h"
 #include "nsIDOMDocument.h"
+#include "nsIDOMDocumentView.h"
 #include "nsIDOMHTMLElement.h"
 #include "nsIDOMHTMLIFrameElement.h"
 #include "nsIDOMNSDocument.h"
@@ -67,6 +68,7 @@
 #include "nsIDOMEventTarget.h"
 #include "nsPIDOMWindow.h"
 #include "nsIDOMWindow.h"
+//#include ".h"
 #include "nsIDOM3EventTarget.h"
 #include "nsIDOMKeyListener.h"
 #include "nsIDOMCompositionListener.h"
@@ -426,24 +428,28 @@ nsWidgetUtils::IsXULNode(nsIDOMNode *aNode, PRUint32 *aType)
 }
 
 nsresult
-nsWidgetUtils::GetDOMWindowByNode(nsIDOMNode* aNode, nsIDOMWindow** aDOMWindow)
+nsWidgetUtils::GetDOMWindowByNode(nsIDOMNode *aNode, nsIDOMWindow * *aDOMWindow)
 {
+  nsresult rv;
   nsCOMPtr<nsIDOMDocument> nodeDoc;
-  nsresult rv = aNode->GetOwnerDocument(getter_AddRefs(nodeDoc));
+  rv = aNode->GetOwnerDocument(getter_AddRefs(nodeDoc));
   NS_ENSURE_SUCCESS(rv, rv);
-  NS_ENSURE_TRUE(nodeDoc, NS_ERROR_NULL_POINTER);
-
-  nsCOMPtr<nsIDOMWindow> window;
-  rv = nodeDoc->GetDefaultView(getter_AddRefs(window));
+  nsCOMPtr<nsIDOMDocumentView> docView = do_QueryInterface(nodeDoc, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
-  NS_ENSURE_TRUE(window, NS_ERROR_NULL_POINTER);
-  window.forget(aDOMWindow);
+  nsCOMPtr<nsIDOMAbstractView> absView;
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = docView->GetDefaultView(getter_AddRefs(absView));
+  NS_ENSURE_SUCCESS(rv, rv);
+  nsCOMPtr<nsIDOMWindow> window = do_QueryInterface(absView, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+  *aDOMWindow = window;
+  NS_IF_ADDREF(*aDOMWindow);
   return rv;
 }
 
 void
 nsWidgetUtils::GetChromeEventHandler(nsIDOMWindow *aDOMWin,
-                                     nsIDOMEventTarget **aChromeTarget)
+                                 nsIDOMEventTarget **aChromeTarget)
 {
     nsCOMPtr<nsPIDOMWindow> privateDOMWindow(do_QueryInterface(aDOMWin));
     nsPIDOMEventTarget* chromeEventHandler = nsnull;

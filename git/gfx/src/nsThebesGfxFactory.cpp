@@ -47,11 +47,12 @@
 #include "nsDeviceContext.h"
 #include "gfxPlatform.h"
 
-// This class doesn't do anything; its only purpose is to give
-// gfxPlatform::Init a way to force this component to be registered,
-// so that gfxPlatform::Shutdown will be called at an appropriate
-// time.  (Component teardown is the only shutdown hook that runs
-// late enough; see bug 651498.)
+// This service doesn't do anything; its only purpose is to force the
+// gfx module constructor to be called (and hence gfxPlatform::Init).
+// It's invoked at app-startup time and may also be invoked directly
+// (as do_GetService("@mozilla.org/gfx/init;1")) from code (like the
+// libpr0n module constructor) that wants to make sure gfx is
+// initialized.
 
 namespace {
 class GfxInitialization : public nsISupports {
@@ -128,6 +129,18 @@ static const mozilla::Module::ContractIDEntry kThebesContracts[] = {
     { NULL }
 };
 
+static const mozilla::Module::CategoryEntry kThebesCategories[] = {
+    { "app-startup", "Gfx Initialization", "service,@mozilla.org/gfx/init;1" },
+    { NULL }
+};
+
+static nsresult
+nsThebesGfxModuleCtor()
+{
+    gfxPlatform::Init();
+    return NS_OK;
+}
+
 static void
 nsThebesGfxModuleDtor()
 {
@@ -139,9 +152,9 @@ static const mozilla::Module kThebesModule = {
     mozilla::Module::kVersion,
     kThebesCIDs,
     kThebesContracts,
+    kThebesCategories,
     NULL,
-    NULL,
-    NULL,
+    nsThebesGfxModuleCtor,
     nsThebesGfxModuleDtor
 };
 

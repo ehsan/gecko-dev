@@ -489,7 +489,7 @@ function HistoryMenu(aPopupShowingEvent) {
                                      "@mozilla.org/browser/sessionstore;1",
                                      "nsISessionStore");
   PlacesMenu.call(this, aPopupShowingEvent,
-                  "place:redirectsMode=2&sort=4&maxResults=15");
+                  "place:redirectsMode=2&sort=4&maxResults=10");
 }
 
 HistoryMenu.prototype = {

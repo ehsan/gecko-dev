@@ -114,6 +114,7 @@ public:
     nsIFormControlFrame_id,
     nsIFrame_id,
     nsIFrameFrame_id,
+    nsIImageFrame_id,
     nsIListControlFrame_id,
     nsIMathMLFrame_id,
     nsIMenuFrame_id,

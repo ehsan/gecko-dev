@@ -76,7 +76,7 @@ xptiTypelibGuts::GetEntryAt(PRUint16 i)
         xptiInterfaceInfoManager::GetSingleton()->GetWorkingSet();
 
     {
-        ReentrantMonitorAutoEnter monitor(set->mTableReentrantMonitor);
+        MonitorAutoEnter monitor(set->mTableMonitor);
         if (iface->iid.Equals(zeroIID))
             r = set->mNameTable.Get(iface->name);
         else

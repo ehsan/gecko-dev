@@ -43,7 +43,7 @@
 #include "gfxPattern.h"
 #include "nsThreadUtils.h"
 #include "nsCoreAnimationSupport.h"
-#include "mozilla/ReentrantMonitor.h"
+#include "mozilla/Monitor.h"
 #include "mozilla/TimeStamp.h"
 
 namespace mozilla {
@@ -134,7 +134,7 @@ class THEBES_API ImageContainer {
 
 public:
   ImageContainer() :
-    mReentrantMonitor("ImageContainer.mReentrantMonitor"),
+    mMonitor("ImageContainer"),
     mPaintCount(0),
     mPreviousImagePainted(PR_FALSE)
   {}
@@ -146,8 +146,8 @@ public:
    * Picks the "best" format from the list and creates an Image of that
    * format.
    * Returns null if this backend does not support any of the formats.
-   * Can be called on any thread. This method takes mReentrantMonitor
-   * when accessing thread-shared state.
+   * Can be called on any thread. This method takes mMonitor when accessing
+   * thread-shared state.
    */
   virtual already_AddRefed<Image> CreateImage(const Image::Format* aFormats,
                                               PRUint32 aNumFormats) = 0;
@@ -155,8 +155,8 @@ public:
   /**
    * Set an Image as the current image to display. The Image must have
    * been created by this ImageContainer.
-   * Can be called on any thread. This method takes mReentrantMonitor
-   * when accessing thread-shared state.
+   * Can be called on any thread. This method takes mMonitor when accessing
+   * thread-shared state.
    * 
    * The Image data must not be modified after this method is called!
    */
@@ -167,10 +167,10 @@ public:
    * This has to add a reference since otherwise there are race conditions
    * where the current image is destroyed before the caller can add
    * a reference.
-   * Can be called on any thread. This method takes mReentrantMonitor
-   * when accessing thread-shared state.
-   * Implementations must call CurrentImageChanged() while holding
-   * mReentrantMonitor.
+   * Can be called on any thread. This method takes mMonitor when accessing
+   * thread-shared state.
+   * Implementations must call CurrentImageChanged() while holding mMonitor.
+   *
    */
   virtual already_AddRefed<Image> GetCurrentImage() = 0;
 
@@ -186,8 +186,8 @@ public:
    * Returns the size in aSize.
    * The returned surface will never be modified. The caller must not
    * modify it.
-   * Can be called on any thread. This method takes mReentrantMonitor
-   * when accessing thread-shared state.
+   * Can be called on any thread. This method takes mMonitor when accessing
+   * thread-shared state.
    */
   virtual already_AddRefed<gfxASurface> GetCurrentAsSurface(gfxIntSize* aSizeResult) = 0;
 
@@ -204,7 +204,7 @@ public:
 
   /**
    * Returns the size of the image in pixels.
-   * Can be called on any thread. This method takes mReentrantMonitor when accessing
+   * Can be called on any thread. This method takes mMonitor when accessing
    * thread-shared state.
    */
   virtual gfxIntSize GetCurrentSize() = 0;
@@ -220,8 +220,8 @@ public:
    * Sets a size that the image is expected to be rendered at.
    * This is a hint for image backends to optimize scaling.
    * Default implementation in this class is to ignore the hint.
-   * Can be called on any thread. This method takes mReentrantMonitor
-   * when accessing thread-shared state.
+   * Can be called on any thread. This method takes mMonitor when accessing
+   * thread-shared state.
    */
   virtual void SetScaleHint(const gfxIntSize& /* aScaleHint */) { }
 
@@ -239,7 +239,7 @@ public:
    * has not yet been painted.  Can be called from any thread.
    */
   TimeStamp GetPaintTime() {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+    MonitorAutoEnter mon(mMonitor);
     return mPaintTime;
   }
 
@@ -248,7 +248,7 @@ public:
    * and painted at least once.  Can be called from any thread.
    */
   PRUint32 GetPaintCount() {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+    MonitorAutoEnter mon(mMonitor);
     return mPaintCount;
   }
 
@@ -258,7 +258,7 @@ public:
    * current image.  Can be called from any thread.
    */
   void NotifyPaintedImage(Image* aPainted) {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+    MonitorAutoEnter mon(mMonitor);
     nsRefPtr<Image> current = GetCurrentImage();
     if (aPainted == current) {
       if (mPaintTime.IsNull()) {
@@ -275,25 +275,25 @@ public:
   }
 
 protected:
-  typedef mozilla::ReentrantMonitor ReentrantMonitor;
+  typedef mozilla::Monitor Monitor;
   LayerManager* mManager;
 
-  // ReentrantMonitor to protect thread safe access to the "current
-  // image", and any other state which is shared between threads.
-  ReentrantMonitor mReentrantMonitor;
+  // Monitor to protect thread safe access to the "current image", and any
+  // other state which is shared between threads.
+  Monitor mMonitor;
 
   ImageContainer(LayerManager* aManager) :
     mManager(aManager),
-    mReentrantMonitor("ImageContainer.mReentrantMonitor"),
+    mMonitor("ImageContainer"),
     mPaintCount(0),
     mPreviousImagePainted(PR_FALSE)
   {}
 
   // Performs necessary housekeeping to ensure the painted frame statistics
   // are accurate. Must be called by SetCurrentImage() implementations with
-  // mReentrantMonitor held.
+  // mMonitor held.
   void CurrentImageChanged() {
-    mReentrantMonitor.AssertCurrentThreadIn();
+    mMonitor.AssertCurrentThreadIn();
     mPreviousImagePainted = !mPaintTime.IsNull();
     mPaintTime = TimeStamp();
   }

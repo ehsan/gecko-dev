@@ -46,7 +46,7 @@
 #include "mozilla/TimeStamp.h"
 #include "nsSize.h"
 #include "nsRect.h"
-#include "mozilla/ReentrantMonitor.h"
+#include "mozilla/Monitor.h"
 
 class nsBuiltinDecoderStateMachine;
 
@@ -297,12 +297,12 @@ class MediaQueueDeallocator : public nsDequeFunctor {
 
 template <class T> class MediaQueue : private nsDeque {
  public:
-   typedef mozilla::ReentrantMonitorAutoEnter ReentrantMonitorAutoEnter;
-   typedef mozilla::ReentrantMonitor ReentrantMonitor;
+   typedef mozilla::MonitorAutoEnter MonitorAutoEnter;
+   typedef mozilla::Monitor Monitor;
 
    MediaQueue()
      : nsDeque(new MediaQueueDeallocator<T>()),
-       mReentrantMonitor("mediaqueue"),
+       mMonitor("mediaqueue"),
        mEndOfStream(0)
    {}
   
@@ -311,52 +311,52 @@ template <class T> class MediaQueue : private nsDeque {
   }
 
   inline PRInt32 GetSize() { 
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+    MonitorAutoEnter mon(mMonitor);
     return nsDeque::GetSize();
   }
   
   inline void Push(T* aItem) {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+    MonitorAutoEnter mon(mMonitor);
     nsDeque::Push(aItem);
   }
   
   inline void PushFront(T* aItem) {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+    MonitorAutoEnter mon(mMonitor);
     nsDeque::PushFront(aItem);
   }
   
   inline T* Pop() {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+    MonitorAutoEnter mon(mMonitor);
     return static_cast<T*>(nsDeque::Pop());
   }
 
   inline T* PopFront() {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+    MonitorAutoEnter mon(mMonitor);
     return static_cast<T*>(nsDeque::PopFront());
   }
   
   inline T* Peek() {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+    MonitorAutoEnter mon(mMonitor);
     return static_cast<T*>(nsDeque::Peek());
   }
   
   inline T* PeekFront() {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+    MonitorAutoEnter mon(mMonitor);
     return static_cast<T*>(nsDeque::PeekFront());
   }
 
   inline void Empty() {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+    MonitorAutoEnter mon(mMonitor);
     nsDeque::Empty();
   }
 
   inline void Erase() {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+    MonitorAutoEnter mon(mMonitor);
     nsDeque::Erase();
   }
 
   void Reset() {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+    MonitorAutoEnter mon(mMonitor);
     while (GetSize() > 0) {
       T* x = PopFront();
       delete x;
@@ -365,7 +365,7 @@ template <class T> class MediaQueue : private nsDeque {
   }
 
   PRBool AtEndOfStream() {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+    MonitorAutoEnter mon(mMonitor);
     return GetSize() == 0 && mEndOfStream;    
   }
 
@@ -373,19 +373,19 @@ template <class T> class MediaQueue : private nsDeque {
   // This happens when the media stream has been completely decoded. Note this
   // does not mean that the corresponding stream has finished playback.
   PRBool IsFinished() {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+    MonitorAutoEnter mon(mMonitor);
     return mEndOfStream;    
   }
 
   // Informs the media queue that it won't be receiving any more samples.
   void Finish() {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+    MonitorAutoEnter mon(mMonitor);
     mEndOfStream = PR_TRUE;    
   }
 
   // Returns the approximate number of microseconds of samples in the queue.
   PRInt64 Duration() {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+    MonitorAutoEnter mon(mMonitor);
     if (GetSize() < 2) {
       return 0;
     }
@@ -395,7 +395,7 @@ template <class T> class MediaQueue : private nsDeque {
   }
 
 private:
-  ReentrantMonitor mReentrantMonitor;
+  Monitor mMonitor;
 
   // PR_TRUE when we've decoded the last frame of data in the
   // bitstream for which we're queueing sample-data.
@@ -410,8 +410,8 @@ private:
 // this class.
 class nsBuiltinDecoderReader : public nsRunnable {
 public:
-  typedef mozilla::ReentrantMonitor ReentrantMonitor;
-  typedef mozilla::ReentrantMonitorAutoEnter ReentrantMonitorAutoEnter;
+  typedef mozilla::Monitor Monitor;
+  typedef mozilla::MonitorAutoEnter MonitorAutoEnter;
 
   nsBuiltinDecoderReader(nsBuiltinDecoder* aDecoder);
   ~nsBuiltinDecoderReader();
@@ -503,7 +503,7 @@ protected:
 
   // The lock which we hold whenever we read or decode. This ensures the thread
   // safety of the reader and its data fields.
-  ReentrantMonitor mReentrantMonitor;
+  Monitor mMonitor;
 
   // Reference to the owning decoder object. Do not hold the
   // reader's monitor when accessing this.

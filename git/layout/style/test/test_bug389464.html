@@ -28,14 +28,21 @@
 
 SimpleTest.waitForExplicitFinish();
 
+netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+var prefService = Components.classes["@mozilla.org/preferences-service;1"].
+                    getService(Components.interfaces.nsIPrefService);
+var fontSizeBranch = prefService.getBranch("font.size.");
+
 function get_pref(pref)
 {
-    return SpecialPowers.getIntPref("font.size." + pref);
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+    return fontSizeBranch.getIntPref(pref);
 }
 
 function set_pref(pref, val)
 {
-    SpecialPowers.setIntPref("font.size." + pref, val);
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+    fontSizeBranch.setIntPref(pref, val);
 }
 
 var cs1 = getComputedStyle(document.getElementById("one"), "");
