@@ -207,46 +207,6 @@ js::IsOriginalScriptFunction(JSFunction *fun)
     return fun->script()->function() == fun;
 }
 
-JS_FRIEND_API(JSFunction *)
-js::DefineFunctionWithReserved(JSContext *cx, JSObject *obj, const char *name, JSNative call,
-                               uintN nargs, uintN attrs)
-{
-    JS_THREADSAFE_ASSERT(cx->compartment != cx->runtime->atomsCompartment);
-    CHECK_REQUEST(cx);
-    assertSameCompartment(cx, obj);
-    JSAtom *atom = js_Atomize(cx, name, strlen(name));
-    if (!atom)
-        return NULL;
-    return js_DefineFunction(cx, obj, ATOM_TO_JSID(atom), call, nargs, attrs,
-                             JSFunction::ExtendedFinalizeKind);
-}
-
-JS_FRIEND_API(JSFunction *)
-js::NewFunctionByIdWithReserved(JSContext *cx, JSNative native, uintN nargs, uintN flags, JSObject *parent,
-                                jsid id)
-{
-    JS_ASSERT(JSID_IS_STRING(id));
-    JS_THREADSAFE_ASSERT(cx->compartment != cx->runtime->atomsCompartment);
-    CHECK_REQUEST(cx);
-    assertSameCompartment(cx, parent);
-
-    return js_NewFunction(cx, NULL, native, nargs, flags, parent, JSID_TO_ATOM(id),
-                          JSFunction::ExtendedFinalizeKind);
-}
-
-JS_FRIEND_API(JSObject *)
-js::InitClassWithReserved(JSContext *cx, JSObject *obj, JSObject *parent_proto,
-                          JSClass *clasp, JSNative constructor, uintN nargs,
-                          JSPropertySpec *ps, JSFunctionSpec *fs,
-                          JSPropertySpec *static_ps, JSFunctionSpec *static_fs)
-{
-    CHECK_REQUEST(cx);
-    assertSameCompartment(cx, obj, parent_proto);
-    return js_InitClass(cx, obj, parent_proto, Valueify(clasp), constructor,
-                        nargs, ps, fs, static_ps, static_fs, NULL,
-                        JSFunction::ExtendedFinalizeKind);
-}
-
 JS_FRIEND_API(const Value &)
 js::GetFunctionNativeReserved(JSObject *fun, size_t which)
 {
@@ -293,3 +253,94 @@ JS_SetAccumulateTelemetryCallback(JSRuntime *rt, JSAccumulateTelemetryDataCallba
 {
     rt->telemetryCallback = callback;
 }
+
+#ifdef DEBUG
+
+struct DumpingChildInfo {
+    void *node;
+    JSGCTraceKind kind;
+
+    DumpingChildInfo (void *n, JSGCTraceKind k)
+        : node(n), kind(k)
+    {}
+};
+
+typedef HashSet<void *, DefaultHasher<void *>, ContextAllocPolicy> PtrSet;
+
+struct JSDumpHeapTracer : public JSTracer {
+    PtrSet visited;
+    FILE   *output;
+    Vector<DumpingChildInfo, 0, ContextAllocPolicy> nodes;
+    char   buffer[200];
+    bool   rootTracing;
+
+    JSDumpHeapTracer(JSContext *cx, FILE *fp)
+        : visited(cx), output(fp), nodes(cx)
+    {}
+};
+
+static void
+DumpHeapVisitChild(JSTracer *trc, void *thing, JSGCTraceKind kind);
+
+static void
+DumpHeapPushIfNew(JSTracer *trc, void *thing, JSGCTraceKind kind)
+{
+    JS_ASSERT(trc->callback == DumpHeapPushIfNew ||
+              trc->callback == DumpHeapVisitChild);
+    JSDumpHeapTracer *dtrc = static_cast<JSDumpHeapTracer *>(trc);
+
+    /*
+     * If we're tracing roots, print root information.  Do this even if we've
+     * already seen thing, for complete root information.
+     */
+    if (dtrc->rootTracing) {
+        fprintf(dtrc->output, "%p %s\n", thing,
+                JS_GetTraceEdgeName(dtrc, dtrc->buffer, sizeof(dtrc->buffer)));
+    }
+
+    PtrSet::AddPtr ptrEntry = dtrc->visited.lookupForAdd(thing);
+    if (ptrEntry || !dtrc->visited.add(ptrEntry, thing))
+        return;
+
+    dtrc->nodes.append(DumpingChildInfo(thing, kind));
+}
+
+static void
+DumpHeapVisitChild(JSTracer *trc, void *thing, JSGCTraceKind kind)
+{
+    JS_ASSERT(trc->callback == DumpHeapVisitChild);
+    JSDumpHeapTracer *dtrc = static_cast<JSDumpHeapTracer *>(trc);
+    const char *edgeName = JS_GetTraceEdgeName(dtrc, dtrc->buffer, sizeof(dtrc->buffer));
+    fprintf(dtrc->output, "> %p %s\n", (void *)thing, edgeName);
+    DumpHeapPushIfNew(dtrc, thing, kind);
+}
+
+void
+js::DumpHeapComplete(JSContext *cx, FILE *fp)
+{
+    JSDumpHeapTracer dtrc(cx, fp);
+    JS_TRACER_INIT(&dtrc, cx, DumpHeapPushIfNew);
+    if (!dtrc.visited.init(10000))
+        return;
+
+    /* Store and log the root information. */
+    dtrc.rootTracing = true;
+    TraceRuntime(&dtrc);
+    fprintf(dtrc.output, "==========\n");
+
+    /* Log the graph. */
+    dtrc.rootTracing = false;
+    dtrc.callback = DumpHeapVisitChild;
+
+    while (!dtrc.nodes.empty()) {
+        DumpingChildInfo dci = dtrc.nodes.popCopy();
+        JS_PrintTraceThingInfo(dtrc.buffer, sizeof(dtrc.buffer),
+                               &dtrc, dci.node, dci.kind, JS_TRUE);
+        fprintf(fp, "%p %s\n", dci.node, dtrc.buffer);
+        JS_TraceChildren(&dtrc, dci.node, dci.kind);
+    }
+
+    dtrc.visited.finish();
+}
+
+#endif

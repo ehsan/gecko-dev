@@ -151,6 +151,16 @@ JS_END_EXTERN_C
 
 namespace js {
 
+#ifdef DEBUG
+ /*
+  * DEBUG-only method to dump the complete object graph of heap-allocated things.
+  * fp is the file for the dump output.
+  */
+extern JS_FRIEND_API(void)
+DumpHeapComplete(JSContext *cx, FILE *fp);
+
+#endif
+
 class JS_FRIEND_API(AutoPreserveCompartment) {
   private:
     JSContext *cx;
@@ -276,20 +286,6 @@ GetObjectGlobal(JSObject *obj);
 JS_FRIEND_API(bool)
 IsOriginalScriptFunction(JSFunction *fun);
 
-JS_FRIEND_API(JSFunction *)
-DefineFunctionWithReserved(JSContext *cx, JSObject *obj, const char *name, JSNative call,
-                           uintN nargs, uintN attrs);
-
-JS_FRIEND_API(JSFunction *)
-NewFunctionByIdWithReserved(JSContext *cx, JSNative native, uintN nargs, uintN flags,
-                            JSObject *parent, jsid id);
-
-JS_FRIEND_API(JSObject *)
-InitClassWithReserved(JSContext *cx, JSObject *obj, JSObject *parent_proto,
-                      JSClass *clasp, JSNative constructor, uintN nargs,
-                      JSPropertySpec *ps, JSFunctionSpec *fs,
-                      JSPropertySpec *static_ps, JSFunctionSpec *static_fs);
-
 JS_FRIEND_API(const Value &)
 GetFunctionNativeReserved(JSObject *fun, size_t which);
 
@@ -359,6 +355,9 @@ CastAsJSStrictPropertyOp(JSObject *object)
 
 JS_FRIEND_API(bool)
 GetPropertyNames(JSContext *cx, JSObject *obj, uintN flags, js::AutoIdVector *props);
+
+JS_FRIEND_API(bool)
+StringIsArrayIndex(JSLinearString *str, jsuint *indexp);
 
 /*
  * NB: these flag bits are encoded into the bytecode stream in the immediate
