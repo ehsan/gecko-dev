@@ -122,7 +122,6 @@ nsDisableTextZoomStyleRule::List(FILE* out, int32_t aIndent) const
 #endif
 
 static const nsStyleSet::sheetType gCSSSheetTypes[] = {
-  // From lowest to highest in cascading order.
   nsStyleSet::eAgentSheet,
   nsStyleSet::eUserSheet,
   nsStyleSet::eDocSheet,
@@ -1552,25 +1551,21 @@ nsStyleSet::AppendFontFaceRules(nsPresContext* aPresContext,
   return true;
 }
 
-nsCSSKeyframesRule*
-nsStyleSet::KeyframesRuleForName(nsPresContext* aPresContext,
-                                 const nsString& aName)
+bool
+nsStyleSet::AppendKeyframesRules(nsPresContext* aPresContext,
+                                 nsTArray<nsCSSKeyframesRule*>& aArray)
 {
-  NS_ENSURE_FALSE(mInShutdown, nullptr);
+  NS_ENSURE_FALSE(mInShutdown, false);
 
-  for (uint32_t i = ArrayLength(gCSSSheetTypes); i-- != 0; ) {
+  for (uint32_t i = 0; i < ArrayLength(gCSSSheetTypes); ++i) {
     if (gCSSSheetTypes[i] == eScopedDocSheet)
       continue;
     nsCSSRuleProcessor *ruleProc = static_cast<nsCSSRuleProcessor*>
                                     (mRuleProcessors[gCSSSheetTypes[i]].get());
-    if (!ruleProc)
-      continue;
-    nsCSSKeyframesRule* result =
-      ruleProc->KeyframesRuleForName(aPresContext, aName);
-    if (result)
-      return result;
+    if (ruleProc && !ruleProc->AppendKeyframesRules(aPresContext, aArray))
+      return false;
   }
-  return nullptr;
+  return true;
 }
 
 bool

@@ -35,7 +35,6 @@ class nsIImageLoadingContent;
 #include "nsHTMLReflowState.h"
 #include "nsIFrameLoader.h"
 #include "FrameMetrics.h"
-#include "gfx3DMatrix.h"
 
 #include <limits>
 #include <algorithm>

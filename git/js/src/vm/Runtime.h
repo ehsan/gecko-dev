@@ -691,11 +691,7 @@ struct JSRuntime : public JS::shadow::Runtime,
      * If non-zero, we were been asked to call the operation callback as soon
      * as possible.
      */
-#ifdef JS_THREADSAFE
-    mozilla::Atomic<int32_t> interrupt;
-#else
-    int32_t interrupt;
-#endif
+    volatile int32_t    interrupt;
 
     /* Branch callback */
     JSOperationCallback operationCallback;

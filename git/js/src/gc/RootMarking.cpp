@@ -687,16 +687,18 @@ js::gc::MarkRuntime(JSTracer *trc, bool useSavedRoots)
             MarkScriptRoot(trc, &vec[i].script, "scriptAndCountsVector");
     }
 
-    if (rt->hasContexts() &&
-        !trc->runtime->isHeapMinorCollecting() &&
+    if (!trc->runtime->isHeapMinorCollecting() &&
         (!IS_GC_MARKING_TRACER(trc) || rt->atomsCompartment()->zone()->isCollecting()))
     {
         MarkAtoms(trc);
-        rt->staticStrings.trace(trc);
 #ifdef JS_ION
-        ion::IonRuntime::Mark(trc);
+        /* Any Ion wrappers survive until the runtime is being torn down. */
+        if (rt->hasContexts())
+            ion::IonRuntime::Mark(trc);
 #endif
     }
+
+    rt->staticStrings.trace(trc);
 
     for (ContextIter acx(rt); !acx.done(); acx.next())
         acx->mark(trc);
@@ -711,7 +713,7 @@ js::gc::MarkRuntime(JSTracer *trc, bool useSavedRoots)
         }
 
         /* Do not discard scripts with counts while profiling. */
-        if (rt->profilingScripts && rt->hasContexts() && !rt->isHeapMinorCollecting()) {
+        if (rt->profilingScripts && !rt->isHeapMinorCollecting()) {
             for (CellIterUnderGC i(zone, FINALIZE_SCRIPT); !i.done(); i.next()) {
                 JSScript *script = i.get<JSScript>();
                 if (script->hasScriptCounts) {
@@ -749,30 +751,24 @@ js::gc::MarkRuntime(JSTracer *trc, bool useSavedRoots)
 
     if (!rt->isHeapMinorCollecting()) {
         /*
-         * All JSCompartment::mark does is mark the globals for compartments
+         * All JSCompartment::mark does is mark the globals for compartements
          * which have been entered. Globals aren't nursery allocated so there's
          * no need to do this for minor GCs.
          */
         for (CompartmentsIter c(rt); !c.done(); c.next())
             c->mark(trc);
+    }
 
-        /*
-         * The embedding can register additional roots here.
-         *
-         * We don't need to trace these in a minor GC because all pointers into
-         * the nursery should be in the store buffer, and we want to avoid the
-         * time taken to trace all these roots.
-         */
-        for (size_t i = 0; i < rt->gcBlackRootTracers.length(); i++) {
-            const JSRuntime::ExtraTracer &e = rt->gcBlackRootTracers[i];
-            (*e.op)(trc, e.data);
-        }
+    /* The embedding can register additional roots here. */
+    for (size_t i = 0; i < rt->gcBlackRootTracers.length(); i++) {
+        const JSRuntime::ExtraTracer &e = rt->gcBlackRootTracers[i];
+        (*e.op)(trc, e.data);
+    }
 
-        /* During GC, we don't mark gray roots at this stage. */
-        if (JSTraceDataOp op = rt->gcGrayRootTracer.op) {
-            if (!IS_GC_MARKING_TRACER(trc))
-                (*op)(trc, rt->gcGrayRootTracer.data);
-        }
+    /* During GC, we don't mark gray roots at this stage. */
+    if (JSTraceDataOp op = rt->gcGrayRootTracer.op) {
+        if (!IS_GC_MARKING_TRACER(trc) && !trc->runtime->isHeapMinorCollecting())
+            (*op)(trc, rt->gcGrayRootTracer.data);
     }
 }
 
