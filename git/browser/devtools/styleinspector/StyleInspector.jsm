@@ -66,7 +66,8 @@ var StyleInspector = {
   {
     let win = Services.wm.getMostRecentWindow("navigator:browser");
     let popupSet = win.document.getElementById("mainPopupSet");
-    let panel = win.document.createElement("panel");
+    let ns = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
+    let panel = win.document.createElementNS(ns, "panel");
 
     panel.setAttribute("class", "styleInspector");
     panel.setAttribute("orient", "vertical");
@@ -83,7 +84,7 @@ var StyleInspector = {
     vbox.setAttribute("flex", "1");
     panel.appendChild(vbox);
 
-    let iframe = win.document.createElement("iframe");
+    let iframe = win.document.createElementNS(ns, "iframe");
     iframe.setAttribute("flex", "1");
     iframe.setAttribute("tooltip", "aHTMLTooltip");
     iframe.setAttribute("src", "chrome://browser/content/csshtmltree.xhtml");
@@ -144,8 +145,8 @@ var StyleInspector = {
       }
     }
 
-    panel.addEventListener("popupshown", SI_popupShown, false);
-    panel.addEventListener("popuphidden", SI_popupHidden, false);
+    panel.addEventListener("popupshown", SI_popupShown);
+    panel.addEventListener("popuphidden", SI_popupHidden);
     panel.preserveOnHide = !!aPreserveOnHide;
 
     /**
@@ -175,21 +176,15 @@ var StyleInspector = {
      */
     panel.destroy = function SI_destroy()
     {
+      if (!this.cssLogic)
+        return;
       if (this.isOpen())
         this.hideTool();
-      if (panel.cssHtmlTree)
-        panel.cssHtmlTree.destroy();
-      if (iframe) {
-        iframe.parentNode.removeChild(iframe);
-        iframe = null;
-      }
-
-      delete panel.cssLogic;
-      delete panel.cssHtmlTree;
-      panel.removeEventListener("popupshown", SI_popupShown, false);
-      panel.removeEventListener("popuphidden", SI_popupHidden, false);
-      panel.parentNode.removeChild(panel);
-      panel = null;
+      this.cssLogic = null;
+      this.cssHtmlTree = null;
+      this.removeEventListener("popupshown", SI_popupShown);
+      this.removeEventListener("popuphidden", SI_popupHidden);
+      this.parentNode.removeChild(this);
       Services.obs.notifyObservers(null, "StyleInspector-closed", null);
     };
 
