@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include "qcms.h"
 #include "qcmstypes.h"
 

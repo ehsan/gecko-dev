@@ -355,10 +355,7 @@ nsDragService::StartInvokingDragSession(IDataObject * aDataObj,
 
   mUserCancelled = nativeDragSource->UserCancelled();
 
-  // We're done dragging, get the cursor position and end the drag
-  POINT pos;
-  GetCursorPos(&pos);
-  SetDragEndPoint(nsPoint(pos.x, pos.y));
+  // We're done dragging
   EndDragSession(PR_TRUE);
 
   // For some drag/drop interactions, IDataObject::SetData doesn't get
