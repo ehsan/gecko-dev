@@ -8,7 +8,7 @@
 /*****************************************************************************/
 
 #include <stdint.h>
-const PRTime gPreloadListExpirationTime = INT64_C(1430565041240000);
+const PRTime gPreloadListExpirationTime = INT64_C(1429960340886000);
 
 class nsSTSPreload
 {
@@ -216,7 +216,6 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "depechemode-live.com", true },
   { "derevtsov.com", false },
   { "derhil.de", true },
-  { "destinationbijoux.fr", true },
   { "detectify.com", false },
   { "developer.mydigipass.com", false },
   { "devh.de", true },
@@ -258,7 +257,6 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "esec.rs", true },
   { "espra.com", true },
   { "ethack.org", true },
-  { "ethitter.com", true },
   { "eurotramp.com", true },
   { "everhome.de", true },
   { "evstatus.com", true },
@@ -320,7 +318,6 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "googleplex.com", true },
   { "goto.google.com", true },
   { "gplintegratedit.com", true },
-  { "grandmascookieblog.com", false },
   { "grc.com", false },
   { "greensolid.biz", true },
   { "grepular.com", true },
@@ -822,8 +819,7 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "vaddder.com", true },
   { "vhost.co.id", true },
   { "viasinc.com", false },
-  { "viennan.net", true },
-  { "visionless.me", false },
+  { "visionless.me", true },
   { "vmoagents.com", false },
   { "vocaloid.my", true },
   { "vortexhobbies.com", true },
@@ -873,7 +869,6 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "wubthecaptain.eu", true },
   { "wunderlist.com", true },
   { "www.aclu.org", false },
-  { "www.airbnb.com", true },
   { "www.apollo-auto.com", true },
   { "www.banking.co.at", false },
   { "www.braintreepayments.com", false },
