@@ -864,11 +864,10 @@ public:
         m_assembler.doubleTransfer(true, dest, address.base, address.offset);
     }
 
-    DataLabelPtr loadDouble(const void* address, FPRegisterID dest)
+    void loadDouble(const void* address, FPRegisterID dest)
     {
-        DataLabelPtr label = moveWithPatch(ImmPtr(address), ARMRegisters::S0);
+        m_assembler.ldr_un_imm(ARMRegisters::S0, (ARMWord)address);
         m_assembler.fdtr_u(true, dest, ARMRegisters::S0, 0);
-        return label;
     }
 
     void storeDouble(FPRegisterID src, ImplicitAddress address)

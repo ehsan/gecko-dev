@@ -1077,7 +1077,7 @@ struct JSThreadData {
          * Note that we only care about visibility here, not read/write
          * ordering.
          */
-        JS_ATOMIC_SET_MASK((&interruptFlags), INTERRUPT_OPERATION_CALLBACK);
+        JS_ATOMIC_SET_MASK((jsword *) (&interruptFlags), INTERRUPT_OPERATION_CALLBACK);
     }
 };
 
@@ -1910,20 +1910,6 @@ struct JSContext
      */
     js::CallStackSegment *containingSegment(const JSStackFrame *target);
 
-    /*
-     * Search the call stack for the nearest frame with static level targetLevel.
-     */
-    JSStackFrame *findFrameAtLevel(uintN targetLevel) {
-        JSStackFrame *fp = this->fp;
-        while (true) {
-            JS_ASSERT(fp && fp->script);
-            if (fp->script->staticLevel == targetLevel)
-                break;
-            fp = fp->down;
-        }
-        return fp;
-    }
- 
 #ifdef JS_THREADSAFE
     JSThread            *thread;
     jsrefcount          requestDepth;

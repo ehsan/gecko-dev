@@ -175,11 +175,11 @@ class Assembler : public BaseAssembler
     }
 
     void loadPayload(Address address, RegisterID reg) {
-        loadValueThenPayload(address, reg, reg);
+        loadValueThenPayload(address, Registers::ValueReg, reg);
     }
 
     void loadPayload(BaseIndex address, RegisterID reg) {
-        loadValueThenPayload(address, reg, reg);
+        loadValueThenPayload(address, Registers::ValueReg, reg);
     }
 
     void storePayload(RegisterID reg, Address address) {
