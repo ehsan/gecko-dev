@@ -939,10 +939,7 @@ JS::DescribeStack(JSContext *cx, unsigned maxFrames)
 {
     Vector<FrameDescription> frames(cx);
 
-    NonBuiltinScriptFrameIter i(cx, ScriptFrameIter::ALL_CONTEXTS,
-                                ScriptFrameIter::GO_THROUGH_SAVED,
-                                cx->compartment()->principals);
-    for ( ; !i.done(); ++i) {
+    for (NonBuiltinScriptFrameIter i(cx); !i.done(); ++i) {
         if (!frames.append(i))
             return nullptr;
         if (frames.length() == maxFrames)

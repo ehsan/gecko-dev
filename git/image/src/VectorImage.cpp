@@ -14,8 +14,6 @@
 #include "mozilla/AutoRestore.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/SVGSVGElement.h"
-#include "mozilla/gfx/2D.h"
-#include "mozilla/RefPtr.h"
 #include "nsIDOMEvent.h"
 #include "nsIPresShell.h"
 #include "nsIStreamListener.h"
@@ -682,16 +680,7 @@ VectorImage::GetFrame(uint32_t aWhichFrame,
 
   nsRefPtr<gfxImageSurface> surface =
     new gfxImageSurface(surfaceSize, gfxImageFormat::ARGB32);
-
-  RefPtr<DrawTarget> drawTarget =
-    Factory::CreateDrawTargetForData(BackendType::CAIRO,
-                                     surface->Data(),
-                                     IntSize(imageIntSize.width,
-                                             imageIntSize.height),
-                                     surface->Stride(),
-                                     SurfaceFormat::B8G8R8A8);
-
-  nsRefPtr<gfxContext> context = new gfxContext(drawTarget);
+  nsRefPtr<gfxContext> context = new gfxContext(surface);
 
   // Draw to our surface!
   // --------------------

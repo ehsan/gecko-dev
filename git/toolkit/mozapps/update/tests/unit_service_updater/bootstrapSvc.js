@@ -4,17 +4,27 @@
 
 /* Bootstrap the tests using the service by installing our own version of the service */
 
+const TEST_FILES = [
+{
+  description      : "the dummy file to make sure that the update worked",
+  fileName         : "dummy",
+  relPathDir       : "/",
+  originalContents : null,
+  compareContents  : "",
+  originalFile     : null,
+  compareFile      : null,
+  originalPerms    : null,
+  comparePerms     : null
+}
+];
+
 function run_test() {
   if (!shouldRunServiceTest(true)) {
     return;
   }
 
   setupTestCommon();
-  // We don't actually care if the MAR has any data, we only care about the
-  // application return code and update.status result.
-  gTestFiles = gTestFilesCommon;
-  gTestDirs = [];
-  setupUpdaterTest(FILE_COMPLETE_MAR, false, false);
+  setupUpdaterTest(FILE_COMPLETE_MAR);
 
   setupAppFilesAsync();
 }

@@ -96,7 +96,6 @@ GST_FUNC(LIBGSTVIDEO, gst_video_format_get_component_width)
 GST_FUNC(LIBGSTVIDEO, gst_video_format_get_pixel_stride)
 GST_FUNC(LIBGSTVIDEO, gst_video_format_get_row_stride)
 GST_FUNC(LIBGSTVIDEO, gst_video_format_parse_caps)
-GST_FUNC(LIBGSTVIDEO, gst_video_parse_caps_pixel_aspect_ratio)
 #else
 
 GST_FUNC(LIBGSTAPP, gst_app_sink_pull_sample)

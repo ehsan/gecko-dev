@@ -33,12 +33,17 @@ public:
   ClientCanvasLayer(ClientLayerManager* aLayerManager) :
     CopyableCanvasLayer(aLayerManager,
                         static_cast<ClientLayer*>(MOZ_THIS_IN_INITIALIZER_LIST()))
-    , mTextureSurface(nullptr)
-    , mFactory(nullptr)
   {
     MOZ_COUNT_CTOR(ClientCanvasLayer);
   }
-  virtual ~ClientCanvasLayer();
+  virtual ~ClientCanvasLayer()
+  {
+    MOZ_COUNT_DTOR(ClientCanvasLayer);
+    if (mCanvasClient) {
+      mCanvasClient->OnDetach();
+      mCanvasClient = nullptr;
+    }
+  }
 
   virtual void SetVisibleRegion(const nsIntRegion& aRegion)
   {
@@ -91,9 +96,6 @@ protected:
   }
 
   RefPtr<CanvasClient> mCanvasClient;
-
-  gfx::SharedSurface* mTextureSurface;
-  gfx::SurfaceFactory* mFactory;
 
   friend class DeprecatedCanvasClient2D;
   friend class CanvasClient2D;

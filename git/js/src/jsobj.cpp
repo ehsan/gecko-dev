@@ -3760,7 +3760,7 @@ DefinePropertyOrElement(typename ExecutionModeTraits<mode>::ExclusiveContextType
 
     // Don't define new indexed properties on typed arrays.
     if (obj->is<TypedArrayObject>()) {
-        uint64_t index;
+        double index;
         if (IsTypedArrayIndex(id, &index))
             return true;
     }
@@ -4002,9 +4002,9 @@ LookupOwnPropertyWithFlagsInline(ExclusiveContext *cx,
     // so that integer properties on the prototype are ignored even for out
     // of bounds accesses.
     if (obj->template is<TypedArrayObject>()) {
-        uint64_t index;
+        double index;
         if (IsTypedArrayIndex(id, &index)) {
-            if (index < obj->template as<TypedArrayObject>().length()) {
+            if (index >= 0 && index < obj->template as<TypedArrayObject>().length()) {
                 objp.set(obj);
                 MarkDenseOrTypedArrayElementFound<allowGC>(propp);
             }
@@ -4595,9 +4595,9 @@ LookupPropertyPureInline(JSObject *obj, jsid id, JSObject **objp, Shape **propp)
         }
 
         if (current->is<TypedArrayObject>()) {
-            uint64_t index;
+            double index;
             if (IsTypedArrayIndex(id, &index)) {
-                if (index < obj->as<TypedArrayObject>().length()) {
+                if (index >= 0 && index < obj->as<TypedArrayObject>().length()) {
                     *objp = current;
                     MarkDenseOrTypedArrayElementFound<NoGC>(propp);
                 } else {
@@ -5931,10 +5931,10 @@ js_DumpBacktrace(JSContext *cx)
     fprintf(stdout, "%s", sprinter.string());
 }
 void
-JSObject::addSizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf, JS::ObjectsExtraSizes *sizes)
+JSObject::addSizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf, JS::ClassInfo *info)
 {
     if (hasDynamicSlots())
-        sizes->mallocHeapSlots += mallocSizeOf(slots);
+        info->objectsMallocHeapSlots += mallocSizeOf(slots);
 
     if (hasDynamicElements()) {
         js::ObjectElements *elements = getElementsHeader();
@@ -5942,12 +5942,12 @@ JSObject::addSizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf, JS::Objects
 #if defined (JS_CPU_X64)
             // On x64, ArrayBufferObject::prepareForAsmJS switches the
             // ArrayBufferObject to use mmap'd storage.
-            sizes->nonHeapElementsAsmJS += as<ArrayBufferObject>().byteLength();
+            info->objectsNonHeapElementsAsmJS += as<ArrayBufferObject>().byteLength();
 #else
-            sizes->mallocHeapElementsAsmJS += mallocSizeOf(elements);
+            info->objectsMallocHeapElementsAsmJS += mallocSizeOf(elements);
 #endif
         } else {
-            sizes->mallocHeapElementsNonAsmJS += mallocSizeOf(elements);
+            info->objectsMallocHeapElementsNonAsmJS += mallocSizeOf(elements);
         }
     }
 
@@ -5970,20 +5970,20 @@ JSObject::addSizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf, JS::Objects
         // - ( 1.0%, 96.4%): Proxy
 
     } else if (is<ArgumentsObject>()) {
-        sizes->mallocHeapArgumentsData += as<ArgumentsObject>().sizeOfMisc(mallocSizeOf);
+        info->objectsMallocHeapMisc += as<ArgumentsObject>().sizeOfMisc(mallocSizeOf);
     } else if (is<RegExpStaticsObject>()) {
-        sizes->mallocHeapRegExpStatics += as<RegExpStaticsObject>().sizeOfData(mallocSizeOf);
+        info->objectsMallocHeapMisc += as<RegExpStaticsObject>().sizeOfData(mallocSizeOf);
     } else if (is<PropertyIteratorObject>()) {
-        sizes->mallocHeapPropertyIteratorData += as<PropertyIteratorObject>().sizeOfMisc(mallocSizeOf);
+        info->objectsMallocHeapMisc += as<PropertyIteratorObject>().sizeOfMisc(mallocSizeOf);
 #ifdef JS_ION
     } else if (is<AsmJSModuleObject>()) {
-        as<AsmJSModuleObject>().addSizeOfMisc(mallocSizeOf, &sizes->nonHeapCodeAsmJS,
-                                              &sizes->mallocHeapAsmJSModuleData);
+        as<AsmJSModuleObject>().addSizeOfMisc(mallocSizeOf, &info->objectsNonHeapCodeAsmJS,
+                                              &info->objectsMallocHeapMisc);
 #endif
 #ifdef JS_HAS_CTYPES
     } else {
         // This must be the last case.
-        sizes->mallocHeapCtypesData +=
+        info->objectsMallocHeapMisc +=
             js::SizeOfDataIfCDataObject(mallocSizeOf, const_cast<JSObject *>(this));
 #endif
     }

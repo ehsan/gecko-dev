@@ -66,9 +66,9 @@ for (constructor of constructors) {
   a[-10 >>> 0] = "twelve";
   assertEq(a[-10 >>> 0], undefined);
 
-  // Watch for really large indexed properties too.
+  // Watch for overly large indexed properties.
   a[Math.pow(2, 53)] = "twelve";
-  assertEq(a[Math.pow(2, 53)], undefined);
+  assertEq(a[Math.pow(2, 53)], "twelve");
 
   // Don't define old properties.
   Object.defineProperty(a, 5, {value: 3});
