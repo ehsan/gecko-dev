@@ -52,7 +52,6 @@
 #include "mozIStorageAsyncStatement.h"
 #include "mozIStoragePendingStatement.h"
 #include "mozIStorageError.h"
-#include "mozStorageHelper.h"
 
 #define OBSERVER_TOPIC_IDLE_DAILY "idle-daily"
 #define OBSERVER_TOPIC_XPCOM_SHUTDOWN "xpcom-shutdown"
@@ -222,7 +221,7 @@ Vacuumer::execute()
   {
     nsCOMPtr<mozIStorageStatement> stmt;
     rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
-      MOZ_STORAGE_UNIQUIFY_QUERY_STR "PRAGMA page_size"
+      "PRAGMA page_size"
     ), getter_AddRefs(stmt));
     NS_ENSURE_SUCCESS(rv, false);
     bool hasResult;
@@ -241,7 +240,7 @@ Vacuumer::execute()
       {
         nsCOMPtr<mozIStorageStatement> stmt;
         rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
-          MOZ_STORAGE_UNIQUIFY_QUERY_STR "PRAGMA journal_mode"
+          "PRAGMA journal_mode"
         ), getter_AddRefs(stmt));
         NS_ENSURE_SUCCESS(rv, false);
         bool hasResult;
@@ -301,7 +300,7 @@ Vacuumer::execute()
   if (canOptimizePageSize) {
     nsCOMPtr<mozIStorageAsyncStatement> pageSizeStmt;
     rv = mDBConn->CreateAsyncStatement(nsPrintfCString(
-      MOZ_STORAGE_UNIQUIFY_QUERY_STR "PRAGMA page_size = %ld", expectedPageSize
+      "PRAGMA page_size = %ld", expectedPageSize
     ), getter_AddRefs(pageSizeStmt));
     NS_ENSURE_SUCCESS(rv, false);
     nsCOMPtr<BaseCallback> callback = new BaseCallback();

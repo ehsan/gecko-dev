@@ -68,7 +68,6 @@ const URI_UPDATES_PROPERTIES  = "chrome://mozapps/locale/update/updates.properti
 
 const STATE_DOWNLOADING       = "downloading";
 const STATE_PENDING           = "pending";
-const STATE_PENDING_SVC       = "pending-service";
 const STATE_APPLYING          = "applying";
 const STATE_SUCCEEDED         = "succeeded";
 const STATE_DOWNLOAD_FAILED   = "download-failed";
@@ -444,7 +443,6 @@ var gUpdates = {
           // the Update.
           switch (state) {
           case STATE_PENDING:
-          case STATE_PENDING_SVC:
             this.sourceEvent = SRCEVT_BACKGROUND;
             aCallback("finishedBackground");
             return;
@@ -1682,7 +1680,6 @@ var gErrorPatchingPage = {
   onWizardNext: function() {
     switch (gUpdates.update.selectedPatch.state) {
     case STATE_PENDING:
-    case STATE_PENDING_SVC: 
       gUpdates.wiz.goTo("finished");
       break;
     case STATE_DOWNLOADING:

@@ -1,7 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<org.mozilla.gecko.BrowserToolbar xmlns:android="http://schemas.android.com/apk/res/android"
-                                  android:id="@+id/browser_toolbar"
-                                  style="@style/BrowserToolbar">
+<merge xmlns:android="http://schemas.android.com/apk/res/android">
 
     <RelativeLayout android:id="@+id/address_bar"
                     style="@style/AddressBar">
@@ -76,4 +74,4 @@
 
     </RelativeLayout>
 
-</org.mozilla.gecko.BrowserToolbar>
+</merge>

@@ -52,9 +52,12 @@ public:
     gfxGraphiteShaper(gfxFont *aFont);
     virtual ~gfxGraphiteShaper();
 
-    virtual bool ShapeWord(gfxContext *aContext,
-                           gfxShapedWord *aShapedWord,
-                           const PRUnichar *aText);
+    virtual bool InitTextRun(gfxContext *aContext,
+                               gfxTextRun *aTextRun,
+                               const PRUnichar *aString,
+                               PRUint32 aRunStart,
+                               PRUint32 aRunLength,
+                               PRInt32 aRunScript);
 
     const void* GetTable(PRUint32 aTag, size_t *aLength);
 
@@ -73,7 +76,9 @@ public:
     };
 
 protected:
-    nsresult SetGlyphsFromSegment(gfxShapedWord *aShapedWord,
+    nsresult SetGlyphsFromSegment(gfxTextRun *aTextRun,
+                                  PRUint32 aRunStart,
+                                  PRUint32 aRunLength,
                                   gr_segment *aSegment);
 
     gr_face *mGrFace;

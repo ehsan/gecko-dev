@@ -44,7 +44,6 @@ import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.database.Cursor;
 import android.database.CursorWrapper;
-import android.database.sqlite.SQLiteConstraintException;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.drawable.BitmapDrawable;
@@ -52,10 +51,8 @@ import android.net.Uri;
 import android.os.Build;
 import android.provider.Browser;
 import android.provider.Browser.BookmarkColumns;
-import android.util.Log;
 
 public class AndroidBrowserDB implements BrowserDB.BrowserDBIface {
-    private static final String LOGTAG = "AndroidBrowserDB";
     private static final String URL_COLUMN_ID = "_id";
     private static final String URL_COLUMN_THUMBNAIL = "thumbnail";
 
@@ -64,7 +61,7 @@ public class AndroidBrowserDB implements BrowserDB.BrowserDBIface {
 
     private static final Uri BOOKMARKS_CONTENT_URI_POST_11 = Uri.parse("content://com.android.browser/bookmarks");
 
-    public Cursor filter(ContentResolver cr, CharSequence constraint, int limit, CharSequence urlFilter) {
+    public Cursor filter(ContentResolver cr, CharSequence constraint, int limit) {
         Cursor c = cr.query(Browser.BOOKMARKS_URI,
                             new String[] { URL_COLUMN_ID,
                                            BookmarkColumns.URL,
@@ -73,11 +70,9 @@ public class AndroidBrowserDB implements BrowserDB.BrowserDBIface {
                                            URL_COLUMN_THUMBNAIL },
                             // The length restriction on URL is for the same reason as in the general bookmark query
                             // (see comment earlier in this file).
-                            (urlFilter != null ? "(" + Browser.BookmarkColumns.URL + " NOT LIKE ? ) AND " : "" ) + 
                             "(" + Browser.BookmarkColumns.URL + " LIKE ? OR " + Browser.BookmarkColumns.TITLE + " LIKE ?)"
                             + " AND LENGTH(" + Browser.BookmarkColumns.URL + ") > 0",
-                            urlFilter == null ? new String[] {"%" + constraint.toString() + "%", "%" + constraint.toString() + "%"} :
-                            new String[] {urlFilter.toString(), "%" + constraint.toString() + "%", "%" + constraint.toString() + "%"},
+                            new String[] {"%" + constraint.toString() + "%", "%" + constraint.toString() + "%",},
                             // ORDER BY is number of visits times a multiplier from 1 - 120 of how recently the site
                             // was accessed with a site accessed today getting 120 and a site accessed 119 or more
                             // days ago getting 1
@@ -289,19 +284,8 @@ public class AndroidBrowserDB implements BrowserDB.BrowserDBIface {
                                 Browser.BookmarkColumns.URL + " = ?",
                                 new String[] { uri });
 
-        if (updated == 0) {
-            try {
-                cr.insert(Browser.BOOKMARKS_URI, values);
-            } catch (SQLiteConstraintException e) {
-                // insert() mysteriously and intermittently fails with "error
-                // code 19: constraint failed" on some Honeycomb and ICS
-                // devices. Bookmark favicons are not a critical feature, so
-                // we can ignore this error for now. bug 711977; bug 712791
-                Log.e(LOGTAG,
-                      String.format("Inserting favicon for \"%s\" failed with SQLiteConstraintException: %s",
-                                    uri, e.getMessage()));
-            }
-        }
+        if (updated == 0)
+            cr.insert(Browser.BOOKMARKS_URI, values);
     }
 
     public void updateThumbnailForUrl(ContentResolver cr, String uri,

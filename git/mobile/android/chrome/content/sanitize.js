@@ -113,7 +113,8 @@ Sanitizer.prototype = {
     cookies: {
       clear: function ()
       {
-        Services.cookies.removeAll();
+        var cookieMgr = Cc["@mozilla.org/cookiemanager;1"].getService(Ci.nsICookieManager);
+        cookieMgr.removeAll();
       },
       
       get canClear()
@@ -128,6 +129,9 @@ Sanitizer.prototype = {
         // clear any network geolocation provider sessions
         try {
           var branch = Services.prefs.getBranch("geo.wifi.access_token.");
+          branch.deleteBranch("");
+          
+          branch = Services.prefs.getBranch("geo.request.remember.");
           branch.deleteBranch("");
         } catch (e) {dump(e);}
       },
@@ -145,13 +149,15 @@ Sanitizer.prototype = {
         Services.perms.removeAll();
 
         // Clear site-specific settings like page-zoom level
-        Services.contentPrefs.removeGroupedPrefs();
+        var cps = Cc["@mozilla.org/content-pref/service;1"].getService(Ci.nsIContentPrefService);
+        cps.removeGroupedPrefs();
 
         // Clear "Never remember passwords for this site", which is not handled by
         // the permission manager
-        var hosts = Services.logins.getAllDisabledHosts({})
+        var pwmgr = Cc["@mozilla.org/login-manager;1"].getService(Ci.nsILoginManager);
+        var hosts = pwmgr.getAllDisabledHosts({})
         for each (var host in hosts) {
-          Services.logins.setLoginSavingEnabled(host, true);
+          pwmgr.setLoginSavingEnabled(host, true);
         }
       },
 
@@ -246,12 +252,14 @@ Sanitizer.prototype = {
     passwords: {
       clear: function ()
       {
-        Services.logins.removeAllLogins();
+        var pwmgr = Cc["@mozilla.org/login-manager;1"].getService(Ci.nsILoginManager);
+        pwmgr.removeAllLogins();
       },
       
       get canClear()
       {
-        Services.logins.countLogins("", "", ""); // count all logins
+        var pwmgr = Cc["@mozilla.org/login-manager;1"].getService(Ci.nsILoginManager);
+        var count = pwmgr.countLogins("", "", ""); // count all logins
         return (count > 0);
       }
     },

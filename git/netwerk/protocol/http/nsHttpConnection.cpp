@@ -293,9 +293,6 @@ nsHttpConnection::Activate(nsAHttpTransaction *trans, PRUint8 caps, PRInt32 pri)
     // Clear the per activation counter
     mCurrentBytesRead = 0;
 
-    // The overflow state is not needed between activations
-    mInputOverflow = nsnull;
-
     rv = OnOutputStreamReady(mSocketOut);
     
 failed_activation:

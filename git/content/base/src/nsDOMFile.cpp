@@ -70,7 +70,6 @@
 #include "prmem.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 // XXXkhuey the input stream that we pass out of a DOMFile
 // can outlive the actual DOMFile object.  Thus, we must
@@ -659,8 +658,8 @@ nsDOMFileError::GetCode(PRUint16* aCode)
 
 nsDOMFileInternalUrlHolder::nsDOMFileInternalUrlHolder(nsIDOMBlob* aFile,
                                                        nsIPrincipal* aPrincipal
-                                                       MOZ_GUARD_OBJECT_NOTIFIER_PARAM_IN_IMPL) {
-  MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+                                                       MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM_IN_IMPL) {
+  MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
   aFile->GetInternalUrl(aPrincipal, mUrl);
 }
  

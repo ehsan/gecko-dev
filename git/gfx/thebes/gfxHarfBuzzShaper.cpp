@@ -713,9 +713,12 @@ static hb_font_funcs_t * sHBFontFuncs = nsnull;
 static hb_unicode_funcs_t * sHBUnicodeFuncs = nsnull;
 
 bool
-gfxHarfBuzzShaper::ShapeWord(gfxContext      *aContext,
-                             gfxShapedWord   *aShapedWord,
-                             const PRUnichar *aText)
+gfxHarfBuzzShaper::InitTextRun(gfxContext *aContext,
+                               gfxTextRun *aTextRun,
+                               const PRUnichar *aString,
+                               PRUint32 aRunStart,
+                               PRUint32 aRunLength,
+                               PRInt32 aRunScript)
 {
     // some font back-ends require this in order to get proper hinted metrics
     mFont->SetupCairoFont(aContext);
@@ -815,11 +818,18 @@ gfxHarfBuzzShaper::ShapeWord(gfxContext      *aContext,
     PRUint32 scale = FloatToFixed(mFont->GetAdjustedSize()); // 16.16 fixed-point
     hb_font_set_scale(font, scale, scale);
 
+    // aRunStart and aRunLength define the section of the textRun and of
+    // aString that is to be drawn with this particular font
+
+    bool disableLigatures =
+        (aTextRun->GetFlags() &
+         gfxTextRunFactory::TEXT_DISABLE_OPTIONAL_LIGATURES) != 0;
+
     nsAutoTArray<hb_feature_t,20> features;
 
     // Ligature features are enabled by default in the generic shaper,
     // so we explicitly turn them off if necessary (for letter-spacing)
-    if (aShapedWord->DisableLigatures()) {
+    if (disableLigatures) {
         hb_feature_t ligaOff = { HB_TAG('l','i','g','a'), 0, 0, UINT_MAX };
         hb_feature_t cligOff = { HB_TAG('c','l','i','g'), 0, 0, UINT_MAX };
         features.AppendElement(ligaOff);
@@ -827,11 +837,10 @@ gfxHarfBuzzShaper::ShapeWord(gfxContext      *aContext,
     }
 
     // css features need to be merged with the existing ones, if any
-    gfxFontEntry *entry = mFont->GetFontEntry();
-    const gfxFontStyle *style = mFont->GetStyle();
+    const gfxFontStyle *style = aTextRun->GetFontGroup()->GetStyle();
     const nsTArray<gfxFontFeature> *cssFeatures = &style->featureSettings;
     if (cssFeatures->IsEmpty()) {
-        cssFeatures = &entry->mFeatureSettings;
+        cssFeatures = &mFont->GetFontEntry()->mFeatureSettings;
     }
     for (PRUint32 i = 0; i < cssFeatures->Length(); ++i) {
         PRUint32 j;
@@ -848,24 +857,24 @@ gfxHarfBuzzShaper::ShapeWord(gfxContext      *aContext,
         }
     }
 
-    bool isRightToLeft = aShapedWord->IsRightToLeft();
-    hb_buffer_t *buffer = hb_buffer_create(aShapedWord->Length());
+    hb_buffer_t *buffer = hb_buffer_create(aRunLength);
     hb_buffer_set_unicode_funcs(buffer, sHBUnicodeFuncs);
-    hb_buffer_set_direction(buffer, isRightToLeft ? HB_DIRECTION_RTL :
-                                                    HB_DIRECTION_LTR);
+    hb_buffer_set_direction(buffer,
+                            aTextRun->IsRightToLeft() ?
+                                HB_DIRECTION_RTL : HB_DIRECTION_LTR);
     // For unresolved "common" or "inherited" runs, default to Latin for now.
     // (Should we somehow use the language or locale to try and infer
     // a better default?)
     hb_buffer_set_script(buffer,
-                         aShapedWord->Script() <= HB_SCRIPT_INHERITED ?
-                             HB_SCRIPT_LATIN :
-                             hb_script_t(aShapedWord->Script()));
+                         aRunScript <= HB_SCRIPT_INHERITED ? HB_SCRIPT_LATIN
+                         : hb_script_t(aRunScript));
 
     hb_language_t language;
     if (style->languageOverride) {
         language = hb_ot_tag_to_language(style->languageOverride);
-    } else if (entry->mLanguageOverride) {
-        language = hb_ot_tag_to_language(entry->mLanguageOverride);
+    } else if (mFont->GetFontEntry()->mLanguageOverride) {
+        language =
+            hb_ot_tag_to_language(mFont->GetFontEntry()->mLanguageOverride);
     } else {
         nsCString langString;
         style->language->ToUTF8String(langString);
@@ -873,19 +882,18 @@ gfxHarfBuzzShaper::ShapeWord(gfxContext      *aContext,
     }
     hb_buffer_set_language(buffer, language);
 
-    PRUint32 length = aShapedWord->Length();
-    hb_buffer_add_utf16(buffer, reinterpret_cast<const uint16_t*>(aText),
-                        length, 0, length);
+    hb_buffer_add_utf16(buffer, reinterpret_cast<const uint16_t*>(aString + aRunStart),
+                        aRunLength, 0, aRunLength);
 
     hb_shape(font, mHBFace, buffer, features.Elements(), features.Length());
 
-    if (isRightToLeft) {
+    if (aTextRun->IsRightToLeft()) {
         hb_buffer_reverse(buffer);
     }
 
-    nsresult rv = SetGlyphsFromRun(aContext, aShapedWord, buffer);
-
-    NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "failed to store glyphs into gfxShapedWord");
+    nsresult rv =
+        SetGlyphsFromRun(aContext, aTextRun, buffer, aRunStart, aRunLength);
+    NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "failed to store glyphs into textrun");
     hb_buffer_destroy(buffer);
     hb_font_destroy(font);
 
@@ -972,33 +980,32 @@ GetRoundOffsetsToPixels(gfxContext *aContext,
 
 nsresult
 gfxHarfBuzzShaper::SetGlyphsFromRun(gfxContext *aContext,
-                                    gfxShapedWord *aShapedWord,
-                                    hb_buffer_t *aBuffer)
+                                    gfxTextRun *aTextRun,
+                                    hb_buffer_t *aBuffer,
+                                    PRUint32 aTextRunOffset,
+                                    PRUint32 aRunLength)
 {
     PRInt32 numGlyphs = hb_buffer_get_length(aBuffer);
-    if (numGlyphs == 0) {
+    if (numGlyphs == 0)
         return NS_OK;
-    }
 
     const hb_glyph_info_t *ginfo = hb_buffer_get_glyph_infos(aBuffer);
 
     nsAutoTArray<gfxTextRun::DetailedGlyph,1> detailedGlyphs;
 
-    PRUint32 wordLength = aShapedWord->Length();
     static const PRInt32 NO_GLYPH = -1;
     nsAutoTArray<PRInt32,SMALL_GLYPH_RUN> charToGlyphArray;
-    if (!charToGlyphArray.SetLength(wordLength)) {
+    if (!charToGlyphArray.SetLength(aRunLength))
         return NS_ERROR_OUT_OF_MEMORY;
-    }
 
     PRInt32 *charToGlyph = charToGlyphArray.Elements();
-    for (PRUint32 offset = 0; offset < wordLength; ++offset) {
+    for (PRUint32 offset = 0; offset < aRunLength; ++offset) {
         charToGlyph[offset] = NO_GLYPH;
     }
 
     for (PRInt32 i = 0; i < numGlyphs; ++i) {
         PRUint32 loc = ginfo[i].cluster;
-        if (loc < wordLength) {
+        if (loc < aRunLength) {
             charToGlyph[loc] = i;
         }
     }
@@ -1009,12 +1016,11 @@ gfxHarfBuzzShaper::SetGlyphsFromRun(gfxContext *aContext,
     bool roundX;
     bool roundY;
     GetRoundOffsetsToPixels(aContext, &roundX, &roundY);
-
-    PRInt32 appUnitsPerDevUnit = aShapedWord->AppUnitsPerDevUnit();
-
+    // This is signed to avoid promotion to unsigned.
+    PRInt32 dev2appUnits = aTextRun->GetAppUnitsPerDevUnit();
     // factor to convert 16.16 fixed-point pixels to app units
     // (only used if not rounding)
-    double hb2appUnits = FixedToFloat(aShapedWord->AppUnitsPerDevUnit());
+    double hb2appUnits = FixedToFloat(aTextRun->GetAppUnitsPerDevUnit());
 
     // keep track of y-position to set glyph offsets if needed
     nscoord yPos = 0;
@@ -1026,7 +1032,7 @@ gfxHarfBuzzShaper::SetGlyphsFromRun(gfxContext *aContext,
         bool inOrder = true;
         PRInt32 charEnd = ginfo[glyphStart].cluster;
         PRInt32 glyphEnd = glyphStart;
-        PRInt32 charLimit = wordLength;
+        PRInt32 charLimit = aRunLength;
         while (charEnd < charLimit) {
             // This is normally executed once for each iteration of the outer loop,
             // but in unusual cases where the character/glyph association is complex,
@@ -1088,20 +1094,20 @@ gfxHarfBuzzShaper::SetGlyphsFromRun(gfxContext *aContext,
         // and endCharIndex to the limit (position beyond the last char),
         // adjusting for the offset of the stringRange relative to the textRun.
         PRInt32 baseCharIndex, endCharIndex;
-        while (charEnd < PRInt32(wordLength) && charToGlyph[charEnd] == NO_GLYPH)
+        while (charEnd < PRInt32(aRunLength) && charToGlyph[charEnd] == NO_GLYPH)
             charEnd++;
         baseCharIndex = charStart;
         endCharIndex = charEnd;
 
         // Then we check if the clump falls outside our actual string range;
         // if so, just go to the next.
-        if (baseCharIndex >= PRInt32(wordLength)) {
+        if (baseCharIndex >= PRInt32(aRunLength)) {
             glyphStart = glyphEnd;
             charStart = charEnd;
             continue;
         }
         // Ensure we won't try to go beyond the valid length of the textRun's text
-        endCharIndex = NS_MIN<PRInt32>(endCharIndex, wordLength);
+        endCharIndex = NS_MIN<PRInt32>(endCharIndex, aRunLength);
 
         // Now we're ready to set the glyph info in the textRun
         PRInt32 glyphsInClump = glyphEnd - glyphStart;
@@ -1110,7 +1116,7 @@ gfxHarfBuzzShaper::SetGlyphsFromRun(gfxContext *aContext,
         // etc by the shaping process, and remove from the run.
         // (This may be done within harfbuzz eventually.)
         if (glyphsInClump == 1 && baseCharIndex + 1 == endCharIndex &&
-            aShapedWord->FilterIfIgnorable(baseCharIndex)) {
+            aTextRun->FilterIfIgnorable(aTextRunOffset + baseCharIndex)) {
             glyphStart = glyphEnd;
             charStart = charEnd;
             continue;
@@ -1119,18 +1125,18 @@ gfxHarfBuzzShaper::SetGlyphsFromRun(gfxContext *aContext,
         // Check if it's a simple one-to-one mapping
         hb_position_t x_advance = posInfo[glyphStart].x_advance;
         nscoord advance =
-            roundX ? appUnitsPerDevUnit * FixedToIntRound(x_advance)
+            roundX ? dev2appUnits * FixedToIntRound(x_advance)
             : floor(hb2appUnits * x_advance + 0.5);
 
         if (glyphsInClump == 1 &&
             gfxTextRun::CompressedGlyph::IsSimpleGlyphID(ginfo[glyphStart].codepoint) &&
             gfxTextRun::CompressedGlyph::IsSimpleAdvance(advance) &&
-            aShapedWord->IsClusterStart(baseCharIndex) &&
+            aTextRun->IsClusterStart(aTextRunOffset + baseCharIndex) &&
             posInfo[glyphStart].x_offset == 0 &&
             posInfo[glyphStart].y_offset == 0 && yPos == 0)
         {
             gfxTextRun::CompressedGlyph g;
-            aShapedWord->SetSimpleGlyph(baseCharIndex,
+            aTextRun->SetSimpleGlyph(aTextRunOffset + baseCharIndex,
                                      g.SetSimpleGlyph(advance,
                                          ginfo[glyphStart].codepoint));
         } else {
@@ -1149,18 +1155,18 @@ gfxHarfBuzzShaper::SetGlyphsFromRun(gfxContext *aContext,
                 // clusters.
                 hb_position_t x_offset = posInfo[glyphStart].x_offset;
                 details->mXOffset =
-                    roundX ? appUnitsPerDevUnit * FixedToIntRound(x_offset)
+                    roundX ? dev2appUnits * FixedToIntRound(x_offset)
                     : floor(hb2appUnits * x_offset + 0.5);
                 hb_position_t y_offset = posInfo[glyphStart].y_offset;
                 details->mYOffset = yPos -
-                    (roundY ? appUnitsPerDevUnit * FixedToIntRound(y_offset)
+                    (roundY ? dev2appUnits * FixedToIntRound(y_offset)
                      : floor(hb2appUnits * y_offset + 0.5));
 
                 details->mAdvance = advance;
                 hb_position_t y_advance = posInfo[glyphStart].y_advance;
                 if (y_advance != 0) {
                     yPos -=
-                        roundY ? appUnitsPerDevUnit * FixedToIntRound(y_advance)
+                        roundY ? dev2appUnits * FixedToIntRound(y_advance)
                         : floor(hb2appUnits * y_advance + 0.5);
                 }
                 if (++glyphStart >= glyphEnd) {
@@ -1168,14 +1174,14 @@ gfxHarfBuzzShaper::SetGlyphsFromRun(gfxContext *aContext,
                 }
                 x_advance = posInfo[glyphStart].x_advance;
                 advance =
-                    roundX ? appUnitsPerDevUnit * FixedToIntRound(x_advance)
+                    roundX ? dev2appUnits * FixedToIntRound(x_advance)
                     : floor(hb2appUnits * x_advance + 0.5);
             }
 
             gfxTextRun::CompressedGlyph g;
-            g.SetComplex(aShapedWord->IsClusterStart(baseCharIndex),
+            g.SetComplex(aTextRun->IsClusterStart(aTextRunOffset + baseCharIndex),
                          true, detailedGlyphs.Length());
-            aShapedWord->SetGlyphs(baseCharIndex,
+            aTextRun->SetGlyphs(aTextRunOffset + baseCharIndex,
                                 g, detailedGlyphs.Elements());
 
             detailedGlyphs.Clear();
@@ -1184,12 +1190,12 @@ gfxHarfBuzzShaper::SetGlyphsFromRun(gfxContext *aContext,
         // the rest of the chars in the group are ligature continuations,
         // no associated glyphs
         while (++baseCharIndex != endCharIndex &&
-               baseCharIndex < PRInt32(wordLength)) {
+               baseCharIndex < PRInt32(aRunLength)) {
             gfxTextRun::CompressedGlyph g;
             g.SetComplex(inOrder &&
-                         aShapedWord->IsClusterStart(baseCharIndex),
+                         aTextRun->IsClusterStart(aTextRunOffset + baseCharIndex),
                          false, 0);
-            aShapedWord->SetGlyphs(baseCharIndex, g, nsnull);
+            aTextRun->SetGlyphs(aTextRunOffset + baseCharIndex, g, nsnull);
         }
 
         glyphStart = glyphEnd;

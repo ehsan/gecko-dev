@@ -142,9 +142,9 @@ struct Parser : private AutoGCRooter
     inline bool reportErrorNumber(ParseNode *pn, uintN flags, uintN errorNumber, ...);
 
   private:
-    ParseNode *allocParseNode(size_t size) {
+    void *allocParseNode(size_t size) {
         JS_ASSERT(size == sizeof(ParseNode));
-        return static_cast<ParseNode *>(allocator.allocNode());
+        return allocator.allocNode();
     }
 
     /*
@@ -159,14 +159,6 @@ struct Parser : private AutoGCRooter
 
     /* new_ methods for creating parse nodes. These report OOM on context. */
     JS_DECLARE_NEW_METHODS(allocParseNode, inline)
-
-    ParseNode *cloneNode(const ParseNode &other) {
-        ParseNode *node = allocParseNode(sizeof(ParseNode));
-        if (!node)
-            return NULL;
-        memcpy(node, &other, sizeof(*node));
-        return node;
-    }
 
     /* Public entry points for parsing. */
     ParseNode *statement();
@@ -257,10 +249,6 @@ struct Parser : private AutoGCRooter
     ParseNode *returnOrYield(bool useAssignExpr);
     ParseNode *destructuringExpr(BindData *data, TokenKind tt);
 
-    bool checkForFunctionNode(PropertyName *name, ParseNode *node);
-
-    ParseNode *identifierName(bool afterDot);
-
 #if JS_HAS_XML_SUPPORT
     ParseNode *endBracketedExpr();
 
@@ -274,9 +262,6 @@ struct Parser : private AutoGCRooter
     JSBool xmlElementContent(ParseNode *pn);
     ParseNode *xmlElementOrList(JSBool allowList);
     ParseNode *xmlElementOrListRoot(JSBool allowList);
-
-    ParseNode *starOrAtPropertyIdentifier(TokenKind tt);
-    ParseNode *propertyQualifiedIdentifier();
 #endif /* JS_HAS_XML_SUPPORT */
 
     bool setAssignmentLhsOps(ParseNode *pn, JSOp op);

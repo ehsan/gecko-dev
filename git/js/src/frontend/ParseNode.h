@@ -502,7 +502,6 @@ struct ParseNode {
                         pn_used   : 1,  /* name node is on a use-chain */
                         pn_defn   : 1;  /* this node is a Definition */
 
-    ParseNode(const ParseNode &other) MOZ_DELETE;
     void operator=(const ParseNode &other) MOZ_DELETE;
 
   public:
@@ -1214,96 +1213,6 @@ class BooleanLiteral : public ParseNode {
     BooleanLiteral(bool b, const TokenPos &pos)
       : ParseNode(b ? PNK_TRUE : PNK_FALSE, b ? JSOP_TRUE : JSOP_FALSE, PN_NULLARY, pos)
     { }
-};
-
-class XMLDoubleColonProperty : public ParseNode {
-  public:
-    XMLDoubleColonProperty(ParseNode *lhs, ParseNode *rhs,
-                           const TokenPtr &begin, const TokenPtr &end)
-      : ParseNode(PNK_LB, JSOP_GETELEM, PN_BINARY, TokenPos::make(begin, end))
-    {
-        JS_ASSERT(rhs->isKind(PNK_DBLCOLON));
-        pn_u.binary.left = lhs;
-        pn_u.binary.right = rhs;
-    }
-
-    ParseNode &left() const {
-        return *pn_u.binary.left;
-    }
-
-    ParseNode &right() const {
-        return *pn_u.binary.right;
-    }
-};
-
-class XMLFilterExpression : public ParseNode {
-  public:
-    XMLFilterExpression(ParseNode *lhs, ParseNode *filterExpr,
-                        const TokenPtr &begin, const TokenPtr &end)
-      : ParseNode(PNK_FILTER, JSOP_FILTER, PN_BINARY, TokenPos::make(begin, end))
-    {
-        pn_u.binary.left = lhs;
-        pn_u.binary.right = filterExpr;
-    }
-
-    ParseNode &left() const {
-        return *pn_u.binary.left;
-    }
-
-    ParseNode &filter() const {
-        return *pn_u.binary.right;
-    }
-};
-
-class XMLProperty : public ParseNode {
-  public:
-    XMLProperty(ParseNode *lhs, ParseNode *propertyId,
-                const TokenPtr &begin, const TokenPtr &end)
-      : ParseNode(PNK_LB, JSOP_GETELEM, PN_BINARY, TokenPos::make(begin, end))
-    {
-        pn_u.binary.left = lhs;
-        pn_u.binary.right = propertyId;
-    }
-
-    ParseNode &left() const {
-        return *pn_u.binary.left;
-    }
-
-    ParseNode &right() const {
-        return *pn_u.binary.right;
-    }
-};
-
-class PropertyAccess : public ParseNode {
-  public:
-    PropertyAccess(ParseNode *lhs, PropertyName *name,
-                   const TokenPtr &begin, const TokenPtr &end)
-      : ParseNode(PNK_DOT, JSOP_GETPROP, PN_NAME, TokenPos::make(begin, end))
-    {
-        JS_ASSERT(lhs != NULL);
-        JS_ASSERT(name != NULL);
-        pn_u.name.expr = lhs;
-        pn_u.name.atom = name;
-    }
-
-    ParseNode &expression() const {
-        return *pn_u.name.expr;
-    }
-
-    PropertyName &name() const {
-        return *pn_u.name.atom->asPropertyName();
-    }
-};
-
-class PropertyByValue : public ParseNode {
-  public:
-    PropertyByValue(ParseNode *lhs, ParseNode *propExpr,
-                    const TokenPtr &begin, const TokenPtr &end)
-      : ParseNode(PNK_LB, JSOP_GETELEM, PN_BINARY, TokenPos::make(begin, end))
-    {
-        pn_u.binary.left = lhs;
-        pn_u.binary.right = propExpr;
-    }
 };
 
 ParseNode *

@@ -302,19 +302,17 @@ public class GeckoAppShell
         // libxul will depend on.  Not ideal.
         GeckoApp geckoApp = GeckoApp.mAppContext;
         String homeDir;
-        sHomeDir = GeckoDirProvider.getFilesDir(geckoApp);
-        homeDir = sHomeDir.getPath();
-
-        // handle the application being moved to phone from sdcard
-        File profileDir = new File(homeDir, "mozilla");
-        File oldHome = new File("/data/data/" + 
-                    GeckoApp.mAppContext.getPackageName() + "/mozilla");
-        if (oldHome.exists())
-            moveDir(oldHome, profileDir);
-
         if (Build.VERSION.SDK_INT < 8 ||
             geckoApp.getApplication().getPackageResourcePath().startsWith("/data") ||
             geckoApp.getApplication().getPackageResourcePath().startsWith("/system")) {
+            sHomeDir = geckoApp.getFilesDir();
+            homeDir = sHomeDir.getPath();
+            // handle the application being moved to phone from sdcard
+            File profileDir = new File(homeDir, "mozilla");
+            File oldHome = new File("/data/data/" + 
+                        GeckoApp.mAppContext.getPackageName() + "/mozilla");
+            if (oldHome.exists())
+                moveDir(oldHome, profileDir);
             if (Build.VERSION.SDK_INT >= 8) {
                 File extHome =  geckoApp.getExternalFilesDir(null);
                 File extProf = new File (extHome, "mozilla");
@@ -322,6 +320,15 @@ public class GeckoAppShell
                     moveDir(extProf, profileDir);
             }
         } else {
+            sHomeDir = geckoApp.getExternalFilesDir(null);
+            homeDir = sHomeDir.getPath();
+            // handle the application being moved to phone from sdcard
+            File profileDir = new File(homeDir, "mozilla");
+            File oldHome = new File("/data/data/" + 
+                        GeckoApp.mAppContext.getPackageName() + "/mozilla");
+            if (oldHome.exists())
+                moveDir(oldHome, profileDir);
+
             File intHome =  geckoApp.getFilesDir();
             File intProf = new File(intHome, "mozilla");
             if (intHome != null && intProf != null && intProf.exists())
@@ -653,24 +660,12 @@ public class GeckoAppShell
     }
 
     static private Bitmap getLauncherIcon(Bitmap aSource) {
+        // The background images are 72px, but Android will resize as needed.
+        // Bigger is better than too small.
+        final int kIconSize = 72;
+        final int kOverlaySize = 32;
         final int kOffset = 6;
         final int kRadius = 5;
-        int kIconSize;
-        int kOverlaySize;
-        switch (getDpi()) {
-            case DisplayMetrics.DENSITY_MEDIUM:
-                kIconSize = 48;
-                kOverlaySize = 32;
-                break;
-            case DisplayMetrics.DENSITY_XHIGH:
-                kIconSize = 96;
-                kOverlaySize = 48;
-                break;
-            case DisplayMetrics.DENSITY_HIGH:
-            default:
-                kIconSize = 72;
-                kOverlaySize = 32;
-        }
 
         Bitmap bitmap = Bitmap.createBitmap(kIconSize, kIconSize, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bitmap);
@@ -695,7 +690,7 @@ public class GeckoAppShell
 
         // draw the overlay
         Bitmap overlay = BitmapFactory.decodeResource(GeckoApp.mAppContext.getResources(), R.drawable.home_bg);
-        canvas.drawBitmap(overlay, null, new Rect(0, 0, kIconSize, kIconSize), null);
+        canvas.drawBitmap(overlay, null, new Rect(0,0,kIconSize, kIconSize), null);
 
         // draw the bitmap
         if (aSource == null)
@@ -880,7 +875,7 @@ public class GeckoAppShell
             }});
         try {
             String ret = sClipboardQueue.take();
-            return (EMPTY_STRING.equals(ret) ? null : ret);
+            return (ret == EMPTY_STRING ? null : ret);
         } catch (InterruptedException ie) {}
         return null;
     }

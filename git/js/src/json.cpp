@@ -839,7 +839,7 @@ Walk(JSContext *cx, JSObject *holder, jsid name, const Value &reviver, Value *vp
 
                 if (newElement.isUndefined()) {
                     /* Step 2b(ii)(2). */
-                    if (!obj->deleteByValue(cx, IdToValue(id), &newElement, false))
+                    if (!js_DeleteProperty(cx, obj, id, &newElement, false))
                         return false;
                 } else {
                     /* Step 2b(ii)(3). */

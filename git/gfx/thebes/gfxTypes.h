@@ -47,7 +47,11 @@
  */
 typedef double gfxFloat;
 
-# define THEBES_API
+#if defined(IMPL_THEBES)
+# define THEBES_API NS_EXPORT
+#else
+# define THEBES_API NS_IMPORT
+#endif
 
 /**
  * gfx errors

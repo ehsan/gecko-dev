@@ -200,11 +200,6 @@ pref("app.update.showInstalledUI", false);
 //     versions.
 pref("app.update.incompatible.mode", 0);
 
-// Whether or not to attempt using the service for updates.
-#ifdef MOZ_MAINTENANCE_SERVICE
-pref("app.update.service.enabled", true);
-#endif
-
 // Symmetric (can be overridden by individual extensions) update preferences.
 // e.g.
 //  extensions.{GUID}.update.enabled
@@ -398,7 +393,6 @@ pref("browser.tabs.loadDivertedInBackground", false);
 pref("browser.tabs.loadBookmarksInBackground", false);
 pref("browser.tabs.tabClipWidth", 140);
 pref("browser.tabs.animate", true);
-pref("browser.tabs.onTop", true);
 pref("browser.tabs.drawInTitlebar", true);
 
 // Where to show tab close buttons:
@@ -969,7 +963,6 @@ pref("services.sync.prefs.sync.browser.tabs.closeButtons", true);
 pref("services.sync.prefs.sync.browser.tabs.loadInBackground", true);
 pref("services.sync.prefs.sync.browser.tabs.warnOnClose", true);
 pref("services.sync.prefs.sync.browser.tabs.warnOnOpen", true);
-pref("services.sync.prefs.sync.browser.tabs.onTop", true);
 pref("services.sync.prefs.sync.browser.urlbar.autocomplete.enabled", true);
 pref("services.sync.prefs.sync.browser.urlbar.autoFill", true);
 pref("services.sync.prefs.sync.browser.urlbar.default.behavior", true);
@@ -1049,7 +1042,7 @@ pref("devtools.styleeditor.enabled", true);
 pref("devtools.chrome.enabled", false);
 
 // Disable the GCLI enhanced command line.
-pref("devtools.gcli.enable", true);
+pref("devtools.gcli.enable", false);
 
 // The last Web Console height. This is initially 0 which means that the Web
 // Console will use the default height next time it shows.

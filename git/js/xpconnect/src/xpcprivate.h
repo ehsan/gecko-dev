@@ -370,10 +370,10 @@ public:
     static void     DestroyLock(XPCLock* lock)
                         {delete lock;}
 
-    XPCAutoLock(XPCLock* lock MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+    XPCAutoLock(XPCLock* lock MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM)
         : mLock(lock)
     {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+        MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
         if (mLock)
             mLock->Enter();
     }
@@ -387,7 +387,7 @@ public:
 
 private:
     XPCLock*  mLock;
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 
     // Not meant to be implemented. This makes it a compiler error to
     // construct or assign an XPCAutoLock object incorrectly.
@@ -409,10 +409,10 @@ private:
 
 class NS_STACK_CLASS XPCAutoUnlock {
 public:
-    XPCAutoUnlock(XPCLock* lock MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+    XPCAutoUnlock(XPCLock* lock MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM)
         : mLock(lock)
     {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+        MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
         if (mLock) {
             mLock->Exit();
         }
@@ -426,7 +426,7 @@ public:
 
 private:
     XPCLock*  mLock;
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 
     // Not meant to be implemented. This makes it a compiler error to
     // construct or assign an XPCAutoUnlock object incorrectly.
@@ -1415,6 +1415,7 @@ XPC_WN_JSOp_ThisObject(JSContext *cx, JSObject *obj);
         nsnull, /* setAttributes  */                                          \
         nsnull, /* setElementAttributes  */                                   \
         nsnull, /* setSpecialAttributes  */                                   \
+        nsnull, /* deleteGeneric */                                           \
         nsnull, /* deleteProperty */                                          \
         nsnull, /* deleteElement */                                           \
         nsnull, /* deleteSpecial */                                           \
@@ -1452,6 +1453,7 @@ XPC_WN_JSOp_ThisObject(JSContext *cx, JSObject *obj);
         nsnull, /* setAttributes  */                                          \
         nsnull, /* setElementAttributes  */                                   \
         nsnull, /* setSpecialAttributes  */                                   \
+        nsnull, /* deleteGeneric */                                           \
         nsnull, /* deleteProperty */                                          \
         nsnull, /* deleteElement */                                           \
         nsnull, /* deleteSpecial */                                           \
@@ -2011,6 +2013,7 @@ public:
     JSBool WantCall()                     GET_IT(WANT_CALL)
     JSBool WantConstruct()                GET_IT(WANT_CONSTRUCT)
     JSBool WantHasInstance()              GET_IT(WANT_HASINSTANCE)
+    JSBool WantTrace()                    GET_IT(WANT_TRACE)
     JSBool WantEquality()                 GET_IT(WANT_EQUALITY)
     JSBool WantOuterObject()              GET_IT(WANT_OUTER_OBJECT)
     JSBool UseJSStubForAddProperty()      GET_IT(USE_JSSTUB_FOR_ADDPROPERTY)
@@ -2022,6 +2025,7 @@ public:
     JSBool ClassInfoInterfacesOnly()      GET_IT(CLASSINFO_INTERFACES_ONLY)
     JSBool AllowPropModsDuringResolve()   GET_IT(ALLOW_PROP_MODS_DURING_RESOLVE)
     JSBool AllowPropModsToPrototype()     GET_IT(ALLOW_PROP_MODS_TO_PROTOTYPE)
+    JSBool DontSharePrototype()           GET_IT(DONT_SHARE_PROTOTYPE)
     JSBool DontReflectInterfaceNames()    GET_IT(DONT_REFLECT_INTERFACE_NAMES)
     JSBool UseStubEqualityHook()          GET_IT(USE_STUB_EQUALITY_HOOK)
 
@@ -2191,7 +2195,7 @@ private:
 };
 
 /***********************************************/
-// XPCWrappedNativeProto hold the additional shared wrapper data
+// XPCWrappedNativeProto hold the additional (potentially shared) wrapper data
 // for XPCWrappedNative whose native objects expose nsIClassInfo.
 
 #define UNKNOWN_OFFSETS ((QITableEntry*)1)
@@ -2201,9 +2205,10 @@ class XPCWrappedNativeProto
 public:
     static XPCWrappedNativeProto*
     GetNewOrUsed(XPCCallContext& ccx,
-                 XPCWrappedNativeScope* scope,
-                 nsIClassInfo* classInfo,
-                 const XPCNativeScriptableCreateInfo* scriptableCreateInfo,
+                 XPCWrappedNativeScope* Scope,
+                 nsIClassInfo* ClassInfo,
+                 const XPCNativeScriptableCreateInfo* ScriptableCreateInfo,
+                 JSBool ForceNoSharing,
                  JSBool isGlobal,
                  QITableEntry* offsets = UNKNOWN_OFFSETS);
 
@@ -2277,6 +2282,11 @@ public:
     JSBool ClassIsPluginObject()        GET_IT(PLUGIN_OBJECT)
 
 #undef GET_IT
+
+#define XPC_PROTO_DONT_SHARE JS_BIT(31) // only high bit of 32 is set
+
+    JSBool
+    IsShared() const {return !(mClassInfoFlags & XPC_PROTO_DONT_SHARE);}
 
     XPCLock* GetLock() const
         {return ClassIsThreadSafe() ? GetRuntime()->GetMapLock() : nsnull;}
@@ -2564,6 +2574,10 @@ public:
     nsIClassInfo*
     GetClassInfo() const {return IsValid() && HasProto() ?
                             GetProto()->GetClassInfo() : nsnull;}
+
+    JSBool
+    HasSharedProto() const {return IsValid() && HasProto() &&
+                            GetProto()->IsShared();}
 
     JSBool
     HasMutatedSet() const {return IsValid() &&
@@ -3907,11 +3921,11 @@ class NS_STACK_CLASS AutoJSErrorAndExceptionEater
 {
 public:
     AutoJSErrorAndExceptionEater(JSContext* aCX
-                                 MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+                                 MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM)
         : mCX(aCX),
           mOldErrorReporter(JS_SetErrorReporter(mCX, nsnull)),
           mOldExceptionState(JS_SaveExceptionState(mCX)) {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+        MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
     }
     ~AutoJSErrorAndExceptionEater()
     {
@@ -3922,7 +3936,7 @@ private:
     JSContext*        mCX;
     JSErrorReporter   mOldErrorReporter;
     JSExceptionState* mOldExceptionState;
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 /******************************************************************************
@@ -3936,10 +3950,10 @@ public:
      * Saves the JSContext as well as initializing our state
      * @param cx The JSContext, this can be null, we don't do anything then
      */
-    AutoScriptEvaluate(JSContext * cx MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+    AutoScriptEvaluate(JSContext * cx MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM)
          : mJSContext(cx), mState(0), mErrorReporterSet(false),
            mEvaluated(false), mContextHasThread(0) {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+        MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
     /**
@@ -3961,7 +3975,7 @@ private:
     bool mEvaluated;
     jsword mContextHasThread;
     JSAutoEnterCompartment mEnterCompartment;
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 
     // No copying or assignment allowed
     AutoScriptEvaluate(const AutoScriptEvaluate &) MOZ_DELETE;
@@ -3973,11 +3987,11 @@ class NS_STACK_CLASS AutoResolveName
 {
 public:
     AutoResolveName(XPCCallContext& ccx, jsid name
-                    MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+                    MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM)
         : mTLS(ccx.GetThreadData()),
           mOld(mTLS->SetResolveName(name)),
           mCheck(name) {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+        MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
     }
     ~AutoResolveName()
         {
@@ -3992,7 +4006,7 @@ private:
     XPCPerThreadData* mTLS;
     jsid mOld;
     jsid mCheck;
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+    MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 /***************************************************************************/

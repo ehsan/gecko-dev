@@ -170,24 +170,24 @@ public class GeckoPreferences
         return input;
     }
 
+    private AlertDialog mDialog = null;
+
     private class PasswordTextWatcher implements TextWatcher {
         EditText input1 = null;
         EditText input2 = null;
-        AlertDialog dialog = null;
 
-        PasswordTextWatcher(EditText aInput1, EditText aInput2, AlertDialog aDialog) {
+        PasswordTextWatcher(EditText aInput1, EditText aInput2) {
             input1 = aInput1;
             input2 = aInput2;
-            dialog = aDialog;
         }
 
         public void afterTextChanged(Editable s) {
-            if (dialog == null)
+            if (mDialog == null)
                 return;
 
             String text1 = input1.getText().toString();
             String text2 = input2.getText().toString();
-            dialog.getButton(DialogInterface.BUTTON_POSITIVE).setEnabled(text1.equals(text2));
+            mDialog.getButton(DialogInterface.BUTTON_POSITIVE).setEnabled(text1.equals(text2));
         }
 
         public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
@@ -198,11 +198,13 @@ public class GeckoPreferences
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         LinearLayout linearLayout = new LinearLayout(this);
         linearLayout.setOrientation(LinearLayout.VERTICAL);
-        AlertDialog dialog = null;
         switch(id) {
             case DIALOG_CREATE_MASTER_PASSWORD:
                 final EditText input1 = getTextBox(R.string.masterpassword_password);
                 final EditText input2 = getTextBox(R.string.masterpassword_confirm);
+                PasswordTextWatcher watcher = new PasswordTextWatcher(input1, input2);
+                input1.addTextChangedListener((TextWatcher)watcher);
+                input2.addTextChangedListener((TextWatcher)watcher);
                 linearLayout.addView(input1);
                 linearLayout.addView(input2);
 
@@ -221,27 +223,20 @@ public class GeckoPreferences
                                 } catch(Exception ex) {
                                     Log.e(LOGTAG, "Error setting masterpassword", ex);
                                 }
+                                mDialog = null;
+                                input1.setText("");
+                                input2.setText("");
                                 return;
                             }
                         })
                         .setNegativeButton(R.string.button_cancel, new DialogInterface.OnClickListener() {  
                             public void onClick(DialogInterface dialog, int which) {
+                                mDialog = null;
+                                input1.setText("");
+                                input2.setText("");
                                 return;
                             }
                         });
-                        dialog = builder.create();
-                        dialog.setOnDismissListener(new DialogInterface.OnDismissListener() {
-                            public void onDismiss(DialogInterface dialog) {
-                                input1.setText("");
-                                input2.setText("");
-                                input1.requestFocus();
-                            }
-                        });
-
-                        PasswordTextWatcher watcher = new PasswordTextWatcher(input1, input2, dialog);
-                        input1.addTextChangedListener((TextWatcher)watcher);
-                        input2.addTextChangedListener((TextWatcher)watcher);
-
                 break;
             case DIALOG_REMOVE_MASTER_PASSWORD:
                 final EditText input = getTextBox(R.string.masterpassword_password);
@@ -262,26 +257,23 @@ public class GeckoPreferences
                                 } catch(Exception ex) {
                                     Log.e(LOGTAG, "Error setting masterpassword", ex);
                                 }
+                                input.setText("");
+                                mDialog = null;
                                 return;
                             }
                         })
-                        .setNegativeButton(R.string.button_cancel, new DialogInterface.OnClickListener() {  
+                       .setNegativeButton(R.string.button_cancel, new DialogInterface.OnClickListener() {  
                             public void onClick(DialogInterface dialog, int which) {
-                                return;
-                            }
-                        });
-                        dialog = builder.create();
-                        dialog.setOnDismissListener(new DialogInterface.OnDismissListener() {
-                            public void onDismiss(DialogInterface dialog) {
+                                mDialog = null;
                                 input.setText("");
+                                return;
                             }
                         });
                 break;
             default:
                 return null;
         }
-
-        return dialog;
+        return mDialog = builder.create();
     }
 
     private void refresh(JSONArray jsonPrefs) {

@@ -75,6 +75,8 @@ EXPORTS	= \
 	gfxSkipChars.h \
 	gfxTeeSurface.h \
 	gfxTypes.h \
+	gfxTextRunCache.h \
+	gfxTextRunWordCache.h \
 	gfxUnicodeProperties.h \
 	gfxUtils.h \
 	gfxUserFontSet.h \
@@ -103,6 +105,7 @@ EXPORTS += \
 	gfxPlatformMac.h \
 	gfxQuartzSurface.h \
 	gfxQuartzImageSurface.h \
+	gfxQuartzPDFSurface.h \
 	gfxQuartzNativeDrawing.h \
 	$(NULL)
 endif
@@ -129,6 +132,9 @@ else
 EXPORTS += gfxFT2Fonts.h
 endif
 
+ifdef MOZ_DFB
+EXPORTS += gfxDirectFBSurface.h
+endif
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),os2)
@@ -200,6 +206,8 @@ CPPSRCS	= \
 	gfxRect.cpp \
 	gfxSkipChars.cpp \
 	gfxTeeSurface.cpp \
+	gfxTextRunCache.cpp \
+	gfxTextRunWordCache.cpp \
 	gfxUserFontSet.cpp \
 	gfxUtils.cpp \
 	gfxUnicodeProperties.cpp \
@@ -320,6 +328,14 @@ CPPSRCS +=	gfxFT2FontBase.cpp
 CPPSRCS +=	gfxFT2Utils.cpp
 CPPSRCS +=	nsUnicodeRange.cpp
 
+ifdef MOZ_DFB
+CSRCS = cairo-gdk-utils.c
+endif
+
+endif
+
+ifdef MOZ_DFB
+CPPSRCS += gfxDirectFBSurface.cpp
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),qt)
@@ -343,6 +359,7 @@ ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
 CPPSRCS	+= \
 	gfxQuartzSurface.cpp \
 	gfxQuartzImageSurface.cpp \
+	gfxQuartzPDFSurface.cpp \
 	gfxPlatformMac.cpp \
 	gfxMacFont.cpp \
 	gfxCoreTextShaper.cpp \

@@ -50,6 +50,18 @@
 #include "nsMemory.h"
 #include "nsStringBuffer.h"
 
+static void *
+nsGetPrincipalArray(JSContext *cx, JSPrincipals *prin)
+{
+    return nsnull;
+}
+
+static JSBool
+nsGlobalPrivilegesEnabled(JSContext *cx, JSPrincipals *jsprin)
+{
+    return JS_TRUE;
+}
+
 static JSBool
 nsJSPrincipalsSubsume(JSPrincipals *jsprin, JSPrincipals *other)
 {
@@ -180,6 +192,8 @@ nsJSPrincipals::Startup()
 nsJSPrincipals::nsJSPrincipals()
 {
     codebase = nsnull;
+    getPrincipalArray = nsGetPrincipalArray;
+    globalPrivilegesEnabled = nsGlobalPrivilegesEnabled;
     refcount = 0;
     destroy = nsDestroyJSPrincipals;
     subsume = nsJSPrincipalsSubsume;

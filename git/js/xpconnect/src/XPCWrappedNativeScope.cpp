@@ -559,10 +559,11 @@ struct ShutdownData
 {
     ShutdownData(JSContext* acx)
         : cx(acx), wrapperCount(0),
-          protoCount(0) {}
+          sharedProtoCount(0), nonSharedProtoCount(0) {}
     JSContext* cx;
     int wrapperCount;
-    int protoCount;
+    int sharedProtoCount;
+    int nonSharedProtoCount;
 };
 
 static JSDHashOperator
@@ -573,6 +574,8 @@ WrappedNativeShutdownEnumerator(JSDHashTable *table, JSDHashEntryHdr *hdr,
     XPCWrappedNative* wrapper = ((Native2WrappedNativeMap::Entry*)hdr)->value;
 
     if (wrapper->IsValid()) {
+        if (wrapper->HasProto() && !wrapper->HasSharedProto())
+            data->nonSharedProtoCount++;
         wrapper->SystemIsBeingShutDown(data->cx);
         data->wrapperCount++;
     }
@@ -586,7 +589,7 @@ WrappedNativeProtoShutdownEnumerator(JSDHashTable *table, JSDHashEntryHdr *hdr,
     ShutdownData* data = (ShutdownData*) arg;
     ((ClassInfo2WrappedNativeProtoMap::Entry*)hdr)->value->
         SystemIsBeingShutDown(data->cx);
-    data->protoCount++;
+    data->sharedProtoCount++;
     return JS_DHASH_REMOVE;
 }
 
@@ -645,9 +648,10 @@ XPCWrappedNativeScope::SystemIsBeingShutDown(JSContext* cx)
     if (data.wrapperCount)
         printf("deleting nsXPConnect  with %d live XPCWrappedNatives\n",
                data.wrapperCount);
-    if (data.protoCount)
-        printf("deleting nsXPConnect  with %d live XPCWrappedNativeProtos\n",
-               data.protoCount);
+    if (data.sharedProtoCount + data.nonSharedProtoCount)
+        printf("deleting nsXPConnect  with %d live XPCWrappedNativeProtos (%d shared)\n",
+               data.sharedProtoCount + data.nonSharedProtoCount,
+               data.sharedProtoCount);
     if (liveScopeCount)
         printf("deleting nsXPConnect  with %d live XPCWrappedNativeScopes\n",
                liveScopeCount);
@@ -810,6 +814,16 @@ WNProtoSecPolicyClearer(JSDHashTable *table, JSDHashEntryHdr *hdr,
     return JS_DHASH_NEXT;
 }
 
+static JSDHashOperator
+WNSecPolicyClearer(JSDHashTable *table, JSDHashEntryHdr *hdr,
+                   uint32_t number, void *arg)
+{
+    XPCWrappedNative* wrapper = ((Native2WrappedNativeMap::Entry*)hdr)->value;
+    if (wrapper->HasProto() && !wrapper->HasSharedProto())
+        *(wrapper->GetProto()->GetSecurityInfoAddr()) = nsnull;
+    return JS_DHASH_NEXT;
+}
+
 // static
 nsresult
 XPCWrappedNativeScope::ClearAllWrappedNativeSecurityPolicies(XPCCallContext& ccx)
@@ -820,6 +834,7 @@ XPCWrappedNativeScope::ClearAllWrappedNativeSecurityPolicies(XPCCallContext& ccx
     for (XPCWrappedNativeScope* cur = gScopes; cur; cur = cur->mNext) {
         cur->mWrappedNativeProtoMap->Enumerate(WNProtoSecPolicyClearer, nsnull);
         cur->mMainThreadWrappedNativeProtoMap->Enumerate(WNProtoSecPolicyClearer, nsnull);
+        cur->mWrappedNativeMap->Enumerate(WNSecPolicyClearer, nsnull);
     }
 
     DEBUG_TrackScopeTraversal();

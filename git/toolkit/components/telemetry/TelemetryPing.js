@@ -59,7 +59,7 @@ const MEM_HISTOGRAMS = {
   "js-compartments-user": "MEMORY_JS_COMPARTMENTS_USER",
   "explicit": "MEMORY_EXPLICIT",
   "resident": "MEMORY_RESIDENT",
-  "storage-sqlite": "MEMORY_STORAGE_SQLITE",
+  "explicit/storage/sqlite": "MEMORY_STORAGE_SQLITE",
   "explicit/images/content/used/uncompressed":
     "MEMORY_IMAGES_CONTENT_USED_UNCOMPRESSED",
   "heap-allocated": "MEMORY_HEAP_ALLOCATED",
@@ -129,6 +129,7 @@ TelemetryPing.prototype = {
   _histograms: {},
   _initialized: false,
   _prevValues: {},
+  _sqliteOverhead: {},
 
   /**
    * Returns a set of histograms that can be converted into JSON
@@ -139,11 +140,19 @@ TelemetryPing.prototype = {
    */
   getHistograms: function getHistograms() {
     let hls = Telemetry.histogramSnapshots;
-    let info = Telemetry.registeredHistograms;
     let ret = {};
 
-    function processHistogram(name, hgram) {
-      let r = hgram.ranges;;
+    // bug 701583: report sqlite overhead on startup
+    for (let key in this._sqliteOverhead) {
+      hls[key] = this._sqliteOverhead[key];
+    }
+
+    for (let key in hls) {
+      let hgram = hls[key];
+      if (!hgram.static)
+        continue;
+
+      let r = hgram.ranges;
       let c = hgram.counts;
       let retgram = {
         range: [r[1], r[r.length - 1]],
@@ -173,18 +182,8 @@ TelemetryPing.prototype = {
       // add an upper bound
       if (last && last < c.length)
         retgram.values[r[last]] = 0;
-      ret[name] = retgram;
-    };
-
-    for (let name in hls) {
-      if (info[name]) {
-	processHistogram(name, hls[name]);
-	let startup_name = "STARTUP_" + name;
-	if (hls[startup_name])
-	  processHistogram(startup_name, hls[startup_name]);
-      }
+      ret[key] = retgram;
     }
-
     return ret;
   },
 
@@ -308,11 +307,11 @@ TelemetryPing.prototype = {
    * Make a copy of sqlite histograms on startup
    */
   gatherStartupSqlite: function gatherStartupSqlite() {
-    let info = Telemetry.registeredHistograms;
+    let hls = Telemetry.histogramSnapshots;
     let sqlite_re = /SQLITE/;
-    for (let name in info) {
-      if (sqlite_re.test(name))
-        Telemetry.histogramFrom("STARTUP_" + name, name);
+    for (let key in hls) {
+      if (sqlite_re.test(key))
+        this._sqliteOverhead["STARTUP_" + key] = hls[key];
     }
   },
 

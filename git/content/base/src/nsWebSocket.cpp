@@ -1568,7 +1568,6 @@ nsWebSocket::Cancel(nsresult aStatus)
     return NS_OK;
 
   ConsoleError();
-  mClientReasonCode = nsIWebSocketChannel::CLOSE_GOING_AWAY;
   return CloseConnection();
 }
 

@@ -45,6 +45,7 @@
 #include "gfxContext.h"
 #include "gfxFont.h"
 #include "gfxPlatform.h"
+#include "gfxTextRunWordCache.h"
 
 #include "gfxFontTest.h"
 
@@ -64,6 +65,8 @@ enum {
 };
 
 class FrameTextRunCache;
+
+static gfxTextRunWordCache *gTextRunCache;
 
 struct LiteralArray {
     LiteralArray (unsigned long l1) {
@@ -301,11 +304,11 @@ RunTest (TestEntry *test, gfxContext *ctx) {
     if (test->stringType == S_ASCII) {
         flags |= gfxTextRunFactory::TEXT_IS_ASCII | gfxTextRunFactory::TEXT_IS_8BIT;
         length = strlen(test->string);
-        textRun = fontGroup->MakeTextRun(reinterpret_cast<const PRUint8*>(test->string), length, &params, flags);
+        textRun = gfxTextRunWordCache::MakeTextRun(reinterpret_cast<const PRUint8*>(test->string), length, fontGroup, &params, flags);
     } else {
         NS_ConvertUTF8toUTF16 str(nsDependentCString(test->string));
         length = str.Length();
-        textRun = fontGroup->MakeTextRun(str.get(), length, &params, flags);
+        textRun = gfxTextRunWordCache::MakeTextRun(str.get(), length, fontGroup, &params, flags);
     }
 
     gfxFontTestStore::NewStore();
@@ -344,6 +347,8 @@ main (int argc, char **argv) {
     rv = gfxPlatform::Init();
     if (NS_FAILED(rv))
         return -1;
+
+    gTextRunCache = new gfxTextRunWordCache();
 
     // let's get all the xpcom goop out of the system
     fflush (stderr);

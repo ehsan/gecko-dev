@@ -44,7 +44,7 @@
 @BINPATH@/@DLL_PREFIX@xpcom@DLL_SUFFIX@
 @BINPATH@/@DLL_PREFIX@nspr4@DLL_SUFFIX@
 @BINPATH@/@DLL_PREFIX@mozalloc@DLL_SUFFIX@
-@BINPATH@/@DLL_PREFIX@mozglue@DLL_SUFFIX@
+@BINPATH@/@DLL_PREFIX@mozutils@DLL_SUFFIX@
 #ifdef XP_MACOSX
 @BINPATH@/XUL
 #else
@@ -542,13 +542,6 @@ bin/libfreebl_32int64_3.so
 @BINPATH@/updater.app/
 #else
 @BINPATH@/updater@BIN_SUFFIX@
-#endif
-
-; [MaintenanceService]
-;
-#ifdef MOZ_MAINTENANCE_SERVICE
-@BINPATH@/maintenanceservice.exe
-@BINPATH@/maintenanceservice_installer.exe
 #endif
 
 ; [Crash Reporter]

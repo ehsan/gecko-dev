@@ -82,7 +82,6 @@ static fp_except_t oldmask = fpsetmask(~allmask);
 #include "nsHtml5Parser.h"
 #include "nsIFragmentContentSink.h"
 #include "nsMathUtils.h"
-#include "nsCharSeparatedTokenizer.h"
 
 #include "mozilla/AutoRestore.h"
 #include "mozilla/GuardObjects.h"
@@ -1943,9 +1942,6 @@ private:
   static nsString* sModifierSeparator;
 };
 
-typedef nsCharSeparatedTokenizerTemplate<nsContentUtils::IsHTMLWhitespace>
-                                                    HTMLSplitOnSpacesTokenizer;
-
 #define NS_HOLD_JS_OBJECTS(obj, clazz)                                         \
   nsContentUtils::HoldJSObjects(NS_CYCLE_COLLECTION_UPCAST(obj, clazz),        \
                                 &NS_CYCLE_COLLECTION_NAME(clazz))
@@ -1989,15 +1985,15 @@ private:
 
 class NS_STACK_CLASS nsAutoScriptBlocker {
 public:
-  nsAutoScriptBlocker(MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM) {
-    MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+  nsAutoScriptBlocker(MOZILLA_GUARD_OBJECT_NOTIFIER_ONLY_PARAM) {
+    MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
     nsContentUtils::AddScriptBlocker();
   }
   ~nsAutoScriptBlocker() {
     nsContentUtils::RemoveScriptBlocker();
   }
 private:
-  MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+  MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 class NS_STACK_CLASS nsAutoScriptBlockerSuppressNodeRemoved :

@@ -126,7 +126,7 @@ struct JSFunction : public JSObject
     bool optimizedClosure()  const { return kind() > JSFUN_INTERPRETED; }
     bool isInterpreted()     const { return kind() >= JSFUN_INTERPRETED; }
     bool isNative()          const { return !isInterpreted(); }
-    bool isNativeConstructor() const { return flags & JSFUN_CONSTRUCTOR; }
+    bool isConstructor()     const { return flags & JSFUN_CONSTRUCTOR; }
     bool isHeavyweight()     const { return JSFUN_HEAVYWEIGHT_TEST(flags); }
     bool isNullClosure()     const { return kind() == JSFUN_NULL_CLOSURE; }
     bool isFlatClosure()     const { return kind() == JSFUN_FLAT_CLOSURE; }
@@ -289,14 +289,6 @@ struct JSFunction : public JSObject
      */
     inline JSAtom *methodAtom() const;
     inline void setMethodAtom(JSAtom *atom);
-
-  private:
-    /* 
-     * These member functions are inherited from JSObject, but should never be applied to
-     * a value statically known to be a JSFunction.
-     */
-    inline JSFunction *toFunction() MOZ_DELETE;
-    inline const JSFunction *toFunction() const MOZ_DELETE;
 };
 
 inline JSFunction *

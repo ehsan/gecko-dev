@@ -245,7 +245,6 @@ public:
     IDWriteFactory *GetDWriteFactory() { return mDWriteFactory; }
     inline bool DWriteEnabled() { return mUseDirectWrite; }
     inline DWRITE_MEASURING_MODE DWriteMeasuringMode() { return mMeasuringMode; }
-    IDWriteTextAnalyzer *GetDWriteAnalyzer() { return mDWriteAnalyzer; }
 #else
     inline bool DWriteEnabled() { return false; }
 #endif
@@ -271,7 +270,6 @@ private:
 
 #ifdef CAIRO_HAS_DWRITE_FONT
     nsRefPtr<IDWriteFactory> mDWriteFactory;
-    nsRefPtr<IDWriteTextAnalyzer> mDWriteAnalyzer;
     DWRITE_MEASURING_MODE mMeasuringMode;
 #endif
 #ifdef CAIRO_HAS_D2D_SURFACE

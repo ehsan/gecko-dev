@@ -425,10 +425,13 @@ gfxFT2FontGroup::WhichSystemFontSupportsChar(PRUint32 aCh)
  */
 
 bool
-gfxFT2Font::ShapeWord(gfxContext *aContext,
-                      gfxShapedWord *aShapedWord,
-                      const PRUnichar *aString,
-                      bool aPreferPlatformShaping)
+gfxFT2Font::InitTextRun(gfxContext *aContext,
+                        gfxTextRun *aTextRun,
+                        const PRUnichar *aString,
+                        PRUint32 aRunStart,
+                        PRUint32 aRunLength,
+                        PRInt32 aRunScript,
+                        bool aPreferPlatformShaping)
 {
     bool ok = false;
 
@@ -438,55 +441,53 @@ gfxFT2Font::ShapeWord(gfxContext *aContext,
             if (!mGraphiteShaper) {
                 mGraphiteShaper = new gfxGraphiteShaper(this);
             }
-            ok = mGraphiteShaper->ShapeWord(aContext, aShapedWord, aString);
+            ok = mGraphiteShaper->InitTextRun(aContext, aTextRun, aString,
+                                              aRunStart, aRunLength,
+                                              aRunScript);
         }
     }
 #endif
 
-    if (!ok && gfxPlatform::GetPlatform()->UseHarfBuzzForScript(aShapedWord->Script())) {
+    if (!ok && gfxPlatform::GetPlatform()->UseHarfBuzzForScript(aRunScript)) {
         if (!mHarfBuzzShaper) {
             gfxFT2LockedFace face(this);
             mFUnitsConvFactor = face.XScale();
 
             mHarfBuzzShaper = new gfxHarfBuzzShaper(this);
         }
-        ok = mHarfBuzzShaper->ShapeWord(aContext, aShapedWord, aString);
+        ok = mHarfBuzzShaper->InitTextRun(aContext, aTextRun, aString,
+                                          aRunStart, aRunLength, aRunScript);
     }
 
     if (!ok) {
-        AddRange(aShapedWord, aString);
+        AddRange(aTextRun, aString, aRunStart, aRunLength);
     }
 
-    if (IsSyntheticBold()) {
-        float synBoldOffset =
-            GetSyntheticBoldOffset() * CalcXScale(aContext);
-        aShapedWord->AdjustAdvancesForSyntheticBold(synBoldOffset);
-    }
+    aTextRun->AdjustAdvancesForSyntheticBold(aContext, aRunStart, aRunLength);
 
     return true;
 }
 
 void
-gfxFT2Font::AddRange(gfxShapedWord *aShapedWord, const PRUnichar *str)
+gfxFT2Font::AddRange(gfxTextRun *aTextRun, const PRUnichar *str, PRUint32 offset, PRUint32 len)
 {
-    const PRUint32 appUnitsPerDevUnit = aShapedWord->AppUnitsPerDevUnit();
+    const PRUint32 appUnitsPerDevUnit = aTextRun->GetAppUnitsPerDevUnit();
     // we'll pass this in/figure it out dynamically, but at this point there can be only one face.
     gfxFT2LockedFace faceLock(this);
     FT_Face face = faceLock.get();
 
-    gfxShapedWord::CompressedGlyph g;
+    gfxTextRun::CompressedGlyph g;
 
     const gfxFT2Font::CachedGlyphData *cgd = nsnull, *cgdNext = nsnull;
 
     FT_UInt spaceGlyph = GetSpaceGlyph();
 
-    PRUint32 len = aShapedWord->Length();
     for (PRUint32 i = 0; i < len; i++) {
-        PRUnichar ch = str[i];
+        PRUint32 ch = str[offset + i];
 
         if (ch == 0) {
             // treat this null byte as a missing glyph, don't create a glyph for it
-            aShapedWord->SetMissingGlyph(i, 0, this);
+            aTextRun->SetMissingGlyph(offset + i, 0);
             continue;
         }
 
@@ -507,12 +508,12 @@ gfxFT2Font::AddRange(gfxShapedWord *aShapedWord, const PRUnichar *str)
         } else {
             // find next character and its glyph -- in case they exist
             // and exist in the current font face -- to compute kerning
-            PRUnichar chNext = 0;
+            PRUint32 chNext = 0;
             FT_UInt gidNext = 0;
             FT_Pos lsbDeltaNext = 0;
 
             if (FT_HAS_KERNING(face) && i + 1 < len) {
-                chNext = str[i + 1];
+                chNext = str[offset + i + 1];
                 if (chNext != 0) {
                     cgdNext = GetGlyphDataForChar(chNext);
                     gidNext = cgdNext->glyphIndex;
@@ -540,14 +541,18 @@ gfxFT2Font::AddRange(gfxShapedWord *aShapedWord, const PRUnichar *str)
             // because these advances are often scaled
             advance = ((advance * appUnitsPerDevUnit + 32) >> 6);
         }
+#ifdef DEBUG_thebes_2
+        printf(" gid=%d, advance=%d (%s)\n", gid, advance,
+               NS_LossyConvertUTF16toASCII(font->GetName()).get());
+#endif
 
         if (advance >= 0 &&
-            gfxShapedWord::CompressedGlyph::IsSimpleAdvance(advance) &&
-            gfxShapedWord::CompressedGlyph::IsSimpleGlyphID(gid)) {
-            aShapedWord->SetSimpleGlyph(i, g.SetSimpleGlyph(advance, gid));
+            gfxTextRun::CompressedGlyph::IsSimpleAdvance(advance) &&
+            gfxTextRun::CompressedGlyph::IsSimpleGlyphID(gid)) {
+            aTextRun->SetSimpleGlyph(offset + i, g.SetSimpleGlyph(advance, gid));
         } else if (gid == 0) {
             // gid = 0 only happens when the glyph is missing from the font
-            aShapedWord->SetMissingGlyph(i, ch, this);
+            aTextRun->SetMissingGlyph(offset + i, ch);
         } else {
             gfxTextRun::DetailedGlyph details;
             details.mGlyphID = gid;
@@ -555,8 +560,8 @@ gfxFT2Font::AddRange(gfxShapedWord *aShapedWord, const PRUnichar *str)
             details.mAdvance = advance;
             details.mXOffset = 0;
             details.mYOffset = 0;
-            g.SetComplex(aShapedWord->IsClusterStart(i), true, 1);
-            aShapedWord->SetGlyphs(i, g, &details);
+            g.SetComplex(aTextRun->IsClusterStart(offset + i), true, 1);
+            aTextRun->SetGlyphs(offset + i, g, &details);
         }
     }
 }

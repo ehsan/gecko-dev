@@ -57,23 +57,8 @@ struct nsIntRect;
  */
 class THEBES_API gfxASurface {
 public:
-#ifdef MOZILLA_INTERNAL_API
     nsrefcnt AddRef(void);
     nsrefcnt Release(void);
-
-    // These functions exist so that browsercomps can refcount a gfxASurface
-    virtual nsresult AddRefExternal(void)
-    {
-      return AddRef();
-    }
-    virtual nsresult ReleaseExternal(void)
-    {
-      return Release();
-    }
-#else
-    virtual nsresult AddRef(void);
-    virtual nsresult Release(void);
-#endif
 
 public:
     /**
@@ -95,11 +80,11 @@ public:
         SurfaceTypePS,
         SurfaceTypeXlib,
         SurfaceTypeXcb,
-        SurfaceTypeGlitz,           // unused, but needed for cairo parity
+        SurfaceTypeGlitz,
         SurfaceTypeQuartz,
         SurfaceTypeWin32,
         SurfaceTypeBeOS,
-        SurfaceTypeDirectFB,        // unused, but needed for cairo parity
+        SurfaceTypeDirectFB,
         SurfaceTypeSVG,
         SurfaceTypeOS2,
         SurfaceTypeWin32Printing,

@@ -41,33 +41,29 @@
 #include "nsRenderingContext.h"
 #include "nsDeviceContext.h"
 #include "nsStyleConsts.h"
+#include "gfxTextRunCache.h"
 
 namespace {
 
-class AutoTextRun {
+class AutoTextRun : public gfxTextRunCache::AutoTextRun {
 public:
     AutoTextRun(nsFontMetrics* aMetrics, nsRenderingContext* aRC,
                 const char* aString, PRInt32 aLength)
-    {
-        mTextRun = aMetrics->GetThebesFontGroup()->MakeTextRun(
+        : gfxTextRunCache::AutoTextRun(gfxTextRunCache::MakeTextRun(
             reinterpret_cast<const PRUint8*>(aString), aLength,
-            aRC->ThebesContext(),
+            aMetrics->GetThebesFontGroup(), aRC->ThebesContext(),
             aMetrics->AppUnitsPerDevPixel(),
-            ComputeFlags(aMetrics));
-    }
+            ComputeFlags(aMetrics)))
+    {}
 
     AutoTextRun(nsFontMetrics* aMetrics, nsRenderingContext* aRC,
                 const PRUnichar* aString, PRInt32 aLength)
-    {
-        mTextRun = aMetrics->GetThebesFontGroup()->MakeTextRun(
-            aString, aLength,
+        : gfxTextRunCache::AutoTextRun(gfxTextRunCache::MakeTextRun(
+            aString, aLength, aMetrics->GetThebesFontGroup(),
             aRC->ThebesContext(),
             aMetrics->AppUnitsPerDevPixel(),
-            ComputeFlags(aMetrics));
-    }
-
-    gfxTextRun *get() { return mTextRun; }
-    gfxTextRun *operator->() { return mTextRun; }
+            ComputeFlags(aMetrics)))
+    {}
 
 private:
     static PRUint32 ComputeFlags(nsFontMetrics* aMetrics) {
@@ -77,8 +73,6 @@ private:
         }
         return flags;
     }
-
-    nsAutoPtr<gfxTextRun> mTextRun;
 };
 
 class StubPropertyProvider : public gfxTextRun::PropertyProvider {

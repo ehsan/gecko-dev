@@ -368,9 +368,9 @@ Shape::replaceLastProperty(JSContext *cx, const StackBaseShape &base, JSObject *
 }
 
 /*
- * Get or create a property-tree or dictionary child property of |parent|,
- * which must be lastProperty() if inDictionaryMode(), else parent must be
- * one of lastProperty() or lastProperty()->parent.
+ * Get or create a property-tree or dictionary child property of parent, which
+ * must be lastProp if inDictionaryMode(), else parent must be one of lastProp
+ * or lastProp->parent.
  */
 Shape *
 JSObject::getChildProperty(JSContext *cx, Shape *parent, StackShape &child)
@@ -791,19 +791,22 @@ JSObject::putProperty(JSContext *cx, jsid id,
 
     JS_ASSERT_IF(shape->hasSlot() && !(attrs & JSPROP_SHARED), shape->slot() == slot);
 
+    /*
+     * Optimize the case of a dictionary-mode object based on the property that
+     * dictionaries exclusively own their mutable shape structs, each of which
+     * has a unique shape (not shared via a shape tree). We can update the
+     * shape in place, though after each modification we need to generate a new
+     * last property to invalidate shape guards.
+     *
+     * This is more than an optimization: it is required to preserve for-in
+     * enumeration order (see bug 601399).
+     */
     if (self->inDictionaryMode()) {
-        /*
-         * Updating some property in a dictionary-mode object. Create a new
-         * shape for the existing property, and also generate a new shape for
-         * the last property of the dictionary (unless the modified property
-         * is also the last property).
-         */
         bool updateLast = (shape == self->lastProperty());
-        shape = self->replaceWithNewEquivalentShape(cx, shape);
-        if (!shape)
+        if (!self->generateOwnShape(cx))
             return NULL;
-        if (!updateLast && !self->generateOwnShape(cx))
-            return NULL;
+        if (updateLast)
+            shape = self->lastProperty();
 
         /* FIXME bug 593129 -- slot allocation and JSObject *this must move out of here! */
         if (slot == SHAPE_INVALID_SLOT && !(attrs & JSPROP_SHARED)) {
@@ -811,7 +814,7 @@ JSObject::putProperty(JSContext *cx, jsid id,
                 return NULL;
         }
 
-        if (updateLast)
+        if (shape == self->lastProperty())
             shape->base()->adoptUnowned(nbase);
         else
             shape->base_ = nbase;
@@ -822,8 +825,13 @@ JSObject::putProperty(JSContext *cx, jsid id,
         shape->shortid_ = int16_t(shortid);
     } else {
         /*
-         * Updating the last property in a non-dictionary-mode object. Find an
-         * alternate shared child of the last property's previous shape.
+         * Updating the last property in a non-dictionary-mode object. Such
+         * objects share their shapes via a tree rooted at a prototype
+         * emptyShape, or perhaps a well-known compartment-wide singleton
+         * emptyShape.
+         *
+         * If any shape in the tree has a property hashtable, it is shared and
+         * immutable too, therefore we must not update *spp.
          */
         StackBaseShape base(self->lastProperty()->base());
         base.updateGetterSetter(attrs, getter, setter);
@@ -967,8 +975,8 @@ JSObject::removeProperty(JSContext *cx, jsid id)
 
     /*
      * A dictionary-mode object owns mutable, unique shapes on a non-circular
-     * doubly linked list, hashed by lastProperty()->table. So we can edit the
-     * list and hash in place.
+     * doubly linked list, hashed by lastProp->table. So we can edit the list
+     * and hash in place.
      */
     if (self->inDictionaryMode()) {
         PropertyTable &table = self->lastProperty()->table();
@@ -1058,53 +1066,39 @@ JSObject::rollbackProperties(JSContext *cx, uint32_t slotSpan)
     }
 }
 
-Shape *
-JSObject::replaceWithNewEquivalentShape(JSContext *cx, Shape *oldShape, Shape *newShape)
+bool
+JSObject::generateOwnShape(JSContext *cx, Shape *newShape)
 {
-    JS_ASSERT_IF(oldShape != lastProperty(),
-                 inDictionaryMode() &&
-                 nativeLookup(cx, oldShape->maybePropid()) == oldShape);
+    RootedVarObject self(cx, this);
 
-    JSObject *self = this;
-
-    if (!inDictionaryMode()) {
-        RootObject selfRoot(cx, &self);
-        RootShape newRoot(cx, &newShape);
-        if (!toDictionaryMode(cx))
-            return NULL;
-        oldShape = lastProperty();
-    }
+    if (!inDictionaryMode() && !toDictionaryMode(cx))
+        return false;
 
     if (!newShape) {
-        RootObject selfRoot(cx, &self);
-        RootShape oldRoot(cx, &oldShape);
         newShape = js_NewGCShape(cx);
         if (!newShape)
-            return NULL;
-        new (newShape) Shape(oldShape->base()->unowned(), 0);
+            return false;
+        new (newShape) Shape(self->lastProperty()->base()->unowned(), 0);
     }
 
     PropertyTable &table = self->lastProperty()->table();
-    Shape **spp = oldShape->isEmptyShape()
+    Shape **spp = self->lastProperty()->isEmptyShape()
                   ? NULL
-                  : table.search(oldShape->maybePropid(), false);
+                  : table.search(self->lastProperty()->maybePropid(), false);
 
-    /*
-     * Splice the new shape into the same position as the old shape, preserving
-     * enumeration order (see bug 601399).
-     */
-    StackShape nshape(oldShape);
-    newShape->initDictionaryShape(nshape, self->numFixedSlots(), oldShape->listp);
+    Shape *oldShape = self->lastProperty();
+
+    StackShape nshape(self->lastProperty());
+    newShape->initDictionaryShape(nshape, self->numFixedSlots(), &self->shape_);
 
     JS_ASSERT(newShape->parent == oldShape);
     oldShape->removeFromDictionary(self);
 
-    if (newShape == lastProperty())
-        oldShape->handoffTableTo(newShape);
+    oldShape->handoffTableTo(newShape);
 
     if (spp)
         SHAPE_STORE_PRESERVING_COLLISION(spp, newShape);
-    return newShape;
+    return true;
 }
 
 Shape *

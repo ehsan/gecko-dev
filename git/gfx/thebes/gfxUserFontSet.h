@@ -297,7 +297,6 @@ public:
         LOADING_FAILED       // failed to load any source: use fallback
     };
     LoadingState             mLoadingState;
-    bool                     mUnsupportedFormat;
 
     nsTArray<gfxFontFaceSrc> mSrcList;
     PRUint32                 mSrcIndex; // index of loading src item

@@ -35,11 +35,10 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Attributes.h"
-#include "mozilla/ReentrantMonitor.h"
-
 #include "imgIEncoder.h"
 #include "BMPFileHeaders.h"
+
+#include "mozilla/ReentrantMonitor.h"
 
 #include "nsCOMPtr.h"
 
@@ -54,7 +53,7 @@
 // Provides BMP encoding functionality. Use InitFromData() to do the
 // encoding. See that function definition for encoding options.
 
-class nsBMPEncoder MOZ_FINAL : public imgIEncoder
+class nsBMPEncoder : public imgIEncoder
 {
   typedef mozilla::ReentrantMonitor ReentrantMonitor;
 public:

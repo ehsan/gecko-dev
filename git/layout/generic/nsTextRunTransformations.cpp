@@ -59,14 +59,17 @@ nsTransformedTextRun::Create(const gfxTextRunFactory::Parameters* aParams,
   NS_ASSERTION(!(aFlags & gfxTextRunFactory::TEXT_IS_8BIT),
                "didn't expect text to be marked as 8-bit here");
 
-  void *storage = AllocateStorageForTextRun(sizeof(nsTransformedTextRun), aLength);
-  if (!storage) {
+  // Note that AllocateStorage MAY modify the textPtr parameter,
+  // if the text is not persistent and therefore a private copy is created
+  const void *textPtr = aString;
+  CompressedGlyph *glyphStorage = AllocateStorage(textPtr, aLength, aFlags);
+  if (!glyphStorage) {
     return nsnull;
   }
 
-  return new (storage) nsTransformedTextRun(aParams, aFactory, aFontGroup,
-                                            aString, aLength,
-                                            aFlags, aStyles, aOwnsFactory);
+  return new nsTransformedTextRun(aParams, aFactory, aFontGroup,
+                                  static_cast<const PRUnichar*>(textPtr), aLength,
+                                  aFlags, aStyles, aOwnsFactory, glyphStorage);
 }
 
 void
@@ -114,8 +117,7 @@ nsTransformedTextRun::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf)
 size_t
 nsTransformedTextRun::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
 {
-  return aMallocSizeOf(this, sizeof(nsTransformedTextRun) +
-                             GetLength() * sizeof(CompressedGlyph)) +
+  return aMallocSizeOf(this, sizeof(nsTransformedTextRun)) +
          SizeOfExcludingThis(aMallocSizeOf);
 }
 
@@ -269,10 +271,11 @@ nsFontVariantTextRunFactory::RebuildTextRun(nsTransformedTextRun* aTextRun,
       GetParametersForInner(aTextRun, &flags, aRefContext);
 
   PRUint32 length = aTextRun->GetLength();
-  const PRUnichar* str = aTextRun->mString.BeginReading();
+  const PRUnichar* str = aTextRun->GetTextUnicode();
   nsRefPtr<nsStyleContext>* styles = aTextRun->mStyles.Elements();
   // Create a textrun so we can check cluster-start properties
-  nsAutoPtr<gfxTextRun> inner(fontGroup->MakeTextRun(str, length, &innerParams, flags));
+  gfxTextRunCache::AutoTextRun inner(
+      gfxTextRunCache::MakeTextRun(str, length, fontGroup, &innerParams, flags));
   if (!inner.get())
     return;
 
@@ -307,7 +310,7 @@ nsFontVariantTextRunFactory::RebuildTextRun(nsTransformedTextRun* aTextRun,
 
     if ((i == length || runIsLowercase != isLowercase) && runStart < i) {
       nsAutoPtr<nsTransformedTextRun> transformedChild;
-      nsAutoPtr<gfxTextRun> cachedChild;
+      gfxTextRunCache::AutoTextRun cachedChild;
       gfxTextRun* child;
 
       if (runIsLowercase) {
@@ -316,8 +319,8 @@ nsFontVariantTextRunFactory::RebuildTextRun(nsTransformedTextRun* aTextRun,
         child = transformedChild;
       } else {
         cachedChild =
-          fontGroup->MakeTextRun(str + runStart, i - runStart,
-                                 &innerParams, flags);
+          gfxTextRunCache::MakeTextRun(str + runStart, i - runStart, fontGroup,
+              &innerParams, flags);
         child = cachedChild.get();
       }
       if (!child)
@@ -351,7 +354,7 @@ nsCaseTransformTextRunFactory::RebuildTextRun(nsTransformedTextRun* aTextRun,
     gfxContext* aRefContext)
 {
   PRUint32 length = aTextRun->GetLength();
-  const PRUnichar* str = aTextRun->mString.BeginReading();
+  const PRUnichar* str = aTextRun->GetTextUnicode();
   nsRefPtr<nsStyleContext>* styles = aTextRun->mStyles.Elements();
 
   nsAutoString convertedString;
@@ -415,7 +418,7 @@ nsCaseTransformTextRunFactory::RebuildTextRun(nsTransformedTextRun* aTextRun,
   gfxFontGroup* fontGroup = aTextRun->GetFontGroup();
 
   nsAutoPtr<nsTransformedTextRun> transformedChild;
-  nsAutoPtr<gfxTextRun> cachedChild;
+  gfxTextRunCache::AutoTextRun cachedChild;
   gfxTextRun* child;
 
   if (mInnerTransformingTextRunFactory) {
@@ -424,8 +427,8 @@ nsCaseTransformTextRunFactory::RebuildTextRun(nsTransformedTextRun* aTextRun,
         &innerParams, fontGroup, flags, styleArray.Elements(), false);
     child = transformedChild.get();
   } else {
-    cachedChild = fontGroup->MakeTextRun(
-        convertedString.BeginReading(), convertedString.Length(),
+    cachedChild = gfxTextRunCache::MakeTextRun(
+        convertedString.BeginReading(), convertedString.Length(), fontGroup,
         &innerParams, flags);
     child = cachedChild.get();
   }

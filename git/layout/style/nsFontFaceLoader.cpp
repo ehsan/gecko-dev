@@ -727,14 +727,10 @@ nsUserFontSet::LogMessage(gfxProxyFontEntry *aProxy,
 
   NS_ConvertUTF16toUTF8 familyName(aProxy->FamilyName());
   nsCAutoString fontURI;
-  if (aProxy->mSrcIndex == aProxy->mSrcList.Length()) {
-    fontURI.AppendLiteral("(end of source list)");
+  if (aProxy->mSrcList[aProxy->mSrcIndex].mURI) {
+    aProxy->mSrcList[aProxy->mSrcIndex].mURI->GetSpec(fontURI);
   } else {
-    if (aProxy->mSrcList[aProxy->mSrcIndex].mURI) {
-      aProxy->mSrcList[aProxy->mSrcIndex].mURI->GetSpec(fontURI);
-    } else {
-      fontURI.AppendLiteral("(invalid URI)");
-    }
+    fontURI.AppendLiteral("(invalid URI)");
   }
 
   char weightKeywordBuf[8]; // plenty to sprintf() a PRUint16

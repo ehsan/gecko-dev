@@ -50,7 +50,6 @@
  * is reference counted and the slot vector is malloc'ed.
  */
 #include "jsapi.h"
-#include "jsatom.h"
 #include "jsclass.h"
 #include "jsfriendapi.h"
 #include "jsinfer.h"
@@ -247,17 +246,6 @@ extern JS_FRIEND_API(JSBool)
 js_LookupProperty(JSContext *cx, JSObject *obj, jsid id, JSObject **objp,
                   JSProperty **propp);
 
-namespace js {
-
-inline bool
-LookupProperty(JSContext *cx, JSObject *obj, PropertyName *name,
-               JSObject **objp, JSProperty **propp)
-{
-    return js_LookupProperty(cx, obj, ATOM_TO_JSID(name), objp, propp);
-}
-
-}
-
 extern JS_FRIEND_API(JSBool)
 js_LookupElement(JSContext *cx, JSObject *obj, uint32_t index,
                  JSObject **objp, JSProperty **propp);
@@ -299,17 +287,6 @@ extern JSBool
 js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, uintN defineHow,
                      js::Value *vp, JSBool strict);
 
-namespace js {
-
-inline bool
-SetPropertyHelper(JSContext *cx, JSObject *obj, PropertyName *name, uintN defineHow,
-                  Value *vp, JSBool strict)
-{
-    return !!js_SetPropertyHelper(cx, obj, ATOM_TO_JSID(name), defineHow, vp, strict);
-}
-
-} /* namespace js */
-
 extern JSBool
 js_SetElementHelper(JSContext *cx, JSObject *obj, uint32_t index, uintN defineHow,
                     js::Value *vp, JSBool strict);
@@ -327,16 +304,10 @@ extern JSBool
 js_SetElementAttributes(JSContext *cx, JSObject *obj, uint32_t index, uintN *attrsp);
 
 extern JSBool
-js_DeleteProperty(JSContext *cx, JSObject *obj, js::PropertyName *name, js::Value *rval, JSBool strict);
+js_DeleteProperty(JSContext *cx, JSObject *obj, jsid id, js::Value *rval, JSBool strict);
 
 extern JSBool
 js_DeleteElement(JSContext *cx, JSObject *obj, uint32_t index, js::Value *rval, JSBool strict);
-
-extern JSBool
-js_DeleteSpecial(JSContext *cx, JSObject *obj, js::SpecialId sid, js::Value *rval, JSBool strict);
-
-extern JSBool
-js_DeleteGeneric(JSContext *cx, JSObject *obj, jsid id, js::Value *rval, JSBool strict);
 
 extern JSType
 js_TypeOf(JSContext *cx, JSObject *obj);
@@ -451,7 +422,7 @@ extern HeapValue *emptyObjectElements;
  * JSObject struct. The JSFunction struct is an extension of this struct
  * allocated from a larger GC size-class.
  *
- * The |shape_| member stores the shape of the object, which includes the
+ * The lastProp member stores the shape of the object, which includes the
  * object's class and the layout of all its properties.
  *
  * The type member stores the type of the object, which contains its prototype
@@ -623,14 +594,9 @@ struct JSObject : js::gc::Cell
     inline bool hasUncacheableProto() const;
     inline bool setUncacheableProto(JSContext *cx);
 
-    bool generateOwnShape(JSContext *cx, js::Shape *newShape = NULL) {
-        return replaceWithNewEquivalentShape(cx, lastProperty(), newShape);
-    }
+    bool generateOwnShape(JSContext *cx, js::Shape *newShape = NULL);
 
   private:
-    js::Shape *replaceWithNewEquivalentShape(JSContext *cx, js::Shape *existingShape,
-                                             js::Shape *newShape = NULL);
-
     enum GenerateShape {
         GENERATE_NONE,
         GENERATE_SHAPE
@@ -974,8 +940,6 @@ struct JSObject : js::gc::Cell
 
     bool isSealedOrFrozen(JSContext *cx, ImmutabilityType it, bool *resultp);
 
-    static inline uintN getSealedOrFrozenAttributes(uintN attrs, ImmutabilityType it);
-
     inline void *&privateRef(uint32_t nfixed) const;
 
   public:
@@ -1267,12 +1231,6 @@ struct JSObject : js::gc::Cell
                            JSPropertyOp getter, JSStrictPropertyOp setter,
                            uint32_t slot, uintN attrs,
                            uintN flags, intN shortid);
-    inline js::Shape *
-    putProperty(JSContext *cx, js::PropertyName *name,
-                JSPropertyOp getter, JSStrictPropertyOp setter,
-                uint32_t slot, uintN attrs, uintN flags, intN shortid) {
-        return putProperty(cx, js_CheckForStringIndex(ATOM_TO_JSID(name)), getter, setter, slot, attrs, flags, shortid);
-    }
 
     /* Change the given property into a sibling with the same id in this scope. */
     js::Shape *changeProperty(JSContext *cx, js::Shape *shape, uintN attrs, uintN mask,
@@ -1342,10 +1300,10 @@ struct JSObject : js::gc::Cell
     inline JSBool setElementAttributes(JSContext *cx, uint32_t index, uintN *attrsp);
     inline JSBool setSpecialAttributes(JSContext *cx, js::SpecialId sid, uintN *attrsp);
 
-    inline bool deleteProperty(JSContext *cx, js::PropertyName *name, js::Value *rval, bool strict);
-    inline bool deleteElement(JSContext *cx, uint32_t index, js::Value *rval, bool strict);
-    inline bool deleteSpecial(JSContext *cx, js::SpecialId sid, js::Value *rval, bool strict);
-    bool deleteByValue(JSContext *cx, const js::Value &property, js::Value *rval, bool strict);
+    inline JSBool deleteGeneric(JSContext *cx, jsid id, js::Value *rval, JSBool strict);
+    inline JSBool deleteProperty(JSContext *cx, js::PropertyName *name, js::Value *rval, JSBool strict);
+    inline JSBool deleteElement(JSContext *cx, uint32_t index, js::Value *rval, JSBool strict);
+    inline JSBool deleteSpecial(JSContext *cx, js::SpecialId sid, js::Value *rval, JSBool strict);
 
     inline bool enumerate(JSContext *cx, JSIterateOp iterop, js::Value *statep, jsid *idp);
     inline bool defaultValue(JSContext *cx, JSType hint, js::Value *vp);
@@ -1714,6 +1672,10 @@ extern JSBool
 js_FindClassObject(JSContext *cx, JSObject *start, JSProtoKey key,
                    js::Value *vp, js::Class *clasp = NULL);
 
+extern JSObject *
+js_ConstructObject(JSContext *cx, js::Class *clasp, JSObject *proto,
+                   JSObject *parent, uintN argc, js::Value *argv);
+
 // Specialized call for constructing |this| with a known function callee,
 // and a known prototype.
 extern JSObject *
@@ -1772,18 +1734,9 @@ const uintN DNP_SKIP_TYPE = 0x10;   /* Don't update type information */
  * Return successfully added or changed shape or NULL on error.
  */
 extern const Shape *
-DefineNativeProperty(JSContext *cx, JSObject *obj, jsid id, const Value &value,
+DefineNativeProperty(JSContext *cx, JSObject *obj, jsid id, const js::Value &value,
                      PropertyOp getter, StrictPropertyOp setter, uintN attrs,
                      uintN flags, intN shortid, uintN defineHow = 0);
-
-inline const Shape *
-DefineNativeProperty(JSContext *cx, JSObject *obj, PropertyName *name, const Value &value,
-                     PropertyOp getter, StrictPropertyOp setter, uintN attrs,
-                     uintN flags, intN shortid, uintN defineHow = 0)
-{
-    return DefineNativeProperty(cx, obj, ATOM_TO_JSID(name), value, getter, setter, attrs, flags,
-                                shortid, defineHow);
-}
 
 /*
  * Specialized subroutine that allows caller to preset JSRESOLVE_* flags.
@@ -1792,12 +1745,6 @@ extern bool
 LookupPropertyWithFlags(JSContext *cx, JSObject *obj, jsid id, uintN flags,
                         JSObject **objp, JSProperty **propp);
 
-inline bool
-LookupPropertyWithFlags(JSContext *cx, JSObject *obj, PropertyName *name, uintN flags,
-                        JSObject **objp, JSProperty **propp)
-{
-    return LookupPropertyWithFlags(cx, obj, ATOM_TO_JSID(name), flags, objp, propp);
-}
 
 /*
  * Call the [[DefineOwnProperty]] internal method of obj.
@@ -1825,25 +1772,25 @@ ReadPropertyDescriptors(JSContext *cx, JSObject *props, bool checkAccessors,
  */
 static const uintN RESOLVE_INFER = 0xffff;
 
+}
+
 /*
  * If cacheResult is false, return JS_NO_PROP_CACHE_FILL on success.
  */
-extern bool
-FindPropertyHelper(JSContext *cx, PropertyName *name, bool cacheResult, bool global,
-                   JSObject **objp, JSObject **pobjp, JSProperty **propp);
+extern js::PropertyCacheEntry *
+js_FindPropertyHelper(JSContext *cx, jsid id, bool cacheResult, bool global,
+                      JSObject **objp, JSObject **pobjp, JSProperty **propp);
 
 /*
- * Search for name either on the current scope chain or on the scope chain's
+ * Search for id either on the current scope chain or on the scope chain's
  * global object, per the global parameter.
  */
-extern bool
-FindProperty(JSContext *cx, PropertyName *name, bool global,
-             JSObject **objp, JSObject **pobjp, JSProperty **propp);
+extern JS_FRIEND_API(JSBool)
+js_FindProperty(JSContext *cx, jsid id, bool global,
+                JSObject **objp, JSObject **pobjp, JSProperty **propp);
 
 extern JSObject *
-FindIdentifierBase(JSContext *cx, JSObject *scopeChain, PropertyName *name);
-
-}
+js_FindIdentifierBase(JSContext *cx, JSObject *scopeChain, jsid id);
 
 extern JSObject *
 js_FindVariableScope(JSContext *cx, JSFunction **funp);
@@ -1861,9 +1808,9 @@ js_FindVariableScope(JSContext *cx, JSFunction **funp);
  * barrier, which is not needed when invoking a lambda that otherwise does not
  * leak its callee reference (via arguments.callee or its name).
  */
+const uintN JSGET_CACHE_RESULT      = 1; // from a caching interpreter opcode
 const uintN JSGET_METHOD_BARRIER    = 0; // get can leak joined function object
-const uintN JSGET_NO_METHOD_BARRIER = 1; // call to joined function can't leak
-const uintN JSGET_CACHE_RESULT      = 2; // from a caching interpreter opcode
+const uintN JSGET_NO_METHOD_BARRIER = 2; // call to joined function can't leak
 
 /*
  * NB: js_NativeGet and js_NativeSet are called with the scope containing shape
@@ -1879,16 +1826,10 @@ extern JSBool
 js_NativeSet(JSContext *cx, JSObject *obj, const js::Shape *shape, bool added,
              bool strict, js::Value *vp);
 
+extern JSBool
+js_GetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, uint32_t getHow, js::Value *vp);
+
 namespace js {
-
-bool
-GetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, uint32_t getHow, Value *vp);
-
-inline bool
-GetPropertyHelper(JSContext *cx, JSObject *obj, PropertyName *name, uint32_t getHow, Value *vp)
-{
-    return GetPropertyHelper(cx, obj, ATOM_TO_JSID(name), getHow, vp);
-}
 
 bool
 GetOwnPropertyDescriptor(JSContext *cx, JSObject *obj, jsid id, PropertyDescriptor *desc);
@@ -1903,16 +1844,6 @@ NewPropertyDescriptorObject(JSContext *cx, const PropertyDescriptor *desc, Value
 
 extern JSBool
 js_GetMethod(JSContext *cx, JSObject *obj, jsid id, uintN getHow, js::Value *vp);
-
-namespace js {
-
-inline bool
-GetMethod(JSContext *cx, JSObject *obj, PropertyName *name, uintN getHow, Value *vp)
-{
-    return js_GetMethod(cx, obj, ATOM_TO_JSID(name), getHow, vp);
-}
-
-} /* namespace js */
 
 /*
  * Change attributes for the given native property. The caller must ensure
@@ -1947,12 +1878,12 @@ js_IsDelegate(JSContext *cx, JSObject *obj, const js::Value &v);
 extern JSBool
 js_PrimitiveToObject(JSContext *cx, js::Value *vp);
 
+/*
+ * v and vp may alias. On successful return, vp->isObjectOrNull(). If vp is not
+ * rooted, the caller must root vp before the next possible GC.
+ */
 extern JSBool
 js_ValueToObjectOrNull(JSContext *cx, const js::Value &v, JSObject **objp);
-
-/* Throws if v could not be converted to an object. */
-extern JSObject *
-js_ValueToNonNullObject(JSContext *cx, const js::Value &v);
 
 namespace js {
 
@@ -1971,16 +1902,14 @@ ToObject(JSContext *cx, Value *vp)
     return ToObjectSlow(cx, vp);
 }
 
-/* As for ToObject, but preserves the original value. */
-inline JSObject *
-ValueToObject(JSContext *cx, const Value &v)
-{
-    if (v.isObject())
-        return &v.toObject();
-    return js_ValueToNonNullObject(cx, v);
-}
-
 } /* namespace js */
+
+/*
+ * v and vp may alias. On successful return, vp->isObject(). If vp is not
+ * rooted, the caller must root vp before the next possible GC.
+ */
+extern JSObject *
+js_ValueToNonNullObject(JSContext *cx, const js::Value &v);
 
 extern JSBool
 js_XDRObject(JSXDRState *xdr, JSObject **objp);

@@ -141,9 +141,6 @@ function run_test() {
   );
 
   shutdownPlaces();
-
-  // Shutdown the download manager.
-  Services.obs.notifyObservers(null, "quit-application", null);
 }
 
 function getDistinctNotifications() {

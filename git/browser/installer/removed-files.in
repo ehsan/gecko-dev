@@ -10,7 +10,6 @@
 @DLL_PREFIX@xpistub@DLL_SUFFIX@
 @DLL_PREFIX@zlib@DLL_SUFFIX@
 @DLL_PREFIX@jemalloc@DLL_SUFFIX@
-@DLL_PREFIX@mozutils@DLL_SUFFIX@
 #ifdef MOZ_STATIC_JS
 @DLL_PREFIX@mozjs@DLL_SUFFIX@
 #endif
@@ -1453,7 +1452,3 @@ extensions/inspector@mozilla.org/chrome/icons/default/winInspectorMain.ico
 components/nsPlacesTransactionsService.js
 components/browserplaces.xpt
 components/nsPlacesDBFlush.js
-#ifndef MOZ_MAINTENANCE_SERVICE
-maintenanceservice.exe
-maintenanceservice_installer.exe
-#endif

@@ -397,16 +397,7 @@ JSBool
 ArrayBuffer::obj_getProperty(JSContext *cx, JSObject *obj, JSObject *receiver, PropertyName *name,
                              Value *vp)
 {
-    obj = getArrayBuffer(obj);
-    if (name == cx->runtime->atomState.byteLengthAtom) {
-        vp->setInt32(obj->arrayBufferByteLength());
-        return true;
-    }
-
-    JSObject *delegate = DelegateObject(cx, obj);
-    if (!delegate)
-        return false;
-    return js_GetProperty(cx, delegate, receiver, ATOM_TO_JSID(name), vp);
+    return obj_getGeneric(cx, obj, receiver, ATOM_TO_JSID(name), vp);
 }
 
 JSBool
@@ -582,9 +573,9 @@ ArrayBuffer::obj_setSpecialAttributes(JSContext *cx, JSObject *obj, SpecialId si
 }
 
 JSBool
-ArrayBuffer::obj_deleteProperty(JSContext *cx, JSObject *obj, PropertyName *name, Value *rval, JSBool strict)
+ArrayBuffer::obj_deleteGeneric(JSContext *cx, JSObject *obj, jsid id, Value *rval, JSBool strict)
 {
-    if (name == cx->runtime->atomState.byteLengthAtom) {
+    if (JSID_IS_ATOM(id, cx->runtime->atomState.byteLengthAtom)) {
         rval->setBoolean(false);
         return true;
     }
@@ -592,7 +583,13 @@ ArrayBuffer::obj_deleteProperty(JSContext *cx, JSObject *obj, PropertyName *name
     JSObject *delegate = DelegateObject(cx, obj);
     if (!delegate)
         return false;
-    return js_DeleteProperty(cx, delegate, name, rval, strict);
+    return js_DeleteProperty(cx, delegate, id, rval, strict);
+}
+
+JSBool
+ArrayBuffer::obj_deleteProperty(JSContext *cx, JSObject *obj, PropertyName *name, Value *rval, JSBool strict)
+{
+    return obj_deleteGeneric(cx, obj, ATOM_TO_JSID(name), rval, strict);
 }
 
 JSBool
@@ -607,10 +604,7 @@ ArrayBuffer::obj_deleteElement(JSContext *cx, JSObject *obj, uint32_t index, Val
 JSBool
 ArrayBuffer::obj_deleteSpecial(JSContext *cx, JSObject *obj, SpecialId sid, Value *rval, JSBool strict)
 {
-    JSObject *delegate = DelegateObject(cx, obj);
-    if (!delegate)
-        return false;
-    return js_DeleteSpecial(cx, delegate, sid, rval, strict);
+    return obj_deleteGeneric(cx, obj, SPECIALID_TO_JSID(sid), rval, strict);
 }
 
 JSBool
@@ -1018,13 +1012,19 @@ class TypedArrayTemplate
     }
 
     static JSBool
-    obj_getProperty(JSContext *cx, JSObject *obj, JSObject *receiver, PropertyName *name,
-                    Value *vp)
+    obj_getGeneric(JSContext *cx, JSObject *obj, JSObject *receiver, jsid id, Value *vp)
     {
         JSObject *tarray = getTypedArray(obj);
 
-        if (name == cx->runtime->atomState.lengthAtom) {
+        if (JSID_IS_ATOM(id, cx->runtime->atomState.lengthAtom)) {
             vp->setNumber(getLength(tarray));
+            return true;
+        }
+
+        jsuint index;
+        if (isArrayIndex(cx, tarray, id, &index)) {
+            // this inline function is specialized for each type
+            copyIndexToValue(cx, tarray, index, vp);
             return true;
         }
 
@@ -1034,7 +1034,14 @@ class TypedArrayTemplate
             return true;
         }
 
-        return proto->getProperty(cx, receiver, name, vp);
+        return proto->getGeneric(cx, receiver, id, vp);
+    }
+
+    static JSBool
+    obj_getProperty(JSContext *cx, JSObject *obj, JSObject *receiver, PropertyName *name,
+                    Value *vp)
+    {
+        return obj_getGeneric(cx, obj, receiver, ATOM_TO_JSID(name), vp);
     }
 
     static JSBool
@@ -1043,6 +1050,7 @@ class TypedArrayTemplate
         JSObject *tarray = getTypedArray(obj);
 
         if (index < getLength(tarray)) {
+            // this inline function is specialized for each type
             copyIndexToValue(cx, tarray, index, vp);
             return true;
         }
@@ -1054,41 +1062,6 @@ class TypedArrayTemplate
         }
 
         return proto->getElement(cx, receiver, index, vp);
-    }
-
-    static JSBool
-    obj_getSpecial(JSContext *cx, JSObject *obj, JSObject *receiver, SpecialId sid, Value *vp)
-    {
-        JSObject *proto = obj->getProto();
-        if (!proto) {
-            vp->setUndefined();
-            return true;
-        }
-
-        return proto->getSpecial(cx, receiver, sid, vp);
-    }
-
-    static JSBool
-    obj_getGeneric(JSContext *cx, JSObject *obj, JSObject *receiver, jsid id, Value *vp)
-    {
-        Value idval = IdToValue(id);
-
-        uint32_t index;
-        if (IsDefinitelyIndex(idval, &index))
-            return obj_getElement(cx, obj, receiver, index, vp);
-
-        SpecialId sid;
-        if (ValueIsSpecial(obj, &idval, &sid, cx))
-            return obj_getSpecial(cx, obj, receiver, sid, vp);
-
-        JSAtom *atom;
-        if (!js_ValueToAtom(cx, idval, &atom))
-            return false;
-
-        if (atom->isIndex(&index))
-            return obj_getElement(cx, obj, receiver, index, vp);
-
-        return obj_getProperty(cx, obj, receiver, atom->asPropertyName(), vp);
     }
 
     static JSBool
@@ -1111,6 +1084,12 @@ class TypedArrayTemplate
         }
 
         return proto->getElementIfPresent(cx, receiver, index, vp, present);
+    }
+
+    static JSBool
+    obj_getSpecial(JSContext *cx, JSObject *obj, JSObject *receiver, SpecialId sid, Value *vp)
+    {
+        return obj_getGeneric(cx, obj, receiver, SPECIALID_TO_JSID(sid), vp);
     }
 
     static bool
@@ -1258,15 +1237,29 @@ class TypedArrayTemplate
     }
 
     static JSBool
-    obj_deleteProperty(JSContext *cx, JSObject *obj, PropertyName *name, Value *rval, JSBool strict)
+    obj_deleteGeneric(JSContext *cx, JSObject *obj, jsid id, Value *rval, JSBool strict)
     {
-        if (name == cx->runtime->atomState.lengthAtom) {
+        if (JSID_IS_ATOM(id, cx->runtime->atomState.lengthAtom)) {
+            rval->setBoolean(false);
+            return true;
+        }
+
+        JSObject *tarray = TypedArray::getTypedArray(obj);
+        JS_ASSERT(tarray);
+
+        if (isArrayIndex(cx, tarray, id)) {
             rval->setBoolean(false);
             return true;
         }
 
         rval->setBoolean(true);
         return true;
+    }
+
+    static JSBool
+    obj_deleteProperty(JSContext *cx, JSObject *obj, PropertyName *name, Value *rval, JSBool strict)
+    {
+        return obj_deleteGeneric(cx, obj, ATOM_TO_JSID(name), rval, strict);
     }
 
     static JSBool
@@ -1287,8 +1280,7 @@ class TypedArrayTemplate
     static JSBool
     obj_deleteSpecial(JSContext *cx, JSObject *obj, SpecialId sid, Value *rval, JSBool strict)
     {
-        rval->setBoolean(true);
-        return true;
+        return obj_deleteGeneric(cx, obj, SPECIALID_TO_JSID(sid), rval, strict);
     }
 
     static JSBool
@@ -2156,6 +2148,7 @@ Class js::ArrayBufferClass = {
         ArrayBuffer::obj_setPropertyAttributes,
         ArrayBuffer::obj_setElementAttributes,
         ArrayBuffer::obj_setSpecialAttributes,
+        ArrayBuffer::obj_deleteGeneric,
         ArrayBuffer::obj_deleteProperty,
         ArrayBuffer::obj_deleteElement,
         ArrayBuffer::obj_deleteSpecial,
@@ -2268,6 +2261,7 @@ JSFunctionSpec _typedArray::jsfuncs[] = {                                      \
         _typedArray::obj_setPropertyAttributes,                                \
         _typedArray::obj_setElementAttributes,                                 \
         _typedArray::obj_setSpecialAttributes,                                 \
+        _typedArray::obj_deleteGeneric,                                        \
         _typedArray::obj_deleteProperty,                                       \
         _typedArray::obj_deleteElement,                                        \
         _typedArray::obj_deleteSpecial,                                        \

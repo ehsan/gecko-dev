@@ -198,6 +198,14 @@ extern bool
 InvokeConstructor(JSContext *cx, const Value &fval, uintN argc, Value *argv, Value *rval);
 
 /*
+ * InvokeConstructorWithGivenThis directly calls the constructor with the given
+ * 'this'; the caller must choose the semantically correct 'this'.
+ */
+extern bool
+InvokeConstructorWithGivenThis(JSContext *cx, JSObject *thisobj, const Value &fval,
+                               uintN argc, Value *argv, Value *rval);
+
+/*
  * Executes a script with the given scopeChain/this. The 'type' indicates
  * whether this is eval code or global code. To support debugging, the
  * evalFrame parameter can point to an arbitrary frame in the context's call
@@ -233,12 +241,6 @@ RunScript(JSContext *cx, JSScript *script, StackFrame *fp);
 
 extern bool
 CheckRedeclaration(JSContext *cx, JSObject *obj, jsid id, uintN attrs);
-
-inline bool
-CheckRedeclaration(JSContext *cx, JSObject *obj, PropertyName *name, uintN attrs)
-{
-    return CheckRedeclaration(cx, obj, ATOM_TO_JSID(name), attrs);
-}
 
 extern bool
 StrictlyEqual(JSContext *cx, const Value &lval, const Value &rval, JSBool *equal);
@@ -325,7 +327,7 @@ extern void
 UnwindScope(JSContext *cx, uint32_t stackDepth);
 
 extern bool
-OnUnknownMethod(JSContext *cx, JSObject *obj, Value idval, Value *vp);
+OnUnknownMethod(JSContext *cx, js::Value *vp);
 
 extern bool
 IsActiveWithOrBlock(JSContext *cx, JSObject &obj, uint32_t stackDepth);

@@ -106,7 +106,7 @@ public class Tabs implements GeckoEventListener {
     }
 
     public Tab getTabAt(int index) {
-        if (index >= 0 && index < order.size())
+        if (index < order.size())
             return order.get(index);
         else
             return null;

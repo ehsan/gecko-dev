@@ -46,10 +46,6 @@
 #include <sys/resource.h>
 #endif
 
-#ifdef XP_MACOSX
-#include "MacQuirks.h"
-#endif
-
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
@@ -211,10 +207,6 @@ static int do_main(const char *exePath, int argc, char* argv[])
 int main(int argc, char* argv[])
 {
   char exePath[MAXPATHLEN];
-
-#ifdef XP_MACOSX
-  TriggerQuirks();
-#endif
 
   nsresult rv = mozilla::BinaryPath::Get(argv[0], exePath);
   if (NS_FAILED(rv)) {

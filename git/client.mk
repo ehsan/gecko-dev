@@ -294,6 +294,7 @@ $(CONFIGURES): %: %.in $(EXTRA_CONFIG_DEPS)
 CONFIG_STATUS_DEPS := \
 	$(wildcard $(CONFIGURES)) \
 	$(TOPSRCDIR)/allmakefiles.sh \
+	$(TOPSRCDIR)/.mozconfig.mk \
 	$(wildcard $(TOPSRCDIR)/nsprpub/configure) \
 	$(wildcard $(TOPSRCDIR)/config/milestone.txt) \
 	$(wildcard $(TOPSRCDIR)/js/src/config/milestone.txt) \

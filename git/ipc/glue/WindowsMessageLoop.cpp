@@ -741,7 +741,7 @@ SyncChannel::WaitForNotify()
 
   MonitorAutoUnlock unlock(*mMonitor);
 
-  bool timedout = false;
+  bool retval = true;
 
   UINT_PTR timerId = NULL;
   TimeoutData timeoutData = { 0 };
@@ -795,7 +795,7 @@ SyncChannel::WaitForNotify()
 
       if (TimeoutHasExpired(timeoutData)) {
         // A timeout was specified and we've passed it. Break out.
-        timedout = true;
+        retval = false;
         break;
       }
 
@@ -847,7 +847,7 @@ SyncChannel::WaitForNotify()
 
   SyncChannel::SetIsPumpingMessages(false);
 
-  return WaitResponse(timedout);
+  return retval;
 }
 
 bool
@@ -868,7 +868,7 @@ RPCChannel::WaitForNotify()
 
   MonitorAutoUnlock unlock(*mMonitor);
 
-  bool timedout = false;
+  bool retval = true;
 
   UINT_PTR timerId = NULL;
   TimeoutData timeoutData = { 0 };
@@ -949,7 +949,7 @@ RPCChannel::WaitForNotify()
 
     if (TimeoutHasExpired(timeoutData)) {
       // A timeout was specified and we've passed it. Break out.
-      timedout = true;
+      retval = false;
       break;
     }
 
@@ -987,7 +987,7 @@ RPCChannel::WaitForNotify()
 
   SyncChannel::SetIsPumpingMessages(false);
 
-  return WaitResponse(timedout);
+  return retval;
 }
 
 void

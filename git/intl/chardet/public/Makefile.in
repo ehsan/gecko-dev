@@ -50,8 +50,10 @@ XPIDLSRCS       = \
 		$(NULL)
 
 EXPORTS		= \
+		nsCharsetDetectionAdaptorCID.h \
 		nsDetectionConfident.h \
 		nsDocumentCharsetInfoCID.h \
+		nsICharsetDetectionAdaptor.h \
 		nsICharsetDetectionObserver.h \
 		nsICharsetDetector.h \
 		nsIStringCharsetDetector.h \

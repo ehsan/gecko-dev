@@ -778,7 +778,6 @@ LayerManagerD3D10::Render()
   } else {
     mSwapChain->Present(0, 0);
   }
-  LayerManager::PostPresent();
 }
 
 void

@@ -522,11 +522,9 @@ static int
 DeleteArrayElement(JSContext *cx, JSObject *obj, jsdouble index, bool strict)
 {
     JS_ASSERT(index >= 0);
-    JS_ASSERT(floor(index) == index);
-
     if (obj->isDenseArray()) {
-        if (index <= UINT32_MAX) {
-            uint32_t idx = uint32_t(index);
+        if (index <= jsuint(-1)) {
+            jsuint idx = jsuint(index);
             if (idx < obj->getDenseArrayInitializedLength()) {
                 obj->markDenseArrayNotPacked(cx);
                 obj->setDenseArrayElement(idx, MagicValue(JS_ARRAY_HOLE));
@@ -537,15 +535,16 @@ DeleteArrayElement(JSContext *cx, JSObject *obj, jsdouble index, bool strict)
         return 1;
     }
 
-    Value v;
-    if (index <= UINT32_MAX) {
-        if (!obj->deleteElement(cx, uint32_t(index), &v, strict))
-            return -1;
-    } else {
-        if (!obj->deleteByValue(cx, DoubleValue(index), &v, strict))
-            return -1;
-    }
+    AutoIdRooter idr(cx);
 
+    if (!IndexToId(cx, obj, index, NULL, idr.addr()))
+        return -1;
+    if (JSID_IS_VOID(idr.id()))
+        return 1;
+
+    Value v;
+    if (!obj->deleteGeneric(cx, idr.id(), &v, strict))
+        return -1;
     return v.isTrue() ? 1 : 0;
 }
 
@@ -777,45 +776,60 @@ js_GetDenseArrayElementValue(JSContext *cx, JSObject *obj, jsid id, Value *vp)
 }
 
 static JSBool
-array_getProperty(JSContext *cx, JSObject *obj, JSObject *receiver, PropertyName *name, Value *vp)
+array_getGeneric(JSContext *cx, JSObject *obj, JSObject *receiver, jsid id, Value *vp)
 {
-    if (name == cx->runtime->atomState.lengthAtom) {
+    uint32_t i;
+
+    if (JSID_IS_ATOM(id, cx->runtime->atomState.lengthAtom)) {
         vp->setNumber(obj->getArrayLength());
-        return true;
+        return JS_TRUE;
     }
 
-    if (name == cx->runtime->atomState.protoAtom) {
+    if (JSID_IS_ATOM(id, cx->runtime->atomState.protoAtom)) {
         vp->setObjectOrNull(obj->getProto());
-        return true;
+        return JS_TRUE;
     }
 
     if (!obj->isDenseArray())
-        return js_GetProperty(cx, obj, receiver, ATOM_TO_JSID(name), vp);
+        return js_GetProperty(cx, obj, id, vp);
 
-    JSObject *proto = obj->getProto();
-    if (!proto) {
-        vp->setUndefined();
-        return true;
+    if (!js_IdIsIndex(id, &i) || i >= obj->getDenseArrayInitializedLength() ||
+        obj->getDenseArrayElement(i).isMagic(JS_ARRAY_HOLE)) {
+        JSObject *proto = obj->getProto();
+        if (!proto) {
+            vp->setUndefined();
+            return JS_TRUE;
+        }
+
+        return proto->getGeneric(cx, receiver, id, vp);
     }
 
-    return proto->getProperty(cx, receiver, name, vp);
+    *vp = obj->getDenseArrayElement(i);
+
+    /* Type information for dense array elements must be correct. */
+    JS_ASSERT_IF(!obj->hasSingletonType(),
+                 js::types::TypeHasProperty(cx, obj->type(), JSID_VOID, *vp));
+
+    return JS_TRUE;
+}
+
+static JSBool
+array_getProperty(JSContext *cx, JSObject *obj, JSObject *receiver, PropertyName *name, Value *vp)
+{
+    return array_getGeneric(cx, obj, receiver, ATOM_TO_JSID(name), vp);
 }
 
 static JSBool
 array_getElement(JSContext *cx, JSObject *obj, JSObject *receiver, uint32_t index, Value *vp)
 {
     if (!obj->isDenseArray())
-        return js_GetElement(cx, obj, receiver, index, vp);
+        return js_GetElement(cx, obj, index, vp);
 
-    if (index < obj->getDenseArrayInitializedLength()) {
+    if (index < obj->getDenseArrayInitializedLength() &&
+        !obj->getDenseArrayElement(index).isMagic(JS_ARRAY_HOLE))
+    {
         *vp = obj->getDenseArrayElement(index);
-        if (!vp->isMagic(JS_ARRAY_HOLE)) {
-            /* Type information for dense array elements must be correct. */
-            JS_ASSERT_IF(!obj->hasSingletonType(),
-                         js::types::TypeHasProperty(cx, obj->type(), JSID_VOID, *vp));
-
-            return true;
-        }
+        return true;
     }
 
     JSObject *proto = obj->getProto();
@@ -830,35 +844,7 @@ array_getElement(JSContext *cx, JSObject *obj, JSObject *receiver, uint32_t inde
 static JSBool
 array_getSpecial(JSContext *cx, JSObject *obj, JSObject *receiver, SpecialId sid, Value *vp)
 {
-    if (obj->isDenseArray() && !obj->getProto()) {
-        vp->setUndefined();
-        return true;
-    }
-
-    return js_GetProperty(cx, obj, receiver, SPECIALID_TO_JSID(sid), vp);
-}
-
-static JSBool
-array_getGeneric(JSContext *cx, JSObject *obj, JSObject *receiver, jsid id, Value *vp)
-{
-    Value idval = IdToValue(id);
-
-    uint32_t index;
-    if (IsDefinitelyIndex(idval, &index))
-        return array_getElement(cx, obj, receiver, index, vp);
-
-    SpecialId sid;
-    if (ValueIsSpecial(obj, &idval, &sid, cx))
-        return array_getSpecial(cx, obj, receiver, sid, vp);
-
-    JSAtom *atom;
-    if (!js_ValueToAtom(cx, idval, &atom))
-        return false;
-
-    if (atom->isIndex(&index))
-        return array_getElement(cx, obj, receiver, index, vp);
-
-    return array_getProperty(cx, obj, receiver, atom->asPropertyName(), vp);
+    return array_getGeneric(cx, obj, receiver, SPECIALID_TO_JSID(sid), vp);
 }
 
 static JSBool
@@ -1141,18 +1127,34 @@ array_setSpecialAttributes(JSContext *cx, JSObject *obj, SpecialId sid, uintN *a
 }
 
 static JSBool
-array_deleteProperty(JSContext *cx, JSObject *obj, PropertyName *name, Value *rval, JSBool strict)
+array_deleteGeneric(JSContext *cx, JSObject *obj, jsid id, Value *rval, JSBool strict)
 {
-    if (!obj->isDenseArray())
-        return js_DeleteProperty(cx, obj, name, rval, strict);
+    uint32_t i;
 
-    if (name == cx->runtime->atomState.lengthAtom) {
+    if (!obj->isDenseArray())
+        return js_DeleteProperty(cx, obj, id, rval, strict);
+
+    if (JSID_IS_ATOM(id, cx->runtime->atomState.lengthAtom)) {
         rval->setBoolean(false);
         return true;
     }
 
+    if (js_IdIsIndex(id, &i) && i < obj->getDenseArrayInitializedLength()) {
+        obj->markDenseArrayNotPacked(cx);
+        obj->setDenseArrayElement(i, MagicValue(JS_ARRAY_HOLE));
+    }
+
+    if (!js_SuppressDeletedProperty(cx, obj, id))
+        return false;
+
     rval->setBoolean(true);
     return true;
+}
+
+static JSBool
+array_deleteProperty(JSContext *cx, JSObject *obj, PropertyName *name, Value *rval, JSBool strict)
+{
+    return array_deleteGeneric(cx, obj, ATOM_TO_JSID(name), rval, strict);
 }
 
 namespace js {
@@ -1181,11 +1183,7 @@ array_deleteElement(JSContext *cx, JSObject *obj, uint32_t index, Value *rval, J
 static JSBool
 array_deleteSpecial(JSContext *cx, JSObject *obj, SpecialId sid, Value *rval, JSBool strict)
 {
-    if (!obj->isDenseArray())
-        return js_DeleteSpecial(cx, obj, sid, rval, strict);
-
-    rval->setBoolean(true);
-    return true;
+    return array_deleteGeneric(cx, obj, SPECIALID_TO_JSID(sid), rval, strict);
 }
 
 static void
@@ -1260,6 +1258,7 @@ Class js::ArrayClass = {
         array_setPropertyAttributes,
         array_setElementAttributes,
         array_setSpecialAttributes,
+        array_deleteGeneric,
         array_deleteProperty,
         array_deleteElement,
         array_deleteSpecial,

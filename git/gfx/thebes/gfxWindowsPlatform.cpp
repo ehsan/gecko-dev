@@ -44,6 +44,7 @@
 
 #include "gfxImageSurface.h"
 #include "gfxWindowsSurface.h"
+#include "gfxTextRunWordCache.h"
 
 #include "nsUnicharUtils.h"
 
@@ -295,11 +296,6 @@ gfxWindowsPlatform::UpdateRenderMode()
                 reinterpret_cast<IUnknown**>(&factory));
             mDWriteFactory = factory;
             factory->Release();
-
-            if (SUCCEEDED(hr)) {
-                hr = mDWriteFactory->CreateTextAnalyzer(
-                    getter_AddRefs(mDWriteAnalyzer));
-            }
 
             SetupClearTypeParams();
 
@@ -925,6 +921,7 @@ gfxWindowsPlatform::FontsPrefsChanged(const char *aPref)
         if (fc) {
             fc->Flush();
         }
+        gfxTextRunWordCache::Flush();
     }
 }
 

@@ -147,8 +147,6 @@ public class LayerRenderer implements GLSurfaceView.Renderer {
         LayerController controller = mView.getController();
         RenderContext screenContext = createScreenContext();
 
-        boolean updated = true;
-
         synchronized (controller) {
             Layer rootLayer = controller.getRoot();
             RenderContext pageContext = createPageContext();
@@ -168,12 +166,12 @@ public class LayerRenderer implements GLSurfaceView.Renderer {
             mLastPageContext = pageContext;
 
             /* Update layers. */
-            if (rootLayer != null) updated &= rootLayer.update(gl, pageContext);
-            updated &= mShadowLayer.update(gl, pageContext);
-            updated &= mCheckerboardLayer.update(gl, screenContext);
-            updated &= mFrameRateLayer.update(gl, screenContext);
-            updated &= mVertScrollLayer.update(gl, pageContext);
-            updated &= mHorizScrollLayer.update(gl, pageContext);
+            if (rootLayer != null) rootLayer.update(gl);
+            mShadowLayer.update(gl);
+            mCheckerboardLayer.update(gl);
+            mFrameRateLayer.update(gl);
+            mVertScrollLayer.update(gl);
+            mHorizScrollLayer.update(gl);
 
             /* Draw the background. */
             gl.glClearColor(BACKGROUND_COLOR_R, BACKGROUND_COLOR_G, BACKGROUND_COLOR_B, 1.0f);
@@ -221,10 +219,6 @@ public class LayerRenderer implements GLSurfaceView.Renderer {
                 gl.glDisable(GL10.GL_BLEND);
             }
         }
-
-        // If a layer update requires further work, schedule another redraw
-        if (!updated)
-            mView.requestRender();
 
         PanningPerfAPI.recordFrameTime();
     }
@@ -297,7 +291,7 @@ public class LayerRenderer implements GLSurfaceView.Renderer {
         mDroppedFrames -= (mFrameTimings[mCurrentFrame] + 1) / MAX_FRAME_TIME;
         mDroppedFrames += (frameElapsedTime + 1) / MAX_FRAME_TIME;
 
-        mFrameTimings[mCurrentFrame] = frameElapsedTime;
+        mFrameTimings[mCurrentFrame] = (int)frameElapsedTime;
         mCurrentFrame = (mCurrentFrame + 1) % mFrameTimings.length;
 
         int averageTime = mFrameTimingsSum / mFrameTimings.length;
@@ -331,7 +325,7 @@ public class LayerRenderer implements GLSurfaceView.Renderer {
                 SharedPreferences preferences = context.getSharedPreferences("GeckoApp", 0);
                 mShowFrameRate = preferences.getBoolean("showFrameRate", false);
             }
-        }).start();
+        }).run();
     }
 
     class FadeRunnable implements Runnable {

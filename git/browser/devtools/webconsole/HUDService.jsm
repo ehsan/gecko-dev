@@ -1362,11 +1362,6 @@ function HUD_SERVICE()
 HUD_SERVICE.prototype =
 {
   /**
-   * Last value entered
-   */
-  lastInputValue: "",
-
-  /**
    * L10N shortcut function
    *
    * @param string aName
@@ -3661,7 +3656,7 @@ HeadsUpDisplay.prototype = {
     consoleFilterToolbar.setAttribute("id", "viewGroup");
     this.consoleFilterToolbar = consoleFilterToolbar;
 
-    this.hintNode = this.makeXULNode("vbox");
+    this.hintNode = this.makeXULNode("div");
     this.hintNode.setAttribute("class", "gcliterm-hint-node");
 
     let hintParentNode = this.makeXULNode("vbox");
@@ -6835,7 +6830,7 @@ GcliTerm.prototype = {
     this.inputStack.setAttribute("class", "gcliterm-stack-node");
     this.element.appendChild(this.inputStack);
 
-    this.completeNode = this.document.createElementNS(HTML_NS, "div");
+    this.completeNode = this.document.createElement("div");
     this.completeNode.setAttribute("class", "gcliterm-complete-node");
     this.completeNode.setAttribute("aria-live", "polite");
     this.inputStack.appendChild(this.completeNode);
@@ -6867,16 +6862,16 @@ GcliTerm.prototype = {
     if (aEvent.output.command.returnType == "html" && typeof output == "string") {
       output = this.document.createRange().createContextualFragment(
           '<div xmlns="' + HTML_NS + '" xmlns:xul="' + XUL_NS + '">' +
-          output + '</div>');
+          output + '</div>').firstChild;
     }
 
     // See https://github.com/mozilla/domtemplate/blob/master/README.md
     // for docs on the template() function
     let element = this.document.createRange().createContextualFragment(
-      '<richlistitem xmlns="' + XUL_NS + '" _clipboardText="${clipboardText}"' +
-      '    _timestamp="${timestamp}" _id="${id}" class="hud-msg-node">' +
-      '  <label class="webconsole-timestamp" _value="${timestampString}"/>' +
-      '  <vbox class="webconsole-msg-icon-container" _style="${iconContainerStyle}">' +
+      '<richlistitem xmlns="' + XUL_NS + '" clipboardText="${clipboardText}"' +
+      '    timestamp="${timestamp}" id="${id}" class="hud-msg-node">' +
+      '  <label class="webconsole-timestamp" value="${timestampString}"/>' +
+      '  <vbox class="webconsole-msg-icon-container" style="${iconContainerStyle}">' +
       '    <image class="webconsole-msg-icon"/>' +
       '    <spacer flex="1"/>' +
       '  </vbox>' +

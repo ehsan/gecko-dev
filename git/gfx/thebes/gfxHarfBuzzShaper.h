@@ -50,9 +50,12 @@ public:
     gfxHarfBuzzShaper(gfxFont *aFont);
     virtual ~gfxHarfBuzzShaper();
 
-    virtual bool ShapeWord(gfxContext *aContext,
-                           gfxShapedWord *aShapedWord,
-                           const PRUnichar *aText);
+    virtual bool InitTextRun(gfxContext *aContext,
+                               gfxTextRun *aTextRun,
+                               const PRUnichar *aString,
+                               PRUint32 aRunStart,
+                               PRUint32 aRunLength,
+                               PRInt32 aRunScript);
 
     // get a given font table in harfbuzz blob form
     hb_blob_t * GetFontTable(hb_tag_t aTag) const;
@@ -71,9 +74,12 @@ public:
                              PRUint16 aSecondGlyph) const;
 
 protected:
+    // extract glyphs from HarfBuzz buffer and store into the gfxTextRun
     nsresult SetGlyphsFromRun(gfxContext *aContext,
-                              gfxShapedWord *aShapedWord,
-                              hb_buffer_t *aBuffer);
+                              gfxTextRun *aTextRun,
+                              hb_buffer_t *aBuffer,
+                              PRUint32 aTextRunOffset,
+                              PRUint32 aRunLength);
 
     // retrieve glyph positions, applying advance adjustments and attachments
     // returns results in appUnits

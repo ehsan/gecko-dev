@@ -39,8 +39,6 @@
 #ifndef PROGRESSUI_H__
 #define PROGRESSUI_H__
 
-#include "updatedefines.h"
-
 #if defined(XP_WIN)
   typedef WCHAR NS_tchar;
   #define NS_main wmain

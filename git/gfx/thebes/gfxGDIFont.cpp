@@ -119,10 +119,12 @@ gfxGDIFont::CopyWithAntialiasOption(AntialiasOption anAAOption)
 }
 
 static bool
-UseUniscribe(gfxShapedWord *aShapedWord,
-             const PRUnichar *aString)
+UseUniscribe(gfxTextRun *aTextRun,
+             const PRUnichar *aString,
+             PRUint32 aRunStart,
+             PRUint32 aRunLength)
 {
-    PRUint32 flags = aShapedWord->Flags();
+    PRUint32 flags = aTextRun->GetFlags();
     bool useGDI;
 
     bool isXP = (gfxWindowsPlatform::WindowsOSVersion() 
@@ -138,14 +140,17 @@ UseUniscribe(gfxShapedWord *aShapedWord,
              ) == gfxTextRunFactory::TEXT_OPTIMIZE_SPEED;
 
     return !useGDI ||
-        ScriptIsComplex(aString, aShapedWord->Length(), SIC_COMPLEX) == S_OK;
+        ScriptIsComplex(aString + aRunStart, aRunLength, SIC_COMPLEX) == S_OK;
 }
 
 bool
-gfxGDIFont::ShapeWord(gfxContext *aContext,
-                      gfxShapedWord *aShapedWord,
-                      const PRUnichar *aString,
-                      bool aPreferPlatformShaping)
+gfxGDIFont::InitTextRun(gfxContext *aContext,
+                        gfxTextRun *aTextRun,
+                        const PRUnichar *aString,
+                        PRUint32 aRunStart,
+                        PRUint32 aRunLength,
+                        PRInt32 aRunScript,
+                        bool aPreferPlatformShaping)
 {
     if (!mMetrics) {
         Initialize();
@@ -163,13 +168,17 @@ gfxGDIFont::ShapeWord(gfxContext *aContext,
 
 #ifdef MOZ_GRAPHITE
     if (mGraphiteShaper && gfxPlatform::GetPlatform()->UseGraphiteShaping()) {
-        ok = mGraphiteShaper->ShapeWord(aContext, aShapedWord, aString);
+        ok = mGraphiteShaper->InitTextRun(aContext, aTextRun, aString,
+                                          aRunStart, aRunLength, 
+                                          aRunScript);
     }
 #endif
 
     if (!ok && mHarfBuzzShaper) {
-        if (gfxPlatform::GetPlatform()->UseHarfBuzzForScript(aShapedWord->Script())) {
-            ok = mHarfBuzzShaper->ShapeWord(aContext, aShapedWord, aString);
+        if (gfxPlatform::GetPlatform()->UseHarfBuzzForScript(aRunScript)) {
+            ok = mHarfBuzzShaper->InitTextRun(aContext, aTextRun, aString,
+                                              aRunStart, aRunLength, 
+                                              aRunScript);
         }
     }
 
@@ -178,13 +187,17 @@ gfxGDIFont::ShapeWord(gfxContext *aContext,
         bool preferUniscribe =
             (!fe->IsTrueType() || fe->IsSymbolFont()) && !fe->mForceGDI;
 
-        if (preferUniscribe || UseUniscribe(aShapedWord, aString)) {
+        if (preferUniscribe ||
+            UseUniscribe(aTextRun, aString, aRunStart, aRunLength))
+        {
             // first try Uniscribe
             if (!mUniscribeShaper) {
                 mUniscribeShaper = new gfxUniscribeShaper(this);
             }
 
-            ok = mUniscribeShaper->ShapeWord(aContext, aShapedWord, aString);
+            ok = mUniscribeShaper->InitTextRun(aContext, aTextRun, aString,
+                                               aRunStart, aRunLength, 
+                                               aRunScript);
             if (ok) {
                 return true;
             }
@@ -194,14 +207,19 @@ gfxGDIFont::ShapeWord(gfxContext *aContext,
                 CreatePlatformShaper();
             }
 
-            ok = mPlatformShaper->ShapeWord(aContext, aShapedWord, aString);
+            ok = mPlatformShaper->InitTextRun(aContext, aTextRun, aString,
+                                              aRunStart, aRunLength, 
+                                              aRunScript);
         } else {
             // first use GDI
             if (!mPlatformShaper) {
                 CreatePlatformShaper();
             }
 
-            ok = mPlatformShaper->ShapeWord(aContext, aShapedWord, aString);
+            ok = mPlatformShaper->InitTextRun(aContext, aTextRun, aString,
+                                              aRunStart, aRunLength, 
+                                              aRunScript);
+
             if (ok) {
                 return true;
             }
@@ -212,7 +230,9 @@ gfxGDIFont::ShapeWord(gfxContext *aContext,
             }
 
             // use Uniscribe shaping
-            ok = mUniscribeShaper->ShapeWord(aContext, aShapedWord, aString);
+            ok = mUniscribeShaper->InitTextRun(aContext, aTextRun, aString,
+                                               aRunStart, aRunLength, 
+                                               aRunScript);
         }
 
 #if DEBUG

@@ -49,9 +49,6 @@
 #include "gfxPattern.h"
 #include "gfxPath.h"
 #include "nsISupportsImpl.h"
-#include "nsTArray.h"
-
-#include "mozilla/gfx/2D.h"
 
 typedef struct _cairo cairo_t;
 template <typename T> class FallibleTArray;
@@ -78,12 +75,6 @@ public:
      * Initialize this context from a surface.
      */
     gfxContext(gfxASurface *surface);
-
-    /**
-     * Initialize this context from a DrawTarget.
-     */
-    gfxContext(mozilla::gfx::DrawTarget *aTarget);
-
     ~gfxContext();
 
     /**
@@ -106,9 +97,7 @@ public:
      * Return the raw cairo_t object.
      * XXX this should go away at some point.
      */
-    cairo_t *GetCairo();
-
-    mozilla::gfx::DrawTarget *GetDrawTarget() { return mDT; }
+    cairo_t *GetCairo() { return mCairo; }
 
     /**
      * Returns true if the cairo context is in an error state.
@@ -185,7 +174,7 @@ public:
     /**
      * Returns the current point in the current path.
      */
-    gfxPoint CurrentPoint();
+    gfxPoint CurrentPoint() const;
 
     /**
      * Draws a line from the current point to pt.
@@ -692,8 +681,6 @@ public:
     void ClearFlag(PRInt32 aFlag) { mFlags &= ~aFlag; }
     PRInt32 GetFlags() const { return mFlags; }
 
-    bool IsCairo() const { return !mDT; }
-
 #ifdef MOZ_DUMP_PAINTING
     /**
      * Debug functions to encode the current surface as a PNG and export it.
@@ -716,79 +703,11 @@ public:
 #endif
 
 private:
-  friend class GeneralPattern;
-
-  typedef mozilla::gfx::Matrix Matrix;
-  typedef mozilla::gfx::DrawTarget DrawTarget;
-  typedef mozilla::gfx::Color Color;
-  typedef mozilla::gfx::StrokeOptions StrokeOptions;
-  typedef mozilla::gfx::Float Float;
-  typedef mozilla::gfx::Rect Rect;
-  typedef mozilla::gfx::CompositionOp CompositionOp;
-  typedef mozilla::gfx::Path Path;
-  typedef mozilla::gfx::PathBuilder PathBuilder;
-  typedef mozilla::gfx::SourceSurface SourceSurface;
-  
-  struct AzureState {
-    AzureState()
-      : op(mozilla::gfx::OP_OVER)
-      , opIsClear(false)
-      , color(0, 0, 0, 1.0f)
-      , clipWasReset(false)
-      , fillRule(mozilla::gfx::FILL_WINDING)
-      , aaMode(mozilla::gfx::AA_SUBPIXEL)
-    {}
-
-    mozilla::gfx::CompositionOp op;
-    bool opIsClear;
-    Color color;
-    nsRefPtr<gfxPattern> pattern;
-    mozilla::RefPtr<SourceSurface> sourceSurface;
-    Matrix surfTransform;
-    Matrix transform;
-    struct PushedClip {
-      mozilla::RefPtr<Path> path;
-      Rect rect;
-      Matrix transform;
-    };
-    nsTArray<PushedClip> pushedClips;
-    nsTArray<Float> dashPattern;
-    bool clipWasReset;
-    mozilla::gfx::FillRule fillRule;
-    StrokeOptions strokeOptions;
-    mozilla::RefPtr<DrawTarget> drawTarget;
-    mozilla::RefPtr<DrawTarget> parentTarget;
-    mozilla::gfx::AntialiasMode aaMode;
-  };
-
-  // This ensures mPath contains a valid path (in user space!)
-  void EnsurePath();
-  // This ensures mPathBuilder contains a valid PathBuilder (in user space!)
-  void EnsurePathBuilder();
-  void FillAzure(mozilla::gfx::Float aOpacity);
-  void PushClipsToDT(mozilla::gfx::DrawTarget *aDT);
-  CompositionOp GetOp();
-
-  bool mPathIsRect;
-  bool mTransformChanged;
-  Matrix mPathTransform;
-  Rect mRect;
-  mozilla::RefPtr<PathBuilder> mPathBuilder;
-  mozilla::RefPtr<Path> mPath;
-  Matrix mTransform;
-  nsTArray<AzureState> mStateStack;
-
-  AzureState &CurrentState() { return mStateStack[mStateStack.Length() - 1]; }
-  const AzureState &CurrentState() const { return mStateStack[mStateStack.Length() - 1]; }
-
-  cairo_t *mCairo;
-  cairo_t *mRefCairo;
-  nsRefPtr<gfxASurface> mSurface;
-  PRInt32 mFlags;
-
-  mozilla::RefPtr<DrawTarget> mDT;
-  mozilla::RefPtr<DrawTarget> mOriginalDT;
+    cairo_t *mCairo;
+    nsRefPtr<gfxASurface> mSurface;
+    PRInt32 mFlags;
 };
+
 
 /**
  * Sentry helper class for functions with multiple return points that need to
@@ -925,9 +844,6 @@ public:
     {
         if (aDisable) {
             mSurface = aContext->CurrentSurface();
-            if (!mSurface) {
-              return;
-            }
             mSubpixelAntialiasingEnabled = mSurface->GetSubpixelAntialiasingEnabled();
             mSurface->SetSubpixelAntialiasingEnabled(false);
         }

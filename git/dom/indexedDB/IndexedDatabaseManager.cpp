@@ -40,7 +40,6 @@
 #include "IndexedDatabaseManager.h"
 #include "DatabaseInfo.h"
 
-#include "nsIDOMScriptObjectFactory.h"
 #include "nsIFile.h"
 #include "nsIObserverService.h"
 #include "nsIScriptObjectPrincipal.h"
@@ -49,7 +48,6 @@
 #include "nsISimpleEnumerator.h"
 #include "nsITimer.h"
 
-#include "mozilla/LazyIdleThread.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
 #include "mozilla/storage.h"
@@ -65,7 +63,7 @@
 #include "IDBDatabase.h"
 #include "IDBEvents.h"
 #include "IDBFactory.h"
-#include "IDBKeyRange.h"
+#include "LazyIdleThread.h"
 #include "OpenDatabaseHelper.h"
 #include "TransactionThreadPool.h"
 
@@ -86,8 +84,6 @@
 USING_INDEXEDDB_NAMESPACE
 using namespace mozilla::services;
 using mozilla::Preferences;
-
-static NS_DEFINE_CID(kDOMSOF_CID, NS_DOM_SCRIPT_OBJECT_FACTORY_CID);
 
 namespace {
 
@@ -250,6 +246,13 @@ IndexedDatabaseManager::GetOrCreate()
     // We need this callback to know when to shut down all our threads.
     nsresult rv = obs->AddObserver(instance, NS_XPCOM_SHUTDOWN_OBSERVER_ID,
                                    false);
+    NS_ENSURE_SUCCESS(rv, nsnull);
+
+    // We don't really need this callback but we want the observer service to
+    // hold us alive until XPCOM shutdown. That way other consumers can continue
+    // to use this service until shutdown.
+    rv = obs->AddObserver(instance, NS_XPCOM_SHUTDOWN_THREADS_OBSERVER_ID,
+                          false);
     NS_ENSURE_SUCCESS(rv, nsnull);
 
     // Make a lazy thread for any IO we need (like clearing or enumerating the
@@ -602,10 +605,10 @@ IndexedDatabaseManager::SetCurrentWindowInternal(nsPIDOMWindow* aWindow)
     PR_SetThreadPrivate(mCurrentWindowIndex, aWindow);
   }
   else {
-    // We cannot assert PR_GetThreadPrivate(mCurrentWindowIndex) here
-    // because we cannot distinguish between the thread private became
-    // null and that it was set to null on the first place, 
-    // because we didn't have a window.
+#ifdef DEBUG
+    NS_ASSERTION(PR_GetThreadPrivate(mCurrentWindowIndex),
+               "Somebody forgot to clear the current window!");
+#endif
     PR_SetThreadPrivate(mCurrentWindowIndex, nsnull);
   }
 }
@@ -886,13 +889,6 @@ IndexedDatabaseManager::GetASCIIOriginFromWindow(nsPIDOMWindow* aWindow,
 {
   NS_ASSERTION(NS_IsMainThread(),
                "We're about to touch a window off the main thread!");
-
-  if (!aWindow) {
-    aASCIIOrigin.AssignLiteral("chrome");
-    NS_ASSERTION(nsContentUtils::IsCallerChrome(), 
-                 "Null window but not chrome!");
-    return NS_OK;
-  }
 
   nsCOMPtr<nsIScriptObjectPrincipal> sop = do_QueryInterface(aWindow);
   NS_ENSURE_TRUE(sop, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
@@ -1217,7 +1213,7 @@ IndexedDatabaseManager::Observe(nsISupports* aSubject,
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  if (!strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID)) {
+  if (!strcmp(aTopic, NS_XPCOM_SHUTDOWN_THREADS_OBSERVER_ID)) {
     // Setting this flag prevents the service from being recreated and prevents
     // further databases from being created.
     if (PR_ATOMIC_SET(&gShutdown, 1)) {
@@ -1269,6 +1265,11 @@ IndexedDatabaseManager::Observe(nsISupports* aSubject,
       }
     }
 
+    return NS_OK;
+  }
+
+  if (!strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID)) {
+    // We're dying now.
     return NS_OK;
   }
 
@@ -1585,48 +1586,6 @@ IndexedDatabaseManager::SynchronizedOp::DispatchDelayedRunnables()
   }
 
   mDelayedRunnables.Clear();
-}
-
-NS_IMETHODIMP
-IndexedDatabaseManager::InitWindowless(const jsval& aObj, JSContext* aCx)
-{
-  NS_ENSURE_TRUE(nsContentUtils::IsCallerChrome(), NS_ERROR_NOT_AVAILABLE);
-  
-  // Instantiating this class will register exception providers so even 
-  // in xpcshell we will get typed (dom) exceptions, instead of general exceptions.
-  nsCOMPtr<nsIDOMScriptObjectFactory> sof(do_GetService(kDOMSOF_CID));
-
-  // Defining IDBKeyrange static functions on the global.
-  if (JSVAL_IS_PRIMITIVE(aObj)) {
-    return NS_ERROR_INVALID_ARG;
-  }
-
-  nsCOMPtr<nsIIDBFactory> factory = IDBFactory::Create(nsnull);
-  NS_ASSERTION(factory, "IDBFactory should not be null.");
-
-  JSObject* obj = JSVAL_TO_OBJECT(aObj);
-  jsval mozIndexedDBVal;
-  nsresult rv = nsContentUtils::WrapNative(aCx, obj, factory, &mozIndexedDBVal);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (!JS_DefineProperty(aCx, obj, "mozIndexedDB", mozIndexedDBVal, 
-      nsnull, nsnull, JSPROP_ENUMERATE)) {
-    return NS_ERROR_FAILURE;
-  }
-
-  JSObject* keyrangeObj = JS_NewObject(aCx, nsnull, nsnull, nsnull);
-  NS_ENSURE_TRUE(keyrangeObj, NS_ERROR_OUT_OF_MEMORY);
-    
-  if (!IDBKeyRange::DefineConstructors(aCx, keyrangeObj)) {
-    return NS_ERROR_FAILURE;
-  }
-
-  if (!JS_DefineProperty(aCx, obj, "IDBKeyRange", OBJECT_TO_JSVAL(keyrangeObj),
-                         nsnull, nsnull, JSPROP_ENUMERATE)) {
-    return NS_ERROR_FAILURE;
-  }
-
-  return NS_OK;
 }
 
 NS_IMPL_THREADSAFE_ISUPPORTS1(IndexedDatabaseManager::AsyncDeleteFileRunnable,

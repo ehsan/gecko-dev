@@ -84,6 +84,9 @@ public class FennecNativeActions implements Actions {
   private Method sendGE;
 
 
+  // If waiting for an event.
+  private SynchronousQueue waitqueue = new SynchronousQueue<Boolean>();
+
   public FennecNativeActions(Activity activity, Solo robocop, Instrumentation instrumentation){
     this.solo = robocop;
     this.instr = instrumentation;
@@ -113,12 +116,7 @@ public class FennecNativeActions implements Actions {
   }
 
   class wakeInvocationHandler implements InvocationHandler {
-    private final GeckoEventExpecter mEventExpecter;
-
-    public wakeInvocationHandler(GeckoEventExpecter expecter) {
-      mEventExpecter = expecter;
-    }
-
+    public wakeInvocationHandler(){};
     public Object invoke(Object proxy, Method method, Object[] args) {
       String methodName = method.getName();
       //Depending on the method, return a completely different type.
@@ -135,54 +133,12 @@ public class FennecNativeActions implements Actions {
         return 314;
       }
       Log.i("Robocop", "Waking up on "+methodName);
-      mEventExpecter.notifyOfEvent();
+      waitqueue.offer(new Boolean(true));
       return null;
     }
   }
-
-  class GeckoEventExpecter implements EventExpecter {
-    private final String mGeckoEvent;
-    private final Object[] mRegistrationParams;
-    private boolean mEventReceived;
-
-    GeckoEventExpecter(String geckoEvent, Object[] registrationParams) {
-      mGeckoEvent = geckoEvent;
-      mRegistrationParams = registrationParams;
-    }
-
-    public synchronized void blockForEvent() {
-      while (! mEventReceived) {
-        try {
-          this.wait();
-        } catch (InterruptedException ie) {
-          ie.printStackTrace();
-          break;
-        }
-      }
-      Log.i("Robocop", "unblocked on expecter for " + mGeckoEvent);
-    }
-
-    public synchronized boolean eventReceived() {
-      return mEventReceived;
-    }
-
-    void notifyOfEvent() {
-      try {
-        unregisterGEL.invoke(null, mRegistrationParams);
-      } catch (IllegalAccessException e) {
-        e.printStackTrace();
-      } catch (InvocationTargetException e) {
-        e.printStackTrace();
-      }
-      Log.i("Robocop", "received event " + mGeckoEvent);
-      synchronized (this) {
-        mEventReceived = true;
-        this.notifyAll();
-      }
-    }
-  }
   
-  public EventExpecter expectGeckoEvent(String geckoEvent) {
+  public void waitForGeckoEvent(String geckoEvent) {
     Log.i("Robocop", "waiting for "+geckoEvent);
     try {
       Class [] interfaces = new Class[1];
@@ -190,19 +146,21 @@ public class FennecNativeActions implements Actions {
       Object[] finalParams = new Object[2];
       finalParams[0] = geckoEvent;
      
-      GeckoEventExpecter expecter = new GeckoEventExpecter(geckoEvent, finalParams);
-      wakeInvocationHandler wIH = new wakeInvocationHandler(expecter);
+      wakeInvocationHandler wIH = new wakeInvocationHandler();
       Object proxy = Proxy.newProxyInstance(classLoader, interfaces, wIH);
       finalParams[1] = proxy;
       registerGEL.invoke(null, finalParams);
       
-      return expecter;
+      waitqueue.take();
+      unregisterGEL.invoke(null, finalParams);
     } catch (IllegalAccessException e) {
       e.printStackTrace();
     } catch (InvocationTargetException e) {
       e.printStackTrace();
+    } catch (InterruptedException e) {
+      e.printStackTrace();
     }
-    return null;
+    Log.i("Robocop", "wait ends for: "+geckoEvent);
   }
 
   public void sendSpecialKey(SpecialKey button) {
