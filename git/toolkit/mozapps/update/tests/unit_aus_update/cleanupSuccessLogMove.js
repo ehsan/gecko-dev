@@ -4,7 +4,7 @@
  */
 
 function run_test() {
-  setupTestCommon();
+  setupTestCommon(true);
 
   logTestInfo("testing that the update.log is moved after a successful update");
 
@@ -43,5 +43,9 @@ function run_test() {
   logTestInfo("testing " + dir.path + " should exist (bug 512994)");
   do_check_true(dir.exists());
 
-  doTestFinish();
+  do_test_finished();
+}
+
+function end_test() {
+  cleanupTestCommon();
 }

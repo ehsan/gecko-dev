@@ -50,12 +50,6 @@ class DrawTarget;
 class SourceSurface;
 class ScaledFont;
 class DrawEventRecorder;
-
-inline uint32_t
-BackendTypeBit(BackendType b)
-{
-  return 1 << uint8_t(b);
-}
 }
 }
 
@@ -136,21 +130,21 @@ inline const char*
 GetBackendName(mozilla::gfx::BackendType aBackend)
 {
   switch (aBackend) {
-      case mozilla::gfx::BackendType::DIRECT2D:
+      case mozilla::gfx::BACKEND_DIRECT2D:
         return "direct2d";
-      case mozilla::gfx::BackendType::COREGRAPHICS_ACCELERATED:
+      case mozilla::gfx::BACKEND_COREGRAPHICS_ACCELERATED:
         return "quartz accelerated";
-      case mozilla::gfx::BackendType::COREGRAPHICS:
+      case mozilla::gfx::BACKEND_COREGRAPHICS:
         return "quartz";
-      case mozilla::gfx::BackendType::CAIRO:
+      case mozilla::gfx::BACKEND_CAIRO:
         return "cairo";
-      case mozilla::gfx::BackendType::SKIA:
+      case mozilla::gfx::BACKEND_SKIA:
         return "skia";
-      case mozilla::gfx::BackendType::RECORDING:
+      case mozilla::gfx::BACKEND_RECORDING:
         return "recording";
-      case mozilla::gfx::BackendType::DIRECT2D1_1:
+      case mozilla::gfx::BACKEND_DIRECT2D1_1:
         return "direct2d 1.1";
-      case mozilla::gfx::BackendType::NONE:
+      case mozilla::gfx::BACKEND_NONE:
         return "none";
   }
   MOZ_CRASH("Incomplete switch");
@@ -267,7 +261,7 @@ public:
      * supported for content drawing.
      */
     bool SupportsAzureContent() {
-      return GetContentBackend() != mozilla::gfx::BackendType::NONE;
+      return GetContentBackend() != mozilla::gfx::BACKEND_NONE;
     }
 
     /**
@@ -280,7 +274,7 @@ public:
     bool SupportsAzureContentForDrawTarget(mozilla::gfx::DrawTarget* aTarget);
 
     bool SupportsAzureContentForType(mozilla::gfx::BackendType aType) {
-      return BackendTypeBit(aType) & mContentBackendBitmask;
+      return (1 << aType) & mContentBackendBitmask;
     }
 
     virtual bool UseAcceleratedSkiaCanvas();

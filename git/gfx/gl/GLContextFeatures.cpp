@@ -325,7 +325,7 @@ static const FeatureInfo sFeatureInfoArr[] = {
 };
 
 static inline const FeatureInfo&
-GetFeatureInfo(GLFeature feature)
+GetFeatureInfo(GLFeature::Enum feature)
 {
     static_assert(MOZ_ARRAY_LENGTH(sFeatureInfoArr) == size_t(GLFeature::EnumMax),
                   "Mismatched lengths for sFeatureInfoInfos and GLFeature enums");
@@ -333,11 +333,11 @@ GetFeatureInfo(GLFeature feature)
     MOZ_ASSERT(feature < GLFeature::EnumMax,
                "GLContext::GetFeatureInfoInfo : unknown <feature>");
 
-    return sFeatureInfoArr[size_t(feature)];
+    return sFeatureInfoArr[feature];
 }
 
 static inline uint32_t
-ProfileVersionForFeature(GLFeature feature, ContextProfile profile)
+ProfileVersionForFeature(GLFeature::Enum feature, ContextProfile profile)
 {
     MOZ_ASSERT(profile != ContextProfile::Unknown,
                "GLContext::ProfileVersionForFeature : unknown <profile>");
@@ -352,7 +352,7 @@ ProfileVersionForFeature(GLFeature feature, ContextProfile profile)
 }
 
 static inline bool
-IsFeatureIsPartOfProfileVersion(GLFeature feature,
+IsFeatureIsPartOfProfileVersion(GLFeature::Enum feature,
                                 ContextProfile profile, unsigned int version)
 {
     unsigned int profileVersion = ProfileVersionForFeature(feature, profile);
@@ -365,7 +365,7 @@ IsFeatureIsPartOfProfileVersion(GLFeature feature,
 }
 
 const char*
-GLContext::GetFeatureName(GLFeature feature)
+GLContext::GetFeatureName(GLFeature::Enum feature)
 {
     return GetFeatureInfo(feature).mName;
 }
@@ -391,16 +391,16 @@ CanReadSRGBFromFBOTexture(GLContext* gl)
 void
 GLContext::InitFeatures()
 {
-    for (size_t feature_index = 0; feature_index < size_t(GLFeature::EnumMax); feature_index++)
+    for (size_t i = 0; i < GLFeature::EnumMax; i++)
     {
-        GLFeature feature = GLFeature(feature_index);
+        GLFeature::Enum feature = GLFeature::Enum(i);
 
         if (IsFeatureIsPartOfProfileVersion(feature, mProfile, mVersion)) {
-            mAvailableFeatures[feature_index] = true;
+            mAvailableFeatures[feature] = true;
             continue;
         }
 
-        mAvailableFeatures[feature_index] = false;
+        mAvailableFeatures[feature] = false;
 
         const FeatureInfo& featureInfo = GetFeatureInfo(feature);
 
@@ -413,7 +413,7 @@ GLContext::InitFeatures()
             }
 
             if (IsExtensionSupported(featureInfo.mExtensions[j])) {
-                mAvailableFeatures[feature_index] = true;
+                mAvailableFeatures[feature] = true;
                 break;
             }
         }
@@ -427,15 +427,15 @@ GLContext::InitFeatures()
         (IsExtensionSupported(ARB_framebuffer_sRGB) ||
          IsExtensionSupported(EXT_framebuffer_sRGB));
 
-    mAvailableFeatures[size_t(GLFeature::sRGB)] =
+    mAvailableFeatures[GLFeature::sRGB] =
         aresRGBExtensionsAvailable &&
         CanReadSRGBFromFBOTexture(this);
 }
 
 void
-GLContext::MarkUnsupported(GLFeature feature)
+GLContext::MarkUnsupported(GLFeature::Enum feature)
 {
-    mAvailableFeatures[size_t(feature)] = false;
+    mAvailableFeatures[feature] = false;
 
     const FeatureInfo& featureInfo = GetFeatureInfo(feature);
 

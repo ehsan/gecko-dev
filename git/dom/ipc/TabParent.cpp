@@ -56,7 +56,6 @@
 #include "StructuredCloneUtils.h"
 #include "JavaScriptParent.h"
 #include "TabChild.h"
-#include "LoadContext.h"
 #include "nsNetCID.h"
 #include <algorithm>
 
@@ -198,7 +197,7 @@ TabParent *TabParent::mIMETabParent = nullptr;
 
 NS_IMPL_ISUPPORTS3(TabParent, nsITabParent, nsIAuthPromptProvider, nsISecureBrowserUI)
 
-TabParent::TabParent(ContentParent* aManager, const TabContext& aContext, uint32_t aChromeFlags)
+TabParent::TabParent(ContentParent* aManager, const TabContext& aContext)
   : TabContext(aContext)
   , mFrameElement(nullptr)
   , mIMESelectionAnchor(0)
@@ -219,7 +218,6 @@ TabParent::TabParent(ContentParent* aManager, const TabContext& aContext, uint32
   , mMarkedDestroying(false)
   , mIsDestroyed(false)
   , mAppPackageFileDescriptorSent(false)
-  , mChromeFlags(aChromeFlags)
 {
 }
 
@@ -1731,23 +1729,6 @@ TabParent::RecvContentReceivedTouch(const ScrollableLayerGuid& aGuid,
     rfp->ContentReceivedTouch(aGuid, aPreventDefault);
   }
   return true;
-}
-
-already_AddRefed<nsILoadContext>
-TabParent::GetLoadContext()
-{
-  nsCOMPtr<nsILoadContext> loadContext;
-  if (mLoadContext) {
-    loadContext = mLoadContext;
-  } else {
-    loadContext = new LoadContext(GetOwnerElement(),
-                                  OwnOrContainingAppId(),
-                                  true /* aIsContent */,
-                                  mChromeFlags & nsIWebBrowserChrome::CHROME_PRIVATE_WINDOW,
-                                  IsBrowserElement());
-    mLoadContext = loadContext;
-  }
-  return loadContext.forget();
 }
 
 } // namespace tabs

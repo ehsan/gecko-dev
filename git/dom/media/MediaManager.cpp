@@ -1848,13 +1848,14 @@ MediaManager::MediaCaptureWindowStateInternal(nsIDOMWindow* aWindow, bool* aVide
     }
 
     // iterate any children of *this* window (iframes, etc)
-    nsCOMPtr<nsIDocShell> docShell = piWin->GetDocShell();
-    if (docShell) {
+    nsCOMPtr<nsIDocShellTreeNode> node =
+      do_QueryInterface(piWin->GetDocShell());
+    if (node) {
       int32_t i, count;
-      docShell->GetChildCount(&count);
+      node->GetChildCount(&count);
       for (i = 0; i < count; ++i) {
         nsCOMPtr<nsIDocShellTreeItem> item;
-        docShell->GetChildAt(i, getter_AddRefs(item));
+        node->GetChildAt(i, getter_AddRefs(item));
         nsCOMPtr<nsPIDOMWindow> win = do_GetInterface(item);
 
         MediaCaptureWindowStateInternal(win, aVideo, aAudio);

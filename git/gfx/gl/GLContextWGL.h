@@ -13,6 +13,8 @@
 namespace mozilla {
 namespace gl {
 
+typedef WGLLibrary::LibraryType LibType;
+
 class GLContextWGL : public GLContext
 {
 public:
@@ -22,6 +24,7 @@ public:
                  bool isOffscreen,
                  HDC aDC,
                  HGLRC aContext,
+                 LibType aLibUsed,
                  HWND aWindow = nullptr);
 
     // From PBuffer
@@ -31,14 +34,15 @@ public:
                  HANDLE aPbuffer,
                  HDC aDC,
                  HGLRC aContext,
-                 int aPixelFormat);
+                 int aPixelFormat,
+                 LibType aLibUsed);
 
     ~GLContextWGL();
 
-    virtual GLContextType GetContextType() MOZ_OVERRIDE { return GLContextType::WGL; }
+    virtual GLContextType GetContextType() MOZ_OVERRIDE { return ContextTypeWGL; }
 
     static GLContextWGL* Cast(GLContext* gl) {
-        MOZ_ASSERT(gl->GetContextType() == GLContextType::WGL);
+        MOZ_ASSERT(gl->GetContextType() == ContextTypeWGL);
         return static_cast<GLContextWGL*>(gl);
     }
 
@@ -70,6 +74,7 @@ protected:
     HWND mWnd;
     HANDLE mPBuffer;
     int mPixelFormat;
+    LibType mLibType;
     bool mIsDoubleBuffered;
 };
 

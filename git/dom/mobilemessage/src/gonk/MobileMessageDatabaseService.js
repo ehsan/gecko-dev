@@ -46,7 +46,7 @@ MobileMessageDatabaseService.prototype = {
   /**
    * nsIObserver
    */
-  observe: function() {},
+  observe: function observe() {},
 
   /**
    * nsIRilMobileMessageDatabaseService API

@@ -73,7 +73,7 @@ SetupTests(nsTArray<TestEntry>& testList)
     TestEntry *t;
 
     /* some common styles */
-    gfxFontStyle style_western_normal_16 (mozilla::gfx::FontStyle::NORMAL,
+    gfxFontStyle style_western_normal_16 (mozilla::gfx::FONT_STYLE_NORMAL,
                                           400,
                                           0,
                                           16.0,
@@ -82,7 +82,7 @@ SetupTests(nsTArray<TestEntry>& testList)
                                           false, false,
                                           NS_LITERAL_STRING(""));
 
-    gfxFontStyle style_western_bold_16 (mozilla::gfx::FontStyle::NORMAL,
+    gfxFontStyle style_western_bold_16 (mozilla::gfx::FONT_STYLE_NORMAL,
                                         700,
                                         0,
                                         16.0,

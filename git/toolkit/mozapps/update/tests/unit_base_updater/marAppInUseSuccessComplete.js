@@ -228,14 +228,14 @@ ADDITIONAL_TEST_DIRS = [
 }];
 
 function run_test() {
-  setupTestCommon();
+  setupTestCommon(true);
+
   setupUpdaterTest(FILE_COMPLETE_MAR);
 
-  // Launch the callback helper application so it is in use during the update.
+  // Launch the callback helper application so it is in use during the update
   let callbackApp = getApplyDirFile("a/b/" + gCallbackBinFile);
   callbackApp.permissions = PERMS_DIRECTORY;
-  let args = [getApplyDirPath() + "a/b/", "input", "output", "-s",
-              HELPER_SLEEP_TIMEOUT];
+  let args = [getApplyDirPath() + "a/b/", "input", "output", "-s", "20"];
   let callbackAppProcess = AUS_Cc["@mozilla.org/process/util;1"].
                            createInstance(AUS_Ci.nsIProcess);
   callbackAppProcess.init(callbackApp);
@@ -256,14 +256,23 @@ function doUpdate() {
     applyToDir.lastModifiedTime = yesterday;
   }
 
-  runUpdate(0, STATE_SUCCEEDED);
-}
+  // apply the complete mar
+  let exitValue = runUpdate();
+  logTestInfo("testing updater binary process exitValue for success when " +
+              "applying a complete mar");
+  do_check_eq(exitValue, 0);
 
-function checkUpdateApplied() {
   setupHelperFinish();
 }
 
+
 function checkUpdate() {
+  logTestInfo("testing update.status should be " + STATE_SUCCEEDED);
+  let updatesDir = do_get_file(gTestID + UPDATES_DIR_SUFFIX);
+  do_check_eq(readStatusFile(updatesDir), STATE_SUCCEEDED);
+
+  // For Mac OS X check that the last modified time for a directory has been
+  // updated after a successful update (bug 600098).
   if (IS_MACOSX) {
     logTestInfo("testing last modified time on the apply to directory has " +
                 "changed after a successful update (bug 600098)");
@@ -274,10 +283,6 @@ function checkUpdate() {
   }
 
   checkFilesAfterUpdateSuccess();
-  // Sorting on Linux is different so skip this check for now.
-  if (!IS_UNIX) {
-    checkUpdateLogContents(LOG_COMPLETE_SUCCESS);
-  }
 
   if (IS_WIN) {
     logTestInfo("testing tobedeleted directory doesn't exist");
@@ -286,4 +291,9 @@ function checkUpdate() {
   }
 
   checkCallbackAppLog();
+}
+
+
+function end_test() {
+  cleanupUpdaterTest();
 }

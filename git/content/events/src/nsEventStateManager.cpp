@@ -1490,11 +1490,11 @@ nsEventStateManager::HandleAccessKey(nsPresContext* aPresContext,
                                      ProcessingAccessKeyState aAccessKeyState,
                                      int32_t aModifierMask)
 {
-  nsCOMPtr<nsIDocShell> docShell = aPresContext->GetDocShell();
+  nsCOMPtr<nsISupports> pcContainer = aPresContext->GetContainerWeak();
 
   // Alt or other accesskey modifier is down, we may need to do an accesskey
   if (mAccessKeys.Count() > 0 &&
-      aModifierMask == GetAccessModifierMaskFor(docShell)) {
+      aModifierMask == GetAccessModifierMaskFor(pcContainer)) {
     // Someone registered an accesskey.  Find and activate it.
     nsAutoTArray<uint32_t, 10> accessCharCodes;
     nsContentUtils::GetAccessKeyCandidates(aEvent, accessCharCodes);
@@ -1508,6 +1508,7 @@ nsEventStateManager::HandleAccessKey(nsPresContext* aPresContext,
   if (nsEventStatus_eConsumeNoDefault != *aStatus) {
     // checking all sub docshells
 
+    nsCOMPtr<nsIDocShellTreeNode> docShell(do_QueryInterface(pcContainer));
     if (!docShell) {
       NS_WARNING("no docShellTreeNode for presContext");
       return;
@@ -1551,6 +1552,7 @@ nsEventStateManager::HandleAccessKey(nsPresContext* aPresContext,
 
   // bubble up the process to the parent docshell if necessary
   if (eAccessKeyProcessingDown != aAccessKeyState && nsEventStatus_eConsumeNoDefault != *aStatus) {
+    nsCOMPtr<nsIDocShellTreeItem> docShell(do_QueryInterface(pcContainer));
     if (!docShell) {
       NS_WARNING("no docShellTreeItem for presContext");
       return;

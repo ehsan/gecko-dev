@@ -322,7 +322,7 @@ private:
 #ifdef NS_PRINTING
   // Called when the DocViewer is notified that the state
   // of Printing or PP has changed
-  void SetIsPrintingInDocShellTree(nsIDocShellTreeItem* aParentNode, 
+  void SetIsPrintingInDocShellTree(nsIDocShellTreeNode* aParentNode, 
                                    bool                 aIsPrintingOrPP, 
                                    bool                 aStartAtTop);
 #endif // NS_PRINTING
@@ -1147,14 +1147,14 @@ nsDocumentViewer::PermitUnloadInternal(bool aCallerClosesWindow,
     }
   }
 
-  nsCOMPtr<nsIDocShell> docShell(mContainer);
+  nsCOMPtr<nsIDocShellTreeNode> docShellNode(mContainer);
   nsAutoString text;
   beforeUnload->GetReturnValue(text);
   if (*aShouldPrompt && (event->GetInternalNSEvent()->mFlags.mDefaultPrevented ||
                          !text.IsEmpty())) {
     // Ask the user if it's ok to unload the current page
 
-    nsCOMPtr<nsIPrompt> prompt = do_GetInterface(docShell);
+    nsCOMPtr<nsIPrompt> prompt = do_GetInterface(docShellNode);
 
     if (prompt) {
       nsXPIDLString title, message, stayLabel, leaveLabel;
@@ -1211,13 +1211,13 @@ nsDocumentViewer::PermitUnloadInternal(bool aCallerClosesWindow,
     }
   }
 
-  if (docShell) {
+  if (docShellNode) {
     int32_t childCount;
-    docShell->GetChildCount(&childCount);
+    docShellNode->GetChildCount(&childCount);
 
     for (int32_t i = 0; i < childCount && *aPermitUnload; ++i) {
       nsCOMPtr<nsIDocShellTreeItem> item;
-      docShell->GetChildAt(i, getter_AddRefs(item));
+      docShellNode->GetChildAt(i, getter_AddRefs(item));
 
       nsCOMPtr<nsIDocShell> docShell(do_QueryInterface(item));
 
@@ -1244,14 +1244,14 @@ nsDocumentViewer::ResetCloseWindow()
 {
   mCallerIsClosingWindow = false;
 
-  nsCOMPtr<nsIDocShell> docShell(mContainer);
-  if (docShell) {
+  nsCOMPtr<nsIDocShellTreeNode> docShellNode(mContainer);
+  if (docShellNode) {
     int32_t childCount;
-    docShell->GetChildCount(&childCount);
+    docShellNode->GetChildCount(&childCount);
 
     for (int32_t i = 0; i < childCount; ++i) {
       nsCOMPtr<nsIDocShellTreeItem> item;
-      docShell->GetChildAt(i, getter_AddRefs(item));
+      docShellNode->GetChildAt(i, getter_AddRefs(item));
 
       nsCOMPtr<nsIDocShell> docShell(do_QueryInterface(item));
 
@@ -1770,7 +1770,7 @@ nsDocumentViewer::SetDocumentInternal(nsIDocument* aDocument,
     // Clear the list of old child docshells. Child docshells for the new
     // document will be constructed as frames are created.
     if (!aDocument->IsStaticDocument()) {
-      nsCOMPtr<nsIDocShell> node(mContainer);
+      nsCOMPtr<nsIDocShellTreeNode> node(mContainer);
       if (node) {
         int32_t count;
         node->GetChildCount(&count);
@@ -2690,16 +2690,16 @@ NS_IMETHODIMP nsDocumentViewer::ScrollToNode(nsIDOMNode* aNode)
 void
 nsDocumentViewer::CallChildren(CallChildFunc aFunc, void* aClosure)
 {
-  nsCOMPtr<nsIDocShell> docShell(mContainer);
-  if (docShell)
+  nsCOMPtr<nsIDocShellTreeNode> docShellNode(mContainer);
+  if (docShellNode)
   {
     int32_t i;
     int32_t n;
-    docShell->GetChildCount(&n);
+    docShellNode->GetChildCount(&n);
     for (i=0; i < n; i++)
     {
       nsCOMPtr<nsIDocShellTreeItem> child;
-      docShell->GetChildAt(i, getter_AddRefs(child));
+      docShellNode->GetChildAt(i, getter_AddRefs(child));
       nsCOMPtr<nsIDocShell> childAsShell(do_QueryInterface(child));
       NS_ASSERTION(childAsShell, "null child in docshell");
       if (childAsShell)
@@ -3961,7 +3961,7 @@ nsDocumentViewer::GetIsRangeSelection(bool *aIsRangeSelection)
 //----------------------------------------------------------------------------------
 // Walks the document tree and tells each DocShell whether Printing/PP is happening
 void 
-nsDocumentViewer::SetIsPrintingInDocShellTree(nsIDocShellTreeItem* aParentNode, 
+nsDocumentViewer::SetIsPrintingInDocShellTree(nsIDocShellTreeNode* aParentNode, 
                                                 bool                 aIsPrintingOrPP, 
                                                 bool                 aStartAtTop)
 {
@@ -4000,9 +4000,10 @@ nsDocumentViewer::SetIsPrintingInDocShellTree(nsIDocShellTreeItem* aParentNode,
   for (int32_t i=0; i < n; i++) {
     nsCOMPtr<nsIDocShellTreeItem> child;
     aParentNode->GetChildAt(i, getter_AddRefs(child));
-    NS_ASSERTION(child, "child isn't nsIDocShell");
-    if (child) {
-      SetIsPrintingInDocShellTree(child, aIsPrintingOrPP, false);
+    nsCOMPtr<nsIDocShellTreeNode> childAsNode(do_QueryInterface(child));
+    NS_ASSERTION(childAsNode, "child isn't nsIDocShellTreeNode");
+    if (childAsNode) {
+      SetIsPrintingInDocShellTree(childAsNode, aIsPrintingOrPP, false);
     }
   }
 
@@ -4083,9 +4084,9 @@ nsDocumentViewer::SetIsPrinting(bool aIsPrinting)
 #ifdef NS_PRINTING
   // Set all the docShells in the docshell tree to be printing.
   // that way if anyone of them tries to "navigate" it can't
-  nsCOMPtr<nsIDocShell> docShell(mContainer);
-  if (docShell || !aIsPrinting) {
-    SetIsPrintingInDocShellTree(docShell, aIsPrinting, true);
+  nsCOMPtr<nsIDocShellTreeNode> docShellTreeNode(mContainer);
+  if (docShellTreeNode || !aIsPrinting) {
+    SetIsPrintingInDocShellTree(docShellTreeNode, aIsPrinting, true);
   } else {
     NS_WARNING("Did you close a window before printing?");
   }
@@ -4119,9 +4120,9 @@ nsDocumentViewer::SetIsPrintPreview(bool aIsPrintPreview)
 #ifdef NS_PRINTING
   // Set all the docShells in the docshell tree to be printing.
   // that way if anyone of them tries to "navigate" it can't
-  nsCOMPtr<nsIDocShell> docShell(mContainer);
-  if (docShell || !aIsPrintPreview) {
-    SetIsPrintingInDocShellTree(docShell, aIsPrintPreview, true);
+  nsCOMPtr<nsIDocShellTreeNode> docShellTreeNode(mContainer);
+  if (docShellTreeNode || !aIsPrintPreview) {
+    SetIsPrintingInDocShellTree(docShellTreeNode, aIsPrintPreview, true);
   }
   if (!aIsPrintPreview) {
     mBeforeAndAfterPrint = nullptr;

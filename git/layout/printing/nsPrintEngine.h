@@ -24,7 +24,7 @@
 
 // Classes
 class nsPagePrintTimer;
-class nsIDocShell;
+class nsIDocShellTreeNode;
 class nsDeviceContext;
 class nsIDocument;
 class nsIDocumentViewerPrint;
@@ -116,7 +116,7 @@ public:
   bool     DonePrintingPages(nsPrintObject* aPO, nsresult aResult);
 
   //---------------------------------------------------------------------
-  void BuildDocTree(nsIDocShell *      aParentNode,
+  void BuildDocTree(nsIDocShellTreeNode *      aParentNode,
                     nsTArray<nsPrintObject*> * aDocList,
                     nsPrintObject *            aPO);
   nsresult ReflowDocList(nsPrintObject * aPO, bool aSetPixelScale);

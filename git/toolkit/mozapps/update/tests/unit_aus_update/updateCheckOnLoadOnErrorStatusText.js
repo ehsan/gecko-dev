@@ -13,7 +13,7 @@ var gExpectedStatusCode;
 var gExpectedStatusText;
 
 function run_test() {
-  setupTestCommon();
+  setupTestCommon(true);
 
   logTestInfo("testing nsIUpdateCheckListener onload and onerror error code " +
               "and statusText values");
@@ -23,6 +23,10 @@ function run_test() {
   // The mock XMLHttpRequest is MUCH faster
   overrideXHR(callHandleEvent);
   do_execute_soon(run_test_pt1);
+}
+
+function end_test() {
+  cleanupTestCommon();
 }
 
 // Callback function used by the custom XMLHttpRequest implementation to
@@ -164,6 +168,6 @@ function run_test_pt16() {
 
 // connection refused - NS_ERROR_CONNECTION_REFUSED (2152398861)
 function run_test_pt17() {
-  run_test_helper(doTestFinish, AUS_Cr.NS_ERROR_CONNECTION_REFUSED,
+  run_test_helper(do_test_finished, AUS_Cr.NS_ERROR_CONNECTION_REFUSED,
                   "testing connection refused");
 }

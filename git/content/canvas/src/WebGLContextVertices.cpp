@@ -724,7 +724,7 @@ void WebGLContext::Draw_cleanup()
     }
 
     if (gl->WorkAroundDriverBugs()) {
-        if (gl->Renderer() == gl::GLRenderer::Tegra) {
+        if (gl->Renderer() == gl::GLContext::RendererTegra) {
             mDrawCallsSinceLastFlush++;
 
             if (mDrawCallsSinceLastFlush >= MAX_DRAW_CALLS_SINCE_FLUSH) {

@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-/* General Complete MAR File Staged Patch Apply Test */
+/* General Complete MAR File Background Patch Apply Test */
 
 // The files are listed in the same order as they are applied from the mar's
 // update.manifest. Complete updates have remove file and rmdir directory
@@ -262,9 +262,13 @@ function checkSymlink() {
 }
 
 function run_test() {
-  gStageUpdate = true;
-  setupTestCommon();
+  setupTestCommon(true);
+
+  gBackgroundUpdate = true;
   setupUpdaterTest(FILE_COMPLETE_MAR);
+
+  let updatesDir = do_get_file(gTestID + UPDATES_DIR_SUFFIX);
+  let applyToDir = getApplyDirFile();
 
   // For Mac OS X set the last modified time for the root directory to a date in
   // the past to test that the last modified time is updated on a successful
@@ -272,7 +276,6 @@ function run_test() {
   if (IS_MACOSX) {
     let now = Date.now();
     let yesterday = now - (1000 * 60 * 60 * 24);
-    let applyToDir = getApplyDirFile();
     applyToDir.lastModifiedTime = yesterday;
   }
 
@@ -293,13 +296,24 @@ function run_test() {
     });
   }
 
-  runUpdate(0, STATE_APPLIED, null);
+  // apply the complete mar
+  let exitValue = runUpdate();
+  logTestInfo("testing updater binary process exitValue for success when " +
+              "applying a complete mar");
+  let updateLog = do_get_file(gTestID + UPDATES_DIR_SUFFIX, true);
+  updateLog.append(FILE_UPDATE_LOG);
+  do_check_eq(exitValue, 0);
 
+  logTestInfo("testing update.status should be " + STATE_APPLIED);
+  let updatesDir = do_get_file(gTestID + UPDATES_DIR_SUFFIX);
+  do_check_eq(readStatusFile(updatesDir), STATE_APPLIED);
+
+  // For Mac OS X check that the last modified time for a directory has been
+  // updated after a successful update (bug 600098).
   if (IS_MACOSX) {
     logTestInfo("testing last modified time on the apply to directory has " +
                 "changed after a successful update (bug 600098)");
     let now = Date.now();
-    let applyToDir = getApplyDirFile();
     let timeDiff = Math.abs(applyToDir.lastModifiedTime - now);
     do_check_true(timeDiff < MAC_MAX_TIME_DIFFERENCE);
   }
@@ -310,21 +324,26 @@ function run_test() {
     checkUpdateLogContents(LOG_COMPLETE_SUCCESS);
   }
 
-  // This shouldn't exist anyways for staged updates, but let's make sure.
+  // This shouldn't exist anyways in background updates, but let's make sure
   logTestInfo("testing tobedeleted directory doesn't exist");
   let toBeDeletedDir = getApplyDirFile("tobedeleted", true);
   do_check_false(toBeDeletedDir.exists());
   toBeDeletedDir = getTargetDirFile("tobedeleted", true);
   do_check_false(toBeDeletedDir.exists());
 
-  // Now switch the application and its updated version.
-  gStageUpdate = false;
+  // Now switch the application and its updated version
+  gBackgroundUpdate = false;
   gSwitchApp = true;
-  runUpdate(0, STATE_SUCCEEDED);
-}
+  exitValue = runUpdate();
+  logTestInfo("testing updater binary process exitValue for success when " +
+              "switching to the updated application");
+  do_check_eq(exitValue, 0);
 
-function checkUpdateApplied() {
-  let applyToDir = getApplyDirFile();
+  logTestInfo("testing update.status should be " + STATE_SUCCEEDED);
+  do_check_eq(readStatusFile(updatesDir), STATE_SUCCEEDED);
+
+  // For Mac OS X check that the last modified time for a directory has been
+  // updated after a successful update (bug 600098).
   if (IS_MACOSX) {
     logTestInfo("testing last modified time on the apply to directory has " +
                 "changed after a successful update (bug 600098)");
@@ -341,15 +360,19 @@ function checkUpdateApplied() {
     checkUpdateLogContents(LOG_COMPLETE_SWITCH_SUCCESS);
   }
 
-  // This shouldn't exist anyways for staged updates, but let's make sure.
+  // This shouldn't exist anyways in background updates, but let's make sure
   logTestInfo("testing tobedeleted directory doesn't exist");
-  let toBeDeletedDir = getApplyDirFile("tobedeleted", true);
+  toBeDeletedDir = getApplyDirFile("tobedeleted", true);
   do_check_false(toBeDeletedDir.exists());
 
-  // Make sure that the intermediate directory has been removed.
+  // Make sure that the intermediate directory has been removed
   let updatedDir = applyToDir.clone();
-  updatedDir.append(DIR_UPDATED);
+  updatedDir.append(UPDATED_DIR_SUFFIX.replace("/", ""));
   do_check_false(updatedDir.exists());
 
   checkCallbackAppLog();
+}
+
+function end_test() {
+  cleanupUpdaterTest();
 }

@@ -140,9 +140,9 @@ public:
 
     SharedTextureHandle handle =
       gl::CreateSharedHandle(sPluginContext,
-                             gl::SharedTextureShareType::SameProcess,
+                             gl::SameProcess,
                              (void*)mTextureInfo.mTexture,
-                             gl::SharedTextureBufferType::TextureID);
+                             gl::TextureID);
 
     // We want forget about this now, so delete the texture. Assigning it to zero
     // ensures that we create a new one in Lock()
@@ -1021,9 +1021,9 @@ SharedTextureHandle nsNPAPIPluginInstance::CreateSharedHandle()
   } else if (mContentSurface) {
     EnsureGLContext();
     return gl::CreateSharedHandle(sPluginContext,
-                                  gl::SharedTextureShareType::SameProcess,
+                                  gl::SameProcess,
                                   mContentSurface,
-                                  gl::SharedTextureBufferType::SurfaceTexture);
+                                  gl::SurfaceTexture);
   } else return 0;
 }
 

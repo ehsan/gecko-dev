@@ -21,6 +21,7 @@
 #include "nsIScrollPositionListener.h"
 #include "nsITimer.h"
 #include "nsIWeakReference.h"
+#include "nsIDocShellTreeNode.h"
 
 class nsAccessiblePivot;
 

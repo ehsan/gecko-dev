@@ -19,19 +19,19 @@ add_test(function test_RadioInterface__countGsm7BitSeptets() {
   let ril = newRadioInterface();
 
   let worker = newWorker({
-    postRILMessage: function(data) {
+    postRILMessage: function fakePostRILMessage(data) {
       // Do nothing
     },
-    postMessage: function(message) {
+    postMessage: function fakePostMessage(message) {
       // Do nothing
     }
   });
 
   let helper = worker.GsmPDUHelper;
-  helper.resetOctetWritten = function() {
+  helper.resetOctetWritten = function () {
     helper.octetsWritten = 0;
   };
-  helper.writeHexOctet = function() {
+  helper.writeHexOctet = function () {
     helper.octetsWritten++;
   };
 

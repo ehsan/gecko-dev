@@ -229,8 +229,12 @@ ADDITIONAL_TEST_DIRS = [
 }];
 
 function run_test() {
-  setupTestCommon();
+  setupTestCommon(true);
+
   setupUpdaterTest(FILE_COMPLETE_MAR);
+
+  let updatesDir = do_get_file(gTestID + UPDATES_DIR_SUFFIX);
+  let applyToDir = getApplyDirFile();
 
   // For Mac OS X set the last modified time for the root directory to a date in
   // the past to test that the last modified time is updated on a successful
@@ -238,19 +242,25 @@ function run_test() {
   if (IS_MACOSX) {
     let now = Date.now();
     let yesterday = now - (1000 * 60 * 60 * 24);
-    let applyToDir = getApplyDirFile();
     applyToDir.lastModifiedTime = yesterday;
   }
 
-  runUpdate(0, STATE_SUCCEEDED);
-}
+  // apply the complete mar
+  let exitValue = runUpdate();
+  logTestInfo("testing updater binary process exitValue for success when " +
+              "applying a complete mar");
+  do_check_eq(exitValue, 0);
 
-function checkUpdateApplied() {
+  logTestInfo("testing update.status should be " + STATE_SUCCEEDED);
+  let updatesDir = do_get_file(gTestID + UPDATES_DIR_SUFFIX);
+  do_check_eq(readStatusFile(updatesDir), STATE_SUCCEEDED);
+
+  // For Mac OS X check that the last modified time for a directory has been
+  // updated after a successful update (bug 600098).
   if (IS_MACOSX) {
     logTestInfo("testing last modified time on the apply to directory has " +
                 "changed after a successful update (bug 600098)");
     let now = Date.now();
-    let applyToDir = getApplyDirFile();
     let timeDiff = Math.abs(applyToDir.lastModifiedTime - now);
     do_check_true(timeDiff < MAC_MAX_TIME_DIFFERENCE);
   }
@@ -266,4 +276,8 @@ function checkUpdateApplied() {
   do_check_false(toBeDeletedDir.exists());
 
   checkCallbackAppLog();
+}
+
+function end_test() {
+  cleanupUpdaterTest();
 }

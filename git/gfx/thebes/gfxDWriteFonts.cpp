@@ -693,13 +693,13 @@ gfxDWriteFont::AddSizeOfIncludingThis(MallocSizeOf aMallocSizeOf,
 TemporaryRef<ScaledFont>
 gfxDWriteFont::GetScaledFont(mozilla::gfx::DrawTarget *aTarget)
 {
-  bool wantCairo = aTarget->GetType() == BackendType::CAIRO;
+  bool wantCairo = aTarget->GetType() == BACKEND_CAIRO;
   if (mAzureScaledFont && mAzureScaledFontIsCairo == wantCairo) {
     return mAzureScaledFont;
   }
 
   NativeFont nativeFont;
-  nativeFont.mType = NativeFontType::DWRITE_FONT_FACE;
+  nativeFont.mType = NATIVE_FONT_DWRITE_FONT_FACE;
   nativeFont.mFont = GetFontFace();
 
   if (wantCairo) {

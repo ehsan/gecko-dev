@@ -11,6 +11,7 @@
 #include "nsITimer.h"
 #include "nsIDocShell.h"
 #include "nsIDocShellTreeItem.h"
+#include "nsIDocShellTreeNode.h"
 #include "nsIBaseWindow.h"
 #include "nsIScrollable.h"
 #include "nsITextScroll.h"
@@ -154,6 +155,7 @@ public:
 
     NS_DECL_NSIDOCSHELL
     NS_DECL_NSIDOCSHELLTREEITEM
+    NS_DECL_NSIDOCSHELLTREENODE
     NS_DECL_NSIWEBNAVIGATION
     NS_DECL_NSIBASEWINDOW
     NS_DECL_NSISCROLLABLE

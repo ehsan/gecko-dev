@@ -14,7 +14,6 @@
 
 #include "nsCOMPtr.h"
 #include "nsGenericHTMLElement.h"
-#include "nsGenericHTMLFrameElement.h"
 #include "nsAttrValueInlines.h"
 #include "nsIDocShell.h"
 #include "nsIContentViewer.h"
@@ -149,6 +148,22 @@ nsSubDocumentFrame::Init(nsIContent*     aContent,
   nsContentUtils::AddScriptRunner(new AsyncFrameInit(this));
 }
 
+inline int32_t ConvertOverflow(uint8_t aOverflow)
+{
+  switch (aOverflow) {
+    case NS_STYLE_OVERFLOW_VISIBLE:
+    case NS_STYLE_OVERFLOW_AUTO:
+      return nsIScrollable::Scrollbar_Auto;
+    case NS_STYLE_OVERFLOW_HIDDEN:
+    case NS_STYLE_OVERFLOW_CLIP:
+      return nsIScrollable::Scrollbar_Never;
+    case NS_STYLE_OVERFLOW_SCROLL:
+      return nsIScrollable::Scrollbar_Always;
+  }
+  NS_NOTREACHED("invalid overflow value passed to ConvertOverflow");
+  return nsIScrollable::Scrollbar_Auto;
+}
+
 void
 nsSubDocumentFrame::ShowViewer()
 {
@@ -164,15 +179,14 @@ nsSubDocumentFrame::ShowViewer()
     nsRefPtr<nsFrameLoader> frameloader = FrameLoader();
     if (frameloader) {
       nsIntSize margin = GetMarginAttributes();
+      const nsStyleDisplay* disp = StyleDisplay();
       nsWeakFrame weakThis(this);
       mCallingShow = true;
-      const nsAttrValue* attrValue =
-        GetContent()->AsElement()->GetParsedAttr(nsGkAtoms::scrolling);
-      int32_t scrolling =
-        nsGenericHTMLFrameElement::MapScrollingAttribute(attrValue);
       bool didCreateDoc =
         frameloader->Show(margin.width, margin.height,
-                          scrolling, scrolling, this);
+                          ConvertOverflow(disp->mOverflowX),
+                          ConvertOverflow(disp->mOverflowY),
+                          this);
       if (!weakThis.IsAlive()) {
         return;
       }
@@ -252,24 +266,6 @@ nsSubDocumentFrame::PassPointerEventsToChildren()
   return false;
 }
 
-static void
-WrapBackgroundColorInOwnLayer(nsDisplayListBuilder* aBuilder,
-                              nsIFrame* aFrame,
-                              nsDisplayList* aList)
-{
-  nsDisplayList tempItems;
-  nsDisplayItem* item;
-  while ((item = aList->RemoveBottom()) != nullptr) {
-    if (item->GetType() == nsDisplayItem::TYPE_BACKGROUND_COLOR) {
-      nsDisplayList tmpList;
-      tmpList.AppendToTop(item);
-      item = new (aBuilder) nsDisplayOwnLayer(aBuilder, aFrame, &tmpList);
-    }
-    tempItems.AppendToTop(item);
-  }
-  aList->AppendToTop(&tempItems);
-}
-
 void
 nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                      const nsRect&           aDirtyRect,
@@ -278,25 +274,10 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   if (!IsVisibleForPainting(aBuilder))
     return;
 
-  nsFrameLoader* frameLoader = FrameLoader();
-  RenderFrameParent* rfp = nullptr;
-  if (frameLoader) {
-    rfp = frameLoader->GetCurrentRemoteFrame();
-  }
-
   // If we are pointer-events:none then we don't need to HitTest background
   bool pointerEventsNone = StyleVisibility()->mPointerEvents == NS_STYLE_POINTER_EVENTS_NONE;
   if (!aBuilder->IsForEventDelivery() || !pointerEventsNone) {
-    nsDisplayListCollection decorations;
-    DisplayBorderBackgroundOutline(aBuilder, decorations);
-    if (rfp) {
-      // Wrap background colors of <iframe>s with remote subdocuments in their
-      // own layer so we generate a ColorLayer. This is helpful for optimizing
-      // compositing; we can skip compositing the ColorLayer when the
-      // remote content is opaque.
-      WrapBackgroundColorInOwnLayer(aBuilder, this, decorations.BorderBackground());
-    }
-    decorations.MoveTo(aLists);
+    DisplayBorderBackgroundOutline(aBuilder, aLists);
   }
 
   bool passPointerEventsToChildren = false;
@@ -317,9 +298,13 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     return;
   }
 
-  if (rfp) {
-    rfp->BuildDisplayList(aBuilder, this, aDirtyRect, aLists);
-    return;
+  nsFrameLoader* frameLoader = FrameLoader();
+  if (frameLoader) {
+    RenderFrameParent* rfp = frameLoader->GetCurrentRemoteFrame();
+    if (rfp) {
+      rfp->BuildDisplayList(aBuilder, this, aDirtyRect, aLists);
+      return;
+    }
   }
 
   nsView* subdocView = mInnerView->GetFirstChild();

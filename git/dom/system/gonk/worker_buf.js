@@ -39,7 +39,7 @@ let Buf = {
   outgoingIndex: 0,
   outgoingBufferCalSizeQueue: null,
 
-  _init: function() {
+  _init: function _init() {
     this.incomingBuffer = new ArrayBuffer(this.incomingBufferLength);
     this.outgoingBuffer = new ArrayBuffer(this.outgoingBufferLength);
 
@@ -79,7 +79,7 @@ let Buf = {
    *        If raw data size is not in proper unit for writing, user can adjust
    *        the length value in writeFunction before writing.
    **/
-  startCalOutgoingSize: function(writeFunction) {
+  startCalOutgoingSize: function startCalOutgoingSize(writeFunction) {
     let sizeInfo = {index: this.outgoingIndex,
                     write: writeFunction};
 
@@ -96,7 +96,7 @@ let Buf = {
   /**
    * Calculate data length since last mark, and write it into mark position.
    **/
-  stopCalOutgoingSize: function() {
+  stopCalOutgoingSize: function stopCalOutgoingSize() {
     let sizeInfo = this.outgoingBufferCalSizeQueue.pop();
 
     // Remember current outgoingIndex.
@@ -120,7 +120,7 @@ let Buf = {
    *        Minimum new size. The actual new size will be the the smallest
    *        power of 2 that's larger than this number.
    */
-  growIncomingBuffer: function(min_size) {
+  growIncomingBuffer: function growIncomingBuffer(min_size) {
     if (DEBUG) {
       debug("Current buffer of " + this.incomingBufferLength +
             " can't handle incoming " + min_size + " bytes.");
@@ -160,7 +160,7 @@ let Buf = {
    *        Minimum new size. The actual new size will be the the smallest
    *        power of 2 that's larger than this number.
    */
-  growOutgoingBuffer: function(min_size) {
+  growOutgoingBuffer: function growOutgoingBuffer(min_size) {
     if (DEBUG) {
       debug("Current buffer of " + this.outgoingBufferLength +
             " is too small.");
@@ -189,7 +189,7 @@ let Buf = {
    *        Data position in incoming parcel, valid from 0 to
    *        currentParcelSize.
    */
-  ensureIncomingAvailable: function(index) {
+  ensureIncomingAvailable: function ensureIncomingAvailable(index) {
     if (index >= this.currentParcelSize) {
       throw new Error("Trying to read data beyond the parcel end!");
     } else if (index < 0) {
@@ -203,7 +203,7 @@ let Buf = {
    * @param offset
    *        Seek offset in relative to current position.
    */
-  seekIncoming: function(offset) {
+  seekIncoming: function seekIncoming(offset) {
     // Translate to 0..currentParcelSize
     let cur = this.currentParcelSize - this.readAvailable;
 
@@ -227,14 +227,14 @@ let Buf = {
     this.incomingReadIndex = newIndex;
   },
 
-  readUint8Unchecked: function() {
+  readUint8Unchecked: function readUint8Unchecked() {
     let value = this.incomingBytes[this.incomingReadIndex];
     this.incomingReadIndex = (this.incomingReadIndex + 1) %
                              this.incomingBufferLength;
     return value;
   },
 
-  readUint8: function() {
+  readUint8: function readUint8() {
     // Translate to 0..currentParcelSize
     let cur = this.currentParcelSize - this.readAvailable;
     this.ensureIncomingAvailable(cur);
@@ -243,7 +243,7 @@ let Buf = {
     return this.readUint8Unchecked();
   },
 
-  readUint8Array: function(length) {
+  readUint8Array: function readUint8Array(length) {
     // Translate to 0..currentParcelSize
     let last = this.currentParcelSize - this.readAvailable;
     last += (length - 1);
@@ -258,16 +258,16 @@ let Buf = {
     return array;
   },
 
-  readUint16: function() {
+  readUint16: function readUint16() {
     return this.readUint8() | this.readUint8() << 8;
   },
 
-  readInt32: function() {
+  readInt32: function readInt32() {
     return this.readUint8()       | this.readUint8() <<  8 |
            this.readUint8() << 16 | this.readUint8() << 24;
   },
 
-  readInt32List: function() {
+  readInt32List: function readInt32List() {
     let length = this.readInt32();
     let ints = [];
     for (let i = 0; i < length; i++) {
@@ -276,7 +276,7 @@ let Buf = {
     return ints;
   },
 
-  readString: function() {
+  readString: function readString() {
     let string_len = this.readInt32();
     if (string_len < 0 || string_len >= this.INT32_MAX) {
       return null;
@@ -292,7 +292,7 @@ let Buf = {
     return s;
   },
 
-  readStringList: function() {
+  readStringList: function readStringList() {
     let num_strings = this.readInt32();
     let strings = [];
     for (let i = 0; i < num_strings; i++) {
@@ -301,7 +301,7 @@ let Buf = {
     return strings;
   },
 
-  readStringDelimiter: function(length) {
+  readStringDelimiter: function readStringDelimiter(length) {
     let delimiter = this.readUint16();
     if (!(length & 1)) {
       delimiter |= this.readUint16();
@@ -313,7 +313,7 @@ let Buf = {
     }
   },
 
-  readParcelSize: function() {
+  readParcelSize: function readParcelSize() {
     return this.readUint8Unchecked() << 24 |
            this.readUint8Unchecked() << 16 |
            this.readUint8Unchecked() <<  8 |
@@ -331,32 +331,32 @@ let Buf = {
    *        Data position in outgoing parcel, valid from 0 to
    *        outgoingBufferLength.
    */
-  ensureOutgoingAvailable: function(index) {
+  ensureOutgoingAvailable: function ensureOutgoingAvailable(index) {
     if (index >= this.outgoingBufferLength) {
       this.growOutgoingBuffer(index + 1);
     }
   },
 
-  writeUint8: function(value) {
+  writeUint8: function writeUint8(value) {
     this.ensureOutgoingAvailable(this.outgoingIndex);
 
     this.outgoingBytes[this.outgoingIndex] = value;
     this.outgoingIndex++;
   },
 
-  writeUint16: function(value) {
+  writeUint16: function writeUint16(value) {
     this.writeUint8(value & 0xff);
     this.writeUint8((value >> 8) & 0xff);
   },
 
-  writeInt32: function(value) {
+  writeInt32: function writeInt32(value) {
     this.writeUint8(value & 0xff);
     this.writeUint8((value >> 8) & 0xff);
     this.writeUint8((value >> 16) & 0xff);
     this.writeUint8((value >> 24) & 0xff);
   },
 
-  writeString: function(value) {
+  writeString: function writeString(value) {
     if (value == null) {
       this.writeInt32(-1);
       return;
@@ -371,21 +371,21 @@ let Buf = {
     this.writeStringDelimiter(value.length);
   },
 
-  writeStringList: function(strings) {
+  writeStringList: function writeStringList(strings) {
     this.writeInt32(strings.length);
     for (let i = 0; i < strings.length; i++) {
       this.writeString(strings[i]);
     }
   },
 
-  writeStringDelimiter: function(length) {
+  writeStringDelimiter: function writeStringDelimiter(length) {
     this.writeUint16(0);
     if (!(length & 1)) {
       this.writeUint16(0);
     }
   },
 
-  writeParcelSize: function(value) {
+  writeParcelSize: function writeParcelSize(value) {
     /**
      *  Parcel size will always be the first thing in the parcel byte
      *  array, but the last thing written. Store the current index off
@@ -400,7 +400,7 @@ let Buf = {
     this.outgoingIndex = currentIndex;
   },
 
-  copyIncomingToOutgoing: function(length) {
+  copyIncomingToOutgoing: function copyIncomingToOutgoing(length) {
     if (!length || (length < 0)) {
       return;
     }
@@ -448,7 +448,7 @@ let Buf = {
    * @param incoming
    *        Uint8Array containing the incoming data.
    */
-  writeToIncoming: function(incoming) {
+  writeToIncoming: function writeToIncoming(incoming) {
     // We don't have to worry about the head catching the tail since
     // we process any backlog in parcels immediately, before writing
     // new data to the buffer. So the only edge case we need to handle
@@ -480,7 +480,7 @@ let Buf = {
    * @param incoming
    *        Uint8Array containing the incoming data.
    */
-  processIncoming: function(incoming) {
+  processIncoming: function processIncoming(incoming) {
     if (DEBUG) {
       debug("Received " + incoming.length + " bytes.");
       debug("Already read " + this.readIncoming);
@@ -556,7 +556,7 @@ let Buf = {
   /**
    * Communicate with the IPC thread.
    */
-  sendParcel: function() {
+  sendParcel: function sendParcel() {
     // Compute the size of the parcel and write it to the front of the parcel
     // where we left room for it. Note that he parcel size does not include
     // the size itself.
@@ -571,11 +571,11 @@ let Buf = {
     this.outgoingIndex = this.PARCEL_SIZE_SIZE;
   },
 
-  getCurrentParcelSize: function() {
+  getCurrentParcelSize: function getCurrentParcelSize() {
     return this.currentParcelSize;
   },
 
-  getReadAvailable: function() {
+  getReadAvailable: function getReadAvailable() {
     return this.readAvailable;
   }
 
@@ -586,7 +586,7 @@ let Buf = {
    * function invoked when we have received a complete parcel.  Implementation
    * may call multiple read functions to extract data from the incoming buffer.
    */
-  //processParcel: function() {
+  //processParcel: function processParcel() {
   //  let something = this.readInt32();
   //  ...
   //},
@@ -602,7 +602,7 @@ let Buf = {
    * @param parcel
    *        An array of numeric octet data.
    */
-  //onSendParcel: function(parcel) {
+  //onSendParcel: function onSendParcel(parcel) {
   //  ...
   //}
 };

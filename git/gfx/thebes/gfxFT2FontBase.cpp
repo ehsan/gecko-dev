@@ -219,15 +219,15 @@ gfxFT2FontBase::ConstructFontOptions()
   const gfxFontStyle* style = this->GetStyle();
   if (style->style == NS_FONT_STYLE_ITALIC) {
     if (style->weight == NS_FONT_WEIGHT_BOLD) {
-      mFontOptions.mStyle = FontStyle::BOLD_ITALIC;
+      mFontOptions.mStyle = FONT_STYLE_BOLD_ITALIC;
     } else {
-      mFontOptions.mStyle = FontStyle::ITALIC;
+      mFontOptions.mStyle = FONT_STYLE_ITALIC;
     }
   } else {
     if (style->weight == NS_FONT_WEIGHT_BOLD) {
-      mFontOptions.mStyle = FontStyle::BOLD;
+      mFontOptions.mStyle = FONT_STYLE_BOLD;
     } else {
-      mFontOptions.mStyle = FontStyle::NORMAL;
+      mFontOptions.mStyle = FONT_STYLE_NORMAL;
     }
   }
 }

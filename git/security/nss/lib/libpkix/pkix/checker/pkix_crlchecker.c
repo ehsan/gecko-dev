@@ -201,6 +201,7 @@ pkix_CrlChecker_CheckLocal(
     PKIX_CertStore_CheckRevokationByCrlCallback storeCheckRevocationFn;
     PKIX_CertStore *certStore = NULL;
     pkix_CrlChecker *state = NULL;
+    PKIX_UInt32 reasonCode = 0;
     PKIX_UInt32 crlStoreIndex = 0;
     PKIX_UInt32 numCrlStores = 0;
     PKIX_Boolean storeIsLocal = PKIX_FALSE;
@@ -241,7 +242,7 @@ pkix_CrlChecker_CheckLocal(
                                           chainVerificationState ? date : NULL,
                                          /* crl downloading is not done. */
                                           PKIX_FALSE,   
-                                          pReasonCode, &revStatus, plContext),
+                                          &reasonCode, &revStatus, plContext),
                     PKIX_CERTSTORECRLCHECKFAILED);
                 if (revStatus == PKIX_RevStatus_Revoked) {
                     break;
@@ -306,6 +307,7 @@ pkix_CrlChecker_CheckExternal(
     PKIX_CRLSelector *crlSelector = NULL;
     PKIX_PL_X500Name *issuerName = NULL;
     pkix_CrlChecker *state = NULL; 
+    PKIX_UInt32 reasonCode = 0;
     PKIX_UInt32 crlStoreIndex = 0;
     PKIX_UInt32 numCrlStores = 0;
     PKIX_Boolean storeIsLocal = PKIX_FALSE;
@@ -408,7 +410,7 @@ pkix_CrlChecker_CheckExternal(
             (*storeCheckRevocationFn)(certStore, cert, issuer, date,
                                       /* done with crl downloading */
                                       PKIX_TRUE,
-                                      pReasonCode, &revStatus, plContext),
+                                      &reasonCode, &revStatus, plContext),
             PKIX_CERTSTORECRLCHECKFAILED);
         if (revStatus != PKIX_RevStatus_NoInfo) {
             break;

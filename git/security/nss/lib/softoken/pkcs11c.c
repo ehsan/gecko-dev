@@ -3906,7 +3906,6 @@ jpake1:
         }
         if (sftk_isTrue(key, CKA_TOKEN)) {
             crv = CKR_TEMPLATE_INCONSISTENT;
-            break;
         }
         crv = CKR_OK;
         break;

@@ -190,7 +190,8 @@ ADDITIONAL_TEST_DIRS = [
 }];
 
 function run_test() {
-  setupTestCommon();
+  setupTestCommon(true);
+
   setupUpdaterTest(FILE_PARTIAL_MAR);
 
   let fileInUseBin = getApplyDirFile(TEST_DIRS[2].relPathDir +
@@ -203,9 +204,8 @@ function run_test() {
   let fileInUseDir = getApplyDirFile(TEST_DIRS[2].relPathDir);
   helperBin.copyTo(fileInUseDir, TEST_DIRS[2].files[0]);
 
-  // Launch an existing file so it is in use during the update.
-  let args = [getApplyDirPath() + "a/b/", "input", "output", "-s",
-              HELPER_SLEEP_TIMEOUT];
+  // Launch an existing file so it is in use during the update
+  let args = [getApplyDirPath() + "a/b/", "input", "output", "-s", "20"];
   let fileInUseProcess = AUS_Cc["@mozilla.org/process/util;1"].
                          createInstance(AUS_Ci.nsIProcess);
   fileInUseProcess.init(fileInUseBin);
@@ -215,14 +215,20 @@ function run_test() {
 }
 
 function doUpdate() {
-  runUpdate(0, STATE_SUCCEEDED);
-}
+  // apply the complete mar
+  let exitValue = runUpdate();
+  logTestInfo("testing updater binary process exitValue for success when " +
+              "applying a partial mar");
+  do_check_eq(exitValue, 0);
 
-function checkUpdateApplied() {
   setupHelperFinish();
 }
 
 function checkUpdate() {
+  logTestInfo("testing update.status should be " + STATE_SUCCEEDED);
+  let updatesDir = do_get_file(gTestID + UPDATES_DIR_SUFFIX);
+  do_check_eq(readStatusFile(updatesDir), STATE_SUCCEEDED);
+
   checkFilesAfterUpdateSuccess();
   checkUpdateLogContains(ERR_BACKUP_DISCARD);
 
@@ -231,4 +237,8 @@ function checkUpdate() {
   do_check_true(toBeDeletedDir.exists());
 
   checkCallbackAppLog();
+}
+
+function end_test() {
+  cleanupUpdaterTest();
 }

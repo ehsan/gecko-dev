@@ -368,8 +368,8 @@ CopyUpdaterIntoUpdateDir(nsIFile *greDir, nsIFile *appDir, nsIFile *updateDir,
 }
 
 /**
- * Switch an existing application directory to an updated version that has been
- * staged.
+ * Switch an existing application directory to an updated version which has been
+ * previously constructed in the background.
  *
  * @param greDir the GRE dir
  * @param updateDir the update root dir
@@ -606,12 +606,9 @@ GetOSApplyToDir(nsACString& applyToDir)
   NS_ASSERTION(ds, "Can't get directory service");
 
   nsCOMPtr<nsIFile> osApplyToDir;
-  nsresult rv = ds->Get(XRE_OS_UPDATE_APPLY_TO_DIR, NS_GET_IID(nsIFile),
+  DebugOnly<nsresult> rv = ds->Get(XRE_OS_UPDATE_APPLY_TO_DIR, NS_GET_IID(nsIFile),
                                    getter_AddRefs(osApplyToDir));
-  if (NS_FAILED(rv)) {
-    LOG(("Can't get the OS applyTo dir"));
-    return rv;
-  }
+  NS_ASSERTION(NS_SUCCEEDED(rv), "Can't get the OS applyTo dir");
 
   return osApplyToDir->GetNativePath(applyToDir);
 }
@@ -643,7 +640,7 @@ SetOSApplyToDir(nsIUpdate* update, const nsACString& osApplyToDir)
 #endif
 
 /**
- * Apply an update. This applies to both normal and staged updates.
+ * Apply an update, possibly in the background.
  *
  * @param greDir the GRE dir
  * @param updateDir the update root dir
@@ -652,10 +649,10 @@ SetOSApplyToDir(nsIUpdate* update, const nsACString& osApplyToDir)
  * @param appArgc the number of args to the application
  * @param appArgv the args to the application, used for restarting if needed
  * @param restart if true, apply the update in the foreground and restart the
- *                application when done.  otherwise, stage the update and don't
- *                restart the application.
+ *                application when done.  otherwise, apply the update in the
+ *                background and don't restart the application.
  * @param outpid out parameter holding the handle to the updater application for
- *               staging updates.
+ *               background updates.
  */
 static void
 ApplyUpdate(nsIFile *greDir, nsIFile *updateDir, nsIFile *statusFile,
@@ -734,7 +731,8 @@ ApplyUpdate(nsIFile *greDir, nsIFile *updateDir, nsIFile *statusFile,
     if (NS_FAILED(rv))
       return;
     if (restart) {
-      // Use the correct directory if we're not staging the update.
+      // Use the correct directory if we're not applying the update in the
+      // background.
       rv = parentDir2->GetNativePath(applyToDir);
     } else {
       if (!GetFile(parentDir2, NS_LITERAL_CSTRING("Updated.app"), updatedDir))
@@ -744,7 +742,8 @@ ApplyUpdate(nsIFile *greDir, nsIFile *updateDir, nsIFile *statusFile,
   }
 #else
   if (restart) {
-    // Use the correct directory if we're not staging the update.
+    // Use the correct directory if we're not applying the update in the
+    // background.
     updatedDir = do_QueryInterface(appDir);
   } else if (!GetFile(appDir, NS_LITERAL_CSTRING("updated"), updatedDir)) {
     return;
@@ -808,7 +807,8 @@ ApplyUpdate(nsIFile *greDir, nsIFile *updateDir, nsIFile *statusFile,
   // we pass "0" which is then ignored by the updater.
   nsAutoCString pid;
   if (!restart) {
-    // Signal the updater application that it should stage the update.
+    // Signal the updater application that it should apply the update in the
+    // background.
     pid.AssignASCII("-1");
   } else {
 #if defined(USE_EXECV)
@@ -876,7 +876,7 @@ ApplyUpdate(nsIFile *greDir, nsIFile *updateDir, nsIFile *statusFile,
   LOG(("spawning updater process [%s]\n", updaterPath.get()));
 
 #if defined(USE_EXECV)
-  // Don't use execv when staging updates.
+  // Don't use execv for background updates.
   if (restart) {
     execv(updaterPath.get(), argv);
   } else {
@@ -950,12 +950,34 @@ ProcessUpdates(nsIFile *greDir, nsIFile *appDir, nsIFile *updRootDir,
   if (NS_FAILED(rv))
     return rv;
  
-  ProcessType dummyPID; // this will only be used for MOZ_UPDATE_STAGING
+  ProcessType dummyPID; // this will only be used for MOZ_UPDATE_BACKGROUND
   const char *processingUpdates = PR_GetEnv("MOZ_PROCESS_UPDATES");
   if (processingUpdates && *processingUpdates) {
-    // Enable the tests to request an update to be staged.
-    const char *stagingUpdate = PR_GetEnv("MOZ_UPDATE_STAGING");
-    if (stagingUpdate && *stagingUpdate) {
+    // Enable the tests to request us to use a different update root directory
+    const char *updRootOverride = PR_GetEnv("MOZ_UPDATE_ROOT_OVERRIDE");
+    if (updRootOverride && *updRootOverride) {
+      nsCOMPtr<nsIFile> overrideDir;
+      nsAutoCString path(updRootOverride);
+      rv = NS_NewNativeLocalFile(path, false, getter_AddRefs(overrideDir));
+      if (NS_FAILED(rv)) {
+        return rv;
+      }
+      updatesDir = do_QueryInterface(overrideDir);
+    }
+    // Enable the tests to request us to use a different app directory
+    const char *appDirOverride = PR_GetEnv("MOZ_UPDATE_APPDIR_OVERRIDE");
+    if (appDirOverride && *appDirOverride) {
+      nsCOMPtr<nsIFile> overrideDir;
+      nsAutoCString path(appDirOverride);
+      rv = NS_NewNativeLocalFile(path, false, getter_AddRefs(overrideDir));
+      if (NS_FAILED(rv)) {
+        return rv;
+      }
+      NS_ADDREF(appDir = overrideDir);
+    }
+    // Enable the tests to request us to perform a background update
+    const char *backgroundUpdate = PR_GetEnv("MOZ_UPDATE_BACKGROUND");
+    if (backgroundUpdate && *backgroundUpdate) {
       restart = false;
       pid = &dummyPID;
     }
@@ -981,8 +1003,8 @@ ProcessUpdates(nsIFile *greDir, nsIFile *appDir, nsIFile *updRootDir,
   }
   case eAppliedUpdate:
   case eAppliedService:
-    // An update was staged and needs to be switched so the updated application
-    // is used.
+    // An update was applied in the background, so we need to switch to using
+    // it now.
     SwitchToUpdatedApp(greDir, updatesDir, statusFile,
                        appDir, argc, argv);
     break;
@@ -1086,7 +1108,7 @@ nsUpdateProcessor::ProcessUpdate(nsIUpdate* aUpdate)
     binary->GetNativePath(binPath);
   }
 
-  // Copy the parameters to the StagedUpdateInfo structure shared with the
+  // Copy the parameters to the BackgroundUpdateInfo structure shared with the
   // watcher thread.
   mInfo.mGREDir = greDir;
   mInfo.mAppDir = appDir;
@@ -1118,20 +1140,14 @@ nsUpdateProcessor::ProcessUpdate(nsIUpdate* aUpdate)
     // This needs to be done on the main thread, so we pass it along in
     // BackgroundThreadInfo
     nsresult rv = GetOSApplyToDir(osApplyToDir);
-    if (NS_FAILED(rv)) {
-      LOG(("Can't get the OS apply to dir"));
-      return rv;
-    }
+    NS_ASSERTION(NS_SUCCEEDED(rv), "Can't get the OS apply to dir");
 
     SetOSApplyToDir(aUpdate, osApplyToDir);
 
     mInfo.mIsOSUpdate = true;
     rv = NS_NewNativeLocalFile(osApplyToDir, false,
                                getter_AddRefs(mInfo.mOSApplyToDir));
-    if (NS_FAILED(rv)) {
-      LOG(("Can't create nsIFile for OS apply to dir"));
-      return rv;
-    }
+    NS_ASSERTION(NS_SUCCEEDED(rv), "Can't create nsIFile for OS apply to dir");
   }
 #endif
 
@@ -1139,13 +1155,13 @@ nsUpdateProcessor::ProcessUpdate(nsIUpdate* aUpdate)
 
   NS_ABORT_IF_FALSE(NS_IsMainThread(), "not main thread");
   return NS_NewThread(getter_AddRefs(mProcessWatcher),
-                      NS_NewRunnableMethod(this, &nsUpdateProcessor::StartStagedUpdate));
+                      NS_NewRunnableMethod(this, &nsUpdateProcessor::StartBackgroundUpdate));
 }
 
 
 
 void
-nsUpdateProcessor::StartStagedUpdate()
+nsUpdateProcessor::StartBackgroundUpdate()
 {
   NS_ABORT_IF_FALSE(!NS_IsMainThread(), "main thread");
 
@@ -1162,11 +1178,11 @@ nsUpdateProcessor::StartStagedUpdate()
   NS_ENSURE_SUCCESS_VOID(rv);
 
   if (mUpdaterPID) {
-    // Track the state of the updater process while it is staging an update.
+    // Track the state of the background updater process
     rv = NS_DispatchToCurrentThread(NS_NewRunnableMethod(this, &nsUpdateProcessor::WaitForProcess));
     NS_ENSURE_SUCCESS_VOID(rv);
   } else {
-    // Failed to launch the updater process for some reason.
+    // Failed to launch the background updater process for some reason.
     // We need to shutdown the current thread as there isn't anything more for
     // us to do...
     rv = NS_DispatchToMainThread(NS_NewRunnableMethod(this, &nsUpdateProcessor::ShutdownWatcherThread));

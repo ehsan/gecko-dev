@@ -54,12 +54,9 @@ function shouldLoadURI(aURI) {
 
 function resolveURIInternal(aCmdLine, aArgument) {
   var uri = aCmdLine.resolveURI(aArgument);
-  var urifixup = Components.classes["@mozilla.org/docshell/urifixup;1"]
-                           .getService(nsIURIFixup);
 
   if (!(uri instanceof nsIFileURL)) {
-    return urifixup.createFixupURI(aArgument,
-                                   urifixup.FIXUP_FLAG_FIX_SCHEME_TYPOS);
+    return uri;
   }
 
   try {
@@ -74,6 +71,9 @@ function resolveURIInternal(aCmdLine, aArgument) {
   // doesn't exist. Try URI fixup heuristics: see bug 290782.
  
   try {
+    var urifixup = Components.classes["@mozilla.org/docshell/urifixup;1"]
+                             .getService(nsIURIFixup);
+
     uri = urifixup.createFixupURI(aArgument, 0);
   }
   catch (e) {

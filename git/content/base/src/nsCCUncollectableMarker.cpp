@@ -223,7 +223,7 @@ MarkContentViewer(nsIContentViewer* aViewer, bool aCleanupJS,
   }
 }
 
-void MarkDocShell(nsIDocShellTreeItem* aNode, bool aCleanupJS,
+void MarkDocShell(nsIDocShellTreeNode* aNode, bool aCleanupJS,
                   bool aPrepareForCC);
 
 void
@@ -256,7 +256,7 @@ MarkSHEntry(nsISHEntry* aSHEntry, bool aCleanupJS, bool aPrepareForCC)
 }
 
 void
-MarkDocShell(nsIDocShellTreeItem* aNode, bool aCleanupJS, bool aPrepareForCC)
+MarkDocShell(nsIDocShellTreeNode* aNode, bool aCleanupJS, bool aPrepareForCC)
 {
   nsCOMPtr<nsIDocShell> shell = do_QueryInterface(aNode);
   if (!shell) {
@@ -299,7 +299,8 @@ MarkWindowList(nsISimpleEnumerator* aWindowList, bool aCleanupJS,
          iter) {
     nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(iter);
     if (window) {
-      nsCOMPtr<nsIDocShell> rootDocShell = window->GetDocShell();
+      nsCOMPtr<nsIDocShellTreeNode> rootDocShell =
+        do_QueryInterface(window->GetDocShell());
 
       MarkDocShell(rootDocShell, aCleanupJS, aPrepareForCC);
     }
@@ -378,7 +379,8 @@ nsCCUncollectableMarker::Observe(nsISupports* aSubject, const char* aTopic,
     if (hw) {
       nsCOMPtr<nsIDocShell> shell;
       hw->GetDocShell(getter_AddRefs(shell));
-      MarkDocShell(shell, cleanupJS, prepareForCC);
+      nsCOMPtr<nsIDocShellTreeNode> shellTreeNode = do_QueryInterface(shell);
+      MarkDocShell(shellTreeNode, cleanupJS, prepareForCC);
     }
     bool hasHiddenPrivateWindow = false;
     appShell->GetHasHiddenPrivateWindow(&hasHiddenPrivateWindow);
@@ -387,7 +389,8 @@ nsCCUncollectableMarker::Observe(nsISupports* aSubject, const char* aTopic,
       if (hw) {
         nsCOMPtr<nsIDocShell> shell;
         hw->GetDocShell(getter_AddRefs(shell));
-        MarkDocShell(shell, cleanupJS, prepareForCC);
+        nsCOMPtr<nsIDocShellTreeNode> shellTreeNode = do_QueryInterface(shell);
+        MarkDocShell(shellTreeNode, cleanupJS, prepareForCC);
       }
     }
   }

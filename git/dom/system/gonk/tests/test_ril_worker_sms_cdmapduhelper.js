@@ -12,10 +12,10 @@ function run_test() {
  */
 add_test(function test_CdmaPDUHelper_encodeUserDataReplyOption() {
   let worker = newWorker({
-    postRILMessage: function(data) {
+    postRILMessage: function fakePostRILMessage(data) {
       // Do nothing
     },
-    postMessage: function(message) {
+    postMessage: function fakePostMessage(message) {
       // Do nothing
     }
   });
@@ -42,10 +42,10 @@ add_test(function test_CdmaPDUHelper_encodeUserDataReplyOption() {
  */
 add_test(function test_CdmaPDUHelper_decodeUserDataMsgStatus() {
   let worker = newWorker({
-    postRILMessage: function(data) {
+    postRILMessage: function fakePostRILMessage(data) {
       // Do nothing
     },
-    postMessage: function(message) {
+    postMessage: function fakePostMessage(message) {
       // Do nothing
     }
   });

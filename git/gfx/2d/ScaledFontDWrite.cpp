@@ -309,7 +309,7 @@ ScaledFontDWrite::ScaledFontDWrite(uint8_t *aData, uint32_t aSize,
 TemporaryRef<Path>
 ScaledFontDWrite::GetPathForGlyphs(const GlyphBuffer &aBuffer, const DrawTarget *aTarget)
 {
-  if (aTarget->GetType() != BackendType::DIRECT2D) {
+  if (aTarget->GetType() != BACKEND_DIRECT2D) {
     return ScaledFontBase::GetPathForGlyphs(aBuffer, aTarget);
   }
 
@@ -326,7 +326,7 @@ ScaledFontDWrite::GetPathForGlyphs(const GlyphBuffer &aBuffer, const DrawTarget 
 void
 ScaledFontDWrite::CopyGlyphsToBuilder(const GlyphBuffer &aBuffer, PathBuilder *aBuilder, BackendType aBackendType, const Matrix *aTransformHint)
 {
-  if (aBackendType != BackendType::DIRECT2D) {
+  if (aBackendType != BACKEND_DIRECT2D) {
     ScaledFontBase::CopyGlyphsToBuilder(aBuffer, aBuilder, aBackendType, aTransformHint);
     return;
   }
@@ -409,23 +409,23 @@ ScaledFontDWrite::GetFontFileData(FontFileDataOutput aDataCallback, void *aBaton
 AntialiasMode
 ScaledFontDWrite::GetDefaultAAMode()
 {
-  AntialiasMode defaultMode = AntialiasMode::SUBPIXEL;
+  AntialiasMode defaultMode = AA_SUBPIXEL;
 
   switch (GetSystemTextQuality()) {
   case CLEARTYPE_QUALITY:
-    defaultMode = AntialiasMode::SUBPIXEL;
+    defaultMode = AA_SUBPIXEL;
     break;
   case ANTIALIASED_QUALITY:
-    defaultMode = AntialiasMode::GRAY;
+    defaultMode = AA_GRAY;
     break;
   case DEFAULT_QUALITY:
-    defaultMode = AntialiasMode::NONE;
+    defaultMode = AA_NONE;
     break;
   }
 
-  if (defaultMode == AntialiasMode::GRAY) {
+  if (defaultMode == AA_GRAY) {
     if (!DoGrayscale(mFontFace, mSize)) {
-      defaultMode = AntialiasMode::NONE;
+      defaultMode = AA_NONE;
     }
   }
   return defaultMode;

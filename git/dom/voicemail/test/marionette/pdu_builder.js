@@ -8,7 +8,7 @@ SpecialPowers.Cu.import("resource://gre/modules/ril_consts.js", RIL);
 // Only bring in what we need from ril_worker/RadioInterfaceLayer here. Reusing
 // that code turns out to be a nightmare, so there is some code duplication.
 let PDUBuilder = {
-  toHexString: function(n, length) {
+  toHexString: function toHexString(n, length) {
     let str = n.toString(16);
     if (str.length < length) {
       for (let i = 0; i < length - str.length; i++) {
@@ -18,16 +18,16 @@ let PDUBuilder = {
     return str.toUpperCase();
   },
 
-  writeUint16: function(value) {
+  writeUint16: function writeUint16(value) {
     this.buf += (value & 0xff).toString(16).toUpperCase();
     this.buf += ((value >> 8) & 0xff).toString(16).toUpperCase();
   },
 
-  writeHexOctet: function(octet) {
+  writeHexOctet: function writeHexOctet(octet) {
     this.buf += this.toHexString(octet, 2);
   },
 
-  writeSwappedNibbleBCD: function(data) {
+  writeSwappedNibbleBCD: function writeSwappedNibbleBCD(data) {
     data = data.toString();
     let zeroCharCode = '0'.charCodeAt(0);
 
@@ -44,8 +44,11 @@ let PDUBuilder = {
     }
   },
 
-  writeStringAsSeptets: function(message, paddingBits, langIndex,
-                                 langShiftIndex) {
+  writeStringAsSeptets: function writeStringAsSeptets(message,
+                                                      paddingBits,
+                                                      langIndex,
+                                                      langShiftIndex)
+  {
     const langTable = RIL.PDU_NL_LOCKING_SHIFT_TABLES[langIndex];
     const langShiftTable = RIL.PDU_NL_SINGLE_SHIFT_TABLES[langShiftIndex];
 
@@ -88,7 +91,7 @@ let PDUBuilder = {
     }
   },
 
-  buildAddress: function(address) {
+  buildAddress: function buildAddress(address) {
     let addressFormat = RIL.PDU_TOA_ISDN; // 81
     if (address[0] == '+') {
       addressFormat = RIL.PDU_TOA_INTERNATIONAL | RIL.PDU_TOA_ISDN; // 91
@@ -104,7 +107,7 @@ let PDUBuilder = {
   },
 
   // assumes 7 bit encoding
-  buildUserData: function(options) {
+  buildUserData: function buildUserData(options) {
     let headerLength = 0;
     this.buf = "";
     if (options.headers) {

@@ -111,7 +111,7 @@ function xpcEnumerateContentWindows(callback) {
     if (/ChromeWindow/.exec(win)) {
       var docshellTreeNode = win.QueryInterface(Ci.nsIInterfaceRequestor)
                                 .getInterface(Ci.nsIWebNavigation)
-                                .QueryInterface(Ci.nsIDocShellTreeItem);
+                                .QueryInterface(Ci.nsIDocShellTreeNode);
       var childCount = docshellTreeNode.childCount;
       for (var i = 0; i < childCount; ++i) {
         var childTreeNode = docshellTreeNode.getChildAt(i);

@@ -36,9 +36,17 @@ ClientThebesLayer::PaintThebes()
   NS_ASSERTION(ClientManager()->InDrawing(),
                "Can only draw in drawing phase");
   
-  {
-    mContentClient->PrepareFrame();
+  //TODO: This is going to copy back pixels that we might end up
+  // drawing over anyway. It would be nice if we could avoid
+  // this duplication.
+  mContentClient->SyncFrontBufferToBackBuffer();
 
+  bool canUseOpaqueSurface = CanUseOpaqueSurface();
+  ContentType contentType =
+    canUseOpaqueSurface ? GFX_CONTENT_COLOR :
+                          GFX_CONTENT_COLOR_ALPHA;
+
+  {
     uint32_t flags = 0;
 #ifndef MOZ_WIDGET_ANDROID
     if (ClientManager()->CompositorMightResample()) {
@@ -51,26 +59,27 @@ ClientThebesLayer::PaintThebes()
     }
 #endif
     PaintState state =
-      mContentClient->BeginPaintBuffer(this, flags);
+      mContentClient->BeginPaintBuffer(this, contentType, flags);
     mValidRegion.Sub(mValidRegion, state.mRegionToInvalidate);
 
-    if (DrawTarget* target = mContentClient->BorrowDrawTargetForPainting(this, state)) {
+    if (state.mTarget) {
       // The area that became invalid and is visible needs to be repainted
       // (this could be the whole visible area if our buffer switched
       // from RGB to RGBA, because we might need to repaint with
       // subpixel AA)
       state.mRegionToInvalidate.And(state.mRegionToInvalidate,
                                     GetEffectiveVisibleRegion());
-      SetAntialiasingFlags(this, target);
+      nsIntRegion extendedDrawRegion = state.mRegionToDraw;
+      SetAntialiasingFlags(this, state.mTarget);
 
-      nsRefPtr<gfxContext> ctx = gfxContext::ContextForDrawTarget(target);
+      nsRefPtr<gfxContext> ctx = gfxContext::ContextForDrawTarget(state.mTarget);
       PaintBuffer(ctx,
-                  state.mRegionToDraw, state.mRegionToDraw, state.mRegionToInvalidate,
+                  state.mRegionToDraw, extendedDrawRegion, state.mRegionToInvalidate,
                   state.mDidSelfCopy, state.mClip);
       MOZ_LAYERS_LOG_IF_SHADOWABLE(this, ("Layer::Mutated(%p) PaintThebes", this));
       Mutated();
       ctx = nullptr;
-      mContentClient->ReturnDrawTarget(target);
+      mContentClient->ReturnDrawTarget(state.mTarget);
     } else {
       // It's possible that state.mRegionToInvalidate is nonempty here,
       // if we are shrinking the valid region to nothing. So use mRegionToDraw

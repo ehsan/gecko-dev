@@ -58,22 +58,9 @@ const XRE_UPDATE_ROOT_DIR          = "UpdRootD";
 const CRC_ERROR   = 4;
 const WRITE_ERROR = 7;
 
-const DIR_PATCH                      = "0";
-const DIR_UPDATES                    = "updates";
-#ifdef XP_MACOSX
-const DIR_APP_REL_PATH = "/Contents/MacOS/";
-const DIR_APP_SUFFIX = ".app";
-const DIR_UPDATED = "Updated.app";
-#else
-const DIR_APP_REL_PATH = "/appdir/";
-const DIR_APP_SUFFIX = "";
-const DIR_UPDATED = "updated";
-#endif
-
+const DIR_UPDATED                    = "updated";
 const FILE_BACKUP_LOG                = "backup-update.log";
 const FILE_LAST_LOG                  = "last-update.log";
-const FILE_UPDATER_INI               = "updater.ini";
-const FILE_UPDATES_DB                = "updates.xml";
 const FILE_UPDATE_ACTIVE             = "active-update.xml";
 const FILE_UPDATE_ARCHIVE            = "update.mar";
 const FILE_UPDATE_LOG                = "update.log";
@@ -81,6 +68,8 @@ const FILE_UPDATE_SETTINGS_INI       = "update-settings.ini";
 const FILE_UPDATE_SETTINGS_INI_BAK   = "update-settings.ini.bak";
 const FILE_UPDATE_STATUS             = "update.status";
 const FILE_UPDATE_VERSION            = "update.version";
+const FILE_UPDATER_INI               = "updater.ini";
+const FILE_UPDATES_DB                = "updates.xml";
 
 const UPDATE_SETTINGS_CONTENTS = "[Settings]\n" +
                                  "ACCEPTED_MAR_CHANNEL_IDS=xpcshell-test\n"
@@ -237,9 +226,11 @@ function writeUpdatesToXMLFile(aContent, aIsActiveUpdate) {
  *         The status value to write.
  */
 function writeStatusFile(aStatus) {
-  let file = getUpdatesPatchDir();
+  var file = getUpdatesDir();
+  file.append("0");
   file.append(FILE_UPDATE_STATUS);
-  writeFile(file, aStatus + "\n");
+  aStatus += "\n";
+  writeFile(file, aStatus);
 }
 
 /**
@@ -250,18 +241,25 @@ function writeStatusFile(aStatus) {
  *         The version value to write.
  */
 function writeVersionFile(aVersion) {
-  let file = getUpdatesPatchDir();
+  var file = getUpdatesDir();
+  file.append("0");
   file.append(FILE_UPDATE_VERSION);
-  writeFile(file, aVersion + "\n");
+  aVersion += "\n";
+  writeFile(file, aVersion);
 }
 
 /**
- * Gets the root directory for the updates directory.
+ * Gets the updates root directory.
  *
  * @return nsIFile for the updates root directory.
  */
 function getUpdatesRootDir() {
-  return Services.dirsvc.get(XRE_UPDATE_ROOT_DIR, AUS_Ci.nsIFile);
+  try {
+    return Services.dirsvc.get(XRE_UPDATE_ROOT_DIR, AUS_Ci.nsIFile);
+  } catch (e) {
+    // Fall back on the current process directory
+    return getCurrentProcessDir();
+  }
 }
 
 /**
@@ -271,18 +269,7 @@ function getUpdatesRootDir() {
  */
 function getUpdatesDir() {
   var dir = getUpdatesRootDir();
-  dir.append(DIR_UPDATES);
-  return dir;
-}
-
-/**
- * Gets the directory for update patches.
- *
- * @return nsIFile for the updates directory.
- */
-function getUpdatesPatchDir() {
-  let dir = getUpdatesDir();
-  dir.append(DIR_PATCH);
+  dir.append("updates");
   return dir;
 }
 
@@ -307,41 +294,26 @@ function writeFile(aFile, aText) {
 }
 
 /**
- * Reads the current update operation/state in the status file in the patch
- * directory including the error code if it is present.
+ * Reads the current update operation/state in a file in the patch
+ * directory.
  *
+ * @param  aFile (optional)
+ *         nsIFile to read the update status from. If not provided the
+ *         application's update status file will be used.
  * @return The status value.
  */
-function readStatusFile() {
-  let file = getUpdatesPatchDir();
-  file.append(FILE_UPDATE_STATUS);
-
-  if (!file.exists()) {
-    logTestInfo("update status file does not exists! Path: " + file.path);
-    return STATE_NONE;
+function readStatusFile(aFile) {
+  var file;
+  if (aFile) {
+    file = aFile.clone();
+    file.append(FILE_UPDATE_STATUS);
   }
-
+  else {
+    file = getUpdatesDir();
+    file.append("0");
+    file.append(FILE_UPDATE_STATUS);
+  }
   return readFile(file).split("\n")[0];
-}
-
-/**
- * Reads the current update operation/state in the status file in the patch
- * directory without the error code if it is present.
- *
- * @return The state value.
- */
-function readStatusState() {
-  return readStatusFile().split(": ")[0];
-}
-
-/**
- * Reads the current update operation/state in the status file in the patch
- * directory with the error code.
- *
- * @return The state value.
- */
-function readStatusFailedCode() {
-  return readStatusFile().split(": ")[1];
 }
 
 /**
@@ -402,7 +374,8 @@ function getStatusText(aErrCode) {
 function getString(aName) {
   try {
     return gUpdateBundle.GetStringFromName(aName);
-  } catch (e) {
+  }
+  catch (e) {
   }
   return null;
 }
@@ -430,8 +403,9 @@ function removeUpdateDirsAndFiles() {
   try {
     if (file.exists())
       file.remove(false);
-  } catch (e) {
-    dump("Unable to remove file\nPath: " + file.path +
+  }
+  catch (e) {
+    dump("Unable to remove file\npath: " + file.path +
          "\nException: " + e + "\n");
   }
 
@@ -439,8 +413,9 @@ function removeUpdateDirsAndFiles() {
   try {
     if (file.exists())
       file.remove(false);
-  } catch (e) {
-    dump("Unable to remove file\nPath: " + file.path +
+  }
+  catch (e) {
+    dump("Unable to remove file\npath: " + file.path +
          "\nException: " + e + "\n");
   }
 
@@ -448,8 +423,9 @@ function removeUpdateDirsAndFiles() {
   var updatesDir = getUpdatesDir();
   try {
     cleanUpdatesDir(updatesDir);
-  } catch (e) {
-    dump("Unable to remove files / directories from directory\nPath: " +
+  }
+  catch (e) {
+    dump("Unable to remove files / directories from directory\npath: " +
          updatesDir.path + "\nException: " + e + "\n");
   }
 }
@@ -470,31 +446,36 @@ function cleanUpdatesDir(aDir) {
     var entry = dirEntries.getNext().QueryInterface(AUS_Ci.nsIFile);
 
     if (entry.isDirectory()) {
-      if (entry.leafName == DIR_PATCH && entry.parent.leafName == DIR_UPDATES) {
+      if (entry.leafName == "0" && entry.parent.leafName == "updates") {
         cleanUpdatesDir(entry);
         entry.permissions = PERMS_DIRECTORY;
-      } else {
+      }
+      else {
         try {
           entry.remove(true);
           return;
-        } catch (e) {
+        }
+        catch (e) {
         }
         cleanUpdatesDir(entry);
         entry.permissions = PERMS_DIRECTORY;
         try {
           entry.remove(true);
-        } catch (e) {
-          dump("cleanUpdatesDir: unable to remove directory\nPath: " +
+        }
+        catch (e) {
+          dump("cleanUpdatesDir: unable to remove directory\npath: " +
                entry.path + "\nException: " + e + "\n");
           throw(e);
         }
       }
-    } else {
+    }
+    else {
       entry.permissions = PERMS_FILE;
       try {
         entry.remove(false);
-      } catch (e) {
-        dump("cleanUpdatesDir: unable to remove file\nPath: " + entry.path +
+      }
+      catch (e) {
+        dump("cleanUpdatesDir: unable to remove file\npath: " + entry.path +
              "\nException: " + e + "\n");
         throw(e);
       }
@@ -511,16 +492,13 @@ function cleanUpdatesDir(aDir) {
  *         nsIFile for the directory to be deleted.
  */
 function removeDirRecursive(aDir) {
-  if (!aDir.exists()) {
+  if (!aDir.exists())
     return;
-  }
-
   try {
-    logTestInfo("attempting to remove directory. Path: " + aDir.path);
     aDir.remove(true);
     return;
-  } catch (e) {
-    logTestInfo("non-fatal error removing directory. Exception: " + e);
+  }
+  catch (e) {
   }
 
   var dirEntries = aDir.directoryEntries;
@@ -529,13 +507,15 @@ function removeDirRecursive(aDir) {
 
     if (entry.isDirectory()) {
       removeDirRecursive(entry);
-    } else {
+    }
+    else {
       entry.permissions = PERMS_FILE;
       try {
-        logTestInfo("attempting to remove file. Path: " + entry.path);
         entry.remove(false);
-      } catch (e) {
-        logTestInfo("error removing file. Exception: " + e);
+      }
+      catch (e) {
+        dump("removeDirRecursive: unable to remove file\npath: " + entry.path +
+             "\nException: " + e + "\n");
         throw(e);
       }
     }
@@ -543,10 +523,11 @@ function removeDirRecursive(aDir) {
 
   aDir.permissions = PERMS_DIRECTORY;
   try {
-    logTestInfo("attempting to remove directory. Path: " + aDir.path);
     aDir.remove(true);
-  } catch (e) {
-    logTestInfo("error removing directory. Exception: " + e);
+  }
+  catch (e) {
+    dump("removeDirRecursive: unable to remove directory\npath: " + entry.path +
+         "\nException: " + e + "\n");
     throw(e);
   }
 }
@@ -585,7 +566,7 @@ function getGREDir() {
 
 /**
  * Get the "updated" directory inside the directory where we apply the
- * staged updates.
+ * background updates.
  * @return The active updates directory inside the updated directory, as a
  *         nsIFile object.
  */
@@ -595,7 +576,6 @@ function getUpdatedDir() {
   dir = dir.parent.parent; // the bundle directory
 #endif
   dir.append(DIR_UPDATED);
-  logTestInfo("updated directory path: " + dir.path);
   return dir;
 }
 

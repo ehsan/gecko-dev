@@ -341,7 +341,7 @@ CompositorD3D11::Initialize()
 TemporaryRef<DataTextureSource>
 CompositorD3D11::CreateDataTextureSource(TextureFlags aFlags)
 {
-  RefPtr<DataTextureSource> result = new DataTextureSourceD3D11(gfx::SurfaceFormat::UNKNOWN,
+  RefPtr<DataTextureSource> result = new DataTextureSourceD3D11(gfx::FORMAT_UNKNOWN,
                                                                 this);
   return result.forget();
 }
@@ -592,7 +592,7 @@ CompositorD3D11::DrawQuad(const gfx::Rect& aRect,
       EffectYCbCr* ycbcrEffect =
         static_cast<EffectYCbCr*>(aEffectChain.mPrimaryEffect.get());
 
-      SetSamplerForFilter(Filter::LINEAR);
+      SetSamplerForFilter(FILTER_LINEAR);
 
       mVSConstants.textureCoords = ycbcrEffect->mTextureCoords;
 
@@ -919,10 +919,10 @@ CompositorD3D11::SetSamplerForFilter(Filter aFilter)
   ID3D11SamplerState *sampler;
   switch (aFilter) {
   default:
-  case Filter::LINEAR:
+  case FILTER_LINEAR:
     sampler = mAttachments->mLinearSamplerState;
     break;
-  case Filter::POINT:
+  case FILTER_POINT:
     sampler = mAttachments->mPointSamplerState;
     break;
   }
@@ -957,7 +957,7 @@ CompositorD3D11::PaintToTarget()
     Factory::CreateWrappingDataSourceSurface((uint8_t*)map.pData,
                                              map.RowPitch,
                                              IntSize(bbDesc.Width, bbDesc.Height),
-                                             SurfaceFormat::B8G8R8A8);
+                                             FORMAT_B8G8R8A8);
   mTarget->CopySurface(sourceSurface,
                        IntRect(0, 0, bbDesc.Width, bbDesc.Height),
                        IntPoint());

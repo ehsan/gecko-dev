@@ -21,13 +21,11 @@ class AsyncColorChooser :
   public nsRunnable
 {
 public:
-  AsyncColorChooser(const nsAString& aInitialColor,
-                    nsIWidget* aParentWidget,
-                    nsIColorPickerShownCallback* aCallback);
+  AsyncColorChooser(DWORD aInitialColor, nsIWidget* aParentWidget, nsIColorPickerShownCallback* aCallback);
   NS_IMETHOD Run() MOZ_OVERRIDE;
 
 private:
-  nsString mInitialColor;
+  DWORD mInitialColor;
   nsCOMPtr<nsIWidget> mParentWidget;
   nsCOMPtr<nsIColorPickerShownCallback> mCallback;
   nsString mColor;
@@ -42,12 +40,11 @@ public:
 
   NS_DECL_ISUPPORTS
 
-  NS_IMETHOD Init(nsIDOMWindow* parent, const nsAString& title,
-                  const nsAString& aInitialColor);
+  NS_IMETHOD Init(nsIDOMWindow* parent, const nsAString& title, const nsAString& aInitialColor);
   NS_IMETHOD Open(nsIColorPickerShownCallback* aCallback);
 
 protected:
-  nsString mInitialColor;
+  DWORD mInitialColor;
   nsCOMPtr<nsIWidget> mParentWidget;
 };
 

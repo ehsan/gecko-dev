@@ -5881,13 +5881,14 @@ nsContentUtils::FlushLayoutForTree(nsIDOMWindow* aWindow)
         doc->FlushPendingNotifications(Flush_Layout);
     }
 
-    nsCOMPtr<nsIDocShell> docShell = piWin->GetDocShell();
-    if (docShell) {
+    nsCOMPtr<nsIDocShellTreeNode> node =
+        do_QueryInterface(piWin->GetDocShell());
+    if (node) {
         int32_t i = 0, i_end;
-        docShell->GetChildCount(&i_end);
+        node->GetChildCount(&i_end);
         for (; i < i_end; ++i) {
             nsCOMPtr<nsIDocShellTreeItem> item;
-            docShell->GetChildAt(i, getter_AddRefs(item));
+            node->GetChildAt(i, getter_AddRefs(item));
             nsCOMPtr<nsIDOMWindow> win = do_GetInterface(item);
             if (win) {
                 FlushLayoutForTree(win);

@@ -1067,8 +1067,8 @@ public:
   : WorkerControlRunnable(aWorkerPrivate, WorkerThreadUnchangedBusyCount),
     mStatus(aStatus)
   {
-    MOZ_ASSERT(aStatus == Closing || aStatus == Terminating ||
-               aStatus == Canceling || aStatus == Killing);
+    MOZ_ASSERT(aStatus == Terminating || aStatus == Canceling ||
+               aStatus == Killing);
   }
 
 private:
@@ -4873,26 +4873,11 @@ WorkerPrivate::RunCurrentSyncLoop()
   }
 
   // Make sure that the stack didn't change underneath us.
+  MOZ_ASSERT(!mSyncLoopStack.IsEmpty());
+  MOZ_ASSERT(mSyncLoopStack.Length() - 1 == currentLoopIndex);
   MOZ_ASSERT(mSyncLoopStack[currentLoopIndex] == loopInfo);
 
-  return DestroySyncLoop(currentLoopIndex);
-}
-
-bool
-WorkerPrivate::DestroySyncLoop(uint32_t aLoopIndex, nsIThreadInternal* aThread)
-{
-  MOZ_ASSERT(!mSyncLoopStack.IsEmpty());
-  MOZ_ASSERT(mSyncLoopStack.Length() - 1 == aLoopIndex);
-
-  if (!aThread) {
-    nsCOMPtr<nsIThreadInternal> thread = do_QueryInterface(mThread);
-    MOZ_ASSERT(thread);
-
-    aThread = thread.get();
-  }
-
-  // We're about to delete the loop, stash its event target and result.
-  SyncLoopInfo* loopInfo = mSyncLoopStack[aLoopIndex];
+  // We're about to delete |loop|, stash its event target and result.
   nsIEventTarget* nestedEventTarget =
     loopInfo->mEventTarget->GetWeakNestedEventTarget();
   MOZ_ASSERT(nestedEventTarget);
@@ -4906,11 +4891,11 @@ WorkerPrivate::DestroySyncLoop(uint32_t aLoopIndex, nsIThreadInternal* aThread)
     MutexAutoLock lock(mMutex);
 #endif
 
-    // This will delete |loopInfo|!
-    mSyncLoopStack.RemoveElementAt(aLoopIndex);
+    // This will delete |loop|!
+    mSyncLoopStack.RemoveElementAt(currentLoopIndex);
   }
 
-  MOZ_ALWAYS_TRUE(NS_SUCCEEDED(aThread->PopEventQueue(nestedEventTarget)));
+  MOZ_ALWAYS_TRUE(NS_SUCCEEDED(thread->PopEventQueue(nestedEventTarget)));
 
   return result;
 }

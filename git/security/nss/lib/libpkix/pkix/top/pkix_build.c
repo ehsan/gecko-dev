@@ -1348,8 +1348,9 @@ pkix_Build_ValidateEntireChain(
 
         ERROR_CHECK(PKIX_CHECKCHAINFAILED);
 
-        /* XXX Remove this assertion after 2014-12-31. See bug 946984. */
-        PORT_Assert(state->reasonCode == 0);
+        if (state->reasonCode != 0) {
+                PKIX_ERROR(PKIX_CHAINREJECTEDBYREVOCATIONCHECKER);
+        }
 
         PKIX_CHECK(pkix_ValidateResult_Create
                 (subjPubKey, anchor, policyTree, &valResult, plContext),
