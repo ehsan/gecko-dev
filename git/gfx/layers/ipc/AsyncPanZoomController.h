@@ -335,14 +335,6 @@ public:
 
   void FlushRepaintForOverscrollHandoff();
 
-  /**
-   * Set an extra offset for testing async scrolling.
-   */
-  void SetTestAsyncScrollOffset(const CSSPoint& aPoint)
-  {
-    mTestAsyncScrollOffset = aPoint;
-  }
-
 protected:
   /**
    * Helper method for touches beginning. Sets everything up for panning and any
@@ -730,9 +722,6 @@ private:
 
   // Specifies whether mPreventDefault property is set for current touch events block.
   bool mPreventDefaultSet;
-
-  // Extra offset to add in SampleContentTransformForFrame for testing
-  CSSPoint mTestAsyncScrollOffset;
 
   RefPtr<AsyncPanZoomAnimation> mAnimation;
 

@@ -71,6 +71,7 @@ IPDL_SOURCES += [
     'PBrowser.ipdl',
     'PColorPicker.ipdl',
     'PContent.ipdl',
+    'PContentDialog.ipdl',
     'PContentPermission.ipdlh',
     'PContentPermissionRequest.ipdl',
     'PCrashReporter.ipdl',

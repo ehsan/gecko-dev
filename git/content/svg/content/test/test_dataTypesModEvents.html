@@ -129,18 +129,18 @@ function runTests()
 
   // integer-optional-integer attribute
 
-  eventChecker.watchAttr(convolve, "order");
+  eventChecker.watchAttr(filter, "filterRes");
   eventChecker.expect("add modify remove add");
-  convolve.setAttribute("order", "5, 7");
-  convolve.orderX.baseVal = 9;
-  convolve.removeAttribute("order");
-  convolve.removeAttributeNS(null, "order");
-  convolve.setAttribute("order", "9, 5");
+  filter.setAttribute("filterRes", "60, 70");
+  filter.filterResX.baseVal = 50;
+  filter.removeAttribute("filterRes");
+  filter.removeAttributeNS(null, "filterRes");
+  filter.setAttribute("filterRes", "50, 60");
 
   eventChecker.expect("");
-  convolve.orderX.baseVal = 9;
-  convolve.setAttribute("order", "9, 5");
-  convolve.orderY.baseVal = 5;
+  filter.filterResX.baseVal = 50;
+  filter.setAttribute("filterRes", "50, 60");
+  filter.filterResY.baseVal = 60;
 
   // angle attribute
 
