@@ -285,11 +285,6 @@ public:
   virtual bool IsLabelable() const;
 
   /**
-   * Returns if the element is interactive content as per HTML specification.
-   */
-  virtual bool IsInteractiveHTMLContent() const;
-
-  /**
    * Is the attribute named stored in the mapped attributes?
    *
    * // XXXbz we use this method in HasAttributeDependentStyle, so svg

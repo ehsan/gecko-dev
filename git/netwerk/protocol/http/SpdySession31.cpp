@@ -1767,7 +1767,7 @@ SpdySession31::HandleCredential(SpdySession31 *self)
 void
 SpdySession31::OnTransportStatus(nsITransport* aTransport,
                                  nsresult aStatus,
-                                 int64_t aProgress)
+                                 uint64_t aProgress)
 {
   MOZ_ASSERT(PR_GetCurrentThread() == gSocketThread);
 

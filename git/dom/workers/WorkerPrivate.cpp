@@ -61,7 +61,6 @@
 #include "mozilla/ipc/BackgroundUtils.h"
 #include "mozilla/ipc/PBackgroundSharedTypes.h"
 #include "mozilla/Preferences.h"
-#include "MultipartFileImpl.h"
 #include "nsAlgorithm.h"
 #include "nsContentUtils.h"
 #include "nsError.h"
@@ -308,84 +307,6 @@ LogErrorToConsole(const nsAString& aMessage,
   fflush(stderr);
 }
 
-// Recursive!
-already_AddRefed<FileImpl>
-EnsureBlobForBackgroundManager(FileImpl* aBlobImpl,
-                               PBackgroundChild* aManager = nullptr)
-{
-  MOZ_ASSERT(aBlobImpl);
-
-  if (!aManager) {
-    aManager = BackgroundChild::GetForCurrentThread();
-    MOZ_ASSERT(aManager);
-  }
-
-  nsRefPtr<FileImpl> blobImpl = aBlobImpl;
-
-  const nsTArray<nsRefPtr<FileImpl>>* subBlobImpls =
-    aBlobImpl->GetSubBlobImpls();
-
-  if (!subBlobImpls) {
-    if (nsCOMPtr<nsIRemoteBlob> remoteBlob = do_QueryObject(blobImpl)) {
-      // Always make sure we have a blob from an actor we can use on this
-      // thread.
-      BlobChild* blobChild = BlobChild::GetOrCreate(aManager, blobImpl);
-      MOZ_ASSERT(blobChild);
-
-      blobImpl = blobChild->GetBlobImpl();
-      MOZ_ASSERT(blobImpl);
-
-      DebugOnly<bool> isMutable;
-      MOZ_ASSERT(NS_SUCCEEDED(blobImpl->GetMutable(&isMutable)));
-      MOZ_ASSERT(!isMutable);
-    } else {
-      MOZ_ALWAYS_TRUE(NS_SUCCEEDED(blobImpl->SetMutable(false)));
-    }
-
-    return blobImpl.forget();
-  }
-
-  const uint32_t subBlobCount = subBlobImpls->Length();
-  MOZ_ASSERT(subBlobCount);
-
-  nsTArray<nsRefPtr<FileImpl>> newSubBlobImpls;
-  newSubBlobImpls.SetLength(subBlobCount);
-
-  bool newBlobImplNeeded = false;
-
-  for (uint32_t index = 0; index < subBlobCount; index++) {
-    const nsRefPtr<FileImpl>& subBlobImpl = subBlobImpls->ElementAt(index);
-    MOZ_ASSERT(subBlobImpl);
-
-    nsRefPtr<FileImpl>& newSubBlobImpl = newSubBlobImpls[index];
-
-    newSubBlobImpl = EnsureBlobForBackgroundManager(subBlobImpl, aManager);
-    MOZ_ASSERT(newSubBlobImpl);
-
-    if (subBlobImpl != newSubBlobImpl) {
-      newBlobImplNeeded = true;
-    }
-  }
-
-  if (newBlobImplNeeded) {
-    nsString contentType;
-    blobImpl->GetType(contentType);
-
-    if (blobImpl->IsFile()) {
-      nsString name;
-      blobImpl->GetName(name);
-
-      blobImpl = new MultipartFileImpl(newSubBlobImpls, name, contentType);
-    } else {
-      blobImpl = new MultipartFileImpl(newSubBlobImpls, contentType);
-    }
-
-    MOZ_ALWAYS_TRUE(NS_SUCCEEDED(blobImpl->SetMutable(false)));
-  }
-
-  return blobImpl.forget();
-}
-
 void
 ReadBlobOrFile(JSContext* aCx,
                JSStructuredCloneReader* aReader,
@@ -406,8 +327,22 @@ ReadBlobOrFile(JSContext* aCx,
     blobImpl = rawBlobImpl;
   }
 
-  blobImpl = EnsureBlobForBackgroundManager(blobImpl);
-  MOZ_ASSERT(blobImpl);
+  DebugOnly<bool> isMutable;
+  MOZ_ASSERT(NS_SUCCEEDED(blobImpl->GetMutable(&isMutable)));
+  MOZ_ASSERT(!isMutable);
+
+  if (nsCOMPtr<nsIRemoteBlob> remoteBlob = do_QueryObject(blobImpl)) {
+    PBackgroundChild* backgroundManager =
+      BackgroundChild::GetForCurrentThread();
+    MOZ_ASSERT(backgroundManager);
+
+    // Always make sure we have a blob from an actor we can use on this thread.
+    BlobChild* blobChild = BlobChild::GetOrCreate(backgroundManager, blobImpl);
+    MOZ_ASSERT(blobChild);
+
+    blobImpl = blobChild->GetBlobImpl();
+    MOZ_ASSERT(blobImpl);
+  }
 
   nsCOMPtr<nsISupports> parent;
   if (aIsMainThread) {
@@ -441,10 +376,24 @@ WriteBlobOrFile(JSContext* aCx,
   MOZ_ASSERT(aWriter);
   MOZ_ASSERT(aBlobOrFileImpl);
 
-  nsRefPtr<FileImpl> blobImpl = EnsureBlobForBackgroundManager(aBlobOrFileImpl);
-  MOZ_ASSERT(blobImpl);
+  nsRefPtr<FileImpl> newBlobOrFileImpl;
+  if (nsCOMPtr<nsIRemoteBlob> remoteBlob = do_QueryObject(aBlobOrFileImpl)) {
+    PBackgroundChild* backgroundManager =
+      BackgroundChild::GetForCurrentThread();
+    MOZ_ASSERT(backgroundManager);
 
-  aBlobOrFileImpl = blobImpl;
+    // Always make sure we have a blob from an actor we can use on this thread.
+    BlobChild* blobChild =
+      BlobChild::GetOrCreate(backgroundManager, aBlobOrFileImpl);
+    MOZ_ASSERT(blobChild);
+
+    newBlobOrFileImpl = blobChild->GetBlobImpl();
+    MOZ_ASSERT(newBlobOrFileImpl);
+
+    aBlobOrFileImpl = newBlobOrFileImpl;
+  }
+
+  MOZ_ALWAYS_TRUE(NS_SUCCEEDED(aBlobOrFileImpl->SetMutable(false)));
 
   if (NS_WARN_IF(!JS_WriteUint32Pair(aWriter, DOMWORKER_SCTAG_BLOB, 0)) ||
       NS_WARN_IF(!JS_WriteBytes(aWriter,

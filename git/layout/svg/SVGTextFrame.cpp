@@ -4816,8 +4816,8 @@ SVGTextFrame::AdjustPositionsForClusters()
   }
 }
 
-SVGPathElement*
-SVGTextFrame::GetTextPathPathElement(nsIFrame* aTextPathFrame)
+nsIFrame*
+SVGTextFrame::GetTextPathPathFrame(nsIFrame* aTextPathFrame)
 {
   nsSVGTextPathProperty *property = static_cast<nsSVGTextPathProperty*>
     (aTextPathFrame->Properties().Get(nsSVGEffects::HrefProperty()));
@@ -4842,18 +4842,20 @@ SVGTextFrame::GetTextPathPathElement(nsIFrame* aTextPathFrame)
       return nullptr;
   }
 
-  Element* element = property->GetReferencedElement();
-  return (element && element->IsSVG(nsGkAtoms::path)) ?
-    static_cast<SVGPathElement*>(element) : nullptr;
+  return property->GetReferencedFrame(nsGkAtoms::svgPathGeometryFrame, nullptr);
 }
 
 TemporaryRef<Path>
 SVGTextFrame::GetTextPath(nsIFrame* aTextPathFrame)
 {
-  SVGPathElement* element = GetTextPathPathElement(aTextPathFrame);
-  if (!element) {
+  nsIFrame *pathFrame = GetTextPathPathFrame(aTextPathFrame);
+
+  if (!pathFrame) {
     return nullptr;
   }
+
+  nsSVGPathGeometryElement *element =
+    static_cast<nsSVGPathGeometryElement*>(pathFrame->GetContent());
 
   RefPtr<Path> path = element->GetOrBuildPathForMeasuring();
   if (!path) {
@@ -4873,11 +4875,12 @@ SVGTextFrame::GetTextPath(nsIFrame* aTextPathFrame)
 gfxFloat
 SVGTextFrame::GetOffsetScale(nsIFrame* aTextPathFrame)
 {
-  SVGPathElement* pathElement = GetTextPathPathElement(aTextPathFrame);
-  if (!pathElement)
+  nsIFrame *pathFrame = GetTextPathPathFrame(aTextPathFrame);
+  if (!pathFrame)
     return 1.0;
 
-  return pathElement->GetPathLengthScale(dom::SVGPathElement::eForTextPath);
+  return static_cast<dom::SVGPathElement*>(pathFrame->GetContent())->
+    GetPathLengthScale(dom::SVGPathElement::eForTextPath);
 }
 
 gfxFloat

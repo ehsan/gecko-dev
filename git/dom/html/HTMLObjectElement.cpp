@@ -46,12 +46,6 @@ HTMLObjectElement::~HTMLObjectElement()
 }
 
 bool
-HTMLObjectElement::IsInteractiveHTMLContent() const
-{
-  return HasAttr(kNameSpaceID_None, nsGkAtoms::usemap);
-}
-
-bool
 HTMLObjectElement::IsDoneAddingChildren()
 {
   return mIsDoneAddingChildren;

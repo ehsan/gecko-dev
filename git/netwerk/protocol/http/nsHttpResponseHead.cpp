@@ -623,7 +623,7 @@ nsHttpResponseHead::Reset()
 
     mVersion = NS_HTTP_VERSION_1_1;
     mStatus = 200;
-    mContentLength = -1;
+    mContentLength = UINT64_MAX;
     mCacheControlPrivate = false;
     mCacheControlNoStore = false;
     mCacheControlNoCache = false;

@@ -59,8 +59,8 @@ private:
     // nsIInputStream implementation.
     nsCOMPtr<nsITransportEventSink> mEventSink;
     nsCOMPtr<nsIInputStream>        mSource;
-    int64_t                         mOffset;
-    int64_t                         mLimit;
+    uint64_t                        mOffset;
+    uint64_t                        mLimit;
     bool                            mCloseWhenDone;
     bool                            mFirstTime;
 
@@ -174,7 +174,7 @@ nsInputStreamTransport::Read(char *buf, uint32_t count, uint32_t *result)
         mFirstTime = false;
         if (mOffset != 0) {
             // read from current position if offset equal to max
-            if (mOffset != -1) {
+            if (mOffset != UINT64_MAX) {
                 nsCOMPtr<nsISeekableStream> seekable = do_QueryInterface(mSource);
                 if (seekable)
                     seekable->Seek(nsISeekableStream::NS_SEEK_SET, mOffset);
@@ -185,13 +185,10 @@ nsInputStreamTransport::Read(char *buf, uint32_t count, uint32_t *result)
     }
 
     // limit amount read
-    uint64_t max = count;
-    if (mLimit != -1) {
-        max = mLimit - mOffset;
-        if (max == 0) {
-            *result = 0;
-            return NS_OK;
-        }
+    uint64_t max = mLimit - mOffset;
+    if (max == 0) {
+        *result = 0;
+        return NS_OK;
     }
 
     if (count > max)
@@ -239,8 +236,8 @@ public:
     NS_DECL_NSIOUTPUTSTREAM
 
     nsOutputStreamTransport(nsIOutputStream *sink,
-                            int64_t offset,
-                            int64_t limit,
+                            uint64_t offset,
+                            uint64_t limit,
                             bool closeWhenDone)
         : mSink(sink)
         , mOffset(offset)
@@ -262,8 +259,8 @@ private:
     // nsIOutputStream implementation.
     nsCOMPtr<nsITransportEventSink> mEventSink;
     nsCOMPtr<nsIOutputStream>       mSink;
-    int64_t                         mOffset;
-    int64_t                         mLimit;
+    uint64_t                        mOffset;
+    uint64_t                        mLimit;
     bool                            mCloseWhenDone;
     bool                            mFirstTime;
 
@@ -377,7 +374,7 @@ nsOutputStreamTransport::Write(const char *buf, uint32_t count, uint32_t *result
         mFirstTime = false;
         if (mOffset != 0) {
             // write to current position if offset equal to max
-            if (mOffset != -1) {
+            if (mOffset != UINT64_MAX) {
                 nsCOMPtr<nsISeekableStream> seekable = do_QueryInterface(mSink);
                 if (seekable)
                     seekable->Seek(nsISeekableStream::NS_SEEK_SET, mOffset);
@@ -388,13 +385,10 @@ nsOutputStreamTransport::Write(const char *buf, uint32_t count, uint32_t *result
     }
 
     // limit amount written
-    uint64_t max = count;
-    if (mLimit != -1) {
-        max = mLimit - mOffset;
-        if (max == 0) {
-            *result = 0;
-            return NS_OK;
-        }
+    uint64_t max = mLimit - mOffset;
+    if (max == 0) {
+        *result = 0;
+        return NS_OK;
     }
 
     if (count > max)

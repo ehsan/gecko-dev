@@ -297,6 +297,24 @@ gfxContext::Rectangle(const gfxRect& rect, bool snapToPixels)
   mPathBuilder->Close();
 }
 
+void
+gfxContext::DrawSurface(gfxASurface *surface, const gfxSize& size)
+{
+  // Lifetime needs to be limited here since we may wrap surface's data.
+  RefPtr<SourceSurface> surf =
+    gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(mDT, surface);
+
+  if (!surf) {
+    return;
+  }
+
+  Rect rect(0, 0, Float(size.width), Float(size.height));
+  rect.Intersect(Rect(0, 0, Float(surf->GetSize().width), Float(surf->GetSize().height)));
+
+  // XXX - Should fix pixel snapping.
+  mDT->DrawSurface(surf, rect, rect);
+}
+
 // transform stuff
 void
 gfxContext::Multiply(const gfxMatrix& matrix)
@@ -591,6 +609,27 @@ gfxContext::Clip()
     AzureState::PushedClip clip = { mPath, Rect(), mTransform };
     CurrentState().pushedClips.AppendElement(clip);
   }
+}
+
+void
+gfxContext::ResetClip()
+{
+  for (int i = mStateStack.Length() - 1; i >= 0; i--) {
+    for (unsigned int c = 0; c < mStateStack[i].pushedClips.Length(); c++) {
+      mDT->PopClip();
+    }
+
+    if (mStateStack[i].clipWasReset) {
+      break;
+    }
+  }
+  CurrentState().pushedClips.Clear();
+  CurrentState().clipWasReset = true;
+}
+
+void
+gfxContext::UpdateSurfaceClip()
+{
 }
 
 void

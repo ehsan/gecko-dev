@@ -324,7 +324,9 @@ FocusManager::ProcessFocusEvent(AccEvent* aEvent)
       if (!tryOwnsParent)
         break;
 
-      parent = ARIAOwnedByIterator(child).Next();
+      RelatedAccIterator iter(child->Document(), child->GetContent(),
+                              nsGkAtoms::aria_owns);
+      parent = iter.Next();
       tryOwnsParent = false;
     }
 

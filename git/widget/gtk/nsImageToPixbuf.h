@@ -20,7 +20,7 @@ class nsImageToPixbuf MOZ_FINAL : public nsIImageToPixbuf {
 
     public:
         NS_DECL_ISUPPORTS
-        NS_IMETHOD_(GdkPixbuf*) ConvertImageToPixbuf(imgIContainer* aImage) MOZ_OVERRIDE;
+        NS_IMETHOD_(GdkPixbuf*) ConvertImageToPixbuf(imgIContainer* aImage);
 
         // Friendlier version of ConvertImageToPixbuf for callers inside of
         // widget

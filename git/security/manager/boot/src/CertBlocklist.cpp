@@ -98,7 +98,6 @@ CertBlocklist::CertBlocklist()
   : mMutex("CertBlocklist::mMutex")
   , mModified(false)
   , mBackingFileIsInitialized(false)
-  , mBackingFile(nullptr)
 {
   if (!gCertBlockPRLog) {
     gCertBlockPRLog = PR_NewLogModule("CertBlock");
@@ -122,29 +121,14 @@ CertBlocklist::Init()
   }
 
   // Get the profile directory
+  PR_LOG(gCertBlockPRLog, PR_LOG_DEBUG,
+         ("CertBlocklist::Init - not initialized; initializing"));
   nsresult rv = NS_GetSpecialDirectory(NS_APP_USER_PROFILE_50_DIR,
                                        getter_AddRefs(mBackingFile));
   if (NS_FAILED(rv) || !mBackingFile) {
     PR_LOG(gCertBlockPRLog, PR_LOG_DEBUG,
            ("CertBlocklist::Init - couldn't get profile dir"));
-    // Since we're returning NS_OK here, set mBackingFile to a safe value.
-    // (We need initialization to succeed and CertBlocklist to be in a
-    // well-defined state if the profile directory doesn't exist.)
-    mBackingFile = nullptr;
-    return NS_OK;
   }
-  rv = mBackingFile->Append(NS_LITERAL_STRING("revocations.txt"));
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
-  nsAutoCString path;
-  rv = mBackingFile->GetNativePath(path);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
-  PR_LOG(gCertBlockPRLog, PR_LOG_DEBUG,
-         ("CertBlocklist::Init certList path: %s", path.get()));
-
   return NS_OK;
 }
 
@@ -160,18 +144,33 @@ CertBlocklist::EnsureBackingFileInitialized(mozilla::MutexAutoLock& lock)
   PR_LOG(gCertBlockPRLog, PR_LOG_DEBUG,
          ("CertBlocklist::EnsureBackingFileInitialized - not initialized"));
 
-  bool exists = false;
-  nsresult rv = mBackingFile->Exists(&exists);
+  // Load the revocations file into the cert blocklist
+  nsresult rv = mBackingFile->Append(NS_LITERAL_STRING("revocations.txt"));
   if (NS_FAILED(rv)) {
     return rv;
   }
+
+  nsAutoCString path;
+  rv = mBackingFile->GetNativePath(path);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+
+  PR_LOG(gCertBlockPRLog, PR_LOG_DEBUG,
+        ("CertBlocklist::Init certList path: %s", path.get()));
+
+  bool exists = false;
+  rv = mBackingFile->Exists(&exists);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+
   if (!exists) {
     PR_LOG(gCertBlockPRLog, PR_LOG_WARN,
-           ("CertBlocklist::EnsureBackingFileInitialized no revocations file"));
+           ("CertBlocklist::Init no revocations file"));
     return NS_OK;
   }
 
-  // Load the revocations file into the cert blocklist
   nsCOMPtr<nsIFileInputStream> fileStream(
       do_CreateInstance(NS_LOCALFILEINPUTSTREAM_CONTRACTID, &rv));
   if (NS_FAILED(rv)) {
@@ -213,7 +212,7 @@ CertBlocklist::EnsureBackingFileInitialized(mozilla::MutexAutoLock& lock)
       continue;
     }
     PR_LOG(gCertBlockPRLog, PR_LOG_DEBUG,
-           ("CertBlocklist::EnsureBackingFileInitialized adding: %s %s",
+           ("CertBlocklist::Init adding: %s %s",
            issuer.get(), serial.get()));
     rv = AddRevokedCertInternal(issuer.get(),
                                 serial.get(),
@@ -223,8 +222,7 @@ CertBlocklist::EnsureBackingFileInitialized(mozilla::MutexAutoLock& lock)
       // we warn here, rather than abandoning, since we need to
       // ensure that as many items as possible are read
       PR_LOG(gCertBlockPRLog, PR_LOG_WARN,
-             ("CertBlocklist::EnsureBackingFileInitialized adding revoked cert "
-              "failed"));
+             ("CertBlocklist::Init adding revoked cert failed"));
     }
   } while (more);
   mBackingFileIsInitialized = true;
@@ -237,7 +235,7 @@ CertBlocklist::AddRevokedCert(const char* aIssuer,
                               const char* aSerialNumber)
 {
   PR_LOG(gCertBlockPRLog, PR_LOG_DEBUG,
-         ("CertBlocklist::AddRevokedCert - issuer is: %s and serial: %s",
+         ("CertBlocklist::addRevokedCert - issuer is: %s and serial: %s",
           aIssuer, aSerialNumber));
   mozilla::MutexAutoLock lock(mMutex);
   return AddRevokedCertInternal(aIssuer,
@@ -477,10 +475,8 @@ CertBlocklist::SaveEntries()
 //                       in unsigned long issuerLength,
 //                       [const, array, size_is(serialLength)] in octet serial,
 //                       in unsigned long serialLength);
-NS_IMETHODIMP CertBlocklist::IsCertRevoked(const uint8_t* aIssuer,
-                                           uint32_t aIssuerLength,
-                                           const uint8_t* aSerial,
-                                           uint32_t aSerialLength,
+NS_IMETHODIMP CertBlocklist::IsCertRevoked(const uint8_t* aIssuer, uint32_t aIssuerLength,
+                                           const uint8_t* aSerial, uint32_t aSerialLength,
                                            bool* _retval)
 {
   mozilla::MutexAutoLock lock(mMutex);

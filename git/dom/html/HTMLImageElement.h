@@ -46,9 +46,6 @@ public:
 
   virtual bool Draggable() const MOZ_OVERRIDE;
 
-  // Element
-  virtual bool IsInteractiveHTMLContent() const MOZ_OVERRIDE;
-
   // nsIDOMHTMLImageElement
   NS_DECL_NSIDOMHTMLIMAGEELEMENT
 

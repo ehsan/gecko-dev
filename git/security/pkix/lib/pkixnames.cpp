@@ -1443,9 +1443,7 @@ IsValidRFC822Name(Input input)
           return false;
         }
         Input domain;
-        if (reader.SkipToEnd(domain) != Success) {
-          return false;
-        }
+        reader.SkipToEnd(domain);
         return IsValidDNSID(domain, IDRole::PresentedID, AllowWildcards::No);
       }
 
@@ -1495,9 +1493,7 @@ MatchPresentedRFC822NameWithReferenceRFC822Name(Input presentedRFC822Name,
       }
 
       Input presentedDNSID;
-      if (presented.SkipToEnd(presentedDNSID) != Success) {
-        return Result::FATAL_ERROR_LIBRARY_FAILURE;
-      }
+      presented.SkipToEnd(presentedDNSID);
 
       return MatchPresentedDNSIDWithReferenceDNSID(
                presentedDNSID, AllowWildcards::No,
