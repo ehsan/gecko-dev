@@ -53,7 +53,18 @@ gfxMacFont::gfxMacFont(MacOSFontEntry *aFontEntry, const gfxFontStyle *aFontStyl
       mScaledFont(nsnull),
       mAdjustedSize(0.0)
 {
-    if (aNeedsBold) {
+    // determine whether synthetic bolding is needed
+    PRInt8 baseWeight, weightDistance;
+    mStyle.ComputeWeightAndOffset(&baseWeight, &weightDistance);
+    PRUint16 targetWeight = (baseWeight * 100) + (weightDistance * 100);
+
+    // synthetic bolding occurs when font itself is not a bold-face and either the absolute weight
+    // is at least 600 or the relative weight (e.g. 402) implies a darker face than the ones available.
+    // note: this means that (1) lighter styles *never* synthetic bold and (2) synthetic bolding always occurs
+    // at the first bolder step beyond available faces, no matter how light the boldest face
+    if (!aFontEntry->IsBold()
+        && ((weightDistance == 0 && targetWeight >= 600) || (weightDistance > 0 && aNeedsBold)))
+    {
         mSyntheticBoldOffset = 1;  // devunit offset when double-striking text to fake boldness
     }
 

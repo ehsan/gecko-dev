@@ -46,7 +46,6 @@ __all__ = [
   "processLeakLog",
   "getDebuggerInfo",
   "DEBUGGER_INFO",
-  "replaceBackSlashes",
   ]
 
 # Map of debugging programs to information about them, like default arguments
@@ -324,6 +323,3 @@ def processLeakLog(leakLogFile, leakThreshold = 0):
         processType = m.group(1)
         processPID = m.group(2)
       processSingleLeakFile(thisFile, processPID, processType, leakThreshold)
-
-def replaceBackSlashes(input):
-  return input.replace('\\', '/')

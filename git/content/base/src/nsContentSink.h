@@ -359,31 +359,31 @@ protected:
   PRUint32 mDeflectedCount;
 
   // How many times to deflect in interactive/perf modes
-  PRUint32 mInteractiveDeflectCount;
-  PRUint32 mPerfDeflectCount;
+  PRInt32 mInteractiveDeflectCount;
+  PRInt32 mPerfDeflectCount;
 
   // 0 = don't check for pending events
   // 1 = don't deflect if there are pending events
   // 2 = bail if there are pending events
-  PRUint32 mPendingEventMode;
+  PRInt32 mPendingEventMode;
 
   // How often to probe for pending events. 1=every token
-  PRUint32 mEventProbeRate;
+  PRInt32 mEventProbeRate;
 
   // Is there currently a pending event?
   PRBool mHasPendingEvent;
 
   // When to return to the main event loop
-  PRUint32 mCurrentParseEndTime;
+  PRInt32 mCurrentParseEndTime;
 
   // How long to stay off the event loop in interactive/perf modes
-  PRUint32 mInteractiveParseTime;
-  PRUint32 mPerfParseTime;
+  PRInt32 mInteractiveParseTime;
+  PRInt32 mPerfParseTime;
 
   // How long to be in interactive mode after an event
-  PRUint32 mInteractiveTime;
+  PRInt32 mInteractiveTime;
   // How long to stay in perf mode after initial loading
-  PRUint32 mInitialPerfTime;
+  PRInt32 mInitialPerfTime;
 
   // Should we switch between perf-mode and interactive-mode
   PRBool mEnablePerfMode;

@@ -1134,6 +1134,8 @@ nsCanvasRenderingContext2D::Restore()
 {
     if (mSaveCount == 0)
         return NS_OK;
+    if (mSaveCount < 0)
+        return NS_ERROR_DOM_INVALID_STATE_ERR;
 
     mStyleStack.RemoveElementAt(mSaveCount);
     mThebes->Restore();
@@ -3034,7 +3036,7 @@ nsCanvasRenderingContext2D::DrawImage(nsIDOMElement *imgElt, float a1,
     NS_ENSURE_ARG(imgElt);
 
     nsresult rv;
-    gfxRect dirty(0.0, 0.0, 0.0, 0.0);
+    gfxRect dirty;
 
     double sx,sy,sw,sh;
     double dx,dy,dw,dh;
@@ -3568,8 +3570,8 @@ nsCanvasRenderingContext2D::GetImageData_explicit(PRInt32 x, PRInt32 y, PRUint32
     PRUint8 *src = aData;
     PRUint8 *dst = aData;
 
-    for (PRUint32 j = 0; j < h; j++) {
-        for (PRUint32 i = 0; i < w; i++) {
+    for (int j = 0; j < h; j++) {
+        for (int i = 0; i < w; i++) {
             // XXX Is there some useful swizzle MMX we can use here?
 #ifdef IS_LITTLE_ENDIAN
             PRUint8 b = *src++;
@@ -3624,6 +3626,8 @@ NS_IMETHODIMP
 nsCanvasRenderingContext2D::PutImageData_explicit(PRInt32 x, PRInt32 y, PRUint32 w, PRUint32 h,
                                                   unsigned char *aData, PRUint32 aDataLen)
 {
+    nsresult rv;
+
     if (!mValid)
         return NS_ERROR_FAILURE;
 
@@ -3645,8 +3649,8 @@ nsCanvasRenderingContext2D::PutImageData_explicit(PRInt32 x, PRInt32 y, PRUint32
     PRUint8 *src = aData;
     PRUint8 *dst = imgsurf->Data();
 
-    for (PRUint32 j = 0; j < h; j++) {
-        for (PRUint32 i = 0; i < w; i++) {
+    for (int j = 0; j < h; j++) {
+        for (int i = 0; i < w; i++) {
             PRUint8 r = *src++;
             PRUint8 g = *src++;
             PRUint8 b = *src++;

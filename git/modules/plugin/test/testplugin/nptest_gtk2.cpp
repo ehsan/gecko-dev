@@ -35,12 +35,15 @@
 
 #include "nptest_platform.h"
 #include "npapi.h"
+#include <pthread.h>
 #include <gdk/gdk.h>
 #ifdef MOZ_X11
 #include <gdk/gdkx.h>
 #include <X11/extensions/shape.h>
 #endif
+#include <glib.h>
 #include <gtk/gtk.h>
+#include <unistd.h>
 
  using namespace std;
 
@@ -635,7 +638,6 @@ pluginGetClipboardText(InstanceData* instanceData)
 
   return retText;
 }
-<<<<<<< local
 
 //-----------------------------------------------------------------------------
 // NB: this test is quite gross in that it's not only
@@ -665,7 +667,7 @@ bool
 pluginCrashInNestedLoop(InstanceData* instanceData)
 {
   // wait at least long enough for nested loop detector task to be pending ...
-  while(sleep(1)) {}
+  sleep(1);
 
   // Run the nested loop detector by processing all events that are waiting.
   bool found_event = false;
@@ -679,7 +681,7 @@ pluginCrashInNestedLoop(InstanceData* instanceData)
 
   // wait at least long enough for the "process browser events" task to be
   // pending ...
-  while(sleep(1)) {}
+  sleep(1);
 
   // we'll be crashing soon, note that fact now to avoid messing with
   // timing too much
@@ -708,5 +710,3 @@ pluginCrashInNestedLoop(InstanceData* instanceData)
   // if we get here without crashing, then we'll trigger a test failure
   return true;
 }
-=======
->>>>>>> other
