@@ -266,9 +266,9 @@ class UnboundnessFixer
 {
     CGRect mClipBounds;
     CGLayerRef mLayer;
-    CGContextRef mLayerCg;
+    CGContextRef mCg;
   public:
-    UnboundnessFixer() : mLayerCg(nullptr) {}
+    UnboundnessFixer() : mCg(nullptr) {}
 
     CGContextRef Check(CGContextRef baseCg, CompositionOp blend, const Rect* maskBounds = nullptr)
     {
@@ -287,14 +287,14 @@ class UnboundnessFixer
         //XXX: The size here is in default user space units, of the layer relative to the graphics context.
         // is the clip bounds still correct if, for example, we have a scale applied to the context?
         mLayer = CGLayerCreateWithContext(baseCg, mClipBounds.size, nullptr);
-        mLayerCg = CGLayerGetContext(mLayer);
+        mCg = CGLayerGetContext(mLayer);
         // CGContext's default to have the origin at the bottom left
         // so flip it to the top left and adjust for the origin
         // of the layer
-        CGContextTranslateCTM(mLayerCg, -mClipBounds.origin.x, mClipBounds.origin.y + mClipBounds.size.height);
-        CGContextScaleCTM(mLayerCg, 1, -1);
+        CGContextTranslateCTM(mCg, -mClipBounds.origin.x, mClipBounds.origin.y + mClipBounds.size.height);
+        CGContextScaleCTM(mCg, 1, -1);
 
-        return mLayerCg;
+        return mCg;
       } else {
         return baseCg;
       }
@@ -302,13 +302,12 @@ class UnboundnessFixer
 
     void Fix(CGContextRef baseCg)
     {
-        if (mLayerCg) {
-            // we pushed a layer so draw it to baseCg
+        if (mCg) {
             CGContextTranslateCTM(baseCg, 0, mClipBounds.size.height);
             CGContextScaleCTM(baseCg, 1, -1);
             mClipBounds.origin.y *= -1;
             CGContextDrawLayerAtPoint(baseCg, mClipBounds.origin, mLayer);
-            CGContextRelease(mLayerCg);
+            CGContextRelease(mCg);
         }
     }
 };

@@ -1675,36 +1675,36 @@ class AssemblerX86Shared : public AssemblerShared
             MOZ_CRASH("unexpected operand kind");
         }
     }
-    void cmpps(uint8_t order, const Operand &src, FloatRegister dest) {
+    void cmpps(const Operand &src, FloatRegister dest, uint8_t order) {
         MOZ_ASSERT(HasSSE2());
         switch (src.kind()) {
           case Operand::FPREG:
-            masm.cmpps_rr(order, src.fpu(), dest.code());
+            masm.cmpps_rr(src.fpu(), dest.code(), order);
             break;
           case Operand::MEM_REG_DISP:
-            masm.cmpps_mr(order, src.disp(), src.base(), dest.code());
+            masm.cmpps_mr(src.disp(), src.base(), dest.code(), order);
             break;
           case Operand::MEM_ADDRESS32:
-            masm.cmpps_mr(order, src.address(), dest.code());
+            masm.cmpps_mr(src.address(), dest.code(), order);
             break;
           default:
             MOZ_CRASH("unexpected operand kind");
         }
     }
     void cmpeqps(const Operand &src, FloatRegister dest) {
-        cmpps(X86Assembler::ConditionCmp_EQ, src, dest);
+        cmpps(src, dest, X86Assembler::ConditionCmp_EQ);
     }
     void cmpltps(const Operand &src, FloatRegister dest) {
-        cmpps(X86Assembler::ConditionCmp_LT, src, dest);
+        cmpps(src, dest, X86Assembler::ConditionCmp_LT);
     }
     void cmpleps(const Operand &src, FloatRegister dest) {
-        cmpps(X86Assembler::ConditionCmp_LE, src, dest);
+        cmpps(src, dest, X86Assembler::ConditionCmp_LE);
     }
     void cmpunordps(const Operand &src, FloatRegister dest) {
-        cmpps(X86Assembler::ConditionCmp_UNORD, src, dest);
+        cmpps(src, dest, X86Assembler::ConditionCmp_UNORD);
     }
     void cmpneqps(const Operand &src, FloatRegister dest) {
-        cmpps(X86Assembler::ConditionCmp_NEQ, src, dest);
+        cmpps(src, dest, X86Assembler::ConditionCmp_NEQ);
     }
     void rcpps(const Operand &src, FloatRegister dest) {
         MOZ_ASSERT(HasSSE2());
@@ -2173,13 +2173,13 @@ class AssemblerX86Shared : public AssemblerShared
         MOZ_ASSERT(HasSSE2());
         masm.sqrtss_rr(src.code(), dest.code());
     }
-    void roundsd(X86Assembler::RoundingMode mode, FloatRegister src, FloatRegister dest) {
+    void roundsd(FloatRegister src, FloatRegister dest, X86Assembler::RoundingMode mode) {
         MOZ_ASSERT(HasSSE41());
-        masm.roundsd_rr(mode, src.code(), dest.code());
+        masm.roundsd_rr(src.code(), dest.code(), mode);
     }
-    void roundss(X86Assembler::RoundingMode mode, FloatRegister src, FloatRegister dest) {
+    void roundss(FloatRegister src, FloatRegister dest, X86Assembler::RoundingMode mode) {
         MOZ_ASSERT(HasSSE41());
-        masm.roundss_rr(mode, src.code(), dest.code());
+        masm.roundss_rr(src.code(), dest.code(), mode);
     }
     unsigned insertpsMask(SimdLane sourceLane, SimdLane destLane, unsigned zeroMask = 0)
     {

@@ -86,14 +86,12 @@ public:
  *
  * This class is used on the compositor side.
  */
-class TextureSource: public RefCounted<TextureSource>
+class TextureSource
 {
 public:
-  MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(TextureSource)
+  NS_INLINE_DECL_REFCOUNTING(TextureSource)
 
   TextureSource();
-
-  virtual ~TextureSource();
 
   /**
    * Should be overridden in order to deallocate the data that is associated
@@ -161,6 +159,7 @@ public:
   int NumCompositableRefs() const { return mCompositableCount; }
 
 protected:
+  virtual ~TextureSource();
 
   RefPtr<TextureSource> mNextSibling;
   int mCompositableCount;
