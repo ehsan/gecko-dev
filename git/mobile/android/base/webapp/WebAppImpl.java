@@ -292,7 +292,9 @@ public class WebAppImpl extends GeckoApp implements InstallCallback {
 
         if (event.equals("WebApps:PostInstall")) {
             String origin = message.optString("origin");
-            launchWebApp(origin, mApkResources.getManifestUrl(), mApkResources.getAppName());
+            String manifestUrl = message.optString("manifestURL");
+            String name = message.optString("name", "WebApp");
+            launchWebApp(origin, manifestUrl, name);
         }
     }
 

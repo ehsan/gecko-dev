@@ -539,12 +539,6 @@ MConstant::canProduceFloat32() const
     return true;
 }
 
-MCloneLiteral *
-MCloneLiteral::New(TempAllocator &alloc, MDefinition *obj)
-{
-    return new(alloc) MCloneLiteral(obj);
-}
-
 void
 MControlInstruction::printOpcode(FILE *fp) const
 {

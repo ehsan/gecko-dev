@@ -735,7 +735,6 @@ NS_INTERFACE_MAP_BEGIN(TabChild)
   NS_INTERFACE_MAP_ENTRY(nsIDialogCreator)
   NS_INTERFACE_MAP_ENTRY(nsIObserver)
   NS_INTERFACE_MAP_ENTRY(nsSupportsWeakReference)
-  NS_INTERFACE_MAP_ENTRY(nsITooltipListener)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_ADDREF(TabChild)
@@ -2513,20 +2512,6 @@ TabChild::GetFrom(nsIPresShell* aPresShell)
   return GetFrom(docShell);
 }
 
-NS_IMETHODIMP
-TabChild::OnShowTooltip(int32_t aXCoords, int32_t aYCoords, const char16_t *aTipText)
-{
-    nsString str(aTipText);
-    SendShowTooltip(aXCoords, aYCoords, str);
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-TabChild::OnHideTooltip()
-{
-    SendHideTooltip();
-    return NS_OK;
-}
 
 TabChildGlobal::TabChildGlobal(TabChild* aTabChild)
 : mTabChild(aTabChild)

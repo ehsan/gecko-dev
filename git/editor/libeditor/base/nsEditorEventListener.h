@@ -59,8 +59,6 @@ public:
 
   void SpellCheckIfNeeded();
 
-  static NS_HIDDEN_(void) ShutDown();
-
 protected:
   nsresult InstallToEditor();
   void UninstallFromEditor();
@@ -74,7 +72,6 @@ protected:
   void CleanupDragDropCaret();
   already_AddRefed<nsIPresShell> GetPresShell();
   bool IsFileControlTextBox();
-  bool ShouldHandleNativeKeyBindings(nsIDOMEvent* aKeyEvent);
 
 protected:
   nsEditor* mEditor; // weak

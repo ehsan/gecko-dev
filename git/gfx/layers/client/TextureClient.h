@@ -386,10 +386,10 @@ public:
 
   ISurfaceAllocator* GetAllocator() const;
 
-  mozilla::ipc::Shmem& GetShmem() { return mShmem; }
+  ipc::Shmem& GetShmem() { return mShmem; }
 
 protected:
-  mozilla::ipc::Shmem mShmem;
+  ipc::Shmem mShmem;
   RefPtr<ISurfaceAllocator> mAllocator;
   bool mAllocated;
 };

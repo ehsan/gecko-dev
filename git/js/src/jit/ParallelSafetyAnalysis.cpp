@@ -112,7 +112,6 @@ class ParallelSafetyVisitor : public MInstructionVisitor
     // obviously safe for now.  We can loosen as we need.
 
     SAFE_OP(Constant)
-    UNSAFE_OP(CloneLiteral)
     SAFE_OP(Parameter)
     SAFE_OP(Callee)
     SAFE_OP(TableSwitch)

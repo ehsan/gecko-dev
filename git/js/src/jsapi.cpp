@@ -2500,12 +2500,6 @@ JS::CompartmentOptions::asmJS(JSContext *cx) const
     return asmJSOverride_.get(cx->options().asmJS());
 }
 
-bool
-JS::CompartmentOptions::cloneSingletons(JSContext *cx) const
-{
-    return cloneSingletonsOverride_.get(cx->options().cloneSingletons());
-}
-
 JS::CompartmentOptions &
 JS::CompartmentOptions::setZone(ZoneSpecifier spec)
 {
@@ -4315,7 +4309,7 @@ JS::OwningCompileOptions::OwningCompileOptions(JSContext *cx)
     : ReadOnlyCompileOptions(),
       runtime(GetRuntime(cx)),
       elementRoot(cx),
-      elementAttributeNameRoot(cx)
+      elementPropertyRoot(cx)
 {
 }
 
@@ -4345,7 +4339,7 @@ JS::OwningCompileOptions::copy(JSContext *cx, const ReadOnlyCompileOptions &rhs)
 }
 
 bool
-JS::OwningCompileOptions::setFile(JSContext *cx, const char *f)
+JS::OwningCompileOptions::setFileAndLine(JSContext *cx, const char *f, unsigned l)
 {
     char *copy = nullptr;
     if (f) {
@@ -4358,15 +4352,6 @@ JS::OwningCompileOptions::setFile(JSContext *cx, const char *f)
     js_free(const_cast<char *>(filename_));
 
     filename_ = copy;
-    return true;
-}
-
-bool
-JS::OwningCompileOptions::setFileAndLine(JSContext *cx, const char *f, unsigned l)
-{
-    if (!setFile(cx, f))
-        return false;
-
     lineno = l;
     return true;
 }
@@ -4388,20 +4373,8 @@ JS::OwningCompileOptions::setSourceMapURL(JSContext *cx, const jschar *s)
     return true;
 }
 
-bool
-JS::OwningCompileOptions::wrap(JSContext *cx, JSCompartment *compartment)
-{
-    if (!compartment->wrap(cx, &elementRoot))
-        return false;
-    if (elementAttributeNameRoot) {
-        if (!compartment->wrap(cx, elementAttributeNameRoot.address()))
-            return false;
-    }
-    return true;
-}
-
 JS::CompileOptions::CompileOptions(JSContext *cx, JSVersion version)
-    : ReadOnlyCompileOptions(), elementRoot(cx), elementAttributeNameRoot(cx)
+    : ReadOnlyCompileOptions(), elementRoot(cx), elementPropertyRoot(cx)
 {
     this->version = (version != JSVERSION_UNKNOWN) ? version : cx->findVersion();
 
@@ -4411,18 +4384,6 @@ JS::CompileOptions::CompileOptions(JSContext *cx, JSVersion version)
     extraWarningsOption = cx->options().extraWarnings();
     werrorOption = cx->options().werror();
     asmJSOption = cx->options().asmJS();
-}
-
-bool
-JS::CompileOptions::wrap(JSContext *cx, JSCompartment *compartment)
-{
-    if (!compartment->wrap(cx, &elementRoot))
-        return false;
-    if (elementAttributeNameRoot) {
-        if (!compartment->wrap(cx, elementAttributeNameRoot.address()))
-            return false;
-    }
-    return true;
 }
 
 JSScript *

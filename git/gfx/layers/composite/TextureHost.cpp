@@ -249,13 +249,8 @@ TextureHost::PrintInfo(nsACString& aTo, const char* aPrefix)
 {
   aTo += aPrefix;
   aTo += nsPrintfCString("%s (0x%p)", Name(), this);
-  // Note: the TextureHost needs to be locked before it is safe to call
-  //       GetSize() and GetFormat() on it.
-  if (Lock()) {
-    AppendToString(aTo, GetSize(), " [size=", "]");
-    AppendToString(aTo, GetFormat(), " [format=", "]");
-    Unlock();
-  }
+  AppendToString(aTo, GetSize(), " [size=", "]");
+  AppendToString(aTo, GetFormat(), " [format=", "]");
   AppendToString(aTo, mFlags, " [flags=", "]");
 }
 
@@ -719,13 +714,13 @@ TextureParent::ActorDestroy(ActorDestroyReason why)
     return;
   }
 
-  bool isDeffered = mTextureHost->GetFlags() & TEXTURE_DEALLOCATE_DEFERRED;
   switch (why) {
   case AncestorDeletion:
     NS_WARNING("PTexture deleted after ancestor");
     // fall-through to deletion path
   case Deletion:
-    if (!(mTextureHost->GetFlags() & TEXTURE_DEALLOCATE_CLIENT) && !isDeffered) {
+    if (!(mTextureHost->GetFlags() & TEXTURE_DEALLOCATE_CLIENT) &&
+        !(mTextureHost->GetFlags() & TEXTURE_DEALLOCATE_DEFERRED)) {
       mTextureHost->DeallocateSharedData();
     }
     break;
@@ -738,10 +733,7 @@ TextureParent::ActorDestroy(ActorDestroyReason why)
   case FailedConstructor:
     NS_RUNTIMEABORT("FailedConstructor isn't possible in PTexture");
   }
-
-  if (!isDeffered) {
-    mTextureHost->ForgetSharedData();
-  }
+  mTextureHost->ForgetSharedData();
   mTextureHost = nullptr;
 }
 

@@ -443,27 +443,12 @@ ImageBridgeChild::BeginTransaction()
   mTxn->Begin();
 }
 
-class MOZ_STACK_CLASS AutoForceRemoveTextures
-{
-public:
-  AutoForceRemoveTextures(ImageBridgeChild* aImageBridge)
-    : mImageBridge(aImageBridge) {}
-
-  ~AutoForceRemoveTextures()
-  {
-    mImageBridge->ForceRemoveTexturesIfNecessary();
-  }
-private:
-  ImageBridgeChild* mImageBridge;
-};
-
 void
 ImageBridgeChild::EndTransaction()
 {
   MOZ_ASSERT(!mTxn->Finished(), "forgot BeginTransaction?");
 
   AutoEndTransaction _(mTxn);
-  AutoForceRemoveTextures autoForceRemoveTextures(this);
 
   if (mTxn->IsEmpty()) {
     return;
