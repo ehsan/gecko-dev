@@ -3951,7 +3951,8 @@ TraceRecorder::record_JSOP_NEW()
         LIns* args[] = { get(&fval), cx_ins };
         LIns* tv_ins = lir->insCall(F_FastNewObject, args);
         guard(false, lir->ins_eq0(tv_ins), OOM_EXIT);
-        set(&tval, tv_ins);
+        jsval& tv = stackval(0 - (1 + argc));
+        set(&tv, tv_ins);
         return interpretedFunctionCall(fval, fun, argc);
     }
 
