@@ -806,8 +806,7 @@ nsDOMWindowUtils::Focus(nsIDOMElement* aElement)
 }
 
 NS_IMETHODIMP
-nsDOMWindowUtils::GarbageCollect(nsICycleCollectorListener *aListener,
-                                 PRInt32 aExtraForgetSkippableCalls)
+nsDOMWindowUtils::GarbageCollect(nsICycleCollectorListener *aListener)
 {
   SAMPLE_LABEL("GC", "GarbageCollect");
   // Always permit this in debug builds.
@@ -818,14 +817,13 @@ nsDOMWindowUtils::GarbageCollect(nsICycleCollectorListener *aListener,
 #endif
 
   nsJSContext::GarbageCollectNow(js::gcreason::DOM_UTILS);
-  nsJSContext::CycleCollectNow(aListener, aExtraForgetSkippableCalls);
+  nsJSContext::CycleCollectNow(aListener);
 
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsDOMWindowUtils::CycleCollect(nsICycleCollectorListener *aListener,
-                               PRInt32 aExtraForgetSkippableCalls)
+nsDOMWindowUtils::CycleCollect(nsICycleCollectorListener *aListener)
 {
   // Always permit this in debug builds.
 #ifndef DEBUG
@@ -834,7 +832,7 @@ nsDOMWindowUtils::CycleCollect(nsICycleCollectorListener *aListener,
   }
 #endif
 
-  nsJSContext::CycleCollectNow(aListener, aExtraForgetSkippableCalls);
+  nsJSContext::CycleCollectNow(aListener);
   return NS_OK;
 }
 

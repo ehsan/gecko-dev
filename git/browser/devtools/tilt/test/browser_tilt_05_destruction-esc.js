@@ -31,9 +31,6 @@ function cleanup() {
   is(Tilt.visualizers[id], null,
     "The current instance of the visualizer wasn't destroyed properly.");
 
-  ok(InspectorUI.highlighter && InspectorUI.breadcrumbs,
-    "The Inspector should not close while Tilt is opened.");
-
   Services.obs.removeObserver(cleanup, DESTROYED);
   gBrowser.removeCurrentTab();
   finish();
