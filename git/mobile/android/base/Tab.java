@@ -7,7 +7,6 @@ package org.mozilla.gecko;
 
 import org.mozilla.gecko.db.BrowserDB;
 import org.mozilla.gecko.gfx.Layer;
-import org.mozilla.gecko.home.HomePager;
 import org.mozilla.gecko.util.ThreadUtils;
 
 import org.json.JSONException;
@@ -50,7 +49,6 @@ public class Tab {
     private int mHistoryIndex;
     private int mHistorySize;
     private int mParentId;
-    private HomePager.Page mAboutHomePage;
     private boolean mExternal;
     private boolean mBookmark;
     private boolean mReadingListItem;
@@ -75,12 +73,10 @@ public class Tab {
     public static final int STATE_SUCCESS = 2;
     public static final int STATE_ERROR = 3;
 
-    private static final int DEFAULT_BACKGROUND_COLOR = Color.WHITE;
-
     public enum ErrorType {
         CERT_ERROR,  // Pages with certificate problems
         BLOCKED,     // Pages blocked for phishing or malware warnings
-        NET_ERROR,   // All other types of error
+        NET_ERROR,       // All other types of error
         NONE         // Non error pages
     }
 
@@ -93,7 +89,6 @@ public class Tab {
         mUserSearch = "";
         mExternal = external;
         mParentId = parentId;
-        mAboutHomePage = HomePager.Page.BOOKMARKS;
         mTitle = title == null ? "" : title;
         mFavicon = null;
         mFaviconUrl = null;
@@ -117,7 +112,7 @@ public class Tab {
         // At startup, the background is set to a color specified by LayerView
         // when the LayerView is created. Shortly after, this background color
         // will be used before the tab's content is shown.
-        mBackgroundColor = DEFAULT_BACKGROUND_COLOR;
+        mBackgroundColor = getBackgroundColorForUrl(url);
     }
 
     private ContentResolver getContentResolver() {
@@ -143,15 +138,6 @@ public class Tab {
     public int getParentId() {
         return mParentId;
     }
-
-    public HomePager.Page getAboutHomePage() {
-        return mAboutHomePage;
-    }
-
-    private void setAboutHomePage(HomePager.Page page) {
-        mAboutHomePage = page;
-    }
-
 
     // may be null if user-entered query hasn't yet been resolved to a URI
     public synchronized String getURL() {
@@ -621,19 +607,21 @@ public class Tab {
         setReaderEnabled(false);
         setZoomConstraints(new ZoomConstraints(true));
         setHasTouchListeners(false);
-        setBackgroundColor(DEFAULT_BACKGROUND_COLOR);
+        setBackgroundColor(getBackgroundColorForUrl(uri));
         setErrorType(ErrorType.NONE);
-
-        final String homePage = message.getString("aboutHomePage");
-        if (!TextUtils.isEmpty(homePage)) {
-            setAboutHomePage(HomePager.Page.valueOf(homePage));
-        }
 
         Tabs.getInstance().notifyListeners(this, Tabs.TabEvents.LOCATION_CHANGE, uri);
     }
 
     private boolean shouldShowProgress(String url) {
         return "about:home".equals(url) || ReaderModeUtils.isAboutReader(url);
+    }
+
+    private int getBackgroundColorForUrl(String url) {
+        if ("about:home".equals(url)) {
+            return mAppContext.getResources().getColor(R.color.background_normal);
+        }
+        return Color.WHITE;
     }
 
     void handleDocumentStart(boolean showProgress, String url) {
