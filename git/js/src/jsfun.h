@@ -85,7 +85,10 @@
  * move to u.i.script->flags. For now we use function flag bits to minimize
  * pointer-chasing.
  */
-// 0x0001 was JSFUN_JOINABLE, but was deleted for bug 739808.
+#define JSFUN_JOINABLE      0x0001  /* function is null closure that does not
+                                       appear to call itself via its own name
+                                       or arguments.callee */
+
 #define JSFUN_PROTOTYPE     0x0800  /* function is Function.prototype for some
                                        global object */
 
@@ -155,7 +158,7 @@ struct JSFunction : public JSObject
     }
 
     bool joinable() const {
-        return false;
+        return flags & JSFUN_JOINABLE;
     }
 
     /*
@@ -167,6 +170,8 @@ struct JSFunction : public JSObject
     inline void initEnvironment(JSObject *obj);
 
     static inline size_t offsetOfEnvironment() { return offsetof(JSFunction, u.i.env_); }
+
+    inline void setJoinable();
 
     js::HeapPtrScript &script() const {
         JS_ASSERT(isInterpreted());
