@@ -78,7 +78,7 @@ public class GeckoView extends LayerView
 
             // If you want to use GeckoNetworkManager, start it.
 
-            GeckoLoader.loadMozGlue(context);
+            GeckoLoader.loadMozGlue();
             BrowserDB.setEnableContentProviders(false);
          }
 
