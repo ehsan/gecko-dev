@@ -79,9 +79,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "OS",
 XPCOMUtils.defineLazyModuleGetter(this, "SessionStore",
                                   "resource:///modules/sessionstore/SessionStore.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "BrowserUITelemetry",
-                                  "resource:///modules/BrowserUITelemetry.jsm");
-
 const PREF_PLUGINS_NOTIFYUSER = "plugins.update.notifyUser";
 const PREF_PLUGINS_UPDATEURL  = "plugins.update.url";
 
@@ -479,7 +476,6 @@ BrowserGlue.prototype = {
     webrtcUI.init();
     AboutHome.init();
     SessionStore.init();
-    BrowserUITelemetry.init();
 
     if (Services.prefs.getBoolPref("browser.tabs.remote"))
       ContentClick.init();
@@ -1289,57 +1285,17 @@ BrowserGlue.prototype = {
   },
 
   _migrateUI: function BG__migrateUI() {
-    const UI_VERSION = 14;
+    const UI_VERSION = 18;
     const BROWSER_DOCURL = "chrome://browser/content/browser.xul#";
-
-    let wasCustomizedAndOnAustralis = Services.prefs.prefHasUserValue("browser.uiCustomization.state");
     let currentUIVersion = 0;
     try {
       currentUIVersion = Services.prefs.getIntPref("browser.migration.version");
     } catch(ex) {}
-    if (!wasCustomizedAndOnAustralis && currentUIVersion >= UI_VERSION)
+    if (currentUIVersion >= UI_VERSION)
       return;
 
     this._rdf = Cc["@mozilla.org/rdf/rdf-service;1"].getService(Ci.nsIRDFService);
     this._dataSource = this._rdf.GetDataSource("rdf:local-store");
-
-    // No version check for this as this code should run until we have Australis everywhere:
-    if (wasCustomizedAndOnAustralis) {
-      // This profile's been on australis! If it's missing the back/fwd button
-      // or go/stop/reload button, then put them back:
-      let currentsetResource = this._rdf.GetResource("currentset");
-      let toolbarResource = this._rdf.GetResource(BROWSER_DOCURL + "nav-bar");
-      let currentset = this._getPersist(toolbarResource, currentsetResource);
-      let oldCurrentset = currentset;
-      if (currentset) {
-        if (currentset.indexOf("unified-back-forward-button") == -1) {
-          currentset = currentset.replace("urlbar-container",
-                                          "unified-back-forward-button,urlbar-container");
-        }
-        if (currentset.indexOf("reload-button") == -1) {
-          currentset = currentset.replace("urlbar-container", "urlbar-container,reload-button");
-        }
-        if (currentset.indexOf("stop-button") == -1) {
-          currentset = currentset.replace("reload-button", "reload-button,stop-button");
-        }
-      }
-      Services.prefs.clearUserPref("browser.uiCustomization.state");
-
-      if (oldCurrentset != currentset) {
-        this._setPersist(toolbarResource, currentsetResource, currentset);
-      }
-      // If we don't have anything else to do, we can bail here:
-      if (currentUIVersion >= UI_VERSION) {
-        if (this._dirty) {
-          this._dataSource.QueryInterface(Ci.nsIRDFRemoteDataSource).Flush();
-        }
-        delete this._rdf;
-        delete this._dataSource;
-        return;
-      }
-    }
-
-
     this._dirty = false;
 
     if (currentUIVersion < 2) {
@@ -1523,6 +1479,59 @@ BrowserGlue.prototype = {
       OS.File.remove(path);
     }
 
+    // Version 15 was obsoleted in favour of 18.
+
+    if (currentUIVersion < 16) {
+      let toolbarResource = this._rdf.GetResource(BROWSER_DOCURL + "nav-bar");
+      let collapsedResource = this._rdf.GetResource("collapsed");
+      let isCollapsed = this._getPersist(toolbarResource, collapsedResource);
+      if (isCollapsed == "true") {
+        this._setPersist(toolbarResource, collapsedResource, "false");
+      }
+    }
+
+    // Insert the bookmarks-menu-button into the nav-bar if it isn't already
+    // there.
+    if (currentUIVersion < 17) {
+      let currentsetResource = this._rdf.GetResource("currentset");
+      let toolbarResource = this._rdf.GetResource(BROWSER_DOCURL + "nav-bar");
+      let currentset = this._getPersist(toolbarResource, currentsetResource);
+      // Need to migrate only if toolbar is customized.
+      if (currentset) {
+        if (!currentset.contains("bookmarks-menu-button")) {
+          // The button isn't in the nav-bar, so let's look for an appropriate
+          // place to put it.
+          if (currentset.contains("downloads-button")) {
+            currentset = currentset.replace(/(^|,)downloads-button($|,)/,
+                                            "$1bookmarks-menu-button,downloads-button$2");
+          } else if (currentset.contains("home-button")) {
+            currentset = currentset.replace(/(^|,)home-button($|,)/,
+                                            "$1bookmarks-menu-button,home-button$2");
+          } else {
+            // Just append.
+            currentset = currentset.replace(/(^|,)window-controls($|,)/,
+                                            "$1bookmarks-menu-button,window-controls$2")
+          }
+          this._setPersist(toolbarResource, currentsetResource, currentset);
+        }
+      }
+    }
+
+    if (currentUIVersion < 18) {
+      // Remove iconsize and mode from all the toolbars
+      let toolbars = ["navigator-toolbox", "nav-bar", "PersonalToolbar",
+                      "addon-bar", "TabsToolbar", "toolbar-menubar"];
+      for (let resourceName of ["mode", "iconsize"]) {
+        let resource = this._rdf.GetResource(resourceName);
+        for (let toolbarId of toolbars) {
+          let toolbar = this._rdf.GetResource(BROWSER_DOCURL + toolbarId);
+          if (this._getPersist(toolbar, resource)) {
+            this._setPersist(toolbar, resource);
+          }
+        }
+      }
+    }
+
     if (this._dirty)
       this._dataSource.QueryInterface(Ci.nsIRDFRemoteDataSource).Flush();
 
@@ -1582,7 +1591,7 @@ BrowserGlue.prototype = {
     // be set to the version it has been added in, we will compare its value
     // to users' smartBookmarksVersion and add new smart bookmarks without
     // recreating old deleted ones.
-    const SMART_BOOKMARKS_VERSION = 4;
+    const SMART_BOOKMARKS_VERSION = 5;
     const SMART_BOOKMARKS_ANNO = "Places/SmartBookmark";
     const SMART_BOOKMARKS_PREF = "browser.places.smartBookmarksVersion";
 
@@ -1643,7 +1652,21 @@ BrowserGlue.prototype = {
             parent: PlacesUtils.bookmarksMenuFolderId,
             position: menuIndex++,
             newInVersion: 1
-          }
+          },
+          FirefoxTouch: {
+            title: bundle.GetStringFromName("firefoxTouchTitle"),
+            uri: NetUtil.newURI("place:folder=" +
+                                PlacesUtils.annotations.getItemsWithAnnotation('metro/bookmarksRoot', {})[0] +
+                                "&queryType=" +
+                                Ci.nsINavHistoryQueryOptions.QUERY_TYPE_BOOKMARKS +
+                                "&sort=" +
+                                Ci.nsINavHistoryQueryOptions.SORT_BY_DATEADDED_DESCENDING +
+                                "&maxResults=" + MAX_RESULTS +
+                                "&excludeQueries=1"),
+            parent: PlacesUtils.bookmarksMenuFolderId,
+            position: menuIndex++,
+            newInVersion: 5
+          },
         };
 
         // Set current itemId, parent and position if Smart Bookmark exists,
