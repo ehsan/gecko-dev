@@ -37,10 +37,10 @@ function test() {
   function editField(aField, aValue)
   {
     aField.focus();
-    EventUtils.sendKey("return", inspector.panelWin);
+    EventUtils.sendKey("return");
     let input = inplaceEditor(aField).input;
     input.value = aValue;
-    EventUtils.sendKey("return", inspector.panelWin);
+    input.blur();
   }
 
   function assertAttributes(aElement, aAttributes)
@@ -62,8 +62,7 @@ function test() {
           class: "node1"
         });
       },
-      execute: function(after) {
-        inspector.once("markupmutation", after);
+      execute: function() {
         let editor = markup.getContainer(doc.querySelector("#node1")).editor;
         let attr = editor.attrs["class"].querySelector(".editable");
         editField(attr, 'class="changednode1"');
@@ -84,11 +83,10 @@ function test() {
           class: "unchanged"
         });
       },
-      execute: function(after) {
+      execute: function() {
         let editor = markup.getContainer(doc.querySelector("#node22")).editor;
         let attr = editor.attrs["class"].querySelector(".editable");
         editField(attr, 'class="""');
-        executeSoon(after);
       },
       after: function() {
         assertAttributes(doc.querySelector("#node22"), {
@@ -106,8 +104,7 @@ function test() {
           class: "node4"
         });
       },
-      execute: function(after) {
-        inspector.once("markupmutation", after);
+      execute: function() {
         let editor = markup.getContainer(doc.querySelector("#node4")).editor;
         let attr = editor.attrs["class"].querySelector(".editable");
         editField(attr, '');
@@ -126,8 +123,7 @@ function test() {
           id: "node14",
         });
       },
-      execute: function(after) {
-        inspector.once("markupmutation", after);
+      execute: function() {
         let editor = markup.getContainer(doc.querySelector("#node14")).editor;
         let attr = editor.newAttr;
         editField(attr, 'class="newclass" style="color:green"');
@@ -148,11 +144,10 @@ function test() {
           id: "node23",
         });
       },
-      execute: function(after) {
+      execute: function() {
         let editor = markup.getContainer(doc.querySelector("#node23")).editor;
         let attr = editor.newAttr;
         editField(attr, 'class="newclass" style="""');
-        executeSoon(after);
       },
       after: function() {
         assertAttributes(doc.querySelector("#node23"), {
@@ -168,11 +163,10 @@ function test() {
           id: "node24",
         });
       },
-      execute: function(after) {
+      execute: function() {
         let editor = markup.getContainer(doc.querySelector("#node24")).editor;
         let attr = editor.attrs["id"].querySelector(".editable");
         editField(attr, attr.textContent + ' class="""');
-        executeSoon(after);
       },
       after: function() {
         assertAttributes(doc.querySelector("#node24"), {
@@ -187,8 +181,7 @@ function test() {
         let node = doc.querySelector('.node6').firstChild;
         is(node.nodeValue, "line6", "Text should be unchanged");
       },
-      execute: function(after) {
-        inspector.once("markupmutation", after);
+      execute: function() {
         let node = doc.querySelector('.node6').firstChild;
         let editor = markup.getContainer(node).editor;
         let field = editor.elt.querySelector("pre");
@@ -229,37 +222,23 @@ function test() {
     let startNode = doc.documentElement.cloneNode();
     markup = inspector.markup;
     markup.expandAll();
-
-    let cursor = 0;
-
-    function nextEditTest() {
-      executeSoon(function() {
-        if (cursor >= edits.length) {
-          addAttributes();
-        } else {
-          let step = edits[cursor++];
-          info("START " + step.desc);
-          if (step.setup) {
-            step.setup();
-          }
-          step.before();
-          info("before execute");
-          step.execute(function() {
-            info("after execute");
-            step.after();
-            ok(markup.undo.canUndo(), "Should be able to undo.");
-            markup.undo.undo();
-            step.before();
-            ok(markup.undo.canRedo(), "Should be able to redo.");
-            markup.undo.redo();
-            step.after();
-            info("END " + step.desc);
-            nextEditTest();
-          });
-        }
-      });
+    for (let step of edits) {
+      info("START " + step.desc);
+      if (step.setup) {
+        step.setup();
+      }
+      step.before();
+      step.execute();
+      step.after();
+      ok(markup.undo.canUndo(), "Should be able to undo.");
+      markup.undo.undo();
+      step.before();
+      ok(markup.undo.canRedo(), "Should be able to redo.");
+      markup.undo.redo();
+      step.after();
+      info("END " + step.desc);
     }
-    nextEditTest();
+    addAttributes();
   }
 
   function addAttributes() {
@@ -339,7 +318,7 @@ function test() {
         inspector.selection.setNode(doc.querySelector("#node18"));
       },
       executeCont: function() {
-        EventUtils.sendKey("delete", inspector.panelWin);
+        EventUtils.sendKey("delete");
       },
       after: function() {
         ok(!doc.querySelector("#node18"), "Node 18 should not exist.")

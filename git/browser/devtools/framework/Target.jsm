@@ -205,21 +205,14 @@ TabTarget.prototype = {
     return true;
   },
 
-  get isThreadPaused() {
-    return !!this._isThreadPaused;
-  },
-
   /**
-   * Listen to the different events.
+   * Listen to the different tabs events.
    */
   _setupListeners: function TabTarget__setupListeners() {
     this._webProgressListener = new TabWebProgressListener(this);
     this.tab.linkedBrowser.addProgressListener(this._webProgressListener);
     this.tab.addEventListener("TabClose", this);
     this.tab.parentNode.addEventListener("TabSelect", this);
-    this._handleThreadState = this._handleThreadState.bind(this);
-    this.on("thread-resumed", this._handleThreadState);
-    this.on("thread-paused", this._handleThreadState);
   },
 
   /**
@@ -241,20 +234,6 @@ TabTarget.prototype = {
   },
 
   /**
-   * Handle script status.
-   */
-  _handleThreadState: function(event) {
-    switch (event) {
-      case "thread-resumed":
-        this._isThreadPaused = false;
-        break;
-      case "thread-paused":
-        this._isThreadPaused = true;
-        break;
-    }
-  },
-
-  /**
    * Target is not alive anymore.
    */
   destroy: function() {
@@ -266,8 +245,6 @@ TabTarget.prototype = {
       this._webProgressListener = null;
       this.tab.removeEventListener("TabClose", this);
       this.tab.parentNode.removeEventListener("TabSelect", this);
-      this.off("thread-resumed", this._handleThreadState);
-      this.off("thread-paused", this._handleThreadState);
       this.emit("close");
 
       targets.delete(this._tab);
@@ -336,7 +313,6 @@ TabWebProgressListener.prototype = {
 function WindowTarget(window) {
   EventEmitter.decorate(this);
   this._window = window;
-  this._setupListeners();
 }
 
 WindowTarget.prototype = {
@@ -363,30 +339,6 @@ WindowTarget.prototype = {
     return false;
   },
 
-  get isThreadPaused() {
-    return !!this._isThreadPaused;
-  },
-
-  /**
-   * Listen to the different events.
-   */
-  _setupListeners: function() {
-    this._handleThreadState = this._handleThreadState.bind(this);
-    this.on("thread-paused", this._handleThreadState);
-    this.on("thread-resumed", this._handleThreadState);
-  },
-
-  _handleThreadState: function(event) {
-    switch (event) {
-      case "thread-resumed":
-        this._isThreadPaused = false;
-        break;
-      case "thread-paused":
-        this._isThreadPaused = true;
-        break;
-    }
-  },
-
   /**
    * Target is not alive anymore.
    */
@@ -394,8 +346,6 @@ WindowTarget.prototype = {
     if (!this._destroyed) {
       this._destroyed = true;
 
-      this.off("thread-paused", this._handleThreadState);
-      this.off("thread-resumed", this._handleThreadState);
       this.emit("close");
 
       targets.delete(this._window);
@@ -418,7 +368,18 @@ function RemoteTarget(form, client, chrome) {
   this._client = client;
   this._form = form;
   this._chrome = chrome;
-  this._setupListeners();
+
+  this.destroy = this.destroy.bind(this);
+  this.client.addListener("tabDetached", this.destroy);
+
+  this._onTabNavigated = function onRemoteTabNavigated(aType, aPacket) {
+    if (aPacket.state == "start") {
+      this.emit("will-navigate", aPacket);
+    } else {
+      this.emit("navigate", aPacket);
+    }
+  }.bind(this);
+  this.client.addListener("tabNavigated", this._onTabNavigated);
 }
 
 RemoteTarget.prototype = {
@@ -439,43 +400,6 @@ RemoteTarget.prototype = {
 
   get isLocalTab() false,
 
-  get isThreadPaused() !!this._isThreadPaused,
-
-  /**
-   * Listen to the different events.
-   */
-  _setupListeners: function() {
-    this.destroy = this.destroy.bind(this);
-    this.client.addListener("tabDetached", this.destroy);
-
-    this._onTabNavigated = function onRemoteTabNavigated(aType, aPacket) {
-      if (aPacket.state == "start") {
-        this.emit("will-navigate", aPacket);
-      } else {
-        this.emit("navigate", aPacket);
-      }
-    }.bind(this);
-    this.client.addListener("tabNavigated", this._onTabNavigated);
-
-    this._handleThreadState = this._handleThreadState.bind(this);
-    this.on("thread-resumed", this._handleThreadState);
-    this.on("thread-paused", this._handleThreadState);
-  },
-
-  /**
-   * Handle script status.
-   */
-  _handleThreadState: function(event) {
-    switch (event) {
-      case "thread-resumed":
-        this._isThreadPaused = false;
-        break;
-      case "thread-paused":
-        this._isThreadPaused = true;
-        break;
-    }
-  },
-
   /**
    * Target is not alive anymore.
    */
@@ -493,8 +417,6 @@ RemoteTarget.prototype = {
 
     this._client.close(function onClosed() {
       this._client = null;
-      this.off("thread-resumed", this._handleThreadState);
-      this.off("thread-paused", this._handleThreadState);
       this.emit("close");
 
       this._destroyer.resolve(null);

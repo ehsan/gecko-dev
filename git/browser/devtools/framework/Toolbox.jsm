@@ -390,10 +390,6 @@ Toolbox.prototype = {
    *        The id of the tool to switch to
    */
   selectTool: function TBOX_selectTool(id) {
-    if (this._currentToolId == id) {
-      return;
-    }
-
     let deferred = Promise.defer();
 
     if (!this.isReady) {
@@ -423,8 +419,6 @@ Toolbox.prototype = {
     deck.selectedIndex = index;
 
     let definition = gDevTools.getToolDefinitions().get(id);
-
-    this._currentToolId = id;
 
     let iframe = this.doc.getElementById("toolbox-panel-iframe-" + id);
     if (!iframe) {
@@ -465,14 +459,9 @@ Toolbox.prototype = {
 
     Services.prefs.setCharPref(this._prefs.LAST_TOOL, id);
 
-    return deferred.promise;
-  },
+    this._currentToolId = id;
 
-  /**
-   * Raise the toolbox host.
-   */
-  raise: function TBOX_raise() {
-    this._host.raise();
+    return deferred.promise;
   },
 
   /**
@@ -556,19 +545,20 @@ Toolbox.prototype = {
     let radio = this.doc.getElementById("toolbox-tab-" + toolId);
     let panel = this.doc.getElementById("toolbox-panel-" + toolId);
 
-    if (radio) {
-      if (this._currentToolId == toolId) {
-        let nextToolName = null;
-        if (radio.nextSibling) {
-          nextToolName = radio.nextSibling.getAttribute("toolid");
-        }
-        if (radio.previousSibling) {
-          nextToolName = radio.previousSibling.getAttribute("toolid");
-        }
-        if (nextToolName) {
-          this.selectTool(nextToolName);
-        }
+    if (this._currentToolId == toolId) {
+      let nextToolName = null;
+      if (radio.nextSibling) {
+        nextToolName = radio.nextSibling.getAttribute("toolid");
       }
+      if (radio.previousSibling) {
+        nextToolName = radio.previousSibling.getAttribute("toolid");
+      }
+      if (nextToolName) {
+        this.selectTool(nextToolName);
+      }
+    }
+
+    if (radio) {
       radio.parentNode.removeChild(radio);
     }
 
