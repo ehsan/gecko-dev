@@ -31,8 +31,6 @@ let SharedPerformanceActors = new WeakMap();
  *
  * @param Target target
  *        The target owning this connection.
- * @return PerformanceActorsConnection
- *         The shared connection for the specified target.
  */
 SharedPerformanceActors.forTarget = function(target) {
   if (this.has(target)) {
@@ -142,13 +140,12 @@ PerformanceActorsConnection.prototype = {
       this._timeline = new TimelineFront(this._target.client, this._target.form);
     } else {
       this._timeline = {
-        start: () => 0,
-        stop: () => 0,
+        start: () => {},
+        stop: () => {},
         isRecording: () => false,
-        on: () => null,
-        off: () => null,
-        once: () => promise.reject(),
-        destroy: () => null
+        on: () => {},
+        off: () => {},
+        destroy: () => {}
       };
     }
   },
@@ -214,41 +211,36 @@ PerformanceFront.prototype = {
   /**
    * Manually begins a recording session.
    *
-   * @param object timelineOptions
+   * @param object options
    *        An options object to pass to the timeline front. Supported
    *        properties are `withTicks` and `withMemory`.
    * @return object
    *         A promise that is resolved once recording has started.
    */
-  startRecording: Task.async(function*(timelineOptions = {}) {
-    let profilerStatus = yield this._request("profiler", "isActive");
-    let profilerStartTime;
+  startRecording: Task.async(function*(options = {}) {
+    let { isActive, currentTime } = yield this._request("profiler", "isActive");
 
     // Start the profiler only if it wasn't already active. The built-in
     // nsIPerformance module will be kept recording, because it's the same instance
     // for all targets and interacts with the whole platform, so we don't want
     // to affect other clients by stopping (or restarting) it.
-    if (!profilerStatus.isActive) {
+    if (!isActive) {
       // Extend the profiler options so that protocol.js doesn't modify the original.
       let profilerOptions = extend({}, this._customProfilerOptions);
       yield this._request("profiler", "startProfiler", profilerOptions);
-      profilerStartTime = 0;
+      this._profilingStartTime = 0;
       this.emit("profiler-activated");
     } else {
-      profilerStartTime = profilerStatus.currentTime;
+      this._profilingStartTime = currentTime;
       this.emit("profiler-already-active");
     }
 
-    // The timeline actor is target-dependent, so just make sure it's recording.
-    // It won't, however, be available in older Geckos (FF < 35).
-    let timelineStartTime = yield this._request("timeline", "start", timelineOptions);
+    // The timeline actor is target-dependent, so just make sure
+    // it's recording.
+    let startTime = yield this._request("timeline", "start", options);
 
-    // Return the start times from the two actors. They will be used to
-    // synchronize the profiler and timeline data.
-    return {
-      profilerStartTime,
-      timelineStartTime
-    };
+    // Return only the start time from the timeline actor.
+    return { startTime };
   }),
 
   /**
@@ -259,15 +251,19 @@ PerformanceFront.prototype = {
    *         with the profiler and timeline data.
    */
   stopRecording: Task.async(function*() {
-    let timelineEndTime = yield this._request("timeline", "stop");
+    // We'll need to filter out all samples that fall out of current profile's
+    // range. This is necessary because the profiler is continuously running.
     let profilerData = yield this._request("profiler", "getProfile");
+    filterSamples(profilerData, this._profilingStartTime);
+    offsetSampleTimes(profilerData, this._profilingStartTime);
 
-    // Return the end times from the two actors. They will be used to
-    // synchronize the profiler and timeline data.
+    let endTime = yield this._request("timeline", "stop");
+
+    // Join all the acquired data and return it for outside consumers.
     return {
-      profile: profilerData.profile,
-      profilerEndTime: profilerData.currentTime,
-      timelineEndTime: timelineEndTime
+      recordingDuration: profilerData.currentTime - this._profilingStartTime,
+      profilerData: profilerData,
+      endTime: endTime
     };
   }),
 
@@ -283,6 +279,39 @@ PerformanceFront.prototype = {
     features: ["js"]
   }
 };
+
+/**
+ * Filters all the samples in the provided profiler data to be more recent
+ * than the specified start time.
+ *
+ * @param object profilerData
+ *        The profiler data received from the backend.
+ * @param number profilingStartTime
+ *        The earliest acceptable sample time (in milliseconds).
+ */
+function filterSamples(profilerData, profilingStartTime) {
+  let firstThread = profilerData.profile.threads[0];
+
+  firstThread.samples = firstThread.samples.filter(e => {
+    return e.time >= profilingStartTime;
+  });
+}
+
+/**
+ * Offsets all the samples in the provided profiler data by the specified time.
+ *
+ * @param object profilerData
+ *        The profiler data received from the backend.
+ * @param number timeOffset
+ *        The amount of time to offset by (in milliseconds).
+ */
+function offsetSampleTimes(profilerData, timeOffset) {
+  let firstThreadSamples = profilerData.profile.threads[0].samples;
+
+  for (let sample of firstThreadSamples) {
+    sample.time -= timeOffset;
+  }
+}
 
 /**
  * A collection of small wrappers promisifying functions invoking callbacks.

@@ -3,8 +3,6 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 "use strict";
 
-const CALLTREE_UPDATE_DEBOUNCE = 50; // ms
-
 /**
  * CallTree view containing profiler call tree, controlled by DetailsView.
  */
@@ -13,9 +11,9 @@ let CallTreeView = {
    * Sets up the view with event binding.
    */
   initialize: function () {
+    this._callTree = $(".call-tree-cells-container");
     this._onRecordingStoppedOrSelected = this._onRecordingStoppedOrSelected.bind(this);
     this._onRangeChange = this._onRangeChange.bind(this);
-    this._onDetailsViewSelected = this._onDetailsViewSelected.bind(this);
     this._onPrefChanged = this._onPrefChanged.bind(this);
     this._onLink = this._onLink.bind(this);
 
@@ -24,35 +22,28 @@ let CallTreeView = {
     PerformanceController.on(EVENTS.PREF_CHANGED, this._onPrefChanged);
     OverviewView.on(EVENTS.OVERVIEW_RANGE_SELECTED, this._onRangeChange);
     OverviewView.on(EVENTS.OVERVIEW_RANGE_CLEARED, this._onRangeChange);
-    DetailsView.on(EVENTS.DETAILS_VIEW_SELECTED, this._onDetailsViewSelected);
   },
 
   /**
    * Unbinds events.
    */
   destroy: function () {
-    clearNamedTimeout("calltree-update");
-
     PerformanceController.off(EVENTS.RECORDING_STOPPED, this._onRecordingStoppedOrSelected);
     PerformanceController.off(EVENTS.RECORDING_SELECTED, this._onRecordingStoppedOrSelected);
     PerformanceController.off(EVENTS.PREF_CHANGED, this._onPrefChanged);
     OverviewView.off(EVENTS.OVERVIEW_RANGE_SELECTED, this._onRangeChange);
     OverviewView.off(EVENTS.OVERVIEW_RANGE_CLEARED, this._onRangeChange);
-    DetailsView.off(EVENTS.DETAILS_VIEW_SELECTED, this._onDetailsViewSelected);
   },
 
   /**
    * Method for handling all the set up for rendering a new call tree.
-   *
-   * @param object interval [optional]
-   *        The { startTime, endTime }, in milliseconds.
-   * @param object options [optional]
-   *        Additional options for new the call tree.
    */
-  render: function (interval={}, options={}) {
-    let recording = PerformanceController.getCurrentRecording();
-    let profile = recording.getProfile();
-    let threadNode = this._prepareCallTree(profile, interval, options);
+  render: function (profilerData, beginAt, endAt, options={}) {
+    // Empty recordings might yield no profiler data.
+    if (profilerData.profile == null) {
+      return;
+    }
+    let threadNode = this._prepareCallTree(profilerData, beginAt, endAt, options);
     this._populateCallTree(threadNode, options);
     this.emit(EVENTS.CALL_TREE_RENDERED);
   },
@@ -61,32 +52,23 @@ let CallTreeView = {
    * Called when recording is stopped or has been selected.
    */
   _onRecordingStoppedOrSelected: function (_, recording) {
+    // If not recording, then this recording is done and we can render all of it
     if (!recording.isRecording()) {
-      this.render();
+      let profilerData = recording.getProfilerData();
+      this.render(profilerData);
     }
   },
 
   /**
    * Fired when a range is selected or cleared in the OverviewView.
    */
-  _onRangeChange: function (_, interval) {
-    if (DetailsView.isViewSelected(this)) {
-      let debounced = () => this.render(interval);
-      setNamedTimeout("calltree-update", CALLTREE_UPDATE_DEBOUNCE, debounced);
-    } else {
-      this._dirty = true;
-      this._interval = interval;
-    }
-  },
-
-  /**
-   * Fired when a view is selected in the DetailsView.
-   */
-  _onDetailsViewSelected: function() {
-    if (DetailsView.isViewSelected(this) && this._dirty) {
-      this.render(this._interval);
-      this._dirty = false;
-    }
+  _onRangeChange: function (_, params) {
+    // When a range is cleared, we'll have no beginAt/endAt data,
+    // so the rebuild will just render all the data again.
+    let recording = PerformanceController.getCurrentRecording();
+    let profilerData = recording.getProfilerData();
+    let { beginAt, endAt } = params || {};
+    this.render(profilerData, beginAt, endAt);
   },
 
   /**
@@ -103,8 +85,8 @@ let CallTreeView = {
    * Called when the recording is stopped and prepares data to
    * populate the call tree.
    */
-  _prepareCallTree: function (profile, { startTime, endTime }, options) {
-    let threadSamples = profile.threads[0].samples;
+  _prepareCallTree: function (profilerData, startTime, endTime, options) {
+    let threadSamples = profilerData.profile.threads[0].samples;
     let contentOnly = !Prefs.showPlatformData;
     let invertTree = PerformanceController.getPref("invert-call-tree");
 
@@ -124,25 +106,19 @@ let CallTreeView = {
    */
   _populateCallTree: function (frameNode, options={}) {
     let root = new CallView({
-      frame: frameNode,
-      inverted: options.inverted,
-      // Root nodes are hidden in inverted call trees.
-      hidden: options.inverted,
-      // Call trees should only auto-expand when not inverted. Passing undefined
-      // will default to the CALL_TREE_AUTO_EXPAND depth.
       autoExpandDepth: options.inverted ? 0 : undefined,
+      frame: frameNode,
+      hidden: options.inverted,
+      inverted: options.inverted
     });
 
-    // Bind events.
+    // Bind events
     root.on("link", this._onLink);
 
     // Clear out other call trees.
-    let container = $(".call-tree-cells-container");
-    container.innerHTML = "";
-    root.attachTo(container);
+    this._callTree.innerHTML = "";
+    root.attachTo(this._callTree);
 
-    // When platform data isn't shown, hide the cateogry labels, since they're
-    // only available for C++ frames.
     let contentOnly = !Prefs.showPlatformData;
     root.toggleCategories(!contentOnly);
   },
@@ -152,7 +128,9 @@ let CallTreeView = {
    */
   _onPrefChanged: function (_, prefName, value) {
     if (prefName === "invert-call-tree") {
-      this.render(OverviewView.getTimeInterval());
+      let { beginAt, endAt } = OverviewView.getRange();
+      let profilerData = PerformanceController.getCurrentRecording().getProfilerData();
+      this.render(profilerData, beginAt || void 0, endAt || void 0);
     }
   }
 };

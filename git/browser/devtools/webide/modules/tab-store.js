@@ -96,7 +96,7 @@ TabStore.prototype = {
 
   listTabs: function() {
     if (!this._connection || !this._connection.client) {
-      return promise.reject(new Error("Can't listTabs, not connected."));
+      return promise.reject();
     }
     let deferred = promise.defer();
     this._connection.client.listTabs(response => {

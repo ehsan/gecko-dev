@@ -1034,7 +1034,7 @@ public:
   {
   }
 
-  virtual void AddDetails(mozilla::dom::ProfileTimelineMarker& aMarker) MOZ_OVERRIDE
+  virtual void AddDetails(mozilla::dom::ProfileTimelineMarker& aMarker)
   {
     if (GetMetaData() == TRACING_INTERVAL_START) {
       aMarker.mType.Construct(GetCause());
