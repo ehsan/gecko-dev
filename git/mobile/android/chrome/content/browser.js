@@ -223,6 +223,8 @@ var BrowserApp = {
     Services.obs.addObserver(this, "SearchEngines:Get", false);
     Services.obs.addObserver(this, "Passwords:Init", false);
 
+    Services.obs.addObserver(this, "sessionstore-state-purge-complete", false);
+
     function showFullScreenWarning() {
       NativeWindow.toast.show(Strings.browser.GetStringFromName("alertFullScreenToast"), "short");
     }
@@ -991,6 +993,8 @@ var BrowserApp = {
       storage.init();
 
       sendMessageToJava({gecko: { type: "Passwords:Init:Return" }});
+    } else if (aTopic == "sessionstore-state-purge-complete") {
+      sendMessageToJava({ gecko: { type: "Session:StatePurged" }});
     }
   },
 
@@ -1375,34 +1379,39 @@ nsBrowserAccess.prototype = {
       }
     }
 
+    Services.io.offline = false;
+
+    let referrer;
+    if (aOpener) {
+      try {
+        let location = aOpener.location;
+        referrer = Services.io.newURI(location, null, null);
+      } catch(e) { }
+    }
+
     let newTab = (aWhere == Ci.nsIBrowserDOMWindow.OPEN_NEWWINDOW || aWhere == Ci.nsIBrowserDOMWindow.OPEN_NEWTAB);
 
-    let parentId = -1;
-    if (newTab && !isExternal) {
-      let parent = BrowserApp.getTabForBrowser(BrowserApp.getBrowserForWindow(aOpener.top));
-      if (parent)
-        parentId = parent.id;
-    }
-
-    let browser;
     if (newTab) {
-      let tab = BrowserApp.addTab("about:blank", { external: isExternal, parentId: parentId, selected: true });
-      browser = tab.browser;
-    } else { // OPEN_CURRENTWINDOW and illegal values
-      browser = BrowserApp.selectedBrowser;
+      let parentId = -1;
+      if (!isExternal) {
+        let parent = BrowserApp.getTabForBrowser(BrowserApp.getBrowserForWindow(aOpener.top));
+        if (parent)
+          parentId = parent.id;
+      }
+
+      // BrowserApp.addTab calls loadURIWithFlags with the appropriate params
+      let tab = BrowserApp.addTab(aURI ? aURI.spec : "about:blank", { flags: loadflags,
+                                                                      referrerURI: referrer,
+                                                                      external: isExternal,
+                                                                      parentId: parentId,
+                                                                      selected: true });
+      return tab.browser;
     }
 
-    Services.io.offline = false;
-    try {
-      let referrer;
-      if (aURI && browser) {
-        if (aOpener) {
-          let location = aOpener.location;
-          referrer = Services.io.newURI(location, null, null);
-        }
-        browser.loadURIWithFlags(aURI.spec, loadflags, referrer, null, null);
-      }
-    } catch(e) { }
+    // OPEN_CURRENTWINDOW and illegal values
+    let browser = BrowserApp.selectedBrowser;
+    if (aURI && browser)
+      browser.loadURIWithFlags(aURI.spec, loadflags, referrer, null, null);
 
     return browser;
   },
@@ -3071,7 +3080,31 @@ var XPInstallObserver = {
     this.onInstallFailed(aInstall);
   },
 
-  onDownloadCancelled: function(aInstall) {}
+  onDownloadCancelled: function(aInstall) {
+    let host = (aInstall.originatingURI instanceof Ci.nsIStandardURL) && aInstall.originatingURI.host;
+    if (!host)
+      host = (aInstall.sourceURI instanceof Ci.nsIStandardURL) && aInstall.sourceURI.host;
+
+    let error = (host || aInstall.error == 0) ? "addonError" : "addonLocalError";
+    if (aInstall.error != 0)
+      error += aInstall.error;
+    else if (aInstall.addon && aInstall.addon.blocklistState == Ci.nsIBlocklistService.STATE_BLOCKED)
+      error += "Blocklisted";
+    else if (aInstall.addon && (!aInstall.addon.isCompatible || !aInstall.addon.isPlatformCompatible))
+      error += "Incompatible";
+    else
+      return; // No need to show anything in this case.
+
+    let msg = Strings.browser.GetStringFromName(error);
+    // TODO: formatStringFromName
+    msg = msg.replace("#1", aInstall.name);
+    if (host)
+      msg = msg.replace("#2", host);
+    msg = msg.replace("#3", Strings.brand.GetStringFromName("brandShortName"));
+    msg = msg.replace("#4", Services.appinfo.version);
+
+    NativeWindow.toast.show(msg, "short");
+  }
 };
 
 // Blindly copied from Safari documentation for now.

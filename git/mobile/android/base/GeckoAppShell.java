@@ -146,7 +146,7 @@ public class GeckoAppShell
     private static native void reportJavaCrash(String stackTrace);
 
     public static void notifyUriVisited(String uri) {
-        sendEventToGecko(new GeckoEvent(GeckoEvent.VISITED, uri));
+        sendEventToGecko(GeckoEvent.createVisitedEvent(uri));
     }
 
     public static native void processNextNativeEvent();
@@ -307,9 +307,9 @@ public class GeckoAppShell
         if (files == null)
             return false;
         try {
-            Iterator fileIterator = Arrays.asList(files).iterator();
+            Iterator<File> fileIterator = Arrays.asList(files).iterator();
             while (fileIterator.hasNext()) {
-                File file = (File)fileIterator.next();
+                File file = fileIterator.next();
                 File dest = new File(to, file.getName());
                 if (file.isDirectory())
                     retVal = moveDir(file, dest) ? retVal : false;
@@ -421,9 +421,9 @@ public class GeckoAppShell
             // remove any previously extracted libs
             File[] files = cacheFile.listFiles();
             if (files != null) {
-                Iterator cacheFiles = Arrays.asList(files).iterator();
+                Iterator<File> cacheFiles = Arrays.asList(files).iterator();
                 while (cacheFiles.hasNext()) {
-                    File libFile = (File)cacheFiles.next();
+                    File libFile = cacheFiles.next();
                     if (libFile.getName().endsWith(".so"))
                         libFile.delete();
                 }
@@ -506,7 +506,7 @@ public class GeckoAppShell
             public boolean onTouch(View view, MotionEvent event) {
                 if (event == null)
                     return true;
-                GeckoAppShell.sendEventToGecko(new GeckoEvent(event));
+                GeckoAppShell.sendEventToGecko(GeckoEvent.createMotionEvent(event));
                 return true;
             }
         });
@@ -574,8 +574,7 @@ public class GeckoAppShell
     // Block the current thread until the Gecko event loop is caught up
     synchronized public static void geckoEventSync() {
         sGeckoPendingAcks = new CountDownLatch(1);
-        GeckoAppShell.sendEventToGecko(
-            new GeckoEvent(GeckoEvent.GECKO_EVENT_SYNC));
+        GeckoAppShell.sendEventToGecko(GeckoEvent.createSyncEvent());
         while (sGeckoPendingAcks.getCount() != 0) {
             try {
                 sGeckoPendingAcks.await();
@@ -1008,7 +1007,7 @@ public class GeckoAppShell
             String resource = imageUri.getSchemeSpecificPart();
             resource = resource.substring(resource.lastIndexOf('/') + 1);
             try {
-                Class drawableClass = R.drawable.class;
+                Class<R.drawable> drawableClass = R.drawable.class;
                 Field f = drawableClass.getField(resource);
                 icon = f.getInt(null);
             } catch (Exception e) {} // just means the resource doesn't exist
@@ -1716,9 +1715,9 @@ public class GeckoAppShell
                 return "";
             
             ArrayList<GeckoEventListener> listeners = mEventListeners.get(type);
-            Iterator items = listeners.iterator();
+            Iterator<GeckoEventListener> items = listeners.iterator();
             while (items.hasNext()) {
-                ((GeckoEventListener) items.next()).handleMessage(type, geckoObject);
+                items.next().handleMessage(type, geckoObject);
             }
 
         } catch (Exception e) {
@@ -1863,7 +1862,7 @@ public class GeckoAppShell
 
     public static void viewSizeChanged() {
         if (mInputConnection != null && mInputConnection.isIMEEnabled()) {
-            sendEventToGecko(new GeckoEvent("ScrollTo:FocusedInput", ""));
+            sendEventToGecko(GeckoEvent.createBroadcastEvent("ScrollTo:FocusedInput", ""));
         }
     }
 
