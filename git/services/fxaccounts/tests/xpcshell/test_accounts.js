@@ -321,16 +321,9 @@ add_test(function test_fetchAndUnwrapKeys_no_token() {
     });
   });
 
-  fxa.setSignedInUser(user).then(
-    user => {
-      return fxa.internal.fetchAndUnwrapKeys();
-    }
-  ).then(
-    null,
-    error => {
-      log.info("setSignedInUser correctly rejected");
-    }
-  )
+  fxa.setSignedInUser(user).then((user) => {
+    fxa.internal.fetchAndUnwrapKeys();
+  });
 });
 
 // Alice (User A) signs up but never verifies her email.  Then Bob (User B)

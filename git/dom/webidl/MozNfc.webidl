@@ -5,8 +5,8 @@
  /* Copyright © 2013 Deutsche Telekom, Inc. */
 
 [NoInterfaceObject,
- Func="Navigator::HasNFCManagerSupport"]
-interface MozNFCManager {
+ Func="Navigator::HasNfcManagerSupport"]
+interface MozNfcManager {
    /**
     * API to check if the given application's manifest
     * URL is registered with the Chrome Process or not.
@@ -44,23 +44,23 @@ interface MozNFCManager {
 
 [JSImplementation="@mozilla.org/navigatorNfc;1",
  NavigatorProperty="mozNfc",
- Func="Navigator::HasNFCSupport"]
-interface MozNFC : EventTarget {
+ Func="Navigator::HasNfcSupport"]
+interface MozNfc : EventTarget {
    MozNFCTag getNFCTag(DOMString sessionId);
    MozNFCPeer getNFCPeer(DOMString sessionId);
 
-   [Func="Navigator::HasNFCPeerSupport"]
+   [Func="Navigator::HasNfcPeerSupport"]
    attribute EventHandler onpeerready;
-   [Func="Navigator::HasNFCPeerSupport"]
+   [Func="Navigator::HasNfcPeerSupport"]
    attribute EventHandler onpeerlost;
 };
 
 // Mozilla Only
-partial interface MozNFC {
+partial interface MozNfc {
    [ChromeOnly]
    void eventListenerWasAdded(DOMString aType);
    [ChromeOnly]
    void eventListenerWasRemoved(DOMString aType);
 };
 
-MozNFC implements MozNFCManager;
+MozNfc implements MozNfcManager;
