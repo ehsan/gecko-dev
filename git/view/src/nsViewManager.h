@@ -174,7 +174,8 @@ private:
   void TriggerRefresh(PRUint32 aUpdateFlags);
 
   // aView is the view for aWidget and aRegion is relative to aWidget.
-  void Refresh(nsView *aView, nsIWidget *aWidget, const nsIntRegion& aRegion);
+  void Refresh(nsView *aView, nsIWidget *aWidget,
+               const nsIntRegion& aRegion, PRUint32 aUpdateFlags);
   // aRootView is the view for aWidget, aRegion is relative to aRootView, and
   // aIntRegion is relative to aWidget.
   void RenderViews(nsView *aRootView, nsIWidget *aWidget,
@@ -295,6 +296,9 @@ private:
 
   void PostInvalidateEvent();
 };
+
+//when the refresh happens, should it be double buffered?
+#define NS_VMREFRESH_DOUBLE_BUFFER      0x0001
 
 class nsInvalidateEvent : public nsRunnable {
 public:

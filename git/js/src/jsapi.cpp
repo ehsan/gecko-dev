@@ -87,7 +87,7 @@
 #include "ds/LifoAlloc.h"
 #include "builtin/RegExp.h"
 #include "frontend/BytecodeCompiler.h"
-#include "frontend/BytecodeGenerator.h"
+#include "frontend/CodeGenerator.h"
 
 #include "jsatominlines.h"
 #include "jsinferinlines.h"
@@ -1818,7 +1818,7 @@ JS_ResolveStandardClass(JSContext *cx, JSObject *obj, jsid id, JSBool *resolved)
     atom = rt->atomState.typeAtoms[JSTYPE_VOID];
     if (idstr == atom) {
         *resolved = JS_TRUE;
-        return obj->defineProperty(cx, atom->asPropertyName(), UndefinedValue(),
+        return obj->defineProperty(cx, ATOM_TO_JSID(atom), UndefinedValue(),
                                    JS_PropertyStub, JS_StrictPropertyStub,
                                    JSPROP_PERMANENT | JSPROP_READONLY);
     }
@@ -1889,6 +1889,7 @@ JS_PUBLIC_API(JSBool)
 JS_EnumerateStandardClasses(JSContext *cx, JSObject *obj)
 {
     JSRuntime *rt;
+    JSAtom *atom;
     uintN i;
 
     CHECK_REQUEST(cx);
@@ -1899,9 +1900,9 @@ JS_EnumerateStandardClasses(JSContext *cx, JSObject *obj)
      * Check whether we need to bind 'undefined' and define it if so.
      * Since ES5 15.1.1.3 undefined can't be deleted.
      */
-    PropertyName *name = rt->atomState.typeAtoms[JSTYPE_VOID];
-    if (!obj->nativeContains(cx, ATOM_TO_JSID(name)) &&
-        !obj->defineProperty(cx, name, UndefinedValue(),
+    atom = rt->atomState.typeAtoms[JSTYPE_VOID];
+    if (!obj->nativeContains(cx, ATOM_TO_JSID(atom)) &&
+        !obj->defineProperty(cx, ATOM_TO_JSID(atom), UndefinedValue(),
                              JS_PropertyStub, JS_StrictPropertyStub,
                              JSPROP_PERMANENT | JSPROP_READONLY)) {
         return JS_FALSE;
@@ -2433,22 +2434,6 @@ JS_PrintTraceThingInfo(char *buf, size_t bufsize, JSTracer *trc, void *thing,
     buf[bufsize - 1] = '\0';
 }
 
-extern JS_PUBLIC_API(const char *)
-JS_GetTraceEdgeName(JSTracer *trc, char *buffer, int bufferSize)
-{
-    if (trc->debugPrinter) {
-        trc->debugPrinter(trc, buffer, bufferSize);
-        return buffer;
-    }
-    if (trc->debugPrintIndex != (size_t) - 1) {
-        JS_snprintf(buffer, bufferSize, "%s[%lu]",
-                    (const char *)trc->debugPrintArg,
-                    trc->debugPrintIndex);
-        return buffer;
-    }
-    return (const char*)trc->debugPrintArg;
-}
-
 typedef struct JSHeapDumpNode JSHeapDumpNode;
 
 struct JSHeapDumpNode {
@@ -2520,7 +2505,18 @@ DumpNotify(JSTracer *trc, void *thing, JSGCTraceKind kind)
         entry->key = thing;
     }
 
-    edgeName = JS_GetTraceEdgeName(&dtrc->base, dtrc->buffer, sizeof(dtrc->buffer));
+    if (dtrc->base.debugPrinter) {
+        dtrc->base.debugPrinter(trc, dtrc->buffer, sizeof(dtrc->buffer));
+        edgeName = dtrc->buffer;
+    } else if (dtrc->base.debugPrintIndex != (size_t)-1) {
+        JS_snprintf(dtrc->buffer, sizeof(dtrc->buffer), "%s[%lu]",
+                    (const char *)dtrc->base.debugPrintArg,
+                    dtrc->base.debugPrintIndex);
+        edgeName = dtrc->buffer;
+    } else {
+        edgeName = (const char*)dtrc->base.debugPrintArg;
+    }
+
     edgeNameSize = strlen(edgeName) + 1;
     size_t bytes = offsetof(JSHeapDumpNode, edgeName) + edgeNameSize;
     node = (JSHeapDumpNode *) OffTheBooks::malloc_(bytes);
@@ -3504,7 +3500,7 @@ DefinePropertyById(JSContext *cx, JSObject *obj, jsid id, const Value &value,
         return !!DefineNativeProperty(cx, obj, id, value, getter, setter,
                                       attrs, flags, tinyid);
     }
-    return obj->defineGeneric(cx, id, value, getter, setter, attrs);
+    return obj->defineProperty(cx, id, value, getter, setter, attrs);
 }
 
 JS_PUBLIC_API(JSBool)
@@ -3712,7 +3708,7 @@ GetPropertyDescriptorById(JSContext *cx, JSObject *obj, jsid id, uintN flags,
                    ? Proxy::getOwnPropertyDescriptor(cx, obj2, id, false, desc)
                    : Proxy::getPropertyDescriptor(cx, obj2, id, false, desc);
         }
-        if (!obj2->getGenericAttributes(cx, id, &desc->attrs))
+        if (!obj2->getAttributes(cx, id, &desc->attrs))
             return false;
         desc->getter = NULL;
         desc->setter = NULL;
@@ -3806,7 +3802,7 @@ SetPropertyAttributesById(JSContext *cx, JSObject *obj, jsid id, uintN attrs, JS
     }
     JSBool ok = obj->isNative()
                 ? js_SetNativeAttributes(cx, obj, (Shape *) prop, attrs)
-                : obj->setGenericAttributes(cx, id, &attrs);
+                : obj->setAttributes(cx, id, &attrs);
     if (ok)
         *foundp = true;
     return ok;
@@ -3899,7 +3895,7 @@ JS_SetPropertyById(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, obj, id);
     JSAutoResolveFlags rf(cx, JSRESOLVE_QUALIFIED | JSRESOLVE_ASSIGNING);
-    return obj->setGeneric(cx, id, vp, false);
+    return obj->setProperty(cx, id, vp, false);
 }
 
 JS_PUBLIC_API(JSBool)
@@ -3932,7 +3928,7 @@ JS_DeletePropertyById2(JSContext *cx, JSObject *obj, jsid id, jsval *rval)
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, obj, id);
     JSAutoResolveFlags rf(cx, JSRESOLVE_QUALIFIED);
-    return obj->deleteGeneric(cx, id, rval, false);
+    return obj->deleteProperty(cx, id, rval, false);
 }
 
 JS_PUBLIC_API(JSBool)
@@ -4583,8 +4579,8 @@ CompileUCScriptForPrincipalsCommon(JSContext *cx, JSObject *obj, JSPrincipals *p
     AutoLastFrameCheck lfc(cx);
 
     uint32 tcflags = JS_OPTIONS_TO_TCFLAGS(cx) | TCF_NEED_MUTABLE_SCRIPT | TCF_NEED_SCRIPT_OBJECT;
-    return BytecodeCompiler::compileScript(cx, obj, NULL, principals, tcflags, chars, length,
-                                           filename, lineno, version);
+    return Compiler::compileScript(cx, obj, NULL, principals, tcflags,
+                                   chars, length, filename, lineno, version);
 }
 
 extern JS_PUBLIC_API(JSScript *)
@@ -4760,8 +4756,8 @@ CompileFileHelper(JSContext *cx, JSObject *obj, JSPrincipals *principals,
     JS_ASSERT(i <= len);
     len = i;
     uint32 tcflags = JS_OPTIONS_TO_TCFLAGS(cx) | TCF_NEED_MUTABLE_SCRIPT | TCF_NEED_SCRIPT_OBJECT;
-    script = BytecodeCompiler::compileScript(cx, obj, NULL, principals, tcflags, buf, len,
-                                             filename, 1, cx->findVersion());
+    script = Compiler::compileScript(cx, obj, NULL, principals, tcflags, buf, len, filename, 1,
+                                     cx->findVersion());
     cx->free_(buf);
     return script;
 }
@@ -4860,16 +4856,14 @@ CompileUCFunctionForPrincipalsCommon(JSContext *cx, JSObject *obj,
     if (!fun)
         return NULL;
 
-    if (!BytecodeCompiler::compileFunctionBody(cx, fun, principals, &bindings,
-                                               chars, length, filename, lineno, version))
-    {
+    if (!Compiler::compileFunctionBody(cx, fun, principals, &bindings,
+                                       chars, length, filename, lineno, version)) {
         return NULL;
     }
 
     if (obj && funAtom &&
-        !obj->defineGeneric(cx, ATOM_TO_JSID(funAtom), ObjectValue(*fun), NULL, NULL,
-                            JSPROP_ENUMERATE))
-    {
+        !obj->defineProperty(cx, ATOM_TO_JSID(funAtom), ObjectValue(*fun),
+                             NULL, NULL, JSPROP_ENUMERATE)) {
         return NULL;
     }
 
@@ -5024,8 +5018,8 @@ EvaluateUCScriptForPrincipalsCommon(JSContext *cx, JSObject *obj,
 
     CHECK_REQUEST(cx);
     AutoLastFrameCheck lfc(cx);
-    JSScript *script = BytecodeCompiler::compileScript(cx, obj, NULL, principals, flags, chars,
-                                                       length, filename, lineno, compileVersion);
+    JSScript *script = Compiler::compileScript(cx, obj, NULL, principals, flags,
+                                               chars, length, filename, lineno, compileVersion);
     if (!script)
         return false;
 

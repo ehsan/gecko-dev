@@ -8380,8 +8380,7 @@ nsDocShell::InternalLoad(nsIURI * aURI,
                     // Link our new SHEntry to the old SHEntry's back/forward
                     // cache data, since the two SHEntries correspond to the
                     // same document.
-                    if (mLSHE)
-                        mLSHE->AdoptBFCacheEntry(mOSHE);
+                    mLSHE->AdoptBFCacheEntry(mOSHE);
                 }
             }
 

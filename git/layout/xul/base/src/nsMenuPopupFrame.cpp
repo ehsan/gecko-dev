@@ -155,7 +155,7 @@ nsMenuPopupFrame::Init(nsIContent*      aContent,
   mMenuCanOverlapOSBar =
     LookAndFeel::GetInt(LookAndFeel::eIntID_MenusCanOverlapOSBar) != 0;
 
-  rv = CreatePopupView();
+  rv = CreatePopupViewForFrame();
   NS_ENSURE_SUCCESS(rv, rv);
 
   // XXX Hack. The popup's view should float above all other views,
@@ -1921,20 +1921,24 @@ nsMenuPopupFrame::SetConsumeRollupEvent(PRUint32 aConsumeMode)
  * as much as possible. Until we get rid of views finally...
  */
 nsresult
-nsMenuPopupFrame::CreatePopupView()
+nsMenuPopupFrame::CreatePopupViewForFrame()
 {
   if (HasView()) {
     return NS_OK;
   }
 
+  nsViewVisibility visibility = nsViewVisibility_kShow;
+  PRInt32 zIndex = 0;
+  bool    autoZIndex = false;
+
+  nsIView* parentView;
   nsIViewManager* viewManager = PresContext()->GetPresShell()->GetViewManager();
   NS_ASSERTION(nsnull != viewManager, "null view manager");
 
   // Create a view
-  nsIView* parentView = viewManager->GetRootView();
-  nsViewVisibility visibility = nsViewVisibility_kHide;
-  PRInt32 zIndex = PR_INT32_MAX;
-  bool    autoZIndex = false;
+  parentView = viewManager->GetRootView();
+  visibility = nsViewVisibility_kHide;
+  zIndex = PR_INT32_MAX;
 
   NS_ASSERTION(parentView, "no parent view");
 
@@ -1950,7 +1954,7 @@ nsMenuPopupFrame::CreatePopupView()
   SetView(view);
 
   NS_FRAME_LOG(NS_FRAME_TRACE_CALLS,
-    ("nsMenuPopupFrame::CreatePopupView: frame=%p view=%p", this, view));
+    ("nsMenuPopupFrame::CreatePopupViewForFrame: frame=%p view=%p", this, view));
 
   if (!view)
     return NS_ERROR_OUT_OF_MEMORY;

@@ -76,6 +76,7 @@
 #include "nsSVGEnum.h"
 #include "nsSVGViewBox.h"
 #include "nsSVGString.h"
+#include "nsSVGClass.h"
 #include "SVGAnimatedNumberList.h"
 #include "SVGAnimatedLengthList.h"
 #include "SVGAnimatedPointList.h"
@@ -515,6 +516,14 @@ nsSVGElement::ParseAttribute(PRInt32 aNamespaceID,
           }
           foundMatch = true;
         }
+      // Check for class attribute
+      } else if (aAttribute == nsGkAtoms::_class) {
+        nsSVGClass *svgClass = GetClass();
+        if (svgClass) {
+          svgClass->SetBaseValue(aValue, this, false);
+          aResult.ParseAtomArray(aValue);
+          return true;
+        }
       }
     }
   }
@@ -723,6 +732,16 @@ nsSVGElement::UnsetAttrInternal(PRInt32 aNamespaceID, nsIAtom* aName,
       if (transformList) {
         transformList->ClearBaseValue();
         DidChangeTransformList(false);
+        return;
+      }
+    }
+
+    // Check if this is a class attribute going away
+    if (aName == nsGkAtoms::_class) {
+      nsSVGClass *svgClass = GetClass();
+
+      if (svgClass) {
+        svgClass->Init();
         return;
       }
     }
@@ -2094,6 +2113,23 @@ nsSVGElement::DidAnimateString(PRUint8 aAttrEnum)
   }
 }
 
+nsSVGClass *
+nsSVGElement::GetClass()
+{
+  return nsnull;
+}
+
+void
+nsSVGElement::DidAnimateClass()
+{
+  nsIFrame* frame = GetPrimaryFrame();
+
+  if (frame) {
+    frame->AttributeChanged(kNameSpaceID_None, nsGkAtoms::_class,
+                            nsIDOMMutationEvent::MODIFICATION);
+  }
+}
+
 nsresult
 nsSVGElement::ReportAttributeParseFailure(nsIDocument* aDocument,
                                           nsIAtom* aAttribute,
@@ -2236,6 +2272,11 @@ nsSVGElement::GetAnimatedAttr(PRInt32 aNamespaceID, nsIAtom* aName)
         GetPreserveAspectRatio();
       return preserveAspectRatio ?
         preserveAspectRatio->ToSMILAttr(this) : nsnull;
+    }
+
+    if (aName == nsGkAtoms::_class) {
+      nsSVGClass *svgClass = GetClass();
+      return svgClass ? svgClass->ToSMILAttr(this) : nsnull;
     }
 
     // NumberLists:

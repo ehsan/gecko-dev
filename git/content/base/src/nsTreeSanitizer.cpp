@@ -73,7 +73,6 @@ nsIAtom** const kElementsHTML[] = {
   &nsGkAtoms::audio,
 #endif
   &nsGkAtoms::b,
-  &nsGkAtoms::bdi,
   &nsGkAtoms::bdo,
   &nsGkAtoms::big,
   &nsGkAtoms::blockquote,

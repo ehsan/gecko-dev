@@ -325,8 +325,8 @@ ArrayBuffer::obj_lookupSpecial(JSContext *cx, JSObject *obj, SpecialId sid,
 }
 
 JSBool
-ArrayBuffer::obj_defineGeneric(JSContext *cx, JSObject *obj, jsid id, const Value *v,
-                               PropertyOp getter, StrictPropertyOp setter, uintN attrs)
+ArrayBuffer::obj_defineProperty(JSContext *cx, JSObject *obj, jsid id, const Value *v,
+                   PropertyOp getter, StrictPropertyOp setter, uintN attrs)
 {
     if (JSID_IS_ATOM(id, cx->runtime->atomState.byteLengthAtom))
         return true;
@@ -335,13 +335,6 @@ ArrayBuffer::obj_defineGeneric(JSContext *cx, JSObject *obj, jsid id, const Valu
     if (!delegate)
         return false;
     return js_DefineProperty(cx, delegate, id, v, getter, setter, attrs);
-}
-
-JSBool
-ArrayBuffer::obj_defineProperty(JSContext *cx, JSObject *obj, PropertyName *name, const Value *v,
-                                PropertyOp getter, StrictPropertyOp setter, uintN attrs)
-{
-    return obj_defineGeneric(cx, obj, ATOM_TO_JSID(name), v, getter, setter, attrs);
 }
 
 JSBool
@@ -358,7 +351,7 @@ JSBool
 ArrayBuffer::obj_defineSpecial(JSContext *cx, JSObject *obj, SpecialId sid, const Value *v,
                                PropertyOp getter, StrictPropertyOp setter, uintN attrs)
 {
-    return obj_defineGeneric(cx, obj, SPECIALID_TO_JSID(sid), v, getter, setter, attrs);
+    return obj_defineProperty(cx, obj, SPECIALID_TO_JSID(sid), v, getter, setter, attrs);
 }
 
 JSBool
@@ -399,7 +392,7 @@ ArrayBuffer::obj_getSpecial(JSContext *cx, JSObject *obj, JSObject *receiver, Sp
 }
 
 JSBool
-ArrayBuffer::obj_setGeneric(JSContext *cx, JSObject *obj, jsid id, Value *vp, JSBool strict)
+ArrayBuffer::obj_setProperty(JSContext *cx, JSObject *obj, jsid id, Value *vp, JSBool strict)
 {
     if (JSID_IS_ATOM(id, cx->runtime->atomState.byteLengthAtom))
         return true;
@@ -453,12 +446,6 @@ ArrayBuffer::obj_setGeneric(JSContext *cx, JSObject *obj, jsid id, Value *vp, JS
 }
 
 JSBool
-ArrayBuffer::obj_setProperty(JSContext *cx, JSObject *obj, PropertyName *name, Value *vp, JSBool strict)
-{
-    return obj_setGeneric(cx, obj, ATOM_TO_JSID(name), vp, strict);
-}
-
-JSBool
 ArrayBuffer::obj_setElement(JSContext *cx, JSObject *obj, uint32 index, Value *vp, JSBool strict)
 {
     JSObject *delegate = DelegateObject(cx, obj);
@@ -471,11 +458,11 @@ ArrayBuffer::obj_setElement(JSContext *cx, JSObject *obj, uint32 index, Value *v
 JSBool
 ArrayBuffer::obj_setSpecial(JSContext *cx, JSObject *obj, SpecialId sid, Value *vp, JSBool strict)
 {
-    return obj_setGeneric(cx, obj, SPECIALID_TO_JSID(sid), vp, strict);
+    return obj_setProperty(cx, obj, SPECIALID_TO_JSID(sid), vp, strict);
 }
 
 JSBool
-ArrayBuffer::obj_getGenericAttributes(JSContext *cx, JSObject *obj, jsid id, uintN *attrsp)
+ArrayBuffer::obj_getAttributes(JSContext *cx, JSObject *obj, jsid id, uintN *attrsp)
 {
     if (JSID_IS_ATOM(id, cx->runtime->atomState.byteLengthAtom)) {
         *attrsp = JSPROP_PERMANENT | JSPROP_READONLY;
@@ -486,12 +473,6 @@ ArrayBuffer::obj_getGenericAttributes(JSContext *cx, JSObject *obj, jsid id, uin
     if (!delegate)
         return false;
     return js_GetAttributes(cx, delegate, id, attrsp);
-}
-
-JSBool
-ArrayBuffer::obj_getPropertyAttributes(JSContext *cx, JSObject *obj, PropertyName *name, uintN *attrsp)
-{
-    return obj_getGenericAttributes(cx, obj, ATOM_TO_JSID(name), attrsp);
 }
 
 JSBool
@@ -506,11 +487,11 @@ ArrayBuffer::obj_getElementAttributes(JSContext *cx, JSObject *obj, uint32 index
 JSBool
 ArrayBuffer::obj_getSpecialAttributes(JSContext *cx, JSObject *obj, SpecialId sid, uintN *attrsp)
 {
-    return obj_getGenericAttributes(cx, obj, SPECIALID_TO_JSID(sid), attrsp);
+    return obj_getAttributes(cx, obj, SPECIALID_TO_JSID(sid), attrsp);
 }
 
 JSBool
-ArrayBuffer::obj_setGenericAttributes(JSContext *cx, JSObject *obj, jsid id, uintN *attrsp)
+ArrayBuffer::obj_setAttributes(JSContext *cx, JSObject *obj, jsid id, uintN *attrsp)
 {
     if (JSID_IS_ATOM(id, cx->runtime->atomState.byteLengthAtom)) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
@@ -525,12 +506,6 @@ ArrayBuffer::obj_setGenericAttributes(JSContext *cx, JSObject *obj, jsid id, uin
 }
 
 JSBool
-ArrayBuffer::obj_setPropertyAttributes(JSContext *cx, JSObject *obj, PropertyName *name, uintN *attrsp)
-{
-    return obj_setGenericAttributes(cx, obj, ATOM_TO_JSID(name), attrsp);
-}
-
-JSBool
 ArrayBuffer::obj_setElementAttributes(JSContext *cx, JSObject *obj, uint32 index, uintN *attrsp)
 {
     JSObject *delegate = DelegateObject(cx, obj);
@@ -542,11 +517,11 @@ ArrayBuffer::obj_setElementAttributes(JSContext *cx, JSObject *obj, uint32 index
 JSBool
 ArrayBuffer::obj_setSpecialAttributes(JSContext *cx, JSObject *obj, SpecialId sid, uintN *attrsp)
 {
-    return obj_setGenericAttributes(cx, obj, SPECIALID_TO_JSID(sid), attrsp);
+    return obj_setAttributes(cx, obj, SPECIALID_TO_JSID(sid), attrsp);
 }
 
 JSBool
-ArrayBuffer::obj_deleteGeneric(JSContext *cx, JSObject *obj, jsid id, Value *rval, JSBool strict)
+ArrayBuffer::obj_deleteProperty(JSContext *cx, JSObject *obj, jsid id, Value *rval, JSBool strict)
 {
     if (JSID_IS_ATOM(id, cx->runtime->atomState.byteLengthAtom)) {
         rval->setBoolean(false);
@@ -557,12 +532,6 @@ ArrayBuffer::obj_deleteGeneric(JSContext *cx, JSObject *obj, jsid id, Value *rva
     if (!delegate)
         return false;
     return js_DeleteProperty(cx, delegate, id, rval, strict);
-}
-
-JSBool
-ArrayBuffer::obj_deleteProperty(JSContext *cx, JSObject *obj, PropertyName *name, Value *rval, JSBool strict)
-{
-    return obj_deleteGeneric(cx, obj, ATOM_TO_JSID(name), rval, strict);
 }
 
 JSBool
@@ -577,7 +546,7 @@ ArrayBuffer::obj_deleteElement(JSContext *cx, JSObject *obj, uint32 index, Value
 JSBool
 ArrayBuffer::obj_deleteSpecial(JSContext *cx, JSObject *obj, SpecialId sid, Value *rval, JSBool strict)
 {
-    return obj_deleteGeneric(cx, obj, SPECIALID_TO_JSID(sid), rval, strict);
+    return obj_deleteProperty(cx, obj, SPECIALID_TO_JSID(sid), rval, strict);
 }
 
 JSBool
@@ -753,18 +722,11 @@ TypedArray::obj_lookupSpecial(JSContext *cx, JSObject *obj, SpecialId sid,
 }
 
 JSBool
-TypedArray::obj_getGenericAttributes(JSContext *cx, JSObject *obj, jsid id, uintN *attrsp)
+TypedArray::obj_getAttributes(JSContext *cx, JSObject *obj, jsid id, uintN *attrsp)
 {
     *attrsp = (JSID_IS_ATOM(id, cx->runtime->atomState.lengthAtom))
               ? JSPROP_PERMANENT | JSPROP_READONLY
               : JSPROP_PERMANENT | JSPROP_ENUMERATE;
-    return true;
-}
-
-JSBool
-TypedArray::obj_getPropertyAttributes(JSContext *cx, JSObject *obj, PropertyName *name, uintN *attrsp)
-{
-    *attrsp = JSPROP_PERMANENT | JSPROP_ENUMERATE;
     return true;
 }
 
@@ -778,18 +740,11 @@ TypedArray::obj_getElementAttributes(JSContext *cx, JSObject *obj, uint32 index,
 JSBool
 TypedArray::obj_getSpecialAttributes(JSContext *cx, JSObject *obj, SpecialId sid, uintN *attrsp)
 {
-    return obj_getGenericAttributes(cx, obj, SPECIALID_TO_JSID(sid), attrsp);
+    return obj_getAttributes(cx, obj, SPECIALID_TO_JSID(sid), attrsp);
 }
 
 JSBool
-TypedArray::obj_setGenericAttributes(JSContext *cx, JSObject *obj, jsid id, uintN *attrsp)
-{
-    JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_CANT_SET_ARRAY_ATTRS);
-    return false;
-}
-
-JSBool
-TypedArray::obj_setPropertyAttributes(JSContext *cx, JSObject *obj, PropertyName *name, uintN *attrsp)
+TypedArray::obj_setAttributes(JSContext *cx, JSObject *obj, jsid id, uintN *attrsp)
 {
     JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_CANT_SET_ARRAY_ATTRS);
     return false;
@@ -805,8 +760,7 @@ TypedArray::obj_setElementAttributes(JSContext *cx, JSObject *obj, uint32 index,
 JSBool
 TypedArray::obj_setSpecialAttributes(JSContext *cx, JSObject *obj, SpecialId sid, uintN *attrsp)
 {
-    JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_CANT_SET_ARRAY_ATTRS);
-    return false;
+    return obj_setAttributes(cx, obj, SPECIALID_TO_JSID(sid), attrsp);
 }
 
 /* static */ int
@@ -1134,7 +1088,7 @@ class TypedArrayTemplate
     }
 
     static JSBool
-    obj_setGeneric(JSContext *cx, JSObject *obj, jsid id, Value *vp, JSBool strict)
+    obj_setProperty(JSContext *cx, JSObject *obj, jsid id, Value *vp, JSBool strict)
     {
         JSObject *tarray = getTypedArray(obj);
         JS_ASSERT(tarray);
@@ -1160,12 +1114,6 @@ class TypedArrayTemplate
     }
 
     static JSBool
-    obj_setProperty(JSContext *cx, JSObject *obj, PropertyName *name, Value *vp, JSBool strict)
-    {
-        return obj_setGeneric(cx, obj, ATOM_TO_JSID(name), vp, strict);
-    }
-
-    static JSBool
     obj_setElement(JSContext *cx, JSObject *obj, uint32 index, Value *vp, JSBool strict)
     {
         JSObject *tarray = getTypedArray(obj);
@@ -1187,25 +1135,18 @@ class TypedArrayTemplate
     static JSBool
     obj_setSpecial(JSContext *cx, JSObject *obj, SpecialId sid, Value *vp, JSBool strict)
     {
-        return obj_setGeneric(cx, obj, SPECIALID_TO_JSID(sid), vp, strict);
+        return obj_setProperty(cx, obj, SPECIALID_TO_JSID(sid), vp, strict);
     }
 
     static JSBool
-    obj_defineGeneric(JSContext *cx, JSObject *obj, jsid id, const Value *v,
-                      PropertyOp getter, StrictPropertyOp setter, uintN attrs)
+    obj_defineProperty(JSContext *cx, JSObject *obj, jsid id, const Value *v,
+                       PropertyOp getter, StrictPropertyOp setter, uintN attrs)
     {
         if (JSID_IS_ATOM(id, cx->runtime->atomState.lengthAtom))
             return true;
 
         Value tmp = *v;
-        return obj_setGeneric(cx, obj, id, &tmp, false);
-    }
-
-    static JSBool
-    obj_defineProperty(JSContext *cx, JSObject *obj, PropertyName *name, const Value *v,
-                       PropertyOp getter, StrictPropertyOp setter, uintN attrs)
-    {
-        return obj_defineGeneric(cx, obj, ATOM_TO_JSID(name), v, getter, setter, attrs);
+        return obj_setProperty(cx, obj, id, &tmp, false);
     }
 
     static JSBool
@@ -1220,11 +1161,11 @@ class TypedArrayTemplate
     obj_defineSpecial(JSContext *cx, JSObject *obj, SpecialId sid, const Value *v,
                       PropertyOp getter, StrictPropertyOp setter, uintN attrs)
     {
-        return obj_defineGeneric(cx, obj, SPECIALID_TO_JSID(sid), v, getter, setter, attrs);
+        return obj_defineProperty(cx, obj, SPECIALID_TO_JSID(sid), v, getter, setter, attrs);
     }
 
     static JSBool
-    obj_deleteGeneric(JSContext *cx, JSObject *obj, jsid id, Value *rval, JSBool strict)
+    obj_deleteProperty(JSContext *cx, JSObject *obj, jsid id, Value *rval, JSBool strict)
     {
         if (JSID_IS_ATOM(id, cx->runtime->atomState.lengthAtom)) {
             rval->setBoolean(false);
@@ -1241,12 +1182,6 @@ class TypedArrayTemplate
 
         rval->setBoolean(true);
         return true;
-    }
-
-    static JSBool
-    obj_deleteProperty(JSContext *cx, JSObject *obj, PropertyName *name, Value *rval, JSBool strict)
-    {
-        return obj_deleteGeneric(cx, obj, ATOM_TO_JSID(name), rval, strict);
     }
 
     static JSBool
@@ -1267,7 +1202,7 @@ class TypedArrayTemplate
     static JSBool
     obj_deleteSpecial(JSContext *cx, JSObject *obj, SpecialId sid, Value *rval, JSBool strict)
     {
-        return obj_deleteGeneric(cx, obj, SPECIALID_TO_JSID(sid), rval, strict);
+        return obj_deleteProperty(cx, obj, SPECIALID_TO_JSID(sid), rval, strict);
     }
 
     static JSBool
@@ -2098,7 +2033,7 @@ Class js::ArrayBufferClass = {
         ArrayBuffer::obj_lookupProperty,
         ArrayBuffer::obj_lookupElement,
         ArrayBuffer::obj_lookupSpecial,
-        ArrayBuffer::obj_defineGeneric,
+        ArrayBuffer::obj_defineProperty,
         ArrayBuffer::obj_defineProperty,
         ArrayBuffer::obj_defineElement,
         ArrayBuffer::obj_defineSpecial,
@@ -2106,19 +2041,19 @@ Class js::ArrayBufferClass = {
         ArrayBuffer::obj_getProperty,
         ArrayBuffer::obj_getElement,
         ArrayBuffer::obj_getSpecial,
-        ArrayBuffer::obj_setGeneric,
+        ArrayBuffer::obj_setProperty,
         ArrayBuffer::obj_setProperty,
         ArrayBuffer::obj_setElement,
         ArrayBuffer::obj_setSpecial,
-        ArrayBuffer::obj_getGenericAttributes,
-        ArrayBuffer::obj_getPropertyAttributes,
+        ArrayBuffer::obj_getAttributes,
+        ArrayBuffer::obj_getAttributes,
         ArrayBuffer::obj_getElementAttributes,
         ArrayBuffer::obj_getSpecialAttributes,
-        ArrayBuffer::obj_setGenericAttributes,
-        ArrayBuffer::obj_setPropertyAttributes,
+        ArrayBuffer::obj_setAttributes,
+        ArrayBuffer::obj_setAttributes,
         ArrayBuffer::obj_setElementAttributes,
         ArrayBuffer::obj_setSpecialAttributes,
-        ArrayBuffer::obj_deleteGeneric,
+        ArrayBuffer::obj_deleteProperty,
         ArrayBuffer::obj_deleteProperty,
         ArrayBuffer::obj_deleteElement,
         ArrayBuffer::obj_deleteSpecial,
@@ -2210,27 +2145,27 @@ JSFunctionSpec _typedArray::jsfuncs[] = {                                      \
         _typedArray::obj_lookupProperty,                                       \
         _typedArray::obj_lookupElement,                                        \
         _typedArray::obj_lookupSpecial,                                        \
-        _typedArray::obj_defineGeneric,                                        \
+        _typedArray::obj_defineProperty,                                       \
         _typedArray::obj_defineProperty,                                       \
         _typedArray::obj_defineElement,                                        \
         _typedArray::obj_defineSpecial,                                        \
-        _typedArray::obj_getGeneric,                                           \
+        _typedArray::obj_getGeneric,                                          \
         _typedArray::obj_getProperty,                                          \
         _typedArray::obj_getElement,                                           \
         _typedArray::obj_getSpecial,                                           \
-        _typedArray::obj_setGeneric,                                           \
+        _typedArray::obj_setProperty,                                          \
         _typedArray::obj_setProperty,                                          \
         _typedArray::obj_setElement,                                           \
         _typedArray::obj_setSpecial,                                           \
-        _typedArray::obj_getGenericAttributes,                                 \
-        _typedArray::obj_getPropertyAttributes,                                \
+        _typedArray::obj_getAttributes,                                        \
+        _typedArray::obj_getAttributes,                                        \
         _typedArray::obj_getElementAttributes,                                 \
         _typedArray::obj_getSpecialAttributes,                                 \
-        _typedArray::obj_setGenericAttributes,                                 \
-        _typedArray::obj_setPropertyAttributes,                                \
+        _typedArray::obj_setAttributes,                                        \
+        _typedArray::obj_setAttributes,                                        \
         _typedArray::obj_setElementAttributes,                                 \
         _typedArray::obj_setSpecialAttributes,                                 \
-        _typedArray::obj_deleteGeneric,                                        \
+        _typedArray::obj_deleteProperty,                                       \
         _typedArray::obj_deleteProperty,                                       \
         _typedArray::obj_deleteElement,                                        \
         _typedArray::obj_deleteSpecial,                                        \
@@ -2258,11 +2193,11 @@ InitTypedArrayClass(JSContext *cx, GlobalObject *global)
     if (!LinkConstructorAndPrototype(cx, ctor, proto))
         return NULL;
 
-    if (!ctor->defineProperty(cx, cx->runtime->atomState.BYTES_PER_ELEMENTAtom,
+    if (!ctor->defineProperty(cx, ATOM_TO_JSID(cx->runtime->atomState.BYTES_PER_ELEMENTAtom),
                               Int32Value(ArrayType::BYTES_PER_ELEMENT),
                               JS_PropertyStub, JS_StrictPropertyStub,
                               JSPROP_PERMANENT | JSPROP_READONLY) ||
-        !proto->defineProperty(cx, cx->runtime->atomState.BYTES_PER_ELEMENTAtom,
+        !proto->defineProperty(cx, ATOM_TO_JSID(cx->runtime->atomState.BYTES_PER_ELEMENTAtom),
                                Int32Value(ArrayType::BYTES_PER_ELEMENT),
                                JS_PropertyStub, JS_StrictPropertyStub,
                                JSPROP_PERMANENT | JSPROP_READONLY))

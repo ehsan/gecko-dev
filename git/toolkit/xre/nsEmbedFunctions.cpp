@@ -314,8 +314,6 @@ XRE_InitChildProcess(int aArgc,
   NS_ENSURE_ARG_POINTER(aArgv);
   NS_ENSURE_ARG_POINTER(aArgv[0]);
 
-  TriggerQuirks();
-
   sChildProcessType = aProcess;
 
   // Complete 'task_t' exchange for Mac OS X. This structure has the same size

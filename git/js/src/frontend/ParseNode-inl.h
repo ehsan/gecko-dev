@@ -41,14 +41,14 @@
 #define ParseNode_inl_h__
 
 #include "frontend/ParseNode.h"
-#include "frontend/BytecodeGenerator.h"
+#include "frontend/CodeGenerator.h"
 #include "frontend/TokenStream.h"
 
-namespace js {
-
 inline bool
-ParseNode::isConstant()
+JSParseNode::isConstant()
 {
+    using namespace js;
+
     switch (pn_type) {
       case TOK_NUMBER:
       case TOK_STRING:
@@ -70,8 +70,10 @@ ParseNode::isConstant()
     }
 }
 
+namespace js {
+
 inline void
-NameNode::initCommon(TreeContext *tc)
+NameNode::initCommon(JSTreeContext *tc)
 {
     pn_expr = NULL;
     pn_cookie.makeFree();

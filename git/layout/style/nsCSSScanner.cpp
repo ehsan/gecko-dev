@@ -37,15 +37,18 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#include <math.h>
+
+#include "mozilla/Util.h"
 
 /* tokenization of CSS style sheets */
 
-#include <math.h> // must be first due to symbol conflicts
-
 #include "nsCSSScanner.h"
+#include "nsIFactory.h"
+#include "nsIInputStream.h"
+#include "nsIUnicharInputStream.h"
 #include "nsString.h"
 #include "nsCRT.h"
-#include "mozilla/Util.h"
 
 // for #ifdef CSS_REPORT_PARSE_ERRORS
 #include "nsCOMPtr.h"
@@ -70,6 +73,12 @@ static nsIConsoleService *gConsoleService;
 static nsIFactory *gScriptErrorFactory;
 static nsIStringBundle *gStringBundle;
 #endif
+
+// Don't bother collecting whitespace characters in token's mIdent buffer
+#undef COLLECT_WHITESPACE
+
+// Table of character classes
+static const PRUnichar CSS_ESCAPE  = PRUnichar('\\');
 
 static const PRUint8 IS_HEX_DIGIT  = 0x01;
 static const PRUint8 START_IDENT   = 0x02;
@@ -225,7 +234,7 @@ nsCSSToken::AppendToString(nsString& aBuffer)
     case eCSSToken_Percentage:
       NS_ASSERTION(!mIntegerValid, "How did a percentage token get this set?");
       aBuffer.AppendFloat(mNumber * 100.0f);
-      aBuffer.Append(PRUnichar('%'));
+      aBuffer.Append(PRUnichar('%')); // STRING USE WARNING: technically, this should be |AppendWithConversion|
       break;
     case eCSSToken_Dimension:
       if (mIntegerValid) {
@@ -273,7 +282,9 @@ nsCSSToken::AppendToString(nsString& aBuffer)
 }
 
 nsCSSScanner::nsCSSScanner()
-  : mReadPointer(nsnull)
+  : mInputStream(nsnull)
+  , mReadPointer(nsnull)
+  , mLowLevelError(NS_OK)
   , mSVGMode(false)
 #ifdef CSS_REPORT_PARSE_ERRORS
   , mError(mErrorBuf, ArrayLength(mErrorBuf), 0)
@@ -298,6 +309,20 @@ nsCSSScanner::~nsCSSScanner()
   if (mLocalPushback != mPushback) {
     delete [] mPushback;
   }
+}
+
+nsresult
+nsCSSScanner::GetLowLevelError()
+{
+  return mLowLevelError;
+}
+
+void
+nsCSSScanner::SetLowLevelError(nsresult aErrorCode)
+{
+  NS_ASSERTION(aErrorCode != NS_OK, "SetLowLevelError() used to clear error");
+  NS_ASSERTION(mLowLevelError == NS_OK, "there is already a low-level error");
+  mLowLevelError = aErrorCode;
 }
 
 #ifdef CSS_REPORT_PARSE_ERRORS
@@ -344,14 +369,28 @@ nsCSSScanner::ReleaseGlobals()
 }
 
 void
-nsCSSScanner::Init(const nsAString& aBuffer,
+nsCSSScanner::Init(nsIUnicharInputStream* aInput, 
+                   const PRUnichar * aBuffer, PRUint32 aCount, 
                    nsIURI* aURI, PRUint32 aLineNumber,
                    nsCSSStyleSheet* aSheet, mozilla::css::Loader* aLoader)
 {
+  NS_PRECONDITION(!mInputStream, "Should not have an existing input stream!");
   NS_PRECONDITION(!mReadPointer, "Should not have an existing input buffer!");
 
-  mReadPointer = aBuffer.BeginReading();
-  mCount = aBuffer.Length();
+  // Read from stream via my own buffer
+  if (aInput) {
+    NS_PRECONDITION(!aBuffer, "Shouldn't have both input and buffer!");
+    NS_PRECONDITION(aCount == 0, "Shouldn't have count with a stream");
+    mInputStream = aInput;
+    mReadPointer = mBuffer;
+    mCount = 0;
+  } else {
+    NS_PRECONDITION(aBuffer, "Either aInput or aBuffer must be set");
+    // Read directly from the provided buffer
+    mInputStream = nsnull;
+    mReadPointer = aBuffer;
+    mCount = aCount;
+  }
 
 #ifdef CSS_REPORT_PARSE_ERRORS
   // If aURI is the same as mURI, no need to reget mFileName -- it
@@ -370,6 +409,7 @@ nsCSSScanner::Init(const nsAString& aBuffer,
   // Reset variables that we use to keep track of our progress through the input
   mOffset = 0;
   mPushbackCount = 0;
+  mLowLevelError = NS_OK;
 
 #ifdef CSS_REPORT_PARSE_ERRORS
   mColNumber = 0;
@@ -578,6 +618,7 @@ nsCSSScanner::ReportUnexpectedTokenParams(nsCSSToken& tok,
 void
 nsCSSScanner::Close()
 {
+  mInputStream = nsnull;
   mReadPointer = nsnull;
 
   // Clean things up so we don't hold on to memory if our parser gets recycled.
@@ -597,6 +638,31 @@ nsCSSScanner::Close()
   }
 }
 
+#ifdef CSS_REPORT_PARSE_ERRORS
+#define TAB_STOP_WIDTH 8
+#endif
+
+bool
+nsCSSScanner::EnsureData()
+{
+  if (mOffset < mCount)
+    return true;
+
+  if (!mInputStream)
+    return false;
+
+  mOffset = 0;
+  nsresult rv = mInputStream->Read(mBuffer, CSS_BUFFER_SIZE, &mCount);
+
+  if (NS_FAILED(rv)) {
+    mCount = 0;
+    SetLowLevelError(rv);
+    return false;
+  }
+
+  return mCount > 0;
+}
+
 // Returns -1 on error or eof
 PRInt32
 nsCSSScanner::Read()
@@ -605,14 +671,14 @@ nsCSSScanner::Read()
   if (0 < mPushbackCount) {
     rv = PRInt32(mPushback[--mPushbackCount]);
   } else {
-    if (mOffset == mCount) {
+    if (mOffset == mCount && !EnsureData()) {
       return -1;
     }
     rv = PRInt32(mReadPointer[mOffset++]);
     // There are four types of newlines in CSS: "\r", "\n", "\r\n", and "\f".
     // To simplify dealing with newlines, they are all normalized to "\n" here
     if (rv == '\r') {
-      if (mOffset < mCount && mReadPointer[mOffset] == '\n') {
+      if (EnsureData() && mReadPointer[mOffset] == '\n') {
         mOffset++;
       }
       rv = '\n';
@@ -625,11 +691,18 @@ nsCSSScanner::Read()
         ++mLineNumber;
 #ifdef CSS_REPORT_PARSE_ERRORS
       mColNumber = 0;
-    } else {
-      mColNumber++;
 #endif
+    } 
+#ifdef CSS_REPORT_PARSE_ERRORS
+    else if (rv == '\t') {
+      mColNumber = ((mColNumber - 1 + TAB_STOP_WIDTH) / TAB_STOP_WIDTH)
+                   * TAB_STOP_WIDTH;
+    } else if (rv != '\n') {
+      mColNumber++;
     }
+#endif
   }
+//printf("Read => %x\n", rv);
   return rv;
 }
 
@@ -644,6 +717,7 @@ nsCSSScanner::Peek()
     mPushback[0] = PRUnichar(ch);
     mPushbackCount++;
   }
+//printf("Peek => %x\n", mLookAhead);
   return PRInt32(mPushback[mPushbackCount - 1]);
 }
 
@@ -774,8 +848,17 @@ nsCSSScanner::Next(nsCSSToken& aToken)
     if (ch == '/' && !IsSVGMode()) {
       PRInt32 nextChar = Peek();
       if (nextChar == '*') {
-        Read();
-        // FIXME: Editor wants comments to be preserved (bug 60290).
+        (void) Read();
+#if 0
+        // If we change our storage data structures such that comments are
+        // stored (for Editor), we should reenable this code, condition it
+        // on being in editor mode, and apply glazou's patch from bug
+        // 60290.
+        aToken.mIdent.SetCapacity(2);
+        aToken.mIdent.Assign(PRUnichar(ch));
+        aToken.mIdent.Append(PRUnichar(nextChar));
+        return ParseCComment(aToken);
+#endif
         if (!SkipCComment()) {
           return false;
         }
@@ -894,7 +977,7 @@ nsCSSScanner::NextURL(nsCSSToken& aToken)
   for (;;) {
     ch = Read();
     if (ch < 0) break;
-    if (ch == '\\') {
+    if (ch == CSS_ESCAPE) {
       if (!ParseAndAppendEscape(ident, false)) {
         ok = false;
         Pushback(ch);
@@ -1022,7 +1105,7 @@ nsCSSScanner::ParseAndAppendEscape(nsString& aOutput, bool aInString)
 bool
 nsCSSScanner::GatherIdent(PRInt32 aChar, nsString& aIdent)
 {
-  if (aChar == '\\') {
+  if (aChar == CSS_ESCAPE) {
     if (!ParseAndAppendEscape(aIdent, false)) {
       return false;
     }
@@ -1032,7 +1115,7 @@ nsCSSScanner::GatherIdent(PRInt32 aChar, nsString& aIdent)
   }
   for (;;) {
     // If nothing in pushback, first try to get as much as possible in one go
-    if (!mPushbackCount && mOffset < mCount) {
+    if (!mPushbackCount && EnsureData()) {
       // See how much we can consume and append in one go
       PRUint32 n = mOffset;
       // Count number of Ident characters that can be processed
@@ -1051,7 +1134,7 @@ nsCSSScanner::GatherIdent(PRInt32 aChar, nsString& aIdent)
 
     aChar = Read();
     if (aChar < 0) break;
-    if (aChar == '\\') {
+    if (aChar == CSS_ESCAPE) {
       if (!ParseAndAppendEscape(aIdent, false)) {
         Pushback(aChar);
         break;
@@ -1077,7 +1160,7 @@ nsCSSScanner::ParseRef(PRInt32 aChar, nsCSSToken& aToken)
   if (ch < 0) {
     return true;
   }
-  if (IsIdent(ch) || ch == '\\') {
+  if (IsIdent(ch) || ch == CSS_ESCAPE) {
     // First char after the '#' is a valid ident char (or an escape),
     // so it makes sense to keep going
     nsCSSTokenType type =
@@ -1292,18 +1375,23 @@ nsCSSScanner::ParseString(PRInt32 aStop, nsCSSToken& aToken)
   aToken.mSymbol = PRUnichar(aStop); // remember how it's quoted
   for (;;) {
     // If nothing in pushback, first try to get as much as possible in one go
-    if (!mPushbackCount && mOffset < mCount) {
+    if (!mPushbackCount && EnsureData()) {
       // See how much we can consume and append in one go
       PRUint32 n = mOffset;
       // Count number of characters that can be processed
       for (;n < mCount; ++n) {
         PRUnichar nextChar = mReadPointer[n];
-        if ((nextChar == aStop) || (nextChar == '\\') ||
+        if ((nextChar == aStop) || (nextChar == CSS_ESCAPE) ||
             (nextChar == '\n') || (nextChar == '\r') || (nextChar == '\f')) {
           break;
         }
 #ifdef CSS_REPORT_PARSE_ERRORS
-        ++mColNumber;
+        if (nextChar == '\t') {
+          mColNumber = ((mColNumber - 1 + TAB_STOP_WIDTH) / TAB_STOP_WIDTH)
+                       * TAB_STOP_WIDTH;
+        } else {
+          ++mColNumber;
+        }
 #endif
       }
       // Add to the token what we have so far
@@ -1323,7 +1411,7 @@ nsCSSScanner::ParseString(PRInt32 aStop, nsCSSToken& aToken)
 #endif
       break;
     }
-    if (ch == '\\') {
+    if (ch == CSS_ESCAPE) {
       if (!ParseAndAppendEscape(aToken.mIdent, true)) {
         aToken.mType = eCSSToken_Bad_String;
         Pushback(ch);

@@ -182,6 +182,7 @@ public:
   bool IsTopMost() { return((mVFlags & NS_VIEW_FLAG_TOPMOST) != 0); }
 
   void ResetWidgetBounds(bool aRecurse, bool aMoveOnly, bool aInvalidateChangedSize);
+  void SetPositionIgnoringChildWidgets(nscoord aX, nscoord aY);
   void AssertNoWindow();
 
   void NotifyEffectiveVisibilityChanged(bool aEffectivelyVisible);

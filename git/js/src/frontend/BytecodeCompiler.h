@@ -45,12 +45,12 @@
 
 namespace js {
 
-struct BytecodeCompiler
+struct Compiler
 {
     Parser      parser;
     GlobalScope *globalScope;
 
-    BytecodeCompiler(JSContext *cx, JSPrincipals *prin = NULL, StackFrame *cfp = NULL);
+    Compiler(JSContext *cx, JSPrincipals *prin = NULL, StackFrame *cfp = NULL);
 
     JSContext *context() {
         return parser.context;
@@ -63,7 +63,7 @@ struct BytecodeCompiler
 
     static bool
     compileFunctionBody(JSContext *cx, JSFunction *fun, JSPrincipals *principals,
-                        Bindings *bindings, const jschar *chars, size_t length,
+                        js::Bindings *bindings, const jschar *chars, size_t length,
                         const char *filename, uintN lineno, JSVersion version);
 
     static JSScript *

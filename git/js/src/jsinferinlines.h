@@ -962,9 +962,8 @@ TypeSet::addType(JSContext *cx, Type type)
         return;
 
     if (type.isUnknown()) {
-        flags |= TYPE_FLAG_BASE_MASK;
+        flags = TYPE_FLAG_UNKNOWN | (flags & ~baseFlags());
         clearObjects();
-        JS_ASSERT(unknown());
     } else if (type.isPrimitive()) {
         TypeFlags flag = PrimitiveTypeFlag(type.primitive());
         if (flags & flag)

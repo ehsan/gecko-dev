@@ -353,7 +353,8 @@ nsIView* nsIViewManager::GetDisplayRootFor(nsIView* aView)
    rendering.
 */
 void nsViewManager::Refresh(nsView *aView, nsIWidget *aWidget,
-                            const nsIntRegion& aRegion)
+                            const nsIntRegion& aRegion,
+                            PRUint32 aUpdateFlags)
 {
   NS_ASSERTION(aView == nsView::GetViewFor(aWidget), "view widget mismatch");
   NS_ASSERTION(aView->GetViewManager() == this, "wrong view manager");
@@ -396,7 +397,7 @@ void nsViewManager::Refresh(nsView *aView, nsIWidget *aWidget,
     // Unset this flag first, since if aUpdateFlags includes NS_VMREFRESH_IMMEDIATE
     // we'll reenter this code from the UpdateAllViews call.
     RootViewManager()->mRecursiveRefreshPending = false;
-    UpdateAllViews(0);
+    UpdateAllViews(aUpdateFlags);
   }
 }
 
@@ -884,7 +885,8 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent,
             }
             
             if (view && aEvent->message == NS_PAINT) {
-              Refresh(view, event->widget, event->region);
+              Refresh(view, event->widget,
+                      event->region, NS_VMREFRESH_DOUBLE_BUFFER);
             }
           }
         } else if (aEvent->message == NS_PAINT) {

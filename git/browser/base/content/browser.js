@@ -2281,17 +2281,18 @@ function BrowserTryToCloseWindow()
     window.close();     // WindowIsClosing does all the necessary checks
 }
 
-function loadURI(uri, referrer, postData, allowThirdPartyFixup) {
-  if (postData === undefined)
-    postData = null;
-
-  var flags = nsIWebNavigation.LOAD_FLAGS_NONE;
-  if (allowThirdPartyFixup)
-    flags |= nsIWebNavigation.LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP;
-
+function loadURI(uri, referrer, postData, allowThirdPartyFixup)
+{
   try {
+    if (postData === undefined)
+      postData = null;
+    var flags = nsIWebNavigation.LOAD_FLAGS_NONE;
+    if (allowThirdPartyFixup) {
+      flags = nsIWebNavigation.LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP;
+    }
     gBrowser.loadURIWithFlags(uri, flags, referrer, null, postData);
-  } catch (e) {}
+  } catch (e) {
+  }
 }
 
 function getShortcutOrURI(aURL, aPostDataRef, aMayInheritPrincipal) {
@@ -3429,6 +3430,7 @@ const BrowserSearch = {
     openLinkIn(submission.uri.spec,
                useNewTab ? "tab" : "current",
                { postData: submission.postData,
+                 inBackground: false,
                  relatedToCurrent: true });
   },
 
@@ -5646,8 +5648,7 @@ function middleMousePaste(event) {
   // bar's behavior (stripsurroundingwhitespace)
   clipboard = clipboard.replace(/\s*\n\s*/g, "");
 
-  let mayInheritPrincipal = { value: false };
-  let url = getShortcutOrURI(clipboard, mayInheritPrincipal);
+  let url = getShortcutOrURI(clipboard);
   try {
     makeURI(url);
   } catch (ex) {
@@ -5663,10 +5664,9 @@ function middleMousePaste(event) {
     Cu.reportError(ex);
   }
 
-  // FIXME: Bug 631500, use openUILink directly
-  let where = whereToOpenLink(event, true);
-  openUILinkIn(url, where,
-               { disallowInheritPrincipal: !mayInheritPrincipal.value });
+  openUILink(url,
+             event,
+             true /* ignore the fact this is a middle click */);
 
   event.stopPropagation();
 }

@@ -1122,12 +1122,6 @@ nsresult nsBidi::GetDirection(nsBidiDirection* aDirection)
   *aDirection = mDirection;
   return NS_OK;
 }
-
-nsresult nsBidi::GetParaLevel(nsBidiLevel* aParaLevel)
-{
-  *aParaLevel = mParaLevel;
-  return NS_OK;
-}
 #ifdef FULL_BIDI_ENGINE
 
 /* -------------------------------------------------------------------------- */
@@ -1135,6 +1129,12 @@ nsresult nsBidi::GetParaLevel(nsBidiLevel* aParaLevel)
 nsresult nsBidi::GetLength(PRInt32* aLength)
 {
   *aLength = mLength;
+  return NS_OK;
+}
+
+nsresult nsBidi::GetParaLevel(nsBidiLevel* aParaLevel)
+{
+  *aParaLevel = mParaLevel;
   return NS_OK;
 }
 

@@ -648,9 +648,8 @@ js_XDRAtom(JSXDRState *xdr, JSAtom **atomp)
         chars = stackChars;
     } else {
         /*
-         * This is very uncommon. Don't use the tempLifoAlloc arena for this as
-         * most allocations here will be bigger than tempLifoAlloc's default
-         * chunk size.
+         * This is very uncommon. Don't use the tempPool arena for this as
+         * most allocations here will be bigger than tempPool's arenasize.
          */
         chars = (jschar *) cx->malloc_(nchars * sizeof(jschar));
         if (!chars)

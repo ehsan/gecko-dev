@@ -1851,7 +1851,7 @@ nsCSSKeyframeRule::SetKeyText(const nsAString& aKeyText)
 {
   nsCSSParser parser;
 
-  InfallibleTArray<float> newSelectors;
+  nsTArray<float> newSelectors;
   // FIXME: pass filename and line number
   if (parser.ParseKeyframeSelectorString(aKeyText, nsnull, 0, newSelectors)) {
     newSelectors.SwapElements(mKeys);
@@ -2033,7 +2033,7 @@ nsCSSKeyframesRule::FindRuleIndexForKey(const nsAString& aKey)
 {
   nsCSSParser parser;
 
-  InfallibleTArray<float> keys;
+  nsTArray<float> keys;
   // FIXME: pass filename and line number
   if (parser.ParseKeyframeSelectorString(aKey, nsnull, 0, keys)) {
     // The spec isn't clear, but we'll match on the key list, which

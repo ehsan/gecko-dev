@@ -84,25 +84,15 @@ struct BidiParagraphData {
   nsIContent*         mPrevContent;
   nsAutoPtr<nsBidi>   mBidiEngine;
   nsIFrame*           mPrevFrame;
-  nsAutoPtr<BidiParagraphData> mSubParagraph;
 
   void Init(nsBlockFrame *aBlockFrame)
   {
     mContentToFrameIndex.Init();
     mBidiEngine = new nsBidi();
     mPrevContent = nsnull;
-
-    bool styleDirectionIsRTL =
-      (NS_STYLE_DIRECTION_RTL == aBlockFrame->GetStyleVisibility()->mDirection);
-    if (aBlockFrame->GetStyleTextReset()->mUnicodeBidi &
-        NS_STYLE_UNICODE_BIDI_PLAINTEXT) {
-      // unicode-bidi: plaintext: the Bidi algorithm will determine the
-      // directionality of the paragraph according to the first strong
-      // directional character.
-      mParaLevel = styleDirectionIsRTL ? NSBIDI_DEFAULT_RTL : NSBIDI_DEFAULT_LTR;
-    } else {
-      mParaLevel = styleDirectionIsRTL ? NSBIDI_RTL : NSBIDI_LTR;
-    }
+    mParaLevel =
+     (NS_STYLE_DIRECTION_RTL == aBlockFrame->GetStyleVisibility()->mDirection) ?
+        NSBIDI_RTL : NSBIDI_LTR;
 
     mIsVisual = aBlockFrame->PresContext()->IsVisualMode();
     if (mIsVisual) {
@@ -131,93 +121,10 @@ struct BidiParagraphData {
     }
   }
 
-  BidiParagraphData* GetSubParagraph()
-  {
-    if (!mSubParagraph) {
-      mSubParagraph = new BidiParagraphData();
-      mSubParagraph->Init(this);
-    }
-
-    return mSubParagraph;
-  }
-
-  // Initialise a sub-paragraph from its containing paragraph
-  void Init(BidiParagraphData *aBpd)
-  {
-    mContentToFrameIndex.Init();
-    mBidiEngine = new nsBidi();
-    mPrevContent = nsnull;
-    mIsVisual = aBpd->mIsVisual;
-    mParaLevel = aBpd->mParaLevel;
-
-    // If the containing paragraph has a level of NSBIDI_DEFAULT_LTR/RTL, set
-    // the sub-paragraph to the corresponding non-default level (We can't use
-    // GetParaLevel, because the containing paragraph hasn't yet been through
-    // bidi resolution
-    if (IS_DEFAULT_LEVEL(mParaLevel)) {
-      mParaLevel = (mParaLevel == NSBIDI_DEFAULT_RTL) ? NSBIDI_RTL : NSBIDI_LTR;
-    }                    
-  }
-
-  void Reset(nsIFrame* aFrame, BidiParagraphData *aBpd)
-  {
-    mLogicalFrames.Clear();
-    mLinePerFrame.Clear();
-    mContentToFrameIndex.Clear();
-    mBuffer.SetLength(0);
-    mPrevFrame = aBpd->mPrevFrame;
-    // We need to copy in embeddings (but not overrides!) from the containing
-    // paragraph so that the line(s) including this sub-paragraph will be
-    // correctly reordered.
-    for (PRUint32 i = 0; i < aBpd->mEmbeddingStack.Length(); ++i) {
-      switch(aBpd->mEmbeddingStack[i]) {
-        case kRLE:
-        case kRLO:
-          mParaLevel = NextOddLevel(mParaLevel);
-          break;
-
-        case kLRE:
-        case kLRO:
-          mParaLevel = NextEvenLevel(mParaLevel);
-          break;
-
-        default:
-          break;
-      }
-    }
-
-    nsIFrame* container = aFrame->GetParent();
-    bool isRTL = (NS_STYLE_DIRECTION_RTL ==
-                  container->GetStyleVisibility()->mDirection);
-    if ((isRTL & 1) != (mParaLevel & 1)) {
-      mParaLevel = isRTL ? NextOddLevel(mParaLevel) : NextEvenLevel(mParaLevel);
-    }
-
-    if (container->GetStyleTextReset()->mUnicodeBidi & NS_STYLE_UNICODE_BIDI_OVERRIDE) {
-      PushBidiControl(isRTL ? kRLO : kLRO);
-    } else {
-      PushBidiControl(isRTL ? kRLE : kLRE);
-    }
-  }
-
   nsresult SetPara()
   {
     return mBidiEngine->SetPara(mBuffer.get(), BufferLength(),
                                 mParaLevel, nsnull);
-  }
-
-  /**
-   * mParaLevel can be NSBIDI_DEFAULT_LTR or NSBIDI_DEFAULT_RTL.
-   * GetParaLevel() returns the actual (resolved) paragraph level which is
-   * always either NSBIDI_LTR or NSBIDI_RTL
-   */
-  nsBidiLevel GetParaLevel()
-  {
-    nsBidiLevel paraLevel = mParaLevel;
-    if (IS_DEFAULT_LEVEL(paraLevel)) {
-      mBidiEngine->GetParaLevel(&paraLevel);
-    }
-    return paraLevel;
   }
 
   nsresult CountRuns(PRInt32 *runCount){ return mBidiEngine->CountRuns(runCount); }
@@ -229,7 +136,7 @@ struct BidiParagraphData {
     nsresult rv = mBidiEngine->GetLogicalRun(aLogicalStart,
                                              aLogicalLimit, aLevel);
     if (mIsVisual || NS_FAILED(rv))
-      *aLevel = GetParaLevel();
+      *aLevel = mParaLevel;
     return rv;
   }
 
@@ -303,22 +210,22 @@ struct BidiParagraphData {
 
   void AppendString(const nsDependentSubstring& aString){ mBuffer.Append(aString); }
 
-  void AppendControlChar(PRUnichar aCh)
+  void AppendUnicharFrame(nsIFrame* aFrame, PRUnichar aCh)
   {
-    mLogicalFrames.AppendElement(NS_BIDI_CONTROL_FRAME);
+    mLogicalFrames.AppendElement(aFrame);
     mLinePerFrame.AppendElement((nsLineBox*)nsnull);
     AppendUnichar(aCh);
   }
 
   void PushBidiControl(PRUnichar aCh)
   {
-    AppendControlChar(aCh);
+    AppendUnicharFrame(NS_BIDI_CONTROL_FRAME, aCh);
     mEmbeddingStack.AppendElement(aCh);
   }
 
   void PopBidiControl()
   {
-    AppendControlChar(kPDF);
+    AppendUnicharFrame(NS_BIDI_CONTROL_FRAME, kPDF);
     NS_ASSERTION(mEmbeddingStack.Length(), "embedding/override underflow");
     mEmbeddingStack.TruncateLength(mEmbeddingStack.Length() - 1);
   }
@@ -326,18 +233,8 @@ struct BidiParagraphData {
   void ClearBidiControls()
   {
     for (PRUint32 i = 0; i < mEmbeddingStack.Length(); ++i) {
-      AppendControlChar(kPDF);
+      AppendUnicharFrame(NS_BIDI_CONTROL_FRAME, kPDF);
     }
-  }
-
-  nsBidiLevel NextOddLevel(nsBidiLevel aLevel)
-  {
-    return (aLevel + 1) | 1;
-  }
-
-  nsBidiLevel NextEvenLevel(nsBidiLevel aLevel)
-  {
-    return (aLevel + 2) & ~1;
   }
 
   static bool
@@ -626,7 +523,7 @@ nsBidiPresUtils::Resolve(nsBlockFrame* aBlockFrame)
   // TraverseFrames.
   const nsStyleTextReset* text = aBlockFrame->GetStyleTextReset();
   PRUnichar ch = 0;
-  if (text->mUnicodeBidi & NS_STYLE_UNICODE_BIDI_OVERRIDE) {
+  if (text->mUnicodeBidi == NS_STYLE_UNICODE_BIDI_OVERRIDE) {
     const nsStyleVisibility* vis = aBlockFrame->GetStyleVisibility();
     if (NS_STYLE_DIRECTION_RTL == vis->mDirection) {
       ch = kRLO;
@@ -665,11 +562,10 @@ nsBidiPresUtils::ResolveParagraph(nsBlockFrame* aBlockFrame,
   aBpd->mBuffer.ReplaceChar("\t\r\n", kSpace);
 
   PRInt32 runCount;
+  PRUint8 embeddingLevel = aBpd->mParaLevel;
 
   nsresult rv = aBpd->SetPara();
   NS_ENSURE_SUCCESS(rv, rv);
-
-  PRUint8 embeddingLevel = aBpd->GetParaLevel();
 
   rv = aBpd->CountRuns(&runCount);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -692,8 +588,8 @@ nsBidiPresUtils::ResolveParagraph(nsBlockFrame* aBlockFrame,
   
 #ifdef DEBUG
 #ifdef NOISY_BIDI
-  printf("Before Resolve(), aBlockFrame=0x%p, mBuffer='%s', frameCount=%d, runCount=%d\n",
-         (void*)aBlockFrame, NS_ConvertUTF16toUTF8(aBpd->mBuffer).get(), frameCount, runCount);
+  printf("Before Resolve(), aBlockFrame=0x%p, mBuffer='%s', frameCount=%d\n",
+         (void*)aBlockFrame, NS_ConvertUTF16toUTF8(aBpd->mBuffer).get(), frameCount);
 #ifdef REALLY_NOISY_BIDI
   printf(" block frame tree=:\n");
   aBlockFrame->List(stdout, 0);
@@ -732,7 +628,7 @@ nsBidiPresUtils::ResolveParagraph(nsBlockFrame* aBlockFrame,
           propTable->Set(frame, nsIFrame::EmbeddingLevelProperty(),
                          NS_INT32_TO_PTR(embeddingLevel));
           propTable->Set(frame, nsIFrame::BaseLevelProperty(),
-                         NS_INT32_TO_PTR(aBpd->GetParaLevel()));
+                         NS_INT32_TO_PTR(aBpd->mParaLevel));
           continue;
         }
         PRInt32 start, end;
@@ -766,7 +662,7 @@ nsBidiPresUtils::ResolveParagraph(nsBlockFrame* aBlockFrame,
       propTable->Set(frame, nsIFrame::EmbeddingLevelProperty(),
                      NS_INT32_TO_PTR(embeddingLevel));
       propTable->Set(frame, nsIFrame::BaseLevelProperty(),
-                     NS_INT32_TO_PTR(aBpd->GetParaLevel()));
+                     NS_INT32_TO_PTR(aBpd->mParaLevel));
       if (isTextFrame) {
         if ( (runLength > 0) && (runLength < fragmentLength) ) {
           /*
@@ -903,8 +799,7 @@ void
 nsBidiPresUtils::TraverseFrames(nsBlockFrame*              aBlockFrame,
                                 nsBlockInFlowLineIterator* aLineIter,
                                 nsIFrame*                  aCurrentFrame,
-                                BidiParagraphData*         aBpd,
-                                BidiParagraphData*         aContainingParagraph)
+                                BidiParagraphData*         aBpd)
 {
   if (!aCurrentFrame)
     return;
@@ -921,7 +816,6 @@ nsBidiPresUtils::TraverseFrames(nsBlockFrame*              aBlockFrame,
      */
     nsIFrame* nextSibling = childFrame->GetNextSibling();
     bool isLastFrame = !childFrame->GetNextContinuation();
-    bool isFirstFrame = !childFrame->GetPrevContinuation();
 
     // If the real frame for a placeholder is a first letter frame, we need to
     // drill down into it and include its contents in Bidi resolution.
@@ -935,33 +829,34 @@ nsBidiPresUtils::TraverseFrames(nsBlockFrame*              aBlockFrame,
       }
     }
 
-    if (aContainingParagraph && isFirstFrame) {
-      aBpd->Reset(aCurrentFrame, aContainingParagraph);
-    }
-
     PRUnichar ch = 0;
     if (frame->IsFrameOfType(nsIFrame::eBidiInlineContainer)) {
       const nsStyleVisibility* vis = frame->GetStyleVisibility();
       const nsStyleTextReset* text = frame->GetStyleTextReset();
-      if (text->mUnicodeBidi & NS_STYLE_UNICODE_BIDI_OVERRIDE) {
-        if (NS_STYLE_DIRECTION_RTL == vis->mDirection) {
-          ch = kRLO;
-        }
-        else if (NS_STYLE_DIRECTION_LTR == vis->mDirection) {
-          ch = kLRO;
-        }
-      } else if (text->mUnicodeBidi & NS_STYLE_UNICODE_BIDI_EMBED) {
-        if (NS_STYLE_DIRECTION_RTL == vis->mDirection) {
-          ch = kRLE;
-        }
-        else if (NS_STYLE_DIRECTION_LTR == vis->mDirection) {
-          ch = kLRE;
-        }
+      switch (text->mUnicodeBidi) {
+        case NS_STYLE_UNICODE_BIDI_NORMAL:
+          break;
+        case NS_STYLE_UNICODE_BIDI_EMBED:
+          if (NS_STYLE_DIRECTION_RTL == vis->mDirection) {
+            ch = kRLE;
+          }
+          else if (NS_STYLE_DIRECTION_LTR == vis->mDirection) {
+            ch = kLRE;
+          }
+          break;
+        case NS_STYLE_UNICODE_BIDI_OVERRIDE:
+          if (NS_STYLE_DIRECTION_RTL == vis->mDirection) {
+            ch = kRLO;
+          }
+          else if (NS_STYLE_DIRECTION_LTR == vis->mDirection) {
+            ch = kLRO;
+          }
+          break;
       }
 
       // Add a dummy frame pointer representing a bidi control code before the
       // first frame of an element specifying embedding or override
-      if (ch != 0 && isFirstFrame) {
+      if (ch != 0 && !frame->GetPrevContinuation()) {
         aBpd->PushBidiControl(ch);
       }
     }
@@ -1105,33 +1000,14 @@ nsBidiPresUtils::TraverseFrames(nsBlockFrame*              aBlockFrame,
     else {
       // For a non-leaf frame, recurse into TraverseFrames
       nsIFrame* kid = frame->GetFirstPrincipalChild();
-      if (kid) {
-        const nsStyleTextReset* text = frame->GetStyleTextReset();
-        if (text->mUnicodeBidi & NS_STYLE_UNICODE_BIDI_ISOLATE) {
-          // css "unicode-bidi: isolate" and html5 bdi: 
-          //  resolve the element as a separate paragraph
-          TraverseFrames(aBlockFrame, aLineIter, kid,
-                         aBpd->GetSubParagraph(), aBpd);
-        } else {
-          TraverseFrames(aBlockFrame, aLineIter, kid, aBpd);
-        }
-      }
+      TraverseFrames(aBlockFrame, aLineIter, kid, aBpd);
     }
 
     // If the element is attributed by dir, indicate direction pop (add PDF frame)
-    if (isLastFrame) {
-      if (ch) {
-        // Add a dummy frame pointer representing a bidi control code after the
-        // last frame of an element specifying embedding or override
-        aBpd->PopBidiControl();
-      }
-      if (aContainingParagraph) {
-        ResolveParagraph(aBlockFrame, aBpd);
-
-        // Treat an element with unicode-bidi: isolate as a neutral character
-        // within its containing paragraph
-        aContainingParagraph->AppendControlChar(kObjectSubstitute);
-      }
+    if (ch != 0 && isLastFrame) {
+      // Add a dummy frame pointer representing a bidi control code after the
+      // last frame of an element specifying embedding or override
+      aBpd->PopBidiControl();
     }
     childFrame = nextSibling;
   } while (childFrame);

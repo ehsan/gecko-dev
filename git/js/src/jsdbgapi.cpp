@@ -66,7 +66,7 @@
 #include "jswatchpoint.h"
 #include "jswrapper.h"
 
-#include "frontend/BytecodeGenerator.h"
+#include "frontend/CodeGenerator.h"
 #include "frontend/Parser.h"
 #include "vm/Debugger.h"
 
@@ -406,7 +406,7 @@ JS_GetLinePCs(JSContext *cx, JSScript *script,
     uintN i = 0;
     for (jssrcnote *sn = script->notes(); !SN_IS_TERMINATOR(sn); sn = SN_NEXT(sn)) {
         offset += SN_DELTA(sn);
-        SrcNoteType type = (SrcNoteType) SN_TYPE(sn);
+        JSSrcNoteType type = (JSSrcNoteType) SN_TYPE(sn);
         if (type == SRC_SETLINE || type == SRC_NEWLINE) {
             if (type == SRC_SETLINE)
                 lineno = (uintN) js_GetSrcNoteOffset(sn, 0);

@@ -2699,15 +2699,17 @@ nsHTMLDocument::GetDocumentAllResult(const nsAString& aID,
 }
 
 static void
-NotifyEditableStateChange(nsINode *aNode, nsIDocument *aDocument)
+NotifyEditableStateChange(nsINode *aNode, nsIDocument *aDocument,
+                          bool aEditable)
 {
   for (nsIContent* child = aNode->GetFirstChild();
        child;
        child = child->GetNextSibling()) {
-    if (child->IsElement()) {
+    if (child->HasFlag(NODE_IS_EDITABLE) != aEditable &&
+        child->IsElement()) {
       child->AsElement()->UpdateState(true);
     }
-    NotifyEditableStateChange(child, aDocument);
+    NotifyEditableStateChange(child, aDocument, aEditable);
   }
 }
 
@@ -2800,8 +2802,6 @@ nsHTMLDocument::EditingStateChanged()
 
   if (newState == eOff) {
     // Editing is being turned off.
-    nsAutoScriptBlocker scriptBlocker;
-    NotifyEditableStateChange(this, this);
     return TurnEditingOff();
   }
 
@@ -2958,7 +2958,7 @@ nsHTMLDocument::EditingStateChanged()
 
   if (updateState) {
     nsAutoScriptBlocker scriptBlocker;
-    NotifyEditableStateChange(this, this);
+    NotifyEditableStateChange(this, this, designMode);
   }
 
   // Resync the editor's spellcheck state.

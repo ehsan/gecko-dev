@@ -56,8 +56,6 @@
 
 /* a presentation of a document, part 2 */
 
-#include "mozilla/dom/PBrowserChild.h"
-#include "mozilla/dom/TabChild.h"
 #include "mozilla/Util.h"
 
 #include "nsPresShell.h"
@@ -5006,9 +5004,6 @@ nsresult PresShell::AddCanvasBackgroundColorItem(nsDisplayListBuilder& aBuilder,
                                                  nscolor               aBackstopColor,
                                                  PRUint32              aFlags)
 {
-  if (aBounds.IsEmpty()) {
-    return NS_OK;
-  }
   // We don't want to add an item for the canvas background color if the frame
   // (sub)tree we are painting doesn't include any canvas frames. There isn't
   // an easy way to check this directly, but if we check if the root of the
@@ -5093,11 +5088,6 @@ void PresShell::UpdateCanvasBackground()
   // color we actually draw.
   if (!FrameConstructor()->GetRootElementFrame()) {
     mCanvasBackgroundColor = GetDefaultBackgroundColorToDraw();
-  }
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
-    if (TabChild* tabChild = GetTabChildFrom(this)) {
-      tabChild->SetBackgroundColor(mCanvasBackgroundColor);
-    }
   }
 }
 

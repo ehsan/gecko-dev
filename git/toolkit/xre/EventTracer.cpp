@@ -210,9 +210,6 @@ bool InitEventTracing()
 void ShutdownEventTracing()
 {
   sExit = true;
-  // Ensure that the tracer thread doesn't hang.
-  SignalTracerThread();
-
   if (sTracerThread)
     PR_JoinThread(sTracerThread);
   sTracerThread = NULL;

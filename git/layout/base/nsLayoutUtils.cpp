@@ -1633,7 +1633,6 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
     // Add the canvas background color to the bottom of the list. This
     // happens after we've built the list so that AddCanvasBackgroundColorItem
     // can monkey with the contents if necessary.
-    canvasArea.IntersectRect(canvasArea, visibleRegion.GetBounds());
     rv = presShell->AddCanvasBackgroundColorItem(
            builder, list, aFrame, canvasArea, aBackstop);
 
@@ -4261,22 +4260,23 @@ nsLayoutUtils::GetFontFacesForText(nsIFrame* aFrame,
 
   nsTextFrame* curr = static_cast<nsTextFrame*>(aFrame);
   do {
-    PRInt32 fstart = NS_MAX(curr->GetContentOffset(), aStartOffset);
+    PRInt32 offset = curr->GetContentOffset();
+    PRInt32 fstart = NS_MAX(offset, aStartOffset);
     PRInt32 fend = NS_MIN(curr->GetContentEnd(), aEndOffset);
     if (fstart >= fend) {
       continue;
     }
 
     // overlapping with the offset we want
-    gfxSkipCharsIterator iter = curr->EnsureTextRun();
+    curr->EnsureTextRun();
     gfxTextRun* textRun = curr->GetTextRun();
     NS_ENSURE_TRUE(textRun, NS_ERROR_OUT_OF_MEMORY);
 
-    PRUint32 skipStart = iter.ConvertOriginalToSkipped(fstart);
-    PRUint32 skipEnd = iter.ConvertOriginalToSkipped(fend);
+    gfxSkipCharsIterator iter(textRun->GetSkipChars());
+    PRUint32 skipStart = iter.ConvertOriginalToSkipped(fstart - offset);
+    PRUint32 skipEnd = iter.ConvertOriginalToSkipped(fend - offset);
     aFontFaceList->AddFontsFromTextRun(textRun,
-                                       skipStart,
-                                       skipEnd - skipStart,
+                                       skipStart, skipEnd - skipStart,
                                        curr);
   } while (aFollowContinuations &&
            (curr = static_cast<nsTextFrame*>(curr->GetNextContinuation())));

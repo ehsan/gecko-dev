@@ -62,7 +62,6 @@
 #include "frontend/TokenStream.h"
 
 #include "jsatominlines.h"
-#include "jsboolinlines.h"
 #include "jsinferinlines.h"
 #include "jsobjinlines.h"
 #include "jsstrinlines.h"
@@ -792,10 +791,10 @@ Walk(JSContext *cx, JSObject *holder, jsid name, const Value &reviver, Value *vp
         JS_ASSERT(!obj->isProxy());
         if (obj->isArray()) {
             /* Step 2a(ii). */
-            uint32 length = obj->getArrayLength();
+            jsuint length = obj->getArrayLength();
 
             /* Step 2a(i), 2a(iii-iv). */
-            for (uint32 i = 0; i < length; i++) {
+            for (jsuint i = 0; i < length; i++) {
                 jsid id;
                 if (!IndexToId(cx, i, &id))
                     return false;
@@ -818,11 +817,11 @@ Walk(JSContext *cx, JSObject *holder, jsid name, const Value &reviver, Value *vp
                  */
                 if (newElement.isUndefined()) {
                     /* Step 2a(iii)(2). */
-                    JS_ALWAYS_TRUE(array_deleteElement(cx, obj, i, &newElement, false));
+                    JS_ALWAYS_TRUE(array_deleteProperty(cx, obj, id, &newElement, false));
                 } else {
                     /* Step 2a(iii)(3). */
-                    JS_ALWAYS_TRUE(array_defineElement(cx, obj, i, &newElement, JS_PropertyStub,
-                                                       JS_StrictPropertyStub, JSPROP_ENUMERATE));
+                    JS_ALWAYS_TRUE(array_defineProperty(cx, obj, id, &newElement, JS_PropertyStub,
+                                                        JS_StrictPropertyStub, JSPROP_ENUMERATE));
                 }
             }
         } else {
@@ -885,8 +884,11 @@ Revive(JSContext *cx, const Value &reviver, Value *vp)
     if (!obj)
         return false;
 
-    if (!obj->defineProperty(cx, cx->runtime->atomState.emptyAtom, *vp))
+    AutoObjectRooter tvr(cx, obj);
+    if (!obj->defineProperty(cx, ATOM_TO_JSID(cx->runtime->atomState.emptyAtom),
+                             *vp, NULL, NULL, JSPROP_ENUMERATE)) {
         return false;
+    }
 
     return Walk(cx, obj, ATOM_TO_JSID(cx->runtime->atomState.emptyAtom), reviver, vp);
 }

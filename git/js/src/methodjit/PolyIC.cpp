@@ -2075,20 +2075,20 @@ ic::CallProp(VMFrame &f, ic::PICInfo *pic)
     if (lval.isObject()) {
         objv = lval;
     } else {
-        GlobalObject *global = f.fp()->scopeChain().getGlobal();
-        JSObject *pobj;
+        JSProtoKey protoKey;
         if (lval.isString()) {
-            pobj = global->getOrCreateStringPrototype(cx);
+            protoKey = JSProto_String;
         } else if (lval.isNumber()) {
-            pobj = global->getOrCreateNumberPrototype(cx);
+            protoKey = JSProto_Number;
         } else if (lval.isBoolean()) {
-            pobj = global->getOrCreateBooleanPrototype(cx);
+            protoKey = JSProto_Boolean;
         } else {
             JS_ASSERT(lval.isNull() || lval.isUndefined());
             js_ReportIsNullOrUndefined(cx, -1, lval, NULL);
             THROW();
         }
-        if (!pobj)
+        JSObject *pobj;
+        if (!js_GetClassPrototype(cx, NULL, protoKey, &pobj))
             THROW();
         objv.setObject(*pobj);
     }

@@ -98,8 +98,6 @@ public:
 
   void OwnerContentChanged(nsIContent* aContent);
 
-  void SetBackgroundColor(nscolor aColor) { mBackgroundColor = gfxRGBA(aColor); };
-
 protected:
   NS_OVERRIDE void ActorDestroy(ActorDestroyReason why);
 
@@ -135,8 +133,6 @@ private:
   // It's possible for mFrameLoader==null and
   // mFrameLoaderDestroyed==false.
   bool mFrameLoaderDestroyed;
-  // this is gfxRGBA because that's what ColorLayer wants.
-  gfxRGBA mBackgroundColor;
 };
 
 } // namespace layout

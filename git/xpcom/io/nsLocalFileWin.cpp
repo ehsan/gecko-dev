@@ -1650,8 +1650,6 @@ nsLocalFile::CopyMove(nsIFile *aParentDir, const nsAString &newName, bool follow
 
             nsCOMPtr<nsISimpleEnumerator> targetIterator;
             rv = target->GetDirectoryEntries(getter_AddRefs(targetIterator));
-            if (NS_FAILED(rv))
-                return rv;
 
             bool more;
             targetIterator->HasMoreElements(&more);
@@ -2817,7 +2815,7 @@ nsLocalFile::RevealUsingShell()
     }
 
     const ITEMIDLIST* selection[] = { dir };
-    UINT count = ArrayLength(selection);
+    UINT count = PR_ARRAY_SIZE(selection);
 
     //Perform the open of the directory.
     hr = sSHOpenFolderAndSelectItems(dir, count, selection, 0);
@@ -2846,7 +2844,7 @@ nsLocalFile::RevealUsingShell()
     }
     
     const ITEMIDLIST* selection[] = { item };
-    UINT count = ArrayLength(selection);
+    UINT count = PR_ARRAY_SIZE(selection);
 
     //Perform the selection of the file.
     hr = sSHOpenFolderAndSelectItems(dir, count, selection, 0);

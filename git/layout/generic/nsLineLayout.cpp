@@ -169,8 +169,7 @@ void
 nsLineLayout::BeginLineReflow(nscoord aX, nscoord aY,
                               nscoord aWidth, nscoord aHeight,
                               bool aImpactedByFloats,
-                              bool aIsTopOfPage,
-                              PRUint8 aDirection)
+                              bool aIsTopOfPage)
 {
   NS_ASSERTION(nsnull == mRootSpan, "bad linelayout user");
   NS_WARN_IF_FALSE(aWidth != NS_UNCONSTRAINEDSIZE,
@@ -225,7 +224,7 @@ nsLineLayout::BeginLineReflow(nscoord aX, nscoord aY,
   mTopEdge = aY;
 
   psd->mNoWrap = !mStyleText->WhiteSpaceCanWrap();
-  psd->mDirection = aDirection;
+  psd->mDirection = mBlockReflowState->mStyleVisibility->mDirection;
   psd->mChangedFrameDirection = false;
 
   // If this is the first line of a block then see if the text-indent
@@ -1815,7 +1814,7 @@ nsLineLayout::VerticalAlignFrames(PerSpanData* psd)
     printf("  [frame]");
     nsFrame::ListTag(stdout, frame);
     printf(": verticalAlignUnit=%d (enum == %d)\n",
-           verticalAlign.GetUnit(),
+           verticalAlignUnit,
            ((eStyleUnit_Enumerated == verticalAlign.GetUnit())
             ? verticalAlign.GetIntValue()
             : -1));
@@ -2087,7 +2086,7 @@ nsLineLayout::VerticalAlignFrames(PerSpanData* psd)
         printf(" new values: %d,%d\n", minY, maxY);
 #endif
 #ifdef NOISY_VERTICAL_ALIGN
-        printf("            Used mMinLineHeight: %d, yTop: %d, yBottom: %d\n", mMinLineHeight, yTop, yBottom);
+        printf("            Used mMinLineHeight: %d, fontHeight: %d, fontAscent: %d\n", mMinLineHeight, fontHeight, fontAscent);
 #endif
       }
       else {

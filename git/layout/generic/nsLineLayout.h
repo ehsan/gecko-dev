@@ -85,8 +85,7 @@ public:
   void BeginLineReflow(nscoord aX, nscoord aY,
                        nscoord aWidth, nscoord aHeight,
                        bool aImpactedByFloats,
-                       bool aIsTopOfPage,
-                       PRUint8 aDirection);
+                       bool aIsTopOfPage);
 
   void EndLineReflow();
 

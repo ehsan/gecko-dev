@@ -110,7 +110,7 @@ private:
   };
   struct FeatureEntry {
     const nsMediaFeature *mFeature;
-    InfallibleTArray<ExpressionEntry> mExpressions;
+    nsTArray<ExpressionEntry> mExpressions;
   };
   nsCOMPtr<nsIAtom> mMedium;
   nsTArray<FeatureEntry> mFeatureCache;
@@ -192,9 +192,13 @@ public:
                  nsMediaQueryResultCacheKey* aKey);
 
   nsresult SetStyleSheet(nsCSSStyleSheet* aSheet);
-  void AppendQuery(nsAutoPtr<nsMediaQuery>& aQuery) {
-    // Takes ownership of aQuery
-    mArray.AppendElement(aQuery.forget());
+  nsresult AppendQuery(nsAutoPtr<nsMediaQuery>& aQuery) {
+    // Takes ownership of aQuery (if it succeeds)
+    if (!mArray.AppendElement(aQuery.get())) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
+    aQuery.forget();
+    return NS_OK;
   }
 
   nsresult Clone(nsMediaList** aResult);
@@ -209,7 +213,7 @@ protected:
   nsresult Delete(const nsAString & aOldMedium);
   nsresult Append(const nsAString & aOldMedium);
 
-  InfallibleTArray<nsAutoPtr<nsMediaQuery> > mArray;
+  nsTArray<nsAutoPtr<nsMediaQuery> > mArray;
   // not refcounted; sheet will let us know when it goes away
   // mStyleSheet is the sheet that needs to be dirtied when this medialist
   // changes

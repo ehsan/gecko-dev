@@ -80,7 +80,13 @@ function isAddonDistroInstalled(aID) {
 }
 
 function orderForScope(aScope) {
-  return aScope == AddonManager.SCOPE_PROFILE ? 1 : 0;
+  switch (aScope) {
+  case AddonManager.SCOPE_PROFILE:
+  case AddonManager.SCOPE_APPLICATION:
+    return 1;
+  default:
+    return 0;
+  }
 }
 
 var gAddons = {};

@@ -1505,7 +1505,7 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(IDBVersionChangeEvent, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(IDBOpenDBRequest, nsDOMGenericSH,
+  NS_DEFINE_CLASSINFO_DATA(IDBVersionChangeRequest, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(IDBDatabaseException, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
@@ -4087,8 +4087,8 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEvent)
   DOM_CLASSINFO_MAP_END
 
-  DOM_CLASSINFO_MAP_BEGIN(IDBOpenDBRequest, nsIIDBOpenDBRequest)
-    DOM_CLASSINFO_MAP_ENTRY(nsIIDBOpenDBRequest)
+  DOM_CLASSINFO_MAP_BEGIN(IDBVersionChangeRequest, nsIIDBVersionChangeRequest)
+    DOM_CLASSINFO_MAP_ENTRY(nsIIDBVersionChangeRequest)
     DOM_CLASSINFO_MAP_ENTRY(nsIIDBRequest)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
   DOM_CLASSINFO_MAP_END
@@ -7979,31 +7979,6 @@ nsNamedNodeMapSH::GetNamedItem(nsISupports *aNative, const nsAString& aName,
 
 
 // HTMLCollection helper
-
-nsresult
-nsHTMLCollectionSH::PreCreate(nsISupports *nativeObj, JSContext *cx,
-                              JSObject *globalObj, JSObject **parentObj)
-{
-  nsIHTMLCollection* list = static_cast<nsIHTMLCollection*>(nativeObj);
-#ifdef DEBUG
-  {
-    nsCOMPtr<nsIHTMLCollection> list_qi = do_QueryInterface(nativeObj);
-
-    // If this assertion fires the QI implementation for the object in
-    // question doesn't use the nsIHTMLCollection pointer as the nsISupports
-    // pointer. That must be fixed, or we'll crash...
-    NS_ASSERTION(list_qi == list, "Uh, fix QI!");
-  }
-#endif
-
-  nsINode* native_parent = list->GetParentObject();
-
-  nsresult rv =
-    WrapNativeParent(cx, globalObj, native_parent, native_parent, parentObj);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return NS_SUCCESS_ALLOW_SLIM_WRAPPERS;
-}
 
 nsresult
 nsHTMLCollectionSH::GetLength(nsIXPConnectWrappedNative *wrapper, JSContext *cx,

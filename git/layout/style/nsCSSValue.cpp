@@ -621,8 +621,13 @@ nsCSSValue::Array*
 nsCSSValue::InitFunction(nsCSSKeyword aFunctionId, PRUint32 aNumArgs)
 {
   nsRefPtr<nsCSSValue::Array> func = Array::Create(aNumArgs + 1);
+  if (!func) {
+    return nsnull;
+  }
+
   func->Item(0).SetIntValue(aFunctionId, eCSSUnit_Enumerated);
   SetArrayValue(func, eCSSUnit_Function);
+
   return func;
 }
 
@@ -652,20 +657,18 @@ nsCSSValue::BufferFromString(const nsString& aValue)
     buffer->AddRef();
     return buffer;
   }
-
+  
   PRUnichar length = aValue.Length();
 
   // NOTE: Alloc prouduces a new, already-addref'd (refcnt = 1) buffer.
-  // NOTE: String buffer allocation is currently fallible.
   buffer = nsStringBuffer::Alloc((length + 1) * sizeof(PRUnichar));
-  if (NS_UNLIKELY(!buffer)) {
-    NS_RUNTIMEABORT("out of memory");
+  if (NS_LIKELY(buffer != 0)) {
+    PRUnichar* data = static_cast<PRUnichar*>(buffer->Data());
+    nsCharTraits<PRUnichar>::copy(data, aValue.get(), length);
+    // Null-terminate.
+    data[length] = 0;
   }
 
-  PRUnichar* data = static_cast<PRUnichar*>(buffer->Data());
-  nsCharTraits<PRUnichar>::copy(data, aValue.get(), length);
-  // Null-terminate.
-  data[length] = 0;
   return buffer;
 }
 
@@ -864,20 +867,6 @@ nsCSSValue::AppendToString(nsCSSProperty aProperty, nsAString& aResult) const
                                            NS_STYLE_PAGE_MARKS_CROP,
                                            NS_STYLE_PAGE_MARKS_REGISTER,
                                            aResult);
-      }
-    }
-    else if (eCSSProperty_unicode_bidi == aProperty) {
-      PR_STATIC_ASSERT(NS_STYLE_UNICODE_BIDI_NORMAL == 0);
-      PRInt32 intValue = GetIntValue();
-      if (NS_STYLE_UNICODE_BIDI_NORMAL == intValue) {
-        AppendASCIItoUTF16(nsCSSProps::LookupPropertyValue(aProperty, intValue),
-                           aResult);
-      } else {
-        nsStyleUtil::AppendBitmaskCSSValue(
-          aProperty, intValue,
-          NS_STYLE_UNICODE_BIDI_EMBED,
-          NS_STYLE_UNICODE_BIDI_PLAINTEXT,
-          aResult);
       }
     }
     else {

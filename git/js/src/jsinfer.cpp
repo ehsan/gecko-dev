@@ -1162,7 +1162,7 @@ TypeConstraintCall::newType(JSContext *cx, TypeSet *source, Type type)
                 }
             }
 
-            if (native == js::array_pop || native == js::array_shift)
+            if (native == js::array_pop)
                 callsite->thisTypes->addGetProperty(cx, script, pc, callsite->returnTypes, JSID_VOID);
 
             if (native == js_Array) {
@@ -1771,32 +1771,10 @@ TypeSet::knownNonEmpty(JSContext *cx)
     if (baseFlags() != 0 || baseObjectCount() != 0)
         return true;
 
-    addFreeze(cx);
+    add(cx, cx->typeLifoAlloc().new_<TypeConstraintFreeze>(
+                cx->compartment->types.compiledScript), false);
 
     return false;
-}
-
-bool
-TypeSet::knownSubset(JSContext *cx, TypeSet *other)
-{
-    if ((baseFlags() & other->baseFlags()) != baseFlags())
-        return false;
-
-    if (unknownObject()) {
-        JS_ASSERT(other->unknownObject());
-    } else {
-        for (unsigned i = 0; i < getObjectCount(); i++) {
-            TypeObjectKey *obj = getObject(i);
-            if (!obj)
-                continue;
-            if (!other->hasType(Type::ObjectType(obj)))
-                return false;
-        }
-    }
-
-    addFreeze(cx);
-
-    return true;
 }
 
 int

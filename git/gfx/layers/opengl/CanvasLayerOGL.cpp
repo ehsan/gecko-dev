@@ -172,10 +172,6 @@ CanvasLayerOGL::UpdateSurface()
   }
 #endif
 
-  if (mCanvasGLContext) {
-    mCanvasGLContext->MakeCurrent();
-    mCanvasGLContext->fFinish();
-  }
   mOGLManager->MakeCurrent();
 
   if (mCanvasGLContext &&
@@ -324,8 +320,7 @@ ShadowCanvasLayerOGL::Swap(const CanvasSurface& aNewFront,
   if (!mDestroyed) {
     nsRefPtr<gfxASurface> surf = ShadowLayerForwarder::OpenDescriptor(aNewFront);
     gfxIntSize sz = surf->GetSize();
-    if (!mTexImage || mTexImage->GetSize() != sz ||
-        mTexImage->GetContentType() != surf->GetContentType()) {
+    if (!mTexImage || mTexImage->GetSize() != sz) {
       Init(aNewFront, needYFlip);
     }
     nsIntRegion updateRegion(nsIntRect(0, 0, sz.width, sz.height));
