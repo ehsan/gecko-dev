@@ -16,7 +16,6 @@ GRE_MODULE     = 1
 XPIDLSRCS =                             \
             nsIDOMContactProperties.idl \
             nsIDOMContactManager.idl    \
-            nsIDOMMozContactChangeEvent.idl \
             $(NULL)
 
 include $(topsrcdir)/config/rules.mk
