@@ -10,6 +10,7 @@
 #include "nsDOMClassInfoID.h"
 #include "nsDOMFile.h"
 #include "nsError.h"
+#include "nsICharsetConverterManager.h"
 #include "nsIConverterInputStream.h"
 #include "nsIDocument.h"
 #include "nsIFile.h"
@@ -534,9 +535,14 @@ nsDOMFileReader::ConvertStream(const char *aFileData,
                                nsAString &aResult)
 {
   nsresult rv;
+  nsCOMPtr<nsICharsetConverterManager> charsetConverter = 
+    do_GetService(NS_CHARSETCONVERTERMANAGER_CONTRACTID, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIUnicodeDecoder> unicodeDecoder =
-    EncodingUtils::DecoderForEncoding(aCharset);
+  nsCOMPtr<nsIUnicodeDecoder> unicodeDecoder;
+  rv = charsetConverter->GetUnicodeDecoderRaw(aCharset,
+                                              getter_AddRefs(unicodeDecoder));
+  NS_ENSURE_SUCCESS(rv, rv);
 
   int32_t destLength;
   rv = unicodeDecoder->GetMaxLength(aFileData, aDataLen, &destLength);

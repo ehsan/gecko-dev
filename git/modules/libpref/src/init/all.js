@@ -2045,7 +2045,7 @@ pref("plugins.click_to_play", false);
 // Player ("Shockwave for Director"). To hide all plugins from enumeration, use
 // the empty string "" to match no plugin names. To allow all plugins to be
 // enumerated, use the string "*" to match all plugin names.
-pref("plugins.enumerable_names", "Java,Nexus Personal,QuickTime,Shockwave");
+pref("plugins.enumerable_names", "Java,QuickTime,Shockwave");
 
 // The default value for nsIPluginTag.enabledState (STATE_ENABLED = 2)
 pref("plugin.default.state", 2);
@@ -4538,7 +4538,7 @@ pref("ui.touch_activation.delay_ms", 100);
 // If the user has clicked an element, how long do we keep the
 // :active state before it is cleared by the mouse sequences
 // fired after a touchstart/touchend.
-pref("ui.touch_activation.duration_ms", 10);
+pref("ui.touch_activation.duration_ms", 100);
 
 // nsMemoryInfoDumper can watch a fifo in the temp directory and take various
 // actions when the fifo is written to.  Disable this in general.

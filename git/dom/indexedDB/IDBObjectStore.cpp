@@ -613,7 +613,7 @@ class ThreadLocalJSRuntime
   static const unsigned sRuntimeHeapSize = 768 * 1024;
 
   ThreadLocalJSRuntime()
-  : mRuntime(nullptr), mContext(nullptr), mGlobal(nullptr)
+  : mRuntime(NULL), mContext(NULL), mGlobal(NULL)
   {
       MOZ_COUNT_CTOR(ThreadLocalJSRuntime);
   }
@@ -634,7 +634,7 @@ class ThreadLocalJSRuntime
 
     JSAutoRequest ar(mContext);
 
-    mGlobal = JS_NewGlobalObject(mContext, &sGlobalClass, nullptr,
+    mGlobal = JS_NewGlobalObject(mContext, &sGlobalClass, NULL,
                                  JS::FireOnNewGlobalHook);
     NS_ENSURE_TRUE(mGlobal, NS_ERROR_OUT_OF_MEMORY);
 
@@ -962,7 +962,7 @@ const JSClass IDBObjectStore::sDummyPropJSClass = {
 already_AddRefed<IDBObjectStore>
 IDBObjectStore::Create(IDBTransaction* aTransaction,
                        ObjectStoreInfo* aStoreInfo,
-                       const nsACString& aDatabaseId,
+                       nsIAtom* aDatabaseId,
                        bool aCreating)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -4924,7 +4924,7 @@ GetAllKeysHelper::GetSuccessResult(JSContext* aCx,
   nsTArray<Key> keys;
   mKeys.SwapElements(keys);
 
-  JS::Rooted<JSObject*> array(aCx, JS_NewArrayObject(aCx, 0, nullptr));
+  JS::Rooted<JSObject*> array(aCx, JS_NewArrayObject(aCx, 0, NULL));
   if (!array) {
     NS_WARNING("Failed to make array!");
     return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;

@@ -15,7 +15,6 @@ const kAboutURI = "about:customizing";
 const kDragDataTypePrefix = "text/toolbarwrapper-id/";
 const kPlaceholderClass = "panel-customization-placeholder";
 const kSkipSourceNodePref = "browser.uiCustomization.skipSourceNodeCheck";
-const kMaxTransitionDurationMs = 2000;
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource:///modules/CustomizableUI.jsm");
@@ -323,11 +322,9 @@ CustomizeMode.prototype = {
     let deck = this.document.getElementById("tab-view-deck");
 
     let customizeTransitionEnd = function(aEvent) {
-      if (aEvent != "timedout" &&
-          (aEvent.originalTarget != deck || aEvent.propertyName != "padding-bottom")) {
+      if (aEvent.originalTarget != deck || aEvent.propertyName != "padding-bottom") {
         return;
       }
-      this.window.clearTimeout(catchAllTimeout);
       deck.removeEventListener("transitionend", customizeTransitionEnd);
 
       if (!aEntering) {
@@ -353,9 +350,6 @@ CustomizeMode.prototype = {
       this.document.documentElement.setAttribute("customize-exiting", true);
       this.document.documentElement.removeAttribute("customize-entered");
     }
-
-    let catchAll = () => customizeTransitionEnd("timedout");
-    let catchAllTimeout = this.window.setTimeout(catchAll, kMaxTransitionDurationMs);
     return deferred.promise;
   },
 
@@ -365,17 +359,7 @@ CustomizeMode.prototype = {
     let result = this.window.gNavToolbox.dispatchEvent(evt);
   },
 
-  _getCustomizableChildForNode: function(aNode) {
-    let area = this._getCustomizableParent(aNode);
-    area = area.customizationTarget || area;
-    while (aNode && aNode.parentNode != area) {
-      aNode = aNode.parentNode;
-    }
-    return aNode;
-  },
-
   addToToolbar: function(aNode) {
-    aNode = this._getCustomizableChildForNode(aNode);
     if (aNode.localName == "toolbarpaletteitem" && aNode.firstChild) {
       aNode = aNode.firstChild;
     }
@@ -383,7 +367,6 @@ CustomizeMode.prototype = {
   },
 
   addToPanel: function(aNode) {
-    aNode = this._getCustomizableChildForNode(aNode);
     if (aNode.localName == "toolbarpaletteitem" && aNode.firstChild) {
       aNode = aNode.firstChild;
     }
@@ -391,7 +374,6 @@ CustomizeMode.prototype = {
   },
 
   removeFromArea: function(aNode) {
-    aNode = this._getCustomizableChildForNode(aNode);
     if (aNode.localName == "toolbarpaletteitem" && aNode.firstChild) {
       aNode = aNode.firstChild;
     }
@@ -557,13 +539,7 @@ CustomizeMode.prototype = {
   deferredUnwrapToolbarItem: function(aWrapper) {
     let deferred = Promise.defer();
     dispatchFunction(function() {
-      let item = null;
-      try {
-        item = this.unwrapToolbarItem(aWrapper);
-      } catch (ex) {
-        Cu.reportError(ex);
-      }
-      deferred.resolve(item);
+      deferred.resolve(this.unwrapToolbarItem(aWrapper));
     }.bind(this));
     return deferred.promise;
   },

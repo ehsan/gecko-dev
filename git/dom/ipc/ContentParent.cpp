@@ -2711,8 +2711,7 @@ ContentParent::RecvSyncMessage(const nsString& aMsg,
                                InfallibleTArray<nsString>* aRetvals)
 {
   nsIPrincipal* principal = aPrincipal;
-  if (!Preferences::GetBool("geo.testing.ignore_ipc_principal", false) &&
-      principal && !AssertAppPrincipal(this, principal)) {
+  if (principal && !AssertAppPrincipal(this, principal)) {
     return false;
   }
 
@@ -2735,8 +2734,7 @@ ContentParent::AnswerRpcMessage(const nsString& aMsg,
                                 InfallibleTArray<nsString>* aRetvals)
 {
   nsIPrincipal* principal = aPrincipal;
-  if (!Preferences::GetBool("geo.testing.ignore_ipc_principal", false) &&
-      principal && !AssertAppPrincipal(this, principal)) {
+  if (principal && !AssertAppPrincipal(this, principal)) {
     return false;
   }
 
@@ -2757,8 +2755,7 @@ ContentParent::RecvAsyncMessage(const nsString& aMsg,
                                 const IPC::Principal& aPrincipal)
 {
   nsIPrincipal* principal = aPrincipal;
-  if (!Preferences::GetBool("geo.testing.ignore_ipc_principal", false) &&
-      principal && !AssertAppPrincipal(this, principal)) {
+  if (principal && !AssertAppPrincipal(this, principal)) {
     return false;
   }
 

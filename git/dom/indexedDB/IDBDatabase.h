@@ -245,7 +245,7 @@ private:
   // Set to a copy of the existing DatabaseInfo when starting a versionchange
   // transaction.
   nsRefPtr<DatabaseInfo> mPreviousDatabaseInfo;
-  nsCString mDatabaseId;
+  nsCOMPtr<nsIAtom> mDatabaseId;
   nsString mName;
   nsString mFilePath;
   nsCString mASCIIOrigin;

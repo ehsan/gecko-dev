@@ -414,7 +414,7 @@ cc_sdp_direction_t CC_SIPCCCallInfo::getVideoDirection()
 
 int CC_SIPCCCallInfo::getVolume()
 {
-    if( pMediaData != nullptr)
+    if( pMediaData  != NULL)
     {
         return  pMediaData->volume;
     }

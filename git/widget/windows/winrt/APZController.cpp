@@ -281,25 +281,23 @@ APZController::UpdateScrollOffset(const mozilla::layers::ScrollableLayerGuid& aS
 }
 
 void
-APZController::HandleDoubleTap(const CSSIntPoint& aPoint, int32_t aModifiers)
+APZController::HandleDoubleTap(const CSSIntPoint& aPoint)
 {
-  NS_ConvertASCIItoUTF16 data(
-      nsPrintfCString("{ \"x\": %d, \"y\": %d, \"modifiers\": %d }",
-      (int32_t)aPoint.x, (int32_t)aPoint.y, aModifiers));
+  NS_ConvertASCIItoUTF16 data(nsPrintfCString("{ \"x\": %d, \"y\": %d }",
+                              (int32_t)aPoint.x, (int32_t)aPoint.y));
   MetroUtils::FireObserver("Gesture:DoubleTap", data.get());
 }
 
 void
-APZController::HandleSingleTap(const CSSIntPoint& aPoint, int32_t aModifiers)
+APZController::HandleSingleTap(const CSSIntPoint& aPoint)
 {
-  NS_ConvertASCIItoUTF16 data(
-      nsPrintfCString("{ \"x\": %d, \"y\": %d, \"modifiers\": %d }",
-      (int32_t)aPoint.x, (int32_t)aPoint.y, aModifiers));
+  NS_ConvertASCIItoUTF16 data(nsPrintfCString("{ \"x\": %d, \"y\": %d }",
+                              (int32_t)aPoint.x, (int32_t)aPoint.y));
   MetroUtils::FireObserver("Gesture:SingleTap", data.get());
 }
 
 void
-APZController::HandleLongTap(const CSSIntPoint& aPoint, int32_t aModifiers)
+APZController::HandleLongTap(const CSSIntPoint& aPoint)
 {
 }
 

@@ -21,6 +21,7 @@
 
 #define INDEXEDDB_MANAGER_CONTRACTID "@mozilla.org/dom/indexeddb/manager;1"
 
+class nsIAtom;
 class nsPIDOMWindow;
 class nsEventChainPostVisitor;
 

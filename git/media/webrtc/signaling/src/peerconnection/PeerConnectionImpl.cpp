@@ -202,7 +202,7 @@ public:
         mStateStr(aInfo->callStateToString(mCallState)),
         mFsmStateStr(aInfo->fsmStateToString(mFsmState)) {
     if (mCallState == REMOTESTREAMADD) {
-      MediaStreamTable *streams = nullptr;
+      MediaStreamTable *streams = NULL;
       streams = aInfo->getMediaStreams();
       mRemoteStream = mPC->media()->GetRemoteStream(streams->media_stream_id);
       MOZ_ASSERT(mRemoteStream);
@@ -456,9 +456,9 @@ PeerConnectionImpl::PeerConnectionImpl(const GlobalObject* aGlobal)
   , mSignalingState(PCImplSignalingState::SignalingStable)
   , mIceState(PCImplIceState::IceGathering)
   , mWindow(nullptr)
-  , mIdentity(nullptr)
-  , mSTSThread(nullptr)
-  , mMedia(nullptr)
+  , mIdentity(NULL)
+  , mSTSThread(NULL)
+  , mMedia(NULL)
   , mNumAudioStreams(0)
   , mNumVideoStreams(0)
   , mHaveDataStream(false)
@@ -1305,7 +1305,7 @@ PeerConnectionImpl::SetRemoteFingerprint(const char* hash, const char* fingerpri
   MOZ_ASSERT(hash);
   MOZ_ASSERT(fingerprint);
 
-  if (fingerprint != nullptr && (strcmp(hash, "sha-1") == 0)) {
+  if (fingerprint != NULL && (strcmp(hash, "sha-1") == 0)) {
     mRemoteFingerprint = std::string(fingerprint);
     CSFLogDebug(logTag, "Setting remote fingerprint to %s", mRemoteFingerprint.c_str());
     return NS_OK;

@@ -101,8 +101,7 @@
 
   SimpleTest.waitForExplicitFinish();
   SpecialPowers.pushPrefEnv({"set": [["dom.promise.enabled", true],
-                                     ["dom.datastore.enabled", true],
-                                     ["geo.testing.ignore_ipc_principal", true]]}, runTest);
+                                     ["dom.datastore.enabled", true]]}, runTest);
   </script>
 </body>
 </html>

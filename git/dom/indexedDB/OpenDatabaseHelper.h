@@ -47,7 +47,7 @@ public:
     : HelperBase(aRequest), mOpenDBRequest(aRequest), mName(aName),
       mGroup(aGroup), mASCIIOrigin(aASCIIOrigin),
       mRequestedVersion(aRequestedVersion), mPersistenceType(aPersistenceType),
-      mForDeletion(aForDeletion), mPrivilege(aPrivilege),
+      mForDeletion(aForDeletion), mPrivilege(aPrivilege), mDatabaseId(nullptr),
       mContentParent(aContentParent), mCurrentVersion(0), mLastObjectStoreId(0),
       mLastIndexId(0), mState(eCreated), mResultCode(NS_OK),
       mLoadDBMetadata(false),
@@ -82,9 +82,9 @@ public:
   nsresult NotifyDeleteFinished();
   void BlockDatabase();
 
-  const nsACString& Id() const
+  nsIAtom* Id() const
   {
-    return mDatabaseId;
+    return mDatabaseId.get();
   }
 
   IDBDatabase* Database() const
@@ -136,7 +136,7 @@ protected:
   PersistenceType mPersistenceType;
   bool mForDeletion;
   StoragePrivilege mPrivilege;
-  nsCString mDatabaseId;
+  nsCOMPtr<nsIAtom> mDatabaseId;
   mozilla::dom::ContentParent* mContentParent;
 
   // Out-params.

@@ -25,6 +25,7 @@
 
 #define QUOTA_MANAGER_CONTRACTID "@mozilla.org/dom/quota/manager;1"
 
+class nsIAtom;
 class nsIOfflineStorage;
 class nsIPrincipal;
 class nsIThread;
@@ -190,7 +191,8 @@ public:
   nsresult
   WaitForOpenAllowed(const OriginOrPatternString& aOriginOrPattern,
                      Nullable<PersistenceType> aPersistenceType,
-                     const nsACString& aId, nsIRunnable* aRunnable);
+                     nsIAtom* aId,
+                     nsIRunnable* aRunnable);
 
   // Acquire exclusive access to the storage given (waits for all others to
   // close).  If storages need to close first, the callback will be invoked
@@ -220,13 +222,12 @@ public:
   void
   AllowNextSynchronizedOp(const OriginOrPatternString& aOriginOrPattern,
                           Nullable<PersistenceType> aPersistenceType,
-                          const nsACString& aId);
+                          nsIAtom* aId);
 
   bool
   IsClearOriginPending(const nsACString& aPattern)
   {
-    return !!FindSynchronizedOp(aPattern, Nullable<PersistenceType>(),
-                                EmptyCString());
+    return !!FindSynchronizedOp(aPattern, Nullable<PersistenceType>(), nullptr);
   }
 
   nsresult
@@ -285,11 +286,10 @@ public:
   static uint32_t
   GetStorageQuotaMB();
 
-  static void
+  static already_AddRefed<nsIAtom>
   GetStorageId(PersistenceType aPersistenceType,
                const nsACString& aOrigin,
-               const nsAString& aName,
-               nsACString& aDatabaseId);
+               const nsAString& aName);
 
   static nsresult
   GetInfoFromURI(nsIURI* aURI,
@@ -375,7 +375,8 @@ private:
 
   void
   AddSynchronizedOp(const OriginOrPatternString& aOriginOrPattern,
-                    Nullable<PersistenceType> aPersistenceType);
+                    Nullable<PersistenceType> aPersistenceType,
+                    nsIAtom* aId);
 
   nsresult
   RunSynchronizedOp(nsIOfflineStorage* aStorage,
@@ -384,7 +385,7 @@ private:
   SynchronizedOp*
   FindSynchronizedOp(const nsACString& aPattern,
                      Nullable<PersistenceType> aPersistenceType,
-                     const nsACString& aId);
+                     nsISupports* aId);
 
   nsresult
   MaybeUpgradeIndexedDBDirectory();

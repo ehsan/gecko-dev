@@ -30,7 +30,7 @@ class LIRGenerator;
 //   streamline the process of prototyping new allocators.
 struct AllocationIntegrityState
 {
-    explicit AllocationIntegrityState(const LIRGraph &graph)
+    AllocationIntegrityState(LIRGraph &graph)
       : graph(graph)
     {}
 
@@ -46,7 +46,7 @@ struct AllocationIntegrityState
 
   private:
 
-    const LIRGraph &graph;
+    LIRGraph &graph;
 
     // For all instructions and phis in the graph, keep track of the virtual
     // registers for all inputs and outputs of the nodes. These are overwritten
@@ -284,9 +284,6 @@ class InstructionDataMap
 // Common superclass for register allocators.
 class RegisterAllocator
 {
-    void operator=(const RegisterAllocator &) MOZ_DELETE;
-    RegisterAllocator(const RegisterAllocator &) MOZ_DELETE;
-
   protected:
     // Context
     MIRGenerator *mir;
@@ -325,16 +322,16 @@ class RegisterAllocator
         return mir->alloc();
     }
 
-    static CodePosition outputOf(uint32_t pos) {
+    CodePosition outputOf(uint32_t pos) const {
         return CodePosition(pos, CodePosition::OUTPUT);
     }
-    static CodePosition outputOf(const LInstruction *ins) {
+    CodePosition outputOf(const LInstruction *ins) const {
         return CodePosition(ins->id(), CodePosition::OUTPUT);
     }
-    static CodePosition inputOf(uint32_t pos) {
+    CodePosition inputOf(uint32_t pos) const {
         return CodePosition(pos, CodePosition::INPUT);
     }
-    static CodePosition inputOf(const LInstruction *ins) {
+    CodePosition inputOf(const LInstruction *ins) const {
         // Phi nodes "use" their inputs before the beginning of the block.
         JS_ASSERT(!ins->isPhi());
         return CodePosition(ins->id(), CodePosition::INPUT);
@@ -367,7 +364,7 @@ class RegisterAllocator
 };
 
 static inline AnyRegister
-GetFixedRegister(const LDefinition *def, const LUse *use)
+GetFixedRegister(LDefinition *def, const LUse *use)
 {
     return def->type() == LDefinition::DOUBLE
            ? AnyRegister(FloatRegister::FromCode(use->registerCode()))

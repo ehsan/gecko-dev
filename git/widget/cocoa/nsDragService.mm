@@ -22,6 +22,7 @@
 #include "nsIDOMNode.h"
 #include "nsRect.h"
 #include "nsPoint.h"
+#include "nsICharsetConverterManager.h"
 #include "nsIIOService.h"
 #include "nsNetUtil.h"
 #include "nsIDocument.h"

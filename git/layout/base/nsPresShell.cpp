@@ -8203,9 +8203,6 @@ PresShell::DoVerifyReflow()
 }
 #endif
 
-// used with Telemetry metrics
-#define NS_LONG_REFLOW_TIME_MS    5000
-
 bool
 PresShell::ProcessReflowCommands(bool aInterruptible)
 {
@@ -8298,9 +8295,6 @@ PresShell::ProcessReflowCommands(bool aInterruptible)
   }
 
   if (mDocument->GetRootElement()) {
-    TimeDuration elapsed = TimeStamp::Now() - timerStart;
-    int32_t intElapsed = int32_t(elapsed.ToMilliseconds());
-
     Telemetry::ID id;
     if (mDocument->GetRootElement()->IsXUL()) {
       id = mIsActive
@@ -8308,14 +8302,10 @@ PresShell::ProcessReflowCommands(bool aInterruptible)
         : Telemetry::XUL_BACKGROUND_REFLOW_MS;
     } else {
       id = mIsActive
-        ? Telemetry::HTML_FOREGROUND_REFLOW_MS_2
-        : Telemetry::HTML_BACKGROUND_REFLOW_MS_2;
+        ? Telemetry::HTML_FOREGROUND_REFLOW_MS
+        : Telemetry::HTML_BACKGROUND_REFLOW_MS;
     }
-    Telemetry::Accumulate(id, intElapsed);
-    if (intElapsed > NS_LONG_REFLOW_TIME_MS) {
-      Telemetry::Accumulate(Telemetry::LONG_REFLOW_INTERRUPTIBLE,
-                            aInterruptible ? 1 : 0);
-    }
+    Telemetry::AccumulateTimeDelta(id, timerStart);
   }
 
   return !interrupted;

@@ -37,9 +37,7 @@ interface Element : Node {
 
   [SameObject]
   readonly attribute MozNamedAttrMap attributes;
-  [Pure]
   DOMString? getAttribute(DOMString name);
-  [Pure]
   DOMString? getAttributeNS(DOMString? namespace, DOMString localName);
   [Throws]
   void setAttribute(DOMString name, DOMString value);
@@ -49,16 +47,12 @@ interface Element : Node {
   void removeAttribute(DOMString name);
   [Throws]
   void removeAttributeNS(DOMString? namespace, DOMString localName);
-  [Pure]
   boolean hasAttribute(DOMString name);
-  [Pure]
   boolean hasAttributeNS(DOMString? namespace, DOMString localName);
 
-  [Pure]
   HTMLCollection getElementsByTagName(DOMString localName);
   [Throws]
   HTMLCollection getElementsByTagNameNS(DOMString? namespace, DOMString localName);
-  [Pure]
   HTMLCollection getElementsByClassName(DOMString classNames);
 
   /**
@@ -76,7 +70,7 @@ interface Element : Node {
   readonly attribute float fontSizeInflation;
 
   // Mozilla specific stuff
-  [Pure]
+
            attribute EventHandler onwheel;
 
   // Selectors API

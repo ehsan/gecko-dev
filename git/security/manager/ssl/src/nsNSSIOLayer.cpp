@@ -65,6 +65,8 @@ namespace {
 
 NSSCleanupAutoPtrClass(void, PR_FREEIF)
 
+static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
+
 void
 getSiteKey(const nsACString & hostName, uint16_t port,
            /*out*/ nsCSubstring & key)

@@ -168,7 +168,8 @@ SVGMotionSMILAnimationFunction::
     const nsAString& valuesStr = GetAttr(nsGkAtoms::values)->GetStringValue();
     SVGMotionSMILPathUtils::MotionValueParser parser(&pathGenerator,
                                                      &mPathVertices);
-    success = nsSMILParserUtils::ParseValuesGeneric(valuesStr, parser);
+    success =
+      NS_SUCCEEDED(nsSMILParserUtils::ParseValuesGeneric(valuesStr, parser));
   } else if (HasAttr(nsGkAtoms::to) || HasAttr(nsGkAtoms::by)) {
     // Apply 'from' value (or a dummy 0,0 'from' value)
     if (HasAttr(nsGkAtoms::from)) {
@@ -295,8 +296,8 @@ bool
 SVGMotionSMILAnimationFunction::
   GenerateValuesForPathAndPoints(Path* aPath,
                                  bool aIsKeyPoints,
-                                 FallibleTArray<double>& aPointDistances,
-                                 nsSMILValueArray& aResult)
+                                 nsTArray<double>& aPointDistances,
+                                 nsTArray<nsSMILValue>& aResult)
 {
   NS_ABORT_IF_FALSE(aResult.IsEmpty(), "outparam is non-empty");
 
@@ -334,9 +335,9 @@ SVGMotionSMILAnimationFunction::GetValues(const nsISMILAttr& aSMILAttr,
   // Now: Make the actual list of nsSMILValues (using keyPoints, if set)
   bool isUsingKeyPoints = !mKeyPoints.IsEmpty();
   bool success = GenerateValuesForPathAndPoints(mPath, isUsingKeyPoints,
-                                                isUsingKeyPoints ?
+                                                  isUsingKeyPoints ?
                                                   mKeyPoints : mPathVertices,
-                                                aResult);
+                                                  aResult);
   if (!success) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -401,13 +402,18 @@ SVGMotionSMILAnimationFunction::SetKeyPoints(const nsAString& aKeyPoints,
   mKeyPoints.Clear();
   aResult.SetTo(aKeyPoints);
 
-  mHasChanged = true;
+  nsresult rv =
+    nsSMILParserUtils::ParseSemicolonDelimitedProgressList(aKeyPoints, false,
+                                                           mKeyPoints);
 
-  if (!nsSMILParserUtils::ParseSemicolonDelimitedProgressList(aKeyPoints, false,
-                                                              mKeyPoints)) {
+  if (NS_SUCCEEDED(rv) && mKeyPoints.Length() < 1)
+    rv = NS_ERROR_FAILURE;
+
+  if (NS_FAILED(rv)) {
     mKeyPoints.Clear();
-    return NS_ERROR_FAILURE;
   }
+
+  mHasChanged = true;
 
   return NS_OK;
 }

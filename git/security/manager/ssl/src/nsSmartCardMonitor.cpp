@@ -28,6 +28,8 @@ using namespace mozilla;
 //
 
 
+static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
+
 // self linking and removing double linked entry
 // adopts the thread it is passed.
 class SmartCardThreadEntry {
@@ -235,8 +237,6 @@ nsresult
 SmartCardMonitoringThread::SendEvent(const nsAString &eventType,
                                      const char *tokenName)
 {
-  static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
-
   nsresult rv;
   nsCOMPtr<nsINSSComponent> 
                     nssComponent(do_GetService(kNSSComponentCID, &rv));

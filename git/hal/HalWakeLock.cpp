@@ -254,7 +254,7 @@ ModifyWakeLock(const nsAString& aTopic,
        processWasLocked != (processCount.numLocks > 0))) {
 
     WakeLockInformation info;
-    hal::GetWakeLockInfo(aTopic, &info);
+    GetWakeLockInfo(aTopic, &info);
     NotifyWakeLockChange(info);
   }
 }
