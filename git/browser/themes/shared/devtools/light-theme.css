@@ -194,8 +194,7 @@
 
 .theme-toolbar,
 .devtools-toolbar,
-.devtools-sidebar-tabs tabs,
-.devtools-sidebar-alltabs,
+.devtools-sidebar-tabs > tabs,
 .CodeMirror-dialog { /* General toolbar styling */
   color: var(--theme-body-color-alt);
   background-color: var(--theme-toolbar-background);

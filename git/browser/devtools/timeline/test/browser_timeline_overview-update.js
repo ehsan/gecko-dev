@@ -54,21 +54,18 @@ add_task(function*() {
   yield TimelineController.toggleRecording();
   ok(true, "Recording has ended.");
 
-  // TODO: Re-enable this assertion as part of bug 1120830
-  // is(TimelineController.getMarkers().length, 0,
-  //  "There are no markers available.");
+  is(TimelineController.getMarkers().length, 0,
+    "There are no markers available.");
   isnot(TimelineController.getMemory().length, 0,
     "There are some memory measurements available.");
 
   is(TimelineView.markersOverview.selectionEnabled, true,
     "The selection should now be enabled for the markers overview.");
-  // TODO: Re-enable this assertion as part of bug 1120830
-  // is(TimelineView.markersOverview.hasSelection(), false,
-  //  "The markers overview should not have a selection after recording.");
+  is(TimelineView.markersOverview.hasSelection(), false,
+    "The markers overview should not have a selection after recording.");
 
   is(TimelineView.memoryOverview.selectionEnabled, true,
     "The selection should now be enabled for the memory overview.");
-  // TODO: Re-enable this assertion as part of bug 1120830
-  // is(TimelineView.memoryOverview.hasSelection(), false,
-  //  "The memory overview should not have a selection after recording.");
+  is(TimelineView.memoryOverview.hasSelection(), false,
+    "The memory overview should not have a selection after recording.");
 });

@@ -441,7 +441,7 @@ StyleSheetEditor.prototype = {
    * Toggled the disabled state of the underlying stylesheet.
    */
   toggleDisabled: function() {
-    this.styleSheet.toggleDisabled().then(null, Cu.reportError);
+    this.styleSheet.toggleDisabled();
   },
 
   /**
@@ -483,8 +483,7 @@ StyleSheetEditor.prototype = {
 
     let transitionsEnabled = Services.prefs.getBoolPref(TRANSITION_PREF);
 
-    this.styleSheet.update(this._state.text, transitionsEnabled)
-                   .then(null, Cu.reportError);
+    this.styleSheet.update(this._state.text, transitionsEnabled);
   },
 
   /**
