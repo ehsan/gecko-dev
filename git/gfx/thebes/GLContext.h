@@ -1066,21 +1066,6 @@ protected:
     GLint mMaxRenderbufferSize;
 
 public:
- 
-    /** \returns the first GL error, and guarantees that all GL error flags are cleared,
-      * i.e. that a subsequent GetError call will return NO_ERROR
-      */
-    GLenum GetAndClearError() {
-        // the first error is what we want to return
-        GLenum error = fGetError();
-        
-        if (error) {
-            // clear all pending errors
-            while(fGetError()) {}
-        }
-        
-        return error;
-    }
 
 #ifdef DEBUG
 
@@ -1098,7 +1083,6 @@ protected:
     GLenum mGLError;
 
 public:
-
     void BeforeGLCall(const char* glFunction) {
         if (mDebugMode) {
             // since the static member variable sCurrentGLContext is not thread-local as it should,
