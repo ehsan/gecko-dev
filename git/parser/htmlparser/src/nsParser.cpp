@@ -206,7 +206,6 @@ public:
       mCurrentlyParsing(0),
       mNumURIs(0),
       mNumConsumed(0),
-      mContext(nsnull),
       mTerminated(PR_FALSE) {
   }
 
@@ -373,10 +372,8 @@ NS_IMPL_THREADSAFE_ISUPPORTS1(nsSpeculativeScriptThread, nsIRunnable)
 NS_IMETHODIMP
 nsSpeculativeScriptThread::Run()
 {
-  NS_ASSERTION(!NS_IsMainThread(), "Speculative parsing on the main thread?");
-
-  mNumConsumed = 0;
-
+  nsScannerIterator start;
+  mScanner->CurrentPosition(start);
   mTokenizer->WillTokenize(PR_FALSE, &mTokenAllocator);
   while (mKeepParsing) {
     PRBool flushTokens = PR_FALSE;
@@ -384,8 +381,6 @@ nsSpeculativeScriptThread::Run()
     if (rv == kEOF) {
       break;
     }
-
-    mNumConsumed += mScanner->Mark();
 
     // TODO Don't pop the tokens.
     CToken *token;
@@ -396,6 +391,11 @@ nsSpeculativeScriptThread::Run()
   mTokenizer->DidTokenize(PR_FALSE);
 
   nsAutoLock al(mLock.get());
+
+  nsScannerIterator end;
+  mScanner->CurrentPosition(end);
+
+  mNumConsumed = Distance(start, end);
 
   mCurrentlyParsing = 0;
   PR_NotifyCondVar(mCVar.get());
@@ -446,9 +446,6 @@ nsSpeculativeScriptThread::StartParsing(nsParser *aParser)
     }
     mTokenizer->CopyState(context->mTokenizer);
     context->mScanner->CopyUnusedData(toScan);
-    if (toScan.IsEmpty()) {
-      return NS_OK;
-    }
   } else if (context == mContext) {
     // Don't parse the same part of the document twice.
     nsScannerIterator end;
