@@ -41,14 +41,12 @@
 #include "nsThreadUtils.h"
 #include "nsIScriptChannel.h"
 #include "nsIDocument.h"
-#include "nsILoadInfo.h"
 #include "nsIObjectInputStream.h"
 #include "nsIObjectOutputStream.h"
 #include "nsIWritablePropertyBag2.h"
 #include "nsIContentSecurityPolicy.h"
 #include "nsSandboxFlags.h"
 #include "mozilla/dom/ScriptSettings.h"
-#include "nsILoadInfo.h"
 
 using mozilla::dom::AutoEntryScript;
 
@@ -154,16 +152,10 @@ nsresult nsJSThunk::EvaluateScript(nsIChannel *aChannel,
     aChannel->GetOwner(getter_AddRefs(owner));
     nsCOMPtr<nsIPrincipal> principal = do_QueryInterface(owner);
     if (!principal) {
-        nsCOMPtr<nsILoadInfo> loadInfo;
-        aChannel->GetLoadInfo(getter_AddRefs(loadInfo));
-        if (loadInfo && loadInfo->GetForceInheritPrincipal()) {
-            principal = loadInfo->LoadingPrincipal();
-        } else {
-            // No execution without a principal!
-            NS_ASSERTION(!owner, "Non-principal owner?");
-            NS_WARNING("No principal to execute JS with");
-            return NS_ERROR_DOM_RETVAL_UNDEFINED;
-        }
+        // No execution without a principal!
+        NS_ASSERTION(!owner, "Non-principal owner?");
+        NS_WARNING("No principal to execute JS with");
+        return NS_ERROR_DOM_RETVAL_UNDEFINED;
     }
 
     nsresult rv;
@@ -895,18 +887,6 @@ NS_IMETHODIMP
 nsJSChannel::SetOwner(nsISupports* aOwner)
 {
     return mStreamChannel->SetOwner(aOwner);
-}
-
-NS_IMETHODIMP
-nsJSChannel::GetLoadInfo(nsILoadInfo* *aLoadInfo)
-{
-    return mStreamChannel->GetLoadInfo(aLoadInfo);
-}
-
-NS_IMETHODIMP
-nsJSChannel::SetLoadInfo(nsILoadInfo* aLoadInfo)
-{
-    return mStreamChannel->SetLoadInfo(aLoadInfo);
 }
 
 NS_IMETHODIMP

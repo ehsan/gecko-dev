@@ -21,7 +21,6 @@ namespace mozilla {
 
 MFTDecoder::MFTDecoder()
   : mMFTProvidesOutputSamples(false)
-  , mDiscontinuity(true)
 {
   memset(&mInputStreamInfo, 0, sizeof(MFT_INPUT_STREAM_INFO));
   memset(&mOutputStreamInfo, 0, sizeof(MFT_OUTPUT_STREAM_INFO));
@@ -238,11 +237,6 @@ MFTDecoder::Output(RefPtr<IMFSample>* aOutput)
 
   MOZ_ASSERT(output.pSample);
 
-  if (mDiscontinuity) {
-    output.pSample->SetUINT32(MFSampleExtension_Discontinuity, TRUE);
-    mDiscontinuity = false;
-  }
-
   *aOutput = output.pSample; // AddRefs
   if (mMFTProvidesOutputSamples) {
     // If the MFT is providing samples, we must release the sample here.
@@ -282,8 +276,6 @@ MFTDecoder::Flush()
 {
   HRESULT hr = SendMFTMessage(MFT_MESSAGE_COMMAND_FLUSH, 0);
   NS_ENSURE_TRUE(SUCCEEDED(hr), hr);
-
-  mDiscontinuity = true;
 
   return S_OK;
 }

@@ -13,7 +13,6 @@
 #include <algorithm>
 #include "nsComponentManagerUtils.h"
 #include "nsProxyRelease.h"
-#include "mozilla/Telemetry.h"
 
 // When CACHE_CHUNKS is defined we always cache unused chunks in mCacheChunks.
 // When it is not defined, we always release the chunks ASAP, i.e. we cache
@@ -179,17 +178,25 @@ CacheFile::CacheFile()
   , mReady(false)
   , mMemoryOnly(false)
   , mOpenAsMemoryOnly(false)
-  , mPriority(false)
   , mDataAccessed(false)
   , mDataIsDirty(false)
   , mWritingMetadata(false)
   , mPreloadWithoutInputStreams(true)
-  , mPreloadChunkCount(0)
   , mStatus(NS_OK)
   , mDataSize(-1)
   , mOutput(nullptr)
 {
   LOG(("CacheFile::CacheFile() [this=%p]", this));
+
+  // Some consumers (at least nsHTTPCompressConv) assume that Read() can read
+  // such amount of data that was announced by Available().
+  // CacheFileInputStream::Available() uses also preloaded chunks to compute
+  // number of available bytes in the input stream, so we have to make sure the
+  // preloadChunkCount won't change during CacheFile's lifetime since otherwise
+  // we could potentially release some cached chunks that was used to calculate
+  // available bytes but would not be available later during call to
+  // CacheFileInputStream::Read().
+  mPreloadChunkCount = CacheObserver::PreloadChunkCount();
 }
 
 CacheFile::~CacheFile()
@@ -217,21 +224,9 @@ CacheFile::Init(const nsACString &aKey,
 
   mKey = aKey;
   mOpenAsMemoryOnly = mMemoryOnly = aMemoryOnly;
-  mPriority = aPriority;
-
-  // Some consumers (at least nsHTTPCompressConv) assume that Read() can read
-  // such amount of data that was announced by Available().
-  // CacheFileInputStream::Available() uses also preloaded chunks to compute
-  // number of available bytes in the input stream, so we have to make sure the
-  // preloadChunkCount won't change during CacheFile's lifetime since otherwise
-  // we could potentially release some cached chunks that was used to calculate
-  // available bytes but would not be available later during call to
-  // CacheFileInputStream::Read().
-  mPreloadChunkCount = CacheObserver::PreloadChunkCount();
 
   LOG(("CacheFile::Init() [this=%p, key=%s, createNew=%d, memoryOnly=%d, "
-       "priority=%d, listener=%p]", this, mKey.get(), aCreateNew, aMemoryOnly,
-       aPriority, aCallback));
+       "listener=%p]", this, mKey.get(), aCreateNew, aMemoryOnly, aCallback));
 
   if (mMemoryOnly) {
     MOZ_ASSERT(!aCallback);
@@ -255,9 +250,8 @@ CacheFile::Init(const nsACString &aKey,
       flags = CacheFileIOManager::CREATE;
     }
 
-    if (mPriority) {
+    if (aPriority)
       flags |= CacheFileIOManager::PRIORITY;
-    }
 
     mOpeningFile = true;
     mListener = aCallback;
@@ -313,6 +307,7 @@ CacheFile::OnChunkRead(nsresult aResult, CacheFileChunk *aChunk)
 
   if (NS_FAILED(aResult)) {
     SetError(aResult);
+    CacheFileIOManager::DoomFile(mHandle, nullptr);
   }
 
   if (HaveChunkListeners(index)) {
@@ -339,6 +334,7 @@ CacheFile::OnChunkWritten(nsresult aResult, CacheFileChunk *aChunk)
 
   if (NS_FAILED(aResult)) {
     SetError(aResult);
+    CacheFileIOManager::DoomFile(mHandle, nullptr);
   }
 
   if (NS_SUCCEEDED(aResult) && !aChunk->IsDirty()) {
@@ -498,9 +494,6 @@ CacheFile::OnFileOpened(CacheFileHandle *aHandle, nsresult aResult)
     }
     else {
       mHandle = aHandle;
-      if (NS_FAILED(mStatus)) {
-        CacheFileIOManager::DoomFile(mHandle, nullptr);
-      }
 
       if (mMetadata) {
         InitIndexEntry();
@@ -1089,7 +1082,7 @@ CacheFile::GetChunkLocked(uint32_t aIndex, ECallerType aCaller,
       return NS_ERROR_UNEXPECTED;
     }
 
-    chunk = new CacheFileChunk(this, aIndex, aCaller == WRITER);
+    chunk = new CacheFileChunk(this, aIndex);
     mChunks.Put(aIndex, chunk);
     chunk->mActiveChunk = true;
 
@@ -1120,14 +1113,14 @@ CacheFile::GetChunkLocked(uint32_t aIndex, ECallerType aCaller,
   } else if (off == mDataSize) {
     if (aCaller == WRITER) {
       // this listener is going to write to the chunk
-      chunk = new CacheFileChunk(this, aIndex, true);
+      chunk = new CacheFileChunk(this, aIndex);
       mChunks.Put(aIndex, chunk);
       chunk->mActiveChunk = true;
 
       LOG(("CacheFile::GetChunkLocked() - Created new empty chunk %p [this=%p]",
            chunk.get(), this));
 
-      chunk->InitNew();
+      chunk->InitNew(this);
       mMetadata->SetHash(aIndex, chunk->Hash());
 
       if (HaveChunkListeners(aIndex)) {
@@ -1347,10 +1340,6 @@ CacheFile::DeactivateChunk(CacheFileChunk *aChunk)
     }
 #endif
 
-    if (NS_FAILED(chunk->GetStatus())) {
-      SetError(chunk->GetStatus());
-    }
-
     if (NS_FAILED(mStatus)) {
       // Don't write any chunk to disk since this entry will be doomed
       LOG(("CacheFile::DeactivateChunk() - Releasing chunk because of status "
@@ -1375,6 +1364,7 @@ CacheFile::DeactivateChunk(CacheFileChunk *aChunk)
         RemoveChunkInternal(chunk, false);
 
         SetError(rv);
+        CacheFileIOManager::DoomFile(mHandle, nullptr);
         return rv;
       }
 
@@ -1470,40 +1460,12 @@ CacheFile::BytesFromChunk(uint32_t aIndex)
   return std::min(advance, tail);
 }
 
-static uint32_t
-StatusToTelemetryEnum(nsresult aStatus)
-{
-  if (NS_SUCCEEDED(aStatus)) {
-    return 0;
-  }
-
-  switch (aStatus) {
-    case NS_BASE_STREAM_CLOSED:
-      return 0; // Log this as a success
-    case NS_ERROR_OUT_OF_MEMORY:
-      return 2;
-    case NS_ERROR_FILE_DISK_FULL:
-      return 3;
-    case NS_ERROR_FILE_CORRUPTED:
-      return 4;
-    case NS_ERROR_FILE_NOT_FOUND:
-      return 5;
-    case NS_BINDING_ABORTED:
-      return 6;
-    default:
-      return 1; // other error
-  }
-
-  NS_NOTREACHED("We should never get here");
-}
-
 nsresult
-CacheFile::RemoveInput(CacheFileInputStream *aInput, nsresult aStatus)
+CacheFile::RemoveInput(CacheFileInputStream *aInput)
 {
   CacheFileAutoLock lock(this);
 
-  LOG(("CacheFile::RemoveInput() [this=%p, input=%p, status=0x%08x]", this,
-       aInput, aStatus));
+  LOG(("CacheFile::RemoveInput() [this=%p, input=%p]", this, aInput));
 
   DebugOnly<bool> found;
   found = mInputs.RemoveElement(aInput);
@@ -1518,19 +1480,15 @@ CacheFile::RemoveInput(CacheFileInputStream *aInput, nsresult aStatus)
   // chunks that won't be used anymore.
   mCachedChunks.Enumerate(&CacheFile::CleanUpCachedChunks, this);
 
-  Telemetry::Accumulate(Telemetry::NETWORK_CACHE_V2_INPUT_STREAM_STATUS,
-                        StatusToTelemetryEnum(aStatus));
-
   return NS_OK;
 }
 
 nsresult
-CacheFile::RemoveOutput(CacheFileOutputStream *aOutput, nsresult aStatus)
+CacheFile::RemoveOutput(CacheFileOutputStream *aOutput)
 {
   AssertOwnsLock();
 
-  LOG(("CacheFile::RemoveOutput() [this=%p, output=%p, status=0x%08x]", this,
-       aOutput, aStatus));
+  LOG(("CacheFile::RemoveOutput() [this=%p, output=%p]", this, aOutput));
 
   if (mOutput != aOutput) {
     LOG(("CacheFile::RemoveOutput() - This output was already removed, ignoring"
@@ -1548,9 +1506,6 @@ CacheFile::RemoveOutput(CacheFileOutputStream *aOutput, nsresult aStatus)
 
   // Notify close listener as the last action
   aOutput->NotifyCloseListener();
-
-  Telemetry::Accumulate(Telemetry::NETWORK_CACHE_V2_OUTPUT_STREAM_STATUS,
-                        StatusToTelemetryEnum(aStatus));
 
   return NS_OK;
 }
@@ -1894,13 +1849,8 @@ CacheFile::PadChunkWithZeroes(uint32_t aChunkIdx)
 void
 CacheFile::SetError(nsresult aStatus)
 {
-  AssertOwnsLock();
-
   if (NS_SUCCEEDED(mStatus)) {
     mStatus = aStatus;
-    if (mHandle) {
-      CacheFileIOManager::DoomFile(mHandle, nullptr);
-    }
   }
 }
 

@@ -1083,7 +1083,7 @@ GenerateTypedArrayLength(JSContext *cx, MacroAssembler &masm, IonCache::StubAtta
     masm.branchPtr(Assembler::Below, tmpReg, ImmPtr(&TypedArrayObject::classes[0]),
                    &failures);
     masm.branchPtr(Assembler::AboveOrEqual, tmpReg,
-                   ImmPtr(&TypedArrayObject::classes[Scalar::TypeMax]),
+                   ImmPtr(&TypedArrayObject::classes[ScalarTypeDescr::TYPE_MAX]),
                    &failures);
 
     // Load length.
@@ -3174,8 +3174,11 @@ GetElementIC::canAttachTypedArrayElement(JSObject *obj, const Value &idval,
     // The output register is not yet specialized as a float register, the only
     // way to accept float typed arrays for now is to return a Value type.
     uint32_t arrayType = obj->as<TypedArrayObject>().type();
-    if (arrayType == Scalar::Float32 || arrayType == Scalar::Float64)
+    if (arrayType == ScalarTypeDescr::TYPE_FLOAT32 ||
+        arrayType == ScalarTypeDescr::TYPE_FLOAT64)
+    {
         return output.hasValue();
+    }
 
     return output.hasValue() || !output.typedReg().isFloat();
 }
@@ -3191,7 +3194,7 @@ GenerateGetTypedArrayElement(JSContext *cx, MacroAssembler &masm, IonCache::Stub
     Label failures;
 
     // The array type is the object within the table of typed array classes.
-    Scalar::Type arrayType = tarr->type();
+    int arrayType = tarr->type();
 
     // Guard on the shape.
     Shape *shape = tarr->lastProperty();
@@ -3264,7 +3267,7 @@ GenerateGetTypedArrayElement(JSContext *cx, MacroAssembler &masm, IonCache::Stub
 
     // Load the value. We use an invalid register because the destination
     // register is necessary a non double register.
-    int width = Scalar::byteSize(arrayType);
+    int width = TypedArrayObject::slotWidth(arrayType);
     BaseIndex source(elementReg, indexReg, ScaleFromElemWidth(width));
     if (output.hasValue()) {
         masm.loadFromTypedArray(arrayType, source, output.valueReg(), allowDoubleResult,
@@ -3730,11 +3733,11 @@ GenerateSetTypedArrayElement(JSContext *cx, MacroAssembler &masm, IonCache::Stub
     masm.loadPtr(Address(object, TypedArrayObject::dataOffset()), elements);
 
     // Set the value.
-    Scalar::Type arrayType = tarr->type();
-    int width = Scalar::byteSize(arrayType);
+    int arrayType = tarr->type();
+    int width = TypedArrayObject::slotWidth(arrayType);
     BaseIndex target(elements, index, ScaleFromElemWidth(width));
 
-    if (arrayType == Scalar::Float32) {
+    if (arrayType == ScalarTypeDescr::TYPE_FLOAT32) {
         FloatRegister ftemp;
         if (LIRGenerator::allowFloat32Optimizations()) {
             JS_ASSERT(tempFloat32 != InvalidFloatReg);
@@ -3747,7 +3750,7 @@ GenerateSetTypedArrayElement(JSContext *cx, MacroAssembler &masm, IonCache::Stub
             ftemp = tempDouble;
         }
         masm.storeToTypedFloatArray(arrayType, ftemp, target);
-    } else if (arrayType == Scalar::Float64) {
+    } else if (arrayType == ScalarTypeDescr::TYPE_FLOAT64) {
         if (!masm.convertConstantOrRegisterToDouble(cx, value, tempDouble, &failures))
             return false;
         masm.storeToTypedFloatArray(arrayType, tempDouble, target);
@@ -3757,7 +3760,7 @@ GenerateSetTypedArrayElement(JSContext *cx, MacroAssembler &masm, IonCache::Stub
         // afterwards.
         masm.push(object);
 
-        if (arrayType == Scalar::Uint8Clamped) {
+        if (arrayType == ScalarTypeDescr::TYPE_UINT8_CLAMPED) {
             if (!masm.clampConstantOrRegisterToUint8(cx, value, tempDouble, object,
                                                      &popObjectAndFail))
             {

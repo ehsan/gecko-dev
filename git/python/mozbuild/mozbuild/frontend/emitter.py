@@ -191,11 +191,11 @@ class TreeMetadataEmitter(LoggingMixin):
 
         if sandbox['XPIDL_SOURCES'] and not xpidl_module:
             raise SandboxValidationError('XPIDL_MODULE must be defined if '
-                'XPIDL_SOURCES is defined.', sandbox)
+                'XPIDL_SOURCES is defined.')
 
         if xpidl_module and not sandbox['XPIDL_SOURCES']:
             raise SandboxValidationError('XPIDL_MODULE cannot be defined '
-                'unless there are XPIDL_SOURCES', sandbox)
+                'unless there are XPIDL_SOURCES: %s' % sandbox['RELATIVEDIR'])
 
         if sandbox['XPIDL_SOURCES'] and sandbox['NO_DIST_INSTALL']:
             self.log(logging.WARN, 'mozbuild_warning', dict(
@@ -210,8 +210,8 @@ class TreeMetadataEmitter(LoggingMixin):
             for src in (sandbox[symbol] or []):
                 if not os.path.exists(mozpath.join(sandbox['SRCDIR'], src)):
                     raise SandboxValidationError('Reference to a file that '
-                        'doesn\'t exist in %s (%s)'
-                        % (symbol, src), sandbox)
+                        'doesn\'t exist in %s (%s) in %s'
+                        % (symbol, src, sandbox['RELATIVEDIR']))
 
         # Proxy some variables as-is until we have richer classes to represent
         # them. We should aim to keep this set small because it violates the
@@ -301,8 +301,7 @@ class TreeMetadataEmitter(LoggingMixin):
             for f in sandbox[variable]:
                 ext = mozpath.splitext(f)[1]
                 if ext not in mapping:
-                    raise SandboxValidationError(
-                        '%s has an unknown file type.' % f, sandbox)
+                    raise SandboxValidationError('%s has an unknown file type in %s' % (f, sandbox['RELATIVEDIR']))
                 l = passthru.variables.setdefault(mapping[ext], [])
                 l.append(f)
                 if variable.startswith('GENERATED_'):
@@ -314,8 +313,7 @@ class TreeMetadataEmitter(LoggingMixin):
         no_pgo_sources = [f for f in sources if sources[f].no_pgo]
         if no_pgo:
             if no_pgo_sources:
-                raise SandboxValidationError('NO_PGO and SOURCES[...].no_pgo '
-                    'cannot be set at the same time', sandbox)
+                raise SandboxValidationError('NO_PGO and SOURCES[...].no_pgo cannot be set at the same time')
             passthru.variables['NO_PROFILE_GUIDED_OPTIMIZE'] = no_pgo
         if no_pgo_sources:
             passthru.variables['NO_PROFILE_GUIDED_OPTIMIZE'] = no_pgo_sources
@@ -386,18 +384,15 @@ class TreeMetadataEmitter(LoggingMixin):
                 LibraryDefinition(sandbox, libname)
 
         if final_lib:
-            if isinstance(sandbox, MozbuildSandbox) and \
-                    sandbox.get('FORCE_STATIC_LIB'):
-                raise SandboxValidationError(
-                    'FINAL_LIBRARY implies FORCE_STATIC_LIB', sandbox)
+            if isinstance(sandbox, MozbuildSandbox) and sandbox.get('FORCE_STATIC_LIB'):
+                raise SandboxValidationError('FINAL_LIBRARY implies FORCE_STATIC_LIB')
             self._final_libs.append((sandbox['OBJDIR'], libname, final_lib))
             passthru.variables['FORCE_STATIC_LIB'] = True
 
         soname = sandbox.get('SONAME')
         if soname:
             if not sandbox.get('FORCE_SHARED_LIB'):
-                raise SandboxValidationError(
-                    'SONAME applicable only for shared libraries', sandbox)
+                raise SandboxValidationError('SONAME applicable only for shared libraries')
             else:
                 passthru.variables['SONAME'] = soname
 
@@ -444,7 +439,7 @@ class TreeMetadataEmitter(LoggingMixin):
         jar_manifests = sandbox.get('JAR_MANIFESTS', [])
         if len(jar_manifests) > 1:
             raise SandboxValidationError('While JAR_MANIFESTS is a list, '
-                'it is currently limited to one value.', sandbox)
+                'it is currently limited to one value.')
 
         for path in jar_manifests:
             yield JARManifest(sandbox, mozpath.join(sandbox['SRCDIR'], path))
@@ -455,9 +450,10 @@ class TreeMetadataEmitter(LoggingMixin):
         # relying on the old behavior.
         if os.path.exists(os.path.join(sandbox['SRCDIR'], 'jar.mn')):
             if 'jar.mn' not in jar_manifests:
-                raise SandboxValidationError('A jar.mn exists but it '
-                    'is not referenced in the moz.build file. '
-                    'Please define JAR_MANIFESTS.', sandbox)
+                raise SandboxValidationError('A jar.mn exists in %s but it '
+                    'is not referenced in the corresponding moz.build file. '
+                    'Please define JAR_MANIFESTS in the moz.build file.' %
+                    sandbox['SRCDIR'])
 
         for name, jar in sandbox.get('JAVA_JAR_TARGETS', {}).items():
             yield SandboxWrapped(sandbox, jar)
@@ -494,7 +490,7 @@ class TreeMetadataEmitter(LoggingMixin):
             defaults = m.manifest_defaults[os.path.normpath(path)]
             if not m.tests and not 'support-files' in defaults:
                 raise SandboxValidationError('Empty test manifest: %s'
-                    % path, sandbox)
+                    % path)
 
             obj = TestManifest(sandbox, path, m, flavor=flavor,
                 install_prefix=install_prefix,
@@ -513,7 +509,7 @@ class TreeMetadataEmitter(LoggingMixin):
                 if missing:
                     raise SandboxValidationError('Test manifest (%s) lists '
                         'test that does not exist: %s' % (
-                        path, ', '.join(missing)), sandbox)
+                        path, ', '.join(missing)))
 
             out_dir = mozpath.join(install_prefix, manifest_reldir)
             if 'install-to-subdir' in defaults:
@@ -612,7 +608,7 @@ class TreeMetadataEmitter(LoggingMixin):
                 except KeyError:
                     raise SandboxValidationError('Error processing test '
                         'manifest %s: entry in generated-files not present '
-                        'elsewhere in manifest: %s' % (path, f), sandbox)
+                        'elsewhere in manifest: %s' % (path, f))
 
                 obj.external_installs.add(mozpath.join(out_dir, f))
 
@@ -620,8 +616,7 @@ class TreeMetadataEmitter(LoggingMixin):
         except (AssertionError, Exception):
             raise SandboxValidationError('Error processing test '
                 'manifest file %s: %s' % (path,
-                    '\n'.join(traceback.format_exception(*sys.exc_info()))),
-                sandbox)
+                    '\n'.join(traceback.format_exception(*sys.exc_info()))))
 
     def _process_reftest_manifest(self, sandbox, flavor, manifest_path):
         manifest_path = mozpath.normpath(manifest_path)

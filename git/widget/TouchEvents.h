@@ -156,7 +156,6 @@ class WidgetTouchEvent : public WidgetInputEvent
 {
 public:
   typedef nsTArray<nsRefPtr<mozilla::dom::Touch>> TouchArray;
-  typedef nsAutoTArray<nsRefPtr<mozilla::dom::Touch>, 10> AutoTouchArray;
 
   virtual WidgetTouchEvent* AsTouchEvent() MOZ_OVERRIDE { return this; }
 

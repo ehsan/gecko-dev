@@ -100,6 +100,7 @@ endif
 
 endif # !NO_DIST_INSTALL
 
+ifdef MOZ_PSEUDO_DERECURSE
 BINARIES_INSTALL_TARGETS := $(foreach category,$(INSTALL_TARGETS),$(if $(filter binaries,$($(category)_TARGET)),$(category)))
 
 # Fill a dependency file with all the binaries installed somewhere in $(DIST)
@@ -112,5 +113,10 @@ $(BINARIES_PP): Makefile $(wildcard backend.mk) $(call mkdir_deps,$(MDDEPDIR))
 			$($(category)_DEST)/$(notdir $(file)): $(file)%\
 		)\
 	))binaries: Makefile $(wildcard backend.mk)' | tr % '\n' > $@
+
+else
+binaries::
+	$(error The binaries target is not supported without MOZ_PSEUDO_DERECURSE)
+endif
 
 # EOF

@@ -13,7 +13,6 @@
 #include "pkix/pkix.h"
 #include "mozilla/ArrayUtils.h"
 #include "nsIX509CertDB.h"
-#include "nsNSSCertificate.h"
 #include "prerror.h"
 #include "secerr.h"
 
@@ -32,9 +31,8 @@ extern PRLogModuleInfo* gPIPNSSLog;
 
 namespace mozilla { namespace psm {
 
-AppTrustDomain::AppTrustDomain(ScopedCERTCertList& certChain, void* pinArg)
-  : mCertChain(certChain)
-  , mPinArg(pinArg)
+AppTrustDomain::AppTrustDomain(void* pinArg)
+  : mPinArg(pinArg)
 {
 }
 
@@ -106,7 +104,7 @@ AppTrustDomain::FindIssuer(const SECItem& encodedIssuerName,
   // 1. First, try the trusted trust anchor.
   // 2. Secondly, iterate through the certificates that were stored in the CMS
   //    message, passing each one to checker.Check.
-  ScopedCERTCertList
+  mozilla::pkix::ScopedCERTCertList
     candidates(CERT_CreateSubjectCertList(nullptr, CERT_GetDefaultCertDB(),
                                           &encodedIssuerName, time, true));
   if (candidates) {
@@ -204,10 +202,4 @@ AppTrustDomain::CheckRevocation(EndEntityOrCA, const CertID&, PRTime time,
   return SECSuccess;
 }
 
-SECStatus
-AppTrustDomain::IsChainValid(const DERArray& certChain)
-{
-  return ConstructCERTCertListFromReversedDERArray(certChain, mCertChain);
-}
-
-} } // namespace mozilla::psm
+} }

@@ -46,9 +46,6 @@ class CacheObserver : public nsIObserver
     { return sMaxMemoryEntrySize << 10; }
   static uint32_t const MaxDiskEntrySize() // result in bytes.
     { return sMaxDiskEntrySize << 10; }
-  static uint32_t const MaxDiskChunksMemoryUsage(bool aPriority) // result in bytes.
-    { return aPriority ? sMaxDiskPriorityChunksMemoryUsage << 10
-                       : sMaxDiskChunksMemoryUsage << 10; }
   static uint32_t const CompressionLevel()
     { return sCompressionLevel; }
   static uint32_t const HalfLifeSeconds()
@@ -78,8 +75,6 @@ private:
   static uint32_t sPreloadChunkCount;
   static uint32_t sMaxMemoryEntrySize;
   static uint32_t sMaxDiskEntrySize;
-  static uint32_t sMaxDiskChunksMemoryUsage;
-  static uint32_t sMaxDiskPriorityChunksMemoryUsage;
   static uint32_t sCompressionLevel;
   static uint32_t sHalfLifeHours;
   static int32_t sHalfLifeExperiment;

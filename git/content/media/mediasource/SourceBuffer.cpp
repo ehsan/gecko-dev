@@ -412,7 +412,7 @@ void
 SourceBuffer::DiscardDecoder()
 {
   if (mDecoder) {
-    mDecoder->SetDiscarded();
+    mDecoder->GetResource()->Ended();
   }
   mDecoder = nullptr;
   mDecoderInitialized = false;

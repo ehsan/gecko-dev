@@ -104,7 +104,7 @@ private:
     return SECSuccess;
   }
 
-  virtual SECStatus IsChainValid(const DERArray&)
+  virtual SECStatus IsChainValid(const CERTCertList*)
   {
     return SECSuccess;
   }
@@ -149,13 +149,15 @@ TEST_F(pkixcert_extension, UnknownCriticalExtension)
   const SECItem* cert(CreateCert(arena.get(), certCN,
                                  &unknownCriticalExtension, key));
   ASSERT_TRUE(cert);
+  ScopedCERTCertList results;
   ASSERT_SECFailure(SEC_ERROR_UNKNOWN_CRITICAL_EXTENSION,
                     BuildCertChain(trustDomain, *cert, now,
                                    EndEntityOrCA::MustBeEndEntity,
                                    KeyUsage::noParticularKeyUsageRequired,
                                    KeyPurposeId::anyExtendedKeyUsage,
                                    CertPolicyId::anyPolicy,
-                                   nullptr/*stapledOCSPResponse*/));
+                                   nullptr, // stapled OCSP response
+                                   results));
 }
 
 // Tests that a non-critical extension not in the id-ce or id-pe arcs (which is
@@ -181,12 +183,14 @@ TEST_F(pkixcert_extension, UnknownNonCriticalExtension)
   const SECItem* cert(CreateCert(arena.get(), certCN,
                                  &unknownNonCriticalExtension, key));
   ASSERT_TRUE(cert);
+  ScopedCERTCertList results;
   ASSERT_SECSuccess(BuildCertChain(trustDomain, *cert, now,
                                    EndEntityOrCA::MustBeEndEntity,
                                    KeyUsage::noParticularKeyUsageRequired,
                                    KeyPurposeId::anyExtendedKeyUsage,
                                    CertPolicyId::anyPolicy,
-                                   nullptr/*stapledOCSPResponse*/));
+                                   nullptr, // stapled OCSP response
+                                   results));
 }
 
 // Tests that an incorrect OID for id-pe-authorityInformationAccess
@@ -213,13 +217,15 @@ TEST_F(pkixcert_extension, WrongOIDCriticalExtension)
   const SECItem* cert(CreateCert(arena.get(), certCN,
                                  &wrongOIDCriticalExtension, key));
   ASSERT_TRUE(cert);
+  ScopedCERTCertList results;
   ASSERT_SECFailure(SEC_ERROR_UNKNOWN_CRITICAL_EXTENSION,
                     BuildCertChain(trustDomain, *cert, now,
                                    EndEntityOrCA::MustBeEndEntity,
                                    KeyUsage::noParticularKeyUsageRequired,
                                    KeyPurposeId::anyExtendedKeyUsage,
                                    CertPolicyId::anyPolicy,
-                                   nullptr/*stapledOCSPResponse*/));
+                                   nullptr, // stapled OCSP response
+                                   results));
 }
 
 // Tests that a id-pe-authorityInformationAccess critical extension
@@ -248,12 +254,14 @@ TEST_F(pkixcert_extension, CriticalAIAExtension)
   const SECItem* cert(CreateCert(arena.get(), certCN, &criticalAIAExtension,
                                  key));
   ASSERT_TRUE(cert);
+  ScopedCERTCertList results;
   ASSERT_SECSuccess(BuildCertChain(trustDomain, *cert, now,
                                    EndEntityOrCA::MustBeEndEntity,
                                    KeyUsage::noParticularKeyUsageRequired,
                                    KeyPurposeId::anyExtendedKeyUsage,
                                    CertPolicyId::anyPolicy,
-                                   nullptr/*stapledOCSPResponse*/));
+                                   nullptr, // stapled OCSP response
+                                   results));
 }
 
 // We know about some id-ce extensions (OID arc 2.5.29), but not all of them.
@@ -279,13 +287,15 @@ TEST_F(pkixcert_extension, UnknownCriticalCEExtension)
   const SECItem* cert(CreateCert(arena.get(), certCN,
                                  &unknownCriticalCEExtension, key));
   ASSERT_TRUE(cert);
+  ScopedCERTCertList results;
   ASSERT_SECFailure(SEC_ERROR_UNKNOWN_CRITICAL_EXTENSION,
                     BuildCertChain(trustDomain, *cert, now,
                                    EndEntityOrCA::MustBeEndEntity,
                                    KeyUsage::noParticularKeyUsageRequired,
                                    KeyPurposeId::anyExtendedKeyUsage,
                                    CertPolicyId::anyPolicy,
-                                   nullptr/*stapledOCSPResponse*/));
+                                   nullptr, // stapled OCSP response
+                                   results));
 }
 
 // Tests that a certificate with a known critical id-ce extension (in this case,
@@ -311,12 +321,14 @@ TEST_F(pkixcert_extension, KnownCriticalCEExtension)
   const SECItem* cert(CreateCert(arena.get(), certCN, &criticalCEExtension,
                                  key));
   ASSERT_TRUE(cert);
+  ScopedCERTCertList results;
   ASSERT_SECSuccess(BuildCertChain(trustDomain, *cert,
                                    now, EndEntityOrCA::MustBeEndEntity,
                                    KeyUsage::noParticularKeyUsageRequired,
                                    KeyPurposeId::anyExtendedKeyUsage,
                                    CertPolicyId::anyPolicy,
-                                   nullptr/*stapledOCSPResponse*/));
+                                   nullptr, // stapled OCSP response
+                                   results));
 }
 
 // Two subjectAltNames must result in an error.
@@ -342,11 +354,13 @@ TEST_F(pkixcert_extension, DuplicateSubjectAltName)
   // cert is owned by the arena
   const SECItem* cert(CreateCert(arena.get(), certCN, extensions, key));
   ASSERT_TRUE(cert);
+  ScopedCERTCertList results;
   ASSERT_SECFailure(SEC_ERROR_EXTENSION_VALUE_INVALID,
                     BuildCertChain(trustDomain, *cert,
                                    now, EndEntityOrCA::MustBeEndEntity,
                                    KeyUsage::noParticularKeyUsageRequired,
                                    KeyPurposeId::anyExtendedKeyUsage,
                                    CertPolicyId::anyPolicy,
-                                   nullptr/*stapledOCSPResponse*/));
+                                   nullptr, // stapled OCSP response
+                                   results));
 }

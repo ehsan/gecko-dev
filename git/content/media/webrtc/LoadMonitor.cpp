@@ -274,16 +274,10 @@ nsresult WinProcMon::QuerySystemLoad(float* load_percent)
 }
 #endif
 
-// Use a non-generic class name, because otherwise we can get name collisions
-// with other classes in the codebase.  The normal way of dealing with that is
-// to put the class in an anonymous namespace, but this class is used as a
-// member of RTCLoadInfo, which can't be in the anonymous namespace, so it also
-// can't be in an anonymous namespace: gcc warns about that setup and this
-// directory is fail-on-warnings.
-class RTCLoadStats
+class LoadStats
 {
 public:
-  RTCLoadStats() :
+  LoadStats() :
     mPrevTotalTimes(0),
     mPrevCpuTimes(0),
     mPrevLoad(0) {};
@@ -295,17 +289,11 @@ public:
   float mPrevLoad;               // Previous load value.
 };
 
-// Use a non-generic class name, because otherwise we can get name collisions
-// with other classes in the codebase.  The normal way of dealing with that is
-// to put the class in an anonymous namespace, but this class is used as a
-// member of LoadInfoCollectRunner, which can't be in the anonymous namespace,
-// so it also can't be in an anonymous namespace: gcc warns about that setup
-// and this directory is fail-on-warnings.
-class RTCLoadInfo : public mozilla::RefCounted<RTCLoadInfo>
+class LoadInfo : public mozilla::RefCounted<LoadInfo>
 {
 public:
-  MOZ_DECLARE_REFCOUNTED_TYPENAME(RTCLoadInfo)
-  RTCLoadInfo(): mLoadUpdateInterval(0) {};
+  MOZ_DECLARE_REFCOUNTED_TYPENAME(LoadInfo)
+  LoadInfo(): mLoadUpdateInterval(0) {};
   nsresult Init(int aLoadUpdateInterval);
   double GetSystemLoad() { return mSystemLoad.GetLoad(); };
   double GetProcessLoad() { return mProcessLoad.GetLoad(); };
@@ -316,19 +304,19 @@ private:
   void UpdateCpuLoad(uint64_t ticks_per_interval,
                      uint64_t current_total_times,
                      uint64_t current_cpu_times,
-                     RTCLoadStats* loadStat);
+                     LoadStats* loadStat);
 #ifdef XP_WIN
   WinProcMon mSysMon;
   HANDLE mProcHandle;
   int mNumProcessors;
 #endif
-  RTCLoadStats mSystemLoad;
-  RTCLoadStats mProcessLoad;
+  LoadStats mSystemLoad;
+  LoadStats mProcessLoad;
   uint64_t mTicksPerInterval;
   int mLoadUpdateInterval;
 };
 
-nsresult RTCLoadInfo::Init(int aLoadUpdateInterval)
+nsresult LoadInfo::Init(int aLoadUpdateInterval)
 {
   mLoadUpdateInterval = aLoadUpdateInterval;
 #ifdef XP_WIN
@@ -343,10 +331,10 @@ nsresult RTCLoadInfo::Init(int aLoadUpdateInterval)
 #endif
 }
 
-void RTCLoadInfo::UpdateCpuLoad(uint64_t ticks_per_interval,
-                                uint64_t current_total_times,
-                                uint64_t current_cpu_times,
-                                RTCLoadStats *loadStat) {
+void LoadInfo::UpdateCpuLoad(uint64_t ticks_per_interval,
+                             uint64_t current_total_times,
+                             uint64_t current_cpu_times,
+                             LoadStats *loadStat) {
   // Check if we get an inconsistent number of ticks.
   if (((current_total_times - loadStat->mPrevTotalTimes)
        > (ticks_per_interval * 10))
@@ -378,7 +366,7 @@ void RTCLoadInfo::UpdateCpuLoad(uint64_t ticks_per_interval,
   loadStat->mPrevCpuTimes = current_cpu_times;
 }
 
-nsresult RTCLoadInfo::UpdateSystemLoad()
+nsresult LoadInfo::UpdateSystemLoad()
 {
 #if defined(LINUX) || defined(ANDROID)
   nsCOMPtr<nsIFile> procStatFile = do_CreateInstance(NS_LOCAL_FILE_CONTRACTID);
@@ -484,7 +472,7 @@ nsresult RTCLoadInfo::UpdateSystemLoad()
 #endif
 }
 
-nsresult RTCLoadInfo::UpdateProcessLoad() {
+nsresult LoadInfo::UpdateProcessLoad() {
 #if defined(XP_UNIX)
   struct timeval tv;
   gettimeofday(&tv, nullptr);
@@ -530,13 +518,11 @@ nsresult RTCLoadInfo::UpdateProcessLoad() {
   return NS_OK;
 }
 
-// Note: This class can't be in the anonymous namespace, because then we can't
-// declare it as a friend of LoadMonitor.
 class LoadInfoCollectRunner : public nsRunnable
 {
 public:
   LoadInfoCollectRunner(nsRefPtr<LoadMonitor> loadMonitor,
-                        RefPtr<RTCLoadInfo> loadInfo,
+                        RefPtr<LoadInfo> loadInfo,
                         nsIThread *loadInfoThread)
     : mThread(loadInfoThread),
       mLoadUpdateInterval(loadMonitor->mLoadUpdateInterval),
@@ -585,7 +571,7 @@ public:
 
 private:
   nsCOMPtr<nsIThread> mThread;
-  RefPtr<RTCLoadInfo> mLoadInfo;
+  RefPtr<LoadInfo> mLoadInfo;
   nsRefPtr<LoadMonitor> mLoadMonitor;
   int mLoadUpdateInterval;
   int mLoadNoiseCounter;
@@ -629,11 +615,11 @@ LoadMonitor::Init(nsRefPtr<LoadMonitor> &self)
 {
   LOG(("Initializing LoadMonitor"));
 
-  RefPtr<RTCLoadInfo> load_info = new RTCLoadInfo();
+  RefPtr<LoadInfo> load_info = new LoadInfo();
   nsresult rv = load_info->Init(mLoadUpdateInterval);
 
   if (NS_FAILED(rv)) {
-    LOG(("RTCLoadInfo::Init error"));
+    LOG(("LoadInfo::Init error"));
     return rv;
   }
 

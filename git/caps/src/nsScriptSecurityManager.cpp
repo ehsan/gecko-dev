@@ -64,7 +64,6 @@
 #include "nsContentUtils.h"
 #include "nsCxPusher.h"
 #include "nsJSUtils.h"
-#include "nsILoadInfo.h"
 
 // This should be probably defined on some other place... but I couldn't find it
 #define WEBAPPS_PERM_NAME "webapps-manage"
@@ -262,20 +261,6 @@ nsScriptSecurityManager::GetChannelPrincipal(nsIChannel* aChannel,
     if (owner) {
         CallQueryInterface(owner, aPrincipal);
         if (*aPrincipal) {
-            return NS_OK;
-        }
-    }
-
-    // Check whether we have an nsILoadInfo that says what we should do.
-    nsCOMPtr<nsILoadInfo> loadInfo;
-    aChannel->GetLoadInfo(getter_AddRefs(loadInfo));
-    if (loadInfo) {
-        if (loadInfo->GetLoadingSandboxed()) {
-            return CallCreateInstance(NS_NULLPRINCIPAL_CONTRACTID, aPrincipal);
-        }
-
-        if (loadInfo->GetForceInheritPrincipal()) {
-            NS_ADDREF(*aPrincipal = loadInfo->LoadingPrincipal());
             return NS_OK;
         }
     }

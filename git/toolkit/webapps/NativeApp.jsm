@@ -80,7 +80,7 @@ function CommonNativeApp(aApp, aManifest, aCategories, aRegistryDir) {
 
 CommonNativeApp.prototype = {
   uniqueName: null,
-  appLocalizedName: null,
+  appName: null,
   appNameAsFilename: null,
   iconURI: null,
   developerName: null,
@@ -125,7 +125,7 @@ CommonNativeApp.prototype = {
                       : firstLine.substr(0, 253) + "…";
       this.shortDescription = shortDesc;
     } else {
-      this.shortDescription = this.appLocalizedName;
+      this.shortDescription = this.appName;
     }
 
     if (manifest.version) {

@@ -17,7 +17,6 @@ function RemoteFinder(browser) {
   this._searchString = null;
 
   this._browser.messageManager.addMessageListener("Finder:Result", this);
-  this._browser.messageManager.addMessageListener("Finder:MatchesResult", this);
   this._browser.messageManager.sendAsyncMessage("Finder:Initialize");
 }
 
@@ -32,18 +31,10 @@ RemoteFinder.prototype = {
   },
 
   receiveMessage: function (aMessage) {
-    // Only Finder:Result messages have the searchString field.
-    if (aMessage.name == "Finder:Result") {
-      this._searchString = aMessage.data.searchString;
-    }
+    this._searchString = aMessage.data.searchString;
 
-    // The parent can receive either one of the two types of message.
     for (let l of this._listeners) {
-      if (aMessage.name == "Finder:Result") {
-        l.onFindResult(aMessage.data);
-      } else if (aMessage.name == "Finder:MatchesResult") {
-        l.onMatchesCountResult(aMessage.data);
-      }
+      l.onFindResult(aMessage.data);
     }
   },
 
@@ -90,13 +81,6 @@ RemoteFinder.prototype = {
     this._browser.messageManager.sendAsyncMessage("Finder:KeyPress",
                                                   { keyCode: aEvent.keyCode,
                                                     shiftKey: aEvent.shiftKey });
-  },
-
-  requestMatchesCount: function (aSearchString, aMatchLimit, aLinksOnly) {
-    this._browser.messageManager.sendAsyncMessage("Finder:MatchesCount",
-                                                  { searchString: aSearchString,
-                                                    matchLimit: aMatchLimit,
-                                                    linksOnly: aLinksOnly });
   }
 }
 
@@ -120,18 +104,11 @@ RemoteFinderListener.prototype = {
     "Finder:EnableSelection",
     "Finder:RemoveSelection",
     "Finder:FocusContent",
-    "Finder:KeyPress",
-    "Finder:MatchesCount"
+    "Finder:KeyPress"
   ],
 
   onFindResult: function (aData) {
     this._global.sendAsyncMessage("Finder:Result", aData);
-  },
-
-  // When the child receives messages with results of requestMatchesCount,
-  // it passes them forward to the parent.
-  onMatchesCountResult: function (aData) {
-    this._global.sendAsyncMessage("Finder:MatchesResult", aData);
   },
 
   //XXXmikedeboer-20131016: implement |shouldFocusContent| here to mitigate
@@ -170,10 +147,6 @@ RemoteFinderListener.prototype = {
 
       case "Finder:KeyPress":
         this._finder.keyPress(data);
-        break;
-
-      case "Finder:MatchesCount":
-        this._finder.requestMatchesCount(data.searchString, data.matchLimit, data.linksOnly);
         break;
     }
   }
