@@ -120,7 +120,7 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
              * Save eval program source in script->atoms[0] for the
              * eval cache (see EvalCacheLookup in jsobj.cpp).
              */
-            JSAtom *atom = js_AtomizeString(cx, source);
+            JSAtom *atom = AtomizeString(cx, source);
             jsatomid _;
             if (!atom || !bce.makeAtomIndex(atom, &_))
                 return NULL;
@@ -303,8 +303,10 @@ frontend::CompileFunctionBody(JSContext *cx, HandleFunction fun, CompileOptions 
         if (!GetOrderedBindings(cx, funsc.bindings, &names))
             return false;
 
+        RootedPropertyName name(cx);
         for (unsigned i = 0; i < nargs; i++) {
-            if (!DefineArg(fn, names[i].maybeName, i, &parser))
+            name = names[i].maybeName;
+            if (!DefineArg(fn, name, i, &parser))
                 return false;
         }
     }

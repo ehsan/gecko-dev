@@ -1053,15 +1053,16 @@ class JS_PUBLIC_API(AutoGCRooter) {
         STRING =      -14, /* js::AutoStringRooter */
         IDVECTOR =    -15, /* js::AutoIdVector */
         OBJVECTOR =   -16, /* js::AutoObjectVector */
-        SCRIPTVECTOR =-17, /* js::AutoScriptVector */
-        PROPDESC =    -18, /* js::PropDesc::AutoRooter */
-        SHAPERANGE =  -19, /* js::Shape::Range::AutoRooter */
-        STACKSHAPE =  -20, /* js::StackShape::AutoRooter */
-        STACKBASESHAPE=-21,/* js::StackBaseShape::AutoRooter */
-        BINDINGS =    -22, /* js::Bindings::AutoRooter */
-        GETTERSETTER =-23, /* js::AutoRooterGetterSetter */
-        REGEXPSTATICS=-24, /* js::RegExpStatics::AutoRooter */
-        HASHABLEVALUE=-25
+        STRINGVECTOR =-17, /* js::AutoStringVector */
+        SCRIPTVECTOR =-18, /* js::AutoScriptVector */
+        PROPDESC =    -19, /* js::PropDesc::AutoRooter */
+        SHAPERANGE =  -20, /* js::Shape::Range::AutoRooter */
+        STACKSHAPE =  -21, /* js::StackShape::AutoRooter */
+        STACKBASESHAPE=-22,/* js::StackBaseShape::AutoRooter */
+        BINDINGS =    -23, /* js::Bindings::AutoRooter */
+        GETTERSETTER =-24, /* js::AutoRooterGetterSetter */
+        REGEXPSTATICS=-25, /* js::RegExpStatics::AutoRooter */
+        HASHABLEVALUE=-26
     };
 
   private:
@@ -1255,8 +1256,12 @@ class AutoVectorRooter : protected AutoGCRooter
     }
 
     size_t length() const { return vector.length(); }
+    bool empty() const { return vector.empty(); }
 
     bool append(const T &v) { return vector.append(v); }
+    bool append(const AutoVectorRooter<T> &other) {
+        return vector.append(other.vector);
+    }
 
     /* For use when space has already been reserved. */
     void infallibleAppend(const T &v) { vector.infallibleAppend(v); }
@@ -1378,8 +1383,15 @@ class CallReceiver
     friend CallReceiver CallReceiverFromArgv(Value *);
     Value *base() const { return argv_ - 2; }
     JSObject &callee() const { JS_ASSERT(!usedRval_); return argv_[-2].toObject(); }
-    Value &calleev() const { JS_ASSERT(!usedRval_); return argv_[-2]; }
-    Value &thisv() const { return argv_[-1]; }
+
+    JS::HandleValue calleev() const {
+        JS_ASSERT(!usedRval_);
+        return JS::HandleValue::fromMarkedLocation(&argv_[-2]);
+    }
+
+    JS::HandleValue thisv() const {
+        return JS::HandleValue::fromMarkedLocation(&argv_[-1]);
+    }
 
     JS::MutableHandleValue rval() const {
         setUsedRval();
@@ -1391,9 +1403,13 @@ class CallReceiver
         return argv_ - 1;
     }
 
-    void setCallee(Value calleev) {
+    void setCallee(Value calleev) const {
         clearUsedRval();
-        this->calleev() = calleev;
+        argv_[-2] = calleev;
+    }
+
+    void setThis(Value thisv) const {
+        argv_[-1] = thisv;
     }
 };
 
@@ -5120,7 +5136,7 @@ struct JS_PUBLIC_API(CompileOptions) {
         SAVE_SOURCE
     } sourcePolicy;
 
-    CompileOptions(JSContext *cx);
+    explicit CompileOptions(JSContext *cx);
     CompileOptions &setPrincipals(JSPrincipals *p) { principals = p; return *this; }
     CompileOptions &setOriginPrincipals(JSPrincipals *p) { originPrincipals = p; return *this; }
     CompileOptions &setVersion(JSVersion v) { version = v; versionSet = true; return *this; }

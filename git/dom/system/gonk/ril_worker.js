@@ -53,14 +53,14 @@ const PDU_HEX_OCTET_SIZE = 4;
 
 const DEFAULT_EMERGENCY_NUMBERS = ["112", "911"];
 
-let RILQUIRKS_CALLSTATE_EXTRA_UINT32 = false;
-let RILQUIRKS_DATACALLSTATE_DOWN_IS_UP = false;
-// This flag defaults to true since on RIL v6 and later, we get the
-// version number via the UNSOLICITED_RIL_CONNECTED parcel.
-let RILQUIRKS_V5_LEGACY = true;
-let RILQUIRKS_REQUEST_USE_DIAL_EMERGENCY_CALL = false;
-let RILQUIRKS_MODEM_DEFAULTS_TO_EMERGENCY_MODE = false;
-let RILQUIRKS_SIM_APP_STATE_EXTRA_FIELDS = false;
+let RILQUIRKS_CALLSTATE_EXTRA_UINT32 = libcutils.property_get("ro.moz.ril.callstate_extra_int");
+let RILQUIRKS_DATACALLSTATE_DOWN_IS_UP = libcutils.property_get("ro.moz.ril.callstate_down_is_up");
+// This may change at runtime since in RIL v6 and later, we get the version
+// number via the UNSOLICITED_RIL_CONNECTED parcel.
+let RILQUIRKS_V5_LEGACY = libcutils.property_get("ro.moz.ril.v5_legacy");
+let RILQUIRKS_REQUEST_USE_DIAL_EMERGENCY_CALL = libcutils.property_get("ro.moz.ril.dial_emergency_call");
+let RILQUIRKS_MODEM_DEFAULTS_TO_EMERGENCY_MODE = libcutils.property_get("ro.moz.ril.emergency_by_default");
+let RILQUIRKS_SIM_APP_STATE_EXTRA_FIELDS = libcutils.property_get("ro.moz.ril.simstate_extra_field");
 
 // Marker object.
 let PENDING_NETWORK_TYPE = {};
@@ -689,71 +689,6 @@ let RIL = {
       this.setMute(val);
       this._muted = val;
     }
-  },
-
-
-  /**
-   * Set quirk flags based on the RIL model detected. Note that this
-   * requires the RIL being "warmed up" first, which happens when on
-   * an incoming or outgoing voice call or data call.
-   */
-  rilQuirksInitialized: false,
-  initRILQuirks: function initRILQuirks() {
-    if (this.rilQuirksInitialized) {
-      return;
-    }
-
-    let ril_impl = libcutils.property_get("gsm.version.ril-impl");
-    if (DEBUG) debug("Detected RIL implementation " + ril_impl);
-    switch (ril_impl) {
-      case "Samsung RIL(IPC) v2.0":
-        // The Samsung Galaxy S2 I-9100 radio sends an extra Uint32 in the
-        // call state.
-        let model_id = libcutils.property_get("ril.model_id");
-        if (DEBUG) debug("Detected RIL model " + model_id);
-        if (!model_id) {
-          // On some RIL models, the RIL has to be "warmed up" for us to read this property.
-          // It apparently isn't warmed up yet, going to try again later.
-          if (DEBUG) debug("Could not detect correct model_id. Going to try later.");
-          return;
-        }
-        if (model_id == "I9100") {
-          if (DEBUG) {
-            debug("Detected I9100, enabling " +
-                  "RILQUIRKS_CALLSTATE_EXTRA_UINT32, " +
-                  "RILQUIRKS_DATACALLSTATE_DOWN_IS_UP, " +
-                  "RILQUIRKS_REQUEST_USE_DIAL_EMERGENCY_CALL.");
-          }
-          RILQUIRKS_CALLSTATE_EXTRA_UINT32 = true;
-          RILQUIRKS_DATACALLSTATE_DOWN_IS_UP = true;
-          RILQUIRKS_REQUEST_USE_DIAL_EMERGENCY_CALL = true;
-        }
-        if (model_id == "I9023" || model_id == "I9020") {
-          if (DEBUG) {
-            debug("Detected I9020/I9023, enabling " +
-                  "RILQUIRKS_DATACALLSTATE_DOWN_IS_UP");
-          }
-          RILQUIRKS_DATACALLSTATE_DOWN_IS_UP = true;
-        }
-        break;
-      case "Qualcomm RIL 1.0":
-        let product_model = libcutils.property_get("ro.product.model");
-        if (DEBUG) debug("Detected product model " + product_model);
-        if (product_model == "otoro1") {
-          if (DEBUG) debug("Enabling RILQUIRKS_SIM_APP_STATE_EXTRA_FIELDS.");
-          RILQUIRKS_SIM_APP_STATE_EXTRA_FIELDS = true;
-        }
-        if (DEBUG) {
-          debug("Detected Qualcomm RIL 1.0, " +
-                "disabling RILQUIRKS_V5_LEGACY and " +
-                "enabling RILQUIRKS_MODEM_DEFAULTS_TO_EMERGENCY_MODE.");
-        }
-        RILQUIRKS_V5_LEGACY = false;
-        RILQUIRKS_MODEM_DEFAULTS_TO_EMERGENCY_MODE = true;
-        break;
-    }
-
-    this.rilQuirksInitialized = true;
   },
 
   /**
@@ -2261,8 +2196,6 @@ let RIL = {
   },
 
   _processVoiceRegistrationState: function _processVoiceRegistrationState(state) {
-    this.initRILQuirks();
-
     let rs = this.voiceRegistrationState;
     let stateChanged = this._processCREG(rs, state);
     if (stateChanged && rs.connected) {
@@ -2951,8 +2884,6 @@ RIL[REQUEST_GET_CURRENT_CALLS] = function REQUEST_GET_CURRENT_CALLS(length, opti
     return;
   }
 
-  this.initRILQuirks();
-
   let calls_length = 0;
   // The RIL won't even send us the length integer if there are no active calls.
   // So only read this integer if the parcel actually has it.
@@ -3477,7 +3408,6 @@ RIL[REQUEST_DATA_CALL_LIST] = function REQUEST_DATA_CALL_LIST(length, options) {
     return;
   }
 
-  this.initRILQuirks();
   if (!length) {
     this._processDataCallList(null);
     return;
@@ -3736,7 +3666,6 @@ RIL[UNSOLICITED_RIL_CONNECTED] = function UNSOLICITED_RIL_CONNECTED(length) {
   // Prevent response id collision between UNSOLICITED_RIL_CONNECTED and
   // UNSOLICITED_VOICE_RADIO_TECH_CHANGED for Akami on gingerbread branch.
   if (!length) {
-    this.initRILQuirks();
     return;
   }
 
@@ -4073,10 +4002,57 @@ let GsmPDUHelper = {
   },
 
   /**
+   * Read GSM 8-bit unpacked octets,
+   * which are SMS default 7-bit alphabets with bit 8 set to 0.
+   *
+   * @param numOctets
+   *        Number of octets to be read.
+   */
+  read8BitUnpackedToString: function read8BitUnpackedToString(numOctets) {
+    let ret = "";
+    let escapeFound = false;
+    let i;
+    const langTable = PDU_NL_LOCKING_SHIFT_TABLES[PDU_NL_IDENTIFIER_DEFAULT];
+    const langShiftTable = PDU_NL_SINGLE_SHIFT_TABLES[PDU_NL_IDENTIFIER_DEFAULT];
+
+    for(i = 0; i < numOctets; i++) {
+      let octet = this.readHexOctet();
+      if (octet == 0xff) {
+        i++;
+        break;
+      }
+
+      if (escapeFound) {
+        escapeFound = false;
+        if (octet == PDU_NL_EXTENDED_ESCAPE) {
+          // According to 3GPP TS 23.038, section 6.2.1.1, NOTE 1, "On
+          // receipt of this code, a receiving entity shall display a space
+          // until another extensiion table is defined."
+          ret += " ";
+        } else if (octet == PDU_NL_RESERVED_CONTROL) {
+          // According to 3GPP TS 23.038 B.2, "This code represents a control
+          // character and therefore must not be used for language specific
+          // characters."
+          ret += " ";
+        } else {
+          ret += langShiftTable[octet];
+        }
+      } else if (octet == PDU_NL_EXTENDED_ESCAPE) {
+        escapeFound = true;
+      } else {
+        ret += langTable[octet];
+      }
+    }
+
+    Buf.seekIncoming((numOctets - i) * PDU_HEX_OCTET_SIZE);
+    return ret;
+  },
+
+  /**
    * Read user data and decode as a UCS2 string.
    *
    * @param numOctets
-   *        num of octets to read as UCS2 string.
+   *        Number of octets to be read as UCS2 string.
    *
    * @return a string.
    */
@@ -4105,6 +4081,103 @@ let GsmPDUHelper = {
       this.writeHexOctet((code >> 8) & 0xFF);
       this.writeHexOctet(code & 0xFF);
     }
+  },
+
+  /**
+   * Read UCS2 String on UICC.
+   *
+   * @see TS 101.221, Annex A.
+   * @param scheme
+   *        Coding scheme for UCS2 on UICC. One of 0x80, 0x81 or 0x82.
+   * @param numOctets
+   *        Number of octets to be read as UCS2 string.
+   */
+  readICCUCS2String: function readICCUCS2String(scheme, numOctets) {
+    let str = "";
+    switch (scheme) {
+      /**
+       * +------+---------+---------+---------+---------+------+------+
+       * | 0x80 | Ch1_msb | Ch1_lsb | Ch2_msb | Ch2_lsb | 0xff | 0xff |
+       * +------+---------+---------+---------+---------+------+------+
+       */
+      case 0x80:
+        let isOdd = numOctets % 2;
+        let i;
+        for (i = 0; i < numOctets - isOdd; i += 2) {
+          let code = (this.readHexOctet() << 8) | this.readHexOctet();
+          if (code == 0xffff) {
+            i += 2;
+            break;
+          }
+          str += String.fromCharCode(code);
+        }
+
+        // Skip trailing 0xff
+        Buf.seekIncoming((numOctets - i) * PDU_HEX_OCTET_SIZE);
+        break;
+      case 0x81: // Fall through
+      case 0x82:
+        /**
+         * +------+-----+--------+-----+-----+-----+--------+------+
+         * | 0x81 | len | offset | Ch1 | Ch2 | ... | Ch_len | 0xff |
+         * +------+-----+--------+-----+-----+-----+--------+------+
+         *
+         * len : The length of characters.
+         * offset : 0hhh hhhh h000 0000
+         * Ch_n: bit 8 = 0
+         *       GSM default alphabets
+         *       bit 8 = 1
+         *       UCS2 character whose char code is (Ch_n & 0x7f) + offset
+         *
+         * +------+-----+------------+------------+-----+-----+-----+--------+
+         * | 0x82 | len | offset_msb | offset_lsb | Ch1 | Ch2 | ... | Ch_len |
+         * +------+-----+------------+------------+-----+-----+-----+--------+
+         *
+         * len : The length of characters.
+         * offset_msb, offset_lsn: offset
+         * Ch_n: bit 8 = 0
+         *       GSM default alphabets
+         *       bit 8 = 1
+         *       UCS2 character whose char code is (Ch_n & 0x7f) + offset
+         */
+        let len = this.readHexOctet();
+        let offset, headerLen;
+        if (scheme == 0x81) {
+          offset = this.readHexOctet() << 7;
+          headerLen = 2;
+        } else {
+          offset = (this.readHexOctet() << 8) | this.readHexOctet();
+          headerLen = 3;
+        }
+
+        for (let i = 0; i < len; i++) {
+          let ch = this.readHexOctet();
+          if (ch & 0x80) {
+            // UCS2
+            str += String.fromCharCode((ch & 0x7f) + offset);
+          } else {
+            // GSM 8bit
+            let count = 0, gotUCS2 = 0;
+            while ((i + count + 1 < len)) {
+              count++;
+              if (this.readHexOctet() & 0x80) {
+                gotUCS2 = 1;
+                break;
+              };
+            }
+            // Unread.
+            // +1 for the GSM alphabet indexed at i,
+            Buf.seekIncoming(-1 * (count + 1) * PDU_HEX_OCTET_SIZE);
+            str += this.read8BitUnpackedToString(count + 1 - gotUCS2);
+            i += count - gotUCS2;
+          }
+        }
+
+        // Skipping trailing 0xff
+        Buf.seekIncoming((numOctets - len - headerLen) * PDU_HEX_OCTET_SIZE);
+        break;
+    }
+    return str;
   },
 
   /**
@@ -4355,40 +4428,28 @@ let GsmPDUHelper = {
    *
    * @see TS 131.102
    *
-   * @param len
-   *        The length of Alpha Identifier in bytes.
+   * @param numOctets
+   *        Number of octets to be read.
    *
-   * it uses either
+   * It uses either
    *  1. SMS default 7-bit alphabet with bit 8 set to 0.
    *  2. UCS2 string.
    *
    * Unused bytes should be set to 0xff.
    */
-  readAlphaIdentifier: function readAlphaIdentifier(len) {
-    let temp, isUCS2 = false;
-    let alphaId = "";
+  readAlphaIdentifier: function readAlphaIdentifier(numOctets) {
+    let temp;
 
-    // Read the 1st byte to determine the encoding.
-    if ((temp = GsmPDUHelper.readHexOctet()) == 0x80) {
-      isUCS2 = true;
-    } else if (temp != 0xff) {
-      alphaId += String.fromCharCode(temp);
+    // Read the 1st octet to determine the encoding.
+    if ((temp = GsmPDUHelper.readHexOctet()) == 0x80 ||
+         temp == 0x81 ||
+         temp == 0x82) {
+      numOctets--;
+      return this.readICCUCS2String(temp, numOctets);
+    } else {
+      Buf.seekIncoming(-1 * PDU_HEX_OCTET_SIZE);
+      return this.read8BitUnpackedToString(numOctets);
     }
-    len--;
-
-    while (len) {
-      if ((temp = GsmPDUHelper.readHexOctet()) != 0xff) {
-        if (isUCS2) {
-          let temp2 = GsmPDUHelper.readHexOctet();
-          len--;
-          alphaId += String.fromCharCode((temp << 8) | temp2);
-        } else {
-          alphaId += String.fromCharCode(temp);
-        }
-      }
-      len--;
-    }
-    return alphaId;
   },
 
   /**
