@@ -175,9 +175,9 @@ function attachTestTab(aClient, aTitle, aCallback) {
 // TabClient referring to the tab, and a ThreadClient referring to the
 // thread.
 function attachTestThread(aClient, aTitle, aCallback) {
-  attachTestTab(aClient, aTitle, function (aTabResponse, aTabClient) {
+  attachTestTab(aClient, aTitle, function (aResponse, aTabClient) {
     function onAttach(aResponse, aThreadClient) {
-      aCallback(aResponse, aTabClient, aThreadClient, aTabResponse);
+      aCallback(aResponse, aTabClient, aThreadClient);
     }
     aTabClient.attachThread({
       useSourceMaps: true,

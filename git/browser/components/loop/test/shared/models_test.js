@@ -22,11 +22,10 @@ describe("loop.shared.models", function() {
       requests.push(xhr);
     };
     fakeSessionData = {
-      sessionId:      "sessionId",
-      sessionToken:   "sessionToken",
-      apiKey:         "apiKey",
-      callType:       "callType",
-      websocketToken: 123
+      sessionId:    "sessionId",
+      sessionToken: "sessionToken",
+      apiKey:       "apiKey",
+      callType:     "callType"
     };
     fakeSession = _.extend({
       connect: function () {},

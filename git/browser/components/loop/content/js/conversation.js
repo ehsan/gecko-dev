@@ -189,41 +189,21 @@ loop.conversation = (function(OT, mozL10n) {
         if (err) {
           console.error("Failed to get the sessionData", err);
           // XXX Not the ideal response, but bug 1047410 will be replacing
-          // this by better "call failed" UI.
+          //this by better "call failed" UI.
           this._notifier.errorL10n("cannot_start_call_session_not_ready");
           return;
         }
-
         // XXX For incoming calls we might have more than one call queued.
         // For now, we'll just assume the first call is the right information.
         // We'll probably really want to be getting this data from the
         // background worker on the desktop client.
         // Bug 1032700 should fix this.
         this._conversation.setIncomingSessionData(sessionData[0]);
-
-        this._setupWebSocketAndCallView();
-      });
-    },
-
-    /**
-     * Used to set up the web socket connection and navigate to the
-     * call view if appropriate.
-     */
-    _setupWebSocketAndCallView: function() {
-      this._websocket = new loop.CallConnectionWebSocket({
-        url: this._conversation.get("progressURL"),
-        websocketToken: this._conversation.get("websocketToken"),
-        callId: this._conversation.get("callId"),
-      });
-      this._websocket.promiseConnect().then(function() {
         this.loadReactComponent(loop.conversation.IncomingCallView({
           model: this._conversation,
           video: {enabled: this._conversation.hasVideoStream("incoming")}
         }));
-      }.bind(this), function() {
-        this._handleSessionError();
-        return;
-      }.bind(this));
+      });
     },
 
     /**
@@ -235,24 +215,12 @@ loop.conversation = (function(OT, mozL10n) {
     },
 
     /**
-     * Declines a call and handles closing of the window.
-     */
-    _declineCall: function() {
-      this._websocket.decline();
-      // XXX Don't close the window straight away, but let any sends happen
-      // first. Ideally we'd wait to close the window until after we have a
-      // response from the server, to know that everything has completed
-      // successfully. However, that's quite difficult to ensure at the
-      // moment so we'll add it later.
-      setTimeout(window.close, 0);
-    },
-
-    /**
      * Declines an incoming call.
      */
     decline: function() {
       navigator.mozLoop.stopAlerting();
-      this._declineCall();
+      // XXX For now, we just close the window
+      window.close();
     },
 
     /**
@@ -270,7 +238,7 @@ loop.conversation = (function(OT, mozL10n) {
         // (bug 1048909).
         console.log(error);
       });
-      this._declineCall();
+      window.close();
     },
 
     /**
@@ -281,7 +249,7 @@ loop.conversation = (function(OT, mozL10n) {
       if (!this._conversation.isSessionReady()) {
         console.error("Error: navigated to conversation route without " +
           "the start route to initialise the call first");
-        this._handleSessionError();
+        this._notifier.errorL10n("cannot_start_call_session_not_ready");
         return;
       }
 
@@ -294,15 +262,6 @@ loop.conversation = (function(OT, mozL10n) {
         model: this._conversation,
         video: {enabled: videoStream}
       }));
-    },
-
-    /**
-     * Handles a error starting the session
-     */
-    _handleSessionError: function() {
-      // XXX Not the ideal response, but bug 1047410 will be replacing
-      // this by better "call failed" UI.
-      this._notifier.errorL10n("cannot_start_call_session_not_ready");
     },
 
     /**
