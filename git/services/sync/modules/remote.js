@@ -535,8 +535,7 @@ RemoteStore.prototype = {
 
     if (lastSyncSnap.version < this.status.data.snapVersion) {
       this._log.trace("Getting latest from snap --> scratch");
-      snap = yield this._getLatestFromScratch.async(this, self.cb);
-      self.done(snap);
+      self.done(yield this._getLatestFromScratch.async(this, self.cb));
       return;
 
     } else if (lastSyncSnap.version >= this.status.data.snapVersion &&
@@ -548,8 +547,7 @@ RemoteStore.prototype = {
       let min = lastSyncSnap.version + 1;
       let max = this.status.data.maxVersion;
       for (let id = min; id <= max; id++) {
-        let delta = yield this._deltas.get(self.cb, id);
-        deltas.push(delta);
+        deltas.push(yield this._deltas.get(self.cb, id));
       }
 
     } else if (lastSyncSnap.version == this.status.data.maxVersion) {
@@ -565,13 +563,14 @@ RemoteStore.prototype = {
 
     try {
       for (var i = 0; i < deltas.length; i++) {
-        yield snap.applyCommands.async(snap, self.cb, deltas[i]);
+        snap.applyCommands.async(snap, self.cb, deltas[i]);
+        yield;
       }
     } catch (e) {
       this._log.warn("Error applying remote deltas to saved snapshot, attempting a full download");
       this._log.debug("Exception: " + Utils.exceptionStr(e));
       this._log.trace("Stack:\n" + Utils.stackTrace(e));
-      snap = yield this._getLatestFromScratch.async(this, self.cb);
+      snap = this._getLatestFromScratch.async(this, self.cb);
     }
 
     self.done(snap);
