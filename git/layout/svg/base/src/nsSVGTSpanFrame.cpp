@@ -123,7 +123,7 @@ nsSVGTSpanFrame::GetOverrideCTM()
 already_AddRefed<nsIDOMSVGMatrix>
 nsSVGTSpanFrame::GetCanvasTM()
 {
-  if (!GetMatrixPropagation()) {
+  if (!mPropagateTransform) {
     nsIDOMSVGMatrix *retval;
     if (mOverrideCTM) {
       retval = mOverrideCTM;

@@ -153,7 +153,7 @@ nsSVGUseFrame::Destroy()
 already_AddRefed<nsIDOMSVGMatrix>
 nsSVGUseFrame::GetCanvasTM()
 {
-  if (!GetMatrixPropagation()) {
+  if (!mPropagateTransform) {
     nsIDOMSVGMatrix *retval;
     if (mOverrideCTM) {
       retval = mOverrideCTM;

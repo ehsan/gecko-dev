@@ -52,7 +52,8 @@ class nsSVGTSpanFrame : public nsSVGTSpanFrameBase,
                       nsIFrame* parentFrame, nsStyleContext* aContext);
 protected:
   nsSVGTSpanFrame(nsStyleContext* aContext) :
-    nsSVGTextContainerFrame(aContext) {}
+    nsSVGTextContainerFrame(aContext),
+    mPropagateTransform(PR_TRUE) {}
 
    // nsISupports interface:
   NS_IMETHOD QueryInterface(const nsIID& aIID, void** aInstancePtr);
@@ -97,6 +98,7 @@ public:
 
 protected:
   nsCOMPtr<nsIDOMSVGMatrix> mOverrideCTM;
+  PRPackedBool mPropagateTransform;
 };
 
 #endif

@@ -75,6 +75,7 @@ NS_NewSVGForeignObjectFrame(nsIPresShell   *aPresShell,
 
 nsSVGForeignObjectFrame::nsSVGForeignObjectFrame(nsStyleContext* aContext)
   : nsSVGForeignObjectFrameBase(aContext),
+    mPropagateTransform(PR_TRUE),
     mInReflow(PR_FALSE)
 {
   AddStateBits(NS_FRAME_REFLOW_ROOT |

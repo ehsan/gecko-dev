@@ -169,6 +169,7 @@ protected:
   // Damage area due to cross-doc invalidation
   nsRegion mCrossDocDirtyRegion;
 
+  PRPackedBool mPropagateTransform;
   PRPackedBool mInReflow;
 };
 

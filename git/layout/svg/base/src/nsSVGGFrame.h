@@ -49,7 +49,7 @@ class nsSVGGFrame : public nsSVGGFrameBase
   NS_NewSVGGFrame(nsIPresShell* aPresShell, nsIContent* aContent, nsStyleContext* aContext);
 protected:
   nsSVGGFrame(nsStyleContext* aContext) :
-    nsSVGGFrameBase(aContext) {}
+    nsSVGGFrameBase(aContext), mPropagateTransform(PR_TRUE) {}
 
 public:
   /**
@@ -81,6 +81,8 @@ public:
 
   nsCOMPtr<nsIDOMSVGMatrix> mCanvasTM;
   nsCOMPtr<nsIDOMSVGMatrix> mOverrideCTM;
+
+  PRPackedBool mPropagateTransform;
 };
 
 #endif
