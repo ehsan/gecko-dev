@@ -27,8 +27,7 @@
 }
 
 @media (min-width: 701px) and (max-width: 1024px) {
-  #body:not([pane-collapsed]) .requests-menu-footer-button,
-  #body:not([pane-collapsed]) .requests-menu-footer-spacer {
+  #body:not([pane-collapsed]) #requests-menu-footer {
     display: none;
   }
 }
