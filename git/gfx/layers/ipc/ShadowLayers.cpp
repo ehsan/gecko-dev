@@ -22,7 +22,6 @@
 #include "RenderTrace.h"
 #include "sampler.h"
 #include "nsXULAppAPI.h"
-#include "LayersBackend.h"
 
 using namespace mozilla::ipc;
 
@@ -299,9 +298,9 @@ ShadowLayerForwarder::EndTransaction(InfallibleTArray<EditReply>* aReplies)
     LayerAttributes attrs;
     CommonLayerAttributes& common = attrs.common();
     common.visibleRegion() = mutant->GetVisibleRegion();
-    common.transform() = mutant->GetBaseTransform();
     common.xScale() = mutant->GetXScale();
     common.yScale() = mutant->GetYScale();
+    common.transform() = mutant->GetBaseTransform();
     common.contentFlags() = mutant->GetContentFlags();
     common.opacity() = mutant->GetOpacity();
     common.useClipRect() = !!mutant->GetClipRect();
@@ -315,7 +314,6 @@ ShadowLayerForwarder::EndTransaction(InfallibleTArray<EditReply>* aReplies)
       common.maskLayerChild() = NULL;
     }
     common.maskLayerParent() = NULL;
-    common.animations() = mutant->GetAnimations();
     attrs.specific() = null_t();
     mutant->FillSpecificAttributes(attrs.specific());
 
@@ -380,7 +378,7 @@ ShadowLayerForwarder::ShadowDrawToTarget(gfxContext* aTarget) {
   aTarget->SetOperator(gfxContext::OPERATOR_SOURCE);
   aTarget->DrawSurface(surface, surface->GetSize());
 
-  surface = nsnull;
+  surface = nullptr;
   DestroySharedSurface(&descriptorOut);
 
   return true;
@@ -417,7 +415,7 @@ ShadowLayerForwarder::AllocBuffer(const gfxIntSize& aSize,
   if (!back)
     return false;
 
-  *aBuffer = nsnull;
+  *aBuffer = nullptr;
   back.swap(*aBuffer);
   return true;
 }
@@ -470,7 +468,7 @@ ShadowLayerForwarder::OpenDescriptor(OpenMode aMode,
   }
   default:
     NS_RUNTIMEABORT("unexpected SurfaceDescriptor type!");
-    return nsnull;
+    return nullptr;
   }
 }
 
@@ -586,7 +584,7 @@ ShadowLayerForwarder::PlatformAllocBuffer(const gfxIntSize&,
 ShadowLayerForwarder::PlatformOpenDescriptor(OpenMode,
                                              const SurfaceDescriptor&)
 {
-  return nsnull;
+  return nullptr;
 }
 
 /*static*/ bool
@@ -637,7 +635,7 @@ ShadowLayerManager::OpenDescriptorForDirectTexturing(GLContext*,
                                                      const SurfaceDescriptor&,
                                                      GLenum)
 {
-  return nsnull;
+  return nullptr;
 }
 
 /*static*/ void
@@ -664,7 +662,7 @@ AutoOpenSurface::AutoOpenSurface(OpenMode aMode,
 AutoOpenSurface::~AutoOpenSurface()
 {
   if (mSurface) {
-    mSurface = nsnull;
+    mSurface = nullptr;
     ShadowLayerForwarder::CloseDescriptor(mDescriptor);
   }
 }
