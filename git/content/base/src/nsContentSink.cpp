@@ -298,6 +298,11 @@ nsContentSink::Init(nsIDocument* aDoc,
   mCanInterruptParser =
     nsContentUtils::GetBoolPref("content.interrupt.parsing", PR_TRUE);
 
+  // 200 determined empirically to provide good user response without
+  // sampling the clock too often.
+  mMaxTokensDeflectedInLowFreqMode =
+    nsContentUtils::GetIntPref("content.max.deflected.tokens", 200);
+
   return NS_OK;
 
 }
@@ -1043,6 +1048,12 @@ nsContentSink::ProcessOfflineManifest(nsIContent *aElement)
     return;
   }
 
+  // Don't bother processing offline manifest for documents
+  // without a docshell
+  if (!mDocShell) {
+    return;
+  }
+
   nsresult rv;
 
   // Check for a manifest= attribute.
@@ -1077,22 +1088,6 @@ nsContentSink::ProcessOfflineManifest(nsIContent *aElement)
     return;
   }
 
-  {
-    nsCAutoString spec;
-    if (mDocument->GetDocumentURI()) {
-      mDocument->GetDocumentURI()->GetSpec(spec);
-    }
-    nsCAutoString group;
-    if (applicationCache) {
-      applicationCache->GetGroupID(group);
-    }
-    nsCOMPtr<nsIApplicationCacheContainer> container =
-      do_QueryInterface(mDocument);
-    printf("(Bug 471227) Processing manifest for document >%p< (%s) which was "
-           "loaded from app cache %p (%s)\n",
-           container.get(), spec.get(), applicationCache.get(), group.get());
-  }
-
   CacheSelectionAction action = CACHE_SELECTION_NONE;
   nsCOMPtr<nsIURI> manifestURI;
 
@@ -1115,7 +1110,6 @@ nsContentSink::ProcessOfflineManifest(nsIContent *aElement)
     else {
       // Only continue if the document has permission to use offline APIs.
       if (!nsContentUtils::OfflineAppAllowed(mDocument->NodePrincipal())) {
-        printf("(Bug 471227) No permission.\n");
         return;
       }
 
@@ -1148,10 +1142,8 @@ nsContentSink::ProcessOfflineManifest(nsIContent *aElement)
   switch (action)
   {
   case CACHE_SELECTION_NONE:
-    printf("(Bug 471227) Taking no action.\n");
     break;
   case CACHE_SELECTION_UPDATE: {
-    printf("(Bug 471227) Scheduling an update.\n");
     nsCOMPtr<nsIOfflineCacheUpdateService> updateService =
       do_GetService(NS_OFFLINECACHEUPDATESERVICE_CONTRACTID);
 
@@ -1162,7 +1154,6 @@ nsContentSink::ProcessOfflineManifest(nsIContent *aElement)
     break;
   }
   case CACHE_SELECTION_RELOAD: {
-    printf("(Bug 471227) Reloading.\n");
     // This situation occurs only for toplevel documents, see bottom
     // of SelectDocAppCache method.
     nsCOMPtr<nsIWebNavigation> webNav = do_QueryInterface(mDocShell);
@@ -1552,23 +1543,22 @@ nsContentSink::DidProcessATokenImpl()
       // If we can't get the last input time from the widget
       // then we will get it from the viewmanager.
       rv = vm->GetLastUserEventTime(eventTime);
-      NS_ENSURE_SUCCESS(rv , NS_ERROR_FAILURE);
   }
-
 
   NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
 
   if (!mDynamicLowerValue && mLastSampledUserEventTime == eventTime) {
-    // The magic value of NS_MAX_TOKENS_DEFLECTED_IN_LOW_FREQ_MODE
+    // The default value of mMaxTokensDeflectedInLowFreqMode (200)
     // was selected by empirical testing. It provides reasonable
     // user response and prevents us from sampling the clock too
-    // frequently.
-    if (mDeflectedCount < NS_MAX_TOKENS_DEFLECTED_IN_LOW_FREQ_MODE) {
+    // frequently.  This value may be decreased if responsiveness is
+    // valued more than end-to-end pageload time (e.g., for mobile).
+    if (mDeflectedCount < mMaxTokensDeflectedInLowFreqMode) {
       mDeflectedCount++;
       // return early to prevent sampling the clock. Note: This
       // prevents us from switching to higher frequency (better UI
       // responsive) mode, so limit ourselves to doing for no more
-      // than NS_MAX_TOKENS_DEFLECTED_IN_LOW_FREQ_MODE tokens.
+      // than mMaxTokensDeflectedInLowFreqMode tokens.
 
       return NS_OK;
     }
