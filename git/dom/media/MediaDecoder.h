@@ -192,7 +192,6 @@ destroying the MediaDecoder object.
 #include "mozilla/dom/AudioChannelBinding.h"
 #include "mozilla/gfx/Rect.h"
 #include "mozilla/ReentrantMonitor.h"
-#include "mozilla/TimeStamp.h"
 #include "MediaStreamGraph.h"
 #include "AbstractMediaDecoder.h"
 #include "necko-config.h"
@@ -202,7 +201,6 @@ destroying the MediaDecoder object.
 
 class nsIStreamListener;
 class nsIPrincipal;
-class nsITimer;
 
 namespace mozilla {
 namespace dom {
@@ -649,12 +647,12 @@ public:
   // playback.
   virtual void Resume(bool aForceBuffering);
 
-  // Moves any existing channel loads into the background, so that they don't
-  // block the load event. This is called when we stop delaying the load
-  // event. Any new loads initiated (for example to seek) will also be in the
-  // background. Implementations of this must call MoveLoadsToBackground() on
-  // their MediaResource.
-  virtual void MoveLoadsToBackground();
+  // Moves any existing channel loads into or out of background. Background
+  // loads don't block the load event. This is called when we stop or restart
+  // delaying the load event. This also determines whether any new loads
+  // initiated (for example to seek) will be in the background.  This calls
+  // SetLoadInBackground() on mResource.
+  void SetLoadInBackground(bool aLoadInBackground);
 
   // Returns a weak reference to the media decoder owner.
   MediaDecoderOwner* GetMediaOwner() const;
@@ -694,18 +692,6 @@ public:
   PlayState GetState() {
     return mPlayState;
   }
-
-  // Called by the media element to start timer to update download progress.
-  nsresult StartProgress();
-
-  // Called by the media element to stop progress information timer.
-  nsresult StopProgress();
-
-  // Fire progress events if needed according to the time and byte
-  // constraints outlined in the specification. aTimer is true
-  // if the method is called as a result of the progress timer rather
-  // than the result of downloaded data.
-  void Progress(bool aTimer);
 
   // Fire timeupdate events if needed according to the time constraints
   // outlined in the specification.
@@ -1187,9 +1173,6 @@ protected:
   // Ensures our media stream has been unpinned.
   void UnpinForSeek();
 
-  // Timer used for updating progress events
-  nsCOMPtr<nsITimer> mProgressTimer;
-
   // This should only ever be accessed from the main thread.
   // It is set in Init and cleared in Shutdown when the element goes away.
   // The decoder does not add a reference the element.
@@ -1199,17 +1182,6 @@ protected:
   FrameStatistics mFrameStats;
 
   nsRefPtr<VideoFrameContainer> mVideoFrameContainer;
-
-  // Time that the last progress event was fired. Read/Write from the
-  // main thread only.
-  TimeStamp mProgressTime;
-
-  // Time that data was last read from the media resource. Used for
-  // computing if the download has stalled and to rate limit progress events
-  // when data is arriving slower than PROGRESS_MS. A value of null indicates
-  // that a stall event has already fired and not to fire another one until
-  // more data is received. Read/Write from the main thread only.
-  TimeStamp mDataTime;
 
   // Data needed to estimate playback data rate. The timeline used for
   // this estimate is "decode time" (where the "current time" is the
