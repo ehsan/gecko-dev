@@ -508,7 +508,6 @@ function ThreadActor(aHooks, aGlobal)
   };
 
   this._gripDepth = 0;
-  this._threadLifetimePool = null;
 }
 
 /**
@@ -4612,8 +4611,8 @@ EnvironmentActor.prototype = {
         descForm.value = this.threadActor.createValueGrip(desc.value);
         descForm.writable = desc.writable;
       } else {
-        descForm.get = this.threadActor.createValueGrip(desc.get || undefined);
-        descForm.set = this.threadActor.createValueGrip(desc.set || undefined);
+        descForm.get = this.threadActor.createValueGrip(desc.get);
+        descForm.set = this.threadActor.createValueGrip(desc.set);
       }
       bindings.variables[name] = descForm;
     }

@@ -5,6 +5,7 @@
 
 Cu.import("resource://testing-common/httpd.js");
 Cu.import("resource://gre/modules/TelemetryLog.jsm");
+Cu.import("resource://gre/modules/TelemetryPing.jsm");
 let bsp = Cu.import("resource:///modules/experiments/Experiments.jsm");
 
 
@@ -105,9 +106,6 @@ add_task(function* test_setup() {
 // Test basic starting and stopping of experiments.
 
 add_task(function* test_telemetryBasics() {
-  // Check TelemetryLog instead of TelemetryPing.getPayload().log because
-  // TelemetryPing gets Experiments.instance() and side-effects log entries.
-
   const OBSERVER_TOPIC = "experiments-changed";
   let observerFireCount = 0;
   let expectedLogLength = 0;
@@ -176,7 +174,7 @@ add_task(function* test_telemetryBasics() {
   Assert.equal(list.length, 0, "Experiment list should be empty.");
 
   expectedLogLength += 2;
-  let log = TelemetryLog.entries();
+  let log = TelemetryPing.getPayload().log;
   do_print("Telemetry log: " + JSON.stringify(log));
   Assert.equal(log.length, expectedLogLength, "Telemetry log should have " + expectedLogLength + " entries.");
   checkEvent(log[log.length-2], TLOG.ACTIVATION_KEY,
@@ -194,8 +192,8 @@ add_task(function* test_telemetryBasics() {
   Assert.equal(list.length, 1, "Experiment list should have 1 entry now.");
 
   expectedLogLength += 1;
-  log = TelemetryLog.entries();
-  Assert.equal(log.length, expectedLogLength, "Telemetry log should have " + expectedLogLength + " entries. Got " + log.toSource());
+  log = TelemetryPing.getPayload().log;
+  Assert.equal(log.length, expectedLogLength, "Telemetry log should have " + expectedLogLength + " entries.");
   checkEvent(log[log.length-1], TLOG.ACTIVATION_KEY,
              [TLOG.ACTIVATION.ACTIVATED, EXPERIMENT1_ID]);
 
@@ -209,7 +207,7 @@ add_task(function* test_telemetryBasics() {
   Assert.equal(list.length, 1, "Experiment list should have 1 entry.");
 
   expectedLogLength += 2;
-  log = TelemetryLog.entries();
+  log = TelemetryPing.getPayload().log;
   Assert.equal(log.length, expectedLogLength, "Telemetry log should have " + expectedLogLength + " entries.");
   checkEvent(log[log.length-2], TLOG.TERMINATION_KEY,
              [TLOG.TERMINATION.EXPIRED, EXPERIMENT1_ID]);
@@ -227,7 +225,7 @@ add_task(function* test_telemetryBasics() {
   Assert.equal(list.length, 1, "Experiment list should have 1 entries.");
 
   expectedLogLength += 1;
-  log = TelemetryLog.entries();
+  log = TelemetryPing.getPayload().log;
   Assert.equal(log.length, expectedLogLength, "Telemetry log should have " + expectedLogLength + " entries.");
   checkEvent(log[log.length-1], TLOG.ACTIVATION_KEY,
              [TLOG.ACTIVATION.INSTALL_FAILURE, EXPERIMENT2_ID]);
@@ -243,7 +241,7 @@ add_task(function* test_telemetryBasics() {
   Assert.equal(list.length, 2, "Experiment list should have 2 entries.");
 
   expectedLogLength += 1;
-  log = TelemetryLog.entries();
+  log = TelemetryPing.getPayload().log;
   Assert.equal(log.length, expectedLogLength, "Telemetry log should have " + expectedLogLength + " entries.");
   checkEvent(log[log.length-1], TLOG.ACTIVATION_KEY,
              [TLOG.ACTIVATION.ACTIVATED, EXPERIMENT2_ID]);
@@ -258,7 +256,7 @@ add_task(function* test_telemetryBasics() {
   Assert.equal(list.length, 2, "Experiment list should have 2 entries.");
 
   expectedLogLength += 1;
-  log = TelemetryLog.entries();
+  log = TelemetryPing.getPayload().log;
   Assert.equal(log.length, expectedLogLength, "Telemetry log should have " + expectedLogLength + " entries.");
   checkEvent(log[log.length-1], TLOG.TERMINATION_KEY,
              [TLOG.TERMINATION.ADDON_UNINSTALLED, EXPERIMENT2_ID]);
@@ -275,7 +273,7 @@ add_task(function* test_telemetryBasics() {
   Assert.equal(list.length, 3, "Experiment list should have 3 entries.");
 
   expectedLogLength += 1;
-  log = TelemetryLog.entries();
+  log = TelemetryPing.getPayload().log;
   Assert.equal(log.length, expectedLogLength, "Telemetry log should have " + expectedLogLength + " entries.");
   checkEvent(log[log.length-1], TLOG.ACTIVATION_KEY,
              [TLOG.ACTIVATION.ACTIVATED, EXPERIMENT3_ID]);
@@ -290,7 +288,7 @@ add_task(function* test_telemetryBasics() {
   Assert.equal(list.length, 3, "Experiment list should have 3 entries.");
 
   expectedLogLength += 1;
-  log = TelemetryLog.entries();
+  log = TelemetryPing.getPayload().log;
   Assert.equal(log.length, expectedLogLength, "Telemetry log should have " + expectedLogLength + " entries.");
   checkEvent(log[log.length-1], TLOG.TERMINATION_KEY,
              [TLOG.TERMINATION.FROM_API, EXPERIMENT3_ID]);
@@ -307,7 +305,7 @@ add_task(function* test_telemetryBasics() {
   Assert.equal(list.length, 4, "Experiment list should have 4 entries.");
 
   expectedLogLength += 1;
-  log = TelemetryLog.entries();
+  log = TelemetryPing.getPayload().log;
   Assert.equal(log.length, expectedLogLength, "Telemetry log should have " + expectedLogLength + " entries.");
   checkEvent(log[log.length-1], TLOG.ACTIVATION_KEY,
              [TLOG.ACTIVATION.ACTIVATED, EXPERIMENT4_ID]);
@@ -323,7 +321,7 @@ add_task(function* test_telemetryBasics() {
   Assert.equal(list.length, 4, "Experiment list should have 4 entries.");
 
   expectedLogLength += 1;
-  log = TelemetryLog.entries();
+  log = TelemetryPing.getPayload().log;
   Assert.equal(log.length, expectedLogLength, "Telemetry log should have " + expectedLogLength + " entries.");
   checkEvent(log[log.length-1], TLOG.TERMINATION_KEY,
              [TLOG.TERMINATION.RECHECK, EXPERIMENT4_ID, "os"]);

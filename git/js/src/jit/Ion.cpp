@@ -1567,70 +1567,70 @@ GenerateLIR(MIRGenerator *mir)
 
     AllocationIntegrityState integrity(*lir);
 
-    {
-        AutoTraceLog log(logger, TraceLogger::RegisterAllocation);
+    TraceLogStartEvent(logger, TraceLogger::RegisterAllocation);
 
-        switch (mir->optimizationInfo().registerAllocator()) {
-          case RegisterAllocator_LSRA: {
+    switch (mir->optimizationInfo().registerAllocator()) {
+      case RegisterAllocator_LSRA: {
 #ifdef DEBUG
-            if (!integrity.record())
-                return nullptr;
-#endif
-
-            LinearScanAllocator regalloc(mir, &lirgen, *lir);
-            if (!regalloc.go())
-                return nullptr;
-
-#ifdef DEBUG
-            if (!integrity.check(false))
-                return nullptr;
-#endif
-
-            IonSpewPass("Allocate Registers [LSRA]", &regalloc);
-            break;
-          }
-
-          case RegisterAllocator_Backtracking: {
-#ifdef DEBUG
-            if (!integrity.record())
-                return nullptr;
-#endif
-
-            BacktrackingAllocator regalloc(mir, &lirgen, *lir);
-            if (!regalloc.go())
-                return nullptr;
-
-#ifdef DEBUG
-            if (!integrity.check(false))
-                return nullptr;
-#endif
-
-            IonSpewPass("Allocate Registers [Backtracking]");
-            break;
-          }
-
-          case RegisterAllocator_Stupid: {
-            // Use the integrity checker to populate safepoint information, so
-            // run it in all builds.
-            if (!integrity.record())
-                return nullptr;
-
-            StupidAllocator regalloc(mir, &lirgen, *lir);
-            if (!regalloc.go())
-                return nullptr;
-            if (!integrity.check(true))
-                return nullptr;
-            IonSpewPass("Allocate Registers [Stupid]");
-            break;
-          }
-
-          default:
-            MOZ_ASSUME_UNREACHABLE("Bad regalloc");
-        }
-
-        if (mir->shouldCancel("Allocate Registers"))
+        if (!integrity.record())
             return nullptr;
+#endif
+
+        LinearScanAllocator regalloc(mir, &lirgen, *lir);
+        if (!regalloc.go())
+            return nullptr;
+
+#ifdef DEBUG
+        if (!integrity.check(false))
+            return nullptr;
+#endif
+
+        IonSpewPass("Allocate Registers [LSRA]", &regalloc);
+        break;
+      }
+
+      case RegisterAllocator_Backtracking: {
+#ifdef DEBUG
+        if (!integrity.record())
+            return nullptr;
+#endif
+
+        BacktrackingAllocator regalloc(mir, &lirgen, *lir);
+        if (!regalloc.go())
+            return nullptr;
+
+#ifdef DEBUG
+        if (!integrity.check(false))
+            return nullptr;
+#endif
+
+        IonSpewPass("Allocate Registers [Backtracking]");
+        break;
+      }
+
+      case RegisterAllocator_Stupid: {
+        // Use the integrity checker to populate safepoint information, so
+        // run it in all builds.
+        if (!integrity.record())
+            return nullptr;
+
+        StupidAllocator regalloc(mir, &lirgen, *lir);
+        if (!regalloc.go())
+            return nullptr;
+        if (!integrity.check(true))
+            return nullptr;
+        IonSpewPass("Allocate Registers [Stupid]");
+        break;
+      }
+
+      default:
+        MOZ_ASSUME_UNREACHABLE("Bad regalloc");
     }
+
+    if (mir->shouldCancel("Allocate Registers"))
+        return nullptr;
+
+    TraceLogStopEvent(logger, TraceLogger::RegisterAllocation);
 
     {
         AutoTraceLog log(logger, TraceLogger::UnsplitEdges);

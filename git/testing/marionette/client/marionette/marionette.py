@@ -586,7 +586,7 @@ class Marionette(object):
                 sock.connect((self.host, self.port))
                 data = sock.recv(16)
                 sock.close()
-                if ':' in data:
+                if '"from"' in data:
                     time.sleep(5)
                     return True
             except socket.error:

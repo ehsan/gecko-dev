@@ -7,14 +7,11 @@ const Ci = Components.interfaces;
 const Cu = Components.utils;
 const Cr = Components.results;
 
-const { DevToolsLoader, devtools } = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
-const worker = new DevToolsLoader(); // TODO: Replace this with the worker loader
+const { devtools } = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
 const {Promise: promise} = Cu.import("resource://gre/modules/Promise.jsm", {});
 
 const Services = devtools.require("Services");
 const DevToolsUtils = devtools.require("devtools/toolkit/DevToolsUtils.js");
-const { DebuggerServer } = devtools.require("devtools/server/main");
-const { DebuggerServer: WorkerDebuggerServer } = worker.require("devtools/server/main");
 
 // Always log packets when running tests. runxpcshelltests.py will throw
 // the output away anyway, unless you give it the --verbose flag.
@@ -32,9 +29,13 @@ function tryImport(url) {
   }
 }
 
+tryImport("resource://gre/modules/devtools/dbg-server.jsm");
 tryImport("resource://gre/modules/devtools/dbg-client.jsm");
 tryImport("resource://gre/modules/devtools/Loader.jsm");
 tryImport("resource://gre/modules/devtools/Console.jsm");
+
+let { RootActor } = devtools.require("devtools/server/actors/root");
+let { BreakpointStore, LongStringActor, ThreadActor } = devtools.require("devtools/server/actors/script");
 
 function testExceptionHook(ex) {
   try {
@@ -124,10 +125,10 @@ function testGlobal(aName) {
   return sandbox;
 }
 
-function addTestGlobal(aName, aServer = DebuggerServer)
+function addTestGlobal(aName)
 {
   let global = testGlobal(aName);
-  aServer.addTestGlobal(global);
+  DebuggerServer.addTestGlobal(global);
   return global;
 }
 
@@ -181,21 +182,21 @@ function attachTestTabAndResume(aClient, aTitle, aCallback) {
 /**
  * Initialize the testing debugger server.
  */
-function initTestDebuggerServer(aServer = DebuggerServer)
+function initTestDebuggerServer()
 {
-  aServer.registerModule("devtools/server/actors/script");
-  aServer.registerModule("xpcshell-test/testactors");
+  DebuggerServer.registerModule("devtools/server/actors/script");
+  DebuggerServer.registerModule("xpcshell-test/testactors");
   // Allow incoming connections.
-  aServer.init(function () { return true; });
+  DebuggerServer.init(function () { return true; });
 }
 
-function initTestTracerServer(aServer = DebuggerServer)
+function initTestTracerServer()
 {
-  aServer.registerModule("devtools/server/actors/script");
-  aServer.registerModule("xpcshell-test/testactors");
-  aServer.registerModule("devtools/server/actors/tracer");
+  DebuggerServer.registerModule("devtools/server/actors/script");
+  DebuggerServer.registerModule("xpcshell-test/testactors");
+  DebuggerServer.registerModule("devtools/server/actors/tracer");
   // Allow incoming connections.
-  aServer.init(function () { return true; });
+  DebuggerServer.init(function () { return true; });
 }
 
 function finishClient(aClient)
@@ -360,39 +361,6 @@ function executeSoon(aFunc) {
     run: DevToolsUtils.makeInfallible(aFunc)
   }, Ci.nsIThread.DISPATCH_NORMAL);
 }
-
-// The do_check_* family of functions expect their last argument to be an
-// optional stack object. Unfortunately, most tests actually pass a in a string
-// containing an error message instead, which causes error reporting to break if
-// strict warnings as errors is turned on. To avoid this, we wrap these
-// functions here below to ensure the correct number of arguments is passed.
-//
-// TODO: Remove this once bug 906232 is resolved
-//
-let do_check_true_old = do_check_true;
-let do_check_true = function (condition) {
-  do_check_true_old(condition);
-};
-
-let do_check_false_old = do_check_false;
-let do_check_false = function (condition) {
-  do_check_false_old(condition);
-};
-
-let do_check_eq_old = do_check_eq;
-let do_check_eq = function (left, right) {
-  do_check_eq_old(left, right);
-};
-
-let do_check_neq_old = do_check_neq;
-let do_check_neq = function (left, right) {
-  do_check_neq_old(left, right);
-};
-
-let do_check_matches_old = do_check_matches;
-let do_check_matches = function (pattern, value) {
-  do_check_matches_old(pattern, value);
-};
 
 // Create async version of the object where calling each method
 // is equivalent of calling it with asyncall. Mainly useful for

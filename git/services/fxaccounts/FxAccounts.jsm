@@ -99,11 +99,7 @@ AccountState.prototype = {
 
     return this.fxaInternal.signedInUserStorage.get().then(
       user => {
-        if (logPII) {
-          // don't stringify unless it will be written. We should replace this
-          // check with param substitutions added in bug 966674
-          log.debug("getUserAccountData -> " + JSON.stringify(user));
-        }
+        log.debug("getUserAccountData -> " + JSON.stringify(user));
         if (user && user.version == this.version) {
           log.debug("setting signed in user");
           this.signedInUser = user;
@@ -135,11 +131,7 @@ AccountState.prototype = {
 
 
   getCertificate: function(data, keyPair, mustBeValidUntil) {
-    if (logPII) {
-      // don't stringify unless it will be written. We should replace this
-      // check with param substitutions added in bug 966674
-      log.debug("getCertificate" + JSON.stringify(this.signedInUser));
-    }
+    log.debug("getCertificate" + JSON.stringify(this.signedInUser));
     // TODO: get the lifetime from the cert's .exp field
     if (this.cert && this.cert.validUntil > mustBeValidUntil) {
       log.debug(" getCertificate already had one");
@@ -151,7 +143,6 @@ AccountState.prototype = {
                                                  keyPair.serializedPublicKey,
                                                  CERT_LIFETIME).then(
       cert => {
-        log.debug("getCertificate got a new one: " + !!cert);
         this.cert = {
           cert: cert,
           validUntil: willBeValidUntil
@@ -362,10 +353,7 @@ FxAccountsInternal.prototype = {
    * Once the user's email is verified, we can request the keys
    */
   fetchKeys: function fetchKeys(keyFetchToken) {
-    log.debug("fetchKeys: " + !!keyFetchToken);
-    if (logPII) {
-      log.debug("fetchKeys - the token is " + keyFetchToken);
-    }
+    log.debug("fetchKeys: " + keyFetchToken);
     return this.fxAccountsClient.accountKeys(keyFetchToken);
   },
 
@@ -606,9 +594,7 @@ FxAccountsInternal.prototype = {
    },
 
   fetchAndUnwrapKeys: function(keyFetchToken) {
-    if (logPII) {
-      log.debug("fetchAndUnwrapKeys: token: " + keyFetchToken);
-    }
+    log.debug("fetchAndUnwrapKeys: token: " + keyFetchToken);
     let currentState = this.currentAccountState;
     return Task.spawn(function* task() {
       // Sign out if we don't have a key fetch token.
@@ -632,18 +618,13 @@ FxAccountsInternal.prototype = {
       let kB_hex = CryptoUtils.xor(CommonUtils.hexToBytes(data.unwrapBKey),
                                    wrapKB);
 
-      if (logPII) {
-        log.debug("kB_hex: " + kB_hex);
-      }
+      log.debug("kB_hex: " + kB_hex);
       data.kA = CommonUtils.bytesAsHex(kA);
       data.kB = CommonUtils.bytesAsHex(kB_hex);
 
       delete data.keyFetchToken;
 
-      log.debug("Keys Obtained: kA=" + !!data.kA + ", kB=" + !!data.kB);
-      if (logPII) {
-        log.debug("Keys Obtained: kA=" + data.kA + ", kB=" + data.kB);
-      }
+      log.debug("Keys Obtained: kA=" + data.kA + ", kB=" + data.kB);
 
       yield currentState.setUserAccountData(data);
       // We are now ready for business. This should only be invoked once
@@ -671,10 +652,7 @@ FxAccountsInternal.prototype = {
         log.error("getAssertionFromCert: " + err);
         d.reject(err);
       } else {
-        log.debug("getAssertionFromCert returning signed: " + !!signed);
-        if (logPII) {
-          log.debug("getAssertionFromCert returning signed: " + signed);
-        }
+        log.debug("getAssertionFromCert returning signed: " + signed);
         d.resolve(signed);
       }
     });
@@ -682,10 +660,7 @@ FxAccountsInternal.prototype = {
   },
 
   getCertificateSigned: function(sessionToken, serializedPublicKey, lifetime) {
-    log.debug("getCertificateSigned: " + !!sessionToken + " " + !!serializedPublicKey);
-    if (logPII) {
-      log.debug("getCertificateSigned: " + sessionToken + " " + serializedPublicKey);
-    }
+    log.debug("getCertificateSigned: " + sessionToken + " " + serializedPublicKey);
     return this.fxAccountsClient.signCertificate(
       sessionToken,
       JSON.parse(serializedPublicKey),
