@@ -795,9 +795,7 @@ SocialShare = {
     iframe.setAttribute("src", shareEndpoint);
 
     let navBar = document.getElementById("nav-bar");
-    let anchor = navBar.getAttribute("mode") == "text" ?
-                   document.getAnonymousElementByAttribute(this.shareButton, "class", "toolbarbutton-text") :
-                   document.getAnonymousElementByAttribute(this.shareButton, "class", "toolbarbutton-icon");
+    let anchor = document.getAnonymousElementByAttribute(this.shareButton, "class", "toolbarbutton-icon");
     this.panel.openPopup(anchor, "bottomcenter topright", 0, 0, false, false);
     Social.setErrorListener(iframe, this.setErrorMessage.bind(this));
   }
@@ -1032,7 +1030,7 @@ SocialToolbar = {
       if (!toolbarButton) {
         toolbarButton = document.createElement("toolbarbutton");
         toolbarButton.setAttribute("type", "badged");
-        toolbarButton.classList.add("toolbarbutton-1");
+        toolbarButton.setAttribute("class", "toolbarbutton-1 chromeclass-toolbar-additional");
         toolbarButton.setAttribute("id", toolbarButtonId);
         toolbarButton.setAttribute("notificationFrameId", notificationFrameId);
         toolbarButton.addEventListener("mousedown", function (event) {
@@ -1130,9 +1128,7 @@ SocialToolbar = {
     });
 
     let navBar = document.getElementById("nav-bar");
-    let anchor = navBar.getAttribute("mode") == "text" ?
-                   document.getAnonymousElementByAttribute(aToolbarButton, "class", "toolbarbutton-text") :
-                   document.getAnonymousElementByAttribute(aToolbarButton, "class", "toolbarbutton-badge-container");
+    let anchor = document.getAnonymousElementByAttribute(aToolbarButton, "class", "toolbarbutton-badge-container");
     // Bug 849216 - open the popup in a setTimeout so we avoid the auto-rollup
     // handling from preventing it being opened in some cases.
     setTimeout(function() {
@@ -1483,7 +1479,7 @@ SocialStatus = {
       return null;
     let palette = document.getElementById("navigator-toolbox").palette;
     let button = document.createElement("toolbarbutton");
-    button.setAttribute("class", "toolbarbutton-1 social-status-button");
+    button.setAttribute("class", "toolbarbutton-1 chromeclass-toolbar-additional social-status-button");
     button.setAttribute("type", "badged");
     button.setAttribute("removable", "true");
     button.setAttribute("image", provider.iconURL);
@@ -1767,7 +1763,7 @@ SocialMarks = {
     let palette = document.getElementById("navigator-toolbox").palette;
     let button = document.createElement("toolbarbutton");
     button.setAttribute("type", "socialmark");
-    button.setAttribute("class", "toolbarbutton-1 social-mark-button");
+    button.setAttribute("class", "toolbarbutton-1 chromeclass-toolbar-additional social-mark-button");
     button.style.listStyleImage = "url(" + provider.iconURL + ")";
     button.setAttribute("origin", provider.origin);
     button.setAttribute("id", this._toolbarHelper.idFromOrgin(provider.origin));
