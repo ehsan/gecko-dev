@@ -175,18 +175,12 @@ public:
      *   3. native anonymous nodes
      *   4. :after generated node
      */
-    eAllButXBL = 1,
-
-    /**
-     * Skip native anonymous content created for placeholder of HTML input,
-     * used in conjunction with eAllChildren or eAllButXBL.
-     */
-    eSkipPlaceholderContent = 2
+    eAllButXBL = 1
   };
 
   /**
    * Return either the XBL explicit children of the node or the XBL flattened
-   * tree children of the node, depending on the filter, as well as
+   * tree children of the node, depending on the child type, as well as any
    * native anonymous children.
    *
    * @note calling this method with eAllButXBL will return children that are
@@ -194,7 +188,7 @@ public:
    *  of this node in the tree, but those other nodes cannot be reached from the
    *  eAllButXBL child list.
    */
-  virtual already_AddRefed<nsINodeList> GetChildren(PRUint32 aFilter) = 0;
+  virtual already_AddRefed<nsINodeList> GetChildren(PRInt32 aChildType) = 0;
 
   /**
    * Get whether this content is C++-generated anonymous content

@@ -229,12 +229,8 @@ nsPlaintextEditor::EndEditorInit()
   if (mInitTriggerCounter == 0)
   {
     res = InitRules();
-    if (NS_SUCCEEDED(res)) {
-      // Throw away the old transaction manager if this is not the first time that
-      // we're initializing the editor.
-      EnableUndo(PR_FALSE);
+    if (NS_SUCCEEDED(res)) 
       EnableUndo(PR_TRUE);
-    }
   }
   return res;
 }

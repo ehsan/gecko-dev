@@ -3051,7 +3051,7 @@ nsGenericElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 }
 
 already_AddRefed<nsINodeList>
-nsGenericElement::GetChildren(PRUint32 aFilter)
+nsGenericElement::GetChildren(PRInt32 aChildType)
 {
   nsRefPtr<nsBaseContentList> list = new nsBaseContentList();
   if (!list) {
@@ -3076,7 +3076,7 @@ nsGenericElement::GetChildren(PRUint32 aFilter)
 
   nsIDocument* document = GetOwnerDoc();
   if (document) {
-    if (!(aFilter & eAllButXBL)) {
+    if (aChildType != eAllButXBL) {
       childList = document->BindingManager()->GetXBLChildNodesFor(this);
       if (!childList) {
         childList = GetChildNodesList();
@@ -3102,7 +3102,7 @@ nsGenericElement::GetChildren(PRUint32 aFilter)
     // Append native anonymous content to the end.
     nsIAnonymousContentCreator* creator = do_QueryFrame(frame);
     if (creator) {
-      creator->AppendAnonymousContentTo(*list, aFilter);
+      creator->AppendAnonymousContentTo(*list);
     }
 
     // Append :after generated content.
