@@ -2712,12 +2712,18 @@ public abstract class GeckoApp
     private static final String SESSION_END_LOCALE_CHANGED = "L";
 
     /**
-     * This exists so that a locale can be applied in two places: when saved
-     * in a nested activity, and then again when we get back up to GeckoApp.
-     *
-     * GeckoApp needs to do a bunch more stuff than, say, GeckoPreferences.
+     * Use BrowserLocaleManager to change our persisted and current locales,
+     * and poke HealthRecorder to tell it of our changed state.
      */
-    protected void onLocaleChanged(final String locale) {
+    private void setLocale(final String locale) {
+        if (locale == null) {
+            return;
+        }
+        final String resultant = BrowserLocaleManager.getInstance().setSelectedLocale(this, locale);
+        if (resultant == null) {
+            return;
+        }
+
         final boolean startNewSession = true;
         final boolean shouldRestart = false;
 
@@ -2726,7 +2732,7 @@ public abstract class GeckoApp
         // with the wrong locale.
         final HealthRecorder rec = mHealthRecorder;
         if (rec != null) {
-            rec.onAppLocaleChanged(locale);
+            rec.onAppLocaleChanged(resultant);
             rec.onEnvironmentChanged(startNewSession, SESSION_END_LOCALE_CHANGED);
         }
 
@@ -2734,7 +2740,7 @@ public abstract class GeckoApp
             ThreadUtils.postToUiThread(new Runnable() {
                 @Override
                 public void run() {
-                    GeckoApp.this.onLocaleReady(locale);
+                    GeckoApp.this.onLocaleReady(resultant);
                 }
             });
             return;
@@ -2749,24 +2755,6 @@ public abstract class GeckoApp
                 GeckoApp.this.finish();
             }
         });
-    }
-
-    /**
-     * Use BrowserLocaleManager to change our persisted and current locales,
-     * and poke HealthRecorder to tell it of our changed state.
-     */
-    protected void setLocale(final String locale) {
-        Log.d(LOGTAG, "setLocale: " + locale);
-        if (locale == null) {
-            return;
-        }
-
-        final String resultant = BrowserLocaleManager.getInstance().setSelectedLocale(this, locale);
-        if (resultant == null) {
-            return;
-        }
-
-        onLocaleChanged(resultant);
     }
 
     private void setSystemUiVisible(final boolean visible) {

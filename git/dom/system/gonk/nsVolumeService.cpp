@@ -249,8 +249,7 @@ nsVolumeService::CreateOrGetVolumeByPath(const nsAString& aPath, nsIVolume** aRe
                                          -1    /* generation */,
                                          true  /* isMediaPresent*/,
                                          false /* isSharing */,
-                                         false /* isFormatting */,
-                                         true  /* isFake */);
+                                         false /* isFormatting */);
   vol.forget(aResult);
   return NS_OK;
 }
@@ -383,8 +382,8 @@ nsVolumeService::CreateFakeVolume(const nsAString& name, const nsAString& path)
                                           -1    /* mountGeneration */,
                                           true  /* isMediaPresent */,
                                           false /* isSharing */,
-                                          false /* isFormatting */,
-                                          true  /* isFake */);
+                                          false /* isFormatting */);
+    vol->SetIsFake(true);
     vol->LogState();
     UpdateVolume(vol.get());
     return NS_OK;

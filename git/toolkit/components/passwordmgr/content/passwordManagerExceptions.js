@@ -88,11 +88,7 @@ function FinalizeRejectDeletions() {
 }
 
 function HandleRejectKeyPress(e) {
-  if (e.keyCode == KeyEvent.DOM_VK_DELETE
-#ifdef XP_MACOSX
-      || e.keyCode == KeyEvent.DOM_VK_BACK_SPACE
-#endif
-     ) {
+  if (e.keyCode == 46) {
     DeleteReject();
   }
 }

@@ -16,8 +16,6 @@ const { Task } = Cu.import("resource://gre/modules/Task.jsm", {});
 const require = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools.require;
 const EventEmitter = require("devtools/toolkit/event-emitter");
 const STRINGS_URI = "chrome://browser/locale/devtools/webaudioeditor.properties"
-const L10N = new ViewHelpers.L10N(STRINGS_URI);
-
 let { console } = Cu.import("resource://gre/modules/devtools/Console.jsm", {});
 
 // The panel's window global is an EventEmitter firing the following events:
@@ -44,17 +42,8 @@ const EVENTS = {
   // pushed via the actor to the raw audio node.
   UI_SET_PARAM: "WebAudioEditor:UISetParam",
 
-  // When a node is to be set in the InspectorView.
-  UI_SELECT_NODE: "WebAudioEditor:UISelectNode",
-
-  // When the inspector is finished setting a new node.
-  UI_INSPECTOR_NODE_SET: "WebAudioEditor:UIInspectorNodeSet",
-
-  // When the inspector is finished rendering in or out of view.
-  UI_INSPECTOR_TOGGLED: "WebAudioEditor:UIInspectorToggled",
-
-  // When an audio node is finished loading in the Properties tab.
-  UI_PROPERTIES_TAB_RENDERED: "WebAudioEditor:UIPropertiesTabRendered",
+  // When an audio node is added to the list pane.
+  UI_ADD_NODE_LIST: "WebAudioEditor:UIAddNodeList",
 
   // When the Audio Context graph finishes rendering.
   // Is called with two arguments, first representing number of nodes
@@ -117,7 +106,7 @@ function startupWebAudioEditor() {
   return all([
     WebAudioEditorController.initialize(),
     WebAudioGraphView.initialize(),
-    WebAudioInspectorView.initialize(),
+    WebAudioParamView.initialize()
   ]);
 }
 
@@ -128,7 +117,7 @@ function shutdownWebAudioEditor() {
   return all([
     WebAudioEditorController.destroy(),
     WebAudioGraphView.destroy(),
-    WebAudioInspectorView.destroy(),
+    WebAudioParamView.destroy()
   ]);
 }
 
@@ -192,7 +181,7 @@ let WebAudioEditorController = {
           // Reset UI to show "Waiting for Audio Context..." and clear out
           // current UI.
           WebAudioGraphView.resetUI();
-          WebAudioInspectorView.resetUI();
+          WebAudioParamView.resetUI();
 
           // Clear out stored audio nodes
           AudioNodes.length = 0;
