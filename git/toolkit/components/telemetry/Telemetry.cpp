@@ -65,21 +65,13 @@ class TelemetryImpl : public nsITelemetry
 public:
   TelemetryImpl();
   ~TelemetryImpl();
-  
-  static bool CanRecord();
-  static already_AddRefed<nsITelemetry> CreateTelemetryInstance();
-  static void ShutdownTelemetry();
 
 private:
   // This is used for speedy JS string->Telemetry::ID conversions
   typedef nsBaseHashtableET<nsCharPtrHashKey, Telemetry::ID> CharPtrEntryType;
   typedef nsTHashtable<CharPtrEntryType> HistogramMapType;
   HistogramMapType mHistogramMap;
-  bool mCanRecord;
-  static TelemetryImpl *sTelemetry;
 };
-
-TelemetryImpl*  TelemetryImpl::sTelemetry = NULL;
 
 // A initializer to initialize histogram collection
 StatisticsRecorder gStatisticsRecorder;
@@ -196,31 +188,19 @@ ReflectHistogramSnapshot(JSContext *cx, JSObject *obj, Histogram *h)
 JSBool
 JSHistogram_Add(JSContext *cx, uintN argc, jsval *vp)
 {
-  if (!argc) {
-    JS_ReportError(cx, "Expected one argument");
+  jsval *argv = JS_ARGV(cx, vp);
+  JSString *str;
+  if (!JS_ConvertArguments(cx, argc, argv, "i", &str))
     return JS_FALSE;
-  }
-
-  jsval v = JS_ARGV(cx, vp)[0];
-  int32 value;
-
-  if (!(JSVAL_IS_NUMBER(v) || JSVAL_IS_BOOLEAN(v))) {
-    JS_ReportError(cx, "Not a number");
+  if (!JSVAL_IS_INT(argv[0]))
     return JS_FALSE;
-  }
-
-  if (!JS_ValueToECMAInt32(cx, v, &value)) {
-    return JS_FALSE;
-  }
-
-  if (TelemetryImpl::CanRecord()) {
-    JSObject *obj = JS_THIS_OBJECT(cx, vp);
-    Histogram *h = static_cast<Histogram*>(JS_GetPrivate(cx, obj));
-    if (h->histogram_type() == Histogram::BOOLEAN_HISTOGRAM)
-      h->Add(!!value);
-    else
-      h->Add(value);
-  }
+  JSObject *obj = JS_THIS_OBJECT(cx, vp);
+  Histogram *h = static_cast<Histogram*>(JS_GetPrivate(cx, obj));
+  PRUint32 value = JSVAL_TO_INT(argv[0]);
+  if (h->histogram_type() == Histogram::BOOLEAN_HISTOGRAM)
+    h->Add(!!value);
+  else
+    h->Add(value);
   return JS_TRUE;
 }
 
@@ -256,9 +236,7 @@ WrapAndReturnHistogram(Histogram *h, JSContext *cx, jsval *ret)
           && JS_DefineFunction (cx, obj, "snapshot", JSHistogram_Snapshot, 1, 0)) ? NS_OK : NS_ERROR_FAILURE;
 }
 
-TelemetryImpl::TelemetryImpl():
-mCanRecord(true)
-{
+TelemetryImpl::TelemetryImpl() {
   mHistogramMap.Init(Telemetry::HistogramCount);
 }
 
@@ -329,43 +307,16 @@ TelemetryImpl::GetHistogramById(const nsACString &name, JSContext *cx, jsval *re
   return WrapAndReturnHistogram(h, cx, ret);
 }
 
-NS_IMETHODIMP
-TelemetryImpl::GetCanRecord(PRBool *ret) {
-  *ret = mCanRecord;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-TelemetryImpl::SetCanRecord(PRBool canRecord) {
-  mCanRecord = !!canRecord;
-  return NS_OK;
-}
-
-bool
-TelemetryImpl::CanRecord() {
-  return !sTelemetry || sTelemetry->mCanRecord;
-}
+NS_IMPL_THREADSAFE_ISUPPORTS1(TelemetryImpl, nsITelemetry)
 
 already_AddRefed<nsITelemetry>
-TelemetryImpl::CreateTelemetryInstance()
+CreateTelemetryInstance()
 {
-  NS_ABORT_IF_FALSE(sTelemetry == NULL, "CreateTelemetryInstance may only be called once, via GetService()");
-  sTelemetry = new TelemetryImpl(); 
-  // AddRef for the local reference
-  NS_ADDREF(sTelemetry);
-  // AddRef for the caller
-  NS_ADDREF(sTelemetry);
-  return sTelemetry;
+  nsCOMPtr<nsITelemetry> telemetry = new TelemetryImpl();
+  return telemetry.forget();
 }
 
-void
-TelemetryImpl::ShutdownTelemetry()
-{
-  NS_IF_RELEASE(sTelemetry);
-}
-
-NS_IMPL_THREADSAFE_ISUPPORTS1(TelemetryImpl, nsITelemetry)
-NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsITelemetry, TelemetryImpl::CreateTelemetryInstance)
+NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsITelemetry, CreateTelemetryInstance)
 
 #define NS_TELEMETRY_CID \
   {0xaea477f2, 0xb3a2, 0x469c, {0xaa, 0x29, 0x0a, 0x82, 0xd1, 0x32, 0xb8, 0x29}}
@@ -388,7 +339,7 @@ const Module kTelemetryModule = {
   NULL,
   NULL,
   NULL,
-  TelemetryImpl::ShutdownTelemetry
+  NULL,
 };
 
 } // anonymous namespace
@@ -399,9 +350,6 @@ namespace Telemetry {
 void
 Accumulate(ID aHistogram, PRUint32 aSample)
 {
-  if (!TelemetryImpl::CanRecord()) {
-    return;
-  }
   Histogram *h;
   nsresult rv = GetHistogramByEnumId(aHistogram, &h);
   if (NS_SUCCEEDED(rv))

@@ -2217,13 +2217,16 @@ nsXULElement::AddPopupListener(nsIAtom* aName)
         return NS_OK;
     }
 
-    popupListener = new nsXULPopupListener(this, isContext);
+    nsresult rv = NS_NewXULPopupListener(this, isContext,
+                                         getter_AddRefs(popupListener));
+    if (NS_FAILED(rv))
+        return rv;
 
     // Add the popup as a listener on this element.
     nsEventListenerManager* manager = GetListenerManager(PR_TRUE);
     NS_ENSURE_TRUE(manager, NS_ERROR_FAILURE);
-    nsresult rv = SetProperty(listenerAtom, popupListener,
-                              PopupListenerPropertyDtor, PR_TRUE);
+    rv = SetProperty(listenerAtom, popupListener, PopupListenerPropertyDtor,
+                     PR_TRUE);
     NS_ENSURE_SUCCESS(rv, rv);
     // Want the property to have a reference to the listener.
     nsIDOMEventListener* listener = nsnull;

@@ -969,7 +969,9 @@ JS_StringToVersion(const char *string);
                                                    backtracks more than n^3
                                                    times, where n is length
                                                    of the input string */
-/* JS_BIT(10) is currently unused. */
+#define JSOPTION_ANONFUNFIX     JS_BIT(10)      /* Disallow function () {} in
+                                                   statement context per
+                                                   ECMA-262 Edition 3. */
 
 #define JSOPTION_JIT            JS_BIT(11)      /* Enable JIT compilation. */
 
@@ -991,7 +993,7 @@ JS_StringToVersion(const char *string);
 #define JSOPTION_PCCOUNT        JS_BIT(17)      /* Collect per-op execution counts */
 
 /* Options which reflect compile-time properties of scripts. */
-#define JSCOMPILEOPTION_MASK    (JSOPTION_XML)
+#define JSCOMPILEOPTION_MASK    (JSOPTION_XML | JSOPTION_ANONFUNFIX)
 
 #define JSRUNOPTION_MASK        (JS_BITMASK(18) & ~JSCOMPILEOPTION_MASK)
 #define JSALLOPTION_MASK        (JSCOMPILEOPTION_MASK | JSRUNOPTION_MASK)

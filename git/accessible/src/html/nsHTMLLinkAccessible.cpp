@@ -166,14 +166,14 @@ nsHTMLLinkAccessible::DoAction(PRUint8 aIndex)
 // HyperLinkAccessible
 
 bool
-nsHTMLLinkAccessible::IsLink()
+nsHTMLLinkAccessible::IsHyperLink()
 {
   // Expose HyperLinkAccessible unconditionally.
   return true;
 }
 
 already_AddRefed<nsIURI>
-nsHTMLLinkAccessible::AnchorURIAt(PRUint32 aAnchorIndex)
+nsHTMLLinkAccessible::GetAnchorURI(PRUint32 aAnchorIndex)
 {
   return aAnchorIndex == 0 ? mContent->GetHrefURI() : nsnull;
 }

@@ -54,7 +54,6 @@
 
 #include "prtypes.h"
 #include "gfxTypes.h"
-#include "nsAlgorithm.h"
 #include "gfxContext.h"
 #include "gfxFontMissingGlyphs.h"
 #include "gfxUserFontSet.h"
@@ -1020,8 +1019,8 @@ gfxFontCache::DestroyFont(gfxFont *aFont)
 void
 gfxFont::RunMetrics::CombineWith(const RunMetrics& aOther, PRBool aOtherIsOnLeft)
 {
-    mAscent = NS_MAX(mAscent, aOther.mAscent);
-    mDescent = NS_MAX(mDescent, aOther.mDescent);
+    mAscent = PR_MAX(mAscent, aOther.mAscent);
+    mDescent = PR_MAX(mDescent, aOther.mDescent);
     if (aOtherIsOnLeft) {
         mBoundingBox =
             (mBoundingBox + gfxPoint(aOther.mAdvanceWidth, 0)).Union(aOther.mBoundingBox);
@@ -1262,8 +1261,8 @@ gfxFont::Draw(gfxTextRun *aTextRun, PRUint32 aStart, PRUint32 aEnd,
 static void
 UnionRange(gfxFloat aX, gfxFloat* aDestMin, gfxFloat* aDestMax)
 {
-    *aDestMin = NS_MIN(*aDestMin, aX);
-    *aDestMax = NS_MAX(*aDestMax, aX);
+    *aDestMin = PR_MIN(*aDestMin, aX);
+    *aDestMax = PR_MAX(*aDestMax, aX);
 }
 
 // We get precise glyph extents if the textrun creator requested them, or
@@ -1682,8 +1681,8 @@ gfxFont::InitMetricsFromSfntTables(Metrics& aMetrics)
             PRUint16(os2->version) >= 2) {
             // version 2 and later includes the x-height field
             SET_SIGNED(xHeight, os2->sxHeight);
-            // NS_ABS because of negative xHeight seen in Kokonor (Tibetan) font
-            aMetrics.xHeight = NS_ABS(aMetrics.xHeight);
+            // PR_ABS because of negative xHeight seen in Kokonor (Tibetan) font
+            aMetrics.xHeight = PR_ABS(aMetrics.xHeight);
         }
         // this should always be present
         if (os2data.Length() >= offsetof(OS2Table, yStrikeoutPosition) +
@@ -1778,10 +1777,10 @@ gfxFont::SanitizeMetrics(gfxFont::Metrics *aMetrics, PRBool aIsBadUnderlineFont)
         aMetrics->subscriptOffset = aMetrics->xHeight;
     }
 
-    aMetrics->underlineSize = NS_MAX(1.0, aMetrics->underlineSize);
-    aMetrics->strikeoutSize = NS_MAX(1.0, aMetrics->strikeoutSize);
+    aMetrics->underlineSize = PR_MAX(1.0, aMetrics->underlineSize);
+    aMetrics->strikeoutSize = PR_MAX(1.0, aMetrics->strikeoutSize);
 
-    aMetrics->underlineOffset = NS_MIN(aMetrics->underlineOffset, -1.0);
+    aMetrics->underlineOffset = PR_MIN(aMetrics->underlineOffset, -1.0);
 
     if (aMetrics->maxAscent < 1.0) {
         // We cannot draw strikeout line and overline in the ascent...
@@ -1803,13 +1802,13 @@ gfxFont::SanitizeMetrics(gfxFont::Metrics *aMetrics, PRBool aIsBadUnderlineFont)
     if (!mStyle.systemFont && aIsBadUnderlineFont) {
         // First, we need 2 pixels between baseline and underline at least. Because many CJK characters
         // put their glyphs on the baseline, so, 1 pixel is too close for CJK characters.
-        aMetrics->underlineOffset = NS_MIN(aMetrics->underlineOffset, -2.0);
+        aMetrics->underlineOffset = PR_MIN(aMetrics->underlineOffset, -2.0);
 
         // Next, we put the underline to bottom of below of the descent space.
         if (aMetrics->internalLeading + aMetrics->externalLeading > aMetrics->underlineSize) {
-            aMetrics->underlineOffset = NS_MIN(aMetrics->underlineOffset, -aMetrics->emDescent);
+            aMetrics->underlineOffset = PR_MIN(aMetrics->underlineOffset, -aMetrics->emDescent);
         } else {
-            aMetrics->underlineOffset = NS_MIN(aMetrics->underlineOffset,
+            aMetrics->underlineOffset = PR_MIN(aMetrics->underlineOffset,
                                                aMetrics->underlineSize - aMetrics->emDescent);
         }
     }
@@ -1817,7 +1816,7 @@ gfxFont::SanitizeMetrics(gfxFont::Metrics *aMetrics, PRBool aIsBadUnderlineFont)
     // will stay within the boundary.
     else if (aMetrics->underlineSize - aMetrics->underlineOffset > aMetrics->maxDescent) {
         if (aMetrics->underlineSize > aMetrics->maxDescent)
-            aMetrics->underlineSize = NS_MAX(aMetrics->maxDescent, 1.0);
+            aMetrics->underlineSize = PR_MAX(aMetrics->maxDescent, 1.0);
         // The max underlineOffset is 1px (the min underlineSize is 1px, and min maxDescent is 0px.)
         aMetrics->underlineOffset = aMetrics->underlineSize - aMetrics->maxDescent;
     }
@@ -1828,11 +1827,11 @@ gfxFont::SanitizeMetrics(gfxFont::Metrics *aMetrics, PRBool aIsBadUnderlineFont)
     gfxFloat halfOfStrikeoutSize = NS_floor(aMetrics->strikeoutSize / 2.0 + 0.5);
     if (halfOfStrikeoutSize + aMetrics->strikeoutOffset > aMetrics->maxAscent) {
         if (aMetrics->strikeoutSize > aMetrics->maxAscent) {
-            aMetrics->strikeoutSize = NS_MAX(aMetrics->maxAscent, 1.0);
+            aMetrics->strikeoutSize = PR_MAX(aMetrics->maxAscent, 1.0);
             halfOfStrikeoutSize = NS_floor(aMetrics->strikeoutSize / 2.0 + 0.5);
         }
         gfxFloat ascent = NS_floor(aMetrics->maxAscent + 0.5);
-        aMetrics->strikeoutOffset = NS_MAX(halfOfStrikeoutSize, ascent / 2.0);
+        aMetrics->strikeoutOffset = PR_MAX(halfOfStrikeoutSize, ascent / 2.0);
     }
 
     // If overline is larger than the ascent, the line should be resized.
@@ -2049,7 +2048,7 @@ gfxFontGroup::BuildFontList()
             if (font->GetFontEntry()->mIsBadUnderlineFont) {
                 gfxFloat first = mFonts[0]->GetMetrics().underlineOffset;
                 gfxFloat bad = font->GetMetrics().underlineOffset;
-                mUnderlineOffset = NS_MIN(first, bad);
+                mUnderlineOffset = PR_MIN(first, bad);
                 break;
             }
         }
@@ -2998,10 +2997,10 @@ gfxTextRun::GlyphRunIterator::NextRun()  {
     if (mGlyphRun->mCharacterOffset >= mEndOffset)
         return PR_FALSE;
 
-    mStringStart = NS_MAX(mStartOffset, mGlyphRun->mCharacterOffset);
+    mStringStart = PR_MAX(mStartOffset, mGlyphRun->mCharacterOffset);
     PRUint32 last = mNextIndex + 1 < mTextRun->mGlyphRuns.Length()
         ? mTextRun->mGlyphRuns[mNextIndex + 1].mCharacterOffset : mTextRun->mCharacterCount;
-    mStringEnd = NS_MIN(mEndOffset, last);
+    mStringEnd = PR_MIN(mEndOffset, last);
 
     ++mNextIndex;
     return PR_TRUE;
@@ -3026,7 +3025,7 @@ AccountStorageForTextRun(gfxTextRun *aTextRun, PRInt32 aSign)
     }
     bytes += sizeof(gfxTextRun);
     gTextRunStorage += bytes*aSign;
-    gTextRunStorageHighWaterMark = NS_MAX(gTextRunStorageHighWaterMark, gTextRunStorage);
+    gTextRunStorageHighWaterMark = PR_MAX(gTextRunStorageHighWaterMark, gTextRunStorage);
 }
 #endif
 
@@ -3356,17 +3355,17 @@ ClipPartialLigature(gfxTextRun *aTextRun, gfxFloat *aLeft, gfxFloat *aRight,
 {
     if (aLigature->mClipBeforePart) {
         if (aTextRun->IsRightToLeft()) {
-            *aRight = NS_MIN(*aRight, aXOrigin);
+            *aRight = PR_MIN(*aRight, aXOrigin);
         } else {
-            *aLeft = NS_MAX(*aLeft, aXOrigin);
+            *aLeft = PR_MAX(*aLeft, aXOrigin);
         }
     }
     if (aLigature->mClipAfterPart) {
         gfxFloat endEdge = aXOrigin + aTextRun->GetDirection()*aLigature->mPartWidth;
         if (aTextRun->IsRightToLeft()) {
-            *aLeft = NS_MAX(*aLeft, endEdge);
+            *aLeft = PR_MAX(*aLeft, endEdge);
         } else {
-            *aRight = NS_MIN(*aRight, endEdge);
+            *aRight = PR_MIN(*aRight, endEdge);
         }
     }    
 }
@@ -3733,12 +3732,12 @@ gfxTextRun::BreakAndMeasureText(PRUint32 aStart, PRUint32 aMaxLength,
                                 PRBool aCanWordWrap,
                                 gfxBreakPriority *aBreakPriority)
 {
-    aMaxLength = NS_MIN(aMaxLength, mCharacterCount - aStart);
+    aMaxLength = PR_MIN(aMaxLength, mCharacterCount - aStart);
 
     NS_ASSERTION(aStart + aMaxLength <= mCharacterCount, "Substring out of range");
 
     PRUint32 bufferStart = aStart;
-    PRUint32 bufferLength = NS_MIN<PRUint32>(aMaxLength, MEASUREMENT_BUFFER_SIZE);
+    PRUint32 bufferLength = PR_MIN(aMaxLength, MEASUREMENT_BUFFER_SIZE);
     PropertyProvider::Spacing spacingBuffer[MEASUREMENT_BUFFER_SIZE];
     PRBool haveSpacing = aProvider && (mFlags & gfxTextRunFactory::TEXT_ENABLE_SPACING) != 0;
     if (haveSpacing) {
@@ -3777,7 +3776,7 @@ gfxTextRun::BreakAndMeasureText(PRUint32 aStart, PRUint32 aMaxLength,
         if (i >= bufferStart + bufferLength) {
             // Fetch more spacing and hyphenation data
             bufferStart = i;
-            bufferLength = NS_MIN(aStart + aMaxLength, i + MEASUREMENT_BUFFER_SIZE) - i;
+            bufferLength = PR_MIN(aStart + aMaxLength, i + MEASUREMENT_BUFFER_SIZE) - i;
             if (haveSpacing) {
                 GetAdjustedSpacing(this, bufferStart, bufferStart + bufferLength, aProvider,
                                    spacingBuffer);
@@ -4138,7 +4137,7 @@ gfxTextRun::SetMissingGlyph(PRUint32 aIndex, PRUint32 aChar)
         // Setting advance width to zero will prevent drawing the hexbox
         details->mAdvance = 0;
     } else {
-        gfxFloat width = NS_MAX(glyphRun->mFont->GetMetrics().aveCharWidth,
+        gfxFloat width = PR_MAX(glyphRun->mFont->GetMetrics().aveCharWidth,
                                 gfxFontMissingGlyphs::GetDesiredMinWidth(aChar));
         details->mAdvance = PRUint32(width*GetAppUnitsPerDevUnit());
     }

@@ -856,9 +856,14 @@ private:
         new FrameConstructionItem(aFCData, aContent, aTag, aNameSpaceID,
                                   aPendingBinding, aStyleContext,
                                   aSuppressWhiteSpaceOptimizations);
-      PR_APPEND_LINK(item, &mItems);
-      ++mItemCount;
-      ++mDesiredParentCounts[item->DesiredParentType()];
+      if (item) {
+        PR_APPEND_LINK(item, &mItems);
+        ++mItemCount;
+        ++mDesiredParentCounts[item->DesiredParentType()];
+      } else {
+        // Clean up the style context
+        nsRefPtr<nsStyleContext> sc(aStyleContext);
+      }
       return item;
     }
 

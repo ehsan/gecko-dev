@@ -37,7 +37,7 @@
 
 #include "SourceSurfaceCairo.h"
 
-#include "cairo.h"
+#include "cairo/cairo.h"
 
 namespace mozilla {
 namespace gfx {

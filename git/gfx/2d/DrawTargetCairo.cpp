@@ -37,6 +37,8 @@
 #include "DrawTargetCairo.h"
 #include "SourceSurfaceCairo.h"
 
+#include "cairo/cairo.h"
+
 namespace mozilla {
 namespace gfx {
 

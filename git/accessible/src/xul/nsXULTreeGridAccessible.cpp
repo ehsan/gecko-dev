@@ -685,8 +685,8 @@ nsXULTreeGridRowAccessible::GetName(nsAString& aName)
 }
 
 nsAccessible*
-nsXULTreeGridRowAccessible::ChildAtPoint(PRInt32 aX, PRInt32 aY,
-                                         EWhichChildAtPoint aWhichChild)
+nsXULTreeGridRowAccessible::GetChildAtPoint(PRInt32 aX, PRInt32 aY,
+                                            EWhichChildAtPoint aWhichChild)
 {
   nsIFrame *frame = GetFrame();
   if (!frame)
@@ -1230,7 +1230,7 @@ nsXULTreeGridCellAccessible::NativeState()
 }
 
 PRInt32
-nsXULTreeGridCellAccessible::IndexInParent() const
+nsXULTreeGridCellAccessible::GetIndexInParent() const
 {
   return GetColumnIndex();
 }

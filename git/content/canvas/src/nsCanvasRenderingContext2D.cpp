@@ -168,20 +168,20 @@ static PRBool FloatValidate (double f1, double f2, double f3, double f4, double 
 static nsIMemoryReporter *gCanvasMemoryReporter = nsnull;
 static PRInt64 gCanvasMemoryUsed = 0;
 
-static PRInt64 GetCanvasMemoryUsed() {
+static PRInt64 GetCanvasMemoryUsed(void *) {
     return gCanvasMemoryUsed;
 }
 
-// This is KIND_OTHER because it's not always clear where in memory the pixels of
+// This is MR_OTHER because it's not always clear where in memory the pixels of
 // a canvas are stored.  Furthermore, this memory will be tracked by the
 // underlying surface implementations.  See bug 655638 for details.
 NS_MEMORY_REPORTER_IMPLEMENT(CanvasMemory,
     "canvas-2d-pixel-bytes",
-    KIND_OTHER,
-    UNITS_BYTES,
-    GetCanvasMemoryUsed,
+    MR_OTHER,
     "Memory used by 2D canvases. Each canvas requires (width * height * 4) "
-    "bytes.")
+    "bytes.",
+    GetCanvasMemoryUsed,
+    NULL)
 
 static void
 CopyContext(gfxContext* dest, gfxContext* src)

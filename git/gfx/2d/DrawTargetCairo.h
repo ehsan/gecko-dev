@@ -38,7 +38,7 @@
 #define _MOZILLA_GFX_DRAWTARGET_CAIRO_H_
 
 #include "2D.h"
-#include "cairo.h"
+#include "cairo/cairo.h"
 
 namespace mozilla {
 namespace gfx {

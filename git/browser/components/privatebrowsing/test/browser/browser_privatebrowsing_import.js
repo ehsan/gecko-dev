@@ -20,7 +20,6 @@
  *
  * Contributor(s):
  *   Ehsan Akhgari <ehsan.akhgari@gmail.com> (Original Author)
- *   Steffen Wilberg <steffen.wilberg@web.de>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -36,71 +35,33 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-// This test makes sure that the "Import and Backup->Import From Another Browser"
-// menu item in the Places Organizer is disabled inside private browsing mode.
-
-// TEST_PATH=browser/components/privatebrowsing/test/browser/browser_privatebrowsing_import.js make -C $(OBJDIR) mochitest-browser-chrome
-
-let pb = Cc["@mozilla.org/privatebrowsing;1"].
-         getService(Ci.nsIPrivateBrowsingService);
+// This test makes sure that the File->Import menu item is disabled inside the
+// private browsing mode.
 
 function test() {
-  waitForExplicitFinish();
+  // initialization
   gPrefService.setBoolPref("browser.privatebrowsing.keep_current_session", true);
+  let pb = Cc["@mozilla.org/privatebrowsing;1"].
+           getService(Ci.nsIPrivateBrowsingService);
 
-  // first test: open the library with PB disabled
-  pb.privateBrowsingEnabled = false;
-  openLibrary(testPBoff);
-}
+  let importMenuItem = document.getElementById("menu_import");
 
-function openLibrary(callback) {
-  var library = window.openDialog("chrome://browser/content/places/places.xul",
-                                  "", "chrome,toolbar=yes,dialog=no,resizable");
-  waitForFocus(function () {
-    callback(library);
-  }, library);
-}
-
-function testPBoff(win) {
-  // XXX want to test the #browserImport menuitem instead
-  let importMenuItem = win.document.getElementById("OrganizerCommand_browserImport");
-
-  // make sure the menu item is enabled outside PB mode when opening the Library
+  // make sure the menu item is not disabled to begin with
   ok(!importMenuItem.hasAttribute("disabled"),
-    "Import From Another Browser menu item should be enabled outside PB mode when opening the Library");
+    "File->Import menu item should not be disabled outside of the private browsing mode");
 
   // enter private browsing mode
   pb.privateBrowsingEnabled = true;
+
   ok(importMenuItem.hasAttribute("disabled"),
-    "Import From Another Browser menu item should be disabled after starting PB mode");
+    "File->Import menu item should be disabled inside of the private browsing mode");
 
   // leave private browsing mode
   pb.privateBrowsingEnabled = false;
+
   ok(!importMenuItem.hasAttribute("disabled"),
-    "Import From Another Browser menu item should not be disabled after leaving the PB mode");
-
-  win.close();
-
-  // launch the second test: open the Library with PB enabled
-  pb.privateBrowsingEnabled = true;
-  openLibrary(testPBon);
-}
-
-function testPBon(win) {
-  let importMenuItem = win.document.getElementById("OrganizerCommand_browserImport");
-
-  // make sure the menu item is disabled in PB mode when opening the Library
-  ok(importMenuItem.hasAttribute("disabled"),
-    "Import From Another Browser menu item should be disabled in PB mode when opening the Libary");
-
-  // leave private browsing mode
-  pb.privateBrowsingEnabled = false;
-  ok(!importMenuItem.hasAttribute("disabled"),
-    "Import From Another Browser menu item should not be disabled after leaving PB mode");
-
-  win.close();
+    "File->Import menu item should not be disabled after leaving the private browsing mode");
 
   // cleanup
   gPrefService.clearUserPref("browser.privatebrowsing.keep_current_session");
-  finish();
 }

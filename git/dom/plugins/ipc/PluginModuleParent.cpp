@@ -1160,11 +1160,9 @@ CAUpdate(nsITimer *aTimer, void *aClosure) {
     nsTObserverArray<PluginInstanceParent*> *ips =
         static_cast<nsTObserverArray<PluginInstanceParent*> *>(aClosure);
     nsTObserverArray<PluginInstanceParent*>::ForwardIterator iter(*ips);
-#ifdef MOZ_WIDGET_COCOA
     while (iter.HasMore()) {
         iter.GetNext()->Invalidate();
     }
-#endif // MOZ_WIDGET_COCOA
 }
 
 void

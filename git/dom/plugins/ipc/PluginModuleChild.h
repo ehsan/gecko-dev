@@ -55,7 +55,7 @@
 #include "nsTHashtable.h"
 #include "nsHashKeys.h"
 
-#ifdef MOZ_WIDGET_COCOA
+#ifdef OS_MACOSX
 #include "PluginInterposeOSX.h"
 #endif
 
@@ -230,7 +230,7 @@ public:
     static NPUTF8* NP_CALLBACK NPN_UTF8FromIdentifier(NPIdentifier aIdentifier);
     static int32_t NP_CALLBACK NPN_IntFromIdentifier(NPIdentifier aIdentifier);
 
-#ifdef MOZ_WIDGET_COCOA
+#ifdef OS_MACOSX
     void ProcessNativeEvents();
     
     void PluginShowWindow(uint32_t window_id, bool modal, CGRect r) {

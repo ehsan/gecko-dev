@@ -37,6 +37,9 @@
 function test() {
   /** Test for Bug 491168 **/
 
+  // test setup
+  let ss = Cc["@mozilla.org/browser/sessionstore;1"].getService(Ci.nsISessionStore);
+
   waitForExplicitFinish();
 
   const REFERRER1 = "http://example.org/?" + Date.now();

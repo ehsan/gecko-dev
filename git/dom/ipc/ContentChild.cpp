@@ -314,23 +314,20 @@ ContentChild::RecvPMemoryReportRequestConstructor(PMemoryReportRequestChild* chi
 
       nsCString path;
       PRInt32 kind;
-      PRInt32 units;
       nsCString desc;
-      PRInt64 amount;
+      PRInt64 memoryUsed;
       report->GetPath(getter_Copies(path));
       report->GetKind(&kind);
-      report->GetUnits(&units);
-      report->GetAmount(&amount);
       report->GetDescription(getter_Copies(desc));
+      report->GetMemoryUsed(&memoryUsed);
 
       static const int maxLength = 31;   // big enough; pid is only a few chars
       MemoryReport memreport(nsPrintfCString(maxLength, "Content (%d)",
                                              getpid()),
                              path,
                              kind,
-                             units,
-                             amount,
-                             desc);
+                             desc,
+                             memoryUsed);
 
       reports.AppendElement(memreport);
 

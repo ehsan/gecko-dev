@@ -38,6 +38,7 @@ function test() {
   /** Test for Bug 484108 **/
   requestLongerTimeout(2);
 
+  let ss = Cc["@mozilla.org/browser/sessionstore;1"].getService(Ci.nsISessionStore);
   waitForExplicitFinish();
 
   // builds the tests state based on a few parameters

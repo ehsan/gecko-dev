@@ -183,7 +183,14 @@ NS_IMETHODIMP
 nsHTMLOptionElement::GetSelected(PRBool* aValue)
 {
   NS_ENSURE_ARG_POINTER(aValue);
-  *aValue = Selected();
+  *aValue = PR_FALSE;
+
+  // If we haven't been explictly selected or deselected, use our default value
+  if (!mSelectedChanged) {
+    return GetDefaultSelected(aValue);
+  }
+
+  *aValue = mIsSelected;
   return NS_OK;
 }
 
@@ -248,23 +255,6 @@ nsHTMLOptionElement::GetIndex(PRInt32* aIndex)
   }
 
   return NS_OK;
-}
-
-bool
-nsHTMLOptionElement::Selected() const
-{
-  // If we haven't been explictly selected or deselected, use our default value
-  if (!mSelectedChanged) {
-    return DefaultSelected();
-  }
-
-  return mIsSelected;
-}
-
-bool
-nsHTMLOptionElement::DefaultSelected() const
-{
-  return HasAttr(kNameSpaceID_None, nsGkAtoms::selected);
 }
 
 nsChangeHint
@@ -351,10 +341,18 @@ nsEventStates
 nsHTMLOptionElement::IntrinsicState() const
 {
   nsEventStates state = nsGenericHTMLElement::IntrinsicState();
-  if (Selected()) {
+  // Nasty hack because we need to call an interface method, and one that
+  // toggles some of our hidden internal state at that!  Would that we could
+  // use |mutable|.
+  PRBool selected;
+  const_cast<nsHTMLOptionElement*>(this)->GetSelected(&selected);
+  if (selected) {
     state |= NS_EVENT_STATE_CHECKED;
   }
-  if (DefaultSelected()) {
+
+  // Also calling a non-const interface method (for :default)
+  const_cast<nsHTMLOptionElement*>(this)->GetDefaultSelected(&selected);
+  if (selected) {
     state |= NS_EVENT_STATE_DEFAULT;
   }
 
@@ -477,7 +475,9 @@ nsHTMLOptionElement::CopyInnerTo(nsGenericElement* aDest) const
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (aDest->GetOwnerDoc()->IsStaticDocument()) {
-    static_cast<nsHTMLOptionElement*>(aDest)->SetSelected(Selected());
+    PRBool selected = PR_FALSE;
+    const_cast<nsHTMLOptionElement*>(this)->GetSelected(&selected);
+    static_cast<nsHTMLOptionElement*>(aDest)->SetSelected(selected);
   }
   return NS_OK;
 }
