@@ -11,7 +11,7 @@
 #include "nsComponentManagerUtils.h"
 
 #include <windows.h>
-#include "mozilla/WindowsVersion.h"
+#include "nsWindowsHelpers.h"
 
 using namespace mozilla::dom::battery;
 

@@ -9,7 +9,7 @@
 #include "nsIDOMMouseEvent.h"
 #include "nsDOMUIEvent.h"
 #include "mozilla/dom/MouseEventBinding.h"
-#include "mozilla/EventForwards.h"
+#include "mozilla/MouseEvents.h"
 
 class nsDOMMouseEvent : public nsDOMUIEvent,
                         public nsIDOMMouseEvent
@@ -17,7 +17,8 @@ class nsDOMMouseEvent : public nsDOMUIEvent,
 public:
   nsDOMMouseEvent(mozilla::dom::EventTarget* aOwner,
                   nsPresContext* aPresContext,
-                  mozilla::WidgetMouseEventBase* aEvent);
+                  mozilla::WidgetInputEvent* aEvent);
+  virtual ~nsDOMMouseEvent();
 
   NS_DECL_ISUPPORTS_INHERITED
 
@@ -43,10 +44,22 @@ public:
   int32_t ScreenY();
   int32_t ClientX();
   int32_t ClientY();
-  bool CtrlKey();
-  bool ShiftKey();
-  bool AltKey();
-  bool MetaKey();
+  bool CtrlKey()
+  {
+    return static_cast<mozilla::WidgetInputEvent*>(mEvent)->IsControl();
+  }
+  bool ShiftKey()
+  {
+    return static_cast<mozilla::WidgetInputEvent*>(mEvent)->IsShift();
+  }
+  bool AltKey()
+  {
+    return static_cast<mozilla::WidgetInputEvent*>(mEvent)->IsAlt();
+  }
+  bool MetaKey()
+  {
+    return static_cast<mozilla::WidgetInputEvent*>(mEvent)->IsMeta();
+  }
   uint16_t Button();
   uint16_t Buttons();
   already_AddRefed<mozilla::dom::EventTarget> GetRelatedTarget();
@@ -80,8 +93,14 @@ public:
   {
     return GetMovementPoint().y;
   }
-  float MozPressure() const;
-  uint16_t MozInputSource() const;
+  float MozPressure() const
+  {
+    return static_cast<mozilla::WidgetMouseEventBase*>(mEvent)->pressure;
+  }
+  uint16_t MozInputSource() const
+  {
+    return static_cast<mozilla::WidgetMouseEventBase*>(mEvent)->inputSource;
+  }
   void InitNSMouseEvent(const nsAString & aType, bool aCanBubble, bool aCancelable,
                         nsIDOMWindow *aView, int32_t aDetail, int32_t aScreenX,
                         int32_t aScreenY, int32_t aClientX, int32_t aClientY,

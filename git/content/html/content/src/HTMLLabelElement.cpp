@@ -197,7 +197,7 @@ HTMLLabelElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
           EventFlags eventFlags;
           eventFlags.mMultipleActionsPrevented = true;
           DispatchClickEvent(aVisitor.mPresContext,
-                             aVisitor.mEvent->AsInputEvent(),
+                             static_cast<WidgetInputEvent*>(aVisitor.mEvent),
                              content, false, &eventFlags, &status);
           // Do we care about the status this returned?  I don't think we do...
           // Don't run another <label> off of this click

@@ -9,6 +9,7 @@
 
 #include "nsURLParsers.h"
 #include "nsURLHelper.h"
+#include "prtypes.h"
 #include "nsString.h"
 #include "nsCRT.h"
 

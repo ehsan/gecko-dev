@@ -10,6 +10,7 @@
 #include "mozilla/MemoryReporting.h"
 #include <limits.h>
 
+#include "prtypes.h"
 #include "prnetdb.h"
 #include "nsDebug.h"
 #include "nsError.h"

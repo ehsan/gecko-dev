@@ -4,37 +4,10 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/BasicEvents.h"
-#include "mozilla/ContentEvents.h"
 #include "mozilla/MiscEvents.h"
 #include "mozilla/MouseEvents.h"
-#include "mozilla/MutationEvent.h"
-#include "mozilla/TextEvents.h"
-#include "mozilla/TouchEvents.h"
 
 namespace mozilla {
-
-/******************************************************************************
- * As*Event() implementation
- ******************************************************************************/
-
-#define NS_ROOT_EVENT_CLASS(aPrefix, aName)
-#define NS_EVENT_CLASS(aPrefix, aName) \
-aPrefix##aName* \
-WidgetEvent::As##aName() \
-{ \
-  return nullptr; \
-} \
-\
-const aPrefix##aName* \
-WidgetEvent::As##aName() const \
-{ \
-  return const_cast<WidgetEvent*>(this)->As##aName(); \
-}
-
-#include "mozilla/EventClassList.h"
-
-#undef NS_EVENT_CLASS
-#undef NS_ROOT_EVENT_CLASS
 
 /******************************************************************************
  * mozilla::WidgetEvent
@@ -45,13 +18,26 @@ WidgetEvent::As##aName() const \
 bool
 WidgetEvent::IsInputDerivedEvent() const
 {
-  return AsInputEvent() != nullptr;
+  switch (eventStructType) {
+    case NS_INPUT_EVENT:
+    case NS_MOUSE_EVENT:
+    case NS_KEY_EVENT:
+    case NS_TOUCH_EVENT:
+    case NS_DRAG_EVENT:
+    case NS_MOUSE_SCROLL_EVENT:
+    case NS_WHEEL_EVENT:
+    case NS_SIMPLE_GESTURE_EVENT:
+      return true;
+    default:
+      return false;
+  }
 }
 
 bool
 WidgetEvent::IsMouseDerivedEvent() const
 {
-  return AsMouseEvent() != nullptr;
+  return eventStructType == NS_MOUSE_EVENT ||
+         eventStructType == NS_DRAG_EVENT;
 }
 
 bool
@@ -169,31 +155,33 @@ WidgetEvent::HasPluginActivationEventMessage() const
 bool
 WidgetEvent::IsLeftClickEvent() const
 {
-  const WidgetMouseEvent* mouseEvent = AsMouseEvent();
-  return mouseEvent && message == NS_MOUSE_CLICK &&
-         mouseEvent->button == WidgetMouseEvent::eLeftButton;
+  return eventStructType == NS_MOUSE_EVENT &&
+         message == NS_MOUSE_CLICK &&
+         static_cast<const WidgetMouseEvent*>(this)->button ==
+           WidgetMouseEvent::eLeftButton;
 }
 
 bool
 WidgetEvent::IsContextMenuKeyEvent() const
 {
-  const WidgetMouseEvent* mouseEvent = AsMouseEvent();
-  return mouseEvent && message == NS_CONTEXTMENU &&
-         mouseEvent->context == WidgetMouseEvent::eContextMenuKey;
+  return eventStructType == NS_MOUSE_EVENT &&
+         message == NS_CONTEXTMENU &&
+         static_cast<const WidgetMouseEvent*>(this)->context ==
+            WidgetMouseEvent::eContextMenuKey;
 }
 
 bool
 WidgetEvent::IsRetargetedNativeEventDelivererForPlugin() const
 {
-  const WidgetPluginEvent* pluginEvent = AsPluginEvent();
-  return pluginEvent && pluginEvent->retargetToFocusedDocument;
+  return IsNativeEventDelivererForPlugin() &&
+    static_cast<const WidgetPluginEvent*>(this)->retargetToFocusedDocument;
 }
 
 bool
 WidgetEvent::IsNonRetargetedNativeEventDelivererForPlugin() const
 {
-  const WidgetPluginEvent* pluginEvent = AsPluginEvent();
-  return pluginEvent && !pluginEvent->retargetToFocusedDocument;
+  return IsNativeEventDelivererForPlugin() &&
+    !static_cast<const WidgetPluginEvent*>(this)->retargetToFocusedDocument;
 }
 
 bool
@@ -240,12 +228,14 @@ WidgetEvent::IsAllowedToDispatchDOMEvent() const
       // DOM events.
       // Synthesized button up events also do not cause DOM events because they
       // do not have a reliable refPoint.
-      return AsMouseEvent()->reason == WidgetMouseEvent::eReal;
+      return static_cast<const WidgetMouseEvent*>(this)->reason ==
+               WidgetMouseEvent::eReal;
 
     case NS_WHEEL_EVENT: {
       // wheel event whose all delta values are zero by user pref applied, it
       // shouldn't cause a DOM event.
-      const WidgetWheelEvent* wheelEvent = AsWheelEvent();
+      const WidgetWheelEvent* wheelEvent =
+        static_cast<const WidgetWheelEvent*>(this);
       return wheelEvent->deltaX != 0.0 || wheelEvent->deltaY != 0.0 ||
              wheelEvent->deltaZ != 0.0;
     }

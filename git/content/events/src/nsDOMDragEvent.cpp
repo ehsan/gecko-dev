@@ -13,7 +13,7 @@ using namespace mozilla;
 
 nsDOMDragEvent::nsDOMDragEvent(mozilla::dom::EventTarget* aOwner,
                                nsPresContext* aPresContext,
-                               WidgetDragEvent* aEvent)
+                               WidgetInputEvent* aEvent)
   : nsDOMMouseEvent(aOwner, aPresContext, aEvent ? aEvent :
                     new WidgetDragEvent(false, 0, nullptr))
 {
@@ -26,6 +26,15 @@ nsDOMDragEvent::nsDOMDragEvent(mozilla::dom::EventTarget* aOwner,
     mEvent->refPoint.x = mEvent->refPoint.y = 0;
     static_cast<WidgetMouseEvent*>(mEvent)->inputSource =
       nsIDOMMouseEvent::MOZ_SOURCE_UNKNOWN;
+  }
+}
+
+nsDOMDragEvent::~nsDOMDragEvent()
+{
+  if (mEventIsInternal) {
+    if (mEvent->eventStructType == NS_DRAG_EVENT)
+      delete static_cast<WidgetDragEvent*>(mEvent);
+    mEvent = nullptr;
   }
 }
 
@@ -54,7 +63,8 @@ nsDOMDragEvent::InitDragEvent(const nsAString & aType,
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (mEventIsInternal && mEvent) {
-    mEvent->AsDragEvent()->dataTransfer = aDataTransfer;
+    WidgetDragEvent* dragEvent = static_cast<WidgetDragEvent*>(mEvent);
+    dragEvent->dataTransfer = aDataTransfer;
   }
 
   return NS_OK;
@@ -79,7 +89,7 @@ nsDOMDragEvent::GetDataTransfer()
     return nullptr;
   }
 
-  WidgetDragEvent* dragEvent = mEvent->AsDragEvent();
+  WidgetDragEvent* dragEvent = static_cast<WidgetDragEvent*>(mEvent);
   // for synthetic events, just use the supplied data transfer object even if null
   if (!mEventIsInternal) {
     nsresult rv = nsContentUtils::SetDataTransferInEvent(dragEvent);

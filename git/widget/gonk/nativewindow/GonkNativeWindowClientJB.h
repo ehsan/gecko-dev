@@ -18,11 +18,7 @@
 #ifndef NATIVEWINDOW_GONKNATIVEWINDOWCLIENT_JB_H
 #define NATIVEWINDOW_GONKNATIVEWINDOWCLIENT_JB_H
 
-#if ANDROID_VERSION == 17
-#include <gui/ISurfaceTexture.h>
-#else
 #include <gui/IGraphicBufferProducer.h>
-#endif
 
 #include <ui/ANativeObjectBase.h>
 #include <ui/Region.h>
@@ -73,19 +69,13 @@ public:
      * GonkNativeWindowClient was created with. Usually it's an error to use the
      * IGraphicBufferProducer while the GonkNativeWindowClient is connected.
      */
-#if ANDROID_VERSION == 17
-    sp<IGraphicBufferProducer> getISurfaceTexture() const;
-#else
     sp<IGraphicBufferProducer> getIGraphicBufferProducer() const;
-#endif
 
     /* convenience function to check that the given surface is non NULL as
      * well as its IGraphicBufferProducer */
-#if ANDROID_VERSION >= 18
     static bool isValid(const sp<GonkNativeWindowClient>& surface) {
         return surface != NULL && surface->getIGraphicBufferProducer() != NULL;
     }
-#endif
 
 protected:
     virtual ~GonkNativeWindowClient();
@@ -173,7 +163,8 @@ private:
     // mSurfaceTexture is the interface to the surface texture server. All
     // operations on the surface texture client ultimately translate into
     // interactions with the server using this interface.
-    sp<IGraphicBufferProducer> mBufferProducer;
+    // TODO: rename to mBufferProducer
+    sp<IGraphicBufferProducer> mGraphicBufferProducer;
 
     // mSlots stores the buffers that have been allocated for each buffer slot.
     // It is initialized to null pointers, and gets filled in with the result of

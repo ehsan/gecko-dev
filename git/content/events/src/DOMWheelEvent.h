@@ -22,6 +22,7 @@ public:
   DOMWheelEvent(mozilla::dom::EventTarget* aOwner,
                 nsPresContext* aPresContext,
                 WidgetWheelEvent* aWheelEvent);
+  virtual ~DOMWheelEvent();
 
   NS_DECL_ISUPPORTS_INHERITED
 

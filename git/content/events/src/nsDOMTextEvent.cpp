@@ -30,7 +30,7 @@ nsDOMTextEvent::nsDOMTextEvent(mozilla::dom::EventTarget* aOwner,
   //
   // extract the IME composition string
   //
-  WidgetTextEvent* te = mEvent->AsTextEvent();
+  WidgetTextEvent *te = static_cast<WidgetTextEvent*>(mEvent);
   mText = te->theText;
 
   //

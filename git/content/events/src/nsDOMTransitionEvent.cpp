@@ -26,6 +26,14 @@ nsDOMTransitionEvent::nsDOMTransitionEvent(mozilla::dom::EventTarget* aOwner,
   }
 }
 
+nsDOMTransitionEvent::~nsDOMTransitionEvent()
+{
+  if (mEventIsInternal) {
+    delete TransitionEvent();
+    mEvent = nullptr;
+  }
+}
+
 NS_INTERFACE_MAP_BEGIN(nsDOMTransitionEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMTransitionEvent)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMEvent)
@@ -46,10 +54,9 @@ nsDOMTransitionEvent::Constructor(const mozilla::dom::GlobalObject& aGlobal,
 
   aRv = e->InitEvent(aType, aParam.mBubbles, aParam.mCancelable);
 
-  InternalTransitionEvent* internalEvent = e->mEvent->AsTransitionEvent();
-  internalEvent->propertyName = aParam.mPropertyName;
-  internalEvent->elapsedTime = aParam.mElapsedTime;
-  internalEvent->pseudoElement = aParam.mPseudoElement;
+  e->TransitionEvent()->propertyName = aParam.mPropertyName;
+  e->TransitionEvent()->elapsedTime = aParam.mElapsedTime;
+  e->TransitionEvent()->pseudoElement = aParam.mPseudoElement;
 
   e->SetTrusted(trusted);
   return e.forget();
@@ -58,7 +65,7 @@ nsDOMTransitionEvent::Constructor(const mozilla::dom::GlobalObject& aGlobal,
 NS_IMETHODIMP
 nsDOMTransitionEvent::GetPropertyName(nsAString & aPropertyName)
 {
-  aPropertyName = mEvent->AsTransitionEvent()->propertyName;
+  aPropertyName = TransitionEvent()->propertyName;
   return NS_OK;
 }
 
@@ -69,16 +76,10 @@ nsDOMTransitionEvent::GetElapsedTime(float *aElapsedTime)
   return NS_OK;
 }
 
-float
-nsDOMTransitionEvent::ElapsedTime()
-{
-  return mEvent->AsTransitionEvent()->elapsedTime;
-}
-
 NS_IMETHODIMP
 nsDOMTransitionEvent::GetPseudoElement(nsAString& aPseudoElement)
 {
-  aPseudoElement = mEvent->AsTransitionEvent()->pseudoElement;
+  aPseudoElement = TransitionEvent()->pseudoElement;
   return NS_OK;
 }
 

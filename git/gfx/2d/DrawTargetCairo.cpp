@@ -593,8 +593,7 @@ void
 DrawTargetCairo::DrawPattern(const Pattern& aPattern,
                              const StrokeOptions& aStrokeOptions,
                              const DrawOptions& aOptions,
-                             DrawPatternType aDrawType,
-                             bool aPathBoundsClip)
+                             DrawPatternType aDrawType)
 {
   if (!PatternIsCompatible(aPattern)) {
     return;
@@ -608,7 +607,7 @@ DrawTargetCairo::DrawPattern(const Pattern& aPattern,
   cairo_set_antialias(mContext, GfxAntialiasToCairoAntialias(aOptions.mAntialiasMode));
 
   if (NeedIntermediateSurface(aPattern, aOptions) ||
-      (!IsOperatorBoundByMask(aOptions.mCompositionOp) && !aPathBoundsClip)) {
+      !IsOperatorBoundByMask(aOptions.mCompositionOp)) {
     cairo_push_group_with_content(mContext, CAIRO_CONTENT_COLOR_ALPHA);
 
     ClearSurfaceForUnboundedSource(aOptions.mCompositionOp);
@@ -653,19 +652,7 @@ DrawTargetCairo::FillRect(const Rect &aRect,
   cairo_new_path(mContext);
   cairo_rectangle(mContext, aRect.x, aRect.y, aRect.Width(), aRect.Height());
 
-  bool pathBoundsClip = false;
-
-  double cexts[4];
-  cairo_clip_extents(mContext, &cexts[0], &cexts[1], &cexts[2], &cexts[3]);
-  Rect clipRect(cexts[0], cexts[1], cexts[2] - cexts[0], cexts[3] - cexts[1]);
-  double pexts[4];
-  cairo_path_extents(mContext, &pexts[0], &pexts[1], &pexts[2], &pexts[3]);
-  Rect pathRect(pexts[0], pexts[1], pexts[2] - pexts[0], pexts[3] - pexts[1]);
-  if (pathRect.Contains(clipRect)) {
-    pathBoundsClip = true;
-  }
-
-  DrawPattern(aPattern, StrokeOptions(), aOptions, DRAW_FILL, pathBoundsClip);
+  DrawPattern(aPattern, StrokeOptions(), aOptions, DRAW_FILL);
 }
 
 void

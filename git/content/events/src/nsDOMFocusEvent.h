@@ -43,6 +43,7 @@ protected:
                           nsIDOMWindow* aView,
                           int32_t aDetail,
                           mozilla::dom::EventTarget* aRelatedTarget);
+  ~nsDOMFocusEvent();
 };
 
 #endif /* !defined(nsDOMFocusEvent_h_) */

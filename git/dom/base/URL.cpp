@@ -46,8 +46,7 @@ URL::Constructor(const GlobalObject& aGlobal, const nsAString& aUrl,
   rv = ioService->NewURI(NS_ConvertUTF16toUTF8(aUrl), nullptr, aBase.GetURI(),
                          getter_AddRefs(uri));
   if (NS_FAILED(rv)) {
-    nsAutoString label(aUrl);
-    aRv.ThrowTypeError(MSG_INVALID_URL, &label);
+    aRv.Throw(NS_ERROR_DOM_TYPE_ERR);
     return nullptr;
   }
 
@@ -70,8 +69,7 @@ URL::Constructor(const GlobalObject& aGlobal, const nsAString& aUrl,
   rv = ioService->NewURI(NS_ConvertUTF16toUTF8(aBase), nullptr, nullptr,
                          getter_AddRefs(baseUri));
   if (NS_FAILED(rv)) {
-    nsAutoString label(aBase);
-    aRv.ThrowTypeError(MSG_INVALID_URL, &label);
+    aRv.Throw(NS_ERROR_DOM_TYPE_ERR);
     return nullptr;
   }
 
@@ -79,8 +77,7 @@ URL::Constructor(const GlobalObject& aGlobal, const nsAString& aUrl,
   rv = ioService->NewURI(NS_ConvertUTF16toUTF8(aUrl), nullptr, baseUri,
                          getter_AddRefs(uri));
   if (NS_FAILED(rv)) {
-    nsAutoString label(aUrl);
-    aRv.ThrowTypeError(MSG_INVALID_URL, &label);
+    aRv.Throw(NS_ERROR_DOM_TYPE_ERR);
     return nullptr;
   }
 
@@ -206,8 +203,7 @@ URL::SetHref(const nsAString& aHref, ErrorResult& aRv)
   nsCOMPtr<nsIURI> uri;
   rv = ioService->NewURI(href, nullptr, nullptr, getter_AddRefs(uri));
   if (NS_FAILED(rv)) {
-    nsAutoString label(aHref);
-    aRv.ThrowTypeError(MSG_INVALID_URL, &label);
+    aRv.Throw(NS_ERROR_DOM_TYPE_ERR);
     return;
   }
 

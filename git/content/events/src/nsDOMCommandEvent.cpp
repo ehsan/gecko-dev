@@ -23,6 +23,14 @@ nsDOMCommandEvent::nsDOMCommandEvent(mozilla::dom::EventTarget* aOwner,
   }
 }
 
+nsDOMCommandEvent::~nsDOMCommandEvent()
+{
+  if (mEventIsInternal && mEvent->eventStructType == NS_COMMAND_EVENT) {
+    delete static_cast<WidgetCommandEvent*>(mEvent);
+    mEvent = nullptr;
+  }
+}
+
 NS_INTERFACE_MAP_BEGIN(nsDOMCommandEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCommandEvent)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMEvent)
@@ -33,7 +41,7 @@ NS_IMPL_RELEASE_INHERITED(nsDOMCommandEvent, nsDOMEvent)
 NS_IMETHODIMP
 nsDOMCommandEvent::GetCommand(nsAString& aCommand)
 {
-  nsIAtom* command = mEvent->AsCommandEvent()->command;
+  nsIAtom* command = static_cast<WidgetCommandEvent*>(mEvent)->command;
   if (command) {
     command->ToString(aCommand);
   } else {
@@ -51,7 +59,7 @@ nsDOMCommandEvent::InitCommandEvent(const nsAString& aTypeArg,
   nsresult rv = nsDOMEvent::InitEvent(aTypeArg, aCanBubbleArg, aCancelableArg);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  mEvent->AsCommandEvent()->command = do_GetAtom(aCommand);
+  static_cast<WidgetCommandEvent*>(mEvent)->command = do_GetAtom(aCommand);
   return NS_OK;
 }
 

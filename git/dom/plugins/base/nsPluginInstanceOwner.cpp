@@ -2335,7 +2335,8 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const WidgetGUIEvent& anEvent)
 #endif
 
 #ifdef MOZ_WIDGET_QT
-          const WidgetKeyboardEvent& keyEvent = *anEvent.AsKeyboardEvent();
+          const WidgetKeyboardEvent& keyEvent =
+            static_cast<const WidgetKeyboardEvent&>(anEvent);
 
           memset( &event, 0, sizeof(event) );
           event.time = anEvent.time;
@@ -2496,7 +2497,8 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const WidgetGUIEvent& anEvent)
 
     case NS_KEY_EVENT:
      {
-       const WidgetKeyboardEvent& keyEvent = *anEvent.AsKeyboardEvent();
+       const WidgetKeyboardEvent& keyEvent =
+         static_cast<const WidgetKeyboardEvent&>(anEvent);
        LOG("Firing NS_KEY_EVENT %d %d\n", keyEvent.keyCode, keyEvent.charCode);
        // pluginEvent is initialized by nsWindow::InitKeyEvent().
        ANPEvent* pluginEvent = reinterpret_cast<ANPEvent*>(keyEvent.pluginEvent);

@@ -560,7 +560,8 @@ KeymapWrapper::InitInputEvent(WidgetInputEvent& aInputEvent,
             return;
     }
 
-    WidgetMouseEventBase& mouseEvent = *aInputEvent.AsMouseEventBase();
+    WidgetMouseEventBase& mouseEvent =
+      static_cast<WidgetMouseEventBase&>(aInputEvent);
     mouseEvent.buttons = 0;
     if (aModifierState & GDK_BUTTON1_MASK) {
         mouseEvent.buttons |= WidgetMouseEvent::eLeftButtonFlag;

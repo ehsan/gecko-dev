@@ -27,6 +27,14 @@ nsDOMFocusEvent::nsDOMFocusEvent(mozilla::dom::EventTarget* aOwner,
   }
 }
 
+nsDOMFocusEvent::~nsDOMFocusEvent()
+{
+  if (mEventIsInternal && mEvent) {
+    delete static_cast<InternalFocusEvent*>(mEvent);
+    mEvent = nullptr;
+  }
+}
+
 /* readonly attribute nsIDOMEventTarget relatedTarget; */
 NS_IMETHODIMP
 nsDOMFocusEvent::GetRelatedTarget(nsIDOMEventTarget** aRelatedTarget)
@@ -39,7 +47,7 @@ nsDOMFocusEvent::GetRelatedTarget(nsIDOMEventTarget** aRelatedTarget)
 mozilla::dom::EventTarget*
 nsDOMFocusEvent::GetRelatedTarget()
 {
-  return mEvent->AsFocusEvent()->relatedTarget;
+  return static_cast<InternalFocusEvent*>(mEvent)->relatedTarget;
 }
 
 nsresult
@@ -52,7 +60,7 @@ nsDOMFocusEvent::InitFocusEvent(const nsAString& aType,
 {
   nsresult rv = nsDOMUIEvent::InitUIEvent(aType, aCanBubble, aCancelable, aView, aDetail);
   NS_ENSURE_SUCCESS(rv, rv);
-  mEvent->AsFocusEvent()->relatedTarget = aRelatedTarget;
+  static_cast<InternalFocusEvent*>(mEvent)->relatedTarget = aRelatedTarget;
   return NS_OK;
 }
 

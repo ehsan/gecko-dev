@@ -18,8 +18,7 @@
 
 #ifdef XP_WIN
 #include <windows.h>
-#include "mozilla/WindowsVersion.h"
-using mozilla::IsVistaOrLater;
+#include "nsWindowsHelpers.h"
 #elif defined(XP_MACOSX)
 #include <sys/resource.h>
 #endif

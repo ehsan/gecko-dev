@@ -93,7 +93,7 @@ using mozilla::plugins::PluginModuleParent;
 
 #ifdef XP_WIN
 #include <windows.h>
-#include "mozilla/WindowsVersion.h"
+#include "nsWindowsHelpers.h"
 #ifdef ACCESSIBILITY
 #include "mozilla/a11y/Compatibility.h"
 #endif

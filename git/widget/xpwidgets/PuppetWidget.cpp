@@ -275,17 +275,17 @@ PuppetWidget::DispatchEvent(WidgetGUIEvent* event, nsEventStatus& aStatus)
   }
   switch (event->eventStructType) {
   case NS_COMPOSITION_EVENT:
-    mIMELastReceivedSeqno = event->AsCompositionEvent()->seqno;
+    mIMELastReceivedSeqno = static_cast<WidgetCompositionEvent*>(event)->seqno;
     if (mIMELastReceivedSeqno < mIMELastBlurSeqno)
       return NS_OK;
     break;
   case NS_TEXT_EVENT:
-    mIMELastReceivedSeqno = event->AsTextEvent()->seqno;
+    mIMELastReceivedSeqno = static_cast<WidgetTextEvent*>(event)->seqno;
     if (mIMELastReceivedSeqno < mIMELastBlurSeqno)
       return NS_OK;
     break;
   case NS_SELECTION_EVENT:
-    mIMELastReceivedSeqno = event->AsSelectionEvent()->seqno;
+    mIMELastReceivedSeqno = static_cast<WidgetSelectionEvent*>(event)->seqno;
     if (mIMELastReceivedSeqno < mIMELastBlurSeqno)
       return NS_OK;
     break;

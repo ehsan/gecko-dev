@@ -26,6 +26,14 @@ nsDOMKeyboardEvent::nsDOMKeyboardEvent(mozilla::dom::EventTarget* aOwner,
   }
 }
 
+nsDOMKeyboardEvent::~nsDOMKeyboardEvent()
+{
+  if (mEventIsInternal) {
+    delete static_cast<WidgetKeyboardEvent*>(mEvent);
+    mEvent = nullptr;
+  }
+}
+
 NS_IMPL_ADDREF_INHERITED(nsDOMKeyboardEvent, nsDOMUIEvent)
 NS_IMPL_RELEASE_INHERITED(nsDOMKeyboardEvent, nsDOMUIEvent)
 
@@ -33,24 +41,12 @@ NS_INTERFACE_MAP_BEGIN(nsDOMKeyboardEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMKeyEvent)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMUIEvent)
 
-bool
-nsDOMKeyboardEvent::AltKey()
-{
-  return mEvent->AsKeyboardEvent()->IsAlt();
-}
-
 NS_IMETHODIMP
 nsDOMKeyboardEvent::GetAltKey(bool* aIsDown)
 {
   NS_ENSURE_ARG_POINTER(aIsDown);
   *aIsDown = AltKey();
   return NS_OK;
-}
-
-bool
-nsDOMKeyboardEvent::CtrlKey()
-{
-  return mEvent->AsKeyboardEvent()->IsControl();
 }
 
 NS_IMETHODIMP
@@ -61,24 +57,12 @@ nsDOMKeyboardEvent::GetCtrlKey(bool* aIsDown)
   return NS_OK;
 }
 
-bool
-nsDOMKeyboardEvent::ShiftKey()
-{
-  return mEvent->AsKeyboardEvent()->IsShift();
-}
-
 NS_IMETHODIMP
 nsDOMKeyboardEvent::GetShiftKey(bool* aIsDown)
 {
   NS_ENSURE_ARG_POINTER(aIsDown);
   *aIsDown = ShiftKey();
   return NS_OK;
-}
-
-bool
-nsDOMKeyboardEvent::MetaKey()
-{
-  return mEvent->AsKeyboardEvent()->IsMeta();
 }
 
 NS_IMETHODIMP
@@ -103,7 +87,7 @@ NS_IMETHODIMP
 nsDOMKeyboardEvent::GetKey(nsAString& aKeyName)
 {
   if (!mEventIsInternal) {
-    mEvent->AsKeyboardEvent()->GetDOMKeyName(aKeyName);
+    static_cast<WidgetKeyboardEvent*>(mEvent)->GetDOMKeyName(aKeyName);
   }
   return NS_OK;
 }
@@ -124,7 +108,7 @@ nsDOMKeyboardEvent::CharCode()
   case NS_KEY_DOWN:
     return 0;
   case NS_KEY_PRESS:
-    return mEvent->AsKeyboardEvent()->charCode;
+    return static_cast<WidgetKeyboardEvent*>(mEvent)->charCode;
   }
   return 0;
 }
@@ -144,7 +128,7 @@ nsDOMKeyboardEvent::KeyCode()
   case NS_KEY_UP:
   case NS_KEY_PRESS:
   case NS_KEY_DOWN:
-    return mEvent->AsKeyboardEvent()->keyCode;
+    return static_cast<WidgetKeyboardEvent*>(mEvent)->keyCode;
   }
   return 0;
 }
@@ -160,7 +144,7 @@ nsDOMKeyboardEvent::Which()
       //Special case for 4xp bug 62878.  Try to make value of which
       //more closely mirror the values that 4.x gave for RETURN and BACKSPACE
       {
-        uint32_t keyCode = mEvent->AsKeyboardEvent()->keyCode;
+        uint32_t keyCode = static_cast<WidgetKeyboardEvent*>(mEvent)->keyCode;
         if (keyCode == NS_VK_RETURN || keyCode == NS_VK_BACK) {
           return keyCode;
         }
@@ -180,12 +164,6 @@ nsDOMKeyboardEvent::GetLocation(uint32_t* aLocation)
   return NS_OK;
 }
 
-uint32_t
-nsDOMKeyboardEvent::Location()
-{
-  return mEvent->AsKeyboardEvent()->location;
-}
-
 NS_IMETHODIMP
 nsDOMKeyboardEvent::InitKeyEvent(const nsAString& aType, bool aCanBubble, bool aCancelable,
                                  nsIDOMWindow* aView, bool aCtrlKey, bool aAltKey,
@@ -195,7 +173,7 @@ nsDOMKeyboardEvent::InitKeyEvent(const nsAString& aType, bool aCanBubble, bool a
   nsresult rv = nsDOMUIEvent::InitUIEvent(aType, aCanBubble, aCancelable, aView, 0);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  WidgetKeyboardEvent* keyEvent = mEvent->AsKeyboardEvent();
+  WidgetKeyboardEvent* keyEvent = static_cast<WidgetKeyboardEvent*>(mEvent);
   keyEvent->InitBasicModifiers(aCtrlKey, aAltKey, aShiftKey, aMetaKey);
   keyEvent->keyCode = aKeyCode;
   keyEvent->charCode = aCharCode;

@@ -151,7 +151,8 @@ ModifierKeyState::InitMouseEvent(WidgetInputEvent& aMouseEvent) const
                aMouseEvent.eventStructType == NS_SIMPLE_GESTURE_EVENT,
                "called with non-mouse event");
 
-  WidgetMouseEventBase& mouseEvent = *aMouseEvent.AsMouseEventBase();
+  WidgetMouseEventBase& mouseEvent =
+    static_cast<WidgetMouseEventBase&>(aMouseEvent);
   mouseEvent.buttons = 0;
   if (::GetKeyState(VK_LBUTTON) < 0) {
     mouseEvent.buttons |= WidgetMouseEvent::eLeftButtonFlag;

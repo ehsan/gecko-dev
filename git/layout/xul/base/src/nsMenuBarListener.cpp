@@ -197,8 +197,9 @@ nsMenuBarListener::KeyPress(nsIDOMEvent* aKeyEvent)
 
       bool hasAccessKeyCandidates = charCode != 0;
       if (!hasAccessKeyCandidates) {
+        WidgetEvent* nativeEvent = nsContentUtils::GetNativeEvent(aKeyEvent);
         WidgetKeyboardEvent* nativeKeyEvent =
-          aKeyEvent->GetInternalNSEvent()->AsKeyboardEvent();
+          static_cast<WidgetKeyboardEvent*>(nativeEvent);
         if (nativeKeyEvent) {
           nsAutoTArray<uint32_t, 10> keys;
           nsContentUtils::GetAccessKeyCandidates(nativeKeyEvent, keys);
@@ -270,7 +271,7 @@ nsMenuBarListener::GetModifiers(nsIDOMKeyEvent* aKeyEvent)
 {
   uint32_t modifiers = 0;
   WidgetInputEvent* inputEvent =
-    aKeyEvent->GetInternalNSEvent()->AsInputEvent();
+    static_cast<WidgetInputEvent*>(aKeyEvent->GetInternalNSEvent());
   MOZ_ASSERT(inputEvent);
 
   if (inputEvent->IsShift()) {

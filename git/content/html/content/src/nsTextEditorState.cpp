@@ -853,8 +853,8 @@ nsTextInputListener::HandleEvent(nsIDOMEvent* aEvent)
   }
 
   WidgetKeyboardEvent* keyEvent =
-    aEvent->GetInternalNSEvent()->AsKeyboardEvent();
-  if (!keyEvent) {
+    static_cast<WidgetKeyboardEvent*>(aEvent->GetInternalNSEvent());
+  if (keyEvent->eventStructType != NS_KEY_EVENT) {
     return NS_ERROR_UNEXPECTED;
   }
 

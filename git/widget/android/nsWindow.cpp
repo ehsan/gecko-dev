@@ -689,7 +689,7 @@ nsWindow::DispatchEvent(WidgetGUIEvent* aEvent)
             break;
         case NS_TEXT_TEXT:
             MOZ_ASSERT(mIMEComposing);
-            mIMEComposingText = aEvent->AsTextEvent()->theText;
+            mIMEComposingText = static_cast<WidgetTextEvent*>(aEvent)->theText;
             break;
         }
         return status;

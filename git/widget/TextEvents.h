@@ -70,12 +70,10 @@ private:
   friend class dom::PBrowserParent;
   friend class dom::PBrowserChild;
 
+public:
   WidgetKeyboardEvent()
   {
   }
-
-public:
-  virtual WidgetKeyboardEvent* AsKeyboardEvent() MOZ_OVERRIDE { return this; }
 
   WidgetKeyboardEvent(bool aIsTrusted, uint32_t aMessage, nsIWidget* aWidget) :
     WidgetInputEvent(aIsTrusted, aMessage, aWidget, NS_KEY_EVENT),
@@ -316,8 +314,6 @@ public:
   uint32_t seqno;
 
 public:
-  virtual WidgetTextEvent* AsTextEvent() MOZ_OVERRIDE { return this; }
-
   WidgetTextEvent(bool aIsTrusted, uint32_t aMessage, nsIWidget* aWidget) :
     WidgetGUIEvent(aIsTrusted, aMessage, aWidget, NS_TEXT_EVENT),
     rangeCount(0), rangeArray(nullptr), isChar(false)
@@ -367,11 +363,6 @@ public:
   uint32_t seqno;
 
 public:
-  virtual WidgetCompositionEvent* AsCompositionEvent() MOZ_OVERRIDE
-  {
-    return this;
-  }
-
   WidgetCompositionEvent(bool aIsTrusted, uint32_t aMessage,
                          nsIWidget* aWidget) :
     WidgetGUIEvent(aIsTrusted, aMessage, aWidget, NS_COMPOSITION_EVENT)
@@ -412,11 +403,6 @@ private:
   }
 
 public:
-  virtual WidgetQueryContentEvent* AsQueryContentEvent() MOZ_OVERRIDE
-  {
-    return this;
-  }
-
   WidgetQueryContentEvent(bool aIsTrusted, uint32_t aMessage,
                           nsIWidget* aWidget) :
     WidgetGUIEvent(aIsTrusted, aMessage, aWidget, NS_QUERY_CONTENT_EVENT),
@@ -527,11 +513,6 @@ public:
   uint32_t seqno;
 
 public:
-  virtual WidgetSelectionEvent* AsSelectionEvent() MOZ_OVERRIDE
-  {
-    return this;
-  }
-
   WidgetSelectionEvent(bool aIsTrusted, uint32_t aMessage, nsIWidget* aWidget) :
     WidgetGUIEvent(aIsTrusted, aMessage, aWidget, NS_SELECTION_EVENT),
     mExpandToClusterBoundary(true), mSucceeded(false)

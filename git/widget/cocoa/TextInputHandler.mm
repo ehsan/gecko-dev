@@ -4179,7 +4179,7 @@ bool
 TextInputHandlerBase::DispatchEvent(WidgetGUIEvent& aEvent)
 {
   if (aEvent.message == NS_KEY_PRESS) {
-    WidgetInputEvent& inputEvent = *aEvent.AsInputEvent();
+    WidgetInputEvent& inputEvent = static_cast<WidgetInputEvent&>(aEvent);
     if (!inputEvent.IsMeta()) {
       PR_LOG(gLog, PR_LOG_ALWAYS,
         ("%p TextInputHandlerBase::DispatchEvent, hiding mouse cursor", this));

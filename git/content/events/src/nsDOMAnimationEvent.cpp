@@ -26,6 +26,14 @@ nsDOMAnimationEvent::nsDOMAnimationEvent(mozilla::dom::EventTarget* aOwner,
   }
 }
 
+nsDOMAnimationEvent::~nsDOMAnimationEvent()
+{
+  if (mEventIsInternal) {
+    delete AnimationEvent();
+    mEvent = nullptr;
+  }
+}
+
 NS_INTERFACE_MAP_BEGIN(nsDOMAnimationEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMAnimationEvent)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMEvent)
@@ -46,10 +54,9 @@ nsDOMAnimationEvent::Constructor(const mozilla::dom::GlobalObject& aGlobal,
 
   aRv = e->InitEvent(aType, aParam.mBubbles, aParam.mCancelable);
 
-  InternalAnimationEvent* internalEvent = e->mEvent->AsAnimationEvent();
-  internalEvent->animationName = aParam.mAnimationName;
-  internalEvent->elapsedTime = aParam.mElapsedTime;
-  internalEvent->pseudoElement = aParam.mPseudoElement;
+  e->AnimationEvent()->animationName = aParam.mAnimationName;
+  e->AnimationEvent()->elapsedTime = aParam.mElapsedTime;
+  e->AnimationEvent()->pseudoElement = aParam.mPseudoElement;
 
   e->SetTrusted(trusted);
   return e.forget();
@@ -58,7 +65,7 @@ nsDOMAnimationEvent::Constructor(const mozilla::dom::GlobalObject& aGlobal,
 NS_IMETHODIMP
 nsDOMAnimationEvent::GetAnimationName(nsAString & aAnimationName)
 {
-  aAnimationName = mEvent->AsAnimationEvent()->animationName;
+  aAnimationName = AnimationEvent()->animationName;
   return NS_OK;
 }
 
@@ -69,16 +76,10 @@ nsDOMAnimationEvent::GetElapsedTime(float *aElapsedTime)
   return NS_OK;
 }
 
-float
-nsDOMAnimationEvent::ElapsedTime()
-{
-  return mEvent->AsAnimationEvent()->elapsedTime;
-}
-
 NS_IMETHODIMP
 nsDOMAnimationEvent::GetPseudoElement(nsAString& aPseudoElement)
 {
-  aPseudoElement = mEvent->AsAnimationEvent()->pseudoElement;
+  aPseudoElement = AnimationEvent()->pseudoElement;
   return NS_OK;
 }
 

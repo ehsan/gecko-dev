@@ -14,14 +14,10 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm", this);
 
 XPCOMUtils.defineLazyModuleGetter(this, "DocShellCapabilities",
   "resource:///modules/sessionstore/DocShellCapabilities.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "PageStyle",
-  "resource:///modules/sessionstore/PageStyle.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "SessionHistory",
   "resource:///modules/sessionstore/SessionHistory.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "SessionStorage",
   "resource:///modules/sessionstore/SessionStorage.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "TextAndScrollData",
-  "resource:///modules/sessionstore/TextAndScrollData.jsm");
 
 /**
  * Listens for and handles content events that we need for the
@@ -79,8 +75,7 @@ let MessageListener = {
   MESSAGES: [
     "SessionStore:collectSessionHistory",
     "SessionStore:collectSessionStorage",
-    "SessionStore:collectDocShellCapabilities",
-    "SessionStore:collectPageStyle"
+    "SessionStore:collectDocShellCapabilities"
   ],
 
   init: function () {
@@ -91,14 +86,6 @@ let MessageListener = {
     switch (name) {
       case "SessionStore:collectSessionHistory":
         let history = SessionHistory.read(docShell);
-        if ("index" in history) {
-          let tabIndex = history.index - 1;
-          // Don't include private data. It's only needed when duplicating
-          // tabs, which collects data synchronously.
-          TextAndScrollData.updateFrame(history.entries[tabIndex],
-                                        content,
-                                        docShell.isAppTab);
-        }
         sendAsyncMessage(name, {id: id, data: history});
         break;
       case "SessionStore:collectSessionStorage":
@@ -108,10 +95,6 @@ let MessageListener = {
       case "SessionStore:collectDocShellCapabilities":
         let disallow = DocShellCapabilities.collect(docShell);
         sendAsyncMessage(name, {id: id, data: disallow});
-        break;
-      case "SessionStore:collectPageStyle":
-        let pageStyle = PageStyle.collect(docShell);
-        sendAsyncMessage(name, {id: id, data: pageStyle});
         break;
       default:
         debug("received unknown message '" + name + "'");

@@ -34,10 +34,25 @@ public:
     return mozilla::dom::XULCommandEventBinding::Wrap(aCx, aScope, this);
   }
 
-  bool AltKey();
-  bool CtrlKey();
-  bool ShiftKey();
-  bool MetaKey();
+  bool AltKey()
+  {
+    return Event()->IsAlt();
+  }
+
+  bool CtrlKey()
+  {
+    return Event()->IsControl();
+  }
+
+  bool ShiftKey()
+  {
+    return Event()->IsShift();
+  }
+
+  bool MetaKey()
+  {
+    return Event()->IsMeta();
+  }
 
   already_AddRefed<nsDOMEvent> GetSourceEvent()
   {
@@ -61,6 +76,11 @@ public:
   }
 
 protected:
+  // Convenience accessor for the event
+  mozilla::WidgetInputEvent* Event() {
+    return static_cast<mozilla::WidgetInputEvent*>(mEvent);
+  }
+
   nsCOMPtr<nsIDOMEvent> mSourceEvent;
 };
 

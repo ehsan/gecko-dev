@@ -345,8 +345,9 @@ APZCTreeManager::ProcessTouchEvent(const WidgetTouchEvent& aEvent,
   gfx3DMatrix transformToScreen;
   GetInputTransforms(mApzcForInputBlock, transformToApzc, transformToScreen);
   gfx3DMatrix outTransform = transformToApzc * transformToScreen;
-  for (size_t i = 0; i < aOutEvent->touches.Length(); i++) {
-    ApplyTransform(&(aOutEvent->touches[i]->mRefPoint), outTransform);
+  WidgetTouchEvent* outEvent = static_cast<WidgetTouchEvent*>(aOutEvent);
+  for (size_t i = 0; i < outEvent->touches.Length(); i++) {
+    ApplyTransform(&(outEvent->touches[i]->mRefPoint), outTransform);
   }
 
   // If we have an mApzcForInputBlock and it's the end of the touch sequence
@@ -403,7 +404,8 @@ APZCTreeManager::ReceiveInputEvent(const WidgetInputEvent& aEvent,
 
   switch (aEvent.eventStructType) {
     case NS_TOUCH_EVENT: {
-      const WidgetTouchEvent& touchEvent = *aEvent.AsTouchEvent();
+      const WidgetTouchEvent& touchEvent =
+        static_cast<const WidgetTouchEvent&>(aEvent);
       if (!touchEvent.touches.Length()) {
         return nsEventStatus_eIgnore;
       }
@@ -414,7 +416,8 @@ APZCTreeManager::ReceiveInputEvent(const WidgetInputEvent& aEvent,
       if (!mApzcForInputBlock) {
         return nsEventStatus_eIgnore;
       }
-      return ProcessTouchEvent(touchEvent, aOutEvent->AsTouchEvent());
+      WidgetTouchEvent* outEvent = static_cast<WidgetTouchEvent*>(aOutEvent);
+      return ProcessTouchEvent(touchEvent, outEvent);
     }
     case NS_MOUSE_EVENT: {
       // For b2g emulation
@@ -436,7 +439,7 @@ APZCTreeManager::ReceiveInputEvent(WidgetInputEvent& aEvent)
 
   switch (aEvent.eventStructType) {
     case NS_TOUCH_EVENT: {
-      WidgetTouchEvent& touchEvent = *aEvent.AsTouchEvent();
+      WidgetTouchEvent& touchEvent = static_cast<WidgetTouchEvent&>(aEvent);
       if (!touchEvent.touches.Length()) {
         return nsEventStatus_eIgnore;
       }

@@ -692,7 +692,7 @@ nsEventDispatcher::CreateEvent(mozilla::dom::EventTarget* aOwner,
     switch(aEvent->eventStructType) {
     case NS_MUTATION_EVENT:
       return NS_NewDOMMutationEvent(aDOMEvent, aOwner, aPresContext,
-                                    aEvent->AsMutationEvent());
+               static_cast<InternalMutationEvent*>(aEvent));
     case NS_GUI_EVENT:
     case NS_SCROLLPORT_EVENT:
     case NS_UI_EVENT:
@@ -700,34 +700,35 @@ nsEventDispatcher::CreateEvent(mozilla::dom::EventTarget* aOwner,
                               static_cast<WidgetGUIEvent*>(aEvent));
     case NS_SCROLLAREA_EVENT:
       return NS_NewDOMScrollAreaEvent(aDOMEvent, aOwner, aPresContext,
-                                      aEvent->AsScrollAreaEvent());
+               static_cast<InternalScrollAreaEvent*>(aEvent));
     case NS_KEY_EVENT:
       return NS_NewDOMKeyboardEvent(aDOMEvent, aOwner, aPresContext,
-                                    aEvent->AsKeyboardEvent());
+                                    static_cast<WidgetKeyboardEvent*>(aEvent));
     case NS_COMPOSITION_EVENT:
-      return NS_NewDOMCompositionEvent(aDOMEvent, aOwner, aPresContext,
-                                       aEvent->AsCompositionEvent());
+      return NS_NewDOMCompositionEvent(
+        aDOMEvent, aOwner,
+        aPresContext, static_cast<WidgetCompositionEvent*>(aEvent));
     case NS_MOUSE_EVENT:
       return NS_NewDOMMouseEvent(aDOMEvent, aOwner, aPresContext,
-                                 aEvent->AsMouseEvent());
+                                 static_cast<WidgetInputEvent*>(aEvent));
     case NS_FOCUS_EVENT:
       return NS_NewDOMFocusEvent(aDOMEvent, aOwner, aPresContext,
-                                 aEvent->AsFocusEvent());
+                                 static_cast<InternalFocusEvent*>(aEvent));
     case NS_MOUSE_SCROLL_EVENT:
       return NS_NewDOMMouseScrollEvent(aDOMEvent, aOwner, aPresContext,
-                                       aEvent->AsMouseScrollEvent());
+                                       static_cast<WidgetInputEvent*>(aEvent));
     case NS_WHEEL_EVENT:
       return NS_NewDOMWheelEvent(aDOMEvent, aOwner, aPresContext,
                                  static_cast<WidgetWheelEvent*>(aEvent));
     case NS_DRAG_EVENT:
       return NS_NewDOMDragEvent(aDOMEvent, aOwner, aPresContext,
-                                aEvent->AsDragEvent());
+                                static_cast<WidgetDragEvent*>(aEvent));
     case NS_TEXT_EVENT:
       return NS_NewDOMTextEvent(aDOMEvent, aOwner, aPresContext,
-                                aEvent->AsTextEvent());
+                                static_cast<WidgetTextEvent*>(aEvent));
     case NS_CLIPBOARD_EVENT:
       return NS_NewDOMClipboardEvent(aDOMEvent, aOwner, aPresContext,
-                                     aEvent->AsClipboardEvent());
+               static_cast<InternalClipboardEvent*>(aEvent));
     case NS_SVGZOOM_EVENT:
       return NS_NewDOMSVGZoomEvent(aDOMEvent, aOwner, aPresContext,
                                    static_cast<WidgetGUIEvent*>(aEvent));
@@ -736,19 +737,19 @@ nsEventDispatcher::CreateEvent(mozilla::dom::EventTarget* aOwner,
 
     case NS_COMMAND_EVENT:
       return NS_NewDOMCommandEvent(aDOMEvent, aOwner, aPresContext,
-                                   aEvent->AsCommandEvent());
+                                   static_cast<WidgetCommandEvent*>(aEvent));
     case NS_SIMPLE_GESTURE_EVENT:
       return NS_NewDOMSimpleGestureEvent(aDOMEvent, aOwner, aPresContext,
-                                         aEvent->AsSimpleGestureEvent());
+               static_cast<WidgetSimpleGestureEvent*>(aEvent));
     case NS_TOUCH_EVENT:
       return NS_NewDOMTouchEvent(aDOMEvent, aOwner, aPresContext,
-                                 aEvent->AsTouchEvent());
+                                 static_cast<WidgetTouchEvent*>(aEvent));
     case NS_TRANSITION_EVENT:
       return NS_NewDOMTransitionEvent(aDOMEvent, aOwner, aPresContext,
-                                      aEvent->AsTransitionEvent());
+               static_cast<InternalTransitionEvent*>(aEvent));
     case NS_ANIMATION_EVENT:
       return NS_NewDOMAnimationEvent(aDOMEvent, aOwner, aPresContext,
-                                     aEvent->AsAnimationEvent());
+               static_cast<InternalAnimationEvent*>(aEvent));
     default:
       // For all other types of events, create a vanilla event object.
       return NS_NewDOMEvent(aDOMEvent, aOwner, aPresContext, aEvent);

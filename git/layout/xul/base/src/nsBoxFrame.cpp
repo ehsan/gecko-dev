@@ -2080,8 +2080,8 @@ bool
 nsBoxFrame::GetEventPoint(WidgetGUIEvent* aEvent, nsIntPoint &aPoint) {
   NS_ENSURE_TRUE(aEvent, false);
 
-  WidgetTouchEvent* touchEvent = aEvent->AsTouchEvent();
-  if (touchEvent) {
+  if (aEvent->eventStructType == NS_TOUCH_EVENT) {
+    WidgetTouchEvent* touchEvent = static_cast<WidgetTouchEvent*>(aEvent);
     // return false if there is more than one touch on the page, or if
     // we can't find a touch point
     if (touchEvent->touches.Length() != 1) {

@@ -8,6 +8,7 @@
 #ifndef _PAPERPS_H_
 #define _PAPERPS_H_
 
+#include "prtypes.h"
 #include "nsDebug.h"
 
 struct nsPaperSizePS_ {

@@ -26,7 +26,8 @@ nsDOMTimeEvent::nsDOMTimeEvent(mozilla::dom::EventTarget* aOwner,
   }
 
   if (mEvent->eventStructType == NS_SMIL_TIME_EVENT) {
-    mDetail = mEvent->AsUIEvent()->detail;
+    InternalUIEvent* event = static_cast<InternalUIEvent*>(mEvent);
+    mDetail = event->detail;
   }
 
   mEvent->mFlags.mBubbles = false;

@@ -1940,12 +1940,7 @@ ContentParent::RecvRecordingDeviceEvents(const nsString& aRecordingStatus)
 {
     nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
     if (obs) {
-        // recording-device-ipc-events needs to gather more information from content process
-        nsRefPtr<nsHashPropertyBag> props = new nsHashPropertyBag();
-        props->SetPropertyAsUint64(NS_LITERAL_STRING("childID"), mChildID);
-        obs->NotifyObservers((nsIPropertyBag2*) props,
-                             "recording-device-ipc-events",
-                             aRecordingStatus.get());
+        obs->NotifyObservers(nullptr, "recording-device-events", aRecordingStatus.get());
     } else {
         NS_WARNING("Could not get the Observer service for ContentParent::RecvRecordingDeviceEvents.");
     }
