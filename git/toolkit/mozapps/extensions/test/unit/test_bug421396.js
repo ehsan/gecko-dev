@@ -149,8 +149,8 @@ var InstallLocation = {
   getItemFile: function(id, filePath) {
     var itemLocation = this.getItemLocation(id).clone();
     var parts = filePath.split("/");
-    for (let part of parts)
-      itemLocation.append(part);
+    for (var i = 0; i < parts.length; ++i)
+      itemLocation.append(parts[i]);
     return itemLocation;
   },
 

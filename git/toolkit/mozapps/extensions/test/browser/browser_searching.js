@@ -92,7 +92,8 @@ function end_test() {
     installedAddon.uninstall();
 
     AddonManager.getAllInstalls(function(aInstallsList) {
-      for (var install of aInstallsList) {
+      for (var i = 0; i < aInstallsList.length; i++) {
+        var install = aInstallsList[i];
         var sourceURI = install.sourceURI.spec;
         if (sourceURI == REMOTE_INSTALL_URL ||
             sourceURI.match(/^http:\/\/example\.com\/(.+)\.xpi$/) != null)
@@ -176,7 +177,8 @@ function get_actual_results() {
   var rows = list.getElementsByTagName("richlistitem");
 
   var results = [];
-  for (var item of rows) {
+  for (var i = 0; i < rows.length; i++) {
+    var item = rows[i];
 
     // Only consider items that are currently showing
     var style = gManagerWindow.document.defaultView.getComputedStyle(item, "");
@@ -378,7 +380,8 @@ function get_addon_item(aName) {
   var id = aName + "@tests.mozilla.org";
   var list = gManagerWindow.document.getElementById("search-list");
   var rows = list.getElementsByTagName("richlistitem");
-  for (var row of rows) {
+  for (var i = 0; i < rows.length; i++) {
+    var row = rows[i];
     if (row.mAddon && row.mAddon.id == id)
       return row;
   }
@@ -397,7 +400,8 @@ function get_install_item(aName) {
   var sourceURI = "http://example.com/" + aName + ".xpi";
   var list = gManagerWindow.document.getElementById("search-list");
   var rows = list.getElementsByTagName("richlistitem");
-  for (var row of rows) {
+  for (var i = 0; i < rows.length; i++) {
+    var row = rows[i];
     if (row.mInstall && row.mInstall.sourceURI.spec == sourceURI)
       return row;
   }
@@ -437,7 +441,8 @@ add_test(function() {
 
     var list = gManagerWindow.document.getElementById("search-list");
     var results = get_actual_results();
-    for (var result of results) {
+    for (var i = 0; i < results.length; i++) {
+      var result = results[i];
       var installBtn = get_install_button(result.item);
       is(installBtn.hidden, result.name.indexOf("remote") != 0,
          "Install button should only be showing for remote items");

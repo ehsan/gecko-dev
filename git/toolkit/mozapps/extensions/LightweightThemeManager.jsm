@@ -110,9 +110,9 @@ var LightweightThemeManager = {
 
   getUsedTheme: function (aId) {
     var usedThemes = this.usedThemes;
-    for (let usedTheme of usedThemes) {
-      if (usedTheme.id == aId)
-        return usedTheme;
+    for (let i = 0; i < usedThemes.length; i++) {
+      if (usedThemes[i].id == aId)
+        return usedThemes[i];
     }
     return null;
   },
@@ -643,18 +643,18 @@ function _sanitizeTheme(aData, aBaseURI, aLocal) {
   }
 
   let result = {};
-  for (let mandatoryProperty of MANDATORY) {
-    let val = sanitizeProperty(mandatoryProperty);
+  for (let i = 0; i < MANDATORY.length; i++) {
+    let val = sanitizeProperty(MANDATORY[i]);
     if (!val)
       throw Components.results.NS_ERROR_INVALID_ARG;
-    result[mandatoryProperty] = val;
+    result[MANDATORY[i]] = val;
   }
 
-  for (let optionalProperty of OPTIONAL) {
-    let val = sanitizeProperty(optionalProperty);
+  for (let i = 0; i < OPTIONAL.length; i++) {
+    let val = sanitizeProperty(OPTIONAL[i]);
     if (!val)
       continue;
-    result[optionalProperty] = val;
+    result[OPTIONAL[i]] = val;
   }
 
   return result;

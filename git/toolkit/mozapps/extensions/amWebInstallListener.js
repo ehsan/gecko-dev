@@ -99,7 +99,8 @@ Installer.prototype = {
     var failed = [];
     var installs = [];
 
-    for (let install of this.downloads) {
+    for (let i = 0; i < this.downloads.length; i++) {
+      let install = this.downloads[i];
       switch (install.state) {
       case AddonManager.STATE_AVAILABLE:
       case AddonManager.STATE_DOWNLOADING:
@@ -193,7 +194,8 @@ Installer.prototype = {
   checkAllInstalled: function() {
     var failed = [];
 
-    for (let install of this.downloads) {
+    for (let i = 0; i < this.downloads.length; i++) {
+      let install = this.downloads[i];
       switch(install.state) {
       case AddonManager.STATE_DOWNLOADED:
       case AddonManager.STATE_INSTALLING:

@@ -240,11 +240,9 @@ nsMenuBarListener::KeyPress(nsIDOMEvent* aKeyEvent)
           mMenuBarFrame->SetActiveByKeyboard();
           ToggleMenuActiveState();
 
-          if (mMenuBarFrame->IsActive()) {
-            aKeyEvent->StopPropagation();
-            aKeyEvent->PreventDefault();
-            return NS_OK; // consume the event
-          }
+          aKeyEvent->StopPropagation();
+          aKeyEvent->PreventDefault();
+          return NS_OK; // consume the event
         }
       }
 #endif // !XP_MACOSX

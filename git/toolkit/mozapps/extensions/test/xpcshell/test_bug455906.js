@@ -232,8 +232,8 @@ function run_test() {
   dump("Setting up tests\n");
   // Rather than keeping lots of identical add-ons in version control, just
   // write them into the profile.
-  for (let addon of ADDONS)
-    create_addon(addon);
+  for (var i = 0; i < ADDONS.length; i++)
+    create_addon(ADDONS[i]);
 
   // Copy the initial blocklist into the profile to check add-ons start in the
   // right state.
@@ -319,7 +319,8 @@ function check_notification_pt2(args) {
   dump("Checking notification pt 2\n");
   do_check_eq(args.list.length, 4);
 
-  for (let addon of args.list) {
+  for (let i = 0; i < args.list.length; i++) {
+    let addon = args.list[i];
     if (addon.item instanceof Ci.nsIPluginTag) {
       switch (addon.item.name) {
         case "test_bug455906_2":
@@ -398,7 +399,8 @@ function check_notification_pt3(args) {
   dump("Checking notification pt 3\n");
   do_check_eq(args.list.length, 6);
 
-  for (let addon of args.list) {
+  for (let i = 0; i < args.list.length; i++) {
+    let addon = args.list[i];
     if (addon.item instanceof Ci.nsIPluginTag) {
       switch (addon.item.name) {
         case "test_bug455906_2":

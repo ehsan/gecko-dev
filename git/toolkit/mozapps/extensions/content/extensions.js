@@ -311,9 +311,9 @@ var gEventManager = {
       
       var menuSep = document.getElementById("addonitem-menuseparator");
       var countEnabledMenuCmds = 0;
-      for (let child of contextMenu.children) {
-        if (child.nodeName == "menuitem" &&
-          gViewController.isCommandEnabled(child.command)) {
+      for (var i = 0; i < contextMenu.children.length; i++) {
+        if (contextMenu.children[i].nodeName == "menuitem" && 
+          gViewController.isCommandEnabled(contextMenu.children[i].command)) {
             countEnabledMenuCmds++;
         }
       }
@@ -366,7 +366,8 @@ var gEventManager = {
       return;
 
     var listeners = this._listeners[addon.id];
-    for (let listener of listeners) {
+    for (let i = 0; i < listeners.length; i++) {
+      let listener = listeners[i];
       if (!(aEvent in listener))
         continue;
       try {
@@ -385,7 +386,8 @@ var gEventManager = {
     if (existingAddon)
       this.delegateAddonEvent(aEvent, [existingAddon].concat(aParams));
 
-    for (let listener of this._installListeners) {
+    for (let i = 0; i < this._installListeners.length; i++) {
+      let listener = this._installListeners[i];
       if (!(aEvent in listener))
         continue;
       try {
@@ -2156,8 +2158,8 @@ var gSearchView = {
     if (!this.isSearching) {
       var isEmpty = true;
       var results = this._listBox.getElementsByTagName("richlistitem");
-      for (let result of results) {
-        var isRemote = (result.getAttribute("remote") == "true");
+      for (let i = 0; i < results.length; i++) {
+        var isRemote = (results[i].getAttribute("remote") == "true");
         if ((isRemote && !showLocal) || (!isRemote && showLocal)) {
           isEmpty = false;
           break;
@@ -2194,13 +2196,13 @@ var gSearchView = {
     var haystack = aStr.split(/\s+/);
     var needles = aQuery.split(/\s+/);
 
-    for (let needle of needles) {
-      for (let hay of haystack) {
-        if (hay == needle) {
+    for (let n = 0; n < needles.length; n++) {
+      for (let h = 0; h < haystack.length; h++) {
+        if (haystack[h] == needles[n]) {
           // matching whole words is best
           score += SEARCH_SCORE_MATCH_WHOLEWORD;
         } else {
-          let i = hay.indexOf(needle);
+          let i = haystack[h].indexOf(needles[n]);
           if (i == 0) // matching on word boundries is also good
             score += SEARCH_SCORE_MATCH_WORDBOUNDRY;
           else if (i > 0) // substring matches not so good
@@ -2284,7 +2286,8 @@ var gSearchView = {
   },
 
   removeInstall: function(aInstall) {
-    for (let item of this._listBox.childNodes) {
+    for (let i = 0; i < this._listBox.childNodes.length; i++) {
+      let item = this._listBox.childNodes[i];
       if (item.mInstall == aInstall) {
         this._listBox.removeChild(item);
         return;
@@ -2350,11 +2353,11 @@ var gListView = {
 
       var elements = [];
 
-      for (let addonItem of aAddonsList)
-        elements.push(createItem(addonItem));
+      for (let i = 0; i < aAddonsList.length; i++)
+        elements.push(createItem(aAddonsList[i]));
 
-      for (let installItem of aInstallsList)
-        elements.push(createItem(installItem, true));
+      for (let i = 0; i < aInstallsList.length; i++)
+        elements.push(createItem(aInstallsList[i], true));
 
       self.showEmptyNotice(elements.length == 0);
       if (elements.length > 0) {
@@ -2696,10 +2699,10 @@ var gDetailView = {
 
       // Look for an add-on pending install
       AddonManager.getAllInstalls(function(aInstalls) {
-        for (let install of aInstalls) {
-          if (install.state == AddonManager.STATE_INSTALLED &&
-              install.addon.id == aAddonId) {
-            self._updateView(install.addon, false);
+        for (let i = 0; i < aInstalls.length; i++) {
+          if (aInstalls[i].state == AddonManager.STATE_INSTALLED &&
+              aInstalls[i].addon.id == aAddonId) {
+            self._updateView(aInstalls[i].addon, false);
             return;
           }
         }
@@ -2850,7 +2853,8 @@ var gDetailView = {
     var settings = xml.querySelectorAll(":root > setting");
 
     var firstSetting = null;
-    for (let setting of settings) {
+    for (var i = 0; i < settings.length; i++) {
+      var setting = settings[i];
 
       var desc = stripTextNodes(setting).trim();
       if (!setting.hasAttribute("desc"))
@@ -3139,7 +3143,8 @@ var gUpdatesView = {
   },
   
   maybeDisableUpdateSelected: function() {
-    for (let item of this._listBox.childNodes) {
+    for (let i = 0; i < this._listBox.childNodes.length; i++) {
+      let item = this._listBox.childNodes[i];
       if (item.includeUpdate) {
         this._updateSelected.disabled = false;
         return;
@@ -3149,7 +3154,8 @@ var gUpdatesView = {
   },
 
   installSelected: function() {
-    for (let item of this._listBox.childNodes) {
+    for (let i = 0; i < this._listBox.childNodes.length; i++) {
+      let item = this._listBox.childNodes[i];
       if (item.includeUpdate)
         item.upgrade();
     }

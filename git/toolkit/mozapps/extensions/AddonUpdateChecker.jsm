@@ -625,7 +625,8 @@ function matchesVersions(aUpdate, aAppVersion, aPlatformVersion,
     aIgnoreMaxVersion = false;
 
   let result = false;
-  for (let app of aUpdate.targetApplications) {
+  for (let i = 0; i < aUpdate.targetApplications.length; i++) {
+    let app = aUpdate.targetApplications[i];
     if (app.id == Services.appinfo.ID) {
       return (Services.vc.compare(aAppVersion, app.minVersion) >= 0) &&
              (aIgnoreMaxVersion || (Services.vc.compare(aAppVersion, app.maxVersion) <= 0));
@@ -683,18 +684,18 @@ var AddonUpdateChecker = {
     if (!aPlatformVersion)
       aPlatformVersion = Services.appinfo.platformVersion;
 
-    for (let update of aUpdates) {
-      if (Services.vc.compare(update.version, aVersion) == 0) {
+    for (let i = 0; i < aUpdates.length; i++) {
+      if (Services.vc.compare(aUpdates[i].version, aVersion) == 0) {
         if (aIgnoreCompatibility) {
-          for (let targetApp of update.targetApplications) {
-            let id = targetApp.id;
+          for (let j = 0; j < aUpdates[i].targetApplications.length; j++) {
+            let id = aUpdates[i].targetApplications[j].id;
             if (id == Services.appinfo.ID || id == TOOLKIT_ID)
-              return update;
+              return aUpdates[i];
           }
         }
-        else if (matchesVersions(update, aAppVersion, aPlatformVersion,
+        else if (matchesVersions(aUpdates[i], aAppVersion, aPlatformVersion,
                                  aIgnoreMaxVersion, aIgnoreStrictCompat)) {
-          return update;
+          return aUpdates[i];
         }
       }
     }
@@ -733,18 +734,18 @@ var AddonUpdateChecker = {
                     getService(Ci.nsIBlocklistService);
 
     let newest = null;
-    for (let update of aUpdates) {
-      if (!update.updateURL)
+    for (let i = 0; i < aUpdates.length; i++) {
+      if (!aUpdates[i].updateURL)
         continue;
-      let state = blocklist.getAddonBlocklistState(update.id, update.version,
+      let state = blocklist.getAddonBlocklistState(aUpdates[i].id, aUpdates[i].version,
                                                    aAppVersion, aPlatformVersion);
       if (state != Ci.nsIBlocklistService.STATE_NOT_BLOCKED)
         continue;
-      if ((newest == null || (Services.vc.compare(newest.version, update.version) < 0)) &&
-          matchesVersions(update, aAppVersion, aPlatformVersion,
+      if ((newest == null || (Services.vc.compare(newest.version, aUpdates[i].version) < 0)) &&
+          matchesVersions(aUpdates[i], aAppVersion, aPlatformVersion,
                           aIgnoreMaxVersion, aIgnoreStrictCompat,
                           aCompatOverrides)) {
-        newest = update;
+        newest = aUpdates[i];
       }
     }
     return newest;
