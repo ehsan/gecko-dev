@@ -348,15 +348,17 @@ public:
   }
 
 
-  NS_IMETHOD GetProcess(nsACString &process)
+  NS_IMETHOD GetProcess(char **process)
   {
-    process.Truncate();
+    *process = strdup("");
     return NS_OK;
   }
 
-  NS_IMETHOD GetPath(nsACString &path)
+  NS_IMETHOD GetPath(char **memoryPath)
   {
-    path.AssignLiteral("explicit/storage/sqlite/");
+    nsCString path;
+
+    path.AppendLiteral("explicit/storage/sqlite/");
     path.Append(mDBConn.getFilename());
 
     if (mType == Cache_Used) {
@@ -368,22 +370,33 @@ public:
     else if (mType == Stmt_Used) {
       path.AppendLiteral("/stmt-used");
     }
+
+    *memoryPath = ::ToNewCString(path);
     return NS_OK;
   }
 
   NS_IMETHOD GetKind(PRInt32 *kind)
   {
-    *kind = KIND_HEAP;
+    *kind = MR_HEAP;
     return NS_OK;
   }
 
-  NS_IMETHOD GetUnits(PRInt32 *units)
+  NS_IMETHOD GetDescription(char **desc)
   {
-    *units = UNITS_BYTES;
+    if (mType == Cache_Used) {
+      *desc = ::strdup("Memory (approximate) used by all pager caches.");
+    }
+    else if (mType == Schema_Used) {
+      *desc = ::strdup("Memory (approximate) used to store the schema "
+                       "for all databases associated with the connection");
+    }
+    else if (mType == Stmt_Used) {
+      *desc = ::strdup("Memory (approximate) used by all prepared statements");
+    }
     return NS_OK;
   }
 
-  NS_IMETHOD GetAmount(PRInt64 *amount)
+  NS_IMETHOD GetMemoryUsed(PRInt64 *memoryUsed)
   {
     int type = 0;
     if (mType == Cache_Used) {
@@ -398,25 +411,9 @@ public:
 
     int cur=0, max=0;
     int rc = ::sqlite3_db_status(mDBConn, type, &cur, &max, 0);
-    *amount = cur;
+    *memoryUsed = cur;
     return convertResultCode(rc);
   }
-
-  NS_IMETHOD GetDescription(nsACString &desc)
-  {
-    if (mType == Cache_Used) {
-      desc.AssignLiteral("Memory (approximate) used by all pager caches.");
-    }
-    else if (mType == Schema_Used) {
-      desc.AssignLiteral("Memory (approximate) used to store the schema "
-                          "for all databases associated with the connection");
-    }
-    else if (mType == Stmt_Used) {
-      desc.AssignLiteral("Memory (approximate) used by all prepared statements");
-    }
-    return NS_OK;
-  }
-
   Connection &mDBConn;
   nsCString mFileName;
   ReporterType mType;

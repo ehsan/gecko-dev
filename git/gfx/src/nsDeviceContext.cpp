@@ -381,7 +381,7 @@ nsDeviceContext::SetDPI()
             dpi = mWidget->GetDPI();
 
             if (prefDPI < 0) {
-                dpi = NS_MAX(96.0f, dpi);
+                dpi = PR_MAX(96.0f, dpi);
             }
         } else {
             dpi = 96.0f;
@@ -406,7 +406,7 @@ nsDeviceContext::SetDPI()
         }
 
         mAppUnitsPerDevNotScaledPixel =
-            NS_MAX(1, NS_lround(AppUnitsPerCSSPixel() / devPixelsPerCSSPixel));
+            PR_MAX(1, NS_lround(AppUnitsPerCSSPixel() / devPixelsPerCSSPixel));
     }
 
     NS_ASSERTION(dpi != -1.0, "no dpi set");
@@ -836,5 +836,5 @@ void
 nsDeviceContext::UpdateScaledAppUnits()
 {
     mAppUnitsPerDevPixel =
-        NS_MAX(1, NSToIntRound(float(mAppUnitsPerDevNotScaledPixel) / mPixelScale));
+        PR_MAX(1, NSToIntRound(float(mAppUnitsPerDevNotScaledPixel) / mPixelScale));
 }

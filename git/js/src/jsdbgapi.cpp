@@ -127,12 +127,16 @@ ScriptDebugPrologue(JSContext *cx, StackFrame *fp)
         if (JSInterpreterHook hook = cx->debugHooks->callHook)
             fp->setHookData(hook(cx, Jsvalify(fp), true, 0, cx->debugHooks->callHookData));
     }
+
+    Probes::enterJSFun(cx, fp->maybeFun(), fp->script());
 }
 
 bool
 ScriptDebugEpilogue(JSContext *cx, StackFrame *fp, bool okArg)
 {
     JSBool ok = okArg;
+
+    Probes::exitJSFun(cx, fp->maybeFun(), fp->script());
 
     if (void *hookData = fp->maybeHookData()) {
         if (fp->isFramePushedByExecute()) {
@@ -1363,22 +1367,8 @@ JS_FunctionHasLocalNames(JSContext *cx, JSFunction *fun)
 extern JS_PUBLIC_API(jsuword *)
 JS_GetFunctionLocalNameArray(JSContext *cx, JSFunction *fun, void **markp)
 {
-    Vector<JSAtom *> localNames(cx);
-    if (!fun->script()->bindings.getLocalNameArray(cx, &localNames))
-        return NULL;
-
-    /* Munge data into the API this method implements.  Avert your eyes! */
     *markp = JS_ARENA_MARK(&cx->tempPool);
-
-    jsuword *names;
-    JS_ARENA_ALLOCATE_CAST(names, jsuword *, &cx->tempPool, localNames.length() * sizeof *names);
-    if (!names) {
-        js_ReportOutOfMemory(cx);
-        return NULL;
-    }
-
-    memcpy(names, localNames.begin(), localNames.length() * sizeof(jsuword));
-    return names;
+    return fun->script()->bindings.getLocalNameArray(cx, &cx->tempPool);
 }
 
 extern JS_PUBLIC_API(JSAtom *)
@@ -1588,7 +1578,6 @@ JS_GetValidFrameCalleeObject(JSContext *cx, JSStackFrame *fp, jsval *vp)
 
     if (!Valueify(fp)->getValidCalleeObject(cx, &v))
         return false;
-    *vp = v.isObject() ? Jsvalify(v) : JSVAL_VOID;
     *vp = Jsvalify(v);
     return true;
 }
@@ -1974,6 +1963,7 @@ JS_PUBLIC_API(size_t)
 JS_GetScriptTotalSize(JSContext *cx, JSScript *script)
 {
     size_t nbytes, pbytes;
+    jsatomid i;
     jssrcnote *sn, *notes;
     JSObjectArray *objarray;
     JSPrincipals *principals;
@@ -1984,7 +1974,7 @@ JS_GetScriptTotalSize(JSContext *cx, JSScript *script)
 
     nbytes += script->length * sizeof script->code[0];
     nbytes += script->atomMap.length * sizeof script->atomMap.vector[0];
-    for (size_t i = 0; i < script->atomMap.length; i++)
+    for (i = 0; i < script->atomMap.length; i++)
         nbytes += GetAtomTotalSize(cx, script->atomMap.vector[i]);
 
     if (script->filename)
@@ -1997,7 +1987,7 @@ JS_GetScriptTotalSize(JSContext *cx, JSScript *script)
 
     if (JSScript::isValidOffset(script->objectsOffset)) {
         objarray = script->objects();
-        size_t i = objarray->length;
+        i = objarray->length;
         nbytes += sizeof *objarray + i * sizeof objarray->vector[0];
         do {
             nbytes += JS_GetObjectTotalSize(cx, objarray->vector[--i]);
@@ -2006,7 +1996,7 @@ JS_GetScriptTotalSize(JSContext *cx, JSScript *script)
 
     if (JSScript::isValidOffset(script->regexpsOffset)) {
         objarray = script->regexps();
-        size_t i = objarray->length;
+        i = objarray->length;
         nbytes += sizeof *objarray + i * sizeof objarray->vector[0];
         do {
             nbytes += JS_GetObjectTotalSize(cx, objarray->vector[--i]);

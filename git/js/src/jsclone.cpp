@@ -46,13 +46,6 @@
 
 using namespace js;
 
-JS_FRIEND_API(uint64_t)
-js_GetSCOffset(JSStructuredCloneWriter* writer)
-{
-  JS_ASSERT(writer);
-  return writer->output().count() * sizeof(uint64_t);
-}
-
 namespace js
 {
 
@@ -771,7 +764,7 @@ JSStructuredCloneReader::startRead(Value *vp)
         const jschar *chars = str->getChars(context());
         if (!chars)
             return false;
-        JSObject *obj = RegExp::createObjectNoStatics(context(), chars, length, data, NULL);
+        JSObject *obj = RegExp::createObjectNoStatics(context(), chars, length, data);
         if (!obj)
             return false;
         vp->setObject(*obj);

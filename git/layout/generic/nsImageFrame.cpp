@@ -249,6 +249,7 @@ nsImageFrame::Init(nsIContent*      aContent,
   NS_ENSURE_SUCCESS(rv, rv);
 
   mListener = new nsImageListener(this);
+  if (!mListener) return NS_ERROR_OUT_OF_MEMORY;
 
   nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(aContent);
   NS_ENSURE_TRUE(imageLoader, NS_ERROR_UNEXPECTED);
@@ -1003,17 +1004,21 @@ nsImageFrame::DisplayAltText(nsPresContext*      aPresContext,
     nsresult rv = NS_ERROR_FAILURE;
 
     if (aPresContext->BidiEnabled()) {
-      const nsStyleVisibility* vis = GetStyleVisibility();
-      if (vis->mDirection == NS_STYLE_DIRECTION_RTL)
-        rv = nsBidiPresUtils::RenderText(str, maxFit, NSBIDI_RTL,
-                                         aPresContext, aRenderingContext,
-                                         aRenderingContext,
-                                         aRect.XMost() - strWidth, y + maxAscent);
-      else
-        rv = nsBidiPresUtils::RenderText(str, maxFit, NSBIDI_LTR,
-                                         aPresContext, aRenderingContext,
-                                         aRenderingContext,
-                                         aRect.x, y + maxAscent);
+      nsBidiPresUtils* bidiUtils =  aPresContext->GetBidiUtils();
+      
+      if (bidiUtils) {
+        const nsStyleVisibility* vis = GetStyleVisibility();
+        if (vis->mDirection == NS_STYLE_DIRECTION_RTL)
+          rv = bidiUtils->RenderText(str, maxFit, NSBIDI_RTL,
+                                     aPresContext, aRenderingContext,
+                                     aRenderingContext,
+                                     aRect.XMost() - strWidth, y + maxAscent);
+        else
+          rv = bidiUtils->RenderText(str, maxFit, NSBIDI_LTR,
+                                     aPresContext, aRenderingContext,
+                                     aRenderingContext,
+                                     aRect.x, y + maxAscent);
+      }
     }
     if (NS_FAILED(rv))
       aRenderingContext.DrawString(str, maxFit, aRect.x, y + maxAscent);
@@ -1623,7 +1628,7 @@ nsImageFrame::HandleEvent(nsPresContext* aPresContext,
             clicked = PR_TRUE;
           }
           nsContentUtils::TriggerLink(anchorNode, aPresContext, uri, target,
-                                      clicked, PR_TRUE, PR_TRUE);
+                                      clicked, PR_TRUE);
         }
       }
     }
@@ -1790,7 +1795,6 @@ nsImageFrame::LoadIcon(const nsAString& aSpec,
                                        relevant for cookies, so does not
                                        apply to icons. */
                        nsnull,      /* referrer (not relevant for icons) */
-                       nsnull,      /* principal (not relevant for icons) */
                        loadGroup,
                        gIconLoad,
                        nsnull,      /* Not associated with any particular document */
@@ -1854,6 +1858,8 @@ nsresult nsImageFrame::LoadIcons(nsPresContext *aPresContext)
   NS_NAMED_LITERAL_STRING(brokenSrc,"resource://gre-resources/broken-image.png");
 
   gIconLoad = new IconLoad();
+  if (!gIconLoad) 
+    return NS_ERROR_OUT_OF_MEMORY;
   NS_ADDREF(gIconLoad);
 
   nsresult rv;

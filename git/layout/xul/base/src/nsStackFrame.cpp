@@ -64,7 +64,7 @@ NS_IMPL_FRAMEARENA_HELPERS(nsStackFrame)
 nsStackFrame::nsStackFrame(nsIPresShell* aPresShell, nsStyleContext* aContext):
   nsBoxFrame(aPresShell, aContext)
 {
-  nsCOMPtr<nsBoxLayout> layout;
+  nsCOMPtr<nsIBoxLayout> layout;
   NS_NewStackLayout(aPresShell, layout);
   SetLayoutManager(layout);
 }

@@ -49,31 +49,16 @@ XPIDL_MODULE   = necko_websocket
 GRE_MODULE     = 1
 FORCE_STATIC_LIB = 1
 
-EXPORTS_NAMESPACES = mozilla/net
-
 XPIDLSRCS = \
-  nsIWebSocketChannel.idl \
-  nsIWebSocketListener.idl \
+  nsIWebSocketProtocol.idl \
   $(NULL)
 
 CPPSRCS = \
-  WebSocketChannel.cpp \
-  WebSocketChannelParent.cpp \
-  WebSocketChannelChild.cpp \
-  BaseWebSocketChannel.cpp \
-  $(NULL)
-
-EXPORTS_mozilla/net = \
-  WebSocketChannel.h \
-  WebSocketChannelParent.h \
-  WebSocketChannelChild.h \
-  BaseWebSocketChannel.h \
+  nsWebSocketHandler.cpp
   $(NULL)
 
 LOCAL_INCLUDES = \
   -I$(srcdir)/../../base/src \
-  -I$(topsrcdir)/content/base/src \
-  -I$(topsrcdir)/content/events/src \
   -I$(topsrcdir)/xpcom/ds \
   $(NULL)
 

@@ -86,15 +86,13 @@ function TitleChangedObserver(aURI,
 TitleChangedObserver.prototype = {
   __proto__: NavHistoryObserver.prototype,
   onTitleChanged: function(aURI,
-                           aTitle,
-                           aGUID)
+                           aTitle)
   {
-    do_log_info("onTitleChanged(" + aURI.spec + ", " + aTitle + ", " + aGUID + ")");
+    do_log_info("onTitleChanged(" + aURI.spec + ", " + aTitle + ")");
     if (!this.uri.equals(aURI)) {
       return;
     }
     do_check_eq(aTitle, this.expectedTitle);
-    do_check_guid_for_uri(aURI, aGUID);
     this.callback();
   },
 };

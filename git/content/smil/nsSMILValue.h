@@ -97,8 +97,6 @@ public:
       PRUint16 mUnit;
       PRUint16 mOrientType;
     } mOrient;
-    PRInt32 mIntPair[2];
-    float mNumberPair[2];
     void* mPtr;
   } mU;
   const nsISMILType* mType;

@@ -53,7 +53,7 @@ nsListBoxLayout::nsListBoxLayout() : nsGridRowGroupLayout()
 {
 }
 
-////////// nsBoxLayout //////////////
+////////// nsIBoxLayout //////////////
 
 nsSize
 nsListBoxLayout::GetPrefSize(nsIBox* aBox, nsBoxLayoutState& aBoxLayoutState)
@@ -242,9 +242,9 @@ nsListBoxLayout::LayoutInternal(nsIBox* aBox, nsBoxLayoutState& aState)
 
 // Creation Routines ///////////////////////////////////////////////////////////////////////
 
-already_AddRefed<nsBoxLayout> NS_NewListBoxLayout()
+already_AddRefed<nsIBoxLayout> NS_NewListBoxLayout()
 {
-  nsBoxLayout* layout = new nsListBoxLayout();
+  nsIBoxLayout* layout = new nsListBoxLayout();
   NS_IF_ADDREF(layout);
   return layout;
 } 

@@ -717,5 +717,4 @@ _cairo_surface_wrapper_flush (cairo_surface_wrapper_t *wrapper)
     if (wrapper->target->backend->flush) {
 	return wrapper->target->backend->flush(wrapper->target);
     }
-    return CAIRO_STATUS_SUCCESS;
 }

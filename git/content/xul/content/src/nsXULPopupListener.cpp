@@ -57,7 +57,7 @@
 #include "nsXULPopupManager.h"
 #include "nsEventStateManager.h"
 #include "nsIScriptContext.h"
-#include "nsIDOMWindow.h"
+#include "nsIDOMWindowInternal.h"
 #include "nsIDOMXULDocument.h"
 #include "nsIDocument.h"
 #include "nsIDOMNSUIEvent.h"
@@ -79,6 +79,7 @@
 #include "nsPIDOMWindow.h"
 #include "nsIViewManager.h"
 #include "nsDOMError.h"
+#include "nsIMenuFrame.h"
 
 using namespace mozilla;
 
@@ -103,26 +104,39 @@ NS_IMPL_CYCLE_COLLECTING_ADDREF(nsXULPopupListener)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsXULPopupListener)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsXULPopupListener)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMEventListener)
-  NS_INTERFACE_MAP_ENTRY(nsISupports)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMMouseListener)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMContextMenuListener)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsIDOMEventListener, nsIDOMMouseListener)
 NS_INTERFACE_MAP_END
 
 ////////////////////////////////////////////////////////////////
-// nsIDOMEventListener
+// nsIDOMMouseListener
 
 nsresult
-nsXULPopupListener::HandleEvent(nsIDOMEvent* aEvent)
+nsXULPopupListener::MouseDown(nsIDOMEvent* aMouseEvent)
 {
-  nsAutoString eventType;
-  aEvent->GetType(eventType);
-
-  if(!((eventType.EqualsLiteral("mousedown") && !mIsContext) ||
-       (eventType.EqualsLiteral("contextmenu") && mIsContext)))
+  if(!mIsContext)
+    return PreLaunchPopup(aMouseEvent);
+  else
     return NS_OK;
+}
 
+nsresult
+nsXULPopupListener::ContextMenu(nsIDOMEvent* aMouseEvent)
+{
+  if(mIsContext)
+    return PreLaunchPopup(aMouseEvent);
+  else 
+    return NS_OK;
+}
+
+nsresult
+nsXULPopupListener::PreLaunchPopup(nsIDOMEvent* aMouseEvent)
+{
   PRUint16 button;
 
-  nsCOMPtr<nsIDOMMouseEvent> mouseEvent = do_QueryInterface(aEvent);
+  nsCOMPtr<nsIDOMMouseEvent> mouseEvent;
+  mouseEvent = do_QueryInterface(aMouseEvent);
   if (!mouseEvent) {
     //non-ui event passed in.  bad things.
     return NS_OK;
@@ -209,7 +223,7 @@ nsXULPopupListener::HandleEvent(nsIDOMEvent* aEvent)
       return NS_OK;
   }
 
-  nsCOMPtr<nsIDOMNSEvent> nsevent = do_QueryInterface(aEvent);
+  nsCOMPtr<nsIDOMNSEvent> nsevent(do_QueryInterface(aMouseEvent));
 
   if (mIsContext) {
 #ifndef NS_CONTEXT_MENU_IS_MOUSEUP
@@ -226,9 +240,9 @@ nsXULPopupListener::HandleEvent(nsIDOMEvent* aEvent)
   }
 
   // Open the popup and cancel the default handling of the event.
-  LaunchPopup(aEvent, targetContent);
-  aEvent->StopPropagation();
-  aEvent->PreventDefault();
+  LaunchPopup(aMouseEvent, targetContent);
+  aMouseEvent->StopPropagation();
+  aMouseEvent->PreventDefault();
 
   return NS_OK;
 }
@@ -459,4 +473,18 @@ nsXULPopupListener::LaunchPopup(nsIDOMEvent* aEvent, nsIContent* aTargetContent)
   }
 
   return NS_OK;
+}
+
+////////////////////////////////////////////////////////////////
+nsresult
+NS_NewXULPopupListener(nsIDOMElement* aElement, PRBool aIsContext,
+                       nsIDOMEventListener** aListener)
+{
+    nsXULPopupListener* pl = new nsXULPopupListener(aElement, aIsContext);
+    if (!pl)
+      return NS_ERROR_OUT_OF_MEMORY;
+
+    *aListener = static_cast<nsIDOMMouseListener *>(pl);
+    NS_ADDREF(*aListener);
+    return NS_OK;
 }

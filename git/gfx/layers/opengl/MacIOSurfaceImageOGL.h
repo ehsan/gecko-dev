@@ -60,7 +60,7 @@ public:
 
   GLTexture mTexture;
   gfxIntSize mSize;
-  nsRefPtr<nsIOSurface> mIOSurface;
+  nsAutoPtr<nsIOSurface> mIOSurface;
   void* mPluginInstanceOwner;
   UpdateSurfaceCallback mUpdateCallback;
   DestroyCallback mDestroyCallback;

@@ -39,7 +39,6 @@ class DeviceManagerADB(DeviceManager):
   def mkDir(self, name):
     try:
       self.checkCmd(["shell", "mkdir", name])
-      self.chmodDir(name)
       return name
     except:
       return None

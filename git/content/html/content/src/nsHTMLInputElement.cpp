@@ -37,8 +37,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsHTMLInputElement.h"
-
 #include "nsIDOMHTMLInputElement.h"
 #include "nsITextControlElement.h"
 #include "nsIDOMNSEditableElement.h"
@@ -113,6 +111,7 @@
 
 // input type=image
 #include "nsImageLoadingContent.h"
+#include "nsIDOMWindowInternal.h"
 
 #include "mozAutoDocUpdate.h"
 #include "nsContentCreatorFunctions.h"
@@ -125,6 +124,8 @@
 // JS headers are needed for the pattern attribute.
 #include "jsapi.h"
 #include "jscntxt.h"
+
+#include "nsHTMLInputElement.h"
 
 using namespace mozilla::dom;
 
@@ -267,7 +268,7 @@ AsyncClickHandler::Run()
 {
   nsresult rv;
 
-  // Get parent nsPIDOMWindow object.
+  // Get parent nsIDOMWindowInternal object.
   nsCOMPtr<nsIDocument> doc = mInput->GetOwnerDoc();
   if (!doc)
     return NS_ERROR_FAILURE;
@@ -403,7 +404,7 @@ AsyncClickHandler::Run()
         rv = localFile->GetPath(unicodePath);
         if (!unicodePath.IsEmpty()) {
           nsCOMPtr<nsIDOMFile> domFile =
-            do_QueryObject(new nsDOMFileFile(localFile));
+            do_QueryObject(new nsDOMFile(localFile));
           newFiles.AppendObject(domFile);
         }
         if (!prefSaved) {
@@ -423,7 +424,7 @@ AsyncClickHandler::Run()
       rv = localFile->GetPath(unicodePath);
       if (!unicodePath.IsEmpty()) {
         nsCOMPtr<nsIDOMFile> domFile=
-          do_QueryObject(new nsDOMFileFile(localFile));
+          do_QueryObject(new nsDOMFile(localFile));
         newFiles.AppendObject(domFile);
       }
       // Store the last used directory using the content pref service
@@ -906,8 +907,6 @@ nsHTMLInputElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
       UpdateTooLongValidityState();
     } else if (aName == nsGkAtoms::pattern) {
       UpdatePatternMismatchValidityState();
-    } else if (aName == nsGkAtoms::multiple) {
-      UpdateTypeMismatchValidityState();
     }
 
     UpdateEditableState(aNotify);
@@ -1148,7 +1147,7 @@ nsHTMLInputElement::MozSetFileNameArray(const PRUnichar **aFileNames, PRUint32 a
     }
 
     if (file) {
-      nsCOMPtr<nsIDOMFile> domFile = new nsDOMFileFile(file);
+      nsCOMPtr<nsIDOMFile> domFile = new nsDOMFile(file);
       files.AppendObject(domFile);
     } else {
       continue; // Not much we can do if the file doesn't exist

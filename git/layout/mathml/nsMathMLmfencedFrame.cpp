@@ -24,7 +24,6 @@
  *   David J. Fiddes <D.J.Fiddes@hw.ac.uk>
  *   Pierre Phaneuf <pp@ludusdesign.com>
  *   Frederic Wang <fred.wang@free.fr>
- *   Florian Scholz <elchi3@elchi3.de>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -352,10 +351,12 @@ nsMathMLmfencedFrame::Reflow(nsPresContext*          aPresContext,
   // adjust the origin of children.
 
   // we need to center around the axis
-  nscoord delta = NS_MAX(containerSize.ascent - axisHeight, 
-                         containerSize.descent + axisHeight);
-  containerSize.ascent = delta + axisHeight;
-  containerSize.descent = delta - axisHeight;
+  if (firstChild) { // do nothing for an empty <mfenced></mfenced>
+    nscoord delta = NS_MAX(containerSize.ascent - axisHeight, 
+                           containerSize.descent + axisHeight);
+    containerSize.ascent = delta + axisHeight;
+    containerSize.descent = delta - axisHeight;
+  }
 
   /////////////////
   // opening fence ...

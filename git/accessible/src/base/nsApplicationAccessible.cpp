@@ -169,8 +169,8 @@ nsApplicationAccessible::GroupPosition(PRInt32 *aGroupLevel,
 }
 
 nsAccessible*
-nsApplicationAccessible::ChildAtPoint(PRInt32 aX, PRInt32 aY,
-                                      EWhichChildAtPoint aWhichChild)
+nsApplicationAccessible::GetChildAtPoint(PRInt32 aX, PRInt32 aY,
+                                         EWhichChildAtPoint aWhichChild)
 {
   return nsnull;
 }

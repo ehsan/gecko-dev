@@ -38,7 +38,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/layers/PLayers.h"
 #include "mozilla/layers/ShadowLayers.h"
 
 #include "ImageLayers.h"
@@ -390,12 +389,6 @@ Layer::GetEffectiveOpacity()
   return opacity;
 }
 
-void
-ContainerLayer::FillSpecificAttributes(SpecificLayerAttributes& aAttrs)
-{
-  aAttrs = ContainerLayerAttributes(GetFrameMetrics());
-}
-
 PRBool
 ContainerLayer::HasMultipleChildren()
 {
@@ -487,56 +480,6 @@ ContainerLayer::DidInsertChild(Layer* aLayer)
     mMayHaveReadbackChild = PR_TRUE;
   }
 }
-
-PRUint8* 
-PlanarYCbCrImage::AllocateBuffer(PRUint32 aSize)
-{
-  const fallible_t fallible = fallible_t();
-  return new (fallible) PRUint8[aSize]; 
-}
-
-PRUint8*
-PlanarYCbCrImage::CopyData(Data& aDest, gfxIntSize& aDestSize,
-                           PRUint32& aDestBufferSize, const Data& aData)
-{
-  aDest = aData;
-
-  /* We always have a multiple of 16 width so we can force the stride */
-  aDest.mYStride = aDest.mYSize.width;
-  aDest.mCbCrStride = aDest.mCbCrSize.width;
-
-  // update buffer size
-  aDestBufferSize = aDest.mCbCrStride * aDest.mCbCrSize.height * 2 +
-                    aDest.mYStride * aDest.mYSize.height;
-
-  // get new buffer
-  PRUint8* buffer = AllocateBuffer(aDestBufferSize); 
-  if (!buffer)
-    return nsnull;
-
-  aDest.mYChannel = buffer;
-  aDest.mCbChannel = aDest.mYChannel + aDest.mYStride * aDest.mYSize.height;
-  aDest.mCrChannel = aDest.mCbChannel + aDest.mCbCrStride * aDest.mCbCrSize.height;
-
-  for (int i = 0; i < aDest.mYSize.height; i++) {
-    memcpy(aDest.mYChannel + i * aDest.mYStride,
-           aData.mYChannel + i * aData.mYStride,
-           aDest.mYStride);
-  }
-  for (int i = 0; i < aDest.mCbCrSize.height; i++) {
-    memcpy(aDest.mCbChannel + i * aDest.mCbCrStride,
-           aData.mCbChannel + i * aData.mCbCrStride,
-           aDest.mCbCrStride);
-    memcpy(aDest.mCrChannel + i * aDest.mCbCrStride,
-           aData.mCrChannel + i * aData.mCbCrStride,
-           aDest.mCbCrStride);
-  }
-
-  aDestSize = aData.mPicSize;
-  return buffer;
-}
-                         
-
 
 #ifdef MOZ_LAYERS_HAVE_LOG
 

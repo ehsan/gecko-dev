@@ -50,7 +50,6 @@ function SpecialPowers(window) {
   this._pongHandlers = [];
   this._messageListener = this._messageReceived.bind(this);
   addMessageListener("SPPingService", this._messageListener);
-  this._consoleListeners = [];
 }
 
 function bindDOMWindowUtils(sp, window) {
@@ -191,32 +190,6 @@ SpecialPowers.prototype = {
     removeEventListener(type, listener, capture);
   },
 
-  addErrorConsoleListener: function(listener) {
-    var consoleListener = {
-      userListener: listener,
-      observe: function(consoleMessage) {
-        this.userListener(consoleMessage.message);
-      }
-    };
-
-    Cc["@mozilla.org/consoleservice;1"].getService(Ci.nsIConsoleService)
-                                       .registerListener(consoleListener);
-
-    this._consoleListeners.push(consoleListener);
-  },
-
-  removeErrorConsoleListener: function(listener) {
-    for (var index in this._consoleListeners) {
-      var consoleListener = this._consoleListeners[index];
-      if (consoleListener.userListener == listener) {
-        Cc["@mozilla.org/consoleservice;1"].getService(Ci.nsIConsoleService)
-                                           .unregisterListener(consoleListener);
-        this._consoleListeners = this._consoleListeners.splice(index, 1);
-        break;
-      }
-    }
-  },
-
   getFullZoom: function(window) {
     return this._getMUDV(window).fullZoom;
   },
@@ -235,18 +208,8 @@ SpecialPowers.prototype = {
              .createInstance(Ci.nsIXMLHttpRequest);
   },
 
-  loadURI: function(window, uri, referrer, charset, x, y) {
-    var webNav = window.QueryInterface(Ci.nsIInterfaceRequestor)
-                       .getInterface(Ci.nsIWebNavigation);
-    webNav.loadURI(uri, referrer, charset, x, y);
-  },
-
   gc: function() {
     this.DOMWindowUtils.garbageCollect();
-  },
-
-  forceGC: function() {
-    Components.utils.forceGC();
   },
 
   hasContentProcesses: function() {
@@ -375,9 +338,12 @@ SpecialPowersManager.prototype = {
   handleEvent: function handleEvent(aEvent) {
     var window = aEvent.target.defaultView;
 
-    // only add SpecialPowers to data pages, not about:*
+    // Need to make sure we are called on what we care about -
+    // content windows. DOMWindowCreated is called on *all* HTMLDocuments,
+    // some of which belong to chrome windows or other special content.
+    //
     var uri = window.document.documentURIObject;
-    if (uri.spec.split(":")[0] == "about") {
+    if (uri.scheme === "chrome" || uri.spec.split(":")[0] == "about") {
       return;
     }
 

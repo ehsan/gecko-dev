@@ -479,10 +479,6 @@ let DOMEvents =  {
           rel: target.rel,
           type: target.type
         };
-        
-        // rel=icon can also have a sizes attribute
-        if (target.hasAttribute("sizes"))
-          json.sizes = target.getAttribute("sizes");
 
         sendAsyncMessage("DOMLinkAdded", json);
         break;

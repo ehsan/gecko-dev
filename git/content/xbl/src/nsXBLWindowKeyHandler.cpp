@@ -54,6 +54,7 @@
 #include "nsINativeKeyBindings.h"
 #include "nsIController.h"
 #include "nsIControllers.h"
+#include "nsIDOMWindowInternal.h"
 #include "nsFocusManager.h"
 #include "nsPIWindowRoot.h"
 #include "nsIURI.h"
@@ -200,7 +201,8 @@ nsXBLWindowKeyHandler::~nsXBLWindowKeyHandler()
   }
 }
 
-NS_IMPL_ISUPPORTS1(nsXBLWindowKeyHandler,
+NS_IMPL_ISUPPORTS2(nsXBLWindowKeyHandler,
+                   nsIDOMKeyListener,
                    nsIDOMEventListener)
 
 static void
@@ -391,19 +393,27 @@ nsXBLWindowKeyHandler::WalkHandlers(nsIDOMKeyEvent* aKeyEvent, nsIAtom* aEventTy
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsXBLWindowKeyHandler::HandleEvent(nsIDOMEvent* aEvent)
+nsresult nsXBLWindowKeyHandler::KeyUp(nsIDOMEvent* aEvent)
 {
   nsCOMPtr<nsIDOMKeyEvent> keyEvent(do_QueryInterface(aEvent));
   NS_ENSURE_TRUE(keyEvent, NS_ERROR_INVALID_ARG);
-
-  nsAutoString eventType;
-  aEvent->GetType(eventType);
-  nsCOMPtr<nsIAtom> eventTypeAtom = do_GetAtom(eventType);
-  NS_ENSURE_TRUE(eventTypeAtom, NS_ERROR_OUT_OF_MEMORY);
-
-  return WalkHandlers(keyEvent, eventTypeAtom);
+  return WalkHandlers(keyEvent, nsGkAtoms::keyup);
 }
+
+nsresult nsXBLWindowKeyHandler::KeyDown(nsIDOMEvent* aEvent)
+{
+  nsCOMPtr<nsIDOMKeyEvent> keyEvent(do_QueryInterface(aEvent));
+  NS_ENSURE_TRUE(keyEvent, NS_ERROR_INVALID_ARG);
+  return WalkHandlers(keyEvent, nsGkAtoms::keydown);
+}
+
+nsresult nsXBLWindowKeyHandler::KeyPress(nsIDOMEvent* aEvent)
+{
+  nsCOMPtr<nsIDOMKeyEvent> keyEvent(do_QueryInterface(aEvent));
+  NS_ENSURE_TRUE(keyEvent, NS_ERROR_INVALID_ARG);
+  return WalkHandlers(keyEvent, nsGkAtoms::keypress);
+}
+
 
 //
 // EventMatched

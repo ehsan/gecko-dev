@@ -673,25 +673,20 @@ nsXULTreeGridRowAccessible::GetName(nsAString& aName)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  // XXX: the row name sholdn't be a concatenation of cell names (bug 664384).
-  nsCOMPtr<nsITreeColumn> column = nsCoreUtils::GetFirstSensibleColumn(mTree);
-  while (column) {
-    if (!aName.IsEmpty())
-      aName.AppendLiteral(" ");
-
-    nsAutoString cellName;
-    GetCellName(column, cellName);
-    aName.Append(cellName);
-
-    column = nsCoreUtils::GetNextSensibleColumn(column);
+  nsCOMPtr<nsITreeColumns> columns;
+  mTree->GetColumns(getter_AddRefs(columns));
+  if (columns) {
+    nsCOMPtr<nsITreeColumn> primaryColumn;
+    columns->GetPrimaryColumn(getter_AddRefs(primaryColumn));
+    if (primaryColumn)
+      GetCellName(primaryColumn, aName);
   }
-
   return NS_OK;
 }
 
 nsAccessible*
-nsXULTreeGridRowAccessible::ChildAtPoint(PRInt32 aX, PRInt32 aY,
-                                         EWhichChildAtPoint aWhichChild)
+nsXULTreeGridRowAccessible::GetChildAtPoint(PRInt32 aX, PRInt32 aY,
+                                            EWhichChildAtPoint aWhichChild)
 {
   nsIFrame *frame = GetFrame();
   if (!frame)
@@ -1235,7 +1230,7 @@ nsXULTreeGridCellAccessible::NativeState()
 }
 
 PRInt32
-nsXULTreeGridCellAccessible::IndexInParent() const
+nsXULTreeGridCellAccessible::GetIndexInParent() const
 {
   return GetColumnIndex();
 }

@@ -68,9 +68,10 @@
         title="&brandShortName;"
 #ifdef MOZ_PLATFORM_MAEMO
         sizemode="fullscreen"
-#endif
+#else
         width="480"
         height="800"
+#endif
         onkeypress="onDebugKeyPress(event);"
         xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
         xmlns:html="http://www.w3.org/1999/xhtml">
@@ -348,7 +349,6 @@
           onclick="PageActions.clearPagePermissions(event);"/>
         <pageaction id="pageaction-search" title="&pageactions.search.addNew;"/>
         <pageaction id="pageaction-charset" title="&pageactions.charEncoding;" onclick="CharsetMenu.show();"/>
-        <pageaction id="pageaction-webapps-install" title="&pageactions.webapps.install;" onclick="WebappsUI.show();"/>
       </hbox>
     </arrowbox>
 
@@ -662,9 +662,6 @@
         </richlistbox>
       </vbox>
     </hbox>
-
-    <toolbarbutton id="selectionhandle-start" label="^" left="0" top="0" hidden="true"/>
-    <toolbarbutton id="selectionhandle-end" label="^" left="0" top="0" hidden="true"/>
 
     <hbox id="menulist-container" class="window-width window-height context-block" top="0" left="0" hidden="true" flex="1">
       <vbox id="menulist-popup" class="dialog-dark">

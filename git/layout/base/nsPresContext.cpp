@@ -369,6 +369,8 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsPresContext)
   // NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mLangService); // a service
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mPrintSettings);
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mPrefChangedTimer);
+  if (tmp->mBidiUtils)
+    tmp->mBidiUtils->Traverse(cb);
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsPresContext)
@@ -393,6 +395,8 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsPresContext)
     tmp->mPrefChangedTimer->Cancel();
     tmp->mPrefChangedTimer = nsnull;
   }
+  if (tmp->mBidiUtils)
+    tmp->mBidiUtils->Unlink();
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 
@@ -645,6 +649,10 @@ nsPresContext::GetUserPreferences()
     // get a presshell.
     return;
   }
+    
+  mFontScaler =
+    Preferences::GetInt("browser.display.base_font_scaler", mFontScaler);
+
 
   mAutoQualityMinFontSizePixelsPref =
     Preferences::GetInt("browser.display.auto_quality_min_font_size");
@@ -904,11 +912,18 @@ nsPresContext::Init(nsDeviceContext* aDeviceContext)
   }
 
   mEventManager = new nsEventStateManager();
+  if (!mEventManager)
+    return NS_ERROR_OUT_OF_MEMORY;
+
   NS_ADDREF(mEventManager);
 
   mTransitionManager = new nsTransitionManager(this);
+  if (!mTransitionManager)
+    return NS_ERROR_OUT_OF_MEMORY;
 
   mAnimationManager = new nsAnimationManager(this);
+  if (!mAnimationManager)
+    return NS_ERROR_OUT_OF_MEMORY;
 
   if (mDocument->GetDisplayDocument()) {
     NS_ASSERTION(mDocument->GetDisplayDocument()->GetShell() &&
@@ -944,6 +959,8 @@ nsPresContext::Init(nsDeviceContext* aDeviceContext)
 
     if (!mRefreshDriver) {
       mRefreshDriver = new nsRefreshDriver(this);
+      if (!mRefreshDriver)
+        return NS_ERROR_OUT_OF_MEMORY;
     }
   }
 
@@ -1457,6 +1474,15 @@ nsPresContext::SetBidiEnabled() const
   }
 }
 
+nsBidiPresUtils*
+nsPresContext::GetBidiUtils()
+{
+  if (!mBidiUtils)
+    mBidiUtils = new nsBidiPresUtils;
+
+  return mBidiUtils;
+}
+
 void
 nsPresContext::SetBidi(PRUint32 aSource, PRBool aForceRestyle)
 {
@@ -1497,6 +1523,15 @@ PRUint32
 nsPresContext::GetBidi() const
 {
   return Document()->GetBidiOptions();
+}
+
+PRUint32
+nsPresContext::GetBidiMemoryUsed()
+{
+  if (!mBidiUtils)
+    return 0;
+
+  return mBidiUtils->EstimateMemoryUsed();
 }
 
 #endif //IBMBIDI

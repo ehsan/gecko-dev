@@ -54,18 +54,20 @@ function testLiveFilteringOfMessageTypes() {
 
   openConsole();
 
-  hud = HUDService.getHudByWindow(content);
+  hudId = HUDService.displaysIndex()[0];
   let console = browser.contentWindow.wrappedJSObject.console;
+  let hudBox = HUDService.getHeadsUpDisplay(hudId);
+  let outputNode = hudBox.querySelector(".hud-output-node");
 
   for (let i = 0; i < 50; i++) {
     console.log("http://www.example.com/");
   }
 
-  HUDService.setFilterState(hud.hudId, "log", false);
+  HUDService.setFilterState(hudId, "log", false);
   is(countMessageNodes(), 0, "the log nodes are hidden when the " +
     "corresponding filter is switched off");
 
-  HUDService.setFilterState(hud.hudId, "log", true);
+  HUDService.setFilterState(hudId, "log", true);
   isnot(countMessageNodes(), 0, "the log nodes reappear when the " +
     "corresponding filter is switched on");
 
@@ -73,9 +75,13 @@ function testLiveFilteringOfMessageTypes() {
 }
 
 function countMessageNodes() {
-  let messageNodes = hud.outputNode.querySelectorAll(".hud-log");
+  let hudId = HUDService.displaysIndex()[0];
+  let hudBox = HUDService.getHeadsUpDisplay(hudId);
+  let outputNode = hudBox.querySelector(".hud-output-node");
+
+  let messageNodes = outputNode.querySelectorAll(".hud-log");
   let displayedMessageNodes = 0;
-  let view = hud.chromeWindow;
+  let view = outputNode.ownerDocument.defaultView;
   for (let i = 0; i < messageNodes.length; i++) {
     let computedStyle = view.getComputedStyle(messageNodes[i], null);
     if (computedStyle.display !== "none") {

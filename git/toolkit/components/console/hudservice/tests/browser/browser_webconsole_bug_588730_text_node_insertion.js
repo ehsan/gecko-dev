@@ -55,7 +55,9 @@ function testTextNodeInsertion() {
                               false);
   openConsole();
 
-  let outputNode = HUDService.getHudByWindow(content).outputNode;
+  hudId = HUDService.displaysIndex()[0];
+  hudBox = HUDService.getHeadsUpDisplay(hudId);
+  let outputNode = hudBox.querySelector(".hud-output-node");
 
   let label = document.createElementNS(
     "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul", "label");

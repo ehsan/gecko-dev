@@ -512,14 +512,12 @@ ContentParent::RecvGetClipboardText(const PRInt32& whichClipboard, nsString* tex
     clipboard->GetData(trans, whichClipboard);
     nsCOMPtr<nsISupports> tmp;
     PRUint32 len;
-    rv = trans->GetTransferData(kUnicodeMime, getter_AddRefs(tmp), &len);
-    if (NS_FAILED(rv))
-        return false;
+    rv  = trans->GetTransferData(kUnicodeMime, getter_AddRefs(tmp), &len);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     nsCOMPtr<nsISupportsString> supportsString = do_QueryInterface(tmp);
     // No support for non-text data
-    if (!supportsString)
-        return false;
+    NS_ENSURE_TRUE(supportsString, NS_ERROR_NOT_IMPLEMENTED);
     supportsString->GetData(*text);
     return true;
 }
@@ -710,24 +708,25 @@ ContentParent::DeallocPMemoryReportRequest(PMemoryReportRequestParent* actor)
 void
 ContentParent::SetChildMemoryReporters(const InfallibleTArray<MemoryReport>& report)
 {
-    nsCOMPtr<nsIMemoryReporterManager> mgr =
-        do_GetService("@mozilla.org/memory-reporter-manager;1");
+    nsCOMPtr<nsIMemoryReporterManager> mgr = do_GetService("@mozilla.org/memory-reporter-manager;1");
     for (PRInt32 i = 0; i < mMemoryReporters.Count(); i++)
         mgr->UnregisterReporter(mMemoryReporters[i]);
 
     for (PRUint32 i = 0; i < report.Length(); i++) {
+
         nsCString process  = report[i].process();
         nsCString path     = report[i].path();
         PRInt32   kind     = report[i].kind();
-        PRInt32   units    = report[i].units();
-        PRInt64   amount   = report[i].amount();
         nsCString desc     = report[i].desc();
+        PRInt64 memoryUsed = report[i].memoryUsed();
         
-        nsRefPtr<nsMemoryReporter> r =
-            new nsMemoryReporter(process, path, kind, units, amount, desc);
-
-        mMemoryReporters.AppendObject(r);
-        mgr->RegisterReporter(r);
+        nsRefPtr<nsMemoryReporter> r = new nsMemoryReporter(process,
+                                                            path,
+                                                            kind,
+                                                            desc,
+                                                            memoryUsed);
+      mMemoryReporters.AppendObject(r);
+      mgr->RegisterReporter(r);
     }
 
     nsCOMPtr<nsIObserverService> obs =

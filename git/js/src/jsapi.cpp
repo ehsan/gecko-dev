@@ -76,7 +76,6 @@
 #include "jsobj.h"
 #include "jsopcode.h"
 #include "jsparse.h"
-#include "jsprobes.h"
 #include "jsproxy.h"
 #include "jsregexp.h"
 #include "jsscope.h"
@@ -141,6 +140,12 @@ class AutoVersionAPI
         , oldCompileOptions(cx->getCompileOptions())
 #endif
     {
+        /*
+         * Note: ANONFUNFIX in newVersion is ignored for backwards
+         * compatibility, must be set via JS_SetOptions. (Because of this, we
+         * inherit the current ANONFUNFIX setting from the options.
+         */
+        VersionSetAnonFunFix(&newVersion, OptionsHasAnonFunFix(cx->getCompileOptions()));
         this->newVersion = newVersion;
         cx->clearVersionOverride();
         cx->setDefaultVersion(newVersion);
@@ -507,7 +512,7 @@ JS_ValueToNumber(JSContext *cx, jsval v, jsdouble *dp)
     assertSameCompartment(cx, v);
 
     AutoValueRooter tvr(cx, Valueify(v));
-    return ToNumber(cx, tvr.value(), dp);
+    return ValueToNumber(cx, tvr.value(), dp);
 }
 
 JS_PUBLIC_API(JSBool)
@@ -631,13 +636,14 @@ JS_IsBuiltinFunctionConstructor(JSFunction *fun)
 /*
  * Has a new runtime ever been created?  This flag is used to detect unsafe
  * changes to js_CStringsAreUTF8 after a runtime has been created, and to
- * control things that should happen only once across all runtimes.
+ * ensure that "first checks" on runtime creation are run only once.
  */
+#ifdef DEBUG
 static JSBool js_NewRuntimeWasCalled = JS_FALSE;
+#endif
 
 JSRuntime::JSRuntime()
-  : gcChunkAllocator(&defaultGCChunkAllocator),
-    trustedPrincipals_(NULL)
+  : gcChunkAllocator(&defaultGCChunkAllocator)
 {
     /* Initialize infallibly first, so we can goto bad and JS_DestroyRuntime. */
     JS_INIT_CLIST(&contextList);
@@ -650,6 +656,18 @@ JSRuntime::init(uint32 maxbytes)
 {
 #ifdef JS_METHODJIT_SPEW
     JMCheckLogging();
+#endif
+
+#ifdef DEBUG
+    functionMeterFilename = getenv("JS_FUNCTION_STATFILE");
+    if (functionMeterFilename) {
+        if (!methodReadBarrierCountMap.init())
+            return false;
+        if (!unjoinedFunctionCountMap.init())
+            return false;
+    }
+    propTreeStatFilename = getenv("JS_PROPTREE_STATFILE");
+    propTreeDumpFilename = getenv("JS_PROPTREE_DUMPFILE");
 #endif
 
 #ifdef JS_TRACER
@@ -666,7 +684,6 @@ JSRuntime::init(uint32 maxbytes)
         return false;
     }
 
-    atomsCompartment->isSystemCompartment = true;
     atomsCompartment->setGCLastBytes(8192, GC_NORMAL);
 
     if (!js_InitAtomState(this))
@@ -695,6 +712,8 @@ JSRuntime::init(uint32 maxbytes)
         return false;
     if (!InitRuntimeNumberState(this))
         return false;
+    if (!InitRuntimeScriptState(this))
+        return false;
 
     return true;
 }
@@ -722,6 +741,7 @@ JSRuntime::~JSRuntime()
     FinishJIT();
 #endif
 
+    FreeRuntimeScriptState(this);
     FinishRuntimeNumberState(this);
     js_FinishThreads(this);
     js_FinishAtomState(this);
@@ -746,11 +766,8 @@ JSRuntime::~JSRuntime()
 JS_PUBLIC_API(JSRuntime *)
 JS_NewRuntime(uint32 maxbytes)
 {
-    if (!js_NewRuntimeWasCalled) {
-#ifdef MOZ_ETW
-        EventRegisterMozillaSpiderMonkey();
-#endif
 #ifdef DEBUG
+    if (!js_NewRuntimeWasCalled) {
         /*
          * This code asserts that the numbers associated with the error names
          * in jsmsg.def are monotonically increasing.  It uses values for the
@@ -775,10 +792,10 @@ JS_NewRuntime(uint32 maxbytes)
     JS_END_MACRO;
 #include "js.msg"
 #undef MSG_DEF
-#endif /* DEBUG */
 
         js_NewRuntimeWasCalled = JS_TRUE;
     }
+#endif /* DEBUG */
 
     void *mem = OffTheBooks::calloc_(sizeof(JSRuntime));
     if (!mem)
@@ -799,6 +816,12 @@ JS_DestroyRuntime(JSRuntime *rt)
     Foreground::delete_(rt);
 }
 
+#ifdef JS_REPRMETER
+namespace reprmeter {
+    extern void js_DumpReprMeter();
+}
+#endif
+
 JS_PUBLIC_API(void)
 JS_ShutDown(void)
 {
@@ -806,14 +829,19 @@ JS_ShutDown(void)
     StopTraceVis();
 #endif
 
+#ifdef JS_OPMETER
+    extern void js_DumpOpMeters();
+    js_DumpOpMeters();
+#endif
+
+#ifdef JS_REPRMETER
+    reprmeter::js_DumpReprMeter();
+#endif
+
 #ifdef JS_THREADSAFE
     js_CleanupLocks();
 #endif
     PRMJ_NowShutdown();
-
-#ifdef MOZ_ETW
-    EventUnregisterMozillaSpiderMonkey();
-#endif
 }
 
 JS_PUBLIC_API(void *)
@@ -1523,7 +1551,6 @@ JS_InitStandardClasses(JSContext *cx, JSObject *obj)
      */
     if (!cx->globalObject)
         JS_SetGlobalObject(cx, obj);
-
     assertSameCompartment(cx, obj);
 
     return obj->asGlobal()->initStandardClasses(cx);
@@ -2700,8 +2727,7 @@ JS_PUBLIC_API(void)
 JS_FlushCaches(JSContext *cx)
 {
 #ifdef JS_TRACER
-    if (cx->compartment->hasTraceMonitor())
-        FlushJITCache(cx, cx->compartment->traceMonitor());
+    FlushJITCache(cx, &cx->compartment->traceMonitor);
 #endif
 }
 
@@ -2721,9 +2747,7 @@ JS_PUBLIC_API(JSString *)
 JS_NewExternalString(JSContext *cx, const jschar *chars, size_t length, intN type)
 {
     CHECK_REQUEST(cx);
-    JSString *s = JSExternalString::new_(cx, chars, length, type, NULL);
-    Probes::createString(cx, s, length);
-    return s;
+    return JSExternalString::new_(cx, chars, length, type, NULL);
 }
 
 extern JS_PUBLIC_API(JSString *)
@@ -4100,6 +4124,14 @@ JS_SetArrayLength(JSContext *cx, JSObject *obj, jsuint length)
 }
 
 JS_PUBLIC_API(JSBool)
+JS_HasArrayLength(JSContext *cx, JSObject *obj, jsuint *lengthp)
+{
+    CHECK_REQUEST(cx);
+    assertSameCompartment(cx, obj);
+    return js_HasLengthProperty(cx, obj, lengthp);
+}
+
+JS_PUBLIC_API(JSBool)
 JS_CheckAccess(JSContext *cx, JSObject *obj, jsid id, JSAccessMode mode,
                jsval *vp, uintN *attrsp)
 {
@@ -4157,12 +4189,6 @@ JS_GetSecurityCallbacks(JSContext *cx)
   return cx->securityCallbacks
          ? cx->securityCallbacks
          : cx->runtime->securityCallbacks;
-}
-
-JS_PUBLIC_API(void)
-JS_SetTrustedPrincipals(JSRuntime *rt, JSPrincipals *prin)
-{
-    rt->setTrustedPrincipals(prin);
 }
 
 JS_PUBLIC_API(JSFunction *)
@@ -4596,9 +4622,8 @@ CompileFileHelper(JSContext *cx, JSObject *obj, JSPrincipals *principals,
 
     /* Read in the whole file, then compile it. */
     if (fp == stdin) {
-        if (len == 0)
-            len = 8;  /* start with a small buffer, expand as necessary */
-
+        JS_ASSERT(len == 0);
+        len = 8;  /* start with a small buffer, expand as necessary */
         int c;
         bool hitEOF = false;
         while (!hitEOF) {
@@ -4625,9 +4650,7 @@ CompileFileHelper(JSContext *cx, JSObject *obj, JSPrincipals *principals,
             return NULL;
 
         int c;
-        // The |i < len| is necessary for files that lie about their length,
-        // e.g. /dev/zero and /dev/random.  See bug 669434.
-        while (i < len && (c = fast_getc(fp)) != EOF)
+        while ((c = fast_getc(fp)) != EOF)
             buf[i++] = (jschar) (unsigned char) c;
     }
 
@@ -4779,6 +4802,17 @@ CompileUCFunctionForPrincipalsCommon(JSContext *cx, JSObject *obj,
                                  NULL, NULL, JSPROP_ENUMERATE)) {
             fun = NULL;
         }
+
+#ifdef JS_SCOPE_DEPTH_METER
+        if (fun && obj) {
+            JSObject *pobj = obj;
+            uintN depth = 1;
+
+            while ((pobj = pobj->getParent()) != NULL)
+                ++depth;
+            JS_BASIC_STATS_ACCUM(&cx->runtime->hostenvScopeDepthStats, depth);
+        }
+#endif
     }
 
   out2:
@@ -5513,11 +5547,15 @@ JS_Stringify(JSContext *cx, jsval *vp, JSObject *replacer, jsval space,
     Value spacev = Valueify(space);
     if (!js_Stringify(cx, Valueify(vp), replacer, spacev, sb))
         return false;
-    if (sb.empty()) {
-        JSAtom *nullAtom = cx->runtime->atomState.nullAtom;
-        return callback(nullAtom->chars(), nullAtom->length(), data);
-    }
     return callback(sb.begin(), sb.length(), data);
+}
+
+JS_PUBLIC_API(JSBool)
+JS_TryJSON(JSContext *cx, jsval *vp)
+{
+    CHECK_REQUEST(cx);
+    assertSameCompartment(cx, *vp);
+    return js_TryJSON(cx, Valueify(vp));
 }
 
 JS_PUBLIC_API(JSBool)
@@ -5774,7 +5812,7 @@ JS_NewRegExpObject(JSContext *cx, JSObject *obj, char *bytes, size_t length, uin
     if (!chars)
         return NULL;
     RegExpStatics *res = RegExpStatics::extractFrom(obj->asGlobal());
-    JSObject *reobj = RegExp::createObject(cx, res, chars, length, flags, NULL);
+    JSObject *reobj = RegExp::createObject(cx, res, chars, length, flags);
     cx->free_(chars);
     return reobj;
 }
@@ -5784,7 +5822,7 @@ JS_NewUCRegExpObject(JSContext *cx, JSObject *obj, jschar *chars, size_t length,
 {
     CHECK_REQUEST(cx);
     RegExpStatics *res = RegExpStatics::extractFrom(obj->asGlobal());
-    return RegExp::createObject(cx, res, chars, length, flags, NULL);
+    return RegExp::createObject(cx, res, chars, length, flags);
 }
 
 JS_PUBLIC_API(void)
@@ -5830,7 +5868,7 @@ JS_NewRegExpObjectNoStatics(JSContext *cx, char *bytes, size_t length, uintN fla
     jschar *chars = InflateString(cx, bytes, &length);
     if (!chars)
         return NULL;
-    JSObject *obj = RegExp::createObjectNoStatics(cx, chars, length, flags, NULL);
+    JSObject *obj = RegExp::createObjectNoStatics(cx, chars, length, flags);
     cx->free_(chars);
     return obj;
 }
@@ -5839,7 +5877,7 @@ JS_PUBLIC_API(JSObject *)
 JS_NewUCRegExpObjectNoStatics(JSContext *cx, jschar *chars, size_t length, uintN flags)
 {
     CHECK_REQUEST(cx);
-    return RegExp::createObjectNoStatics(cx, chars, length, flags, NULL);
+    return RegExp::createObjectNoStatics(cx, chars, length, flags);
 }
 
 JS_PUBLIC_API(JSBool)

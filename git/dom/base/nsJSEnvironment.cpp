@@ -185,10 +185,7 @@ static PRTime sMaxChromeScriptRunTime;
 static nsIScriptSecurityManager *sSecurityManager;
 
 // nsMemoryPressureObserver observes the memory-pressure notifications
-// and forces a garbage collection and cycle collection when it happens, if
-// the appropriate pref is set.
-
-static PRBool sGCOnMemoryPressure;
+// and forces a garbage collection and cycle collection when it happens.
 
 class nsMemoryPressureObserver : public nsIObserver
 {
@@ -203,10 +200,8 @@ NS_IMETHODIMP
 nsMemoryPressureObserver::Observe(nsISupports* aSubject, const char* aTopic,
                                   const PRUnichar* aData)
 {
-  if (sGCOnMemoryPressure) {
-    nsJSContext::GarbageCollectNow();
-    nsJSContext::CycleCollectNow();
-  }
+  nsJSContext::GarbageCollectNow();
+  nsJSContext::CycleCollectNow();
   return NS_OK;
 }
 
@@ -1027,7 +1022,7 @@ nsJSContext::nsJSContext(JSRuntime *aRuntime)
 
   ++sContextCount;
 
-  mDefaultJSOptions = JSOPTION_PRIVATE_IS_NSISUPPORTS;
+  mDefaultJSOptions = JSOPTION_PRIVATE_IS_NSISUPPORTS | JSOPTION_ANONFUNFIX;
 
   mContext = ::JS_NewContext(aRuntime, gStackSize);
   if (mContext) {
@@ -1833,9 +1828,7 @@ nsJSContext::CallEventHandler(nsISupports* aTarget, void *aScope, void *aHandler
 #ifdef NS_FUNCTION_TIMER
   {
     JSObject *obj = static_cast<JSObject *>(aHandler);
-    if (obj->isFunctionProxy())
-      obj = obj->unwrap(NULL);
-    JSString *id = JS_GetFunctionId(GET_FUNCTION_PRIVATE(mContext, obj));
+    JSString *id = JS_GetFunctionId(static_cast<JSFunction *>(JS_GetPrivate(mContext, obj)));
     JSAutoByteString bytes;
     const char *name = !id ? "anonymous" : bytes.encode(mContext, id) ? bytes.ptr() : "<error>";
     NS_TIME_FUNCTION_FMT(1.0, "%s (line %d) (function: %s)", MOZ_FUNCTION_NAME, __LINE__, name);
@@ -3693,32 +3686,32 @@ ObjectPrincipalFinder(JSContext *cx, JSObject *obj)
   return jsPrincipals;
 }
 
-JSObject*
-NS_DOMReadStructuredClone(JSContext* cx,
-                          JSStructuredCloneReader* reader,
-                          uint32 tag,
-                          uint32 data,
-                          void* closure)
+static JSObject*
+DOMReadStructuredClone(JSContext* cx,
+                       JSStructuredCloneReader* reader,
+                       uint32 tag,
+                       uint32 data,
+                       void* closure)
 {
   // We don't currently support any extensions to structured cloning.
   nsDOMClassInfo::ThrowJSException(cx, NS_ERROR_DOM_DATA_CLONE_ERR);
   return nsnull;
 }
 
-JSBool
-NS_DOMWriteStructuredClone(JSContext* cx,
-                           JSStructuredCloneWriter* writer,
-                           JSObject* obj,
-                           void *closure)
+static JSBool
+DOMWriteStructuredClone(JSContext* cx,
+                        JSStructuredCloneWriter* writer,
+                        JSObject* obj,
+                        void *closure)
 {
   // We don't currently support any extensions to structured cloning.
   nsDOMClassInfo::ThrowJSException(cx, NS_ERROR_DOM_DATA_CLONE_ERR);
   return JS_FALSE;
 }
 
-void
-NS_DOMStructuredCloneError(JSContext* cx,
-                           uint32 errorid)
+static void
+DOMStructuredCloneError(JSContext* cx,
+                        uint32 errorid)
 {
   // We don't currently support any extensions to structured cloning.
   nsDOMClassInfo::ThrowJSException(cx, NS_ERROR_DOM_DATA_CLONE_ERR);
@@ -3762,9 +3755,9 @@ nsJSRuntime::Init()
 
   // Set up the structured clone callbacks.
   static JSStructuredCloneCallbacks cloneCallbacks = {
-    NS_DOMReadStructuredClone,
-    NS_DOMWriteStructuredClone,
-    NS_DOMStructuredCloneError
+    DOMReadStructuredClone,
+    DOMWriteStructuredClone,
+    DOMStructuredCloneError
   };
   JS_SetStructuredCloneCallbacks(sRuntime, &cloneCallbacks);
 
@@ -3801,10 +3794,6 @@ nsJSRuntime::Init()
   nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
   if (!obs)
     return NS_ERROR_FAILURE;
-
-  Preferences::AddBoolVarCache(&sGCOnMemoryPressure,
-                               "javascript.options.gc_on_memory_pressure",
-                               PR_TRUE);
 
   nsIObserver* memPressureObserver = new nsMemoryPressureObserver();
   NS_ENSURE_TRUE(memPressureObserver, NS_ERROR_OUT_OF_MEMORY);

@@ -308,7 +308,7 @@ nsBlockFrame::~nsBlockFrame()
 void
 nsBlockFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
-  mAbsoluteContainer.DestroyFrames(this, aDestructRoot);
+  DestroyAbsoluteFrames(aDestructRoot);
   // Outside bullets are not in our child-list so check for them here
   // and delete them when present.
   if (mBullet && HaveOutsideBullet()) {
@@ -585,10 +585,7 @@ nsBlockFrame::GetCaretBaseline() const
 nsFrameList
 nsBlockFrame::GetChildList(nsIAtom* aListName) const
 {
-  if (nsGkAtoms::absoluteList == aListName) {
-    return mAbsoluteContainer.GetChildList();
-  }
-  else if (nsnull == aListName) {
+  if (nsnull == aListName) {
     return mFrames;
   }
   else if (aListName == nsGkAtoms::overflowList) {
@@ -620,8 +617,7 @@ nsBlockFrame::GetChildList(nsIAtom* aListName) const
 #define NS_BLOCK_FRAME_OVERFLOW_OOF_LIST_INDEX  (NS_CONTAINER_LIST_COUNT_INCL_OC + 0)
 #define NS_BLOCK_FRAME_FLOAT_LIST_INDEX         (NS_CONTAINER_LIST_COUNT_INCL_OC + 1)
 #define NS_BLOCK_FRAME_BULLET_LIST_INDEX        (NS_CONTAINER_LIST_COUNT_INCL_OC + 2)
-#define NS_BLOCK_FRAME_ABSOLUTE_LIST_INDEX      (NS_CONTAINER_LIST_COUNT_INCL_OC + 3)
-#define NS_BLOCK_FRAME_PUSHED_FLOATS_LIST_INDEX (NS_CONTAINER_LIST_COUNT_INCL_OC + 4)
+#define NS_BLOCK_FRAME_PUSHED_FLOATS_LIST_INDEX (NS_CONTAINER_LIST_COUNT_INCL_OC + 3)
 // If adding/removing lists, don't forget to update the count in nsBlockFrame.h
 
 nsIAtom*
@@ -637,8 +633,6 @@ nsBlockFrame::GetAdditionalChildListName(PRInt32 aIndex) const
     return nsGkAtoms::bulletList;
   case NS_BLOCK_FRAME_OVERFLOW_OOF_LIST_INDEX:
     return nsGkAtoms::overflowOutOfFlowList;
-  case NS_BLOCK_FRAME_ABSOLUTE_LIST_INDEX:
-    return nsGkAtoms::absoluteList;
   case NS_BLOCK_FRAME_PUSHED_FLOATS_LIST_INDEX:
     return nsGkAtoms::pushedFloatsList;
   default:
@@ -1176,7 +1170,8 @@ nsBlockFrame::Reflow(nsPresContext*           aPresContext,
   // resetting the size. Because of this, we must not reflow our abs-pos children
   // in that situation --- what we think is our "new size"
   // will not be our real new size. This also happens to be more efficient.
-  if (mAbsoluteContainer.HasAbsoluteFrames()) {
+  if (HasAbsolutelyPositionedChildren()) {
+    nsAbsoluteContainingBlock* absoluteContainer = GetAbsoluteContainingBlock();
     PRBool haveInterrupt = aPresContext->HasPendingInterrupt();
     if (reflowState->WillReflowAgainForClearance() ||
         haveInterrupt) {
@@ -1187,9 +1182,9 @@ nsBlockFrame::Reflow(nsPresContext*           aPresContext,
       // better than that, because we don't really know what our size will be,
       // and it might in fact not change on the followup reflow!
       if (haveInterrupt && (GetStateBits() & NS_FRAME_IS_DIRTY)) {
-        mAbsoluteContainer.MarkAllFramesDirty();
+        absoluteContainer->MarkAllFramesDirty();
       } else {
-        mAbsoluteContainer.MarkSizeDependentFramesDirty();
+        absoluteContainer->MarkSizeDependentFramesDirty();
       }
     } else {
       nsSize containingBlockSize =
@@ -1213,12 +1208,12 @@ nsBlockFrame::Reflow(nsPresContext*           aPresContext,
         !(isRoot && NS_UNCONSTRAINEDSIZE == reflowState->ComputedHeight()) &&
         aMetrics.height != oldSize.height;
 
-      rv = mAbsoluteContainer.Reflow(this, aPresContext, *reflowState,
-                                     state.mReflowStatus,
-                                     containingBlockSize.width,
-                                     containingBlockSize.height, PR_TRUE,
-                                     cbWidthChanged, cbHeightChanged,
-                                     &aMetrics.mOverflowAreas);
+      absoluteContainer->Reflow(this, aPresContext, *reflowState,
+                                state.mReflowStatus,
+                                containingBlockSize.width,
+                                containingBlockSize.height, PR_TRUE,
+                                cbWidthChanged, cbHeightChanged,
+                                &aMetrics.mOverflowAreas);
 
       //XXXfr Why isn't this rv (and others in this file) checked/returned?
     }
@@ -4257,7 +4252,11 @@ nsBlockFrame::PlaceLine(nsBlockReflowState& aState,
   if (aState.mPresContext->BidiEnabled()) {
     if (!aState.mPresContext->IsVisualMode() ||
         GetStyleVisibility()->mDirection == NS_STYLE_DIRECTION_RTL) {
-      nsBidiPresUtils::ReorderFrames(aLine->mFirstChild, aLine->GetChildCount());
+      nsBidiPresUtils* bidiUtils = aState.mPresContext->GetBidiUtils();
+
+      if (bidiUtils && bidiUtils->IsSuccessful() ) {
+        bidiUtils->ReorderFrames(aLine->mFirstChild, aLine->GetChildCount());
+      } // bidiUtils
     } // not visual mode
   } // bidi enabled
 #endif // IBMBIDI
@@ -4704,10 +4703,7 @@ nsBlockFrame::AppendFrames(nsIAtom*  aListName,
     return NS_OK;
   }
   if (aListName) {
-    if (nsGkAtoms::absoluteList == aListName) {
-      return mAbsoluteContainer.AppendFrames(this, aListName, aFrameList);
-    }
-    else if (nsGkAtoms::floatList == aListName) {
+    if (nsGkAtoms::floatList == aListName) {
       mFloats.AppendFrames(nsnull, aFrameList);
       return NS_OK;
     }
@@ -4752,11 +4748,7 @@ nsBlockFrame::InsertFrames(nsIAtom*  aListName,
                "inserting after sibling frame with different parent");
 
   if (aListName) {
-    if (nsGkAtoms::absoluteList == aListName) {
-      return mAbsoluteContainer.InsertFrames(this, aListName, aPrevFrame,
-                                             aFrameList);
-    }
-    else if (nsGkAtoms::floatList == aListName) {
+    if (nsGkAtoms::floatList == aListName) {
       mFloats.InsertFrames(this, aPrevFrame, aFrameList);
       return NS_OK;
     }
@@ -5017,10 +5009,6 @@ nsBlockFrame::RemoveFrame(nsIAtom*  aListName,
       MarkSameFloatManagerLinesDirty(this);
     }
   }
-  else if (nsGkAtoms::absoluteList == aListName) {
-    mAbsoluteContainer.RemoveFrame(this, aListName, aOldFrame);
-    return NS_OK;
-  }
   else if (nsGkAtoms::floatList == aListName) {
     // Make sure to mark affected lines dirty for the float frame
     // we are removing; this way is a bit messy, but so is the rest of the code.
@@ -5063,9 +5051,9 @@ nsBlockFrame::DoRemoveOutOfFlowFrame(nsIFrame* aFrame)
   const nsStyleDisplay* display = aFrame->GetStyleDisplay();
   if (display->IsAbsolutelyPositioned()) {
     // This also deletes the next-in-flows
-    block->mAbsoluteContainer.RemoveFrame(block,
-                                          nsGkAtoms::absoluteList,
-                                          aFrame);
+    block->GetAbsoluteContainingBlock()->RemoveFrame(block,
+                                                     nsGkAtoms::absoluteList,
+                                                     aFrame);
   }
   else {
     // First remove aFrame's next-in-flows
@@ -6264,8 +6252,6 @@ nsBlockFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   }
 
   aBuilder->MarkFramesForDisplayList(this, mFloats, aDirtyRect);
-  aBuilder->MarkFramesForDisplayList(this, mAbsoluteContainer.GetChildList(),
-                                     aDirtyRect);
 
   // Prepare for text-overflow processing.
   nsAutoPtr<TextOverflow> textOverflow(
@@ -6529,10 +6515,7 @@ nsBlockFrame::SetInitialChildList(nsIAtom*        aListName,
 {
   nsresult rv = NS_OK;
 
-  if (nsGkAtoms::absoluteList == aListName) {
-    mAbsoluteContainer.SetInitialChildList(this, aListName, aChildList);
-  }
-  else if (nsGkAtoms::floatList == aListName) {
+  if (nsGkAtoms::floatList == aListName) {
     mFloats.SetFrames(aChildList);
   }
   else {
@@ -7216,7 +7199,11 @@ nsBlockFrame::ResolveBidi()
     return NS_OK;
   }
 
-  return nsBidiPresUtils::Resolve(this);
+  nsBidiPresUtils* bidiUtils = presContext->GetBidiUtils();
+  if (!bidiUtils)
+    return NS_ERROR_NULL_POINTER;
+
+  return bidiUtils->Resolve(this);
 }
 #endif
 

@@ -54,7 +54,6 @@
 #include "nsString.h"
 #include "nsAutoPtr.h"
 #include "mozilla/Services.h"
-#include "nsCRT.h"
 
 #include <iptypes.h>
 #include <iphlpapi.h>
@@ -165,16 +164,6 @@ nsNotifyAddrListener::GetLinkStatusKnown(PRBool *aIsUp)
 {
     *aIsUp = mStatusKnown;
     return NS_OK;
-}
-
-NS_IMETHODIMP
-nsNotifyAddrListener::GetLinkType(PRUint32 *aLinkType)
-{
-  NS_ENSURE_ARG_POINTER(aLinkType);
-
-  // XXX This function has not yet been implemented for this platform
-  *aLinkType = nsINetworkLinkService::LINK_TYPE_UNKNOWN;
-  return NS_OK;
 }
 
 NS_IMETHODIMP

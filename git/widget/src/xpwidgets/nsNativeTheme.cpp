@@ -47,13 +47,12 @@
 #include "nsString.h"
 #include "nsINameSpaceManager.h"
 #include "nsIDOMHTMLInputElement.h"
-#include "nsIDOMXULMenuListElement.h"
 #include "nsILookAndFeel.h"
 #include "nsThemeConstants.h"
 #include "nsIComponentManager.h"
 #include "nsPIDOMWindow.h"
 #include "nsProgressFrame.h"
-#include "nsMenuFrame.h"
+#include "nsIMenuFrame.h"
 
 nsNativeTheme::nsNativeTheme()
 : mAnimatedContentTimeout(PR_UINT32_MAX)
@@ -514,19 +513,9 @@ nsNativeTheme::IsSubmenu(nsIFrame* aFrame, PRBool* aLeftOfParent)
 PRBool
 nsNativeTheme::IsRegularMenuItem(nsIFrame *aFrame)
 {
-  nsMenuFrame *menuFrame = do_QueryFrame(aFrame);
+  nsIMenuFrame *menuFrame = do_QueryFrame(aFrame);
   return !(menuFrame && (menuFrame->IsOnMenuBar() ||
                          menuFrame->GetParentMenuListType() != eNotMenuList));
-}
-
-PRBool
-nsNativeTheme::IsMenuListEditable(nsIFrame *aFrame)
-{
-  PRBool isEditable = PR_FALSE;
-  nsCOMPtr<nsIDOMXULMenuListElement> menulist = do_QueryInterface(aFrame->GetContent());
-  if (menulist)
-    menulist->GetEditable(&isEditable);
-  return isEditable;
 }
 
 PRBool

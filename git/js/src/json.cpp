@@ -137,6 +137,25 @@ js_json_stringify(JSContext *cx, uintN argc, Value *vp)
     return true;
 }
 
+JSBool
+js_TryJSON(JSContext *cx, Value *vp)
+{
+    if (!vp->isObject())
+        return true;
+
+    JSObject *obj = &vp->toObject();
+    Value fval;
+    jsid id = ATOM_TO_JSID(cx->runtime->atomState.toJSONAtom);
+    if (!js_GetMethod(cx, obj, id, JSGET_NO_METHOD_BARRIER, &fval))
+        return false;
+    if (js_IsCallable(fval)) {
+        if (!ExternalInvoke(cx, ObjectValue(*obj), fval, 0, NULL, vp))
+            return false;
+    }
+    return true;
+}
+
+
 static inline bool IsQuoteSpecialCharacter(jschar c)
 {
     JS_STATIC_ASSERT('\b' < ' ');
@@ -344,7 +363,7 @@ PreprocessValue(JSContext *cx, JSObject *holder, jsid key, Value *vp, StringifyC
         Class *clasp = obj->getClass();
         if (clasp == &js_NumberClass) {
             double d;
-            if (!ToNumber(cx, *vp, &d))
+            if (!ValueToNumber(cx, *vp, &d))
                 return false;
             vp->setNumber(d);
         } else if (clasp == &js_StringClass) {
@@ -688,7 +707,7 @@ js_Stringify(JSContext *cx, Value *vp, JSObject *replacer, Value space, StringBu
         JSObject &spaceObj = space.toObject();
         if (spaceObj.isNumber()) {
             jsdouble d;
-            if (!ToNumber(cx, space, &d))
+            if (!ValueToNumber(cx, space, &d))
                 return false;
             space = NumberValue(d);
         } else if (spaceObj.isString()) {

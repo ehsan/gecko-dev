@@ -66,10 +66,6 @@
 #include "nsNPAPIPlugin.h"
 #include "nsILocalFile.h"
 
-#ifdef XP_WIN
-#include "mozilla/widget/AudioSession.h"
-#endif
-
 using base::KillProcess;
 
 using mozilla::PluginLibrary;
@@ -754,8 +750,6 @@ PluginModuleParent::NP_Initialize(NPNetscapeFuncs* bFuncs, NPPluginFuncs* pFuncs
 {
     PLUGIN_LOG_DEBUG_METHOD;
 
-    nsresult rv;
-
     mNPNIface = bFuncs;
 
     if (mShutdown) {
@@ -789,18 +783,6 @@ PluginModuleParent::NP_Initialize(NPNetscapeFuncs* bFuncs, NPError* error)
 
     if (!CallNP_Initialize(&mPluginThread, error))
         return NS_ERROR_FAILURE;
-
-#if defined XP_WIN && MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-    // Send the info needed to join the chrome process's audio session to the
-    // plugin process
-    nsID id;
-    nsString sessionName;
-    nsString iconPath;
-
-    if (NS_SUCCEEDED(mozilla::widget::GetAudioSessionData(id, sessionName,
-                                                          iconPath)))
-        SendSetAudioSessionData(id, sessionName, iconPath);
-#endif
 
     return NS_OK;
 }
@@ -958,18 +940,6 @@ PluginModuleParent::NPP_GetSitesWithData(InfallibleTArray<nsCString>& result)
 
     return NS_OK;
 }
-
-#if defined(XP_MACOSX)
-nsresult
-PluginModuleParent::IsRemoteDrawingCoreAnimation(NPP instance, PRBool *aDrawing)
-{
-    PluginInstanceParent* i = InstCast(instance);
-    if (!i)
-        return NS_ERROR_FAILURE;
-
-    return i->IsRemoteDrawingCoreAnimation(aDrawing);
-}
-#endif
 
 bool
 PluginModuleParent::AnswerNPN_GetValue_WithBoolReturn(const NPNVariable& aVariable,
@@ -1172,11 +1142,9 @@ CAUpdate(nsITimer *aTimer, void *aClosure) {
     nsTObserverArray<PluginInstanceParent*> *ips =
         static_cast<nsTObserverArray<PluginInstanceParent*> *>(aClosure);
     nsTObserverArray<PluginInstanceParent*>::ForwardIterator iter(*ips);
-#ifdef MOZ_WIDGET_COCOA
     while (iter.HasMore()) {
         iter.GetNext()->Invalidate();
     }
-#endif // MOZ_WIDGET_COCOA
 }
 
 void

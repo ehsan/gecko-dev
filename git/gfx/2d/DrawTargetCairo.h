@@ -38,7 +38,7 @@
 #define _MOZILLA_GFX_DRAWTARGET_CAIRO_H_
 
 #include "2D.h"
-#include "cairo.h"
+#include "cairo/cairo.h"
 
 namespace mozilla {
 namespace gfx {
@@ -63,8 +63,7 @@ public:
                                      const Point &aDest,
                                      const Color &aColor,
                                      const Point &aOffset,
-                                     Float aSigma,
-                                     CompositionOp aOperator)
+                                     Float aSigma)
   { }
 
   virtual void ClearRect(const Rect &aRect)

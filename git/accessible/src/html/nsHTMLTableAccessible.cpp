@@ -313,19 +313,19 @@ nsHTMLTableCellAccessible::GetHeaderCells(PRInt32 aRowOrColumnHeaderCell,
     nsCOMPtr<nsIMutableArray> headerCells =
       do_CreateInstance(NS_ARRAY_CONTRACTID, &rv);
     NS_ENSURE_SUCCESS(rv, rv);
-    PRUint32 desiredRole = -1;
-    if (aRowOrColumnHeaderCell == nsAccUtils::eRowHeaderCells)
-      desiredRole = nsIAccessibleRole::ROLE_ROWHEADER;
-    else if (aRowOrColumnHeaderCell == nsAccUtils::eColumnHeaderCells)
-      desiredRole = nsIAccessibleRole::ROLE_COLUMNHEADER;
 
     do {
       nsAccessible* headerCell =
         GetAccService()->GetAccessibleInWeakShell(headerCellElm, mWeakShell);
 
-      if (headerCell && headerCell->Role() == desiredRole)
+      if (headerCell &&
+          (aRowOrColumnHeaderCell == nsAccUtils::eRowHeaderCells &&
+              headerCell->Role() == nsIAccessibleRole::ROLE_ROWHEADER ||
+              aRowOrColumnHeaderCell == nsAccUtils::eColumnHeaderCells &&
+              headerCell->Role() == nsIAccessibleRole::ROLE_COLUMNHEADER)) {
         headerCells->AppendElement(static_cast<nsIAccessible*>(headerCell),
                                    PR_FALSE);
+      }
     } while ((headerCellElm = iter.NextElem()));
 
     NS_ADDREF(*aHeaderCells = headerCells);
@@ -511,7 +511,7 @@ nsHTMLTableAccessible::GetRelationByType(PRUint32 aRelationType,
                                                     aRelation);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (aRelationType == nsIAccessibleRelation::RELATION_LABELLED_BY)
+  if (aRelationType == nsIAccessibleRelation::RELATION_DESCRIBED_BY)
     return nsRelUtils::AddTarget(aRelationType, aRelation, Caption());
 
   return NS_OK;
@@ -1212,9 +1212,13 @@ nsHTMLTableAccessible::RemoveRowsOrColumnsFromSelection(PRInt32 aIndex,
     const_cast<nsFrameSelection*>(presShell->ConstFrameSelection());
 
   PRBool doUnselectRow = (aTarget == nsISelectionPrivate::TABLESELECTION_ROW);
+
+  nsresult rv = NS_OK;
   PRInt32 count = 0;
-  nsresult rv = doUnselectRow ? GetColumnCount(&count) : GetRowCount(&count);
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (doUnselectRow)
+    rv = GetColumnCount(&count);
+  else
+    rv = GetRowCount(&count);
 
   PRInt32 startRowIdx = doUnselectRow ? aIndex : 0;
   PRInt32 endRowIdx = doUnselectRow ? aIndex : count - 1;
@@ -1528,8 +1532,11 @@ nsHTMLCaptionAccessible::GetRelationByType(PRUint32 aRelationType,
                                                          aRelation);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (aRelationType == nsIAccessibleRelation::RELATION_LABEL_FOR)
-    return nsRelUtils::AddTarget(aRelationType, aRelation, GetParent());
+  if (aRelationType == nsIAccessibleRelation::RELATION_DESCRIPTION_FOR) {
+    nsCOMPtr<nsIAccessible> accParent;
+    GetParent(getter_AddRefs(accParent));
+    return nsRelUtils::AddTarget(aRelationType, aRelation, accParent);
+  }
 
   return NS_OK;
 }

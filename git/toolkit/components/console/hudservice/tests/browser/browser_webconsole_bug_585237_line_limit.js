@@ -5,7 +5,6 @@
  *
  * Contributor(s):
  *  Patrick Walton <pcwalton@mozilla.com>
- *  Mihai Șucan <mihai.sucan@gmail.com>
  *
  * ***** END LICENSE BLOCK ***** */
 
@@ -25,8 +24,9 @@ function testLineLimit() {
 
   openConsole();
 
+  hudId = HUDService.displaysIndex()[0];
   let console = browser.contentWindow.wrappedJSObject.console;
-  outputNode = HUDService.getHudByWindow(content).outputNode;
+  hudBox = HUDService.getHeadsUpDisplay(hudId);
 
   let prefBranch = Services.prefs.getBranch("devtools.hud.loglimit.");
   prefBranch.setIntPref("console", 20);
@@ -56,11 +56,13 @@ function testLineLimit() {
      "the log limit is set to zero");
 
   prefBranch.clearUserPref("console");
-  prefBranch = console = outputNode = null;
+  prefBranch = console = null;
   finishTest();
 }
 
 function countMessageNodes() {
-  return outputNode.querySelectorAll(".hud-msg-node").length;
+  let hudId = HUDService.displaysIndex()[0];
+  let hudBox = HUDService.getHeadsUpDisplay(hudId);
+  return hudBox.querySelectorAll(".hud-msg-node").length;
 }
 

@@ -809,7 +809,7 @@ interface nsINavHistoryResult : nsISupports
  * DANGER! If you are in the middle of a batch transaction, there may be a
  * database transaction active. You can still access the DB, but be careful.
  */
-[scriptable, uuid(c837f6ba-6ad7-4810-a425-8ce29e05d17e)]
+[scriptable, uuid(06602bb6-0774-4576-8855-ea930bb85bbe)]
 interface nsINavHistoryObserver : nsISupports
 {
   /**
@@ -870,21 +870,9 @@ interface nsINavHistoryObserver : nsISupports
    *        The URI of the page.
    * @param aPageTitle
    *        The new title of the page.
-   * @param aGUID
-   *        The unique ID associated with the page.
    */
   void onTitleChanged(in nsIURI aURI,
-                      in AString aPageTitle,
-                      in ACString aGUID);
-
-  /**
-   * Removed by the user.
-   */
-  const unsigned short REASON_DELETED = 0;
-  /**
-   * Removed by automatic expiration.
-   */
-  const unsigned short REASON_EXPIRED = 1;
+                      in AString aPageTitle);
 
   /**
    * This page and all of its visits are about to be deleted.  Note: the page
@@ -894,12 +882,9 @@ interface nsINavHistoryObserver : nsISupports
    *        The URI being deleted.
    * @param aGUID
    *        The unique ID associated with the page.
-   * @param aReason
-   *        Indicates the reason for the removal.  See REASON_* constants.
    */
   void onBeforeDeleteURI(in nsIURI aURI,
-                         in ACString aGUID,
-                         in unsigned short aReason);
+                         in ACString aGUID);
 
   /**
    * This page and all of its visits are being deleted. Note: the page may not
@@ -915,12 +900,9 @@ interface nsINavHistoryObserver : nsISupports
    *        The URI that was deleted.
    * @param aGUID
    *        The unique ID associated with the page.
-   * @param aReason
-   *        Indicates the reason for the removal.  see REASON_* constants.
    */
   void onDeleteURI(in nsIURI aURI,
-                   in ACString aGUID,
-                   in unsigned short aReason);
+                   in ACString aGUID);
 
   /**
    * Notification that all of history is being deleted.
@@ -928,27 +910,20 @@ interface nsINavHistoryObserver : nsISupports
   void onClearHistory();
 
   /**
-   * onPageChanged attribute indicating that favicon has been updated.
-   * aNewValue parameter will be set to the new favicon URI string.
-   */
-  const unsigned long ATTRIBUTE_FAVICON = 3;
-
-  /**
-   * An attribute of this page changed.
+   * A page has had some attribute on it changed. Note that for TYPED and
+   * HIDDEN, the page may not necessarily have been added yet.
    *
    * @param aURI
-   *        The URI of the page on which an attribute changed.
-   * @param aChangedAttribute
-   *        The attribute whose value changed.  See ATTRIBUTE_* constants.
-   * @param aNewValue
-   *        The attribute's new value.
-   * @param aGUID
-   *        The unique ID associated with the page.
+   *         The URI of the page on which an attribute changed.
+   * @param aWhat
+   *         The attribute whose value changed.
+   * @param aValue
+   *         The attribute's new value. 
    */
+  const unsigned long ATTRIBUTE_FAVICON = 3; // favicon updated, aString = favicon annotation URI
   void onPageChanged(in nsIURI aURI,
-                     in unsigned long aChangedAttribute,
-                     in AString aNewValue,
-                     in ACString aGUID);
+                     in unsigned long aWhat,
+                     in AString aValue);
 
   /**
    * Called when some visits of an history entry are expired.
@@ -965,13 +940,10 @@ interface nsINavHistoryObserver : nsISupports
    *        is expired, you will only get an onDeleteURI notification.  If a
    *        page entry is removed, then you can be sure that we don't have
    *        anymore visits for it.
-   * @param aReason
-   *        Indicates the reason for the removal.  see REASON_* constants.
    */
   void onDeleteVisits(in nsIURI aURI,
                       in PRTime aVisitTime,
-                      in ACString aGUID,
-                      in unsigned short aReason);
+                      in ACString aGUID);
 };
 
 

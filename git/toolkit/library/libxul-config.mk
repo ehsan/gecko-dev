@@ -138,7 +138,6 @@ COMPONENT_LIBS += \
 	pipboot \
 	pipnss \
 	appcomps \
-	jsreflect \
 	composer \
 	jetpack_s \
 	telemetry \
@@ -232,9 +231,7 @@ EXTRA_DSO_LDOPTS += $(SQLITE_LIBS)
 endif
 
 ifdef MOZ_PLACES
-ifdef MOZ_MORKREADER
 STATIC_LIBS += morkreader_s
-endif
 
 COMPONENT_LIBS += \
 	places \

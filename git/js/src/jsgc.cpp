@@ -60,8 +60,6 @@
 #include "jsapi.h"
 #include "jsatom.h"
 #include "jscompartment.h"
-#include "jscrashreport.h"
-#include "jscrashformat.h"
 #include "jscntxt.h"
 #include "jsversion.h"
 #include "jsdbgapi.h"
@@ -117,6 +115,17 @@ JS_STATIC_ASSERT(JSTRACE_XML    == 3);
  * trace kind when JS_HAS_XML_SUPPORT is false.
  */
 JS_STATIC_ASSERT(JSTRACE_SHAPE + 1 == JSTRACE_XML);
+
+#ifdef JS_GCMETER
+# define METER(x)               ((void) (x))
+# define METER_IF(condition, x) ((void) ((condition) && (x)))
+#else
+# define METER(x)               ((void) 0)
+# define METER_IF(condition, x) ((void) 0)
+#endif
+
+# define METER_UPDATE_MAX(maxLval, rval)                                       \
+    METER_IF((maxLval) < (rval), (maxLval) = (rval))
 
 namespace js {
 namespace gc {
@@ -241,7 +250,9 @@ Arena::finalize(JSContext *cx)
                 if (!newFreeSpanStart)
                     newFreeSpanStart = thing;
                 t->finalize(cx);
+#ifdef DEBUG
                 memset(t, JS_FREE_PATTERN, sizeof(T));
+#endif
             }
         }
     }
@@ -369,9 +380,9 @@ Chunk::allocateArena(JSContext *cx, unsigned thingKind)
     --info.numFree;
 
     JSRuntime *rt = info.runtime;
-    Probes::resizeHeap(comp, rt->gcBytes, rt->gcBytes + ArenaSize);
     JS_ATOMIC_ADD(&rt->gcBytes, ArenaSize);
     JS_ATOMIC_ADD(&comp->gcBytes, ArenaSize);
+    METER(JS_ATOMIC_INCREMENT(&rt->gcStats.nallarenas));
     if (comp->gcBytes >= comp->gcTriggerBytes)
         TriggerCompartmentGC(comp);
 
@@ -388,8 +399,10 @@ Chunk::releaseArena(ArenaHeader *aheader)
         maybeLock.construct(info.runtime);
 #endif
     JSCompartment *comp = aheader->compartment;
+    METER(rt->gcStats.afree++);
+    JS_ASSERT(rt->gcStats.nallarenas != 0);
+    METER(JS_ATOMIC_DECREMENT(&rt->gcStats.nallarenas));
 
-    Probes::resizeHeap(comp, rt->gcBytes, rt->gcBytes - ArenaSize);
     JS_ASSERT(size_t(rt->gcBytes) >= ArenaSize);
     JS_ASSERT(size_t(comp->gcBytes) >= ArenaSize);
 #ifdef JS_THREADSAFE
@@ -422,6 +435,8 @@ GetGCChunk(JSRuntime *rt)
     if (p)
         JS_ATOMIC_INCREMENT(&newChunkCount);
 #endif
+    METER_IF(p, rt->gcStats.nchunks++);
+    METER_UPDATE_MAX(rt->gcStats.maxnchunks, rt->gcStats.nchunks);
     return reinterpret_cast<jsuword>(p);
 }
 
@@ -433,6 +448,8 @@ ReleaseGCChunk(JSRuntime *rt, jsuword chunk)
 #ifdef MOZ_GCTIMER
     JS_ATOMIC_INCREMENT(&destroyChunkCount);
 #endif
+    JS_ASSERT(rt->gcStats.nchunks != 0);
+    METER(rt->gcStats.nchunks--);
     rt->gcChunkAllocator->free_(p);
 }
 
@@ -444,6 +461,7 @@ AllocateGCChunk(JSRuntime *rt)
     if (p)
         JS_ATOMIC_INCREMENT(&newChunkCount);
 #endif
+    METER_IF(p, rt->gcStats.nchunks++);
     return p;
 }
 
@@ -454,6 +472,8 @@ ReleaseGCChunk(JSRuntime *rt, Chunk *p)
 #ifdef MOZ_GCTIMER
     JS_ATOMIC_INCREMENT(&destroyChunkCount);
 #endif
+    JS_ASSERT(rt->gcStats.nchunks != 0);
+    METER(rt->gcStats.nchunks--);
     rt->gcChunkAllocator->free_(p);
 }
 
@@ -464,16 +484,12 @@ PickChunk(JSContext *cx)
     if (chunk && chunk->hasAvailableArenas())
         return chunk;
 
-    JSRuntime *rt = cx->runtime;
-    bool isSystemCompartment = cx->compartment->isSystemCompartment;
-
     /*
      * The chunk used for the last allocation is full, search all chunks for
      * free arenas.
      */
-    GCChunkSet::Range
-        r(isSystemCompartment ? rt->gcSystemChunkSet.all() : rt->gcUserChunkSet.all());
-    for (; !r.empty(); r.popFront()) {
+    JSRuntime *rt = cx->runtime;
+    for (GCChunkSet::Range r(rt->gcChunkSet.all()); !r.empty(); r.popFront()) {
         chunk = r.front();
         if (chunk->hasAvailableArenas()) {
             cx->compartment->chunk = chunk;
@@ -482,39 +498,18 @@ PickChunk(JSContext *cx)
     }
 
     chunk = AllocateGCChunk(rt);
-    if (!chunk) {
-        /* Our last chance is to find an empty chunk in the other chunk set. */
-        GCChunkSet::Enum e(isSystemCompartment ? rt->gcUserChunkSet : rt->gcSystemChunkSet);
-        for (; !e.empty(); e.popFront()) {
-            if (e.front()->info.numFree == ArenasPerChunk) {
-                chunk = e.front();
-                e.removeFront();
-                break;
-            }
-        }
-
-        if (!chunk)
-            return NULL;
-    }
+    if (!chunk)
+        return NULL;
 
     /*
      * FIXME bug 583732 - chunk is newly allocated and cannot be present in
      * the table so using ordinary lookupForAdd is suboptimal here.
      */
-    GCChunkSet::AddPtr p = isSystemCompartment ?
-                           rt->gcSystemChunkSet.lookupForAdd(chunk) :
-                           rt->gcUserChunkSet.lookupForAdd(chunk);
+    GCChunkSet::AddPtr p = rt->gcChunkSet.lookupForAdd(chunk);
     JS_ASSERT(!p);
-    if (isSystemCompartment) {
-        if (!rt->gcSystemChunkSet.add(p, chunk)) {
-            ReleaseGCChunk(rt, chunk);
-            return NULL;
-        }
-    } else {
-        if (!rt->gcUserChunkSet.add(p, chunk)) {
-            ReleaseGCChunk(rt, chunk);
-            return NULL;
-        }
+    if (!rt->gcChunkSet.add(p, chunk)) {
+        ReleaseGCChunk(rt, chunk);
+        return NULL;
     }
 
     chunk->init(rt);
@@ -532,19 +527,7 @@ ExpireGCChunks(JSRuntime *rt, JSGCInvocationKind gckind)
     AutoLockGC lock(rt);
 
     rt->gcChunksWaitingToExpire = 0;
-    for (GCChunkSet::Enum e(rt->gcUserChunkSet); !e.empty(); e.popFront()) {
-        Chunk *chunk = e.front();
-        JS_ASSERT(chunk->info.runtime == rt);
-        if (chunk->unused()) {
-            if (gckind == GC_SHRINK || chunk->info.age++ > MaxAge) {
-                e.removeFront();
-                ReleaseGCChunk(rt, chunk);
-                continue;
-            }
-            rt->gcChunksWaitingToExpire++;
-        }
-    }
-    for (GCChunkSet::Enum e(rt->gcSystemChunkSet); !e.empty(); e.popFront()) {
+    for (GCChunkSet::Enum e(rt->gcChunkSet); !e.empty(); e.popFront()) {
         Chunk *chunk = e.front();
         JS_ASSERT(chunk->info.runtime == rt);
         if (chunk->unused()) {
@@ -597,10 +580,7 @@ js_InitGC(JSRuntime *rt, uint32 maxbytes)
      * Make room for at least 16 chunks so the table would not grow before
      * the browser starts up.
      */
-    if (!rt->gcUserChunkSet.init(16))
-        return false;
-
-    if (!rt->gcSystemChunkSet.init(16))
+    if (!rt->gcChunkSet.init(16))
         return false;
 
     if (!rt->gcRootsHash.init(256))
@@ -638,6 +618,8 @@ js_InitGC(JSRuntime *rt, uint32 maxbytes)
     rt->setGCLastBytes(8192, GC_NORMAL);
 
     rt->gcJitReleaseTime = PRMJ_Now() + JIT_SCRIPT_EIGHTH_LIFETIME;
+
+    METER(PodZero(&rt->gcStats));
     return true;
 }
 
@@ -700,13 +682,13 @@ MarkArenaPtrConservatively(JSTracer *trc, ArenaHeader *aheader, uintptr_t addr)
     MarkRoot(trc, thing, "machine stack");
 
 #ifdef JS_DUMP_CONSERVATIVE_GC_ROOTS
-    if (IS_GC_MARKING_TRACER(trc)) {
-        GCMarker *marker = static_cast<GCMarker *>(trc);
-        if (marker->conservativeDumpFileName)
-            marker->conservativeRoots.append(thing);
-        if (shift)
-            marker->conservativeStats.unaligned++;
-    }
+    if (IS_GC_MARKING_TRACER(trc) && static_cast<GCMarker *>(trc)->conservativeDumpFileName)
+        static_cast<GCMarker *>(trc)->conservativeRoots.append(thing);
+#endif
+
+#if defined JS_DUMP_CONSERVATIVE_GC_ROOTS || defined JS_GCMETER
+    if (IS_GC_MARKING_TRACER(trc) && shift)
+        static_cast<GCMarker *>(trc)->conservativeStats.unaligned++;
 #endif
     return CGCT_VALID;
 }
@@ -742,8 +724,7 @@ MarkIfGCThingWord(JSTracer *trc, jsuword w)
 
     Chunk *chunk = Chunk::fromAddress(addr);
 
-    if (!trc->context->runtime->gcUserChunkSet.has(chunk) && 
-        !trc->context->runtime->gcSystemChunkSet.has(chunk))
+    if (!trc->context->runtime->gcChunkSet.has(chunk))
         return CGCT_NOTCHUNK;
 
     /*
@@ -941,6 +922,14 @@ CheckLeakedRoots(JSRuntime *rt);
 void
 js_FinishGC(JSRuntime *rt)
 {
+#ifdef JS_ARENAMETER
+    JS_DumpArenaStats(stdout);
+#endif
+#ifdef JS_GCMETER
+    if (JS_WANT_GC_METER_PRINT)
+        js_DumpGCStats(rt, stdout);
+#endif
+
     /* Delete all remaining Compartments. */
     for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); ++c) {
         JSCompartment *comp = *c;
@@ -950,12 +939,9 @@ js_FinishGC(JSRuntime *rt)
     rt->compartments.clear();
     rt->atomsCompartment = NULL;
 
-    for (GCChunkSet::Range r(rt->gcUserChunkSet.all()); !r.empty(); r.popFront())
+    for (GCChunkSet::Range r(rt->gcChunkSet.all()); !r.empty(); r.popFront())
         ReleaseGCChunk(rt, r.front());
-    for (GCChunkSet::Range r(rt->gcSystemChunkSet.all()); !r.empty(); r.popFront())
-        ReleaseGCChunk(rt, r.front());
-    rt->gcUserChunkSet.clear();
-    rt->gcSystemChunkSet.clear();
+    rt->gcChunkSet.clear();
 
 #ifdef JS_THREADSAFE
     rt->gcHelperThread.finish(rt);
@@ -1240,7 +1226,9 @@ ArenaList::finalizeNow(JSContext *cx)
 #ifdef JS_THREADSAFE
     JS_ASSERT(backgroundFinalizeState == BFS_DONE);
 #endif
+    METER(stats.narenas = uint32(ArenaHeader::CountListLength(head)));
     FinalizeArenas<T>(cx, &head);
+    METER(stats.livearenas = uint32(ArenaHeader::CountListLength(head)));
     cursor = &head;
 }
 
@@ -1285,6 +1273,7 @@ ArenaList::backgroundFinalize(JSContext *cx, ArenaHeader *listHead)
     unsigned thingKind = listHead->getThingKind();
     JSCompartment *comp = listHead->compartment;
     ArenaList *al = &comp->arenas[thingKind];
+    METER(al->stats.narenas = uint32(ArenaHeader::CountListLength(listHead)));
 
     switch (thingKind) {
       default:
@@ -1317,6 +1306,12 @@ ArenaList::backgroundFinalize(JSContext *cx, ArenaHeader *listHead)
     }
 
     /*
+     * In stats we should not reflect the arenas allocated after the GC has
+     * finished. So we do not add to livearenas the arenas from al->head.
+     */
+    METER(al->stats.livearenas = uint32(ArenaHeader::CountListLength(listHead)));
+
+    /*
      * After we finish the finalization al->cursor must point to the end of
      * the head list as we emptied the list before the background finalization
      * and the allocation adds new arenas before the cursor.
@@ -1330,6 +1325,7 @@ ArenaList::backgroundFinalize(JSContext *cx, ArenaHeader *listHead)
     } else {
         al->backgroundFinalizeState = BFS_DONE;
     }
+    METER(UpdateCompartmentGCStats(comp, thingKind));
 }
 
 #endif /* JS_THREADSAFE */
@@ -1361,6 +1357,7 @@ static bool
 RunLastDitchGC(JSContext *cx)
 {
     JSRuntime *rt = cx->runtime;
+    METER(rt->gcStats.lastditch++);
 #ifdef JS_THREADSAFE
     Maybe<AutoUnlockAtomsCompartment> maybeUnlockAtomsCompartment;
     if (cx->compartment == rt->atomsCompartment && rt->atomsCompartmentIsLocked)
@@ -1432,6 +1429,7 @@ RefillTypedFreeList(JSContext *cx, unsigned thingKind)
         runGC = true;
     }
 
+    METER(cx->runtime->gcStats.fail++);
     js_ReportOutOfMemory(cx);
     return NULL;
 }
@@ -1494,12 +1492,13 @@ js_LockGCThingRT(JSRuntime *rt, void *thing)
         return true;
 
     AutoLockGC lock(rt);
-    if (GCLocks::Ptr p = rt->gcLocksHash.lookupWithDefault(thing, 0)) {
+    if (GCLocks::Ptr p = rt->gcLocksHash.lookupWithDefault(thing, 0))
         p->value++;
-        return true;
-    }
+    else
+        return false;
 
-    return false;
+    METER(rt->gcStats.lock++);
+    return true;
 }
 
 void
@@ -1515,6 +1514,8 @@ js_UnlockGCThingRT(JSRuntime *rt, void *thing)
         rt->gcPoke = true;
         if (--p->value == 0)
             rt->gcLocksHash.remove(p);
+
+        METER(rt->gcStats.unlock++);
     }
 }
 
@@ -1557,6 +1558,10 @@ GCMarker::~GCMarker()
 #ifdef JS_DUMP_CONSERVATIVE_GC_ROOTS
     dumpConservativeRoots();
 #endif
+#ifdef JS_GCMETER
+    /* Update total stats. */
+    context->runtime->gcStats.conservative.add(conservativeStats);
+#endif
 }
 
 void
@@ -1570,9 +1575,8 @@ GCMarker::delayMarkingChildren(const void *thing)
     }
     aheader->getMarkingDelay()->link = unmarkedArenaStackTop;
     unmarkedArenaStackTop = aheader;
-#ifdef DEBUG
-    markLaterArenas++;
-#endif
+    METER(markLaterArenas++);
+    METER_UPDATE_MAX(cell->compartment()->rt->gcStats.maxunmarked, markLaterArenas);
 }
 
 static void
@@ -1821,16 +1825,13 @@ MarkContext(JSTracer *trc, JSContext *acx)
     MarkValue(trc, acx->iterValue, "iterValue");
 }
 
-#define PER_COMPARTMENT_OP(rt, op)                                      \
-    if ((rt)->gcCurrentCompartment) {                                   \
-        JSCompartment *c = (rt)->gcCurrentCompartment;                  \
-        op;                                                             \
-    } else {                                                            \
-        for (JSCompartment **i = rt->compartments.begin(); i != rt->compartments.end(); ++i) { \
-            JSCompartment *c = *i;                                      \
-            op;                                                         \
-        }                                                               \
-    }
+void
+MarkWeakReferences(GCMarker *trc)
+{
+    trc->drainMarkStack();
+    while (js_TraceWatchPoints(trc) || WeakMapBase::markAllIteratively(trc))
+        trc->drainMarkStack();
+}
 
 JS_REQUIRES_STACK void
 MarkRuntime(JSTracer *trc)
@@ -1854,18 +1855,37 @@ MarkRuntime(JSTracer *trc)
         MarkContext(trc, acx);
 
 #ifdef JS_TRACER
-    PER_COMPARTMENT_OP(rt, if (c->hasTraceMonitor()) c->traceMonitor()->mark(trc));
+    for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); ++c)
+        (*c)->traceMonitor.mark(trc);
 #endif
 
     for (ThreadDataIter i(rt); !i.empty(); i.popFront())
         i.threadData()->mark(trc);
 
+    if (IS_GC_MARKING_TRACER(trc)) {
+        GCMarker *gcmarker = static_cast<GCMarker *>(trc);
+        MarkWeakReferences(gcmarker);
+    }
+
     /*
-     * We mark extra roots at the last thing so it can use use additional
-     * colors to implement cycle collection.
+     * We mark extra roots at the end so additional colors can be used
+     * to implement cycle collection.
      */
     if (rt->gcExtraRootsTraceOp)
         rt->gcExtraRootsTraceOp(trc, rt->gcExtraRootsData);
+
+#ifdef DEBUG
+    if (rt->functionMeterFilename) {
+        for (int k = 0; k < 2; k++) {
+            typedef JSRuntime::FunctionCountMap HM;
+            HM &h = (k == 0) ? rt->methodReadBarrierCountMap : rt->unjoinedFunctionCountMap;
+            for (HM::Range r = h.all(); !r.empty(); r.popFront()) {
+                JSFunction *fun = r.front().key;
+                JS_CALL_OBJECT_TRACER(trc, fun, "FunctionCountMap key");
+            }
+        }
+    }
+#endif
 }
 
 void
@@ -2211,7 +2231,6 @@ SweepCompartments(JSContext *cx, JSGCInvocationKind gckind)
             (compartment->arenaListsAreEmpty() || gckind == GC_LAST_CONTEXT))
         {
             compartment->freeLists.checkEmpty();
-            Probes::GCEndSweepPhase(compartment);
             if (callback)
                 JS_ALWAYS_TRUE(callback(cx, compartment, JSCOMPARTMENT_DESTROY));
             if (compartment->principals)
@@ -2249,6 +2268,13 @@ MarkAndSweep(JSContext *cx, JSCompartment *comp, JSGCInvocationKind gckind GCTIM
     /* Reset malloc counter. */
     rt->resetGCMallocBytes();
 
+#ifdef JS_DUMP_SCOPE_METERS
+    {
+        extern void js_DumpScopeMeters(JSRuntime *rt);
+        js_DumpScopeMeters(rt);
+    }
+#endif
+
     /*
      * Reset the property cache's type id generator so we can compress ids.
      * Same for the protoHazardShape proxy-shape standing in for all object
@@ -2260,7 +2286,12 @@ MarkAndSweep(JSContext *cx, JSCompartment *comp, JSGCInvocationKind gckind GCTIM
         rt->protoHazardShape = 0;
     }
 
-    PER_COMPARTMENT_OP(rt, c->purge(cx));
+    if (rt->gcCurrentCompartment) {
+        rt->gcCurrentCompartment->purge(cx);
+    } else {
+        for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); ++c)
+            (*c)->purge(cx);
+    }
 
     js_PurgeThreads(cx);
     {
@@ -2280,29 +2311,19 @@ MarkAndSweep(JSContext *cx, JSCompartment *comp, JSGCInvocationKind gckind GCTIM
     JS_ASSERT(gcmarker.getMarkColor() == BLACK);
     rt->gcMarkingTracer = &gcmarker;
 
-    for (GCChunkSet::Range r(rt->gcUserChunkSet.all()); !r.empty(); r.popFront())
-        r.front()->bitmap.clear();
-
-    for (GCChunkSet::Range r(rt->gcSystemChunkSet.all()); !r.empty(); r.popFront())
-        r.front()->bitmap.clear();
+    for (GCChunkSet::Range r(rt->gcChunkSet.all()); !r.empty(); r.popFront())
+         r.front()->bitmap.clear();
 
     if (comp) {
         for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); ++c)
             (*c)->markCrossCompartmentWrappers(&gcmarker);
+    } else {
+        js_MarkScriptFilenames(rt);
     }
 
     MarkRuntime(&gcmarker);
 
     gcmarker.drainMarkStack();
-
-    /*
-     * Mark weak roots.
-     */
-    while (true) {
-        if (!js_TraceWatchPoints(&gcmarker) && !WeakMapBase::markAllIteratively(&gcmarker))
-            break;
-        gcmarker.drainMarkStack();
-    }
 
     rt->gcMarkingTracer = NULL;
 
@@ -2357,17 +2378,9 @@ MarkAndSweep(JSContext *cx, JSCompartment *comp, JSGCInvocationKind gckind GCTIM
         comp->finalizeShapeArenaLists(cx);
         GCTIMESTAMP(sweepShapeEnd);
     } else {
-        /*
-         * Some sweeping is not compartment-specific. Start a NULL-compartment
-         * phase to demarcate all of that. (The compartment sweeps will nest
-         * within.)
-         */
-        Probes::GCStartSweepPhase(NULL);
         SweepCrossCompartmentWrappers(cx);
-        for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); c++) {
-            Probes::GCStartSweepPhase(*c);
+        for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); c++)
             (*c)->finalizeObjectArenaLists(cx);
-        }
 
         GCTIMESTAMP(sweepObjectEnd);
 
@@ -2376,31 +2389,35 @@ MarkAndSweep(JSContext *cx, JSCompartment *comp, JSGCInvocationKind gckind GCTIM
 
         GCTIMESTAMP(sweepStringEnd);
 
-        for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); c++) {
+        for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); c++)
             (*c)->finalizeShapeArenaLists(cx);
-            Probes::GCEndSweepPhase(*c);
-        }
 
         GCTIMESTAMP(sweepShapeEnd);
+
+#ifdef DEBUG
+        for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); ++c)
+            (*c)->propertyTree.dumpShapeStats();
+#endif
+#ifdef JS_GCMETER
+        for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); ++c)
+            UpdateAllCompartmentGCStats(*c);
+#endif
     }
 
 #ifdef DEBUG
      PropertyTree::dumpShapes(cx);
 #endif
 
-    /*
-     * Sweep script filenames after sweeping functions in the generic loop
-     * above. In this way when a scripted function's finalizer destroys the
-     * script and calls rt->destroyScriptHook, the hook can still access the
-     * script's filename. See bug 323267.
-     */
-    PER_COMPARTMENT_OP(rt, js_SweepScriptFilenames(c));
-
     if (!comp) {
         SweepCompartments(cx, gckind);
 
-        /* non-compartmental sweep pieces */
-        Probes::GCEndSweepPhase(NULL);
+        /*
+         * Sweep script filenames after sweeping functions in the generic loop
+         * above. In this way when a scripted function's finalizer destroys the
+         * script and calls rt->destroyScriptHook, the hook can still access the
+         * script's filename. See bug 323267.
+         */
+        js_SweepScriptFilenames(rt);
     }
 
 #ifndef JS_THREADSAFE
@@ -2681,12 +2698,6 @@ GCCycle(JSContext *cx, JSCompartment *comp, JSGCInvocationKind gckind  GCTIMER_P
         (*c)->setGCLastBytes((*c)->gcBytes, gckind);
 }
 
-struct GCCrashData
-{
-    int isRegen;
-    int isCompartment;
-};
-
 void
 js_GC(JSContext *cx, JSCompartment *comp, JSGCInvocationKind gckind)
 {
@@ -2708,22 +2719,7 @@ js_GC(JSContext *cx, JSCompartment *comp, JSGCInvocationKind gckind)
 
     RecordNativeStackTopForGC(cx);
 
-    GCCrashData crashData;
-    crashData.isRegen = rt->shapeGen & SHAPE_OVERFLOW_BIT;
-    crashData.isCompartment = !!comp;
-    js_SaveCrashData(crash::JS_CRASH_TAG_GC, &crashData, sizeof(crashData));
-
     GCTIMER_BEGIN(rt, comp);
-
-    struct AutoGCProbe {
-        JSCompartment *comp;
-        AutoGCProbe(JSCompartment *comp) : comp(comp) {
-            Probes::GCStart(comp);
-        }
-        ~AutoGCProbe() {
-            Probes::GCEnd(comp); /* background thread may still be sweeping */
-        }
-    } autoGCProbe(comp);
 
     do {
         /*
@@ -2760,9 +2756,10 @@ js_GC(JSContext *cx, JSCompartment *comp, JSGCInvocationKind gckind)
     rt->gcNextFullGCTime = PRMJ_Now() + GC_IDLE_FULL_SPAN;
 
     rt->gcChunkAllocationSinceLastGC = false;
+#ifdef JS_GCMETER
+    js_DumpGCStats(cx->runtime, stderr);
+#endif
     GCTIMER_END(gckind == GC_LAST_CONTEXT);
-
-    js_SnapshotGCStack();
 }
 
 namespace js {
@@ -2817,14 +2814,40 @@ TraceRuntime(JSTracer *trc)
     MarkRuntime(trc);
 }
 
-void
-IterateCompartmentsArenasCells(JSContext *cx, void *data,
-                               IterateCompartmentCallback compartmentCallback, 
-                               IterateArenaCallback arenaCallback,
-                               IterateCellCallback cellCallback)
+static void
+IterateCompartmentCells(JSContext *cx, JSCompartment *comp, uint64 traceKindMask,
+                        void *data, IterateCallback callback)
 {
-    CHECK_REQUEST(cx);
+    for (unsigned thingKind = 0; thingKind < FINALIZE_LIMIT; thingKind++) {
+        size_t traceKind = GetFinalizableTraceKind(thingKind);
+        if (traceKindMask && !TraceKindInMask(traceKind, traceKindMask))
+            continue;
 
+        size_t thingSize = GCThingSizeMap[thingKind];
+        ArenaHeader *aheader = comp->arenas[thingKind].getHead();
+        for (; aheader; aheader = aheader->next) {
+            Arena *a = aheader->getArena();
+            FreeSpan firstSpan(aheader->getFirstFreeSpan());
+            FreeSpan *span = &firstSpan;
+            for (uintptr_t thing = a->thingsStart(thingSize);; thing += thingSize) {
+                JS_ASSERT(thing <= a->thingsEnd());
+                if (thing == span->start) {
+                    if (!span->hasNext())
+                        break;
+                    thing = span->end;
+                    span = span->nextSpan();
+                } else {
+                    (*callback)(cx, data, traceKind, reinterpret_cast<void *>(thing));
+                }
+            }
+        }
+    }
+}
+
+void
+IterateCells(JSContext *cx, JSCompartment *comp, uint64 traceKindMask,
+             void *data, IterateCallback callback)
+{
     LeaveTrace(cx);
 
     JSRuntime *rt = cx->runtime;
@@ -2838,35 +2861,11 @@ IterateCompartmentsArenasCells(JSContext *cx, void *data,
     AutoUnlockGC unlock(rt);
 
     AutoCopyFreeListToArenas copy(rt);
-    for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); ++c) {
-        JSCompartment *compartment = *c;
-        (*compartmentCallback)(cx, data, compartment);
-
-        for (unsigned thingKind = 0; thingKind < FINALIZE_LIMIT; thingKind++) {
-            size_t traceKind = GetFinalizableTraceKind(thingKind);
-            size_t thingSize = GCThingSizeMap[thingKind];
-            ArenaHeader *aheader = compartment->arenas[thingKind].getHead();
-
-            for (; aheader; aheader = aheader->next) {
-                Arena *arena = aheader->getArena();
-                (*arenaCallback)(cx, data, arena, traceKind, thingSize);
-                FreeSpan firstSpan(aheader->getFirstFreeSpan());
-                FreeSpan *span = &firstSpan;
-
-                for (uintptr_t thing = arena->thingsStart(thingSize); ; thing += thingSize) {
-                    JS_ASSERT(thing <= arena->thingsEnd());
-                    if (thing == span->start) {
-                        if (!span->hasNext())
-                            break;
-                        thing = span->end;
-                        span = span->nextSpan();
-                    } else {
-                        (*cellCallback)(cx, data, reinterpret_cast<void *>(thing), traceKind,
-                                        thingSize);
-                    }
-                }
-            }
-        }
+    if (comp) {
+        IterateCompartmentCells(cx, comp, traceKindMask, data, callback);
+    } else {
+        for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); ++c)
+            IterateCompartmentCells(cx, *c, traceKindMask, data, callback);
     }
 }
 
@@ -2878,8 +2877,6 @@ NewCompartment(JSContext *cx, JSPrincipals *principals)
     JSRuntime *rt = cx->runtime;
     JSCompartment *compartment = cx->new_<JSCompartment>(rt);
     if (compartment && compartment->init()) {
-        // The trusted compartment is a system compartment.
-        compartment->isSystemCompartment = principals && rt->trustedPrincipals() == principals;
         if (principals) {
             compartment->principals = principals;
             JSPRINCIPALS_HOLD(cx, principals);

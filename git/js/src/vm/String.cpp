@@ -312,6 +312,15 @@ JSDependentString::undepend(JSContext *cx)
     d.lengthAndFlags = buildLengthAndFlags(n, FIXED_FLAGS);
     d.u1.chars = s;
 
+#ifdef DEBUG
+    JSRuntime *rt = cx->runtime;
+    JS_RUNTIME_UNMETER(rt, liveDependentStrings);
+    JS_RUNTIME_UNMETER(rt, totalDependentStrings);
+    JS_LOCK_RUNTIME_VOID(rt,
+        (rt->strdepLengthSum -= (double)n,
+         rt->strdepLengthSquaredSum -= (double)n * (double)n));
+#endif
+
     return &this->asFixed();
 }
 

@@ -66,15 +66,9 @@ pref("browser.cache.disk.smart_size.first_run", true);
 pref("browser.cache.disk.smart_size.enabled", true);
 // Size explicitly set by the user. Used when smart_size.enabled == false
 pref("browser.cache.disk.capacity",         256000);
-// User-controllable max-size for entries in disk-cache. Regardless of this
-// setting, no entries bigger than 1/8 of disk-cache will be cached
-pref("browser.cache.disk.max_entry_size",    5120);
 pref("browser.cache.memory.enable",         true);
-// -1 = determine dynamically, 0 = none, n = memory capacity in kilobytes
 //pref("browser.cache.memory.capacity",     -1);
-// User-controllable max-size for entries in mem-cache. Regardless of this
-// setting, no entries bigger than 90% of the mem-cache will be cached
-pref("browser.cache.memory.max_entry_size",  5120);
+// -1 = determine dynamically, 0 = none, n = memory capacity in kilobytes
 pref("browser.cache.disk_cache_ssl",        true);
 // 0 = once-per-session, 1 = each-time, 2 = never, 3 = when-appropriate/automatically
 pref("browser.cache.check_doc_frequency",   3);
@@ -96,11 +90,6 @@ pref("offline-apps.quota.warn",        51200);
 pref("dom.indexedDB.enabled", true);
 // Space to allow indexedDB databases before prompting (in MB).
 pref("dom.indexedDB.warningQuota", 50);
-
-// Whether or not Web Workers are enabled.
-pref("dom.workers.enabled", true);
-// The number of workers per domain allowed to run concurrently.
-pref("dom.workers.maxPerDomain", 20);
 
 // Whether window.performance is enabled
 pref("dom.enable_performance", true);
@@ -200,6 +189,14 @@ pref("gfx.color_management.rendering_intent", 0);
 pref("gfx.downloadable_fonts.enabled", true);
 pref("gfx.downloadable_fonts.fallback_delay", 3000);
 pref("gfx.downloadable_fonts.sanitize", true);
+
+// Needed to work around a serious bug in how Apple handles downloaded fonts
+// on the most recent developer previews of OS X 10.7 (Lion, builds 11A480b
+// and 11A494a).  See bug 663688.  On Lion and up this setting overrides
+// gfx.downloadable_fonts.enabled.
+#ifdef XP_MACOSX
+pref("gfx.downloadable_fonts.enabled.lion", false);
+#endif
 
 // see gfx/thebes/gfxUnicodeProperties.h for definitions of script bits
 #ifdef XP_MACOSX
@@ -633,7 +630,6 @@ pref("javascript.options.mem.high_water_mark", 128);
 pref("javascript.options.mem.max", -1);
 pref("javascript.options.mem.gc_per_compartment", true);
 pref("javascript.options.mem.log", false);
-pref("javascript.options.gc_on_memory_pressure", true);
 
 // advanced prefs
 pref("advanced.mailftp",                    false);
@@ -816,15 +812,6 @@ pref("network.websocket.timeout.ping.response", 10);
 // Defines whether or not to try and negotiate the stream-deflate compression
 // extension with the websocket server
 pref("network.websocket.extensions.stream-deflate", true);
-
-// the maximum number of concurrent websocket sessions. By specification there
-// is never more than one handshake oustanding to an individual host at
-// one time.
-pref("network.websocket.max-connections", 200);
-
-// by default scripts loaded from a https:// origin can only open secure
-// (i.e. wss://) websockets.
-pref("network.websocket.allowInsecureFromHTTPS", false);
 
 // </ws>
 
@@ -1302,17 +1289,6 @@ pref("layout.word_select.stop_at_punctuation", true);
 // 3 = caret moves and blinks as when there is no selection; word delete
 //     deletes the selection (Unix default)
 pref("layout.selection.caret_style", 0);
-
-// Prefs for auto scrolling by mouse drag.  When the mouse cursor is on edge of
-// inner scrollable frame than the selection root, the frame will be scrolled.
-// |.edge_width| defines the edge width by CSS pixels.
-// |.amout| defines the scrolling speed by CSS pixels.  The auto scroll method
-// uses scroll to a point function.  When the mouse cursor is on the edge, it
-// tries to scroll the frame to the point which is away from the edge.  The
-// value means how far the point is from edge in CSS pixels.
-// I.e., larger value makes faster scroll.
-pref("layout.selection.drag.autoscroll.inner_frame.edge_width", 32);
-pref("layout.selection.drag.autoscroll.inner_frame.amount", 8);
 
 // pref to control whether or not to replace backslashes with Yen signs
 // in documents encoded in one of Japanese legacy encodings (EUC-JP, 
@@ -3229,22 +3205,14 @@ pref("network.tcp.sendbuffer", 131072);
 #endif
 
 // Whether to disable acceleration for all widgets.
-#ifdef MOZ_E10S_COMPAT
-pref("layers.acceleration.disabled", true);
-#else
 pref("layers.acceleration.disabled", false);
-#endif
 
 // Whether to force acceleration on, ignoring blacklists.
 pref("layers.acceleration.force-enabled", false);
 
 #ifdef XP_WIN
 // Whether to disable the automatic detection and use of direct2d.
-#ifdef MOZ_E10S_COMPAT
-pref("gfx.direct2d.disabled", true);
-#else
 pref("gfx.direct2d.disabled", false);
-#endif
 // Whether to attempt to enable Direct2D regardless of automatic detection or
 // blacklisting
 pref("gfx.direct2d.force-enabled", false);

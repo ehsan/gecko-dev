@@ -42,7 +42,6 @@
 #define GFX_FONT_H
 
 #include "prtypes.h"
-#include "nsAlgorithm.h"
 #include "gfxTypes.h"
 #include "nsString.h"
 #include "gfxPoint.h"
@@ -168,8 +167,8 @@ struct THEBES_API gfxFontStyle {
     // Not meant to be called when sizeAdjust = 0.
     gfxFloat GetAdjustedSize(gfxFloat aspect) const {
         NS_ASSERTION(sizeAdjust != 0.0, "Not meant to be called when sizeAdjust = 0");
-        gfxFloat adjustedSize = NS_MAX(NS_round(size*(sizeAdjust/aspect)), 1.0);
-        return NS_MIN(adjustedSize, FONT_MAX_SIZE);
+        gfxFloat adjustedSize = PR_MAX(NS_round(size*(sizeAdjust/aspect)), 1.0);
+        return PR_MIN(adjustedSize, FONT_MAX_SIZE);
     }
 
     PLDHashNumber Hash() const {
@@ -2344,7 +2343,6 @@ public:
      */
     typedef PRBool (*FontCreationCallback) (const nsAString& aName,
                                             const nsACString& aGenericName,
-                                            PRBool aUseFontSet,
                                             void *closure);
     PRBool ForEachFont(const nsAString& aFamilies,
                        nsIAtom *aLanguage,
@@ -2458,14 +2456,11 @@ protected:
      * and with actual font names.  If false then fc() is called with each
      * family name in aFamilies (after resolving CSS/Gecko generic family names
      * if aResolveGeneric).
-     * If aUseFontSet is true, the fontgroup's user font set is checked;
-     * if false then it is skipped.
      */
     PRBool ForEachFontInternal(const nsAString& aFamilies,
                                nsIAtom *aLanguage,
                                PRBool aResolveGeneric,
                                PRBool aResolveFontName,
-                               PRBool aUseFontSet,
                                FontCreationCallback fc,
                                void *closure);
 
@@ -2473,7 +2468,6 @@ protected:
 
     static PRBool FindPlatformFont(const nsAString& aName,
                                    const nsACString& aGenericName,
-                                   PRBool aUseFontSet,
                                    void *closure);
 
     static NS_HIDDEN_(nsILanguageAtomService*) gLangService;

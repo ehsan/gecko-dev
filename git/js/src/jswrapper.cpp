@@ -122,14 +122,6 @@ JSWrapper::getPropertyDescriptor(JSContext *cx, JSObject *wrapper, jsid id,
 static bool
 GetOwnPropertyDescriptor(JSContext *cx, JSObject *obj, jsid id, uintN flags, JSPropertyDescriptor *desc)
 {
-    // If obj is a proxy, we can do better than just guessing. This is
-    // important for certain types of wrappers that wrap other wrappers.
-    if (obj->isProxy()) {
-        return JSProxy::getOwnPropertyDescriptor(cx, obj, id,
-                                                 flags & JSRESOLVE_ASSIGNING,
-                                                 Valueify(desc));
-    }
-
     if (!JS_GetPropertyDescriptorById(cx, obj, id, flags, desc))
         return false;
     if (desc->obj != obj)
@@ -141,7 +133,7 @@ bool
 JSWrapper::getOwnPropertyDescriptor(JSContext *cx, JSObject *wrapper, jsid id, bool set,
                                     PropertyDescriptor *desc)
 {
-    desc->obj = NULL; // default result if we refuse to perform this action
+    desc->obj= NULL; // default result if we refuse to perform this action
     CHECKED(GetOwnPropertyDescriptor(cx, wrappedObject(wrapper), id, JSRESOLVE_QUALIFIED,
                                      Jsvalify(desc)), set ? SET : GET);
 }
@@ -399,7 +391,7 @@ ForceFrame::enter()
     JSObject *scopeChain = target->getGlobal();
     JS_ASSERT(scopeChain->isNative());
 
-    return context->stack.pushDummyFrame(context, REPORT_ERROR, *scopeChain, frame);
+    return context->stack.pushDummyFrame(context, *scopeChain, frame);
 }
 
 AutoCompartment::AutoCompartment(JSContext *cx, JSObject *target)
@@ -424,23 +416,13 @@ AutoCompartment::enter()
     if (origin != destination) {
         LeaveTrace(context);
 
+        context->compartment = destination;
         JSObject *scopeChain = target->getGlobal();
         JS_ASSERT(scopeChain->isNative());
 
         frame.construct();
-
-        /*
-         * Set the compartment eagerly so that pushDummyFrame associates the
-         * resource allocation request with 'destination' instead of 'origin'.
-         * (This is important when content has overflowed the stack and chrome
-         * is preparing to run JS to throw up a slow script dialog.) However,
-         * if an exception is thrown, we need it to be in origin's compartment
-         * so be careful to only report after restoring.
-         */
-        context->compartment = destination;
-        if (!context->stack.pushDummyFrame(context, DONT_REPORT_ERROR, *scopeChain, &frame.ref())) {
+        if (!context->stack.pushDummyFrame(context, *scopeChain, &frame.ref())) {
             context->compartment = origin;
-            js_ReportOverRecursed(context);
             return false;
         }
 
@@ -766,12 +748,6 @@ JSCrossCompartmentWrapper::defaultValue(JSContext *cx, JSObject *wrapper, JSType
 
     call.leave();
     return call.origin->wrap(cx, vp);
-}
-
-void
-JSCrossCompartmentWrapper::trace(JSTracer *trc, JSObject *wrapper)
-{
-    MarkCrossCompartmentObject(trc, *wrappedObject(wrapper), "wrappedObject");
 }
 
 JSCrossCompartmentWrapper JSCrossCompartmentWrapper::singleton(0u);

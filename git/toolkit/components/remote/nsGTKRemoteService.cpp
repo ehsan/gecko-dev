@@ -118,7 +118,7 @@ static nsGTKToolkit* GetGTKToolkit()
   nsCOMPtr<nsIAppShellService> svc = do_GetService(NS_APPSHELLSERVICE_CONTRACTID);
   if (!svc)
     return nsnull;
-  nsCOMPtr<nsIDOMWindow> window;
+  nsCOMPtr<nsIDOMWindowInternal> window;
   svc->GetHiddenDOMWindow(getter_AddRefs(window));
   if (!window)
     return nsnull;

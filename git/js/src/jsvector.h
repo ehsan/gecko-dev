@@ -306,10 +306,6 @@ class Vector : private AllocPolicy
         return *this;
     }
 
-    AllocPolicy &allocPolicy() {
-        return *this;
-    }
-
     enum { InlineLength = N };
 
     size_t length() const {
@@ -382,9 +378,6 @@ class Vector : private AllocPolicy
 
     /* Shorthand for shrinkBy(length()). */
     void clear();
-
-    /* Clears and releases any heap-allocated storage. */
-    void clearAndFree();
 
     /* Potentially fallible append operations. */
     bool append(const T &t);
@@ -659,23 +652,6 @@ Vector<T,N,AP>::clear()
     REENTRANCY_GUARD_ET_AL;
     Impl::destroy(beginNoCheck(), endNoCheck());
     mLength = 0;
-}
-
-template <class T, size_t N, class AP>
-inline void
-Vector<T,N,AP>::clearAndFree()
-{
-    clear();
-
-    if (usingInlineStorage())
-        return;
-
-    this->free_(beginNoCheck());
-    mBegin = (T *)storage.addr();
-    mCapacity = sInlineCapacity;
-#ifdef DEBUG
-    mReserved = 0;
-#endif
 }
 
 template <class T, size_t N, class AP>

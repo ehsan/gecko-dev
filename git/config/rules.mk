@@ -156,7 +156,6 @@ xpcshell-tests:
 	  -I$(topsrcdir)/build \
 	  $(testxpcsrcdir)/runxpcshelltests.py \
 	  --symbols-path=$(DIST)/crashreporter-symbols \
-	  --build-info-json=$(DEPTH)/mozinfo.json \
 	  $(EXTRA_TEST_ARGS) \
 	  $(LIBXUL_DIST)/bin/xpcshell \
 	  $(foreach dir,$(XPCSHELL_TESTS),$(testxpcobjdir)/$(relativesrcdir)/$(dir))
@@ -169,7 +168,6 @@ check-interactive:
 	  -I$(topsrcdir)/build \
 	  $(testxpcsrcdir)/runxpcshelltests.py \
 	  --symbols-path=$(DIST)/crashreporter-symbols \
-	  --build-info-json=$(DEPTH)/mozinfo.json \
 	  --test-path=$(SOLO_FILE) \
 	  --profile-name=$(MOZ_APP_NAME) \
 	  --interactive \
@@ -182,7 +180,6 @@ check-one:
 	  -I$(topsrcdir)/build \
 	  $(testxpcsrcdir)/runxpcshelltests.py \
 	  --symbols-path=$(DIST)/crashreporter-symbols \
-	  --build-info-json=$(DEPTH)/mozinfo.json \
 	  --test-path=$(SOLO_FILE) \
 	  --profile-name=$(MOZ_APP_NAME) \
 	  --verbose \
@@ -841,9 +838,7 @@ ifndef NO_COMPONENTS_MANIFEST
 endif
 else # ! IS_COMPONENT
 ifneq (,$(filter OS2 WINNT,$(OS_ARCH)))
-ifndef NO_INSTALL_IMPORT_LIBRARY
 	$(INSTALL) $(IFLAGS2) $(IMPORT_LIBRARY) $(DIST)/lib
-endif
 else
 	$(INSTALL) $(IFLAGS2) $(SHARED_LIBRARY) $(DIST)/lib
 endif
@@ -2020,7 +2015,6 @@ showbuild:
 	@echo "MKSHLIB            = $(MKSHLIB)"
 	@echo "MKCSHLIB           = $(MKCSHLIB)"
 	@echo "RC                 = $(RC)"
-	@echo "MC                 = $(MC)"
 	@echo "CFLAGS             = $(CFLAGS)"
 	@echo "OS_CFLAGS          = $(OS_CFLAGS)"
 	@echo "COMPILE_CFLAGS     = $(COMPILE_CFLAGS)"

@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* vim: set sw=4 ts=8 et tw=80 : */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -50,19 +49,17 @@
 class nsHttpHeaderArray
 {
 public:
-    nsHttpHeaderArray() {}
+    enum nsHttpHeaderType {
+        HTTP_REQUEST_HEADERS,
+        HTTP_RESPONSE_HEADERS
+    };
+
+    nsHttpHeaderArray(nsHttpHeaderType headerType) : mType(headerType) {}
    ~nsHttpHeaderArray() { Clear(); }
 
     const char *PeekHeader(nsHttpAtom header);
 
-    // Used by internal setters: to set header from network use SetHeaderFromNet
-    nsresult SetHeader(nsHttpAtom header, const nsACString &value,
-                       PRBool merge = PR_FALSE);
-
-    // Merges supported headers. For other duplicate values, determines if error
-    // needs to be thrown or 1st value kept.
-    nsresult SetHeaderFromNet(nsHttpAtom header, const nsACString &value);
-
+    nsresult SetHeader(nsHttpAtom header, const nsACString &value, PRBool merge = PR_FALSE);
     nsresult GetHeader(nsHttpAtom header, nsACString &value);
     void     ClearHeader(nsHttpAtom h);
 
@@ -107,90 +104,15 @@ public:
         };
     };
 
+    nsTArray<nsEntry> &Headers() { return mHeaders; }
+
 private:
     PRInt32 LookupEntry(nsHttpAtom header, nsEntry **);
-    void MergeHeader(nsHttpAtom header, nsEntry *entry, const nsACString &value);
-
-    // Header cannot be merged: only one value possible
-    PRBool  IsSingletonHeader(nsHttpAtom header);
-
-    // Subset of singleton headers: should never see multiple, different
-    // instances of these, else something fishy may be going on (like CLRF
-    // injection)
-    PRBool  IsSuspectDuplicateHeader(nsHttpAtom header);
+    PRBool  CanAppendToHeader(nsHttpAtom header);
+    PRBool  CanOverwriteHeader(nsHttpAtom header);
 
     nsTArray<nsEntry> mHeaders;
-
-    friend struct IPC::ParamTraits<nsHttpHeaderArray>;
+    nsHttpHeaderType  mType;
 };
-
-
-//-----------------------------------------------------------------------------
-// nsHttpHeaderArray <private>: inline functions
-//-----------------------------------------------------------------------------
-
-inline PRInt32
-nsHttpHeaderArray::LookupEntry(nsHttpAtom header, nsEntry **entry)
-{
-    PRUint32 index = mHeaders.IndexOf(header, 0, nsEntry::MatchHeader());
-    if (index != PR_UINT32_MAX)
-        *entry = &mHeaders[index];
-    return index;
-}
-
-inline PRBool
-nsHttpHeaderArray::IsSingletonHeader(nsHttpAtom header)
-{
-    return header == nsHttp::Content_Type        ||
-           header == nsHttp::Content_Disposition ||
-           header == nsHttp::Content_Length      ||
-           header == nsHttp::User_Agent          ||
-           header == nsHttp::Referer             ||
-           header == nsHttp::Host                ||
-           header == nsHttp::Authorization       ||
-           header == nsHttp::Proxy_Authorization ||
-           header == nsHttp::If_Modified_Since   ||
-           header == nsHttp::If_Unmodified_Since ||
-           header == nsHttp::From                ||
-           header == nsHttp::Location            ||
-           header == nsHttp::Max_Forwards;
-}
-
-inline void
-nsHttpHeaderArray::MergeHeader(nsHttpAtom header,
-                               nsEntry *entry,
-                               const nsACString &value)
-{
-    if (value.IsEmpty())
-        return;   // merge of empty header = no-op
-
-    // Append the new value to the existing value
-    if (header == nsHttp::Set_Cookie ||
-        header == nsHttp::WWW_Authenticate ||
-        header == nsHttp::Proxy_Authenticate)
-    {
-        // Special case these headers and use a newline delimiter to
-        // delimit the values from one another as commas may appear
-        // in the values of these headers contrary to what the spec says.
-        entry->value.Append('\n');
-    } else {
-        // Delimit each value from the others using a comma (per HTTP spec)
-        entry->value.AppendLiteral(", ");
-    }
-    entry->value.Append(value);
-}
-
-inline PRBool
-nsHttpHeaderArray::IsSuspectDuplicateHeader(nsHttpAtom header)
-{
-    PRBool retval =  header == nsHttp::Content_Length         ||
-                     header == nsHttp::Content_Disposition    ||
-                     header == nsHttp::Location;
-
-    NS_ASSERTION(!retval || IsSingletonHeader(header),
-                 "Only non-mergeable headers should be in this list\n");
-
-    return retval;
-}
 
 #endif

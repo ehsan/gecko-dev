@@ -42,9 +42,6 @@
 
 #include "BasicLayers.h"
 #include "LayerManagerOGL.h"
-#ifdef MOZ_ENABLE_D3D9_LAYER
-#include "LayerManagerD3D9.h"
-#endif //MOZ_ENABLE_D3D9_LAYER
 #include "RenderFrameParent.h"
 
 #include "gfx3DMatrix.h"
@@ -565,11 +562,10 @@ BuildBackgroundPatternFor(ContainerLayer* aContainer,
 RenderFrameParent::RenderFrameParent(nsFrameLoader* aFrameLoader)
   : mFrameLoader(aFrameLoader)
 {
-  if (aFrameLoader) {
-    mContentViews[FrameMetrics::ROOT_SCROLL_ID] =
-      new nsContentView(aFrameLoader->GetOwnerContent(),
-                        FrameMetrics::ROOT_SCROLL_ID);
-  }
+  NS_ABORT_IF_FALSE(aFrameLoader, "Need a frameloader here");
+  mContentViews[FrameMetrics::ROOT_SCROLL_ID] =
+    new nsContentView(aFrameLoader->GetOwnerContent(),
+                      FrameMetrics::ROOT_SCROLL_ID);
 }
 
 RenderFrameParent::~RenderFrameParent()
@@ -702,7 +698,7 @@ RenderFrameParent::OwnerContentChanged(nsIContent* aContent)
 void
 RenderFrameParent::ActorDestroy(ActorDestroyReason why)
 {
-  if (mFrameLoader && mFrameLoader->GetCurrentRemoteFrame() == this) {
+  if (mFrameLoader->GetCurrentRemoteFrame() == this) {
     // XXX this might cause some weird issues ... we'll just not
     // redraw the part of the window covered by this until the "next"
     // remote frame has a layer-tree transaction.  For
@@ -715,20 +711,23 @@ RenderFrameParent::ActorDestroy(ActorDestroyReason why)
 }
 
 PLayersParent*
-RenderFrameParent::AllocPLayers(LayerManager::LayersBackend* aBackendType)
+RenderFrameParent::AllocPLayers()
 {
-  if (!mFrameLoader) {
-    *aBackendType = LayerManager::LAYERS_NONE;
+  LayerManager* lm = GetLayerManager();
+  switch (lm->GetBackendType()) {
+  case LayerManager::LAYERS_BASIC: {
+    BasicShadowLayerManager* bslm = static_cast<BasicShadowLayerManager*>(lm);
+    return new ShadowLayersParent(bslm);
+  }
+  case LayerManager::LAYERS_OPENGL: {
+    LayerManagerOGL* lmo = static_cast<LayerManagerOGL*>(lm);
+    return new ShadowLayersParent(lmo);
+  }
+  default: {
+    NS_WARNING("shadow layers no sprechen D3D backend yet");
     return nsnull;
   }
-  LayerManager* lm = GetLayerManager();
-  ShadowLayerManager* slm = lm->AsShadowManager();
-  if (!slm) {
-    *aBackendType = LayerManager::LAYERS_NONE;
-     return nsnull;
   }
-  *aBackendType = lm->GetBackendType();
-  return new ShadowLayersParent(slm);
 }
 
 bool

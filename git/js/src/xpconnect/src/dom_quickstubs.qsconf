@@ -56,7 +56,7 @@ members = [
     #   - nsIDOMLocation.reload
     #   - nsIDOMNSHistory.go
     #   - nsIDOMJSPluginArray.refresh
-    #   - nsIDOMWindow.postMessage
+    #   - nsIDOMWindowInternal.postMessage
     #   - nsIDOMJSWindow.{prompt,setTimeout,setInterval,open,openDialog}
     #
     # (And nsIDOMModalContentWindow.returnValue is an attribute of type
@@ -72,9 +72,6 @@ members = [
     'nsIDOMWindow.getSelection',
     'nsIDOMWindow.scrollByLines',
     'nsIDOMWindow.getComputedStyle',
-    'nsIDOMWindow.sessionStorage',
-    'nsIDOMWindow.localStorage',
-    'nsIDOMWindow.globalStorage',
     'nsIDOMJSWindow.dump',
     'nsIDOMScreen.top',
     'nsIDOMScreen.height',
@@ -338,7 +335,7 @@ members = [
     'nsIDOMNSHTMLOptionCollection.add',
 
     # dom/interfaces/json - None.
-    # All methods of nsIJSON call GetCurrentNativeCallContext.
+    # All 4 methods of nsIJSON call GetCurrentNativeCallContext.
 
     # dom/interfaces/load-save - None.
 
@@ -360,6 +357,7 @@ members = [
     'nsIDOMStorage.removeItem',
     'nsIDOMStorage.clear',
     'nsIDOMStorageItem.value',
+    'nsIDOMStorageWindow.*',
 
     # dom/interfaces/stylesheets - None.
 
@@ -400,9 +398,6 @@ members = [
     'nsIBoxObject.width',
     'nsIBoxObject.height',
 
-    # FileReader
-    'nsIDOMFileReader.*',
-    
     # XHR
     'nsIXMLHttpRequest.*',
     # nsIXMLHttpRequest.channel is not used on the web, and more
@@ -476,8 +471,6 @@ irregularFilenames = {
     'nsIDOMTextMetrics': 'nsIDOMCanvasRenderingContext2D',
     'nsIDOMCanvasGradient': 'nsIDOMCanvasRenderingContext2D',
     'nsIDOMCanvasPattern': 'nsIDOMCanvasRenderingContext2D',
-
-    'nsIDOMBlob': 'nsIDOMFile',
 
     'nsIWebGLTexture': 'nsIDOMWebGLRenderingContext',
     'nsIWebGLBuffer': 'nsIDOMWebGLRenderingContext',
@@ -878,7 +871,7 @@ customMethodCalls = {
         'thisType': 'nsGenericElement'
         },
     'nsIDOMElement_GetTagName': {
-        'thisType': 'nsGenericElement',
+        'thisType': 'nsINode',
         'code': 'nsString result = self->NodeName();',
         'canFail': False
         },

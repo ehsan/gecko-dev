@@ -1811,6 +1811,10 @@ nsLayoutUtils::RectListBuilder::RectListBuilder(nsClientRectList* aList)
 
 void nsLayoutUtils::RectListBuilder::AddRect(const nsRect& aRect) {
   nsRefPtr<nsClientRect> rect = new nsClientRect();
+  if (!rect) {
+    mRV = NS_ERROR_OUT_OF_MEMORY;
+    return;
+  }
 
   rect->SetLayoutRect(aRect);
   mRectList->Append(rect);
@@ -2830,18 +2834,6 @@ nsLayoutUtils::GetTextColor(nsIFrame* aFrame)
   return color;
 }
 
-gfxFloat
-nsLayoutUtils::GetSnappedBaselineY(nsIFrame* aFrame, gfxContext* aContext,
-                                   nscoord aY, nscoord aAscent)
-{
-  gfxFloat appUnitsPerDevUnit = aFrame->PresContext()->AppUnitsPerDevPixel();
-  gfxFloat baseline = gfxFloat(aY) + aAscent;
-  gfxRect putativeRect(0, baseline/appUnitsPerDevUnit, 1, 1);
-  if (!aContext->UserToDevicePixelSnapped(putativeRect, PR_TRUE))
-    return baseline;
-  return aContext->DeviceToUser(putativeRect.TopLeft()).y * appUnitsPerDevUnit;
-}
-
 void
 nsLayoutUtils::DrawString(const nsIFrame*      aFrame,
                           nsRenderingContext* aContext,
@@ -2854,15 +2846,19 @@ nsLayoutUtils::DrawString(const nsIFrame*      aFrame,
   nsresult rv = NS_ERROR_FAILURE;
   nsPresContext* presContext = aFrame->PresContext();
   if (presContext->BidiEnabled()) {
-    if (aDirection == NS_STYLE_DIRECTION_INHERIT) {
-      aDirection = aFrame->GetStyleVisibility()->mDirection;
+    nsBidiPresUtils* bidiUtils = presContext->GetBidiUtils();
+
+    if (bidiUtils) {
+      if (aDirection == NS_STYLE_DIRECTION_INHERIT) {
+        aDirection = aFrame->GetStyleVisibility()->mDirection;
+      }
+      nsBidiDirection direction =
+        (NS_STYLE_DIRECTION_RTL == aDirection) ?
+        NSBIDI_RTL : NSBIDI_LTR;
+      rv = bidiUtils->RenderText(aString, aLength, direction,
+                                 presContext, *aContext, *aContext,
+                                 aPoint.x, aPoint.y);
     }
-    nsBidiDirection direction =
-      (NS_STYLE_DIRECTION_RTL == aDirection) ?
-      NSBIDI_RTL : NSBIDI_LTR;
-    rv = nsBidiPresUtils::RenderText(aString, aLength, direction,
-                                     presContext, *aContext, *aContext,
-                                     aPoint.x, aPoint.y);
   }
   if (NS_FAILED(rv))
 #endif // IBMBIDI
@@ -2881,72 +2877,20 @@ nsLayoutUtils::GetStringWidth(const nsIFrame*      aFrame,
 #ifdef IBMBIDI
   nsPresContext* presContext = aFrame->PresContext();
   if (presContext->BidiEnabled()) {
-    const nsStyleVisibility* vis = aFrame->GetStyleVisibility();
-    nsBidiDirection direction =
-      (NS_STYLE_DIRECTION_RTL == vis->mDirection) ?
-      NSBIDI_RTL : NSBIDI_LTR;
-    return nsBidiPresUtils::MeasureTextWidth(aString, aLength,
-                                             direction, presContext, *aContext);
+    nsBidiPresUtils* bidiUtils = presContext->GetBidiUtils();
+
+    if (bidiUtils) {
+      const nsStyleVisibility* vis = aFrame->GetStyleVisibility();
+      nsBidiDirection direction =
+        (NS_STYLE_DIRECTION_RTL == vis->mDirection) ?
+        NSBIDI_RTL : NSBIDI_LTR;
+      return bidiUtils->MeasureTextWidth(aString, aLength,
+                                         direction, presContext, *aContext);
+    }
   }
 #endif // IBMBIDI
   aContext->SetTextRunRTL(PR_FALSE);
   return aContext->GetWidth(aString, aLength);
-}
-
-/* static */ void
-nsLayoutUtils::PaintTextShadow(const nsIFrame* aFrame,
-                               nsRenderingContext* aContext,
-                               const nsRect& aTextRect,
-                               const nsRect& aDirtyRect,
-                               const nscolor& aForegroundColor,
-                               TextShadowCallback aCallback,
-                               void* aCallbackData)
-{
-  const nsStyleText* textStyle = aFrame->GetStyleText();
-  if (!textStyle->mTextShadow)
-    return;
-
-  // Text shadow happens with the last value being painted at the back,
-  // ie. it is painted first.
-  gfxContext* aDestCtx = aContext->ThebesContext();
-  for (PRUint32 i = textStyle->mTextShadow->Length(); i > 0; --i) {
-    nsCSSShadowItem* shadowDetails = textStyle->mTextShadow->ShadowAt(i - 1);
-    nsPoint shadowOffset(shadowDetails->mXOffset,
-                         shadowDetails->mYOffset);
-    nscoord blurRadius = NS_MAX(shadowDetails->mRadius, 0);
-
-    nsRect shadowRect(aTextRect);
-    shadowRect.MoveBy(shadowOffset);
-
-    nsPresContext* presCtx = aFrame->PresContext();
-    nsContextBoxBlur contextBoxBlur;
-    gfxContext* shadowContext = contextBoxBlur.Init(shadowRect, 0, blurRadius,
-                                                    presCtx->AppUnitsPerDevPixel(),
-                                                    aDestCtx, aDirtyRect, nsnull);
-    if (!shadowContext)
-      continue;
-
-    nscolor shadowColor;
-    if (shadowDetails->mHasColor)
-      shadowColor = shadowDetails->mColor;
-    else
-      shadowColor = aForegroundColor;
-
-    // Conjure an nsRenderingContext from a gfxContext for drawing the text
-    // to blur.
-    nsRefPtr<nsRenderingContext> renderingContext = new nsRenderingContext();
-    renderingContext->Init(presCtx->DeviceContext(), shadowContext);
-
-    aDestCtx->Save();
-    aDestCtx->NewPath();
-    aDestCtx->SetColor(gfxRGBA(shadowColor));
-
-    // The callback will draw whatever we want to blur as a shadow.
-    aCallback(renderingContext, shadowOffset, shadowColor, aCallbackData);
-
-    contextBoxBlur.DoPaint();
-    aDestCtx->Restore();
-  }
 }
 
 /* static */ nscoord
@@ -3932,8 +3876,12 @@ nsLayoutUtils::SurfaceFromElement(nsIDOMElement *aElement,
     if (wantImageSurface && surf->GetType() != gfxASurface::SurfaceTypeImage) {
       nsRefPtr<gfxImageSurface> imgSurf =
         new gfxImageSurface(size, gfxASurface::ImageFormatARGB32);
+      if (!imgSurf)
+        return result;
 
       nsRefPtr<gfxContext> ctx = new gfxContext(imgSurf);
+      if (!ctx)
+        return result;
       ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
       ctx->DrawSurface(surf, size);
       surf = imgSurf;

@@ -108,9 +108,7 @@ static const char* const sEventNames[] = {
   "transitionend",
   "animationstart",
   "animationend",
-  "animationiteration",
-  "devicemotion",
-  "deviceorientation"
+  "animationiteration"
 };
 
 static char *sPopupAllowedEvents;
@@ -1363,10 +1361,6 @@ const char* nsDOMEvent::GetEventName(PRUint32 aEventType)
     return sEventNames[eDOMEvents_animationend];
   case NS_ANIMATION_ITERATION:
     return sEventNames[eDOMEvents_animationiteration];
-  case NS_DEVICE_MOTION:
-    return sEventNames[eDOMEvents_devicemotion];
-  case NS_DEVICE_ORIENTATION:
-    return sEventNames[eDOMEvents_deviceorientation];
   default:
     break;
   }

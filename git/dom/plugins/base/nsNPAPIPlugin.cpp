@@ -81,7 +81,7 @@
 #include "nsIObserverService.h"
 #include <prinrval.h>
 
-#ifdef MOZ_WIDGET_COCOA
+#ifdef XP_MACOSX
 #include <Carbon/Carbon.h>
 #include <ApplicationServices/ApplicationServices.h>
 #include <OpenGL/OpenGL.h>
@@ -2300,9 +2300,8 @@ _setvalue(NPP npp, NPPVariable variable, void *result)
       }
 
     case NPPVpluginKeepLibraryInMemory: {
-      // This variable is not supported any more but we'll pretend it is
-      // so that plugins don't fail on an error return.
-      return NS_OK;
+      NPBool bCached = (result != nsnull);
+      return inst->SetCached(bCached);
     }
 
     case NPPVpluginUsesDOMForCursorBool: {

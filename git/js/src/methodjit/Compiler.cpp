@@ -247,9 +247,6 @@ mjit::TryCompile(JSContext *cx, StackFrame *fp)
     if (fp->script()->hasSharps)
         return Compile_Abort;
 #endif
-    bool ok = cx->compartment->ensureJaegerCompartmentExists(cx);
-    if (!ok)
-        return Compile_Abort;
 
     // Ensure that constructors have at least one slot.
     if (fp->isConstructing() && !fp->script()->nslots)
@@ -379,10 +376,8 @@ mjit::Compiler::generatePrologue()
     if (isConstructing)
         constructThis();
 
-    if (debugMode())
+    if (debugMode() || Probes::callTrackingActive(cx))
         INLINE_STUBCALL(stubs::ScriptDebugPrologue);
-    else if (Probes::callTrackingActive(cx))
-        INLINE_STUBCALL(stubs::ScriptProbeOnlyPrologue);
 
     return Compile_Okay;
 }
@@ -416,7 +411,7 @@ mjit::Compiler::finishThisUp(JITScript **jitp)
 
     JSC::ExecutablePool *execPool;
     uint8 *result =
-        (uint8 *)script->compartment->jaegerCompartment()->execAlloc()->alloc(codeSize, &execPool);
+        (uint8 *)script->compartment->jaegerCompartment->execAlloc()->alloc(codeSize, &execPool);
     if (!result) {
         js_ReportOutOfMemory(cx);
         return Compile_Error;
@@ -818,6 +813,9 @@ mjit::Compiler::finishThisUp(JITScript **jitp)
 
     *jitp = jit;
 
+    /* We tolerate a race in the stats. */
+    cx->runtime->mjitDataSize += dataSize;
+
     return Compile_Okay;
 }
 
@@ -1212,7 +1210,7 @@ mjit::Compiler::generateMethod()
             FrameEntry *top = frame.peek(-1);
             if (top->isConstant() && top->getValue().isPrimitive()) {
                 double d;
-                JS_ALWAYS_TRUE(ToNumber(cx, top->getValue(), &d));
+                JS_ALWAYS_TRUE(ValueToNumber(cx, top->getValue(), &d));
                 d = -d;
                 frame.pop();
                 frame.push(NumberValue(d));
@@ -2876,8 +2874,8 @@ mjit::Compiler::compareTwoValues(JSContext *cx, JSOp op, const Value &lhs, const
         double ld, rd;
         
         /* These should be infallible w/ primitives. */
-        JS_ALWAYS_TRUE(ToNumber(cx, lhs, &ld));
-        JS_ALWAYS_TRUE(ToNumber(cx, rhs, &rd));
+        JS_ALWAYS_TRUE(ValueToNumber(cx, lhs, &ld));
+        JS_ALWAYS_TRUE(ValueToNumber(cx, rhs, &rd));
         switch(op) {
           case JSOP_LT:
             return ld < rd;
@@ -3776,7 +3774,7 @@ mjit::Compiler::jsop_gnameinc(JSOp op, VoidStubAtom stub, uint32 index)
         frame.push(Int32Value(amt));
         // V 1
 
-        /* Use sub since it calls ToNumber instead of string concat. */
+        /* Use sub since it calls ValueToNumber instead of string concat. */
         jsop_binary(JSOP_SUB, stubs::Sub);
         // N+1
 
@@ -3864,7 +3862,7 @@ mjit::Compiler::jsop_nameinc(JSOp op, VoidStubAtom stub, uint32 index)
         frame.push(Int32Value(amt));
         // V 1
 
-        /* Use sub since it calls ToNumber instead of string concat. */
+        /* Use sub since it calls ValueToNumber instead of string concat. */
         jsop_binary(JSOP_SUB, stubs::Sub);
         // N+1
 
@@ -3961,7 +3959,7 @@ mjit::Compiler::jsop_propinc(JSOp op, VoidStubAtom stub, uint32 index)
             frame.push(Int32Value(amt));
             // OBJ V 1
 
-            /* Use sub since it calls ToNumber instead of string concat. */
+            /* Use sub since it calls ValueToNumber instead of string concat. */
             jsop_binary(JSOP_SUB, stubs::Sub);
             // OBJ V+1
 

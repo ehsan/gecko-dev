@@ -259,20 +259,18 @@ nsPluginInstanceOwner::UseAsyncRendering()
 #endif
 
   PRBool useAsyncRendering;
-  PRBool result = (mInstance &&
+  return (mInstance &&
           NS_SUCCEEDED(mInstance->UseAsyncPainting(&useAsyncRendering)) &&
           useAsyncRendering &&
 #ifdef XP_MACOSX
-          container &&
-          container->GetBackendType() == 
+          mObjectFrame && mObjectFrame->GetImageContainer().get() &&
+          mObjectFrame->GetImageContainer().get()->GetBackendType() == 
                   LayerManager::LAYERS_OPENGL
 #else
           (!mPluginWindow ||
            mPluginWindow->type == NPWindowTypeDrawable)
 #endif
           );
-
-    return result;
 }
 
 nsIntSize
@@ -534,7 +532,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::GetURL(const char *aURL,
   nsAutoPopupStatePusher popupStatePusher((PopupControlState)blockPopups);
 
   rv = lh->OnLinkClick(mContent, uri, unitarget.get(), 
-                       aPostStream, headersDataStream, PR_TRUE);
+                       aPostStream, headersDataStream);
 
   return rv;
 }
@@ -1362,18 +1360,6 @@ NPDrawingModel nsPluginInstanceOwner::GetDrawingModel()
   return drawingModel;
 }
 
-PRBool nsPluginInstanceOwner::IsRemoteDrawingCoreAnimation()
-{
-  if (!mInstance)
-    return PR_FALSE;
-
-  PRBool coreAnimation;
-  if (!NS_SUCCEEDED(mInstance->IsRemoteDrawingCoreAnimation(&coreAnimation)))
-    return PR_FALSE;
-
-  return coreAnimation;
-}
-
 NPEventModel nsPluginInstanceOwner::GetEventModel()
 {
   return mEventModel;
@@ -1477,8 +1463,8 @@ void nsPluginInstanceOwner::RenderCoreAnimation(CGContextRef aCGContext,
     // If the renderer is backed by an IOSurface, resize it as required.
     mIOSurface = nsIOSurface::CreateIOSurface(aWidth, aHeight);
     if (mIOSurface) {
-      nsRefPtr<nsIOSurface> attachSurface = nsIOSurface::LookupSurface(
-                                              mIOSurface->GetIOSurfaceID());
+      nsIOSurface *attachSurface = nsIOSurface::LookupSurface(
+                                      mIOSurface->GetIOSurfaceID());
       if (attachSurface) {
         mCARenderer.AttachIOSurface(attachSurface);
       } else {

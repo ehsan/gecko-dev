@@ -79,7 +79,6 @@ using namespace mozilla::gfx;
 #include "gfxD2DSurface.h"
 
 #include <d3d10_1.h>
-#include <dxgi.h>
 
 #include "mozilla/gfx/2D.h"
 
@@ -90,37 +89,85 @@ using namespace mozilla::gfx;
 using namespace mozilla;
 
 #ifdef CAIRO_HAS_D2D_SURFACE
-
-NS_MEMORY_REPORTER_IMPLEMENT(
-    D2DCache,
-    "gfx-d2d-surfacecache",
-    KIND_OTHER,
-    UNITS_BYTES,
-    cairo_d2d_get_image_surface_cache_usage,
-    "Memory used by the Direct2D internal surface cache.")
-
-namespace
+class D2DCacheReporter :
+    public nsIMemoryReporter
 {
+public:
+    D2DCacheReporter()
+    { }
 
-PRInt64 GetD2DSurfaceVramUsage() {
-  cairo_device_t *device =
-      gfxWindowsPlatform::GetPlatform()->GetD2DDevice();
-  if (device) {
-      return cairo_d2d_get_surface_vram_usage(device);
-  }
-  return 0;
-}
+    NS_DECL_ISUPPORTS
 
-} // anonymous namespace
+    NS_IMETHOD GetProcess(char **process) {
+        *process = strdup("");
+        return NS_OK;
+    }
 
-NS_MEMORY_REPORTER_IMPLEMENT(
-    D2DVram,
-    "gfx-d2d-surfacevram",
-    KIND_OTHER,
-    UNITS_BYTES,
-    GetD2DSurfaceVramUsage,
-    "Video memory used by D2D surfaces")
+    NS_IMETHOD GetPath(char **memoryPath) {
+        *memoryPath = strdup("gfx-d2d-surfacecache");
+        return NS_OK;
+    }
 
+    NS_IMETHOD GetKind(PRInt32 *kind) {
+        *kind = MR_OTHER;
+        return NS_OK;
+    }
+
+    NS_IMETHOD GetDescription(char **desc) {
+        *desc = strdup("Memory used by the Direct2D internal surface cache.");
+        return NS_OK;
+    }
+
+    NS_IMETHOD GetMemoryUsed(PRInt64 *memoryUsed) {
+        *memoryUsed = cairo_d2d_get_image_surface_cache_usage();
+        return NS_OK;
+    }
+}; 
+
+NS_IMPL_ISUPPORTS1(D2DCacheReporter, nsIMemoryReporter)
+
+class D2DVRAMReporter :
+    public nsIMemoryReporter
+{
+public:
+    D2DVRAMReporter()
+    { }
+
+    NS_DECL_ISUPPORTS
+
+    NS_IMETHOD GetProcess(char **process) {
+        *process = strdup("");
+        return NS_OK;
+    }
+
+    NS_IMETHOD GetPath(char **memoryPath) {
+        *memoryPath = strdup("gfx-d2d-surfacevram");
+        return NS_OK;
+    }
+
+    NS_IMETHOD GetKind(PRInt32 *kind) {
+        *kind = MR_OTHER;
+        return NS_OK;
+    }
+
+    NS_IMETHOD GetDescription(char **desc) {
+        *desc = strdup("Video memory used by D2D surfaces");
+        return NS_OK;
+    }
+
+    NS_IMETHOD GetMemoryUsed(PRInt64 *memoryUsed) {
+        cairo_device_t *device =
+            gfxWindowsPlatform::GetPlatform()->GetD2DDevice();
+        if (device) {
+            *memoryUsed = cairo_d2d_get_surface_vram_usage(device);
+        } else {
+            *memoryUsed = 0;
+        }
+        return NS_OK;
+    }
+};
+
+NS_IMPL_ISUPPORTS1(D2DVRAMReporter, nsIMemoryReporter)
 #endif
 
 #define GFX_USE_CLEARTYPE_ALWAYS "gfx.font_rendering.cleartype.always_use_for_content"
@@ -153,11 +200,6 @@ typedef HRESULT (WINAPI*D3D10CreateDevice1Func)(
   UINT SDKVersion,
   ID3D10Device1 **ppDevice
 );
-
-typedef HRESULT(WINAPI*CreateDXGIFactory1Func)(
-  REFIID riid,
-  void **ppFactory
-);
 #endif
 
 static __inline void
@@ -185,8 +227,8 @@ gfxWindowsPlatform::gfxWindowsPlatform()
     mScreenDC = GetDC(NULL);
 
 #ifdef CAIRO_HAS_D2D_SURFACE
-    NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(D2DCache));
-    NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(D2DVram));
+    NS_RegisterMemoryReporter(new D2DCacheReporter());
+    NS_RegisterMemoryReporter(new D2DVRAMReporter());
     mD2DDevice = nsnull;
 #endif
 
@@ -324,34 +366,10 @@ gfxWindowsPlatform::VerifyD2DDevice(PRBool aAttemptForce)
     nsRefPtr<ID3D10Device1> device;
 
     if (createD3DDevice) {
-        HMODULE dxgiModule = LoadLibraryA("dxgi.dll");
-        CreateDXGIFactory1Func createDXGIFactory1 = (CreateDXGIFactory1Func)
-            GetProcAddress(dxgiModule, "CreateDXGIFactory1");
-
-        // Try to use a DXGI 1.1 adapter in order to share resources
-        // across processes.
-        nsRefPtr<IDXGIAdapter1> adapter1;
-        if (createDXGIFactory1) {
-            nsRefPtr<IDXGIFactory1> factory1;
-            HRESULT hr = createDXGIFactory1(__uuidof(IDXGIFactory1),
-                                            getter_AddRefs(factory1));
-    
-            nsRefPtr<IDXGIAdapter1> adapter1; 
-            hr = factory1->EnumAdapters1(0, getter_AddRefs(adapter1));
-
-            if (SUCCEEDED(hr) && adapter1) {
-                hr = adapter1->CheckInterfaceSupport(__uuidof(ID3D10Device1),
-                                                     nsnull);
-                if (FAILED(hr)) {
-                    adapter1 = nsnull;
-                }
-            }
-        }
-
         // We try 10.0 first even though we prefer 10.1, since we want to
         // fail as fast as possible if 10.x isn't supported.
         HRESULT hr = createD3DDevice(
-            adapter1, 
+            NULL, 
             D3D10_DRIVER_TYPE_HARDWARE,
             NULL,
             D3D10_CREATE_DEVICE_BGRA_SUPPORT |
@@ -367,7 +385,7 @@ gfxWindowsPlatform::VerifyD2DDevice(PRBool aAttemptForce)
             // clever.
             nsRefPtr<ID3D10Device1> device1;
             hr = createD3DDevice(
-                adapter1, 
+                NULL, 
                 D3D10_DRIVER_TYPE_HARDWARE,
                 NULL,
                 D3D10_CREATE_DEVICE_BGRA_SUPPORT |
@@ -485,8 +503,6 @@ gfxWindowsPlatform::GetScaledFontForFont(gfxFont *aFont)
 
     return scaledFont;
   }
-
-  return NULL;
 }
 
 already_AddRefed<gfxASurface>

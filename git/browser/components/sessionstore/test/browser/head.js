@@ -35,7 +35,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-let ss = Cc["@mozilla.org/browser/sessionstore;1"].getService(Ci.nsISessionStore);
+const SS_SVC = Cc["@mozilla.org/browser/sessionstore;1"].
+               getService(Ci.nsISessionStore);
 
 // This assumes that tests will at least have some state/entries
 function waitForBrowserState(aState, aSetStateCallback) {
@@ -117,7 +118,7 @@ function waitForBrowserState(aState, aSetStateCallback) {
   gBrowser.tabContainer.addEventListener("SSTabRestored", onSSTabRestored, true);
 
   // Finally, call setBrowserState
-  ss.setBrowserState(JSON.stringify(aState));
+  SS_SVC.setBrowserState(JSON.stringify(aState));
 }
 
 // waitForSaveState waits for a state write but not necessarily for the state to

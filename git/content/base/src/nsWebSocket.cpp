@@ -72,8 +72,7 @@
 #include "nsJSUtils.h"
 #include "nsIScriptError.h"
 #include "nsNetUtil.h"
-#include "nsIWebSocketChannel.h"
-#include "nsIWebSocketListener.h"
+#include "nsIWebSocketProtocol.h"
 #include "nsILoadGroup.h"
 #include "nsIRequest.h"
 #include "mozilla/Preferences.h"
@@ -148,7 +147,7 @@ private:
   PRUint32 mOutgoingBufferedAmount;
 
   nsWebSocket* mOwner; // weak reference
-  nsCOMPtr<nsIWebSocketChannel> mWebSocketChannel;
+  nsCOMPtr<nsIWebSocketProtocol> mWebSocketProtocol;
 
   PRPackedBool mClosedCleanly;
 
@@ -188,7 +187,7 @@ nsWebSocketEstablishedConnection::~nsWebSocketEstablishedConnection()
 {
   NS_ABORT_IF_FALSE(NS_IsMainThread(), "Not running on main thread");
   NS_ABORT_IF_FALSE(!mOwner, "Disconnect wasn't called!");
-  NS_ABORT_IF_FALSE(!mWebSocketChannel, "Disconnect wasn't called!");
+  NS_ABORT_IF_FALSE(!mWebSocketProtocol, "Disconnect wasn't called!");
 }
 
 nsresult
@@ -252,7 +251,7 @@ nsWebSocketEstablishedConnection::PostMessage(const nsString& aMessage)
     rv = NS_BASE_STREAM_CLOSED;
   } else {
     mOutgoingBufferedAmount += buf.Length();
-    mWebSocketChannel->SendMsg(buf);
+    mWebSocketProtocol->SendMsg(buf);
     rv = NS_OK;
   }
 
@@ -272,16 +271,16 @@ nsWebSocketEstablishedConnection::Init(nsWebSocket *aOwner)
   mOwner = aOwner;
 
   if (mOwner->mSecure) {
-    mWebSocketChannel =
+    mWebSocketProtocol =
       do_CreateInstance("@mozilla.org/network/protocol;1?name=wss", &rv);
   }
   else {
-    mWebSocketChannel =
+    mWebSocketProtocol =
       do_CreateInstance("@mozilla.org/network/protocol;1?name=ws", &rv);
   }
   NS_ENSURE_SUCCESS(rv, rv);
   
-  rv = mWebSocketChannel->SetNotificationCallbacks(this);
+  rv = mWebSocketProtocol->SetNotificationCallbacks(this);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // add ourselves to the document's load group and
@@ -289,19 +288,19 @@ nsWebSocketEstablishedConnection::Init(nsWebSocket *aOwner)
   nsCOMPtr<nsILoadGroup> loadGroup;
   rv = GetLoadGroup(getter_AddRefs(loadGroup));
   if (loadGroup) {
-    rv = mWebSocketChannel->SetLoadGroup(loadGroup);
+    rv = mWebSocketProtocol->SetLoadGroup(loadGroup);
     NS_ENSURE_SUCCESS(rv, rv);
     rv = loadGroup->AddRequest(this, nsnull);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
   if (!mOwner->mProtocol.IsEmpty())
-    rv = mWebSocketChannel->SetProtocol(mOwner->mProtocol);
+    rv = mWebSocketProtocol->SetProtocol(mOwner->mProtocol);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCString utf8Origin;
   CopyUTF16toUTF8(mOwner->mUTF16Origin, utf8Origin);
-  rv = mWebSocketChannel->AsyncOpen(mOwner->mURI,
+  rv = mWebSocketProtocol->AsyncOpen(mOwner->mURI,
                                      utf8Origin, this, nsnull);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -389,7 +388,7 @@ nsWebSocketEstablishedConnection::Close()
     return NS_OK;
   }
 
-  return mWebSocketChannel->Close();
+  return mWebSocketProtocol->Close();
 }
 
 nsresult
@@ -452,7 +451,7 @@ nsWebSocketEstablishedConnection::Disconnect()
   mOwner->DontKeepAliveAnyMore();
   mStatus = CONN_CLOSED;
   mOwner = nsnull;
-  mWebSocketChannel = nsnull;
+  mWebSocketProtocol = nsnull;
 
   nsLayoutStatics::Release();
   return NS_OK;
@@ -505,7 +504,7 @@ nsWebSocketEstablishedConnection::OnStart(nsISupports *aContext)
     return NS_OK;
 
   if (!mOwner->mProtocol.IsEmpty())
-    mWebSocketChannel->GetProtocol(mOwner->mProtocol);
+    mWebSocketProtocol->GetProtocol(mOwner->mProtocol);
 
   mStatus = CONN_CONNECTED_AND_READY;
   mOwner->SetReadyState(nsIWebSocket::OPEN);
@@ -1245,7 +1244,7 @@ nsWebSocket::Send(const nsAString& aData, PRBool *aRet)
     return NS_ERROR_DOM_INVALID_STATE_ERR;
   }
 
-  // Check for unpaired surrogates.
+  // We need to check if there isn't unpaired surrogates.
   PRUint32 i, length = aData.Length();
   for (i = 0; i < length; ++i) {
     if (NS_IS_LOW_SURROGATE(aData[i])) {
@@ -1350,18 +1349,6 @@ nsWebSocket::Init(nsIPrincipal* aPrincipal,
   // parses the url
   rv = ParseURL(PromiseFlatString(aURL));
   NS_ENSURE_SUCCESS(rv, rv);
-
-  // Don't allow https:// to open ws://
-  nsCOMPtr<nsIURI> originURI;
-  PRBool originHTTPS;
-  if (!mSecure && 
-      !Preferences::GetBool("network.websocket.allowInsecureFromHTTPS",
-                            PR_FALSE) &&
-      NS_SUCCEEDED(NS_NewURI(getter_AddRefs(originURI), mUTF16Origin)) &&
-      NS_SUCCEEDED(originURI->SchemeIs("https", &originHTTPS)) &&
-      originHTTPS) {
-    return NS_ERROR_DOM_SECURITY_ERR;
-  }
 
   // sets the protocol
   if (!aProtocol.IsEmpty()) {

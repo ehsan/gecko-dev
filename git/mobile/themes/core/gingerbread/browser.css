@@ -1311,25 +1311,6 @@ setting {
   z-index: 500;
 }
 
-/* openwebapps capabilities ------------------------------------------------------------ */
-.webapps-noperm description.webapps-perm-requested-hint {
-  display: block;
-}
-
-.webapps-perm description.webapps-perm-requested-hint {
-  display: none;
-}
-
-#webapps-icon {
-  width: 32px;
-  height: 32px;
-  margin: @margin_normal@;
-}
-
-#webapps-title {
-  -moz-margin-end: @margin_normal@;
-}
-
 /* Android menu ------------------------------------------------------------ */
 #appmenu {
   background: @color_background_default@;
@@ -1516,20 +1497,3 @@ setting {
   90% { -moz-transform: translateX(-@sidebar_width_minimum@); }
   to { -moz-transform: translateX(0); }
 }
-
-#selectionhandle-start,
-#selectionhandle-end {
-  min-width: 35px !important;
-  width: 35px !important;
-  padding: 0 !important;
-  margin: 0 !important;
-}
-
-#selectionhandle-start {
-  list-style-image: url("chrome://browser/skin/images/handle-start.png");
-}
-
-#selectionhandle-end {
-  list-style-image: url("chrome://browser/skin/images/handle-end.png");
-}
-

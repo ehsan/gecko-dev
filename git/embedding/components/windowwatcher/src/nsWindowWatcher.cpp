@@ -57,6 +57,7 @@
 #include "nsIDOMDocument.h"
 #include "nsIDOMWindow.h"
 #include "nsIDOMChromeWindow.h"
+#include "nsIDOMWindowInternal.h"
 #include "nsIDOMModalContentWindow.h"
 #include "nsIPrompt.h"
 #include "nsIScriptObjectPrincipal.h"
@@ -943,12 +944,9 @@ nsWindowWatcher::OpenWindowJSInternal(nsIDOMWindow *aParent,
       }
     }
 
-    newDocShell->LoadURI(uriToLoad,
-                         loadInfo,
-                         windowIsNew
-                           ? static_cast<PRUint32>(nsIWebNavigation::LOAD_FLAGS_FIRST_LOAD)
-                           : static_cast<PRUint32>(nsIWebNavigation::LOAD_FLAGS_NONE),
-                         PR_TRUE);
+    newDocShell->LoadURI(uriToLoad, loadInfo,
+      windowIsNew ? nsIWebNavigation::LOAD_FLAGS_FIRST_LOAD :
+                    nsIWebNavigation::LOAD_FLAGS_NONE, PR_TRUE);
   }
 
   // Copy the current session storage for the current domain.
@@ -1777,7 +1775,8 @@ nsWindowWatcher::ReadyOpenedDocShellItem(nsIDocShellTreeItem *aOpenedItem,
   nsCOMPtr<nsPIDOMWindow> piOpenedWindow(do_GetInterface(aOpenedItem));
   if (piOpenedWindow) {
     if (aParent) {
-      piOpenedWindow->SetOpenerWindow(aParent, aWindowIsNew); // damnit
+      nsCOMPtr<nsIDOMWindowInternal> internalParent(do_QueryInterface(aParent));
+      piOpenedWindow->SetOpenerWindow(internalParent, aWindowIsNew); // damnit
 
       if (aWindowIsNew) {
 #ifdef DEBUG

@@ -51,7 +51,7 @@ const TESTS = [
   },
   { // #7
     file: "test-bug-595934-workers.html",
-    category: "Web Worker",
+    category: "DOM Worker javascript",
     matchString: "fooBarWorker",
   },
   { // #8
@@ -88,6 +88,11 @@ const TESTS = [
     file: "test-bug-595934-canvas-css.html",
     category: "CSS Parser",
     matchString: "foobarCanvasCssParser",
+  },
+  { // #15
+    file: "test-bug-595934-getselection.html",
+    category: "content javascript",
+    matchString: "getSelection",
   },
   { // #16
     file: "test-bug-595934-image.html",

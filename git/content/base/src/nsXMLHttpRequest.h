@@ -331,13 +331,6 @@ protected:
   nsCOMPtr<nsIChannel> mNewRedirectChannel;
   
   JSObject* mResultArrayBuffer;
-
-  struct RequestHeader
-  {
-    nsCString header;
-    nsCString value;
-  };
-  nsTArray<RequestHeader> mModifiedRequestHeaders;
 };
 
 // helper class to expose a progress DOM Event

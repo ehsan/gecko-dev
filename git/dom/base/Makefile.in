@@ -85,7 +85,6 @@ EXPORTS = \
   nsWrapperCache.h \
   nsContentPermissionHelper.h \
   nsStructuredCloneContainer.h \
-  nsDOMMemoryReporter.h \
   $(NULL)
 
 CPPSRCS =			\
@@ -113,7 +112,6 @@ CPPSRCS =			\
 	nsStructuredCloneContainer.cpp \
 	nsDOMNavigationTiming.cpp \
 	nsPerformance.cpp	\
-	nsDOMMemoryReporter.cpp \
 	$(NULL)
 
 include $(topsrcdir)/dom/dom-config.mk

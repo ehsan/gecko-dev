@@ -364,7 +364,6 @@ struct FrameInfo;
 
 struct VMSideExit : public nanojit::SideExit
 {
-    JSScript* script;
     jsbytecode* pc;
     jsbytecode* imacpc;
     intptr_t sp_adj;
@@ -563,8 +562,7 @@ struct TreeFragment : public LinkableFragment
         linkedTrees(alloc),
         sideExits(alloc),
         gcthings(alloc),
-        shapes(alloc),
-        visiting(false)
+        shapes(alloc)
     { }
 
     TreeFragment* first;
@@ -595,9 +593,6 @@ struct TreeFragment : public LinkableFragment
     uintN                   execs;
     /* Gives the total number of iterations executed by the trace (up to a limit). */
     uintN                   iters;
-
-    /* Flag to detect graph cycles when navigating tree fragments. */ 
-    bool                    visiting;
 
     inline unsigned nGlobalTypes() {
         return typeMap.length() - nStackTypes;

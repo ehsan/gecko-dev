@@ -567,7 +567,6 @@ pref("plugins.hide_infobar_for_missing_plugin", false);
 pref("plugins.hide_infobar_for_outdated_plugin", false);
 
 #ifdef XP_MACOSX
-pref("plugins.use_layers", true);
 pref("plugins.hide_infobar_for_carbon_failure_plugin", false);
 #endif
 
@@ -900,10 +899,6 @@ pref("dom.ipc.plugins.enabled.x86_64", true);
 pref("dom.ipc.plugins.enabled", true);
 #endif
 
-#ifdef MOZ_E10S_COMPAT
-pref("browser.tabs.remote", true);
-#endif
-
 // This pref governs whether we attempt to work around problems caused by
 // plugins using OS calls to manipulate the cursor while running out-of-
 // process.  These workarounds all involve intercepting (hooking) certain
@@ -1004,11 +999,9 @@ pref("services.sync.prefs.sync.spellchecker.dictionary", true);
 pref("services.sync.prefs.sync.xpinstall.whitelist.required", true);
 #endif
 
-// Disable the error console
+// Disable the error console and inspector
 pref("devtools.errorconsole.enabled", false);
-
-// Enable the Inspector
-pref("devtools.inspector.enabled", true);
+pref("devtools.inspector.enabled", false);
 
 // Enable the Scratchpad tool.
 pref("devtools.scratchpad.enabled", true);
@@ -1033,12 +1026,6 @@ pref("devtools.hud.loglimit.network", 200);
 pref("devtools.hud.loglimit.cssparser", 200);
 pref("devtools.hud.loglimit.exception", 200);
 pref("devtools.hud.loglimit.console", 200);
-
-// The developer tools editor configuration:
-// - tabsize: how many spaces to use when a Tab character is displayed.
-// - expandtab: expand Tab characters to spaces.
-pref("devtools.editor.tabsize", 4);
-pref("devtools.editor.expandtab", true);
 
 // Whether the character encoding menu is under the main Firefox button. This
 // preference is a string so that localizers can alter it.
