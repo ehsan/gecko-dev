@@ -6,6 +6,7 @@
 #ifndef nsFileStreams_h__
 #define nsFileStreams_h__
 
+#include "nsAlgorithm.h"
 #include "nsAutoPtr.h"
 #include "nsIFileStreams.h"
 #include "nsIFile.h"
@@ -15,6 +16,8 @@
 #include "nsISeekableStream.h"
 #include "nsILineInputStream.h"
 #include "nsCOMPtr.h"
+#include "prlog.h"
+#include "prio.h"
 #include "nsIIPCSerializableInputStream.h"
 #include "nsReadLine.h"
 #include <algorithm>

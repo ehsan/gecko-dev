@@ -539,13 +539,6 @@ MConstantElements::printOpcode(FILE *fp) const
     fprintf(fp, " %p", value());
 }
 
-void
-MLoadTypedArrayElement::printOpcode(FILE *fp) const
-{
-    MDefinition::printOpcode(fp);
-    fprintf(fp, " %s", ScalarTypeRepresentation::typeName(arrayType()));
-}
-
 MParameter *
 MParameter::New(int32_t index, types::TemporaryTypeSet *types)
 {
@@ -2475,7 +2468,7 @@ MLoadSlot::mightAlias(MDefinition *store)
 }
 
 void
-InlinePropertyTable::trimTo(ObjectVector &targets, BoolVector &choiceSet)
+InlinePropertyTable::trimTo(AutoObjectVector &targets, Vector<bool> &choiceSet)
 {
     for (size_t i = 0; i < targets.length(); i++) {
         // If the target was inlined, don't erase the entry.
@@ -2496,7 +2489,7 @@ InlinePropertyTable::trimTo(ObjectVector &targets, BoolVector &choiceSet)
 }
 
 void
-InlinePropertyTable::trimToTargets(ObjectVector &targets)
+InlinePropertyTable::trimToTargets(AutoObjectVector &targets)
 {
     IonSpew(IonSpew_Inlining, "Got inlineable property cache with %d cases",
             (int)numEntries());

@@ -7,6 +7,7 @@
 #define nsUnknownDecoder_h__
 
 #include "nsIStreamConverter.h"
+#include "nsIChannel.h"
 #include "nsIContentSniffer.h"
 
 #include "nsCOMPtr.h"

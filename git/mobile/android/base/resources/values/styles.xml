@@ -117,13 +117,13 @@
         <item name="android:drawableLeft">@drawable/bookmark_folder</item>
     </style>
 
-    <style name="Widget.TopSitesGridView" parent="Widget.GridView">
+    <style name="Widget.TopBookmarksView" parent="Widget.GridView">
         <item name="android:padding">7dp</item>
         <item name="android:horizontalSpacing">0dp</item>
         <item name="android:verticalSpacing">7dp</item>
     </style>
 
-    <style name="Widget.TopSitesGridItemView">
+    <style name="Widget.TopBookmarkItemView">
       <item name="android:layout_width">fill_parent</item>
       <item name="android:layout_height">fill_parent</item>
       <item name="android:padding">5dip</item>
@@ -134,19 +134,19 @@
 
     <style name="Widget.BookmarksListView" parent="Widget.HomeListView"/>
 
-    <style name="Widget.TopSitesThumbnailView">
+    <style name="Widget.BookmarkThumbnailView">
       <item name="android:padding">0dip</item>
       <item name="android:scaleType">centerCrop</item>
     </style>
 
-    <style name="Widget.TopSitesGridItemPin">
+    <style name="Widget.TopBookmarkItemPin">
       <item name="android:minWidth">30dip</item>
       <item name="android:minHeight">30dip</item>
       <item name="android:padding">0dip</item>
     </style>
 
-    <style name="Widget.TopSitesGridItemTitle">
-      <item name="android:textColor">@color/top_sites_grid_item_title</item>
+    <style name="Widget.TopBookmarkItemTitle">
+      <item name="android:textColor">@color/top_bookmark_item_title</item>
       <item name="android:textSize">12sp</item>
       <item name="android:singleLine">true</item>
       <item name="android:ellipsize">none</item>
@@ -157,8 +157,6 @@
     <style name="Widget.HomeListView" parent="Widget.ListView">
         <item name="android:divider">#E7ECF0</item>
     </style>
-
-    <style name="Widget.TopSitesListView" parent="Widget.BookmarksListView"/>
 
     <style name="Widget.ReadingListView" parent="Widget.BookmarksListView"/>
 
@@ -202,8 +200,6 @@
         <item name="android:paddingLeft">10dip</item>
         <item name="android:paddingRight">10dip</item>
     </style>
-
-    <style name="Widget.Home.HistoryPageTitle" parent="Widget.Home.HistoryTabIndicator"/>
 
     <!--
         TextAppearance

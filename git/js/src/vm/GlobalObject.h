@@ -456,8 +456,6 @@ class GlobalObject : public JSObject
         RootedValue valCopy(cx, value);
         return JSObject::setProperty(cx, holder, holder, name, &valCopy, false);
     }
-    bool getSelfHostedFunction(JSContext *cx, const JSFunctionSpec *fs, HandleAtom atom,
-                               MutableHandleValue funVal);
 
     RegExpStatics *getRegExpStatics() const {
         JSObject &resObj = getSlot(REGEXP_STATICS).toObject();

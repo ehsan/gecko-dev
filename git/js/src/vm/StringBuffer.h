@@ -122,7 +122,10 @@ StringBuffer::appendInflated(const char *cstr, size_t cstrlen)
     size_t lengthBefore = length();
     if (!cb.growByUninitialized(cstrlen))
         return false;
-    InflateStringToBuffer(cstr, cstrlen, begin() + lengthBefore);
+    mozilla::DebugOnly<size_t> oldcstrlen = cstrlen;
+    mozilla::DebugOnly<bool> ok = InflateStringToBuffer(NULL, cstr, cstrlen,
+                                                        begin() + lengthBefore, &cstrlen);
+    JS_ASSERT(ok && oldcstrlen == cstrlen);
     return true;
 }
 

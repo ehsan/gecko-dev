@@ -59,7 +59,7 @@ function generatorTest() {
     });
 
     // LOAD_FLAGS_BYPASS_CACHE isn't good enough. So clear the cache.
-    Services.cache2.clear();
+    Services.cache.evictEntries(Services.cache.STORE_ANYWHERE);
 
     let [uri, title] = tests[0];
     content.location = uri;

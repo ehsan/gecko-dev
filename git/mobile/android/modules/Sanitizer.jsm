@@ -68,9 +68,9 @@ Sanitizer.prototype = {
     cache: {
       clear: function ()
       {
-        var cache = Cc["@mozilla.org/netwerk/cache-storage-service;1"].getService(Ci.nsICacheStorageService);
+        var cacheService = Cc["@mozilla.org/network/cache-service;1"].getService(Ci.nsICacheService);
         try {
-          cache.clear();
+          cacheService.evictEntries(Ci.nsICache.STORE_ANYWHERE);
         } catch(er) {}
 
         let imageCache = Cc["@mozilla.org/image/tools;1"].getService(Ci.imgITools)
@@ -126,10 +126,9 @@ Sanitizer.prototype = {
     offlineApps: {
       clear: function ()
       {
-        var cacheService = Cc["@mozilla.org/netwerk/cache-storage-service;1"].getService(Ci.nsICacheStorageService);
-        var appCacheStorage = cacheService.appCacheStorage(LoadContextInfo.default, null);
+        var cacheService = Cc["@mozilla.org/network/cache-service;1"].getService(Ci.nsICacheService);
         try {
-          appCacheStorage.asyncEvictStorage(null);
+          cacheService.evictEntries(Ci.nsICache.STORE_OFFLINE);
         } catch(er) {}
       },
 

@@ -7,7 +7,6 @@
 
 #include "mozilla/dom/DOMJSClass.h"
 #include "mozilla/dom/BindingUtils.h"
-#include "mozilla/dom/EventHandlerBinding.h"
 
 #include "jsapi.h"
 #include "EventTarget.h"
@@ -180,19 +179,14 @@ private:
     MOZ_ASSERT(worker);
 
     ErrorResult rv;
-    nsRefPtr<EventHandlerNonNull> handler =
-      worker->GetEventListener(Substring(aNameStr, 2), rv);
+    JS::Rooted<JSObject*> listener(aCx, worker->GetEventListener(Substring(aNameStr, 2), rv));
 
     if (rv.Failed()) {
       JS_ReportError(aCx, "Failed to get listener!");
       return false;
     }
 
-    if (!handler) {
-      aArgs.rval().setNull();
-    } else {
-      aArgs.rval().setObject(*handler->Callable());
-    }
+    aArgs.rval().setObjectOrNull(listener);
     return true;
   }
 
@@ -232,18 +226,12 @@ private:
     MOZ_ASSERT(worker);
 
     JS::Rooted<JSObject*> listener(aCx);
-    if (!JS_ValueToObject(aCx, aArgs.get(0), &listener)) {
+    if (!JS_ValueToObject(aCx, aArgs.get(0), listener.address())) {
       return false;
     }
 
-    nsRefPtr<EventHandlerNonNull> handler;
-    if (listener && JS_ObjectIsCallable(aCx, listener)) {
-      handler = new EventHandlerNonNull(listener);
-    } else {
-      handler = nullptr;
-    }
     ErrorResult rv;
-    worker->SetEventListener(Substring(aNameStr, 2), handler, rv);
+    worker->SetEventListener(Substring(aNameStr, 2), listener, rv);
 
     if (rv.Failed()) {
       JS_ReportError(aCx, "Failed to set listener!");

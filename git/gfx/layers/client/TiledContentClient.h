@@ -230,7 +230,6 @@ private:
 
   // The buffer we use when UseSinglePaintBuffer() above is true.
   nsRefPtr<gfxImageSurface>     mSinglePaintBuffer;
-  RefPtr<gfx::DrawTarget>       mSinglePaintDrawTarget;
   nsIntPoint                    mSinglePaintBufferOffset;
 
   BasicTiledLayerTile ValidateTileInternal(BasicTiledLayerTile aTile,

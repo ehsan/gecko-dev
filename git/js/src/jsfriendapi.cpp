@@ -46,7 +46,7 @@ PerThreadDataFriendFields::PerThreadDataFriendFields()
 }
 
 JS_FRIEND_API(void)
-js::SetSourceHook(JSRuntime *rt, SourceHook *hook)
+JS_SetSourceHook(JSRuntime *rt, JS_SourceHook hook)
 {
     rt->sourceHook = hook;
 }

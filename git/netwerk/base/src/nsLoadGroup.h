@@ -9,16 +9,20 @@
 #include "nsILoadGroup.h"
 #include "nsILoadGroupChild.h"
 #include "nsPILoadGroupInternal.h"
+#include "nsIChannel.h"
+#include "nsIStreamListener.h"
 #include "nsAgg.h"
 #include "nsCOMPtr.h"
 #include "nsWeakPtr.h"
 #include "nsWeakReference.h"
+#include "nsIInterfaceRequestor.h"
+#include "nsIInterfaceRequestorUtils.h"
 #include "nsISupportsPriority.h"
+#include "nsITimedChannel.h"
 #include "pldhash.h"
 #include "mozilla/TimeStamp.h"
 
-class nsILoadGroupConnectionInfo;
-class nsITimedChannel;
+class  nsILoadGroupConnectionInfo;
 
 class nsLoadGroup : public nsILoadGroup,
                     public nsILoadGroupChild,

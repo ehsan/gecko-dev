@@ -16,7 +16,6 @@
 #include "jsnum.h"
 
 #include "builtin/Eval.h"
-#include "builtin/TypedObject.h"
 #include "gc/Nursery.h"
 #include "jit/ExecutionModeInlines.h"
 #include "jit/IonLinker.h"
@@ -722,7 +721,7 @@ bool
 CodeGenerator::visitLambdaForSingleton(LLambdaForSingleton *lir)
 {
     pushArg(ToRegister(lir->scopeChain()));
-    pushArg(ImmGCPtr(lir->mir()->info().fun));
+    pushArg(ImmGCPtr(lir->mir()->fun()));
     return callVM(LambdaInfo, lir);
 }
 
@@ -731,28 +730,27 @@ CodeGenerator::visitLambda(LLambda *lir)
 {
     Register scopeChain = ToRegister(lir->scopeChain());
     Register output = ToRegister(lir->output());
-    const LambdaFunctionInfo &info = lir->mir()->info();
+    JSFunction *fun = lir->mir()->fun();
 
-    OutOfLineCode *ool = oolCallVM(LambdaInfo, lir, (ArgList(), ImmGCPtr(info.fun), scopeChain),
+    OutOfLineCode *ool = oolCallVM(LambdaInfo, lir, (ArgList(), ImmGCPtr(fun), scopeChain),
                                    StoreRegisterTo(output));
     if (!ool)
         return false;
 
-    JS_ASSERT(gen->compartment == info.fun->compartment());
-    JS_ASSERT(!info.singletonType);
+    JS_ASSERT(gen->compartment == fun->compartment());
+    JS_ASSERT(!fun->hasSingletonType());
 
-    masm.newGCThing(output, info.fun, ool->entry());
-    masm.initGCThing(output, info.fun);
+    masm.newGCThing(output, fun, ool->entry());
+    masm.initGCThing(output, fun);
 
-    emitLambdaInit(output, scopeChain, info);
+    emitLambdaInit(output, scopeChain, fun);
 
     masm.bind(ool->rejoin());
     return true;
 }
 
 void
-CodeGenerator::emitLambdaInit(const Register &output, const Register &scopeChain,
-                              const LambdaFunctionInfo &info)
+CodeGenerator::emitLambdaInit(const Register &output, const Register &scopeChain, JSFunction *fun)
 {
     // Initialize nargs and flags. We do this with a single uint32 to avoid
     // 16-bit writes.
@@ -763,15 +761,15 @@ CodeGenerator::emitLambdaInit(const Register &output, const Register &scopeChain
         } s;
         uint32_t word;
     } u;
-    u.s.nargs = info.fun->nargs;
-    u.s.flags = info.flags & ~JSFunction::EXTENDED;
+    u.s.nargs = fun->nargs;
+    u.s.flags = fun->flags & ~JSFunction::EXTENDED;
 
     JS_STATIC_ASSERT(offsetof(JSFunction, flags) == offsetof(JSFunction, nargs) + 2);
     masm.store32(Imm32(u.word), Address(output, offsetof(JSFunction, nargs)));
-    masm.storePtr(ImmGCPtr(info.scriptOrLazyScript),
+    masm.storePtr(ImmGCPtr(fun->nonLazyScript()),
                   Address(output, JSFunction::offsetOfNativeOrScript()));
     masm.storePtr(scopeChain, Address(output, JSFunction::offsetOfEnvironment()));
-    masm.storePtr(ImmGCPtr(info.fun->displayAtom()), Address(output, JSFunction::offsetOfAtom()));
+    masm.storePtr(ImmGCPtr(fun->displayAtom()), Address(output, JSFunction::offsetOfAtom()));
 }
 
 bool
@@ -782,12 +780,12 @@ CodeGenerator::visitLambdaPar(LLambdaPar *lir)
     Register scopeChainReg = ToRegister(lir->scopeChain());
     Register tempReg1 = ToRegister(lir->getTemp0());
     Register tempReg2 = ToRegister(lir->getTemp1());
-    const LambdaFunctionInfo &info = lir->mir()->info();
+    JSFunction *fun = lir->mir()->fun();
 
     JS_ASSERT(scopeChainReg != resultReg);
 
-    emitAllocateGCThingPar(lir, resultReg, sliceReg, tempReg1, tempReg2, info.fun);
-    emitLambdaInit(resultReg, scopeChainReg, info);
+    emitAllocateGCThingPar(lir, resultReg, sliceReg, tempReg1, tempReg2, fun);
+    emitLambdaInit(resultReg, scopeChainReg, fun);
     return true;
 }
 
@@ -1917,6 +1915,30 @@ CodeGenerator::visitCallKnown(LCallKnown *call)
 
     masm.checkStackAlignment();
 
+    // If the function is known to be uncompilable, just emit the call to
+    // Invoke in sequential mode, else mark as cannot compile.
+    JS_ASSERT(call->mir()->hasRootedScript());
+    JSScript *targetScript = target->nonLazyScript();
+    if (GetIonScript(targetScript, executionMode) == ION_DISABLED_SCRIPT &&
+        (executionMode == ParallelExecution || !targetScript->canBaselineCompile()))
+    {
+        if (executionMode == ParallelExecution)
+            return false;
+
+        if (!emitCallInvokeFunction(call, calleereg, call->numActualArgs(), unusedStack))
+            return false;
+
+        if (call->mir()->isConstructing()) {
+            Label notPrimitive;
+            masm.branchTestPrimitive(Assembler::NotEqual, JSReturnOperand, &notPrimitive);
+            masm.loadValue(Address(StackPointer, unusedStack), JSReturnOperand);
+            masm.bind(&notPrimitive);
+        }
+
+        dropArguments(call->numStackArgs() + 1);
+        return true;
+    }
+
     // The calleereg is known to be a non-native function, but might point to
     // a LazyScript instead of a JSScript.
     masm.branchIfFunctionHasNoScript(calleereg, &uncompiled);
@@ -2491,7 +2513,7 @@ CodeGenerator::visitCheckOverRecursedFailurePar(CheckOverRecursedFailurePar *ool
     LCheckOverRecursedPar *lir = ool->lir();
     Register tempReg = ToRegister(lir->getTempReg());
     RegisterSet saveSet(lir->safepoint()->liveRegs());
-    saveSet.takeUnchecked(tempReg);
+    saveSet.maybeTake(tempReg);
 
     masm.PushRegsInMask(saveSet);
     masm.movePtr(ToRegister(lir->forkJoinSlice()), CallTempReg0);
@@ -2553,7 +2575,7 @@ CodeGenerator::visitOutOfLineCheckInterruptPar(OutOfLineCheckInterruptPar *ool)
     LCheckInterruptPar *lir = ool->lir;
     Register tempReg = ToRegister(lir->getTempReg());
     RegisterSet saveSet(lir->safepoint()->liveRegs());
-    saveSet.takeUnchecked(tempReg);
+    saveSet.maybeTake(tempReg);
 
     masm.PushRegsInMask(saveSet);
     masm.movePtr(ToRegister(ool->lir->forkJoinSlice()), CallTempReg0);
@@ -2860,25 +2882,6 @@ CodeGenerator::visitNewArrayCallVM(LNewArray *lir)
     restoreLive(lir);
 
     return true;
-}
-
-typedef JSObject *(*NewDerivedTypedObjectFn)(JSContext *,
-                                             HandleObject type,
-                                             HandleObject owner,
-                                             int32_t offset);
-static const VMFunction CreateDerivedTypedObjInfo =
-    FunctionInfo<NewDerivedTypedObjectFn>(CreateDerivedTypedObj);
-
-bool
-CodeGenerator::visitNewDerivedTypedObject(LNewDerivedTypedObject *lir)
-{
-    // Not yet made safe for par exec:
-    JS_ASSERT(gen->info().executionMode() == SequentialExecution);
-
-    pushArg(ToRegister(lir->offset()));
-    pushArg(ToRegister(lir->owner()));
-    pushArg(ToRegister(lir->type()));
-    return callVM(CreateDerivedTypedObjInfo, lir);
 }
 
 bool
@@ -3291,7 +3294,7 @@ CodeGenerator::visitOutOfLineNewGCThingPar(OutOfLineNewGCThingPar *ool)
     // but don't bother to save the objReg.
     saveSet.addUnchecked(CallTempReg0);
     saveSet.addUnchecked(CallTempReg1);
-    saveSet.takeUnchecked(AnyRegister(ool->objReg));
+    saveSet.maybeTake(AnyRegister(ool->objReg));
 
     masm.PushRegsInMask(saveSet);
     masm.move32(Imm32(ool->allocKind), CallTempReg0);
@@ -3594,15 +3597,6 @@ CodeGenerator::visitTypedArrayElements(LTypedArrayElements *lir)
     Register obj = ToRegister(lir->object());
     Register out = ToRegister(lir->output());
     masm.loadPtr(Address(obj, TypedArrayObject::dataOffset()), out);
-    return true;
-}
-
-bool
-CodeGenerator::visitTypedObjectElements(LTypedObjectElements *lir)
-{
-    Register obj = ToRegister(lir->object());
-    Register out = ToRegister(lir->output());
-    masm.loadPtr(Address(obj, BinaryBlock::dataOffset()), out);
     return true;
 }
 
@@ -4935,7 +4929,7 @@ CodeGenerator::visitOutOfLineStoreElementHole(OutOfLineStoreElementHole *ool)
         // registers, we can examine `object` to know whether an error
         // occurred.
         RegisterSet saveSet(ins->safepoint()->liveRegs());
-        saveSet.takeUnchecked(object);
+        saveSet.maybeTake(object);
 
         masm.PushRegsInMask(saveSet);
         masm.reserveStack(sizeof(PushParArgs));

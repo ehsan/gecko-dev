@@ -7,10 +7,12 @@
 #include "nsCOMPtr.h"
 #include "nsString.h"
 
+#include "nsNetUtil.h"
+
 #include "nsIDNSListener.h"
+#include "nsIDNSRecord.h"
 #include "nsIDNSService.h"
 #include "nsICancelable.h"
-#include "nsIURI.h"
 
 static nsIDNSService *sDNSService = nullptr;
 

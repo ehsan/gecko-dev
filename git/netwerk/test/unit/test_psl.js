@@ -1,3 +1,6 @@
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+
 var etld = Cc["@mozilla.org/network/effective-tld-service;1"]
              .getService(Ci.nsIEffectiveTLDService);
 

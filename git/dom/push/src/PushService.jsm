@@ -362,20 +362,23 @@ this.PushService = {
           }
         }
         break;
-      case "webapps-clear-data":
-        debug("webapps-clear-data");
+      case "webapps-uninstall":
+        debug("webapps-uninstall");
 
-        let data = aSubject.QueryInterface(Ci.mozIApplicationClearPrivateDataParams);
-        if (!data) {
-          debug("webapps-clear-data: Failed to get information about application");
+        let data;
+        try {
+          data = JSON.parse(aData);
+        } catch (ex) {
+          debug("webapps-uninstall: JSON parsing error: " + aData);
           return;
         }
 
+        let manifestURL = data.manifestURL;
         let appsService = Cc["@mozilla.org/AppsService;1"]
                             .getService(Ci.nsIAppsService);
-        let manifestURL = appsService.getManifestURLByLocalId(data.appId);
-        if (!manifestURL) {
-          debug("webapps-clear-data: No manifest URL found for " + data.appId);
+        if (appsService.getAppLocalIdByManifestURL(manifestURL) ==
+            Ci.nsIScriptSecurityManager.NO_APP_ID) {
+          debug("webapps-uninstall: No app found " + manifestURL);
           return;
         }
 
@@ -383,18 +386,18 @@ this.PushService = {
           debug("Got " + records.length);
           for (let i = 0; i < records.length; i++) {
             this._db.delete(records[i].channelID, null, function() {
-              debug("webapps-clear-data: " + manifestURL +
+              debug("app uninstall: " + manifestURL +
                     " Could not delete entry " + records[i].channelID);
             });
             // courtesy, but don't establish a connection
             // just for it
             if (this._ws) {
               debug("Had a connection, so telling the server");
-              this._send("unregister", {channelID: records[i].channelID});
+              this._sendRequest("unregister", {channelID: records[i].channelID});
             }
           }
         }.bind(this), function() {
-          debug("webapps-clear-data: Error in getAllByManifestURL(" + manifestURL + ")");
+          debug("Error in getAllByManifestURL: url " + manifestURL);
         });
 
         break;
@@ -459,7 +462,7 @@ this.PushService = {
     this._startListeningIfChannelsPresent();
 
     Services.obs.addObserver(this, "xpcom-shutdown", false);
-    Services.obs.addObserver(this, "webapps-clear-data", false);
+    Services.obs.addObserver(this, "webapps-uninstall", false);
 
     // On B2G the NetworkManager interface fires a network-active-changed
     // event.
@@ -518,7 +521,7 @@ this.PushService = {
     prefs.ignore("connection.enabled", this);
     prefs.ignore("serverURL", this);
     Services.obs.removeObserver(this, this._getNetworkStateChangeEventName());
-    Services.obs.removeObserver(this, "webapps-clear-data", false);
+    Services.obs.removeObserver(this, "webapps-uninstall", false);
     Services.obs.removeObserver(this, "xpcom-shutdown", false);
 
     if (this._db) {

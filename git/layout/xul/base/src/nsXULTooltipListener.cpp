@@ -26,7 +26,6 @@
 #include "nsXULPopupManager.h"
 #endif
 #include "nsIRootBox.h"
-#include "nsIBoxObject.h"
 #include "nsEventDispatcher.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/LookAndFeel.h"

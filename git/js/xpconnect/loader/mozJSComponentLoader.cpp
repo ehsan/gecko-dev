@@ -513,7 +513,7 @@ mozJSComponentLoader::LoadModule(FileLocation &aFile)
     }
 
     RootedObject jsGetFactoryObj(cx);
-    if (!JS_ValueToObject(cx, NSGetFactory_val, &jsGetFactoryObj) ||
+    if (!JS_ValueToObject(cx, NSGetFactory_val, jsGetFactoryObj.address()) ||
         !jsGetFactoryObj) {
         /* XXX report error properly */
         return NULL;
@@ -776,7 +776,8 @@ mozJSComponentLoader::ObjectForLocation(nsIFile *aComponentFile,
 
     if (cache) {
         if (!mReuseLoaderGlobal) {
-            rv = ReadCachedScript(cache, cachePath, cx, mSystemPrincipal, &script);
+            rv = ReadCachedScript(cache, cachePath, cx, mSystemPrincipal,
+                                  script.address());
         } else {
             rv = ReadCachedFunction(cache, cachePath, cx, mSystemPrincipal,
                                     function.address());

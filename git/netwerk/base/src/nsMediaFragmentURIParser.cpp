@@ -7,7 +7,6 @@
 #include "nsTArray.h"
 #include "nsCharSeparatedTokenizer.h"
 #include "nsEscape.h"
-#include "nsIURI.h"
 #include <utility>
 
 #include "nsMediaFragmentURIParser.h"

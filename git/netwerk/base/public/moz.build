@@ -46,7 +46,6 @@ XPIDL_SOURCES += [
     'nsIIncrementalDownload.idl',
     'nsIInputStreamChannel.idl',
     'nsIInputStreamPump.idl',
-    'nsILoadContextInfo.idl',
     'nsILoadGroup.idl',
     'nsILoadGroupChild.idl',
     'nsIMIMEInputStream.idl',

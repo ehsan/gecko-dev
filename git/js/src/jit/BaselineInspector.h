@@ -94,8 +94,7 @@ class BaselineInspector
     bool dimorphicStub(jsbytecode *pc, ICStub **pfirst, ICStub **psecond);
 
   public:
-    typedef Vector<Shape *, 4, IonAllocPolicy> ShapeVector;
-    bool maybeShapesForPropertyOp(jsbytecode *pc, ShapeVector &shapes);
+    bool maybeShapesForPropertyOp(jsbytecode *pc, Vector<Shape *> &shapes);
 
     SetElemICInspector setElemICInspector(jsbytecode *pc) {
         return makeICInspector<SetElemICInspector>(pc, ICStub::SetElem_Fallback);

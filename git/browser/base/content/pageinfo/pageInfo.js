@@ -2,10 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-const Cu = Components.utils;
-Cu.import("resource://gre/modules/LoadContextInfo.jsm");
-Cu.import("resource://gre/modules/Services.jsm");
-
 //******** define a js object to implement nsITreeView
 function pageInfoTreeView(treeid, copycol)
 {
@@ -220,15 +216,13 @@ const ATOM_CONTRACTID           = "@mozilla.org/atom-service;1";
 
 // a number of services I'll need later
 // the cache services
-const nsICacheStorageService = Components.interfaces.nsICacheStorageService;
-const nsICacheStorage = Components.interfaces.nsICacheStorage;
-const cacheService = Components.classes["@mozilla.org/netwerk/cache-storage-service;1"].getService(nsICacheStorageService);
-
-var loadContextInfo = LoadContextInfo.fromLoadContext(
-  window.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-        .getInterface(Components.interfaces.nsIWebNavigation)
-        .QueryInterface(Components.interfaces.nsILoadContext), false);
-var diskStorage = cacheService.diskCacheStorage(loadContextInfo, false);
+const nsICacheService = Components.interfaces.nsICacheService;
+const ACCESS_READ     = Components.interfaces.nsICache.ACCESS_READ;
+const cacheService = Components.classes["@mozilla.org/network/cache-service;1"].getService(nsICacheService);
+var httpCacheSession = cacheService.createSession("HTTP", 0, true);
+httpCacheSession.doomEntriesIfExpired = false;
+var ftpCacheSession = cacheService.createSession("FTP", 0, true);
+ftpCacheSession.doomEntriesIfExpired = false;
 
 const nsICookiePermission  = Components.interfaces.nsICookiePermission;
 const nsIPermissionManager = Components.interfaces.nsIPermissionManager;
@@ -469,16 +463,19 @@ function toggleGroupbox(id)
 
 function openCacheEntry(key, cb)
 {
+  var tries = 0;
   var checkCacheListener = {
-    onCacheEntryCheck: function(entry, appCache) {
-      return nsICacheEntryOpenCallback.ENTRY_VALID;
-    },
-    onCacheEntryAvailable: function(entry, isNew, appCache, status) {
-      cb(entry);
-    },
-    get mainThreadOnly() { return true; }
+    onCacheEntryAvailable: function(entry, access, status) {
+      if (entry || tries == 1) {
+        cb(entry);
+      }
+      else {
+        tries++;
+        ftpCacheSession.asyncOpenCacheEntry(key, ACCESS_READ, this, true);
+      }
+    }
   };
-  diskStorage.asyncOpenURI(Services.io.newURI(key, null, null), "", nsICacheStorage.OPEN_READONLY, checkCacheListener);
+  httpCacheSession.asyncOpenCacheEntry(key, ACCESS_READ, checkCacheListener, true);
 }
 
 function makeGeneralTab()

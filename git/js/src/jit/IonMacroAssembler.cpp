@@ -1350,7 +1350,7 @@ MacroAssembler::printf(const char *output, Register value)
     RegisterSet regs = RegisterSet::Volatile();
     PushRegsInMask(regs);
 
-    regs.takeUnchecked(value);
+    regs.maybeTake(value);
 
     Register temp = regs.takeGeneral();
 

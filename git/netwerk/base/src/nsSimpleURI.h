@@ -7,7 +7,8 @@
 #define nsSimpleURI_h__
 
 #include "mozilla/MemoryReporting.h"
-#include "nsIURI.h"
+#include "nsIURL.h"
+#include "nsAgg.h"
 #include "nsISerializable.h"
 #include "nsString.h"
 #include "nsIClassInfo.h"

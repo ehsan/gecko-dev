@@ -9,12 +9,15 @@
 
 #include "nsSocketTransportService2.h"
 #include "nsSocketTransport2.h"
+#include "nsReadableUtils.h"
 #include "nsError.h"
 #include "prnetdb.h"
 #include "prerror.h"
+#include "plstr.h"
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
 #include "nsServiceManagerUtils.h"
+#include "nsIOService.h"
 #include "NetworkActivityMonitor.h"
 #include "nsIObserverService.h"
 #include "mozilla/Services.h"
@@ -22,7 +25,6 @@
 #include "mozilla/Likely.h"
 #include "mozilla/PublicSSL.h"
 #include "nsThreadUtils.h"
-#include "nsIFile.h"
 
 using namespace mozilla;
 using namespace mozilla::net;

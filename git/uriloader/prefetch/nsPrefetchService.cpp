@@ -3,7 +3,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsPrefetchService.h"
-#include "nsICacheEntry.h"
+#include "nsICacheSession.h"
+#include "nsICacheService.h"
 #include "nsIServiceManager.h"
 #include "nsICategoryManager.h"
 #include "nsIObserverService.h"
@@ -263,7 +264,7 @@ nsPrefetchNode::OnStartRequest(nsIRequest *aRequest,
     if (!cacheToken)
         return NS_ERROR_ABORT; // bail, no cache entry
 
-    nsCOMPtr<nsICacheEntry> entryInfo =
+    nsCOMPtr<nsICacheEntryInfo> entryInfo =
         do_QueryInterface(cacheToken, &rv);
     if (NS_FAILED(rv)) return rv;
 

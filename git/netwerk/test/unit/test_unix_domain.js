@@ -1,6 +1,9 @@
 // Exercise Unix domain sockets.
 
+const Ci = Components.interfaces;
+const Cc = Components.classes;
 const CC = Components.Constructor;
+const Cr = Components.results;
 
 const UnixServerSocket = CC("@mozilla.org/network/server-socket;1",
                             "nsIServerSocket",

@@ -7,6 +7,7 @@
 #include "nsIRunnable.h"
 
 #include "nsThreadUtils.h"
+#include "nsAlgorithm.h"
 #include <algorithm>
    
 namespace mozilla {

@@ -9,7 +9,6 @@
 #include "nsIFile.h"
 #ifdef MOZ_CRASHREPORTER
 #include "nsExceptionHandler.h"
-#include "nsDataHashtable.h"
 #endif
 
 namespace mozilla {

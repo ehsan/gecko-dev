@@ -665,9 +665,6 @@ bool LeaveBlock(JSContext *cx, BaselineFrame *frame);
 bool InitBaselineFrameForOsr(BaselineFrame *frame, StackFrame *interpFrame,
                              uint32_t numStackValues);
 
-JSObject *CreateDerivedTypedObj(JSContext *cx, HandleObject type,
-                                HandleObject owner, int32_t offset);
-
 } // namespace jit
 } // namespace js
 

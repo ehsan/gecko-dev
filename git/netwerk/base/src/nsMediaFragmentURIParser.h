@@ -7,10 +7,9 @@
 #define nsMediaFragmentURIParser_h__
 
 #include "mozilla/Maybe.h"
-#include "nsStringFwd.h"
+#include "nsIURI.h"
+#include "nsString.h"
 #include "nsRect.h"
-
-class nsIURI;
 
 // Class to handle parsing of a W3C media fragment URI as per
 // spec at: http://www.w3.org/TR/media-frags/

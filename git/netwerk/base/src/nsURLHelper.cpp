@@ -7,11 +7,19 @@
 #include "mozilla/RangedPtr.h"
 
 #include "nsURLHelper.h"
+#include "nsReadableUtils.h"
+#include "nsIServiceManager.h"
+#include "nsIIOService.h"
 #include "nsIFile.h"
 #include "nsIURLParser.h"
+#include "nsIURI.h"
+#include "nsMemory.h"
+#include "nsEscape.h"
 #include "nsCOMPtr.h"
 #include "nsCRT.h"
 #include "nsNetCID.h"
+#include "netCore.h"
+#include "prprf.h"
 #include "prnetdb.h"
 
 using namespace mozilla;

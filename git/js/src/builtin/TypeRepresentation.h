@@ -85,7 +85,7 @@ struct TypeRepresentationHasher
 
 typedef js::HashSet<TypeRepresentation *,
                     TypeRepresentationHasher,
-                    RuntimeAllocPolicy> TypeRepresentationHash;
+                    RuntimeAllocPolicy> TypeRepresentationSet;
 
 class TypeRepresentation {
   public:
@@ -102,7 +102,7 @@ class TypeRepresentation {
     size_t alignment_;
     Kind kind_;
 
-    JSObject *addToTableOrFree(JSContext *cx, TypeRepresentationHash::AddPtr &p);
+    JSObject *addToTableOrFree(JSContext *cx, TypeRepresentationSet::AddPtr &p);
 
   private:
     static const Class class_;
@@ -290,7 +290,7 @@ class StructTypeRepresentation : public TypeRepresentation {
         return fields()[i];
     }
 
-    const StructField *fieldNamed(jsid id) const;
+    const StructField *fieldNamed(HandleId id) const;
 
     static JSObject *Create(JSContext *cx,
                             AutoIdVector &ids,

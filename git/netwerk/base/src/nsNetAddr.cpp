@@ -6,6 +6,7 @@
 
 #include "nsNetAddr.h"
 #include "nsString.h"
+#include "prnetdb.h"
 #include "mozilla/net/DNS.h"
 
 using namespace mozilla::net;

@@ -8,6 +8,7 @@
 #include "HttpLog.h"
 
 #include "mozilla/Telemetry.h"
+#include "nsAlgorithm.h"
 #include "nsHttp.h"
 #include "nsHttpHandler.h"
 #include "nsHttpRequestHead.h"
@@ -17,7 +18,6 @@
 #include "SpdyPush3.h"
 #include "SpdySession3.h"
 #include "SpdyStream3.h"
-#include "PSpdyPush3.h"
 
 #include <algorithm>
 

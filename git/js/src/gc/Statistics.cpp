@@ -134,10 +134,16 @@ class gcstats::StatisticsSerializer
             return NULL;
         }
 
-        InflateStringToBuffer(buf, nchars, out);
+        size_t outlen = nchars;
+        bool ok = InflateStringToBuffer(NULL, buf, nchars, out, &outlen);
         js_free(buf);
-
+        if (!ok) {
+            oom_ = true;
+            js_free(out);
+            return NULL;
+        }
         out[nchars] = 0;
+
         return out;
     }
 

@@ -197,10 +197,6 @@ class BinaryBlock
   public:
     static const Class class_;
 
-    // Returns the offset in bytes within the object where the `void*`
-    // pointer can be found.
-    static size_t dataOffset();
-
     static bool isBlock(HandleObject val);
     static uint8_t *mem(HandleObject val);
 

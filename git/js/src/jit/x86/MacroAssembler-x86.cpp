@@ -91,8 +91,8 @@ MacroAssemblerX86::getFloat(float f)
 void
 MacroAssemblerX86::loadConstantFloat32(float f, const FloatRegister &dest)
 {
-    if (maybeInlineFloat(f, dest))
-        return;
+    // Contrary to loadConstantDouble, this one doesn't have any maybeInlineFloat,
+    // but that might be interesting to do it in the future.
     Float *flt = getFloat(f);
     if (!flt)
         return;
