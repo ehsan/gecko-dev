@@ -20,32 +20,13 @@ function isSubObjectOf(expectedObj, actualObj, name) {
 
 function waitForPopupShown(aPopupId, aCallback) {
   let popup = document.getElementById(aPopupId);
-  info("waitForPopupShown: got popup: " + popup.id);
   function onPopupShown() {
-    info("onPopupShown");
-    removePopupShownListener();
+    popup.removeEventListener("popupshown", onPopupShown);
     SimpleTest.executeSoon(aCallback);
   }
-  function removePopupShownListener() {
-    popup.removeEventListener("popupshown", onPopupShown);
-  }
   popup.addEventListener("popupshown", onPopupShown);
-  registerCleanupFunction(removePopupShownListener);
 }
 
 function waitForBrowserContextMenu(aCallback) {
   waitForPopupShown(gBrowser.selectedBrowser.contextMenu, aCallback);
-}
-
-function doOnloadOnce(aCallback) {
-  function doOnloadOnceListener(aEvent) {
-    info("doOnloadOnce: " + aEvent.originalTarget.location);
-    removeDoOnloadOnceListener();
-    aCallback(aEvent);
-  }
-  function removeDoOnloadOnceListener() {
-    gBrowser.removeEventListener("DOMContentLoaded", doOnloadOnceListener);
-  }
-  gBrowser.addEventListener("DOMContentLoaded", doOnloadOnceListener);
-  registerCleanupFunction(removeDoOnloadOnceListener);
 }

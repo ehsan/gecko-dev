@@ -484,14 +484,7 @@ function clickAndSwitch() {
       ok(false, "How did you get here?");
     }
   });
-
-  ok(gFilteredSources._container._parent.querySelectorAll(".dbg-source-item")[0]
-     .classList.contains("dbg-source-item"),
-     "The first visible item target isn't the correct one.");
-
-  EventUtils.sendMouseEvent({ type: "click" },
-    gFilteredSources._container._parent.querySelector(".dbg-source-item"),
-    gDebugger);
+  EventUtils.sendMouseEvent({ type: "click" }, gFilteredSources.visibleItems[0].target);
 }
 
 function clickAndSwitchAgain() {
@@ -571,14 +564,7 @@ function clickAndSwitchAgain() {
       ok(false, "How did you get here?");
     }
   });
-
-  ok(gFilteredSources._container._parent.querySelectorAll(".dbg-source-item")[2]
-     .classList.contains("dbg-source-item"),
-     "The first visible item target isn't the correct one.");
-
-  EventUtils.sendMouseEvent({ type: "click" },
-    gFilteredSources._container._parent.querySelectorAll(".dbg-source-item")[2],
-    gDebugger);
+  EventUtils.sendMouseEvent({ type: "click" }, gFilteredSources.visibleItems[2].target);
 }
 
 function switchFocusWithEscape() {

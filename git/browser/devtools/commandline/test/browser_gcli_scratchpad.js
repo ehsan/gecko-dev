@@ -26,26 +26,36 @@ var exports = {};
 const TEST_URI = "data:text/html;charset=utf-8,<p id='gcli-input'>gcli-testScratchpad.js</p>";
 
 function test() {
-  helpers.addTabWithToolbar(TEST_URI, function(options) {
-    return helpers.runTests(options, exports);
-  }).then(finish);
+  var tests = Object.keys(exports);
+  // Push setup to the top and shutdown to the bottom
+  tests.sort(function(t1, t2) {
+    if (t1 == "setup" || t2 == "shutdown") return -1;
+    if (t2 == "setup" || t1 == "shutdown") return 1;
+    return 0;
+  });
+  info("Running tests: " + tests.join(", "))
+  tests = tests.map(function(test) { return exports[test]; });
+  DeveloperToolbarTest.test(TEST_URI, tests, true);
 }
 
 // <INJECTED SOURCE:END>
 
-'use strict';
 
 // var assert = require('test/assert');
 
-var origScratchpad = undefined;
+var origScratchpad;
 
 exports.setup = function(options) {
-  origScratchpad = options.display.inputter.scratchpad;
-  options.display.inputter.scratchpad = stubScratchpad;
+  if (options.display) {
+    origScratchpad = options.display.inputter.scratchpad;
+    options.display.inputter.scratchpad = stubScratchpad;
+  }
 };
 
 exports.shutdown = function(options) {
-  options.display.inputter.scratchpad = origScratchpad;
+  if (options.display) {
+    options.display.inputter.scratchpad = origScratchpad;
+  }
 };
 
 var stubScratchpad = {
@@ -62,9 +72,14 @@ stubScratchpad.activate = function(value) {
 
 
 exports.testActivate = function(options) {
+  if (!options.display) {
+    assert.log('No display. Skipping scratchpad tests');
+    return;
+  }
+
   var ev = {};
   stubScratchpad.activatedCount = 0;
-  options.display.inputter.handleKeyUp(ev);
+  options.display.inputter.onKeyUp(ev);
   assert.is(1, stubScratchpad.activatedCount, 'scratchpad is activated');
 };
 

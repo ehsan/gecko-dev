@@ -20,5 +20,10 @@ EXPORTS		= \
 		nsTextServicesCID.h \
 		$(NULL)
 
+XPIDLSRCS	= \
+		nsITextServicesFilter.idl \
+		nsIInlineSpellChecker.idl \
+		$(NULL)
+
 include $(topsrcdir)/config/rules.mk
 

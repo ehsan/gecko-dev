@@ -105,7 +105,6 @@ var BrowserUI = {
     }
     FlyoutPanelsUI.init();
     PageThumbs.init();
-    SettingsCharm.init();
 
     // show the right toolbars, awesomescreen, etc for the os viewstate
     BrowserUI._adjustDOMforViewState();
@@ -154,6 +153,11 @@ var BrowserUI = {
 #endif
       } catch(ex) {
         Util.dumpLn("Exception in delay load module:", ex.message);
+      }
+
+      try {
+        SettingsCharm.init();
+      } catch (ex) {
       }
 
       try {
@@ -1730,13 +1734,8 @@ var SettingsCharm = {
    *    and an "onselected" property (function to be called when the user chooses this entry)
    */
   addEntry: function addEntry(aEntry) {
-    try {
-      let id = MetroUtils.addSettingsPanelEntry(aEntry.label);
-      this._entries.set(id, aEntry);
-    } catch (e) {
-      // addSettingsPanelEntry does not work on non-Metro platforms
-      Cu.reportError(e);
-    }
+    let id = MetroUtils.addSettingsPanelEntry(aEntry.label);
+    this._entries.set(id, aEntry);
   },
 
   init: function SettingsCharm_init() {

@@ -12,6 +12,10 @@ include $(DEPTH)/config/autoconf.mk
 
 MODULE = urlformatter
 
+XPIDLSRCS = \
+  nsIURLFormatter.idl \
+  $(NULL)
+
 EXTRA_COMPONENTS = \
   nsURLFormatter.manifest \
   nsURLFormatter.js \

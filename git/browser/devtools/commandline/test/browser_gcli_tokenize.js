@@ -26,19 +26,25 @@ var exports = {};
 const TEST_URI = "data:text/html;charset=utf-8,<p id='gcli-input'>gcli-testTokenize.js</p>";
 
 function test() {
-  helpers.addTabWithToolbar(TEST_URI, function(options) {
-    return helpers.runTests(options, exports);
-  }).then(finish);
+  var tests = Object.keys(exports);
+  // Push setup to the top and shutdown to the bottom
+  tests.sort(function(t1, t2) {
+    if (t1 == "setup" || t2 == "shutdown") return -1;
+    if (t2 == "setup" || t1 == "shutdown") return 1;
+    return 0;
+  });
+  info("Running tests: " + tests.join(", "))
+  tests = tests.map(function(test) { return exports[test]; });
+  DeveloperToolbarTest.test(TEST_URI, tests, true);
 }
 
 // <INJECTED SOURCE:END>
 
-'use strict';
 
 // var assert = require('test/assert');
 var Requisition = require('gcli/cli').Requisition;
 
-exports.testBlanks = function(options) {
+exports.testBlanks = function() {
   var args;
   var requ = new Requisition();
 
@@ -55,7 +61,7 @@ exports.testBlanks = function(options) {
   assert.is('', args[0].suffix);
 };
 
-exports.testTokSimple = function(options) {
+exports.testTokSimple = function() {
   var args;
   var requ = new Requisition();
 
@@ -78,7 +84,7 @@ exports.testTokSimple = function(options) {
   assert.is('Argument', args[1].type);
 };
 
-exports.testJavascript = function(options) {
+exports.testJavascript = function() {
   var args;
   var requ = new Requisition();
 
@@ -140,7 +146,7 @@ exports.testJavascript = function(options) {
   assert.is('ScriptArgument', args[0].type);
 };
 
-exports.testRegularNesting = function(options) {
+exports.testRegularNesting = function() {
   var args;
   var requ = new Requisition();
 
@@ -173,7 +179,7 @@ exports.testRegularNesting = function(options) {
   assert.is('Argument', args[0].type);
 };
 
-exports.testDeepNesting = function(options) {
+exports.testDeepNesting = function() {
   var args;
   var requ = new Requisition();
 
@@ -220,7 +226,7 @@ exports.testDeepNesting = function(options) {
   assert.is('ScriptArgument', args[0].type);
 };
 
-exports.testStrangeNesting = function(options) {
+exports.testStrangeNesting = function() {
   var args;
   var requ = new Requisition();
 
@@ -240,7 +246,7 @@ exports.testStrangeNesting = function(options) {
   assert.is('Argument', args[1].type);
 };
 
-exports.testComplex = function(options) {
+exports.testComplex = function() {
   var args;
   var requ = new Requisition();
 
@@ -278,7 +284,7 @@ exports.testComplex = function(options) {
   assert.is('Argument', args[2].type);
 };
 
-exports.testPathological = function(options) {
+exports.testPathological = function() {
   var args;
   var requ = new Requisition();
 

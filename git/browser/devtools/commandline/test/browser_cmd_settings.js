@@ -3,18 +3,27 @@
 
 // Tests that the pref commands work
 
-let prefBranch = Cc["@mozilla.org/preferences-service;1"]
-                    .getService(Ci.nsIPrefService).getBranch(null)
-                    .QueryInterface(Ci.nsIPrefBranch2);
+let imports = {};
 
-let supportsString = Cc["@mozilla.org/supports-string;1"]
-                      .createInstance(Ci.nsISupportsString)
+Components.utils.import("resource://gre/modules/XPCOMUtils.jsm", imports);
 
-let require = (Cu.import("resource://gre/modules/devtools/Require.jsm", {})).require;
+imports.XPCOMUtils.defineLazyGetter(imports, "prefBranch", function() {
+  let prefService = Components.classes["@mozilla.org/preferences-service;1"]
+          .getService(Components.interfaces.nsIPrefService);
+  return prefService.getBranch(null)
+          .QueryInterface(Components.interfaces.nsIPrefBranch2);
+});
 
-let settings = require("gcli/settings");
+imports.XPCOMUtils.defineLazyGetter(imports, "supportsString", function() {
+  return Components.classes["@mozilla.org/supports-string;1"]
+          .createInstance(Components.interfaces.nsISupportsString);
+});
 
 const TEST_URI = "data:text/html;charset=utf-8,gcli-settings";
+
+function test() {
+  DeveloperToolbarTest.test(TEST_URI, [ setup, testSettings, shutdown ]);
+}
 
 let tiltEnabled = undefined;
 let tabSize = undefined;
@@ -24,31 +33,32 @@ let tiltEnabledOrig = undefined;
 let tabSizeOrig = undefined;
 let remoteHostOrig = undefined;
 
-let tests = {};
+function setup() {
+  Components.utils.import("resource://gre/modules/devtools/Require.jsm", imports);
+  imports.settings = imports.require("gcli/settings");
 
-tests.setup = function() {
-  tiltEnabled = settings.getSetting("devtools.tilt.enabled");
-  tabSize = settings.getSetting("devtools.editor.tabsize");
-  remoteHost = settings.getSetting("devtools.debugger.remote-host");
+  tiltEnabled = imports.settings.getSetting("devtools.tilt.enabled");
+  tabSize = imports.settings.getSetting("devtools.editor.tabsize");
+  remoteHost = imports.settings.getSetting("devtools.debugger.remote-host");
 
-  tiltEnabledOrig = prefBranch.getBoolPref("devtools.tilt.enabled");
-  tabSizeOrig = prefBranch.getIntPref("devtools.editor.tabsize");
-  remoteHostOrig = prefBranch.getComplexValue(
+  tiltEnabledOrig = imports.prefBranch.getBoolPref("devtools.tilt.enabled");
+  tabSizeOrig = imports.prefBranch.getIntPref("devtools.editor.tabsize");
+  remoteHostOrig = imports.prefBranch.getComplexValue(
           "devtools.debugger.remote-host",
           Components.interfaces.nsISupportsString).data;
 
   info("originally: devtools.tilt.enabled = " + tiltEnabledOrig);
   info("originally: devtools.editor.tabsize = " + tabSizeOrig);
   info("originally: devtools.debugger.remote-host = " + remoteHostOrig);
-};
+}
 
-tests.shutdown = function() {
-  prefBranch.setBoolPref("devtools.tilt.enabled", tiltEnabledOrig);
-  prefBranch.setIntPref("devtools.editor.tabsize", tabSizeOrig);
-  supportsString.data = remoteHostOrig;
-  prefBranch.setComplexValue("devtools.debugger.remote-host",
+function shutdown() {
+  imports.prefBranch.setBoolPref("devtools.tilt.enabled", tiltEnabledOrig);
+  imports.prefBranch.setIntPref("devtools.editor.tabsize", tabSizeOrig);
+  imports.supportsString.data = remoteHostOrig;
+  imports.prefBranch.setComplexValue("devtools.debugger.remote-host",
           Components.interfaces.nsISupportsString,
-          supportsString);
+          imports.supportsString);
 
   tiltEnabled = undefined;
   tabSize = undefined;
@@ -57,9 +67,11 @@ tests.shutdown = function() {
   tiltEnabledOrig = undefined;
   tabSizeOrig = undefined;
   remoteHostOrig = undefined;
-};
 
-tests.testSettings = function() {
+  imports = undefined;
+}
+
+function testSettings() {
   is(tiltEnabled.value, tiltEnabledOrig, "tiltEnabled default");
   is(tabSize.value, tabSizeOrig, "tabSize default");
   is(remoteHost.value, remoteHostOrig, "remoteHost default");
@@ -127,10 +139,4 @@ tests.testSettings = function() {
   is(tiltEnabled.value, tiltEnabledDefault, "tiltEnabled reset");
   is(tabSize.value, tabSizeDefault, "tabSize reset");
   is(remoteHost.value, remoteHostDefault, "remoteHost reset");
-};
-
-function test() {
-  helpers.addTabWithToolbar(TEST_URI, function(options) {
-    return helpers.runTests(options, tests);
-  }).then(finish);
 }

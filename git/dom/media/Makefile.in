@@ -11,6 +11,7 @@ relativesrcdir   = @relativesrcdir@
 include $(DEPTH)/config/autoconf.mk
 
 MODULE           = dom
+XPIDL_MODULE     = dom_media
 LIBRARY_NAME     = dom_media_s
 LIBXUL_LIBRARY   = 1
 FORCE_STATIC_LIB = 1
@@ -23,6 +24,13 @@ include $(topsrcdir)/dom/dom-config.mk
 EXTRA_COMPONENTS = \
   PeerConnection.js \
   PeerConnection.manifest \
+  $(NULL)
+
+XPIDLSRCS = \
+  nsIDOMMediaStream.idl \
+  nsIDOMRTCPeerConnection.idl \
+  nsIDOMNavigatorUserMedia.idl \
+  nsIMediaManager.idl \
   $(NULL)
 
 EXPORTS_NAMESPACES = mozilla

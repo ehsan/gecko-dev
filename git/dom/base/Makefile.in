@@ -33,6 +33,15 @@ EXTRA_JS_MODULES += \
   ObjectWrapper.jsm \
   $(NULL)
 
+XPIDLSRCS = \
+  nsIDOMDOMError.idl \
+  nsIDOMDOMRequest.idl \
+  nsIDOMDOMCursor.idl \
+  nsIEntropyCollector.idl \
+  nsIScriptChannel.idl \
+  nsISiteSpecificUserAgent.idl \
+  $(NULL)
+
 EXPORTS = \
   nsDOMCID.h \
   nsDOMClassInfoClasses.h \
@@ -139,3 +148,7 @@ CXXFLAGS += $(TK_CFLAGS)
 LDFLAGS += $(TK_LIBS)
 endif
 
+XPIDL_FLAGS += \
+  -I$(topsrcdir)/dom/interfaces/base \
+  -I$(topsrcdir)/dom/interfaces/events \
+  $(NULL)

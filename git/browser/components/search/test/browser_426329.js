@@ -201,11 +201,11 @@ function test() {
 
   function testAutocomplete() {
     var popup = searchBar.textbox.popup;
-    popup.addEventListener("popupshowing", function testACPopupShowing() {
-      popup.removeEventListener("popupshowing", testACPopupShowing);
+    popup.addEventListener("popupshowing", function() {
       checkMenuEntries(searchEntries);
-      SimpleTest.executeSoon(finalize);
-    });
+      finalize();
+      popup.removeEventListener("popupshowing", this, false);
+    }, false);
     searchBar.textbox.showHistoryPopup();
   }
 
@@ -219,6 +219,13 @@ function test() {
     ss.removeEngine(engine);
   }
 
+  function doOnloadOnce(callback) {
+    gBrowser.addEventListener("DOMContentLoaded", function(event) {
+      gBrowser.removeEventListener("DOMContentLoaded", arguments.callee, true);
+      callback(event);
+    }, true);
+  }
+
   function simulateClick(aEvent, aTarget) {
     var event = document.createEvent("MouseEvent");
     var ctrlKeyArg  = aEvent.ctrlKey  || false;
@@ -229,7 +236,7 @@ function test() {
     event.initMouseEvent("click", true, true, window,
                           0, 0, 0, 0, 0,
                           ctrlKeyArg, altKeyArg, shiftKeyArg, metaKeyArg,
-                          buttonArg, null);
+                          buttonArg, null); 
     aTarget.dispatchEvent(event);
   }
 
@@ -245,7 +252,7 @@ function test() {
     var actualValues = getMenuEntries();
     is(actualValues.length, expectedValues.length, "Checking length of expected menu");
     for (var i = 0; i < expectedValues.length; i++)
-      is(actualValues[i], expectedValues[i], "Checking menu entry #" + i);
+      is(actualValues[i], expectedValues[i], "Checking menu entry #"+i);
   }
 
   function getMenuEntries() {
