@@ -393,8 +393,7 @@ struct nsCSSRendering {
                                        const nsRect& aBorderArea,
                                        const nsRect& aClipRect,
                                        const nsStyleBackground& aBackground,
-                                       const nsStyleBackground::Layer& aLayer,
-                                       uint32_t aFlags);
+                                       const nsStyleBackground::Layer& aLayer);
 
   /**
    * Called when we start creating a display list. The frame tree will not

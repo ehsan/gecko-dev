@@ -201,25 +201,14 @@ static void AddTransformFunctions(nsCSSValueList* aList,
       }
       case eCSSKeyword_skewx:
       {
-        double x = array->Item(1).GetAngleValueInRadians();
+        double x = array->Item(1).GetFloatValue();
         aFunctions.AppendElement(SkewX(x));
         break;
       }
       case eCSSKeyword_skewy:
       {
-        double y = array->Item(1).GetAngleValueInRadians();
+        double y = array->Item(1).GetFloatValue();
         aFunctions.AppendElement(SkewY(y));
-        break;
-      }
-      case eCSSKeyword_skew:
-      {
-        double x = array->Item(1).GetAngleValueInRadians();
-        // skew(x) is shorthand for skew(x, 0)
-        double y = 0;
-        if (array->Count() == 3) {
-          y = array->Item(2).GetAngleValueInRadians();
-        }
-        aFunctions.AppendElement(Skew(x, y));
         break;
       }
       case eCSSKeyword_matrix:
@@ -1599,7 +1588,7 @@ nsDisplayBackgroundImage::nsDisplayBackgroundImage(nsDisplayListBuilder* aBuilde
     }
   }
 
-  mBounds = GetBoundsInternal(aBuilder);
+  mBounds = GetBoundsInternal();
 }
 
 nsDisplayBackgroundImage::~nsDisplayBackgroundImage()
@@ -2207,7 +2196,7 @@ nsDisplayBackgroundImage::GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap)
 }
 
 nsRect
-nsDisplayBackgroundImage::GetBoundsInternal(nsDisplayListBuilder* aBuilder) {
+nsDisplayBackgroundImage::GetBoundsInternal() {
   nsPresContext* presContext = mFrame->PresContext();
 
   if (mIsThemed) {
@@ -2235,9 +2224,7 @@ nsDisplayBackgroundImage::GetBoundsInternal(nsDisplayListBuilder* aBuilder) {
   }
   const nsStyleBackground::Layer& layer = mBackgroundStyle->mLayers[mLayer];
   return nsCSSRendering::GetBackgroundLayerRect(presContext, mFrame,
-                                                borderBox, clipRect,
-                                                *mBackgroundStyle, layer,
-                                                aBuilder->GetBackgroundPaintFlags());
+                                                borderBox, clipRect, *mBackgroundStyle, layer);
 }
 
 uint32_t
