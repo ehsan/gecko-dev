@@ -159,7 +159,7 @@ nsTextBoxFrame::InsertSeparatorBeforeAccessKey()
 class nsAsyncAccesskeyUpdate MOZ_FINAL : public nsIReflowCallback
 {
 public:
-    explicit nsAsyncAccesskeyUpdate(nsIFrame* aFrame) : mWeakFrame(aFrame)
+    nsAsyncAccesskeyUpdate(nsIFrame* aFrame) : mWeakFrame(aFrame)
     {
     }
 

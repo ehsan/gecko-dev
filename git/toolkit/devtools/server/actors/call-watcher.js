@@ -290,9 +290,10 @@ let CallWatcherActor = exports.CallWatcherActor = protocol.ActorClass({
     this._tracedFunctions = tracedFunctions || [];
     this._holdWeak = !!holdWeak;
     this._storeCalls = !!storeCalls;
+    this._contentObserver = new ContentObserver(this.tabActor);
 
-    on(this.tabActor, "window-ready", this._onGlobalCreated);
-    on(this.tabActor, "window-destroyed", this._onGlobalDestroyed);
+    on(this._contentObserver, "global-created", this._onGlobalCreated);
+    on(this._contentObserver, "global-destroyed", this._onGlobalDestroyed);
 
     if (startRecording) {
       this.resumeRecording();
@@ -324,11 +325,13 @@ let CallWatcherActor = exports.CallWatcherActor = protocol.ActorClass({
     this._initialized = false;
     this._finalized = true;
 
-    off(this.tabActor, "window-ready", this._onGlobalCreated);
-    off(this.tabActor, "window-destroyed", this._onGlobalDestroyed);
+    this._contentObserver.stopListening();
+    off(this._contentObserver, "global-created", this._onGlobalCreated);
+    off(this._contentObserver, "global-destroyed", this._onGlobalDestroyed);
 
     this._tracedGlobals = null;
     this._tracedFunctions = null;
+    this._contentObserver = null;
   }, {
     oneway: true
   }),
@@ -377,15 +380,10 @@ let CallWatcherActor = exports.CallWatcherActor = protocol.ActorClass({
   /**
    * Invoked whenever the current tab actor's document global is created.
    */
-  _onGlobalCreated: function({window, id, isTopLevel}) {
+  _onGlobalCreated: function(window) {
     let self = this;
 
-    // TODO: bug 981748, support more than just the top-level documents.
-    if (!isTopLevel) {
-      return;
-    }
-    this._tracedWindowId = id;
-
+    this._tracedWindowId = ContentObserver.GetInnerWindowID(window);
     let unwrappedWindow = XPCNativeWrapper.unwrap(window);
     let callback = this._onContentFunctionCall;
 
@@ -531,7 +529,7 @@ let CallWatcherActor = exports.CallWatcherActor = protocol.ActorClass({
   /**
    * Invoked whenever the current tab actor's inner window is destroyed.
    */
-  _onGlobalDestroyed: function({window, id, isTopLevel}) {
+  _onGlobalDestroyed: function(id) {
     if (this._tracedWindowId == id) {
       this.pauseRecording();
       this.eraseRecording();

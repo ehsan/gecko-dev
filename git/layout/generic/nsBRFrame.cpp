@@ -59,7 +59,7 @@ public:
 #endif
 
 protected:
-  explicit BRFrame(nsStyleContext* aContext) : nsFrame(aContext) {}
+  BRFrame(nsStyleContext* aContext) : nsFrame(aContext) {}
   virtual ~BRFrame();
 
   nscoord mAscent;

@@ -359,7 +359,7 @@ writeToProto_getProperty(JSContext *cx, JS::HandleObject obj, JS::HandleId id,
 
 struct AutoSkipPropertyMirroring
 {
-    explicit AutoSkipPropertyMirroring(CompartmentPrivate *priv) : priv(priv) {
+    AutoSkipPropertyMirroring(CompartmentPrivate *priv) : priv(priv) {
         MOZ_ASSERT(!priv->skipWriteToGlobalPrototype);
         priv->skipWriteToGlobalPrototype = true;
     }

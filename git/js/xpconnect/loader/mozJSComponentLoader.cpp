@@ -232,7 +232,7 @@ static const JSFunctionSpec gGlobalFun[] = {
 class MOZ_STACK_CLASS JSCLContextHelper
 {
 public:
-    explicit JSCLContextHelper(JSContext* aCx);
+    JSCLContextHelper(JSContext* aCx);
     ~JSCLContextHelper();
 
     void reportErrorAfterPop(char *buf);
@@ -312,7 +312,7 @@ mozJSComponentLoader::mozJSComponentLoader()
 
 class MOZ_STACK_CLASS ComponentLoaderInfo {
   public:
-    explicit ComponentLoaderInfo(const nsACString& aLocation) : mLocation(aLocation) {}
+    ComponentLoaderInfo(const nsACString& aLocation) : mLocation(aLocation) {}
 
     nsIIOService* IOService() { MOZ_ASSERT(mIOService); return mIOService; }
     nsresult EnsureIOService() {

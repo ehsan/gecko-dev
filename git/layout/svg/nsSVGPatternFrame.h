@@ -41,7 +41,7 @@ public:
   friend nsIFrame* NS_NewSVGPatternFrame(nsIPresShell* aPresShell,
                                          nsStyleContext* aContext);
 
-  explicit nsSVGPatternFrame(nsStyleContext* aContext);
+  nsSVGPatternFrame(nsStyleContext* aContext);
 
   // nsSVGPaintServerFrame methods:
   virtual already_AddRefed<gfxPattern>

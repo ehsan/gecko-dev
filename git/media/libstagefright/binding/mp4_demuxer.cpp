@@ -10,7 +10,6 @@
 #include "mp4_demuxer/Adts.h"
 #include "mp4_demuxer/mp4_demuxer.h"
 #include "mp4_demuxer/Index.h"
-#include "MediaResource.h"
 
 #include <stdint.h>
 #include <algorithm>
@@ -37,7 +36,7 @@ struct StageFrightPrivate
 class DataSourceAdapter : public DataSource
 {
 public:
-  explicit DataSourceAdapter(Stream* aSource) : mSource(aSource) {}
+  DataSourceAdapter(Stream* aSource) : mSource(aSource) {}
 
   ~DataSourceAdapter() {}
 
@@ -225,27 +224,22 @@ MP4Demuxer::ConvertByteRangesToTime(
     lastComposition = std::max(lastComposition, endComposition);
   }
 
-  if (aByteRanges != mCachedByteRanges) {
-    mCachedByteRanges = aByteRanges;
-    mCachedTimeRanges.Clear();
-    for (int i = 0; i < mPrivate->mIndexes.Length(); i++) {
-      nsTArray<Interval<Microseconds>> ranges;
-      mPrivate->mIndexes[i]->ConvertByteRangesToTimeRanges(aByteRanges, &ranges);
-      if (lastComposition && endCompositions[i]) {
-        Interval<Microseconds>::SemiNormalAppend(
-          ranges, Interval<Microseconds>(endCompositions[i], lastComposition));
-      }
+  for (int i = 0; i < mPrivate->mIndexes.Length(); i++) {
+    nsTArray<Interval<Microseconds>> ranges;
+    mPrivate->mIndexes[i]->ConvertByteRangesToTimeRanges(aByteRanges, &ranges);
+    if (lastComposition && endCompositions[i]) {
+      Interval<Microseconds>::SemiNormalAppend(
+        ranges, Interval<Microseconds>(endCompositions[i], lastComposition));
+    }
 
-      if (i) {
-        nsTArray<Interval<Microseconds>> intersection;
-        Interval<Microseconds>::Intersection(mCachedTimeRanges, ranges, &intersection);
-        mCachedTimeRanges = intersection;
-      } else {
-        mCachedTimeRanges = ranges;
-      }
+    if (i) {
+      nsTArray<Interval<Microseconds>> intersection;
+      Interval<Microseconds>::Intersection(*aIntervals, ranges, &intersection);
+      *aIntervals = intersection;
+    } else {
+      *aIntervals = ranges;
     }
   }
-  aIntervals->AppendElements(mCachedTimeRanges);
 }
 
 int64_t

@@ -357,7 +357,7 @@ protected:
   friend struct PerFrameData;
   struct PerFrameData
   {
-    explicit PerFrameData(mozilla::WritingMode aWritingMode)
+    PerFrameData(mozilla::WritingMode aWritingMode)
       : mBounds(aWritingMode)
       , mMargin(aWritingMode)
       , mBorderPadding(aWritingMode)

@@ -254,7 +254,7 @@ class nsTextRulesInfo : public nsRulesInfo
 {
  public:
  
-  explicit nsTextRulesInfo(EditAction aAction) :
+  nsTextRulesInfo(EditAction aAction) :
     nsRulesInfo(aAction),
     inString(0),
     outString(0),
@@ -307,7 +307,7 @@ class nsAutoLockRulesSniffing
 {
   public:
   
-  explicit nsAutoLockRulesSniffing(nsTextEditRules *rules) : mRules(rules) 
+  nsAutoLockRulesSniffing(nsTextEditRules *rules) : mRules(rules) 
                  {if (mRules) mRules->mLockRulesSniffing = true;}
   ~nsAutoLockRulesSniffing() 
                  {if (mRules) mRules->mLockRulesSniffing = false;}
@@ -325,7 +325,7 @@ class nsAutoLockListener
 {
   public:
   
-  explicit nsAutoLockListener(bool *enabled) : mEnabled(enabled)
+  nsAutoLockListener(bool *enabled) : mEnabled(enabled)
                  {if (mEnabled) { mOldState=*mEnabled; *mEnabled = false;}}
   ~nsAutoLockListener() 
                  {if (mEnabled) *mEnabled = mOldState;}

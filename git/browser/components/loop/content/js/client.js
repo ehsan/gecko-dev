@@ -101,7 +101,7 @@ loop.Client = (function($) {
      * Callback parameters:
      * - err null on successful registration, non-null otherwise.
      * - callUrlData an object of the obtained call url data if successful:
-     * -- callUrl: The url of the call
+     * -- call_url: The url of the call
      * -- expiresAt: The amount of hours until expiry of the url
      *
      * @param  {String} simplepushUrl a registered Simple Push URL
@@ -120,6 +120,8 @@ loop.Client = (function($) {
           var urlData = JSON.parse(responseText);
 
           cb(null, this._validate(urlData, expectedCallUrlProperties));
+
+          this.mozLoop.noteCallUrlExpiry(urlData.expiresAt);
         } catch (err) {
           console.log("Error requesting call info", err);
           cb(err);
@@ -157,6 +159,8 @@ loop.Client = (function($) {
 
         try {
           cb(null);
+
+          this.mozLoop.noteCallUrlExpiry((new Date()).getTime() / 1000);
         } catch (err) {
           console.log("Error deleting call info", err);
           cb(err);
@@ -171,7 +175,7 @@ loop.Client = (function($) {
      * Callback parameters:
      * - err null on successful registration, non-null otherwise.
      * - callUrlData an object of the obtained call url data if successful:
-     * -- callUrl: The url of the call
+     * -- call_url: The url of the call
      * -- expiresAt: The amount of hours until expiry of the url
      *
      * @param  {String} simplepushUrl a registered Simple Push URL

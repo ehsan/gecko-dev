@@ -14,7 +14,7 @@
 
 class nsGB18030Prober: public nsCharSetProber {
 public:
-  explicit nsGB18030Prober(bool aIsPreferredLanguage)
+  nsGB18030Prober(bool aIsPreferredLanguage)
     :mIsPreferredLanguage(aIsPreferredLanguage)
   {mCodingSM = new nsCodingStateMachine(&GB18030SMModel);
     Reset();}

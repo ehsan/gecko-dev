@@ -40,7 +40,7 @@ public:
 
   friend class nsNSSCertificateFakeTransport;
 
-  explicit nsNSSCertificate(CERTCertificate* cert, SECOidTag* evOidPolicy = nullptr);
+  nsNSSCertificate(CERTCertificate* cert, SECOidTag* evOidPolicy = nullptr);
   nsNSSCertificate();
   nsresult FormatUIStrings(const nsAutoString& nickname,
                            nsAutoString& nickWithSerial,

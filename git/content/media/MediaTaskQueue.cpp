@@ -62,7 +62,7 @@ MediaTaskQueue::DispatchLocked(TemporaryRef<nsIRunnable> aRunnable,
 
 class MediaTaskQueueSyncRunnable : public nsRunnable {
 public:
-  explicit MediaTaskQueueSyncRunnable(TemporaryRef<nsIRunnable> aRunnable)
+  MediaTaskQueueSyncRunnable(TemporaryRef<nsIRunnable> aRunnable)
     : mRunnable(aRunnable)
     , mMonitor("MediaTaskQueueSyncRunnable")
     , mDone(false)

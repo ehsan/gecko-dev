@@ -394,7 +394,7 @@ class nsCSSKeyframeRule;
 class nsCSSKeyframeStyleDeclaration MOZ_FINAL : public nsDOMCSSDeclaration
 {
 public:
-  explicit nsCSSKeyframeStyleDeclaration(nsCSSKeyframeRule *aRule);
+  nsCSSKeyframeStyleDeclaration(nsCSSKeyframeRule *aRule);
 
   NS_IMETHOD GetParentRule(nsIDOMCSSRule **aParent) MOZ_OVERRIDE;
   void DropReference() { mRule = nullptr; }
@@ -527,7 +527,7 @@ class nsCSSPageRule;
 class nsCSSPageStyleDeclaration MOZ_FINAL : public nsDOMCSSDeclaration
 {
 public:
-  explicit nsCSSPageStyleDeclaration(nsCSSPageRule *aRule);
+  nsCSSPageStyleDeclaration(nsCSSPageRule *aRule);
 
   NS_IMETHOD GetParentRule(nsIDOMCSSRule **aParent) MOZ_OVERRIDE;
   void DropReference() { mRule = nullptr; }

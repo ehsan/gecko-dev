@@ -39,7 +39,7 @@ public:
 protected:
   friend nsContainerFrame* NS_NewGridContainerFrame(nsIPresShell* aPresShell,
                                                     nsStyleContext* aContext);
-  explicit nsGridContainerFrame(nsStyleContext* aContext) : nsContainerFrame(aContext) {}
+  nsGridContainerFrame(nsStyleContext* aContext) : nsContainerFrame(aContext) {}
 
 #ifdef DEBUG
   void SanityCheckAnonymousGridItems() const;

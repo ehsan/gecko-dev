@@ -76,7 +76,7 @@ NS_QUERYFRAME_TAIL_INHERITING(nsLeafFrame)
 class AsyncFrameInit : public nsRunnable
 {
 public:
-  explicit AsyncFrameInit(nsIFrame* aFrame) : mFrame(aFrame) {}
+  AsyncFrameInit(nsIFrame* aFrame) : mFrame(aFrame) {}
   NS_IMETHOD Run()
   {
     if (mFrame.IsAlive()) {

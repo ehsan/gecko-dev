@@ -558,7 +558,7 @@ nsNSSSocketInfo::SetFileDescPtr(PRFileDesc* aFilePtr)
 class PreviousCertRunnable : public SyncRunnableBase
 {
 public:
-  explicit PreviousCertRunnable(nsIInterfaceRequestor* callbacks)
+  PreviousCertRunnable(nsIInterfaceRequestor* callbacks)
     : mCallbacks(callbacks)
   {
   }
@@ -1441,7 +1441,7 @@ class PrefObserver : public nsIObserver {
 public:
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIOBSERVER
-  explicit PrefObserver(nsSSLIOLayerHelpers* aOwner) : mOwner(aOwner) {}
+  PrefObserver(nsSSLIOLayerHelpers* aOwner) : mOwner(aOwner) {}
 
 protected:
   virtual ~PrefObserver() {}

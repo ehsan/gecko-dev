@@ -43,7 +43,7 @@ public:
 #endif
 
 protected:
-  explicit nsTableCaptionFrame(nsStyleContext*  aContext);
+  nsTableCaptionFrame(nsStyleContext*  aContext);
   virtual ~nsTableCaptionFrame();
 };
 
@@ -218,7 +218,7 @@ public:
 protected:
 
 
-  explicit nsTableOuterFrame(nsStyleContext* aContext);
+  nsTableOuterFrame(nsStyleContext* aContext);
   virtual ~nsTableOuterFrame();
 
   void InitChildReflowState(nsPresContext&    aPresContext,                     

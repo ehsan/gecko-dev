@@ -34,8 +34,6 @@
     return false;
   }
 
-  function noop(){}
-
   // Feedback API client configured to send data to the stage input server,
   // which is available at https://input.allizom.org
   var stageFeedbackApiClient = new loop.FeedbackAPIClient(
@@ -45,14 +43,10 @@
   );
 
   var mockClient = {
-    requestCallUrl: noop,
-    requestCallUrlInfo: noop
+    requestCallUrl: function() {}
   };
 
   var mockConversationModel = new loop.shared.models.ConversationModel({}, {sdk: {}});
-
-  // Fake notifier
-  var mockNotifier = {};
 
   var Example = React.createClass({
     render: function() {
@@ -111,17 +105,16 @@
               <strong>Note:</strong> 332px wide.
             </p>
             <Example summary="Call URL retrieved" dashed="true" style={{width: "332px"}}>
-              <PanelView client={mockClient} notifier={mockNotifier}
-                         callUrl="http://invalid.example.url/" />
+              <PanelView callUrl="http://invalid.example.url/" client={mockClient} />
             </Example>
             <Example summary="Pending call url retrieval" dashed="true" style={{width: "332px"}}>
-              <PanelView client={mockClient} notifier={mockNotifier} />
+              <PanelView client={mockClient} />
             </Example>
           </Section>
 
           <Section name="IncomingCallView">
             <Example summary="Default" dashed="true" style={{width: "280px"}}>
-              <IncomingCallView model={mockConversationModel} />
+              <IncomingCallView />
             </Example>
           </Section>
 
@@ -129,81 +122,55 @@
             <h3>Desktop Conversation Window</h3>
             <div className="conversation-window">
               <Example summary="Default (260x265)" dashed="true">
-                <ConversationToolbar video={{enabled: true}}
-                                     audio={{enabled: true}}
-                                     hangup={noop}
-                                     publishStream={noop} />
+                <ConversationToolbar video={{enabled: true}} audio={{enabled: true}} />
               </Example>
               <Example summary="Video muted">
-                <ConversationToolbar video={{enabled: false}}
-                                     audio={{enabled: true}}
-                                     hangup={noop}
-                                     publishStream={noop} />
+                <ConversationToolbar video={{enabled: false}} audio={{enabled: true}} />
               </Example>
               <Example summary="Audio muted">
-                <ConversationToolbar video={{enabled: true}}
-                                     audio={{enabled: false}}
-                                     hangup={noop}
-                                     publishStream={noop} />
+                <ConversationToolbar video={{enabled: true}} audio={{enabled: false}} />
               </Example>
             </div>
 
             <h3>Standalone</h3>
             <div className="standalone">
               <Example summary="Default">
-                <ConversationToolbar video={{enabled: true}}
-                                     audio={{enabled: true}}
-                                     hangup={noop}
-                                     publishStream={noop} />
+                <ConversationToolbar video={{enabled: true}} audio={{enabled: true}} />
               </Example>
               <Example summary="Video muted">
-                <ConversationToolbar video={{enabled: false}}
-                                     audio={{enabled: true}}
-                                     hangup={noop}
-                                     publishStream={noop} />
+                <ConversationToolbar video={{enabled: false}} audio={{enabled: true}} />
               </Example>
               <Example summary="Audio muted">
-                <ConversationToolbar video={{enabled: true}}
-                                     audio={{enabled: false}}
-                                     hangup={noop}
-                                     publishStream={noop} />
+                <ConversationToolbar video={{enabled: true}} audio={{enabled: false}} />
               </Example>
             </div>
           </Section>
 
           <Section name="StartConversationView">
+
             <Example summary="Start conversation view" dashed="true">
               <div className="standalone">
                 <StartConversationView model={mockConversationModel}
-                                       client={mockClient}
-                                       notifier={mockNotifier} />
+                  client={mockClient} />
               </div>
             </Example>
+
           </Section>
 
           <Section name="ConversationView">
+
             <Example summary="Desktop conversation window" dashed="true"
                      style={{width: "260px", height: "265px"}}>
               <div className="conversation-window">
-                <ConversationView sdk={{}}
-                                  model={mockConversationModel}
-                                  video={{enabled: true}}
-                                  audio={{enabled: true}} />
+                <ConversationView video={{enabled: true}} audio={{enabled: true}}
+                                  model={mockConversationModel} />
               </div>
             </Example>
             <Example summary="Standalone version">
               <div className="standalone">
-                <ConversationView sdk={{}}
-                                  model={mockConversationModel}
-                                  video={{enabled: true}}
-                                  audio={{enabled: true}} />
+                <ConversationView video={{enabled: true}} audio={{enabled: true}}
+                                  model={mockConversationModel} />
               </div>
-            </Example>
-            <Example summary="Default">
-              <ConversationView sdk={{}}
-                                model={mockConversationModel}
-                                video={{enabled: true}}
-                                audio={{enabled: true}} />
             </Example>
           </Section>
 
@@ -216,10 +183,10 @@
               <FeedbackView feedbackApiClient={stageFeedbackApiClient} />
             </Example>
             <Example summary="Detailed form" dashed="true" style={{width: "280px"}}>
-              <FeedbackView feedbackApiClient={stageFeedbackApiClient} step="form" />
+              <FeedbackView step="form" />
             </Example>
             <Example summary="Thank you!" dashed="true" style={{width: "280px"}}>
-              <FeedbackView feedbackApiClient={stageFeedbackApiClient} step="finished" />
+              <FeedbackView step="finished" />
             </Example>
           </Section>
 

@@ -22,24 +22,14 @@ loop.panel = (function(_, mozL10n) {
   var router;
 
   /**
-   * Dropdown menu mixin.
-   * @type {Object}
+   * Availability drop down menu subview.
    */
-  var DropdownMenuMixin = {
+  var AvailabilityDropdown = React.createClass({
     getInitialState: function() {
-      return {showMenu: false};
-    },
-
-    _onBodyClick: function() {
-      this.setState({showMenu: false});
-    },
-
-    componentDidMount: function() {
-      document.body.addEventListener("click", this._onBodyClick);
-    },
-
-    componentWillUnmount: function() {
-      document.body.removeEventListener("click", this._onBodyClick);
+      return {
+        doNotDisturb: navigator.mozLoop.doNotDisturb,
+        showMenu: false
+      };
     },
 
     showDropdownMenu: function() {
@@ -48,19 +38,6 @@ loop.panel = (function(_, mozL10n) {
 
     hideDropdownMenu: function() {
       this.setState({showMenu: false});
-    }
-  };
-
-  /**
-   * Availability drop down menu subview.
-   */
-  var AvailabilityDropdown = React.createClass({
-    mixins: [DropdownMenuMixin],
-
-    getInitialState: function() {
-      return {
-        doNotDisturb: navigator.mozLoop.doNotDisturb
-      };
     },
 
     // XXX target event can either be the li, the span or the i tag
@@ -92,7 +69,7 @@ loop.panel = (function(_, mozL10n) {
         'status-available': !this.state.doNotDisturb
       });
       var availabilityDropdown = cx({
-        'dropdown-menu': true,
+        'dnd-menu': true,
         'hide': !this.state.showMenu
       });
       var availabilityText = this.state.doNotDisturb ?
@@ -100,7 +77,7 @@ loop.panel = (function(_, mozL10n) {
                               __("display_name_available_status");
 
       return (
-        <div className="dropdown">
+        <div className="do-not-disturb">
           <p className="dnd-status" onClick={this.showDropdownMenu}>
             <span>{availabilityText}</span>
             <i className={availabilityStatus}></i>
@@ -108,12 +85,12 @@ loop.panel = (function(_, mozL10n) {
           <ul className={availabilityDropdown}
               onMouseLeave={this.hideDropdownMenu}>
             <li onClick={this.changeAvailability("available")}
-                className="dropdown-menu-item dnd-make-available">
+                className="dnd-menu-item dnd-make-available">
               <i className="status status-available"></i>
               <span>{__("display_name_available_status")}</span>
             </li>
             <li onClick={this.changeAvailability("do-not-disturb")}
-                className="dropdown-menu-item dnd-make-unavailable">
+                className="dnd-menu-item dnd-make-unavailable">
               <i className="status status-dnd"></i>
               <span>{__("display_name_dnd_status")}</span>
             </li>
@@ -132,8 +109,7 @@ loop.panel = (function(_, mozL10n) {
       if (this.state.seenToS == "unseen") {
         var terms_of_use_url = navigator.mozLoop.getLoopCharPref('legal.ToS_url');
         var privacy_notice_url = navigator.mozLoop.getLoopCharPref('legal.privacy_url');
-        var tosHTML = __("legal_text_and_links3", {
-          "clientShortname": __("client_shortname_fallback"),
+        var tosHTML = __("legal_text_and_links2", {
           "terms_of_use": React.renderComponentToStaticMarkup(
             <a href={terms_of_use_url} target="_blank">
               {__("legal_text_tos")}
@@ -153,93 +129,6 @@ loop.panel = (function(_, mozL10n) {
     }
   });
 
-  /**
-   * Panel settings (gear) menu entry.
-   */
-  var SettingsDropdownEntry = React.createClass({
-    propTypes: {
-      onClick: React.PropTypes.func.isRequired,
-      label: React.PropTypes.string.isRequired,
-      icon: React.PropTypes.string,
-      displayed: React.PropTypes.bool
-    },
-
-    getDefaultProps: function() {
-      return {displayed: true};
-    },
-
-    render: function() {
-      if (!this.props.displayed) {
-        return null;
-      }
-      return (
-        <li onClick={this.props.onClick} className="dropdown-menu-item">
-          {this.props.icon ?
-            <i className={"icon icon-" + this.props.icon}></i> :
-            null}
-          <span>{this.props.label}</span>
-        </li>
-      );
-    }
-  });
-
-  /**
-   * Panel settings (gear) menu.
-   */
-  var SettingsDropdown = React.createClass({
-    mixins: [DropdownMenuMixin],
-
-    handleClickSettingsEntry: function() {
-      // XXX to be implemented
-    },
-
-    handleClickAccountEntry: function() {
-      // XXX to be implemented
-    },
-
-    handleClickAuthEntry: function() {
-      if (this._isSignedIn()) {
-        // XXX to be implemented - bug 979845
-        navigator.mozLoop.logOutFromFxA();
-      } else {
-        navigator.mozLoop.logInToFxA();
-      }
-    },
-
-    _isSignedIn: function() {
-      // XXX to be implemented - bug 979845
-      return !!navigator.mozLoop.loggedInToFxA;
-    },
-
-    render: function() {
-      var cx = React.addons.classSet;
-      return (
-        <div className="settings-menu dropdown">
-          <a className="btn btn-settings" onClick={this.showDropdownMenu}
-             title={__("settings_menu_button_tooltip")} />
-          <ul className={cx({"dropdown-menu": true, hide: !this.state.showMenu})}
-              onMouseLeave={this.hideDropdownMenu}>
-            <SettingsDropdownEntry label={__("settings_menu_item_settings")}
-                                   onClick={this.handleClickSettingsEntry}
-                                   icon="settings" />
-            <SettingsDropdownEntry label={__("settings_menu_item_account")}
-                                   onClick={this.handleClickAccountEntry}
-                                   icon="account"
-                                   displayed={this._isSignedIn()} />
-            <SettingsDropdownEntry label={this._isSignedIn() ?
-                                          __("settings_menu_item_signout") :
-                                          __("settings_menu_item_signin")}
-                                   onClick={this.handleClickAuthEntry}
-                                   icon={this._isSignedIn() ? "signout" : "signin"} />
-          </ul>
-        </div>
-      );
-    }
-  });
-
-  /**
-   * Panel layout.
-   */
   var PanelLayout = React.createClass({
     propTypes: {
       summary: React.PropTypes.string.isRequired
@@ -259,18 +148,16 @@ loop.panel = (function(_, mozL10n) {
 
   var CallUrlResult = React.createClass({
     propTypes: {
-      callUrl:        React.PropTypes.string,
-      callUrlExpiry:  React.PropTypes.number,
-      notifier:       React.PropTypes.object.isRequired,
-      client:         React.PropTypes.object.isRequired
+      callUrl:  React.PropTypes.string,
+      notifier: React.PropTypes.object.isRequired,
+      client:   React.PropTypes.object.isRequired
     },
 
     getInitialState: function() {
       return {
         pending: false,
         copied: false,
-        callUrl: this.props.callUrl || "",
-        callUrlExpiry: 0
+        callUrl: this.props.callUrl || ""
       };
     },
 
@@ -309,9 +196,7 @@ loop.panel = (function(_, mozL10n) {
           var token = callUrlData.callToken ||
                       callUrl.pathname.split('/').pop();
 
-          this.setState({pending: false, copied: false,
-                         callUrl: callUrl.href,
-                         callUrlExpiry: callUrlData.expiresAt});
+          this.setState({pending: false, copied: false, callUrl: callUrl.href});
         } catch(e) {
           console.log(e);
           this.props.notifier.errorL10n("unable_retrieve_url");
@@ -322,30 +207,21 @@ loop.panel = (function(_, mozL10n) {
 
     _generateMailTo: function() {
       return encodeURI([
-        "mailto:?subject=" + __("share_email_subject3") + "&",
-        "body=" + __("share_email_body3", {callUrl: this.state.callUrl})
+        "mailto:?subject=" + __("share_email_subject2") + "&",
+        "body=" + __("share_email_body2", {callUrl: this.state.callUrl})
       ].join(""));
     },
 
     handleEmailButtonClick: function(event) {
-      this.handleLinkExfiltration(event);
       // Note: side effect
       document.location = event.target.dataset.mailto;
     },
 
     handleCopyButtonClick: function(event) {
-      this.handleLinkExfiltration(event);
       // XXX the mozLoop object should be passed as a prop, to ease testing and
       //     using a fake implementation in UI components showcase.
       navigator.mozLoop.copyString(this.state.callUrl);
       this.setState({copied: true});
-    },
-
-    handleLinkExfiltration: function(event) {
-      // TODO Bug 1015988 -- Increase link exfiltration telemetry count
-      if (this.state.callUrlExpiry) {
-        navigator.mozLoop.noteCallUrlExpiry(this.state.callUrlExpiry);
-      }
     },
 
     render: function() {
@@ -364,7 +240,6 @@ loop.panel = (function(_, mozL10n) {
         <PanelLayout summary={__("share_link_header_text")}>
           <div className="invite">
             <input type="url" value={this.state.callUrl} readOnly="true"
-                   onCopy={this.handleLinkExfiltration}
                    className={inputCSSClass} />
             <p className="btn-group url-actions">
               <button className="btn btn-email" disabled={!this.state.callUrl}
@@ -385,28 +260,6 @@ loop.panel = (function(_, mozL10n) {
   });
 
   /**
-   * FxA sign in/up link component.
-   */
-  var AuthLink = React.createClass({
-    handleSignUpLinkClick: function() {
-      navigator.mozLoop.logInToFxA();
-    },
-
-    render: function() {
-      if (navigator.mozLoop.loggedInToFxA) { // XXX to be implemented
-        return null;
-      }
-      return (
-        <p className="signin-link">
-          <a href="#" onClick={this.handleSignUpLinkClick}>
-            {__("panel_footer_signin_or_signup_link")}
-          </a>
-        </p>
-      );
-    }
-  });
-
-  /**
    * Panel view.
    */
   var PanelView = React.createClass({
@@ -415,6 +268,10 @@ loop.panel = (function(_, mozL10n) {
       client: React.PropTypes.object.isRequired,
       // Mostly used for UI components showcase and unit tests
       callUrl: React.PropTypes.string
+    },
+
+    handleSignUpLinkClick: function() {
+      navigator.mozLoop.logInToFxA();
     },
 
     render: function() {
@@ -426,8 +283,9 @@ loop.panel = (function(_, mozL10n) {
           <ToSView />
           <div className="footer">
             <AvailabilityDropdown />
-            <AuthLink />
-            <SettingsDropdown />
+            <a className="signin-link" href="#" onClick={this.handleSignUpLinkClick}>
+              {__("panel_footer_signin_or_signup_link")}
+            </a>
           </div>
         </div>
       );
@@ -515,7 +373,6 @@ loop.panel = (function(_, mozL10n) {
     Backbone.history.start();
 
     document.body.classList.add(loop.shared.utils.getTargetPlatform());
-    document.body.setAttribute("dir", mozL10n.getDirection());
 
     // Notify the window that we've finished initalization and initial layout
     var evtObject = document.createEvent('Event');
@@ -529,7 +386,6 @@ loop.panel = (function(_, mozL10n) {
     CallUrlResult: CallUrlResult,
     PanelView: PanelView,
     PanelRouter: PanelRouter,
-    SettingsDropdown: SettingsDropdown,
     ToSView: ToSView
   };
 })(_, document.mozL10n);

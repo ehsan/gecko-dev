@@ -23,7 +23,7 @@ class SVGFESpotLightElement : public SVGFESpotLightElementBase
                                                  already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo));
   friend class ::nsSVGFELightingElement;
 protected:
-  explicit SVGFESpotLightElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
+  SVGFESpotLightElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
     : SVGFESpotLightElementBase(aNodeInfo)
   {
   }

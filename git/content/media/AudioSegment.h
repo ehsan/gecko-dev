@@ -19,7 +19,7 @@ namespace mozilla {
 template<typename T>
 class SharedChannelArrayBuffer : public ThreadSharedObject {
 public:
-  explicit SharedChannelArrayBuffer(nsTArray<nsTArray<T> >* aBuffers)
+  SharedChannelArrayBuffer(nsTArray<nsTArray<T> >* aBuffers)
   {
     mBuffers.SwapElements(*aBuffers);
   }

@@ -22,7 +22,7 @@ class GMPVideoEncoderChild : public PGMPVideoEncoderChild,
                              public GMPSharedMemManager
 {
 public:
-  explicit GMPVideoEncoderChild(GMPChild* aPlugin);
+  GMPVideoEncoderChild(GMPChild* aPlugin);
   virtual ~GMPVideoEncoderChild();
 
   void Init(GMPVideoEncoder* aEncoder);

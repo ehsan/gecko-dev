@@ -86,7 +86,7 @@ class Logging;
 class JavaScriptShared
 {
   public:
-    explicit JavaScriptShared(JSRuntime *rt);
+    JavaScriptShared(JSRuntime *rt);
     virtual ~JavaScriptShared() {}
 
     bool init();

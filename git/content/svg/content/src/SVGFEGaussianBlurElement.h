@@ -23,7 +23,7 @@ class SVGFEGaussianBlurElement : public SVGFEGaussianBlurElementBase
   friend nsresult (::NS_NewSVGFEGaussianBlurElement(nsIContent **aResult,
                                                     already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo));
 protected:
-  explicit SVGFEGaussianBlurElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
+  SVGFEGaussianBlurElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
     : SVGFEGaussianBlurElementBase(aNodeInfo)
   {
   }

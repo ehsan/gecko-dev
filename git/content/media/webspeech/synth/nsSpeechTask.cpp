@@ -28,7 +28,7 @@ namespace dom {
 class SynthStreamListener : public MediaStreamListener
 {
 public:
-  explicit SynthStreamListener(nsSpeechTask* aSpeechTask) :
+  SynthStreamListener(nsSpeechTask* aSpeechTask) :
     mSpeechTask(aSpeechTask),
     mStarted(false)
   {

@@ -17,7 +17,7 @@ NS_IMPL_ISUPPORTS_INHERITED0(ChannelSplitterNode, AudioNode)
 class ChannelSplitterNodeEngine : public AudioNodeEngine
 {
 public:
-  explicit ChannelSplitterNodeEngine(ChannelSplitterNode* aNode)
+  ChannelSplitterNodeEngine(ChannelSplitterNode* aNode)
     : AudioNodeEngine(aNode)
   {
     MOZ_ASSERT(NS_IsMainThread());

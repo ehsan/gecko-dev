@@ -20,7 +20,7 @@ class nsSVGStopFrame : public nsSVGStopFrameBase
   friend nsIFrame*
   NS_NewSVGStopFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 protected:
-  explicit nsSVGStopFrame(nsStyleContext* aContext)
+  nsSVGStopFrame(nsStyleContext* aContext)
     : nsSVGStopFrameBase(aContext)
   {
     AddStateBits(NS_FRAME_IS_NONDISPLAY);

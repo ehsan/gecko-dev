@@ -32,7 +32,7 @@ public:
    * Creates a new CSSVariableResolver that will output a set of resolved,
    * computed variables into aOutput.
    */
-  explicit CSSVariableResolver(CSSVariableValues* aOutput)
+  CSSVariableResolver(CSSVariableValues* aOutput)
     : mOutput(aOutput)
 #ifdef DEBUG
     , mResolved(false)

@@ -229,8 +229,8 @@ struct MOZ_STACK_CLASS TreeMatchContext {
   /* Helper class for maintaining the ancestor state */
   class MOZ_STACK_CLASS AutoAncestorPusher {
   public:
-    explicit AutoAncestorPusher(TreeMatchContext& aTreeMatchContext
-                                MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+    AutoAncestorPusher(TreeMatchContext& aTreeMatchContext
+                       MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
       : mPushedAncestor(false)
       , mPushedStyleScope(false)
       , mTreeMatchContext(aTreeMatchContext)
@@ -299,9 +299,9 @@ struct MOZ_STACK_CLASS TreeMatchContext {
    */
   class MOZ_STACK_CLASS AutoParentDisplayBasedStyleFixupSkipper {
   public:
-    explicit AutoParentDisplayBasedStyleFixupSkipper(TreeMatchContext& aTreeMatchContext,
-                                                     bool aSkipParentDisplayBasedStyleFixup = true
-                                                     MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+    AutoParentDisplayBasedStyleFixupSkipper(TreeMatchContext& aTreeMatchContext,
+                                     bool aSkipParentDisplayBasedStyleFixup = true
+                                     MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
       : mAutoRestorer(aTreeMatchContext.mSkippingParentDisplayBasedStyleFixup)
     {
       MOZ_GUARD_OBJECT_NOTIFIER_INIT;

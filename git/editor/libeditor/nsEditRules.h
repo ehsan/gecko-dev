@@ -23,7 +23,7 @@ class nsRulesInfo
 {
   public:
   
-  explicit nsRulesInfo(EditAction aAction) : action(aAction) {}
+  nsRulesInfo(EditAction aAction) : action(aAction) {}
   virtual ~nsRulesInfo() {}
   
   EditAction action;

@@ -549,10 +549,4 @@ LIRGeneratorARM::visitForkJoinGetSlice(MForkJoinGetSlice *ins)
     MOZ_CRASH("NYI");
 }
 
-bool
-LIRGeneratorARM::visitSimdSplatX4(MSimdSplatX4 *ins)
-{
-    MOZ_CRASH("NYI");
-}
-
 //__aeabi_uidiv

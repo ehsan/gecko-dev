@@ -130,7 +130,7 @@ private:
 class GlyphMetricsUpdater : public nsRunnable {
 public:
   NS_DECL_NSIRUNNABLE
-  explicit GlyphMetricsUpdater(SVGTextFrame* aFrame) : mFrame(aFrame) { }
+  GlyphMetricsUpdater(SVGTextFrame* aFrame) : mFrame(aFrame) { }
   static void Run(SVGTextFrame* aFrame);
   void Revoke() { mFrame = nullptr; }
 private:
@@ -257,7 +257,7 @@ class SVGTextFrame MOZ_FINAL : public SVGTextFrameBase
   typedef mozilla::SVGTextContextPaint SVGTextContextPaint;
 
 protected:
-  explicit SVGTextFrame(nsStyleContext* aContext)
+  SVGTextFrame(nsStyleContext* aContext)
     : SVGTextFrameBase(aContext),
       mFontSizeScaleFactor(1.0f),
       mLastContextScale(1.0f),
@@ -432,7 +432,7 @@ private:
    */
   class MutationObserver MOZ_FINAL : public nsStubMutationObserver {
   public:
-    explicit MutationObserver(SVGTextFrame* aFrame)
+    MutationObserver(SVGTextFrame* aFrame)
       : mFrame(aFrame)
     {
       MOZ_ASSERT(mFrame, "MutationObserver needs a non-null frame");

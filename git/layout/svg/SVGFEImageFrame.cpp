@@ -22,7 +22,7 @@ class SVGFEImageFrame : public SVGFEImageFrameBase
   friend nsIFrame*
   NS_NewSVGFEImageFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 protected:
-  explicit SVGFEImageFrame(nsStyleContext* aContext)
+  SVGFEImageFrame(nsStyleContext* aContext)
     : SVGFEImageFrameBase(aContext)
   {
     AddStateBits(NS_FRAME_SVG_LAYOUT | NS_FRAME_IS_NONDISPLAY);

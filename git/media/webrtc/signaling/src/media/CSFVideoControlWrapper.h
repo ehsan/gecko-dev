@@ -21,7 +21,7 @@ namespace CSF
 	class ECC_API VideoControlWrapper : public VideoControl
 	{
 	public:
-		explicit VideoControlWrapper(VideoControl * videoControl){_realVideoControl = videoControl;};
+		VideoControlWrapper(VideoControl * videoControl){_realVideoControl = videoControl;};
 
 		virtual void setVideoMode( bool enable );
 

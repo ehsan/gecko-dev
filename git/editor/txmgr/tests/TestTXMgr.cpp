@@ -435,8 +435,8 @@ protected:
 
 public:
 
-  explicit SimpleTransaction(int32_t aFlags=NONE_FLAG)
-    : mVal(++sConstructorCount), mFlags(aFlags)
+  SimpleTransaction(int32_t aFlags=NONE_FLAG)
+                    : mVal(++sConstructorCount), mFlags(aFlags)
   {}
 
   virtual ~SimpleTransaction()

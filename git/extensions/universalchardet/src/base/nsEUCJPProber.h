@@ -18,7 +18,7 @@
 
 class nsEUCJPProber: public nsCharSetProber {
 public:
-  explicit nsEUCJPProber(bool aIsPreferredLanguage)
+  nsEUCJPProber(bool aIsPreferredLanguage)
     :mIsPreferredLanguage(aIsPreferredLanguage)
   {mCodingSM = new nsCodingStateMachine(&EUCJPSMModel);
     Reset();}

@@ -284,7 +284,7 @@ static const char kGrandTotalsStr[] = "Grand Totals";
 // Counting Class
 class ReflowCounter {
 public:
-  explicit ReflowCounter(ReflowCountMgr * aMgr = nullptr);
+  ReflowCounter(ReflowCountMgr * aMgr = nullptr);
   ~ReflowCounter();
 
   void ClearTotals();
@@ -315,7 +315,7 @@ protected:
 // Counting Class
 class IndiReflowCounter {
 public:
-  explicit IndiReflowCounter(ReflowCountMgr * aMgr = nullptr)
+  IndiReflowCounter(ReflowCountMgr * aMgr = nullptr)
     : mFrame(nullptr),
       mCount(0),
       mMgr(aMgr),
@@ -440,7 +440,7 @@ struct nsCallbackEventRequest
 class nsAutoCauseReflowNotifier
 {
 public:
-  explicit nsAutoCauseReflowNotifier(PresShell* aShell)
+  nsAutoCauseReflowNotifier(PresShell* aShell)
     : mShell(aShell)
   {
     mShell->WillCauseReflow();
@@ -463,7 +463,7 @@ public:
 class MOZ_STACK_CLASS nsPresShellEventCB : public EventDispatchingCallback
 {
 public:
-  explicit nsPresShellEventCB(PresShell* aPresShell) : mPresShell(aPresShell) {}
+  nsPresShellEventCB(PresShell* aPresShell) : mPresShell(aPresShell) {}
 
   virtual void HandleEvent(EventChainPostVisitor& aVisitor) MOZ_OVERRIDE
   {
@@ -513,7 +513,7 @@ public:
 class nsBeforeFirstPaintDispatcher : public nsRunnable
 {
 public:
-  explicit nsBeforeFirstPaintDispatcher(nsIDocument* aDocument)
+  nsBeforeFirstPaintDispatcher(nsIDocument* aDocument)
   : mDocument(aDocument) {}
 
   // Fires the "before-first-paint" event so that interested parties (right now, the
@@ -3747,7 +3747,7 @@ PresShell::GetRectVisibility(nsIFrame* aFrame,
 class PaintTimerCallBack MOZ_FINAL : public nsITimerCallback
 {
 public:
-  explicit PaintTimerCallBack(PresShell* aShell) : mShell(aShell) {}
+  PaintTimerCallBack(PresShell* aShell) : mShell(aShell) {}
 
   NS_DECL_ISUPPORTS
 

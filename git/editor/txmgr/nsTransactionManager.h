@@ -42,7 +42,7 @@ public:
 
   /** The default constructor.
    */
-  explicit nsTransactionManager(int32_t aMaxTransactionCount=-1);
+  nsTransactionManager(int32_t aMaxTransactionCount=-1);
 
   /* Macro for AddRef(), Release(), and QueryInterface() */
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS

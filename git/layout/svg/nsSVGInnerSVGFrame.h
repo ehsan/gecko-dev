@@ -20,7 +20,7 @@ class nsSVGInnerSVGFrame : public nsSVGInnerSVGFrameBase,
   friend nsIFrame*
   NS_NewSVGInnerSVGFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 protected:
-  explicit nsSVGInnerSVGFrame(nsStyleContext* aContext) :
+  nsSVGInnerSVGFrame(nsStyleContext* aContext) :
     nsSVGInnerSVGFrameBase(aContext) {}
   
 public:

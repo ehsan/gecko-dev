@@ -56,7 +56,7 @@ class MediaChannelStatistics {
 public:
   MediaChannelStatistics() { Reset(); }
 
-  explicit MediaChannelStatistics(MediaChannelStatistics * aCopyFrom)
+  MediaChannelStatistics(MediaChannelStatistics * aCopyFrom)
   {
     MOZ_ASSERT(aCopyFrom);
     mAccumulatedBytes = aCopyFrom->mAccumulatedBytes;
@@ -136,14 +136,10 @@ public:
     NS_ASSERTION(mStart < mEnd, "Range should end after start!");
   }
 
-  explicit MediaByteRange(TimestampedMediaByteRange& aByteRange);
+  MediaByteRange(TimestampedMediaByteRange& aByteRange);
 
   bool IsNull() const {
     return mStart == 0 && mEnd == 0;
-  }
-
-  bool operator==(const MediaByteRange& aRange) const {
-    return mStart == aRange.mStart && mEnd == aRange.mEnd;
   }
 
   // Clears byte range values.
@@ -628,7 +624,7 @@ public:
   {
     ~Listener() {}
   public:
-    explicit Listener(ChannelMediaResource* aResource) : mResource(aResource) {}
+    Listener(ChannelMediaResource* aResource) : mResource(aResource) {}
 
     NS_DECL_ISUPPORTS
     NS_DECL_NSIREQUESTOBSERVER

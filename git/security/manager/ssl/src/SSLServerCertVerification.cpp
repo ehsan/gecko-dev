@@ -597,7 +597,7 @@ CreateCertErrorRunnable(CertVerifier& certVerifier,
 class CertErrorRunnableRunnable : public nsRunnable
 {
 public:
-  explicit CertErrorRunnableRunnable(CertErrorRunnable* certErrorRunnable)
+  CertErrorRunnableRunnable(CertErrorRunnable* certErrorRunnable)
     : mCertErrorRunnable(certErrorRunnable)
   {
   }

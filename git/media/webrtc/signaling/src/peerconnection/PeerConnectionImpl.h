@@ -216,7 +216,7 @@ class PeerConnectionImpl MOZ_FINAL : public nsISupports,
   struct Internal; // Avoid exposing c includes to bindings
 
 public:
-  explicit PeerConnectionImpl(const mozilla::dom::GlobalObject* aGlobal = nullptr);
+  PeerConnectionImpl(const mozilla::dom::GlobalObject* aGlobal = nullptr);
 
   enum Error {
     kNoError                          = 0,
@@ -762,7 +762,7 @@ public:
 class PeerConnectionWrapper
 {
  public:
-  explicit PeerConnectionWrapper(const std::string& handle);
+  PeerConnectionWrapper(const std::string& handle);
 
   PeerConnectionImpl *impl() { return impl_; }
 

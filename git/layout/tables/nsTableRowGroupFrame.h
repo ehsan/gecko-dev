@@ -328,7 +328,7 @@ public:
   virtual void InvalidateFrameForRemoval() MOZ_OVERRIDE { InvalidateFrameSubtree(); }
 
 protected:
-  explicit nsTableRowGroupFrame(nsStyleContext* aContext);
+  nsTableRowGroupFrame(nsStyleContext* aContext);
 
   void InitChildReflowState(nsPresContext&     aPresContext, 
                             bool               aBorderCollapse,

@@ -181,7 +181,7 @@ class MetadataEventRunner : public nsRunnable
 class RemoveMediaTracksEventRunner : public nsRunnable
 {
 public:
-  explicit RemoveMediaTracksEventRunner(AbstractMediaDecoder* aDecoder)
+  RemoveMediaTracksEventRunner(AbstractMediaDecoder* aDecoder)
     : mDecoder(aDecoder)
   {}
 

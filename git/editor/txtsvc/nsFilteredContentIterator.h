@@ -26,7 +26,7 @@ public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_CLASS(nsFilteredContentIterator)
 
-  explicit nsFilteredContentIterator(nsITextServicesFilter* aFilter);
+  nsFilteredContentIterator(nsITextServicesFilter* aFilter);
 
   /* nsIContentIterator */
   virtual nsresult Init(nsINode* aRoot);

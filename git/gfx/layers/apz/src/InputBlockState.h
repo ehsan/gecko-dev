@@ -23,7 +23,7 @@ class OverscrollHandoffChain;
 class InputBlockState
 {
 public:
-  explicit InputBlockState(const nsRefPtr<const OverscrollHandoffChain>& aOverscrollHandoffChain);
+  InputBlockState(const nsRefPtr<const OverscrollHandoffChain>& aOverscrollHandoffChain);
 
   const nsRefPtr<const OverscrollHandoffChain>& GetOverscrollHandoffChain() const;
 private:
@@ -66,7 +66,7 @@ class TouchBlockState : public InputBlockState
 public:
   typedef uint32_t TouchBehaviorFlags;
 
-  explicit TouchBlockState(const nsRefPtr<const OverscrollHandoffChain>& aOverscrollHandoffChain);
+  TouchBlockState(const nsRefPtr<const OverscrollHandoffChain>& aOverscrollHandoffChain);
 
   /**
    * Record whether or not content cancelled this block of events.

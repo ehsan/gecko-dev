@@ -352,7 +352,7 @@ public:
   };
 
 protected:
-  explicit nsBlockFrame(nsStyleContext* aContext)
+  nsBlockFrame(nsStyleContext* aContext)
     : nsContainerFrame(aContext)
     , mMinWidth(NS_INTRINSIC_WIDTH_UNKNOWN)
     , mPrefWidth(NS_INTRINSIC_WIDTH_UNKNOWN)
@@ -805,7 +805,7 @@ protected:
   struct nsAutoOOFFrameList {
     nsFrameList mList;
 
-    explicit nsAutoOOFFrameList(nsBlockFrame* aBlock)
+    nsAutoOOFFrameList(nsBlockFrame* aBlock)
       : mPropValue(aBlock->GetOverflowOutOfFlows())
       , mBlock(aBlock) {
       if (mPropValue) {
@@ -898,7 +898,7 @@ protected:
 #ifdef DEBUG
 class AutoNoisyIndenter {
 public:
-  explicit AutoNoisyIndenter(bool aDoIndent) : mIndented(aDoIndent) {
+  AutoNoisyIndenter(bool aDoIndent) : mIndented(aDoIndent) {
     if (mIndented) {
       nsBlockFrame::gNoiseIndent++;
     }

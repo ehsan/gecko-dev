@@ -112,7 +112,7 @@ private:
     // Map from sample-rate to loader.
     class LoaderByRateEntry : public nsFloatHashKey {
     public:
-        explicit LoaderByRateEntry(KeyTypePointer aKey)
+        LoaderByRateEntry(KeyTypePointer aKey)
             : nsFloatHashKey(aKey)
             , mLoader() // so PutEntry() will zero-initialize
         {

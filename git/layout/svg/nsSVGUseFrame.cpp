@@ -21,7 +21,7 @@ class nsSVGUseFrame : public nsSVGUseFrameBase,
   NS_NewSVGUseFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
 protected:
-  explicit nsSVGUseFrame(nsStyleContext* aContext) :
+  nsSVGUseFrame(nsStyleContext* aContext) :
     nsSVGUseFrameBase(aContext),
     mHasValidDimensions(true)
   {}

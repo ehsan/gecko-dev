@@ -92,7 +92,7 @@ class MediaRecorder::Session: public nsIObserver
   class PushBlobRunnable : public nsRunnable
   {
   public:
-    explicit PushBlobRunnable(Session* aSession)
+    PushBlobRunnable(Session* aSession)
       : mSession(aSession)
     { }
 
@@ -154,7 +154,7 @@ class MediaRecorder::Session: public nsIObserver
   class ExtractRunnable : public nsRunnable
   {
   public:
-    explicit ExtractRunnable(Session* aSession)
+    ExtractRunnable(Session* aSession)
       : mSession(aSession) {}
 
     ~ExtractRunnable()
@@ -190,7 +190,7 @@ class MediaRecorder::Session: public nsIObserver
   class TracksAvailableCallback : public DOMMediaStream::OnTracksAvailableCallback
   {
   public:
-    explicit TracksAvailableCallback(Session *aSession)
+    TracksAvailableCallback(Session *aSession)
      : mSession(aSession) {}
     virtual void NotifyTracksAvailable(DOMMediaStream* aStream)
     {
@@ -220,7 +220,7 @@ class MediaRecorder::Session: public nsIObserver
   class DestroyRunnable : public nsRunnable
   {
   public:
-    explicit DestroyRunnable(Session* aSession)
+    DestroyRunnable(Session* aSession)
       : mSession(aSession) {}
 
     NS_IMETHODIMP Run()

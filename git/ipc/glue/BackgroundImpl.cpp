@@ -327,7 +327,7 @@ class ChildImpl MOZ_FINAL : public BackgroundChildImpl
 
   struct ThreadLocalInfo
   {
-    explicit ThreadLocalInfo(nsIIPCBackgroundChildCreateCallback* aCallback)
+    ThreadLocalInfo(nsIIPCBackgroundChildCreateCallback* aCallback)
     {
       mCallbacks.AppendElement(aCallback);
     }
@@ -498,7 +498,7 @@ class ParentImpl::RequestMessageLoopRunnable MOZ_FINAL :
   MessageLoop* mMessageLoop;
 
 public:
-  explicit RequestMessageLoopRunnable(nsIThread* aTargetThread)
+  RequestMessageLoopRunnable(nsIThread* aTargetThread)
   : mTargetThread(aTargetThread), mMessageLoop(nullptr)
   {
     AssertIsInMainProcess();
@@ -538,7 +538,7 @@ class ParentImpl::ForceCloseBackgroundActorsRunnable MOZ_FINAL : public nsRunnab
   nsTArray<ParentImpl*>* mActorArray;
 
 public:
-  explicit ForceCloseBackgroundActorsRunnable(nsTArray<ParentImpl*>* aActorArray)
+  ForceCloseBackgroundActorsRunnable(nsTArray<ParentImpl*>* aActorArray)
   : mActorArray(aActorArray)
   {
     AssertIsInMainProcess();
@@ -560,7 +560,7 @@ class ParentImpl::CreateCallbackRunnable MOZ_FINAL : public nsRunnable
   nsRefPtr<CreateCallback> mCallback;
 
 public:
-  explicit CreateCallbackRunnable(CreateCallback* aCallback)
+  CreateCallbackRunnable(CreateCallback* aCallback)
   : mCallback(aCallback)
   {
     AssertIsInMainProcess();
@@ -674,7 +674,7 @@ class ChildImpl::ParentCreateCallback MOZ_FINAL :
   nsCOMPtr<nsIEventTarget> mEventTarget;
 
 public:
-  explicit ParentCreateCallback(nsIEventTarget* aEventTarget)
+  ParentCreateCallback(nsIEventTarget* aEventTarget)
   : mEventTarget(aEventTarget)
   {
     AssertIsInMainProcess();

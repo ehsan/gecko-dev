@@ -24,7 +24,7 @@ class SVGFEMorphologyElement : public SVGFEMorphologyElementBase
   friend nsresult (::NS_NewSVGFEMorphologyElement(nsIContent **aResult,
                                                   already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo));
 protected:
-  explicit SVGFEMorphologyElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
+  SVGFEMorphologyElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
     : SVGFEMorphologyElementBase(aNodeInfo)
   {
   }

@@ -156,7 +156,7 @@ public:
     ~Native2WrappedNativeMap();
 private:
     Native2WrappedNativeMap();    // no implementation
-    explicit Native2WrappedNativeMap(int size);
+    Native2WrappedNativeMap(int size);
 
     static size_t SizeOfEntryExcludingThis(PLDHashEntryHdr *hdr, mozilla::MallocSizeOf mallocSizeOf, void *);
 
@@ -216,7 +216,7 @@ public:
     ~IID2WrappedJSClassMap();
 private:
     IID2WrappedJSClassMap();    // no implementation
-    explicit IID2WrappedJSClassMap(int size);
+    IID2WrappedJSClassMap(int size);
 private:
     PLDHashTable *mTable;
 };
@@ -275,7 +275,7 @@ public:
     ~IID2NativeInterfaceMap();
 private:
     IID2NativeInterfaceMap();    // no implementation
-    explicit IID2NativeInterfaceMap(int size);
+    IID2NativeInterfaceMap(int size);
 
     static size_t SizeOfEntryExcludingThis(PLDHashEntryHdr *hdr, mozilla::MallocSizeOf mallocSizeOf, void *);
 
@@ -338,7 +338,7 @@ public:
     ~ClassInfo2NativeSetMap();
 private:
     ClassInfo2NativeSetMap();    // no implementation
-    explicit ClassInfo2NativeSetMap(int size);
+    ClassInfo2NativeSetMap(int size);
 private:
     PLDHashTable *mTable;
 };
@@ -394,7 +394,7 @@ public:
     ~ClassInfo2WrappedNativeProtoMap();
 private:
     ClassInfo2WrappedNativeProtoMap();    // no implementation
-    explicit ClassInfo2WrappedNativeProtoMap(int size);
+    ClassInfo2WrappedNativeProtoMap(int size);
 
     static size_t SizeOfEntryExcludingThis(PLDHashEntryHdr *hdr, mozilla::MallocSizeOf mallocSizeOf, void *);
 
@@ -467,7 +467,7 @@ public:
     ~NativeSetMap();
 private:
     NativeSetMap();    // no implementation
-    explicit NativeSetMap(int size);
+    NativeSetMap(int size);
 
     static size_t SizeOfEntryExcludingThis(PLDHashEntryHdr *hdr, mozilla::MallocSizeOf mallocSizeOf, void *);
 
@@ -532,7 +532,7 @@ public:
     ~IID2ThisTranslatorMap();
 private:
     IID2ThisTranslatorMap();    // no implementation
-    explicit IID2ThisTranslatorMap(int size);
+    IID2ThisTranslatorMap(int size);
 private:
     PLDHashTable *mTable;
 };
@@ -569,7 +569,7 @@ public:
     ~XPCNativeScriptableSharedMap();
 private:
     XPCNativeScriptableSharedMap();    // no implementation
-    explicit XPCNativeScriptableSharedMap(int size);
+    XPCNativeScriptableSharedMap(int size);
 private:
     PLDHashTable *mTable;
 };
@@ -607,7 +607,7 @@ public:
     ~XPCWrappedNativeProtoMap();
 private:
     XPCWrappedNativeProtoMap();    // no implementation
-    explicit XPCWrappedNativeProtoMap(int size);
+    XPCWrappedNativeProtoMap(int size);
 private:
     PLDHashTable *mTable;
 };

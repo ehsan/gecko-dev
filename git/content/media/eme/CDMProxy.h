@@ -248,7 +248,7 @@ private:
   template<class Type>
   class MainThreadOnlyRawPtr {
   public:
-    explicit MainThreadOnlyRawPtr(Type* aPtr)
+    MainThreadOnlyRawPtr(Type* aPtr)
       : mPtr(aPtr)
     {
       MOZ_ASSERT(NS_IsMainThread());

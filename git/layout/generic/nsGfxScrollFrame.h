@@ -95,7 +95,7 @@ public:
   class ScrollEvent : public nsRunnable {
   public:
     NS_DECL_NSIRUNNABLE
-    explicit ScrollEvent(ScrollFrameHelper *helper) : mHelper(helper) {}
+    ScrollEvent(ScrollFrameHelper *helper) : mHelper(helper) {}
     void Revoke() { mHelper = nullptr; }
   private:
     ScrollFrameHelper *mHelper;
@@ -104,7 +104,7 @@ public:
   class AsyncScrollPortEvent : public nsRunnable {
   public:
     NS_DECL_NSIRUNNABLE
-    explicit AsyncScrollPortEvent(ScrollFrameHelper *helper) : mHelper(helper) {}
+    AsyncScrollPortEvent(ScrollFrameHelper *helper) : mHelper(helper) {}
     void Revoke() { mHelper = nullptr; }
   private:
     ScrollFrameHelper *mHelper;
@@ -113,7 +113,7 @@ public:
   class ScrolledAreaEvent : public nsRunnable {
   public:
     NS_DECL_NSIRUNNABLE
-    explicit ScrolledAreaEvent(ScrollFrameHelper *helper) : mHelper(helper) {}
+    ScrolledAreaEvent(ScrollFrameHelper *helper) : mHelper(helper) {}
     void Revoke() { mHelper = nullptr; }
   private:
     ScrollFrameHelper *mHelper;

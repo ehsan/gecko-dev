@@ -55,7 +55,7 @@ public:                                                 \
 class nsBaseStateUpdatingCommand : public nsBaseComposerCommand
 {
 public:
-  explicit nsBaseStateUpdatingCommand(nsIAtom* aTagName);
+  nsBaseStateUpdatingCommand(nsIAtom* aTagName);
 
   NS_DECL_ISUPPORTS_INHERITED
 
@@ -80,7 +80,7 @@ protected:
 class nsStyleUpdatingCommand : public nsBaseStateUpdatingCommand
 {
 public:
-  explicit nsStyleUpdatingCommand(nsIAtom* aTagName);
+  nsStyleUpdatingCommand(nsIAtom* aTagName);
            
 protected:
 
@@ -111,7 +111,7 @@ protected:
 class nsListCommand : public nsBaseStateUpdatingCommand
 {
 public:
-  explicit nsListCommand(nsIAtom* aTagName);
+  nsListCommand(nsIAtom* aTagName);
 
 protected:
 
@@ -125,7 +125,7 @@ protected:
 class nsListItemCommand : public nsBaseStateUpdatingCommand
 {
 public:
-  explicit nsListItemCommand(nsIAtom* aTagName);
+  nsListItemCommand(nsIAtom* aTagName);
 
 protected:
 

@@ -28,7 +28,7 @@ class SpeechGrammarList MOZ_FINAL : public nsISupports,
                                     public nsWrapperCache
 {
 public:
-  explicit SpeechGrammarList(nsISupports* aParent);
+  SpeechGrammarList(nsISupports* aParent);
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(SpeechGrammarList)

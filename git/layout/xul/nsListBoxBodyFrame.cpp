@@ -72,7 +72,7 @@ private:
 public:
   NS_DECL_ISUPPORTS
 
-  explicit nsListScrollSmoother(nsListBoxBodyFrame* aOuter);
+  nsListScrollSmoother(nsListBoxBodyFrame* aOuter);
 
   // nsITimerCallback
   NS_DECL_NSITIMERCALLBACK

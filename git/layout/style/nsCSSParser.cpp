@@ -326,7 +326,7 @@ protected:
    */
   class nsAutoParseCompoundProperty {
     public:
-      explicit nsAutoParseCompoundProperty(CSSParserImpl* aParser) : mParser(aParser)
+      nsAutoParseCompoundProperty(CSSParserImpl* aParser) : mParser(aParser)
       {
         NS_ASSERTION(!aParser->IsParsingCompoundProperty(),
                      "already parsing compound property");
@@ -376,8 +376,8 @@ protected:
    */
   class nsAutoSuppressErrors {
     public:
-      explicit nsAutoSuppressErrors(CSSParserImpl* aParser,
-                                    bool aSuppressErrors = true)
+      nsAutoSuppressErrors(CSSParserImpl* aParser,
+                           bool aSuppressErrors = true)
         : mParser(aParser),
           mOriginalValue(aParser->mSuppressErrors)
       {

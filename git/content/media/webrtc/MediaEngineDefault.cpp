@@ -306,7 +306,7 @@ public:
   static const int millisecondsPerSecond = 1000;
   static const int frequency = 1000;
 
-  explicit SineWaveGenerator(int aSampleRate) :
+  SineWaveGenerator(int aSampleRate) :
     mTotalLength(aSampleRate / frequency),
     mReadLength(0) {
     MOZ_ASSERT(mTotalLength * frequency == aSampleRate);

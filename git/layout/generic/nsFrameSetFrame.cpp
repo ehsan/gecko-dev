@@ -153,7 +153,7 @@ public:
                           nsReflowStatus&          aStatus) MOZ_OVERRIDE;
 
 protected:
-  explicit nsHTMLFramesetBlankFrame(nsStyleContext* aContext) : nsLeafFrame(aContext) {}
+  nsHTMLFramesetBlankFrame(nsStyleContext* aContext) : nsLeafFrame(aContext) {}
   virtual ~nsHTMLFramesetBlankFrame();
   virtual nscoord GetIntrinsicISize() MOZ_OVERRIDE;
   virtual nscoord GetIntrinsicBSize() MOZ_OVERRIDE;

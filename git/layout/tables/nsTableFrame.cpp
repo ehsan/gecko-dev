@@ -4077,7 +4077,7 @@ class BCMapCellIterator;
  ****************************************************************/
 struct BCMapCellInfo
 {
-  explicit BCMapCellInfo(nsTableFrame* aTableFrame);
+  BCMapCellInfo(nsTableFrame* aTableFrame);
   void ResetCellInfo();
   void SetInfo(nsTableRowFrame*   aNewRow,
                int32_t            aColIndex,
@@ -4737,7 +4737,7 @@ GetColorAndStyle(const nsIFrame*  aFrame,
 
 class nsDelayedCalcBCBorders : public nsRunnable {
 public:
-  explicit nsDelayedCalcBCBorders(nsIFrame* aFrame) :
+  nsDelayedCalcBCBorders(nsIFrame* aFrame) :
     mFrame(aFrame) {}
 
   NS_IMETHOD Run() MOZ_OVERRIDE {
@@ -6236,7 +6236,7 @@ class BCPaintBorderIterator
 public:
 
 
-  explicit BCPaintBorderIterator(nsTableFrame* aTable);
+  BCPaintBorderIterator(nsTableFrame* aTable);
   ~BCPaintBorderIterator() { if (mVerInfo) {
                               delete [] mVerInfo;
                            }}

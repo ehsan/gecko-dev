@@ -18,7 +18,7 @@ class nsHTMLButtonControlFrame : public nsContainerFrame,
                                  public nsIFormControlFrame 
 {
 public:
-  explicit nsHTMLButtonControlFrame(nsStyleContext* aContext);
+  nsHTMLButtonControlFrame(nsStyleContext* aContext);
   ~nsHTMLButtonControlFrame();
 
   virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;
