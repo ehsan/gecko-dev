@@ -3525,14 +3525,14 @@ NS_IMETHODIMP nsHTMLEditor::InsertTextImpl(const nsAString& aStringToInsert,
 void
 nsHTMLEditor::ContentAppended(nsIDocument *aDocument, nsIContent* aContainer,
                               nsIContent* aFirstNewContent,
-                              PRInt32 aIndexInContainer)
+                              PRInt32 /* unused */)
 {
-  ContentInserted(aDocument, aContainer, aFirstNewContent, aIndexInContainer);
+  ContentInserted(aDocument, aContainer, aFirstNewContent, 0);
 }
 
 void
 nsHTMLEditor::ContentInserted(nsIDocument *aDocument, nsIContent* aContainer,
-                              nsIContent* aChild, PRInt32 aIndexInContainer)
+                              nsIContent* aChild, PRInt32 /* unused */)
 {
   if (!aChild) {
     return;
@@ -3550,16 +3550,6 @@ nsHTMLEditor::ContentInserted(nsIDocument *aDocument, nsIContent* aContainer,
       return;
     }
     mRules->DocumentModified();
-
-    // Update spellcheck for only the newly-inserted node (bug 743819)
-    if (mInlineSpellChecker) {
-      nsRefPtr<nsRange> range = new nsRange();
-      nsresult res = range->Set(aContainer, aIndexInContainer,
-                                aContainer, aIndexInContainer + 1);
-      if (NS_SUCCEEDED(res)) {
-        mInlineSpellChecker->SpellCheckRange(range);
-      }
-    }
   }
 }
 
