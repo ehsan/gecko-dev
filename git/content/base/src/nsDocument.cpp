@@ -40,9 +40,8 @@
 #include "nsDOMClassInfo.h"
 #include "nsCxPusher.h"
 
-#include "mozilla/AsyncEventDispatcher.h"
 #include "mozilla/BasicEvents.h"
-#include "mozilla/EventListenerManager.h"
+#include "nsAsyncDOMEvent.h"
 #include "nsIDOMNodeFilter.h"
 
 #include "nsIDOMStyleSheet.h"
@@ -1714,7 +1713,7 @@ nsDocument::DeleteCycleCollectable()
 
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(nsDocument)
   if (Element::CanSkip(tmp, aRemovingAllowed)) {
-    EventListenerManager* elm = tmp->GetExistingListenerManager();
+    nsEventListenerManager* elm = tmp->GetExistingListenerManager();
     if (elm) {
       elm->MarkForCC();
     }
@@ -3981,10 +3980,9 @@ nsDocument::AddStyleSheetToStyleSets(nsIStyleSheet* aSheet)
                         cssSheet, __VA_ARGS__);                         \
     event->SetTrusted(true);                                            \
     event->SetTarget(this);                                             \
-    nsRefPtr<AsyncEventDispatcher> asyncDispatcher =                    \
-      new AsyncEventDispatcher(this, event);                            \
-    asyncDispatcher->mDispatchChromeOnly = true;                        \
-    asyncDispatcher->PostDOMEvent();                                    \
+    nsRefPtr<nsAsyncDOMEvent> asyncEvent = new nsAsyncDOMEvent(this, event); \
+    asyncEvent->mDispatchChromeOnly = true;                             \
+    asyncEvent->PostDOMEvent();                                         \
   } while (0);
 
 void
@@ -7617,19 +7615,19 @@ nsDocument::GetViewportInfo(const ScreenIntSize& aDisplaySize)
   }
 }
 
-EventListenerManager*
+nsEventListenerManager*
 nsDocument::GetOrCreateListenerManager()
 {
   if (!mListenerManager) {
     mListenerManager =
-      new EventListenerManager(static_cast<EventTarget*>(this));
+      new nsEventListenerManager(static_cast<EventTarget*>(this));
     SetFlags(NODE_HAS_LISTENERMANAGER);
   }
 
   return mListenerManager;
 }
 
-EventListenerManager*
+nsEventListenerManager*
 nsDocument::GetExistingListenerManager() const
 {
   return mListenerManager;
@@ -8323,7 +8321,7 @@ nsDocument::CanSavePresentation(nsIRequest *aNewRequest)
   // Check our event listener manager for unload/beforeunload listeners.
   nsCOMPtr<EventTarget> piTarget = do_QueryInterface(mScriptGlobalObject);
   if (piTarget) {
-    EventListenerManager* manager = piTarget->GetExistingListenerManager();
+    nsEventListenerManager* manager = piTarget->GetExistingListenerManager();
     if (manager && manager->HasUnloadListeners()) {
       return false;
     }
@@ -8568,12 +8566,12 @@ nsDocument::UnblockOnload(bool aFireSync)
       // event to indicate that the SVG should be considered fully loaded.
       // Because scripting is disabled on SVG-as-image documents, this event
       // is not accessible to content authors. (See bug 837135.)
-      nsRefPtr<AsyncEventDispatcher> asyncDispatcher =
-        new AsyncEventDispatcher(this,
-                                 NS_LITERAL_STRING("MozSVGAsImageDocumentLoad"),
-                                 false,
-                                 false);
-      asyncDispatcher->PostDOMEvent();
+      nsRefPtr<nsAsyncDOMEvent> e =
+        new nsAsyncDOMEvent(this,
+                            NS_LITERAL_STRING("MozSVGAsImageDocumentLoad"),
+                            false,
+                            false);
+      e->PostDOMEvent();
     }
   }
 }
@@ -8751,12 +8749,12 @@ NotifyPageHide(nsIDocument* aDocument, void* aData)
 static void
 DispatchFullScreenChange(nsIDocument* aTarget)
 {
-  nsRefPtr<AsyncEventDispatcher> asyncDispatcher =
-    new AsyncEventDispatcher(aTarget,
-                             NS_LITERAL_STRING("mozfullscreenchange"),
-                             true,
-                             false);
-  asyncDispatcher->PostDOMEvent();
+  nsRefPtr<nsAsyncDOMEvent> e =
+    new nsAsyncDOMEvent(aTarget,
+                        NS_LITERAL_STRING("mozfullscreenchange"),
+                        true,
+                        false);
+  e->PostDOMEvent();
 }
 
 void
@@ -8909,8 +8907,7 @@ nsDocument::MutationEventDispatched(nsINode* aTarget)
     int32_t realTargetCount = realTargets.Count();
     for (int32_t k = 0; k < realTargetCount; ++k) {
       InternalMutationEvent mutation(true, NS_MUTATION_SUBTREEMODIFIED);
-      (new AsyncEventDispatcher(realTargets[k], mutation))->
-        RunDOMEventWhenSafe();
+      (new nsAsyncDOMEvent(realTargets[k], mutation))->RunDOMEventWhenSafe();
     }
   }
 }
@@ -9073,10 +9070,11 @@ nsDocument::SetReadyStateInternal(ReadyState rs)
     mLoadingTimeStamp = mozilla::TimeStamp::Now();
   }
 
-  nsRefPtr<AsyncEventDispatcher> asyncDispatcher =
-    new AsyncEventDispatcher(this, NS_LITERAL_STRING("readystatechange"),
-                             false, false);
-  asyncDispatcher->RunDOMEventWhenSafe();
+  nsRefPtr<nsAsyncDOMEvent> plevent =
+    new nsAsyncDOMEvent(this, NS_LITERAL_STRING("readystatechange"), false, false);
+  if (plevent) {
+    plevent->RunDOMEventWhenSafe();
+  }
 }
 
 NS_IMETHODIMP
@@ -10672,12 +10670,12 @@ nsDocument::RestorePreviousFullScreenState()
         if (!nsContentUtils::HaveEqualPrincipals(fullScreenDoc, doc) ||
             (!nsContentUtils::IsSitePermAllow(doc->NodePrincipal(), "fullscreen") &&
              !static_cast<nsDocument*>(doc)->mIsApprovedForFullscreen)) {
-          nsRefPtr<AsyncEventDispatcher> asyncDispatcher =
-            new AsyncEventDispatcher(doc,
-                  NS_LITERAL_STRING("MozEnteredDomFullscreen"),
-                  true,
-                  true);
-          asyncDispatcher->PostDOMEvent();
+          nsRefPtr<nsAsyncDOMEvent> e =
+            new nsAsyncDOMEvent(doc,
+                                NS_LITERAL_STRING("MozEnteredDomFullscreen"),
+                                true,
+                                true);
+          e->PostDOMEvent();
         }
       }
 
@@ -10761,12 +10759,12 @@ LogFullScreenDenied(bool aLogFailure, const char* aMessage, nsIDocument* aDoc)
   if (!aLogFailure) {
     return;
   }
-  nsRefPtr<AsyncEventDispatcher> asyncDispatcher =
-    new AsyncEventDispatcher(aDoc,
-                             NS_LITERAL_STRING("mozfullscreenerror"),
-                             true,
-                             false);
-  asyncDispatcher->PostDOMEvent();
+  nsRefPtr<nsAsyncDOMEvent> e =
+    new nsAsyncDOMEvent(aDoc,
+                        NS_LITERAL_STRING("mozfullscreenerror"),
+                        true,
+                        false);
+  e->PostDOMEvent();
   nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
                                   NS_LITERAL_CSTRING("DOM"), aDoc,
                                   nsContentUtils::eDOM_PROPERTIES,
@@ -11122,12 +11120,12 @@ nsDocument::RequestFullScreen(Element* aElement,
   // session.
   if (!mIsApprovedForFullscreen ||
       !nsContentUtils::HaveEqualPrincipals(previousFullscreenDoc, this)) {
-    nsRefPtr<AsyncEventDispatcher> asyncDispatcher =
-      new AsyncEventDispatcher(this,
-                               NS_LITERAL_STRING("MozEnteredDomFullscreen"),
-                               true,
-                               true);
-    asyncDispatcher->PostDOMEvent();
+    nsRefPtr<nsAsyncDOMEvent> e =
+      new nsAsyncDOMEvent(this,
+                          NS_LITERAL_STRING("MozEnteredDomFullscreen"),
+                          true,
+                          true);
+    e->PostDOMEvent();
   }
 
 #ifdef DEBUG
@@ -11279,12 +11277,12 @@ DispatchPointerLockChange(nsIDocument* aTarget)
     return;
   }
 
-  nsRefPtr<AsyncEventDispatcher> asyncDispatcher =
-    new AsyncEventDispatcher(aTarget,
-                             NS_LITERAL_STRING("mozpointerlockchange"),
-                             true,
-                             false);
-  asyncDispatcher->PostDOMEvent();
+  nsRefPtr<nsAsyncDOMEvent> e =
+    new nsAsyncDOMEvent(aTarget,
+                        NS_LITERAL_STRING("mozpointerlockchange"),
+                        true,
+                        false);
+  e->PostDOMEvent();
 }
 
 static void
@@ -11294,12 +11292,12 @@ DispatchPointerLockError(nsIDocument* aTarget)
     return;
   }
 
-  nsRefPtr<AsyncEventDispatcher> asyncDispatcher =
-    new AsyncEventDispatcher(aTarget,
-                             NS_LITERAL_STRING("mozpointerlockerror"),
-                             true,
-                             false);
-  asyncDispatcher->PostDOMEvent();
+  nsRefPtr<nsAsyncDOMEvent> e =
+    new nsAsyncDOMEvent(aTarget,
+                        NS_LITERAL_STRING("mozpointerlockerror"),
+                        true,
+                        false);
+  e->PostDOMEvent();
 }
 
 mozilla::StaticRefPtr<nsPointerLockPermissionRequest> gPendingPointerLockRequest;
@@ -11840,7 +11838,7 @@ nsIDocument::DocAddSizeOfExcludingThis(nsWindowSizes* aWindowSizes) const
       mExtraPropertyTables[i]->SizeOfExcludingThis(aWindowSizes->mMallocSizeOf);
   }
 
-  if (EventListenerManager* elm = GetExistingListenerManager()) {
+  if (nsEventListenerManager* elm = GetExistingListenerManager()) {
     aWindowSizes->mDOMEventListenersCount += elm->ListenerCount();
   }
 
@@ -11906,7 +11904,7 @@ nsDocument::DocAddSizeOfExcludingThis(nsWindowSizes* aWindowSizes) const
 
     *p += nodeSize;
 
-    if (EventListenerManager* elm = node->GetExistingListenerManager()) {
+    if (nsEventListenerManager* elm = node->GetExistingListenerManager()) {
       aWindowSizes->mDOMEventListenersCount += elm->ListenerCount();
     }
   }

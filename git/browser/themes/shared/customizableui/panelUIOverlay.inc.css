@@ -5,7 +5,6 @@
 %filter substitution
 
 %define menuPanelWidth 22.35em
-%define standaloneSubviewWidth 30em
 % XXXgijs This is the ugliest bit of code I think I've ever written for Mozilla.
 % Basically, the 0.1px is there to avoid CSS rounding errors causing buttons to wrap.
 % For gory details, refer to https://bugzilla.mozilla.org/show_bug.cgi?id=963365#c11
@@ -88,10 +87,6 @@
 
 .panel-viewstack[viewtype="main"] > .panel-subviews:-moz-locale-dir(rtl) {
   transform: translateX(-@menuPanelWidth@);
-}
-
-panelmultiview[nosubviews=true] > .panel-viewcontainer > .panel-viewstack > .panel-subviews {
-  display: none;
 }
 
 .panel-viewstack:not([viewtype="main"]) > .panel-mainview > #PanelUI-mainView {
@@ -191,13 +186,10 @@ panelmultiview[nosubviews=true] > .panel-viewcontainer > .panel-viewstack > .pan
   -moz-margin-start: 0;
 }
 
-#PanelUI-contents {
-  max-width: @menuPanelWidth@;
-}
-
+#PanelUI-contents,
 #BMB_bookmarksPopup,
 .panel-mainview:not([panelid="PanelUI-popup"]) {
-  max-width: @standaloneSubviewWidth@;
+  max-width: @menuPanelWidth@;
 }
 
 panelview:not([mainview]) .toolbarbutton-text,

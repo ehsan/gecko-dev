@@ -4557,13 +4557,11 @@ var Utils = {
    */
   categoryForScriptError: function Utils_categoryForScriptError(aScriptError)
   {
-    let category = aScriptError.category;
+    switch (aScriptError.category) {
+      case "CSS Parser":
+      case "CSS Loader":
+        return CATEGORY_CSS;
 
-    if (/^(?:CSS|Layout)\b/.test(category)) {
-      return CATEGORY_CSS;
-    }
-
-    switch (category) {
       case "Mixed Content Blocker":
       case "Mixed Content Message":
       case "CSP":

@@ -51,6 +51,7 @@
 #include "mozilla/unused.h"
 
 // Other Classes
+#include "nsEventListenerManager.h"
 #include "mozilla/dom/BarProps.h"
 #include "nsContentCID.h"
 #include "nsLayoutStatics.h"
@@ -59,7 +60,6 @@
 #include "nsJSPrincipals.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/Debug.h"
-#include "mozilla/EventListenerManager.h"
 #include "mozilla/MouseEvents.h"
 #include "AudioChannelService.h"
 
@@ -1674,7 +1674,7 @@ NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(nsGlobalWindow)
     if (tmp->mCachedXBLPrototypeHandlers) {
       tmp->mCachedXBLPrototypeHandlers->Enumerate(MarkXBLHandlers, nullptr);
     }
-    if (EventListenerManager* elm = tmp->GetExistingListenerManager()) {
+    if (nsEventListenerManager* elm = tmp->GetExistingListenerManager()) {
       elm->MarkForCC();
     }
     tmp->UnmarkGrayTimers();
@@ -9159,7 +9159,7 @@ nsGlobalWindow::RemoveEventListener(const nsAString& aType,
                                     nsIDOMEventListener* aListener,
                                     bool aUseCapture)
 {
-  if (nsRefPtr<EventListenerManager> elm = GetExistingListenerManager()) {
+  if (nsRefPtr<nsEventListenerManager> elm = GetExistingListenerManager()) {
     elm->RemoveEventListener(aType, aListener, aUseCapture);
   }
   return NS_OK;
@@ -9220,7 +9220,7 @@ nsGlobalWindow::AddEventListener(const nsAString& aType,
     aWantsUntrusted = true;
   }
 
-  EventListenerManager* manager = GetOrCreateListenerManager();
+  nsEventListenerManager* manager = GetOrCreateListenerManager();
   NS_ENSURE_STATE(manager);
   manager->AddEventListener(aType, aListener, aUseCapture, aWantsUntrusted);
   return NS_OK;
@@ -9246,7 +9246,7 @@ nsGlobalWindow::AddEventListener(const nsAString& aType,
     wantsUntrusted = aWantsUntrusted.Value();
   }
 
-  EventListenerManager* manager = GetOrCreateListenerManager();
+  nsEventListenerManager* manager = GetOrCreateListenerManager();
   if (!manager) {
     aRv.Throw(NS_ERROR_UNEXPECTED);
     return;
@@ -9280,20 +9280,20 @@ nsGlobalWindow::AddSystemEventListener(const nsAString& aType,
                                    aWantsUntrusted);
 }
 
-EventListenerManager*
+nsEventListenerManager*
 nsGlobalWindow::GetOrCreateListenerManager()
 {
   FORWARD_TO_INNER_CREATE(GetOrCreateListenerManager, (), nullptr);
 
   if (!mListenerManager) {
     mListenerManager =
-      new EventListenerManager(static_cast<EventTarget*>(this));
+      new nsEventListenerManager(static_cast<EventTarget*>(this));
   }
 
   return mListenerManager;
 }
 
-EventListenerManager*
+nsEventListenerManager*
 nsGlobalWindow::GetExistingListenerManager() const
 {
   FORWARD_TO_INNER(GetExistingListenerManager, (), nullptr);
@@ -12869,7 +12869,7 @@ CollectSizeAndListenerCount(
       iSizeOf->SizeOfEventTargetIncludingThis(windowSizes->mMallocSizeOf);
   }
 
-  if (EventListenerManager* elm = et->GetExistingListenerManager()) {
+  if (nsEventListenerManager* elm = et->GetExistingListenerManager()) {
     windowSizes->mDOMEventListenersCount += elm->ListenerCount();
   }
 
@@ -12882,7 +12882,7 @@ nsGlobalWindow::AddSizeOfIncludingThis(nsWindowSizes* aWindowSizes) const
   aWindowSizes->mDOMOtherSize += aWindowSizes->mMallocSizeOf(this);
 
   if (IsInnerWindow()) {
-    EventListenerManager* elm = GetExistingListenerManager();
+    nsEventListenerManager* elm = GetExistingListenerManager();
     if (elm) {
       aWindowSizes->mDOMOtherSize +=
         elm->SizeOfIncludingThis(aWindowSizes->mMallocSizeOf);
@@ -13597,7 +13597,7 @@ nsGlobalWindow::DisableNetworkEvent(uint32_t aType)
 #define ERROR_EVENT(name_, id_, type_, struct_)                              \
   NS_IMETHODIMP nsGlobalWindow::GetOn##name_(JSContext *cx,                  \
                                              JS::MutableHandle<JS::Value> vp) { \
-    EventListenerManager *elm = GetExistingListenerManager();                \
+    nsEventListenerManager *elm = GetExistingListenerManager();              \
     if (elm) {                                                               \
       OnErrorEventHandlerNonNull* h = elm->GetOnErrorEventHandler();         \
       if (h) {                                                               \
@@ -13610,7 +13610,7 @@ nsGlobalWindow::DisableNetworkEvent(uint32_t aType)
   }                                                                          \
   NS_IMETHODIMP nsGlobalWindow::SetOn##name_(JSContext *cx,                  \
                                              JS::Handle<JS::Value> v) {      \
-    EventListenerManager *elm = GetOrCreateListenerManager();                \
+    nsEventListenerManager *elm = GetOrCreateListenerManager();              \
     if (!elm) {                                                              \
       return NS_ERROR_OUT_OF_MEMORY;                                         \
     }                                                                        \
@@ -13627,7 +13627,7 @@ nsGlobalWindow::DisableNetworkEvent(uint32_t aType)
 #define BEFOREUNLOAD_EVENT(name_, id_, type_, struct_)                       \
   NS_IMETHODIMP nsGlobalWindow::GetOn##name_(JSContext *cx,                  \
                                              JS::MutableHandle<JS::Value> vp) { \
-    EventListenerManager *elm = GetExistingListenerManager();                \
+    nsEventListenerManager *elm = GetExistingListenerManager();              \
     if (elm) {                                                               \
       OnBeforeUnloadEventHandlerNonNull* h =                                 \
         elm->GetOnBeforeUnloadEventHandler();                                \
@@ -13641,7 +13641,7 @@ nsGlobalWindow::DisableNetworkEvent(uint32_t aType)
   }                                                                          \
   NS_IMETHODIMP nsGlobalWindow::SetOn##name_(JSContext *cx,                  \
                                              JS::Handle<JS::Value> v) {      \
-    EventListenerManager *elm = GetOrCreateListenerManager();                \
+    nsEventListenerManager *elm = GetOrCreateListenerManager();              \
     if (!elm) {                                                              \
       return NS_ERROR_OUT_OF_MEMORY;                                         \
     }                                                                        \

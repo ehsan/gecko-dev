@@ -25,6 +25,7 @@
 #include "nsIDOMHTMLTextAreaElement.h"
 #include "nsIDOMHTMLInputElement.h"
 #include "nsFocusManager.h"
+#include "nsEventListenerManager.h"
 #include "nsIDOMEventListener.h"
 #include "nsPIDOMWindow.h"
 #include "nsPIWindowRoot.h"
