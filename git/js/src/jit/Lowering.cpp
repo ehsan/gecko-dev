@@ -658,12 +658,6 @@ LIRGenerator::visitTest(MTest *test)
         return;
     }
 
-    if (opd->type() == MIRType_ObjectOrNull) {
-        LDefinition temp0 = test->operandMightEmulateUndefined() ? temp() : LDefinition::BogusTemp();
-        add(new(alloc()) LTestOAndBranch(useRegister(opd), ifTrue, ifFalse, temp0), test);
-        return;
-    }
-
     // Objects are truthy, except if it might emulate undefined.
     if (opd->type() == MIRType_Object) {
         if (test->operandMightEmulateUndefined())
@@ -2333,18 +2327,10 @@ LIRGenerator::visitTypeBarrier(MTypeBarrier *ins)
         return;
     }
 
-    // The payload needs to be tested if it either might be null or might have
-    // an object that should be excluded from the barrier.
-    bool needsObjectBarrier = false;
-    if (inputType == MIRType_ObjectOrNull)
-        needsObjectBarrier = true;
+    // Handle typebarrier with specific ObjectGroup/SingleObjects.
     if (inputType == MIRType_Object && !types->hasType(TypeSet::AnyObjectType()) &&
         ins->barrierKind() != BarrierKind::TypeTagOnly)
     {
-        needsObjectBarrier = true;
-    }
-
-    if (needsObjectBarrier) {
         LDefinition tmp = needTemp ? temp() : LDefinition::BogusTemp();
         LTypeBarrierO *barrier = new(alloc()) LTypeBarrierO(useRegister(ins->getOperand(0)), tmp);
         assignSnapshot(barrier, Bailout_TypeBarrierO);

@@ -944,14 +944,7 @@ HttpChannelChild::Redirect1Begin(const uint32_t& newChannelId,
   nsCOMPtr<nsIURI> uri = DeserializeURI(newUri);
 
   nsCOMPtr<nsIChannel> newChannel;
-  rv = NS_NewChannelInternal(getter_AddRefs(newChannel),
-                             uri,
-                             mLoadInfo,
-                             nullptr, // aLoadGroup
-                             nullptr, // aCallbacks
-                             nsIRequest::LOAD_NORMAL,
-                             ioService);
-
+  rv = ioService->NewChannelFromURI(uri, getter_AddRefs(newChannel));
   if (NS_FAILED(rv)) {
     // Veto redirect.  nsHttpChannel decides to cancel or continue.
     OnRedirectVerifyCallback(rv);

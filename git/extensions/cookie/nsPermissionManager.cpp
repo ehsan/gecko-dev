@@ -1895,16 +1895,18 @@ nsPermissionManager::ImportDefaults()
     return NS_OK;
   }
 
+  nsresult rv;
+  nsCOMPtr<nsIIOService> ioservice =
+    do_GetService("@mozilla.org/network/io-service;1", &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   nsCOMPtr<nsIURI> defaultsURI;
-  nsresult rv = NS_NewURI(getter_AddRefs(defaultsURI), defaultsURL);
+  rv = NS_NewURI(getter_AddRefs(defaultsURI), defaultsURL,
+                 nullptr, nullptr, ioservice);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIChannel> channel;
-  rv = NS_NewChannel(getter_AddRefs(channel),
-                     defaultsURI,
-                     nsContentUtils::GetSystemPrincipal(),
-                     nsILoadInfo::SEC_NORMAL,
-                     nsIContentPolicy::TYPE_OTHER);
+  rv = ioservice->NewChannelFromURI(defaultsURI, getter_AddRefs(channel));
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIInputStream> inputStream;

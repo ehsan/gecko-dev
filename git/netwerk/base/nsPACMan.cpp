@@ -14,7 +14,6 @@
 #include "nsNetUtil.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
 #include "nsISystemProxySettings.h"
-#include "nsContentUtils.h"
 #ifdef MOZ_NUWA_PROCESS
 #include "ipc/Nuwa.h"
 #endif
@@ -433,15 +432,7 @@ nsPACMan::StartLoading()
       // NOTE: This results in GetProxyForURI being called
       if (pacURI) {
         pacURI->GetSpec(mNormalPACURISpec);
-        NS_NewChannel(getter_AddRefs(channel),
-                      pacURI,
-                      nsContentUtils::GetSystemPrincipal(),
-                      nsILoadInfo::SEC_NORMAL,
-                      nsIContentPolicy::TYPE_OTHER,
-                      nullptr, // aLoadGroup
-                      nullptr, // aCallbacks
-                      nsIRequest::LOAD_NORMAL,
-                      ios);
+        ios->NewChannelFromURI(pacURI, getter_AddRefs(channel));
       }
       else {
         LOG(("nsPACMan::StartLoading Failed pacspec uri conversion %s\n",

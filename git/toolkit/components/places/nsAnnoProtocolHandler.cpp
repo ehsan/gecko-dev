@@ -52,7 +52,7 @@ GetDefaultIcon(nsIChannel **aChannel)
                        defaultIconURI,
                        nsContentUtils::GetSystemPrincipal(),
                        nsILoadInfo::SEC_NORMAL,
-                       nsIContentPolicy::TYPE_IMAGE);
+                       nsIContentPolicy::TYPE_OTHER);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -361,7 +361,7 @@ nsAnnoProtocolHandler::NewFaviconChannel(nsIURI *aURI, nsIURI *aAnnotationURI,
                                   inputStream,
                                   nsContentUtils::GetSystemPrincipal(),
                                   nsILoadInfo::SEC_NORMAL,
-                                  nsIContentPolicy::TYPE_IMAGE);
+                                  nsIContentPolicy::TYPE_OTHER);
   }
   NS_ENSURE_SUCCESS(rv, GetDefaultIcon(_channel));
 

@@ -278,15 +278,15 @@ function parseRegExp(aStr) {
  *          The nsIPluginTag to get the blocklist state for.
  * @returns True if the blockEntry matches the plugin, false otherwise.
  */
-function matchesAllPluginNames(blockEntry, plugin) {
+function hasMatchingPluginName(blockEntry, plugin) {
   for (let name in blockEntry.matches) {
-    if (!(name in plugin) ||
-        typeof(plugin[name]) != "string" ||
-        !blockEntry.matches[name].test(plugin[name])) {
-      return false;
+    if ((name in plugin) &&
+        typeof(plugin[name]) == "string" &&
+        blockEntry.matches[name].test(plugin[name])) {
+      return true;
     }
   }
-  return true;
+  return false;
 }
 
 /**
@@ -1103,7 +1103,7 @@ Blocklist.prototype = {
       this._loadBlocklist();
 
     for each (let blockEntry in this._pluginEntries) {
-      if (matchesAllPluginNames(blockEntry, plugin)) {
+      if (hasMatchingPluginName(blockEntry, plugin)) {
         return blockEntry;
       }
     }

@@ -110,7 +110,7 @@ class MediaPipeline : public sigslot::has_slots<> {
 
       // PipelineTransport() will access this->sts_thread_; moved here for safety
       transport_ = new PipelineTransport(this);
-    }
+  }
 
   // Must be called on the STS thread.  Must be called after ShutdownMedia_m().
   void ShutdownTransport_s();
@@ -119,12 +119,6 @@ class MediaPipeline : public sigslot::has_slots<> {
   void ShutdownMedia_m() {
     ASSERT_ON_THREAD(main_thread_);
 
-    if (direction_ == RECEIVE) {
-      conduit_->StopReceiving();
-    } else {
-      conduit_->StopTransmitting();
-    }
-
     if (stream_) {
       DetachMediaStream();
     }
@@ -132,15 +126,8 @@ class MediaPipeline : public sigslot::has_slots<> {
 
   virtual nsresult Init();
 
-  void UpdateTransport_m(int level,
-                         RefPtr<TransportFlow> rtp_transport,
-                         RefPtr<TransportFlow> rtcp_transport,
-                         nsAutoPtr<MediaPipelineFilter> filter);
-
-  void UpdateTransport_s(int level,
-                         RefPtr<TransportFlow> rtp_transport,
-                         RefPtr<TransportFlow> rtcp_transport,
-                         nsAutoPtr<MediaPipelineFilter> filter);
+  MediaPipelineFilter* UpdateFilterFromRemoteDescription_s(
+      nsAutoPtr<MediaPipelineFilter> filter);
 
   virtual Direction direction() const { return direction_; }
   virtual const std::string& trackid() const { return track_id_; }
@@ -173,8 +160,6 @@ class MediaPipeline : public sigslot::has_slots<> {
  protected:
   virtual ~MediaPipeline();
   virtual void DetachMediaStream() {}
-  nsresult AttachTransport_s();
-  void DetachTransport_s();
 
   // Separate class to allow ref counting
   class PipelineTransport : public TransportInterface {
@@ -251,10 +236,7 @@ class MediaPipeline : public sigslot::has_slots<> {
   std::string track_id_;        // The track on the stream.
                                 // Written and used as with the stream_;
                                 // Not used outside initialization in MediaPipelineTransmit
-  // The m-line index (starting at 0, to match convention) Atomic because
-  // this value is updated from STS, but read on main, and we don't want to
-  // bother with dispatches just to get an int occasionally.
-  Atomic<int> level_;
+  int level_; // The m-line index (starting at 0, to match convention)
   RefPtr<MediaSessionConduit> conduit_;  // Our conduit. Written on the main
                                          // thread. Read on STS thread.
 

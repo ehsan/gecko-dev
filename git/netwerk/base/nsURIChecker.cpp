@@ -9,7 +9,6 @@
 #include "nsNetUtil.h"
 #include "nsString.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
-#include "nsNullPrincipal.h"
 
 //-----------------------------------------------------------------------------
 
@@ -137,15 +136,11 @@ NS_IMETHODIMP
 nsURIChecker::Init(nsIURI *aURI)
 {
     nsresult rv;
-    nsCOMPtr<nsIPrincipal> nullPrincipal =
-      do_CreateInstance("@mozilla.org/nullprincipal;1", &rv);
-    NS_ENSURE_SUCCESS(rv, rv);
-    rv = NS_NewChannel(getter_AddRefs(mChannel),
-                       aURI,
-                       nullPrincipal,
-                       nsILoadInfo::SEC_NORMAL,
-                       nsIContentPolicy::TYPE_OTHER);
-    NS_ENSURE_SUCCESS(rv, rv);
+    nsCOMPtr<nsIIOService> ios = do_GetIOService(&rv);
+    if (NS_FAILED(rv)) return rv;
+
+    rv = ios->NewChannelFromURI(aURI, getter_AddRefs(mChannel));
+    if (NS_FAILED(rv)) return rv;
 
     if (mAllowHead) {
         mAllowHead = false;

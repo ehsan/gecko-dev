@@ -805,8 +805,9 @@ RTCPeerConnection.prototype = {
   },
 
   removeTrack: function(sender) {
-    this._checkClosed();
-    this._impl.removeTrack(sender.track);
+     // Bug 844295: Not implementing this functionality.
+     throw new this._win.DOMException("removeTrack not yet implemented",
+                                      "NotSupportedError");
   },
 
   _replaceTrack: function(sender, withTrack) {
@@ -1112,10 +1113,6 @@ PeerConnectionObserver.prototype = {
           }
       ));
     }
-  },
-
-  onNegotiationNeeded: function() {
-    this.dispatchEvent(new this._win.Event("negotiationneeded"));
   },
 
 

@@ -76,7 +76,6 @@
 #include "nsIHttpPushListener.h"
 #include "nsIX509Cert.h"
 #include "ScopedNSSTypes.h"
-#include "nsNullPrincipal.h"
 
 namespace mozilla { namespace net {
 
@@ -1794,13 +1793,7 @@ nsHttpChannel::StartRedirectChannelToURI(nsIURI *upgradedURI, uint32_t flags)
     rv = gHttpHandler->GetIOService(getter_AddRefs(ioService));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = NS_NewChannelInternal(getter_AddRefs(newChannel),
-                               upgradedURI,
-                               mLoadInfo,
-                               nullptr, // aLoadGroup
-                               nullptr, // aCallbacks
-                               nsIRequest::LOAD_NORMAL,
-                               ioService);
+    rv = ioService->NewChannelFromURI(upgradedURI, getter_AddRefs(newChannel));
     NS_ENSURE_SUCCESS(rv, rv);
 
     rv = SetupReplacementChannel(upgradedURI, newChannel, true);
@@ -1904,9 +1897,8 @@ nsHttpChannel::AsyncDoReplaceWithProxy(nsIProxyInfo* pi)
     nsresult rv;
 
     nsCOMPtr<nsIChannel> newChannel;
-    rv = gHttpHandler->NewProxiedChannel2(mURI, pi, mProxyResolveFlags,
-                                          mProxyURI, mLoadInfo,
-                                          getter_AddRefs(newChannel));
+    rv = gHttpHandler->NewProxiedChannel(mURI, pi, mProxyResolveFlags,
+                                         mProxyURI, getter_AddRefs(newChannel));
     if (NS_FAILED(rv))
         return rv;
 
@@ -2552,9 +2544,7 @@ nsHttpChannel::ProcessFallback(bool *waitingForRedirectCallback)
 
     // Create a new channel to load the fallback entry.
     nsRefPtr<nsIChannel> newChannel;
-    rv = gHttpHandler->NewChannel2(mURI,
-                                   mLoadInfo,
-                                   getter_AddRefs(newChannel));
+    rv = gHttpHandler->NewChannel(mURI, getter_AddRefs(newChannel));
     NS_ENSURE_SUCCESS(rv, rv);
 
     rv = SetupReplacementChannel(mURI, newChannel, true);
@@ -4436,14 +4426,8 @@ nsHttpChannel::ContinueProcessRedirectionAfterFallback(nsresult rv)
     if (NS_FAILED(rv)) return rv;
 
     nsCOMPtr<nsIChannel> newChannel;
-    rv = NS_NewChannelInternal(getter_AddRefs(newChannel),
-                               mRedirectURI,
-                               mLoadInfo,
-                               nullptr, // aLoadGroup
-                               nullptr, // aCallbacks
-                               nsIRequest::LOAD_NORMAL,
-                               ioService);
-    NS_ENSURE_SUCCESS(rv, rv);
+    rv = ioService->NewChannelFromURI(mRedirectURI, getter_AddRefs(newChannel));
+    if (NS_FAILED(rv)) return rv;
 
     rv = SetupReplacementChannel(mRedirectURI, newChannel, !rewriteToGET);
     if (NS_FAILED(rv)) return rv;
@@ -6651,13 +6635,7 @@ nsHttpChannel::OnPush(const nsACString &url, Http2PushedStream *pushedStream)
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsCOMPtr<nsIChannel> pushChannel;
-    rv = NS_NewChannelInternal(getter_AddRefs(pushChannel),
-                               pushResource,
-                               mLoadInfo,
-                               nullptr, // aLoadGroup
-                               nullptr, // aCallbacks
-                               nsIRequest::LOAD_NORMAL,
-                               ioService);
+    rv = ioService->NewChannelFromURI(pushResource, getter_AddRefs(pushChannel));
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsCOMPtr<nsIHttpChannel> pushHttpChannel = do_QueryInterface(pushChannel);

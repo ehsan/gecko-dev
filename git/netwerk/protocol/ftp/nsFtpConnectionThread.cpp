@@ -41,8 +41,6 @@
 #include "nsISocketTransportService.h"
 #include "nsIURI.h"
 #include "nsICacheSession.h"
-#include "nsILoadInfo.h"
-#include "nsNullPrincipal.h"
 
 #ifdef MOZ_WIDGET_GONK
 #include "NetStatistics.h"
@@ -2383,10 +2381,7 @@ CreateHTTPProxiedChannel(nsIChannel *channel, nsIProxyInfo *pi, nsIChannel **new
     nsCOMPtr<nsIURI> uri;
     channel->GetURI(getter_AddRefs(uri));
 
-    nsCOMPtr<nsILoadInfo> loadInfo;
-    channel->GetLoadInfo(getter_AddRefs(loadInfo));
-
-    return pph->NewProxiedChannel2(uri, pi, 0, nullptr, loadInfo, newChannel);
+    return pph->NewProxiedChannel(uri, pi, 0, nullptr, newChannel);
 }
 
 NS_IMETHODIMP

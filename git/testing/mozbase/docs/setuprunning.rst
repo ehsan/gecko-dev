@@ -10,7 +10,6 @@ correctly handling the case where the system crashes.
    :maxdepth: 2
 
    mozfile
-   mozinstall
    mozprofile
    mozprocess
    mozrunner

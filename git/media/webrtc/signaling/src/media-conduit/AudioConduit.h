@@ -64,11 +64,6 @@ public:
    */
   virtual MediaConduitErrorCode ReceivedRTCPPacket(const void *data, int len) MOZ_OVERRIDE;
 
-  virtual MediaConduitErrorCode StopTransmitting() MOZ_OVERRIDE;
-  virtual MediaConduitErrorCode StartTransmitting() MOZ_OVERRIDE;
-  virtual MediaConduitErrorCode StopReceiving() MOZ_OVERRIDE;
-  virtual MediaConduitErrorCode StartReceiving() MOZ_OVERRIDE;
-
   /**
    * Function to configure send codec for the audio session
    * @param sendSessionConfig: CodecConfiguration
@@ -99,10 +94,7 @@ public:
    * Register External Transport to this Conduit. RTP and RTCP frames from the VoiceEngine
    * shall be passed to the registered transport for transporting externally.
    */
-  virtual MediaConduitErrorCode SetTransmitterTransport(mozilla::RefPtr<TransportInterface> aTransport) MOZ_OVERRIDE;
-
-  virtual MediaConduitErrorCode SetReceiverTransport(mozilla::RefPtr<TransportInterface> aTransport) MOZ_OVERRIDE;
-
+  virtual MediaConduitErrorCode AttachTransport(mozilla::RefPtr<TransportInterface> aTransport) MOZ_OVERRIDE;
   /**
    * Function to deliver externally captured audio sample for encoding and transport
    * @param audioData [in]: Pointer to array containing a frame of audio
@@ -162,10 +154,10 @@ public:
   virtual uint64_t CodecPluginID() MOZ_OVERRIDE { return 0; }
 
   WebrtcAudioConduit():
+                      mOtherDirection(nullptr),
+                      mShutDown(false),
                       mVoiceEngine(nullptr),
-                      mTransportMonitor("WebrtcAudioConduit"),
-                      mTransmitterTransport(nullptr),
-                      mReceiverTransport(nullptr),
+                      mTransport(nullptr),
                       mEngineTransmitting(false),
                       mEngineReceiving(false),
                       mChannel(-1),
@@ -181,7 +173,7 @@ public:
 
   virtual ~WebrtcAudioConduit();
 
-  MediaConduitErrorCode Init();
+  MediaConduitErrorCode Init(WebrtcAudioConduit *other);
 
   int GetChannel() { return mChannel; }
   webrtc::VoiceEngine* GetVoiceEngine() { return mVoiceEngine; }
@@ -250,10 +242,17 @@ private:
   //Utility function to dump recv codec database
   void DumpCodecDB() const;
 
+  // The two sides of a send/receive pair of conduits each keep a pointer to the other.
+  // The also share a single VoiceEngine and mChannel.  Shutdown must be coordinated
+  // carefully to avoid double-freeing or accessing after one frees.
+  WebrtcAudioConduit*  mOtherDirection;
+  // Other side has shut down our channel and related items already
+  bool mShutDown;
+
+  // These are shared by both directions.  They're released by the last
+  // conduit to die
   webrtc::VoiceEngine* mVoiceEngine;
-  mozilla::ReentrantMonitor mTransportMonitor;
-  mozilla::RefPtr<TransportInterface> mTransmitterTransport;
-  mozilla::RefPtr<TransportInterface> mReceiverTransport;
+  mozilla::RefPtr<TransportInterface> mTransport;
   ScopedCustomReleasePtr<webrtc::VoENetwork>   mPtrVoENetwork;
   ScopedCustomReleasePtr<webrtc::VoEBase>      mPtrVoEBase;
   ScopedCustomReleasePtr<webrtc::VoECodec>     mPtrVoECodec;
@@ -263,8 +262,8 @@ private:
   ScopedCustomReleasePtr<webrtc::VoERTP_RTCP>  mPtrVoERTP_RTCP;
   ScopedCustomReleasePtr<webrtc::VoERTP_RTCP>  mPtrRTP;
   //engine states of our interets
-  mozilla::Atomic<bool> mEngineTransmitting; // If true => VoiceEngine Send-subsystem is up
-  mozilla::Atomic<bool> mEngineReceiving;    // If true => VoiceEngine Receive-subsystem is up
+  bool mEngineTransmitting; // If true => VoiceEngine Send-subsystem is up
+  bool mEngineReceiving;    // If true => VoiceEngine Receive-subsystem is up
                             // and playout is enabled
   // Keep track of each inserted RTP block and the time it was inserted
   // so we can estimate the clock time for a specific TimeStamp coming out
