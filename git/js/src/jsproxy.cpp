@@ -1107,7 +1107,8 @@ NewProxyObject(JSContext *cx, JSProxyHandler *handler, const Value &priv, JSObje
     if (fun) {
         obj->setSlot(JSSLOT_PROXY_CALL, call ? ObjectValue(*call) : UndefinedValue());
         if (construct) {
-            obj->setSlot(JSSLOT_PROXY_CONSTRUCT, ObjectValue(*construct));
+            obj->setSlot(JSSLOT_PROXY_CONSTRUCT,
+                         construct ? ObjectValue(*construct) : UndefinedValue());
         }
     }
     return obj;

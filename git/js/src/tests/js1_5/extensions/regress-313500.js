@@ -1,3 +1,4 @@
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -11,14 +12,14 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is browser add-on bar test code.
+ * The Original Code is JavaScript Engine testing utilities.
  *
- * The Initial Developer of the Original Code is the Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2010
+ * The Initial Developer of the Original Code is
+ * Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2005
  * the Initial Developer. All Rights Reserved.
  *
- * Contributor(s):
- * Dietrich Ayala <dietrich@mozilla.com>
+ * Contributor(s): Igor Bukanov
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -34,18 +35,27 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-function test() {
-  let addonbar = document.getElementById("addon-bar");
-  ok(addonbar.collapsed, "addon bar is collapsed by default");
+//-----------------------------------------------------------------------------
+var BUGNUMBER = 313500;
+var summary = 'Root access to "prototype" property';
+var actual = 'No Crash';
+var expect = 'No Crash';
 
-  // make add-on bar visible
-  setToolbarVisibility(addonbar, true);
-  ok(!addonbar.collapsed, "addon bar is not collapsed after toggle");
+printBugNumber(BUGNUMBER);
+printStatus (summary);
+printStatus('This test requires TOO_MUCH_GC');
 
-  // click the close button
-  let closeButton = document.getElementById("addonbar-closebutton");
-  EventUtils.synthesizeMouseAtCenter(closeButton, {});
+function F() { }
 
-  // confirm addon bar is closed
-  ok(addonbar.collapsed, "addon bar is collapsed after clicking close button");
-}
+var prepared = new Object();
+
+F.prototype = {};
+F.__defineGetter__('prototype', function() {
+		     var tmp = prepared;
+		     prepared = null;
+		     return tmp;
+		   });
+
+new F();
+ 
+reportCompare(expect, actual, summary);

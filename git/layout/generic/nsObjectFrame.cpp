@@ -6257,16 +6257,14 @@ NS_IMETHODIMP nsPluginInstanceOwner::CreateWidget(void)
           // Set the plugin window to have an empty cliprect. The cliprect
           // will be reset when nsRootPresContext::UpdatePluginGeometry
           // runs later. The plugin window does need to have the correct
-          // size here. GetEmptyClipConfiguration will probably give it the
-          // size, but just in case we haven't been reflowed or something, set
-          // the size explicitly.
+          // size here.
           nsAutoTArray<nsIWidget::Configuration,1> configuration;
-          mObjectFrame->GetEmptyClipConfiguration(&configuration);
-          if (configuration.Length() > 0) {
-            configuration[0].mBounds.width = mPluginWindow->width;
-            configuration[0].mBounds.height = mPluginWindow->height;
+          if (configuration.AppendElement()) {
+            configuration[0].mChild = mWidget;
+            configuration[0].mBounds =
+              nsIntRect(0, 0, mPluginWindow->width, mPluginWindow->height);
+            parent->ConfigureChildren(configuration);
           }
-          parent->ConfigureChildren(configuration);
 
           // mPluginWindow->type is used in |GetPluginPort| so it must
           // be initialized first

@@ -82,7 +82,7 @@ Probes::FunctionLineNumber(JSContext *cx, const JSFunction *fun)
  *
  *      jsval      returned
  *      -------------------
- *      STRING  -> void *
+ *      STRING  -> char *
  *      INT     -> int
  *      DOUBLE  -> double *
  *      BOOLEAN -> int
@@ -108,6 +108,9 @@ jsprobes_jsvaltovoid(JSContext *cx, const js::Value &argval)
 
     if (argval.isBoolean())
         return (void *)argval.toBoolean();
+
+    if (argval.isString())
+        return (void *)js_GetStringBytes(cx, argval.toString());
 
     if (argval.isNumber()) {
         if (argval.isInt32())

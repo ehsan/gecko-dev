@@ -1,3 +1,4 @@
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -11,16 +12,14 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is Firefox Sync.
+ * The Original Code is JavaScript Engine testing utilities.
  *
  * The Initial Developer of the Original Code is
- * the Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2010
+ * Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2006
  * the Initial Developer. All Rights Reserved.
  *
- * Contributor(s):
- * Brian Smith <bsmith@mozilla.com>
- * Philipp von Weitershausen <philipp@weitershausen.de>
+ * Contributor(s): Igor Bukanov
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -35,31 +34,59 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-#ifndef nsSyncJPAKE_h__
-#define nsSyncJPAKE_h__
 
-#include "nsISyncJPAKE.h"
+//-----------------------------------------------------------------------------
+var BUGNUMBER = 325269;
+var summary = 'GC hazard in js_ConstructObject';
+var actual = 'No Crash';
+var expect = 'No Crash';
 
-#define NS_SYNCJPAKE_CONTRACTID \
-  "@mozilla.org/services-crypto/sync-jpake;1"
+printBugNumber(BUGNUMBER);
+printStatus (summary);
+// only get exit code 3 if out of memory error occurs which
+// will not happen on machines with enough memory.
+// expectExitCode(3);
+ 
+var SavedArray = Array;
 
-#define NS_SYNCJPAKE_CID \
-  {0x0b9721c0, 0x1805, 0x47c3, {0x86, 0xce, 0x68, 0x13, 0x79, 0x5a, 0x78, 0x3f}}
+function Redirector() { }
 
-typedef struct PK11SymKeyStr PK11SymKey;
+Redirector.prototype = 1;
+Redirector.__defineGetter__('prototype', function() {
+//        printStatus("REDIRECTOR");
+			      gc();
+			      return SavedArray.prototype;
+			    });
 
-class nsSyncJPAKE : public nsISyncJPAKE
-{
-public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSISYNCJPAKE
-  nsSyncJPAKE();
-  virtual ~nsSyncJPAKE();
-private:
-  enum { JPAKENotStarted, JPAKEBeforeRound2, JPAKEAfterRound2 } round;
-  PK11SymKey * key;
-};
+//Array = Function('printStatus("Constructor")');
+try {
+    Array = Function('');
+} catch (e) { }
 
-NS_IMPL_ISUPPORTS1(nsSyncJPAKE, nsISyncJPAKE)
+if (Array === SavedArray) {
+  // No test of the hazard possible as the array is read-only
+  actual = expect;
+} else {
+  Array.prototype = 1;
+  Array.__defineGetter__('prototype', function() {
+//        printStatus("**** GETTER ****");
+      Array = Redirector;
+      gc();
+      new Object();
+      new Object();
+      return undefined;
+    });
 
-#endif // nsSyncJPAKE_h__
+  new Object();
+
+  try
+  {
+    var y = "test".split('');
+  }
+  catch(ex)
+  {
+    printStatus(ex + '');
+  }
+}
+
+reportCompare(expect, actual, summary);

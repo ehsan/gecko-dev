@@ -40,7 +40,6 @@
 #include "nsISupports.idl"
 
 interface nsIIDBKeyRange;
-interface nsIIDBObjectStore;
 interface nsIIDBRequest;
 interface nsIVariant;
 
@@ -49,7 +48,7 @@ interface nsIVariant;
  * http://dev.w3.org/2006/webapi/WebSimpleDB/#idl-def-IDBIndex for more
  * information.
  */
-[scriptable, uuid(b44450e2-4a44-41e8-b098-1a7b389634b5)]
+[scriptable, uuid(077bcaab-f5b1-4ed8-a2b4-e4a3eb6bf6de)]
 interface nsIIDBIndex : nsISupports
 {
   readonly attribute DOMString name;
@@ -59,8 +58,6 @@ interface nsIIDBIndex : nsISupports
   readonly attribute DOMString keyPath;
 
   readonly attribute boolean unique;
-
-  readonly attribute nsIIDBObjectStore objectStore;
 
   nsIIDBRequest
   get(in nsIVariant key);

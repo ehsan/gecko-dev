@@ -407,15 +407,8 @@ mjit::Compiler::finishThisUp(JITScript **jitp)
     JSC::LinkBuffer fullCode(result, totalSize);
     JSC::LinkBuffer stubCode(result + masm.size(), stubcc.size());
 
-    size_t nNmapLive = 0;
-    for (size_t i = 0; i < script->length; i++) {
-        analyze::Bytecode *opinfo = analysis->maybeCode(i);
-        if (opinfo && opinfo->safePoint)
-            nNmapLive++;
-    }
-
     size_t totalBytes = sizeof(JITScript) +
-                        sizeof(NativeMapEntry) * nNmapLive +
+                        sizeof(void *) * script->length +
 #if defined JS_MONOIC
                         sizeof(ic::MICInfo) * mics.length() +
                         sizeof(ic::CallICInfo) * callICs.length() +
@@ -443,23 +436,17 @@ mjit::Compiler::finishThisUp(JITScript **jitp)
     jit->invokeEntry = result;
 
     /* Build the pc -> ncode mapping. */
-    NativeMapEntry *nmap = (NativeMapEntry *)cursor;
-    cursor += sizeof(NativeMapEntry) * nNmapLive;
+    void **nmap = (void **)cursor;
+    cursor += sizeof(void *) * script->length;
 
-    size_t ix = 0;
-    if (nNmapLive > 0) {
-        for (size_t i = 0; i < script->length; i++) {
-            analyze::Bytecode *opinfo = analysis->maybeCode(i);
-            if (opinfo && opinfo->safePoint) {
-                Label L = jumpMap[i];
-                JS_ASSERT(L.isValid());
-                nmap[ix].bcOff = i;
-                nmap[ix].ncode = (uint8 *)(result + masm.distanceOf(L));
-                ix++;
-            }
+    for (size_t i = 0; i < script->length; i++) {
+        Label L = jumpMap[i];
+        analyze::Bytecode *opinfo = analysis->maybeCode(i);
+        if (opinfo && opinfo->safePoint) {
+            JS_ASSERT(L.isValid());
+            nmap[i] = (uint8 *)(result + masm.distanceOf(L));
         }
     }
-    JS_ASSERT(ix == nNmapLive);
 
     if (fun) {
         jit->arityCheckEntry = stubCode.locationOf(arityLabel).executableAddress();
@@ -786,7 +773,6 @@ mjit::Compiler::finishThisUp(JITScript **jitp)
     JS_ASSERT(size_t(cursor - (uint8*)jit) == totalBytes);
 
     jit->nmap = nmap;
-    jit->nNmapPairs = nNmapLive;
     *jitp = jit;
 
     return Compile_Okay;

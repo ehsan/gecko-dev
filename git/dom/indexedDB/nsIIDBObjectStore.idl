@@ -42,7 +42,6 @@
 interface nsIIDBIndex;
 interface nsIIDBKeyRange;
 interface nsIIDBRequest;
-interface nsIIDBTransaction;
 interface nsIVariant;
 interface nsIDOMDOMStringList;
 
@@ -55,7 +54,7 @@ interface nsIDOMDOMStringList;
  * http://dev.w3.org/2006/webapi/WebSimpleDB/#idl-def-nsIIDBObjectStore
  * for more information.
  */
-[scriptable, uuid(626fd729-d66a-4b49-bbaf-058f1c375449)]
+[scriptable, uuid(83c3fa8f-b061-4cb7-adb2-d1aec62f134c)]
 interface nsIIDBObjectStore : nsISupports
 {
   readonly attribute DOMString name;
@@ -63,8 +62,6 @@ interface nsIIDBObjectStore : nsISupports
   readonly attribute DOMString keyPath;
 
   readonly attribute nsIDOMDOMStringList indexNames;
-
-  readonly attribute nsIIDBTransaction transaction;
 
   // Success fires IDBTransactionEvent, result == value for key
   nsIIDBRequest

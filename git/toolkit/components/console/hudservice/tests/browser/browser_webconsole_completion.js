@@ -94,12 +94,6 @@ function testCompletion() {
   jsterm.clearOutput();
   jsterm.history.splice(0);   // workaround for bug 592552
 
-  input.value = "docu";
-  jsterm.complete(jsterm.COMPLETE_HINT_ONLY);
-  is(jsterm.completeNode.value, "    ment", "'docu' completion");
-  jsterm.execute();
-  is(jsterm.completeNode.value, "", "clear completion on execute()");
-
   HUD = jsterm = input = null;
   finishTest();
 }

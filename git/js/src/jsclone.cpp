@@ -604,14 +604,9 @@ class Chars {
 
     bool allocate(JSContext *cx, size_t len) {
         JS_ASSERT(!p);
-        // We're going to null-terminate!
-        p = (jschar *) cx->malloc((len + 1) * sizeof(jschar));
+        p = (jschar *) cx->malloc(len * sizeof(jschar));
         this->cx = cx;
-        if (p) {
-            p[len] = jschar(0);
-            return true;
-        }
-        return false;
+        return p != NULL;
     }
     jschar *get() { return p; }
     void forget() { p = NULL; }

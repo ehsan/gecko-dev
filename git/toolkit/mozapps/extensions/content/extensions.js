@@ -1237,16 +1237,23 @@ function sortList(aList, aSortBy, aAscending) {
 }
 
 function getAddonsAndInstalls(aType, aCallback) {
-  let addons = null, installs = null;
-  let types = (aType != null) ? [aType] : null;
+  var addonTypes = null, installTypes = null;
+  if (aType != null) {
+    addonTypes = [aType];
+    installTypes = [aType];
+    if (aType == "extension")
+      installTypes = addonTypes.concat("");
+  }
 
-  AddonManager.getAddonsByTypes(types, function(aAddonsList) {
+  var addons = null, installs = null;
+
+  AddonManager.getAddonsByTypes(addonTypes, function(aAddonsList) {
     addons = aAddonsList;
     if (installs != null)
       aCallback(addons, installs);
   });
 
-  AddonManager.getInstallsByTypes(types, function(aInstallsList) {
+  AddonManager.getInstallsByTypes(installTypes, function(aInstallsList) {
     // skip over upgrade installs and non-active installs
     installs = aInstallsList.filter(function(aInstall) {
       return !(aInstall.existingAddon ||
@@ -1256,6 +1263,8 @@ function getAddonsAndInstalls(aType, aCallback) {
     if (addons != null)
       aCallback(addons, installs)
   });
+
+  return {addon: addonTypes, install: installTypes};
 }
 
 
@@ -1883,7 +1892,8 @@ var gListView = {
   _listBox: null,
   _emptyNotice: null,
   _sorters: null,
-  _type: null,
+  _types: [],
+  _installTypes: [],
 
   initialize: function() {
     this.node = document.getElementById("list-view");
@@ -1904,7 +1914,6 @@ var gListView = {
   },
 
   show: function(aType, aRequest) {
-    this._type = aType;
     this.node.setAttribute("type", aType);
     this.showEmptyNotice(false);
 
@@ -1912,7 +1921,7 @@ var gListView = {
       this._listBox.removeItemAt(0);
 
     var self = this;
-    getAddonsAndInstalls(aType, function(aAddonsList, aInstallsList) {
+    var types = getAddonsAndInstalls(aType, function(aAddonsList, aInstallsList) {
       if (gViewController && aRequest != gViewController.currentViewRequest)
         return;
 
@@ -1924,18 +1933,22 @@ var gListView = {
       for (let i = 0; i < aInstallsList.length; i++)
         elements.push(createItem(aInstallsList[i], true));
 
-      self.showEmptyNotice(elements.length == 0);
       if (elements.length > 0) {
         sortElements(elements, self._sorters.sortBy, self._sorters.ascending);
         elements.forEach(function(aElement) {
           self._listBox.appendChild(aElement);
         });
+      } else {
+        self.showEmptyNotice(true);
       }
 
       gEventManager.registerInstallListener(self);
       gViewController.updateCommands();
       gViewController.notifyViewChanged();
     });
+
+    this._types = types.addon;
+    this._installTypes = types.install;
   },
 
   hide: function() {
@@ -1963,61 +1976,47 @@ var gListView = {
     sortList(this._listBox, aSortBy, aAscending);
   },
 
+  onNewInstall: function(aInstall) {
+    // Ignore any upgrade installs
+    if (aInstall.existingAddon)
+      return;
+
+    var item = createItem(aInstall, true);
+    this._listBox.insertBefore(item, this._listBox.firstChild);
+  },
+
   onExternalInstall: function(aAddon, aExistingAddon, aRequiresRestart) {
+    if (this._types.indexOf(aAddon.type) == -1)
+      return;
+
     // The existing list item will take care of upgrade installs
     if (aExistingAddon)
       return;
 
-    this.addItem(aAddon);
-  },
-
-  onDownloadStarted: function(aInstall) {
-    this.addItem(aInstall, true);
-  },
-
-  onInstallStarted: function(aInstall) {
-    this.addItem(aInstall, true);
+    var item = createItem(aAddon, false);
+    this._listBox.insertBefore(item, this._listBox.firstChild);
   },
 
   onDownloadCancelled: function(aInstall) {
-    this.removeItem(aInstall, true);
+    this.removeInstall(aInstall);
   },
 
   onInstallCancelled: function(aInstall) {
-    this.removeItem(aInstall, true);
+    this.removeInstall(aInstall);
   },
 
   onInstallEnded: function(aInstall) {
     // Remove any install entries for upgrades, their status will appear against
     // the existing item
     if (aInstall.existingAddon)
-      this.removeItem(aInstall, true);
+      this.removeInstall(aInstall);
   },
 
-  addItem: function(aObj, aIsInstall) {
-    if (aObj.type != this._type)
-      return;
-
-    let prop = aIsInstall ? "mInstall" : "mAddon";
-    for (let i = 0; i < this._listBox.itemCount; i++) {
+  removeInstall: function(aInstall) {
+    for (let i = 0; i < this._listBox.childNodes.length; i++) {
       let item = this._listBox.childNodes[i];
-      if (item[prop] == aObj)
-        return;
-    }
-
-    let item = createItem(aObj, aIsInstall);
-    this._listBox.insertBefore(item, this._listBox.firstChild);
-    this.showEmptyNotice(false);
-  },
-
-  removeItem: function(aObj, aIsInstall) {
-    let prop = aIsInstall ? "mInstall" : "mAddon";
-
-    for (let i = 0; i < this._listBox.itemCount; i++) {
-      let item = this._listBox.childNodes[i];
-      if (item[prop] == aObj) {
+      if (item.mInstall == aInstall) {
         this._listBox.removeChild(item);
-        this.showEmptyNotice(this._listBox.itemCount == 0);
         return;
       }
     }
@@ -2473,12 +2472,13 @@ var gUpdatesView = {
         elements.push(createItem(aAddon));
       });
 
-      self.showEmptyNotice(elements.length == 0);
       if (elements.length > 0) {
         sortElements(elements, self._sorters.sortBy, self._sorters.ascending);
         elements.forEach(function(aElement) {
           self._listBox.appendChild(aElement);
         });
+      } else {
+        self.showEmptyNotice(true);
       }
 
       gViewController.notifyViewChanged();
@@ -2519,13 +2519,14 @@ var gUpdatesView = {
         elements.push(item);
       });
 
-      self.showEmptyNotice(elements.length == 0);
       if (elements.length > 0) {
         self._updateSelected.hidden = false;
         sortElements(elements, self._sorters.sortBy, self._sorters.ascending);
         elements.forEach(function(aElement) {
           self._listBox.appendChild(aElement);
         });
+      } else {
+        self.showEmptyNotice(true);
       }
 
       // ensure badge count is in sync

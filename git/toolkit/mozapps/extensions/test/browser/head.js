@@ -597,20 +597,14 @@ MockProvider.prototype = {
   createInstalls: function MP_createInstalls(aInstallProperties) {
     var newInstalls = [];
     aInstallProperties.forEach(function(aInstallProp) {
-      var install = new MockInstall(aInstallProp.name || null,
-                                    aInstallProp.type || null,
-                                    null);
+      var install = new MockInstall();
       for (var prop in aInstallProp) {
-        switch (prop) {
-          case "name":
-          case "type":
-            break;
-          case "sourceURI":
-            install[prop] = NetUtil.newURI(aInstallProp[prop]);
-            break;
-          default:
-            install[prop] = aInstallProp[prop];
+        if (prop == "sourceURI") {
+          install[prop] = NetUtil.newURI(aInstallProp[prop]);
+          continue;
         }
+
+        install[prop] = aInstallProp[prop];
       }
       this.addInstall(install);
       newInstalls.push(install);
@@ -977,9 +971,7 @@ MockAddon.prototype = {
 
 function MockInstall(aName, aType, aAddonToInstall) {
   this.name = aName || "";
-  // Don't expose type until download completed
-  this._type = aType || "extension";
-  this.type = null;
+  this.type = aType || "extension";
   this.version = "1.0";
   this.iconURL = "";
   this.infoURL = "";
@@ -1011,8 +1003,6 @@ MockInstall.prototype = {
           this.callListeners("onDownloadCancelled");
           return;
         }
-
-        this.type = this._type;
 
         // Adding addon to MockProvider to be implemented when needed
         if (this._addonToInstall)

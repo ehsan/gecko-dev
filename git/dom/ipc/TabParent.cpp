@@ -89,25 +89,11 @@ NS_IMPL_ISUPPORTS3(TabParent, nsITabParent, nsIAuthPromptProvider, nsISecureBrow
 TabParent::TabParent()
   : mIMEComposing(PR_FALSE)
   , mIMECompositionEnding(PR_FALSE)
-  , mDPI(0)
 {
 }
 
 TabParent::~TabParent()
 {
-}
-
-void
-TabParent::SetOwnerElement(nsIDOMElement* aElement)
-{
-  mFrameElement = aElement;
-
-  // Cache the DPI of the screen, since we may lose the element/widget later
-  if (aElement) {
-    nsCOMPtr<nsIWidget> widget = GetWidget();
-    NS_ABORT_IF_FALSE(widget, "Non-null OwnerElement must provide a widget!");
-    mDPI = widget->GetDPI();
-  }
 }
 
 void
@@ -556,9 +542,9 @@ TabParent::RecvSetIMEOpenState(const PRBool& aValue)
 bool
 TabParent::RecvGetDPI(float* aValue)
 {
-  NS_ABORT_IF_FALSE(mDPI > 0, 
-                    "Must not ask for DPI before OwnerElement is received!");
-  *aValue = mDPI;
+  nsCOMPtr<nsIWidget> widget = GetWidget();
+  NS_ABORT_IF_FALSE(widget, "Must have a widget to find the DPI!");
+  *aValue = widget->GetDPI();
   return true;
 }
 
