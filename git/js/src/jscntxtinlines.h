@@ -629,20 +629,14 @@ CallJSNativeConstructor(JSContext *cx, js::Native native, uintN argc, js::Value 
     JS_ASSERT(vp[1].isMagic());
     if (!CallJSNative(cx, native, argc, vp))
         return false;
+    JS_ASSERT(!vp->isPrimitive());
 
-    /*
-     * Native constructors must return non-primitive values on success.
-     * Although it is legal, if a constructor returns the callee, there is a
-     * 99.9999% chance it is a bug. If any valid code actually wants the
-     * constructor to return the callee, this can be removed.
-     *
-     * Proxies are exceptions to both rules: they can return primitives and
-     * they allow content to return the callee.
+    /* 
+     * Even though its technically legal, if a native constructor returns the
+     * callee, there is a 99.9999% chance it is a bug. If any valid code
+     * actually wants the constructor to return the callee, this can be removed.
      */
-    extern JSBool proxy_Construct(JSContext *, uintN, Value *);
-    JS_ASSERT_IF(native != proxy_Construct,
-                 !vp->isPrimitive() && callee != &vp[0].toObject());
-
+    JS_ASSERT(callee != &vp[0].toObject());
     return true;
 }
 
