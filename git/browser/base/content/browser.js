@@ -306,28 +306,22 @@ function SetClickAndHoldHandlers() {
     aElm.addEventListener("click", clickHandler, true);
   }
 
-  // Bug 414797: Clone unified-back-forward-button's context menu into both the
-  // back and the forward buttons.
+  // Bug 414797: Clone the dropmarker's menu into both the back and
+  // the forward buttons.
   var unifiedButton = document.getElementById("unified-back-forward-button");
   if (unifiedButton && !unifiedButton._clickHandlersAttached) {
-    unifiedButton._clickHandlersAttached = true;
-
-    let popup = document.getElementById("backForwardMenu").cloneNode(true);
+    var popup = document.getElementById("backForwardMenu").cloneNode(true);
     popup.removeAttribute("id");
-    // Prevent the context attribute on unified-back-forward-button from being
-    // inherited.
-    popup.setAttribute("context", "");
-
-    let backButton = document.getElementById("back-button");
+    var backButton = document.getElementById("back-button");
     backButton.setAttribute("type", "menu");
     backButton.appendChild(popup);
     _addClickAndHoldListenersOnElement(backButton);
-
-    let forwardButton = document.getElementById("forward-button");
+    var forwardButton = document.getElementById("forward-button");
     popup = popup.cloneNode(true);
     forwardButton.setAttribute("type", "menu");
     forwardButton.appendChild(popup);
     _addClickAndHoldListenersOnElement(forwardButton);
+    unifiedButton._clickHandlersAttached = true;
   }
 }
 
@@ -4124,7 +4118,7 @@ var XULBrowserWindow = {
   startTime: 0,
   statusText: "",
   isBusy: false,
-  inContentWhitelist: ["about:addons", "about:permissions"],
+  inContentWhitelist: ["about:addons"],
 
   QueryInterface: function (aIID) {
     if (aIID.equals(Ci.nsIWebProgressListener) ||

@@ -96,10 +96,11 @@ function test_disabled_install() {
 
     wait_for_notification_close(function() {
       try {
-        ok(Services.prefs.getBoolPref("xpinstall.enabled"), "Installation should be enabled");
+        Services.prefs.getBoolPref("xpinstall.disabled");
+        ok(false, "xpinstall.disabled should not be set");
       }
       catch (e) {
-        ok(false, "xpinstall.enabled should be set");
+        ok(true, "xpinstall.disabled should not be set");
       }
 
       gBrowser.removeTab(gBrowser.selectedTab);

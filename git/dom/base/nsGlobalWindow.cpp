@@ -6327,7 +6327,7 @@ nsGlobalWindow::EnterModalState()
       activeShell->SetCapturingContent(nsnull, 0);
 
       if (activeShell) {
-        nsRefPtr<nsFrameSelection> frameSelection = activeShell->FrameSelection();
+        nsCOMPtr<nsFrameSelection> frameSelection = activeShell->FrameSelection();
         frameSelection->SetMouseDownState(PR_FALSE);
       }
     }
