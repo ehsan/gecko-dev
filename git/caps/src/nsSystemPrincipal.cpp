@@ -79,7 +79,7 @@ nsSystemPrincipal::Equals(nsIPrincipal *other, bool *result)
 }
 
 NS_IMETHODIMP
-nsSystemPrincipal::EqualsConsideringDomain(nsIPrincipal *other, bool *result)
+nsSystemPrincipal::EqualsIgnoringDomain(nsIPrincipal *other, bool *result)
 {
     return Equals(other, result);
 }
@@ -92,7 +92,7 @@ nsSystemPrincipal::Subsumes(nsIPrincipal *other, bool *result)
 }
 
 NS_IMETHODIMP
-nsSystemPrincipal::SubsumesConsideringDomain(nsIPrincipal *other, bool *result)
+nsSystemPrincipal::SubsumesIgnoringDomain(nsIPrincipal *other, bool *result)
 {
     *result = true;
     return NS_OK;

@@ -42,7 +42,18 @@ AccessCheck::subsumes(JSCompartment *a, JSCompartment *b)
 {
     nsIPrincipal *aprin = GetCompartmentPrincipal(a);
     nsIPrincipal *bprin = GetCompartmentPrincipal(b);
-    return aprin->Subsumes(bprin);
+
+    // If either a or b doesn't have principals, we don't have enough
+    // information to tell. Seeing as how this is Gecko, we are default-unsafe
+    // in this case.
+    if (!aprin || !bprin)
+        return true;
+
+    bool subsumes;
+    nsresult rv = aprin->Subsumes(bprin, &subsumes);
+    NS_ENSURE_SUCCESS(rv, false);
+
+    return subsumes;
 }
 
 bool
@@ -51,13 +62,21 @@ AccessCheck::subsumes(JSObject *a, JSObject *b)
     return subsumes(js::GetObjectCompartment(a), js::GetObjectCompartment(b));
 }
 
-// Same as above, but considering document.domain.
+// Same as above, but ignoring document.domain.
 bool
-AccessCheck::subsumesConsideringDomain(JSCompartment *a, JSCompartment *b)
+AccessCheck::subsumesIgnoringDomain(JSCompartment *a, JSCompartment *b)
 {
     nsIPrincipal *aprin = GetCompartmentPrincipal(a);
     nsIPrincipal *bprin = GetCompartmentPrincipal(b);
-    return aprin->SubsumesConsideringDomain(bprin);
+
+    if (!aprin || !bprin)
+        return false;
+
+    bool subsumes;
+    nsresult rv = aprin->SubsumesIgnoringDomain(bprin, &subsumes);
+    NS_ENSURE_SUCCESS(rv, false);
+
+    return subsumes;
 }
 
 // Does the compartment of the wrapper subsumes the compartment of the wrappee?

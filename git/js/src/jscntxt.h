@@ -555,6 +555,16 @@ struct JSContext : public js::ExclusiveContext,
     void enterGenerator(JSGenerator *gen);
     void leaveGenerator(JSGenerator *gen);
 
+    void *onOutOfMemory(void *p, size_t nbytes) {
+        return runtime()->onOutOfMemory(p, nbytes, this);
+    }
+    void updateMallocCounter(size_t nbytes) {
+        runtime()->updateMallocCounter(zone(), nbytes);
+    }
+    void reportAllocationOverflow() {
+        js_ReportAllocationOverflow(this);
+    }
+
     bool isExceptionPending() {
         return throwing;
     }

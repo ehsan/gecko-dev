@@ -50,10 +50,7 @@ ArrayBufferInputStream::SetData(JS::Handle<JS::Value> aBuffer,
   uint32_t buflen = JS_GetArrayBufferByteLength(arrayBuffer);
   mOffset = std::min(buflen, aByteOffset);
   mBufferLength = std::min(buflen - mOffset, aLength);
-  mBuffer = JS_GetStableArrayBufferData(aCx, arrayBuffer);
-  if (!mBuffer) {
-      return NS_ERROR_FAILURE;
-  }
+  mBuffer = JS_GetArrayBufferData(arrayBuffer);
   return NS_OK;
 }
 

@@ -670,8 +670,6 @@ NS_IMETHODIMP nsExternalHelperAppService::DoContent(const nsACString& aMimeConte
   nsAutoString fileName;
   nsAutoCString fileExtension;
   uint32_t reason = nsIHelperAppLauncherDialog::REASON_CANTHANDLE;
-  uint32_t contentDisposition = -1;
-
   nsresult rv;
 
   // Get the file extension and name that we will need later
@@ -681,10 +679,7 @@ NS_IMETHODIMP nsExternalHelperAppService::DoContent(const nsACString& aMimeConte
   if (channel) {
     channel->GetURI(getter_AddRefs(uri));
     channel->GetContentLength(&contentLength);
-    channel->GetContentDisposition(&contentDisposition);
-    channel->GetContentDispositionFilename(fileName);
   }
-  
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
     nsCOMPtr<nsIDOMWindow> window = do_GetInterface(aWindowContext);
     NS_ENSURE_STATE(window);
@@ -701,9 +696,8 @@ NS_IMETHODIMP nsExternalHelperAppService::DoContent(const nsACString& aMimeConte
       return NS_ERROR_FAILURE;
 
     nsCString disp;
-    if (channel) {
+    if (channel)
       channel->GetContentDispositionHeader(disp);
-    }
 
     nsCOMPtr<nsIURI> referrer;
     rv = NS_GetReferrerFromChannel(channel, getter_AddRefs(referrer));
@@ -719,9 +713,8 @@ NS_IMETHODIMP nsExternalHelperAppService::DoContent(const nsACString& aMimeConte
     mozilla::dom::PExternalHelperAppChild *pc =
       child->SendPExternalHelperAppConstructor(uriParams,
                                                nsCString(aMimeContentType),
-                                               disp, contentDisposition,
-                                               fileName, aForceSave, 
-                                               contentLength, referrerParams,
+                                               disp, aForceSave, contentLength,
+                                               referrerParams,
                                                mozilla::dom::TabChild::GetFrom(window));
     ExternalHelperAppChild *childListener = static_cast<ExternalHelperAppChild *>(pc);
 

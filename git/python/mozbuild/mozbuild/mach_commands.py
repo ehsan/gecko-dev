@@ -528,17 +528,13 @@ class Build(MachCommandBase):
         description='Generate a backend used to build the tree.')
     @CommandArgument('-d', '--diff', action='store_true',
         help='Show a diff of changes.')
-    # It would be nice to filter the choices below based on
-    # conditions, but that is for another day.
-    @CommandArgument('-b', '--backend',
-        choices=['RecursiveMake', 'AndroidEclipse'],
-        default='RecursiveMake',
-        help='Which backend to build (default: RecursiveMake).')
-    def build_backend(self, backend='RecursiveMake', diff=False):
+    def build_backend(self, diff=False):
+        # When we support multiple build backends (Tup, Visual Studio, etc),
+        # this command will be expanded to support choosing what to generate.
         python = self.virtualenv_manager.python_path
         config_status = os.path.join(self.topobjdir, 'config.status')
 
-        args = [python, config_status, '--backend=%s' % backend]
+        args = [python, config_status]
         if diff:
             args.append('--diff')
 

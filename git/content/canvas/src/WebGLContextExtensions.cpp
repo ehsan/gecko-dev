@@ -17,7 +17,6 @@ using namespace mozilla::gl;
 
 // must match WebGLContext::WebGLExtensionID
 static const char *sExtensionNames[] = {
-    "EXT_frag_depth",
     "EXT_sRGB",
     "EXT_texture_filter_anisotropic",
     "OES_element_index_uint",
@@ -140,8 +139,6 @@ bool WebGLContext::IsExtensionSupported(WebGLExtensionID ext) const
             return WebGLExtensionSRGB::IsSupported(this);
         case WEBGL_draw_buffers:
             return WebGLExtensionDrawBuffers::IsSupported(this);
-        case EXT_frag_depth:
-            return WebGLExtensionFragDepth::IsSupported(this);
         default:
             // For warnings-as-errors.
             break;
@@ -297,9 +294,6 @@ WebGLContext::EnableExtension(WebGLExtensionID ext)
             break;
         case EXT_sRGB:
             obj = new WebGLExtensionSRGB(this);
-            break;
-        case EXT_frag_depth:
-            obj = new WebGLExtensionFragDepth(this);
             break;
         default:
             MOZ_ASSERT(false, "should not get there.");

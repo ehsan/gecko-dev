@@ -35,7 +35,6 @@
 #define FORCE_PR_LOG 1
 #endif
 #include "prlog.h"
-#include "prenv.h"
 
 namespace mozilla {
 #if defined(ANDROID)
@@ -232,9 +231,6 @@ InstallSyscallFilter(void)
 void
 SetCurrentProcessSandbox(void)
 {
-  if (PR_GetEnv("MOZ_DISABLE_CONTENT_SANDBOX"))
-    return;
-
 #if !defined(ANDROID) && defined(PR_LOGGING)
   if (!gSeccompSandboxLog) {
     gSeccompSandboxLog = PR_NewLogModule("SeccompSandbox");

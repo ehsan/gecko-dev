@@ -266,7 +266,7 @@ public:
   nsresult Get(nsIPrincipal* aSubject, nsIVariant** aResult)
   {
     nsCOMPtr<nsIVariant> result;
-    if (aSubject->SubsumesConsideringDomain(mOrigin)) {
+    if (aSubject->Subsumes(mOrigin)) {
       result = mValue;
     } else {
       result = CreateVoidVariant();
