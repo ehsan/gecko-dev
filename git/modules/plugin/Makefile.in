@@ -55,6 +55,7 @@ DIRS		+= base/src
 ifdef ENABLE_TESTS
 ifneq (,$(filter WINNT Darwin Linux OS2 SunOS,$(OS_ARCH)))
 DIRS += test
+TOOL_DIRS += sdk
 endif
 endif
 

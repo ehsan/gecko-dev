@@ -111,8 +111,6 @@ public:
 
     static void NotifyIMEChange(const PRUnichar *aText, PRUint32 aTextLen, int aStart, int aEnd, int aNewEnd);
 
-    void AcknowledgeEventSync();
-
     void EnableAccelerometer(bool aEnable);
 
     void EnableLocation(bool aEnable);
@@ -145,7 +143,6 @@ public:
                            const nsAString& aTitle = EmptyString());
 
     void GetMimeTypeFromExtensions(const nsACString& aFileExt, nsCString& aMimeType);
-    void GetExtensionFromMimeType(const nsCString& aMimeType, nsACString& aFileExt);
 
     void MoveTaskToBack();
 
@@ -187,7 +184,7 @@ public:
 
     bool IsNetworkLinkKnown();
 
-    void SetSelectedLocale(const nsAString&);
+    void SetSelectedLocale(const nsACString&);
 
     struct AutoLocalJNIFrame {
         AutoLocalJNIFrame(int nEntries = 128) : mEntries(nEntries) {
@@ -249,7 +246,6 @@ protected:
     jmethodID jNotifyIME;
     jmethodID jNotifyIMEEnabled;
     jmethodID jNotifyIMEChange;
-    jmethodID jAcknowledgeEventSync;
     jmethodID jEnableAccelerometer;
     jmethodID jEnableLocation;
     jmethodID jReturnIMEQueryResult;
@@ -261,7 +257,6 @@ protected:
     jmethodID jGetHandlersForURL;
     jmethodID jOpenUriExternal;
     jmethodID jGetMimeTypeFromExtensions;
-    jmethodID jGetExtensionFromMimeType;
     jmethodID jMoveTaskToBack;
     jmethodID jGetClipboardText;
     jmethodID jSetClipboardText;

@@ -72,7 +72,10 @@
 #include "nsIThreadPool.h"
 #include "nsXPCOMCIDInternal.h"
 #include "nsMimeTypes.h"
+
+#ifdef MOZ_VIEW_SOURCE
 #include "nsViewSourceHTML.h"
+#endif
 
 #define NS_PARSER_FLAG_PARSER_ENABLED         0x00000002
 #define NS_PARSER_FLAG_OBSERVERS_ENABLED      0x00000004
@@ -1433,10 +1436,12 @@ FindSuitableDTD(CParserContext& aParserContext)
   // We always find a DTD.
   aParserContext.mAutoDetectStatus = ePrimaryDetect;
 
+#ifdef MOZ_VIEW_SOURCE
   // Quick check for view source.
   if (aParserContext.mParserCommand == eViewSource) {
     return new CViewSourceHTML();
   }
+#endif
 
   // Now see if we're parsing HTML (which, as far as we're concerned, simply
   // means "not XML").

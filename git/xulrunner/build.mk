@@ -83,9 +83,6 @@ sdk:
 distclean::
 	@$(MAKE) -C xulrunner/installer distclean
 
-source-package::
-	@$(MAKE) -C xulrunner/installer source-package
-
 upload::
 	@$(MAKE) -C xulrunner/installer upload
 

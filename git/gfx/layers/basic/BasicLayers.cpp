@@ -426,9 +426,7 @@ protected:
   virtual void
   PaintBuffer(gfxContext* aContext,
               const nsIntRegion& aRegionToDraw,
-              const nsIntRegion& aExtendedRegionToDraw,
               const nsIntRegion& aRegionToInvalidate,
-              PRBool aDidSelfCopy,
               LayerManager::DrawThebesLayerCallback aCallback,
               void* aCallbackData)
   {
@@ -436,14 +434,14 @@ protected:
       BasicManager()->SetTransactionIncomplete();
       return;
     }
-    aCallback(this, aContext, aExtendedRegionToDraw, aRegionToInvalidate,
+    aCallback(this, aContext, aRegionToDraw, aRegionToInvalidate,
               aCallbackData);
     // Everything that's visible has been validated. Do this instead of just
     // OR-ing with aRegionToDraw, since that can lead to a very complex region
     // here (OR doesn't automatically simplify to the simplest possible
     // representation of a region.)
     nsIntRegion tmp;
-    tmp.Or(mVisibleRegion, aExtendedRegionToDraw);
+    tmp.Or(mVisibleRegion, aRegionToDraw);
     mValidRegion.Or(mValidRegion, tmp);
   }
 
@@ -588,8 +586,7 @@ BasicThebesLayer::PaintThebes(gfxContext* aContext,
     PRUint32 flags = 0;
     gfxMatrix transform;
     if (!GetEffectiveTransform().Is2D(&transform) ||
-        transform.HasNonIntegerTranslation() ||
-        MustRetainContent() /*<=> has shadow layer*/) {
+        transform.HasNonIntegerTranslation()) {
       flags |= ThebesLayerBuffer::PAINT_WILL_RESAMPLE;
     }
     Buffer::PaintState state =
@@ -602,14 +599,12 @@ BasicThebesLayer::PaintThebes(gfxContext* aContext,
       // from RGB to RGBA, because we might need to repaint with
       // subpixel AA)
       state.mRegionToInvalidate.And(state.mRegionToInvalidate, mVisibleRegion);
-      nsIntRegion extendedDrawRegion = state.mRegionToDraw;
-      extendedDrawRegion.ExtendForScaling(paintXRes, paintYRes);
+      state.mRegionToDraw.ExtendForScaling(paintXRes, paintYRes);
       mXResolution = paintXRes;
       mYResolution = paintYRes;
       SetAntialiasingFlags(this, state.mContext);
       PaintBuffer(state.mContext,
-                  state.mRegionToDraw, extendedDrawRegion, state.mRegionToInvalidate,
-                  state.mDidSelfCopy,
+                  state.mRegionToDraw, state.mRegionToInvalidate,
                   aCallback, aCallbackData);
       Mutated();
     } else {
@@ -750,8 +745,6 @@ BasicImageLayer::GetAndPaintCurrentImage(gfxContext* aContext,
   if (!mContainer)
     return nsnull;
 
-  nsRefPtr<Image> image = mContainer->GetCurrentImage();
-
   nsRefPtr<gfxASurface> surface = mContainer->GetCurrentAsSurface(&mSize);
   if (!surface) {
     return nsnull;
@@ -771,10 +764,7 @@ BasicImageLayer::GetAndPaintCurrentImage(gfxContext* aContext,
   PaintContext(pat,
                tileSrcRect ? GetVisibleRegion() : nsIntRegion(nsIntRect(0, 0, mSize.width, mSize.height)),
                tileSrcRect,
-               aOpacity, aContext);
-
-  GetContainer()->NotifyPaintedImage(image);
-
+               aOpacity, aContext); 
   return pat.forget();
 }
 
@@ -1805,9 +1795,7 @@ private:
   NS_OVERRIDE virtual void
   PaintBuffer(gfxContext* aContext,
               const nsIntRegion& aRegionToDraw,
-              const nsIntRegion& aExtendedRegionToDraw,
               const nsIntRegion& aRegionToInvalidate,
-              PRBool aDidSelfCopy,
               LayerManager::DrawThebesLayerCallback aCallback,
               void* aCallbackData);
 
@@ -1866,37 +1854,28 @@ BasicShadowableThebesLayer::SetBackBufferAndAttrs(const ThebesBuffer& aBuffer,
 void
 BasicShadowableThebesLayer::PaintBuffer(gfxContext* aContext,
                                         const nsIntRegion& aRegionToDraw,
-                                        const nsIntRegion& aExtendedRegionToDraw,
                                         const nsIntRegion& aRegionToInvalidate,
-                                        PRBool aDidSelfCopy,
                                         LayerManager::DrawThebesLayerCallback aCallback,
                                         void* aCallbackData)
 {
-  Base::PaintBuffer(aContext,
-                    aRegionToDraw, aExtendedRegionToDraw, aRegionToInvalidate,
-                    aDidSelfCopy,
+  Base::PaintBuffer(aContext, aRegionToDraw, aRegionToInvalidate,
                     aCallback, aCallbackData);
   if (!HasShadow()) {
     return;
   }
 
   nsIntRegion updatedRegion;
-  if (mIsNewBuffer || aDidSelfCopy) {
+  if (mIsNewBuffer) {
     // A buffer reallocation clears both buffers. The front buffer has all the
     // content by now, but the back buffer is still clear. Here, in effect, we
     // are saying to copy all of the pixels of the front buffer to the back.
-    // Also when we self-copied in the buffer, the buffer space
-    // changes and some changed buffer content isn't reflected in the
-    // draw or invalidate region (on purpose!).  When this happens, we
-    // need to read back the entire buffer too.
     updatedRegion = mVisibleRegion;
     mIsNewBuffer = false;
   } else {
     updatedRegion = aRegionToDraw;
   }
 
-  NS_ASSERTION(mBuffer.BufferRect().Contains(aRegionToDraw.GetBounds()),
-               "Update outside of buffer rect!");
+
   NS_ABORT_IF_FALSE(IsSurfaceDescriptorValid(mBackBuffer),
                     "should have a back buffer by now");
   BasicManager()->PaintedThebesBuffer(BasicManager()->Hold(this),

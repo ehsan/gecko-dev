@@ -1396,7 +1396,6 @@ function prepareForStartup() {
 
   // initialize observers and listeners
   // and give C++ access to gBrowser
-  gBrowser.init();
   XULBrowserWindow.init();
   window.QueryInterface(Ci.nsIInterfaceRequestor)
         .getInterface(nsIWebNavigation)
@@ -1439,7 +1438,7 @@ function prepareForStartup() {
   }
 
   // hook up UI through progress listener
-  gBrowser.addProgressListener(window.XULBrowserWindow);
+  gBrowser.addProgressListener(window.XULBrowserWindow, Components.interfaces.nsIWebProgress.NOTIFY_ALL);
   gBrowser.addTabsProgressListener(window.TabsProgressListener);
 
   // setup our common DOMLinkAdded listener
@@ -3352,10 +3351,12 @@ const BrowserSearch = {
     if (!submission)
       return;
 
-    openLinkIn(submission.uri.spec,
-               useNewTab ? "tab" : "current",
-               { postData: submission.postData,
-                 relatedToCurrent: true });
+    if (useNewTab) {
+      gBrowser.loadOneTab(submission.uri.spec, {
+                          postData: submission.postData,
+                          relatedToCurrent: true});
+    } else
+      loadURI(submission.uri.spec, null, submission.postData, false);
   },
 
   /**
@@ -4255,10 +4256,14 @@ var XULBrowserWindow = {
       }
     }
     else if (aStateFlags & nsIWebProgressListener.STATE_STOP) {
-      if (aStateFlags & nsIWebProgressListener.STATE_IS_NETWORK &&
-          aWebProgress.DOMWindow == content &&
-          aRequest)
-        this.endDocumentLoad(aRequest, aStatus);
+      if (aStateFlags & nsIWebProgressListener.STATE_IS_NETWORK) {
+        if (aWebProgress.DOMWindow == content) {
+          if (aRequest)
+            this.endDocumentLoad(aRequest, aStatus);
+          if (!gBrowser.mTabbedMode && !gBrowser.getIcon())
+            gBrowser.useDefaultIcon(gBrowser.selectedTab);
+        }
+      }
 
       // This (thanks to the filter) is a network stop or the last
       // request stop outside of loading the document, stop throbbers
@@ -4393,6 +4398,9 @@ var XULBrowserWindow = {
       } else {
         this.reloadCommand.removeAttribute("disabled");
       }
+
+      if (!gBrowser.mTabbedMode && aWebProgress.isLoadingDocument)
+        gBrowser.setIcon(gBrowser.selectedTab, null);
 
       if (gURLBar) {
         // Strip off "wyciwyg://" and passwords for the location bar

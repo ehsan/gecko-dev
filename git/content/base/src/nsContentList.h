@@ -140,35 +140,53 @@ public:
  * Class that's used as the key to hash nsContentList implementations
  * for fast retrieval
  */
-struct nsContentListKey
+class nsContentListKey
 {
+public:
   nsContentListKey(nsINode* aRootNode,
-                   PRInt32 aMatchNameSpaceId,
-                   const nsAString& aTagname)
-    : mRootNode(aRootNode),
+                   nsIAtom* aHTMLMatchAtom,
+                   nsIAtom* aXMLMatchAtom,
+                   PRInt32 aMatchNameSpaceId)
+    : mHTMLMatchAtom(aHTMLMatchAtom),
+      mXMLMatchAtom(aXMLMatchAtom),
       mMatchNameSpaceId(aMatchNameSpaceId),
-      mTagname(aTagname)
+      mRootNode(aRootNode)
+  {
+    NS_ASSERTION(!aXMLMatchAtom == !aHTMLMatchAtom, "Either neither or both atoms should be null");
+  }
+  
+  nsContentListKey(const nsContentListKey& aContentListKey)
+    : mHTMLMatchAtom(aContentListKey.mHTMLMatchAtom),
+      mXMLMatchAtom(aContentListKey.mXMLMatchAtom),
+      mMatchNameSpaceId(aContentListKey.mMatchNameSpaceId),
+      mRootNode(aContentListKey.mRootNode)
   {
   }
 
-  nsContentListKey(const nsContentListKey& aContentListKey)
-    : mRootNode(aContentListKey.mRootNode),
-      mMatchNameSpaceId(aContentListKey.mMatchNameSpaceId),
-      mTagname(aContentListKey.mTagname)
+  PRBool Equals(const nsContentListKey& aContentListKey) const
   {
+    NS_ASSERTION(mHTMLMatchAtom == aContentListKey.mHTMLMatchAtom 
+                 || mXMLMatchAtom != aContentListKey.mXMLMatchAtom, "HTML atoms should match if XML atoms match");
+
+    return
+      mXMLMatchAtom == aContentListKey.mXMLMatchAtom &&
+      mMatchNameSpaceId == aContentListKey.mMatchNameSpaceId &&
+      mRootNode == aContentListKey.mRootNode;
   }
 
   inline PRUint32 GetHash(void) const
   {
     return
-      HashString(mTagname) ^
+      NS_PTR_TO_INT32(mXMLMatchAtom.get()) ^
       (NS_PTR_TO_INT32(mRootNode) << 12) ^
       (mMatchNameSpaceId << 24);
   }
   
-  nsINode* const mRootNode; // Weak ref
-  const PRInt32 mMatchNameSpaceId;
-  const nsAString& mTagname;
+protected:
+  nsCOMPtr<nsIAtom> mHTMLMatchAtom;
+  nsCOMPtr<nsIAtom> mXMLMatchAtom;
+  PRInt32 mMatchNameSpaceId;
+  nsINode* mRootNode; // Weak ref
 };
 
 /**
@@ -196,6 +214,7 @@ struct nsContentListKey
  * tree based on some criterion.
  */
 class nsContentList : public nsBaseContentList,
+                      protected nsContentListKey,
                       public nsIHTMLCollection,
                       public nsStubMutationObserver,
                       public nsWrapperCache
@@ -271,6 +290,11 @@ public:
   NS_HIDDEN_(nsIContent*) Item(PRUint32 aIndex, PRBool aDoFlush);
   NS_HIDDEN_(nsIContent*) NamedItem(const nsAString& aName, PRBool aDoFlush);
 
+  nsContentListKey* GetKey() {
+    return static_cast<nsContentListKey*>(this);
+  }
+  
+
   // nsIMutationObserver
   NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTECHANGED
   NS_DECL_NSIMUTATIONOBSERVER_CONTENTAPPENDED
@@ -292,19 +316,6 @@ public:
     }
 #endif
     return static_cast<nsContentList*>(list);
-  }
-
-  PRBool MatchesKey(const nsContentListKey& aKey) const
-  {
-    // The root node is most commonly the same: the document.  And the
-    // most common namespace id is kNameSpaceID_Unknown.  So check the
-    // string first.
-    NS_PRECONDITION(mXMLMatchAtom,
-                    "How did we get here with a null match atom on our list?");
-    return
-      mXMLMatchAtom->Equals(aKey.mTagname) &&
-      mRootNode == aKey.mRootNode &&
-      mMatchNameSpaceId == aKey.mMatchNameSpaceId;
   }
 
 protected:
@@ -377,11 +388,6 @@ protected:
     RemoveFromHashtable();
   }
 
-  nsINode* mRootNode; // Weak ref
-  PRInt32 mMatchNameSpaceId;
-  nsCOMPtr<nsIAtom> mHTMLMatchAtom;
-  nsCOMPtr<nsIAtom> mXMLMatchAtom;
-
   /**
    * Function to use to determine whether a piece of content matches
    * our criterion
@@ -396,34 +402,24 @@ protected:
    */
   void* mData;
   /**
+   * True if we are looking for elements named "*"
+   */
+  PRPackedBool mMatchAll;
+  /**
    * The current state of the list (possible values are:
    * LIST_UP_TO_DATE, LIST_LAZY, LIST_DIRTY
    */
   PRUint8 mState;
-
-  // The booleans have to use PRUint8 to pack with mState, because MSVC won't
-  // pack different typedefs together.  Once we no longer have to worry about
-  // flushes in XML documents, we can go back to using PRPackedBool for the
-  // booleans.
-  
-  /**
-   * True if we are looking for elements named "*"
-   */
-  PRUint8 mMatchAll : 1;
   /**
    * Whether to actually descend the tree.  If this is false, we won't
    * consider grandkids of mRootNode.
    */
-  PRUint8 mDeep : 1;
+  PRPackedBool mDeep;
   /**
    * Whether the return value of mFunc could depend on the values of
    * attributes.
    */
-  PRUint8 mFuncMayDependOnAttr : 1;
-  /**
-   * Whether we actually need to flush to get our state correct.
-   */
-  PRUint8 mFlushesNeeded : 1;
+  PRPackedBool mFuncMayDependOnAttr;
 
 #ifdef DEBUG_CONTENT_LIST
   void AssertInSync();
@@ -498,15 +494,11 @@ protected:
   nsString mString;
 };
 
-// If aMatchNameSpaceId is kNameSpaceID_Unknown, this will return a
-// content list which matches ASCIIToLower(aTagname) against HTML
-// elements in HTML documents and aTagname against everything else.
-// For any other value of aMatchNameSpaceId, the list will match
-// aTagname against all elements.
 already_AddRefed<nsContentList>
 NS_GetContentList(nsINode* aRootNode,
                   PRInt32 aMatchNameSpaceId,
-                  const nsAString& aTagname);
+                  nsIAtom* aHTMLMatchAtom,
+                  nsIAtom* aXMLMatchAtom = nsnull);
 
 already_AddRefed<nsContentList>
 NS_GetFuncStringContentList(nsINode* aRootNode,

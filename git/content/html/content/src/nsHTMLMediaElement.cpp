@@ -1382,9 +1382,6 @@ NS_IMETHODIMP nsHTMLMediaElement::Play()
   if (mPaused) {
     DispatchAsyncEvent(NS_LITERAL_STRING("play"));
     switch (mReadyState) {
-    case nsIDOMHTMLMediaElement::HAVE_NOTHING:
-      DispatchAsyncEvent(NS_LITERAL_STRING("waiting"));
-      break;
     case nsIDOMHTMLMediaElement::HAVE_METADATA:
     case nsIDOMHTMLMediaElement::HAVE_CURRENT_DATA:
       FireTimeUpdate(PR_FALSE);
@@ -1422,10 +1419,15 @@ PRBool nsHTMLMediaElement::ParseAttribute(PRInt32 aNamespaceID,
   };
 
   if (aNamespaceID == kNameSpaceID_None) {
-    if (aAttribute == nsGkAtoms::loopstart
-       || aAttribute == nsGkAtoms::loopend
-       || aAttribute == nsGkAtoms::start
-       || aAttribute == nsGkAtoms::end) {
+    if (aAttribute == nsGkAtoms::src) {
+      static const char* kWhitespace = " \n\r\t\b";
+      aResult.SetTo(nsContentUtils::TrimCharsInSet(kWhitespace, aValue));
+      return PR_TRUE;
+    }
+    else if (aAttribute == nsGkAtoms::loopstart
+            || aAttribute == nsGkAtoms::loopend
+            || aAttribute == nsGkAtoms::start
+            || aAttribute == nsGkAtoms::end) {
       return aResult.ParseFloatValue(aValue);
     }
     else if (ParseImageAttribute(aAttribute, aValue, aResult)) {

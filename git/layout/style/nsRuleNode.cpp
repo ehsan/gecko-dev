@@ -2175,7 +2175,8 @@ nsRuleNode::SetDefaultOnRoot(const nsStyleStructID aSID, nsStyleContext* aContex
     {
       nsStyleFont* fontData = new (mPresContext) nsStyleFont(mPresContext);
       if (NS_LIKELY(fontData != nsnull)) {
-        nscoord minimumFontSize = mPresContext->MinFontSize();
+        nscoord minimumFontSize =
+          mPresContext->GetCachedIntPref(kPresContext_MinimumFontSize);
 
         if (minimumFontSize > 0 && !mPresContext->IsChrome()) {
           fontData->mFont.size = NS_MAX(fontData->mSize, minimumFontSize);
@@ -3268,7 +3269,8 @@ nsRuleNode::ComputeFontData(void* aStartStruct,
   // using the 'font' shorthand).
 
   // See if there is a minimum font-size constraint to honor
-  nscoord minimumFontSize = mPresContext->MinFontSize();
+  nscoord minimumFontSize =
+    mPresContext->GetCachedIntPref(kPresContext_MinimumFontSize);
 
   if (minimumFontSize < 0)
     minimumFontSize = 0;
@@ -3489,7 +3491,8 @@ nsRuleNode::ComputeTextData(void* aStartStruct,
         !textData.mLineHeight.IsRelativeLengthUnit()) {
       nscoord lh = nsStyleFont::ZoomText(mPresContext,
                                          text->mLineHeight.GetCoordValue());
-      nscoord minimumFontSize = mPresContext->MinFontSize();
+      nscoord minimumFontSize =
+        mPresContext->GetCachedIntPref(kPresContext_MinimumFontSize);
 
       if (minimumFontSize > 0 && !mPresContext->IsChrome()) {
         // If we applied a minimum font size, scale the line height by
