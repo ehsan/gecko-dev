@@ -780,7 +780,7 @@ nsXBLBinding::ChangeDocument(nsIDocument* aOldDocument, nsIDocument* aNewDocumen
 
             JS::Value protoBinding = ::JS_GetReservedSlot(proto, 0);
 
-            if (protoBinding.toPrivate() != mPrototypeBinding) {
+            if (JSVAL_TO_PRIVATE(protoBinding) != mPrototypeBinding) {
               // Not the right binding
               continue;
             }

@@ -852,8 +852,6 @@ protected:
                              TextDrawOperation op,
                              float* aWidth);
 
-  bool CheckSizeForSkiaGL(mozilla::gfx::IntSize size);
-
   // state stack handling
   class ContextState {
   public:

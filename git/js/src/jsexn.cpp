@@ -755,10 +755,10 @@ js_ReportUncaughtException(JSContext *cx)
      * to protect all of these values.
      */
     RootedObject exnObject(cx);
-    if (exn.isPrimitive()) {
+    if (JSVAL_IS_PRIMITIVE(exn)) {
         exnObject = nullptr;
     } else {
-        exnObject = exn.toObjectOrNull();
+        exnObject = JSVAL_TO_OBJECT(exn);
     }
 
     JS_ClearPendingException(cx);

@@ -831,14 +831,14 @@ IDBIndex::GetKeyPath(JSContext* aCx, ErrorResult& aRv)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  if (!mCachedKeyPath.isUndefined()) {
+  if (!JSVAL_IS_VOID(mCachedKeyPath)) {
     return mCachedKeyPath;
   }
 
   aRv = GetKeyPath().ToJSVal(aCx, mCachedKeyPath);
   ENSURE_SUCCESS(aRv, JSVAL_VOID);
 
-  if (mCachedKeyPath.isGCThing()) {
+  if (JSVAL_IS_GCTHING(mCachedKeyPath)) {
     mozilla::HoldJSObjects(this);
     mRooted = true;
   }
