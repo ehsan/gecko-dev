@@ -527,14 +527,12 @@ WeaveSvc.prototype = {
             node = null;
           return node;
         default:
-          ErrorHandler.checkServerError(node);
           fail = "Unexpected response code: " + node.status;
           break;
       }
     } catch (e) {
       this._log.debug("Network error on findCluster");
       Status.login = LOGIN_FAILED_NETWORK_ERROR;
-      ErrorHandler.checkServerError(e);
       fail = e;
     }
     throw fail;
@@ -623,7 +621,6 @@ WeaveSvc.prototype = {
       if (infoResponse.status != 200) {
         this._log.warn("info/collections returned non-200 response. Failing key fetch.");
         Status.login = LOGIN_FAILED_SERVER_ERROR;
-        ErrorHandler.checkServerError(infoResponse);
         return false;
       }
 
@@ -656,9 +653,8 @@ WeaveSvc.prototype = {
             }
             else {
               // Some other problem.
-              Status.login = LOGIN_FAILED_SERVER_ERROR;
-              ErrorHandler.checkServerError(cryptoResp);
               this._log.warn("Got status " + cryptoResp.status + " fetching crypto keys.");
+              Status.login = LOGIN_FAILED_SERVER_ERROR;
               return false;
             }
           }
@@ -802,8 +798,8 @@ WeaveSvc.prototype = {
 
           default:
             // Server didn't respond with something that we expected
-            Status.login = LOGIN_FAILED_SERVER_ERROR;
             ErrorHandler.checkServerError(test);
+            Status.login = LOGIN_FAILED_SERVER_ERROR;
             return false;
         }
       }
@@ -811,7 +807,6 @@ WeaveSvc.prototype = {
         // Must have failed on some network issue
         this._log.debug("verifyLogin failed: " + Utils.exceptionStr(ex));
         Status.login = LOGIN_FAILED_NETWORK_ERROR;
-        ErrorHandler.checkServerError(ex);
         return false;
       }
     })(),
@@ -1141,8 +1136,8 @@ WeaveSvc.prototype = {
       // abort the server wipe if the GET status was anything other than 404 or 200
       let status = Records.response.status;
       if (status != 200 && status != 404) {
-        Status.sync = METARECORD_DOWNLOAD_FAIL;
         ErrorHandler.checkServerError(Records.response);
+        Status.sync = METARECORD_DOWNLOAD_FAIL;
         this._log.warn("Unknown error while downloading metadata record. " +
                        "Aborting sync.");
         return false;
