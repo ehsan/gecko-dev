@@ -22,9 +22,7 @@ function theTest() {
   compareAgainstArray(jsarray1, "map", op);
 
   // but if we try against the original we get bailouts:
-  assertParallelExecWillBail(function (mode) {
-    new ParallelArray(jsarray0).map(op, mode);
-  });
+  new ParallelArray(jsarray0).map(op, {mode:"par", expect:"disqualified"});
 }
 
 if (getBuildConfiguration().parallelJS)

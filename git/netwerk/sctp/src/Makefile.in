@@ -25,7 +25,7 @@ CPPSRCS = \
   $(NULL)
 endif
 
-DISABLED_CSRCS = \
+CSRCS = \
   user_environment.c \
   user_mbuf.c \
   user_recv_thread.c \

@@ -310,6 +310,8 @@ class IonCompartment
     }
 };
 
+class BailoutClosure;
+
 class IonActivation
 {
   private:
@@ -317,6 +319,7 @@ class IonActivation
     JSCompartment *compartment_;
     IonActivation *prev_;
     StackFrame *entryfp_;
+    BailoutClosure *bailout_;
     uint8_t *prevIonTop_;
     JSContext *prevIonJSContext_;
 
@@ -348,6 +351,23 @@ class IonActivation
     void setPrevPc(jsbytecode *pc) {
         JS_ASSERT_IF(pc, !prevpc_);
         prevpc_ = pc;
+    }
+    void setBailout(BailoutClosure *bailout) {
+        JS_ASSERT(!bailout_);
+        bailout_ = bailout;
+    }
+    BailoutClosure *maybeTakeBailout() {
+        BailoutClosure *br = bailout_;
+        bailout_ = NULL;
+        return br;
+    }
+    BailoutClosure *takeBailout() {
+        JS_ASSERT(bailout_);
+        return maybeTakeBailout();
+    }
+    BailoutClosure *bailout() const {
+        JS_ASSERT(bailout_);
+        return bailout_;
     }
     JSCompartment *compartment() const {
         return compartment_;

@@ -64,7 +64,6 @@ EXPORTS.mozilla += [
     'ClearOnShutdown.h',
     'MapsMemoryReporter.h',
     'StackWalk.h',
-    'StaticMutex.h',
     'StaticPtr.h',
     'VisualEventTracer.h',
     'nsMemoryInfoDumper.h',

@@ -136,12 +136,6 @@ public:
     mBits = 0;
   }
 
-  bool operator==(const nsEventHandler& aOther) const
-  {
-    return
-      Ptr() && aOther.Ptr() &&
-      Ptr()->CallbackPreserveColor() == aOther.Ptr()->CallbackPreserveColor();
-  }
 private:
   void operator=(const nsEventHandler&) MOZ_DELETE;
 

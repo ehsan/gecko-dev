@@ -85,7 +85,7 @@ public final class EventDispatcher {
             for (GeckoEventListener listener : listeners) {
                 listener.handleMessage(type, json);
                 if (listener instanceof GeckoEventResponder) {
-                    String newResponse = ((GeckoEventResponder)listener).getResponse(json);
+                    String newResponse = ((GeckoEventResponder)listener).getResponse();
                     if (response != null && newResponse != null) {
                         Log.e(LOGTAG, "Received two responses for message of type " + type);
                     }

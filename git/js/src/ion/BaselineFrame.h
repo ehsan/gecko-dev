@@ -158,14 +158,14 @@ class BaselineFrame
         JS_ASSERT(i < numFormalArgs());
         JS_ASSERT_IF(checkAliasing, !script()->argsObjAliasesFormals());
         JS_ASSERT_IF(checkAliasing, !script()->formalIsAliased(i));
-        return argv()[i];
+        return formals()[i];
     }
 
     Value &unaliasedActual(unsigned i, MaybeCheckAliasing checkAliasing) const {
         JS_ASSERT(i < numActualArgs());
         JS_ASSERT_IF(checkAliasing, !script()->argsObjAliasesFormals());
         JS_ASSERT_IF(checkAliasing && i < numFormalArgs(), !script()->formalIsAliased(i));
-        return argv()[i];
+        return actuals()[i];
     }
 
     Value &unaliasedLocal(unsigned i, MaybeCheckAliasing checkAliasing = CHECK_ALIASING) const {
@@ -188,10 +188,13 @@ class BaselineFrame
                          BaselineFrame::Size() +
                          offsetOfThis());
     }
-    Value *argv() const {
+    Value *formals() const {
         return (Value *)(reinterpret_cast<const uint8_t *>(this) +
                          BaselineFrame::Size() +
                          offsetOfArg(0));
+    }
+    Value *actuals() const {
+        return formals();
     }
 
     bool copyRawFrameSlots(AutoValueVector *vec) const;

@@ -46,7 +46,7 @@ public:
     , mRatio(12.f)
     , mAttack(0.003f)
     , mRelease(0.25f)
-    , mCompressor(new DynamicsCompressor(mDestination->SampleRate(), 2))
+    , mCompressor(new DynamicsCompressor(IdealAudioRate(), 2))
   {
   }
 
@@ -62,9 +62,7 @@ public:
     ATTACK,
     RELEASE
   };
-  void SetTimelineParameter(uint32_t aIndex,
-                            const AudioParamTimeline& aValue,
-                            TrackRate aSampleRate) MOZ_OVERRIDE
+  void SetTimelineParameter(uint32_t aIndex, const AudioParamTimeline& aValue) MOZ_OVERRIDE
   {
     MOZ_ASSERT(mSource && mDestination);
     switch (aIndex) {
@@ -107,7 +105,7 @@ public:
     const uint32_t channelCount = aInput.mChannelData.Length();
     if (mCompressor->numberOfChannels() != channelCount) {
       // Create a new compressor object with a new channel count
-      mCompressor = new WebCore::DynamicsCompressor(aStream->SampleRate(),
+      mCompressor = new WebCore::DynamicsCompressor(IdealAudioRate(),
                                                     aInput.mChannelData.Length());
     }
 

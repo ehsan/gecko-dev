@@ -310,7 +310,10 @@ nsOSHelperAppService::GetMIMEInfoFromOS(const nsACString& aMIMEType,
                               flatType.get(), flatExt.get()));
 
   // Create a Mac-specific MIME info so we can use Mac-specific members.
-  nsRefPtr<nsMIMEInfoMac> mimeInfoMac = new nsMIMEInfoMac(aMIMEType);
+  nsMIMEInfoMac* mimeInfoMac = new nsMIMEInfoMac(aMIMEType);
+  if (!mimeInfoMac)
+    return nullptr;
+  NS_ADDREF(mimeInfoMac);
 
   NSAutoreleasePool *localPool = [[NSAutoreleasePool alloc] init];
 
@@ -460,6 +463,7 @@ nsOSHelperAppService::GetMIMEInfoFromOS(const nsACString& aMIMEType,
 
     nsCOMPtr<nsILocalFileMac> app(do_CreateInstance(NS_LOCAL_FILE_CONTRACTID));
     if (!app) {
+      NS_RELEASE(mimeInfoMac);
       [localPool release];
       return nullptr;
     }
@@ -527,7 +531,7 @@ nsOSHelperAppService::GetMIMEInfoFromOS(const nsACString& aMIMEType,
   PR_LOG(mLog, PR_LOG_DEBUG, ("OS gave us: type '%s' found '%i'\n", mimeType.get(), *aFound));
 
   [localPool release];
-  return mimeInfoMac.forget();
+  return mimeInfoMac;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSNULL;
 }

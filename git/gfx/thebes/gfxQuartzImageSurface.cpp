@@ -67,5 +67,8 @@ gfxQuartzImageSurface::GetAsImageSurface()
         return nullptr;
     }
 
-    return gfxASurface::Wrap(isurf).downcast<gfxImageSurface>();
+    nsRefPtr<gfxASurface> asurf = gfxASurface::Wrap(isurf);
+    gfxImageSurface *imgsurf = (gfxImageSurface*) asurf.get();
+    NS_ADDREF(imgsurf);
+    return imgsurf;
 }

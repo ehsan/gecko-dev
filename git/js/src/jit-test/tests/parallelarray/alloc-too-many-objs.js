@@ -1,3 +1,5 @@
+// |jit-test| slow;
+
 load(libdir + "parallelarray-helpers.js");
 
 function testMap() {
@@ -10,22 +12,18 @@ function testMap() {
   var ints = range(0, 100000);
   var pints = new ParallelArray(ints);
 
-  // The disqual occurs because each time we try to run we wind up
-  // bailing due to running out of memory or requesting a GC.
-  assertParallelExecWillBail(function (m) {
-    pints.map(kernel, m);
-  });
+  // The bailout occurs because at some point during execution we will
+  // request a GC.  The GC is actually deferred until after execution
+  // fails.
+  pints.map(kernel, {mode: "par", expect: "bailout"});
 
   function kernel(v) {
     var x = [];
 
-    if (inParallelSection()) {
-      // don't bother to stress test the non-parallel paths!
-      for (var i = 0; i < 50; i++) {
-        x[i] = [];
-        for (var j = 0; j < 1024; j++) {
-          x[i][j] = j;
-        }
+    for (var i = 0; i < 50; i++) {
+      x[i] = [];
+      for (var j = 0; j < 1024; j++) {
+        x[i][j] = j;
       }
     }
 

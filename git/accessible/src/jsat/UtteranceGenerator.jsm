@@ -15,16 +15,29 @@ const INCLUDE_CUSTOM = 0x04;
 
 const UTTERANCE_DESC_FIRST = 0;
 
-Cu.import('resource://gre/modules/accessibility/Utils.jsm');
-
-let gUtteranceOrder = new PrefCache('accessibility.accessfu.utterance');
+// Read and observe changes to a setting for utterance order.
+let gUtteranceOrder;
+let prefsBranch = Cc['@mozilla.org/preferences-service;1']
+  .getService(Ci.nsIPrefService).getBranch('accessibility.accessfu.');
+let observeUtterance = function observeUtterance(aSubject, aTopic, aData) {
+  try {
+    gUtteranceOrder = prefsBranch.getIntPref('utterance');
+  } catch (x) {
+    gUtteranceOrder = UTTERANCE_DESC_FIRST;
+  }
+};
+// Set initial gUtteranceOrder.
+observeUtterance();
+prefsBranch.addObserver('utterance', observeUtterance, false);
 
 var gStringBundle = Cc['@mozilla.org/intl/stringbundle;1'].
   getService(Ci.nsIStringBundleService).
   createBundle('chrome://global/locale/AccessFu.properties');
 
+
 this.EXPORTED_SYMBOLS = ['UtteranceGenerator'];
 
+Cu.import('resource://gre/modules/accessibility/Utils.jsm');
 
 /**
  * Generates speech utterances from objects, actions and state changes.
@@ -75,9 +88,7 @@ this.UtteranceGenerator = {
         UtteranceGenerator.genForObject(aAccessible));
     };
 
-    let utteranceOrder = gUtteranceOrder.value || UTTERANCE_DESC_FIRST;
-
-    if (utteranceOrder === UTTERANCE_DESC_FIRST) {
+    if (gUtteranceOrder === UTTERANCE_DESC_FIRST) {
       aContext.newAncestry.forEach(addUtterance);
       addUtterance(aContext.accessible);
       aContext.subtreePreorder.forEach(addUtterance);
@@ -106,7 +117,7 @@ this.UtteranceGenerator = {
     let func = this.objectUtteranceFunctions[roleString] ||
       this.objectUtteranceFunctions.defaultFunc;
 
-    let flags = this.verbosityRoleMap[roleString] || UTTERANCE_DESC_FIRST;
+    let flags = this.verbosityRoleMap[roleString] || 0;
 
     if (aAccessible.childCount == 0)
       flags |= INCLUDE_NAME;
@@ -315,10 +326,8 @@ this.UtteranceGenerator = {
 
   _addName: function _addName(utterance, aAccessible, aFlags) {
     let name = (aFlags & INCLUDE_NAME) ? (aAccessible.name || '') : '';
-    let utteranceOrder = gUtteranceOrder.value || 0;
-
     if (name) {
-      utterance[utteranceOrder === UTTERANCE_DESC_FIRST ?
+      utterance[gUtteranceOrder === UTTERANCE_DESC_FIRST ?
         "push" : "unshift"](name);
     }
   },

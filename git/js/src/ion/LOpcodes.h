@@ -192,8 +192,6 @@
     _(CallDeleteProperty)           \
     _(SetPropertyCacheV)            \
     _(SetPropertyCacheT)            \
-    _(SetElementCacheV)             \
-    _(SetElementCacheT)             \
     _(SetPropertyPolymorphicV)      \
     _(SetPropertyPolymorphicT)      \
     _(CallIteratorStart)            \
@@ -207,6 +205,7 @@
     _(StringLength)                 \
     _(ArgumentsLength)              \
     _(GetArgument)                  \
+    _(RunOncePrologue)              \
     _(Rest)                         \
     _(ParRest)                      \
     _(TypeOfV)                      \

@@ -195,7 +195,6 @@ class ParallelArrayVisitor : public MInstructionVisitor
     SAFE_OP(GetPropertyPolymorphic)
     UNSAFE_OP(SetPropertyPolymorphic)
     UNSAFE_OP(GetElementCache)
-    UNSAFE_OP(SetElementCache)
     UNSAFE_OP(BindNameCache)
     SAFE_OP(GuardShape)
     SAFE_OP(GuardObjectType)
@@ -225,7 +224,7 @@ class ParallelArrayVisitor : public MInstructionVisitor
     WRITE_GUARDED_OP(StoreFixedSlot, object)
     UNSAFE_OP(CallGetProperty)
     UNSAFE_OP(GetNameCache)
-    UNSAFE_OP(CallGetIntrinsicValue)
+    SAFE_OP(CallGetIntrinsicValue) // Bails in parallel mode
     UNSAFE_OP(CallsiteCloneCache)
     UNSAFE_OP(CallGetElement)
     UNSAFE_OP(CallSetElement)
@@ -240,6 +239,7 @@ class ParallelArrayVisitor : public MInstructionVisitor
     SAFE_OP(StringLength)
     UNSAFE_OP(ArgumentsLength)
     UNSAFE_OP(GetArgument)
+    UNSAFE_OP(RunOncePrologue)
     CUSTOM_OP(Rest)
     SAFE_OP(ParRest)
     SAFE_OP(Floor)
@@ -297,7 +297,55 @@ class ParallelArrayVisitor : public MInstructionVisitor
 };
 
 bool
-ParallelArrayAnalysis::analyze()
+ParallelCompileContext::appendToWorklist(HandleScript script)
+{
+    JS_ASSERT(script);
+
+    // Skip if we're disabled.
+    if (!script->canParallelIonCompile()) {
+        Spew(SpewCompile, "Skipping %p:%s:%u, canParallelIonCompile() is false",
+             script.get(), script->filename(), script->lineno);
+        return true;
+    }
+
+    // Skip if we're compiling off thread.
+    if (script->isParallelIonCompilingOffThread()) {
+        Spew(SpewCompile, "Skipping %p:%s:%u, off-main-thread compilation in progress",
+             script.get(), script->filename(), script->lineno);
+        return true;
+    }
+
+    // Skip if the code is expected to result in a bailout.
+    if (script->hasParallelIonScript() && script->parallelIonScript()->bailoutExpected()) {
+        Spew(SpewCompile, "Skipping %p:%s:%u, bailout expected",
+             script.get(), script->filename(), script->lineno);
+        return true;
+    }
+
+    // Skip if we haven't warmed up to get some type info. We're betting
+    // that the parallel kernel will be non-branchy for the most part, so
+    // this threshold is usually very low (1).
+    if (script->getUseCount() < js_IonOptions.usesBeforeCompileParallel) {
+        Spew(SpewCompile, "Skipping %p:%s:%u, use count %u < %u",
+             script.get(), script->filename(), script->lineno,
+             script->getUseCount(), js_IonOptions.usesBeforeCompileParallel);
+        return true;
+    }
+
+    for (uint32_t i = 0; i < worklist_.length(); i++) {
+        if (worklist_[i] == script)
+            return true;
+    }
+
+    // Note that we add all possibly compilable functions to the worklist,
+    // even if they're already compiled. This is so that we can return
+    // Method_Compiled and not Method_Skipped if we have a worklist full of
+    // already-compiled functions.
+    return worklist_.append(script);
+}
+
+bool
+ParallelCompileContext::analyzeAndGrowWorklist(MIRGenerator *mir, MIRGraph &graph)
 {
     // Walk the basic blocks in a DFS.  When we encounter a block with an
     // unsafe instruction, then we know that this block will bailout when
@@ -306,12 +354,11 @@ ParallelArrayAnalysis::analyze()
     // We don't need a worklist, though, because the graph is sorted
     // in RPO.  Therefore, we just use the marked flags to tell us
     // when we visited some predecessor of the current block.
-    JSContext *cx = GetIonContext()->cx;
-    ParallelArrayVisitor visitor(cx, graph_);
-    graph_.entryBlock()->mark();  // Note: in par. exec., we never enter from OSR.
+    ParallelArrayVisitor visitor(cx_, graph);
+    graph.entryBlock()->mark();  // Note: in par. exec., we never enter from OSR.
     uint32_t marked = 0;
-    for (ReversePostorderIterator block(graph_.rpoBegin()); block != graph_.rpoEnd(); block++) {
-        if (mir_->shouldCancel("ParallelArrayAnalysis"))
+    for (ReversePostorderIterator block(graph.rpoBegin()); block != graph.rpoEnd(); block++) {
+        if (mir->shouldCancel("ParallelArrayAnalysis"))
             return false;
 
         if (block->isMarked()) {
@@ -323,7 +370,7 @@ ParallelArrayAnalysis::analyze()
             for (MInstructionIterator ins(block->begin());
                  ins != block->end() && !visitor.unsafe();)
             {
-                if (mir_->shouldCancel("ParallelArrayAnalysis"))
+                if (mir->shouldCancel("ParallelArrayAnalysis"))
                     return false;
 
                 // We may be removing or replacing the current
@@ -352,7 +399,7 @@ ParallelArrayAnalysis::analyze()
                 // If this is the entry block, then there is no point
                 // in even trying to execute this function as it will
                 // always bailout.
-                if (*block == graph_.entryBlock()) {
+                if (*block == graph.entryBlock()) {
                     Spew(SpewCompile, "Entry block contains unsafe MIR");
                     return false;
                 }
@@ -366,30 +413,37 @@ ParallelArrayAnalysis::analyze()
         }
     }
 
+    // Append newly discovered outgoing callgraph edges to the worklist.
+    RootedScript scriptRoot(cx_);
+    for (uint32_t i = 0; i < graph.numCallTargets(); i++) {
+        scriptRoot = graph.callTargets()[i];
+        appendToWorklist(scriptRoot);
+    }
+
     Spew(SpewCompile, "Safe");
     IonSpewPass("ParallelArrayAnalysis");
 
-    UnreachableCodeElimination uce(mir_, graph_);
+    UnreachableCodeElimination uce(mir, graph);
     if (!uce.removeUnmarkedBlocks(marked))
         return false;
     IonSpewPass("UCEAfterParallelArrayAnalysis");
-    AssertExtendedGraphCoherency(graph_);
+    AssertExtendedGraphCoherency(graph);
 
-    if (!removeResumePointOperands())
+    if (!removeResumePointOperands(mir, graph))
         return false;
     IonSpewPass("RemoveResumePointOperands");
-    AssertExtendedGraphCoherency(graph_);
+    AssertExtendedGraphCoherency(graph);
 
-    if (!EliminateDeadCode(mir_, graph_))
+    if (!EliminateDeadCode(mir, graph))
         return false;
     IonSpewPass("DCEAfterParallelArrayAnalysis");
-    AssertExtendedGraphCoherency(graph_);
+    AssertExtendedGraphCoherency(graph);
 
     return true;
 }
 
 bool
-ParallelArrayAnalysis::removeResumePointOperands()
+ParallelCompileContext::removeResumePointOperands(MIRGenerator *mir, MIRGraph &graph)
 {
     // In parallel exec mode, nothing is effectful, therefore we do
     // not need to reconstruct interpreter state and can simply
@@ -410,7 +464,7 @@ ParallelArrayAnalysis::removeResumePointOperands()
     // an inconsistent IR and assertions at codegen time.
 
     MConstant *udef = NULL;
-    for (ReversePostorderIterator block(graph_.rpoBegin()); block != graph_.rpoEnd(); block++) {
+    for (ReversePostorderIterator block(graph.rpoBegin()); block != graph.rpoEnd(); block++) {
         if (udef)
             replaceOperandsOnResumePoint(block->entryResumePoint(), udef);
 
@@ -429,8 +483,8 @@ ParallelArrayAnalysis::removeResumePointOperands()
 }
 
 void
-ParallelArrayAnalysis::replaceOperandsOnResumePoint(MResumePoint *resumePoint,
-                                                    MDefinition *withDef)
+ParallelCompileContext::replaceOperandsOnResumePoint(MResumePoint *resumePoint,
+                                                     MDefinition *withDef)
 {
     for (size_t i = 0; i < resumePoint->numOperands(); i++)
         resumePoint->replaceOperand(i, withDef);
@@ -673,7 +727,50 @@ ParallelArrayVisitor::insertWriteGuard(MInstruction *writeInstruction,
 // Calls
 //
 // We only support calls to interpreted functions that that have already been
-// Ion compiled. If a function has no IonScript, we bail out.
+// Ion compiled. If a function has no IonScript, we bail out. The transitive
+// compilation is done by asking TI for all possible callees at callsites.
+
+static bool
+GetPossibleCallees(JSContext *cx, HandleScript script, jsbytecode *pc,
+                   types::StackTypeSet *calleeTypes, MIRGraph &graph)
+{
+    if (!calleeTypes || calleeTypes->baseFlags() != 0)
+        return true;
+
+    unsigned objCount = calleeTypes->getObjectCount();
+
+    if (objCount == 0)
+        return true;
+
+    RootedFunction fun(cx);
+    for (unsigned i = 0; i < objCount; i++) {
+        JSObject *obj = calleeTypes->getSingleObject(i);
+        if (obj && obj->isFunction()) {
+            fun = obj->toFunction();
+        } else {
+            types::TypeObject *typeObj = calleeTypes->getTypeObject(i);
+            if (!typeObj)
+                continue;
+            fun = typeObj->interpretedFunction;
+            if (!fun)
+                continue;
+        }
+
+        if (!fun->isInterpreted())
+            continue;
+
+        if (fun->nonLazyScript()->shouldCloneAtCallsite) {
+            fun = CloneFunctionAtCallsite(cx, fun, script, pc);
+            if (!fun)
+                return false;
+        }
+
+        if (!graph.addCallTarget(fun->nonLazyScript()))
+            return false;
+    }
+
+    return true;
+}
 
 bool
 ParallelArrayVisitor::visitCall(MCall *ins)
@@ -691,7 +788,7 @@ ParallelArrayVisitor::visitCall(MCall *ins)
             SpewMIR(ins, "call to native function");
             return markUnsafe();
         }
-        return true;
+        return graph_.addCallTarget(target->nonLazyScript());
     }
 
     if (ins->isConstructing()) {
@@ -699,7 +796,11 @@ ParallelArrayVisitor::visitCall(MCall *ins)
         return markUnsafe();
     }
 
-    return true;
+    types::StackTypeSet *calleeTypes = ins->getFunction()->resultTypeSet();
+
+    RootedScript script(cx_, ins->block()->info().script());
+    return GetPossibleCallees(cx_, script, ins->resumePoint()->pc(),
+                              calleeTypes, graph_);
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -758,118 +859,6 @@ ParallelArrayVisitor::visitThrow(MThrow *thr)
     if (!bailout)
         return false;
     block->end(bailout);
-    return true;
-}
-
-///////////////////////////////////////////////////////////////////////////
-// Callee extraction
-//
-// See comments in header file.
-
-static bool
-GetPossibleCallees(JSContext *cx,
-                   HandleScript script,
-                   jsbytecode *pc,
-                   types::StackTypeSet *calleeTypes,
-                   CallTargetVector &targets);
-
-static bool
-AddCallTarget(HandleScript script, CallTargetVector &targets);
-
-bool
-AddPossibleCallees(MIRGraph &graph, CallTargetVector &targets)
-{
-    JSContext *cx = GetIonContext()->cx;
-
-    for (ReversePostorderIterator block(graph.rpoBegin()); block != graph.rpoEnd(); block++) {
-        for (MInstructionIterator ins(block->begin()); ins != block->end(); ins++)
-        {
-            if (!ins->isCall())
-                continue;
-
-            MCall *callIns = ins->toCall();
-
-            RootedFunction target(cx, callIns->getSingleTarget());
-            if (target) {
-                RootedScript script(cx, target->nonLazyScript());
-                if (!AddCallTarget(script, targets))
-                    return false;
-                continue;
-            }
-
-            types::StackTypeSet *calleeTypes = callIns->getFunction()->resultTypeSet();
-            RootedScript script(cx, callIns->block()->info().script());
-            if (!GetPossibleCallees(cx,
-                                    script,
-                                    callIns->resumePoint()->pc(),
-                                    calleeTypes,
-                                    targets))
-                return false;
-        }
-    }
-
-    return true;
-}
-
-static bool
-GetPossibleCallees(JSContext *cx,
-                   HandleScript script,
-                   jsbytecode *pc,
-                   types::StackTypeSet *calleeTypes,
-                   CallTargetVector &targets)
-{
-    if (!calleeTypes || calleeTypes->baseFlags() != 0)
-        return true;
-
-    unsigned objCount = calleeTypes->getObjectCount();
-
-    if (objCount == 0)
-        return true;
-
-    RootedFunction rootedFun(cx);
-    RootedScript rootedScript(cx);
-    for (unsigned i = 0; i < objCount; i++) {
-        JSObject *obj = calleeTypes->getSingleObject(i);
-        if (obj && obj->isFunction()) {
-            rootedFun = obj->toFunction();
-        } else {
-            types::TypeObject *typeObj = calleeTypes->getTypeObject(i);
-            if (!typeObj)
-                continue;
-            rootedFun = typeObj->interpretedFunction;
-            if (!rootedFun)
-                continue;
-        }
-
-        if (!rootedFun->isInterpreted())
-            continue;
-
-        if (rootedFun->nonLazyScript()->shouldCloneAtCallsite) {
-            rootedFun = CloneFunctionAtCallsite(cx, rootedFun, script, pc);
-            if (!rootedFun)
-                return false;
-        }
-
-        // check if this call target is already known
-        rootedScript = rootedFun->nonLazyScript();
-        if (!AddCallTarget(rootedScript, targets))
-            return false;
-    }
-
-    return true;
-}
-
-static bool
-AddCallTarget(HandleScript script, CallTargetVector &targets)
-{
-    for (size_t i = 0; i < targets.length(); i++) {
-        if (targets[i] == script)
-            return true;
-    }
-
-    if (!targets.append(script))
-        return false;
-
     return true;
 }
 

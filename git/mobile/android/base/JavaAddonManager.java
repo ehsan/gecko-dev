@@ -190,7 +190,7 @@ class JavaAddonManager implements GeckoEventListener {
         }
 
         @Override
-        public String getResponse(JSONObject origMessage) {
+        public String getResponse() {
             String response = mBundle.getString("response");
             mBundle = null;
             return response;

@@ -15,7 +15,6 @@ import org.json.JSONObject;
 import android.accounts.Account;
 import android.accounts.AccountManager;
 import android.accounts.OnAccountsUpdateListener;
-import android.app.Activity;
 import android.content.ContentResolver;
 import android.database.ContentObserver;
 import android.graphics.Color;
@@ -64,7 +63,7 @@ public class Tabs implements GeckoEventListener {
     private static AtomicInteger sTabId = new AtomicInteger(0);
     private volatile boolean mInitialTabsAdded;
 
-    private Activity mActivity;
+    private GeckoApp mActivity;
     private ContentObserver mContentObserver;
 
     private final Runnable mPersistTabsRunnable = new Runnable() {
@@ -100,7 +99,7 @@ public class Tabs implements GeckoEventListener {
         registerEventListener("DesktopMode:Changed");
     }
 
-    public synchronized void attachToActivity(Activity activity) {
+    public synchronized void attachToActivity(GeckoApp activity) {
         if (mActivity == activity) {
             return;
         }
@@ -131,7 +130,7 @@ public class Tabs implements GeckoEventListener {
     // detached; however, we have lifecycle issues with GeckoApp and Tabs that
     // requires us to keep it around (see
     // https://bugzilla.mozilla.org/show_bug.cgi?id=844407).
-    public synchronized void detachFromActivity(Activity activity) {
+    public synchronized void detachFromActivity(GeckoApp activity) {
         ThreadUtils.getBackgroundHandler().removeCallbacks(mPersistTabsRunnable);
 
         if (mContentObserver != null) {
@@ -358,7 +357,7 @@ public class Tabs implements GeckoEventListener {
      * @return the current GeckoApp instance, or throws if
      *         we aren't correctly initialized.
      */
-    private synchronized android.app.Activity getActivity() {
+    private synchronized GeckoApp getActivity() {
         if (mActivity == null) {
             throw new IllegalStateException("Tabs not initialized with a GeckoApp instance.");
         }

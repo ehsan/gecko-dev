@@ -6,7 +6,6 @@
 
 XPIDL_SOURCES += [
     'xpctest_attributes.idl',
-    'xpctest_bug809674.idl',
     'xpctest_interfaces.idl',
     'xpctest_params.idl',
 ]

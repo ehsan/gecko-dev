@@ -321,8 +321,8 @@ nsGenericHTMLElement::Dataset()
     slots->mDataset = new nsDOMStringMap(this);
   }
 
-  nsRefPtr<nsDOMStringMap> ret = slots->mDataset;
-  return ret.forget();
+  NS_ADDREF(slots->mDataset);
+  return slots->mDataset;
 }
 
 nsresult
@@ -3174,8 +3174,7 @@ nsGenericHTMLElement::SetItemValue(JSContext* aCx, JS::Value aValue,
   }
 
   FakeDependentString string;
-  JS::Rooted<JS::Value> value(aCx, aValue);
-  if (!ConvertJSValueToString(aCx, value, &value, eStringify, eStringify, string)) {
+  if (!ConvertJSValueToString(aCx, aValue, &aValue, eStringify, eStringify, string)) {
     aError.Throw(NS_ERROR_UNEXPECTED);
     return;
   }

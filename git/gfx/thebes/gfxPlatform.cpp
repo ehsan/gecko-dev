@@ -741,7 +741,7 @@ gfxPlatform::GetThebesSurfaceForDrawTarget(DrawTarget *aTarget)
   RefPtr<DataSourceSurface> data = source->GetDataSurface();
 
   if (!data) {
-    return nullptr;
+    return NULL;
   }
 
   IntSize size = data->GetSize();

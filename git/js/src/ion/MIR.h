@@ -2273,6 +2273,23 @@ class MSetArgumentsObjectArg
     }
 };
 
+class MRunOncePrologue
+  : public MNullaryInstruction
+{
+  protected:
+    MRunOncePrologue()
+    {
+        setGuard();
+    }
+
+  public:
+    INSTRUCTION_HEADER(RunOncePrologue)
+
+    static MRunOncePrologue *New() {
+        return new MRunOncePrologue();
+    }
+};
+
 // Given a MIRType_Value A and a MIRType_Object B:
 // If the Value may be safely unboxed to an Object, return Object(A).
 // Otherwise, return B.
@@ -6326,27 +6343,6 @@ class MSetPropertyInstruction : public MBinaryInstruction
     }
 };
 
-class MSetElementInstruction
-  : public MTernaryInstruction
-{
-  protected:
-    MSetElementInstruction(MDefinition *object, MDefinition *index, MDefinition *value)
-      : MTernaryInstruction(object, index, value)
-    {
-    }
-
-  public:
-    MDefinition *object() const {
-        return getOperand(0);
-    }
-    MDefinition *index() const {
-        return getOperand(1);
-    }
-    MDefinition *value() const {
-        return getOperand(2);
-    }
-};
-
 class MDeleteProperty
   : public MUnaryInstruction,
     public BoxInputsPolicy
@@ -6422,35 +6418,6 @@ class MSetPropertyCache
     }
 };
 
-class MSetElementCache
-  : public MSetElementInstruction,
-    public MixPolicy<ObjectPolicy<0>, BoxPolicy<1> >
-{
-    bool strict_;
-
-    MSetElementCache(MDefinition *obj, MDefinition *index, MDefinition *value, bool strict)
-      : MSetElementInstruction(obj, index, value),
-        strict_(strict)
-    {
-    }
-
-  public:
-    INSTRUCTION_HEADER(SetElementCache);
-
-    static MSetElementCache *New(MDefinition *obj, MDefinition *index, MDefinition *value,
-                                 bool strict) {
-        return new MSetElementCache(obj, index, value, strict);
-    }
-
-    bool strict() const {
-        return strict_;
-    }
-
-    TypePolicy *typePolicy() {
-        return this;
-    }
-};
-
 class MCallGetProperty
   : public MUnaryInstruction,
     public BoxInputsPolicy
@@ -6518,12 +6485,13 @@ class MCallGetElement
 };
 
 class MCallSetElement
-  : public MSetElementInstruction,
+  : public MAryInstruction<3>,
     public CallSetElementPolicy
 {
-    MCallSetElement(MDefinition *object, MDefinition *index, MDefinition *value)
-      : MSetElementInstruction(object, index, value)
-    {
+    MCallSetElement(MDefinition *object, MDefinition *index, MDefinition *value) {
+        setOperand(0, object);
+        setOperand(1, index);
+        setOperand(2, value);
     }
 
   public:
@@ -6535,6 +6503,15 @@ class MCallSetElement
 
     TypePolicy *typePolicy() {
         return this;
+    }
+    MDefinition *object() const {
+        return getOperand(0);
+    }
+    MDefinition *index() const {
+        return getOperand(1);
+    }
+    MDefinition *value() const {
+        return getOperand(2);
     }
 };
 
@@ -7390,10 +7367,12 @@ class MNewDeclEnvObject : public MNullaryInstruction
 class MNewCallObject : public MUnaryInstruction
 {
     CompilerRootObject templateObj_;
+    bool needsSingletonType_;
 
-    MNewCallObject(HandleObject templateObj, MDefinition *slots)
+    MNewCallObject(HandleObject templateObj, bool needsSingletonType, MDefinition *slots)
       : MUnaryInstruction(slots),
-        templateObj_(templateObj)
+        templateObj_(templateObj),
+        needsSingletonType_(needsSingletonType)
     {
         setResultType(MIRType_Object);
     }
@@ -7401,8 +7380,8 @@ class MNewCallObject : public MUnaryInstruction
   public:
     INSTRUCTION_HEADER(NewCallObject)
 
-    static MNewCallObject *New(HandleObject templateObj, MDefinition *slots) {
-        return new MNewCallObject(templateObj, slots);
+    static MNewCallObject *New(HandleObject templateObj, bool needsSingletonType, MDefinition *slots) {
+        return new MNewCallObject(templateObj, needsSingletonType, slots);
     }
 
     MDefinition *slots() {
@@ -7410,6 +7389,9 @@ class MNewCallObject : public MUnaryInstruction
     }
     JSObject *templateObject() {
         return templateObj_;
+    }
+    bool needsSingletonType() {
+        return needsSingletonType_;
     }
     AliasSet getAliasSet() const {
         return AliasSet::None();
