@@ -150,12 +150,14 @@ MNewStringObject::templateObj() const {
 CodeGenerator::CodeGenerator(MIRGenerator *gen, LIRGraph *graph, MacroAssembler *masm)
   : CodeGeneratorSpecific(gen, graph, masm)
   , ionScriptLabels_(gen->alloc())
+  , unassociatedScriptCounts_(nullptr)
 {
 }
 
 CodeGenerator::~CodeGenerator()
 {
     JS_ASSERT_IF(!gen->compilingAsmJS(), masm.numAsmJSAbsoluteLinks() == 0);
+    js_delete(unassociatedScriptCounts_);
 }
 
 typedef bool (*StringToNumberFn)(ThreadSafeContext *, JSString *, double *);
@@ -2747,6 +2749,17 @@ class CheckOverRecursedFailure : public OutOfLineCodeBase<CodeGenerator>
 };
 
 bool
+CodeGenerator::omitOverRecursedCheck() const
+{
+    // If the current function makes no calls (which means it isn't recursive)
+    // and it uses only a small amount of stack space, it doesn't need a
+    // stack overflow check. Note that the actual number here is somewhat
+    // arbitrary, and codegen actually uses small bounded amounts of
+    // additional stack space in some cases too.
+    return frameSize() < 64 && !gen->performsCall();
+}
+
+bool
 CodeGenerator::visitCheckOverRecursed(LCheckOverRecursed *lir)
 {
     // If we don't push anything on the stack, skip the check.
@@ -2974,15 +2987,15 @@ CodeGenerator::maybeCreateScriptCounts()
     if (!cx || !cx->runtime()->profilingScripts)
         return nullptr;
 
+    IonScriptCounts *counts = nullptr;
+
     CompileInfo *outerInfo = &gen->info();
     JSScript *script = outerInfo->script();
-    if (!script)
+
+    if (script && !script->hasScriptCounts() && !script->initScriptCounts(cx))
         return nullptr;
 
-    if (!script->hasScriptCounts() && !script->initScriptCounts(cx))
-        return nullptr;
-
-    IonScriptCounts *counts = js_new<IonScriptCounts>();
+    counts = js_new<IonScriptCounts>();
     if (!counts || !counts->init(graph.numBlocks())) {
         js_delete(counts);
         return nullptr;
@@ -2991,24 +3004,33 @@ CodeGenerator::maybeCreateScriptCounts()
     for (size_t i = 0; i < graph.numBlocks(); i++) {
         MBasicBlock *block = graph.getBlock(i)->mir();
 
-        // Find a PC offset in the outermost script to use. If this block
-        // is from an inlined script, find a location in the outer script
-        // to associate information about the inlining with.
-        MResumePoint *resume = block->entryResumePoint();
-        while (resume->caller())
-            resume = resume->caller();
+        uint32_t offset = 0;
+        if (script) {
+            // Find a PC offset in the outermost script to use. If this block
+            // is from an inlined script, find a location in the outer script
+            // to associate information about the inlining with.
+            MResumePoint *resume = block->entryResumePoint();
+            while (resume->caller())
+                resume = resume->caller();
+            offset = script->pcToOffset(resume->pc());
+        }
 
-        uint32_t offset = script->pcToOffset(resume->pc());
         if (!counts->block(i).init(block->id(), offset, block->numSuccessors())) {
             js_delete(counts);
             return nullptr;
         }
-
         for (size_t j = 0; j < block->numSuccessors(); j++)
             counts->block(i).setSuccessor(j, block->getSuccessor(j)->id());
     }
 
-    script->addIonCounts(counts);
+    if (script) {
+        script->addIonCounts(counts);
+    } else {
+        // Compiling code for Asm.js. Leave the counts on the CodeGenerator to
+        // be picked up by the AsmJSModule after generation finishes.
+        unassociatedScriptCounts_ = counts;
+    }
+
     return counts;
 }
 
@@ -6180,7 +6202,7 @@ CodeGenerator::visitRestPar(LRestPar *lir)
 }
 
 bool
-CodeGenerator::generateAsmJS(Label *stackOverflowLabel)
+CodeGenerator::generateAsmJS()
 {
     IonSpew(IonSpew_Codegen, "# Emitting asm.js code");
 
@@ -6193,7 +6215,7 @@ CodeGenerator::generateAsmJS(Label *stackOverflowLabel)
     // parameters have been useFixed()ed to these ABI-specified positions.
     // Thus, there is nothing special to do in the prologue except (possibly)
     // bump the stack.
-    if (!generateAsmJSPrologue(stackOverflowLabel))
+    if (!generatePrologue())
         return false;
     if (!generateBody())
         return false;
@@ -8218,7 +8240,6 @@ CodeGenerator::visitAsmJSCall(LAsmJSCall *ins)
         }
     }
 #endif
-
    if (mir->spIncrement())
         masm.freeStack(mir->spIncrement());
 
@@ -8235,13 +8256,13 @@ CodeGenerator::visitAsmJSCall(LAsmJSCall *ins)
     MAsmJSCall::Callee callee = mir->callee();
     switch (callee.which()) {
       case MAsmJSCall::Callee::Internal:
-        masm.call(mir->desc(), callee.internal());
+        masm.call(callee.internal());
         break;
       case MAsmJSCall::Callee::Dynamic:
-        masm.call(mir->desc(), ToRegister(ins->getOperand(mir->dynamicCalleeOperandIndex())));
+        masm.call(ToRegister(ins->getOperand(mir->dynamicCalleeOperandIndex())));
         break;
       case MAsmJSCall::Callee::Builtin:
-        masm.call(mir->desc(), callee.builtin());
+        masm.call(callee.builtin());
         break;
     }
 
@@ -8273,6 +8294,20 @@ CodeGenerator::visitAsmJSVoidReturn(LAsmJSVoidReturn *lir)
     // Don't emit a jump to the return label if this is the last block.
     if (current->mir() != *gen->graph().poBegin())
         masm.jump(&returnLabel_);
+    return true;
+}
+
+bool
+CodeGenerator::visitAsmJSCheckOverRecursed(LAsmJSCheckOverRecursed *lir)
+{
+    // If we don't push anything on the stack, skip the check.
+    if (omitOverRecursedCheck())
+        return true;
+
+    masm.branchPtr(Assembler::AboveOrEqual,
+                   AsmJSAbsoluteAddress(AsmJSImm_StackLimit),
+                   StackPointer,
+                   lir->mir()->onError());
     return true;
 }
 

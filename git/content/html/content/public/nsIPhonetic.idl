@@ -12,7 +12,8 @@
  * which implements the phonetic interface.
  */
 
-[uuid(BC6EA726-AB56-46b6-A21A-AA7B76D6818F)]
+[scriptable, uuid(BC6EA726-AB56-46b6-A21A-AA7B76D6818F)]
+
 interface nsIPhonetic : nsISupports
 {
   /**

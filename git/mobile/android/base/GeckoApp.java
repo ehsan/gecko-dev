@@ -157,7 +157,6 @@ public abstract class GeckoApp
     public static final String PREFS_OOM_EXCEPTION         = "OOMException";
     public static final String PREFS_VERSION_CODE          = "versionCode";
     public static final String PREFS_WAS_STOPPED           = "wasStopped";
-    public static final String PREFS_CRASHED               = "crashed";
     public static final String PREFS_CLEANUP_TEMP_FILES    = "cleanupTempFiles";
 
     public static final String SAVED_STATE_IN_BACKGROUND   = "inBackground";
@@ -1773,17 +1772,10 @@ public abstract class GeckoApp
             shouldRestore = true;
         } else if (savedInstanceState != null ||
                    getSessionRestorePreference().equals("always") ||
-                   getRestartFromIntent()) {
+                   getRestartFromIntent() ||
+                   prefs.getBoolean(GeckoApp.PREFS_WAS_STOPPED, false)) {
             // We're coming back from a background kill by the OS, the user
-            // has chosen to always restore, or we restarted.
-            shouldRestore = true;
-        } else if (prefs.getBoolean(GeckoApp.PREFS_CRASHED, false)) {
-            ThreadUtils.postToBackgroundThread(new Runnable() {
-                @Override
-                public void run() {
-                    prefs.edit().putBoolean(PREFS_CRASHED, false).commit();
-                }
-            });
+            // has chosen to always restore, we restarted, or we crashed.
             shouldRestore = true;
         }
 

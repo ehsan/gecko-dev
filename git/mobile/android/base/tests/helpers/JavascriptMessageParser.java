@@ -34,22 +34,9 @@ public final class JavascriptMessageParser {
     private String lastTestName = "";
     // Have we seen a message saying the test is finished?
     private boolean testFinishedMessageSeen = false;
-    private final boolean endOnAssertionFailure;
 
-    /**
-     * Constructs a message parser for test result messages sent from JavaScript. When seeing an
-     * assertion failure, the message parser can use the given {@link org.mozilla.gecko.Assert}
-     * instance to immediately end the test (typically if the underlying JS framework is not able
-     * to end the test itself) or to swallow the Errors - this functionality is determined by the
-     * <code>endOnAssertionFailure</code> parameter.
-     *
-     * @param asserter The Assert instance to which test results should be passed.
-     * @param endOnAssertionFailure
-     *        true if the test should end if we see a JS assertion failure, false otherwise.
-     */
-    public JavascriptMessageParser(final Assert asserter, final boolean endOnAssertionFailure) {
+    public JavascriptMessageParser(final Assert asserter) {
         this.asserter = asserter;
-        this.endOnAssertionFailure = endOnAssertionFailure;
     }
 
     public boolean isTestFinished() {
@@ -74,15 +61,8 @@ public final class JavascriptMessageParser {
                 try {
                     asserter.ok(false, name, message);
                 } catch (AssertionFailedError e) {
-                    // Above, we call the assert, allowing it to log.
-                    // Now we can end the test, if applicable.
-                    if (this.endOnAssertionFailure) {
-                        throw e;
-                    }
-                    // Otherwise, swallow the Error. The JS framework we're
-                    // logging messages from is likely capable of ending tests
-                    // when it needs to, and we want to see all of its failures,
-                    // not just the first one!
+                    // Swallow this exception.  We want to see all the
+                    // Javascript failures, not die on the very first one!
                 }
             } else if ("KNOWN-FAIL".equals(type)) {
                 asserter.todo(false, name, message);

@@ -314,7 +314,7 @@ Tester.prototype = {
     }
   },
 
-  nextTest: this.Task.async(function*() {
+  nextTest: function Tester_nextTest() {
     if (this.currentTest) {
       // Run cleanup functions for the current test before moving on to the
       // next one.
@@ -322,7 +322,7 @@ Tester.prototype = {
       while (testScope.__cleanupFunctions.length > 0) {
         let func = testScope.__cleanupFunctions.shift();
         try {
-          yield func.apply(testScope);
+          func.apply(testScope);
         }
         catch (ex) {
           this.currentTest.addResult(new testResult(false, "Cleanup function threw an exception", ex, false));
@@ -531,7 +531,7 @@ Tester.prototype = {
       this.currentTestIndex++;
       this.execTest();
     }).bind(this));
-  }),
+  },
 
   execTest: function Tester_execTest() {
     this.dumper.dump("TEST-START | " + this.currentTest.path + "\n");

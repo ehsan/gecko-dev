@@ -3055,48 +3055,20 @@ nsCacheService::GetClearingEntries()
 }
 
 // static
-void nsCacheService::GetCacheBaseDirectoty(nsIFile ** result)
-{
+void nsCacheService::GetDiskCacheDirectory(nsIFile ** result) {
     *result = nullptr;
-    if (!gService || !gService->mObserver)
-        return;
+    if (gService && gService->mObserver) {
+        nsCOMPtr<nsIFile> directory =
+            gService->mObserver->DiskCacheParentDirectory();
+        if (!directory)
+            return;
 
-    nsCOMPtr<nsIFile> directory =
-        gService->mObserver->DiskCacheParentDirectory();
-    if (!directory)
-        return;
+        nsresult rv = directory->AppendNative(NS_LITERAL_CSTRING("Cache"));
+        if (NS_FAILED(rv))
+            return;
 
-    directory->Clone(result);
-}
-
-// static
-void nsCacheService::GetDiskCacheDirectory(nsIFile ** result)
-{
-    nsCOMPtr<nsIFile> directory;
-    GetCacheBaseDirectoty(getter_AddRefs(directory));
-    if (!directory)
-        return;
-
-    nsresult rv = directory->AppendNative(NS_LITERAL_CSTRING("Cache"));
-    if (NS_FAILED(rv))
-        return;
-
-    directory.forget(result);
-}
-
-// static
-void nsCacheService::GetAppCacheDirectory(nsIFile ** result)
-{
-    nsCOMPtr<nsIFile> directory;
-    GetCacheBaseDirectoty(getter_AddRefs(directory));
-    if (!directory)
-        return;
-
-    nsresult rv = directory->AppendNative(NS_LITERAL_CSTRING("OfflineCache"));
-    if (NS_FAILED(rv))
-        return;
-
-    directory.forget(result);
+        directory.forget(result);
+    }
 }
 
 

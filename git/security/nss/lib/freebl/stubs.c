@@ -105,7 +105,6 @@
 
 
 STUB_DECLARE(void *,PORT_Alloc_Util,(size_t len));
-STUB_DECLARE(void *,PORT_ArenaAlloc_Util,(PLArenaPool *arena, size_t size));
 STUB_DECLARE(void *,PORT_ArenaZAlloc_Util,(PLArenaPool *arena, size_t size));
 STUB_DECLARE(void ,PORT_Free_Util,(void *ptr));
 STUB_DECLARE(void ,PORT_FreeArena_Util,(PLArenaPool *arena, PRBool zero));
@@ -142,13 +141,12 @@ STUB_DECLARE(PRStatus,PR_WaitCondVar,(PRCondVar *cvar,
 
 STUB_DECLARE(SECItem *,SECITEM_AllocItem_Util,(PLArenaPool *arena,
 			SECItem *item,unsigned int len));
-STUB_DECLARE(SECComparison,SECITEM_CompareItem_Util,(const SECItem *a,
+STUB_DECLARE(SECComparison,SECITEM_CompareItem_Util,(const SECItem *a, 
 			const SECItem *b));
 STUB_DECLARE(SECStatus,SECITEM_CopyItem_Util,(PLArenaPool *arena,
 			SECItem *to,const SECItem *from));
 STUB_DECLARE(void,SECITEM_FreeItem_Util,(SECItem *zap, PRBool freeit));
 STUB_DECLARE(void,SECITEM_ZfreeItem_Util,(SECItem *zap, PRBool freeit));
-STUB_DECLARE(SECOidTag,SECOID_FindOIDTag_Util,(const SECItem *oid));
 STUB_DECLARE(int, NSS_SecureMemcmp,(const void *a, const void *b, size_t n));
 
 
@@ -214,18 +212,9 @@ PR_Free_stub(void *ptr)
  *
  */
 extern PLArenaPool *
-PORT_NewArena_stub(unsigned long chunksize)
+PORT_NewArena_stub(unsigned long chunksize) 
 {
     STUB_SAFE_CALL1(PORT_NewArena_Util, chunksize);
-    abort();
-    return NULL;
-}
-
-extern void *
-PORT_ArenaAlloc_stub(PLArenaPool *arena, size_t size)
-{
-
-    STUB_SAFE_CALL2(PORT_ArenaZAlloc_Util, arena, size);
     abort();
     return NULL;
 }
@@ -511,20 +500,12 @@ SECITEM_CompareItem_stub(const SECItem *a, const SECItem *b)
     return SECEqual;
 }
 
-extern SECStatus
+extern SECStatus 
 SECITEM_CopyItem_stub(PLArenaPool *arena, SECItem *to, const SECItem *from)
 {
     STUB_SAFE_CALL3(SECITEM_CopyItem_Util, arena, to, from);
     abort();
     return SECFailure;
-}
-
-extern SECOidTag
-SECOID_FindOIDTag_stub(const SECItem *oid)
-{
-    STUB_SAFE_CALL1(SECOID_FindOIDTag_Util, oid);
-    abort();
-    return SEC_OID_UNKNOWN;
 }
 
 extern void
@@ -579,7 +560,6 @@ freebl_InitNSSUtil(void *lib)
     STUB_FETCH_FUNCTION(PORT_ZAlloc_Util);
     STUB_FETCH_FUNCTION(PORT_ZFree_Util);
     STUB_FETCH_FUNCTION(PORT_NewArena_Util);
-    STUB_FETCH_FUNCTION(PORT_ArenaAlloc_Util);
     STUB_FETCH_FUNCTION(PORT_ArenaZAlloc_Util);
     STUB_FETCH_FUNCTION(PORT_FreeArena_Util);
     STUB_FETCH_FUNCTION(PORT_GetError_Util);
@@ -589,7 +569,6 @@ freebl_InitNSSUtil(void *lib)
     STUB_FETCH_FUNCTION(SECITEM_CompareItem_Util);
     STUB_FETCH_FUNCTION(SECITEM_CopyItem_Util);
     STUB_FETCH_FUNCTION(SECITEM_ZfreeItem_Util);
-    STUB_FETCH_FUNCTION(SECOID_FindOIDTag_Util);
     STUB_FETCH_FUNCTION(NSS_SecureMemcmp);
     return SECSuccess;
 }

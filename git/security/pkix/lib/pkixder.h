@@ -189,14 +189,13 @@ public:
 
   Mark GetMark() const { return Mark(input); }
 
-  bool GetSECItem(SECItemType type, const Mark& mark, /*out*/ SECItem& item)
+  void GetSECItem(SECItemType type, const Mark& mark, /*out*/ SECItem& item)
   {
     PR_ASSERT(mark.mMark < input);
     item.type = type;
     item.data = const_cast<uint8_t*>(mark.mMark);
-    // TODO: Return false if bounds check fails
+    // TODO: bounds check
     item.len = input - mark.mMark;
-    return true;
   }
 
 private:

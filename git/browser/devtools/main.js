@@ -128,7 +128,6 @@ Tools.inspector = {
   commands: [
     "devtools/resize-commands",
     "devtools/inspector/inspector-commands",
-    "devtools/eyedropper/commands.js"
   ],
 
   preventClosingOnKey: true,

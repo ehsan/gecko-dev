@@ -98,9 +98,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "SignInToWebsiteUX",
                                   "resource:///modules/SignInToWebsite.jsm");
 #endif
 
-XPCOMUtils.defineLazyModuleGetter(this, "ContentSearch",
-                                  "resource:///modules/ContentSearch.jsm");
-
 const PREF_PLUGINS_NOTIFYUSER = "plugins.update.notifyUser";
 const PREF_PLUGINS_UPDATEURL  = "plugins.update.url";
 
@@ -500,7 +497,6 @@ BrowserGlue.prototype = {
     AboutHome.init();
     SessionStore.init();
     BrowserUITelemetry.init();
-    ContentSearch.init();
 
     if (Services.appinfo.browserTabsRemote) {
       ContentClick.init();

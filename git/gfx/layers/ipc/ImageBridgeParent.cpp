@@ -193,12 +193,13 @@ ImageBridgeParent::AllocPCompositableParent(const TextureInfo& aInfo,
 {
   uint64_t id = GenImageContainerID();
   *aID = id;
-  return CompositableHost::CreateIPDLActor(this, aInfo, id);
+  return new CompositableParent(this, aInfo, id);
 }
 
 bool ImageBridgeParent::DeallocPCompositableParent(PCompositableParent* aActor)
 {
-  return CompositableHost::DestroyIPDLActor(aActor);
+  delete aActor;
+  return true;
 }
 
 PTextureParent*

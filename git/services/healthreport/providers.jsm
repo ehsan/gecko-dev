@@ -1222,7 +1222,6 @@ SearchCountMeasurementBase.prototype = Object.freeze({
   SOURCES: [
     "abouthome",
     "contextmenu",
-    "newtab",
     "searchbar",
     "urlbar",
   ],

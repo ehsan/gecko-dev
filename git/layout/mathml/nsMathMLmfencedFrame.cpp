@@ -97,6 +97,7 @@ void
 nsMathMLmfencedFrame::CreateFencesAndSeparators(nsPresContext* aPresContext)
 {
   nsAutoString value;
+  bool isMutable = false;
 
   //////////////  
   // see if the opening fence is there ...
@@ -109,7 +110,8 @@ nsMathMLmfencedFrame::CreateFencesAndSeparators(nsPresContext* aPresContext)
   if (!value.IsEmpty()) {
     mOpenChar = new nsMathMLChar;
     mOpenChar->SetData(aPresContext, value);
-    ResolveMathMLCharStyle(aPresContext, mContent, mStyleContext, mOpenChar);
+    isMutable = nsMathMLOperators::IsMutableOperator(value);
+    ResolveMathMLCharStyle(aPresContext, mContent, mStyleContext, mOpenChar, isMutable);
   }
 
   //////////////
@@ -123,7 +125,8 @@ nsMathMLmfencedFrame::CreateFencesAndSeparators(nsPresContext* aPresContext)
   if (!value.IsEmpty()) {
     mCloseChar = new nsMathMLChar;
     mCloseChar->SetData(aPresContext, value);
-    ResolveMathMLCharStyle(aPresContext, mContent, mStyleContext, mCloseChar);
+    isMutable = nsMathMLOperators::IsMutableOperator(value);
+    ResolveMathMLCharStyle(aPresContext, mContent, mStyleContext, mCloseChar, isMutable);
   }
 
   //////////////
@@ -143,12 +146,14 @@ nsMathMLmfencedFrame::CreateFencesAndSeparators(nsPresContext* aPresContext)
       for (int32_t i = 0; i < sepCount; i++) {
         if (i < mSeparatorsCount) {
           sepChar = value[i];
+          isMutable = nsMathMLOperators::IsMutableOperator(sepChar);
         }
         else {
           sepChar = value[mSeparatorsCount-1];
+          // keep the value of isMutable that was set earlier
         }
         mSeparatorsChar[i].SetData(aPresContext, sepChar);
-        ResolveMathMLCharStyle(aPresContext, mContent, mStyleContext, &mSeparatorsChar[i]);
+        ResolveMathMLCharStyle(aPresContext, mContent, mStyleContext, &mSeparatorsChar[i], isMutable);
       }
       mSeparatorsCount = sepCount;
     } else {

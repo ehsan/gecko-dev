@@ -1182,8 +1182,8 @@ JSScript::initScriptCounts(JSContext *cx)
 
     /* Enable interrupts in any interpreter frames running on this script. */
     for (ActivationIterator iter(cx->runtime()); !iter.done(); ++iter) {
-        if (iter->isInterpreter())
-            iter->asInterpreter()->enableInterruptsIfRunning(this);
+        if (iter.activation()->isInterpreter())
+            iter.activation()->asInterpreter()->enableInterruptsIfRunning(this);
     }
 
     return true;
@@ -1567,11 +1567,11 @@ ScriptSource::substring(JSContext *cx, uint32_t start, uint32_t stop)
 }
 
 bool
-ScriptSource::setSourceCopy(ExclusiveContext *cx, SourceBufferHolder &srcBuf,
+ScriptSource::setSourceCopy(ExclusiveContext *cx, const jschar *src, uint32_t length,
                             bool argumentsNotIncluded, SourceCompressionTask *task)
 {
     JS_ASSERT(!hasSourceData());
-    length_ = srcBuf.length();
+    length_ = length;
     argumentsNotIncluded_ = argumentsNotIncluded;
 
     // There are several cases where source compression is not a good idea:
@@ -1604,18 +1604,16 @@ ScriptSource::setSourceCopy(ExclusiveContext *cx, SourceBufferHolder &srcBuf,
 #endif
     const size_t TINY_SCRIPT = 256;
     const size_t HUGE_SCRIPT = 5 * 1024 * 1024;
-    if (TINY_SCRIPT <= srcBuf.length() && srcBuf.length() < HUGE_SCRIPT && canCompressOffThread) {
+    if (TINY_SCRIPT <= length && length < HUGE_SCRIPT && canCompressOffThread) {
         task->ss = this;
-        task->chars = srcBuf.get();
+        task->chars = src;
         ready_ = false;
         if (!StartOffThreadCompression(cx, task))
             return false;
-    } else if (srcBuf.ownsChars()) {
-        data.source = srcBuf.take();
     } else {
-        if (!adjustDataSize(sizeof(jschar) * srcBuf.length()))
+        if (!adjustDataSize(sizeof(jschar) * length))
             return false;
-        PodCopy(data.source, srcBuf.get(), length_);
+        PodCopy(data.source, src, length_);
     }
 
     return true;
@@ -3152,8 +3150,8 @@ JSScript::ensureHasDebugScript(JSContext *cx)
      * debug state is destroyed.
      */
     for (ActivationIterator iter(cx->runtime()); !iter.done(); ++iter) {
-        if (iter->isInterpreter())
-            iter->asInterpreter()->enableInterruptsIfRunning(this);
+        if (iter.activation()->isInterpreter())
+            iter.activation()->asInterpreter()->enableInterruptsIfRunning(this);
     }
 
     return true;

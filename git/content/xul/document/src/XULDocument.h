@@ -460,8 +460,7 @@ protected:
      * If the current transcluded script is being compiled off thread, the
      * source for that script.
      */
-    jschar* mOffThreadCompileStringBuf;
-    size_t mOffThreadCompileStringLength;
+    nsString mOffThreadCompileString;
 
     /**
      * Check if a XUL template builder has already been hooked up.

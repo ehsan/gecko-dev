@@ -4,11 +4,10 @@
 const TEST_BASE = "chrome://mochitests/content/browser/browser/devtools/eyedropper/test/";
 const TEST_HOST = 'mochi.test:8888';
 
-let { devtools } = Components.utils.import("resource://gre/modules/devtools/Loader.jsm", {});
-const { Eyedropper, EyedropperManager } = devtools.require("devtools/eyedropper/eyedropper");
+const promise = Cu.import("resource://gre/modules/devtools/deprecated-sync-thenables.js").Promise;
+const require = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools.require;
+const { Eyedropper } = require("devtools/eyedropper/eyedropper");
 
-let testDir = gTestPath.substr(0, gTestPath.lastIndexOf("/"));
-Services.scriptloader.loadSubScript(testDir + "../../../commandline/test/helpers.js", this);
 
 waitForExplicitFinish();
 
@@ -35,11 +34,4 @@ function addTab(uri) {
   content.location = uri;
 
   return deferred.promise;
-}
-
-function dropperLoaded(dropper) {
-  if (dropper.loaded) {
-    return promise.resolve();
-  }
-  return dropper.once("load");
 }

@@ -18,8 +18,7 @@ using namespace JS;
 /***************************************************************************/
 // nsJSID
 
-NS_IMPL_CLASSINFO(nsJSID, nullptr, 0, NS_JS_ID_CID)
-NS_IMPL_ISUPPORTS1_CI(nsJSID, nsIJSID)
+NS_IMPL_ISUPPORTS1(nsJSID, nsIJSID)
 
 char nsJSID::gNoString[] = "";
 
