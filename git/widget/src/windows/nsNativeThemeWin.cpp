@@ -1627,6 +1627,8 @@ nsNativeThemeWin::ThemeSupportsWidget(nsPresContext* aPresContext,
                                       nsIFrame* aFrame,
                                       PRUint8 aWidgetType)
 {
+  if (gfxPlatform::UseGlitz())
+    return PR_FALSE;
   // XXXdwh We can go even further and call the API to ask if support exists for
   // specific widgets.
 

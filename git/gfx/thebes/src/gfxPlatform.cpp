@@ -62,6 +62,10 @@
 
 #include "nsWeakReference.h"
 
+#ifdef MOZ_ENABLE_GLITZ
+#include <stdlib.h>
+#endif
+
 #include "cairo.h"
 #include "lcms.h"
 
@@ -71,6 +75,7 @@
 #include "nsIPrefBranch2.h"
 
 gfxPlatform *gPlatform = nsnull;
+int gGlitzState = -1;
 
 // These two may point to the same profile
 static cmsHPROFILE gCMSOutputProfile = nsnull;
@@ -268,6 +273,30 @@ gfxPlatform::~gfxPlatform()
     // leaked, and we hit them.
     FcFini();
 #endif
+}
+
+PRBool
+gfxPlatform::UseGlitz()
+{
+#ifdef MOZ_ENABLE_GLITZ
+    if (gGlitzState == -1) {
+        if (getenv("MOZ_GLITZ"))
+            gGlitzState = 1;
+        else
+            gGlitzState = 0;
+    }
+
+    if (gGlitzState)
+        return PR_TRUE;
+#endif
+
+    return PR_FALSE;
+}
+
+void
+gfxPlatform::SetUseGlitz(PRBool use)
+{
+    gGlitzState = (use ? 1 : 0);
 }
 
 already_AddRefed<gfxASurface>

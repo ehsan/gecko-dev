@@ -1,4 +1,5 @@
-/* ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -11,15 +12,15 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is mozilla.org code.
+ * The Original Code is thebes
  *
  * The Initial Developer of the Original Code is
- * Mozilla Corporation.
- * Portions created by the Initial Developer are Copyright (C) 2008
+ *   mozilla.org
+ * Portions created by the Initial Developer are Copyright (C) 2005
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Dave Camp <dcamp@mozilla.com>
+ *   Vladimir Vukicevic <vladimir@pobox.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -35,40 +36,46 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef NSNETWORKLINKSERVICEMAC_H_
-#define NSNETWORKLINKSERVICEMAC_H_
+#include "gfxGlitzSurface.h"
 
-#include "nsINetworkLinkService.h"
-#include "nsIObserver.h"
-
-#include <SystemConfiguration/SCNetworkReachability.h>
-
-class nsNetworkLinkService : public nsINetworkLinkService,
-                             public nsIObserver
+gfxGlitzSurface::gfxGlitzSurface(glitz_drawable_t *drawable, glitz_surface_t *surface, PRBool takeOwnership)
+    : mGlitzDrawable (drawable), mGlitzSurface(surface), mOwnsSurface(takeOwnership)
 {
-public:
-    NS_DECL_ISUPPORTS
-    NS_DECL_NSINETWORKLINKSERVICE
-    NS_DECL_NSIOBSERVER
+    cairo_surface_t *surf = cairo_glitz_surface_create (mGlitzSurface);
+    Init(surf);
+}
 
-    nsNetworkLinkService();
-    virtual ~nsNetworkLinkService();
+gfxGlitzSurface::~gfxGlitzSurface()
+{
+    if (mOwnsSurface) {
+        if (mGlitzSurface) {
+            glitz_surface_flush(mGlitzSurface);
+            glitz_surface_destroy(mGlitzSurface);
+        }
 
-    nsresult Init();
-    nsresult Shutdown();
+        if (mGlitzDrawable) {
+            glitz_drawable_flush(mGlitzDrawable);
+            glitz_drawable_finish(mGlitzDrawable);
+            glitz_drawable_destroy(mGlitzDrawable);
+        }
+    }
+}
 
-private:
-    PRPackedBool mLinkUp;
-    PRPackedBool mStatusKnown;
+void
+gfxGlitzSurface::SwapBuffers()
+{
+    glitz_drawable_swap_buffers (GlitzDrawable());
+}
 
-    SCNetworkReachabilityRef mReachability;
-    CFRunLoopRef mCFRunLoop;
+unsigned long
+gfxGlitzSurface::Width()
+{
+    return glitz_drawable_get_width (GlitzDrawable());
+}
 
-    void UpdateReachability();
-    void SendEvent();
-    static void ReachabilityChanged(SCNetworkReachabilityRef target,
-                                    SCNetworkConnectionFlags flags,
-                                    void *info);
-};
+unsigned long
+gfxGlitzSurface::Height()
+{
+    return glitz_drawable_get_height (GlitzDrawable());
+}
 
-#endif /* NSNETWORKLINKSERVICEMAC_H_ */
