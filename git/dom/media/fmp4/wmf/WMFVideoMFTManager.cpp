@@ -149,10 +149,6 @@ WMFVideoMFTManager::InitializeDXVA()
     return false;
   }
 
-  if (!gfxPlatform::CanUseDXVA()) {
-    return false;
-  }
-
   // The DXVA manager must be created on the main thread.
   nsRefPtr<CreateDXVAManagerEvent> event(new CreateDXVAManagerEvent());
   NS_DispatchToMainThread(event, NS_DISPATCH_SYNC);

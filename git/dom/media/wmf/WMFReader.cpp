@@ -110,10 +110,6 @@ WMFReader::InitializeDXVA()
     return false;
   }
 
-  if (!gfxPlatform::CanUseDXVA()) {
-    return false;
-  }
-
   mDXVA2Manager = DXVA2Manager::Create();
 
   return mDXVA2Manager != nullptr;
