@@ -302,37 +302,24 @@ protected:
   int32_t FindWordBoundary(int32_t aOffset, nsDirection aDirection,
                            EWordMovementType aWordMovementType)
   {
-    return FindOffset(aOffset, aDirection, eSelectWord, aWordMovementType);
+    return FindBoundary(aOffset, aDirection, eSelectWord, aWordMovementType);
   }
 
   /**
-   * Used to get begin/end of previous/this/next line. Note: end of line
-   * is an offset right before '\n' character if any, the offset is right after
-   * '\n' character is begin of line. In case of wrap word breaks these offsets
-   * are equal.
+   * Return an offset of the found line boundary.
    */
-  enum EWhichLineBoundary {
-    ePrevLineBegin,
-    ePrevLineEnd,
-    eThisLineBegin,
-    eThisLineEnd,
-    eNextLineBegin,
-    eNextLineEnd
-  };
+  int32_t FindLineBoundary(int32_t aOffset, nsDirection aDirection,
+                           nsSelectionAmount aAmount)
+  {
+    return FindBoundary(aOffset, aDirection, aAmount, eDefaultBehavior);
+  }
 
   /**
-   * Return an offset for requested line boundary. See constants above.
+   * Return an offset of the found word or line boundary. Helper.
    */
-  int32_t FindLineBoundary(int32_t aOffset,
-                           EWhichLineBoundary aWhichLineBoundary);
-
-  /**
-   * Return an offset corresponding to the given direction and selection amount
-   * relative the given offset. A helper used to find word or line boundaries.
-   */
-  int32_t FindOffset(int32_t aOffset, nsDirection aDirection,
-                     nsSelectionAmount aAmount,
-                     EWordMovementType aWordMovementType = eDefaultBehavior);
+  int32_t FindBoundary(int32_t aOffset, nsDirection aDirection,
+                       nsSelectionAmount aAmount,
+                       EWordMovementType aWordMovementType = eDefaultBehavior);
 
   /*
    * This does the work for nsIAccessibleText::GetText[At|Before|After]Offset
