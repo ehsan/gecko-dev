@@ -426,10 +426,8 @@ MarkupView.prototype = {
         }
         break;
       case Ci.nsIDOMKeyEvent.DOM_VK_DELETE:
-        this.deleteNode(this._selectedContainer.node);
-        break;
       case Ci.nsIDOMKeyEvent.DOM_VK_BACK_SPACE:
-        this.deleteNode(this._selectedContainer.node, true);
+        this.deleteNode(this._selectedContainer.node);
         break;
       case Ci.nsIDOMKeyEvent.DOM_VK_HOME:
         let rootContainer = this.getContainer(this._rootNode);
@@ -510,12 +508,8 @@ MarkupView.prototype = {
   /**
    * Delete a node from the DOM.
    * This is an undoable action.
-   *
-   * @param {NodeFront} aNode The node to remove.
-   * @param {boolean} moveBackward If set to true, focus the previous sibling,
-   *  otherwise the next one.
    */
-  deleteNode: function(aNode, moveBackward) {
+  deleteNode: function(aNode) {
     if (aNode.isDocumentElement ||
         aNode.nodeType == Ci.nsIDOMNode.DOCUMENT_TYPE_NODE ||
         aNode.isAnonymous) {
@@ -530,15 +524,8 @@ MarkupView.prototype = {
       let nextSibling = null;
       this.undo.do(() => {
         this.walker.removeNode(aNode).then(siblings => {
+          let focusNode = siblings.previousSibling || parent;
           nextSibling = siblings.nextSibling;
-          let focusNode = moveBackward ? siblings.previousSibling : nextSibling;
-
-          // If we can't move as the user wants, we move to the other direction.
-          // If there is no sibling elements anymore, move to the parent node.
-          if (!focusNode) {
-            focusNode = nextSibling || siblings.previousSibling || parent;
-          }
-
           if (container.selected) {
             this.navigate(this.getContainer(focusNode));
           }

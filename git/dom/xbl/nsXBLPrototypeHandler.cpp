@@ -603,10 +603,9 @@ nsXBLPrototypeHandler::GetController(EventTarget* aTarget)
 }
 
 bool
-nsXBLPrototypeHandler::KeyEventMatched(
-                         nsIDOMKeyEvent* aKeyEvent,
-                         uint32_t aCharCode,
-                         const IgnoreModifierState& aIgnoreModifierState)
+nsXBLPrototypeHandler::KeyEventMatched(nsIDOMKeyEvent* aKeyEvent,
+                                       uint32_t aCharCode,
+                                       bool aIgnoreShiftKey)
 {
   if (mDetail != -1) {
     // Get the keycode or charcode of the key event.
@@ -627,7 +626,7 @@ nsXBLPrototypeHandler::KeyEventMatched(
       return false;
   }
 
-  return ModifiersMatchMask(aKeyEvent, aIgnoreModifierState);
+  return ModifiersMatchMask(aKeyEvent, aIgnoreShiftKey);
 }
 
 bool
@@ -646,7 +645,7 @@ nsXBLPrototypeHandler::MouseEventMatched(nsIDOMMouseEvent* aMouseEvent)
   if (mMisc != 0 && (clickcount != mMisc))
     return false;
 
-  return ModifiersMatchMask(aMouseEvent, IgnoreModifierState());
+  return ModifiersMatchMask(aMouseEvent);
 }
 
 struct keyCodeData {
@@ -918,9 +917,8 @@ nsXBLPrototypeHandler::ReportKeyConflict(const char16_t* aKey, const char16_t* a
 }
 
 bool
-nsXBLPrototypeHandler::ModifiersMatchMask(
-                         nsIDOMUIEvent* aEvent,
-                         const IgnoreModifierState& aIgnoreModifierState)
+nsXBLPrototypeHandler::ModifiersMatchMask(nsIDOMUIEvent* aEvent,
+                                          bool aIgnoreShiftKey)
 {
   WidgetInputEvent* inputEvent = aEvent->GetInternalNSEvent()->AsInputEvent();
   NS_ENSURE_TRUE(inputEvent, false);
@@ -931,13 +929,13 @@ nsXBLPrototypeHandler::ModifiersMatchMask(
     }
   }
 
-  if ((mKeyMask & cOSMask) && !aIgnoreModifierState.mOS) {
+  if (mKeyMask & cOSMask) {
     if (inputEvent->IsOS() != ((mKeyMask & cOS) != 0)) {
       return false;
     }
   }
 
-  if (mKeyMask & cShiftMask && !aIgnoreModifierState.mShift) {
+  if (mKeyMask & cShiftMask && !aIgnoreShiftKey) {
     if (inputEvent->IsShift() != ((mKeyMask & cShift) != 0)) {
       return false;
     }

@@ -9,12 +9,18 @@ const { Cc, Ci, Cu, ChromeWorker } = require("chrome");
 
 Cu.import("resource://gre/modules/Services.jsm");
 
+const { EventTarget } = require("sdk/event/target");
+const { emit, off } = require("sdk/event/core");
+const { Class } = require("sdk/core/heritage");
 const Environment = require("sdk/system/environment").env;
 const Runtime = require("sdk/system/runtime");
+const URL = require("sdk/url");
 const Subprocess = require("sdk/system/child_process/subprocess");
 const { Promise: promise } = Cu.import("resource://gre/modules/Promise.jsm", {});
-const { EventEmitter } = Cu.import("resource://gre/modules/devtools/event-emitter.js", {});
 
+const ROOT_URI = require("addon").uri;
+const PROFILE_URL = ROOT_URI + "profile/";
+const BIN_URL = ROOT_URI + "b2g/";
 
 // Log subprocess error and debug messages to the console.  This logs messages
 // for all consumers of the API.  We trim the messages because they sometimes
@@ -27,15 +33,14 @@ Subprocess.registerDebugHandler(
   function(s) console.debug("subprocess: " + s.trim())
 );
 
-function SimulatorProcess(options) {
-  this.options = options;
+exports.SimulatorProcess = Class({
+  extends: EventTarget,
+  initialize: function initialize(options) {
+    EventTarget.prototype.initialize.call(this, options);
 
-  EventEmitter.decorate(this);
-  this.on("stdout", data => { console.log(data.trim()) });
-  this.on("stderr", data => { console.error(data.trim()) });
-}
-
-SimulatorProcess.prototype = {
+    this.on("stdout", function onStdout(data) console.log(data.trim()));
+    this.on("stderr", function onStderr(data) console.error(data.trim()));
+  },
 
   // check if b2g is running
   get isRunning() !!this.process,
@@ -72,7 +77,7 @@ SimulatorProcess.prototype = {
 
     let environment;
     if (Runtime.OS == "Linux") {
-      environment = ["TMPDIR=" + Services.dirsvc.get("TmpD", Ci.nsIFile).path];
+      environment = ["TMPDIR=" + Services.dirsvc.get("TmpD",Ci.nsIFile).path];
       if ("DISPLAY" in Environment) {
         environment.push("DISPLAY=" + Environment.DISPLAY);
       }
@@ -85,21 +90,21 @@ SimulatorProcess.prototype = {
       environment: environment,
 
       // emit stdout event
-      stdout: data => {
-        this.emit("stdout", data);
-      },
+      stdout: (function(data) {
+        emit(this, "stdout", data);
+      }).bind(this),
 
       // emit stderr event
-      stderr: data => {
-        this.emit("stderr", data);
-      },
+      stderr: (function(data) {
+        emit(this, "stderr", data);
+      }).bind(this),
 
-      // on b2g instance exit, reset tracked process, remote debugger port and
+      // on b2g instance exit, reset tracked process, remoteDebuggerPort and
       // shuttingDown flag, then finally emit an exit event
       done: (function(result) {
-        console.log("B2G terminated with " + result.exitCode);
+        console.log(this.b2gFilename + " terminated with " + result.exitCode);
         this.process = null;
-        this.emit("exit", result.exitCode);
+        emit(this, "exit", result.exitCode);
       }).bind(this)
     });
   },
@@ -114,7 +119,7 @@ SimulatorProcess.prototype = {
       });
       if (!this.shuttingDown) {
         this.shuttingDown = true;
-        this.emit("kill", null);
+        emit(this, "kill", null);
         this.process.kill();
       }
       return deferred.promise;
@@ -123,14 +128,42 @@ SimulatorProcess.prototype = {
     }
   },
 
+  // compute current b2g filename
+  get b2gFilename() {
+    return this._executable ? this._executableFilename : "B2G";
+  },
+
   // compute current b2g file handle
   get b2gExecutable() {
     if (this._executable) {
       return this._executable;
     }
+    let customRuntime;
+    try {
+      let pref = "extensions." + require("addon").id + ".customRuntime";
+      customRuntime = Services.prefs.getComplexValue(pref, Ci.nsIFile);
+    } catch(e) {}
+
+    if (customRuntime) {
+      this._executable = customRuntime;
+      this._executableFilename = "Custom runtime";
+      return this._executable;
+    }
+
+    let bin = URL.toFilename(BIN_URL);
+    let executables = {
+      WINNT: "b2g-bin.exe",
+      Darwin: "B2G.app/Contents/MacOS/b2g-bin",
+      Linux: "b2g-bin",
+    };
+
+    let path = bin;
+    path += Runtime.OS == "WINNT" ? "\\" : "/";
+    path += executables[Runtime.OS];
+    console.log("simulator path: " + path);
 
     let executable = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
-    executable.initWithPath(this.options.runtimePath);
+    executable.initWithPath(path);
 
     if (!executable.exists()) {
       // B2G binaries not found
@@ -138,6 +171,7 @@ SimulatorProcess.prototype = {
     }
 
     this._executable = executable;
+    this._executableFilename = "b2g-bin";
 
     return executable;
   },
@@ -146,18 +180,23 @@ SimulatorProcess.prototype = {
   get b2gArguments() {
     let args = [];
 
-    let profile = this.options.profilePath;
+    let gaiaProfile;
+    try {
+      let pref = "extensions." + require("addon").id + ".gaiaProfile";
+      gaiaProfile = Services.prefs.getComplexValue(pref, Ci.nsIFile).path;
+    } catch(e) {}
+
+    let profile = gaiaProfile || URL.toFilename(PROFILE_URL);
     args.push("-profile", profile);
     console.log("profile", profile);
 
     // NOTE: push dbgport option on the b2g-desktop commandline
-    args.push("-start-debugger-server", "" + this.options.port);
+    args.push("-start-debugger-server", "" + this.remoteDebuggerPort);
 
     // Ignore eventual zombie instances of b2g that are left over
     args.push("-no-remote");
 
     return args;
   },
-};
+});
 
-exports.SimulatorProcess = SimulatorProcess;

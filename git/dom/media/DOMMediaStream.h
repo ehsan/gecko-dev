@@ -51,8 +51,7 @@ class MediaStreamDirectListener;
 // For classes that need fixed track IDs
 enum {
   kVideoTrack = 1,
-  kAudioTrack = 2,
-  kTrackCount
+  kAudioTrack = 2
 };
 
 #define NS_DOMMEDIASTREAM_IID \

@@ -415,7 +415,7 @@ Tooltip.prototype = {
       setNamedTimeout(this.uid, this._showDelay, () => {
         this.isValidHoverTarget(event.target).then(target => {
           this.show(target);
-        }, reason => {
+        }).catch((reason) => {
           if (reason === false) {
             // isValidHoverTarget rejects with false if the tooltip should
             // not be shown. This can be safely ignored.

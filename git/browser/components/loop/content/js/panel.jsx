@@ -319,8 +319,7 @@ loop.panel = (function(_, mozL10n) {
                                    onClick={this.handleClickAccountEntry}
                                    icon="account"
                                    displayed={this._isSignedIn()} />
-            <SettingsDropdownEntry icon="tour"
-                                   label={mozL10n.get("tour_label")}
+            <SettingsDropdownEntry label={mozL10n.get("tour_label")}
                                    onClick={this.openGettingStartedTour} />
             <SettingsDropdownEntry label={this._isSignedIn() ?
                                           mozL10n.get("settings_menu_item_signout") :
@@ -696,7 +695,7 @@ loop.panel = (function(_, mozL10n) {
    * Room list.
    */
   var RoomList = React.createClass({
-    mixins: [Backbone.Events, sharedMixins.WindowCloseMixin],
+    mixins: [Backbone.Events],
 
     propTypes: {
       store: React.PropTypes.instanceOf(loop.store.RoomStore).isRequired,
@@ -738,8 +737,6 @@ loop.panel = (function(_, mozL10n) {
     },
 
     handleCreateButtonClick: function() {
-      this.closeWindow();
-
       this.props.dispatcher.dispatch(new sharedActions.CreateRoom({
         nameTemplate: mozL10n.get("rooms_default_room_name_template"),
         roomOwner: this.props.userDisplayName

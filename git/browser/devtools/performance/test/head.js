@@ -158,7 +158,7 @@ function initBackend(aUrl) {
   });
 }
 
-function initPerformance(aUrl, selectedTool="performance") {
+function initPerformance(aUrl) {
   info("Initializing a performance pane.");
 
   return Task.spawn(function*() {
@@ -168,7 +168,7 @@ function initPerformance(aUrl, selectedTool="performance") {
     yield target.makeRemote();
 
     Services.prefs.setBoolPref("devtools.performance_dev.enabled", true);
-    let toolbox = yield gDevTools.showToolbox(target, selectedTool);
+    let toolbox = yield gDevTools.showToolbox(target, "performance");
     let panel = toolbox.getCurrentPanel();
     return { target, panel, toolbox };
   });
@@ -316,9 +316,4 @@ function dragStop(graph, x, y = 1) {
 function dropSelection(graph) {
   graph.dropSelection();
   graph.emit("mouseup");
-}
-
-function getSourceActor(aSources, aURL) {
-  let item = aSources.getItemForAttachment(a => a.source.url === aURL);
-  return item && item.value;
 }
