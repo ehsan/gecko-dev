@@ -58,7 +58,6 @@ protected:
     nsresult CloseCacheEntryInternal(nsresult reason);
 
     nsresult ReadFromCache();
-    nsresult EnsureWriteCacheEntry();
     nsresult OpenCacheEntry(nsIURI *aURI, uint32_t aOpenFlags);
 
     void WriteCharsetAndSourceToCache(int32_t aSource,

@@ -112,7 +112,7 @@ private:
 NS_IMETHODIMP
 nsXPCComponents_Interfaces::GetInterfaces(uint32_t *aCount, nsIID * **aArray)
 {
-    const uint32_t count = 2;
+    const uint32_t count = 3;
     *aCount = count;
     nsIID **array;
     *aArray = array = static_cast<nsIID**>(nsMemory::Alloc(count * sizeof(nsIID*)));
@@ -130,6 +130,7 @@ nsXPCComponents_Interfaces::GetInterfaces(uint32_t *aCount, nsIID * **aArray)
 
     PUSH_IID(nsIXPCComponents_Interfaces)
     PUSH_IID(nsIXPCScriptable)
+    PUSH_IID(nsISecurityCheckedComponent)
 #undef PUSH_IID
 
     return NS_OK;
@@ -360,7 +361,7 @@ private:
 NS_IMETHODIMP
 nsXPCComponents_InterfacesByID::GetInterfaces(uint32_t *aCount, nsIID * **aArray)
 {
-    const uint32_t count = 2;
+    const uint32_t count = 3;
     *aCount = count;
     nsIID **array;
     *aArray = array = static_cast<nsIID**>(nsMemory::Alloc(count * sizeof(nsIID*)));
@@ -378,6 +379,7 @@ nsXPCComponents_InterfacesByID::GetInterfaces(uint32_t *aCount, nsIID * **aArray
 
     PUSH_IID(nsIXPCComponents_InterfacesByID)
     PUSH_IID(nsIXPCScriptable)
+    PUSH_IID(nsISecurityCheckedComponent)
 #undef PUSH_IID
 
     return NS_OK;

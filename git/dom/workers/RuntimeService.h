@@ -223,6 +223,16 @@ public:
   UpdateAllWorkerGCZeal();
 #endif
 
+  static void
+  SetDefaultJITHardening(bool aJITHardening)
+  {
+    AssertIsOnMainThread();
+    sDefaultJSSettings.jitHardening = aJITHardening;
+  }
+
+  void
+  UpdateAllWorkerJITHardening(bool aJITHardening);
+
   void
   GarbageCollectAllWorkers(bool aShrinking);
 
