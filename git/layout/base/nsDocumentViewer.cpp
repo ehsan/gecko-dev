@@ -98,7 +98,6 @@
 #include "nsIDocShellTreeOwner.h"
 #include "nsIDocShell.h"
 #include "nsIBaseWindow.h"
-#include "nsIFrameDebug.h"
 #include "nsILayoutHistoryState.h"
 #include "nsIParser.h"
 #include "nsGUIEvent.h"
@@ -3688,7 +3687,10 @@ DocumentViewerImpl::Print(nsIPrintSettings*       aPrintSettings,
     NS_ENSURE_TRUE(mPrintEngine, NS_ERROR_OUT_OF_MEMORY);
 
     rv = mPrintEngine->Initialize(this, docShell, mDocument, 
-                                  mDeviceContext, mParentWidget,
+                                  float(mDeviceContext->AppUnitsPerInch()) /
+                                  float(mDeviceContext->AppUnitsPerDevPixel()) /
+                                  mPageZoom,
+                                  mParentWidget,
 #ifdef NS_DEBUG
                                   mDebugFile
 #else
@@ -3751,7 +3753,10 @@ DocumentViewerImpl::PrintPreview(nsIPrintSettings* aPrintSettings,
     NS_ENSURE_TRUE(mPrintEngine, NS_ERROR_OUT_OF_MEMORY);
 
     rv = mPrintEngine->Initialize(this, docShell, mDocument,
-                                  mDeviceContext, mParentWidget,
+                                  float(mDeviceContext->AppUnitsPerInch()) /
+                                  float(mDeviceContext->AppUnitsPerDevPixel()) /
+                                  mPageZoom,
+                                  mParentWidget,
 #ifdef NS_DEBUG
                                   mDebugFile
 #else

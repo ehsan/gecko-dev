@@ -537,7 +537,6 @@ pref("privacy.popups.disable_from_plugins", 2);
 pref("dom.event.contextmenu.enabled",       true);
 
 pref("javascript.enabled",                  true);
-pref("javascript.allow.mailnews",           false);
 pref("javascript.options.strict",           false);
 pref("javascript.options.relimit",          false);
 pref("javascript.options.jit.content",      true);
@@ -550,7 +549,6 @@ pref("javascript.options.mem.high_water_mark", 32);
 pref("javascript.options.mem.gc_frequency",   1600);
 
 // advanced prefs
-pref("security.enable_java",                true);
 pref("advanced.mailftp",                    false);
 pref("image.animation_mode",                "normal");
 
