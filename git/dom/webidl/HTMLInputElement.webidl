@@ -169,9 +169,7 @@ partial interface HTMLInputElement {
   boolean mozIsTextField(boolean aExcludePassword);
 
   [ChromeOnly]
-  // This function will return null if @autocomplete is not defined for the
-  // current @type
-  AutocompleteInfo? getAutocompleteInfo();
+  AutocompleteInfo getAutocompleteInfo();
 };
 
 partial interface HTMLInputElement {

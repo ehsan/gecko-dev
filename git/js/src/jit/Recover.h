@@ -50,7 +50,6 @@ namespace jit {
     _(RegExpExec)                               \
     _(RegExpTest)                               \
     _(RegExpReplace)                            \
-    _(TypeOf)                                   \
     _(NewObject)                                \
     _(NewArray)                                 \
     _(NewDerivedTypedObject)                    \
@@ -497,18 +496,6 @@ class RRegExpReplace MOZ_FINAL : public RInstruction
 
     virtual uint32_t numOperands() const {
         return 3;
-    }
-
-    bool recover(JSContext *cx, SnapshotIterator &iter) const;
-};
-
-class RTypeOf MOZ_FINAL : public RInstruction
-{
-  public:
-    RINSTRUCTION_HEADER_(TypeOf)
-
-    virtual uint32_t numOperands() const {
-        return 1;
     }
 
     bool recover(JSContext *cx, SnapshotIterator &iter) const;

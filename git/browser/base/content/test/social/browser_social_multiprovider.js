@@ -84,10 +84,7 @@ function checkUIStateMatchesProvider(provider) {
 
 function onSidebarLoad(callback) {
   let sbrowser = document.getElementById("social-sidebar-browser");
-  sbrowser.addEventListener("load", function load(evt) {
-    if (evt.target != sbrowser.contentDocument) {
-      return;
-    }
+  sbrowser.addEventListener("load", function load() {
     sbrowser.removeEventListener("load", load, true);
     // give the load a chance to finish before pulling the rug (ie. calling
     // next)

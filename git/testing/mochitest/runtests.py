@@ -1412,12 +1412,12 @@ class Mochitest(MochitestUtilsMixin):
         args.append(testUrl)
 
       if detectShutdownLeaks:
-        shutdownLeaks = ShutdownLeaks(self.log)
+        shutdownLeaks = ShutdownLeaks(self.log.info)
       else:
         shutdownLeaks = None
 
       if mozinfo.info["asan"] and (mozinfo.isLinux or mozinfo.isMac):
-        lsanLeaks = LSANLeaks(self.log)
+        lsanLeaks = LSANLeaks(self.log.info)
       else:
         lsanLeaks = None
 

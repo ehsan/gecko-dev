@@ -23,16 +23,6 @@ prefpane {
   line-height: 22px;
 }
 
-* {
-  -moz-user-select: text;
-}
-
-button,
-treecol {
-  /* override the * rule */
-  -moz-user-select: none;
-}
-
 /* Category List */
 
 .category-icon {

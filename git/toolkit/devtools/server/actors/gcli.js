@@ -31,7 +31,7 @@ var RetVal = protocol.RetVal;
 /**
  * Manage remote connections that want to talk to GCLI
  */
-var GcliActor = exports.GcliActor = protocol.ActorClass({
+var GcliActor = protocol.ActorClass({
   typeName: "gcli",
 
   initialize: function(conn, tabActor) {
@@ -205,3 +205,14 @@ exports.GcliFront = protocol.FrontClass(GcliActor, {
     this.manage(this);
   },
 });
+
+/**
+ * Called the framework on DebuggerServer.registerModule()
+ */
+exports.register = function(handle) {
+  handle.addTabActor(GcliActor, "gcliActor");
+};
+
+exports.unregister = function(handle) {
+  handle.removeTabActor(GcliActor);
+};

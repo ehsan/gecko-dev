@@ -25,8 +25,8 @@
   padding: 0;
 }
 
-.searchSuggestionRow.formHistory + .searchSuggestionRow.remote > td {
-  border-top: 1px solid GrayText;
+.searchSuggestionRow.formHistory {
+  color: hsl(210,100%,40%);
 }
 
 .searchSuggestionRow.selected {
@@ -41,4 +41,8 @@
   padding: 6px 8px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.searchSuggestionEntry > span.typed {
+  font-weight: bold;
 }
