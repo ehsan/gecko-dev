@@ -448,15 +448,6 @@ FrameState::testNonFunObj(Assembler::Condition cond, FrameEntry *fe)
 }
 
 inline JSC::MacroAssembler::Jump
-FrameState::testFunObj(Assembler::Condition cond, FrameEntry *fe)
-{
-    JS_ASSERT(cond == Assembler::Equal || cond == Assembler::NotEqual);
-    if (shouldAvoidTypeRemat(fe))
-        return masm.testFunObj(cond, addressOf(fe));
-    return masm.testFunObj(cond, tempRegForType(fe));
-}
-
-inline JSC::MacroAssembler::Jump
 FrameState::testDouble(Assembler::Condition cond, FrameEntry *fe)
 {
     JS_ASSERT(cond == Assembler::Equal || cond == Assembler::NotEqual);

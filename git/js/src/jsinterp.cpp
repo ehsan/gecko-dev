@@ -1161,8 +1161,6 @@ InvokeConstructor(JSContext *cx, const InvokeArgsGuard &args, JSBool clampReturn
     if (!obj)
         return JS_FALSE;
 
-    AutoObjectRooter tvr(cx, obj);
-
     /* Now we have an object with a constructor method; call it. */
     vp[1].setObject(*obj);
     if (!Invoke(cx, args, JSINVOKE_CONSTRUCT))

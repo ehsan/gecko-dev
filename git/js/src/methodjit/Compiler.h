@@ -57,6 +57,7 @@ class Compiler
     typedef JSC::MacroAssembler::Imm32 Imm32;
     typedef JSC::MacroAssembler::ImmPtr ImmPtr;
     typedef JSC::MacroAssembler::RegisterID RegisterID;
+    typedef JSC::MacroAssembler::FPRegisterID FPRegisterID;
     typedef JSC::MacroAssembler::Address Address;
     typedef JSC::MacroAssembler::BaseIndex BaseIndex;
     typedef JSC::MacroAssembler::Jump Jump;
@@ -155,7 +156,6 @@ class Compiler
     void jsop_binary(JSOp op, VoidStub stub);
     void emitReturn();
     void dispatchCall(VoidPtrStubUInt32 stub, uint32 argc);
-    void inlineCallHelper(uint32 argc, bool callingNew);
     void jsop_nameinc(JSOp op, VoidStubAtom stub, uint32 index);
     void jsop_propinc(JSOp op, VoidStubAtom stub, uint32 index);
     void jsop_eleminc(JSOp op, VoidStub);
