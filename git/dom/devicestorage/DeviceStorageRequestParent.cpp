@@ -293,11 +293,6 @@ DeviceStorageRequestParent::PostBlobSuccessEvent::CancelableRun() {
 
   ContentParent* cp = static_cast<ContentParent*>(mParent->Manager());
   BlobParent* actor = cp->GetOrCreateActorForBlob(blob);
-  if (!actor) {
-    ErrorResponse response(NS_LITERAL_STRING(POST_ERROR_EVENT_UNKNOWN));
-    unused << mParent->Send__delete__(mParent, response);
-    return NS_OK;
-  }
 
   BlobResponse response;
   response.blobParent() = actor;

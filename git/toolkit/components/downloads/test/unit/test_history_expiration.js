@@ -26,11 +26,6 @@ function getExpirablePRTime() {
 
 function run_test()
 {
-  run_next_test();
-}
-
-add_task(function test_execute()
-{
   // Like the code, we check to see if nav-history-service exists
   // (i.e MOZ_PLACES is enabled), so that we don't run this test if it doesn't.
   if (!("@mozilla.org/browser/nav-history-service;1" in Cc))
@@ -84,8 +79,8 @@ add_task(function test_execute()
   // Add an expirable visit to this download.
   let histsvc = Cc["@mozilla.org/browser/nav-history-service;1"].
                 getService(Ci.nsINavHistoryService);
-  yield promiseAddVisits({uri: theURI, visitDate: getExpirablePRTime(),
-                          transition: histsvc.TRANSITION_DOWNLOAD});
+  histsvc.addVisit(theURI, getExpirablePRTime(), null,
+                   histsvc.TRANSITION_DOWNLOAD, false, 0);
 
   // Get the download manager as history observer and batch expirations
   let histobs = dm.QueryInterface(Ci.nsINavHistoryObserver);
@@ -121,5 +116,4 @@ add_task(function test_execute()
 
   // Expiration happens on a timeout, about 3.5s after we set the pref
   do_test_pending();
-});
-
+}

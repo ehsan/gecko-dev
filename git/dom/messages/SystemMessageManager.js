@@ -7,7 +7,6 @@
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
-const Cr = Components.results;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/DOMRequestHelper.jsm");
@@ -21,7 +20,7 @@ XPCOMUtils.defineLazyServiceGetter(this, "cpmm",
                                    "nsISyncMessageSender");
 
 function debug(aMsg) {
-   // dump("-- SystemMessageManager " + Date.now() + " : " + aMsg + "\n");
+  //dump("-- SystemMessageManager " + Date.now() + " : " + aMsg + "\n");
 }
 
 // Implementation of the DOM API for system messages
@@ -82,13 +81,7 @@ SystemMessageManager.prototype = {
   },
 
   mozSetMessageHandler: function sysMessMgr_setMessageHandler(aType, aHandler) {
-    debug("set message handler for [" + aType + "] " + aHandler);
-
-    if (this._isInBrowserElement) {
-      debug("the app loaded in the browser cannot set message handler");
-      throw Cr.NS_ERROR_FAILURE;
-    }
-
+    debug("setMessage handler for [" + aType + "] " + aHandler);
     if (!aType) {
       // Just bail out if we have no type.
       return;
@@ -113,13 +106,6 @@ SystemMessageManager.prototype = {
   },
 
   mozHasPendingMessage: function sysMessMgr_hasPendingMessage(aType) {
-    debug("asking pending message for [" + aType + "]");
-
-    if (this._isInBrowserElement) {
-      debug("the app loaded in the browser cannot ask pending message");
-      throw Cr.NS_ERROR_FAILURE;
-    }
-
     // If we have a handler for this type, we can't have any pending message.
     if (aType in this._handlers) {
       return false;
@@ -139,12 +125,6 @@ SystemMessageManager.prototype = {
       Services.obs.removeObserver(this, kSystemMessageInternalReady);
     }
 
-    if (this._isInBrowserElement) {
-      debug("the app loaded in the browser doesn't need to unregister " +
-            "the manifest for listening to the system messages");
-      return;
-    }
-
     cpmm.sendAsyncMessage("SystemMessageManager:Unregister",
                           { manifest: this._manifest,
                             innerWindowID: this.innerWindowID
@@ -152,9 +132,9 @@ SystemMessageManager.prototype = {
   },
 
   receiveMessage: function sysMessMgr_receiveMessage(aMessage) {
-    debug("receiveMessage " + aMessage.name + " for [" + aMessage.data.type + "] " +
-          "with manifest = " + aMessage.data.manifest + " (" + this._manifest + ") " +
-          "and uri = " + aMessage.data.uri + " (" + this._uri + ")");
+    debug("receiveMessage " + aMessage.name + " - " +
+          aMessage.data.type + " for " + aMessage.data.manifest +
+          " (" + this._manifest + ")");
 
     let msg = aMessage.data;
     if (msg.manifest != this._manifest || msg.uri != this._uri) {
@@ -194,7 +174,6 @@ SystemMessageManager.prototype = {
                               "SystemMessageManager:GetPendingMessages:Return"]);
 
     let principal = aWindow.document.nodePrincipal;
-    this._isInBrowserElement = principal.isInBrowserElement;
     this._uri = principal.URI.spec;
 
     let appsService = Cc["@mozilla.org/AppsService;1"]
@@ -229,12 +208,6 @@ SystemMessageManager.prototype = {
   },
 
   _registerManifest: function sysMessMgr_registerManifest() {
-    if (this._isInBrowserElement) {
-      debug("the app loaded in the browser doesn't need to register " +
-            "the manifest for listening to the system messages");
-      return;
-    }
-
     if (!this._registerManifestReady) {
       cpmm.sendAsyncMessage("SystemMessageManager:Register",
                             { manifest: this._manifest,

@@ -23,14 +23,13 @@ class nsSMILValue;
 
 namespace mozilla {
 namespace dom {
-class SVGAnimatedLength;
 class SVGSVGElement;
 }
 }
 
 class nsSVGLength2
 {
-  friend class mozilla::dom::SVGAnimatedLength;
+
 public:
   void Init(uint8_t aCtxType = SVGContentUtils::XY,
             uint8_t aAttrEnum = 0xff,
@@ -92,7 +91,7 @@ public:
   nsresult ToDOMAnimatedLength(nsIDOMSVGAnimatedLength **aResult,
                                nsSVGElement* aSVGElement);
 
-  already_AddRefed<mozilla::dom::SVGAnimatedLength>
+  already_AddRefed<nsIDOMSVGAnimatedLength>
   ToDOMAnimatedLength(nsSVGElement* aSVGElement);
 
   // Returns a new nsISMILAttr object that the caller must delete
@@ -244,6 +243,25 @@ public:
 
     NS_IMETHOD ConvertToSpecifiedUnits(uint16_t unitType)
       { return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR; }
+  };
+
+  struct DOMAnimatedLength : public nsIDOMSVGAnimatedLength
+  {
+    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+    NS_DECL_CYCLE_COLLECTION_CLASS(DOMAnimatedLength)
+
+    DOMAnimatedLength(nsSVGLength2* aVal, nsSVGElement *aSVGElement)
+      : mVal(aVal), mSVGElement(aSVGElement) {}
+    virtual ~DOMAnimatedLength();
+    
+    nsSVGLength2* mVal; // kept alive because it belongs to content
+    nsRefPtr<nsSVGElement> mSVGElement;
+
+    NS_IMETHOD GetBaseVal(nsIDOMSVGLength **aBaseVal)
+      { return mVal->ToDOMBaseVal(aBaseVal, mSVGElement); }
+
+    NS_IMETHOD GetAnimVal(nsIDOMSVGLength **aAnimVal)
+      { return mVal->ToDOMAnimVal(aAnimVal, mSVGElement); }
   };
 
   struct SMILLength : public nsISMILAttr

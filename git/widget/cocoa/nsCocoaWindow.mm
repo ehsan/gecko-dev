@@ -2963,7 +2963,12 @@ TitlebarDrawCallback(void* aInfo, CGContextRef aContext)
     if (!view || ![view isKindOfClass:[ChildView class]])
       return;
 
-    CGContextTranslateCTM(aContext, 0.0f, [window frame].size.height - titlebarRect.size.height);
+    // Gecko drawing assumes flippedness, but the current context isn't flipped
+    // (because we're painting into the window's border view, which is not a
+    // ChildView, so it isn't flipped).
+    // So we need to set a flip transform.
+    CGContextScaleCTM(aContext, 1.0f, -1.0f);
+    CGContextTranslateCTM(aContext, 0.0f, -[window frame].size.height);
 
     [(ChildView*)view drawTitlebar:[window frame] inTitlebarContext:aContext];
   } else {

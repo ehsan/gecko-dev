@@ -44,7 +44,7 @@ struct PcScriptCache
     // Get a value from the cache. May perform lazy allocation.
     // Defined in PcScriptCache-inl.h.
     bool get(JSRuntime *rt, uint32_t hash, uint8_t *addr,
-             JSScript **scriptRes, jsbytecode **pcRes);
+             MutableHandleScript scriptRes, jsbytecode **pcRes);
 
     void add(uint32_t hash, uint8_t *addr, jsbytecode *pc, UnrootedScript script) {
         entries[hash].returnAddress = addr;

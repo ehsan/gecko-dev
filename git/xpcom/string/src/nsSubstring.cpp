@@ -293,12 +293,6 @@ nsStringBuffer::SizeOfIncludingThisIfUnshared(nsMallocSizeOfFun aMallocSizeOf) c
     return 0;
   }
 
-size_t
-nsStringBuffer::SizeOfIncludingThisEvenIfShared(nsMallocSizeOfFun aMallocSizeOf) const
-  {
-    return aMallocSizeOf(this);
-  }
-
 // ---------------------------------------------------------------------------
 
 

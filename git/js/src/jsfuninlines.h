@@ -157,10 +157,10 @@ ClassMethodIsNative(JSContext *cx, HandleObject obj, Class *clasp, HandleId meth
     JS_ASSERT(!obj->isProxy());
     JS_ASSERT(obj->getClass() == clasp);
 
-    RootedValue v(cx);
-    if (!HasDataProperty(cx, obj, methodid, v.address())) {
+    Value v;
+    if (!HasDataProperty(cx, obj, methodid, &v)) {
         RootedObject proto(cx, obj->getProto());
-        if (!proto || proto->getClass() != clasp || !HasDataProperty(cx, proto, methodid, v.address()))
+        if (!proto || proto->getClass() != clasp || !HasDataProperty(cx, proto, methodid, &v))
             return false;
     }
 
@@ -243,22 +243,13 @@ CloneFunctionObjectIfNotSingleton(JSContext *cx, HandleFunction fun, HandleObjec
      * was called pessimistically, and we need to preserve the type's
      * property that if it is singleton there is only a single object
      * with its type in existence.
-     *
-     * For functions inner to run once lambda, it may be possible that
-     * the lambda runs multiple times and we repeatedly clone it. In these
-     * cases, fall through to CloneFunctionObject, which will deep clone
-     * the function's script.
      */
     if (fun->hasSingletonType()) {
-        RootedScript script(cx, JSFunction::getOrCreateScript(cx, fun));
-        if (!script->hasBeenCloned) {
-            script->hasBeenCloned = true;
-            Rooted<JSObject*> obj(cx, SkipScopeParent(parent));
-            if (!JSObject::setParent(cx, fun, obj))
-                return NULL;
-            fun->setEnvironment(parent);
-            return fun;
-        }
+        Rooted<JSObject*> obj(cx, SkipScopeParent(parent));
+        if (!JSObject::setParent(cx, fun, obj))
+            return NULL;
+        fun->setEnvironment(parent);
+        return fun;
     }
 
     return CloneFunctionObject(cx, fun, parent);

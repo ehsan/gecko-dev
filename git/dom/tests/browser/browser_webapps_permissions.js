@@ -68,7 +68,6 @@ function test() {
     SpecialPowers.setBoolPref("dom.mozPermissionSettings.enabled", true);
     SpecialPowers.addPermission("permissions", true, browser.contentWindow.document);
     SpecialPowers.addPermission("permissions", true, browser.contentDocument);
-    SpecialPowers.addPermission("webapps-manage", true, browser.contentWindow.document);
 
     executeSoon(function (){
       gWindow.focus();

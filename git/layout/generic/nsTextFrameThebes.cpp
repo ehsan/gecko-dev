@@ -99,14 +99,14 @@ struct TabWidth {
     : mOffset(aOffset), mWidth(float(aWidth))
   { }
 
-  uint32_t mOffset; // DOM offset relative to the current frame's offset.
+  uint32_t mOffset; // character offset within the text covered by the
+                    // PropertyProvider
   float    mWidth;  // extra space to be added at this position (in app units)
 };
 
 struct TabWidthStore {
-  TabWidthStore(int32_t aValidForContentOffset)
+  TabWidthStore()
     : mLimit(0)
-    , mValidForContentOffset(aValidForContentOffset)
   { }
 
   // Apply tab widths to the aSpacing array, which corresponds to characters
@@ -115,16 +115,10 @@ struct TabWidthStore {
   void ApplySpacing(gfxTextRun::PropertyProvider::Spacing *aSpacing,
                     uint32_t aOffset, uint32_t aLength);
 
-  // Offset up to which tabs have been measured; positions beyond this have not
-  // been calculated yet but may be appended if needed later.  It's a DOM
-  // offset relative to the current frame's offset.
-  uint32_t mLimit;
- 
-  // Need to recalc tab offsets if frame content offset differs from this.
-  int32_t mValidForContentOffset;
-
-  // A TabWidth record for each tab character measured so far.
-  nsTArray<TabWidth> mWidths;
+  uint32_t           mLimit;  // offset up to which tabs have been measured;
+                              // positions beyond this have not been calculated
+                              // yet but may be appended if needed later
+  nsTArray<TabWidth> mWidths; // (offset,width) records for each tab character
 };
 
 void
@@ -2481,11 +2475,6 @@ nsTextFrame::EnsureTextRun(TextRunType aWhichTextRun,
       static const gfxSkipChars emptySkipChars;
       return gfxSkipCharsIterator(emptySkipChars, 0);
     }
-    TabWidthStore* tabWidths =
-      static_cast<TabWidthStore*>(Properties().Get(TabWidthProperty()));
-    if (tabWidths && tabWidths->mValidForContentOffset != GetContentOffset()) {
-      Properties().Delete(TabWidthProperty());
-    }
   }
 
   if (textRun->GetFlags() & nsTextFrameUtils::TEXT_IS_SIMPLE_FLOW) {
@@ -2809,11 +2798,10 @@ protected:
   gfxSkipCharsIterator  mStart;  // Offset in original and transformed string
   gfxSkipCharsIterator  mTempIterator;
   
-  // Either null, or pointing to the frame's TabWidthProperty.
+  // Either null, or pointing to the frame's tabWidthProperty.
   TabWidthStore*        mTabWidths;
-  // How far we've done tab-width calculation; this is ONLY valid
-  // when mTabWidths is NULL (otherwise rely on mTabWidths->mLimit instead).
-  // It's a DOM offset relative to the current frame's offset.
+  // how far we've done tab-width calculation; this is ONLY valid
+  // when mTabWidths is NULL (otherwise rely on mTabWidths->mLimit instead)
   uint32_t              mTabWidthsAnalyzedLimit;
 
   int32_t               mLength; // DOM string length, may be INT32_MAX
@@ -3035,8 +3023,7 @@ PropertyProvider::CalcTabWidths(uint32_t aStart, uint32_t aLength)
       // tab character present (if any)
       for (uint32_t i = aStart + aLength; i > aStart; --i) {
         if (mTextRun->CharIsTab(i - 1)) {
-          uint32_t startOffset = mStart.GetSkippedOffset();
-          NS_ASSERTION(mTabWidths && mTabWidths->mLimit + startOffset >= i,
+          NS_ASSERTION(mTabWidths && mTabWidths->mLimit >= i,
                        "Precomputed tab widths are missing!");
           break;
         }
@@ -3047,10 +3034,9 @@ PropertyProvider::CalcTabWidths(uint32_t aStart, uint32_t aLength)
   }
 
   uint32_t startOffset = mStart.GetSkippedOffset();
-  MOZ_ASSERT(aStart >= startOffset, "wrong start offset");
-  MOZ_ASSERT(aStart + aLength <= startOffset + mLength, "beyond the end");
-  uint32_t tabsEnd =
-    (mTabWidths ? mTabWidths->mLimit : mTabWidthsAnalyzedLimit) + startOffset;
+  uint32_t tabsEnd = mTabWidths ?
+    mTabWidths->mLimit : std::max(mTabWidthsAnalyzedLimit, startOffset);
+
   if (tabsEnd < aStart + aLength) {
     NS_ASSERTION(mReflowing,
                  "We need precomputed tab widths, but don't have enough.");
@@ -3073,7 +3059,7 @@ PropertyProvider::CalcTabWidths(uint32_t aStart, uint32_t aLength)
         }
       } else {
         if (!mTabWidths) {
-          mTabWidths = new TabWidthStore(mFrame->GetContentOffset());
+          mTabWidths = new TabWidthStore();
           mFrame->Properties().Set(TabWidthProperty(), mTabWidths);
         }
         double nextTab = AdvanceToNextTab(mOffsetFromBlockOriginForTabs,
@@ -3087,7 +3073,7 @@ PropertyProvider::CalcTabWidths(uint32_t aStart, uint32_t aLength)
     }
 
     if (mTabWidths) {
-      mTabWidths->mLimit = aStart + aLength - startOffset;
+      mTabWidths->mLimit = aStart + aLength;
     }
   }
 
@@ -3095,7 +3081,7 @@ PropertyProvider::CalcTabWidths(uint32_t aStart, uint32_t aLength)
     // Delete any stale property that may be left on the frame
     mFrame->Properties().Delete(TabWidthProperty());
     mTabWidthsAnalyzedLimit = std::max(mTabWidthsAnalyzedLimit,
-                                       aStart + aLength - startOffset);
+                                     aStart + aLength);
   }
 }
 

@@ -1616,11 +1616,11 @@ class ContextStack
      * The 'stackLimit' overload updates 'stackLimit' if it changes.
      */
     bool pushInlineFrame(JSContext *cx, FrameRegs &regs, const CallArgs &args,
-                         HandleFunction callee, HandleScript script,
+                         JSFunction &callee, HandleScript script,
                          InitialFrameFlags initial,
                          MaybeReportError report = REPORT_ERROR);
     bool pushInlineFrame(JSContext *cx, FrameRegs &regs, const CallArgs &args,
-                         HandleFunction callee, HandleScript script,
+                         JSFunction &callee, HandleScript script,
                          InitialFrameFlags initial, Value **stackLimit);
     void popInlineFrame(FrameRegs &regs);
 
@@ -1962,7 +1962,7 @@ class StackIter
     struct Data
     {
         PerThreadData *perThread_;
-        JSContext    *cx_;
+        JSContext    *maybecx_;
         SavedOption  savedOption_;
 
         State        state_;
@@ -1982,7 +1982,7 @@ class StackIter
 #endif
 
         Data(JSContext *cx, PerThreadData *perThread, SavedOption savedOption);
-        Data(JSContext *cx, JSRuntime *rt, StackSegment *seg);
+        Data(JSRuntime *rt, StackSegment *seg);
         Data(const Data &other);
     };
 
@@ -2104,7 +2104,7 @@ class StackIter
     CallArgs nativeArgs() const { JS_ASSERT(isNativeCall()); return data_.args_; }
 
     template <class Op>
-    inline void ionForEachCanonicalActualArg(JSContext *cx, Op op);
+    inline void ionForEachCanonicalActualArg(Op op);
 };
 
 /* A filtering of the StackIter to only stop at scripts. */

@@ -107,6 +107,12 @@ inDeepTreeWalker::GetFilter(nsIDOMNodeFilter** aFilter)
 }
 
 NS_IMETHODIMP
+inDeepTreeWalker::GetExpandEntityReferences(bool* aExpandEntityReferences)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
 inDeepTreeWalker::GetCurrentNode(nsIDOMNode** aCurrentNode)
 {
   *aCurrentNode = mCurrentNode;

@@ -910,7 +910,7 @@ DataChannelConnection::SendDeferredMessages()
           still_blocked = true;
         } else {
           // Close the channel, inform the user
-          Close(channel);
+          Close(channel->mStreamOut);
         }
       }
     }
@@ -1212,6 +1212,18 @@ DataChannelConnection::HandleDataMessage(uint32_t ppid,
     channel->SendOrQueue(new DataChannelOnMessageAvailable(
                            DataChannelOnMessageAvailable::ON_DATA, this,
                            channel, recvData, length));
+  }
+}
+
+// Called with mLock locked!
+void
+DataChannel::SendOrQueue(DataChannelOnMessageAvailable *aMessage)
+{
+  if (!mReady &&
+      (mState == CONNECTING || mState == WAITING_TO_OPEN)) {
+    mQueuedMessages.AppendElement(aMessage);
+  } else {
+    NS_DispatchToMainThread(aMessage);
   }
 }
 
@@ -2020,24 +2032,27 @@ DataChannelConnection::SendMsgCommon(uint16_t stream, const nsACString &aMsg,
 }
 
 void
-DataChannelConnection::Close(DataChannel *aChannel)
+DataChannelConnection::Close(uint16_t streamOut)
 {
-  MOZ_ASSERT(aChannel);
-  nsRefPtr<DataChannel> channel(aChannel); // make sure it doesn't go away on us
+  nsRefPtr<DataChannel> channel; // make sure it doesn't go away on us
 
   MutexAutoLock lock(mLock);
-  LOG(("Connection %p/Channel %p: Closing stream %d",
-       channel->mConnection.get(), channel.get(), channel->mStreamOut));
-  if (channel->mState == CLOSED || channel->mState == CLOSING) {
-    LOG(("Channel already closing/closed (%d)", channel->mState));
-    return;
-  }
-  channel->mBufferedData.Clear();
-  if (channel->mStreamOut != INVALID_STREAM) {
-    ResetOutgoingStream(channel->mStreamOut);
+  channel = FindChannelByStreamOut(streamOut);
+  if (channel) {
+    LOG(("Connection %p/Channel %p: Closing stream %d",
+         (void *) channel->mConnection.get(), (void *) channel.get(), streamOut));
+    if (channel->mState == CLOSED || channel->mState == CLOSING) {
+      LOG(("Channel already closing/closed (%d)", channel->mState));
+      return;
+    }
+    channel->mBufferedData.Clear();
+    if (channel->mStreamOut != INVALID_STREAM)
+      ResetOutgoingStream(channel->mStreamOut);
     SendOutgoingStreamReset();
+    channel->mState = CLOSING;
+  } else {
+    LOG(("!!!? no channel when closing stream %d?",streamOut));
   }
-  channel->mState = CLOSING;
 }
 
 void DataChannelConnection::CloseAll()
@@ -2067,14 +2082,8 @@ void DataChannelConnection::CloseAll()
 
 DataChannel::~DataChannel()
 {
-  Close();
-}
-
-void
-DataChannel::Close()
-{
-  ENSURE_DATACONNECTION;
-  mConnection->Close(this);
+  if (mConnection)
+    Close();
 }
 
 // Used when disconnecting from the DataChannelConnection
@@ -2092,6 +2101,18 @@ DataChannel::Destroy()
   mStreamOut = INVALID_STREAM;
   mState = CLOSED;
   mConnection = nullptr;
+}
+
+void
+DataChannel::Close()
+{
+  if (mState == CLOSING || mState == CLOSED ||
+      mStreamOut == INVALID_STREAM) {
+    return;
+  }
+  mState = CLOSING;
+  ENSURE_DATACONNECTION;
+  mConnection->Close(mStreamOut);
 }
 
 void
@@ -2138,18 +2159,6 @@ DataChannel::GetBufferedAmount()
     buffered += mBufferedData[i]->mLength;
   }
   return buffered;
-}
-
-// Called with mLock locked!
-void
-DataChannel::SendOrQueue(DataChannelOnMessageAvailable *aMessage)
-{
-  if (!mReady &&
-      (mState == CONNECTING || mState == WAITING_TO_OPEN)) {
-    mQueuedMessages.AppendElement(aMessage);
-  } else {
-    NS_DispatchToMainThread(aMessage);
-  }
 }
 
 } // namespace mozilla

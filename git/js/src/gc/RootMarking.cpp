@@ -43,7 +43,7 @@ typedef RootedValueMap::Enum RootEnum;
 
 #ifdef JSGC_USE_EXACT_ROOTING
 static inline void
-MarkExactStackRoot(JSTracer *trc, Rooted<void*> *rooter, ThingRootKind kind)
+MarkExactStackRooter(JSTracer *trc, Rooted<void*> rooter, ThingRootKind kind)
 {
     void **addr = (void **)rooter->address();
     if (!*addr)
@@ -51,7 +51,7 @@ MarkExactStackRoot(JSTracer *trc, Rooted<void*> *rooter, ThingRootKind kind)
 
     switch (kind) {
       case THING_ROOT_OBJECT:      MarkObjectRoot(trc, (JSObject **)addr, "exact-object"); break;
-      case THING_ROOT_STRING:      MarkStringRoot(trc, (JSString **)addr, "exact-string"); break;
+      case THING_ROOT_STRING:      MarkStringRoot(trc, (JSSTring **)addr, "exact-string"); break;
       case THING_ROOT_SCRIPT:      MarkScriptRoot(trc, (JSScript **)addr, "exact-script"); break;
       case THING_ROOT_SHAPE:       MarkShapeRoot(trc, (Shape **)addr, "exact-shape"); break;
       case THING_ROOT_BASE_SHAPE:  MarkBaseShapeRoot(trc, (BaseShape **)addr, "exact-baseshape"); break;
@@ -66,10 +66,11 @@ MarkExactStackRoot(JSTracer *trc, Rooted<void*> *rooter, ThingRootKind kind)
 }
 
 static inline void
-MarkExactStackRootList(JSTracer *trc, Rooted<void*> *rooter, ThingRootKind kind)
+MarkExactStackRooters(JSTracer *trc, Rooted<void*> rooter, ThingRootKind kind)
 {
+    Rooted<void*> *rooter = cx->thingGCRooters[i];
     while (rooter) {
-        MarkExactStackRoot(trc, rooter, kind);
+        MarkExactStackRoot(trc, rooter, ThingRootKind(i));
         rooter = rooter->previous();
     }
 }
@@ -78,8 +79,10 @@ static void
 MarkExactStackRoots(JSTracer *trc)
 {
     for (unsigned i = 0; i < THING_ROOT_LIMIT; i++) {
-        for (ContextIter cx(trc->runtime); !cx.done(); cx.next())
-            MarkExactStackRootList(trc, cx->thingGCRooters[i], ThingRootKind(i));
+        for (ContextIter cx(trc->runtime); !cx.done(); cx.next()) {
+            MarkExactStackRooters(trc, cx->thingGCRooters[i], ThingRootKind(i));
+        }
+        MarkExactStackRooters(trc, rt->mainThread.thingGCRooters[i], ThingRootKind(i));
     }
 }
 #endif /* JSGC_USE_EXACT_ROOTING */
@@ -176,7 +179,7 @@ IsAddressableGCThing(JSRuntime *rt, uintptr_t w,
 
 #ifdef JSGC_ROOT_ANALYSIS
 void *
-js::gc::GetAddressableGCThing(JSRuntime *rt, uintptr_t w)
+js::gc::IsAddressableGCThing(JSRuntime *rt, uintptr_t w)
 {
     void *thing;
     ArenaHeader *aheader;
@@ -665,8 +668,6 @@ js::gc::MarkRuntime(JSTracer *trc, bool useSavedRoots)
     JSRuntime *rt = trc->runtime;
     JS_ASSERT(trc->callback != GCMarker::GrayCallback);
 
-    JS_ASSERT(!rt->mainThread.suppressGC);
-
     if (IS_GC_MARKING_TRACER(trc)) {
         for (CompartmentsIter c(rt); !c.done(); c.next()) {
             if (!c->isCollecting())
@@ -729,7 +730,7 @@ js::gc::MarkRuntime(JSTracer *trc, bool useSavedRoots)
         if (IS_GC_MARKING_TRACER(trc) && !c->isCollecting())
             continue;
 
-        if (IS_GC_MARKING_TRACER(trc) && c->isPreservingCode()) {
+        if (IS_GC_MARKING_TRACER(trc) && (c->activeAnalysis || c->isPreservingCode())) {
             gcstats::AutoPhase ap(rt->gcStats, gcstats::PHASE_MARK_TYPES);
             c->markTypes(trc);
         }

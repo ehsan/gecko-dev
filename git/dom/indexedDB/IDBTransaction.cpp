@@ -256,9 +256,9 @@ IDBTransaction::CommitOrRollback()
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
   if (!IndexedDatabaseManager::IsMainProcess()) {
-    if (mActorChild) {
-      mActorChild->SendAllRequestsFinished();
-    }
+    NS_ASSERTION(mActorChild, "Must have an actor!");
+
+    mActorChild->SendAllRequestsFinished();
 
     return NS_OK;
   }

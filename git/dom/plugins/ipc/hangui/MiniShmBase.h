@@ -121,20 +121,16 @@ public:
    * @return NS_OK if and only if aPtr was successfully obtained.
    *         NS_ERROR_ILLEGAL_VALUE if type T is not valid for MiniShm.
    *         NS_ERROR_NOT_INITIALIZED if there is no valid MiniShm connection.
-   *         NS_ERROR_NOT_AVAILABLE if the memory is not safe to write.
    */
   template<typename T> nsresult
   GetWritePtr(T*& aPtr)
   {
-    if (!mWriteHeader || !mGuard) {
+    if (!mWriteHeader) {
       return NS_ERROR_NOT_INITIALIZED;
     }
     if (sizeof(T) > mPayloadMaxLen ||
         T::identifier <= RESERVED_CODE_LAST) {
       return NS_ERROR_ILLEGAL_VALUE;
-    }
-    if (::WaitForSingleObject(mGuard, mTimeout) != WAIT_OBJECT_0) {
-      return NS_ERROR_NOT_AVAILABLE;
     }
     mWriteHeader->mId = T::identifier;
     mWriteHeader->mPayloadLen = sizeof(T);
@@ -223,9 +219,7 @@ protected:
     : mObserver(nullptr),
       mWriteHeader(nullptr),
       mReadHeader(nullptr),
-      mPayloadMaxLen(0),
-      mGuard(NULL),
-      mTimeout(INFINITE)
+      mPayloadMaxLen(0)
   {
   }
   virtual ~MiniShmBase()
@@ -264,17 +258,6 @@ protected:
                                                      + aSize / 2U);
     }
     mPayloadMaxLen = aSize / 2U - sizeof(MiniShmHeader);
-    return NS_OK;
-  }
-
-  nsresult
-  SetGuard(HANDLE aGuard, DWORD aTimeout)
-  {
-    if (!aGuard || !aTimeout) {
-      return NS_ERROR_ILLEGAL_VALUE;
-    }
-    mGuard = aGuard;
-    mTimeout = aTimeout;
     return NS_OK;
   }
 
@@ -321,8 +304,6 @@ private:
   MiniShmHeader*    mWriteHeader;
   MiniShmHeader*    mReadHeader;
   unsigned int      mPayloadMaxLen;
-  HANDLE            mGuard;
-  DWORD             mTimeout;
 
   DISALLOW_COPY_AND_ASSIGN(MiniShmBase);
 };

@@ -411,7 +411,7 @@ Recompiler::clearStackReferences(FreeOp *fop, JSScript *script)
                script->filename, script->lineno, script->length, (int) script->getUseCount());
 
     JSCompartment *comp = script->compartment();
-    types::AutoEnterAnalysis enter(fop, comp);
+    types::AutoEnterTypeInference enter(fop, comp);
 
     /*
      * The strategy for this goes as follows:

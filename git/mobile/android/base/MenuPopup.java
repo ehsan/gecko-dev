@@ -23,14 +23,12 @@ import android.widget.RelativeLayout.LayoutParams;
 public class MenuPopup extends PopupWindow {
     private Resources mResources;
 
-    private ImageView mArrowTop;
-    private ImageView mArrowBottom;
+    private ImageView mArrow;
     private RelativeLayout mPanel;
 
     private int mYOffset;
     private int mArrowMargin;
     private int mPopupWidth;
-    private boolean mShowArrow;
 
     public MenuPopup(Context context) {
         super(context);
@@ -51,10 +49,8 @@ public class MenuPopup extends PopupWindow {
         RelativeLayout layout = (RelativeLayout) inflater.inflate(R.layout.menu_popup, null);
         setContentView(layout);
 
-        mArrowTop = (ImageView) layout.findViewById(R.id.menu_arrow_top);
-        mArrowBottom = (ImageView) layout.findViewById(R.id.menu_arrow_bottom);
+        mArrow = (ImageView) layout.findViewById(R.id.menu_arrow);
         mPanel = (RelativeLayout) layout.findViewById(R.id.menu_panel);
-        mShowArrow = true;
     }
 
     /**
@@ -65,16 +61,6 @@ public class MenuPopup extends PopupWindow {
     public void setPanelView(View view) {
         mPanel.removeAllViews();
         mPanel.addView(view);
-        mPanel.measure(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-    }
-
-    /**
-     * Show/hide the arrow pointing to the anchor.
-     *
-     * @param show Show/hide the arrow.
-     */
-    public void showArrowToAnchor(boolean show) {
-        mShowArrow = show;
     }
 
     /**
@@ -82,41 +68,22 @@ public class MenuPopup extends PopupWindow {
      */
     @Override
     public void showAsDropDown(View anchor) {
-        if (!mShowArrow) {
-            mArrowTop.setVisibility(View.GONE);
-            mArrowBottom.setVisibility(View.GONE);
-            showAsDropDown(anchor, 0, -mYOffset);
-            return;
-        }
-
         int[] anchorLocation = new int[2];
         anchor.getLocationOnScreen(anchorLocation);
 
         int screenWidth = mResources.getDisplayMetrics().widthPixels;
-        int screenHeight = mResources.getDisplayMetrics().heightPixels;
         int arrowWidth = mResources.getDimensionPixelSize(R.dimen.menu_popup_arrow_width);
+        LayoutParams params = (LayoutParams) mArrow.getLayoutParams();
         int arrowOffset = (anchor.getWidth() - arrowWidth)/2;
        
         if (anchorLocation[0] + mPopupWidth <= screenWidth) {
             // left align
-            ((LayoutParams) mArrowTop.getLayoutParams()).rightMargin = mPopupWidth - anchor.getWidth() + arrowOffset;
-            ((LayoutParams) mArrowBottom.getLayoutParams()).rightMargin = mPopupWidth - anchor.getWidth() + arrowOffset;
+            params.rightMargin = mPopupWidth - anchor.getWidth() + arrowOffset;
         } else {
             // right align
-            ((LayoutParams) mArrowTop.getLayoutParams()).rightMargin = mArrowMargin;
-            ((LayoutParams) mArrowBottom.getLayoutParams()).rightMargin = mArrowMargin;
+            params.rightMargin = mArrowMargin;
         }
 
-        if (anchorLocation[1] + anchor.getHeight() + mPanel.getMeasuredHeight() >= screenHeight) {
-            // shown above anchor
-            mArrowTop.setVisibility(View.GONE);
-            mArrowBottom.setVisibility(View.VISIBLE);
-            showAsDropDown(anchor, 0, -(mYOffset + mPanel.getMeasuredHeight() + anchor.getHeight()));
-        } else {
-            // shown below anchor
-            mArrowTop.setVisibility(View.VISIBLE);
-            mArrowBottom.setVisibility(View.GONE);
-            showAsDropDown(anchor, 0, -mYOffset);
-        }
+        showAsDropDown(anchor, 0, -mYOffset);
     }
 }

@@ -3,7 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/dom/SVGAnimatedLength.h"
 #include "mozilla/dom/SVGEllipseElement.h"
 #include "mozilla/dom/SVGEllipseElementBinding.h"
 #include "gfxContext.h"
@@ -66,7 +65,7 @@ NS_IMETHODIMP SVGEllipseElement::GetCx(nsIDOMSVGAnimatedLength * *aCx)
   return NS_OK;
 }
 
-already_AddRefed<SVGAnimatedLength>
+already_AddRefed<nsIDOMSVGAnimatedLength>
 SVGEllipseElement::Cx()
 {
   return mLengthAttributes[CX].ToDOMAnimatedLength(this);
@@ -79,7 +78,7 @@ NS_IMETHODIMP SVGEllipseElement::GetCy(nsIDOMSVGAnimatedLength * *aCy)
   return NS_OK;
 }
 
-already_AddRefed<SVGAnimatedLength>
+already_AddRefed<nsIDOMSVGAnimatedLength>
 SVGEllipseElement::Cy()
 {
   return mLengthAttributes[CY].ToDOMAnimatedLength(this);
@@ -92,7 +91,7 @@ NS_IMETHODIMP SVGEllipseElement::GetRx(nsIDOMSVGAnimatedLength * *aRx)
   return NS_OK;
 }
 
-already_AddRefed<SVGAnimatedLength>
+already_AddRefed<nsIDOMSVGAnimatedLength>
 SVGEllipseElement::Rx()
 {
   return mLengthAttributes[RX].ToDOMAnimatedLength(this);
@@ -105,7 +104,7 @@ NS_IMETHODIMP SVGEllipseElement::GetRy(nsIDOMSVGAnimatedLength * *aRy)
   return NS_OK;
 }
 
-already_AddRefed<SVGAnimatedLength>
+already_AddRefed<nsIDOMSVGAnimatedLength>
 SVGEllipseElement::Ry()
 {
   return mLengthAttributes[RY].ToDOMAnimatedLength(this);

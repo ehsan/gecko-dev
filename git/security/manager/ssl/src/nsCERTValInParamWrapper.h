@@ -36,12 +36,11 @@
  */
 class nsCERTValInParamWrapper
 {
+ public:
+    NS_IMETHOD_(nsrefcnt) AddRef();
+    NS_IMETHOD_(nsrefcnt) Release();
+
 public:
-  NS_IMETHOD_(nsrefcnt) AddRef();
-  NS_IMETHOD_(nsrefcnt) Release();
-
-  bool IsOCSPDownloadEnabled() const { return mOCSPDownloadEnabled; }
-
   nsCERTValInParamWrapper();
   virtual ~nsCERTValInParamWrapper();
 
@@ -62,7 +61,6 @@ private:
   bool mAlreadyConstructed;
   CERTValInParam *mCVIN;
   CERTRevocationFlags *mRev;
-  bool mOCSPDownloadEnabled;
   
 public:
   CERTValInParam *GetRawPointerForNSS() { return mCVIN; }

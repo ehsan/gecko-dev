@@ -1049,10 +1049,8 @@ js::NukeCrossCompartmentWrappers(JSContext* cx,
 // |newTarget|. This recomputes the wrapper with JS_WrapValue, and thus can be
 // useful even if wrapper already points to newTarget.
 bool
-js::RemapWrapper(JSContext *cx, JSObject *wobjArg, JSObject *newTargetArg)
+js::RemapWrapper(JSContext *cx, JSObject *wobj, JSObject *newTarget)
 {
-    RootedObject wobj(cx, wobjArg);
-    RootedObject newTarget(cx, newTargetArg);
     JS_ASSERT(IsCrossCompartmentWrapper(wobj));
     JS_ASSERT(!IsCrossCompartmentWrapper(newTarget));
     JSObject *origTarget = Wrapper::wrappedObject(wobj);
@@ -1079,9 +1077,9 @@ js::RemapWrapper(JSContext *cx, JSObject *wobjArg, JSObject *newTargetArg)
     // First, we wrap it in the new compartment. We try to use the existing
     // wrapper, |wobj|, since it's been nuked anyway. The wrap() function has
     // the choice to reuse |wobj| or not.
-    RootedObject tobj(cx, newTarget);
+    JSObject *tobj = newTarget;
     AutoCompartment ac(cx, wobj);
-    if (!wcompartment->wrap(cx, tobj.address(), wobj))
+    if (!wcompartment->wrap(cx, &tobj, wobj))
         MOZ_CRASH();
 
     // If wrap() reused |wobj|, it will have overwritten it and returned with
@@ -1109,11 +1107,10 @@ js::RemapWrapper(JSContext *cx, JSObject *wobjArg, JSObject *newTargetArg)
 // Remap all cross-compartment wrappers pointing to |oldTarget| to point to
 // |newTarget|. All wrappers are recomputed.
 JS_FRIEND_API(bool)
-js::RemapAllWrappersForObject(JSContext *cx, JSObject *oldTargetArg,
-                              JSObject *newTargetArg)
+js::RemapAllWrappersForObject(JSContext *cx, JSObject *oldTarget,
+                              JSObject *newTarget)
 {
-    RootedValue origv(cx, ObjectValue(*oldTargetArg));
-    RootedObject newTarget(cx, newTargetArg);
+    Value origv = ObjectValue(*oldTarget);
 
     AutoWrapperVector toTransplant(cx);
     if (!toTransplant.reserve(cx->runtime->compartments.length()))

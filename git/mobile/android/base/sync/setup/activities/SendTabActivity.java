@@ -4,19 +4,15 @@
 
 package org.mozilla.gecko.sync.setup.activities;
 
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
 
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.sync.CommandProcessor;
 import org.mozilla.gecko.sync.CommandRunner;
+import org.mozilla.gecko.sync.SyncConstants;
 import org.mozilla.gecko.sync.GlobalSession;
 import org.mozilla.gecko.sync.Logger;
 import org.mozilla.gecko.sync.SyncConfiguration;
-import org.mozilla.gecko.sync.SyncConstants;
 import org.mozilla.gecko.sync.repositories.NullCursorException;
 import org.mozilla.gecko.sync.repositories.android.ClientsDatabaseAccessor;
 import org.mozilla.gecko.sync.repositories.domain.ClientRecord;
@@ -35,7 +31,6 @@ import android.os.AsyncTask;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.ListView;
-import android.widget.TextView;
 import android.widget.Toast;
 
 public class SendTabActivity extends Activity {
@@ -43,80 +38,10 @@ public class SendTabActivity extends Activity {
   private ClientRecordArrayAdapter arrayAdapter;
   private AccountManager accountManager;
   private Account localAccount;
-  private SendTabData sendTabData;
 
   @Override
   public void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
-
-    Intent intent = getIntent();
-    if (intent == null) {
-      Logger.warn(LOG_TAG, "intent was null; aborting without sending tab.");
-      notifyAndFinish(false);
-      return;
-    }
-
-    Bundle extras = intent.getExtras();
-    if (extras == null) {
-      Logger.warn(LOG_TAG, "extras was null; aborting without sending tab.");
-      notifyAndFinish(false);
-      return;
-    }
-
-    sendTabData = SendTabData.fromBundle(extras);
-    if (sendTabData == null) {
-      Logger.warn(LOG_TAG, "send tab data was null; aborting without sending tab.");
-      notifyAndFinish(false);
-      return;
-    }
-
-    if (sendTabData.uri == null) {
-      Logger.warn(LOG_TAG, "uri was null; aborting without sending tab.");
-      notifyAndFinish(false);
-      return;
-    }
-
-    if (sendTabData.title == null) {
-      Logger.warn(LOG_TAG, "title was null; ignoring and sending tab anyway.");
-    }
-  }
-
-  /**
-   * Ensure that the view's list of clients is backed by a recently populated
-   * array adapter. But only once, so we don't end up blowing away your selections
-   * just because you got a text message.
-   */
-  protected synchronized void ensureClientList(final Context context,
-                                               final ListView listview) {
-    if (arrayAdapter != null) {
-      Logger.debug(LOG_TAG, "Already have an array adapter for client lists.");
-      listview.setAdapter(arrayAdapter);
-      return;
-    }
-
-    arrayAdapter = new ClientRecordArrayAdapter(context, R.layout.sync_list_item);
-    listview.setAdapter(arrayAdapter);
-
-    // Fetching the client list hits the clients database, so we spin this onto
-    // a background task.
-    new AsyncTask<Void, Void, Collection<ClientRecord>>() {
-
-      @Override
-      protected Collection<ClientRecord> doInBackground(Void... params) {
-        return getOtherClients();
-      }
-
-      @Override
-      protected void onPostExecute(final Collection<ClientRecord> clientArray) {
-        // We're allowed to update the UI from here.
-
-        Logger.debug(LOG_TAG, "Got " + clientArray.size() + " clients.");
-        arrayAdapter.setClientRecordList(clientArray);
-        if (clientArray.size() == 1) {
-          arrayAdapter.checkItem(0, true);
-        }
-      }
-    }.execute();
   }
 
   @Override
@@ -135,13 +60,23 @@ public class SendTabActivity extends Activity {
     listview.setChoiceMode(ListView.CHOICE_MODE_MULTIPLE);
     enableSend(false);
 
-    ensureClientList(this, listview);
+    // Fetching the client list hits the clients database, so we spin this onto
+    // a background task.
+    final Context context = this;
+    new AsyncTask<Void, Void, ClientRecord[]>() {
 
-    TextView textView = (TextView) findViewById(R.id.title);
-    textView.setText(sendTabData.title);
+      @Override
+      protected ClientRecord[] doInBackground(Void... params) {
+        return getClientArray();
+      }
 
-    textView = (TextView) findViewById(R.id.uri);
-    textView.setText(sendTabData.uri);
+      @Override
+      protected void onPostExecute(final ClientRecord[] clientArray) {
+        // We're allowed to update the UI from here.
+        arrayAdapter = new ClientRecordArrayAdapter(context, R.layout.sync_list_item, clientArray);
+        listview.setAdapter(arrayAdapter);
+      }
+    }.execute();
   }
 
   private static void registerDisplayURICommand() {
@@ -191,6 +126,25 @@ public class SendTabActivity extends Activity {
 
   public void sendClickHandler(View view) {
     Logger.info(LOG_TAG, "Send was clicked.");
+    Bundle extras = this.getIntent().getExtras();
+    if (extras == null) {
+      Logger.warn(LOG_TAG, "extras was null; aborting without sending tab.");
+      notifyAndFinish(false);
+      return;
+    }
+
+    final SendTabData sendTabData = SendTabData.fromBundle(extras);
+
+    if (sendTabData.title == null) {
+      Logger.warn(LOG_TAG, "title was null; ignoring and sending tab anyway.");
+    }
+
+    if (sendTabData.uri == null) {
+      Logger.warn(LOG_TAG, "uri was null; aborting without sending tab.");
+      notifyAndFinish(false);
+      return;
+    }
+
     final List<String> remoteClientGuids = arrayAdapter.getCheckedGUIDs();
 
     if (remoteClientGuids == null) {
@@ -260,31 +214,16 @@ public class SendTabActivity extends Activity {
     sendButton.setClickable(shouldEnable);
   }
 
-  protected Map<String, ClientRecord> getClients() {
+  protected ClientRecord[] getClientArray() {
     ClientsDatabaseAccessor db = new ClientsDatabaseAccessor(this.getApplicationContext());
+
     try {
-      return db.fetchAllClients();
+      return db.fetchAllClients().values().toArray(new ClientRecord[0]);
     } catch (NullCursorException e) {
       Logger.warn(LOG_TAG, "NullCursorException while populating device list.", e);
       return null;
     } finally {
       db.close();
     }
-  }
-
-  /**
-   * @return a collection of client records, excluding our own.
-   */
-  protected Collection<ClientRecord> getOtherClients() {
-    final Map<String, ClientRecord> all = getClients();
-    final ArrayList<ClientRecord> out = new ArrayList<ClientRecord>(all.size());
-    final String ourGUID = getAccountGUID();
-    for (Entry<String, ClientRecord> entry : all.entrySet()) {
-      if (ourGUID.equals(entry.getKey())) {
-        continue;
-      }
-      out.add(entry.getValue());
-    }
-    return out;
   }
 }

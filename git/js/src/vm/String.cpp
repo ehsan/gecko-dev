@@ -296,11 +296,8 @@ JSRope::flatten(JSContext *maybecx)
 #endif
 }
 
-template <AllowGC allowGC>
-static inline JSString *
-ConcatStringsMaybeAllowGC(JSContext *cx,
-                          typename MaybeRooted<JSString*, allowGC>::HandleType left,
-                          typename MaybeRooted<JSString*, allowGC>::HandleType right)
+JSString *
+js_ConcatStrings(JSContext *cx, HandleString left, HandleString right)
 {
     JS_ASSERT_IF(!left->isAtom(), left->compartment() == cx->compartment);
     JS_ASSERT_IF(!right->isAtom(), right->compartment() == cx->compartment);
@@ -314,14 +311,11 @@ ConcatStringsMaybeAllowGC(JSContext *cx,
         return left;
 
     size_t wholeLength = leftLen + rightLen;
-    if (!JSString::validateLength(cx, wholeLength)) {
-        if (!allowGC)
-            cx->clearPendingException();
+    if (!JSString::validateLength(cx, wholeLength))
         return NULL;
-    }
 
     if (JSShortString::lengthFits(wholeLength)) {
-        JSShortString *str = allowGC ? js_NewGCShortString(cx) : js_TryNewGCShortString(cx);
+        JSShortString *str = js_NewGCShortString(cx);
         if (!str)
             return NULL;
         const jschar *leftChars = left->getChars(cx);
@@ -338,23 +332,7 @@ ConcatStringsMaybeAllowGC(JSContext *cx,
         return str;
     }
 
-    return JSRope::newStringMaybeAllowGC<allowGC>(cx, left, right, wholeLength);
-}
-
-JSString *
-js_ConcatStrings(JSContext *cx, HandleString left, HandleString right)
-{
-    return ConcatStringsMaybeAllowGC<ALLOW_GC>(cx, left, right);
-}
-
-JSString *
-js::ConcatStringsNoGC(JSContext *cx, JSString *left, JSString *right)
-{
-    AutoAssertNoGC nogc;
-    JSString *res = ConcatStringsMaybeAllowGC<DONT_ALLOW_GC>(cx, left, right);
-
-    JS_ASSERT(!cx->isExceptionPending());
-    return res;
+    return JSRope::new_(cx, left, right, wholeLength);
 }
 
 JSFlatString *

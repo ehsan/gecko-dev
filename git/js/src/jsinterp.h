@@ -350,34 +350,28 @@ SetObjectElement(JSContext *cx, HandleObject obj, HandleValue index, HandleValue
                  JSBool strict);
 
 bool
-AddValues(JSContext *cx, HandleScript script, jsbytecode *pc,
-          MutableHandleValue lhs, MutableHandleValue rhs,
+AddValues(JSContext *cx, HandleScript script, jsbytecode *pc, HandleValue lhs, HandleValue rhs,
           Value *res);
 
 bool
-SubValues(JSContext *cx, HandleScript script, jsbytecode *pc,
-          MutableHandleValue lhs, MutableHandleValue rhs,
+SubValues(JSContext *cx, HandleScript script, jsbytecode *pc, HandleValue lhs, HandleValue rhs,
           Value *res);
 
 bool
-MulValues(JSContext *cx, HandleScript script, jsbytecode *pc,
-          MutableHandleValue lhs, MutableHandleValue rhs,
+MulValues(JSContext *cx, HandleScript script, jsbytecode *pc, HandleValue lhs, HandleValue rhs,
           Value *res);
 
 bool
-DivValues(JSContext *cx, HandleScript script, jsbytecode *pc,
-          MutableHandleValue lhs, MutableHandleValue rhs,
+DivValues(JSContext *cx, HandleScript script, jsbytecode *pc, HandleValue lhs, HandleValue rhs,
           Value *res);
 
 bool
-ModValues(JSContext *cx, HandleScript script, jsbytecode *pc,
-          MutableHandleValue lhs, MutableHandleValue rhs,
+ModValues(JSContext *cx, HandleScript script, jsbytecode *pc, HandleValue lhs, HandleValue rhs,
           Value *res);
 
 bool
-UrshValues(JSContext *cx, HandleScript script, jsbytecode *pc,
-           MutableHandleValue lhs, MutableHandleValue rhs,
-           Value *res);
+UrshValues(JSContext *cx, HandleScript script, jsbytecode *pc, HandleValue lhs, HandleValue rhs,
+          Value *res);
 
 template <bool strict>
 bool

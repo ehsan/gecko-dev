@@ -1,5 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -128,8 +127,6 @@ nsSaveAsCharset::GetCharset(char * *aCharset)
 
 /////////////////////////////////////////////////////////////////////////////////////////
 
-#define RESERVE_FALLBACK_BYTES 512
-
 // do the fallback, reallocate the buffer if necessary
 // need to pass destination buffer info (size, current position and estimation of rest of the conversion)
 NS_IMETHODIMP
@@ -147,16 +144,14 @@ nsSaveAsCharset::HandleFallBack(uint32_t character, char **outString, int32_t *b
 
     // reallocate if the buffer is not large enough
     if ((tempLen + estimatedLength) >= (*bufferLength - *currentPos)) {
-      int32_t addLength = tempLen + RESERVE_FALLBACK_BYTES;
-      // + 1 is for the terminating NUL, don't add that to bufferLength
-      char *temp = (char *) PR_Realloc(*outString, *bufferLength + addLength + 1);
+      char *temp = (char *) PR_Realloc(*outString, *bufferLength + tempLen);
       if (temp) {
         // adjust length/pointer after realloc
-        *bufferLength += addLength;
+        *bufferLength += tempLen;
         *outString = temp;
       } else {
         *outString = nullptr;
-        *bufferLength = 0;
+        *bufferLength =0;
         return NS_ERROR_OUT_OF_MEMORY;
       }
     }
@@ -185,19 +180,12 @@ nsSaveAsCharset::DoCharsetConversion(const PRUnichar *inString, char **outString
   rv = mEncoder->GetMaxLength(inString, inStringLength, &dstLength);
   if (NS_FAILED(rv)) return rv;
 
-  bufferLength = dstLength + RESERVE_FALLBACK_BYTES; // extra bytes for fallback
-  // + 1 is for the terminating NUL -- we don't add that to bufferLength so that
-  // we can always write dstPtr[pos2] = '\0' even when the encoder filled the
-  // buffer.
-  char *dstPtr = (char *) PR_Malloc(bufferLength + 1);
-  if (!dstPtr) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
+  bufferLength = dstLength + 512; // reserve 512 byte for fallback.
+  char *dstPtr = (char *) PR_Malloc(bufferLength);
   
   for (pos1 = 0, pos2 = 0; pos1 < inStringLength;) {
     // convert from unicode
     dstLength = bufferLength - pos2;
-    NS_ASSERTION(dstLength >= 0, "out of bounds write");
     rv = mEncoder->Convert(&inString[pos1], &srcLength, &dstPtr[pos2], &dstLength);
 
     pos1 += srcLength ? srcLength : 1;

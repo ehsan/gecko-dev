@@ -8,7 +8,7 @@
 [ptr] native nsAXPCNativeCallContextPtr(nsAXPCNativeCallContext);
 
 %{C++
-class JSObject;
+struct JSObject;
 %}
 
 [ptr] native JSObjectPtr(JSObject);

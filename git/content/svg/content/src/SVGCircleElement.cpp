@@ -6,7 +6,6 @@
 #include "mozilla/dom/SVGCircleElement.h"
 #include "nsGkAtoms.h"
 #include "gfxContext.h"
-#include "mozilla/dom/SVGAnimatedLength.h"
 #include "mozilla/dom/SVGCircleElementBinding.h"
 
 DOMCI_NODE_DATA(SVGCircleElement, mozilla::dom::SVGCircleElement)
@@ -66,7 +65,7 @@ NS_IMETHODIMP SVGCircleElement::GetCx(nsIDOMSVGAnimatedLength * *aCx)
   return NS_OK;
 }
 
-already_AddRefed<SVGAnimatedLength>
+already_AddRefed<nsIDOMSVGAnimatedLength>
 SVGCircleElement::Cx()
 {
   return mLengthAttributes[ATTR_CX].ToDOMAnimatedLength(this);
@@ -79,7 +78,7 @@ NS_IMETHODIMP SVGCircleElement::GetCy(nsIDOMSVGAnimatedLength * *aCy)
   return NS_OK;
 }
 
-already_AddRefed<SVGAnimatedLength>
+already_AddRefed<nsIDOMSVGAnimatedLength>
 SVGCircleElement::Cy()
 {
   return mLengthAttributes[ATTR_CY].ToDOMAnimatedLength(this);
@@ -92,7 +91,7 @@ NS_IMETHODIMP SVGCircleElement::GetR(nsIDOMSVGAnimatedLength * *aR)
   return NS_OK;
 }
 
-already_AddRefed<SVGAnimatedLength>
+already_AddRefed<nsIDOMSVGAnimatedLength>
 SVGCircleElement::R()
 {
   return mLengthAttributes[ATTR_R].ToDOMAnimatedLength(this);

@@ -256,20 +256,16 @@ private:
 
   /**
    * This struct has to be passed as an argument to GetPermissionsForApp.
-   * |appId| and |browserOnly| have to be defined.
+   * |appId| has to be defined.
    * |permissions| will be filed with permissions that are related to the app.
-   * If |browserOnly| is true, only permissions related to a browserElement will
-   * be in |permissions|.
    */
   struct GetPermissionsForAppStruct {
     uint32_t                  appId;
-    bool                      browserOnly;
     nsCOMArray<nsIPermission> permissions;
 
     GetPermissionsForAppStruct() MOZ_DELETE;
-    GetPermissionsForAppStruct(uint32_t aAppId, bool aBrowserOnly)
+    GetPermissionsForAppStruct(uint32_t aAppId)
       : appId(aAppId)
-      , browserOnly(aBrowserOnly)
     {}
   };
 

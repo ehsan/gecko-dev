@@ -12,7 +12,6 @@
 #include "nsIFrame.h"
 #include "nsError.h"
 #include "nsContentUtils.h"
-#include "mozilla/dom/SVGAnimatedLength.h"
 
 DOMCI_NODE_DATA(SVGTextPathElement, mozilla::dom::SVGTextPathElement)
 
@@ -116,7 +115,7 @@ NS_IMETHODIMP SVGTextPathElement::GetStartOffset(nsIDOMSVGAnimatedLength * *aSta
   return NS_OK;
 }
 
-already_AddRefed<SVGAnimatedLength>
+already_AddRefed<nsIDOMSVGAnimatedLength>
 SVGTextPathElement::StartOffset()
 {
   return mLengthAttributes[STARTOFFSET].ToDOMAnimatedLength(this);

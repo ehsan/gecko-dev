@@ -3,7 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/dom/SVGAnimatedLength.h"
 #include "mozilla/dom/SVGLineElement.h"
 #include "mozilla/dom/SVGLineElementBinding.h"
 #include "gfxContext.h"
@@ -66,7 +65,7 @@ NS_IMETHODIMP SVGLineElement::GetX1(nsIDOMSVGAnimatedLength * *aX1)
   return NS_OK;
 }
 
-already_AddRefed<SVGAnimatedLength>
+already_AddRefed<nsIDOMSVGAnimatedLength>
 SVGLineElement::X1()
 {
   return mLengthAttributes[ATTR_X1].ToDOMAnimatedLength(this);
@@ -79,7 +78,7 @@ NS_IMETHODIMP SVGLineElement::GetY1(nsIDOMSVGAnimatedLength * *aY1)
   return NS_OK;
 }
 
-already_AddRefed<SVGAnimatedLength>
+already_AddRefed<nsIDOMSVGAnimatedLength>
 SVGLineElement::Y1()
 {
   return mLengthAttributes[ATTR_Y1].ToDOMAnimatedLength(this);
@@ -92,7 +91,7 @@ NS_IMETHODIMP SVGLineElement::GetX2(nsIDOMSVGAnimatedLength * *aX2)
   return NS_OK;
 }
 
-already_AddRefed<SVGAnimatedLength>
+already_AddRefed<nsIDOMSVGAnimatedLength>
 SVGLineElement::X2()
 {
   return mLengthAttributes[ATTR_X2].ToDOMAnimatedLength(this);
@@ -105,7 +104,7 @@ NS_IMETHODIMP SVGLineElement::GetY2(nsIDOMSVGAnimatedLength * *aY2)
   return NS_OK;
 }
 
-already_AddRefed<SVGAnimatedLength>
+already_AddRefed<nsIDOMSVGAnimatedLength>
 SVGLineElement::Y2()
 {
   return mLengthAttributes[ATTR_Y2].ToDOMAnimatedLength(this);

@@ -117,12 +117,6 @@ ContentPermissionPrompt.prototype = {
   },
 
   prompt: function(request) {
-
-    if (secMan.isSystemPrincipal(request.principal)) {
-      request.allow();
-      return true;
-    }
-
     if (this.handledByApp(request))
         return;
 

@@ -306,8 +306,6 @@ MediaEngineWebRTCAudioSource::Process(const int channel,
 
     SourceMediaStream *source = mSources[i];
     if (source) {
-      // This is safe from any thread, and is safe if the track is Finished
-      // or Destroyed
       source->AppendToTrack(mTrackID, &segment);
     }
   }

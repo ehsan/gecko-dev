@@ -105,7 +105,7 @@ class Marionette(object):
                  emulator=None, sdcard=None, emulatorBinary=None,
                  emulatorImg=None, emulator_res='480x800', gecko_path=None,
                  connectToRunningEmulator=False, homedir=None, baseurl=None,
-                 noWindow=False, logcat_dir=None, busybox=None):
+                 noWindow=False, logcat_dir=None, busybox=None, load_early=False):
         self.host = host
         self.port = self.local_port = port
         self.bin = bin
@@ -154,8 +154,8 @@ class Marionette(object):
         self.client = MarionetteClient(self.host, self.port)
 
         if emulator:
-            self.emulator.setup(self,
-                                gecko_path=gecko_path,
+            self.emulator.setup(self, gecko_path=gecko_path,
+                                load_early=load_early,
                                 busybox=busybox)
 
     def __del__(self):

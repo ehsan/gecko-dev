@@ -6,7 +6,6 @@
 #include "mozilla/dom/SVGGradientElement.h"
 
 #include "DOMSVGAnimatedTransformList.h"
-#include "mozilla/dom/SVGAnimatedLength.h"
 #include "mozilla/dom/SVGRadialGradientElementBinding.h"
 #include "mozilla/dom/SVGLinearGradientElementBinding.h"
 #include "mozilla/Util.h"
@@ -223,7 +222,7 @@ NS_IMETHODIMP SVGLinearGradientElement::GetX1(nsIDOMSVGAnimatedLength * *aX1)
   return NS_OK;
 }
 
-already_AddRefed<SVGAnimatedLength>
+already_AddRefed<nsIDOMSVGAnimatedLength>
 SVGLinearGradientElement::X1()
 {
   return mLengthAttributes[ATTR_X1].ToDOMAnimatedLength(this);
@@ -236,7 +235,7 @@ NS_IMETHODIMP SVGLinearGradientElement::GetY1(nsIDOMSVGAnimatedLength * *aY1)
   return NS_OK;
 }
 
-already_AddRefed<SVGAnimatedLength>
+already_AddRefed<nsIDOMSVGAnimatedLength>
 SVGLinearGradientElement::Y1()
 {
   return mLengthAttributes[ATTR_Y1].ToDOMAnimatedLength(this);
@@ -249,7 +248,7 @@ NS_IMETHODIMP SVGLinearGradientElement::GetX2(nsIDOMSVGAnimatedLength * *aX2)
   return NS_OK;
 }
 
-already_AddRefed<SVGAnimatedLength>
+already_AddRefed<nsIDOMSVGAnimatedLength>
 SVGLinearGradientElement::X2()
 {
   return mLengthAttributes[ATTR_X2].ToDOMAnimatedLength(this);
@@ -262,7 +261,7 @@ NS_IMETHODIMP SVGLinearGradientElement::GetY2(nsIDOMSVGAnimatedLength * *aY2)
   return NS_OK;
 }
 
-already_AddRefed<SVGAnimatedLength>
+already_AddRefed<nsIDOMSVGAnimatedLength>
 SVGLinearGradientElement::Y2()
 {
   return mLengthAttributes[ATTR_Y2].ToDOMAnimatedLength(this);
@@ -343,7 +342,7 @@ NS_IMETHODIMP SVGRadialGradientElement::GetCx(nsIDOMSVGAnimatedLength * *aCx)
   return NS_OK;
 }
 
-already_AddRefed<SVGAnimatedLength>
+already_AddRefed<nsIDOMSVGAnimatedLength>
 SVGRadialGradientElement::Cx()
 {
   return mLengthAttributes[ATTR_CX].ToDOMAnimatedLength(this);
@@ -356,7 +355,7 @@ NS_IMETHODIMP SVGRadialGradientElement::GetCy(nsIDOMSVGAnimatedLength * *aCy)
   return NS_OK;
 }
 
-already_AddRefed<SVGAnimatedLength>
+already_AddRefed<nsIDOMSVGAnimatedLength>
 SVGRadialGradientElement::Cy()
 {
   return mLengthAttributes[ATTR_CY].ToDOMAnimatedLength(this);
@@ -369,7 +368,7 @@ NS_IMETHODIMP SVGRadialGradientElement::GetR(nsIDOMSVGAnimatedLength * *aR)
   return NS_OK;
 }
 
-already_AddRefed<SVGAnimatedLength>
+already_AddRefed<nsIDOMSVGAnimatedLength>
 SVGRadialGradientElement::R()
 {
   return mLengthAttributes[ATTR_R].ToDOMAnimatedLength(this);
@@ -382,7 +381,7 @@ NS_IMETHODIMP SVGRadialGradientElement::GetFx(nsIDOMSVGAnimatedLength * *aFx)
   return NS_OK;
 }
 
-already_AddRefed<SVGAnimatedLength>
+already_AddRefed<nsIDOMSVGAnimatedLength>
 SVGRadialGradientElement::Fx()
 {
   return mLengthAttributes[ATTR_FX].ToDOMAnimatedLength(this);
@@ -395,7 +394,7 @@ NS_IMETHODIMP SVGRadialGradientElement::GetFy(nsIDOMSVGAnimatedLength * *aFy)
   return NS_OK;
 }
 
-already_AddRefed<SVGAnimatedLength>
+already_AddRefed<nsIDOMSVGAnimatedLength>
 SVGRadialGradientElement::Fy()
 {
   return mLengthAttributes[ATTR_FY].ToDOMAnimatedLength(this);

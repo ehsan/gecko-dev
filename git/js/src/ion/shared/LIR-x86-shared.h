@@ -44,9 +44,6 @@ class LModI : public LBinaryMath<1>
     const LDefinition *remainder() {
         return getDef(0);
     }
-    MMod *mir() const {
-        return mir_->toMod();
-    }
 };
 
 class LModPowTwoI : public LInstructionHelper<1,1,0>
@@ -67,9 +64,6 @@ class LModPowTwoI : public LInstructionHelper<1,1,0>
     }
     const LDefinition *remainder() {
         return getDef(0);
-    }
-    MMod *mir() const {
-        return mir_->toMod();
     }
 };
 

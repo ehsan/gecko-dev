@@ -49,7 +49,7 @@ class Fake_AudioGenerator {
  public:
 Fake_AudioGenerator(nsDOMMediaStream* aStream) : mStream(aStream), mCount(0) {
     mTimer = do_CreateInstance("@mozilla.org/timer;1");
-    MOZ_ASSERT(mTimer);
+    PR_ASSERT(mTimer);
 
     // Make a track
     mozilla::AudioSegment *segment = new mozilla::AudioSegment();
@@ -92,7 +92,7 @@ class Fake_VideoGenerator {
     mStream = aStream;
     mCount = 0;
     mTimer = do_CreateInstance("@mozilla.org/timer;1");
-    MOZ_ASSERT(mTimer);
+    PR_ASSERT(mTimer);
 
     // Make a track
     mozilla::VideoSegment *segment = new mozilla::VideoSegment();
@@ -161,9 +161,7 @@ class Fake_VideoGenerator {
 class LocalSourceStreamInfo {
 public:
   LocalSourceStreamInfo(nsDOMMediaStream* aMediaStream)
-    : mMediaStream(aMediaStream) {
-      MOZ_ASSERT(aMediaStream);
-    }
+    : mMediaStream(aMediaStream) {}
   ~LocalSourceStreamInfo() {
     mMediaStream = NULL;
   }
@@ -200,9 +198,7 @@ class RemoteSourceStreamInfo {
  public:
   RemoteSourceStreamInfo(nsDOMMediaStream* aMediaStream) :
     mMediaStream(already_AddRefed<nsDOMMediaStream>(aMediaStream)),
-    mPipelines() {
-      MOZ_ASSERT(aMediaStream);
-    }
+    mPipelines() {}
 
   nsDOMMediaStream* GetMediaStream() {
     return mMediaStream;

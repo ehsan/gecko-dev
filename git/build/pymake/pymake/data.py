@@ -40,8 +40,7 @@ def mtimeislater(deptime, targettime):
         return True
     if targettime is None:
         return False
-    # int(1000*x) because of http://bugs.python.org/issue10148
-    return int(1000 * deptime) > int(1000 * targettime)
+    return deptime > targettime
 
 def getmtime(path):
     try:

@@ -39,7 +39,6 @@
 #include "nsSMILTypes.h"
 #include "nsIContentIterator.h"
 #include "SVGAngle.h"
-#include "mozilla/dom/SVGAnimatedLength.h"
 #include <algorithm>
 
 DOMCI_NODE_DATA(SVGSVGElement, mozilla::dom::SVGSVGElement)
@@ -209,7 +208,7 @@ SVGSVGElement::GetX(nsIDOMSVGAnimatedLength * *aX)
   return NS_OK;
 }
 
-already_AddRefed<SVGAnimatedLength>
+already_AddRefed<nsIDOMSVGAnimatedLength>
 SVGSVGElement::X()
 {
   return mLengthAttributes[ATTR_X].ToDOMAnimatedLength(this);
@@ -223,7 +222,7 @@ SVGSVGElement::GetY(nsIDOMSVGAnimatedLength * *aY)
   return NS_OK;
 }
 
-already_AddRefed<SVGAnimatedLength>
+already_AddRefed<nsIDOMSVGAnimatedLength>
 SVGSVGElement::Y()
 {
   return mLengthAttributes[ATTR_Y].ToDOMAnimatedLength(this);
@@ -237,7 +236,7 @@ SVGSVGElement::GetWidth(nsIDOMSVGAnimatedLength * *aWidth)
   return NS_OK;
 }
 
-already_AddRefed<SVGAnimatedLength>
+already_AddRefed<nsIDOMSVGAnimatedLength>
 SVGSVGElement::Width()
 {
   return mLengthAttributes[ATTR_WIDTH].ToDOMAnimatedLength(this);
@@ -251,7 +250,7 @@ SVGSVGElement::GetHeight(nsIDOMSVGAnimatedLength * *aHeight)
   return NS_OK;
 }
 
-already_AddRefed<SVGAnimatedLength>
+already_AddRefed<nsIDOMSVGAnimatedLength>
 SVGSVGElement::Height()
 {
   return mLengthAttributes[ATTR_HEIGHT].ToDOMAnimatedLength(this);
@@ -1009,8 +1008,6 @@ SVGSVGElement::BindToTree(nsIDocument* aDocument,
                           nsIContent* aBindingParent,
                           bool aCompileEventHandlers)
 {
-  static const char kSVGStyleSheetURI[] = "resource://gre/res/svg.css";
-
   nsSMILAnimationController* smilController = nullptr;
 
   if (aDocument) {
@@ -1037,13 +1034,6 @@ SVGSVGElement::BindToTree(nsIDocument* aDocument,
                                               aBindingParent,
                                               aCompileEventHandlers);
   NS_ENSURE_SUCCESS(rv,rv);
-
-  if (aDocument) {
-    // Setup the style sheet during binding, not element construction,
-    // because we could move the root SVG element from the document
-    // that created it to another document.
-    aDocument->EnsureCatalogStyleSheet(kSVGStyleSheetURI);
-  }
 
   if (mTimedDocumentRoot && smilController) {
     rv = mTimedDocumentRoot->SetParent(smilController);

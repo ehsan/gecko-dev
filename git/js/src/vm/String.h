@@ -29,7 +29,7 @@ class JSExtensibleString;
 class JSExternalString;
 ForwardDeclareJS(LinearString);
 class JSStableString;
-ForwardDeclareJS(InlineString);
+class JSInlineString;
 class JSRope;
 ForwardDeclareJS(FlatString);
 ForwardDeclareJS(Atom);
@@ -446,12 +446,8 @@ class JSRope : public JSString
     void init(JSString *left, JSString *right, size_t length);
 
   public:
-    template <js::AllowGC allowGC>
-    static inline JSRope *
-    newStringMaybeAllowGC(JSContext *cx,
-                          typename js::MaybeRooted<JSString*, allowGC>::HandleType left,
-                          typename js::MaybeRooted<JSString*, allowGC>::HandleType right,
-                          size_t length);
+    static inline JSRope *new_(JSContext *cx, js::HandleString left,
+                               js::HandleString right, size_t length);
 
     inline JSString *leftChild() const {
         JS_ASSERT(isRope());
@@ -567,12 +563,6 @@ class JSStableString : public JSFlatString
         JS_ASSERT(!JSString::isInline());
         return JS::StableCharPtr(d.u1.chars, length());
     }
-
-    JS_ALWAYS_INLINE
-    JS::StableTwoByteChars range() const {
-        JS_ASSERT(!JSString::isInline());
-        return JS::StableTwoByteChars(d.u1.chars, length());
-    }
 };
 
 JS_STATIC_ASSERT(sizeof(JSStableString) == sizeof(JSString));
@@ -657,7 +647,6 @@ class JSInlineString : public JSFlatString
 
   public:
     static inline JSInlineString *new_(JSContext *cx);
-    static inline JSInlineString *tryNew_(JSContext *cx);
 
     inline jschar *init(size_t length);
 
@@ -689,7 +678,6 @@ class JSShortString : public JSInlineString
 
   public:
     static inline JSShortString *new_(JSContext *cx);
-    static inline JSShortString *tryNew_(JSContext *cx);
 
     static const size_t MAX_SHORT_LENGTH = JSString::NUM_INLINE_CHARS +
                                            INLINE_EXTENSION_CHARS
@@ -844,7 +832,7 @@ class PropertyName : public JSAtom
 
 JS_STATIC_ASSERT(sizeof(PropertyName) == sizeof(JSString));
 
-static JS_ALWAYS_INLINE RawId
+static JS_ALWAYS_INLINE jsid
 NameToId(PropertyName *name)
 {
     return NON_INTEGER_ATOM_TO_JSID(name);

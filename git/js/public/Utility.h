@@ -546,14 +546,14 @@ struct ScopedFreePtrTraits
     static T* empty() { return NULL; }
     static void release(T* ptr) { js_free(ptr); }
 };
-SCOPED_TEMPLATE(ScopedJSFreePtr, ScopedFreePtrTraits)
+SCOPED_TEMPLATE(ScopedFreePtr, ScopedFreePtrTraits)
 
 template <typename T>
 struct ScopedDeletePtrTraits : public ScopedFreePtrTraits<T>
 {
     static void release(T *ptr) { js_delete(ptr); }
 };
-SCOPED_TEMPLATE(ScopedJSDeletePtr, ScopedDeletePtrTraits)
+SCOPED_TEMPLATE(ScopedDeletePtr, ScopedDeletePtrTraits)
 
 } /* namespace js */
 

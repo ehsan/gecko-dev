@@ -46,7 +46,6 @@
 #include "jsxml.h"
 
 #include "builtin/MapObject.h"
-#include "builtin/Module.h"
 #include "builtin/ParallelArray.h"
 #include "frontend/BytecodeCompiler.h"
 #include "frontend/Parser.h"
@@ -1892,8 +1891,8 @@ JSObject::TradeGuts(JSContext *cx, JSObject *a, JSObject *b, TradeGutsReserved &
          */
         JSCompartment *comp = cx->compartment;
         for (size_t i = 0; i < a->numFixedSlots(); ++i) {
-            HeapSlot::writeBarrierPost(comp, a, HeapSlot::Slot, i);
-            HeapSlot::writeBarrierPost(comp, b, HeapSlot::Slot, i);
+            HeapSlot::writeBarrierPost(comp, a, i);
+            HeapSlot::writeBarrierPost(comp, b, i);
         }
 #endif
     } else {
@@ -2349,7 +2348,7 @@ JSObject::growSlots(JSContext *cx, HandleObject obj, uint32_t oldCount, uint32_t
         gc::AllocKind kind = obj->type()->newScript->allocKind;
         unsigned newScriptSlots = gc::GetGCKindSlots(kind);
         if (newScriptSlots == obj->numFixedSlots() && gc::TryIncrementAllocKind(&kind)) {
-            AutoEnterAnalysis enter(cx);
+            AutoEnterTypeInference enter(cx);
 
             Rooted<TypeObject*> typeObj(cx, obj->type());
             RootedShape shape(cx, typeObj->newScript->shape);
@@ -4029,8 +4028,7 @@ baseops::SetElementAttributes(JSContext *cx, HandleObject obj, uint32_t index, u
     if (nobj->isNative() && IsImplicitDenseElement(shape)) {
         if (!JSObject::sparsifyDenseElement(cx, obj, index))
             return false;
-        RawId id = INT_TO_JSID(index);
-        shape = obj->nativeLookup(cx, HandleId::fromMarkedLocation(&id)); // not a gcthing
+        shape = obj->nativeLookup(cx, INT_TO_JSID(index));
     }
     return nobj->isNative()
            ? JSObject::changePropertyAttributes(cx, nobj, shape, *attrsp)
@@ -4112,7 +4110,7 @@ baseops::DeleteSpecial(JSContext *cx, HandleObject obj, HandleSpecialId sid,
 }
 
 bool
-js::HasDataProperty(JSContext *cx, HandleObject obj, HandleId id, Value *vp)
+js::HasDataProperty(JSContext *cx, HandleObject obj, jsid id, Value *vp)
 {
     if (JSID_IS_INT(id) && obj->containsDenseElement(JSID_TO_INT(id))) {
         *vp = obj->getDenseElement(JSID_TO_INT(id));

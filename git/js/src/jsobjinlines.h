@@ -189,7 +189,7 @@ JSObject::getProperty(JSContext *cx, js::HandleObject obj, js::HandleObject rece
 JSObject::deleteProperty(JSContext *cx, js::HandleObject obj,
                          js::HandlePropertyName name, js::MutableHandleValue rval, bool strict)
 {
-    js::RootedId id(cx, js::NameToId(name));
+    jsid id = js::NameToId(name);
     js::types::AddTypePropertyId(cx, obj, id, js::types::Type::UndefinedType());
     js::types::MarkTypePropertyConfigured(cx, obj, id);
     js::DeletePropertyOp op = obj->getOps()->deleteProperty;
@@ -213,7 +213,7 @@ JSObject::deleteElement(JSContext *cx, js::HandleObject obj,
 JSObject::deleteSpecial(JSContext *cx, js::HandleObject obj,
                         js::HandleSpecialId sid, js::MutableHandleValue rval, bool strict)
 {
-    js::RootedId id(cx, SPECIALID_TO_JSID(sid));
+    jsid id = SPECIALID_TO_JSID(sid);
     js::types::AddTypePropertyId(cx, obj, id, js::types::Type::UndefinedType());
     js::types::MarkTypePropertyConfigured(cx, obj, id);
     js::DeleteSpecialOp op = obj->getOps()->deleteSpecial;
@@ -525,7 +525,7 @@ JSObject::moveDenseElements(unsigned dstStart, unsigned srcStart, unsigned count
         }
     } else {
         memmove(elements + dstStart, elements + srcStart, count * sizeof(js::HeapSlot));
-        DenseRangeWriteBarrierPost(comp, this, dstStart, count);
+        SlotRangeWriteBarrierPost(comp, this, dstStart, count);
     }
 }
 
@@ -908,7 +908,6 @@ inline bool JSObject::isFunction() const { return hasClass(&js::FunctionClass); 
 inline bool JSObject::isFunctionProxy() const { return hasClass(&js::FunctionProxyClass); }
 inline bool JSObject::isGenerator() const { return hasClass(&js::GeneratorClass); }
 inline bool JSObject::isMapIterator() const { return hasClass(&js::MapIteratorClass); }
-inline bool JSObject::isModule() const { return hasClass(&js::ModuleClass); }
 inline bool JSObject::isNestedScope() const { return isBlock() || isWith(); }
 inline bool JSObject::isNormalArguments() const { return hasClass(&js::NormalArgumentsObjectClass); }
 inline bool JSObject::isNumber() const { return hasClass(&js::NumberClass); }
@@ -1693,7 +1692,7 @@ DefineConstructorAndPrototype(JSContext *cx, Handle<GlobalObject*> global,
     JS_ASSERT(ctor);
     JS_ASSERT(proto);
 
-    RootedId id(cx, NameToId(ClassName(key, cx)));
+    jsid id = NameToId(ClassName(key, cx));
     JS_ASSERT(!global->nativeLookupNoAllocation(id));
 
     /* Set these first in case AddTypePropertyId looks for this class. */

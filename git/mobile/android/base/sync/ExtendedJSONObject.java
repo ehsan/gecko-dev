@@ -41,8 +41,7 @@ public class ExtendedJSONObject {
   /**
    * Parse a JSON encoded string.
    *
-   * @param in <code>Reader</code> over a JSON-encoded input to parse; not
-   *            necessarily a JSON object.
+   * @param input JSON encoded input string to parse; not necessarily a JSON object.
    * @return a regular Java <code>Object</code>.
    * @throws ParseException
    * @throws IOException
@@ -56,7 +55,7 @@ public class ExtendedJSONObject {
    * <p>
    * You should prefer the streaming interface {@link #parseRaw(Reader)}.
    *
-   * @param input JSON-encoded input string to parse; not necessarily a JSON object.
+   * @param input JSON encoded input string to parse; not necessarily a JSON object.
    * @return a regular Java <code>Object</code>.
    * @throws ParseException
    */
@@ -67,7 +66,7 @@ public class ExtendedJSONObject {
   /**
    * Helper method to get a JSON array from a stream.
    *
-   * @param in <code>Reader</code> over a JSON-encoded array to parse.
+   * @param jsonString input.
    * @throws ParseException
    * @throws IOException
    * @throws NonArrayJSONException if the object is valid JSON, but not an array.

@@ -174,6 +174,7 @@ typedef struct JSExceptionState             JSExceptionState;
 typedef struct JSFunctionSpec               JSFunctionSpec;
 typedef struct JSIdArray                    JSIdArray;
 typedef struct JSLocaleCallbacks            JSLocaleCallbacks;
+typedef struct JSObject                     JSObject;
 typedef struct JSObjectMap                  JSObjectMap;
 typedef struct JSPrincipals                 JSPrincipals;
 typedef struct JSPropertyDescriptor         JSPropertyDescriptor;
@@ -190,14 +191,12 @@ typedef struct JSTracer                     JSTracer;
 #ifdef __cplusplus
 class                                       JSFlatString;
 class                                       JSFunction;
-class                                       JSObject;
 class                                       JSScript;
 class                                       JSStableString;  // long story
 class                                       JSString;
 #else
 typedef struct JSFlatString                 JSFlatString;
 typedef struct JSFunction                   JSFunction;
-typedef struct JSObject                     JSObject;
 typedef struct JSScript                     JSScript;
 typedef struct JSString                     JSString;
 #endif /* !__cplusplus */
@@ -320,16 +319,12 @@ struct PerThreadDataFriendFields
 {
     PerThreadDataFriendFields();
 
-#if defined(DEBUG) && defined(JS_GC_ZEAL) && defined(JSGC_ROOT_ANALYSIS) && !defined(JS_THREADSAFE)
+#if defined(JSGC_ROOT_ANALYSIS) || defined(JSGC_USE_EXACT_ROOTING)
     /*
-     * Stack allocated list of stack locations which hold non-relocatable
-     * GC heap pointers (where the target is rooted somewhere else) or integer
-     * values which may be confused for GC heap pointers. These are used to
-     * suppress false positives which occur when a rooting analysis treats the
-     * location as holding a relocatable pointer, but have no other effect on
-     * GC behavior.
+     * Stack allocated GC roots for stack GC heap pointers, which may be
+     * overwritten if moved during a GC.
      */
-    SkipRoot *skipGCRooters;
+    Rooted<void*> *thingGCRooters[THING_ROOT_LIMIT];
 #endif
 
     static PerThreadDataFriendFields *get(js::PerThreadData *pt) {

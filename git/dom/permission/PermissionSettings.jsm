@@ -159,7 +159,7 @@ this.PermissionSettingsModule = {
         }
 
         if (!success) {
-          Cu.reportError("PermissionSettings message " + msg.type + errorMsg);
+          Cu.reportError("PermissionSettings message " + msg.name + errorMsg);
           return null;
         }
         break;

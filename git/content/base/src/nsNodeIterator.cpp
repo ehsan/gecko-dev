@@ -208,6 +208,13 @@ NS_IMETHODIMP nsNodeIterator::GetFilter(nsIDOMNodeFilter **aFilter)
     return NS_OK;
 }
 
+/* readonly attribute boolean expandEntityReferences; */
+NS_IMETHODIMP nsNodeIterator::GetExpandEntityReferences(bool *aExpandEntityReferences)
+{
+    *aExpandEntityReferences = false;
+    return NS_OK;
+}
+
 /* nsIDOMNode nextNode ()  raises (DOMException); */
 NS_IMETHODIMP nsNodeIterator::NextNode(nsIDOMNode **_retval)
 {

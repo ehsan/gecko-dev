@@ -10,6 +10,8 @@
  * liability, trademark and document use rules apply.
  */
 
+interface SVGAnimatedLength;
+
 interface SVGForeignObjectElement : SVGGraphicsElement {
   [Constant]
   readonly attribute SVGAnimatedLength x;

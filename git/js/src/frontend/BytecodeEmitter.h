@@ -114,9 +114,6 @@ struct BytecodeEmitter
 
     bool            emittingForInit:1;  /* true while emitting init expr of for; exclude 'in' */
 
-    bool            emittingRunOnceLambda:1; /* true while emitting a lambda which is only
-                                                expected to run once. */
-
     const bool      hasGlobalScope:1;   /* frontend::CompileScript's scope chain is the
                                            global object */
 
@@ -156,7 +153,6 @@ struct BytecodeEmitter
         return true;
     }
 
-    bool isInLoop();
     bool checkSingletonContext();
 
     bool needsImplicitThis();

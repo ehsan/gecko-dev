@@ -116,7 +116,6 @@ int main()
       TestHook("user32.dll", "SetWindowLongW") &&
 #endif
       TestHook("user32.dll", "TrackPopupMenu") &&
-      TestHook("ntdll.dll", "NtFlushBuffersFile") &&
       TestHook("ntdll.dll", "LdrLoadDll")) {
     printf("TEST-PASS | WindowsDllInterceptor | all checks passed\n");
     return 0;
