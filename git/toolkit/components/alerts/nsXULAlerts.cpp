@@ -44,7 +44,7 @@ nsXULAlerts::ShowAlertNotification(const nsAString& aImageUrl, const nsAString& 
                                    const nsAString& aAlertText, bool aAlertTextClickable,
                                    const nsAString& aAlertCookie, nsIObserver* aAlertListener,
                                    const nsAString& aAlertName, const nsAString& aBidi,
-                                   const nsAString& aLang, bool aInPrivateBrowsing)
+                                   const nsAString& aLang)
 {
   nsCOMPtr<nsIWindowWatcher> wwatch(do_GetService(NS_WINDOWWATCHER_CONTRACTID));
 
@@ -135,12 +135,9 @@ nsXULAlerts::ShowAlertNotification(const nsAString& aImageUrl, const nsAString& 
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIDOMWindow> newWindow;
-  nsAutoCString features("chrome,dialog=yes,titlebar=no,popup=yes");
-  if (aInPrivateBrowsing) {
-    features.AppendLiteral(",private");
-  }
-  rv = wwatch->OpenWindow(0, ALERT_CHROME_URL, "_blank", features.get(),
-                          argsArray, getter_AddRefs(newWindow));
+  rv = wwatch->OpenWindow(0, ALERT_CHROME_URL, "_blank",
+                          "chrome,dialog=yes,titlebar=no,popup=yes", argsArray,
+                          getter_AddRefs(newWindow));
   NS_ENSURE_SUCCESS(rv, rv);
 
   mNamedWindows.Put(aAlertName, newWindow);

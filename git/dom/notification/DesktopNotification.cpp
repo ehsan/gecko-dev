@@ -15,7 +15,6 @@
 #include "nsIScriptSecurityManager.h"
 #include "nsServiceManagerUtils.h"
 #include "PermissionMessageUtils.h"
-#include "nsILoadContext.h"
 
 namespace mozilla {
 namespace dom {
@@ -104,10 +103,7 @@ DesktopNotification::PostDesktopNotification()
   // to nsIObservers, thus cookies must be unique to differentiate observers.
   nsString uniqueName = NS_LITERAL_STRING("desktop-notification:");
   uniqueName.AppendInt(sCount++);
-  nsCOMPtr<nsIDocument> doc = GetOwner()->GetDoc();
-  nsIPrincipal* principal = doc->NodePrincipal();
-  nsCOMPtr<nsILoadContext> loadContext = doc->GetLoadContext();
-  bool inPrivateBrowsing = loadContext && loadContext->UsePrivateBrowsing();
+  nsIPrincipal* principal = GetOwner()->GetDoc()->NodePrincipal();
   return alerts->ShowAlertNotification(mIconURL, mTitle, mDescription,
                                        true,
                                        uniqueName,
@@ -116,8 +112,7 @@ DesktopNotification::PostDesktopNotification()
                                        NS_LITERAL_STRING("auto"),
                                        EmptyString(),
                                        EmptyString(),
-                                       principal,
-                                       inPrivateBrowsing);
+                                       principal);
 }
 
 DesktopNotification::DesktopNotification(const nsAString & title,

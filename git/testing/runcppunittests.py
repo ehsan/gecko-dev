@@ -7,7 +7,6 @@
 from __future__ import with_statement
 import sys, os, tempfile, shutil
 from optparse import OptionParser
-import manifestparser
 import mozprocess
 import mozinfo
 import mozcrash
@@ -175,30 +174,29 @@ class CPPUnittestOptions(OptionParser):
                         default = None,
                         help = "absolute path to a manifest file")
 
-def extract_unittests_from_args(args, environ):
+def extract_unittests_from_args(args, manifest_file):
     """Extract unittests from args, expanding directories as needed"""
-    mp = manifestparser.TestManifest(strict=True)
-    tests = []
+    progs = []
+
+    # Known files commonly packaged with the cppunittests that are not tests
+    skipped_progs = set(['.mkdir.done', 'remotecppunittests.py', 'runcppunittests.py', 'runcppunittests.pyc'])
+
+    if manifest_file:
+        skipped_progs.add(os.path.basename(manifest_file))
+        with open(manifest_file) as f:
+            for line in f:
+                # strip out comment, if any
+                prog = line.split('#')[0]
+                if prog:
+                    skipped_progs.add(prog.strip())
+
     for p in args:
         if os.path.isdir(p):
-            try:
-                mp.read(os.path.join(p, 'cppunittest.ini'))
-            except IOError:
-                tests.extend([os.path.abspath(os.path.join(p, x)) for x in os.listdir(p)])
-        else:
-            tests.append(os.path.abspath(p))
+            progs.extend([os.path.abspath(os.path.join(p, x)) for x in os.listdir(p) if not x in skipped_progs])
+        elif p not in skipped_progs:
+            progs.append(os.path.abspath(p))
 
-    # we skip the existence check here because not all tests are built
-    # for all platforms (and it will fail on Windows anyway)
-    if mozinfo.isWin:
-        tests.extend([test['path'] + '.exe' for test in mp.active_tests(exists=False, disabled=False, **environ)])
-    else:
-        tests.extend([test['path'] for test in mp.active_tests(exists=False, disabled=False, **environ)])
-
-    # skip non-existing tests
-    tests = [test for test in tests if os.path.isfile(test)]
-
-    return tests
+    return progs
 
 def main():
     parser = CPPUnittestOptions()
@@ -215,7 +213,7 @@ def main():
                                                options,
                                                {"tbpl": sys.stdout})
 
-    progs = extract_unittests_from_args(args, mozinfo.info)
+    progs = extract_unittests_from_args(args, options.manifest_file)
     options.xre_path = os.path.abspath(options.xre_path)
     if mozinfo.isMac:
         options.xre_path = os.path.join(os.path.dirname(options.xre_path), 'Resources')

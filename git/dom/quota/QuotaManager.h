@@ -46,7 +46,7 @@ class CheckQuotaHelper;
 class CollectOriginsHelper;
 class FinalizeOriginEvictionRunnable;
 class GroupInfo;
-class GroupInfoTriple;
+class GroupInfoPair;
 class OriginClearRunnable;
 class OriginInfo;
 class OriginOrPatternString;
@@ -57,16 +57,13 @@ struct SynchronizedOp;
 struct OriginParams
 {
   OriginParams(PersistenceType aPersistenceType,
-               const nsACString& aOrigin,
-               bool aIsApp)
+               const nsACString& aOrigin)
   : mOrigin(aOrigin)
   , mPersistenceType(aPersistenceType)
-  , mIsApp(aIsApp)
   { }
 
   nsCString mOrigin;
   PersistenceType mPersistenceType;
-  bool mIsApp;
 };
 
 class QuotaManager MOZ_FINAL : public nsIQuotaManager,
@@ -150,6 +147,10 @@ public:
     MutexAutoLock lock(mQuotaMutex);
     LockedRemoveQuotaForOrigin(aPersistenceType, aGroup, aOrigin);
   }
+
+  void
+  RemoveQuotaForPattern(PersistenceType aPersistenceType,
+                        const nsACString& aPattern);
 
   already_AddRefed<QuotaObject>
   GetQuotaObject(PersistenceType aPersistenceType,
@@ -273,8 +274,7 @@ public:
 
   void
   OriginClearCompleted(PersistenceType aPersistenceType,
-                       const nsACString& aOrigin,
-                       bool aIsApp);
+                       const OriginOrPatternString& aOriginOrPattern);
 
   void
   ResetOrClearCompleted();
@@ -305,16 +305,12 @@ public:
   GetStoragePath(PersistenceType aPersistenceType) const
   {
     if (aPersistenceType == PERSISTENCE_TYPE_PERSISTENT) {
-      return mPermanentStoragePath;
+      return mPersistentStoragePath;
     }
 
-    if (aPersistenceType == PERSISTENCE_TYPE_TEMPORARY) {
-      return mTemporaryStoragePath;
-    }
+    NS_ASSERTION(aPersistenceType == PERSISTENCE_TYPE_TEMPORARY, "Huh?");
 
-    MOZ_ASSERT(aPersistenceType == PERSISTENCE_TYPE_DEFAULT);
-
-    return mDefaultStoragePath;
+    return mTemporaryStoragePath;
   }
 
   uint64_t
@@ -334,6 +330,7 @@ public:
   GetInfoFromURI(nsIURI* aURI,
                  uint32_t aAppId,
                  bool aInMozBrowser,
+                 PersistenceType aPersistenceType,
                  nsACString* aGroup,
                  nsACString* aOrigin,
                  bool* aIsApp,
@@ -341,6 +338,7 @@ public:
 
   static nsresult
   GetInfoFromPrincipal(nsIPrincipal* aPrincipal,
+                       PersistenceType aPersistenceType,
                        nsACString* aGroup,
                        nsACString* aOrigin,
                        bool* aIsApp,
@@ -348,6 +346,7 @@ public:
 
   static nsresult
   GetInfoFromWindow(nsPIDOMWindow* aWindow,
+                    PersistenceType aPersistenceType,
                     nsACString* aGroup,
                     nsACString* aOrigin,
                     bool* aIsApp,
@@ -361,19 +360,16 @@ public:
 
   static bool
   IsTreatedAsPersistent(PersistenceType aPersistenceType,
+                        const nsACString& aOrigin,
                         bool aIsApp);
 
   static bool
   IsTreatedAsTemporary(PersistenceType aPersistenceType,
+                       const nsACString& aOrigin,
                        bool aIsApp)
   {
-    return !IsTreatedAsPersistent(aPersistenceType, aIsApp);
+    return !IsTreatedAsPersistent(aPersistenceType, aOrigin, aIsApp);
   }
-
-  static bool
-  IsFirstPromptRequired(PersistenceType aPersistenceType,
-                        const nsACString& aOrigin,
-                        bool aIsApp);
 
   static bool
   IsQuotaEnforced(PersistenceType aPersistenceType,
@@ -455,12 +451,6 @@ private:
   MaybeUpgradeIndexedDBDirectory();
 
   nsresult
-  MaybeUpgradePersistentStorageDirectory();
-
-  nsresult
-  MaybeUpgradeStorageArea();
-
-  nsresult
   InitializeRepository(PersistenceType aPersistenceType);
 
   nsresult
@@ -520,22 +510,27 @@ private:
 
   static PLDHashOperator
   RemoveQuotaForTemporaryStorageCallback(const nsACString& aKey,
-                                         nsAutoPtr<GroupInfoTriple>& aValue,
+                                         nsAutoPtr<GroupInfoPair>& aValue,
                                          void* aUserArg);
 
   static PLDHashOperator
   RemoveQuotaCallback(const nsACString& aKey,
-                      nsAutoPtr<GroupInfoTriple>& aValue,
+                      nsAutoPtr<GroupInfoPair>& aValue,
                       void* aUserArg);
 
   static PLDHashOperator
+  RemoveQuotaForPatternCallback(const nsACString& aKey,
+                                nsAutoPtr<GroupInfoPair>& aValue,
+                                void* aUserArg);
+
+  static PLDHashOperator
   GetOriginsExceedingGroupLimit(const nsACString& aKey,
-                                GroupInfoTriple* aValue,
+                                GroupInfoPair* aValue,
                                 void* aUserArg);
 
   static PLDHashOperator
   GetAllTemporaryStorageOrigins(const nsACString& aKey,
-                                GroupInfoTriple* aValue,
+                                GroupInfoPair* aValue,
                                 void* aUserArg);
 
   static PLDHashOperator
@@ -545,7 +540,7 @@ private:
 
   static PLDHashOperator
   GetInactiveTemporaryStorageOrigins(const nsACString& aKey,
-                                     GroupInfoTriple* aValue,
+                                     GroupInfoPair* aValue,
                                      void* aUserArg);
 
   // TLS storage index for the current thread's window.
@@ -553,7 +548,7 @@ private:
 
   mozilla::Mutex mQuotaMutex;
 
-  nsClassHashtable<nsCStringHashKey, GroupInfoTriple> mGroupInfoTriples;
+  nsClassHashtable<nsCStringHashKey, GroupInfoPair> mGroupInfoPairs;
 
   // A map of Windows to the corresponding quota helper.
   nsRefPtrHashtable<nsPtrHashKey<nsPIDOMWindow>,
@@ -565,7 +560,6 @@ private:
 
   LiveStorageTable mPersistentLiveStorageTable;
   LiveStorageTable mTemporaryLiveStorageTable;
-  LiveStorageTable mDefaultLiveStorageTable;
 
   // Maintains a list of synchronized operatons that are in progress or queued.
   nsAutoTArray<nsAutoPtr<SynchronizedOp>, 5> mSynchronizedOps;
@@ -584,9 +578,8 @@ private:
 
   nsString mIndexedDBPath;
   nsString mStoragePath;
-  nsString mPermanentStoragePath;
+  nsString mPersistentStoragePath;
   nsString mTemporaryStoragePath;
-  nsString mDefaultStoragePath;
 
   uint64_t mTemporaryStorageLimit;
   uint64_t mTemporaryStorageUsage;

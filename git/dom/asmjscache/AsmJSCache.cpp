@@ -735,11 +735,24 @@ MainProcessRunnable::InitOnMainThread()
   NS_ENSURE_STATE(qm);
 
   nsresult rv =
-    QuotaManager::GetInfoFromPrincipal(mPrincipal, &mGroup, &mOrigin, &mIsApp,
+    QuotaManager::GetInfoFromPrincipal(mPrincipal,
+                                       quota::PERSISTENCE_TYPE_INVALID,
+                                       &mGroup, &mOrigin, &mIsApp,
                                        &mHasUnlimStoragePerm);
   NS_ENSURE_SUCCESS(rv, rv);
 
+  // XXX Don't use mGroup yet! We might need to update it right after we
+  //     initialize persistence type.
+
   InitPersistenceType();
+
+  // XXX Since we couldn't pass persistence type to GetInfoFromPrincipal(),
+  //     we need to do this manually.
+  //     This hack is only temporary, it will go away once we have regular
+  //     metadata files for persistent storge.
+  if (mPersistence == quota::PERSISTENCE_TYPE_PERSISTENT) {
+    mGroup = mOrigin;
+  }
 
   mEnforcingQuota =
     QuotaManager::IsQuotaEnforced(mPersistence, mOrigin, mIsApp,
@@ -1830,7 +1843,7 @@ public:
 
   virtual void
   OnOriginClearCompleted(PersistenceType aPersistenceType,
-                         const nsACString& aOrigin)
+                         const OriginOrPatternString& aOriginOrPattern)
                          MOZ_OVERRIDE
   { }
 

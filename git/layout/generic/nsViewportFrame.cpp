@@ -201,7 +201,7 @@ ViewportFrame::Reflow(nsPresContext*           aPresContext,
     // Deal with a non-incremental reflow or an incremental reflow
     // targeted at our one-and-only principal child frame.
     if (aReflowState.ShouldReflowAllKids() ||
-        aReflowState.IsVResize() ||
+        aReflowState.mFlags.mVResize ||
         NS_SUBTREE_DIRTY(mFrames.FirstChild())) {
       // Reflow our one-and-only principal child frame
       nsIFrame*           kidFrame = mFrames.FirstChild();

@@ -27,7 +27,6 @@
 #include "mozilla/dom/Event.h"
 #include "mozilla/Services.h"
 #include "nsContentPermissionHelper.h"
-#include "nsILoadContext.h"
 #ifdef MOZ_B2G
 #include "nsIDOMDesktopNotification.h"
 #endif
@@ -678,16 +677,10 @@ Notification::ShowInternal()
   // nsIObserver. Thus the cookie must be unique to differentiate observers.
   nsString uniqueCookie = NS_LITERAL_STRING("notification:");
   uniqueCookie.AppendInt(sCount++);
-  bool inPrivateBrowsing = false;
-  if (doc) {
-    nsCOMPtr<nsILoadContext> loadContext = doc->GetLoadContext();
-    inPrivateBrowsing = loadContext && loadContext->UsePrivateBrowsing();
-  }
   alertService->ShowAlertNotification(absoluteUrl, mTitle, mBody, true,
                                       uniqueCookie, observer, mAlertName,
                                       DirectionToString(mDir), mLang,
-                                      dataStr, GetPrincipal(),
-                                      inPrivateBrowsing);
+                                      dataStr, GetPrincipal());
 }
 
 void

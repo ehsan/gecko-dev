@@ -293,14 +293,6 @@ MInstruction::moveResumePointAsEntry()
     resumePoint_ = nullptr;
 }
 
-void
-MInstruction::clearResumePoint()
-{
-    resumePoint_->resetInstruction();
-    block()->discardPreAllocatedResumePoint(resumePoint_);
-    resumePoint_ = nullptr;
-}
-
 static bool
 MaybeEmulatesUndefined(MDefinition *op)
 {

@@ -5130,7 +5130,7 @@ public:
 
   virtual void
   OnOriginClearCompleted(PersistenceType aPersistenceType,
-                         const nsACString& aOrigin)
+                         const OriginOrPatternString& aOriginOrPattern)
                          MOZ_OVERRIDE;
 
   virtual void
@@ -5941,8 +5941,7 @@ Factory::AllocPBackgroundIDBFactoryRequestParent(
 
   const DatabaseMetadata& metadata = commonParams->metadata();
   if (NS_WARN_IF(metadata.persistenceType() != PERSISTENCE_TYPE_PERSISTENT &&
-                 metadata.persistenceType() != PERSISTENCE_TYPE_TEMPORARY &&
-                 metadata.persistenceType() != PERSISTENCE_TYPE_DEFAULT)) {
+                 metadata.persistenceType() != PERSISTENCE_TYPE_TEMPORARY)) {
     ASSERT_UNLESS_FUZZING();
     return nullptr;
   }
@@ -9430,13 +9429,14 @@ QuotaClient::GetUsageForOrigin(PersistenceType aPersistenceType,
 }
 
 void
-QuotaClient::OnOriginClearCompleted(PersistenceType aPersistenceType,
-                                    const nsACString& aOrigin)
+QuotaClient::OnOriginClearCompleted(
+                                  PersistenceType aPersistenceType,
+                                  const OriginOrPatternString& aOriginOrPattern)
 {
   AssertIsOnIOThread();
 
   if (IndexedDatabaseManager* mgr = IndexedDatabaseManager::Get()) {
-    mgr->InvalidateFileManagers(aPersistenceType, aOrigin);
+    mgr->InvalidateFileManagers(aPersistenceType, aOriginOrPattern);
   }
 }
 
@@ -10753,9 +10753,6 @@ FactoryOp::CheckPermission(ContentParent* aContentParent,
       QuotaManager::GetInfoForChrome(&mGroup, &mOrigin, &mIsApp,
                                      &mHasUnlimStoragePerm);
 
-      MOZ_ASSERT(!QuotaManager::IsFirstPromptRequired(persistenceType, mOrigin,
-                                                      mIsApp));
-
       mEnforcingQuota =
         QuotaManager::IsQuotaEnforced(persistenceType, mOrigin, mIsApp,
                                       mHasUnlimStoragePerm);
@@ -10774,19 +10771,14 @@ FactoryOp::CheckPermission(ContentParent* aContentParent,
     return rv;
   }
 
-  nsCString group;
-  nsCString origin;
-  bool isApp;
-  bool hasUnlimStoragePerm;
-  rv = QuotaManager::GetInfoFromPrincipal(principal, &group, &origin,
-                                          &isApp, &hasUnlimStoragePerm);
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    return rv;
-  }
-
   PermissionRequestBase::PermissionValue permission;
 
-  if (QuotaManager::IsFirstPromptRequired(persistenceType, origin, isApp)) {
+  if (persistenceType == PERSISTENCE_TYPE_TEMPORARY) {
+    // Temporary storage doesn't need to check the permission.
+    permission = PermissionRequestBase::kPermissionAllowed;
+  } else {
+    MOZ_ASSERT(persistenceType == PERSISTENCE_TYPE_PERSISTENT);
+
 #ifdef MOZ_CHILD_PERMISSIONS
     if (aContentParent) {
       if (NS_WARN_IF(!AssertAppPrincipal(aContentParent, principal))) {
@@ -10807,16 +10799,16 @@ FactoryOp::CheckPermission(ContentParent* aContentParent,
         return rv;
       }
     }
-  } else {
-    permission = PermissionRequestBase::kPermissionAllowed;
   }
 
   if (permission != PermissionRequestBase::kPermissionDenied &&
       State_Initial == mState) {
-    mGroup = group;
-    mOrigin = origin;
-    mIsApp = isApp;
-    mHasUnlimStoragePerm = hasUnlimStoragePerm;
+    rv = QuotaManager::GetInfoFromPrincipal(principal, persistenceType, &mGroup,
+                                            &mOrigin, &mIsApp,
+                                            &mHasUnlimStoragePerm);
+    if (NS_WARN_IF(NS_FAILED(rv))) {
+      return rv;
+    }
 
     mEnforcingQuota =
       QuotaManager::IsQuotaEnforced(persistenceType, mOrigin, mIsApp,
@@ -10979,13 +10971,21 @@ FactoryOp::FinishOpen()
   MOZ_ASSERT(!mContentParent);
   MOZ_ASSERT(!QuotaClient::IsShuttingDownOnMainThread());
 
+  PersistenceType persistenceType = mCommonParams.metadata().persistenceType();
+
+  // XXX This is temporary, but we don't currently support the explicit
+  //     'persistent' storage type.
+  if (persistenceType == PERSISTENCE_TYPE_PERSISTENT &&
+      mCommonParams.metadata().persistenceTypeIsExplicit()) {
+    IDB_REPORT_INTERNAL_ERR();
+    return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
+  }
+
   QuotaManager* quotaManager = QuotaManager::GetOrCreate();
   if (NS_WARN_IF(!quotaManager)) {
     IDB_REPORT_INTERNAL_ERR();
     return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
   }
-
-  PersistenceType persistenceType = mCommonParams.metadata().persistenceType();
 
   nsresult rv =
     quotaManager->

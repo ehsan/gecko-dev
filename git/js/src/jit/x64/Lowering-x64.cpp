@@ -84,15 +84,10 @@ LIRGeneratorX64::visitUnbox(MUnbox *unbox)
     MOZ_ASSERT(box->type() == MIRType_Value);
 
     LUnboxBase *lir;
-    if (IsFloatingPointType(unbox->type())) {
+    if (IsFloatingPointType(unbox->type()))
         lir = new(alloc()) LUnboxFloatingPoint(useRegisterAtStart(box), unbox->type());
-    } else if (unbox->fallible()) {
-        // If the unbox is fallible, load the Value in a register first to
-        // avoid multiple loads.
+    else
         lir = new(alloc()) LUnbox(useRegisterAtStart(box));
-    } else {
-        lir = new(alloc()) LUnbox(useAtStart(box));
-    }
 
     if (unbox->fallible() && !assignSnapshot(lir, unbox->bailoutKind()))
         return false;
