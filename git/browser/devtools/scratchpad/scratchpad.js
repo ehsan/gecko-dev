@@ -24,7 +24,6 @@
  *   Erik Vold <erikvvold@gmail.com>
  *   David Dahl <ddahl@mozilla.com>
  *   Mihai Sucan <mihai.sucan@gmail.com>
- *   Kenny Heaton <kennyheaton@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -584,7 +583,6 @@ var Scratchpad = {
         content = NetUtil.readInputStreamToString(aInputStream,
                                                   aInputStream.available());
         self.setText(content);
-        self.editor.resetUndo();
       }
       else if (!aSilentError) {
         window.alert(self.strings.GetStringFromName("openFile.failed"));

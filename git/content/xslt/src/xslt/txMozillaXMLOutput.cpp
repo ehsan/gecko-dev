@@ -936,12 +936,14 @@ txMozillaXMLOutput::createResultDocument(const nsSubstring& aName, PRInt32 aNsID
             }
 
             // Indicate that there is no internal subset (not just an empty one)
+            nsAutoString voidString;
+            voidString.SetIsVoid(true);
             rv = NS_NewDOMDocumentType(getter_AddRefs(documentType),
                                        mNodeInfoManager,
                                        doctypeName,
                                        mOutputFormat.mPublicId,
                                        mOutputFormat.mSystemId,
-                                       NullString());
+                                       voidString);
             NS_ENSURE_SUCCESS(rv, rv);
 
             nsCOMPtr<nsIContent> docType = do_QueryInterface(documentType);
