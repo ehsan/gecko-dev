@@ -522,7 +522,6 @@ struct RootSink<JSStableString *> {
     static void dispose(JSStableString *ptr) {
         JSStableString * volatile sink;
         sink = ptr;
-        (void)sink; // silence GCC unused-but-set-variable build warning
     }
 };
 #endif
