@@ -61,7 +61,7 @@
 #include "jsapi.h"
 #include "jsatom.h"
 #include "jscntxt.h"
-#include "jsversion.h"
+#include "jsconfig.h"
 #include "jsdbgapi.h"
 #include "jsexn.h"
 #include "jsfun.h"
@@ -1510,7 +1510,7 @@ js_RemoveRoot(JSRuntime *rt, void *rp)
 
 #ifdef DEBUG
 
-static JSDHashOperator
+JS_STATIC_DLL_CALLBACK(JSDHashOperator)
 js_root_printer(JSDHashTable *table, JSDHashEntryHdr *hdr, uint32 i, void *arg)
 {
     uint32 *leakedroots = (uint32 *)arg;
@@ -1554,7 +1554,7 @@ typedef struct NamedRootDumpArgs {
     void *data;
 } NamedRootDumpArgs;
 
-static JSDHashOperator
+JS_STATIC_DLL_CALLBACK(JSDHashOperator)
 js_named_root_dumper(JSDHashTable *table, JSDHashEntryHdr *hdr, uint32 number,
                      void *arg)
 {
@@ -1587,7 +1587,7 @@ typedef struct GCRootMapArgs {
     void *data;
 } GCRootMapArgs;
 
-static JSDHashOperator
+JS_STATIC_DLL_CALLBACK(JSDHashOperator)
 js_gcroot_mapper(JSDHashTable *table, JSDHashEntryHdr *hdr, uint32 number,
                  void *arg)
 {
@@ -1753,7 +1753,7 @@ js_NewGCThing(JSContext *cx, uintN flags, size_t nbytes)
 
     arenaList = &rt->gcArenaList[flindex];
     for (;;) {
-        if (doGC && !JS_ON_TRACE(cx)) {
+        if (doGC && !cx->executingTrace) {
             /*
              * Keep rt->gcLock across the call into js_GC so we don't starve
              * and lose to racing threads who deplete the heap just after
@@ -1813,7 +1813,7 @@ js_NewGCThing(JSContext *cx, uintN flags, size_t nbytes)
         } else {
             a = NewGCArena(rt);
             if (!a) {
-                if (doGC || JS_ON_TRACE(cx))
+                if (doGC || cx->executingTrace)
                     goto fail;
                 doGC = JS_TRUE;
                 continue;
@@ -1916,7 +1916,7 @@ fail:
         JS_UNLOCK_GC(rt);
 #endif
     METER(astats->fail++);
-    if (!JS_ON_TRACE(cx))
+    if (!cx->executingTrace)
         JS_ReportOutOfMemory(cx);
     return NULL;
 }
@@ -2594,7 +2594,7 @@ js_CallValueTracerIfGCThing(JSTracer *trc, jsval v)
     JS_CallTracer(trc, thing, kind);
 }
 
-static JSDHashOperator
+JS_STATIC_DLL_CALLBACK(JSDHashOperator)
 gc_root_traversal(JSDHashTable *table, JSDHashEntryHdr *hdr, uint32 num,
                   void *arg)
 {
@@ -2653,7 +2653,7 @@ gc_root_traversal(JSDHashTable *table, JSDHashEntryHdr *hdr, uint32 num,
     return JS_DHASH_NEXT;
 }
 
-static JSDHashOperator
+JS_STATIC_DLL_CALLBACK(JSDHashOperator)
 gc_lock_traversal(JSDHashTable *table, JSDHashEntryHdr *hdr, uint32 num,
                   void *arg)
 {

@@ -1115,7 +1115,6 @@ nsZipReaderCache::~nsZipReaderCache()
 NS_IMETHODIMP
 nsZipReaderCache::GetZip(nsIFile* zipFile, nsIZipReader* *result)
 {
-  NS_ENSURE_ARG_POINTER(zipFile);
   nsresult rv;
   nsAutoLock lock(mLock);
 

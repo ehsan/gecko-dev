@@ -92,21 +92,15 @@ public:
 
   /**
    * Set the form for this form control.
-   * @param aForm the form.  Either this, or the control's current
-   *        form must be null.
-   *
-   * XXXbz We should really have a SetForm method (which takes aForm
-   * and nothing else) and a ClearForm() method (which takes
-   * aRemoveFromForm fand aNotify).
-   * 
+   * @param aForm the form
    * @param aRemoveFromForm set false if you do not want this element removed
    *        from the form.  (Used by nsFormControlList::Clear())
-   * @param aNotify If true, send nsIDocumentObserver notifications as needed.
+   * @param aNofify If true, send nsIDocumentObserver notifications as needed.
    *
-   * @note that when setting a new form aNotify is ignored and the
-   * control is not added to the form itself.  It adds itself when it
-   * gets bound to the tree thereafter, so that it can be properly
-   * sorted with the other controls in the form.
+   * @param note that when setting a new form aNotify is ignored and the
+   * control is not added to the form itself.  It adds itself when it gets
+   * bound to the tree thereafter, so that it can be properly sorted with the
+   * other controls in the form.
    */
   NS_IMETHOD SetForm(nsIDOMHTMLFormElement* aForm,
                      PRBool aRemoveFromForm,

@@ -376,6 +376,8 @@ namespace nanojit
 		return l;
     }
 	
+#define isS24(x) (((int32_t(x)<<8)>>8) == (x))
+
 	LInsp LirBufWriter::insFar(LOpcode op, LInsp target)
 	{
         NanoAssert(op == LIR_skip || op == LIR_tramp);
@@ -1480,10 +1482,12 @@ namespace nanojit
 
     LabelMap::Entry::~Entry()
     {
+        delete name;
     }
 
     LirNameMap::Entry::~Entry()
     {
+        delete name;
     }
 
     LirNameMap::~LirNameMap()
@@ -1491,24 +1495,18 @@ namespace nanojit
         Entry *e;
 
         while ((e = names.removeLast()) != NULL) {
-            labels->core->freeString(e->name);
             delete e;
         }
     }
 
-	bool LirNameMap::addName(LInsp i, Stringp name) {
+	void LirNameMap::addName(LInsp i, Stringp name) {
 		if (!names.containsKey(i)) { 
 			Entry *e = new (labels->core->gc) Entry(name);
 			names.put(i, e);
-            return true;
 		}
-        return false;
 	}
 	void LirNameMap::addName(LInsp i, const char *name) {
-        Stringp new_name = labels->core->newString(name);
-        if (!addName(i, new_name)) {
-            labels->core->freeString(new_name);
-        }
+		addName(i, labels->core->newString(name));
 	}
 
 	void LirNameMap::copyName(LInsp i, const char *s, int suffix) {
@@ -1548,16 +1546,7 @@ namespace nanojit
 		}
 		else {
 			if (ref->isCall()) {
-#if !defined NANOJIT_64BIT
-				if (ref->isop(LIR_callh)) {
-					// we've presumably seen the other half already
-					ref = ref->oprnd1();
-				} else {
-#endif
-					copyName(ref, _functions[ref->fid()]._name, funccounts.add(ref->fid()));
-#if !defined NANOJIT_64BIT
-				}
-#endif
+				copyName(ref, _functions[ref->fid()]._name, funccounts.add(ref->fid()));
 			} else {
                 NanoAssert(ref->opcode() < sizeof(lirNames) / sizeof(lirNames[0]));
 				copyName(ref, lirNames[ref->opcode()], lircounts.add(ref->opcode()));
@@ -1663,6 +1652,7 @@ namespace nanojit
 			case LIR_fle:
 			case LIR_fgt:
 			case LIR_fge:
+			case LIR_qjoin:
             case LIR_qiadd:
             case LIR_qiand:
             case LIR_qilsh:
@@ -1671,12 +1661,6 @@ namespace nanojit
 					formatRef(i->oprnd1()), 
 					formatRef(i->oprnd2()));
 				break;
-
-			case LIR_qjoin:
-				sprintf(s, "%s (%s), %s", lirNames[op],
-					formatIns(i->oprnd1()), 
- 					formatRef(i->oprnd2()));
- 				break;
 
 			case LIR_qcmov:
 			case LIR_cmov:
@@ -1917,7 +1901,6 @@ namespace nanojit
         Entry *e;
         
         while ((e = names.removeLast()) != NULL) {
-            core->freeString(e->name);
             delete e;
         } 
     }

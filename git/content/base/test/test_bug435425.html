@@ -120,7 +120,6 @@ function start(obj) {
   }
 
   try {
-    var methodIsGet = (obj.method == "GET");
     var url;
     var privileged = false;
     if (obj.testRedirectError) {
@@ -130,12 +129,12 @@ function start(obj) {
       privileged = true;
     } else {
       url = "bug435425.sjs";
-      if (obj.withUpload && methodIsGet) {
+      if (obj.withUpload) {
         url += "?" + obj.withUpload;
       }
     }
     openXHR(xhr, obj.method, url, privileged);
-    xhr.send(!methodIsGet ? obj.withUpload : null);
+    xhr.send(obj.withUpload);
     if (obj.testAbort) {
       xhr.abort();
     }

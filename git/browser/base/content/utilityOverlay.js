@@ -146,11 +146,8 @@ function openUILink( url, e, ignoreButton, ignoreAlt, allowKeywordFixup, postDat
  */
 function whereToOpenLink( e, ignoreButton, ignoreAlt )
 {
-  // This method must treat a null event like a left click without modifier keys (i.e.
-  // e = { shiftKey:false, ctrlKey:false, metaKey:false, altKey:false, button:0 })
-  // for compatibility purposes.
   if (!e)
-    return "current";
+    e = { shiftKey:false, ctrlKey:false, metaKey:false, altKey:false, button:0 };
 
   var shift = e.shiftKey;
   var ctrl =  e.ctrlKey;
@@ -631,7 +628,7 @@ function openNewWindowWith(aURL, aDocument, aPostData, aAllowThirdPartyFixup,
 /**
  * isValidFeed: checks whether the given data represents a valid feed.
  *
- * @param  aLink
+ * @param  aData
  *         An object representing a feed with title, href and type.
  * @param  aPrincipal
  *         The principal of the document, used for security check.
@@ -639,28 +636,40 @@ function openNewWindowWith(aURL, aDocument, aPostData, aAllowThirdPartyFixup,
  *         Whether this is already a known feed or not, if true only a security
  *         check will be performed.
  */ 
-function isValidFeed(aLink, aPrincipal, aIsFeed)
+function isValidFeed(aData, aPrincipal, aIsFeed)
 {
-  if (!aLink || !aPrincipal)
+  if (!aData || !aPrincipal)
     return false;
 
-  var type = aLink.type.toLowerCase().replace(/^\s+|\s*(?:;.*)?$/g, "");
   if (!aIsFeed) {
+    var type = aData.type && aData.type.toLowerCase();
+    type = type.replace(/^\s+|\s*(?:;.*)?$/g, "");
+
     aIsFeed = (type == "application/rss+xml" ||
                type == "application/atom+xml");
+
+    if (!aIsFeed) {
+      // really slimy: general XML types with magic letters in the title
+      const titleRegex = /(^|\s)rss($|\s)/i;
+      aIsFeed = ((type == "text/xml" || type == "application/rdf+xml" ||
+                  type == "application/xml") && titleRegex.test(aData.title));
+    }
   }
 
   if (aIsFeed) {
     try {
-      urlSecurityCheck(aLink.href, aPrincipal,
+      urlSecurityCheck(aData.href, aPrincipal,
                        Components.interfaces.nsIScriptSecurityManager.DISALLOW_INHERIT_PRINCIPAL);
-      return type || "application/rss+xml";
     }
     catch(ex) {
+      aIsFeed = false;
     }
   }
 
-  return null;
+  if (type)
+    aData.type = type;
+
+  return aIsFeed;
 }
 
 // aCalledFromModal is optional

@@ -188,9 +188,7 @@ nsXMLElement::MaybeTriggerAutoLink(nsIDocShell *aShell)
   nsresult rv = DocShellToPresContext(aShell, getter_AddRefs(pc));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (pc) {
-    nsContentUtils::TriggerLink(this, pc, absURI, target, PR_TRUE, PR_FALSE);
-  }
+  nsContentUtils::TriggerLink(this, pc, absURI, target, PR_TRUE, PR_FALSE);
 
   return special_rv; // return GetLinkTargetAndAutoType's special rv!
 }

@@ -310,8 +310,7 @@ members = [
     'nsIDOMHTMLButtonElement.value',
     'nsIDOMHTMLButtonElement.disabled',
     'nsIDOMHTMLCollection.item',
-    # Commented out to fix bug 453105 (special case of bug 453331).
-    #'nsIDOMHTMLCollection.length',
+    'nsIDOMHTMLCollection.length',
     'nsIDOMHTMLDocument.body',
     'nsIDOMHTMLDocument.getElementsByName',
     'nsIDOMHTMLDocument.anchors',
@@ -358,7 +357,7 @@ members = [
     'nsIDOMHTMLOptionElement.form',
     # Commented out because it's not writable while
     # nsIDOMNSHTMLOptionElement.text is, which causes bustage when
-    # someone tries to assign .text.  (Special case of bug 453331.)
+    # someone tries to assign .text.
     #'nsIDOMHTMLOptionElement.text',
     'nsIDOMHTMLOptionElement.defaultSelected',
     'nsIDOMHTMLOptionElement.value',

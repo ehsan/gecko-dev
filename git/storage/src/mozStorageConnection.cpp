@@ -156,8 +156,8 @@ mozStorageConnection::Initialize(nsIFile *aDatabaseFile)
      * whether it's valid or not
      */
     sqlite3_stmt *stmt = nsnull;
-    srv = sqlite3_prepare_v2(mDBConn, "SELECT * FROM sqlite_master", -1, &stmt,
-                             NULL);
+    nsCString query("SELECT * FROM sqlite_master");
+    srv = sqlite3_prepare_v2(mDBConn, query.get(), query.Length(), &stmt, NULL);
 
     if (srv == SQLITE_OK) {
         srv = sqlite3_step(stmt);
@@ -368,7 +368,8 @@ mozStorageConnection::TableExists(const nsACString& aSQLStatement, PRBool *_retv
     query.AppendLiteral("'");
 
     sqlite3_stmt *stmt = nsnull;
-    int srv = sqlite3_prepare_v2(mDBConn, query.get(), -1, &stmt, NULL);
+    int srv = sqlite3_prepare_v2(mDBConn, query.get(), query.Length(), &stmt,
+                                 NULL);
     if (srv != SQLITE_OK) {
         HandleSqliteError(query.get());
         return ConvertResultCode(srv);
@@ -403,7 +404,8 @@ mozStorageConnection::IndexExists(const nsACString& aIndexName, PRBool* _retval)
     query.AppendLiteral("'");
 
     sqlite3_stmt *stmt = nsnull;
-    int srv = sqlite3_prepare_v2(mDBConn, query.get(), -1, &stmt, NULL);
+    int srv = sqlite3_prepare_v2(mDBConn, query.get(), query.Length(), &stmt,
+                                 NULL);
     if (srv != SQLITE_OK) {
         HandleSqliteError(query.get());
         return ConvertResultCode(srv);

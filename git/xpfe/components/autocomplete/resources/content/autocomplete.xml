@@ -32,7 +32,7 @@
 
       <xul:popupset>
         <xul:panel type="autocomplete" anonid="popup"
-                   ignorekeys="true" noautofocus="true" level="top"
+                   ignorekeys="true" noautofocus="true"
                    xbl:inherits="for=id,nomatch"/>
       </xul:popupset>
       
@@ -594,10 +594,6 @@
       <method name="startLookup">
         <body><![CDATA[
           var str = this.currentSearchString;
-          if (!str) {
-            this.closeResultPopup();
-            return;
-          }
 
           this.isSearching = true;
           this.mFirstReturn = true;
@@ -713,10 +709,13 @@
           if (this.mSessionReturns == 0 && this.mFailureCount == this.sessionCount) {
             if (this.minResultsForPopup == 0) {
               this.clearResults(true); // clear data and repaint empty
-              this.openResultPopup();
-            } else {
+              
+              if (this.value) {
+                this.openResultPopup();
+              } else
+                this.closeResultPopup(); 
+            } else
               this.closeResultPopup(); 
-            }
           }
         ]]></body>
       </method>
@@ -1306,7 +1305,6 @@
             var oldCount = this.mRowCount;
             this.mRowCount = 0;  
             this.mResults = [];
-            this.mCounts = [];
             
             if (this.mTree) {
               this.mTree.rowCountChanged(0, -oldCount);

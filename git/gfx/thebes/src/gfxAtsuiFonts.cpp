@@ -168,87 +168,51 @@ ATSUFontID gfxAtsuiFont::GetATSUFontID()
     return GetFontEntry()->GetFontID();
 }
 
-static void
-DisableUncommonLigatures(ATSUStyle aStyle)
-{
-    static const ATSUFontFeatureType types[] = {
-        kLigaturesType,
-        kLigaturesType,
-        kLigaturesType,
-        kLigaturesType,
-        kLigaturesType,
-        kLigaturesType,
-        kLigaturesType
-    };
-    static const ATSUFontFeatureType selectors[NS_ARRAY_LENGTH(types)] = {
-        kRareLigaturesOffSelector,
-        kLogosOffSelector,
-        kRebusPicturesOffSelector,
-        kDiphthongLigaturesOffSelector,
-        kSquaredLigaturesOffSelector,
-        kAbbrevSquaredLigaturesOffSelector,
-        kSymbolLigaturesOffSelector
-    };
-    ATSUSetFontFeatures(aStyle, NS_ARRAY_LENGTH(types), types, selectors);
-}
-
-static void
-DisableCommonLigatures(ATSUStyle aStyle)
-{
-    static const ATSUFontFeatureType types[] = {
-        kLigaturesType
-    };
-    static const ATSUFontFeatureType selectors[NS_ARRAY_LENGTH(types)] = {
-        kCommonLigaturesOffSelector
-    };
-    ATSUSetFontFeatures(aStyle, NS_ARRAY_LENGTH(types), types, selectors);
-}
-
 void
 gfxAtsuiFont::InitMetrics(ATSUFontID aFontID, ATSFontRef aFontRef)
 {
     /* Create the ATSUStyle */
+
+    ATSUAttributeTag styleTags[] = {
+        kATSUFontTag,
+        kATSUSizeTag,
+        kATSUFontMatrixTag
+    };
+
+    ByteCount styleArgSizes[] = {
+        sizeof(ATSUFontID),
+        sizeof(Fixed),
+        sizeof(CGAffineTransform),
+        sizeof(Fract)
+    };
 
     gfxFloat size =
         PR_MAX(((mAdjustedSize != 0.0f) ? mAdjustedSize : GetStyle()->size), 1.0f);
 
     //fprintf (stderr, "string: '%s', size: %f\n", NS_ConvertUTF16toUTF8(aString).get(), size);
 
-    if (mATSUStyle)
-      ATSUDisposeStyle(mATSUStyle);
-
-    ATSUFontID fid = aFontID;
     // fSize is in points (72dpi)
     Fixed fSize = FloatToFixed(size);
+    ATSUFontID fid = aFontID;
+
     // make the font render right-side up
     CGAffineTransform transform = CGAffineTransformMakeScale(1, -1);
 
-    static const ATSUAttributeTag styleTags[] = {
-        kATSUFontTag,
-        kATSUSizeTag,
-        kATSUFontMatrixTag
-    };
-    const ATSUAttributeValuePtr styleArgs[NS_ARRAY_LENGTH(styleTags)] = {
+    ATSUAttributeValuePtr styleArgs[] = {
         &fid,
         &fSize,
-        &transform
+        &transform,
     };
-    static const ByteCount styleArgSizes[NS_ARRAY_LENGTH(styleTags)] = {
-        sizeof(ATSUFontID),
-        sizeof(Fixed),
-        sizeof(CGAffineTransform)
-    };
+
+    if (mATSUStyle)
+        ATSUDisposeStyle(mATSUStyle);
 
     ATSUCreateStyle(&mATSUStyle);
     ATSUSetAttributes(mATSUStyle,
-                      NS_ARRAY_LENGTH(styleTags),
+                      sizeof(styleTags)/sizeof(ATSUAttributeTag),
                       styleTags,
                       styleArgSizes,
                       styleArgs);
-    // Disable uncommon ligatures, but *don't* enable common ones;
-    // the font may have default settings that disable common ligatures
-    // and we want to respect that.
-    DisableUncommonLigatures(mATSUStyle);
 
     /* Now pull out the metrics */
 
@@ -1299,6 +1263,32 @@ GetFontPrefLangFor(PRUint8 aUnicodeRange)
     }
 }
 
+static void
+DisableOptionalLigaturesInStyle(ATSUStyle aStyle)
+{
+    static ATSUFontFeatureType selectors[] = {
+        kCommonLigaturesOffSelector,
+        kRareLigaturesOffSelector,
+        kLogosOffSelector,
+        kRebusPicturesOffSelector,
+        kDiphthongLigaturesOffSelector,
+        kSquaredLigaturesOffSelector,
+        kAbbrevSquaredLigaturesOffSelector,
+        kSymbolLigaturesOffSelector
+    };
+    static ATSUFontFeatureType types[NS_ARRAY_LENGTH(selectors)] = {
+        kLigaturesType,
+        kLigaturesType,
+        kLigaturesType,
+        kLigaturesType,
+        kLigaturesType,
+        kLigaturesType,
+        kLigaturesType,
+        kLigaturesType
+    };
+    ATSUSetFontFeatures(aStyle, NS_ARRAY_LENGTH(selectors), types, selectors);
+}
+
 // 361695 - ATSUI only does glyph mirroring when the font contains a 'prop' table
 // with glyph mirroring info, the character mirroring has to be done manually in the 
 // fallback case.  Only used for RTL text runs.  The autoptr for the mirrored copy
@@ -1391,7 +1381,7 @@ gfxAtsuiFontGroup::InitTextRun(gfxTextRun *aRun,
         status = ATSUCreateAndCopyStyle(mainStyle, &mainStyle);
         if (status == noErr) {
             stylesToDispose.AppendElement(mainStyle);
-            DisableCommonLigatures(mainStyle);
+            DisableOptionalLigaturesInStyle(mainStyle);
         }
     }
 

@@ -41,17 +41,13 @@ CPPSRCS += \
 	nsStaticXULComponents.cpp \
 	$(NULL)
 
-ifeq ($(OS_ARCH),WINNT)
-REQUIRES += libreg widget gfx
-CPPSRCS += \
-	nsDllMain.cpp \
-	$(NULL)
-endif
-
 ifeq ($(OS_ARCH)_$(GNU_CC),WINNT_)
+REQUIRES += libreg widget gfx
+
 CPPSRCS += \
 	dlldeps.cpp \
 	nsGFXDeps.cpp \
+	nsDllMain.cpp \
 	$(NULL)
 
 RCINCLUDE = xulrunner.rc

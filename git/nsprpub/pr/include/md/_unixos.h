@@ -82,10 +82,6 @@
 #include <sys/select.h>
 #endif
 
-#ifndef SYMBIAN
-#define HAVE_NETINET_TCP_H
-#endif
-
 #define _PR_HAVE_O_APPEND
 
 #define PR_DIRECTORY_SEPARATOR		'/'

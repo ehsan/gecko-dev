@@ -54,7 +54,7 @@
 #include "jsatom.h"
 #include "jsbool.h"
 #include "jscntxt.h"
-#include "jsversion.h"
+#include "jsconfig.h"
 #include "jsdbgapi.h"
 #include "jsfun.h"
 #include "jsgc.h"
@@ -68,7 +68,6 @@
 #include "jsscope.h"
 #include "jsscript.h"
 #include "jsstr.h"
-#include "jsstaticcheck.h"
 #ifdef JS_TRACER
 #include "jstracer.h"
 #endif
@@ -259,7 +258,7 @@ js_FillPropertyCache(JSContext *cx, JSObject *obj, jsuword kshape,
      * but that is a one-time event and we'll have to miss the old shape and
      * re-fill under the new one.
      */
-    if (!(cs->format & (JOF_SET | JOF_INCDEC)) && obj == pobj)
+    if (!(cs->format & (JOF_SET | JOF_INCDEC)))
         kshape = scope->shape;
 
     khash = PROPERTY_CACHE_HASH_PC(pc, kshape);
@@ -332,7 +331,8 @@ js_FullTestPropertyCache(JSContext *cx, jsbytecode *pc,
         PCMETER(JS_PROPERTY_CACHE(cx).idmisses++);
 
 #ifdef DEBUG_notme
-        entry = &JS_PROPERTY_CACHE(cx).table[PROPERTY_CACHE_HASH_PC(pc, OBJ_SHAPE(obj))];
+        entry = &JS_PROPERTY_CACHE(cx)
+                 .table[PROPERTY_CACHE_HASH_PC(pc, OBJ_SCOPE(obj)->shape)];
         fprintf(stderr,
                 "id miss for %s from %s:%u"
                 " (pc %u, kpc %u, kshape %u, shape %u)\n",
@@ -342,10 +342,10 @@ js_FullTestPropertyCache(JSContext *cx, jsbytecode *pc,
                 pc - cx->fp->script->code,
                 entry->kpc - cx->fp->script->code,
                 entry->kshape,
-                OBJ_SHAPE(obj));
+                OBJ_SCOPE(obj)->shape);
                 js_Disassemble1(cx, cx->fp->script, pc,
-                                PTRDIFF(pc, cx->fp->script->code, jsbytecode),
-                                JS_FALSE, stderr);
+                        PTRDIFF(pc, cx->fp->script->code, jsbytecode),
+                        JS_FALSE, stderr);
 #endif
 
         return atom;
@@ -383,7 +383,7 @@ js_FullTestPropertyCache(JSContext *cx, jsbytecode *pc,
         --vcap;
     }
 
-    if (PCVCAP_SHAPE(vcap) == OBJ_SHAPE(pobj)) {
+    if (PCVCAP_SHAPE(vcap) == OBJ_SCOPE(pobj)->shape) {
 #ifdef DEBUG
         jsid id = ATOM_TO_JSID(atom);
 
@@ -931,7 +931,7 @@ js_OnUnknownMethod(JSContext *cx, jsval *vp)
     obj = JSVAL_TO_OBJECT(vp[1]);
     JS_PUSH_SINGLE_TEMP_ROOT(cx, JSVAL_NULL, &tvr);
 
-    MUST_FLOW_THROUGH("out");
+    /* From here on, control must flow through label out:. */
     id = ATOM_TO_JSID(cx->runtime->atomState.noSuchMethodAtom);
 #if JS_HAS_XML_SUPPORT
     if (OBJECT_IS_XML(cx, obj)) {
@@ -1270,7 +1270,7 @@ have_fun:
     frame.xmlNamespace = NULL;
     frame.blockChain = NULL;
 
-    MUST_FLOW_THROUGH("out");
+    /* From here on, control must flow through label out: to return. */
     cx->fp = &frame;
 
     /* Init these now in case we goto out before first hook call. */
@@ -1408,8 +1408,6 @@ JSBool
 js_InternalGetOrSet(JSContext *cx, JSObject *obj, jsid id, jsval fval,
                     JSAccessMode mode, uintN argc, jsval *argv, jsval *rval)
 {
-    JSSecurityCallbacks *callbacks;
-
     /*
      * js_InternalInvoke could result in another try to get or set the same id
      * again, see bug 355497.
@@ -1432,12 +1430,11 @@ js_InternalGetOrSet(JSContext *cx, JSObject *obj, jsid id, jsval fval,
      * many embeddings have no security policy at all.
      */
     JS_ASSERT(mode == JSACC_READ || mode == JSACC_WRITE);
-    callbacks = JS_GetSecurityCallbacks(cx);
-    if (callbacks &&
-        callbacks->checkObjectAccess &&
+    if (cx->runtime->checkObjectAccess &&
         VALUE_IS_FUNCTION(cx, fval) &&
         FUN_INTERPRETED(GET_FUNCTION_PRIVATE(cx, JSVAL_TO_OBJECT(fval))) &&
-        !callbacks->checkObjectAccess(cx, obj, ID_TO_VALUE(id), mode, &fval)) {
+        !cx->runtime->checkObjectAccess(cx, obj, ID_TO_VALUE(id), mode,
+                                        &fval)) {
         return JS_FALSE;
     }
 
@@ -2425,6 +2422,9 @@ JS_STATIC_ASSERT(JSOP_XMLNAME_LENGTH == JSOP_CALLXMLNAME_LENGTH);
 JS_STATIC_ASSERT(JSOP_SETNAME_LENGTH == JSOP_SETPROP_LENGTH);
 JS_STATIC_ASSERT(JSOP_NULL_LENGTH == JSOP_NULLTHIS_LENGTH);
 
+/* Ensure we can share deffun and closure code. */
+JS_STATIC_ASSERT(JSOP_DEFFUN_LENGTH == JSOP_CLOSURE_LENGTH);
+
 /* See TRY_BRANCH_AFTER_COND. */
 JS_STATIC_ASSERT(JSOP_IFNE_LENGTH == JSOP_IFEQ_LENGTH);
 JS_STATIC_ASSERT(JSOP_IFNE == JSOP_IFEQ + 1);
@@ -2511,7 +2511,7 @@ js_Interpret(JSContext *cx)
 
 # ifdef JS_TRACER
 #  define CHECK_RECORDER()  JS_BEGIN_MACRO                                    \
-                                JS_ASSERT(!TRACE_RECORDER(cx) ^               \
+                                JS_ASSERT(!JS_TRACE_MONITOR(cx).recorder ^    \
                                           (jumpTable == recordingJumpTable)); \
                             JS_END_MACRO
 # else
@@ -2570,11 +2570,11 @@ js_Interpret(JSContext *cx)
 #ifdef JS_TRACER
     /* We had better not be entering the interpreter from JIT-compiled code. */
     TraceRecorder *tr = NULL;
-    if (JS_ON_TRACE(cx)) {
-        tr = TRACE_RECORDER(cx);
-        SET_TRACE_RECORDER(cx, NULL);
+    if (cx->executingTrace) {
+        tr = JS_TRACE_MONITOR(cx).recorder;
+        JS_TRACE_MONITOR(cx).recorder = NULL;
     }
-#endif
+#endif    
 
     /* Check for too deep of a native thread stack. */
     JS_CHECK_RECURSION(cx, return JS_FALSE);
@@ -2658,7 +2658,7 @@ js_Interpret(JSContext *cx)
         DO_OP();                                                              \
     JS_END_MACRO
 
-    MUST_FLOW_THROUGH("exit");
+    /* From this point control must flow through the label exit. */
     ++cx->interpLevel;
 
     /*
@@ -2696,13 +2696,13 @@ js_Interpret(JSContext *cx)
 # define LOAD_INTERRUPT_HANDLER(cx)                                           \
     ((void) (jumpTable = (cx)->debugHooks->interruptHandler                   \
                          ? interruptJumpTable                                 \
-                         : TRACE_RECORDER(cx)                                 \
+                         : JS_TRACE_MONITOR(cx).recorder                      \
                          ? recordingJumpTable                                 \
                          : normalJumpTable))
 # define ENABLE_TRACER(flag)                                                  \
     JS_BEGIN_MACRO                                                            \
         bool flag_ = (flag);                                                  \
-        JS_ASSERT(flag_ == !!TRACE_RECORDER(cx));                             \
+        JS_ASSERT(flag_ == !!JS_TRACE_MONITOR(cx).recorder);                  \
         jumpTable = flag_ ? recordingJumpTable : normalJumpTable;             \
     JS_END_MACRO
 #else /* !JS_TRACER */
@@ -2716,11 +2716,12 @@ js_Interpret(JSContext *cx)
 #ifdef JS_TRACER
 # define LOAD_INTERRUPT_HANDLER(cx)                                           \
     ((void) (switchMask = ((cx)->debugHooks->interruptHandler ||              \
-                           TRACE_RECORDER(cx)) ? 0 : 255))
+                           JS_TRACE_MONITOR(cx).recorder)                     \
+                          ? 0 : 255))
 # define ENABLE_TRACER(flag)                                                  \
     JS_BEGIN_MACRO                                                            \
         bool flag_ = (flag);                                                  \
-        JS_ASSERT(flag_ == !!TRACE_RECORDER(cx));                             \
+        JS_ASSERT(flag_ == !!JS_TRACE_MONITOR(cx).recorder);                  \
         switchMask = flag_ ? 0 : 255;                                         \
     JS_END_MACRO
 #else /* !JS_TRACER */
@@ -3022,7 +3023,7 @@ js_Interpret(JSContext *cx)
                 inlineCallCount--;
                 if (JS_LIKELY(ok)) {
 #ifdef JS_TRACER
-                    if (TRACE_RECORDER(cx))
+                    if (JS_TRACE_MONITOR(cx).recorder)
                         RECORD(LeaveFrame);
 #endif
                     JS_ASSERT(js_CodeSpec[*regs.pc].length == JSOP_CALL_LENGTH);
@@ -3266,6 +3267,7 @@ js_Interpret(JSContext *cx)
                  * that we take into account side effects of the iterator
                  * call. See bug 372331.
                  */
+
                 if (!js_FindProperty(cx, id, &obj, &obj2, &prop))
                     goto error;
                 if (prop)
@@ -4417,7 +4419,7 @@ js_Interpret(JSContext *cx)
                 atom = NULL;
                 if (JS_LIKELY(obj->map->ops->setProperty == js_SetProperty)) {
                     JSPropertyCache *cache = &JS_PROPERTY_CACHE(cx);
-                    uint32 kshape = OBJ_SHAPE(obj);
+                    uint32 kshape = OBJ_SCOPE(obj)->shape;
 
                     /*
                      * Open-code JS_PROPERTY_CACHE_TEST, specializing for two
@@ -4438,7 +4440,8 @@ js_Interpret(JSContext *cx)
                      * will (possibly after the first iteration) always exist
                      * in native object o.
                      */
-                    entry = &cache->table[PROPERTY_CACHE_HASH_PC(regs.pc, kshape)];
+                    entry = &cache->table[PROPERTY_CACHE_HASH_PC(regs.pc,
+                                                                 kshape)];
                     PCMETER(cache->tests++);
                     PCMETER(cache->settests++);
                     if (entry->kpc == regs.pc && entry->kshape == kshape) {
@@ -4451,10 +4454,6 @@ js_Interpret(JSContext *cx)
                             sprop = PCVAL_TO_SPROP(entry->vword);
                             JS_ASSERT(!(sprop->attrs & JSPROP_READONLY));
                             JS_ASSERT(!SCOPE_IS_SEALED(OBJ_SCOPE(obj)));
-
-#ifdef JS_TRACER
-                            TRACE_2(SetPropHit, kshape, sprop);
-#endif
 
                             if (scope->object == obj) {
                                 /*
@@ -4597,16 +4596,10 @@ js_Interpret(JSContext *cx)
                 if (!atom)
                     LOAD_ATOM(0);
                 id = ATOM_TO_JSID(atom);
-                if (entry) {
-                    if (!js_SetPropertyHelper(cx, obj, id, &rval, &entry))
-                        goto error;
-#ifdef JS_TRACER
-                    if (entry)
-                        TRACE_1(SetPropMiss, entry);
-#endif
-                } else {
-                    if (!OBJ_SET_PROPERTY(cx, obj, id, &rval))
-                        goto error;
+                if (entry
+                    ? !js_SetPropertyHelper(cx, obj, id, &rval, &entry)
+                    : !OBJ_SET_PROPERTY(cx, obj, id, &rval)) {
+                    goto error;
                 }
             } while (0);
           END_SET_CASE_STORE_RVAL(JSOP_SETPROP, 2);
@@ -4916,7 +4909,7 @@ js_Interpret(JSContext *cx)
                     cx->fp = fp = &newifp->frame;
 
 #ifdef JS_TRACER
-                    if (TRACE_RECORDER(cx))
+                    if (JS_TRACE_MONITOR(cx).recorder)
                         RECORD(EnterFrame);
 #endif
 
@@ -5660,31 +5653,53 @@ js_Interpret(JSContext *cx)
           END_CASE(JSOP_DEFVAR)
 
           BEGIN_CASE(JSOP_DEFFUN)
-            /*
-             * A top-level function defined in Global or Eval code (see
-             * ECMA-262 Ed. 3), or else a SpiderMonkey extension: a named
-             * function statement in a compound statement (not at the top
-             * statement level of global code, or at the top level of a
-             * function body).
-             */
             LOAD_FUNCTION(0);
 
-            if (!fp->blockChain) {
-                obj2 = fp->scopeChain;
-            } else {
-                obj2 = js_GetScopeChain(cx, fp);
-                if (!obj2)
-                    goto error;
-            }
-
             /*
+             * We must be at top-level (either outermost block that forms a
+             * function's body, or a global) scope, not inside an expression
+             * (JSOP_{ANON,NAMED}FUNOBJ) or compound statement (JSOP_CLOSURE)
+             * in the same compilation unit (ECMA Program). We also not inside
+             * an eval script.
+             *
              * If static link is not current scope, clone fun's object to link
-             * to the current scope via parent. This clause exists to enable
+             * to the current scope via parent.  This clause exists to enable
              * sharing of compiled functions among multiple equivalent scopes,
              * splitting the cost of compilation evenly among the scopes and
-             * amortizing it over a number of executions. Examples include XUL
+             * amortizing it over a number of executions.  Examples include XUL
              * scripts and event handlers shared among Mozilla chrome windows,
              * and server-side JS user-defined functions shared among requests.
+             *
+             * NB: The Script object exposes compile and exec in the language,
+             * such that this clause introduces an incompatible change from old
+             * JS versions that supported Script.  Such a JS version supported
+             * executing a script that defined and called functions scoped by
+             * the compile-time static link, not by the exec-time scope chain.
+             *
+             * We sacrifice compatibility, breaking such scripts, in order to
+             * promote compile-cost sharing and amortizing, and because Script
+             * is not and will not be standardized.
+             */
+            JS_ASSERT(!fp->blockChain);
+            JS_ASSERT((fp->flags & JSFRAME_EVAL) == 0);
+            JS_ASSERT(fp->scopeChain == fp->varobj);
+            obj2 = fp->scopeChain;
+
+            /*
+             * ECMA requires functions defined when entering Global code to be
+             * permanent.
+             */
+            attrs = JSPROP_ENUMERATE | JSPROP_PERMANENT;
+
+          do_deffun:
+            /*
+             * The common code for JSOP_DEFFUN and JSOP_CLOSURE.
+             *
+             * Clone the function object with the current scope chain as the
+             * clone's parent.  The original function object is the prototype
+             * of the clone.  Do this only if re-parenting; the compiler may
+             * have seen the right parent already and created a sufficiently
+             * well-scoped function object.
              */
             obj = FUN_OBJECT(fun);
             if (OBJ_GET_PARENT(cx, obj) != obj2) {
@@ -5698,17 +5713,8 @@ js_Interpret(JSContext *cx)
              * paths from here must flow through the "Restore fp->scopeChain"
              * code below the OBJ_DEFINE_PROPERTY call.
              */
-            MUST_FLOW_THROUGH("restore");
             fp->scopeChain = obj;
             rval = OBJECT_TO_JSVAL(obj);
-
-            /*
-             * ECMA requires functions defined when entering Eval code to be
-             * impermanent.
-             */
-            attrs = (fp->flags & JSFRAME_EVAL)
-                    ? JSPROP_ENUMERATE
-                    : JSPROP_ENUMERATE | JSPROP_PERMANENT;
 
             /*
              * Load function flags that are also property attributes.  Getters
@@ -5728,7 +5734,8 @@ js_Interpret(JSContext *cx)
              * or with blocks.
              */
             parent = fp->varobj;
-            JS_ASSERT(parent);
+            if (!parent)
+                goto error;
 
             /*
              * Check for a const property of the same name -- or any kind
@@ -5741,6 +5748,7 @@ js_Interpret(JSContext *cx)
             if (ok) {
                 if (attrs == JSPROP_ENUMERATE) {
                     JS_ASSERT(fp->flags & JSFRAME_EVAL);
+                    JS_ASSERT(op == JSOP_CLOSURE);
                     ok = OBJ_SET_PROPERTY(cx, parent, id, &rval);
                 } else {
                     JS_ASSERT(attrs & JSPROP_PERMANENT);
@@ -5758,7 +5766,6 @@ js_Interpret(JSContext *cx)
             }
 
             /* Restore fp->scopeChain now that obj is defined in fp->varobj. */
-            MUST_FLOW_LABEL(restore)
             fp->scopeChain = obj2;
             if (!ok) {
                 cx->weakRoots.newborn[GCX_OBJECT] = NULL;
@@ -5847,7 +5854,6 @@ js_Interpret(JSContext *cx)
              * paths from here must flow through the "Restore fp->scopeChain"
              * code below the OBJ_DEFINE_PROPERTY call.
              */
-            MUST_FLOW_THROUGH("restore2");
             fp->scopeChain = obj;
             rval = OBJECT_TO_JSVAL(obj);
 
@@ -5874,7 +5880,6 @@ js_Interpret(JSContext *cx)
                                      NULL);
 
             /* Restore fp->scopeChain now that obj is defined in parent. */
-            MUST_FLOW_LABEL(restore2)
             fp->scopeChain = obj2;
             if (!ok) {
                 cx->weakRoots.newborn[GCX_OBJECT] = NULL;
@@ -5887,6 +5892,35 @@ js_Interpret(JSContext *cx)
              */
             PUSH_OPND(OBJECT_TO_JSVAL(obj));
           END_CASE(JSOP_NAMEDFUNOBJ)
+
+          BEGIN_CASE(JSOP_CLOSURE)
+            /*
+             * A top-level function inside eval or ECMA ed. 3 extension: a
+             * named function expression statement in a compound statement
+             * (not at the top statement level of global code, or at the top
+             * level of a function body).
+             */
+            LOAD_FUNCTION(0);
+
+            /*
+             * Clone the function object with the current scope chain as the
+             * clone's parent. Do this only if re-parenting; the compiler may
+             * have seen the right parent already and created a sufficiently
+             * well-scoped function object.
+             */
+            obj2 = js_GetScopeChain(cx, fp);
+            if (!obj2)
+                goto error;
+
+            /*
+             * ECMA requires that functions defined when entering Eval code to
+             * be impermanent.
+             */
+            attrs = JSPROP_ENUMERATE;
+            if (!(fp->flags & JSFRAME_EVAL))
+                attrs |= JSPROP_PERMANENT;
+
+            goto do_deffun;
 
 #if JS_HAS_GETTER_SETTER
           BEGIN_CASE(JSOP_GETTER)
@@ -6088,10 +6122,6 @@ js_Interpret(JSContext *cx)
                     if (sprop->parent != scope->lastProp)
                         goto do_initprop_miss;
 
-#ifdef JS_TRACER
-                    TRACE_2(SetPropHit, kshape, sprop);
-#endif
-
                     /*
                      * Otherwise this entry must be for a direct property of
                      * obj, not a proto-property, and there cannot have been
@@ -6157,10 +6187,6 @@ js_Interpret(JSContext *cx)
                 }
                 if (!js_SetPropertyHelper(cx, obj, id, &rval, &entry))
                     goto error;
-#ifdef JS_TRACER
-                if (entry)
-                    TRACE_1(SetPropMiss, entry);
-#endif
             } while (0);
 
             /* Common tail for property cache hit and miss cases. */
@@ -6782,7 +6808,6 @@ js_Interpret(JSContext *cx)
           L_JSOP_DEFXMLNS:
 # endif
 
-          L_JSOP_UNUSED74:
           L_JSOP_UNUSED76:
           L_JSOP_UNUSED77:
           L_JSOP_UNUSED78:
@@ -7002,7 +7027,7 @@ js_Interpret(JSContext *cx)
     JS_ASSERT(inlineCallCount == 0);
     JS_ASSERT(fp->regs == &regs);
 #ifdef JS_TRACER
-    if (TRACE_RECORDER(cx))
+    if (JS_TRACE_MONITOR(cx).recorder)
         js_AbortRecording(cx, regs.pc, "recording out of js_Interpret");
 #endif
     if (JS_UNLIKELY(fp->flags & JSFRAME_YIELDING)) {
@@ -7027,12 +7052,12 @@ js_Interpret(JSContext *cx)
         js_SetVersion(cx, originalVersion);
     --cx->interpLevel;
 
-#ifdef JS_TRACER
+#ifdef JS_TRACER    
     if (tr) {
-        SET_TRACE_RECORDER(cx, tr);
+        JS_TRACE_MONITOR(cx).recorder = tr;
         tr->deepAbort();
     }
-#endif
+#endif    
     return ok;
 
   atom_not_defined:

@@ -724,7 +724,7 @@ NS_NewJSON(nsISupports* aOuter, REFNSIID aIID, void** aResult)
 }
 
 
-static void
+JS_STATIC_DLL_CALLBACK(void)
 trace_json_stack(JSTracer *trc, JSTempValueRooter *tvr)
 {
   nsJSONObjectStack *tmp = static_cast<nsJSONObjectStack *>(tvr);

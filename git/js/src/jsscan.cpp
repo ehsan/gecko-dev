@@ -60,7 +60,7 @@
 #include "jsapi.h"
 #include "jsatom.h"
 #include "jscntxt.h"
-#include "jsversion.h"
+#include "jsconfig.h"
 #include "jsemit.h"
 #include "jsexn.h"
 #include "jsnum.h"
@@ -69,7 +69,6 @@
 #include "jsregexp.h"
 #include "jsscan.h"
 #include "jsscript.h"
-#include "jsstaticcheck.h"
 
 #if JS_HAS_XML_SUPPORT
 #include "jsxml.h"
@@ -536,7 +535,7 @@ js_ReportCompileErrorNumber(JSContext *cx, JSTokenStream *ts, JSParseNode *pn,
     linechars = NULL;
     linebytes = NULL;
 
-    MUST_FLOW_THROUGH("out");
+    /* From this point the control must flow through the label out.*/
     va_start(ap, errorNumber);
     ok = js_ExpandErrorArguments(cx, js_GetErrorMessage, NULL,
                                  errorNumber, &message, &report, &warning,

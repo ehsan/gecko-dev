@@ -268,11 +268,6 @@ LoginManagerPrompter.prototype = {
         if (!ok || !checkBox.value || !hostname)
             return ok;
 
-        if (!aPassword.value) {
-            this.log("No password entered, so won't offer to save.");
-            return ok;
-        }
-
         var newLogin = Cc["@mozilla.org/login-manager/loginInfo;1"].
                        createInstance(Ci.nsILoginInfo);
         newLogin.init(hostname, null, realm, aUsername.value, aPassword.value,
@@ -355,7 +350,7 @@ LoginManagerPrompter.prototype = {
                                                     aText, aPassword,
                                                     checkBoxLabel, checkBox);
 
-        if (ok && checkBox.value && hostname && aPassword.value) {
+        if (ok && checkBox.value && hostname) {
             var newLogin = Cc["@mozilla.org/login-manager/loginInfo;1"].
                            createInstance(Ci.nsILoginInfo);
             newLogin.init(hostname, null, realm, username,
@@ -472,11 +467,6 @@ LoginManagerPrompter.prototype = {
 
         try {
             var [username, password] = this._GetAuthInfo(aAuthInfo);
-
-            if (!password) {
-                this.log("No password entered, so won't offer to save.");
-                return ok;
-            }
 
             var newLogin = Cc["@mozilla.org/login-manager/loginInfo;1"].
                            createInstance(Ci.nsILoginInfo);

@@ -56,7 +56,7 @@
 #include "jsatom.h"
 #include "jsbool.h"
 #include "jscntxt.h"
-#include "jsversion.h"
+#include "jsconfig.h"
 #include "jsemit.h"
 #include "jsfun.h"
 #include "jsgc.h"
@@ -69,8 +69,8 @@
 #include "jsscope.h"
 #include "jsscript.h"
 #include "jsstr.h"
+
 #include "jsdbgapi.h"   /* whether or not JS_HAS_OBJ_WATCHPOINT */
-#include "jsstaticcheck.h"
 
 #if JS_HAS_GENERATORS
 #include "jsiter.h"
@@ -327,7 +327,7 @@ js_SetProtoOrParent(JSContext *cx, JSObject *obj, uint32 slot, JSObject *pobj)
     return JS_TRUE;
 }
 
-static JSHashNumber
+JS_STATIC_DLL_CALLBACK(JSHashNumber)
 js_hash_object(const void *key)
 {
     return (JSHashNumber)JS_PTR_TO_UINT32(key) >> JSVAL_TAGBITS;
@@ -570,7 +570,7 @@ js_LeaveSharpObject(JSContext *cx, JSIdArray **idap)
     }
 }
 
-static intN
+JS_STATIC_DLL_CALLBACK(intN)
 gc_sharp_table_entry_marker(JSHashEntry *he, intN i, void *arg)
 {
     JS_CALL_OBJECT_TRACER((JSTracer *)arg, (JSObject *)he->key,
@@ -635,7 +635,7 @@ obj_toSource(JSContext *cx, uintN argc, jsval *vp)
 
     JS_CHECK_RECURSION(cx, return JS_FALSE);
 
-    MUST_FLOW_THROUGH("out");
+    /* After this, control must flow through out: to exit. */
     JS_PUSH_TEMP_ROOT(cx, 4, localroot, &tvr);
 
     /* If outermost, we need parentheses to be an expression, not a block. */
@@ -775,7 +775,7 @@ obj_toSource(JSContext *cx, uintN argc, jsval *vp)
 
         /*
          * We simplify the source code at the price of minor dead code bloat in
-         * the ECMA version (for testing only, see jsversion.h).  The null
+         * the ECMA version (for testing only, see jsconfig.h).  The null
          * default values in gsop[j] suffice to disable non-ECMA getter and
          * setter code.
          */
@@ -1083,13 +1083,13 @@ JSBool
 js_CheckPrincipalsAccess(JSContext *cx, JSObject *scopeobj,
                          JSPrincipals *principals, JSAtom *caller)
 {
-    JSSecurityCallbacks *callbacks;
+    JSRuntime *rt;
     JSPrincipals *scopePrincipals;
     const char *callerstr;
 
-    callbacks = JS_GetSecurityCallbacks(cx);
-    if (callbacks && callbacks->findObjectPrincipals) {
-        scopePrincipals = callbacks->findObjectPrincipals(cx, scopeobj);
+    rt = cx->runtime;
+    if (rt->findObjectPrincipals) {
+        scopePrincipals = rt->findObjectPrincipals(cx, scopeobj);
         if (!principals || !scopePrincipals ||
             !principals->subsume(principals, scopePrincipals)) {
             callerstr = js_AtomToPrintableString(cx, caller);
@@ -1146,11 +1146,8 @@ js_ComputeFilename(JSContext *cx, JSStackFrame *caller,
                    JSPrincipals *principals, uintN *linenop)
 {
     uint32 flags;
-#ifdef DEBUG
-    JSSecurityCallbacks *callbacks = JS_GetSecurityCallbacks(cx);
-#endif
 
-    JS_ASSERT(principals || !(callbacks  && callbacks->findObjectPrincipals));
+    JS_ASSERT(principals || !cx->runtime->findObjectPrincipals);
     flags = JS_GetScriptFilenameFlags(caller->script);
     if ((flags & JSFILENAME_PROTECTED) &&
         principals &&
@@ -1179,7 +1176,6 @@ js_obj_eval(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     const char *file;
     uintN line;
     JSPrincipals *principals;
-    uint32 tcflags;
     JSScript *script;
     JSBool ok;
 #if JS_HAS_EVAL_THIS_SCOPE
@@ -1235,7 +1231,6 @@ js_obj_eval(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     }
 
     /* From here on, control must exit through label out with ok set. */
-    MUST_FLOW_THROUGH("out");
     if (!scopeobj) {
 #if JS_HAS_EVAL_THIS_SCOPE
         /* If obj.eval(str), emulate 'with (obj) eval(str)' in the caller. */
@@ -1311,10 +1306,21 @@ js_obj_eval(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
         principals = NULL;
     }
 
-    tcflags = TCF_COMPILE_N_GO;
-    if (caller)
-        tcflags |= TCF_PUT_STATIC_DEPTH(caller->script->staticDepth + 1);
-    script = js_CompileScript(cx, scopeobj, caller, principals, tcflags,
+    /*
+     * Set JSFRAME_EVAL on fp and any frames (e.g., fun_call if eval.call was
+     * invoked) between fp and its scripted caller, to help the compiler easily
+     * find the same caller whose scope and var obj we've set.
+     *
+     * XXX this nonsense could, and perhaps should, go away with a better way
+     * to pass params to the compiler than via the top-most frame.
+     */
+    do {
+        fp->flags |= JSFRAME_EVAL;
+    } while ((fp = fp->down) != caller);
+
+    script = js_CompileScript(cx, scopeobj, principals,
+                              TCF_COMPILE_N_GO |
+                              TCF_PUT_STATIC_DEPTH(caller->script->staticDepth + 1),
                               JSSTRING_CHARS(str), JSSTRING_LENGTH(str),
                               NULL, file, line);
     if (!script) {
@@ -1364,7 +1370,7 @@ obj_watch_handler(JSContext *cx, JSObject *obj, jsval id, jsval old, jsval *nvp,
                   void *closure)
 {
     JSObject *callable;
-    JSSecurityCallbacks *callbacks;
+    JSRuntime *rt;
     JSStackFrame *caller;
     JSPrincipals *subject, *watcher;
     JSResolvingKey key;
@@ -1375,8 +1381,8 @@ obj_watch_handler(JSContext *cx, JSObject *obj, jsval id, jsval old, jsval *nvp,
 
     callable = (JSObject *) closure;
 
-    callbacks = JS_GetSecurityCallbacks(cx);
-    if (callbacks && callbacks->findObjectPrincipals) {
+    rt = cx->runtime;
+    if (rt->findObjectPrincipals) {
         /* Skip over any obj_watch_* frames between us and the real subject. */
         caller = JS_GetScriptedCaller(cx, cx->fp);
         if (caller) {
@@ -1384,7 +1390,7 @@ obj_watch_handler(JSContext *cx, JSObject *obj, jsval id, jsval old, jsval *nvp,
              * Only call the watch handler if the watcher is allowed to watch
              * the currently executing script.
              */
-            watcher = callbacks->findObjectPrincipals(cx, callable);
+            watcher = rt->findObjectPrincipals(cx, callable);
             subject = JS_StackFramePrincipals(cx, caller);
 
             if (watcher && subject && !watcher->subsume(watcher, subject)) {
@@ -2559,18 +2565,17 @@ js_NewObjectWithGivenProto(JSContext *cx, JSClass *clasp, JSObject *proto,
     obj->map = NULL;
     obj->dslots = NULL;
 
-    /*
-     * Set the class slot with the initial value of the system and delegate
-     * flags set to false.
-     */
-    JS_ASSERT(((jsuword) clasp & 3) == 0);
-    obj->classword = jsuword(clasp);
-    JS_ASSERT(!STOBJ_IS_DELEGATE(obj));
-    JS_ASSERT(!STOBJ_IS_SYSTEM(obj));
-
     /* Set the proto and parent properties. */
     STOBJ_SET_PROTO(obj, proto);
     STOBJ_SET_PARENT(obj, parent);
+
+    /*
+     * Set the class slot with the initial value of the system flag set to
+     * false.
+     */
+    JS_ASSERT(((jsuword) clasp & 3) == 0);
+    STOBJ_SET_SLOT(obj, JSSLOT_CLASS, PRIVATE_TO_JSVAL(clasp));
+    JS_ASSERT(!STOBJ_IS_SYSTEM(obj));
 
     /* Initialize the remaining fixed slots. */
     for (i = JSSLOT_PRIVATE; i != JS_INITIAL_NSLOTS; ++i)
@@ -2669,7 +2674,7 @@ earlybad:
 
 JS_BEGIN_EXTERN_C
 
-static JSObject *
+JS_STATIC_DLL_CALLBACK(JSObject *)
 js_InitNullClass(JSContext *cx, JSObject *obj)
 {
     JS_ASSERT(0);
@@ -2841,7 +2846,6 @@ js_ConstructObject(JSContext *cx, JSClass *clasp, JSObject *proto,
      * this point, all control flow must exit through label out with obj set.
      */
     JS_PUSH_SINGLE_TEMP_ROOT(cx, cval, &tvr);
-    MUST_FLOW_THROUGH("out");
 
     /*
      * If proto or parent are NULL, set them to Constructor.prototype and/or
@@ -3027,9 +3031,6 @@ PurgeProtoChain(JSContext *cx, JSObject *obj, jsid id)
 static void
 PurgeScopeChain(JSContext *cx, JSObject *obj, jsid id)
 {
-    if (!OBJ_IS_DELEGATE(cx, obj))
-        return;
-
     PurgeProtoChain(cx, OBJ_GET_PROTO(cx, obj), id);
     while ((obj = OBJ_GET_PARENT(cx, obj)) != NULL) {
         if (PurgeProtoChain(cx, obj, id))
@@ -3194,12 +3195,12 @@ js_DefineNativeProperty(JSContext *cx, JSObject *obj, jsid id, jsval value,
         goto bad;
 
     if (!sprop) {
-        /* Add a new property, or replace an existing one of the same id. */
+        /* Add or replace an existing property of the same id. */
         if (clasp->flags & JSCLASS_SHARE_ALL_PROPERTIES)
             attrs |= JSPROP_SHARED;
-        sprop = js_AddScopeProperty(cx, scope, id, getter, setter,
-                                    SPROP_INVALID_SLOT, attrs, flags,
-                                    shortid);
+            sprop = js_AddScopeProperty(cx, scope, id, getter, setter,
+                                        SPROP_INVALID_SLOT, attrs, flags,
+                                        shortid);
         if (!sprop)
             goto bad;
     }
@@ -3495,13 +3496,13 @@ js_FindPropertyHelper(JSContext *cx, jsid id, JSObject **objp,
                       JSPropCacheEntry **entryp)
 {
     JSObject *obj, *pobj, *lastobj;
-    uint32 shape;
+    uint32 type;
     int scopeIndex, protoIndex;
     JSProperty *prop;
     JSScopeProperty *sprop;
 
     obj = cx->fp->scopeChain;
-    shape = OBJ_SHAPE(obj);
+    type = OBJ_SCOPE(obj)->shape;
     for (scopeIndex = 0; ; scopeIndex++) {
         if (obj->map->ops->lookupProperty == js_LookupProperty) {
             protoIndex =
@@ -3516,7 +3517,7 @@ js_FindPropertyHelper(JSContext *cx, jsid id, JSObject **objp,
             if (entryp) {
                 if (protoIndex >= 0 && OBJ_IS_NATIVE(pobj)) {
                     sprop = (JSScopeProperty *) prop;
-                    js_FillPropertyCache(cx, cx->fp->scopeChain, shape,
+                    js_FillPropertyCache(cx, cx->fp->scopeChain, type,
                                          scopeIndex, protoIndex, pobj, sprop,
                                          entryp);
                 } else {
@@ -3642,7 +3643,7 @@ js_NativeSet(JSContext *cx, JSObject *obj, JSScopeProperty *sprop, jsval *vp)
     jsval pval;
     int32 sample;
     JSTempValueRooter tvr;
-    bool ok;
+    JSBool ok;
 
     JS_ASSERT(OBJ_IS_NATIVE(obj));
     JS_ASSERT(JS_IS_OBJ_LOCKED(cx, obj));
@@ -3691,7 +3692,7 @@ JSBool
 js_GetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, jsval *vp,
                      JSPropCacheEntry **entryp)
 {
-    uint32 shape;
+    uint32 type;
     int protoIndex;
     JSObject *obj2;
     JSProperty *prop;
@@ -3701,7 +3702,7 @@ js_GetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, jsval *vp,
     CHECK_FOR_STRING_INDEX(id);
     JS_COUNT_OPERATION(cx, JSOW_GET_PROPERTY);
 
-    shape = OBJ_SHAPE(obj);
+    type = OBJ_SCOPE(obj)->shape;
     protoIndex = js_LookupPropertyWithFlags(cx, obj, id, 0, &obj2, &prop);
     if (protoIndex < 0)
         return JS_FALSE;
@@ -3771,8 +3772,10 @@ js_GetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, jsval *vp,
     if (!js_NativeGet(cx, obj, obj2, sprop, vp))
         return JS_FALSE;
 
-    if (entryp)
-        js_FillPropertyCache(cx, obj, shape, 0, protoIndex, obj2, sprop, entryp);
+    if (entryp) {
+        js_FillPropertyCache(cx, obj, type, 0, protoIndex, obj2, sprop,
+                             entryp);
+    }
     JS_UNLOCK_OBJ(cx, obj2);
     return JS_TRUE;
 }
@@ -3787,7 +3790,7 @@ JSBool
 js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, jsval *vp,
                      JSPropCacheEntry **entryp)
 {
-    uint32 shape;
+    uint32 type;
     int protoIndex;
     JSObject *pobj;
     JSProperty *prop;
@@ -3802,7 +3805,7 @@ js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, jsval *vp,
     CHECK_FOR_STRING_INDEX(id);
     JS_COUNT_OPERATION(cx, JSOW_SET_PROPERTY);
 
-    shape = OBJ_SHAPE(obj);
+    type = OBJ_SCOPE(obj)->shape;
     protoIndex = js_LookupPropertyWithFlags(cx, obj, id, 0, &pobj, &prop);
     if (protoIndex < 0)
         return JS_FALSE;
@@ -3870,7 +3873,16 @@ js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, jsval *vp,
              * NB: Thanks to the immutable, garbage-collected property tree
              * maintained by jsscope.c in cx->runtime, we needn't worry about
              * sprop going away behind our back after we've unlocked scope.
+             *
+             * But if we are shadowing (not sharing) the proto-property, then
+             * we need to regenerate the property cache shape id for scope, in
+             * case the cache contains the old type in an entry value that was
+             * filled by a get on obj that delegated up the prototype chain to
+             * pobj. Once we've shadowed the proto-property, that cache entry
+             * must not be hit.
              */
+            if (!(attrs & JSPROP_SHARED))
+                SCOPE_MAKE_UNIQUE_SHAPE(cx, scope);
             JS_UNLOCK_SCOPE(cx, scope);
 
             /*
@@ -3892,7 +3904,7 @@ js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, jsval *vp,
                     return JS_TRUE;
                 }
 
-                return !!SPROP_SET(cx, sprop, obj, pobj, vp);
+                return SPROP_SET(cx, sprop, obj, pobj, vp);
             }
 
             /* Restore attrs to the ECMA default for new properties. */
@@ -3972,7 +3984,7 @@ js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, jsval *vp,
 
     if (entryp) {
         if (!(attrs & JSPROP_SHARED))
-            js_FillPropertyCache(cx, obj, shape, 0, 0, obj, sprop, entryp);
+            js_FillPropertyCache(cx, obj, type, 0, 0, obj, sprop, entryp);
         else
             PCMETER(JS_PROPERTY_CACHE(cx).nofills++);
     }
@@ -4453,7 +4465,6 @@ js_CheckAccess(JSContext *cx, JSObject *obj, jsid id, JSAccessMode mode,
     JSProperty *prop;
     JSClass *clasp;
     JSScopeProperty *sprop;
-    JSSecurityCallbacks *callbacks;
     JSCheckAccessOp check;
 
     writing = (mode & JSACC_WRITE) != 0;
@@ -4521,10 +4532,8 @@ js_CheckAccess(JSContext *cx, JSObject *obj, jsid id, JSAccessMode mode,
      */
     clasp = OBJ_GET_CLASS(cx, pobj);
     check = clasp->checkAccess;
-    if (!check) {
-        callbacks = JS_GetSecurityCallbacks(cx);
-        check = callbacks ? callbacks->checkObjectAccess : NULL;
-    }
+    if (!check)
+        check = cx->runtime->checkObjectAccess;
     return !check || check(cx, pobj, ID_TO_VALUE(id), mode, vp);
 }
 

@@ -228,6 +228,7 @@ public:
   virtual nsIFrame* GetNextInFlowVirtual() const;
   NS_IMETHOD  SetNextInFlow(nsIFrame*);
   NS_IMETHOD  GetOffsetFromView(nsPoint& aOffset, nsIView** aView) const;
+  NS_IMETHOD  GetOriginToViewOffset(nsPoint& aOffset, nsIView **aView) const;
   virtual nsIAtom* GetType() const;
   virtual PRBool IsContainingBlock() const;
 #ifdef NS_DEBUG
@@ -238,7 +239,7 @@ public:
   NS_IMETHOD  VerifyTree() const;
 #endif
 
-  NS_IMETHOD  SetSelected(nsPresContext* aPresContext, nsIDOMRange *aRange,PRBool aSelected, nsSpread aSpread, SelectionType aType);
+  NS_IMETHOD  SetSelected(nsPresContext* aPresContext, nsIDOMRange *aRange,PRBool aSelected, nsSpread aSpread);
   NS_IMETHOD  GetSelected(PRBool *aSelected) const;
   NS_IMETHOD  IsSelectable(PRBool* aIsSelectable, PRUint8* aSelectStyle) const;
 

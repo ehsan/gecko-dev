@@ -42,8 +42,6 @@
 #include "prtypes.h"
 #include "nsVoidArray.h"
 
-#include "nsIObserver.h"
-
 #include "gfxTypes.h"
 #include "gfxASurface.h"
 
@@ -268,8 +266,6 @@ protected:
 
 private:
     virtual cmsHPROFILE GetPlatformCMSOutputProfile();
-
-    nsCOMPtr<nsIObserver> overrideObserver;
 };
 
 #endif /* GFX_PLATFORM_H */

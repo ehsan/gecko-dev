@@ -191,7 +191,7 @@ private:
     nsresult CheckCache();
     nsresult ShouldUpdateOfflineCacheEntry(PRBool *shouldCacheForOfflineUse);
     nsresult ReadFromCache();
-    void     CloseCacheEntry(PRBool doomOnFailure);
+    void     CloseCacheEntry();
     void     CloseOfflineCacheEntry();
     nsresult InitCacheEntry();
     nsresult InitOfflineCacheEntry();

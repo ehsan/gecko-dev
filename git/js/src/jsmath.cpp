@@ -49,7 +49,7 @@
 #include "jsapi.h"
 #include "jsatom.h"
 #include "jscntxt.h"
-#include "jsversion.h"
+#include "jsconfig.h"
 #include "jslock.h"
 #include "jsmath.h"
 #include "jsnum.h"
@@ -299,8 +299,8 @@ js_math_floor(JSContext *cx, uintN argc, jsval *vp)
     return js_NewNumberInRootedValue(cx, z, vp);
 }
 
-JSBool
-js_math_log(JSContext *cx, uintN argc, jsval *vp)
+static JSBool
+math_log(JSContext *cx, uintN argc, jsval *vp)
 {
     jsdouble x, z;
 
@@ -321,8 +321,8 @@ js_math_log(JSContext *cx, uintN argc, jsval *vp)
     return js_NewNumberInRootedValue(cx, z, vp);
 }
 
-JSBool
-js_math_max(JSContext *cx, uintN argc, jsval *vp)
+static JSBool
+math_max(JSContext *cx, uintN argc, jsval *vp)
 {
     jsdouble x, z = *cx->runtime->jsNegativeInfinity;
     jsval *argv;
@@ -597,8 +597,8 @@ static JSFunctionSpec math_static_methods[] = {
     JS_FN("cos",            js_math_cos,        1, 0),
     JS_FN("exp",            math_exp,           1, 0),
     JS_FN("floor",          js_math_floor,      1, 0),
-    JS_FN("log",            js_math_log,        1, 0),
-    JS_FN("max",            js_math_max,        2, 0),
+    JS_FN("log",            math_log,           1, 0),
+    JS_FN("max",            math_max,           2, 0),
     JS_FN("min",            math_min,           2, 0),
     JS_FN("pow",            js_math_pow,        2, 0),
     JS_FN("random",         js_math_random,     0, 0),

@@ -62,7 +62,7 @@
 #include "jsarray.h"
 #include "jsatom.h"
 #include "jscntxt.h"
-#include "jsversion.h"
+#include "jsconfig.h"
 #include "jsemit.h"
 #include "jsfun.h"
 #include "jsinterp.h"
@@ -76,7 +76,6 @@
 #include "jsscope.h"
 #include "jsscript.h"
 #include "jsstr.h"
-#include "jsstaticcheck.h"
 
 #if JS_HAS_XML_SUPPORT
 #include "jsxml.h"
@@ -159,12 +158,9 @@ static uint32 recyclednodes = 0;
 
 JSBool
 js_InitParseContext(JSContext *cx, JSParseContext *pc, JSPrincipals *principals,
-                    JSStackFrame *callerFrame,
                     const jschar *base, size_t length,
                     FILE *fp, const char *filename, uintN lineno)
 {
-    JS_ASSERT_IF(callerFrame, callerFrame->script);
-
     pc->tempPoolMark = JS_ARENA_MARK(&cx->tempPool);
     if (!js_InitTokenStream(cx, TS(pc), base, length, fp, filename, lineno)) {
         JS_ARENA_RELEASE(&cx->tempPool, pc->tempPoolMark);
@@ -173,7 +169,6 @@ js_InitParseContext(JSContext *cx, JSParseContext *pc, JSPrincipals *principals,
     if (principals)
         JSPRINCIPALS_HOLD(cx, principals);
     pc->principals = principals;
-    pc->callerFrame = callerFrame;
     pc->nodeList = NULL;
     pc->traceListHead = NULL;
 
@@ -460,14 +455,69 @@ CheckGetterOrSetter(JSContext *cx, JSTokenStream *ts, JSTokenType tt)
 }
 #endif
 
+static void
+MaybeSetupFrame(JSContext *cx, JSObject *chain, JSStackFrame *oldfp,
+                JSStackFrame *newfp)
+{
+    /*
+     * Always push a new frame if the current frame is special, so that
+     * Variables gets the correct variables object: the one from the special
+     * frame's caller.
+     */
+    if (oldfp &&
+        oldfp->varobj &&
+        oldfp->scopeChain == chain &&
+        !(oldfp->flags & JSFRAME_SPECIAL)) {
+        return;
+    }
+
+    memset(newfp, 0, sizeof *newfp);
+
+    /* Default to sharing the same variables object and scope chain. */
+    newfp->varobj = newfp->scopeChain = chain;
+    if (cx->options & JSOPTION_VAROBJFIX) {
+        while ((chain = JS_GetParent(cx, chain)) != NULL)
+            newfp->varobj = chain;
+    }
+    newfp->down = oldfp;
+    if (oldfp) {
+        /*
+         * In the case of eval and debugger frames, we need to dig down and find
+         * the real variables objects and function that our new stack frame is
+         * going to use.
+         */
+        newfp->flags = oldfp->flags & (JSFRAME_SPECIAL | JSFRAME_SCRIPT_OBJECT);
+        while (oldfp->flags & JSFRAME_SPECIAL) {
+            oldfp = oldfp->down;
+            if (!oldfp)
+                break;
+        }
+        if (oldfp && (newfp->flags & JSFRAME_SPECIAL)) {
+            newfp->varobj = oldfp->varobj;
+            newfp->callee = oldfp->callee;
+            newfp->fun = oldfp->fun;
+        }
+    }
+    cx->fp = newfp;
+}
+
 /*
  * Parse a top-level JS script.
  */
 JSParseNode *
 js_ParseScript(JSContext *cx, JSObject *chain, JSParseContext *pc)
 {
+    JSStackFrame *fp, frame;
     JSTreeContext tc;
     JSParseNode *pn;
+
+    /*
+     * Push a compiler frame if we have no frames, or if the top frame is a
+     * lightweight function activation, or if its scope chain doesn't match
+     * the one passed to us.
+     */
+    fp = cx->fp;
+    MaybeSetupFrame(cx, chain, fp, &frame);
 
     /*
      * Protect atoms from being collected by a GC activation, which might
@@ -478,7 +528,6 @@ js_ParseScript(JSContext *cx, JSObject *chain, JSParseContext *pc)
      *   protected from the GC by a root or a stack frame reference.
      */
     TREE_CONTEXT_INIT(&tc, pc);
-    tc.u.scopeChain = chain;
     pn = Statements(cx, TS(pc), &tc);
     if (pn) {
         if (!js_MatchToken(cx, TS(pc), TOK_EOF)) {
@@ -493,19 +542,20 @@ js_ParseScript(JSContext *cx, JSObject *chain, JSParseContext *pc)
     }
 
     TREE_CONTEXT_FINISH(cx, &tc);
+    cx->fp = fp;
     return pn;
 }
 
 /*
  * Compile a top-level script.
  */
-extern JSScript *
-js_CompileScript(JSContext *cx, JSObject *scopeChain, JSStackFrame *callerFrame,
-                 JSPrincipals *principals, uint32 tcflags,
-                 const jschar *chars, size_t length,
+JSScript *
+js_CompileScript(JSContext *cx, JSObject *obj, JSPrincipals *principals,
+                 uint32 tcflags, const jschar *chars, size_t length,
                  FILE *file, const char *filename, uintN lineno)
 {
     JSParseContext pc;
+    JSStackFrame *fp, frame;
     JSArenaPool codePool, notePool;
     JSCodeGenerator cg;
     JSTokenType tt;
@@ -516,20 +566,22 @@ js_CompileScript(JSContext *cx, JSObject *scopeChain, JSStackFrame *callerFrame,
     void *sbrk(ptrdiff_t), *before = sbrk(0);
 #endif
 
-    JS_ASSERT(!(tcflags & ~(TCF_COMPILE_N_GO | TCF_NO_SCRIPT_RVAL |
-                            TCF_STATIC_DEPTH_MASK)));
+    JS_ASSERT(!(tcflags & ~(TCF_COMPILE_N_GO | TCF_NO_SCRIPT_RVAL | TCF_STATIC_DEPTH_MASK)));
 
-    /*
-     * The scripted callerFrame can only be given for compile-and-go scripts
-     * and non-zero static depth requires callerFrame.
-     */
-    JS_ASSERT_IF(callerFrame, tcflags & TCF_COMPILE_N_GO);
-    JS_ASSERT_IF(TCF_GET_STATIC_DEPTH(tcflags) != 0, callerFrame);
-
-    if (!js_InitParseContext(cx, &pc, principals, callerFrame, chars, length,
-                             file, filename, lineno)) {
+    if (!js_InitParseContext(cx, &pc, principals, chars, length, file,
+                             filename, lineno)) {
         return NULL;
     }
+
+    /*
+     * From this point the control must flow through the label out.
+     *
+     * Push a compiler frame if we have no frames, or if the top frame is a
+     * lightweight function activation, or if its scope chain doesn't match
+     * the one passed to us.
+     */
+    fp = cx->fp;
+    MaybeSetupFrame(cx, obj, fp, &frame);
 
     JS_INIT_ARENA_POOL(&codePool, "code", 1024, sizeof(jsbytecode),
                        &cx->scriptStackQuota);
@@ -538,12 +590,13 @@ js_CompileScript(JSContext *cx, JSObject *scopeChain, JSStackFrame *callerFrame,
     js_InitCodeGenerator(cx, &cg, &pc, &codePool, &notePool,
                          pc.tokenStream.lineno);
 
-    MUST_FLOW_THROUGH("out");
+    /* From this point the control must flow via the label out. */
     cg.treeContext.flags |= (uint16) tcflags;
-    cg.treeContext.u.scopeChain = scopeChain;
     cg.staticDepth = TCF_GET_STATIC_DEPTH(tcflags);
 
-    /* Inline Statements() to emit as we go to save space. */
+    /*
+     * Inline Statements() to emit as we go to save space.
+     */
     for (;;) {
         pc.tokenStream.flags |= TSF_OPERAND;
         tt = js_PeekToken(cx, &pc.tokenStream);
@@ -561,6 +614,7 @@ js_CompileScript(JSContext *cx, JSObject *scopeChain, JSStackFrame *callerFrame,
             script = NULL;
             goto out;
         }
+
         JS_ASSERT(!cg.treeContext.blockNode);
 
         if (!js_FoldConstants(cx, pn, &cg.treeContext) ||
@@ -638,9 +692,9 @@ js_CompileScript(JSContext *cx, JSObject *scopeChain, JSStackFrame *callerFrame,
 
 #ifdef JS_SCOPE_DEPTH_METER
     if (script) {
-        JSObject *obj = scopeChain;
+        JSObject *pobj = obj;
         uintN depth = 1;
-        while ((obj = OBJ_GET_PARENT(cx, obj)) != NULL)
+        while ((pobj = OBJ_GET_PARENT(cx, pobj)) != NULL)
             ++depth;
         JS_BASIC_STATS_ACCUM(&cx->runtime->hostenvScopeDepthStats, depth);
     }
@@ -650,6 +704,7 @@ js_CompileScript(JSContext *cx, JSObject *scopeChain, JSStackFrame *callerFrame,
     js_FinishCodeGenerator(cx, &cg);
     JS_FinishArenaPool(&codePool);
     JS_FinishArenaPool(&notePool);
+    cx->fp = fp;
     js_FinishParseContext(cx, &pc);
     return script;
 
@@ -794,8 +849,8 @@ ReportBadReturn(JSContext *cx, JSTreeContext *tc, uintN flags, uintN errnum,
     const char *name;
 
     JS_ASSERT(tc->flags & TCF_IN_FUNCTION);
-    if (tc->u.fun->atom) {
-        name = js_AtomToPrintableString(cx, tc->u.fun->atom);
+    if (tc->fun->atom) {
+        name = js_AtomToPrintableString(cx, tc->fun->atom);
     } else {
         errnum = anonerrnum;
         name = NULL;
@@ -889,7 +944,7 @@ js_CompileFunctionBody(JSContext *cx, JSFunction *fun, JSPrincipals *principals,
     JSCodeGenerator funcg;
     JSParseNode *pn;
 
-    if (!js_InitParseContext(cx, &pc, principals, NULL, chars, length, NULL,
+    if (!js_InitParseContext(cx, &pc, principals, chars, length, NULL,
                              filename, lineno)) {
         return JS_FALSE;
     }
@@ -902,7 +957,7 @@ js_CompileFunctionBody(JSContext *cx, JSFunction *fun, JSPrincipals *principals,
     js_InitCodeGenerator(cx, &funcg, &pc, &codePool, &notePool,
                          pc.tokenStream.lineno);
     funcg.treeContext.flags |= TCF_IN_FUNCTION;
-    funcg.treeContext.u.fun = fun;
+    funcg.treeContext.fun = fun;
 
     /*
      * Farble the body so that it looks like a block statement to js_EmitTree,
@@ -970,7 +1025,7 @@ BindArg(JSContext *cx, JSAtom *atom, JSTreeContext *tc)
      * Check for a duplicate parameter name, a "feature" required by ECMA-262.
      */
     JS_ASSERT(tc->flags & TCF_IN_FUNCTION);
-    if (js_LookupLocal(cx, tc->u.fun, atom, NULL) != JSLOCAL_NONE) {
+    if (js_LookupLocal(cx, tc->fun, atom, NULL) != JSLOCAL_NONE) {
         name = js_AtomToPrintableString(cx, atom);
         if (!name ||
             !js_ReportCompileErrorNumber(cx, TS(tc->parseContext), NULL,
@@ -981,7 +1036,7 @@ BindArg(JSContext *cx, JSAtom *atom, JSTreeContext *tc)
         }
     }
 
-    return js_AddLocal(cx, tc->u.fun, atom, JSLOCAL_ARG);
+    return js_AddLocal(cx, tc->fun, atom, JSLOCAL_ARG);
 }
 
 static JSBool
@@ -1026,7 +1081,7 @@ BindDestructuringArg(JSContext *cx, BindData *data, JSAtom *atom,
         ALE_SET_JSOP(ale, data->op);
     }
 
-    if (js_LookupLocal(cx, tc->u.fun, atom, NULL) != JSLOCAL_NONE) {
+    if (js_LookupLocal(cx, tc->fun, atom, NULL) != JSLOCAL_NONE) {
         name = js_AtomToPrintableString(cx, atom);
         if (!name ||
             !js_ReportCompileErrorNumber(cx, TS(tc->parseContext), data->pn,
@@ -1036,7 +1091,7 @@ BindDestructuringArg(JSContext *cx, BindData *data, JSAtom *atom,
             return JS_FALSE;
         }
     } else {
-        if (!BindLocalVariable(cx, tc->u.fun, atom, JSLOCAL_VAR))
+        if (!BindLocalVariable(cx, tc->fun, atom, JSLOCAL_VAR))
             return JS_FALSE;
     }
     return JS_TRUE;
@@ -1051,9 +1106,7 @@ NewCompilerFunction(JSContext *cx, JSTreeContext *tc, JSAtom *atom,
     JSFunction *fun;
 
     JS_ASSERT((lambda & ~JSFUN_LAMBDA) == 0);
-    parent = (tc->flags & TCF_IN_FUNCTION)
-             ? FUN_OBJECT(tc->u.fun)
-             : tc->u.scopeChain;
+    parent = (tc->flags & TCF_IN_FUNCTION) ? FUN_OBJECT(tc->fun) : cx->fp->varobj;
     fun = js_NewFunction(cx, NULL, NULL, 0, JSFUN_INTERPRETED | lambda,
                          parent, atom);
     if (fun && !(tc->flags & TCF_COMPILE_N_GO)) {
@@ -1123,7 +1176,8 @@ FunctionDef(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
                                                    JSREPORT_STRICT
                                                  : JSREPORT_ERROR,
                                                  JSMSG_REDECLARED_VAR,
-                                                 (prevop == JSOP_DEFFUN)
+                                                 (prevop == JSOP_DEFFUN ||
+                                                  prevop == JSOP_CLOSURE)
                                                  ? js_function_str
                                                  : (prevop == JSOP_DEFCONST)
                                                  ? js_const_str
@@ -1139,7 +1193,7 @@ FunctionDef(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
             if (!ale)
                 return NULL;
         }
-        ALE_SET_JSOP(ale, JSOP_DEFFUN);
+        ALE_SET_JSOP(ale, AT_TOP_LEVEL(tc) ? JSOP_DEFFUN : JSOP_CLOSURE);
 
         /*
          * A function nested at top level inside another's body needs only a
@@ -1159,9 +1213,9 @@ FunctionDef(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
              * variable even if the parameter with the given name already
              * exists.
              */
-            localKind = js_LookupLocal(cx, tc->u.fun, funAtom, NULL);
+            localKind = js_LookupLocal(cx, tc->fun, funAtom, NULL);
             if (localKind == JSLOCAL_NONE || localKind == JSLOCAL_ARG) {
-                if (!js_AddLocal(cx, tc->u.fun, funAtom, JSLOCAL_VAR))
+                if (!js_AddLocal(cx, tc->fun, funAtom, JSLOCAL_VAR))
                     return NULL;
             }
         }
@@ -1187,7 +1241,7 @@ FunctionDef(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
     /* Initialize early for possible flags mutation via DestructuringExpr. */
     TREE_CONTEXT_INIT(&funtc, tc->parseContext);
     funtc.flags |= TCF_IN_FUNCTION | (tc->flags & TCF_COMPILE_N_GO);
-    funtc.u.fun = fun;
+    funtc.fun = fun;
 
     /* Now parse formal argument list and compute fun->nargs. */
     MUST_MATCH_TOKEN(TOK_LP, JSMSG_PAREN_BEFORE_FORMAL);
@@ -1344,7 +1398,7 @@ FunctionDef(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
     } else {
         /*
          * If this function is a named statement function not at top-level
-         * (i.e. not a top-level function definiton or expression), then
+         * (i.e. a JSOP_CLOSURE, not a function definiton or expression), then
          * our enclosing function, if any, must be heavyweight.
          *
          * The TCF_FUN_USES_NONLOCALS flag is set only by the code generator,
@@ -1385,7 +1439,7 @@ FunctionDef(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
          * of an "if" statement, binds a closure only if control reaches that
          * sub-statement.
          */
-        op = JSOP_DEFFUN;
+        op = JSOP_CLOSURE;
     } else {
         op = JSOP_NOP;
     }
@@ -1598,7 +1652,8 @@ BindVarOrConst(JSContext *cx, BindData *data, JSAtom *atom, JSTreeContext *tc)
                                                JSREPORT_STRICT
                                              : JSREPORT_ERROR,
                                              JSMSG_REDECLARED_VAR,
-                                             (prevop == JSOP_DEFFUN)
+                                             (prevop == JSOP_DEFFUN ||
+                                              prevop == JSOP_CLOSURE)
                                              ? js_function_str
                                              : (prevop == JSOP_DEFCONST)
                                              ? js_const_str
@@ -1607,7 +1662,7 @@ BindVarOrConst(JSContext *cx, BindData *data, JSAtom *atom, JSTreeContext *tc)
                 return JS_FALSE;
             }
         }
-        if (op == JSOP_DEFVAR && prevop == JSOP_DEFFUN)
+        if (op == JSOP_DEFVAR && prevop == JSOP_CLOSURE)
             tc->flags |= TCF_FUN_CLOSURE_VS_VAR;
     }
     if (!ale) {
@@ -1625,7 +1680,7 @@ BindVarOrConst(JSContext *cx, BindData *data, JSAtom *atom, JSTreeContext *tc)
         return JS_TRUE;
     }
 
-    localKind = js_LookupLocal(cx, tc->u.fun, atom, NULL);
+    localKind = js_LookupLocal(cx, tc->fun, atom, NULL);
     if (localKind == JSLOCAL_NONE) {
         /*
          * Property not found in current variable scope: we have not seen this
@@ -1637,7 +1692,7 @@ BindVarOrConst(JSContext *cx, BindData *data, JSAtom *atom, JSTreeContext *tc)
          */
         localKind = (data->op == JSOP_DEFCONST) ? JSLOCAL_CONST : JSLOCAL_VAR;
         if (!js_InWithStatement(tc) &&
-            !BindLocalVariable(cx, tc->u.fun, atom, localKind)) {
+            !BindLocalVariable(cx, tc->fun, atom, localKind)) {
             return JS_FALSE;
         }
     } else if (localKind == JSLOCAL_ARG) {
@@ -1796,7 +1851,7 @@ typedef struct FindPropValEntry {
                (pnkey)->pn_type == TOK_STRING ||                              \
                (pnkey)->pn_type == TOK_NAME))
 
-static JSDHashNumber
+JS_STATIC_DLL_CALLBACK(JSDHashNumber)
 HashFindPropValKey(JSDHashTable *table, const void *key)
 {
     const JSParseNode *pnkey = (const JSParseNode *)key;
@@ -1808,7 +1863,7 @@ HashFindPropValKey(JSDHashTable *table, const void *key)
            : ATOM_HASH(pnkey->pn_atom);
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 MatchFindPropValEntry(JSDHashTable *table,
                       const JSDHashEntryHdr *entry,
                       const void *key)
@@ -1941,7 +1996,7 @@ CheckDestructuring(JSContext *cx, BindData *data,
     }
 
 #if JS_HAS_DESTRUCTURING_SHORTHAND
-    if (right && right->pn_arity == PN_LIST && (right->pn_extra & PNX_SHORTHAND)) {
+    if (right && (right->pn_extra & PNX_SHORTHAND)) {
         js_ReportCompileErrorNumber(cx, TS(tc->parseContext), right,
                                     JSREPORT_ERROR, JSMSG_BAD_OBJECT_INIT);
         return JS_FALSE;
@@ -3400,6 +3455,7 @@ Variables(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
     JSStmtInfo *scopeStmt;
     BindData data;
     JSParseNode *pn, *pn2;
+    JSStackFrame *fp;
     JSAtom *atom;
 
     /*
@@ -3439,6 +3495,7 @@ Variables(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
      * this by looking up the variable's id in the current variable object.
      * Fortunately, we can avoid doing this for let declared variables.
      */
+    fp = cx->fp;
     if (let) {
         JS_ASSERT(tc->blockChain == scopeStmt->u.blockObj);
         data.binder = BindLet;
@@ -5149,6 +5206,7 @@ JS_FRIEND_API(JSParseNode *)
 js_ParseXMLText(JSContext *cx, JSObject *chain, JSParseContext *pc,
                 JSBool allowList)
 {
+    JSStackFrame *fp, frame;
     JSParseNode *pn;
     JSTreeContext tc;
     JSTokenType tt;
@@ -5158,8 +5216,9 @@ js_ParseXMLText(JSContext *cx, JSObject *chain, JSParseContext *pc,
      * lightweight function activation, or if its scope chain doesn't match
      * the one passed to us.
      */
+    fp = cx->fp;
+    MaybeSetupFrame(cx, chain, fp, &frame);
     TREE_CONTEXT_INIT(&tc, pc);
-    tc.u.scopeChain = chain;
 
     /* Set XML-only mode to turn off special treatment of {expr} in XML. */
     TS(pc)->flags |= TSF_OPERAND | TSF_XMLONLYMODE;
@@ -5176,6 +5235,7 @@ js_ParseXMLText(JSContext *cx, JSObject *chain, JSParseContext *pc,
 
     TS(pc)->flags &= ~TSF_XMLONLYMODE;
     TREE_CONTEXT_FINISH(cx, &tc);
+    cx->fp = fp;
     return pn;
 }
 

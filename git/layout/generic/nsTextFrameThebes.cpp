@@ -4612,8 +4612,7 @@ NS_IMETHODIMP
 nsTextFrame::SetSelected(nsPresContext* aPresContext,
                          nsIDOMRange *aRange,
                          PRBool aSelected,
-                         nsSpread aSpread,
-                         SelectionType aType)
+                         nsSpread aSpread)
 {
   DEBUG_VERIFY_NOT_DIRTY(mState);
 #if 0 //XXXrbs disable due to bug 310318
@@ -4624,13 +4623,11 @@ nsTextFrame::SetSelected(nsPresContext* aPresContext,
   if (aSelected && ParentDisablesSelection())
     return NS_OK;
 
-  if (aType == nsISelectionController::SELECTION_NORMAL) {
-    // check whether style allows selection
-    PRBool selectable;
-    IsSelectable(&selectable, nsnull);
-    if (!selectable)
-      return NS_OK;//do not continue no selection for this frame.
-  }
+  // check whether style allows selection
+  PRBool selectable;
+  IsSelectable(&selectable, nsnull);
+  if (!selectable)
+    return NS_OK;//do not continue no selection for this frame.
 
   PRBool found = PR_FALSE;
   if (aRange) {
@@ -4710,12 +4707,12 @@ nsTextFrame::SetSelected(nsPresContext* aPresContext,
   {
     nsIFrame* frame = GetPrevContinuation();
     while(frame){
-      frame->SetSelected(aPresContext, aRange,aSelected,eSpreadNone, aType);
+      frame->SetSelected(aPresContext, aRange,aSelected,eSpreadNone);
       frame = frame->GetPrevContinuation();
     }
     frame = GetNextContinuation();
     while (frame){
-      frame->SetSelected(aPresContext, aRange,aSelected,eSpreadNone, aType);
+      frame->SetSelected(aPresContext, aRange,aSelected,eSpreadNone);
       frame = frame->GetNextContinuation();
     }
   }

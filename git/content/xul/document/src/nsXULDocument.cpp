@@ -272,6 +272,16 @@ nsXULDocument::~nsXULDocument()
         if (mDocumentURI)
             nsXULPrototypeCache::GetInstance()->RemoveFromFastLoadSet(mDocumentURI);
     }
+
+    // The destructor of nsDocument will delete references to style
+    // sheets, but we don't want that if we're a popup document, so
+    // then we'll clear the stylesheets array here to prevent that
+    // from happening.
+    if (mIsPopup) {
+        mStyleSheets.Clear();
+        mStyleAttrStyleSheet = nsnull;
+        mAttrStyleSheet = nsnull;
+    }
 }
 
 nsresult
@@ -312,9 +322,7 @@ TraverseTemplateBuilders(nsISupports* aKey, nsIXULTemplateBuilder* aData,
     nsCycleCollectionTraversalCallback *cb =
         static_cast<nsCycleCollectionTraversalCallback*>(aContext);
 
-    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*cb, "mTemplateBuilderTable key");
     cb->NoteXPCOMChild(aKey);
-    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*cb, "mTemplateBuilderTable value");
     cb->NoteXPCOMChild(aData);
 
     return PL_DHASH_NEXT;
@@ -326,7 +334,6 @@ TraverseObservers(nsIURI* aKey, nsIObserver* aData, void* aContext)
     nsCycleCollectionTraversalCallback *cb =
         static_cast<nsCycleCollectionTraversalCallback*>(aContext);
 
-    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*cb, "mOverlayLoadObservers/mPendingOverlayLoadNotifications value");
     cb->NoteXPCOMChild(aData);
 
     return PL_DHASH_NEXT;
@@ -350,7 +357,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXULDocument, nsXMLDocument)
 
     PRUint32 i, count = tmp->mPrototypes.Length();
     for (i = 0; i < count; ++i) {
-        NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mPrototypes[i]");
         cb.NoteXPCOMChild(static_cast<nsIScriptGlobalObjectOwner*>(tmp->mPrototypes[i]));
     }
 
@@ -854,6 +860,8 @@ nsXULDocument::RemoveBroadcastListenerFor(nsIDOMElement* aBroadcaster,
                 if (entry->mListeners.Count() == 0)
                     PL_DHashTableOperate(mBroadcasterMap, aBroadcaster,
                                          PL_DHASH_REMOVE);
+
+                SynchronizeBroadcastListener(aBroadcaster, aListener, aAttr);
 
                 break;
             }

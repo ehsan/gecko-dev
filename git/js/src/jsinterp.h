@@ -128,11 +128,12 @@ typedef struct JSInlineFrame {
                                        is currently assigning to a property */
 #define JSFRAME_DEBUGGER       0x08 /* frame for JS_EvaluateInStackFrame */
 #define JSFRAME_EVAL           0x10 /* frame for obj_eval */
-#define JSFRAME_ROOTED_ARGV    0x20 /* frame.argv is rooted by the caller */
+#define JSFRAME_SCRIPT_OBJECT  0x20 /* compiling source for a Script object */
 #define JSFRAME_YIELDING       0x40 /* js_Interpret dispatched JSOP_YIELD */
 #define JSFRAME_ITERATOR       0x80 /* trying to get an iterator for for-in */
 #define JSFRAME_POP_BLOCKS    0x100 /* scope chain contains blocks to pop */
 #define JSFRAME_GENERATOR     0x200 /* frame belongs to generator-iterator */
+#define JSFRAME_ROOTED_ARGV   0x400 /* frame.argv is rooted by the caller */
 
 #define JSFRAME_OVERRIDE_SHIFT 24   /* override bit-set params; see jsfun.c */
 #define JSFRAME_OVERRIDE_BITS  8
@@ -162,7 +163,7 @@ typedef struct JSInlineFrame {
     PROPERTY_CACHE_HASH(pc, kshape)
 
 #define PROPERTY_CACHE_HASH_ATOM(atom,obj,pobj)                               \
-    PROPERTY_CACHE_HASH((jsuword)(atom) >> 2, OBJ_SHAPE(obj))
+    PROPERTY_CACHE_HASH((jsuword)(atom) >> 2, OBJ_SCOPE(obj)->shape)
 
 /*
  * Property cache value capability macros.
@@ -276,8 +277,8 @@ typedef struct JSPropertyCache {
 
 /*
  * Fill property cache entry for key cx->fp->pc, optimized value word computed
- * from obj and sprop, and entry capability forged from 24-bit OBJ_SHAPE(obj),
- * 4-bit scopeIndex, and 4-bit protoIndex.
+ * from obj and sprop, and entry capability forged from OBJ_SCOPE(obj)->shape,
+ * scopeIndex, and protoIndex.
  */
 extern void
 js_FillPropertyCache(JSContext *cx, JSObject *obj, jsuword kshape,
@@ -304,7 +305,8 @@ js_FillPropertyCache(JSContext *cx, JSObject *obj, jsuword kshape,
 #define PROPERTY_CACHE_TEST(cx, pc, obj, pobj, entry, atom)                   \
     do {                                                                      \
         JSPropertyCache *cache_ = &JS_PROPERTY_CACHE(cx);                     \
-        uint32 kshape_ = (JS_ASSERT(OBJ_IS_NATIVE(obj)), OBJ_SHAPE(obj));     \
+        uint32 kshape_ = (JS_ASSERT(OBJ_IS_NATIVE(obj)),                      \
+                          OBJ_SCOPE(obj)->shape);                             \
         entry = &cache_->table[PROPERTY_CACHE_HASH_PC(pc, kshape_)];          \
         PCMETER(cache_->tests++);                                             \
         JS_ASSERT(&obj != &pobj);                                             \
@@ -320,7 +322,7 @@ js_FillPropertyCache(JSContext *cx, JSObject *obj, jsuword kshape,
                 pobj = tmp_;                                                  \
                 JS_LOCK_OBJ(cx, pobj);                                        \
             }                                                                 \
-            if (PCVCAP_SHAPE(entry->vcap) == OBJ_SHAPE(pobj)) {               \
+            if (PCVCAP_SHAPE(entry->vcap) == OBJ_SCOPE(pobj)->shape) {        \
                 PCMETER(cache_->pchits++);                                    \
                 PCMETER(!PCVCAP_TAG(entry->vcap) || cache_->protopchits++);   \
                 pobj = OBJ_SCOPE(pobj)->object;                               \

@@ -47,6 +47,9 @@ MODULE		= test_browser_places
 
 XPCSHELL_TESTS = unit
 
-DIRS = browser perf
+ifdef MOZ_MOCHITEST
+	DIRS += browser
+	DIRS += perf
+endif
 
 include $(topsrcdir)/config/rules.mk

@@ -1889,7 +1889,7 @@ GetInterfaceTypeFromParam(XPCCallContext& ccx,
 /***************************************************************************/
 
 // static
-NS_SUPPRESS_STACK_CHECK JSBool
+JSBool
 XPCWrappedNative::CallMethod(XPCCallContext& ccx,
                              CallMode mode /*= CALL_METHOD */)
 {
@@ -2892,7 +2892,7 @@ XPCWrappedNative::HandlePossibleNameCaseError(XPCCallContext& ccx,
         nsCRT::free(newStr);
         if(newJSStr && (set ?
              set->FindMember(STRING_TO_JSVAL(newJSStr), &member, &localIface) :
-                        NS_PTR_TO_INT32(iface->FindMember(STRING_TO_JSVAL(newJSStr)))))
+                        (JSBool)NS_PTR_TO_INT32(iface->FindMember(STRING_TO_JSVAL(newJSStr)))))
         {
             // found it!
             const char* ifaceName = set ?

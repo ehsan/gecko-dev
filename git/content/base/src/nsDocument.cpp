@@ -301,13 +301,9 @@ nsIdentifierMapEntry::~nsIdentifierMapEntry()
 void
 nsIdentifierMapEntry::Traverse(nsCycleCollectionTraversalCallback* aCallback)
 {
-  if (mNameContentList != NAME_NOT_VALID) {
-    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*aCallback,
-                                       "mIdentifierMap mNameContentList");
+  if (mNameContentList != NAME_NOT_VALID)
     aCallback->NoteXPCOMChild(mNameContentList);
-  }
 
-  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*aCallback, "mIdentifierMap mDocAllList");
   aCallback->NoteXPCOMChild(static_cast<nsIDOMNodeList*>(mDocAllList));
 }
 
@@ -1231,7 +1227,6 @@ public:
   nsCycleCollectionTraversalCallback *mCb;
   virtual void Visit(nsIContent* aContent)
   {
-    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*mCb, "mLinkMap entry");
     mCb->NoteXPCOMChild(aContent);
   }
 };
@@ -1241,6 +1236,7 @@ LinkMapTraverser(nsUint32ToContentHashEntry* aEntry, void* userArg)
 {
   LinkMapTraversalVisitor visitor;
   visitor.mCb = static_cast<nsCycleCollectionTraversalCallback*>(userArg);
+  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*visitor.mCb, "mLinkMap entry");
   aEntry->VisitContent(&visitor);
   return PL_DHASH_NEXT;
 }

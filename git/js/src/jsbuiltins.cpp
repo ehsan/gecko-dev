@@ -48,7 +48,6 @@
 #include "jscntxt.h"
 #include "jsgc.h"
 #include "jsiter.h"
-#include "jslibmath.h"
 #include "jsmath.h"
 #include "jsnum.h"
 #include "jsscope.h"
@@ -96,7 +95,7 @@ js_BoxDouble(JSContext* cx, jsdouble d)
     jsint i;
     if (JSDOUBLE_IS_INT(d, i))
         return INT_TO_JSVAL(i);
-    JS_ASSERT(JS_ON_TRACE(cx));
+    JS_ASSERT(cx->executingTrace);
     jsval v; /* not rooted but ok here because we know GC won't run */
     if (!js_NewDoubleInRootedValue(cx, d, &v))
         return JSVAL_ERROR_COOKIE;
@@ -108,7 +107,7 @@ js_BoxInt32(JSContext* cx, jsint i)
 {
     if (JS_LIKELY(INT_FITS_IN_JSVAL(i)))
         return INT_TO_JSVAL(i);
-    JS_ASSERT(JS_ON_TRACE(cx));
+    JS_ASSERT(cx->executingTrace);
     jsval v; /* not rooted but ok here because we know GC won't run */
     jsdouble d = (jsdouble)i;
     if (!js_NewDoubleInRootedValue(cx, d, &v))
@@ -168,13 +167,14 @@ js_Math_ceil(jsdouble d)
     return ceil(d);
 }
 
-extern jsdouble js_NaN;
-
 jsdouble FASTCALL
 js_Math_pow(jsdouble d, jsdouble p)
 {
+#ifdef NOTYET
+    /* XXX Need to get a NaN here without parameterizing on context all the time. */
     if (!JSDOUBLE_IS_FINITE(p) && (d == 1.0 || d == -1.0))
-        return js_NaN;
+        return NaN;
+#endif
     if (p == 0)
         return 1.0;
     return pow(d, p);
@@ -184,27 +184,6 @@ jsdouble FASTCALL
 js_Math_sqrt(jsdouble d)
 {
     return sqrt(d);
-}
-
-jsdouble FASTCALL
-js_Math_log(jsdouble d)
-{
-#if !JS_USE_FDLIBM_MATH && defined(SOLARIS) && defined(__GNUC__)
-    if (d < 0)
-        return js_NaN;
-#endif
-    return log(d);
-}
-
-jsdouble FASTCALL
-js_Math_max(jsdouble d, jsdouble p)
-{
-    if (JSDOUBLE_IS_NaN(d) || JSDOUBLE_IS_NaN(p))
-        return js_NaN;
-
-    if (p == 0 && p == d && fd_copysign(1.0, d) == -1)
-        return p;
-    return (d > p) ? d : p;
 }
 
 JSBool FASTCALL
@@ -239,7 +218,7 @@ JSString* FASTCALL
 js_String_p_substring(JSContext* cx, JSString* str, jsint begin, jsint end)
 {
     JS_ASSERT(end >= begin);
-    JS_ASSERT(JS_ON_TRACE(cx));
+    JS_ASSERT(cx->executingTrace);
     return js_NewDependentString(cx, str, (size_t)begin, (size_t)(end - begin));
 }
 
@@ -248,7 +227,7 @@ js_String_p_substring_1(JSContext* cx, JSString* str, jsint begin)
 {
     jsint end = JSSTRING_LENGTH(str);
     JS_ASSERT(end >= begin);
-    JS_ASSERT(JS_ON_TRACE(cx));
+    JS_ASSERT(cx->executingTrace);
     return js_NewDependentString(cx, str, (size_t)begin, (size_t)(end - begin));
 }
 
@@ -263,7 +242,7 @@ js_String_getelem(JSContext* cx, JSString* str, jsint i)
 JSString* FASTCALL
 js_String_fromCharCode(JSContext* cx, jsint i)
 {
-    JS_ASSERT(JS_ON_TRACE(cx));
+    JS_ASSERT(cx->executingTrace);
     jschar c = (jschar)i;
     if (c < UNIT_STRING_LIMIT)
         return js_GetUnitStringForChar(cx, c);
@@ -371,7 +350,7 @@ js_StringToNumber(JSContext* cx, JSString* str)
          js_SkipWhiteSpace(ep, end) != end) &&
         (!js_strtointeger(cx, bp, end, &ep, 0, &d) ||
          js_SkipWhiteSpace(ep, end) != end)) {
-        return js_NaN;
+        return *cx->runtime->jsNaN;
     }
     return d;
 }
@@ -400,7 +379,7 @@ js_ParseFloat(JSContext* cx, JSString* str)
 
     JSSTRING_CHARS_AND_END(str, bp, end);
     if (!js_strtod(cx, bp, end, &ep, &d) || ep == bp)
-        return js_NaN;
+        return *cx->runtime->jsNaN;
     return d;
 }
 
@@ -414,16 +393,8 @@ js_ParseInt(JSContext* cx, JSString* str)
 
     JSSTRING_CHARS_AND_END(str, bp, end);
     if (!js_strtointeger(cx, bp, end, &ep, 0, &d) || ep == bp)
-        return js_NaN;
+        return *cx->runtime->jsNaN;
     return d;
-}
-
-jsdouble FASTCALL
-js_ParseIntDouble(jsdouble d)
-{
-    if (!JSDOUBLE_IS_FINITE(d))
-        return js_NaN;
-    return floor(d);
 }
 
 jsval FASTCALL
@@ -493,16 +464,16 @@ js_FastNewArray(JSContext* cx, JSObject* proto)
 {
     JS_ASSERT(OBJ_IS_ARRAY(cx, proto));
 
-    JS_ASSERT(JS_ON_TRACE(cx));
+    JS_ASSERT(cx->executingTrace);
     JSObject* obj = (JSObject*) js_NewGCThing(cx, GCX_OBJECT, sizeof(JSObject));
     if (!obj)
         return NULL;
 
-    JSClass* clasp = &js_ArrayClass;
-    obj->classword = jsuword(clasp);
-
     obj->fslots[JSSLOT_PROTO] = OBJECT_TO_JSVAL(proto);
     obj->fslots[JSSLOT_PARENT] = proto->fslots[JSSLOT_PARENT];
+
+    JSClass* clasp = &js_ArrayClass;
+    obj->fslots[JSSLOT_CLASS] = PRIVATE_TO_JSVAL(clasp);
 
     obj->fslots[JSSLOT_ARRAY_LENGTH] = 0;
     obj->fslots[JSSLOT_ARRAY_COUNT] = 0;
@@ -525,7 +496,7 @@ js_FastNewObject(JSContext* cx, JSObject* ctor)
     JSClass* clasp = FUN_INTERPRETED(fun) ? &js_ObjectClass : fun->u.n.clasp;
     JS_ASSERT(clasp != &js_ArrayClass);
 
-    JS_ASSERT(JS_ON_TRACE(cx));
+    JS_ASSERT(cx->executingTrace);
     JSObject* obj = (JSObject*) js_NewGCThing(cx, GCX_OBJECT, sizeof(JSObject));
     if (!obj)
         return NULL;
@@ -543,9 +514,9 @@ js_FastNewObject(JSContext* cx, JSObject* ctor)
     JS_ASSERT(!JSVAL_IS_PRIMITIVE(v));
     JSObject* proto = JSVAL_TO_OBJECT(v);
 
-    obj->classword = jsuword(clasp);
     obj->fslots[JSSLOT_PROTO] = OBJECT_TO_JSVAL(proto);
     obj->fslots[JSSLOT_PARENT] = ctor->fslots[JSSLOT_PARENT];
+    obj->fslots[JSSLOT_CLASS] = PRIVATE_TO_JSVAL(clasp);
     for (unsigned i = JSSLOT_PRIVATE; i != JS_INITIAL_NSLOTS; ++i)
         obj->fslots[i] = JSVAL_VOID;
 
@@ -678,7 +649,7 @@ jsdouble FASTCALL
 js_BooleanToNumber(JSContext* cx, jsint unboxed)
 {
     if (unboxed == JSVAL_TO_BOOLEAN(JSVAL_VOID))
-        return js_NaN;
+        return *cx->runtime->jsNaN;
     return unboxed;
 }
 
@@ -697,7 +668,7 @@ js_ObjectToString(JSContext* cx, JSObject* obj)
 JSObject* FASTCALL
 js_Array_1int(JSContext* cx, JSObject* proto, jsint i)
 {
-    JS_ASSERT(JS_ON_TRACE(cx));
+    JS_ASSERT(cx->executingTrace);
     JSObject* obj = js_FastNewArray(cx, proto);
     if (obj)
         obj->fslots[JSSLOT_ARRAY_LENGTH] = i;
@@ -705,7 +676,7 @@ js_Array_1int(JSContext* cx, JSObject* proto, jsint i)
 }
 
 #define ARRAY_CTOR_GUTS(exact_len, newslots_code)                             \
-    JS_ASSERT(JS_ON_TRACE(cx));                                               \
+    JS_ASSERT(cx->executingTrace);                                            \
     JSObject* obj = js_FastNewArray(cx, proto);                               \
     if (obj) {                                                                \
         uint32 len = ARRAY_GROWBY;                                            \
@@ -746,85 +717,6 @@ js_Array_3num(JSContext* cx, JSObject* proto, jsdouble n1, jsdouble n2, jsdouble
             return NULL;
         if (!js_NewDoubleInRootedValue(cx, n3, ++newslots))
             return NULL;)
-}
-
-JSObject* FASTCALL
-js_Arguments(JSContext* cx)
-{
-    return NULL;
-}
-
-/* soft float */
-
-jsdouble FASTCALL
-js_fneg(jsdouble x)
-{
-    return -x;
-}
-
-jsdouble FASTCALL
-js_i2f(jsint i)
-{
-    return i;
-}
-
-jsdouble FASTCALL
-js_u2f(jsuint u)
-{
-    return u;
-}
-
-jsint FASTCALL
-js_fcmpeq(jsdouble x, jsdouble y)
-{
-    return x==y;
-}
-
-jsint FASTCALL
-js_fcmplt(jsdouble x, jsdouble y)
-{
-    return x < y;
-}
-
-jsint FASTCALL
-js_fcmple(jsdouble x, jsdouble y)
-{
-    return x <= y;
-}
-
-jsint FASTCALL
-js_fcmpgt(jsdouble x, jsdouble y)
-{
-    return x > y;
-}
-
-jsint FASTCALL
-js_fcmpge(jsdouble x, jsdouble y)
-{
-    return x >= y;
-}
-
-jsdouble FASTCALL
-js_fmul(jsdouble x, jsdouble y)
-{
-    return x * y;
-}
-jsdouble FASTCALL
-js_fadd(jsdouble x, jsdouble y)
-{
-    return x + y;
-}
-
-jsdouble FASTCALL
-js_fdiv(jsdouble x, jsdouble y)
-{
-    return x / y;
-}
-
-jsdouble FASTCALL
-js_fsub(jsdouble x, jsdouble y)
-{
-    return x - y;
 }
 
 #define LO ARGSIZE_LO

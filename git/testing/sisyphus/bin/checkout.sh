@@ -60,14 +60,13 @@ if [[ "$branch" == "1.9.1" ]]; then
     fi
 
     if [[ ! -d $TEST_MOZILLA_HG_LOCAL ]]; then
-        if ! hg clone $TEST_MOZILLA_HG $TEST_MOZILLA_HG_LOCAL; then
+        if ! hg clone -r $TEST_MOZILLA_HG_REV $TEST_MOZILLA_HG $TEST_MOZILLA_HG_LOCAL; then
             error "during hg clone of $TEST_MOZILLA_HG" $LINENO
         fi
     fi
 
     cd $TEST_MOZILLA_HG_LOCAL
-    hg pull -u
-    echo "`hg root` id `hg id`"
+    hg pull
 fi
 
 cd $BUILDTREE
@@ -91,23 +90,14 @@ case $product in
 
             1.9.1)
 
-                if [[ ! -d mozilla/.hg ]]; then
+                if [[ ! -e mozilla/client.py ]]; then
                     if ! hg clone $TEST_MOZILLA_HG_LOCAL $BUILDTREE/mozilla; then
                         error "during hg clone of $TEST_MOZILLA_HG_LOCAL" $LINENO
                     fi
                 fi
 
                 cd mozilla
-                hg pull
-
-                hg update -r $TEST_MOZILLA_HG_REV
-
-                echo "`hg root` id `hg id`"
-
-                if [[ -n "$DATE_CO_FLAGS" ]]; then
-                    eval hg update $DATE_CO_FLAGS
-                    echo "Update to date $MOZ_CO_DATE `hg root` id `hg id`"
-                fi
+                hg pull -u -r $TEST_MOZILLA_HG_REV
                 
                 # do not use mozilla-build on windows systems as we 
                 # must use the cygwin python with the cygwin mercurial.
@@ -151,24 +141,14 @@ case $product in
                 ;;
 
             1.9.1)
-                if [[ ! -d mozilla/.hg ]]; then
+                if [[ ! -e mozilla/client.py ]]; then
                     if ! hg clone $TEST_MOZILLA_HG_LOCAL $BUILDTREE/mozilla; then
                         error "during hg clone of $TEST_MOZILLA_HG_LOCAL" $LINENO
                     fi
                 fi
 
                 cd mozilla
-                hg pull
-
-                hg update -r $TEST_MOZILLA_HG_REV
-
-                echo "`hg root` id `hg id`"
-
-                if [[ -n "$DATE_CO_FLAGS" ]]; then
-                    eval hg update $DATE_CO_FLAGS
-                    echo "Update to date $MOZ_CO_DATE `hg root` id `hg id`"
-                fi
-                
+                hg pull -u -r $TEST_MOZILLA_HG_REV
 
                 # do not use mozilla-build on windows systems as we 
                 # must use the cygwin python with the cygwin mercurial.
@@ -209,24 +189,14 @@ case $product in
 
             1.9.1)
 
-                if [[ ! -d mozilla/.hg ]]; then
+                if [[ ! -e mozilla/client.py ]]; then
                     if ! hg clone $TEST_MOZILLA_HG_LOCAL $BUILDTREE/mozilla; then
                         error "during hg clone of $TEST_MOZILLA_HG_LOCAL" $LINENO
                     fi
                 fi
 
                 cd mozilla
-                hg pull
-
-                hg update -r $TEST_MOZILLA_HG_REV
-
-                echo "`hg root` id `hg id`"
-
-                if [[ -n "$DATE_CO_FLAGS" ]]; then
-                    eval hg update $DATE_CO_FLAGS
-                    echo "Update to date $MOZ_CO_DATE `hg root` id `hg id`"
-                fi
-                
+                hg pull -u -r $TEST_MOZILLA_HG_REV
 
                 # do not use mozilla-build on windows systems as we 
                 # must use the cygwin python with the cygwin mercurial.

@@ -429,7 +429,7 @@ nsHttpChannel::HandleAsyncRedirect()
     if (mCacheEntry) {
         if (NS_FAILED(rv))
             mCacheEntry->Doom();
-        CloseCacheEntry(PR_FALSE);
+        CloseCacheEntry();
     }
 
     mIsPending = PR_FALSE;
@@ -454,7 +454,7 @@ nsHttpChannel::HandleAsyncNotModified()
 
     DoNotifyListener();
 
-    CloseCacheEntry(PR_TRUE);
+    CloseCacheEntry();
 
     mIsPending = PR_FALSE;
 
@@ -836,7 +836,7 @@ nsHttpChannel::ProcessResponse()
         rv = ProcessRedirection(httpStatus);
         if (NS_SUCCEEDED(rv)) {
             InitCacheEntry();
-            CloseCacheEntry(PR_FALSE);
+            CloseCacheEntry();
 
             if (mCacheForOfflineUse) {
                 // Store response in the offline cache
@@ -893,7 +893,7 @@ nsHttpChannel::ProcessNormal()
     if (mCacheEntry) {
         rv = InitCacheEntry();
         if (NS_FAILED(rv))
-            CloseCacheEntry(PR_TRUE);
+            CloseCacheEntry();
     }
 
     // Check that the server sent us what we were asking for
@@ -1970,7 +1970,7 @@ nsHttpChannel::ReadFromCache()
 }
 
 void
-nsHttpChannel::CloseCacheEntry(PRBool doomOnFailure)
+nsHttpChannel::CloseCacheEntry()
 {
     if (!mCacheEntry)
         return;
@@ -1985,8 +1985,7 @@ nsHttpChannel::CloseCacheEntry(PRBool doomOnFailure)
     PRBool doom = PR_FALSE;
     if (mInitedCacheEntry) {
         NS_ASSERTION(mResponseHead, "oops");
-        if (NS_FAILED(mStatus) && doomOnFailure &&
-            (mCacheAccess & nsICache::ACCESS_WRITE) &&
+        if (NS_FAILED(mStatus) && (mCacheAccess & nsICache::ACCESS_WRITE) &&
             !mResponseHead->IsResumable())
             doom = PR_TRUE;
     }
@@ -3762,7 +3761,7 @@ nsHttpChannel::AsyncOpen(nsIStreamListener *listener, nsISupports *context)
         rv = Connect();
     if (NS_FAILED(rv)) {
         LOG(("Calling AsyncAbort [rv=%x mCanceled=%i]\n", rv, mCanceled));
-        CloseCacheEntry(PR_TRUE);
+        CloseCacheEntry();
         AsyncAbort(rv);
     }
     return NS_OK;
@@ -4497,7 +4496,7 @@ nsHttpChannel::OnStopRequest(nsIRequest *request, nsISupports *ctxt, nsresult st
     }
 
     if (mCacheEntry)
-        CloseCacheEntry(PR_TRUE);
+        CloseCacheEntry();
 
     if (mOfflineCacheEntry)
         CloseOfflineCacheEntry();
@@ -4860,7 +4859,7 @@ nsHttpChannel::OnCacheEntryAvailable(nsICacheEntryDescriptor *entry,
 
     // a failure from Connect means that we have to abort the channel.
     if (NS_FAILED(rv)) {
-        CloseCacheEntry(PR_TRUE);
+        CloseCacheEntry();
         AsyncAbort(rv);
     }
 

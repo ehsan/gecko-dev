@@ -408,12 +408,11 @@ nsTableOuterFrame::BuildDisplayListForInnerTable(nsDisplayListBuilder*   aBuilde
 NS_IMETHODIMP nsTableOuterFrame::SetSelected(nsPresContext* aPresContext,
                                              nsIDOMRange *aRange,
                                              PRBool aSelected,
-                                             nsSpread aSpread,
-                                             SelectionType aType)
+                                             nsSpread aSpread)
 {
-  nsresult result = nsFrame::SetSelected(aPresContext, aRange,aSelected, aSpread, aType);
+  nsresult result = nsFrame::SetSelected(aPresContext, aRange,aSelected, aSpread);
   if (NS_SUCCEEDED(result) && mInnerTableFrame)
-    return mInnerTableFrame->SetSelected(aPresContext, aRange,aSelected, aSpread, aType);
+    return mInnerTableFrame->SetSelected(aPresContext, aRange,aSelected, aSpread);
   return result;
 }
 

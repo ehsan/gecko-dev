@@ -417,7 +417,7 @@
       </property>
 
       <constructor>
-        if (!this.hasAttribute("thumbnailURL") || this._imageBlocked(this)) {
+        if (!this.hasAttribute("thumbnailURL")) {
           this._hideImage();
           return;
         }
@@ -439,21 +439,6 @@
       </constructor>
 
       <field name="_maxSize">125</field>
-
-      <method name="_imageBlocked">
-        <parameter name="container"/>
-        <body>
-          var uri = Components.classes["@mozilla.org/network/io-service;1"]
-                              .getService(Components.interfaces.nsIIOService)
-                              .newURI(container.getAttribute("thumbnailURL"),
-                                      container.ownerDocument.characterSet, null);
-          var contentPolicy = Components.classes["@mozilla.org/layout/content-policy;1"]
-                                        .getService(Components.interfaces.nsIContentPolicy);
-          return contentPolicy.shouldLoad(contentPolicy.TYPE_IMAGE,
-                                          uri, container.ownerDocument.documentURIObject,
-                                          container, null, null) != contentPolicy.ACCEPT;
-        </body>
-      </method>
 
       <method name="_displayImage">
         <body>
@@ -815,29 +800,19 @@
 
   <binding id="install" extends="chrome://mozapps/content/extensions/extensions.xml#addon-base">
     <content>
-      <xul:vbox flex="1">
-        <xul:hbox flex="1">
-          <xul:vbox>
-            <xul:stack class="addonIcon-stack">
-              <xul:vbox pack="start" align="start">
-                <xul:image class="addonIcon" xbl:inherits="src=iconURL"/>
-              </xul:vbox>
-            </xul:stack>
-          </xul:vbox>
-          <xul:vbox flex="1">
-            <xul:hbox class="addon-name-version" xbl:inherits="name, version=newVersion"/>
-            <xul:hbox class="addon-install-status" xbl:inherits="state"/>
-          </xul:vbox>
-        </xul:hbox>
-        <xul:hbox flex="1" pack="end">
-          <xul:button class="upgradeShow cancelUpgradeButton" label="&cancelUpgrade.label;"
-                  accesskey="&cancelUpgrade.accesskey;" tooltiptext="&cmd.cancelUpgrade.tooltip;"
-                  command="cmd_cancelUpgrade"/>
-          <xul:button class="installShow cancelInstallButton" label="&cancelInstall.label;"
-                  accesskey="&cancelInstall.accesskey;" tooltiptext="&cmd.cancelInstall.tooltip;"
-                  command="cmd_cancelInstall"/>
-        </xul:hbox>
-      </xul:vbox>
+      <xul:hbox flex="1">
+        <xul:vbox>
+          <xul:stack class="addonIcon-stack">
+            <xul:vbox pack="start" align="start">
+              <xul:image class="addonIcon" xbl:inherits="src=iconURL"/>
+            </xul:vbox>
+          </xul:stack>
+        </xul:vbox>
+        <xul:vbox flex="1">
+          <xul:hbox class="addon-name-version" xbl:inherits="name, version=newVersion"/>
+          <xul:hbox class="addon-install-status" xbl:inherits="state"/>
+        </xul:vbox>
+      </xul:hbox>
     </content>
   </binding>
 

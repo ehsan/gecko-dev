@@ -53,7 +53,6 @@
 #ifdef MOZ_XUL
 #include "nsXULElement.h"
 #endif
-#include "nsBindingManager.h"
 
 // This macro expects the ownerDocument of content_ to be in scope as
 // |nsIDocument* doc|
