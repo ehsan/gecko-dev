@@ -2548,7 +2548,7 @@ DoIncDec(JSContext *cx, JSFrameRegs& regs, const JSCodeSpec *cs, jsval *vp, jsva
 
     if (!(cs->format & JOF_POST))
         prim_copy(cx, *vp2, *vp);
-    return true;
+    return false;
 }
 
 inline bool
@@ -7051,7 +7051,7 @@ JS_INTERPRET(JSContext *cx, JSInterpreterState *state)
 #ifdef DEBUG
       printf("End recording.\n");
 #endif  
-      js_EndRecording(cx, regs);
+      js_EndRecording(cx);
       SAVE_STATE(state, JS_NEXT_CONTINUE);
       return ok;
 #else
@@ -7276,7 +7276,7 @@ JS_INTERPRET(JSContext *cx, JSInterpreterState *state)
 #ifdef DEBUG
         printf("Attempt recording.\n");
 #endif  
-        if (!js_StartRecording(cx, regs)) {
+        if (!js_StartRecording(cx)) {
             op = (JSOp) *regs.pc;
             DO_OP();
         }
