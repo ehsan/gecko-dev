@@ -978,9 +978,9 @@ LoginManager.prototype = {
     },
 
     _getActionOrigin : function (form) {
-        var uriString = form.action;
+        var uriString = form.mozActionUri;
 
-        // A blank or missing action submits to where it came from.
+        // A blank or mission action submits to where it came from.
         if (uriString == "")
             uriString = form.baseURI; // ala bug 297761
 

@@ -78,8 +78,6 @@
 #include "nsContentUtils.h"
 #include "nsLayoutErrors.h"
 
-namespace dom = mozilla::dom;
-
 nsIFrame*
 NS_NewIsIndexFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
@@ -198,8 +196,7 @@ nsIsIndexFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
   nsCOMPtr<nsINodeInfo> hrInfo;
   hrInfo = nimgr->GetNodeInfo(nsGkAtoms::hr, nsnull, kNameSpaceID_XHTML);
 
-  NS_NewHTMLElement(getter_AddRefs(mPreHr), hrInfo.forget(),
-                    dom::NOT_FROM_PARSER);
+  NS_NewHTMLElement(getter_AddRefs(mPreHr), hrInfo.forget(), PR_FALSE);
   if (!mPreHr || !aElements.AppendElement(mPreHr))
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -218,7 +215,7 @@ nsIsIndexFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
   inputInfo = nimgr->GetNodeInfo(nsGkAtoms::input, nsnull, kNameSpaceID_XHTML);
 
   NS_NewHTMLElement(getter_AddRefs(mInputContent), inputInfo.forget(),
-                    dom::NOT_FROM_PARSER);
+                    PR_FALSE);
   if (!mInputContent)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -234,8 +231,7 @@ nsIsIndexFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 
   // Create an hr
   hrInfo = nimgr->GetNodeInfo(nsGkAtoms::hr, nsnull, kNameSpaceID_XHTML);
-  NS_NewHTMLElement(getter_AddRefs(mPostHr), hrInfo.forget(),
-                    dom::NOT_FROM_PARSER);
+  NS_NewHTMLElement(getter_AddRefs(mPostHr), hrInfo.forget(), PR_FALSE);
   if (!mPostHr || !aElements.AppendElement(mPostHr))
     return NS_ERROR_OUT_OF_MEMORY;
 

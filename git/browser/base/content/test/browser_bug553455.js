@@ -597,7 +597,7 @@ var XPInstallObserver = {
 };
 
 function test() {
-  requestLongerTimeout(4);
+  requestLongerTimeout(2);
   waitForExplicitFinish();
 
   Services.prefs.setBoolPref("extensions.logging.enabled", true);

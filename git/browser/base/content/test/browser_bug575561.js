@@ -58,20 +58,16 @@ function testLink(aLinkIndex, pinTab, expectNewTab, nextTest, testSubFrame) {
     function onPageLoad() {
       browser.removeEventListener("load", onPageLoad, true);
       is(browser.contentDocument.location.href, links[aLinkIndex].href, "Link should not open in a new tab");
-      executeSoon(function(){
-        gBrowser.removeTab(appTab);
-        nextTest();
-      });
+      gBrowser.removeTab(appTab);
+      nextTest();
     }
 
     function onTabOpen(event) {
       gBrowser.tabContainer.removeEventListener("TabOpen", onTabOpen, true);
       ok(true, "Link should open a new tab");
-      executeSoon(function(){
-        gBrowser.removeTab(appTab);
-        gBrowser.removeCurrentTab();
-        nextTest();
-      });
+      gBrowser.removeTab(appTab);
+      gBrowser.removeCurrentTab();
+      nextTest();
     }
   }
 }

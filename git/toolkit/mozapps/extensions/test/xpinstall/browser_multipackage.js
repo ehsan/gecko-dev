@@ -20,7 +20,7 @@ function get_item(items, name) {
 }
 
 function confirm_install(window) {
-  let items = window.document.getElementById("itemList").childNodes;
+  items = window.document.getElementById("itemList").childNodes;
   is(items.length, 2, "Should be 2 items listed in the confirmation dialog");
 
   let item = get_item(items, "XPI Test");

@@ -7,7 +7,9 @@
  */
 
 function test() {
-  requestLongerTimeout(2);
+  // Set the timeout to 300 seconds since this test can easily take 220 seconds
+  // to run on a Windows debug build when it runs in a tab.
+  requestLongerTimeout(10);
 
   waitForExplicitFinish();
 
@@ -96,12 +98,6 @@ function is_in_detail(aManager, view, canGoBack, canGoForward) {
   check_state(aManager, canGoBack, canGoForward);
 }
 
-function double_click_addon_element(aManager, aId) {
-  var addon = get_addon_element(aManager, aId);
-  addon.parentNode.ensureElementIsVisible(addon);
-  EventUtils.synthesizeMouseAtCenter(addon, { clickCount: 2 }, aManager);
-}
-
 // Tests simple forward and back navigation and that the right heading and
 // category is selected
 add_test(function() {
@@ -133,7 +129,8 @@ add_test(function() {
             info("Part 5");
             is_in_list(aManager, "addons://list/extension", false, true);
 
-            double_click_addon_element(aManager, "test1@tests.mozilla.org");
+            EventUtils.synthesizeMouseAtCenter(get_addon_element(aManager, "test1@tests.mozilla.org"),
+                                               { clickCount: 2 }, aManager);
 
             wait_for_view_load(aManager, function(aManager) {
               info("Part 6");
@@ -353,7 +350,8 @@ add_test(function() {
       is_in_search(aManager, "bar", true, false);
       check_all_in_list(aManager, ["test2@tests.mozilla.org", "test3@tests.mozilla.org"]);
 
-      double_click_addon_element(aManager, "test2@tests.mozilla.org");
+      EventUtils.synthesizeMouseAtCenter(get_addon_element(aManager, "test2@tests.mozilla.org"),
+                                         { clickCount: 2 }, aManager);
 
       wait_for_view_load(aManager, function(aManager) {
         info("Part 3");
@@ -401,7 +399,8 @@ add_test(function() {
       is_in_search(aManager, "bar", true, false);
       check_all_in_list(aManager, ["test2@tests.mozilla.org", "test3@tests.mozilla.org"]);
 
-      double_click_addon_element(aManager, "test2@tests.mozilla.org");
+      EventUtils.synthesizeMouseAtCenter(get_addon_element(aManager, "test2@tests.mozilla.org"),
+                                         { clickCount: 2 }, aManager);
 
       wait_for_view_load(aManager, function(aManager) {
         info("Part 3");
@@ -498,7 +497,8 @@ add_test(function() {
     info("Part 1");
     is_in_list(aManager, "addons://list/extension", false, false);
 
-    double_click_addon_element(aManager, "test1@tests.mozilla.org");
+    EventUtils.synthesizeMouseAtCenter(get_addon_element(aManager, "test1@tests.mozilla.org"),
+                                       { clickCount: 2 }, aManager);
 
     wait_for_view_load(aManager, function(aManager) {
       info("Part 2");
@@ -534,7 +534,8 @@ add_test(function() {
     info("Part 1");
     is_in_list(aManager, "addons://list/extension", false, false);
 
-    double_click_addon_element(aManager, "test1@tests.mozilla.org");
+    EventUtils.synthesizeMouseAtCenter(get_addon_element(aManager, "test1@tests.mozilla.org"),
+                                       { clickCount: 2 }, aManager);
 
     wait_for_view_load(aManager, function(aManager) {
       info("Part 2");

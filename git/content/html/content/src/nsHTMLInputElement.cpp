@@ -127,8 +127,6 @@
 
 #include "nsHTMLInputElement.h"
 
-using namespace mozilla::dom;
-
 // XXX align=left, hspace, vspace, border? other nav4 attrs
 
 static NS_DEFINE_CID(kXULControllersCID,  NS_XULCONTROLLERS_CID);
@@ -614,14 +612,14 @@ static nsresult FireEventForAccessibility(nsIDOMHTMLInputElement* aTarget,
 NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(Input)
 
 nsHTMLInputElement::nsHTMLInputElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                                       FromParser aFromParser)
+                                       PRUint32 aFromParser)
   : nsGenericHTMLFormElement(aNodeInfo),
     mType(kInputDefaultType->value),
     mBitField(0)
 {
   SET_BOOLBIT(mBitField, BF_PARSER_CREATING, aFromParser);
   SET_BOOLBIT(mBitField, BF_INHIBIT_RESTORATION,
-      aFromParser & mozilla::dom::FROM_PARSER_FRAGMENT);
+      aFromParser & NS_FROM_PARSER_FRAGMENT);
   mInputData.mState = new nsTextEditorState(this);
   NS_ADDREF(mInputData.mState);
   
@@ -704,7 +702,10 @@ nsHTMLInputElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
   *aResult = nsnull;
 
   nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
-  nsHTMLInputElement *it = new nsHTMLInputElement(ni.forget(), NOT_FROM_PARSER);
+  nsHTMLInputElement *it = new nsHTMLInputElement(ni.forget(), PR_FALSE);
+  if (!it) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
 
   nsCOMPtr<nsINode> kungFuDeathGrip = it;
   nsresult rv = CopyInnerTo(it);
@@ -961,7 +962,7 @@ NS_IMPL_ENUM_ATTR_DEFAULT_VALUE(nsHTMLInputElement, Autocomplete, autocomplete,
 NS_IMPL_BOOL_ATTR(nsHTMLInputElement, Autofocus, autofocus)
 //NS_IMPL_BOOL_ATTR(nsHTMLInputElement, Checked, checked)
 NS_IMPL_BOOL_ATTR(nsHTMLInputElement, Disabled, disabled)
-NS_IMPL_ACTION_ATTR(nsHTMLInputElement, FormAction, formaction)
+NS_IMPL_STRING_ATTR(nsHTMLInputElement, FormAction, formaction)
 NS_IMPL_ENUM_ATTR_DEFAULT_VALUE(nsHTMLInputElement, FormEnctype, formenctype,
                                 kFormDefaultEnctype->tag)
 NS_IMPL_ENUM_ATTR_DEFAULT_VALUE(nsHTMLInputElement, FormMethod, formmethod,

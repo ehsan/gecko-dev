@@ -127,12 +127,6 @@ PluginModuleParent::~PluginModuleParent()
 {
     NS_ASSERTION(OkToCleanup(), "unsafe destruction");
 
-#ifdef OS_MACOSX
-    if (mCATimer) {
-        mCATimer->Cancel();
-    }
-#endif
-
     if (!mShutdown) {
         NS_WARNING("Plugin host deleted the module without shutting down.");
         NPError err;
@@ -917,17 +911,6 @@ PluginModuleParent::RecvPluginHideWindow(const uint32_t& aWindowId)
 
 #ifdef OS_MACOSX
 #define DEFAULT_REFRESH_MS 20 // CoreAnimation: 50 FPS
-
-void
-CAUpdate(nsITimer *aTimer, void *aClosure) {
-    nsTObserverArray<PluginInstanceParent*> *ips =
-        static_cast<nsTObserverArray<PluginInstanceParent*> *>(aClosure);
-    nsTObserverArray<PluginInstanceParent*>::ForwardIterator iter(*ips);
-    while (iter.HasMore()) {
-        iter.GetNext()->Invalidate();
-    }
-}
-
 void
 PluginModuleParent::AddToRefreshTimer(PluginInstanceParent *aInstance) {
     if (mCATimerTargets.Contains(aInstance)) {
@@ -936,17 +919,8 @@ PluginModuleParent::AddToRefreshTimer(PluginInstanceParent *aInstance) {
 
     mCATimerTargets.AppendElement(aInstance);
     if (mCATimerTargets.Length() == 1) {
-        if (!mCATimer) {
-            nsresult rv;
-            nsCOMPtr<nsITimer> xpcomTimer = do_CreateInstance(NS_TIMER_CONTRACTID, &rv);
-            if (NS_FAILED(rv)) {
-                NS_WARNING("Could not create Core Animation timer for plugin.");
-                return;
-            }
-            mCATimer = xpcomTimer;
-        }
-        mCATimer->InitWithFuncCallback(CAUpdate, &mCATimerTargets, DEFAULT_REFRESH_MS,
-                                       nsITimer::TYPE_REPEATING_SLACK);
+        mCATimer.Start(base::TimeDelta::FromMilliseconds(DEFAULT_REFRESH_MS),
+                       this, &PluginModuleParent::CAUpdate);
     }
 }
 
@@ -954,7 +928,15 @@ void
 PluginModuleParent::RemoveFromRefreshTimer(PluginInstanceParent *aInstance) {
     PRBool visibleRemoved = mCATimerTargets.RemoveElement(aInstance);
     if (visibleRemoved && mCATimerTargets.IsEmpty()) {
-        mCATimer->Cancel();
+        mCATimer.Stop();
+    }
+}
+
+void
+PluginModuleParent::CAUpdate() {
+    nsTObserverArray<PluginInstanceParent*>::ForwardIterator iter(mCATimerTargets);
+    while (iter.HasMore()) {
+        iter.GetNext()->Invalidate();
     }
 }
 #endif

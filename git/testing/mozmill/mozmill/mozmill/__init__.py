@@ -769,12 +769,11 @@ class CLI(jsbridge.CLI):
                     self.mozmill.report_disconnect()               
                     print 'TEST-UNEXPECTED-FAIL | Disconnect Error: Application unexpectedly closed'
 
-            # shutdown the test harness
-            self.mozmill.stop(fatal=disconnected)
-
             # print statistics and send the JSON report
             self.mozmill.report(self.options.report)
             
+            # shutdown the test harness
+            self.mozmill.stop(fatal=disconnected)
             if self.mozmill.fails or disconnected:
                 sys.exit(1)
         else:

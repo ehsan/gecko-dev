@@ -161,12 +161,7 @@ Tester.prototype = {
       let testScope = this.currentTest.scope;
       while (testScope.__cleanupFunctions.length > 0) {
         let func = testScope.__cleanupFunctions.shift();
-        try {
-          func.apply(testScope);
-        }
-        catch (ex) {
-          this.currentTest.addResult(new testResult(false, "Cleanup function threw an exception", ex, false));
-        }
+        func.apply(testScope);
       };
 
       // Note the test run time

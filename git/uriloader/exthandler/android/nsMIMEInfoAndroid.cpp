@@ -168,7 +168,11 @@ NS_IMETHODIMP
 nsMIMEInfoAndroid::GetPreferredApplicationHandler(nsIHandlerApp** aApp)
 {
   *aApp = mPrefApp;
-  NS_IF_ADDREF(*aApp);
+  if (*aApp) {
+    nsAutoString appName;
+    (*aApp)->GetName(appName);
+  }
+
   return NS_OK;
 }
 

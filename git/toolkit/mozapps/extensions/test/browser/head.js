@@ -52,19 +52,6 @@ registerCleanupFunction(function() {
   while (windows.hasMoreElements())
     windows.getNext().QueryInterface(Ci.nsIDOMWindow).close();
 
-  windows = Services.wm.getEnumerator("Addons:Compatibility");
-  if (windows.hasMoreElements())
-    ok(false, "Found unexpected add-ons compatibility window still open");
-  while (windows.hasMoreElements())
-    windows.getNext().QueryInterface(Ci.nsIDOMWindow).close();
-
-  windows = Services.wm.getEnumerator("Addons:Install");
-  if (windows.hasMoreElements())
-    ok(false, "Found unexpected add-ons installation window still open");
-  while (windows.hasMoreElements())
-    windows.getNext().QueryInterface(Ci.nsIDOMWindow).close();
-
-
   // We can for now know that getAllInstalls actually calls its callback before
   // it returns so this will complete before the next test start.
   AddonManager.getAllInstalls(function(aInstalls) {
@@ -186,9 +173,7 @@ function get_addon_element(aManager, aId) {
   return null;
 }
 
-function wait_for_view_load(aManagerWindow, aCallback, aForceWait, aLongerTimeout) {
-  requestLongerTimeout(aLongerTimeout ? aLongerTimeout : 2);
-
+function wait_for_view_load(aManagerWindow, aCallback, aForceWait) {
   if (!aForceWait && !aManagerWindow.gViewController.isLoading) {
     aCallback(aManagerWindow);
     return;
@@ -213,7 +198,7 @@ function wait_for_manager_load(aManagerWindow, aCallback) {
   }, false);
 }
 
-function open_manager(aView, aCallback, aLoadCallback, aLongerTimeout) {
+function open_manager(aView, aCallback, aLoadCallback) {
   function setup_manager(aManagerWindow) {
     if (aLoadCallback)
       aLoadCallback(aManagerWindow);
@@ -225,7 +210,7 @@ function open_manager(aView, aCallback, aLoadCallback, aLongerTimeout) {
     is(aManagerWindow.location, MANAGER_URI, "Should be displaying the correct UI");
 
     wait_for_manager_load(aManagerWindow, function() {
-      wait_for_view_load(aManagerWindow, aCallback, null, aLongerTimeout);
+      wait_for_view_load(aManagerWindow, aCallback);
     });
   }
 
@@ -243,9 +228,7 @@ function open_manager(aView, aCallback, aLoadCallback, aLongerTimeout) {
   }, true);
 }
 
-function close_manager(aManagerWindow, aCallback, aLongerTimeout) {
-  requestLongerTimeout(aLongerTimeout ? aLongerTimeout : 2);
-
+function close_manager(aManagerWindow, aCallback) {
   ok(aManagerWindow != null, "Should have an add-ons manager window to close");
   is(aManagerWindow.location, MANAGER_URI, "Should be closing window with correct URI");
 

@@ -626,9 +626,6 @@ private:
     nsCOMPtr<nsIXPCScriptable> mBackstagePass;
 
     static PRUint32 gReportAllJSExceptions;
-    static JSBool gDebugMode;
-    static JSBool gDesiredDebugMode;
-    static inline void CheckForDebugMode(JSRuntime *rt);
 
 public:
     static nsIScriptSecurityManager *gScriptSecurityManager;
@@ -2004,6 +2001,7 @@ public:
     JSBool WantTrace()                    GET_IT(WANT_TRACE)
     JSBool WantEquality()                 GET_IT(WANT_EQUALITY)
     JSBool WantOuterObject()              GET_IT(WANT_OUTER_OBJECT)
+    JSBool WantInnerObject()              GET_IT(WANT_INNER_OBJECT)
     JSBool UseJSStubForAddProperty()      GET_IT(USE_JSSTUB_FOR_ADDPROPERTY)
     JSBool UseJSStubForDelProperty()      GET_IT(USE_JSSTUB_FOR_DELPROPERTY)
     JSBool UseJSStubForSetProperty()      GET_IT(USE_JSSTUB_FOR_SETPROPERTY)
@@ -2545,10 +2543,10 @@ public:
     XPCNativeSet*
     GetSet() const {XPCAutoLock al(GetLock()); return mSet;}
 
+private:
     void
     SetSet(XPCNativeSet* set) {XPCAutoLock al(GetLock()); mSet = set;}
 
-private:
     inline void
     ExpireWrapper()
         {mMaybeScope = (XPCWrappedNativeScope*)
@@ -3073,7 +3071,6 @@ private:
     nsXPCWrappedJS* mRoot;
     nsXPCWrappedJS* mNext;
     nsISupports* mOuter;    // only set in root
-    bool mMainThread;
 };
 
 /***************************************************************************/
@@ -4511,18 +4508,16 @@ namespace xpc {
 
 struct CompartmentPrivate
 {
-  CompartmentPrivate(PtrAndPrincipalHashKey *key, bool wantXrays, bool cycleCollectionEnabled)
+  CompartmentPrivate(PtrAndPrincipalHashKey *key, bool wantXrays)
     : key(key),
       ptr(nsnull),
-      wantXrays(wantXrays),
-      cycleCollectionEnabled(cycleCollectionEnabled)
+      wantXrays(wantXrays)
   {
   }
-  CompartmentPrivate(nsISupports *ptr, bool wantXrays, bool cycleCollectionEnabled)
+  CompartmentPrivate(nsISupports *ptr, bool wantXrays)
     : key(nsnull),
       ptr(ptr),
-      wantXrays(wantXrays),
-      cycleCollectionEnabled(cycleCollectionEnabled)
+      wantXrays(wantXrays)
   {
   }
 
@@ -4530,24 +4525,7 @@ struct CompartmentPrivate
   nsAutoPtr<PtrAndPrincipalHashKey> key;
   nsCOMPtr<nsISupports> ptr;
   bool wantXrays;
-  bool cycleCollectionEnabled;
 };
-
-inline bool
-CompartmentParticipatesInCycleCollection(JSContext *cx, JSCompartment *compartment)
-{
-   CompartmentPrivate *priv =
-       static_cast<CompartmentPrivate *>(JS_GetCompartmentPrivate(cx, compartment));
-   NS_ASSERTION(priv, "This should never be null!");
-
-   return priv->cycleCollectionEnabled;
-}
-
-inline bool
-ParticipatesInCycleCollection(JSContext *cx, js::gc::Cell *cell)
-{
-   return CompartmentParticipatesInCycleCollection(cx, cell->compartment());
-}
 
 }
 

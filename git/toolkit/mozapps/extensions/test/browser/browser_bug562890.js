@@ -7,8 +7,6 @@
  */
 
 function test() {
-  requestLongerTimeout(2);
-
   waitForExplicitFinish();
   
   var addonPrefsURI = TESTROOT + "addon_prefs.xul";
@@ -66,7 +64,6 @@ function test() {
       }
     });
 
-    addonList.ensureElementIsVisible(addonItem);
     EventUtils.synthesizeMouseAtCenter(prefsBtn, { }, aManager);
   });
 

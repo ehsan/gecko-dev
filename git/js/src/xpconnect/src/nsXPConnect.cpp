@@ -61,8 +61,6 @@
 #include "WrapperFactory.h"
 #include "AccessCheck.h"
 
-#include "jsdIDebuggerService.h"
-
 NS_IMPL_THREADSAFE_ISUPPORTS6(nsXPConnect,
                               nsIXPConnect,
                               nsISupportsWeakReference,
@@ -74,8 +72,6 @@ NS_IMPL_THREADSAFE_ISUPPORTS6(nsXPConnect,
 nsXPConnect* nsXPConnect::gSelf = nsnull;
 JSBool       nsXPConnect::gOnceAliveNowDead = JS_FALSE;
 PRUint32     nsXPConnect::gReportAllJSExceptions = 0;
-JSBool       nsXPConnect::gDebugMode = JS_FALSE;
-JSBool       nsXPConnect::gDesiredDebugMode = JS_FALSE;
 
 // Global cache of the default script security manager (QI'd to
 // nsIScriptSecurityManager)
@@ -991,7 +987,7 @@ xpc_CreateGlobalObject(JSContext *cx, JSClass *clasp,
         xpc::PtrAndPrincipalHashKey *priv_key =
             new xpc::PtrAndPrincipalHashKey(ptr, uri);
         xpc::CompartmentPrivate *priv =
-            new xpc::CompartmentPrivate(priv_key, wantXrays, NS_IsMainThread());
+            new xpc::CompartmentPrivate(priv_key, wantXrays);
         if(!CreateNewCompartment(cx, clasp, principal, priv,
                                  global, compartment))
         {
@@ -1028,7 +1024,7 @@ xpc_CreateMTGlobalObject(JSContext *cx, JSClass *clasp,
         // threadsafety assumptions.
         nsCOMPtr<nsIPrincipal> principal(do_QueryInterface(ptr));
         xpc::CompartmentPrivate *priv =
-            new xpc::CompartmentPrivate(ptr, false, NS_IsMainThread());
+            new xpc::CompartmentPrivate(ptr, false);
         if(!CreateNewCompartment(cx, clasp, principal, priv, global,
                                  compartment))
         {
@@ -2411,36 +2407,6 @@ nsXPConnect::Peek(JSContext * *_retval)
     return data->GetJSContextStack()->Peek(_retval);
 }
 
-void 
-nsXPConnect::CheckForDebugMode(JSRuntime *rt) {
-    if (gDebugMode != gDesiredDebugMode) {
-        // This can happen if a Worker is running, but we don't have the ability
-        // to debug workers right now, so just return.
-        if (!NS_IsMainThread()) {
-            return;
-        }
-
-        nsresult rv;
-        const char jsdServiceCtrID[] = "@mozilla.org/js/jsd/debugger-service;1";
-        nsCOMPtr<jsdIDebuggerService> jsds = do_GetService(jsdServiceCtrID, &rv);
-        if (NS_SUCCEEDED(rv)) {
-            if (gDesiredDebugMode == PR_FALSE) {
-                rv = jsds->RecompileForDebugMode(rt, PR_FALSE);
-            } else {
-                rv = jsds->ActivateDebugger(rt);
-            }
-        }
-
-        if (NS_SUCCEEDED(rv)) {
-            JS_SetRuntimeDebugMode(rt, gDesiredDebugMode);
-            gDebugMode = gDesiredDebugMode;
-        } else {
-            // if the attempt failed, cancel the debugMode request
-            gDesiredDebugMode = gDebugMode;
-        }
-    }
-}
-
 /* JSContext Pop (); */
 NS_IMETHODIMP
 nsXPConnect::Pop(JSContext * *_retval)
@@ -2465,15 +2431,6 @@ nsXPConnect::Push(JSContext * cx)
 
     if(!data)
         return NS_ERROR_FAILURE;
-
-    PRInt32 count;
-    nsresult rv;
-    rv = data->GetJSContextStack()->GetCount(&count);
-    if (NS_FAILED(rv))
-        return rv;
-
-    if (count == 0)
-        CheckForDebugMode(mRuntime->GetJSRuntime());
 
     return data->GetJSContextStack()->Push(cx);
 }
@@ -2580,13 +2537,6 @@ nsXPConnect::GetCaller(JSContext **aJSContext, JSObject **aObj)
 
     // Set to the caller in XPC_WN_Helper_{Call,Construct}
     *aObj = ccx->GetFlattenedJSObject();
-}
-
-NS_IMETHODIMP
-nsXPConnect::SetDebugModeWhenPossible(PRBool mode)
-{
-    gDesiredDebugMode = mode;
-    return NS_OK;
 }
 
 /* These are here to be callable from a debugger */

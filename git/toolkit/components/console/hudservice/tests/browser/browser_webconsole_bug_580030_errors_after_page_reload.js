@@ -69,9 +69,9 @@ function testErrorsAfterPageReload(aEvent) {
   Services.console.registerListener(consoleObserver);
 
   var button = content.document.querySelector("button").wrappedJSObject;
-  var clickEvent = content.document.createEvent("MouseEvents");
+  var clickEvent = content.wrappedJSObject.document.createEvent("MouseEvents").wrappedJSObject;
   clickEvent.initMouseEvent("click", true, true,
-    content, 0, 0, 0, 0, 0, false, false,
+    content.wrappedJSObject, 0, 0, 0, 0, 0, false, false,
     false, false, 0, null);
 
   executeSoon(function() {

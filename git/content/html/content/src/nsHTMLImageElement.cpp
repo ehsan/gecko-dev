@@ -76,8 +76,6 @@
 
 #include "nsLayoutUtils.h"
 
-using namespace mozilla::dom;
-
 // XXX nav attrs: suppress
 
 class nsHTMLImageElement : public nsGenericHTMLElement,
@@ -156,7 +154,7 @@ protected:
 
 nsGenericHTMLElement*
 NS_NewHTMLImageElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                       FromParser aFromParser)
+                       PRUint32 aFromParser)
 {
   /*
    * nsHTMLImageElement's will be created without a nsINodeInfo passed in
