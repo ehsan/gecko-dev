@@ -149,6 +149,8 @@ function nextTest() {
 }
 
 function done() {
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  mediaTestCleanup();
   opener.done();
 }
 

@@ -18,7 +18,7 @@ const DEFAULT_UA = Cc["@mozilla.org/network/protocol;1?name=http"]
 const MAX_OVERRIDE_FOR_HOST_CACHE_SIZE = 250;
 
 var gPrefBranch;
-var gOverrides = new Map;
+var gOverrides;
 var gOverrideForHostCache = new Map;
 var gInitialized = false;
 var gOverrideFunctions = [
@@ -63,10 +63,10 @@ this.UserAgentOverrides = {
 
     override = null;
 
-    for (let [domain, userAgent] of gOverrides) {
+    for (let domain in gOverrides) {
       if (host == domain ||
           host.endsWith("." + domain)) {
-        override = userAgent;
+        override = gOverrides[domain];
         break;
       }
     }
@@ -93,30 +93,23 @@ this.UserAgentOverrides = {
 };
 
 function buildOverrides() {
-  gOverrides.clear();
+  gOverrides = {};
   gOverrideForHostCache.clear();
 
   if (!Services.prefs.getBoolPref(PREF_OVERRIDES_ENABLED))
     return;
 
-  let builtUAs = new Map;
   let domains = gPrefBranch.getChildList("");
 
   for (let domain of domains) {
     let override = gPrefBranch.getCharPref(domain);
-    let userAgent = builtUAs.get(override);
 
-    if (userAgent === undefined) {
-      let [search, replace] = override.split("#", 2);
-      if (search && replace) {
-        userAgent = DEFAULT_UA.replace(new RegExp(search, "g"), replace);
-      } else {
-        userAgent = override;
-      }
-      builtUAs.set(override, userAgent);
+    let [search, replace] = override.split("#", 2);
+    if (search && replace) {
+      gOverrides[domain] = DEFAULT_UA.replace(new RegExp(search, "g"), replace);
+    } else {
+      gOverrides[domain] = override;
     }
-
-    gOverrides.set(domain, userAgent);
   }
 }
 
