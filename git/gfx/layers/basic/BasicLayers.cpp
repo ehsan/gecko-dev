@@ -750,6 +750,8 @@ BasicImageLayer::GetAndPaintCurrentImage(gfxContext* aContext,
   if (!mContainer)
     return nsnull;
 
+  nsRefPtr<Image> image = mContainer->GetCurrentImage();
+
   nsRefPtr<gfxASurface> surface = mContainer->GetCurrentAsSurface(&mSize);
   if (!surface) {
     return nsnull;
@@ -769,7 +771,10 @@ BasicImageLayer::GetAndPaintCurrentImage(gfxContext* aContext,
   PaintContext(pat,
                tileSrcRect ? GetVisibleRegion() : nsIntRegion(nsIntRect(0, 0, mSize.width, mSize.height)),
                tileSrcRect,
-               aOpacity, aContext); 
+               aOpacity, aContext);
+
+  GetContainer()->NotifyPaintedImage(image);
+
   return pat.forget();
 }
 
@@ -888,7 +893,6 @@ public:
   }
 
   virtual void Initialize(const Data& aData);
-  virtual void Updated(const nsIntRect& aRect);
   virtual void Paint(gfxContext* aContext);
 
   virtual void PaintWithOpacity(gfxContext* aContext,
@@ -899,12 +903,11 @@ protected:
   {
     return static_cast<BasicLayerManager*>(mManager);
   }
+  void UpdateSurface();
 
   nsRefPtr<gfxASurface> mSurface;
   nsRefPtr<mozilla::gl::GLContext> mGLContext;
   PRUint32 mCanvasFramebuffer;
-
-  nsIntRect mUpdatedRect;
 
   PRPackedBool mGLBufferIsPremultiplied;
   PRPackedBool mNeedsYFlip;
@@ -914,8 +917,6 @@ void
 BasicCanvasLayer::Initialize(const Data& aData)
 {
   NS_ASSERTION(mSurface == nsnull, "BasicCanvasLayer::Initialize called twice!");
-
-  mUpdatedRect.Empty();
 
   if (aData.mSurface) {
     mSurface = aData.mSurface;
@@ -936,12 +937,11 @@ BasicCanvasLayer::Initialize(const Data& aData)
 }
 
 void
-BasicCanvasLayer::Updated(const nsIntRect& aRect)
+BasicCanvasLayer::UpdateSurface()
 {
-  NS_ASSERTION(mUpdatedRect.IsEmpty(),
-               "CanvasLayer::Updated called more than once in a transaction!");
-
-  mUpdatedRect.UnionRect(mUpdatedRect, aRect);
+  if (!mDirty)
+    return;
+  mDirty = PR_FALSE;
 
   if (mGLContext) {
     nsRefPtr<gfxImageSurface> isurf =
@@ -971,9 +971,6 @@ BasicCanvasLayer::Updated(const nsIntRect& aRect)
     if (currentFramebuffer != mCanvasFramebuffer)
       mGLContext->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, mCanvasFramebuffer);
 
-    // For simplicity, we read the entire framebuffer for now -- in
-    // the future we should use mUpdatedRect, though with WebGL we don't
-    // have an easy way to generate one.
     mGLContext->ReadPixelsIntoImageSurface(0, 0,
                                            mBounds.width, mBounds.height,
                                            isurf);
@@ -992,15 +989,13 @@ BasicCanvasLayer::Updated(const nsIntRect& aRect)
     // stick our surface into mSurface, so that the Paint() path is the same
     mSurface = isurf;
   }
-
-  // sanity
-  NS_ASSERTION(mUpdatedRect.IsEmpty() || mBounds.Contains(mUpdatedRect),
-               "CanvasLayer: Updated rect bigger than bounds!");
 }
 
 void
 BasicCanvasLayer::Paint(gfxContext* aContext)
 {
+  UpdateSurface();
+  FireDidTransactionCallback();
   PaintWithOpacity(aContext, GetEffectiveOpacity());
 }
 
@@ -1032,8 +1027,6 @@ BasicCanvasLayer::PaintWithOpacity(gfxContext* aContext,
   if (mNeedsYFlip) {
     aContext->SetMatrix(m);
   }
-
-  mUpdatedRect.Empty();
 }
 
 class BasicReadbackLayer : public ReadbackLayer,
@@ -2551,9 +2544,6 @@ public:
   }
 
   virtual void Initialize(const Data& aData);
-
-  virtual void Updated(const nsIntRect& aRect)
-  {}
 
   virtual already_AddRefed<gfxSharedImageSurface>
   Swap(gfxSharedImageSurface* newFront);

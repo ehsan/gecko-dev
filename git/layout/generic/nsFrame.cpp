@@ -131,6 +131,7 @@
 #include "CSSCalc.h"
 
 using namespace mozilla;
+using namespace mozilla::layers;
 
 static NS_DEFINE_CID(kLookAndFeelCID,  NS_LOOKANDFEEL_CID);
 
@@ -3945,23 +3946,26 @@ nsIFrame::IsLeaf() const
   return PR_TRUE;
 }
 
-void
+Layer*
 nsIFrame::InvalidateLayer(const nsRect& aDamageRect, PRUint32 aDisplayItemKey)
 {
   NS_ASSERTION(aDisplayItemKey > 0, "Need a key");
 
-  if (!FrameLayerBuilder::HasDedicatedLayer(this, aDisplayItemKey)) {
+  Layer* layer = FrameLayerBuilder::GetDedicatedLayer(this, aDisplayItemKey);
+  if (!layer) {
     Invalidate(aDamageRect);
-    return;
+    return nsnull;
   }
 
   PRUint32 flags = INVALIDATE_NO_THEBES_LAYERS;
   if (aDisplayItemKey == nsDisplayItem::TYPE_VIDEO ||
-      aDisplayItemKey == nsDisplayItem::TYPE_PLUGIN) {
+      aDisplayItemKey == nsDisplayItem::TYPE_PLUGIN ||
+      aDisplayItemKey == nsDisplayItem::TYPE_CANVAS) {
     flags |= INVALIDATE_NO_UPDATE_LAYER_TREE;
   }
 
   InvalidateWithFlags(aDamageRect, flags);
+  return layer;
 }
 
 void
@@ -3970,7 +3974,7 @@ nsIFrame::InvalidateTransformLayer()
   NS_ASSERTION(mParent, "How can a viewport frame have a transform?");
 
   PRBool hasLayer =
-      FrameLayerBuilder::HasDedicatedLayer(this, nsDisplayItem::TYPE_TRANSFORM);
+      FrameLayerBuilder::GetDedicatedLayer(this, nsDisplayItem::TYPE_TRANSFORM) != nsnull;
   // Invalidate post-transform area in the parent. We have to invalidate
   // in the parent because our transform style may have changed from what was
   // used to paint this frame.
@@ -5498,6 +5502,17 @@ nsIFrame::PeekOffset(nsPeekOffsetStruct* aPos)
       
       break;
     }
+    case eSelectWordNoSpace:
+      // eSelectWordNoSpace means that we should not be eating any whitespace when
+      // moving to the adjacent word.  This means that we should set aPos->
+      // mWordMovementType to eEndWord if we're moving forwards, and to eStartWord
+      // if we're moving backwards.
+      if (aPos->mDirection == eDirPrevious) {
+        aPos->mWordMovementType = eStartWord;
+      } else {
+        aPos->mWordMovementType = eEndWord;
+      }
+      // Intentionally fall through the eSelectWord case.
     case eSelectWord:
     {
       // wordSelectEatSpace means "are we looking for a boundary between whitespace
@@ -7586,8 +7601,8 @@ DR_FrameTypeInfo::DR_FrameTypeInfo(nsIAtom* aFrameType,
                                    const char* aFrameName)
 {
   mType = aFrameType;
-  strcpy(mNameAbbrev, aFrameNameAbbrev);
-  strcpy(mName, aFrameName);
+  PL_strncpyz(mNameAbbrev, aFrameNameAbbrev, sizeof(mNameAbbrev));
+  PL_strncpyz(mName, aFrameName, sizeof(mName));
 }
 
 struct DR_FrameTreeNode
