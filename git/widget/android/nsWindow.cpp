@@ -91,7 +91,7 @@ static gfxIntSize gAndroidTileSize = gfxIntSize(0, 0);
 static gfxIntSize gAndroidScreenBounds;
 
 #ifdef ACCESSIBILITY
-bool nsWindow::sAccessibilityEnabled = true;
+bool nsWindow::sAccessibilityEnabled = false;
 #endif
 
 #ifdef MOZ_JAVA_COMPOSITOR
@@ -103,7 +103,7 @@ static AndroidDirectTexture* sDirectTexture = new AndroidDirectTexture(2048, 204
         AndroidGraphicBuffer::UsageSoftwareWrite | AndroidGraphicBuffer::UsageTexture,
         gfxASurface::ImageFormatRGB16_565);
 
-static bool sHasDirectTexture = false;
+static bool sHasDirectTexture = true;
 
 #endif
 
@@ -590,17 +590,10 @@ nsWindow::IsEnabled(bool *aState)
 }
 
 NS_IMETHODIMP
-nsWindow::Invalidate(const nsIntRect &aRect,
-                     bool aIsSynchronous)
+nsWindow::Invalidate(const nsIntRect &aRect)
 {
     AndroidGeckoEvent *event = new AndroidGeckoEvent(AndroidGeckoEvent::DRAW, aRect);
     nsAppShell::gAppShell->PostEvent(event);
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsWindow::Update()
-{
     return NS_OK;
 }
 
