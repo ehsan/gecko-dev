@@ -130,7 +130,7 @@ Notification.prototype = {
     if (this._light)
       msg.light = this._light;
 
-    Services.androidBridge.handleGeckoMessage(msg);
+    Services.androidBridge.handleGeckoMessage(JSON.stringify(msg));
     return this;
   },
 
@@ -139,7 +139,7 @@ Notification.prototype = {
         type: "Notification:Hide",
         id: this._id
     };
-    Services.androidBridge.handleGeckoMessage(msg);
+    Services.androidBridge.handleGeckoMessage(JSON.stringify(msg));
   }
 }
 

@@ -2554,8 +2554,6 @@ CreateGlobal(JSContext* aCx, T* aObject, nsWrapperCache* aCache,
 {
   MOZ_ASSERT(!NS_IsMainThread());
 
-  aOptions.setTrace(TraceGlobal);
-
   JS::Rooted<JSObject*> global(aCx,
     JS_NewGlobalObject(aCx, aClass, aPrincipal, JS::DontFireOnNewGlobalHook,
                        aOptions));

@@ -541,8 +541,8 @@ Rule.prototype = {
 
   /**
    * Reapply all the properties in this rule, and update their
-   * computed styles. Store disabled properties in the element
-   * style's store. Will re-mark overridden properties.
+   * computed styles.  Store disabled properties in the element
+   * style's store.  Will re-mark overridden properties.
    *
    * @param {string} [aName]
    *        A text property name (such as "background" or "border-top") used
@@ -645,7 +645,7 @@ Rule.prototype = {
   },
 
   /**
-   * Sets the value and priority of a property, then reapply all properties.
+   * Sets the value and priority of a property.
    *
    * @param {TextProperty} aProperty
    *        The property to manipulate.
@@ -665,28 +665,7 @@ Rule.prototype = {
   },
 
   /**
-   * Just sets the value and priority of a property, in order to preview its
-   * effect on the content document.
-   *
-   * @param {TextProperty} aProperty
-   *        The property which value will be previewed
-   * @param {String} aValue
-   *        The value to be used for the preview
-   * @param {String} aPriority
-   *        The property's priority (either "important" or an empty string).
-   */
-  previewPropertyValue: function(aProperty, aValue, aPriority) {
-    let modifications = this.style.startModifyingProperties();
-    modifications.setProperty(aProperty.name, aValue, aPriority);
-    modifications.apply();
-  },
-
-  /**
    * Disables or enables given TextProperty.
-   *
-   * @param {TextProperty} aProperty
-   *        The property to enable/disable
-   * @param {Boolean} aValue
    */
   setPropertyEnabled: function(aProperty, aValue) {
     aProperty.enabled = !!aValue;
@@ -700,9 +679,6 @@ Rule.prototype = {
   /**
    * Remove a given TextProperty from the rule and update the rule
    * accordingly.
-   *
-   * @param {TextProperty} aProperty
-   *        The property to be removed
    */
   removeProperty: function(aProperty) {
     this.textProps = this.textProps.filter(function(prop) prop != aProperty);
@@ -1138,80 +1114,66 @@ CssRuleView.prototype = {
   },
 
   /**
-   * Which type of hover-tooltip should be shown for the given element?
-   * This depends on the element: does it contain an image URL, a CSS transform,
-   * a font-family, ...
-   * @param {DOMNode} el The element to test
-   * @return {String} The type of hover-tooltip
-   */
-  _getHoverTooltipTypeForTarget: function(el) {
-    let prop = el.textProperty;
-
-    // Test for css transform
-    if (prop && prop.name === "transform") {
-      return "transform";
-    }
-
-    // Test for image
-    let isUrl = el.classList.contains("theme-link") &&
-                el.parentNode.classList.contains("ruleview-propertyvalue");
-    if (this.inspector.hasUrlToImageDataResolver && isUrl) {
-      return "image";
-    }
-
-    // Test for font-family
-    let propertyRoot = el.parentNode;
-    let propertyNameNode = propertyRoot.querySelector(".ruleview-propertyname");
-    if (!propertyNameNode) {
-      propertyRoot = propertyRoot.parentNode;
-      propertyNameNode = propertyRoot.querySelector(".ruleview-propertyname");
-    }
-    let propertyName;
-    if (propertyNameNode) {
-      propertyName = propertyNameNode.textContent;
-    }
-    if (propertyName === "font-family" && el.classList.contains("ruleview-propertyvalue")) {
-      return "font";
-    }
-  },
-
-  /**
    * Executed by the tooltip when the pointer hovers over an element of the view.
    * Used to decide whether the tooltip should be shown or not and to actually
    * put content in it.
    * Checks if the hovered target is a css value we support tooltips for.
-   * @param {DOMNode} target
-   * @return {Boolean|Promise} Either a boolean or a promise, used by the
-   * Tooltip class to wait for the content to be put in the tooltip and finally
-   * decide whether or not the tooltip should be shown.
    */
   _onTooltipTargetHover: function(target) {
-    let tooltipType = this._getHoverTooltipTypeForTarget(target);
-    if (!tooltipType) {
-      return false;
+    let property = target.textProperty, def = promise.defer(), hasTooltip = false;
+
+    // Test for css transform
+    if (property && property.name === "transform") {
+      this.previewTooltip.setCssTransformContent(property.value, this.pageStyle,
+        this._viewedElement).then(def.resolve, def.reject);
+      hasTooltip = true;
     }
 
-    if (this.colorPicker.tooltip.isShown()) {
+    // Test for image
+    if (this.inspector.hasUrlToImageDataResolver) {
+      let isImageHref = target.classList.contains("theme-link") &&
+        target.parentNode.classList.contains("ruleview-propertyvalue");
+      if (isImageHref) {
+        property = target.parentNode.textProperty;
+
+        let maxDim = Services.prefs.getIntPref("devtools.inspector.imagePreviewTooltipSize");
+        let uri = CssLogic.getBackgroundImageUriFromProperty(property.value,
+          property.rule.domRule.href);
+        this.previewTooltip.setRelativeImageContent(uri,
+          this.inspector.inspector, maxDim).then(def.resolve);
+        hasTooltip = true;
+      }
+    }
+
+    // Get the nodes containing the property name and property value,
+    // and test for font family
+    let propertyRoot = target.parentNode;
+    let propertyNameNode = propertyRoot.querySelector(".ruleview-propertyname");
+
+    if (!propertyNameNode) {
+      propertyRoot = propertyRoot.parentNode;
+      propertyNameNode = propertyRoot.querySelector(".ruleview-propertyname");
+    }
+
+    let propertyName;
+    if (propertyNameNode) {
+      propertyName = propertyNameNode.textContent;
+    }
+
+    if (propertyName === "font-family" &&
+        target.classList.contains("ruleview-propertyvalue")) {
+      this.previewTooltip.setFontFamilyContent(target.textContent).then(def.resolve);
+      hasTooltip = true;
+    }
+
+    if (!hasTooltip) {
+      def.reject();
+    } else if (this.colorPicker.tooltip.isShown()) {
       this.colorPicker.revert();
       this.colorPicker.hide();
     }
 
-    if (tooltipType === "transform") {
-      return this.previewTooltip.setCssTransformContent(target.textProperty.value,
-        this.pageStyle, this._viewedElement);
-    }
-    if (tooltipType === "image") {
-      let prop = target.parentNode.textProperty;
-      let dim = Services.prefs.getIntPref("devtools.inspector.imagePreviewTooltipSize");
-      let uri = CssLogic.getBackgroundImageUriFromProperty(prop.value, prop.rule.domRule.href);
-      return this.previewTooltip.setRelativeImageContent(uri, this.inspector.inspector, dim);
-    }
-    if (tooltipType === "font") {
-      this.previewTooltip.setFontFamilyContent(target.textContent);
-      return true;
-    }
-
-    return false;
+    return def.promise;
   },
 
   /**
@@ -1975,7 +1937,7 @@ function TextPropertyEditor(aRuleEditor, aProperty) {
   this._onStartEditing = this._onStartEditing.bind(this);
   this._onNameDone = this._onNameDone.bind(this);
   this._onValueDone = this._onValueDone.bind(this);
-  this._onValidate = throttle(this._previewValue, 10, this);
+  this._onValidate = throttle(this._livePreview, 10, this);
   this.update = this.update.bind(this);
 
   this._create();
@@ -2226,15 +2188,18 @@ TextPropertyEditor.prototype = {
 
     // Attach the color picker tooltip to the color swatches
     this._swatchSpans = this.valueSpan.querySelectorAll("." + swatchClass);
-    for (let span of this._swatchSpans) {
-      // Capture the original declaration value to be able to revert later
-      let originalValue = this.valueSpan.textContent;
-      // Adding this swatch to the list of swatches our colorpicker knows about
-      this.ruleEditor.ruleView.colorPicker.addSwatch(span, {
-        onPreview: () => this._previewValue(this.valueSpan.textContent),
-        onCommit: () => this._applyNewValue(this.valueSpan.textContent),
-        onRevert: () => this._applyNewValue(originalValue)
-      });
+    if (this._swatchSpans.length) {
+      for (let span of this._swatchSpans) {
+        // Capture the original declaration value to be able to revert later
+        let originalValue = this.valueSpan.textContent;
+        // Adding this swatch to the list of swatches our colorpicker knows
+        // about.
+        this.ruleEditor.ruleView.colorPicker.addSwatch(span, {
+          onPreview: () => this._livePreview(this.valueSpan.textContent),
+          onCommit: () => this._applyNewValue(this.valueSpan.textContent),
+          onRevert: () => this._applyNewValue(originalValue)
+        });
+      }
     }
 
     // Populate the computed styles.
@@ -2243,7 +2208,7 @@ TextPropertyEditor.prototype = {
 
   _onStartEditing: function() {
     this.element.classList.remove("ruleview-overridden");
-    this._previewValue(this.prop.value);
+    this._livePreview(this.prop.value);
   },
 
   /**
@@ -2363,6 +2328,7 @@ TextPropertyEditor.prototype = {
     }
   },
 
+
   /**
    * Remove property from style and the editors from DOM.
    * Begin editing next available property.
@@ -2474,25 +2440,34 @@ TextPropertyEditor.prototype = {
 
   _applyNewValue: function(aValue) {
     let val = parseSingleValue(aValue);
-
-    this.prop.setValue(val.value, val.priority);
-    this.removeOnRevert = false;
-    this.committed.value = this.prop.value;
-    this.committed.priority = this.prop.priority;
+    // Any property should be removed if has an empty value.
+    if (val.value.trim() === "") {
+      this.remove();
+    } else {
+      this.prop.setValue(val.value, val.priority);
+      this.removeOnRevert = false;
+      this.committed.value = this.prop.value;
+      this.committed.priority = this.prop.priority;
+    }
   },
 
   /**
    * Live preview this property, without committing changes.
-   * @param {string} aValue The value to set the current property to.
+   *
+   * @param {string} [aValue]
+   *        The value to set the current property to.
    */
-  _previewValue: function(aValue) {
+  _livePreview: function(aValue) {
     // Since function call is throttled, we need to make sure we are still editing
     if (!this.editing) {
       return;
     }
 
     let val = parseSingleValue(aValue);
-    this.ruleEditor.rule.previewPropertyValue(this.prop, val.value, val.priority);
+
+    // Live previewing the change without committing just yet, that'll be done in _onValueDone
+    // If it was not a valid value, apply an empty string to reset the live preview
+    this.ruleEditor.rule.setPropertyValue(this.prop, val.value, val.priority);
   },
 
   /**

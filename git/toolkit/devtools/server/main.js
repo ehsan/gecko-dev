@@ -68,13 +68,7 @@ this.promised = promised;
 this.all = all;
 
 Cu.import("resource://gre/modules/devtools/SourceMap.jsm");
-
-XPCOMUtils.defineLazyModuleGetter(this, "console",
-                                  "resource://gre/modules/devtools/Console.jsm");
-
-XPCOMUtils.defineLazyGetter(this, "NetworkMonitorManager", () => {
-  return require("devtools/toolkit/webconsole/network-monitor").NetworkMonitorManager;
-});
+Cu.import("resource://gre/modules/devtools/Console.jsm");
 
 function dumpn(str) {
   if (wantLogging) {
@@ -542,29 +536,14 @@ var DebuggerServer = {
     return this._onConnection(transport, aPrefix, true);
   },
 
-  /**
-   * Connect to a child process.
-   *
-   * @param object aConnection
-   *        The debugger server connection to use.
-   * @param nsIDOMElement aFrame
-   *        The browser element that holds the child process.
-   * @param function [aOnDisconnect]
-   *        Optional function to invoke when the child is disconnected.
-   * @return object
-   *         A promise object that is resolved once the connection is
-   *         established.
-   */
-  connectToChild: function(aConnection, aFrame, aOnDisconnect) {
-    let deferred = defer();
+  connectToChild: function(aConnection, aMessageManager, aOnDisconnect) {
+    let deferred = Promise.defer();
 
-    let mm = aFrame.QueryInterface(Ci.nsIFrameLoaderOwner).frameLoader
-             .messageManager;
+    let mm = aMessageManager;
     mm.loadFrameScript("resource://gre/modules/devtools/server/child.js", false);
 
     let actor, childTransport;
     let prefix = aConnection.allocID("child");
-    let netMonitor = null;
 
     let onActorCreated = DevToolsUtils.makeInfallible(function (msg) {
       mm.removeMessageListener("debug:actor", onActorCreated);
@@ -582,8 +561,6 @@ var DebuggerServer = {
       dumpn("establishing forwarding for app with prefix " + prefix);
 
       actor = msg.json.actor;
-
-      netMonitor = new NetworkMonitorManager(aFrame, actor.actor);
 
       deferred.resolve(actor);
     }).bind(this);
@@ -610,11 +587,6 @@ var DebuggerServer = {
           // So ensure telling the client that the related actor is detached.
           aConnection.send({ from: actor.actor, type: "tabDetached" });
           actor = null;
-        }
-
-        if (netMonitor) {
-          netMonitor.destroy();
-          netMonitor = null;
         }
 
         if (aOnDisconnect) {

@@ -77,8 +77,9 @@ class TypedArrayObject : public ArrayBufferViewObject
         return static_cast<void*>(getPrivate(DATA_SLOT));
     }
 
+    inline bool isArrayIndex(jsid id, uint32_t *ip = nullptr);
     Value getElement(uint32_t index);
-    static void setElement(TypedArrayObject &obj, uint32_t index, double d);
+    bool setElement(ThreadSafeContext *cx, uint32_t index, const Value &value);
 
     void neuter(void *newData);
 
@@ -335,6 +336,8 @@ ClampIntForUint8Array(int32_t x)
         return 255;
     return x;
 }
+
+bool ToDoubleForTypedArray(JSContext *cx, JS::HandleValue vp, double *d);
 
 } // namespace js
 

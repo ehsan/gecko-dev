@@ -1038,8 +1038,8 @@ CompositorParent::ComputeRenderIntegrity()
  * drive compositing itself.  For that it hands off work to the
  * CompositorParent it's associated with.
  */
-class CrossProcessCompositorParent MOZ_FINAL : public PCompositorParent,
-                                               public ShadowLayersManager
+class CrossProcessCompositorParent : public PCompositorParent,
+                                     public ShadowLayersManager
 {
   friend class CompositorParent;
 
@@ -1048,6 +1048,7 @@ public:
   CrossProcessCompositorParent(Transport* aTransport)
     : mTransport(aTransport)
   {}
+  virtual ~CrossProcessCompositorParent();
 
   // IToplevelProtocol::CloneToplevel()
   virtual IToplevelProtocol*
@@ -1091,9 +1092,6 @@ public:
   virtual AsyncCompositionManager* GetCompositionManager(LayerTransactionParent* aParent) MOZ_OVERRIDE;
 
 private:
-  // Private destructor, to discourage deletion outside of Release():
-  virtual ~CrossProcessCompositorParent();
-
   void DeferredDestroy();
 
   // There can be many CPCPs, and IPDL-generated code doesn't hold a

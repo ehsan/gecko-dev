@@ -729,8 +729,6 @@ var ApplicationFactory = {
 };
 
 
-#include ../../../toolkit/components/exthelper/extApplication.js
-
 //=================================================
 // Application constructor
 function Application() {
@@ -739,80 +737,60 @@ function Application() {
 
 //=================================================
 // Application implementation
-function ApplicationPrototype() {
+Application.prototype = {
   // for nsIClassInfo + XPCOMUtils
-  this.classID = APPLICATION_CID;
+  classID: APPLICATION_CID,
 
   // redefine the default factory for XPCOMUtils
-  this._xpcom_factory = ApplicationFactory;
+  _xpcom_factory: ApplicationFactory,
 
   // for nsISupports
-  this.QueryInterface = XPCOMUtils.generateQI([
-    Ci.fuelIApplication,
-    Ci.extIApplication,
-    Ci.nsIObserver,
-    Ci.nsISupportsWeakReference
-  ]);
+  QueryInterface: XPCOMUtils.generateQI([Ci.fuelIApplication, Ci.extIApplication,
+                                         Ci.nsIObserver, Ci.nsISupportsWeakReference]),
 
   // for nsIClassInfo
-  this.classInfo = XPCOMUtils.generateCI({
-    classID: APPLICATION_CID,
-    contractID: APPLICATION_CONTRACTID,
-    interfaces: [
-      Ci.fuelIApplication,
-      Ci.extIApplication,
-      Ci.nsIObserver
-    ],
-    flags: Ci.nsIClassInfo.SINGLETON
-  });
+  classInfo: XPCOMUtils.generateCI({classID: APPLICATION_CID,
+                                    contractID: APPLICATION_CONTRACTID,
+                                    interfaces: [Ci.fuelIApplication,
+                                                 Ci.extIApplication,
+                                                 Ci.nsIObserver],
+                                    flags: Ci.nsIClassInfo.SINGLETON}),
 
   // for nsIObserver
-  this.observe = function (aSubject, aTopic, aData) {
+  observe: function app_observe(aSubject, aTopic, aData) {
     // Call the extApplication version of this function first
-    var superPrototype = Object.getPrototypeOf(Object.getPrototypeOf(this));
-    superPrototype.observe.call(this, aSubject, aTopic, aData);
+    this.__proto__.__proto__.observe.call(this, aSubject, aTopic, aData);
     if (aTopic == "xpcom-shutdown") {
       this._obs.removeObserver(this, "xpcom-shutdown");
       Utilities.free();
     }
-  };
+  },
 
-  Object.defineProperty(this, "bookmarks", {
-    get: function bookmarks () {
-      let bookmarks = new BookmarkRoots();
-      Object.defineProperty(this, "bookmarks", { value: bookmarks });
-      return this.bookmarks;
-    },
-    enumerable: true,
-    configurable: true
-  });
+  get bookmarks() {
+    let bookmarks = new BookmarkRoots();
+    this.__defineGetter__("bookmarks", function() bookmarks);
+    return this.bookmarks;
+  },
 
-  Object.defineProperty(this, "windows", {
-    get: function windows() {
-      var win = [];
-      var browserEnum = Utilities.windowMediator.getEnumerator("navigator:browser");
+  get windows() {
+    var win = [];
+    var browserEnum = Utilities.windowMediator.getEnumerator("navigator:browser");
 
-      while (browserEnum.hasMoreElements())
-        win.push(getWindow(browserEnum.getNext()));
+    while (browserEnum.hasMoreElements())
+      win.push(getWindow(browserEnum.getNext()));
 
-      return win;
-    },
-    enumerable: true,
-    configurable: true
-  });
+    return win;
+  },
 
-  Object.defineProperty(this, "activeWindow", {
-    get: () => getWindow(Utilities.windowMediator.getMostRecentWindow("navigator:browser")),
-    enumerable: true,
-    configurable: true
-  });
-
+  get activeWindow() {
+    return getWindow(Utilities.windowMediator.getMostRecentWindow("navigator:browser"));
+  }
 };
 
-// set the proto, defined in extApplication.js
-ApplicationPrototype.prototype = extApplication.prototype;
+#include ../../../toolkit/components/exthelper/extApplication.js
 
-Application.prototype = new ApplicationPrototype();
+// set the proto, defined in extApplication.js
+Application.prototype.__proto__ = extApplication.prototype;
 
 this.NSGetFactory = XPCOMUtils.generateNSGetFactory([Application]);
 

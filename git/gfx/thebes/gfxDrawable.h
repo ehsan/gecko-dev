@@ -27,6 +27,7 @@ class gfxDrawable {
 public:
     gfxDrawable(const gfxIntSize aSize)
      : mSize(aSize) {}
+    virtual ~gfxDrawable() {}
 
     /**
      * Draw into aContext filling aFillRect, possibly repeating, using aFilter.
@@ -44,9 +45,6 @@ public:
     virtual gfxIntSize Size() { return mSize; }
 
 protected:
-    // Protected destructor, to discourage deletion outside of Release():
-    virtual ~gfxDrawable() {}
-
     const gfxIntSize mSize;
 };
 
@@ -85,11 +83,9 @@ protected:
  */
 class gfxDrawingCallback {
     NS_INLINE_DECL_REFCOUNTING(gfxDrawingCallback)
-protected:
-    // Protected destructor, to discourage deletion outside of Release():
+public:
     virtual ~gfxDrawingCallback() {}
 
-public:
     /**
      * Draw into aContext filling aFillRect using aFilter.
      * aTransform is a userspace to "image"space matrix. For example, if Draw

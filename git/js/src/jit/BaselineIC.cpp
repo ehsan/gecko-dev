@@ -2027,7 +2027,8 @@ ICCompare_Boolean::Compiler::generateStubCode(MacroAssembler &masm)
 
     // Compare payload regs of R0 and R1.
     Assembler::Condition cond = JSOpToCondition(op, /* signed = */true);
-    masm.cmp32Set(cond, left, right, left);
+    masm.cmp32(left, right);
+    masm.emitSet(cond, left);
 
     // Box the result and return
     masm.tagValue(JSVAL_TYPE_BOOLEAN, left, R0);
@@ -2198,8 +2199,9 @@ ICCompare_Int32WithBoolean::Compiler::generateStubCode(MacroAssembler &masm)
 
         // Compare payload regs of R0 and R1.
         Assembler::Condition cond = JSOpToCondition(op_, /* signed = */true);
-        masm.cmp32Set(cond, (lhsIsInt32_ ? int32Reg : boolReg),
-                      (lhsIsInt32_ ? boolReg : int32Reg), R0.scratchReg());
+        masm.cmp32(lhsIsInt32_ ? int32Reg : boolReg,
+                   lhsIsInt32_ ? boolReg : int32Reg);
+        masm.emitSet(cond, R0.scratchReg());
 
         // Box the result and return
         masm.tagValue(JSVAL_TYPE_BOOLEAN, R0.scratchReg(), R0);
@@ -2325,7 +2327,8 @@ ICToBool_Int32::Compiler::generateStubCode(MacroAssembler &masm)
     masm.branchTestInt32(Assembler::NotEqual, R0, &failure);
 
     Label ifFalse;
-    masm.branchTestInt32Truthy(false, R0, &ifFalse);
+    Assembler::Condition cond = masm.testInt32Truthy(false, R0);
+    masm.j(cond, &ifFalse);
 
     masm.moveValue(BooleanValue(true), R0);
     EmitReturnFromIC(masm);
@@ -2351,7 +2354,8 @@ ICToBool_String::Compiler::generateStubCode(MacroAssembler &masm)
     masm.branchTestString(Assembler::NotEqual, R0, &failure);
 
     Label ifFalse;
-    masm.branchTestStringTruthy(false, R0, &ifFalse);
+    Assembler::Condition cond = masm.testStringTruthy(false, R0);
+    masm.j(cond, &ifFalse);
 
     masm.moveValue(BooleanValue(true), R0);
     EmitReturnFromIC(masm);
@@ -2397,7 +2401,8 @@ ICToBool_Double::Compiler::generateStubCode(MacroAssembler &masm)
     Label failure, ifTrue;
     masm.branchTestDouble(Assembler::NotEqual, R0, &failure);
     masm.unboxDouble(R0, FloatReg0);
-    masm.branchTestDoubleTruthy(true, FloatReg0, &ifTrue);
+    Assembler::Condition cond = masm.testDoubleTruthy(true, FloatReg0);
+    masm.j(cond, &ifTrue);
 
     masm.moveValue(BooleanValue(false), R0);
     EmitReturnFromIC(masm);
@@ -2424,7 +2429,8 @@ ICToBool_Object::Compiler::generateStubCode(MacroAssembler &masm)
 
     Register objReg = masm.extractObject(R0, ExtractTemp0);
     Register scratch = R1.scratchReg();
-    masm.branchTestObjectTruthy(false, objReg, scratch, &slowPath, &ifFalse);
+    Assembler::Condition cond = masm.branchTestObjectTruthy(false, objReg, scratch, &slowPath);
+    masm.j(cond, &ifFalse);
 
     // If object doesn't emulate undefined, it evaulates to true.
     masm.moveValue(BooleanValue(true), R0);
@@ -2929,7 +2935,8 @@ ICBinaryArith_BooleanWithInt32::Compiler::generateStubCode(MacroAssembler &masm)
       case JSOP_ADD: {
         Label fixOverflow;
 
-        masm.branchAdd32(Assembler::Overflow, rhsReg, lhsReg, &fixOverflow);
+        masm.add32(rhsReg, lhsReg);
+        masm.j(Assembler::Overflow, &fixOverflow);
         masm.tagValue(JSVAL_TYPE_INT32, lhsReg, R0);
         EmitReturnFromIC(masm);
 
@@ -2941,7 +2948,8 @@ ICBinaryArith_BooleanWithInt32::Compiler::generateStubCode(MacroAssembler &masm)
       case JSOP_SUB: {
         Label fixOverflow;
 
-        masm.branchSub32(Assembler::Overflow, rhsReg, lhsReg, &fixOverflow);
+        masm.sub32(rhsReg, lhsReg);
+        masm.j(Assembler::Overflow, &fixOverflow);
         masm.tagValue(JSVAL_TYPE_INT32, lhsReg, R0);
         EmitReturnFromIC(masm);
 
@@ -9306,8 +9314,8 @@ ICIteratorMore_Native::Compiler::generateStubCode(MacroAssembler &masm)
 
     // Set output to true if props_cursor < props_end.
     masm.loadPtr(Address(nativeIterator, offsetof(NativeIterator, props_end)), scratch);
-    Address cursorAddr = Address(nativeIterator, offsetof(NativeIterator, props_cursor));
-    masm.cmpPtrSet(Assembler::LessThan, cursorAddr, scratch, scratch);
+    masm.cmpPtr(Address(nativeIterator, offsetof(NativeIterator, props_cursor)), scratch);
+    masm.emitSet(Assembler::LessThan, scratch);
 
     masm.tagValue(JSVAL_TYPE_BOOLEAN, scratch, R0);
     EmitReturnFromIC(masm);

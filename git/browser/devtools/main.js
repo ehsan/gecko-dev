@@ -214,7 +214,7 @@ Tools.canvasDebugger = {
   tooltip: l10n("ToolboxCanvasDebugger.tooltip", canvasDebuggerStrings),
 
   isTargetSupported: function(target) {
-    return !target.isAddon;
+    return true;
   },
 
   build: function(iframeWindow, toolbox) {

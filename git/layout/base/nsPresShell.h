@@ -700,7 +700,6 @@ protected:
   virtual void ResumePainting() MOZ_OVERRIDE;
 
   void UpdateImageVisibility();
-  void UpdateActivePointerState(mozilla::WidgetGUIEvent* aEvent);
 
   nsRevocableEventPtr<nsRunnableMethod<PresShell> > mUpdateImageVisibilityEvent;
 

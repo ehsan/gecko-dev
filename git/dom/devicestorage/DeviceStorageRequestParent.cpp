@@ -550,13 +550,14 @@ DeviceStorageRequestParent::CreateFdEvent::CancelableRun()
 {
   MOZ_ASSERT(!NS_IsMainThread());
 
-  nsCOMPtr<nsIRunnable> r;
+  nsRefPtr<nsRunnable> r;
 
   bool check = false;
   mFile->mFile->Exists(&check);
   if (check) {
-    r = new PostErrorEvent(mParent, POST_ERROR_EVENT_FILE_EXISTS);
-    return NS_DispatchToMainThread(r);
+    nsCOMPtr<PostErrorEvent> event
+      = new PostErrorEvent(mParent, POST_ERROR_EVENT_FILE_EXISTS);
+    return NS_DispatchToMainThread(event);
   }
 
   FileDescriptor fileDescriptor;
@@ -592,7 +593,7 @@ DeviceStorageRequestParent::WriteFileEvent::CancelableRun()
 {
   MOZ_ASSERT(!NS_IsMainThread());
 
-  nsCOMPtr<nsIRunnable> r;
+  nsRefPtr<nsRunnable> r;
 
   if (!mInputStream) {
     r = new PostErrorEvent(mParent, POST_ERROR_EVENT_UNKNOWN);
@@ -602,8 +603,9 @@ DeviceStorageRequestParent::WriteFileEvent::CancelableRun()
   bool check = false;
   mFile->mFile->Exists(&check);
   if (check) {
-    r = new PostErrorEvent(mParent, POST_ERROR_EVENT_FILE_EXISTS);
-    return NS_DispatchToMainThread(r);
+    nsCOMPtr<PostErrorEvent> event
+      = new PostErrorEvent(mParent, POST_ERROR_EVENT_FILE_EXISTS);
+    return NS_DispatchToMainThread(event);
   }
 
   nsresult rv = mFile->Write(mInputStream);
@@ -636,7 +638,7 @@ DeviceStorageRequestParent::DeleteFileEvent::CancelableRun()
 
   mFile->Remove();
 
-  nsCOMPtr<nsIRunnable> r;
+  nsRefPtr<nsRunnable> r;
 
   bool check = false;
   mFile->mFile->Exists(&check);

@@ -245,7 +245,7 @@ aria::MapToState(EStateRule aRule, dom::Element* aElement, uint64_t* aState)
     {
       static const TokenTypeData data(
         nsGkAtoms::aria_pressed, eMixedType,
-        0, states::PRESSED);
+        states::CHECKABLE, states::PRESSED);
 
       MapTokenType(aElement, aState, data);
       return true;

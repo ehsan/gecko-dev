@@ -592,8 +592,8 @@ MarkWrappedNative(JSTracer *trc, JSObject *obj)
         wrapper->TraceInside(trc);
 }
 
-/* static */ void
-XPCWrappedNative::Trace(JSTracer *trc, JSObject *obj)
+static void
+XPC_WN_NoHelper_Trace(JSTracer *trc, JSObject *obj)
 {
     MarkWrappedNative(trc, obj);
 }
@@ -678,7 +678,7 @@ const XPCWrappedNativeJSClass XPC_WN_NoHelper_JSClass = {
     nullptr,                         // call
     nullptr,                         // construct
     nullptr,                         // hasInstance
-    XPCWrappedNative::Trace,         // trace
+    XPC_WN_NoHelper_Trace,          // trace
     JS_NULL_CLASS_SPEC,
 
     // ClassExtension
@@ -1208,10 +1208,7 @@ XPCNativeScriptableShared::PopulateJSClass()
     if (mFlags.WantHasInstance())
         mJSClass.base.hasInstance = XPC_WN_Helper_HasInstance;
 
-    if (mFlags.IsGlobalObject())
-        mJSClass.base.trace = JS_GlobalObjectTraceHook;
-    else
-        mJSClass.base.trace = XPCWrappedNative::Trace;
+    mJSClass.base.trace = XPC_WN_NoHelper_Trace;
 
     if (mFlags.WantOuterObject())
         mJSClass.base.ext.outerObject = XPC_WN_OuterObject;

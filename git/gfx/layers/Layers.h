@@ -174,6 +174,7 @@ public:
   {
     InitLog();
   }
+  virtual ~LayerManager() {}
 
   /**
    * Release layers and resources held by this layer manager, and mark
@@ -608,9 +609,6 @@ protected:
 
   nsIntRegion mRegionToClear;
 
-  // Protected destructor, to discourage deletion outside of Release():
-  virtual ~LayerManager() {}
-
   // Print interesting information about this into aTo.  Internally
   // used to implement Dump*() and Log*().
   virtual nsACString& PrintInfo(nsACString& aTo, const char* aPrefix);
@@ -667,6 +665,8 @@ public:
     TYPE_SHADOW,
     TYPE_THEBES
   };
+
+  virtual ~Layer();
 
   /**
    * Returns the LayerManager this Layer belongs to. Note that the layer
@@ -1357,9 +1357,6 @@ public:
 
 protected:
   Layer(LayerManager* aManager, void* aImplData);
-
-  // Protected destructor, to discourage deletion outside of Release():
-  virtual ~Layer();
 
   /**
    * We can snap layer transforms for two reasons:

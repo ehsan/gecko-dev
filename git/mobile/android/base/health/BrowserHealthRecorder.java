@@ -190,9 +190,6 @@ public class BrowserHealthRecorder implements HealthRecorder, GeckoEventListener
     }
 
     private void unregisterEventListeners() {
-        if (state != State.INITIALIZED) {
-            return;
-        }
         this.dispatcher.unregisterEventListener(EVENT_SNAPSHOT, this);
         this.dispatcher.unregisterEventListener(EVENT_ADDONS_CHANGE, this);
         this.dispatcher.unregisterEventListener(EVENT_ADDONS_UNINSTALLING, this);

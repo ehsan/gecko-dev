@@ -61,9 +61,7 @@ SaveProfileTask::Run() {
     static const JSClass c = {
       "global", JSCLASS_GLOBAL_FLAGS,
       JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
-      JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub,
-      nullptr, nullptr, nullptr, nullptr,
-      JS_GlobalObjectTraceHook
+      JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub
     };
     JSObject *obj = JS_NewGlobalObject(cx, &c, nullptr, JS::FireOnNewGlobalHook);
 

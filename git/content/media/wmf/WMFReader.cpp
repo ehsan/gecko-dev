@@ -536,7 +536,7 @@ WMFReader::ReadMetadata(MediaInfo* aInfo,
   hr = GetSourceReaderDuration(mSourceReader, duration);
   if (SUCCEEDED(hr)) {
     ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-    mDecoder->SetMediaEndTime(duration);
+    mDecoder->SetMediaDuration(duration);
   }
   // We can seek if we get a duration *and* the reader reports that it's
   // seekable.

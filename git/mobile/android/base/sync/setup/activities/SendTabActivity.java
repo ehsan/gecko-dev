@@ -12,7 +12,6 @@ import java.util.Map.Entry;
 
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.fxa.FirefoxAccounts;
 import org.mozilla.gecko.fxa.FxAccountConstants;
 import org.mozilla.gecko.fxa.activities.FxAccountGetStartedActivity;
 import org.mozilla.gecko.fxa.activities.FxAccountStatusActivity;
@@ -23,6 +22,7 @@ import org.mozilla.gecko.sync.CommandRunner;
 import org.mozilla.gecko.sync.GlobalSession;
 import org.mozilla.gecko.sync.SyncConfiguration;
 import org.mozilla.gecko.sync.SyncConstants;
+import org.mozilla.gecko.sync.Utils;
 import org.mozilla.gecko.sync.repositories.NullCursorException;
 import org.mozilla.gecko.sync.repositories.android.ClientsDatabaseAccessor;
 import org.mozilla.gecko.sync.repositories.domain.ClientRecord;
@@ -33,6 +33,7 @@ import org.mozilla.gecko.sync.syncadapter.SyncAdapter;
 import android.accounts.Account;
 import android.accounts.AccountManager;
 import android.app.Activity;
+import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -79,7 +80,10 @@ public class SendTabActivity extends Activity {
 
     @Override
     public void syncClientsStage() {
-      fxAccount.requestSync(FirefoxAccounts.FORCE, CLIENTS_STAGE, null);
+      final Bundle extras = new Bundle();
+      Utils.putStageNamesToSync(extras, CLIENTS_STAGE, null);
+      extras.putBoolean(ContentResolver.SYNC_EXTRAS_MANUAL, true);
+      this.fxAccount.requestSync(extras);
     }
   }
 

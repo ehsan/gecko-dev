@@ -2677,9 +2677,7 @@ static const JSClass sandbox_class = {
     JS_PropertyStub,   JS_DeletePropertyStub,
     JS_PropertyStub,   JS_StrictPropertyStub,
     sandbox_enumerate, (JSResolveOp)sandbox_resolve,
-    JS_ConvertStub, nullptr,
-    nullptr, nullptr, nullptr,
-    JS_GlobalObjectTraceHook
+    JS_ConvertStub
 };
 
 static JSObject *
@@ -2918,7 +2916,7 @@ EvalInWorker(JSContext *cx, unsigned argc, jsval *vp)
         return false;
 
     PRThread *thread = PR_CreateThread(PR_USER_THREAD, WorkerMain, input,
-                                       PR_PRIORITY_NORMAL, PR_GLOBAL_THREAD, PR_JOINABLE_THREAD, 0);
+                                       PR_PRIORITY_NORMAL, PR_LOCAL_THREAD, PR_JOINABLE_THREAD, 0);
     if (!thread || !workerThreads.append(thread))
         return false;
 
@@ -3219,7 +3217,7 @@ ScheduleWatchdog(JSRuntime *rt, double t)
                                           WatchdogMain,
                                           rt,
                                           PR_PRIORITY_NORMAL,
-                                          PR_GLOBAL_THREAD,
+                                          PR_LOCAL_THREAD,
                                           PR_JOINABLE_THREAD,
                                           0);
         if (!gWatchdogThread) {
@@ -4923,16 +4921,6 @@ my_ErrorReporter(JSContext *cx, const char *message, JSErrorReport *report)
     }
 }
 
-static void
-my_OOMCallback(JSContext *cx)
-{
-    // If a script is running, the engine is about to throw the string "out of
-    // memory", which may or may not be caught. Otherwise the engine will just
-    // unwind and return null/false, with no exception set.
-    if (!JS_IsRunning(cx))
-        gGotError = true;
-}
-
 static bool
 global_enumerate(JSContext *cx, HandleObject obj)
 {
@@ -4966,9 +4954,7 @@ static const JSClass global_class = {
     JS_PropertyStub,  JS_DeletePropertyStub,
     JS_PropertyStub,  JS_StrictPropertyStub,
     global_enumerate, (JSResolveOp) global_resolve,
-    JS_ConvertStub,   nullptr,
-    nullptr, nullptr, nullptr,
-    JS_GlobalObjectTraceHook
+    JS_ConvertStub,   nullptr
 };
 
 static bool
@@ -6164,7 +6150,6 @@ main(int argc, char **argv, char **envp)
     if (!rt)
         return 1;
 
-    JS::SetOutOfMemoryCallback(rt, my_OOMCallback);
     if (!SetRuntimeOptions(rt, op))
         return 1;
 

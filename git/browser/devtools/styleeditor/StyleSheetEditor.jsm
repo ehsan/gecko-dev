@@ -172,16 +172,14 @@ StyleSheetEditor.prototype = {
     let relatedSheet = this.styleSheet.relatedStyleSheet;
 
     let path;
-    let href = removeQuery(relatedSheet.href);
-    let uri = NetUtil.newURI(href);
+    var uri = NetUtil.newURI(relatedSheet.href);
 
     if (uri.scheme == "file") {
-      let file = uri.QueryInterface(Ci.nsIFileURL).file;
+      var file = uri.QueryInterface(Ci.nsIFileURL).file;
       path = file.path;
     }
     else if (this.savedFile) {
-      let origHref = removeQuery(this.styleSheet.href);
-      let origUri = NetUtil.newURI(origHref);
+      let origUri = NetUtil.newURI(this.styleSheet.href);
       path = findLinkedFilePath(uri, origUri, this.savedFile);
     }
     else {
@@ -701,16 +699,4 @@ function findUnsharedBranches(origUri, uri) {
     branch: uri,
     origBranch: origUri
   };
-}
-
-/**
- * Remove the query string from a url.
- *
- * @param  {string} href
- *         Url to remove query string from
- * @return {string}
- *         Url without query string
- */
-function removeQuery(href) {
-  return href.replace(/\?.*/, "");
 }

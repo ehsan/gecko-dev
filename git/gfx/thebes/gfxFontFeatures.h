@@ -48,11 +48,12 @@ operator==(const gfxAlternateValue& a, const gfxAlternateValue& b)
     return (a.alternate == b.alternate) && (a.value == b.value);
 }
 
-class gfxFontFeatureValueSet MOZ_FINAL {
+class gfxFontFeatureValueSet {
 public:
     NS_INLINE_DECL_REFCOUNTING(gfxFontFeatureValueSet)
 
     gfxFontFeatureValueSet();
+    virtual ~gfxFontFeatureValueSet() {}
 
     struct ValueList {
         ValueList(const nsAString& aName, const nsTArray<uint32_t>& aSelectors)
@@ -77,10 +78,7 @@ public:
     AddFontFeatureValues(const nsAString& aFamily,
                 const nsTArray<gfxFontFeatureValueSet::FeatureValues>& aValues);
 
-private:
-    // Private destructor, to discourage deletion outside of Release():
-    ~gfxFontFeatureValueSet() {}
-
+protected:
     struct FeatureValueHashKey {
         nsString mFamily;
         uint32_t mPropVal;

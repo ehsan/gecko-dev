@@ -86,6 +86,7 @@ class APZCTreeManager {
 
 public:
   APZCTreeManager();
+  virtual ~APZCTreeManager();
 
   /**
    * Rebuild the APZC tree based on the layer update that just came up. Preserve
@@ -272,9 +273,6 @@ public:
   bool FlushRepaintsForOverscrollHandoffChain();
 
 protected:
-  // Protected destructor, to discourage deletion outside of Release():
-  virtual ~APZCTreeManager();
-
   /**
    * Debug-build assertion that can be called to ensure code is running on the
    * compositor thread.
