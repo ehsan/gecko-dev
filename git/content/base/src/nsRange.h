@@ -13,7 +13,7 @@
 #include "nsIDOMRange.h"
 #include "nsCOMPtr.h"
 #include "nsIDOMDocumentFragment.h"
-#include "nsINode.h"
+#include "nsIContent.h"
 #include "nsIDOMNode.h"
 #include "prmon.h"
 #include "nsStubMutationObserver.h"

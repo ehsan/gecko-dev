@@ -10,13 +10,14 @@ VPATH		= @srcdir@
 relativesrcdir  = toolkit/content/tests/widgets
 
 include $(DEPTH)/config/autoconf.mk
+include $(topsrcdir)/config/rules.mk
 
 _CHROME_FILES = \
 		popup_shared.js \
 		tree_shared.js \
 		$(NULL)
 
-MOCHITEST_FILES =	\
+_TEST_FILES =	\
 		test_contextmenu_nested.xul \
 		test_tree_column_reorder.xul \
 		tree_shared.js \
@@ -45,16 +46,16 @@ MOCHITEST_FILES =	\
 		videomask.css \
 		$(NULL)
 
-MOCHITEST_CHROME_FILES = \
+_CHROME_TEST_FILES = \
 		test_editor_currentURI.xul \
 		$(NULL)
 
 ifeq (gtk2,$(MOZ_WIDGET_TOOLKIT))
-MOCHITEST_FILES += test_menubar_gtk.xul \
+_TEST_FILES += test_menubar_gtk.xul \
                window_menubar_gtk.xul
 else
 ifneq (cocoa,$(MOZ_WIDGET_TOOLKIT))
-MOCHITEST_FILES += test_menubar.xul \
+_TEST_FILES += test_menubar.xul \
                window_menubar.xul
 endif
 endif
@@ -62,5 +63,9 @@ endif
 libs:: $(_CHROME_FILES)
 	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/chrome/$(relativesrcdir)/../chrome
 
-include $(topsrcdir)/config/rules.mk
+libs:: $(_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)
+
+libs:: $(_CHROME_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/chrome/$(relativesrcdir)
 

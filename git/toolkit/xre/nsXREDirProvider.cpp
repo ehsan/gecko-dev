@@ -792,7 +792,7 @@ nsXREDirProvider::DoStartup()
   return NS_OK;
 }
 
-class ProfileChangeStatusImpl MOZ_FINAL : public nsIProfileChangeStatus
+class ProfileChangeStatusImpl : public nsIProfileChangeStatus
 {
 public:
   NS_DECL_ISUPPORTS

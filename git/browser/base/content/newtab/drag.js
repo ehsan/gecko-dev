@@ -38,12 +38,9 @@ let gDrag = {
 
     // Mark nodes as being dragged.
     let selector = ".newtab-site, .newtab-control, .newtab-thumbnail";
-    let parentCell = aSite.node.parentNode;
-    let nodes = parentCell.querySelectorAll(selector);
+    let nodes = aSite.node.parentNode.querySelectorAll(selector);
     for (let i = 0; i < nodes.length; i++)
       nodes[i].setAttribute("dragged", "true");
-
-    parentCell.setAttribute("dragged", "true");
 
     this._setDragData(aSite, aEvent);
 
@@ -91,7 +88,7 @@ let gDrag = {
    * @param aEvent The 'dragend' event.
    */
   end: function Drag_end(aSite, aEvent) {
-    let nodes = gGrid.node.querySelectorAll("[dragged]")
+    let nodes = aSite.node.parentNode.querySelectorAll("[dragged]");
     for (let i = 0; i < nodes.length; i++)
       nodes[i].removeAttribute("dragged");
 

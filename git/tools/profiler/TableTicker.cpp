@@ -298,20 +298,6 @@ public:
           b.DefineProperty(sample, "frames", frames);
           b.ArrayPush(samples, sample);
           break;
-        case 'r':
-          {
-            if (sample) {
-              b.DefineProperty(sample, "responsiveness", entry.mTagFloat);
-            }
-          }
-          break;
-        case 't':
-          {
-            if (sample) {
-              b.DefineProperty(sample, "time", entry.mTagFloat);
-            }
-          }
-          break;
         case 'c':
         case 'l':
           {
@@ -369,14 +355,12 @@ class TableTicker: public Sampler {
               const char** aFeatures, uint32_t aFeatureCount)
     : Sampler(aInterval, true)
     , mPrimaryThreadProfile(aEntrySize, aStack)
-    , mStartTime(TimeStamp::Now())
     , mSaveRequested(false)
   {
     mUseStackWalk = hasFeature(aFeatures, aFeatureCount, "stackwalk");
 
     //XXX: It's probably worth splitting the jank profiler out from the regular profiler at some point
     mJankOnly = hasFeature(aFeatures, aFeatureCount, "jank");
-    mProfileJS = hasFeature(aFeatures, aFeatureCount, "js");
     mPrimaryThreadProfile.addTag(ProfileEntry('m', "Start"));
   }
 
@@ -403,8 +387,6 @@ class TableTicker: public Sampler {
   JSObject *ToJSObject(JSContext *aCx);
   JSObject *GetMetaJSObject(JSObjectBuilder& b);
 
-  const bool ProfileJS() { return mProfileJS; }
-
 private:
   // Not implemented on platforms which do not support backtracing
   void doBacktrace(ThreadProfile &aProfile, TickSample* aSample);
@@ -412,11 +394,9 @@ private:
 private:
   // This represent the application's main thread (SAMPLER_INIT)
   ThreadProfile mPrimaryThreadProfile;
-  TimeStamp mStartTime;
   bool mSaveRequested;
   bool mUseStackWalk;
   bool mJankOnly;
-  bool mProfileJS;
 };
 
 std::string GetSharedLibraryInfoString();
@@ -464,7 +444,7 @@ public:
       stream << *(t->GetPrimaryThreadProfile());
       stream << "h-" << GetSharedLibraryInfoString() << std::endl;
       stream.close();
-      LOGF("Saved to %s", buff);
+      LOG("Saved to " FOLDER "profile_TYPE_PID.txt");
     } else {
       LOG("Fail to open profile log file.");
     }
@@ -687,9 +667,7 @@ void doSampleStackTrace(ProfileStack *aStack, ThreadProfile &aProfile, TickSampl
   // 's' tag denotes the start of a sample block
   // followed by 0 or more 'c' tags.
   aProfile.addTag(ProfileEntry('s', "(root)"));
-  for (mozilla::sig_safe_t i = 0;
-       i < aStack->mStackPointer && i < mozilla::ArrayLength(aStack->mStack);
-       i++) {
+  for (mozilla::sig_safe_t i = 0; i < aStack->mStackPointer; i++) {
     // First entry has tagName 's' (start)
     // Check for magic pointer bit 1 to indicate copy
     const char* sampleLabel = aStack->mStack[i].mLabel;
@@ -717,9 +695,6 @@ void doSampleStackTrace(ProfileStack *aStack, ThreadProfile &aProfile, TickSampl
 #ifdef ENABLE_SPS_LEAF_DATA
   if (sample) {
     aProfile.addTag(ProfileEntry('l', (void*)sample->pc));
-#ifdef ENABLE_ARM_LR_SAVING
-    aProfile.addTag(ProfileEntry('L', (void*)sample->lr));
-#endif
   }
 #endif
 }
@@ -780,14 +755,9 @@ void TableTicker::Tick(TickSample* sample)
   if (recordSample)
     mPrimaryThreadProfile.flush();
 
-  if (!sLastTracerEvent.IsNull() && sample) {
+  if (!mJankOnly && !sLastTracerEvent.IsNull() && sample) {
     TimeDuration delta = sample->timestamp - sLastTracerEvent;
     mPrimaryThreadProfile.addTag(ProfileEntry('r', delta.ToMilliseconds()));
-  }
-
-  if (sample) {
-    TimeDuration delta = sample->timestamp - mStartTime;
-    mPrimaryThreadProfile.addTag(ProfileEntry('t', delta.ToMilliseconds()));
   }
 }
 
@@ -803,14 +773,14 @@ std::ostream& operator<<(std::ostream& stream, const ThreadProfile& profile)
 
 std::ostream& operator<<(std::ostream& stream, const ProfileEntry& entry)
 {
-  if (entry.mTagName == 'r' || entry.mTagName == 't') {
+  if (entry.mTagName == 'r') {
     stream << entry.mTagName << "-" << std::fixed << entry.mTagFloat << "\n";
-  } else if (entry.mTagName == 'l' || entry.mTagName == 'L') {
+  } else if (entry.mTagName == 'l') {
     // Bug 739800 - Force l-tag addresses to have a "0x" prefix on all platforms
     // Additionally, stringstream seemed to be ignoring formatter flags.
     char tagBuff[1024];
     unsigned long long pc = (unsigned long long)(uintptr_t)entry.mTagPtr;
-    snprintf(tagBuff, 1024, "%c-%#llx\n", entry.mTagName, pc);
+    snprintf(tagBuff, 1024, "l-%#llx\n", pc);
     stream << tagBuff;
   } else if (entry.mTagName == 'd') {
     // TODO implement 'd' tag for text profile
@@ -912,7 +882,6 @@ const char** mozilla_sampler_get_features()
     "stackwalk",
 #endif
     "jank",
-    "js",
     NULL
   };
 
@@ -938,8 +907,6 @@ void mozilla_sampler_start(int aProfileEntries, int aInterval,
                                    aFeatures, aFeatureCount);
   tlsTicker.set(t);
   t->Start();
-  if (t->ProfileJS())
-      stack->installJSSampling();
 }
 
 void mozilla_sampler_stop()
@@ -952,16 +919,9 @@ void mozilla_sampler_stop()
     return;
   }
 
-  bool uninstallJS = t->ProfileJS();
-
   t->Stop();
   delete t;
   tlsTicker.set(NULL);
-  ProfileStack *stack = tlsStack.get();
-  ASSERT(stack != NULL);
-
-  if (uninstallJS)
-    stack->uninstallJSSampling();
 }
 
 bool mozilla_sampler_is_active()

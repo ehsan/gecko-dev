@@ -508,8 +508,6 @@ public:
   inline bool IsXULTree() const { return mFlags & eXULTreeAccessible; }
   mozilla::a11y::XULTreeAccessible* AsXULTree();
 
-  inline bool IsXULDeck() const { return mFlags & eXULDeckAccessible; }
-
   inline bool IsListControl() const { return mFlags & eListControlAccessible; }
 
   inline bool IsMenuButton() const { return mFlags & eMenuButtonAccessible; }
@@ -768,8 +766,7 @@ protected:
     eMenuPopupAccessible = 1 << 16,
     eRootAccessible = 1 << 17,
     eTextLeafAccessible = 1 << 18,
-    eXULDeckAccessible = 1 << 19,
-    eXULTreeAccessible = 1 << 20
+    eXULTreeAccessible = 1 << 19
   };
 
   //////////////////////////////////////////////////////////////////////////////

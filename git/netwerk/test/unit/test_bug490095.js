@@ -33,6 +33,12 @@ var tests = [
 
 ];
 
+function getCacheService()
+{
+    return Components.classes["@mozilla.org/network/cache-service;1"].
+                      getService(Components.interfaces.nsICacheService);
+}
+
 function logit(i, data) {
     dump(tests[i].url + "\t requested [" + tests[i].server + "]" +
          " got [" + data + "] expected [" + tests[i].expected + "]");
@@ -77,8 +83,8 @@ function run_test() {
     httpserver.start(4444);
 
     // clear cache
-    evict_cache_entries();
-
+    getCacheService().
+        evictEntries(Components.interfaces.nsICache.STORE_ANYWHERE);
     triggerNextTest();
 
     do_test_pending();

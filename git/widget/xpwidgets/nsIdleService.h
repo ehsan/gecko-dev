@@ -8,7 +8,7 @@
 #ifndef nsIdleService_h__
 #define nsIdleService_h__
 
-#include "nsIIdleServiceInternal.h"
+#include "nsIIdleService.h"
 #include "nsCOMPtr.h"
 #include "nsITimer.h"
 #include "nsTArray.h"
@@ -89,25 +89,28 @@ private:
    * Boolean set to true when daily idle notifications should be disabled.
    */
   bool mShutdownInProgress;
-
-  /**
-   * Real time we fired off the one-day timer, in case timers aren't
-   * very reliable.
-   */
-  PRTime mDailyTimerStart;
 };
 
-class nsIdleService : public nsIIdleServiceInternal
+class nsIdleService : public nsIIdleService
 {
 public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSIIDLESERVICE
-  NS_DECL_NSIIDLESERVICEINTERNAL
+  nsIdleService();
+
+  // Implement nsIIdleService methods.
+  NS_IMETHOD AddIdleObserver(nsIObserver* aObserver, PRUint32 aIdleTime);
+  NS_IMETHOD RemoveIdleObserver(nsIObserver* aObserver, PRUint32 aIdleTime);
+  NS_IMETHOD GetIdleTime(PRUint32* idleTime);
+
+  /**
+   * Function that resets the idle time in the service, in other words it
+   * sets the time for the last user interaction to now, or now-idleDelta
+   *
+   * @param idleDelta the time (in milliseconds) since the last user inter
+   *                  action
+   **/
+  void ResetIdleTimeOut(PRUint32 idleDeltaInMS = 0);
 
 protected:
-  static already_AddRefed<nsIdleService> GetInstance();
-
-  nsIdleService();
   virtual ~nsIdleService();
 
   /**

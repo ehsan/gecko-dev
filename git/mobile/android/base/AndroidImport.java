@@ -50,88 +50,74 @@ class AndroidImport implements Runnable {
     }
 
     public void mergeBookmarks() {
-        Cursor cursor = null;
-        try {
-            cursor = mCr.query(Browser.BOOKMARKS_URI,
-                               null,
-                               Browser.BookmarkColumns.BOOKMARK + " = 1",
-                               null,
-                               null);
+        Cursor cursor = mCr.query(Browser.BOOKMARKS_URI,
+                                  null,
+                                  Browser.BookmarkColumns.BOOKMARK + " = 1",
+                                  null,
+                                  null);
 
-            if (cursor != null) {
-                final int faviconCol = cursor.getColumnIndexOrThrow(Browser.BookmarkColumns.FAVICON);
-                final int titleCol = cursor.getColumnIndexOrThrow(Browser.BookmarkColumns.TITLE);
-                final int urlCol = cursor.getColumnIndexOrThrow(Browser.BookmarkColumns.URL);
-                // http://code.google.com/p/android/issues/detail?id=17969
-                final int createCol = cursor.getColumnIndex(Browser.BookmarkColumns.CREATED);
+        final int faviconCol = cursor.getColumnIndexOrThrow(Browser.BookmarkColumns.FAVICON);
+        final int titleCol = cursor.getColumnIndexOrThrow(Browser.BookmarkColumns.TITLE);
+        final int urlCol = cursor.getColumnIndexOrThrow(Browser.BookmarkColumns.URL);
+        // http://code.google.com/p/android/issues/detail?id=17969
+        final int createCol = cursor.getColumnIndex(Browser.BookmarkColumns.CREATED);
 
-                cursor.moveToFirst();
-                while (!cursor.isAfterLast()) {
-                    String url = cursor.getString(urlCol);
-                    String title = cursor.getString(titleCol);
-                    long created;
-                    if (createCol >= 0) {
-                        created = cursor.getLong(createCol);
-                    } else {
-                        created = System.currentTimeMillis();
-                    }
-                    // Need to set it to the current time so Sync picks it up.
-                    long modified = System.currentTimeMillis();
-                    byte[] data = cursor.getBlob(faviconCol);
-                    mDB.updateBookmarkInBatch(mCr, mOperations,
-                                              url, title, null, -1,
-                                              created, modified,
-                                              BrowserContract.Bookmarks.DEFAULT_POSITION,
-                                              null, Bookmarks.TYPE_BOOKMARK);
-                    if (data != null) {
-                        mDB.updateFaviconInBatch(mCr, mOperations, url, null, null, data);
-                    }
-                    cursor.moveToNext();
-                }
+        cursor.moveToFirst();
+        while (!cursor.isAfterLast()) {
+            String url = cursor.getString(urlCol);
+            String title = cursor.getString(titleCol);
+            long created;
+            if (createCol >= 0) {
+                created = cursor.getLong(createCol);
+            } else {
+                created = System.currentTimeMillis();
             }
-        } finally {
-            if (cursor != null)
-                cursor.close();
+            // Need to set it to the current time so Sync picks it up.
+            long modified = System.currentTimeMillis();
+            byte[] data = cursor.getBlob(faviconCol);
+            mDB.updateBookmarkInBatch(mCr, mOperations,
+                                      url, title, null, -1,
+                                      created, modified,
+                                      BrowserContract.Bookmarks.DEFAULT_POSITION,
+                                      null, Bookmarks.TYPE_BOOKMARK);
+            if (data != null) {
+                mDB.updateFaviconInBatch(mCr, mOperations, url, null, null, data);
+            }
+            cursor.moveToNext();
         }
+        cursor.close();
 
         flushBatchOperations();
     }
 
     public void mergeHistory() {
-        Cursor cursor = null;
-        try {
-            cursor = mCr.query(Browser.BOOKMARKS_URI,
-                               null,
-                               Browser.BookmarkColumns.BOOKMARK + " = 0 AND " +
-                               Browser.BookmarkColumns.VISITS + " > 0",
-                               null,
-                               null);
+        Cursor cursor = mCr.query(Browser.BOOKMARKS_URI,
+                                  null,
+                                  Browser.BookmarkColumns.BOOKMARK + " = 0 AND " +
+                                  Browser.BookmarkColumns.VISITS + " > 0",
+                                  null,
+                                  null);
 
-            if (cursor != null) {
-                final int dateCol = cursor.getColumnIndexOrThrow(Browser.BookmarkColumns.DATE);
-                final int faviconCol = cursor.getColumnIndexOrThrow(Browser.BookmarkColumns.FAVICON);
-                final int titleCol = cursor.getColumnIndexOrThrow(Browser.BookmarkColumns.TITLE);
-                final int urlCol = cursor.getColumnIndexOrThrow(Browser.BookmarkColumns.URL);
-                final int visitsCol = cursor.getColumnIndexOrThrow(Browser.BookmarkColumns.VISITS);
+        final int dateCol = cursor.getColumnIndexOrThrow(Browser.BookmarkColumns.DATE);
+        final int faviconCol = cursor.getColumnIndexOrThrow(Browser.BookmarkColumns.FAVICON);
+        final int titleCol = cursor.getColumnIndexOrThrow(Browser.BookmarkColumns.TITLE);
+        final int urlCol = cursor.getColumnIndexOrThrow(Browser.BookmarkColumns.URL);
+        final int visitsCol = cursor.getColumnIndexOrThrow(Browser.BookmarkColumns.VISITS);
 
-                cursor.moveToFirst();
-                while (!cursor.isAfterLast()) {
-                    String url = cursor.getString(urlCol);
-                    String title = cursor.getString(titleCol);
-                    long date = cursor.getLong(dateCol);
-                    int visits = cursor.getInt(visitsCol);
-                    byte[] data = cursor.getBlob(faviconCol);
-                    mDB.updateHistoryInBatch(mCr, mOperations, url, title, date, visits);
-                    if (data != null) {
-                        mDB.updateFaviconInBatch(mCr, mOperations, url, null, null, data);
-                    }
-                    cursor.moveToNext();
-                }
+        cursor.moveToFirst();
+        while (!cursor.isAfterLast()) {
+            String url = cursor.getString(urlCol);
+            String title = cursor.getString(titleCol);
+            long date = cursor.getLong(dateCol);
+            int visits = cursor.getInt(visitsCol);
+            byte[] data = cursor.getBlob(faviconCol);
+            mDB.updateHistoryInBatch(mCr, mOperations, url, title, date, visits);
+            if (data != null) {
+                mDB.updateFaviconInBatch(mCr, mOperations, url, null, null, data);
             }
-        } finally {
-            if (cursor != null)
-                cursor.close();
+            cursor.moveToNext();
         }
+        cursor.close();
 
         flushBatchOperations();
     }

@@ -38,7 +38,7 @@ class Emulator(object):
     deviceRe = re.compile(r"^emulator-(\d+)(\s*)(.*)$")
 
     def __init__(self, homedir=None, noWindow=False, logcat_dir=None, arch="x86",
-                 emulatorBinary=None, res='480x800', userdata=None):
+                 emulatorBinary=None, userdata=None):
         self.port = None
         self._emulator_launched = False
         self.proc = None
@@ -50,7 +50,6 @@ class Emulator(object):
         self.logcat_proc = None
         self.arch = arch
         self.binary = emulatorBinary
-        self.res = res
         self.battery = EmulatorBattery(self)
         self.homedir = homedir
         self.noWindow = noWindow
@@ -132,7 +131,7 @@ class Emulator(object):
         qemuArgs.extend(['-memory', '512',
                          '-partition-size', '512',
                          '-verbose',
-                         '-skin', self.res,
+                         '-skin', '480x800',
                          '-qemu'] + self.tail_args)
         return qemuArgs
 

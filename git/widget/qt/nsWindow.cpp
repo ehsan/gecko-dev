@@ -3300,7 +3300,7 @@ nsWindow::UserActivity()
   }
 
   if (mIdleService) {
-    mIdleService->ResetIdleTimeOut(0);
+    mIdleService->ResetIdleTimeOut();
   }
 }
 

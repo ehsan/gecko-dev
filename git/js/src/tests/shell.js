@@ -798,6 +798,18 @@ function getFailedCases() {
   }
 }
 
+var JSTest = {
+  waitForExplicitFinish: function () {
+    gDelayTestDriverEnd = true;
+  },
+
+  testFinished: function () {
+    gDelayTestDriverEnd = false;
+    jsTestDriverEnd();
+    quit();
+  }
+};
+
 function jsTestDriverEnd()
 {
   // gDelayTestDriverEnd is used to

@@ -99,19 +99,17 @@ void test()
   const CheckedInt<T> max(detail::MaxValue<T>::value);
   const CheckedInt<T> min(detail::MinValue<T>::value);
 
-  // Check MinValue and MaxValue, since they are custom implementations and a mistake there
+  // Check min() and max(), since they are custom implementations and a mistake there
   // could potentially NOT be caught by any other tests... while making everything wrong!
 
-  unsignedT bit = 1;
-  unsignedT unsignedMinValue(min.value());
-  unsignedT unsignedMaxValue(max.value());
+  T bit = 1;
   for (size_t i = 0; i < sizeof(T) * CHAR_BIT - 1; i++)
   {
-    VERIFY((unsignedMinValue & bit) == 0);
+    VERIFY((min.value() & bit) == 0);
     bit <<= 1;
   }
-  VERIFY((unsignedMinValue & bit) == (isTSigned ? bit : unsignedT(0)));
-  VERIFY(unsignedMaxValue == unsignedT(~unsignedMinValue));
+  VERIFY((min.value() & bit) == (isTSigned ? bit : T(0)));
+  VERIFY(max.value() == T(~(min.value())));
 
   const CheckedInt<T> zero(0);
   const CheckedInt<T> one(1);
@@ -119,7 +117,7 @@ void test()
   const CheckedInt<T> three(3);
   const CheckedInt<T> four(4);
 
-  /* Addition / subtraction checks */
+  /* Addition / substraction checks */
 
   VERIFY_IS_VALID(zero + zero);
   VERIFY(zero + zero == zero);
@@ -396,7 +394,7 @@ void test()
     if (isUSigned) \
       VERIFY_IS_VALID_IF(CheckedInt<T>(U(-1)), isTSigned); \
     if (sizeof(U) > sizeof(T)) \
-      VERIFY_IS_INVALID(CheckedInt<T>(U(detail::MaxValue<T>::value) + one.value())); \
+      VERIFY_IS_INVALID(CheckedInt<T>(U(detail::MaxValue<T>::value) + 1)); \
     VERIFY_IS_VALID_IF(CheckedInt<T>(detail::MaxValue<U>::value), \
       (sizeof(T) > sizeof(U) || ((sizeof(T) == sizeof(U)) && (isUSigned || !isTSigned)))); \
     VERIFY_IS_VALID_IF(CheckedInt<T>(detail::MinValue<U>::value), \

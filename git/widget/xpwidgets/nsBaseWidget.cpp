@@ -853,10 +853,6 @@ nsBaseWidget::GetShouldAccelerate()
   
   if (!whitelisted) {
     NS_WARNING("OpenGL-accelerated layers are not supported on this system.");
-#ifdef MOZ_JAVA_COMPOSITOR
-    NS_RUNTIMEABORT("OpenGL-accelerated layers are a hard requirement on this platform. "
-                    "Cannot continue without support for them.");
-#endif
     return false;
   }
 
@@ -920,9 +916,7 @@ void nsBaseWidget::CreateCompositor()
 
 bool nsBaseWidget::UseOffMainThreadCompositing()
 {
-  bool isSmallPopup = ((mWindowType == eWindowType_popup) && 
-                      (mPopupType != ePopupTypePanel));
-  return sUseOffMainThreadCompositing && !isSmallPopup;
+  return sUseOffMainThreadCompositing;
 }
 
 LayerManager* nsBaseWidget::GetLayerManager(PLayersChild* aShadowManager,

@@ -75,7 +75,6 @@ nsWebBrowserContentPolicy::ShouldLoad(PRUint32          contentType,
                                       nsISupports      *requestingContext,
                                       const nsACString &mimeGuess,
                                       nsISupports      *extra,
-                                      nsIPrincipal     *requestPrincipal,
                                       PRInt16          *shouldLoad)
 {
     return PerformPolicyCheck(contentType, requestingContext, shouldLoad);
@@ -88,7 +87,6 @@ nsWebBrowserContentPolicy::ShouldProcess(PRUint32          contentType,
                                          nsISupports      *requestingContext,
                                          const nsACString &mimeGuess,
                                          nsISupports      *extra,
-                                         nsIPrincipal     *requestPrincipal,
                                          PRInt16          *shouldProcess)
 {
     *shouldProcess = nsIContentPolicy::ACCEPT;

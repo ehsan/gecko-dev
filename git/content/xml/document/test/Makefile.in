@@ -10,8 +10,9 @@ VPATH		= @srcdir@
 relativesrcdir  = content/xml/document/test
 
 include $(DEPTH)/config/autoconf.mk
+include $(topsrcdir)/config/rules.mk
 
-MOCHITEST_FILES = 	test_bug232004.xhtml \
+_TEST_FILES = 	test_bug232004.xhtml \
 		test_bug343870.xhtml \
 		test_bug355213.xhtml \
 		test_bug392338.html \
@@ -24,4 +25,5 @@ MOCHITEST_FILES = 	test_bug232004.xhtml \
 		test_bug691215.html \
 		$(NULL)
 
-include $(topsrcdir)/config/rules.mk
+libs:: $(_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)

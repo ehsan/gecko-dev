@@ -2017,7 +2017,7 @@ nsCSSKeyframesRule::GetType(PRUint16* aType)
 NS_IMETHODIMP
 nsCSSKeyframesRule::GetCssText(nsAString& aCssText)
 {
-  aCssText.AssignLiteral("@keyframes ");
+  aCssText.AssignLiteral("@-moz-keyframes ");
   aCssText.Append(mName);
   aCssText.AppendLiteral(" {\n");
   nsAutoString tmp;

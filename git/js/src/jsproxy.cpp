@@ -264,14 +264,18 @@ bool
 BaseProxyHandler::call(JSContext *cx, JSObject *proxy, unsigned argc,
                        Value *vp)
 {
-    return ReportIsNotFunction(cx, UndefinedValue());
+    Value v = UndefinedValue();
+    js_ReportIsNotFunction(cx, &v, 0);
+    return false;
 }
 
 bool
 BaseProxyHandler::construct(JSContext *cx, JSObject *proxy, unsigned argc,
                             Value *argv, Value *rval)
 {
-    return ReportIsNotFunction(cx, UndefinedValue(), CONSTRUCT);
+    Value v = UndefinedValue();
+    js_ReportIsNotFunction(cx, &v, JSV2F_CONSTRUCT);
+    return false;
 }
 
 JSString *
@@ -569,12 +573,11 @@ DirectProxyHandler::get(JSContext *cx, JSObject *proxy, JSObject *receiver_,
 }
 
 bool
-DirectProxyHandler::set(JSContext *cx, JSObject *proxy, JSObject *receiverArg,
+DirectProxyHandler::set(JSContext *cx, JSObject *proxy, JSObject *receiver,
                         jsid id_, bool strict, Value *vp)
 {
     RootedId id(cx, id_);
-    Rooted<JSObject*> receiver(cx, receiverArg);
-    return GetProxyTargetObject(proxy)->setGeneric(cx, receiver, id, vp, strict);
+    return GetProxyTargetObject(proxy)->setGeneric(cx, id, vp, strict);
 }
 
 bool
@@ -791,7 +794,7 @@ ScriptedProxyHandler::getPropertyDescriptor(JSContext *cx, JSObject *proxy_, jsi
     RootedValue fval(cx), value(cx);
     return GetFundamentalTrap(cx, handler, ATOM(getPropertyDescriptor), fval.address()) &&
            Trap1(cx, handler, fval, id, value.address()) &&
-           ((value.get().isUndefined() && IndicatePropertyNotFound(cx, desc)) ||
+           ((value.reference().isUndefined() && IndicatePropertyNotFound(cx, desc)) ||
             (ReturnedValueMustNotBePrimitive(cx, proxy, ATOM(getPropertyDescriptor), value) &&
              ParsePropertyDescriptorObject(cx, proxy, id, value, desc)));
 }
@@ -806,7 +809,7 @@ ScriptedProxyHandler::getOwnPropertyDescriptor(JSContext *cx, JSObject *proxy_, 
     RootedValue fval(cx), value(cx);
     return GetFundamentalTrap(cx, handler, ATOM(getOwnPropertyDescriptor), fval.address()) &&
            Trap1(cx, handler, fval, id, value.address()) &&
-           ((value.get().isUndefined() && IndicatePropertyNotFound(cx, desc)) ||
+           ((value.reference().isUndefined() && IndicatePropertyNotFound(cx, desc)) ||
             (ReturnedValueMustNotBePrimitive(cx, proxy, ATOM(getPropertyDescriptor), value) &&
              ParsePropertyDescriptorObject(cx, proxy, id, value, desc)));
 }
@@ -1221,34 +1224,34 @@ proxy_innerObject(JSContext *cx, HandleObject obj)
 }
 
 static JSBool
-proxy_LookupGeneric(JSContext *cx, HandleObject obj, HandleId id,
-                    MutableHandleObject objp, MutableHandleShape propp)
+proxy_LookupGeneric(JSContext *cx, HandleObject obj, HandleId id, JSObject **objp,
+                    JSProperty **propp)
 {
     bool found;
     if (!Proxy::has(cx, obj, id, &found))
         return false;
 
     if (found) {
-        MarkNonNativePropertyFound(obj, propp);
-        objp.set(obj);
+        *propp = (JSProperty *)0x1;
+        *objp = obj;
     } else {
-        objp.set(NULL);
-        propp.set(NULL);
+        *objp = NULL;
+        *propp = NULL;
     }
     return true;
 }
 
 static JSBool
-proxy_LookupProperty(JSContext *cx, HandleObject obj, HandlePropertyName name,
-                     MutableHandleObject objp, MutableHandleShape propp)
+proxy_LookupProperty(JSContext *cx, HandleObject obj, HandlePropertyName name, JSObject **objp,
+                     JSProperty **propp)
 {
     Rooted<jsid> id(cx, NameToId(name));
     return proxy_LookupGeneric(cx, obj, id, objp, propp);
 }
 
 static JSBool
-proxy_LookupElement(JSContext *cx, HandleObject obj, uint32_t index,
-                    MutableHandleObject objp, MutableHandleShape propp)
+proxy_LookupElement(JSContext *cx, HandleObject obj, uint32_t index, JSObject **objp,
+                    JSProperty **propp)
 {
     RootedId id(cx);
     if (!IndexToId(cx, index, id.address()))
@@ -1257,8 +1260,7 @@ proxy_LookupElement(JSContext *cx, HandleObject obj, uint32_t index,
 }
 
 static JSBool
-proxy_LookupSpecial(JSContext *cx, HandleObject obj, HandleSpecialId sid,
-                    MutableHandleObject objp, MutableHandleShape propp)
+proxy_LookupSpecial(JSContext *cx, HandleObject obj, HandleSpecialId sid, JSObject **objp, JSProperty **propp)
 {
     Rooted<jsid> id(cx, SPECIALID_TO_JSID(sid));
     return proxy_LookupGeneric(cx, obj, id, objp, propp);
@@ -1478,11 +1480,18 @@ proxy_TraceObject(JSTracer *trc, JSObject *obj)
         JSObject *referent = &GetProxyPrivate(obj).toObject();
         if (referent->compartment() != obj->compartment()) {
             /*
-             * Assert that this proxy is tracked in the wrapper map. We maintain
-             * the invariant that the wrapped object is the key in the wrapper map.
+             * Assert that this proxy is tracked in the wrapper map. Normally,
+             * the wrapped object will be the key in the wrapper map. However,
+             * sometimes when wrapping Location objects, the wrapped object is
+             * not the key. In that case, we unwrap to find the key.
              */
             Value key = ObjectValue(*referent);
             WrapperMap::Ptr p = obj->compartment()->crossCompartmentWrappers.lookup(key);
+            if (!p) {
+                key = ObjectValue(*UnwrapObject(referent));
+                p = obj->compartment()->crossCompartmentWrappers.lookup(key);
+                JS_ASSERT(p.found());
+            }
             JS_ASSERT(p->value.get() == ObjectValue(*obj));
         }
     }
@@ -1676,7 +1685,7 @@ JS_FRIEND_DATA(Class) js::FunctionProxyClass = {
     JS_EnumerateStub,
     JS_ResolveStub,
     JS_ConvertStub,
-    proxy_Finalize,          /* finalize */
+    NULL,                    /* finalize */
     NULL,                    /* checkAccess */
     proxy_Call,
     FunctionClass.hasInstance,
@@ -1810,12 +1819,12 @@ proxy_createFunction(JSContext *cx, unsigned argc, Value *vp)
         return false;
     parent = proto->getParent();
 
-    JSObject *call = ValueToCallable(cx, &vp[3]);
+    JSObject *call = js_ValueToCallableObject(cx, &vp[3], JSV2F_SEARCH_STACK);
     if (!call)
         return false;
     JSObject *construct = NULL;
     if (argc > 2) {
-        construct = ValueToCallable(cx, &vp[4]);
+        construct = js_ValueToCallableObject(cx, &vp[4], JSV2F_SEARCH_STACK);
         if (!construct)
             return false;
     }

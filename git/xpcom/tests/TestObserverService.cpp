@@ -11,7 +11,6 @@
 #include "nsStringGlue.h"
 #include "nsWeakReference.h"
 #include "nsComponentManagerUtils.h"
-#include "mozilla/Attributes.h"
 
 #include <stdio.h>
 
@@ -30,9 +29,7 @@ void printString(nsString &str) {
     printf("%s", NS_ConvertUTF16toUTF8(str).get());
 }
 
-class TestObserver MOZ_FINAL : public nsIObserver,
-                               public nsSupportsWeakReference
-{
+class TestObserver : public nsIObserver, public nsSupportsWeakReference {
 public:
     TestObserver( const nsAString &name )
         : mName( name ) {

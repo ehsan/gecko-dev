@@ -11,7 +11,9 @@ relativesrcdir	= dom/tests/mochitest/ajax/mochikit/MochiKit
 
 include $(DEPTH)/config/autoconf.mk
 
-MOCHITEST_FILES	= \
+include $(topsrcdir)/config/rules.mk
+
+_TEST_FILES	= \
 		Async.js \
 		Base.js \
 		Color.js \
@@ -35,4 +37,5 @@ MOCHITEST_FILES	= \
 		__package__.js \
 		$(NULL)
 
-include $(topsrcdir)/config/rules.mk
+libs::	$(_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)

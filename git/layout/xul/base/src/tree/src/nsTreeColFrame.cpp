@@ -9,6 +9,7 @@
 #include "nsIContent.h"
 #include "nsStyleContext.h"
 #include "nsINameSpaceManager.h" 
+#include "nsIDocument.h"
 #include "nsIBoxObject.h"
 #include "nsTreeBoxObject.h"
 #include "nsIDOMElement.h"

@@ -11,7 +11,8 @@ relativesrcdir  = content/canvas/test
 DIRS		+= webgl crossorigin
 
 include $(DEPTH)/config/autoconf.mk
-MOCHITEST_FILES = \
+include $(topsrcdir)/config/rules.mk
+_TEST_FILES_0 = \
 	test_canvas.html \
 	image_transparent50.png \
 	image_redtransparent.png \
@@ -60,7 +61,7 @@ MOCHITEST_FILES = \
 
 ifneq (1_Linux,$(MOZ_SUITE)_$(OS_ARCH))
 # This test fails in Suite on Linux for some reason, disable it there
-MOCHITEST_FILES += test_2d.composite.uncovered.image.destination-atop.html
+_TEST_FILES_0 += test_2d.composite.uncovered.image.destination-atop.html
 endif
 
 # xor and lighter aren't well handled by cairo; they mostly work, but we don't want
@@ -80,13 +81,13 @@ endif
 # Tests that fail on Mac (possibly because spec is underdefined?).  Bug 407105
 ifneq ($(MOZ_WIDGET_TOOLKIT),cocoa)
 # XXX vlad don't test these anywhere, cairo behaviour changed
-MOCHITEST_FILES += \
+_TEST_FILES_0 += \
 	test_2d.line.join.parallel.html \
 	$(NULL)
 
 # This is an issue with Quartz's handling of radial gradients and some numeric
 # imprecision that results in errors here.
-MOCHITEST_FILES += \
+_TEST_FILES_0 += \
 	test_2d.gradient.radial.inside2.html \
 	test_2d.gradient.radial.inside3.html \
 	test_2d.gradient.radial.outside1.html \
@@ -98,7 +99,7 @@ MOCHITEST_FILES += \
 # destination bounds seem to have problems with the BEVEL/SQUARE join/cap combo.
 # The joins are rendered as if with MITER; the correct behaviour is also seen
 # if BUTT is used instead of SQUARE.
-MOCHITEST_FILES += test_2d.line.cap.closed.html
+_TEST_FILES_0 += test_2d.line.cap.closed.html
 
 endif
 
@@ -106,7 +107,7 @@ endif
 ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
 
 # still need bug numbers
-MOCHITEST_FILES += \
+_TEST_FILES_0 += \
 	test_2d.composite.uncovered.fill.source-in.html \
 	test_2d.composite.uncovered.fill.destination-in.html \
 	test_2d.composite.uncovered.fill.source-out.html \
@@ -118,15 +119,15 @@ MOCHITEST_FILES += \
 	$(NULL)
 
 # still need bug numbers
-MOCHITEST_FILES += \
+_TEST_FILES_0 += \
 	test_2d.gradient.radial.outside2.html \
 	test_2d.gradient.radial.outside3.html \
 	$(NULL)
 
 # still need bug numbers
-MOCHITEST_FILES += test_2d.path.arc.shape.3.html
+_TEST_FILES_0 += test_2d.path.arc.shape.3.html
 
-MOCHITEST_FILES += test_2d.path.rect.selfintersect.html
+_TEST_FILES_0 += test_2d.path.rect.selfintersect.html
 endif
 
 # These tests only pass on Mac OS X >= 10.5; see bug 450114
@@ -146,4 +147,5 @@ endif
 # test_2d.path.rect.zero.6.html
 
 # split up into groups to work around command-line length limits
-include $(topsrcdir)/config/rules.mk
+libs:: $(_TEST_FILES_0)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)

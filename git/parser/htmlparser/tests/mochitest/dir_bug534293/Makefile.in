@@ -10,8 +10,10 @@ VPATH		= @srcdir@
 relativesrcdir  = parser/htmlparser/tests/mochitest/dir_bug534293
 
 include $(DEPTH)/config/autoconf.mk
+include $(topsrcdir)/config/rules.mk
 
-MOCHITEST_FILES =	file_bug534293.sjs \
+_TEST_FILES =	file_bug534293.sjs \
 		$(NULL)
 
-include $(topsrcdir)/config/rules.mk
+libs:: $(_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)

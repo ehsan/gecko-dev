@@ -15,6 +15,7 @@
 #include "nsIURI.h"
 
 class nsDOMNavigationTimingClock;
+class nsIDocument;
 
 class nsDOMNavigationTiming
 {

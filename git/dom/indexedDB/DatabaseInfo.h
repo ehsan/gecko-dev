@@ -132,8 +132,7 @@ struct ObjectStoreInfoGuts
   KeyPath keyPath;
   bool autoIncrement;
 
-  // Main-thread only members. This must *not* be touched on the database
-  // thread.
+  // Main-thread only members. This must *not* be touced on the database thread
   nsTArray<IndexInfo> indexes;
 };
 

@@ -378,7 +378,7 @@ str_enumerate(JSContext *cx, HandleObject obj)
 
 static JSBool
 str_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
-            MutableHandleObject objp)
+            JSObject **objp)
 {
     if (!JSID_IS_INT(id))
         return JS_TRUE;
@@ -394,7 +394,7 @@ str_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
                                 STRING_ELEMENT_ATTRS)) {
             return JS_FALSE;
         }
-        objp.set(obj);
+        *objp = obj;
     }
     return JS_TRUE;
 }
@@ -1961,7 +1961,8 @@ BuildFlatReplacement(JSContext *cx, HandleString textstr, HandleString repstr,
                      * the first character in the pattern, so we include the
                      * replacement string here.
                      */
-                    RootedString leftSide(cx, js_NewDependentString(cx, str, 0, match - pos));
+                    RootedString leftSide(cx);
+                    leftSide = js_NewDependentString(cx, str, 0, match - pos);
                     if (!leftSide ||
                         !builder.append(leftSide) ||
                         !builder.append(repstr)) {
@@ -1974,8 +1975,9 @@ BuildFlatReplacement(JSContext *cx, HandleString textstr, HandleString repstr,
                  * last part of str.
                  */
                 if (strEnd > matchEnd) {
-                    RootedString rightSide(cx, js_NewDependentString(cx, str, matchEnd - pos,
-                                                                     strEnd - matchEnd));
+                    RootedString rightSide(cx);
+                    rightSide = js_NewDependentString(cx, str, matchEnd - pos,
+                                                      strEnd - matchEnd);
                     if (!rightSide || !builder.append(rightSide))
                         return false;
                 }
@@ -1988,7 +1990,8 @@ BuildFlatReplacement(JSContext *cx, HandleString textstr, HandleString repstr,
                 return false;
         }
     } else {
-        RootedString leftSide(cx, js_NewDependentString(cx, textstr, 0, match));
+        RootedString leftSide(cx);
+        leftSide = js_NewDependentString(cx, textstr, 0, match);
         if (!leftSide)
             return false;
         RootedString rightSide(cx);
@@ -2210,7 +2213,8 @@ LambdaIsGetElem(JSObject &lambda, JSContext *cx)
      * real name lookup since this can trigger observable effects.
      */
     Value b;
-    RootedObject scope(cx, cx->stack.currentScriptedScopeChain());
+    RootedObject scope(cx);
+    scope = cx->stack.currentScriptedScopeChain();
     while (true) {
         if (!scope->isCall() && !scope->isBlock())
             return NULL;
@@ -3065,7 +3069,8 @@ js_InitStringClass(JSContext *cx, JSObject *obj)
         return NULL;
 
     /* Now create the String function. */
-    RootedFunction ctor(cx, global->createConstructor(cx, js_String, CLASS_NAME(cx, String), 1));
+    RootedFunction ctor(cx);
+    ctor = global->createConstructor(cx, js_String, CLASS_NAME(cx, String), 1);
     if (!ctor)
         return NULL;
 
@@ -3427,9 +3432,6 @@ InflateString(JSContext *cx, const char *bytes, size_t *lengthp, FlationCoding f
     size_t nchars;
     jschar *chars;
     size_t nbytes = *lengthp;
-
-    // Malformed UTF8 chars could trigger errors and hence GC
-    MaybeCheckStackRoots(cx);
 
     if (js_CStringsAreUTF8 || fc == CESU8Encoding) {
         if (!InflateUTF8StringToBuffer(cx, bytes, nbytes, NULL, &nchars, fc))

@@ -4,7 +4,8 @@
 Cu.import("resource://services-common/async.js");
 Cu.import("resource://services-common/rest.js");
 Cu.import("resource://services-common/utils.js");
-Cu.import("resource://testing-common/services-common/storageserver.js");
+// TODO enable once build infra supports testing modules.
+//Cu.import("resource://testing-common/services-common/storageserver.js");
 
 const PORT = 8080;
 const DEFAULT_USER = "123";

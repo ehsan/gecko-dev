@@ -15,6 +15,7 @@
 #include "nsPresContext.h"
 #include "nsIFormControl.h"
 #include "nsIForm.h"
+#include "nsIDOMDocument.h"
 #include "nsIDocument.h"
 #include "nsGUIEvent.h"
 #include "nsEventDispatcher.h"

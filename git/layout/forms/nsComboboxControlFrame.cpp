@@ -21,7 +21,6 @@
 #include "nsIDOMHTMLOptionElement.h" 
 #include "nsPIDOMWindow.h"
 #include "nsIPresShell.h"
-#include "nsContentList.h"
 #include "nsIView.h"
 #include "nsIViewManager.h"
 #include "nsEventDispatcher.h"

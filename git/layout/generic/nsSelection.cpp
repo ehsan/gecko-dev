@@ -37,7 +37,6 @@
 #include "nsCCUncollectableMarker.h"
 #include "nsIContentIterator.h"
 #include "nsIDocumentEncoder.h"
-#include "nsTextFragment.h"
 
 // for IBMBIDI
 #include "nsFrameTraversal.h"
@@ -86,6 +85,7 @@ using namespace mozilla;
 //#define DEBUG_TABLE 1
 
 static NS_DEFINE_IID(kCContentIteratorCID, NS_CONTENTITERATOR_CID);
+static NS_DEFINE_IID(kCSubtreeIteratorCID, NS_SUBTREEITERATOR_CID);
 
 //PROTOTYPES
 class nsFrameSelection;
@@ -3980,79 +3980,97 @@ Selection::SelectAllFramesForContent(nsIContentIterator* aInnerIter,
   return NS_ERROR_FAILURE;
 }
 
-/**
- * The idea of this helper method is to select or deselect "top to bottom",
- * traversing through the frames
- */
+//the idea of this helper method is to select, deselect "top to bottom" traversing through the frames
 nsresult
 Selection::selectFrames(nsPresContext* aPresContext, nsRange* aRange,
-                        bool aSelect)
+                        bool aFlags)
 {
   if (!mFrameSelection || !aPresContext || !aPresContext->GetPresShell()) {
-    // nothing to do
-    return NS_OK;
+    return NS_OK; // nothing to do
   }
-  MOZ_ASSERT(aRange);
+  if (!aRange) {
+    return NS_ERROR_NULL_POINTER;
+  }
 
   if (mFrameSelection->GetTableCellSelection()) {
     nsINode* node = aRange->GetCommonAncestor();
-    nsIFrame* frame = node->IsContent() ? node->AsContent()->GetPrimaryFrame()
-                                : aPresContext->FrameManager()->GetRootFrame();
+    nsCOMPtr<nsIContent> content = do_QueryInterface(node);
+    nsIFrame* frame = content ? content->GetPrimaryFrame()
+                              : aPresContext->FrameManager()->GetRootFrame();
     if (frame) {
       frame->InvalidateFrameSubtree();
     }
     return NS_OK;
   }
 
-  nsCOMPtr<nsIContentIterator> iter = NS_NewContentSubtreeIterator();
-  iter->Init(aRange);
+  nsresult result;
+  nsCOMPtr<nsIContentIterator> iter = do_CreateInstance(
+                                              kCSubtreeIteratorCID,
+                                              &result);
+  if (NS_FAILED(result))
+    return result;
 
-  // Loop through the content iterator for each content node; for each text
-  // node, call SetSelected on it:
-  nsCOMPtr<nsIContent> content = do_QueryInterface(aRange->GetStartParent());
-  NS_ENSURE_STATE(content);
+  nsCOMPtr<nsIContentIterator> inneriter = do_CreateInstance(
+                                              kCContentIteratorCID,
+                                              &result);
 
-  // We must call first one explicitly
-  if (content->IsNodeOfType(nsINode::eTEXT)) {
-    nsIFrame* frame = content->GetPrimaryFrame();
-    // The frame could be an SVG text frame, in which case we'll ignore it.
-    if (frame && frame->GetType() == nsGkAtoms::textFrame) {
-      nsTextFrame* textFrame = static_cast<nsTextFrame*>(frame);
-      PRUint32 startOffset = aRange->StartOffset();
-      PRUint32 endOffset;
-      if (aRange->GetEndParent() == content) {
-        endOffset = aRange->EndOffset();
-      } else {
-        endOffset = content->Length();
-      }
-      textFrame->SetSelectedRange(startOffset, endOffset, aSelect, mType);
-    }
-  }
+  if ((NS_SUCCEEDED(result)) && iter) {
+    result = iter->Init(aRange);
 
-  iter->First();
-  nsCOMPtr<nsIContentIterator> inneriter = NS_NewContentIterator();
-  for (iter->First(); !iter->IsDone(); iter->Next()) {
-    content = do_QueryInterface(iter->GetCurrentNode());
-    SelectAllFramesForContent(inneriter, content, aSelect);
-  }
+    // loop through the content iterator for each content node
+    // for each text node, call SetSelected on it:
+    nsCOMPtr<nsIContent> content = do_QueryInterface(aRange->GetStartParent());
 
-  // We must now do the last one if it is not the same as the first
-  if (aRange->GetEndParent() != aRange->GetStartParent()) {
-    nsresult res;
-    content = do_QueryInterface(aRange->GetEndParent(), &res);
-    NS_ENSURE_SUCCESS(res, res);
-    NS_ENSURE_TRUE(content, res);
+    // we must call first one explicitly
+    if (!content)
+      return NS_ERROR_UNEXPECTED;
 
     if (content->IsNodeOfType(nsINode::eTEXT)) {
       nsIFrame* frame = content->GetPrimaryFrame();
-      // The frame could be an SVG text frame, in which case we'll ignore it.
-      if (frame && frame->GetType() == nsGkAtoms::textFrame) {
+      // The frame could be an SVG text frame, in which case we'll ignore
+      // it.
+      if (frame && frame->GetType() == nsGkAtoms::textFrame)
+      {
         nsTextFrame* textFrame = static_cast<nsTextFrame*>(frame);
-        textFrame->SetSelectedRange(0, aRange->EndOffset(), aSelect, mType);
+        PRUint32 startOffset = aRange->StartOffset();
+        PRUint32 endOffset;
+        if (aRange->GetEndParent() == content) {
+          endOffset = aRange->EndOffset();
+        } else {
+          endOffset = content->GetText()->GetLength();
+        }
+        textFrame->SetSelectedRange(startOffset, endOffset, aFlags, mType);
+      }
+    }
+
+    iter->First();
+    while (!iter->IsDone()) {
+      content = do_QueryInterface(iter->GetCurrentNode());
+      SelectAllFramesForContent(inneriter, content, aFlags);
+      iter->Next();
+    }
+
+    //we must now do the last one  if it is not the same as the first
+    if (aRange->GetEndParent() != aRange->GetStartParent())
+    {
+      content = do_QueryInterface(aRange->GetEndParent(), &result);
+      if (NS_FAILED(result) || !content)
+        return result;
+
+      if (content->IsNodeOfType(nsINode::eTEXT))
+      {
+        nsIFrame* frame = content->GetPrimaryFrame();
+        // The frame could be an SVG text frame, in which case we'll
+        // ignore it.
+        if (frame && frame->GetType() == nsGkAtoms::textFrame)
+        {
+          nsTextFrame* textFrame = static_cast<nsTextFrame*>(frame);
+          textFrame->SetSelectedRange(0, aRange->EndOffset(), aFlags, mType);
+        }
       }
     }
   }
-  return NS_OK;
+  return result;
 }
 
 
@@ -4703,7 +4721,6 @@ Selection::SetAnchorFocusToRange(nsRange* aRange)
 void
 Selection::ReplaceAnchorFocusRange(nsRange* aRange)
 {
-  NS_ENSURE_TRUE(mAnchorFocusRange, );
   nsRefPtr<nsPresContext> presContext;
   GetPresContext(getter_AddRefs(presContext));
   if (presContext) {

@@ -8,7 +8,7 @@
 
 #include "nsBaseWidget.h"
 #include "gfxPoint.h"
-#include "nsIIdleServiceInternal.h"
+
 #include "nsTArray.h"
 
 #ifdef MOZ_JAVA_COMPOSITOR
@@ -17,6 +17,7 @@
 #endif
 
 class gfxASurface;
+class nsIdleService;
 
 struct ANPEvent;
 
@@ -187,7 +188,7 @@ protected:
     double mSwipeMaxPinchDelta;
     double mSwipeMinDistance;
 
-    nsCOMPtr<nsIIdleServiceInternal> mIdleService;
+    nsCOMPtr<nsIdleService> mIdleService;
 
     bool mIMEComposing;
     nsString mIMEComposingText;

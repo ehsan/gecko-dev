@@ -5,7 +5,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "imgITools.h"
-#include "gfxContext.h"
 
 #define NS_IMGTOOLS_CID \
 { /* fd9a9e8a-a77b-496a-b7bb-263df9715149 */         \
@@ -23,13 +22,4 @@ public:
 
   imgTools();
   virtual ~imgTools();
-
-private:
-  NS_IMETHODIMP EncodeImageData(gfxImageSurface *aSurface,
-                                const nsACString& aMimeType,
-                                const nsAString& aOutputOptions,
-                                nsIInputStream **aStream);
-
-  NS_IMETHODIMP GetFirstImageFrame(imgIContainer *aContainer,
-                                   gfxImageSurface **aSurface);
 };

@@ -10,8 +10,9 @@ VPATH		= @srcdir@
 relativesrcdir  = dom/tests/mochitest/chrome
 
 include $(DEPTH)/config/autoconf.mk
+include $(topsrcdir)/config/rules.mk
 
-MOCHITEST_CHROME_FILES = \
+_TEST_FILES = \
 		test_MozEnteredDomFullscreen_event.xul \
 		MozEnteredDomFullscreen_chrome.xul \
 		test_fullscreen.xul \
@@ -49,10 +50,11 @@ MOCHITEST_CHROME_FILES = \
 		$(NULL)
 
 ifeq (WINNT,$(OS_ARCH))
-MOCHITEST_CHROME_FILES += \
+_TEST_FILES += \
 		test_sizemode_attribute.xul \
 		sizemode_attribute.xul \
 		$(NULL)
 endif
 
-include $(topsrcdir)/config/rules.mk
+libs:: $(_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/chrome/$(relativesrcdir)

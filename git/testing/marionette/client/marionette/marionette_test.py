@@ -173,7 +173,7 @@ class MarionetteJSTestCase(CommonTestCase):
             args.append({'__marionetteArgs': {'appframe': frame}})
 
         try:
-            results = self.marionette.execute_js_script(js, args, special_powers=True)
+            results = self.marionette.execute_js_script(js, args)
 
             if launch_app:
                 self.kill_gaia_app(launch_app)

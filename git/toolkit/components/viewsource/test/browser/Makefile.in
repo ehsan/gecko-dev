@@ -9,8 +9,9 @@ VPATH     = @srcdir@
 relativesrcdir  = toolkit/components/viewsource/test/browser
 
 include $(DEPTH)/config/autoconf.mk
+include $(topsrcdir)/config/rules.mk
 
-MOCHITEST_BROWSER_FILES   = \
+_BROWSER_CHROME_FILES   = \
                 browser_bug699356.js \
                 browser_bug713810.js \
                 browser_contextmenu.js \
@@ -20,4 +21,5 @@ MOCHITEST_BROWSER_FILES   = \
                 head.js \
                 $(NULL)
 
-include $(topsrcdir)/config/rules.mk
+libs:: $(_BROWSER_CHROME_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/browser/$(relativesrcdir)

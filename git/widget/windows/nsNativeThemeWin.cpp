@@ -13,6 +13,7 @@
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
 #include "nsIContent.h"
+#include "nsIDocument.h"
 #include "nsIFrame.h"
 #include "nsEventStates.h"
 #include "nsINameSpaceManager.h"

@@ -69,7 +69,7 @@
 #include "nsGfxCIID.h"
 #include "nsIObserverService.h"
 
-#include "nsIIdleServiceInternal.h"
+#include "nsIdleService.h"
 #include "nsIPropertyBag2.h"
 
 #ifdef ACCESSIBILITY
@@ -322,10 +322,10 @@ static inline bool TimestampIsNewerThan(guint32 a, guint32 b)
 static void
 UpdateLastInputEventTime(void *aGdkEvent)
 {
-    nsCOMPtr<nsIIdleServiceInternal> idleService =
+    nsCOMPtr<nsIdleService> idleService =
         do_GetService("@mozilla.org/widget/idleservice;1");
     if (idleService) {
-        idleService->ResetIdleTimeOut(0);
+        idleService->ResetIdleTimeOut();
     }
 
     guint timestamp = gdk_event_get_time(static_cast<GdkEvent*>(aGdkEvent));

@@ -17,6 +17,7 @@
 
 class nsAString;
 class nsIContent;
+class nsIDocument;
 class nsINodeInfo;
 class imgIRequest;
 class nsNodeInfoManager;

@@ -12,6 +12,8 @@
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
+#include "nsIHTMLDocument.h"
+#include "nsIDocument.h"
 
 /**
  * The nsFramesetUnit enum is used to denote the type of each entry

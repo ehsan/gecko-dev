@@ -9,7 +9,6 @@
 #include "nsComponentManagerUtils.h"
 #include "nsISimpleEnumerator.h"
 #include "nsIFile.h"
-#include "mozilla/Attributes.h"
 
 #define NS_BROWSERDIRECTORYPROVIDER_CONTRACTID \
   "@mozilla.org/browser/directory-provider;1"
@@ -17,7 +16,7 @@
 namespace mozilla {
 namespace browser {
 
-class DirectoryProvider MOZ_FINAL : public nsIDirectoryServiceProvider2
+class DirectoryProvider : public nsIDirectoryServiceProvider2
 {
 public:
   NS_DECL_ISUPPORTS
@@ -25,7 +24,7 @@ public:
   NS_DECL_NSIDIRECTORYSERVICEPROVIDER2
 
 private:
-  class AppendingEnumerator MOZ_FINAL : public nsISimpleEnumerator
+  class AppendingEnumerator : public nsISimpleEnumerator
   {
   public:
     NS_DECL_ISUPPORTS

@@ -4,6 +4,7 @@
 
 #include "TestHarness.h"
 
+#include "nsIDOMDocument.h"
 #include "nsIPrincipal.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsIXMLHttpRequest.h"

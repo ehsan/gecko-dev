@@ -201,7 +201,7 @@ Shape::finalize(FreeOp *fop)
 #ifdef DEBUG
 
 void
-KidsPointer::checkConsistency(Shape *aKid) const
+KidsPointer::checkConsistency(const Shape *aKid) const
 {
     if (isShape()) {
         JS_ASSERT(toShape() == aKid);

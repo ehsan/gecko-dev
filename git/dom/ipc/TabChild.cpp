@@ -46,6 +46,8 @@
 #include "nsIScriptContext.h"
 #include "nsInterfaceHashtable.h"
 #include "nsPresContext.h"
+#include "nsIDocument.h"
+#include "nsIDOMDocument.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsWeakReference.h"
 #include "nsISecureBrowserUI.h"

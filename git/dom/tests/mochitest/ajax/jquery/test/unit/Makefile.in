@@ -14,7 +14,9 @@ include $(DEPTH)/config/autoconf.mk
 DIRS	= \
 	$(NULL)
 
-MOCHITEST_FILES	= \
+include $(topsrcdir)/config/rules.mk
+
+_TEST_FILES	= \
 	ajax.js \
 	core.js \
 	dimensions.js \
@@ -24,4 +26,5 @@ MOCHITEST_FILES	= \
 	selector.js \
 	$(NULL)
 
-include $(topsrcdir)/config/rules.mk
+libs::	$(_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)

@@ -11,6 +11,8 @@
 
 #include "nsCOMPtr.h"
 #include "nsContentUtils.h"
+#include "nsReadableUtils.h"
+#include "nsUnicharUtils.h"
 #include "nsGkAtoms.h"
 #include "nsIPresShell.h"
 #include "nsIDocument.h"

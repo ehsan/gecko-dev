@@ -14,6 +14,11 @@ do_load_httpd_js();
 
 var httpserv;
 
+function getCacheService() {
+    return Components.classes["@mozilla.org/network/cache-service;1"]
+            .getService(Components.interfaces.nsICacheService);
+}
+
 function setupChannel(path) {
     var ios =
         Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);
@@ -80,7 +85,8 @@ function run_test() {
   httpserv.start(4444);
 
   // Clear cache
-  evict_cache_entries();
+  getCacheService().evictEntries(
+          Components.interfaces.nsICache.STORE_ANYWHERE);
 
   // Load Content-Location URI into cache and start the chain of loads
   var channel = setupChannel("http://localhost:4444/cl");

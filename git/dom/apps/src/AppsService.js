@@ -28,11 +28,6 @@ AppsService.prototype = {
     return DOMApplicationRegistry.getAppByManifestURL(aManifestURL)
   },
 
-  getAppLocalIdByManifestURL: function getAppLocalIdByManifestURL(aManifestURL) {
-    debug("getAppLocalIdByManifestURL( " + aManifestURL + " )");
-    return DOMApplicationRegistry.getAppLocalIdByManifestURL(aManifestURL);
-  },
-
   classID : APPS_SERVICE_CID,
   QueryInterface : XPCOMUtils.generateQI([Ci.nsIAppsService]),
 

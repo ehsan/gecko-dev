@@ -10,8 +10,9 @@ VPATH		= @srcdir@
 relativesrcdir  = dom/plugins/test
 
 include $(DEPTH)/config/autoconf.mk
+include $(topsrcdir)/config/rules.mk
 
-MOCHITEST_FILES = \
+_MOCHITEST_FILES = \
   utils.js \
   test_defaultValue.html \
   test_getauthenticationinfo.html \
@@ -85,7 +86,7 @@ MOCHITEST_FILES = \
 #  test_plugin_scroll_painting.html \ bug 596491
 
 ifeq ($(OS_ARCH),WINNT)
-MOCHITEST_FILES += \
+_MOCHITEST_FILES += \
   test_windowed_invalidate.html \
   $(NULL)
 
@@ -93,7 +94,7 @@ MOCHITEST_FILES += \
 # mochitest window?
 endif
 
-MOCHITEST_CHROME_FILES = \
+_MOCHICHROME_FILES = \
   utils.js \
   test_clear_site_data.html \
   test_npruntime.xul   \
@@ -103,13 +104,13 @@ MOCHITEST_CHROME_FILES = \
   $(NULL)
 
 ifneq ($(MOZ_WIDGET_TOOLKIT),cocoa)
-MOCHITEST_FILES += \
+_MOCHITEST_FILES += \
   test_instance_re-parent-windowed.html \
   test_visibility.html \
   $(NULL)
 
 ifneq ($(OS_ARCH),WINNT)
-MOCHITEST_CHROME_FILES += \
+_MOCHICHROME_FILES += \
   test_xulbrowser_plugin_visibility.xul \
   xulbrowser_plugin_visibility.xul \
   plugin_visibility_loader.html \
@@ -118,7 +119,7 @@ endif
 endif
 
 ifdef MOZ_CRASHREPORTER
-MOCHITEST_CHROME_FILES += \
+_MOCHICHROME_FILES += \
   test_crash_notify.xul \
   test_crash_notify_no_report.xul \
   test_crash_submit.xul \
@@ -126,11 +127,11 @@ MOCHITEST_CHROME_FILES += \
 endif
 
 ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
-MOCHITEST_CHROME_FILES += \
+_MOCHICHROME_FILES += \
   test_convertpoint.xul \
   $(NULL)
 
-MOCHITEST_FILES += \
+_MOCHITEST_FILES += \
   test_cocoa_window_focus.html \
   cocoa_window_focus.html \
   test_cocoa_focus.html \
@@ -139,10 +140,14 @@ MOCHITEST_FILES += \
 endif
 
 ifeq (gtk2,$(MOZ_WIDGET_TOOLKIT))
-MOCHITEST_FILES += \
+_MOCHITEST_FILES += \
 		test_copyText.html \
 		test_crash_nested_loop.html \
 		$(NULL)
 endif
 
-include $(topsrcdir)/config/rules.mk
+libs:: $(_MOCHICHROME_FILES)
+	$(INSTALL) $^ $(DEPTH)/_tests/testing/mochitest/chrome/$(relativesrcdir)
+
+libs:: $(_MOCHITEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)

@@ -5,6 +5,7 @@
 
 #include "CreateElementTxn.h"
 #include "nsEditor.h"
+#include "nsIDOMDocument.h"
 #include "nsIDOMNodeList.h"
 #include "nsISelection.h"
 #include "nsIDOMElement.h"

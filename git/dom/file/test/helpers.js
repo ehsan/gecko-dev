@@ -17,6 +17,7 @@ var testGenerator = testSteps();
 
 function runTest()
 {
+  allowIndexedDB();
   allowUnlimitedQuota();
 
   SimpleTest.waitForExplicitFinish();
@@ -26,6 +27,7 @@ function runTest()
 function finishTest()
 {
   resetUnlimitedQuota();
+  resetIndexedDB();
 
   SimpleTest.executeSoon(function() {
     testGenerator.close();
@@ -88,6 +90,16 @@ function removePermission(type, url)
   SpecialPowers.removePermission(type, url);
 }
 
+function allowIndexedDB(url)
+{
+  addPermission("indexedDB", true, url);
+}
+
+function resetIndexedDB(url)
+{
+  removePermission("indexedDB", url);
+}
+
 function allowUnlimitedQuota(url)
 {
   addPermission("indexedDB-unlimited", true, url);
@@ -106,7 +118,7 @@ function getFileHandle(fileStorageKey, name)
   switch (fileStorageKey) {
     case IndexedDatabaseKey:
       var dbname = window.location.pathname;
-      indexedDB.open(dbname, 1).onsuccess = function(event) {
+      mozIndexedDB.open(dbname, 1).onsuccess = function(event) {
         var db = event.target.result;
         db.mozCreateFileHandle(name).onsuccess = function(event) {
           var fileHandle = event.target.result;
@@ -117,7 +129,7 @@ function getFileHandle(fileStorageKey, name)
 
     case DeviceStorageKey:
       var dbname = window.location.pathname;
-      indexedDB.open(dbname, 1).onsuccess = function(event) {
+      mozIndexedDB.open(dbname, 1).onsuccess = function(event) {
         var db = event.target.result;
         db.mozCreateFileHandle(name).onsuccess = function(event) {
           var fileHandle = event.target.result;

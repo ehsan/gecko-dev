@@ -10,16 +10,21 @@ VPATH		= @srcdir@
 relativesrcdir  = content/xul/content/test
 
 include $(DEPTH)/config/autoconf.mk
+include $(topsrcdir)/config/rules.mk
 
-MOCHITEST_FILES = 	\
+_TEST_FILES = 	\
 		test_bug486990.xul \
 		test_bug749367.xul \
 		$(NULL)
 
-MOCHITEST_CHROME_FILES = \
+_CHROME_FILES = \
 		test_bug233643.xul \
-		test_bug398289.html \
-		398289-resource.xul \
-		$(NULL)
+ 		test_bug398289.html \
+ 		398289-resource.xul \
+ 		$(NULL)
 
-include $(topsrcdir)/config/rules.mk
+libs:: $(_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)
+
+libs:: $(_CHROME_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/chrome/$(relativesrcdir)

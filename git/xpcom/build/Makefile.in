@@ -27,10 +27,6 @@ ifeq ($(OS_ARCH),Linux)
 DEFINES += -DXP_LINUX
 endif
 
-ifeq (Darwin, $(OS_ARCH))
-CSRCS = mach_override.c
-endif
-
 CPPSRCS = \
   $(XPCOM_GLUE_SRC_LCPPSRCS) \
   $(XPCOM_GLUENS_SRC_LCPPSRCS) \
@@ -40,12 +36,6 @@ CPPSRCS = \
   Omnijar.cpp \
   FileLocation.cpp \
   $(NULL)
-
-ifeq (Darwin, $(OS_ARCH))
-CPPSRCS += mozPoisonWriteMac.cpp
-else
-CPPSRCS += mozPoisonWriteStub.cpp
-endif
 
 ifeq ($(OS_ARCH),WINNT)
 CPPSRCS += perfprobe.cpp
@@ -105,7 +95,6 @@ EXPORTS_mozilla = \
   ServiceList.h \
   Omnijar.h \
   FileLocation.h \
-  mozPoisonWrite.h \
   $(NULL)
 
 ifeq ($(OS_ARCH),WINNT)

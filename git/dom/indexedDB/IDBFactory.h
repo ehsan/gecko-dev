@@ -73,7 +73,6 @@ public:
   OpenCommon(const nsAString& aName,
              PRInt64 aVersion,
              bool aDeleting,
-             JSContext* aCallingCx,
              IDBOpenDBRequest** _retval);
 
   void

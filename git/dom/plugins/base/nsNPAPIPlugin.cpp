@@ -31,6 +31,7 @@
 #include "nsIJSContextStack.h"
 
 #include "nsIDOMElement.h"
+#include "nsIDOMDocument.h"
 #include "nsPIDOMWindow.h"
 #include "nsIDocument.h"
 #include "nsIContent.h"
@@ -281,20 +282,6 @@ static bool GMA9XXGraphics()
 }
 #endif
 
-#ifdef XP_WIN
-static bool
-IsVistaOrLater()
-{
-  OSVERSIONINFO info;
-
-  ZeroMemory(&info, sizeof(OSVERSIONINFO));
-  info.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
-  GetVersionEx(&info);
-
-  return info.dwMajorVersion >= 6;
-}
-#endif
-
 bool
 nsNPAPIPlugin::RunPluginOOP(const nsPluginTag *aPluginTag)
 {
@@ -305,14 +292,6 @@ nsNPAPIPlugin::RunPluginOOP(const nsPluginTag *aPluginTag)
   if (!aPluginTag) {
     return false;
   }
-
-#ifdef XP_WIN
-  // On Windows Vista+, we force Flash to run in OOPP mode because Adobe
-  // doesn't test Flash in-process and there are known stability bugs.
-  if (aPluginTag->mIsFlashPlugin && IsVistaOrLater()) {
-    return true;
-  }
-#endif
 
 #if defined(XP_MACOSX) && defined(__i386__)
   // Only allow on Mac OS X 10.6 or higher.

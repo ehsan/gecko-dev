@@ -188,7 +188,7 @@ nsSVGSVGElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
 
   nsCOMPtr<nsINode> kungFuDeathGrip = it;
   nsresult rv = it->Init();
-  rv |= const_cast<nsSVGSVGElement*>(this)->CopyInnerTo(it);
+  rv |= CopyInnerTo(it);
   if (NS_SUCCEEDED(rv)) {
     kungFuDeathGrip.swap(*aResult);
   }

@@ -16,7 +16,6 @@
 #include "nsServiceManagerUtils.h"
 #include "nsString.h"
 #include "xpcpublic.h"
-#include "mozilla/Attributes.h"
 
 #undef LOG
 #define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "AutoMounterSetting" , ## args)
@@ -28,7 +27,7 @@
 namespace mozilla {
 namespace system {
 
-class SettingsServiceCallback MOZ_FINAL : public nsISettingsServiceCallback
+class SettingsServiceCallback : public nsISettingsServiceCallback
 {
 public:
   NS_DECL_ISUPPORTS

@@ -11,7 +11,9 @@
 #include "prdtoa.h"
 #include "nsDOMError.h"
 #include "nsGkAtoms.h"
+#include "nsReadableUtils.h"
 #include "nsCRT.h"
+#include "nsContentUtils.h"
 #include "nsDOMClassInfoID.h"
 #include "nsIAtom.h"
 

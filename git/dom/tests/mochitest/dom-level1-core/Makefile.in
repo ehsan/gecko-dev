@@ -13,7 +13,9 @@ include $(DEPTH)/config/autoconf.mk
 
 DIRS = files
 
-MOCHITEST_FILES_A	= \
+include $(topsrcdir)/config/rules.mk
+
+_TEST_FILES_A	= \
 		DOMTestCase.js \
 		activity-home.css \
 		exclusions.js \
@@ -80,7 +82,7 @@ MOCHITEST_FILES_A	= \
 		test_characterdatasubstringvalue.html \
 		$(NULL)
 
-MOCHITEST_FILES_B	= \
+_TEST_FILES_B	= \
 		test_commentgetcomment.html \
 		test_documentcreateattribute.html \
 		test_documentcreatecdatasection.html \
@@ -156,7 +158,7 @@ MOCHITEST_FILES_B	= \
 		test_entitygetpublicidnull.html \
 		$(NULL)
 
-MOCHITEST_FILES_C	= \
+_TEST_FILES_C	= \
 		test_hc_attrappendchild1.html \
 		test_hc_attrappendchild2.html \
 		test_hc_attrappendchild3.html \
@@ -197,7 +199,7 @@ MOCHITEST_FILES_C	= \
 		test_hc_attrspecifiedvaluechanged.html \
 		$(NULL)
 
-MOCHITEST_FILES_D	= \
+_TEST_FILES_D	= \
 		test_hc_characterdataappenddata.html \
 		test_hc_characterdataappenddatagetdata.html \
 		test_hc_characterdatadeletedatabegining.html \
@@ -280,7 +282,7 @@ MOCHITEST_FILES_D	= \
 		test_hc_elementwrongdocumenterr.html \
 		$(NULL)
 
-MOCHITEST_FILES_E	= \
+_TEST_FILES_E	= \
 		test_hc_entitiesremovenameditem1.html \
 		test_hc_entitiessetnameditem1.html \
 		test_hc_namednodemapchildnoderange.html \
@@ -398,7 +400,7 @@ MOCHITEST_FILES_E	= \
 		test_hc_textwithnomarkup.html \
 		$(NULL)
 
-MOCHITEST_FILES_F	= \
+_TEST_FILES_F	= \
 		test_namednodemapchildnoderange.html \
 		test_namednodemapgetnameditem.html \
 		test_namednodemapinuseattributeerr.html \
@@ -501,7 +503,7 @@ MOCHITEST_FILES_F	= \
 		test_nodelisttraverselist.html \
 		$(NULL)
 
-MOCHITEST_FILES_G	= \
+_TEST_FILES_G	= \
 		test_nodenotationnodeattributes.html \
 		test_nodenotationnodename.html \
 		test_nodenotationnodetype.html \
@@ -568,6 +570,24 @@ MOCHITEST_FILES_G	= \
 # test_processinginstructionsetdatanomodificationallowederrEE.html, but that
 # name is too long for Windows little brain.
 
-MOCHITEST_FILES_PARTS := $(foreach part,A B C D E F G,MOCHITEST_FILES_$(part))
+# work around command-line length limits by splitting into groups
+libs:: 	$(_TEST_FILES_A)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)
 
-include $(topsrcdir)/config/rules.mk
+libs::	$(_TEST_FILES_B)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)
+
+libs::	$(_TEST_FILES_C)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)
+
+libs::	$(_TEST_FILES_D)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)
+
+libs::	$(_TEST_FILES_E)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)
+
+libs::	$(_TEST_FILES_F)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)
+
+libs::	$(_TEST_FILES_G)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)

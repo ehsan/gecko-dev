@@ -99,12 +99,8 @@ function performTest() {
     successFn: function()
     {
       let jstermMessage = HUD.outputNode.querySelector(".webconsole-msg-output");
-      EventUtils.sendMouseEvent({ type: "mousedown" }, jstermMessage);
-      EventUtils.sendMouseEvent({ type: "mouseup" }, jstermMessage);
-      EventUtils.sendMouseEvent({ type: "click" }, jstermMessage);
-      EventUtils.sendMouseEvent({ type: "mousedown" }, networkLink);
-      EventUtils.sendMouseEvent({ type: "mouseup" }, networkLink);
-      EventUtils.sendMouseEvent({ type: "click" }, networkLink);
+      EventUtils.synthesizeMouse(jstermMessage, 2, 2, {});
+      EventUtils.synthesizeMouse(networkLink, 2, 2, {});
     },
     failureFn: finishTest,
   });

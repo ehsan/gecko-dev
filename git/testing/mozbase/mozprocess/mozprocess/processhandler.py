@@ -1,6 +1,6 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this file,
-# You can obtain one at http://mozilla.org/MPL/2.0/.
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import logging
 import mozinfo
@@ -111,7 +111,7 @@ class ProcessHandlerMixin(object):
                     except BaseException, e:
                         if getattr(e, "errno", None) != 3:
                             # Error 3 is "no such process", which is ok
-                            print >> sys.stdout, "Could not kill process, could not find pid: %s, assuming it's already dead" % self.pid
+                            print >> sys.stderr, "Could not kill process, could not find pid: %s" % self.pid
                 else:
                     os.kill(self.pid, signal.SIGKILL)
                 if self.returncode is None:
@@ -365,8 +365,7 @@ falling back to not using job objects for managing child processes"""
                     except:
                         err = "IO Completion Port failed to signal process shutdown"
                     # Either way, let's try to get this code
-                    if self._handle:
-                        self.returncode = winprocess.GetExitCodeProcess(self._handle)
+                    self.returncode = winprocess.GetExitCodeProcess(self._handle)
                     self._cleanup()
 
                     if err is not None:
@@ -401,8 +400,7 @@ falling back to not using job objects for managing child processes"""
                             raise WinError(rc)
 
                     self._cleanup()
-
-                return self.returncode
+                    return self.returncode
 
             def _cleanup_job_io_port(self):
                 """ Do the job and IO port cleanup separately because there are
@@ -484,7 +482,7 @@ falling back to not using job objects for managing child processes"""
                  cmd,
                  args=None,
                  cwd=None,
-                 env=None,
+                 env=os.environ.copy(),
                  ignore_children = False,
                  processOutputLine=(),
                  onTimeout=(),
@@ -509,13 +507,10 @@ falling back to not using job objects for managing child processes"""
         self.cmd = cmd
         self.args = args
         self.cwd = cwd
+        self.env = env
         self.didTimeout = False
         self._ignore_children = ignore_children
         self.keywordargs = kwargs
-
-        if env is None:
-            env = os.environ.copy()
-        self.env = env
 
         # handlers
         self.processOutputLineHandlers = list(processOutputLine)
@@ -628,6 +623,7 @@ falling back to not using job objects for managing child processes"""
                 lineReadTimeout = timeout - (datetime.now() - self.startTime).seconds
             (line, self.didTimeout) = self.readWithTimeout(logsource, lineReadTimeout)
 
+
         if self.didTimeout:
             self.proc.kill()
             self.onTimeout()
@@ -672,7 +668,7 @@ falling back to not using job objects for managing child processes"""
             try:
                 (r, w, e) = select.select([f], [], [], timeout)
             except:
-                # return a blank line
+                # TODO: return a blank line?
                 return ('', True)
 
             if len(r) == 0:
@@ -712,7 +708,6 @@ class LogOutput(object):
         if self.file is not None:
             self.file.close()
 
-
 ### front end class with the default handlers
 
 class ProcessHandler(ProcessHandlerMixin):
@@ -726,11 +721,7 @@ class ProcessHandler(ProcessHandlerMixin):
         appended to the given file.
         """
 
-        kwargs.setdefault('processOutputLine', [])
-
-        # Print to standard output only if no outputline provided
-        if not kwargs['processOutputLine']:
-            kwargs['processOutputLine'].append(print_output)
+        kwargs.setdefault('processOutputLine', []).append(print_output)
 
         if logfile:
             logoutput = LogOutput(logfile)

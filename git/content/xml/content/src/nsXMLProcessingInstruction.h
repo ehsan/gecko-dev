@@ -7,6 +7,7 @@
 #define nsIXMLProcessingInstruction_h___
 
 #include "nsIDOMProcessingInstruction.h"
+#include "nsIDocument.h"
 #include "nsGenericDOMDataNode.h"
 #include "nsAString.h"
 

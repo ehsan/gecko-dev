@@ -36,8 +36,9 @@ DIRS	= \
   $(null)
 
 include $(DEPTH)/config/autoconf.mk
+include $(topsrcdir)/config/rules.mk
 
-MOCHITEST_A11Y_FILES =\
+_TEST_FILES =\
 		formimage.png \
 		letters.gif \
 		moz.png \
@@ -73,4 +74,5 @@ MOCHITEST_A11Y_FILES =\
 		treeview.js \
 		$(NULL)
 
-include $(topsrcdir)/config/rules.mk
+libs:: $(_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/a11y/$(relativesrcdir)

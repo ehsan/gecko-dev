@@ -69,6 +69,9 @@ nsDOMParser::ParseFromString(const PRUnichar *str,
     rv = SetUpDocument(DocumentFlavorHTML, getter_AddRefs(domDocument));
     NS_ENSURE_SUCCESS(rv, rv);
     nsCOMPtr<nsIDocument> document = do_QueryInterface(domDocument);
+    nsDependentString sourceBuffer(str);
+    rv = nsContentUtils::ParseDocumentHTML(sourceBuffer, document, false);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     // Keep the XULXBL state, base URL and principal setting in sync with the
     // XML case
@@ -81,10 +84,6 @@ nsDOMParser::ParseFromString(const PRUnichar *str,
     document->SetBaseURI(mBaseURI);
     // And the right principal
     document->SetPrincipal(mPrincipal);
-
-    nsDependentString sourceBuffer(str);
-    rv = nsContentUtils::ParseDocumentHTML(sourceBuffer, document, false);
-    NS_ENSURE_SUCCESS(rv, rv);
 
     domDocument.forget(aResult);
     return rv;

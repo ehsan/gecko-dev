@@ -12,6 +12,7 @@
 #include "nsTArray.h"
 #include "nsIScriptGlobalObjectOwner.h"
 #include "nsISerializable.h"
+#include "nsIDocument.h"
 #include "nsCycleCollectionParticipant.h"
 
 class nsIAtom;

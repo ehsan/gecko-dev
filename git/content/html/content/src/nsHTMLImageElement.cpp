@@ -13,6 +13,7 @@
 #include "nsMappedAttributes.h"
 #include "nsSize.h"
 #include "nsIDocument.h"
+#include "nsIDOMDocument.h"
 #include "nsIScriptContext.h"
 #include "nsIURL.h"
 #include "nsIIOService.h"
@@ -523,7 +524,7 @@ nsHTMLImageElement::GetNaturalWidth(PRUint32* aNaturalWidth)
 }
 
 nsresult
-nsHTMLImageElement::CopyInnerTo(nsGenericElement* aDest)
+nsHTMLImageElement::CopyInnerTo(nsGenericElement* aDest) const
 {
   if (aDest->OwnerDoc()->IsStaticDocument()) {
     CreateStaticImageClone(static_cast<nsHTMLImageElement*>(aDest));

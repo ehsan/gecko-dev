@@ -107,7 +107,7 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  nsresult CopyInnerTo(nsGenericElement* aDest);
+  nsresult CopyInnerTo(nsGenericElement* aDest) const;
 
   void StartObjectLoad() { StartObjectLoad(true); }
 
@@ -509,7 +509,7 @@ nsHTMLSharedObjectElement::DestroyContent()
 }
 
 nsresult
-nsHTMLSharedObjectElement::CopyInnerTo(nsGenericElement* aDest)
+nsHTMLSharedObjectElement::CopyInnerTo(nsGenericElement* aDest) const
 {
   nsresult rv = nsGenericHTMLElement::CopyInnerTo(aDest);
   NS_ENSURE_SUCCESS(rv, rv);

@@ -6,6 +6,7 @@
 #include "nsXPathNSResolver.h"
 #include "nsDOMClassInfoID.h"
 #include "nsDOMString.h"
+#include "nsContentUtils.h"
 
 NS_IMPL_CYCLE_COLLECTION_1(nsXPathNSResolver, mNode)
 

@@ -6,6 +6,7 @@
 
 #include "Telephony.h"
 
+#include "nsIDocument.h"
 #include "nsIURI.h"
 #include "nsIURL.h"
 #include "nsPIDOMWindow.h"

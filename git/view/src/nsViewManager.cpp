@@ -16,6 +16,8 @@
 #include "nsRegion.h"
 #include "nsHashtable.h"
 #include "nsCOMArray.h"
+#include "nsThreadUtils.h"
+#include "nsContentUtils.h"
 #include "nsIPluginWidget.h"
 #include "nsXULPopupManager.h"
 #include "nsIPresShell.h"

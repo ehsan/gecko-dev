@@ -11,8 +11,11 @@ relativesrcdir   = dom/src/foo
 
 include $(DEPTH)/config/autoconf.mk
 
-MOCHITEST_FILES = \
+include $(topsrcdir)/config/rules.mk
+
+_TEST_FILES = \
   test_foo.html \
   $(NULL)
 
-include $(topsrcdir)/config/rules.mk
+libs:: $(_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)

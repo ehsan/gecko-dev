@@ -160,6 +160,7 @@
 #include "nsHTMLCSSStyleSheet.h"
 
 #include "mozilla/dom/Link.h"
+#include "nsIHTMLDocument.h"
 #include "nsXULAppAPI.h"
 #include "nsDOMTouchEvent.h"
 
@@ -6097,7 +6098,7 @@ nsDocument::AdoptNode(nsIDOMNode *aAdoptedNode, nsIDOMNode **aResult)
     }
   }
 
-  nsCOMPtr<nsIDocument> oldDocument = adoptedNode->OwnerDoc();
+  nsIDocument *oldDocument = adoptedNode->OwnerDoc();
   bool sameDocument = oldDocument == this;
 
   JSContext *cx = nsnull;

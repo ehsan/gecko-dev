@@ -11,7 +11,9 @@ relativesrcdir	= dom/tests/mochitest/localstorage
 
 include $(DEPTH)/config/autoconf.mk
 
-MOCHITEST_FILES	= \
+include $(topsrcdir)/config/rules.mk
+
+_TEST_FILES	= \
     frameBug624047.html \
     frameChromeSlave.html \
     frameKeySync.html \
@@ -56,9 +58,12 @@ MOCHITEST_FILES	= \
     test_removeOwnersAPISessionOnly.html \
     test_storageConstructor.html \
     $(NULL)
-
-MOCHITEST_CHROME_FILES = \
+    
+_CHROME_FILES = \
     test_localStorageFromChrome.xhtml \
     $(NULL)
 
-include $(topsrcdir)/config/rules.mk
+libs::	$(_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)
+libs::	$(_CHROME_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/chrome/$(relativesrcdir)

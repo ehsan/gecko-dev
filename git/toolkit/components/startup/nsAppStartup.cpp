@@ -39,7 +39,6 @@
 #include "jsapi.h"
 #include "prenv.h"
 #include "nsAppDirectoryServiceDefs.h"
-#include "mozilla/mozPoisonWrite.h"
 
 #if defined(XP_WIN)
 #include <windows.h>
@@ -286,8 +285,7 @@ RecordShutdownStartTimeStamp() {
   gRecordedShutdownTimeFileName = PL_strdup(nativePath.get());
 }
 
-namespace mozilla {
-void
+static void
 RecordShutdownEndTimeStamp() {
   if (!gRecordedShutdownTimeFileName)
     return;
@@ -298,30 +296,35 @@ RecordShutdownEndTimeStamp() {
 
   nsCString tmpName = name;
   tmpName += ".tmp";
-  FILE *f = fopen(tmpName.get(), "w");
+  PRFileDesc *f = PR_Open(tmpName.get(), PR_CREATE_FILE | PR_WRONLY,
+                          PR_IRUSR | PR_IWUSR);
   if (!f)
     return;
-  // On a normal release build this should be called just before
-  // calling _exit, but on a debug build or when the user forces a full
-  // shutdown this is called as late as possible, so we have to
-  // white list this write as write poisoning will be enabled.
-  int fd = fileno(f);
-  MozillaRegisterDebugFD(fd);
 
   TimeStamp now = TimeStamp::Now();
   MOZ_ASSERT(now >= gRecordedShutdownStartTime);
   TimeDuration diff = now - gRecordedShutdownStartTime;
   uint32_t diff2 = diff.ToMilliseconds();
-  int written = fprintf(f, "%d\n", diff2);
-  int rv = fclose(f);
-  MozillaUnRegisterDebugFD(fd);
-  if (written < 0 || rv != 0) {
+  uint32_t written = PR_fprintf(f, "%d\n", diff2);
+  PRStatus rv = PR_Close(f);
+  if (written == static_cast<uint32_t>(-1) || rv != PR_SUCCESS) {
     PR_Delete(tmpName.get());
     return;
   }
   PR_Rename(tmpName.get(), name.get());
 }
-}
+
+// For now firefox runs static destructors during shutdown on release builds
+// too, so we just use one to run RecordShutdownEndTimeStamp. Once we are
+// exiting earlier in release builds we just move the call.
+class RecordShutdownEndTimeStampHelper {
+public:
+  ~RecordShutdownEndTimeStampHelper() {
+    RecordShutdownEndTimeStamp();
+  }
+};
+
+static RecordShutdownEndTimeStampHelper gHelper;
 
 NS_IMETHODIMP
 nsAppStartup::Quit(uint32_t aMode)

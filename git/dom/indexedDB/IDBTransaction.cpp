@@ -111,7 +111,6 @@ IDBTransaction::CreateInternal(IDBDatabase* aDatabase,
   transaction->mMode = aMode;
   transaction->mDatabaseInfo = aDatabase->Info();
   transaction->mObjectStoreNames.AppendElements(aObjectStoreNames);
-  transaction->mObjectStoreNames.Sort();
 
   IndexedDBTransactionChild* actor = nsnull;
 
@@ -229,9 +228,7 @@ IDBTransaction::RemoveObjectStore(const nsAString& aName)
 
   for (PRUint32 i = 0; i < mCreatedObjectStores.Length(); i++) {
     if (mCreatedObjectStores[i]->Name() == aName) {
-      nsRefPtr<IDBObjectStore> objectStore = mCreatedObjectStores[i];
       mCreatedObjectStores.RemoveElementAt(i);
-      mDeletedObjectStores.AppendElement(objectStore);
       break;
     }
   }
@@ -498,12 +495,9 @@ IDBTransaction::ClearCreatedFileInfos()
 }
 
 nsresult
-IDBTransaction::AbortInternal(nsresult aAbortCode,
-                              already_AddRefed<nsIDOMDOMError> aError)
+IDBTransaction::AbortWithCode(nsresult aAbortCode)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-
-  nsCOMPtr<nsIDOMDOMError> error = aError;
 
   if (IsFinished()) {
     return NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR;
@@ -518,40 +512,9 @@ IDBTransaction::AbortInternal(nsresult aAbortCode,
 
   mAbortCode = aAbortCode;
   mReadyState = IDBTransaction::DONE;
-  mError = error.forget();
 
-  if (GetMode() == IDBTransaction::VERSION_CHANGE) {
-    // If a version change transaction is aborted, we must revert the world
-    // back to its previous state.
-    mDatabase->RevertToPreviousState();
-
-    DatabaseInfo* dbInfo = mDatabase->Info();
-
-    for (PRUint32 i = 0; i < mCreatedObjectStores.Length(); i++) {
-      nsRefPtr<IDBObjectStore>& objectStore = mCreatedObjectStores[i];
-      ObjectStoreInfo* info = dbInfo->GetObjectStore(objectStore->Name());
-
-      if (!info) {
-        info = new ObjectStoreInfo(*objectStore->Info());
-        info->indexes.Clear();
-      }
-
-      objectStore->SetInfo(info);
-    }
-
-    for (PRUint32 i = 0; i < mDeletedObjectStores.Length(); i++) {
-      nsRefPtr<IDBObjectStore>& objectStore = mDeletedObjectStores[i];
-      ObjectStoreInfo* info = dbInfo->GetObjectStore(objectStore->Name());
-
-      if (!info) {
-        info = new ObjectStoreInfo(*objectStore->Info());
-        info->indexes.Clear();
-      }
-
-      objectStore->SetInfo(info);
-    }
-
-    // and then the db must be closed
+  if (Mode() == IDBTransaction::VERSION_CHANGE) {
+    // If a version change transaction is aborted, the db must be closed
     mDatabase->Close();
   }
 
@@ -570,18 +533,9 @@ IDBTransaction::Abort(IDBRequest* aRequest)
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(aRequest, "This is undesirable.");
 
-  nsCOMPtr<nsIDOMDOMError> error;
-  aRequest->GetError(getter_AddRefs(error));
+  aRequest->GetError(getter_AddRefs(mError));
 
-  return AbortInternal(aRequest->GetErrorCode(), error.forget());
-}
-
-nsresult
-IDBTransaction::Abort(nsresult aErrorCode)
-{
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-
-  return AbortInternal(aErrorCode, DOMError::CreateForNSResult(aErrorCode));
+  return AbortWithCode(aRequest->GetErrorCode());
 }
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(IDBTransaction)
@@ -600,11 +554,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(IDBTransaction,
     cb.NoteXPCOMChild(static_cast<nsIIDBObjectStore*>(
                       tmp->mCreatedObjectStores[i].get()));
   }
-  for (PRUint32 i = 0; i < tmp->mDeletedObjectStores.Length(); i++) {
-    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mDeletedObjectStores[i]");
-    cb.NoteXPCOMChild(static_cast<nsIIDBObjectStore*>(
-                      tmp->mDeletedObjectStores[i].get()));
-  }
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(IDBTransaction, IDBWrapperCache)
@@ -615,7 +564,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(IDBTransaction, IDBWrapperCache)
   NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(abort)
 
   tmp->mCreatedObjectStores.Clear();
-  tmp->mDeletedObjectStores.Clear();
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
@@ -760,7 +708,7 @@ NS_IMETHODIMP
 IDBTransaction::Abort()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-  return AbortInternal(NS_ERROR_DOM_INDEXEDDB_ABORT_ERR, nsnull);
+  return AbortWithCode(NS_ERROR_DOM_INDEXEDDB_ABORT_ERR);
 }
 
 nsresult

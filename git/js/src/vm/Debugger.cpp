@@ -276,7 +276,7 @@ BreakpointSite::clearTrap(FreeOp *fop, JSTrapHandler *handlerp, Value *closurep)
     trapHandler = NULL;
     trapClosure = UndefinedValue();
     if (enabledCount == 0) {
-        if (!fop->runtime()->isHeapBusy()) {
+        if (!fop->runtime()->gcRunning) {
             /* If the GC is running then the script is being destroyed. */
             recompile(fop);
         }
@@ -371,7 +371,7 @@ Debugger::~Debugger()
     JS_ASSERT(debuggees.empty());
 
     /* This always happens in the GC thread, so no locking is required. */
-    JS_ASSERT(object->compartment()->rt->isHeapBusy());
+    JS_ASSERT(object->compartment()->rt->gcRunning);
     JS_REMOVE_LINK(&link);
 }
 
@@ -639,7 +639,7 @@ Debugger::wrapEnvironment(JSContext *cx, Handle<Env*> env, Value *rval)
             return false;
         envobj->setPrivate(env);
         envobj->setReservedSlot(JSSLOT_DEBUGENV_OWNER, ObjectValue(*object));
-        if (!environments.relookupOrAdd(p, env, envobj)) {
+        if (!environments.relookupOrAdd(p, env.value(), envobj)) {
             js_ReportOutOfMemory(cx);
             return false;
         }
@@ -841,7 +841,7 @@ Debugger::parseResumptionValue(AutoCompartment &ac, bool ok, const Value &rv, Va
     /* Check that rv is {return: val} or {throw: val}. */
     JSContext *cx = ac.context;
     Rooted<JSObject*> obj(cx);
-    Shape *shape;
+    const Shape *shape;
     jsid returnId = NameToId(cx->runtime->atomState.returnAtom);
     jsid throwId = NameToId(cx->runtime->atomState.throwAtom);
     bool okResumption = rv.isObject();
@@ -1223,21 +1223,6 @@ Debugger::onSingleStep(JSContext *cx, Value *vp)
     }
 #endif
 
-    /* Preserve the debuggee's iterValue while handlers run. */
-    class PreserveIterValue {
-        JSContext *cx;
-        RootedValue savedIterValue;
-
-      public:
-        PreserveIterValue(JSContext *cx) : cx(cx), savedIterValue(cx, cx->iterValue) {
-            cx->iterValue.setMagic(JS_NO_ITER_VALUE);
-        }
-        ~PreserveIterValue() {
-            cx->iterValue = savedIterValue;
-        }
-    };
-    PreserveIterValue piv(cx);
-
     /* Call all the onStep handlers we found. */
     for (JSObject **p = frames.begin(); p != frames.end(); p++) {
         JSObject *frame = *p;
@@ -1596,14 +1581,17 @@ Debugger::setHookImpl(JSContext *cx, unsigned argc, Value *vp, Hook which)
     JS_ASSERT(which >= 0 && which < HookCount);
     REQUIRE_ARGC("Debugger.setHook", 1);
     THIS_DEBUGGER(cx, argc, vp, "setHook", args, dbg);
-    if (args[0].isObject()) {
-        if (!args[0].toObject().isCallable())
-            return ReportIsNotFunction(cx, &args[0]);
-    } else if (!args[0].isUndefined()) {
+    const Value &v = args[0];
+    if (v.isObject()) {
+        if (!v.toObject().isCallable()) {
+            js_ReportIsNotFunction(cx, vp, JSV2F_SEARCH_STACK);
+            return false;
+        }
+    } else if (!v.isUndefined()) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_NOT_CALLABLE_OR_UNDEFINED);
         return false;
     }
-    dbg->object->setReservedSlot(JSSLOT_DEBUG_HOOK_START + which, args[0]);
+    dbg->object->setReservedSlot(JSSLOT_DEBUG_HOOK_START + which, v);
     args.rval().setUndefined();
     return true;
 }
@@ -1831,7 +1819,7 @@ Debugger::construct(JSContext *cx, unsigned argc, Value *vp)
     for (unsigned slot = JSSLOT_DEBUG_PROTO_START; slot < JSSLOT_DEBUG_PROTO_STOP; slot++)
         obj->setReservedSlot(slot, proto->getReservedSlot(slot));
 
-    Debugger *dbg = cx->new_<Debugger>(cx, obj.get());
+    Debugger *dbg = cx->new_<Debugger>(cx, obj.reference());
     if (!dbg)
         return false;
     obj->setPrivate(dbg);
@@ -3244,7 +3232,7 @@ DebuggerFrame_getArguments(JSContext *cx, unsigned argc, Value *vp)
             id = INT_TO_JSID(i);
             if (!getobj ||
                 !DefineNativeProperty(cx, argsobj, id, UndefinedValue(),
-                                      JS_DATA_TO_FUNC_PTR(PropertyOp, getobj.get()), NULL,
+                                      JS_DATA_TO_FUNC_PTR(PropertyOp, getobj.reference()), NULL,
                                       JSPROP_ENUMERATE | JSPROP_SHARED | JSPROP_GETTER, 0, 0))
             {
                 return false;
@@ -4369,11 +4357,11 @@ DebuggerEnv_getCallee(JSContext *cx, unsigned argc, Value *vp)
     if (!scope.isCall())
         return true;
 
-    CallObject &callobj = scope.asCall();
-    if (callobj.isForEval())
+    JSObject *callee = scope.asCall().getCallee();
+    if (!callee)
         return true;
 
-    args.rval() = ObjectValue(callobj.callee());
+    args.rval() = ObjectValue(*callee);
     if (!dbg->wrapDebuggeeValue(cx, &args.rval()))
         return false;
     return true;
@@ -4428,8 +4416,8 @@ DebuggerEnv_find(JSContext *cx, unsigned argc, Value *vp)
 
         /* This can trigger resolve hooks. */
         ErrorCopier ec(ac, dbg->toJSObject());
-        RootedShape prop(cx);
-        RootedObject pobj(cx);
+        JSProperty *prop = NULL;
+        JSObject *pobj;
         for (; env && !prop; env = env->enclosingScope()) {
             if (!env->lookupGeneric(cx, id, &pobj, &prop))
                 return false;
@@ -4505,7 +4493,7 @@ DebuggerEnv_setVariable(JSContext *cx, unsigned argc, Value *vp)
         }
 
         /* Just set the property. */
-        if (!env->setGeneric(cx, env, id, v.address(), true))
+        if (!env->setGeneric(cx, id, v.address(), true))
             return false;
     }
 

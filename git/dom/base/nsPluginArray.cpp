@@ -14,6 +14,7 @@
 #include "nsIWebNavigation.h"
 #include "nsDOMClassInfoID.h"
 #include "nsPluginError.h"
+#include "nsContentUtils.h"
 #include "nsPluginHost.h"
 
 using namespace mozilla;

@@ -35,6 +35,12 @@ function checkValue(request, data, ctx) {
   httpserv.stop(do_test_finished);
 }
 
+function getCacheService()
+{
+  return Components.classes["@mozilla.org/network/cache-service;1"]
+                   .getService(Components.interfaces.nsICacheService);
+}
+
 function makeChan(url) {
   var ios = Components.classes["@mozilla.org/network/io-service;1"]
                       .getService(Components.interfaces.nsIIOService);
@@ -64,7 +70,8 @@ function run_test() {
     Components.interfaces.nsIProtocolProxyService.PROXYCONFIG_SYSTEM);
 
   // clear cache
-  evict_cache_entries();
+  getCacheService().
+    evictEntries(Components.interfaces.nsICache.STORE_ANYWHERE);
 
   var chan = makeChan("http://localhost:4444/target");
   chan.asyncOpen(new ChannelListener(checkValue, null), null);

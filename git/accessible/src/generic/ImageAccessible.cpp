@@ -19,6 +19,7 @@
 #include "nsIPresShell.h"
 #include "nsIServiceManager.h"
 #include "nsIDOMHTMLImageElement.h"
+#include "nsIDOMDocument.h"
 #include "nsPIDOMWindow.h"
 
 using namespace mozilla::a11y;

@@ -10,9 +10,7 @@ import java.net.InetAddress;
 import org.apache.http.conn.util.InetAddressUtils;
 import java.net.NetworkInterface;
 import java.net.SocketException;
-import java.net.UnknownHostException;
 import java.util.Enumeration;
-import java.util.Formatter;
 import java.util.List;
 import java.util.Timer;
 
@@ -124,26 +122,19 @@ public class SUTAgentAndroid extends Activity
         if (getLocalIpAddress() == null)
             setUpNetwork(sIniFile);
 
+        WifiInfo wifi;
+        WifiManager wifiMan = (WifiManager)getSystemService(Context.WIFI_SERVICE);
         String macAddress = "Unknown";
-        try {
-            NetworkInterface iface = NetworkInterface.getByInetAddress(InetAddress.getAllByName(getLocalIpAddress())[0]);
-            if (iface != null)
+        if (wifiMan != null)
+            {
+            wifi = wifiMan.getConnectionInfo();
+            if (wifi != null)
                 {
-                    byte[] mac = iface.getHardwareAddress();
-                    if (mac != null)
-                        {
-                            StringBuilder sb = new StringBuilder();
-                            Formatter f = new Formatter(sb);
-                            for (int i = 0; i < mac.length; i++)
-                                {
-                                    f.format("%02x%s", mac[i], (i < mac.length - 1) ? ":" : "");
-                                }
-                            macAddress = sUniqueID = sb.toString();
-                        }
+                macAddress = wifi.getMacAddress();
+                if (macAddress != null)
+                    sUniqueID = macAddress;
                 }
-        }
-        catch (UnknownHostException ex) {}
-        catch (SocketException ex) {}
+            }
 
         if (sUniqueID == null)
             {

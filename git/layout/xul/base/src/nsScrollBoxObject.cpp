@@ -8,6 +8,8 @@
 #include "nsBoxObject.h"
 #include "nsIPresShell.h"
 #include "nsIContent.h"
+#include "nsIDocument.h"
+#include "nsIDOMDocument.h"
 #include "nsIDOMElement.h"
 #include "nsPresContext.h"
 #include "nsIFrame.h"

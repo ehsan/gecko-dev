@@ -159,8 +159,8 @@ LoginManagerPrompter.prototype = {
         // we'll try ignoring location changes based on a time interval.
 
         let options = {
-            persistWhileVisible: true,
-            timeout: Date.now() + 10000
+            persistence: 1,
+            timeout: Date.now() + 20000
         }
 
         aNativeWindow.doorhanger.show(aText, aName, aButtons, tabID, options);

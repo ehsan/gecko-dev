@@ -11,6 +11,8 @@
 #include "nsCOMPtr.h"
 #include "nsCOMArray.h"
 #include "nsIURI.h"
+#include "nsWeakPtr.h"
+#include "nsIWeakReferenceUtils.h"
 #include "nsILoadGroup.h"
 #include "nsCRT.h"
 #include "mozFlushType.h"
@@ -20,6 +22,7 @@
 #include "nsTHashtable.h"
 #include "nsHashKeys.h"
 #include "nsNodeInfoManager.h"
+#include "nsIStreamListener.h"
 #include "nsIVariant.h"
 #include "nsIObserver.h"
 #include "nsGkAtoms.h"
@@ -31,12 +34,9 @@
 #include "nsIFrameRequestCallback.h"
 #include "nsEventStates.h"
 #include "nsIStructuredCloneContainer.h"
+#include "nsIBFCacheEntry.h"
 #include "nsILoadContext.h"
 
-class nsIRequest;
-class nsPIDOMWindow;
-class nsIStreamListener;
-class nsIBFCacheEntry;
 class nsIContent;
 class nsPresContext;
 class nsIPresShell;

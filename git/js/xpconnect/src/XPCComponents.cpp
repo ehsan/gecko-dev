@@ -31,7 +31,6 @@
 #include "mozilla/Preferences.h"
 #include "nsPrincipal.h"
 #include "mozilla/Attributes.h"
-#include "nsIScriptContext.h"
 
 using namespace mozilla;
 using namespace js;

@@ -10,8 +10,9 @@ VPATH		= @srcdir@
 relativesrcdir	= security/ssl/mixedcontent
 
 include $(DEPTH)/config/autoconf.mk
+include $(topsrcdir)/config/rules.mk
 
-MOCHITEST_FILES = \
+_TEST_FILES = \
         alloworigin.sjs \
         backward.html \
         bug329869.js \
@@ -71,4 +72,6 @@ MOCHITEST_FILES = \
 #        test_dynUnsecureRedirect.html \ intermitently fails, quit often, bug 487402
 #        test_unsecureIframeMetaRedirect.html \ also intermittently fails, less often, bug 487632
 
-include $(topsrcdir)/config/rules.mk
+
+libs:: $(_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)

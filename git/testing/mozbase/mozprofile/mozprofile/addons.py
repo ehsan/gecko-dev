@@ -1,9 +1,10 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this file,
-# You can obtain one at http://mozilla.org/MPL/2.0/.
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import os
 import shutil
+import sys
 import tempfile
 import urllib2
 import zipfile
@@ -24,14 +25,11 @@ class AddonManager(object):
         profile - the path to the profile for which we install addons
         """
         self.profile = profile
-
-        # information needed for profile reset:
-        # https://github.com/mozilla/mozbase/blob/270a857328b130860d1b1b512e23899557a3c8f7/mozprofile/mozprofile/profile.py#L93
         self.installed_addons = []
-        self.installed_manifests = []
+        # keeps track of addons and manifests that were passed to install_addons
+        self.addons = []
+        self.manifests = []
 
-        # addons that we've installed; needed for cleanup
-        self._addon_dirs = []
 
     def install_addons(self, addons=None, manifests=None):
         """
@@ -43,7 +41,6 @@ class AddonManager(object):
         if addons:
             if isinstance(addons, basestring):
                 addons = [addons]
-            self.installed_addons.extend(addons)
             for addon in addons:
                 self.install_from_path(addon)
         # install addon manifests
@@ -52,13 +49,14 @@ class AddonManager(object):
                 manifests = [manifests]
             for manifest in manifests:
                 self.install_from_manifest(manifest)
-            self.installed_manifests.extended(manifests)
+
 
     def install_from_manifest(self, filepath):
         """
         Installs addons from a manifest
         filepath - path to the manifest of addons to install
         """
+        self.manifests.append(filepath)
         manifest = ManifestParser()
         manifest.read(filepath)
         addons = manifest.get()
@@ -157,6 +155,7 @@ class AddonManager(object):
         - path: url, path to .xpi, or directory of addons
         - unpack: whether to unpack unless specified otherwise in the install.rdf
         """
+        self.addons.append(path)
 
         # if the addon is a url, download it
         # note that this won't work with protocols urllib2 doesn't support
@@ -209,7 +208,7 @@ class AddonManager(object):
                 shutil.copy(xpifile, addon_path + '.xpi')
             else:
                 dir_util.copy_tree(addon, addon_path, preserve_symlinks=1)
-                self._addon_dirs.append(addon_path)
+                self.installed_addons.append(addon_path)
 
             # remove the temporary directory, if any
             if tmpdir:
@@ -221,6 +220,6 @@ class AddonManager(object):
 
     def clean_addons(self):
         """Cleans up addons in the profile."""
-        for addon in self._addon_dirs:
+        for addon in self.installed_addons:
             if os.path.isdir(addon):
                 dir_util.remove_tree(addon)

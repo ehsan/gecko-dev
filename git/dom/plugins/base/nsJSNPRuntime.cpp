@@ -127,7 +127,7 @@ NPObjWrapper_newEnumerate(JSContext *cx, JSHandleObject obj, JSIterateOp enum_op
 
 static JSBool
 NPObjWrapper_NewResolve(JSContext *cx, JSHandleObject obj, JSHandleId id, unsigned flags,
-                        JSMutableHandleObject objp);
+                        JSObject **objp);
 
 static JSBool
 NPObjWrapper_Convert(JSContext *cx, JSHandleObject obj, JSType type, jsval *vp);
@@ -1596,7 +1596,7 @@ NPObjWrapper_newEnumerate(JSContext *cx, JSHandleObject obj, JSIterateOp enum_op
 
 static JSBool
 NPObjWrapper_NewResolve(JSContext *cx, JSHandleObject obj, JSHandleId id, unsigned flags,
-                        JSMutableHandleObject objp)
+                        JSObject **objp)
 {
   NPObject *npobj = GetNPObject(obj);
 
@@ -1623,7 +1623,7 @@ NPObjWrapper_NewResolve(JSContext *cx, JSHandleObject obj, JSHandleId id, unsign
         return JS_FALSE;
     }
 
-    objp.set(obj);
+    *objp = obj;
 
     return JS_TRUE;
   }
@@ -1639,7 +1639,7 @@ NPObjWrapper_NewResolve(JSContext *cx, JSHandleObject obj, JSHandleId id, unsign
     JSFunction *fnc = ::JS_DefineFunctionById(cx, obj, id, CallNPMethod, 0,
                                               JSPROP_ENUMERATE);
 
-    objp.set(obj);
+    *objp = obj;
 
     return fnc != nsnull;
   }

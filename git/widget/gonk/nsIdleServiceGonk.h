@@ -13,25 +13,10 @@
 class nsIdleServiceGonk : public nsIdleService
 {
 public:
-    NS_DECL_ISUPPORTS_INHERITED
+    NS_DECL_ISUPPORTS
 
     bool PollIdleTime(PRUint32* aIdleTime);
-
-    static already_AddRefed<nsIdleServiceGonk> GetInstance()
-    {
-        nsIdleServiceGonk* idleService =
-            static_cast<nsIdleServiceGonk*>(nsIdleService::GetInstance().get());
-        if (!idleService) {
-            idleService = new nsIdleServiceGonk();
-            NS_ADDREF(idleService);
-        }
-
-        return idleService;
-    }
-
 protected:
-    nsIdleServiceGonk() { }
-    virtual ~nsIdleServiceGonk() { }
     bool UsePollMode();
 };
 

@@ -42,14 +42,7 @@ EXPORTS = \
 
 CPPSRCS = \
         BasicImages.cpp \
-        BasicLayerManager.cpp \
-        BasicCanvasLayer.cpp \
-        BasicColorLayer.cpp \
-        BasicContainerLayer.cpp \
-        BasicImageLayer.cpp \
-        BasicLayersImpl.cpp \
-        BasicThebesLayer.cpp \
-        BasicBuffers.cpp \
+        BasicLayers.cpp \
         BasicTiledThebesLayer.cpp \
         Layers.cpp \
         RenderTrace.cpp \

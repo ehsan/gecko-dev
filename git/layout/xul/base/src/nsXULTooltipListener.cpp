@@ -7,6 +7,7 @@
 
 #include "nsIDOMMouseEvent.h"
 #include "nsIDOMEventTarget.h"
+#include "nsIDOMDocument.h"
 #include "nsIDOMXULDocument.h"
 #include "nsIDOMXULElement.h"
 #include "nsIDocument.h"

@@ -9,6 +9,8 @@
 #include "nsGUIEvent.h"
 #include "nsIDOMNode.h"
 #include "nsIAtom.h"
+#include "nsIDOMEventTarget.h"
+#include "nsIContent.h"
 
 class nsMutationEvent : public nsEvent
 {

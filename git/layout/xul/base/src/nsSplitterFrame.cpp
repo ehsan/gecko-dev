@@ -14,6 +14,7 @@
 #include "nsGkAtoms.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMXULElement.h"
+#include "nsIDOMDocument.h"
 #include "nsPresContext.h"
 #include "nsRenderingContext.h"
 #include "nsIDocument.h"

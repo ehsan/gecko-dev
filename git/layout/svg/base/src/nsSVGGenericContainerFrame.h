@@ -48,7 +48,7 @@ public:
 #endif
 
   // nsSVGContainerFrame methods:
-  virtual gfxMatrix GetCanvasTM(PRUint32 aFor);
+  virtual gfxMatrix GetCanvasTM();
 };
 
 #endif // __NS_SVGGENERICCONTAINERFRAME_H__

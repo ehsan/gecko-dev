@@ -7,7 +7,6 @@
 
 #include "nsIPipe.h"
 #include "nsIMemory.h"
-#include "mozilla/Attributes.h"
 
 /** NS_NewPipe2 reimplemented, because it's not exported by XPCOM */
 nsresult TP_NewPipe2(nsIAsyncInputStream** input,
@@ -42,7 +41,7 @@ nsresult TP_NewPipe2(nsIAsyncInputStream** input,
  * which <size>-byte locations in mMemory are empty and which are filled.
  * Pretty stupid, but enough to test bug 394692.
  */
-class BackwardsAllocator MOZ_FINAL : public nsIMemory
+class BackwardsAllocator : public nsIMemory
 {
   public:
     BackwardsAllocator()

@@ -146,25 +146,9 @@ public:
   static void LoadStart();
   static void LoadEnd();
 
-  enum IsCompartment {
-    CompartmentGC,
-    NonCompartmentGC
-  };
-
-  enum IsShrinking {
-    ShrinkingGC,
-    NonShrinkingGC
-  };
-
-  enum IsIncremental {
-    IncrementalGC,
-    NonIncrementalGC
-  };
-
   static void GarbageCollectNow(js::gcreason::Reason reason,
-                                IsIncremental aIncremental = NonIncrementalGC,
-                                IsCompartment aCompartment = NonCompartmentGC,
-                                IsShrinking aShrinking = NonShrinkingGC);
+                                PRUint32 aGckind,
+                                bool aGlobal);
   static void ShrinkGCBuffersNow();
   // If aExtraForgetSkippableCalls is -1, forgetSkippable won't be
   // called even if the previous collection was GC.

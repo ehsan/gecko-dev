@@ -9,6 +9,7 @@
 #include "nsIURI.h"
 #include "nsIPrincipal.h"
 #include "nsIObserver.h"
+#include "nsIDocument.h"
 #include "nsIContent.h"
 #include "nsCSPService.h"
 #include "nsIContentSecurityPolicy.h"
@@ -57,7 +58,6 @@ CSPService::ShouldLoad(PRUint32 aContentType,
                        nsISupports *aRequestContext,
                        const nsACString &aMimeTypeGuess,
                        nsISupports *aExtra,
-                       nsIPrincipal *aRequestPrincipal,
                        PRInt16 *aDecision)
 {
     if (!aContentLocation)
@@ -96,13 +96,12 @@ CSPService::ShouldLoad(PRUint32 aContentType,
                      NS_ConvertUTF16toUTF8(policy).get()));
 #endif
             // obtain the enforcement decision
-            // (don't pass aExtra, we use that slot for redirects)
             csp->ShouldLoad(aContentType,
                             aContentLocation,
                             aRequestOrigin,
                             aRequestContext,
                             aMimeTypeGuess,
-                            nsnull,
+                            aExtra,
                             aDecision);
         }
     }
@@ -125,7 +124,6 @@ CSPService::ShouldProcess(PRUint32         aContentType,
                           nsISupports      *aRequestContext,
                           const nsACString &aMimeTypeGuess,
                           nsISupports      *aExtra,
-                          nsIPrincipal     *aRequestPrincipal,
                           PRInt16          *aDecision)
 {
     if (!aContentLocation)
@@ -221,15 +219,13 @@ CSPService::AsyncOnChannelRedirect(nsIChannel *oldChannel,
   // If not, cancel the load now.
   nsCOMPtr<nsIURI> newUri;
   newChannel->GetURI(getter_AddRefs(newUri));
-  nsCOMPtr<nsIURI> originalUri;
-  oldChannel->GetOriginalURI(getter_AddRefs(originalUri));
   PRInt16 aDecision = nsIContentPolicy::ACCEPT;
   csp->ShouldLoad(loadType,        // load type per nsIContentPolicy (PRUint32)
                   newUri,          // nsIURI
                   nsnull,          // nsIURI
                   nsnull,          // nsISupports
                   EmptyCString(),  // ACString - MIME guess
-                  originalUri,     // nsISupports - extra
+                  nsnull,          // nsISupports - extra
                   &aDecision);
 
 #ifdef PR_LOGGING

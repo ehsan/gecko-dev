@@ -265,7 +265,7 @@ Shape::getUserId(JSContext *cx, jsid *idp) const
 }
 
 inline bool
-Shape::get(JSContext* cx, HandleObject receiver, JSObject* obj, JSObject *pobj, Value* vp)
+Shape::get(JSContext* cx, HandleObject receiver, JSObject* obj, JSObject *pobj, Value* vp) const
 {
     JS_ASSERT(!hasDefaultGetter());
 
@@ -274,7 +274,7 @@ Shape::get(JSContext* cx, HandleObject receiver, JSObject* obj, JSObject *pobj, 
         return InvokeGetterOrSetter(cx, receiver, fval, 0, 0, vp);
     }
 
-    Rooted<Shape *> self(cx, this);
+    Rooted<const Shape *> self(cx, this);
     RootedId id(cx);
     if (!self->getUserId(cx, id.address()))
         return false;
@@ -283,19 +283,19 @@ Shape::get(JSContext* cx, HandleObject receiver, JSObject* obj, JSObject *pobj, 
 }
 
 inline bool
-Shape::set(JSContext* cx, HandleObject obj, HandleObject receiver, bool strict, Value* vp)
+Shape::set(JSContext* cx, HandleObject obj, bool strict, Value* vp) const
 {
     JS_ASSERT_IF(hasDefaultSetter(), hasGetterValue());
 
     if (attrs & JSPROP_SETTER) {
         Value fval = setterValue();
-        return InvokeGetterOrSetter(cx, receiver, fval, 1, vp, vp);
+        return InvokeGetterOrSetter(cx, obj, fval, 1, vp, vp);
     }
 
     if (attrs & JSPROP_GETTER)
         return js_ReportGetterOnlyAssignment(cx);
 
-    Rooted<Shape *> self(cx, this);
+    Rooted<const Shape *> self(cx, this);
     RootedId id(cx);
     if (!self->getUserId(cx, id.address()))
         return false;
@@ -379,7 +379,7 @@ EmptyShape::EmptyShape(UnownedBaseShape *base, uint32_t nfixed)
 }
 
 inline void
-Shape::writeBarrierPre(Shape *shape)
+Shape::writeBarrierPre(const js::Shape *shape)
 {
 #ifdef JSGC_INCREMENTAL
     if (!shape)
@@ -395,12 +395,12 @@ Shape::writeBarrierPre(Shape *shape)
 }
 
 inline void
-Shape::writeBarrierPost(Shape *shape, void *addr)
+Shape::writeBarrierPost(const js::Shape *shape, void *addr)
 {
 }
 
 inline void
-Shape::readBarrier(Shape *shape)
+Shape::readBarrier(const Shape *shape)
 {
 #ifdef JSGC_INCREMENTAL
     JSCompartment *comp = shape->compartment();

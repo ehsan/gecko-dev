@@ -45,7 +45,7 @@ AssertIsOnMainThread()
 // All of these are implemented in RuntimeService.cpp
 JSBool
 ResolveWorkerClasses(JSContext* aCx, JSHandleObject aObj, JSHandleId aId, unsigned aFlags,
-                     JSMutableHandleObject aObjp);
+                     JSObject** aObjp);
 
 void
 CancelWorkersForWindow(JSContext* aCx, nsPIDOMWindow* aWindow);

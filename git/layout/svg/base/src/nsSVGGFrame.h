@@ -51,7 +51,7 @@ public:
   virtual void NotifySVGChanged(PRUint32 aFlags);
 
   // nsSVGContainerFrame methods:
-  virtual gfxMatrix GetCanvasTM(PRUint32 aFor);
+  virtual gfxMatrix GetCanvasTM();
 
   nsAutoPtr<gfxMatrix> mCanvasTM;
 };

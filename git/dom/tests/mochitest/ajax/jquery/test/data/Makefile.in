@@ -15,7 +15,9 @@ DIRS	= \
 	offset \
 	$(NULL)
 
-MOCHITEST_FILES	= \
+include $(topsrcdir)/config/rules.mk
+
+_TEST_FILES	= \
 	cow.jpg \
 	dashboard.xml \
 	iframe.html \
@@ -31,4 +33,5 @@ MOCHITEST_FILES	= \
 	with_fries.xml \
 	$(NULL)
 
-include $(topsrcdir)/config/rules.mk
+libs::	$(_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)

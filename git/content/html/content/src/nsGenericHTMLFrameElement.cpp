@@ -6,8 +6,15 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsGenericHTMLFrameElement.h"
+#include "nsIWebProgress.h"
+#include "nsIDOMCustomEvent.h"
+#include "nsIVariant.h"
 #include "nsIInterfaceRequestorUtils.h"
+#include "nsWeakPtr.h"
+#include "nsVariant.h"
 #include "nsContentUtils.h"
+#include "nsEventDispatcher.h"
+#include "nsAsyncDOMEvent.h"
 #include "mozilla/Preferences.h"
 
 using namespace mozilla;
@@ -228,7 +235,7 @@ nsGenericHTMLFrameElement::DestroyContent()
 }
 
 nsresult
-nsGenericHTMLFrameElement::CopyInnerTo(nsGenericElement* aDest)
+nsGenericHTMLFrameElement::CopyInnerTo(nsGenericElement* aDest) const
 {
   nsresult rv = nsGenericHTMLElement::CopyInnerTo(aDest);
   NS_ENSURE_SUCCESS(rv, rv);

@@ -217,7 +217,6 @@ private:
 
     bool                            mKeepAlive;
     bool                            mKeepAliveMask;
-    bool                            mDontReuse;
     bool                            mSupportsPipelining;
     bool                            mIsReused;
     bool                            mCompletedProxyConnect;

@@ -18,7 +18,6 @@
 #include "nsJSUtils.h"
 #include "DictionaryHelpers.h"
 #include "mozilla/Attributes.h"
-#include "nsContentUtils.h"
 
 using namespace mozilla::dom;
 

@@ -10,8 +10,9 @@ relativesrcdir   = dom/file/test
 
 include $(DEPTH)/config/autoconf.mk
 
+include $(topsrcdir)/config/rules.mk
 
-MOCHITEST_FILES = \
+TEST_FILES = \
   helpers.js \
   test_append_read_data.html \
   test_getFileId.html \
@@ -29,4 +30,5 @@ MOCHITEST_FILES = \
   test_write_read_data.html \
   $(NULL)
 
-include $(topsrcdir)/config/rules.mk
+libs:: $(TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)

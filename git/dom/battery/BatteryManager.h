@@ -26,12 +26,12 @@ namespace dom {
 namespace battery {
 
 class BatteryManager : public nsDOMEventTargetHelper
-                     , public nsIDOMBatteryManager
+                     , public nsIDOMMozBatteryManager
                      , public BatteryObserver
 {
 public:
   NS_DECL_ISUPPORTS
-  NS_DECL_NSIDOMBATTERYMANAGER
+  NS_DECL_NSIDOMMOZBATTERYMANAGER
   NS_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper::)
 
   BatteryManager();

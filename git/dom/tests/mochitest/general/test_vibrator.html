@@ -9,29 +9,29 @@
 <body>
 
 <!-- Although we can't test that the vibrator works properly, we can test that
-     navigator.vibrate throws an exception where appropriate. -->
+     navigator.mozVibrate throws an exception where appropriate. -->
 
 <script class="testbody" type="text/javascript;version=1.7">
 function expectFailure(param) {
   try {
-    navigator.vibrate(param);
+    navigator.mozVibrate(param);
   }
   catch(e) {
-    ok(true, 'vibrate(' + param + ') threw an expected exception.');
+    ok(true, 'mozVibrate(' + param + ') threw an expected exception.');
     return;
   }
-  ok(false, 'vibrate(' + param + ') should have thrown an exception.');
+  ok(false, 'mozVibrate(' + param + ') should have thrown an exception.');
 }
 
 function expectSuccess(param) {
   try {
-    navigator.vibrate(param);
+    navigator.mozVibrate(param);
   }
   catch(e) {
-    ok(false, 'vibrate(' + param + ') threw an unexpected exception.');
+    ok(false, 'mozVibrate(' + param + ') threw an unexpected exception.');
     return;
   }
-  ok(true, 'vibrate(' + param + ') did not throw an exception.');
+  ok(true, 'mozVibrate(' + param + ') did not throw an exception.');
 }
 
 function testFailures() {
@@ -69,7 +69,7 @@ function testSuccesses() {
 
   // The following loop shouldn't cause us to crash.  See bug 701716.
   for (var i = 0; i < 10000; i++) {
-    navigator.vibrate([100, 100]);
+    navigator.mozVibrate([100, 100]);
   }
   ok(true, "Didn't crash after issuing a lot of vibrate() calls.");
 }

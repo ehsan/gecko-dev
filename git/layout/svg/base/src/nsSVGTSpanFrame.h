@@ -61,7 +61,7 @@ public:
   }
 #endif
   // nsSVGContainerFrame methods:
-  virtual gfxMatrix GetCanvasTM(PRUint32 aFor);
+  virtual gfxMatrix GetCanvasTM();
   
   // nsISVGGlyphFragmentNode interface:
   virtual PRUint32 GetNumberOfChars();

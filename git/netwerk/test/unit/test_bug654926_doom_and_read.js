@@ -2,6 +2,33 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cr = Components.results;
 
+var _CSvc;
+function get_cache_service() {
+  if (_CSvc)
+    return _CSvc;
+
+  return _CSvc = Cc["@mozilla.org/network/cache-service;1"].
+                 getService(Ci.nsICacheService);
+}
+
+function get_ostream_for_entry(key, asFile, append, entryRef)
+{
+  var cache = get_cache_service();
+  var session = cache.createSession(
+                  "HTTP",
+                  asFile ? Ci.nsICache.STORE_ON_DISK_AS_FILE
+                         : Ci.nsICache.STORE_ON_DISK,
+                  Ci.nsICache.STREAM_BASED);
+  var cacheEntry = session.openCacheEntry(
+                     key,
+                     append ? Ci.nsICache.ACCESS_READ_WRITE
+                            : Ci.nsICache.ACCESS_WRITE,
+                     true);
+  var oStream = cacheEntry.openOutputStream(append ? cacheEntry.dataSize : 0);
+  entryRef.value = cacheEntry;
+  return oStream;
+}
+
 function gen_1MiB()
 {
   var i;
@@ -28,58 +55,46 @@ function make_input_stream_scriptable(input) {
   return wrapper;
 }
 
-function write_datafile(status, entry)
+function write_datafile()
 {
-  do_check_eq(status, Cr.NS_OK);
-  var os = entry.openOutputStream(0);
+  var entry = {};
+  var oStr = get_ostream_for_entry("data", true, false, entry);
   var data = gen_1MiB();
 
-  write_and_check(os, data, data.length);
+  write_and_check(oStr, data, data.length);
 
-  os.close();
-  entry.close();
-
-  // open, doom, append, read
-  asyncOpenCacheEntry("data",
-                      "HTTP",
-                      Ci.nsICache.STORE_ON_DISK,
-                      Ci.nsICache.ACCESS_READ_WRITE,
-                      test_read_after_doom);
-
+  oStr.close();
+  entry.value.close();
 }
 
-function test_read_after_doom(status, entry)
+function test_read_after_doom()
 {
-  do_check_eq(status, Cr.NS_OK);
-  var os = entry.openOutputStream(entry.dataSize);
+  var entry = {};
+  var oStr = get_ostream_for_entry("data", false, true, entry);
   var data = gen_1MiB();
 
-  entry.doom();
-  write_and_check(os, data, data.length);
+  entry.value.doom();
+  write_and_check(oStr, data, data.length);
 
-  os.close();
+  oStr.close();
 
-  var is = make_input_stream_scriptable(entry.openInputStream(0));
-  var read = is.read(is.available());
+  var iStr = make_input_stream_scriptable(entry.value.openInputStream(0));
+  var read = iStr.read(iStr.available());
   do_check_eq(read.length, 2*1024*1024);
-  is.close();
+  iStr.close();
 
-  entry.close();
-  do_test_finished();
+  entry.value.close();
 }
 
 function run_test() {
   do_get_profile();
 
   // clear the cache
-  evict_cache_entries();
+  get_cache_service().evictEntries(Ci.nsICache.STORE_ANYWHERE);
 
   // force to write file bigger than 5MiB
-  asyncOpenCacheEntry("data",
-                      "HTTP",
-                      Ci.nsICache.STORE_ON_DISK_AS_FILE,
-                      Ci.nsICache.ACCESS_WRITE,
-                      write_datafile);
+  write_datafile();
 
-  do_test_pending();
+  // open, doom, append, read
+  test_read_after_doom();
 }

@@ -6,6 +6,8 @@
 #include "nsIDOMCDATASection.h"
 #include "nsGenericDOMDataNode.h"
 #include "nsGkAtoms.h"
+#include "nsIDocument.h"
+#include "nsContentUtils.h"
 
 class nsXMLCDATASection : public nsGenericDOMDataNode,
                           public nsIDOMCDATASection

@@ -10,17 +10,21 @@ VPATH		= @srcdir@
 relativesrcdir	= security/ssl/bugs
 
 include $(DEPTH)/config/autoconf.mk
+include $(topsrcdir)/config/rules.mk
 
-MOCHITEST_FILES = \
+_TEST_FILES = \
         test_bug480509.html \
         test_bug483440.html \
         test_bug484111.html \
         $(NULL)
 
-MOCHITEST_CHROME_FILES = \
+_CHROME_FILES = \
         test_bug413909.html \
         test_bug480619.html \
         test_bug644006.html \
         $(NULL)
 
-include $(topsrcdir)/config/rules.mk
+libs:: $(_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)
+libs:: $(_CHROME_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/chrome/$(relativesrcdir)

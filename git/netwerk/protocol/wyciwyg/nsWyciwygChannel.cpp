@@ -10,9 +10,11 @@
 #include "nsILoadGroup.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsNetUtil.h"
+#include "nsContentUtils.h"
 #include "nsICacheService.h"
 #include "nsICacheSession.h"
 #include "nsCharsetSource.h"
+#include "nsThreadUtils.h"
 #include "nsProxyRelease.h"
 
 // Must release mChannel on the main thread

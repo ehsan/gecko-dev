@@ -36,6 +36,7 @@
 #include "mozISpellI18NManager.h"
 #include "nsCOMPtr.h"
 #include "nsCRT.h"
+#include "nsIDocument.h"
 #include "nsIDOMNode.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMElement.h"

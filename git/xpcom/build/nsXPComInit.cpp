@@ -106,7 +106,6 @@ extern nsresult nsStringInputStreamConstructor(nsISupports *, REFNSIID, void **)
 
 #include "nsChromeRegistry.h"
 #include "nsChromeProtocolHandler.h"
-#include "mozilla/mozPoisonWrite.h"
 
 #include "mozilla/scache/StartupCache.h"
 
@@ -647,8 +646,6 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
     NS_IF_RELEASE(nsDirectoryService::gService);
 
     nsCycleCollector_shutdown();
-
-    mozilla::PoisonWrite();
 
     if (moduleLoaders) {
         bool more;

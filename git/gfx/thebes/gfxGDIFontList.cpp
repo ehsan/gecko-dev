@@ -161,13 +161,11 @@ FontTypeToOutPrecision(PRUint8 fontType)
 GDIFontEntry::GDIFontEntry(const nsAString& aFaceName,
                            gfxWindowsFontType aFontType,
                            bool aItalic, PRUint16 aWeight, PRInt16 aStretch,
-                           gfxUserFontData *aUserFontData,
-                           bool aFamilyHasItalicFace)
+                           gfxUserFontData *aUserFontData)
     : gfxFontEntry(aFaceName),
       mWindowsFamily(0), mWindowsPitch(0),
       mFontType(aFontType),
       mForceGDI(false),
-      mFamilyHasItalicFace(aFamilyHasItalicFace),
       mCharset(), mUnicodeRanges()
 {
     mUserFontData = aUserFontData;
@@ -405,7 +403,7 @@ GDIFontEntry::InitLogFont(const nsAString& aName,
                           gfxWindowsFontType aFontType)
 {
 #define CLIP_TURNOFF_FONTASSOCIATION 0x40
-
+    
     mLogFont.lfHeight = -1;
 
     // Fill in logFont structure
@@ -435,14 +433,12 @@ GDIFontEntry*
 GDIFontEntry::CreateFontEntry(const nsAString& aName,
                               gfxWindowsFontType aFontType, bool aItalic,
                               PRUint16 aWeight, PRInt16 aStretch,
-                              gfxUserFontData* aUserFontData,
-                              bool aFamilyHasItalicFace)
+                              gfxUserFontData* aUserFontData)
 {
     // jtdfix - need to set charset, unicode ranges, pitch/family
 
     GDIFontEntry *fe = new GDIFontEntry(aName, aFontType, aItalic,
-                                        aWeight, aStretch, aUserFontData,
-                                        aFamilyHasItalicFace);
+                                        aWeight, aStretch, aUserFontData);
 
     return fe;
 }
@@ -499,14 +495,10 @@ GDIFontFamily::FamilyAddStylesProc(const ENUMLOGFONTEXW *lpelfe,
         }
     }
 
-    // We can't set the hasItalicFace flag correctly here,
-    // because we might not have seen the family's italic face(s) yet.
-    // Later code does _not_ rely on this flag for platform fonts;
-    // it is only needed for fonts loaded with src:local
     fe = GDIFontEntry::CreateFontEntry(nsDependentString(lpelfe->elfFullName),
                                        feType, (logFont.lfItalic == 0xFF),
                                        (PRUint16) (logFont.lfWeight), 0,
-                                       nsnull, false);
+                                       nsnull);
     if (!fe)
         return 1;
 
@@ -757,28 +749,24 @@ gfxGDIFontList::LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
         return nsnull;
     }
 
+    // create a new font entry with the proxy entry style characteristics
+    PRUint16 w = (aProxyEntry->mWeight == 0 ? 400 : aProxyEntry->mWeight);
     bool isCFF = false; // jtdfix -- need to determine this
     
     // use the face name from the lookup font entry, which will be the localized
     // face name which GDI mapping tables use (e.g. with the system locale set to
     // Dutch, a fullname of 'Arial Bold' will find a font entry with the face name
     // 'Arial Vet' which can be used as a key in GDI font lookups).
-    GDIFontEntry *fe = GDIFontEntry::CreateFontEntry(lookup->Name(), 
+    gfxFontEntry *fe = GDIFontEntry::CreateFontEntry(lookup->Name(), 
         gfxWindowsFontType(isCFF ? GFX_FONT_TYPE_PS_OPENTYPE : GFX_FONT_TYPE_TRUETYPE) /*type*/, 
-        lookup->mItalic ? NS_FONT_STYLE_ITALIC : NS_FONT_STYLE_NORMAL,
-        lookup->mWeight, aProxyEntry->mStretch, nsnull,
-        lookup->Family()->HasItalicFace());
+        PRUint32(aProxyEntry->mItalic ? NS_FONT_STYLE_ITALIC : NS_FONT_STYLE_NORMAL), 
+        w, aProxyEntry->mStretch, nsnull);
         
     if (!fe)
         return nsnull;
 
     fe->mIsUserFont = true;
     fe->mIsLocalUserFont = true;
-
-    // make the new font entry match the proxy entry style characteristics
-    fe->mWeight = (aProxyEntry->mWeight == 0 ? 400 : aProxyEntry->mWeight);
-    fe->mItalic = aProxyEntry->mItalic;
-
     return fe;
 }
 
@@ -989,7 +977,7 @@ gfxGDIFontList::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
     GDIFontEntry *fe = GDIFontEntry::CreateFontEntry(uniqueName, 
         gfxWindowsFontType(isCFF ? GFX_FONT_TYPE_PS_OPENTYPE : GFX_FONT_TYPE_TRUETYPE) /*type*/, 
         PRUint32(aProxyEntry->mItalic ? NS_FONT_STYLE_ITALIC : NS_FONT_STYLE_NORMAL), 
-        w, aProxyEntry->mStretch, winUserFontData, false);
+        w, aProxyEntry->mStretch, winUserFontData);
 
     if (!fe)
         return fe;

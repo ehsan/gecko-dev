@@ -14,6 +14,7 @@ include $(DEPTH)/config/autoconf.mk
 PROGRAM         = js$(BIN_SUFFIX)
 CPPSRCS		= \
   js.cpp \
+  jsworkers.cpp \
   jsoptparse.cpp \
   jsheaptools.cpp \
   $(NULL)

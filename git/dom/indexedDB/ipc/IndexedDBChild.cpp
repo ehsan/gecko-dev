@@ -470,7 +470,6 @@ IndexedDBDatabaseChild::RecvPIndexedDBTransactionConstructor(
     new IPCSetVersionHelper(actor, transaction, mRequest, oldVersion, mVersion);
 
   mDatabase->EnterSetVersionTransaction();
-  mDatabase->mPreviousDatabaseInfo->version = oldVersion;
 
   MainThreadEventTarget target;
   if (NS_FAILED(versionHelper->Dispatch(&target))) {

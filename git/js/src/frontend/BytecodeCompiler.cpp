@@ -22,12 +22,12 @@ using namespace js;
 using namespace js::frontend;
 
 bool
-MarkInnerAndOuterFunctions(JSContext *cx, JSScript* script)
+MarkInnerAndOuterFunctions(JSContext *cx, JSScript* script_)
 {
-    AssertRootingUnnecessary safe(cx);
+    Rooted<JSScript*> script(cx, script_);
 
     Vector<JSScript *, 16> worklist(cx);
-    if (!worklist.append(script))
+    if (!worklist.append(script.reference()))
         return false;
 
     while (worklist.length()) {
@@ -66,16 +66,14 @@ MarkInnerAndOuterFunctions(JSContext *cx, JSScript* script)
 }
 
 JSScript *
-frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *callerFrame,
+frontend::CompileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerFrame,
                         JSPrincipals *principals, JSPrincipals *originPrincipals,
                         bool compileAndGo, bool noScriptRval, bool needScriptGlobal,
                         const jschar *chars, size_t length,
                         const char *filename, unsigned lineno, JSVersion version,
-                        JSString *source_ /* = NULL */,
+                        JSString *source /* = NULL */,
                         unsigned staticLevel /* = 0 */)
 {
-    RootedString source(cx, source_);
-
     class ProbesManager
     {
         const char* filename;
@@ -103,26 +101,20 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
 
     SharedContext sc(cx, scopeChain, /* fun = */ NULL, /* funbox = */ NULL);
 
-    TreeContext tc(&parser, &sc, staticLevel, /* bodyid = */ 0);
+    TreeContext tc(&parser, &sc, staticLevel);
     if (!tc.init())
         return NULL;
 
     bool savedCallerFun = compileAndGo && callerFrame && callerFrame->isFunctionFrame();
     GlobalObject *globalObject = needScriptGlobal ? GetCurrentGlobal(cx) : NULL;
-    Rooted<JSScript*> script(cx, JSScript::Create(cx,
-                                                  savedCallerFun,
-                                                  principals,
-                                                  originPrincipals,
-                                                  compileAndGo,
-                                                  noScriptRval,
-                                                  globalObject,
-                                                  version,
-                                                  staticLevel));
+    Rooted<JSScript*> script(cx);
+    script = JSScript::Create(cx, savedCallerFun, principals, originPrincipals, compileAndGo,
+                              noScriptRval, globalObject, version, staticLevel);
     if (!script)
         return NULL;
 
     // We can specialize a bit for the given scope chain if that scope chain is the global object.
-    JSObject *globalScope = scopeChain && scopeChain == &scopeChain->global() ? (JSObject*) scopeChain : NULL;
+    JSObject *globalScope = scopeChain && scopeChain == &scopeChain->global() ? scopeChain : NULL;
     JS_ASSERT_IF(globalScope, globalScope->isNative());
     JS_ASSERT_IF(globalScope, JSCLASS_HAS_GLOBAL_FLAG_AND_SLOTS(globalScope->getClass()));
 
@@ -161,6 +153,13 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
             bce.objectList.length++;
         }
     }
+
+    /*
+     * Inline this->statements to emit as we go to save AST space. We must
+     * generate our script-body blockid since we aren't calling Statements.
+     */
+    if (!GenerateBlockId(&sc, sc.bodyid))
+        return NULL;
 
     ParseNode *pn;
 #if JS_HAS_XML_SUPPORT
@@ -241,8 +240,6 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
     if (!script->fullyInitFromEmitter(cx, &bce))
         return NULL;
 
-    bce.tellDebuggerAboutCompiledScript(cx);
-
     if (!MarkInnerAndOuterFunctions(cx, script))
         return NULL;
 
@@ -252,7 +249,7 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
 // Compile a JS function body, which might appear as the value of an event
 // handler attribute in an HTML <INPUT> tag, or in a Function() constructor.
 bool
-frontend::CompileFunctionBody(JSContext *cx, HandleFunction fun,
+frontend::CompileFunctionBody(JSContext *cx, JSFunction *fun,
                               JSPrincipals *principals, JSPrincipals *originPrincipals,
                               Bindings *bindings, const jschar *chars, size_t length,
                               const char *filename, unsigned lineno, JSVersion version)
@@ -264,24 +261,17 @@ frontend::CompileFunctionBody(JSContext *cx, HandleFunction fun,
 
     JS_ASSERT(fun);
     SharedContext funsc(cx, /* scopeChain = */ NULL, fun, /* funbox = */ NULL);
-    funsc.bindings.transfer(bindings);
-    fun->setArgCount(funsc.bindings.numArgs());
 
     unsigned staticLevel = 0;
-    TreeContext funtc(&parser, &funsc, staticLevel, /* bodyid = */ 0);
+    TreeContext funtc(&parser, &funsc, staticLevel);
     if (!funtc.init())
         return false;
 
     GlobalObject *globalObject = fun->getParent() ? &fun->getParent()->global() : NULL;
-    Rooted<JSScript*> script(cx, JSScript::Create(cx,
-                                                  /* savedCallerFun = */ false,
-                                                  principals,
-                                                  originPrincipals,
-                                                  /* compileAndGo = */ false,
-                                                  /* noScriptRval = */ false,
-                                                  globalObject,
-                                                  version,
-                                                  staticLevel));
+    Rooted<JSScript*> script(cx);
+    script = JSScript::Create(cx, /* savedCallerFun = */ false, principals, originPrincipals,
+                              /* compileAndGo = */ false, /* noScriptRval = */ false,
+                              globalObject, version, staticLevel);
     if (!script)
         return false;
 
@@ -289,6 +279,11 @@ frontend::CompileFunctionBody(JSContext *cx, HandleFunction fun,
     BytecodeEmitter funbce(/* parent = */ NULL, &parser, &funsc, script, nullCallerFrame,
                            /* hasGlobalScope = */ false, lineno);
     if (!funbce.init())
+        return false;
+
+    funsc.bindings.transfer(bindings);
+    fun->setArgCount(funsc.bindings.numArgs());
+    if (!GenerateBlockId(&funsc, funsc.bodyid))
         return false;
 
     /* FIXME: make Function format the source for a function definition. */

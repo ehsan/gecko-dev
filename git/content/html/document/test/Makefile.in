@@ -10,8 +10,9 @@ VPATH		= @srcdir@
 relativesrcdir  = content/html/document/test
 
 include $(DEPTH)/config/autoconf.mk
+include $(topsrcdir)/config/rules.mk
 
-MOCHITEST_FILES = 	test_bug1682.html \
+_TEST_FILES = 	test_bug1682.html \
 		test_bug1823.html \
 		test_bug57600.html \
 		test_bug196523.html \
@@ -75,10 +76,16 @@ MOCHITEST_FILES = 	test_bug1682.html \
 		$(NULL)
 
 ifneq (mobile,$(MOZ_BUILD_APP))
-MOCHITEST_BROWSER_FILES = \
+_BROWSER_TEST_FILES = \
 		browser_bug592641.js \
 		bug592641_img.jpg \
 		$(NULL)
 endif
 
-include $(topsrcdir)/config/rules.mk
+libs:: $(_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)
+
+ifneq (mobile,$(MOZ_BUILD_APP))
+libs:: $(_BROWSER_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/browser/$(relativesrcdir)
+endif

@@ -18,14 +18,13 @@
 #include "nsIPrefService.h"
 #include "nsIJSContextStack.h"
 #include "nspr.h"
-#include "mozilla/Attributes.h"
 
 extern PRLogModuleInfo *MCD;
 
 // Security Manager for new XPCONNECT enabled JS Context
 // Right now it allows all access
 
-class AutoConfigSecMan MOZ_FINAL : public nsIXPCSecurityManager
+class AutoConfigSecMan : public nsIXPCSecurityManager
 {
 public:
     NS_DECL_ISUPPORTS

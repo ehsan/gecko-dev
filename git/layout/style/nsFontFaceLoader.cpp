@@ -24,6 +24,7 @@
 
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
+#include "nsIDocument.h"
 #include "nsIFrame.h"
 #include "nsIPrincipal.h"
 #include "nsIScriptSecurityManager.h"

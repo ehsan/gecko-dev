@@ -35,6 +35,7 @@
 #include "nsIProtocolHandler.h"
 #include "nsReadableUtils.h"
 #include "nsITextToSubURI.h"
+#include "nsContentUtils.h"
 #include "nsJSUtils.h"
 #include "jsfriendapi.h"
 

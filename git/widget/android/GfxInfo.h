@@ -19,8 +19,6 @@ namespace widget {
 class GfxInfo : public GfxInfoBase
 {
 public:
-  GfxInfo();
-
   // We only declare the subset of nsIGfxInfo that we actually implement. The
   // rest is brought forward from GfxInfoBase.
   NS_SCRIPTABLE NS_IMETHOD GetD2DEnabled(bool *aD2DEnabled);
@@ -47,7 +45,7 @@ public:
   using GfxInfoBase::GetFeatureSuggestedDriverVersion;
   using GfxInfoBase::GetWebGLParameter;
 
-  void EnsureInitializedFromGfxInfoData();
+  virtual nsresult Init();
 
 #ifdef DEBUG
   NS_DECL_ISUPPORTS_INHERITED
@@ -65,18 +63,21 @@ protected:
 
 private:
 
-  void AddCrashReportAnnotations();
+  void     AddOpenGLCrashReportAnnotations();
+  nsString mRendererIDsString;
+  nsString mAdapterRAMString;
 
-  bool mInitializedFromJavaData;
+  nsString mDeviceID;
+  nsString mDriverVersion;
+  nsString mDriverDate;
+  nsString mDeviceKey;
 
-  // the GL strings
-  nsCString mVendor;
-  nsCString mRenderer;
-  nsCString mVersion;
-  // a possible error message produced by the data source (e.g. if EGL initialization failed)
-  nsCString mError;
+  nsString mAdapterDeviceID;
+  nsString mAdapterVendorID;
+  nsString mAdapterDescription;
+  PRInt32 mAndroidSDKVersion;
 
-  nsCString mAdapterDescription;
+  PRUint32 mRendererIDs[16];
 };
 
 } // namespace widget

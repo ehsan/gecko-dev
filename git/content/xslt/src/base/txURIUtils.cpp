@@ -5,8 +5,13 @@
 
 #include "txURIUtils.h"
 #include "nsNetUtil.h"
+#include "nsIAttribute.h"
+#include "nsIScriptSecurityManager.h"
 #include "nsIDocument.h"
+#include "nsIDOMDocument.h"
+#include "nsIContent.h"
 #include "nsIPrincipal.h"
+#include "nsINodeInfo.h"
 
 /**
  * URIUtils

@@ -14,9 +14,9 @@ Private Editor interface for a class that can provide helper functions
 */
 
 #define NS_IEDITORSUPPORT_IID \
-{/* c4cbcda8-58ec-4f03-9c99-5e46b6828b7a*/ \
-0xc4cbcda8, 0x58ec, 0x4f03, \
-{0x0c, 0x99, 0x5e, 0x46, 0xb6, 0x82, 0x8b, 0x7a} }
+{/* 89b999b0-c529-11d2-86da-000064657374*/ \
+0x89b999b0, 0xc529, 0x11d2, \
+{0x86, 0xda, 0x0, 0x0, 0x64, 0x65, 0x73, 0x74} }
 
 
 /**
@@ -53,7 +53,10 @@ public:
                            nsIDOMNode  *aParent,
                            bool         aNodeToKeepIsFirst)=0;
 
-  static PRInt32 GetChildOffset(nsIDOMNode* aChild, nsIDOMNode* aParent);
+  static nsresult GetChildOffset(nsIDOMNode *aChild, nsIDOMNode *aParent, PRInt32 &aOffset);
+  
+
+
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIEditorSupport, NS_IEDITORSUPPORT_IID)

@@ -4,7 +4,9 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsDOMMouseScrollEvent.h"
-#include "nsDOMClassInfoID.h"
+#include "nsGUIEvent.h"
+#include "nsIContent.h"
+#include "nsContentUtils.h"
 
 nsDOMMouseScrollEvent::nsDOMMouseScrollEvent(nsPresContext* aPresContext,
                                              nsInputEvent* aEvent)

@@ -3565,7 +3565,7 @@ nsGenericElement::InternalGetExistingAttrNameFromQName(const nsAString& aStr) co
 }
 
 nsresult
-nsGenericElement::CopyInnerTo(nsGenericElement* aDst)
+nsGenericElement::CopyInnerTo(nsGenericElement* aDst) const
 {
   PRUint32 i, count = mAttrsAndChildren.AttrCount();
   for (i = 0; i < count; ++i) {

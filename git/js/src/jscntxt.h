@@ -30,7 +30,6 @@
 #include "js/HashTable.h"
 #include "js/Vector.h"
 #include "vm/Stack.h"
-#include "vm/SPSProfiler.h"
 
 #ifdef _MSC_VER
 #pragma warning(push)
@@ -584,16 +583,7 @@ struct JSRuntime : js::RuntimeFriendFields
 #endif
 
     bool                gcPoke;
-
-    enum HeapState {
-        Idle,       // doing nothing with the GC heap
-        Tracing,    // tracing the GC heap without collecting, e.g. IterateCompartments()
-        Collecting  // doing a GC of the heap
-    };
-
-    HeapState           heapState;
-
-    bool isHeapBusy() { return heapState != Idle; }
+    bool                gcRunning;
 
     /*
      * These options control the zealousness of the GC. The fundamental values
@@ -695,9 +685,6 @@ struct JSRuntime : js::RuntimeFriendFields
 
     /* If true, new compartments are initially in debug mode. */
     bool                debugMode;
-
-    /* SPS profiling metadata */
-    js::SPSProfiler     spsProfiler;
 
     /* If true, new scripts must be created with PC counter information. */
     bool                profilingScripts;
@@ -1130,10 +1117,6 @@ struct JSContext : js::ContextFriendFields
 
     /* True if generating an error, to prevent runaway recursion. */
     bool                generatingError;
-
-#ifdef DEBUG
-    bool                rootingUnnecessary;
-#endif
 
     /* GC heap compartment. */
     JSCompartment       *compartment;
@@ -1821,13 +1804,13 @@ MakeRangeGCSafe(jsid *vec, size_t len)
 }
 
 static JS_ALWAYS_INLINE void
-MakeRangeGCSafe(Shape **beg, Shape **end)
+MakeRangeGCSafe(const Shape **beg, const Shape **end)
 {
     PodZero(beg, end - beg);
 }
 
 static JS_ALWAYS_INLINE void
-MakeRangeGCSafe(Shape **vec, size_t len)
+MakeRangeGCSafe(const Shape **vec, size_t len)
 {
     PodZero(vec, len);
 }
@@ -1871,12 +1854,12 @@ class AutoObjectVector : public AutoVectorRooter<JSObject *>
     JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
-class AutoShapeVector : public AutoVectorRooter<Shape *>
+class AutoShapeVector : public AutoVectorRooter<const Shape *>
 {
   public:
     explicit AutoShapeVector(JSContext *cx
                              JS_GUARD_OBJECT_NOTIFIER_PARAM)
-        : AutoVectorRooter<Shape *>(cx, SHAPEVECTOR)
+        : AutoVectorRooter<const Shape *>(cx, SHAPEVECTOR)
     {
         JS_GUARD_OBJECT_NOTIFIER_INIT;
     }

@@ -10,7 +10,9 @@ relativesrcdir	= dom/tests/mochitest/pointerlock
 
 include $(DEPTH)/config/autoconf.mk
 
-MOCHITEST_FILES	= \
+include $(topsrcdir)/config/rules.mk
+
+_TEST_FILES	= \
 		test_pointerlock-api.html \
 		pointerlock_utils.js \
 		file_approval.html \
@@ -33,4 +35,5 @@ MOCHITEST_FILES	= \
 		iframe_differentDOM.html \
 		$(NULL)
 
-include $(topsrcdir)/config/rules.mk
+libs:: $(_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)

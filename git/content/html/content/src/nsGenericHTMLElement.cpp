@@ -77,6 +77,7 @@
 #include "nsIEditorIMESupport.h"
 #include "nsEventDispatcher.h"
 #include "nsLayoutUtils.h"
+#include "nsContentCreatorFunctions.h"
 #include "mozAutoDocUpdate.h"
 #include "nsHtml5Module.h"
 #include "nsITextControlElement.h"
@@ -84,6 +85,7 @@
 #include "nsHTMLFieldSetElement.h"
 #include "nsHTMLMenuElement.h"
 #include "nsAsyncDOMEvent.h"
+#include "nsIScriptError.h"
 #include "nsDOMMutationObserver.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/dom/FromParser.h"
@@ -93,7 +95,6 @@
 #include "nsVariant.h"
 #include "nsDOMSettableTokenList.h"
 #include "nsThreadUtils.h"
-#include "nsTextFragment.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -275,7 +276,7 @@ nsGenericHTMLElement::DOMQueryInterface(nsIDOMHTMLElement *aElement,
 // No closing bracket, because NS_INTERFACE_MAP_END does that for us.
 
 nsresult
-nsGenericHTMLElement::CopyInnerTo(nsGenericElement* aDst)
+nsGenericHTMLElement::CopyInnerTo(nsGenericElement* aDst) const
 {
   nsresult rv;
   PRInt32 i, count = GetAttrCount();

@@ -51,7 +51,7 @@ const TYPE_MAYBE_FEED = "application/vnd.mozilla.maybe.feed";
 const TYPE_MAYBE_AUDIO_FEED = "application/vnd.mozilla.maybe.audio.feed";
 const TYPE_MAYBE_VIDEO_FEED = "application/vnd.mozilla.maybe.video.feed";
 const URI_BUNDLE = "chrome://browser/locale/feeds/subscribe.properties";
-const FEEDHANDLER_URI = "about:feeds";
+const SUBSCRIBE_PAGE_URI = "chrome://browser/content/feeds/subscribe.xhtml";
 
 const PREF_SELECTED_APP = "browser.feeds.handlers.application";
 const PREF_SELECTED_WEB = "browser.feeds.handlers.webservice";
@@ -673,7 +673,7 @@ FeedWriter.prototype = {
    */
   _getFileIconURL: function FW__getFileIconURL(file) {
     var ios = Cc["@mozilla.org/network/io-service;1"].
-              getService(Ci.nsIIOService);
+              getService(Components.interfaces.nsIIOService);
     var fph = ios.getProtocolHandler("file")
                  .QueryInterface(Ci.nsIFileProtocolHandler);
     var urlSpec = fph.getURLSpecFromFile(file);
@@ -1089,9 +1089,10 @@ FeedWriter.prototype = {
                getInterface(Ci.nsIWebNavigation).
                QueryInterface(Ci.nsIDocShell).currentDocumentChannel;
 
-    var resolvedURI = Cc["@mozilla.org/network/io-service;1"].
-                      getService(Ci.nsIIOService).
-                      newChannel(FEEDHANDLER_URI, null, null).URI;
+    var uri = makeURI(SUBSCRIBE_PAGE_URI);
+    var resolvedURI = Cc["@mozilla.org/chrome/chrome-registry;1"].
+                      getService(Ci.nsIChromeRegistry).
+                      convertChromeURL(uri);
 
     if (resolvedURI.equals(chan.URI))
       return chan.originalURI;

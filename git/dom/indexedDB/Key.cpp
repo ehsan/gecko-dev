@@ -10,6 +10,7 @@
 #include "nsIStreamBufferAccess.h"
 #include "jsfriendapi.h"
 #include "nsAlgorithm.h"
+#include "nsContentUtils.h"
 #include "nsJSUtils.h"
 #include "xpcpublic.h"
 

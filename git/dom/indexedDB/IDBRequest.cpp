@@ -14,7 +14,6 @@
 #include "nsDOMJSUtils.h"
 #include "nsContentUtils.h"
 #include "nsEventDispatcher.h"
-#include "nsJSUtils.h"
 #include "nsPIDOMWindow.h"
 #include "nsStringGlue.h"
 #include "nsThreadUtils.h"
@@ -32,7 +31,7 @@ IDBRequest::IDBRequest()
   mActorParent(nsnull),
   mErrorCode(NS_OK),
   mHaveResultOrErrorCode(false),
-  mLineNo(0)
+  mRooted(false)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 }
@@ -40,14 +39,15 @@ IDBRequest::IDBRequest()
 IDBRequest::~IDBRequest()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+
+  UnrootResultVal();
 }
 
 // static
 already_AddRefed<IDBRequest>
 IDBRequest::Create(nsISupports* aSource,
                    IDBWrapperCache* aOwnerCache,
-                   IDBTransaction* aTransaction,
-                   JSContext* aCallingCx)
+                   IDBTransaction* aTransaction)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   nsRefPtr<IDBRequest> request(new IDBRequest());
@@ -59,8 +59,6 @@ IDBRequest::Create(nsISupports* aSource,
     return nsnull;
   }
 
-  request->CaptureCaller(aCallingCx);
-
   return request.forget();
 }
 
@@ -71,6 +69,7 @@ IDBRequest::Reset()
   mResultVal = JSVAL_VOID;
   mHaveResultOrErrorCode = false;
   mError = nsnull;
+  UnrootResultVal();
 }
 
 nsresult
@@ -78,6 +77,7 @@ IDBRequest::NotifyHelperCompleted(HelperBase* aHelper)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(!mHaveResultOrErrorCode, "Already called!");
+  NS_ASSERTION(!PreservingWrapper(), "Already rooted?!");
   NS_ASSERTION(JSVAL_IS_VOID(mResultVal), "Should be undefined!");
 
   // See if our window is still valid. If not then we're going to pretend that
@@ -111,7 +111,7 @@ IDBRequest::NotifyHelperCompleted(HelperBase* aHelper)
   JSAutoRequest ar(cx);
   JSAutoEnterCompartment ac;
   if (ac.enter(cx, global)) {
-    AssertIsRooted();
+    RootResultVal();
 
     rv = aHelper->GetSuccessResult(cx, &mResultVal);
     if (NS_FAILED(rv)) {
@@ -139,6 +139,7 @@ IDBRequest::NotifyHelperSentResultsToChildProcess(nsresult aRv)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(!mHaveResultOrErrorCode, "Already called!");
+  NS_ASSERTION(!PreservingWrapper(), "Already rooted?!");
   NS_ASSERTION(JSVAL_IS_VOID(mResultVal), "Should be undefined!");
 
   // See if our window is still valid. If not then we're going to pretend that
@@ -165,6 +166,7 @@ IDBRequest::SetError(nsresult aRv)
   mErrorCode = aRv;
 
   mResultVal = JSVAL_VOID;
+  UnrootResultVal();
 }
 
 #ifdef DEBUG
@@ -206,30 +208,15 @@ IDBRequest::GetJSContext()
 }
 
 void
-IDBRequest::CaptureCaller(JSContext* aCx)
+IDBRequest::RootResultValInternal()
 {
-  if (!aCx) {
-    // We may not have a JSContext.  This happens if our caller is in another
-    // process.
-    return;
-  }
-
-  const char* filename = nsnull;
-  PRUint32 lineNo = 0;
-  if (!nsJSUtils::GetCallingLocation(aCx, &filename, &lineNo)) {
-    NS_WARNING("Failed to get caller.");
-    return;
-  }
-
-  mFilename.Assign(NS_ConvertUTF8toUTF16(filename));
-  mLineNo = lineNo;
+  NS_HOLD_JS_OBJECTS(this, IDBRequest);
 }
 
 void
-IDBRequest::FillScriptErrorEvent(nsScriptErrorEvent* aEvent) const
+IDBRequest::UnrootResultValInternal()
 {
-  aEvent->lineNr = mLineNo;
-  aEvent->fileName = mFilename.get();
+  NS_DROP_JS_OBJECTS(this, IDBRequest);
 }
 
 NS_IMETHODIMP
@@ -308,6 +295,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(IDBRequest, IDBWrapperCache)
   tmp->mResultVal = JSVAL_VOID;
+  tmp->UnrootResultVal();
   NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(success)
   NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(error)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mSource)
@@ -346,13 +334,14 @@ IDBRequest::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 IDBOpenDBRequest::~IDBOpenDBRequest()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+
+  UnrootResultVal();
 }
 
 // static
 already_AddRefed<IDBOpenDBRequest>
 IDBOpenDBRequest::Create(nsPIDOMWindow* aOwner,
-                         JSObject* aScriptOwner,
-                         JSContext* aCallingCx)
+                         JSObject* aScriptOwner)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   nsRefPtr<IDBOpenDBRequest> request(new IDBOpenDBRequest());
@@ -361,8 +350,6 @@ IDBOpenDBRequest::Create(nsPIDOMWindow* aOwner,
   if (!request->SetScriptOwner(aScriptOwner)) {
     return nsnull;
   }
-
-  request->CaptureCaller(aCallingCx);
 
   return request.forget();
 }
@@ -376,6 +363,18 @@ IDBOpenDBRequest::SetTransaction(IDBTransaction* aTransaction)
                "Shouldn't have a transaction here!");
 
   mTransaction = aTransaction;
+}
+
+void
+IDBOpenDBRequest::RootResultValInternal()
+{
+  NS_HOLD_JS_OBJECTS(this, IDBOpenDBRequest);
+}
+
+void
+IDBOpenDBRequest::UnrootResultValInternal()
+{
+  NS_DROP_JS_OBJECTS(this, IDBOpenDBRequest);
 }
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(IDBOpenDBRequest)
@@ -408,5 +407,33 @@ NS_IMPL_EVENT_HANDLER(IDBOpenDBRequest, upgradeneeded);
 nsresult
 IDBOpenDBRequest::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
 {
-  return IndexedDatabaseManager::FireWindowOnError(GetOwner(), aVisitor);
+  NS_ENSURE_TRUE(aVisitor.mDOMEvent, NS_ERROR_UNEXPECTED);
+
+  nsPIDOMWindow* owner = GetOwner();
+  if (!owner) {
+    return NS_OK;
+  }
+
+  if (aVisitor.mEventStatus != nsEventStatus_eConsumeNoDefault) {
+    nsString type;
+    nsresult rv = aVisitor.mDOMEvent->GetType(type);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    if (type.EqualsLiteral(ERROR_EVT_STR)) {
+      nsRefPtr<nsDOMEvent> duplicateEvent =
+        CreateGenericEvent(type, eDoesNotBubble, eNotCancelable);
+      NS_ENSURE_STATE(duplicateEvent);
+
+      nsCOMPtr<nsIDOMEventTarget> target(do_QueryInterface(owner));
+      NS_ASSERTION(target, "How can this happen?!");
+
+      bool dummy;
+      rv = target->DispatchEvent(duplicateEvent, &dummy);
+      if (NS_FAILED(rv)) {
+        return rv;
+      }
+    }
+  }
+
+  return NS_OK;
 }

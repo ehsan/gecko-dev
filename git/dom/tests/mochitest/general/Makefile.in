@@ -10,8 +10,9 @@ VPATH		= @srcdir@
 relativesrcdir  = dom/tests/mochitest/general
 
 include $(DEPTH)/config/autoconf.mk
+include $(topsrcdir)/config/rules.mk
 
-MOCHITEST_FILES = \
+_TEST_FILES = \
 		file_MozEnteredDomFullscreen.html \
 		test_outerHTML.html \
 		test_outerHTML.xhtml \
@@ -48,10 +49,14 @@ MOCHITEST_FILES = \
 		test_interfaces.html \
 		$(NULL)
 
-MOCHITEST_CHROME_FILES = \
+_CHROME_FILES = \
 		test_innerScreen.xul \
 		test_offsets.xul \
 		test_offsets.js \
 		$(NULL)
 
-include $(topsrcdir)/config/rules.mk
+libs:: $(_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)
+
+libs:: $(_CHROME_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/chrome/$(relativesrcdir)

@@ -19,7 +19,6 @@ const IGNORE_HISTOGRAM_TO_CLONE = "MEMORY_HEAP_ALLOCATED";
 const IGNORE_CLONED_HISTOGRAM = "test::ignore_me_also";
 const ADDON_NAME = "Telemetry test addon";
 const ADDON_HISTOGRAM = "addon-histogram";
-const FLASH_VERSION = "1.1.1.1";
 
 const BinaryInputStream = Components.Constructor(
   "@mozilla.org/binaryinputstream;1",
@@ -126,8 +125,7 @@ function checkPayloadInfo(payload, reason) {
     appVersion: "1", 
     appName: "XPCShell", 
     appBuildID: "2007010101",
-    platformBuildID: "2007010101",
-    flashVersion: FLASH_VERSION
+    platformBuildID: "2007010101"
   };
 
   for (let f in expected_info) {
@@ -328,40 +326,6 @@ function dummyTheme(id) {
   };
 }
 
-// A fake plugin host for testing flash version telemetry
-var PluginHost = {
-  getPluginTags: function(countRef) {
-    let plugins = [{name: "Shockwave Flash", version: FLASH_VERSION}];
-    countRef.value = plugins.length;
-    return plugins;
-  },
-
-  QueryInterface: function(iid) {
-    if (iid.equals(Ci.nsIPluginHost)
-     || iid.equals(Ci.nsISupports))
-      return this;
-  
-    throw Components.results.NS_ERROR_NO_INTERFACE;
-  }
-}
-
-var PluginHostFactory = {
-  createInstance: function (outer, iid) {
-    if (outer != null)
-      throw Components.results.NS_ERROR_NO_AGGREGATION;
-    return PluginHost.QueryInterface(iid);
-  }
-};
-
-const PLUGINHOST_CONTRACTID = "@mozilla.org/plugin/host;1";
-const PLUGINHOST_CID = Components.ID("{2329e6ea-1f15-4cbe-9ded-6e98e842de0e}");
-
-function registerFakePluginHost() {
-  var registrar = Components.manager.QueryInterface(Ci.nsIComponentRegistrar);
-  registrar.registerFactory(PLUGINHOST_CID, "Fake Plugin Host",
-                            PLUGINHOST_CONTRACTID, PluginHostFactory);
-}
-
 function run_test() {
   try {
     var gfxInfo = Cc["@mozilla.org/gfx/info;1"].getService(Ci.nsIGfxInfoDebug);
@@ -382,13 +346,10 @@ function run_test() {
   gInternalManager.observe(null, "addons-startup", null);
   LightweightThemeManager.currentTheme = dummyTheme("1234");
 
-  // fake plugin host for consistent flash version data
-  registerFakePluginHost();
-
   Services.obs.addObserver(nonexistentServerObserver, "telemetry-test-xhr-complete", false);
   telemetry_ping();
   // spin the event loop
   do_test_pending();
   // ensure that test runs to completion
   do_register_cleanup(function () do_check_true(gFinished));
-}
+ }

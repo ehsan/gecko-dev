@@ -13,8 +13,9 @@ include $(DEPTH)/config/autoconf.mk
 
 DIRS = rtltest rtlchrome
 
+include $(topsrcdir)/config/rules.mk
 
-MOCHITEST_CHROME_FILES = 	findbar_window.xul \
+_TEST_FILES = 	findbar_window.xul \
 		test_findbar.xul \
 		test_bug253481.xul \
 		bug263683_window.xul \
@@ -100,7 +101,6 @@ MOCHITEST_CHROME_FILES = 	findbar_window.xul \
 		test_popup_preventdefault.xul \
 		test_notificationbox.xul \
 		test_scale.xul \
-		test_scaledrag.xul \
 		test_radio.xul \
 		test_tabbox.xul \
 		test_progressmeter.xul \
@@ -158,18 +158,19 @@ MOCHITEST_CHROME_FILES = 	findbar_window.xul \
 # test_panel_focus.xul won't work if the Full Keyboard Access preference is set to
 # textboxes and lists only, so skip this test on Mac
 ifneq (cocoa,$(MOZ_WIDGET_TOOLKIT))
-MOCHITEST_CHROME_FILES += test_panel_focus.xul \
+_TEST_FILES += test_panel_focus.xul \
                window_panel_focus.xul \
                test_chromemargin.xul \
                window_chromemargin.xul
 else
-MOCHITEST_CHROME_FILES += test_autocomplete_mac_caret.xul
+_TEST_FILES += test_autocomplete_mac_caret.xul
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
-MOCHITEST_CHROME_FILES += 	$(warning test_cursorsnap.xul temporarily disabled) \
+_TEST_FILES += 	$(warning test_cursorsnap.xul temporarily disabled) \
 		window_cursorsnap_dialog.xul \
 		window_cursorsnap_wizard.xul
 endif
 
-include $(topsrcdir)/config/rules.mk
+libs:: $(_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/chrome/$(relativesrcdir)
