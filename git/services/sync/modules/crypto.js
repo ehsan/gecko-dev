@@ -66,11 +66,16 @@ CryptoSvc.prototype = {
   },
 
   get defaultAlgorithm() {
-    return Utils.prefs.getCharPref("encryption");
+    let branch = Cc["@mozilla.org/preferences-service;1"]
+      .getService(Ci.nsIPrefBranch);
+    return branch.getCharPref("extensions.weave.encryption");
   },
   set defaultAlgorithm(value) {
-    if (value != Utils.prefs.getCharPref("encryption"))
-      Utils.prefs.setCharPref("encryption", value);
+    let branch = Cc["@mozilla.org/preferences-service;1"]
+      .getService(Ci.nsIPrefBranch);
+    let cur = branch.getCharPref("extensions.weave.encryption");
+    if (value != cur)
+      branch.setCharPref("extensions.weave.encryption", value);
   },
 
   _init: function Crypto__init() {

@@ -48,8 +48,7 @@ Cu.import("resource://weave/util.js");
  * Asynchronous generator helpers
  */
 
-let gCurrentId = 0;
-let gOutstandingGenerators = 0;
+let currentId = 0;
 
 function AsyncException(initFrame, message) {
   this.message = message;
@@ -72,14 +71,13 @@ AsyncException.prototype = {
 };
 
 function Generator(thisArg, method, onComplete, args) {
-  gOutstandingGenerators++;
   this._outstandingCbs = 0;
   this._log = Log4Moz.Service.getLogger("Async.Generator");
   this._log.level =
     Log4Moz.Level[Utils.prefs.getCharPref("log.logger.async")];
   this._thisArg = thisArg;
   this._method = method;
-  this._id = gCurrentId++;
+  this._id = currentId++;
   this.onComplete = onComplete;
   this._args = args;
   this._initFrame = Components.stack.caller;
@@ -253,7 +251,6 @@ Generator.prototype = {
         this._log.trace("Initial stack trace:\n" + this.trace);
       }
     }
-    gOutstandingGenerators--;
   }
 };
 
@@ -283,7 +280,6 @@ function trace(frame, str) {
 
 
 Async = {
-  get outstandingGenerators() { return gOutstandingGenerators; },
 
   // Use:
   // let gen = Async.run(this, this.fooGen, ...);
