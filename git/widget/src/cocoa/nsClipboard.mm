@@ -115,7 +115,6 @@ nsClipboard::SetNativeClipboardData(PRInt32 aWhichClipboard)
     NSString* currentKey = [outputKeys objectAtIndex:i];
     id currentValue = [pasteboardOutputDict valueForKey:currentKey];
     if (currentKey == NSStringPboardType ||
-        currentKey == NSHTMLPboardType ||
         currentKey == kCorePboardType_url ||
         currentKey == kCorePboardType_urld ||
         currentKey == kCorePboardType_urln)
@@ -198,9 +197,8 @@ nsClipboard::GetNativeClipboardData(nsITransferable* aTransferable, PRInt32 aWhi
 
     // printf("looking for clipboard data of type %s\n", flavorStr.get());
 
-    const NSString *pboardType;
-    if (nsClipboard::IsStringType(flavorStr, &pboardType)) {
-      NSString* pString = [cocoaPasteboard stringForType:pboardType];
+    if (flavorStr.EqualsLiteral(kUnicodeMime)) {
+      NSString* pString = [cocoaPasteboard stringForType:NSStringPboardType];
       if (!pString)
         continue;
 
@@ -341,12 +339,9 @@ nsClipboard::HasDataMatchingFlavors(const char** aFlavorList, PRUint32 aLength,
   NSPasteboard* generalPBoard = [NSPasteboard generalPasteboard];
 
   for (PRUint32 i = 0; i < aLength; i++) {
-    nsDependentCString mimeType(aFlavorList[i]);
-    const NSString *pboardType;
-
-    if (nsClipboard::IsStringType(mimeType, &pboardType)) {
-      NSString* availableType = [generalPBoard availableTypeFromArray:[NSArray arrayWithObject:pboardType]];
-      if (availableType && [availableType isEqualToString:pboardType]) {
+    if (!strcmp(aFlavorList[i], kUnicodeMime)) {
+      NSString* availableType = [generalPBoard availableTypeFromArray:[NSArray arrayWithObject:NSStringPboardType]];
+      if (availableType && [availableType isEqualToString:NSStringPboardType]) {
         *outResult = PR_TRUE;
         break;
       }
@@ -400,9 +395,7 @@ nsClipboard::PasteboardDictFromTransferable(nsITransferable* aTransferable)
 
     PR_LOG(sCocoaLog, PR_LOG_ALWAYS, ("writing out clipboard data of type %s (%d)\n", flavorStr.get(), i));
 
-    const NSString *pboardType;
-
-    if (nsClipboard::IsStringType(flavorStr, &pboardType)) {
+    if (flavorStr.EqualsLiteral(kUnicodeMime)) {
       void* data = nsnull;
       PRUint32 dataSize = 0;
       nsCOMPtr<nsISupports> genericDataWrapper;
@@ -412,8 +405,7 @@ nsClipboard::PasteboardDictFromTransferable(nsITransferable* aTransferable)
       NSString* nativeString = [NSString stringWithCharacters:(const unichar*)data length:(dataSize / sizeof(PRUnichar))];
       // be nice to Carbon apps, normalize the receiver's contents using Form C.
       nativeString = [nativeString precomposedStringWithCanonicalMapping];
-
-      [pasteboardOutputDict setObject:nativeString forKey:pboardType];
+      [pasteboardOutputDict setObject:nativeString forKey:NSStringPboardType];
       
       nsMemory::Free(data);
     }
@@ -537,18 +529,4 @@ nsClipboard::PasteboardDictFromTransferable(nsITransferable* aTransferable)
   return pasteboardOutputDict;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
-}
-
-PRBool nsClipboard::IsStringType(const nsCString& aMIMEType, const NSString** aPasteboardType)
-{
-  if (aMIMEType.EqualsLiteral(kUnicodeMime) ||
-      aMIMEType.EqualsLiteral(kHTMLMime)) {
-    if (aMIMEType.EqualsLiteral(kUnicodeMime))
-      *aPasteboardType = NSStringPboardType;
-    else
-      *aPasteboardType = NSHTMLPboardType;
-    return PR_TRUE;
-  } else {
-    return PR_FALSE;
-  }
 }

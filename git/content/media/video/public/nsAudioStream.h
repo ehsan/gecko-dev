@@ -109,10 +109,6 @@ class nsAudioStream
   PRInt64 mSavedPauseBytes;
   PRInt64 mPauseBytes;
 
-  float mStartTime;
-  float mPauseTime;
-  PRInt64 mSamplesBuffered;
-
   PRPackedBool mPaused;
 };
 #endif

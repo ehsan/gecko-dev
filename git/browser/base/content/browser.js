@@ -1497,7 +1497,7 @@ SanitizeListener.prototype =
   _updateSanitizeItem: function ()
   {
     var label = gPrefService.getBoolPref(this.promptDomain) ?
-        gNavigatorBundle.getString("sanitizeWithPromptLabel2") : 
+        gNavigatorBundle.getString("sanitizeWithPromptLabel") : 
         this._defaultLabel;
     document.getElementById("sanitizeItem").setAttribute("label", label);
   }
@@ -6840,7 +6840,6 @@ let gPrivateBrowsingUI = {
       docElement.setAttribute("titlemodifier",
         docElement.getAttribute("titlemodifier_privatebrowsing"));
 #endif
-      docElement.setAttribute("browsingmode", "private");
     }
     else {
       // Disable the menu item in auto-start mode
@@ -6852,9 +6851,6 @@ let gPrivateBrowsingUI = {
   },
 
   onExitPrivateBrowsing: function PBUI_onExitPrivateBrowsing() {
-    if (BrowserSearch.searchBar)
-      BrowserSearch.searchBar.textbox.reset();
-
     let pbMenuItem = document.getElementById("privateBrowsingItem");
     if (pbMenuItem)
       pbMenuItem.removeAttribute("checked");
@@ -6872,7 +6868,6 @@ let gPrivateBrowsingUI = {
       docElement.setAttribute("titlemodifier",
         docElement.getAttribute("titlemodifier_normal"));
 #endif
-      docElement.setAttribute("browsingmode", "normal");
     }
     else
       this._privateBrowsingAutoStarted = false;

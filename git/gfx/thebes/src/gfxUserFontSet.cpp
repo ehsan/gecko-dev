@@ -321,12 +321,9 @@ gfxUserFontSet::LoadNext(gfxProxyFontEntry *aProxyEntry)
         else {
             if (gfxPlatform::GetPlatform()->IsFontFormatSupported(currSrc.mURI, 
                     currSrc.mFormatFlags)) {
-                nsresult rv = mLoaderContext->mLoaderProc(aProxyEntry, 
-                                                          currSrc.mURI,
-                                                          currSrc.mReferrer,
-                                                          mLoaderContext);
-                PRBool loadOK = NS_SUCCEEDED(rv);
-                
+                PRBool loadOK = mLoaderContext->mLoaderProc(aProxyEntry, 
+                                                            currSrc.mURI, 
+                                                            mLoaderContext);
                 if (loadOK) {
 #ifdef PR_LOGGING
                     if (LOG_ENABLED()) {

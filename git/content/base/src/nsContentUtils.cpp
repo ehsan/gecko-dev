@@ -798,9 +798,22 @@ nsContentUtils::IsHTMLWhitespace(PRUnichar aChar)
 
 /* static */
 void
-nsContentUtils::GetOfflineAppManifest(nsIDocument *aDocument, nsIURI **aURI)
+nsContentUtils::GetOfflineAppManifest(nsIDOMWindow *aWindow, nsIURI **aURI)
 {
-  nsCOMPtr<nsIContent> docElement = aDocument->GetRootContent();
+  nsCOMPtr<nsIDOMWindow> top;
+  aWindow->GetTop(getter_AddRefs(top));
+  if (!top) {
+    return;
+  }
+
+  nsCOMPtr<nsIDOMDocument> topDOMDocument;
+  top->GetDocument(getter_AddRefs(topDOMDocument));
+  nsCOMPtr<nsIDocument> topDoc = do_QueryInterface(topDOMDocument);
+  if (!topDoc) {
+    return;
+  }
+
+  nsCOMPtr<nsIContent> docElement = topDoc->GetRootContent();
   if (!docElement) {
     return;
   }
@@ -815,7 +828,7 @@ nsContentUtils::GetOfflineAppManifest(nsIDocument *aDocument, nsIURI **aURI)
   }
 
   nsContentUtils::NewURIWithDocumentCharset(aURI, manifestSpec,
-                                            aDocument, aDocument->GetBaseURI());
+                                            topDoc, topDoc->GetBaseURI());
 }
 
 /* static */
