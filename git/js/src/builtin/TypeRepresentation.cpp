@@ -947,8 +947,6 @@ SizedTypeRepresentation::initInstance(const JSRuntime *rt,
                                       uint8_t *mem,
                                       size_t length)
 {
-    JS_ASSERT(length >= 1);
-
     MemoryInitVisitor visitor(rt);
 
     // Initialize the 0th instance

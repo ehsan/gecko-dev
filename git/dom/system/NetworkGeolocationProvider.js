@@ -143,9 +143,6 @@ WifiGeoPositionProvider.prototype = {
     LOG("onChange called, highAccuracy = " + (this.highAccuracy?"TRUE":"FALSE"));
     this.hasSeenWiFi = true;
 
-    Cc["@mozilla.org/geolocation/service;1"].getService(Ci.nsIGeolocationUpdate)
-        .locationUpdatePending();
-
     let url = Services.urlFormatter.formatURLPref("geo.wifi.uri");
 
     function isPublic(ap) {

@@ -218,16 +218,19 @@ CoreLocationLocationProvider::SetHighAccuracy(bool aEnable)
   return NS_OK;
 }
 
-void
+NS_IMETHODIMP
 CoreLocationLocationProvider::Update(nsIDOMGeoPosition* aSomewhere)
 {
   if (aSomewhere && mCallback) {
     mCallback->Update(aSomewhere);
   }
+
+  return NS_OK;
 }
 
-void
+NS_IMETHODIMP
 CoreLocationLocationProvider::NotifyError(uint16_t aErrorCode)
 {
   mCallback->NotifyError(aErrorCode);
+  return NS_OK;
 }

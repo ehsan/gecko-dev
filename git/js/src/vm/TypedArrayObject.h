@@ -165,7 +165,7 @@ class ArrayBufferObject : public JSObject
 
     void addView(ArrayBufferViewObject *view);
 
-    bool allocateSlots(JSContext *cx, uint32_t size, bool clear);
+    bool allocateSlots(JSContext *cx, uint32_t size);
 
     void changeContents(JSContext *cx, ObjectElements *newHeader);
 

@@ -38,7 +38,9 @@ public:
 
   virtual void DeallocateDeviceData() MOZ_OVERRIDE { }
 
-  virtual void SetCompositor(Compositor* aCompositor) MOZ_OVERRIDE;
+  void SetCompositor(BasicCompositor* aCompositor) {
+    mCompositor = aCompositor;
+  }
 
 protected:
   BasicCompositor* mCompositor;

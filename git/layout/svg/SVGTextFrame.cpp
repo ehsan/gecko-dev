@@ -3058,8 +3058,7 @@ class nsDisplaySVGText : public nsDisplayItem {
 public:
   nsDisplaySVGText(nsDisplayListBuilder* aBuilder,
                    SVGTextFrame* aFrame)
-    : nsDisplayItem(aBuilder, aFrame),
-      mDisableSubpixelAA(false)
+    : nsDisplayItem(aBuilder, aFrame)
   {
     MOZ_COUNT_CTOR(nsDisplaySVGText);
     NS_ABORT_IF_FALSE(aFrame, "Must have a frame!");
@@ -3072,15 +3071,10 @@ public:
 
   NS_DISPLAY_DECL_NAME("nsDisplaySVGText", TYPE_SVG_TEXT)
 
-  virtual void DisableComponentAlpha() MOZ_OVERRIDE {
-    mDisableSubpixelAA = true;
-  }
   virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
                        HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames);
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsRenderingContext* aCtx);
-private:
-  bool mDisableSubpixelAA;
 };
 
 void
@@ -3103,9 +3097,6 @@ void
 nsDisplaySVGText::Paint(nsDisplayListBuilder* aBuilder,
                         nsRenderingContext* aCtx)
 {
-  gfxContextAutoDisableSubpixelAntialiasing
-    disable(aCtx->ThebesContext(), mDisableSubpixelAA);
-
   // ToReferenceFrame includes our mRect offset, but painting takes
   // account of that too. To avoid double counting, we subtract that
   // here.

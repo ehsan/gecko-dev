@@ -18,7 +18,6 @@
 #undef nsTDefaultStringComparator_CharT
 #undef nsTDependentString_CharT
 #undef nsTDependentSubstring_CharT
-#undef nsTLiteralString_CharT
 #undef nsTXPIDLString_CharT
 #undef nsTGetterCopies_CharT
 #undef nsTAdoptingString_CharT

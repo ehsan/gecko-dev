@@ -11,8 +11,7 @@ nsTPromiseFlatString_CharT::Init(const substring_type& str)
       {
         mData = const_cast<char_type*>(static_cast<const char_type*>(str.Data()));
         mLength = str.Length();
-        mFlags = str.mFlags & (F_TERMINATED | F_LITERAL);
-                 // does not promote F_VOIDED
+        mFlags = F_TERMINATED; // does not promote F_VOIDED
       }
     else
       {
