@@ -865,11 +865,14 @@ WebSocket::CreateAndDispatchMessageEvent(const nsACString& aData,
   if (NS_FAILED(rv))
     return NS_OK;
 
-  AutoJSAPI jsapi;
-  if (NS_WARN_IF(!jsapi.InitUsingWin(GetOwner()))) {
+  nsCOMPtr<nsIGlobalObject> globalObject = do_QueryInterface(GetOwner());
+  if (NS_WARN_IF(!globalObject)) {
     return NS_ERROR_FAILURE;
   }
+
+  AutoJSAPI jsapi;
   JSContext* cx = jsapi.cx();
+  JSAutoCompartment ac(cx, globalObject->GetGlobalJSObject());
 
   // Create appropriate JS object for message
   JS::Rooted<JS::Value> jsData(cx);

@@ -1724,11 +1724,15 @@ JS::Value StringToJsval(nsPIDOMWindow* aWindow, nsAString& aString)
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(aWindow);
 
-  AutoJSAPI jsapi;
-  if (NS_WARN_IF(!jsapi.InitUsingWin(aWindow))) {
+  JSObject* global =
+    static_cast<nsGlobalWindow*>(aWindow)->GetWrapperPreserveColor();
+  if (NS_WARN_IF(!global)) {
     return JSVAL_NULL;
   }
+
+  AutoJSAPI jsapi;
   JSContext* cx = jsapi.cx();
+  JSAutoCompartment ac(cx, global);
 
   JS::Rooted<JS::Value> result(cx);
   if (!xpc::StringToJsval(cx, aString, &result)) {

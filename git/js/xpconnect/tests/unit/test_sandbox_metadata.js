@@ -7,12 +7,10 @@
 function run_test()
 {
   let sandbox = Components.utils.Sandbox("http://www.blah.com", {
-    metadata: "test metadata",
-    addonId: "12345"
+    metadata: "test metadata"
   });
 
   do_check_eq(Components.utils.getSandboxMetadata(sandbox), "test metadata");
-  do_check_eq(Components.utils.getSandboxAddonId(sandbox), "12345");
 
   let sandbox = Components.utils.Sandbox("http://www.blah.com", {
     metadata: { foopy: { bar: 2 }, baz: "hi" }

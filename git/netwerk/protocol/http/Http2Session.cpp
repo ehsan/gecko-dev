@@ -2018,9 +2018,7 @@ Http2Session::ReadyToProcessDataFrame(enum internalStateType newState)
         mInputFrameDataSize));
   UpdateLocalRwin(mInputFrameDataStream, mInputFrameDataSize);
 
-  if (mInputFrameDataStream) {
-    mInputFrameDataStream->SetRecvdData(true);
-  }
+  mInputFrameDataStream->SetRecvdData(true);
 
   return NS_OK;
 }

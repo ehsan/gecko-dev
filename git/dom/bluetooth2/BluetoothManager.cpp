@@ -260,9 +260,7 @@ BluetoothManager::DispatchAttributeEvent()
   JSAutoCompartment ac(cx, scope);
 
   nsTArray<nsString> types;
-  BT_APPEND_ENUM_STRING(types,
-                        BluetoothManagerAttribute,
-                        BluetoothManagerAttribute::DefaultAdapter);
+  types.AppendElement(NS_LITERAL_STRING("DefaultAdapter"));
 
   if (!ToJSValue(cx, types, &value)) {
     JS_ClearPendingException(cx);

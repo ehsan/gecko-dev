@@ -19,7 +19,6 @@ class nsWeakReference MOZ_FINAL : public nsIWeakReference
 
     // nsIWeakReference...
       NS_DECL_NSIWEAKREFERENCE
-      virtual size_t SizeOfOnlyThis(mozilla::MallocSizeOf aMallocSizeOf) const;
 
     private:
       friend class nsSupportsWeakReference;
@@ -117,12 +116,6 @@ NS_IMETHODIMP
 nsWeakReference::QueryReferent( const nsIID& aIID, void** aInstancePtr )
   {
     return mReferent ? mReferent->QueryInterface(aIID, aInstancePtr) : NS_ERROR_NULL_POINTER;
-  }
-
-size_t
-nsWeakReference::SizeOfOnlyThis(mozilla::MallocSizeOf aMallocSizeOf) const
-  {
-    return aMallocSizeOf(this);
   }
 
 void

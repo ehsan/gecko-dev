@@ -70,8 +70,7 @@ WMFDecoderModule::CreateH264Decoder(const mp4_demuxer::VideoDecoderConfig& aConf
                                     MediaTaskQueue* aVideoTaskQueue,
                                     MediaDataDecoderCallback* aCallback)
 {
-  return new WMFMediaDataDecoder(new WMFVideoOutputSource(aConfig,
-                                                          aLayersBackend,
+  return new WMFMediaDataDecoder(new WMFVideoOutputSource(aLayersBackend,
                                                           aImageContainer,
                                                           sDXVAEnabled),
                                  aVideoTaskQueue,

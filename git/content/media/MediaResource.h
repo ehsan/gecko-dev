@@ -38,6 +38,12 @@ namespace mozilla {
 class MediaDecoder;
 class MediaChannelStatistics;
 
+template<>
+struct HasDangerousPublicDestructor<MediaChannelStatistics>
+{
+  static const bool value = true;
+};
+
 /**
  * This class is useful for estimating rates of data passing through
  * some channel. The idea is that activity on the channel "starts"
@@ -113,7 +119,6 @@ public:
     return static_cast<double>(mAccumulatedBytes)/seconds;
   }
 private:
-  ~MediaChannelStatistics() {}
   int64_t      mAccumulatedBytes;
   TimeDuration mAccumulatedTime;
   TimeStamp    mLastStartTime;

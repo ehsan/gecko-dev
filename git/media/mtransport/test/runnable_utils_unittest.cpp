@@ -38,7 +38,6 @@ MtransportTestUtils *test_utils;
 namespace {
 
 class Destructor {
- private:
   ~Destructor() {
     std::cerr << "Destructor called" << std::endl;
     *destroyed_ = true;

@@ -25,7 +25,7 @@
 #include <stdint.h>
 #include <algorithm>
 
-using namespace mozilla::dom;
+using mozilla::dom::Attr;
 
 const uint32_t kUnknownIndex = uint32_t(-1);
 
@@ -683,9 +683,11 @@ txXPathNativeNode::createXPathNode(nsIContent* aContent, bool aKeepRootAlive)
 
 /* static */
 txXPathNode*
-txXPathNativeNode::createXPathNode(nsINode* aNode, bool aKeepRootAlive)
+txXPathNativeNode::createXPathNode(nsIDOMNode* aNode, bool aKeepRootAlive)
 {
-    uint16_t nodeType = aNode->NodeType();
+    uint16_t nodeType;
+    aNode->GetNodeType(&nodeType);
+
     if (nodeType == nsIDOMNode::ATTRIBUTE_NODE) {
         nsCOMPtr<nsIAttribute> attr = do_QueryInterface(aNode);
         NS_ASSERTION(attr, "doesn't implement nsIAttribute");
@@ -712,8 +714,9 @@ txXPathNativeNode::createXPathNode(nsINode* aNode, bool aKeepRootAlive)
         return nullptr;
     }
 
+    nsCOMPtr<nsINode> node = do_QueryInterface(aNode);
     uint32_t index;
-    nsINode* root = aKeepRootAlive ? aNode : nullptr;
+    nsINode* root = aKeepRootAlive ? node.get() : nullptr;
 
     if (nodeType == nsIDOMNode::DOCUMENT_NODE) {
         index = txXPathNode::eDocument;
@@ -725,7 +728,7 @@ txXPathNativeNode::createXPathNode(nsINode* aNode, bool aKeepRootAlive)
         }
     }
 
-    return new txXPathNode(aNode, index, root);
+    return new txXPathNode(node, index, root);
 }
 
 /* static */
@@ -737,11 +740,11 @@ txXPathNativeNode::createXPathNode(nsIDOMDocument* aDocument)
 }
 
 /* static */
-nsINode*
-txXPathNativeNode::getNode(const txXPathNode& aNode)
+nsresult
+txXPathNativeNode::getNode(const txXPathNode& aNode, nsIDOMNode** aResult)
 {
     if (!aNode.isAttribute()) {
-        return aNode.mNode;
+        return CallQueryInterface(aNode.mNode, aResult);
     }
 
     const nsAttrName* name = aNode.Content()->GetAttrNameAt(aNode.mIndex);
@@ -749,10 +752,13 @@ txXPathNativeNode::getNode(const txXPathNode& aNode)
     nsAutoString namespaceURI;
     nsContentUtils::NameSpaceManager()->GetNameSpaceURI(name->NamespaceID(), namespaceURI);
 
-    nsCOMPtr<Element> element = do_QueryInterface(aNode.mNode);
-    nsDOMAttributeMap* map = element->Attributes();
-    return map->GetNamedItemNS(namespaceURI,
-                               nsDependentAtomString(name->LocalName()));
+    nsCOMPtr<nsIDOMElement> element = do_QueryInterface(aNode.mNode);
+    nsCOMPtr<nsIDOMAttr> attr;
+    element->GetAttributeNodeNS(namespaceURI,
+                                nsDependentAtomString(name->LocalName()),
+                                getter_AddRefs(attr));
+
+    return CallQueryInterface(attr, aResult);
 }
 
 /* static */

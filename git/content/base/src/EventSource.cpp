@@ -1236,11 +1236,15 @@ EventSource::DispatchAllMessageEvents()
     return;
   }
 
-  AutoJSAPI jsapi;
-  if (NS_WARN_IF(!jsapi.InitUsingWin(GetOwner()))) {
+  // We need a parent object so that we can enter its compartment.
+  nsCOMPtr<nsIGlobalObject> parentObject = do_QueryInterface(GetParentObject());
+  if (NS_WARN_IF(!parentObject)) {
     return;
   }
+
+  AutoJSAPI jsapi;
   JSContext* cx = jsapi.cx();
+  JSAutoCompartment ac(cx, parentObject->GetGlobalJSObject());
 
   while (mMessagesToDispatch.GetSize() > 0) {
     nsAutoPtr<Message>

@@ -68,7 +68,6 @@
 #include "ipc/Nuwa.h"
 #endif
 
-#include "mozilla/Preferences.h"
 #include "GeckoProfiler.h"
 
 // Defines kKeyMapping and GetKeyNameIndex()
@@ -228,29 +227,6 @@ addDOMTouch(UserInputData& data, WidgetTouchEvent& event, int i)
                        0,
                        touch.coords.getAxisValue(AMOTION_EVENT_AXIS_PRESSURE))
     );
-}
-
-static void
-printUniformityInfo(UserInputData& aData)
-{
-    char* touchAction;
-    const ::Touch& touch = aData.motion.touches[0];
-    int32_t action = aData.action & AMOTION_EVENT_ACTION_MASK;
-    switch (action) {
-    case AMOTION_EVENT_ACTION_DOWN:
-         touchAction = "Touch_Event_Down";
-         break;
-    case AMOTION_EVENT_ACTION_MOVE:
-         touchAction = "Touch_Event_Move";
-          break;
-    case AMOTION_EVENT_ACTION_UP:
-         touchAction = "Touch_Event_Up";
-         break;
-    default :
-         return;
-    }
-    LOG("UniformityInfo %s %llu %f %f", touchAction, systemTime(SYSTEM_TIME_MONOTONIC),
-        touch.coords.getX(),  touch.coords.getY() );
 }
 
 static nsEventStatus
@@ -600,9 +576,7 @@ public:
         , mKeyDownCount(0)
         , mTouchEventsFiltered(false)
         , mKeyEventsFiltered(false)
-    {
-      mEnabledUniformityInfo = Preferences::GetBool("layers.uniformity-info", false);
-    }
+    {}
 
     virtual void dump(String8& dump);
 
@@ -652,7 +626,6 @@ private:
     bool mTouchEventsFiltered;
     bool mKeyEventsFiltered;
     BitSet32 mTouchDown;
-    bool mEnabledUniformityInfo;
 };
 
 // GeckoInputReaderPolicy
@@ -765,9 +738,6 @@ GeckoInputDispatcher::dispatchOnce()
         if (action != AMOTION_EVENT_ACTION_HOVER_MOVE) {
             bool captured;
             status = sendTouchEvent(data, &captured);
-            if (mEnabledUniformityInfo) {
-                printUniformityInfo(data);
-            }
             if (captured) {
                 return;
             }

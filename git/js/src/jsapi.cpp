@@ -982,20 +982,15 @@ JSAutoCompartment::~JSAutoCompartment()
     cx_->leaveCompartment(oldCompartment_);
 }
 
-JSAutoNullableCompartment::JSAutoNullableCompartment(JSContext *cx,
-                                                     JSObject *targetOrNull)
+JSAutoNullCompartment::JSAutoNullCompartment(JSContext *cx)
   : cx_(cx),
     oldCompartment_(cx->compartment())
 {
     AssertHeapIsIdleOrIterating(cx_);
-    if (targetOrNull) {
-        cx_->enterCompartment(targetOrNull->compartment());
-    } else {
-        cx_->enterNullCompartment();
-    }
+    cx_->enterNullCompartment();
 }
 
-JSAutoNullableCompartment::~JSAutoNullableCompartment()
+JSAutoNullCompartment::~JSAutoNullCompartment()
 {
     cx_->leaveCompartment(oldCompartment_);
 }
@@ -1010,30 +1005,6 @@ JS_PUBLIC_API(void *)
 JS_GetCompartmentPrivate(JSCompartment *compartment)
 {
     return compartment->data;
-}
-
-JS_PUBLIC_API(JSAddonId *)
-JS::NewAddonId(JSContext *cx, HandleString str)
-{
-    return static_cast<JSAddonId *>(JS_InternJSString(cx, str));
-}
-
-JS_PUBLIC_API(const jschar *)
-JS::CharsZOfAddonId(JSAddonId *id)
-{
-    return id->charsZ();
-}
-
-JS_PUBLIC_API(JSString *)
-JS::StringOfAddonId(JSAddonId *id)
-{
-    return id;
-}
-
-JS_PUBLIC_API(JSAddonId *)
-JS::AddonIdOfObject(JSObject *obj)
-{
-    return obj->compartment()->addonId;
 }
 
 JS_PUBLIC_API(void)

@@ -15,7 +15,6 @@
 
 #include "mozilla/dom/bluetooth/BluetoothTypes.h"
 #include "mozilla/dom/BluetoothDevice2Binding.h"
-#include "mozilla/dom/ScriptSettings.h"
 
 USING_BLUETOOTH_NAMESPACE
 
@@ -130,13 +129,13 @@ BluetoothDevice::SetPropertyByValue(const BluetoothNamedValue& aValue)
     mPaired = value.get_bool();
   } else if (name.EqualsLiteral("UUIDs")) {
     mUuids = value.get_ArrayOfnsString();
+    nsresult rv;
+    nsIScriptContext* sc = GetContextForEventHandlers(&rv);
+    NS_ENSURE_SUCCESS_VOID(rv);
+    NS_ENSURE_TRUE_VOID(sc);
 
-    AutoJSAPI jsapi;
-    if (!jsapi.InitUsingWin(GetOwner())) {
-      BT_WARNING("Failed to initialise AutoJSAPI!");
-      return;
-    }
-    JSContext* cx = jsapi.cx();
+    AutoPushJSContext cx(sc->GetNativeContext());
+
     JS::Rooted<JSObject*> uuids(cx);
     if (NS_FAILED(nsTArrayToJSArray(cx, mUuids, &uuids))) {
       BT_WARNING("Cannot set JS UUIDs object!");
@@ -146,13 +145,13 @@ BluetoothDevice::SetPropertyByValue(const BluetoothNamedValue& aValue)
     Root();
   } else if (name.EqualsLiteral("Services")) {
     mServices = value.get_ArrayOfnsString();
+    nsresult rv;
+    nsIScriptContext* sc = GetContextForEventHandlers(&rv);
+    NS_ENSURE_SUCCESS_VOID(rv);
+    NS_ENSURE_TRUE_VOID(sc);
 
-    AutoJSAPI jsapi;
-    if (!jsapi.InitUsingWin(GetOwner())) {
-      BT_WARNING("Failed to initialise AutoJSAPI!");
-      return;
-    }
-    JSContext* cx = jsapi.cx();
+    AutoPushJSContext cx(sc->GetNativeContext());
+
     JS::Rooted<JSObject*> services(cx);
     if (NS_FAILED(nsTArrayToJSArray(cx, mServices, &services))) {
       BT_WARNING("Cannot set JS Services object!");

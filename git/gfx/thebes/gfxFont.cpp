@@ -125,6 +125,7 @@ gfxFontEntry::gfxFontEntry() :
     mHasSpaceFeaturesNonKerning(false),
     mSkipDefaultFeatureSpaceCheck(false),
     mCheckedForGraphiteTables(false),
+    mCheckedForGraphiteSmallCaps(false),
     mHasCmapTable(false),
     mGrFaceInitialized(false),
     mCheckedForColorGlyph(false),
@@ -158,6 +159,7 @@ gfxFontEntry::gfxFontEntry(const nsAString& aName, bool aIsStandardFace) :
     mHasSpaceFeaturesNonKerning(false),
     mSkipDefaultFeatureSpaceCheck(false),
     mCheckedForGraphiteTables(false),
+    mCheckedForGraphiteSmallCaps(false),
     mHasCmapTable(false),
     mGrFaceInitialized(false),
     mCheckedForColorGlyph(false),
@@ -881,36 +883,15 @@ gfxFontEntry::CheckForGraphiteTables()
     mHasGraphiteTables = HasFontTable(TRUETYPE_TAG('S','i','l','f'));
 }
 
-
-#define FEATURE_SCRIPT_MASK 0x000000ff // script index replaces low byte of tag
-
-// check for too many script codes
-PR_STATIC_ASSERT(MOZ_NUM_SCRIPT_CODES <= FEATURE_SCRIPT_MASK);
-
-// high-order three bytes of tag with script in low-order byte
-#define SCRIPT_FEATURE(s,tag) (((~FEATURE_SCRIPT_MASK) & (tag)) | \
-                               ((FEATURE_SCRIPT_MASK) & (s)))
-
 bool
-gfxFontEntry::SupportsOpenTypeFeature(int32_t aScript, uint32_t aFeatureTag)
+gfxFontEntry::SupportsOpenTypeSmallCaps(int32_t aScript)
 {
-    if (!mSupportedFeatures) {
-        mSupportedFeatures = new nsDataHashtable<nsUint32HashKey,bool>();
+    if (!mSmallCapsSupport) {
+        mSmallCapsSupport = new nsDataHashtable<nsUint32HashKey,bool>();
     }
 
-    NS_ASSERTION(aFeatureTag == HB_TAG('s','m','c','p') ||
-                 aFeatureTag == HB_TAG('c','2','s','c') ||
-                 aFeatureTag == HB_TAG('p','c','a','p') ||
-                 aFeatureTag == HB_TAG('c','2','p','c'),
-                 "use of unknown feature tag");
-
-    // note: graphite feature support uses the last script index
-    NS_ASSERTION(aScript < FEATURE_SCRIPT_MASK - 1,
-                 "need to bump the size of the feature shift");
-
-    uint32_t scriptFeature = SCRIPT_FEATURE(aScript, aFeatureTag);
     bool result;
-    if (mSupportedFeatures->Get(scriptFeature, &result)) {
+    if (mSmallCapsSupport->Get(uint32_t(aScript), &result)) {
         return result;
     }
 
@@ -947,6 +928,7 @@ gfxFontEntry::SupportsOpenTypeFeature(int32_t aScript, uint32_t aFeatureTag)
 
         // Now check for 'smcp' under the first of those scripts that is present
         const hb_tag_t kGSUB = HB_TAG('G','S','U','B');
+        const hb_tag_t kSMCP = HB_TAG('s','m','c','p');
         scriptTag = &scriptTags[0];
         while (*scriptTag != HB_TAG_NONE) {
             unsigned int scriptIndex;
@@ -955,7 +937,7 @@ gfxFontEntry::SupportsOpenTypeFeature(int32_t aScript, uint32_t aFeatureTag)
                 if (hb_ot_layout_language_find_feature(face, kGSUB,
                                                        scriptIndex,
                                            HB_OT_LAYOUT_DEFAULT_LANGUAGE_INDEX,
-                                                       aFeatureTag, nullptr)) {
+                                                       kSMCP, nullptr)) {
                     result = true;
                 }
                 break;
@@ -966,38 +948,22 @@ gfxFontEntry::SupportsOpenTypeFeature(int32_t aScript, uint32_t aFeatureTag)
 
     hb_face_destroy(face);
 
-    mSupportedFeatures->Put(scriptFeature, result);
+    mSmallCapsSupport->Put(uint32_t(aScript), result);
 
     return result;
 }
 
 bool
-gfxFontEntry::SupportsGraphiteFeature(uint32_t aFeatureTag)
+gfxFontEntry::SupportsGraphiteSmallCaps()
 {
-    if (!mSupportedFeatures) {
-        mSupportedFeatures = new nsDataHashtable<nsUint32HashKey,bool>();
+    if (!mCheckedForGraphiteSmallCaps) {
+        gr_face* face = GetGrFace();
+        mHasGraphiteSmallCaps =
+            gr_face_find_fref(face, TRUETYPE_TAG('s','m','c','p')) != nullptr;
+        ReleaseGrFace(face);
+        mCheckedForGraphiteSmallCaps = true;
     }
-
-    NS_ASSERTION(aFeatureTag == HB_TAG('s','m','c','p') ||
-                 aFeatureTag == HB_TAG('c','2','s','c') ||
-                 aFeatureTag == HB_TAG('p','c','a','p') ||
-                 aFeatureTag == HB_TAG('c','2','p','c'),
-                 "use of unknown feature tag");
-
-    // graphite feature check uses the last script slot
-    uint32_t scriptFeature = SCRIPT_FEATURE(FEATURE_SCRIPT_MASK, aFeatureTag);
-    bool result;
-    if (mSupportedFeatures->Get(scriptFeature, &result)) {
-        return result;
-    }
-
-    gr_face* face = GetGrFace();
-    result = gr_face_find_fref(face, aFeatureTag) != nullptr;
-    ReleaseGrFace(face);
-
-    mSupportedFeatures->Put(scriptFeature, result);
-
-    return result;
+    return mHasGraphiteSmallCaps;
 }
 
 bool
@@ -2125,7 +2091,6 @@ gfxFontShaper::MergeFontFeatures(
     const nsTArray<gfxFontFeature>& aFontFeatures,
     bool aDisableLigatures,
     const nsAString& aFamilyName,
-    bool aAddSmallCaps,
     nsDataHashtable<nsUint32HashKey,uint32_t>& aMergedFeatures)
 {
     uint32_t numAlts = aStyle->alternateValues.Length();
@@ -2136,7 +2101,7 @@ gfxFontShaper::MergeFontFeatures(
     if (styleRuleFeatures.IsEmpty() &&
         aFontFeatures.IsEmpty() &&
         !aDisableLigatures &&
-        aStyle->variantCaps == NS_FONT_VARIANT_CAPS_NORMAL &&
+        !aStyle->smallCaps &&
         numAlts == 0) {
         return false;
     }
@@ -2148,6 +2113,10 @@ gfxFontShaper::MergeFontFeatures(
         aMergedFeatures.Put(HB_TAG('c','l','i','g'), 0);
     }
 
+    if (aStyle->smallCaps) {
+        aMergedFeatures.Put(HB_TAG('s','m','c','p'), 1);
+    }
+
     // add feature values from font
     uint32_t i, count;
 
@@ -2155,38 +2124,6 @@ gfxFontShaper::MergeFontFeatures(
     for (i = 0; i < count; i++) {
         const gfxFontFeature& feature = aFontFeatures.ElementAt(i);
         aMergedFeatures.Put(feature.mTag, feature.mValue);
-    }
-
-    // font-variant-caps - handled here due to the need for fallback handling
-    // petite caps cases can fallback to appropriate smallcaps
-    uint32_t variantCaps = aStyle->variantCaps;
-    switch (variantCaps) {
-        case NS_FONT_VARIANT_CAPS_ALLSMALL:
-            aMergedFeatures.Put(HB_TAG('c','2','s','c'), 1);
-            // fall through to the small-caps case
-        case NS_FONT_VARIANT_CAPS_SMALLCAPS:
-            aMergedFeatures.Put(HB_TAG('s','m','c','p'), 1);
-            break;
-
-        case NS_FONT_VARIANT_CAPS_ALLPETITE:
-            aMergedFeatures.Put(aAddSmallCaps ? HB_TAG('c','2','s','c') :
-                                                HB_TAG('c','2','p','c'), 1);
-        // fall through to the petite-caps case
-        case NS_FONT_VARIANT_CAPS_PETITECAPS:
-            aMergedFeatures.Put(aAddSmallCaps ? HB_TAG('s','m','c','p') :
-                                                HB_TAG('p','c','a','p'), 1);
-        break;
-
-        case NS_FONT_VARIANT_CAPS_TITLING:
-            aMergedFeatures.Put(HB_TAG('t','i','t','l'), 1);
-            break;
-
-        case NS_FONT_VARIANT_CAPS_UNICASE:
-            aMergedFeatures.Put(HB_TAG('u','n','i','c'), 1);
-            break;
-
-        default:
-            break;
     }
 
     // add font-specific feature values from style rules
@@ -2767,75 +2704,13 @@ gfxFont::SpaceMayParticipateInShaping(int32_t aRunScript)
 }
 
 bool
-gfxFont::SupportsFeature(int32_t aScript, uint32_t aFeatureTag)
+gfxFont::SupportsSmallCaps(int32_t aScript)
 {
     if (mGraphiteShaper && gfxPlatform::GetPlatform()->UseGraphiteShaping()) {
-        return GetFontEntry()->SupportsGraphiteFeature(aFeatureTag);
-    }
-    return GetFontEntry()->SupportsOpenTypeFeature(aScript, aFeatureTag);
-}
-
-bool
-gfxFont::SupportsVariantCaps(int32_t aScript,
-                             uint32_t aVariantCaps,
-                             bool& aFallbackToSmallCaps,
-                             bool& aSyntheticLowerToSmallCaps,
-                             bool& aSyntheticUpperToSmallCaps)
-{
-    bool ok = true;  // cases without fallback are fine
-    aFallbackToSmallCaps = false;
-    aSyntheticLowerToSmallCaps = false;
-    aSyntheticUpperToSmallCaps = false;
-    switch (aVariantCaps) {
-        case NS_FONT_VARIANT_CAPS_SMALLCAPS:
-            ok = SupportsFeature(aScript, HB_TAG('s','m','c','p'));
-            if (!ok) {
-                aSyntheticLowerToSmallCaps = true;
-            }
-            break;
-        case NS_FONT_VARIANT_CAPS_ALLSMALL:
-            ok = SupportsFeature(aScript, HB_TAG('s','m','c','p')) &&
-                 SupportsFeature(aScript, HB_TAG('c','2','s','c'));
-            if (!ok) {
-                aSyntheticLowerToSmallCaps = true;
-                aSyntheticUpperToSmallCaps = true;
-            }
-            break;
-        case NS_FONT_VARIANT_CAPS_PETITECAPS:
-            ok = SupportsFeature(aScript, HB_TAG('p','c','a','p'));
-            if (!ok) {
-                ok = SupportsFeature(aScript, HB_TAG('s','m','c','p'));
-                aFallbackToSmallCaps = ok;
-            }
-            if (!ok) {
-                aSyntheticLowerToSmallCaps = true;
-            }
-            break;
-        case NS_FONT_VARIANT_CAPS_ALLPETITE:
-            ok = SupportsFeature(aScript, HB_TAG('p','c','a','p')) &&
-                 SupportsFeature(aScript, HB_TAG('c','2','p','c'));
-            if (!ok) {
-                ok = SupportsFeature(aScript, HB_TAG('s','m','c','p')) &&
-                     SupportsFeature(aScript, HB_TAG('c','2','s','c'));
-                aFallbackToSmallCaps = ok;
-            }
-            if (!ok) {
-                aSyntheticLowerToSmallCaps = true;
-                aSyntheticUpperToSmallCaps = true;
-            }
-            break;
-        default:
-            break;
+        return GetFontEntry()->SupportsGraphiteSmallCaps();
     }
 
-    NS_ASSERTION(!(ok && (aSyntheticLowerToSmallCaps ||
-                          aSyntheticUpperToSmallCaps)),
-                 "shouldn't use synthetic features if we found real ones");
-
-    NS_ASSERTION(!(!ok && aFallbackToSmallCaps),
-                 "if we found a usable fallback, that counts as ok");
-
-    return ok;
+    return GetFontEntry()->SupportsOpenTypeSmallCaps(aScript);
 }
 
 bool
@@ -3825,10 +3700,9 @@ gfxFont::Measure(gfxTextRun *aTextRun,
     double direction = aTextRun->GetDirection();
     bool needsGlyphExtents = NeedsGlyphExtents(this, aTextRun);
     gfxGlyphExtents *extents =
-        ((aBoundingBoxType == LOOSE_INK_EXTENTS &&
+        (aBoundingBoxType == LOOSE_INK_EXTENTS &&
             !needsGlyphExtents &&
-            !aTextRun->HasDetailedGlyphs()) ||
-         (MOZ_UNLIKELY(GetStyle()->size == 0))) ? nullptr
+            !aTextRun->HasDetailedGlyphs()) ? nullptr
         : GetOrCreateGlyphExtents(aTextRun->GetAppUnitsPerDevUnit());
     double x = 0;
     if (aSpacing) {
@@ -5616,26 +5490,14 @@ gfxFontGroup::InitScriptRun(gfxContext *aContext,
 
         // create the glyph run for this range
         if (matchedFont) {
-            bool needsFakeSmallCaps = false;
-            bool petiteToSmallCaps = false;
-            bool syntheticLower = false;
-            bool syntheticUpper = false;
-
-            if (mStyle.variantCaps != NS_FONT_VARIANT_CAPS_NORMAL) {
-                needsFakeSmallCaps =
-                    !matchedFont->SupportsVariantCaps(aRunScript,
-                        mStyle.variantCaps, petiteToSmallCaps,
-                        syntheticLower, syntheticUpper);
-            }
-            if (needsFakeSmallCaps) {
+            if (mStyle.smallCaps &&
+                !matchedFont->SupportsSmallCaps(aRunScript)) {
                 if (!matchedFont->InitFakeSmallCapsRun(aContext, aTextRun,
                                                        aString + runStart,
                                                        aOffset + runStart,
                                                        matchedLength,
                                                        range.matchType,
-                                                       aRunScript,
-                                                       syntheticLower,
-                                                       syntheticUpper)) {
+                                                       aRunScript)) {
                     matchedFont = nullptr;
                 }
             } else {
@@ -5740,15 +5602,12 @@ gfxFont::InitFakeSmallCapsRun(gfxContext     *aContext,
                               uint32_t        aOffset,
                               uint32_t        aLength,
                               uint8_t         aMatchType,
-                              int32_t         aScript,
-                              bool            aSyntheticLower,
-                              bool            aSyntheticUpper)
+                              int32_t         aScript)
 {
     NS_ConvertASCIItoUTF16 unicodeString(reinterpret_cast<const char*>(aText),
                                          aLength);
     return InitFakeSmallCapsRun(aContext, aTextRun, unicodeString.get(),
-                                aOffset, aLength, aMatchType, aScript,
-                                aSyntheticLower, aSyntheticUpper);
+                                aOffset, aLength, aMatchType, aScript);
 }
 
 bool
@@ -5758,25 +5617,22 @@ gfxFont::InitFakeSmallCapsRun(gfxContext     *aContext,
                               uint32_t        aOffset,
                               uint32_t        aLength,
                               uint8_t         aMatchType,
-                              int32_t         aScript,
-                              bool            aSyntheticLower,
-                              bool            aSyntheticUpper)
+                              int32_t         aScript)
 {
     bool ok = true;
 
     nsRefPtr<gfxFont> smallCapsFont = GetSmallCapsFont();
 
-    enum RunCaseAction {
-        kNoChange,
-        kUppercaseReduce,
-        kUppercase
+    enum RunCaseState {
+        kUpperOrCaseless, // will be untouched by font-variant:small-caps
+        kLowercase,       // will be uppercased and reduced
+        kSpecialUpper     // specials: don't shrink, but apply uppercase mapping
     };
-
-    RunCaseAction runAction = kNoChange;
+    RunCaseState runCase = kUpperOrCaseless;
     uint32_t runStart = 0;
 
     for (uint32_t i = 0; i <= aLength; ++i) {
-        RunCaseAction chAction = kNoChange;
+        RunCaseState chCase = kUpperOrCaseless;
         // Unless we're at the end, figure out what treatment the current
         // character will need.
         if (i < aLength) {
@@ -5788,25 +5644,22 @@ gfxFont::InitFakeSmallCapsRun(gfxContext     *aContext,
             // Characters that aren't the start of a cluster are ignored here.
             // They get added to whatever lowercase/non-lowercase run we're in.
             if (IsClusterExtender(ch)) {
-                chAction = runAction;
+                chCase = runCase;
             } else {
-                if (ch != ToUpperCase(ch) || mozilla::unicode::SpecialUpper(ch)) {
-                    // ch is lower case
-                    chAction = (aSyntheticLower ? kUppercaseReduce : kNoChange);
-                } else if (ch != ToLowerCase(ch)) {
-                    // ch is upper case
-                    chAction = (aSyntheticUpper ? kUppercaseReduce : kNoChange);
-                    if (mStyle.language == nsGkAtoms::el) {
-                        // In Greek, check for characters that will be modified by
-                        // the GreekUpperCase mapping - this catches accented
-                        // capitals where the accent is to be removed (bug 307039).
-                        // These are handled by using the full-size font with the
-                        // uppercasing transform.
-                        mozilla::GreekCasing::State state;
-                        uint32_t ch2 = mozilla::GreekCasing::UpperCase(ch, state);
-                        if (ch != ch2 && !aSyntheticUpper) {
-                            chAction = kUppercase;
-                        }
+                uint32_t ch2 = ToUpperCase(ch);
+                if (ch != ch2 || mozilla::unicode::SpecialUpper(ch)) {
+                    chCase = kLowercase;
+                }
+                else if (mStyle.language == nsGkAtoms::el) {
+                    // In Greek, check for characters that will be modified by
+                    // the GreekUpperCase mapping - this catches accented
+                    // capitals where the accent is to be removed (bug 307039).
+                    // These are handled by using the full-size font with the
+                    // uppercasing transform.
+                    mozilla::GreekCasing::State state;
+                    ch2 = mozilla::GreekCasing::UpperCase(ch, state);
+                    if (ch != ch2) {
+                        chCase = kSpecialUpper;
                     }
                 }
             }
@@ -5817,11 +5670,11 @@ gfxFont::InitFakeSmallCapsRun(gfxContext     *aContext,
         // and prepare to accumulate a new run.
         // Note that we do not look at any source data for offset [i] here,
         // as that would be invalid in the case where i==length.
-        if ((i == aLength || runAction != chAction) && runStart < i) {
+        if ((i == aLength || runCase != chCase) && runStart < i) {
             uint32_t runLength = i - runStart;
             gfxFont* f = this;
-            switch (runAction) {
-            case kNoChange:
+            switch (runCase) {
+            case kUpperOrCaseless:
                 // just use the current font and the existing string
                 aTextRun->AddGlyphRun(f, aMatchType, aOffset + runStart, true);
                 if (!f->SplitAndInitTextRun(aContext, aTextRun,
@@ -5832,11 +5685,11 @@ gfxFont::InitFakeSmallCapsRun(gfxContext     *aContext,
                 }
                 break;
 
-            case kUppercaseReduce:
-                // use reduced-size font, then fall through to uppercase the text
+            case kLowercase:
+                // use reduced-size font, fall through to uppercase the text
                 f = smallCapsFont;
 
-            case kUppercase:
+            case kSpecialUpper:
                 // apply uppercase transform to the string
                 nsDependentSubstring origString(aText + runStart, runLength);
                 nsAutoString convertedString;
@@ -5898,7 +5751,7 @@ gfxFont::InitFakeSmallCapsRun(gfxContext     *aContext,
         }
 
         if (i < aLength) {
-            runAction = chAction;
+            runCase = chCase;
         }
     }
 
@@ -5910,7 +5763,7 @@ gfxFont::GetSmallCapsFont()
 {
     gfxFontStyle style(*GetStyle());
     style.size *= SMALL_CAPS_SCALE_FACTOR;
-    style.variantCaps = NS_FONT_VARIANT_CAPS_NORMAL;
+    style.smallCaps = false;
     gfxFontEntry* fe = GetFontEntry();
     bool needsBold = style.weight >= 600 && !fe->IsBold();
     return fe->FindOrMakeFont(&style, needsBold);
@@ -6359,16 +6212,15 @@ gfxFontStyle::gfxFontStyle() :
     languageOverride(NO_FONT_LANGUAGE_OVERRIDE),
     weight(NS_FONT_WEIGHT_NORMAL), stretch(NS_FONT_STRETCH_NORMAL),
     systemFont(true), printerFont(false), useGrayscaleAntialiasing(false),
-    style(NS_FONT_STYLE_NORMAL),
-    allowSyntheticWeight(true), allowSyntheticStyle(true),
-    variantCaps(NS_FONT_VARIANT_CAPS_NORMAL)
+    smallCaps(false), allowSyntheticWeight(true), allowSyntheticStyle(true),
+    style(NS_FONT_STYLE_NORMAL)
 {
 }
 
 gfxFontStyle::gfxFontStyle(uint8_t aStyle, uint16_t aWeight, int16_t aStretch,
                            gfxFloat aSize, nsIAtom *aLanguage,
                            float aSizeAdjust, bool aSystemFont,
-                           bool aPrinterFont,
+                           bool aPrinterFont, bool aSmallCaps,
                            bool aAllowWeightSynthesis,
                            bool aAllowStyleSynthesis,
                            const nsString& aLanguageOverride):
@@ -6378,10 +6230,10 @@ gfxFontStyle::gfxFontStyle(uint8_t aStyle, uint16_t aWeight, int16_t aStretch,
     weight(aWeight), stretch(aStretch),
     systemFont(aSystemFont), printerFont(aPrinterFont),
     useGrayscaleAntialiasing(false),
-    style(aStyle),
+    smallCaps(aSmallCaps),
     allowSyntheticWeight(aAllowWeightSynthesis),
     allowSyntheticStyle(aAllowStyleSynthesis),
-    variantCaps(NS_FONT_VARIANT_CAPS_NORMAL)
+    style(aStyle)
 {
     MOZ_ASSERT(!mozilla::IsNaN(size));
     MOZ_ASSERT(!mozilla::IsNaN(sizeAdjust));
@@ -6413,10 +6265,10 @@ gfxFontStyle::gfxFontStyle(const gfxFontStyle& aStyle) :
     weight(aStyle.weight), stretch(aStyle.stretch),
     systemFont(aStyle.systemFont), printerFont(aStyle.printerFont),
     useGrayscaleAntialiasing(aStyle.useGrayscaleAntialiasing),
-    style(aStyle.style),
+    smallCaps(aStyle.smallCaps),
     allowSyntheticWeight(aStyle.allowSyntheticWeight),
     allowSyntheticStyle(aStyle.allowSyntheticStyle),
-    variantCaps(aStyle.variantCaps)
+    style(aStyle.style)
 {
     featureSettings.AppendElements(aStyle.featureSettings);
     alternateValues.AppendElements(aStyle.alternateValues);
@@ -7845,10 +7697,6 @@ gfxTextRun::FetchGlyphExtents(gfxContext *aRefContext)
     for (i = 0; i < runCount; ++i) {
         const GlyphRun& run = mGlyphRuns[i];
         gfxFont *font = run.mFont;
-        if (MOZ_UNLIKELY(font->GetStyle()->size == 0)) {
-            continue;
-        }
-
         uint32_t start = run.mCharacterOffset;
         uint32_t end = i + 1 < runCount ?
             mGlyphRuns[i + 1].mCharacterOffset : GetLength();

@@ -3135,11 +3135,10 @@ WorkerPrivateParent<Derived>::BroadcastErrorToSharedWorkers(
 
     size_t actionsIndex = windowActions.LastIndexOf(WindowAction(window));
 
-    AutoJSAPI jsapi;
-    if (NS_WARN_IF(!jsapi.InitWithLegacyErrorReportingUsingWin(sharedWorker->GetOwner()))) {
-      continue;
-    }
+    nsIGlobalObject* global = sharedWorker->GetParentObject();
+    AutoJSAPIWithErrorsReportedToWindow jsapi(global);
     JSContext* cx = jsapi.cx();
+    JSAutoCompartment ac(cx, global->GetGlobalJSObject());
 
     RootedDictionary<ErrorEventInit> errorInit(aCx);
     errorInit.mBubbles = false;

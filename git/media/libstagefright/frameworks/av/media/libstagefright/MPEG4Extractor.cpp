@@ -3301,10 +3301,11 @@ status_t MPEG4Source::read(
                 }
 
                 CHECK(dstOffset + 4 <= mBuffer->size());
-                dstData[dstOffset++] = (uint8_t) (nalLength >> 24);
-                dstData[dstOffset++] = (uint8_t) (nalLength >> 16);
-                dstData[dstOffset++] = (uint8_t) (nalLength >> 8);
-                dstData[dstOffset++] = (uint8_t) nalLength;
+
+                dstData[dstOffset++] = 0;
+                dstData[dstOffset++] = 0;
+                dstData[dstOffset++] = 0;
+                dstData[dstOffset++] = 1;
                 memcpy(&dstData[dstOffset], &mSrcBuffer[srcOffset], nalLength);
                 srcOffset += nalLength;
                 dstOffset += nalLength;
@@ -3588,10 +3589,11 @@ status_t MPEG4Source::fragmentedRead(
                 }
 
                 CHECK(dstOffset + 4 <= mBuffer->size());
-                dstData[dstOffset++] = (uint8_t) (nalLength >> 24);
-                dstData[dstOffset++] = (uint8_t) (nalLength >> 16);
-                dstData[dstOffset++] = (uint8_t) (nalLength >> 8);
-                dstData[dstOffset++] = (uint8_t) nalLength;
+
+                dstData[dstOffset++] = 0;
+                dstData[dstOffset++] = 0;
+                dstData[dstOffset++] = 0;
+                dstData[dstOffset++] = 1;
                 memcpy(&dstData[dstOffset], &mSrcBuffer[srcOffset], nalLength);
                 srcOffset += nalLength;
                 dstOffset += nalLength;

@@ -29,9 +29,9 @@ LoadManagerSingleton::Get() {
     int averagingSeconds =
       mozilla::Preferences::GetInt("media.navigator.load_adapt.avg_seconds", 3);
     float highLoadThreshold =
-      mozilla::Preferences::GetFloat("media.navigator.load_adapt.high_load", 0.90f);
+      mozilla::Preferences::GetFloat("media.navigator.load_adapt.high_load", 0.90);
     float lowLoadThreshold =
-      mozilla::Preferences::GetFloat("media.navigator.load_adapt.low_load", 0.40f);
+      mozilla::Preferences::GetFloat("media.navigator.load_adapt.low_load", 0.40);
 
     sSingleton = new LoadManagerSingleton(loadMeasurementInterval,
                                           averagingSeconds,

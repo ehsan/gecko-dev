@@ -615,9 +615,11 @@ ClientLayerManager::GetBackendName(nsAString& aName)
 
 bool
 ClientLayerManager::ProgressiveUpdateCallback(bool aHasPendingNewThebesContent,
-                                              FrameMetrics& aMetrics,
+                                              ParentLayerRect& aCompositionBounds,
+                                              CSSToParentLayerScale& aZoom,
                                               bool aDrawingCritical)
 {
+  aZoom.scale = 1.0;
 #ifdef MOZ_WIDGET_ANDROID
   Layer* primaryScrollable = GetPrimaryScrollableLayer();
   if (primaryScrollable) {
@@ -631,14 +633,9 @@ ClientLayerManager::ProgressiveUpdateCallback(bool aHasPendingNewThebesContent,
         metrics.mCriticalDisplayPort : metrics.mDisplayPort;
     LayerRect displayPort = (metricsDisplayPort + metrics.GetScrollOffset()) * paintScale;
 
-    ScreenPoint scrollOffset;
-    CSSToScreenScale zoom;
-    bool ret = AndroidBridge::Bridge()->ProgressiveUpdateCallback(
+    return AndroidBridge::Bridge()->ProgressiveUpdateCallback(
       aHasPendingNewThebesContent, displayPort, paintScale.scale, aDrawingCritical,
-      scrollOffset, zoom);
-    aMetrics.SetScrollOffset(scrollOffset / zoom);
-    aMetrics.SetZoom(zoom);
-    return ret;
+      aCompositionBounds, aZoom);
   }
 #endif
 

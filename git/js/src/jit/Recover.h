@@ -31,11 +31,6 @@ namespace jit {
     _(Div)                                      \
     _(Mod)                                      \
     _(Concat)                                   \
-    _(Floor)                                    \
-    _(Round)                                    \
-    _(FromCharCode)                             \
-    _(Pow)                                      \
-    _(PowHalf)                                  \
     _(NewObject)                                \
     _(NewDerivedTypedObject)
 
@@ -219,6 +214,18 @@ class RSub MOZ_FINAL : public RInstruction
     bool recover(JSContext *cx, SnapshotIterator &iter) const;
 };
 
+class RMod MOZ_FINAL : public RInstruction
+{
+  public:
+    RINSTRUCTION_HEADER_(Mod)
+
+    virtual uint32_t numOperands() const {
+        return 2;
+    }
+
+    bool recover(JSContext *cx, SnapshotIterator &iter) const;
+};
+
 class RMul MOZ_FINAL : public RInstruction
 {
   private:
@@ -249,18 +256,6 @@ class RDiv MOZ_FINAL : public RInstruction
     bool recover(JSContext *cx, SnapshotIterator &iter) const;
 };
 
-class RMod MOZ_FINAL : public RInstruction
-{
-  public:
-    RINSTRUCTION_HEADER_(Mod)
-
-    virtual uint32_t numOperands() const {
-        return 2;
-    }
-
-    bool recover(JSContext *cx, SnapshotIterator &iter) const;
-};
-
 class RConcat MOZ_FINAL : public RInstruction
 {
   public:
@@ -268,66 +263,6 @@ class RConcat MOZ_FINAL : public RInstruction
 
     virtual uint32_t numOperands() const {
         return 2;
-    }
-
-    bool recover(JSContext *cx, SnapshotIterator &iter) const;
-};
-
-class RFloor MOZ_FINAL : public RInstruction
-{
-  public:
-    RINSTRUCTION_HEADER_(Floor)
-
-    virtual uint32_t numOperands() const {
-        return 1;
-    }
-
-    bool recover(JSContext *cx, SnapshotIterator &iter) const;
-};
-
-class RRound MOZ_FINAL : public RInstruction
-{
-  public:
-    RINSTRUCTION_HEADER_(Round)
-
-    virtual uint32_t numOperands() const {
-        return 1;
-    }
-
-    bool recover(JSContext *cx, SnapshotIterator &iter) const;
-};
-
-class RFromCharCode MOZ_FINAL : public RInstruction
-{
-  public:
-    RINSTRUCTION_HEADER_(FromCharCode)
-
-    virtual uint32_t numOperands() const {
-        return 1;
-    }
-
-    bool recover(JSContext *cx, SnapshotIterator &iter) const;
-};
-
-class RPow MOZ_FINAL : public RInstruction
-{
-  public:
-    RINSTRUCTION_HEADER_(Pow)
-
-    virtual uint32_t numOperands() const {
-        return 2;
-    }
-
-    bool recover(JSContext *cx, SnapshotIterator &iter) const;
-};
-
-class RPowHalf MOZ_FINAL : public RInstruction
-{
-  public:
-    RINSTRUCTION_HEADER_(PowHalf)
-
-    virtual uint32_t numOperands() const {
-        return 1;
     }
 
     bool recover(JSContext *cx, SnapshotIterator &iter) const;

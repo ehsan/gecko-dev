@@ -402,11 +402,15 @@ private:
           return NS_OK;
         }
 
-        AutoJSAPI jsapi;
-        if (NS_WARN_IF(!jsapi.InitUsingWin(node->GetOwner()))) {
+        // Get the global for the context so that we can enter its compartment.
+        JSObject* global = node->Context()->GetGlobalJSObject();
+        if (NS_WARN_IF(!global)) {
           return NS_OK;
         }
+
+        AutoJSAPI jsapi;
         JSContext* cx = jsapi.cx();
+        JSAutoCompartment ac(cx, global);
 
         // Create the input buffer
         nsRefPtr<AudioBuffer> inputBuffer;

@@ -1072,14 +1072,9 @@ js::InvokeInterruptCallback(JSContext *cx)
 
     // No need to set aside any pending exception here: ComputeStackString
     // already does that.
-    JSString *stack = ComputeStackString(cx);
-    JSFlatString *flat = stack ? stack->ensureFlat(cx) : nullptr;
-
-    const jschar *chars;
-    AutoStableStringChars stableChars(cx);
-    if (flat && stableChars.initTwoByte(cx, flat))
-        chars = stableChars.twoByteRange().start().get();
-    else
+    Rooted<JSString*> stack(cx, ComputeStackString(cx));
+    const jschar *chars = stack ? stack->getCharsZ(cx) : nullptr;
+    if (!chars)
         chars = MOZ_UTF16("(stack not available)");
     JS_ReportErrorFlagsAndNumberUC(cx, JSREPORT_WARNING, js_GetErrorMessage, nullptr,
                                    JSMSG_TERMINATED, chars);

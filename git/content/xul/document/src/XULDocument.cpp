@@ -71,7 +71,7 @@
 #include "nsIParser.h"
 #include "nsCharsetSource.h"
 #include "nsIParserService.h"
-#include "mozilla/CSSStyleSheet.h"
+#include "nsCSSStyleSheet.h"
 #include "mozilla/css/Loader.h"
 #include "nsIScriptError.h"
 #include "nsIStyleSheetLinkingElement.h"
@@ -82,7 +82,6 @@
 #include "nsXULPopupManager.h"
 #include "nsCCUncollectableMarker.h"
 #include "nsURILoader.h"
-#include "mozilla/AddonPathService.h"
 #include "mozilla/BasicEvents.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/NodeInfoInlines.h"
@@ -3289,7 +3288,7 @@ XULDocument::DoneWalking()
 }
 
 NS_IMETHODIMP
-XULDocument::StyleSheetLoaded(CSSStyleSheet* aSheet,
+XULDocument::StyleSheetLoaded(nsCSSStyleSheet* aSheet,
                               bool aWasAlternate,
                               nsresult aStatus)
 {
@@ -3692,14 +3691,9 @@ XULDocument::ExecuteScript(nsIScriptContext * aContext,
     nsAutoMicroTask mt;
     JSContext *cx = aContext->GetNativeContext();
     AutoCxPusher pusher(cx);
-    JS::Rooted<JSObject*> baseGlobal(cx, mScriptGlobalObject->GetGlobalJSObject());
-    NS_ENSURE_TRUE(baseGlobal, NS_ERROR_FAILURE);
-    NS_ENSURE_TRUE(nsContentUtils::GetSecurityManager()->ScriptAllowed(baseGlobal), NS_OK);
-
-    JSAddonId *addonId = MapURIToAddonID(mCurrentPrototype->GetURI());
-    JS::Rooted<JSObject*> global(cx, xpc::GetAddonScope(cx, baseGlobal, addonId));
+    JS::Rooted<JSObject*> global(cx, mScriptGlobalObject->GetGlobalJSObject());
     NS_ENSURE_TRUE(global, NS_ERROR_FAILURE);
-
+    NS_ENSURE_TRUE(nsContentUtils::GetSecurityManager()->ScriptAllowed(global), NS_OK);
     JS::ExposeObjectToActiveJS(global);
     xpc_UnmarkGrayScript(aScriptObject);
     JSAutoCompartment ac(cx, global);
@@ -3945,7 +3939,7 @@ XULDocument::AddPrototypeSheets()
     for (int32_t i = 0; i < sheets.Count(); i++) {
         nsCOMPtr<nsIURI> uri = sheets[i];
 
-        nsRefPtr<CSSStyleSheet> incompleteSheet;
+        nsRefPtr<nsCSSStyleSheet> incompleteSheet;
         rv = CSSLoader()->LoadSheet(uri,
                                     mCurrentPrototype->DocumentPrincipal(),
                                     EmptyCString(), this,

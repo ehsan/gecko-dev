@@ -1119,28 +1119,6 @@ CloneProperties(JSContext *cx, HandleObject selfHostedObject, HandleObject clone
     return true;
 }
 
-static JSString *
-CloneString(JSContext *cx, JSFlatString *selfHostedString)
-{
-    size_t len = selfHostedString->length();
-    {
-        JS::AutoCheckCannotGC nogc;
-        JSString *clone = selfHostedString->hasLatin1Chars()
-                          ? js_NewStringCopyN<NoGC>(cx, selfHostedString->latin1Chars(nogc), len)
-                          : js_NewStringCopyN<NoGC>(cx, selfHostedString->twoByteChars(nogc), len);
-        if (clone)
-            return clone;
-    }
-
-    AutoStableStringChars chars(cx);
-    if (!chars.init(cx, selfHostedString))
-        return nullptr;
-
-    return chars.isLatin1()
-           ? js_NewStringCopyN<CanGC>(cx, chars.latin1Range().start().get(), len)
-           : js_NewStringCopyN<CanGC>(cx, chars.twoByteRange().start().get(), len);
-}
-
 static JSObject *
 CloneObject(JSContext *cx, HandleObject selfHostedObject)
 {
@@ -1181,7 +1159,9 @@ CloneObject(JSContext *cx, HandleObject selfHostedObject)
         JSString *selfHostedString = selfHostedObject->as<StringObject>().unbox();
         if (!selfHostedString->isFlat())
             MOZ_CRASH();
-        RootedString str(cx, CloneString(cx, &selfHostedString->asFlat()));
+        RootedString str(cx, js_NewStringCopyN<CanGC>(cx,
+                                                      selfHostedString->asFlat().chars(),
+                                                      selfHostedString->asFlat().length()));
         if (!str)
             return nullptr;
         clone = StringObject::create(cx, str);
@@ -1216,7 +1196,9 @@ CloneValue(JSContext *cx, HandleValue selfHostedValue, MutableHandleValue vp)
         if (!selfHostedValue.toString()->isFlat())
             MOZ_CRASH();
         JSFlatString *selfHostedString = &selfHostedValue.toString()->asFlat();
-        JSString *clone = CloneString(cx, selfHostedString);
+        JSString *clone = js_NewStringCopyN<CanGC>(cx,
+                                                   selfHostedString->chars(),
+                                                   selfHostedString->length());
         if (!clone)
             return false;
         vp.setString(clone);

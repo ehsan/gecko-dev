@@ -267,13 +267,13 @@ class MediaEngineWebRTCAudioSource : public MediaEngineAudioSource,
 public:
   MediaEngineWebRTCAudioSource(webrtc::VoiceEngine* aVoiceEnginePtr, int aIndex,
     const char* name, const char* uuid)
-    : mSamples(0)
-    , mVoiceEngine(aVoiceEnginePtr)
+    : mVoiceEngine(aVoiceEnginePtr)
     , mMonitor("WebRTCMic.Monitor")
     , mCapIndex(aIndex)
     , mChannel(-1)
     , mInitDone(false)
     , mStarted(false)
+    , mSamples(0)
     , mEchoOn(false), mAgcOn(false), mNoiseOn(false)
     , mEchoCancel(webrtc::kEcDefault)
     , mAGC(webrtc::kAgcDefault)
@@ -319,13 +319,6 @@ public:
 
   NS_DECL_THREADSAFE_ISUPPORTS
 
-protected:
-  // mSamples is an int to avoid conversions when comparing/etc to
-  // samplingFreq & length. Making mSamples protected instead of private is a
-  // silly way to avoid -Wunused-private-field warnings when PR_LOGGING is not
-  // #defined. mSamples is not actually expected to be used by a derived class.
-  int mSamples;
-
 private:
   static const unsigned int KMaxDeviceNameLength = 128;
   static const unsigned int KMaxUniqueIdLength = 256;
@@ -351,6 +344,7 @@ private:
   TrackID mTrackID;
   bool mInitDone;
   bool mStarted;
+  int mSamples; // int to avoid conversions when comparing/etc to samplingFreq & length
 
   nsString mDeviceName;
   nsString mDeviceUUID;

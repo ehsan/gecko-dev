@@ -702,11 +702,6 @@ GlobalHelperThreadState::finishParseTask(JSContext *maybecx, JSRuntime *rt, void
 
         // The NewScript hook needs to be called for all compiled scripts.
         CallNewScriptHookForAllScripts(cx, script);
-
-        // Update the compressed source table with the result. This is normally
-        // called by setCompressedSource when compilation occurs on the main thread.
-        if (script->scriptSource()->hasCompressedSource())
-            script->scriptSource()->updateCompressedSourceSet(rt);
     }
 
     return script;
@@ -995,8 +990,7 @@ SourceCompressionTask::complete()
     }
 
     if (result == Success) {
-        ss->setCompressedSource(cx->isJSContext() ? cx->asJSContext()->runtime() : nullptr,
-                                compressed, compressedBytes, compressedHash);
+        ss->setCompressedSource(compressed, compressedBytes);
 
         // Update memory accounting.
         cx->updateMallocCounter(ss->computedSizeOfData());

@@ -16,7 +16,6 @@
 #include "DecoderTraits.h"
 #include "AudioContext.h"
 #include "AudioBuffer.h"
-#include "nsAutoPtr.h"
 #include "nsIScriptObjectPrincipal.h"
 #include "nsIScriptError.h"
 #include "nsMimeTypes.h"
@@ -152,7 +151,7 @@ private:
   nsCOMPtr<nsIThreadPool> mThreadPool;
   nsCOMPtr<nsIPrincipal> mPrincipal;
   nsRefPtr<BufferDecoder> mBufferDecoder;
-  nsRefPtr<MediaDecoderReader> mDecoderReader;
+  nsAutoPtr<MediaDecoderReader> mDecoderReader;
 };
 
 NS_IMETHODIMP
@@ -413,11 +412,15 @@ WebAudioDecodeJob::AllocateBuffer()
   MOZ_ASSERT(!mOutput);
   MOZ_ASSERT(NS_IsMainThread());
 
-  AutoJSAPI jsapi;
-  if (NS_WARN_IF(!jsapi.InitUsingWin(mContext->GetOwner()))) {
+  // We need the global for the context so that we can enter its compartment.
+  JSObject* global = mContext->GetGlobalJSObject();
+  if (NS_WARN_IF(!global)) {
     return false;
   }
+
+  AutoJSAPI jsapi;
   JSContext* cx = jsapi.cx();
+  JSAutoCompartment ac(cx, global);
 
   // Now create the AudioBuffer
   ErrorResult rv;
@@ -447,7 +450,6 @@ MediaBufferDecoder::AsyncDecodeMedia(const char* aContentType, uint8_t* aBuffer,
       new ReportResultTask(aDecodeJob,
                            &WebAudioDecodeJob::OnFailure,
                            WebAudioDecodeJob::UnknownContent);
-    JS_free(nullptr, aBuffer);
     NS_DispatchToMainThread(event);
     return;
   }
@@ -457,7 +459,6 @@ MediaBufferDecoder::AsyncDecodeMedia(const char* aContentType, uint8_t* aBuffer,
       new ReportResultTask(aDecodeJob,
                            &WebAudioDecodeJob::OnFailure,
                            WebAudioDecodeJob::UnknownError);
-    JS_free(nullptr, aBuffer);
     NS_DispatchToMainThread(event);
     return;
   }

@@ -406,9 +406,6 @@ gfxAlphaBoxBlur::BlurRectangle(gfxContext *aDestinationCtx,
     dest->Fill();
 
     surface = blur.DoBlur(dt, &topLeft);
-    if (!surface) {
-      return;
-    }
     CacheBlur(dt, aRect, blurRadius, aSkipRect, surface, topLeft, aDirtyRect);
   }
 
