@@ -82,7 +82,8 @@ Tools.options = {
     return true;
   },
   build: function(iframeWindow, toolbox) {
-    return new OptionsPanel(iframeWindow, toolbox);
+    let panel = new OptionsPanel(iframeWindow, toolbox);
+    return panel.open();
   }
 }
 
@@ -114,7 +115,8 @@ Tools.webConsole = {
     return true;
   },
   build: function(iframeWindow, toolbox) {
-    return new WebConsolePanel(iframeWindow, toolbox);
+    let panel = new WebConsolePanel(iframeWindow, toolbox);
+    return panel.open();
   }
 };
 
@@ -147,7 +149,8 @@ Tools.inspector = {
   },
 
   build: function(iframeWindow, toolbox) {
-    return new InspectorPanel(iframeWindow, toolbox);
+    let panel = new InspectorPanel(iframeWindow, toolbox);
+    return panel.open();
   }
 };
 
@@ -172,7 +175,8 @@ Tools.jsdebugger = {
   },
 
   build: function(iframeWindow, toolbox) {
-    return new DebuggerPanel(iframeWindow, toolbox);
+    let panel = new DebuggerPanel(iframeWindow, toolbox);
+    return panel.open();
   }
 };
 
@@ -196,7 +200,8 @@ Tools.styleEditor = {
   },
 
   build: function(iframeWindow, toolbox) {
-    return new StyleEditorPanel(iframeWindow, toolbox);
+    let panel = new StyleEditorPanel(iframeWindow, toolbox);
+    return panel.open();
   }
 };
 
@@ -216,7 +221,8 @@ Tools.shaderEditor = {
   },
 
   build: function(iframeWindow, toolbox) {
-    return new ShaderEditorPanel(iframeWindow, toolbox);
+    let panel = new ShaderEditorPanel(iframeWindow, toolbox);
+    return panel.open();
   }
 };
 
@@ -236,7 +242,8 @@ Tools.canvasDebugger = {
     return !target.isAddon && !target.chrome;
   },
   build: function (iframeWindow, toolbox) {
-    return new CanvasDebuggerPanel(iframeWindow, toolbox);
+    let panel = new CanvasDebuggerPanel(iframeWindow, toolbox);
+    return panel.open();
   }
 };
 
@@ -254,7 +261,8 @@ Tools.webAudioEditor = {
     return !target.isAddon;
   },
   build: function(iframeWindow, toolbox) {
-    return new WebAudioEditorPanel(iframeWindow, toolbox);
+    let panel = new WebAudioEditorPanel(iframeWindow, toolbox);
+    return panel.open();
   }
 };
 
@@ -280,7 +288,8 @@ Tools.jsprofiler = {
   },
 
   build: function (frame, target) {
-    return new ProfilerPanel(frame, target);
+    let panel = new ProfilerPanel(frame, target);
+    return panel.open();
   }
 };
 
@@ -305,7 +314,8 @@ Tools.netMonitor = {
   },
 
   build: function(iframeWindow, toolbox) {
-    return new NetMonitorPanel(iframeWindow, toolbox);
+    let panel = new NetMonitorPanel(iframeWindow, toolbox);
+    return panel.open();
   }
 };
 
@@ -331,7 +341,8 @@ Tools.storage = {
   },
 
   build: function(iframeWindow, toolbox) {
-    return new StoragePanel(iframeWindow, toolbox);
+    let panel = new StoragePanel(iframeWindow, toolbox);
+    return panel.open();
   }
 };
 
@@ -353,7 +364,8 @@ Tools.scratchpad = {
   },
 
   build: function(iframeWindow, toolbox) {
-    return new ScratchpadPanel(iframeWindow, toolbox);
+    let panel = new ScratchpadPanel(iframeWindow, toolbox);
+    return panel.open();
   }
 };
 

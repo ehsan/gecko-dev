@@ -11,9 +11,8 @@ const memory = require("./memory");
 const timer = require("../timers");
 const cfxArgs = require("../test/options");
 const { getTabs, closeTab, getURI } = require("../tabs/utils");
-const { windows, isBrowser, getMostRecentBrowserWindow } = require("../window/utils");
+const { windows, isBrowser } = require("../window/utils");
 const { defer, all, Debugging: PromiseDebugging } = require("../core/promise");
-const { getInnerId } = require("../window/utils");
 
 const findAndRunTests = function findAndRunTests(options) {
   var TestFinder = require("./unit-test-finder").TestFinder;
@@ -33,13 +32,11 @@ const findAndRunTests = function findAndRunTests(options) {
 };
 exports.findAndRunTests = findAndRunTests;
 
-let runnerWindows = new WeakMap();
-
 const TestRunner = function TestRunner(options) {
-  options = options || {};
-  runnerWindows.set(this, getInnerId(getMostRecentBrowserWindow()));
-  this.fs = options.fs;
-  this.console = options.console || console;
+  if (options) {
+    this.fs = options.fs;
+  }
+  this.console = (options && "console" in options) ? options.console : console;
   memory.track(this);
   this.passed = 0;
   this.failed = 0;
@@ -317,7 +314,7 @@ TestRunner.prototype = {
         }
         let leftover = tabs.slice(1);
 
-        if (wins.length != 1 || getInnerId(wins[0]) !== runnerWindows.get(this))
+        if (wins.length != 1)
           this.fail("Should not be any unexpected windows open");
         if (tabs.length != 1)
           this.fail("Should not be any unexpected tabs open");
@@ -486,23 +483,17 @@ TestRunner.prototype = {
 
   startMany: function startMany(options) {
     function runNextTest(self) {
-      let { tests, onDone } = options;
-
-      return tests.getNext().then((test) => {
-        if (options.stopOnError && self.test && self.test.failed) {
-          self.console.error("aborted: test failed and --stop-on-error was specified");
-          onDone(self);
-        }
-        else if (test) {
-          self.start({test: test, onDone: runNextTest});
-        }
-        else {
-          onDone(self);
-        }
-      });
+      var test = options.tests.shift();
+      if (options.stopOnError && self.test && self.test.failed) {
+        self.console.error("aborted: test failed and --stop-on-error was specified");
+        options.onDone(self);
+      } else if (test) {
+        self.start({test: test, onDone: runNextTest});
+      } else {
+        options.onDone(self);
+      }
     }
-
-    return runNextTest(this).catch(console.exception);
+    runNextTest(this);
   },
 
   start: function start(options) {

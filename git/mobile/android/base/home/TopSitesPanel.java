@@ -361,16 +361,17 @@ public class TopSitesPanel extends HomeFragment {
 
         @Override
         public void onEditPinnedSite(int position, String searchTerm) {
+            mPosition = position;
+
             final FragmentManager manager = getChildFragmentManager();
             PinSiteDialog dialog = (PinSiteDialog) manager.findFragmentByTag(TAG_PIN_SITE);
             if (dialog == null) {
-                mPosition = position;
-
                 dialog = PinSiteDialog.newInstance();
-                dialog.setOnSiteSelectedListener(this);
-                dialog.setSearchTerm(searchTerm);
-                dialog.show(manager, TAG_PIN_SITE);
             }
+
+            dialog.setOnSiteSelectedListener(this);
+            dialog.setSearchTerm(searchTerm);
+            dialog.show(manager, TAG_PIN_SITE);
         }
 
         @Override

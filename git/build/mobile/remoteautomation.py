@@ -126,8 +126,7 @@ class RemoteAutomation(Automation):
                 self.deleteANRs()
             except DMError:
                 print "Error pulling %s" % traces
-            except IOError:
-                print "Error pulling %s" % traces
+                pass
         else:
             print "%s not found" % traces
 

@@ -38,16 +38,16 @@ public class GeckoActionProvider {
         public void onTargetSelected();
     }
 
-    final Context mContext;
+    /* inner-access */ final Context mContext;
 
     public final static String DEFAULT_MIME_TYPE = "text/plain";
 
     public static final String DEFAULT_HISTORY_FILE_NAME = "history.xml";
 
     //  History file.
-    String mHistoryFileName = DEFAULT_HISTORY_FILE_NAME;
+    /* inner-access */ String mHistoryFileName = DEFAULT_HISTORY_FILE_NAME;
 
-    OnTargetSelectedListener mOnTargetListener;
+    /* inner-access */ OnTargetSelectedListener mOnTargetListener;
 
     private final Callbacks mCallbacks = new Callbacks();
 
@@ -183,7 +183,7 @@ public class GeckoActionProvider {
      */
     private class Callbacks implements OnMenuItemClickListener,
                                        OnClickListener {
-        void chooseActivity(int index) {
+        /* inner-access */ void chooseActivity(int index) {
             final ActivityChooserModel dataModel = ActivityChooserModel.get(mContext, mHistoryFileName);
             final Intent launchIntent = dataModel.chooseActivity(index);
             if (launchIntent != null) {

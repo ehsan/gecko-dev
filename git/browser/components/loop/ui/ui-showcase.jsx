@@ -58,9 +58,7 @@
   });
   mockConversationModel.startSession = noop;
 
-  var notifications = new loop.shared.models.NotificationCollection();
-  var errNotifications = new loop.shared.models.NotificationCollection();
-  errNotifications.error("Error!");
+  var mockNotifier = {};
 
   var Example = React.createClass({
     render: function() {
@@ -119,14 +117,11 @@
               <strong>Note:</strong> 332px wide.
             </p>
             <Example summary="Call URL retrieved" dashed="true" style={{width: "332px"}}>
-              <PanelView client={mockClient} notifications={notifications}
+              <PanelView client={mockClient} notifier={mockNotifier}
                          callUrl="http://invalid.example.url/" />
             </Example>
             <Example summary="Pending call url retrieval" dashed="true" style={{width: "332px"}}>
-              <PanelView client={mockClient} notifications={notifications} />
-            </Example>
-            <Example summary="Error Notification" dashed="true" style={{width: "332px"}}>
-              <PanelView client={mockClient} notifications={errNotifications}/>
+              <PanelView client={mockClient} notifier={mockNotifier} />
             </Example>
           </Section>
 
@@ -197,7 +192,7 @@
               <div className="standalone">
                 <StartConversationView model={mockConversationModel}
                                        client={mockClient}
-                                       notifications={notifications}
+                                       notifier={mockNotifier}
                                        showCallOptionsMenu={true} />
               </div>
             </Example>
