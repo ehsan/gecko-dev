@@ -730,7 +730,6 @@ js::DumpHeapComplete(JSRuntime *rt, FILE *fp)
     JSDumpHeapTracer dtrc(fp);
 
     JS_TracerInit(&dtrc, rt, DumpHeapVisitRoot);
-    dtrc.eagerlyTraceWeakMaps = TraceWeakMapKeysValues;
     TraceRuntime(&dtrc);
 
     fprintf(dtrc.output, "==========\n");

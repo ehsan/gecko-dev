@@ -1305,8 +1305,6 @@ class ObjectImpl : public gc::Cell
     bool toDictionaryMode(ExclusiveContext *cx);
 
   private:
-    friend class Nursery;
-
     /*
      * Get internal pointers to the range of values starting at start and
      * running for length.

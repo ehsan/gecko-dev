@@ -115,7 +115,7 @@ var gCachePurged = false;
 
 // Set up the profile
 function run_test() {
-  do_test_pending("test_startup main");
+  do_test_pending();
 
   let obs = AM_Cc["@mozilla.org/observer-service;1"].
     getService(AM_Ci.nsIObserverService);
@@ -157,12 +157,12 @@ function run_test() {
     do_check_eq(a4, null);
     do_check_eq(a5, null);
 
-    do_execute_soon(run_test_1);
+    run_test_1();
   });
 }
 
 function end_test() {
-  do_test_finished("test_startup main");
+  do_test_finished();
 }
 
 // Try to install all the items into the profile
@@ -275,7 +275,7 @@ function run_test_1() {
     AddonManager.getAddonsByTypes(["extension"], function(extensionAddons) {
       do_check_eq(extensionAddons.length, 3);
 
-      do_execute_soon(run_test_2);
+      run_test_2();
     });
   });
 }
@@ -348,7 +348,7 @@ function run_test_2() {
     do_check_eq(a5, null);
     do_check_false(isExtensionInAddonsList(profileDir, "addon5@tests.mozilla.org"));
 
-    do_execute_soon(run_test_3);
+    run_test_3();
   });
 }
 
@@ -413,7 +413,7 @@ function run_test_3() {
     dest.append(do_get_expected_addon_name("addon4@tests.mozilla.org"));
     do_check_false(dest.exists());
 
-    do_execute_soon(run_test_4);
+    run_test_4();
   });
 }
 
@@ -452,7 +452,7 @@ function run_test_4() {
     do_check_in_crash_annotation(addon2.id, a2.version);
     do_check_eq(a2.scope, AddonManager.SCOPE_SYSTEM);
 
-    do_execute_soon(run_test_5);
+    run_test_5();
   });
 }
 
@@ -497,7 +497,7 @@ function run_test_5() {
     do_check_in_crash_annotation(addon2.id, a2.version);
     do_check_eq(a2.scope, AddonManager.SCOPE_USER);
 
-    do_execute_soon(run_test_6);
+    run_test_6();
   });
 }
 
@@ -542,7 +542,7 @@ function run_test_6() {
     do_check_in_crash_annotation(addon2.id, a2.version);
     do_check_eq(a2.scope, AddonManager.SCOPE_USER);
 
-    do_execute_soon(run_test_7);
+    run_test_7();
   });
 }
 
@@ -601,7 +601,7 @@ function run_test_7() {
     do_check_eq(a5, null);
     do_check_false(isExtensionInAddonsList(profileDir, "addon5@tests.mozilla.org"));
 
-    do_execute_soon(run_test_8);
+    run_test_8();
   });
 }
 
@@ -640,7 +640,7 @@ function run_test_8() {
     do_check_false(isExtensionInAddonsList(userDir, "addon2@tests.mozilla.org"));
     do_check_false(isExtensionInAddonsList(globalDir, "addon2@tests.mozilla.org"));
 
-    do_execute_soon(run_test_9);
+    run_test_9();
   });
 }
 
@@ -701,7 +701,7 @@ function run_test_9() {
     do_check_eq(a5, null);
     do_check_false(isExtensionInAddonsList(profileDir, "addon5@tests.mozilla.org"));
 
-    do_execute_soon(run_test_10);
+    run_test_10();
   });
 }
 
@@ -758,7 +758,7 @@ function run_test_10() {
     do_check_eq(a5, null);
     do_check_false(isExtensionInAddonsList(profileDir, "addon5@tests.mozilla.org"));
 
-    do_execute_soon(run_test_11);
+    run_test_11();
   });
 }
 
@@ -811,7 +811,7 @@ function run_test_11() {
     do_check_not_in_crash_annotation(addon1.id, addon1.version);
     do_check_not_in_crash_annotation(addon2.id, addon2.version);
 
-    do_execute_soon(run_test_12);
+    run_test_12();
   });
 }
 

@@ -312,8 +312,7 @@ AtomizeAndCopyChars(ExclusiveContext *cx, const jschar *tbchars, size_t length, 
 
     if (!atoms.relookupOrAdd(p, AtomHasher::Lookup(tbchars, length),
                              AtomStateEntry(atom, bool(ib)))) {
-        if (allowGC)
-            js_ReportOutOfMemory(cx); /* SystemAllocPolicy does not report OOM. */
+        js_ReportOutOfMemory(cx); /* SystemAllocPolicy does not report OOM. */
         return NULL;
     }
 

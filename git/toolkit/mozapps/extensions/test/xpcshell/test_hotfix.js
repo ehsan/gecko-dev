@@ -62,14 +62,14 @@ function check_test_1() {
     do_check_eq(aAddon.version, "1.0");
 
     aAddon.uninstall();
-    do_execute_soon(run_test_2);
+    restartManager();
+
+    run_test_2();
   });
 }
 
 // Don't install an already used hotfix
 function run_test_2() {
-  restartManager();
-
   AddonManager.addInstallListener({
     onNewInstall: function() {
       do_throw("Should not have seen a new install created");
@@ -78,7 +78,9 @@ function run_test_2() {
 
   function observer() {
     Services.obs.removeObserver(arguments.callee, "addons-background-update-complete");
-    do_execute_soon(run_test_3);
+
+    restartManager();
+    run_test_3();
   }
 
   Services.obs.addObserver(observer, "addons-background-update-complete", false);
@@ -89,7 +91,6 @@ function run_test_2() {
 
 // Install a newer hotfix
 function run_test_3() {
-  restartManager();
   Services.prefs.setCharPref("extensions.hotfix.url", "http://localhost:4444/data/test_hotfix_2.rdf");
 
   prepare_test({
@@ -116,14 +117,14 @@ function check_test_3() {
     do_check_eq(aAddon.version, "2.0");
 
     aAddon.uninstall();
-    do_execute_soon(run_test_4);
+    restartManager();
+
+    run_test_4();
   });
 }
 
 // Don't install an incompatible hotfix
 function run_test_4() {
-  restartManager();
-
   Services.prefs.setCharPref("extensions.hotfix.url", "http://localhost:4444/data/test_hotfix_3.rdf");
 
   AddonManager.addInstallListener({
@@ -134,7 +135,9 @@ function run_test_4() {
 
   function observer() {
     Services.obs.removeObserver(arguments.callee, "addons-background-update-complete");
-    do_execute_soon(run_test_5);
+
+    restartManager();
+    run_test_5();
   }
 
   Services.obs.addObserver(observer, "addons-background-update-complete", false);
@@ -145,8 +148,6 @@ function run_test_4() {
 
 // Don't install an older hotfix
 function run_test_5() {
-  restartManager();
-
   Services.prefs.setCharPref("extensions.hotfix.url", "http://localhost:4444/data/test_hotfix_1.rdf");
 
   AddonManager.addInstallListener({
@@ -157,7 +158,9 @@ function run_test_5() {
 
   function observer() {
     Services.obs.removeObserver(arguments.callee, "addons-background-update-complete");
-    do_execute_soon(run_test_6);
+
+    restartManager();
+    run_test_6();
   }
 
   Services.obs.addObserver(observer, "addons-background-update-complete", false);
@@ -168,8 +171,6 @@ function run_test_5() {
 
 // Don't re-download an already pending install
 function run_test_6() {
-  restartManager();
-
   Services.prefs.setCharPref("extensions.hotfix.lastVersion", "0");
   Services.prefs.setCharPref("extensions.hotfix.url", "http://localhost:4444/data/test_hotfix_1.rdf");
 
@@ -202,7 +203,9 @@ function check_test_6() {
 
     AddonManager.getAddonByID("hotfix@tests.mozilla.org", function(aAddon) {
       aAddon.uninstall();
-      do_execute_soon(run_test_7);
+
+      restartManager();
+      run_test_7();
     });
   }
 
@@ -214,8 +217,6 @@ function check_test_6() {
 
 // Start downloading again if something cancels the install
 function run_test_7() {
-  restartManager();
-
   Services.prefs.setCharPref("extensions.hotfix.lastVersion", "0");
 
   prepare_test({
@@ -269,14 +270,14 @@ function finish_test_7() {
     do_check_eq(aAddon.version, "1.0");
 
     aAddon.uninstall();
-    do_execute_soon(run_test_8);
+    restartManager();
+
+    run_test_8();
   });
 }
 
 // Cancel a pending install when a newer version is already available
 function run_test_8() {
-  restartManager();
-
   Services.prefs.setCharPref("extensions.hotfix.lastVersion", "0");
   Services.prefs.setCharPref("extensions.hotfix.url", "http://localhost:4444/data/test_hotfix_1.rdf");
 

@@ -177,7 +177,7 @@ abstract public class GeckoApp
     protected MenuPanel mMenuPanel;
     protected Menu mMenu;
     private static GeckoThread sGeckoThread;
-    protected GeckoProfile mProfile;
+    private GeckoProfile mProfile;
     public static int mOrientation;
     protected boolean mIsRestoringActivity;
     private String mCurrentResponse = "";
@@ -1224,35 +1224,33 @@ abstract public class GeckoApp
         String args = intent.getStringExtra("args");
         earlyStartJavaSampler(intent);
 
-        if (mProfile == null) {
-            String profileName = null;
-            String profilePath = null;
-            if (args != null) {
-                if (args.contains("-P")) {
-                    Pattern p = Pattern.compile("(?:-P\\s*)(\\w*)(\\s*)");
-                    Matcher m = p.matcher(args);
-                    if (m.find()) {
-                        profileName = m.group(1);
-                    }
+        String profileName = null;
+        String profilePath = null;
+        if (args != null) {
+            if (args.contains("-P")) {
+                Pattern p = Pattern.compile("(?:-P\\s*)(\\w*)(\\s*)");
+                Matcher m = p.matcher(args);
+                if (m.find()) {
+                    profileName = m.group(1);
                 }
+            }
 
-                if (args.contains("-profile")) {
-                    Pattern p = Pattern.compile("(?:-profile\\s*)(\\S*)(\\s*)");
-                    Matcher m = p.matcher(args);
-                    if (m.find()) {
-                        profilePath =  m.group(1);
-                    }
-                    if (profileName == null) {
-                        profileName = getDefaultProfileName();
-                        if (profileName == null)
-                            profileName = "default";
-                    }
-                    GeckoApp.sIsUsingCustomProfile = true;
+            if (args.contains("-profile")) {
+                Pattern p = Pattern.compile("(?:-profile\\s*)(\\S*)(\\s*)");
+                Matcher m = p.matcher(args);
+                if (m.find()) {
+                    profilePath =  m.group(1);
                 }
+                if (profileName == null) {
+                    profileName = getDefaultProfileName();
+                    if (profileName == null)
+                        profileName = "default";
+                }
+                GeckoApp.sIsUsingCustomProfile = true;
+            }
 
-                if (profileName != null || profilePath != null) {
-                    mProfile = GeckoProfile.get(this, profileName, profilePath);
-                }
+            if (profileName != null || profilePath != null) {
+                mProfile = GeckoProfile.get(this, profileName, profilePath);
             }
         }
 
@@ -1600,6 +1598,10 @@ abstract public class GeckoApp
                 if (rec != null) {
                     rec.recordJavaStartupTime(javaDuration);
                 }
+
+                // Sync settings need Gecko to be loaded, so
+                // no hurry in starting this.
+                checkMigrateSync();
 
                 // Record our launch time for the announcements service
                 // to use in assessing inactivity.
@@ -2194,14 +2196,10 @@ abstract public class GeckoApp
     }
 
     public void doRestart() {
-        doRestart(RESTARTER_ACTION, null);
+        doRestart(RESTARTER_ACTION);
     }
 
-    public void doRestart(String args) {
-        doRestart(RESTARTER_ACTION, args);
-    }
-
-    public void doRestart(String action, String args) {
+    public void doRestart(String action) {
         Log.d(LOGTAG, "doRestart(\"" + action + "\")");
         try {
             Intent intent = new Intent(action);
@@ -2209,8 +2207,6 @@ abstract public class GeckoApp
             /* TODO: addEnvToIntent(intent); */
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK |
                             Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
-            if (args != null)
-                intent.putExtra("args", args);
             Log.d(LOGTAG, "Restart intent: " + intent.toString());
             GeckoAppShell.killAnyZombies();
             startActivity(intent);
@@ -2298,6 +2294,17 @@ abstract public class GeckoApp
     }
 
     protected void finishProfileMigration() {
+    }
+
+    private void checkMigrateSync() {
+        final File profileDir = getProfile().getDir();
+        if (!GeckoApp.sIsUsingCustomProfile && profileDir != null) {
+            final GeckoApp app = GeckoApp.sAppContext;
+            ProfileMigrator profileMigrator = new ProfileMigrator(app);
+            if (!profileMigrator.hasSyncMigrated()) {
+                profileMigrator.launchSyncPrefs();
+            }
+        }
     }
 
     public PromptService getPromptService() {

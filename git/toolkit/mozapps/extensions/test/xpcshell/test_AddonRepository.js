@@ -299,8 +299,8 @@ function check_results(aActualAddons, aExpectedAddons, aAddonCount, aInstallNull
   do_check_addons(aActualAddons, aExpectedAddons, ADDON_PROPERTIES);
 
   // Additional tests
-  aActualAddons.forEach(function check_each_addon(aActualAddon) {
-    // Separately check name so better messages are output when test fails
+  aActualAddons.forEach(function(aActualAddon) {
+    // Separately check name so better messages are outputted when failure
     if (aActualAddon.name == "FAIL")
       do_throw(aActualAddon.id + " - " + aActualAddon.description);
     if (aActualAddon.name != "PASS")
@@ -364,7 +364,7 @@ function run_test() {
   startupManager();
 
   // Install an add-on so can check that it isn't returned in the results
-  installAllFiles([do_get_addon("test_AddonRepository_1")], function addon_1_install_callback() {
+  installAllFiles([do_get_addon("test_AddonRepository_1")], function() {
     restartManager();
 
     gServer = new HttpServer();
@@ -394,14 +394,8 @@ function run_test() {
     gServer.start(PORT);
 
     // Create an active AddonInstall so can check that it isn't returned in the results
-    AddonManager.getInstallForURL(BASE_URL + INSTALL_URL2, function addon_2_get(aInstall) {
-      try {
-        aInstall.install();
-      }
-      catch(e) {
-        do_print("Failed to install add-on " + aInstall.sourceURI.spec);
-        do_report_unexpected_exception(e);
-      }
+    AddonManager.getInstallForURL(BASE_URL + INSTALL_URL2, function(aInstall) {
+      aInstall.install();
 
       // Create a non-active AddonInstall so can check that it is returned in the results
       AddonManager.getInstallForURL(BASE_URL + INSTALL_URL3,
@@ -468,7 +462,7 @@ function run_test_1() {
                         }
   }];
 
-  tests.forEach(function url_test(aTest) {
+  tests.forEach(function(aTest) {
     if (aTest.initiallyUndefined) {
       // Preference is not defined by default
       do_check_eq(Services.prefs.getPrefType(aTest.preference),
@@ -479,11 +473,11 @@ function run_test_1() {
     check_urls(aTest.preference, aTest.getURL, aTest.urlTests);
   });
 
-  run_test_getAddonsByID_fails();
+  run_test_2();
 }
 
 // Tests failure of AddonRepository.getAddonsByIDs()
-function run_test_getAddonsByID_fails() {
+function run_test_2() {
   Services.prefs.setCharPref(GET_TEST.preference, GET_TEST.preferenceValue);
   var callback = {
     searchSucceeded: function(aAddonsList, aAddonCount, aTotalResults) {
@@ -493,22 +487,22 @@ function run_test_getAddonsByID_fails() {
 
     searchFailed: function() {
       do_check_false(AddonRepository.isSearching);
-      run_test_getAddonsByID_succeeds();
+      run_test_3();
     }
   };
 
-  complete_search(function complete_search_fail_callback(aCallback) {
+  complete_search(function(aCallback) {
     AddonRepository.getAddonsByIDs(GET_TEST.failedIDs, aCallback);
   }, callback);
 }
 
 // Tests success of AddonRepository.getAddonsByIDs()
-function run_test_getAddonsByID_succeeds() {
+function run_test_3() {
   var callback = {
     searchSucceeded: function(aAddonsList, aAddonCount, aTotalResults) {
       do_check_eq(aTotalResults, -1);
       check_results(aAddonsList, GET_RESULTS, aAddonCount, true);
-      run_test_retrieveRecommended_fails();
+      run_test_4();
     },
 
     searchFailed: function() {
@@ -517,13 +511,13 @@ function run_test_getAddonsByID_succeeds() {
     }
   };
 
-  complete_search(function complete_search_succeed_callback(aCallback) {
+  complete_search(function(aCallback) {
     AddonRepository.getAddonsByIDs(GET_TEST.successfulIDs, aCallback);
   }, callback);
 }
 
 // Tests failure of AddonRepository.retrieveRecommendedAddons()
-function run_test_retrieveRecommended_fails() {
+function run_test_4() {
   Services.prefs.setCharPref(RECOMMENDED_TEST.preference,
                              RECOMMENDED_TEST.preferenceValue);
   var callback = {
@@ -534,22 +528,22 @@ function run_test_retrieveRecommended_fails() {
 
     searchFailed: function() {
       do_check_false(AddonRepository.isSearching);
-      run_test_retrieveRecommended_succeed();
+      run_test_5();
     }
   };
 
-  complete_search(function retrieveRecommended_failing_callback(aCallback) {
+  complete_search(function(aCallback) {
     AddonRepository.retrieveRecommendedAddons(FAILED_MAX_RESULTS, aCallback);
   }, callback);
 }
 
 // Tests success of AddonRepository.retrieveRecommendedAddons()
-function run_test_retrieveRecommended_succeed() {
+function run_test_5() {
   var callback = {
     searchSucceeded: function(aAddonsList, aAddonCount, aTotalResults) {
       do_check_eq(aTotalResults, -1);
       check_results(aAddonsList, SEARCH_RESULTS, aAddonCount);
-      run_test_searchAddons_fails();
+      run_test_6();
     },
 
     searchFailed: function() {
@@ -558,13 +552,13 @@ function run_test_retrieveRecommended_succeed() {
     }
   };
 
-  complete_search(function retrieveRecommended_succeed_callback(aCallback) {
+  complete_search(function(aCallback) {
     AddonRepository.retrieveRecommendedAddons(MAX_RESULTS, aCallback);
   }, callback);
 }
 
 // Tests failure of AddonRepository.searchAddons()
-function run_test_searchAddons_fails() {
+function run_test_6() {
   Services.prefs.setCharPref(SEARCH_TEST.preference, SEARCH_TEST.preferenceValue);
   var callback = {
     searchSucceeded: function(aAddonsList, aAddonCount, aTotalResults) {
@@ -574,7 +568,7 @@ function run_test_searchAddons_fails() {
 
     searchFailed: function() {
       do_check_false(AddonRepository.isSearching);
-      run_test_searchAddons_succeeds();
+      run_test_7();
     }
   };
 
@@ -585,7 +579,7 @@ function run_test_searchAddons_fails() {
 }
 
 // Tests success of AddonRepository.searchAddons()
-function run_test_searchAddons_succeeds() {
+function run_test_7() {
   var callback = {
     searchSucceeded: function(aAddonsList, aAddonCount, aTotalResults) {
       do_check_eq(aTotalResults, TOTAL_RESULTS);

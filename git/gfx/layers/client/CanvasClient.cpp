@@ -125,12 +125,6 @@ CanvasClientWebGL::Update(gfx::IntSize aSize, ClientCanvasLayer* aLayer)
   } else {
     SurfaceStreamHandle handle = stream->GetShareHandle();
     mDeprecatedTextureClient->SetDescriptor(SurfaceStreamDescriptor(handle, false));
-
-    // Bug 894405
-    //
-    // Ref this so the SurfaceStream doesn't disappear unexpectedly. The
-    // Compositor will need to unref it when finished.
-    aLayer->mGLContext->AddRef();
   }
 
   aLayer->Painted();

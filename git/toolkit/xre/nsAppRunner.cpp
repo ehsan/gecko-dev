@@ -1400,9 +1400,8 @@ static int MSCRTReportHook( int aReportType, char *aMessage, int *oReturnValue)
 static inline void
 DumpVersion()
 {
-  if (gAppData->vendor)
-    printf("%s ", gAppData->vendor);
-  printf("%s %s", gAppData->name, gAppData->version);
+  printf("%s %s %s", 
+         gAppData->vendor ? gAppData->vendor : "", gAppData->name, gAppData->version);
   if (gAppData->copyright)
       printf(", %s", gAppData->copyright);
   printf("\n");

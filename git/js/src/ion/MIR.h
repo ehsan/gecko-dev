@@ -5042,9 +5042,7 @@ class MLoadTypedArrayElementHole
 };
 
 // Load a value fallibly or infallibly from a statically known typed array.
-class MLoadTypedArrayElementStatic
-  : public MUnaryInstruction,
-    public IntPolicy<0>
+class MLoadTypedArrayElementStatic : public MUnaryInstruction
 {
     MLoadTypedArrayElementStatic(TypedArrayObject *typedArray, MDefinition *ptr)
       : MUnaryInstruction(ptr), typedArray_(typedArray), fallible_(true)
@@ -5081,10 +5079,6 @@ class MLoadTypedArrayElementStatic
 
     void setInfallible() {
         fallible_ = false;
-    }
-
-    TypePolicy *typePolicy() {
-        return this;
     }
 
     void computeRange();
