@@ -1619,6 +1619,7 @@ case "$host" in
     case "$host" in
     *mingw*)
     dnl MinGW/MSYS does not need CYGWIN_WRAPPER
+        PERL="/bin/sh ${srcdir}/build/msys-perl-wrapper"
         ;;
     *)
         CYGWIN_WRAPPER="${srcdir}/build/cygwin-wrapper"
@@ -3087,7 +3088,7 @@ esac
 
 dnl We don't want to link with libdl even if it's present on OS X, since
 dnl it's not used and not part of the default installation.
-dnl The same goes for BeOS.
+dnl The same goes for BeOS. OS/2 has dlfcn in libc.
 dnl We don't want to link against libm or libpthread on Darwin since
 dnl they both are just symlinks to libSystem and explicitly linking
 dnl against libSystem causes issues when debugging (see bug 299601).
@@ -3095,6 +3096,8 @@ case $target in
 *-darwin*)
     ;;
 *-beos*)
+    ;;
+*-os2*)
     ;;
 *)
     AC_CHECK_LIB(m, atan)
@@ -3121,7 +3124,14 @@ if test ! "$GNU_CXX"; then
 	;;
      esac
 fi
-AC_CHECK_LIB(socket, socket)
+
+dnl OS/2 has socket in libc.
+case $target in
+*-os2*)
+    ;;
+*)
+    AC_CHECK_LIB(socket, socket)
+esac
 
 dnl ========================================================
 dnl Check whether we can compile code for Core Text
@@ -6445,8 +6455,8 @@ if test "$MOZ_MEMORY"; then
   msvc*|mks*|cygwin*|mingw*)
     AC_DEFINE(MOZ_MEMORY_WINDOWS)
     dnl This is sort of awful. Will revisit if we add support for more versions
-    if test "$CC_VERSION" != "14.00.50727.762"; then
-        AC_MSG_ERROR([Building jemalloc requires exactly Visual C++ 2005 SP1 currently.])
+    if test "$CC_VERSION" != "14.00.50727.762" -a "$CC_VERSION" != "15.00.30729.01"; then
+        AC_MSG_ERROR([Building jemalloc requires exactly Visual C++ 2005 SP1 or 2008 SP1 currently.])
     fi
     if test -z "$WIN32_CRT_SRC_DIR"; then
       if test -z "$VCINSTALLDIR" -o ! -d "$VCINSTALLDIR"; then

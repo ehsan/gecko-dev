@@ -192,6 +192,12 @@ enum { XKeyPress = KeyPress };
 #include <winuser.h>
 #endif
 
+#ifdef XP_OS2
+#define INCL_PM
+#define INCL_GPI
+#include <os2.h>
+#endif
+
 #ifdef CreateEvent // Thank you MS.
 #undef CreateEvent
 #endif
@@ -1294,7 +1300,7 @@ nsObjectFrame::PrintPlugin(nsIRenderingContext& aRenderingContext,
   window.clipRect.left = 0; window.clipRect.right = 0;
   
 // platform specific printing code
-#if defined(XP_MACOSX)
+#if defined(XP_MACOSX) && !defined(NP_NO_CARBON)
   window.x = 0;
   window.y = 0;
   window.width = presContext->AppUnitsToDevPixels(mRect.width);
@@ -1823,7 +1829,7 @@ nsObjectFrame::PaintPlugin(nsIRenderingContext& aRenderingContext,
       // check if we need to update the PS
       HPS hps = (HPS)aRenderingContext.GetNativeGraphicData(nsIRenderingContext::NATIVE_OS2_PS);
       if (reinterpret_cast<HPS>(window->window) != hps) {
-        window->window = reinterpret_cast<nsPluginPort*>(hps);
+        window->window = reinterpret_cast<void*>(hps);
         doupdatewindow = PR_TRUE;
       }
       LONG lPSid = GpiSavePS(hps);
@@ -3344,6 +3350,7 @@ nsresult nsPluginInstanceOwner::EnsureCachedAttrParamArrays()
 
 #ifdef XP_MACOSX
 
+#ifndef NP_NO_CARBON
 static void InitializeEventRecord(EventRecord* event, Point* aMousePosition)
 {
   memset(event, 0, sizeof(EventRecord));
@@ -3355,6 +3362,7 @@ static void InitializeEventRecord(EventRecord* event, Point* aMousePosition)
   event->when = ::TickCount();
   event->modifiers = ::GetCurrentEventKeyModifiers();
 }
+#endif
 
 static void InitializeNPCocoaEvent(NPCocoaEvent* event)
 {
@@ -3423,8 +3431,8 @@ void* nsPluginInstanceOwner::SetPluginPortAndDetectChange()
     return nsnull;
   mPluginWindow->window = pluginPort;
 
-  NPDrawingModel drawingModel = GetDrawingModel();
 #ifndef NP_NO_QUICKDRAW
+  NPDrawingModel drawingModel = GetDrawingModel();
   if (drawingModel == NPDrawingModelQuickDraw) {
     NP_Port* windowQDPort = static_cast<NP_Port*>(mPluginWindow->window);
     if (windowQDPort->port != mQDPluginPortCopy.port) {
@@ -3487,7 +3495,7 @@ nsPluginInstanceOwner::GetEventloopNestingLevel()
 
 nsresult nsPluginInstanceOwner::ScrollPositionWillChange(nsIScrollableView* aScrollable, nscoord aX, nscoord aY)
 {
-#ifdef XP_MACOSX
+#if defined(XP_MACOSX) && !defined(NP_NO_CARBON)
   if (GetEventModel() != NPEventModelCarbon)
     return NS_OK;
 
@@ -3514,7 +3522,7 @@ nsresult nsPluginInstanceOwner::ScrollPositionWillChange(nsIScrollableView* aScr
 
 nsresult nsPluginInstanceOwner::ScrollPositionDidChange(nsIScrollableView* aScrollable, nscoord aX, nscoord aY)
 {
-#ifdef XP_MACOSX
+#if defined(XP_MACOSX) && !defined(NP_NO_CARBON)
   if (GetEventModel() != NPEventModelCarbon)
     return NS_OK;
 
@@ -3595,7 +3603,7 @@ nsresult nsPluginInstanceOwner::KeyUp(nsIDOMEvent* aKeyEvent)
 
 nsresult nsPluginInstanceOwner::KeyPress(nsIDOMEvent* aKeyEvent)
 {
-#ifdef XP_MACOSX
+#if defined(XP_MACOSX) && !defined(NP_NO_CARBON)
   // send KeyPress events only for Mac OS X Carbon event model
   if (GetEventModel() != NPEventModelCarbon)
     return aKeyEvent->PreventDefault();
@@ -4146,7 +4154,9 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
       NPEventModel eventModel = GetEventModel();
 
       // If we have to synthesize an event we'll use one of these.
+#ifndef NP_NO_CARBON
       EventRecord synthCarbonEvent;
+#endif
       NPCocoaEvent synthCocoaEvent;
 
       void* event = anEvent.nativeMsg;
@@ -4157,12 +4167,15 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
         nsIntPoint ptPx(presContext->AppUnitsToDevPixels(pt.x),
                         presContext->AppUnitsToDevPixels(pt.y));
 
+#ifndef NP_NO_CARBON
         if (eventModel == NPEventModelCarbon) {
           Point carbonPt = { ptPx.y + mPluginWindow->y, ptPx.x + mPluginWindow->x };
 
           event = &synthCarbonEvent;
           InitializeEventRecord(&synthCarbonEvent, &carbonPt);
-        } else {
+        } else
+#endif
+        {
           event = &synthCocoaEvent;
           InitializeNPCocoaEvent(&synthCocoaEvent);
         }
@@ -4170,53 +4183,63 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
         switch (anEvent.message) {
         case NS_FOCUS_CONTENT:
         case NS_BLUR_CONTENT:
+#ifndef NP_NO_CARBON
           if (eventModel == NPEventModelCarbon) {
             synthCarbonEvent.what = (anEvent.message == NS_FOCUS_CONTENT) ?
             NPEventType_GetFocusEvent : NPEventType_LoseFocusEvent;
-          } else {
+          } else
+#endif
+          {
             synthCocoaEvent.type = NPCocoaEventFocusChanged;
             synthCocoaEvent.data.focus.hasFocus = (anEvent.message == NS_FOCUS_CONTENT);
           }
           break;
         case NS_MOUSE_MOVE:
+#ifndef NP_NO_CARBON
           if (eventModel == NPEventModelCarbon) {
             synthCarbonEvent.what = osEvt;
-          } else {
+          } else
+#endif
+          {
             synthCocoaEvent.type = NPCocoaEventMouseMoved;
             synthCocoaEvent.data.mouse.pluginX = static_cast<double>(ptPx.x);
             synthCocoaEvent.data.mouse.pluginY = static_cast<double>(ptPx.y);
           }
           break;
         case NS_MOUSE_BUTTON_DOWN:
+#ifndef NP_NO_CARBON
           if (eventModel == NPEventModelCarbon) {
             synthCarbonEvent.what = mouseDown;
-          } else {
+          } else
+#endif
+          {
             synthCocoaEvent.type = NPCocoaEventMouseDown;
             synthCocoaEvent.data.mouse.pluginX = static_cast<double>(ptPx.x);
             synthCocoaEvent.data.mouse.pluginY = static_cast<double>(ptPx.y);
           }
           break;
         case NS_MOUSE_BUTTON_UP:
+#ifndef NP_NO_CARBON
           if (eventModel == NPEventModelCarbon) {
             synthCarbonEvent.what = mouseUp;
-          } else {
+          } else
+#endif
+          {
             synthCocoaEvent.type = NPCocoaEventMouseUp;
             synthCocoaEvent.data.mouse.pluginX = static_cast<double>(ptPx.x);
             synthCocoaEvent.data.mouse.pluginY = static_cast<double>(ptPx.y);
           }
           break;
         }
-      } else if ((eventModel == NPEventModelCarbon) && (static_cast<EventRecord*>(event)->what == nullEvent)) {
-        Point carbonPt = { 20000, 20000 };
-        InitializeEventRecord(&synthCarbonEvent, &carbonPt);
-        event = &synthCarbonEvent;
       }
 
+#ifndef NP_NO_CARBON
       // Work around an issue in the Flash plugin, which can cache a pointer
       // to a doomed TSM document (one that belongs to a NSTSMInputContext)
       // and try to activate it after it has been deleted. See bug 183313.
       if (eventModel == NPEventModelCarbon && anEvent.message == NS_FOCUS_CONTENT)
         ::DeactivateTSMDocument(::TSMGetActiveDocument());
+#endif
 
       PRBool eventHandled = PR_FALSE;
       void* window = FixUpPluginWindow(ePluginPaintEnable);
@@ -4630,6 +4653,7 @@ void nsPluginInstanceOwner::Paint(const gfxRect& aDirtyRect)
   nsCOMPtr<nsIPluginWidget> pluginWidget = do_QueryInterface(mWidget);
   if (pluginWidget && NS_SUCCEEDED(pluginWidget->StartDrawPlugin())) {
     void* window = FixUpPluginWindow(ePluginPaintEnable);
+#ifndef NP_NO_CARBON
     if (GetEventModel() == NPEventModelCarbon && window) {
       EventRecord updateEvent;
       InitializeEventRecord(&updateEvent, nsnull);
@@ -4638,8 +4662,9 @@ void nsPluginInstanceOwner::Paint(const gfxRect& aDirtyRect)
 
       PRBool eventHandled = PR_FALSE;
       mInstance->HandleEvent(&updateEvent, &eventHandled);
-    }
-    else {
+    } else
+#endif
+    {
       // The context given here is only valid during the HandleEvent call.
       NPCocoaEvent updateEvent;
       InitializeNPCocoaEvent(&updateEvent);
@@ -4955,7 +4980,7 @@ nsPluginInstanceOwner::Renderer::NativeDraw(QWidget * drawable,
 
 NS_IMETHODIMP nsPluginInstanceOwner::Notify(nsITimer* timer)
 {
-#ifdef XP_MACOSX
+#if defined(XP_MACOSX) && !defined(NP_NO_CARBON)
   if (GetEventModel() != NPEventModelCarbon)
     return NS_OK;
 
@@ -4989,7 +5014,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::Notify(nsITimer* timer)
 
 void nsPluginInstanceOwner::StartTimer(unsigned int aDelay)
 {
-#ifdef XP_MACOSX
+#if defined(XP_MACOSX) && !defined(NP_NO_CARBON)
   if (GetEventModel() != NPEventModelCarbon)
     return;
 
@@ -5263,9 +5288,11 @@ void* nsPluginInstanceOwner::FixUpPluginWindow(PRInt32 inPaintState)
     nsIntPoint geckoScreenCoords = mWidget->WidgetToScreenOffset();
 
     nsRect windowRect;
+#ifndef NP_NO_CARBON
     if (eventModel == NPEventModelCarbon)
       NS_NPAPI_CarbonWindowFrame(static_cast<WindowRef>(static_cast<NP_CGContext*>(pluginPort)->window), windowRect);
     else
+#endif
       NS_NPAPI_CocoaWindowFrame(static_cast<NP_CGContext*>(pluginPort)->window, windowRect);
 
     mPluginWindow->x = geckoScreenCoords.x - windowRect.x;
