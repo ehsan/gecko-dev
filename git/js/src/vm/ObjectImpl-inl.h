@@ -100,13 +100,6 @@ js::ObjectImpl::getDenseInitializedLength()
     return getElementsHeader()->initializedLength;
 }
 
-inline uint32_t
-js::ObjectImpl::getDenseCapacity()
-{
-    MOZ_ASSERT(isNative());
-    return getElementsHeader()->capacity;
-}
-
 inline js::HeapSlotArray
 js::ObjectImpl::getDenseElements()
 {

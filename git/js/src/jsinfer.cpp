@@ -26,7 +26,6 @@
 #include "jsworkers.h"
 
 #ifdef JS_ION
-#include "ion/BaselineJIT.h"
 #include "ion/Ion.h"
 #include "ion/IonCompartment.h"
 #endif
@@ -2470,9 +2469,6 @@ FindPreviousInnerInitializer(HandleScript script, jsbytecode *initpc)
     if (!script->hasAnalysis())
         return NULL;
 
-    if (!script->analysis()->maybeCode(initpc))
-        return NULL;
-
     /*
      * Pattern match the following bytecode, which will appear between
      * adjacent initializer elements:
@@ -2927,10 +2923,6 @@ TypeCompartment::addPendingRecompile(JSContext *cx, RawScript script, jsbytecode
 
 # ifdef JS_ION
     CancelOffThreadIonCompile(cx->compartment, script);
-
-    // Let the script warm up again before attempting another compile.
-    if (ion::IsBaselineEnabled(cx))
-        script->resetUseCount();
 
     if (script->hasIonScript())
         addPendingRecompile(cx, script->ionScript()->recompileInfo());

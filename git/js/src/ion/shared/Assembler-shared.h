@@ -267,13 +267,6 @@ class Label : public LabelBase
     }
 };
 
-// Wrapper around Label, on the heap, to avoid a bogus assert with OOM.
-struct HeapLabel
-  : public TempObject,
-    public Label
-{
-};
-
 class RepatchLabel
 {
     static const int32_t INVALID_OFFSET = 0xC0000000;

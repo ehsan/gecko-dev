@@ -9,10 +9,7 @@ import re
 import subprocess
 import sys
 import tempfile
-try:
-    from urllib2 import urlopen
-except ImportError:
-    from urllib.request import urlopen
+import urllib2
 
 from distutils.version import StrictVersion
 
@@ -261,7 +258,7 @@ class OSXBootstrapper(BaseBootstrapper):
 
     def install_homebrew(self):
         print(PACKAGE_MANAGER_INSTALL % ('Homebrew', 'Homebrew', 'Homebrew', 'brew'))
-        bootstrap = urlopen(url=HOMEBREW_BOOTSTRAP, timeout=20).read()
+        bootstrap = urllib2.urlopen(url=HOMEBREW_BOOTSTRAP, timeout=20).read()
         with tempfile.NamedTemporaryFile() as tf:
             tf.write(bootstrap)
             tf.flush()
@@ -275,7 +272,7 @@ class OSXBootstrapper(BaseBootstrapper):
                 'OS X version. You will need to install MacPorts manually.')
 
         print(PACKAGE_MANAGER_INSTALL % ('MacPorts', 'MacPorts', 'MacPorts', 'port'))
-        pkg = urlopen(url=url, timeout=300).read()
+        pkg = urllib2.urlopen(url=url, timeout=300).read()
         with tempfile.NamedTemporaryFile(suffix='.pkg') as tf:
             tf.write(pkg)
             tf.flush()
