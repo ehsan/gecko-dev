@@ -686,8 +686,8 @@ public:
   ParentIdleListener(mozilla::dom::ContentParent* aParent, uint64_t aObserver)
     : mParent(aParent), mObserver(aObserver)
   {}
-private:
   virtual ~ParentIdleListener() {}
+private:
   nsRefPtr<mozilla::dom::ContentParent> mParent;
   uint64_t mObserver;
 };

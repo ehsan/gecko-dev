@@ -39,8 +39,6 @@ public:
   }
 
 private:
-  ~nsAutoCopyListener() {}
-
   static nsAutoCopyListener* sInstance;
 };
 

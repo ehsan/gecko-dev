@@ -71,8 +71,6 @@ public:
   NS_DECL_NSIUPDATEPROCESSOR
 
 private:
-  ~nsUpdateProcessor();
-
   struct StagedUpdateInfo {
     StagedUpdateInfo()
       : mArgc(0),

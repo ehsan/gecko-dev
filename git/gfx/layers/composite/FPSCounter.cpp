@@ -365,6 +365,7 @@ FPSState::FPSState()
 // Size of the builtin font.
 static const float FontHeight = 7.f;
 static const float FontWidth = 4.f;
+static const float FontStride = 4.f;
 
 // Scale the font when drawing it to the viewport for better readability.
 static const float FontScaleX = 2.f;

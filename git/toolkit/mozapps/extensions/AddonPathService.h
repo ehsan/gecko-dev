@@ -22,6 +22,7 @@ class AddonPathService MOZ_FINAL : public amIAddonPathService
 {
 public:
   AddonPathService();
+  virtual ~AddonPathService();
 
   static AddonPathService* GetInstance();
 
@@ -42,8 +43,6 @@ public:
   };
 
 private:
-  virtual ~AddonPathService();
-
   // Paths are stored sorted in order of their mPath.
   nsTArray<PathEntry> mPaths;
 

@@ -18,8 +18,6 @@ public:
   NS_DECL_NSISEMANTICUNITSCANNER
 
   nsSemanticUnitScanner();
-
-private:
   virtual ~nsSemanticUnitScanner();
   /* additional members */
 };

@@ -47,8 +47,6 @@ public:
   nsTArray<nsString> mValues;
   nsAutoString mSearchString;
   uint16_t mSearchResult;
-private:
-  ~nsFileResult() {}
 };
 
 NS_IMPL_ISUPPORTS(nsFileResult, nsIAutoCompleteResult)
@@ -187,7 +185,6 @@ NS_IMETHODIMP nsFileResult::RemoveValueAt(int32_t rowIndex, bool removeFromDb)
 
 class nsFileComplete MOZ_FINAL : public nsIAutoCompleteSearch
 {
-  ~nsFileComplete() {}
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIAUTOCOMPLETESEARCH

@@ -244,8 +244,8 @@ CreateX4Class(JSContext *cx,
         return nullptr;
 
     if (!LinkConstructorAndPrototype(cx, x4, proto) ||
-        !DefinePropertiesAndFunctions(cx, proto, T::TypedObjectProperties,
-                                      T::TypedObjectMethods))
+        !DefinePropertiesAndBrand(cx, proto, T::TypedObjectProperties,
+                                  T::TypedObjectMethods))
     {
         return nullptr;
     }

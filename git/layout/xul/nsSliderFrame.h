@@ -29,13 +29,11 @@ public:
   nsSliderFrame* mSlider;
 
   nsSliderMediator(nsSliderFrame* aSlider) {  mSlider = aSlider; }
+  virtual ~nsSliderMediator() {}
 
   virtual void SetSlider(nsSliderFrame* aSlider) { mSlider = aSlider; }
 
   NS_IMETHOD HandleEvent(nsIDOMEvent* aEvent) MOZ_OVERRIDE;
-
-protected:
-  virtual ~nsSliderMediator() {}
 };
 
 class nsSliderFrame : public nsBoxFrame

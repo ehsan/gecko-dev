@@ -95,6 +95,7 @@ public:
   NS_DECL_NSIMEMORYREPORTER
 
   nsScriptNameSpaceManager();
+  virtual ~nsScriptNameSpaceManager();
 
   nsresult Init();
 
@@ -181,8 +182,6 @@ public:
   size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf);
 
 private:
-  virtual ~nsScriptNameSpaceManager();
-
   // Adds a new entry to the hash and returns the nsGlobalNameStruct
   // that aKey will be mapped to. If mType in the returned
   // nsGlobalNameStruct is != eTypeNotInitialized, an entry for aKey

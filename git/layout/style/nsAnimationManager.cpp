@@ -8,7 +8,6 @@
 
 #include "mozilla/EventDispatcher.h"
 #include "mozilla/MemoryReporting.h"
-#include "mozilla/StyleAnimationValue.h"
 
 #include "nsPresContext.h"
 #include "nsRuleProcessorData.h"
@@ -16,6 +15,7 @@
 #include "nsStyleChangeList.h"
 #include "nsCSSRules.h"
 #include "RestyleManager.h"
+#include "nsStyleAnimation.h"
 #include "nsLayoutUtils.h"
 #include "nsIFrame.h"
 #include "nsIDocument.h"
@@ -24,23 +24,35 @@
 using namespace mozilla;
 using namespace mozilla::css;
 
-void
-nsAnimationManager::UpdateStyleAndEvents(CommonElementAnimationData* aEA,
-                                         TimeStamp aRefreshTime,
-                                         EnsureStyleRuleFlags aFlags)
+ElementAnimations::ElementAnimations(mozilla::dom::Element *aElement,
+                                     nsIAtom *aElementProperty,
+                                     nsAnimationManager *aAnimationManager,
+                                     TimeStamp aNow)
+  : CommonElementAnimationData(aElement, aElementProperty,
+                               aAnimationManager, aNow)
 {
-  aEA->EnsureStyleRuleFor(aRefreshTime, aFlags);
-  GetEventsAt(aEA, aRefreshTime, mPendingEvents);
-  CheckNeedsRefresh();
+}
+
+static void
+ElementAnimationsPropertyDtor(void           *aObject,
+                              nsIAtom        *aPropertyName,
+                              void           *aPropertyValue,
+                              void           *aData)
+{
+  ElementAnimations *ea = static_cast<ElementAnimations*>(aPropertyValue);
+#ifdef DEBUG
+  NS_ABORT_IF_FALSE(!ea->mCalledPropertyDtor, "can't call dtor twice");
+  ea->mCalledPropertyDtor = true;
+#endif
+  delete ea;
 }
 
 void
-nsAnimationManager::GetEventsAt(CommonElementAnimationData* aEA,
-                                TimeStamp aRefreshTime,
-                                EventArray& aEventsToDispatch)
+ElementAnimations::GetEventsAt(TimeStamp aRefreshTime,
+                               EventArray& aEventsToDispatch)
 {
-  for (uint32_t animIdx = aEA->mAnimations.Length(); animIdx-- != 0; ) {
-    ElementAnimation* anim = aEA->mAnimations[animIdx];
+  for (uint32_t animIdx = mAnimations.Length(); animIdx-- != 0; ) {
+    ElementAnimation* anim = mAnimations[animIdx];
 
     TimeDuration localTime = anim->GetLocalTimeAt(aRefreshTime);
     ComputedTiming computedTiming =
@@ -70,8 +82,8 @@ nsAnimationManager::GetEventsAt(CommonElementAnimationData* aEA,
             computedTiming.mCurrentIteration;
           TimeDuration elapsedTime =
             std::max(iterationStart, anim->InitialAdvance());
-          AnimationEventInfo ei(aEA->mElement, anim->mName, message,
-                                elapsedTime, aEA->PseudoElement());
+          AnimationEventInfo ei(mElement, anim->mName, message,
+                                elapsedTime, PseudoElement());
           aEventsToDispatch.AppendElement(ei);
         }
         break;
@@ -89,16 +101,16 @@ nsAnimationManager::GetEventsAt(CommonElementAnimationData* aEA,
           anim->mLastNotification = 0;
           TimeDuration elapsedTime =
             std::min(anim->InitialAdvance(), activeDuration);
-          AnimationEventInfo ei(aEA->mElement, anim->mName, NS_ANIMATION_START,
-                                elapsedTime, aEA->PseudoElement());
+          AnimationEventInfo ei(mElement, anim->mName, NS_ANIMATION_START,
+                                elapsedTime, PseudoElement());
           aEventsToDispatch.AppendElement(ei);
         }
         // Dispatch 'animationend' when needed.
         if (anim->mLastNotification !=
             ElementAnimation::LAST_NOTIFICATION_END) {
           anim->mLastNotification = ElementAnimation::LAST_NOTIFICATION_END;
-          AnimationEventInfo ei(aEA->mElement, anim->mName, NS_ANIMATION_END,
-                                activeDuration, aEA->PseudoElement());
+          AnimationEventInfo ei(mElement, anim->mName, NS_ANIMATION_END,
+                                activeDuration, PseudoElement());
           aEventsToDispatch.AppendElement(ei);
         }
         break;
@@ -106,7 +118,7 @@ nsAnimationManager::GetEventsAt(CommonElementAnimationData* aEA,
   }
 }
 
-CommonElementAnimationData*
+ElementAnimations*
 nsAnimationManager::GetElementAnimations(dom::Element *aElement,
                                          nsCSSPseudoElements::Type aPseudoType,
                                          bool aCreateIfNeeded)
@@ -129,15 +141,14 @@ nsAnimationManager::GetElementAnimations(dom::Element *aElement,
                  "other than :before or :after");
     return nullptr;
   }
-  CommonElementAnimationData *ea = static_cast<CommonElementAnimationData*>(
-                                   aElement->GetProperty(propName));
+  ElementAnimations *ea = static_cast<ElementAnimations*>(
+                             aElement->GetProperty(propName));
   if (!ea && aCreateIfNeeded) {
     // FIXME: Consider arena-allocating?
-    ea = new CommonElementAnimationData(aElement, propName, this,
+    ea = new ElementAnimations(aElement, propName, this,
            mPresContext->RefreshDriver()->MostRecentRefresh());
-    nsresult rv =
-      aElement->SetProperty(propName, ea,
-                            &CommonElementAnimationData::PropertyDtor, false);
+    nsresult rv = aElement->SetProperty(propName, ea,
+                                        ElementAnimationsPropertyDtor, false);
     if (NS_FAILED(rv)) {
       NS_WARNING("SetProperty failed");
       delete ea;
@@ -151,6 +162,16 @@ nsAnimationManager::GetElementAnimations(dom::Element *aElement,
   }
 
   return ea;
+}
+
+void
+nsAnimationManager::UpdateStyleAndEvents(ElementAnimations* aEA,
+                                         TimeStamp aRefreshTime,
+                                         EnsureStyleRuleFlags aFlags)
+{
+  aEA->EnsureStyleRuleFor(aRefreshTime, aFlags);
+  aEA->GetEventsAt(aRefreshTime, mPendingEvents);
+  CheckNeedsRefresh();
 }
 
 /* virtual */ void
@@ -229,7 +250,7 @@ nsAnimationManager::CheckAnimationRule(nsStyleContext* aStyleContext,
     // style change, but also not in an animation restyle.
 
     const nsStyleDisplay *disp = aStyleContext->StyleDisplay();
-    CommonElementAnimationData *ea =
+    ElementAnimations *ea =
       GetElementAnimations(aElement, aStyleContext->GetPseudoType(), false);
     if (!ea &&
         disp->mAnimationNameCount == 1 &&
@@ -325,6 +346,35 @@ nsAnimationManager::CheckAnimationRule(nsStyleContext* aStyleContext,
   return GetAnimationRule(aElement, aStyleContext->GetPseudoType());
 }
 
+class PercentageHashKey : public PLDHashEntryHdr
+{
+public:
+  typedef const float& KeyType;
+  typedef const float* KeyTypePointer;
+
+  PercentageHashKey(KeyTypePointer aKey) : mValue(*aKey) { }
+  PercentageHashKey(const PercentageHashKey& toCopy) : mValue(toCopy.mValue) { }
+  ~PercentageHashKey() { }
+
+  KeyType GetKey() const { return mValue; }
+  bool KeyEquals(KeyTypePointer aKey) const { return *aKey == mValue; }
+
+  static KeyTypePointer KeyToPointer(KeyType aKey) { return &aKey; }
+  static PLDHashNumber HashKey(KeyTypePointer aKey) {
+    static_assert(sizeof(PLDHashNumber) == sizeof(uint32_t),
+                  "this hash function assumes PLDHashNumber is uint32_t");
+    static_assert(PLDHashNumber(-1) > PLDHashNumber(0),
+                  "this hash function assumes PLDHashNumber is uint32_t");
+    float key = *aKey;
+    NS_ABORT_IF_FALSE(0.0f <= key && key <= 1.0f, "out of range");
+    return PLDHashNumber(key * UINT32_MAX);
+  }
+  enum { ALLOW_MEMMOVE = true };
+
+private:
+  const float mValue;
+};
+
 struct KeyframeData {
   float mKey;
   uint32_t mIndex; // store original order since sort algorithm is not stable
@@ -363,7 +413,7 @@ ResolvedStyleCache::Get(nsPresContext *aPresContext,
   // whether they are resolved relative to other animations:  I assume
   // that they're not, since that would prevent us from caching a lot of
   // data that we'd really like to cache (in particular, the
-  // StyleAnimationValue values in AnimationPropertySegment).
+  // nsStyleAnimation::Value values in AnimationPropertySegment).
   nsStyleContext *result = mCache.GetWeak(aKeyframe);
   if (!result) {
     nsCOMArray<nsIStyleRule> rules;
@@ -440,6 +490,8 @@ nsAnimationManager::BuildAnimations(nsStyleContext* aStyleContext,
         float key = keys[keyIdx];
         // FIXME (spec):  The spec doesn't say what to do with
         // out-of-range keyframes.  We'll ignore them.
+        // (And PercentageHashKey currently assumes we either ignore or
+        // clamp them.)
         if (0.0f <= key && key <= 1.0f) {
           KeyframeData *data = sortedKeyframes.AppendElement();
           data->mKey = key;
@@ -571,14 +623,14 @@ nsAnimationManager::BuildSegment(InfallibleTArray<AnimationPropertySegment>&
                                  mozilla::css::Declaration* aFromDeclaration,
                                  float aToKey, nsStyleContext* aToContext)
 {
-  StyleAnimationValue fromValue, toValue, dummyValue;
+  nsStyleAnimation::Value fromValue, toValue, dummyValue;
   if (!ExtractComputedValueForTransition(aProperty, aFromContext, fromValue) ||
       !ExtractComputedValueForTransition(aProperty, aToContext, toValue) ||
       // Check that we can interpolate between these values
       // (If this is ever a performance problem, we could add a
       // CanInterpolate method, but it seems fine for now.)
-      !StyleAnimationValue::Interpolate(aProperty, fromValue, toValue,
-                                        0.5, dummyValue)) {
+      !nsStyleAnimation::Interpolate(aProperty, fromValue, toValue,
+                                    0.5, dummyValue)) {
     return false;
   }
 
@@ -615,7 +667,7 @@ nsAnimationManager::GetAnimationRule(mozilla::dom::Element* aElement,
     return nullptr;
   }
 
-  CommonElementAnimationData *ea =
+  ElementAnimations *ea =
     GetElementAnimations(aElement, aPseudoType, false);
   if (!ea) {
     return nullptr;
@@ -663,9 +715,8 @@ void
 nsAnimationManager::AddElementData(CommonElementAnimationData* aData)
 {
   if (!mObservingRefreshDriver) {
-    NS_ASSERTION(
-      static_cast<CommonElementAnimationData*>(aData)->mNeedsRefreshes,
-      "Added data which doesn't need refreshing?");
+    NS_ASSERTION(static_cast<ElementAnimations*>(aData)->mNeedsRefreshes,
+                 "Added data which doesn't need refreshing?");
     // We need to observe the refresh driver.
     mPresContext->RefreshDriver()->AddRefreshObserver(this, Flush_Style);
     mObservingRefreshDriver = true;
@@ -679,7 +730,7 @@ nsAnimationManager::CheckNeedsRefresh()
 {
   for (PRCList *l = PR_LIST_HEAD(&mElementData); l != &mElementData;
        l = PR_NEXT_LINK(l)) {
-    if (static_cast<CommonElementAnimationData*>(l)->mNeedsRefreshes) {
+    if (static_cast<ElementAnimations*>(l)->mNeedsRefreshes) {
       if (!mObservingRefreshDriver) {
         mPresContext->RefreshDriver()->AddRefreshObserver(this, Flush_Style);
         mObservingRefreshDriver = true;
@@ -703,8 +754,7 @@ nsAnimationManager::FlushAnimations(FlushFlags aFlags)
   bool didThrottle = false;
   for (PRCList *l = PR_LIST_HEAD(&mElementData); l != &mElementData;
        l = PR_NEXT_LINK(l)) {
-    CommonElementAnimationData *ea =
-      static_cast<CommonElementAnimationData*>(l);
+    ElementAnimations *ea = static_cast<ElementAnimations*>(l);
     bool canThrottleTick = aFlags == Can_Throttle &&
       ea->CanPerformOnCompositorThread(
         CommonElementAnimationData::CanAnimateFlags(0)) &&
@@ -757,7 +807,7 @@ nsAnimationManager::UpdateThrottledStylesForSubtree(nsIContent* aContent,
 
   nsRefPtr<nsStyleContext> newStyle;
 
-  CommonElementAnimationData* ea;
+  ElementAnimations* ea;
   if (element &&
       (ea = GetElementAnimations(element,
                                  nsCSSPseudoElements::ePseudo_NotPseudoElement,

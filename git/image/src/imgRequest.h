@@ -46,11 +46,10 @@ class imgRequest : public nsIStreamListener,
                    public nsIInterfaceRequestor,
                    public nsIAsyncVerifyRedirectCallback
 {
-  virtual ~imgRequest();
-
 public:
   typedef mozilla::image::ImageURL ImageURL;
   imgRequest(imgLoader* aLoader);
+  virtual ~imgRequest();
 
   NS_DECL_THREADSAFE_ISUPPORTS
 

@@ -136,8 +136,6 @@ public:
   }
 
 private:
-  ~WaitForTopicSpinner() {}
-
   bool mTopicReceived;
   PRIntervalTime mStartTime;
 };
@@ -160,8 +158,6 @@ public:
   uint16_t completionReason;
 
 protected:
-  ~AsyncStatementSpinner() {}
-
   volatile bool mCompleted;
 };
 
@@ -375,9 +371,6 @@ static const char TOPIC_PLACES_CONNECTION_CLOSED[] = "places-connection-closed";
 class WaitForConnectionClosed MOZ_FINAL : public nsIObserver
 {
   nsRefPtr<WaitForTopicSpinner> mSpinner;
-
-  ~WaitForConnectionClosed() {}
-
 public:
   NS_DECL_ISUPPORTS
 

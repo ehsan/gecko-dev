@@ -5,7 +5,6 @@
 
 #include "gfxQtNativeRenderer.h"
 #include "gfxContext.h"
-#include "gfxUtils.h"
 #include "gfxXlibSurface.h"
 
 nsresult
@@ -33,7 +32,9 @@ gfxQtNativeRenderer::Draw(gfxContext* ctx, nsIntSize size,
                                gfxIntSize(size.width, size.height));
 
     if (!isOpaque) {
-        gfxUtils::ClearThebesSurface(xsurf);
+        nsRefPtr<gfxContext> tempCtx = new gfxContext(xsurf);
+        tempCtx->SetOperator(gfxContext::OPERATOR_CLEAR);
+        tempCtx->Paint();
     }
 
     nsresult rv = DrawWithXlib(xsurf->CairoSurface(), nsIntPoint(0, 0), nullptr, 0);

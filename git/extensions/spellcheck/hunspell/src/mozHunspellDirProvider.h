@@ -52,8 +52,6 @@ public:
   static char const *const kContractID;
 
 private:
-  ~mozHunspellDirProvider() {}
-
   class AppendingEnumerator MOZ_FINAL : public nsISimpleEnumerator
   {
   public:
@@ -63,8 +61,6 @@ private:
     AppendingEnumerator(nsISimpleEnumerator* aBase);
 
   private:
-    ~AppendingEnumerator() {}
-
     nsCOMPtr<nsISimpleEnumerator> mBase;
     nsCOMPtr<nsIFile>             mNext;
   };

@@ -23,8 +23,6 @@ class xpcTestObjectReadOnly MOZ_FINAL : public nsIXPCTestObjectReadOnly {
   xpcTestObjectReadOnly();
 
  private:
-    ~xpcTestObjectReadOnly() {}
-
     bool    boolProperty;
     int16_t shortProperty;
     int32_t longProperty;
@@ -39,10 +37,9 @@ class xpcTestObjectReadWrite MOZ_FINAL : public nsIXPCTestObjectReadWrite {
   NS_DECL_NSIXPCTESTOBJECTREADWRITE
 
   xpcTestObjectReadWrite();
+  ~xpcTestObjectReadWrite();
 
  private:
-     ~xpcTestObjectReadWrite();
-
      bool boolProperty;
      int16_t shortProperty;
      int32_t longProperty;

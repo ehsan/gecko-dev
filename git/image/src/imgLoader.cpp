@@ -52,8 +52,6 @@ MOZ_DEFINE_MALLOC_SIZE_OF(ImagesMallocSizeOf)
 
 class imgMemoryReporter MOZ_FINAL : public nsIMemoryReporter
 {
-  ~imgMemoryReporter() {}
-
 public:
   NS_DECL_ISUPPORTS
 
@@ -844,8 +842,6 @@ nsresult imgLoader::CreateNewProxyForRequest(imgRequest *aRequest, nsILoadGroup 
 
 class imgCacheObserver MOZ_FINAL : public nsIObserver
 {
-  ~imgCacheObserver() {}
-
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIOBSERVER

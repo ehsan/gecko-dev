@@ -40,9 +40,11 @@ class nsConverterInputStream : public nsIConverterInputStream,
         mUnicharDataLength(0),
         mReplacementChar(DEFAULT_REPLACEMENT_CHARACTER),
         mLineBuffer(nullptr) { }
+    
+    virtual ~nsConverterInputStream() { Close(); }
 
  private:
-    virtual ~nsConverterInputStream() { Close(); }
+
 
     uint32_t Fill(nsresult *aErrorCode);
     

@@ -24,8 +24,6 @@ public:
   NS_DECL_MOZISTORAGEVALUEARRAY
 
 private:
-  ~ArgValueArray() {}
-
   uint32_t mArgc;
   sqlite3_value **mArgv;
 };

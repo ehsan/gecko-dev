@@ -74,12 +74,4 @@ protected:
   eDirectionType                  mDirection;
 };
 
-namespace mozilla {
-template<>
-struct HasDangerousPublicDestructor<nsFilteredContentIterator>
-{
-  static const bool value = true;
-};
-}
-
 #endif

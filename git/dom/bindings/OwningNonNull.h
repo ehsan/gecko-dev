@@ -24,15 +24,14 @@ public:
 #endif
   {}
 
-  // This is no worse than get() in terms of const handling.
-  operator T&() const
+  operator T&()
   {
     MOZ_ASSERT(mInited);
     MOZ_ASSERT(mPtr, "OwningNonNull<T> was set to null");
     return *mPtr;
   }
 
-  operator T*() const
+  operator T*()
   {
     MOZ_ASSERT(mInited);
     MOZ_ASSERT(mPtr, "OwningNonNull<T> was set to null");

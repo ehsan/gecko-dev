@@ -57,13 +57,12 @@ class TabParent : public PBrowserParent
     typedef mozilla::dom::ClonedMessageData ClonedMessageData;
     typedef mozilla::layout::ScrollingBehavior ScrollingBehavior;
 
-    virtual ~TabParent();
-
 public:
     // nsITabParent
     NS_DECL_NSITABPARENT
 
     TabParent(nsIContentParent* aManager, const TabContext& aContext, uint32_t aChromeFlags);
+    virtual ~TabParent();
     Element* GetOwnerElement() const { return mFrameElement; }
     void SetOwnerElement(Element* aElement);
 

@@ -47,10 +47,9 @@ public:
   NS_DECL_NSIGIOMIMEAPP
 
   nsGIOMimeApp(GAppInfo* aApp) : mApp(aApp) {}
-
-private:
   ~nsGIOMimeApp() { g_object_unref(mApp); }
 
+private:
   GAppInfo *mApp;
 };
 
@@ -108,10 +107,9 @@ nsGIOMimeApp::Launch(const nsACString& aUri)
 
 class GIOUTF8StringEnumerator MOZ_FINAL : public nsIUTF8StringEnumerator
 {
-  ~GIOUTF8StringEnumerator() { }
-
 public:
   GIOUTF8StringEnumerator() : mIndex(0) { }
+  ~GIOUTF8StringEnumerator() { }
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIUTF8STRINGENUMERATOR

@@ -247,32 +247,28 @@ CreateCSSValueList(const InfallibleTArray<TransformFunction>& aFunctions)
       case TransformFunction::TRotationX:
       {
         float theta = aFunctions[i].get_RotationX().radians();
-        arr = StyleAnimationValue::AppendTransformFunction(eCSSKeyword_rotatex,
-                                                           resultTail);
+        arr = nsStyleAnimation::AppendTransformFunction(eCSSKeyword_rotatex, resultTail);
         arr->Item(1).SetFloatValue(theta, eCSSUnit_Radian);
         break;
       }
       case TransformFunction::TRotationY:
       {
         float theta = aFunctions[i].get_RotationY().radians();
-        arr = StyleAnimationValue::AppendTransformFunction(eCSSKeyword_rotatey,
-                                                           resultTail);
+        arr = nsStyleAnimation::AppendTransformFunction(eCSSKeyword_rotatey, resultTail);
         arr->Item(1).SetFloatValue(theta, eCSSUnit_Radian);
         break;
       }
       case TransformFunction::TRotationZ:
       {
         float theta = aFunctions[i].get_RotationZ().radians();
-        arr = StyleAnimationValue::AppendTransformFunction(eCSSKeyword_rotatez,
-                                                           resultTail);
+        arr = nsStyleAnimation::AppendTransformFunction(eCSSKeyword_rotatez, resultTail);
         arr->Item(1).SetFloatValue(theta, eCSSUnit_Radian);
         break;
       }
       case TransformFunction::TRotation:
       {
         float theta = aFunctions[i].get_Rotation().radians();
-        arr = StyleAnimationValue::AppendTransformFunction(eCSSKeyword_rotate,
-                                                           resultTail);
+        arr = nsStyleAnimation::AppendTransformFunction(eCSSKeyword_rotate, resultTail);
         arr->Item(1).SetFloatValue(theta, eCSSUnit_Radian);
         break;
       }
@@ -282,9 +278,7 @@ CreateCSSValueList(const InfallibleTArray<TransformFunction>& aFunctions)
         float y = aFunctions[i].get_Rotation3D().y();
         float z = aFunctions[i].get_Rotation3D().z();
         float theta = aFunctions[i].get_Rotation3D().radians();
-        arr =
-          StyleAnimationValue::AppendTransformFunction(eCSSKeyword_rotate3d,
-                                                       resultTail);
+        arr = nsStyleAnimation::AppendTransformFunction(eCSSKeyword_rotate3d, resultTail);
         arr->Item(1).SetFloatValue(x, eCSSUnit_Number);
         arr->Item(2).SetFloatValue(y, eCSSUnit_Number);
         arr->Item(3).SetFloatValue(z, eCSSUnit_Number);
@@ -293,9 +287,7 @@ CreateCSSValueList(const InfallibleTArray<TransformFunction>& aFunctions)
       }
       case TransformFunction::TScale:
       {
-        arr =
-          StyleAnimationValue::AppendTransformFunction(eCSSKeyword_scale3d,
-                                                       resultTail);
+        arr = nsStyleAnimation::AppendTransformFunction(eCSSKeyword_scale3d, resultTail);
         arr->Item(1).SetFloatValue(aFunctions[i].get_Scale().x(), eCSSUnit_Number);
         arr->Item(2).SetFloatValue(aFunctions[i].get_Scale().y(), eCSSUnit_Number);
         arr->Item(3).SetFloatValue(aFunctions[i].get_Scale().z(), eCSSUnit_Number);
@@ -303,9 +295,7 @@ CreateCSSValueList(const InfallibleTArray<TransformFunction>& aFunctions)
       }
       case TransformFunction::TTranslation:
       {
-        arr =
-          StyleAnimationValue::AppendTransformFunction(eCSSKeyword_translate3d,
-                                                       resultTail);
+        arr = nsStyleAnimation::AppendTransformFunction(eCSSKeyword_translate3d, resultTail);
         arr->Item(1).SetFloatValue(aFunctions[i].get_Translation().x(), eCSSUnit_Pixel);
         arr->Item(2).SetFloatValue(aFunctions[i].get_Translation().y(), eCSSUnit_Pixel);
         arr->Item(3).SetFloatValue(aFunctions[i].get_Translation().z(), eCSSUnit_Pixel);
@@ -314,32 +304,27 @@ CreateCSSValueList(const InfallibleTArray<TransformFunction>& aFunctions)
       case TransformFunction::TSkewX:
       {
         float x = aFunctions[i].get_SkewX().x();
-        arr = StyleAnimationValue::AppendTransformFunction(eCSSKeyword_skewx,
-                                                           resultTail);
+        arr = nsStyleAnimation::AppendTransformFunction(eCSSKeyword_skewx, resultTail);
         arr->Item(1).SetFloatValue(x, eCSSUnit_Radian);
         break;
       }
       case TransformFunction::TSkewY:
       {
         float y = aFunctions[i].get_SkewY().y();
-        arr = StyleAnimationValue::AppendTransformFunction(eCSSKeyword_skewy,
-                                                           resultTail);
+        arr = nsStyleAnimation::AppendTransformFunction(eCSSKeyword_skewy, resultTail);
         arr->Item(1).SetFloatValue(y, eCSSUnit_Radian);
         break;
       }
       case TransformFunction::TSkew:
       {
-        arr = StyleAnimationValue::AppendTransformFunction(eCSSKeyword_skew,
-                                                           resultTail);
+        arr = nsStyleAnimation::AppendTransformFunction(eCSSKeyword_skew, resultTail);
         arr->Item(1).SetFloatValue(aFunctions[i].get_Skew().x(), eCSSUnit_Radian);
         arr->Item(2).SetFloatValue(aFunctions[i].get_Skew().y(), eCSSUnit_Radian);
         break;
       }
       case TransformFunction::TTransformMatrix:
       {
-        arr =
-          StyleAnimationValue::AppendTransformFunction(eCSSKeyword_matrix3d,
-                                                       resultTail);
+        arr = nsStyleAnimation::AppendTransformFunction(eCSSKeyword_matrix3d, resultTail);
         const gfx::Matrix4x4& matrix = aFunctions[i].get_TransformMatrix().value();
         arr->Item(1).SetFloatValue(matrix._11, eCSSUnit_Number);
         arr->Item(2).SetFloatValue(matrix._12, eCSSUnit_Number);
@@ -362,9 +347,7 @@ CreateCSSValueList(const InfallibleTArray<TransformFunction>& aFunctions)
       case TransformFunction::TPerspective:
       {
         float perspective = aFunctions[i].get_Perspective().value();
-        arr =
-          StyleAnimationValue::AppendTransformFunction(eCSSKeyword_perspective,
-                                                       resultTail);
+        arr = nsStyleAnimation::AppendTransformFunction(eCSSKeyword_perspective, resultTail);
         arr->Item(1).SetFloatValue(perspective, eCSSUnit_Pixel);
         break;
       }
@@ -413,14 +396,14 @@ Layer::SetAnimations(const AnimationArray& aAnimations)
       functions.AppendElement(ctf);
     }
 
-    // Precompute the StyleAnimationValues that we need if this is a transform
+    // Precompute the nsStyleAnimation::Values that we need if this is a transform
     // animation.
-    InfallibleTArray<StyleAnimationValue>& startValues = data->mStartValues;
-    InfallibleTArray<StyleAnimationValue>& endValues = data->mEndValues;
+    InfallibleTArray<nsStyleAnimation::Value>& startValues = data->mStartValues;
+    InfallibleTArray<nsStyleAnimation::Value>& endValues = data->mEndValues;
     for (uint32_t j = 0; j < mAnimations[i].segments().Length(); j++) {
       const AnimationSegment& segment = mAnimations[i].segments()[j];
-      StyleAnimationValue* startValue = startValues.AppendElement();
-      StyleAnimationValue* endValue = endValues.AppendElement();
+      nsStyleAnimation::Value* startValue = startValues.AppendElement();
+      nsStyleAnimation::Value* endValue = endValues.AppendElement();
       if (segment.endState().type() == Animatable::TArrayOfTransformFunction) {
         const InfallibleTArray<TransformFunction>& startFunctions =
           segment.startState().get_ArrayOfTransformFunction();

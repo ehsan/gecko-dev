@@ -22,6 +22,7 @@ SECKEYECParams *decode_ec_params(const char *curve);
 class nsKeygenFormProcessor : public nsIFormProcessor { 
 public: 
   nsKeygenFormProcessor(); 
+  virtual ~nsKeygenFormProcessor();
   nsresult Init();
 
   NS_IMETHOD ProcessValue(nsIDOMHTMLElement *aElement, 
@@ -36,8 +37,6 @@ public:
   static nsresult Create(nsISupports* aOuter, const nsIID& aIID, void* *aResult);
 
 protected:
-  virtual ~nsKeygenFormProcessor();
-
   nsresult GetPublicKey(nsAString& aValue, nsAString& aChallenge, 
 			nsAFlatString& akeyType, nsAString& aOutPublicKey,
 			nsAString& aPqg);

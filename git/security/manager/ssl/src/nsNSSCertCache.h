@@ -20,8 +20,6 @@ public:
   NS_DECL_NSINSSCERTCACHE
 
   nsNSSCertCache();
-
-protected:
   virtual ~nsNSSCertCache();
 
 private:

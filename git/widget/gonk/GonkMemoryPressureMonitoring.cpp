@@ -284,8 +284,7 @@ InitGonkMemoryPressureMonitoring()
   NS_ENSURE_SUCCESS_VOID(memoryPressureWatcher->Init());
 
   nsCOMPtr<nsIThread> thread;
-  NS_NewNamedThread("MemoryPressure", getter_AddRefs(thread),
-                    memoryPressureWatcher);
+  NS_NewThread(getter_AddRefs(thread), memoryPressureWatcher);
 }
 
 } // namespace mozilla

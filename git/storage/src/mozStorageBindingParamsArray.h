@@ -22,8 +22,6 @@ class BindingParamsArray MOZ_FINAL : public mozIStorageBindingParamsArray
 {
   typedef nsTArray< nsCOMPtr<mozIStorageBindingParams> > array_type;
 
-  ~BindingParamsArray() {}
-
 public:
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_MOZISTORAGEBINDINGPARAMSARRAY

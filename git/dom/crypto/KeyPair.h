@@ -32,6 +32,8 @@ public:
     SetIsDOMBinding();
   }
 
+  ~KeyPair() {}
+
   nsIGlobalObject* GetParentObject() const
   {
     return mGlobal;
@@ -50,8 +52,6 @@ public:
   }
 
 private:
-  ~KeyPair() {}
-
   nsRefPtr<nsIGlobalObject> mGlobal;
   nsRefPtr<Key> mPublicKey;
   nsRefPtr<Key> mPrivateKey;

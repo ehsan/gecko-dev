@@ -24,10 +24,8 @@ public:
   NS_DECL_NSIPK11TOKEN
 
   nsPK11Token(PK11SlotInfo *slot);
-  /* additional members */
-
-protected:
   virtual ~nsPK11Token();
+  /* additional members */
 
 private:
   friend class nsPK11TokenDB;
@@ -50,8 +48,6 @@ public:
   NS_DECL_NSIPK11TOKENDB
 
   nsPK11TokenDB();
-
-protected:
   virtual ~nsPK11TokenDB();
   /* additional members */
 };

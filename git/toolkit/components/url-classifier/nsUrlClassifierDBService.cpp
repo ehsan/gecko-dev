@@ -773,9 +773,9 @@ public:
     , mCallback(c)
     {}
 
-private:
   ~nsUrlClassifierLookupCallback();
 
+private:
   nsresult HandleResults();
 
   nsRefPtr<nsUrlClassifierDBService> mDBService;
@@ -987,8 +987,6 @@ public:
     {}
 
 private:
-  ~nsUrlClassifierClassifyCallback() {}
-
   nsCOMPtr<nsIURIClassifierCallback> mCallback;
   bool mCheckMalware;
   bool mCheckPhishing;

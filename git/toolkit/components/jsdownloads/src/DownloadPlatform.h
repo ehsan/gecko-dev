@@ -14,16 +14,13 @@ class nsIFile;
 
 class DownloadPlatform : public mozIDownloadPlatform
 {
-protected:
-
-  virtual ~DownloadPlatform() { }
-
 public:
 
   NS_DECL_ISUPPORTS
   NS_DECL_MOZIDOWNLOADPLATFORM
 
   DownloadPlatform() { }
+  virtual ~DownloadPlatform() { }
 
   static DownloadPlatform *gDownloadPlatformService;
 

@@ -27,14 +27,13 @@ class nsFindService : public nsIFindService
 {
 public:
 
-  nsFindService();
+                      nsFindService();
+  virtual             ~nsFindService();
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIFINDSERVICE
  
 protected:
-
-  virtual ~nsFindService();
 
   nsString        mSearchString;
   nsString        mReplaceString;

@@ -19,10 +19,9 @@ public:
   NS_DECL_NSISCRIPTABLEUNICODECONVERTER
 
   nsScriptableUnicodeConverter();
-
-protected:
   virtual ~nsScriptableUnicodeConverter();
 
+protected:
   nsCString mCharset;
   nsCOMPtr<nsIUnicodeEncoder> mEncoder;
   nsCOMPtr<nsIUnicodeDecoder> mDecoder;

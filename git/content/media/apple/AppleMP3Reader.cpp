@@ -329,12 +329,6 @@ AppleMP3Reader::HasVideo()
   return false;
 }
 
-bool
-AppleMP3Reader::IsMediaSeekable()
-{
-  // not used
-  return true;
-}
 
 /*
  * Query the MP3 parser for a piece of metadata.

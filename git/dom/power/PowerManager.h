@@ -61,8 +61,6 @@ public:
   void SetCpuSleepAllowed(bool aAllowed);
 
 private:
-  ~PowerManager() {}
-
   nsCOMPtr<nsIDOMWindow> mWindow;
   nsTArray<nsCOMPtr<nsIDOMMozWakeLockListener> > mListeners;
 };

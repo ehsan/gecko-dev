@@ -622,8 +622,6 @@ public:
   }
 
 private:
-  ~FirstRevisionIdCallback() {}
-
   nsRefPtr<IDBRequest> mRequest;
 
   nsRefPtr<IDBTransaction> mTxn;

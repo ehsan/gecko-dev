@@ -48,7 +48,6 @@ public:
     return 0;   // the value shouldn't matter
   }
 
-protected:
   ~mock_Link() {
     // Run the next test if we are supposed to.
     if (mRunNextTest) {

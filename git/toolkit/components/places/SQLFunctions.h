@@ -71,8 +71,6 @@ public:
   static nsresult create(mozIStorageConnection *aDBConn);
 
 private:
-  ~MatchAutoCompleteFunction();
-
   /**
    * Argument Indexes
    */
@@ -197,7 +195,6 @@ private:
  */
 class CalculateFrecencyFunction MOZ_FINAL : public mozIStorageFunction
 {
-  ~CalculateFrecencyFunction();
 public:
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_MOZISTORAGEFUNCTION
@@ -219,7 +216,6 @@ public:
  */
 class GenerateGUIDFunction MOZ_FINAL : public mozIStorageFunction
 {
-  ~GenerateGUIDFunction();
 public:
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_MOZISTORAGEFUNCTION
@@ -243,7 +239,6 @@ public:
  */
 class GetUnreversedHostFunction MOZ_FINAL : public mozIStorageFunction
 {
-  ~GetUnreversedHostFunction();
 public:
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_MOZISTORAGEFUNCTION
@@ -272,7 +267,6 @@ public:
  */
 class FixupURLFunction MOZ_FINAL : public mozIStorageFunction
 {
-  ~FixupURLFunction();
 public:
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_MOZISTORAGEFUNCTION
@@ -309,7 +303,6 @@ public:
  */
 class FrecencyNotificationFunction MOZ_FINAL : public mozIStorageFunction
 {
-  ~FrecencyNotificationFunction();
 public:
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_MOZISTORAGEFUNCTION

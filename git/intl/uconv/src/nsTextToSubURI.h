@@ -15,10 +15,9 @@ class nsTextToSubURI: public nsITextToSubURI {
 
 public:
   nsTextToSubURI();
-
-private:
   virtual ~nsTextToSubURI();
 
+private:
   // IRI is "Internationalized Resource Identifiers"
   // http://www.ietf.org/internet-drafts/draft-duerst-iri-01.txt
   // 

@@ -25,8 +25,6 @@ public:
   NS_DECL_NSIDIRECTORYSERVICEPROVIDER2
 
 private:
-  ~DirectoryProvider() {}
-
   class AppendingEnumerator MOZ_FINAL : public nsISimpleEnumerator
   {
   public:
@@ -37,8 +35,6 @@ private:
                         char const *const *aAppendList);
 
   private:
-    ~AppendingEnumerator() {}
-
     nsCOMPtr<nsISimpleEnumerator> mBase;
     char const *const *const      mAppendList;
     nsCOMPtr<nsIFile>             mNext;

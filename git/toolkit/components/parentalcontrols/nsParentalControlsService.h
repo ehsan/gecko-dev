@@ -28,8 +28,6 @@ public:
   NS_DECL_NSIPARENTALCONTROLSSERVICE
 
   nsParentalControlsService();
-
-protected:
   virtual ~nsParentalControlsService();
 
 private:

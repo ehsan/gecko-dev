@@ -17,6 +17,7 @@ public:
   NS_DECL_NSINETWORKLINKSERVICE
 
   nsNetworkManagerListener();
+  virtual ~nsNetworkManagerListener();
 
   nsresult Init();
 
@@ -30,9 +31,6 @@ public:
    * The message contains the current NMState.
    */
   void UpdateNetworkStatus(DBusMessage* message);
-
-protected:
-  virtual ~nsNetworkManagerListener();
 
 private:
   void NotifyNetworkStatusObservers();

@@ -24,6 +24,7 @@ class nsDOMCSSAttributeDeclaration MOZ_FINAL : public nsDOMCSSDeclaration
 public:
   typedef mozilla::dom::Element Element;
   nsDOMCSSAttributeDeclaration(Element* aContent, bool aIsSMILOverride);
+  ~nsDOMCSSAttributeDeclaration();
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SKIPPABLE_SCRIPT_HOLDER_CLASS_AMBIGUOUS(nsDOMCSSAttributeDeclaration,
@@ -41,8 +42,6 @@ public:
                               const nsAString& aValue) MOZ_OVERRIDE;
 
 protected:
-  ~nsDOMCSSAttributeDeclaration();
-
   virtual nsresult SetCSSDeclaration(mozilla::css::Declaration* aDecl) MOZ_OVERRIDE;
   virtual nsIDocument* DocToUpdate() MOZ_OVERRIDE;
 
