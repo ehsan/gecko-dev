@@ -106,10 +106,8 @@ nsDOMDesktopNotification::nsDOMDesktopNotification(const nsAString & title,
     // Corresponding release occurs in DeallocPContentPermissionRequest.
     nsRefPtr<nsDesktopNotificationRequest> copy = request;
 
-    child->SendPContentPermissionRequestConstructor(copy.forget().get(),
-                                                    NS_LITERAL_CSTRING("desktop-notification"),
-                                                    NS_LITERAL_CSTRING("unused"),
-                                                    IPC::Principal(mPrincipal));
+    nsCString type = NS_LITERAL_CSTRING("desktop-notification");
+    child->SendPContentPermissionRequestConstructor(copy.forget().get(), type, IPC::Principal(mPrincipal));
 
     request->Sendprompt();
     return;
@@ -273,9 +271,3 @@ nsDesktopNotificationRequest::GetType(nsACString & aType)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsDesktopNotificationRequest::GetAccess(nsACString & aAccess)
-{
-  aAccess = "unused";
-  return NS_OK;
-}

@@ -354,13 +354,6 @@ nsGeolocationRequest::GetType(nsACString & aType)
 }
 
 NS_IMETHODIMP
-nsGeolocationRequest::GetAccess(nsACString & aAccess)
-{
-  aAccess = "unused";
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 nsGeolocationRequest::GetWindow(nsIDOMWindow * *aRequestingWindow)
 {
   NS_ENSURE_ARG_POINTER(aRequestingWindow);
@@ -1418,10 +1411,9 @@ nsGeolocation::RegisterRequestWithPrompt(nsGeolocationRequest* request)
     // Retain a reference so the object isn't deleted without IPDL's knowledge.
     // Corresponding release occurs in DeallocPContentPermissionRequest.
     request->AddRef();
-    child->SendPContentPermissionRequestConstructor(request,
-                                                    NS_LITERAL_CSTRING("geolocation"),
-                                                    NS_LITERAL_CSTRING("unused"),
-                                                    IPC::Principal(mPrincipal));
+
+    nsCString type = NS_LITERAL_CSTRING("geolocation");
+    child->SendPContentPermissionRequestConstructor(request, type, IPC::Principal(mPrincipal));
 
     request->Sendprompt();
     return true;
