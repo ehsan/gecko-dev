@@ -1442,7 +1442,7 @@ obj_eval(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
      * calls to eval from global code are not cached.
      */
     bucket = EvalCacheHash(cx, str);
-    if (!indirectCall && argc == 1 && caller->fun) {
+    if (!indirectCall && caller->fun) {
         uintN count = 0;
         JSScript **scriptp = bucket;
 
@@ -1488,7 +1488,6 @@ obj_eval(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
                         }
                         if (i < 0 ||
                             STOBJ_GET_PARENT(objarray->vector[i]) == scopeobj) {
-                            JS_ASSERT(staticLevel == script->staticLevel);
                             EVAL_CACHE_METER(hit);
                             *scriptp = script->u.nextToGC;
                             script->u.nextToGC = NULL;
@@ -4760,7 +4759,7 @@ js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, uintN defineHow,
             }
         }
 
-        sprop = scope->addProperty(cx, id, getter, setter, SPROP_INVALID_SLOT,
+        sprop = scope->putProperty(cx, id, getter, setter, SPROP_INVALID_SLOT,
                                    attrs, flags, shortid);
         if (!sprop) {
             JS_UNLOCK_SCOPE(cx, scope);

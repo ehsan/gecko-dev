@@ -23,7 +23,6 @@
  *
  * Contributor(s):
  *   Robert Sayre <sayrer@gmail.com>
- *   Dave Camp <dcamp@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),

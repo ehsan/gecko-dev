@@ -180,38 +180,33 @@ ARENA_POISON_init()
     return PR_SUCCESS;
 
   } else {
-    // First see if we can allocate the preferred poison address from the OS.
+    // Probe 1024 pages (four megabytes, typically) in both directions from
+    // the baseline address before giving up.
     PRUword candidate = (0xF0DEAFFF & ~(rgnsize-1));
-    void *result = ReserveRegion(candidate, rgnsize);
-    if (result == (void *)candidate) {
-      // success - inaccessible page allocated
-      ARENA_POISON = candidate + rgnsize/2 - 1;
-      return PR_SUCCESS;
-    }
+    PRUword step = rgnsize;
+    int direction = +1;
+    PRUword limit = candidate + 1024*rgnsize;
+    while (candidate < limit) {
+      void *result = ReserveRegion(candidate, rgnsize);
+      if (result == (void *)candidate) {
+        // success - inaccessible page allocated
+        ARENA_POISON = candidate + rgnsize/2 - 1;
+        return PR_SUCCESS;
 
-    // That didn't work, so see if the preferred address is within a range
-    // of permanently inacessible memory.
-    if (ProbeRegion(candidate, rgnsize)) {
-      // success - selected page cannot be usable memory
-      ARENA_POISON = candidate + rgnsize/2 - 1;
-      if (result != RESERVE_FAILED)
-        ReleaseRegion(result, rgnsize);
-      return PR_SUCCESS;
-    }
+      } else {
+        if (result != RESERVE_FAILED)
+          ReleaseRegion(result, rgnsize);
 
-    // The preferred address is already in use.  Did the OS give us a
-    // consolation prize?
-    if (result != RESERVE_FAILED) {
-      ARENA_POISON = PRUword(result) + rgnsize/2 - 1;
-      return PR_SUCCESS;
-    }
+        if (ProbeRegion(candidate, rgnsize)) {
+          // success - selected page cannot be usable memory
+          ARENA_POISON = candidate + rgnsize/2 - 1;
+          return PR_SUCCESS;
+        }
+      }
 
-    // It didn't, so try to allocate again, without any constraint on
-    // the address.
-    result = ReserveRegion(0, rgnsize);
-    if (result != RESERVE_FAILED) {
-      ARENA_POISON = PRUword(result) + rgnsize/2 - 1;
-      return PR_SUCCESS;
+      candidate += step*direction;
+      step = step + rgnsize;
+      direction = -direction;
     }
 
     NS_RUNTIMEABORT("no usable poison region identified");

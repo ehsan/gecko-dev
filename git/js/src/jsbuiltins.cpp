@@ -401,8 +401,6 @@ js_PopInterpFrame(JSContext* cx, InterpState* state)
     if (cx->fp->imacpc)
         return JS_FALSE;
 
-    cx->fp->putActivationObjects(cx);
-    
     /* Update display table. */
     if (cx->fp->script->staticLevel < JS_DISPLAY_SIZE)
         cx->display[cx->fp->script->staticLevel] = cx->fp->displaySave;
