@@ -75,7 +75,8 @@ LogHeaders(const char *lineStart)
 //-----------------------------------------------------------------------------
 
 nsHttpTransaction::nsHttpTransaction()
-    : mRequestSize(0)
+    : mCallbacksLock("transaction mCallbacks lock")
+    , mRequestSize(0)
     , mConnection(nullptr)
     , mConnInfo(nullptr)
     , mRequestHead(nullptr)
@@ -118,6 +119,9 @@ nsHttpTransaction::nsHttpTransaction()
 nsHttpTransaction::~nsHttpTransaction()
 {
     LOG(("Destroying nsHttpTransaction @%x\n", this));
+
+    // Force the callbacks to be released right now
+    mCallbacks = nullptr;
 
     NS_IF_RELEASE(mConnection);
     NS_IF_RELEASE(mConnInfo);
@@ -261,7 +265,7 @@ nsHttpTransaction::Init(uint8_t caps,
             mChannel,
             NS_HTTP_ACTIVITY_TYPE_HTTP_TRANSACTION,
             NS_HTTP_ACTIVITY_SUBTYPE_REQUEST_HEADER,
-            PR_Now(), LL_ZERO,
+            PR_Now(), 0,
             mReqHeaderBuf);
 
     // Create a string stream for the request header buf (the stream holds
@@ -388,12 +392,22 @@ nsHttpTransaction::SetConnection(nsAHttpConnection *conn)
 }
 
 void
-nsHttpTransaction::GetSecurityCallbacks(nsIInterfaceRequestor **cb,
-                                        nsIEventTarget        **target)
+nsHttpTransaction::GetSecurityCallbacks(nsIInterfaceRequestor **cb)
 {
+    MutexAutoLock lock(mCallbacksLock);
     NS_IF_ADDREF(*cb = mCallbacks);
-    if (target)
-        NS_IF_ADDREF(*target = mConsumerTarget);
+}
+
+void
+nsHttpTransaction::SetSecurityCallbacks(nsIInterfaceRequestor* aCallbacks)
+{
+    {
+        MutexAutoLock lock(mCallbacksLock);
+        mCallbacks = aCallbacks;
+    }
+    if (mConnection) {
+        mConnection->SetSecurityCallbacks(aCallbacks);
+    }
 }
 
 void
@@ -405,13 +419,13 @@ nsHttpTransaction::OnTransportStatus(nsITransport* transport,
 
     if (TimingEnabled()) {
         if (status == NS_NET_STATUS_RESOLVING_HOST) {
-            mTimings.domainLookupStart = mozilla::TimeStamp::Now();
+            mTimings.domainLookupStart = TimeStamp::Now();
         } else if (status == NS_NET_STATUS_RESOLVED_HOST) {
-            mTimings.domainLookupEnd = mozilla::TimeStamp::Now();
+            mTimings.domainLookupEnd = TimeStamp::Now();
         } else if (status == NS_NET_STATUS_CONNECTING_TO) {
-            mTimings.connectStart = mozilla::TimeStamp::Now();
+            mTimings.connectStart = TimeStamp::Now();
         } else if (status == NS_NET_STATUS_CONNECTED_TO) {
-            mTimings.connectEnd = mozilla::TimeStamp::Now();
+            mTimings.connectEnd = TimeStamp::Now();
         }
     }
 
@@ -430,7 +444,7 @@ nsHttpTransaction::OnTransportStatus(nsITransport* transport,
                 mChannel,
                 NS_HTTP_ACTIVITY_TYPE_HTTP_TRANSACTION,
                 NS_HTTP_ACTIVITY_SUBTYPE_REQUEST_BODY_SENT,
-                PR_Now(), LL_ZERO, EmptyCString());
+                PR_Now(), 0, EmptyCString());
 
         // report the status and progress
         if (!mRestartInProgressVerifier.IsDiscardingContent())
@@ -466,7 +480,7 @@ nsHttpTransaction::OnTransportStatus(nsITransport* transport,
         progressMax = mRequestSize; // XXX mRequestSize is 32-bit!
     }
     else {
-        progress = LL_ZERO;
+        progress = 0;
         progressMax = 0;
     }
 
@@ -514,7 +528,7 @@ nsHttpTransaction::ReadRequestSegment(nsIInputStream *stream,
 
     if (trans->TimingEnabled() && trans->mTimings.requestStart.IsNull()) {
         // First data we're sending -> this is requestStart
-        trans->mTimings.requestStart = mozilla::TimeStamp::Now();
+        trans->mTimings.requestStart = TimeStamp::Now();
     }
     trans->mSentData = true;
     return NS_OK;
@@ -576,7 +590,7 @@ nsHttpTransaction::WritePipeSegment(nsIOutputStream *stream,
         return NS_BASE_STREAM_CLOSED; // stop iterating
 
     if (trans->TimingEnabled() && trans->mTimings.responseStart.IsNull()) {
-        trans->mTimings.responseStart = mozilla::TimeStamp::Now();
+        trans->mTimings.responseStart = TimeStamp::Now();
     }
 
     nsresult rv;
@@ -661,7 +675,7 @@ nsHttpTransaction::Close(nsresult reason)
             mChannel,
             NS_HTTP_ACTIVITY_TYPE_HTTP_TRANSACTION,
             NS_HTTP_ACTIVITY_SUBTYPE_TRANSACTION_CLOSE,
-            PR_Now(), LL_ZERO, EmptyCString());
+            PR_Now(), 0, EmptyCString());
     }
 
     // we must no longer reference the connection!  find out if the 
@@ -764,7 +778,7 @@ nsHttpTransaction::Close(nsresult reason)
     // EOF or an error still require an end time be recorded.
     if (TimingEnabled() &&
         mTimings.responseEnd.IsNull() && !mTimings.responseStart.IsNull())
-        mTimings.responseEnd = mozilla::TimeStamp::Now();
+        mTimings.responseEnd = TimeStamp::Now();
 
     if (relConn && mConnection)
         NS_RELEASE(mConnection);
@@ -1065,7 +1079,7 @@ nsHttpTransaction::ParseHead(char *buf,
                 mChannel,
                 NS_HTTP_ACTIVITY_TYPE_HTTP_TRANSACTION,
                 NS_HTTP_ACTIVITY_SUBTYPE_RESPONSE_START,
-                PR_Now(), LL_ZERO, EmptyCString());
+                PR_Now(), 0, EmptyCString());
         }
     }
 
@@ -1371,7 +1385,7 @@ nsHttpTransaction::HandleContent(char *buf,
         mResponseIsComplete = true;
 
         if (TimingEnabled())
-            mTimings.responseEnd = mozilla::TimeStamp::Now();
+            mTimings.responseEnd = TimeStamp::Now();
 
         // report the entire response has arrived
         if (mActivityDistributor)
@@ -1428,7 +1442,7 @@ nsHttpTransaction::ProcessData(char *buf, uint32_t count, uint32_t *countRead)
                 mChannel,
                 NS_HTTP_ACTIVITY_TYPE_HTTP_TRANSACTION,
                 NS_HTTP_ACTIVITY_SUBTYPE_RESPONSE_HEADER,
-                PR_Now(), LL_ZERO,
+                PR_Now(), 0,
                 completeResponseHeaders);
         }
     }

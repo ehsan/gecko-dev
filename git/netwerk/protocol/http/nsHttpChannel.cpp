@@ -61,10 +61,9 @@ enum CacheDisposition {
     kCacheMissed = 4
 };
 
-const mozilla::Telemetry::ID UNKNOWN_DEVICE
-    = static_cast<mozilla::Telemetry::ID>(0);
+const Telemetry::ID UNKNOWN_DEVICE = static_cast<Telemetry::ID>(0);
 void
-AccumulateCacheHitTelemetry(mozilla::Telemetry::ID deviceHistogram,
+AccumulateCacheHitTelemetry(Telemetry::ID deviceHistogram,
                             CacheDisposition hitOrMiss)
 {
     // If we had a cache hit, or we revalidated an entry, then we should know
@@ -72,10 +71,9 @@ AccumulateCacheHitTelemetry(mozilla::Telemetry::ID deviceHistogram,
     // (Bug 769497).
     // MOZ_ASSERT(deviceHistogram != UNKNOWN_DEVICE || hitOrMiss == kCacheMissed);
 
-    mozilla::Telemetry::Accumulate(
-            mozilla::Telemetry::HTTP_CACHE_DISPOSITION_2, hitOrMiss);
+    Telemetry::Accumulate(Telemetry::HTTP_CACHE_DISPOSITION_2, hitOrMiss);
     if (deviceHistogram != UNKNOWN_DEVICE) {
-        mozilla::Telemetry::Accumulate(deviceHistogram, hitOrMiss);
+        Telemetry::Accumulate(deviceHistogram, hitOrMiss);
     }
 }
 
@@ -286,7 +284,7 @@ private:
     /*out*/ bool mCachedContentIsPartial;
     /*out*/ bool mCustomConditionalRequest;
     /*out*/ bool mDidReval;
-    /*out*/ mozilla::Telemetry::ID mCacheEntryDeviceTelemetryID;
+    /*out*/ Telemetry::ID mCacheEntryDeviceTelemetryID;
 };
 
 NS_IMPL_ISUPPORTS_INHERITED1(HttpCacheQuery, nsRunnable, nsICacheListener)
@@ -320,7 +318,7 @@ nsHttpChannel::nsHttpChannel()
 {
     LOG(("Creating nsHttpChannel [this=%p]\n", this));
     mChannelCreationTime = PR_Now();
-    mChannelCreationTimestamp = mozilla::TimeStamp::Now();
+    mChannelCreationTimestamp = TimeStamp::Now();
 }
 
 nsHttpChannel::~nsHttpChannel()
@@ -372,7 +370,8 @@ nsHttpChannel::Connect()
         NS_ENSURE_TRUE(stss, NS_ERROR_OUT_OF_MEMORY);
 
         bool isStsHost = false;
-        rv = stss->IsStsURI(mURI, &isStsHost);
+        uint32_t flags = mPrivateBrowsing ? nsISocketProvider::NO_PERMANENT_STORAGE : 0;
+        rv = stss->IsStsURI(mURI, flags, &isStsHost);
 
         // if STS fails, there's no reason to cancel the load, but it's
         // worrisome.
@@ -539,7 +538,7 @@ nsHttpChannel::SpeculativeConnect()
     mConnectionInfo->SetAnonymous((mLoadFlags & LOAD_ANONYMOUS) != 0);
     mConnectionInfo->SetPrivate(mPrivateBrowsing);
     gHttpHandler->SpeculativeConnect(mConnectionInfo,
-                                     callbacks, NS_GetCurrentThread());
+                                     callbacks);
 }
 
 void
@@ -765,11 +764,11 @@ nsHttpChannel::SetupTransaction()
         // We need to send 'Pragma:no-cache' to inhibit proxy caching even if
         // no proxy is configured since we might be talking with a transparent
         // proxy, i.e. one that operates at the network level.  See bug #14772.
-        mRequestHead.SetHeader(nsHttp::Pragma, NS_LITERAL_CSTRING("no-cache"), true);
+        mRequestHead.SetHeaderOnce(nsHttp::Pragma, "no-cache", true);
         // If we're configured to speak HTTP/1.1 then also send 'Cache-control:
         // no-cache'
         if (mRequestHead.Version() >= NS_HTTP_VERSION_1_1)
-            mRequestHead.SetHeader(nsHttp::Cache_Control, NS_LITERAL_CSTRING("no-cache"), true);
+            mRequestHead.SetHeaderOnce(nsHttp::Cache_Control, "no-cache", true);
     }
     else if ((mLoadFlags & VALIDATE_ALWAYS) && (mCacheAccess & nsICache::ACCESS_READ)) {
         // We need to send 'Cache-Control: max-age=0' to force each cache along
@@ -778,9 +777,9 @@ nsHttpChannel::SetupTransaction()
         //
         // If we're configured to speak HTTP/1.0 then just send 'Pragma: no-cache'
         if (mRequestHead.Version() >= NS_HTTP_VERSION_1_1)
-            mRequestHead.SetHeader(nsHttp::Cache_Control, NS_LITERAL_CSTRING("max-age=0"), true);
+            mRequestHead.SetHeaderOnce(nsHttp::Cache_Control, "max-age=0", true);
         else
-            mRequestHead.SetHeader(nsHttp::Pragma, NS_LITERAL_CSTRING("no-cache"), true);
+            mRequestHead.SetHeaderOnce(nsHttp::Pragma, "no-cache", true);
     }
 
     if (mResuming) {
@@ -836,9 +835,9 @@ nsHttpChannel::SetupTransaction()
 
     if (mUpgradeProtocolCallback) {
         mRequestHead.SetHeader(nsHttp::Upgrade, mUpgradeProtocol, false);
-        mRequestHead.SetHeader(nsHttp::Connection,
-                               nsDependentCString(nsHttp::Upgrade.get()),
-                               true);
+        mRequestHead.SetHeaderOnce(nsHttp::Connection,
+                                   nsHttp::Upgrade.get(),
+                                   true);
         mCaps |=  NS_HTTP_STICKY_CONNECTION;
         mCaps &= ~NS_HTTP_ALLOW_PIPELINING;
         mCaps &= ~NS_HTTP_ALLOW_KEEPALIVE;
@@ -885,6 +884,28 @@ nsresult
 nsHttpChannel::CallOnStartRequest()
 {
     mTracingEnabled = false;
+
+    // Allow consumers to override our content type
+    if ((mLoadFlags & LOAD_CALL_CONTENT_SNIFFERS) &&
+        gIOService->GetContentSniffers().Count() != 0) {
+        // NOTE: We can have both a txn pump and a cache pump when the cache
+        // content is partial. In that case, we need to read from the cache,
+        // because that's the one that has the initial contents. If that fails
+        // then give the transaction pump a shot.
+
+        nsIChannel* thisChannel = static_cast<nsIChannel*>(this);
+
+        bool typeSniffersCalled = false;
+        if (mCachePump) {
+          typeSniffersCalled =
+            NS_SUCCEEDED(mCachePump->PeekStream(CallTypeSniffers, thisChannel));
+        }
+        
+        if (!typeSniffersCalled && mTransactionPump) {
+          mTransactionPump->PeekStream(CallTypeSniffers, thisChannel);
+        }
+    }
+
     bool shouldSniff = mResponseHead && (mResponseHead->ContentType().IsEmpty() ||
         ((mResponseHead->ContentType().EqualsLiteral(APPLICATION_OCTET_STREAM) &&
         (mLoadFlags & LOAD_TREAT_APPLICATION_OCTET_STREAM_AS_UNKNOWN))));
@@ -923,39 +944,12 @@ nsHttpChannel::CallOnStartRequest()
     if (mResponseHead && mResponseHead->ContentCharset().IsEmpty())
         mResponseHead->SetContentCharset(mContentCharsetHint);
 
-    if (mResponseHead) {
-        SetPropertyAsInt64(NS_CHANNEL_PROP_CONTENT_LENGTH,
-                           mResponseHead->ContentLength());
+    if (mResponseHead && mCacheEntry) {
         // If we have a cache entry, set its predicted size to ContentLength to
         // avoid caching an entry that will exceed the max size limit.
-        if (mCacheEntry) {
-            nsresult rv;
-            int64_t predictedDataSize = -1; // -1 in case GetAsInt64 fails.
-            GetPropertyAsInt64(NS_CHANNEL_PROP_CONTENT_LENGTH, 
-                               &predictedDataSize);
-            rv = mCacheEntry->SetPredictedDataSize(predictedDataSize);
-            if (NS_FAILED(rv)) return rv;
-        }
-    }
-    // Allow consumers to override our content type
-    if ((mLoadFlags & LOAD_CALL_CONTENT_SNIFFERS) &&
-        gIOService->GetContentSniffers().Count() != 0) {
-        // NOTE: We can have both a txn pump and a cache pump when the cache
-        // content is partial. In that case, we need to read from the cache,
-        // because that's the one that has the initial contents. If that fails
-        // then give the transaction pump a shot.
-
-        nsIChannel* thisChannel = static_cast<nsIChannel*>(this);
-
-        bool typeSniffersCalled = false;
-        if (mCachePump) {
-          typeSniffersCalled =
-            NS_SUCCEEDED(mCachePump->PeekStream(CallTypeSniffers, thisChannel));
-        }
-        
-        if (!typeSniffersCalled && mTransactionPump) {
-          mTransactionPump->PeekStream(CallTypeSniffers, thisChannel);
-        }
+        nsresult rv = mCacheEntry->SetPredictedDataSize(
+            mResponseHead->ContentLength());
+        NS_ENSURE_SUCCESS(rv, rv);
     }
 
     LOG(("  calling mListener->OnStartRequest\n"));
@@ -1121,7 +1115,9 @@ nsHttpChannel::ProcessSTSHeader()
     // If this wasn't an STS host, errors are allowed, but no more STS processing
     // will happen during the session.
     bool wasAlreadySTSHost;
-    rv = stss->IsStsURI(mURI, &wasAlreadySTSHost);
+    uint32_t flags =
+      NS_UsePrivateBrowsing(this) ? nsISocketProvider::NO_PERMANENT_STORAGE : 0;
+    rv = stss->IsStsURI(mURI, flags, &wasAlreadySTSHost);
     // Failure here means STS is broken.  Don't prevent the load, but this
     // shouldn't fail.
     NS_ENSURE_SUCCESS(rv, NS_OK);
@@ -1149,7 +1145,7 @@ nsHttpChannel::ProcessSTSHeader()
     // All other failures are fatal.
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = stss->ProcessStsHeader(mURI, stsHeader.get());
+    rv = stss->ProcessStsHeader(mURI, stsHeader.get(), flags, NULL, NULL);
     if (NS_FAILED(rv)) {
         LOG(("STS: Failed to parse STS header, continuing load.\n"));
         return NS_OK;
@@ -2842,13 +2838,13 @@ HttpCacheQuery::OnCacheEntryAvailable(nsICacheEntryDescriptor *entry,
         if (cacheDeviceID) {
             if (!strcmp(cacheDeviceID, kDiskDeviceID)) {
                 mCacheEntryDeviceTelemetryID
-                    = mozilla::Telemetry::HTTP_DISK_CACHE_DISPOSITION_2;
+                    = Telemetry::HTTP_DISK_CACHE_DISPOSITION_2;
             } else if (!strcmp(cacheDeviceID, kMemoryDeviceID)) {
                 mCacheEntryDeviceTelemetryID
-                    = mozilla::Telemetry::HTTP_MEMORY_CACHE_DISPOSITION_2;
+                    = Telemetry::HTTP_MEMORY_CACHE_DISPOSITION_2;
             } else if (!strcmp(cacheDeviceID, kOfflineDeviceID)) {
                 mCacheEntryDeviceTelemetryID
-                    = mozilla::Telemetry::HTTP_OFFLINE_CACHE_DISPOSITION_2;
+                    = Telemetry::HTTP_OFFLINE_CACHE_DISPOSITION_2;
             } else {
                 MOZ_NOT_REACHED("unknown cache device ID");
             }
@@ -3468,7 +3464,7 @@ nsHttpChannel::ReadFromCache(bool alreadyMarkedValid)
     if (NS_FAILED(rv)) return rv;
 
     if (mTimingEnabled)
-        mCacheReadStart = mozilla::TimeStamp::Now();
+        mCacheReadStart = TimeStamp::Now();
 
     uint32_t suspendCount = mSuspendCount;
     while (suspendCount--)
@@ -4321,7 +4317,7 @@ nsHttpChannel::AsyncOpen(nsIStreamListener *listener, nsISupports *context)
     // don't want it after OnModifyRequest() weighs in. But waiting for
     // that to complete would mean we don't include proxy resolution in the
     // timing.
-    mAsyncOpenTime = mozilla::TimeStamp::Now();
+    mAsyncOpenTime = TimeStamp::Now();
 
     // the only time we would already know the proxy information at this
     // point would be if we were proxying a non-http protocol like ftp
@@ -4347,7 +4343,7 @@ nsHttpChannel::BeginConnect()
     // If mTimingEnabled flag is not set after OnModifyRequest() then
     // clear the already recorded AsyncOpen value for consistency.
     if (!mTimingEnabled)
-        mAsyncOpenTime = mozilla::TimeStamp();
+        mAsyncOpenTime = TimeStamp();
 
     // Construct connection info object
     nsAutoCString host;
@@ -4424,8 +4420,13 @@ nsHttpChannel::BeginConnect()
         mCaps |= NS_HTTP_REFRESH_DNS;
 
     // Force-Reload should reset the persistent connection pool for this host
-    if (mLoadFlags & LOAD_FRESH_CONNECTION)
-        mCaps |= NS_HTTP_CLEAR_KEEPALIVES;
+    if (mLoadFlags & LOAD_FRESH_CONNECTION) {
+        // just the initial document resets the whole pool
+        if (mLoadFlags & LOAD_INITIAL_DOCUMENT_URI)
+            gHttpHandler->ConnMgr()->ClosePersistentConnections();
+        // each sub resource gets a fresh connection
+        mCaps &= ~(NS_HTTP_ALLOW_KEEPALIVE | NS_HTTP_ALLOW_PIPELINING);
+    }
 
     // We may have been cancelled already, either by on-modify-request
     // listeners or by load group observers; in that case, we should
@@ -4553,19 +4554,19 @@ nsHttpChannel::GetTimingEnabled(bool* _retval) {
 }
 
 NS_IMETHODIMP
-nsHttpChannel::GetChannelCreation(mozilla::TimeStamp* _retval) {
+nsHttpChannel::GetChannelCreation(TimeStamp* _retval) {
     *_retval = mChannelCreationTimestamp;
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsHttpChannel::GetAsyncOpen(mozilla::TimeStamp* _retval) {
+nsHttpChannel::GetAsyncOpen(TimeStamp* _retval) {
     *_retval = mAsyncOpenTime;
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsHttpChannel::GetDomainLookupStart(mozilla::TimeStamp* _retval) {
+nsHttpChannel::GetDomainLookupStart(TimeStamp* _retval) {
     if (mDNSPrefetch && mDNSPrefetch->TimingsValid())
         *_retval = mDNSPrefetch->StartTimestamp();
     else if (mTransaction)
@@ -4576,7 +4577,7 @@ nsHttpChannel::GetDomainLookupStart(mozilla::TimeStamp* _retval) {
 }
 
 NS_IMETHODIMP
-nsHttpChannel::GetDomainLookupEnd(mozilla::TimeStamp* _retval) {
+nsHttpChannel::GetDomainLookupEnd(TimeStamp* _retval) {
     if (mDNSPrefetch && mDNSPrefetch->TimingsValid())
         *_retval = mDNSPrefetch->EndTimestamp();
     else if (mTransaction)
@@ -4587,7 +4588,7 @@ nsHttpChannel::GetDomainLookupEnd(mozilla::TimeStamp* _retval) {
 }
 
 NS_IMETHODIMP
-nsHttpChannel::GetConnectStart(mozilla::TimeStamp* _retval) {
+nsHttpChannel::GetConnectStart(TimeStamp* _retval) {
     if (mTransaction)
         *_retval = mTransaction->Timings().connectStart;
     else
@@ -4596,7 +4597,7 @@ nsHttpChannel::GetConnectStart(mozilla::TimeStamp* _retval) {
 }
 
 NS_IMETHODIMP
-nsHttpChannel::GetConnectEnd(mozilla::TimeStamp* _retval) {
+nsHttpChannel::GetConnectEnd(TimeStamp* _retval) {
     if (mTransaction)
         *_retval = mTransaction->Timings().connectEnd;
     else
@@ -4605,7 +4606,7 @@ nsHttpChannel::GetConnectEnd(mozilla::TimeStamp* _retval) {
 }
 
 NS_IMETHODIMP
-nsHttpChannel::GetRequestStart(mozilla::TimeStamp* _retval) {
+nsHttpChannel::GetRequestStart(TimeStamp* _retval) {
     if (mTransaction)
         *_retval = mTransaction->Timings().requestStart;
     else
@@ -4614,7 +4615,7 @@ nsHttpChannel::GetRequestStart(mozilla::TimeStamp* _retval) {
 }
 
 NS_IMETHODIMP
-nsHttpChannel::GetResponseStart(mozilla::TimeStamp* _retval) {
+nsHttpChannel::GetResponseStart(TimeStamp* _retval) {
     if (mTransaction)
         *_retval = mTransaction->Timings().responseStart;
     else
@@ -4623,7 +4624,7 @@ nsHttpChannel::GetResponseStart(mozilla::TimeStamp* _retval) {
 }
 
 NS_IMETHODIMP
-nsHttpChannel::GetResponseEnd(mozilla::TimeStamp* _retval) {
+nsHttpChannel::GetResponseEnd(TimeStamp* _retval) {
     if (mTransaction)
         *_retval = mTransaction->Timings().responseEnd;
     else
@@ -4632,13 +4633,13 @@ nsHttpChannel::GetResponseEnd(mozilla::TimeStamp* _retval) {
 }
 
 NS_IMETHODIMP
-nsHttpChannel::GetCacheReadStart(mozilla::TimeStamp* _retval) {
+nsHttpChannel::GetCacheReadStart(TimeStamp* _retval) {
     *_retval = mCacheReadStart;
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsHttpChannel::GetCacheReadEnd(mozilla::TimeStamp* _retval) {
+nsHttpChannel::GetCacheReadEnd(TimeStamp* _retval) {
     *_retval = mCacheReadEnd;
     return NS_OK;
 }
@@ -4646,7 +4647,7 @@ nsHttpChannel::GetCacheReadEnd(mozilla::TimeStamp* _retval) {
 #define IMPL_TIMING_ATTR(name)                                 \
 NS_IMETHODIMP                                                  \
 nsHttpChannel::Get##name##Time(PRTime* _retval) {              \
-    mozilla::TimeStamp stamp;                                  \
+    TimeStamp stamp;                                  \
     Get##name(&stamp);                                         \
     if (stamp.IsNull()) {                                      \
         *_retval = 0;                                          \
@@ -4879,7 +4880,7 @@ nsHttpChannel::OnStopRequest(nsIRequest *request, nsISupports *ctxt, nsresult st
         this, request, status));
 
     if (mTimingEnabled && request == mCachePump) {
-        mCacheReadEnd = mozilla::TimeStamp::Now();
+        mCacheReadEnd = TimeStamp::Now();
     }
 
      // allow content to be cached if it was loaded successfully (bug #482935)
@@ -5927,6 +5928,43 @@ nsHttpChannel::AsyncOnExamineCachedResponse()
 {
     gHttpHandler->OnExamineCachedResponse(this);
 
+}
+
+void
+nsHttpChannel::UpdateAggregateCallbacks()
+{
+    if (!mTransaction) {
+        return;
+    }
+    nsCOMPtr<nsIInterfaceRequestor> callbacks;
+    NS_NewNotificationCallbacksAggregation(mCallbacks, mLoadGroup,
+                                           NS_GetCurrentThread(),
+                                           getter_AddRefs(callbacks));
+    mTransaction->SetSecurityCallbacks(callbacks);
+}
+
+NS_IMETHODIMP
+nsHttpChannel::SetLoadGroup(nsILoadGroup *aLoadGroup)
+{
+    MOZ_ASSERT(NS_IsMainThread(), "Wrong thread.");
+
+    nsresult rv = HttpBaseChannel::SetLoadGroup(aLoadGroup);
+    if (NS_SUCCEEDED(rv)) {
+        UpdateAggregateCallbacks();
+    }
+    return rv;
+}
+
+NS_IMETHODIMP
+nsHttpChannel::SetNotificationCallbacks(nsIInterfaceRequestor *aCallbacks)
+{
+    MOZ_ASSERT(NS_IsMainThread(), "Wrong thread.");
+
+    nsresult rv = HttpBaseChannel::SetNotificationCallbacks(aCallbacks);
+    if (NS_SUCCEEDED(rv)) {
+        UpdateAggregateCallbacks();
+    }
+    return rv;
 }
 
 } } // namespace mozilla::net

@@ -349,9 +349,9 @@ TabParent::DeallocPDocumentRenderer(PDocumentRendererParent* actor)
 }
 
 PContentPermissionRequestParent*
-TabParent::AllocPContentPermissionRequest(const nsCString& type, const IPC::Principal& principal)
+TabParent::AllocPContentPermissionRequest(const nsCString& type, const nsCString& access, const IPC::Principal& principal)
 {
-  return new ContentPermissionRequestParent(type, mFrameElement, principal);
+  return new ContentPermissionRequestParent(type, access, mFrameElement, principal);
 }
 
 bool
@@ -561,22 +561,20 @@ TabParent::RecvNotifyIMEFocus(const bool& aFocus,
                               uint32_t* aSeqno)
 {
   nsCOMPtr<nsIWidget> widget = GetWidget();
-  if (!widget)
+  if (!widget) {
+    aPreference->mWantUpdates = false;
+    aPreference->mWantHints = false;
     return true;
+  }
 
   *aSeqno = mIMESeqno;
   mIMETabParent = aFocus ? this : nullptr;
   mIMESelectionAnchor = 0;
   mIMESelectionFocus = 0;
-  nsresult rv = widget->OnIMEFocusChange(aFocus);
+  widget->OnIMEFocusChange(aFocus);
 
   if (aFocus) {
-    if (NS_SUCCEEDED(rv) && rv != NS_SUCCESS_IME_NO_UPDATES) {
-      *aPreference = widget->GetIMEUpdatePreference();
-    } else {
-      aPreference->mWantUpdates = false;
-      aPreference->mWantHints = false;
-    }
+    *aPreference = widget->GetIMEUpdatePreference();
   } else {
     mIMECacheText.Truncate(0);
   }
@@ -798,18 +796,21 @@ TabParent::RecvEndIMEComposition(const bool& aCancel,
 
 bool
 TabParent::RecvGetInputContext(int32_t* aIMEEnabled,
-                               int32_t* aIMEOpen)
+                               int32_t* aIMEOpen,
+                               intptr_t* aNativeIMEContext)
 {
   nsCOMPtr<nsIWidget> widget = GetWidget();
   if (!widget) {
     *aIMEEnabled = IMEState::DISABLED;
     *aIMEOpen = IMEState::OPEN_STATE_NOT_SUPPORTED;
+    *aNativeIMEContext = 0;
     return true;
   }
 
   InputContext context = widget->GetInputContext();
   *aIMEEnabled = static_cast<int32_t>(context.mIMEState.mEnabled);
   *aIMEOpen = static_cast<int32_t>(context.mIMEState.mOpen);
+  *aNativeIMEContext = reinterpret_cast<intptr_t>(context.mNativeIMEContext);
   return true;
 }
 

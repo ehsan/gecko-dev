@@ -226,9 +226,9 @@ struct nsStyleImage {
                                bool* aIsEntireImage = nullptr) const;
 
   /**
-   * Requests a decode on the image.
+   * Starts the decoding of a image.
    */
-  nsresult RequestDecode() const;
+  nsresult StartDecoding() const;
   /**
    * @return true if the item is definitely opaque --- i.e., paints every
    * pixel within its bounds opaquely, and the bounds contains at least a pixel.
@@ -1083,7 +1083,9 @@ struct nsStylePosition {
 
   nsChangeHint CalcDifference(const nsStylePosition& aOther) const;
   static nsChangeHint MaxDifference() {
-    return NS_STYLE_HINT_REFLOW;
+    return NS_CombineHint(NS_STYLE_HINT_REFLOW,
+                          nsChangeHint(nsChangeHint_RecomputePosition |
+                                       nsChangeHint_UpdateOverflow));
   }
 
   nsStyleSides  mOffset;                // [reset] coord, percent, calc, auto
@@ -1374,7 +1376,7 @@ struct nsStyleVisibility {
   }
 
   uint8_t mDirection;                  // [inherited] see nsStyleConsts.h NS_STYLE_DIRECTION_*
-  uint8_t   mVisible;                  // [inherited]
+  uint8_t mVisible;                    // [inherited]
   uint8_t mPointerEvents;              // [inherited] see nsStyleConsts.h
 
   bool IsVisible() const {
@@ -1385,6 +1387,8 @@ struct nsStyleVisibility {
     return ((mVisible == NS_STYLE_VISIBILITY_VISIBLE) ||
             (mVisible == NS_STYLE_VISIBILITY_COLLAPSE));
   }
+
+  inline uint8_t GetEffectivePointerEvents(nsIFrame* aFrame) const;
 };
 
 struct nsTimingFunction {
@@ -1572,7 +1576,8 @@ struct nsStyleDisplay {
     return nsChangeHint(NS_STYLE_HINT_FRAMECHANGE |
                         nsChangeHint_UpdateOpacityLayer |
                         nsChangeHint_UpdateTransformLayer |
-                        nsChangeHint_UpdateOverflow);
+                        nsChangeHint_UpdateOverflow |
+                        nsChangeHint_AddOrRemoveTransform);
   }
 
   // We guarantee that if mBinding is non-null, so are mBinding->GetURI() and
@@ -1590,6 +1595,7 @@ struct nsStyleDisplay {
   uint8_t mOriginalFloats;      // [reset] saved mFloats for position:absolute/fixed;
                                 //         otherwise equal to mFloats
   uint8_t mBreakType;           // [reset] see nsStyleConsts.h NS_STYLE_CLEAR_*
+  uint8_t mBreakInside;         // [reset] NS_STYLE_PAGE_BREAK_AUTO/AVOID
   bool mBreakBefore;    // [reset]
   bool mBreakAfter;     // [reset]
   uint8_t mOverflowX;           // [reset] see nsStyleConsts.h

@@ -52,7 +52,7 @@
 #include "nsDisplayList.h"
 
 #include "imgIContainer.h"
-#include "imgILoader.h"
+#include "imgLoader.h"
 
 #include "nsCSSFrameConstructor.h"
 #include "nsIDOMRange.h"
@@ -140,7 +140,8 @@ nsImageFrame::nsImageFrame(nsStyleContext* aContext) :
   ImageFrameSuper(aContext),
   mComputedSize(0, 0),
   mIntrinsicRatio(0, 0),
-  mDisplayingIcon(false)
+  mDisplayingIcon(false),
+  mFirstFrameComplete(false)
 {
   // We assume our size is not constrained and we haven't gotten an
   // initial reflow yet, so don't touch those flags.
@@ -157,22 +158,15 @@ NS_QUERYFRAME_HEAD(nsImageFrame)
 NS_QUERYFRAME_TAIL_INHERITING(ImageFrameSuper)
 
 #ifdef ACCESSIBILITY
-already_AddRefed<Accessible>
-nsImageFrame::CreateAccessible()
+a11y::AccType
+nsImageFrame::AccessibleType()
 {
-  nsAccessibilityService* accService = nsIPresShell::AccService();
-  if (accService) {
-    // Don't use GetImageMap() to avoid reentrancy into accessibility.
-    if (HasImageMap()) {
-      return accService->CreateHTMLImageMapAccessible(mContent,
-                                                      PresContext()->PresShell());
-    } else {
-      return accService->CreateHTMLImageAccessible(mContent,
-                                                   PresContext()->PresShell());
-    }
+  // Don't use GetImageMap() to avoid reentrancy into accessibility.
+  if (HasImageMap()) {
+    return a11y::eHTMLImageMapAccessible;
   }
 
-  return nullptr;
+  return a11y::eImageAccessible;
 }
 #endif
 
@@ -526,6 +520,34 @@ nsImageFrame::ShouldCreateImageFrameFor(Element* aElement,
 }
 
 nsresult
+nsImageFrame::Notify(imgIRequest* aRequest, int32_t aType, const nsIntRect* aData)
+{
+  if (aType == imgINotificationObserver::SIZE_AVAILABLE) {
+    nsCOMPtr<imgIContainer> image;
+    aRequest->GetImage(getter_AddRefs(image));
+    return OnStartContainer(aRequest, image);
+  }
+
+  if (aType == imgINotificationObserver::FRAME_UPDATE) {
+    return OnDataAvailable(aRequest, aData);
+  }
+
+  if (aType == imgINotificationObserver::FRAME_COMPLETE) {
+    mFirstFrameComplete = true;
+  }
+
+  if (aType == imgINotificationObserver::LOAD_COMPLETE) {
+    uint32_t imgStatus;
+    aRequest->GetImageStatus(&imgStatus);
+    nsresult status =
+        imgStatus & imgIRequest::STATUS_ERROR ? NS_ERROR_FAILURE : NS_OK;
+    return OnStopRequest(aRequest, status);
+  }
+
+  return NS_OK;
+}
+
+nsresult
 nsImageFrame::OnStartContainer(imgIRequest *aRequest, imgIContainer *aImage)
 {
   if (!aImage) return NS_ERROR_INVALID_ARG;
@@ -564,9 +586,14 @@ nsImageFrame::OnStartContainer(imgIRequest *aRequest, imgIContainer *aImage)
 
 nsresult
 nsImageFrame::OnDataAvailable(imgIRequest *aRequest,
-                              bool aCurrentFrame,
                               const nsIntRect *aRect)
 {
+  if (mFirstFrameComplete) {
+    nsCOMPtr<imgIContainer> container;
+    aRequest->GetImage(getter_AddRefs(container));
+    return FrameChanged(aRequest, container);
+  }
+
   // XXX do we need to make sure that the reflow from the
   // OnStartContainer has been processed before we start calling
   // invalidate?
@@ -583,11 +610,6 @@ nsImageFrame::OnDataAvailable(imgIRequest *aRequest,
     return NS_OK;
   }
 
-  // Don't invalidate if the current visible frame isn't the one the data is
-  // from
-  if (!aCurrentFrame)
-    return NS_OK;
-  
 #ifdef DEBUG_decode
   printf("Source rect (%d,%d,%d,%d)\n",
          aRect->x, aRect->y, aRect->width, aRect->height);
@@ -601,14 +623,13 @@ nsImageFrame::OnDataAvailable(imgIRequest *aRequest,
     InvalidateFrameWithRect(invalid, nsDisplayItem::TYPE_IMAGE);
     InvalidateFrameWithRect(invalid, nsDisplayItem::TYPE_ALT_FEEDBACK);
   }
-  
+
   return NS_OK;
 }
 
 nsresult
-nsImageFrame::OnStopDecode(imgIRequest *aRequest,
-                           nsresult aStatus,
-                           const PRUnichar *aStatusArg)
+nsImageFrame::OnStopRequest(imgIRequest *aRequest,
+                            nsresult aStatus)
 {
   // Check what request type we're dealing with
   nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(mContent);
@@ -666,8 +687,7 @@ nsImageFrame::NotifyNewCurrentRequest(imgIRequest *aRequest,
 
 nsresult
 nsImageFrame::FrameChanged(imgIRequest *aRequest,
-                           imgIContainer *aContainer,
-                           const nsIntRect *aDirtyRect)
+                           imgIContainer *aContainer)
 {
   if (!GetStyleVisibility()->IsVisible()) {
     return NS_OK;
@@ -882,8 +902,8 @@ nsImageFrame::Reflow(nsPresContext*          aPresContext,
 
   if (!imageOK || !haveSize) {
     nsRect altFeedbackSize(0, 0,
-                           2*(nsPresContext::CSSPixelsToAppUnits(ICON_SIZE+ICON_PADDING+ALT_BORDER_WIDTH)),
-                           2*(nsPresContext::CSSPixelsToAppUnits(ICON_SIZE+ICON_PADDING+ALT_BORDER_WIDTH)));
+                           nsPresContext::CSSPixelsToAppUnits(ICON_SIZE+2*(ICON_PADDING+ALT_BORDER_WIDTH)),
+                           nsPresContext::CSSPixelsToAppUnits(ICON_SIZE+2*(ICON_PADDING+ALT_BORDER_WIDTH)));
     aMetrics.mOverflowAreas.UnionAllWith(altFeedbackSize);
   }
   FinishAndStoreOverflow(&aMetrics);
@@ -1209,7 +1229,7 @@ nsDisplayImage::Paint(nsDisplayListBuilder* aBuilder,
 }
 
 already_AddRefed<ImageContainer>
-nsDisplayImage::GetContainer()
+nsDisplayImage::GetContainer(nsDisplayListBuilder* aBuilder)
 {
   nsRefPtr<ImageContainer> container;
   nsresult rv = mImage->GetImageContainer(getter_AddRefs(container));
@@ -1797,7 +1817,7 @@ nsImageFrame::LoadIcon(const nsAString& aSpec,
   nsCOMPtr<nsIURI> realURI;
   SpecToURI(aSpec, sIOService, getter_AddRefs(realURI));
  
-  nsCOMPtr<imgILoader> il =
+  nsRefPtr<imgLoader> il =
     nsContentUtils::GetImgLoaderForDocument(aPresContext->Document());
 
   nsCOMPtr<nsILoadGroup> loadGroup;
@@ -1816,7 +1836,6 @@ nsImageFrame::LoadIcon(const nsAString& aSpec,
                        gIconLoad,
                        nullptr,      /* Not associated with any particular document */
                        loadFlags,
-                       nullptr,
                        nullptr,
                        nullptr,      /* channel policy not needed */
                        aRequest);
@@ -1893,7 +1912,7 @@ nsresult nsImageFrame::LoadIcons(nsPresContext *aPresContext)
 }
 
 NS_IMPL_ISUPPORTS2(nsImageFrame::IconLoad, nsIObserver,
-                   imgIDecoderObserver)
+                   imgINotificationObserver)
 
 static const char* kIconLoadPrefs[] = {
   "browser.display.force_inline_alttext",
@@ -1950,74 +1969,14 @@ void nsImageFrame::IconLoad::GetPrefs()
     Preferences::GetBool("browser.display.show_image_placeholders", true);
 }
 
-
-
 NS_IMETHODIMP
-nsImageFrame::IconLoad::OnStartRequest(imgIRequest *aRequest)
+nsImageFrame::IconLoad::Notify(imgIRequest *aRequest, int32_t aType, const nsIntRect* aData)
 {
-  return NS_OK;
-}
+  if (aType != imgINotificationObserver::LOAD_COMPLETE &&
+      aType != imgINotificationObserver::FRAME_UPDATE) {
+    return NS_OK;
+  }
 
-NS_IMETHODIMP
-nsImageFrame::IconLoad::OnStartDecode(imgIRequest *aRequest)
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsImageFrame::IconLoad::OnStartContainer(imgIRequest *aRequest,
-                                         imgIContainer *aContainer)
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsImageFrame::IconLoad::OnStartFrame(imgIRequest *aRequest,
-                                     uint32_t aFrame)
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsImageFrame::IconLoad::OnDataAvailable(imgIRequest *aRequest,
-                                        bool aCurrentFrame,
-                                        const nsIntRect * aRect)
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsImageFrame::IconLoad::OnStopFrame(imgIRequest *aRequest,
-                                    uint32_t aFrame)
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsImageFrame::IconLoad::OnStopContainer(imgIRequest *aRequest,
-                                        imgIContainer *aContainer)
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsImageFrame::IconLoad::OnStopDecode(imgIRequest *aRequest,
-                                     nsresult status,
-                                     const PRUnichar *statusArg)
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsImageFrame::IconLoad::OnImageIsAnimated(imgIRequest *aRequest)
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsImageFrame::IconLoad::OnStopRequest(imgIRequest *aRequest,
-                                      bool aIsLastPart)
-{
   nsTObserverArray<nsImageFrame*>::ForwardIterator iter(mIconObservers);
   nsImageFrame *frame;
   while (iter.HasMore()) {
@@ -2028,30 +1987,7 @@ nsImageFrame::IconLoad::OnStopRequest(imgIRequest *aRequest,
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsImageFrame::IconLoad::OnDiscard(imgIRequest *aRequest)
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsImageFrame::IconLoad::FrameChanged(imgIRequest *aRequest,
-                                     imgIContainer *aContainer,
-                                     const nsIntRect *aDirtyRect)
-{
-  nsTObserverArray<nsImageFrame*>::ForwardIterator iter(mIconObservers);
-  nsImageFrame *frame;
-  while (iter.HasMore()) {
-    frame = iter.GetNext();
-    frame->InvalidateFrame();
-  }
-
-  return NS_OK;
-}
-
-
-
-NS_IMPL_ISUPPORTS2(nsImageListener, imgIDecoderObserver, imgIContainerObserver)
+NS_IMPL_ISUPPORTS1(nsImageListener, imgINotificationObserver)
 
 nsImageListener::nsImageListener(nsImageFrame *aFrame) :
   mFrame(aFrame)
@@ -2062,43 +1998,13 @@ nsImageListener::~nsImageListener()
 {
 }
 
-NS_IMETHODIMP nsImageListener::OnStartContainer(imgIRequest *aRequest,
-                                                imgIContainer *aImage)
+NS_IMETHODIMP
+nsImageListener::Notify(imgIRequest *aRequest, int32_t aType, const nsIntRect* aData)
 {
   if (!mFrame)
     return NS_ERROR_FAILURE;
 
-  return mFrame->OnStartContainer(aRequest, aImage);
-}
-
-NS_IMETHODIMP nsImageListener::OnDataAvailable(imgIRequest *aRequest,
-                                               bool aCurrentFrame,
-                                               const nsIntRect *aRect)
-{
-  if (!mFrame)
-    return NS_ERROR_FAILURE;
-
-  return mFrame->OnDataAvailable(aRequest, aCurrentFrame, aRect);
-}
-
-NS_IMETHODIMP nsImageListener::OnStopDecode(imgIRequest *aRequest,
-                                            nsresult status,
-                                            const PRUnichar *statusArg)
-{
-  if (!mFrame)
-    return NS_ERROR_FAILURE;
-
-  return mFrame->OnStopDecode(aRequest, status, statusArg);
-}
-
-NS_IMETHODIMP nsImageListener::FrameChanged(imgIRequest *aRequest,
-                                            imgIContainer *aContainer,
-                                            const nsIntRect *aDirtyRect)
-{
-  if (!mFrame)
-    return NS_ERROR_FAILURE;
-
-  return mFrame->FrameChanged(aRequest, aContainer, aDirtyRect);
+  return mFrame->Notify(aRequest, aType, aData);
 }
 
 static bool

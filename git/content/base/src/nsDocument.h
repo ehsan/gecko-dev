@@ -88,7 +88,6 @@ struct nsRadioGroupStruct;
 class nsOnloadBlocker;
 class nsUnblockOnloadEvent;
 class nsChildContentList;
-class nsXMLEventsManager;
 class nsHTMLStyleSheet;
 class nsHTMLCSSStyleSheet;
 class nsDOMNavigationTiming;
@@ -601,6 +600,7 @@ public:
 
   virtual nsresult LoadAdditionalStyleSheet(additionalSheetType aType, nsIURI* aSheetURI);
   virtual void RemoveAdditionalStyleSheet(additionalSheetType aType, nsIURI* sheetURI);
+  virtual nsIStyleSheet* FirstAdditionalAuthorSheet();
 
   virtual nsIChannel* GetChannel() const {
     return mChannel;
@@ -735,7 +735,7 @@ private:
 
 public:
   // nsIDOMNode
-  NS_DECL_NSIDOMNODE
+  NS_FORWARD_NSIDOMNODE_TO_NSINODE_OVERRIDABLE
 
   // nsIDOMDocument
   NS_DECL_NSIDOMDOCUMENT
@@ -770,8 +770,6 @@ public:
   NS_DECL_NSIOBSERVER
 
   virtual nsresult Init();
-  
-  virtual void AddXMLEventsContent(nsIContent * aXMLEventsElement);
 
   virtual nsresult CreateElem(const nsAString& aName, nsIAtom *aPrefix,
                               int32_t aNamespaceID,
@@ -838,7 +836,7 @@ public:
   virtual NS_HIDDEN_(void)
     EnumerateExternalResources(nsSubDocEnumFunc aCallback, void* aData);
 
-  nsTArray<nsCString> mFileDataUris;
+  nsTArray<nsCString> mHostObjectURIs;
 
   // Returns our (lazily-initialized) animation controller.
   // If HasAnimationController is true, this is guaranteed to return non-null.
@@ -890,8 +888,8 @@ public:
 
   virtual nsEventStates GetDocumentState();
 
-  virtual void RegisterFileDataUri(const nsACString& aUri);
-  virtual void UnregisterFileDataUri(const nsACString& aUri);
+  virtual void RegisterHostObjectUri(const nsACString& aUri);
+  virtual void UnregisterHostObjectUri(const nsACString& aUri);
 
   // Only BlockOnload should call this!
   void AsyncBlockOnload();
@@ -1124,7 +1122,7 @@ protected:
 
   nsCOMArray<nsIStyleSheet> mStyleSheets;
   nsCOMArray<nsIStyleSheet> mCatalogSheets;
-  nsCOMArray<nsIStyleSheet> mAdditionalSheets[2];
+  nsCOMArray<nsIStyleSheet> mAdditionalSheets[SheetTypeCount];
 
   // Array of observers
   nsTObserverArray<nsIDocumentObserver*> mObservers;
@@ -1244,7 +1242,6 @@ protected:
   // The channel that got passed to StartDocumentLoad(), if any
   nsCOMPtr<nsIChannel> mChannel;
   nsRefPtr<nsHTMLCSSStyleSheet> mStyleAttrStyleSheet;
-  nsRefPtr<nsXMLEventsManager> mXMLEventsManager;
 
   // Our update nesting level
   uint32_t mUpdateNestLevel;

@@ -54,6 +54,8 @@ using namespace js;
 using namespace js::types;
 using namespace js::analyze;
 
+using mozilla::DebugOnly;
+
 static inline jsid
 id_prototype(JSContext *cx) {
     return NameToId(cx->names().classPrototype);
@@ -1229,6 +1231,7 @@ TypeConstraintSetElement::newType(JSContext *cx, TypeSet *source, Type type)
 void
 TypeConstraintCall::newType(JSContext *cx, TypeSet *source, Type type)
 {
+    AssertCanGC();
     RootedScript script(cx, callsite->script);
     jsbytecode *pc = callsite->pc;
 
@@ -1317,7 +1320,8 @@ TypeConstraintCall::newType(JSContext *cx, TypeSet *source, Type type)
         return;
     }
 
-    if (!callee->script()->ensureHasTypes(cx))
+    RootedScript calleeScript(cx, callee->script());
+    if (!calleeScript->ensureHasTypes(cx))
         return;
 
     unsigned nargs = callee->nargs;
@@ -1325,18 +1329,18 @@ TypeConstraintCall::newType(JSContext *cx, TypeSet *source, Type type)
     /* Add bindings for the arguments of the call. */
     for (unsigned i = 0; i < callsite->argumentCount && i < nargs; i++) {
         StackTypeSet *argTypes = callsite->argumentTypes[i];
-        StackTypeSet *types = TypeScript::ArgTypes(callee->script(), i);
+        StackTypeSet *types = TypeScript::ArgTypes(calleeScript, i);
         argTypes->addSubsetBarrier(cx, script, pc, types);
     }
 
     /* Add void type for any formals in the callee not supplied at the call site. */
     for (unsigned i = callsite->argumentCount; i < nargs; i++) {
-        TypeSet *types = TypeScript::ArgTypes(callee->script(), i);
+        TypeSet *types = TypeScript::ArgTypes(calleeScript, i);
         types->addType(cx, Type::UndefinedType());
     }
 
-    StackTypeSet *thisTypes = TypeScript::ThisTypes(callee->script());
-    HeapTypeSet *returnTypes = TypeScript::ReturnTypes(callee->script());
+    StackTypeSet *thisTypes = TypeScript::ThisTypes(calleeScript);
+    HeapTypeSet *returnTypes = TypeScript::ReturnTypes(calleeScript);
 
     if (callsite->isNew) {
         /*
@@ -1396,7 +1400,7 @@ TypeConstraintPropagateThis::newType(JSContext *cx, TypeSet *source, Type type)
     if (!callee->script()->ensureHasTypes(cx))
         return;
 
-    TypeSet *thisTypes = TypeScript::ThisTypes(callee->script());
+    TypeSet *thisTypes = TypeScript::ThisTypes(callee->script().unsafeGet());
     if (this->types)
         this->types->addSubset(cx, thisTypes);
     else
@@ -1698,6 +1702,8 @@ HeapTypeSet::HasObjectFlags(JSContext *cx, TypeObject *object, TypeObjectFlags f
 static inline void
 ObjectStateChange(JSContext *cx, TypeObject *object, bool markingUnknown, bool force)
 {
+    AutoAssertNoGC nogc;
+
     if (object->unknownProperties())
         return;
 
@@ -1991,7 +1997,7 @@ JITCodeHasCheck(HandleScript script, jsbytecode *pc, RecompileKind kind)
     }
 #endif
 
-    if (script->hasIonScript())
+    if (script->hasAnyIonScript())
         return false;
 
     return true;
@@ -2011,6 +2017,25 @@ AddPendingRecompile(JSContext *cx, HandleScript script, jsbytecode *pc,
      */
     if (!JITCodeHasCheck(script, pc, kind))
         cx->compartment->types.addPendingRecompile(cx, script, pc);
+
+    /*
+     * Remind Ion not to save the compile code if generating type
+     * inference information mid-compilation causes an invalidation of the
+     * script being compiled.
+     */
+    RecompileInfo& info = cx->compartment->types.compiledInfo;
+    if (info.outputIndex != RecompileInfo::NoCompilerRunning) {
+        CompilerOutput *co = info.compilerOutput(cx);
+        switch (co->kind()) {
+          case CompilerOutput::MethodJIT:
+            break;
+          case CompilerOutput::Ion:
+          case CompilerOutput::ParallelIon:
+            if (co->script == script)
+                co->invalidate();
+            break;
+        }
+    }
 
     /*
      * When one script is inlined into another the caller listens to state
@@ -2398,11 +2423,16 @@ TypeCompartment::processPendingRecompiles(FreeOp *fop)
 
     for (unsigned i = 0; i < pending->length(); i++) {
         CompilerOutput &co = *(*pending)[i].compilerOutput(*this);
-        if (co.isJM()) {
+        switch (co.kind()) {
+          case CompilerOutput::MethodJIT:
             JS_ASSERT(co.isValid());
             mjit::Recompiler::clearStackReferences(fop, co.script);
             co.mjit()->destroyChunk(fop, co.chunkIndex);
             JS_ASSERT(co.script == NULL);
+            break;
+          case CompilerOutput::Ion:
+          case CompilerOutput::ParallelIon:
+            break;
         }
     }
 
@@ -2499,7 +2529,7 @@ TypeCompartment::addPendingRecompile(JSContext *cx, const RecompileInfo &info)
     bool hasJITCode = jit && jit->chunkDescriptor(co->chunkIndex).chunk;
 
 # if defined(JS_ION)
-    hasJITCode |= !!co->script->hasIonScript();
+    hasJITCode |= !!co->script->hasAnyIonScript();
 # endif
 
     if (!hasJITCode) {
@@ -2534,6 +2564,7 @@ TypeCompartment::addPendingRecompile(JSContext *cx, const RecompileInfo &info)
 void
 TypeCompartment::addPendingRecompile(JSContext *cx, HandleScript script, jsbytecode *pc)
 {
+    AutoAssertNoGC nogc;
     JS_ASSERT(script);
     if (!constrainedOutputs)
         return;
@@ -2565,6 +2596,9 @@ TypeCompartment::addPendingRecompile(JSContext *cx, HandleScript script, jsbytec
 
     if (script->hasIonScript())
         addPendingRecompile(cx, script->ionScript()->recompileInfo());
+
+    if (script->hasParallelIonScript())
+        addPendingRecompile(cx, script->parallelIonScript()->recompileInfo());
 # endif
 #endif
 }
@@ -2573,6 +2607,8 @@ void
 TypeCompartment::monitorBytecode(JSContext *cx, HandleScript script, uint32_t offset,
                                  bool returnOnly)
 {
+    AutoAssertNoGC nogc;
+
     if (!script->ensureRanInference(cx))
         return;
 
@@ -3895,27 +3931,6 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset, TypeInferen
         poppedTypes(pc, 0)->addSubset(cx, &pushed[0]);
         break;
 
-      case JSOP_INCARG:
-      case JSOP_DECARG:
-      case JSOP_ARGINC:
-      case JSOP_ARGDEC:
-      case JSOP_INCLOCAL:
-      case JSOP_DECLOCAL:
-      case JSOP_LOCALINC:
-      case JSOP_LOCALDEC: {
-        uint32_t slot = GetBytecodeSlot(script_, pc);
-        if (trackSlot(slot)) {
-            poppedTypes(pc, 0)->addArith(cx, script, pc, &pushed[0]);
-        } else if (slot < TotalSlots(script_)) {
-            StackTypeSet *types = TypeScript::SlotTypes(script_, slot);
-            types->addArith(cx, script, pc, types);
-            types->addSubset(cx, &pushed[0]);
-        } else {
-            pushed[0].addType(cx, Type::UnknownType());
-        }
-        break;
-      }
-
       case JSOP_ARGUMENTS:
         /* Compute a precise type only when we know the arguments won't escape. */
         if (script_->needsArgsObj())
@@ -4499,25 +4514,6 @@ ScriptAnalysis::integerOperation(jsbytecode *pc)
     JS_ASSERT(uint32_t(pc - script_->code) < script_->length);
 
     switch (JSOp(*pc)) {
-
-      case JSOP_INCARG:
-      case JSOP_DECARG:
-      case JSOP_ARGINC:
-      case JSOP_ARGDEC:
-      case JSOP_INCLOCAL:
-      case JSOP_DECLOCAL:
-      case JSOP_LOCALINC:
-      case JSOP_LOCALDEC: {
-        if (pushedTypes(pc, 0)->getKnownTypeTag() != JSVAL_TYPE_INT32)
-            return false;
-        uint32_t slot = GetBytecodeSlot(script_, pc);
-        if (trackSlot(slot)) {
-            if (poppedTypes(pc, 0)->getKnownTypeTag() != JSVAL_TYPE_INT32)
-                return false;
-        }
-        return true;
-      }
-
       case JSOP_ADD:
       case JSOP_SUB:
       case JSOP_MUL:
@@ -5254,42 +5250,6 @@ TypeDynamicResult(JSContext *cx, HandleScript script, jsbytecode *pc, Type type)
         return;
     }
 
-    /*
-     * For inc/dec ops, we need to go back and reanalyze the affected opcode
-     * taking the overflow into account. We won't see an explicit adjustment
-     * of the type of the thing being inc/dec'ed, nor will adding TYPE_DOUBLE to
-     * the pushed value affect that type.
-     */
-    JSOp op = JSOp(*pc);
-    const JSCodeSpec *cs = &js_CodeSpec[op];
-    if (cs->format & (JOF_INC | JOF_DEC)) {
-        switch (op) {
-          case JSOP_INCLOCAL:
-          case JSOP_DECLOCAL:
-          case JSOP_LOCALINC:
-          case JSOP_LOCALDEC:
-          case JSOP_INCARG:
-          case JSOP_DECARG:
-          case JSOP_ARGINC:
-          case JSOP_ARGDEC: {
-            /*
-             * Just mark the slot's type as holding the new type. This captures
-             * the effect if the slot is not being tracked, and if the slot
-             * doesn't escape we will update the pushed types below to capture
-             * the slot's value after this write.
-             */
-            uint32_t slot = GetBytecodeSlot(script, pc);
-            if (slot < TotalSlots(script)) {
-                TypeSet *types = TypeScript::SlotTypes(script, slot);
-                types->addType(cx, type);
-            }
-            break;
-          }
-
-          default:;
-        }
-    }
-
     if (script->hasAnalysis() && script->analysis()->ranInference()) {
         /*
          * If the pushed set already has this type, we don't need to ensure
@@ -5568,7 +5528,7 @@ JSScript::makeAnalysis(JSContext *cx)
 /* static */ bool
 JSFunction::setTypeForScriptedFunction(JSContext *cx, HandleFunction fun, bool singleton)
 {
-    JS_ASSERT(fun->script());
+    JS_ASSERT(fun->script().unsafeGet());
     JS_ASSERT(fun->script()->function() == fun);
 
     if (!cx->typeInferenceEnabled())
@@ -6448,44 +6408,6 @@ TypeCompartment::maybePurgeAnalysis(JSContext *cx, bool force)
     }
 }
 
-inline size_t
-TypeSet::computedSizeOfExcludingThis()
-{
-    /*
-     * This memory is allocated within the temp pool (but accounted for
-     * elsewhere) so we can't use a JSMallocSizeOfFun to measure it.  We must
-     * compute its size analytically.
-     */
-    uint32_t count = baseObjectCount();
-    if (count >= 2)
-        return HashSetCapacity(count) * sizeof(TypeObject *);
-    return 0;
-}
-
-inline size_t
-TypeObject::computedSizeOfExcludingThis()
-{
-    /*
-     * This memory is allocated within the temp pool (but accounted for
-     * elsewhere) so we can't use a JSMallocSizeOfFun to measure it.  We must
-     * compute its size analytically.
-     */
-    size_t bytes = 0;
-
-    uint32_t count = basePropertyCount();
-    if (count >= 2)
-        bytes += HashSetCapacity(count) * sizeof(TypeObject *);
-
-    count = getPropertyCount();
-    for (unsigned i = 0; i < count; i++) {
-        Property *prop = getProperty(i);
-        if (prop)
-            bytes += sizeof(Property) + prop->types.computedSizeOfExcludingThis();
-    }
-
-    return bytes;
-}
-
 static void
 SizeOfScriptTypeInferenceData(RawScript script, TypeInferenceSizes *sizes,
                               JSMallocSizeOfFun mallocSizeOf)
@@ -6496,44 +6418,27 @@ SizeOfScriptTypeInferenceData(RawScript script, TypeInferenceSizes *sizes,
 
     /* If TI is disabled, a single TypeScript is still present. */
     if (!script->compartment()->types.inferenceEnabled) {
-        sizes->scripts += mallocSizeOf(typeScript);
+        sizes->typeScripts += mallocSizeOf(typeScript);
         return;
     }
 
-    unsigned count = TypeScript::NumTypeSets(script);
-    sizes->scripts += mallocSizeOf(typeScript);
+    sizes->typeScripts += mallocSizeOf(typeScript);
 
     TypeResult *result = typeScript->dynamicList;
     while (result) {
-        sizes->scripts += mallocSizeOf(result);
+        sizes->typeResults += mallocSizeOf(result);
         result = result->next;
-    }
-
-    /*
-     * This counts memory that is in the temp pool but gets attributed
-     * elsewhere.  See JS::SizeOfCompartmentTypeInferenceData for more details.
-     */
-    TypeSet *typeArray = typeScript->typeArray();
-    for (unsigned i = 0; i < count; i++) {
-        size_t bytes = typeArray[i].computedSizeOfExcludingThis();
-        sizes->scripts += bytes;
-        sizes->temporary -= bytes;
     }
 }
 
 void
 JSCompartment::sizeOfTypeInferenceData(TypeInferenceSizes *sizes, JSMallocSizeOfFun mallocSizeOf)
 {
-    /*
-     * Note: not all data in the pool is temporary, and some will survive GCs
-     * by being copied to the replacement pool. This memory will be counted
-     * elsewhere and deducted from the amount of temporary data.
-     */
-    sizes->temporary += analysisLifoAlloc.sizeOfExcludingThis(mallocSizeOf);
-    sizes->temporary += typeLifoAlloc.sizeOfExcludingThis(mallocSizeOf);
+    sizes->analysisPool += analysisLifoAlloc.sizeOfExcludingThis(mallocSizeOf);
+    sizes->typePool += typeLifoAlloc.sizeOfExcludingThis(mallocSizeOf);
 
     /* Pending arrays are cleared on GC along with the analysis pool. */
-    sizes->temporary += mallocSizeOf(types.pendingArray);
+    sizes->pendingArrays += mallocSizeOf(types.pendingArray);
 
     /* TypeCompartment::pendingRecompiles is non-NULL only while inference code is running. */
     JS_ASSERT(!types.pendingRecompiles);
@@ -6542,13 +6447,13 @@ JSCompartment::sizeOfTypeInferenceData(TypeInferenceSizes *sizes, JSMallocSizeOf
         SizeOfScriptTypeInferenceData(i.get<JSScript>(), sizes, mallocSizeOf);
 
     if (types.allocationSiteTable)
-        sizes->tables += types.allocationSiteTable->sizeOfIncludingThis(mallocSizeOf);
+        sizes->allocationSiteTables += types.allocationSiteTable->sizeOfIncludingThis(mallocSizeOf);
 
     if (types.arrayTypeTable)
-        sizes->tables += types.arrayTypeTable->sizeOfIncludingThis(mallocSizeOf);
+        sizes->arrayTypeTables += types.arrayTypeTable->sizeOfIncludingThis(mallocSizeOf);
 
     if (types.objectTypeTable) {
-        sizes->tables += types.objectTypeTable->sizeOfIncludingThis(mallocSizeOf);
+        sizes->objectTypeTables += types.objectTypeTable->sizeOfIncludingThis(mallocSizeOf);
 
         for (ObjectTypeTable::Enum e(*types.objectTypeTable);
              !e.empty();
@@ -6558,7 +6463,7 @@ JSCompartment::sizeOfTypeInferenceData(TypeInferenceSizes *sizes, JSMallocSizeOf
             const ObjectTableEntry &value = e.front().value;
 
             /* key.ids and values.types have the same length. */
-            sizes->tables += mallocSizeOf(key.ids) + mallocSizeOf(value.types);
+            sizes->objectTypeTables += mallocSizeOf(key.ids) + mallocSizeOf(value.types);
         }
     }
 }
@@ -6576,13 +6481,5 @@ TypeObject::sizeOfExcludingThis(TypeInferenceSizes *sizes, JSMallocSizeOfFun mal
         return;
     }
 
-    sizes->objects += mallocSizeOf(newScript);
-
-    /*
-     * This counts memory that is in the temp pool but gets attributed
-     * elsewhere.  See JSCompartment::sizeOfTypeInferenceData for more details.
-     */
-    size_t bytes = computedSizeOfExcludingThis();
-    sizes->objects += bytes;
-    sizes->temporary -= bytes;
+    sizes->typeObjects += mallocSizeOf(newScript);
 }

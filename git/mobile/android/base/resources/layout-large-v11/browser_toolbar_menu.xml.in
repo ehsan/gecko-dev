@@ -12,7 +12,8 @@
     <RelativeLayout android:id="@+id/address_bar"
                     style="@style/AddressBar">
 
-        <org.mozilla.gecko.BrowserToolbarBackground android:layout_width="fill_parent"
+        <org.mozilla.gecko.BrowserToolbarBackground android:id="@+id/address_bar_bg"
+                                                    android:layout_width="fill_parent"
                                                     android:layout_height="fill_parent"
                                                     android:layout_marginRight="75dip"
                                                     android:layout_alignParentTop="true"
@@ -70,7 +71,7 @@
                     android:layout_marginTop="6dp"
                     android:layout_marginBottom="6dp"
                     android:layout_marginRight="0dp"
-                    android:background="@drawable/address_bar_url"/>
+                    android:background="@drawable/address_bar_url_level"/>
 
             <ImageButton android:id="@+id/forward"
                          style="@style/AddressBar.ImageButton"
@@ -102,7 +103,7 @@
 
                 <ImageButton android:id="@+id/favicon"
                              style="@style/AddressBar.ImageButton"
-                             android:layout_width="29.33dip"
+                             android:layout_width="@dimen/browser_toolbar_favicon_size"
                              android:layout_height="fill_parent"
                              android:scaleType="fitCenter"
                              android:paddingLeft="8dip"

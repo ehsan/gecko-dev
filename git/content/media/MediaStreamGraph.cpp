@@ -226,9 +226,9 @@ public:
   void UpdateStreamOrderForStream(nsTArray<MediaStream*>* aStack,
                                   already_AddRefed<MediaStream> aStream);
   /**
-   * Compute aStream's mIsConsumed.
+   * Mark aStream and all its inputs (recursively) as consumed.
    */
-  static void DetermineWhetherStreamIsConsumed(MediaStream* aStream);
+  static void MarkConsumed(MediaStream* aStream);
   /**
    * Sort mStreams so that every stream not in a cycle is after any streams
    * it depends on, and every stream in a cycle is marked as being in a cycle.
@@ -527,7 +527,6 @@ MediaStreamGraphImpl::FinishStream(MediaStream* aStream)
 {
   if (aStream->mFinished)
     return;
-  printf("MediaStreamGraphImpl::FinishStream\n");
   LOG(PR_LOG_DEBUG, ("MediaStream %p will finish", aStream));
   aStream->mFinished = true;
   // Force at least one more iteration of the control loop, since we rely
@@ -588,7 +587,7 @@ MediaStreamGraphImpl::ExtractPendingInput(SourceMediaStream* aStream,
   bool finished;
   {
     MutexAutoLock lock(aStream->mMutex);
-    if (aStream->mPullEnabled) {
+    if (aStream->mPullEnabled && !aStream->mFinished) {
       for (uint32_t j = 0; j < aStream->mListeners.Length(); ++j) {
         MediaStreamListener* l = aStream->mListeners[j];
         {
@@ -886,23 +885,20 @@ MediaStreamGraphImpl::WillUnderrun(MediaStream* aStream, GraphTime aTime,
 }
 
 void
-MediaStreamGraphImpl::DetermineWhetherStreamIsConsumed(MediaStream* aStream)
+MediaStreamGraphImpl::MarkConsumed(MediaStream* aStream)
 {
-  if (aStream->mKnowIsConsumed)
-    return;
-  aStream->mKnowIsConsumed = true;
-  if (!aStream->mAudioOutputs.IsEmpty() ||
-      !aStream->mVideoOutputs.IsEmpty()) {
-    aStream->mIsConsumed = true;
+  if (aStream->mIsConsumed) {
     return;
   }
-  for (uint32_t i = 0; i < aStream->mConsumers.Length(); ++i) {
-    MediaStream* dest = aStream->mConsumers[i]->mDest;
-    DetermineWhetherStreamIsConsumed(dest);
-    if (dest->mIsConsumed) {
-      aStream->mIsConsumed = true;
-      return;
-    }
+  aStream->mIsConsumed = true;
+
+  ProcessedMediaStream* ps = aStream->AsProcessedStream();
+  if (!ps) {
+    return;
+  }
+  // Mark all the inputs to this stream as consumed
+  for (uint32_t i = 0; i < ps->mInputs.Length(); ++i) {
+    MarkConsumed(ps->mInputs[i]->mSource);
   }
 }
 
@@ -920,7 +916,6 @@ MediaStreamGraphImpl::UpdateStreamOrderForStream(nsTArray<MediaStream*>* aStack,
     }
     return;
   }
-  DetermineWhetherStreamIsConsumed(stream);
   ProcessedMediaStream* ps = stream->AsProcessedStream();
   if (ps) {
     aStack->AppendElement(stream);
@@ -948,7 +943,6 @@ MediaStreamGraphImpl::UpdateStreamOrder()
   for (uint32_t i = 0; i < oldStreams.Length(); ++i) {
     MediaStream* stream = oldStreams[i];
     stream->mHasBeenOrdered = false;
-    stream->mKnowIsConsumed = false;
     stream->mIsConsumed = false;
     stream->mIsOnOrderingStack = false;
     stream->mInBlockingSet = false;
@@ -960,8 +954,12 @@ MediaStreamGraphImpl::UpdateStreamOrder()
 
   nsAutoTArray<MediaStream*,10> stack;
   for (uint32_t i = 0; i < oldStreams.Length(); ++i) {
-    if (!oldStreams[i]->mHasBeenOrdered) {
-      UpdateStreamOrderForStream(&stack, oldStreams[i].forget());
+    nsRefPtr<MediaStream>& s = oldStreams[i];
+    if (!s->mAudioOutputs.IsEmpty() || !s->mVideoOutputs.IsEmpty()) {
+      MarkConsumed(s);
+    }
+    if (!s->mHasBeenOrdered) {
+      UpdateStreamOrderForStream(&stack, s.forget());
     }
   }
 }
@@ -1154,7 +1152,7 @@ MediaStreamGraphImpl::CreateOrDestroyAudioStreams(GraphTime aAudioOutputStartTim
           continue;
         }
 
-        // XXX allocating a nsAudioStream could be slow so we're going to have to do
+        // XXX allocating a AudioStream could be slow so we're going to have to do
         // something here ... preallocation, async allocation, multiplexing onto a single
         // stream ...
         AudioSegment* audio = tracks->Get<AudioSegment>();
@@ -1162,7 +1160,7 @@ MediaStreamGraphImpl::CreateOrDestroyAudioStreams(GraphTime aAudioOutputStartTim
           aStream->mAudioOutputStreams.AppendElement();
         audioOutputStream->mAudioPlaybackStartTime = aAudioOutputStartTime;
         audioOutputStream->mBlockedAudioTime = 0;
-        audioOutputStream->mStream = nsAudioStream::AllocateStream();
+        audioOutputStream->mStream = AudioStream::AllocateStream();
         audioOutputStream->mStream->Init(audio->GetChannels(),
                                          tracks->GetRate(), AUDIO_CHANNEL_NORMAL);
         audioOutputStream->mTrackID = tracks->GetID();
@@ -2016,11 +2014,14 @@ void
 SourceMediaStream::AppendToTrack(TrackID aID, MediaSegment* aSegment)
 {
   MutexAutoLock lock(mMutex);
-  TrackData *track = FindDataForTrack(aID);
-  if (track) {
-    track->mData->AppendFrom(aSegment);
-  } else {
-    NS_ERROR("Append to non-existent track!");
+  // ::EndAllTrackAndFinished() can end these before the sources notice
+  if (!mFinished) {
+    TrackData *track = FindDataForTrack(aID);
+    if (track) {
+      track->mData->AppendFrom(aSegment);
+    } else {
+      NS_ERROR("Append to non-existent track!");
+    }
   }
   if (!mDestroyed) {
     GraphImpl()->EnsureNextIteration();
@@ -2061,11 +2062,14 @@ void
 SourceMediaStream::EndTrack(TrackID aID)
 {
   MutexAutoLock lock(mMutex);
-  TrackData *track = FindDataForTrack(aID);
-  if (track) {
-    track->mCommands |= TRACK_END;
-  } else {
-    NS_ERROR("End of non-existant track");
+  // ::EndAllTrackAndFinished() can end these before the sources call this
+  if (!mFinished) {
+    TrackData *track = FindDataForTrack(aID);
+    if (track) {
+      track->mCommands |= TRACK_END;
+    } else {
+      NS_ERROR("End of non-existant track");
+    }
   }
   if (!mDestroyed) {
     GraphImpl()->EnsureNextIteration();
@@ -2083,13 +2087,26 @@ SourceMediaStream::AdvanceKnownTracksTime(StreamTime aKnownTime)
 }
 
 void
-SourceMediaStream::Finish()
+SourceMediaStream::FinishWithLockHeld()
 {
-  MutexAutoLock lock(mMutex);
   mUpdateFinished = true;
   if (!mDestroyed) {
     GraphImpl()->EnsureNextIteration();
   }
+}
+
+void
+SourceMediaStream::EndAllTrackAndFinish()
+{
+  {
+    MutexAutoLock lock(mMutex);
+    for (uint32_t i = 0; i < mUpdateTracks.Length(); ++i) {
+      SourceMediaStream::TrackData* data = &mUpdateTracks[i];
+      data->mCommands |= TRACK_END;
+    }
+  }
+  FinishWithLockHeld();
+  // we will call NotifyFinished() to let GetUserMedia know
 }
 
 void
@@ -2301,7 +2318,7 @@ MediaStreamGraph::GetInstance()
 }
 
 SourceMediaStream*
-MediaStreamGraph::CreateInputStream(nsDOMMediaStream* aWrapper)
+MediaStreamGraph::CreateSourceStream(nsDOMMediaStream* aWrapper)
 {
   SourceMediaStream* stream = new SourceMediaStream(aWrapper);
   NS_ADDREF(stream);

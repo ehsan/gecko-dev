@@ -295,23 +295,23 @@ Temporarily disabled in order to add access fields to gaia: See Bug 805646
   let expandedPerms = [];
 
   if (tableEntry.access && aAccess) {
-    let requestedSuffixes = [];
+  let requestedSuffixes = [];
     switch (aAccess) {
-      case READONLY:
-        requestedSuffixes.push("read");
-        break;
-      case CREATEONLY:
-        requestedSuffixes.push("create");
-        break;
-      case READCREATE:
-        requestedSuffixes.push("read", "create");
-        break;
-      case READWRITE:
-        requestedSuffixes.push("read", "create", "write");
-        break;
-      default:
-        return [];
-    }
+  case READONLY:
+    requestedSuffixes.push("read");
+    break;
+  case CREATEONLY:
+    requestedSuffixes.push("create");
+    break;
+  case READCREATE:
+    requestedSuffixes.push("read", "create");
+    break;
+  case READWRITE:
+    requestedSuffixes.push("read", "create", "write");
+    break;
+  default:
+    return [];
+  }
 
     // XXXbent This is a temporary hack! Remove this whole block once the
     //         Settings API and the DeviceStorage API have stopped checking just
@@ -325,7 +325,7 @@ Temporarily disabled in order to add access fields to gaia: See Bug 805646
       }
     }
 
-    let permArr = mapSuffixes(aPermName, requestedSuffixes);
+  let permArr = mapSuffixes(aPermName, requestedSuffixes);
 
     // Add the same suffix to each of the additions.
     if (tableEntry.additional) {
@@ -335,12 +335,12 @@ Temporarily disabled in order to add access fields to gaia: See Bug 805646
     }
 
     // Only add the suffixed version if the suffix exisits in the table.
-    for (let idx in permArr) {
+  for (let idx in permArr) {
       let suffix = requestedSuffixes[idx % requestedSuffixes.length];
       if (tableEntry.access.indexOf(suffix) != -1) {
-        expandedPerms.push(permArr[idx]);
-      }
+      expandedPerms.push(permArr[idx]);
     }
+  }
   } else if (tableEntry.substitute) {
     expandedPerms = expandedPerms.concat(tableEntry.substitute);
   } else {
@@ -472,12 +472,12 @@ this.PermissionsInstaller = {
    * @returns void
    **/
   _setPermission: function setPermission(aPerm, aValue, aApp) {
-    PermissionSettingsModule.addPermission({
-      type: aPerm,
-      origin: aApp.origin,
-      manifestURL: aApp.manifestURL,
-      value: aValue,
-      browserFlag: false
-    });
-  }
-}
+      PermissionSettingsModule.addPermission({
+        type: aPerm,
+        origin: aApp.origin,
+        manifestURL: aApp.manifestURL,
+        value: aValue,
+        browserFlag: false
+      });
+    }
+};

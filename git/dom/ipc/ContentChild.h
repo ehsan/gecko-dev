@@ -124,7 +124,6 @@ public:
     virtual bool RecvPTestShellConstructor(PTestShellChild*);
 
     virtual PAudioChild* AllocPAudio(const int32_t&,
-                                     const int32_t&,
                                      const int32_t&);
     virtual bool DeallocPAudio(PAudioChild*);
 

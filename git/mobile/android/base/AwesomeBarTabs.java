@@ -6,7 +6,10 @@
 package org.mozilla.gecko;
 
 import android.content.Context;
+import android.graphics.drawable.Drawable;
 import android.net.Uri;
+import android.support.v4.view.ViewPager;
+import android.support.v4.view.PagerAdapter;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -14,6 +17,7 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.inputmethod.InputMethodManager;
+import android.widget.LinearLayout;
 import android.widget.TabHost;
 import android.widget.TabWidget;
 import android.widget.TextView;
@@ -26,6 +30,9 @@ public class AwesomeBarTabs extends TabHost {
     private LayoutInflater mInflater;
     private OnUrlOpenListener mUrlOpenListener;
     private View.OnTouchListener mListTouchListener;
+    private boolean mSearching = false;
+    private ViewPager mViewPager;
+    private AwesomePagerAdapter mPagerAdapter;
     
     private AwesomeBarTab mTabs[];
 
@@ -39,9 +46,36 @@ public class AwesomeBarTabs extends TabHost {
         public void onEditSuggestion(String suggestion);
     }
 
+    private class AwesomePagerAdapter extends PagerAdapter {
+        public AwesomePagerAdapter() {
+            super();
+        }
+
+        public Object instantiateItem(ViewGroup group, int index) {
+            AwesomeBarTab tab = mTabs[index];
+            group.addView(tab.getView());
+            return tab;
+        }
+
+        public void destroyItem(ViewGroup group, int index, Object obj) {
+            AwesomeBarTab tab = (AwesomeBarTab)obj;
+            group.removeView(tab.getView());
+        }
+
+        public int getCount() {
+            if (mSearching)
+                return 1;
+            return mTabs.length;
+        }
+
+        public boolean isViewFromObject(View view, Object object) {
+            return getAwesomeBarTabForView(view) == object;
+        }
+    }
+
     private AwesomeBarTab getCurrentAwesomeBarTab() {
-        String tag = getCurrentTabTag();
-        return getAwesomeBarTabForTag(tag);
+        int index = mViewPager.getCurrentItem();
+        return mTabs[index];
     }
 
     public AwesomeBarTab getAwesomeBarTabForView(View view) {
@@ -51,7 +85,7 @@ public class AwesomeBarTabs extends TabHost {
 
     public AwesomeBarTab getAwesomeBarTabForTag(String tag) {
         for (AwesomeBarTab tab : mTabs) {
-            if (tag == tab.getTag()) {
+            if (tag.equals(tab.getTag())) {
                 return tab;
             }
         }
@@ -105,24 +139,39 @@ public class AwesomeBarTabs extends TabHost {
             new HistoryTab(mContext)
         };
 
-        for (AwesomeBarTab tab : mTabs) {
-            addAwesomeTab(tab);
-        }
+        final TabWidget tabWidget = (TabWidget) findViewById(android.R.id.tabs);
+        // hide the strip since we aren't using the TabHost...
+        tabWidget.setStripEnabled(false);
 
-        styleSelectedTab();
-
-         setOnTabChangedListener(new TabHost.OnTabChangeListener() {
-             public void onTabChanged(String tabId) {
-                 styleSelectedTab();
+        mViewPager = (ViewPager) findViewById(R.id.tabviewpager);
+        mPagerAdapter = new AwesomePagerAdapter();
+        mViewPager.setAdapter(mPagerAdapter);
+        mViewPager.setCurrentItem(0);
+        mViewPager.setOnPageChangeListener(new ViewPager.OnPageChangeListener() {
+            public void onPageScrollStateChanged(int state) { }
+            public void onPageScrolled(int position, float positionOffset, int positionOffsetPixels) { }
+            public void onPageSelected(int position) {
+                tabWidget.setCurrentTab(position);
+                styleSelectedTab();
              }
          });
+
+        for (int i = 0; i < mTabs.length; i++) {
+            addAwesomeTab(mTabs[i].getTag(),
+                          mTabs[i].getTitleStringId(),
+                          i);
+        }
+
+        tabWidget.setCurrentTab(0);
+
+        styleSelectedTab();
 
         // Initialize "App Pages" list with no filter
         filter("");
     }
 
     private void styleSelectedTab() {
-        int selIndex = getCurrentTab();
+        int selIndex = mViewPager.getCurrentItem();
         TabWidget tabWidget = getTabWidget();
         for (int i = 0; i < tabWidget.getTabCount(); i++) {
              if (i == selIndex)
@@ -148,23 +197,21 @@ public class AwesomeBarTabs extends TabHost {
     }
 
 
-    private void addAwesomeTab(AwesomeBarTab tab) {
-        TabSpec tabspec = getTabSpec(tab.getTag(), tab.getTitleStringId());
-        tabspec.setContent(tab.getFactory());
-        addTab(tabspec);
-        tab.setListTouchListener(mListTouchListener);
- 
-        return;
-    }
-
-    private TabSpec getTabSpec(String id, int titleId) {
-        TabSpec tab = newTabSpec(id);
-
+    private View addAwesomeTab(String id, int titleId, final int contentId) {
         TextView indicatorView = (TextView) mInflater.inflate(R.layout.awesomebar_tab_indicator, null);
         indicatorView.setText(titleId);
 
-        tab.setIndicator(indicatorView);
-        return tab;
+        getTabWidget().addView(indicatorView);
+
+        // this MUST be done after tw.addView to overwrite the listener added by tabWidget
+        // which delegates to TabHost (which we don't have)
+        indicatorView.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                mViewPager.setCurrentItem(contentId, true);
+            }
+        });
+
+        return indicatorView;
     }
 
     private boolean hideSoftInput(View view) {
@@ -211,7 +258,10 @@ public class AwesomeBarTabs extends TabHost {
         setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
 
         // The tabs should only be visible if there's no on-going search
-        int tabsVisibility = (searchTerm.length() == 0 ? View.VISIBLE : View.GONE);
+        mSearching = searchTerm.length() != 0;
+        // reset the pager adapter to force repopulating the cache
+        mViewPager.setAdapter(mPagerAdapter);
+        int tabsVisibility = !mSearching ? View.VISIBLE : View.GONE;
         findViewById(R.id.tab_widget_container).setVisibility(tabsVisibility);
 
         // Perform the actual search
@@ -220,5 +270,59 @@ public class AwesomeBarTabs extends TabHost {
 
     public boolean isInReadingList() {
         return getBookmarksTab().isInReadingList();
+    }
+
+    public static class Background extends LinearLayout
+                                   implements LightweightTheme.OnChangeListener { 
+        private GeckoActivity mActivity;
+
+        public Background(Context context, AttributeSet attrs) {
+            super(context, attrs);
+            mActivity = (GeckoActivity) context;
+        }
+
+        @Override
+        public void onAttachedToWindow() {
+            super.onAttachedToWindow();
+            mActivity.getLightweightTheme().addListener(this);
+        }
+
+        @Override
+        public void onDetachedFromWindow() {
+            super.onDetachedFromWindow();
+            mActivity.getLightweightTheme().removeListener(this);
+        }
+
+        @Override
+        public void onLightweightThemeChanged() {
+            Drawable drawable = mActivity.getLightweightTheme().getDrawableWithAlpha(this, 255, 0);
+            if (drawable == null)
+                return;
+
+            int[] padding =  new int[] { getPaddingLeft(),
+                                         getPaddingTop(),
+                                         getPaddingRight(),
+                                         getPaddingBottom()
+                                       };
+            setBackgroundDrawable(drawable);
+            setPadding(padding[0], padding[1], padding[2], padding[3]);
+        }
+
+        @Override
+        public void onLightweightThemeReset() {
+            int[] padding =  new int[] { getPaddingLeft(),
+                                         getPaddingTop(),
+                                         getPaddingRight(),
+                                         getPaddingBottom()
+                                       };
+            setBackgroundResource(R.drawable.abouthome_bg_repeat);
+            setPadding(padding[0], padding[1], padding[2], padding[3]);
+        }
+
+        @Override
+        protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
+            super.onLayout(changed, left, top, right, bottom);
+            onLightweightThemeChanged();
+        }
     }
 }

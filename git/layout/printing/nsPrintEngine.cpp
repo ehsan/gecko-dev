@@ -146,8 +146,15 @@ using namespace mozilla::dom;
 
 #define DUMP_LAYOUT_LEVEL 9 // this turns on the dumping of each doucment's layout info
 
-static PRLogModuleInfo * kPrintingLogMod = PR_NewLogModule("printing");
-#define PR_PL(_p1)  PR_LOG(kPrintingLogMod, PR_LOG_DEBUG, _p1);
+static PRLogModuleInfo *
+GetPrintingLog()
+{
+  static PRLogModuleInfo *sLog;
+  if (!sLog)
+    sLog = PR_NewLogModule("printing");
+  return sLog;
+}
+#define PR_PL(_p1)  PR_LOG(GetPrintingLog(), PR_LOG_DEBUG, _p1);
 
 #ifdef EXTENDED_DEBUG_PRINTING
 static uint32_t gDumpFileNameCnt   = 0;
@@ -2376,7 +2383,7 @@ GetEqualNodeInCloneTree(nsIDOMNode* aNode, nsIDocument* aDoc)
   nsINode* current = node;
   NS_ENSURE_TRUE(current, nullptr);
   while (current) {
-    nsINode* parent = current->GetNodeParent();
+    nsINode* parent = current->GetParentNode();
     if (!parent) {
      break;
     }

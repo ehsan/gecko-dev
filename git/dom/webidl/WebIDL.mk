@@ -13,27 +13,38 @@ webidl_files = \
   AudioBufferSourceNode.webidl \
   AudioContext.webidl \
   AudioDestinationNode.webidl \
+  AudioListener.webidl \
   AudioNode.webidl \
+  AudioParam.webidl \
   AudioSourceNode.webidl \
+  BiquadFilterNode.webidl \
   Blob.webidl \
   CanvasRenderingContext2D.webidl \
   ClientRectList.webidl \
   CSSStyleDeclaration.webidl \
+  DelayNode.webidl \
+  DOMImplementation.webidl \
   DOMTokenList.webidl \
   DOMSettableTokenList.webidl \
-  Function.webidl \
+  DOMStringMap.webidl \
+  DynamicsCompressorNode.webidl \
+  EventHandler.webidl \
   EventListener.webidl \
   EventTarget.webidl \
   FileList.webidl \
   FileReaderSync.webidl \
+  GainNode.webidl \
   HTMLCollection.webidl \
   HTMLOptionsCollection.webidl \
   HTMLPropertiesCollection.webidl \
+  ImageData.webidl \
   NodeList.webidl \
   PaintRequestList.webidl \
+  PannerNode.webidl \
   Performance.webidl \
   PerformanceNavigation.webidl \
   PerformanceTiming.webidl \
+  Screen.webidl \
   SVGLengthList.webidl \
   SVGNumberList.webidl \
   SVGPathSegList.webidl \
@@ -41,6 +52,7 @@ webidl_files = \
   SVGTransformList.webidl \
   TextDecoder.webidl \
   TextEncoder.webidl \
+  URL.webidl \
   WebSocket.webidl \
   XMLHttpRequest.webidl \
   XMLHttpRequestEventTarget.webidl \
@@ -50,6 +62,12 @@ webidl_files = \
 ifdef MOZ_WEBGL
 webidl_files += \
   WebGLRenderingContext.webidl \
+  $(NULL)
+endif
+
+ifdef MOZ_WEBRTC
+webidl_files += \
+  MediaStreamList.webidl \
   $(NULL)
 endif
 
@@ -63,6 +81,7 @@ ifdef ENABLE_TESTS
 test_webidl_files := \
   TestCodeGen.webidl \
   TestDictionary.webidl \
+  TestExampleGen.webidl \
   TestTypedef.webidl \
   $(NULL)
 else

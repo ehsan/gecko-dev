@@ -17,7 +17,6 @@ interface HitRegionOptions;
 interface HTMLCanvasElement;
 interface HTMLImageElement;
 interface HTMLVideoElement;
-interface ImageData;
 interface TextMetrics;
 interface Window;
 interface XULElement;
@@ -144,6 +143,8 @@ interface CanvasRenderingContext2D {
   // image smoothing mode -- if disabled, images won't be smoothed
   // if scaled.
   attribute boolean mozImageSmoothingEnabled;
+
+  boolean mozIsPointInStroke(double x, double y);
 
   // Show the caret if appropriate when drawing
   [ChromeOnly]

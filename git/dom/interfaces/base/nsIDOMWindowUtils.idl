@@ -40,7 +40,7 @@ interface nsIDOMTouch;
 interface nsIDOMClientRect;
 interface nsIURI;
 
-[scriptable, uuid(ed36f965-173c-4101-a615-63b44f51ed90 )]
+[scriptable, uuid(C98B7275-93C4-4EAD-B7CF-573D872C1071)]
 interface nsIDOMWindowUtils : nsISupports {
 
   /**
@@ -173,6 +173,8 @@ interface nsIDOMWindowUtils : nsISupports {
    * privileges.
    */
   void setResolution(in float aXResolution, in float aYResolution);
+
+  void getResolution(out float aXResolution, out float aYResolution);
 
   /**
    * Whether the next paint should be flagged as the first paint for a document.
@@ -1257,6 +1259,7 @@ interface nsIDOMWindowUtils : nsISupports {
 
   const unsigned long AGENT_SHEET = 0;
   const unsigned long USER_SHEET = 1;
+  const unsigned long AUTHOR_SHEET = 2;
   /**
    * Synchronously loads a style sheet from |sheetURI| and adds it to the list
    * of additional style sheets of the document.

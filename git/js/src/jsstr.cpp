@@ -1673,8 +1673,8 @@ static bool
 DoMatch(JSContext *cx, RegExpStatics *res, JSString *str, RegExpShared &re,
         DoMatchCallback callback, void *data, MatchControlFlags flags, Value *rval)
 {
-    Rooted<JSLinearString*> linearStr(cx, str->ensureLinear(cx));
-    if (!linearStr)
+    Rooted<JSStableString*> stableStr(cx, str->ensureStable(cx));
+    if (!stableStr)
         return false;
 
     if (re.global()) {
@@ -1683,10 +1683,10 @@ DoMatch(JSContext *cx, RegExpStatics *res, JSString *str, RegExpShared &re,
             if (!JS_CHECK_OPERATION_LIMIT(cx))
                 return false;
 
-            const jschar *chars = linearStr->chars();
-            size_t charsLen = linearStr->length();
+            StableCharPtr chars = stableStr->chars();
+            size_t charsLen = stableStr->length();
 
-            if (!ExecuteRegExp(cx, res, re, linearStr, chars, charsLen, &i, type, rval))
+            if (!ExecuteRegExp(cx, res, re, stableStr, chars, charsLen, &i, type, rval))
                 return false;
             if (!Matched(type, *rval))
                 break;
@@ -1696,13 +1696,13 @@ DoMatch(JSContext *cx, RegExpStatics *res, JSString *str, RegExpShared &re,
                 ++i;
         }
     } else {
-        const jschar *chars = linearStr->chars();
-        size_t charsLen = linearStr->length();
+        StableCharPtr chars = stableStr->chars();
+        size_t charsLen = stableStr->length();
 
         RegExpExecType type = (flags & TEST_SINGLE_BIT) ? RegExpTest : RegExpExec;
         bool callbackOnSingle = !!(flags & CALLBACK_ON_SINGLE_BIT);
         size_t i = 0;
-        if (!ExecuteRegExp(cx, res, re, linearStr, chars, charsLen, &i, type, rval))
+        if (!ExecuteRegExp(cx, res, re, stableStr, chars, charsLen, &i, type, rval))
             return false;
         if (callbackOnSingle && Matched(type, *rval) && !callback(cx, res, 0, data))
             return false;
@@ -1819,18 +1819,18 @@ js::str_search(JSContext *cx, unsigned argc, Value *vp)
     if (!g.normalizeRegExp(cx, false, 1, args))
         return false;
 
-    JSLinearString *linearStr = str->ensureLinear(cx);
-    if (!linearStr)
+    Rooted<JSStableString*> stableStr(cx, str->ensureStable(cx));
+    if (!stableStr)
         return false;
 
-    const jschar *chars = linearStr->chars();
-    size_t length = linearStr->length();
+    StableCharPtr chars = stableStr->chars();
+    size_t length = stableStr->length();
     RegExpStatics *res = cx->regExpStatics();
 
     /* Per ECMAv5 15.5.4.12 (5) The last index property is ignored and left unchanged. */
     size_t i = 0;
     Value result;
-    if (!ExecuteRegExp(cx, res, g.regExp(), linearStr, chars, length, &i, RegExpTest, &result))
+    if (!ExecuteRegExp(cx, res, g.regExp(), stableStr, chars, length, &i, RegExpTest, &result))
         return false;
 
     if (result.isTrue())
@@ -2360,6 +2360,8 @@ static const uint32_t ReplaceOptArg = 2;
 static JSObject *
 LambdaIsGetElem(JSObject &lambda)
 {
+    AutoAssertNoGC nogc;
+
     if (!lambda.isFunction())
         return NULL;
 
@@ -2367,7 +2369,7 @@ LambdaIsGetElem(JSObject &lambda)
     if (!fun->isInterpreted())
         return NULL;
 
-    JSScript *script = fun->script();
+    RawScript script = fun->script().get(nogc);
     jsbytecode *pc = script->code;
 
     /*
@@ -2443,8 +2445,8 @@ js::str_replace(JSContext *cx, unsigned argc, Value *vp)
         JSStableString *stable = rdata.repstr->ensureStable(cx);
         if (!stable)
             return false;
-        rdata.dollarEnd = stable->chars() + stable->length();
-        rdata.dollar = js_strchr_limit(stable->chars(), '$', rdata.dollarEnd);
+        rdata.dollarEnd = stable->chars().get() + stable->length();
+        rdata.dollar = js_strchr_limit(stable->chars().get(), '$', rdata.dollarEnd);
     }
 
     rdata.fig.initFunction(ObjectOrNullValue(rdata.lambda));
@@ -2512,7 +2514,7 @@ class SplitMatchResult {
 
 template<class Matcher>
 static JSObject *
-SplitHelper(JSContext *cx, Handle<JSLinearString*> str, uint32_t limit, const Matcher &splitMatch,
+SplitHelper(JSContext *cx, Handle<JSStableString*> str, uint32_t limit, const Matcher &splitMatch,
             Handle<TypeObject*> type)
 {
     size_t strLength = str->length();
@@ -2654,11 +2656,12 @@ class SplitRegExpMatcher
 
     static const bool returnsCaptures = true;
 
-    bool operator()(JSContext *cx, JSLinearString *str, size_t index,
+    bool operator()(JSContext *cx, Handle<JSStableString*> str, size_t index,
                     SplitMatchResult *result) const
     {
+        AssertCanGC();
         Value rval = UndefinedValue();
-        const jschar *chars = str->chars();
+        StableCharPtr chars = str->chars();
         size_t length = str->length();
         if (!ExecuteRegExp(cx, res, re, str, chars, length, &index, RegExpTest, &rval))
             return false;
@@ -2687,6 +2690,7 @@ class SplitStringMatcher
 
     bool operator()(JSContext *cx, JSLinearString *str, size_t index, SplitMatchResult *res) const
     {
+        AutoAssertNoGC nogc;
         JS_ASSERT(index == 0 || index < str->length());
         const jschar *chars = str->chars();
         int match = StringMatch(chars + index, str->length() - index,
@@ -2753,26 +2757,26 @@ js::str_split(JSContext *cx, unsigned argc, Value *vp)
 
     /* Step 10. */
     if (!sepDefined) {
-        Value v = StringValue(str);
-        JSObject *aobj = NewDenseCopiedArray(cx, 1, &v);
+        RootedValue v(cx, StringValue(str));
+        JSObject *aobj = NewDenseCopiedArray(cx, 1, v.address());
         if (!aobj)
             return false;
         aobj->setType(type);
         args.rval().setObject(*aobj);
         return true;
     }
-    Rooted<JSLinearString*> strlin(cx, str->ensureLinear(cx));
-    if (!strlin)
+    Rooted<JSStableString*> stableStr(cx, str->ensureStable(cx));
+    if (!stableStr)
         return false;
 
     /* Steps 11-15. */
     JSObject *aobj;
     if (!re.initialized()) {
         SplitStringMatcher matcher(cx, sepstr);
-        aobj = SplitHelper(cx, strlin, limit, matcher, type);
+        aobj = SplitHelper(cx, stableStr, limit, matcher, type);
     } else {
         SplitRegExpMatcher matcher(*re, cx->regExpStatics());
-        aobj = SplitHelper(cx, strlin, limit, matcher, type);
+        aobj = SplitHelper(cx, stableStr, limit, matcher, type);
     }
     if (!aobj)
         return false;
@@ -3293,23 +3297,11 @@ NewShortString(JSContext *cx, const char *chars, size_t length)
     if (!str)
         return NULL;
 
-    jschar *storage = str->init(length);
-    if (js_CStringsAreUTF8) {
-#ifdef DEBUG
-        size_t oldLength = length;
-#endif
-        if (!InflateUTF8StringToBuffer(cx, chars, length, storage, &length))
-            return NULL;
-        JS_ASSERT(length <= oldLength);
-        storage[length] = 0;
-        str->resetLength(length);
-    } else {
-        size_t n = length;
-        jschar *p = storage;
-        while (n--)
-            *p++ = (unsigned char)*chars++;
-        *p = 0;
-    }
+    size_t n = length;
+    jschar *p = str->init(length);
+    while (n--)
+        *p++ = (unsigned char)*chars++;
+    *p = 0;
     Probes::createString(cx, str, length);
     return str;
 }
@@ -3611,7 +3603,34 @@ js_strchr_limit(const jschar *s, jschar c, const jschar *limit)
 namespace js {
 
 jschar *
-InflateString(JSContext *cx, const char *bytes, size_t *lengthp, FlationCoding fc)
+InflateString(JSContext *cx, const char *bytes, size_t *lengthp)
+{
+    AssertCanGC();
+    size_t nchars;
+    jschar *chars;
+    size_t nbytes = *lengthp;
+
+    nchars = nbytes;
+    chars = cx->pod_malloc<jschar>(nchars + 1);
+    if (!chars)
+        goto bad;
+    for (size_t i = 0; i < nchars; i++)
+        chars[i] = (unsigned char) bytes[i];
+    *lengthp = nchars;
+    chars[nchars] = 0;
+    return chars;
+
+  bad:
+    /*
+     * For compatibility with callers of JS_DecodeBytes we must zero lengthp
+     * on errors.
+     */
+    *lengthp = 0;
+    return NULL;
+}
+
+jschar *
+InflateUTF8String(JSContext *cx, const char *bytes, size_t *lengthp)
 {
     AssertCanGC();
     size_t nchars;
@@ -3621,21 +3640,12 @@ InflateString(JSContext *cx, const char *bytes, size_t *lengthp, FlationCoding f
     // Malformed UTF8 chars could trigger errors and hence GC
     MaybeCheckStackRoots(cx);
 
-    if (js_CStringsAreUTF8 || fc == CESU8Encoding) {
-        if (!InflateUTF8StringToBuffer(cx, bytes, nbytes, NULL, &nchars, fc))
-            goto bad;
-        chars = cx->pod_malloc<jschar>(nchars + 1);
-        if (!chars)
-            goto bad;
-        JS_ALWAYS_TRUE(InflateUTF8StringToBuffer(cx, bytes, nbytes, chars, &nchars, fc));
-    } else {
-        nchars = nbytes;
-        chars = cx->pod_malloc<jschar>(nchars + 1);
-        if (!chars)
-            goto bad;
-        for (size_t i = 0; i < nchars; i++)
-            chars[i] = (unsigned char) bytes[i];
-    }
+    if (!InflateUTF8StringToBuffer(cx, bytes, nbytes, NULL, &nchars))
+        goto bad;
+    chars = cx->pod_malloc<jschar>(nchars + 1);
+    if (!chars)
+        goto bad;
+    JS_ALWAYS_TRUE(InflateUTF8StringToBuffer(cx, bytes, nbytes, chars, &nchars));
     *lengthp = nchars;
     chars[nchars] = 0;
     return chars;
@@ -3653,27 +3663,17 @@ InflateString(JSContext *cx, const char *bytes, size_t *lengthp, FlationCoding f
  * May be called with null cx.
  */
 char *
-DeflateString(JSContext *cx, const jschar *chars, size_t nchars)
+DeflateString(JSContext *maybecx, const jschar *chars, size_t nchars)
 {
-    size_t nbytes, i;
-    char *bytes;
-
-    if (js_CStringsAreUTF8) {
-        nbytes = GetDeflatedStringLength(cx, chars, nchars);
-        if (nbytes == (size_t) -1)
-            return NULL;
-        bytes = (char *) (cx ? cx->malloc_(nbytes + 1) : js_malloc(nbytes + 1));
-        if (!bytes)
-            return NULL;
-        JS_ALWAYS_TRUE(DeflateStringToBuffer(cx, chars, nchars, bytes, &nbytes));
-    } else {
-        nbytes = nchars;
-        bytes = (char *) (cx ? cx->malloc_(nbytes + 1) : js_malloc(nbytes + 1));
-        if (!bytes)
-            return NULL;
-        for (i = 0; i < nbytes; i++)
-            bytes[i] = (char) chars[i];
-    }
+    AutoAssertNoGC nogc;
+    size_t nbytes = nchars;
+    char *bytes = maybecx
+                  ? maybecx->pod_malloc<char>(nbytes + 1)
+                  : js_pod_malloc<char>(nbytes + 1);
+    if (!bytes)
+        return NULL;
+    for (size_t i = 0; i < nbytes; i++)
+        bytes[i] = (char) chars[i];
     bytes[nbytes] = 0;
     return bytes;
 }
@@ -3681,172 +3681,46 @@ DeflateString(JSContext *cx, const jschar *chars, size_t nchars)
 size_t
 GetDeflatedStringLength(JSContext *cx, const jschar *chars, size_t nchars)
 {
-    if (!js_CStringsAreUTF8)
-        return nchars;
-
-    return GetDeflatedUTF8StringLength(cx, chars, nchars);
-}
-
-/*
- * May be called with null cx through public API, see below.
- */
-size_t
-GetDeflatedUTF8StringLength(JSContext *cx, const jschar *chars,
-                                size_t nchars, FlationCoding fc)
-{
-    size_t nbytes;
-    const jschar *end;
-    unsigned c, c2;
-    char buffer[10];
-    bool useCESU8 = fc == CESU8Encoding;
-
-    nbytes = nchars;
-    for (end = chars + nchars; chars != end; chars++) {
-        c = *chars;
-        if (c < 0x80)
-            continue;
-        if (0xD800 <= c && c <= 0xDFFF && !useCESU8) {
-            /* Surrogate pair. */
-            chars++;
-
-            /* nbytes sets 1 length since this is surrogate pair. */
-            nbytes--;
-            if (c >= 0xDC00 || chars == end)
-                goto bad_surrogate;
-            c2 = *chars;
-            if (c2 < 0xDC00 || c2 > 0xDFFF)
-                goto bad_surrogate;
-            c = ((c - 0xD800) << 10) + (c2 - 0xDC00) + 0x10000;
-        }
-        c >>= 11;
-        nbytes++;
-        while (c) {
-            c >>= 5;
-            nbytes++;
-        }
-    }
-    return nbytes;
-
-  bad_surrogate:
-    if (cx) {
-        JS_snprintf(buffer, 10, "0x%x", c);
-        JS_ReportErrorFlagsAndNumber(cx, JSREPORT_ERROR, js_GetErrorMessage,
-                                     NULL, JSMSG_BAD_SURROGATE_CHAR, buffer);
-    }
-    return (size_t) -1;
+    return nchars;
 }
 
 bool
-DeflateStringToBuffer(JSContext *cx, const jschar *src, size_t srclen,
+DeflateStringToBuffer(JSContext *maybecx, const jschar *src, size_t srclen,
                           char *dst, size_t *dstlenp)
 {
-    size_t dstlen, i;
-
-    dstlen = *dstlenp;
-    if (!js_CStringsAreUTF8) {
-        if (srclen > dstlen) {
-            for (i = 0; i < dstlen; i++)
-                dst[i] = (char) src[i];
-            if (cx) {
-                JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
-                                     JSMSG_BUFFER_TOO_SMALL);
-            }
-            return JS_FALSE;
-        }
-        for (i = 0; i < srclen; i++)
-            dst[i] = (char) src[i];
-        *dstlenp = srclen;
-        return JS_TRUE;
-    }
-
-    return DeflateStringToUTF8Buffer(cx, src, srclen, dst, dstlenp);
-}
-
-bool
-DeflateStringToUTF8Buffer(JSContext *cx, const jschar *src, size_t srclen,
-                              char *dst, size_t *dstlenp, FlationCoding fc)
-{
-    size_t i, utf8Len;
-    jschar c, c2;
-    uint32_t v;
-    uint8_t utf8buf[6];
-
-    bool useCESU8 = fc == CESU8Encoding;
     size_t dstlen = *dstlenp;
-    size_t origDstlen = dstlen;
-
-    while (srclen) {
-        c = *src++;
-        srclen--;
-        if ((c >= 0xDC00) && (c <= 0xDFFF) && !useCESU8)
-            goto badSurrogate;
-        if (c < 0xD800 || c > 0xDBFF || useCESU8) {
-            v = c;
-        } else {
-            if (srclen < 1)
-                goto badSurrogate;
-            c2 = *src;
-            if ((c2 < 0xDC00) || (c2 > 0xDFFF))
-                goto badSurrogate;
-            src++;
-            srclen--;
-            v = ((c - 0xD800) << 10) + (c2 - 0xDC00) + 0x10000;
+    if (srclen > dstlen) {
+        for (size_t i = 0; i < dstlen; i++)
+            dst[i] = (char) src[i];
+        if (maybecx) {
+            JS_ReportErrorNumber(maybecx, js_GetErrorMessage, NULL,
+                                 JSMSG_BUFFER_TOO_SMALL);
         }
-        if (v < 0x0080) {
-            /* no encoding necessary - performance hack */
-            if (dstlen == 0)
-                goto bufferTooSmall;
-            *dst++ = (char) v;
-            utf8Len = 1;
-        } else {
-            utf8Len = js_OneUcs4ToUtf8Char(utf8buf, v);
-            if (utf8Len > dstlen)
-                goto bufferTooSmall;
-            for (i = 0; i < utf8Len; i++)
-                *dst++ = (char) utf8buf[i];
-        }
-        dstlen -= utf8Len;
+        return JS_FALSE;
     }
-    *dstlenp = (origDstlen - dstlen);
+    for (size_t i = 0; i < srclen; i++)
+        dst[i] = (char) src[i];
+    *dstlenp = srclen;
     return JS_TRUE;
-
-badSurrogate:
-    *dstlenp = (origDstlen - dstlen);
-    /* Delegate error reporting to the measurement function. */
-    if (cx)
-        GetDeflatedStringLength(cx, src - 1, srclen + 1);
-    return JS_FALSE;
-
-bufferTooSmall:
-    *dstlenp = (origDstlen - dstlen);
-    if (cx) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
-                             JSMSG_BUFFER_TOO_SMALL);
-    }
-    return JS_FALSE;
 }
 
+
 bool
-InflateStringToBuffer(JSContext *cx, const char *src, size_t srclen,
+InflateStringToBuffer(JSContext *maybecx, const char *src, size_t srclen,
                           jschar *dst, size_t *dstlenp)
 {
-    size_t dstlen, i;
-
-    if (js_CStringsAreUTF8)
-        return InflateUTF8StringToBuffer(cx, src, srclen, dst, dstlenp);
-
     if (dst) {
-        dstlen = *dstlenp;
+        size_t dstlen = *dstlenp;
         if (srclen > dstlen) {
-            for (i = 0; i < dstlen; i++)
+            for (size_t i = 0; i < dstlen; i++)
                 dst[i] = (unsigned char) src[i];
-            if (cx) {
-                JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
+            if (maybecx) {
+                JS_ReportErrorNumber(maybecx, js_GetErrorMessage, NULL,
                                      JSMSG_BUFFER_TOO_SMALL);
             }
             return JS_FALSE;
         }
-        for (i = 0; i < srclen; i++)
+        for (size_t i = 0; i < srclen; i++)
             dst[i] = (unsigned char) src[i];
     }
     *dstlenp = srclen;
@@ -3855,7 +3729,7 @@ InflateStringToBuffer(JSContext *cx, const char *src, size_t srclen,
 
 bool
 InflateUTF8StringToBuffer(JSContext *cx, const char *src, size_t srclen,
-                              jschar *dst, size_t *dstlenp, FlationCoding fc)
+                              jschar *dst, size_t *dstlenp)
 {
     size_t dstlen, origDstlen, offset, j, n;
     uint32_t v;
@@ -3863,7 +3737,6 @@ InflateUTF8StringToBuffer(JSContext *cx, const char *src, size_t srclen,
     dstlen = dst ? *dstlenp : (size_t) -1;
     origDstlen = dstlen;
     offset = 0;
-    bool useCESU8 = fc == CESU8Encoding;
 
     while (srclen) {
         v = (uint8_t) *src;
@@ -3880,7 +3753,7 @@ InflateUTF8StringToBuffer(JSContext *cx, const char *src, size_t srclen,
                     goto badCharacter;
             }
             v = Utf8ToOneUcs4Char((uint8_t *)src, n);
-            if (v >= 0x10000 && !useCESU8) {
+            if (v >= 0x10000) {
                 v -= 0x10000;
                 if (v > 0xFFFFF || dstlen < 2) {
                     *dstlenp = (origDstlen - dstlen);

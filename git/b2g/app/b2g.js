@@ -83,12 +83,6 @@ pref("browser.download.manager.focusWhenStarting", false);
 pref("browser.download.manager.flashCount", 2);
 pref("browser.download.manager.displayedHistoryDays", 7);
 
-/* download alerts (disabled above) */
-pref("alerts.slideIncrement", 1);
-pref("alerts.slideIncrementTime", 10);
-pref("alerts.totalOpenTime", 6000);
-pref("alerts.height", 50);
-
 /* download helper */
 pref("browser.helperApps.deleteTempFileOnExit", false);
 
@@ -264,7 +258,7 @@ pref("media.preload.auto", 2);    // preload metadata if preload=auto
 pref("media.cache_size", 4096);    // 4MB media cache
 
 // The default number of decoded video frames that are enqueued in
-// nsBuiltinDecoderReader's mVideoQueue.
+// MediaDecoderReader's mVideoQueue.
 pref("media.video-queue.default-size", 3);
 
 //  0: don't show fullscreen keyboard
@@ -588,11 +582,7 @@ pref("browser.prompt.allowNative", false);
 // a restart is required to enable a new value.
 pref("network.activity.blipIntervalMilliseconds", 250);
 
-// Send some sites a custom user-agent.
-pref("general.useragent.override.facebook.com", "\(Mobile#(Android; Mobile");
-pref("general.useragent.override.youtube.com", "\(Mobile#(Android; Mobile");
-
-pref("jsloader.reuseGlobal", false);
+pref("jsloader.reuseGlobal", true);
 
 // Enable freeing dirty pages when minimizing memory; this reduces memory
 // consumption when applications are sent to the background.

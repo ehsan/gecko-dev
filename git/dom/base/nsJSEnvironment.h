@@ -34,7 +34,8 @@ class nsJSContext : public nsIScriptContext,
                     public nsIXPCScriptNotify
 {
 public:
-  nsJSContext(JSRuntime *aRuntime);
+  nsJSContext(JSRuntime* aRuntime, bool aGCOnDestruction,
+              nsIScriptGlobalObject* aGlobalObject);
   virtual ~nsJSContext();
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -42,11 +43,6 @@ public:
                                                          nsIScriptContext)
 
   virtual nsIScriptObjectPrincipal* GetObjectPrincipal();
-
-  virtual void SetGlobalObject(nsIScriptGlobalObject* aGlobalObject)
-  {
-    mGlobalObjectRef = aGlobalObject;
-  }
 
   virtual nsresult EvaluateString(const nsAString& aScript,
                                   JSObject* aScopeObject,
@@ -122,12 +118,7 @@ public:
 
   virtual nsresult SetProperty(JSObject* aTarget, const char* aPropName, nsISupports* aVal);
 
-  virtual bool GetProcessingScriptTag();
-  virtual void SetProcessingScriptTag(bool aResult);
-
   virtual bool GetExecutingScript();
-
-  virtual void SetGCOnDestruction(bool aGCOnDestruction);
 
   virtual nsresult InitClasses(JSObject* aGlobalObj);
 
@@ -227,8 +218,10 @@ private:
   JSContext *mContext;
   bool mActive;
 
-protected:
+  // Public so we can use it from CallbackFunction
+public:
   struct TerminationFuncHolder;
+protected:
   friend struct TerminationFuncHolder;
   
   struct TerminationFuncClosure
@@ -251,6 +244,8 @@ protected:
     TerminationFuncClosure* mNext;
   };
 
+  // Public so we can use it from CallbackFunction
+public:
   struct TerminationFuncHolder
   {
     TerminationFuncHolder(nsJSContext* aContext)
@@ -278,14 +273,14 @@ protected:
     nsJSContext* mContext;
     TerminationFuncClosure* mTerminations;
   };
-  
+
+protected:
   TerminationFuncClosure* mTerminations;
 
 private:
   bool mIsInitialized;
   bool mScriptsEnabled;
   bool mGCOnDestruction;
-  bool mProcessingScriptTag;
 
   uint32_t mExecuteDepth;
   uint32_t mDefaultJSOptions;
@@ -318,7 +313,9 @@ public:
   // nsISupports
   NS_DECL_ISUPPORTS
 
-  virtual already_AddRefed<nsIScriptContext> CreateContext();
+  virtual already_AddRefed<nsIScriptContext>
+  CreateContext(bool aGCOnDestruction,
+                nsIScriptGlobalObject* aGlobalObject);
 
   virtual nsresult DropScriptObject(void *object);
   virtual nsresult HoldScriptObject(void *object);

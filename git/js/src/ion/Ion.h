@@ -230,10 +230,27 @@ MethodStatus CanEnterUsingFastInvoke(JSContext *cx, HandleScript script, uint32_
 
 enum IonExecStatus
 {
+    // The method call had to be aborted due to a stack limit check. This
+    // error indicates that Ion never attempted to clean up frames.
+    IonExec_Aborted,
+
+    // The method call resulted in an error, and IonMonkey has cleaned up
+    // frames.
     IonExec_Error,
+
+    // The method call succeeed and returned a value.
     IonExec_Ok,
+
+    // A guard triggered in IonMonkey and we must resume execution in
+    // the interpreter.
     IonExec_Bailout
 };
+
+static inline bool
+IsErrorStatus(IonExecStatus status)
+{
+    return status == IonExec_Error || status == IonExec_Aborted;
+}
 
 IonExecStatus Cannon(JSContext *cx, StackFrame *fp);
 IonExecStatus SideCannon(JSContext *cx, StackFrame *fp, jsbytecode *pc);
@@ -247,13 +264,15 @@ void Invalidate(types::TypeCompartment &types, FreeOp *fop,
 void Invalidate(JSContext *cx, const Vector<types::RecompileInfo> &invalid, bool resetUses = true);
 bool Invalidate(JSContext *cx, JSScript *script, bool resetUses = true);
 
-void MarkFromIon(JSCompartment *comp, Value *vp);
+void MarkFromIon(JSRuntime *rt, Value *vp);
 
 void ToggleBarriers(JSCompartment *comp, bool needs);
 
 class IonBuilder;
+class MIRGenerator;
+class CodeGenerator;
 
-bool CompileBackEnd(IonBuilder *builder);
+CodeGenerator *CompileBackEnd(MIRGenerator *mir);
 void AttachFinishedCompilations(JSContext *cx);
 void FinishOffThreadBuilder(IonBuilder *builder);
 bool TestIonCompile(JSContext *cx, JSScript *script, JSFunction *fun, jsbytecode *osrPc, bool constructing);
@@ -265,6 +284,11 @@ static inline bool IsEnabled(JSContext *cx)
 
 void ForbidCompilation(JSContext *cx, JSScript *script);
 uint32_t UsesBeforeIonRecompile(JSScript *script, jsbytecode *pc);
+
+void PurgeCaches(JSScript *script, JSCompartment *c);
+size_t MemoryUsed(JSScript *script, JSMallocSizeOfFun mallocSizeOf);
+void DestroyIonScripts(FreeOp *fop, JSScript *script);
+void TraceIonScripts(JSTracer* trc, JSScript *script);
 
 } // namespace ion
 } // namespace js

@@ -22,6 +22,8 @@
 using namespace js;
 using namespace js::ion;
 
+using mozilla::DebugOnly;
+
 void
 CodeLocationJump::repoint(IonCode *code, MacroAssembler *masm)
 {
@@ -118,16 +120,10 @@ GeneratePrototypeGuards(JSContext *cx, MacroAssembler &masm, JSObject *obj, JSOb
         return;
     while (pobj != holder) {
         if (pobj->hasUncacheableProto()) {
-            if (pobj->hasSingletonType()) {
-                types::TypeObject *type = pobj->getType(cx);
-                masm.movePtr(ImmGCPtr(type), scratchReg);
-                Address proto(scratchReg, offsetof(types::TypeObject, proto));
-                masm.branchPtr(Assembler::NotEqual, proto, ImmGCPtr(obj->getProto()), failures);
-            } else {
-                masm.movePtr(ImmGCPtr(pobj), scratchReg);
-                Address objType(scratchReg, JSObject::offsetOfType());
-                masm.branchPtr(Assembler::NotEqual, objType, ImmGCPtr(pobj->type()), failures);
-            }
+            JS_ASSERT(!pobj->hasSingletonType());
+            masm.movePtr(ImmGCPtr(pobj), scratchReg);
+            Address objType(scratchReg, JSObject::offsetOfType());
+            masm.branchPtr(Assembler::NotEqual, objType, ImmGCPtr(pobj->type()), failures);
         }
         pobj = pobj->getProto();
     }
@@ -360,7 +356,7 @@ struct GetNativePropertyStub
     bool generateCallGetter(JSContext *cx, MacroAssembler &masm, JSObject *obj,
                             PropertyName *propName, JSObject *holder, const Shape *shape,
                             RegisterSet &liveRegs, Register object, TypedOrValueRegister output,
-                            types::TypeSet *outputTypes, void *returnAddr, jsbytecode *pc,
+                            void *returnAddr, jsbytecode *pc,
                             RepatchLabel *failures, Label *nonRepatchFailures = NULL)
     {
         // Initial shape check.
@@ -475,7 +471,6 @@ struct GetNativePropertyStub
 
         // TODO: ensure stack is aligned?
         DebugOnly<uint32> initialStack = masm.framePushed();
-        masm.checkStackAlignment();
 
         Label success, exception;
 
@@ -672,13 +667,9 @@ IonCacheGetProperty::attachCallGetter(JSContext *cx, IonScript *ion, JSObject *o
     // properly constructed.
     masm.setFramePushed(ion->frameSize());
 
-    // Generating a call getter may need the pushed typeset.
-    types::StackTypeSet *outputTypes = script->analysis()->pushedTypes(pc, 0);
-
     GetNativePropertyStub getprop;
     if (!getprop.generateCallGetter(cx, masm, obj, name(), holder, shape, liveRegs,
-                                    object(), output(), outputTypes, returnAddr, pc,
-                                    &failures))
+                                    object(), output(), returnAddr, pc, &failures))
     {
          return false;
     }
@@ -1453,18 +1444,6 @@ IonCacheGetElement::attachGetProp(JSContext *cx, IonScript *ion, HandleObject ob
     return true;
 }
 
-// Get the common shape used by all dense arrays with a prototype at globalObj.
-static inline Shape *
-GetDenseArrayShape(JSContext *cx, JSObject *globalObj)
-{
-    JSObject *proto = globalObj->global().getOrCreateArrayPrototype(cx);
-    if (!proto)
-        return NULL;
-
-    return EmptyShape::getInitialShape(cx, &ArrayClass, proto,
-                                       proto->getParent(), gc::FINALIZE_OBJECT0);
-}
-
 bool
 IonCacheGetElement::attachDenseArray(JSContext *cx, IonScript *ion, JSObject *obj, const Value &idval)
 {
@@ -1475,7 +1454,8 @@ IonCacheGetElement::attachDenseArray(JSContext *cx, IonScript *ion, JSObject *ob
     MacroAssembler masm;
 
     // Guard object is a dense array.
-    RootedShape shape(cx, GetDenseArrayShape(cx, &script->global()));
+    RootedObject globalObj(cx, &script->global());
+    RootedShape shape(cx, GetDenseArrayShape(cx, globalObj));
     if (!shape)
         return false;
     masm.branchTestObjShape(Assembler::NotEqual, object(), shape, &failures);
@@ -1636,14 +1616,15 @@ static inline void
 GenerateScopeChainGuard(MacroAssembler &masm, JSObject *scopeObj,
                         Register scopeObjReg, Shape *shape, Label *failures)
 {
+    AutoAssertNoGC nogc;
     if (scopeObj->isCall()) {
         // We can skip a guard on the call object if the script's bindings are
         // guaranteed to be immutable (and thus cannot introduce shadowing
         // variables).
         CallObject *callObj = &scopeObj->asCall();
         if (!callObj->isForEval()) {
-            JSFunction *fun = &callObj->callee();
-            JSScript *script = fun->script();
+            RawFunction fun = &callObj->callee();
+            RawScript script = fun->script().get(nogc);
             if (!script->funHasExtensibleScope)
                 return;
         }

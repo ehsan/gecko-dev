@@ -47,6 +47,7 @@
 #include "nsCOMPtr.h"
 #include "nsChromeRegistryChrome.h"
 #include "nsConsoleMessage.h"
+#include "nsConsoleService.h"
 #include "nsDebugImpl.h"
 #include "nsDirectoryServiceDefs.h"
 #include "nsDOMFile.h"
@@ -55,7 +56,6 @@
 #include "nsHashPropertyBag.h"
 #include "nsIAlertsService.h"
 #include "nsIClipboard.h"
-#include "nsIConsoleService.h"
 #include "nsIDOMApplicationRegistry.h"
 #include "nsIDOMGeoGeolocation.h"
 #include "nsIDOMWindow.h"
@@ -616,6 +616,8 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
 
     RecvRemoveGeolocationListener();
 
+    mConsoleService = nullptr;
+
     nsCOMPtr<nsIThreadInternal>
         threadInt(do_QueryInterface(NS_GetCurrentThread()));
     if (threadInt)
@@ -628,6 +630,8 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
     if (obs) {
         nsRefPtr<nsHashPropertyBag> props = new nsHashPropertyBag();
         props->Init();
+
+        props->SetPropertyAsUint64(NS_LITERAL_STRING("childID"), mChildID);
 
         if (AbnormalShutdown == why) {
             props->SetPropertyAsBool(NS_LITERAL_STRING("abnormal"), true);
@@ -642,9 +646,8 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
             nsAutoString dumpID(crashReporter->ChildDumpID());
             props->SetPropertyAsAString(NS_LITERAL_STRING("dumpID"), dumpID);
 #endif
-
-            obs->NotifyObservers((nsIPropertyBag2*) props, "ipc:content-shutdown", nullptr);
         }
+        obs->NotifyObservers((nsIPropertyBag2*) props, "ipc:content-shutdown", nullptr);
     }
 
     MessageLoop::current()->
@@ -700,6 +703,7 @@ ContentParent::ContentParent(const nsAString& aAppManifestURL,
                              ChildOSPrivileges aOSPrivileges)
     : mSubprocess(nullptr)
     , mOSPrivileges(aOSPrivileges)
+    , mChildID(-1)
     , mGeolocationWatchID(-1)
     , mRunToCompletionDepth(0)
     , mShouldCallUnblockChild(false)
@@ -1025,7 +1029,8 @@ ContentParent::Observe(nsISupports* aSubject,
         return NS_OK;
 
     // listening for memory pressure event
-    if (!strcmp(aTopic, "memory-pressure")) {
+    if (!strcmp(aTopic, "memory-pressure") &&
+        !NS_LITERAL_STRING("low-memory-no-forward").Equals(aData)) {
         unused << SendFlushMemory(nsDependentString(aData));
     }
     // listening for remotePrefs...
@@ -1122,7 +1127,7 @@ bool
 ContentParent::RecvGetProcessAttributes(uint64_t* aId, bool* aStartBackground,
                                         bool* aIsForApp, bool* aIsForBrowser)
 {
-    *aId = gContentChildID++;
+    *aId = mChildID = gContentChildID++;
     *aStartBackground =
         (mAppManifestURL == MAGIC_PREALLOCATED_APP_MANIFEST_URL);
     *aIsForApp = IsForApp();
@@ -1439,11 +1444,10 @@ ContentParent::DeallocPTestShell(PTestShellParent* shell)
  
 PAudioParent*
 ContentParent::AllocPAudio(const int32_t& numChannels,
-                           const int32_t& rate,
-                           const int32_t& format)
+                           const int32_t& rate)
 {
 #if defined(MOZ_SYDNEYAUDIO)
-    AudioParent *parent = new AudioParent(numChannels, rate, format);
+    AudioParent *parent = new AudioParent(numChannels, rate);
     NS_ADDREF(parent);
     return parent;
 #else
@@ -1878,15 +1882,33 @@ ContentParent::HandleEvent(nsIDOMGeoPosition* postion)
   return NS_OK;
 }
 
+nsConsoleService *
+ContentParent::GetConsoleService()
+{
+    if (mConsoleService) {
+        return mConsoleService.get();
+    }
+
+    // Get the ConsoleService by CID rather than ContractID, so that we
+    // can cast the returned pointer to an nsConsoleService (rather than
+    // just an nsIConsoleService). This allows us to call the non-idl function
+    // nsConsoleService::LogMessageWithMode.
+    NS_DEFINE_CID(consoleServiceCID, NS_CONSOLESERVICE_CID);
+    nsCOMPtr<nsConsoleService>  consoleService(do_GetService(consoleServiceCID));
+    mConsoleService = consoleService;
+    return mConsoleService.get();
+}
+
 bool
 ContentParent::RecvConsoleMessage(const nsString& aMessage)
 {
-  nsCOMPtr<nsIConsoleService> svc(do_GetService(NS_CONSOLESERVICE_CONTRACTID));
-  if (!svc)
+  nsRefPtr<nsConsoleService> consoleService = GetConsoleService();
+  if (!consoleService) {
     return true;
+  }
   
   nsRefPtr<nsConsoleMessage> msg(new nsConsoleMessage(aMessage.get()));
-  svc->LogMessage(msg);
+  consoleService->LogMessageWithMode(msg, nsConsoleService::SuppressLog);
   return true;
 }
 
@@ -1899,9 +1921,10 @@ ContentParent::RecvScriptError(const nsString& aMessage,
                                       const uint32_t& aFlags,
                                       const nsCString& aCategory)
 {
-  nsCOMPtr<nsIConsoleService> svc(do_GetService(NS_CONSOLESERVICE_CONTRACTID));
-  if (!svc)
-      return true;
+  nsRefPtr<nsConsoleService> consoleService = GetConsoleService();
+  if (!consoleService) {
+    return true;
+  }
 
   nsCOMPtr<nsIScriptError> msg(do_CreateInstance(NS_SCRIPTERROR_CONTRACTID));
   nsresult rv = msg->Init(aMessage, aSourceName, aSourceLine,
@@ -1909,7 +1932,7 @@ ContentParent::RecvScriptError(const nsString& aMessage,
   if (NS_FAILED(rv))
     return true;
 
-  svc->LogMessage(msg);
+  consoleService->LogMessageWithMode(msg, nsConsoleService::SuppressLog);
   return true;
 }
 

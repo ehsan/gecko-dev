@@ -74,7 +74,7 @@ class HTMLElement(object):
 
     def is_displayed(self):
         return self.marionette._send_message('isElementDisplayed', 'value', element=self.id)
-
+     
     @property
     def size(self):
         return self.marionette._send_message('getElementSize', 'value', element=self.id)
@@ -468,7 +468,7 @@ class Marionette(object):
 
     def import_script(self, js_file):
         js = ''
-        with open(js_file, "r") as f:
+        with open(js_file, 'r') as f:
             js = f.read()
         return self._send_message('importScript', 'ok', script=js)
 

@@ -5330,7 +5330,7 @@ function UpdateChecker(aAddon, aListener, aReason, aAppVersion, aPlatformVersion
     aReason |= UPDATE_TYPE_NEWVERSION;
 
   let url = escapeAddonURI(aAddon, updateURL, aReason, aAppVersion);
-  AddonUpdateChecker.checkForUpdates(aAddon.id, aAddon.type, aAddon.updateKey,
+  AddonUpdateChecker.checkForUpdates(aAddon.id, aAddon.updateKey,
                                      url, this);
 }
 

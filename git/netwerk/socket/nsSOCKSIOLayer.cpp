@@ -78,6 +78,7 @@ public:
     PRStatus DoHandshake(PRFileDesc *fd, int16_t oflags = -1);
     int16_t GetPollFlags() const;
     bool IsConnected() const { return mState == SOCKS_CONNECTED; }
+    void ForgetFD() { mFD = nullptr; }
 
 private:
     void HandshakeFinished(PRErrorCode err = 0);
@@ -273,8 +274,10 @@ nsSOCKSSocketInfo::OnLookupComplete(nsICancelable *aRequest,
     mLookupStatus = aStatus;
     mDnsRec = aRecord;
     mState = SOCKS_DNS_COMPLETE;
-    ConnectToProxy(mFD);
-    mFD = nullptr;
+    if (mFD) {
+      ConnectToProxy(mFD);
+      ForgetFD();
+    }
     return NS_OK;
 }
 
@@ -903,7 +906,7 @@ nsSOCKSSocketInfo::ReadUint8()
 {
     uint8_t rv;
     NS_ABORT_IF_FALSE(mReadOffset + sizeof(rv) <= mDataLength,
-                      "Not enough space to pop a uint8!");
+                      "Not enough space to pop a uint8_t!");
     rv = mData[mReadOffset];
     mReadOffset += sizeof(rv);
     return rv;
@@ -914,7 +917,7 @@ nsSOCKSSocketInfo::ReadUint16()
 {
     uint16_t rv;
     NS_ABORT_IF_FALSE(mReadOffset + sizeof(rv) <= mDataLength,
-                      "Not enough space to pop a uint16!");
+                      "Not enough space to pop a uint16_t!");
     memcpy(&rv, mData + mReadOffset, sizeof(rv));
     mReadOffset += sizeof(rv);
     return rv;
@@ -925,7 +928,7 @@ nsSOCKSSocketInfo::ReadUint32()
 {
     uint32_t rv;
     NS_ABORT_IF_FALSE(mReadOffset + sizeof(rv) <= mDataLength,
-                      "Not enough space to pop a uint32!");
+                      "Not enough space to pop a uint32_t!");
     memcpy(&rv, mData + mReadOffset, sizeof(rv));
     mReadOffset += sizeof(rv);
     return rv;
@@ -1125,6 +1128,7 @@ nsSOCKSIOLayerClose(PRFileDesc *fd)
 
     if (info && id == nsSOCKSIOLayerIdentity)
     {
+        info->ForgetFD();
         NS_RELEASE(info);
         fd->identity = PR_INVALID_IO_LAYER;
     }

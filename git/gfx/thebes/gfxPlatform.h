@@ -217,7 +217,6 @@ public:
       CreateDrawTargetForData(unsigned char* aData, const mozilla::gfx::IntSize& aSize, 
                               int32_t aStride, mozilla::gfx::SurfaceFormat aFormat);
 
-    bool SupportsAzureCanvas();
     bool SupportsAzureContent() {
       return GetContentBackend() != mozilla::gfx::BACKEND_NONE;
     }
@@ -329,6 +328,13 @@ public:
      * NB: this bit is only honored by the FT2 backend, currently.
      */
     virtual bool FontHintingEnabled() { return true; }
+
+    bool UsesSubpixelAATextRendering() {
+#ifdef MOZ_GFX_OPTIMIZE_MOBILE
+	return false;
+#endif
+	return true;
+    }
 
     /**
      * Whether to check all font cmaps during system font fallback
@@ -513,9 +519,10 @@ protected:
     static mozilla::gfx::BackendType GetContentBackendPref(uint32_t aBackendBitmask);
 
     /**
-     * Checks the aEnabledPrefName pref and returns BACKEND_NONE if the pref is
-     * not enabled. Otherwise it will return the first backend named in
-     * aBackendPrefName allowed by aBackendBitmask, a bitmask of backend types.
+     * If aEnabledPrefName is non-null, checks the aEnabledPrefName pref and
+     * returns BACKEND_NONE if the pref is not enabled.
+     * Otherwise it will return the first backend named in aBackendPrefName
+     * allowed by aBackendBitmask, a bitmask of backend types.
      */
     static mozilla::gfx::BackendType GetBackendPref(const char* aEnabledPrefName,
                                                     const char* aBackendPrefName,

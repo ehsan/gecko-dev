@@ -61,10 +61,17 @@ public class LayerView extends FrameLayout {
     private Listener mListener;
 
     /* Flags used to determine when to show the painted surface. */
-    public static final int PAINT_BEFORE_FIRST = 0;
-    public static final int PAINT_AFTER_FIRST = 1;
+    public static final int PAINT_START = 0;
+    public static final int PAINT_BEFORE_FIRST = 1;
+    public static final int PAINT_AFTER_FIRST = 2;
 
-    boolean shouldUseTextureView() {
+    public boolean shouldUseTextureView() {
+        // Disable TextureView support for now as it causes panning/zooming
+        // performance regressions (see bug 792259). Uncomment the code below
+        // once this bug is fixed.
+        return false;
+
+        /*
         // we can only use TextureView on ICS or higher
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.ICE_CREAM_SANDWICH) {
             Log.i(LOGTAG, "Not using TextureView: not on ICS+");
@@ -78,34 +85,19 @@ public class LayerView extends FrameLayout {
         } catch (Exception e) {
             Log.i(LOGTAG, "Not using TextureView: caught exception checking for hw accel: " + e.toString());
             return false;
-        }
+        } */
     }
 
     public LayerView(Context context, AttributeSet attrs) {
         super(context, attrs);
 
-        if (shouldUseTextureView()) {
-            mTextureView = new TextureView(context);
-            mTextureView.setSurfaceTextureListener(new SurfaceTextureListener());
-            mTextureView.setBackgroundColor(Color.WHITE);
-            addView(mTextureView, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
-        } else {
-            mSurfaceView = new SurfaceView(context);
-            mSurfaceView.setBackgroundColor(Color.WHITE);
-            addView(mSurfaceView, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
-
-            SurfaceHolder holder = mSurfaceView.getHolder();
-            holder.addCallback(new SurfaceListener());
-            holder.setFormat(PixelFormat.RGB_565);
-        }
-
         mGLController = new GLController(this);
-        mPaintState = PAINT_BEFORE_FIRST;
+        mPaintState = PAINT_START;
         mCheckerboardColor = Color.WHITE;
         mCheckerboardShouldShowChecks = true;
     }
 
-    public void createLayerClient(EventDispatcher eventDispatcher) {
+    public void initializeView(EventDispatcher eventDispatcher) {
         mLayerClient = new GeckoLayerClient(getContext(), this, eventDispatcher);
 
         mTouchEventHandler = new TouchEventHandler(getContext(), this, mLayerClient);
@@ -132,6 +124,9 @@ public class LayerView extends FrameLayout {
         if (mLayerClient != null) {
             mLayerClient.destroy();
         }
+        if (mRenderer != null) {
+            mRenderer.destroy();
+        }
     }
 
     @Override
@@ -149,6 +144,32 @@ public class LayerView extends FrameLayout {
     @Override
     public boolean onHoverEvent(MotionEvent event) {
         return mTouchEventHandler == null ? false : mTouchEventHandler.handleEvent(event);
+    }
+
+    @Override
+    protected void onAttachedToWindow() {
+        // This check should not be done before the view is attached to a window
+        // as hardware acceleration will not be enabled at that point.
+        // We must create and add the SurfaceView instance before the view tree
+        // is fully created to avoid flickering (see bug 801477).
+        if (shouldUseTextureView()) {
+            mTextureView = new TextureView(getContext());
+            mTextureView.setSurfaceTextureListener(new SurfaceTextureListener());
+            mTextureView.setBackgroundColor(Color.WHITE);
+            addView(mTextureView, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+        } else {
+            // This will stop PropertyAnimator from creating a drawing cache (i.e. a bitmap)
+            // from a SurfaceView, which is just not possible (the bitmap will be transparent).
+            setWillNotCacheDrawing(false);
+
+            mSurfaceView = new SurfaceView(getContext());
+            mSurfaceView.setBackgroundColor(Color.WHITE);
+            addView(mSurfaceView, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+
+            SurfaceHolder holder = mSurfaceView.getHolder();
+            holder.addCallback(new SurfaceListener());
+            holder.setFormat(PixelFormat.RGB_565);
+        }
     }
 
     public GeckoLayerClient getLayerClient() { return mLayerClient; }
@@ -188,9 +209,8 @@ public class LayerView extends FrameLayout {
         mLayerClient.setZoomConstraints(constraints);
     }
 
-    /** The LayerRenderer calls this to indicate that the window has changed size. */
-    public void setViewportSize(IntSize size) {
-        mLayerClient.setViewportSize(new FloatSize(size));
+    public void setViewportSize(int width, int height) {
+        mLayerClient.setViewportSize(width, height);
     }
 
     public void setInputConnectionHandler(InputConnectionHandler inputConnectionHandler) {
@@ -240,6 +260,13 @@ public class LayerView extends FrameLayout {
         return false;
     }
 
+    public boolean isIMEEnabled() {
+        if (mInputConnectionHandler != null) {
+            return mInputConnectionHandler.isIMEEnabled();
+        }
+        return false;
+    }
+
     public void requestRender() {
         if (mListener != null) {
             mListener.renderRequested();
@@ -263,24 +290,14 @@ public class LayerView extends FrameLayout {
         return mRenderer.getPixels();
     }
 
-    public void setLayerRenderer(LayerRenderer renderer) {
-        mRenderer = renderer;
-    }
-
-    public LayerRenderer getLayerRenderer() {
-        return mRenderer;
-    }
-
     /* paintState must be a PAINT_xxx constant. */
     public void setPaintState(int paintState) {
-        Log.d(LOGTAG, "LayerView paint state set to " + paintState);
         mPaintState = paintState;
     }
 
     public int getPaintState() {
         return mPaintState;
     }
-
 
     public LayerRenderer getRenderer() {
         return mRenderer;
@@ -305,7 +322,7 @@ public class LayerView extends FrameLayout {
     }
 
     Bitmap getBackgroundPattern() {
-        return getDrawable(R.drawable.tabs_tray_selected_bg);
+        return getDrawable(R.drawable.abouthome_bg);
     }
 
     Bitmap getShadowPattern() {

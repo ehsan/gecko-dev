@@ -17,6 +17,8 @@
 using namespace js;
 using namespace js::types;
 
+using mozilla::ArrayLength;
+
 class RegExpMatchBuilder
 {
     JSContext   * const cx;
@@ -49,7 +51,7 @@ class RegExpMatchBuilder
 };
 
 static bool
-CreateRegExpMatchResult(JSContext *cx, JSString *input_, const jschar *chars, size_t length,
+CreateRegExpMatchResult(JSContext *cx, JSString *input_, StableCharPtr chars, size_t length,
                         MatchPairs *matchPairs, Value *rval)
 {
     RootedString input(cx, input_);
@@ -68,7 +70,7 @@ CreateRegExpMatchResult(JSContext *cx, JSString *input_, const jschar *chars, si
         return false;
 
     if (!input) {
-        input = js_NewStringCopyN(cx, chars, length);
+        input = js_NewStringCopyN(cx, chars.get(), length);
         if (!input)
             return false;
     }
@@ -102,7 +104,7 @@ CreateRegExpMatchResult(JSContext *cx, JSString *input_, const jschar *chars, si
 template <class T>
 bool
 ExecuteRegExpImpl(JSContext *cx, RegExpStatics *res, T &re, JSLinearString *input,
-                  const jschar *chars, size_t length,
+                  StableCharPtr chars, size_t length,
                   size_t *lastIndex, RegExpExecType type, Value *rval)
 {
     LifoAllocScope allocScope(&cx->tempLifoAlloc());
@@ -134,16 +136,16 @@ ExecuteRegExpImpl(JSContext *cx, RegExpStatics *res, T &re, JSLinearString *inpu
 }
 
 bool
-js::ExecuteRegExp(JSContext *cx, RegExpStatics *res, RegExpShared &shared, JSLinearString *input,
-                  const jschar *chars, size_t length,
+js::ExecuteRegExp(JSContext *cx, RegExpStatics *res, RegExpShared &shared,
+                  Handle<JSStableString*> input, StableCharPtr chars, size_t length,
                   size_t *lastIndex, RegExpExecType type, Value *rval)
 {
     return ExecuteRegExpImpl(cx, res, shared, input, chars, length, lastIndex, type, rval);
 }
 
 bool
-js::ExecuteRegExp(JSContext *cx, RegExpStatics *res, RegExpObject &reobj, JSLinearString *input,
-                  const jschar *chars, size_t length,
+js::ExecuteRegExp(JSContext *cx, RegExpStatics *res, RegExpObject &reobj,
+                  Handle<JSStableString*> input, StableCharPtr chars, size_t length,
                   size_t *lastIndex, RegExpExecType type, Value *rval)
 {
     return ExecuteRegExpImpl(cx, res, reobj, input, chars, length, lastIndex, type, rval);
@@ -580,8 +582,8 @@ js::ExecuteRegExp(JSContext *cx, RegExpExecType execType, HandleObject regexp,
     RegExpStatics *res = cx->regExpStatics();
 
     /* Step 3. */
-    Rooted<JSLinearString*> linearInput(cx, string->ensureLinear(cx));
-    if (!linearInput)
+    Rooted<JSStableString*> stableInput(cx, string->ensureStable(cx));
+    if (!stableInput)
         return false;
 
     /* Step 4. */
@@ -596,8 +598,8 @@ js::ExecuteRegExp(JSContext *cx, RegExpExecType execType, HandleObject regexp,
     if (!re->global() && !re->sticky())
         i = 0;
 
-    const jschar *chars = linearInput->chars();
-    size_t length = linearInput->length();
+    StableCharPtr chars = stableInput->chars();
+    size_t length = stableInput->length();
 
     /* Step 9a. */
     if (i < 0 || i > length) {
@@ -608,7 +610,7 @@ js::ExecuteRegExp(JSContext *cx, RegExpExecType execType, HandleObject regexp,
 
     /* Steps 8-21. */
     size_t lastIndexInt(i);
-    if (!ExecuteRegExp(cx, res, *re, linearInput.get(), chars, length, &lastIndexInt, execType,
+    if (!ExecuteRegExp(cx, res, *re, stableInput, chars, length, &lastIndexInt, execType,
                        rval.address())) {
         return false;
     }

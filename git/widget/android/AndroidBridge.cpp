@@ -110,7 +110,6 @@ AndroidBridge::Init(JNIEnv *jEnv,
     jEnableLocationHighAccuracy = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "enableLocationHighAccuracy", "(Z)V");
     jEnableSensor = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "enableSensor", "(I)V");
     jDisableSensor = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "disableSensor", "(I)V");
-    jReturnIMEQueryResult = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "returnIMEQueryResult", "(Ljava/lang/String;II)V");
     jScheduleRestart = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "scheduleRestart", "()V");
     jNotifyXreExit = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "onXreExit", "()V");
     jGetHandlersForMimeType = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "getHandlersForMimeType", "(Ljava/lang/String;Ljava/lang/String;)[Ljava/lang/String;");
@@ -203,6 +202,7 @@ AndroidBridge::Init(JNIEnv *jEnv,
     jNotifyWakeLockChanged = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "notifyWakeLockChanged", "(Ljava/lang/String;Ljava/lang/String;)V");
 
     jGetGfxInfoData = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "getGfxInfoData", "()Ljava/lang/String;");
+    jGetProxyForURI = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "getProxyForURI", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;I)Ljava/lang/String;");
     jRegisterSurfaceTextureFrameListener = jEnv->GetStaticMethodID(jGeckoAppShellClass, "registerSurfaceTextureFrameListener", "(Ljava/lang/Object;I)V");
     jUnregisterSurfaceTextureFrameListener = jEnv->GetStaticMethodID(jGeckoAppShellClass, "unregisterSurfaceTextureFrameListener", "(Ljava/lang/Object;)V");
 
@@ -401,25 +401,6 @@ AndroidBridge::DisableSensor(int aSensorType)
         return;
     AutoLocalJNIFrame jniFrame(env, 0);
     env->CallStaticVoidMethod(mGeckoAppShellClass, jDisableSensor, aSensorType);
-}
-
-void
-AndroidBridge::ReturnIMEQueryResult(const PRUnichar *aResult, uint32_t aLen,
-                                    int aSelStart, int aSelLen)
-{
-    ALOG_BRIDGE("AndroidBridge::ReturnIMEQueryResult");
-
-    JNIEnv *env = GetJNIEnv();
-    if (!env)
-        return;
-
-    AutoLocalJNIFrame jniFrame(env);
-    jvalue args[3];
-    args[0].l = NewJavaString(&jniFrame, aResult, aLen);
-    args[1].i = aSelStart;
-    args[2].i = aSelLen;
-    env->CallStaticVoidMethodA(mGeckoAppShellClass,
-                               jReturnIMEQueryResult, args);
 }
 
 void
@@ -2419,6 +2400,36 @@ AndroidBridge::GetGfxInfoData(nsACString& aRet)
     CopyUTF16toUTF8(jniStr, aRet);
 }
 
+#define CREATE_JAVA_STRING(name) jstring j##name = NewJavaStringUTF(&jniFrame, nsPromiseFlatCString(a##name).get())
+
+nsresult
+AndroidBridge::GetProxyForURI(const nsACString & aSpec,
+                              const nsACString & aScheme,
+                              const nsACString & aHost,
+                              const int32_t      aPort,
+                              nsACString & aResult)
+{
+    JNIEnv* env = GetJNIEnv();
+    if (!env)
+        return NS_ERROR_FAILURE;
+
+    AutoLocalJNIFrame jniFrame(env);
+
+    CREATE_JAVA_STRING(Spec);
+    CREATE_JAVA_STRING(Scheme);
+    CREATE_JAVA_STRING(Host);
+    jstring jstrRet = static_cast<jstring>
+        (env->CallStaticObjectMethod(mGeckoAppShellClass, jGetProxyForURI, jSpec, jScheme, jHost, aPort));
+
+    if (jniFrame.CheckForException())
+        return NS_ERROR_FAILURE;
+
+    nsJNIString jniStr(jstrRet, env);
+    CopyUTF16toUTF8(jniStr, aResult);
+    return NS_OK;
+}
+
+
 /* attribute nsIAndroidBrowserApp browserApp; */
 NS_IMETHODIMP nsAndroidBridge::GetBrowserApp(nsIAndroidBrowserApp * *aBrowserApp)
 {
@@ -2582,13 +2593,13 @@ AndroidBridge::GetDisplayPort(bool aPageSizeUpdate, bool aIsBrowserContentDispla
 }
 
 bool
-AndroidBridge::ShouldAbortProgressiveUpdate(bool aHasPendingNewThebesContent, const gfx::Rect& aDisplayPort, float aDisplayResolution)
+AndroidBridge::ProgressiveUpdateCallback(bool aHasPendingNewThebesContent, const gfx::Rect& aDisplayPort, float aDisplayResolution, gfx::Rect& aViewport, float& aScaleX, float& aScaleY)
 {
     AndroidGeckoLayerClient *client = mLayerClient;
     if (!client)
         return false;
 
-    return client->ShouldAbortProgressiveUpdate(aHasPendingNewThebesContent, aDisplayPort, aDisplayResolution);
+    return client->ProgressiveUpdateCallback(aHasPendingNewThebesContent, aDisplayPort, aDisplayResolution, aViewport, aScaleX, aScaleY);
 }
 
 void

@@ -96,6 +96,12 @@ class TypeOracle
         *barrier = NULL;
         return NULL;
     }
+    virtual bool inObjectIsDenseArray(JSScript *script, jsbytecode *pc) {
+        return false;
+    }
+    virtual bool inArrayIsPacked(JSScript *script, jsbytecode *pc) {
+        return false;
+    }
     virtual bool elementReadIsDenseArray(JSScript *script, jsbytecode *pc) {
         return false;
     }
@@ -174,9 +180,6 @@ class TypeOracle
     virtual LazyArgumentsType elementWriteMagicArguments(JSScript *script, jsbytecode *pc) {
         return MaybeArguments;
     }
-    virtual BinaryTypes incslot(JSScript *script, jsbytecode *pc) {
-        return binaryTypes(script, pc);
-    }
     virtual types::StackTypeSet *aliasedVarBarrier(JSScript *script, jsbytecode *pc, types::StackTypeSet **barrier) {
         return NULL;
     }
@@ -243,6 +246,8 @@ class TypeInferenceOracle : public TypeOracle
     types::StackTypeSet *getCallTarget(JSScript *caller, uint32 argc, jsbytecode *pc);
     types::StackTypeSet *getCallArg(JSScript *caller, uint32 argc, uint32 arg, jsbytecode *pc);
     types::StackTypeSet *getCallReturn(JSScript *caller, jsbytecode *pc);
+    bool inObjectIsDenseArray(JSScript *script, jsbytecode *pc);
+    bool inArrayIsPacked(JSScript *script, jsbytecode *pc);
     bool elementReadIsDenseArray(JSScript *script, jsbytecode *pc);
     bool elementReadIsTypedArray(JSScript *script, jsbytecode *pc, int *atype);
     bool elementReadIsString(JSScript *script, jsbytecode *pc);
@@ -266,8 +271,6 @@ class TypeInferenceOracle : public TypeOracle
     LazyArgumentsType propertyReadMagicArguments(JSScript *script, jsbytecode *pc);
     LazyArgumentsType elementReadMagicArguments(JSScript *script, jsbytecode *pc);
     LazyArgumentsType elementWriteMagicArguments(JSScript *script, jsbytecode *pc);
-
-    BinaryTypes incslot(JSScript *script, jsbytecode *pc);
 };
 
 static inline MIRType

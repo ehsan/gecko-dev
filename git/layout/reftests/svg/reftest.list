@@ -35,6 +35,7 @@ fuzzy-if(/^Windows\x20NT\x206\.1/.test(http.oscpu),1,2) == clipPath-and-shape-re
 == clipPath-basic-03.svg pass.svg
 == clipPath-basic-04.svg pass.svg
 == clipPath-basic-05.svg pass.svg
+== clipPath-basic-06.svg pass.svg
 == clipPath-winding-01.svg pass.svg
 == clip-surface-clone-01.svg clip-surface-clone-01-ref.svg
 == conditions-01.svg pass.svg
@@ -157,11 +158,10 @@ fails-if(Android) == filter-extref-differentOrigin-01.svg pass.svg # Bug 695385
 == foreignObject-fixedpos-01.html foreignObject-dynamic-abspos-01-ref.html
 == foreignObject-dynamic-fixedpos-01.html foreignObject-dynamic-abspos-01-ref.html
 == getElementById-a-element-01.svg pass.svg
-== gradient-live-01a.svg gradient-live-01-ref.svg
-== gradient-live-01b.svg gradient-live-01-ref.svg
-== gradient-live-01c.svg gradient-live-01-ref.svg
-== gradient-live-01d.svg gradient-live-01-ref.svg
-fails == inline-in-xul-basic-01.xul pass.svg
+fuzzy-if(Android,9,980) == gradient-live-01a.svg gradient-live-01-ref.svg
+fuzzy-if(Android,9,980) == gradient-live-01b.svg gradient-live-01-ref.svg
+fuzzy-if(Android,9,980) == gradient-live-01c.svg gradient-live-01-ref.svg
+fuzzy-if(Android,9,980) == gradient-live-01d.svg gradient-live-01-ref.svg
 == invalid-text-01.svg pass.svg
 == lang-attribute-01.svg pass.svg
 == lang-attribute-02.svg pass.svg

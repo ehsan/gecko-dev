@@ -574,37 +574,7 @@ public class GeckoSmsManager
     }
   }
 
-  private int getGeckoDeliveryStatus(int aDeliveryStatus) {
-    if (aDeliveryStatus == kInternalDeliveryStatusNone) {
-      return kDeliveryStatusNotApplicable;
-    }
-    if (aDeliveryStatus >= kInternalDeliveryStatusFailed) {
-      return kDeliveryStatusError;
-    }
-    if (aDeliveryStatus >= kInternalDeliveryStatusPending) {
-      return kDeliveryStatusPending;
-    }
-    return kDeliveryStatusSuccess;
-  }
-
-  private int getGeckoMessageClass(MessageClass aMessageClass) {
-    switch (aMessageClass) {
-      case CLASS_0:
-        return kMessageClassClass0;
-      case CLASS_1:
-        return kMessageClassClass1;
-      case CLASS_2:
-        return kMessageClassClass2;
-      case CLASS_3:
-        return kMessageClassClass3;
-      default:
-        return kMessageClassNormal;
-    }
-  }
-
   public int saveSentMessage(String aRecipient, String aBody, long aDate) {
-    class IdTooHighException extends Exception { }
-
     try {
       ContentValues values = new ContentValues();
       values.put("address", aRecipient);
@@ -646,11 +616,6 @@ public class GeckoSmsManager
 
       @Override
       public void run() {
-        class NotFoundException extends Exception { }
-        class UnmatchingIdException extends Exception { }
-        class TooManyResultsException extends Exception { }
-        class InvalidTypeException extends Exception { }
-
         Cursor cursor = null;
 
         try {
@@ -735,8 +700,6 @@ public class GeckoSmsManager
 
       @Override
       public void run() {
-        class TooManyResultsException extends Exception { }
-
         try {
           ContentResolver cr = GeckoApp.mAppContext.getContentResolver();
           Uri message = ContentUris.withAppendedId(kSmsContentUri, mMessageId);
@@ -758,7 +721,7 @@ public class GeckoSmsManager
       }
     }
 
-    if (!SmsIOThread.getInstance().execute(new DeleteMessageRunnable(aMessageId, aRequestId,))) {
+    if (!SmsIOThread.getInstance().execute(new DeleteMessageRunnable(aMessageId, aRequestId))) {
       Log.e("GeckoSmsManager", "Failed to add GetMessageRunnable to the SmsIOThread");
       GeckoAppShell.notifySmsDeleteFailed(kUnknownError, aRequestId);
     }
@@ -786,9 +749,6 @@ public class GeckoSmsManager
 
       @Override
       public void run() {
-        class UnexpectedDeliveryStateException extends Exception { };
-        class InvalidTypeException extends Exception { }
-
         Cursor cursor = null;
         boolean closeCursor = true;
 
@@ -901,8 +861,6 @@ public class GeckoSmsManager
 
       @Override
       public void run() {
-        class UnexpectedDeliveryStateException extends Exception { };
-
         try {
           Cursor cursor = MessagesListManager.getInstance().get(mListId);
 
@@ -961,5 +919,57 @@ public class GeckoSmsManager
   public void shutdown() {
     SmsIOThread.getInstance().interrupt();
     MessagesListManager.getInstance().clear();
+  }
+
+  private int getGeckoDeliveryStatus(int aDeliveryStatus) {
+    if (aDeliveryStatus == kInternalDeliveryStatusNone) {
+      return kDeliveryStatusNotApplicable;
+    }
+    if (aDeliveryStatus >= kInternalDeliveryStatusFailed) {
+      return kDeliveryStatusError;
+    }
+    if (aDeliveryStatus >= kInternalDeliveryStatusPending) {
+      return kDeliveryStatusPending;
+    }
+    return kDeliveryStatusSuccess;
+  }
+
+  private int getGeckoMessageClass(MessageClass aMessageClass) {
+    switch (aMessageClass) {
+      case CLASS_0:
+        return kMessageClassClass0;
+      case CLASS_1:
+        return kMessageClassClass1;
+      case CLASS_2:
+        return kMessageClassClass2;
+      case CLASS_3:
+        return kMessageClassClass3;
+      default:
+        return kMessageClassNormal;
+    }
+  }
+
+  class IdTooHighException extends Exception {
+    private static final long serialVersionUID = 29935575131092050L;
+  }
+
+  class InvalidTypeException extends Exception {
+    private static final long serialVersionUID = 47436856832535912L;
+  }
+
+  class NotFoundException extends Exception {
+    private static final long serialVersionUID = 1940676816633984L;
+  }
+
+  class TooManyResultsException extends Exception {
+    private static final long serialVersionUID = 51883196784325305L;
+  }
+
+  class UnexpectedDeliveryStateException extends Exception {
+    private static final long serialVersionUID = 494122763684005716L;
+  }
+
+  class UnmatchingIdException extends Exception {
+    private static final long serialVersionUID = 158467542575633280L;
   }
 }

@@ -25,6 +25,9 @@
 #include "../d3d9/Nv3DVUtils.h"
 
 #include "gfxCrashReporterUtils.h"
+#ifdef MOZ_METRO
+#include "DXGI1_2.h"
+#endif
 
 using namespace std;
 using namespace mozilla::gfx;
@@ -500,7 +503,6 @@ LayerManagerD3D10::CreateDrawTarget(const IntSize &aSize,
 {
   if ((aFormat != FORMAT_B8G8R8A8 &&
        aFormat != FORMAT_B8G8R8X8) ||
-       !gfxPlatform::GetPlatform()->SupportsAzureCanvas() ||
        gfxPlatform::GetPlatform()->GetPreferredCanvasBackend() != BACKEND_DIRECT2D) {
     return LayerManager::CreateDrawTarget(aSize, aFormat);
   }

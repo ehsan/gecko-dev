@@ -21,6 +21,9 @@ XPCOMUtils.defineLazyModuleGetter(this, "DebuggerServer",
 XPCOMUtils.defineLazyModuleGetter(this, "DebuggerClient",
                                   "resource://gre/modules/devtools/dbg-client.jsm");
 
+XPCOMUtils.defineLazyModuleGetter(this, "debuggerSocketConnect",
+                                  "resource://gre/modules/devtools/dbg-client.jsm");
+
 XPCOMUtils.defineLazyServiceGetter(this, "clipboardHelper",
                                    "@mozilla.org/widget/clipboardhelper;1",
                                    "nsIClipboardHelper");
@@ -360,8 +363,11 @@ WebConsoleFrame.prototype = {
    */
   _initConnection: function WCF__initConnection()
   {
-    this.proxy = new WebConsoleConnectionProxy(this);
-    this.proxy.initServer();
+    this.proxy = new WebConsoleConnectionProxy(this, {
+      host: this.owner.remoteHost,
+      port: this.owner.remotePort,
+    });
+
     this.proxy.connect(function() {
       this.saveRequestAndResponseBodies = this._saveRequestAndResponseBodies;
       this._onInitComplete();
@@ -959,9 +965,9 @@ WebConsoleFrame.prototype = {
 
   /**
    * Filter the console node from the output node if it is a repeat. Console
-   * messages are filtered from the output if and only if they match the
-   * immediately preceding message. The output node's last occurrence should
-   * have its timestamp updated.
+   * messages are filtered from the output if they match the immediately
+   * preceding message that came from the same source. The output node's
+   * last occurrence should have its timestamp updated.
    *
    * @param nsIDOMNode aNode
    *        The message node to be filtered or not.
@@ -972,11 +978,31 @@ WebConsoleFrame.prototype = {
   {
     let lastMessage = this.outputNode.lastChild;
 
-    // childNodes[2] is the description element
-    if (lastMessage && lastMessage.childNodes[2] &&
-        !aNode.classList.contains("webconsole-msg-inspector") &&
-        aNode.childNodes[2].textContent ==
-        lastMessage.childNodes[2].textContent) {
+    if (!lastMessage) {
+      return false;
+    }
+
+    let body = aNode.querySelector(".webconsole-msg-body");
+    let lastBody = lastMessage.querySelector(".webconsole-msg-body");
+
+    if (aNode.classList.contains("webconsole-msg-inspector")) {
+      return false;
+    }
+
+    if (!body || !lastBody) {
+      return false;
+    }
+
+    if (body.textContent == lastBody.textContent) {
+      let loc = aNode.querySelector(".webconsole-location");
+      let lastLoc = lastMessage.querySelector(".webconsole-location");
+
+      if (loc && lastLoc) {
+        if (loc.getAttribute("value") !== lastLoc.getAttribute("value")) {
+          return false;
+        }
+      }
+
       this.mergeFilteredMessageNode(lastMessage, aNode);
       return true;
     }
@@ -1047,6 +1073,14 @@ WebConsoleFrame.prototype = {
           clipboardArray.push(WebConsoleUtils.objectActorGripToString(aValue));
           if (aValue && typeof aValue == "object" && aValue.actor) {
             objectActors.push(aValue.actor);
+            let displayStringIsLong = typeof aValue.displayString == "object" &&
+                                      aValue.displayString.type == "longString";
+            if (aValue.type == "longString" || displayStringIsLong) {
+              clipboardArray.push(l10n.getStr("longStringEllipsis"));
+            }
+            if (displayStringIsLong) {
+              objectActors.push(aValue.displayString.actor);
+            }
           }
         }, this);
         clipboardText = clipboardArray.join(" ");
@@ -1398,8 +1432,7 @@ WebConsoleFrame.prototype = {
                                             urlNode, null, null, aFileURI);
 
     this.makeOutputMessageLink(outputNode, function WCF__onFileClick() {
-      let viewSourceUtils = this.owner.gViewSourceUtils;
-      viewSourceUtils.viewSource(aFileURI, null, this.document);
+      this.owner.viewSource(aFileURI);
     }.bind(this));
 
     return outputNode;
@@ -1686,7 +1719,7 @@ WebConsoleFrame.prototype = {
       aNode._panelOpen = true;
     }.bind(this);
 
-    let netPanel = new NetworkPanel(this.popupset, aHttpActivity);
+    let netPanel = new NetworkPanel(this.popupset, aHttpActivity, this);
     netPanel.linkNode = aNode;
 
     if (!actor) {
@@ -2335,6 +2368,28 @@ WebConsoleFrame.prototype = {
 
       if (aItem && typeof aItem != "object" || !aItem.inspectable) {
         aContainer.appendChild(this.document.createTextNode(text));
+
+        let longString = null;
+        if (aItem.type == "longString") {
+          longString = aItem;
+        }
+        else if (!aItem.inspectable &&
+                 typeof aItem.displayString == "object" &&
+                 aItem.displayString.type == "longString") {
+          longString = aItem.displayString;
+        }
+
+        if (longString) {
+          let ellipsis = this.document.createElement("description");
+          ellipsis.classList.add("hud-clickable");
+          ellipsis.classList.add("longStringEllipsis");
+          ellipsis.textContent = l10n.getStr("longStringEllipsis");
+
+          this._addMessageLinkCallback(ellipsis,
+            this._longStringClick.bind(this, aMessage, longString, null));
+
+          aContainer.appendChild(ellipsis);
+        }
         return;
       }
 
@@ -2349,6 +2404,53 @@ WebConsoleFrame.prototype = {
 
       aContainer.appendChild(elem);
     }, this);
+  },
+
+  /**
+   * Click event handler for the ellipsis shown immediately after a long string.
+   * This method retrieves the full string and updates the console output to
+   * show it.
+   *
+   * @private
+   * @param nsIDOMElement aMessage
+   *        The message element.
+   * @param object aActor
+   *        The LongStringActor instance we work with.
+   * @param [function] aFormatter
+   *        Optional function you can use to format the string received from the
+   *        server, before being displayed in the console.
+   * @param nsIDOMElement aEllipsis
+   *        The DOM element the user can click on to expand the string.
+   * @param nsIDOMEvent aEvent
+   *        The DOM click event triggered by the user.
+   */
+  _longStringClick:
+  function WCF__longStringClick(aMessage, aActor, aFormatter, aEllipsis, aEvent)
+  {
+    aEvent.preventDefault();
+
+    if (!aFormatter) {
+      aFormatter = function(s) s;
+    }
+
+    let longString = this.webConsoleClient.longString(aActor);
+    longString.substring(longString.initial.length, longString.length,
+      function WCF__onSubstring(aResponse) {
+        if (aResponse.error) {
+          Cu.reportError("WCF__longStringClick substring failure: " +
+                         aResponse.error);
+          return;
+        }
+
+        let node = aEllipsis.previousSibling;
+        node.textContent = aFormatter(longString.initial + aResponse.substring);
+        aEllipsis.parentNode.removeChild(aEllipsis);
+
+        if (aMessage.category == CATEGORY_WEBDEV ||
+            aMessage.category == CATEGORY_OUTPUT) {
+          aMessage.clipboardText = aMessage.textContent;
+        }
+      });
   },
 
   /**
@@ -2368,11 +2470,21 @@ WebConsoleFrame.prototype = {
     let locationNode = this.document.createElementNS(XUL_NS, "label");
 
     // Create the text, which consists of an abbreviated version of the URL
-    // plus an optional line number.
-    let text = WebConsoleUtils.abbreviateSourceURL(aSourceURL);
+    // plus an optional line number. Scratchpad URLs should not be abbreviated.
+    let text;
+
+    if (/^Scratchpad\/\d+$/.test(aSourceURL)) {
+      text = aSourceURL;
+    }
+    else {
+      text = WebConsoleUtils.abbreviateSourceURL(aSourceURL);
+    }
+
     if (aSourceLine) {
       text += ":" + aSourceLine;
+      locationNode.sourceLine = aSourceLine;
     }
+
     locationNode.setAttribute("value", text);
 
     // Style appropriately.
@@ -2384,15 +2496,24 @@ WebConsoleFrame.prototype = {
 
     // Make the location clickable.
     locationNode.addEventListener("click", function() {
-      if (aSourceURL == "Scratchpad") {
-        let win = Services.wm.getMostRecentWindow("devtools:scratchpad");
-        if (win) {
-          win.focus();
+      if (/^Scratchpad\/\d+$/.test(aSourceURL)) {
+        let wins = Services.wm.getEnumerator("devtools:scratchpad");
+
+        while (wins.hasMoreElements()) {
+          let win = wins.getNext();
+
+          if (win.Scratchpad.uniqueName === aSourceURL) {
+            win.focus();
+            return;
+          }
         }
-        return;
       }
-      let viewSourceUtils = this.owner.gViewSourceUtils;
-      viewSourceUtils.viewSource(aSourceURL, null, this.document, aSourceLine);
+      else if (locationNode.parentNode.category == CATEGORY_CSS) {
+        this.owner.viewSourceInStyleEditor(aSourceURL, aSourceLine);
+      }
+      else {
+        this.owner.viewSource(aSourceURL, aSourceLine);
+      }
     }.bind(this), true);
 
     return locationNode;
@@ -2788,6 +2909,41 @@ JSTerm.prototype = {
 
     if (result && typeof result == "object" && result.actor) {
       node._objectActors = [result.actor];
+      if (typeof result.displayString == "object" &&
+          result.displayString.type == "longString") {
+        node._objectActors.push(result.displayString.actor);
+      }
+
+      // Add an ellipsis to expand the short string if the object is not
+      // inspectable.
+      let longString = null;
+      let formatter = null;
+      if (result.type == "longString") {
+        longString = result;
+        if (!helperHasRawOutput) {
+          formatter = WebConsoleUtils.formatResultString.bind(WebConsoleUtils);
+        }
+      }
+      else if (!inspectable && !errorMessage &&
+               typeof result.displayString == "object" &&
+               result.displayString.type == "longString") {
+        longString = result.displayString;
+      }
+
+      if (longString) {
+        let body = node.querySelector(".webconsole-msg-body");
+        let ellipsis = this.hud.document.createElement("description");
+        ellipsis.classList.add("hud-clickable");
+        ellipsis.classList.add("longStringEllipsis");
+        ellipsis.textContent = l10n.getStr("longStringEllipsis");
+
+        this.hud._addMessageLinkCallback(ellipsis,
+          this.hud._longStringClick.bind(this.hud, node, longString, formatter));
+
+        body.appendChild(ellipsis);
+
+        node.clipboardText += " " + ellipsis.textContent;
+      }
     }
   },
 
@@ -2805,7 +2961,8 @@ JSTerm.prototype = {
     // attempt to execute the content of the inputNode
     aExecuteString = aExecuteString || this.inputNode.value;
     if (!aExecuteString) {
-      this.writeOutput("no value to execute", CATEGORY_OUTPUT, SEVERITY_LOG);
+      this.writeOutput(l10n.getStr("executeEmptyInput"), CATEGORY_OUTPUT,
+                       SEVERITY_LOG);
       return;
     }
 
@@ -3440,48 +3597,6 @@ JSTerm.prototype = {
   },
 
   /**
-   * Clear the object cache from the Web Console content instance.
-   *
-   * @param string aCacheId
-   *        The cache ID you want to clear. Multiple objects are cached into one
-   *        group which is given an ID.
-   */
-  clearObjectCache: function JST_clearObjectCache(aCacheId)
-  {
-    if (this.hud) {
-      this.hud.owner.sendMessageToContent("JSTerm:ClearObjectCache",
-                                          { cacheId: aCacheId });
-    }
-  },
-
-  /**
-   * The remote object provider allows you to retrieve a given object from
-   * a specific cache and have your callback invoked when the desired object is
-   * received from the Web Console content instance.
-   *
-   * @param string aCacheId
-   *        Retrieve the desired object from this cache ID.
-   * @param string aObjectId
-   *        The ID of the object you want.
-   * @param string aResultCacheId
-   *        The ID of the cache where you want any object references to be
-   *        stored into.
-   * @param function aCallback
-   *        The function you want invoked when the desired object is retrieved.
-   */
-  remoteObjectProvider:
-  function JST_remoteObjectProvider(aCacheId, aObjectId, aResultCacheId,
-                                    aCallback) {
-    let message = {
-      cacheId: aCacheId,
-      objectId: aObjectId,
-      resultCacheId: aResultCacheId,
-    };
-
-    this.hud.owner.sendMessageToContent("JSTerm:GetEvalObject", message, aCallback);
-  },
-
-  /**
    * The JSTerm InspectObject remote message handler. This allows the remote
    * process to open the Property Panel for a given object.
    *
@@ -3857,10 +3972,14 @@ CommandController.prototype = {
  * @constructor
  * @param object aWebConsole
  *        The Web Console instance that owns this connection proxy.
+ * @param object aOptions
+ *        Connection options: host and port.
  */
-function WebConsoleConnectionProxy(aWebConsole)
+function WebConsoleConnectionProxy(aWebConsole, aOptions = {})
 {
   this.owner = aWebConsole;
+  this.remoteHost = aOptions.host;
+  this.remotePort = aOptions.port;
 
   this._onPageError = this._onPageError.bind(this);
   this._onConsoleAPICall = this._onConsoleAPICall.bind(this);
@@ -3936,7 +4055,15 @@ WebConsoleConnectionProxy.prototype = {
    */
   connect: function WCCP_connect(aCallback)
   {
-    let transport = DebuggerServer.connectPipe();
+    let transport;
+    if (this.remoteHost) {
+      transport = debuggerSocketConnect(this.remoteHost, this.remotePort);
+    }
+    else {
+      this.initServer();
+      transport = DebuggerServer.connectPipe();
+    }
+
     let client = this.client = new DebuggerClient(transport);
 
     client.addListener("pageError", this._onPageError);
@@ -3946,18 +4073,58 @@ WebConsoleConnectionProxy.prototype = {
     client.addListener("fileActivity", this._onFileActivity);
     client.addListener("locationChange", this._onLocationChange);
 
+    client.connect(function(aType, aTraits) {
+      client.listTabs(this._onListTabs.bind(this, aCallback));
+    }.bind(this));
+  },
+
+  /**
+   * The "listTabs" response handler.
+   *
+   * @private
+   * @param function [aCallback]
+   *        Optional function to invoke once the connection is established.
+   * @param object aResponse
+   *        The JSON response object received from the server.
+   */
+  _onListTabs: function WCCP__onListTabs(aCallback, aResponse)
+  {
+    let selectedTab;
+
+    if (this.remoteHost) {
+      let tabs = [];
+      for (let tab of aResponse.tabs) {
+        tabs.push(tab.title);
+      }
+
+      tabs.push(l10n.getStr("listTabs.globalConsoleActor"));
+
+      let selected = {};
+      let result = Services.prompt.select(null,
+        l10n.getStr("remoteWebConsoleSelectTabTitle"),
+        l10n.getStr("remoteWebConsoleSelectTabMessage"),
+        tabs.length, tabs, selected);
+
+      if (result && selected.value < aResponse.tabs.length) {
+        selectedTab = aResponse.tabs[selected.value];
+      }
+    }
+    else {
+      selectedTab = aResponse.tabs[aResponse.selected];
+    }
+
+    if (selectedTab) {
+      this._consoleActor = selectedTab.consoleActor;
+      this.owner.onLocationChange(selectedTab.url, selectedTab.title);
+    }
+    else {
+      this._consoleActor = aResponse.consoleActor;
+    }
+
     let listeners = ["PageError", "ConsoleAPI", "NetworkActivity",
                      "FileActivity", "LocationChange"];
-
-    client.connect(function(aType, aTraits) {
-      client.listTabs(function(aResponse) {
-        let tab = aResponse.tabs[aResponse.selected];
-        this._consoleActor = tab.consoleActor;
-        this.owner.onLocationChange(tab.url, tab.title);
-        client.attachConsole(tab.consoleActor, listeners,
-                             this._onAttachConsole.bind(this, aCallback));
-      }.bind(this));
-    }.bind(this));
+    this.client.attachConsole(this._consoleActor, listeners,
+                              this._onAttachConsole.bind(this, aCallback));
   },
 
   /**

@@ -887,8 +887,8 @@ function switchToFrame(msg) {
 }
 
 function getAppCacheStatus() {
-  sendResponse({ value: curWindow.applicationCache.status });
-}
+  sendResponse({ value: curWindow.applicationCache.status });  
+} 
 
 // emulator callbacks
 let _emu_cb_id = 0;

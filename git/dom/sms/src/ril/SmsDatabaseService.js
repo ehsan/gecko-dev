@@ -163,6 +163,7 @@ SmsDatabaseService.prototype = {
       }
 
       let db = event.target.result;
+
       let currentVersion = event.oldVersion;
       while (currentVersion != event.newVersion) {
         switch (currentVersion) {

@@ -122,7 +122,8 @@ public:
     virtual bool RecvEndIMEComposition(const bool& aCancel,
                                        nsString* aComposition);
     virtual bool RecvGetInputContext(int32_t* aIMEEnabled,
-                                     int32_t* aIMEOpen);
+                                     int32_t* aIMEOpen,
+                                     intptr_t* aNativeIMEContext);
     virtual bool RecvSetInputContext(const int32_t& aIMEEnabled,
                                      const int32_t& aIMEOpen,
                                      const nsString& aType,
@@ -183,7 +184,7 @@ public:
     virtual bool DeallocPDocumentRenderer(PDocumentRendererParent* actor);
 
     virtual PContentPermissionRequestParent*
-    AllocPContentPermissionRequest(const nsCString& aType, const IPC::Principal& aPrincipal);
+    AllocPContentPermissionRequest(const nsCString& aType, const nsCString& aAccess, const IPC::Principal& aPrincipal);
     virtual bool DeallocPContentPermissionRequest(PContentPermissionRequestParent* actor);
 
     virtual POfflineCacheUpdateParent* AllocPOfflineCacheUpdate(

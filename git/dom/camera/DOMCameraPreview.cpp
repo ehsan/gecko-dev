@@ -9,6 +9,7 @@
 #include "CameraCommon.h"
 
 using namespace mozilla;
+using namespace mozilla::layers;
 
 /**
  * 'PreviewControl' is a helper class that dispatches preview control
@@ -44,7 +45,7 @@ public:
         break;
 
       case STOP:
-        mDOMPreview->Stop();
+        mDOMPreview->StopPreview();
         break;
 
       case STARTED:
@@ -148,7 +149,7 @@ DOMCameraPreview::DOMCameraPreview(ICameraControl* aCameraControl, uint32_t aWid
 
   mImageContainer = LayerManager::CreateImageContainer();
   MediaStreamGraph* gm = MediaStreamGraph::GetInstance();
-  mStream = gm->CreateInputStream(this);
+  mStream = gm->CreateSourceStream(this);
   mInput = GetStream()->AsSourceStream();
 
   mListener = new DOMCameraPreviewListener(this);
@@ -238,9 +239,9 @@ DOMCameraPreview::Started()
 }
 
 void
-DOMCameraPreview::Stop()
+DOMCameraPreview::StopPreview()
 {
-  NS_ASSERTION(NS_IsMainThread(), "Stop() not called from main thread");
+  NS_ASSERTION(NS_IsMainThread(), "StopPreview() not called from main thread");
   if (mState != STARTED) {
     return;
   }

@@ -219,7 +219,7 @@ class MarionetteTestRunner(object):
         if testvars is not None:
             if not os.path.exists(testvars):
                 raise Exception('--testvars file does not exist')
-            
+
             import json
             with open(testvars) as f:
                 self.testvars = json.loads(f.read())

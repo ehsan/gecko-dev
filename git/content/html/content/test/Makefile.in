@@ -243,6 +243,7 @@ MOCHITEST_FILES = \
 		test_bug677463.html \
 		test_bug682886.html \
 		test_bug717819.html \
+		file_fullscreen-utils.js \
 		file_fullscreen-api.html \
 		file_fullscreen-api-keys.html \
 		test_fullscreen-api.html \
@@ -328,6 +329,10 @@ MOCHITEST_FILES = \
 		test_iframe_sandbox_workers.html \
 		file_iframe_sandbox_g_if1.html \
 		file_iframe_sandbox_worker.js \
+		test_named_options.html \
+		test_htmlcollection.html \
+		test_formelements.html \
+		test_rowscollection.html \
 		$(NULL)
 
 MOCHITEST_BROWSER_FILES = \

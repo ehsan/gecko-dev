@@ -44,6 +44,7 @@ using namespace mozilla::ipc;
 //
 extern PRLogModuleInfo *gOfflineCacheUpdateLog;
 #endif
+#undef LOG
 #define LOG(args) PR_LOG(gOfflineCacheUpdateLog, 4, args)
 #define LOG_ENABLED() PR_LOG_TEST(gOfflineCacheUpdateLog, 4)
 
@@ -81,8 +82,8 @@ OfflineCacheUpdateChild::OfflineCacheUpdateChild(nsIDOMWindow* aWindow)
     : mState(STATE_UNINITIALIZED)
     , mIsUpgrade(false)
     , mIPCActivated(false)
-    , mInBrowser(false)
     , mAppID(NECKO_NO_APP_ID)
+    , mInBrowser(false)
     , mWindow(aWindow)
     , mByteProgress(0)
 {

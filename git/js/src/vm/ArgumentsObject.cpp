@@ -25,7 +25,7 @@ using namespace js::gc;
 static void
 CopyStackFrameArguments(const StackFrame *fp, HeapValue *dst)
 {
-    JS_ASSERT(!fp->beginsIonActivation());
+    JS_ASSERT(!fp->runningInIon());
 
     unsigned numActuals = fp->numActualArgs();
     unsigned numFormals = fp->callee().nargs;
@@ -48,7 +48,8 @@ CopyStackFrameArguments(const StackFrame *fp, HeapValue *dst)
 /* static */ void
 ArgumentsObject::MaybeForwardToCallObject(StackFrame *fp, JSObject *obj, ArgumentsData *data)
 {
-    JSScript *script = fp->script();
+    AutoAssertNoGC nogc;
+    RawScript script = fp->script().get(nogc);
     if (fp->fun()->isHeavyweight() && script->argsObjAliasesFormals()) {
         obj->initFixedSlot(MAYBE_CALL_SLOT, ObjectValue(fp->callObj()));
         for (AliasedFormalIter fi(script); fi; fi++)
@@ -87,7 +88,7 @@ struct CopyStackIterArgs
 
     void copyArgs(HeapValue *dstBase) const {
         if (!iter_.isIon()) {
-            CopyStackFrameArguments(iter_.fp(), dstBase);
+            CopyStackFrameArguments(iter_.interpFrame(), dstBase);
             return;
         }
 
@@ -110,7 +111,7 @@ struct CopyStackIterArgs
      */
     void maybeForwardToCallObject(JSObject *obj, ArgumentsData *data) {
         if (!iter_.isIon())
-            ArgumentsObject::MaybeForwardToCallObject(iter_.fp(), obj, data);
+            ArgumentsObject::MaybeForwardToCallObject(iter_.interpFrame(), obj, data);
     }
 };
 
@@ -119,6 +120,8 @@ template <typename CopyArgs>
 ArgumentsObject::create(JSContext *cx, HandleScript script, HandleFunction callee, unsigned numActuals,
                         CopyArgs &copy)
 {
+    AssertCanGC();
+
     RootedObject proto(cx, callee->global().getOrCreateObjectPrototype(cx));
     if (!proto)
         return NULL;
@@ -158,7 +161,7 @@ ArgumentsObject::create(JSContext *cx, HandleScript script, HandleFunction calle
     data->deletedBits = reinterpret_cast<size_t *>(dstEnd);
     ClearAllBitArrayElements(data->deletedBits, numDeletedWords);
 
-    JSObject *obj = JSObject::create(cx, FINALIZE_KIND, shape, type, NULL);
+    RawObject obj = JSObject::create(cx, FINALIZE_KIND, shape, type, NULL);
     if (!obj)
         return NULL;
 

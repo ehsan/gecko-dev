@@ -61,6 +61,7 @@ public:
   void SendDisconnectRequest();
   void SendAbortRequest();
 
+  nsresult HandleShutdown();
 private:
   BluetoothOppManager();
   void StartFileTransfer(const nsString& aDeviceAddress,

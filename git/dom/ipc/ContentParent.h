@@ -30,6 +30,7 @@
 #define CHILD_PROCESS_SHUTDOWN_MESSAGE NS_LITERAL_STRING("child-process-shutdown")
 
 class mozIApplication;
+class nsConsoleService;
 class nsIDOMBlob;
 
 namespace mozilla {
@@ -217,7 +218,6 @@ private:
     virtual bool DeallocPTestShell(PTestShellParent* shell);
 
     virtual PAudioParent* AllocPAudio(const int32_t&,
-                                     const int32_t&,
                                      const int32_t&);
     virtual bool DeallocPAudio(PAudioParent*);
 
@@ -311,6 +311,7 @@ private:
     GeckoChildProcessHost* mSubprocess;
     ChildOSPrivileges mOSPrivileges;
 
+    uint64_t mChildID;
     int32_t mGeolocationWatchID;
     int mRunToCompletionDepth;
     bool mShouldCallUnblockChild;
@@ -329,6 +330,9 @@ private:
     bool mIsForBrowser;
 
     friend class CrashReporterParent;
+
+    nsRefPtr<nsConsoleService>  mConsoleService;
+    nsConsoleService* GetConsoleService();
 };
 
 } // namespace dom

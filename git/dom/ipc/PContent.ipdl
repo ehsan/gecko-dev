@@ -335,7 +335,7 @@ parent:
     sync GetXPCOMProcessAttributes()
         returns (bool isOffline);
 
-    PAudio(int32_t aNumChannels, int32_t aRate, int32_t aFormat);
+    PAudio(int32_t aNumChannels, int32_t aRate);
 
     PDeviceStorageRequest(DeviceStorageParams params);
 

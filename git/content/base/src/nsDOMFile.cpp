@@ -27,7 +27,7 @@
 #include "nsNetCID.h"
 #include "nsNetUtil.h"
 #include "nsIUUIDGenerator.h"
-#include "nsBlobProtocolHandler.h"
+#include "nsHostObjectProtocolHandler.h"
 #include "nsStringStream.h"
 #include "nsJSUtils.h"
 #include "nsPrintfCString.h"
@@ -39,7 +39,6 @@
 #include "plbase64.h"
 #include "prmem.h"
 #include "mozilla/dom/FileListBinding.h"
-#include "dombindings.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -131,11 +130,10 @@ nsDOMFileBase::GetName(nsAString &aFileName)
 }
 
 NS_IMETHODIMP
-nsDOMFileBase::GetLastModifiedDate(JSContext* cx, JS::Value* aLastModifiedDate)
+nsDOMFileBase::GetLastModifiedDate(JSContext* cx, JS::Value *aLastModifiedDate)
 {
-  NS_ASSERTION(mIsFile, "Should only be called on files");
-
-  aLastModifiedDate->setNull();
+  JSObject* date = JS_NewDateObjectMsec(cx, JS_Now() / PR_USEC_PER_MSEC);
+  aLastModifiedDate->setObject(*date);
   return NS_OK;
 }
 
@@ -144,12 +142,12 @@ nsDOMFileBase::GetMozFullPath(nsAString &aFileName)
 {
   NS_ASSERTION(mIsFile, "Should only be called on files");
 
-  // It is unsafe to call CallerHasUniversalXPConnect on a non-main thread. If
+  // It is unsafe to call IsCallerChrome on a non-main thread. If
   // you hit the following assertion you need to figure out some other way to
   // determine privileges and call GetMozFullPathInternal.
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  if (nsContentUtils::CallerHasUniversalXPConnect()) {
+  if (nsContentUtils::IsCallerChrome()) {
     return GetMozFullPathInternal(aFileName);
   }
   aFileName.Truncate();
@@ -286,26 +284,15 @@ nsDOMFileBase::GetInternalUrl(nsIPrincipal* aPrincipal, nsAString& aURL)
 {
   NS_ENSURE_STATE(aPrincipal);
 
-  nsresult rv;
-  nsCOMPtr<nsIUUIDGenerator> uuidgen =
-    do_GetService("@mozilla.org/uuid-generator;1", &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-  
-  nsID id;
-  rv = uuidgen->GenerateUUIDInPlace(&id);
-  NS_ENSURE_SUCCESS(rv, rv);
-  
-  char chars[NSID_LENGTH];
-  id.ToProvidedString(chars);
-    
-  nsCString url = NS_LITERAL_CSTRING(BLOBURI_SCHEME ":") +
-    Substring(chars + 1, chars + NSID_LENGTH - 2);
-
-  nsBlobProtocolHandler::AddFileDataEntry(url, this,
-                                              aPrincipal);
+  nsCString url;
+  nsresult rv = nsBlobProtocolHandler::AddDataEntry(
+    NS_LITERAL_CSTRING(BLOBURI_SCHEME),
+    static_cast<nsIDOMBlob*>(this), aPrincipal, url);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
 
   CopyASCIItoUTF16(url, aURL);
-  
   return NS_OK;
 }
 
@@ -510,8 +497,10 @@ nsDOMFileFile::GetMozFullPathInternal(nsAString &aFilename)
 }
 
 NS_IMETHODIMP
-nsDOMFileFile::GetLastModifiedDate(JSContext* cx, JS::Value *aLastModifiedDate)
+nsDOMFileFile::GetLastModifiedDate(JSContext* cx, JS::Value* aLastModifiedDate)
 {
+  NS_ASSERTION(mIsFile, "Should only be called on files");
+
   PRTime msecs;
   mFile->GetLastModifiedTime(&msecs);
   if (IsDateUnknown()) {
@@ -527,7 +516,8 @@ nsDOMFileFile::GetLastModifiedDate(JSContext* cx, JS::Value *aLastModifiedDate)
     aLastModifiedDate->setObject(*date);
   }
   else {
-    aLastModifiedDate->setNull();
+    date = JS_NewDateObjectMsec(cx, JS_Now() / PR_USEC_PER_MSEC);
+    aLastModifiedDate->setObject(*date);
   }
 
   return NS_OK;
@@ -698,7 +688,7 @@ nsDOMMemoryFile::DataOwner::sMemoryReporterRegistered;
 NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(DOMMemoryFileDataOwnerSizeOf,
                                      "memory-file-data");
 
-class nsDOMMemoryFileDataOwnerMemoryReporter
+class nsDOMMemoryFileDataOwnerMemoryReporter MOZ_FINAL
   : public nsIMemoryMultiReporter
 {
   NS_DECL_ISUPPORTS
@@ -825,19 +815,7 @@ JSObject*
 nsDOMFileList::WrapObject(JSContext *cx, JSObject *scope,
                           bool *triedToWrap)
 {
-  JSObject* obj = FileListBinding::Wrap(cx, scope, this, triedToWrap);
-  if (obj || *triedToWrap) {
-    return obj;
-  }
-
-  *triedToWrap = true;
-  return oldproxybindings::FileList::create(cx, scope, this);
-}
-
-nsIDOMFile*
-nsDOMFileList::GetItemAt(uint32_t aIndex)
-{
-  return Item(aIndex);
+  return FileListBinding::Wrap(cx, scope, this, triedToWrap);
 }
 
 NS_IMETHODIMP
@@ -870,6 +848,6 @@ nsDOMFileInternalUrlHolder::~nsDOMFileInternalUrlHolder() {
   if (!mUrl.IsEmpty()) {
     nsAutoCString narrowUrl;
     CopyUTF16toUTF8(mUrl, narrowUrl);
-    nsBlobProtocolHandler::RemoveFileDataEntry(narrowUrl);
+    nsBlobProtocolHandler::RemoveDataEntry(narrowUrl);
   }
 }

@@ -55,6 +55,7 @@
 #include "nsScriptNameSpaceManager.h"
 #include "StructuredCloneTags.h"
 #include "mozilla/dom/ImageData.h"
+#include "mozilla/dom/ImageDataBinding.h"
 
 #include "nsJSPrincipals.h"
 #include "jsdbgapi.h"
@@ -951,7 +952,6 @@ static const char js_strict_option_str[] = JS_OPTIONS_DOT_STR "strict";
 static const char js_strict_debug_option_str[] = JS_OPTIONS_DOT_STR "strict.debug";
 #endif
 static const char js_werror_option_str[] = JS_OPTIONS_DOT_STR "werror";
-static const char js_relimit_option_str[]= JS_OPTIONS_DOT_STR "relimit";
 #ifdef JS_GC_ZEAL
 static const char js_zeal_option_str[]        = JS_OPTIONS_DOT_STR "gczeal";
 static const char js_zeal_frequency_str[]     = JS_OPTIONS_DOT_STR "gczeal.frequency";
@@ -1071,12 +1071,6 @@ nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
   else
     newDefaultJSOptions &= ~JSOPTION_WERROR;
 
-  bool relimit = Preferences::GetBool(js_relimit_option_str);
-  if (relimit)
-    newDefaultJSOptions |= JSOPTION_RELIMIT;
-  else
-    newDefaultJSOptions &= ~JSOPTION_RELIMIT;
-
   ::JS_SetOptions(context->mContext,
                   newDefaultJSOptions & (JSRUNOPTION_MASK | JSOPTION_ALLOW_XML));
 
@@ -1096,10 +1090,12 @@ nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
   return 0;
 }
 
-nsJSContext::nsJSContext(JSRuntime *aRuntime)
-  : mActive(false),
-    mGCOnDestruction(true),
-    mExecuteDepth(0)
+nsJSContext::nsJSContext(JSRuntime *aRuntime, bool aGCOnDestruction,
+                         nsIScriptGlobalObject* aGlobalObject)
+  : mActive(false)
+  , mGCOnDestruction(aGCOnDestruction)
+  , mExecuteDepth(0)
+  , mGlobalObjectRef(aGlobalObject)
 {
   mNext = sContextList;
   mPrev = &sContextList;
@@ -1136,7 +1132,6 @@ nsJSContext::nsJSContext(JSRuntime *aRuntime)
   mOperationCallbackTime = 0;
   mModalStateTime = 0;
   mModalStateDepth = 0;
-  mProcessingScriptTag = false;
 }
 
 nsJSContext::~nsJSContext()
@@ -1209,11 +1204,11 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsJSContext)
   tmp->mIsInitialized = false;
   tmp->mGCOnDestruction = false;
   tmp->DestroyJSContext();
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mGlobalObjectRef)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mGlobalObjectRef)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsJSContext)
   NS_IMPL_CYCLE_COLLECTION_DESCRIBE(nsJSContext, tmp->GetCCRefcnt())
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mGlobalObjectRef)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mGlobalObjectRef)
   NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mContext");
   nsContentUtils::XPConnect()->NoteJSContext(tmp->mContext, cb);
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
@@ -1571,6 +1566,7 @@ nsJSContext::CompileScript(const PRUnichar* aText,
                            nsScriptObjectHolder<JSScript>& aScriptObject,
                            bool aSaveSource /* = false */)
 {
+  SAMPLE_LABEL_PRINTF("JS", "Compile Script", "%s", aURL ? aURL : "");
   NS_ENSURE_TRUE(mIsInitialized, NS_ERROR_NOT_INITIALIZED);
 
   NS_ENSURE_ARG_POINTER(aPrincipal);
@@ -2734,24 +2730,24 @@ static JSFunctionSpec JProfFunctions[] = {
 
 #endif /* defined(MOZ_JPROF) */
 
-#ifdef MOZ_DMD
+#ifdef MOZ_DMDV
 
 // See https://wiki.mozilla.org/Performance/MemShrink/DMD for instructions on
-// how to use DMD.
+// how to use DMDV.
 
 static JSBool
-DMDCheckJS(JSContext *cx, unsigned argc, jsval *vp)
+DMDVCheckAndDumpJS(JSContext *cx, unsigned argc, jsval *vp)
 {
-  mozilla::DMDCheckAndDump();
+  mozilla::DMDVCheckAndDump();
   return JS_TRUE;
 }
 
-static JSFunctionSpec DMDFunctions[] = {
-    JS_FS("DMD",                        DMDCheckJS,                 0, 0),
+static JSFunctionSpec DMDVFunctions[] = {
+    JS_FS("DMDV",                       DMDVCheckAndDumpJS,         0, 0),
     JS_FS_END
 };
 
-#endif /* defined(MOZ_DMD) */
+#endif /* defined(MOZ_DMDV) */
 
 nsresult
 nsJSContext::InitClasses(JSObject* aGlobalObj)
@@ -2776,9 +2772,9 @@ nsJSContext::InitClasses(JSObject* aGlobalObj)
   ::JS_DefineFunctions(mContext, aGlobalObj, JProfFunctions);
 #endif
 
-#ifdef MOZ_DMD
-  // Attempt to initialize DMD functions
-  ::JS_DefineFunctions(mContext, aGlobalObj, DMDFunctions);
+#ifdef MOZ_DMDV
+  // Attempt to initialize DMDV functions
+  ::JS_DefineFunctions(mContext, aGlobalObj, DMDVFunctions);
 #endif
 
   return rv;
@@ -2861,27 +2857,9 @@ nsJSContext::SetScriptsEnabled(bool aEnabled, bool aFireTimeouts)
 
 
 bool
-nsJSContext::GetProcessingScriptTag()
-{
-  return mProcessingScriptTag;
-}
-
-void
-nsJSContext::SetProcessingScriptTag(bool aFlag)
-{
-  mProcessingScriptTag = aFlag;
-}
-
-bool
 nsJSContext::GetExecutingScript()
 {
   return JS_IsRunning(mContext) || mExecuteDepth > 0;
-}
-
-void
-nsJSContext::SetGCOnDestruction(bool aGCOnDestruction)
-{
-  mGCOnDestruction = aGCOnDestruction;
 }
 
 NS_IMETHODIMP
@@ -3637,13 +3615,8 @@ nsJSContext::DropScriptObject(void* aScriptObject)
 void
 nsJSContext::ReportPendingException()
 {
-  // set aside the frame chain, since it has nothing to do with the
-  // exception we're reporting.
-  if (mIsInitialized && ::JS_IsExceptionPending(mContext)) {
-    bool saved = ::JS_SaveFrameChain(mContext);
-    ::JS_ReportPendingException(mContext);
-    if (saved)
-        ::JS_RestoreFrameChain(mContext);
+  if (mIsInitialized) {
+    nsJSUtils::ReportPendingException(mContext);
   }
 }
 
@@ -3661,9 +3634,11 @@ NS_IMPL_ADDREF(nsJSRuntime)
 NS_IMPL_RELEASE(nsJSRuntime)
 
 already_AddRefed<nsIScriptContext>
-nsJSRuntime::CreateContext()
+nsJSRuntime::CreateContext(bool aGCOnDestruction,
+                           nsIScriptGlobalObject* aGlobalObject)
 {
-  nsCOMPtr<nsIScriptContext> scriptContext = new nsJSContext(sRuntime);
+  nsCOMPtr<nsIScriptContext> scriptContext =
+    new nsJSContext(sRuntime, aGCOnDestruction, aGlobalObject);
   return scriptContext.forget();
 }
 
@@ -3704,7 +3679,7 @@ MaxScriptRunTimePrefChangedCallback(const char *aPrefName, void *aClosure)
   PRTime t;
   if (time <= 0) {
     // Let scripts run for a really, really long time.
-    t = LL_INIT(0x40000000, 0);
+    t = 0x40000000LL << 32;
   } else {
     t = time * PR_USEC_PER_SEC;
   }
@@ -3817,22 +3792,14 @@ NS_DOMReadStructuredClone(JSContext* cx,
     MOZ_ASSERT(dataArray.isObject());
 
     // Construct the ImageData.
-    nsCOMPtr<nsIDOMImageData> imageData = new ImageData(width, height,
-                                                        dataArray.toObject());
+    nsRefPtr<ImageData> imageData = new ImageData(width, height,
+                                                  dataArray.toObject());
     // Wrap it in a jsval.
     JSObject* global = JS_GetGlobalForScopeChain(cx);
     if (!global) {
       return nullptr;
     }
-    nsCOMPtr<nsIXPConnectJSObjectHolder> wrapper;
-    JS::Value val;
-    nsresult rv =
-      nsContentUtils::WrapNative(cx, global, imageData, &val,
-                                 getter_AddRefs(wrapper));
-    if (NS_FAILED(rv)) {
-      return nullptr;
-    }
-    return val.toObjectOrNull();
+    return imageData->WrapObject(cx, global);
   }
 
   // Don't know what this is. Bail.
@@ -3846,32 +3813,23 @@ NS_DOMWriteStructuredClone(JSContext* cx,
                            JSObject* obj,
                            void *closure)
 {
-  nsCOMPtr<nsIXPConnectWrappedNative> wrappedNative;
-  nsContentUtils::XPConnect()->
-    GetWrappedNativeOfJSObject(cx, obj, getter_AddRefs(wrappedNative));
-  nsISupports *native = wrappedNative ? wrappedNative->Native() : nullptr;
-
-  nsCOMPtr<nsIDOMImageData> imageData = do_QueryInterface(native);
-  if (imageData) {
-    // Prepare the ImageData internals.
-    uint32_t width, height;
-    JS::Value dataArray;
-    if (NS_FAILED(imageData->GetWidth(&width)) ||
-        NS_FAILED(imageData->GetHeight(&height)) ||
-        NS_FAILED(imageData->GetData(cx, &dataArray)))
-    {
-      return false;
-    }
-
-    // Write the internals to the stream.
-    return JS_WriteUint32Pair(writer, SCTAG_DOM_IMAGEDATA, 0) &&
-           JS_WriteUint32Pair(writer, width, height) &&
-           JS_WriteTypedArray(writer, dataArray);
+  ImageData* imageData;
+  nsresult rv = UnwrapObject<ImageData>(cx, obj, imageData);
+  if (NS_FAILED(rv)) {
+    // Don't know what this is. Bail.
+    xpc::Throw(cx, NS_ERROR_DOM_DATA_CLONE_ERR);
+    return JS_FALSE;
   }
 
-  // Don't know what this is. Bail.
-  xpc::Throw(cx, NS_ERROR_DOM_DATA_CLONE_ERR);
-  return JS_FALSE;
+  // Prepare the ImageData internals.
+  uint32_t width = imageData->Width();
+  uint32_t height = imageData->Height();
+  JS::Value dataArray = JS::ObjectValue(*imageData->GetDataObject());
+
+  // Write the internals to the stream.
+  return JS_WriteUint32Pair(writer, SCTAG_DOM_IMAGEDATA, 0) &&
+         JS_WriteUint32Pair(writer, width, height) &&
+         JS_WriteTypedArray(writer, dataArray);
 }
 
 void

@@ -17,12 +17,10 @@
 #include "nsThreadUtils.h"
 #include "nsIObserverService.h"
 #include "nsThread.h"
+#include "nsMemoryInfoDumper.h"
 #include "mozilla/Telemetry.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/Services.h"
-#include "mozilla/StaticPtr.h"
-#include "mozilla/ClearOnShutdown.h"
-#include "mozilla/MemoryInfoDumper.h"
 
 #ifndef XP_WIN
 #include <unistd.h>
@@ -421,8 +419,6 @@ NS_FALLIBLE_MEMORY_REPORTER_IMPLEMENT(PageFaultsHard,
 
 #if HAVE_JEMALLOC_STATS
 
-#define HAVE_HEAP_ALLOCATED_REPORTERS 1
-
 static int64_t GetHeapUnused()
 {
     jemalloc_stats_t stats;
@@ -507,62 +503,6 @@ NS_MEMORY_REPORTER_IMPLEMENT(HeapDirty,
     "doesn't have to ask the OS the next time it needs to fulfill a request. "
     "This value is typically not larger than a few megabytes.")
 
-#elif defined(XP_MACOSX) && !defined(MOZ_MEMORY)
-#include <malloc/malloc.h>
-
-#define HAVE_HEAP_ALLOCATED_REPORTERS 1
-
-static int64_t GetHeapUnused()
-{
-    struct mstats stats = mstats();
-    return stats.bytes_total - stats.bytes_used;
-}
-
-static int64_t GetHeapAllocated()
-{
-    struct mstats stats = mstats();
-    return stats.bytes_used;
-}
-
-// malloc_zone_statistics() crashes when run under DMD because Valgrind doesn't
-// intercept it.  This measurement isn't important for DMD, so don't even try
-// to get it.
-#ifndef MOZ_DMD
-#define HAVE_HEAP_ZONE0_REPORTERS 1
-static int64_t GetHeapZone0Committed()
-{
-    malloc_statistics_t stats;
-    malloc_zone_statistics(malloc_default_zone(), &stats);
-    return stats.size_in_use;
-}
-
-static int64_t GetHeapZone0Used()
-{
-    malloc_statistics_t stats;
-    malloc_zone_statistics(malloc_default_zone(), &stats);
-    return stats.size_allocated;
-}
-
-NS_MEMORY_REPORTER_IMPLEMENT(HeapZone0Committed,
-    "heap-zone0-committed",
-    KIND_OTHER,
-    UNITS_BYTES,
-    GetHeapZone0Committed,
-    "Memory mapped by the heap allocator that is committed in the default "
-    "zone.")
-
-NS_MEMORY_REPORTER_IMPLEMENT(HeapZone0Used,
-    "heap-zone0-used",
-    KIND_OTHER,
-    UNITS_BYTES,
-    GetHeapZone0Used,
-    "Memory mapped by the heap allocator in the default zone that is "
-    "allocated to the application.")
-#endif  // MOZ_DMD
-
-#endif
-
-#ifdef HAVE_HEAP_ALLOCATED_REPORTERS
 NS_MEMORY_REPORTER_IMPLEMENT(HeapUnused,
     "heap-unused",
     KIND_OTHER,
@@ -583,8 +523,7 @@ NS_MEMORY_REPORTER_IMPLEMENT(HeapAllocated,
     "exact amount requested is not recorded.)")
 
 // The computation of "explicit" fails if "heap-allocated" isn't available,
-// which is why this is depends on HAVE_HEAP_ALLOCATED_AND_EXPLICIT_REPORTERS.
-#define HAVE_EXPLICIT_REPORTER 1
+// which is why this is depends on HAVE_JEMALLOC_STATS.
 static nsresult GetExplicit(int64_t *n)
 {
     nsCOMPtr<nsIMemoryReporterManager> mgr = do_GetService("@mozilla.org/memory-reporter-manager;1");
@@ -602,7 +541,7 @@ NS_FALLIBLE_MEMORY_REPORTER_IMPLEMENT(Explicit,
     "This is the same measurement as the root of the 'explicit' tree.  "
     "However, it is measured at a different time and so gives slightly "
     "different results.")
-#endif  // HAVE_HEAP_ALLOCATED_REPORTERS
+#endif  // HAVE_JEMALLOC_STATS
 
 NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(AtomTableMallocSizeOf, "atom-table")
 
@@ -638,12 +577,13 @@ nsMemoryReporterManager::Init()
 
 #define REGISTER(_x)  RegisterReporter(new NS_MEMORY_REPORTER_NAME(_x))
 
-#ifdef HAVE_HEAP_ALLOCATED_REPORTERS
+#ifdef HAVE_JEMALLOC_STATS
     REGISTER(HeapAllocated);
     REGISTER(HeapUnused);
-#endif
-
-#ifdef HAVE_EXPLICIT_REPORTER
+    REGISTER(HeapCommitted);
+    REGISTER(HeapCommittedUnused);
+    REGISTER(HeapCommittedUnusedRatio);
+    REGISTER(HeapDirty);
     REGISTER(Explicit);
 #endif
 
@@ -661,20 +601,11 @@ nsMemoryReporterManager::Init()
     REGISTER(Private);
 #endif
 
-#if defined(HAVE_JEMALLOC_STATS)
-    REGISTER(HeapCommitted);
-    REGISTER(HeapCommittedUnused);
-    REGISTER(HeapCommittedUnusedRatio);
-    REGISTER(HeapDirty);
-#elif defined(HAVE_HEAP_ZONE0_REPORTERS)
-    REGISTER(HeapZone0Committed);
-    REGISTER(HeapZone0Used);
-#endif
 
     REGISTER(AtomTable);
 
 #if defined(XP_LINUX)
-    MemoryInfoDumper::Initialize();
+    nsMemoryInfoDumper::Initialize();
 #endif
 
     return NS_OK;
@@ -822,7 +753,7 @@ nsMemoryReporterManager::GetExplicit(int64_t *aExplicit)
 {
     NS_ENSURE_ARG_POINTER(aExplicit);
     *aExplicit = 0;
-#ifndef HAVE_EXPLICIT_REPORTER
+#ifndef HAVE_JEMALLOC_STATS
     return NS_ERROR_NOT_AVAILABLE;
 #else
     nsresult rv;
@@ -915,7 +846,7 @@ nsMemoryReporterManager::GetExplicit(int64_t *aExplicit)
 
     *aExplicit = heapAllocated + explicitNonHeapNormalSize + explicitNonHeapMultiSize;
     return NS_OK;
-#endif // HAVE_HEAP_ALLOCATED_AND_EXPLICIT_REPORTERS
+#endif // HAVE_JEMALLOC_STATS
 }
 
 NS_IMETHODIMP
@@ -1088,7 +1019,7 @@ NS_UnregisterMemoryMultiReporter (nsIMemoryMultiReporter *reporter)
 
 namespace mozilla {
 
-#ifdef MOZ_DMD
+#ifdef MOZ_DMDV
 
 class NullMultiReporterCallback : public nsIMemoryMultiReporterCallback
 {
@@ -1100,7 +1031,7 @@ public:
                         const nsACString &aDescription,
                         nsISupports *aData)
     {
-        // Do nothing;  the reporter has already reported to DMD.
+        // Do nothing;  the reporter has already reported to DMDV.
         return NS_OK;
     }
 };
@@ -1110,7 +1041,7 @@ NS_IMPL_ISUPPORTS1(
 )
 
 void
-DMDCheckAndDump()
+DMDVCheckAndDump()
 {
     nsCOMPtr<nsIMemoryReporterManager> mgr =
         do_GetService("@mozilla.org/memory-reporter-manager;1");
@@ -1123,9 +1054,30 @@ DMDCheckAndDump()
         nsCOMPtr<nsIMemoryReporter> r;
         e->GetNext(getter_AddRefs(r));
 
-        // Just getting the amount is enough for the reporter to report to DMD.
-        int64_t amount;
-        (void)r->GetAmount(&amount);
+        int32_t kind;
+        nsresult rv = r->GetKind(&kind);
+        if (NS_FAILED(rv)) {
+            continue;
+        }
+        nsCString path;
+        rv = r->GetPath(path);
+        if (NS_FAILED(rv)) {
+            continue;
+        }
+
+        // We're only interested in HEAP explicit reporters.  (In particular,
+        // some heap blocks are deliberately measured once inside an "explicit"
+        // reporter and once outside, which isn't a problem.  This condition
+        // prevents them being reported as double-counted.  See bug 811018
+        // comment 2.)
+        if (kind == nsIMemoryReporter::KIND_HEAP &&
+            path.Find("explicit") == 0)
+        {
+            // Just getting the amount is enough for the reporter to report to
+            // DMDV.
+            int64_t amount;
+            (void)r->GetAmount(&amount);
+        }
     }
 
     // Do multi-reporters.
@@ -1138,9 +1090,9 @@ DMDCheckAndDump()
       r->CollectReports(cb, nullptr);
     }
 
-    VALGRIND_DMD_CHECK_REPORTING;
+    VALGRIND_DMDV_CHECK_REPORTING;
 }
 
-#endif  /* defined(MOZ_DMD) */
+#endif  /* defined(MOZ_DMDV) */
 
 }

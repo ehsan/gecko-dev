@@ -9,6 +9,7 @@
 
 #include "certt.h"
 #include "mozilla/Mutex.h"
+#include "mozilla/RefPtr.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsITransportSecurityInfo.h"
 #include "nsSSLStatus.h"
@@ -16,6 +17,7 @@
 #include "nsIAssociatedContentSecurity.h"
 #include "nsNSSShutDown.h"
 #include "nsDataHashtable.h"
+#include "nsISocketTransport.h"
 
 namespace mozilla { namespace psm {
 
@@ -87,8 +89,6 @@ protected:
 
 private:
   uint32_t mSecurityState;
-  int32_t mSubRequestsHighSecurity;
-  int32_t mSubRequestsLowSecurity;
   int32_t mSubRequestsBrokenSecurity;
   int32_t mSubRequestsNoSecurity;
   nsString mShortDesc;
@@ -107,7 +107,7 @@ private:
   PRErrorCode mIsCertIssuerBlacklisted;
 
   /* SSL Status */
-  nsRefPtr<nsSSLStatus> mSSLStatus;
+  mozilla::RefPtr<nsSSLStatus> mSSLStatus;
 
   virtual void virtualDestroyNSSReference();
   void destructorSafeDestroyNSSReference();
