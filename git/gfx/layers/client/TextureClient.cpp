@@ -19,7 +19,7 @@
 #include "mozilla/gfx/2D.h"
 #include "mozilla/layers/TextureClientOGL.h"
 #include "mozilla/layers/PTextureChild.h"
-#include "SurfaceStream.h"
+#include "SharedSurface.h"
 #include "GLContext.h"
 
 #ifdef XP_WIN
@@ -177,9 +177,54 @@ TextureClient::AsTextureClient(PTextureChild* actor)
 }
 
 void
+TextureClient::AddFlags(TextureFlags aFlags)
+{
+  MOZ_ASSERT(!IsSharedWithCompositor() ||
+             ((GetFlags() & TextureFlags::RECYCLE) && !IsAddedToCompositableClient()));
+  mFlags |= aFlags;
+  if (mValid && mActor && mActor->IPCOpen()) {
+    mActor->SendRecycleTexture(mFlags);
+  }
+}
+
+void
+TextureClient::RemoveFlags(TextureFlags aFlags)
+{
+  MOZ_ASSERT(!IsSharedWithCompositor() ||
+             ((GetFlags() & TextureFlags::RECYCLE) && !IsAddedToCompositableClient()));
+  mFlags &= ~aFlags;
+  if (mValid && mActor && mActor->IPCOpen()) {
+    mActor->SendRecycleTexture(mFlags);
+  }
+}
+
+void
+TextureClient::RecycleTexture(TextureFlags aFlags)
+{
+  MOZ_ASSERT(GetFlags() & TextureFlags::RECYCLE);
+  MOZ_ASSERT(!HasRecycleCallback());
+
+  mAddedToCompositableClient = false;
+  if (mFlags != aFlags) {
+    mFlags = aFlags;
+    if (mValid && mActor && mActor->IPCOpen()) {
+      mActor->SendRecycleTexture(mFlags);
+    }
+  }
+}
+
+void
 TextureClient::WaitForCompositorRecycle()
 {
   mActor->WaitForCompositorRecycle();
+}
+
+void
+TextureClient::SetAddedToCompositableClient()
+{
+  if (!mAddedToCompositableClient) {
+    mAddedToCompositableClient = true;
+  }
 }
 
 bool
@@ -215,6 +260,9 @@ TextureClient::GetIPDLActor()
 static bool
 DisableGralloc(SurfaceFormat aFormat, const gfx::IntSize& aSizeHint)
 {
+  if (gfxPrefs::DisableGralloc()) {
+    return true;
+  }
   if (aFormat == gfx::SurfaceFormat::A8) {
     return true;
   }
@@ -426,6 +474,10 @@ TextureClient::TextureClient(TextureFlags aFlags)
   : mFlags(aFlags)
   , mShared(false)
   , mValid(true)
+  , mAddedToCompositableClient(false)
+#ifdef GFX_DEBUG_TRACK_CLIENTS_IN_POOL
+  , mPoolTracker(nullptr)
+#endif
 {}
 
 TextureClient::~TextureClient()
@@ -442,10 +494,10 @@ TextureClient::KeepUntilFullDeallocation(KeepAlive* aKeep)
   mActor->mKeep = aKeep;
 }
 
-void TextureClient::ForceRemove()
+void TextureClient::ForceRemove(bool sync)
 {
   if (mValid && mActor) {
-    if (GetFlags() & TextureFlags::DEALLOCATE_CLIENT) {
+    if (sync || GetFlags() & TextureFlags::DEALLOCATE_CLIENT) {
       if (mActor->IPCOpen()) {
         mActor->SendClearTextureHostSync();
         mActor->SendRemoveTexture();
@@ -660,7 +712,7 @@ BufferTextureClient::AllocateForSurface(gfx::IntSize aSize, TextureAllocationFla
 {
   MOZ_ASSERT(IsValid());
   MOZ_ASSERT(mFormat != gfx::SurfaceFormat::YUV, "This textureClient cannot use YCbCr data");
-  MOZ_ASSERT(aSize.width * aSize.height);
+  MOZ_ASSERT(aSize.width > 0 && aSize.height > 0);
 
   int bufSize
     = ImageDataSerializer::ComputeMinBufferSize(aSize, mFormat);
@@ -790,62 +842,41 @@ BufferTextureClient::AllocateForYCbCr(gfx::IntSize aYSize,
   return true;
 }
 
-////////////////////////////////////////////////////////////////////////
-// StreamTextureClient
-StreamTextureClient::StreamTextureClient(TextureFlags aFlags)
-  : TextureClient(aFlags)
-  , mIsLocked(false)
+uint8_t*
+BufferTextureClient::GetLockedData() const
 {
+  MOZ_ASSERT(IsLocked());
+
+  ImageDataSerializer serializer(GetBuffer(), GetBufferSize());
+  MOZ_ASSERT(serializer.IsValid());
+
+  return serializer.GetData();
 }
 
-StreamTextureClient::~StreamTextureClient()
+////////////////////////////////////////////////////////////////////////
+// SharedSurfaceTextureClient
+
+SharedSurfaceTextureClient::SharedSurfaceTextureClient(TextureFlags aFlags,
+                                                       gl::SharedSurface* surf)
+  : TextureClient(aFlags)
+  , mIsLocked(false)
+  , mSurf(surf)
+  , mGL(mSurf->mGL)
+{
+  AddFlags(TextureFlags::DEALLOCATE_CLIENT);
+}
+
+SharedSurfaceTextureClient::~SharedSurfaceTextureClient()
 {
   // the data is owned externally.
 }
 
 bool
-StreamTextureClient::Lock(OpenMode mode)
+SharedSurfaceTextureClient::ToSurfaceDescriptor(SurfaceDescriptor& aOutDescriptor)
 {
-  MOZ_ASSERT(!mIsLocked);
-  if (!IsValid() || !IsAllocated()) {
-    return false;
-  }
-  mIsLocked = true;
+  aOutDescriptor = SharedSurfaceDescriptor((uintptr_t)mSurf);
   return true;
 }
-
-void
-StreamTextureClient::Unlock()
-{
-  MOZ_ASSERT(mIsLocked);
-  mIsLocked = false;
-}
-
-bool
-StreamTextureClient::ToSurfaceDescriptor(SurfaceDescriptor& aOutDescriptor)
-{
-  if (!IsAllocated()) {
-    return false;
-  }
-
-  aOutDescriptor = SurfaceStreamDescriptor((uintptr_t)mStream.get(), false);
-  return true;
-}
-
-void
-StreamTextureClient::InitWith(gl::SurfaceStream* aStream)
-{
-  MOZ_ASSERT(!IsAllocated());
-  mStream = aStream;
-  mGL = mStream->GLContext();
-}
-
-bool
-StreamTextureClient::IsAllocated() const
-{
-  return mStream != 0;
-}
-
 
 }
 }
