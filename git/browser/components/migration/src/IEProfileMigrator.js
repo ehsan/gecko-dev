@@ -253,7 +253,7 @@ Bookmarks.prototype = {
       else {
         // Strip the .url extension, to both check this is a valid link file,
         // and get the associated title.
-        let matches = entry.leafName.match(/(.+)\.url$/i);
+        let matches = entry.leafName.match(/(.+)\.url$/);
         if (matches) {
           let fileHandler = Cc["@mozilla.org/network/protocol;1?name=file"].
                             getService(Ci.nsIFileProtocolHandler);
