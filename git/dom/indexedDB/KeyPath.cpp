@@ -159,8 +159,7 @@ GetJSValFromKeyPathString(JSContext* aCx,
       if (tokenizer.hasMoreTokens()) {
         // If we're not at the end, we need to add a dummy object to the
         // chain.
-        JS::Rooted<JSObject*> dummy(aCx, JS_NewObject(aCx, nullptr, JS::NullPtr(),
-                                                      JS::NullPtr()));
+        JS::Rooted<JSObject*> dummy(aCx, JS_NewObject(aCx, nullptr, nullptr, nullptr));
         if (!dummy) {
           rv = NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
           break;
@@ -178,7 +177,7 @@ GetJSValFromKeyPathString(JSContext* aCx,
       }
       else {
         JS::Rooted<JSObject*> dummy(aCx, JS_NewObject(aCx, &IDBObjectStore::sDummyPropJSClass,
-                                                      JS::NullPtr(), JS::NullPtr()));
+                                                      nullptr, nullptr));
         if (!dummy) {
           rv = NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
           break;

@@ -521,7 +521,7 @@ nsCanvasFrame::Reflow(nsPresContext*           aPresContext,
                 kidPt.x, kidPt.y, 0, aStatus);
 
     // Complete the reflow and position and size the child frame
-    FinishReflowChild(kidFrame, aPresContext, kidDesiredSize, &kidReflowState,
+    FinishReflowChild(kidFrame, aPresContext, &kidReflowState, kidDesiredSize,
                       kidPt.x, kidPt.y, 0);
 
     if (!NS_FRAME_IS_FULLY_COMPLETE(aStatus)) {

@@ -31,9 +31,9 @@ BEGIN_TEST(testResolveRecursion)
     JS_AddObjectRoot(cx, &obj1);
     JS_AddObjectRoot(cx, &obj2);
 
-    obj1 = JS_NewObject(cx, &my_resolve_class, JS::NullPtr(), JS::NullPtr());
+    obj1 = JS_NewObject(cx, &my_resolve_class, nullptr, nullptr);
     CHECK(obj1);
-    obj2 = JS_NewObject(cx, &my_resolve_class, JS::NullPtr(), JS::NullPtr());
+    obj2 = JS_NewObject(cx, &my_resolve_class, nullptr, nullptr);
     CHECK(obj2);
     JS_SetPrivate(obj1, this);
     JS_SetPrivate(obj2, this);

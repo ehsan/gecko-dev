@@ -330,7 +330,9 @@ JitRuntime::createIonAlloc(JSContext *cx)
 {
     JS_ASSERT(cx->runtime()->currentThreadOwnsOperationCallbackLock());
 
-    ionAlloc_ = js_new<JSC::ExecutableAllocator>();
+    JSC::AllocationBehavior randomize =
+        cx->runtime()->jitHardening ? JSC::AllocationCanRandomize : JSC::AllocationDeterministic;
+    ionAlloc_ = js_new<JSC::ExecutableAllocator>(randomize);
     if (!ionAlloc_)
         js_ReportOutOfMemory(cx);
     return ionAlloc_;

@@ -329,7 +329,7 @@ nsHTMLButtonControlFrame::ReflowButtonContents(nsPresContext* aPresContext,
 
   // Place the child
   FinishReflowChild(aFirstKid, aPresContext,
-                    contentsDesiredSize, &contentsReflowState,
+                    &contentsReflowState, contentsDesiredSize,
                     xoffset, yoffset, 0);
 
   // Make sure we have a useful 'ascent' value for the child

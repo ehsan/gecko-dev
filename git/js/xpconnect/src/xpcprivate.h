@@ -149,6 +149,7 @@
 #include "nsIPrincipal.h"
 #include "nsJSPrincipals.h"
 #include "nsIScriptObjectPrincipal.h"
+#include "nsISecurityCheckedComponent.h"
 #include "xpcObjectHelper.h"
 #include "nsIThreadInternal.h"
 
@@ -533,7 +534,6 @@ public:
         IDX_ITERATOR                ,
         IDX_EXPOSEDPROPS            ,
         IDX_EVAL                    ,
-        IDX_CONTROLLERS             ,
         IDX_TOTAL_COUNT // just a count of the above
     };
 
