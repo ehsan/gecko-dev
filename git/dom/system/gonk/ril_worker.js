@@ -1333,8 +1333,8 @@ RilObject.prototype = {
    *                RIL_PREFERRED_NETWORK_TYPE_TO_GECKO as its `type` attribute.
    */
   setPreferredNetworkType: function(options) {
-    let networkType = options.type;
-    if (networkType < 0 || networkType >= RIL_PREFERRED_NETWORK_TYPE_TO_GECKO.length) {
+    let networkType = RIL_PREFERRED_NETWORK_TYPE_TO_GECKO.indexOf(options.type);
+    if (networkType < 0) {
       options.errorMsg = GECKO_ERROR_INVALID_PARAMETER;
       this.sendChromeMessage(options);
       return;
@@ -5874,12 +5874,6 @@ RilObject.prototype[REQUEST_QUERY_CALL_WAITING] =
   options.success = (options.rilRequestError === 0);
   if (!options.success) {
     options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
-
-    if (options.callback) {
-      // Prevent DataCloneError when sending chrome messages.
-      delete options.callback;
-    }
-
     this.sendChromeMessage(options);
     return;
   }
@@ -5900,12 +5894,6 @@ RilObject.prototype[REQUEST_SET_CALL_WAITING] = function REQUEST_SET_CALL_WAITIN
   options.success = (options.rilRequestError === 0);
   if (!options.success) {
     options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
-
-    if (options.callback) {
-      // Prevent DataCloneError when sending chrome messages.
-      delete options.callback;
-    }
-
     this.sendChromeMessage(options);
     return;
   }
@@ -6304,7 +6292,8 @@ RilObject.prototype[REQUEST_GET_PREFERRED_NETWORK_TYPE] = function REQUEST_GET_P
     return;
   }
 
-  options.type = this.context.Buf.readInt32List()[0];
+  let networkType = this.context.Buf.readInt32List()[0];
+  options.type = RIL_PREFERRED_NETWORK_TYPE_TO_GECKO[networkType];
   this.sendChromeMessage(options);
 };
 RilObject.prototype[REQUEST_GET_NEIGHBORING_CELL_IDS] = function REQUEST_GET_NEIGHBORING_CELL_IDS(length, options) {
@@ -8530,7 +8519,7 @@ GsmPDUHelperObject.prototype = {
     switch (msg.encoding) {
       case PDU_DCS_MSG_CODING_7BITS_ALPHABET:
         msg.body = this.readSeptetsToString.call(bufAdapter,
-                                                 Math.floor(length * 8 / 7), 0,
+                                                 (length * 8 / 7), 0,
                                                  PDU_NL_IDENTIFIER_DEFAULT,
                                                  PDU_NL_IDENTIFIER_DEFAULT);
         if (msg.hasLanguageIndicator) {
@@ -8627,7 +8616,7 @@ GsmPDUHelperObject.prototype = {
         msg.body = "";
         for (let i = 0; i < numOfPages; i++) {
           body = this.readSeptetsToString.call(bufAdapter,
-                                               Math.floor(pageLengths[i] * 8 / 7),
+                                               (pageLengths[i] * 8 / 7),
                                                0,
                                                PDU_NL_IDENTIFIER_DEFAULT,
                                                PDU_NL_IDENTIFIER_DEFAULT);
@@ -8857,7 +8846,7 @@ GsmPDUHelperObject.prototype = {
     case 0:
       // GSM Default alphabet.
       resultString = this.readSeptetsToString(
-        Math.floor(((len - 1) * 8 - spareBits) / 7), 0,
+        ((len - 1) * 8 - spareBits) / 7, 0,
         PDU_NL_IDENTIFIER_DEFAULT,
         PDU_NL_IDENTIFIER_DEFAULT);
       break;
@@ -11272,8 +11261,7 @@ StkProactiveCmdHelperObject.prototype = {
     length--; // -1 for the codingScheme.
     switch (text.codingScheme & 0x0c) {
       case STK_TEXT_CODING_GSM_7BIT_PACKED:
-        text.textString =
-          GsmPDUHelper.readSeptetsToString(Math.floor(length * 8 / 7), 0, 0, 0);
+        text.textString = GsmPDUHelper.readSeptetsToString(length * 8 / 7, 0, 0, 0);
         break;
       case STK_TEXT_CODING_GSM_8BIT:
         text.textString =

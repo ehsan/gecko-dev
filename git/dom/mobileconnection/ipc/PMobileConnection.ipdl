@@ -72,7 +72,7 @@ struct SelectNetworkAutoRequest
 
 struct SetPreferredNetworkTypeRequest
 {
-  int32_t type;
+  nsString type;
 };
 
 struct GetPreferredNetworkTypeRequest

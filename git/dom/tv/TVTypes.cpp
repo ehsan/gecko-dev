@@ -17,12 +17,6 @@ namespace dom {
 
 NS_IMPL_ISUPPORTS(TVTunerData, nsITVTunerData)
 
-TVTunerData::TVTunerData()
-  : mSupportedSourceTypes(nullptr)
-  , mCount(0)
-{
-}
-
 TVTunerData::~TVTunerData()
 {
   if (mSupportedSourceTypes) {
@@ -102,16 +96,6 @@ TVTunerData::SetSupportedSourceTypes(uint32_t aCount,
  */
 
 NS_IMPL_ISUPPORTS(TVChannelData, nsITVChannelData)
-
-TVChannelData::TVChannelData()
-  : mIsEmergency(false)
-  , mIsFree(false)
-{
-}
-
-TVChannelData::~TVChannelData()
-{
-}
 
 /* virtual */ NS_IMETHODIMP
 TVChannelData::GetNetworkId(nsAString& aNetworkId)
@@ -259,14 +243,6 @@ TVChannelData::SetIsFree(bool aIsFree)
  */
 
 NS_IMPL_ISUPPORTS(TVProgramData, nsITVProgramData)
-
-TVProgramData::TVProgramData()
-  : mAudioLanguages(nullptr)
-  , mAudioLanguageCount(0)
-  , mSubtitleLanguages(nullptr)
-  , mSubtitleLanguageCount(0)
-{
-}
 
 TVProgramData::~TVProgramData()
 {

@@ -182,10 +182,6 @@ OptionsPanel.prototype = {
     };
 
     for (let tool of toggleableButtons) {
-      if (this.toolbox.target.isMultiProcess && tool.id === "command-button-tilt") {
-        continue;
-      }
-
       enabledToolbarButtonsBox.appendChild(createCommandCheckbox(tool));
     }
   },

@@ -12,30 +12,39 @@
 namespace mozilla {
 namespace dom {
 
-NS_IMPL_CYCLE_COLLECTION(TVSourceListener, mSources)
-
-NS_IMPL_CYCLE_COLLECTING_ADDREF(TVSourceListener)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(TVSourceListener)
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(TVSourceListener)
-  NS_INTERFACE_MAP_ENTRY(nsITVSourceListener)
-  NS_INTERFACE_MAP_ENTRY(nsISupports)
-NS_INTERFACE_MAP_END
+NS_IMPL_ISUPPORTS(TVSourceListener, nsITVSourceListener)
 
 void
 TVSourceListener::RegisterSource(TVSource* aSource)
 {
-  mSources.AppendElement(aSource);
+  nsString tunerId;
+  nsRefPtr<TVTuner> tuner = aSource->Tuner();
+  tuner->GetId(tunerId);
+
+  nsRefPtrHashtable<nsStringHashKey, TVSource>* tunerSources = nullptr;
+  if (!mSources.Get(tunerId, &tunerSources)) {
+    tunerSources = new nsRefPtrHashtable<nsStringHashKey, TVSource>();
+    mSources.Put(tunerId, tunerSources);
+  }
+
+  nsString sourceType = ToTVSourceTypeStr(aSource->Type());
+  tunerSources->Put(sourceType, aSource);
 }
 
 void
 TVSourceListener::UnregisterSource(TVSource* aSource)
 {
-  for (uint32_t i = 0; i < mSources.Length(); i++) {
-    if (mSources[i] == aSource) {
-      mSources.RemoveElementsAt(i, 1);
-    }
+  nsString tunerId;
+  nsRefPtr<TVTuner> tuner = aSource->Tuner();
+  tuner->GetId(tunerId);
+
+  nsRefPtrHashtable<nsStringHashKey, TVSource>* tunerSources = nullptr;
+  if (!mSources.Get(tunerId, &tunerSources)) {
+    return;
   }
+
+  nsString sourceType = ToTVSourceTypeStr(aSource->Type());
+  tunerSources->Remove(sourceType);
 }
 
 /* virtual */ NS_IMETHODIMP
@@ -82,20 +91,14 @@ already_AddRefed<TVSource>
 TVSourceListener::GetSource(const nsAString& aTunerId,
                             const nsAString& aSourceType)
 {
-  for (uint32_t i = 0; i < mSources.Length(); i++) {
-    nsString tunerId;
-    nsRefPtr<TVTuner> tuner = mSources[i]->Tuner();
-    tuner->GetId(tunerId);
-
-    nsString sourceType = ToTVSourceTypeStr(mSources[i]->Type());
-
-    if (aTunerId.Equals(tunerId) && aSourceType.Equals(sourceType)) {
-      nsRefPtr<TVSource> source = mSources[i];
-      return source.forget();
-    }
+  nsRefPtrHashtable<nsStringHashKey, TVSource>* tunerSources = nullptr;
+  if (!mSources.Get(aTunerId, &tunerSources)) {
+    return nullptr;
   }
 
-  return nullptr;
+  nsRefPtr<TVSource> source;
+  tunerSources->Get(aSourceType, getter_AddRefs(source));
+  return source.forget();
 }
 
 } // namespace dom

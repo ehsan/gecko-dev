@@ -178,10 +178,11 @@ MobileConnectionChild::SelectNetworkAutomatically(nsIMobileConnectionCallback* a
 
 
 NS_IMETHODIMP
-MobileConnectionChild::SetPreferredNetworkType(int32_t aType,
+MobileConnectionChild::SetPreferredNetworkType(const nsAString& aType,
                                                nsIMobileConnectionCallback* aCallback)
 {
-  return SendRequest(SetPreferredNetworkTypeRequest(aType), aCallback)
+  return SendRequest(SetPreferredNetworkTypeRequest(nsAutoString(aType)),
+                     aCallback)
     ? NS_OK : NS_ERROR_FAILURE;
 }
 
@@ -661,12 +662,6 @@ MobileConnectionRequestChild::DoReply(const MobileConnectionReplySuccessClirStat
 }
 
 bool
-MobileConnectionRequestChild::DoReply(const MobileConnectionReplySuccessPreferredNetworkType& aReply)
-{
-  return NS_SUCCEEDED(mRequestCallback->NotifyGetPreferredNetworkTypeSuccess(aReply.type()));
-}
-
-bool
 MobileConnectionRequestChild::DoReply(const MobileConnectionReplyError& aReply)
 {
   return NS_SUCCEEDED(mRequestCallback->NotifyError(aReply.message()));
@@ -720,8 +715,6 @@ MobileConnectionRequestChild::Recv__delete__(const MobileConnectionReply& aReply
       return DoReply(aReply.get_MobileConnectionReplySuccessCallBarring());
     case MobileConnectionReply::TMobileConnectionReplySuccessClirStatus:
       return DoReply(aReply.get_MobileConnectionReplySuccessClirStatus());
-    case MobileConnectionReply::TMobileConnectionReplySuccessPreferredNetworkType:
-      return DoReply(aReply.get_MobileConnectionReplySuccessPreferredNetworkType());
     case MobileConnectionReply::TMobileConnectionReplyError:
       return DoReply(aReply.get_MobileConnectionReplyError());
     case MobileConnectionReply::TMobileConnectionReplyErrorMmi:

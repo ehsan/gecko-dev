@@ -15,7 +15,6 @@ import android.view.View;
 import android.widget.Checkable;
 import android.widget.ImageButton;
 import android.widget.ImageView;
-import android.widget.ImageView.ScaleType;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -96,7 +95,7 @@ public class TabsLayoutItemView extends LinearLayout
 
         Drawable thumbnailImage = tab.getThumbnail();
         if (thumbnailImage != null) {
-            setThumbnail(thumbnailImage);
+            mThumbnail.setImageDrawable(thumbnailImage);
         } else {
             mThumbnail.setImageResource(R.drawable.tab_thumbnail_default);
         }
