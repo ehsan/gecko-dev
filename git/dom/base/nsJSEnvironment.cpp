@@ -3221,7 +3221,8 @@ void NS_JProfStartProfiling();
 void NS_JProfStopProfiling();
 
 static JSBool
-JProfStartProfilingJS(JSContext *cx, uintN argc, jsval *vp)
+JProfStartProfilingJS(JSContext *cx, JSObject *obj,
+                      uintN argc, jsval *argv, jsval *rval)
 {
   NS_JProfStartProfiling();
   return JS_TRUE;
@@ -3259,7 +3260,8 @@ void NS_JProfStartProfiling()
 }
 
 static JSBool
-JProfStopProfilingJS(JSContext *cx, uintN argc, jsval *vp)
+JProfStopProfilingJS(JSContext *cx, JSObject *obj,
+                     uintN argc, jsval *argv, jsval *rval)
 {
   NS_JProfStopProfiling();
   return JS_TRUE;
