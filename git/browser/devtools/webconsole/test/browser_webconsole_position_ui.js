@@ -37,7 +37,7 @@ function waitForPosition(aPosition, aCallback) {
     {
       return hudRef._currentUIPosition == aPosition;
     },
-    successFn: executeSoon.bind(null, aCallback),
+    successFn: aCallback,
     failureFn: finishTest,
   });
 }
@@ -55,10 +55,9 @@ function consoleOpened(aHudRef) {
      "position menu checkbox is below");
   is(Services.prefs.getCharPref(POSITION_PREF), "below", "pref is below");
 
-  executeSoon(function() {
-    hudRef.positionConsole("above");
-    waitForPosition("above", onPositionAbove);
-  });
+  hudRef.positionConsole("above");
+
+  waitForPosition("above", onPositionAbove);
 }
 
 function onPositionAbove() {
@@ -82,10 +81,8 @@ function onPositionAbove() {
   Services.prefs.setIntPref(TOP_PREF, 50);
   Services.prefs.setIntPref(LEFT_PREF, 51);
 
-  executeSoon(function() {
-    hudRef.positionConsole("window");
-    waitForPosition("window", onPositionWindow);
-  });
+  hudRef.positionConsole("window");
+  waitForPosition("window", onPositionWindow);
 }
 
 function onPositionWindow() {

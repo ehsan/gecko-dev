@@ -1246,12 +1246,6 @@ NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_BEGIN(nsGlobalWindow)
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsGlobalWindow)
-  if (NS_UNLIKELY(cb.WantDebugInfo())) {
-    char name[512];
-    PR_snprintf(name, sizeof(name), "nsGlobalWindow #%ld", tmp->mWindowID);
-    cb.DescribeRefCountedNode(tmp->mRefCnt.get(), sizeof(nsGlobalWindow), name);
-  }
-
   if (!cb.WantAllTraces() && tmp->IsBlackForCC()) {
     return NS_SUCCESS_INTERRUPTED_TRAVERSE;
   }
@@ -2830,23 +2824,25 @@ nsGlobalWindow::GetPrincipal()
 // nsGlobalWindow::nsIDOMWindow
 //*****************************************************************************
 
-void
-nsPIDOMWindow::MaybeCreateDoc()
-{
-  MOZ_ASSERT(!mDoc);
-  if (nsIDocShell* docShell = GetDocShell()) {
-    // Note that |document| here is the same thing as our mDocument, but we
-    // don't have to explicitly set the member variable because the docshell
-    // has already called SetNewDocument().
-    nsCOMPtr<nsIDocument> document = do_GetInterface(docShell);
-  }
-}
-
 NS_IMETHODIMP
 nsGlobalWindow::GetDocument(nsIDOMDocument** aDocument)
 {
-  nsCOMPtr<nsIDOMDocument> document = do_QueryInterface(GetDoc());
-  document.forget(aDocument);
+  // This method *should* forward calls to the outer window, but since
+  // there's nothing here that *depends* on anything in the outer
+  // (GetDocShell() eliminates that dependency), we won't do that to
+  // avoid the extra virtual function call.
+
+  // lazily instantiate an about:blank document if necessary, and if
+  // we have what it takes to do so. Note that domdoc here is the same
+  // thing as our mDocument, but we don't have to explicitly set the
+  // member variable because the docshell has already called
+  // SetNewDocument().
+  nsIDocShell *docShell;
+  if (!mDocument && (docShell = GetDocShell()))
+    nsCOMPtr<nsIDOMDocument> domdoc(do_GetInterface(docShell));
+
+  NS_IF_ADDREF(*aDocument = mDocument);
+
   return NS_OK;
 }
 

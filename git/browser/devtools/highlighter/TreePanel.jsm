@@ -519,11 +519,7 @@ TreePanel.prototype = {
    */
   closeEditor: function TP_closeEditor()
   {
-    if (!this.treeBrowserDocument) // already closed, bug 706092
-      return;
-
     let editor = this.treeBrowserDocument.getElementById("attribute-editor");
-
     let editorInput =
       this.treeBrowserDocument.getElementById("attribute-editor-input");
 

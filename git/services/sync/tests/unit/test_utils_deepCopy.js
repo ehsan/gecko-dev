@@ -1,11 +1,8 @@
-/* Any copyright is dedicated to the Public Domain.
-   http://creativecommons.org/publicdomain/zero/1.0/ */
-
-Cu.import("resource://testing-common/services-common/utils.js");
+Cu.import("resource://services-sync/util.js");
 
 function run_test() {
   let thing = {o: {foo: "foo", bar: ["bar"]}, a: ["foo", {bar: "bar"}]};
-  let ret = TestingUtils.deepCopy(thing);
+  let ret = deepCopy(thing);
   do_check_neq(ret, thing)
   do_check_neq(ret.o, thing.o);
   do_check_neq(ret.o.bar, thing.o.bar);
