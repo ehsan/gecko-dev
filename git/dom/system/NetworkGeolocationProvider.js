@@ -461,8 +461,8 @@ WifiGeoPositionProvider.prototype = {
   },
 
   sendLocationRequest: function (wifiData) {
-    let data = { cellTowers: undefined, wifiAccessPoints: undefined };
-    if (wifiData && wifiData.length >= 2) {
+    let data = {};
+    if (wifiData) {
       data.wifiAccessPoints = wifiData;
     }
 

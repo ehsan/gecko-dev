@@ -10,7 +10,6 @@ interface CameraConfigurationEvent : Event
   readonly attribute CameraMode mode;
   readonly attribute DOMString recorderProfile;
   readonly attribute DOMRectReadOnly? previewSize;
-  readonly attribute DOMRectReadOnly? pictureSize;
 };
 
 dictionary CameraConfigurationEventInit : EventInit
@@ -18,5 +17,4 @@ dictionary CameraConfigurationEventInit : EventInit
   CameraMode mode = "picture";
   DOMString recorderProfile = "cif";
   DOMRectReadOnly? previewSize = null;
-  DOMRectReadOnly? pictureSize = null;
 };
