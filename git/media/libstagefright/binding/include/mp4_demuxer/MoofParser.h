@@ -16,22 +16,7 @@ class Box;
 class BoxContext;
 class Moof;
 
-class Atom
-{
-public:
-  Atom()
-    : mValid(false)
-  {
-  }
-  virtual bool IsValid()
-  {
-    return mValid;
-  }
-protected:
-  bool mValid;
-};
-
-class Tkhd : public Atom
+class Tkhd
 {
 public:
   Tkhd()
@@ -49,7 +34,7 @@ public:
   uint64_t mDuration;
 };
 
-class Mdhd : public Atom
+class Mdhd
 {
 public:
   Mdhd()
@@ -72,7 +57,7 @@ public:
   uint64_t mDuration;
 };
 
-class Trex : public Atom
+class Trex
 {
 public:
   explicit Trex(uint32_t aTrackId)
@@ -98,42 +83,26 @@ public:
 class Tfhd : public Trex
 {
 public:
-  explicit Tfhd(Trex& aTrex)
-    : Trex(aTrex)
-    , mBaseDataOffset(0)
-  {
-    mValid = aTrex.IsValid();
-  }
+  explicit Tfhd(Trex& aTrex) : Trex(aTrex), mBaseDataOffset(0) {}
   Tfhd(Box& aBox, Trex& aTrex);
 
   uint64_t mBaseDataOffset;
 };
 
-class Tfdt : public Atom
+class Tfdt
 {
 public:
-  Tfdt()
-    : mBaseMediaDecodeTime(0)
-  {
-  }
+  Tfdt() : mBaseMediaDecodeTime(0) {}
   explicit Tfdt(Box& aBox);
 
   uint64_t mBaseMediaDecodeTime;
 };
 
-class Edts : public Atom
+class Edts
 {
 public:
-  Edts()
-    : mMediaStart(0)
-  {
-  }
+  Edts() : mMediaStart(0) {}
   explicit Edts(Box& aBox);
-  virtual bool IsValid()
-  {
-    // edts is optional
-    return true;
-  }
 
   int64_t mMediaStart;
 };
@@ -147,7 +116,7 @@ struct Sample
   bool mSync;
 };
 
-class Saiz : public Atom
+class Saiz
 {
 public:
   explicit Saiz(Box& aBox);
@@ -157,7 +126,7 @@ public:
   nsTArray<uint8_t> mSampleInfoSize;
 };
 
-class Saio : public Atom
+class Saio
 {
 public:
   explicit Saio(Box& aBox);
@@ -173,12 +142,13 @@ public:
   bool GetByteRanges(nsTArray<MediaByteRange>* aByteRanges);
 
 private:
+
   int64_t mMoofOffset;
   Saiz& mSaiz;
   Saio& mSaio;
 };
 
-class Moof : public Atom
+class Moof
 {
 public:
   Moof(Box& aBox, Trex& aTrex, Mdhd& aMdhd, Edts& aEdts, Microseconds aTimestampOffset);

@@ -356,8 +356,6 @@ private:
   static void setAlarm(PARAMS);
   static void setInterfaceUp(PARAMS);
   static void tetherInterface(PARAMS);
-  static void addInterfaceToLocalNetwork(PARAMS);
-  static void addRouteToLocalNetwork(PARAMS);
   static void preTetherInterfaceList(PARAMS);
   static void postTetherInterfaceList(PARAMS);
   static void setIpForwardingEnabled(PARAMS);
@@ -365,7 +363,6 @@ private:
   static void stopTethering(PARAMS);
   static void startTethering(PARAMS);
   static void untetherInterface(PARAMS);
-  static void removeInterfaceFromLocalNetwork(PARAMS);
   static void setDnsForwarders(PARAMS);
   static void enableNat(PARAMS);
   static void disableNat(PARAMS);

@@ -215,7 +215,7 @@ nsPropertyTable::SetPropertyInternal(nsPropertyOwner     aObject,
   } else {
     propertyList = new PropertyList(aPropertyName, aPropDtorFunc,
                                     aPropDtorData, aTransfer);
-    if (!propertyList || !propertyList->mObjectValueMap.IsInitialized()) {
+    if (!propertyList || !propertyList->mObjectValueMap.ops) {
       delete propertyList;
       return NS_ERROR_OUT_OF_MEMORY;
     }

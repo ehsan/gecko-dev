@@ -640,7 +640,7 @@ public:
 
     ~FontNameCache()
     {
-        if (!mMap.IsInitialized()) {
+        if (!mMap.ops) {
             return;
         }
         if (!mWriteNeeded || !mCache) {
@@ -656,7 +656,7 @@ public:
 
     void Init()
     {
-        if (!mMap.IsInitialized() || !mCache) {
+        if (!mMap.ops || !mCache) {
             return;
         }
         uint32_t size;
@@ -712,7 +712,7 @@ public:
     GetInfoForFile(const nsCString& aFileName, nsCString& aFaceList,
                    uint32_t *aTimestamp, uint32_t *aFilesize)
     {
-        if (!mMap.IsInitialized()) {
+        if (!mMap.ops) {
             return;
         }
         PLDHashEntryHdr *hdr =
@@ -736,7 +736,7 @@ public:
     CacheFileInfo(const nsCString& aFileName, const nsCString& aFaceList,
                   uint32_t aTimestamp, uint32_t aFilesize)
     {
-        if (!mMap.IsInitialized()) {
+        if (!mMap.ops) {
             return;
         }
         FNCMapEntry* entry =

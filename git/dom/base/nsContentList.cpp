@@ -215,14 +215,14 @@ NS_GetContentList(nsINode* aRootNode,
   };
 
   // Initialize the hashtable if needed.
-  if (!gContentListHashTable.IsInitialized()) {
+  if (!gContentListHashTable.ops) {
     PL_DHashTableInit(&gContentListHashTable, &hash_table_ops,
                       sizeof(ContentListHashEntry));
   }
 
   ContentListHashEntry *entry = nullptr;
   // First we look in our hashtable.  Then we create a content list if needed
-  if (gContentListHashTable.IsInitialized()) {
+  if (gContentListHashTable.ops) {
 
     // A PL_DHASH_ADD is equivalent to a PL_DHASH_LOOKUP for cases
     // when the entry is already in the hashtable.
@@ -325,14 +325,14 @@ GetFuncStringContentList(nsINode* aRootNode,
   };
 
   // Initialize the hashtable if needed.
-  if (!gFuncStringContentListHashTable.IsInitialized()) {
+  if (!gFuncStringContentListHashTable.ops) {
     PL_DHashTableInit(&gFuncStringContentListHashTable, &hash_table_ops,
                       sizeof(FuncStringContentListHashEntry));
   }
 
   FuncStringContentListHashEntry *entry = nullptr;
   // First we look in our hashtable.  Then we create a content list if needed
-  if (gFuncStringContentListHashTable.IsInitialized()) {
+  if (gFuncStringContentListHashTable.ops) {
     nsFuncStringCacheKey hashKey(aRootNode, aFunc, aString);
 
     // A PL_DHASH_ADD is equivalent to a PL_DHASH_LOOKUP for cases
@@ -977,13 +977,14 @@ nsContentList::RemoveFromHashtable()
     sRecentlyUsedContentLists[recentlyUsedCacheIndex] = nullptr;
   }
 
-  if (!gContentListHashTable.IsInitialized())
+  if (!gContentListHashTable.ops)
     return;
 
   PL_DHashTableRemove(&gContentListHashTable, &key);
 
   if (gContentListHashTable.EntryCount() == 0) {
     PL_DHashTableFinish(&gContentListHashTable);
+    gContentListHashTable.ops = nullptr;
   }
 }
 
@@ -1015,7 +1016,7 @@ nsCacheableFuncStringContentList::~nsCacheableFuncStringContentList()
 void
 nsCacheableFuncStringContentList::RemoveFromFuncStringHashtable()
 {
-  if (!gFuncStringContentListHashTable.IsInitialized()) {
+  if (!gFuncStringContentListHashTable.ops) {
     return;
   }
 
@@ -1024,6 +1025,7 @@ nsCacheableFuncStringContentList::RemoveFromFuncStringHashtable()
 
   if (gFuncStringContentListHashTable.EntryCount() == 0) {
     PL_DHashTableFinish(&gFuncStringContentListHashTable);
+    gFuncStringContentListHashTable.ops = nullptr;
   }
 }
 
