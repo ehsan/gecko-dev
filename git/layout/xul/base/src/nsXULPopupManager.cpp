@@ -345,10 +345,9 @@ nsXULPopupManager::SetTriggerEvent(nsIDOMEvent* aEvent, nsIContent* aPopup)
         nsIDocument* doc = aPopup->GetCurrentDoc();
         if (doc) {
           nsIPresShell* presShell = doc->GetShell();
-          nsPresContext* presContext;
-          if (presShell && (presContext = presShell->GetPresContext())) {
+          if (presShell && presShell->GetPresContext()) {
             nsPresContext* rootDocPresContext =
-              presContext->GetRootPresContext();
+              presShell->GetPresContext()->GetRootPresContext();
             if (!rootDocPresContext)
               return;
             nsIFrame* rootDocumentRootFrame = rootDocPresContext->
@@ -363,12 +362,12 @@ nsXULPopupManager::SetTriggerEvent(nsIDOMEvent* aEvent, nsIContent* aPopup)
               mouseEvent->GetClientY(&clientPt.y);
 
               // XXX this doesn't handle IFRAMEs in transforms
-              nsPoint thisDocToRootDocOffset = presShell->FrameManager()->
-                GetRootFrame()->GetOffsetToCrossDoc(rootDocumentRootFrame);
+              nsPoint thisDocToRootDocOffset =
+                presShell->FrameManager()->GetRootFrame()->GetOffsetTo(rootDocumentRootFrame);
               // convert to device pixels
-              mCachedMousePoint.x = presContext->AppUnitsToDevPixels(
+              mCachedMousePoint.x = rootDocPresContext->AppUnitsToDevPixels(
                   nsPresContext::CSSPixelsToAppUnits(clientPt.x) + thisDocToRootDocOffset.x);
-              mCachedMousePoint.y = presContext->AppUnitsToDevPixels(
+              mCachedMousePoint.y = rootDocPresContext->AppUnitsToDevPixels(
                   nsPresContext::CSSPixelsToAppUnits(clientPt.y) + thisDocToRootDocOffset.y);
             }
             else if (rootDocumentRootFrame) {

@@ -88,7 +88,7 @@ namespace nanojit
 
     const Register Assembler::argRegs[] = { A0, A1, A2, A3 };
     const Register Assembler::retRegs[] = { V0, V1 };
-    const Register Assembler::savedRegs[] = {
+    const Register Assembler::savedRegs[NumSavedRegs] = {
         S0, S1, S2, S3, S4, S5, S6, S7,
 #ifdef FPCALLEESAVED
         FS0, FS1, FS2, FS3, FS4, FS5
@@ -389,7 +389,7 @@ namespace nanojit
         }
     }
 
-    void Assembler::asm_regarg(ArgType ty, LIns* p, Register r)
+    void Assembler::asm_regarg(ArgType ty, LInsp p, Register r)
     {
         NanoAssert(deprecated_isKnownReg(r));
         if (ty == ARGTYPE_I || ty == ARGTYPE_UI) {
@@ -423,7 +423,7 @@ namespace nanojit
         }
     }
 
-    void Assembler::asm_stkarg(LIns* arg, int stkd)
+    void Assembler::asm_stkarg(LInsp arg, int stkd)
     {
         bool isF64 = arg->isD();
         Register rr;
@@ -466,7 +466,7 @@ namespace nanojit
     // This function operates in the same way as asm_arg, except that it will only
     // handle arguments where (ArgType)ty == ARGTYPE_D.
     void
-    Assembler::asm_arg_64(LIns* arg, Register& r, Register& fr, int& stkd)
+    Assembler::asm_arg_64(LInsp arg, Register& r, Register& fr, int& stkd)
     {
         // The stack offset always be at least aligned to 4 bytes.
         NanoAssert((stkd & 3) == 0);
@@ -568,7 +568,7 @@ namespace nanojit
         TAG("asm_ui2d(ins=%p{%s})", ins, lirNames[ins->opcode()]);
     }
 
-    void Assembler::asm_d2i(LIns* ins)
+    void Assembler::asm_d2i(LInsp ins)
     {
         NanoAssert(cpu_has_fpu);
 
@@ -585,8 +585,8 @@ namespace nanojit
     {
         NanoAssert(cpu_has_fpu);
         if (cpu_has_fpu) {
-            LIns* lhs = ins->oprnd1();
-            LIns* rhs = ins->oprnd2();
+            LInsp lhs = ins->oprnd1();
+            LInsp rhs = ins->oprnd2();
             LOpcode op = ins->opcode();
 
             // rr = ra OP rb
@@ -611,7 +611,7 @@ namespace nanojit
     {
         NanoAssert(cpu_has_fpu);
         if (cpu_has_fpu) {
-            LIns* lhs = ins->oprnd1();
+            LInsp lhs = ins->oprnd1();
             Register rr = deprecated_prepResultReg(ins, FpRegs);
             Register sr = ( !lhs->isInReg()
                             ? findRegFor(lhs, FpRegs)
@@ -929,8 +929,8 @@ namespace nanojit
     void Assembler::asm_arith(LIns *ins)
     {
         LOpcode op = ins->opcode();
-        LIns* lhs = ins->oprnd1();
-        LIns* rhs = ins->oprnd2();
+        LInsp lhs = ins->oprnd1();
+        LInsp rhs = ins->oprnd2();
 
         RegisterMask allow = GpRegs;
 
@@ -954,7 +954,6 @@ namespace nanojit
                 // MIPS arith immediate ops sign-extend the imm16 value
                 switch (op) {
                 case LIR_addxovi:
-                case LIR_addjovi:
                     SLT(AT, rr, ra);
                     ADDIU(rr, ra, rhsc);
                     goto done;
@@ -962,7 +961,6 @@ namespace nanojit
                     ADDIU(rr, ra, rhsc);
                     goto done;
                 case LIR_subxovi:
-                case LIR_subjovi:
                     if (isS16(-rhsc)) {
                         SLT(AT, ra, rr);
                         ADDIU(rr, ra, -rhsc);
@@ -976,7 +974,6 @@ namespace nanojit
                     }
                     break;
                 case LIR_mulxovi:
-                case LIR_muljovi:
                 case LIR_muli:
                     // FIXME: optimise constant multiply by 2^n
                     // if ((rhsc & (rhsc-1)) == 0)
@@ -1027,7 +1024,6 @@ namespace nanojit
 
         switch (op) {
             case LIR_addxovi:
-            case LIR_addjovi:
                 SLT(AT, rr, ra);
                 ADDU(rr, ra, rb);
                 break;
@@ -1044,7 +1040,6 @@ namespace nanojit
                 XOR(rr, ra, rb);
                 break;
             case LIR_subxovi:
-            case LIR_subjovi:
                 SLT(AT,ra,rr);
                 SUBU(rr, ra, rb);
                 break;
@@ -1064,7 +1059,6 @@ namespace nanojit
                 ANDI(rb, rb, 31);
                 break;
             case LIR_mulxovi:
-            case LIR_muljovi:
                 t = registerAllocTmp(allow);
                 // Overflow indication required
                 // Do a 32x32 signed multiply generating a 64 bit result
@@ -1487,15 +1481,14 @@ namespace nanojit
         return patch;
     }
 
-    NIns* Assembler::asm_branch_ov(LOpcode op, NIns* target)
+    void Assembler::asm_branch_xov(LOpcode op, NIns* target)
     {
         USE(op);
         NanoAssert(target != NULL);
 
-        NIns* patch = asm_bxx(true, LIR_eqi, AT, ZERO, target);
+        (void) asm_bxx(true, LIR_eqi, AT, ZERO, target);
 
-        TAG("asm_branch_ov(op=%s, target=%p)", lirNames[op], target);
-        return patch;
+        TAG("asm_branch_xov(op=%s, target=%p)", lirNames[op], target);
     }
 
     NIns* Assembler::asm_branch(bool branchOnFalse, LIns *cond, NIns * const targ)
@@ -1566,7 +1559,7 @@ namespace nanojit
      *   on the stack.
      */
     void
-    Assembler::asm_arg(ArgType ty, LIns* arg, Register& r, Register& fr, int& stkd)
+    Assembler::asm_arg(ArgType ty, LInsp arg, Register& r, Register& fr, int& stkd)
     {
         // The stack offset must always be at least aligned to 4 bytes.
         NanoAssert((stkd & 3) == 0);
@@ -1591,7 +1584,7 @@ namespace nanojit
     }
 
     void
-    Assembler::asm_call(LIns* ins)
+    Assembler::asm_call(LInsp ins)
     {
         Register rr;
         LOpcode op = ins->opcode();
@@ -1791,12 +1784,7 @@ namespace nanojit
     void
     Assembler::nInit(AvmCore*)
     {
-        nHints[LIR_calli]  = rmask(V0);
-#if NJ_SOFTFLOAT_SUPPORTED
-        nHints[LIR_hcalli] = rmask(V1);
-#endif
-        nHints[LIR_calld]  = rmask(FV0);
-        nHints[LIR_paramp] = PREFER_SPECIAL;
+        // Cannot use outputf
     }
 
     void Assembler::nBeginAssembly()
@@ -1900,14 +1888,25 @@ namespace nanojit
     }
 
     RegisterMask
-    Assembler::nHint(LIns* ins)
+    Assembler::hint(LIns* i)
     {
-        NanoAssert(ins->isop(LIR_paramp));
-        RegisterMask prefer = 0;
-        // FIXME: FLOAT parameters?
-        if (ins->paramKind() == 0)
-            if (ins->paramArg() < 4)
-                prefer = rmask(argRegs[ins->paramArg()]);
+        uint32_t op = i->opcode();
+        RegisterMask prefer = 0LL;
+
+        if (op == LIR_calli)
+            prefer = rmask(V0);
+#if NJ_SOFTFLOAT_SUPPORTED
+        else if (op == LIR_hcalli)
+            prefer = rmask(V1);
+#endif
+        else if (op == LIR_calld)
+            prefer = rmask(FV0);
+        else if (op == LIR_paramp) {
+            // FIXME: FLOAT parameters?
+            if (i->paramArg() < 4)
+                prefer = rmask(argRegs[i->paramArg()]);
+        }
+
         return prefer;
     }
 

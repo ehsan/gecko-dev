@@ -78,7 +78,6 @@ protected:
     static nscolor sComboBoxBackground;
     static PRUnichar sInvisibleCharacter;
     static float   sCaretRatio;
-    static PRBool  sMenuSupportsDrag;
 
     static void InitLookAndFeel();
     void InitWidget() {

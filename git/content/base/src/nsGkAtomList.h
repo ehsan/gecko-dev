@@ -203,7 +203,6 @@ GK_ATOM(classid, "classid")
 GK_ATOM(clear, "clear")
 GK_ATOM(click, "click")
 GK_ATOM(clickcount, "clickcount")
-GK_ATOM(clickthrough, "clickthrough")
 GK_ATOM(movetoclick, "movetoclick")
 GK_ATOM(clip, "clip")
 GK_ATOM(close, "close")
@@ -1689,9 +1688,6 @@ GK_ATOM(TypingTxnName, "Typing")
 GK_ATOM(IMETxnName, "IME")
 GK_ATOM(DeleteTxnName, "Deleting")
 
-// IPC stuff
-GK_ATOM(Remote, "remote")
-
 // Names for system metrics
 GK_ATOM(scrollbar_start_backward, "scrollbar-start-backward")
 GK_ATOM(scrollbar_start_forward, "scrollbar-start-forward")
@@ -1706,7 +1702,6 @@ GK_ATOM(windows_compositor, "windows-compositor")
 GK_ATOM(windows_classic, "windows-classic")
 GK_ATOM(touch_enabled, "touch-enabled")
 GK_ATOM(maemo_classic, "maemo-classic")
-GK_ATOM(menubar_drag, "menubar-drag")
 
 // And the same again, as media query keywords.
 GK_ATOM(_moz_scrollbar_start_backward, "-moz-scrollbar-start-backward")
@@ -1722,4 +1717,3 @@ GK_ATOM(_moz_windows_compositor, "-moz-windows-compositor")
 GK_ATOM(_moz_windows_classic, "-moz-windows-classic")
 GK_ATOM(_moz_touch_enabled, "-moz-touch-enabled")
 GK_ATOM(_moz_maemo_classic, "-moz-maemo-classic")
-GK_ATOM(_moz_menubar_drag, "-moz-menubar-drag")

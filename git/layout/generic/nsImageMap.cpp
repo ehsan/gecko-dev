@@ -830,36 +830,37 @@ nsImageMap::UpdateAreas()
 nsresult
 nsImageMap::AddArea(nsIContent* aArea)
 {
+  nsAutoString coords;
   static nsIContent::AttrValuesArray strings[] =
-    {&nsGkAtoms::rect, &nsGkAtoms::rectangle,
-     &nsGkAtoms::circle, &nsGkAtoms::circ,
-     &nsGkAtoms::_default,
-     &nsGkAtoms::poly, &nsGkAtoms::polygon,
-     nsnull};
+    {&nsGkAtoms::_empty, &nsGkAtoms::rect, &nsGkAtoms::rectangle,
+     &nsGkAtoms::poly, &nsGkAtoms::polygon, &nsGkAtoms::circle,
+     &nsGkAtoms::circ, &nsGkAtoms::_default, nsnull};
+
+  aArea->GetAttr(kNameSpaceID_None, nsGkAtoms::coords, coords);
 
   Area* area;
   switch (aArea->FindAttrValueIn(kNameSpaceID_None, nsGkAtoms::shape,
                                  strings, eIgnoreCase)) {
-  case nsIContent::ATTR_VALUE_NO_MATCH:
-  case nsIContent::ATTR_MISSING:
-  case 0:
-  case 1:
-    area = new RectArea(aArea);
-    break;
-  case 2:
-  case 3:
-    area = new CircleArea(aArea);
-    break;
-  case 4:
-    area = new DefaultArea(aArea);
-    break;
-  case 5:
-  case 6:
-    area = new PolyArea(aArea);
-    break;
-  default:
-    NS_NOTREACHED("FindAttrValueIn returned an unexpected value.");
-    break;
+    case nsIContent::ATTR_MISSING:
+    case 0:
+    case 1:
+    case 2:
+      area = new RectArea(aArea);
+      break;
+    case 3:
+    case 4:
+      area = new PolyArea(aArea);
+      break;
+    case 5:
+    case 6:
+      area = new CircleArea(aArea);
+      break;
+    case 7:
+      area = new DefaultArea(aArea);
+      break;
+    default:
+      // Unknown area type; bail
+      return NS_OK;
   }
   if (!area)
     return NS_ERROR_OUT_OF_MEMORY;
@@ -874,8 +875,6 @@ nsImageMap::AddArea(nsIContent* aArea)
   // be removed.
   aArea->SetPrimaryFrame(mImageFrame);
 
-  nsAutoString coords;
-  aArea->GetAttr(kNameSpaceID_None, nsGkAtoms::coords, coords);
   area->ParseCoords(coords);
   mAreas.AppendElement(area);
   return NS_OK;

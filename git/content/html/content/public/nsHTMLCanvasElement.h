@@ -155,8 +155,7 @@ public:
    * Helpers called by various users of Canvas
    */
 
-  already_AddRefed<CanvasLayer> GetCanvasLayer(CanvasLayer *aOldLayer,
-                                               LayerManager *aManager);
+  already_AddRefed<CanvasLayer> GetCanvasLayer(LayerManager *aManager);
 
   // Tell the Context that all the current rendering that it's
   // invalidated has been displayed to the screen, so that it should
@@ -170,8 +169,6 @@ protected:
   nsresult ToDataURLImpl(const nsAString& aMimeType,
                          const nsAString& aEncoderOptions,
                          nsAString& aDataURL);
-  nsresult GetContextHelper(const nsAString& aContextId,
-                            nsICanvasRenderingContextInternal **aContext);
 
   nsString mCurrentContextId;
   nsCOMPtr<nsICanvasRenderingContextInternal> mCurrentContext;

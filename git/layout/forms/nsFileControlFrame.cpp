@@ -863,10 +863,6 @@ nsFileControlFrame::GetFileFilterFromAccept() const
 
   if (accept.EqualsLiteral("image/*")) {
     return nsIFilePicker::filterImages;
-  } else if (accept.EqualsLiteral("audio/*")) {
-    return nsIFilePicker::filterAudio;
-  } else if (accept.EqualsLiteral("video/*")) {
-    return nsIFilePicker::filterVideo;
   }
 
   return 0;

@@ -583,7 +583,7 @@ nsJSObjWrapper::NP_Invalidate(NPObject *npobj)
 
   if (jsnpobj && jsnpobj->mJSObj) {
     // Unroot the object's JSObject
-    js_RemoveRoot(sJSRuntime, &jsnpobj->mJSObj);
+    ::JS_RemoveRootRT(sJSRuntime, &jsnpobj->mJSObj);
 
     if (sJSObjWrappers.ops) {
       // Remove the wrapper from the hash
@@ -1157,7 +1157,7 @@ nsJSObjWrapper::GetNewOrUsed(NPP npp, JSContext *cx, JSObject *obj)
 
   // Root the JSObject, its lifetime is now tied to that of the
   // NPObject.
-  if (!::JS_AddNamedObjectRoot(cx, &wrapper->mJSObj, "nsJSObjWrapper::mJSObject")) {
+  if (!::JS_AddNamedRoot(cx, &wrapper->mJSObj, "nsJSObjWrapper::mJSObject")) {
     NS_ERROR("Failed to root JSObject!");
 
     _releaseobject(wrapper);
@@ -1570,7 +1570,6 @@ NPObjWrapper_newEnumerate(JSContext *cx, JSObject *obj, JSIterateOp enum_op,
 
   switch(enum_op) {
   case JSENUMERATE_INIT:
-  case JSENUMERATE_INIT_ALL:
     state = new NPObjectEnumerateState();
     if (!state) {
       ThrowJSException(cx, "Memory allocation failed for "
@@ -2138,7 +2137,7 @@ CreateNPObjectMember(NPP npp, JSContext *cx, JSObject *obj, NPObject* npobj,
   }
 
   *vp = OBJECT_TO_JSVAL(memobj);
-  ::JS_AddValueRoot(cx, vp);
+  ::JS_AddRoot(cx, vp);
 
   ::JS_SetPrivate(cx, memobj, (void *)memberPrivate);
 
@@ -2157,12 +2156,12 @@ CreateNPObjectMember(NPP npp, JSContext *cx, JSObject *obj, NPObject* npobj,
     NPBool hasProperty = npobj->_class->getProperty(npobj, (NPIdentifier)id,
                                                     &npv);
     if (!ReportExceptionIfPending(cx)) {
-      ::JS_RemoveValueRoot(cx, vp);
+      ::JS_RemoveRoot(cx, vp);
       return JS_FALSE;
     }
 
     if (!hasProperty) {
-      ::JS_RemoveValueRoot(cx, vp);
+      ::JS_RemoveRoot(cx, vp);
       return JS_FALSE;
     }
   }
@@ -2182,7 +2181,7 @@ CreateNPObjectMember(NPP npp, JSContext *cx, JSObject *obj, NPObject* npobj,
   memberPrivate->methodName = id;
   memberPrivate->npp = npp;
 
-  ::JS_RemoveValueRoot(cx, vp);
+  ::JS_RemoveRoot(cx, vp);
 
   return JS_TRUE;
 }

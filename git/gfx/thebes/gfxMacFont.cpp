@@ -91,8 +91,7 @@ gfxMacFont::gfxMacFont(MacOSFontEntry *aFontEntry, const gfxFontStyle *aFontStyl
     // synthetic oblique by skewing via the font matrix
     PRBool needsOblique =
         (mFontEntry != NULL) &&
-        (!mFontEntry->IsItalic() &&
-         (mStyle.style & (FONT_STYLE_ITALIC | FONT_STYLE_OBLIQUE)));
+        (!mFontEntry->IsItalic() && (mStyle.style & (FONT_STYLE_ITALIC | FONT_STYLE_OBLIQUE)));
 
     if (needsOblique) {
         double skewfactor = (needsOblique ? Fix2X(kATSItalicQDSkew) : 0);
@@ -111,13 +110,11 @@ gfxMacFont::gfxMacFont(MacOSFontEntry *aFontEntry, const gfxFontStyle *aFontStyl
     cairo_font_options_t *fontOptions = cairo_font_options_create();
 
     // turn off font anti-aliasing based on user pref setting
-    if (mAdjustedSize <=
-        (gfxFloat)gfxPlatformMac::GetPlatform()->GetAntiAliasingThreshold()) {
+    if (mAdjustedSize <= (float) gfxPlatformMac::GetPlatform()->GetAntiAliasingThreshold()) {
         cairo_font_options_set_antialias(fontOptions, CAIRO_ANTIALIAS_NONE);
     }
 
-    mScaledFont = cairo_scaled_font_create(mFontFace, &sizeMatrix, &ctm,
-                                           fontOptions);
+    mScaledFont = cairo_scaled_font_create(mFontFace, &sizeMatrix, &ctm, fontOptions);
     cairo_font_options_destroy(fontOptions);
 
     cairoerr = cairo_scaled_font_status(mScaledFont);
@@ -167,14 +164,20 @@ gfxMacFont::SetupCairoFont(gfxContext *aContext)
     return PR_TRUE;
 }
 
+static double
+RoundToNearestMultiple(double aValue, double aFraction)
+{
+    return floor(aValue/aFraction + 0.5) * aFraction;
+}
+
 void
 gfxMacFont::InitMetrics()
 {
-    mIsValid = PR_FALSE;
-    ::memset(&mMetrics, 0, sizeof(mMetrics));
-
+    gfxFloat size =
+        PR_MAX(((mAdjustedSize != 0.0f) ? mAdjustedSize : mStyle.size), 1.0f);
     PRUint32 upem = ::CGFontGetUnitsPerEm(mCGFont);
     if (!upem) {
+        mIsValid = PR_FALSE;
 #ifdef DEBUG
         char warnBuf[1024];
         sprintf(warnBuf, "Bad font metrics for: %s (no unitsPerEm value)",
@@ -184,86 +187,102 @@ gfxMacFont::InitMetrics()
         return;
     }
 
-    mAdjustedSize = PR_MAX(mStyle.size, 1.0f);
-    mFUnitsConvFactor = mAdjustedSize / upem;
+    ATSFontMetrics atsMetrics;
+    OSStatus err;
 
-    // Try to read 'sfnt' metrics; for local, non-sfnt fonts ONLY, fall back to
-    // platform APIs. The InitMetrics...() functions will set mIsValid on success.
-    if (!InitMetricsFromSfntTables(mMetrics) &&
-        (!mFontEntry->IsUserFont() || mFontEntry->IsLocalUserFont())) {
-        InitMetricsFromATSMetrics();
-    }
-    if (!mIsValid) {
+    err = ::ATSFontGetHorizontalMetrics(mATSFont, kATSOptionFlagsDefault,
+                                        &atsMetrics);
+    if (err != noErr) {
+        mIsValid = PR_FALSE;
+
+#ifdef DEBUG
+        char warnBuf[1024];
+        sprintf(warnBuf, "Bad font metrics for: %s err: %8.8x",
+                NS_ConvertUTF16toUTF8(mFontEntry->Name()).get(), PRUint32(err));
+        NS_WARNING(warnBuf);
+#endif
         return;
     }
 
-    if (mMetrics.xHeight == 0.0) {
-        mMetrics.xHeight = ::CGFontGetXHeight(mCGFont) * mFUnitsConvFactor;
-    }
+    if (atsMetrics.xHeight > 0)
+        mMetrics.xHeight = atsMetrics.xHeight * size;
+    else
+        mMetrics.xHeight = ::CGFontGetXHeight(mCGFont) * size / upem;
 
-    if (mStyle.sizeAdjust != 0.0 && mStyle.size > 0.0 &&
-        mMetrics.xHeight > 0.0) {
-        // apply font-size-adjust, and recalculate metrics
-        gfxFloat aspect = mMetrics.xHeight / mStyle.size;
-        mAdjustedSize = mStyle.GetAdjustedSize(aspect);
-        mFUnitsConvFactor = mAdjustedSize / upem;
-        mMetrics.xHeight = 0.0;
-        if (!InitMetricsFromSfntTables(mMetrics) &&
-            (!mFontEntry->IsUserFont() || mFontEntry->IsLocalUserFont())) {
-            InitMetricsFromATSMetrics();
-        }
-        if (!mIsValid) {
-            // this shouldn't happen, as we succeeded earlier before applying
-            // the size-adjust factor! But check anyway, for paranoia's sake.
+    if (mAdjustedSize == 0.0f) {
+        if (mMetrics.xHeight != 0.0f && mStyle.sizeAdjust != 0.0f) {
+            gfxFloat aspect = mMetrics.xHeight / size;
+            mAdjustedSize = mStyle.GetAdjustedSize(aspect);
+
+            // the recursive call to InitMetrics will see the adjusted size,
+            // and set up the rest of the metrics fields accordingly
+            InitMetrics();
             return;
         }
-        if (mMetrics.xHeight == 0.0) {
-            mMetrics.xHeight = ::CGFontGetXHeight(mCGFont) * mFUnitsConvFactor;
-        }
+        mAdjustedSize = size;
     }
 
-    // Once we reach here, we've got basic metrics and set mIsValid = TRUE;
-    // there should be no further points of actual failure in InitMetrics().
-    // (If one is introduced, be sure to reset mIsValid to FALSE!)
+    mMetrics.superscriptOffset = mMetrics.xHeight;
+    mMetrics.subscriptOffset = mMetrics.xHeight;
+    mMetrics.underlineOffset = atsMetrics.underlinePosition * size;
+    mMetrics.underlineSize = atsMetrics.underlineThickness * size;
+    mMetrics.strikeoutSize = mMetrics.underlineSize;
+    mMetrics.strikeoutOffset = mMetrics.xHeight / 2;
 
-    mMetrics.emHeight = mAdjustedSize;
+    mMetrics.externalLeading = atsMetrics.leading * size;
+    mMetrics.emHeight = size;
+    mMetrics.maxAscent =
+      NS_ceil(RoundToNearestMultiple(atsMetrics.ascent * size, 1/1024.0));
+    mMetrics.maxDescent =
+      NS_ceil(-RoundToNearestMultiple(atsMetrics.descent * size, 1/1024.0));
 
-    // Measure/calculate additional metrics, independent of whether we used
-    // the tables directly or ATS metrics APIs
+    mMetrics.maxHeight = mMetrics.maxAscent + mMetrics.maxDescent;
+    if (mMetrics.maxHeight - mMetrics.emHeight > 0.0)
+        mMetrics.internalLeading = mMetrics.maxHeight - mMetrics.emHeight;
+    else
+        mMetrics.internalLeading = 0.0;
+
+    mMetrics.maxAdvance = atsMetrics.maxAdvanceWidth * size + mSyntheticBoldOffset;
+
+    mMetrics.emAscent = mMetrics.maxAscent * mMetrics.emHeight / mMetrics.maxHeight;
+    mMetrics.emDescent = mMetrics.emHeight - mMetrics.emAscent;
 
     CFDataRef cmap =
         ::CGFontCopyTableForTag(mCGFont, TRUETYPE_TAG('c','m','a','p'));
 
     PRUint32 glyphID;
-    if (mMetrics.aveCharWidth <= 0) {
-        mMetrics.aveCharWidth = GetCharWidth(cmap, 'x', &glyphID);
-        if (glyphID == 0) {
-            // we didn't find 'x', so use maxAdvance rather than zero
-            mMetrics.aveCharWidth = mMetrics.maxAdvance;
-        }
-    }
+    gfxFloat xWidth = GetCharWidth(cmap, upem, size, 'x', &glyphID);
+    if (atsMetrics.avgAdvanceWidth != 0.0)
+        mMetrics.aveCharWidth = PR_MIN(atsMetrics.avgAdvanceWidth * size, xWidth);
+    else if (glyphID != 0)
+        mMetrics.aveCharWidth = xWidth;
+    else
+        mMetrics.aveCharWidth = mMetrics.maxAdvance;
     mMetrics.aveCharWidth += mSyntheticBoldOffset;
-    mMetrics.maxAdvance += mSyntheticBoldOffset;
 
-    mMetrics.spaceWidth = GetCharWidth(cmap, ' ', &glyphID);
-    if (glyphID == 0) {
-        // no space glyph?!
-        mMetrics.spaceWidth = mMetrics.aveCharWidth;
+    if (mFontEntry->IsFixedPitch()) {
+        // Some Quartz fonts are fixed pitch, but there's some glyph with a bigger
+        // advance than the average character width... this forces
+        // those fonts to be recognized like fixed pitch fonts by layout.
+        mMetrics.maxAdvance = mMetrics.aveCharWidth;
     }
+
+    mMetrics.spaceWidth = GetCharWidth(cmap, upem, size, ' ', &glyphID);
     mSpaceGlyph = glyphID;
 
-    mMetrics.zeroOrAveCharWidth = GetCharWidth(cmap, '0', &glyphID);
-    if (glyphID == 0) {
+    mMetrics.zeroOrAveCharWidth = GetCharWidth(cmap, upem, size, '0', &glyphID);
+    if (glyphID == 0)
         mMetrics.zeroOrAveCharWidth = mMetrics.aveCharWidth;
-    }
 
     if (cmap) {
         ::CFRelease(cmap);
     }
 
-    CalculateDerivedMetrics(mMetrics);
+    mFUnitsConvFactor = mAdjustedSize / upem;
 
     SanitizeMetrics(&mMetrics, mFontEntry->mIsBadUnderlineFont);
+
+    mIsValid = PR_TRUE;
 
 #if 0
     fprintf (stderr, "Font: %p (%s) size: %f\n", this,
@@ -278,8 +297,8 @@ gfxMacFont::InitMetrics()
 }
 
 gfxFloat
-gfxMacFont::GetCharWidth(CFDataRef aCmap, PRUnichar aUniChar,
-                         PRUint32 *aGlyphID)
+gfxMacFont::GetCharWidth(CFDataRef aCmap, PRUint32 aUpem, gfxFloat aSize,
+                         PRUnichar aUniChar, PRUint32 *aGlyphID)
 {
     CGGlyph glyph = 0;
     
@@ -296,7 +315,7 @@ gfxMacFont::GetCharWidth(CFDataRef aCmap, PRUnichar aUniChar,
     if (glyph) {
         int advance;
         if (::CGFontGetGlyphAdvances(mCGFont, &glyph, 1, &advance)) {
-            return advance * mFUnitsConvFactor;
+            return advance * aSize / aUpem;
         }
     }
 
@@ -321,43 +340,4 @@ gfxMacFont::GetFontTable(PRUint32 aTag)
     }
 
     return nsnull;
-}
-
-// Try to initialize font metrics via ATS font metrics APIs,
-// and set mIsValid = TRUE on success.
-// We ONLY call this for local (platform) fonts that are not sfnt format;
-// for sfnts, including ALL downloadable fonts, use InitMetricsFromSfntTables
-// because ATSFontGetHorizontalMetrics() has been known to crash when
-// presented with bad fonts.
-void
-gfxMacFont::InitMetricsFromATSMetrics()
-{
-    ATSFontMetrics atsMetrics;
-    OSStatus err;
-
-    err = ::ATSFontGetHorizontalMetrics(mATSFont, kATSOptionFlagsDefault,
-                                        &atsMetrics);
-    if (err != noErr) {
-#ifdef DEBUG
-        char warnBuf[1024];
-        sprintf(warnBuf, "Bad font metrics for: %s err: %8.8x",
-                NS_ConvertUTF16toUTF8(mFontEntry->Name()).get(), PRUint32(err));
-        NS_WARNING(warnBuf);
-#endif
-        return;
-    }
-
-    mMetrics.underlineOffset = atsMetrics.underlinePosition * mAdjustedSize;
-    mMetrics.underlineSize = atsMetrics.underlineThickness * mAdjustedSize;
-
-    mMetrics.externalLeading = atsMetrics.leading * mAdjustedSize;
-
-    mMetrics.maxAscent = atsMetrics.ascent * mAdjustedSize;
-    mMetrics.maxDescent = -atsMetrics.descent * mAdjustedSize;
-
-    mMetrics.maxAdvance = atsMetrics.maxAdvanceWidth * mAdjustedSize;
-    mMetrics.aveCharWidth = atsMetrics.avgAdvanceWidth * mAdjustedSize;
-    mMetrics.xHeight = atsMetrics.xHeight * mAdjustedSize;
-
-    mIsValid = PR_TRUE;
 }

@@ -164,7 +164,7 @@ static NSWindow* NativeWindowForFrame(nsIFrame* aFrame,
   if (!aFrame)
     return nil;  
 
-  nsIWidget* widget = aFrame->GetNearestWidget();
+  nsIWidget* widget = aFrame->GetWindow();
   if (!widget)
     return nil;
 
@@ -2500,17 +2500,9 @@ nsNativeThemeCocoa::ThemeNeedsComboboxDropmarker()
 nsITheme::Transparency
 nsNativeThemeCocoa::GetWidgetTransparency(nsIFrame* aFrame, PRUint8 aWidgetType)
 {
-  switch (aWidgetType) {
-  case NS_THEME_MENUPOPUP:
-  case NS_THEME_TOOLTIP:
+  if (aWidgetType == NS_THEME_MENUPOPUP ||
+      aWidgetType == NS_THEME_TOOLTIP)
     return eTransparent;
 
-  case NS_THEME_SCROLLBAR_SMALL:
-  case NS_THEME_SCROLLBAR:
-    // Scrollbars are drawn opaque. Knowing this improves performance.
-    return eOpaque;
-
-  default:
-    return eUnknownTransparency;
-  }
+  return eUnknownTransparency;
 }

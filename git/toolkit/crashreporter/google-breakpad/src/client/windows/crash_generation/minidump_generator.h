@@ -27,8 +27,8 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef CLIENT_WINDOWS_CRASH_GENERATION_MINIDUMP_GENERATOR_H_
-#define CLIENT_WINDOWS_CRASH_GENERATION_MINIDUMP_GENERATOR_H_
+#ifndef CLIENT_WINDOWS_CRASH_GENERATION_MINIDUMP_GENERATION_H__
+#define CLIENT_WINDOWS_CRASH_GENERATION_MINIDUMP_GENERATION_H__
 
 #include <windows.h>
 #include <dbghelp.h>
@@ -60,20 +60,6 @@ class MinidumpGenerator {
                      MINIDUMP_TYPE dump_type,
                      bool is_client_pointers,
                      std::wstring* dump_path);
-
-  // Writes the minidump with the given parameters. Stores the dump file
-  // path in the dump_path (and full_dump_path) parameter if dump
-  // generation succeeds. full_dump_path and dump_path can be NULL.
-  bool WriteMinidump(HANDLE process_handle,
-                     DWORD process_id,
-                     DWORD thread_id,
-                     DWORD requesting_thread_id,
-                     EXCEPTION_POINTERS* exception_pointers,
-                     MDRawAssertionInfo* assert_info,
-                     MINIDUMP_TYPE dump_type,
-                     bool is_client_pointers,
-                     std::wstring* dump_path,
-                     std::wstring* full_dump_path);
 
  private:
   // Function pointer type for MiniDumpWriteDump, which is looked up
@@ -132,4 +118,4 @@ class MinidumpGenerator {
 
 }  // namespace google_breakpad
 
-#endif  // CLIENT_WINDOWS_CRASH_GENERATION_MINIDUMP_GENERATOR_H_
+#endif  // CLIENT_WINDOWS_CRASH_GENERATION_MINIDUMP_GENERATION_H__

@@ -7,6 +7,10 @@ function test() {
     let numLocationChanges = 0;
 
     let listener = {
+      onStateChange:    function() {},
+      onProgressChange: function() {},
+      onStatusChange:   function() {},
+      onSecurityChange: function() {},
       onLocationChange: function() {
         numLocationChanges++;
       }

@@ -113,8 +113,8 @@ nsAccTreeWalker::GetNextChildInternal(PRBool aNoWalkUp)
 
     PRBool isHidden = PR_FALSE;
     nsRefPtr<nsAccessible> accessible =
-      GetAccService()->GetOrCreateAccessible(childNode, presShell, mWeakShell,
-                                             &isHidden);
+      GetAccService()->GetAccessible(childNode, presShell, mWeakShell,
+                                     &isHidden);
 
     if (accessible)
       return accessible.forget();

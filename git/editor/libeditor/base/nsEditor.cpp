@@ -1852,43 +1852,48 @@ nsEditor::StopPreservingSelection()
 
 #ifdef XP_MAC
 #pragma mark -
-#pragma mark  IME event handlers 
+#pragma mark  nsIEditorIMESupport 
 #pragma mark -
 #endif
 
-nsresult
-nsEditor::BeginIMEComposition()
+//
+// The BeingComposition method is called from the Editor Composition event listeners.
+//
+NS_IMETHODIMP
+nsEditor::BeginComposition()
 {
+#ifdef DEBUG_tague
+  printf("nsEditor::StartComposition\n");
+#endif
   mInIMEMode = PR_TRUE;
-  if (mPhonetic) {
+  if (mPhonetic)
     mPhonetic->Truncate(0);
-  }
+
   return NS_OK;
 }
 
-nsresult
-nsEditor::EndIMEComposition()
+NS_IMETHODIMP
+nsEditor::EndComposition(void)
 {
   NS_ENSURE_TRUE(mInIMEMode, NS_OK); // nothing to do
-
-  nsresult rv = NS_OK;
+  
+  nsresult result = NS_OK;
 
   // commit the IME transaction..we can get at it via the transaction mgr.
   // Note that this means IME won't work without an undo stack!
-  if (mTxnMgr) {
+  if (mTxnMgr) 
+  {
     nsCOMPtr<nsITransaction> txn;
-    rv = mTxnMgr->PeekUndoStack(getter_AddRefs(txn));
-    NS_ASSERTION(NS_SUCCEEDED(rv), "PeekUndoStack() failed");
+    result = mTxnMgr->PeekUndoStack(getter_AddRefs(txn));  
     nsCOMPtr<nsIAbsorbingTransaction> plcTxn = do_QueryInterface(txn);
-    if (plcTxn) {
-      rv = plcTxn->Commit();
-      NS_ASSERTION(NS_SUCCEEDED(rv),
-                   "nsIAbsorbingTransaction::Commit() failed");
+    if (plcTxn)
+    {
+      result = plcTxn->Commit();
     }
   }
 
   /* reset the data we need to construct a transaction */
-  mIMETextNode = nsnull;
+  mIMETextNode = do_QueryInterface(nsnull);
   mIMETextOffset = 0;
   mIMEBufferLength = 0;
   mInIMEMode = PR_FALSE;
@@ -1897,16 +1902,15 @@ nsEditor::EndIMEComposition()
   // notify editor observers of action
   NotifyEditorObservers();
 
-  return rv;
+  return result;
 }
 
-
-#ifdef XP_MAC
-#pragma mark -
-#pragma mark  nsIPhonetic
-#pragma mark -
-#endif
-
+NS_IMETHODIMP
+nsEditor::SetCompositionString(const nsAString& aCompositionString,
+                               nsIPrivateTextRangeList* aTextRangeList)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
 
 NS_IMETHODIMP
 nsEditor::GetPhonetic(nsAString& aPhonetic)
@@ -1918,13 +1922,6 @@ nsEditor::GetPhonetic(nsAString& aPhonetic)
 
   return NS_OK;
 }
-
-
-#ifdef XP_MAC
-#pragma mark -
-#pragma mark  nsIEditorIMESupport 
-#pragma mark -
-#endif
 
 
 static nsresult
@@ -1943,7 +1940,7 @@ GetEditorContentWindow(nsIDOMElement *aRoot, nsIWidget **aResult)
 
   NS_ENSURE_TRUE(frame, NS_ERROR_FAILURE);
 
-  *aResult = frame->GetNearestWidget();
+  *aResult = frame->GetWindow();
   NS_ENSURE_TRUE(*aResult, NS_ERROR_FAILURE);
 
   NS_ADDREF(*aResult);
@@ -4283,20 +4280,19 @@ nsEditor::DeleteSelectionAndPrepareToCreateNode(nsCOMPtr<nsIDOMNode> &parentSele
     if (NS_FAILED(result)) {
       return result;
     }
-
-    nsCOMPtr<nsIDOMNode> selectedNode;
-    selection->GetAnchorNode(getter_AddRefs(selectedNode));
+#ifdef NS_DEBUG
+    nsCOMPtr<nsIDOMNode>testSelectedNode;
+    nsresult debugResult = selection->GetAnchorNode(getter_AddRefs(testSelectedNode));
     // no selection is ok.
     // if there is a selection, it must be collapsed
-    if (selectedNode)
+    if (testSelectedNode)
     {
-      PRBool testCollapsed = PR_FALSE;
-      selection->GetIsCollapsed(&testCollapsed);
-      if (!testCollapsed) {
-        result = selection->CollapseToEnd();
-        NS_ENSURE_SUCCESS(result, result);
-      }
+      PRBool testCollapsed;
+      debugResult = selection->GetIsCollapsed(&testCollapsed);
+      NS_ASSERTION((NS_SUCCEEDED(result)), "couldn't get a selection after deletion");
+      NS_ASSERTION(testCollapsed, "selection not reset after deletion");
     }
+#endif
   }
   // split the selected node
   PRInt32 offsetOfSelectedNode;

@@ -46,7 +46,7 @@
  * @created         4/26/1999
  * @author  Frank Tang [ftang]
  */
-nsresult
+NS_METHOD
 nsUnicodeToMacRomanianConstructor(nsISupports *aOuter, REFNSIID aIID,
                                   void **aResult);
 

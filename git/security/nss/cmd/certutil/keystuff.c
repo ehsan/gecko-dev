@@ -108,7 +108,7 @@ UpdateRNG(void)
     FPS "\n");
     FPS "\n");
     FPS "Continue typing until the progress meter is full:\n\n");
-    FPS "%s", meter);
+    FPS meter);
     FPS "\r|");
 
     /* turn off echo on stdin & return on 1 char instead of NL */

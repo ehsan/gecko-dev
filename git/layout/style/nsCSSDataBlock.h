@@ -48,18 +48,14 @@
 #include "nsAutoPtr.h"
 
 struct nsRuleData;
-class nsCSSExpandedDataBlock;
 
-namespace mozilla {
-namespace css {
-class Declaration;
-}
-}
+class nsCSSExpandedDataBlock;
+class nsCSSDeclaration;
 
 /**
  * An |nsCSSCompressedDataBlock| holds a usually-immutable chunk of
  * property-value data for a CSS declaration block (which we misname a
- * |css::Declaration|).  Mutation is accomplished through
+ * |nsCSSDeclaration|).  Mutation is accomplished through
  * |nsCSSExpandedDataBlock| or in some cases via direct slot access.
  *
  * Mutation is forbidden when the reference count is greater than one,
@@ -70,7 +66,7 @@ class Declaration;
 class nsCSSCompressedDataBlock {
 public:
     friend class nsCSSExpandedDataBlock;
-    friend class mozilla::css::Declaration;
+    friend class nsCSSDeclaration;
 
     /**
      * Do what |nsIStyleRule::MapRuleInfoInto| needs to do for a style

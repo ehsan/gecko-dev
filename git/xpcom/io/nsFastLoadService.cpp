@@ -79,7 +79,7 @@ nsFastLoadService::~nsFastLoadService()
         PR_DestroyLock(mLock);
 }
 
-nsresult
+NS_IMETHODIMP
 nsFastLoadService::Create(nsISupports *aOuter, REFNSIID aIID, void **aResult)
 {
     *aResult = nsnull;

@@ -11,9 +11,6 @@ const MAX_INSTALL_TIME = 10000;
 Components.utils.import("resource://gre/modules/Services.jsm");
 Components.utils.import("resource://gre/modules/NetUtil.jsm");
 
-// install.rdf size, icon.png size
-const ADDON1_SIZE = 705 + 16;
-
 do_load_httpd_js();
 var testserver;
 var gInstallDate;
@@ -27,7 +24,7 @@ profileDir.append("extensions");
 function run_test() {
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "1", "1.9.2");
 
-  startupManager();
+  startupManager(1);
   // Make sure we only register once despite multiple calls
   AddonManager.addInstallListener(InstallListener);
   AddonManager.addAddonListener(AddonListener);
@@ -64,16 +61,12 @@ function run_test_1() {
     do_check_eq(install.state, AddonManager.STATE_DOWNLOADED);
     do_check_true(install.addon.hasResource("install.rdf"));
     do_check_eq(install.addon.install, install);
-    do_check_eq(install.addon.size, ADDON1_SIZE);
 
     let file = do_get_addon("test_install1");
     let uri = Services.io.newFileURI(file).spec;
     do_check_eq(install.addon.getResourceURI("install.rdf").spec, "jar:" + uri + "!/install.rdf");
     do_check_eq(install.addon.iconURL, "jar:" + uri + "!/icon.png");
     do_check_eq(install.iconURL, null);
-
-    do_check_eq(install.sourceURI.spec, uri);
-    do_check_eq(install.addon.sourceURI.spec, uri);
 
     AddonManager.getAllInstalls(function(activeInstalls) {
       do_check_eq(activeInstalls.length, 1);
@@ -113,7 +106,7 @@ function check_test_1() {
                             .QueryInterface(AM_Ci.nsIFileURL).file;
       do_check_true(iconFile.exists());
 
-      restartManager();
+      restartManager(1);
 
       AddonManager.getAllInstalls(function(activeInstalls) {
         do_check_eq(activeInstalls, 0);
@@ -126,10 +119,7 @@ function check_test_1() {
           do_check_true(isExtensionInAddonsList(profileDir, a1.id));
           do_check_true(do_get_addon("test_install1").exists());
           do_check_in_crash_annotation(a1.id, a1.version);
-          do_check_eq(a1.size, ADDON1_SIZE);
 
-          do_check_eq(a1.sourceURI.spec,
-                      Services.io.newFileURI(do_get_addon("test_install1")).spec);
           // Should have been installed sometime in the last two second.
           let difference = Date.now() - a1.installDate.getTime();
           if (difference > MAX_INSTALL_TIME)
@@ -149,7 +139,7 @@ function check_test_1() {
           do_check_eq(a1.getResourceURI("install.rdf").spec, uri);
 
           a1.uninstall();
-          restartManager();
+          restartManager(0);
           do_check_not_in_crash_annotation(a1.id, a1.version);
 
           run_test_2();
@@ -168,7 +158,6 @@ function run_test_2() {
     do_check_eq(install.name, "Test 2");
     do_check_eq(install.state, AddonManager.STATE_AVAILABLE);
     do_check_eq(install.iconURL, null);
-    do_check_eq(install.sourceURI.spec, url);
 
     AddonManager.getAllInstalls(function(activeInstalls) {
       do_check_eq(activeInstalls.length, 1);
@@ -222,7 +211,7 @@ function check_test_3() {
   ensure_test_completed();
   AddonManager.getAddonByID("addon2@tests.mozilla.org", function(olda2) {
     do_check_eq(olda2, null);
-    restartManager();
+    restartManager(1);
 
     AddonManager.getAllInstalls(function(installs) {
       do_check_eq(installs, 0);
@@ -235,8 +224,6 @@ function check_test_3() {
         do_check_true(isExtensionInAddonsList(profileDir, a2.id));
         do_check_true(do_get_addon("test_install2_1").exists());
         do_check_in_crash_annotation(a2.id, a2.version);
-        do_check_eq(a2.sourceURI.spec,
-                    "http://localhost:4444/addons/test_install2_1.xpi");
 
         // Should have been installed sometime in the last two second.
         let difference = Date.now() - a2.installDate.getTime();
@@ -335,15 +322,13 @@ function check_test_5(install) {
           do_check_true(isExtensionInAddonsList(profileDir, a2.id));
           do_check_true(do_get_addon("test_install2_2").exists());
           do_check_in_crash_annotation(a2.id, a2.version);
-          do_check_eq(a2.sourceURI.spec,
-                      "http://localhost:4444/addons/test_install2_2.xpi");
 
           do_check_eq(a2.installDate.getTime(), gInstallDate);
           // Update date should be later (or the same if this test is too fast)
           do_check_true(a2.installDate <= a2.updateDate);
 
           a2.uninstall();
-          restartManager();
+          restartManager(0);
 
           run_test_6();
         });
@@ -422,7 +407,7 @@ function check_test_7() {
         do_check_true(isExtensionInAddonsList(profileDir, a3.id));
         do_check_true(do_get_addon("test_install3").exists());
         a3.uninstall();
-        restartManager();
+        restartManager(0);
 
         run_test_8();
       });
@@ -454,7 +439,7 @@ function run_test_8() {
 }
 
 function check_test_8() {
-  restartManager();
+  restartManager(1);
 
   AddonManager.getAddonByID("addon3@tests.mozilla.org", function(a3) {
     do_check_neq(a3, null);
@@ -466,7 +451,7 @@ function check_test_8() {
     do_check_true(isExtensionInAddonsList(profileDir, a3.id));
     do_check_true(do_get_addon("test_install3").exists());
     a3.uninstall();
-    restartManager();
+    restartManager(0);
 
     run_test_9();
   });

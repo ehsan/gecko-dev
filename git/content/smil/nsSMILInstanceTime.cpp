@@ -74,9 +74,9 @@ nsSMILInstanceTime::nsSMILInstanceTime(const nsSMILTimeValue& aTime,
                                        nsSMILInterval* aBaseInterval)
   : mTime(aTime),
     mFlags(0),
-    mVisited(PR_FALSE),
-    mFixedEndpointRefCnt(0),
     mSerial(0),
+    mVisited(PR_FALSE),
+    mChainEnd(PR_FALSE),
     mCreator(aCreator),
     mBaseInterval(nsnull) // This will get set to aBaseInterval in a call to
                           // SetBaseInterval() at end of constructor
@@ -87,7 +87,7 @@ nsSMILInstanceTime::nsSMILInstanceTime(const nsSMILTimeValue& aTime,
       break;
 
     case SOURCE_DOM:
-      mFlags = kDynamic | kFromDOM;
+      mFlags = kClearOnReset | kFromDOM;
       break;
 
     case SOURCE_SYNCBASE:
@@ -95,7 +95,7 @@ nsSMILInstanceTime::nsSMILInstanceTime(const nsSMILTimeValue& aTime,
       break;
 
     case SOURCE_EVENT:
-      mFlags = kDynamic;
+      mFlags = kClearOnReset;
       break;
   }
 
@@ -106,9 +106,6 @@ nsSMILInstanceTime::~nsSMILInstanceTime()
 {
   NS_ABORT_IF_FALSE(!mBaseInterval && !mCreator,
       "Destroying instance time without first calling Unlink()");
-  NS_ABORT_IF_FALSE(mFixedEndpointRefCnt == 0,
-      "Destroying instance time that is still used as the fixed endpoint of an "
-      "interval");
 }
 
 void
@@ -132,9 +129,12 @@ nsSMILInstanceTime::HandleChangedInterval(
       "Got call to HandleChangedInterval on an independent instance time.");
   NS_ABORT_IF_FALSE(mCreator, "Base interval is set but creator is not.");
 
-  if (mVisited) {
-    // Break the cycle here
-    Unlink();
+  if (mVisited || mChainEnd) {
+    // We're breaking the cycle here but we need to ensure that if we later
+    // receive a change notice in a different context (e.g. due to a time
+    // container change) that we don't end up following the chain further and so
+    // we set a flag to that effect.
+    mChainEnd = PR_TRUE;
     return;
   }
 
@@ -152,63 +152,20 @@ void
 nsSMILInstanceTime::HandleDeletedInterval()
 {
   NS_ABORT_IF_FALSE(mBaseInterval,
-      "Got call to HandleDeletedInterval on an independent instance time");
-  NS_ABORT_IF_FALSE(mCreator, "Base interval is set but creator is not");
+      "Got call to HandleDeletedInterval on an independent instance time.");
+  NS_ABORT_IF_FALSE(mCreator, "Base interval is set but creator is not.");
 
   mBaseInterval = nsnull;
-  mFlags &= ~kMayUpdate; // Can't update without a base interval
 
   nsRefPtr<nsSMILInstanceTime> deathGrip(this);
   mCreator->HandleDeletedInstanceTime(*this);
   mCreator = nsnull;
 }
 
-void
-nsSMILInstanceTime::HandleFilteredInterval()
-{
-  NS_ABORT_IF_FALSE(mBaseInterval,
-      "Got call to HandleFilteredInterval on an independent instance time");
-
-  mBaseInterval = nsnull;
-  mFlags &= ~kMayUpdate; // Can't update without a base interval
-  mCreator = nsnull;
-}
-
 PRBool
-nsSMILInstanceTime::ShouldPreserve() const
+nsSMILInstanceTime::IsDependent(const nsSMILInstanceTime& aOther) const
 {
-  return mFixedEndpointRefCnt > 0 || (mFlags & kWasDynamicEndpoint);
-}
-
-void
-nsSMILInstanceTime::UnmarkShouldPreserve()
-{
-  mFlags &= ~kWasDynamicEndpoint;
-}
-
-void
-nsSMILInstanceTime::AddRefFixedEndpoint()
-{
-  NS_ABORT_IF_FALSE(mFixedEndpointRefCnt < PR_UINT16_MAX,
-      "Fixed endpoint reference count upper limit reached");
-  ++mFixedEndpointRefCnt;
-  mFlags &= ~kMayUpdate; // Once fixed, always fixed
-}
-
-void
-nsSMILInstanceTime::ReleaseFixedEndpoint()
-{
-  NS_ABORT_IF_FALSE(mFixedEndpointRefCnt > 0, "Duplicate release");
-  --mFixedEndpointRefCnt;
-  if (mFixedEndpointRefCnt == 0 && IsDynamic()) {
-    mFlags |= kWasDynamicEndpoint;
-  }
-}
-
-PRBool
-nsSMILInstanceTime::IsDependentOn(const nsSMILInstanceTime& aOther) const
-{
-  if (mVisited)
+  if (mVisited || mChainEnd)
     return PR_FALSE;
 
   const nsSMILInstanceTime* myBaseTime = GetBaseTime();
@@ -220,7 +177,7 @@ nsSMILInstanceTime::IsDependentOn(const nsSMILInstanceTime& aOther) const
 
   // mVisited is mutable
   AutoBoolSetter setVisited(const_cast<nsSMILInstanceTime*>(this)->mVisited);
-  return myBaseTime->IsDependentOn(aOther);
+  return myBaseTime->IsDependent(aOther);
 }
 
 void

@@ -609,7 +609,7 @@ inline void
 NameNode::initCommon(JSTreeContext *tc)
 {
     pn_expr = NULL;
-    pn_cookie.makeFree();
+    pn_cookie = FREE_UPVAR_COOKIE;
     pn_dflags = tc->atTopLevel() ? PND_TOPLEVEL : 0;
     if (!tc->topStmt || tc->topStmt->type == STMT_BLOCK)
         pn_dflags |= PND_BLOCKCHILD;
@@ -687,16 +687,21 @@ Parser::parse(JSObject *chain)
     return pn;
 }
 
-JS_STATIC_ASSERT(UpvarCookie::FREE_LEVEL == JS_BITMASK(JSFB_LEVEL_BITS));
+JS_STATIC_ASSERT(FREE_STATIC_LEVEL == JS_BITMASK(JSFB_LEVEL_BITS));
 
 static inline bool
 SetStaticLevel(JSTreeContext *tc, uintN staticLevel)
 {
     /*
-     * This is a lot simpler than error-checking every UpvarCookie::set, and
-     * practically speaking it leaves more than enough room for upvars.
+     * Reserve FREE_STATIC_LEVEL (0xffff) in order to reserve FREE_UPVAR_COOKIE
+     * (0xffffffff) and other cookies with that level.
+     *
+     * This is a lot simpler than error-checking every MAKE_UPVAR_COOKIE, and
+     * practically speaking it leaves more than enough room for upvars. In fact
+     * we might want to split cookie fields giving fewer bits for skip and more
+     * for slot, but only based on evidence.
      */
-    if (UpvarCookie::isLevelReserved(staticLevel)) {
+    if (staticLevel >= FREE_STATIC_LEVEL) {
         JS_ReportErrorNumber(tc->parser->context, js_GetErrorMessage, NULL,
                              JSMSG_TOO_DEEP, js_function_str);
         return false;
@@ -1448,7 +1453,7 @@ MakeDefIntoUse(JSDefinition *dn, JSParseNode *pn, JSAtom *atom, JSTreeContext *t
     dn->pn_defn = false;
     dn->pn_used = true;
     dn->pn_lexdef = (JSDefinition *) pn;
-    dn->pn_cookie.makeFree();
+    dn->pn_cookie = FREE_UPVAR_COOKIE;
     dn->pn_dflags &= ~PND_BOUND;
     return dn;
 }
@@ -1492,7 +1497,7 @@ DefineArg(JSParseNode *pn, JSAtom *atom, uintN i, JSTreeContext *tc)
     argsbody->append(argpn);
 
     argpn->pn_op = JSOP_GETARG;
-    argpn->pn_cookie.set(tc->staticLevel, i);
+    argpn->pn_cookie = MAKE_UPVAR_COOKIE(tc->staticLevel, i);
     argpn->pn_dflags |= PND_BOUND;
     return true;
 }
@@ -1535,7 +1540,7 @@ Compiler::compileFunctionBody(JSContext *cx, JSFunction *fun, JSPrincipals *prin
     JSParseNode *fn = FunctionNode::create(&funcg);
     if (fn) {
         fn->pn_body = NULL;
-        fn->pn_cookie.makeFree();
+        fn->pn_cookie = FREE_UPVAR_COOKIE;
 
         uintN nargs = fun->nargs;
         if (nargs) {
@@ -1670,7 +1675,7 @@ BindDestructuringArg(JSContext *cx, BindData *data, JSAtom *atom,
     if (!BindLocalVariable(cx, tc->fun, atom, JSLOCAL_VAR, true))
         return JS_FALSE;
     pn->pn_op = JSOP_SETLOCAL;
-    pn->pn_cookie.set(tc->staticLevel, index);
+    pn->pn_cookie = MAKE_UPVAR_COOKIE(tc->staticLevel, index);
     pn->pn_dflags |= PND_BOUND;
     return JS_TRUE;
 }
@@ -1760,7 +1765,7 @@ Parser::analyzeFunctions(JSFunctionBox *funbox, uint32& tcflags)
 static uintN
 FindFunArgs(JSFunctionBox *funbox, int level, JSFunctionBoxQueue *queue)
 {
-    uintN allskipmin = UpvarCookie::FREE_LEVEL;
+    uintN allskipmin = FREE_STATIC_LEVEL;
 
     do {
         JSParseNode *fn = funbox->node;
@@ -1785,7 +1790,7 @@ FindFunArgs(JSFunctionBox *funbox, int level, JSFunctionBoxQueue *queue)
          * an upvar, whether used directly by fun, or indirectly by a function
          * nested in fun.
          */
-        uintN skipmin = UpvarCookie::FREE_LEVEL;
+        uintN skipmin = FREE_STATIC_LEVEL;
         JSParseNode *pn = fn->pn_body;
 
         if (pn->pn_type == TOK_UPVARS) {
@@ -1831,7 +1836,7 @@ FindFunArgs(JSFunctionBox *funbox, int level, JSFunctionBoxQueue *queue)
             uintN kidskipmin = FindFunArgs(funbox->kids, fnlevel, queue);
 
             JS_ASSERT(kidskipmin != 0);
-            if (kidskipmin != UpvarCookie::FREE_LEVEL) {
+            if (kidskipmin != FREE_STATIC_LEVEL) {
                 --kidskipmin;
                 if (kidskipmin != 0 && kidskipmin < skipmin)
                     skipmin = kidskipmin;
@@ -1844,7 +1849,7 @@ FindFunArgs(JSFunctionBox *funbox, int level, JSFunctionBoxQueue *queue)
          * with allskipmin, but minimize across funbox and all of its siblings,
          * to compute our return value.
          */
-        if (skipmin != UpvarCookie::FREE_LEVEL) {
+        if (skipmin != FREE_STATIC_LEVEL) {
             fun->u.i.skipmin = skipmin;
             if (skipmin < allskipmin)
                 allskipmin = skipmin;
@@ -1903,7 +1908,7 @@ Parser::markFunArgs(JSFunctionBox *funbox, uintN tcflags)
                          * See bug 545980.
                          */
                         afunbox = funbox;
-                        uintN calleeLevel = lexdep->pn_cookie.level();
+                        uintN calleeLevel = UPVAR_FRAME_SKIP(lexdep->pn_cookie);
                         uintN staticLevel = afunbox->level + 1U;
                         while (staticLevel != calleeLevel) {
                             afunbox = afunbox->parent;
@@ -2428,7 +2433,7 @@ LeaveFunction(JSParseNode *fn, JSTreeContext *funtc, JSAtom *funAtom = NULL,
 
             if (atom == funAtom && lambda != 0) {
                 dn->pn_op = JSOP_CALLEE;
-                dn->pn_cookie.set(funtc->staticLevel, UpvarCookie::CALLEE_SLOT);
+                dn->pn_cookie = MAKE_UPVAR_COOKIE(funtc->staticLevel, CALLEE_UPVAR_SLOT);
                 dn->pn_dflags |= PND_BOUND;
 
                 /*
@@ -2551,7 +2556,7 @@ Parser::functionDef(uintN lambda, bool namePermitted)
     if (!pn)
         return NULL;
     pn->pn_body = NULL;
-    pn->pn_cookie.makeFree();
+    pn->pn_cookie = FREE_UPVAR_COOKIE;
 
     /*
      * If a lambda, give up on JSOP_{GET,CALL}UPVAR usage unless this function
@@ -2631,7 +2636,7 @@ Parser::functionDef(uintN lambda, bool namePermitted)
                 fn->pn_arity = PN_FUNC;
                 fn->pn_pos.begin = pn->pn_pos.begin;
                 fn->pn_body = NULL;
-                fn->pn_cookie.makeFree();
+                fn->pn_cookie = FREE_UPVAR_COOKIE;
 
                 tc->lexdeps.rawRemove(tc->parser, ale, hep);
                 RecycleTree(pn, tc);
@@ -2674,7 +2679,7 @@ Parser::functionDef(uintN lambda, bool namePermitted)
                     /* FALL THROUGH */
 
                   case JSLOCAL_VAR:
-                    pn->pn_cookie.set(tc->staticLevel, index);
+                    pn->pn_cookie = MAKE_UPVAR_COOKIE(tc->staticLevel, index);
                     pn->pn_dflags |= PND_BOUND;
                     break;
 
@@ -2748,7 +2753,7 @@ Parser::functionDef(uintN lambda, bool namePermitted)
                     return NULL;
                 rhs->pn_type = TOK_NAME;
                 rhs->pn_op = JSOP_GETARG;
-                rhs->pn_cookie.set(funtc.staticLevel, slot);
+                rhs->pn_cookie = MAKE_UPVAR_COOKIE(funtc.staticLevel, slot);
                 rhs->pn_dflags |= PND_BOUND;
 
                 item = JSParseNode::newBinaryOrAppend(TOK_ASSIGN, JSOP_NOP, lhs, rhs, &funtc);
@@ -3143,14 +3148,14 @@ BindLet(JSContext *cx, BindData *data, JSAtom *atom, JSTreeContext *tc)
                                      : js_variable_str,
                                      name);
         }
-        return false;
+        return JS_FALSE;
     }
 
     n = OBJ_BLOCK_COUNT(cx, blockObj);
     if (n == JS_BIT(16)) {
         ReportCompileErrorNumber(cx, TS(tc->parser), pn,
                                  JSREPORT_ERROR, data->let.overflow);
-        return false;
+        return JS_FALSE;
     }
 
     /*
@@ -3158,7 +3163,7 @@ BindLet(JSContext *cx, BindData *data, JSAtom *atom, JSTreeContext *tc)
      * This is balanced by PopStatement, defined immediately below.
      */
     if (!Define(pn, atom, tc, true))
-        return false;
+        return JS_FALSE;
 
     /*
      * Assign block-local index to pn->pn_cookie right away, encoding it as an
@@ -3168,15 +3173,15 @@ BindLet(JSContext *cx, BindData *data, JSAtom *atom, JSTreeContext *tc)
      * include script->nfixed.
      */
     pn->pn_op = JSOP_GETLOCAL;
-    pn->pn_cookie.set(tc->staticLevel, n);
+    pn->pn_cookie = MAKE_UPVAR_COOKIE(tc->staticLevel, n);
     pn->pn_dflags |= PND_LET | PND_BOUND;
 
     /*
-     * Define the let binding's property before storing pn in reserved slot at
-     * reserved slot index (NB: not slot number) n.
+     * Define the let binding's property before storing pn in a reserved slot,
+     * since block_reserveSlots depends on blockObj->scope()->entryCount.
      */
     if (!js_DefineBlockVariable(cx, blockObj, ATOM_TO_JSID(atom), n))
-        return false;
+        return JS_FALSE;
 
     /*
      * Store pn temporarily in what would be reserved slots in a cloned block
@@ -3185,11 +3190,13 @@ BindLet(JSContext *cx, BindData *data, JSAtom *atom, JSTreeContext *tc)
      * slots in jsemit.cpp:EmitEnterBlock.
      */
     uintN slot = JSSLOT_FREE(&js_BlockClass) + n;
-    if (slot >= blockObj->numSlots() && !blockObj->growSlots(cx, slot + 1))
-        return false;
+    if (slot >= blockObj->numSlots() &&
+        !blockObj->growSlots(cx, slot + 1)) {
+        return JS_FALSE;
+    }
     blockObj->scope()->freeslot = slot + 1;
     blockObj->setSlot(slot, PRIVATE_TO_JSVAL(pn));
-    return true;
+    return JS_TRUE;
 }
 
 static void
@@ -3266,7 +3273,7 @@ BindGvar(JSParseNode *pn, JSTreeContext *tc, bool inWith = false)
 
         if (!inWith) {
             pn->pn_op = JSOP_GETGVAR;
-            pn->pn_cookie.set(tc->staticLevel, slot);
+            pn->pn_cookie = MAKE_UPVAR_COOKIE(tc->staticLevel, slot);
             pn->pn_dflags |= PND_BOUND | PND_GVAR;
         }
     }
@@ -3449,7 +3456,7 @@ BindVarOrConst(JSContext *cx, BindData *data, JSAtom *atom, JSTreeContext *tc)
         if (!BindLocalVariable(cx, tc->fun, atom, localKind, false))
             return JS_FALSE;
         pn->pn_op = JSOP_GETLOCAL;
-        pn->pn_cookie.set(tc->staticLevel, index);
+        pn->pn_cookie = MAKE_UPVAR_COOKIE(tc->staticLevel, index);
         pn->pn_dflags |= PND_BOUND;
         return JS_TRUE;
     }
@@ -3501,8 +3508,16 @@ NoteLValue(JSContext *cx, JSParseNode *pn, JSTreeContext *tc, uintN dflag = PND_
 
         dn->pn_dflags |= dflag;
 
-        if (dn->pn_cookie.isFree() || dn->frameLevel() < tc->staticLevel)
+        if (dn->frameLevel() != tc->staticLevel) {
+            /*
+             * The above condition takes advantage of the all-ones nature of
+             * FREE_UPVAR_COOKIE, and the reserved level FREE_STATIC_LEVEL.
+             * We make a stronger assertion by excluding FREE_UPVAR_COOKIE.
+             */
+            JS_ASSERT_IF(dn->pn_cookie != FREE_UPVAR_COOKIE,
+                         dn->frameLevel() < tc->staticLevel);
             tc->flags |= TCF_FUN_SETS_OUTER_NAME;
+        }
     }
 
     pn->pn_dflags |= dflag;
@@ -4272,7 +4287,7 @@ PushLexicalScope(JSContext *cx, TokenStream *ts, JSTreeContext *tc,
     pn->pn_type = TOK_LEXICALSCOPE;
     pn->pn_op = JSOP_LEAVEBLOCK;
     pn->pn_objbox = blockbox;
-    pn->pn_cookie.makeFree();
+    pn->pn_cookie = FREE_UPVAR_COOKIE;
     pn->pn_dflags = 0;
     if (!GenerateBlockId(tc, stmt->blockid))
         return NULL;
@@ -6304,17 +6319,17 @@ class CompExprTransplanter {
 static bool
 BumpStaticLevel(JSParseNode *pn, JSTreeContext *tc)
 {
-    if (!pn->pn_cookie.isFree()) {
-        uintN level = pn->pn_cookie.level() + 1;
+    if (pn->pn_cookie != FREE_UPVAR_COOKIE) {
+        uintN level = UPVAR_FRAME_SKIP(pn->pn_cookie) + 1;
 
         JS_ASSERT(level >= tc->staticLevel);
-        if (level >= UpvarCookie::FREE_LEVEL) {
+        if (level >= FREE_STATIC_LEVEL) {
             JS_ReportErrorNumber(tc->parser->context, js_GetErrorMessage, NULL,
                                  JSMSG_TOO_DEEP, js_function_str);
             return false;
         }
 
-        pn->pn_cookie.set(level, pn->pn_cookie.slot());
+        pn->pn_cookie = MAKE_UPVAR_COOKIE(level, UPVAR_FRAME_SLOT(pn->pn_cookie));
     }
     return true;
 }
@@ -6401,7 +6416,7 @@ CompExprTransplanter::transplant(JSParseNode *pn)
                 return false;
         } else if (pn->pn_used) {
             JS_ASSERT(pn->pn_op != JSOP_NOP);
-            JS_ASSERT(pn->pn_cookie.isFree());
+            JS_ASSERT(pn->pn_cookie == FREE_UPVAR_COOKIE);
 
             JSDefinition *dn = pn->pn_lexdef;
             JS_ASSERT(dn->pn_defn);
@@ -7132,7 +7147,7 @@ Parser::propertySelector()
         pn->pn_op = JSOP_QNAMEPART;
         pn->pn_arity = PN_NAME;
         pn->pn_atom = tokenStream.currentToken().t_atom;
-        pn->pn_cookie.makeFree();
+        pn->pn_cookie = FREE_UPVAR_COOKIE;
     }
     return pn;
 }
@@ -7161,7 +7176,7 @@ Parser::qualifiedSuffix(JSParseNode *pn)
                        ? context->runtime->atomState.starAtom
                        : tokenStream.currentToken().t_atom;
         pn2->pn_expr = pn;
-        pn2->pn_cookie.makeFree();
+        pn2->pn_cookie = FREE_UPVAR_COOKIE;
         return pn2;
     }
 

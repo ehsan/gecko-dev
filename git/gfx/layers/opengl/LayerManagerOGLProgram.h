@@ -120,14 +120,7 @@ public:
     : mGL(aGL), mProgram(0)
   { }
 
-  virtual ~LayerManagerOGLProgram() {
-    nsRefPtr<GLContext> ctx = mGL->GetSharedContext();
-    if (!ctx) {
-      ctx = mGL;
-    }
-    ctx->MakeCurrent();
-    ctx->fDeleteProgram(mProgram);
-  }
+  virtual ~LayerManagerOGLProgram() { }
 
   void Activate() {
     NS_ASSERTION(mProgram != 0, "Attempting to activate a program that's not in use!");
@@ -206,9 +199,11 @@ public:
   }
 
 protected:
-  nsRefPtr<GLContext> mGL;
+  GLContext *mGL;
 
   GLuint mProgram;
+  GLuint mFragmentShader;
+  GLuint mVertexShader;
 
   nsTArray<UniformValue> mUniformValues;
 
@@ -259,15 +254,15 @@ protected:
   bool CreateProgram(const char *aVertexShaderString,
                      const char *aFragmentShaderString)
   {
-    GLuint vertexShader = CreateShader(LOCAL_GL_VERTEX_SHADER, aVertexShaderString);
-    GLuint fragmentShader = CreateShader(LOCAL_GL_FRAGMENT_SHADER, aFragmentShaderString);
+    mVertexShader = CreateShader(LOCAL_GL_VERTEX_SHADER, aVertexShaderString);
+    mFragmentShader = CreateShader(LOCAL_GL_FRAGMENT_SHADER, aFragmentShaderString);
 
-    if (!vertexShader || !fragmentShader)
+    if (!mVertexShader || !mFragmentShader)
       return false;
 
     mProgram = mGL->fCreateProgram();
-    mGL->fAttachShader(mProgram, vertexShader);
-    mGL->fAttachShader(mProgram, fragmentShader);
+    mGL->fAttachShader(mProgram, mVertexShader);
+    mGL->fAttachShader(mProgram, mFragmentShader);
 
     // bind common attribs to consistent indices
     mGL->fBindAttribLocation(mProgram, VertexAttrib, "aVertexCoord");
@@ -301,13 +296,10 @@ protected:
       fprintf (stderr, "=== Log:\n%s\n", nsPromiseFlatCString(log).get());
       fprintf (stderr, "============\n");
 
-      // We can mark the shaders for deletion; they're attached to the program
-      // and will remain attached.
-      mGL->fDeleteShader(vertexShader);
-      mGL->fDeleteShader(fragmentShader);
-
       if (!success) {
         mGL->fDeleteProgram(mProgram);
+        mGL->fDeleteShader(mVertexShader);
+        mGL->fDeleteShader(mFragmentShader);
 
         mProgram = 0;
 

@@ -85,7 +85,7 @@ protected:
     nsresult CreateLocalStore(nsIFile* aFile);
     nsresult LoadData();
 
-    friend nsresult
+    friend NS_IMETHODIMP
     NS_NewLocalStore(nsISupports* aOuter, REFNSIID aIID, void** aResult);
 
     nsCOMPtr<nsIRDFService>    mRDFService;
@@ -238,7 +238,7 @@ LocalStoreImpl::~LocalStoreImpl(void)
 }
 
 
-nsresult
+NS_IMETHODIMP
 NS_NewLocalStore(nsISupports* aOuter, REFNSIID aIID, void** aResult)
 {
     NS_PRECONDITION(aOuter == nsnull, "no aggregation");

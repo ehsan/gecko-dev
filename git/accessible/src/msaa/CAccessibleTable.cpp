@@ -666,28 +666,33 @@ __try {
   if (!tableAcc)
     return E_FAIL;
 
-  PRInt32 rowIdx = -1, columnIdx = -1;
-  nsresult rv = tableAcc->GetRowAndColumnIndicesAt(aIndex, &rowIdx, &columnIdx);
+  PRInt32 row = -1;
+  nsresult rv = tableAcc->GetRowIndexAt(aIndex, &row);
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
+
+  PRInt32 column = -1;
+  rv = tableAcc->GetColumnIndexAt(aIndex, &column);
   if (NS_FAILED(rv))
     return GetHRESULT(rv);
 
   PRInt32 rowExtents = 0;
-  rv = tableAcc->GetRowExtentAt(rowIdx, columnIdx, &rowExtents);
+  rv = tableAcc->GetRowExtentAt(row, column, &rowExtents);
   if (NS_FAILED(rv))
     return GetHRESULT(rv);
 
   PRInt32 columnExtents = 0;
-  rv = tableAcc->GetColumnExtentAt(rowIdx, columnIdx, &columnExtents);
+  rv = tableAcc->GetColumnExtentAt(row, column, &columnExtents);
   if (NS_FAILED(rv))
     return GetHRESULT(rv);
 
   PRBool isSelected = PR_FALSE;
-  rv = tableAcc->IsCellSelected(rowIdx, columnIdx, &isSelected);
+  rv = tableAcc->IsCellSelected(row, column, &isSelected);
   if (NS_FAILED(rv))
     return GetHRESULT(rv);
 
-  *aRow = rowIdx;
-  *aColumn = columnIdx;
+  *aRow = row;
+  *aColumn = column;
   *aRowExtents = rowExtents;
   *aColumnExtents = columnExtents;
   *aIsSelected = isSelected;

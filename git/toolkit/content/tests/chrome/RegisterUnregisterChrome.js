@@ -8,62 +8,110 @@ const Ci = Components.interfaces;
 const Cr = Components.results;
 
 let gDirSvc    = Cc["@mozilla.org/file/directory_service;1"].
-  getService(Ci.nsIDirectoryService).QueryInterface(Ci.nsIProperties);
+                    getService(Ci.nsIDirectoryService);
 let gChromeReg = Cc["@mozilla.org/chrome/chrome-registry;1"].
                     getService(Ci.nsIXULChromeRegistry);
 let gPrefs     = Cc["@mozilla.org/preferences-service;1"].
                     getService(Ci.nsIPrefBranch);
+var gProvider, gHasChrome, gHasSkins;
 
-// Create the temporary file in the profile, instead of in TmpD, because
-// we know the mochitest harness kills off the profile when it's done.
-function copyToTemporaryFile(f)
+function ArrayEnumerator(array)
 {
-  let tmpd = gDirSvc.get("ProfD", Ci.nsIFile);
-  tmpf = tmpd.clone();
-  tmpf.append("temp.manifest");
-  tmpf.createUnique(Ci.nsIFile.NORMAL_FILE_TYPE, 0600);
-  tmpf.remove(false);
-
-  f.copyTo(tmpd, tmpf.leafName);
-  return tmpf;
+  this.array = array;
 }
 
-function convertChromeURI(chromeURI)
+ArrayEnumerator.prototype = {
+  pos: 0,
+        
+  hasMoreElements: function() {
+    return this.pos < this.array.length;
+  },
+        
+  getNext: function() {
+    if (this.pos < this.array.length)
+      return this.array[this.pos++];
+    throw Cr.NS_ERROR_FAILURE;
+  },
+
+  QueryInterface: function(iid) {
+    if (iid.equals(Ci.nsISimpleEnumerator)
+        || iid.equals(Ci.nsISupports))
+      return this;
+
+    throw Cr.NS_ERROR_NO_INTERFACE;
+  }
+};
+
+function ChromeProvider(manifests)
 {
-  let uri = Cc["@mozilla.org/network/io-service;1"].
-    getService(Ci.nsIIOService).newURI(chromeURI, null, null);
-  return gChromeReg.convertChromeURL(uri);
+  this._manifests = manifests;
 }
 
-function chromeURIToFile(chromeURI)
-{
-  return convertChromeURI(chromeURI).
-    QueryInterface(Ci.nsIFileURL).file;
-}  
+ChromeProvider.prototype = {
+  getFile: function(prop, persistent) {
+    throw Cr.NS_ERROR_FAILURE;
+  },
 
-// Register a chrome manifest temporarily and return a function which un-does
-// the registrarion when no longer needed.
-function registerManifestTemporarily(manifestURI)
+  getFiles: function(prop) {
+    if (prop == NS_CHROME_MANIFESTS_FILE_LIST) {
+      return new ArrayEnumerator(this._manifests);
+    }
+    throw Cr.NS_ERROR_FAILURE;
+  },
+
+  QueryInterface: function(iid) {
+    if (iid.equals(Ci.nsIDirectoryServiceProvider)
+        || iid.equals(Ci.nsIDirectoryServiceProvider2)
+        || iid.equals(Ci.nsISupports))
+      return this;
+
+    throw Cr.NS_ERROR_NO_INTERFACE;
+  }
+};
+
+function registerManifests(manifests)
 {
+  let provider = new ChromeProvider(manifests);
+  gDirSvc.registerProvider(provider);
+  return provider;
+}
+
+function refreshChrome()
+{
+  if (gHasChrome)
+    gChromeReg.checkForNewChrome();
+  if (gHasSkins)
+    gChromeReg.refreshSkins();
+}
+
+function registerCustomChrome(chromedir, hasChrome, hasSkins)
+{
+  gHasChrome = hasChrome;
+  gHasSkins = hasSkins;
+
+  // Disable XUL cache temporarily
   gPrefs.setBoolPref(XUL_CACHE_PREF, true);
 
-  let file = chromeURIToFile(manifestURI);
-  let tempfile = copyToTemporaryFile(file);
-  Components.manager.QueryInterface(Ci.nsIComponentRegistrar).
-    autoRegister(tempfile);
-
-  gChromeReg.refreshSkins();
-
-  return function() {
-    tempfile.fileSize = 0; // truncate the manifest
-    gChromeReg.checkForNewChrome();
-    gChromeReg.refreshSkins();
-    gPrefs.clearUserPref(XUL_CACHE_PREF);
-  }
+  // Register our manifest
+  let manifests = [];
+  let currentManifests = gDirSvc.QueryInterface(Ci.nsIProperties)
+                         .get(NS_CHROME_MANIFESTS_FILE_LIST,
+                              Ci.nsISimpleEnumerator);
+  while (currentManifests.hasMoreElements())
+    manifests.push(currentManifests.getNext());
+  let uri = Cc["@mozilla.org/network/io-service;1"].
+               getService(Ci.nsIIOService).newURI(chromedir, null, null);
+  uri = gChromeReg.convertChromeURL(uri);
+  let newChromePath = uri.QueryInterface(Ci.nsIFileURL).file;
+  manifests.push(newChromePath);
+  gProvider = registerManifests(manifests);
+  refreshChrome();
+  return uri;
 }
 
-function registerManifestPermanently(manifestURI)
+function cleanupCustomChrome()
 {
-  Components.manager.QueryInterface(Ci.nsIComponentRegistrar).
-    autoRegister(chromeURIToFile(manifestURI));
+  gDirSvc.unregisterProvider(gProvider);
+  refreshChrome();
+  gPrefs.clearUserPref(XUL_CACHE_PREF);
 }

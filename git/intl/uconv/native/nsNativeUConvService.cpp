@@ -44,6 +44,7 @@
 
 #include "nsIUnicodeDecoder.h"
 #include "nsIUnicodeEncoder.h"
+#include "nsICharRepresentable.h"
 
 #include "nsNativeUConvService.h"
 #include "nsAutoPtr.h"
@@ -55,7 +56,8 @@
 
 
 class IConvAdaptor : public nsIUnicodeDecoder, 
-                     public nsIUnicodeEncoder 
+                     public nsIUnicodeEncoder, 
+                     public nsICharRepresentable
 {
 public:
     IConvAdaptor();
@@ -101,6 +103,8 @@ public:
                                       nsIUnicharEncoder * aEncoder, 
                                       PRUnichar aChar);
     
+    NS_IMETHOD FillInfo(PRUint32* aInfo);
+    
     
 private:
     nsresult ConvertInternal(void * aSrc, 
@@ -120,9 +124,10 @@ private:
 #endif
 };
 
-NS_IMPL_ISUPPORTS2(IConvAdaptor, 
+NS_IMPL_ISUPPORTS3(IConvAdaptor, 
                    nsIUnicodeEncoder, 
-                   nsIUnicodeDecoder)
+                   nsIUnicodeDecoder,
+                   nsICharRepresentable)
 
 IConvAdaptor::IConvAdaptor()
 {
@@ -274,6 +279,16 @@ IConvAdaptor::SetOutputErrorBehavior(PRInt32 aBehavior,
 
     NS_WARNING("Uconv Error Behavior not support");
     return NS_ERROR_FAILURE;
+}
+
+nsresult 
+IConvAdaptor::FillInfo(PRUint32* aInfo)
+{
+#ifdef DEBUG
+    printf(" * IConvAdaptor - FillInfo called\n");
+#endif
+    *aInfo = 0;
+    return NS_OK;
 }
 
 

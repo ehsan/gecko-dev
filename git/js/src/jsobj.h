@@ -52,9 +52,8 @@
 #include "jshash.h" /* Added by JSIFY */
 #include "jspubtd.h"
 #include "jsprvtd.h"
-#include "jsvector.h"
 
-namespace js { class AutoDescriptorArray; class JSProxyHandler; }
+namespace js { class AutoDescriptorArray; }
 
 /*
  * A representation of ECMA-262 ed. 5's internal property descriptor data
@@ -136,10 +135,6 @@ struct PropertyDescriptor {
     bool hasConfigurable : 1;
 };
 
-namespace js {
-    typedef Vector<PropertyDescriptor, 1> PropertyDescriptorArray;
-}
-
 JS_BEGIN_EXTERN_C
 
 /* For detailed comments on these function pointer types, see jsprvtd.h. */
@@ -159,13 +154,15 @@ struct JSObjectOps {
     JSAttributesOp      getAttributes;
     JSAttributesOp      setAttributes;
     JSPropertyIdOp      deleteProperty;
+    JSConvertOp         defaultValue;
     JSNewEnumerateOp    enumerate;
+    JSCheckAccessIdOp   checkAccess;
     JSTypeOfOp          typeOf;
     JSTraceOp           trace;
 
     /* Optionally non-null members start here. */
     JSObjectOp          thisObject;
-    JSCallOp            call;
+    JSNative            call;
     JSNative            construct;
     JSHasInstanceOp     hasInstance;
     JSFinalizeOp        clear;
@@ -202,9 +199,10 @@ private:
 
 struct NativeIterator;
 
-const uint32 JS_INITIAL_NSLOTS = 4;
+const uint32 JS_INITIAL_NSLOTS = 5;
 
-const uint32 JSSLOT_PARENT  = 0;
+const uint32 JSSLOT_PROTO   = 0;
+const uint32 JSSLOT_PARENT  = 1;
 
 /*
  * The first available slot to store generic value. For JSCLASS_HAS_PRIVATE
@@ -213,7 +211,7 @@ const uint32 JSSLOT_PARENT  = 0;
  * tagging and should be accessed using the (get|set)Private methods of
  * JSObject.
  */
-const uint32 JSSLOT_PRIVATE = 1;
+const uint32 JSSLOT_PRIVATE = 2;
 
 const uintptr_t JSSLOT_CLASS_MASK_BITS = 3;
 
@@ -258,7 +256,6 @@ struct JSObject {
 
     JSObjectMap *map;                       /* property map, see jsscope.h */
     jsuword     classword;                  /* JSClass ptr | bits, see above */
-    JSObject    *proto;                     /* object's prototype */
     jsval       fslots[JS_INITIAL_NSLOTS];  /* small number of fixed slots */
     jsval       *dslots;                    /* dynamically allocated slots */
 
@@ -351,23 +348,17 @@ struct JSObject {
     inline jsval getSlotMT(JSContext *cx, uintN slot);
     inline void setSlotMT(JSContext *cx, uintN slot, jsval value);
 
-    inline jsval getReservedSlot(uintN index) const;
-
     JSObject *getProto() const {
-        return proto;
+        return JSVAL_TO_OBJECT(fslots[JSSLOT_PROTO]);
     }
 
     void clearProto() {
-        proto = NULL;
+        fslots[JSSLOT_PROTO] = JSVAL_NULL;
     }
 
     void setProto(JSObject *newProto) {
-#ifdef DEBUG
-        for (JSObject *obj = newProto; obj; obj = obj->getProto())
-            JS_ASSERT(obj != this);
-#endif
         setDelegateNullSafe(newProto);
-        proto = newProto;
+        fslots[JSSLOT_PROTO] = OBJECT_TO_JSVAL(newProto);
     }
 
     JSObject *getParent() const {
@@ -379,18 +370,17 @@ struct JSObject {
     }
 
     void setParent(JSObject *newParent) {
-#ifdef DEBUG
-        for (JSObject *obj = newParent; obj; obj = obj->getParent())
-            JS_ASSERT(obj != this);
-#endif
         setDelegateNullSafe(newParent);
         fslots[JSSLOT_PARENT] = OBJECT_TO_JSVAL(newParent);
     }
 
     void traceProtoAndParent(JSTracer *trc) const {
-        if (JSObject *proto = getProto())
+        JSObject *proto = getProto();
+        if (proto)
             JS_CALL_OBJECT_TRACER(trc, proto, "__proto__");
-        if (JSObject *parent = getParent())
+
+        JSObject *parent = getParent();
+        if (parent)
             JS_CALL_OBJECT_TRACER(trc, parent, "parent");
     }
 
@@ -448,8 +438,6 @@ struct JSObject {
     inline uint32 uncheckedGetDenseArrayCapacity() const;
 
   public:
-    static const uint32 DENSE_ARRAY_FIXED_RESERVED_SLOTS = 3;
-
     inline uint32 getArrayLength() const;
     inline void setDenseArrayLength(uint32 length);
     inline void setSlowArrayLength(uint32 length);
@@ -595,15 +583,9 @@ struct JSObject {
      * Proxy-specific getters and setters.
      */
 
-    inline js::JSProxyHandler *getProxyHandler() const;
+    inline jsval getProxyHandler() const;
     inline jsval getProxyPrivate() const;
     inline void setProxyPrivate(jsval priv);
-
-    /*
-     * With object-specific getters and setters.
-     */
-    inline JSObject *getWithThis() const;
-    inline void setWithThis(JSObject *thisp);
 
     /*
      * Back to generic stuff.
@@ -675,9 +657,18 @@ struct JSObject {
         return map->ops->deleteProperty(cx, this, id, rval);
     }
 
+    JSBool defaultValue(JSContext *cx, JSType hint, jsval *vp) {
+        return map->ops->defaultValue(cx, this, hint, vp);
+    }
+
     JSBool enumerate(JSContext *cx, JSIterateOp op, jsval *statep,
                      jsid *idp) {
         return map->ops->enumerate(cx, this, op, statep, idp);
+    }
+
+    JSBool checkAccess(JSContext *cx, jsid id, JSAccessMode mode, jsval *vp,
+                       uintN *attrsp) {
+        return map->ops->checkAccess(cx, this, id, mode, vp, attrsp);
     }
 
     JSType typeOf(JSContext *cx) {
@@ -693,7 +684,7 @@ struct JSObject {
 
     inline void dropProperty(JSContext *cx, JSProperty *prop);
 
-    JS_FRIEND_API(JSCompartment *) getCompartment(JSContext *cx);
+    JSCompartment *getCompartment(JSContext *cx);
 
     void swap(JSObject *obj);
 
@@ -716,9 +707,6 @@ struct JSObject {
     inline bool isObjectProxy() const;
     inline bool isFunctionProxy() const;
 
-    JS_FRIEND_API(bool) isWrapper() const;
-    JS_FRIEND_API(JSObject *) unwrap(uintN *flagsp = NULL);
-
     inline bool unbrand(JSContext *cx);
 };
 
@@ -734,7 +722,7 @@ struct JSObject {
  * obj->dslots[-1] that is used to store the length of the vector biased by
  * JS_INITIAL_NSLOTS (and again net of the slot at index -1).
  */
-#define MAX_DSLOTS_LENGTH   (~size_t(0) / sizeof(jsval) - 1)
+#define MAX_DSLOTS_LENGTH   (JS_MAX(~uint32(0), ~size_t(0)) / sizeof(jsval) - 1)
 #define MAX_DSLOTS_LENGTH32 (~uint32(0) / sizeof(jsval) - 1)
 
 #define OBJ_CHECK_SLOT(obj,slot)                                              \
@@ -755,6 +743,7 @@ struct JSObject {
 
 #endif /* JS_THREADSAFE */
 
+#ifdef __cplusplus
 inline void
 OBJ_TO_INNER_OBJECT(JSContext *cx, JSObject *&obj)
 {
@@ -780,14 +769,7 @@ OBJ_TO_OUTER_OBJECT(JSContext *cx, JSObject *&obj)
             obj = xclasp->outerObject(cx, obj);
     }
 }
-
-class ValueArray {
-  public:
-    jsval *array;
-    size_t length;
-
-    ValueArray(jsval *v, size_t c) : array(v), length(c) {}
-};
+#endif
 
 extern JSClass  js_ObjectClass;
 extern JSClass  js_WithClass;
@@ -808,15 +790,13 @@ extern JSClass  js_BlockClass;
  * whose activation they were created (or null if the with or block object
  * outlives the frame).
  */
-static const uint32 JSSLOT_BLOCK_DEPTH = JSSLOT_PRIVATE + 1;
+#define JSSLOT_BLOCK_DEPTH      (JSSLOT_PRIVATE + 1)
 
 static inline bool
 OBJ_IS_CLONED_BLOCK(JSObject *obj)
 {
     return obj->getProto() != NULL;
 }
-
-static const uint32 JSSLOT_WITH_THIS = JSSLOT_PRIVATE + 2;
 
 extern JSBool
 js_DefineBlockVariable(JSContext *cx, JSObject *obj, jsid id, intN index);
@@ -989,7 +969,9 @@ js_FreeSlot(JSContext *cx, JSObject *obj, uint32 slot);
  * Ensure that the object has at least JSCLASS_RESERVED_SLOTS(clasp)+nreserved
  * slots. The function can be called only for native objects just created with
  * js_NewObject or its forms. In particular, the object should not be shared
- * between threads and its dslots array must be null.
+ * between threads and its dslots array must be null. nreserved must match the
+ * value that JSClass.reserveSlots (if any) would return after the object is
+ * fully initialized.
  */
 bool
 js_EnsureReservedSlots(JSContext *cx, JSObject *obj, size_t nreserved);
@@ -1206,30 +1188,22 @@ js_SetNativeAttributes(JSContext *cx, JSObject *obj, JSScopeProperty *sprop,
 extern JSBool
 js_DeleteProperty(JSContext *cx, JSObject *obj, jsid id, jsval *rval);
 
-namespace js {
-
 extern JSBool
-DefaultValue(JSContext *cx, JSObject *obj, JSType hint, jsval *vp);
-
-}
+js_DefaultValue(JSContext *cx, JSObject *obj, JSType hint, jsval *vp);
 
 extern JSBool
 js_Enumerate(JSContext *cx, JSObject *obj, JSIterateOp enum_op,
              jsval *statep, jsid *idp);
 
-namespace js {
-
 extern JSBool
-CheckAccess(JSContext *cx, JSObject *obj, jsid id, JSAccessMode mode,
-            jsval *vp, uintN *attrsp);
-
-}
+js_CheckAccess(JSContext *cx, JSObject *obj, jsid id, JSAccessMode mode,
+               jsval *vp, uintN *attrsp);
 
 extern JSType
 js_TypeOf(JSContext *cx, JSObject *obj);
 
 extern JSBool
-js_Call(JSContext *cx, uintN argc, jsval *vp);
+js_Call(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval);
 
 extern JSBool
 js_Construct(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
@@ -1237,6 +1211,10 @@ js_Construct(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
 
 extern JSBool
 js_HasInstance(JSContext *cx, JSObject *obj, jsval v, JSBool *bp);
+
+extern JSBool
+js_SetProtoOrParent(JSContext *cx, JSObject *obj, uint32 slot, JSObject *pobj,
+                    JSBool checkForCycles);
 
 extern JSBool
 js_IsDelegate(JSContext *cx, JSObject *obj, jsval v, JSBool *bp);
@@ -1288,7 +1266,7 @@ js_Clear(JSContext *cx, JSObject *obj);
 extern bool
 js_GetReservedSlot(JSContext *cx, JSObject *obj, uint32 index, jsval *vp);
 
-extern bool
+bool
 js_SetReservedSlot(JSContext *cx, JSObject *obj, uint32 index, jsval v);
 
 /*
@@ -1342,19 +1320,5 @@ JSBool
 js_Object(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval);
 
 JS_END_EXTERN_C
-
-namespace js {
-
-extern bool
-SetProto(JSContext *cx, JSObject *obj, JSObject *proto, bool checkForCycles);
-
-}
-
-namespace js {
-
-extern JSString *
-obj_toStringHelper(JSContext *cx, JSObject *obj);
-
-}
 
 #endif /* jsobj_h___ */

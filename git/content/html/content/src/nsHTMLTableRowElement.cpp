@@ -390,7 +390,7 @@ nsHTMLTableRowElement::ParseAttribute(PRInt32 aNamespaceID,
       return ParseTableCellHAlignValue(aValue, aResult);
     }
     if (aAttribute == nsGkAtoms::bgcolor) {
-      return aResult.ParseColor(aValue);
+      return aResult.ParseColor(aValue, GetOwnerDoc());
     }
     if (aAttribute == nsGkAtoms::valign) {
       return ParseTableVAlignValue(aValue, aResult);

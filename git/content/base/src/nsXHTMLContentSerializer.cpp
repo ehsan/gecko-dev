@@ -86,7 +86,8 @@ nsresult NS_NewXHTMLContentSerializer(nsIContentSerializer** aSerializer)
 }
 
 nsXHTMLContentSerializer::nsXHTMLContentSerializer()
-  : mIsHTMLSerializer(PR_FALSE)
+  : mInBody(0),
+    mIsHTMLSerializer(PR_FALSE)
 {
 }
 
@@ -100,6 +101,8 @@ nsXHTMLContentSerializer::Init(PRUint32 aFlags, PRUint32 aWrapColumn,
                               const char* aCharSet, PRBool aIsCopying,
                               PRBool aRewriteEncodingDeclaration)
 {
+  mInBody = 0;
+
   // The previous version of the HTML serializer did implicit wrapping
   // when there is no flags, so we keep wrapping in order to keep
   // compatibility with the existing calling code
@@ -469,9 +472,8 @@ nsXHTMLContentSerializer::AppendEndOfElementStart(nsIContent *aOriginalElement,
   
     if (parserService) {
       PRBool isContainer;
-      parserService->
-        IsContainer(parserService->HTMLCaseSensitiveAtomTagToId(aName),
-                    isContainer);
+      parserService->IsContainer(parserService->HTMLAtomTagToId(aName),
+                                 isContainer);
       if (!isContainer) {
         // for backward compatibility with HTML 4 user agents
         // only non-container HTML elements can be closed immediatly,
@@ -617,9 +619,8 @@ nsXHTMLContentSerializer::CheckElementEnd(nsIContent * aContent,
       if (parserService) {
         PRBool isContainer;
 
-        parserService->
-          IsContainer(parserService->HTMLCaseSensitiveAtomTagToId(name),
-                      isContainer);
+        parserService->IsContainer(parserService->HTMLAtomTagToId(name),
+                                   isContainer);
         if (!isContainer) {
           // non-container HTML elements are already closed,
           // see AppendEndOfElementStart
@@ -635,6 +636,37 @@ nsXHTMLContentSerializer::CheckElementEnd(nsIContent * aContent,
 
   PRBool dummyFormat;
   return nsXMLContentSerializer::CheckElementEnd(aContent, dummyFormat, aStr);
+}
+
+void
+nsXHTMLContentSerializer::AppendToString(const PRUnichar* aStr,
+                                         PRInt32 aLength,
+                                         nsAString& aOutputStr)
+{
+  if (mBodyOnly && !mInBody) {
+    return;
+  }
+  nsXMLContentSerializer::AppendToString(aStr, aLength, aOutputStr);
+}
+
+void 
+nsXHTMLContentSerializer::AppendToString(const PRUnichar aChar,
+                                         nsAString& aOutputStr)
+{
+  if (mBodyOnly && !mInBody) {
+    return;
+  }
+  nsXMLContentSerializer::AppendToString(aChar, aOutputStr);
+}
+
+void
+nsXHTMLContentSerializer::AppendToString(const nsAString& aStr,
+                                         nsAString& aOutputStr)
+{
+  if (mBodyOnly && !mInBody) {
+    return;
+  }
+  nsXMLContentSerializer::AppendToString(aStr, aOutputStr);
 }
 
 void
@@ -753,6 +785,37 @@ nsXHTMLContentSerializer::IsShorthandAttr(const nsIAtom* aAttrName,
   return PR_FALSE;
 }
 
+void
+nsXHTMLContentSerializer::AppendToStringConvertLF(const nsAString& aStr,
+                                                  nsAString& aOutputStr)
+{
+  if (mBodyOnly && !mInBody) {
+    return;
+  }
+  nsXMLContentSerializer::AppendToStringConvertLF(aStr, aOutputStr);
+}
+
+void
+nsXHTMLContentSerializer::AppendToStringFormatedWrapped(const nsASingleFragmentString& aStr,
+                                                        nsAString& aOutputStr)
+{
+  if (mBodyOnly && !mInBody) {
+    return;
+  }
+  nsXMLContentSerializer::AppendToStringFormatedWrapped(aStr, aOutputStr);
+}
+
+void
+nsXHTMLContentSerializer::AppendToStringWrapped(const nsASingleFragmentString& aStr,
+                                                nsAString& aOutputStr)
+{
+  if (mBodyOnly && !mInBody) {
+    return;
+  }
+  nsXMLContentSerializer::AppendToStringWrapped(aStr, aOutputStr);
+}
+
+
 PRBool
 nsXHTMLContentSerializer::LineBreakBeforeOpen(PRInt32 aNamespaceID, nsIAtom* aName)
 {
@@ -776,8 +839,7 @@ nsXHTMLContentSerializer::LineBreakBeforeOpen(PRInt32 aNamespaceID, nsIAtom* aNa
 
     if (parserService) {
       PRBool res;
-      parserService->
-        IsBlock(parserService->HTMLCaseSensitiveAtomTagToId(aName), res);
+      parserService->IsBlock(parserService->HTMLAtomTagToId(aName), res);
       return res;
     }
   }
@@ -870,8 +932,7 @@ nsXHTMLContentSerializer::LineBreakAfterClose(PRInt32 aNamespaceID, nsIAtom* aNa
 
     if (parserService) {
       PRBool res;
-      parserService->
-        IsBlock(parserService->HTMLCaseSensitiveAtomTagToId(aName), res);
+      parserService->IsBlock(parserService->HTMLAtomTagToId(aName), res);
       return res;
     }
   }

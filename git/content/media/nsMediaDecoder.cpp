@@ -52,7 +52,6 @@
 #include "gfxImageSurface.h"
 #include "nsPresContext.h"
 #include "nsDOMError.h"
-#include "nsDisplayList.h"
 
 #if defined(XP_MACOSX)
 #include "gfxQuartzImageSurface.h"
@@ -150,9 +149,8 @@ void nsMediaDecoder::Invalidate()
   }
 
   if (frame) {
-    nsRect contentRect = frame->GetContentRect() - frame->GetPosition();
-    // Only the layer needs to be updated here
-    frame->InvalidateLayer(contentRect, nsDisplayItem::TYPE_VIDEO);
+    nsRect r(nsPoint(0,0), frame->GetSize());
+    frame->Invalidate(r);
   }
 }
 

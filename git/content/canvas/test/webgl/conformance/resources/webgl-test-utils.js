@@ -14,16 +14,6 @@ var log = function(msg) {
   }
 };
 
-var lastError = "";
-
-/**
- * Returns the last compiler/linker error.
- * @return {string} The last compiler/linker error.
- */
-var getLastError = function() {
-  return lastError;
-};
-
 /**
  * A vertex shader for a single texture.
  * @type {string}
@@ -42,9 +32,6 @@ var simpleTextureVertexShader = '' +
  * @type {string}
  */
 var simpleTextureFragmentShader = '' +
-  '#ifdef GL_ES\n' +
-  'precision mediump float;\n' +
-  '#endif\n' +
   'uniform sampler2D tex;\n' +
   'varying vec2 texCoord;\n' +
   'void main() {\n' +
@@ -57,7 +44,7 @@ var simpleTextureFragmentShader = '' +
  * @return {!WebGLShader}
  */
 var setupSimpleTextureVertexShader = function(gl) {
-    return loadShader(gl, simpleTextureVertexShader, gl.VERTEX_SHADER);
+    return loadShader(gl, simpleTextureVertexShader, gl.VERTEX_SHADER, false);
 };
 
 /**
@@ -67,42 +54,7 @@ var setupSimpleTextureVertexShader = function(gl) {
  */
 var setupSimpleTextureFragmentShader = function(gl) {
     return loadShader(
-        gl, simpleTextureFragmentShader, gl.FRAGMENT_SHADER);
-};
-
-/**
- * Creates a program, attaches shaders, binds attrib locations, links the
- * program and calls useProgram.
- * @param {!Array.<!WebGLShader>} shaders The shaders to attach .
- * @param {!Array.<string>} attribs The attribs names.
- * @param {!Array.<number>} opt_locations The locations for the attribs.
- */
-var setupProgram = function(gl, shaders, attribs, opt_locations) {
-  var program = gl.createProgram();
-  for (var ii = 0; ii < shaders.length; ++ii) {
-    gl.attachShader(program, shaders[ii]);
-  }
-  for (var ii = 0; ii < attribs.length; ++ii) {
-    gl.bindAttribLocation(
-        program,
-        opt_locations ? opt_locations[ii] : ii,
-        attribs[ii]);
-  }
-  gl.linkProgram(program);
-
-  // Check the link status
-  var linked = gl.getProgramParameter(program, gl.LINK_STATUS);
-  if (!linked) {
-      // something went wrong with the link
-      lastError = gl.getProgramInfoLog (program);
-      log("Error in program linking:" + lastError);
-
-      gl.deleteProgram(program);
-      return null;
-  }
-
-  gl.useProgram(program);
-  return program;
+        gl, simpleTextureFragmentShader, gl.FRAGMENT_SHADER, false);
 };
 
 /**
@@ -121,15 +73,28 @@ var setupSimpleTextureProgram = function(
   if (!vs || !fs) {
     return null;
   }
-  var program = setupProgram(
-      gl,
-      [vs, fs],
-      ['vPosition', 'texCoord0'],
-      [opt_positionLocation, opt_texcoordLocation]);
-  if (!program) {
-    gl.deleteShader(fs);
-    gl.deleteShader(vs);
+  var program = gl.createProgram();
+  gl.attachShader(program, vs);
+  gl.attachShader(program, fs);
+  gl.bindAttribLocation(program, opt_positionLocation, 'vPosition');
+  gl.bindAttribLocation(program, opt_texcoordLocation, 'texCoord0');
+  gl.linkProgram(program);
+
+  // Check the link status
+  var linked = gl.getProgramParameter(program, gl.LINK_STATUS);
+  if (!linked) {
+      // something went wrong with the link
+      var error = gl.getProgramInfoLog (program);
+      log("Error in program linking:"+error);
+
+      gl.deleteProgram(program);
+      gl.deleteProgram(fs);
+      gl.deleteProgram(vs);
+
+      return null;
   }
+
+  gl.useProgram(program);
   return program;
 };
 
@@ -138,32 +103,26 @@ var setupSimpleTextureProgram = function(
  * @param {!WebGLContext} gl The WebGLContext to use.
  * @param {number} opt_positionLocation The attrib location for position.
  * @param {number} opt_texcoordLocation The attrib location for texture coords.
- * @return {!Array.<WebGLBuffer>} The buffer objects that were
- *      created.
  */
 var setupUnitQuad = function(gl, opt_positionLocation, opt_texcoordLocation) {
   opt_positionLocation = opt_positionLocation || 0;
   opt_texcoordLocation = opt_texcoordLocation || 1;
-  var objects = [];
 
   var vertexObject = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, vertexObject);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(
+  gl.bufferData(gl.ARRAY_BUFFER, new WebGLFloatArray(
       [-1,1,0, 1,1,0, -1,-1,0,
        -1,-1,0, 1,1,0, 1,-1,0]), gl.STATIC_DRAW);
   gl.enableVertexAttribArray(opt_positionLocation);
   gl.vertexAttribPointer(opt_positionLocation, 3, gl.FLOAT, false, 0, 0);
-  objects.push(vertexObject);
 
   var vertexObject = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, vertexObject);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(
+  gl.bufferData(gl.ARRAY_BUFFER, new WebGLFloatArray(
       [0,0, 1,0, 0,1,
        0,1, 1,0, 1,1]), gl.STATIC_DRAW);
   gl.enableVertexAttribArray(opt_texcoordLocation);
   gl.vertexAttribPointer(opt_texcoordLocation, 2, gl.FLOAT, false, 0, 0);
-  objects.push(vertexObject);
-  return objects;
 };
 
 /**
@@ -200,8 +159,7 @@ var fillTexture = function(gl, tex, width, height, color, opt_level) {
   ctx2d.fillStyle = "rgba(" + color[0] + "," + color[1] + "," + color[2] + "," + color[3] + ")";
   ctx2d.fillRect(0, 0, width, height);
   gl.bindTexture(gl.TEXTURE_2D, tex);
-  gl.texImage2D(
-      gl.TEXTURE_2D, opt_level, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, canvas);
+  gl.texImage2D(gl.TEXTURE_2D, opt_level, canvas);
 };
 
 /**
@@ -247,8 +205,7 @@ var drawQuad = function(gl, opt_color) {
 var checkCanvas = function(gl, color, msg) {
   var width = gl.canvas.width;
   var height = gl.canvas.height;
-  var buf = new Uint8Array(width * height * 4);
-  gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, buf);
+  var buf = gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE);
   for (var i = 0; i < width * height; ++i) {
     var offset = i * 4;
     if (buf[offset + 0] != color[0] ||
@@ -389,17 +346,13 @@ var shouldGenerateGLError = function(gl, glError, evalStr) {
  * Tests that the first error GL returns is the specified error.
  * @param {!WebGLContext} gl The WebGLContext to use.
  * @param {number} glError The expected gl error.
- * @param {string} opt_msg
  */
-var glErrorShouldBe = function(gl, glError, opt_msg) {
-  opt_msg = opt_msg || "";
+var glErrorShouldBe = function(gl, glError) {
   var err = gl.getError();
   if (err != glError) {
-    testFailed("getError expected: " + getGLErrorAsString(gl, glError) +
-               ". Was " + getGLErrorAsString(gl, err) + " : " + opt_msg);
+    testFailed("getError expected: " + getGLErrorAsString(gl, glError) + ". Was " + getGLErrorAsString(gl, err) + ".");
   } else {
-    testPassed("getError was expected value: " +
-                getGLErrorAsString(gl, glError) + " : " + opt_msg);
+    testPassed("getError was expected value: " + getGLErrorAsString(gl, glError) + ".");
   }
 };
 
@@ -483,44 +436,15 @@ var setupWebGLWithShaders = function(
 };
 
 /**
- * Gets a file from a file/URL
+ * Gets shader source from a file/URL
  * @param {string} file the URL of the file to get.
  * @return {string} The contents of the file.
  */
-var readFile = function(file) {
+var getShaderSource = function(file) {
   var xhr = new XMLHttpRequest();
   xhr.open("GET", file, false);
   xhr.send();
   return xhr.responseText;
-};
-
-/**
- * Gets a file from a URL and parses it for filenames. IF a file name ends
- * in .txt recursively reads that file and adds it to the list.
- */
-var readFileList = function(url) {
-  var files = [];
-  if (url.substr(url.length - 4) == '.txt') {
-    var lines = readFile(url).split('\n');
-    var prefix = '';
-    var lastSlash = url.lastIndexOf('/');
-    if (lastSlash >= 0) {
-      prefix = url.substr(0, lastSlash + 1);
-    }
-    for (var ii = 0; ii < lines.length; ++ii) {
-      var str = lines[ii].replace(/^\s\s*/, '').replace(/\s\s*$/, '');
-      if (str.length > 4 &&
-          str[0] != '#' &&
-          str[0] != ";" &&
-          str.substr(0, 2) != "//") {
-        new_url = prefix + str;
-        files = files.concat(readFileList(new_url));
-      }
-    }
-  } else {
-    files.push(url);
-  }
-  return files;
 };
 
 /**
@@ -548,8 +472,8 @@ var loadShader = function(gl, shaderSource, shaderType) {
   var compiled = gl.getShaderParameter(shader, gl.COMPILE_STATUS);
   if (!compiled) {
     // Something went wrong during compilation; get the error
-    lastError = gl.getShaderInfoLog(shader);
-    log("*** Error compiling shader '" + shader + "':" + lastError);
+    var error = gl.getShaderInfoLog(shader);
+    log("*** Error compiling shader '"+shader+"':"+error);
     gl.deleteShader(shader);
     return null;
   }
@@ -565,7 +489,7 @@ var loadShader = function(gl, shaderSource, shaderType) {
  * @return {!WebGLShader} The created shader.
  */
 var loadShaderFromFile = function(gl, file, type) {
-  var shaderSource = readFile(file);
+  var shaderSource = getShaderSource(file);
   return loadShader(gl, shaderSource, type);
 };
 
@@ -579,22 +503,21 @@ var loadShaderFromFile = function(gl, file, type) {
  */
 var loadShaderFromScript = function(gl, scriptId, opt_shaderType) {
   var shaderSource = "";
-  var shaderType;
+
   var shaderScript = document.getElementById(scriptId);
   if (!shaderScript) {
     throw("*** Error: unknown script element" + scriptId);
-  }
-  shaderSource = shaderScript.text;
-
-  if (!opt_shaderType) {
+  } else if (!opt_shaderType) {
     if (shaderScript.type == "x-shader/x-vertex") {
-      shaderType = gl.VERTEX_SHADER;
+      opt_shaderType = gl.VERTEX_SHADER;
     } else if (shaderScript.type == "x-shader/x-fragment") {
-      shaderType = gl.FRAGMENT_SHADER;
+      opt_shaderType = gl.FRAGMENT_SHADER;
     } else if (shaderType != gl.VERTEX_SHADER && shaderType != gl.FRAGMENT_SHADER) {
       throw("*** Error: unknown shader type");
       return null;
     }
+
+    shaderSource = shaderScript.text;
   }
 
   return loadShader(
@@ -657,83 +580,35 @@ var loadStandardVertexShader = function(gl) {
 };
 
 var loadStandardFragmentShader = function(gl) {
-  return loadShaderFromFile(
+  return loadShaderFromfile(
       gl, "resources/fragmentShader.frag", gl.FRAGMENT_SHADER);
 };
 
-/**
- * Loads an image asynchronously.
- * @param {string} url URL of image to load.
- * @param {!function(!Element): void} callback Function to call
- *     with loaded image.
- */
-var loadImageAsync = function(url, callback) {
-  var img = document.createElement('img');
-  img.onload = function() {
-    callback(img);
-  };
-  img.src = url;
-};
-
-/**
- * Loads an array of images.
- * @param {!Array.<string>} urls URLs of images to load.
- * @param {!function(!{string, img}): void} callback. Callback
- *     that gets passed map of urls to img tags.
- */
-var loadImagesAsync = function(urls, callback) {
-  var count = 1;
-  var images = { };
-  function countDown() {
-    --count;
-    if (count == 0) {
-      callback(images);
-    }
-  }
-  function imageLoaded(url) {
-    return function(img) {
-      images[url] = img;
-      countDown();
-    }
-  }
-  for (var ii = 0; ii < urls.length; ++ii) {
-    ++count;
-    loadImageAsync(urls[ii], imageLoaded(urls[ii]));
-  }
-  countDown();
-};
-
 return {
-  create3DContext: create3DContext,
-  create3DContextWithWrapperThatThrowsOnGLError:
-    create3DContextWithWrapperThatThrowsOnGLError,
-  checkCanvas: checkCanvas,
-  createColoredTexture: createColoredTexture,
-  drawQuad: drawQuad,
-  getLastError: getLastError,
-  glErrorShouldBe: glErrorShouldBe,
-  fillTexture: fillTexture,
-  loadImageAsync: loadImageAsync,
-  loadImagesAsync: loadImagesAsync,
-  loadProgramFromFile: loadProgramFromFile,
-  loadProgramFromScript: loadProgramFromScript,
-  loadShader: loadShader,
-  loadShaderFromFile: loadShaderFromFile,
-  loadShaderFromScript: loadShaderFromScript,
-  loadStandardProgram: loadStandardProgram,
-  loadStandardVertexShader: loadStandardVertexShader,
-  loadStandardFragmentShader: loadStandardFragmentShader,
-  setupProgram: setupProgram,
-  setupSimpleTextureFragmentShader: setupSimpleTextureFragmentShader,
-  setupSimpleTextureProgram: setupSimpleTextureProgram,
-  setupSimpleTextureVertexShader: setupSimpleTextureVertexShader,
-  setupTexturedQuad: setupTexturedQuad,
-  setupUnitQuad: setupUnitQuad,
-  shouldGenerateGLError: shouldGenerateGLError,
-  readFile: readFile,
-  readFileList: readFileList,
+    create3DContext: create3DContext,
+    create3DContextWithWrapperThatThrowsOnGLError:
+        create3DContextWithWrapperThatThrowsOnGLError,
+    checkCanvas: checkCanvas,
+    createColoredTexture: createColoredTexture,
+    drawQuad: drawQuad,
+    glErrorShouldBe: glErrorShouldBe,
+    fillTexture: fillTexture,
+    loadProgramFromFile: loadProgramFromFile,
+    loadProgramFromScript: loadProgramFromScript,
+    loadShader: loadShader,
+    loadShaderFromFile: loadShaderFromFile,
+    loadShaderFromScript: loadShaderFromScript,
+    loadStandardProgram: loadStandardProgram,
+    loadStandardVertexShader: loadStandardVertexShader,
+    loadStandardFragmentShader: loadStandardFragmentShader,
+    setupSimpleTextureFragmentShader: setupSimpleTextureFragmentShader,
+    setupSimpleTextureProgram: setupSimpleTextureProgram,
+    setupSimpleTextureVertexShader: setupSimpleTextureVertexShader,
+    setupTexturedQuad: setupTexturedQuad,
+    setupUnitQuad: setupUnitQuad,
+    shouldGenerateGLError: shouldGenerateGLError,
 
-  none: false
+    none: false
 };
 
 }());

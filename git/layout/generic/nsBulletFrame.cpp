@@ -142,7 +142,8 @@ nsBulletFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
   if (newRequest) {
 
     if (!mListener) {
-      nsBulletListener *listener = new nsBulletListener();
+      nsBulletListener *listener;
+      NS_NEWXPCOM(listener, nsBulletListener);
       NS_ADDREF(listener);
       listener->SetFrame(this);
       listener->QueryInterface(NS_GET_IID(imgIDecoderObserver), getter_AddRefs(mListener));
@@ -199,7 +200,7 @@ public:
   }
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsIRenderingContext* aCtx);
-  NS_DISPLAY_DECL_NAME("Bullet", TYPE_BULLET)
+  NS_DISPLAY_DECL_NAME("Bullet")
 };
 
 void nsDisplayBullet::Paint(nsDisplayListBuilder* aBuilder,

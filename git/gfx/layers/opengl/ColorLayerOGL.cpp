@@ -41,6 +41,12 @@
 namespace mozilla {
 namespace layers {
 
+LayerOGL::LayerType
+ColorLayerOGL::GetType()
+{
+  return TYPE_COLOR;
+}
+
 Layer*
 ColorLayerOGL::GetLayer()
 {

@@ -164,13 +164,13 @@
         <max_version>1</max_version>
       </application>
     </compatible_applications>
-    <install os="Windows" size="123">
+    <install os="Windows">
       http://localhost:4444/test.xpi
     </install>
-    <install os="XPCShell" size="456">
+    <install os="XPCShell">
       http://localhost:4444/XPCShell.xpi
     </install>
-    <install os="Darwin" size="789">
+    <install os="Darwin">
       http://localhost:4444/test.xpi
     </install>
   </addon>

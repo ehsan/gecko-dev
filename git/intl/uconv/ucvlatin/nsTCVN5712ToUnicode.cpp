@@ -45,7 +45,7 @@ static const PRUint16 g_utMappingTable[] = {
 #include "tcvn5712.ut"
 };
 
-nsresult
+NS_METHOD
 nsTCVN5712ToUnicodeConstructor(nsISupports *aOuter, REFNSIID aIID,
                                void **aResult) 
 {

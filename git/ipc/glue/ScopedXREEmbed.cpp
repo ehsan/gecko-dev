@@ -86,7 +86,7 @@ ScopedXREEmbed::Start()
   localFile = do_QueryInterface(parent);
   NS_ENSURE_TRUE(localFile,);
 
-  rv = XRE_InitEmbedding2(localFile, localFile, nsnull);
+  rv = XRE_InitEmbedding(localFile, localFile, nsnull, nsnull, 0);
   if (NS_FAILED(rv))
     return;
 

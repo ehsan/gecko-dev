@@ -66,5 +66,4 @@ function checkServices() {
   checkService("ww", Ci.nsIWindowWatcher);
   checkService("tm", Ci.nsIThreadManager);
   checkService("strings", Ci.nsIStringBundleService);
-  checkService("urlFormatter", Ci.nsIURLFormatter);
 }

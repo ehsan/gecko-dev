@@ -804,7 +804,7 @@ nsIncrementalDownload::OnChannelRedirect(nsIChannel *oldChannel,
   return rv;
 }
 
-extern nsresult
+extern NS_METHOD
 net_NewIncrementalDownload(nsISupports *outer, const nsIID &iid, void **result)
 {
   if (outer)

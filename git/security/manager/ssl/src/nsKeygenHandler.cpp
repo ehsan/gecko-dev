@@ -309,7 +309,7 @@ nsKeygenFormProcessor::~nsKeygenFormProcessor()
 {
 }
 
-nsresult
+NS_METHOD
 nsKeygenFormProcessor::Create(nsISupports* aOuter, const nsIID& aIID, void* *aResult)
 {
   nsresult rv;

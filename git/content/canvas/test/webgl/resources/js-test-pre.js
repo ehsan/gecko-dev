@@ -23,22 +23,8 @@ OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-// WebKit Specfic code.  Add your own here.
-function initNonKhronosFramework(waitUntilDone) {
-  if (window.layoutTestController) {
-    layoutTestController.overridePreference("WebKitWebGLEnabled", "1");
+if (window.layoutTestController)
     layoutTestController.dumpAsText();
-    if (waitUntilDone) {
-      layoutTestController.waitUntilDone();
-    }
-  }
-}
-
-function nonKhronosFrameworkNotifyIfDone() {
-  if (window.layoutTestController) {
-    layoutTestController.notifyDone();
-  }
-}
 
 function reportTestResultsToHarness(success, msg) {
   if (window.parent.webglTestHarness) {
@@ -295,9 +281,9 @@ function shouldThrow(_a, _e)
 function assertMsg(assertion, msg) {
     if (assertion) {
         testPassed(msg);
-    } else {
+     } else {
         testFailed(msg);
-    }
+     }
 }
 
 function gc() {

@@ -46,7 +46,7 @@ static const PRUint16 g_ufMappingTable[] = {
 #include "geostd8.uf"
 };
 
-nsresult
+NS_METHOD
 nsUnicodeToGEOSTD8Constructor(nsISupports *aOuter, REFNSIID aIID,
                               void **aResult) 
 {

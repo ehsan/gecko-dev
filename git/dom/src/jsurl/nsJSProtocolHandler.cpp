@@ -48,6 +48,7 @@
 #include "nsNetUtil.h"
 
 #include "nsIComponentManager.h"
+#include "nsIGenericFactory.h"
 #include "nsIServiceManager.h"
 #include "nsIURI.h"
 #include "nsIScriptContext.h"
@@ -1127,7 +1128,7 @@ nsJSProtocolHandler::~nsJSProtocolHandler()
 
 NS_IMPL_ISUPPORTS1(nsJSProtocolHandler, nsIProtocolHandler)
 
-nsresult
+NS_METHOD
 nsJSProtocolHandler::Create(nsISupports *aOuter, REFNSIID aIID, void **aResult)
 {
     if (aOuter)

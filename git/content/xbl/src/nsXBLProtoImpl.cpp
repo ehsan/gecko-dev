@@ -45,6 +45,7 @@
 #include "nsIScriptContext.h"
 #include "nsIXPConnect.h"
 #include "nsIServiceManager.h"
+#include "nsIXBLDocumentInfo.h"
 #include "nsIDOMNode.h"
 #include "nsXBLPrototypeBinding.h"
 
@@ -158,7 +159,7 @@ nsXBLProtoImpl::CompilePrototypeMembers(nsXBLPrototypeBinding* aBinding)
   // bind the prototype to a real xbl instance, we'll clone the pre-compiled JS into the real instance's 
   // context.
   nsCOMPtr<nsIScriptGlobalObjectOwner> globalOwner(
-      do_QueryObject(aBinding->XBLDocumentInfo()));
+      do_QueryInterface(aBinding->XBLDocumentInfo()));
   nsIScriptGlobalObject* globalObject = globalOwner->GetScriptGlobalObject();
   NS_ENSURE_TRUE(globalObject, NS_ERROR_UNEXPECTED);
 

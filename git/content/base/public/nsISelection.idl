@@ -46,6 +46,7 @@ interface nsIDOMRange;
  * Interface for manipulating and querying the current selected range
  * of nodes within the document.
  *
+ * @status FROZEN
  * @version 1.1
  */
 

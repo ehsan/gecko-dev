@@ -119,8 +119,11 @@ HandlerService.prototype = {
   //**************************************************************************//
   // XPCOM Plumbing
 
+  classDescription: "Handler Service",
   classID:          Components.ID("{32314cc8-22f7-4f7f-a645-1a45453ba6a6}"),
+  contractID:       "@mozilla.org/uriloader/handler-service;1",
   QueryInterface:   XPCOMUtils.generateQI([Ci.nsIHandlerService]),
+
 
   //**************************************************************************//
   // Initialization & Destruction
@@ -1419,7 +1422,10 @@ HandlerService.prototype = {
 
 };
 
+
 //****************************************************************************//
 // More XPCOM Plumbing
 
-NSGetFactory = XPCOMUtils.generateNSGetFactory([HandlerService]);
+function NSGetModule(compMgr, fileSpec) {
+  return XPCOMUtils.generateModule([HandlerService]);
+}

@@ -1141,7 +1141,7 @@ public:
   }
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsIRenderingContext* aCtx);
-  NS_DISPLAY_DECL_NAME("Image", TYPE_IMAGE)
+  NS_DISPLAY_DECL_NAME("Image")
 private:
   nsCOMPtr<imgIContainer> mImage;
 };
@@ -1235,8 +1235,7 @@ nsImageFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
       // No image yet, or image load failed. Draw the alt-text and an icon
       // indicating the status
       rv = aLists.Content()->AppendNewToTop(new (aBuilder)
-          nsDisplayGeneric(this, PaintAltFeedback, "AltFeedback",
-                           nsDisplayItem::TYPE_ALT_FEEDBACK));
+          nsDisplayGeneric(this, PaintAltFeedback, "AltFeedback"));
       NS_ENSURE_SUCCESS(rv, rv);
     }
     else {
@@ -1254,8 +1253,7 @@ nsImageFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 #ifdef DEBUG
       if (GetShowFrameBorders() && GetImageMap(PresContext())) {
         rv = aLists.Outlines()->AppendNewToTop(new (aBuilder)
-            nsDisplayGeneric(this, PaintDebugImageMap, "DebugImageMap",
-                             nsDisplayItem::TYPE_DEBUG_IMAGE_MAP));
+            nsDisplayGeneric(this, PaintDebugImageMap, "DebugImageMap"));
         NS_ENSURE_SUCCESS(rv, rv);
       }
 #endif

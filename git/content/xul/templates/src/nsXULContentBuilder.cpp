@@ -117,7 +117,7 @@ public:
     NS_DECL_NSIMUTATIONOBSERVER_NODEWILLBEDESTROYED
 
 protected:
-    friend nsresult
+    friend NS_IMETHODIMP
     NS_NewXULContentBuilder(nsISupports* aOuter, REFNSIID aIID, void** aResult);
 
     nsXULContentBuilder();
@@ -370,7 +370,7 @@ protected:
     nsSortState mSortState;
 };
 
-nsresult
+NS_IMETHODIMP
 NS_NewXULContentBuilder(nsISupports* aOuter, REFNSIID aIID, void** aResult)
 {
     NS_PRECONDITION(aOuter == nsnull, "no aggregation");

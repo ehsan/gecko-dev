@@ -1557,7 +1557,7 @@ NS_IMETHODIMP nsWindow::SetSizeMode(PRInt32 aMode) {
 
     switch (aMode) {
       case nsSizeMode_Fullscreen :
-        mode = SW_SHOW;
+        mode = SW_RESTORE;
         break;
 
       case nsSizeMode_Maximized :
@@ -1611,13 +1611,7 @@ NS_METHOD nsWindow::ConstrainPosition(PRBool aAllowSlop,
     screenmgr->ScreenForRect(*aX, *aY, width, height,
                              getter_AddRefs(screen));
     if (screen) {
-      if (mSizeMode != nsSizeMode_Fullscreen) {
-        // For normalized windows, use the desktop work area.
-        screen->GetAvailRect(&left, &top, &width, &height);
-      } else {
-        // For full screen windows, use the desktop.
-        screen->GetRect(&left, &top, &width, &height);
-      }
+      screen->GetAvailRect(&left, &top, &width, &height);
       screenRect.left = left;
       screenRect.right = left+width;
       screenRect.top = top;
@@ -1629,13 +1623,7 @@ NS_METHOD nsWindow::ConstrainPosition(PRBool aAllowSlop,
       HDC dc = ::GetDC(mWnd);
       if (dc) {
         if (::GetDeviceCaps(dc, TECHNOLOGY) == DT_RASDISPLAY) {
-          if (mSizeMode != nsSizeMode_Fullscreen) {
-            ::SystemParametersInfo(SPI_GETWORKAREA, 0, &screenRect, 0);
-          } else {
-            screenRect.left = screenRect.top = 0;
-            screenRect.right = GetSystemMetrics(SM_CXFULLSCREEN);
-            screenRect.bottom = GetSystemMetrics(SM_CYFULLSCREEN);
-          }
+          ::SystemParametersInfo(SPI_GETWORKAREA, 0, &screenRect, 0);
           doConstrain = PR_TRUE;
         }
         ::ReleaseDC(mWnd, dc);
@@ -1898,35 +1886,8 @@ nsWindow::GetNonClientMargins(nsIntMargin &margins)
   return NS_OK;
 }
 
-void
-nsWindow::ResetLayout()
-{
-  // This will trigger a frame changed event, triggering
-  // nc calc size and a sizemode gecko event.
-  SetWindowPos(mWnd, 0, 0, 0, 0, 0,
-               SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOMOVE|
-               SWP_NOOWNERZORDER|SWP_NOSIZE|SWP_NOZORDER);
-
-  // If hidden, just send the frame changed event for now.
-  if (!mIsVisible)
-    return;
-
-  // Send a gecko size event to trigger reflow.
-  RECT clientRc = {0};
-  GetClientRect(mWnd, &clientRc);
-  nsIntRect evRect(nsWindowGfx::ToIntRect(clientRc));
-  OnResize(evRect);
-
-  // Invalidate and update
-  Invalidate(PR_FALSE);
-}
-
-// Called when the window layout changes: full screen mode transitions,
-// theme changes, and composition changes. Calculates the new non-client
-// margins and fires off a frame changed event, which triggers an nc calc
-// size windows event, kicking the changes in.
 PRBool
-nsWindow::UpdateNonClientMargins(PRInt32 aSizeMode, PRBool aReflowWindow)
+nsWindow::UpdateNonClientMargins(PRInt32 aSizeMode, PRBool aRefreshWindow)
 {
   if (!mCustomNonClient)
     return PR_FALSE;
@@ -1996,10 +1957,11 @@ nsWindow::UpdateNonClientMargins(PRInt32 aSizeMode, PRBool aReflowWindow)
   if (mNonClientOffset.bottom < 0)
     mNonClientOffset.bottom = 0;
 
-  if (aReflowWindow) {
-    // Force a reflow of content based on the new client
-    // dimensions.
-    ResetLayout();
+  if (aRefreshWindow) {
+    SetWindowPos(mWnd, 0, 0, 0, 0, 0,
+                 SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOMOVE|
+                 SWP_NOOWNERZORDER|SWP_NOSIZE|SWP_NOZORDER);
+    UpdateWindow(mWnd);
   }
 
   return PR_TRUE;
@@ -2018,9 +1980,10 @@ nsWindow::SetNonClientMargins(nsIntMargin &margins)
       margins.right == -1 && margins.bottom == -1) {
     mCustomNonClient = PR_FALSE;
     mNonClientMargins = margins;
-    // Force a reflow of content based on the new client
-    // dimensions.
-    ResetLayout();
+    SetWindowPos(mWnd, 0, 0, 0, 0, 0,
+                 SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOMOVE|
+                 SWP_NOOWNERZORDER|SWP_NOSIZE|SWP_NOZORDER);
+    UpdateWindow(mWnd);
     return NS_OK;
   }
 
@@ -3297,11 +3260,7 @@ gfxASurface *nsWindow::GetThebesSurface()
     return (new gfxD2DSurface(mWnd, content));
   } else {
 #endif
-    PRUint32 flags = gfxWindowsSurface::FLAG_TAKE_DC;
-    if (mTransparencyMode != eTransparencyOpaque) {
-        flags |= gfxWindowsSurface::FLAG_IS_TRANSPARENT;
-    }
-    return (new gfxWindowsSurface(mWnd, flags));
+    return (new gfxWindowsSurface(mWnd));
 #ifdef CAIRO_HAS_D2D_SURFACE
   }
 #endif
@@ -4674,13 +4633,13 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
       break;
 
     case WM_PAINT:
-      *aRetValue = (int) OnPaint(NULL, 0);
+      *aRetValue = (int) OnPaint();
       result = PR_TRUE;
       break;
 
 #ifndef WINCE
     case WM_PRINTCLIENT:
-      result = OnPaint((HDC) wParam, 0);
+      result = OnPaint((HDC) wParam);
       break;
 #endif
 
@@ -5493,15 +5452,8 @@ nsWindow::ClientMarginHitTestPoint(PRInt32 mx, PRInt32 my)
       testResult = HTRIGHT;
   }
 
-  // There's no HTTOP in maximized state (bug 575493)
-  if (mSizeMode == nsSizeMode_Maximized && testResult == HTTOP)
-    testResult = HTCAPTION;
-
   if (!mIsInMouseCapture && 
-      (testResult == HTCLIENT ||
-       testResult == HTTOP ||
-       testResult == HTTOPLEFT ||
-       testResult == HTCAPTION)) {
+      (testResult == HTCLIENT || testResult == HTTOP || testResult == HTTOPLEFT)) {
     LPARAM lParam = MAKELPARAM(mx, my);
     LPARAM lParamClient = lParamToClient(lParam);
     PRBool result = DispatchMouseEvent(NS_MOUSE_MOZHITTEST, 0, lParamClient,

@@ -1063,7 +1063,7 @@ secu_PrintTime(FILE *out, int64 time, char *m, int level)
     }
 
     if (PR_FormatTime(timeString, 256, "%a %b %d %H:%M:%S %Y", &printableTime)) {
-        fputs(timeString, out);
+        fprintf(out, timeString);
     }
 
     if (m != NULL)
@@ -2844,7 +2844,7 @@ SECU_PrintCRLInfo(FILE *out, CERTCrl *crl, char *m, int level)
 	iv = 0;
 	while ((entry = crl->entries[iv++]) != NULL) {
 	    sprintf(om, "Entry (%x):\n", iv); 
-	    SECU_Indent(out, level + 1); fputs(om, out);
+	    SECU_Indent(out, level + 1); fprintf(out, om);
 	    SECU_PrintInteger(out, &(entry->serialNumber), "Serial Number",
 			      level + 2);
 	    SECU_PrintTimeChoice(out, &(entry->revocationDate), 

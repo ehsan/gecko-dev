@@ -82,6 +82,8 @@ public:
   }
 
   // LayerD3D9 Implementation
+  virtual LayerType GetType();
+
   virtual Layer* GetLayer();
 
   virtual void RenderLayer();

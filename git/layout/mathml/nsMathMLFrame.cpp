@@ -464,7 +464,7 @@ public:
 
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsIRenderingContext* aCtx);
-  NS_DISPLAY_DECL_NAME("MathMLBoundingMetrics", TYPE_MATHML_BOUNDING_METRICS)
+  NS_DISPLAY_DECL_NAME("MathMLBoundingMetrics")
 private:
   nsRect    mRect;
 };
@@ -508,7 +508,7 @@ public:
 
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsIRenderingContext* aCtx);
-  NS_DISPLAY_DECL_NAME("MathMLBar", TYPE_MATHML_BAR)
+  NS_DISPLAY_DECL_NAME("MathMLBar")
 private:
   nsRect    mRect;
 };

@@ -53,6 +53,8 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 function nsURLFormatterService() {}
 nsURLFormatterService.prototype = {
+  classDescription: "Application URL Formatter Service",
+  contractID: "@mozilla.org/toolkit/URLFormatterService;1",
   classID: Components.ID("{e6156350-2be8-11db-a98b-0800200c9a66}"),
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIURLFormatter]),
 
@@ -114,4 +116,5 @@ nsURLFormatterService.prototype = {
   }
 };
 
-var NSGetFactory = XPCOMUtils.generateNSGetFactory([nsURLFormatterService]);
+function NSGetModule(aCompMgr, aFileSpec)
+  XPCOMUtils.generateModule([nsURLFormatterService]);

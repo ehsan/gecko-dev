@@ -39,7 +39,7 @@
 /*
  * Certificate handling code
  *
- * $Id: certdb.c,v 1.104 2010/04/25 00:44:55 nelson%bolyard.com Exp $
+ * $Id: certdb.c,v 1.102 2010/02/10 02:00:57 wtc%google.com Exp $
  */
 
 #include "nssilock.h"
@@ -569,7 +569,7 @@ cert_GetCertType(CERTCertificate *cert)
 
     /* Assert that it is safe to cast &cert->nsCertType to "PRInt32 *" */
     PORT_Assert(sizeof(cert->nsCertType) == sizeof(PRInt32));
-    PR_ATOMIC_SET((PRInt32 *)&cert->nsCertType, nsCertType);
+    PR_AtomicSet((PRInt32 *)&cert->nsCertType, nsCertType);
     return SECSuccess;
 }
 
@@ -1829,7 +1829,13 @@ CERT_GetValidDNSPatternsFromCert(CERTCertificate *cert)
     }
 
     /* no SAN extension or no names found in extension */
-    singleName = CERT_GetCommonName(&cert->subject);
+    /* now try the NS cert name extension first, then the common name */
+    singleName = 
+      CERT_FindNSStringExtension(cert, SEC_OID_NS_CERT_EXT_SSL_SERVER_NAME);
+    if (!singleName) {
+      singleName = CERT_GetCommonName(&cert->subject);
+    }
+
     if (singleName) {
       nickNames->numnicknames = 1;
       nickNames->nicknames = PORT_ArenaAlloc(arena, sizeof(char *));
@@ -1878,7 +1884,11 @@ CERT_VerifyCertName(CERTCertificate *cert, const char *hn)
     if (rv == SECSuccess || PORT_GetError() != SEC_ERROR_EXTENSION_NOT_FOUND)
     	return rv;
 
-    cn = CERT_GetCommonName(&cert->subject);
+    /* try the cert extension first, then the common name */
+    cn = CERT_FindNSStringExtension(cert, SEC_OID_NS_CERT_EXT_SSL_SERVER_NAME);
+    if ( !cn ) {
+	cn = CERT_GetCommonName(&cert->subject);
+    }
     if ( cn ) {
 	rv = cert_TestHostName(cn, hn);
 	PORT_Free(cn);

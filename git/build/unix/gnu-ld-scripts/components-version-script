@@ -1,5 +1,8 @@
 EXPORTED {
    global:
-		NSModule;
+		NSGetFactory;
+		NSGetModule;
+		NSRegisterSelf;
+		NSUnregisterSelf;
    local: *;
 };

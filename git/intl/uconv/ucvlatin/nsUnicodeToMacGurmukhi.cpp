@@ -45,7 +45,7 @@ static const PRUint16 g_ufMappingTable[] = {
 #include "macgurmukhi.uf"
 };
 
-nsresult
+NS_METHOD
 nsUnicodeToMacGurmukhiConstructor(nsISupports *aOuter, REFNSIID aIID,
                                   void **aResult) 
 {

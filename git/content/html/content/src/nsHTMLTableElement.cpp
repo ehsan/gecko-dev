@@ -1010,7 +1010,7 @@ nsHTMLTableElement::ParseAttribute(PRInt32 aNamespaceID,
     }
     if (aAttribute == nsGkAtoms::bgcolor ||
         aAttribute == nsGkAtoms::bordercolor) {
-      return aResult.ParseColor(aValue);
+      return aResult.ParseColor(aValue, GetOwnerDoc());
     }
     if (aAttribute == nsGkAtoms::frame) {
       return aResult.ParseEnumValue(aValue, kFrameTable, PR_FALSE);

@@ -49,6 +49,7 @@
 #include "nsIScriptRuntime.h"
 #include "nsIServiceManager.h"
 #include "nsIURI.h"
+#include "nsIXBLDocumentInfo.h"
 
 #include "nsIChromeRegistry.h"
 #include "nsIFastLoadService.h"
@@ -111,7 +112,7 @@ NS_IMPL_THREADSAFE_ISUPPORTS2(nsXULPrototypeCache,
                               nsIObserver)
 
 
-nsresult
+NS_IMETHODIMP
 NS_NewXULPrototypeCache(nsISupports* aOuter, REFNSIID aIID, void** aResult)
 {
     NS_PRECONDITION(! aOuter, "no aggregation");
@@ -312,11 +313,11 @@ nsXULPrototypeCache::FlushScripts()
 
 
 nsresult
-nsXULPrototypeCache::PutXBLDocumentInfo(nsXBLDocumentInfo* aDocumentInfo)
+nsXULPrototypeCache::PutXBLDocumentInfo(nsIXBLDocumentInfo* aDocumentInfo)
 {
     nsIURI* uri = aDocumentInfo->DocumentURI();
 
-    nsRefPtr<nsXBLDocumentInfo> info;
+    nsCOMPtr<nsIXBLDocumentInfo> info;
     mXBLDocTable.Get(uri, getter_AddRefs(info));
     if (!info) {
         NS_ENSURE_TRUE(mXBLDocTable.Put(uri, aDocumentInfo),
@@ -326,7 +327,7 @@ nsXULPrototypeCache::PutXBLDocumentInfo(nsXBLDocumentInfo* aDocumentInfo)
 }
 
 static PLDHashOperator
-FlushSkinXBL(nsIURI* aKey, nsRefPtr<nsXBLDocumentInfo>& aDocInfo, void* aClosure)
+FlushSkinXBL(nsIURI* aKey, nsCOMPtr<nsIXBLDocumentInfo>& aDocInfo, void* aClosure)
 {
   nsCAutoString str;
   aKey->GetPath(str);
@@ -356,7 +357,7 @@ FlushSkinSheets(nsIURI* aKey, nsRefPtr<nsCSSStyleSheet>& aSheet, void* aClosure)
 }
 
 static PLDHashOperator
-FlushScopedSkinStylesheets(nsIURI* aKey, nsRefPtr<nsXBLDocumentInfo> &aDocInfo, void* aClosure)
+FlushScopedSkinStylesheets(nsIURI* aKey, nsCOMPtr<nsIXBLDocumentInfo> &aDocInfo, void* aClosure)
 {
   aDocInfo->FlushSkinStylesheets();
   return PL_DHASH_NEXT;

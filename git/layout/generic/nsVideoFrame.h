@@ -52,7 +52,6 @@
 #include "ImageLayers.h"
 
 class nsPresContext;
-class nsDisplayItem;
 
 nsIFrame* NS_NewVideoFrame (nsIPresShell* aPresShell, nsStyleContext* aContext);
 
@@ -117,8 +116,7 @@ public:
 #endif
 
   already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
-                                     LayerManager* aManager,
-                                     nsDisplayItem* aItem);
+                                     LayerManager* aManager);
 
 protected:
 

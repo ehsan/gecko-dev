@@ -32,8 +32,8 @@
 // Author: Mark Mentovai
 
 
-#include <limits.h>
-#include <stdio.h>
+#include <climits>
+#include <cstdio>
 
 #include "processor/range_map-inl.h"
 

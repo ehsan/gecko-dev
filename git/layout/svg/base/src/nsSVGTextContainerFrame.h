@@ -38,14 +38,13 @@
 #define NS_SVGTEXTCONTAINERFRAME_H
 
 #include "nsSVGContainerFrame.h"
+#include "nsIDOMSVGLengthList.h"
 #include "nsIDOMSVGNumberList.h"
 
 class nsISVGGlyphFragmentNode;
 class nsISVGGlyphFragmentLeaf;
+
 class nsSVGTextFrame;
-namespace mozilla {
-class SVGUserUnitList;
-}
 
 class nsSVGTextContainerFrame : public nsSVGDisplayContainerFrame
 {
@@ -54,8 +53,10 @@ public:
     nsSVGDisplayContainerFrame(aContext) {}
 
   void NotifyGlyphMetricsChange();
-  virtual void GetXY(mozilla::SVGUserUnitList *aX, mozilla::SVGUserUnitList *aY);
-  virtual void GetDxDy(mozilla::SVGUserUnitList *aDx, mozilla::SVGUserUnitList *aDy);
+  virtual already_AddRefed<nsIDOMSVGLengthList> GetX();
+  virtual already_AddRefed<nsIDOMSVGLengthList> GetY();
+  virtual already_AddRefed<nsIDOMSVGLengthList> GetDx();
+  virtual already_AddRefed<nsIDOMSVGLengthList> GetDy();
   virtual already_AddRefed<nsIDOMSVGNumberList> GetRotate();
   
 public:

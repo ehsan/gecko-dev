@@ -66,7 +66,7 @@ ifdef CPPSRCS
 LIBRARY_NAME = shellservice_s
 endif
 
-EXTRA_COMPONENTS = nsSetDefaultBrowser.js nsSetDefaultBrowser.manifest
+EXTRA_COMPONENTS = nsSetDefaultBrowser.js
 
 include $(topsrcdir)/config/rules.mk
 

@@ -50,7 +50,7 @@ struct JSContext;
 namespace mozilla {
 namespace jetpack {
 
-class KeyValue;
+struct KeyValue;
 class PrimVariant;
 class CompVariant;
 class Variant;

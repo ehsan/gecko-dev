@@ -1145,7 +1145,6 @@ void nsBuiltinDecoderStateMachine::AdvanceFrame()
     // ready state. Post an update to do so.
     UpdateReadyState();
 
-    NS_ASSERTION(frameDuration >= 0, "Frame duration must be positive.");
     Wait(frameDuration);
   } else {
     if (IsPlaying()) {

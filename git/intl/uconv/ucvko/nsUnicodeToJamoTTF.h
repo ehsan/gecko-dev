@@ -46,7 +46,7 @@
 //----------------------------------------------------------------------
 // Class nsUnicodeToJamoTTF [declaration]
 
-class nsUnicodeToJamoTTF : public nsIUnicodeEncoder
+class nsUnicodeToJamoTTF : public nsIUnicodeEncoder, public nsICharRepresentable
 {
 
   NS_DECL_ISUPPORTS
@@ -75,6 +75,8 @@ public:
   NS_IMETHOD SetOutputErrorBehavior(
       PRInt32 aBehavior,
       nsIUnicharEncoder * aEncoder, PRUnichar aChar);
+
+  NS_IMETHOD FillInfo(PRUint32* aInfo);
 
 protected:
   PRUnichar *mJamos;

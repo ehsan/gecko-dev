@@ -47,7 +47,7 @@ static const PRUint16 g_ufMappingTable[] = {
 #include "tis620.uf"
 };
 
-nsresult
+NS_METHOD
 nsUnicodeToTIS620Constructor(nsISupports *aOuter, REFNSIID aIID,
                                 void **aResult) 
 {

@@ -289,13 +289,6 @@ public:
     gfxMatrix CurrentMatrix() const;
 
     /**
-     * Snap components of the current matrix that are close to integers
-     * to integers. In particular, components that are integral when
-     * converted to single precision are set to those integers.
-     */
-    void NudgeCurrentMatrixToIntegers();
-
-    /**
      * Converts a point from device to user coordinates using the inverse
      * transformation matrix.
      */

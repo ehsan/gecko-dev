@@ -87,9 +87,6 @@ protected:
     // harfbuzz face object, created on first use (caches font tables)
     hb_face_t         *mHBFace;
 
-    // language to use for shaping, derived from the style's language
-    hb_language_t      mHBLanguage;
-
     // Cached copy of the hmtx table and numLongMetrics field from hhea,
     // for use when looking up glyph metrics; initialized to 0 by the
     // constructor so we can tell it hasn't been set yet.
@@ -109,9 +106,6 @@ protected:
     // Whether the font implements hinted widths, or we should read tables
     // directly to get ideal widths
     PRBool mUseHintedWidths;
-
-    // Features to apply in addition to the defaults built into the shaper
-    const nsTArray<hb_feature_t> *mOpenTypeFeatures;
 };
 
 #endif /* GFX_HARFBUZZSHAPER_H */

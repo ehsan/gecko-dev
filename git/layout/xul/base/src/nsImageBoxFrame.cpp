@@ -222,7 +222,8 @@ nsImageBoxFrame::Init(nsIContent*      aContent,
                       nsIFrame*        aPrevInFlow)
 {
   if (!mListener) {
-    nsImageBoxListener *listener = new nsImageBoxListener();
+    nsImageBoxListener *listener;
+    NS_NEWXPCOM(listener, nsImageBoxListener);
     NS_ADDREF(listener);
     listener->SetFrame(this);
     listener->QueryInterface(NS_GET_IID(imgIDecoderObserver), getter_AddRefs(mListener));
@@ -324,7 +325,7 @@ public:
   // event receiver for us
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsIRenderingContext* aCtx);
-  NS_DISPLAY_DECL_NAME("XULImage", TYPE_XUL_IMAGE)
+  NS_DISPLAY_DECL_NAME("XULImage")
 };
 
 void nsDisplayXULImage::Paint(nsDisplayListBuilder* aBuilder,

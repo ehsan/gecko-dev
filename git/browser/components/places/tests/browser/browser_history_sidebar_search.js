@@ -52,20 +52,6 @@ function uri(spec) {
   return ios.newURI(spec, null, null);
 }
 
-/**
- * Clears history invoking callback when done.
- */
-function waitForClearHistory(aCallback) {
-  let observer = {
-    observe: function(aSubject, aTopic, aData) {
-      Services.obs.removeObserver(this, PlacesUtils.TOPIC_EXPIRATION_FINISHED);
-      aCallback(aSubject, aTopic, aData);
-    }
-  };
-  Services.obs.addObserver(observer, PlacesUtils.TOPIC_EXPIRATION_FINISHED, false);
-  PlacesUtils.bhistory.removeAllPages();
-}
-
 var sidebar = document.getElementById("sidebar");
 
 function add_visit(aURI, aDate) {
@@ -92,10 +78,8 @@ function test() {
   waitForExplicitFinish();
 
   // Cleanup.
-  waitForClearHistory(continue_test);
-}
+  bh.removeAllPages();
 
-function continue_test() {
   // Add some visited page.
   var time = Date.now();
   for (var i = 0; i < pages.length; i++) {
@@ -119,7 +103,9 @@ function continue_test() {
 
       // Cleanup.
       toggleSidebar("viewHistorySidebar", false);
-      waitForClearHistory(finish);
+      bh.removeAllPages();
+
+      finish();
     });
   }, true);
   toggleSidebar("viewHistorySidebar", true);

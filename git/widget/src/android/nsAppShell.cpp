@@ -183,7 +183,6 @@ nsAppShell::ProcessNextNativeEvent(PRBool mayWait)
             //   MOVE DRAW
             // when we process all the events.
             RemoveNextEvent();
-            delete nextEvent;
 
 #if defined(ANDROID_DEBUG_EVENTS)
             ALOG("# Removing DRAW event (%d outstanding)", mNumDraws);

@@ -55,7 +55,7 @@ static const uScanClassID g_Big5HKSCSScanClassIDs[] =  {
   u2BytesCharset
 };
 
-nsresult
+NS_METHOD
 nsUnicodeToBIG5HKSCSConstructor(nsISupports *aOuter, REFNSIID aIID,
                                 void **aResult)
 {

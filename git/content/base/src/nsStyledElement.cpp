@@ -49,7 +49,7 @@
 #include "nsIDocument.h"
 #include "nsICSSStyleRule.h"
 #include "nsCSSParser.h"
-#include "mozilla/css/Loader.h"
+#include "nsCSSLoader.h"
 #include "nsIDOMMutationEvent.h"
 
 #ifdef MOZ_SVG

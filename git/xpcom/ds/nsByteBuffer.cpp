@@ -70,7 +70,7 @@ ByteBufferImpl::~ByteBufferImpl()
   mLength = 0;
 }
 
-nsresult
+NS_METHOD
 ByteBufferImpl::Create(nsISupports *aOuter, REFNSIID aIID, void **aResult)
 {
   if (aOuter)

@@ -28,11 +28,9 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "common/linux/google_crashdump_uploader.h"
+#include "third_party/linux/include/glog/logging.h"
 #include "third_party/linux/include/gflags/gflags.h"
 #include <string>
-#include <iostream>
-
-using std::string;
 
 DEFINE_string(crash_server, "http://clients2.google.com/cr",
               "The crash server to upload minidumps to.");
@@ -77,7 +75,7 @@ bool CheckForRequiredFlagsOrDie() {
   }
 
   if (!error_text.empty()) {
-    std::cout << error_text;
+    LOG(ERROR) << error_text;
     return false;
   }
   return true;

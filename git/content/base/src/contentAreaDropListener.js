@@ -14,7 +14,9 @@ function ContentAreaDropListener() { };
 
 ContentAreaDropListener.prototype =
 {
+  classDescription: "A component that handles dragover and drop events on a content area",
   classID:          Components.ID("{1f34bc80-1bc7-11d6-a384-d705dd0746fc}"),
+  contractID:       "@mozilla.org/content/dropped-link-handler;1",
   QueryInterface:   XPCOMUtils.generateQI([Ci.nsIDroppedLinkHandler, Ci.nsISupports]),
 
   _getDropURL : function (dt)
@@ -143,4 +145,6 @@ ContentAreaDropListener.prototype =
 };
 
 var components = [ContentAreaDropListener];
-const NSGetFactory = XPCOMUtils.generateNSGetFactory(components);
+function NSGetModule(compMgr, fileSpec) {
+  return XPCOMUtils.generateModule(components);
+}

@@ -72,7 +72,7 @@ class nsDirectoryService : public nsIDirectoryService,
   static nsresult RealInit();
   void RegisterCategoryProviders();
 
-  static nsresult
+  static NS_METHOD
   Create(nsISupports *aOuter, REFNSIID aIID, void **aResult);
 
   static nsDirectoryService* gService;

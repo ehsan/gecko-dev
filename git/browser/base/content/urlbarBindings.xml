@@ -140,22 +140,15 @@
           if (aTriggeringEvent instanceof MouseEvent && aTriggeringEvent.button == 2)
             return; // Do nothing for right clicks
 
-          var url = this.value;
-          var postData = null;
+          var [url, postData] = this._canonizeURL(aTriggeringEvent);
+          if (!url)
+            return;
 
           var action = this._parseActionUrl(url);
           if (action) {
-            url = action.param;
-            if (!(aTriggeringEvent && aTriggeringEvent.altKey)) {
-              if (action.type == "switchtab")
-                switchToTabHavingURI(url);
-              return;
-            }
-          }
-          else {
-            [url, postData] = this._canonizeURL(aTriggeringEvent);
-            if (!url)
-              return;
+            if (action.type == "switchtab")
+              switchToTabHavingURI(action.param);
+            return;
           }
 
           this.value = url;

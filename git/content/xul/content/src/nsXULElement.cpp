@@ -122,6 +122,7 @@
 #include "nsRuleWalker.h"
 #include "nsIDOMViewCSS.h"
 #include "nsIDOMCSSStyleDeclaration.h"
+#include "nsCSSDeclaration.h"
 #include "nsCSSParser.h"
 #include "nsIListBoxObject.h"
 #include "nsContentUtils.h"
@@ -130,6 +131,7 @@
 #include "nsIDOMMutationEvent.h"
 #include "nsPIDOMWindow.h"
 #include "nsDOMAttributeMap.h"
+#include "nsDOMCSSDeclaration.h"
 #include "nsGkAtoms.h"
 #include "nsXULContentUtils.h"
 #include "nsNodeUtils.h"
@@ -1132,7 +1134,7 @@ nsXULElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
                       aName == nsGkAtoms::inactivetitlebarcolor)) {
                 nscolor color = NS_RGBA(0, 0, 0, 0);
                 nsAttrValue attrValue;
-                attrValue.ParseColor(*aValue);
+                attrValue.ParseColor(*aValue, document);
                 attrValue.GetColorValue(color);
                 SetTitlebarColor(color, aName == nsGkAtoms::activetitlebarcolor);
             }
@@ -2039,6 +2041,7 @@ nsXULElement::SwapFrameLoaders(nsIFrameLoaderOwner* aOtherOwner)
                                                     ourSlots->mFrameLoader,
                                                     otherSlots->mFrameLoader);
 }
+
 
 NS_IMETHODIMP
 nsXULElement::GetParentTree(nsIDOMXULMultiSelectControlElement** aTreeElement)

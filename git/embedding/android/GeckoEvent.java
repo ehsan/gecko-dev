@@ -111,10 +111,7 @@ public class GeckoEvent {
         mType = MOTION_EVENT;
         mAction = m.getAction();
         mTime = m.getEventTime();
-        mP0 = new Point((int)m.getX(0), (int)m.getY(0));
-        mCount = m.getPointerCount();
-        if (mCount > 1)
-            mP1 = new Point((int)m.getX(1), (int)m.getY(1));
+        mP0 = new Point((int)m.getX(), (int)m.getY());
     }
 
     public GeckoEvent(SensorEvent s) {

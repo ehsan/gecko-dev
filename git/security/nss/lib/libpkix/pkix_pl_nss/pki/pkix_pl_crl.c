@@ -577,13 +577,11 @@ pkix_pl_CRL_Hashcode(
         } else if (crl->nssSignedCrl && crl->nssSignedCrl->derCrl) { 
             crlDer = crl->nssSignedCrl->derCrl;
         }
-        if (!crlDer || !crlDer->data) {
-            PKIX_ERROR(PKIX_CANNOTAQUIRECRLDER);
-        }
 
-        PKIX_CHECK(pkix_hash(crlDer->data, crlDer->len,
-                             &certHash, plContext),
-                   PKIX_ERRORINHASH);
+        if (crlDer->data)
+            PKIX_CHECK(pkix_hash(crlDer->data, crlDer->len,
+                                 &certHash, plContext),
+                       PKIX_ERRORINHASH);
 
         *pHashcode = certHash;
 

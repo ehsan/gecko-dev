@@ -111,9 +111,6 @@
 #include "mozAutoDocUpdate.h"
 #include "nsHtml5Module.h"
 #include "nsITextControlElement.h"
-#include "mozilla/dom/Element.h"
-
-using namespace mozilla::dom;
 
 #include "nsThreadUtils.h"
 
@@ -700,7 +697,7 @@ nsGenericHTMLElement::GetInnerHTML(nsAString& aInnerHTML)
 
   docEncoder->SetNativeContainerNode(this);
   rv = docEncoder->EncodeToString(aInnerHTML);
-  doc->SetCachedEncoder(docEncoder.forget());
+  doc->SetCachedEncoder(docEncoder);
   return rv;
 }
 
@@ -1584,9 +1581,9 @@ nsGenericHTMLElement::ParseTableVAlignValue(const nsAString& aString,
   return aResult.ParseEnumValue(aString, kTableVAlignTable, PR_FALSE);
 }
 
-PRBool
+PRBool 
 nsGenericHTMLElement::ParseDivAlignValue(const nsAString& aString,
-                                         nsAttrValue& aResult)
+                                         nsAttrValue& aResult) const
 {
   return aResult.ParseEnumValue(aString, kDivAlignTable, PR_FALSE);
 }
@@ -2382,13 +2379,7 @@ nsGenericHTMLFormElement::ClearForm(PRBool aRemoveFromForm,
   mForm = nsnull;
 }
 
-Element*
-nsGenericHTMLFormElement::GetFormElement()
-{
-  return mForm;
-}
-
-nsresult
+NS_IMETHODIMP
 nsGenericHTMLFormElement::GetForm(nsIDOMHTMLFormElement** aForm)
 {
   NS_ENSURE_ARG_POINTER(aForm);

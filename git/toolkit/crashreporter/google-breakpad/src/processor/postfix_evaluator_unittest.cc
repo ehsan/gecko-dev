@@ -31,8 +31,7 @@
 //
 // Author: Mark Mentovai
 
-#include <stdio.h>
-
+#include <cstdio>
 #include <map>
 #include <string>
 

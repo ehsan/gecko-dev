@@ -59,7 +59,7 @@
 /**
  * A character set converter from Unicode to CP850.
  */
-nsresult
+NS_METHOD
 nsUnicodeToCP850Constructor(nsISupports *aOuter, REFNSIID aIID,
                             void **aResult);
 

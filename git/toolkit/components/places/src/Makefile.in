@@ -78,7 +78,6 @@ EXTRA_DSO_LDOPTS += \
 LOCAL_INCLUDES += -I$(srcdir)/../../build
 
 EXTRA_COMPONENTS = \
-  toolkitplaces.manifest \
   nsLivemarkService.js \
   nsTaggingService.js \
   nsPlacesDBFlush.js \
@@ -87,7 +86,7 @@ EXTRA_COMPONENTS = \
   $(NULL)
 
 ifdef MOZ_XUL
-EXTRA_COMPONENTS += nsPlacesAutoComplete.js nsPlacesAutoComplete.manifest
+EXTRA_COMPONENTS += nsPlacesAutoComplete.js
 endif
 
 EXTRA_JS_MODULES = \

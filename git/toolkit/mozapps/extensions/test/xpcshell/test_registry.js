@@ -58,7 +58,7 @@ function run_test_1() {
                         "SOFTWARE\\Mozilla\\XPCShell\\Extensions",
                         "addon2@tests.mozilla.org", addon2Dir.path);
 
-  startupManager();
+  startupManager(1);
 
   AddonManager.getAddonsByIDs(["addon1@tests.mozilla.org",
                                "addon2@tests.mozilla.org"], function([a1, a2]) {
@@ -85,7 +85,7 @@ function run_test_2() {
                         "SOFTWARE\\Mozilla\\XPCShell\\Extensions",
                         "addon2@tests.mozilla.org", null);
 
-  restartManager();
+  restartManager(1);
 
   AddonManager.getAddonsByIDs(["addon1@tests.mozilla.org",
                                "addon2@tests.mozilla.org"], function([a1, a2]) {
@@ -105,7 +105,7 @@ function run_test_3() {
                         "SOFTWARE\\Mozilla\\XPCShell\\Extensions",
                         "addon2@tests.mozilla.org", addon1Dir.path);
 
-  restartManager();
+  restartManager(0);
 
   AddonManager.getAddonsByIDs(["addon1@tests.mozilla.org",
                                "addon2@tests.mozilla.org"], function([a1, a2]) {
@@ -113,7 +113,7 @@ function run_test_3() {
     do_check_eq(a2, null);
 
     // Restarting with bad items in the registry should not force an EM restart
-    restartManager();
+    restartManager(0);
 
     run_test_4();
   });
@@ -128,12 +128,12 @@ function run_test_4() {
                         "SOFTWARE\\Mozilla\\XPCShell\\Extensions",
                         "addon2@tests.mozilla.org", null);
 
-  restartManager();
+  restartManager(0);
 
   MockRegistry.setValue(AM_Ci.nsIWindowsRegKey.ROOT_KEY_LOCAL_MACHINE,
                         "SOFTWARE\\Mozilla\\XPCShell\\Extensions",
                         "addon1@tests.mozilla.org", addon1Dir.path);
-  restartManager();
+  restartManager(1);
 
   MockRegistry.setValue(AM_Ci.nsIWindowsRegKey.ROOT_KEY_LOCAL_MACHINE,
                         "SOFTWARE\\Mozilla\\XPCShell\\Extensions",
@@ -143,7 +143,7 @@ function run_test_4() {
                         "addon2@tests.mozilla.org", addon1Dir.path);
   writeInstallRDFToDir(addon2, addon1Dir);
 
-  restartManager();
+  restartManager(1);
 
   AddonManager.getAddonsByIDs(["addon1@tests.mozilla.org",
                                "addon2@tests.mozilla.org"], function([a1, a2]) {

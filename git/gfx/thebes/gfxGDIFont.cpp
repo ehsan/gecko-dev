@@ -324,8 +324,7 @@ gfxGDIFont::Initialize()
         DWORD len = GetGlyphOutlineW(dc.GetDC(), PRUnichar('x'), GGO_METRICS, &gm, 0, nsnull, &kIdentityMatrix);
         if (len == GDI_ERROR || gm.gmptGlyphOrigin.y <= 0) {
             // 56% of ascent, best guess for true type
-            mMetrics->xHeight =
-                ROUND((double)metrics.tmAscent * DEFAULT_XHEIGHT_FACTOR);
+            mMetrics->xHeight = ROUND((double)metrics.tmAscent * 0.56);
         } else {
             mMetrics->xHeight = gm.gmptGlyphOrigin.y;
         }
@@ -350,8 +349,7 @@ gfxGDIFont::Initialize()
             return;
         }
 
-        mMetrics->xHeight =
-            ROUND((float)metrics.tmAscent * DEFAULT_XHEIGHT_FACTOR);
+        mMetrics->xHeight = ROUND((float)metrics.tmAscent * 0.56f); // 56% of ascent, best guess for non-true type
         mMetrics->superscriptOffset = mMetrics->xHeight;
         mMetrics->subscriptOffset = mMetrics->xHeight;
         mMetrics->strikeoutSize = 1;

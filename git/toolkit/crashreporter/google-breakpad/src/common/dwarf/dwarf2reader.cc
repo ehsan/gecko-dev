@@ -31,18 +31,16 @@
 // Implementation of dwarf2reader::LineInfo, dwarf2reader::CompilationUnit,
 // and dwarf2reader::CallFrameInfo. See dwarf2reader.h for details.
 
-#include "common/dwarf/dwarf2reader.h"
-
-#include <assert.h>
-#include <stdio.h>
-#include <string.h>
-
+#include <cassert>
+#include <cstdio>
+#include <cstring>
 #include <map>
 #include <memory>
 #include <stack>
 #include <utility>
 
 #include "common/dwarf/bytereader-inl.h"
+#include "common/dwarf/dwarf2reader.h"
 #include "common/dwarf/bytereader.h"
 #include "common/dwarf/line_state_machine.h"
 
@@ -921,8 +919,7 @@ class CallFrameInfo::UndefinedRule: public CallFrameInfo::Rule {
     return handler->UndefinedRule(address, reg);
   }
   bool operator==(const Rule &rhs) const {
-    // dynamic_cast is allowed by the Google C++ Style Guide, if the use has
-    // been carefully considered; cheap RTTI-like workarounds are forbidden.
+    // dynamic_cast is prohibited by Google C++ Style Guide, but justified.
     const UndefinedRule *our_rhs = dynamic_cast<const UndefinedRule *>(&rhs);
     return (our_rhs != NULL);
   }
@@ -938,8 +935,7 @@ class CallFrameInfo::SameValueRule: public CallFrameInfo::Rule {
     return handler->SameValueRule(address, reg);
   }
   bool operator==(const Rule &rhs) const {
-    // dynamic_cast is allowed by the Google C++ Style Guide, if the use has
-    // been carefully considered; cheap RTTI-like workarounds are forbidden.
+    // dynamic_cast is prohibited by Google C++ Style Guide, but justified.
     const SameValueRule *our_rhs = dynamic_cast<const SameValueRule *>(&rhs);
     return (our_rhs != NULL);
   }
@@ -957,8 +953,7 @@ class CallFrameInfo::OffsetRule: public CallFrameInfo::Rule {
     return handler->OffsetRule(address, reg, base_register_, offset_);
   }
   bool operator==(const Rule &rhs) const {
-    // dynamic_cast is allowed by the Google C++ Style Guide, if the use has
-    // been carefully considered; cheap RTTI-like workarounds are forbidden.
+    // dynamic_cast is prohibited by Google C++ Style Guide, but justified.
     const OffsetRule *our_rhs = dynamic_cast<const OffsetRule *>(&rhs);
     return (our_rhs &&
             base_register_ == our_rhs->base_register_ &&
@@ -971,7 +966,7 @@ class CallFrameInfo::OffsetRule: public CallFrameInfo::Rule {
   // computes the address at which a register is saved, not a value.
  private:
   int base_register_;
-  long offset_;
+  int offset_;
 };
 
 // Rule: the value the register had in the caller is the value of
@@ -986,8 +981,7 @@ class CallFrameInfo::ValOffsetRule: public CallFrameInfo::Rule {
     return handler->ValOffsetRule(address, reg, base_register_, offset_);
   }
   bool operator==(const Rule &rhs) const {
-    // dynamic_cast is allowed by the Google C++ Style Guide, if the use has
-    // been carefully considered; cheap RTTI-like workarounds are forbidden.
+    // dynamic_cast is prohibited by Google C++ Style Guide, but justified.
     const ValOffsetRule *our_rhs = dynamic_cast<const ValOffsetRule *>(&rhs);
     return (our_rhs &&
             base_register_ == our_rhs->base_register_ &&
@@ -998,7 +992,7 @@ class CallFrameInfo::ValOffsetRule: public CallFrameInfo::Rule {
   void SetOffset(long long offset) { offset_ = offset; }
  private:
   int base_register_;
-  long offset_;
+  int offset_;
 };
 
 // Rule: the register has been saved in another register REGISTER_NUMBER_.
@@ -1011,8 +1005,7 @@ class CallFrameInfo::RegisterRule: public CallFrameInfo::Rule {
     return handler->RegisterRule(address, reg, register_number_);
   }
   bool operator==(const Rule &rhs) const {
-    // dynamic_cast is allowed by the Google C++ Style Guide, if the use has
-    // been carefully considered; cheap RTTI-like workarounds are forbidden.
+    // dynamic_cast is prohibited by Google C++ Style Guide, but justified.
     const RegisterRule *our_rhs = dynamic_cast<const RegisterRule *>(&rhs);
     return (our_rhs && register_number_ == our_rhs->register_number_);
   }
@@ -1031,8 +1024,7 @@ class CallFrameInfo::ExpressionRule: public CallFrameInfo::Rule {
     return handler->ExpressionRule(address, reg, expression_);
   }
   bool operator==(const Rule &rhs) const {
-    // dynamic_cast is allowed by the Google C++ Style Guide, if the use has
-    // been carefully considered; cheap RTTI-like workarounds are forbidden.
+    // dynamic_cast is prohibited by Google C++ Style Guide, but justified.
     const ExpressionRule *our_rhs = dynamic_cast<const ExpressionRule *>(&rhs);
     return (our_rhs && expression_ == our_rhs->expression_);
   }
@@ -1051,8 +1043,7 @@ class CallFrameInfo::ValExpressionRule: public CallFrameInfo::Rule {
     return handler->ValExpressionRule(address, reg, expression_);
   }
   bool operator==(const Rule &rhs) const {
-    // dynamic_cast is allowed by the Google C++ Style Guide, if the use has
-    // been carefully considered; cheap RTTI-like workarounds are forbidden.
+    // dynamic_cast is prohibited by Google C++ Style Guide, but justified.
     const ValExpressionRule *our_rhs =
         dynamic_cast<const ValExpressionRule *>(&rhs);
     return (our_rhs && expression_ == our_rhs->expression_);
@@ -1879,7 +1870,7 @@ bool CallFrameInfo::ReadCIEFields(CIE *cie) {
 
   // If we don't recognize the version, we can't parse any more fields
   // of the CIE. For DWARF CFI, we handle versions 1 through 3 (there
-  // was never a version 2 of CFI data). For .eh_frame, we handle only
+  // was never a version 2 fo CFI data). For .eh_frame, we handle only
   // version 1.
   if (eh_frame_) {
     if (cie->version != 1) {
@@ -1887,7 +1878,7 @@ bool CallFrameInfo::ReadCIEFields(CIE *cie) {
       return false;
     }
   } else {
-    if (cie->version < 1 || cie->version > 3) {
+    if (cie->version < 1 || 3 < cie->version) {
       reporter_->UnrecognizedVersion(cie->offset, cie->version);
       return false;
     }
@@ -1902,18 +1893,18 @@ bool CallFrameInfo::ReadCIEFields(CIE *cie) {
   // Skip the terminating '\0'.
   cursor++;
 
-  // Is this CFI augmented?
-  if (!cie->augmentation.empty()) {
-    // Is it an augmentation we recognize?
-    if (cie->augmentation[0] == DW_Z_augmentation_start) {
-      // Linux C++ ABI 'z' augmentation, used for exception handling data.
-      cie->has_z_augmentation = true;
-    } else {
-      // Not an augmentation we recognize. Augmentations can have arbitrary
-      // effects on the form of rest of the content, so we have to give up.
-      reporter_->UnrecognizedAugmentation(cie->offset, cie->augmentation);
-      return false;
-    }
+  // Is this an augmentation we recognize?
+  if (cie->augmentation.empty()) {
+    ; // Stock DWARF CFI.
+  } else if (cie->augmentation[0] == 'z') {
+    // Linux C++ ABI 'z' augmentation, used for exception handling data.
+    cie->has_z_augmentation = true;
+  } else {
+    // Not an augmentation we recognize. Augmentations can have
+    // arbitrary effects on the form of rest of the content, so we
+    // have to give up.
+    reporter_->UnrecognizedAugmentation(cie->offset, cie->augmentation);
+    return false;
   }
 
   // Parse the code alignment factor.
@@ -1956,7 +1947,7 @@ bool CallFrameInfo::ReadCIEFields(CIE *cie) {
     // augmentation data as the string directs.
     for (size_t i = 1; i < cie->augmentation.size(); i++) {
       switch (cie->augmentation[i]) {
-        case DW_Z_has_LSDA:
+        case 'L':
           // The CIE's augmentation data holds the language-specific data
           // area pointer's encoding, and the FDE's augmentation data holds
           // the pointer itself.
@@ -1974,7 +1965,7 @@ bool CallFrameInfo::ReadCIEFields(CIE *cie) {
           // LSDA to use, since it appears in the FDE.
           break;
 
-        case DW_Z_has_personality_routine:
+        case 'P':
           // The CIE's augmentation data holds the personality routine
           // pointer's encoding, followed by the pointer itself.
           cie->has_z_personality = true;
@@ -2001,7 +1992,7 @@ bool CallFrameInfo::ReadCIEFields(CIE *cie) {
           data += len;
           break;
 
-        case DW_Z_has_FDE_address_encoding:
+        case 'R':
           // The CIE's augmentation data holds the pointer encoding to use
           // for addresses in the FDE.
           if (data >= data_end) return ReportIncomplete(cie);
@@ -2018,7 +2009,7 @@ bool CallFrameInfo::ReadCIEFields(CIE *cie) {
           }
           break;
 
-        case DW_Z_is_signal_trampoline:
+        case 'S':
           // Frames using this CIE are signal delivery frames.
           cie->has_z_signal_frame = true;
           break;
@@ -2304,8 +2295,7 @@ void CallFrameInfo::Reporter::UnusablePointerEncoding(uint64 offset,
                                                       uint8 encoding) {
   fprintf(stderr,
           "%s: CFI common information entry at offset 0x%llx in '%s':"
-          " 'z' augmentation specifies a pointer encoding for which"
-          " we have no base address: 0x%02x\n",
+          " 'z' augmentation specifies a pointer encoding for which we have no base address: 0x%02x\n",
           filename_.c_str(), offset, section_.c_str(), encoding);
 }
 

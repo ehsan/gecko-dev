@@ -43,6 +43,7 @@
 #include "nsSMILParserUtils.h"
 #include "nsSMILValue.h"
 #include "nsCSSValue.h"
+#include "nsCSSDeclaration.h"
 #include "nsColor.h"
 #include "nsPresContext.h"
 #include "nsIContent.h"

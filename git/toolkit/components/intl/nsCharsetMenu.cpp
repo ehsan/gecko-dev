@@ -49,6 +49,7 @@
 #include "nsICollation.h"
 #include "nsCollationCID.h"
 #include "nsLocaleCID.h"
+#include "nsIGenericFactory.h"
 #include "nsILocaleService.h"
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
@@ -64,7 +65,6 @@
 #include "nsITimelineService.h"
 #include "nsCRT.h"
 #include "prmem.h"
-#include "mozilla/ModuleUtils.h"
 #include "nsCycleCollectionParticipant.h"
 
 //----------------------------------------------------------------------------
@@ -316,9 +316,8 @@ public:
 //----------------------------------------------------------------------------
 // Global functions and data [implementation]
 
-nsresult
-NS_NewCharsetMenu(nsISupports * aOuter, const nsIID & aIID, 
-                  void ** aResult)
+NS_IMETHODIMP NS_NewCharsetMenu(nsISupports * aOuter, const nsIID & aIID, 
+                                void ** aResult)
 {
   if (!aResult) {
     return NS_ERROR_NULL_POINTER;

@@ -388,7 +388,7 @@ nsMultiplexInputStream::SetEOF()
     return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-nsresult
+NS_METHOD
 nsMultiplexInputStreamConstructor(nsISupports *outer,
                                   REFNSIID iid,
                                   void **result)
@@ -398,7 +398,8 @@ nsMultiplexInputStreamConstructor(nsISupports *outer,
     if (outer)
         return NS_ERROR_NO_AGGREGATION;
 
-    nsMultiplexInputStream *inst = new nsMultiplexInputStream();
+    nsMultiplexInputStream *inst;
+    NS_NEWXPCOM(inst, nsMultiplexInputStream);
     if (!inst)
         return NS_ERROR_OUT_OF_MEMORY;
 

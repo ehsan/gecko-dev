@@ -421,7 +421,8 @@ nsSVGMarkerElement::GetViewBoxTransform()
                                       viewportWidth, viewportHeight,
                                       viewbox.x, viewbox.y,
                                       viewbox.width, viewbox.height,
-                                      mPreserveAspectRatio);
+                                      mPreserveAspectRatio,
+                                      PR_TRUE);
 
     gfxPoint ref = viewBoxTM.Transform(gfxPoint(refX, refY));
 

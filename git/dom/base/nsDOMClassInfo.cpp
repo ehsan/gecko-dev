@@ -214,7 +214,7 @@
 #include "nsIDOMDOMImplementation.h"
 #include "nsIDOMDocumentFragment.h"
 #include "nsIDOMDocumentEvent.h"
-#include "nsDOMAttribute.h"
+#include "nsIDOMAttr.h"
 #include "nsIDOMText.h"
 #include "nsIDOM3Text.h"
 #include "nsIDOMComment.h"
@@ -476,8 +476,6 @@
 #include "nsIEventListenerService.h"
 #include "nsIFrameMessageManager.h"
 #include "mozilla/dom/Element.h"
-#include "nsHTMLSelectElement.h"
-#include "nsHTMLLegendElement.h"
 
 using namespace mozilla::dom;
 
@@ -636,11 +634,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
 
 
   NS_DEFINE_CLASSINFO_DATA(Window, nsWindowSH,
-                           DEFAULT_SCRIPTABLE_FLAGS |
-                           WINDOW_SCRIPTABLE_FLAGS)
-
-  // XXX Wrong helper!
-  NS_DEFINE_CLASSINFO_DATA(InnerWindow, nsWindowSH,
                            DEFAULT_SCRIPTABLE_FLAGS |
                            WINDOW_SCRIPTABLE_FLAGS)
 
@@ -860,6 +853,8 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            ELEMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(HTMLUnknownElement, nsElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
+  NS_DEFINE_CLASSINFO_DATA(HTMLWBRElement, nsElementSH,
+                           ELEMENT_SCRIPTABLE_FLAGS)
 
   // CSS classes
   NS_DEFINE_CLASSINFO_DATA(CSSStyleRule, nsDOMGenericSH,
@@ -933,11 +928,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
 
   // DOM Chrome Window class.
   NS_DEFINE_CLASSINFO_DATA(ChromeWindow, nsWindowSH,
-                           DEFAULT_SCRIPTABLE_FLAGS |
-                           WINDOW_SCRIPTABLE_FLAGS)
-
-  // XXX Wrong helper!
-  NS_DEFINE_CLASSINFO_DATA(InnerChromeWindow, nsWindowSH,
                            DEFAULT_SCRIPTABLE_FLAGS |
                            WINDOW_SCRIPTABLE_FLAGS)
 
@@ -1322,11 +1312,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            DEFAULT_SCRIPTABLE_FLAGS |
                            WINDOW_SCRIPTABLE_FLAGS)
 
-  // XXX Wrong helper!
-  NS_DEFINE_CLASSINFO_DATA(InnerModalContentWindow, nsWindowSH,
-                           DEFAULT_SCRIPTABLE_FLAGS |
-                           WINDOW_SCRIPTABLE_FLAGS)
-
   NS_DEFINE_CLASSINFO_DATA(DataContainerEvent, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
@@ -1590,7 +1575,6 @@ jsval nsDOMClassInfo::sPackages_id        = JSVAL_VOID;
 
 static const JSClass *sObjectClass = nsnull;
 JSPropertyOp nsDOMClassInfo::sXPCNativeWrapperGetPropertyOp = nsnull;
-JSPropertyOp nsDOMClassInfo::sXrayWrapperPropertyHolderGetPropertyOp = nsnull;
 
 /**
  * Set our JSClass pointer for the Object class
@@ -1848,25 +1832,6 @@ nsDOMClassInfo::ThrowJSException(JSContext *cx, nsresult aResult)
   }
   JS_SetPendingException(cx, STRING_TO_JSVAL(str));
   return NS_OK;
-}
-
-// static
-PRBool
-nsDOMClassInfo::ObjectIsNativeWrapper(JSContext* cx, JSObject* obj)
-{
-#ifdef DEBUG
-  {
-    nsIScriptContext *scx = GetScriptContextFromJSContext(cx);
-
-    NS_PRECONDITION(!scx || !scx->IsContextInitialized() ||
-                    sXPCNativeWrapperGetPropertyOp,
-                    "Must know what the XPCNativeWrapper class GetProperty op is!");
-  }
-#endif
-
-  JSPropertyOp op = obj->getClass()->getProperty;
-  return !!op && (op == sXPCNativeWrapperGetPropertyOp ||
-                  op == sXrayWrapperPropertyHolderGetPropertyOp);
 }
 
 nsDOMClassInfo::nsDOMClassInfo(nsDOMClassInfoData* aData) : mData(aData)
@@ -2173,17 +2138,6 @@ nsDOMClassInfo::Init()
   NS_ENSURE_SUCCESS(rv, rv);
 
   DOM_CLASSINFO_MAP_BEGIN(Window, nsIDOMWindow)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindow)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMJSWindow)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindowInternal)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMViewCSS)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMAbstractView)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorageWindow)
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(InnerWindow, nsIDOMWindow)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindow)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMJSWindow)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindowInternal)
@@ -2743,6 +2697,11 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
+  DOM_CLASSINFO_MAP_BEGIN_NO_CLASS_IF(HTMLWBRElement, nsIDOMHTMLElement)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLElement)
+    DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES
+  DOM_CLASSINFO_MAP_END
+
   DOM_CLASSINFO_MAP_BEGIN(CSSStyleRule, nsIDOMCSSStyleRule)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMCSSStyleRule)
   DOM_CLASSINFO_MAP_END
@@ -2891,18 +2850,6 @@ nsDOMClassInfo::Init()
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN_NO_CLASS_IF(ChromeWindow, nsIDOMWindow)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindow)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMJSWindow)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindowInternal)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMChromeWindow)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorageWindow)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMViewCSS)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMAbstractView)
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN_NO_CLASS_IF(InnerChromeWindow, nsIDOMWindow)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindow)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMJSWindow)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindowInternal)
@@ -3789,18 +3736,6 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMModalContentWindow)
   DOM_CLASSINFO_MAP_END
 
-  DOM_CLASSINFO_MAP_BEGIN_NO_CLASS_IF(InnerModalContentWindow, nsIDOMWindow)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindow)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMJSWindow)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindowInternal)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMViewCSS)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMAbstractView)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorageWindow)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMModalContentWindow)
-  DOM_CLASSINFO_MAP_END
-
   DOM_CLASSINFO_MAP_BEGIN(DataContainerEvent, nsIDOMDataContainerEvent)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMDataContainerEvent)
     DOM_CLASSINFO_EVENT_MAP_ENTRIES
@@ -4605,15 +4540,7 @@ nsDOMClassInfo::PostCreatePrototype(JSContext * cx, JSObject * proto)
       if (if_info) {
         nsXPIDLCString name;
         if_info->GetName(getter_Copies(name));
-
-        // Allow for inner/non-inner mismatch.
-        static const char inner[] = "Inner";
-        const char *dataname = mData->mName;
-        if (!strncmp(dataname, "Inner", sizeof(inner) - 1)) {
-          dataname += sizeof(inner) - 1;
-        }
-
-        NS_ASSERTION(nsCRT::strcmp(CutPrefix(name), dataname) == 0,
+        NS_ASSERTION(nsCRT::strcmp(CutPrefix(name), mData->mName) == 0,
                      "Class name and proto chain interface name mismatch!");
       }
     }
@@ -4845,13 +4772,11 @@ nsWindowSH::PreCreate(nsISupports *nativeObj, JSContext *cx,
   nsCOMPtr<nsIScriptGlobalObject> sgo(do_QueryInterface(nativeObj));
   NS_ASSERTION(sgo, "nativeObj not a global object!");
 
-  nsGlobalWindow *win = nsGlobalWindow::FromSupports(nativeObj);
-
   if (sgo) {
     *parentObj = sgo->GetGlobalJSObject();
 
     if (*parentObj) {
-      return win->IsChromeWindow() ? NS_OK : NS_SUCCESS_NEEDS_XOW;
+      return NS_OK;
     }
   }
 
@@ -4861,7 +4786,7 @@ nsWindowSH::PreCreate(nsISupports *nativeObj, JSContext *cx,
 
   *parentObj = globalObj;
 
-  return win->IsChromeWindow() ? NS_OK : NS_SUCCESS_NEEDS_XOW;
+  return NS_OK;
 }
 
 
@@ -5207,10 +5132,6 @@ nsWindowSH::GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
     if ((*name == 'W' && strcmp(name, "Window") == 0) ||
         (*name == 'C' && strcmp(name, "ChromeWindow") == 0) ||
         (*name == 'M' && strcmp(name, "ModalContentWindow") == 0) ||
-        (*name == 'I' &&
-         (strcmp(name, "InnerWindow") == 0 ||
-          strcmp(name, "InnerChromeWindow") == 0 ||
-          strcmp(name, "InnerModalContentWindow") == 0)) ||
         (*name == 'X' && strcmp(name, "XPCCrossOriginWrapper") == 0)) {
       nsCOMPtr<nsIDOMWindow> window = do_QueryWrapper(cx, JSVAL_TO_OBJECT(*vp));
 
@@ -6633,31 +6554,34 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
   JSBool ok;
   jsval exn;
   {
-    JSAutoTransferRequest transfer(cx, my_cx);
+    JSAutoSuspendRequest asr(my_cx != cx ? cx : nsnull);
+    {
+      JSAutoRequest ar(my_cx);
 
-    JSObject *realObj;
-    wrapper->GetJSObject(&realObj);
-    
-    // Don't resolve standard classes on XPCNativeWrapper etc, only
-    // resolve them if we're resolving on the real global object.
-    ok = obj == realObj ?
-         ::JS_ResolveStandardClass(my_cx, obj, id, &did_resolve) :
-         JS_TRUE;
-    
-    if (!ok) {
-      // Trust the JS engine (or the script security manager) to set
-      // the exception in the JS engine.
-      
-      if (!JS_GetPendingException(my_cx, &exn)) {
-        return NS_ERROR_UNEXPECTED;
+      JSObject *realObj;
+      wrapper->GetJSObject(&realObj);
+
+      // Don't resolve standard classes on XPCNativeWrapper etc, only
+      // resolve them if we're resolving on the real global object.
+      ok = obj == realObj ?
+           ::JS_ResolveStandardClass(my_cx, obj, id, &did_resolve) :
+           JS_TRUE;
+
+      if (!ok) {
+        // Trust the JS engine (or the script security manager) to set
+        // the exception in the JS engine.
+
+        if (!JS_GetPendingException(my_cx, &exn)) {
+          return NS_ERROR_UNEXPECTED;
+        }
+
+        // Return NS_OK to avoid stomping over the exception that was passed
+        // down from the ResolveStandardClass call.
+        // Note that the order of the JS_ClearPendingException and
+        // JS_SetPendingException is important in the case that my_cx == cx.
+
+        JS_ClearPendingException(my_cx);
       }
-      
-      // Return NS_OK to avoid stomping over the exception that was passed
-      // down from the ResolveStandardClass call.
-      // Note that the order of the JS_ClearPendingException and
-      // JS_SetPendingException is important in the case that my_cx == cx.
-      
-      JS_ClearPendingException(my_cx);
     }
   }
 
@@ -7036,8 +6960,7 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
         }
       }
     } else if (id == sDialogArguments_id &&
-               (mData == &sClassInfoData[eDOMClassInfo_InnerModalContentWindow_id] ||
-                mData == &sClassInfoData[eDOMClassInfo_ModalContentWindow_id])) {
+               mData == &sClassInfoData[eDOMClassInfo_ModalContentWindow_id]) {
       nsCOMPtr<nsIArray> args;
       ((nsGlobalModalWindow *)win)->GetDialogArguments(getter_AddRefs(args));
 
@@ -7133,8 +7056,6 @@ nsWindowSH::NewEnumerate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                          jsid *idp, PRBool *_retval)
 {
   switch ((JSIterateOp)enum_op) {
-    /* FIXME bug 576449: non-enumerable property support */
-    case JSENUMERATE_INIT_ALL:
     case JSENUMERATE_INIT:
     {
       // First, do the security check that nsDOMClassInfo does to see
@@ -7257,7 +7178,7 @@ nsWindowSH::OuterObject(nsIXPConnectWrappedNative *wrapper, JSContext * cx,
     return NS_ERROR_UNEXPECTED;
   }
 
-  JSObject *winObj = win->FastGetGlobalJSObject();
+  JSObject *winObj = win->GetGlobalJSObject();
   if (!winObj) {
     NS_ASSERTION(origWin->IsOuterWindow(), "What window is this?");
     *_retval = obj;
@@ -7292,7 +7213,7 @@ nsWindowSH::InnerObject(nsIXPConnectWrappedNative *wrapper, JSContext * cx,
       return NS_ERROR_UNEXPECTED;
     }
 
-    *_retval = inner->FastGetGlobalJSObject();
+    *_retval = inner->GetGlobalJSObject();
   }
 
   return NS_OK;
@@ -7476,8 +7397,9 @@ nsNodeSH::PreCreate(nsISupports *nativeObj, JSContext *cx, JSObject *globalObj,
                   hasHadScriptHandlingObject ||
                   IsPrivilegedScript());
 
-  nsINode *native_parent;
+  nsISupports *native_parent;
 
+  PRBool slimWrappers = PR_TRUE;
   PRBool nodeIsElement = node->IsElement();
   if (nodeIsElement && node->AsElement()->IsXUL()) {
     // For XUL elements, use the parent, if any.
@@ -7500,21 +7422,23 @@ nsNodeSH::PreCreate(nsISupports *nativeObj, JSContext *cx, JSObject *globalObj,
         nsCOMPtr<nsIFormControl> form_control(do_QueryInterface(node));
 
         if (form_control) {
-          Element *form = form_control->GetFormElement();
+          nsCOMPtr<nsIDOMHTMLFormElement> form;
+          form_control->GetForm(getter_AddRefs(form));
 
           if (form) {
             // Found a form, use it.
             native_parent = form;
           }
         }
-      }
-      else {
-        // Legend isn't an HTML form control but should have its fieldset form
-        // as scope parent at least for backward compatibility.
-        nsHTMLLegendElement *legend =
-          nsHTMLLegendElement::FromContent(node->AsElement());
+      // Legend isn't an HTML form control but should have its fieldset form
+      // as scope parent at least for backward compatibility.
+      } else if (node->AsElement()->IsHTML() &&
+                 node->AsElement()->Tag() == nsGkAtoms::legend) {
+        nsCOMPtr<nsIDOMHTMLLegendElement> legend(do_QueryInterface(node));
+
         if (legend) {
-          Element *form = legend->GetFormElement();
+          nsCOMPtr<nsIDOMHTMLFormElement> form;
+          legend->GetForm(getter_AddRefs(form));
 
           if (form) {
             native_parent = form;
@@ -7527,27 +7451,19 @@ nsNodeSH::PreCreate(nsISupports *nativeObj, JSContext *cx, JSObject *globalObj,
     // document's global object, if there is one
 
     // Get the scope object from the document.
-    nsISupports *scope = doc->GetScopeObject();
+    native_parent = doc->GetScopeObject();
 
-    if (scope) {
-        jsval v;
-        nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
-        nsresult rv = WrapNative(cx, globalObj, scope, nsnull, PR_FALSE, &v,
-                                 getter_AddRefs(holder));
-        NS_ENSURE_SUCCESS(rv, rv);
-
-        holder->GetJSObject(parentObj);
-    }
-    else {
+    if (!native_parent) {
       // No global object reachable from this document, use the
       // global object that was passed to this method.
 
       *parentObj = globalObj;
+
+      return node->IsInNativeAnonymousSubtree() ?
+        NS_SUCCESS_CHROME_ACCESS_ONLY : NS_OK;
     }
 
-    // No slim wrappers for a document's scope object.
-    return node->IsInNativeAnonymousSubtree() ?
-      NS_SUCCESS_CHROME_ACCESS_ONLY : NS_OK;
+    slimWrappers = PR_FALSE;
   }
 
   // XXXjst: Maybe we need to find the global to use from the
@@ -7555,12 +7471,22 @@ nsNodeSH::PreCreate(nsISupports *nativeObj, JSContext *cx, JSObject *globalObj,
   // to wrap here? But that's not always reachable, let's use
   // globalObj for now...
 
-  nsresult rv = WrapNativeParent(cx, globalObj, native_parent, native_parent,
-                                 parentObj);
+  if (native_parent == doc && (*parentObj = doc->GetWrapper()))
+    return node->IsInNativeAnonymousSubtree() ?
+      NS_SUCCESS_CHROME_ACCESS_ONLY :
+      (slimWrappers ? NS_SUCCESS_ALLOW_SLIM_WRAPPERS : NS_OK);
+
+  jsval v;
+  nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
+  nsresult rv = WrapNative(cx, globalObj, native_parent, PR_FALSE, &v,
+                           getter_AddRefs(holder));
   NS_ENSURE_SUCCESS(rv, rv);
 
+  *parentObj = JSVAL_TO_OBJECT(v);
+
   return node->IsInNativeAnonymousSubtree() ?
-    NS_SUCCESS_CHROME_ACCESS_ONLY : NS_SUCCESS_ALLOW_SLIM_WRAPPERS;
+    NS_SUCCESS_CHROME_ACCESS_ONLY :
+    (slimWrappers ? NS_SUCCESS_ALLOW_SLIM_WRAPPERS : NS_OK);
 }
 
 NS_IMETHODIMP
@@ -8358,8 +8284,7 @@ nsNamedNodeMapSH::GetItemAt(nsISupports *aNative, PRUint32 aIndex,
 {
   nsDOMAttributeMap* map = nsDOMAttributeMap::FromSupports(aNative);
 
-  nsINode *attr = map->GetItemAt(aIndex, aResult);
-  return attr;
+  return map->GetItemAt(aIndex, aResult);
 }
 
 nsISupports*
@@ -8368,8 +8293,7 @@ nsNamedNodeMapSH::GetNamedItem(nsISupports *aNative, const nsAString& aName,
 {
   nsDOMAttributeMap* map = nsDOMAttributeMap::FromSupports(aNative);
 
-  nsINode *attr = map->GetNamedItem(aName, aResult);
-  return attr;
+  return map->GetNamedItem(aName, aResult);
 }
 
 
@@ -9385,8 +9309,7 @@ nsHTMLFormElementSH::NewResolve(nsIXPConnectWrappedNative *wrapper,
       JSAutoRequest ar(cx);
       *_retval = ::JS_DefineUCProperty(cx, obj, ::JS_GetStringChars(str),
                                        ::JS_GetStringLength(str),
-                                       JSVAL_VOID, nsnull, nsnull,
-                                       JSPROP_ENUMERATE);
+                                       JSVAL_VOID, nsnull, nsnull, 0);
 
       *objp = obj;
 
@@ -9444,7 +9367,6 @@ nsHTMLFormElementSH::NewEnumerate(nsIXPConnectWrappedNative *wrapper,
 {
   switch (enum_op) {
   case JSENUMERATE_INIT:
-  case JSENUMERATE_INIT_ALL:
     {
       nsCOMPtr<nsIForm> form(do_QueryWrappedNative(wrapper, obj));
 
@@ -9524,13 +9446,15 @@ nsHTMLSelectElementSH::GetProperty(nsIXPConnectWrappedNative *wrapper,
 
   nsresult rv = NS_OK;
   if (n >= 0) {
-    nsHTMLSelectElement *s =
-      nsHTMLSelectElement::FromSupports(GetNative(wrapper, obj));
+    nsCOMPtr<nsIDOMHTMLSelectElement> s = do_QueryWrappedNative(wrapper, obj);
 
-    nsHTMLOptionCollection *options = s->GetOptions();
+    nsCOMPtr<nsIDOMHTMLOptionsCollection> options;
+    s->GetOptions(getter_AddRefs(options));
 
     if (options) {
-      nsISupports *node = options->GetNodeAt(n, &rv);
+      nsCOMPtr<nsIDOMNode> node;
+
+      options->Item(n, getter_AddRefs(node));
 
       rv = WrapNative(cx, obj, node, &NS_GET_IID(nsIDOMNode), PR_TRUE, vp);
       if (NS_SUCCEEDED(rv)) {
@@ -10363,7 +10287,7 @@ nsStorageSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
   if (item) {
     if (!::JS_DefineUCProperty(cx, realObj, ::JS_GetStringChars(jsstr),
                                ::JS_GetStringLength(jsstr), JSVAL_VOID, nsnull,
-                               nsnull, JSPROP_ENUMERATE)) {
+                               nsnull, 0)) {
       return NS_ERROR_FAILURE;
     }
 
@@ -10435,7 +10359,6 @@ nsStorageSH::NewEnumerate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 
   switch (enum_op) {
     case JSENUMERATE_INIT:
-    case JSENUMERATE_INIT_ALL:
     {
       nsCOMPtr<nsPIDOMStorage> storage(do_QueryWrappedNative(wrapper));
 
@@ -10533,7 +10456,7 @@ nsStorage2SH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
   if (!DOMStringIsNull(data)) {
     if (!::JS_DefineUCProperty(cx, realObj, ::JS_GetStringChars(jsstr),
                                ::JS_GetStringLength(jsstr), JSVAL_VOID, nsnull,
-                               nsnull, JSPROP_ENUMERATE)) {
+                               nsnull, 0)) {
       return NS_ERROR_FAILURE;
     }
 
@@ -10639,7 +10562,6 @@ nsStorage2SH::NewEnumerate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 
   switch (enum_op) {
     case JSENUMERATE_INIT:
-    case JSENUMERATE_INIT_ALL:
     {
       nsCOMPtr<nsPIDOMStorage> storage(do_QueryWrappedNative(wrapper));
 

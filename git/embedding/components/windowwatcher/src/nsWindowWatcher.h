@@ -57,7 +57,6 @@ class  nsIWebBrowserChrome;
 class  nsString;
 class  nsWatcherWindowEnumerator;
 class  nsIScriptContext;
-class  nsPromptService;
 struct JSContext;
 struct JSObject;
 struct nsWatcherWindowEntry;
@@ -83,8 +82,7 @@ public:
   NS_DECL_NSPIWINDOWWATCHER
   NS_DECL_NSIPROMPTFACTORY
 
-protected:
-  friend class nsPromptService;
+private:
   PRBool AddEnumerator(nsWatcherWindowEnumerator* inEnumerator);
   PRBool RemoveEnumerator(nsWatcherWindowEnumerator* inEnumerator);
 

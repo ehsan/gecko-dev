@@ -70,7 +70,6 @@ nscolor   nsLookAndFeel::sComboBoxText = 0;
 nscolor   nsLookAndFeel::sComboBoxBackground = 0;
 PRUnichar nsLookAndFeel::sInvisibleCharacter = PRUnichar('*');
 float     nsLookAndFeel::sCaretRatio = 0;
-PRBool    nsLookAndFeel::sMenuSupportsDrag = PR_FALSE;
 
 //-------------------------------------------------------------------------
 //
@@ -632,9 +631,6 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
     case eMetric_ImagesInButtons:
         aMetric = moz_gtk_images_in_buttons();
         break;
-    case eMetric_MenuBarDrag:
-        aMetric = sMenuSupportsDrag;
-        break;
     default:
         aMetric = 0;
         res     = NS_ERROR_FAILURE;
@@ -800,13 +796,6 @@ nsLookAndFeel::InitLookAndFeel()
         sMenuBarText = GDK_COLOR_TO_NS_RGB(style->fg[GTK_STATE_NORMAL]);
         sMenuBarHoverText = GDK_COLOR_TO_NS_RGB(style->fg[GTK_STATE_SELECTED]);
     }
-
-    // Some themes have a unified menu bar, and support window dragging on it
-    gboolean supports_menubar_drag = FALSE;
-    gtk_widget_style_get(menuBar,
-                         "window-dragging", &supports_menubar_drag,
-                         NULL);
-    sMenuSupportsDrag = supports_menubar_drag;
 
     // GTK's guide to fancy odd row background colors:
     // 1) Check if a theme explicitly defines an odd row color

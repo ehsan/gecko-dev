@@ -37,22 +37,13 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 
-#if defined(__ARM_EABI__)
-#define TID_PTR_REGISTER "r3"
-#elif defined(__i386)
-#define TID_PTR_REGISTER "ecx"
-#elif defined(__x86_64)
-#define TID_PTR_REGISTER "rcx"
-#else
-#error This test has not been ported to this platform.
-#endif
+#pragma GCC optimize ("O0")
+void *thread_function(void *data) __attribute__((noinline, optimize("O2")));
 
 void *thread_function(void *data) {
-  volatile pid_t thread_id = syscall(SYS_gettid);
-  register volatile pid_t *thread_id_ptr asm(TID_PTR_REGISTER) = &thread_id;
-  while (true)
-    asm volatile ("" : : "r" (thread_id_ptr));
-  return NULL;
+  pid_t thread_id = syscall(SYS_gettid);
+  while (true) ;
+  asm("");
 }
 
 int main(int argc, char *argv[]) {

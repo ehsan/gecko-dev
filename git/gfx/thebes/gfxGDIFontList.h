@@ -204,7 +204,7 @@ public:
         // All other fonts will be grouped correctly using family...
         switch (mWindowsFamily) {
         case FF_DONTCARE:
-            return PR_FALSE;
+            return PR_TRUE;
         case FF_ROMAN:
             return aGeneric.EqualsLiteral("serif");
         case FF_SWISS:
@@ -221,7 +221,7 @@ public:
     }
 
     virtual PRBool SupportsLangGroup(nsIAtom* aLangGroup) const {
-        if (!aLangGroup || aLangGroup == gfxAtoms::x_unicode) {
+        if (!aLangGroup) {
             return PR_TRUE;
         }
 

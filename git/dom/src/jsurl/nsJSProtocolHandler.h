@@ -77,7 +77,7 @@ public:
     nsJSProtocolHandler();
     virtual ~nsJSProtocolHandler();
 
-    static nsresult
+    static NS_METHOD
     Create(nsISupports *aOuter, REFNSIID aIID, void **aResult);
 
     nsresult Init();

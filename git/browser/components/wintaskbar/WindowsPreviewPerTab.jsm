@@ -530,6 +530,16 @@ TabWindow.prototype = {
   },
 
   //// Browser progress listener
+  onLocationChange: function () {
+  },
+  onProgressChange: function () {
+  },
+  onSecurityChange: function () {
+  },
+  onStateChange: function () {
+  },
+  onStatusChange: function () {
+  },
   onLinkIconAvailable: function (aBrowser, aIconURL) {
     let self = this;
     getFaviconAsImage(aIconURL, function (img) {

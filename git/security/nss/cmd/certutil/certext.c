@@ -100,8 +100,8 @@ Gets_s(char *buff, size_t size) {
 static SECStatus
 PrintChoicesAndGetAnswer(char* str, char* rBuff, int rSize)
 {
-    fputs(str, stdout);
-    fputs(" > ", stdout);
+    fprintf(stdout, str);
+    fprintf(stdout, " > ");
     fflush (stdout);
     if (Gets_s(rBuff, rSize) == NULL) {
         PORT_SetError(SEC_ERROR_INPUT_LEN);

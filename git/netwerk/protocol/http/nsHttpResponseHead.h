@@ -149,10 +149,6 @@ private:
     PRPackedBool      mCacheControlNoStore;
     PRPackedBool      mCacheControlNoCache;
     PRPackedBool      mPragmaNoCache;
-
-#ifdef MOZ_IPC
-    friend struct IPC::ParamTraits<nsHttpResponseHead>;
-#endif
 };
 
 #endif // nsHttpResponseHead_h__

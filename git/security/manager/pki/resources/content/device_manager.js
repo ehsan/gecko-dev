@@ -386,7 +386,8 @@ function doLogin()
                        bundle.GetStringFromName("devinfo_stat_notloggedin"));
     }
   } catch (e) {
-    doPrompt(bundle.GetStringFromName("login_failed"));
+    var alertStr = bundle.GetStringFromName("login_failed"); 
+    alert(alertStr);
   }
   enableButtons();
 }
@@ -536,19 +537,12 @@ function toggleFIPS()
       case nsIPKCS11Slot.SLOT_UNINITIALIZED:
       case nsIPKCS11Slot.SLOT_READY:
         // Token has either no or an empty password.
-        doPrompt(bundle.GetStringFromName("fips_nonempty_password_required"));
+        alert(bundle.GetStringFromName("fips_nonempty_password_required"));
         return;
     }
   }
-
-  try {
-    secmoddb.toggleFIPSMode();
-  }
-  catch (e) {
-    doPrompt(bundle.GetStringFromName("unable_to_toggle_FIPS"));
-    return;
-  }
-
+  
+  secmoddb.toggleFIPSMode();
   //Remove the existing listed modules so that re-fresh doesn't 
   //display the module that just changed.
   ClearDeviceList();

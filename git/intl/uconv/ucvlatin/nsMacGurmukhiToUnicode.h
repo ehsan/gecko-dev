@@ -43,7 +43,7 @@
 /**
  * A character set converter from MacGurmukhi to Unicode.
  */
-nsresult
+NS_METHOD
 nsMacGurmukhiToUnicodeConstructor(nsISupports *aOuter, REFNSIID aIID,
                                   void **aResult);
 

@@ -49,6 +49,7 @@ function LOG(str) {
 
 const WCCR_CONTRACTID = "@mozilla.org/embeddor.implemented/web-content-handler-registrar;1";
 const WCCR_CLASSID = Components.ID("{792a7e82-06a0-437c-af63-b2d12e808acc}");
+const WCCR_CLASSNAME = "Web Content Handler Registrar";
 
 const WCC_CLASSID = Components.ID("{db7ebf28-cc40-415f-8a51-1b111851df1e}");
 const WCC_CLASSNAME = "Web Service Handler";
@@ -924,6 +925,8 @@ WebContentConverterRegistrar.prototype = {
   getHelperForLanguage: function WCCR_getHelperForLanguage(language) {
     return null;
   },
+  contractID: WCCR_CONTRACTID,
+  classDescription: WCCR_CLASSNAME,
   classID: WCCR_CLASSID,
   implementationLanguage: Ci.nsIProgrammingLanguage.JAVASCRIPT,
   flags: Ci.nsIClassInfo.DOM_OBJECT,
@@ -945,4 +948,7 @@ WebContentConverterRegistrar.prototype = {
   }]
 };
 
-var NSGetFactory = XPCOMUtils.generateNSGetFactory([WebContentConverterRegistrar]);
+function NSGetModule(cm, file) {
+  return XPCOMUtils.generateModule([WebContentConverterRegistrar]);
+}
+

@@ -298,6 +298,8 @@ void* DynamicImages::GetDyldAllImageInfosPointer()
   if(list.n_value) {
     return reinterpret_cast<void*>(list.n_value);
   }
+
+  return NULL;
 #else
   struct nlist_64 l[8];
   struct nlist_64 &list = l[0];
@@ -311,11 +313,10 @@ void* DynamicImages::GetDyldAllImageInfosPointer()
   if(invalidEntriesCount != 0) {
     return NULL;
   }
-  if (list.n_value) {
-    return reinterpret_cast<void*>(list.n_value);
-  }
+  assert(list.n_value);
+  return reinterpret_cast<void*>(list.n_value);
 #endif
-  return NULL;
+
 }
 //==============================================================================
 // This code was written using dyld_debug.c (from Darwin) as a guide.

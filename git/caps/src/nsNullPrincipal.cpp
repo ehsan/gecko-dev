@@ -53,8 +53,6 @@
 #include "nsDOMError.h"
 #include "nsScriptSecurityManager.h"
 
-NS_IMPL_CLASSINFO(nsNullPrincipal, NULL, nsIClassInfo::MAIN_THREAD_ONLY,
-                  NS_NULLPRINCIPAL_CID)
 NS_IMPL_QUERY_INTERFACE2_CI(nsNullPrincipal,
                             nsIPrincipal,
                             nsISerializable)
@@ -78,7 +76,7 @@ nsNullPrincipal::Release()
   nsrefcnt count = PR_AtomicDecrement((PRInt32 *)&mJSPrincipals.refcount);
   NS_LOG_RELEASE(this, count, "nsNullPrincipal");
   if (count == 0) {
-    delete this;
+    NS_DELETEXPCOM(this);
   }
 
   return count;

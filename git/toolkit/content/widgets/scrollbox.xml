@@ -296,19 +296,15 @@
           if (this._isRTLScrollbox)
             index *= -1;
           while (index < 0 && nextElement) {
-            if (this._canScrollToElement(nextElement))
-              targetElement = nextElement;
+            targetElement = nextElement;
             nextElement = nextElement.previousSibling;
             index++;
           }
           while (index > 0 && nextElement) {
-            if (this._canScrollToElement(nextElement))
-              targetElement = nextElement;
+            targetElement = nextElement;
             nextElement = nextElement.nextSibling;
             index--;
           }
-          if (!targetElement)
-            return;
 
           this.ensureElementIsVisible(targetElement, aSmoothScroll);
         ]]></body>

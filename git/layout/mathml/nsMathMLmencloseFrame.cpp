@@ -753,7 +753,7 @@ public:
 
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsIRenderingContext* aCtx);
-  NS_DISPLAY_DECL_NAME("MathMLMencloseNotation", TYPE_MATHML_MENCLOSE_NOTATION)
+  NS_DISPLAY_DECL_NAME("MathMLMencloseNotation")
 
 private:
   nsRect             mRect;

@@ -146,20 +146,6 @@ GetNativeStackBaseImpl()
 # endif
 }
 
-#elif defined(SOLARIS)
-
-#include <ucontext.h>
-
-JS_STATIC_ASSERT(JS_STACK_GROWTH_DIRECTION < 0);
-
-void *
-GetNativeStackBaseImpl()
-{
-    stack_t st;
-    stack_getbounds(&st);
-    return static_cast<char*>(st.ss_sp) + st.ss_size;
-}
-
 #elif defined(XP_OS2)
 
 void *

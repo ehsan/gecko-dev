@@ -58,6 +58,7 @@
 #include "nsIFrame.h"
 #include "gfxContext.h"
 #include "gfxMatrix.h"
+#include "nsSVGLengthList.h"
 #include "nsIDOMSVGURIReference.h"
 #include "nsImageLoadingContent.h"
 #include "imgIContainer.h"

@@ -78,7 +78,6 @@
 #include "nsIApplicationCacheContainer.h"
 
 #include "nsIMemoryReporter.h"
-#include "nsIPrivateBrowsingService.h"
 
 // we want to explore making the document own the load group
 // so we can associate the document URI with the load group.
@@ -662,7 +661,7 @@ nsresult imgLoader::CreateNewProxyForRequest(imgRequest *aRequest, nsILoadGroup 
   if (aProxyRequest) {
     proxyRequest = static_cast<imgRequestProxy *>(aProxyRequest);
   } else {
-    proxyRequest = new imgRequestProxy();
+    NS_NEWXPCOM(proxyRequest, imgRequestProxy);
     if (!proxyRequest) return NS_ERROR_OUT_OF_MEMORY;
   }
   NS_ADDREF(proxyRequest);
@@ -875,36 +874,19 @@ nsresult imgLoader::Init()
 
   prefs->AddObserver("image.http.accept", this, PR_TRUE);
 
-  // Listen for when we leave private browsing mode
-  nsCOMPtr<nsIObserverService> obService = mozilla::services::GetObserverService();
-  if (obService)
-    obService->AddObserver(this, NS_PRIVATE_BROWSING_SWITCH_TOPIC, PR_TRUE);
-
   return NS_OK;
 }
 
 NS_IMETHODIMP
 imgLoader::Observe(nsISupports* aSubject, const char* aTopic, const PRUnichar* aData)
 {
-  // We listen for pref change notifications...
-  if (!strcmp(aTopic, NS_PREFBRANCH_PREFCHANGE_TOPIC_ID)) {
-    if (!strcmp(NS_ConvertUTF16toUTF8(aData).get(), "image.http.accept")) {
-      nsCOMPtr<nsIPrefBranch> prefs = do_QueryInterface(aSubject);
-      ReadAcceptHeaderPref(prefs);
-    }
-  }
+  NS_ASSERTION(strcmp(aTopic, NS_PREFBRANCH_PREFCHANGE_TOPIC_ID) == 0,
+               "invalid topic received");
 
-  // ...and exits from private browsing.
-  else if (!strcmp(aTopic, NS_PRIVATE_BROWSING_SWITCH_TOPIC)) {
-    if (NS_LITERAL_STRING(NS_PRIVATE_BROWSING_LEAVE).Equals(aData))
-      ClearImageCache();
+  if (strcmp(NS_ConvertUTF16toUTF8(aData).get(), "image.http.accept") == 0) {
+    nsCOMPtr<nsIPrefBranch> prefs = do_QueryInterface(aSubject);
+    ReadAcceptHeaderPref(prefs);
   }
-
-  // (Nothing else should bring us here)
-  else {
-    NS_ABORT_IF_FALSE(0, "Invalid topic received");
-  }
-
   return NS_OK;
 }
 

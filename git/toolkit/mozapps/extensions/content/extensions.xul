@@ -158,7 +158,6 @@
         </hbox>
         <textbox id="header-search" type="search" searchbutton="true"
                  placeholder="&search.placeholder;"/>
-        <image id="header-searching"/>
       </hbox>
 
       <!-- view port -->
@@ -180,11 +179,10 @@
             <vbox>
               <hbox class="search-filter">
                 <label value="&search.filter.label;"/>
-                <checkbox id="search-filter-local"
-                          persist="checked" checked="true"
+                <checkbox id="search-filter-local" checked="true" disabled="true"
                           label="&search.filter.installed.label;"/>
                 <checkbox id="search-filter-remote"
-                          persist="checked" checked="true"
+                          checked="false" disabled="true"
                           label="&search.filter.available.label;"/>
               </hbox>
               <vbox id="search-list-empty" class="empty-list-notice"

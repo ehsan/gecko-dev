@@ -53,10 +53,9 @@ struct encoder_error_mgr {
   jmp_buf setjmp_buffer;
 };
 
-nsJPEGEncoder::nsJPEGEncoder() : mFinished(PR_FALSE),
-                                 mImageBuffer(nsnull), mImageBufferSize(0),
+nsJPEGEncoder::nsJPEGEncoder() : mImageBuffer(nsnull), mImageBufferSize(0),
                                  mImageBufferUsed(0), mImageBufferReadPoint(0),
-                                 mCallback(nsnull),
+                                 mFinished(PR_FALSE), mCallback(nsnull),
                                  mCallbackTarget(nsnull), mNotifyThreshold(0),
                                  mMonitor("JPEG Encoder Monitor")
 {

@@ -156,8 +156,7 @@ nsGfxCheckboxControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     nsDisplayGeneric(this,
                      IsIndeterminate()
                      ? PaintIndeterminateMark : PaintCheckMark,
-                     "CheckedCheckbox",
-                     nsDisplayItem::TYPE_CHECKED_CHECKBOX));
+                     "CheckedCheckbox"));
 }
 
 //------------------------------------------------------------

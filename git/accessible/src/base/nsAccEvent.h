@@ -112,15 +112,14 @@ public:
   PRBool IsFromUserInput() const { return mIsFromUserInput; }
 
   nsAccessible *GetAccessible();
-  nsDocAccessible* GetDocAccessible();
   nsINode* GetNode();
+  nsDocAccessible* GetDocAccessible();
 
   enum EventGroup {
     eGenericEvent,
     eReorderEvent,
     eStateChangeEvent,
     eTextChangeEvent,
-    eHideEvent,
     eCaretMoveEvent,
     eTableChangeEvent
   };
@@ -237,7 +236,7 @@ class nsAccTextChangeEvent: public nsAccEvent,
 {
 public:
   nsAccTextChangeEvent(nsAccessible *aAccessible, PRInt32 aStart,
-                       nsAString& aModifiedText,
+                       PRUint32 aLength, nsAString& aModifiedText,
                        PRBool aIsInserted, PRBool aIsAsynch = PR_FALSE,
                        EIsFromUserInput aIsFromUserInput = eAutoDetect);
 
@@ -253,41 +252,14 @@ public:
 
   // nsAccTextChangeEvent
   PRInt32 GetStartOffset() const { return mStart; }
-  PRUint32 GetLength() const { return mModifiedText.Length(); }
+  PRUint32 GetLength() const { return mLength; }
   PRBool IsTextInserted() const { return mIsInserted; }
 
 private:
   PRInt32 mStart;
+  PRUint32 mLength;
   PRBool mIsInserted;
   nsString mModifiedText;
-
-  friend class nsAccEventQueue;
-};
-
-
-/**
- * Accessible hide events.
- */
-class AccHideEvent : public nsAccEvent
-{
-public:
-  AccHideEvent(nsAccessible* aTarget, nsINode* aTargetNode,
-               PRBool aIsAsynch, EIsFromUserInput aIsFromUserInput);
-
-  // nsAccEvent
-  static const EventGroup kEventGroup = eHideEvent;
-  virtual unsigned int GetEventGroups() const
-  {
-    return nsAccEvent::GetEventGroups() | (1U << eHideEvent);
-  }
-
-protected:
-  nsRefPtr<nsAccessible> mParent;
-  nsRefPtr<nsAccessible> mNextSibling;
-  nsRefPtr<nsAccessible> mPrevSibling;
-  nsRefPtr<nsAccTextChangeEvent> mTextChangeEvent;
-
-  friend class nsAccEventQueue;
 };
 
 

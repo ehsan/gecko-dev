@@ -46,10 +46,6 @@
 #include "nsRuleNode.h"
 #include "nsCSSKeywords.h"
 #include "nsMathUtils.h"
-#include "CSSCalc.h"
-#include "nsCSSStruct.h"
-
-namespace css = mozilla::css;
 
 /* Note on floating point precision: The transform matrix is an array
  * of single precision 'float's, and so are most of the input values
@@ -212,20 +208,12 @@ nsStyleTransformMatrix::operator *(const nsStyleTransformMatrix &aOther) const
 }
 
 /* Helper function to fill in an nscoord with the specified nsCSSValue. */
-static nscoord CalcLength(const nsCSSValue &aValue,
-                          nsStyleContext* aContext,
-                          nsPresContext* aPresContext,
-                          PRBool &aCanStoreInRuleTree)
+static void SetCoordToValue(const nsCSSValue &aValue,
+                            nsStyleContext* aContext,
+                            nsPresContext* aPresContext,
+                            PRBool &aCanStoreInRuleTree, nscoord &aOut)
 {
-  if (aValue.GetUnit() == eCSSUnit_Pixel) {
-    // Handle this here (even though nsRuleNode::CalcLength handles it
-    // fine) so that callers are allowed to pass a null style context
-    // and pres context to SetToTransformFunction if they know (as
-    // nsStyleAnimation does) that all lengths within the transform
-    // function have already been computed to pixels and percents.
-    return nsPresContext::CSSPixelsToAppUnits(aValue.GetFloatValue());
-  }
-  return nsRuleNode::CalcLength(aValue, aContext, aPresContext,
+  aOut = nsRuleNode::CalcLength(aValue, aContext, aPresContext,
                                 aCanStoreInRuleTree);
 }
 
@@ -251,8 +239,8 @@ static void ProcessMatrix(float aMain[4], nscoord aDelta[2],
   if (aData->Item(5).GetUnit() == eCSSUnit_Percent)
     aX[0] = aData->Item(5).GetPercentValue();
   else
-    aDelta[0] = CalcLength(aData->Item(5), aContext, aPresContext,
-                           aCanStoreInRuleTree);
+    SetCoordToValue(aData->Item(5), aContext, aPresContext, aCanStoreInRuleTree,
+                    aDelta[0]);
 
   /* For the final element, if it's a percentage, store it in aY[1].
    * Otherwise, it's a length that needs to go in aDelta[1].
@@ -260,103 +248,8 @@ static void ProcessMatrix(float aMain[4], nscoord aDelta[2],
   if (aData->Item(6).GetUnit() == eCSSUnit_Percent)
     aY[1] = aData->Item(6).GetPercentValue();
   else
-    aDelta[1] = CalcLength(aData->Item(6), aContext, aPresContext,
-                           aCanStoreInRuleTree);
-}
-
-struct LengthPercentPairCalcOps : public css::NumbersAlreadyNormalizedOps
-{
-  struct result_type {
-    nscoord mLength;
-    float mPercent;
-
-    result_type(nscoord aLength, float aPercent)
-      : mLength(aLength), mPercent(aPercent) {}
-  };
-
-  LengthPercentPairCalcOps(nsStyleContext* aContext,
-                           nsPresContext* aPresContext,
-                           PRBool& aCanStoreInRuleTree)
-    : mContext(aContext),
-      mPresContext(aPresContext),
-      mCanStoreInRuleTree(aCanStoreInRuleTree) {}
-
-  nsStyleContext* mContext;
-  nsPresContext* mPresContext;
-  PRBool& mCanStoreInRuleTree;
-
-  result_type ComputeLeafValue(const nsCSSValue& aValue)
-  {
-    if (aValue.GetUnit() == eCSSUnit_Percent) {
-      return result_type(0, aValue.GetPercentValue());
-    } else {
-      return result_type(CalcLength(aValue, mContext, mPresContext,
-                                    mCanStoreInRuleTree),
-                         0.0f);
-    }
-  }
-
-  result_type
-  MergeAdditive(nsCSSUnit aCalcFunction,
-                result_type aValue1, result_type aValue2)
-  {
-    if (aCalcFunction == eCSSUnit_Calc_Plus) {
-      return result_type(NSCoordSaturatingAdd(aValue1.mLength,
-                                              aValue2.mLength),
-                         aValue1.mPercent + aValue2.mPercent);
-    }
-    NS_ABORT_IF_FALSE(aCalcFunction == eCSSUnit_Calc_Minus,
-                      "min() and max() are not allowed in calc() on "
-                      "transform");
-    return result_type(NSCoordSaturatingSubtract(aValue1.mLength,
-                                                 aValue2.mLength, 0),
-                       aValue1.mPercent - aValue2.mPercent);
-  }
-
-  result_type
-  MergeMultiplicativeL(nsCSSUnit aCalcFunction,
-                       float aValue1, result_type aValue2)
-  {
-    NS_ABORT_IF_FALSE(aCalcFunction == eCSSUnit_Calc_Times_L,
-                      "unexpected unit");
-    return result_type(NSCoordSaturatingMultiply(aValue2.mLength, aValue1),
-                       aValue1 * aValue2.mPercent);
-  }
-
-  result_type
-  MergeMultiplicativeR(nsCSSUnit aCalcFunction,
-                       result_type aValue1, float aValue2)
-  {
-    NS_ABORT_IF_FALSE(aCalcFunction == eCSSUnit_Calc_Times_R ||
-                      aCalcFunction == eCSSUnit_Calc_Divided,
-                      "unexpected unit");
-    if (aCalcFunction == eCSSUnit_Calc_Divided) {
-      aValue2 = 1.0f / aValue2;
-    }
-    return result_type(NSCoordSaturatingMultiply(aValue1.mLength, aValue2),
-                       aValue1.mPercent * aValue2);
-  }
-
-};
-
-static void ProcessTranslatePart(nscoord& aOffset, float& aPercent,
-                                 const nsCSSValue& aValue,
-                                 nsStyleContext* aContext,
-                                 nsPresContext* aPresContext,
-                                 PRBool& aCanStoreInRuleTree)
-{
-  if (aValue.GetUnit() == eCSSUnit_Percent) {
-    aPercent = aValue.GetPercentValue();
-  } else if (aValue.IsCalcUnit()) {
-    LengthPercentPairCalcOps ops(aContext, aPresContext, aCanStoreInRuleTree);
-    LengthPercentPairCalcOps::result_type result =
-      css::ComputeCalc(aValue, ops);
-    aPercent = result.mPercent;
-    aOffset = result.mLength;
-  } else {
-    aOffset = CalcLength(aValue, aContext, aPresContext,
-                         aCanStoreInRuleTree);
-  }
+    SetCoordToValue(aData->Item(6), aContext, aPresContext, aCanStoreInRuleTree,
+                    aDelta[1]);
 }
 
 /* Helper function to process a translatex function. */
@@ -379,8 +272,11 @@ static void ProcessTranslateX(nscoord aDelta[2], float aX[2],
    * Otherwise, we might have a percentage, so we want to set the dX component
    * to the percent.
    */
-  ProcessTranslatePart(aDelta[0], aX[0], aData->Item(1),
-                       aContext, aPresContext, aCanStoreInRuleTree);
+  if (aData->Item(1).GetUnit() != eCSSUnit_Percent)
+    SetCoordToValue(aData->Item(1), aContext, aPresContext, aCanStoreInRuleTree,
+                    aDelta[0]);
+  else
+    aX[0] = aData->Item(1).GetPercentValue();
 }
 
 /* Helper function to process a translatey function. */
@@ -403,8 +299,11 @@ static void ProcessTranslateY(nscoord aDelta[2], float aY[2],
    * Otherwise, we might have a percentage, so we want to set the dY component
    * to the percent.
    */
-  ProcessTranslatePart(aDelta[1], aY[1], aData->Item(1),
-                       aContext, aPresContext, aCanStoreInRuleTree);
+  if (aData->Item(1).GetUnit() != eCSSUnit_Percent)
+    SetCoordToValue(aData->Item(1), aContext, aPresContext, aCanStoreInRuleTree,
+                    aDelta[1]);
+  else
+    aY[1] = aData->Item(1).GetPercentValue();
 }
 
 /* Helper function to process a translate function. */
@@ -424,13 +323,20 @@ static void ProcessTranslate(nscoord aDelta[2], float aX[2], float aY[2],
    * the main matrix.
    */
 
-  ProcessTranslatePart(aDelta[0], aX[0], aData->Item(1),
-                       aContext, aPresContext, aCanStoreInRuleTree);
+  const nsCSSValue &dx = aData->Item(1);
+  if (dx.GetUnit() == eCSSUnit_Percent)
+    aX[0] = dx.GetPercentValue();
+  else
+    SetCoordToValue(dx, aContext, aPresContext, aCanStoreInRuleTree, aDelta[0]);
 
   /* If we read in a Y component, set it appropriately */
   if (aData->Count() == 3) {
-    ProcessTranslatePart(aDelta[1], aY[1], aData->Item(2),
-                         aContext, aPresContext, aCanStoreInRuleTree);
+    const nsCSSValue &dy = aData->Item(2);
+    if (dy.GetUnit() == eCSSUnit_Percent)
+      aY[1] = dy.GetPercentValue();
+    else
+      SetCoordToValue(dy, aContext, aPresContext, aCanStoreInRuleTree,
+                      aDelta[1]); 
   }
 }
 
@@ -540,18 +446,6 @@ static void ProcessRotate(float aMain[4], const nsCSSValue::Array* aData)
 }
 
 /**
- * Return the transform function, as an nsCSSKeyword, for the given
- * nsCSSValue::Array from a transform list.
- */
-/* static */ nsCSSKeyword
-nsStyleTransformMatrix::TransformFunctionOf(const nsCSSValue::Array* aData)
-{
-  nsAutoString keyword;
-  aData->Item(0).GetStringValue(keyword);
-  return nsCSSKeywords::LookupKeyword(keyword);
-}
-
-/**
  * SetToTransformFunction is essentially a giant switch statement that fans
  * out to many smaller helper functions.
  */
@@ -562,17 +456,18 @@ nsStyleTransformMatrix::SetToTransformFunction(const nsCSSValue::Array * aData,
                                                PRBool& aCanStoreInRuleTree)
 {
   NS_PRECONDITION(aData, "Why did you want to get data from a null array?");
-  // It's OK if aContext and aPresContext are null if the caller already
-  // knows that all length units have been converted to pixels (as
-  // nsStyleAnimation does).
-
+  NS_PRECONDITION(aContext, "Need a context for unit conversion!");
+  NS_PRECONDITION(aPresContext, "Need a context for unit conversion!");
+  
   /* Reset the matrix to the identity so that each subfunction can just
    * worry about its own components.
    */
   SetToIdentity();
 
   /* Get the keyword for the transform. */
-  switch (TransformFunctionOf(aData)) {
+  nsAutoString keyword;
+  aData->Item(0).GetStringValue(keyword);
+  switch (nsCSSKeywords::LookupKeyword(keyword)) {
   case eCSSKeyword_translatex:
     ProcessTranslateX(mDelta, mX, aData, aContext, aPresContext,
                       aCanStoreInRuleTree);
@@ -613,39 +508,6 @@ nsStyleTransformMatrix::SetToTransformFunction(const nsCSSValue::Array * aData,
   default:
     NS_NOTREACHED("Unknown transform function!");
   }
-}
-
-/* Given a -moz-transform token stream, accumulates them into an
- * nsStyleTransformMatrix
- *
- * @param aList The nsCSSValueList of arrays to read into transform functions.
- * @param aContext The style context to use for unit conversion.
- * @param aPresContext The presentation context to use for unit conversion
- * @param aCanStoreInRuleTree This is set to PR_FALSE if the value cannot be stored in the rule tree.
- * @return An nsStyleTransformMatrix corresponding to the net transform.
- */
-/* static */ nsStyleTransformMatrix
-nsStyleTransformMatrix::ReadTransforms(const nsCSSValueList* aList,
-                                       nsStyleContext* aContext,
-                                       nsPresContext* aPresContext,
-                                       PRBool &aCanStoreInRuleTree)
-{
-  nsStyleTransformMatrix result;
-
-  for (const nsCSSValueList* curr = aList; curr != nsnull; curr = curr->mNext) {
-    const nsCSSValue &currElem = curr->mValue;
-    NS_ASSERTION(currElem.GetUnit() == eCSSUnit_Function,
-                 "Stream should consist solely of functions!");
-    NS_ASSERTION(currElem.GetArrayValue()->Count() >= 1,
-                 "Incoming function is too short!");
-
-    /* Read in a single transform matrix, then accumulate it with the total. */
-    nsStyleTransformMatrix currMatrix;
-    currMatrix.SetToTransformFunction(currElem.GetArrayValue(), aContext,
-                                      aPresContext, aCanStoreInRuleTree);
-    result *= currMatrix;
-  }
-  return result;
 }
 
 /* Does an element-by-element comparison and returns whether or not the

@@ -50,6 +50,8 @@ interface nsIFile;
  * of the preferences themselves.
  *
  * @see nsIPrefBranch
+ * 
+ * @status FROZEN
  */
 
 [scriptable, uuid(decb9cc7-c08f-4ea5-be91-a8fc637ce2d2)]

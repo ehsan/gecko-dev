@@ -47,11 +47,10 @@ Components.utils.import("resource://gre/modules/Services.jsm");
 
 var EXPORTED_SYMBOLS = [ "AddonManager", "AddonManagerPrivate" ];
 
-const CATEGORY_PROVIDER_MODULE = "addon-provider-module";
-
 // A list of providers to load by default
-const DEFAULT_PROVIDERS = [
+const PROVIDERS = [
   "resource://gre/modules/XPIProvider.jsm",
+  "resource://gre/modules/PluginProvider.jsm",
   "resource://gre/modules/LightweightThemeManager.jsm"
 ];
 
@@ -192,36 +191,29 @@ var AddonManagerInternal = {
     }
 
     // Ensure all default providers have had a chance to register themselves
-    DEFAULT_PROVIDERS.forEach(function(url) {
+    PROVIDERS.forEach(function(url) {
       try {
         Components.utils.import(url, {});
       }
       catch (e) {
-        ERROR("Exception loading default provider \"" + url + "\": " + e);
+        ERROR("Exception loading provider \"" + url + "\": " + e);
       }
     });
 
-    // Load any providers registered in the category manager
-    let catman = Cc["@mozilla.org/categorymanager;1"].
-                 getService(Ci.nsICategoryManager);
-    let entries = catman.enumerateCategory(CATEGORY_PROVIDER_MODULE);
-    while (entries.hasMoreElements()) {
-      let entry = entries.getNext().QueryInterface(Ci.nsISupportsCString).data;
-      let url = catman.getCategoryEntry(CATEGORY_PROVIDER_MODULE, entry);
-
-      try {
-        Components.utils.import(url, {});
-      }
-      catch (e) {
-        ERROR("Exception loading provider " + entry + " from category \"" +
-              url + "\": " + e);
-      }
-    }
-
+    let needsRestart = false;
     this.providers.forEach(function(provider) {
-      callProvider(provider, "startup", null, appChanged);
+      callProvider(provider, "startup");
+      if (callProvider(provider, "checkForChanges", false, appChanged))
+        needsRestart = true;
     });
     this.started = true;
+
+    // Flag to the platform that a restart is necessary
+    if (needsRestart) {
+      let appStartup = Cc["@mozilla.org/toolkit/app-startup;1"].
+                       getService(Ci.nsIAppStartup2);
+      appStartup.needsRestart = needsRestart;
+    }
   },
 
   /**

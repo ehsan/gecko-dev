@@ -62,7 +62,11 @@ function test() {
           gBrowser.removeTabsProgressListener(this);
           executeSoon(aSetStateCallback);
         }
-      }
+      },
+      onProgressChange: function () {},
+      onSecurityChange: function () {},
+      onStateChange: function () {},
+      onStatusChange: function () {}
     });
     ss.setBrowserState(JSON.stringify(aState));
   }
@@ -207,7 +211,11 @@ function test() {
           gBrowser.removeTabsProgressListener(this);
           firstLocationChange();
         }
-      }
+      },
+      onProgressChange: function () {},
+      onSecurityChange: function () {},
+      onStateChange: function () {},
+      onStatusChange: function () {}
     });
 
     function firstLocationChange() {

@@ -67,7 +67,7 @@
 #include "nsIDOMHTMLFormElement.h"
 #include "nsILoginManager.h"
 #include "nsIDOMMouseEvent.h"
-#include "mozilla/ModuleUtils.h"
+#include "nsIGenericFactory.h"
 #include "nsToolkitCompsCID.h"
 #include "nsEmbedCID.h"
 #include "nsIDOMNSEditableElement.h"
@@ -1211,24 +1211,18 @@ nsFormFillController::IsEventTrusted(nsIDOMEvent *aEvent)
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsFormFillController)
 
-NS_DEFINE_NAMED_CID(NS_FORMFILLCONTROLLER_CID);
+static const nsModuleComponentInfo components[] =
+{
+  { "HTML Form Fill Controller",
+    NS_FORMFILLCONTROLLER_CID, 
+    "@mozilla.org/satchel/form-fill-controller;1",
+    nsFormFillControllerConstructor },
 
-static const mozilla::Module::CIDEntry kSatchelCIDs[] = {
-  { &kNS_FORMFILLCONTROLLER_CID, false, NULL, nsFormFillControllerConstructor },
-  { NULL }
+  { "HTML Form History AutoComplete",
+    NS_FORMFILLCONTROLLER_CID, 
+    NS_FORMHISTORYAUTOCOMPLETE_CONTRACTID,
+    nsFormFillControllerConstructor },
 };
 
-static const mozilla::Module::ContractIDEntry kSatchelContracts[] = {
-  { "@mozilla.org/satchel/form-fill-controller;1", &kNS_FORMFILLCONTROLLER_CID },
-  { NS_FORMHISTORYAUTOCOMPLETE_CONTRACTID, &kNS_FORMFILLCONTROLLER_CID },
-  { NULL }
-};
-
-static const mozilla::Module kSatchelModule = {
-  mozilla::Module::kVersion,
-  kSatchelCIDs,
-  kSatchelContracts
-};
-
-NSMODULE_DEFN(satchel) = &kSatchelModule;
+NS_IMPL_NSGETMODULE(satchel, components)
 

@@ -45,7 +45,7 @@
 #include "nsIAtom.h"
 #include "nsUnicharUtils.h"
 #include "nsICSSStyleRule.h"
-#include "mozilla/css/Declaration.h"
+#include "nsCSSDeclaration.h"
 #include "nsIHTMLDocument.h"
 #include "nsIDocument.h"
 #include "nsTPtrArray.h"
@@ -55,8 +55,6 @@
 #ifdef MOZ_SVG
 #include "nsISVGValue.h"
 #endif
-
-namespace css = mozilla::css;
 
 #define MISC_STR_PTR(_cont) \
   reinterpret_cast<void*>((_cont)->mStringBits & NS_ATTRVALUE_POINTERVALUE_MASK)
@@ -427,7 +425,7 @@ nsAttrValue::ToString(nsAString& aResult) const
     {
       aResult.Truncate();
       MiscContainer *container = GetMiscContainer();
-      css::Declaration *decl = container->mCSSStyleRule->GetDeclaration();
+      nsCSSDeclaration* decl = container->mCSSStyleRule->GetDeclaration();
       if (decl) {
         decl->ToString(aResult);
       }
@@ -1170,7 +1168,7 @@ nsAttrValue::SetColorValue(nscolor aColor, const nsAString& aString)
 }
 
 PRBool
-nsAttrValue::ParseColor(const nsAString& aString)
+nsAttrValue::ParseColor(const nsAString& aString, nsIDocument* aDocument)
 {
   ResetIfSet();
 

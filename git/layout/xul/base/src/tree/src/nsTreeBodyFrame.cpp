@@ -860,7 +860,6 @@ FindScrollParts(nsIFrame* aCurrFrame, nsTreeBodyFrame::ScrollParts* aResult)
   
   nsIFrame* child = aCurrFrame->GetFirstChild(nsnull);
   while (child &&
-         !child->GetContent()->IsRootOfNativeAnonymousSubtree() &&
          (!aResult->mVScrollbar || !aResult->mHScrollbar ||
           !aResult->mColumnsScrollFrame)) {
     FindScrollParts(child, aResult);
@@ -2823,8 +2822,7 @@ nsTreeBodyFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     return NS_OK;
 
   return aLists.Content()->AppendNewToTop(new (aBuilder)
-      nsDisplayGeneric(this, ::PaintTreeBody, "XULTreeBody",
-                       nsDisplayItem::TYPE_XUL_TREE_BODY));
+      nsDisplayGeneric(this, ::PaintTreeBody, "XULTreeBody"));
 }
 
 void

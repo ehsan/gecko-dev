@@ -41,6 +41,8 @@
 /** 
  * An optional interface for accessing the HTTP or
  * javascript cookie object
+ * 
+ * @status FROZEN
  */
 
 typedef long nsCookieStatus;

@@ -250,10 +250,6 @@ public:
   // nsIScriptGlobalObject
   virtual nsIScriptContext *GetContext();
   virtual JSObject *GetGlobalJSObject();
-  JSObject *FastGetGlobalJSObject()
-  {
-    return mJSObject;
-  }
 
   virtual nsresult EnsureScriptEnvironment(PRUint32 aLangID);
 
@@ -392,13 +388,12 @@ public:
 
   nsIScriptContext *GetScriptContextInternal(PRUint32 aLangID)
   {
-    NS_ASSERTION(aLangID == nsIProgrammingLanguage::JAVASCRIPT,
-                 "We don't support this language ID");
+    NS_ASSERTION(NS_STID_VALID(aLangID), "Invalid language");
     if (mOuterWindow) {
-      return GetOuterWindowInternal()->mContext;
+      return GetOuterWindowInternal()->mScriptContexts[NS_STID_INDEX(aLangID)];
     }
 
-    return mContext;
+    return mScriptContexts[NS_STID_INDEX(aLangID)];
   }
 
   nsGlobalWindow *GetOuterWindowInternal()
@@ -782,6 +777,8 @@ protected:
   nsString                      mStatus;
   nsString                      mDefaultStatus;
   // index 0->language_id 1, so index MAX-1 == language_id MAX
+  nsCOMPtr<nsIScriptContext>    mScriptContexts[NS_STID_ARRAY_UBOUND];
+  void *                        mScriptGlobals[NS_STID_ARRAY_UBOUND];
   nsGlobalWindowObserver*       mObserver;
 
   nsCOMPtr<nsIDOMCrypto>        mCrypto;
@@ -789,7 +786,7 @@ protected:
   nsCOMPtr<nsIDOMStorage>      mLocalStorage;
   nsCOMPtr<nsIDOMStorage>      mSessionStorage;
 
-  nsCOMPtr<nsIXPConnectJSObjectHolder> mInnerWindowHolder;
+  nsCOMPtr<nsISupports>         mInnerWindowHolders[NS_STID_ARRAY_UBOUND];
   nsCOMPtr<nsIPrincipal> mOpenerScriptPrincipal; // strong; used to determine
                                                  // whether to clear scope
 

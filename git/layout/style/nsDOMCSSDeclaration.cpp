@@ -41,9 +41,9 @@
 #include "nsDOMCSSDeclaration.h"
 #include "nsIDOMCSSRule.h"
 #include "nsCSSParser.h"
-#include "mozilla/css/Loader.h"
+#include "nsCSSLoader.h"
 #include "nsIStyleRule.h"
-#include "mozilla/css/Declaration.h"
+#include "nsCSSDeclaration.h"
 #include "nsCSSProps.h"
 #include "nsCOMPtr.h"
 #include "nsIURL.h"
@@ -62,13 +62,18 @@ nsDOMCSSDeclaration::~nsDOMCSSDeclaration()
 DOMCI_DATA(CSSStyleDeclaration, nsDOMCSSDeclaration)
 
 NS_INTERFACE_TABLE_HEAD(nsDOMCSSDeclaration)
-  NS_INTERFACE_TABLE5(nsDOMCSSDeclaration,
-                      nsICSSDeclaration,
-                      nsIDOMCSSStyleDeclaration,
-                      nsIDOMCSS2Properties,
-                      nsIDOMSVGCSS2Properties,
-                      nsIDOMNSCSS2Properties)
-  NS_INTERFACE_TABLE_TO_MAP_SEGUE
+  NS_OFFSET_AND_INTERFACE_TABLE_BEGIN(nsDOMCSSDeclaration)
+    NS_INTERFACE_TABLE_ENTRY(nsDOMCSSDeclaration, nsICSSDeclaration)
+    NS_INTERFACE_TABLE_ENTRY(nsDOMCSSDeclaration, nsIDOMCSSStyleDeclaration)
+    NS_INTERFACE_TABLE_ENTRY(nsDOMCSSDeclaration, nsISupports)
+  NS_OFFSET_AND_INTERFACE_TABLE_END
+  NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
+  NS_INTERFACE_MAP_ENTRY_AGGREGATED(nsIDOMCSS2Properties,
+                                    new CSS2PropertiesTearoff(this))
+  NS_INTERFACE_MAP_ENTRY_AGGREGATED(nsIDOMSVGCSS2Properties,
+                                    new CSS2PropertiesTearoff(this))
+  NS_INTERFACE_MAP_ENTRY_AGGREGATED(nsIDOMNSCSS2Properties,
+                                    new CSS2PropertiesTearoff(this))
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CSSStyleDeclaration)
 NS_INTERFACE_MAP_END
 
@@ -78,8 +83,8 @@ nsDOMCSSDeclaration::GetPropertyValue(const nsCSSProperty aPropID,
 {
   NS_PRECONDITION(aPropID != eCSSProperty_UNKNOWN,
                   "Should never pass eCSSProperty_UNKNOWN around");
-
-  css::Declaration* decl;
+  
+  nsCSSDeclaration *decl;
   nsresult result = GetCSSDeclaration(&decl, PR_FALSE);
 
   aValue.Truncate();
@@ -107,7 +112,7 @@ nsDOMCSSDeclaration::SetPropertyValue(const nsCSSProperty aPropID,
 NS_IMETHODIMP
 nsDOMCSSDeclaration::GetCssText(nsAString& aCssText)
 {
-  css::Declaration* decl;
+  nsCSSDeclaration* decl;
   aCssText.Truncate();
   GetCSSDeclaration(&decl, PR_FALSE);
 
@@ -127,9 +132,9 @@ nsDOMCSSDeclaration::SetCssText(const nsAString& aCssText)
 NS_IMETHODIMP
 nsDOMCSSDeclaration::GetLength(PRUint32* aLength)
 {
-  css::Declaration* decl;
+  nsCSSDeclaration *decl;
   nsresult result = GetCSSDeclaration(&decl, PR_FALSE);
-
+ 
   if (decl) {
     *aLength = decl->Count();
   } else {
@@ -154,7 +159,7 @@ nsDOMCSSDeclaration::GetPropertyCSSValue(const nsAString& aPropertyName,
 NS_IMETHODIMP
 nsDOMCSSDeclaration::Item(PRUint32 aIndex, nsAString& aReturn)
 {
-  css::Declaration* decl;
+  nsCSSDeclaration *decl;
   nsresult result = GetCSSDeclaration(&decl, PR_FALSE);
 
   aReturn.SetLength(0);
@@ -182,7 +187,7 @@ NS_IMETHODIMP
 nsDOMCSSDeclaration::GetPropertyPriority(const nsAString& aPropertyName, 
                                          nsAString& aReturn)
 {
-  css::Declaration* decl;
+  nsCSSDeclaration *decl;
   nsresult result = GetCSSDeclaration(&decl, PR_FALSE);
 
   aReturn.Truncate();
@@ -245,7 +250,7 @@ nsDOMCSSDeclaration::ParsePropertyValue(const nsCSSProperty aPropID,
                                         const nsAString& aPropValue,
                                         PRBool aIsImportant)
 {
-  css::Declaration* decl;
+  nsCSSDeclaration* decl;
   nsresult result = GetCSSDeclaration(&decl, PR_TRUE);
   if (!decl) {
     return result;
@@ -287,7 +292,7 @@ nsDOMCSSDeclaration::ParseDeclaration(const nsAString& aDecl,
                                       PRBool aParseOnlyOneDecl,
                                       PRBool aClearOldDecl)
 {
-  css::Declaration* decl;
+  nsCSSDeclaration* decl;
   nsresult result = GetCSSDeclaration(&decl, PR_TRUE);
   if (!decl) {
     return result;
@@ -331,7 +336,7 @@ nsDOMCSSDeclaration::ParseDeclaration(const nsAString& aDecl,
 nsresult
 nsDOMCSSDeclaration::RemoveProperty(const nsCSSProperty aPropID)
 {
-  css::Declaration* decl;
+  nsCSSDeclaration* decl;
   nsresult rv = GetCSSDeclaration(&decl, PR_FALSE);
   if (!decl) {
     return rv;
@@ -358,6 +363,31 @@ nsDOMCSSDeclaration::RemoveProperty(const nsCSSProperty aPropID)
   return rv;
 }
 
+//////////////////////////////////////////////////////////////////////////////
+
+CSS2PropertiesTearoff::CSS2PropertiesTearoff(nsICSSDeclaration *aOuter)
+  : mOuter(aOuter)
+{
+  NS_ASSERTION(mOuter, "must have outer");
+}
+
+CSS2PropertiesTearoff::~CSS2PropertiesTearoff()
+{
+}
+
+NS_IMPL_CYCLE_COLLECTION_1(CSS2PropertiesTearoff, mOuter)
+
+NS_IMPL_CYCLE_COLLECTING_ADDREF(CSS2PropertiesTearoff)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(CSS2PropertiesTearoff)
+
+NS_INTERFACE_TABLE_HEAD(CSS2PropertiesTearoff)
+  NS_INTERFACE_TABLE_INHERITED3(CSS2PropertiesTearoff,
+                                nsIDOMCSS2Properties,
+                                nsIDOMSVGCSS2Properties,
+                                nsIDOMNSCSS2Properties)
+  NS_INTERFACE_TABLE_TO_MAP_SEGUE_CYCLE_COLLECTION(CSS2PropertiesTearoff)
+NS_INTERFACE_MAP_END_AGGREGATED(mOuter)
+
 // nsIDOMCSS2Properties
 // nsIDOMSVGCSS2Properties
 // nsIDOMNSCSS2Properties
@@ -365,15 +395,15 @@ nsDOMCSSDeclaration::RemoveProperty(const nsCSSProperty aPropID)
 #define CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, type_,   \
                  kwtable_, stylestruct_, stylestructoffset_, animtype_)      \
   NS_IMETHODIMP                                                              \
-  nsDOMCSSDeclaration::Get##method_(nsAString& aValue)                       \
+  CSS2PropertiesTearoff::Get##method_(nsAString& aValue)                     \
   {                                                                          \
-    return GetPropertyValue(eCSSProperty_##id_, aValue);                     \
+    return mOuter->GetPropertyValue(eCSSProperty_##id_, aValue);             \
   }                                                                          \
                                                                              \
   NS_IMETHODIMP                                                              \
-  nsDOMCSSDeclaration::Set##method_(const nsAString& aValue)                 \
+  CSS2PropertiesTearoff::Set##method_(const nsAString& aValue)               \
   {                                                                          \
-    return SetPropertyValue(eCSSProperty_##id_, aValue);                     \
+    return mOuter->SetPropertyValue(eCSSProperty_##id_, aValue);             \
   }
 
 #define CSS_PROP_LIST_EXCLUDE_INTERNAL
@@ -382,12 +412,12 @@ nsDOMCSSDeclaration::RemoveProperty(const nsCSSProperty aPropID)
 #include "nsCSSPropList.h"
 
 // Aliases
-CSS_PROP(X, opacity, MozOpacity, X, X, X, X, X, X, X, X)
-CSS_PROP(X, outline, MozOutline, X, X, X, X, X, X, X, X)
-CSS_PROP(X, outline_color, MozOutlineColor, X, X, X, X, X, X, X, X)
-CSS_PROP(X, outline_style, MozOutlineStyle, X, X, X, X, X, X, X, X)
-CSS_PROP(X, outline_width, MozOutlineWidth, X, X, X, X, X, X, X, X)
-CSS_PROP(X, outline_offset, MozOutlineOffset, X, X, X, X, X, X, X, X)
+CSS_PROP(X, opacity, MozOpacity, 0, X, X, X, X, X, X, X)
+CSS_PROP(X, outline, MozOutline, 0, X, X, X, X, X, X, X)
+CSS_PROP(X, outline_color, MozOutlineColor, 0, X, X, X, X, X, X, X)
+CSS_PROP(X, outline_style, MozOutlineStyle, 0, X, X, X, X, X, X, X)
+CSS_PROP(X, outline_width, MozOutlineWidth, 0, X, X, X, X, X, X, X)
+CSS_PROP(X, outline_offset, MozOutlineOffset, 0, X, X, X, X, X, X, X)
 
 #undef CSS_PROP_SHORTHAND
 #undef CSS_PROP_LIST_EXCLUDE_INTERNAL

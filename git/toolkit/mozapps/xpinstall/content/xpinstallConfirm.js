@@ -66,7 +66,7 @@ XPInstallConfirm.init = function ()
     itemList.appendChild(installItem);
 
     installItem.name = args.installs[i].addon.name;
-    installItem.url = args.installs[i].sourceURI.spec;
+    installItem.url = args.installs[i].sourceURL;
     var icon = args.installs[i].iconURL;
     if (icon)
       installItem.icon = icon;

@@ -39,7 +39,7 @@
 #include "nsISO88596ToUnicode.h"
 #include "nsISO88596IToUnicode.h"
 
-nsresult
+NS_METHOD
 nsISO88596IToUnicodeConstructor(nsISupports *aOuter, REFNSIID aIID,
                                 void **aResult) 
 {

@@ -293,7 +293,7 @@ AddModule(char *moduleName, char *libFile, char *cipherString,
 	char* errtxt=NULL;
 	PRInt32 copied = 0;
 	if (PR_GetErrorTextLength()) {
-	    errtxt = PR_Malloc(PR_GetErrorTextLength() + 1);
+	    errtxt = PR_Malloc(PR_GetErrorTextLength());
 	    copied = PR_GetErrorText(errtxt);
 	}
 	if (copied && errtxt) {

@@ -176,11 +176,6 @@ public:
    */
   already_AddRefed<nsIPresShell> GetPresShell();
 
-  /**
-   * Return presentation shell for the accessible.
-   */
-  nsIWeakReference* GetWeakShell() const { return mWeakShell; }
-
 protected:
     nsPresContext* GetPresContext();
 

@@ -271,6 +271,10 @@ nsHTMLButtonElement::IsHTMLFocusable(PRBool aWithMouse, PRBool *aIsFocusable, PR
     return PR_TRUE;
   }
 
+  if (aTabIndex && (sTabFocusModel & eTabFocus_formElementsMask) == 0) {
+    *aTabIndex = -1;
+  }
+
   *aIsFocusable = 
 #ifdef XP_MACOSX
     !aWithMouse &&

@@ -115,7 +115,7 @@ NS_IMPL_ELEMENT_CLONE_WITH_INIT(nsSVGStopElement)
 //----------------------------------------------------------------------
 // nsIDOMSVGStopElement methods
 
-/* readonly attribute nsIDOMSVGAnimatedNumber offset; */
+/* readonly attribute nsIDOMSVGAnimatedLengthList x; */
 NS_IMETHODIMP nsSVGStopElement::GetOffset(nsIDOMSVGAnimatedNumber * *aOffset)
 {
   return mOffset.ToDOMAnimatedNumber(aOffset,this);

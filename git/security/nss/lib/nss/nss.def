@@ -997,9 +997,3 @@ CERT_DupDistNames;
 ;+    local:
 ;+       *;
 ;+};
-;+NSS_3.12.7 { 	# NSS 3.12.7 release
-;+    global:
-CERT_GetConstrainedCertificateNames;
-;+    local:
-;+       *;
-;+};

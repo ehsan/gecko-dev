@@ -68,7 +68,7 @@
 
 // radio buttons
 #include "nsIDOMHTMLInputElement.h"
-#include "nsHTMLInputElement.h"
+#include "nsIRadioControlElement.h"
 #include "nsIRadioVisitor.h"
 
 #include "nsLayoutUtils.h"
@@ -1081,9 +1081,10 @@ nsHTMLFormElement::AddElement(nsGenericHTMLFormElement* aChild,
   //
   PRInt32 type = aChild->GetType();
   if (type == NS_FORM_INPUT_RADIO) {
-    nsRefPtr<nsHTMLInputElement> radio =
-      static_cast<nsHTMLInputElement*>(aChild);
-    radio->AddedToRadioGroup();
+    nsCOMPtr<nsIRadioControlElement> radio;
+    CallQueryInterface(aChild, getter_AddRefs(radio));
+    nsresult rv = radio->AddedToRadioGroup();
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   //
@@ -1171,9 +1172,10 @@ nsHTMLFormElement::RemoveElement(nsGenericHTMLFormElement* aChild,
   //
   nsresult rv = NS_OK;
   if (aChild->GetType() == NS_FORM_INPUT_RADIO) {
-    nsRefPtr<nsHTMLInputElement> radio =
-      static_cast<nsHTMLInputElement*>(aChild);
-    radio->WillRemoveFromRadioGroup();
+    nsCOMPtr<nsIRadioControlElement> radio;
+    CallQueryInterface(aChild, getter_AddRefs(radio));
+    rv = radio->WillRemoveFromRadioGroup();
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   // Determine whether to remove the child from the elements list

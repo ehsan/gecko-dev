@@ -46,7 +46,7 @@
 #include "nsStyleLinkElement.h"
 
 #include "nsIContent.h"
-#include "mozilla/css/Loader.h"
+#include "nsCSSLoader.h"
 #include "nsCSSStyleSheet.h"
 #include "nsIDocument.h"
 #include "nsIDOMComment.h"

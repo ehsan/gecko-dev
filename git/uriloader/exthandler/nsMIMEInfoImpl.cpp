@@ -383,8 +383,7 @@ nsMIMEInfoBase::InitProcess(nsIFile* aApp, nsresult* aResult)
   if (NS_FAILED(*aResult))
     return nsnull;
 
-  *aResult = process->Init(aApp);
-  if (NS_FAILED(*aResult))
+  if (NS_FAILED(process->Init(aApp)))
     return nsnull;
 
   return process.forget();
