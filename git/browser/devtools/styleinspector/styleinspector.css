@@ -46,7 +46,3 @@
 .ruleview-code {
   direction: ltr;
 }
-
-.ruleview-property:not(:hover) > .ruleview-enableproperty {
-  visibility: hidden;
-}

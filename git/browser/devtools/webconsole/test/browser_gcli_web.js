@@ -54,16 +54,44 @@ var Node = Components.interfaces.nsIDOMNode;
  * http://opensource.org/licenses/BSD-3-Clause
  */
 
-define('gclitest/index', ['require', 'exports', 'module' , 'gclitest/suite'], function(require, exports, module) {
+define('gclitest/index', ['require', 'exports', 'module' , 'gclitest/suite', 'gcli/types/javascript'], function(require, exports, module) {
 
   var examiner = require('gclitest/suite').examiner;
+  var javascript = require('gcli/types/javascript');
 
   /**
-   * A simple proxy to examiner.run, for convenience - this is run from the
-   * top level.
+   * Run the tests defined in the test suite
+   * @param options How the tests are run. Properties include:
+   * - window: The browser window object to run the tests against
+   * - useFakeWindow: Use a test subset and a fake DOM to avoid a real document
+   * - detailedResultLog: console.log test passes and failures in more detail
    */
   exports.run = function(options) {
-    examiner.run(options || {});
+    options = options || {};
+
+    if (options.useFakeWindow) {
+      // A minimum fake dom to get us through the JS tests
+      var doc = { title: 'Fake DOM' };
+      var fakeWindow = {
+        window: { document: doc },
+        document: doc
+      };
+
+      options.window = fakeWindow;
+    }
+
+    if (options.window) {
+      javascript.setGlobalObject(options.window);
+    }
+
+    examiner.run(options);
+
+    if (options.detailedResultLog) {
+      examiner.log();
+    }
+    else {
+      console.log('Completed test suite');
+    }
   };
 });
 /*
@@ -72,7 +100,7 @@ define('gclitest/index', ['require', 'exports', 'module' , 'gclitest/suite'], fu
  * http://opensource.org/licenses/BSD-3-Clause
  */
 
-define('gclitest/suite', ['require', 'exports', 'module' , 'gcli/index', 'test/examiner', 'gclitest/testTokenize', 'gclitest/testSplit', 'gclitest/testCli', 'gclitest/testExec', 'gclitest/testKeyboard', 'gclitest/testScratchpad', 'gclitest/testHistory', 'gclitest/testRequire', 'gclitest/testResource', 'gclitest/testJs', 'gclitest/testUtil'], function(require, exports, module) {
+define('gclitest/suite', ['require', 'exports', 'module' , 'gcli/index', 'test/examiner', 'gclitest/testTokenize', 'gclitest/testSplit', 'gclitest/testCli', 'gclitest/testExec', 'gclitest/testKeyboard', 'gclitest/testScratchpad', 'gclitest/testHistory', 'gclitest/testRequire', 'gclitest/testJs'], function(require, exports, module) {
 
   // We need to make sure GCLI is initialized before we begin testing it
   require('gcli/index');
@@ -90,9 +118,7 @@ define('gclitest/suite', ['require', 'exports', 'module' , 'gcli/index', 'test/e
   examiner.addSuite('gclitest/testScratchpad', require('gclitest/testScratchpad'));
   examiner.addSuite('gclitest/testHistory', require('gclitest/testHistory'));
   examiner.addSuite('gclitest/testRequire', require('gclitest/testRequire'));
-  examiner.addSuite('gclitest/testResource', require('gclitest/testResource'));
   examiner.addSuite('gclitest/testJs', require('gclitest/testJs'));
-  examiner.addSuite('gclitest/testUtil', require('gclitest/testUtil'));
 
   exports.examiner = examiner;
 });
@@ -135,56 +161,20 @@ examiner.addSuite = function(name, suite) {
 };
 
 /**
- * Run the tests defined in the test suite synchronously
- * @param options How the tests are run. Properties include:
- * - window: The browser window object to run the tests against
- * - useFakeWindow: Use a test subset and a fake DOM to avoid a real document
- * - detailedResultLog: console.log test passes and failures in more detail
+ * Run all the tests synchronously
  */
 examiner.run = function(options) {
-  examiner._checkOptions(options);
-
   Object.keys(examiner.suites).forEach(function(suiteName) {
     var suite = examiner.suites[suiteName];
     suite.run(options);
   }.bind(this));
-
-  if (options.detailedResultLog) {
-    examiner.log();
-  }
-  else {
-    console.log('Completed test suite');
-  }
-
   return examiner.suites;
-};
-
-/**
- * Check the options object. There should be either useFakeWindow or a window.
- * Setup the fake window if requested.
- */
-examiner._checkOptions = function(options) {
-  if (options.useFakeWindow) {
-    // A minimum fake dom to get us through the JS tests
-    var doc = { title: 'Fake DOM' };
-    var fakeWindow = {
-      window: { document: doc },
-      document: doc
-    };
-
-    options.window = fakeWindow;
-  }
-
-  if (!options.window) {
-    throw new Error('Tests need either window or useFakeWindow');
-  }
 };
 
 /**
  * Run all the tests asynchronously
  */
 examiner.runAsync = function(options, callback) {
-  examiner._checkOptions(options);
   this.runAsyncInternal(0, options, callback);
 };
 
@@ -296,12 +286,12 @@ Suite.prototype.run = function(options) {
  */
 Suite.prototype.runAsync = function(options, callback) {
   if (typeof this.suite.setup == "function") {
-    this.suite.setup(options);
+    this.suite.setup();
   }
 
   this.runAsyncInternal(0, options, function() {
     if (typeof this.suite.shutdown == "function") {
-      this.suite.shutdown(options);
+      this.suite.shutdown();
     }
 
     if (typeof callback === 'function') {
@@ -387,7 +377,7 @@ Test.prototype.run = function(options) {
  */
 Test.prototype.runAsync = function(options, callback) {
   setTimeout(function() {
-    this.run(options);
+    this.run();
     if (typeof callback === 'function') {
       callback();
     }
@@ -1057,7 +1047,7 @@ function update(input) {
   status = requ.getStatus();
   assignC = requ.getAssignmentAt(input.cursor.start);
   statuses = requ.getInputStatusMarkup(input.cursor.start).map(function(s) {
-    return Array(s.string.length + 1).join(s.status.toString()[0]);
+    return s.toString()[0];
   }).join('');
 
   if (requ.commandAssignment.getValue()) {
@@ -1516,7 +1506,7 @@ var mockDoc = {
  * http://opensource.org/licenses/BSD-3-Clause
  */
 
-define('gclitest/testKeyboard', ['require', 'exports', 'module' , 'gcli/cli', 'gcli/types', 'gcli/canon', 'gclitest/commands', 'gcli/types/node', 'gcli/types/javascript', 'test/assert'], function(require, exports, module) {
+define('gclitest/testKeyboard', ['require', 'exports', 'module' , 'gcli/cli', 'gcli/types', 'gcli/canon', 'gclitest/commands', 'gcli/types/node', 'test/assert'], function(require, exports, module) {
 
 
 var Requisition = require('gcli/cli').Requisition;
@@ -1524,24 +1514,16 @@ var Status = require('gcli/types').Status;
 var canon = require('gcli/canon');
 var commands = require('gclitest/commands');
 var nodetype = require('gcli/types/node');
-var javascript = require('gcli/types/javascript');
 
 var test = require('test/assert');
 
-var tempWindow;
 
-exports.setup = function(options) {
-  tempWindow = javascript.getGlobalObject();
-  javascript.setGlobalObject(options.window);
-
+exports.setup = function() {
   commands.setup();
 };
 
-exports.shutdown = function(options) {
+exports.shutdown = function() {
   commands.shutdown();
-
-  javascript.setGlobalObject(tempWindow);
-  tempWindow = undefined;
 };
 
 var COMPLETES_TO = 'complete';
@@ -1679,15 +1661,15 @@ stubScratchpad.activate = function(value) {
 
 
 exports.testActivate = function(options) {
-  if (!options.inputter) {
-    console.log('No inputter. Skipping scratchpad tests');
-    return;
+  if (options.inputter) {
+    var ev = {};
+    stubScratchpad.activatedCount = 0;
+    options.inputter.onKeyUp(ev);
+    test.is(1, stubScratchpad.activatedCount, 'scratchpad is activated');
   }
-
-  var ev = {};
-  stubScratchpad.activatedCount = 0;
-  options.inputter.onKeyUp(ev);
-  test.is(1, stubScratchpad.activatedCount, 'scratchpad is activated');
+  else {
+    console.log('Skipping scratchpad tests');
+  }
 };
 
 
@@ -1862,86 +1844,6 @@ define('gclitest/requirable', ['require', 'exports', 'module' ], function(requir
  * http://opensource.org/licenses/BSD-3-Clause
  */
 
-define('gclitest/testResource', ['require', 'exports', 'module' , 'gcli/types/resource', 'gcli/types', 'test/assert'], function(require, exports, module) {
-
-
-var resource = require('gcli/types/resource');
-var types = require('gcli/types');
-var Status = require('gcli/types').Status;
-
-var test = require('test/assert');
-
-var tempDocument;
-
-exports.setup = function(options) {
-  tempDocument = resource.getDocument();
-  resource.setDocument(options.window.document);
-};
-
-exports.shutdown = function(options) {
-  resource.setDocument(tempDocument);
-  tempDocument = undefined;
-};
-
-exports.testPredictions = function(options) {
-  if (options.useFakeWindow) {
-    console.log('Skipping resource tests: options.useFakeWindow = true');
-    return;
-  }
-
-  var resource1 = types.getType('resource');
-  var predictions1 = resource1.parseString('').getPredictions();
-  test.ok(predictions1.length > 1, 'have resources');
-  predictions1.forEach(function(prediction) {
-    checkPrediction(resource1, prediction);
-  });
-
-  var resource2 = types.getType({ name: 'resource', include: 'text/javascript' });
-  var predictions2 = resource2.parseString('').getPredictions();
-  test.ok(predictions2.length > 1, 'have resources');
-  predictions2.forEach(function(prediction) {
-    checkPrediction(resource2, prediction);
-  });
-
-  var resource3 = types.getType({ name: 'resource', include: 'text/css' });
-  var predictions3 = resource3.parseString('').getPredictions();
-  // jsdom fails to support digging into stylesheets
-  if (!options.isNode) {
-    test.ok(predictions3.length > 1, 'have resources');
-  }
-  predictions3.forEach(function(prediction) {
-    checkPrediction(resource3, prediction);
-  });
-
-  var resource4 = types.getType({ name: 'resource' });
-  var predictions4 = resource4.parseString('').getPredictions();
-
-  test.is(predictions1.length, predictions4.length, 'type spec');
-  test.is(predictions2.length + predictions3.length, predictions4.length, 'split');
-};
-
-function checkPrediction(res, prediction) {
-  var name = prediction.name;
-  var value = prediction.value;
-
-  var conversion = res.parseString(name);
-  test.is(conversion.getStatus(), Status.VALID, 'status VALID for ' + name);
-  test.is(conversion.value, value, 'value for ' + name);
-
-  var strung = res.stringify(value);
-  test.is(strung, name, 'stringify for ' + name);
-
-  test.is(typeof value.loadContents, 'function', 'resource for ' + name);
-  test.is(typeof value.element, 'object', 'resource for ' + name);
-}
-
-});
-/*
- * Copyright 2009-2011 Mozilla Foundation and contributors
- * Licensed under the New BSD license. See LICENSE.txt or:
- * http://opensource.org/licenses/BSD-3-Clause
- */
-
 define('gclitest/testJs', ['require', 'exports', 'module' , 'gcli/cli', 'gcli/types', 'gcli/types/javascript', 'test/assert'], function(require, exports, module) {
 
 
@@ -1957,14 +1859,11 @@ var requ;
 var assign;
 var status;
 var statuses;
-var tempWindow;
+var globalObject;
 
-
-exports.setup = function(options) {
-  tempWindow = javascript.getGlobalObject();
-  javascript.setGlobalObject(options.window);
-
-  Object.defineProperty(options.window, 'donteval', {
+exports.setup = function() {
+  globalObject = javascript.getGlobalObject();
+  Object.defineProperty(globalObject, 'donteval', {
     get: function() {
       test.ok(false, 'donteval should not be used');
       return { cant: '', touch: '', 'this': '' };
@@ -1974,11 +1873,9 @@ exports.setup = function(options) {
   });
 };
 
-exports.shutdown = function(options) {
-  delete options.window.donteval;
-
-  javascript.setGlobalObject(tempWindow);
-  tempWindow = undefined;
+exports.shutdown = function() {
+  delete globalObject.donteval;
+  globalObject = undefined;
 };
 
 function input(typed) {
@@ -1997,7 +1894,7 @@ function input(typed) {
 
   status = requ.getStatus();
   statuses = requ.getInputStatusMarkup(input.cursor.start).map(function(s) {
-    return Array(s.string.length + 1).join(s.status.toString()[0]);
+    return s.toString()[0];
   }).join('');
 
   if (requ.commandAssignment.getValue()) {
@@ -2051,7 +1948,7 @@ function check(expStatuses, expStatus, expAssign, expPredict) {
   }
 }
 
-exports.testBasic = function(options) {
+exports.testBasic = function() {
   input('{');
   check('V', Status.ERROR, '');
 
@@ -2079,7 +1976,7 @@ exports.testBasic = function(options) {
   input('{ document.title');
   check('VVVVVVVVVVVVVVVV', Status.VALID, 'document.title', 0);
 
-  test.ok('donteval' in options.window, 'donteval exists');
+  test.ok('donteval' in globalObject, 'donteval exists');
 
   input('{ don');
   check('VVIII', Status.ERROR, 'don', 'donteval');
@@ -2105,35 +2002,6 @@ exports.testBasic = function(options) {
 
 
 });
-/*
- * Copyright 2009-2011 Mozilla Foundation and contributors
- * Licensed under the New BSD license. See LICENSE.txt or:
- * http://opensource.org/licenses/BSD-3-Clause
- */
-
-define('gclitest/testUtil', ['require', 'exports', 'module' , 'gcli/util', 'test/assert'], function(require, exports, module) {
-
-var util = require('gcli/util');
-var test = require('test/assert');
-
-exports.testFindCssSelector = function(options) {
-  if (options.useFakeWindow) {
-    console.log('Skipping dom.findCssSelector tests due to useFakeWindow');
-    return;
-  }
-
-  var nodes = options.window.document.querySelectorAll('*');
-  for (var i = 0; i < nodes.length; i++) {
-    var selector = util.dom.findCssSelector(nodes[i]);
-    var matches = options.window.document.querySelectorAll(selector);
-
-    test.is(matches.length, 1, 'multiple matches for ' + selector);
-    test.is(matches[0], nodes[i], 'non-matching selector: ' + selector);
-  }
-};
-
-
-});
 
 function undefine() {
   delete define.modules['gclitest/index'];
@@ -2150,9 +2018,7 @@ function undefine() {
   delete define.modules['gclitest/testHistory'];
   delete define.modules['gclitest/testRequire'];
   delete define.modules['gclitest/requirable'];
-  delete define.modules['gclitest/testResource'];
   delete define.modules['gclitest/testJs'];
-  delete define.modules['gclitest/testUtil'];
 
   delete define.globalDomain.modules['gclitest/index'];
   delete define.globalDomain.modules['gclitest/suite'];
@@ -2168,9 +2034,7 @@ function undefine() {
   delete define.globalDomain.modules['gclitest/testHistory'];
   delete define.globalDomain.modules['gclitest/testRequire'];
   delete define.globalDomain.modules['gclitest/requirable'];
-  delete define.globalDomain.modules['gclitest/testResource'];
   delete define.globalDomain.modules['gclitest/testJs'];
-  delete define.globalDomain.modules['gclitest/testUtil'];
 }
 
 registerCleanupFunction(function() {
