@@ -141,7 +141,7 @@ printf( "\n\n\nnsSound::PlaySystemSound aSoundAlias=%s\n\n",
 
 NS_IMETHODIMP nsSound::PlayEventSound(PRUint32 aEventId)
 {
-  if (aEventId != EVENT_NEW_MAIL_RECEIVED) {
+  if (aEventId != EVENT_NEW_MAIL_RECIEVED) {
     return NS_OK;
   }
 
