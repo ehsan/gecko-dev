@@ -199,8 +199,7 @@ function OptionsView() {
   dumpn("OptionsView was instantiated");
   this._togglePauseOnExceptions = this._togglePauseOnExceptions.bind(this);
   this._toggleShowPanesOnStartup = this._toggleShowPanesOnStartup.bind(this);
-  this._toggleShowVariablesNonEnum = this._toggleShowVariablesNonEnum.bind(this);
-  this._toggleShowVariablesSearchbox = this._toggleShowVariablesSearchbox.bind(this);
+  this._toggleShowNonEnum = this._toggleShowNonEnum.bind(this);
 }
 
 OptionsView.prototype = {
@@ -212,13 +211,11 @@ OptionsView.prototype = {
     this._button = document.getElementById("debugger-options");
     this._pauseOnExceptionsItem = document.getElementById("pause-on-exceptions");
     this._showPanesOnStartupItem = document.getElementById("show-panes-on-startup");
-    this._showVariablesNonEnumItem = document.getElementById("show-vars-nonenum");
-    this._showVariablesSearchboxItem = document.getElementById("show-vars-searchbox");
+    this._showNonEnumItem = document.getElementById("show-nonenum");
 
     this._pauseOnExceptionsItem.setAttribute("checked", "false");
     this._showPanesOnStartupItem.setAttribute("checked", Prefs.panesVisibleOnStartup);
-    this._showVariablesNonEnumItem.setAttribute("checked", Prefs.variablesNonEnumVisible);
-    this._showVariablesSearchboxItem.setAttribute("checked", Prefs.variablesSearchboxVisible);
+    this._showNonEnumItem.setAttribute("checked", Prefs.nonEnumVisible);
   },
 
   /**
@@ -262,24 +259,15 @@ OptionsView.prototype = {
   /**
    * Listener handling the 'show non-enumerables' menuitem command.
    */
-  _toggleShowVariablesNonEnum: function DVO__toggleShowVariablesNonEnum() {
-    DebuggerView.Variables.nonEnumVisible = Prefs.variablesNonEnumVisible =
-      this._showVariablesNonEnumItem.getAttribute("checked") == "true";
-  },
-
-  /**
-   * Listener handling the 'show variables searchbox' menuitem command.
-   */
-  _toggleShowVariablesSearchbox: function DVO__toggleShowVariablesSearchbox() {
-    DebuggerView.Variables.searchEnabled = Prefs.variablesSearchboxVisible =
-      this._showVariablesSearchboxItem.getAttribute("checked") == "true";
+  _toggleShowNonEnum: function DVO__toggleShowNonEnum() {
+    DebuggerView.Variables.nonEnumVisible = Prefs.nonEnumVisible =
+      this._showNonEnumItem.getAttribute("checked") == "true";
   },
 
   _button: null,
   _pauseOnExceptionsItem: null,
   _showPanesOnStartupItem: null,
-  _showVariablesNonEnumItem: null,
-  _showVariablesSearchboxItem: null
+  _showNonEnumItem: null
 };
 
 /**
@@ -574,14 +562,11 @@ FilterView.prototype = {
     this._tokenOperatorLabel = document.getElementById("token-operator-label");
     this._lineOperatorButton = document.getElementById("line-operator-button");
     this._lineOperatorLabel = document.getElementById("line-operator-label");
-    this._variableOperatorButton = document.getElementById("variable-operator-button");
-    this._variableOperatorLabel = document.getElementById("variable-operator-label");
 
     this._globalSearchKey = LayoutHelpers.prettyKey(document.getElementById("globalSearchKey"));
     this._fileSearchKey = LayoutHelpers.prettyKey(document.getElementById("fileSearchKey"));
     this._lineSearchKey = LayoutHelpers.prettyKey(document.getElementById("lineSearchKey"));
     this._tokenSearchKey = LayoutHelpers.prettyKey(document.getElementById("tokenSearchKey"));
-    this._variableSearchKey = LayoutHelpers.prettyKey(document.getElementById("variableSearchKey"));
 
     this._searchbox.addEventListener("click", this._onClick, false);
     this._searchbox.addEventListener("select", this._onSearch, false);
@@ -592,7 +577,6 @@ FilterView.prototype = {
     this._globalOperatorButton.setAttribute("label", SEARCH_GLOBAL_FLAG);
     this._tokenOperatorButton.setAttribute("label", SEARCH_TOKEN_FLAG);
     this._lineOperatorButton.setAttribute("label", SEARCH_LINE_FLAG);
-    this._variableOperatorButton.setAttribute("label", SEARCH_VARIABLE_FLAG);
 
     this._globalOperatorLabel.setAttribute("value",
       L10N.getFormatStr("searchPanelGlobal", [this._globalSearchKey]));
@@ -600,8 +584,6 @@ FilterView.prototype = {
       L10N.getFormatStr("searchPanelToken", [this._tokenSearchKey]));
     this._lineOperatorLabel.setAttribute("value",
       L10N.getFormatStr("searchPanelLine", [this._lineSearchKey]));
-    this._variableOperatorLabel.setAttribute("value",
-      L10N.getFormatStr("searchPanelVariable", [this._variableSearchKey]));
 
     // TODO: bug 806775
     // if (window._isChromeDebugger) {
@@ -646,17 +628,16 @@ FilterView.prototype = {
    * @return array
    */
   get searchboxInfo() {
-    let file, line, token, isGlobal, isVariable;
+    let file, line, token, global;
 
     let rawValue = this._searchbox.value;
     let rawLength = rawValue.length;
     let globalFlagIndex = rawValue.indexOf(SEARCH_GLOBAL_FLAG);
-    let variableFlagIndex = rawValue.indexOf(SEARCH_VARIABLE_FLAG);
     let lineFlagIndex = rawValue.lastIndexOf(SEARCH_LINE_FLAG);
     let tokenFlagIndex = rawValue.lastIndexOf(SEARCH_TOKEN_FLAG);
 
-    // This is not a global or variable search, allow file or line flags.
-    if (globalFlagIndex != 0 && variableFlagIndex != 0) {
+    // This is not a global search, allow file or line flags.
+    if (globalFlagIndex != 0) {
       let fileEnd = lineFlagIndex != -1
         ? lineFlagIndex
         : tokenFlagIndex != -1 ? tokenFlagIndex : rawLength;
@@ -668,27 +649,17 @@ FilterView.prototype = {
       file = rawValue.slice(0, fileEnd);
       line = ~~(rawValue.slice(fileEnd + 1, lineEnd)) || -1;
       token = rawValue.slice(lineEnd + 1);
-      isGlobal = false;
-      isVariable = false;
+      global = false;
     }
     // Global searches dissalow the use of file or line flags.
-    else if (globalFlagIndex == 0) {
+    else {
       file = "";
       line = -1;
       token = rawValue.slice(1);
-      isGlobal = true;
-      isVariable = false;
-    }
-    // Variable searches dissalow the use of file or line flags.
-    else if (variableFlagIndex == 0) {
-      file = "";
-      line = -1;
-      token = rawValue.slice(1);
-      isGlobal = false;
-      isVariable = true;
+      global = true;
     }
 
-    return [file, line, token, isGlobal, isVariable];
+    return [file, line, token, global];
   },
 
   /**
@@ -816,33 +787,25 @@ FilterView.prototype = {
    */
   _onSearch: function DVF__onScriptsSearch() {
     this._searchboxPanel.hidePopup();
-    let [file, line, token, isGlobal, isVariable] = this.searchboxInfo;
+    let [file, line, token, global] = this.searchboxInfo;
 
     // If this is a global search, schedule it for when the user stops typing,
     // or hide the corresponding pane otherwise.
-    if (isGlobal) {
+    if (global) {
       DebuggerView.GlobalSearch.scheduleSearch();
-      return;
+    } else {
+      DebuggerView.GlobalSearch.clearView();
+      this._performFileSearch(file);
+      this._performLineSearch(line);
+      this._performTokenSearch(token);
     }
-
-    // If this is a variable search, defer the action to the corresponding
-    // variables view instance.
-    if (isVariable) {
-      DebuggerView.Variables.performSearch(token);
-      return;
-    }
-
-    DebuggerView.GlobalSearch.clearView();
-    this._performFileSearch(file);
-    this._performLineSearch(line);
-    this._performTokenSearch(token);
   },
 
   /**
    * The key press listener for the search container.
    */
   _onKeyPress: function DVF__onScriptsKeyPress(e) {
-    let [file, line, token, isGlobal, isVariable] = this.searchboxInfo;
+    let [file, line, token, global] = this.searchboxInfo;
     let action;
 
     switch (e.keyCode) {
@@ -872,26 +835,18 @@ FilterView.prototype = {
     e.preventDefault();
     e.stopPropagation();
 
-    // Perform a global search based on the specified operator.
-    if (isGlobal) {
+    if (global) {
       if (DebuggerView.GlobalSearch.hidden) {
         DebuggerView.GlobalSearch.scheduleSearch();
       } else {
         DebuggerView.GlobalSearch[["focusNextMatch", "focusPrevMatch"][action]]();
       }
-      return;
-    }
-
-    // Perform a variable search based on the specified operator.
-    if (isVariable) {
-      DebuggerView.Variables.expandFirstSearchResults();
-      return;
-    }
-
-    let editor = DebuggerView.editor;
-    let offset = editor[["findNext", "findPrevious"][action]](true);
-    if (offset > -1) {
-      editor.setSelection(offset, offset + token.length)
+    } else {
+      let editor = DebuggerView.editor;
+      let offset = editor[["findNext", "findPrevious"][action]](true);
+      if (offset > -1) {
+        editor.setSelection(offset, offset + token.length)
+      }
     }
   },
 
@@ -900,7 +855,6 @@ FilterView.prototype = {
    */
   _onBlur: function DVF__onBlur() {
     DebuggerView.GlobalSearch.clearView();
-    DebuggerView.Variables.performSearch(null);
     this._searchboxPanel.hidePopup();
   },
 
@@ -945,14 +899,6 @@ FilterView.prototype = {
    */
   _doGlobalSearch: function DVF__doGlobalSearch() {
     this._doSearch(SEARCH_GLOBAL_FLAG);
-    this._searchboxPanel.hidePopup();
-  },
-
-  /**
-   * Called when the variable search filter key sequence was pressed.
-   */
-  _doVariableSearch: function DVF__doVariableSearch() {
-    this._doSearch(SEARCH_VARIABLE_FLAG);
     this._searchboxPanel.hidePopup();
   },
 

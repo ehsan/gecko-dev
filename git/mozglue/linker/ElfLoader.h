@@ -286,6 +286,7 @@ protected:
   const char *lastError;
 
 private:
+  ElfLoader() { InitDebugger(); }
   ~ElfLoader();
 
   /* Bookkeeping */
@@ -367,7 +368,7 @@ private:
   ZipCollection zips;
 
   /* Forward declaration, see further below */
-  class DebuggerHelper;
+  class r_debug;
 public:
   /* Loaded object descriptor for the debugger interface below*/
   struct link_map {
@@ -379,7 +380,7 @@ public:
     const void *l_ld;
 
   private:
-    friend class ElfLoader::DebuggerHelper;
+    friend class ElfLoader::r_debug;
     /* Double linked list of loaded objects. */
     link_map *l_next, *l_prev;
   };
@@ -387,40 +388,9 @@ public:
 private:
   /* Data structure used by the linker to give details about shared objects it
    * loaded to debuggers. This is normally defined in link.h, but Android
-   * headers lack this file. */
-  struct r_debug {
-    /* Version number of the protocol. */
-    int r_version;
-
-    /* Head of the linked list of loaded objects. */
-    link_map *r_map;
-
-    /* Function to be called when updates to the linked list of loaded objects
-     * are going to occur. The function is to be called before and after
-     * changes. */
-    void (*r_brk)(void);
-
-    /* Indicates to the debugger what state the linked list of loaded objects
-     * is in when the function above is called. */
-    enum {
-      RT_CONSISTENT, /* Changes are complete */
-      RT_ADD,        /* Beginning to add a new object */
-      RT_DELETE      /* Beginning to remove an object */
-    } r_state;
-  };
-
-  /* Helper class used to integrate libraries loaded by this linker in
-   * r_debug */
-  class DebuggerHelper
-  {
+   * headers lack this file. This also gives the opportunity to make it C++. */
+  class r_debug {
   public:
-    DebuggerHelper();
-
-    operator bool()
-    {
-      return dbg;
-    }
-
     /* Make the debugger aware of a new loaded object */
     void Add(link_map *map);
 
@@ -446,10 +416,10 @@ private:
       {
         if (other.item == NULL)
           return item ? true : false;
-        MOZ_NOT_REACHED("DebuggerHelper::iterator::operator< called with something else than DebuggerHelper::end()");
+        MOZ_NOT_REACHED("r_debug::iterator::operator< called with something else than r_debug::end()");
       }
     protected:
-      friend class DebuggerHelper;
+      friend class r_debug;
       iterator(const link_map *item): item(item) { }
 
     private:
@@ -458,7 +428,7 @@ private:
 
     iterator begin() const
     {
-      return iterator(dbg ? dbg->r_map : NULL);
+      return iterator(r_map);
     }
 
     iterator end() const
@@ -467,11 +437,32 @@ private:
     }
 
   private:
-    r_debug *dbg;
-    link_map *firstAdded;
+    /* Version number of the protocol. */
+    int r_version;
+
+    /* Head of the linked list of loaded objects. */
+    struct link_map *r_map;
+
+    /* Function to be called when updates to the linked list of loaded objects
+     * are going to occur. The function is to be called before and after
+     * changes. */
+    void (*r_brk)(void);
+
+    /* Indicates to the debugger what state the linked list of loaded objects
+     * is in when the function above is called. */
+    enum {
+      RT_CONSISTENT, /* Changes are complete */
+      RT_ADD,        /* Beginning to add a new object */
+      RT_DELETE      /* Beginning to remove an object */
+    } r_state;
   };
   friend int __wrap_dl_iterate_phdr(dl_phdr_cb callback, void *data);
-  DebuggerHelper dbg;
+  r_debug *dbg;
+
+  /**
+   * Initializes the pointer to the debugger data structure.
+   */
+  void InitDebugger();
 };
 
 #endif /* ElfLoader_h */

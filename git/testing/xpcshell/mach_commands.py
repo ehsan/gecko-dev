@@ -10,12 +10,9 @@ import os
 
 from StringIO import StringIO
 
-from mozbuild.base import (
-    MachCommandBase,
-    MozbuildObject,
-)
+from mozbuild.base import MozbuildObject
 
-from mach.decorators import (
+from mach.base import (
     CommandArgument,
     CommandProvider,
     Command,
@@ -114,7 +111,7 @@ class XPCShellRunner(MozbuildObject):
 
 
 @CommandProvider
-class MachCommands(MachCommandBase):
+class MachCommands(MozbuildObject):
     @Command('xpcshell-test', help='Run an xpcshell test.')
     @CommandArgument('test_file', default='all', nargs='?', metavar='TEST',
         help='Test to run. Can be specified as a single JS file, a directory, '

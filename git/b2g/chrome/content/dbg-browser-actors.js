@@ -137,7 +137,8 @@ DeviceTabActor.prototype._pushContext = function DTA_pushContext() {
   this._contextPool = new ActorPool(this.conn);
   this.conn.addActorPool(this._contextPool);
 
-  this.threadActor = new ThreadActor(this, this.browser.wrappedJSObject);
+  this.threadActor = new ThreadActor(this);
+  this._addDebuggees(this.browser.wrappedJSObject);
   this._contextPool.addActor(this.threadActor);
 };
 
