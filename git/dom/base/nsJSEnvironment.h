@@ -109,13 +109,13 @@ public:
                                        PRUint32 aVersion,
                                        nsScriptObjectHolder &aHandler);
   virtual nsresult CallEventHandler(nsISupports* aTarget, JSObject* aScope,
-                                    JSObject* aHandler,
+                                    void* aHandler,
                                     nsIArray *argv, nsIVariant **rv);
   virtual nsresult BindCompiledEventHandler(nsISupports *aTarget,
                                             JSObject *aScope,
-                                            JSObject* aHandler,
+                                            void *aHandler,
                                             nsScriptObjectHolder& aBoundHandler);
-  virtual nsresult CompileFunction(JSObject* aTarget,
+  virtual nsresult CompileFunction(void* aTarget,
                                    const nsACString& aName,
                                    PRUint32 aArgCount,
                                    const char** aArgArray,
@@ -124,7 +124,7 @@ public:
                                    PRUint32 aLineNo,
                                    PRUint32 aVersion,
                                    bool aShared,
-                                   JSObject** aFunctionObject);
+                                   void** aFunctionObject);
 
   virtual void SetDefaultLanguageVersion(PRUint32 aVersion);
   virtual nsIScriptGlobalObject *GetGlobalObject();
@@ -134,14 +134,14 @@ public:
                                       nsIScriptGlobalObject *aGlobal,
                                       bool aIsChrome,
                                       nsIPrincipal *aPrincipal,
-                                      JSObject** aNativeGlobal,
+                                      void **aNativeGlobal,
                                       nsISupports **aHolder);
   virtual nsresult ConnectToInner(nsIScriptGlobalObject *aNewInner,
-                                  JSObject *aOuterGlobal);
+                                  void *aOuterGlobal);
   virtual nsresult InitContext();
   virtual nsresult CreateOuterObject(nsIScriptGlobalObject *aGlobalObject,
                                      nsIScriptGlobalObject *aCurrentInner);
-  virtual nsresult SetOuterObject(JSObject* aOuterObject);
+  virtual nsresult SetOuterObject(void *aOuterObject);
   virtual nsresult InitOuterWindow();
   virtual bool IsContextInitialized();
   virtual void FinalizeContext();
@@ -161,7 +161,7 @@ public:
 
   virtual void SetGCOnDestruction(bool aGCOnDestruction);
 
-  virtual nsresult InitClasses(JSObject* aGlobalObj);
+  virtual nsresult InitClasses(void *aGlobalObj);
   virtual void ClearScope(void* aGlobalObj, bool bClearPolluters);
 
   virtual void WillInitializeContext();

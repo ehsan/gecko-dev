@@ -230,18 +230,18 @@ DOMSVGPathSegList::InternalListWillChangeTo(const SVGPathData& aNewValue)
 bool
 DOMSVGPathSegList::AttrIsAnimating() const
 {
-  return InternalAList().IsAnimating();
+  return const_cast<DOMSVGPathSegList*>(this)->InternalAList().IsAnimating();
 }
 
 SVGPathData&
-DOMSVGPathSegList::InternalList() const
+DOMSVGPathSegList::InternalList()
 {
   SVGAnimatedPathSegList *alist = mElement->GetAnimPathSegList();
   return mIsAnimValList && alist->IsAnimating() ? *alist->mAnimVal : alist->mBaseVal;
 }
 
 SVGAnimatedPathSegList&
-DOMSVGPathSegList::InternalAList() const
+DOMSVGPathSegList::InternalAList()
 {
   NS_ABORT_IF_FALSE(mElement->GetAnimPathSegList(), "Internal error");
   return *mElement->GetAnimPathSegList();

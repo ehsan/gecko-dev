@@ -197,12 +197,12 @@ XPCJSStackFrame::CreateStackFrameLocation(PRUint32 aLanguage,
                                           nsIStackFrame* aCaller,
                                           XPCJSStackFrame** stack)
 {
-    JSBool failed = false;
+    JSBool failed = JS_FALSE;
     XPCJSStackFrame* self = new XPCJSStackFrame();
     if (self)
         NS_ADDREF(self);
     else
-        failed = true;
+        failed = JS_TRUE;
 
     if (!failed) {
         self->mLanguage = aLanguage;
@@ -214,7 +214,7 @@ XPCJSStackFrame::CreateStackFrameLocation(PRUint32 aLanguage,
                 nsMemory::Clone(aFilename,
                                 sizeof(char)*(strlen(aFilename)+1));
         if (!self->mFilename)
-            failed = true;
+            failed = JS_TRUE;
     }
 
     if (!failed && aFunctionName) {
@@ -222,7 +222,7 @@ XPCJSStackFrame::CreateStackFrameLocation(PRUint32 aLanguage,
                 nsMemory::Clone(aFunctionName,
                                 sizeof(char)*(strlen(aFunctionName)+1));
         if (!self->mFunname)
-            failed = true;
+            failed = JS_TRUE;
     }
 
     if (!failed && aCaller) {

@@ -274,7 +274,7 @@ NS_METHOD GetSharedScriptableHelperForJSIID(PRUint32 language,
 
 /******************************************************/
 
-static JSBool gClassObjectsWereInited = false;
+static JSBool gClassObjectsWereInited = JS_FALSE;
 
 #define NULL_CID                                                              \
 { 0x00000000, 0x0000, 0x0000,                                                 \
@@ -293,7 +293,7 @@ void xpc_InitJSxIDClassObjects()
         gSharedScriptableHelperForJSIID = new SharedScriptableHelperForJSIID();
         NS_ADDREF(gSharedScriptableHelperForJSIID);
     }
-    gClassObjectsWereInited = true;
+    gClassObjectsWereInited = JS_TRUE;
 }
 
 void xpc_DestroyJSxIDClassObjects()
@@ -302,7 +302,7 @@ void xpc_DestroyJSxIDClassObjects()
     NS_IF_RELEASE(NS_CLASSINFO_NAME(nsJSCID));
     NS_IF_RELEASE(gSharedScriptableHelperForJSIID);
 
-    gClassObjectsWereInited = false;
+    gClassObjectsWereInited = JS_FALSE;
 }
 
 /***************************************************************************/
@@ -481,7 +481,7 @@ nsJSIID::HasInstance(nsIXPConnectWrappedNative *wrapper,
                      JSContext * cx, JSObject * obj,
                      const jsval &val, bool *bp, bool *_retval)
 {
-    *bp = false;
+    *bp = JS_FALSE;
     nsresult rv = NS_OK;
 
     if (!JSVAL_IS_PRIMITIVE(val)) {
@@ -497,7 +497,7 @@ nsJSIID::HasInstance(nsIXPConnectWrappedNative *wrapper,
         if (IS_SLIM_WRAPPER(obj)) {
             XPCWrappedNativeProto* proto = GetSlimWrapperProto(obj);
             if (proto->GetSet()->HasInterfaceWithAncestor(iid)) {
-                *bp = true;
+                *bp = JS_TRUE;
                 return NS_OK;
             }
 
@@ -535,7 +535,7 @@ nsJSIID::HasInstance(nsIXPConnectWrappedNative *wrapper,
         // to be an interface that the objects *expects* to be able to
         // handle.
         if (other_wrapper->HasInterfaceNoQI(*iid)) {
-            *bp = true;
+            *bp = JS_TRUE;
             return NS_OK;
         }
 
@@ -546,8 +546,8 @@ nsJSIID::HasInstance(nsIXPConnectWrappedNative *wrapper,
         iface = XPCNativeInterface::GetNewOrUsed(ccx, iid);
 
         nsresult findResult = NS_OK;
-        if (iface && other_wrapper->FindTearOff(ccx, iface, false, &findResult))
-            *bp = true;
+        if (iface && other_wrapper->FindTearOff(ccx, iface, JS_FALSE, &findResult))
+            *bp = JS_TRUE;
         if (NS_FAILED(findResult) && findResult != NS_ERROR_NO_INTERFACE)
             rv = findResult;
     }
@@ -760,7 +760,7 @@ nsJSCID::CreateInstance(nsISupports **_retval)
     rv = xpc->WrapNativeToJSVal(cx, obj, inst, nsnull, iid, true, vp, nsnull);
     if (NS_FAILED(rv) || JSVAL_IS_PRIMITIVE(*vp))
         return NS_ERROR_XPC_CANT_CREATE_WN;
-    ccxp->SetReturnValueWasSet(true);
+    ccxp->SetReturnValueWasSet(JS_TRUE);
     return NS_OK;
 }
 
@@ -830,7 +830,7 @@ nsJSCID::GetService(nsISupports **_retval)
         return NS_ERROR_XPC_CANT_CREATE_WN;
 
     *vp = OBJECT_TO_JSVAL(instJSObj);
-    ccxp->SetReturnValueWasSet(true);
+    ccxp->SetReturnValueWasSet(JS_TRUE);
     return NS_OK;
 }
 
@@ -860,7 +860,7 @@ nsJSCID::HasInstance(nsIXPConnectWrappedNative *wrapper,
                      JSContext * cx, JSObject * obj,
                      const jsval &val, bool *bp, bool *_retval)
 {
-    *bp = false;
+    *bp = JS_FALSE;
     nsresult rv = NS_OK;
 
     if (!JSVAL_IS_PRIMITIVE(val)) {

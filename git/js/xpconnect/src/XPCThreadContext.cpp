@@ -178,8 +178,8 @@ XPCJSContextStack::DEBUG_StackHasJSContext(JSContext*  aJSContext)
 {
     for (PRUint32 i = 0; i < mStack.Length(); i++)
         if (aJSContext == mStack[i].cx)
-            return true;
-    return false;
+            return JS_TRUE;
+    return JS_FALSE;
 }
 #endif
 
@@ -304,7 +304,7 @@ XPCPerThreadData::XPCPerThreadData()
         mResolvingWrapper(nsnull),
         mExceptionManager(nsnull),
         mException(nsnull),
-        mExceptionManagerNotAvailable(false),
+        mExceptionManagerNotAvailable(JS_FALSE),
         mAutoRoots(nsnull)
 #ifdef XPC_CHECK_WRAPPER_THREADSAFETY
       , mWrappedNativeThreadsafetyReportDepth(0)

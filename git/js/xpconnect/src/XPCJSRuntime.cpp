@@ -242,12 +242,12 @@ ContextCallback(JSContext *cx, uintN operation)
     if (self) {
         if (operation == JSCONTEXT_NEW) {
             if (!self->OnJSContextNew(cx))
-                return false;
+                return JS_FALSE;
         } else if (operation == JSCONTEXT_DESTROY) {
             delete XPCContext::GetXPCContext(cx);
         }
     }
-    return true;
+    return JS_TRUE;
 }
 
 xpc::CompartmentPrivate::~CompartmentPrivate()
@@ -262,11 +262,11 @@ CompartmentCallback(JSContext *cx, JSCompartment *compartment, uintN op)
 
     XPCJSRuntime* self = nsXPConnect::GetRuntimeInstance();
     if (!self)
-        return true;
+        return JS_TRUE;
 
     nsAutoPtr<xpc::CompartmentPrivate> priv(static_cast<xpc::CompartmentPrivate*>(JS_SetCompartmentPrivate(cx, compartment, nsnull)));
     if (!priv)
-        return true;
+        return JS_TRUE;
 
     if (xpc::PtrAndPrincipalHashKey *key = priv->key) {
         XPCCompartmentMap &map = self->GetCompartmentMap();
@@ -291,7 +291,7 @@ CompartmentCallback(JSContext *cx, JSCompartment *compartment, uintN op)
         map.Remove(ptr);
     }
 
-    return true;
+    return JS_TRUE;
 }
 
 struct ObjectHolder : public JSDHashEntryHdr
@@ -654,13 +654,13 @@ JSBool XPCJSRuntime::GCCallback(JSContext *cx, JSGCStatus status)
 {
     XPCJSRuntime* self = nsXPConnect::GetRuntimeInstance();
     if (!self)
-        return true;
+        return JS_TRUE;
 
     switch (status) {
         case JSGC_BEGIN:
         {
             if (!NS_IsMainThread()) {
-                return false;
+                return JS_FALSE;
             }
 
             // We seem to sometime lose the unrooted global flag. Restore it
@@ -707,13 +707,13 @@ JSBool XPCJSRuntime::GCCallback(JSContext *cx, JSGCStatus status)
             self->GetCompartmentMap().EnumerateRead((XPCCompartmentMap::EnumReadFunction)
                                                     SweepCompartment, cx);
 
-            self->mDoingFinalization = true;
+            self->mDoingFinalization = JS_TRUE;
             break;
         }
         case JSGC_FINALIZE_END:
         {
             NS_ASSERTION(self->mDoingFinalization, "bad state");
-            self->mDoingFinalization = false;
+            self->mDoingFinalization = JS_FALSE;
 
             // Release all the members whose JSObjects are now known
             // to be dead.
@@ -921,10 +921,10 @@ JSBool XPCJSRuntime::GCCallback(JSContext *cx, JSGCStatus status)
     nsTArray<JSGCCallback> callbacks(self->extraGCCallbacks);
     for (PRUint32 i = 0; i < callbacks.Length(); ++i) {
         if (!callbacks[i](cx, status))
-            return false;
+            return JS_FALSE;
     }
 
-    return true;
+    return JS_TRUE;
 }
 
 // Auto JS GC lock helper.
@@ -2058,7 +2058,7 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
    mThreadRunningGC(nsnull),
    mWrappedJSToReleaseArray(),
    mNativesToReleaseArray(),
-   mDoingFinalization(false),
+   mDoingFinalization(JS_FALSE),
    mVariantRoots(nsnull),
    mWrappedJSRoots(nsnull),
    mObjectHolderRoots(nsnull),
@@ -2076,7 +2076,7 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
 
     DOM_InitInterfaces();
     Preferences::AddBoolVarCache(&gNewDOMBindingsEnabled, "dom.new_bindings",
-                                 false);
+                                 JS_FALSE);
 
 
     // these jsids filled in later when we have a JSContext to work with.
@@ -2178,7 +2178,7 @@ XPCJSRuntime::OnJSContextNew(JSContext *cx)
     NS_TIME_FUNCTION;
 
     // if it is our first context then we need to generate our string ids
-    JSBool ok = true;
+    JSBool ok = JS_TRUE;
     if (JSID_IS_VOID(mStrIDs[0])) {
         JS_SetGCParameterForThread(cx, JSGC_MAX_CODE_CACHE_BYTES, 16 * 1024 * 1024);
         {
@@ -2189,7 +2189,7 @@ XPCJSRuntime::OnJSContextNew(JSContext *cx)
                 JSString* str = JS_InternString(cx, mStrings[i]);
                 if (!str || !JS_ValueToId(cx, STRING_TO_JSVAL(str), &mStrIDs[i])) {
                     mStrIDs[0] = JSID_VOID;
-                    ok = false;
+                    ok = JS_FALSE;
                     break;
                 }
                 mStrJSVals[i] = STRING_TO_JSVAL(str);
@@ -2199,22 +2199,22 @@ XPCJSRuntime::OnJSContextNew(JSContext *cx)
         ok = mozilla::dom::binding::DefineStaticJSVals(cx);
     }
     if (!ok)
-        return false;
+        return JS_FALSE;
 
     XPCPerThreadData* tls = XPCPerThreadData::GetData(cx);
     if (!tls)
-        return false;
+        return JS_FALSE;
 
     XPCContext* xpc = new XPCContext(this, cx);
     if (!xpc)
-        return false;
+        return JS_FALSE;
 
     JS_SetNativeStackQuota(cx, 128 * sizeof(size_t) * 1024);
 
     // we want to mark the global object ourselves since we use a different color
     JS_ToggleOptions(cx, JSOPTION_UNROOTED_GLOBAL);
 
-    return true;
+    return JS_TRUE;
 }
 
 JSBool

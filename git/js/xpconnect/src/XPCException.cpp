@@ -78,10 +78,10 @@ nsXPCException::NameAndFormatForNSResult(nsresult rv,
         if (rv == p->rv) {
             if (name) *name = p->name;
             if (format) *format = p->format;
-            return true;
+            return JS_TRUE;
         }
     }
-    return false;
+    return JS_FALSE;
 }
 
 // static
@@ -404,7 +404,7 @@ nsXPCException::ToString(char **_retval)
     return final ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
 
-JSBool nsXPCException::sEverMadeOneFromFactory = false;
+JSBool nsXPCException::sEverMadeOneFromFactory = JS_FALSE;
 
 // static
 nsresult
@@ -424,7 +424,7 @@ nsXPCException::NewException(const char *aMessage,
     if (!sEverMadeOneFromFactory) {
         nsCOMPtr<nsIXPCException> e =
             do_CreateInstance(XPC_EXCEPTION_CONTRACTID);
-        sEverMadeOneFromFactory = true;
+        sEverMadeOneFromFactory = JS_TRUE;
     }
 
     nsresult rv;

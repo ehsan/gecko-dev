@@ -115,7 +115,7 @@ XPCWrappedNativeScope*
 XPCWrappedNativeScope::GetNewOrUsed(XPCCallContext& ccx, JSObject* aGlobal)
 {
 
-    XPCWrappedNativeScope* scope = FindInJSObjectScope(ccx, aGlobal, true);
+    XPCWrappedNativeScope* scope = FindInJSObjectScope(ccx, aGlobal, JS_TRUE);
     if (!scope)
         scope = new XPCWrappedNativeScope(ccx, aGlobal);
     else {
@@ -179,9 +179,9 @@ XPCWrappedNativeScope::IsDyingScope(XPCWrappedNativeScope *scope)
 {
     for (XPCWrappedNativeScope *cur = gDyingScopes; cur; cur = cur->mNext) {
         if (scope == cur)
-            return true;
+            return JS_TRUE;
     }
-    return false;
+    return JS_FALSE;
 }
 
 void
@@ -730,7 +730,7 @@ void DEBUG_CheckForComponentsInScope(JSContext* cx, JSObject* obj,
     // callback code.
     NS_ERROR("XPConnect is being called on a scope without a 'Components' property!  (stack and details follow)");
     printf("The current JS stack is:\n");
-    xpc_DumpJSStack(cx, true, true, true);
+    xpc_DumpJSStack(cx, JS_TRUE, JS_TRUE, JS_TRUE);
 
     printf("And the object whose scope lacks a 'Components' property is:\n");
     js_DumpObject(startingObj);

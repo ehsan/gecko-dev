@@ -48,7 +48,7 @@ interface nsIScriptGlobalObject;
 /**
  * Encode and decode JSON text.
  */
-[scriptable, uuid(43845d58-1054-47fb-8be3-970b3f7bd7ea)]
+[scriptable, uuid(a4d68b4e-0c0b-4c7c-b540-ef2f9834171f)]
 interface nsIJSON : nsISupports
 {
   /**
@@ -56,8 +56,7 @@ interface nsIJSON : nsISupports
    * The encode() method is only present for backward compatibility.
    * encode() is not a conforming JSON stringify implementation!
    */
-  [deprecated,implicit_jscontext,optional_argc]
-  AString encode([optional] in jsval value);
+  [deprecated] AString encode(/* in JSObject value */);
 
   /**
    * New users should use JSON.stringify.
@@ -66,22 +65,19 @@ interface nsIJSON : nsISupports
    * The encodeToStream() method is only present for backward compatibility.
    * encodeToStream() is not a conforming JSON stringify implementation!
    */
-  [deprecated,implicit_jscontext,optional_argc]
-  void encodeToStream(in nsIOutputStream stream,
-                      in string charset,
-                      in boolean writeBOM,
-                      [optional] in jsval value);
+  [deprecated] void encodeToStream(in nsIOutputStream stream,
+                                   in string charset,
+                                   in boolean writeBOM
+                                   /* in JSObject value */);
 
   /**
    * New users should use JSON.parse!
    * The decode() method is only present for backward compatibility.
    */
-  [deprecated,implicit_jscontext]
-  jsval decode(in AString str);
+  [deprecated] void /* JSObject */ decode(in AString str);
 
-  [implicit_jscontext]
-  jsval decodeFromStream(in nsIInputStream stream,
-                         in long contentLength);
+  void /* JSObject */ decodeFromStream(in nsIInputStream stream,
+                                       in long contentLength);
 
   [noscript] AString  encodeFromJSVal(in JSValPtr value, in JSContext cx);
 
@@ -101,13 +97,11 @@ interface nsIJSON : nsISupports
    *
    * @param str the string to parse
    */
-  [implicit_jscontext]
-  jsval legacyDecode(in AString str);
+  void /* jsval */ legacyDecode(in AString str);
 
   /* Identical to legacyDecode, but decode the contents of stream. */
-  [implicit_jscontext]
-  jsval legacyDecodeFromStream(in nsIInputStream stream,
-                               in long contentLength);
+  void /* jsval */ legacyDecodeFromStream(in nsIInputStream stream,
+                                          in long contentLength);
 
   /* Identical to legacyDecode, but decode into a jsval. */
   // Make sure you GCroot the result of this function before using it.

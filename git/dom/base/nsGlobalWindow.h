@@ -513,7 +513,7 @@ public:
 
   void InitJavaProperties();
 
-  virtual NS_HIDDEN_(JSObject*)
+  virtual NS_HIDDEN_(void*)
     GetCachedXBLPrototypeHandler(nsXBLPrototypeHandler* aKey);
 
   virtual NS_HIDDEN_(void)
@@ -684,6 +684,7 @@ protected:
 
   // JS specific timeout functions (JS args grabbed from context).
   nsresult SetTimeoutOrInterval(bool aIsInterval, PRInt32* aReturn);
+  nsresult ClearTimeoutOrInterval();
   nsresult ResetTimersForNonBackgroundWindow();
 
   // The timeout implementation functions.
@@ -975,7 +976,7 @@ protected:
 
   nsCOMPtr<nsIDOMOfflineResourceList> mApplicationCache;
 
-  nsDataHashtable<nsVoidPtrHashKey, JSObject*> mCachedXBLPrototypeHandlers;
+  nsDataHashtable<nsVoidPtrHashKey, void*> mCachedXBLPrototypeHandlers;
 
   nsCOMPtr<nsIDocument> mSuspendedDoc;
 

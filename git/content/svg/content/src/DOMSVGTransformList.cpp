@@ -146,7 +146,7 @@ DOMSVGTransformList::InternalListLengthWillChange(PRUint32 aNewLength)
 }
 
 SVGTransformList&
-DOMSVGTransformList::InternalList() const
+DOMSVGTransformList::InternalList()
 {
   SVGAnimatedTransformList *alist = Element()->GetAnimatedTransformList();
   return IsAnimValList() && alist->mAnimVal ?

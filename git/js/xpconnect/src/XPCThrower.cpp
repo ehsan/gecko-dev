@@ -43,7 +43,7 @@
 #include "xpcprivate.h"
 #include "XPCWrapper.h"
 
-JSBool XPCThrower::sVerbose = true;
+JSBool XPCThrower::sVerbose = JS_TRUE;
 
 // static
 void
@@ -68,21 +68,21 @@ XPCThrower::CheckForPendingException(nsresult result, JSContext *cx)
 {
     nsXPConnect* xpc = nsXPConnect::GetXPConnect();
     if (!xpc)
-        return false;
+        return JS_FALSE;
 
     nsCOMPtr<nsIException> e;
     xpc->GetPendingException(getter_AddRefs(e));
     if (!e)
-        return false;
+        return JS_FALSE;
     xpc->SetPendingException(nsnull);
 
     nsresult e_result;
     if (NS_FAILED(e->GetResult(&e_result)) || e_result != result)
-        return false;
+        return JS_FALSE;
 
     if (!ThrowExceptionObject(cx, e))
         JS_ReportOutOfMemory(cx);
-    return true;
+    return JS_TRUE;
 }
 
 // static
@@ -198,7 +198,7 @@ XPCThrower::Verbosify(XPCCallContext& ccx,
 void
 XPCThrower::BuildAndThrowException(JSContext* cx, nsresult rv, const char* sz)
 {
-    JSBool success = false;
+    JSBool success = JS_FALSE;
 
     /* no need to set an expection if the security manager already has */
     if (rv == NS_ERROR_XPC_SECURITY_MANAGER_VETO && JS_IsExceptionPending(cx))
@@ -267,7 +267,7 @@ IsCallerChrome(JSContext* cx)
 JSBool
 XPCThrower::ThrowExceptionObject(JSContext* cx, nsIException* e)
 {
-    JSBool success = false;
+    JSBool success = JS_FALSE;
     if (e) {
         nsCOMPtr<nsIXPCException> xpcEx;
         jsval thrown;
@@ -280,13 +280,13 @@ XPCThrower::ThrowExceptionObject(JSContext* cx, nsIException* e)
             (xpcEx = do_QueryInterface(e)) &&
             NS_SUCCEEDED(xpcEx->StealJSVal(&thrown))) {
             if (!JS_WrapValue(cx, &thrown))
-                return false;
+                return JS_FALSE;
             JS_SetPendingException(cx, thrown);
-            success = true;
+            success = JS_TRUE;
         } else if ((xpc = nsXPConnect::GetXPConnect())) {
             JSObject* glob = JS_GetGlobalForScopeChain(cx);
             if (!glob)
-                return false;
+                return JS_FALSE;
 
             nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
             nsresult rv = xpc->WrapNative(cx, glob, e,
@@ -296,7 +296,7 @@ XPCThrower::ThrowExceptionObject(JSContext* cx, nsIException* e)
                 JSObject* obj;
                 if (NS_SUCCEEDED(holder->GetJSObject(&obj))) {
                     JS_SetPendingException(cx, OBJECT_TO_JSVAL(obj));
-                    success = true;
+                    success = JS_TRUE;
                 }
             }
         }
