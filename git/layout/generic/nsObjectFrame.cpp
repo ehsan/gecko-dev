@@ -2967,10 +2967,21 @@ nsresult nsPluginInstanceOwner::EnsureCachedAttrParamArrays()
   // might kill us...
   nsCOMPtr<nsIPluginInstanceOwner> kungFuDeathGrip(this);
   
-  NS_NAMED_LITERAL_STRING(xhtml_ns, "http://www.w3.org/1999/xhtml");
+  if (ni->NamespaceEquals(kNameSpaceID_XHTML)) {
+    // For XHTML elements we need to take the namespace URI into
+    // account when looking for param elements.
 
-  mydomElement->GetElementsByTagNameNS(xhtml_ns, NS_LITERAL_STRING("param"),
+    NS_NAMED_LITERAL_STRING(xhtml_ns, "http://www.w3.org/1999/xhtml");
+
+    mydomElement->GetElementsByTagNameNS(xhtml_ns, NS_LITERAL_STRING("param"),
+                                         getter_AddRefs(allParams));
+  } else {
+    // If content is not XHTML, it must be HTML, no need to worry
+    // about namespaces then...
+
+    mydomElement->GetElementsByTagName(NS_LITERAL_STRING("param"),
                                        getter_AddRefs(allParams));
+  }    
 
   if (allParams) {
     PRUint32 numAllParams; 
@@ -3061,7 +3072,7 @@ nsresult nsPluginInstanceOwner::EnsureCachedAttrParamArrays()
   // (see the AddAttributes functions in the HTML and XML content sinks).
   PRInt16 start, end, increment;
   if (mContent->IsNodeOfType(nsINode::eHTML) &&
-      mContent->IsInHTMLDocument()) {
+      mContent->NodeInfo()->NamespaceEquals(kNameSpaceID_None)) {
     // HTML.  Walk attributes in reverse order.
     start = numRealAttrs - 1;
     end = -1;

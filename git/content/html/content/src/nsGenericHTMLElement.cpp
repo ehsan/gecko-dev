@@ -305,7 +305,7 @@ nsGenericHTMLElement::SetAttribute(const nsAString& aName,
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsCOMPtr<nsIAtom> nameAtom;
-    if (IsInHTMLDocument()) {
+    if (mNodeInfo->NamespaceEquals(kNameSpaceID_None)) {
       nsAutoString lower;
       ToLowerCase(aName, lower);
       nameAtom = do_GetAtom(lower);
@@ -327,8 +327,23 @@ nsGenericHTMLElement::GetNodeName(nsAString& aNodeName)
 {
   mNodeInfo->GetQualifiedName(aNodeName);
 
-  if (IsInHTMLDocument())
+  if (mNodeInfo->NamespaceEquals(kNameSpaceID_None))
     ToUpperCase(aNodeName);
+
+  return NS_OK;
+}
+
+nsresult
+nsGenericHTMLElement::GetLocalName(nsAString& aLocalName)
+{
+  mNodeInfo->GetLocalName(aLocalName);
+
+  if (mNodeInfo->NamespaceEquals(kNameSpaceID_None)) {
+    // No namespace, this means we're dealing with a good ol' HTML
+    // element, so uppercase the local name.
+
+    ToUpperCase(aLocalName);
+  }
 
   return NS_OK;
 }
@@ -339,11 +354,29 @@ nsGenericHTMLElement::GetElementsByTagName(const nsAString& aTagname,
 {
   nsAutoString tagName(aTagname);
 
-  // Only lowercase the name if this is an HTML document.
-  if (IsInHTMLDocument())
+  // Only lowercase the name if this element has no namespace (i.e.
+  // it's a HTML element, not an XHTML element).
+  if (mNodeInfo && mNodeInfo->NamespaceEquals(kNameSpaceID_None))
     ToLowerCase(tagName);
 
   return nsGenericHTMLElementBase::GetElementsByTagName(tagName, aReturn);
+}
+
+nsresult
+nsGenericHTMLElement::GetElementsByTagNameNS(const nsAString& aNamespaceURI,
+                                             const nsAString& aLocalName,
+                                             nsIDOMNodeList** aReturn)
+{
+  nsAutoString localName(aLocalName);
+
+  // Only lowercase the name if this element has no namespace (i.e.
+  // it's a HTML element, not an XHTML element).
+  if (mNodeInfo && mNodeInfo->NamespaceEquals(kNameSpaceID_None))
+    ToLowerCase(localName);
+
+  return nsGenericHTMLElementBase::GetElementsByTagNameNS(aNamespaceURI,
+                                                          localName,
+                                                          aReturn);
 }
 
 // Implementation for nsIDOMHTMLElement
@@ -638,7 +671,8 @@ nsGenericHTMLElement::GetInnerHTML(nsAString& aInnerHTML)
   nsresult rv = NS_OK;
 
   nsAutoString contentType;
-  if (IsInHTMLDocument()) {
+  if (!doc->IsCaseSensitive()) {
+    // All case-insensitive documents are HTML as far as we're concerned
     contentType.AssignLiteral("text/html");
   } else {
     doc->GetContentType(contentType);
@@ -1166,6 +1200,8 @@ nsGenericHTMLElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
 already_AddRefed<nsIURI>
 nsGenericHTMLElement::GetBaseURI() const
 {
+  nsIDocument* doc = GetOwnerDoc();
+
   void* prop;
   if (HasFlag(NODE_HAS_PROPERTIES) && (prop = GetProperty(nsGkAtoms::htmlBaseHref))) {
     nsIURI* uri = static_cast<nsIURI*>(prop);
@@ -1176,12 +1212,15 @@ nsGenericHTMLElement::GetBaseURI() const
 
   // If we are a plain old HTML element (not XHTML), don't bother asking the
   // base class -- our base URI is determined solely by the document base.
-  if (IsInHTMLDocument()) {
-    // If we got here, GetOwnerDoc() is not null
-    nsIURI *uri = GetOwnerDoc()->GetBaseURI();
-    NS_IF_ADDREF(uri);
+  if (mNodeInfo->NamespaceEquals(kNameSpaceID_None)) {
+    if (doc) {
+      nsIURI *uri = doc->GetBaseURI();
+      NS_IF_ADDREF(uri);
 
-    return uri;
+      return uri;
+    }
+
+    return nsnull;
   }
 
   return nsGenericHTMLElementBase::GetBaseURI();
@@ -3422,7 +3461,7 @@ nsGenericHTMLElement::GetHashFromHrefURI(nsAString& aHash)
 const nsAttrName*
 nsGenericHTMLElement::InternalGetExistingAttrNameFromQName(const nsAString& aStr) const
 {
-  if (IsInHTMLDocument()) {
+  if (mNodeInfo->NamespaceEquals(kNameSpaceID_None)) {
     nsAutoString lower;
     ToLowerCase(aStr, lower);
     return mAttrsAndChildren.GetExistingAttrNameFromQName(
