@@ -865,13 +865,16 @@ HttpBaseChannel::SetReferrer(nsIURI *referrer)
   //  (1) modify it
   //  (2) keep a reference to it after returning from this function
   //
-  // Use CloneIgnoringRef to strip away any fragment per RFC 2616 section 14.36
-  rv = referrer->CloneIgnoringRef(getter_AddRefs(clone));
+  rv = referrer->Clone(getter_AddRefs(clone));
   if (NS_FAILED(rv)) return rv;
 
   // strip away any userpass; we don't want to be giving out passwords ;-)
-  rv = clone->SetUserPass(EmptyCString());
-  if (NS_FAILED(rv)) return rv;
+  clone->SetUserPass(EmptyCString());
+
+  // strip away any fragment per RFC 2616 section 14.36
+  nsCOMPtr<nsIURL> url = do_QueryInterface(clone);
+  if (url)
+    url->SetRef(EmptyCString());
 
   nsCAutoString spec;
   rv = clone->GetAsciiSpec(spec);

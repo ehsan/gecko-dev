@@ -781,41 +781,13 @@ pref("network.ftp.control.qos", 0);
 // </http>
 
 // <ws>: WebSocket
+// The -76 websocket network protocol may be subject to HTTP cache poisoning
+// attacks. Until there is a secure open standard available and implemented
+// in necko the override-security-block preference must be set to true before
+// the normal enabled preference is considered. Bug 616733
+pref("network.websocket.override-security-block", false);
 pref("network.websocket.enabled", true);
-
-// mobile might want to set this much smaller
-pref("network.websocket.max-message-size", 16000000);
-
-// Should we automatically follow http 3xx redirects during handshake
-pref("network.websocket.auto-follow-http-redirects", false);
-
-// the number of seconds to wait for websocket connection to be opened
-pref("network.websocket.timeout.open", 20);
-
-// the number of seconds to wait for a clean close after sending the client
-// close message
-pref("network.websocket.timeout.close", 20);
-
-// the number of seconds of idle read activity to sustain before sending a
-// ping probe. 0 to disable.
-pref("network.websocket.timeout.ping.request", 0);
-
-// the deadline, expressed in seconds, for some read activity to occur after
-// generating a ping. If no activity happens then an error and unclean close
-// event is sent to the javascript websockets application
-pref("network.websocket.timeout.ping.response", 10);
-
-// Defines whether or not to try and negotiate the stream-deflate compression
-// extension with the websocket server
-pref("network.websocket.extensions.stream-deflate", false);
-
 // </ws>
-
-// Server-Sent Events
-
-pref("dom.server-events.enabled", true);
-// Equal to the DEFAULT_RECONNECTION_TIME_VALUE value in nsEventSource.cpp
-pref("dom.server-events.default-reconnection-time", 5000); // in milliseconds
 
 // If false, remote JAR files that are served with a content type other than
 // application/java-archive or application/x-jar will not be opened
@@ -1878,7 +1850,7 @@ pref("ui.panel.default_level_parent", false);
 pref("mousewheel.system_scroll_override_on_root_content.enabled", true);
 
 // High resolution scrolling with supported mouse drivers on Vista or later.
-pref("mousewheel.enable_pixel_scrolling", true);
+pref("mousewheel.enable_pixel_scrolling", false);
 
 // If your mouse drive sends WM_*SCROLL messages when you turn your mouse wheel,
 // set this to true.  Then, gecko processes them as mouse wheel messages.

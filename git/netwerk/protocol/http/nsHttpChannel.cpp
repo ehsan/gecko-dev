@@ -3384,14 +3384,17 @@ nsHttpChannel::ContinueProcessRedirectionAfterFallback(nsresult rv)
 
     // move the reference of the old location to the new one if the new
     // one has none.
-    nsCAutoString ref;
-    rv = mRedirectURI->GetRef(ref);
-    if (NS_SUCCEEDED(rv) && ref.IsEmpty()) {
-        mURI->GetRef(ref);
-        if (!ref.IsEmpty()) {
-            // NOTE: SetRef will fail if mRedirectURI is immutable
-            // (e.g. an about: URI)... Oh well.
-            mRedirectURI->SetRef(ref);
+    nsCOMPtr<nsIURL> newURL = do_QueryInterface(mRedirectURI);
+    if (newURL) {
+        nsCAutoString ref;
+        rv = newURL->GetRef(ref);
+        if (NS_SUCCEEDED(rv) && ref.IsEmpty()) {
+            nsCOMPtr<nsIURL> baseURL(do_QueryInterface(mURI));
+            if (baseURL) {
+                baseURL->GetRef(ref);
+                if (!ref.IsEmpty())
+                    newURL->SetRef(ref);
+            }
         }
     }
 
@@ -3651,6 +3654,9 @@ nsHttpChannel::AsyncOpen(nsIStreamListener *listener, nsISupports *context)
     if (mCanceled)
         return mStatus;
 
+    if (mTimingEnabled)
+        mAsyncOpenTime = mozilla::TimeStamp::Now();
+
     rv = NS_CheckPortSafety(mURI);
     if (NS_FAILED(rv))
         return rv;
@@ -3696,12 +3702,6 @@ nsHttpChannel::AsyncOpen(nsIStreamListener *listener, nsISupports *context)
     // all failures asynchronously.
     if (mLoadGroup)
         mLoadGroup->AddRequest(this, nsnull);
-
-    // Collect mAsyncOpenTime after we have called all obsrevers like
-    // "http-on-modify-request" and load group observers that may set
-    // mTimingEnabled flag.
-    if (mTimingEnabled)
-        mAsyncOpenTime = mozilla::TimeStamp::Now();
 
     // We may have been cancelled already, either by on-modify-request
     // listeners or by load group observers; in that case, we should

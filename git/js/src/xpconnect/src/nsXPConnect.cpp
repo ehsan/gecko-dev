@@ -1039,12 +1039,17 @@ xpc_CreateGlobalObject(JSContext *cx, JSClass *clasp,
     NS_ABORT_IF_FALSE(NS_IsMainThread(), "using a principal off the main thread?");
     NS_ABORT_IF_FALSE(principal, "bad key");
 
+    nsCOMPtr<nsIURI> uri;
+    nsresult rv = principal->GetURI(getter_AddRefs(uri));
+    if(NS_FAILED(rv))
+        return UnexpectedFailure(rv);
+
     XPCCompartmentMap& map = nsXPConnect::GetRuntimeInstance()->GetCompartmentMap();
-    xpc::PtrAndPrincipalHashKey key(ptr, principal);
+    xpc::PtrAndPrincipalHashKey key(ptr, uri);
     if(!map.Get(&key, compartment))
     {
         xpc::PtrAndPrincipalHashKey *priv_key =
-            new xpc::PtrAndPrincipalHashKey(ptr, principal);
+            new xpc::PtrAndPrincipalHashKey(ptr, uri);
         xpc::CompartmentPrivate *priv =
             new xpc::CompartmentPrivate(priv_key, wantXrays, NS_IsMainThread());
         if(!CreateNewCompartment(cx, clasp, principal, priv,

@@ -213,7 +213,6 @@
 #include "nsXMLHttpRequest.h"
 #include "nsWebSocket.h"
 #include "nsIDOMCloseEvent.h"
-#include "nsEventSource.h"
 
 // includes needed for the prototype chain interfaces
 #include "nsIDOMNavigator.h"
@@ -1322,9 +1321,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
   NS_DEFINE_CLASSINFO_DATA(XMLHttpRequest, nsEventTargetSH,
                            EVENTTARGET_SCRIPTABLE_FLAGS)
 
-  NS_DEFINE_CLASSINFO_DATA(EventSource, nsEventTargetSH,
-                           EVENTTARGET_SCRIPTABLE_FLAGS)
-
   NS_DEFINE_CLASSINFO_DATA(ClientRect, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(ClientRectList, nsClientRectListSH,
@@ -1565,7 +1561,6 @@ static const nsContractIDMapData kConstructorMap[] =
   NS_DEFINE_CONSTRUCTOR_DATA(XPathEvaluator, NS_XPATH_EVALUATOR_CONTRACTID)
   NS_DEFINE_CONSTRUCTOR_DATA(XSLTProcessor,
                              "@mozilla.org/document-transformer;1?type=xslt")
-  NS_DEFINE_CONSTRUCTOR_DATA(EventSource, NS_EVENTSOURCE_CONTRACTID)
 };
 
 struct nsConstructorFuncMapData
@@ -1922,7 +1917,7 @@ nsDOMClassInfo::DefineStaticJSVals(JSContext *cx)
 {
 #define SET_JSID_TO_STRING(_id, _cx, _str)                                    \
   if (JSString *str = ::JS_InternString(_cx, _str))                           \
-      _id = INTERNED_STRING_TO_JSID(_cx, str);                                \
+      _id = INTERNED_STRING_TO_JSID(str);                                     \
   else                                                                        \
       return NS_ERROR_OUT_OF_MEMORY;
 
@@ -3968,12 +3963,6 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMLSProgressEvent)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMProgressEvent)
     DOM_CLASSINFO_EVENT_MAP_ENTRIES
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(EventSource, nsIEventSource)
-    DOM_CLASSINFO_MAP_ENTRY(nsIEventSource)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(SVGForeignObjectElement, nsIDOMSVGForeignObjectElement)
@@ -6083,7 +6072,6 @@ nsDOMConstructor::HasInstance(nsIXPConnectWrappedNative *wrapper,
 
 {
   // No need to look these up in the hash.
-  *bp = PR_FALSE;
   if (JSVAL_IS_PRIMITIVE(v)) {
     return NS_OK;
   }
@@ -6563,13 +6551,6 @@ nsWindowSH::GlobalResolve(nsGlobalWindow *aWin, JSContext *cx,
     // For now don't expose web sockets unless user has explicitly enabled them
     if (name_struct->mDOMClassInfoID == eDOMClassInfo_WebSocket_id) {
       if (!nsWebSocket::PrefEnabled()) {
-        return NS_OK;
-      }
-    }
-
-    // For now don't expose server events unless user has explicitly enabled them
-    if (name_struct->mDOMClassInfoID == eDOMClassInfo_EventSource_id) {
-      if (!nsEventSource::PrefEnabled()) {
         return NS_OK;
       }
     }

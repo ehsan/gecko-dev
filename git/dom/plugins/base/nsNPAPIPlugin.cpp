@@ -738,7 +738,7 @@ doGetIdentifier(JSContext *cx, const NPUTF8* name)
   if (!str)
     return NULL;
 
-  return StringToNPIdentifier(cx, str);
+  return StringToNPIdentifier(str);
 }
 
 #if defined(MOZ_MEMORY_WINDOWS)

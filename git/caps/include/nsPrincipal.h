@@ -131,9 +131,6 @@ protected:
                           const nsACString& aPrettyName,
                           nsISupports* aCert);
 
-  // Checks whether this principal's certificate equals aOther's.
-  PRBool CertificateEquals(nsIPrincipal *aOther);
-
   // Keep this is a pointer, even though it may slightly increase the
   // cost of keeping a certificate, this is a good tradeoff though since
   // it is very rare that we actually have a certificate.

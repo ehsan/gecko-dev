@@ -139,11 +139,10 @@ GetStorageSQLiteMemoryUsed(void *)
 }
 
 NS_MEMORY_REPORTER_IMPLEMENT(StorageSQLiteMemoryUsed,
-    "explicit/storage/sqlite",
-    MR_HEAP,
-    "Memory used by SQLite.",
-    GetStorageSQLiteMemoryUsed,
-    nsnull)
+                             "heap-used/storage/sqlite",
+                             "Memory used by SQLite.",
+                             GetStorageSQLiteMemoryUsed,
+                             nsnull)
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Helpers

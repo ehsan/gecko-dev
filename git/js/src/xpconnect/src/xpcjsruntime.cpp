@@ -1278,18 +1278,12 @@ protected:
 
 static XPConnectGCChunkAllocator gXPCJSChunkAllocator;
 
-#ifdef MOZ_MEMORY
-#define JS_GC_HEAP_KIND  MR_HEAP
-#else
-#define JS_GC_HEAP_KIND  MR_MAPPED
-#endif
-
 NS_MEMORY_REPORTER_IMPLEMENT(XPConnectJSGCHeap,
-    "explicit/js/gc-heap",
-    JS_GC_HEAP_KIND,
-    "Memory used by the garbage-collected JavaScript heap.",
-    XPConnectGCChunkAllocator::GetGCChunkBytesInUse,
-    &gXPCJSChunkAllocator)
+                             "heap-used/js/gc-heap",
+                             "Memory used by the garbage-collected JavaScript "
+                             "heap.",
+                             XPConnectGCChunkAllocator::GetGCChunkBytesInUse,
+                             &gXPCJSChunkAllocator)
 
 static PRInt64
 GetPerCompartmentSize(PRInt64 (*f)(JSCompartment *c))
@@ -1324,19 +1318,19 @@ GetJSMJitData(void *data)
 }
 
 NS_MEMORY_REPORTER_IMPLEMENT(XPConnectJSMjitCode,
-    "explicit/js/mjit-code",
-    MR_MAPPED,
-    "Memory used by the method JIT to hold generated code.",
-    GetJSMjitCode,
-    NULL)
+                             "mapped/js/mjit-code",
+                             "Memory mapped by the method JIT to hold "
+                             "generated code.",
+                             GetJSMjitCode,
+                             NULL)
 
 NS_MEMORY_REPORTER_IMPLEMENT(XPConnectJSMjitData,
-    "explicit/js/mjit-data",
-    MR_HEAP,
-    "Memory used by the method JIT for the following data: "
-    "JITScripts, native maps, and inline cache structs.",
-    GetJSMJitData,
-    NULL)
+                             "heap-used/js/mjit-data",
+                             "Memory allocated by the method JIT for the "
+                             "following data: JITScripts, native maps, and "
+                             "inline cache structs.",
+                             GetJSMJitData,
+                             NULL)
 #endif  // JS_METHODJIT
 
 #ifdef JS_TRACER
@@ -1386,26 +1380,25 @@ GetJSTjitDataAllocatorsReserve(void *data)
 }
 
 NS_MEMORY_REPORTER_IMPLEMENT(XPConnectJSTjitCode,
-    "explicit/js/tjit-code",
-    MR_MAPPED,
-    "Memory used by the trace JIT to hold generated code.",
-    GetJSTjitCode,
-    NULL)
+                             "mapped/js/tjit-code",
+                             "Memory mapped by the trace JIT to hold "
+                             "generated code.",
+                             GetJSTjitCode,
+                             NULL)
 
 NS_MEMORY_REPORTER_IMPLEMENT(XPConnectJSTjitDataAllocatorsMain,
-    "explicit/js/tjit-data/allocators-main",
-    MR_HEAP,
-    "Memory used by the trace JIT's VMAllocators.",
-    GetJSTjitDataAllocatorsMain,
-    NULL)
+                             "heap-used/js/tjit-data/allocators/main",
+                             "Memory allocated by the trace JIT's "
+                             "VMAllocators.",
+                             GetJSTjitDataAllocatorsMain,
+                             NULL)
 
 NS_MEMORY_REPORTER_IMPLEMENT(XPConnectJSTjitDataAllocatorsReserve,
-    "explicit/js/tjit-data/allocators-reserve",
-    MR_HEAP,
-    "Memory used by the trace JIT and held in reserve for VMAllocators "
-    "in case of OOM.",
-    GetJSTjitDataAllocatorsReserve,
-    NULL)
+                             "heap-used/js/tjit-data/allocators/reserve",
+                             "Memory allocated by the trace JIT and held in "
+                             "reserve for VMAllocators in case of OOM.",
+                             GetJSTjitDataAllocatorsReserve,
+                             NULL)
 #endif  // JS_TRACER
 
 XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)

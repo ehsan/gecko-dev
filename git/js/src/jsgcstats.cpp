@@ -281,51 +281,6 @@ DumpCompartmentStats(JSCompartment *comp, FILE *fp)
 } //gc
 } //js
 
-#ifdef JSGC_TESTPILOT
-typedef JSRuntime::GCData GCData;
-
-JS_PUBLIC_API(bool)
-JS_GetGCInfoEnabled(JSRuntime *rt)
-{
-    return rt->gcData.infoEnabled;
-}
-
-JS_PUBLIC_API(void)
-JS_SetGCInfoEnabled(JSRuntime *rt, bool enabled)
-{
-    rt->gcData.infoEnabled = enabled;
-}
-
-JS_PUBLIC_API(JSGCInfo *)
-JS_GCInfoFront(JSRuntime *rt)
-{
-    GCData &data = rt->gcData;
-    JS_ASSERT(data.infoEnabled);
-    if (!data.count)
-        return NULL;
-
-    return &data.info[data.start];
-}
-
-JS_PUBLIC_API(bool)
-JS_GCInfoPopFront(JSRuntime *rt)
-{
-    GCData &data = rt->gcData;
-    JS_ASSERT(data.infoEnabled);
-    JS_ASSERT(data.count);
-
-    if (data.count >= GCData::INFO_LIMIT) {
-        data.count = data.start = 0;
-        return true;
-    }
-
-    data.start = (data.start + 1) % GCData::INFO_LIMIT;
-    data.count -= 1;
-    return false;
-}
-#endif
-
-
 #ifdef JS_GCMETER
 
 JS_FRIEND_API(void)
@@ -425,76 +380,30 @@ GCMarker::dumpConservativeRoots()
 }
 #endif /* JS_DUMP_CONSERVATIVE_GC_ROOTS */
 
-#if defined(MOZ_GCTIMER) || defined(JSGC_TESTPILOT)
+#ifdef MOZ_GCTIMER
 
 jsrefcount newChunkCount = 0;
 jsrefcount destroyChunkCount = 0;
 
-GCTimer::GCTimer(JSRuntime *rt, JSCompartment *comp)
-  : rt(rt), isCompartmental(comp),
-    enabled(rt->gcData.isTimerEnabled())
-{
-    clearTimestamps();
+GCTimer::GCTimer() {
     getFirstEnter();
+    memset(this, 0, sizeof(GCTimer));
     enter = PRMJ_Now();
 }
 
 uint64
-GCTimer::getFirstEnter()
-{
-    JSRuntime::GCData &data = rt->gcData;
-    if (enabled && !data.firstEnterValid)
-        data.setFirstEnter(PRMJ_Now());
-
-    return data.firstEnter;
+GCTimer::getFirstEnter() {
+    static uint64 firstEnter = PRMJ_Now();
+    return firstEnter;
 }
 
 #define TIMEDIFF(start, end) ((double)(end - start) / PRMJ_USEC_PER_MSEC)
 
 void
-GCTimer::finish(bool lastGC)
-{
-#if defined(JSGC_TESTPILOT)
-    if (!enabled) {
-        newChunkCount = 0;
-        destroyChunkCount = 0;
-        return;
-    }
-#endif
+GCTimer::finish(bool lastGC) {
     end = PRMJ_Now();
 
     if (startMark > 0) {
-        double appTime = TIMEDIFF(getFirstEnter(), enter);
-        double gcTime = TIMEDIFF(enter, end);
-        double waitTime = TIMEDIFF(enter, startMark);
-        double markTime = TIMEDIFF(startMark, startSweep);
-        double sweepTime = TIMEDIFF(startSweep, sweepDestroyEnd);
-        double sweepObjTime = TIMEDIFF(startSweep, sweepObjectEnd);
-        double sweepStringTime = TIMEDIFF(sweepObjectEnd, sweepStringEnd);
-        double sweepShapeTime = TIMEDIFF(sweepStringEnd, sweepShapeEnd);
-        double destroyTime = TIMEDIFF(sweepShapeEnd, sweepDestroyEnd);
-        double endTime = TIMEDIFF(sweepDestroyEnd, end);
-
-#if defined(JSGC_TESTPILOT)
-        GCData &data = rt->gcData;
-        size_t oldLimit = (data.start + data.count) % GCData::INFO_LIMIT;
-        data.count += 1;
-
-        JSGCInfo &info = data.info[oldLimit];
-        info.appTime = appTime;
-        info.gcTime = gcTime;
-        info.waitTime = waitTime;
-        info.markTime = markTime;
-        info.sweepTime = sweepTime;
-        info.sweepObjTime = sweepObjTime;
-        info.sweepStringTime = sweepStringTime;
-        info.sweepShapeTime = sweepShapeTime;
-        info.destroyTime = destroyTime;
-        info.endTime = endTime;
-        info.isCompartmental = isCompartmental;
-#endif
-
-#if defined(MOZ_GCTIMER)
         if (JS_WANT_GC_SUITE_PRINT) {
             fprintf(stderr, "%f %f %f\n",
                     TIMEDIFF(enter, end),
@@ -506,14 +415,22 @@ GCTimer::finish(bool lastGC)
             if (!gcFile) {
                 gcFile = fopen("gcTimer.dat", "a");
 
-                fprintf(gcFile, "     AppTime,  Total,   Wait,   Mark,  Sweep, FinObj,"
-                                " FinStr, SwShapes, Destroy,    End, +Chu, -Chu\n");
+                fprintf(gcFile, "     AppTime,  Total,   Wait,   Mark,  Sweep, FinObj,");
+                fprintf(gcFile, " FinStr, SwShapes, Destroy,    End, +Chu, -Chu\n");
             }
             JS_ASSERT(gcFile);
             /*               App   , Tot  , Wai  , Mar  , Swe  , FiO  , FiS  , SwS  , Des   , End */
             fprintf(gcFile, "%12.0f, %6.1f, %6.1f, %6.1f, %6.1f, %6.1f, %6.1f, %8.1f,  %6.1f, %6.1f, ",
-                    appTime, gcTime, waitTime, markTime, sweepTime, sweepObjTime, sweepStringTime,
-                    sweepShapeTime, destroyTime, endTime);
+                    TIMEDIFF(getFirstEnter(), enter),
+                    TIMEDIFF(enter, end),
+                    TIMEDIFF(enter, startMark),
+                    TIMEDIFF(startMark, startSweep),
+                    TIMEDIFF(startSweep, sweepDestroyEnd),
+                    TIMEDIFF(startSweep, sweepObjectEnd),
+                    TIMEDIFF(sweepObjectEnd, sweepStringEnd),
+                    TIMEDIFF(sweepStringEnd, sweepShapeEnd),
+                    TIMEDIFF(sweepShapeEnd, sweepDestroyEnd),
+                    TIMEDIFF(sweepDestroyEnd, end));
             fprintf(gcFile, "%4d, %4d\n", newChunkCount, destroyChunkCount);
             fflush(gcFile);
 
@@ -522,7 +439,6 @@ GCTimer::finish(bool lastGC)
                 gcFile = NULL;
             }
         }
-#endif
     }
     newChunkCount = 0;
     destroyChunkCount = 0;

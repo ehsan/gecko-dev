@@ -60,7 +60,7 @@ static PRInt64 GetProcSelfStatmField(int n)
     return (PRInt64) -1;
 }
 
-static PRInt64 GetVsize(void *)
+static PRInt64 GetMapped(void *)
 {
     return GetProcSelfStatmField(0);
 }
@@ -83,10 +83,11 @@ static bool GetTaskBasicInfo(struct task_basic_info *ti)
     return kr == KERN_SUCCESS;
 }
 
-// The VSIZE figure on Mac includes huge amounts of shared memory and is always
-// absurdly high, eg. 2GB+ even at start-up.  But both 'top' and 'ps' report
-// it, so we might as well too.
-static PRInt64 GetVsize(void *)
+// Getting a sensible "mapped" number on Mac is difficult.  The following is
+// easy and (I think) corresponds to the VSIZE figure reported by 'top' and
+// 'ps', but that includes shared memory and so is always absurdly high.  This
+// doesn't really matter as the "mapped" figure is never that useful.
+static PRInt64 GetMapped(void *)
 {
     task_basic_info ti;
     return (PRInt64) (GetTaskBasicInfo(&ti) ? ti.virtual_size : -1);
@@ -103,28 +104,21 @@ static PRInt64 GetResident(void *)
 #include <windows.h>
 #include <psapi.h>
 
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-static PRInt64 GetPrivate(void *)
+static PRInt64 GetMapped(void *)
 {
-    PROCESS_MEMORY_COUNTERS_EX pmcex;
-    pmcex.cb = sizeof(PROCESS_MEMORY_COUNTERS_EX);
+#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
+  PROCESS_MEMORY_COUNTERS_EX pmcex;
+  pmcex.cb = sizeof(PROCESS_MEMORY_COUNTERS_EX);
 
-    if (!GetProcessMemoryInfo(GetCurrentProcess(),
-                              (PPROCESS_MEMORY_COUNTERS) &pmcex, sizeof(pmcex)))
-    return (PRInt64) -1;
+  if (!GetProcessMemoryInfo(GetCurrentProcess(),
+                            (PPROCESS_MEMORY_COUNTERS) &pmcex, sizeof(pmcex)))
+      return (PRInt64) -1;
 
-    return pmcex.PrivateUsage;
-}
-
-NS_MEMORY_REPORTER_IMPLEMENT(Private,
-    "private",
-    MR_OTHER,
-    "Memory that cannot be shared with other processes, including memory that "
-    "is committed and marked MEM_PRIVATE, data that is not mapped, and "
-    "executable pages that have been written to.",
-    GetPrivate,
-    NULL)
+  return pmcex.PrivateUsage;
+#else
+  return (PRInt64) -1;
 #endif
+}
 
 static PRInt64 GetResident(void *)
 {
@@ -139,6 +133,11 @@ static PRInt64 GetResident(void *)
 
 #else
 
+static PRInt64 GetMapped(void *)
+{
+    return (PRInt64) -1;
+}
+
 static PRInt64 GetResident(void *)
 {
     return (PRInt64) -1;
@@ -146,25 +145,25 @@ static PRInt64 GetResident(void *)
 
 #endif
 
-#if defined(XP_LINUX) || defined(XP_MACOSX)
-NS_MEMORY_REPORTER_IMPLEMENT(Vsize,
-    "vsize",
-    MR_OTHER,
-    "Memory mapped by the process, including code and data segments, the "
-    "heap, thread stacks, memory explicitly mapped by the process via mmap "
-    "and similar operations, and memory shared with other processes. "
-    "(Note that 'resident' is a better measure of the memory resources used "
-    "by the process.) "
-    "This is the vsize figure as reported by 'top' or 'ps'; on Mac the amount "
-    "of memory shared with other processes is very high and so this figure is "
-    "of limited use.",
-    GetVsize,
+// aboutMemory.js requires that this reporter always be registered, even if the
+// byte count returned is always -1.
+NS_MEMORY_REPORTER_IMPLEMENT(Mapped,
+    "mapped",
+    "Memory mapped by the process, including the heap, code and data segments, "
+    "thread stacks, and memory explicitly mapped by the process via "
+    "mmap, VirtualAlloc and similar operations. "
+    "Note that 'resident' is a better measure of memory resources used by the "
+    "process. "
+    "On Windows (XP SP2 or later only) this is the private usage and does not "
+    "include memory shared with other processes. "
+    "On Mac and Linux this is the vsize figure as reported by 'top' or 'ps' "
+    "and includes memory shared with other processes;  on Mac the amount of "
+    "shared memory can be very high and so this figure is of limited use.",
+    GetMapped,
     NULL)
-#endif
 
 NS_MEMORY_REPORTER_IMPLEMENT(Resident,
     "resident",
-    MR_OTHER,
     "Memory mapped by the process that is present in physical memory, "
     "also known as the resident set size (RSS).  This is the best single "
     "figure to use when considering the memory resources used by the process, "
@@ -200,14 +199,14 @@ extern void jemalloc_stats(jemalloc_stats_t* stats)
 
 #if HAVE_JEMALLOC_STATS
 
-static PRInt64 GetHeapUsed(void *)
+static PRInt64 GetMappedHeapUsed(void *)
 {
     jemalloc_stats_t stats;
     jemalloc_stats(&stats);
     return (PRInt64) stats.allocated;
 }
 
-static PRInt64 GetHeapUnused(void *)
+static PRInt64 GetMappedHeapUnused(void *)
 {
     jemalloc_stats_t stats;
     jemalloc_stats(&stats);
@@ -229,30 +228,30 @@ static PRInt64 GetHeapDirty(void *)
 }
 
 NS_MEMORY_REPORTER_IMPLEMENT(HeapCommitted,
-    "heap-committed",
-    MR_OTHER,
-    "Memory mapped by the heap allocator that is committed, i.e. in physical "
-    "memory or paged to disk.",
-    GetHeapCommitted,
-    NULL)
+                             "heap-committed",
+                             "Memory mapped by the heap allocator that is "
+                             "committed, i.e. in physical memory or paged to "
+                             "disk.",
+                             GetHeapCommitted,
+                             NULL)
 
 NS_MEMORY_REPORTER_IMPLEMENT(HeapDirty,
-    "heap-dirty",
-    MR_OTHER,
-    "Memory mapped by the heap allocator that is committed but unused.",
-    GetHeapDirty,
-    NULL)
+                             "heap-dirty",
+                             "Memory mapped by the heap allocator that is "
+                             "committed but unused.",
+                             GetHeapDirty,
+                             NULL)
 
 #elif defined(XP_MACOSX) && !defined(MOZ_MEMORY)
 #include <malloc/malloc.h>
 
-static PRInt64 GetHeapUsed(void *)
+static PRInt64 GetMappedHeapUsed(void *)
 {
     struct mstats stats = mstats();
     return (PRInt64) stats.bytes_used;
 }
 
-static PRInt64 GetHeapUnused(void *)
+static PRInt64 GetMappedHeapUnused(void *)
 {
     struct mstats stats = mstats();
     return (PRInt64) (stats.bytes_total - stats.bytes_used);
@@ -273,51 +272,52 @@ static PRInt64 GetHeapZone0Used(void *)
 }
 
 NS_MEMORY_REPORTER_IMPLEMENT(HeapZone0Committed,
-    "heap-zone0-committed",
-    MR_OTHER,
-    "Memory mapped by the heap allocator that is committed in the default "
-    "zone.",
-    GetHeapZone0Committed,
-    NULL)
+                             "heap-zone0-committed",
+                             "Memory mapped by the heap allocator that is "
+                             "committed in the default zone.",
+                             GetHeapZone0Committed,
+                             NULL)
 
 NS_MEMORY_REPORTER_IMPLEMENT(HeapZone0Used,
-    "heap-zone0-used",
-    MR_OTHER,
-    "Memory mapped by the heap allocator in the default zone that is "
-    "available for use by the application.",
-    GetHeapZone0Used,
-    NULL)
+                             "heap-zone0-used",
+                             "Memory mapped by the heap allocator in the "
+                             "default zone that is available for use by the "
+                             "application.",
+                             GetHeapZone0Used,
+                             NULL)
 #else
 
-static PRInt64 GetHeapUsed(void *)
+static PRInt64 GetMappedHeapUsed(void *)
 {
     return (PRInt64) -1;
 }
 
-static PRInt64 GetHeapUnused(void *)
+static PRInt64 GetMappedHeapUnused(void *)
 {
     return (PRInt64) -1;
 }
 
 #endif
 
-NS_MEMORY_REPORTER_IMPLEMENT(HeapUsed,
-    "heap-used",
-    MR_OTHER,
+// aboutMemory.js requires that this reporter always be registered, even if the
+// byte count returned is always -1.
+NS_MEMORY_REPORTER_IMPLEMENT(MappedHeapUsed,
+    "mapped/heap/used",
     "Memory mapped by the heap allocator that is available for use by the "
     "application.  This may exceed the amount of memory requested by the "
-    "application due to the allocator rounding up request sizes. "
-    "(The exact amount requested is not measured.) ",
-    GetHeapUsed,
+    "application due to the allocator rounding up request sizes.  "
+    "(The exact amount requested is not measured.) "
+    "This is usually the best figure for developers to focus on when trying "
+    "to reduce memory consumption.",
+    GetMappedHeapUsed,
     NULL)
 
-NS_MEMORY_REPORTER_IMPLEMENT(HeapUnused,
-    "heap-unused",
-    MR_OTHER,
+NS_MEMORY_REPORTER_IMPLEMENT(MappedHeapUnused,
+    "mapped/heap/unused",
     "Memory mapped by the heap allocator and not available for use by the "
     "application.  This can grow large if the heap allocator is holding onto "
     "memory that the application has freed.",
-    GetHeapUnused,
+    GetMappedHeapUnused,
     NULL)
 
 /**
@@ -336,15 +336,10 @@ nsMemoryReporterManager::Init()
 
 #define REGISTER(_x)  RegisterReporter(new NS_MEMORY_REPORTER_NAME(_x))
 
-    REGISTER(HeapUsed);
-    REGISTER(HeapUnused);
+    REGISTER(Mapped);
+    REGISTER(MappedHeapUsed);
+    REGISTER(MappedHeapUnused);
     REGISTER(Resident);
-
-#if defined(XP_LINUX) || defined(XP_MACOSX)
-    REGISTER(Vsize);
-#elif defined(XP_WIN) && MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-    REGISTER(Private);
-#endif
 
 #if defined(HAVE_JEMALLOC_STATS)
     REGISTER(HeapCommitted);
@@ -400,11 +395,9 @@ NS_IMPL_ISUPPORTS1(nsMemoryReporter, nsIMemoryReporter)
 
 nsMemoryReporter::nsMemoryReporter(nsCString& prefix,
                                    nsCString& path,
-                                   PRInt32 kind,
                                    nsCString& desc,
                                    PRInt64 memoryUsed)
-: mKind(kind)
-, mDesc(desc)
+: mDesc(desc)
 , mMemoryUsed(memoryUsed)
 {
   if (!prefix.IsEmpty()) {
@@ -421,12 +414,6 @@ nsMemoryReporter::~nsMemoryReporter()
 NS_IMETHODIMP nsMemoryReporter::GetPath(char **aPath)
 {
     *aPath = strdup(mPath.get());
-    return NS_OK;
-}
-
-NS_IMETHODIMP nsMemoryReporter::GetKind(PRInt32 *aKind)
-{
-    *aKind = mKind;
     return NS_OK;
 }
 

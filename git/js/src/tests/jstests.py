@@ -109,8 +109,6 @@ class ResultsSink:
             result = TestResult.from_output(output)
             tup = (result.result, result.test.expect, result.test.random)
             dev_label = self.LABELS[tup][1]
-            if output.timed_out:
-                dev_label = 'TIMEOUTS'
             self.groups.setdefault(dev_label, []).append(result.test.path)
 
             self.n += 1
@@ -168,7 +166,7 @@ class ResultsSink:
         if OPTIONS.failure_file:
               failure_file = open(OPTIONS.failure_file, 'w')
               if not self.all_passed():
-                  for path in self.groups['REGRESSIONS'] + self.groups['TIMEOUTS']:
+                  for path in self.groups['REGRESSIONS']:
                       print >> failure_file, path
               failure_file.close()
 
@@ -179,7 +177,7 @@ class ResultsSink:
             print 'FAIL' + suffix
 
     def all_passed(self):
-        return 'REGRESSIONS' not in self.groups and 'TIMEOUTS' not in self.groups
+        return 'REGRESSIONS' not in self.groups
 
 def run_tests(tests, results):
     """Run the given tests, sending raw results to the given results accumulator."""

@@ -147,15 +147,12 @@ public:
   NS_DECL_NSISERIALIZABLE
   NS_DECL_NSICLASSINFO
 
-  // Override CloneInternal() and EqualsInternal()
-  virtual nsresult CloneInternal(RefHandlingEnum aRefHandlingMode,
-                                 nsIURI** aClone);
-  virtual nsresult EqualsInternal(nsIURI* aOther,
-                                  RefHandlingEnum aRefHandlingMode,
-                                  PRBool* aResult);
+  // Override Clone() and Equals()
+  NS_IMETHOD Clone(nsIURI** aClone);
+  NS_IMETHOD Equals(nsIURI* aOther, PRBool *aResult);
 
   // Override StartClone to hand back a nsFileDataURI
-  virtual nsSimpleURI* StartClone(RefHandlingEnum /* unused */)
+  virtual nsSimpleURI* StartClone()
   { return new nsFileDataURI(); }
 
   nsCOMPtr<nsIPrincipal> mPrincipal;
@@ -216,13 +213,12 @@ nsFileDataURI::Write(nsIObjectOutputStream* aStream)
 }
 
 // nsIURI methods:
-nsresult
-nsFileDataURI::CloneInternal(nsSimpleURI::RefHandlingEnum aRefHandlingMode,
-                             nsIURI** aClone)
+
+NS_IMETHODIMP
+nsFileDataURI::Clone(nsIURI** aClone)
 {
   nsCOMPtr<nsIURI> simpleClone;
-  nsresult rv =
-    nsSimpleURI::CloneInternal(aRefHandlingMode, getter_AddRefs(simpleClone));
+  nsresult rv = nsSimpleURI::Clone(getter_AddRefs(simpleClone));
   NS_ENSURE_SUCCESS(rv, rv);
 
 #ifdef DEBUG
@@ -240,10 +236,8 @@ nsFileDataURI::CloneInternal(nsSimpleURI::RefHandlingEnum aRefHandlingMode,
   return NS_OK;
 }
 
-/* virtual */ nsresult
-nsFileDataURI::EqualsInternal(nsIURI* aOther,
-                              nsSimpleURI::RefHandlingEnum aRefHandlingMode,
-                              PRBool* aResult)
+NS_IMETHODIMP
+nsFileDataURI::Equals(nsIURI* aOther, PRBool *aResult)
 {
   if (!aOther) {
     *aResult = PR_FALSE;
@@ -264,8 +258,7 @@ nsFileDataURI::EqualsInternal(nsIURI* aOther,
     return NS_OK;
   }
 
-  return nsSimpleURI::EqualsInternal(otherFileDataUri, aRefHandlingMode,
-                                     aResult);
+  return nsSimpleURI::Equals(otherFileDataUri, aResult);
 }
 
 // nsIClassInfo methods:
