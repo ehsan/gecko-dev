@@ -693,10 +693,7 @@ var gCookiesWindow = {
     }
     else {
       var rangeCount = seln.getRangeCount();
-      // Traverse backwards through selections to avoid messing 
-      // up the indices when they are deleted.
-      // See bug 388079.
-      for (var i = rangeCount - 1; i >= 0; --i) {
+      for (var i = 0; i < rangeCount; ++i) {
         var min = {}; var max = {};
         seln.getRangeAt(i, min, max);
         nextSelected = min.value;
