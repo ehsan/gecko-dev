@@ -201,7 +201,7 @@ class OSXBootstrapper(BaseBootstrapper):
                 continue
 
             if not printed:
-                print(PACKAGE_MANAGER_PACKAGES)
+                print(HOMEBREW_PACKAGES)
                 printed = True
 
             subprocess.check_call([brew, '-v', 'install', package])
