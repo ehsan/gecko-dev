@@ -6,7 +6,6 @@
 
 #include "PromiseCallback.h"
 #include "mozilla/dom/Promise.h"
-#include "mozilla/dom/PromiseNativeHandler.h"
 
 namespace mozilla {
 namespace dom {
@@ -38,11 +37,11 @@ PromiseCallback::~PromiseCallback()
 
 static void
 EnterCompartment(Maybe<JSAutoCompartment>& aAc, JSContext* aCx,
-                 JS::Handle<JS::Value> aValue)
+                 const Optional<JS::Handle<JS::Value> >& aValue)
 {
   // FIXME Bug 878849
-  if (aValue.isObject()) {
-    JS::Rooted<JSObject*> rooted(aCx, &aValue.toObject());
+  if (aValue.WasPassed() && aValue.Value().isObject()) {
+    JS::Rooted<JSObject*> rooted(aCx, &aValue.Value().toObject());
     aAc.construct(aCx, rooted);
   }
 }
@@ -72,7 +71,7 @@ ResolvePromiseCallback::~ResolvePromiseCallback()
 }
 
 void
-ResolvePromiseCallback::Call(JS::Handle<JS::Value> aValue)
+ResolvePromiseCallback::Call(const Optional<JS::Handle<JS::Value> >& aValue)
 {
   // Run resolver's algorithm with value and the synchronous flag set.
   AutoJSContext cx;
@@ -107,7 +106,7 @@ RejectPromiseCallback::~RejectPromiseCallback()
 }
 
 void
-RejectPromiseCallback::Call(JS::Handle<JS::Value> aValue)
+RejectPromiseCallback::Call(const Optional<JS::Handle<JS::Value> >& aValue)
 {
   // Run resolver's algorithm with value and the synchronous flag set.
   AutoJSContext cx;
@@ -144,7 +143,7 @@ WrapperPromiseCallback::~WrapperPromiseCallback()
 }
 
 void
-WrapperPromiseCallback::Call(JS::Handle<JS::Value> aValue)
+WrapperPromiseCallback::Call(const Optional<JS::Handle<JS::Value> >& aValue)
 {
   AutoJSContext cx;
   Maybe<JSAutoCompartment> ac;
@@ -154,15 +153,15 @@ WrapperPromiseCallback::Call(JS::Handle<JS::Value> aValue)
 
   // If invoking callback threw an exception, run resolver's reject with the
   // thrown exception as argument and the synchronous flag set.
-  JS::Rooted<JS::Value> value(cx,
+  Optional<JS::Handle<JS::Value> > value(cx,
     mCallback->Call(mNextPromise->GetParentObject(), aValue, rv,
                     CallbackObject::eRethrowExceptions));
 
   rv.WouldReportJSException();
 
   if (rv.Failed() && rv.IsJSException()) {
-    JS::Rooted<JS::Value> value(cx);
-    rv.StealJSException(cx, &value);
+    Optional<JS::Handle<JS::Value> > value(cx);
+    rv.StealJSException(cx, &value.Value());
 
     Maybe<JSAutoCompartment> ac2;
     EnterCompartment(ac2, cx, value);
@@ -204,51 +203,10 @@ SimpleWrapperPromiseCallback::~SimpleWrapperPromiseCallback()
 }
 
 void
-SimpleWrapperPromiseCallback::Call(JS::Handle<JS::Value> aValue)
+SimpleWrapperPromiseCallback::Call(const Optional<JS::Handle<JS::Value> >& aValue)
 {
   ErrorResult rv;
   mCallback->Call(mPromise, aValue, rv);
-}
-
-// NativePromiseCallback
-
-NS_IMPL_CYCLE_COLLECTION_INHERITED_1(NativePromiseCallback,
-                                     PromiseCallback, mHandler)
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(NativePromiseCallback)
-NS_INTERFACE_MAP_END_INHERITING(PromiseCallback)
-
-NS_IMPL_ADDREF_INHERITED(NativePromiseCallback, PromiseCallback)
-NS_IMPL_RELEASE_INHERITED(NativePromiseCallback, PromiseCallback)
-
-NativePromiseCallback::NativePromiseCallback(PromiseNativeHandler* aHandler,
-                                             Promise::PromiseState aState)
-  : mHandler(aHandler)
-  , mState(aState)
-{
-  MOZ_ASSERT(aHandler);
-  MOZ_COUNT_CTOR(NativePromiseCallback);
-}
-
-NativePromiseCallback::~NativePromiseCallback()
-{
-  MOZ_COUNT_DTOR(NativePromiseCallback);
-}
-
-void
-NativePromiseCallback::Call(JS::Handle<JS::Value> aValue)
-{
-  if (mState == Promise::Resolved) {
-    mHandler->ResolvedCallback(aValue);
-    return;
-  }
-
-  if (mState == Promise::Rejected) {
-    mHandler->RejectedCallback(aValue);
-    return;
-  }
-
-  NS_NOTREACHED("huh?");
 }
 
 /* static */ PromiseCallback*

@@ -356,10 +356,6 @@ protected:
    * @return whether the current value is the empty string.
    */
   bool IsValueEmpty() const;
-
-private:
-  static void MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
-                                    nsRuleData* aData);
 };
 
 } // namespace dom

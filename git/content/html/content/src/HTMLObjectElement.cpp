@@ -366,9 +366,9 @@ HTMLObjectElement::ParseAttribute(int32_t aNamespaceID,
                                                   aValue, aResult);
 }
 
-void
-HTMLObjectElement::MapAttributesIntoRule(const nsMappedAttributes *aAttributes,
-                                         nsRuleData *aData)
+static void
+MapAttributesIntoRule(const nsMappedAttributes *aAttributes,
+                      nsRuleData *aData)
 {
   nsGenericHTMLFormElement::MapImageAlignAttributeInto(aAttributes, aData);
   nsGenericHTMLFormElement::MapImageBorderAttributeInto(aAttributes, aData);

@@ -103,32 +103,22 @@ namespace js {
  */
 extern const Class TypedObjectClass;
 
-// Type for scalar type constructors like `uint8`. All such type
-// constructors share a common js::Class and JSFunctionSpec. Scalar
-// types are non-opaque (their storage is visible unless combined with
-// an opaque reference type.)
-class ScalarType
+template <ScalarTypeRepresentation::Type type, typename T>
+class NumericType
 {
+  private:
+    static const Class * typeToClass();
   public:
-    static const Class class_;
-    static const JSFunctionSpec typeObjectMethods[];
-    typedef ScalarTypeRepresentation TypeRepr;
-
+    static bool reify(JSContext *cx, void *mem, MutableHandleValue vp);
     static bool call(JSContext *cx, unsigned argc, Value *vp);
 };
 
-// Type for reference type constructors like `Any`, `String`, and
-// `Object`. All such type constructors share a common js::Class and
-// JSFunctionSpec. All these types are opaque.
-class ReferenceType
-{
-  public:
-    static const Class class_;
-    static const JSFunctionSpec typeObjectMethods[];
-    typedef ReferenceTypeRepresentation TypeRepr;
-
-    static bool call(JSContext *cx, unsigned argc, Value *vp);
-};
+/*
+ * These are the classes of the scalar type descriptors, like `uint8`,
+ * `uint16` etc. Each of these classes has exactly one instance that
+ * is pre-created.
+ */
+extern const Class NumericTypeClasses[ScalarTypeRepresentation::TYPE_MAX];
 
 /*
  * Type descriptor created by `new ArrayType(...)`
@@ -157,6 +147,8 @@ class ArrayType : public JSObject
                             HandleObject elementType, size_t length);
     static bool repeat(JSContext *cx, unsigned argc, Value *vp);
     static bool subarray(JSContext *cx, unsigned argc, Value *vp);
+
+    static bool toSource(JSContext *cx, unsigned argc, Value *vp);
 
     static JSObject *elementType(JSContext *cx, HandleObject obj);
 };
@@ -193,6 +185,8 @@ class StructType : public JSObject
     // This is the function that gets called when the user
     // does `new StructType(...)`. It produces a struct type object.
     static bool construct(JSContext *cx, unsigned argc, Value *vp);
+
+    static bool toSource(JSContext *cx, unsigned argc, Value *vp);
 
     static bool convertAndCopyTo(JSContext *cx,
                                  StructTypeRepresentation *typeRepr,
@@ -284,12 +278,8 @@ class TypedDatum : public JSObject
                               MutableHandleValue statep, MutableHandleId idp);
 
   public:
-    // Each typed object contains a void* pointer pointing at the
-    // binary data that it represents. (That data may be owned by this
-    // object or this object may alias data owned by someone else.)
-    // This function returns the offset in bytes within the object
-    // where the `void*` pointer can be found. It is intended for use
-    // by the JIT.
+    // Returns the offset in bytes within the object where the `void*`
+    // pointer can be found.
     static size_t dataOffset();
 
     static TypedDatum *createUnattachedWithClass(JSContext *cx,
@@ -315,7 +305,7 @@ class TypedDatum : public JSObject
                                      size_t offset);
 
     // If `this` is the owner of the memory, use this.
-    void attach(uint8_t *mem);
+    void attach(void *mem);
 
     // Otherwise, use this to attach to memory referenced by another datum.
     void attach(JSObject &datum, uint32_t offset);
@@ -427,46 +417,15 @@ bool Memcpy(ThreadSafeContext *cx, unsigned argc, Value *vp);
 extern const JSJitInfo MemcpyJitInfo;
 
 /*
- * Usage: Store_int8(targetDatum, targetOffset, value)
- *        ...
- *        Store_uint8(targetDatum, targetOffset, value)
- *        ...
- *        Store_float32(targetDatum, targetOffset, value)
- *        Store_float64(targetDatum, targetOffset, value)
+ * Usage: StoreScalar(targetDatum, targetOffset, value)
  *
- * Intrinsic function. Stores `value` into the memory referenced by
- * `targetDatum` at the offset `targetOffset`.
- *
- * Assumes (and asserts) that:
- * - `targetDatum` is attached
- * - `targetOffset` is a valid offset within the bounds of `targetDatum`
- * - `value` is a number
+ * Intrinsic function. Stores value (which must be an int32 or uint32)
+ * by `scalarTypeRepr` (which must be a type repr obj) and stores the
+ * value at the memory for `targetDatum` at offset `targetOffset`.
+ * `targetDatum` must be attached.
  */
 #define JS_STORE_SCALAR_CLASS_DEFN(_constant, T, _name)                       \
 class StoreScalar##T {                                                        \
-  public:                                                                     \
-    static bool Func(ThreadSafeContext *cx, unsigned argc, Value *vp);        \
-    static const JSJitInfo JitInfo;                                           \
-};
-
-/*
- * Usage: Store_Any(targetDatum, targetOffset, value)
- *        Store_Object(targetDatum, targetOffset, value)
- *        Store_string(targetDatum, targetOffset, value)
- *
- * Intrinsic function. Stores `value` into the memory referenced by
- * `targetDatum` at the offset `targetOffset`.
- *
- * Assumes (and asserts) that:
- * - `targetDatum` is attached
- * - `targetOffset` is a valid offset within the bounds of `targetDatum`
- * - `value` is an object (`Store_Object`) or string (`Store_string`).
- */
-#define JS_STORE_REFERENCE_CLASS_DEFN(_constant, T, _name)                    \
-class StoreReference##T {                                                     \
-  private:                                                                    \
-    static void store(T* heap, const Value &v);                               \
-                                                                              \
   public:                                                                     \
     static bool Func(ThreadSafeContext *cx, unsigned argc, Value *vp);        \
     static const JSJitInfo JitInfo;                                           \
@@ -487,30 +446,10 @@ class LoadScalar##T {                                                         \
     static const JSJitInfo JitInfo;                                           \
 };
 
-/*
- * Usage: LoadReference(targetDatum, targetOffset, value)
- *
- * Intrinsic function. Stores value (which must be an int32 or uint32)
- * by `scalarTypeRepr` (which must be a type repr obj) and stores the
- * value at the memory for `targetDatum` at offset `targetOffset`.
- * `targetDatum` must be attached.
- */
-#define JS_LOAD_REFERENCE_CLASS_DEFN(_constant, T, _name)                     \
-class LoadReference##T {                                                      \
-  private:                                                                    \
-    static void load(T* heap, MutableHandleValue v);                          \
-                                                                              \
-  public:                                                                     \
-    static bool Func(ThreadSafeContext *cx, unsigned argc, Value *vp);        \
-    static const JSJitInfo JitInfo;                                           \
-};
-
 // I was using templates for this stuff instead of macros, but ran
 // into problems with the Unagi compiler.
 JS_FOR_EACH_UNIQUE_SCALAR_TYPE_REPR_CTYPE(JS_STORE_SCALAR_CLASS_DEFN)
 JS_FOR_EACH_UNIQUE_SCALAR_TYPE_REPR_CTYPE(JS_LOAD_SCALAR_CLASS_DEFN)
-JS_FOR_EACH_REFERENCE_TYPE_REPR(JS_STORE_REFERENCE_CLASS_DEFN)
-JS_FOR_EACH_REFERENCE_TYPE_REPR(JS_LOAD_REFERENCE_CLASS_DEFN)
 
 } // namespace js
 

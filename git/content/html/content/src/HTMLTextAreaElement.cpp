@@ -400,9 +400,9 @@ HTMLTextAreaElement::ParseAttribute(int32_t aNamespaceID,
                                               aResult);
 }
 
-void
-HTMLTextAreaElement::MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
-                                           nsRuleData* aData)
+static void
+MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
+                      nsRuleData* aData)
 {
   nsGenericHTMLFormElementWithState::MapDivAlignAttributeInto(aAttributes, aData);
   nsGenericHTMLFormElementWithState::MapCommonAttributesInto(aAttributes, aData);

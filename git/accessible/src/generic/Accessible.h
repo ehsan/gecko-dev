@@ -13,9 +13,9 @@
 
 #include "nsIAccessible.h"
 #include "nsIAccessibleHyperLink.h"
+#include "nsIAccessibleValue.h"
 #include "nsIAccessibleStates.h"
 #include "xpcAccessibleSelectable.h"
-#include "xpcAccessibleValue.h"
 
 #include "nsIContent.h"
 #include "nsString.h"
@@ -105,7 +105,7 @@ typedef nsRefPtrHashtable<nsPtrHashKey<const void>, Accessible>
 class Accessible : public nsIAccessible,
                    public nsIAccessibleHyperLink,
                    public xpcAccessibleSelectable,
-                   public xpcAccessibleValue
+                   public nsIAccessibleValue
 {
 public:
   Accessible(nsIContent* aContent, DocAccessible* aDoc);
@@ -116,6 +116,7 @@ public:
 
   NS_DECL_NSIACCESSIBLE
   NS_DECL_NSIACCESSIBLEHYPERLINK
+  NS_DECL_NSIACCESSIBLEVALUE
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_ACCESSIBLE_IMPL_IID)
 
   //////////////////////////////////////////////////////////////////////////////
@@ -688,15 +689,6 @@ public:
   virtual bool UnselectAll();
 
   //////////////////////////////////////////////////////////////////////////////
-  // Value (numeric value interface)
-
-  virtual double MaxValue() const;
-  virtual double MinValue() const;
-  virtual double CurValue() const;
-  virtual double Step() const;
-  virtual bool SetCurValue(double aValue);
-
-  //////////////////////////////////////////////////////////////////////////////
   // Widgets
 
   /**
@@ -919,12 +911,14 @@ protected:
   nsIContent* GetAtomicRegion() const;
 
   /**
-   * Return numeric value of the given ARIA attribute, NaN if not applicable.
+   * Get numeric value of the given ARIA attribute.
    *
-   * @param aARIAProperty  [in] the ARIA property we're using
-   * @return  a numeric value
+   * @param aAriaProperty - the ARIA property we're using
+   * @param aValue - value of the attribute
+   *
+   * @return - NS_OK_NO_ARIA_VALUE if there is no setted ARIA attribute
    */
-  double AttrNumericValue(nsIAtom* aARIAAttr) const;
+  nsresult GetAttrValue(nsIAtom *aAriaProperty, double *aValue);
 
   /**
    * Return the action rule based on ARIA enum constants EActionRule

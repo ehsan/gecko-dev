@@ -4456,9 +4456,9 @@ HTMLInputElement::ParseAttribute(int32_t aNamespaceID,
                                               aResult);
 }
 
-void
-HTMLInputElement::MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
-                                        nsRuleData* aData)
+static void
+MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
+                      nsRuleData* aData)
 {
   const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::type);
   if (value && value->Type() == nsAttrValue::eEnum &&
@@ -6822,5 +6822,3 @@ HTMLInputElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
 
 } // namespace dom
 } // namespace mozilla
-
-#undef NS_ORIGINAL_CHECKED_VALUE

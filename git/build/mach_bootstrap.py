@@ -35,8 +35,6 @@ SEARCH_PATHS = [
     'python/which',
     'build/pymake',
     'config',
-    'dom/bindings',
-    'dom/bindings/parser',
     'other-licenses/ply',
     'xpcom/idl-parser',
     'testing',
@@ -62,7 +60,6 @@ SEARCH_PATHS = [
 # Individual files providing mach commands.
 MACH_MODULES = [
     'addon-sdk/mach_commands.py',
-    'dom/bindings/mach_commands.py',
     'layout/tools/reftest/mach_commands.py',
     'python/mach_commands.py',
     'python/mach/mach/commands/commandinfo.py',

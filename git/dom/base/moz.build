@@ -57,7 +57,6 @@ EXPORTS.mozilla.dom += [
     'MessageChannel.h',
     'MessagePort.h',
     'MessagePortList.h',
-    'Navigator.h',
     'ScreenOrientation.h',
     'StructuredCloneTags.h',
     'URL.h',

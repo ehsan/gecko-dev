@@ -78,7 +78,6 @@
 #endif
 
 #include "mozilla/Assertions.h"
-#include "mozilla/FloatingPoint.h"
 #include "mozilla/MouseEvents.h"
 #include "mozilla/unused.h"
 #include "mozilla/Preferences.h"
@@ -1673,53 +1672,61 @@ Accessible::Value(nsString& aValue)
   }
 }
 
-double
-Accessible::MaxValue() const
+// nsIAccessibleValue
+NS_IMETHODIMP
+Accessible::GetMaximumValue(double *aMaximumValue)
 {
-  return AttrNumericValue(nsGkAtoms::aria_valuemax);
+  return GetAttrValue(nsGkAtoms::aria_valuemax, aMaximumValue);
 }
 
-double
-Accessible::MinValue() const
+NS_IMETHODIMP
+Accessible::GetMinimumValue(double *aMinimumValue)
 {
-  return AttrNumericValue(nsGkAtoms::aria_valuemin);
+  return GetAttrValue(nsGkAtoms::aria_valuemin, aMinimumValue);
 }
 
-double
-Accessible::Step() const
+NS_IMETHODIMP
+Accessible::GetMinimumIncrement(double *aMinIncrement)
 {
-  return UnspecifiedNaN(); // no mimimum increment (step) in ARIA.
+  NS_ENSURE_ARG_POINTER(aMinIncrement);
+  *aMinIncrement = 0;
+
+  // No mimimum increment in dynamic content spec right now
+  return NS_OK_NO_ARIA_VALUE;
 }
 
-double
-Accessible::CurValue() const
+NS_IMETHODIMP
+Accessible::GetCurrentValue(double *aValue)
 {
-  return AttrNumericValue(nsGkAtoms::aria_valuenow);
+  return GetAttrValue(nsGkAtoms::aria_valuenow, aValue);
 }
 
-bool
-Accessible::SetCurValue(double aValue)
+NS_IMETHODIMP
+Accessible::SetCurrentValue(double aValue)
 {
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   if (!mRoleMapEntry || mRoleMapEntry->valueRule == eNoValue)
-    return false;
+    return NS_OK_NO_ARIA_VALUE;
 
   const uint32_t kValueCannotChange = states::READONLY | states::UNAVAILABLE;
+
   if (State() & kValueCannotChange)
-    return false;
+    return NS_ERROR_FAILURE;
 
-  double checkValue = MinValue();
-  if (!IsNaN(checkValue) && aValue < checkValue)
-    return false;
+  double minValue = 0;
+  if (NS_SUCCEEDED(GetMinimumValue(&minValue)) && aValue < minValue)
+    return NS_ERROR_INVALID_ARG;
 
-  checkValue = MaxValue();
-  if (!IsNaN(checkValue) && aValue > checkValue)
-    return false;
+  double maxValue = 0;
+  if (NS_SUCCEEDED(GetMaximumValue(&maxValue)) && aValue > maxValue)
+    return NS_ERROR_INVALID_ARG;
 
-  nsAutoString strValue;
-  strValue.AppendFloat(aValue);
-
-  return NS_SUCCEEDED(
-    mContent->SetAttr(kNameSpaceID_None, nsGkAtoms::aria_valuenow, strValue, true));
+  nsAutoString newValue;
+  newValue.AppendFloat(aValue);
+  return mContent->SetAttr(kNameSpaceID_None,
+                           nsGkAtoms::aria_valuenow, newValue, true);
 }
 
 /* void setName (in DOMString name); */
@@ -3109,19 +3116,31 @@ Accessible::GetFirstAvailableAccessible(nsINode *aStartNode) const
   return nullptr;
 }
 
-double
-Accessible::AttrNumericValue(nsIAtom* aAttr) const
+nsresult
+Accessible::GetAttrValue(nsIAtom *aProperty, double *aValue)
 {
-  if (!mRoleMapEntry || mRoleMapEntry->valueRule == eNoValue)
-    return UnspecifiedNaN();
+  NS_ENSURE_ARG_POINTER(aValue);
+  *aValue = 0;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;  // Node already shut down
+
+ if (!mRoleMapEntry || mRoleMapEntry->valueRule == eNoValue)
+    return NS_OK_NO_ARIA_VALUE;
 
   nsAutoString attrValue;
-  if (!mContent->GetAttr(kNameSpaceID_None, aAttr, attrValue))
-    return UnspecifiedNaN();
+  mContent->GetAttr(kNameSpaceID_None, aProperty, attrValue);
+
+  // Return zero value if there is no attribute or its value is empty.
+  if (attrValue.IsEmpty())
+    return NS_OK;
 
   nsresult error = NS_OK;
   double value = attrValue.ToDouble(&error);
-  return NS_FAILED(error) ? UnspecifiedNaN() : value;
+  if (NS_SUCCEEDED(error))
+    *aValue = value;
+
+  return NS_OK;
 }
 
 uint32_t

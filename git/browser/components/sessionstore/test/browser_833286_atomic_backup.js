@@ -104,6 +104,11 @@ function testReadBackup() {
   let ssDataRead = yield SessionFile.read();
   is(ssDataRead, gSSData, "SessionFile.read read sessionstore.js correctly.");
 
+  // Read sessionstore.js with SessionFile.syncRead.
+  ssDataRead = SessionFile.syncRead();
+  is(ssDataRead, gSSData,
+    "SessionFile.syncRead read sessionstore.js correctly.");
+
   // Remove sessionstore.js to test fallback onto sessionstore.bak.
   yield OS.File.remove(path);
   ssExists = yield OS.File.exists(path);
@@ -113,6 +118,11 @@ function testReadBackup() {
   ssDataRead = yield SessionFile.read();
   is(ssDataRead, gSSBakData,
     "SessionFile.read read sessionstore.bak correctly.");
+
+  // Read sessionstore.bak with SessionFile.syncRead.
+  ssDataRead = SessionFile.syncRead();
+  is(ssDataRead, gSSBakData,
+    "SessionFile.syncRead read sessionstore.bak correctly.");
 
   nextTest(testBackupUnchanged);
 }

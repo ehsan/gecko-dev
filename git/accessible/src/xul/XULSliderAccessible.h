@@ -21,9 +21,15 @@ class XULSliderAccessible : public AccessibleWrap
 public:
   XULSliderAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
+  // nsISupports
+  NS_DECL_ISUPPORTS_INHERITED
+
   // nsIAccessible
   NS_IMETHOD GetActionName(uint8_t aIndex, nsAString& aName);
   NS_IMETHOD DoAction(uint8_t aIndex);
+
+  // nsIAccessibleValue
+  NS_DECL_NSIACCESSIBLEVALUE
 
   // Accessible
   virtual void Value(nsString& aValue);
@@ -31,13 +37,6 @@ public:
   virtual uint64_t NativeInteractiveState() const;
   virtual bool NativelyUnavailable() const;
   virtual bool CanHaveAnonChildren();
-
-  // Value
-  virtual double MaxValue() const MOZ_OVERRIDE;
-  virtual double MinValue() const MOZ_OVERRIDE;
-  virtual double CurValue() const MOZ_OVERRIDE;
-  virtual double Step() const MOZ_OVERRIDE;
-  virtual bool SetCurValue(double aValue) MOZ_OVERRIDE;
 
   // ActionAccessible
   virtual uint8_t ActionCount();
@@ -48,11 +47,11 @@ protected:
    */
   nsIContent* GetSliderElement() const;
 
-  nsresult GetSliderAttr(nsIAtom *aName, nsAString& aValue) const;
+  nsresult GetSliderAttr(nsIAtom *aName, nsAString& aValue);
   nsresult SetSliderAttr(nsIAtom *aName, const nsAString& aValue);
 
-  double GetSliderAttr(nsIAtom *aName) const;
-  bool SetSliderAttr(nsIAtom *aName, double aValue);
+  nsresult GetSliderAttr(nsIAtom *aName, double *aValue);
+  nsresult SetSliderAttr(nsIAtom *aName, double aValue);
 
 private:
   mutable nsCOMPtr<nsIContent> mSliderNode;

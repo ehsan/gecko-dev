@@ -106,9 +106,9 @@ HTMLIFrameElement::ParseAttribute(int32_t aNamespaceID,
                                                    aValue, aResult);
 }
 
-void
-HTMLIFrameElement::MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
-                                         nsRuleData* aData)
+static void
+MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
+                      nsRuleData* aData)
 {
   if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Border)) {
     // frameborder: 0 | 1 (| NO | YES in quirks mode)

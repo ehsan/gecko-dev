@@ -171,7 +171,7 @@ AliasAnalysis::analyze()
         MDefinitionVector defs(alloc());
         if (!defs.append(firstIns))
             return false;
-        if (!stores.append(Move(defs)))
+        if (!stores.append(OldMove(defs)))
             return false;
     }
 

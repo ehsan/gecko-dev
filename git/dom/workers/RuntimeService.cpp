@@ -35,7 +35,7 @@
 #include "mozilla/DebugOnly.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Util.h"
-#include "mozilla/dom/Navigator.h"
+#include <Navigator.h>
 #include "nsContentUtils.h"
 #include "nsCycleCollector.h"
 #include "nsDOMJSUtils.h"
@@ -804,8 +804,6 @@ CreateJSContextForWorker(WorkerPrivate* aWorkerPrivate, JSRuntime* aRuntime)
       JS_SetGCParameter(aRuntime, setting.key, setting.value);
     }
   }
-
-  JS_SetIsWorkerRuntime(aRuntime);
 
   JS_SetNativeStackQuota(aRuntime, WORKER_CONTEXT_NATIVE_STACK_LIMIT);
 

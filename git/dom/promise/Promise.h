@@ -20,15 +20,13 @@
 namespace mozilla {
 namespace dom {
 
-class AnyCallback;
-class PromiseCallback;
 class PromiseInit;
-class PromiseNativeHandler;
+class PromiseCallback;
+class AnyCallback;
 
 class Promise MOZ_FINAL : public nsISupports,
                           public nsWrapperCache
 {
-  friend class NativePromiseCallback;
   friend class PromiseTask;
   friend class PromiseResolverTask;
   friend class ResolvePromiseCallback;
@@ -46,9 +44,9 @@ public:
   static bool EnabledForScope(JSContext* aCx, JSObject* /* unused */);
 
   void MaybeResolve(JSContext* aCx,
-                    JS::Handle<JS::Value> aValue);
+                    const Optional<JS::Handle<JS::Value> >& aValue);
   void MaybeReject(JSContext* aCx,
-                   JS::Handle<JS::Value> aValue);
+                   const Optional<JS::Handle<JS::Value> >& aValue);
 
   // WebIDL
 
@@ -79,8 +77,6 @@ public:
 
   already_AddRefed<Promise>
   Catch(const Optional<OwningNonNull<AnyCallback> >& aRejectCallback);
-
-  void AppendNativeHandler(PromiseNativeHandler* aRunnable);
 
 private:
   enum PromiseState {
@@ -124,18 +120,18 @@ private:
   void MaybeReportRejected();
 
   void MaybeResolveInternal(JSContext* aCx,
-                            JS::Handle<JS::Value> aValue,
+                            const Optional<JS::Handle<JS::Value> >& aValue,
                             PromiseTaskSync aSync = AsyncTask);
   void MaybeRejectInternal(JSContext* aCx,
-                           JS::Handle<JS::Value> aValue,
+                           const Optional<JS::Handle<JS::Value> >& aValue,
                            PromiseTaskSync aSync = AsyncTask);
 
   void ResolveInternal(JSContext* aCx,
-                       JS::Handle<JS::Value> aValue,
+                       const Optional<JS::Handle<JS::Value> >& aValue,
                        PromiseTaskSync aSync = AsyncTask);
 
   void RejectInternal(JSContext* aCx,
-                      JS::Handle<JS::Value> aValue,
+                      const Optional<JS::Handle<JS::Value> >& aValue,
                       PromiseTaskSync aSync = AsyncTask);
 
   // Static methods for the PromiseInit functions.

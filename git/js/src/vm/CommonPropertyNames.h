@@ -13,7 +13,6 @@
 
 #define FOR_EACH_COMMON_PROPERTYNAME(macro) \
     macro(anonymous, anonymous, "anonymous") \
-    macro(Any, Any, "Any") \
     macro(apply, apply, "apply") \
     macro(arguments, arguments, "arguments") \
     macro(as, as, "as") \

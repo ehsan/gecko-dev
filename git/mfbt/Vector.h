@@ -84,9 +84,9 @@ struct VectorImpl
      * [dst, dst+(srcend-srcbeg)) from the range [srcbeg, srcend).
      */
     template<typename U>
-    static inline void moveConstruct(T* dst, U* srcbeg, U* srcend) {
-      for (U* p = srcbeg; p < srcend; ++p, ++dst)
-        new(dst) T(Move(*p));
+    static inline void moveConstruct(T* dst, const U* srcbeg, const U* srcend) {
+      for (const U* p = srcbeg; p < srcend; ++p, ++dst)
+        new(dst) T(OldMove(*p));
     }
 
     /*
@@ -115,7 +115,7 @@ struct VectorImpl
       T* dst = newbuf;
       T* src = v.beginNoCheck();
       for (; src < v.endNoCheck(); ++dst, ++src)
-        new(dst) T(Move(*src));
+        new(dst) T(OldMove(*src));
       VectorImpl::destroy(v.beginNoCheck(), v.endNoCheck());
       v.free_(v.mBegin);
       v.mBegin = newbuf;
@@ -302,7 +302,7 @@ class VectorBase : private AllocPolicy
 #endif
 
     /* Append operations guaranteed to succeed due to pre-reserved space. */
-    template<typename U> void internalAppend(U&& u);
+    template<typename U> void internalAppend(const U& u);
     template<typename U, size_t O, class BP, class UV>
     void internalAppendAll(const VectorBase<U, O, BP, UV>& u);
     void internalAppendN(const T& t, size_t n);
@@ -314,8 +314,8 @@ class VectorBase : private AllocPolicy
     typedef T ElementType;
 
     VectorBase(AllocPolicy = AllocPolicy());
-    VectorBase(ThisVector&&); /* Move constructor. */
-    ThisVector& operator=(ThisVector&&); /* Move assignment. */
+    VectorBase(MoveRef<ThisVector>); /* Move constructor. */
+    ThisVector& operator=(MoveRef<ThisVector>); /* Move assignment. */
     ~VectorBase();
 
     /* accessors */
@@ -453,15 +453,15 @@ class VectorBase : private AllocPolicy
      */
     bool canAppendWithoutRealloc(size_t needed) const;
 
-    /** Potentially fallible append operations. */
-
     /**
-     * This can take either a T& or a T&&. Given a T&&, it moves |u| into the
-     * vector, instead of copying it. If it fails, |u| is left unmoved. ("We are
-     * not amused.")
+     * Potentially fallible append operations.
+     *
+     * The function templates that take an unspecified type U require a const T&
+     * or a MoveRef<T>.  The MoveRef<T> variants move their operands into the
+     * vector, instead of copying them.  If they fail, the operand is left
+     * unmoved.
      */
-    template<typename U> bool append(U&& u);
-
+    template<typename U> bool append(const U& u);
     template<typename U, size_t O, class BP, class UV>
     bool appendAll(const VectorBase<U, O, BP, UV>& u);
     bool appendN(const T& t, size_t n);
@@ -473,8 +473,8 @@ class VectorBase : private AllocPolicy
      * memory has been pre-reserved.  Don't use this if you haven't reserved the
      * memory!
      */
-    template<typename U> void infallibleAppend(U&& u) {
-      internalAppend(Forward<U>(u));
+    template<typename U> void infallibleAppend(const U& u) {
+      internalAppend(u);
     }
     void infallibleAppendN(const T& t, size_t n) {
       internalAppendN(t, n);
@@ -526,8 +526,7 @@ class VectorBase : private AllocPolicy
      *
      * This is inherently a linear-time operation.  Be careful!
      */
-    template<typename U>
-    T* insert(T* p, U&& val);
+    T* insert(T* p, const T& val);
 
     /**
      * Removes the element |t|, which must fall in the bounds [begin, end),
@@ -551,10 +550,6 @@ class VectorBase : private AllocPolicy
   private:
     VectorBase(const VectorBase&) MOZ_DELETE;
     void operator=(const VectorBase&) MOZ_DELETE;
-
-    /* Move-construct/assign only from our derived class, ThisVector. */
-    VectorBase(VectorBase&&) MOZ_DELETE;
-    void operator=(VectorBase&&) MOZ_DELETE;
 };
 
 /* This does the re-entrancy check plus several other sanity checks. */
@@ -584,22 +579,22 @@ VectorBase<T, N, AP, TV>::VectorBase(AP ap)
 /* Move constructor. */
 template<typename T, size_t N, class AllocPolicy, class TV>
 MOZ_ALWAYS_INLINE
-VectorBase<T, N, AllocPolicy, TV>::VectorBase(TV&& rhs)
-  : AllocPolicy(Move(rhs))
+VectorBase<T, N, AllocPolicy, TV>::VectorBase(MoveRef<TV> rhs)
+  : AllocPolicy(rhs)
 #ifdef DEBUG
     , entered(false)
 #endif
 {
-  mLength = rhs.mLength;
-  mCapacity = rhs.mCapacity;
+  mLength = rhs->mLength;
+  mCapacity = rhs->mCapacity;
 #ifdef DEBUG
-  mReserved = rhs.mReserved;
+  mReserved = rhs->mReserved;
 #endif
 
-  if (rhs.usingInlineStorage()) {
+  if (rhs->usingInlineStorage()) {
     /* We can't move the buffer over in this case, so copy elements. */
     mBegin = static_cast<T*>(storage.addr());
-    Impl::moveConstruct(mBegin, rhs.beginNoCheck(), rhs.endNoCheck());
+    Impl::moveConstruct(mBegin, rhs->beginNoCheck(), rhs->endNoCheck());
     /*
      * Leave rhs's mLength, mBegin, mCapacity, and mReserved as they are.
      * The elements in its in-line storage still need to be destroyed.
@@ -609,12 +604,12 @@ VectorBase<T, N, AllocPolicy, TV>::VectorBase(TV&& rhs)
      * Take src's buffer, and turn src into an empty vector using
      * in-line storage.
      */
-    mBegin = rhs.mBegin;
-    rhs.mBegin = static_cast<T*>(rhs.storage.addr());
-    rhs.mCapacity = sInlineCapacity;
-    rhs.mLength = 0;
+    mBegin = rhs->mBegin;
+    rhs->mBegin = static_cast<T*>(rhs->storage.addr());
+    rhs->mCapacity = sInlineCapacity;
+    rhs->mLength = 0;
 #ifdef DEBUG
-    rhs.mReserved = sInlineCapacity;
+    rhs->mReserved = sInlineCapacity;
 #endif
   }
 }
@@ -623,12 +618,11 @@ VectorBase<T, N, AllocPolicy, TV>::VectorBase(TV&& rhs)
 template<typename T, size_t N, class AP, class TV>
 MOZ_ALWAYS_INLINE
 TV&
-VectorBase<T, N, AP, TV>::operator=(TV&& rhs)
+VectorBase<T, N, AP, TV>::operator=(MoveRef<TV> rhs)
 {
-  MOZ_ASSERT(this != &rhs, "self-move assignment is prohibited");
   TV* tv = static_cast<TV*>(this);
   tv->~TV();
-  new(tv) TV(Move(rhs));
+  new(tv) TV(rhs);
   return *tv;
 }
 
@@ -901,11 +895,11 @@ VectorBase<T, N, AP, TV>::internalAppendAll(const VectorBase<U, O, BP, UV>& othe
 template<typename T, size_t N, class AP, class TV>
 template<typename U>
 MOZ_ALWAYS_INLINE void
-VectorBase<T, N, AP, TV>::internalAppend(U&& u)
+VectorBase<T, N, AP, TV>::internalAppend(const U& u)
 {
   MOZ_ASSERT(mLength + 1 <= mReserved);
   MOZ_ASSERT(mReserved <= mCapacity);
-  new(endNoCheck()) T(Forward<U>(u));
+  new(endNoCheck()) T(u);
   ++mLength;
 }
 
@@ -936,9 +930,8 @@ VectorBase<T, N, AP, TV>::internalAppendN(const T& t, size_t needed)
 }
 
 template<typename T, size_t N, class AP, class TV>
-template<typename U>
 inline T*
-VectorBase<T, N, AP, TV>::insert(T* p, U&& val)
+VectorBase<T, N, AP, TV>::insert(T* p, const T& val)
 {
   MOZ_ASSERT(begin() <= p);
   MOZ_ASSERT(p <= end());
@@ -946,15 +939,15 @@ VectorBase<T, N, AP, TV>::insert(T* p, U&& val)
   MOZ_ASSERT(pos <= mLength);
   size_t oldLength = mLength;
   if (pos == oldLength) {
-    if (!append(Forward<U>(val)))
+    if (!append(val))
       return nullptr;
   } else {
-    T oldBack = Move(back());
-    if (!append(Move(oldBack))) /* Dup the last element. */
+    T oldBack = back();
+    if (!append(oldBack)) /* Dup the last element. */
       return nullptr;
     for (size_t i = oldLength; i > pos; --i)
-      (*this)[i] = Move((*this)[i - 1]);
-    (*this)[pos] = Forward<U>(val);
+      (*this)[i] = (*this)[i - 1];
+    (*this)[pos] = val;
   }
   return begin() + pos;
 }
@@ -1004,7 +997,7 @@ VectorBase<T, N, AP, TV>::internalAppend(const U* insBegin, size_t insLength)
 template<typename T, size_t N, class AP, class TV>
 template<typename U>
 MOZ_ALWAYS_INLINE bool
-VectorBase<T, N, AP, TV>::append(U&& u)
+VectorBase<T, N, AP, TV>::append(const U& u)
 {
   MOZ_REENTRANCY_GUARD_ET_AL;
   if (mLength == mCapacity && !growStorageBy(1))
@@ -1014,7 +1007,7 @@ VectorBase<T, N, AP, TV>::append(U&& u)
   if (mLength + 1 > mReserved)
     mReserved = mLength + 1;
 #endif
-  internalAppend(Forward<U>(u));
+  internalAppend(u);
   return true;
 }
 
@@ -1184,9 +1177,9 @@ class Vector
 
   public:
     Vector(AllocPolicy alloc = AllocPolicy()) : Base(alloc) {}
-    Vector(Vector&& vec) : Base(Move(vec)) {}
-    Vector& operator=(Vector&& vec) {
-      return Base::operator=(Move(vec));
+    Vector(mozilla::MoveRef<Vector> vec) : Base(vec) {}
+    Vector& operator=(mozilla::MoveRef<Vector> vec) {
+      return Base::operator=(vec);
     }
 };
 
