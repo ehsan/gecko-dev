@@ -53,7 +53,7 @@
 #include "nsIDOMEventTarget.h"
 
 #include "nsBoxFrame.h"
-#include "nsMenuParent.h"
+#include "nsIMenuParent.h"
 #include "nsIWidget.h"
 
 #include "nsITimer.h"
@@ -111,14 +111,15 @@ nsIFrame* NS_NewMenuPopupFrame(nsIPresShell* aPresShell, nsStyleContext* aContex
 
 class nsIViewManager;
 class nsIView;
+class nsIMenuParent;
 class nsMenuPopupFrame;
 
-class nsMenuPopupFrame : public nsBoxFrame, public nsMenuParent
+class nsMenuPopupFrame : public nsBoxFrame, public nsIMenuParent
 {
 public:
   nsMenuPopupFrame(nsIPresShell* aShell, nsStyleContext* aContext);
 
-  // nsMenuParent interface
+  // nsIMenuParentInterface
   virtual nsMenuFrame* GetCurrentMenuItem();
   NS_IMETHOD SetCurrentMenuItem(nsMenuFrame* aMenuItem);
   virtual void CurrentMenuIsBeingDestroyed();

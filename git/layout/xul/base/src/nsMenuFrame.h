@@ -50,7 +50,7 @@
 #include "nsBoxFrame.h"
 #include "nsFrameList.h"
 #include "nsGkAtoms.h"
-#include "nsMenuParent.h"
+#include "nsIMenuParent.h"
 #include "nsIMenuFrame.h"
 #include "nsXULPopupManager.h"
 #include "nsITimer.h"
@@ -180,7 +180,7 @@ public:
 
   NS_IMETHOD SetParent(const nsIFrame* aParent);
 
-  virtual nsMenuParent *GetMenuParent() { return mMenuParent; }
+  virtual nsIMenuParent *GetMenuParent() { return mMenuParent; }
   const nsAString& GetRadioGroupName() { return mGroupName; }
   nsMenuType GetMenuType() { return mType; }
   nsMenuPopupFrame* GetPopup() { return mPopupFrame; }
@@ -269,7 +269,7 @@ protected:
   PRPackedBool mChecked;              // are we checked?
   nsMenuType mType;
 
-  nsMenuParent* mMenuParent; // Our parent menu.
+  nsIMenuParent* mMenuParent; // Our parent menu.
 
   // the popup for this menu, owned
   nsMenuPopupFrame* mPopupFrame;
