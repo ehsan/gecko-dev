@@ -6,7 +6,7 @@
 
 [OverrideBuiltins]
 interface HTMLDocument : Document {
-           [SetterThrows]
+           [Throws]
            attribute DOMString? domain;
            [Throws]
            attribute DOMString cookie;

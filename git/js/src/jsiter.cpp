@@ -926,11 +926,6 @@ const Class PropertyIteratorObject::class_ = {
     trace
 };
 
-static const Class ArrayIteratorPrototypeClass = {
-    "Array Iterator",
-    JSCLASS_IMPLEMENTS_BARRIERS
-};
-
 enum {
     ArrayIteratorSlotIteratedObject,
     ArrayIteratorSlotNextIndex,
@@ -1340,7 +1335,7 @@ GlobalObject::initIteratorClasses(JSContext *cx, Handle<GlobalObject *> global)
 
     RootedObject proto(cx);
     if (global->getSlot(ARRAY_ITERATOR_PROTO).isUndefined()) {
-        const Class *cls = &ArrayIteratorPrototypeClass;
+        const Class *cls = &ArrayIteratorObject::class_;
         proto = global->createBlankPrototypeInheriting(cx, cls, *iteratorProto);
         if (!proto || !DefinePropertiesAndFunctions(cx, proto, nullptr, array_iterator_methods))
             return false;

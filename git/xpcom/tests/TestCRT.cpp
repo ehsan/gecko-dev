@@ -7,7 +7,6 @@
 #include "nsString.h"
 #include "plstr.h"
 #include <stdlib.h>
-#include "gtest/gtest.h"
 
 namespace TestCRT {
 
@@ -30,9 +29,15 @@ int sign(int val) {
 // iso-latin-1 strings, so the comparison must be valid.
 static void Check(const char* s1, const char* s2, int n)
 {
-  int clib = PL_strcmp(s1, s2);
+#ifdef DEBUG
+  int clib =
+#endif
+    PL_strcmp(s1, s2);
 
-  int clib_n = PL_strncmp(s1, s2, n);
+#ifdef DEBUG
+  int clib_n =
+#endif
+    PL_strncmp(s1, s2, n);
 
   nsAutoString t1,t2; 
   t1.AssignWithConversion(s1);
@@ -40,13 +45,18 @@ static void Check(const char* s1, const char* s2, int n)
   const char16_t* us1 = t1.get();
   const char16_t* us2 = t2.get();
 
-  int u2 = nsCRT::strcmp(us1, us2);
+#ifdef DEBUG
+  int u2 =
+#endif
+    nsCRT::strcmp(us1, us2);
 
-  int u2_n = nsCRT::strncmp(us1, us2, n);
+#ifdef DEBUG
+  int u2_n =
+#endif
+    nsCRT::strncmp(us1, us2, n);
 
-  EXPECT_EQ(sign(clib), sign(u2));
-  EXPECT_EQ(sign(clib), sign(u2_n));
-  EXPECT_EQ(sign(clib), sign(clib_n));
+  NS_ASSERTION(sign(clib) == sign(u2), "strcmp");
+  NS_ASSERTION(sign(clib_n) == sign(u2_n), "strncmp");
 }
 
 struct Test {
@@ -73,12 +83,16 @@ static Test tests[] = {
 };
 #define NUM_TESTS int((sizeof(tests) / sizeof(tests[0])))
 
-TEST(CRT, main)
+}
+
+using namespace TestCRT;
+
+int main()
 {
-  TestCRT::Test* tp = tests;
+  Test* tp = tests;
   for (int i = 0; i < NUM_TESTS; i++, tp++) {
     Check(tp->s1, tp->s2, tp->n);
   }
-}
 
+  return 0;
 }

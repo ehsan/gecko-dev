@@ -45,8 +45,6 @@ both:
   async ProcessNativeEventsInInterruptCall();
 
 child:
-  async DisableFlashProtectedMode();
-
   // Forces the child process to update its plugin function table.
   intr NP_GetEntryPoints()
     returns (NPError rv);

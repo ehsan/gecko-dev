@@ -125,7 +125,7 @@ public:
   }
 
 private:
-  explicit ThreadLocal(const nsID& aBackgroundChildLoggingId);
+  ThreadLocal(const nsID& aBackgroundChildLoggingId);
   ~ThreadLocal();
 
   ThreadLocal() MOZ_DELETE;

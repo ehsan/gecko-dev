@@ -11,7 +11,8 @@ let CallTreeView = {
    * Sets up the view with event binding.
    */
   initialize: function () {
-    this._callTree = $(".call-tree-cells-container");
+    this.el = $(".call-tree");
+    this._graphEl = $(".call-tree-cells-container");
     this._onRangeChange = this._onRangeChange.bind(this);
     this._onLink = this._onLink.bind(this);
     this._stop = this._stop.bind(this);
@@ -31,7 +32,8 @@ let CallTreeView = {
   },
 
   /**
-   * Method for handling all the set up for rendering a new call tree.
+   * Method for handling all the set up for rendering a new
+   * call tree.
    */
   render: function (profilerData, beginAt, endAt, options={}) {
     let threadNode = this._prepareCallTree(profilerData, beginAt, endAt, options);
@@ -57,9 +59,6 @@ let CallTreeView = {
     this.render(this._profilerData, beginAt, endAt);
   },
 
-  /**
-   * Fired on the "link" event for the call tree in this container.
-   */
   _onLink: function (_, treeItem) {
     let { url, line } = treeItem.frame.getInfo();
     viewSourceInDebugger(url, line).then(
@@ -97,9 +96,9 @@ let CallTreeView = {
     // Bind events
     root.on("link", this._onLink);
 
-    // Clear out other call trees.
-    this._callTree.innerHTML = "";
-    root.attachTo(this._callTree);
+    // Clear out other graphs
+    this._graphEl.innerHTML = "";
+    root.attachTo(this._graphEl);
 
     let contentOnly = !Prefs.showPlatformData;
     root.toggleCategories(!contentOnly);
@@ -131,7 +130,7 @@ let viewSourceInDebugger = Task.async(function *(url, line) {
 
   let { DebuggerView } = dbg;
   let item = DebuggerView.Sources.getItemForAttachment(a => a.source.url === url);
-
+  
   if (item) {
     return DebuggerView.setEditorLocation(item.attachment.source.actor, line, { noDebug: true });
   }

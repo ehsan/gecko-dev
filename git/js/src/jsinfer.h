@@ -634,18 +634,13 @@ class TypeSet
      * Get whether this type set is known to be a subset of other.
      * This variant doesn't freeze constraints. That variant is called knownSubset
      */
-    bool isSubset(const TypeSet *other) const;
+    bool isSubset(TypeSet *other);
 
     /*
      * Get whether the objects in this TypeSet are a subset of the objects
      * in other.
      */
     bool objectsAreSubset(TypeSet *other);
-
-    /* Whether this TypeSet contains exactly the same types as other. */
-    bool equals(const TypeSet *other) const {
-        return this->isSubset(other) && other->isSubset(this);
-    }
 
     /* Forward all types in this set to the specified constraint. */
     bool addTypesToConstraint(JSContext *cx, TypeConstraint *constraint);
@@ -684,7 +679,7 @@ class AutoClearTypeInferenceStateOnOOM
     bool oom;
 
   public:
-    explicit AutoClearTypeInferenceStateOnOOM(Zone *zone)
+    AutoClearTypeInferenceStateOnOOM(Zone *zone)
       : zone(zone), oom(false)
     {}
 

@@ -430,13 +430,13 @@ struct WellKnownSymbols
 {
     js::ImmutableSymbolPtr iterator;
 
-    const ImmutableSymbolPtr &get(size_t u) const {
+    ImmutableSymbolPtr &get(size_t u) {
         MOZ_ASSERT(u < JS::WellKnownSymbolLimit);
-        const ImmutableSymbolPtr *symbols = reinterpret_cast<const ImmutableSymbolPtr *>(this);
+        ImmutableSymbolPtr *symbols = reinterpret_cast<ImmutableSymbolPtr *>(this);
         return symbols[u];
     }
 
-    const ImmutableSymbolPtr &get(JS::SymbolCode code) const {
+    ImmutableSymbolPtr &get(JS::SymbolCode code) {
         return get(size_t(code));
     }
 };

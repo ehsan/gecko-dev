@@ -18,11 +18,12 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=1096146
 <pre id="test">
 <script type="application/javascript">
 
+SimpleTest.requestFlakyTimeout("untriaged");
+
 const kKeydownEvent = 0x1;
 const kScrollEvent  = 0x2;
 
 var gCurrentTest = 0;
-var gNumEvents = 0;
 var kTests = [
   {
     description: "no preventDefault at 'mozbrowserbeforekeydown'",
@@ -47,29 +48,19 @@ function frameScript()
   addEventListener('scroll', handler);
 }
 
-
-function waitAndVerifyResult(count) {
-  if (gNumEvents >= 3 || count > 10) {
-    is(kTests[gCurrentTest].resultEvents,
-       kTests[gCurrentTest].expectedEvents,
-       "verify result");
-    runTests();
-	} else {
-    SimpleTest.requestFlakyTimeout("We must delay to wait for scroll/keydown events.");
-    setTimeout(function () waitAndVerifyResult(count + 1), 100);
-  }
-}
-
 function testDefaultAction()
 {
   synthesizeKey('VK_END', {}, document.getElementById("embedded").contentWindow);
-  waitAndVerifyResult(0);
+  setTimeout(function () {
+    is(kTests[gCurrentTest].expectedEvents,
+       kTests[gCurrentTest].resultEvents,
+       "verify result");
+    runTests();
+  }, 500);
 }
 
 function prepareTest()
 {
-  gNumEvents = 0;
-
   var handler;
   if (kTests[gCurrentTest].doPreventDefault) {
     handler = preventDefaultHandler;
@@ -92,11 +83,9 @@ function prepareTest()
       var value = 0;
       switch(msg.json.type) {
         case "scroll":
-          ++gNumEvents;
           value = kScrollEvent;
           break;
         case "keydown":
-          ++gNumEvents;
           value = kKeydownEvent;
           break;
         default:
@@ -117,14 +106,12 @@ function prepareTest()
 function preventDefaultHandler(evt)
 {
   ok(true, "receive " + evt.type + " and do preventDefault.");
-	++gNumEvents;
   evt.preventDefault();
 }
 
 function noPreventDefaultHandler(evt)
 {
   ok(true, "receive " + evt.type + ".");
-	++gNumEvents;
 }
 
 function teardownHandler()
@@ -136,7 +123,6 @@ function teardownHandler()
     handler = noPreventDefaultHandler;
   }
   window.removeEventListener("mozbrowserbeforekeydown", handler);
-  document.body.removeChild(document.getElementById("embedded"));
 
   runTests();
 }

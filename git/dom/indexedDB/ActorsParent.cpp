@@ -5080,7 +5080,7 @@ class DatabaseLoggingInfo MOZ_FINAL
   LoggingInfo mLoggingInfo;
 
 public:
-  explicit DatabaseLoggingInfo(const LoggingInfo& aLoggingInfo)
+  DatabaseLoggingInfo(const LoggingInfo& aLoggingInfo)
     : mLoggingInfo(aLoggingInfo)
   {
     AssertIsOnBackgroundThread();

@@ -112,8 +112,9 @@ TrackBuffer::Shutdown()
 }
 
 void
-TrackBuffer::ContinueShutdown()
+TrackBuffer::ContinueShutdown(bool aSuccess)
 {
+  MOZ_ASSERT(aSuccess);
   ReentrantMonitorAutoEnter mon(mParentDecoder->GetReentrantMonitor());
   if (mDecoders.Length()) {
     mDecoders[0]->GetReader()->Shutdown()
@@ -348,10 +349,6 @@ TrackBuffer::NewDecoder()
 bool
 TrackBuffer::QueueInitializeDecoder(SourceBufferDecoder* aDecoder)
 {
-  if (NS_WARN_IF(!mTaskQueue)) {
-    return false;
-  }
-
   RefPtr<nsIRunnable> task =
     NS_NewRunnableMethodWithArg<SourceBufferDecoder*>(this,
                                                       &TrackBuffer::InitializeDecoder,

@@ -701,13 +701,13 @@ status_t GonkBufferQueue::disconnect(int api) {
     return err;
 }
 
-void GonkBufferQueue::dumpToString(String8& result) const
+void GonkBufferQueue::dump(String8& result) const
 {
     char buffer[1024];
-    GonkBufferQueue::dumpToString(result, "", buffer, 1024);
+    GonkBufferQueue::dump(result, "", buffer, 1024);
 }
 
-void GonkBufferQueue::dumpToString(String8& result, const char* prefix,
+void GonkBufferQueue::dump(String8& result, const char* prefix,
         char* buffer, size_t SIZE) const
 {
     Mutex::Autolock _l(mMutex);

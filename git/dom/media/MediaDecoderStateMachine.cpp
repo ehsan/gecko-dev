@@ -1570,7 +1570,7 @@ void MediaDecoderStateMachine::Seek(const SeekTarget& aTarget)
   NS_ASSERTION(mState > DECODER_STATE_DECODING_METADATA,
                "We should have got duration already");
 
-  if (mState < DECODER_STATE_DECODING) {
+  if (mState <= DECODER_STATE_DECODING_FIRSTFRAME) {
     DECODER_LOG("Seek() Not Enough Data to continue at this stage, queuing seek");
     mQueuedSeekTarget = aTarget;
     return;
@@ -1624,7 +1624,9 @@ MediaDecoderStateMachine::StartSeek(const SeekTarget& aTarget)
 
   DECODER_LOG("Changed state to SEEKING (to %lld)", mSeekTarget.mTime);
   SetState(DECODER_STATE_SEEKING);
-  mDecoder->RecreateDecodedStreamIfNecessary(seekTime - mStartTime);
+  if (mDecoder->GetDecodedStream()) {
+    mDecoder->RecreateDecodedStream(seekTime - mStartTime);
+  }
   ScheduleStateMachine();
 }
 
@@ -2489,9 +2491,10 @@ MediaDecoderStateMachine::ShutdownReader()
 }
 
 void
-MediaDecoderStateMachine::FinishShutdown()
+MediaDecoderStateMachine::FinishShutdown(bool aSuccess)
 {
   MOZ_ASSERT(OnStateMachineThread());
+  MOZ_ASSERT(aSuccess);
   ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
 
   // The reader's listeners hold references to the state machine,

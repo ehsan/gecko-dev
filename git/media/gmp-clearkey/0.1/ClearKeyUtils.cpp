@@ -427,15 +427,22 @@ DecodeKey(string& aEncoded, Key& aOutDecoded)
 }
 
 static bool
-ParseKeyObject(ParserContext& aCtx, KeyIdPair& aOutKey)
+ParseKeyObject(ParserContext& aCtx, KeyIdPair& aOutKey, bool& aOutValid)
 {
+  aOutValid = false;
+
   EXPECT_SYMBOL(aCtx, '{');
 
-  // Reject empty objects as invalid licenses.
+  // Ignore empty objects
   if (PeekSymbol(aCtx) == '}') {
     GetNextSymbol(aCtx);
-    return false;
+    return true;
   }
+
+  // By spec, type should be "oct".
+  bool isExpectedType = false;
+  // By spec, alg should be "A128KW".
+  bool isExpectedAlg = false;
 
   string keyId;
   string key;
@@ -451,12 +458,10 @@ ParseKeyObject(ParserContext& aCtx, KeyIdPair& aOutKey)
     EXPECT_SYMBOL(aCtx, ':');
     if (label == "kty") {
       if (!GetNextLabel(aCtx, value)) return false;
-      // By spec, type must be "oct".
-      if (value != "oct") return false;
+      isExpectedType = value == "oct";
     } else if (label == "alg") {
       if (!GetNextLabel(aCtx, value)) return false;
-      // By spec, alg must be "A128KW".
-      if (value != "A128KW") return false;
+      isExpectedAlg = value == "A128KW";
     } else if (label == "k" && PeekSymbol(aCtx) == '"') {
       // if this isn't a string we will fall through to the SkipToken() path.
       if (!GetNextLabel(aCtx, key)) return false;
@@ -473,11 +478,14 @@ ParseKeyObject(ParserContext& aCtx, KeyIdPair& aOutKey)
     EXPECT_SYMBOL(aCtx, ',');
   }
 
-  return !key.empty() &&
-         !keyId.empty() &&
-         DecodeBase64(keyId, aOutKey.mKeyId) &&
-         DecodeKey(key, aOutKey.mKey) &&
-         GetNextSymbol(aCtx) == '}';
+  if (isExpectedType && isExpectedAlg &&
+      !key.empty() && !keyId.empty() &&
+      DecodeBase64(keyId, aOutKey.mKeyId) &&
+      DecodeKey(key, aOutKey.mKey)) {
+    aOutValid = true;
+  }
+
+  return GetNextSymbol(aCtx) == '}';
 }
 
 static bool
@@ -488,13 +496,15 @@ ParseKeys(ParserContext& aCtx, vector<KeyIdPair>& aOutKeys)
 
   while (true) {
     KeyIdPair key;
-    if (!ParseKeyObject(aCtx, key)) {
+    bool valid;
+    if (!ParseKeyObject(aCtx, key, valid)) {
       CK_LOGE("Failed to parse key object");
       return false;
     }
 
-    MOZ_ASSERT(!key.mKey.empty() && !key.mKeyId.empty());
-    aOutKeys.push_back(key);
+    if (valid) {
+      aOutKeys.push_back(key);
+    }
 
     uint8_t sym = PeekSymbol(aCtx);
     if (!sym || sym == ']') {

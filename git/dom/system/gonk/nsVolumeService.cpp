@@ -30,7 +30,6 @@
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/Services.h"
 
-#undef VOLUME_MANAGER_LOG_TAG
 #define VOLUME_MANAGER_LOG_TAG  "nsVolumeService"
 #include "VolumeManagerLog.h"
 

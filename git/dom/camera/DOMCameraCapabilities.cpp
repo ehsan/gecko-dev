@@ -25,7 +25,7 @@ template<class T>
 class CameraClosedMessage : public nsRunnable
 {
 public:
-  explicit CameraClosedMessage(nsMainThreadPtrHandle<T> aListener)
+  CameraClosedMessage(nsMainThreadPtrHandle<T> aListener)
     : mListener(aListener)
   {
     DOM_CAMERA_LOGT("%s:%d : this=%p\n", __func__, __LINE__, this);
@@ -56,7 +56,7 @@ template<class T>
 class CameraClosedListenerProxy : public CameraControlListener
 {
 public:
-  explicit CameraClosedListenerProxy(T* aListener)
+  CameraClosedListenerProxy(T* aListener)
     : mListener(new nsMainThreadPtrHolder<T>(aListener))
   {
     DOM_CAMERA_LOGT("%s:%d : this=%p\n", __func__, __LINE__, this);

@@ -39,6 +39,8 @@ private:
 
 #ifdef MOZ_NUWA_PROCESS
     if (IsNuwaProcess()) {
+      NS_ASSERTION(NuwaMarkCurrentThread,
+                   "NuwaMarkCurrentThread is undefined!");
       NuwaMarkCurrentThread(nullptr, nullptr);
     }
 #endif

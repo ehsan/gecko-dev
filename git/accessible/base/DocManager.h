@@ -5,14 +5,12 @@
 #ifndef mozilla_a11_DocManager_h_
 #define mozilla_a11_DocManager_h_
 
-#include "mozilla/ClearOnShutdown.h"
 #include "nsIDocument.h"
 #include "nsIDOMEventListener.h"
 #include "nsRefPtrHashtable.h"
 #include "nsIWebProgressListener.h"
 #include "nsWeakReference.h"
 #include "nsIPresShell.h"
-#include "mozilla/StaticPtr.h"
 
 namespace mozilla {
 namespace a11y {
@@ -76,16 +74,21 @@ public:
   /*
    * Notification that a top level document in a content process has gone away.
    */
-  static void RemoteDocShutdown(DocAccessibleParent* aDoc)
+  void RemoteDocShutdown(DocAccessibleParent* aDoc)
   {
-    DebugOnly<bool> result = sRemoteDocuments->RemoveElement(aDoc);
+    DebugOnly<bool> result = mRemoteDocuments.RemoveElement(aDoc);
     MOZ_ASSERT(result, "Why didn't we find the document!");
   }
 
   /*
    * Notify of a new top level document in a content process.
    */
-  static void RemoteDocAdded(DocAccessibleParent* aDoc);
+  void RemoteDocAdded(DocAccessibleParent* aDoc)
+  {
+    MOZ_ASSERT(!mRemoteDocuments.Contains(aDoc),
+               "How did we already have the doc!");
+    mRemoteDocuments.AppendElement(aDoc);
+  }
 
 #ifdef DEBUG
   bool IsProcessingRefreshDriverNotification() const;
@@ -173,7 +176,7 @@ private:
   /*
    * The list of remote top level documents.
    */
-  static StaticAutoPtr<nsTArray<DocAccessibleParent*>> sRemoteDocuments;
+  nsTArray<DocAccessibleParent*> mRemoteDocuments;
 };
 
 /**

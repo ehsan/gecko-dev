@@ -4301,7 +4301,7 @@ class LTypedObjectDescr : public LInstructionHelper<1, 1, 0>
   public:
     LIR_HEADER(TypedObjectDescr)
 
-    explicit LTypedObjectDescr(const LAllocation &object) {
+    LTypedObjectDescr(const LAllocation &object) {
         setOperand(0, object);
     }
     const LAllocation *object() {

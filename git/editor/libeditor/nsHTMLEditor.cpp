@@ -3540,26 +3540,24 @@ nsHTMLEditor::SelectAll()
 
   nsCOMPtr<nsIContent> anchorContent = do_QueryInterface(anchorNode, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
-
-  nsIContent *rootContent;
+  
+  // If the anchor content has independent selection, we never need to explicitly
+  // select its children.
   if (anchorContent->HasIndependentSelection()) {
     rv = selection->SetAncestorLimiter(nullptr);
     NS_ENSURE_SUCCESS(rv, rv);
-    rootContent = mRootElement;
-  } else {
-    nsCOMPtr<nsIPresShell> ps = GetPresShell();
-    rootContent = anchorContent->GetSelectionRootContent(ps);
+    nsCOMPtr<nsIDOMNode> rootElement = do_QueryInterface(mRootElement, &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
+    return selection->SelectAllChildren(rootElement);
   }
 
+  nsCOMPtr<nsIPresShell> ps = GetPresShell();
+  nsIContent *rootContent = anchorContent->GetSelectionRootContent(ps);
   NS_ENSURE_TRUE(rootContent, NS_ERROR_UNEXPECTED);
 
   nsCOMPtr<nsIDOMNode> rootElement = do_QueryInterface(rootContent, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  Maybe<mozilla::dom::Selection::AutoApplyUserSelectStyle> userSelection;
-  if (!rootContent->IsEditable()) {
-    userSelection.emplace(selection);
-  }
   return selection->SelectAllChildren(rootElement);
 }
 

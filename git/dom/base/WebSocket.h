@@ -173,7 +173,7 @@ private:
   // WebSocket.
   WebSocketImpl* mImpl;
 
-  bool mIsMainThread;
+  workers::WorkerPrivate* mWorkerPrivate;
 
   bool mKeepingAlive;
   bool mCheckMustKeepAlive;

@@ -26,7 +26,7 @@ class DocAccessibleParent : public ProxyAccessible,
 {
 public:
   DocAccessibleParent() :
-    ProxyAccessible(this), mParentDoc(nullptr)
+    mParentDoc(nullptr)
   { MOZ_COUNT_CTOR_INHERITED(DocAccessibleParent, ProxyAccessible); }
   ~DocAccessibleParent()
   {
@@ -45,7 +45,13 @@ public:
   virtual bool RecvShowEvent(const ShowEventData& aData) MOZ_OVERRIDE;
   virtual bool RecvHideEvent(const uint64_t& aRootID) MOZ_OVERRIDE;
 
-  virtual void ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
+  virtual void ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE
+  {
+    MOZ_ASSERT(mChildDocs.IsEmpty(),
+               "why wheren't the child docs destroyed already?");
+    mParentDoc ? mParentDoc->RemoveChildDoc(this)
+      : GetAccService()->RemoteDocShutdown(this);
+  }
 
   /*
    * Return the main processes representation of the parent document (if any)
@@ -57,7 +63,18 @@ public:
    * Called when a document in a content process notifies the main process of a
    * new child document.
    */
-  bool AddChildDoc(DocAccessibleParent* aChildDoc, uint64_t aParentID);
+  bool AddChildDoc(DocAccessibleParent* aChildDoc, uint64_t aParentID)
+  {
+    ProxyAccessible* outerDoc = mAccessibles.GetEntry(aParentID)->mProxy;
+    if (!outerDoc)
+      return false;
+
+    aChildDoc->mParent = outerDoc;
+    outerDoc->SetChildDoc(aChildDoc);
+    mChildDocs.AppendElement(aChildDoc);
+    aChildDoc->mParentDoc = this;
+    return true;
+  }
 
   /*
    * Called when the document in the content process this object represents

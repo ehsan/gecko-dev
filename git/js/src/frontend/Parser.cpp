@@ -4573,10 +4573,6 @@ Parser<FullParseHandler>::forStatement()
             iflags = JSITER_FOREACH;
             isForEach = true;
             sawDeprecatedForEach = true;
-            if (versionNumber() < JSVERSION_LATEST) {
-                if (!report(ParseWarning, pc->sc->strict, null(), JSMSG_DEPRECATED_FOR_EACH))
-                    return null();
-            }
         }
     }
 
@@ -6759,14 +6755,8 @@ Parser<FullParseHandler>::legacyComprehensionTail(ParseNode *bodyExpr, unsigned 
             bool matched;
             if (!tokenStream.matchContextualKeyword(&matched, context->names().each))
                 return null();
-            if (matched) {
+            if (matched)
                 pn2->pn_iflags |= JSITER_FOREACH;
-                sawDeprecatedForEach = true;
-                if (versionNumber() < JSVERSION_LATEST) {
-                    if (!report(ParseWarning, pc->sc->strict, pn2, JSMSG_DEPRECATED_FOR_EACH))
-                        return null();
-                }
-            }
         }
         MUST_MATCH_TOKEN(TOK_LP, JSMSG_PAREN_AFTER_FOR);
 
@@ -8109,30 +8099,8 @@ Parser<ParseHandler>::primaryExpr(TokenKind tt)
       case TOK_LET:
         return letBlock(LetExpression);
 
-      case TOK_LP: {
-        TokenKind next;
-        if (!tokenStream.peekToken(&next, TokenStream::Operand))
-            return null();
-        if (next != TOK_RP)
-            return parenExprOrGeneratorComprehension();
-
-        // Not valid expression syntax, but this is valid in an arrow function
-        // with no params: `() => body`.
-        tokenStream.consumeKnownToken(next);
-
-        if (!tokenStream.peekToken(&next))
-            return null();
-        if (next != TOK_ARROW) {
-            report(ParseError, false, null(), JSMSG_UNEXPECTED_TOKEN,
-                   "expression", TokenKindToDesc(TOK_RP));
-            return null();
-        }
-
-        // Now just return something that will allow parsing to continue.
-        // It doesn't matter what; when we reach the =>, we will rewind and
-        // reparse the whole arrow function. See Parser::assignExpr.
-        return handler.newNullLiteral(pos());
-      }
+      case TOK_LP:
+        return parenExprOrGeneratorComprehension();
 
       case TOK_TEMPLATE_HEAD:
         return templateLiteral();
@@ -8164,6 +8132,24 @@ Parser<ParseHandler>::primaryExpr(TokenKind tt)
         return handler.newThisLiteral(pos());
       case TOK_NULL:
         return handler.newNullLiteral(pos());
+
+      case TOK_RP: {
+        TokenKind next;
+        if (!tokenStream.peekToken(&next))
+            return null();
+
+        // Not valid expression syntax, but this is valid in an arrow function
+        // with no params: `() => body`.
+        if (next == TOK_ARROW) {
+            tokenStream.ungetToken();  // put back right paren
+
+            // Now just return something that will allow parsing to continue.
+            // It doesn't matter what; when we reach the =>, we will rewind and
+            // reparse the whole arrow function. See Parser::assignExpr.
+            return handler.newNullLiteral(pos());
+        }
+        goto unexpected_token;
+      }
 
       case TOK_TRIPLEDOT: {
         TokenKind next;
@@ -8203,6 +8189,7 @@ Parser<ParseHandler>::primaryExpr(TokenKind tt)
       }
 
       default:
+      unexpected_token:
         report(ParseError, false, null(), JSMSG_UNEXPECTED_TOKEN,
                "expression", TokenKindToDesc(tt));
         return null();
@@ -8370,19 +8357,18 @@ Parser<ParseHandler>::accumulateTelemetry()
     JS::AutoSuppressGCAnalysis nogc;
 
     // Call back into Firefox's Telemetry reporter.
-    int id = JS_TELEMETRY_DEPRECATED_LANGUAGE_EXTENSIONS_IN_CONTENT;
     if (sawDeprecatedForEach)
-         cx->runtime()->addTelemetry(id, DeprecatedForEach);
+         cx->runtime()->addTelemetry(JS_TELEMETRY_DEPRECATED_LANGUAGE_EXTENSIONS_IN_CONTENT, DeprecatedForEach);
     if (sawDeprecatedDestructuringForIn)
-         cx->runtime()->addTelemetry(id, DeprecatedDestructuringForIn);
+         cx->runtime()->addTelemetry(JS_TELEMETRY_DEPRECATED_LANGUAGE_EXTENSIONS_IN_CONTENT, DeprecatedDestructuringForIn);
     if (sawDeprecatedLegacyGenerator)
-        cx->runtime()->addTelemetry(id, DeprecatedLegacyGenerator);
+        cx->runtime()->addTelemetry(JS_TELEMETRY_DEPRECATED_LANGUAGE_EXTENSIONS_IN_CONTENT, DeprecatedLegacyGenerator);
     if (sawDeprecatedExpressionClosure)
-         cx->runtime()->addTelemetry(id, DeprecatedExpressionClosure);
+         cx->runtime()->addTelemetry(JS_TELEMETRY_DEPRECATED_LANGUAGE_EXTENSIONS_IN_CONTENT, DeprecatedExpressionClosure);
     if (sawDeprecatedLetBlock)
-         cx->runtime()->addTelemetry(id, DeprecatedLetBlock);
+         cx->runtime()->addTelemetry(JS_TELEMETRY_DEPRECATED_LANGUAGE_EXTENSIONS_IN_CONTENT, DeprecatedLetBlock);
     if (sawDeprecatedLetExpression)
-         cx->runtime()->addTelemetry(id, DeprecatedLetExpression);
+         cx->runtime()->addTelemetry(JS_TELEMETRY_DEPRECATED_LANGUAGE_EXTENSIONS_IN_CONTENT, DeprecatedLetExpression);
 }
 
 template class Parser<FullParseHandler>;

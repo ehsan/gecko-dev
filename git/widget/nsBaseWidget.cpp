@@ -43,8 +43,6 @@
 #include "mozilla/MouseEvents.h"
 #include "GLConsts.h"
 #include "mozilla/unused.h"
-#include "mozilla/layers/APZCTreeManager.h"
-#include "mozilla/layers/ChromeProcessController.h"
 
 #ifdef ACCESSIBILITY
 #include "nsAccessibilityService.h"
@@ -913,27 +911,6 @@ void nsBaseWidget::CreateCompositor()
   CreateCompositor(rect.width, rect.height);
 }
 
-already_AddRefed<GeckoContentController>
-nsBaseWidget::CreateRootContentController()
-{
-  nsRefPtr<GeckoContentController> controller = new ChromeProcessController();
-  return controller.forget();
-}
-
-void nsBaseWidget::ConfigureAPZCTreeManager()
-{
-  uint64_t rootLayerTreeId = mCompositorParent->RootLayerTreeId();
-  mAPZC = CompositorParent::GetAPZCTreeManager(rootLayerTreeId);
-  MOZ_ASSERT(mAPZC);
-
-  mAPZC->SetDPI(GetDPI());
-
-  nsRefPtr<GeckoContentController> controller = CreateRootContentController();
-  if (controller) {
-    CompositorParent::SetControllerForLayerTree(rootLayerTreeId, controller);
-  }
-}
-
 void
 nsBaseWidget::GetPreferredCompositorBackends(nsTArray<LayersBackend>& aHints)
 {
@@ -967,10 +944,6 @@ void nsBaseWidget::CreateCompositor(int aWidth, int aHeight)
   MessageLoop *childMessageLoop = CompositorParent::CompositorLoop();
   mCompositorChild = new CompositorChild(lm);
   mCompositorChild->Open(parentChannel, childMessageLoop, ipc::ChildSide);
-
-  if (gfxPrefs::AsyncPanZoomEnabled()) {
-    ConfigureAPZCTreeManager();
-  }
 
   TextureFactoryIdentifier textureFactoryIdentifier;
   PLayerTransactionChild* shadowManager = nullptr;

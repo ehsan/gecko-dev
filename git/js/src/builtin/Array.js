@@ -651,7 +651,7 @@ function ArrayIteratorIdentity() {
 }
 
 function ArrayIteratorNext() {
-    // FIXME: Cross-compartment wrapper ArrayIterator objects should pass this test.  Bug 1111170.
+    // FIXME: ArrayIterator prototype should not pass this test.  Bug 924059.
     if (!IsObject(this) || !IsArrayIterator(this))
         ThrowError(JSMSG_INCOMPATIBLE_METHOD, "ArrayIterator", "next", ToString(this));
 

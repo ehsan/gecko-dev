@@ -862,7 +862,7 @@ static int
 FindProperty(const InfallibleTArray<BluetoothNamedValue>& aProperties,
              const char* aPropertyType)
 {
-  for (size_t i = 0; i < aProperties.Length(); ++i) {
+  for (int i = 0; i < aProperties.Length(); ++i) {
     if (aProperties[i].name().EqualsASCII(aPropertyType)) {
       return i;
     }
@@ -4086,7 +4086,7 @@ BluetoothDBusService::SendMetaData(const nsAString& aTitle,
   a2dp->GetTitle(prevTitle);
   a2dp->GetAlbum(prevAlbum);
 
-  if (aMediaNumber < 0 || (uint64_t)aMediaNumber != a2dp->GetMediaNumber() ||
+  if (aMediaNumber != a2dp->GetMediaNumber() ||
       !aTitle.Equals(prevTitle) ||
       !aAlbum.Equals(prevAlbum)) {
     UpdateNotification(ControlEventId::EVENT_TRACK_CHANGED, aMediaNumber);

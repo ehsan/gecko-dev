@@ -50,8 +50,9 @@ RtspChannelParent::Init(const RtspChannelConnectArgs& aArgs)
 bool
 RtspChannelParent::ConnectChannel(const uint32_t& channelId)
 {
+  nsresult rv;
   nsCOMPtr<nsIChannel> channel;
-  NS_LinkRedirectChannels(channelId, this, getter_AddRefs(channel));
+  rv = NS_LinkRedirectChannels(channelId, this, getter_AddRefs(channel));
 
   return true;
 }

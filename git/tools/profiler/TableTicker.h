@@ -78,7 +78,6 @@ class TableTicker: public Sampler {
     mAddMainThreadIO = hasFeature(aFeatures, aFeatureCount, "mainthreadio");
     mProfileMemory = hasFeature(aFeatures, aFeatureCount, "memory");
     mTaskTracer = hasFeature(aFeatures, aFeatureCount, "tasktracer");
-    mLayersDump = hasFeature(aFeatures, aFeatureCount, "layersdump");
 
 #if defined(XP_WIN)
     if (mProfilePower) {
@@ -209,7 +208,6 @@ class TableTicker: public Sampler {
   bool AddMainThreadIO() const { return mAddMainThreadIO; }
   bool ProfileMemory() const { return mProfileMemory; }
   bool TaskTracer() const { return mTaskTracer; }
-  bool LayersDump() const { return mLayersDump; }
 
 protected:
   // Called within a signal. This function must be reentrant
@@ -235,7 +233,6 @@ protected:
   bool mUnwinderThread;
   bool mProfileJava;
   bool mProfilePower;
-  bool mLayersDump;
 
   // Keep the thread filter to check against new thread that
   // are started while profiling

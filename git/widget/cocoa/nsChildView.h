@@ -473,6 +473,7 @@ public:
   already_AddRefed<mozilla::a11y::Accessible> GetDocumentAccessible();
 #endif
 
+  virtual CompositorParent* NewCompositorParent(int aSurfaceWidth, int aSurfaceHeight);
   virtual void CreateCompositor();
   virtual void PrepareWindowEffects() MOZ_OVERRIDE;
   virtual void CleanupWindowEffects() MOZ_OVERRIDE;
@@ -527,7 +528,7 @@ public:
   void EndRemoteDrawing() MOZ_OVERRIDE;
   void CleanupRemoteDrawing() MOZ_OVERRIDE;
 
-  APZCTreeManager* APZCTM() { return mAPZC ; }
+  APZCTreeManager* APZCTM() { return mAPZCTreeManager; }
 
 protected:
   virtual ~nsChildView();
@@ -547,8 +548,6 @@ protected:
     nsCOMPtr<nsIWidget> widget = do_CreateInstance(kCPopUpCID);
     return widget.forget();
   }
-
-  void ConfigureAPZCTreeManager() MOZ_OVERRIDE;
 
   void DoRemoteComposition(const nsIntRect& aRenderRect);
 
@@ -629,6 +628,8 @@ protected:
   // Used in OMTC BasicLayers mode. Presents the BasicCompositor result
   // surface to the screen using an OpenGL context.
   nsAutoPtr<GLPresenter> mGLPresenter;
+
+  nsRefPtr<APZCTreeManager> mAPZCTreeManager;
 
   mozilla::UniquePtr<mozilla::VibrancyManager> mVibrancyManager;
 

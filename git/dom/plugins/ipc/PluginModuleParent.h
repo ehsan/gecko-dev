@@ -28,8 +28,6 @@
 #include "nsExceptionHandler.h"
 #endif
 
-class nsPluginTag;
-
 namespace mozilla {
 namespace dom {
 class PCrashReporterParent;
@@ -297,8 +295,7 @@ class PluginModuleChromeParent
      * This may or may not launch a plugin child process,
      * and may or may not be very expensive.
      */
-    static PluginLibrary* LoadModule(const char* aFilePath, uint32_t aPluginId,
-                                     nsPluginTag* aPluginTag);
+    static PluginLibrary* LoadModule(const char* aFilePath, uint32_t aPluginId);
 
     virtual ~PluginModuleChromeParent();
 

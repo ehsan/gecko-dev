@@ -14,7 +14,6 @@ let PerformanceView = {
     this._recordButton = $("#record-button");
 
     this._onRecordButtonClick = this._onRecordButtonClick.bind(this);
-    this._lockRecordButton = this._lockRecordButton.bind(this);
     this._unlockRecordButton = this._unlockRecordButton.bind(this);
 
     this._recordButton.addEventListener("click", this._onRecordButtonClick);
@@ -44,14 +43,6 @@ let PerformanceView = {
   },
 
   /**
-   * Adds the `locked` attribute on the record button. This prevents it
-   * from being clicked while recording is started or stopped.
-   */
-  _lockRecordButton: function () {
-    this._recordButton.setAttribute("locked", "true");
-  },
-
-  /**
    * Removes the `locked` attribute on the record button.
    */
   _unlockRecordButton: function () {
@@ -64,11 +55,11 @@ let PerformanceView = {
   _onRecordButtonClick: function (e) {
     if (this._recordButton.hasAttribute("checked")) {
       this._recordButton.removeAttribute("checked");
-      this._lockRecordButton();
+      this._recordButton.setAttribute("locked", "true");
       this.emit(EVENTS.UI_STOP_RECORDING);
     } else {
       this._recordButton.setAttribute("checked", "true");
-      this._lockRecordButton();
+      this._recordButton.setAttribute("locked", "true");
       this.emit(EVENTS.UI_START_RECORDING);
     }
   }

@@ -23,7 +23,7 @@
 
 namespace android {
 
-struct AMessage;
+struct MOZ_EXPORT AMessage;
 struct MOZ_EXPORT AString;
 struct MOZ_EXPORT MetaData;
 

@@ -7,7 +7,6 @@
 #include "mozilla/PreallocatedProcessManager.h"
 #include "mozilla/ClearOnShutdown.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/unused.h"
 #include "mozilla/dom/ContentParent.h"
 #include "mozilla/dom/ScriptSettings.h"
 #include "nsIPropertyBag2.h"
@@ -112,13 +111,11 @@ PreallocatedProcessManagerImpl::Singleton()
 NS_IMPL_ISUPPORTS(PreallocatedProcessManagerImpl, nsIObserver)
 
 PreallocatedProcessManagerImpl::PreallocatedProcessManagerImpl()
-  :
+  : mEnabled(false)
 #ifdef MOZ_NUWA_PROCESS
-    mPreallocateAppProcessTask(nullptr)
+  , mPreallocateAppProcessTask(nullptr)
   , mIsNuwaReady(false)
-  ,
 #endif
-    mEnabled(false)
   , mShutdown(false)
 {}
 
@@ -295,7 +292,7 @@ PreallocatedProcessManagerImpl::PublishSpareProcess(ContentParent* aContent)
     AutoJSContext cx;
     nsCOMPtr<nsIMessageBroadcaster> ppmm =
       do_GetService("@mozilla.org/parentprocessmessagemanager;1");
-    mozilla::unused << ppmm->BroadcastAsyncMessage(
+    nsresult rv = ppmm->BroadcastAsyncMessage(
       NS_LITERAL_STRING("TEST-ONLY:nuwa-add-new-process"),
       JS::NullHandleValue, JS::NullHandleValue, cx, 1);
   }
@@ -341,7 +338,7 @@ PreallocatedProcessManagerImpl::OnNuwaReady()
     AutoJSContext cx;
     nsCOMPtr<nsIMessageBroadcaster> ppmm =
       do_GetService("@mozilla.org/parentprocessmessagemanager;1");
-    mozilla::unused << ppmm->BroadcastAsyncMessage(
+    nsresult rv = ppmm->BroadcastAsyncMessage(
       NS_LITERAL_STRING("TEST-ONLY:nuwa-ready"),
       JS::NullHandleValue, JS::NullHandleValue, cx, 1);
   }
@@ -358,7 +355,7 @@ PreallocatedProcessManagerImpl::PreallocatedProcessReady()
 void
 PreallocatedProcessManagerImpl::NuwaFork()
 {
-  mozilla::unused << mPreallocatedAppProcess->SendNuwaFork();
+  mPreallocatedAppProcess->SendNuwaFork();
 }
 #endif
 

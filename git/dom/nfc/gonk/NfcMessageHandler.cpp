@@ -8,10 +8,9 @@
 #include "nsDebug.h"
 #include "NfcGonkMessage.h"
 #include "NfcOptions.h"
-#include "mozilla/unused.h"
 
 #include <android/log.h>
-#define NMH_LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "NfcMessageHandler", args)
+#define CHROMIUM_LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "NfcMessageHandler", args)
 
 using namespace android;
 using namespace mozilla;
@@ -75,7 +74,7 @@ bool
 NfcMessageHandler::Unmarshall(const Parcel& aParcel, EventOptions& aOptions)
 {
   bool result;
-  mozilla::unused << htonl(aParcel.readInt32());  // parcel size
+  uint32_t parcelSize = htonl(aParcel.readInt32());
   int32_t type = aParcel.readInt32();
 
   switch (type) {
@@ -133,7 +132,7 @@ NfcMessageHandler::GeneralResponse(const Parcel& aParcel, EventOptions& aOptions
       type = kCloseResponse;
       break;
     default:
-      NMH_LOG("Nfcd, unknown general response %d", pendingReq);
+      CHROMIUM_LOG("Nfcd, unknown general response %d", pendingReq);
       return false;
   }
 
@@ -254,7 +253,7 @@ NfcMessageHandler::InitializeNotification(const Parcel& aParcel, EventOptions& a
 
   if (aOptions.mMajorVersion != NFCD_MAJOR_VERSION ||
       aOptions.mMinorVersion != NFCD_MINOR_VERSION) {
-     NMH_LOG("NFCD version mismatched. majorVersion: %d, minorVersion: %d",
+     CHROMIUM_LOG("NFCD version mismatched. majorVersion: %d, minorVersion: %d",
                   aOptions.mMajorVersion, aOptions.mMinorVersion);
   }
 

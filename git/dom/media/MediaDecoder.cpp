@@ -125,7 +125,8 @@ void MediaDecoder::SetDormantIfNecessary(bool aDormant)
 
   if (!mDecoderStateMachine ||
       !mDecoderStateMachine->IsDormantNeeded() ||
-      mPlayState == PLAY_STATE_SHUTDOWN) {
+      mPlayState == PLAY_STATE_SHUTDOWN ||
+      mIsDormant == aDormant) {
     return;
   }
 
@@ -139,11 +140,14 @@ void MediaDecoder::SetDormantIfNecessary(bool aDormant)
     mRequestedSeekTarget = SeekTarget(timeUsecs, SeekTarget::Accurate);
 
     mNextState = mPlayState;
+    mIsDormant = true;
+    mIsExitingDormant = false;
     ChangeState(PLAY_STATE_LOADING);
-  } else {
+  } else if (!aDormant && mPlayState == PLAY_STATE_LOADING) {
     // exit dormant state
     // trigger to state machine.
     mDecoderStateMachine->SetDormant(false);
+    mIsExitingDormant = true;
   }
 }
 
@@ -151,7 +155,7 @@ void MediaDecoder::Pause()
 {
   MOZ_ASSERT(NS_IsMainThread());
   ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
-  if (mPlayState == PLAY_STATE_LOADING ||
+  if ((mPlayState == PLAY_STATE_LOADING && mIsDormant) ||
       mPlayState == PLAY_STATE_SEEKING ||
       mPlayState == PLAY_STATE_ENDED) {
     mNextState = PLAY_STATE_PAUSED;
@@ -266,14 +270,6 @@ MediaDecoder::DecodedStreamGraphListener::NotifyEvent(MediaStreamGraph* aGraph,
     aGraph->DispatchToMainThreadAfterStreamStateUpdate(event.forget());
   }
 }
-
-void MediaDecoder::RecreateDecodedStreamIfNecessary(int64_t aStartTimeUSecs)
-{
-  if (mInitialAudioCaptured) {
-    RecreateDecodedStream(aStartTimeUSecs);
-  }
-}
-
 void MediaDecoder::DestroyDecodedStream()
 {
   MOZ_ASSERT(NS_IsMainThread());
@@ -292,19 +288,15 @@ void MediaDecoder::DestroyDecodedStream()
     // be careful not to send any messages after the Destroy().
     if (os.mStream->IsDestroyed()) {
       // Probably the DOM MediaStream was GCed. Clean up.
-      if (os.mPort) {
-        os.mPort->Destroy();
-      }
+      os.mPort->Destroy();
       mOutputStreams.RemoveElementAt(i);
       continue;
     }
     os.mStream->ChangeExplicitBlockerCount(1);
     // Explicitly remove all existing ports. This is not strictly necessary but it's
     // good form.
-    if (os.mPort) {
-      os.mPort->Destroy();
-      os.mPort = nullptr;
-    }
+    os.mPort->Destroy();
+    os.mPort = nullptr;
   }
 
   mDecodedStream = nullptr;
@@ -440,6 +432,8 @@ MediaDecoder::MediaDecoder() :
   mMediaSeekable(true),
   mSameOriginMedia(false),
   mReentrantMonitor("media.decoder"),
+  mIsDormant(false),
+  mIsExitingDormant(false),
   mPlayState(PLAY_STATE_LOADING),
   mNextState(PLAY_STATE_PAUSED),
   mIgnoreProgressData(false),
@@ -606,13 +600,12 @@ nsresult MediaDecoder::Play()
   }
   nsresult res = ScheduleStateMachineThread();
   NS_ENSURE_SUCCESS(res,res);
-  if (mPlayState == PLAY_STATE_LOADING || mPlayState == PLAY_STATE_SEEKING) {
+  if ((mPlayState == PLAY_STATE_LOADING && mIsDormant) || mPlayState == PLAY_STATE_SEEKING) {
     mNextState = PLAY_STATE_PLAYING;
     return NS_OK;
   }
-  if (mPlayState == PLAY_STATE_ENDED) {
+  if (mPlayState == PLAY_STATE_ENDED)
     return Seek(0, SeekTarget::PrevSyncPoint);
-  }
 
   ChangeState(PLAY_STATE_PLAYING);
   return NS_OK;
@@ -635,7 +628,7 @@ nsresult MediaDecoder::Seek(double aTime, SeekTarget::Type aSeekType)
   // If we are already in the seeking state, then setting mRequestedSeekTarget
   // above will result in the new seek occurring when the current seek
   // completes.
-  if (mPlayState != PLAY_STATE_LOADING && mPlayState != PLAY_STATE_SEEKING) {
+  if ((mPlayState != PLAY_STATE_LOADING || !mIsDormant) && mPlayState != PLAY_STATE_SEEKING) {
     bool paused = false;
     if (mOwner) {
       paused = mOwner->GetPaused();
@@ -710,6 +703,12 @@ void MediaDecoder::MetadataLoaded(nsAutoPtr<MediaInfo> aInfo,
 
   {
     ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
+    if (mPlayState == PLAY_STATE_LOADING && mIsDormant && !mIsExitingDormant) {
+      return;
+    } else if (mPlayState == PLAY_STATE_LOADING && mIsDormant && mIsExitingDormant) {
+      mIsDormant = false;
+      mIsExitingDormant = false;
+    }
     mDuration = mDecoderStateMachine ? mDecoderStateMachine->GetDuration() : -1;
     // Duration has changed so we should recompute playback rate
     UpdatePlaybackRate();
@@ -741,6 +740,10 @@ void MediaDecoder::FirstFrameLoaded(nsAutoPtr<MediaInfo> aInfo)
   DECODER_LOG("FirstFrameLoaded, channels=%u rate=%u hasAudio=%d hasVideo=%d",
               aInfo->mAudio.mChannels, aInfo->mAudio.mRate,
               aInfo->HasAudio(), aInfo->HasVideo());
+
+  if (mPlayState == PLAY_STATE_LOADING && mIsDormant && !mIsExitingDormant) {
+    return;
+  }
 
   mInfo = aInfo.forget();
 
@@ -826,8 +829,7 @@ bool MediaDecoder::IsSameOriginMedia()
 bool MediaDecoder::IsSeeking() const
 {
   MOZ_ASSERT(NS_IsMainThread());
-  return mPlayState == PLAY_STATE_SEEKING ||
-    (mPlayState == PLAY_STATE_LOADING && mRequestedSeekTarget.IsValid());
+  return mPlayState == PLAY_STATE_SEEKING;
 }
 
 bool MediaDecoder::IsEnded() const
@@ -842,7 +844,7 @@ void MediaDecoder::PlaybackEnded()
 
   if (mShuttingDown ||
       mPlayState == PLAY_STATE_SEEKING ||
-      (mPlayState == PLAY_STATE_LOADING)) {
+      (mPlayState == PLAY_STATE_LOADING && mIsDormant)) {
     return;
   }
 
@@ -853,9 +855,7 @@ void MediaDecoder::PlaybackEnded()
       OutputStreamData& os = mOutputStreams[i];
       if (os.mStream->IsDestroyed()) {
         // Probably the DOM MediaStream was GCed. Clean up.
-        if (os.mPort) {
-          os.mPort->Destroy();
-        }
+        os.mPort->Destroy();
         mOutputStreams.RemoveElementAt(i);
         continue;
       }
@@ -863,9 +863,7 @@ void MediaDecoder::PlaybackEnded()
         // Shouldn't really be needed since mDecodedStream should already have
         // finished, but doesn't hurt.
         os.mStream->Finish();
-        if (os.mPort) {
-          os.mPort->Destroy();
-        }
+        os.mPort->Destroy();
         // Not really needed but it keeps the invariant that a stream not
         // connected to mDecodedStream is explicity blocked.
         os.mStream->ChangeExplicitBlockerCount(1);
@@ -1143,7 +1141,8 @@ void MediaDecoder::ChangeState(PlayState aState)
     mNextState = PLAY_STATE_PAUSED;
   }
 
-  if (mPlayState == PLAY_STATE_SHUTDOWN) {
+  if ((mPlayState == PLAY_STATE_LOADING && mIsDormant && aState != PLAY_STATE_SHUTDOWN) ||
+       mPlayState == PLAY_STATE_SHUTDOWN) {
     GetReentrantMonitor().NotifyAll();
     return;
   }
@@ -1167,6 +1166,11 @@ void MediaDecoder::ChangeState(PlayState aState)
   }
 
   ApplyStateToStateMachine(mPlayState);
+
+  if (aState!= PLAY_STATE_LOADING) {
+    mIsDormant = false;
+    mIsExitingDormant = false;
+  }
 
   GetReentrantMonitor().NotifyAll();
 }

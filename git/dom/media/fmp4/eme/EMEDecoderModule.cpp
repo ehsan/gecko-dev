@@ -68,9 +68,7 @@ public:
                                                        aSample);
         mTaskQueue->Dispatch(task.forget());
       } else if (GMP_FAILED(aResult)) {
-        if (mDecryptor->mCallback) {
-          mDecryptor->mCallback->Error();
-        }
+        mDecryptor->mCallback->Error();
         MOZ_ASSERT(!aSample);
       } else {
         RefPtr<nsIRunnable> task;
@@ -152,7 +150,6 @@ public:
     mTaskQueue->AwaitShutdownAndIdle();
     mTaskQueue = nullptr;
     mProxy = nullptr;
-    mCallback = nullptr;
     return rv;
   }
 

@@ -464,11 +464,15 @@ SimdTypeDescr::alignment(Type t)
  * function() { ... } to add a method to all ArrayType instances.
  * (And, again, same with respect to s and S.)
  *
- * This function creates the A.prototype/S.prototype object. It returns an
- * empty object with the .prototype.prototype object as its [[Prototype]].
+ * This function creates the A.prototype/S.prototype object.  It takes
+ * as an argument either the TypedObject.ArrayType or the
+ * TypedObject.StructType constructor function, then returns an empty
+ * object with the .prototype.prototype object as its [[Prototype]].
  */
 static TypedProto *
-CreatePrototypeObjectForComplexTypeInstance(JSContext *cx, HandleObject ctorPrototype)
+CreatePrototypeObjectForComplexTypeInstance(JSContext *cx,
+                                            Handle<TypeDescr*> descr,
+                                            HandleObject ctorPrototype)
 {
     RootedObject ctorPrototypePrototype(cx, GetPrototype(cx, ctorPrototype));
     if (!ctorPrototypePrototype)
@@ -609,17 +613,10 @@ ArrayMetaTypeDescr::create(JSContext *cx,
     if (!CreateUserSizeAndAlignmentProperties(cx, obj))
         return nullptr;
 
-    // All arrays with the same element type have the same prototype. This
-    // prototype is created lazily and stored in the element type descriptor.
     Rooted<TypedProto*> prototypeObj(cx);
-    if (elementType->getReservedSlot(JS_DESCR_SLOT_ARRAYPROTO).isObject()) {
-        prototypeObj = &elementType->getReservedSlot(JS_DESCR_SLOT_ARRAYPROTO).toObject().as<TypedProto>();
-    } else {
-        prototypeObj = CreatePrototypeObjectForComplexTypeInstance(cx, arrayTypePrototype);
-        if (!prototypeObj)
-            return nullptr;
-        elementType->setReservedSlot(JS_DESCR_SLOT_ARRAYPROTO, ObjectValue(*prototypeObj));
-    }
+    prototypeObj = CreatePrototypeObjectForComplexTypeInstance(cx, obj, arrayTypePrototype);
+    if (!prototypeObj)
+        return nullptr;
 
     obj->initReservedSlot(JS_DESCR_SLOT_TYPROTO, ObjectValue(*prototypeObj));
 
@@ -973,7 +970,7 @@ StructMetaTypeDescr::create(JSContext *cx,
         return nullptr;
 
     Rooted<TypedProto*> prototypeObj(cx);
-    prototypeObj = CreatePrototypeObjectForComplexTypeInstance(cx, structTypePrototype);
+    prototypeObj = CreatePrototypeObjectForComplexTypeInstance(cx, descr, structTypePrototype);
     if (!prototypeObj)
         return nullptr;
 

@@ -5376,7 +5376,7 @@ class CheckSimdScalarArgs
     Type formalType_;
 
   public:
-    explicit CheckSimdScalarArgs(AsmJSSimdType simdType)
+    CheckSimdScalarArgs(AsmJSSimdType simdType)
       : simdType_(simdType), formalType_(SimdToCoercedScalarType(simdType))
     {}
 

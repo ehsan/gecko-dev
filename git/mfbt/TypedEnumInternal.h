@@ -37,7 +37,9 @@
 #    endif
 #  endif
 #elif defined(_MSC_VER)
-#  define MOZ_HAVE_CXX11_ENUM_TYPE
+#  if _MSC_VER >= 1400
+#    define MOZ_HAVE_CXX11_ENUM_TYPE
+#  endif
 #  if _MSC_VER >= 1700
 #    define MOZ_HAVE_CXX11_STRONG_ENUMS
 #  endif

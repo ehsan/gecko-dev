@@ -10507,7 +10507,7 @@ class MGetDOMProperty
     const JSJitInfo *info_;
 
   protected:
-    explicit MGetDOMProperty(const JSJitInfo *jitinfo)
+    MGetDOMProperty(const JSJitInfo *jitinfo)
       : info_(jitinfo)
     {
         MOZ_ASSERT(jitinfo);
@@ -10624,7 +10624,7 @@ class MGetDOMProperty
 class MGetDOMMember : public MGetDOMProperty
 {
     // We inherit everything from MGetDOMProperty except our possiblyCalls value
-    explicit MGetDOMMember(const JSJitInfo *jitinfo)
+    MGetDOMMember(const JSJitInfo *jitinfo)
         : MGetDOMProperty(jitinfo)
     {
     }
@@ -11343,8 +11343,10 @@ class MTypeBarrier
     }
 
     void printOpcode(FILE *fp) const;
-    bool congruentTo(const MDefinition *def) const;
 
+    bool congruentTo(const MDefinition *def) const {
+        return false;
+    }
     AliasSet getAliasSet() const {
         return AliasSet::None();
     }

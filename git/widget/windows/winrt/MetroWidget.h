@@ -89,6 +89,7 @@ public:
                          nsIntPoint* aPoint = nullptr) MOZ_OVERRIDE;
 
   // nsBaseWidget
+  virtual CompositorParent* NewCompositorParent(int aSurfaceWidth, int aSurfaceHeight);
   virtual void SetWidgetListener(nsIWidgetListener* aWidgetListener);
 
   // nsIWidget interface
@@ -244,10 +245,6 @@ protected:
       }
     }
   };
-
-  // nsBaseWidget
-  void ConfigureAPZCTreeManager() MOZ_OVERRIDE;
-  already_AddRefed<GeckoContentController> NewRootContentController() MOZ_OVERRIDE;
 
   void SetSubclass();
   void RemoveSubclass();

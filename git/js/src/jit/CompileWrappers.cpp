@@ -156,13 +156,6 @@ CompileRuntime::positiveInfinityValue()
     return runtime()->positiveInfinityValue;
 }
 
-const WellKnownSymbols &
-CompileRuntime::wellKnownSymbols()
-{
-    MOZ_ASSERT(onMainThread());
-    return *runtime()->wellKnownSymbols;
-}
-
 #ifdef DEBUG
 bool
 CompileRuntime::isInsideNursery(gc::Cell *cell)

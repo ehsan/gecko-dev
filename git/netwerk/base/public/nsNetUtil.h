@@ -193,16 +193,9 @@ NS_NewFileURI(nsIURI* *result,
 * NS_NewInputStreamChannel, NS_NewChannelInternal
 * and it's variations:
 *
-* What specific API function to use:
-* * The NS_NewChannelInternal functions should almost never be directly
-*   called outside of necko code.
-* * If possible, use NS_NewChannel() providing a loading *nsINode*
-* * If no loading *nsINode* is avaialable, call NS_NewChannel() providing
-*   a loading *nsIPrincipal*.
-* * Call NS_NewChannelWithTriggeringPrincipal if the triggeringPrincipal
-*   is different from the loadingPrincipal.
-* * Call NS_NewChannelInternal() providing aLoadInfo object in cases where
-*   you already have loadInfo object, e.g in case of a channel redirect.
+* Please note, if you provide both a loadingNode and a loadingPrincipal,
+* then loadingPrincipal must be equal to loadingNode->NodePrincipal().
+* But less error prone is to just supply a loadingNode.
 *
 * @param aURI
 *        nsIURI from which to make a channel
@@ -254,9 +247,16 @@ NS_NewFileURI(nsIURI* *result,
 *        The contentPolicyType of the channel.
 *        Any of the content types defined in nsIContentPolicy.idl
 *
-* Please note, if you provide both a loadingNode and a loadingPrincipal,
-* then loadingPrincipal must be equal to loadingNode->NodePrincipal().
-* But less error prone is to just supply a loadingNode.
+* What specific API function to use:
+* * The NS_NewChannelInternal functions should almost never be directly
+*   called outside of necko code.
+* * If possible, use NS_NewChannel() providing a loading *nsINode*
+* * If no loading *nsINode* is avaialable, call NS_NewChannel() providing
+*   a loading *nsIPrincipal*.
+* * Call NS_NewChannelWithTriggeringPrincipal if the triggeringPrincipal
+*   is different from the loadingPrincipal.
+* * Call NS_NewChannelInternal() providing aLoadInfo object in cases where
+*   you already have loadInfo object, e.g in case of a channel redirect.
 */
 inline nsresult
 NS_NewChannelInternal(nsIChannel**           outChannel,
@@ -991,20 +991,6 @@ NS_NewLoadGroup(nsILoadGroup      **result,
     }
     return rv;
 }
-
-// Create a new nsILoadGroup that will match the given principal.
-nsresult
-NS_NewLoadGroup(nsILoadGroup** aResult, nsIPrincipal* aPrincipal);
-
-// Determine if the given loadGroup/principal pair will produce a principal
-// with similar permissions when passed to NS_NewChannel().  This checks for
-// things like making sure the appId and browser element flags match.  Without
-// an appropriate load group these values can be lost when getting the result
-// principal back out of the channel.  Null principals are also always allowed
-// as they do not have permissions to actually use the load group.
-bool
-NS_LoadGroupMatchesPrincipal(nsILoadGroup* aLoadGroup,
-                             nsIPrincipal* aPrincipal);
 
 inline nsresult
 NS_NewDownloader(nsIStreamListener   **result,

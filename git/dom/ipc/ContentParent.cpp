@@ -75,7 +75,6 @@
 #include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
 #include "mozilla/StaticPtr.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/unused.h"
 #include "nsAnonymousTemporaryFile.h"
 #include "nsAppRunner.h"
@@ -1750,9 +1749,6 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
         props->SetPropertyAsUint64(NS_LITERAL_STRING("childID"), mChildID);
 
         if (AbnormalShutdown == why) {
-            Telemetry::Accumulate(Telemetry::SUBPROCESS_ABNORMAL_ABORT,
-                                  NS_LITERAL_CSTRING("content"), 1);
-
             props->SetPropertyAsBool(NS_LITERAL_STRING("abnormal"), true);
 
 #ifdef MOZ_CRASHREPORTER
@@ -2592,8 +2588,8 @@ ContentParent::RecvAddNewProcess(const uint32_t& aPid,
     size_t numNuwaPrefUpdates = sNuwaPrefUpdates ?
                                 sNuwaPrefUpdates->Length() : 0;
     // Resend pref updates to the forked child.
-    for (size_t i = 0; i < numNuwaPrefUpdates; i++) {
-        mozilla::unused << content->SendPreferenceUpdate(sNuwaPrefUpdates->ElementAt(i));
+    for (int i = 0; i < numNuwaPrefUpdates; i++) {
+        content->SendPreferenceUpdate(sNuwaPrefUpdates->ElementAt(i));
     }
 
     // Update offline settings.
@@ -2602,7 +2598,7 @@ ContentParent::RecvAddNewProcess(const uint32_t& aPid,
     ClipboardCapabilities clipboardCaps;
     RecvGetXPCOMProcessAttributes(&isOffline, &unusedDictionaries,
                                   &clipboardCaps);
-    mozilla::unused << content->SendSetOffline(isOffline);
+    content->SendSetOffline(isOffline);
     MOZ_ASSERT(!clipboardCaps.supportsSelectionClipboard() &&
                !clipboardCaps.supportsFindClipboard(),
                "Unexpected values");
@@ -2868,7 +2864,7 @@ ContentParent::RecvPDocAccessibleConstructor(PDocAccessibleParent* aDoc, PDocAcc
     return parentDoc->AddChildDoc(doc, aParentID);
   } else {
     MOZ_ASSERT(!aParentID);
-    a11y::DocManager::RemoteDocAdded(doc);
+    GetAccService()->RemoteDocAdded(doc);
   }
 #endif
   return true;

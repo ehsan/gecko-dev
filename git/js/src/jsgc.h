@@ -638,7 +638,7 @@ class ArenaLists
     ArenaHeader *savedEmptyObjectArenas;
 
   public:
-    explicit ArenaLists(JSRuntime *rt) : runtime_(rt) {
+    ArenaLists(JSRuntime *rt) : runtime_(rt) {
         for (size_t i = 0; i != FINALIZE_LIMIT; ++i)
             freeLists[i].initAsEmpty();
         for (size_t i = 0; i != FINALIZE_LIMIT; ++i)

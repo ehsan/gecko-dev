@@ -21,8 +21,8 @@
 using namespace android;
 
 namespace android {
-struct ALooper;
-class MediaBuffer;
+struct MOZ_EXPORT ALooper;
+class MOZ_EXPORT MediaBuffer;
 struct MOZ_EXPORT AString;
 class GonkNativeWindow;
 } // namespace android

@@ -287,7 +287,7 @@ class JitRuntime
     {
         JitRuntime *jrt_;
       public:
-        explicit AutoMutateBackedges(JitRuntime *jrt) : jrt_(jrt) {
+        AutoMutateBackedges(JitRuntime *jrt) : jrt_(jrt) {
             MOZ_ASSERT(!jrt->mutatingBackedgeList_);
             jrt->mutatingBackedgeList_ = true;
         }

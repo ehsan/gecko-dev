@@ -273,6 +273,14 @@ nsRubyBaseContainerFrame::Reflow(nsPresContext* aPresContext,
 
   aStatus = NS_FRAME_COMPLETE;
   WritingMode lineWM = aReflowState.mLineLayout->GetWritingMode();
+  WritingMode frameWM = aReflowState.GetWritingMode();
+  LogicalMargin borderPadding = aReflowState.ComputedLogicalBorderPadding();
+  nscoord startEdge = borderPadding.IStart(frameWM);
+  nscoord endEdge = aReflowState.AvailableISize() - borderPadding.IEnd(frameWM);
+
+  aReflowState.mLineLayout->BeginSpan(this, &aReflowState,
+                                      startEdge, endEdge, &mBaseline);
+
   LogicalSize availSize(lineWM, aReflowState.AvailableWidth(),
                         aReflowState.AvailableHeight());
 
@@ -310,10 +318,8 @@ nsRubyBaseContainerFrame::Reflow(nsPresContext* aPresContext,
       aPresContext, *aReflowState.parentReflowState, textContainer, availSize);
     reflowStates.AppendElement(reflowState);
     reflowStateArray->AppendElement(reflowState);
-    nsLineLayout* lineLayout = new nsLineLayout(aPresContext,
-                                                reflowState->mFloatManager,
-                                                reflowState, nullptr,
-                                                aReflowState.mLineLayout);
+    nsLineLayout* lineLayout = new nsLineLayout(
+      aPresContext, reflowState->mFloatManager, reflowState, nullptr);
     lineLayouts.AppendElement(lineLayout);
 
     // Line number is useless for ruby text
@@ -331,15 +337,7 @@ nsRubyBaseContainerFrame::Reflow(nsPresContext* aPresContext,
                                 reflowState->ComputedISize(),
                                 NS_UNCONSTRAINEDSIZE,
                                 false, false, lineWM, containerWidth);
-    lineLayout->AttachRootFrameToBaseLineLayout();
   }
-
-  WritingMode frameWM = aReflowState.GetWritingMode();
-  LogicalMargin borderPadding = aReflowState.ComputedLogicalBorderPadding();
-  nscoord startEdge = borderPadding.IStart(frameWM);
-  nscoord endEdge = aReflowState.AvailableISize() - borderPadding.IEnd(frameWM);
-  aReflowState.mLineLayout->BeginSpan(this, &aReflowState,
-                                      startEdge, endEdge, &mBaseline);
 
   // Reflow pairs excluding any span
   nscoord pairsISize = ReflowPairs(aPresContext, aReflowState,
@@ -576,9 +574,6 @@ nsRubyBaseContainerFrame::ReflowOnePair(nsPresContext* aPresContext,
   for (uint32_t i = 0; i < rtcCount; i++) {
     nsLineLayout* lineLayout = aReflowStates[i]->mLineLayout;
     lineLayout->AdvanceICoord(icoord - lineLayout->GetCurrentICoord());
-    if (aBaseFrame && aTextFrames[i]) {
-      lineLayout->AttachLastFrameToBaseLineLayout();
-    }
   }
 
   mPairCount++;

@@ -416,6 +416,8 @@ class NuwaMarkPredictorThreadRunner : public nsRunnable
   NS_IMETHODIMP Run() MOZ_OVERRIDE
   {
     if (IsNuwaProcess()) {
+      NS_ASSERTION(NuwaMarkCurrentThread != nullptr,
+                   "NuwaMarkCurrentThread is undefined!");
       NuwaMarkCurrentThread(nullptr, nullptr);
     }
     return NS_OK;

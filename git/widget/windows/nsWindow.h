@@ -42,6 +42,7 @@
 #include "nsUXThemeData.h"
 #include "nsIDOMMouseEvent.h"
 #include "nsIIdleServiceInternal.h"
+#include "mozilla/layers/APZCTreeManager.h"
 
 /**
  * Forward class definitions
@@ -73,6 +74,7 @@ class nsWindow : public nsWindowBase
   typedef mozilla::widget::TaskbarWindowPreview TaskbarWindowPreview;
   typedef mozilla::widget::NativeKey NativeKey;
   typedef mozilla::widget::MSGResult MSGResult;
+  typedef mozilla::layers::APZCTreeManager APZCTreeManager;
 
 public:
   nsWindow();
@@ -89,6 +91,7 @@ public:
   virtual bool DispatchScrollEvent(mozilla::WidgetGUIEvent* aEvent) MOZ_OVERRIDE;
   virtual nsWindowBase* GetParentWindowBase(bool aIncludeOwner) MOZ_OVERRIDE;
   virtual bool IsTopLevelWidget() MOZ_OVERRIDE { return mIsTopWidgetWindow; }
+  virtual CompositorParent* NewCompositorParent(int aSurfaceWidth, int aSurfaceHeight) MOZ_OVERRIDE;
 
   // nsIWidget interface
   NS_IMETHOD              Create(nsIWidget *aParent,
@@ -590,6 +593,8 @@ protected:
 
   static bool sNeedsToInitMouseWheelSettings;
   static void InitMouseWheelScrollData();
+
+  nsRefPtr<APZCTreeManager> mAPZC;
 };
 
 /**

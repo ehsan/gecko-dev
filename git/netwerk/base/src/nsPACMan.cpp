@@ -718,6 +718,8 @@ nsPACMan::NamePACThread()
   PR_SetCurrentThreadName("Proxy Resolution");
 #ifdef MOZ_NUWA_PROCESS
   if (IsNuwaProcess()) {
+    NS_ASSERTION(NuwaMarkCurrentThread != nullptr,
+                 "NuwaMarkCurrentThread is undefined!");
     NuwaMarkCurrentThread(nullptr, nullptr);
   }
 #endif

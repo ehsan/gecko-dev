@@ -47,7 +47,7 @@ class GrallocImage : public PlanarYCbCrImage
                    , public ISharedImage
 {
   typedef PlanarYCbCrData Data;
-  static int32_t sColorIdMap[];
+  static uint32_t sColorIdMap[];
 public:
   struct GrallocData {
     nsRefPtr<TextureClient> mGraphicBuffer;

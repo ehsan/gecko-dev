@@ -123,25 +123,20 @@ CertListContainsExpectedKeys(const CERTCertList* certList,
 }
 
 static Result
-BuildCertChainForOneKeyUsage(NSSCertDBTrustDomain& trustDomain, Input certDER,
+BuildCertChainForOneKeyUsage(TrustDomain& trustDomain, Input certDER,
                              Time time, KeyUsage ku1, KeyUsage ku2,
                              KeyUsage ku3, KeyPurposeId eku,
                              const CertPolicyId& requiredPolicy,
-                             const Input* stapledOCSPResponse,
-                             /*optional out*/ CertVerifier::OCSPStaplingStatus*
-                                                ocspStaplingStatus)
+                             const Input* stapledOCSPResponse)
 {
-  trustDomain.ResetOCSPStaplingStatus();
   Result rv = BuildCertChain(trustDomain, certDER, time,
                              EndEntityOrCA::MustBeEndEntity, ku1,
                              eku, requiredPolicy, stapledOCSPResponse);
   if (rv == Result::ERROR_INADEQUATE_KEY_USAGE) {
-    trustDomain.ResetOCSPStaplingStatus();
     rv = BuildCertChain(trustDomain, certDER, time,
                         EndEntityOrCA::MustBeEndEntity, ku2,
                         eku, requiredPolicy, stapledOCSPResponse);
     if (rv == Result::ERROR_INADEQUATE_KEY_USAGE) {
-      trustDomain.ResetOCSPStaplingStatus();
       rv = BuildCertChain(trustDomain, certDER, time,
                           EndEntityOrCA::MustBeEndEntity, ku3,
                           eku, requiredPolicy, stapledOCSPResponse);
@@ -149,9 +144,6 @@ BuildCertChainForOneKeyUsage(NSSCertDBTrustDomain& trustDomain, Input certDER,
         rv = Result::ERROR_INADEQUATE_KEY_USAGE;
       }
     }
-  }
-  if (ocspStaplingStatus) {
-    *ocspStaplingStatus = trustDomain.GetOCSPStaplingStatus();
   }
   return rv;
 }
@@ -162,8 +154,7 @@ CertVerifier::VerifyCert(CERTCertificate* cert, SECCertificateUsage usage,
                          const Flags flags,
             /*optional*/ const SECItem* stapledOCSPResponseSECItem,
         /*optional out*/ ScopedCERTCertList* builtChain,
-        /*optional out*/ SECOidTag* evOidPolicy,
-        /*optional out*/ OCSPStaplingStatus* ocspStaplingStatus)
+        /*optional out*/ SECOidTag* evOidPolicy)
 {
   PR_LOG(gCertVerifierLog, PR_LOG_DEBUG, ("Top of VerifyCert\n"));
 
@@ -175,13 +166,6 @@ CertVerifier::VerifyCert(CERTCertificate* cert, SECCertificateUsage usage,
   }
   if (evOidPolicy) {
     *evOidPolicy = SEC_OID_UNKNOWN;
-  }
-  if (ocspStaplingStatus) {
-    if (usage != certificateUsageSSLServer) {
-      PR_SetError(SEC_ERROR_INVALID_ARGS, 0);
-      return SECFailure;
-    }
-    *ocspStaplingStatus = OCSP_STAPLING_NEVER_CHECKED;
   }
 
   if (!cert ||
@@ -259,8 +243,7 @@ CertVerifier::VerifyCert(CERTCertificate* cert, SECCertificateUsage usage,
                                           KeyUsage::keyEncipherment, // RSA
                                           KeyUsage::keyAgreement,    // (EC)DH
                                           KeyPurposeId::id_kp_serverAuth,
-                                          evPolicy, stapledOCSPResponse,
-                                          ocspStaplingStatus);
+                                          evPolicy, stapledOCSPResponse);
         if (rv == Success) {
           if (evOidPolicy) {
             *evOidPolicy = evPolicyOidTag;
@@ -285,8 +268,7 @@ CertVerifier::VerifyCert(CERTCertificate* cert, SECCertificateUsage usage,
                                         KeyUsage::keyAgreement, // (EC)DH
                                         KeyPurposeId::id_kp_serverAuth,
                                         CertPolicyId::anyPolicy,
-                                        stapledOCSPResponse,
-                                        ocspStaplingStatus);
+                                        stapledOCSPResponse);
       break;
     }
 
@@ -436,8 +418,7 @@ CertVerifier::VerifySSLServerCert(CERTCertificate* peerCert,
                                   bool saveIntermediatesInPermanentDatabase,
                                   Flags flags,
                  /*optional out*/ ScopedCERTCertList* builtChain,
-                 /*optional out*/ SECOidTag* evOidPolicy,
-                 /*optional out*/ OCSPStaplingStatus* ocspStaplingStatus)
+                 /*optional out*/ SECOidTag* evOidPolicy)
 {
   PR_ASSERT(peerCert);
   // XXX: PR_ASSERT(pinarg)
@@ -461,7 +442,7 @@ CertVerifier::VerifySSLServerCert(CERTCertificate* peerCert,
   // if VerifyCert succeeded.
   SECStatus rv = VerifyCert(peerCert, certificateUsageSSLServer, time, pinarg,
                             hostname, flags, stapledOCSPResponse,
-                            &builtChainTemp, evOidPolicy, ocspStaplingStatus);
+                            &builtChainTemp, evOidPolicy);
   if (rv != SECSuccess) {
     return rv;
   }
