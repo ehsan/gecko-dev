@@ -1,6 +1,42 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/*
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is the Extension Manager.
+#
+# The Initial Developer of the Original Code is
+# the Mozilla Foundation.
+# Portions created by the Initial Developer are Copyright (C) 2009
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#   Dave Townsend <dtownsend@oxymoronical.com>
+#   Blair McBride <bmcbride@mozilla.com>
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either the GNU General Public License Version 2 or later (the "GPL"), or
+# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
+*/
 
 "use strict";
 
@@ -322,7 +358,7 @@ AddonCompatibilityOverride.prototype = {
  * A type of add-on, used by the UI to determine how to display different types
  * of add-ons.
  *
- * @param  aID
+ * @param  aId
  *         The add-on type ID
  * @param  aLocaleURI
  *         The URI of a localized properties file to get the displayable name
@@ -340,15 +376,15 @@ AddonCompatibilityOverride.prototype = {
  *         An option set of flags that customize the display of the add-on in
  *         the UI.
  */
-function AddonType(aID, aLocaleURI, aLocaleKey, aViewType, aUIPriority, aFlags) {
-  if (!aID)
+function AddonType(aId, aLocaleURI, aLocaleKey, aViewType, aUIPriority, aFlags) {
+  if (!aId)
     throw new Error("An AddonType must have an ID");
   if (aViewType && aUIPriority === undefined)
     throw new Error("An AddonType with a defined view must have a set UI priority");
   if (!aLocaleKey)
     throw new Error("An AddonType must have a displayable name");
 
-  this.id = aID;
+  this.id = aId;
   this.uiPriority = aUIPriority;
   this.viewType = aViewType;
   this.flags = aFlags;
@@ -357,7 +393,7 @@ function AddonType(aID, aLocaleURI, aLocaleKey, aViewType, aUIPriority, aFlags) 
     this.__defineGetter__("name", function() {
       delete this.name;
       let bundle = Services.strings.createBundle(aLocaleURI);
-      this.name = bundle.GetStringFromName(aLocaleKey.replace("%ID%", aID));
+      this.name = bundle.GetStringFromName(aLocaleKey.replace("%ID%", aId));
       return this.name;
     });
   }
@@ -555,17 +591,9 @@ var AddonManagerInternal = {
    * @param  aProvider
    *         The provider to register
    * @param  aTypes
-   *         An optional array of add-on types
+   *         An array of add-on types
    */
   registerProvider: function AMI_registerProvider(aProvider, aTypes) {
-    if (!aProvider || typeof aProvider != "object")
-      throw Components.Exception("aProvider must be specified",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
-    if (aTypes && !Array.isArray(aTypes))
-      throw Components.Exception("aTypes must be an array or null",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
     this.providers.push(aProvider);
 
     if (aTypes) {
@@ -605,10 +633,6 @@ var AddonManagerInternal = {
    *         The provider to unregister
    */
   unregisterProvider: function AMI_unregisterProvider(aProvider) {
-    if (!aProvider || typeof aProvider != "object")
-      throw Components.Exception("aProvider must be specified",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
     let pos = 0;
     while (pos < this.providers.length) {
       if (this.providers[pos] == aProvider)
@@ -751,27 +775,15 @@ var AddonManagerInternal = {
    * appropriate values.
    *
    * @param  aAddon
-   *         The Addon representing the add-on
+   *         The AddonInternal representing the add-on
    * @param  aUri
-   *         The string representation of the URI to escape
+   *         The uri to escape
    * @param  aAppVersion
    *         The optional application version to use for %APP_VERSION%
-   * @return The appropriately escaped URI.
+   * @return the appropriately escaped uri.
    */
   escapeAddonURI: function AMI_escapeAddonURI(aAddon, aUri, aAppVersion)
   {
-    if (!aAddon || typeof aAddon != "object")
-      throw Components.Exception("aAddon must be an Addon object",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
-    if (!aUri || typeof aUri != "string")
-      throw Components.Exception("aUri must be a non-empty string",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
-    if (aAppVersion && typeof aAppVersion != "string")
-      throw Components.Exception("aAppVersion must be a string or null",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
     var addonStatus = aAddon.userDisabled || aAddon.softDisabled ? "userDisabled"
                                                                  : "userEnabled";
 
@@ -1001,14 +1013,6 @@ var AddonManagerInternal = {
    *         The ID of the add-on
    */
   addStartupChange: function AMI_addStartupChange(aType, aID) {
-    if (!aType || typeof aType != "string")
-      throw Components.Exception("aType must be a non-empty string",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
-    if (!aID || typeof aID != "string")
-      throw Components.Exception("aID must be a non-empty string",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
     if (gStarted)
       return;
 
@@ -1030,14 +1034,6 @@ var AddonManagerInternal = {
    *         The ID of the add-on
    */
   removeStartupChange: function AMI_removeStartupChange(aType, aID) {
-    if (!aType || typeof aType != "string")
-      throw Components.Exception("aType must be a non-empty string",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
-    if (!aID || typeof aID != "string")
-      throw Components.Exception("aID must be a non-empty string",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
     if (gStarted)
       return;
 
@@ -1055,10 +1051,6 @@ var AddonManagerInternal = {
    *         The method on the listeners to call
    */
   callManagerListeners: function AMI_callManagerListeners(aMethod) {
-     if (!aMethod || typeof aMethod != "string")
-      throw Components.Exception("aMethod must be a non-empty string",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
     var args = Array.slice(arguments, 1);
     this.managerListeners.forEach(function(listener) {
       try {
@@ -1078,18 +1070,10 @@ var AddonManagerInternal = {
    * @param  aMethod
    *         The method on the listeners to call
    * @param  aExtraListeners
-   *         An optional array of extra InstallListeners to also call
+   *         An array of extra InstallListeners to also call
    * @return false if any of the listeners returned false, true otherwise
    */
   callInstallListeners: function AMI_callInstallListeners(aMethod, aExtraListeners) {
-     if (!aMethod || typeof aMethod != "string")
-      throw Components.Exception("aMethod must be a non-empty string",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
-    if (aExtraListeners && !Array.isArray(aExtraListeners))
-      throw Components.Exception("aExtraListeners must be an array or null",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
     let result = true;
     let listeners = this.installListeners;
     if (aExtraListeners)
@@ -1118,10 +1102,6 @@ var AddonManagerInternal = {
    *         The method on the listeners to call
    */
   callAddonListeners: function AMI_callAddonListeners(aMethod) {
-     if (!aMethod || typeof aMethod != "string")
-      throw Components.Exception("aMethod must be a non-empty string",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
     var args = Array.slice(arguments, 1);
     this.addonListeners.forEach(function(listener) {
       try {
@@ -1139,25 +1119,17 @@ var AddonManagerInternal = {
    * add-on only supports a single add-on being enabled at a time. This allows
    * the providers to disable theirs if necessary.
    *
-   * @param  aID
-   *         The ID of the enabled add-on
+   * @param  aId
+   *         The id of the enabled add-on
    * @param  aType
    *         The type of the enabled add-on
    * @param  aPendingRestart
    *         A boolean indicating if the change will only take place the next
    *         time the application is restarted
    */
-  notifyAddonChanged: function AMI_notifyAddonChanged(aID, aType, aPendingRestart) {
-    if (aID && typeof aID != "string")
-      throw Components.Exception("aID must be a string or null",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
-    if (!aType || typeof aType != "string")
-      throw Components.Exception("aType must be a non-empty string",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
+  notifyAddonChanged: function AMI_notifyAddonChanged(aId, aType, aPendingRestart) {
     this.providers.forEach(function(provider) {
-      callProvider(provider, "addonChanged", null, aID, aType, aPendingRestart);
+      callProvider(provider, "addonChanged", null, aId, aType, aPendingRestart);
     });
   },
 
@@ -1180,8 +1152,8 @@ var AddonManagerInternal = {
    *         Function to call when operation is complete.
    */
   updateAddonRepositoryData: function AMI_updateAddonRepositoryData(aCallback) {
-    if (typeof aCallback != "function")
-      throw Components.Exception("aCallback must be a function",
+    if (!aCallback)
+      throw Components.Exception("Must specify aCallback",
                                  Cr.NS_ERROR_INVALID_ARG);
 
     new AsyncObjectCaller(this.providers, "updateAddonRepositoryData", {
@@ -1196,12 +1168,11 @@ var AddonManagerInternal = {
       }
     });
   },
-
   /**
    * Asynchronously gets an AddonInstall for a URL.
    *
    * @param  aUrl
-   *         The string represenation of the URL the add-on is located at
+   *         The url the add-on is located at
    * @param  aCallback
    *         A callback to pass the AddonInstall to
    * @param  aMimetype
@@ -1221,41 +1192,12 @@ var AddonManagerInternal = {
   getInstallForURL: function AMI_getInstallForURL(aUrl, aCallback, aMimetype,
                                                   aHash, aName, aIconURL,
                                                   aVersion, aLoadGroup) {
-    if (!aUrl || typeof aUrl != "string")
-      throw Components.Exception("aURL must be a non-empty string",
-                                 Cr.NS_ERROR_INVALID_ARG);
+    if (!aUrl || !aMimetype || !aCallback)
+      throw new TypeError("Invalid arguments");
 
-    if (typeof aCallback != "function")
-      throw Components.Exception("aCallback must be a function",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
-    if (!aMimetype || typeof aMimetype != "string")
-      throw Components.Exception("aMimetype must be a non-empty string",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
-    if (aHash && typeof aHash != "string")
-      throw Components.Exception("aHash must be a string or null",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
-    if (aName && typeof aName != "string")
-      throw Components.Exception("aName must be a string or null",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
-    if (aIconURL && typeof aIconURL != "string")
-      throw Components.Exception("aIconURL must be a string or null",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
-    if (aVersion && typeof aVersion != "string")
-      throw Components.Exception("aVersion must be a string or null",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
-    if (aLoadGroup && (!(aLoadGroup instanceof Ci.nsILoadGroup)))
-      throw Components.Exception("aLoadGroup must be a nsILoadGroup or null",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
-    for (let provider of this.providers) {
-      if (callProvider(provider, "supportsMimetype", false, aMimetype)) {
-        callProvider(provider, "getInstallForURL", null,
+    for (let i = 0; i < this.providers.length; i++) {
+      if (callProvider(this.providers[i], "supportsMimetype", false, aMimetype)) {
+        callProvider(this.providers[i], "getInstallForURL", null,
                      aUrl, aHash, aName, aIconURL, aVersion, aLoadGroup,
                      function(aInstall) {
           safeCall(aCallback, aInstall);
@@ -1270,7 +1212,7 @@ var AddonManagerInternal = {
    * Asynchronously gets an AddonInstall for an nsIFile.
    *
    * @param  aFile
-   *         The nsIFile where the add-on is located
+   *         the nsIFile where the add-on is located
    * @param  aCallback
    *         A callback to pass the AddonInstall to
    * @param  aMimetype
@@ -1278,17 +1220,8 @@ var AddonManagerInternal = {
    * @throws if the aFile or aCallback arguments are not specified
    */
   getInstallForFile: function AMI_getInstallForFile(aFile, aCallback, aMimetype) {
-    if (!(aFile instanceof Ci.nsIFile))
-      throw Components.Exception("aFile must be a nsIFile",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
-    if (typeof aCallback != "function")
-      throw Components.Exception("aCallback must be a function",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
-    if (aMimetype && typeof aMimetype != "string")
-      throw Components.Exception("aMimetype must be a string or null",
-                                 Cr.NS_ERROR_INVALID_ARG);
+    if (!aFile || !aCallback)
+      throw Cr.NS_ERROR_INVALID_ARG;
 
     new AsyncObjectCaller(this.providers, "getInstallForFile", {
       nextObject: function(aCaller, aProvider) {
@@ -1315,16 +1248,11 @@ var AddonManagerInternal = {
    *         An optional array of types to retrieve. Each type is a string name
    * @param  aCallback
    *         A callback which will be passed an array of AddonInstalls
-   * @throws If the aCallback argument is not specified
+   * @throws if the aCallback argument is not specified
    */
   getInstallsByTypes: function AMI_getInstallsByTypes(aTypes, aCallback) {
-    if (aTypes && !Array.isArray(aTypes))
-      throw Components.Exception("aTypes must be an array or null",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
-    if (typeof aCallback != "function")
-      throw Components.Exception("aCallback must be a function",
-                                 Cr.NS_ERROR_INVALID_ARG);
+    if (!aCallback)
+      throw Cr.NS_ERROR_INVALID_ARG;
 
     let installs = [];
 
@@ -1361,13 +1289,9 @@ var AddonManagerInternal = {
    * @return true if installation is enabled for the mimetype
    */
   isInstallEnabled: function AMI_isInstallEnabled(aMimetype) {
-    if (!aMimetype || typeof aMimetype != "string")
-      throw Components.Exception("aMimetype must be a non-empty string",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
-    for (let provider of this.providers) {
-      if (callProvider(provider, "supportsMimetype", false, aMimetype) &&
-          callProvider(provider, "isInstallEnabled"))
+    for (let i = 0; i < this.providers.length; i++) {
+      if (callProvider(this.providers[i], "supportsMimetype", false, aMimetype) &&
+          callProvider(this.providers[i], "isInstallEnabled"))
         return true;
     }
     return false;
@@ -1380,21 +1304,13 @@ var AddonManagerInternal = {
    * @param  aMimetype
    *         The mimetype of the add-on
    * @param  aURI
-   *         The optional nsIURI of the source
+   *         The uri of the source, may be null
    * @return true if the source is allowed to install this mimetype
    */
   isInstallAllowed: function AMI_isInstallAllowed(aMimetype, aURI) {
-    if (!aMimetype || typeof aMimetype != "string")
-      throw Components.Exception("aMimetype must be a non-empty string",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
-    if (aURI && !(aURI instanceof Ci.nsIURI))
-      throw Components.Exception("aURI must be a nsIURI or null",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
-    for (let provider of this.providers) {
-      if (callProvider(provider, "supportsMimetype", false, aMimetype) &&
-          callProvider(provider, "isInstallAllowed", null, aURI))
+    for (let i = 0; i < this.providers.length; i++) {
+      if (callProvider(this.providers[i], "supportsMimetype", false, aMimetype) &&
+          callProvider(this.providers[i], "isInstallAllowed", null, aURI))
         return true;
     }
     return false;
@@ -1407,9 +1323,9 @@ var AddonManagerInternal = {
    * @param  aMimetype
    *         The mimetype of add-ons being installed
    * @param  aSource
-   *         The optional nsIDOMWindow that started the installs
+   *         The nsIDOMWindow that started the installs
    * @param  aURI
-   *         The optional nsIURI that started the installs
+   *         the nsIURI that started the installs
    * @param  aInstalls
    *         The array of AddonInstalls to be installed
    */
@@ -1417,22 +1333,6 @@ var AddonManagerInternal = {
                                                                   aSource,
                                                                   aURI,
                                                                   aInstalls) {
-    if (!aMimetype || typeof aMimetype != "string")
-      throw Components.Exception("aMimetype must be a non-empty string",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
-    if (aSource && !(aSource instanceof Ci.nsIDOMWindow))
-      throw Components.Exception("aSource must be a nsIDOMWindow or null",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
-    if (aURI && !(aURI instanceof Ci.nsIURI))
-      throw Components.Exception("aURI must be a nsIURI or null",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
-    if (!Array.isArray(aInstalls))
-      throw Components.Exception("aInstalls must be an array",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
     if (!("@mozilla.org/addons/web-install-listener;1" in Cc)) {
       WARN("No web installer available, cancelling all installs");
       aInstalls.forEach(function(aInstall) {
@@ -1482,10 +1382,6 @@ var AddonManagerInternal = {
    *         The InstallListener to add
    */
   addInstallListener: function AMI_addInstallListener(aListener) {
-    if (!aListener || typeof aListener != "object")
-      throw Components.Exception("aListener must be a InstallListener object",
-                                 Cr.NS_ERROR_INVALID_ARG);
-    
     if (!this.installListeners.some(function(i) { return i == aListener; }))
       this.installListeners.push(aListener);
   },
@@ -1497,10 +1393,6 @@ var AddonManagerInternal = {
    *         The InstallListener to remove
    */
   removeInstallListener: function AMI_removeInstallListener(aListener) {
-    if (!aListener || typeof aListener != "object")
-      throw Components.Exception("aListener must be a InstallListener object",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
     let pos = 0;
     while (pos < this.installListeners.length) {
       if (this.installListeners[pos] == aListener)
@@ -1513,24 +1405,19 @@ var AddonManagerInternal = {
   /**
    * Asynchronously gets an add-on with a specific ID.
    *
-   * @param  aID
+   * @param  aId
    *         The ID of the add-on to retrieve
    * @param  aCallback
    *         The callback to pass the retrieved add-on to
-   * @throws if the aID or aCallback arguments are not specified
+   * @throws if the aId or aCallback arguments are not specified
    */
-  getAddonByID: function AMI_getAddonByID(aID, aCallback) {
-    if (!aID || typeof aID != "string")
-      throw Components.Exception("aID must be a non-empty string",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
-    if (typeof aCallback != "function")
-      throw Components.Exception("aCallback must be a function",
-                                 Cr.NS_ERROR_INVALID_ARG);
+  getAddonByID: function AMI_getAddonByID(aId, aCallback) {
+    if (!aId || !aCallback)
+      throw Cr.NS_ERROR_INVALID_ARG;
 
     new AsyncObjectCaller(this.providers, "getAddonByID", {
       nextObject: function(aCaller, aProvider) {
-        callProvider(aProvider, "getAddonByID", null, aID, function(aAddon) {
+        callProvider(aProvider, "getAddonByID", null, aId, function(aAddon) {
           if (aAddon)
             safeCall(aCallback, aAddon);
           else
@@ -1554,13 +1441,9 @@ var AddonManagerInternal = {
    * @throws if the aGUID or aCallback arguments are not specified
    */
   getAddonBySyncGUID: function AMI_getAddonBySyncGUID(aGUID, aCallback) {
-    if (!aGUID || typeof aGUID != "string")
-      throw Components.Exception("aGUID must be a non-empty string",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
-    if (typeof aCallback != "function")
-      throw Components.Exception("aCallback must be a function",
-                                 Cr.NS_ERROR_INVALID_ARG);
+    if (!aGUID || !aCallback) {
+      throw Cr.NS_ERROR_INVALID_ARG;
+    }
 
     new AsyncObjectCaller(this.providers, "getAddonBySyncGUID", {
       nextObject: function(aCaller, aProvider) {
@@ -1582,26 +1465,21 @@ var AddonManagerInternal = {
   /**
    * Asynchronously gets an array of add-ons.
    *
-   * @param  aIDs
+   * @param  aIds
    *         The array of IDs to retrieve
    * @param  aCallback
    *         The callback to pass an array of Addons to
-   * @throws if the aID or aCallback arguments are not specified
+   * @throws if the aId or aCallback arguments are not specified
    */
-  getAddonsByIDs: function AMI_getAddonsByIDs(aIDs, aCallback) {
-    if (!Array.isArray(aIDs))
-      throw Components.Exception("aIDs must be an array",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
-    if (typeof aCallback != "function")
-      throw Components.Exception("aCallback must be a function",
-                                 Cr.NS_ERROR_INVALID_ARG);
+  getAddonsByIDs: function AMI_getAddonsByIDs(aIds, aCallback) {
+    if (!aIds || !aCallback)
+      throw Cr.NS_ERROR_INVALID_ARG;
 
     let addons = [];
 
-    new AsyncObjectCaller(aIDs, null, {
-      nextObject: function(aCaller, aID) {
-        AddonManagerInternal.getAddonByID(aID, function(aAddon) {
+    new AsyncObjectCaller(aIds, null, {
+      nextObject: function(aCaller, aId) {
+        AddonManagerInternal.getAddonByID(aId, function(aAddon) {
           addons.push(aAddon);
           aCaller.callNext();
         });
@@ -1623,13 +1501,8 @@ var AddonManagerInternal = {
    * @throws if the aCallback argument is not specified
    */
   getAddonsByTypes: function AMI_getAddonsByTypes(aTypes, aCallback) {
-    if (aTypes && !Array.isArray(aTypes))
-      throw Components.Exception("aTypes must be an array or null",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
-    if (typeof aCallback != "function")
-      throw Components.Exception("aCallback must be a function",
-                                 Cr.NS_ERROR_INVALID_ARG);
+    if (!aCallback)
+      throw Cr.NS_ERROR_INVALID_ARG;
 
     let addons = [];
 
@@ -1670,13 +1543,8 @@ var AddonManagerInternal = {
    */
   getAddonsWithOperationsByTypes:
   function AMI_getAddonsWithOperationsByTypes(aTypes, aCallback) {
-    if (aTypes && !Array.isArray(aTypes))
-      throw Components.Exception("aTypes must be an array or null",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
-    if (typeof aCallback != "function")
-      throw Components.Exception("aCallback must be a function",
-                                 Cr.NS_ERROR_INVALID_ARG);
+    if (!aCallback)
+      throw Cr.NS_ERROR_INVALID_ARG;
 
     let addons = [];
 
@@ -1702,10 +1570,6 @@ var AddonManagerInternal = {
    *         The listener to add
    */
   addManagerListener: function AMI_addManagerListener(aListener) {
-    if (!aListener || typeof aListener != "object")
-      throw Components.Exception("aListener must be an AddonManagerListener object",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
     if (!this.managerListeners.some(function(i) { return i == aListener; }))
       this.managerListeners.push(aListener);
   },
@@ -1717,10 +1581,6 @@ var AddonManagerInternal = {
    *         The listener to remove
    */
   removeManagerListener: function AMI_removeManagerListener(aListener) {
-    if (!aListener || typeof aListener != "object")
-      throw Components.Exception("aListener must be an AddonManagerListener object",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
     let pos = 0;
     while (pos < this.managerListeners.length) {
       if (this.managerListeners[pos] == aListener)
@@ -1734,13 +1594,9 @@ var AddonManagerInternal = {
    * Adds a new AddonListener if the listener is not already registered.
    *
    * @param  aListener
-   *         The AddonListener to add
+   *         The listener to add
    */
   addAddonListener: function AMI_addAddonListener(aListener) {
-    if (!aListener || typeof aListener != "object")
-      throw Components.Exception("aListener must be an AddonListener object",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
     if (!this.addonListeners.some(function(i) { return i == aListener; }))
       this.addonListeners.push(aListener);
   },
@@ -1749,14 +1605,9 @@ var AddonManagerInternal = {
    * Removes an AddonListener if the listener is registered.
    *
    * @param  aListener
-   *         The AddonListener to remove
+   *         The listener to remove
    */
   removeAddonListener: function AMI_removeAddonListener(aListener) {
-    if (!aListener || typeof aListener != "object")
-      throw Components.Exception("aListener must be an AddonListener object",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
-
     let pos = 0;
     while (pos < this.addonListeners.length) {
       if (this.addonListeners[pos] == aListener)
@@ -1766,32 +1617,12 @@ var AddonManagerInternal = {
     }
   },
 
-  /**
-   * Adds a new TypeListener if the listener is not already registered.
-   *
-   * @param  aListener
-   *         The TypeListener to add
-   */
   addTypeListener: function AMI_addTypeListener(aListener) {
-    if (!aListener || typeof aListener != "object")
-      throw Components.Exception("aListener must be a TypeListener object",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
     if (!this.typeListeners.some(function(i) { return i == aListener; }))
       this.typeListeners.push(aListener);
   },
 
-  /**
-   * Removes an TypeListener if the listener is registered.
-   *
-   * @param  aListener
-   *         The TypeListener to remove
-   */
   removeTypeListener: function AMI_removeTypeListener(aListener) {
-    if (!aListener || typeof aListener != "object")
-      throw Components.Exception("aListener must be a TypeListener object",
-                                 Cr.NS_ERROR_INVALID_ARG);
-
     let pos = 0;
     while (pos < this.typeListeners.length) {
       if (this.typeListeners[pos] == aListener)
@@ -1912,8 +1743,8 @@ var AddonManagerPrivate = {
     AddonManagerInternal.removeStartupChange(aType, aID);
   },
 
-  notifyAddonChanged: function AMP_notifyAddonChanged(aID, aType, aPendingRestart) {
-    AddonManagerInternal.notifyAddonChanged(aID, aType, aPendingRestart);
+  notifyAddonChanged: function AMP_notifyAddonChanged(aId, aType, aPendingRestart) {
+    AddonManagerInternal.notifyAddonChanged(aId, aType, aPendingRestart);
   },
 
   updateAddonAppDisabledStates: function AMP_updateAddonAppDisabledStates() {
@@ -2118,16 +1949,16 @@ var AddonManager = {
     return AddonManagerInternal.startupChanges[aType].slice(0);
   },
 
-  getAddonByID: function AM_getAddonByID(aID, aCallback) {
-    AddonManagerInternal.getAddonByID(aID, aCallback);
+  getAddonByID: function AM_getAddonByID(aId, aCallback) {
+    AddonManagerInternal.getAddonByID(aId, aCallback);
   },
 
-  getAddonBySyncGUID: function AM_getAddonBySyncGUID(aGUID, aCallback) {
-    AddonManagerInternal.getAddonBySyncGUID(aGUID, aCallback);
+  getAddonBySyncGUID: function AM_getAddonBySyncGUID(aId, aCallback) {
+    AddonManagerInternal.getAddonBySyncGUID(aId, aCallback);
   },
 
-  getAddonsByIDs: function AM_getAddonsByIDs(aIDs, aCallback) {
-    AddonManagerInternal.getAddonsByIDs(aIDs, aCallback);
+  getAddonsByIDs: function AM_getAddonsByIDs(aIds, aCallback) {
+    AddonManagerInternal.getAddonsByIDs(aIds, aCallback);
   },
 
   getAddonsWithOperationsByTypes:
@@ -2200,18 +2031,7 @@ var AddonManager = {
     return AddonManagerInternal.addonTypes;
   },
 
-  /**
-   * Determines whether an Addon should auto-update or not.
-   *
-   * @param  aAddon
-   *         The Addon representing the add-on
-   * @return true if the addon should auto-update, false otherwise.
-   */
   shouldAutoUpdate: function AM_shouldAutoUpdate(aAddon) {
-    if (!aAddon || typeof aAddon != "object")
-      throw Components.Exception("aAddon must be specified",
-                                 Cr.NS_ERROR_INVALID_ARG);
-    
     if (!("applyBackgroundUpdates" in aAddon))
       return false;
     if (aAddon.applyBackgroundUpdates == AddonManager.AUTOUPDATE_ENABLE)

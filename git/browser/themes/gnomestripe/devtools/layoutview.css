@@ -45,14 +45,11 @@ body {
 
 #togglebutton {
   background-image: url(layout-buttons.png);
-  width: 16px;
-  height: 16px;
-}
-
-body.open {
-  background: url(layout-background-grid.png), -moz-radial-gradient(50% 70%, circle cover, hsl(210,53%,45%) 0%, hsl(210,54%,33%) 100%);
+  width: 18px;
+  height: 18px;
+  margin-top: -3px;
 }
 
 body.open > #header > #togglebutton {
-  background-position: -16px 0;
+  background-position: -18px 0;
 }

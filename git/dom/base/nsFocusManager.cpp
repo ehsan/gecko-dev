@@ -2433,13 +2433,11 @@ nsFocusManager::DetermineElementToMoveFocus(nsPIDOMWindow* aWindow,
   }
   else {
 #ifdef MOZ_XUL
-    if (aType != MOVEFOCUS_CARET) {
-      // if there is no focus, yet a panel is open, focus the first item in
-      // the panel
-      nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
-      if (pm)
-        popupFrame = pm->GetTopPopup(ePopupTypePanel);
-    }
+    // if there is no focus, yet a panel is open, focus the first item in
+    // the panel
+    nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
+    if (pm)
+      popupFrame = pm->GetTopPopup(ePopupTypePanel);
 #endif
     if (popupFrame) {
       rootContent = popupFrame->GetContent();

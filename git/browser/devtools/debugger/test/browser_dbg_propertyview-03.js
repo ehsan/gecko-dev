@@ -23,7 +23,7 @@ function testSimpleCall() {
   gDebugger.DebuggerController.activeThread.addOneTimeListener("framesadded", function() {
     Services.tm.currentThread.dispatch({ run: function() {
 
-      let testScope = gDebugger.DebuggerView.Properties._addScope("test-scope");
+      let testScope = gDebugger.DebuggerView.Properties._addScope("test");
       let testVar = testScope.addVar("something");
       let duplVar = testScope.addVar("something");
 
@@ -32,6 +32,9 @@ function testSimpleCall() {
 
       is(duplVar, null,
         "Shouldn't be able to duplicate variables in the same scope.");
+
+      is(testVar.id, "test-scope->something-variable",
+        "The newly created scope should have the default id set.");
 
       is(testVar.querySelector(".name").getAttribute("value"), "something",
         "Any new variable should have the designated title.");
@@ -185,7 +188,7 @@ function testSimpleCall() {
       is(removeCallbackSender, testScope,
         "The removeCallback wasn't called as it should.");
 
-      is(gDebugger.DebuggerView.Properties._vars.childNodes.length, 2,
+      is(gDebugger.DebuggerView.Properties._vars.childNodes.length, 4,
         "The scope should have been removed from the parent container tree.");
 
       gDebugger.DebuggerController.activeThread.resume(function() {

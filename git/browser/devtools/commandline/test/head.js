@@ -146,8 +146,7 @@ let DeveloperToolbarTest = {
    *
    *   // Thing to check
    *   args: { message: "hi" }, // Check that the args were understood properly
-   *   outputMatch: /^hi$/,     // RegExp to test against textContent of output
-   *                            // (can also be array of RegExps)
+   *   outputMatch: /^hi$/,     // Regex to test against textContent of output
    *   blankOutput: true,       // Special checks when there is no output
    * });
    */
@@ -202,21 +201,10 @@ let DeveloperToolbarTest = {
     let displayed = DeveloperToolbar.outputPanel._div.textContent;
 
     if (test.outputMatch) {
-      function doTest(match, against) {
-        if (!match.test(against)) {
-          ok(false, "html output for " + typed + " against " + match.source +
-                  " (textContent sent to info)");
-          info("Actual textContent");
-          info(against);
-        }
-      }
-      if (Array.isArray(test.outputMatch)) {
-        test.outputMatch.forEach(function(match) {
-          doTest(match, displayed);
-        });
-      }
-      else {
-        doTest(test.outputMatch, displayed);
+      if (!test.outputMatch.test(displayed)) {
+        ok(false, "html output for " + typed + " (textContent sent to info)");
+        info("Actual textContent");
+        info(displayed);
       }
     }
 

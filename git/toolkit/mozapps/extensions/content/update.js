@@ -347,8 +347,8 @@ var gFoundPage = {
     var oneChecked = false;
     var foundUpdates = document.getElementById("found.updates");
     var updates = foundUpdates.getElementsByTagName("listitem");
-    for (let update of updates) {
-      if (!update.checked)
+    for (var i = 0; i < updates.length; ++i) {
+      if (!updates[i].checked)
         continue;
       oneChecked = true;
       break;
@@ -378,10 +378,10 @@ var gInstallingPage = {
 
     var foundUpdates = document.getElementById("found.updates");
     var updates = foundUpdates.getElementsByTagName("listitem");
-    for (let update of updates) {
-      if (!update.checked)
+    for (var i = 0; i < updates.length; ++i) {
+      if (!updates[i].checked)
         continue;
-      this._installs.push(update.install);
+      this._installs.push(updates[i].install);
     }
 
     this._strings = document.getElementById("updateStrings");
@@ -443,10 +443,10 @@ var gInstallingPage = {
     actionItem.value = label;
   },
 
-  onInstallEnded: function(aInstall, aAddon) {
+  onInstallEnded: function(aInstall) {
     // Remember that this add-on was updated during startup
     AddonManagerPrivate.addStartupChange(AddonManager.STARTUP_CHANGE_CHANGED,
-                                         aAddon.id);
+                                         aInstall.id);
 
     this.startNextInstall();
   },

@@ -1013,9 +1013,8 @@ pref("services.sync.prefs.sync.xpinstall.whitelist.required", true);
 // Disable the error console
 pref("devtools.errorconsole.enabled", false);
 
-// Developer toolbar and GCLI preferences
+// Enable the developer toolbar
 pref("devtools.toolbar.enabled", false);
-pref("devtools.gcli.allowSet", false);
 
 // Enable the Inspector
 pref("devtools.inspector.enabled", true);

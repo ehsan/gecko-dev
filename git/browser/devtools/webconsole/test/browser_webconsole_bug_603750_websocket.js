@@ -41,11 +41,14 @@ let TestObserver = {
 function tabLoad(aEvent) {
   browser.removeEventListener(aEvent.type, tabLoad, true);
 
-  openConsole(null, function(aHud) {
-    hud = aHud;
-    Services.console.registerListener(TestObserver);
-    content.location = TEST_URI;
-  });
+  openConsole();
+
+  let hudId = HUDService.getHudIdByWindow(content);
+  hud = HUDService.hudReferences[hudId];
+
+  Services.console.registerListener(TestObserver);
+
+  content.location = TEST_URI;
 }
 
 function performTest() {

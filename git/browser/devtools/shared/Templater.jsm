@@ -56,7 +56,6 @@ function Templater(options) {
   else {
     this.stack = [];
   }
-  this.nodes = [];
 }
 
 /**
@@ -94,7 +93,6 @@ Templater.prototype.processNode = function(node, data) {
     data = {};
   }
   this.stack.push(node.nodeName + (node.id ? '#' + node.id : ''));
-  var pushedNode = false;
   try {
     // Process attributes
     if (node.attributes && node.attributes.length) {
@@ -111,9 +109,7 @@ Templater.prototype.processNode = function(node, data) {
         }
       }
       // Only make the node available once we know it's not going away
-      this.nodes.push(data.__element);
       data.__element = node;
-      pushedNode = true;
       // It's good to clean up the attributes when we've processed them,
       // but if we do it straight away, we mess up the array index
       var attrs = Array.prototype.slice.call(node.attributes);
@@ -176,9 +172,7 @@ Templater.prototype.processNode = function(node, data) {
       this._processTextNode(node, data);
     }
   } finally {
-    if (pushedNode) {
-      data.__element = this.nodes.pop();
-    }
+    delete data.__element;
     this.stack.pop();
   }
 };
@@ -353,14 +347,11 @@ Templater.prototype._processTextNode = function(node, data) {
           reply = this._maybeImportNode(reply, doc);
           siblingNode.parentNode.insertBefore(reply, siblingNode);
         } else if (typeof reply.item === 'function' && reply.length) {
-          // NodeLists can be live, in which case _maybeImportNode can
-          // remove them from the document, and thus the NodeList, which in
-          // turn breaks iteration. So first we clone the list
-          var list = Array.prototype.slice.call(reply, 0);
-          list.forEach(function(child) {
-            var imported = this._maybeImportNode(child, doc);
-            siblingNode.parentNode.insertBefore(imported, siblingNode);
-          }.bind(this));
+          // if thing is a NodeList, then import the children
+          for (var i = 0; i < reply.length; i++) {
+            var child = this._maybeImportNode(reply.item(i), doc);
+            siblingNode.parentNode.insertBefore(child, siblingNode);
+          }
         }
         else {
           // if thing isn't a DOM element then wrap its string value in one

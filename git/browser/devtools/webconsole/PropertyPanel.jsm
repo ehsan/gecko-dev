@@ -11,11 +11,16 @@ const Ci = Components.interfaces;
 const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://gre/modules/Services.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "WebConsoleUtils",
-                                  "resource:///modules/WebConsoleUtils.jsm");
+XPCOMUtils.defineLazyGetter(this, "WebConsoleUtils", function () {
+  let obj = {};
+  Cu.import("resource:///modules/WebConsoleUtils.jsm", obj);
+  return obj.WebConsoleUtils;
+});
 
 var EXPORTED_SYMBOLS = ["PropertyPanel", "PropertyTreeView"];
+
 
 ///////////////////////////////////////////////////////////////////////////
 //// PropertyTreeView.

@@ -5,17 +5,31 @@
 
 const TEST_FILE = "test-network.html";
 
-function tabReload(aEvent) {
-  browser.removeEventListener(aEvent.type, tabReload, true);
+function tabLoad(aEvent) {
+  browser.removeEventListener(aEvent.type, arguments.callee, true);
 
-  outputNode = hud.outputNode;
-  findLogEntry("test-network.html");
-  findLogEntry("test-image.png");
-  findLogEntry("testscript.js");
-  isnot(outputNode.textContent.indexOf("running network console logging tests"), -1,
+  openConsole();
+
+  let hudId = HUDService.getHudIdByWindow(content);
+  hud = HUDService.hudReferences[hudId];
+
+  browser.addEventListener("load", tabReload, true);
+
+  content.location.reload();
+}
+
+function tabReload(aEvent) {
+  browser.removeEventListener(aEvent.type, arguments.callee, true);
+
+  let textContent = hud.outputNode.textContent;
+  isnot(textContent.indexOf("test-network.html"), -1,
+        "found test-network.html");
+  isnot(textContent.indexOf("test-image.png"), -1, "found test-image.png");
+  isnot(textContent.indexOf("testscript.js"), -1, "found testscript.js");
+  isnot(textContent.indexOf("running network console logging tests"), -1,
         "found the console.log() message from testscript.js");
 
-  executeSoon(finishTest);
+  finishTest();
 }
 
 function test() {
@@ -28,12 +42,5 @@ function test() {
   let uri = Services.io.newFileURI(dir);
 
   addTab(uri.spec);
-  browser.addEventListener("load", function tabLoad() {
-    browser.removeEventListener("load", tabLoad, true);
-    openConsole(null, function(aHud) {
-      hud = aHud;
-      browser.addEventListener("load", tabReload, true);
-      content.location.reload();
-    });
-  }, true);
+  browser.addEventListener("load", tabLoad, true);
 }

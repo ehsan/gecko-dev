@@ -23,8 +23,8 @@ function testSimpleCall() {
   gDebugger.DebuggerController.activeThread.addOneTimeListener("framesadded", function() {
     Services.tm.currentThread.dispatch({ run: function() {
 
-      let globalScope = gDebugger.DebuggerView.Properties.addScope("Global");
-      let localScope = gDebugger.DebuggerView.Properties.addScope("Local");
+      let globalScope = gDebugger.DebuggerView.Properties.globalScope;
+      let localScope = gDebugger.DebuggerView.Properties.localScope;
       globalScope.empty();
       localScope.empty();
 

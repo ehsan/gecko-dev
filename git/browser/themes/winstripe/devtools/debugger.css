@@ -198,7 +198,7 @@
  * Animations
  */
 
-.details[open][animated] {
+.details[open] {
   -moz-animation-duration: 0.25s;
   -moz-animation-name: showblock;
 }

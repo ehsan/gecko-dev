@@ -49,7 +49,6 @@
  *  Austin Andrews
  *  Christoph Dorn
  *  Steven Roussey (AppCenter Inc, Network54)
- *  Mihai Sucan (Mozilla Corp.)
  */
 
 const Cc = Components.classes;
@@ -69,7 +68,7 @@ var EXPORTED_SYMBOLS = ["NetworkHelper"];
 /**
  * Helper object for networking stuff.
  *
- * Most of the following functions have been taken from the Firebug source. They
+ * All of the following functions have been taken from the Firebug source. They
  * have been modified to match the Firefox coding rules.
  */
 
@@ -129,13 +128,12 @@ var NetworkHelper =
    * Reads the posted text from aRequest.
    *
    * @param nsIHttpChannel aRequest
-   * @param string aCharset
-   *        The content document charset, used when reading the POSTed data.
+   * @param nsIDOMNode aBrowser
    * @returns string or null
    *          Returns the posted string if it was possible to read from aRequest
    *          otherwise null.
    */
-  readPostTextFromRequest: function NH_readPostTextFromRequest(aRequest, aCharset)
+  readPostTextFromRequest: function NH_readPostTextFromRequest(aRequest, aBrowser)
   {
     if (aRequest instanceof Ci.nsIUploadChannel) {
       let iStream = aRequest.uploadStream;
@@ -152,7 +150,8 @@ var NetworkHelper =
       }
 
       // Read data from the stream.
-      let text = this.readAndConvertFromStream(iStream, aCharset);
+      let charset = aBrowser.contentWindow.document.characterSet;
+      let text = this.readAndConvertFromStream(iStream, charset);
 
       // Seek locks the file, so seek to the beginning only if necko hasn't
       // read it yet, since necko doesn't seek to 0 before reading (at lest
@@ -168,15 +167,14 @@ var NetworkHelper =
   /**
    * Reads the posted text from the page's cache.
    *
-   * @param nsIDocShell aDocShell
-   * @param string aCharset
+   * @param nsIDOMNode aBrowser
    * @returns string or null
-   *          Returns the posted string if it was possible to read from
-   *          aDocShell otherwise null.
+   *          Returns the posted string if it was possible to read from aBrowser
+   *          otherwise null.
    */
-  readPostTextFromPage: function NH_readPostTextFromPage(aDocShell, aCharset)
+  readPostTextFromPage: function NH_readPostTextFromPage(aBrowser)
   {
-    let webNav = aDocShell.QueryInterface(Ci.nsIWebNavigation);
+    let webNav = aBrowser.webNavigation;
     if (webNav instanceof Ci.nsIWebPageDescriptor) {
       let descriptor = webNav.currentDescriptor;
 
@@ -184,7 +182,8 @@ var NetworkHelper =
           descriptor instanceof Ci.nsISeekableStream) {
         descriptor.seek(NS_SEEK_SET, 0);
 
-        return this.readAndConvertFromStream(descriptor, aCharset);
+        let charset = browser.contentWindow.document.characterSet;
+        return this.readAndConvertFromStream(descriptor, charset);
       }
     }
     return null;
@@ -267,81 +266,6 @@ var NetworkHelper =
     });
   },
 
-  /**
-   * Parse a raw Cookie header value.
-   *
-   * @param string aHeader
-   *        The raw Cookie header value.
-   * @return array
-   *         Array holding an object for each cookie. Each object holds the
-   *         following properties: name and value.
-   */
-  parseCookieHeader: function NH_parseCookieHeader(aHeader)
-  {
-    let cookies = aHeader.split(";");
-    let result = [];
-
-    cookies.forEach(function(aCookie) {
-      let [name, value] = aCookie.split("=");
-      result.push({name: unescape(name.trim()),
-                   value: unescape(value.trim())});
-    });
-
-    return result;
-  },
-
-  /**
-   * Parse a raw Set-Cookie header value.
-   *
-   * @param string aHeader
-   *        The raw Set-Cookie header value.
-   * @return array
-   *         Array holding an object for each cookie. Each object holds the
-   *         following properties: name, value, secure (boolean), httpOnly
-   *         (boolean), path, domain and expires (ISO date string).
-   */
-  parseSetCookieHeader: function NH_parseSetCookieHeader(aHeader)
-  {
-    let rawCookies = aHeader.split(/\r\n|\n|\r/);
-    let cookies = [];
-
-    rawCookies.forEach(function(aCookie) {
-      let name = unescape(aCookie.substr(0, aCookie.indexOf("=")).trim());
-      let parts = aCookie.substr(aCookie.indexOf("=") + 1).split(";");
-      let value = unescape(parts.shift().trim());
-
-      let cookie = {name: name, value: value};
-
-      parts.forEach(function(aPart) {
-        let part = aPart.trim();
-        if (part.toLowerCase() == "secure") {
-          cookie.secure = true;
-        }
-        else if (part.toLowerCase() == "httponly") {
-          cookie.httpOnly = true;
-        }
-        else if (part.indexOf("=") > -1) {
-          let pair = part.split("=");
-          pair[0] = pair[0].toLowerCase();
-          if (pair[0] == "path" || pair[0] == "domain") {
-            cookie[pair[0]] = pair[1];
-          }
-          else if (pair[0] == "expires") {
-            try {
-              pair[1] = pair[1].replace(/-/g, ' ');
-              cookie.expires = new Date(pair[1]).toISOString();
-            }
-            catch (ex) { }
-          }
-        }
-      });
-
-      cookies.push(cookie);
-    });
-
-    return cookies;
-  },
-
   // This is a list of all the mime category maps jviereck could find in the
   // firebug code base.
   mimeCategoryMap: {
@@ -409,7 +333,6 @@ var NetworkHelper =
     "audio/x-wav": "media",
     "text/json": "json",
     "application/x-json": "json",
-    "application/json-rpc": "json",
-    "application/x-web-app-manifest+json": "json",
+    "application/json-rpc": "json"
   }
 }
