@@ -1328,7 +1328,7 @@ nsWindow::OnButtonReleaseEvent(QGraphicsSceneMouseEvent *aEvent)
 }
 
 nsEventStatus
-nsWindow::OnMouseDoubleClickEvent(QGraphicsSceneMouseEvent *aEvent)
+nsWindow::mouseDoubleClickEvent(QGraphicsSceneMouseEvent *aEvent)
 {
     PRUint32 eventType;
 
@@ -1429,7 +1429,8 @@ nsWindow::OnKeyPressEvent(QKeyEvent *aEvent)
         nsKeyEvent downEvent(PR_TRUE, NS_KEY_DOWN, this);
         InitKeyEvent(downEvent, aEvent);
 
-        downEvent.keyCode = domKeyCode;
+        downEvent.charCode = domCharCode;
+        downEvent.keyCode = domCharCode ? 0 : domKeyCode;
 
         nsEventStatus status = DispatchEvent(&downEvent);
 
@@ -1464,13 +1465,18 @@ nsWindow::OnKeyReleaseEvent(QKeyEvent *aEvent)
         return nsEventStatus_eConsumeDoDefault;
     }
 
+    PRUint32 domCharCode = 0;
     PRUint32 domKeyCode = QtKeyCodeToDOMKeyCode(aEvent->key());
+
+    if (aEvent->text().length() && aEvent->text()[0].isPrint())
+        domCharCode = (PRInt32) aEvent->text()[0].unicode();
 
     // send the key event as a key up event
     nsKeyEvent event(PR_TRUE, NS_KEY_UP, this);
     InitKeyEvent(event, aEvent);
 
-    event.keyCode = domKeyCode;
+    event.charCode = domCharCode;
+    event.keyCode = domCharCode ? 0 : domKeyCode;
 
     // unset the key down flag
     ClearKeyDownFlag(event.keyCode);

@@ -360,6 +360,7 @@ PluginInstanceParent::AnswerNPN_SetValue_NPPVpluginDrawingModel(
         *result = mNPNIface->setvalue(mNPP, NPPVpluginDrawingModel,
                                   (void*)NPDrawingModelCoreGraphics);
         if (mQuirks & COREANIMATION_REFRESH_TIMER) {
+            abort();
             mParent->AddToRefreshTimer(this);
         }
     } else {

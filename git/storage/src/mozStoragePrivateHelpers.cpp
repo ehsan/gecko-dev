@@ -94,9 +94,8 @@ convertResultCode(int aSQLiteResultCode)
   // generic error
 #ifdef DEBUG
   nsCAutoString message;
-  message.AppendLiteral("SQLite returned error code ");
+  message.AppendLiteral("Unknown SQLite error code: ");
   message.AppendInt(aSQLiteResultCode);
-  message.AppendLiteral(" , Storage will convert it to NS_ERROR_FAILURE");
   NS_WARNING(message.get());
 #endif
   return NS_ERROR_FAILURE;

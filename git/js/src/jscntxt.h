@@ -131,7 +131,7 @@ struct REHashKey;
 struct FrameInfo;
 struct VMSideExit;
 struct TreeFragment;
-struct TracerState;
+struct InterpState;
 template<typename T> class Queue;
 typedef Queue<uint16> SlotList;
 class TypeMap;
@@ -165,7 +165,7 @@ class ContextAllocPolicy
 };
 
 /* Holds the execution state during trace execution. */
-struct TracerState 
+struct InterpState
 {
     JSContext*     cx;                  // current VM context handle
     double*        stackBase;           // native stack base
@@ -185,7 +185,7 @@ struct TracerState
     VMSideExit**   innermostNestedGuardp;
     VMSideExit*    innermost;
     uint64         startTime;
-    TracerState*   prev;
+    InterpState*   prev;
 
     // Used by _FAIL builtins; see jsbuiltins.h. The builtin sets the
     // JSBUILTIN_BAILED bit if it bails off trace and the JSBUILTIN_ERROR bit
@@ -199,15 +199,15 @@ struct TracerState
     uintN          nativeVpLen;
     jsval*         nativeVp;
 
-    TracerState(JSContext *cx, TraceMonitor *tm, TreeFragment *ti,
+    InterpState(JSContext *cx, TraceMonitor *tm, TreeFragment *ti,
                 uintN &inlineCallCountp, VMSideExit** innermostNestedGuardp);
-    ~TracerState();
+    ~InterpState();
 };
 
 /*
  * Storage for the execution state and store during trace execution. Generated
  * code depends on the fact that the globals begin |MAX_NATIVE_STACK_SLOTS|
- * doubles after the stack begins. Thus, on trace, |TracerState::eos| holds a
+ * doubles after the stack begins. Thus, on trace, |InterpState::eos| holds a
  * pointer to the first global.
  */
 struct TraceNativeStorage
@@ -721,11 +721,7 @@ struct JSClassProtoCache {
 #endif
 };
 
-namespace js {
-
-typedef Vector<JSGCChunkInfo *, 32, SystemAllocPolicy> GCChunks;
-
-} /* namespace js */
+typedef js::Vector<JSGCChunkInfo*, 0, js::SystemAllocPolicy> GCEmptyChunks;
 
 struct JSRuntime {
     /* Runtime state, synchronized by the stateChange/gcLock condvar/lock. */
@@ -749,11 +745,8 @@ struct JSRuntime {
     uint32              protoHazardShape;
 
     /* Garbage collector state, used by jsgc.c. */
-    js::GCChunks        gcChunks;
-    size_t              gcChunkCursor;
-#ifdef DEBUG
-    JSGCArena           *gcEmptyArenaList;
-#endif
+    JSGCChunkInfo       *gcChunkList;
+    GCEmptyChunks       gcEmptyChunks;
     JSGCArenaList       gcArenaList[FINALIZE_LIMIT];
     JSGCDoubleArenaList gcDoubleArenaList;
     JSDHashTable        gcRootsHash;
@@ -1180,42 +1173,9 @@ namespace js {
 class AutoGCRooter;
 }
 
-struct JSRegExpStatics {
-    JSString    *input;         /* input string to match (perl $_, GC root) */
-    JSBool      multiline;      /* whether input contains newlines (perl $*) */
-    JSSubString lastMatch;      /* last string matched (perl $&) */
-    JSSubString lastParen;      /* last paren matched (perl $+) */
-    JSSubString leftContext;    /* input to left of last match (perl $`) */
-    JSSubString rightContext;   /* input to right of last match (perl $') */
-    js::Vector<JSSubString> parens; /* last set of parens matched (perl $1, $2) */
-
-    JSRegExpStatics(JSContext *cx) : parens(cx) {}
-
-    bool copy(const JSRegExpStatics& other) {
-        input = other.input;
-        multiline = other.multiline;
-        lastMatch = other.lastMatch;
-        lastParen = other.lastParen;
-        leftContext = other.leftContext;
-        rightContext = other.rightContext;
-        if (!parens.resize(other.parens.length()))
-            return false;
-        memcpy(parens.begin(), other.parens.begin(), sizeof(JSSubString) * parens.length());
-        return true;
-    }
-
-    void clear() {
-        input = NULL;
-        multiline = false;
-        lastMatch = lastParen = leftContext = rightContext = js_EmptySubString;
-        parens.clear();
-    }
-};
-
 struct JSContext
 {
-    explicit JSContext(JSRuntime *rt) :
-      runtime(rt), regExpStatics(this), busyArrays(this) {}
+    explicit JSContext(JSRuntime *rt) : runtime(rt), busyArrays(this) {}
 
     /*
      * If this flag is set, we were asked to call back the operation callback
@@ -1301,7 +1261,7 @@ struct JSContext
     /* Storage to root recently allocated GC things and script result. */
     JSWeakRoots         weakRoots;
 
-    /* Regular expression class statics. */
+    /* Regular expression class statics (XXX not shared globally). */
     JSRegExpStatics     regExpStatics;
 
     /* State for object and array toSource conversion. */
@@ -1431,7 +1391,7 @@ struct JSContext
      * called back into native code via a _FAIL builtin and has not yet bailed,
      * else garbage (NULL in debug builds).
      */
-    js::TracerState     *tracerState;
+    js::InterpState     *interpState;
     js::VMSideExit      *bailExit;
 
     /*
@@ -1710,19 +1670,14 @@ class AutoGCRooter {
     void operator=(AutoGCRooter &ida);
 };
 
-class AutoSaveRestoreWeakRoots : private AutoGCRooter
+class AutoSaveWeakRoots : private AutoGCRooter
 {
   public:
-    explicit AutoSaveRestoreWeakRoots(JSContext *cx
-                                      JS_GUARD_OBJECT_NOTIFIER_PARAM)
+    explicit AutoSaveWeakRoots(JSContext *cx
+                               JS_GUARD_OBJECT_NOTIFIER_PARAM)
       : AutoGCRooter(cx, WEAKROOTS), savedRoots(cx->weakRoots)
     {
         JS_GUARD_OBJECT_NOTIFIER_INIT;
-    }
-
-    ~AutoSaveRestoreWeakRoots()
-    {
-        context->weakRoots = savedRoots;
     }
 
     friend void AutoGCRooter::trace(JSTracer *trc);

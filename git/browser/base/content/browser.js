@@ -1052,14 +1052,10 @@ function BrowserStartup() {
     document.documentElement.setAttribute("height", defaultHeight);
   }
 
-  if (!window.toolbar.visible) {
-    // adjust browser UI for popups
-    if (gURLBar) {
-      gURLBar.setAttribute("readonly", "true");
-      gURLBar.setAttribute("enablehistory", "false");
-    }
-    goSetCommandEnabled("Browser:OpenLocation", false);
-    goSetCommandEnabled("cmd_newNavigatorTab", false);
+  if (gURLBar &&
+      document.documentElement.getAttribute("chromehidden").indexOf("toolbar") != -1) {
+    gURLBar.setAttribute("readonly", "true");
+    gURLBar.setAttribute("enablehistory", "false");
   }
 
   CombinedStopReload.init();
@@ -5004,14 +5000,16 @@ function handleLinkClick(event, href, linkNode)
   return false;
 }
 
-function middleMousePaste(event) {
-  var url = getShortcutOrURI(readFromClipboard());
-  try {
-    makeURI(url);
-  } catch (ex) {
-    // Not a valid URI.
+function middleMousePaste(event)
+{
+  var url = readFromClipboard();
+  if (!url)
     return;
-  }
+
+  var postData = { };
+  url = getShortcutOrURI(url, postData);
+  if (!url)
+    return;
 
   try {
     addToUrlbarHistory(url);

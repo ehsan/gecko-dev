@@ -2432,11 +2432,11 @@ DefinePropertyObject(JSContext *cx, JSObject *obj, const PropertyDescriptor &des
         if (desc.hasGet)
             getter = desc.getterObject() ? desc.getter() : JS_PropertyStub;
         else
-            getter = sprop->hasDefaultGetter() ? JS_PropertyStub : sprop->getter();
+            getter = sprop->getter();
         if (desc.hasSet)
             setter = desc.setterObject() ? desc.setter() : JS_PropertyStub;
         else
-            setter = sprop->hasDefaultSetter() ? JS_PropertyStub : sprop->setter();
+            setter = sprop->setter();
     }
 
     *rval = true;

@@ -441,7 +441,7 @@ js_FinishAtomState(JSRuntime *rt);
  */
 
 extern void
-js_TraceAtomState(JSTracer *trc);
+js_TraceAtomState(JSTracer *trc, JSBool allAtoms);
 
 extern void
 js_SweepAtomState(JSContext *cx);

@@ -69,7 +69,7 @@ private:
   virtual nsresult UpdateTaskbarProperties();
   virtual nsresult Enable();
   virtual nsresult Disable();
-  virtual void DetachFromNSWindow();
+  virtual void DetachFromNSWindow(PRBool windowIsAlive);
 
   // WindowHook procedure for hooking mWnd
   static PRBool MainWindowHook(void *aContext,

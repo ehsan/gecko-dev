@@ -168,7 +168,7 @@ nsSVGAElement::GetHrefURI() const
 
 
 PRBool
-nsSVGAElement::IsFocusable(PRInt32 *aTabIndex, PRBool aWithMouse)
+nsSVGAElement::IsFocusable(PRInt32 *aTabIndex)
 {
   nsCOMPtr<nsIURI> uri;
   if (IsLink(getter_AddRefs(uri))) {
