@@ -53,7 +53,7 @@ Sanitizer.prototype = {
     return this.items[aItemName].canClear;
   },
   
-  prefDomain: "privacy.item.",
+  prefDomain: "",
   
   getNameFromPreference: function (aPreferenceName)
   {
@@ -77,7 +77,7 @@ Sanitizer.prototype = {
     if (this.ignoreTimespan)
       var range = null;  // If we ignore timespan, clear everything
     else
-      range = Sanitizer.getClearRange();
+      range = this.range || Sanitizer.getClearRange();
       
     for (var itemName in this.items) {
       var item = this.items[itemName];
@@ -102,8 +102,12 @@ Sanitizer.prototype = {
   },
   
   // Time span only makes sense in certain cases.  Consumers who want
-  // to only clear some private data can opt in by setting this to false
+  // to only clear some private data can opt in by setting this to false,
+  // and can optionally specify a specific range.  If timespan is not ignored,
+  // and range is not set, sanitize() will use the value of the timespan
+  // pref to determine a range
   ignoreTimespan : true,
+  range : null,
   
   items: {
     cache: {
@@ -194,7 +198,7 @@ Sanitizer.prototype = {
         var globalHistory = Components.classes["@mozilla.org/browser/global-history;2"]
                                       .getService(Components.interfaces.nsIBrowserHistory);
         if (this.range)
-          globalHistory.removePagesByTimeframe(this.range[0], this.range[1]);
+          globalHistory.removeVisitsByTimeframe(this.range[0], this.range[1]);
         else
           globalHistory.removeAllPages();
         
@@ -395,9 +399,11 @@ Sanitizer.TIMESPAN_TODAY      = 4;
 
 // Return a 2 element array representing the start and end times,
 // in the uSec-since-epoch format that PRTime likes.  If we should
-// clear everything, return null
-Sanitizer.getClearRange = function() {
-  var ts = Sanitizer.prefs.getIntPref("timeSpan");
+// clear everything, return null.  Use ts if it is defined; otherwise
+// use the timeSpan pref.
+Sanitizer.getClearRange = function (ts) {
+  if (ts === undefined)
+    ts = Sanitizer.prefs.getIntPref("timeSpan");
   if (ts === Sanitizer.TIMESPAN_EVERYTHING)
     return null;
   
@@ -482,7 +488,9 @@ Sanitizer._checkAndSanitize = function()
   if (prefs.getBoolPref(Sanitizer.prefShutdown) && 
       !prefs.prefHasUserValue(Sanitizer.prefDidShutdown)) {
     // this is a shutdown or a startup after an unclean exit
-    new Sanitizer().sanitize() || // sanitize() returns null on full success
+    var s = new Sanitizer();
+    s.prefDomain = "privacy.clearOnShutdown.";
+    s.sanitize() || // sanitize() returns null on full success
       prefs.setBoolPref(Sanitizer.prefDidShutdown, true);
   }
 };

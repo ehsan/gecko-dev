@@ -3390,19 +3390,10 @@ NS_METHOD nsWindow::SetIcon(const nsAString& aIconSpec)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsWindow::GetLastInputEventTime(PRUint32& aTime)
+PRBool
+nsWindow::HasPendingInputEvent()
 {
-   ULONG ulStatus = WinQueryQueueStatus(HWND_DESKTOP);
-
-   // If there is pending input then return the current time.
-   if (ulStatus & (QS_KEY | QS_MOUSE)) {
-     gLastInputEventTime = PR_IntervalToMicroseconds(PR_IntervalNow());
-   }
-
-   aTime = gLastInputEventTime;
-
-   return NS_OK;
+  return (WinQueryQueueStatus(HWND_DESKTOP) & (QS_KEY | QS_MOUSE)) != 0;
 }
 
 // --------------------------------------------------------------------------

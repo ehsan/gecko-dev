@@ -87,7 +87,7 @@ MAKE_PACKAGE	= $(error What is a $(MOZ_PKG_FORMAT) package format?);
 
 CREATE_FINAL_TAR = $(TAR) -c --owner=0 --group=0 --numeric-owner \
   --mode="go-w" -f
-UNPACK_TAR       = tar -x
+UNPACK_TAR       = tar -xf-
 
 ifeq ($(MOZ_PKG_FORMAT),TAR)
 PKG_SUFFIX	= .tar
@@ -371,14 +371,10 @@ endif
 else
 	@cd $(DIST)/bin && tar $(TAR_CREATE_FLAGS) - * | (cd ../$(MOZ_PKG_DIR); tar -xf -)
 endif # DMG
-ifneq (,$(wildcard $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)/components/*.xpt))
 	@echo "Linking XPT files..."
 	@rm -rf $(DIST)/xpt
 	@$(NSINSTALL) -D $(DIST)/xpt
-	@$(XPIDL_LINK) $(DIST)/xpt/$(MOZ_PKG_APPNAME).xpt $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)/components/*.xpt
-	@rm -f $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)/components/*.xpt
-	@cp $(DIST)/xpt/$(MOZ_PKG_APPNAME).xpt $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)/components
-endif
+	@($(XPIDL_LINK) $(DIST)/xpt/$(MOZ_PKG_APPNAME).xpt $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)/components/*.xpt && rm -f $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)/components/*.xpt && cp $(DIST)/xpt/$(MOZ_PKG_APPNAME).xpt $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)/components) || echo No *.xpt files found in: $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)/components/.  Continuing...
 endif # MOZ_PKG_MANIFEST
 ifndef PKG_SKIP_STRIP
 	@echo "Stripping package directory..."
@@ -423,14 +419,15 @@ make-package: stage-package $(PACKAGE_XULRUNNER)
 # The install target will install the application to prefix/lib/appname-version
 # In addition if INSTALL_SDK is set, it will install the development headers,
 # libraries, and IDL files as follows:
-# dist/sdk/include -> prefix/include/appname-version/stable
-# dist/include -> prefix/include/appname-version/unstable
-# dist/sdk/idl -> prefix/share/idl/appname-version/stable
-# dist/idl -> prefix/share/idl/appname-version/unstable
+# dist/include -> prefix/include/appname-version
+# dist/idl -> prefix/share/idl/appname-version
 # dist/sdk/lib -> prefix/lib/appname-devel-version/lib
 # prefix/lib/appname-devel-version/* symlinks to the above directories
 install:: stage-package
-ifneq (,$(filter WINNT Darwin,$(OS_ARCH)))
+ifneq (,$(filter WINNT,$(OS_ARCH)))
+	$(error "make install" is not supported on this platform. Use "make package" instead.)
+endif
+ifeq (bundle,$(MOZ_FS_LAYOUT))
 	$(error "make install" is not supported on this platform. Use "make package" instead.)
 endif
 	$(NSINSTALL) -D $(DESTDIR)$(installdir)
@@ -440,33 +437,23 @@ endif
 	$(RM) -f $(DESTDIR)$(bindir)/$(MOZ_APP_NAME)
 	ln -s $(installdir)/$(MOZ_APP_NAME) $(DESTDIR)$(bindir)
 ifdef INSTALL_SDK # Here comes the hard part
-# include directory is stable (dist/sdk/include) and unstable (dist/include)
-	$(NSINSTALL) -D $(DESTDIR)$(includedir)/stable
-	$(NSINSTALL) -D $(DESTDIR)$(includedir)/unstable
-	(cd $(DIST)/sdk/include && tar $(TAR_CREATE_FLAGS) - .) | \
-	  (cd $(DESTDIR)$(includedir)/stable && tar -xf -)
-# The dist/include has module subdirectories that we need to flatten
-	find $(DIST)/include -xtype f -exec $(SYSINSTALL) $(IFLAGS1) {} $(DESTDIR)$(includedir)/unstable \;
-# IDL directory is stable (dist/sdk/idl) and unstable (dist/idl)
-	$(NSINSTALL) -D $(DESTDIR)$(idldir)/stable 
-	$(NSINSTALL) -D $(DESTDIR)$(idldir)/unstable
-	(cd $(DIST)/sdk/idl && tar $(TAR_CREATE_FLAGS) - .) | \
-	  (cd $(DESTDIR)$(idldir)/stable && tar -xf -)
+	$(NSINSTALL) -D $(DESTDIR)$(includedir)
+	(cd $(DIST)/include && tar $(TAR_CREATE_FLAGS) - .) | \
+	  (cd $(DESTDIR)$(includedir) && tar -xf -)
+	$(NSINSTALL) -D $(DESTDIR)$(idldir)
 	(cd $(DIST)/idl && tar $(TAR_CREATE_FLAGS) - .) | \
-	  (cd $(DESTDIR)$(idldir)/unstable && tar -xf -)
+	  (cd $(DESTDIR)$(idldir) && tar -xf -)
 # SDK directory is the libs + a bunch of symlinks
 	$(NSINSTALL) -D $(DESTDIR)$(sdkdir)/sdk/lib
-	if test -f $(DIST)/sdk/include/xpcom-config.h; then \
-	  $(SYSINSTALL) $(IFLAGS1) $(DIST)/sdk/include/xpcom-config.h $(DESTDIR)$(sdkdir); \
+	if test -f $(DIST)/include/xpcom-config.h; then \
+	  $(SYSINSTALL) $(IFLAGS1) $(DIST)/include/xpcom-config.h $(DESTDIR)$(sdkdir); \
 	fi
 	(cd $(DIST)/sdk/lib && tar $(TAR_CREATE_FLAGS) - .) | (cd $(DESTDIR)$(sdkdir)/sdk/lib && tar -xf -)
-	$(RM) -f $(DESTDIR)$(sdkdir)/lib $(DESTDIR)$(sdkdir)/bin $(DESTDIR)$(sdkdir)/sdk/include $(DESTDIR)$(sdkdir)/include $(DESTDIR)$(sdkdir)/sdk/idl $(DESTDIR)$(sdkdir)/idl
+	$(RM) -f $(DESTDIR)$(sdkdir)/lib $(DESTDIR)$(sdkdir)/bin $(DESTDIR)$(sdkdir)/include $(DESTDIR)$(sdkdir)/include $(DESTDIR)$(sdkdir)/sdk/idl $(DESTDIR)$(sdkdir)/idl
 	ln -s $(sdkdir)/sdk/lib $(DESTDIR)$(sdkdir)/lib
 	ln -s $(installdir) $(DESTDIR)$(sdkdir)/bin
-	ln -s $(includedir)/stable $(DESTDIR)$(sdkdir)/sdk/include
-	ln -s $(includedir)/unstable $(DESTDIR)$(sdkdir)/include
-	ln -s $(idldir)/stable $(DESTDIR)$(sdkdir)/sdk/idl
-	ln -s $(idldir)/unstable $(DESTDIR)$(sdkdir)/idl
+	ln -s $(includedir) $(DESTDIR)$(sdkdir)/include
+	ln -s $(idldir) $(DESTDIR)$(sdkdir)/idl
 endif # INSTALL_SDK
 
 make-sdk:
@@ -506,7 +493,7 @@ space = $(empty) $(empty)
 QUOTED_WILDCARD = $(if $(wildcard $(subst $(space),?,$(1))),"$(1)")
 
 upload:
-	$(PYTHON) $(topsrcdir)/build/upload.py --base-path $(DIST) \
+	$(PYTHON) $(MOZILLA_DIR)/build/upload.py --base-path $(DIST) \
 		$(call QUOTED_WILDCARD,$(DIST)/$(PACKAGE)) \
 		$(call QUOTED_WILDCARD,$(INSTALLER_PACKAGE)) \
 		$(call QUOTED_WILDCARD,$(DIST)/$(COMPLETE_MAR)) \

@@ -201,6 +201,8 @@ struct JSScope {
     JSTitle         title;              /* lock state */
 #endif
     JSObject        *object;            /* object that owns this scope */
+    jsrefcount      nrefs;              /* count of all referencing objects */
+    uint32          freeslot;           /* index of next free slot in object */
     uint32          shape;              /* property cache shape identifier */
     uint8           flags;              /* flags, see below */
     int8            hashShift;          /* multiplicative hash shift */
@@ -213,21 +215,9 @@ struct JSScope {
 
 #define JS_IS_SCOPE_LOCKED(cx, scope)   JS_IS_TITLE_LOCKED(cx, &(scope)->title)
 
-#define OBJ_SCOPE(obj)                  ((JSScope *)(obj)->map)
+#define OBJ_SCOPE(obj)                  (JS_ASSERT(OBJ_IS_NATIVE(obj)),       \
+                                         (JSScope *) (obj)->map)
 #define OBJ_SHAPE(obj)                  (OBJ_SCOPE(obj)->shape)
-
-#define SCOPE_MAKE_UNIQUE_SHAPE(cx,scope)                                     \
-    ((scope)->shape = js_GenerateShape((cx), JS_FALSE, NULL))
-
-#define SCOPE_EXTEND_SHAPE(cx,scope,sprop)                                    \
-    JS_BEGIN_MACRO                                                            \
-        if (!(scope)->lastProp ||                                             \
-            (scope)->shape == (scope)->lastProp->shape) {                     \
-            (scope)->shape = (sprop)->shape;                                  \
-        } else {                                                              \
-            (scope)->shape = js_GenerateShape((cx), JS_FALSE, sprop);         \
-        }                                                                     \
-    JS_END_MACRO
 
 /* By definition, hashShift = JS_DHASH_BITS - log2(capacity). */
 #define SCOPE_CAPACITY(scope)           JS_BIT(JS_DHASH_BITS-(scope)->hashShift)
@@ -342,11 +332,30 @@ struct JSScopeProperty {
 
 #define SPROP_INVALID_SLOT              0xffffffff
 
-#define SLOT_IN_SCOPE(slot,scope)         ((slot) < (scope)->map.freeslot)
+#define SLOT_IN_SCOPE(slot,scope)         ((slot) < (scope)->freeslot)
 #define SPROP_HAS_VALID_SLOT(sprop,scope) SLOT_IN_SCOPE((sprop)->slot, scope)
 
 #define SPROP_HAS_STUB_GETTER(sprop)    (!(sprop)->getter)
 #define SPROP_HAS_STUB_SETTER(sprop)    (!(sprop)->setter)
+
+static inline void
+js_MakeScopeShapeUnique(JSContext *cx, JSScope *scope)
+{
+    js_LeaveTraceIfGlobalObject(cx, scope->object);
+    scope->shape = js_GenerateShape(cx, JS_FALSE);
+}
+
+static inline void
+js_ExtendScopeShape(JSContext *cx, JSScope *scope, JSScopeProperty *sprop)
+{
+    js_LeaveTraceIfGlobalObject(cx, scope->object);
+    if (!scope->lastProp ||
+        scope->shape == scope->lastProp->shape) {
+        scope->shape = sprop->shape;
+    } else {
+        scope->shape = js_GenerateShape(cx, JS_FALSE);
+    }
+}
 
 static JS_INLINE JSBool
 js_GetSprop(JSContext* cx, JSScopeProperty* sprop, JSObject* obj, jsval* vp)
@@ -375,8 +384,7 @@ js_SetSprop(JSContext* cx, JSScopeProperty* sprop, JSObject* obj, jsval* vp)
     }
 
     if (sprop->attrs & JSPROP_GETTER) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
-                             JSMSG_GETTER_ONLY, NULL);
+        js_ReportGetterOnlyAssignment(cx);
         return JS_FALSE;
     }
 
@@ -391,11 +399,16 @@ extern JSScope *
 js_GetMutableScope(JSContext *cx, JSObject *obj);
 
 extern JSScope *
-js_NewScope(JSContext *cx, jsrefcount nrefs, JSObjectOps *ops, JSClass *clasp,
-            JSObject *obj);
+js_NewScope(JSContext *cx, JSObjectOps *ops, JSClass *clasp, JSObject *obj);
 
 extern void
 js_DestroyScope(JSContext *cx, JSScope *scope);
+
+extern void
+js_HoldScope(JSScope *scope);
+
+extern JSBool
+js_DropScope(JSContext *cx, JSScope *scope, JSObject *obj);
 
 extern JS_FRIEND_API(JSScopeProperty **)
 js_SearchScope(JSScope *scope, jsid id, JSBool adding);

@@ -225,11 +225,12 @@ mDocChangeRange(nsnull)
 nsHTMLEditRules::~nsHTMLEditRules()
 {
   // remove ourselves as a listener to edit actions
-  // In the normal case, we have already been removed by 
-  // ~nsHTMLEditor, in which case we will get an error here
+  // In some cases, we have already been removed by 
+  // ~nsHTMLEditor, in which case we will get a null pointer here
   // which we ignore.  But this allows us to add the ability to
   // switch rule sets on the fly if we want.
-  mHTMLEditor->RemoveEditActionListener(this);
+  if (mHTMLEditor)
+    mHTMLEditor->RemoveEditActionListener(this);
 }
 
 /********************************************************
@@ -238,7 +239,7 @@ nsHTMLEditRules::~nsHTMLEditRules()
 
 NS_IMPL_ADDREF_INHERITED(nsHTMLEditRules, nsTextEditRules)
 NS_IMPL_RELEASE_INHERITED(nsHTMLEditRules, nsTextEditRules)
-NS_IMPL_QUERY_INTERFACE3(nsHTMLEditRules, nsIHTMLEditRules, nsIEditRules, nsIEditActionListener)
+NS_IMPL_QUERY_INTERFACE_INHERITED2(nsHTMLEditRules, nsTextEditRules, nsIHTMLEditRules, nsIEditActionListener)
 
 
 /********************************************************
@@ -302,6 +303,12 @@ nsHTMLEditRules::Init(nsPlaintextEditor *aEditor, PRUint32 aFlags)
   return res;
 }
 
+NS_IMETHODIMP
+nsHTMLEditRules::DetachEditor()
+{
+  mHTMLEditor = nsnull;
+  return nsTextEditRules::DetachEditor();
+}
 
 NS_IMETHODIMP
 nsHTMLEditRules::BeforeEdit(PRInt32 action, nsIEditor::EDirection aDirection)
@@ -2408,6 +2415,7 @@ nsHTMLEditRules::WillDeleteSelection(nsISelection *aSelection,
       {
         // deleting across blocks
         // are the blocks of same type?
+        NS_ENSURE_STATE(leftParent && rightParent);
         
         // are the blocks siblings?
         nsCOMPtr<nsIDOMNode> leftBlockParent;
@@ -2662,6 +2670,15 @@ nsHTMLEditRules::JoinBlocks(nsCOMPtr<nsIDOMNode> *aLeftBlock,
     return NS_OK;
   }
   
+  // Joining a list item to its parent is a NOP.
+  if (nsHTMLEditUtils::IsList(*aLeftBlock) && nsHTMLEditUtils::IsListItem(*aRightBlock))
+  {
+    nsCOMPtr<nsIDOMNode> rightParent;
+    (*aRightBlock)->GetParentNode(getter_AddRefs(rightParent));
+    if (rightParent == *aLeftBlock)
+      return NS_OK;
+  }
+
   // special rule here: if we are trying to join list items, and they are in different lists,
   // join the lists instead.
   PRBool bMergeLists = PR_FALSE;
@@ -2808,7 +2825,7 @@ nsHTMLEditRules::JoinBlocks(nsCOMPtr<nsIDOMNode> *aLeftBlock,
 *         nsIDOMNode *aLeftBlock         parent to receive moved content
 *         nsIDOMNode *aRightBlock        parent to provide moved content
 *         PRInt32 aLeftOffset            offset in aLeftBlock to move content to
-*         PRInt32 aRightOffset           offset in aLeftBlock to move content to
+*         PRInt32 aRightOffset           offset in aRightBlock to move content from
 */
 nsresult
 nsHTMLEditRules::MoveBlock(nsIDOMNode *aLeftBlock, nsIDOMNode *aRightBlock, PRInt32 aLeftOffset, PRInt32 aRightOffset)
@@ -2846,7 +2863,7 @@ nsHTMLEditRules::MoveBlock(nsIDOMNode *aLeftBlock, nsIDOMNode *aRightBlock, PRIn
 *    inserted content.
 *         nsIDOMNode *aSource       the selection.  
 *         nsIDOMNode *aDest         parent to receive moved content
-*         PRInt32 *aOffset          offset in aNewParent to move content to
+*         PRInt32 *aOffset          offset in aDest to move content to
 */
 nsresult
 nsHTMLEditRules::MoveNodeSmart(nsIDOMNode *aSource, nsIDOMNode *aDest, PRInt32 *aOffset)
@@ -2883,13 +2900,14 @@ nsHTMLEditRules::MoveNodeSmart(nsIDOMNode *aSource, nsIDOMNode *aDest, PRInt32 *
 *    inserted content.  aSource is deleted.
 *         nsIDOMNode *aSource       the selection.  
 *         nsIDOMNode *aDest         parent to receive moved content
-*         PRInt32 *aOffset          offset in aNewParent to move content to
+*         PRInt32 *aOffset          offset in aDest to move content to
 */
 nsresult
 nsHTMLEditRules::MoveContents(nsIDOMNode *aSource, nsIDOMNode *aDest, PRInt32 *aOffset)
 {
   if (!aSource || !aDest || !aOffset) return NS_ERROR_NULL_POINTER;
   if (aSource == aDest) return NS_ERROR_ILLEGAL_VALUE;
+  NS_ASSERTION(!mHTMLEditor->IsTextNode(aSource), "#text does not have contents");
   
   nsCOMPtr<nsIDOMNode> child;
   nsAutoString tag;
@@ -4389,10 +4407,10 @@ nsHTMLEditRules::CreateStyleForInsertText(nsISelection *aSelection, nsIDOMDocume
 
   // next examine our present style and make sure default styles are either present or
   // explicitly overridden.  If neither, add the default style to the TypeInState
-  PRInt32 j, defcon = mHTMLEditor->mDefaultStyles.Count();
+  PRInt32 j, defcon = mHTMLEditor->mDefaultStyles.Length();
   for (j=0; j<defcon; j++)
   {
-    PropItem *propItem = (PropItem*)mHTMLEditor->mDefaultStyles[j];
+    PropItem *propItem = mHTMLEditor->mDefaultStyles[j];
     if (!propItem) 
       return NS_ERROR_NULL_POINTER;
     PRBool bFirst, bAny, bAll;
@@ -4688,7 +4706,7 @@ nsHTMLEditRules::WillAlign(nsISelection *aSelection,
   // Next we detect all the transitions in the array, where a transition
   // means that adjacent nodes in the array don't have the same parent.
 
-  nsVoidArray transitionList;
+  nsTArray<PRPackedBool> transitionList;
   res = MakeTransitionList(arrayOfNodes, transitionList);
   if (NS_FAILED(res)) return res;                                 
 
@@ -6367,11 +6385,11 @@ nsHTMLEditRules::GetNodesFromSelection(nsISelection *selection,
 //                       
 nsresult 
 nsHTMLEditRules::MakeTransitionList(nsCOMArray<nsIDOMNode>& inArrayOfNodes, 
-                                    nsVoidArray &inTransitionArray)
+                                    nsTArray<PRPackedBool> &inTransitionArray)
 {
-  PRInt32 listCount = inArrayOfNodes.Count();
-  PRInt32 i;
-  nsVoidArray transitionList;
+  PRUint32 listCount = inArrayOfNodes.Count();
+  inTransitionArray.EnsureLengthAtLeast(listCount);
+  PRUint32 i;
   nsCOMPtr<nsIDOMNode> prevElementParent;
   nsCOMPtr<nsIDOMNode> curElementParent;
   
@@ -6382,12 +6400,12 @@ nsHTMLEditRules::MakeTransitionList(nsCOMArray<nsIDOMNode>& inArrayOfNodes,
     if (curElementParent != prevElementParent)
     {
       // different parents, or separated by <br>: transition point
-      inTransitionArray.InsertElementAt((void*)PR_TRUE,i);  
+      inTransitionArray[i] = PR_TRUE;
     }
     else
     {
       // same parents: these nodes grew up together
-      inTransitionArray.InsertElementAt((void*)PR_FALSE,i); 
+      inTransitionArray[i] = PR_FALSE;
     }
     prevElementParent = curElementParent;
   }
@@ -7873,7 +7891,7 @@ nsHTMLEditRules::RemoveEmptyNodes()
   nsresult res = iter->Init(mDocChangeRange);
   if (NS_FAILED(res)) return res;
   
-  nsVoidArray skipList;
+  nsTArray<nsIDOMNode*> skipList;
 
   // check for empty nodes
   while (!iter->IsDone())
@@ -7886,12 +7904,12 @@ nsHTMLEditRules::RemoveEmptyNodes()
 
     node->GetParentNode(getter_AddRefs(parent));
     
-    PRInt32 idx = skipList.IndexOf((void*)node);
-    if (idx>=0)
+    PRUint32 idx = skipList.IndexOf(node);
+    if (idx != skipList.NoIndex)
     {
       // this node is on our skip list.  Skip processing for this node, 
       // and replace it's value in the skip list with the value of it's parent
-      skipList.ReplaceElementAt((void*)parent, idx);
+      skipList[idx] = parent;
     }
     else
     {
@@ -7952,7 +7970,7 @@ nsHTMLEditRules::RemoveEmptyNodes()
       if (!bIsEmptyNode)
       {
         // put parent on skip list
-        skipList.AppendElement((void*)parent);
+        skipList.AppendElement(parent);
       }
     }
 

@@ -330,7 +330,6 @@ def readConfigFile(filename, includePath, cachedir, traceable):
 
 def writeHeaderFile(filename, name):
     print "Creating header file", filename
-    make_targets.append(filename)
 
     headerMacro = '__gen_%s__' % filename.replace('.', '_')
     f = open(filename, 'w')
@@ -915,7 +914,7 @@ traceableArgumentConversionTemplates = {
 
 def writeTraceableArgumentConversion(f, member, i, name, type, haveCcx,
                                      rvdeclared):
-    argVal = "arg%d" % i
+    argVal = "_arg%d" % i
     argPtr = "&" + argVal
 
     params = {
@@ -1041,7 +1040,7 @@ def writeTraceableQuickStub(f, customMethodCalls, member, stubName):
         traceInfo["params"].append("CALLEE")
     for i, param in enumerate(member.params):
         type = getBuiltinOrNativeTypeName(param.realtype)
-        f.write(", %sarg%d" % (getTraceType(type), i))
+        f.write(", %s_arg%d" % (getTraceType(type), i))
         traceInfo["params"].append(getTraceInfoType(type))
     f.write(")\n{\n");
     f.write("    XPC_QS_ASSERT_CONTEXT_OK(cx);\n")
@@ -1072,7 +1071,7 @@ def writeTraceableQuickStub(f, customMethodCalls, member, stubName):
     for i, param in enumerate(member.params):
         validateParam(member, param)
         type = unaliasType(param.realtype)
-        argName = "_arg%d" % i
+        argName = "arg%d" % i
         rvdeclared = writeTraceableArgumentConversion(f, member, i, argName,
                                                       param.realtype,
                                                       haveCcx, rvdeclared)

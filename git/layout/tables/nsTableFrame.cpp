@@ -2170,8 +2170,11 @@ nsTableFrame::AdjustForCollapsingRowsCols(nsHTMLReflowMetrics& aDesiredSize,
 {
   nscoord yTotalOffset = 0; // total offset among all rows in all row groups
 
-  // reset the bit, it will be set again if row/rowgroup is collapsed
+  // reset the bit, it will be set again if row/rowgroup or col/colgroup are
+  // collapsed
   SetNeedToCollapse(PR_FALSE);
+  
+  CheckCollapsedColumns();
   
   // collapse the rows and/or row groups as necessary
   // Get the ordered children
@@ -2196,6 +2199,36 @@ nsTableFrame::AdjustForCollapsingRowsCols(nsHTMLReflowMetrics& aDesiredSize,
                          nsSize(aDesiredSize.width, aDesiredSize.height));
 }
 
+void
+nsTableFrame::CheckCollapsedColumns()
+{
+  nsTableFrame* tableFrame = static_cast<nsTableFrame*>(GetFirstInFlow());
+  if (!tableFrame)
+    return;
+  // loop over colgroups
+  for (nsIFrame* groupFrame = mColGroups.FirstChild(); groupFrame;
+         groupFrame = groupFrame->GetNextSibling()) {
+    const nsStyleVisibility* groupVis = groupFrame->GetStyleVisibility();
+    PRBool collapseGroup = (NS_STYLE_VISIBILITY_COLLAPSE == groupVis->mVisible);
+    if (collapseGroup) {
+      tableFrame->SetNeedToCollapse(PR_TRUE);
+      return;
+    }
+  }
+  
+  //loop over columns
+  PRInt32 numCols = mColFrames.Length();
+  for (int colX = 0; colX < numCols; colX++) {
+    nsTableColFrame* colFrame = tableFrame->GetColFrame(colX);
+    const nsStyleVisibility* colVis = colFrame->GetStyleVisibility();
+    PRBool collapseCol = (NS_STYLE_VISIBILITY_COLLAPSE ==
+                                colVis->mVisible);
+    if (collapseCol) {
+      tableFrame->SetNeedToCollapse(PR_TRUE);
+      return;
+    }
+  }
+}
 nscoord
 nsTableFrame::GetCollapsedWidth(nsMargin aBorderPadding)
 {
@@ -2333,6 +2366,12 @@ nsTableFrame::InsertFrames(nsIAtom*        aListName,
  
   NS_ASSERTION(!aPrevFrame || aPrevFrame->GetParent() == this,
                "inserting after sibling frame with different parent");
+
+  if ((aPrevFrame && !aPrevFrame->GetNextSibling()) ||
+      (!aPrevFrame && !GetFirstChild(aListName))) {
+    // Treat this like an append; still a workaround for bug 343048.
+    return AppendFrames(aListName, aFrameList);
+  }
 
   // See what kind of frame we have
   const nsStyleDisplay* display = aFrameList->GetStyleDisplay();
@@ -4053,6 +4092,9 @@ nsTableFrame::ColumnHasCellSpacingBefore(PRInt32 aColIndex) const
   // Since fixed-layout tables should not have their column sizes change
   // as they load, we assume that all columns are significant.
   if (LayoutStrategy()->GetType() == nsITableLayoutStrategy::Fixed)
+    return PR_TRUE;
+  // the first column is always significant
+  if (aColIndex == 0)
     return PR_TRUE;
   nsTableCellMap* cellMap = GetCellMap();
   if (!cellMap) 

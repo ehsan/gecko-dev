@@ -54,9 +54,9 @@ OggPlayErrorCode nsChannelReader::destroy()
   return E_OGGPLAY_OK;
 }
 
-void nsChannelReader::SetDuration(PRInt64 aDuration)
+void nsChannelReader::SetLastFrameTime(PRInt64 aTime)
 {
-  mDuration = aDuration;
+  mLastFrameTime = aTime;
 }
 
 size_t nsChannelReader::io_read(char* aBuffer, size_t aCount)
@@ -88,7 +88,7 @@ long nsChannelReader::io_tell()
 
 ogg_int64_t nsChannelReader::duration()
 {
-  return mDuration;
+  return mLastFrameTime;
 }
 
 static OggPlayErrorCode oggplay_channel_reader_initialise(OggPlayReader* aReader, int aBlock) 
@@ -145,13 +145,13 @@ nsChannelReader::~nsChannelReader()
 }
 
 nsChannelReader::nsChannelReader() :
-  mDuration(-1)
+  mLastFrameTime(-1)
 {
   MOZ_COUNT_CTOR(nsChannelReader);
   OggPlayReader* reader = this;
   reader->initialise = &oggplay_channel_reader_initialise;
   reader->destroy = &oggplay_channel_reader_destroy;
-  reader->seek = nsnull;
+  reader->seek = 0;
   reader->io_read  = &oggplay_channel_reader_io_read;
   reader->io_seek  = &oggplay_channel_reader_io_seek;
   reader->io_tell  = &oggplay_channel_reader_io_tell;

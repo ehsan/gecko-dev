@@ -312,10 +312,6 @@ if test -z "$CC"; then
         CC=cc
     ;;
 
-    *-openvms*)
-        CC=cc
-    ;;
-
     *-osf*)
         CC=cc
     ;;
@@ -359,10 +355,6 @@ if test -z "$CXX"; then
 
     *-irix*)
         CXX=CC
-    ;;
-
-    *-openvms*)
-        CXX=cxx
     ;;
 
     *-osf*)
@@ -681,10 +673,6 @@ if test "$OS_ARCH" = "Linux"; then
     OS_RELEASE=`echo $OS_RELEASE | awk -F\. '{ print $1 "." $2 }'`
 fi
 
-if test "$OS_ARCH" = "OpenVMS"; then
-    OS_RELEASE=`uname -v`
-fi
-
 #######################################################################
 # Master "Core Components" macros for getting the OS target           #
 #######################################################################
@@ -996,7 +984,8 @@ case "$target" in
     AC_DEFINE(DARWIN)
     AC_DEFINE(HAVE_BSD_FLOCK)
     AC_DEFINE(HAVE_SOCKLEN_T)
-    CFLAGS="$CFLAGS -Wmost -fno-common"
+    AS='$(CC) -x assembler-with-cpp'
+    CFLAGS="$CFLAGS -Wall -fno-common"
     case "${target_cpu}" in
         i*86*)
             if test -n "$USE_64"; then
@@ -1012,6 +1001,7 @@ case "$target" in
     esac
     DSO_CFLAGS=-fPIC
     DSO_LDOPTS='-dynamiclib -compatibility_version 1 -current_version 1 -all_load -install_name @executable_path/$@ -headerpad_max_install_names'
+    _OPTIMIZE_FLAGS=-O2
     MKSHLIB='$(CC) $(DSO_LDOPTS) -o $@'
     STRIP="$STRIP -x -S"
     DLL_SUFFIX=dylib
@@ -1568,13 +1558,8 @@ tools are selected during the Xcode/Developer Tools installation.])
         fi
 
         if test -n "$MOZ_OPTIMIZE"; then
-            if test -n "$MOZ_PROFILE"; then
-                _OPTIMIZE_FLAGS="$_OPTIMIZE_FLAGS -Z7"
-            fi
             if test -n "$MOZ_DEBUG_SYMBOLS"; then
                 _OPTIMIZE_FLAGS="$_OPTIMIZE_FLAGS -Zi"
-            fi
-            if test -n "$MOZ_PROFILE" -o -n "$MOZ_DEBUG_SYMBOLS"; then
                 DLLFLAGS="$DLLFLAGS -DEBUG -OPT:REF"
                 LDFLAGS="$LDFLAGS -DEBUG -OPT:REF"
             fi
@@ -1836,22 +1821,6 @@ mips-sony-newsos*)
     fi
     DSO_LDOPTS='-shared -fPIC'
     MKSHLIB='$(CC) $(DSO_LDOPTS) -o $@'
-    ;;
-
-*-openvms*)
-    AC_DEFINE(XP_UNIX)
-    AC_DEFINE(VMS)
-    AC_DEFINE(PR_GETIPNODE_NOT_THREADSAFE)
-    RESOLVE_LINK_SYMBOLS=1
-    AR_FLAGS='c $@'
-    MDCPUCFG_H=_openvms.cfg
-    PR_MD_CSRCS=openvms.c
-    DSO_LDOPTS='-shared -auto_symvec'
-    if test -n "$MOZ_DEBUG"; then
-      DSO_LDOPTS="$DSO_LDOPTS $_DEBUG_FLAGS"
-    else
-      DSO_LDOPTS="$DSO_LDOPTS $_OPTIMIZE_FLAGS"
-    fi
     ;;
 
 *-osf*)

@@ -383,8 +383,8 @@ enum nsDOMClassInfoID {
   eDOMClassInfo_XPathResult_id,
 
   // WhatWG WebApps Objects
+  eDOMClassInfo_StorageObsolete_id,
   eDOMClassInfo_Storage_id,
-  eDOMClassInfo_Storage2_id,
   eDOMClassInfo_StorageList_id,
   eDOMClassInfo_StorageItem_id,
   eDOMClassInfo_StorageEvent_id,
@@ -415,7 +415,6 @@ enum nsDOMClassInfoID {
   eDOMClassInfo_CommandEvent_id,
   eDOMClassInfo_OfflineResourceList_id,
   eDOMClassInfo_LoadStatus_id,
-  eDOMClassInfo_LoadStatusEvent_id,
 
   eDOMClassInfo_FileList_id,
   eDOMClassInfo_File_id,

@@ -36,17 +36,5 @@
  * ***** END LICENSE BLOCK *****
  */
 
-if (gXHR) {
-  gXHRCallback = null;
-  // null out the event handlers to prevent a mFreeCount leak of 1
-  gXHR.onerror = null;
-  gXHR.onload = null;
-  gXHR.onprogress = null;
-  gXHR = null;
-}
-
-gUpdateChecker = null;
-gAUS = null;
-gPrefs = null;
-gTestserver = null;
-remove_dirs_and_files();
+// Not used since check-interactive executes this prior to _execute_test();
+// being executed.

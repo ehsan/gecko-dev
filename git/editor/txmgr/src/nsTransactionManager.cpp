@@ -51,28 +51,13 @@
 
 
 nsTransactionManager::nsTransactionManager(PRInt32 aMaxTransactionCount)
-  : mMaxTransactionCount(aMaxTransactionCount), mListeners(0)
+  : mMaxTransactionCount(aMaxTransactionCount)
 {
   mMonitor = ::PR_NewMonitor();
 }
 
 nsTransactionManager::~nsTransactionManager()
 {
-  if (mListeners)
-  {
-    PRInt32 i;
-    nsITransactionListener *listener;
-
-    for (i = 0; i < mListeners->Count(); i++)
-    {
-      listener = (nsITransactionListener *)mListeners->ElementAt(i);
-      NS_IF_RELEASE(listener);
-    }
-
-    delete mListeners;
-    mListeners = 0;
-  }
-
   if (mMonitor)
   {
     ::PR_DestroyMonitor(mMonitor);
@@ -80,30 +65,32 @@ nsTransactionManager::~nsTransactionManager()
   }
 }
 
-#ifdef DEBUG_TXMGR_REFCNT
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsTransactionManager)
 
-nsrefcnt nsTransactionManager::AddRef(void)
-{
-  return ++mRefCnt;
-}
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsTransactionManager)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMARRAY(mListeners)
+  tmp->mDoStack.DoUnlink();
+  tmp->mUndoStack.DoUnlink();
+  tmp->mRedoStack.DoUnlink();
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
-nsrefcnt nsTransactionManager::Release(void)
-{
-  NS_PRECONDITION(0 != mRefCnt, "dup release");
-  if (--mRefCnt == 0) {
-    NS_DELETEXPCOM(this);
-    return 0;
-  }
-  return mRefCnt;
-}
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsTransactionManager)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mListeners)
+  tmp->mDoStack.DoTraverse(cb);
+  tmp->mUndoStack.DoTraverse(cb);
+  tmp->mRedoStack.DoTraverse(cb);
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
-NS_IMPL_QUERY_INTERFACE2(nsTransactionManager, nsITransactionManager, nsISupportsWeakReference)
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsTransactionManager)
+  NS_INTERFACE_MAP_ENTRY(nsITransactionManager)
+  NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsITransactionManager)
+NS_INTERFACE_MAP_END
 
-#else
-
-NS_IMPL_ISUPPORTS2(nsTransactionManager, nsITransactionManager, nsISupportsWeakReference)
-
-#endif
+NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsTransactionManager,
+                                          nsITransactionManager)
+NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsTransactionManager,
+                                           nsITransactionManager)
 
 NS_IMETHODIMP
 nsTransactionManager::DoTransaction(nsITransaction *aTransaction)
@@ -653,25 +640,11 @@ nsTransactionManager::AddListener(nsITransactionListener *aListener)
 
   LOCK_TX_MANAGER(this);
 
-  if (!mListeners) {
-    mListeners = new nsAutoVoidArray();
-
-    if (!mListeners) {
-      UNLOCK_TX_MANAGER(this);
-      return NS_ERROR_OUT_OF_MEMORY;
-    }
-  }
-
-  if (!mListeners->AppendElement((void *)aListener)) {
-    UNLOCK_TX_MANAGER(this);
-    return NS_ERROR_FAILURE;
-  }
-
-  NS_ADDREF(aListener);
+  nsresult rv = mListeners.AppendObject(aListener) ? NS_OK : NS_ERROR_FAILURE;
 
   UNLOCK_TX_MANAGER(this);
 
-  return NS_OK;
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -680,28 +653,13 @@ nsTransactionManager::RemoveListener(nsITransactionListener *aListener)
   if (!aListener)
     return NS_ERROR_NULL_POINTER;
 
-  if (!mListeners)
-    return NS_ERROR_FAILURE;
-
   LOCK_TX_MANAGER(this);
 
-  if (!mListeners->RemoveElement((void *)aListener))
-  {
-    UNLOCK_TX_MANAGER(this);
-    return NS_ERROR_FAILURE;
-  }
-
-  NS_IF_RELEASE(aListener);
-
-  if (mListeners->Count() < 1)
-  {
-    delete mListeners;
-    mListeners = 0;
-  }
+  nsresult rv = mListeners.RemoveObject(aListener) ? NS_OK : NS_ERROR_FAILURE;
 
   UNLOCK_TX_MANAGER(this);
 
-  return NS_OK;
+  return rv;
 }
 
 nsresult
@@ -731,15 +689,10 @@ nsTransactionManager::ClearRedoStack()
 nsresult
 nsTransactionManager::WillDoNotify(nsITransaction *aTransaction, PRBool *aInterrupt)
 {
-  if (!mListeners)
-    return NS_OK;
-
   nsresult result = NS_OK;
-  PRInt32 i, lcount = mListeners->Count();
-
-  for (i = 0; i < lcount; i++)
+  for (PRInt32 i = 0, lcount = mListeners.Count(); i < lcount; i++)
   {
-    nsITransactionListener *listener = (nsITransactionListener *)mListeners->ElementAt(i);
+    nsITransactionListener *listener = mListeners[i];
 
     if (!listener)
       return NS_ERROR_FAILURE;
@@ -756,15 +709,10 @@ nsTransactionManager::WillDoNotify(nsITransaction *aTransaction, PRBool *aInterr
 nsresult
 nsTransactionManager::DidDoNotify(nsITransaction *aTransaction, nsresult aDoResult)
 {
-  if (!mListeners)
-    return NS_OK;
-
   nsresult result = NS_OK;
-  PRInt32 i, lcount = mListeners->Count();
-
-  for (i = 0; i < lcount; i++)
+  for (PRInt32 i = 0, lcount = mListeners.Count(); i < lcount; i++)
   {
-    nsITransactionListener *listener = (nsITransactionListener *)mListeners->ElementAt(i);
+    nsITransactionListener *listener = mListeners[i];
 
     if (!listener)
       return NS_ERROR_FAILURE;
@@ -781,15 +729,10 @@ nsTransactionManager::DidDoNotify(nsITransaction *aTransaction, nsresult aDoResu
 nsresult
 nsTransactionManager::WillUndoNotify(nsITransaction *aTransaction, PRBool *aInterrupt)
 {
-  if (!mListeners)
-    return NS_OK;
-
   nsresult result = NS_OK;
-  PRInt32 i, lcount = mListeners->Count();
-
-  for (i = 0; i < lcount; i++)
+  for (PRInt32 i = 0, lcount = mListeners.Count(); i < lcount; i++)
   {
-    nsITransactionListener *listener = (nsITransactionListener *)mListeners->ElementAt(i);
+    nsITransactionListener *listener = mListeners[i];
 
     if (!listener)
       return NS_ERROR_FAILURE;
@@ -806,15 +749,10 @@ nsTransactionManager::WillUndoNotify(nsITransaction *aTransaction, PRBool *aInte
 nsresult
 nsTransactionManager::DidUndoNotify(nsITransaction *aTransaction, nsresult aUndoResult)
 {
-  if (!mListeners)
-    return NS_OK;
-
   nsresult result = NS_OK;
-  PRInt32 i, lcount = mListeners->Count();
-
-  for (i = 0; i < lcount; i++)
+  for (PRInt32 i = 0, lcount = mListeners.Count(); i < lcount; i++)
   {
-    nsITransactionListener *listener = (nsITransactionListener *)mListeners->ElementAt(i);
+    nsITransactionListener *listener = mListeners[i];
 
     if (!listener)
       return NS_ERROR_FAILURE;
@@ -831,15 +769,10 @@ nsTransactionManager::DidUndoNotify(nsITransaction *aTransaction, nsresult aUndo
 nsresult
 nsTransactionManager::WillRedoNotify(nsITransaction *aTransaction, PRBool *aInterrupt)
 {
-  if (!mListeners)
-    return NS_OK;
-
   nsresult result = NS_OK;
-  PRInt32 i, lcount = mListeners->Count();
-
-  for (i = 0; i < lcount; i++)
+  for (PRInt32 i = 0, lcount = mListeners.Count(); i < lcount; i++)
   {
-    nsITransactionListener *listener = (nsITransactionListener *)mListeners->ElementAt(i);
+    nsITransactionListener *listener = mListeners[i];
 
     if (!listener)
       return NS_ERROR_FAILURE;
@@ -856,15 +789,10 @@ nsTransactionManager::WillRedoNotify(nsITransaction *aTransaction, PRBool *aInte
 nsresult
 nsTransactionManager::DidRedoNotify(nsITransaction *aTransaction, nsresult aRedoResult)
 {
-  if (!mListeners)
-    return NS_OK;
-
   nsresult result = NS_OK;
-  PRInt32 i, lcount = mListeners->Count();
-
-  for (i = 0; i < lcount; i++)
+  for (PRInt32 i = 0, lcount = mListeners.Count(); i < lcount; i++)
   {
-    nsITransactionListener *listener = (nsITransactionListener *)mListeners->ElementAt(i);
+    nsITransactionListener *listener = mListeners[i];
 
     if (!listener)
       return NS_ERROR_FAILURE;
@@ -881,15 +809,10 @@ nsTransactionManager::DidRedoNotify(nsITransaction *aTransaction, nsresult aRedo
 nsresult
 nsTransactionManager::WillBeginBatchNotify(PRBool *aInterrupt)
 {
-  if (!mListeners)
-    return NS_OK;
-
   nsresult result = NS_OK;
-  PRInt32 i, lcount = mListeners->Count();
-
-  for (i = 0; i < lcount; i++)
+  for (PRInt32 i = 0, lcount = mListeners.Count(); i < lcount; i++)
   {
-    nsITransactionListener *listener = (nsITransactionListener *)mListeners->ElementAt(i);
+    nsITransactionListener *listener = mListeners[i];
 
     if (!listener)
       return NS_ERROR_FAILURE;
@@ -906,15 +829,10 @@ nsTransactionManager::WillBeginBatchNotify(PRBool *aInterrupt)
 nsresult
 nsTransactionManager::DidBeginBatchNotify(nsresult aResult)
 {
-  if (!mListeners)
-    return NS_OK;
-
   nsresult result = NS_OK;
-  PRInt32 i, lcount = mListeners->Count();
-
-  for (i = 0; i < lcount; i++)
+  for (PRInt32 i = 0, lcount = mListeners.Count(); i < lcount; i++)
   {
-    nsITransactionListener *listener = (nsITransactionListener *)mListeners->ElementAt(i);
+    nsITransactionListener *listener = mListeners[i];
 
     if (!listener)
       return NS_ERROR_FAILURE;
@@ -931,15 +849,10 @@ nsTransactionManager::DidBeginBatchNotify(nsresult aResult)
 nsresult
 nsTransactionManager::WillEndBatchNotify(PRBool *aInterrupt)
 {
-  if (!mListeners)
-    return NS_OK;
-
   nsresult result = NS_OK;
-  PRInt32 i, lcount = mListeners->Count();
-
-  for (i = 0; i < lcount; i++)
+  for (PRInt32 i = 0, lcount = mListeners.Count(); i < lcount; i++)
   {
-    nsITransactionListener *listener = (nsITransactionListener *)mListeners->ElementAt(i);
+    nsITransactionListener *listener = mListeners[i];
 
     if (!listener)
       return NS_ERROR_FAILURE;
@@ -956,15 +869,10 @@ nsTransactionManager::WillEndBatchNotify(PRBool *aInterrupt)
 nsresult
 nsTransactionManager::DidEndBatchNotify(nsresult aResult)
 {
-  if (!mListeners)
-    return NS_OK;
-
   nsresult result = NS_OK;
-  PRInt32 i, lcount = mListeners->Count();
-
-  for (i = 0; i < lcount; i++)
+  for (PRInt32 i = 0, lcount = mListeners.Count(); i < lcount; i++)
   {
-    nsITransactionListener *listener = (nsITransactionListener *)mListeners->ElementAt(i);
+    nsITransactionListener *listener = mListeners[i];
 
     if (!listener)
       return NS_ERROR_FAILURE;
@@ -981,15 +889,10 @@ nsTransactionManager::DidEndBatchNotify(nsresult aResult)
 nsresult
 nsTransactionManager::WillMergeNotify(nsITransaction *aTop, nsITransaction *aTransaction, PRBool *aInterrupt)
 {
-  if (!mListeners)
-    return NS_OK;
-
   nsresult result = NS_OK;
-  PRInt32 i, lcount = mListeners->Count();
-
-  for (i = 0; i < lcount; i++)
+  for (PRInt32 i = 0, lcount = mListeners.Count(); i < lcount; i++)
   {
-    nsITransactionListener *listener = (nsITransactionListener *)mListeners->ElementAt(i);
+    nsITransactionListener *listener = mListeners[i];
 
     if (!listener)
       return NS_ERROR_FAILURE;
@@ -1009,15 +912,10 @@ nsTransactionManager::DidMergeNotify(nsITransaction *aTop,
                                      PRBool aDidMerge,
                                      nsresult aMergeResult)
 {
-  if (!mListeners)
-    return NS_OK;
-
   nsresult result = NS_OK;
-  PRInt32 i, lcount = mListeners->Count();
-
-  for (i = 0; i < lcount; i++)
+  for (PRInt32 i = 0, lcount = mListeners.Count(); i < lcount; i++)
   {
-    nsITransactionListener *listener = (nsITransactionListener *)mListeners->ElementAt(i);
+    nsITransactionListener *listener = mListeners[i];
 
     if (!listener)
       return NS_ERROR_FAILURE;

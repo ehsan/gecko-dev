@@ -1330,7 +1330,7 @@ DocumentViewerImpl::Close(nsISHEntry *aSHEntry)
   } else
 #endif
     {
-      // out of band cleanup of webshell
+      // out of band cleanup of docshell
       mDocument->SetScriptGlobalObject(nsnull);
 
       if (!mSHEntry && mDocument)
@@ -4251,6 +4251,7 @@ DocumentViewerImpl::DestroyPresShell()
   if (selPrivate && mSelectionListener)
     selPrivate->RemoveSelectionListener(mSelectionListener);
 
+  nsAutoScriptBlocker scriptBlocker;
   mPresShell->Destroy();
   mPresShell = nsnull;
 }

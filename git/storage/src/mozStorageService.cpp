@@ -147,14 +147,14 @@ Service::initialize()
   // effect.
   int rc = ::sqlite3_config(SQLITE_CONFIG_MEMSTATUS, 0);
   if (rc != SQLITE_OK)
-    return ConvertResultCode(rc);
+    return convertResultCode(rc);
 
   // Explicitly initialize sqlite3.  Although this is implicitly called by
   // various sqlite3 functions (and the sqlite3_open calls in our case),
   // the documentation suggests calling this directly.  So we do.
   rc = ::sqlite3_initialize();
   if (rc != SQLITE_OK)
-    return ConvertResultCode(rc);
+    return convertResultCode(rc);
 
   // This makes multiple connections to the same database share the same pager
   // cache.  We do not need to lock here with mLock because this function is
@@ -163,7 +163,7 @@ Service::initialize()
   // (It does not matter where this is called relative to sqlite3_initialize.)
   rc = ::sqlite3_enable_shared_cache(1);
   if (rc != SQLITE_OK)
-    return ConvertResultCode(rc);
+    return convertResultCode(rc);
 
   nsCOMPtr<nsIObserverService> os =
     do_GetService("@mozilla.org/observer-service;1");
@@ -210,10 +210,10 @@ Service::OpenSpecialDatabase(const char *aStorageKey,
     return NS_ERROR_INVALID_ARG;
   }
 
-  mozStorageConnection *msc = new mozStorageConnection(this);
+  Connection *msc = new Connection(this);
   NS_ENSURE_TRUE(msc, NS_ERROR_OUT_OF_MEMORY);
 
-  rv = msc->Initialize(storageFile);
+  rv = msc->initialize(storageFile);
   NS_ENSURE_SUCCESS(rv, rv);
 
   NS_ADDREF(*_connection = msc);
@@ -224,12 +224,12 @@ NS_IMETHODIMP
 Service::OpenDatabase(nsIFile *aDatabaseFile,
                       mozIStorageConnection **_connection)
 {
-  nsRefPtr<mozStorageConnection> msc = new mozStorageConnection(this);
+  nsRefPtr<Connection> msc = new Connection(this);
   NS_ENSURE_TRUE(msc, NS_ERROR_OUT_OF_MEMORY);
 
   {
     nsAutoLock lock(mLock);
-    nsresult rv = msc->Initialize(aDatabaseFile);
+    nsresult rv = msc->initialize(aDatabaseFile);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -241,7 +241,7 @@ NS_IMETHODIMP
 Service::OpenUnsharedDatabase(nsIFile *aDatabaseFile,
                               mozIStorageConnection **_connection)
 {
-  nsRefPtr<mozStorageConnection> msc = new mozStorageConnection(this);
+  nsRefPtr<Connection> msc = new Connection(this);
   NS_ENSURE_TRUE(msc, NS_ERROR_OUT_OF_MEMORY);
 
   // Initialize the connection, temporarily turning off shared caches so the
@@ -255,13 +255,13 @@ Service::OpenUnsharedDatabase(nsIFile *aDatabaseFile,
     nsAutoLock lock(mLock);
     int rc = ::sqlite3_enable_shared_cache(0);
     if (rc != SQLITE_OK)
-      return ConvertResultCode(rc);
+      return convertResultCode(rc);
 
-    rv = msc->Initialize(aDatabaseFile);
+    rv = msc->initialize(aDatabaseFile);
 
     rc = ::sqlite3_enable_shared_cache(1);
     if (rc != SQLITE_OK)
-      return ConvertResultCode(rc);
+      return convertResultCode(rc);
   }
   NS_ENSURE_SUCCESS(rv, rv);
 

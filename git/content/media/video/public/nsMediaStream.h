@@ -38,15 +38,15 @@
 #if !defined(nsMediaStream_h_)
 #define nsMediaStream_h_
 
-#include "nsCOMPtr.h"
-#include "nsAutoPtr.h"
+#include "mozilla/XPCOM.h"
 #include "nsIChannel.h"
 #include "nsIPrincipal.h"
 #include "nsIURI.h"
 #include "nsIStreamListener.h"
+#include "nsIChannelEventSink.h"
+#include "nsIInterfaceRequestor.h"
 #include "prlock.h"
 #include "nsMediaCache.h"
-#include "nsTimeStamp.h"
 
 // For HTTP seeking, if number of bytes needing to be
 // seeked forward is less than this value then a read is
@@ -113,7 +113,7 @@ public:
       time += aNow - mLastStartTime;
     }
     double seconds = time.ToSeconds();
-    *aReliable = seconds >= 1.0;
+    *aReliable = seconds >= 3.0;
     if (seconds <= 0.0)
       return 0.0;
     return double(mAccumulatedBytes)/seconds;
@@ -149,8 +149,6 @@ public:
   }
 
   // The following can be called on the main thread only:
-  // Get the current principal for the channel
-  already_AddRefed<nsIPrincipal> GetCurrentPrincipal();
   // Get the decoder
   nsMediaDecoder* Decoder() { return mDecoder; }
   // Close the stream, stop any listeners, channels, etc.
@@ -158,9 +156,15 @@ public:
   // return an error.
   virtual nsresult Close() = 0;
   // Suspend any downloads that are in progress.
-  virtual void Suspend() = 0;
+  // If aCloseImmediately is set, resources should be released immediately
+  // since we don't expect to resume again any time soon. Otherwise we
+  // may resume again soon so resources should be held for a little
+  // while.
+  virtual void Suspend(PRBool aCloseImmediately) = 0;
   // Resume any downloads that have been suspended.
   virtual void Resume() = 0;
+  // Get the current principal for the channel
+  virtual already_AddRefed<nsIPrincipal> GetCurrentPrincipal() = 0;
 
   // These methods are called off the main thread.
   // The mode is initially MODE_PLAYBACK.
@@ -226,6 +230,9 @@ public:
   // header and give us more or less data than it reported. We will adjust
   // the result of GetLength to reflect the data that's actually arriving.
   virtual PRInt64 GetLength() = 0;
+  // Returns the offset of the first byte of cached data at or after aOffset,
+  // or -1 if there is no such cached data.
+  virtual PRInt64 GetNextCachedData(PRInt64 aOffset) = 0;
   // Returns the end of the bytes starting at the given offset
   // which are in cache.
   virtual PRInt64 GetCachedDataEnd(PRInt64 aOffset) = 0;
@@ -306,7 +313,7 @@ public:
   // and no more data from the old load will be notified via
   // nsMediaCacheStream::NotifyDataReceived/Ended.
   // This can fail.
-  nsresult CacheClientSeek(PRInt64 aOffset);
+  nsresult CacheClientSeek(PRInt64 aOffset, PRBool aResume);
   // Suspend the current load since data is currently not wanted
   nsresult CacheClientSuspend();
   // Resume the current load since data is wanted again
@@ -315,8 +322,9 @@ public:
   // Main thread
   virtual nsresult Open(nsIStreamListener** aStreamListener);
   virtual nsresult Close();
-  virtual void     Suspend();
+  virtual void     Suspend(PRBool aCloseImmediately);
   virtual void     Resume();
+  virtual already_AddRefed<nsIPrincipal> GetCurrentPrincipal();
   // Return PR_TRUE if the stream has been closed.
   PRBool IsClosed() const { return mCacheStream.IsClosed(); }
 
@@ -332,18 +340,24 @@ public:
   virtual void    Unpin();
   virtual double  GetDownloadRate(PRPackedBool* aIsReliable);
   virtual PRInt64 GetLength();
+  virtual PRInt64 GetNextCachedData(PRInt64 aOffset);
   virtual PRInt64 GetCachedDataEnd(PRInt64 aOffset);
   virtual PRBool  IsDataCachedToEndOfStream(PRInt64 aOffset);
   virtual PRBool  IsSuspendedByCache();
 
 protected:
-  class Listener : public nsIStreamListener {
+  class Listener : public nsIStreamListener,
+                   public nsIInterfaceRequestor,
+                   public nsIChannelEventSink
+  {
   public:
     Listener(nsMediaChannelStream* aStream) : mStream(aStream) {}
 
     NS_DECL_ISUPPORTS
     NS_DECL_NSIREQUESTOBSERVER
     NS_DECL_NSISTREAMLISTENER
+    NS_DECL_NSICHANNELEVENTSINK
+    NS_DECL_NSIINTERFACEREQUESTOR
 
     void Revoke() { mStream = nsnull; }
 
@@ -358,10 +372,12 @@ protected:
   nsresult OnDataAvailable(nsIRequest* aRequest,
                            nsIInputStream* aStream,
                            PRUint32 aCount);
+  nsresult OnChannelRedirect(nsIChannel* aOld, nsIChannel* aNew, PRUint32 aFlags);
 
-  // Opens the channel, using an HTTP byte range request to start at aOffset
+  // Opens the channel, using an HTTP byte range request to start at mOffset
   // if possible. Main thread only.
-  nsresult OpenChannel(nsIStreamListener** aStreamListener, PRInt64 aOffset);
+  nsresult OpenChannel(nsIStreamListener** aStreamListener);
+  void SetupChannelHeaders();
   // Closes the channel. Main thread only.
   void CloseChannel();
 
@@ -373,9 +389,15 @@ protected:
                                       PRUint32 *aWriteCount);
 
   // Main thread access only
+  PRInt64            mOffset;
   nsRefPtr<Listener> mListener;
   PRUint32           mSuspendCount;
-  PRPackedBool       mSeeking;
+  // When this flag is set, if we get a network error we should silently
+  // reopen the stream.
+  PRPackedBool       mReopenOnError;
+  // When this flag is set, we should not report the next close of the
+  // channel.
+  PRPackedBool       mIgnoreClose;
 
   // Any thread access
   nsMediaCacheStream mCacheStream;

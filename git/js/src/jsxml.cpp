@@ -4912,10 +4912,10 @@ xml_trace_vector(JSTracer *trc, JSXML **vec, uint32 len)
 }
 
 /*
- * js_XMLObjectOps.newObjectMap == js_NewObjectMap, so XML objects appear to
- * be native. Thus xml_lookupProperty must return a valid JSScopeProperty
- * pointer parameter via *propp to signify "property found".  Since the only
- * call to xml_lookupProperty is via OBJ_LOOKUP_PROPERTY, and then only from
+ * js_XMLObjectOps.newObjectMap is null, so XML objects appear to be native.
+ * Thus xml_lookupProperty must return a valid JSScopeProperty pointer
+ * parameter via *propp to signify "property found".  Since the only call to
+ * xml_lookupProperty is via OBJ_LOOKUP_PROPERTY, and then only from
  * js_FindProperty (in jsobj.c, called from jsinterp.c) or from JSOP_IN case
  * in the interpreter, the only time we add a JSScopeProperty here is when an
  * unqualified name is being accessed or when "name in xml" is called.
@@ -5428,9 +5428,9 @@ out:
     return ok;
 }
 
-/* Use js_NewObjectMap so XML objects satisfy OBJ_IS_NATIVE tests. */
+/* Use NULL for objectMap so XML objects satisfy OBJ_IS_NATIVE tests. */
 JS_FRIEND_DATA(JSObjectOps) js_XMLObjectOps = {
-    js_NewObjectMap,            js_DestroyObjectMap,
+    NULL,
     xml_lookupProperty,         xml_defineProperty,
     xml_getProperty,            xml_setProperty,
     xml_getAttributes,          xml_setAttributes,
@@ -7623,8 +7623,6 @@ js_InitXMLClasses(JSContext *cx, JSObject *obj)
         return NULL;
     if (!js_InitAnyNameClass(cx, obj))
         return NULL;
-    if (!js_InitXMLFilterClass(cx, obj))
-        return NULL;
     return js_InitXMLClass(cx, obj);
 }
 
@@ -8133,29 +8131,12 @@ xmlfilter_finalize(JSContext *cx, JSObject *obj)
 
 JSClass js_XMLFilterClass = {
     "XMLFilter",
-    JSCLASS_HAS_PRIVATE |
-    JSCLASS_IS_ANONYMOUS |
-    JSCLASS_MARK_IS_TRACE |
-    JSCLASS_HAS_CACHED_PROTO(JSProto_XMLFilter),
+    JSCLASS_HAS_PRIVATE | JSCLASS_IS_ANONYMOUS | JSCLASS_MARK_IS_TRACE,
     JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,   JS_PropertyStub,
     JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,    xmlfilter_finalize,
     NULL,              NULL,            NULL,              NULL,
     NULL,              NULL,            JS_CLASS_TRACE(xmlfilter_trace), NULL
 };
-
-JSObject *
-js_InitXMLFilterClass(JSContext *cx, JSObject *obj)
-{
-    JSObject *proto;
-
-    proto = JS_InitClass(cx, obj, NULL, &js_XMLFilterClass, NULL, 0, NULL,
-                         NULL, NULL, NULL);
-    if (!proto)
-        return NULL;
-
-    OBJ_CLEAR_PROTO(cx, proto);
-    return proto;
-}
 
 JSBool
 js_StepXMLListFilter(JSContext *cx, JSBool initialized)
@@ -8195,7 +8176,8 @@ js_StepXMLListFilter(JSContext *cx, JSBool initialized)
                 return JS_FALSE;
         }
 
-        filterobj = js_NewObject(cx, &js_XMLFilterClass, NULL, NULL, 0);
+        filterobj = js_NewObjectWithGivenProto(cx, &js_XMLFilterClass,
+                                               NULL, NULL, 0);
         if (!filterobj)
             return JS_FALSE;
 

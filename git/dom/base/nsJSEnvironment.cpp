@@ -1286,7 +1286,9 @@ nsJSContext::~nsJSContext()
 #endif
   NS_PRECONDITION(!mTerminations, "Shouldn't have termination funcs by now");
 
-  Unlink();
+  mGlobalWrapperRef = nsnull;
+
+  DestroyJSContext();
 
   --sContextCount;
 
@@ -1303,7 +1305,7 @@ nsJSContext::~nsJSContext()
 }
 
 void
-nsJSContext::Unlink()
+nsJSContext::DestroyJSContext()
 {
   if (!mContext)
     return;
@@ -1316,30 +1318,37 @@ nsJSContext::Unlink()
                                          JSOptionChangedCallback,
                                          this);
 
-  // Release mGlobalWrapperRef before the context is destroyed
-  mGlobalWrapperRef = nsnull;
+  PRBool do_gc = mGCOnDestruction && !sGCTimer && sReadyForGC;
 
   // Let xpconnect destroy the JSContext when it thinks the time is right.
   nsIXPConnect *xpc = nsContentUtils::XPConnect();
   if (xpc) {
-    PRBool do_gc = mGCOnDestruction && !sGCTimer && sReadyForGC;
-
     xpc->ReleaseJSContext(mContext, !do_gc);
-  } else {
+  } else if (do_gc) {
     ::JS_DestroyContext(mContext);
+  } else {
+    ::JS_DestroyContextNoGC(mContext);
   }
   mContext = nsnull;
 }
 
 // QueryInterface implementation for nsJSContext
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsJSContext)
+NS_IMPL_CYCLE_COLLECTION_ROOT_BEGIN(nsJSContext)
+  NS_ASSERTION(!tmp->mContext || tmp->mContext->outstandingRequests == 0,
+               "Trying to unlink a context with outstanding requests.");
+  tmp->mIsInitialized = PR_FALSE;
+  tmp->mGCOnDestruction = PR_FALSE;
+  tmp->DestroyJSContext();
+NS_IMPL_CYCLE_COLLECTION_ROOT_END
+NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsJSContext)
+NS_IMPL_CYCLE_COLLECTION_TRACE_END
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsJSContext)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mGlobalWrapperRef)
-  tmp->Unlink();
-  tmp->mIsInitialized = PR_FALSE;
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsJSContext)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_REFCNT(nsJSContext, tmp->GetCCRefcnt())
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mGlobalWrapperRef)
+  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mContext");
   nsContentUtils::XPConnect()->NoteJSContext(tmp->mContext, cb);
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
@@ -1352,6 +1361,15 @@ NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsJSContext, nsIScriptContext)
 NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsJSContext, nsIScriptContext)
+
+nsrefcnt
+nsJSContext::GetCCRefcnt()
+{
+  nsrefcnt refcnt = mRefCnt.get();
+  if (NS_LIKELY(mContext))
+    refcnt += mContext->outstandingRequests;
+  return refcnt;
+}
 
 nsresult
 nsJSContext::EvaluateStringWithValue(const nsAString& aScript,
@@ -1438,6 +1456,14 @@ nsJSContext::EvaluateStringWithValue(const nsAString& aScript,
                                             aURL,
                                             aLineNo,
                                             &val);
+
+    if (!ok) {
+      // Tell XPConnect about any pending exceptions. This is needed
+      // to avoid dropping JS exceptions in case we got here through
+      // nested calls through XPConnect.
+
+      ReportPendingException();
+    }
   }
 
   // Whew!  Finally done with these manually ref-counted things.
@@ -1525,7 +1551,9 @@ nsJSContext::EvaluateString(const nsAString& aScript,
   NS_ENSURE_TRUE(mIsInitialized, NS_ERROR_NOT_INITIALIZED);
 
   if (!mScriptsEnabled) {
-    *aIsUndefined = PR_TRUE;
+    if (aIsUndefined) {
+      *aIsUndefined = PR_TRUE;
+    }
 
     if (aRetValue) {
       aRetValue->Truncate();
@@ -1594,20 +1622,20 @@ nsJSContext::EvaluateString(const nsAString& aScript,
     nsJSVersionSetter setVersion(mContext, aVersion);
 
     ok = ::JS_EvaluateUCScriptForPrincipals(mContext,
-                                              (JSObject *)aScopeObject,
-                                              jsprin,
-                                              (jschar*)PromiseFlatString(aScript).get(),
-                                              aScript.Length(),
-                                              aURL,
-                                              aLineNo,
-                                              vp);
+                                            (JSObject *)aScopeObject,
+                                            jsprin,
+                                            (jschar*)PromiseFlatString(aScript).get(),
+                                            aScript.Length(),
+                                            aURL,
+                                            aLineNo,
+                                            vp);
 
     if (!ok) {
       // Tell XPConnect about any pending exceptions. This is needed
       // to avoid dropping JS exceptions in case we got here through
       // nested calls through XPConnect.
 
-      ReportPendingException(PR_FALSE);
+      ReportPendingException();
     }
   }
 
@@ -1874,9 +1902,7 @@ nsJSContext::CompileEventHandler(nsIAtom *aName,
                                           aURL, aLineNo);
 
   if (!fun) {
-    // Set aside the frame chain on cx while reporting, since it has
-    // nothing to do with the error we just hit.
-    ReportPendingException(PR_TRUE);
+    ReportPendingException();
     return NS_ERROR_ILLEGAL_VALUE;
   }
 
@@ -1957,12 +1983,14 @@ nsJSContext::CallEventHandler(nsISupports* aTarget, void *aScope, void *aHandler
     return NS_OK;
   }
 
-  nsresult rv;
+  jsval targetVal = JSVAL_VOID;
+  JSAutoTempValueRooter tvr(mContext, 1, &targetVal);
+
   JSObject* target = nsnull;
-  nsAutoGCRoot root(&target, &rv);
+  nsresult rv = JSObjectFromInterface(aTarget, aScope, &target);
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = JSObjectFromInterface(aTarget, aScope, &target);
-  NS_ENSURE_SUCCESS(rv, rv);
+
+  targetVal = OBJECT_TO_JSVAL(target);
 
   jsval rval = JSVAL_VOID;
 
@@ -2011,7 +2039,7 @@ nsJSContext::CallEventHandler(nsISupports* aTarget, void *aScope, void *aHandler
       // to avoid dropping JS exceptions in case we got here through
       // nested calls through XPConnect.
 
-      ReportPendingException(PR_FALSE);
+      ReportPendingException();
 
       // Don't pass back results from failed calls.
       rval = JSVAL_VOID;
@@ -2085,7 +2113,7 @@ nsJSContext::BindCompiledEventHandler(nsISupports* aTarget, void *aScope,
       !::JS_DefineProperty(mContext, target, charName,
                            OBJECT_TO_JSVAL(funobj), nsnull, nsnull,
                            JSPROP_ENUMERATE | JSPROP_PERMANENT)) {
-    ReportPendingException(PR_TRUE);
+    ReportPendingException();
     rv = NS_ERROR_FAILURE;
   }
 
@@ -3640,14 +3668,13 @@ nsJSContext::DropScriptObject(void* aScriptObject)
 }
 
 void
-nsJSContext::ReportPendingException(PRBool aSetAsideFrameChain)
+nsJSContext::ReportPendingException()
 {
-  JSStackFrame* frame =
-    aSetAsideFrameChain ? JS_SaveFrameChain(mContext) : nsnull;
+  // set aside the frame chain, since it has nothing to do with the
+  // exception we're reporting.
   if (mIsInitialized && ::JS_IsExceptionPending(mContext)) {
+    JSStackFrame* frame = JS_SaveFrameChain(mContext);
     ::JS_ReportPendingException(mContext);
-  }
-  if (aSetAsideFrameChain) {
     JS_RestoreFrameChain(mContext, frame);
   }
 }

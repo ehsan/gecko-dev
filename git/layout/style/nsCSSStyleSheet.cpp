@@ -813,8 +813,8 @@ struct ChildSheetListBuilder {
   }
 };
   
-static PRBool
-RebuildChildList(nsICSSRule* aRule, void* aBuilder)
+PRBool
+nsCSSStyleSheet::RebuildChildList(nsICSSRule* aRule, void* aBuilder)
 {
   PRInt32 type;
   aRule->GetType(type);
@@ -848,6 +848,7 @@ RebuildChildList(nsICSSRule* aRule, void* aBuilder)
 
   (*builder->sheetSlot) = static_cast<nsCSSStyleSheet*>(cssSheet.get());
   builder->SetParentLinks(*builder->sheetSlot);
+  builder->sheetSlot = &(*builder->sheetSlot)->mNext;
   return PR_TRUE;
 }
 
@@ -869,7 +870,7 @@ nsCSSStyleSheetInner::nsCSSStyleSheetInner(nsCSSStyleSheetInner& aCopy,
   mOrderedRules.EnumerateForwards(SetStyleSheetReference, aPrimarySheet);
 
   ChildSheetListBuilder builder = { &mFirstChild, aPrimarySheet };
-  mOrderedRules.EnumerateForwards(RebuildChildList, &builder);
+  mOrderedRules.EnumerateForwards(nsCSSStyleSheet::RebuildChildList, &builder);
 
   RebuildNameSpaces();
 }
@@ -1077,7 +1078,7 @@ nsCSSStyleSheet::AddRuleProcessor(nsCSSRuleProcessor* aProcessor)
     if (!mRuleProcessors)
       return NS_ERROR_OUT_OF_MEMORY;
   }
-  NS_ASSERTION(-1 == mRuleProcessors->IndexOf(aProcessor),
+  NS_ASSERTION(mRuleProcessors->NoIndex == mRuleProcessors->IndexOf(aProcessor),
                "processor already registered");
   mRuleProcessors->AppendElement(aProcessor); // weak ref
   return NS_OK;

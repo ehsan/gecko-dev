@@ -88,6 +88,7 @@
 #include "nsPlainTextSerializer.h"
 #include "mozSanitizingSerializer.h"
 #include "nsXMLContentSerializer.h"
+#include "nsXHTMLContentSerializer.h"
 #include "nsRuleNode.h"
 #include "nsWyciwygProtocolHandler.h"
 #include "nsContentAreaDragDrop.h"
@@ -221,6 +222,11 @@ class nsIDocumentLoaderFactory;
 
 #define NS_HTMLOPTIONELEMENT_CONTRACTID \
   "@mozilla.org/content/element/html;1?name=option"
+
+#ifdef MOZ_MEDIA
+#define NS_HTMLAUDIOELEMENT_CONTRACTID \
+  "@mozilla.org/content/element/html;1?name=audio"
+#endif
 
 /* 0ddf4df8-4dbb-4133-8b79-9afb966514f5 */
 #define NS_PLUGINDOCLOADERFACTORY_CID \
@@ -491,10 +497,12 @@ MAKE_CTOR(CreatePreContentIterator,       nsIContentIterator,          NS_NewPre
 MAKE_CTOR(CreateSubtreeIterator,          nsIContentIterator,          NS_NewContentSubtreeIterator)
 // CreateHTMLImgElement, see below
 // CreateHTMLOptionElement, see below
+// CreateHTMLAudioElement, see below
 MAKE_CTOR(CreateTextEncoder,              nsIDocumentEncoder,          NS_NewTextEncoder)
 MAKE_CTOR(CreateHTMLCopyTextEncoder,      nsIDocumentEncoder,          NS_NewHTMLCopyTextEncoder)
 MAKE_CTOR(CreateXMLContentSerializer,     nsIContentSerializer,        NS_NewXMLContentSerializer)
 MAKE_CTOR(CreateHTMLContentSerializer,    nsIContentSerializer,        NS_NewHTMLContentSerializer)
+MAKE_CTOR(CreateXHTMLContentSerializer,   nsIContentSerializer,        NS_NewXHTMLContentSerializer)
 MAKE_CTOR(CreatePlainTextSerializer,      nsIContentSerializer,        NS_NewPlainTextSerializer)
 MAKE_CTOR(CreateHTMLFragmentSink,         nsIFragmentContentSink,      NS_NewHTMLFragmentContentSink)
 MAKE_CTOR(CreateHTMLFragmentSink2,        nsIFragmentContentSink,      NS_NewHTMLFragmentContentSink2)
@@ -670,6 +678,53 @@ UnregisterHTMLOptionElement(nsIComponentManager* aCompMgr,
   // XXX remove category entry
   return NS_OK;
 }
+
+#ifdef MOZ_MEDIA
+static NS_IMETHODIMP
+CreateHTMLAudioElement(nsISupports* aOuter, REFNSIID aIID, void** aResult)
+{
+  *aResult = nsnull;
+  if (aOuter)
+    return NS_ERROR_NO_AGGREGATION;
+  // Note! NS_NewHTMLAudioElement is special cased to handle a null nodeinfo
+  nsCOMPtr<nsIContent> inst(NS_NewHTMLAudioElement(nsnull));
+  return inst ? inst->QueryInterface(aIID, aResult) : NS_ERROR_OUT_OF_MEMORY;
+}
+
+static NS_IMETHODIMP
+RegisterHTMLAudioElement(nsIComponentManager *aCompMgr,
+                         nsIFile* aPath,
+                         const char* aRegistryLocation,
+                         const char* aComponentType,
+                         const nsModuleComponentInfo* aInfo)
+{
+  nsCOMPtr<nsICategoryManager> catman =
+    do_GetService(NS_CATEGORYMANAGER_CONTRACTID);
+
+  if (!catman)
+    return NS_ERROR_FAILURE;
+
+  nsXPIDLCString previous;
+  nsresult rv = catman->AddCategoryEntry(JAVASCRIPT_GLOBAL_CONSTRUCTOR_CATEGORY,
+                                         "Audio", NS_HTMLAUDIOELEMENT_CONTRACTID,
+                                         PR_TRUE, PR_TRUE, getter_Copies(previous));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return catman->AddCategoryEntry(JAVASCRIPT_GLOBAL_CONSTRUCTOR_PROTO_ALIAS_CATEGORY,
+                                  "Audio", "HTMLAudioElement",
+                                  PR_TRUE, PR_TRUE, getter_Copies(previous));
+}
+
+static NS_IMETHODIMP
+UnregisterHTMLAudioElement(nsIComponentManager* aCompMgr,
+                           nsIFile* aPath,
+                           const char* aRegistryLocation,
+                           const nsModuleComponentInfo* aInfo)
+{
+  // XXX remove category entry
+  return NS_OK;
+}
+#endif
 
 static NS_METHOD
 RegisterDataDocumentContentPolicy(nsIComponentManager *aCompMgr,
@@ -998,7 +1053,7 @@ static const nsModuleComponentInfo gComponents[] = {
     nsnull,
     nsInspectorCSSUtilsConstructor },
 
-  // Needed to support "new Option;" and "new Image;" in JavaScript
+  // Needed to support "new Option;", "new Image;" and "new Audio;" in JavaScript
   { "HTML img element",
     NS_HTMLIMAGEELEMENT_CID,
     NS_HTMLIMGELEMENT_CONTRACTID,
@@ -1012,6 +1067,15 @@ static const nsModuleComponentInfo gComponents[] = {
     CreateHTMLOptionElement,
     RegisterHTMLOptionElement,
     UnregisterHTMLOptionElement },
+
+#ifdef MOZ_MEDIA
+  { "HTML audio element",
+    NS_HTMLAUDIOELEMENT_CID,
+    NS_HTMLAUDIOELEMENT_CONTRACTID,
+    CreateHTMLAudioElement,
+    RegisterHTMLAudioElement,
+    UnregisterHTMLAudioElement },
+#endif
 
 #ifdef MOZ_ENABLE_CANVAS
   { "Canvas 2D Rendering Context",
@@ -1030,7 +1094,7 @@ static const nsModuleComponentInfo gComponents[] = {
     NS_DOC_ENCODER_CONTRACTID_BASE "application/xml",
     CreateTextEncoder },
 
-  { "XML document encoder",
+  { "XHTML document encoder",
     NS_TEXT_ENCODER_CID,
     NS_DOC_ENCODER_CONTRACTID_BASE "application/xhtml+xml",
     CreateTextEncoder },
@@ -1067,10 +1131,10 @@ static const nsModuleComponentInfo gComponents[] = {
     NS_CONTENTSERIALIZER_CONTRACTID_PREFIX "application/xml",
     CreateXMLContentSerializer },
 
-  { "XML content serializer",
-    NS_XMLCONTENTSERIALIZER_CID,
+  { "XHTML content serializer",
+    NS_XHTMLCONTENTSERIALIZER_CID,
     NS_CONTENTSERIALIZER_CONTRACTID_PREFIX "application/xhtml+xml",
-    CreateXMLContentSerializer },
+    CreateXHTMLContentSerializer },
 
 #ifdef MOZ_SVG
   { "SVG content serializer",
@@ -1337,6 +1401,11 @@ static const nsModuleComponentInfo gComponents[] = {
     NS_DOMSTORAGE_CID,
     "@mozilla.org/dom/storage;1",
     NS_NewDOMStorage },
+
+  { "DOM Storage 2",
+    NS_DOMSTORAGE2_CID,
+    "@mozilla.org/dom/storage;2",
+    NS_NewDOMStorage2 },
 
   { "DOM Storage Manager",
     NS_DOMSTORAGEMANAGER_CID,

@@ -93,6 +93,7 @@
 #include "nsIURIFixup.h"
 #include "nsCDefaultURIFixup.h"
 #include "nsIChromeRegistry.h"
+#include "nsPrintfCString.h"
 
 static NS_DEFINE_CID(kZipReaderCID, NS_ZIPREADER_CID);
 
@@ -125,11 +126,32 @@ JSValIDToString(JSContext *cx, const jsval idval)
     return reinterpret_cast<PRUnichar*>(JS_GetStringChars(str));
 }
 
+class nsAutoInPrincipalDomainOriginSetter {
+public:
+    nsAutoInPrincipalDomainOriginSetter() {
+        ++sInPrincipalDomainOrigin;
+    }
+    ~nsAutoInPrincipalDomainOriginSetter() {
+        --sInPrincipalDomainOrigin;
+    }
+    static PRUint32 sInPrincipalDomainOrigin;
+};
+PRUint32 nsAutoInPrincipalDomainOriginSetter::sInPrincipalDomainOrigin;
+
 static
 nsresult
 GetPrincipalDomainOrigin(nsIPrincipal* aPrincipal,
                          nsACString& aOrigin)
 {
+  if (nsAutoInPrincipalDomainOriginSetter::sInPrincipalDomainOrigin > 1) {
+      // Allow a single recursive call to GetPrincipalDomainOrigin, since that
+      // might be happening on a different principal from the first call.  But
+      // after that, cut off the recursion; it just indicates that something
+      // we're doing in this method causes us to reenter a security check here.
+      return NS_ERROR_NOT_AVAILABLE;
+  }
+
+  nsAutoInPrincipalDomainOriginSetter autoSetter;
   aOrigin.Truncate();
 
   nsCOMPtr<nsIURI> uri;
@@ -248,11 +270,6 @@ public:
     PRBool IsDOMClass()
     {
         return !!(GetFlags() & nsIClassInfo::DOM_OBJECT);
-    }
-
-    PRBool IsContentNode()
-    {
-        return !!(GetFlags() & nsIClassInfo::CONTENT_NODE);
     }
 
     const char* GetName()
@@ -744,15 +761,6 @@ nsScriptSecurityManager::CheckPropertyAccessImpl(PRUint32 aAction,
             rv = NS_OK;
     }
 
-    if (NS_SUCCEEDED(rv) && classInfoData.IsContentNode())
-    {
-        // No access to anonymous content from the web!  (bug 164086)
-        nsIContent *content = static_cast<nsIContent*>(aObj);
-        if (content->IsInNativeAnonymousSubtree()) {
-            rv = NS_ERROR_DOM_SECURITY_ERR;
-        }
-    }
-
     if (NS_SUCCEEDED(rv))
     {
 #ifdef DEBUG_CAPS_CheckPropertyAccessImpl
@@ -798,7 +806,8 @@ nsScriptSecurityManager::CheckPropertyAccessImpl(PRUint32 aAction,
             }
         }
     }
-    rv = CheckXPCPermissions(aObj, objectSecurityLevel);
+    rv = CheckXPCPermissions(aObj, aJSObject, subjectPrincipal,
+                             objectSecurityLevel);
 #ifdef DEBUG_CAPS_CheckPropertyAccessImpl
     if(NS_SUCCEEDED(rv))
         printf("CheckXPCPerms GRANTED.\n");
@@ -823,11 +832,16 @@ nsScriptSecurityManager::CheckPropertyAccessImpl(PRUint32 aAction,
 
         NS_ConvertUTF8toUTF16 className(classInfoData.GetName());
         nsCAutoString subjectOrigin;
-        GetPrincipalDomainOrigin(subjectPrincipal, subjectOrigin);
+        if (!nsAutoInPrincipalDomainOriginSetter::sInPrincipalDomainOrigin) {
+            GetPrincipalDomainOrigin(subjectPrincipal, subjectOrigin);
+        } else {
+            subjectOrigin.AssignLiteral("the security manager");
+        }
         NS_ConvertUTF8toUTF16 subjectOriginUnicode(subjectOrigin);
 
         nsCAutoString objectOrigin;
-        if (objectPrincipal) {
+        if (!nsAutoInPrincipalDomainOriginSetter::sInPrincipalDomainOrigin &&
+            objectPrincipal) {
             GetPrincipalDomainOrigin(objectPrincipal, objectOrigin);
         }
         NS_ConvertUTF8toUTF16 objectOriginUnicode(objectOrigin);
@@ -843,7 +857,8 @@ nsScriptSecurityManager::CheckPropertyAccessImpl(PRUint32 aAction,
 
         PRUint32 length = NS_ARRAY_LENGTH(formatStrings);
 
-        if (!objectPrincipal) {
+        if (nsAutoInPrincipalDomainOriginSetter::sInPrincipalDomainOrigin ||
+            !objectPrincipal) {
             stringName.AppendLiteral("OnlySubject");
             --length;
         }
@@ -1227,7 +1242,10 @@ nsScriptSecurityManager::CheckLoadURIFromScript(JSContext *cx, nsIURI *aURI)
     nsCAutoString spec;
     if (NS_FAILED(aURI->GetAsciiSpec(spec)))
         return NS_ERROR_FAILURE;
-    JS_ReportError(cx, "Access to '%s' from script denied", spec.get());
+    nsCAutoString msg("Access to '");
+    msg.Append(spec);
+    msg.AppendLiteral("' from script denied");
+    SetPendingException(cx, msg.get());
     return NS_ERROR_DOM_BAD_URI;
 }
 
@@ -2872,7 +2890,7 @@ nsScriptSecurityManager::CanCreateWrapper(JSContext *cx,
     if (checkedComponent)
         checkedComponent->CanCreateWrapper((nsIID *)&aIID, getter_Copies(objectSecurityLevel));
 
-    nsresult rv = CheckXPCPermissions(aObj, objectSecurityLevel);
+    nsresult rv = CheckXPCPermissions(aObj, nsnull, nsnull, objectSecurityLevel);
     if (NS_FAILED(rv))
     {
         //-- Access denied, report an error
@@ -2983,7 +3001,7 @@ nsScriptSecurityManager::CanCreateInstance(JSContext *cx,
     nsCRT::free(cidStr);
 #endif
 
-    nsresult rv = CheckXPCPermissions(nsnull, nsnull);
+    nsresult rv = CheckXPCPermissions(nsnull, nsnull, nsnull, nsnull);
     if (NS_FAILED(rv))
 #ifdef XPC_IDISPATCH_SUPPORT
     {
@@ -3020,7 +3038,7 @@ nsScriptSecurityManager::CanGetService(JSContext *cx,
     nsCRT::free(cidStr);
 #endif
 
-    nsresult rv = CheckXPCPermissions(nsnull, nsnull);
+    nsresult rv = CheckXPCPermissions(nsnull, nsnull, nsnull, nsnull);
     if (NS_FAILED(rv))
     {
         //-- Access denied, report an error
@@ -3059,7 +3077,8 @@ nsScriptSecurityManager::CanAccess(PRUint32 aAction,
 }
 
 nsresult
-nsScriptSecurityManager::CheckXPCPermissions(nsISupports* aObj,
+nsScriptSecurityManager::CheckXPCPermissions(nsISupports* aObj, JSObject* aJSObject,
+                                             nsIPrincipal* aSubjectPrincipal,
                                              const char* aObjectSecurityLevel)
 {
     //-- Check for the all-powerful UniversalXPConnect privilege
@@ -3072,6 +3091,22 @@ nsScriptSecurityManager::CheckXPCPermissions(nsISupports* aObj,
     {
         if (PL_strcasecmp(aObjectSecurityLevel, "allAccess") == 0)
             return NS_OK;
+        if (aSubjectPrincipal && aJSObject &&
+            PL_strcasecmp(aObjectSecurityLevel, "sameOrigin") == 0)
+        {
+            nsIPrincipal* objectPrincipal = doGetObjectPrincipal(aJSObject);
+
+            // Only do anything if we have both a subject and object
+            // principal.
+            if (objectPrincipal)
+            {
+                PRBool subsumes;
+                nsresult rv = aSubjectPrincipal->Subsumes(objectPrincipal, &subsumes);
+                NS_ENSURE_SUCCESS(rv, rv);
+                if (subsumes)
+                    return NS_OK;
+            }
+        }
         else if (PL_strcasecmp(aObjectSecurityLevel, "noAccess") != 0)
         {
             PRBool canAccess = PR_FALSE;

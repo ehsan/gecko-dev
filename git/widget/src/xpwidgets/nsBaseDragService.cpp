@@ -73,7 +73,7 @@
 #include "nsIPrefService.h"
 
 #include "gfxContext.h"
-#include "gfxImageSurface.h"
+#include "gfxPlatform.h"
 
 #define DRAGIMAGES_PREF "nglayout.enable_drag_images"
 
@@ -224,7 +224,7 @@ nsBaseDragService::InvokeDragSession(nsIDOMNode *aDOMNode,
   // stash the document of the dom node
   aDOMNode->GetOwnerDocument(getter_AddRefs(mSourceDocument));
   mSourceNode = aDOMNode;
-  mEndDragPoint = nsPoint(0, 0);
+  mEndDragPoint = nsIntPoint(0, 0);
 
   // When the mouse goes down, the selection code starts a mouse
   // capture. However, this gets in the way of determining drag
@@ -450,9 +450,8 @@ nsBaseDragService::DrawDrag(nsIDOMNode* aDOMNode,
       if (rootFrame && *aPresContext) {
         nsIntRect dragRect;
         aRegion->GetBoundingBox(&dragRect.x, &dragRect.y, &dragRect.width, &dragRect.height);
-        dragRect = nsRect::ToOutsidePixels(nsIntRect::ToAppUnits(dragRect,
-                                                                 nsPresContext::AppUnitsPerCSSPixel()),
-                                           (*aPresContext)->AppUnitsPerDevPixel());
+        dragRect = dragRect.ToAppUnits(nsPresContext::AppUnitsPerCSSPixel()).
+                            ToOutsidePixels((*aPresContext)->AppUnitsPerDevPixel());
 
         nsIntRect screenRect = rootFrame->GetScreenRectExternal();
         aScreenDragRect->SetRect(screenRect.x + dragRect.x, screenRect.y + dragRect.y,
@@ -596,9 +595,9 @@ nsBaseDragService::DrawDragForImage(nsPresContext* aPresContext,
     aScreenDragRect->height = destSize.height;
   }
 
-  nsRefPtr<gfxImageSurface> surface =
-    new gfxImageSurface(gfxIntSize(destSize.width, destSize.height),
-                        gfxImageSurface::ImageFormatARGB32);
+  nsRefPtr<gfxASurface> surface =
+    gfxPlatform::GetPlatform()->CreateOffscreenSurface(gfxIntSize(destSize.width, destSize.height),
+                                                       gfxASurface::ImageFormatARGB32);
   if (!surface)
     return NS_ERROR_FAILURE;
 

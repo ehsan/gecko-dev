@@ -60,6 +60,8 @@ _BROWSER_TEST_FILES = \
 	browser_350525.js \
 	browser_367052.js \
 	browser_393716.js \
+	browser_394759.js \
+	browser_394759_privatebrowsing.js \
 	browser_408470.js \
 	browser_408470_sample.html \
 	browser_447951.js \
@@ -84,6 +86,7 @@ _BROWSER_TEST_FILES = \
 	browser_485482.js \
 	browser_485482_sample.html \
 	browser_485563.js \
+	browser_490040.js \
 	$(NULL)
 
 libs:: $(_BROWSER_TEST_FILES)

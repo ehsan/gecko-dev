@@ -48,6 +48,9 @@ var EXPORTED_SYMBOLS = ["PlacesUtils"];
 var Ci = Components.interfaces;
 var Cc = Components.classes;
 var Cr = Components.results;
+var Cu = Components.utils;
+
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 const EXCLUDE_FROM_BACKUP_ANNO = "places/excludeFromBackup";
 const POST_DATA_ANNO = "bookmarkProperties/POSTData";
@@ -57,6 +60,13 @@ const LMANNO_SITEURI = "livemark/siteURI";
 const LMANNO_EXPIRATION = "livemark/expiration";
 const LMANNO_LOADFAILED = "livemark/loadfailed";
 const LMANNO_LOADING = "livemark/loading";
+
+// The RESTORE_*_NSIOBSERVER_TOPIC constants should match the #defines of the
+// same names in browser/components/places/src/nsPlacesImportExportService.cpp
+const RESTORE_BEGIN_NSIOBSERVER_TOPIC = "bookmarks-restore-begin";
+const RESTORE_SUCCESS_NSIOBSERVER_TOPIC = "bookmarks-restore-success";
+const RESTORE_FAILED_NSIOBSERVER_TOPIC = "bookmarks-restore-failed";
+const RESTORE_NSIOBSERVER_DATA = "json";
 
 #ifdef XP_MACOSX
 // On Mac OSX, the transferable system converts "\r\n" to "\n\n", where we
@@ -250,6 +260,61 @@ var PlacesUtils = {
   },
 
   /**
+   * Cache array of read-only item IDs.
+   *
+   * The first time this property is called:
+   * - the cache is filled with all ids with the RO annotation
+   * - an annotation observer is added
+   * - a shutdown observer is added
+   *
+   * When the annotation observer detects annotations added or
+   * removed that are the RO annotation name, it adds/removes
+   * the ids from the cache.
+   *
+   * At shutdown, the annotation and shutdown observers are removed.
+   */
+  get _readOnly() {
+    // add annotations observer
+    this.annotations.addObserver(this, false);
+
+    // observe shutdown, so we can remove the anno observer
+    const os = Cc["@mozilla.org/observer-service;1"].
+               getService(Ci.nsIObserverService);
+    os.addObserver(this, "xpcom-shutdown", false);
+
+    var readOnly = this.annotations.getItemsWithAnnotation(READ_ONLY_ANNO, {});
+    this.__defineGetter__("_readOnly", function() readOnly);
+    return this._readOnly;
+  },
+
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIAnnotationObserver,
+                                         Ci.nsIObserver]),
+
+  // nsIObserver
+  observe: function PU_observe(aSubject, aTopic, aData) {
+    if (aTopic == "xpcom-shutdown") {
+      this.annotations.removeObserver(this);
+      const os = Cc["@mozilla.org/observer-service;1"].
+                 getService(Ci.nsIObserverService);
+      os.removeObserver(this, "xpcom-shutdown");
+    }
+  },
+
+  // nsIAnnotationObserver
+  onItemAnnotationSet: function(aItemId, aAnnotationName) {
+    if (aAnnotationName == READ_ONLY_ANNO &&
+        this._readOnly.indexOf(aItemId) == -1)
+      this._readOnly.push(aItemId);
+  },
+  onItemAnnotationRemoved: function(aItemId, aAnnotationName) {
+    var index = this._readOnly.indexOf(aItemId);
+    if (aAnnotationName == READ_ONLY_ANNO && index > -1)
+      delete this._readOnly[index];
+  },
+  onPageAnnotationSet: function(aUri, aAnnotationName) {},
+  onPageAnnotationRemoved: function(aUri, aAnnotationName) {},
+
+  /**
    * Determines if a node is read only (children cannot be inserted, sometimes
    * they cannot be removed depending on the circumstance)
    * @param   aNode
@@ -257,11 +322,13 @@ var PlacesUtils = {
    * @returns true if the node is readonly, false otherwise
    */
   nodeIsReadOnly: function PU_nodeIsReadOnly(aNode) {
-    if (this.nodeIsFolder(aNode) || this.nodeIsDynamicContainer(aNode))
-      return this.bookmarks.getFolderReadonly(this.getConcreteItemId(aNode));
-    if (this.nodeIsQuery(aNode) &&
-        asQuery(aNode).queryOptions.resultType !=
-          Ci.nsINavHistoryQueryOptions.RESULTS_AS_TAG_CONTENTS)
+    if (this.nodeIsFolder(aNode) || this.nodeIsDynamicContainer(aNode)) {
+      if (this._readOnly.indexOf(aNode.itemId) != -1)
+        return true;
+    }
+    else if (this.nodeIsQuery(aNode) &&
+             asQuery(aNode).queryOptions.resultType !=
+             Ci.nsINavHistoryQueryOptions.RESULTS_AS_TAG_CONTENTS)
       return aNode.childrenReadOnly;
     return false;
   },
@@ -1054,26 +1121,50 @@ var PlacesUtils = {
    */
   restoreBookmarksFromJSONFile:
   function PU_restoreBookmarksFromJSONFile(aFile) {
-    // open file stream
-    var stream = Cc["@mozilla.org/network/file-input-stream;1"].
-                 createInstance(Ci.nsIFileInputStream);
-    stream.init(aFile, 0x01, 0, 0);
-    var converted = Cc["@mozilla.org/intl/converter-input-stream;1"].
-                    createInstance(Ci.nsIConverterInputStream);
-    converted.init(stream, "UTF-8", 8192,
-                   Ci.nsIConverterInputStream.DEFAULT_REPLACEMENT_CHARACTER);
+    var failed = false;
+    var obsServ = Cc["@mozilla.org/observer-service;1"].
+                  getService(Ci.nsIObserverService);
+    obsServ.notifyObservers(null,
+                            RESTORE_BEGIN_NSIOBSERVER_TOPIC,
+                            RESTORE_NSIOBSERVER_DATA);
 
-    // read in contents
-    var str = {};
-    var jsonStr = "";
-    while (converted.readString(8192, str) != 0)
-      jsonStr += str.value;
-    converted.close();
+    try {
+      // open file stream
+      var stream = Cc["@mozilla.org/network/file-input-stream;1"].
+                   createInstance(Ci.nsIFileInputStream);
+      stream.init(aFile, 0x01, 0, 0);
+      var converted = Cc["@mozilla.org/intl/converter-input-stream;1"].
+                      createInstance(Ci.nsIConverterInputStream);
+      converted.init(stream, "UTF-8", 8192,
+                     Ci.nsIConverterInputStream.DEFAULT_REPLACEMENT_CHARACTER);
 
-    if (jsonStr.length == 0)
-      return; // empty file
+      // read in contents
+      var str = {};
+      var jsonStr = "";
+      while (converted.readString(8192, str) != 0)
+        jsonStr += str.value;
+      converted.close();
 
-    this.restoreBookmarksFromJSONString(jsonStr, true);
+      if (jsonStr.length == 0)
+        return; // empty file
+
+      this.restoreBookmarksFromJSONString(jsonStr, true);
+    }
+    catch (exc) {
+      failed = true;
+      obsServ.notifyObservers(null,
+                              RESTORE_FAILED_NSIOBSERVER_TOPIC,
+                              RESTORE_NSIOBSERVER_DATA);
+      Components.utils.reportError("Bookmarks JSON restore failed: " + exc);
+      throw exc;
+    }
+    finally {
+      if (!failed) {
+        obsServ.notifyObservers(null,
+                                RESTORE_SUCCESS_NSIOBSERVER_TOPIC,
+                                RESTORE_NSIOBSERVER_DATA);
+      }
+    }
   },
 
   /**

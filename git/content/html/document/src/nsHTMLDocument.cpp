@@ -80,6 +80,7 @@
 #include "nsIXPConnect.h"
 #include "nsContentList.h"
 #include "nsDOMError.h"
+#include "nsContentErrors.h"
 #include "nsIPrincipal.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsAttrName.h"
@@ -141,6 +142,7 @@
 #include "nsRange.h"
 #include "mozAutoDocUpdate.h"
 #include "nsCCUncollectableMarker.h"
+#include "prprf.h"
 
 #define NS_MAX_DOCUMENT_WRITE_DEPTH 20
 
@@ -1917,62 +1919,10 @@ nsHTMLDocument::OpenCommon(const nsACString& aContentType, PRBool aReplace)
     }
   }
 
-  // XXX This is a nasty workaround for a scrollbar code bug
-  // (http://bugzilla.mozilla.org/show_bug.cgi?id=55334).
-
-  // Hold on to our root element
-  nsCOMPtr<nsIContent> root = GetRootContent();
-
-  if (root) {
-    PRInt32 rootIndex = mChildren.IndexOfChild(root);
-    NS_ASSERTION(rootIndex >= 0, "Root must be in list!");
-    
-    PRUint32 count = root->GetChildCount();
-
-    // Remove all the children from the root.
-    while (count-- > 0) {
-      root->RemoveChildAt(count, PR_TRUE);
-    }
-
-    count = root->GetAttrCount();
-
-    // Remove all attributes from the root element
-    while (count-- > 0) {
-      const nsAttrName* name = root->GetAttrNameAt(count);
-      // Hold a strong reference here so that the atom doesn't go away during
-      // UnsetAttr.
-      nsCOMPtr<nsIAtom> localName = name->LocalName();
-      root->UnsetAttr(name->NamespaceID(), localName, PR_FALSE);
-    }
-
-    // Remove the root from the childlist
-    mChildren.RemoveChildAt(rootIndex);
-    mCachedRootContent = nsnull;
-  }
-
-  // Call Reset(), this will now do the full reset, except removing
-  // the root from the document, doing that confuses the scrollbar
-  // code in mozilla since the document in the root element and all
-  // the anonymous content (i.e. scrollbar elements) is set to
-  // null.
-
+  // Call Reset(), this will now do the full reset
   Reset(channel, group);
   if (baseURI) {
     mDocumentBaseURI = baseURI;
-  }
-
-  if (root) {
-    // Tear down the frames for the root element.
-    MOZ_AUTO_DOC_UPDATE(this, UPDATE_CONTENT_MODEL, PR_TRUE);
-    nsNodeUtils::ContentRemoved(this, root, 0);
-
-    // Put the root element back into the document, we don't notify
-    // the document about this insertion since the sink will do that
-    // for us and that'll create frames for the root element and the
-    // scrollbars work as expected (since the document in the root
-    // element was never set to null)
-
-    mChildren.AppendChild(root);
   }
 
   if (IsEditingOn()) {
@@ -2443,6 +2393,20 @@ nsHTMLDocument::GetHeight(PRInt32* aHeight)
   return GetBodySize(&width, aHeight);
 }
 
+static void
+LegacyRGBToHex(nscolor aColor, nsAString& aResult)
+{
+  if (NS_GET_A(aColor) == 255) {
+    char buf[10];
+    PR_snprintf(buf, sizeof(buf), "#%02x%02x%02x",
+                NS_GET_R(aColor), NS_GET_G(aColor), NS_GET_B(aColor));
+    CopyASCIItoUTF16(buf, aResult);
+  } else {
+    NS_NOTREACHED("non-opaque color property cannot be stringified");
+    aResult.Truncate();
+  }
+}
+
 NS_IMETHODIMP
 nsHTMLDocument::GetAlinkColor(nsAString& aAlinkColor)
 {
@@ -2455,8 +2419,8 @@ nsHTMLDocument::GetAlinkColor(nsAString& aAlinkColor)
   } else if (mAttrStyleSheet) {
     nscolor color;
     nsresult rv = mAttrStyleSheet->GetActiveLinkColor(color);
-    if (NS_SUCCEEDED(rv)) {
-      NS_RGBToHex(color, aAlinkColor);
+    if (NS_SUCCEEDED(rv) && rv != NS_HTML_STYLE_PROPERTY_NOT_THERE) {
+      LegacyRGBToHex(color, aAlinkColor);
     }
   }
 
@@ -2494,8 +2458,8 @@ nsHTMLDocument::GetLinkColor(nsAString& aLinkColor)
   } else if (mAttrStyleSheet) {
     nscolor color;
     nsresult rv = mAttrStyleSheet->GetLinkColor(color);
-    if (NS_SUCCEEDED(rv)) {
-      NS_RGBToHex(color, aLinkColor);
+    if (NS_SUCCEEDED(rv) && rv != NS_HTML_STYLE_PROPERTY_NOT_THERE) {
+      LegacyRGBToHex(color, aLinkColor);
     }
   }
 
@@ -2533,8 +2497,8 @@ nsHTMLDocument::GetVlinkColor(nsAString& aVlinkColor)
   } else if (mAttrStyleSheet) {
     nscolor color;
     nsresult rv = mAttrStyleSheet->GetVisitedLinkColor(color);
-    if (NS_SUCCEEDED(rv)) {
-      NS_RGBToHex(color, aVlinkColor);
+    if (NS_SUCCEEDED(rv) && rv != NS_HTML_STYLE_PROPERTY_NOT_THERE) {
+      LegacyRGBToHex(color, aVlinkColor);
     }
   }
 

@@ -6,3 +6,9 @@ the Mozilla build system.
 http://svn.annodex.net/libsydneyaudio/trunk
 
 The svn revision number used was r3895.
+
+pause-resume.patch is applied to implement and fix issues
+with pausing and resuming audio streams.
+
+include-CoreServices.patch is applied to include CoreServices headers
+on Mac OS X. Fixes a build failure on Mac OS X 10.6. b=492072

@@ -56,9 +56,14 @@ JS_BEGIN_EXTERN_C
 
 /* For detailed comments on these function pointer types, see jsprvtd.h. */
 struct JSObjectOps {
+    /*
+     * Custom shared object map for non-native objects. For native objects
+     * this should be null indicating, that JSObject.map is an instance of
+     * JSScope.
+     */
+    const JSObjectMap   *objectMap;
+
     /* Mandatory non-null function pointer members. */
-    JSNewObjectMapOp    newObjectMap;
-    JSObjectMapOp       destroyObjectMap;
     JSLookupPropOp      lookupProperty;
     JSDefinePropOp      defineProperty;
     JSPropertyIdOp      getProperty;
@@ -83,9 +88,7 @@ struct JSObjectOps {
 };
 
 struct JSObjectMap {
-    jsrefcount  nrefs;          /* count of all referencing objects */
     JSObjectOps *ops;           /* high level object operation vtable */
-    uint32      freeslot;       /* index of next free slot in object */
 };
 
 /* Shorthand macros for frequently-made calls. */
@@ -199,9 +202,15 @@ struct JSObject {
                              + JSCLASS_RESERVED_SLOTS(clasp))
 
 /*
+ * Maximum net gross capacity of the obj->dslots vector, excluding the additional
+ * hidden slot used to store the length of the vector.
+ */
+#define MAX_DSLOTS_LENGTH   (JS_MAX(~(uint32)0, ~(size_t)0) / sizeof(jsval))
+
+/*
  * STOBJ prefix means Single Threaded Object. Use the following fast macros to
- * directly manipulate slots in obj when only one thread can access obj and
- * when obj->map->freeslot can be inconsistent with slots.
+ * directly manipulate slots in obj when only one thread can access obj, or
+ * when accessing read-only slots within JS_INITIAL_NSLOTS.
  */
 
 #define STOBJ_NSLOTS(obj)                                                     \
@@ -240,7 +249,14 @@ struct JSObject {
  * flags in the two least significant bits. We do *not* synchronize updates of
  * obj->classword -- API clients must take care.
  */
-#define STOBJ_GET_CLASS(obj)    ((JSClass *)((obj)->classword & ~3))
+#define JSSLOT_CLASS_MASK_BITS 3
+
+JS_ALWAYS_INLINE JSClass*
+STOBJ_GET_CLASS(const JSObject* obj)
+{
+    return (JSClass *) (obj->classword & ~JSSLOT_CLASS_MASK_BITS);
+}
+
 #define STOBJ_IS_DELEGATE(obj)  (((obj)->classword & 1) != 0)
 #define STOBJ_SET_DELEGATE(obj) ((obj)->classword |= 1)
 #define STOBJ_NULLSAFE_SET_DELEGATE(obj)                                      \
@@ -253,7 +269,7 @@ struct JSObject {
      JSVAL_TO_PRIVATE(STOBJ_GET_SLOT(obj, JSSLOT_PRIVATE)))
 
 #define OBJ_CHECK_SLOT(obj,slot)                                              \
-    JS_ASSERT(slot < (obj)->map->freeslot)
+    JS_ASSERT_IF(OBJ_IS_NATIVE(obj), slot < OBJ_SCOPE(obj)->freeslot)
 
 #define LOCKED_OBJ_GET_SLOT(obj,slot)                                         \
     (OBJ_CHECK_SLOT(obj, slot), STOBJ_GET_SLOT(obj, slot))
@@ -355,12 +371,14 @@ struct JSObject {
 #define OBJ_GET_CLASS(cx,obj)           STOBJ_GET_CLASS(obj)
 #define OBJ_GET_PRIVATE(cx,obj)         STOBJ_GET_PRIVATE(obj)
 
-/* Test whether a map or object is native. */
-#define MAP_IS_NATIVE(map)                                                    \
-    JS_LIKELY((map)->ops == &js_ObjectOps ||                                  \
-              (map)->ops->newObjectMap == js_ObjectOps.newObjectMap)
+/*
+ * Test whether the object is native. FIXME bug 492938: consider how it would
+ * affect the performance to do just the !ops->objectMap check.
+ */
+#define OPS_IS_NATIVE(ops)                                                    \
+    JS_LIKELY((ops) == &js_ObjectOps || !(ops)->objectMap)
 
-#define OBJ_IS_NATIVE(obj)  MAP_IS_NATIVE((obj)->map)
+#define OBJ_IS_NATIVE(obj)  OPS_IS_NATIVE((obj)->map->ops)
 
 extern JS_FRIEND_DATA(JSObjectOps) js_ObjectOps;
 extern JS_FRIEND_DATA(JSObjectOps) js_WithObjectOps;
@@ -421,6 +439,9 @@ js_CloneBlockObject(JSContext *cx, JSObject *proto, JSObject *parent,
 extern JS_REQUIRES_STACK JSBool
 js_PutBlockObject(JSContext *cx, JSBool normalUnwind);
 
+JSBool
+js_XDRBlockObject(JSXDRState *xdr, JSObject **objp);
+
 struct JSSharpObjectMap {
     jsrefcount  depth;
     jsatomid    sharpgen;
@@ -462,9 +483,6 @@ extern JSBool
 js_PropertyIsEnumerable(JSContext *cx, JSObject *obj, jsid id, jsval *vp);
 
 extern JSObject *
-js_InitBlockClass(JSContext *cx, JSObject* obj);
-
-extern JSObject *
 js_InitEval(JSContext *cx, JSObject *obj);
 
 extern JSObject *
@@ -474,8 +492,7 @@ extern JSObject *
 js_InitClass(JSContext *cx, JSObject *obj, JSObject *parent_proto,
              JSClass *clasp, JSNative constructor, uintN nargs,
              JSPropertySpec *ps, JSFunctionSpec *fs,
-             JSPropertySpec *static_ps, JSFunctionSpec *static_fs,
-             JSTraceableNative *trcinfo);
+             JSPropertySpec *static_ps, JSFunctionSpec *static_fs);
 
 /*
  * Select Object.prototype method names shared between jsapi.cpp and jsobj.cpp.
@@ -489,23 +506,6 @@ extern const char js_defineGetter_str[];
 extern const char js_defineSetter_str[];
 extern const char js_lookupGetter_str[];
 extern const char js_lookupSetter_str[];
-
-extern void
-js_InitObjectMap(JSObjectMap *map, jsrefcount nrefs, JSObjectOps *ops,
-                 JSClass *clasp);
-
-extern JSObjectMap *
-js_NewObjectMap(JSContext *cx, jsrefcount nrefs, JSObjectOps *ops,
-                JSClass *clasp, JSObject *obj);
-
-extern void
-js_DestroyObjectMap(JSContext *cx, JSObjectMap *map);
-
-extern JSObjectMap *
-js_HoldObjectMap(JSContext *cx, JSObjectMap *map);
-
-extern JSObjectMap *
-js_DropObjectMap(JSContext *cx, JSObjectMap *map, JSObject *obj);
 
 extern JSBool
 js_GetClassId(JSContext *cx, JSClass *clasp, jsid *idp);
@@ -640,11 +640,18 @@ js_DefineProperty(JSContext *cx, JSObject *obj, jsid id, jsval value,
                   JSProperty **propp);
 
 #ifdef __cplusplus /* FIXME: bug 442399 removes this LiveConnect requirement. */
+
+/*
+ * Flags for the defineHow parameter of js_DefineNativeProperty.
+ */
+const uintN JSDNP_CACHE_RESULT = 1; /* an interpreter call from JSOP_INITPROP */
+const uintN JSDNP_DONT_PURGE   = 2; /* suppress js_PurgeScopeChain */
+
 extern JSBool
 js_DefineNativeProperty(JSContext *cx, JSObject *obj, jsid id, jsval value,
                         JSPropertyOp getter, JSPropertyOp setter, uintN attrs,
                         uintN flags, intN shortid, JSProperty **propp,
-                        JSPropCacheEntry** entryp = NULL);
+                        uintN defineHow = 0);
 #endif
 
 /*
@@ -667,10 +674,12 @@ extern int
 js_LookupPropertyWithFlags(JSContext *cx, JSObject *obj, jsid id, uintN flags,
                            JSObject **objp, JSProperty **propp);
 
-extern int
-js_FindPropertyHelper(JSContext *cx, jsid id, JSObject **objp,
-                      JSObject **pobjp, JSProperty **propp,
-                      JSPropCacheEntry **entryp);
+/*
+ * If cacheResult is false, return JS_NO_PROP_CACHE_FILL on success.
+ */
+extern JSPropCacheEntry *
+js_FindPropertyHelper(JSContext *cx, jsid id, JSBool cacheResult,
+                      JSObject **objp, JSObject **pobjp, JSProperty **propp);
 
 /*
  * Return the index along the scope chain in which id was found, or the last
@@ -681,8 +690,7 @@ js_FindProperty(JSContext *cx, jsid id, JSObject **objp, JSObject **pobjp,
                 JSProperty **propp);
 
 extern JS_REQUIRES_STACK JSObject *
-js_FindIdentifierBase(JSContext *cx, JSObject *scopeChain, jsid id,
-                      JSPropCacheEntry *entry);
+js_FindIdentifierBase(JSContext *cx, JSObject *scopeChain, jsid id);
 
 extern JSObject *
 js_FindVariableScope(JSContext *cx, JSFunction **funp);
@@ -701,19 +709,26 @@ extern JSBool
 js_NativeSet(JSContext *cx, JSObject *obj, JSScopeProperty *sprop, jsval *vp);
 
 extern JSBool
-js_GetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, jsval *vp,
-                     JSPropCacheEntry **entryp);
+js_GetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, JSBool cacheResult,
+                     jsval *vp);
 
 extern JSBool
 js_GetProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp);
 
 extern JSBool
-js_GetMethod(JSContext *cx, JSObject *obj, jsid id, jsval *vp,
-             JSPropCacheEntry **entryp);
+js_GetMethod(JSContext *cx, JSObject *obj, jsid id, JSBool cacheResult,
+             jsval *vp);
+
+/*
+ * Check whether it is OK to assign an undeclared property of the global
+ * object at the current script PC.
+ */
+extern JS_FRIEND_API(JSBool)
+js_CheckUndeclaredVarAssignment(JSContext *cx);
 
 extern JSBool
-js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id,
-                     JSBool unqualified, jsval *vp, JSPropCacheEntry **entryp);
+js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, JSBool cacheResult,
+                     jsval *vp);
 
 extern JSBool
 js_SetProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp);
@@ -754,7 +769,8 @@ extern JSBool
 js_HasInstance(JSContext *cx, JSObject *obj, jsval v, JSBool *bp);
 
 extern JSBool
-js_SetProtoOrParent(JSContext *cx, JSObject *obj, uint32 slot, JSObject *pobj);
+js_SetProtoOrParent(JSContext *cx, JSObject *obj, uint32 slot, JSObject *pobj,
+                    JSBool checkForCycles);
 
 extern JSBool
 js_IsDelegate(JSContext *cx, JSObject *obj, jsval v, JSBool *bp);
@@ -832,6 +848,12 @@ js_ComputeFilename(JSContext *cx, JSStackFrame *caller,
 extern JSBool
 js_IsCallable(JSObject *obj, JSContext *cx);
 
+void
+js_ReportGetterOnlyAssignment(JSContext *cx);
+
+extern JS_FRIEND_API(JSBool)
+js_GetterOnlyPropertyStub(JSContext *cx, JSObject *obj, jsval id, jsval *vp);
+
 #ifdef DEBUG
 JS_FRIEND_API(void) js_DumpChars(const jschar *s, size_t n);
 JS_FRIEND_API(void) js_DumpString(JSString *str);
@@ -839,6 +861,7 @@ JS_FRIEND_API(void) js_DumpAtom(JSAtom *atom);
 JS_FRIEND_API(void) js_DumpValue(jsval val);
 JS_FRIEND_API(void) js_DumpId(jsid id);
 JS_FRIEND_API(void) js_DumpObject(JSObject *obj);
+JS_FRIEND_API(void) js_DumpStackFrame(JSStackFrame *fp);
 #endif
 
 JS_END_EXTERN_C

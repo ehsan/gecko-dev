@@ -64,9 +64,13 @@ XPIDLSRCS = \
   mozIStoragePendingStatement.idl \
 	$(NULL)
 
+EXPORTS_NAMESPACES = mozilla
+
 EXPORTS = \
 	mozStorageHelper.h \
 	mozStorage.h \
 	$(NULL)
+
+EXPORTS_mozilla = storage.h
 
 include $(topsrcdir)/config/rules.mk

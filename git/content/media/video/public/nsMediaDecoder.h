@@ -38,14 +38,14 @@
 #if !defined(nsMediaDecoder_h_)
 #define nsMediaDecoder_h_
 
-#include "nsIObserver.h"
+#include "mozilla/XPCOM.h"
+
 #include "nsIPrincipal.h"
 #include "nsSize.h"
 #include "prlog.h"
 #include "gfxContext.h"
 #include "gfxRect.h"
 #include "nsITimer.h"
-#include "nsTimeStamp.h"
 
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* gVideoDecoderLog;
@@ -106,9 +106,6 @@ public:
   // Start playback of a video. 'Load' must have previously been
   // called.
   virtual nsresult Play() = 0;
-
-  // Stop playback of a video, and stop download of video stream.
-  virtual void Stop() = 0;
 
   // Start downloading the video. Decode the downloaded data up to the
   // point of the first frame of data.
@@ -213,13 +210,16 @@ public:
   virtual void Shutdown();
 
   // Suspend any media downloads that are in progress. Called by the
-  // media element when it is sent to the bfcache. Call on the main
-  // thread only.
+  // media element when it is sent to the bfcache, or when we need
+  // to throttle the download. Call on the main thread only. This can
+  // be called multiple times, there's an internal "suspend count".
   virtual void Suspend() = 0;
 
   // Resume any media downloads that have been suspended. Called by the
-  // media element when it is restored from the bfcache. Call on the
-  // main thread only.
+  // media element when it is restored from the bfcache, or when we need
+  // to stop throttling the download. Call on the main thread only.
+  // The download will only actually resume once as many Resume calls
+  // have been made as Suspend calls.
   virtual void Resume() = 0;
 
   // Returns a weak reference to the media element we're decoding for,
@@ -241,12 +241,14 @@ protected:
   // Stop progress information timer.
   nsresult StopProgress();
 
-  // Set the RGB width, height and framerate. Ownership of the passed RGB
-  // buffer is transferred to the decoder.  This is the only nsMediaDecoder
-  // method that may be called from threads other than the main thread.
+  // Set the RGB width, height, pixel aspect ratio, and framerate.
+  // Ownership of the passed RGB buffer is transferred to the decoder.
+  // This is the only nsMediaDecoder method that may be called from
+  // threads other than the main thread.
   void SetRGBData(PRInt32 aWidth,
                   PRInt32 aHeight,
                   float aFramerate,
+                  float aAspectRatio,
                   unsigned char* aRGBBuffer);
 
 protected:
@@ -292,6 +294,9 @@ protected:
   // expressed in numbers of frames per second.
   float mFramerate;
 
+  // Pixel aspect ratio (ratio of the pixel width to pixel height)
+  float mAspectRatio;
+
   // Has our size changed since the last repaint?
   PRPackedBool mSizeChanged;
 
@@ -300,12 +305,6 @@ protected:
   // being run that operates on the element and decoder during shutdown.
   // Read/Write from the main thread only.
   PRPackedBool mShuttingDown;
-
-  // True if the decoder is currently in the Stop() method. This is used to
-  // prevent recursive calls into Stop while it is spinning the event loop
-  // waiting for the playback event loop to shutdown. Read/Write from the
-  // main thread only.
-  PRPackedBool mStopping;
 };
 
 #endif

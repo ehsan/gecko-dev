@@ -92,9 +92,6 @@
 #include "nsIPrivateBrowsingService.h"
 #include "nsNetCID.h"
 
-// define to maintain sqlite temporary tables in memory rather than on disk
-#define IN_MEMORY_SQLITE_TEMP_STORE
-
 // define to enable lazy link adding
 #define LAZY_ADD
 
@@ -103,18 +100,6 @@
 #define QUERYUPDATE_COMPLEX 2
 #define QUERYUPDATE_COMPLEX_WITH_BOOKMARKS 3
 #define QUERYUPDATE_HOST 4
-
-// this is a work-around for a problem with the optimizer of sqlite
-// A sub-select on MAX(visit_date) is slower than this query with our indexes
-// see Bug #392399 for more details
-#define SQL_STR_FRAGMENT_MAX_VISIT_DATE_BASE( __place_relation, __table_name ) \
-  "(SELECT visit_date FROM " __table_name \
-  " WHERE place_id = " __place_relation \
-  " AND visit_type NOT IN (0,4,7) ORDER BY visit_date DESC LIMIT 1)"
-
-#define SQL_STR_FRAGMENT_MAX_VISIT_DATE( __place_relation ) \
-  "IFNULL( " SQL_STR_FRAGMENT_MAX_VISIT_DATE_BASE( __place_relation, "moz_historyvisits_temp") \
-          ", " SQL_STR_FRAGMENT_MAX_VISIT_DATE_BASE( __place_relation, "moz_historyvisits") ")"
 
 // This magic number specified an uninitialized value for the
 // mInPrivateBrowsing member
@@ -217,7 +202,10 @@ public:
 
   nsresult CalculateFullVisitCount(PRInt64 aPlaceId, PRInt32 *aVisitCount);
 
-  nsresult UpdateFrecency(PRInt64 aPageID, PRBool isBookmark);
+  nsresult UpdateFrecency(PRInt64 aPlaceId, PRBool aIsBookmark);
+  nsresult UpdateFrecencyInternal(PRInt64 aPlaceId, PRInt32 aTyped,
+                                  PRInt32 aHidden, PRInt32 aOldFrecency,
+                                  PRBool aIsBookmark);
 
   /**
    * Calculate frecencies for places that don't have a valid value yet
@@ -486,6 +474,12 @@ protected:
    * preferences that are used are set.
    */
   nsresult InitDB();
+
+  /**
+   * Initializes additional database items like: views, temp tables, functions
+   * and statements.
+   */
+  nsresult InitAdditionalDBItems();
   nsresult InitTempTables();
   nsresult InitViews();
   nsresult InitFunctions();
@@ -495,8 +489,11 @@ protected:
   nsresult MigrateV6Up(mozIStorageConnection *aDBConn);
   nsresult MigrateV7Up(mozIStorageConnection *aDBConn);
   nsresult MigrateV8Up(mozIStorageConnection *aDBConn);
+  nsresult MigrateV9Up(mozIStorageConnection *aDBConn);
 
   nsresult RemovePagesInternal(const nsCString& aPlaceIdsQueryString);
+  nsresult PreparePlacesForVisitsDelete(const nsCString& aPlaceIdsQueryString);
+  nsresult CleanupPlacesOnVisitsDelete(const nsCString& aPlaceIdsQueryString);
 
   nsresult AddURIInternal(nsIURI* aURI, PRTime aTime, PRBool aRedirect,
                           PRBool aToplevel, nsIURI* aReferrer);

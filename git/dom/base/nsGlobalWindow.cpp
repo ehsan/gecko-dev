@@ -73,6 +73,7 @@
 #include "nsPluginArray.h"
 #include "nsIPluginHost.h"
 #include "nsPIPluginHost.h"
+#include "nsIPluginInstancePeer2.h"
 #include "nsGeolocation.h"
 #include "nsContentCID.h"
 #include "nsLayoutStatics.h"
@@ -213,6 +214,7 @@ static PopupControlState    gPopupControlState         = openAbused;
 static PRInt32              gRunningTimeoutDepth       = 0;
 static PRBool               gMouseDown                 = PR_FALSE;
 static PRBool               gDragServiceDisabled       = PR_FALSE;
+static FILE                *gDumpFile                  = nsnull;
 
 #ifdef DEBUG
 static PRUint32             gSerialCounter             = 0;
@@ -433,6 +435,15 @@ nsDummyJavaPluginOwner::Destroy()
   if (mInstance) {
     mInstance->Stop();
     mInstance->Destroy();
+
+    nsCOMPtr<nsIPluginInstancePeer> peer;
+    mInstance->GetPeer(getter_AddRefs(peer));
+
+    nsCOMPtr<nsIPluginInstancePeer2> peer2(do_QueryInterface(peer));
+
+    // This plugin owner is going away, tell the peer.
+    if (peer2)
+      peer2->InvalidateOwner();
 
     mInstance = nsnull;
   }
@@ -675,6 +686,18 @@ nsGlobalWindow::nsGlobalWindow(nsGlobalWindow *aOuterWindow)
   }
 #endif
 
+  if (gDumpFile == nsnull) {
+    const nsAdoptingCString& fname = 
+      nsContentUtils::GetCharPref("browser.dom.window.dump.file");
+    if (!fname.IsEmpty()) {
+      // if this fails to open, Dump() knows to just go to stdout
+      // on null.
+      gDumpFile = fopen(fname, "wb+");
+    } else {
+      gDumpFile = stdout;
+    }
+  }
+
   if (!gEntropyCollector) {
     CallGetService(NS_ENTROPYCOLLECTOR_CONTRACTID, &gEntropyCollector);
   }
@@ -787,6 +810,11 @@ nsGlobalWindow::ShutDown()
 {
   NS_IF_RELEASE(sComputedDOMStyleFactory);
   NS_IF_RELEASE(sGlobalStorageList);
+
+  if (gDumpFile && gDumpFile != stdout) {
+    fclose(gDumpFile);
+  }
+  gDumpFile = nsnull;
 }
 
 // static
@@ -3926,7 +3954,9 @@ nsGlobalWindow::Dump(const nsAString& aStr)
 #endif
 
   if (cstr) {
-    printf("%s", cstr);
+    FILE *fp = gDumpFile ? gDumpFile : stdout;
+    fputs(cstr, fp);
+    fflush(fp);
     nsMemory::Free(cstr);
   }
 
@@ -5790,6 +5820,14 @@ nsGlobalWindow::InitJavaProperties()
 
   host->InstantiateDummyJavaPlugin(mDummyJavaPluginOwner);
 
+  // It's possible for us (or the Java plugin, rather) to process
+  // events during the above call, which can lead to this window being
+  // torn down or what not, so re-check that the dummy plugin is still
+  // around.
+  if (!mDummyJavaPluginOwner) {
+    return;
+  }
+
   nsCOMPtr<nsIPluginInstance> dummyPlugin;
   mDummyJavaPluginOwner->GetInstance(*getter_AddRefs(dummyPlugin));
 
@@ -6472,13 +6510,12 @@ nsGlobalWindow::GetSystemEventGroup(nsIDOMEventGroup **aGroup)
   return NS_ERROR_FAILURE;
 }
 
-nsresult
-nsGlobalWindow::GetContextForEventHandlers(nsIScriptContext** aContext)
+nsIScriptContext*
+nsGlobalWindow::GetContextForEventHandlers(nsresult* aRv)
 {
-  NS_IF_ADDREF(*aContext = GetContext());
-  // Bad, no context from script global object!
-  NS_ENSURE_STATE(*aContext);
-  return NS_OK;
+  nsIScriptContext* scx = GetContext();
+  *aRv = scx ? NS_OK : NS_ERROR_UNEXPECTED;
+  return scx;
 }
 
 //*****************************************************************************
@@ -6758,8 +6795,7 @@ nsGlobalWindow::GetSessionStorage(nsIDOMStorage ** aSessionStorage)
   *aSessionStorage = nsnull;
 
   nsIPrincipal *principal = GetPrincipal();
-  nsCOMPtr<nsIDocShell_MOZILLA_1_9_1> docShell =
-    do_QueryInterface(GetDocShell());
+  nsIDocShell* docShell = GetDocShell();
 
   if (!principal || !docShell) {
     return NS_OK;
@@ -6798,31 +6834,24 @@ nsGlobalWindow::GetGlobalStorage(nsIDOMStorageList ** aGlobalStorage)
 }
 
 NS_IMETHODIMP
-nsGlobalWindow::GetLocalStorage(nsIDOMStorage2 ** aLocalStorage)
+nsGlobalWindow::GetLocalStorage(nsIDOMStorage ** aLocalStorage)
 {
   FORWARD_TO_INNER(GetLocalStorage, (aLocalStorage), NS_ERROR_UNEXPECTED);
 
   NS_ENSURE_ARG(aLocalStorage);
-
-  if (nsDOMStorageManager::gStorageManager &&
-      nsDOMStorageManager::gStorageManager->InPrivateBrowsingMode())
-    return NS_ERROR_DOM_SECURITY_ERR;
 
   if (!mLocalStorage) {
     *aLocalStorage = nsnull;
 
     nsresult rv;
 
+    PRPackedBool unused;
+    if (!nsDOMStorage::CanUseStorage(&unused))
+      return NS_ERROR_DOM_SECURITY_ERR;
+
     nsIPrincipal *principal = GetPrincipal();
     if (!principal)
       return NS_OK;
-
-    PRPackedBool sessionOnly;
-    if (!nsDOMStorage::CanUseStorage(&sessionOnly))
-      return NS_ERROR_DOM_SECURITY_ERR;
-
-    if (sessionOnly)
-      return NS_ERROR_DOM_SECURITY_ERR;
 
     nsCOMPtr<nsIDOMStorageManager> storageManager =
       do_GetService("@mozilla.org/dom/storagemanager;1", &rv);
@@ -6972,8 +7001,7 @@ nsGlobalWindow::Observe(nsISupports* aSubject, const char* aTopic,
 
     principal = GetPrincipal();
     if (!aData) {
-      nsCOMPtr<nsIDocShell_MOZILLA_1_9_1> docShell =
-        do_QueryInterface(GetDocShell());
+      nsIDocShell* docShell = GetDocShell();
       if (principal && docShell) {
         nsCOMPtr<nsIDOMStorage> storage;
         docShell->GetSessionStorageForPrincipal(principal,
@@ -7653,7 +7681,7 @@ nsGlobalWindow::RunTimeout(nsTimeout *aTimeout)
   mTimeoutInsertionPoint = &dummy_timeout;
 
   for (timeout = FirstTimeout();
-       timeout != &dummy_timeout && !IsFrozen() && !mTimeoutsSuspendDepth;
+       timeout != &dummy_timeout && !IsFrozen();
        timeout = nextTimeout) {
     nextTimeout = timeout->Next();
 
@@ -7661,6 +7689,13 @@ nsGlobalWindow::RunTimeout(nsTimeout *aTimeout)
       // We skip the timeout since it's on the list to run at another
       // depth.
 
+      continue;
+    }
+
+    if (mTimeoutsSuspendDepth) {
+      // Some timer did suspend us. Make sure the
+      // rest of the timers get executed later.
+      timeout->mFiringDepth = 0;
       continue;
     }
 
@@ -9040,7 +9075,9 @@ nsNavigator::GetPlatform(nsAString& aPlatform)
     // sorry for the #if platform ugliness, but Communicator is
     // likewise hardcoded and we're seeking backward compatibility
     // here (bug 47080)
-#if defined(WIN32)
+#if defined(_WIN64)
+    aPlatform.AssignLiteral("Win64");
+#elif defined(WIN32)
     aPlatform.AssignLiteral("Win32");
 #elif defined(XP_MACOSX) && defined(__ppc__)
     aPlatform.AssignLiteral("MacPPC");

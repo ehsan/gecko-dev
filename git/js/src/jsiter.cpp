@@ -50,6 +50,7 @@
 #include "jsarray.h"
 #include "jsatom.h"
 #include "jsbool.h"
+#include "jsbuiltins.h"
 #include "jscntxt.h"
 #include "jsversion.h"
 #include "jsexn.h"
@@ -375,7 +376,7 @@ js_ValueToIterator(JSContext *cx, uintN flags, jsval *vp)
         *vp = OBJECT_TO_JSVAL(iterobj);
     } else {
         atom = cx->runtime->atomState.iteratorAtom;
-        if (!js_GetMethod(cx, obj, ATOM_TO_JSID(atom), vp, NULL))
+        if (!js_GetMethod(cx, obj, ATOM_TO_JSID(atom), false, vp))
             goto bad;
         if (JSVAL_IS_VOID(*vp)) {
           default_iter:
@@ -443,6 +444,7 @@ js_CloseIterator(JSContext *cx, jsval v)
 #endif
     return JS_TRUE;
 }
+JS_DEFINE_CALLINFO_2(FRIEND, BOOL, js_CloseIterator, CONTEXT, JSVAL, 0, 0)
 
 static JSBool
 CallEnumeratorNext(JSContext *cx, JSObject *iterobj, uintN flags, jsval *rval)

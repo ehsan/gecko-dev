@@ -93,6 +93,15 @@ PrivateBrowsingService.prototype = {
     return this.__obs;
   },
 
+  // Preferences Service
+  __prefs: null,
+  get _prefs() {
+    if (!this.__prefs)
+      this.__prefs = Cc["@mozilla.org/preferences-service;1"].
+                     getService(Ci.nsIPrefBranch);
+    return this.__prefs;
+  },
+
   // Whether the private browsing mode is currently active or not.
   _inPrivateBrowsing: false,
 
@@ -149,16 +158,14 @@ PrivateBrowsingService.prototype = {
         }]
       });
 
-      if (this._inPrivateBrowsing) {
-        // whether we should save and close the current session
-        this._saveSession = true;
-        var prefBranch = Cc["@mozilla.org/preferences-service;1"].
-                         getService(Ci.nsIPrefBranch);
-        try {
-          if (prefBranch.getBoolPref("browser.privatebrowsing.keep_current_session"))
-            this._saveSession = false;
-        } catch (ex) {}
+      // whether we should save and close the current session
+      this._saveSession = true;
+      try {
+        if (this._prefs.getBoolPref("browser.privatebrowsing.keep_current_session"))
+          this._saveSession = false;
+      } catch (ex) {}
 
+      if (this._inPrivateBrowsing) {
         // save the whole browser state in order to restore all windows/tabs later
         if (this._saveSession && !this._savedBrowserState) {
           if (this._getBrowserWindow())
@@ -167,6 +174,9 @@ PrivateBrowsingService.prototype = {
             this._savedBrowserState = blankState;
         }
       }
+
+      this._closePageInfoWindows();
+
       if (!this._quitting && this._saveSession) {
         let browserWindow = this._getBrowserWindow();
 
@@ -203,6 +213,8 @@ PrivateBrowsingService.prototype = {
       if (!this._inPrivateBrowsing) {
         ss.setBrowserState(this._savedBrowserState);
         this._savedBrowserState = null;
+
+        this._closePageInfoWindows();
       }
       else {
         // otherwise, if we have transitioned into private browsing mode, load
@@ -245,6 +257,16 @@ PrivateBrowsingService.prototype = {
            getMostRecentWindow("navigator:browser");
   },
 
+  _closePageInfoWindows: function PBS__closePageInfoWindows() {
+    let pageInfoEnum = Cc["@mozilla.org/appshell/window-mediator;1"].
+                       getService(Ci.nsIWindowMediator).
+                       getEnumerator("Browser:page-info");
+    while (pageInfoEnum.hasMoreElements()) {
+      let win = pageInfoEnum.getNext();
+      win.close();
+    }
+  },
+
   // nsIObserver
 
   observe: function PBS_observe(aSubject, aTopic, aData) {
@@ -254,9 +276,7 @@ PrivateBrowsingService.prototype = {
         // private browsing mode upon startup.
         // This won't interfere with the session store component, because
         // that component will be initialized on final-ui-startup.
-        let prefsService = Cc["@mozilla.org/preferences-service;1"].
-                           getService(Ci.nsIPrefBranch);
-        this._autoStart = prefsService.getBoolPref("browser.privatebrowsing.autostart");
+        this._autoStart = this._prefs.getBoolPref("browser.privatebrowsing.autostart");
         if (this._autoStart) {
           this._autoStarted = true;
           this.privateBrowsingEnabled = true;
@@ -335,8 +355,8 @@ PrivateBrowsingService.prototype = {
             return;
         }
 
-        if (!val)
-          this._autoStarted = false;
+        this._autoStarted = val ?
+          this._prefs.getBoolPref("browser.privatebrowsing.autostart") : false;
         this._inPrivateBrowsing = val != false;
 
         let data = val ? "enter" : "exit";
@@ -373,6 +393,12 @@ PrivateBrowsingService.prototype = {
 
   removeDataFromDomain: function PBS_removeDataFromDomain(aDomain)
   {
+
+    // clear any and all network geolocation provider sessions
+    try {
+        this._prefs.deleteBranch("geo.wifi.access_token.");
+    } catch (e) {}
+    
     // History
     let (bh = Cc["@mozilla.org/browser/global-history;2"].
               getService(Ci.nsIBrowserHistory)) {

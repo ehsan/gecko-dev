@@ -2,7 +2,7 @@
 <html>
 <head>
   <title>Media test: media selection</title>
-  <script type="text/javascript" src="/MochiKit/MochiKit.js"></script>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
@@ -20,8 +20,9 @@ function maketest(expect_load, attach_media, name, type, check_metadata) {
           ok(e.readyState >= HTMLMediaElement.HAVE_METADATA,
              'test ' +  testNum + ' readyState ' + e.readyState + ' expected >= ' + HTMLMediaElement.HAVE_METADATA);
           is(e.currentSrc.substring(e.currentSrc.length - name.length), name, 'test ' + testNum);
-          ok(e.networkState >= HTMLMediaElement.NETWORK_LOADING,
-              'test ' + testNum + ' networkState = ' + e.networkState + ' expected >= ' + HTMLMediaElement.NETWORK_LOADING);
+          // The load can go idle due to cache size limits
+          ok(e.networkState >= HTMLMediaElement.NETWORK_IDLE,
+              'test ' + testNum + ' networkState = ' + e.networkState + ' expected >= ' + HTMLMediaElement.NETWORK_IDLE);
           check_metadata(e);
           e.parentNode.removeChild(e);
           runNextTest();

@@ -1821,7 +1821,7 @@ EmitEnterBlock(JSContext *cx, JSParseNode *pn, JSCodeGenerator *cg)
 #endif
     }
 
-    blockObj->map->freeslot = JSSLOT_FREE(&js_BlockClass);
+    OBJ_SCOPE(blockObj)->freeslot = JSSLOT_FREE(&js_BlockClass);
     js_ReallocSlots(cx, blockObj, JSSLOT_FREE(&js_BlockClass), JS_TRUE);
     return true;
 }
@@ -1845,6 +1845,32 @@ MakeUpvarForEval(JSParseNode *pn, JSCodeGenerator *cg)
 {
     JSContext *cx = cg->compiler->context;
     JSFunction *fun = cg->compiler->callerFrame->fun;
+    uintN upvarLevel = fun->u.i.script->staticLevel;
+
+    JSFunctionBox *funbox = cg->funbox;
+    if (funbox) {
+        /*
+         * Treat top-level function definitions as escaping (i.e., as funargs),
+         * required since we compile each such top level function or statement
+         * and throw away the AST, so we can't yet see all funarg uses of this
+         * function being compiled (cg->funbox->object). See bug 493177.
+         */
+        if (funbox->level == fun->u.i.script->staticLevel + 1U &&
+            !(((JSFunction *) funbox->object)->flags & JSFUN_LAMBDA)) {
+            JS_ASSERT_IF(cx->options & JSOPTION_ANONFUNFIX,
+                         ((JSFunction *) funbox->object)->atom);
+            return true;
+        }
+
+        while (funbox->level >= upvarLevel) {
+            if (funbox->node->pn_dflags & PND_FUNARG)
+                return true;
+            funbox = funbox->parent;
+            if (!funbox)
+                break;
+        }
+    }
+
     JSAtom *atom = pn->pn_atom;
 
     uintN index;
@@ -1852,9 +1878,8 @@ MakeUpvarForEval(JSParseNode *pn, JSCodeGenerator *cg)
     if (localKind == JSLOCAL_NONE)
         return true;
 
-    uintN upvarLevel = fun->u.i.script->staticLevel;
     JS_ASSERT(cg->staticLevel > upvarLevel);
-    if (upvarLevel >= JS_DISPLAY_SIZE)
+    if (cg->staticLevel >= JS_DISPLAY_SIZE || upvarLevel >= JS_DISPLAY_SIZE)
         return true;
 
     JSAtomListElement *ale = cg->upvarList.lookup(atom);
@@ -2100,7 +2125,7 @@ BindNameToSlot(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
     uintN skip = cg->staticLevel - level;
     if (skip != 0) {
         JS_ASSERT(cg->flags & TCF_IN_FUNCTION);
-        JS_ASSERT(cg->upvars.lookup(atom));
+        JS_ASSERT(cg->lexdeps.lookup(atom));
         JS_ASSERT(JOF_OPTYPE(op) == JOF_ATOM);
 
         /*
@@ -2154,7 +2179,7 @@ BindNameToSlot(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
 
             uint32 *vector = cg->upvarMap.vector;
             if (!vector) {
-                uint32 length = cg->upvars.count;
+                uint32 length = cg->lexdeps.count;
 
                 vector = (uint32 *) calloc(length, sizeof *vector);
                 if (!vector) {
@@ -3474,9 +3499,9 @@ js_EmitFunctionScript(JSContext *cx, JSCodeGenerator *cg, JSParseNode *body)
 }
 
 /* A macro for inlining at the top of js_EmitTree (whence it came). */
-#define UPDATE_LINE_NUMBER_NOTES(cx, cg, pn)                                  \
+#define UPDATE_LINE_NUMBER_NOTES(cx, cg, line)                                \
     JS_BEGIN_MACRO                                                            \
-        uintN line_ = (pn)->pn_pos.begin.lineno;                              \
+        uintN line_ = (line);                                                 \
         uintN delta_ = line_ - CG_CURRENT_LINE(cg);                           \
         if (delta_ != 0) {                                                    \
             /*                                                                \
@@ -3505,9 +3530,9 @@ js_EmitFunctionScript(JSContext *cx, JSCodeGenerator *cg, JSParseNode *body)
 
 /* A function, so that we avoid macro-bloating all the other callsites. */
 static JSBool
-UpdateLineNumberNotes(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
+UpdateLineNumberNotes(JSContext *cx, JSCodeGenerator *cg, uintN line)
 {
-    UPDATE_LINE_NUMBER_NOTES(cx, cg, pn);
+    UPDATE_LINE_NUMBER_NOTES(cx, cg, line);
     return JS_TRUE;
 }
 
@@ -3530,7 +3555,7 @@ MaybeEmitVarDecl(JSContext *cx, JSCodeGenerator *cg, JSOp prologOp,
     if (JOF_OPTYPE(pn->pn_op) == JOF_ATOM &&
         (!(cg->flags & TCF_IN_FUNCTION) || (cg->flags & TCF_FUN_HEAVYWEIGHT))) {
         CG_SWITCH_TO_PROLOG(cg);
-        if (!UpdateLineNumberNotes(cx, cg, pn))
+        if (!UpdateLineNumberNotes(cx, cg, pn->pn_pos.begin.lineno))
             return JS_FALSE;
         EMIT_INDEX_OP(prologOp, atomIndex);
         CG_SWITCH_TO_MAIN(cg);
@@ -3825,13 +3850,10 @@ EmitGroupAssignment(JSContext *cx, JSCodeGenerator *cg, JSOp prologOp,
             return JS_FALSE;
         }
 
-        if (pn->pn_type == TOK_COMMA) {
-            if (js_Emit1(cx, cg, JSOP_PUSH) < 0)
-                return JS_FALSE;
-        } else {
-            if (!js_EmitTree(cx, cg, pn))
-                return JS_FALSE;
-        }
+        /* MaybeEmitGroupAssignment won't call us if rhs is holey. */
+        JS_ASSERT(pn->pn_type != TOK_COMMA);
+        if (!js_EmitTree(cx, cg, pn))
+            return JS_FALSE;
         ++limit;
     }
 
@@ -3840,17 +3862,13 @@ EmitGroupAssignment(JSContext *cx, JSCodeGenerator *cg, JSOp prologOp,
 
     i = depth;
     for (pn = lhs->pn_head; pn; pn = pn->pn_next, ++i) {
-        if (i < limit) {
-            jsint slot;
+        /* MaybeEmitGroupAssignment requires lhs->pn_count <= rhs->pn_count. */
+        JS_ASSERT(i < limit);
+        jsint slot = AdjustBlockSlot(cx, cg, i);
+        if (slot < 0)
+            return JS_FALSE;
+        EMIT_UINT16_IMM_OP(JSOP_GETLOCAL, slot);
 
-            slot = AdjustBlockSlot(cx, cg, i);
-            if (slot < 0)
-                return JS_FALSE;
-            EMIT_UINT16_IMM_OP(JSOP_GETLOCAL, slot);
-        } else {
-            if (js_Emit1(cx, cg, JSOP_PUSH) < 0)
-                return JS_FALSE;
-        }
         if (pn->pn_type == TOK_COMMA && pn->pn_arity == PN_NULLARY) {
             if (js_Emit1(cx, cg, JSOP_POP) < 0)
                 return JS_FALSE;
@@ -3882,6 +3900,7 @@ MaybeEmitGroupAssignment(JSContext *cx, JSCodeGenerator *cg, JSOp prologOp,
     lhs = pn->pn_left;
     rhs = pn->pn_right;
     if (lhs->pn_type == TOK_RB && rhs->pn_type == TOK_RB &&
+        !(rhs->pn_xflags & PNX_HOLEY) &&
         lhs->pn_count <= rhs->pn_count) {
         if (!EmitGroupAssignment(cx, cg, prologOp, lhs, rhs))
             return JS_FALSE;
@@ -4209,7 +4228,7 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
     pn->pn_offset = top = CG_OFFSET(cg);
 
     /* Emit notes to tell the current bytecode's source line number. */
-    UPDATE_LINE_NUMBER_NOTES(cx, cg, pn);
+    UPDATE_LINE_NUMBER_NOTES(cx, cg, pn->pn_pos.begin.lineno);
 
     switch (pn->pn_type) {
       case TOK_FUNCTION:
@@ -4337,9 +4356,9 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
         break;
 
       case TOK_UPVARS:
-        JS_ASSERT(cg->upvars.count == 0);
+        JS_ASSERT(cg->lexdeps.count == 0);
         JS_ASSERT(pn->pn_names.count != 0);
-        cg->upvars = pn->pn_names;
+        cg->lexdeps = pn->pn_names;
         ok = js_EmitTree(cx, cg, pn->pn_tree);
         break;
 
@@ -5175,7 +5194,7 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
 
             /* Indicate that we're emitting a subroutine body. */
             stmtInfo.type = STMT_SUBROUTINE;
-            if (!UpdateLineNumberNotes(cx, cg, pn->pn_kid3))
+            if (!UpdateLineNumberNotes(cx, cg, pn->pn_kid3->pn_pos.begin.lineno))
                 return JS_FALSE;
             if (js_Emit1(cx, cg, JSOP_FINALLY) < 0 ||
                 !js_EmitTree(cx, cg, pn->pn_kid3) ||
@@ -6758,8 +6777,12 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
         JS_ASSERT(0);
     }
 
-    if (ok && --cg->emitLevel == 0 && cg->spanDeps)
-        ok = OptimizeSpanDeps(cx, cg);
+    if (ok && --cg->emitLevel == 0) {
+        if (cg->spanDeps)
+            ok = OptimizeSpanDeps(cx, cg);
+        if (!UpdateLineNumberNotes(cx, cg, pn->pn_pos.end.lineno))
+            return JS_FALSE;
+    }
 
     return ok;
 }

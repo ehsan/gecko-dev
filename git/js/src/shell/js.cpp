@@ -1073,18 +1073,19 @@ GC(JSContext *cx, uintN argc, jsval *vp)
     preBytes = rt->gcBytes;
     JS_GC(cx);
 
-    fprintf(gOutFile, "before %lu, after %lu, break %08lx\n",
-            (unsigned long)preBytes, (unsigned long)rt->gcBytes,
+    char buf[256];
+    JS_snprintf(buf, sizeof(buf), "before %lu, after %lu, break %08lx\n",
+                (unsigned long)preBytes, (unsigned long)rt->gcBytes,
 #ifdef XP_UNIX
-            (unsigned long)sbrk(0)
+                (unsigned long)sbrk(0)
 #else
-            0
+                0
 #endif
-            );
+                );
 #ifdef JS_GCMETER
     js_DumpGCStats(rt, stdout);
 #endif
-    *vp = JSVAL_VOID;
+    *vp = STRING_TO_JSVAL(JS_NewStringCopyZ(cx, buf));
     return JS_TRUE;
 }
 
@@ -4632,6 +4633,8 @@ main(int argc, char **argv, char **envp)
     );
     if (!cx)
         return 1;
+
+    JS_SetGCParameterForThread(cx, JSGC_MAX_CODE_CACHE_BYTES, 16 * 1024 * 1024);
 
     JS_BeginRequest(cx);
 
