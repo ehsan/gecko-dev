@@ -221,17 +221,15 @@ abstract class HomeFragment extends Fragment {
 
     protected abstract void load();
 
-    protected boolean canLoad() {
-        return (mCanLoadHint && isVisible() && getUserVisibleHint());
-    }
-
     protected void loadIfVisible() {
-        if (!canLoad() || mIsLoaded) {
+        if (!mCanLoadHint || !isVisible() || !getUserVisibleHint()) {
             return;
         }
 
-        load();
-        mIsLoaded = true;
+        if (!mIsLoaded) {
+            load();
+            mIsLoaded = true;
+        }
     }
 
     private static class RemoveBookmarkTask extends UiAsyncTask<Void, Void, Void> {

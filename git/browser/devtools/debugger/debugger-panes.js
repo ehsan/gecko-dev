@@ -11,11 +11,6 @@ const SAMPLE_SIZE = 50; // no of lines
 const INDENT_COUNT_THRESHOLD = 5; // percentage
 const CHARACTER_LIMIT = 250; // line character limit
 
-// Maps known URLs to friendly source group names
-const KNOWN_SOURCE_GROUPS = {
-  "Add-on SDK": "resource://gre/modules/commonjs/",
-};
-
 /**
  * Functions handling the sources UI.
  */
@@ -53,15 +48,6 @@ SourcesView.prototype = Heritage.extend(WidgetMethods, {
     this.widget = new SideMenuWidget(document.getElementById("sources"), {
       showArrows: true
     });
-
-    // Sort known source groups towards the end of the list
-    this.widget.groupSortPredicate = function(a, b) {
-      if ((a in KNOWN_SOURCE_GROUPS) == (b in KNOWN_SOURCE_GROUPS)) {
-        return a.localeCompare(b);
-      }
-
-      return (a in KNOWN_SOURCE_GROUPS) ? 1 : -1;
-    };
 
     this.emptyText = L10N.getStr("noSourcesText");
     this._blackBoxCheckboxTooltip = L10N.getStr("blackBoxCheckboxTooltip");
@@ -145,6 +131,12 @@ SourcesView.prototype = Heritage.extend(WidgetMethods, {
     let label = SourceUtils.getSourceLabel(url);
     let group = SourceUtils.getSourceGroup(url);
     let unicodeUrl = NetworkHelper.convertToUnicode(unescape(fullUrl));
+
+    let sdkModuleName = getSDKModuleName(url);
+    if (sdkModuleName) {
+      label = sdkModuleName;
+      group = "Add-on SDK";
+    }
 
     let contents = document.createElement("label");
     contents.className = "plain dbg-source-item";
@@ -1568,17 +1560,7 @@ let SourceUtils = {
       return cachedLabel;
     }
 
-    let sourceLabel = null;
-
-    for (let name of Object.keys(KNOWN_SOURCE_GROUPS)) {
-      if (aUrl.startsWith(KNOWN_SOURCE_GROUPS[name])) {
-        sourceLabel = aUrl.substring(KNOWN_SOURCE_GROUPS[name].length);
-      }
-    }
-
-    if (!sourceLabel) {
-      sourceLabel = this.trimUrl(aUrl);
-    }
+    let sourceLabel = this.trimUrl(aUrl);
     let unicodeLabel = NetworkHelper.convertToUnicode(unescape(sourceLabel));
     this._labelsCache.set(aUrl, unicodeLabel);
     return unicodeLabel;
@@ -1601,20 +1583,14 @@ let SourceUtils = {
 
     try {
       // Use an nsIURL to parse all the url path parts.
-      var uri = Services.io.newURI(aUrl, null, null).QueryInterface(Ci.nsIURL);
+      let url = aUrl.split(" -> ").pop();
+      var uri = Services.io.newURI(url, null, null).QueryInterface(Ci.nsIURL);
     } catch (e) {
       // This doesn't look like a url, or nsIURL can't handle it.
       return "";
     }
 
     let groupLabel = uri.prePath;
-
-    for (let name of Object.keys(KNOWN_SOURCE_GROUPS)) {
-      if (aUrl.startsWith(KNOWN_SOURCE_GROUPS[name])) {
-        groupLabel = name;
-      }
-    }
-
     let unicodeLabel = NetworkHelper.convertToUnicode(unescape(groupLabel));
     this._groupsCache.set(aUrl, unicodeLabel)
     return unicodeLabel;

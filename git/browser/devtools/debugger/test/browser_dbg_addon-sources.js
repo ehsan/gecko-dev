@@ -6,18 +6,7 @@
 
 const ADDON3_URL = EXAMPLE_URL + "addon3.xpi";
 
-let gAddon, gClient, gThreadClient, gDebugger, gSources, gTitle;
-
-function onMessage(event) {
-  try {
-    let json = JSON.parse(event.data);
-    switch (json.name) {
-      case "toolbox-title":
-        gTitle = json.data.value;
-        break;
-    }
-  } catch(e) { Cu.reportError(e); }
-}
+let gAddon, gClient, gThreadClient, gDebugger, gSources;
 
 function test() {
   Task.spawn(function () {
@@ -29,8 +18,6 @@ function test() {
     gBrowser.selectedTab = gBrowser.addTab();
     let iframe = document.createElement("iframe");
     document.documentElement.appendChild(iframe);
-
-    window.addEventListener("message", onMessage);
 
     let transport = DebuggerServer.connectPipe();
     gClient = new DebuggerClient(transport);
@@ -50,7 +37,6 @@ function test() {
     yield closeConnection();
     yield debuggerPanel._toolbox.destroy();
     iframe.remove();
-    window.removeEventListener("message", onMessage);
     finish();
   });
 }
@@ -70,7 +56,7 @@ function testSources() {
   gThreadClient.getSources(({sources}) => {
     ok(sources.length, "retrieved sources");
 
-    for (let source of sources) {
+    sources.forEach(source => {
       let url = source.url.split(" -> ").pop();
       info(source.url + "\n\n\n" + url);
       let { label, group } = gSources.getItemByValue(source.url).attachment;
@@ -94,21 +80,13 @@ function testSources() {
       } else {
         ok(false, "Saw an unexpected source: " + url);
       }
-    }
+    });
 
     ok(foundAddonModule, "found code for the addon in the list");
     ok(foundAddonBootstrap, "found bootstrap for the addon in the list");
     // Be flexible in this number, as SDK changes could change the exact number of
     // built-in browser SDK modules
     ok(foundSDKModule > 10, "SDK modules are listed");
-
-    is(gTitle, "Debugger - browser_dbg_addon3", "Saw the right toolbox title.");
-
-    let groups = gDebugger.document.querySelectorAll(".side-menu-widget-group-title .name");
-    is(groups[0].value, "jar:", "Add-on bootstrap should be the first group");
-    is(groups[1].value, "resource://jid1-ami3akps3baaeg-at-jetpack", "Add-on code should be the second group");
-    is(groups[2].value, "Add-on SDK", "Add-on SDK should be the third group");
-    is(groups.length, 3, "Should be only three groups.");
 
     deferred.resolve();
   });

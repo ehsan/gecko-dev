@@ -66,14 +66,9 @@ this.SideMenuWidget = function SideMenuWidget(aNode, aOptions={}) {
 
 SideMenuWidget.prototype = {
   /**
-   * Specifies if groups in this container should be sorted.
+   * Specifies if groups in this container should be sorted alphabetically.
    */
   sortedGroups: true,
-
-  /**
-   * The comparator used to sort groups.
-   */
-  groupSortPredicate: function(a, b) a.localeCompare(b),
 
   /**
    * Specifies that the container viewport should be "stuck" to the
@@ -347,7 +342,7 @@ SideMenuWidget.prototype = {
     });
 
     this._groupsByName.set(aName, group);
-    group.insertSelfAt(this.sortedGroups ? group.findExpectedIndexForSelf(this.groupSortPredicate) : -1);
+    group.insertSelfAt(this.sortedGroups ? group.findExpectedIndexForSelf() : -1);
 
     return group;
   },
@@ -489,14 +484,14 @@ SideMenuGroup.prototype = {
    * @return number
    *         The expected index.
    */
-  findExpectedIndexForSelf: function(sortPredicate) {
+  findExpectedIndexForSelf: function() {
     let identifier = this.identifier;
     let groupsArray = this._orderedGroupElementsArray;
 
     for (let group of groupsArray) {
       let name = group.getAttribute("name");
-      if (sortPredicate(name, identifier) > 0 && // Insertion sort at its best :)
-          !name.contains(identifier)) { // Least significant group should be last.
+      if (name > identifier && // Insertion sort at its best :)
+         !name.contains(identifier)) { // Least significat group should be last.
         return groupsArray.indexOf(group);
       }
     }

@@ -63,7 +63,6 @@ add_task(function* test_setup() {
   gReporter = yield getReporter("json_payload_simple");
   yield gReporter.collectMeasurements();
   let payload = yield gReporter.getJSONPayload(true);
-  do_register_cleanup(() => gReporter._shutdown());
 
   patchPolicy(gPolicy, {
     updatechannel: () => "nightly",
@@ -131,4 +130,9 @@ add_task(function* test_startStop() {
   maybeStop = yield experiment.maybeStop();
   Assert.equal(maybeStop, true, "Experiment should have been stopped.");
   Assert.equal(experiment.enabled, false, "Experiment should be disabled.");
+});
+
+add_task(function* shutdown() {
+  yield gReporter._shutdown();
+  yield removeCacheFile();
 });

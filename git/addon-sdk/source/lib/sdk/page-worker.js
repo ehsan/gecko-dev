@@ -13,7 +13,6 @@ const { filter, pipe, map, merge: streamMerge, stripListeners } = require('./eve
 const { detach, attach, destroy, WorkerHost } = require('./content/utils');
 const { Worker } = require('./content/worker');
 const { Disposable } = require('./core/disposable');
-const { WeakReference } = require('./core/reference');
 const { EventTarget } = require('./event/target');
 const { unload } = require('./system/unload');
 const { events, streamEventsFrom } = require('./content/events');
@@ -85,8 +84,7 @@ function isValidURL(page, url) !page.rules || page.rules.matchesAny(url)
 const Page = Class({
   implements: [
     EventTarget,
-    Disposable,
-    WeakReference
+    Disposable
   ],
   extends: WorkerHost(workerFor),
   setup: function Page(options) {

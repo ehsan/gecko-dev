@@ -87,6 +87,17 @@ function buildBinaryPdus(aDcs) {
   ];
 }
 
+function sendRawSmsAndWait(aPdus) {
+  let promises = [];
+
+  promises.push(waitForManagerEvent("received"));
+  for (let pdu of aPdus) {
+    promises.push(sendRawSmsToEmulator(pdu));
+  }
+
+  return Promise.all(promises);
+}
+
 function verifyTextMessage(aMessage, aMessageClass) {
   is(aMessage.messageClass, aMessageClass, "SmsMessage class");
   is(aMessage.sender, SENDER, "SmsMessage sender");
@@ -103,14 +114,14 @@ function verifyBinaryMessage(aMessage) {
 
 function testText(aDcs, aClass) {
   log("testText(): aDcs = " + aDcs + ", aClass = " + aClass);
-  return sendMultipleRawSmsToEmulatorAndWait(buildTextPdus(aDcs))
-    .then((results) => verifyTextMessage(results[0].message, aClass));
+  return sendRawSmsAndWait(buildTextPdus(aDcs))
+    .then((resolutions) => verifyTextMessage(resolutions[0].message, aClass));
 }
 
 function testBinary(aDcs) {
   log("testBinary(): aDcs = " + aDcs);
-  return sendMultipleRawSmsToEmulatorAndWait(buildBinaryPdus(aDcs))
-    .then((results) => verifyBinaryMessage(results[0].message));
+  return sendRawSmsAndWait(buildBinaryPdus(aDcs))
+    .then((resolutions) => verifyBinaryMessage(resolutions[0].message));
 }
 
 SpecialPowers.pushPrefEnv(

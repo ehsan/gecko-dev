@@ -77,3 +77,6 @@ add_task(function* test_fetchInvalid() {
   yield ex.uninit();
 });
 
+add_task(function* shutdown() {
+  yield removeCacheFile();
+});

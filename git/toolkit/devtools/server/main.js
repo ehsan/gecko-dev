@@ -39,7 +39,6 @@ Cu.import("resource://gre/modules/reflect.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 let wantLogging = Services.prefs.getBoolPref("devtools.debugger.log");
 
-Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
 Cu.import("resource://gre/modules/jsdebugger.jsm");
 addDebuggerToGlobal(this);
 
@@ -50,9 +49,7 @@ function loadSubScript(aURL)
       .getService(Ci.mozIJSSubScriptLoader);
     loader.loadSubScript(aURL, this);
   } catch(e) {
-    let errorStr = "Error loading: " + aURL + ":\n" +
-                   (e.fileName ? "at " + e.fileName + " : " + e.lineNumber + "\n" : "") +
-                   e + " - " + e.stack + "\n";
+    let errorStr = "Error loading: " + aURL + ": " + e + " - " + e.stack + "\n";
     dump(errorStr);
     Cu.reportError(errorStr);
     throw e;

@@ -32,8 +32,10 @@ function init_all() {
 
   let categories = document.getElementById("categories");
   categories.addEventListener("select", event => gotoPref(event.target.value));
+  window.addEventListener("popstate", event => selectCategory(event.state));
 
   if (history.length > 1 && history.state) {
+    updateCommands();
     selectCategory(history.state);
   } else {
     history.replaceState("paneGeneral", document.title);
@@ -47,8 +49,37 @@ function selectCategory(name) {
 }
 
 function gotoPref(page) {
-  window.history.replaceState(page, document.title);
+  if (history.state != page) {
+    window.history.pushState(page, document.title);
+  }
+
+  updateCommands();
   search(page, "data-category");
+}
+ 
+function cmd_back() {
+  window.history.back();
+}
+ 
+function cmd_forward() {
+  window.history.forward();
+}
+
+function updateCommands() {
+  document.getElementById("back-btn").disabled = !canGoBack();
+  document.getElementById("forward-btn").disabled = !canGoForward();
+}
+
+function canGoBack() {
+  return window.QueryInterface(Ci.nsIInterfaceRequestor)
+               .getInterface(Ci.nsIWebNavigation)
+               .canGoBack;
+}
+
+function canGoForward() {
+  return window.QueryInterface(Ci.nsIInterfaceRequestor)
+               .getInterface(Ci.nsIWebNavigation)
+               .canGoForward;
 }
 
 function search(aQuery, aAttribute) {

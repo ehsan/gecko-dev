@@ -55,19 +55,7 @@
   <key key="&focusSearch2.key;" modifiers="accel" oncommand="gApplicationsPane.focusFilterBox();"/>
 </keyset>
 
-<hbox id="header-application"
-      class="header"
-      hidden="true"
-      data-category="paneApplications">
-  <image class="header-icon"/>
-  <label class="header-name"
-         value="&paneApplications.title;"/>
-</hbox>
-
-<vbox id="applicationsContent"
-      data-category="paneApplications"
-      hidden="true"
-      flex="1">
+<vbox data-category="paneApplications" hidden="true" flex="1">
   <hbox>
     <textbox id="filter" flex="1"
              type="search"

@@ -162,9 +162,15 @@ function waitForWindowClose(aWin, aCallback) {
 }
 
 function forceWriteState(aCallback) {
-  return promiseSaveFileContents().then(function(data) {
-    aCallback(JSON.parse(data));
-  });
+  Services.obs.addObserver(function observe(aSubject, aTopic, aData) {
+    if (aTopic == "sessionstore-state-write") {
+      Services.obs.removeObserver(observe, aTopic);
+      Services.prefs.clearUserPref("browser.sessionstore.interval");
+      aSubject.QueryInterface(Ci.nsISupportsString);
+      aCallback(JSON.parse(aSubject.data));
+    }
+  }, "sessionstore-state-write", false);
+  Services.prefs.setIntPref("browser.sessionstore.interval", 0);
 }
 
 function testOnWindow(aIsPrivate, aCallback) {
