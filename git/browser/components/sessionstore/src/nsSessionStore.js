@@ -2078,33 +2078,19 @@ SessionStoreService.prototype = {
     }
     
     if (aTabs.length > 0) {
-      // Load hidden tabs last, by pushing them to the end of the list
-      let unhiddenTabs = aTabs.length;
-      for (let t = 0; t < unhiddenTabs; ) {
-        if (aTabs[t].hidden) {
-          aTabs = aTabs.concat(aTabs.splice(t, 1));
-          aTabData = aTabData.concat(aTabData.splice(t, 1));
-          if (aSelectTab > t)
-            --aSelectTab;
-          --unhiddenTabs;
-          continue;
-        }
-        ++t;
-      }
-
       // Determine if we can optimize & load visible tabs first
       let maxVisibleTabs = Math.ceil(tabbrowser.tabContainer.mTabstrip.scrollClientSize /
-                                     aTabs[unhiddenTabs - 1].clientWidth);
+                                     aTabs[aTabs.length - 1].clientWidth);
 
       // make sure we restore visible tabs first, if there are enough
-      if (maxVisibleTabs < unhiddenTabs && aSelectTab > 1) {
+      if (maxVisibleTabs < aTabs.length && aSelectTab > 1) {
         let firstVisibleTab = 0;
-        if (unhiddenTabs - maxVisibleTabs > aSelectTab) {
+        if (aTabs.length - maxVisibleTabs > aSelectTab) {
           // aSelectTab is leftmost since we scroll to it when possible
           firstVisibleTab = aSelectTab - 1;
         } else {
           // aSelectTab is rightmost or no more room to scroll right
-          firstVisibleTab = unhiddenTabs - maxVisibleTabs;
+          firstVisibleTab = aTabs.length - maxVisibleTabs;
         }
         aTabs = aTabs.splice(firstVisibleTab, maxVisibleTabs).concat(aTabs);
         aTabData = aTabData.splice(firstVisibleTab, maxVisibleTabs).concat(aTabData);

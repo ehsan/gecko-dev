@@ -481,11 +481,6 @@ public:
             mCleanedUp);
   }
 
-  static void FirePopupBlockedEvent(nsIDOMDocument* aDoc,
-                                    nsIDOMWindow *aRequestingWindow, nsIURI *aPopupURI,
-                                    const nsAString &aPopupWindowName,
-                                    const nsAString &aPopupWindowFeatures);
-
 protected:
   // Object Management
   virtual ~nsGlobalWindow();
