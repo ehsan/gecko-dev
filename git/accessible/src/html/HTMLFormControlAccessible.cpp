@@ -452,9 +452,13 @@ HTMLTextFieldAccessible::GetActionName(uint8_t aIndex, nsAString& aName)
 NS_IMETHODIMP
 HTMLTextFieldAccessible::DoAction(uint8_t aIndex)
 {
-  if (aIndex == 0)
-    return TakeFocus();
+  if (aIndex == 0) {
+    HTMLInputElement* element = HTMLInputElement::FromContent(mContent);
+    if (element)
+      return element->Focus();
 
+    return NS_ERROR_FAILURE;
+  }
   return NS_ERROR_INVALID_ARG;
 }
 

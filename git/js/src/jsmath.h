@@ -47,6 +47,9 @@ class MathCache
     size_t sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf);
 };
 
+extern void
+InitRandom(JSRuntime *rt, uint64_t *rngState);
+
 } /* namespace js */
 
 /*

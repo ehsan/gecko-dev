@@ -203,6 +203,10 @@ DeleteGeneric(JSContext *cx, HandleObject obj, HandleId id, JSBool *succeeded);
 
 } /* namespace js::baseops */
 
+/* ES5 8.12.8. */
+extern JSBool
+DefaultValue(JSContext *cx, HandleObject obj, JSType hint, MutableHandleValue vp);
+
 extern Class ArrayClass;
 extern Class ArrayBufferClass;
 extern Class BlockClass;
@@ -523,10 +527,6 @@ class JSObject : public js::ObjectImpl
      * in this situation because non-scope objects can be on the scope chain).
      */
     inline JSObject *enclosingScope();
-
-    /* Access the metadata on an object. */
-    inline JSObject *getMetadata() const;
-    static bool setMetadata(JSContext *cx, js::HandleObject obj, js::HandleObject newMetadata);
 
     inline js::GlobalObject &global() const;
     using js::ObjectImpl::compartment;

@@ -144,7 +144,6 @@ SystemMessageManager.prototype = {
 
     cpmm.sendAsyncMessage("SystemMessageManager:Unregister",
                           { manifest: this._manifest,
-                            uri: this._uri,
                             innerWindowID: this.innerWindowID });
   },
 

@@ -1025,7 +1025,7 @@ jobject ConvertToJavaViewportMetrics(JNIEnv* env, nsIAndroidViewport* metrics) {
     return jobj;
 }
 
-class nsAndroidDisplayport MOZ_FINAL : public nsIAndroidDisplayport
+class nsAndroidDisplayport : public nsIAndroidDisplayport
 {
 public:
     NS_DECL_ISUPPORTS

@@ -8,7 +8,6 @@
 #define mozilla_dom_TypedArray_h
 
 #include "jsfriendapi.h"
-#include "js/RootingAPI.h"
 
 namespace mozilla {
 namespace dom {
@@ -66,7 +65,7 @@ struct TypedArray : public TypedArray_base<T,UnboxArray> {
   static inline JSObject*
   Create(JSContext* cx, nsWrapperCache* creator, uint32_t length,
          const T* data = NULL) {
-    JS::Rooted<JSObject*> creatorWrapper(cx);
+    JSObject* creatorWrapper;
     Maybe<JSAutoCompartment> ac;
     if (creator && (creatorWrapper = creator->GetWrapperPreserveColor())) {
       ac.construct(cx, creatorWrapper);

@@ -1115,7 +1115,6 @@ JSObject::sealOrFreeze(JSContext *cx, HandleObject obj, ImmutabilityType it)
         RootedShape last(cx, EmptyShape::getInitialShape(cx, obj->getClass(),
                                                          obj->getTaggedProto(),
                                                          obj->getParent(),
-                                                         obj->getMetadata(),
                                                          obj->numFixedSlots(),
                                                          obj->lastProperty()->getObjectFlags()));
         if (!last)
@@ -1247,7 +1246,7 @@ NewObject(JSContext *cx, Class *clasp, types::TypeObject *type_, JSObject *paren
     RootedTypeObject type(cx, type_);
 
     RootedShape shape(cx, EmptyShape::getInitialShape(cx, clasp, TaggedProto(type->proto),
-                                                      parent, NewObjectMetadata(cx), kind));
+                                                      parent, kind));
     if (!shape)
         return NULL;
 
@@ -1288,9 +1287,7 @@ js::NewObjectWithGivenProto(JSContext *cx, js::Class *clasp,
     NewObjectCache &cache = cx->runtime->newObjectCache;
 
     NewObjectCache::EntryIndex entry = -1;
-    if (proto.isObject() &&
-        newKind == GenericObject &&
-        !cx->compartment->objectMetadataCallback &&
+    if (proto.isObject() && newKind == GenericObject &&
         (!parent || parent == proto.toObject()->getParent()) && !proto.toObject()->isGlobal())
     {
         if (cache.lookupProto(clasp, proto.toObject(), allocKind, &entry)) {
@@ -1348,11 +1345,7 @@ js::NewObjectWithClassProtoCommon(JSContext *cx, js::Class *clasp, JSObject *pro
     NewObjectCache &cache = cx->runtime->newObjectCache;
 
     NewObjectCache::EntryIndex entry = -1;
-    if (parentArg->isGlobal() &&
-        protoKey != JSProto_Null &&
-        newKind == GenericObject &&
-        !cx->compartment->objectMetadataCallback)
-    {
+    if (parentArg->isGlobal() && protoKey != JSProto_Null && newKind == GenericObject) {
         if (cache.lookupGlobal(clasp, &parentArg->asGlobal(), allocKind, &entry)) {
             JSObject *obj = cache.newObjectFromHit(cx, entry, GetInitialHeap(newKind, clasp));
             if (obj)
@@ -1394,10 +1387,7 @@ js::NewObjectWithType(JSContext *cx, HandleTypeObject type, JSObject *parent, gc
     NewObjectCache &cache = cx->runtime->newObjectCache;
 
     NewObjectCache::EntryIndex entry = -1;
-    if (parent == type->proto->getParent() &&
-        newKind == GenericObject &&
-        !cx->compartment->objectMetadataCallback)
-    {
+    if (parent == type->proto->getParent() && newKind == GenericObject) {
         if (cache.lookupType(&ObjectClass, type, allocKind, &entry)) {
             JSObject *obj = cache.newObjectFromHit(cx, entry, GetInitialHeap(newKind, &ObjectClass));
             if (obj)
@@ -1503,13 +1493,10 @@ CreateThisForFunctionWithType(JSContext *cx, HandleTypeObject type, JSObject *pa
          */
         gc::AllocKind kind = type->newScript->allocKind;
         RootedObject res(cx, NewObjectWithType(cx, type, parent, kind, newKind));
-        if (!res)
-            return NULL;
-        RootedObject metadata(cx, res->getMetadata());
-        RootedShape shape(cx, type->newScript->shape);
-        JS_ALWAYS_TRUE(JSObject::setLastProperty(cx, res, shape));
-        if (metadata && !JSObject::setMetadata(cx, res, metadata))
-            return NULL;
+        if (res) {
+            RootedShape shape(cx, type->newScript->shape);
+            JS_ALWAYS_TRUE(JSObject::setLastProperty(cx, res, shape));
+        }
         return res;
     }
 
@@ -1872,7 +1859,7 @@ JSObject::ReserveForTradeGuts(JSContext *cx, JSObject *aArg, JSObject *bArg,
         if (!a->generateOwnShape(cx))
             return false;
     } else {
-        reserved.newbshape = EmptyShape::getInitialShape(cx, aClass, aProto, a->getParent(), a->getMetadata(),
+        reserved.newbshape = EmptyShape::getInitialShape(cx, aClass, aProto, a->getParent(),
                                                          b->tenuredGetAllocKind());
         if (!reserved.newbshape)
             return false;
@@ -1881,7 +1868,7 @@ JSObject::ReserveForTradeGuts(JSContext *cx, JSObject *aArg, JSObject *bArg,
         if (!b->generateOwnShape(cx))
             return false;
     } else {
-        reserved.newashape = EmptyShape::getInitialShape(cx, bClass, bProto, b->getParent(), b->getMetadata(),
+        reserved.newashape = EmptyShape::getInitialShape(cx, bClass, bProto, b->getParent(),
                                                          a->tenuredGetAllocKind());
         if (!reserved.newashape)
             return false;
@@ -4609,7 +4596,7 @@ MaybeCallMethod(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue
     return Invoke(cx, ObjectValue(*obj), vp, 0, NULL, vp.address());
 }
 
-JS_FRIEND_API(JSBool)
+JSBool
 js::DefaultValue(JSContext *cx, HandleObject obj, JSType hint, MutableHandleValue vp)
 {
     JS_ASSERT(hint == JSTYPE_NUMBER || hint == JSTYPE_STRING || hint == JSTYPE_VOID);

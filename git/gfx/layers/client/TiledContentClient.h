@@ -73,8 +73,8 @@ struct BasicTiledLayerTile {
  * doesn't need to be recalculated on every repeated transaction.
  */
 struct BasicTiledLayerPaintData {
-  CSSPoint mScrollOffset;
-  CSSPoint mLastScrollOffset;
+  gfx::Point mScrollOffset;
+  gfx::Point mLastScrollOffset;
   gfx3DMatrix mTransformScreenToLayer;
   nsIntRect mLayerCriticalDisplayPort;
   gfxSize mResolution;

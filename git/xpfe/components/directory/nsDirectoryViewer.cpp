@@ -174,13 +174,13 @@ nsHTTPIndex::OnFTPControlLog(bool server, const char *msg)
     params[0] = BOOLEAN_TO_JSVAL(server);
     params[1] = STRING_TO_JSVAL(jsMsgStr);
 
-    JS::Rooted<JS::Value> val(cx);
+    JS::Value val;
     JS_CallFunctionName(cx,
                         global,
                         "OnFTPControlLog",
                         2,
                         params,
-                        val.address());
+                        &val);
     return NS_OK;
 }
 

@@ -186,6 +186,8 @@ class ExecutableAllocator {
     enum ProtectionSetting { Writable, Executable };
     DestroyCallback destroyCallback;
 
+    void initSeed();
+
 public:
     explicit ExecutableAllocator(AllocationBehavior allocBehavior)
       : destroyCallback(NULL),
@@ -203,6 +205,10 @@ public:
              */
             largeAllocSize = pageSize * 16;
         }
+
+#if WTF_OS_WINDOWS
+        initSeed();
+#endif
 
         JS_ASSERT(m_smallPools.empty());
     }

@@ -104,7 +104,6 @@
 #include "DocumentType.h"
 #include <algorithm>
 #include "nsDOMEvent.h"
-#include "nsGlobalWindow.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -678,13 +677,11 @@ nsINode::SetUserData(const nsAString &aKey, nsIVariant *aData,
 }
 
 JS::Value
-nsINode::SetUserData(JSContext* aCx, const nsAString& aKey,
-                     JS::Handle<JS::Value> aData,
+nsINode::SetUserData(JSContext* aCx, const nsAString& aKey, JS::Value aData,
                      nsIDOMUserDataHandler* aHandler, ErrorResult& aError)
 {
   nsCOMPtr<nsIVariant> data;
-  JS::Rooted<JS::Value> dataVal(aCx, aData);
-  aError = nsContentUtils::XPConnect()->JSValToVariant(aCx, dataVal.address(),
+  aError = nsContentUtils::XPConnect()->JSValToVariant(aCx, &aData,
                                                        getter_AddRefs(data));
   if (aError.Failed()) {
     return JS::UndefinedValue();
@@ -1164,14 +1161,6 @@ nsIScriptContext*
 nsINode::GetContextForEventHandlers(nsresult* aRv)
 {
   return nsContentUtils::GetContextForEventHandlers(this, aRv);
-}
-
-nsIDOMWindow*
-nsINode::GetOwnerGlobal()
-{
-  bool dummy;
-  return nsPIDOMWindow::GetOuterFromCurrentInner(
-    static_cast<nsGlobalWindow*>(OwnerDoc()->GetScriptHandlingObject(dummy)));
 }
 
 bool

@@ -42,7 +42,6 @@ JSCompartment::JSCompartment(Zone *zone)
     lastCodeRelease(0),
     analysisLifoAlloc(ANALYSIS_LIFO_ALLOC_PRIMARY_CHUNK_SIZE),
     data(NULL),
-    objectMetadataCallback(NULL),
     lastAnimationTime(0),
     regExps(rt),
     propertyTree(thisForCtor()),
@@ -98,6 +97,9 @@ JSCompartment::init(JSContext *cx)
 
     if (!regExps.init(cx))
         return false;
+
+    if (cx)
+        InitRandom(cx->runtime, &rngState);
 
     enumerators = NativeIterator::allocateSentinel(cx);
     if (!enumerators)

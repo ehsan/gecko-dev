@@ -15,7 +15,6 @@
 #include "nsPresContext.h"
 #include "mozilla/gfx/Point.h"
 #include "nsIScrollbarOwner.h"
-#include "Units.h"
 
 #define NS_DEFAULT_VERTICAL_SCROLL_DISTANCE   3
 #define NS_DEFAULT_HORIZONTAL_SCROLL_DISTANCE 5
@@ -31,6 +30,8 @@ class nsIFrame;
  */
 class nsIScrollableFrame : public nsIScrollbarOwner {
 public:
+  typedef mozilla::gfx::Point Point;
+
   NS_DECL_QUERYFRAME_TARGET(nsIScrollableFrame)
 
   /**
@@ -165,8 +166,7 @@ public:
    * number of layer pixels (so the operation is fast and looks clean).
    * The scroll mode is INSTANT.
    */
-  virtual void ScrollToCSSPixelsApproximate(const mozilla::CSSPoint& aScrollPosition) = 0;
-
+  virtual void ScrollToCSSPixelsApproximate(const Point& aScrollPosition) = 0;
   /**
    * Returns the scroll position in integer CSS pixels, rounded to the nearest
    * pixel.
