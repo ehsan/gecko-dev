@@ -397,9 +397,8 @@ class Build(MachCommandBase):
 
         if ccache_start and ccache_end:
             ccache_diff = ccache_end - ccache_start
-            if ccache_diff:
-                self.log(logging.INFO, 'ccache',
-                         {'msg': ccache_diff.hit_rate_message()}, "{msg}")
+            self.log(logging.INFO, 'ccache',
+                     {'msg': ccache_diff.hit_rate_message()}, "{msg}")
 
         if monitor.elapsed > 300:
             # Display a notification when the build completes.

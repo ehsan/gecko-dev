@@ -1570,9 +1570,11 @@ MetroWidget::NotifyIME(const IMENotification& aIMENotification)
       nsTextStore::CommitComposition(true);
       return NS_OK;
     case NOTIFY_IME_OF_FOCUS:
-      return nsTextStore::OnFocusChange(true, this, mInputContext.mIMEState);
+      return nsTextStore::OnFocusChange(true, this,
+                                        mInputContext.mIMEState.mEnabled);
     case NOTIFY_IME_OF_BLUR:
-      return nsTextStore::OnFocusChange(false, this, mInputContext.mIMEState);
+      return nsTextStore::OnFocusChange(false, this,
+                                        mInputContext.mIMEState.mEnabled);
     case NOTIFY_IME_OF_SELECTION_CHANGE:
       return nsTextStore::OnSelectionChange();
     case NOTIFY_IME_OF_TEXT_CHANGE:

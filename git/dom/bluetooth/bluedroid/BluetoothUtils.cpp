@@ -24,6 +24,19 @@
 BEGIN_BLUETOOTH_NAMESPACE
 
 void
+StringToBdAddressType(const nsAString& aBdAddress,
+                      bt_bdaddr_t *aRetBdAddressType)
+{
+  NS_ConvertUTF16toUTF8 bdAddressUTF8(aBdAddress);
+  const char* str = bdAddressUTF8.get();
+
+  for (int i = 0; i < 6; i++) {
+    aRetBdAddressType->address[i] = (uint8_t) strtoul(str, (char **)&str, 16);
+    str++;
+  }
+}
+
+void
 BdAddressTypeToString(bt_bdaddr_t* aBdAddressType, nsAString& aRetBdAddress)
 {
   uint8_t* addr = aBdAddressType->address;
@@ -37,11 +50,11 @@ BdAddressTypeToString(bt_bdaddr_t* aBdAddressType, nsAString& aRetBdAddress)
 }
 
 uint16_t
-UuidToServiceClassInt(const BluetoothUuid& mUuid)
+UuidToServiceClassInt(bt_uuid_t* p_uuid)
 {
   // extract short UUID 0000xxxx-0000-1000-8000-00805f9b34fb
   uint16_t shortUuid;
-  memcpy(&shortUuid, mUuid.mUuid + 2, sizeof(uint16_t));
+  memcpy(&shortUuid, &(p_uuid->uu[2]), sizeof(uint16_t));
   return ntohs(shortUuid);
 }
 

@@ -4,7 +4,6 @@
 
 from __future__ import unicode_literals
 
-import argparse
 import logging
 import mozpack.path
 import os
@@ -24,8 +23,6 @@ from mach.decorators import (
     Command,
 )
 
-
-from mozlog import structured
 
 ADB_NOT_FOUND = '''
 The %s command requires the adb binary to be on your path.
@@ -251,6 +248,8 @@ class MochitestRunner(MozbuildObject):
         for handler in remove_handlers:
             logging.getLogger().removeHandler(handler)
 
+        runner = mochitest.Mochitest()
+
         opts = mochitest.MochitestOptions()
         options, args = opts.parse_args([])
 
@@ -360,8 +359,6 @@ class MochitestRunner(MozbuildObject):
         elif app_override:
             options.app = app_override
 
-        logger_options = {key: value for key, value in vars(options).iteritems() if key.startswith('log')}
-        runner = mochitest.Mochitest(logger_options)
         options = opts.verifyOptions(options, runner)
 
         if options is None:
@@ -605,15 +602,12 @@ def B2GCommand(func):
     return func
 
 
-_st_parser = argparse.ArgumentParser()
-structured.commandline.add_logging_group(_st_parser)
 
 @CommandProvider
 class MachCommands(MachCommandBase):
     @Command('mochitest-plain', category='testing',
         conditions=[conditions.is_firefox_or_mulet],
-        description='Run a plain mochitest (integration test, plain web page).',
-        parser=_st_parser)
+        description='Run a plain mochitest (integration test, plain web page).')
     @MochitestCommand
     def run_mochitest_plain(self, test_paths, **kwargs):
         return self.run_mochitest(test_paths, 'plain', **kwargs)

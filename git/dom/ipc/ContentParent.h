@@ -63,7 +63,6 @@ class ClonedMessageData;
 class MemoryReport;
 class TabContext;
 class PFileDescriptorSetParent;
-class ContentBridgeParent;
 
 class ContentParent : public PContentParent
                     , public nsIContentParent
@@ -97,17 +96,11 @@ public:
     static bool PreallocatedProcessReady();
     static void RunAfterPreallocatedProcessReady(nsIRunnable* aRequest);
 
-    /**
-     * Get or create a content process for:
-     * 1. browser iframe
-     * 2. remote xul <browser>
-     * 3. normal iframe
-     */
     static already_AddRefed<ContentParent>
-    GetNewOrUsedBrowserProcess(bool aForBrowserElement = false,
-                               hal::ProcessPriority aPriority =
-                               hal::ProcessPriority::PROCESS_PRIORITY_FOREGROUND,
-                               ContentParent* aOpener = nullptr);
+    GetNewOrUsed(bool aForBrowserElement = false,
+                 hal::ProcessPriority aPriority =
+                   hal::ProcessPriority::PROCESS_PRIORITY_FOREGROUND,
+                 ContentParent* aOpener = nullptr);
 
     /**
      * Create a subprocess suitable for use as a preallocated app process.
@@ -293,17 +286,12 @@ private:
 
     // Take the preallocated process and transform it into a "real" app process,
     // for the specified manifest URL.  If there is no preallocated process (or
-    // if it's dead), create a new one and set aTookPreAllocated to false.
+    // if it's dead), this returns false.
     static already_AddRefed<ContentParent>
-    GetNewOrPreallocatedAppProcess(mozIApplication* aApp,
-                                   hal::ProcessPriority aInitialPriority,
-                                   ContentParent* aOpener,
-                                   /*out*/ bool* aTookPreAllocated = nullptr);
+    MaybeTakePreallocatedAppProcess(const nsAString& aAppManifestURL,
+                                    hal::ProcessPriority aInitialPriority);
 
     static hal::ProcessPriority GetInitialProcessPriority(Element* aFrameElement);
-
-    static ContentBridgeParent* CreateContentBridgeParent(const TabContext& aContext,
-                                                          const hal::ProcessPriority& aPriority);
 
     // Hide the raw constructor methods since we don't want client code
     // using them.
