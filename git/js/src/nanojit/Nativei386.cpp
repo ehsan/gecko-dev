@@ -252,7 +252,7 @@ namespace nanojit
             SUBi(SP, extra);
     }
 
-    Register Assembler::nRegisterAllocFromSet(RegisterMask set)
+    Register Assembler::nRegisterAllocFromSet(int set)
     {
         Register r;
         RegAlloc &regs = _allocator;
@@ -291,17 +291,21 @@ namespace nanojit
         debug_only( a.managed = a.free; )
     }
 
-    void Assembler::nPatchBranch(NIns* branch, NIns* targ)
+    NIns* Assembler::nPatchBranch(NIns* branch, NIns* targ)
     {
+        NIns* was = 0;
         intptr_t offset = intptr_t(targ) - intptr_t(branch);
         if (branch[0] == JMP32) {
+            was = branch + *(int32_t*)&branch[1] + 5;
             *(int32_t*)&branch[1] = offset - 5;
             VALGRIND_DISCARD_TRANSLATIONS(&branch[1], sizeof(int32_t));
         } else if (branch[0] == JCC32) {
+            was = branch + *(int32_t*)&branch[2] + 6;
             *(int32_t*)&branch[2] = offset - 6;
             VALGRIND_DISCARD_TRANSLATIONS(&branch[2], sizeof(int32_t));
         } else
             NanoAssertMsg(0, "Unknown branch type in nPatchBranch");
+        return was;
     }
 
     RegisterMask Assembler::hint(LIns* i, RegisterMask allow)
@@ -386,7 +390,7 @@ namespace nanojit
 
     void Assembler::asm_restore(LInsp i, Reservation *resv, Register r)
     {
-        if (i->isop(LIR_alloc)) {
+        if (i->isop(LIR_ialloc)) {
             verbose_only( if (_logc->lcbits & LC_RegAlloc) {
                             outputForEOL("  <= remat %s size %d",
                             _thisfrag->lirbuf->names->formatRef(i), i->size()); } )
@@ -420,7 +424,7 @@ namespace nanojit
             // make sure what is in a register
             Reservation *rA, *rB;
             Register ra, rb;
-            if (base->isop(LIR_alloc)) {
+            if (base->isop(LIR_ialloc)) {
                 rb = FP;
                 dr += findMemFor(base);
                 ra = findRegFor(value, GpRegs);
@@ -481,7 +485,7 @@ namespace nanojit
         {
             int dr = disp(resv);
             Register rb;
-            if (base->isop(LIR_alloc)) {
+            if (base->isop(LIR_ialloc)) {
                 rb = FP;
                 db += findMemFor(base);
             } else {
@@ -511,7 +515,7 @@ namespace nanojit
             // if a constant 64-bit value just store it now rather than
             // generating a pointless store/load/store sequence
             Register rb;
-            if (base->isop(LIR_alloc)) {
+            if (base->isop(LIR_ialloc)) {
                 rb = FP;
                 dr += findMemFor(base);
             } else {
@@ -536,7 +540,7 @@ namespace nanojit
             if (config.sse2) {
                 Register rv = findRegFor(value, XmmRegs);
                 Register rb;
-                if (base->isop(LIR_alloc)) {
+                if (base->isop(LIR_ialloc)) {
                     rb = FP;
                     dr += findMemFor(base);
                 } else {
@@ -548,7 +552,7 @@ namespace nanojit
 
             int da = findMemFor(value);
             Register rb;
-            if (base->isop(LIR_alloc)) {
+            if (base->isop(LIR_ialloc)) {
                 rb = FP;
                 dr += findMemFor(base);
             } else {
@@ -559,7 +563,7 @@ namespace nanojit
         }
 
         Register rb;
-        if (base->isop(LIR_alloc)) {
+        if (base->isop(LIR_ialloc)) {
             rb = FP;
             dr += findMemFor(base);
         } else {
@@ -813,7 +817,7 @@ namespace nanojit
             break;
         case LIR_add:
         case LIR_iaddp:
-            if (lhs->isop(LIR_alloc) && rhs->isconst()) {
+            if (lhs->isop(LIR_ialloc) && rhs->isconst()) {
                 // add alloc+const, use lea
                 Register rr = prepResultReg(ins, allow);
                 int d = findMemFor(lhs) + rhs->imm32();
@@ -1266,7 +1270,7 @@ namespace nanojit
                         if (rA->reg == UnknownReg) {
                             // load it into the arg reg
                             int d = findMemFor(p);
-                            if (p->isop(LIR_alloc)) {
+                            if (p->isop(LIR_ialloc)) {
                                 LEA(r, d, FP);
                             } else {
                                 LD(r, d, FP);
@@ -1303,7 +1307,7 @@ namespace nanojit
             // small const we push directly
             PUSHi(p->imm32());
         }
-        else if (rA == 0 || p->isop(LIR_alloc))
+        else if (rA == 0 || p->isop(LIR_ialloc))
         {
             Register ra = findRegFor(p, GpRegs);
             PUSHr(ra);

@@ -173,7 +173,7 @@ namespace nanojit
      * they can just be recalculated w/out any inputs.
      */
     bool Assembler::canRemat(LIns *i) {
-        return i->isconst() || i->isconstq() || i->isop(LIR_alloc);
+        return i->isconst() || i->isconstq() || i->isop(LIR_ialloc);
     }
 
     void Assembler::codeAlloc(NIns *&start, NIns *&end, NIns *&eip)
@@ -239,7 +239,7 @@ namespace nanojit
             Reservation *r = getresv(ins);
             NanoAssert(r != 0);
             if (r->arIndex) {
-                if (ins->isop(LIR_alloc)) {
+                if (ins->isop(LIR_ialloc)) {
                     int j=i+1;
                     for (int n = i + (ins->size()>>2); j < n; j++) {
                         NanoAssert(ar.entry[j]==ins);
@@ -325,7 +325,7 @@ namespace nanojit
 
     Register Assembler::getBaseReg(LIns *i, int &d, RegisterMask allow)
     {
-        if (i->isop(LIR_alloc)) {
+        if (i->isop(LIR_ialloc)) {
             d += findMemFor(i);
             return FP;
         } else {
@@ -335,7 +335,7 @@ namespace nanojit
 
     Register Assembler::findRegFor(LIns* i, RegisterMask allow)
     {
-        if (i->isop(LIR_alloc)) {
+        if (i->isop(LIR_ialloc)) {
             // never allocate a reg for this w/out stack space too
             findMemFor(i);
         }
@@ -468,9 +468,11 @@ namespace nanojit
             return;
         Fragment *frag = lr->exit->target;
         NanoAssert(frag->fragEntry != 0);
-        nPatchBranch((NIns*)lr->jmp, frag->fragEntry);
-        verbose_only(verbose_outputf("patching jump at %p to target %p\n",
-            lr->jmp, frag->fragEntry);)
+        NIns* was = nPatchBranch((NIns*)lr->jmp, frag->fragEntry);
+        NanoAssert(frag->fragEntry != was);
+        verbose_only(verbose_outputf("patching jump at %p to target %p (was %p)\n",
+            lr->jmp, frag->fragEntry, was);)
+        (void)was;
     }
 
     void Assembler::patch(SideExit *exit)
@@ -937,7 +939,7 @@ namespace nanojit
 
                 // allocate some stack space.  the value of this instruction
                 // is the address of the stack space.
-                case LIR_alloc: {
+                case LIR_ialloc: {
                     countlir_alloc();
                     Reservation *resv = getresv(ins);
                     NanoAssert(resv->arIndex != 0);
@@ -1475,7 +1477,7 @@ namespace nanojit
     uint32_t Assembler::arReserve(LIns* l)
     {
         //verbose_only(printActivationState());
-        int32_t size = l->isop(LIR_alloc) ? (l->size()>>2) : l->isQuad() ? 2 : sizeof(intptr_t)>>2;
+        int32_t size = l->isop(LIR_ialloc) ? (l->size()>>2) : l->isQuad() ? 2 : sizeof(intptr_t)>>2;
         AR &ar = _activation;
         const int32_t tos = ar.tos;
         int32_t start = ar.lowwatermark;

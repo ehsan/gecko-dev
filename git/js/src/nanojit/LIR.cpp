@@ -270,7 +270,7 @@ namespace nanojit
         size = (size+3)>>2; // # of required 32bit words
         LInsI* insI = (LInsI*)_buf->makeRoom(sizeof(LInsI));
         LIns*  ins  = insI->getLIns();
-        ins->initLInsI(LIR_alloc, size);
+        ins->initLInsI(LIR_ialloc, size);
         return ins;
     }
 
@@ -1682,7 +1682,7 @@ namespace nanojit
                 break;
             }
 
-            case LIR_alloc: {
+            case LIR_ialloc: {
                 VMPI_sprintf(s, "%s = %s %d", formatRef(i), lirNames[op], i->size());
                 break;
             }

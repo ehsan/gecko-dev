@@ -325,8 +325,11 @@ static const JSDHashTableOps StringHashOps = {
 static JSDHashNumber
 HashDouble(JSDHashTable *table, const void *key)
 {
+    jsdouble d;
+
     JS_ASSERT(IS_DOUBLE_TABLE(table));
-    return JS_HASH_DOUBLE(*(jsdouble *)key);
+    d = *(jsdouble *)key;
+    return JSDOUBLE_HI32(d) ^ JSDOUBLE_LO32(d);
 }
 
 static JSDHashNumber
