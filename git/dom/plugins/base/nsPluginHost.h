@@ -205,8 +205,6 @@ public:
                      const nsAString& browserDumpID);
 
   nsNPAPIPluginInstance *FindInstance(const char *mimetype);
-  nsNPAPIPluginInstance *FindOldestStoppedInstance();
-  PRUint32 StoppedInstanceCount();
 
   nsTArray< nsRefPtr<nsNPAPIPluginInstance> > *InstanceArray();
 
