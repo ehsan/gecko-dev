@@ -51,7 +51,6 @@
 
 #include "base/process_util.h"
 
-#include "mozilla/Preferences.h"
 #include "mozilla/unused.h"
 #include "mozilla/ipc/SyncChannel.h"
 #include "mozilla/plugins/PluginModuleParent.h"
@@ -72,7 +71,6 @@ using base::KillProcess;
 using mozilla::PluginLibrary;
 using mozilla::ipc::SyncChannel;
 
-using namespace mozilla;
 using namespace mozilla::plugins;
 
 static const char kTimeoutPref[] = "dom.ipc.plugins.timeoutSecs";
@@ -92,7 +90,7 @@ PluginModuleParent::LoadModule(const char* aFilePath)
 {
     PLUGIN_LOG_DEBUG_FUNCTION;
 
-    PRInt32 prefSecs = Preferences::GetInt(kLaunchTimeoutPref, 0);
+    PRInt32 prefSecs = nsContentUtils::GetIntPref(kLaunchTimeoutPref, 0);
 
     // Block on the child process being launched and initialized.
     nsAutoPtr<PluginModuleParent> parent(new PluginModuleParent(aFilePath));
@@ -225,7 +223,7 @@ PluginModuleParent::TimeoutChanged(const char* aPref, void* aModule)
     NS_ABORT_IF_FALSE(!strcmp(aPref, kTimeoutPref),
                       "unexpected pref callback");
 
-    PRInt32 timeoutSecs = Preferences::GetInt(kTimeoutPref, 0);
+    PRInt32 timeoutSecs = nsContentUtils::GetIntPref(kTimeoutPref, 0);
     int32 timeoutMs = (timeoutSecs > 0) ? (1000 * timeoutSecs) :
                       SyncChannel::kNoTimeout;
 

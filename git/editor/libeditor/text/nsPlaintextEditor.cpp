@@ -79,7 +79,6 @@
 #include "nsEventDispatcher.h"
 #include "nsGkAtoms.h"
 #include "nsDebug.h"
-#include "mozilla/Preferences.h"
 
 // Drag & Drop, Clipboard
 #include "nsIClipboard.h"
@@ -87,8 +86,6 @@
 #include "nsCopySupport.h"
 
 #include "mozilla/FunctionTimer.h"
-
-using namespace mozilla;
 
 nsPlaintextEditor::nsPlaintextEditor()
 : nsEditor()
@@ -174,11 +171,10 @@ static int
 EditorPrefsChangedCallback(const char *aPrefName, void *)
 {
   if (nsCRT::strcmp(aPrefName, "editor.singleLine.pasteNewlines") == 0) {
-    sNewlineHandlingPref =
-      Preferences::GetInt("editor.singleLine.pasteNewlines",
-                          nsIPlaintextEditor::eNewlinesPasteToFirst);
+    sNewlineHandlingPref = nsContentUtils::GetIntPref("editor.singleLine.pasteNewlines",
+                                                      nsIPlaintextEditor::eNewlinesPasteToFirst);
   } else if (nsCRT::strcmp(aPrefName, "layout.selection.caret_style") == 0) {
-    sCaretStylePref = Preferences::GetInt("layout.selection.caret_style",
+    sCaretStylePref = nsContentUtils::GetIntPref("layout.selection.caret_style",
 #ifdef XP_WIN
                                                  1);
     if (sCaretStylePref == 0)

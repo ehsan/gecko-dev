@@ -58,9 +58,6 @@
 #include "nsIDOMElement.h"
 
 #include "nsContentUtils.h"
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 
 /*
  * nsMenuBarListener implementation
@@ -123,7 +120,7 @@ void nsMenuBarListener::InitAccessKey()
 #endif
 
   // Get the menu access key value from prefs, overriding the default:
-  mAccessKey = Preferences::GetInt("ui.key.menuAccessKey", mAccessKey);
+  mAccessKey = nsContentUtils::GetIntPref("ui.key.menuAccessKey", mAccessKey);
   if (mAccessKey == nsIDOMKeyEvent::DOM_VK_SHIFT)
     mAccessKeyMask = MODIFIER_SHIFT;
   else if (mAccessKey == nsIDOMKeyEvent::DOM_VK_CONTROL)
@@ -133,7 +130,8 @@ void nsMenuBarListener::InitAccessKey()
   else if (mAccessKey == nsIDOMKeyEvent::DOM_VK_META)
     mAccessKeyMask = MODIFIER_META;
 
-  mAccessKeyFocuses = Preferences::GetBool("ui.key.menuAccessKeyFocuses");
+  mAccessKeyFocuses =
+    nsContentUtils::GetBoolPref("ui.key.menuAccessKeyFocuses");
 }
 
 void

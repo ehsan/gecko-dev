@@ -211,11 +211,8 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #endif
 #include "nsDOMTouchEvent.h"
 
-#include "mozilla/Preferences.h"
-
 using namespace mozilla::dom;
 using namespace mozilla::layers;
-using namespace mozilla;
 
 const char kLoadAsData[] = "loadAsData";
 
@@ -2612,6 +2609,34 @@ nsContentUtils::GetCharPref(const char *aPref)
 }
 
 // static
+PRPackedBool
+nsContentUtils::GetBoolPref(const char *aPref, PRBool aDefault)
+{
+  PRBool result;
+
+  if (!sPrefBranch ||
+      NS_FAILED(sPrefBranch->GetBoolPref(aPref, &result))) {
+    result = aDefault;
+  }
+
+  return (PRPackedBool)result;
+}
+
+// static
+PRInt32
+nsContentUtils::GetIntPref(const char *aPref, PRInt32 aDefault)
+{
+  PRInt32 result;
+
+  if (!sPrefBranch ||
+      NS_FAILED(sPrefBranch->GetIntPref(aPref, &result))) {
+    result = aDefault;
+  }
+
+  return result;
+}
+
+// static
 nsAdoptingString
 nsContentUtils::GetLocalizedStringPref(const char *aPref)
 {
@@ -2709,8 +2734,8 @@ BoolVarChanged(const char *aPref, void *aClosure)
 {
   PrefCacheData* cache = static_cast<PrefCacheData*>(aClosure);
   *((PRBool*)cache->cacheLocation) =
-    Preferences::GetBool(aPref, cache->defaultValueBool);
-
+    nsContentUtils::GetBoolPref(aPref, cache->defaultValueBool);
+  
   return 0;
 }
 
@@ -2719,7 +2744,7 @@ nsContentUtils::AddBoolPrefVarCache(const char *aPref,
                                     PRBool* aCache,
                                     PRBool aDefault)
 {
-  *aCache = Preferences::GetBool(aPref, aDefault);
+  *aCache = GetBoolPref(aPref, aDefault);
   PrefCacheData* data = new PrefCacheData;
   data->cacheLocation = aCache;
   data->defaultValueBool = aDefault;
@@ -2732,7 +2757,7 @@ IntVarChanged(const char *aPref, void *aClosure)
 {
   PrefCacheData* cache = static_cast<PrefCacheData*>(aClosure);
   *((PRInt32*)cache->cacheLocation) =
-    Preferences::GetInt(aPref, cache->defaultValueInt);
+    nsContentUtils::GetIntPref(aPref, cache->defaultValueInt);
   
   return 0;
 }
@@ -2742,7 +2767,7 @@ nsContentUtils::AddIntPrefVarCache(const char *aPref,
                                    PRInt32* aCache,
                                    PRInt32 aDefault)
 {
-  *aCache = Preferences::GetInt(aPref, aDefault);
+  *aCache = GetIntPref(aPref, aDefault);
   PrefCacheData* data = new PrefCacheData;
   data->cacheLocation = aCache;
   data->defaultValueInt = aDefault;

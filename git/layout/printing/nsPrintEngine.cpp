@@ -123,7 +123,6 @@ static const char kPrintingPromptService[] = "@mozilla.org/embedcomp/printingpro
 #include "nsContentUtils.h"
 #include "nsIPresShell.h"
 #include "nsLayoutUtils.h"
-#include "mozilla/Preferences.h"
 
 #include "nsViewsCID.h"
 #include "nsWidgetsCID.h"
@@ -166,7 +165,6 @@ static const char kPrintingPromptService[] = "@mozilla.org/embedcomp/printingpro
 #include "nsIURIFixup.h"
 #include "mozilla/dom/Element.h"
 
-using namespace mozilla;
 using namespace mozilla::dom;
 
 //-----------------------------------------------------
@@ -599,8 +597,8 @@ nsPrintEngine::DoCommonPrint(PRBool                  aIsPrintPreview,
     mPrt->mPrintSettings->GetPrintSilent(&printSilently);
 
     // Check prefs for a default setting as to whether we should print silently
-    printSilently =
-      Preferences::GetBool("print.always_print_silent", printSilently);
+    printSilently = nsContentUtils::GetBoolPref("print.always_print_silent",
+                                                printSilently);
 
     // Ask dialog to be Print Shown via the Plugable Printing Dialog Service
     // This service is for the Print Dialog and the Print Progress Dialog
@@ -1014,7 +1012,8 @@ nsPrintEngine::ShowPrintProgress(PRBool aIsForPrinting, PRBool& aDoNotify)
   // if it is already being shown then don't bother to find out if it should be
   // so skip this and leave mShowProgressDialog set to FALSE
   if (!mProgressDialogIsShown) {
-    showProgresssDialog = Preferences::GetBool("print.show_print_progress");
+    showProgresssDialog =
+      nsContentUtils::GetBoolPref("print.show_print_progress");
   }
 
   // Turning off the showing of Print Progress in Prefs overrides

@@ -68,7 +68,6 @@
 #include "nsMenuPopupFrame.h"
 #include "nsTextFragment.h"
 #include "nsThemeConstants.h"
-#include "mozilla/Preferences.h"
 
 // The bidi indicator hangs off the caret to one side, to show which
 // direction the typing is in. It needs to be at least 2x2 to avoid looking like 
@@ -79,8 +78,6 @@ static const PRInt32 kMinBidiIndicatorPixels = 2;
 #include "nsIBidiKeyboard.h"
 #include "nsContentUtils.h"
 #endif //IBMBIDI
-
-using namespace mozilla;
 
 /**
  * Find the first frame in an in-order traversal of the frame subtree rooted
@@ -228,7 +225,7 @@ nsresult nsCaret::Init(nsIPresShell *inPresShell)
     StartBlinking();
   }
 #ifdef IBMBIDI
-  mBidiUI = Preferences::GetBool("bidi.browser.ui");
+  mBidiUI = nsContentUtils::GetBoolPref("bidi.browser.ui");
 #endif
 
   return NS_OK;

@@ -71,7 +71,6 @@
 #include "nsXPCOMCIDInternal.h"
 #include "pratom.h"
 #include "prthread.h"
-#include "mozilla/Preferences.h"
 
 // DOMWorker includes
 #include "nsDOMWorker.h"
@@ -1594,7 +1593,7 @@ nsDOMThreadService::PrefCallback(const char* aPrefName,
     // some wacky platform then the worst that could happen is that the close
     // handler will run for a slightly different amount of time.
     PRUint32 timeoutMS =
-      Preferences::GetUint(aPrefName, gWorkerCloseHandlerTimeoutMS);
+      nsContentUtils::GetIntPref(aPrefName, gWorkerCloseHandlerTimeoutMS);
 
     // We must have a timeout value, 0 is not ok. If the pref is set to 0 then
     // fall back to our default.

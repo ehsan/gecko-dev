@@ -90,9 +90,8 @@
 #include "nsThemeConstants.h"
 #include "nsPLDOMEvent.h"
 #include "nsRenderingContext.h"
-#include "mozilla/Preferences.h"
 
-using namespace mozilla;
+namespace dom = mozilla::dom;
 
 NS_IMETHODIMP
 nsComboboxControlFrame::RedisplayTextEvent::Run()
@@ -1519,6 +1518,6 @@ nsComboboxControlFrame::RestoreState(nsPresState* aState)
 PRBool
 nsComboboxControlFrame::ToolkitHasNativePopup()
 {
-  return Preferences::GetBool("ui.use_native_popup_windows");
+  return nsContentUtils::GetBoolPref("ui.use_native_popup_windows");
 }
 

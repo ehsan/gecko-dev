@@ -86,9 +86,6 @@
 #include "nsIScreenManager.h"
 #include "nsIServiceManager.h"
 #include "nsThemeConstants.h"
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 
 PRInt8 nsMenuPopupFrame::sDefaultLevelIsTop = -1;
 
@@ -133,7 +130,7 @@ nsMenuPopupFrame::nsMenuPopupFrame(nsIPresShell* aShell, nsStyleContext* aContex
   if (sDefaultLevelIsTop >= 0)
     return;
   sDefaultLevelIsTop =
-    Preferences::GetBool("ui.panel.default_level_parent", PR_FALSE);
+    nsContentUtils::GetBoolPref("ui.panel.default_level_parent", PR_FALSE);
 } // ctor
 
 

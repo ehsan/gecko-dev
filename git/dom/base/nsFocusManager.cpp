@@ -85,14 +85,12 @@
 #include "nsIPrincipal.h"
 #include "mozilla/dom/Element.h"
 #include "mozAutoDocUpdate.h"
-#include "mozilla/Preferences.h"
 
 #ifdef MOZ_XUL
 #include "nsIDOMXULTextboxElement.h"
 #include "nsIDOMXULMenuListElement.h"
 #endif
 
-using namespace mozilla;
 using namespace mozilla::dom;
 
 //#define DEBUG_FOCUS 1
@@ -190,11 +188,11 @@ nsFocusManager::Init()
   sInstance = fm;
 
   nsIContent::sTabFocusModelAppliesToXUL =
-    Preferences::GetBool("accessibility.tabfocus_applies_to_xul",
-                         nsIContent::sTabFocusModelAppliesToXUL);
+    nsContentUtils::GetBoolPref("accessibility.tabfocus_applies_to_xul",
+                                nsIContent::sTabFocusModelAppliesToXUL);
 
   sMouseFocusesFormControl =
-    Preferences::GetBool("accessibility.mouse_focuses_formcontrol", PR_FALSE);
+    nsContentUtils::GetBoolPref("accessibility.mouse_focuses_formcontrol", PR_FALSE);
 
   nsIPrefBranch2* prefBranch = nsContentUtils::GetPrefBranch();
   if (prefBranch) {
@@ -230,13 +228,12 @@ nsFocusManager::Observe(nsISupports *aSubject,
     }
     else if (data.EqualsLiteral("accessibility.tabfocus_applies_to_xul")) {
       nsIContent::sTabFocusModelAppliesToXUL =
-        Preferences::GetBool("accessibility.tabfocus_applies_to_xul",
-                             nsIContent::sTabFocusModelAppliesToXUL);
+        nsContentUtils::GetBoolPref("accessibility.tabfocus_applies_to_xul",
+                                    nsIContent::sTabFocusModelAppliesToXUL);
     }
     else if (data.EqualsLiteral("accessibility.mouse_focuses_formcontrol")) {
       sMouseFocusesFormControl =
-        Preferences::GetBool("accessibility.mouse_focuses_formcontrol",
-                             PR_FALSE);
+        nsContentUtils::GetBoolPref("accessibility.mouse_focuses_formcontrol", PR_FALSE);
     }
   } else if (!nsCRT::strcmp(aTopic, "xpcom-shutdown")) {
     mActiveWindow = nsnull;
@@ -1958,7 +1955,7 @@ nsFocusManager::UpdateCaret(PRBool aMoveCaretToFocus,
     return;  // Never browse with caret in chrome
 
   PRPackedBool browseWithCaret =
-    Preferences::GetBool("accessibility.browsewithcaret");
+    nsContentUtils::GetBoolPref("accessibility.browsewithcaret");
 
   nsCOMPtr<nsIPresShell> presShell;
   focusedDocShell->GetPresShell(getter_AddRefs(presShell));

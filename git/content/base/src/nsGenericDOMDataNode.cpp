@@ -846,6 +846,52 @@ nsGenericDOMDataNode::SplitText(PRUint32 aOffset, nsIDOMText** aReturn)
   return rv;
 }
 
+//----------------------------------------------------------------------
+
+// Implementation of the nsGenericDOMDataNode nsIDOM3Text tearoff
+
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsText3Tearoff)
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsText3Tearoff)
+  NS_INTERFACE_MAP_ENTRY(nsIDOM3Text)
+NS_INTERFACE_MAP_END_AGGREGATED(mNode)
+
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsText3Tearoff)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mNode)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsText3Tearoff)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mNode, nsIContent)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+
+NS_IMPL_CYCLE_COLLECTING_ADDREF(nsText3Tearoff)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(nsText3Tearoff)
+
+NS_IMETHODIMP
+nsText3Tearoff::GetIsElementContentWhitespace(PRBool *aReturn)
+{
+  *aReturn = mNode->IsElementContentWhitespace();
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsText3Tearoff::GetWholeText(nsAString& aWholeText)
+{
+  return mNode->GetWholeText(aWholeText);
+}
+
+NS_IMETHODIMP
+nsText3Tearoff::ReplaceWholeText(const nsAString& aContent,
+                                 nsIDOMText **aReturn)
+{
+  nsresult rv;
+  nsIContent* result = mNode->ReplaceWholeText(PromiseFlatString(aContent),
+                                               &rv);
+  return result ? CallQueryInterface(result, aReturn) : rv;
+}
+
+// Implementation of the nsIDOM3Text interface
+
 /* static */ PRInt32
 nsGenericDOMDataNode::FirstLogicallyAdjacentTextNode(nsIContent* aParent,
                                                      PRInt32 aIndex)
@@ -872,7 +918,7 @@ nsGenericDOMDataNode::LastLogicallyAdjacentTextNode(nsIContent* aParent,
 }
 
 nsresult
-nsGenericDOMDataNode::GetWholeText(nsAString& aWholeText)
+nsGenericTextNode::GetWholeText(nsAString& aWholeText)
 {
   nsIContent* parent = GetParent();
 
@@ -903,21 +949,21 @@ nsGenericDOMDataNode::GetWholeText(nsAString& aWholeText)
   return NS_OK;
 }
 
-nsresult
-nsGenericDOMDataNode::ReplaceWholeText(const nsAString& aContent,
-                                       nsIDOMText **aResult)
+nsIContent*
+nsGenericTextNode::ReplaceWholeText(const nsAFlatString& aContent,
+                                    nsresult* aResult)
 {
-  *aResult = nsnull;
+  *aResult = NS_OK;
 
   // Handle parent-less nodes
   nsCOMPtr<nsIContent> parent = GetParent();
   if (!parent) {
     if (aContent.IsEmpty()) {
-      return NS_OK;
+      return nsnull;
     }
 
     SetNodeValue(aContent);
-    return CallQueryInterface(this, aResult);
+    return this;
   }
 
   // We're relying on mozAutoSubtreeModified to keep the doc alive here.
@@ -930,7 +976,8 @@ nsGenericDOMDataNode::ReplaceWholeText(const nsAString& aContent,
   if (index < 0) {
     NS_WARNING("Trying to use .replaceWholeText with an anonymous text node "
                "child of a binding parent?");
-    return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
+    *aResult = NS_ERROR_DOM_NOT_SUPPORTED_ERR;
+    return nsnull;
   }
 
   // We don't support entity references or read-only nodes, so remove the
@@ -969,11 +1016,11 @@ nsGenericDOMDataNode::ReplaceWholeText(const nsAString& aContent,
 
   // Empty string means we removed this node too.
   if (aContent.IsEmpty()) {
-    return NS_OK;
+    return nsnull;
   }
 
-  SetText(aContent.BeginReading(), aContent.Length(), PR_TRUE);
-  return CallQueryInterface(this, aResult);
+  SetText(aContent.get(), aContent.Length(), PR_TRUE);
+  return this;
 }
 
 //----------------------------------------------------------------------

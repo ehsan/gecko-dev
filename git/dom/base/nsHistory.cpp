@@ -60,9 +60,6 @@
 #include "nsContentUtils.h"
 #include "nsIDOMNSDocument.h"
 #include "nsISHistoryInternal.h"
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 
 static const char* sAllowPushStatePrefStr  =
   "browser.history.allowPushState";
@@ -290,9 +287,8 @@ nsHistory::PushState(nsIVariant *aData, const nsAString& aTitle,
                      const nsAString& aURL, JSContext* aCx)
 {
   // Check that PushState hasn't been pref'ed off.
-  if (!Preferences::GetBool(sAllowPushStatePrefStr, PR_FALSE)) {
+  if (!nsContentUtils::GetBoolPref(sAllowPushStatePrefStr, PR_FALSE))
     return NS_OK;
-  }
 
   nsCOMPtr<nsPIDOMWindow> win(do_QueryReferent(mInnerWindow));
   if (!win)
@@ -320,9 +316,8 @@ nsHistory::ReplaceState(nsIVariant *aData, const nsAString& aTitle,
                         const nsAString& aURL, JSContext* aCx)
 {
   // Check that ReplaceState hasn't been pref'ed off
-  if (!Preferences::GetBool(sAllowReplaceStatePrefStr, PR_FALSE)) {
+  if (!nsContentUtils::GetBoolPref(sAllowReplaceStatePrefStr, PR_FALSE))
     return NS_OK;
-  }
 
   nsCOMPtr<nsPIDOMWindow> win(do_QueryReferent(mInnerWindow));
   if (!win)

@@ -114,8 +114,6 @@
 #include "TabParent.h"
 #include "mozilla/layout/RenderFrameParent.h"
 
-#include "mozilla/Preferences.h"
-
 using namespace mozilla;
 using namespace mozilla::dom;
 using namespace mozilla::layers;
@@ -1348,8 +1346,8 @@ nsFrameLoader::ShouldUseRemoteProcess()
     return false;
   }
 
-  PRBool remoteDisabled =
-    Preferences::GetBool("dom.ipc.tabs.disabled", PR_FALSE);
+  PRBool remoteDisabled = nsContentUtils::GetBoolPref("dom.ipc.tabs.disabled",
+                                                      PR_FALSE);
   if (remoteDisabled) {
     return false;
   }
@@ -1368,7 +1366,8 @@ nsFrameLoader::ShouldUseRemoteProcess()
     return true;
   }
 
-  PRBool remoteEnabled = Preferences::GetBool("dom.ipc.tabs.enabled", PR_FALSE);
+  PRBool remoteEnabled = nsContentUtils::GetBoolPref("dom.ipc.tabs.enabled",
+                                                     PR_FALSE);
   return (bool) remoteEnabled;
 }
 
