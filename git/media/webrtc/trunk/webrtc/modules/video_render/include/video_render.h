@@ -25,6 +25,10 @@
 
 namespace webrtc {
 
+#if defined(WEBRTC_ANDROID) && !defined(WEBRTC_CHROMIUM_BUILD)
+int32_t SetRenderAndroidVM(void* javaVM);
+#endif
+
 // Class definitions
 class VideoRender: public Module
 {
@@ -57,10 +61,10 @@ public:
      *
      *   id      - new unique identifier of this video render module object
      */
-    virtual int32_t ChangeUniqueId(const int32_t id) OVERRIDE = 0;
+    virtual int32_t ChangeUniqueId(const int32_t id) = 0;
 
-    virtual int32_t TimeUntilNextProcess() OVERRIDE = 0;
-    virtual int32_t Process() OVERRIDE = 0;
+    virtual int32_t TimeUntilNextProcess() = 0;
+    virtual int32_t Process() = 0;
 
     /**************************************************************************
      *

@@ -20,12 +20,23 @@ namespace webrtc {
 class VoERTP_RTCPImpl : public VoERTP_RTCP
 {
 public:
+    // Registration of observers for RTP and RTCP callbacks
+    virtual int RegisterRTPObserver(int channel, VoERTPObserver& observer);
+
+    virtual int DeRegisterRTPObserver(int channel);
+
+    virtual int RegisterRTCPObserver(int channel, VoERTCPObserver& observer);
+
+    virtual int DeRegisterRTCPObserver(int channel);
+
     // RTCP
     virtual int SetRTCPStatus(int channel, bool enable);
 
     virtual int GetRTCPStatus(int channel, bool& enabled);
 
     virtual int SetRTCP_CNAME(int channel, const char cName[256]);
+
+    virtual int GetRTCP_CNAME(int channel, char cName[256]);
 
     virtual int GetRemoteRTCP_CNAME(int channel, char cName[256]);
 
@@ -39,6 +50,13 @@ public:
                                           uint32_t& cumulativeLost,
                                           int32_t& rttMs);
 
+    virtual int SendApplicationDefinedRTCPPacket(
+        int channel,
+        unsigned char subType,
+        unsigned int name,
+        const char* data,
+        unsigned short dataLengthInBytes);
+
     // SSRC
     virtual int SetLocalSSRC(int channel, unsigned int ssrc);
 
@@ -47,20 +65,16 @@ public:
     virtual int GetRemoteSSRC(int channel, unsigned int& ssrc);
 
     // RTP Header Extension for Client-to-Mixer Audio Level Indication
-    virtual int SetSendAudioLevelIndicationStatus(int channel,
-                                                  bool enable,
-                                                  unsigned char id);
-    virtual int SetReceiveAudioLevelIndicationStatus(int channel,
-                                                     bool enable,
-                                                     unsigned char id);
+    virtual int SetRTPAudioLevelIndicationStatus(int channel,
+                                                 bool enable,
+                                                 unsigned char ID);
 
-    // RTP Header Extension for Absolute Sender Time
-    virtual int SetSendAbsoluteSenderTimeStatus(int channel,
-                                                bool enable,
-                                                unsigned char id);
-    virtual int SetReceiveAbsoluteSenderTimeStatus(int channel,
-                                                   bool enable,
-                                                   unsigned char id);
+    virtual int GetRTPAudioLevelIndicationStatus(int channel,
+                                                 bool& enabled,
+                                                 unsigned char& ID);
+
+    // CSRC 
+    virtual int GetRemoteCSRCs(int channel, unsigned int arrCSRC[15]);
 
     // Statistics
     virtual int GetRTPStatistics(int channel,
@@ -71,15 +85,17 @@ public:
 
     virtual int GetRTCPStatistics(int channel, CallStatistics& stats);
 
+    virtual int GetRemoteRTCPSenderInfo(int channel, SenderInfo* sender_info);
+
     virtual int GetRemoteRTCPReportBlocks(
         int channel, std::vector<ReportBlock>* report_blocks);
 
-    // RED
-    virtual int SetREDStatus(int channel,
+    // FEC
+    virtual int SetFECStatus(int channel,
                              bool enable,
                              int redPayloadtype = -1);
 
-    virtual int GetREDStatus(int channel, bool& enabled, int& redPayloadtype);
+    virtual int GetFECStatus(int channel, bool& enabled, int& redPayloadtype);
 
     //NACK
     virtual int SetNACKStatus(int channel,
@@ -97,8 +113,14 @@ public:
     virtual int RTPDumpIsActive(int channel,
                                 RTPDirections direction = kRtpIncoming);
 
-    virtual int SetVideoEngineBWETarget(int channel, ViENetwork* vie_network,
-                                        int video_channel);
+    // Insert (and transmits) extra RTP packet into active RTP audio stream
+    virtual int InsertExtraRTPPacket(int channel,
+                                     unsigned char payloadType,
+                                     bool markerBit,
+                                     const char* payloadData,
+                                     unsigned short payloadSize);
+    virtual int GetLastRemoteTimeStamp(int channel,
+                                       uint32_t* lastRemoteTimeStamp);
 protected:
     VoERTP_RTCPImpl(voe::SharedData* shared);
     virtual ~VoERTP_RTCPImpl();

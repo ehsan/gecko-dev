@@ -46,6 +46,7 @@ _payloadType(0),
 _loadGenerator(NULL),
 _isSender(false),
 _isReceiver(false),
+_timeOut(false),
 _sendRecCB(NULL),
 _lastBytesReceived(0),
 _lastTime(-1)
@@ -288,6 +289,22 @@ int32_t TestSenderReceiver::SetPacketTimeout(const uint32_t timeoutMS)
     return (_rtp->SetPacketTimeout(timeoutMS, 0 /* RTCP timeout */));
 }
 
+
+void TestSenderReceiver::OnPacketTimeout(const int32_t id)
+{
+    CriticalSectionScoped lock(_critSect);
+
+    _timeOut = true;
+}
+
+
+void TestSenderReceiver::OnReceivedPacket(const int32_t id,
+                                    const RtpRtcpPacketType packetType)
+{
+    // do nothing
+    //printf("OnReceivedPacket\n");
+
+}
 
 int32_t TestSenderReceiver::OnReceivedPayloadData(const uint8_t* payloadData,
                                                   const uint16_t payloadSize,

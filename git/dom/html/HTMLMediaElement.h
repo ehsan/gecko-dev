@@ -533,7 +533,6 @@ public:
     mIsCasting = aShow;
   }
 
-  already_AddRefed<MediaSource> GetMozMediaSourceObject() const;
   already_AddRefed<DOMMediaStream> GetMozSrcObject() const;
 
   void SetMozSrcObject(DOMMediaStream& aValue);

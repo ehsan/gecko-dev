@@ -25,30 +25,23 @@ const char* Version();
 
 class PacketReceiver {
  public:
-  enum DeliveryStatus {
-    DELIVERY_OK,
-    DELIVERY_UNKNOWN_SSRC,
-    DELIVERY_PACKET_ERROR,
-  };
-
-  virtual DeliveryStatus DeliverPacket(const uint8_t* packet,
-                                       size_t length) = 0;
+  virtual bool DeliverPacket(const uint8_t* packet, size_t length) = 0;
 
  protected:
   virtual ~PacketReceiver() {}
 };
 
 // Callback interface for reporting when a system overuse is detected.
-class LoadObserver {
+// The detection is based on the jitter of incoming captured frames.
+class OveruseCallback {
  public:
-  enum Load { kOveruse, kUnderuse };
-
-  // Triggered when overuse is detected or when we believe the system can take
-  // more load.
-  virtual void OnLoadUpdate(Load load) = 0;
+  // Called as soon as an overuse is detected.
+  virtual void OnOveruse() = 0;
+  // Called periodically when the system is not overused any longer.
+  virtual void OnNormalUse() = 0;
 
  protected:
-  virtual ~LoadObserver() {}
+  virtual ~OveruseCallback() {}
 };
 
 // A Call instance can contain several send and/or receive streams. All streams
@@ -56,19 +49,14 @@ class LoadObserver {
 // etc.
 class Call {
  public:
-  enum NetworkState {
-    kNetworkUp,
-    kNetworkDown,
-  };
   struct Config {
     explicit Config(newapi::Transport* send_transport)
         : webrtc_config(NULL),
           send_transport(send_transport),
           voice_engine(NULL),
-          overuse_callback(NULL),
-          stream_start_bitrate_bps(kDefaultStartBitrateBps) {}
-
-    static const int kDefaultStartBitrateBps;
+          trace_callback(NULL),
+          trace_filter(kTraceDefault),
+          overuse_callback(NULL) {}
 
     webrtc::Config* webrtc_config;
 
@@ -77,23 +65,12 @@ class Call {
     // VoiceEngine used for audio/video synchronization for this Call.
     VoiceEngine* voice_engine;
 
+    TraceCallback* trace_callback;
+    uint32_t trace_filter;
+
     // Callback for overuse and normal usage based on the jitter of incoming
     // captured frames. 'NULL' disables the callback.
-    LoadObserver* overuse_callback;
-
-    // Start bitrate used before a valid bitrate estimate is calculated.
-    // Note: This is currently set only for video and is per-stream rather of
-    // for the entire link.
-    // TODO(pbos): Set start bitrate for entire Call.
-    int stream_start_bitrate_bps;
-  };
-
-  struct Stats {
-    Stats() : send_bandwidth_bps(0), recv_bandwidth_bps(0), pacer_delay_ms(0) {}
-
-    int send_bandwidth_bps;
-    int recv_bandwidth_bps;
-    int pacer_delay_ms;
+    OveruseCallback* overuse_callback;
   };
 
   static Call* Create(const Call::Config& config);
@@ -101,11 +78,16 @@ class Call {
   static Call* Create(const Call::Config& config,
                       const webrtc::Config& webrtc_config);
 
+  virtual std::vector<VideoCodec> GetVideoCodecs() = 0;
+
+  virtual VideoSendStream::Config GetDefaultSendConfig() = 0;
+
   virtual VideoSendStream* CreateVideoSendStream(
-      const VideoSendStream::Config& config,
-      const VideoEncoderConfig& encoder_config) = 0;
+      const VideoSendStream::Config& config) = 0;
 
   virtual void DestroyVideoSendStream(VideoSendStream* send_stream) = 0;
+
+  virtual VideoReceiveStream::Config GetDefaultReceiveConfig() = 0;
 
   virtual VideoReceiveStream* CreateVideoReceiveStream(
       const VideoReceiveStream::Config& config) = 0;
@@ -117,11 +99,13 @@ class Call {
   // Call instance exists.
   virtual PacketReceiver* Receiver() = 0;
 
-  // Returns the call statistics, such as estimated send and receive bandwidth,
-  // pacing delay, etc.
-  virtual Stats GetStats() const = 0;
+  // Returns the estimated total send bandwidth. Note: this can differ from the
+  // actual encoded bitrate.
+  virtual uint32_t SendBitrateEstimate() = 0;
 
-  virtual void SignalNetworkState(NetworkState state) = 0;
+  // Returns the total estimated receive bandwidth for the call. Note: this can
+  // differ from the actual receive bitrate.
+  virtual uint32_t ReceiveBitrateEstimate() = 0;
 
   virtual ~Call() {}
 };

@@ -454,7 +454,8 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
     static bool slowPathOnLeaveFrame(JSContext *cx, AbstractFramePtr frame, bool ok);
     static JSTrapStatus slowPathOnDebuggerStatement(JSContext *cx, AbstractFramePtr frame);
     static JSTrapStatus slowPathOnExceptionUnwind(JSContext *cx, AbstractFramePtr frame);
-    static void slowPathOnNewScript(JSContext *cx, HandleScript script);
+    static void slowPathOnNewScript(JSContext *cx, HandleScript script,
+                                    GlobalObject *compileAndGoGlobal);
     static void slowPathOnNewGlobalObject(JSContext *cx, Handle<GlobalObject *> global);
     static bool slowPathOnLogAllocationSite(JSContext *cx, HandleSavedFrame frame,
                                             int64_t when, GlobalObject::DebuggerVector &dbgs);
@@ -599,7 +600,7 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
      */
     static inline bool onLeaveFrame(JSContext *cx, AbstractFramePtr frame, bool ok);
 
-    static inline void onNewScript(JSContext *cx, HandleScript script);
+    static inline void onNewScript(JSContext *cx, HandleScript script, GlobalObject *compileAndGoGlobal);
     static inline void onNewGlobalObject(JSContext *cx, Handle<GlobalObject *> global);
     static inline bool onLogAllocationSite(JSContext *cx, HandleSavedFrame frame, int64_t when);
     static JSTrapStatus onTrap(JSContext *cx, MutableHandleValue vp);
@@ -877,15 +878,18 @@ Debugger::observesGlobal(GlobalObject *global) const
 }
 
 /* static */ void
-Debugger::onNewScript(JSContext *cx, HandleScript script)
+Debugger::onNewScript(JSContext *cx, HandleScript script, GlobalObject *compileAndGoGlobal)
 {
+    MOZ_ASSERT_IF(script->compileAndGo(), compileAndGoGlobal);
+    MOZ_ASSERT_IF(script->compileAndGo(), compileAndGoGlobal == &script->uninlinedGlobal());
     // We early return in slowPathOnNewScript for self-hosted scripts, so we can
     // ignore those in our assertion here.
     MOZ_ASSERT_IF(!script->compartment()->options().invisibleToDebugger() &&
                   !script->selfHosted(),
                   script->compartment()->firedOnNewGlobalObject);
+    MOZ_ASSERT_IF(!script->compileAndGo(), !compileAndGoGlobal);
     if (script->compartment()->isDebuggee())
-        slowPathOnNewScript(cx, script);
+        slowPathOnNewScript(cx, script, compileAndGoGlobal);
 }
 
 /* static */ void

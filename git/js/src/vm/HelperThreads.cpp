@@ -932,7 +932,10 @@ GlobalHelperThreadState::finishParseTask(JSContext *maybecx, JSRuntime *rt, void
 
     if (script) {
         // The Debugger only needs to be told about the topmost script that was compiled.
-        Debugger::onNewScript(cx, script);
+        GlobalObject *compileAndGoGlobal = nullptr;
+        if (script->compileAndGo())
+            compileAndGoGlobal = &script->global();
+        Debugger::onNewScript(cx, script, compileAndGoGlobal);
 
         // Update the compressed source table with the result. This is normally
         // called by setCompressedSource when compilation occurs on the main thread.

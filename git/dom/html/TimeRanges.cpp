@@ -98,7 +98,7 @@ TimeRanges::GetEndTime()
 }
 
 void
-TimeRanges::Normalize(double aTolerance)
+TimeRanges::Normalize(double aError)
 {
   if (mRanges.Length() >= 2) {
     nsAutoTArray<TimeRange,4> normalized;
@@ -112,7 +112,7 @@ TimeRanges::Normalize(double aTolerance)
           current.mEnd >= mRanges[i].mEnd) {
         continue;
       }
-      if (current.mEnd + aTolerance >= mRanges[i].mStart) {
+      if (current.mEnd + aError >= mRanges[i].mStart) {
         current.mEnd = mRanges[i].mEnd;
       } else {
         normalized.AppendElement(current);
@@ -127,10 +127,10 @@ TimeRanges::Normalize(double aTolerance)
 }
 
 void
-TimeRanges::Union(const TimeRanges* aOtherRanges, double aTolerance)
+TimeRanges::Union(const TimeRanges* aOtherRanges, double aError)
 {
   mRanges.AppendElements(aOtherRanges->mRanges);
-  Normalize(aTolerance);
+  Normalize(aError);
 }
 
 void
@@ -156,10 +156,10 @@ TimeRanges::Intersection(const TimeRanges* aOtherRanges)
 }
 
 TimeRanges::index_type
-TimeRanges::Find(double aTime, double aTolerance /* = 0 */)
+TimeRanges::Find(double aTime, double aError /* = 0 */)
 {
   for (index_type i = 0; i < mRanges.Length(); ++i) {
-    if (aTime < mRanges[i].mEnd && (aTime + aTolerance) >= mRanges[i].mStart) {
+    if (aTime < mRanges[i].mEnd && (aTime + aError) >= mRanges[i].mStart) {
       return i;
     }
   }

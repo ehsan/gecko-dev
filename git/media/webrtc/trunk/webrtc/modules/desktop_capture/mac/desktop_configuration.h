@@ -59,11 +59,10 @@ struct MacDesktopConfiguration {
   const MacDisplayConfiguration* FindDisplayConfigurationById(
       CGDirectDisplayID id);
 
-  // Bounds of the desktop excluding monitors with DPI settings different from
-  // the main monitor. In Density-Independent Pixels (DIPs).
+  // Bounds of the desktop in Density-Independent Pixels (DIPs).
   DesktopRect bounds;
 
-  // Same as bounds, but expressed in physical pixels.
+  // Bounds of the desktop in physical pixels.
   DesktopRect pixel_bounds;
 
   // Scale factor from DIPs to physical pixels.

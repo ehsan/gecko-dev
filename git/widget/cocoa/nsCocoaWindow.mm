@@ -3268,15 +3268,9 @@ static const NSString* kStateShowsToolbarButton = @"showsToolbarButton";
 
 - (NSPoint)windowButtonsPositionWithDefaultPosition:(NSPoint)aDefaultPosition
 {
-  if ([self drawsContentsIntoWindowFrame]) {
-    if (NSIsEmptyRect(mWindowButtonsRect)) {
-      // Empty rect. Let's hide the buttons.
-      // Position is in non-flipped window coordinates. Using frame's height
-      // for the vertical coordinate will move the buttons above the window,
-      // making them invisible.
-      return NSMakePoint(0, [self frame].size.height);
-    }
-    return NSMakePoint(mWindowButtonsRect.origin.x, mWindowButtonsRect.origin.y);
+  if ([self drawsContentsIntoWindowFrame] && !NSIsEmptyRect(mWindowButtonsRect)) {
+    return NSMakePoint(std::max(mWindowButtonsRect.origin.x, aDefaultPosition.x),
+                       std::min(mWindowButtonsRect.origin.y, aDefaultPosition.y));
   }
   return aDefaultPosition;
 }

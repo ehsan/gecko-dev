@@ -330,4 +330,14 @@ int32_t VADCallback::InFrameType(int16_t frameType) {
   return 0;
 }
 
+void UseLegacyAcm(webrtc::Config* config) {
+  config->Set<webrtc::AudioCodingModuleFactory>(
+      new webrtc::AudioCodingModuleFactory());
+}
+
+void UseNewAcm(webrtc::Config* config) {
+  config->Set<webrtc::AudioCodingModuleFactory>(
+      new webrtc::NewAudioCodingModuleFactory());
+}
+
 }  // namespace webrtc

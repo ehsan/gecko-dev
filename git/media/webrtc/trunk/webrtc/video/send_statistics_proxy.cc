@@ -17,57 +17,54 @@
 namespace webrtc {
 
 SendStatisticsProxy::SendStatisticsProxy(
-    const VideoSendStream::Config& config)
+    const VideoSendStream::Config& config,
+    SendStatisticsProxy::StatsProvider* stats_provider)
     : config_(config),
-      crit_(CriticalSectionWrapper::CreateCriticalSection()) {
-}
+      lock_(CriticalSectionWrapper::CreateCriticalSection()),
+      stats_provider_(stats_provider) {}
 
 SendStatisticsProxy::~SendStatisticsProxy() {}
 
 void SendStatisticsProxy::OutgoingRate(const int video_channel,
                                        const unsigned int framerate,
                                        const unsigned int bitrate) {
-  CriticalSectionScoped lock(crit_.get());
+  CriticalSectionScoped cs(lock_.get());
   stats_.encode_frame_rate = framerate;
-  stats_.media_bitrate_bps = bitrate;
-}
-
-void SendStatisticsProxy::SuspendChange(int video_channel, bool is_suspended) {
-  CriticalSectionScoped lock(crit_.get());
-  stats_.suspended = is_suspended;
 }
 
 void SendStatisticsProxy::CapturedFrameRate(const int capture_id,
                                             const unsigned char frame_rate) {
-  CriticalSectionScoped lock(crit_.get());
+  CriticalSectionScoped cs(lock_.get());
   stats_.input_frame_rate = frame_rate;
 }
 
 VideoSendStream::Stats SendStatisticsProxy::GetStats() const {
-  CriticalSectionScoped lock(crit_.get());
-  return stats_;
+  VideoSendStream::Stats stats;
+  {
+    CriticalSectionScoped cs(lock_.get());
+    stats = stats_;
+  }
+  stats_provider_->GetSendSideDelay(&stats);
+  stats.c_name = stats_provider_->GetCName();
+  return stats;
 }
 
-SsrcStats* SendStatisticsProxy::GetStatsEntry(uint32_t ssrc) {
-  std::map<uint32_t, SsrcStats>::iterator it = stats_.substreams.find(ssrc);
+StreamStats* SendStatisticsProxy::GetStatsEntry(uint32_t ssrc) {
+  std::map<uint32_t, StreamStats>::iterator it = stats_.substreams.find(ssrc);
   if (it != stats_.substreams.end())
     return &it->second;
 
   if (std::find(config_.rtp.ssrcs.begin(), config_.rtp.ssrcs.end(), ssrc) ==
-          config_.rtp.ssrcs.end() &&
-      std::find(config_.rtp.rtx.ssrcs.begin(),
-                config_.rtp.rtx.ssrcs.end(),
-                ssrc) == config_.rtp.rtx.ssrcs.end()) {
+      config_.rtp.ssrcs.end())
     return NULL;
-  }
 
   return &stats_.substreams[ssrc];  // Insert new entry and return ptr.
 }
 
 void SendStatisticsProxy::StatisticsUpdated(const RtcpStatistics& statistics,
                                             uint32_t ssrc) {
-  CriticalSectionScoped lock(crit_.get());
-  SsrcStats* stats = GetStatsEntry(ssrc);
+  CriticalSectionScoped cs(lock_.get());
+  StreamStats* stats = GetStatsEntry(ssrc);
   if (stats == NULL)
     return;
 
@@ -77,31 +74,29 @@ void SendStatisticsProxy::StatisticsUpdated(const RtcpStatistics& statistics,
 void SendStatisticsProxy::DataCountersUpdated(
     const StreamDataCounters& counters,
     uint32_t ssrc) {
-  CriticalSectionScoped lock(crit_.get());
-  SsrcStats* stats = GetStatsEntry(ssrc);
+  CriticalSectionScoped cs(lock_.get());
+  StreamStats* stats = GetStatsEntry(ssrc);
   if (stats == NULL)
     return;
 
   stats->rtp_stats = counters;
 }
 
-void SendStatisticsProxy::Notify(const BitrateStatistics& total_stats,
-                                 const BitrateStatistics& retransmit_stats,
+void SendStatisticsProxy::Notify(const BitrateStatistics& bitrate,
                                  uint32_t ssrc) {
-  CriticalSectionScoped lock(crit_.get());
-  SsrcStats* stats = GetStatsEntry(ssrc);
+  CriticalSectionScoped cs(lock_.get());
+  StreamStats* stats = GetStatsEntry(ssrc);
   if (stats == NULL)
     return;
 
-  stats->total_bitrate_bps = total_stats.bitrate_bps;
-  stats->retransmit_bitrate_bps = retransmit_stats.bitrate_bps;
+  stats->bitrate_bps = bitrate.bitrate_bps;
 }
 
 void SendStatisticsProxy::FrameCountUpdated(FrameType frame_type,
                                             uint32_t frame_count,
                                             const unsigned int ssrc) {
-  CriticalSectionScoped lock(crit_.get());
-  SsrcStats* stats = GetStatsEntry(ssrc);
+  CriticalSectionScoped cs(lock_.get());
+  StreamStats* stats = GetStatsEntry(ssrc);
   if (stats == NULL)
     return;
 
@@ -117,17 +112,6 @@ void SendStatisticsProxy::FrameCountUpdated(FrameType frame_type,
     case kAudioFrameCN:
       break;
   }
-}
-
-void SendStatisticsProxy::SendSideDelayUpdated(int avg_delay_ms,
-                                               int max_delay_ms,
-                                               uint32_t ssrc) {
-  CriticalSectionScoped lock(crit_.get());
-  SsrcStats* stats = GetStatsEntry(ssrc);
-  if (stats == NULL)
-    return;
-  stats->avg_delay_ms = avg_delay_ms;
-  stats->max_delay_ms = max_delay_ms;
 }
 
 }  // namespace webrtc

@@ -12,6 +12,14 @@
 
 #include <assert.h>
 
+#include "webrtc/system_wrappers/interface/trace.h"
+
+#define NOTREACHED() \
+  do { \
+    WEBRTC_TRACE(kTraceError, kTraceVideoRenderer, -1, "Not reached"); \
+    assert(false); \
+  } while (0)
+
 namespace webrtc {
 
 TextureVideoFrame::TextureVideoFrame(NativeHandle* handle,
@@ -33,7 +41,7 @@ int TextureVideoFrame::CreateEmptyFrame(int width,
                                         int stride_y,
                                         int stride_u,
                                         int stride_v) {
-  assert(false);  // Should not be called.
+  NOTREACHED();
   return -1;
 }
 
@@ -48,51 +56,46 @@ int TextureVideoFrame::CreateFrame(int size_y,
                                    int stride_y,
                                    int stride_u,
                                    int stride_v) {
-  assert(false);  // Should not be called.
+  NOTREACHED();
   return -1;
 }
 
 int TextureVideoFrame::CopyFrame(const I420VideoFrame& videoFrame) {
-  assert(false);  // Should not be called.
+  NOTREACHED();
   return -1;
 }
 
-I420VideoFrame* TextureVideoFrame::CloneFrame() const {
-  return new TextureVideoFrame(
-      handle_, width(), height(), timestamp(), render_time_ms());
-}
-
 void TextureVideoFrame::SwapFrame(I420VideoFrame* videoFrame) {
-  assert(false);  // Should not be called.
+  NOTREACHED();
 }
 
 uint8_t* TextureVideoFrame::buffer(PlaneType type) {
-  assert(false);  // Should not be called.
+  NOTREACHED();
   return NULL;
 }
 
 const uint8_t* TextureVideoFrame::buffer(PlaneType type) const {
-  assert(false);  // Should not be called.
+  NOTREACHED();
   return NULL;
 }
 
 int TextureVideoFrame::allocated_size(PlaneType type) const {
-  assert(false);  // Should not be called.
+  NOTREACHED();
   return -1;
 }
 
 int TextureVideoFrame::stride(PlaneType type) const {
-  assert(false);  // Should not be called.
+  NOTREACHED();
   return -1;
 }
 
 bool TextureVideoFrame::IsZeroSize() const {
-  assert(false);  // Should not be called.
+  NOTREACHED();
   return true;
 }
 
 void TextureVideoFrame::ResetSize() {
-  assert(false);  // Should not be called.
+  NOTREACHED();
 }
 
 void* TextureVideoFrame::native_handle() const { return handle_.get(); }

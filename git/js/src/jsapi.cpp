@@ -4273,7 +4273,8 @@ JS::CloneAndExecuteScript(JSContext *cx, HandleObject obj, HandleScript scriptAr
         if (!script)
             return false;
 
-        js::Debugger::onNewScript(cx, script);
+        Rooted<GlobalObject *> global(cx, script->compileAndGo() ? &script->global() : nullptr);
+        js::Debugger::onNewScript(cx, script, global);
     }
     return ExecuteScript(cx, obj, script, nullptr);
 }

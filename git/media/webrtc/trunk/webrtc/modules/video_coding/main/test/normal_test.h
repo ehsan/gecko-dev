@@ -32,15 +32,15 @@ class VCMNTEncodeCompleteCallback : public webrtc::VCMPacketizationCallback
   void RegisterTransportCallback(webrtc::VCMPacketizationCallback* transport);
   // process encoded data received from the encoder,
   // pass stream to the VCMReceiver module
-  virtual int32_t SendData(
-      const webrtc::FrameType frameType,
-      const uint8_t payloadType,
-      const uint32_t timeStamp,
-      int64_t capture_time_ms,
-      const uint8_t* payloadData,
-      const uint32_t payloadSize,
-      const webrtc::RTPFragmentationHeader& fragmentationHeader,
-      const webrtc::RTPVideoHeader* videoHdr) OVERRIDE;
+  int32_t
+  SendData(const webrtc::FrameType frameType,
+           const uint8_t payloadType,
+           const uint32_t timeStamp,
+           int64_t capture_time_ms,
+           const uint8_t* payloadData,
+           const uint32_t payloadSize,
+           const webrtc::RTPFragmentationHeader& fragmentationHeader,
+           const webrtc::RTPVideoHeader* videoHdr);
 
   // Register exisitng VCM.
   // Currently - encode and decode with the same vcm module.
@@ -73,10 +73,8 @@ public:
         _currentHeight(0) {}
     virtual ~VCMNTDecodeCompleCallback();
     void SetUserReceiveCallback(webrtc::VCMReceiveCallback* receiveCallback);
-
     // will write decoded frame into file
-    virtual int32_t FrameToRender(webrtc::I420VideoFrame& videoFrame) OVERRIDE;
-
+    int32_t FrameToRender(webrtc::I420VideoFrame& videoFrame);
     int32_t DecodedBytes();
 private:
     FILE*             _decodedFile;

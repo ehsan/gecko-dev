@@ -13,7 +13,6 @@
 
 #include <vector>
 
-#include "webrtc/base/thread_annotations.h"
 #include "webrtc/common_types.h"
 #include "webrtc/engine_configurations.h"
 #include "webrtc/modules/video_capture/include/video_capture.h"
@@ -21,8 +20,8 @@
 #include "webrtc/modules/video_coding/main/interface/video_coding.h"
 #include "webrtc/modules/video_processing/main/interface/video_processing.h"
 #include "webrtc/system_wrappers/interface/scoped_ptr.h"
+#include "webrtc/system_wrappers/interface/thread_annotations.h"
 #include "webrtc/typedefs.h"
-#include "webrtc/video_engine/include/vie_base.h"
 #include "webrtc/video_engine/include/vie_capture.h"
 #include "webrtc/video_engine/vie_defines.h"
 #include "webrtc/video_engine/vie_frame_provider_base.h"
@@ -95,6 +94,7 @@ class ViECapturer
 
   // Effect filter.
   int32_t RegisterEffectFilter(ViEEffectFilter* effect_filter);
+  int32_t EnableDenoising(bool enable);
   int32_t EnableDeflickering(bool enable);
   int32_t EnableBrightnessAlarm(bool enable);
 
@@ -107,8 +107,11 @@ class ViECapturer
   const char* CurrentDeviceName() const;
 
   void RegisterCpuOveruseObserver(CpuOveruseObserver* observer);
-  void SetCpuOveruseOptions(const CpuOveruseOptions& options);
-  void GetCpuOveruseMetrics(CpuOveruseMetrics* metrics) const;
+
+  void CpuOveruseMeasures(int* capture_jitter_ms,
+                          int* avg_encode_time_ms,
+                          int* encode_usage_percent,
+                          int* capture_queue_delay_ms_per_s) const;
 
  protected:
   ViECapturer(int capture_id,
@@ -169,8 +172,8 @@ class ViECapturer
   EventWrapper& capture_event_;
   EventWrapper& deliver_event_;
 
-  scoped_ptr<I420VideoFrame> captured_frame_;
-  scoped_ptr<I420VideoFrame> deliver_frame_;
+  I420VideoFrame captured_frame_;
+  I420VideoFrame deliver_frame_;
 
   // Image processing.
   ViEEffectFilter* effect_filter_;
@@ -180,6 +183,7 @@ class ViECapturer
   VideoProcessingModule::FrameStats* brightness_frame_stats_;
   Brightness current_brightness_level_;
   Brightness reported_brightness_level_;
+  bool denoising_enabled_;
 
   // Statistics observer.
   scoped_ptr<CriticalSectionWrapper> observer_cs_;

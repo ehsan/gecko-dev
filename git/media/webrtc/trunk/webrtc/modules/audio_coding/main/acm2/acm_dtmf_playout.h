@@ -33,6 +33,8 @@ class ACMDTMFPlayout : public ACMGenericCodec {
   void DestructEncoderSafe();
 
   int16_t InternalCreateEncoder();
+
+  void InternalDestructEncoderInst(void* ptr_inst);
 };
 
 }  // namespace acm2

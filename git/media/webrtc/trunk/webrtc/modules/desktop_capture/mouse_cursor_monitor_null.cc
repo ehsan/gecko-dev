@@ -10,7 +10,7 @@
 
 #include "webrtc/modules/desktop_capture/mouse_cursor_monitor.h"
 
-#include <stddef.h>
+#include <cstddef>
 
 namespace webrtc {
 

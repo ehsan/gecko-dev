@@ -2133,8 +2133,6 @@ CodeGenerator::visitMoveGroup(LMoveGroup *group)
     masm.propagateOOM(resolver.resolve());
 
     MoveEmitter emitter(masm);
-    if (group->maybeScratchRegister().isGeneralReg())
-        emitter.setScratchRegister(group->maybeScratchRegister().toGeneralReg()->reg());
     emitter.emit(resolver);
     emitter.finish();
 }

@@ -79,10 +79,6 @@ public:
   // reader in this decoders MediaSourceReader.
   bool IsActiveReader(MediaDecoderReader* aReader);
 
-  // Returns a string describing the state of the MediaSource internal
-  // buffered data. Used for debugging purposes.
-  void GetMozDebugReaderData(nsAString& aString);
-
 private:
   void DoSetMediaSourceDuration(double aDuration);
   void ScheduleDurationChange(double aOldDuration,

@@ -550,8 +550,7 @@ inline T *
 NewObjectWithGivenProto(ExclusiveContext *cx, JSObject *proto, JSObject *parent,
                         gc::AllocKind allocKind, NewObjectKind newKind = GenericObject)
 {
-    JSObject *obj = NewObjectWithGivenProto(cx, &T::class_, TaggedProto(proto), parent, allocKind,
-                                            newKind);
+    JSObject *obj = NewObjectWithGivenProto(cx, &T::class_, TaggedProto(proto), parent, newKind);
     return obj ? &obj->as<T>() : nullptr;
 }
 

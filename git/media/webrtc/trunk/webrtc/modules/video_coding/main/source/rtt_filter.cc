@@ -10,6 +10,7 @@
 
 #include "webrtc/modules/video_coding/main/source/internal_defines.h"
 #include "webrtc/modules/video_coding/main/source/rtt_filter.h"
+#include "webrtc/system_wrappers/interface/trace.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -17,11 +18,15 @@
 
 namespace webrtc {
 
-VCMRttFilter::VCMRttFilter()
-    : _filtFactMax(35),
-      _jumpStdDevs(2.5),
-      _driftStdDevs(3.5),
-      _detectThreshold(kMaxDriftJumpCount) {
+VCMRttFilter::VCMRttFilter(int32_t vcmId, int32_t receiverId)
+:
+_vcmId(vcmId),
+_receiverId(receiverId),
+_filtFactMax(35),
+_jumpStdDevs(2.5),
+_driftStdDevs(3.5),
+_detectThreshold(kMaxDriftJumpCount)
+{
     Reset();
 }
 
@@ -100,6 +105,9 @@ VCMRttFilter::Update(uint32_t rttMs)
         _avgRtt = oldAvg;
         _varRtt = oldVar;
     }
+    WEBRTC_TRACE(webrtc::kTraceDebug, webrtc::kTraceVideoCoding, VCMId(_vcmId, _receiverId),
+               "RttFilter Update: sample=%u avgRtt=%f varRtt=%f maxRtt=%u",
+               rttMs, _avgRtt, _varRtt, _maxRtt);
 }
 
 bool
@@ -133,6 +141,8 @@ VCMRttFilter::JumpDetection(uint32_t rttMs)
             ShortRttFilter(_jumpBuf, abs(_jumpCount));
             _filtFactCount = _detectThreshold + 1;
             _jumpCount = 0;
+            WEBRTC_TRACE(webrtc::kTraceDebug, webrtc::kTraceVideoCoding, VCMId(_vcmId, _receiverId),
+                       "Detected an RTT jump");
         }
         else
         {
@@ -164,6 +174,8 @@ VCMRttFilter::DriftDetection(uint32_t rttMs)
             ShortRttFilter(_driftBuf, _driftCount);
             _filtFactCount = _detectThreshold + 1;
             _driftCount = 0;
+            WEBRTC_TRACE(webrtc::kTraceDebug, webrtc::kTraceVideoCoding, VCMId(_vcmId, _receiverId),
+                       "Detected an RTT drift");
         }
     }
     else

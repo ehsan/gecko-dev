@@ -41,7 +41,7 @@ class AndroidNativeOpenGl2Channel: public AndroidStream {
   virtual void DeliverFrame(JNIEnv* jniEnv);
 
  private:
-  static jint JNICALL CreateOpenGLNativeStatic(
+  static jint CreateOpenGLNativeStatic(
       JNIEnv * env,
       jobject,
       jlong context,
@@ -49,7 +49,7 @@ class AndroidNativeOpenGl2Channel: public AndroidStream {
       jint height);
   jint CreateOpenGLNative(int width, int height);
 
-  static void JNICALL DrawNativeStatic(JNIEnv * env,jobject, jlong context);
+  static void DrawNativeStatic(JNIEnv * env,jobject, jlong context);
   void DrawNative();
   uint32_t _id;
   CriticalSectionWrapper& _renderCritSect;

@@ -7,7 +7,6 @@
 #define mozilla_layout_ipc_VsyncChild_h
 
 #include "mozilla/layout/PVsyncChild.h"
-#include "nsISupportsImpl.h"
 #include "nsRefPtr.h"
 
 namespace mozilla {
@@ -26,8 +25,6 @@ namespace layout {
 // PVsyncParent actor dies.
 class VsyncChild MOZ_FINAL : public PVsyncChild
 {
-  NS_INLINE_DECL_REFCOUNTING(VsyncChild)
-
   friend class mozilla::ipc::BackgroundChildImpl;
 
 public:
@@ -47,7 +44,6 @@ private:
   virtual void ActorDestroy(ActorDestroyReason aActorDestroyReason) MOZ_OVERRIDE;
 
   bool mObservingVsync;
-  bool mIsShutdown;
 
   // The content side vsync observer.
   nsRefPtr<VsyncObserver> mObserver;

@@ -25,15 +25,17 @@ class RTPPayloadStrategy {
 
   virtual bool CodecsMustBeUnique() const = 0;
 
-  virtual bool PayloadIsCompatible(const RtpUtility::Payload& payload,
-                                   const uint32_t frequency,
-                                   const uint8_t channels,
-                                   const uint32_t rate) const = 0;
+  virtual bool PayloadIsCompatible(
+      const ModuleRTPUtility::Payload& payload,
+      const uint32_t frequency,
+      const uint8_t channels,
+      const uint32_t rate) const = 0;
 
-  virtual void UpdatePayloadRate(RtpUtility::Payload* payload,
-                                 const uint32_t rate) const = 0;
+  virtual void UpdatePayloadRate(
+      ModuleRTPUtility::Payload* payload,
+      const uint32_t rate) const = 0;
 
-  virtual RtpUtility::Payload* CreatePayloadType(
+  virtual ModuleRTPUtility::Payload* CreatePayloadType(
       const char payloadName[RTP_PAYLOAD_NAME_SIZE],
       const int8_t payloadType,
       const uint32_t frequency,
@@ -41,7 +43,7 @@ class RTPPayloadStrategy {
       const uint32_t rate) const = 0;
 
   virtual int GetPayloadTypeFrequency(
-      const RtpUtility::Payload& payload) const = 0;
+      const ModuleRTPUtility::Payload& payload) const = 0;
 
   static RTPPayloadStrategy* CreateStrategy(const bool handling_audio);
 
@@ -52,7 +54,8 @@ class RTPPayloadStrategy {
 class RTPPayloadRegistry {
  public:
   // The registry takes ownership of the strategy.
-  RTPPayloadRegistry(RTPPayloadStrategy* rtp_payload_strategy);
+  RTPPayloadRegistry(const int32_t id,
+                     RTPPayloadStrategy* rtp_payload_strategy);
   ~RTPPayloadRegistry();
 
   int32_t RegisterReceivePayload(
@@ -73,9 +76,9 @@ class RTPPayloadRegistry {
       const uint32_t rate,
       int8_t* payload_type) const;
 
-  bool RtxEnabled() const;
+  void SetRtxStatus(bool enable, uint32_t ssrc);
 
-  void SetRtxSsrc(uint32_t ssrc);
+  bool RtxEnabled() const;
 
   void SetRtxPayloadType(int payload_type);
 
@@ -97,8 +100,9 @@ class RTPPayloadRegistry {
 
   int GetPayloadTypeFrequency(uint8_t payload_type) const;
 
-  bool PayloadTypeToPayload(const uint8_t payload_type,
-                            RtpUtility::Payload*& payload) const;
+  bool PayloadTypeToPayload(
+    const uint8_t payload_type,
+    ModuleRTPUtility::Payload*& payload) const;
 
   void ResetLastReceivedPayloadTypes() {
     CriticalSectionScoped cs(crit_sect_.get());
@@ -148,7 +152,8 @@ class RTPPayloadRegistry {
   bool IsRtxInternal(const RTPHeader& header) const;
 
   scoped_ptr<CriticalSectionWrapper> crit_sect_;
-  RtpUtility::PayloadTypeMap payload_type_map_;
+  ModuleRTPUtility::PayloadTypeMap payload_type_map_;
+  int32_t id_;
   scoped_ptr<RTPPayloadStrategy> rtp_payload_strategy_;
   int8_t  red_payload_type_;
   int8_t ulpfec_payload_type_;

@@ -50,7 +50,7 @@ struct VCMExtDecoderMapItem {
 
 class VCMCodecDataBase {
  public:
-  VCMCodecDataBase();
+  explicit VCMCodecDataBase(int id);
   ~VCMCodecDataBase();
 
   // Sender Side
@@ -174,6 +174,7 @@ class VCMCodecDataBase {
   const VCMExtDecoderMapItem* FindExternalDecoderItem(
       uint8_t payload_type) const;
 
+  int id_;
   int number_of_cores_;
   int max_payload_size_;
   bool periodic_key_frames_;

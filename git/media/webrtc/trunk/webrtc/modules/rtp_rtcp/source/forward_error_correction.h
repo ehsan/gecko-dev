@@ -117,7 +117,8 @@ class ForwardErrorCorrection {
   typedef std::list<ReceivedPacket*> ReceivedPacketList;
   typedef std::list<RecoveredPacket*> RecoveredPacketList;
 
-  ForwardErrorCorrection();
+  // \param[in] id Module ID
+  ForwardErrorCorrection(int32_t id);
 
   virtual ~ForwardErrorCorrection();
 
@@ -303,6 +304,7 @@ class ForwardErrorCorrection {
   static void DiscardOldPackets(RecoveredPacketList* recovered_packet_list);
   static uint16_t ParseSequenceNumber(uint8_t* packet);
 
+  int32_t id_;
   std::vector<Packet> generated_fec_packets_;
   FecPacketList fec_packet_list_;
   bool fec_packet_received_;

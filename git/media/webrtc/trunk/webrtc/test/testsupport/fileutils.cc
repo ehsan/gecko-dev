@@ -10,20 +10,12 @@
 
 #include "webrtc/test/testsupport/fileutils.h"
 
-#include <assert.h>
-
 #ifdef WIN32
 #include <direct.h>
-#include <tchar.h>
-#include <windows.h>
 #include <algorithm>
-
-#include "webrtc/system_wrappers/interface/utf_util_win.h"
 #define GET_CURRENT_DIR _getcwd
 #else
 #include <unistd.h>
-
-#include "webrtc/system_wrappers/interface/scoped_ptr.h"
 #define GET_CURRENT_DIR getcwd
 #endif
 
@@ -33,7 +25,6 @@
 #endif
 
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
 #include "webrtc/typedefs.h"  // For architecture defines
@@ -50,21 +41,24 @@ const char* kPathDelimiter = "/";
 #endif
 
 #ifdef WEBRTC_ANDROID
-const char* kRootDirName = "/sdcard/";
+const char* kResourcesDirName = "resources";
 #else
 // The file we're looking for to identify the project root dir.
 const char* kProjectRootFileName = "DEPS";
-const char* kOutputDirName = "out";
-const char* kFallbackPath = "./";
-#endif
 const char* kResourcesDirName = "resources";
+#endif
 
+const char* kFallbackPath = "./";
+const char* kOutputDirName = "out";
 char relative_dir_path[FILENAME_MAX];
 bool relative_dir_path_set = false;
 
 }  // namespace
 
 const char* kCannotFindProjectRootDir = "ERROR_CANNOT_FIND_PROJECT_ROOT_DIR";
+
+std::string OutputPathAndroid();
+std::string ProjectRootPathAndroid();
 
 void SetExecutablePath(const std::string& path) {
   std::string working_dir = WorkingDir();
@@ -92,18 +86,30 @@ bool FileExists(std::string& file_name) {
   return stat(file_name.c_str(), &file_info) == 0;
 }
 
+std::string OutputPathImpl() {
+  std::string path = ProjectRootPath();
+  if (path == kCannotFindProjectRootDir) {
+    return kFallbackPath;
+  }
+  path += kOutputDirName;
+  if (!CreateDirectory(path)) {
+    return kFallbackPath;
+  }
+  return path + kPathDelimiter;
+}
+
 #ifdef WEBRTC_ANDROID
 
 std::string ProjectRootPath() {
-  return kRootDirName;
+  return ProjectRootPathAndroid();
 }
 
 std::string OutputPath() {
-  return kRootDirName;
+  return OutputPathAndroid();
 }
 
 std::string WorkingDir() {
-  return kRootDirName;
+  return ProjectRootPath();
 }
 
 #else // WEBRTC_ANDROID
@@ -133,15 +139,7 @@ std::string ProjectRootPath() {
 }
 
 std::string OutputPath() {
-  std::string path = ProjectRootPath();
-  if (path == kCannotFindProjectRootDir) {
-    return kFallbackPath;
-  }
-  path += kOutputDirName;
-  if (!CreateDir(path)) {
-    return kFallbackPath;
-  }
-  return path + kPathDelimiter;
+  return OutputPathImpl();
 }
 
 std::string WorkingDir() {
@@ -156,35 +154,7 @@ std::string WorkingDir() {
 
 #endif  // !WEBRTC_ANDROID
 
-// Generate a temporary filename in a safe way.
-// Largely copied from talk/base/{unixfilesystem,win32filesystem}.cc.
-std::string TempFilename(const std::string &dir, const std::string &prefix) {
-#ifdef WIN32
-  wchar_t filename[MAX_PATH];
-  if (::GetTempFileName(ToUtf16(dir).c_str(),
-                        ToUtf16(prefix).c_str(), 0, filename) != 0)
-    return ToUtf8(filename);
-  assert(false);
-  return "";
-#else
-  int len = dir.size() + prefix.size() + 2 + 6;
-  scoped_ptr<char[]> tempname(new char[len]);
-
-  snprintf(tempname.get(), len, "%s/%sXXXXXX", dir.c_str(),
-           prefix.c_str());
-  int fd = ::mkstemp(tempname.get());
-  if (fd == -1) {
-    assert(false);
-    return "";
-  } else {
-    ::close(fd);
-  }
-  std::string ret(tempname.get());
-  return ret;
-#endif
-}
-
-bool CreateDir(std::string directory_name) {
+bool CreateDirectory(std::string directory_name) {
   struct stat path_info = {0};
   // Check if the path exists already:
   if (stat(directory_name.c_str(), &path_info) == 0) {

@@ -12,10 +12,9 @@
 
 #if BWE_TEST_LOGGING_COMPILE_TIME_ENABLE
 
-#include <stdarg.h>
-#include <stdio.h>
-
 #include <algorithm>
+#include <cstdarg>
+#include <cstdio>
 
 #include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
 #include "webrtc/system_wrappers/interface/thread_wrapper.h"

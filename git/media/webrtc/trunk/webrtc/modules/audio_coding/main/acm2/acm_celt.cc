@@ -57,6 +57,10 @@ void ACMCELT::DestructEncoderSafe() {
   return;
 }
 
+void ACMCELT::InternalDestructEncoderInst(void* /* ptr_inst */) {
+  return;
+}
+
 int16_t ACMCELT::SetBitRateSafe(const int32_t /*rate*/) {
   return -1;
 }
@@ -153,6 +157,13 @@ void ACMCELT::DestructEncoderSafe() {
     WebRtcCelt_FreeEnc(enc_inst_ptr_);
     enc_inst_ptr_ = NULL;
   }
+}
+
+void ACMCELT::InternalDestructEncoderInst(void* ptr_inst) {
+  if (ptr_inst != NULL) {
+    WebRtcCelt_FreeEnc(static_cast<CELT_encinst_t*>(ptr_inst));
+  }
+  return;
 }
 
 int16_t ACMCELT::SetBitRateSafe(const int32_t rate) {

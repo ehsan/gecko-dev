@@ -10,12 +10,9 @@
 
 #include "webrtc/modules/desktop_capture/mouse_cursor_monitor.h"
 
-#include <assert.h>
-
 #include "webrtc/modules/desktop_capture/desktop_frame.h"
 #include "webrtc/modules/desktop_capture/mouse_cursor.h"
 #include "webrtc/modules/desktop_capture/win/cursor.h"
-#include "webrtc/modules/desktop_capture/win/window_capture_utils.h"
 #include "webrtc/system_wrappers/interface/logging.h"
 
 namespace webrtc {
@@ -30,9 +27,6 @@ class MouseCursorMonitorWin : public MouseCursorMonitor {
   virtual void Capture() OVERRIDE;
 
  private:
-  // Get the rect of the currently selected screen, relative to the primary
-  // display's top-left. If the screen is disabled or disconnected, or any error
-  // happens, an empty rect is returned.
   DesktopRect GetScreenRect();
 
   HWND window_;
@@ -108,9 +102,8 @@ void MouseCursorMonitorWin::Capture() {
   bool inside = cursor_info.flags == CURSOR_SHOWING;
 
   if (window_) {
-    DesktopRect original_rect;
-    DesktopRect cropped_rect;
-    if (!GetCroppedWindowRect(window_, &cropped_rect, &original_rect)) {
+    RECT rect;
+    if (!GetWindowRect(window_, &rect)) {
       position.set(0, 0);
       inside = false;
     } else {
@@ -119,7 +112,7 @@ void MouseCursorMonitorWin::Capture() {
         inside = windowUnderCursor ?
             (window_ == GetAncestor(windowUnderCursor, GA_ROOT)) : false;
       }
-      position = position.subtract(cropped_rect.top_left());
+      position = position.subtract(DesktopVector(rect.left, rect.top));
     }
   } else {
     assert(screen_ != kInvalidScreenId);
@@ -156,10 +149,11 @@ DesktopRect MouseCursorMonitorWin::GetScreenRect() {
   if (!result)
     return DesktopRect();
 
-  return DesktopRect::MakeXYWH(device_mode.dmPosition.x,
-                               device_mode.dmPosition.y,
-                               device_mode.dmPelsWidth,
-                               device_mode.dmPelsHeight);
+  return DesktopRect::MakeXYWH(
+      GetSystemMetrics(SM_XVIRTUALSCREEN) + device_mode.dmPosition.x,
+      GetSystemMetrics(SM_YVIRTUALSCREEN) + device_mode.dmPosition.y,
+      device_mode.dmPelsWidth,
+      device_mode.dmPelsHeight);
 }
 
 MouseCursorMonitor* MouseCursorMonitor::CreateForWindow(
