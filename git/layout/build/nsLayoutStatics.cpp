@@ -47,7 +47,7 @@
 #include "nsCSSAnonBoxes.h"
 #include "nsCSSFrameConstructor.h"
 #include "nsCSSKeywords.h"
-#include "nsCSSParser.h"
+#include "nsCSSLoader.h"
 #include "nsCSSProps.h"
 #include "nsCSSPseudoClasses.h"
 #include "nsCSSPseudoElements.h"
@@ -311,7 +311,7 @@ nsLayoutStatics::Shutdown()
   nsDOMEventRTTearoff::Shutdown();
   nsEventListenerManager::Shutdown();
   nsComputedDOMStyle::Shutdown();
-  nsCSSParser::Shutdown();
+  CSSLoaderImpl::Shutdown();
   nsCSSRuleProcessor::Shutdown();
   nsTextFrameTextRunCache::Shutdown();
   nsHTMLDNSPrefetch::Shutdown();
@@ -333,6 +333,7 @@ nsLayoutStatics::Shutdown()
   nsXULContentUtils::Finish();
   nsXULElement::ReleaseGlobals();
   nsXULPrototypeCache::ReleaseGlobals();
+  nsXULPrototypeElement::ReleaseGlobals();
   nsSprocketLayout::Shutdown();
 #endif
 

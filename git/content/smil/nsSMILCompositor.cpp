@@ -50,12 +50,11 @@ nsSMILCompositor::KeyEquals(KeyTypePointer aKey) const
 /*static*/ PLDHashNumber
 nsSMILCompositor::HashKey(KeyTypePointer aKey)
 {
-  // Combine the 3 values into one numeric value, which will be hashed.
-  // NOTE: We right-shift one of the pointers by 2 to get some randomness in
-  // its 2 lowest-order bits. (Those shifted-off bits will always be 0 since
-  // our pointers will be word-aligned.)
-  return (NS_PTR_TO_UINT32(aKey->mElement.get()) >> 2) +
-    NS_PTR_TO_UINT32(aKey->mAttributeName.get()) +
+  // Combine the 3 values into one numeric value, which will be hashed
+  const char *attrName = nsnull;
+  aKey->mAttributeName->GetUTF8String(&attrName);
+  return NS_PTR_TO_UINT32(aKey->mElement.get()) +
+    HashString(attrName) +
     (aKey->mIsCSS ? 1 : 0);
 }
 
@@ -152,8 +151,9 @@ nsISMILAttr*
 nsSMILCompositor::CreateSMILAttr()
 {
   if (mKey.mIsCSS) {
-    nsCSSProperty propId =
-      nsCSSProps::LookupProperty(nsDependentAtomString(mKey.mAttributeName));
+    nsAutoString name;
+    mKey.mAttributeName->ToString(name);
+    nsCSSProperty propId = nsCSSProps::LookupProperty(name);
     if (nsSMILCSSProperty::IsPropertyAnimatable(propId)) {
       return new nsSMILCSSProperty(propId, mKey.mElement.get());
     }

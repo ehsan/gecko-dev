@@ -37,9 +37,13 @@
  * ***** END LICENSE BLOCK ***** */
 
 // Get services
-var hs = Cc["@mozilla.org/browser/nav-history-service;1"].
-         getService(Ci.nsINavHistoryService);
-var mDBConn = hs.QueryInterface(Ci.nsPIPlacesDatabase).DBConnection;
+try {
+  var hs = Cc["@mozilla.org/browser/nav-history-service;1"].
+           getService(Ci.nsINavHistoryService);
+  var mDBConn = hs.QueryInterface(Ci.nsPIPlacesDatabase).DBConnection;
+} catch(ex) {
+  do_throw("Could not get services\n");
+}
 
 // Cache actual visit_count value, filled by add_visit, used by check_results
 var visit_count = 0;
@@ -53,7 +57,6 @@ function add_visit(aURI, aVisitDate, aVisitType) {
   // Increase visit_count if applicable
   if (aVisitType != 0 &&
       aVisitType != hs.TRANSITION_EMBED &&
-      aVisitType != hs.TRANSITION_FRAMED_LINK &&
       aVisitType != hs.TRANSITION_DOWNLOAD)
     visit_count ++;
   // Get the place id
@@ -105,9 +108,6 @@ function run_test() {
 
   // Add a visit that force hidden
   var placeId = add_visit(testURI, Date.now()*1000, hs.TRANSITION_EMBED);
-  check_results(0, 1);
-
-  var placeId = add_visit(testURI, Date.now()*1000, hs.TRANSITION_FRAMED_LINK);
   check_results(0, 1);
 
   // Add a visit that force unhide and check place id

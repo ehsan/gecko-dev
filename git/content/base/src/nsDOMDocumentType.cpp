@@ -152,8 +152,7 @@ nsDOMDocumentType::GetText()
 NS_IMETHODIMP    
 nsDOMDocumentType::GetName(nsAString& aName)
 {
-  mName->ToString(aName);
-  return NS_OK;
+  return mName->ToString(aName);
 }
 
 NS_IMETHODIMP    
@@ -206,8 +205,7 @@ nsDOMDocumentType::GetInternalSubset(nsAString& aInternalSubset)
 NS_IMETHODIMP
 nsDOMDocumentType::GetNodeName(nsAString& aNodeName)
 {
-  mName->ToString(aNodeName);
-  return NS_OK;
+  return mName->ToString(aNodeName);
 }
 
 NS_IMETHODIMP

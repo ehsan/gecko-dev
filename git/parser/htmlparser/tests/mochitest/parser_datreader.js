@@ -84,12 +84,10 @@ function parseTestcase(testcase) {
   var errors = [];
   var currentList = input;
   for each (var line in lines) {
-    if (startsWith(line, "##todo")) {
-      todo(false, line.substring(6));
-      continue;
-    }
-    // allow blank lines in input
-    if (!line && currentList != input) {
+    if (!line || startsWith(line, "##")) {
+      if (startsWith(line, "##todo")) {
+        todo(false, line.substring(6));
+      }
       continue;
     }
     if (!(startsWith(line, "#error") ||

@@ -35,12 +35,15 @@
 
 #include "nptest_platform.h"
 #include "npapi.h"
+#include <pthread.h>
 #include <gdk/gdk.h>
 #ifdef MOZ_X11
 #include <gdk/gdkx.h>
 #include <X11/extensions/shape.h>
 #endif
+#include <glib.h>
 #include <gtk/gtk.h>
+#include <unistd.h>
 
  using namespace std;
 
@@ -635,7 +638,6 @@ pluginGetClipboardText(InstanceData* instanceData)
 
   return retText;
 }
-<<<<<<< local
 
 //-----------------------------------------------------------------------------
 // NB: this test is quite gross in that it's not only
@@ -667,14 +669,11 @@ pluginCrashInNestedLoop(InstanceData* instanceData)
   // wait at least long enough for nested loop detector task to be pending ...
   sleep(1);
 
-  // Run the nested loop detector by processing all events that are waiting.
-  bool found_event = false;
-  while (g_main_context_iteration(NULL, FALSE)) {
-    found_event = true;
-  }
-  if (!found_event) {
+  // Run the nested loop detector.  Other events are not expected.
+  if (!g_main_context_iteration(NULL, TRUE)) {
     g_warning("DetectNestedEventLoop did not fire");
     return true; // trigger a test failure
+
   }
 
   // wait at least long enough for the "process browser events" task to be
@@ -692,14 +691,10 @@ pluginCrashInNestedLoop(InstanceData* instanceData)
     return true; // trigger a test failure
   }
 
-  // .. and hope it crashes at about the same time as the "process browser
-  // events" task (that should run in this loop) is being processed in the
-  // parent.
-  found_event = false;
-  while (g_main_context_iteration(NULL, FALSE)) {
-    found_event = true;
-  }
-  if (found_event) {
+  // .. and hope the time it takes to spawn means that it crashes at about the
+  // same time as the "process browser events" task that should run next is
+  // being processed in the parent.  Other events are not expected.
+  if (g_main_context_iteration(NULL, TRUE)) {
     g_warning("Should have crashed in ProcessBrowserEvents");
   } else {
     g_warning("ProcessBrowserEvents did not fire");
@@ -708,5 +703,3 @@ pluginCrashInNestedLoop(InstanceData* instanceData)
   // if we get here without crashing, then we'll trigger a test failure
   return true;
 }
-=======
->>>>>>> other

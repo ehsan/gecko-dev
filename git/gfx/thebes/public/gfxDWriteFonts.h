@@ -51,9 +51,13 @@ class gfxDWriteFont : public gfxFont
 {
 public:
     gfxDWriteFont(gfxFontEntry *aFontEntry,
-                  const gfxFontStyle *aFontStyle,
-                  PRBool aNeedsBold = PR_FALSE);
+                         const gfxFontStyle *aFontStyle);
     ~gfxDWriteFont();
+
+    static already_AddRefed<gfxDWriteFont>
+        GetOrMakeFont(gfxFontEntry *aFontEntry, 
+                      const gfxFontStyle *aStyle,
+                      PRBool aNeedsBold = PR_FALSE);
 
     virtual nsString GetUniqueName();
 
@@ -64,9 +68,6 @@ public:
     virtual PRBool SetupCairoFont(gfxContext *aContext);
 
     virtual PRBool IsValid() { return mFontFace != NULL; }
-
-    gfxFloat GetAdjustedSize() const { return mAdjustedSize; }
-
 protected:
     friend class gfxDWriteFontGroup;
 
@@ -80,8 +81,7 @@ protected:
     cairo_font_face_t *mCairoFontFace;
     cairo_scaled_font_t *mCairoScaledFont;
 
-    gfxFloat mAdjustedSize;
-    gfxFont::Metrics mMetrics;
+    gfxFont::Metrics *mMetrics;
     PRBool mNeedsOblique;
 };
 

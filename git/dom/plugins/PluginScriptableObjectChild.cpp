@@ -550,7 +550,7 @@ PluginScriptableObjectChild::ResurrectProxyObject()
   InitializeProxy();
   NS_ASSERTION(mObject, "Initialize failed!");
 
-  SendProtect();
+  CallProtect();
   return true;
 }
 
@@ -583,7 +583,7 @@ PluginScriptableObjectChild::Unprotect()
 
   if (mType == LocalObject) {
     if (--mProtectCount == 0) {
-      PluginScriptableObjectChild::Send__delete__(this);
+      PluginScriptableObjectChild::Call__delete__(this);
     }
   }
 }
@@ -600,7 +600,7 @@ PluginScriptableObjectChild::DropNPObject()
   PluginModuleChild::current()->UnregisterActorForNPObject(mObject);
   mObject = nsnull;
 
-  SendUnprotect();
+  CallUnprotect();
 }
 
 void
@@ -1036,7 +1036,7 @@ PluginScriptableObjectChild::AnswerConstruct(const nsTArray<Variant>& aArgs,
 }
 
 bool
-PluginScriptableObjectChild::RecvProtect()
+PluginScriptableObjectChild::AnswerProtect()
 {
   NS_ASSERTION(mObject->_class != GetClass(), "Bad object type!");
   NS_ASSERTION(mType == LocalObject, "Bad type!");
@@ -1046,7 +1046,7 @@ PluginScriptableObjectChild::RecvProtect()
 }
 
 bool
-PluginScriptableObjectChild::RecvUnprotect()
+PluginScriptableObjectChild::AnswerUnprotect()
 {
   NS_ASSERTION(mObject->_class != GetClass(), "Bad object type!");
   NS_ASSERTION(mType == LocalObject, "Bad type!");

@@ -277,6 +277,7 @@ MAKEFILES_layout="
   layout/build/Makefile
   layout/forms/Makefile
   layout/generic/Makefile
+  layout/html/tests/Makefile
   layout/inspector/public/Makefile
   layout/inspector/src/Makefile
   layout/printing/Makefile
@@ -591,6 +592,8 @@ MAKEFILES_xpfe="
   widget/src/xremoteclient/Makefile
   toolkit/components/remote/Makefile
   xpfe/Makefile
+  xpfe/browser/Makefile
+  xpfe/browser/src/Makefile
   xpfe/components/Makefile
   xpfe/components/directory/Makefile
   xpfe/components/find/Makefile
@@ -733,7 +736,6 @@ MAKEFILES_xulapp="
   toolkit/components/startup/Makefile
   toolkit/components/startup/public/Makefile
   toolkit/components/startup/src/Makefile
-  toolkit/components/statusfilter/Makefile
   toolkit/components/typeaheadfind/Makefile
   toolkit/components/typeaheadfind/public/Makefile
   toolkit/components/typeaheadfind/src/Makefile

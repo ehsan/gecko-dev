@@ -1257,11 +1257,6 @@ public:
                                           nsISupports* aExtra = nsnull);
 
   /**
-   * Returns true if aPrincipal is the system principal.
-   */
-  static PRBool IsSystemPrincipal(nsIPrincipal* aPrincipal);
-
-  /**
    * Trigger a link with uri aLinkURI. If aClick is false, this triggers a
    * mouseover on the link, otherwise it triggers a load after doing a
    * security check using aContent's principal.
@@ -1456,13 +1451,6 @@ public:
   static JSContext *GetCurrentJSContext();
 
   /**
-   * Case insensitive comparison between two strings. However it only ignores
-   * case for ASCII characters a-z.
-   */
-  static PRBool EqualsIgnoreASCIICase(const nsAString& aStr1,
-                                      const nsAString& aStr2);
-
-  /**
    * Convert ASCII A-Z to a-z.
    */
   static void ASCIIToLower(const nsAString& aSource, nsAString& aDest);
@@ -1548,7 +1536,6 @@ public:
     return WrapNative(cx, scope, native, nsnull, vp, aHolder, aAllowWrapping);
   }
 
-  static void StripNullChars(const nsAString& aInStr, nsAString& aOutStr);
 private:
 
   static PRBool InitializeEventTable();

@@ -67,6 +67,12 @@
       <xul:stringbundle anonid="tbstringbundle" src="chrome://browser/locale/tabbrowser.properties"/>
       <xul:tabbox anonid="tabbox" flex="1" eventnode="document" xbl:inherits="handleCtrlPageUpDown"
                   onselect="if (event.target.localName == 'tabpanels') this.parentNode.updateCurrentBrowser();">
+        <xul:hbox class="tab-drop-indicator-bar" collapsed="true"
+                  ondragover="this.parentNode.parentNode._onDragOver(event);"
+                  ondragleave="this.parentNode.parentNode._onDragLeave(event);"
+                  ondrop="this.parentNode.parentNode._onDrop(event);">
+          <xul:hbox class="tab-drop-indicator" mousethrough="always"/>
+        </xul:hbox>
         <xul:hbox class="tabbrowser-strip" collapsed="true" tooltip="_child" context="_child"
                   anonid="strip"
                   ondragstart="this.parentNode.parentNode._onDragStart(event);"
@@ -74,9 +80,6 @@
                   ondrop="this.parentNode.parentNode._onDrop(event);"
                   ondragend="this.parentNode.parentNode._onDragEnd(event);"
                   ondragleave="this.parentNode.parentNode._onDragLeave(event);">
-          <xul:hbox align="start">
-            <xul:image class="tab-drop-indicator" anonid="tab-drop-indicator" collapsed="true"/>
-          </xul:hbox>
           <xul:tooltip onpopupshowing="return this.parentNode.parentNode.parentNode.createTooltip(event);"/>
           <xul:menupopup anonid="tabContextMenu" onpopupshowing="this.parentNode.parentNode.parentNode.updatePopupMenu(this);">
             <xul:menuitem id="context_newTab" label="&newTab.label;" accesskey="&newTab.accesskey;"
@@ -157,8 +160,8 @@
       <field name="mTabBox" readonly="true">
         document.getAnonymousElementByAttribute(this, "anonid", "tabbox");
       </field>
-      <field name="_tabDropIndicator">
-        document.getAnonymousElementByAttribute(this, "anonid", "tab-drop-indicator");
+      <field name="mTabDropIndicatorBar">
+        this.mTabBox.childNodes[0]
       </field>
       <field name="mStrip" readonly="true">
         document.getAnonymousElementByAttribute(this, "anonid", "strip");
@@ -802,8 +805,7 @@
         </body>
       </method>
 
-      <method name="getWindowTitleForBrowser">
-        <parameter name="aBrowser"/>
+      <method name="updateTitlebar">
         <body>
           <![CDATA[
             var newTitle = "";
@@ -811,8 +813,8 @@
             var docElement = this.ownerDocument.documentElement;
             var sep = docElement.getAttribute("titlemenuseparator");
 
-            if (aBrowser.docShell.contentViewer)
-              docTitle = aBrowser.contentTitle;
+            if (this.docShell.contentViewer)
+              docTitle = this.contentTitle;
 
             if (!docTitle)
               docTitle = docElement.getAttribute("titledefault");
@@ -832,7 +834,7 @@
             try {
               if (docElement.getAttribute("chromehidden").indexOf("location") != -1) {
                 var uri = this.mURIFixup.createExposableURI(
-                            aBrowser.currentURI);
+                            this.mCurrentBrowser.currentURI);
                 if (uri.scheme == "about")
                   newTitle = uri.spec + sep + newTitle;
                 else
@@ -840,15 +842,7 @@
               }
             } catch (e) {}
 
-            return newTitle;
-          ]]>
-        </body>
-      </method>
-
-      <method name="updateTitlebar">
-        <body>
-          <![CDATA[
-            this.ownerDocument.title = this.getWindowTitleForBrowser(this.mCurrentBrowser);
+            this.ownerDocument.title = newTitle;
           ]]>
         </body>
       </method>
@@ -936,12 +930,12 @@
                 }
             }
 
-            // Don't switch the fast find or update the titlebar (bug 540248) - this tab switch is temporary
-            if (!this._previewMode) {
+            // Don't switch the fast find - this tab switch is temporary
+            if (!this._previewMode)
               this._fastFind.setDocShell(this.mCurrentBrowser.docShell);
 
-              this.updateTitlebar();
-            }
+            // Update the window title.
+            this.updateTitlebar();
 
             // If the new tab is busy, and our current state is not busy, then
             // we need to fire a start to all progress listeners.
@@ -2024,30 +2018,15 @@
         </body>
       </method>
 
-      <method name="_continueScroll">
-        <parameter name="aEvent"/>
-        <body><![CDATA[
-          // Workaround for bug 481904: Dragging a tab stops scrolling at
-          // the tab's position when dragging to the first/last tab and back.
-          var t = this.selectedTab;
-          if (aEvent.screenX >= t.boxObject.screenX &&
-              aEvent.screenX <= t.boxObject.screenX + t.boxObject.width &&
-              aEvent.screenY >= t.boxObject.screenY &&
-              aEvent.screenY <= t.boxObject.screenY + t.boxObject.height)
-            this.tabContainer.mTabstrip.ensureElementIsVisible(t);
-        ]]></body>
-      </method>
-
       <method name="_onDragOver">
         <parameter name="aEvent"/>
         <body>
           <![CDATA[
             var effects = this._setEffectAllowedForDataTransfer(aEvent);
 
-            var ind = this._tabDropIndicator;
+            var ib = this.mTabDropIndicatorBar;
             if (effects == "" || effects == "none") {
-              ind.collapsed = true;
-              this._continueScroll(aEvent);
+              ib.collapsed = "true";
               return;
             }
             aEvent.preventDefault();
@@ -2086,11 +2065,21 @@
             }
 
             var newIndex = this.getNewIndex(aEvent);
+            var ib = this.mTabDropIndicatorBar;
+            var ind = ib.firstChild;
             var scrollRect = tabStrip.scrollClientRect;
             var rect = this.getBoundingClientRect();
             var minMargin = scrollRect.left - rect.left;
+            // make sure we don't place the tab drop indicator past the
+            // edge, or the containing box will flex and stretch
+            // the tab drop indicator bar, which will flex the url bar.  
+            // XXX todo
+            // just use first value if you can figure out how to get
+            // the tab drop indicator to crop instead of flex and stretch
+            // the tab drop indicator bar.
             var maxMargin = Math.min(minMargin + scrollRect.width, 
-                                     scrollRect.right);
+                                     ib.getBoundingClientRect().right -
+                                     ind.clientWidth);
             if (!ltr)
               [minMargin, maxMargin] = [this.clientWidth - maxMargin,
                                         this.clientWidth - minMargin];
@@ -2122,15 +2111,9 @@
                 newMargin = maxMargin;
             }
 
-            ind.collapsed = false;
- 
-            newMargin += ind.clientWidth / 2;
-            if (!ltr)
-              newMargin *= -1;
+            ind.style.MozMarginStart = newMargin + 'px';
 
-            ind.style.MozTransform = "translate(" + Math.round(newMargin) + "px)";
-            ind.style.MozMarginStart = (-ind.clientWidth) + "px";
-            ind.style.marginTop = (-ind.clientHeight) + "px";
+            ib.collapsed = false;
           ]]>
         </body>
       </method>
@@ -2149,7 +2132,7 @@
                 return;
             }
 
-            this._tabDropIndicator.collapsed = true;
+            this.mTabDropIndicatorBar.collapsed = true;
             aEvent.stopPropagation();
 
             if (draggedTab && (dropEffect == "copy" ||
@@ -2318,8 +2301,7 @@
             if (target)
               return;
 
-            this._tabDropIndicator.collapsed = true;
-            this._continueScroll(aEvent);
+            this.mTabDropIndicatorBar.collapsed = true;
             aEvent.stopPropagation();
           ]]>
         </body>

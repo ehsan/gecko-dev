@@ -52,9 +52,8 @@ class nsSVGSMILTransform;
 class nsSVGTransformSMILAttr : public nsISMILAttr
 {
 public:
-  nsSVGTransformSMILAttr(nsSVGAnimatedTransformList* aTransform,
-                         nsSVGElement* aSVGElement)
-    : mVal(aTransform), mSVGElement(aSVGElement) {}
+  nsSVGTransformSMILAttr(nsSVGAnimatedTransformList* aTransform)
+    : mVal(aTransform) {}
 
   // nsISMILAttr methods
   virtual nsresult ValueFromString(const nsAString& aStr,
@@ -84,7 +83,6 @@ private:
   // created & destroyed during a SMIL sample-step, during which time the DOM
   // isn't modified.
   nsSVGAnimatedTransformList* mVal;
-  nsSVGElement* mSVGElement;
 };
 
 #endif // NS_SVGTRANSFORMSMILATTR_H_

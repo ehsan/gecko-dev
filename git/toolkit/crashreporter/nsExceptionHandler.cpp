@@ -1158,13 +1158,13 @@ static PLDHashOperator EnumerateChildAnnotations(const nsACString& key,
       return PL_DHASH_NEXT;
   }
 
-  PRFileDesc* fd =
-    reinterpret_cast<PRFileDesc*>(userData);
-  
-  PR_Write(fd, key.BeginReading(), key.Length());
-  PR_Write(fd, "=", 1);
-  PR_Write(fd, entry.BeginReading(), entry.Length());
-  PR_Write(fd, "\n", 1);
+  nsIFileOutputStream* extraStream =
+    reinterpret_cast<nsIFileOutputStream*>(userData);
+  PRUint32 written;
+  extraStream->Write(key.BeginReading(), key.Length(), &written);
+  extraStream->Write("=", 1, &written);
+  extraStream->Write(entry.BeginReading(), entry.Length(), &written);
+  extraStream->Write("\n", 1, &written);
   return PL_DHASH_NEXT;
 }
 
@@ -1211,12 +1211,10 @@ OnChildProcessDumpRequested(void* aContext,
 #endif
 
   // Get an .extra file with the same base name as the .dmp file
-  nsCOMPtr<nsIFile> file;
-  nsresult rv = lf->Clone(getter_AddRefs(file));
-  
+  nsCOMPtr<nsIFile> extraFile;
+  nsresult rv = lf->Clone(getter_AddRefs(extraFile));
   if (NS_FAILED(rv))
     return;
-  nsCOMPtr<nsILocalFile> extraFile = do_QueryInterface(file);
 
   nsAutoString leafName;
   rv = extraFile->GetLeafName(leafName);
@@ -1230,22 +1228,23 @@ OnChildProcessDumpRequested(void* aContext,
     return;
 
   // Now write out the annotations to it
-  PRFileDesc* fd;
-  rv = extraFile->OpenNSPRFileDesc(PR_WRONLY | PR_CREATE_FILE | PR_TRUNCATE,
-                                   0600, &fd);
+  nsCOMPtr<nsIFileOutputStream> stream =
+    do_CreateInstance("@mozilla.org/network/file-output-stream;1");
+  rv = stream->Init(extraFile, -1, 0600, 0);
   if (NS_FAILED(rv))
     return;
   crashReporterAPIData_Hash->EnumerateRead(EnumerateChildAnnotations,
-                                           fd);
+                                           stream.get());
   // Add CrashTime to extra data
   time_t crashTime = time(NULL);
   char crashTimeString[32];
   XP_TTOA(crashTime, crashTimeString, 10);
 
-  PR_Write(fd, kCrashTimeParameter, kCrashTimeParameterLen);
-  PR_Write(fd, crashTimeString, strlen(crashTimeString));
-  PR_Write(fd, "\n", 1);
-  PR_Close(fd);
+  PRUint32 written;
+  stream->Write(kCrashTimeParameter, kCrashTimeParameterLen, &written);
+  stream->Write(crashTimeString, strlen(crashTimeString), &written);
+  stream->Write("\n", 1, &written);
+  stream->Close();
 
   bool doReport = true;
   char* e = getenv("MOZ_CRASHREPORTER_NO_REPORT");

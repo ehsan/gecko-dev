@@ -47,6 +47,7 @@
 
 #include "nsIURL.h"
 #include "nsIFileURL.h"
+#include "nsIJAR.h"
 
 #include "nsITransport.h"
 #include "nsIOutputStream.h"
@@ -634,9 +635,13 @@ VerifySigning(nsIZipReader* hZip, nsIPrincipal* aPrincipal)
     if (!hasCert)
         return NS_ERROR_FAILURE;
 
+    nsCOMPtr<nsIJAR> jar(do_QueryInterface(hZip));
+    if (!jar)
+        return NS_ERROR_FAILURE;
+
     // See if the archive is signed at all first
     nsCOMPtr<nsIPrincipal> principal;
-    nsresult rv = hZip->GetCertificatePrincipal(nsnull, getter_AddRefs(principal));
+    nsresult rv = jar->GetCertificatePrincipal(nsnull, getter_AddRefs(principal));
     if (NS_FAILED(rv) || !principal)
         return NS_ERROR_FAILURE;
 
@@ -665,7 +670,7 @@ VerifySigning(nsIZipReader* hZip, nsIPrincipal* aPrincipal)
         entryCount++;
 
         // Each entry must be signed
-        rv = hZip->GetCertificatePrincipal(name.get(), getter_AddRefs(principal));
+        rv = jar->GetCertificatePrincipal(name.get(), getter_AddRefs(principal));
         if (NS_FAILED(rv) || !principal) return NS_ERROR_FAILURE;
 
         PRBool equal;
@@ -675,7 +680,7 @@ VerifySigning(nsIZipReader* hZip, nsIPrincipal* aPrincipal)
 
     // next verify all files in the manifest are in the archive.
     PRUint32 manifestEntryCount;
-    rv = hZip->GetManifestEntriesCount(&manifestEntryCount);
+    rv = jar->GetManifestEntriesCount(&manifestEntryCount);
     if (NS_FAILED(rv))
         return rv;
 
@@ -804,7 +809,7 @@ nsresult nsXPInstallManager::InstallItems()
 
 NS_IMETHODIMP nsXPInstallManager::DownloadNext()
 {
-    nsresult rv = NS_OK;
+    nsresult rv;
     mContentLength = 0;
 
     if (mCancelled)
@@ -1188,7 +1193,7 @@ nsXPInstallManager::OnStopRequest(nsIRequest *request, nsISupports *ctxt,
     {
         // Download error!
         // -- first clean up partially downloaded file
-        if ( mItem && mItem->mFile )
+        if ( mItem->mFile )
         {
             PRBool flagExists;
             nsresult rv2 ;
@@ -1206,8 +1211,7 @@ nsXPInstallManager::OnStopRequest(nsIRequest *request, nsISupports *ctxt,
             mDlg->OnStateChange( mNextItem-1,
                                  nsIXPIProgressDialog::INSTALL_DONE,
                                  errorcode );
-        if (mItem)
-            mTriggers->SendStatus( mItem->mURL.get(), errorcode );
+        mTriggers->SendStatus( mItem->mURL.get(), errorcode );
     }
     else if (mDlg)
     {

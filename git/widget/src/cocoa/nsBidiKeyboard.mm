@@ -43,6 +43,8 @@
 #include "nsCocoaUtils.h"
 #include "nsCocoaTextInputHandler.h"
 
+#import <Carbon/Carbon.h>
+
 NS_IMPL_ISUPPORTS1(nsBidiKeyboard, nsIBidiKeyboard)
 
 nsBidiKeyboard::nsBidiKeyboard() : nsIBidiKeyboard()

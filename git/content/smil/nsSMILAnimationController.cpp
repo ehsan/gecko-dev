@@ -643,8 +643,9 @@ nsSMILAnimationController::GetTargetIdentifierForAnimation(
   // overlap, 'auto' = 'CSS'. (SMILANIM 3.1)
   PRBool isCSS;
   if (attributeType == eSMILTargetAttrType_auto) {
-    nsCSSProperty prop =
-      nsCSSProps::LookupProperty(nsDependentAtomString(attributeName));
+    nsAutoString attributeNameStr;
+    attributeName->ToString(attributeNameStr);
+    nsCSSProperty prop = nsCSSProps::LookupProperty(attributeNameStr);
     isCSS = nsSMILCSSProperty::IsPropertyAnimatable(prop);
   } else {
     isCSS = (attributeType == eSMILTargetAttrType_CSS);

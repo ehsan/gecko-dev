@@ -36,9 +36,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include <QApplication>
-#include <QSound>
-
 #include <string.h>
 
 #include "nscore.h"
@@ -54,6 +51,9 @@
 #include "nsCOMPtr.h"
 #include "nsNativeCharsetUtils.h"
 #include "nsAutoPtr.h"
+
+#include <QApplication>
+#include <QSound>
 
 /* used with esd_open_sound */
 static int esdref = -1;

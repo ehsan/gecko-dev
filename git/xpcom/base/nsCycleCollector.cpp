@@ -1189,13 +1189,13 @@ Fault(const char *msg, PtrInfo *pi)
 }
 #endif
 
-static inline void
-AbortIfOffMainThreadIfCheckFast()
+static inline bool
+CheckMainThreadIfFast()
 {
 #if defined(XP_WIN) || defined(NS_TLS)
-    if (!NS_IsMainThread()) {
-        NS_RUNTIMEABORT("Main-thread-only object used off the main thread");
-    }
+    return NS_IsMainThread();
+#else
+    return true;
 #endif
 }
 
@@ -2309,7 +2309,8 @@ nsCycleCollector_isScanSafe(nsISupports *s)
 PRBool
 nsCycleCollector::Suspect(nsISupports *n)
 {
-    AbortIfOffMainThreadIfCheckFast();
+    if (!CheckMainThreadIfFast())
+        return PR_FALSE;
 
     // Re-entering ::Suspect during collection used to be a fault, but
     // we are canonicalizing nsISupports pointers using QI, so we will
@@ -2349,7 +2350,12 @@ nsCycleCollector::Suspect(nsISupports *n)
 PRBool
 nsCycleCollector::Forget(nsISupports *n)
 {
-    AbortIfOffMainThreadIfCheckFast();
+    if (!CheckMainThreadIfFast()) {
+        if (!mParams.mDoNothing) {
+            Fault("Forget called off main thread");
+        }
+        return PR_TRUE; // it's as good as forgotten
+    }
 
     // Re-entering ::Forget during collection used to be a fault, but
     // we are canonicalizing nsISupports pointers using QI, so we will
@@ -2383,7 +2389,8 @@ nsCycleCollector::Forget(nsISupports *n)
 nsPurpleBufferEntry*
 nsCycleCollector::Suspect2(nsISupports *n)
 {
-    AbortIfOffMainThreadIfCheckFast();
+    if (!CheckMainThreadIfFast())
+        return nsnull;
 
     // Re-entering ::Suspect during collection used to be a fault, but
     // we are canonicalizing nsISupports pointers using QI, so we will
@@ -2424,7 +2431,8 @@ nsCycleCollector::Suspect2(nsISupports *n)
 PRBool
 nsCycleCollector::Forget2(nsPurpleBufferEntry *e)
 {
-    AbortIfOffMainThreadIfCheckFast();
+    if (!CheckMainThreadIfFast())
+        return PR_FALSE;
 
     // Re-entering ::Forget during collection used to be a fault, but
     // we are canonicalizing nsISupports pointers using QI, so we will

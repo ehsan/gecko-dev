@@ -74,10 +74,20 @@ public:
   static void InitAtoms();
 
 protected:
-
-#define DOMVIEW_ATOM(name_, value_) static nsIAtom* name_;
-#include "inDOMViewAtomList.h"
-#undef DOMVIEW_ATOM
+  static nsIAtom* kAnonymousAtom;
+  static nsIAtom* kElementNodeAtom;
+  static nsIAtom* kAttributeNodeAtom;
+  static nsIAtom* kTextNodeAtom;
+  static nsIAtom* kCDataSectionNodeAtom;
+  static nsIAtom* kEntityReferenceNodeAtom;
+  static nsIAtom* kEntityNodeAtom;
+  static nsIAtom* kProcessingInstructionNodeAtom;
+  static nsIAtom* kCommentNodeAtom;
+  static nsIAtom* kDocumentNodeAtom;
+  static nsIAtom* kDocumentTypeNodeAtom;
+  static nsIAtom* kDocumentFragmentNodeAtom;
+  static nsIAtom* kNotationNodeAtom;
+  static nsIAtom* kAccessibleNodeAtom;
 
   static const nsStaticAtom Atoms_info[]; 
 

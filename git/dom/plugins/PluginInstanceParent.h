@@ -78,8 +78,8 @@ public:
     virtual PPluginScriptableObjectParent*
     AllocPPluginScriptableObject();
 
-    NS_OVERRIDE virtual bool
-    RecvPPluginScriptableObjectConstructor(PPluginScriptableObjectParent* aActor);
+    virtual bool
+    AnswerPPluginScriptableObjectConstructor(PPluginScriptableObjectParent* aActor);
 
     virtual bool
     DeallocPPluginScriptableObject(PPluginScriptableObjectParent* aObject);

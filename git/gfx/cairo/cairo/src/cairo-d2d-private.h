@@ -76,11 +76,8 @@ struct _cairo_d2d_surface {
     ID2D1Layer *clipLayer;
     /** Mask layer used by surface_mask to push opacity masks */
     ID2D1Layer *maskLayer;
-    /**
-     * Layer used for clipping when tiling, and also for clearing out geometries
-     * - lazily initialized 
-     */
-    ID2D1Layer *helperLayer;
+    /** Layer used for clipping when tiling - lazily initialized */
+    ID2D1Layer *tilingLayer;
     /** If this layer currently is clipping, used to prevent excessive push/pops */
     bool clipping;
     /** Brush used for bitmaps */
@@ -198,10 +195,8 @@ public:
 
 		    }
 		}
-		if (SUCCEEDED(hr)) {
-		    mDeviceInstance->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_LINESTRIP);
-		}
 	    }
+	    mDeviceInstance->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_LINESTRIP);
 	}
 	return mDeviceInstance;
     }

@@ -546,7 +546,9 @@ var PlacesCommandHook = {
    *          UnfiledBookmarks and Tags.
    */
   showPlacesOrganizer: function PCH_showPlacesOrganizer(aLeftPaneRoot) {
-    var organizer = Services.wm.getMostRecentWindow("Places:Organizer");
+    var wm = Cc["@mozilla.org/appshell/window-mediator;1"].
+             getService(Ci.nsIWindowMediator);
+    var organizer = wm.getMostRecentWindow("Places:Organizer");
     if (!organizer) {
       // No currently open places window, so open one with the specified mode.
       openDialog("chrome://browser/content/places/places.xul", 

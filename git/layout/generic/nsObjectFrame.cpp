@@ -46,13 +46,6 @@
 
 /* rendering objects for replaced elements implemented by a plugin */
 
-#ifdef MOZ_X11
-#ifdef MOZ_WIDGET_QT
-#include <QWidget>
-#include <QX11Info>
-#endif
-#endif
-
 #include "nscore.h"
 #include "nsCOMPtr.h"
 #include "nsPresContext.h"
@@ -62,6 +55,12 @@
 #include "nsIViewManager.h"
 #include "nsIDOMKeyListener.h"
 #include "nsIDOMDragEvent.h"
+#ifdef MOZ_X11
+#ifdef MOZ_WIDGET_QT
+#include <QWidget>
+#include <QX11Info>
+#endif
+#endif
 #include "nsIPluginHost.h"
 #include "nsString.h"
 #include "nsReadableUtils.h"
@@ -174,15 +173,18 @@ enum { XKeyPress = KeyPress };
 #undef KeyPress
 #endif
 
-#if (MOZ_PLATFORM_MAEMO == 5) && defined(MOZ_WIDGET_GTK2)
+#if (MOZ_PLATFORM_MAEMO == 5)
 #define MOZ_COMPOSITED_PLUGINS 1
-#define MOZ_USE_IMAGE_EXPOSE   1
+
 #include "gfxXlibSurface.h"
+
 #include <X11/Xutil.h>
 #include <X11/Xatom.h>
 #include <X11/extensions/XShm.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
+
+
 #endif
 
 #ifdef MOZ_WIDGET_GTK2
@@ -414,7 +416,7 @@ public:
     return strncmp(GetPluginName(), aPluginName, strlen(aPluginName)) == 0;
   }
 
-#ifdef MOZ_USE_IMAGE_EXPOSE
+#if (MOZ_PLATFORM_MAEMO == 5)
   nsresult SetAbsoluteScreenPosition(nsIDOMElement* element,
                                      nsIDOMClientRect* position,
                                      nsIDOMClientRect* clip);
@@ -509,7 +511,7 @@ private:
   };
 #endif
 
-#ifdef MOZ_USE_IMAGE_EXPOSE
+#if (MOZ_PLATFORM_MAEMO == 5)
 
   // On hildon, we attempt to use NPImageExpose which allows us faster
   // painting.
@@ -1223,7 +1225,7 @@ nsObjectFrame::SetAbsoluteScreenPosition(nsIDOMElement* element,
                                          nsIDOMClientRect* position,
                                          nsIDOMClientRect* clip)
 {
-#ifdef MOZ_USE_IMAGE_EXPOSE
+#if (MOZ_PLATFORM_MAEMO == 5)
   if (!mInstanceOwner)
     return NS_ERROR_NOT_AVAILABLE;
   return mInstanceOwner->SetAbsoluteScreenPosition(element, position, clip);
@@ -2453,7 +2455,7 @@ nsPluginInstanceOwner::nsPluginInstanceOwner()
   mLastPoint = nsIntPoint(0,0);
 #endif
 
-#ifdef MOZ_USE_IMAGE_EXPOSE
+#if (MOZ_PLATFORM_MAEMO == 5)
   mPluginSize = nsIntSize(0,0);
   mXlibSurfGC = None;
   mBlitWindow = nsnull;
@@ -2523,7 +2525,7 @@ nsPluginInstanceOwner::~nsPluginInstanceOwner()
     mInstance->InvalidateOwner();
   }
 
-#ifdef MOZ_USE_IMAGE_EXPOSE
+#if (MOZ_PLATFORM_MAEMO == 5)
   ReleaseXShm();
 #endif
 }
@@ -2735,7 +2737,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::InvalidateRect(NPRect *invalidRect)
   if (!mObjectFrame || !invalidRect || !mWidgetVisible)
     return NS_ERROR_FAILURE;
 
-#ifdef MOZ_USE_IMAGE_EXPOSE
+#if (MOZ_PLATFORM_MAEMO == 5)
   PRBool simpleImageRender = PR_FALSE;
   mInstance->GetValueFromPlugin(NPPVpluginWindowlessLocalBool,
                                 &simpleImageRender);
@@ -4268,8 +4270,7 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
 
 #ifndef NP_NO_CARBON
         if (eventModel == NPEventModelCarbon) {
-          nsIntPoint geckoScreenCoords = mWidget->WidgetToScreenOffset();
-          Point carbonPt = { ptPx.y + geckoScreenCoords.y, ptPx.x + geckoScreenCoords.x };
+          Point carbonPt = { ptPx.y + mPluginWindow->y, ptPx.x + mPluginWindow->x };
 
           event = &synthCarbonEvent;
           InitializeEventRecord(&synthCarbonEvent, &carbonPt);
@@ -4882,7 +4883,7 @@ void nsPluginInstanceOwner::Paint(gfxContext* aContext,
   if (!mInstance || !mObjectFrame)
     return;
 
-#ifdef MOZ_USE_IMAGE_EXPOSE
+#if (MOZ_PLATFORM_MAEMO == 5)
   // through to be able to paint the context passed in.  This allows
   // us to handle plugins that do not self invalidate (slowly, but
   // accurately), and it allows us to reduce flicker.
@@ -4971,7 +4972,7 @@ DepthOfVisual(const Screen* screen, const Visual* visual)
 }
 #endif
 
-#ifdef MOZ_USE_IMAGE_EXPOSE
+#if (MOZ_PLATFORM_MAEMO == 5)
 
 static GdkWindow* GetClosestWindow(nsIDOMElement *element)
 {
@@ -5662,7 +5663,7 @@ void nsPluginInstanceOwner::SetPluginHost(nsIPluginHost* aHost)
   mPluginHost = aHost;
 }
 
-#ifdef MOZ_USE_IMAGE_EXPOSE
+#if (MOZ_PLATFORM_MAEMO == 5)
 PRBool nsPluginInstanceOwner::UpdateVisibility(PRBool aVisible)
 {
   // NOTE: Death grip must be held by caller.
@@ -5826,7 +5827,7 @@ void nsPluginInstanceOwner::FixUpURLS(const nsString &name, nsAString &value)
   }
 }
 
-#ifdef MOZ_USE_IMAGE_EXPOSE
+#if (MOZ_PLATFORM_MAEMO == 5)
 nsresult
 nsPluginInstanceOwner::SetAbsoluteScreenPosition(nsIDOMElement* element,
                                                  nsIDOMClientRect* position,

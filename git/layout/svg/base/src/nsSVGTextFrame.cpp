@@ -412,5 +412,4 @@ nsSVGTextFrame::UpdateGlyphPositioning(PRBool aForceGlobalTransform)
     }
     firstFragment = fragment;
   }
-  nsSVGUtils::UpdateGraphic(this);
 }

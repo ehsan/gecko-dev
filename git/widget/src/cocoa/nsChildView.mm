@@ -194,8 +194,6 @@ PRUint32 nsChildView::sLastInputEventCount = 0;
 
 - (BOOL)isFirstResponder;
 
-- (BOOL)isDragInProgress;
-
 - (void)fireKeyEventForFlagsChanged:(NSEvent*)theEvent keyDown:(BOOL)isKeyDown;
 
 @end
@@ -973,11 +971,9 @@ NS_IMETHODIMP nsChildView::SetCursor(nsCursor aCursor)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  if ([mView isDragInProgress])
-    return NS_OK; // Don't change the cursor during dragging.
-
   nsBaseWidget::SetCursor(aCursor);
-  return [[nsCursorManager sharedInstance] setCursor:aCursor];
+  [[nsCursorManager sharedInstance] setCursor: aCursor];
+  return NS_OK;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
@@ -986,12 +982,7 @@ NS_IMETHODIMP nsChildView::SetCursor(nsCursor aCursor)
 NS_IMETHODIMP nsChildView::SetCursor(imgIContainer* aCursor,
                                       PRUint32 aHotspotX, PRUint32 aHotspotY)
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
-
-  nsBaseWidget::SetCursor(aCursor, aHotspotX, aHotspotY);
-  return [[nsCursorManager sharedInstance] setCursorWithImage:aCursor hotSpotX:aHotspotX hotSpotY:aHotspotY];
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
+  return nsBaseWidget::SetCursor(aCursor, aHotspotX, aHotspotY);
 }
 
 #pragma mark -
@@ -3095,13 +3086,12 @@ static BOOL DrawingAtWindowTop(CGContextRef aContext)
     }
   }
 
-  // This might destroy our widget (and null out mGeckoChild).
   mGeckoChild->DispatchWindowEvent(geckoEvent);
 
   // If our mouse-up event's location is over some other object (as might
   // happen if it came at the end of a dragging operation), also send our
   // Gecko frame a mouse-exit event.
-  if (mGeckoChild && mIsPluginView) {
+  if (mIsPluginView) {
 #ifndef NP_NO_CARBON
     if (mPluginEventModel == NPEventModelCocoa)
 #endif
@@ -5379,16 +5369,6 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NO);
 }
 
-- (BOOL)isDragInProgress
-{
-  if (!mDragService)
-    return NO;
-
-  nsCOMPtr<nsIDragSession> dragSession;
-  mDragService->GetCurrentSession(getter_AddRefs(dragSession));
-  return dragSession != nsnull;
-}
-
 - (void)fireKeyEventForFlagsChanged:(NSEvent*)theEvent keyDown:(BOOL)isKeyDown
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
@@ -5495,28 +5475,16 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
 // drag'n'drop stuff
 #define kDragServiceContractID "@mozilla.org/widget/dragservice;1"
 
-- (NSDragOperation)dragOperationForSession:(nsIDragSession*)aDragSession
-{
-  PRUint32 dragAction;
-  aDragSession->GetDragAction(&dragAction);
-  if (nsIDragService::DRAGDROP_ACTION_LINK & dragAction)
-    return NSDragOperationLink;
-  if (nsIDragService::DRAGDROP_ACTION_COPY & dragAction)
-    return NSDragOperationCopy;
-  if (nsIDragService::DRAGDROP_ACTION_MOVE & dragAction)
-    return NSDragOperationGeneric;
-  return NSDragOperationNone;
-}
-
 // This is a utility function used by NSView drag event methods
 // to send events. It contains all of the logic needed for Gecko
-// dragging to work. Returns the appropriate cocoa drag operation code.
-- (NSDragOperation)doDragAction:(PRUint32)aMessage sender:(id)aSender
+// dragging to work. Returns YES if the event was handled, NO
+// if it wasn't.
+- (BOOL)doDragAction:(PRUint32)aMessage sender:(id)aSender
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
   if (!mGeckoChild)
-    return NSDragOperationNone;
+    return NO;
 
   PR_LOG(sCocoaLog, PR_LOG_ALWAYS, ("ChildView doDragAction: entered\n"));
 
@@ -5524,7 +5492,7 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
     CallGetService(kDragServiceContractID, &mDragService);
     NS_ASSERTION(mDragService, "Couldn't get a drag service - big problem!");
     if (!mDragService)
-      return NSDragOperationNone;
+      return NO;
   }
 
   if (aMessage == NS_DRAGDROP_ENTER)
@@ -5551,7 +5519,7 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
         if (!sourceNode) {
           mDragService->EndDragSession(PR_FALSE);
         }
-        return NSDragOperationNone;
+        return NO;
       }
     }
     
@@ -5569,7 +5537,7 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
 
   // set up gecko event
   nsDragEvent geckoEvent(PR_TRUE, aMessage, nsnull);
-  [self convertGenericCocoaEvent:[NSApp currentEvent] toGeckoEvent:&geckoEvent];
+  [self convertGenericCocoaEvent:nil toGeckoEvent:&geckoEvent];
 
   // Use our own coordinates in the gecko event.
   // Convert event from gecko global coords to gecko view coords.
@@ -5580,31 +5548,24 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
   nsAutoRetainCocoaObject kungFuDeathGrip(self);
   mGeckoChild->DispatchWindowEvent(geckoEvent);
   if (!mGeckoChild)
-    return NSDragOperationNone;
+    return YES;
 
-  if (dragSession) {
-    switch (aMessage) {
-      case NS_DRAGDROP_ENTER:
-      case NS_DRAGDROP_OVER:
-        return [self dragOperationForSession:dragSession];
-      case NS_DRAGDROP_EXIT:
-      case NS_DRAGDROP_DROP: {
-        nsCOMPtr<nsIDOMNode> sourceNode;
-        dragSession->GetSourceNode(getter_AddRefs(sourceNode));
-        if (!sourceNode) {
-          // We're leaving a window while doing a drag that was
-          // initiated in a different app. End the drag session,
-          // since we're done with it for now (until the user
-          // drags back into mozilla).
-          mDragService->EndDragSession(PR_FALSE);
-        }
-      }
+  if ((aMessage == NS_DRAGDROP_EXIT || aMessage == NS_DRAGDROP_DROP) &&
+      dragSession) {
+    nsCOMPtr<nsIDOMNode> sourceNode;
+    dragSession->GetSourceNode(getter_AddRefs(sourceNode));
+    if (!sourceNode) {
+      // We're leaving a window while doing a drag that was
+      // initiated in a different app. End the drag session,
+      // since we're done with it for now (until the user
+      // drags back into mozilla).
+      mDragService->EndDragSession(PR_FALSE);
     }
   }
 
-  return NSDragOperationGeneric;
+  return YES;
 
-  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NSDragOperationNone);
+  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NO);
 }
 
 - (NSDragOperation)draggingEntered:(id <NSDraggingInfo>)sender
@@ -5622,7 +5583,9 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
   // the view or a drop happens within the view).
   globalDragPboard = [[sender draggingPasteboard] retain];
 
-  return [self doDragAction:NS_DRAGDROP_ENTER sender:sender];
+  BOOL handled = [self doDragAction:NS_DRAGDROP_ENTER sender:sender];
+
+  return handled ? NSDragOperationGeneric : NSDragOperationNone;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NSDragOperationNone);
 }
@@ -5631,7 +5594,8 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
 {
   PR_LOG(sCocoaLog, PR_LOG_ALWAYS, ("ChildView draggingUpdated: entered\n"));
 
-  return [self doDragAction:NS_DRAGDROP_OVER sender:sender];
+  BOOL handled = [self doDragAction:NS_DRAGDROP_OVER sender:sender];
+  return handled ? NSDragOperationGeneric : NSDragOperationNone;
 }
 
 - (void)draggingExited:(id <NSDraggingInfo>)sender
@@ -5646,7 +5610,7 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
 - (BOOL)performDragOperation:(id <NSDraggingInfo>)sender
 {
   nsAutoRetainCocoaObject kungFuDeathGrip(self);
-  BOOL handled = [self doDragAction:NS_DRAGDROP_DROP sender:sender] != NSDragOperationNone;
+  BOOL handled = [self doDragAction:NS_DRAGDROP_DROP sender:sender];
   NS_IF_RELEASE(mDragService);
   return handled;
 }
@@ -5812,18 +5776,16 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
       // Determine if there is a selection (if sending to the service).
       if (sendType) {
         nsQueryContentEvent event(PR_TRUE, NS_QUERY_CONTENT_STATE, mGeckoChild);
-        // This might destroy our widget (and null out mGeckoChild).
         mGeckoChild->DispatchWindowEvent(event);
-        if (!mGeckoChild || !event.mSucceeded || !event.mReply.mHasSelection)
+        if (!event.mSucceeded || !event.mReply.mHasSelection)
           result = nil;
       }
 
       // Determine if we can paste (if receiving data from the service).
-      if (mGeckoChild && returnType) {
+      if (returnType) {
         nsContentCommandEvent command(PR_TRUE, NS_CONTENT_COMMAND_PASTE_TRANSFERABLE, mGeckoChild, PR_TRUE);
-        // This might possibly destroy our widget (and null out mGeckoChild).
         mGeckoChild->DispatchWindowEvent(command);
-        if (!mGeckoChild || !command.mSucceeded || !command.mIsEnabled)
+        if (!command.mSucceeded || !command.mIsEnabled)
           result = nil;
       }
     }

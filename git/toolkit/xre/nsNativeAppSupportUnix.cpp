@@ -413,7 +413,6 @@ nsNativeAppSupportUnix::Start(PRBool *aRetVal)
   // Set the correct/requested restart command in any case.
 
   // Is there a request to suppress default binary launcher?
-  nsCAutoString path;
   char* argv1 = getenv("MOZ_APP_LAUNCHER");
 
   if(!argv1) {
@@ -426,6 +425,8 @@ nsNativeAppSupportUnix::Start(PRBool *aRetVal)
     rv = gDirServiceProvider->GetFile(XRE_EXECUTABLE_FILE, &dummy, getter_AddRefs(executablePath));
 
     if (NS_SUCCEEDED(rv)) {
+      nsCAutoString path;
+
       // Strip off the -bin suffix to get the shell script we should run; this is what Breakpad does
       nsCAutoString leafName;
       rv = executablePath->GetNativeLeafName(leafName);

@@ -284,6 +284,12 @@ LPFNLRESULTFROMOBJECT
 const PRUnichar* kOOPPPluginFocusEventId   = L"OOPP Plugin Focus Widget Event";
 PRUint32        nsWindow::sOOPPPluginFocusEvent   =
                   RegisterWindowMessageW(kOOPPPluginFocusEventId);
+// Used in OOPP hang detection.
+const PRUnichar* kOOPPGetBaseMessageEventId   = L"Get Base Widget Event Message";
+PRUint32        nsWindow::sOOPPGetBaseMessageEvent =
+                  RegisterWindowMessage(kOOPPGetBaseMessageEventId);
+PRInt32         nsWindow::sCallDepth              = 0;
+UINT            nsWindow::sBaseMsg                = 0;
 #endif
 
 /**************************************************************
@@ -2388,9 +2394,6 @@ nsWindow::Scroll(const nsIntPoint& aDelta,
         nsWindow* w = static_cast<nsWindow*>(configuration.mChild);
         w->Invalidate(PR_FALSE);
       }
-
-      ::GetUpdateRgn(mWnd, updateRgn, FALSE);
-      ::OffsetRgn(updateRgn, aDelta.x, aDelta.y);
     } else {
 #endif
       ::ScrollWindowEx(mWnd, aDelta.x, aDelta.y, &clip, &clip, updateRgn, NULL, flags);
@@ -3681,41 +3684,20 @@ nsWindow::IPCWindowProcHandler(UINT& msg, WPARAM& wParam, LPARAM& lParam)
   NS_ASSERTION(!mozilla::ipc::SyncChannel::IsPumpingMessages(),
                "Failed to prevent a nonqueued message from running!");
 
-  // Modal UI being displayed in windowless plugins.
-  if (mozilla::ipc::RPCChannel::IsSpinLoopActive() &&
-      (InSendMessageEx(NULL)&(ISMEX_REPLIED|ISMEX_SEND)) == ISMEX_SEND) {
-    LRESULT res;
-    if (IsAsyncResponseEvent(msg, res)) {
-      ReplyMessage(res);
-    }
-    return;
-  }
-
-  // Handle certain sync plugin events sent to the parent which
-  // trigger ipc calls that result in deadlocks.
-
   // Windowed plugins receiving focus triggering WM_ACTIVATE app messages.
   if (mWindowType == eWindowType_plugin && msg == WM_SETFOCUS &&
-    GetPropW(mWnd, L"PluginInstanceParentProperty")) {
-    ReplyMessage(0);
-    return;
+      ::GetPropW(mWnd, L"PluginInstanceParentProperty")) {
+      ::ReplyMessage(0);
+      return;
   }
 
-  // Windowless flash sending WM_ACTIVATE events to the main window
-  // via calls to ShowWindow.
-  if (msg == WM_ACTIVATE && lParam != 0 &&
-      LOWORD(wParam) == WA_ACTIVE && IsWindow((HWND)lParam) &&
-      (InSendMessageEx(NULL)&(ISMEX_REPLIED|ISMEX_SEND)) == ISMEX_SEND) {
-    ReplyMessage(0);
-    return;
-  }
-
-  // Windowed plugins that pass sys key events to defwndproc generate
-  // WM_SYSCOMMAND events to the main window.
-  if (msg == WM_SYSCOMMAND &&
-      (InSendMessageEx(NULL)&(ISMEX_REPLIED|ISMEX_SEND)) == ISMEX_SEND) {
-    ReplyMessage(0);
-    return;
+  // Modal UI being displayed in windowless plugins.
+  if (mozilla::ipc::RPCChannel::IsSpinLoopActive() &&
+      (::InSendMessageEx(NULL)&(ISMEX_REPLIED|ISMEX_SEND)) == ISMEX_SEND) {
+    LRESULT res;
+    if (IsAsyncResponseEvent(msg, res)) {
+      ::ReplyMessage(res);
+    }
   }
 }
 
@@ -3783,14 +3765,28 @@ LRESULT CALLBACK nsWindow::WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM
     }
   }
 
+#ifdef MOZ_IPC
+  // Track the base event, used in focus hang detection for OOPP.
+  NS_ASSERTION(nsWindow::sCallDepth >= 0, "Call depth out of sync.");
+  if (++nsWindow::sCallDepth == 1)
+    nsWindow::sBaseMsg = msg;
+#endif
+
   // Call ProcessMessage
   LRESULT retValue;
   if (PR_TRUE == someWindow->ProcessMessage(msg, wParam, lParam, &retValue)) {
+#ifdef MOZ_IPC
+    nsWindow::sCallDepth--;
+#endif
     return retValue;
   }
 
   LRESULT res = ::CallWindowProcW(someWindow->GetPrevWindowProc(),
                                   hWnd, msg, wParam, lParam);
+
+#ifdef MOZ_IPC
+  nsWindow::sCallDepth--;
+#endif
 
   return res;
 }
@@ -4305,8 +4301,16 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
 
     case WM_HSCROLL:
     case WM_VSCROLL:
-      *aRetValue = 0;
-      result = OnScroll(msg, wParam, lParam);
+      // check for the incoming nsWindow handle to be null in which case
+      // we assume the message is coming from a horizontal scrollbar inside
+      // a listbox and we don't bother processing it (well, we don't have to)
+      if (lParam) {
+        nsWindow* scrollbar = GetNSWindowPtr((HWND)lParam);
+
+        if (scrollbar) {
+          result = scrollbar->OnScroll(msg, wParam, lParam);
+        }
+      }
       break;
 
     case WM_CTLCOLORLISTBOX:
@@ -4741,6 +4745,16 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
         // receive this event when the child window receives focus. (sent from
         // PluginInstanceParent.cpp)
         ::SendMessage(mWnd, WM_MOUSEACTIVATE, 0, 0); // See nsPluginNativeWindowWin.cpp
+      }
+      else if (msg == sOOPPGetBaseMessageEvent && wParam) {
+        // PluginInstanceParent uses this to retreive the base event for a nested
+        // event it receives. Used in preventing hangs on events forwared from
+        // child.
+        NS_ASSERTION(nsWindow::sCallDepth > 0,
+                     "Call depth not 0 when requesting base message?");
+        *(reinterpret_cast<UINT*>(wParam)) = sBaseMsg;
+        *aRetValue = 1;
+        return PR_TRUE;
       }
 #endif
     }
@@ -6279,21 +6293,8 @@ PRBool nsWindow::HandleScrollingPlugins(UINT aMsg, WPARAM aWParam,
 
 PRBool nsWindow::OnScroll(UINT aMsg, WPARAM aWParam, LPARAM aLParam)
 {
-  static PRInt8 sMouseWheelEmulation = -1;
-  if (sMouseWheelEmulation < 0) {
-    nsCOMPtr<nsIPrefService> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
-    NS_ENSURE_TRUE(prefs, PR_FALSE);
-    nsCOMPtr<nsIPrefBranch> prefBranch;
-    prefs->GetBranch(0, getter_AddRefs(prefBranch));
-    NS_ENSURE_TRUE(prefBranch, PR_FALSE);
-    PRBool emulate;
-    nsresult rv =
-      prefBranch->GetBoolPref("mousewheel.emulate_at_wm_scroll", &emulate);
-    NS_ENSURE_SUCCESS(rv, PR_FALSE);
-    sMouseWheelEmulation = PRInt8(emulate);
-  }
-
-  if (aLParam || sMouseWheelEmulation) {
+  if (aLParam)
+  {
     // Scroll message generated by Thinkpad Trackpoint Driver or similar
     // Treat as a mousewheel message and scroll appropriately
     PRBool quit, result;
@@ -6332,43 +6333,9 @@ PRBool nsWindow::OnScroll(UINT aMsg, WPARAM aWParam, LPARAM aLParam)
     }
     return PR_TRUE;
   }
-
   // Scroll message generated by external application
-  nsContentCommandEvent command(PR_TRUE, NS_CONTENT_COMMAND_SCROLL, this);
-
-  command.mScroll.mIsHorizontal = (aMsg == WM_HSCROLL);
-
-  switch (LOWORD(aWParam))
-  {
-    case SB_LINEUP:   // SB_LINELEFT
-      command.mScroll.mUnit = nsContentCommandEvent::eCmdScrollUnit_Line;
-      command.mScroll.mAmount = -1;
-      break;
-    case SB_LINEDOWN: // SB_LINERIGHT
-      command.mScroll.mUnit = nsContentCommandEvent::eCmdScrollUnit_Line;
-      command.mScroll.mAmount = 1;
-      break;
-    case SB_PAGEUP:   // SB_PAGELEFT
-      command.mScroll.mUnit = nsContentCommandEvent::eCmdScrollUnit_Page;
-      command.mScroll.mAmount = -1;
-      break;
-    case SB_PAGEDOWN: // SB_PAGERIGHT
-      command.mScroll.mUnit = nsContentCommandEvent::eCmdScrollUnit_Page;
-      command.mScroll.mAmount = 1;
-      break;
-    case SB_TOP:      // SB_LEFT
-      command.mScroll.mUnit = nsContentCommandEvent::eCmdScrollUnit_Whole;
-      command.mScroll.mAmount = -1;
-      break;
-    case SB_BOTTOM:   // SB_RIGHT
-      command.mScroll.mUnit = nsContentCommandEvent::eCmdScrollUnit_Whole;
-      command.mScroll.mAmount = 1;
-      break;
-    default:
-      return PR_FALSE;
-  }
-  DispatchWindowEvent(&command);
-  return PR_TRUE;
+  // XXX Handle by scrolling the window in the desired manner (Bug 315727)
+  return PR_FALSE;
 }
 
 // Return the brush used to paint the background of this control
@@ -6538,30 +6505,6 @@ nsWindow::OnIMESelectionChange(void)
 #ifdef ACCESSIBILITY
 already_AddRefed<nsIAccessible> nsWindow::GetRootAccessible()
 {
-  // We want the ability to forcibly disable a11y on windows, because
-  // some non-a11y-related components attempt to bring it up.  See bug
-  // 538530 for details; we have a pref here that allows it to be disabled
-  // for performance and testing resons.
-  //
-  // This pref is checked only once, and the browser needs a restart to
-  // pick up any changes.
-  static int accForceDisable = -1;
-
-  if (accForceDisable == -1) {
-    nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
-    PRBool b = PR_FALSE;
-    nsresult rv = prefs->GetBoolPref("accessibility.win32.force_disabled", &b);
-    if (NS_SUCCEEDED(rv) && b) {
-      accForceDisable = 1;
-    } else {
-      accForceDisable = 0;
-    }
-  }
-
-  // If the pref was true, return null here, disabling a11y.
-  if (accForceDisable)
-      return nsnull;
-
   nsWindow::sIsAccessibilityOn = TRUE;
 
   if (mInDtor || mOnDestroyCalled || mWindowType == eWindowType_invisible) {

@@ -929,12 +929,12 @@ var PlacesSearchBox = {
    */
   updateCollectionTitle: function PSB_updateCollectionTitle(title) {
     if (title)
-      this.searchFilter.placeholder =
+      this.searchFilter.emptyText =
         PlacesUIUtils.getFormattedString("searchCurrentDefault", [title]);
     else
-      this.searchFilter.placeholder = this.filterCollection == "history" ?
-                                      PlacesUIUtils.getString("searchHistory") :
-                                      PlacesUIUtils.getString("searchBookmarks");
+      this.searchFilter.emptyText = this.filterCollection == "history" ?
+                                    PlacesUIUtils.getString("searchHistory") :
+                                    PlacesUIUtils.getString("searchBookmarks");
   },
 
   /**

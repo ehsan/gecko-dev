@@ -45,12 +45,13 @@ var gExpectedStatusResult;
 function run_test() {
   do_test_pending();
   removeUpdateDirsAndFiles();
-  setUpdateURLOverride();
   // The mock XMLHttpRequest is MUCH faster
+  getPrefBranch().setCharPref(PREF_APP_UPDATE_URL_OVERRIDE, URL_HOST + "update.xml");
   overrideXHR(callHandleEvent);
-  standardInit();
+  startAUS();
+  startUpdateChecker();
   // The HTTP server is only used for the mar file downloads which is slow
-  start_httpserver(URL_PATH);
+  start_httpserver(DIR_DATA);
   do_timeout(0, run_test_pt1);
 }
 
@@ -196,7 +197,7 @@ function run_test_pt10() {
 
 // mar download with the mar not found
 function run_test_pt11() {
-  var patches = getRemotePatchString(null, URL_HOST + URL_PATH + "/missing.mar");
+  var patches = getRemotePatchString(null, URL_HOST + DIR_DATA + "/bogus.mar");
   var updates = getRemoteUpdateString(patches);
   gResponseBody = getRemoteUpdatesXMLString(updates);
   run_test_helper_pt1("run_test_pt11 - mar download with the mar not found",

@@ -319,9 +319,11 @@ nsTableRowGroupFrame::InitChildReflowState(nsPresContext&     aPresContext,
   nsMargin padding(0,0,0,0);
   nsMargin* pCollapseBorder = nsnull;
   if (aBorderCollapse) {
-    nsTableRowFrame *rowFrame = do_QueryFrame(aReflowState.frame);
-    if (rowFrame) {
-      pCollapseBorder = rowFrame->GetBCBorderWidth(collapseBorder);
+    if (aReflowState.frame) {
+      nsTableRowFrame *rowFrame = do_QueryFrame(aReflowState.frame);
+      if (rowFrame) {
+        pCollapseBorder = rowFrame->GetBCBorderWidth(collapseBorder);
+      }
     }
   }
   aReflowState.Init(&aPresContext, -1, -1, pCollapseBorder, &padding);
@@ -676,7 +678,8 @@ nsTableRowGroupFrame::CalculateRowHeights(nsPresContext*           aPresContext,
             // get the height of the cell 
             nsSize cellFrameSize = cellFrame->GetSize();
             nsSize cellDesSize = cellFrame->GetDesiredSize();
-            rowFrame->CalculateCellActualHeight(cellFrame, cellDesSize.height);
+            rowFrame->CalculateCellActualSize(cellFrame, cellDesSize.width, 
+                                              cellDesSize.height, cellDesSize.width);
             cellFrameSize.height = cellDesSize.height;
             if (cellFrame->HasVerticalAlignBaseline()) {
               // to ensure that a spanning cell with a long descender doesn't

@@ -48,7 +48,7 @@
 #if defined(XP_WIN)
 #include <windows.h>
 #elif defined(XP_MACOSX)
-#include <CoreServices/CoreServices.h>
+#include <Carbon/Carbon.h>
 #elif defined(MOZ_WIDGET_GTK2)
 #include <gtk/gtk.h>
 #endif
@@ -65,6 +65,7 @@
 #include "nsNetCID.h"
 #include "nsNetUtil.h"
 #include "nsReadableUtils.h"
+#include "nsStaticAtom.h"
 #include "nsString.h"
 #include "nsUnicharUtils.h"
 #include "nsWidgetsCID.h"
@@ -75,6 +76,7 @@
 
 #include "nsIAtom.h"
 #include "nsICommandLine.h"
+#include "nsICSSLoader.h"
 #include "nsICSSStyleSheet.h"
 #include "nsIConsoleService.h"
 #include "nsIDirectoryService.h"
@@ -118,6 +120,7 @@
 #define SELECTED_LOCALE_PREF "general.useragent.locale"
 #define SELECTED_SKIN_PREF   "general.skins.selectedSkin"
 
+static NS_DEFINE_CID(kCSSLoaderCID, NS_CSS_LOADER_CID);
 static NS_DEFINE_CID(kLookAndFeelCID, NS_LOOKANDFEEL_CID);
 
 nsChromeRegistry* nsChromeRegistry::gChromeRegistry;
@@ -862,6 +865,10 @@ static void FlushSkinBindingsForWindow(nsIDOMWindowInternal* aWindow)
 // XXXbsmedberg: move this to nsIWindowMediator
 NS_IMETHODIMP nsChromeRegistry::RefreshSkins()
 {
+  nsCOMPtr<nsICSSLoader> cssLoader(do_CreateInstance(kCSSLoaderCID));
+  if (!cssLoader)
+    return NS_OK;
+
   nsCOMPtr<nsIWindowMediator> windowMediator
     (do_GetService(NS_WINDOWMEDIATOR_CONTRACTID));
   if (!windowMediator)
@@ -883,7 +890,7 @@ NS_IMETHODIMP nsChromeRegistry::RefreshSkins()
   }
 
   FlushSkinCaches();
-
+  
   windowMediator->GetEnumerator(nsnull, getter_AddRefs(windowEnumerator));
   windowEnumerator->HasMoreElements(&more);
   while (more) {
@@ -892,7 +899,7 @@ NS_IMETHODIMP nsChromeRegistry::RefreshSkins()
     if (protoWindow) {
       nsCOMPtr<nsIDOMWindowInternal> domWindow = do_QueryInterface(protoWindow);
       if (domWindow)
-        RefreshWindow(domWindow);
+        RefreshWindow(domWindow, cssLoader);
     }
     windowEnumerator->HasMoreElements(&more);
   }
@@ -920,7 +927,8 @@ static PRBool IsChromeURI(nsIURI* aURI)
 }
 
 // XXXbsmedberg: move this to windowmediator
-nsresult nsChromeRegistry::RefreshWindow(nsIDOMWindowInternal* aWindow)
+nsresult nsChromeRegistry::RefreshWindow(nsIDOMWindowInternal* aWindow,
+                                         nsICSSLoader* aCSSLoader)
 {
   // Deal with our subframes first.
   nsCOMPtr<nsIDOMWindowCollection> frames;
@@ -932,7 +940,7 @@ nsresult nsChromeRegistry::RefreshWindow(nsIDOMWindowInternal* aWindow)
     nsCOMPtr<nsIDOMWindow> childWin;
     frames->Item(j, getter_AddRefs(childWin));
     nsCOMPtr<nsIDOMWindowInternal> childInt(do_QueryInterface(childWin));
-    RefreshWindow(childInt);
+    RefreshWindow(childInt, aCSSLoader);
   }
 
   nsresult rv;
@@ -965,8 +973,8 @@ nsresult nsChromeRegistry::RefreshWindow(nsIDOMWindowInternal* aWindow)
       if (IsChromeURI(uri)) {
         // Reload the sheet.
         nsCOMPtr<nsICSSStyleSheet> newSheet;
-        rv = document->LoadChromeSheetSync(uri, PR_TRUE,
-                                           getter_AddRefs(newSheet));
+        rv = aCSSLoader->LoadSheetSync(uri, PR_TRUE, PR_TRUE,
+                                       getter_AddRefs(newSheet));
         if (NS_FAILED(rv)) return rv;
         if (newSheet) {
           rv = newAgentSheets.AppendObject(newSheet) ? NS_OK : NS_ERROR_FAILURE;
@@ -994,13 +1002,13 @@ nsresult nsChromeRegistry::RefreshWindow(nsIDOMWindowInternal* aWindow)
   for (i = 0; i < count; i++) {
     // Get the style sheet
     nsIStyleSheet *styleSheet = document->GetStyleSheetAt(i);
-
+    
     if (!oldSheets.AppendObject(styleSheet)) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
   }
 
-  // Iterate over our old sheets and kick off a sync load of the new
+  // Iterate over our old sheets and kick off a sync load of the new 
   // sheet if and only if it's a chrome URL.
   for (i = 0; i < count; i++) {
     nsCOMPtr<nsICSSStyleSheet> sheet = do_QueryInterface(oldSheets[i]);
@@ -1011,7 +1019,8 @@ nsresult nsChromeRegistry::RefreshWindow(nsIDOMWindowInternal* aWindow)
       nsCOMPtr<nsICSSStyleSheet> newSheet;
       // XXX what about chrome sheets that have a title or are disabled?  This
       // only works by sheer dumb luck.
-      document->LoadChromeSheetSync(uri, PR_FALSE, getter_AddRefs(newSheet));
+      // XXXbz this should really use the document's CSSLoader!
+      aCSSLoader->LoadSheetSync(uri, getter_AddRefs(newSheet));
       // Even if it's null, we put in in there.
       newSheets.AppendObject(newSheet);
     }

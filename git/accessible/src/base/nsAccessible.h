@@ -302,8 +302,7 @@ public:
                                 PRUint32 aLength);
 
   /**
-   * Assert if child not in parent's cache if the cache was initialized at this
-   * point.
+   * Assert if child not in parent's cache.
    */
   void TestChildCache(nsAccessible *aCachedChild);
 
@@ -325,8 +324,8 @@ protected:
   /**
    * Return sibling accessible at the given offset.
    */
-  virtual nsAccessible* GetSiblingAtOffset(PRInt32 aOffset,
-                                           nsresult *aError = nsnull);
+  virtual nsIAccessible* GetSiblingAtOffset(PRInt32 aOffset,
+                                            nsresult* aError = nsnull);
 
   //////////////////////////////////////////////////////////////////////////////
   // Miscellaneous helpers

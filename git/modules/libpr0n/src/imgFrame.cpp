@@ -424,7 +424,8 @@ void imgFrame::Draw(gfxContext *aContext, gfxPattern::GraphicsFilter aFilter,
 
   PRBool doTile = !imageRect.Contains(sourceRect);
   if (doPadding || doPartialDecode) {
-    gfxRect available = gfxRect(mDecoded.x, mDecoded.y, mDecoded.width, mDecoded.height);
+    gfxRect available = gfxRect(mDecoded.x, mDecoded.y, mDecoded.width, mDecoded.height) +
+      gfxPoint(aPadding.left, aPadding.top);
 
     if (!doTile && !mSinglePixel) {
       // Not tiling, and we have a surface, so we can account for
@@ -630,7 +631,7 @@ void imgFrame::Draw(gfxContext *aContext, gfxPattern::GraphicsFilter aFilter,
 
   if ((op == gfxContext::OPERATOR_OVER || pushedGroup) &&
       format == gfxASurface::ImageFormatRGB24) {
-    aContext->SetOperator(OptimalFillOperator());
+    aContext->SetOperator(gfxContext::OPERATOR_SOURCE);
   }
 
   // Phew! Now we can actually draw this image
@@ -718,7 +719,7 @@ nsresult imgFrame::ImageUpdated(const nsIntRect &aUpdateRect)
 
   // clamp to bounds, in case someone sends a bogus updateRect (I'm looking at
   // you, gif decoder)
-  nsIntRect boundsRect(mOffset, mSize);
+  nsIntRect boundsRect(0, 0, mSize.width, mSize.height);
   mDecoded.IntersectRect(mDecoded, boundsRect);
 
 #ifdef XP_MACOSX
@@ -848,11 +849,6 @@ nsresult imgFrame::LockImageData()
 #endif
   }
 
-  // We might write to the bits in this image surface, so we need to make the
-  // surface ready for that.
-  if (mImageSurface)
-    mImageSurface->Flush();
-
   return NS_OK;
 }
 
@@ -868,13 +864,7 @@ nsresult imgFrame::UnlockImageData()
 
   mLocked = PR_FALSE;
 
-  // Assume we've been written to.
-  if (mImageSurface)
-    mImageSurface->MarkDirty();
-
 #ifdef XP_MACOSX
-  // The quartz image surface (ab)uses the flush method to get the
-  // cairo_image_surface data into a CGImage, so we have to call Flush() here.
   if (mQuartzSurface)
     mQuartzSurface->Flush();
 #endif
@@ -929,7 +919,7 @@ void imgFrame::SetBlendMethod(PRInt32 aBlendMethod)
 
 PRBool imgFrame::ImageComplete() const
 {
-  return mDecoded == nsIntRect(mOffset, mSize);
+  return mDecoded == nsIntRect(0, 0, mSize.width, mSize.height);
 }
 
 // A hint from the image decoders that this image has no alpha, even
@@ -954,19 +944,4 @@ PRBool imgFrame::GetCompositingFailed() const
 void imgFrame::SetCompositingFailed(PRBool val)
 {
   mCompositingFailed = val;
-}
-
-gfxContext::GraphicsOperator imgFrame::OptimalFillOperator()
-{
-#ifdef XP_WIN
-  if (gfxWindowsPlatform::GetPlatform()->GetRenderMode() ==
-      gfxWindowsPlatform::RENDER_DIRECT2D) {
-        // D2D -really- hates operator source.
-        return gfxContext::OPERATOR_OVER;
-  } else {
-#endif
-    return gfxContext::OPERATOR_SOURCE;
-#ifdef XP_WIN
-  }
-#endif
 }
