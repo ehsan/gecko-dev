@@ -6878,8 +6878,8 @@ class MTypeBarrier
 };
 
 // Like MTypeBarrier, guard that the value is in the given type set. This is
-// used before property writes to ensure the value being written is represented
-// in the property types for the object.
+// used after some VM calls (like GetElement) to avoid the slower calls to
+// TypeScript::Monitor inside these stubs.
 class MMonitorTypes : public MUnaryInstruction
 {
     const types::StackTypeSet *typeSet_;
@@ -6888,6 +6888,7 @@ class MMonitorTypes : public MUnaryInstruction
       : MUnaryInstruction(def),
         typeSet_(types)
     {
+        setResultType(MIRType_Value);
         setGuard();
         JS_ASSERT(!types->unknown());
     }
@@ -7725,8 +7726,7 @@ bool PropertyReadNeedsTypeBarrier(JSContext *cx, MDefinition *obj, PropertyName 
                                   types::StackTypeSet *observed);
 bool PropertyReadIsIdempotent(JSContext *cx, MDefinition *obj, PropertyName *name);
 bool PropertyWriteNeedsTypeBarrier(JSContext *cx, MBasicBlock *current, MDefinition **pobj,
-                                   PropertyName *name, MDefinition **pvalue,
-                                   bool canModify = true);
+                                   PropertyName *name, MDefinition **pvalue);
 
 } // namespace ion
 } // namespace js

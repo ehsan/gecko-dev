@@ -8,8 +8,6 @@
  * JavaScript API.
  */
 
-#include "jsapi.h"
-
 #include "mozilla/FloatingPoint.h"
 #include "mozilla/GuardObjects.h"
 #include "mozilla/PodOperations.h"
@@ -20,11 +18,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-
 #include "jstypes.h"
 #include "jsutil.h"
 #include "jsclist.h"
 #include "jsprf.h"
+#include "jsapi.h"
 #include "jsarray.h"
 #include "jsatom.h"
 #include "jsbool.h"
@@ -45,26 +43,28 @@
 #include "json.h"
 #include "jsobj.h"
 #include "jsopcode.h"
+#include "jsprobes.h"
 #include "jsproxy.h"
 #include "jsscript.h"
 #include "jsstr.h"
 #include "prmjtime.h"
 #include "jsweakmap.h"
+#include "jsworkers.h"
 #include "jswrapper.h"
 #include "jstypedarray.h"
-#ifdef JS_THREADSAFE
-#include "jsworkers.h"
-#endif
 
 #include "builtin/Eval.h"
+#include "builtin/Intl.h"
 #include "builtin/MapObject.h"
 #include "builtin/RegExp.h"
 #include "builtin/ParallelArray.h"
+#include "ds/LifoAlloc.h"
 #include "frontend/BytecodeCompiler.h"
 #include "gc/Marking.h"
 #include "gc/Memory.h"
 #include "ion/AsmJS.h"
 #include "js/CharacterEncoding.h"
+#include "js/MemoryMetrics.h"
 #include "vm/Debugger.h"
 #include "vm/NumericConversions.h"
 #include "vm/Shape.h"
@@ -82,6 +82,7 @@
 #include "vm/RegExpObject-inl.h"
 #include "vm/RegExpStatics-inl.h"
 #include "vm/Shape-inl.h"
+#include "vm/Stack-inl.h"
 #include "vm/String-inl.h"
 
 #if ENABLE_YARR_JIT
@@ -708,20 +709,46 @@ PerThreadData::PerThreadData(JSRuntime *runtime)
     ionTop(NULL),
     ionJSContext(NULL),
     ionStackLimit(0),
+#ifdef JS_THREADSAFE
+    ionStackLimitLock_(NULL),
+#endif
     ionActivation(NULL),
     asmJSActivationStack_(NULL),
+#ifdef JS_THREADSAFE
+    asmJSActivationStackLock_(NULL),
+#endif
     suppressGC(0)
 {}
+
+bool
+PerThreadData::init()
+{
+#ifdef JS_THREADSAFE
+    ionStackLimitLock_ = PR_NewLock();
+    if (!ionStackLimitLock_)
+        return false;
+
+    asmJSActivationStackLock_ = PR_NewLock();
+    if (!asmJSActivationStackLock_)
+        return false;
+#endif
+    return true;
+}
+
+PerThreadData::~PerThreadData()
+{
+#ifdef JS_THREADSAFE
+    if (ionStackLimitLock_)
+        PR_DestroyLock(ionStackLimitLock_);
+
+    if (asmJSActivationStackLock_)
+        PR_DestroyLock(asmJSActivationStackLock_);
+#endif
+}
 
 JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
   : mainThread(this),
     interrupt(0),
-#ifdef JS_THREADSAFE
-    operationCallbackLock(NULL),
-#ifdef DEBUG
-    operationCallbackOwner(NULL),
-#endif
-#endif
     atomsCompartment(NULL),
     systemZone(NULL),
     numCompartments(0),
@@ -914,11 +941,10 @@ JSRuntime::init(uint32_t maxbytes)
 {
 #ifdef JS_THREADSAFE
     ownerThread_ = PR_GetCurrentThread();
-
-    operationCallbackLock = PR_NewLock();
-    if (!operationCallbackLock)
-        return false;
 #endif
+
+    if (!mainThread.init())
+        return false;
 
     js::TlsPerThreadData.set(&mainThread);
 
@@ -993,10 +1019,6 @@ JSRuntime::~JSRuntime()
 {
 #ifdef JS_THREADSAFE
     clearOwnerThread();
-
-    JS_ASSERT(!operationCallbackOwner);
-    if (operationCallbackLock)
-        PR_DestroyLock(operationCallbackLock);
 #endif
 
     /*
@@ -1444,7 +1466,7 @@ JS_SetJitHardening(JSRuntime *rt, JSBool enabled)
 JS_PUBLIC_API(const char *)
 JS_GetImplementationVersion(void)
 {
-    return "JavaScript-C" MOZILLA_VERSION;
+    return "JavaScript-C 1.8.5+ 2011-04-16";
 }
 
 JS_PUBLIC_API(void)
@@ -3100,7 +3122,7 @@ JS_SetNativeStackQuota(JSRuntime *rt, size_t stackSize)
     // ionStackLimit, then update it so that it reflects the new nativeStacklimit.
 #ifdef JS_ION
     {
-        JSRuntime::AutoLockForOperationCallback lock(rt);
+        PerThreadData::IonStackLimitLock lock(rt->mainThread);
         if (rt->mainThread.ionStackLimit != uintptr_t(-1))
             rt->mainThread.ionStackLimit = rt->mainThread.nativeStackLimit;
     }

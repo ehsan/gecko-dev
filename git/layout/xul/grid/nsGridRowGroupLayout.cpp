@@ -25,8 +25,9 @@
 
 already_AddRefed<nsBoxLayout> NS_NewGridRowGroupLayout()
 {
-  nsRefPtr<nsBoxLayout> layout = new nsGridRowGroupLayout();
-  return layout.forget();
+  nsBoxLayout* layout = new nsGridRowGroupLayout();
+  NS_IF_ADDREF(layout);
+  return layout;
 } 
 
 nsGridRowGroupLayout::nsGridRowGroupLayout():nsGridRowLayout(), mRowCount(0)

@@ -7664,17 +7664,17 @@ nsDocument::RemovedFromDocShell()
 already_AddRefed<nsILayoutHistoryState>
 nsDocument::GetLayoutHistoryState() const
 {
-  nsCOMPtr<nsILayoutHistoryState> state;
+  nsILayoutHistoryState* state = nullptr;
   if (!mScriptGlobalObject) {
-    state = mLayoutHistoryState;
+    NS_IF_ADDREF(state = mLayoutHistoryState);
   } else {
     nsCOMPtr<nsIDocShell> docShell(do_QueryReferent(mDocumentContainer));
     if (docShell) {
-      docShell->GetLayoutHistoryState(getter_AddRefs(state));
+      docShell->GetLayoutHistoryState(&state);
     }
   }
 
-  return state.forget();
+  return state;
 }
 
 void

@@ -1470,35 +1470,35 @@ nsHTMLDocument::Open(JSContext* cx,
     // Note that aborting a parser leaves the parser "active" with its
     // insertion point "not undefined". We track this using mParserAborted,
     // because aborting a parser nulls out mParser.
-    nsCOMPtr<nsIDocument> ret = this;
-    return ret.forget();
+    NS_ADDREF_THIS();
+    return this;
   }
 
   // No calling document.open() without a script global object
   if (!mScriptGlobalObject) {
-    nsCOMPtr<nsIDocument> ret = this;
-    return ret.forget();
+    NS_ADDREF_THIS();
+    return this;
   }
 
   nsPIDOMWindow* outer = GetWindow();
   if (!outer || (GetInnerWindow() != outer->GetCurrentInnerWindow())) {
-    nsCOMPtr<nsIDocument> ret = this;
-    return ret.forget();
+    NS_ADDREF_THIS();
+    return this;
   }
 
   // check whether we're in the middle of unload.  If so, ignore this call.
   nsCOMPtr<nsIDocShell> shell = do_QueryReferent(mDocumentContainer);
   if (!shell) {
     // We won't be able to create a parser anyway.
-    nsCOMPtr<nsIDocument> ret = this;
-    return ret.forget();
+    NS_ADDREF_THIS();
+    return this;
   }
 
   bool inUnload;
   shell->GetIsInUnload(&inUnload);
   if (inUnload) {
-    nsCOMPtr<nsIDocument> ret = this;
-    return ret.forget();
+    NS_ADDREF_THIS();
+    return this;
   }
 
   // Note: We want to use GetDocumentFromContext here because this document
@@ -1563,8 +1563,8 @@ nsHTMLDocument::Open(JSContext* cx,
       if (NS_SUCCEEDED(cv->PermitUnload(false, &okToUnload)) && !okToUnload) {
         // We don't want to unload, so stop here, but don't throw an
         // exception.
-        nsCOMPtr<nsIDocument> ret = this;
-        return ret.forget();
+        NS_ADDREF_THIS();
+        return this;
       }
     }
 

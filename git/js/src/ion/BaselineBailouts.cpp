@@ -1044,7 +1044,7 @@ ion::BailoutIonToBaseline(JSContext *cx, IonActivation *activation, IonBailoutIt
     IonSpew(IonSpew_BaselineBailouts, "  Reading from snapshot offset %u size %u",
             iter.snapshotOffset(), iter.ionScript()->snapshotsSize());
 
-    iter.ionScript()->incNumBailouts();
+    iter.ionScript()->setBailoutExpected();
     iter.script()->updateBaselineOrIonRaw();
 
     // Allocate buffer to hold stack replacement data.
@@ -1287,9 +1287,6 @@ ion::FinishBailoutToBaseline(BaselineBailoutInfo *bailoutInfo)
       default:
         JS_NOT_REACHED("Unknown bailout kind!");
     }
-
-    if (!CheckFrequentBailouts(cx, outerScript))
-        return false;
 
     return true;
 }

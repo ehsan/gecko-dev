@@ -3387,6 +3387,8 @@ xpc_CreateSandboxObject(JSContext *cx, jsval *vp, nsISupports *prinOrSop, Sandbo
     xpc::GetCompartmentPrivate(sandbox)->wantXrays =
       AccessCheck::isChrome(sandbox) ? false : options.wantXrays;
 
+    JS::AutoObjectRooter tvr(cx, sandbox);
+
     {
         JSAutoCompartment ac(cx, sandbox);
 
@@ -3827,7 +3829,7 @@ class ContextHolder : public nsIScriptObjectPrincipal
                     , public nsIScriptContextPrincipal
 {
 public:
-    ContextHolder(JSContext *aOuterCx, HandleObject aSandbox, nsIPrincipal *aPrincipal);
+    ContextHolder(JSContext *aOuterCx, JSObject *aSandbox, nsIPrincipal *aPrincipal);
     virtual ~ContextHolder();
 
     JSContext * GetJSContext()
@@ -3851,7 +3853,7 @@ private:
 NS_IMPL_ISUPPORTS2(ContextHolder, nsIScriptObjectPrincipal, nsIScriptContextPrincipal)
 
 ContextHolder::ContextHolder(JSContext *aOuterCx,
-                             HandleObject aSandbox,
+                             JSObject *aSandbox,
                              nsIPrincipal *aPrincipal)
     : mJSContext(JS_NewContext(JS_GetRuntime(aOuterCx), 1024)),
       mOrigCx(aOuterCx),
@@ -4197,8 +4199,8 @@ nsXPCComponents_Utils::NondeterministicGetWeakMapKeys(const JS::Value &aMap,
         aKeys->setUndefined();
         return NS_OK;
     }
-    RootedObject objRet(aCx);
-    if (!JS_NondeterministicGetWeakMapKeys(aCx, &aMap.toObject(), objRet.address()))
+    JSObject *objRet;
+    if (!JS_NondeterministicGetWeakMapKeys(aCx, &aMap.toObject(), &objRet))
         return NS_ERROR_OUT_OF_MEMORY;
     *aKeys = objRet ? ObjectValue(*objRet) : UndefinedValue();
     return NS_OK;

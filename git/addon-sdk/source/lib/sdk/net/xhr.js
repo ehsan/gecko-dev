@@ -1,6 +1,7 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 "use strict";
 
 module.metadata = {
@@ -63,8 +64,7 @@ var getRequestCount = exports.getRequestCount = function getRequestCount() {
 };
 
 var XMLHttpRequest = exports.XMLHttpRequest = function XMLHttpRequest() {
-  let self = this;
-  let req = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"]
+  var req = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"]
             .createInstance(Ci.nsIXMLHttpRequest);
   // For the sake of simplicity, don't tie this request to any UI.
   req.mozBackgroundRequest = true;
@@ -73,25 +73,31 @@ var XMLHttpRequest = exports.XMLHttpRequest = function XMLHttpRequest() {
 
   this._req = req;
   this._orsc = null;
-  this._cleanup = this._cleanup.bind(this);
 
   requests.push(this);
 
-  TERMINATE_EVENTS.forEach(function(name) {
-    self._req.addEventListener(name, self._cleanup, false);
-  });
+  var self = this;
+
+  this._boundCleanup = function _boundCleanup() {
+    self._cleanup();
+  };
+
+  TERMINATE_EVENTS.forEach(
+    function(name) {
+      self._req.addEventListener(name, self._boundCleanup, false);
+    });
 };
 
 XMLHttpRequest.prototype = {
   _cleanup: function _cleanup() {
     this.onreadystatechange = null;
-
-    let index = requests.indexOf(this);
+    var index = requests.indexOf(this);
     if (index != -1) {
-      let self = this;
-      TERMINATE_EVENTS.forEach(function(name) {
-        self._req.removeEventListener(name, self._cleanup, false);
-      });
+      var self = this;
+      TERMINATE_EVENTS.forEach(
+        function(name) {
+          self._req.removeEventListener(name, self._boundCleanup, false);
+        });
       requests.splice(index, 1);
     }
   },
@@ -99,11 +105,11 @@ XMLHttpRequest.prototype = {
     this._req.abort();
     this._cleanup();
   },
-  addEventListener: function addEventListener(name, func) {
-    this._req.addEventListener(name, func);
+  addEventListener: function addEventListener() {
+    throw new Error("not implemented");
   },
-  removeEventListener: function removeEventListener(name, func) {
-    this._req.removeEventListener(name, func);
+  removeEventListener: function removeEventListener() {
+    throw new Error("not implemented");
   },
   set upload(newValue) {
     throw new Error("not implemented");
@@ -122,15 +128,12 @@ XMLHttpRequest.prototype = {
       this._req.onreadystatechange = function() {
         try {
           self._orsc.apply(self, arguments);
-        }
-        catch (e) {
+        } catch (e) {
           console.exception(e);
         }
       };
-    }
-    else {
+    } else
       this._req.onreadystatechange = null;
-    }
   }
 };
 

@@ -1460,8 +1460,11 @@ nsPresContext::SetContainer(nsISupports* aHandler)
 already_AddRefed<nsISupports>
 nsPresContext::GetContainerInternal() const
 {
-  nsCOMPtr<nsISupports> result = do_QueryReferent(mContainer);
-  return result.forget();
+  nsISupports *result = nullptr;
+  if (mContainer)
+    CallQueryReferent(mContainer.get(), &result);
+
+  return result;
 }
 
 already_AddRefed<nsISupports>

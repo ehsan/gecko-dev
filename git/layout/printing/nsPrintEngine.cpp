@@ -3115,15 +3115,15 @@ nsPrintEngine::FindFocusedDOMWindow()
   nsCOMPtr<nsPIDOMWindow> rootWindow = window->GetPrivateRoot();
   NS_ENSURE_TRUE(rootWindow, nullptr);
 
-  nsCOMPtr<nsPIDOMWindow> focusedWindow;
-  nsFocusManager::GetFocusedDescendant(rootWindow, true,
-                                       getter_AddRefs(focusedWindow));
+  nsPIDOMWindow* focusedWindow;
+  nsFocusManager::GetFocusedDescendant(rootWindow, true, &focusedWindow);
   NS_ENSURE_TRUE(focusedWindow, nullptr);
 
   if (IsWindowsInOurSubTree(focusedWindow)) {
-    return focusedWindow.forget();
+    return focusedWindow;
   }
 
+  NS_IF_RELEASE(focusedWindow);
   return nullptr;
 }
 

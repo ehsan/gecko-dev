@@ -381,12 +381,6 @@ T* DowncastCCParticipant(void *p)
 
 ///////////////////////////////////////////////////////////////////////////////
 // Helpers for implementing nsCycleCollectionParticipant::Unlink
-//
-// You need to use NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED if you want
-// the base class Unlink version to be called before your own implementation.
-// You can use NS_IMPL_CYCLE_COLLECTION_UNLINK_END_INHERITED if you want the
-// base class Unlink to get called after your own implementation.  You should
-// never use them together.
 ///////////////////////////////////////////////////////////////////////////////
 
 #define NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(_class)                          \
@@ -404,13 +398,6 @@ T* DowncastCCParticipant(void *p)
     ImplCycleCollectionUnlink(tmp->_field);
 
 #define NS_IMPL_CYCLE_COLLECTION_UNLINK_END                                    \
-    (void)tmp;                                                                 \
-    return NS_OK;                                                              \
-  }
-
-#define NS_IMPL_CYCLE_COLLECTION_UNLINK_END_INHERITED(_base_class)             \
-    nsISupports *s = static_cast<nsISupports*>(p);                             \
-    NS_CYCLE_COLLECTION_CLASSNAME(_base_class)::UnlinkImpl(s);                 \
     (void)tmp;                                                                 \
     return NS_OK;                                                              \
   }

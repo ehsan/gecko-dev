@@ -864,6 +864,9 @@ XULTextFieldAccessible::GetInputField() const
 
   NS_ASSERTION(inputFieldDOMNode, "No input field for XULTextFieldAccessible");
 
-  nsCOMPtr<nsIContent> inputField = do_QueryInterface(inputFieldDOMNode);
-  return inputField.forget();
+  nsIContent* inputField = nullptr;
+  if (inputFieldDOMNode)
+    CallQueryInterface(inputFieldDOMNode, &inputField);
+
+  return inputField;
 }

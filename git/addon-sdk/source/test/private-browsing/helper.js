@@ -10,7 +10,7 @@ const { loader } = LoaderWithHookedConsole(module);
 const pb = loader.require('sdk/private-browsing');
 const pbUtils = loader.require('sdk/private-browsing/utils');
 const xulApp = require("sdk/system/xul-app");
-const { open: openWindow, getMostRecentBrowserWindow } = require('sdk/window/utils');
+const { openDialog, getMostRecentBrowserWindow } = require('sdk/window/utils');
 const { openTab, getTabContentWindow, getActiveTab, setTabURL, closeTab } = require('sdk/tabs/utils');
 const promise = require("sdk/core/promise");
 const windowHelpers = require('sdk/window/helpers');
@@ -58,7 +58,6 @@ exports.openWebpage = function openWebpage(url, enablePrivate) {
     let rawTab = openTab(chromeWindow, url, {
       isPrivate: enablePrivate
     });
-
     return {
       ready: promise.resolve(getTabContentWindow(rawTab)),
       close: function () {
@@ -69,10 +68,8 @@ exports.openWebpage = function openWebpage(url, enablePrivate) {
     };
   }
   else {
-    let win = openWindow(null, {
-      features: {
-        private: enablePrivate
-      }
+    let win = openDialog({
+      private: enablePrivate
     });
     let deferred = promise.defer();
 
@@ -80,8 +77,7 @@ exports.openWebpage = function openWebpage(url, enablePrivate) {
     // that the window is really ready
     events.on("browser-delayed-startup-finished", function onReady({subject}) {
       if (subject == win) {
-        events.off("browser-delayed-startup-finished", onReady);
-        deferred.resolve(win);
+        events.off("browser-delayed-startup-finished", onReady, true);
 
         let rawTab = getActiveTab(win);
         setTabURL(rawTab, url);

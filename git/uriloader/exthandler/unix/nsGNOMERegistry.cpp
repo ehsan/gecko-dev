@@ -186,5 +186,7 @@ nsGNOMERegistry::GetFromType(const nsACString& aMIMEType)
   mimeInfo->SetPreferredAction(nsIMIMEInfo::useSystemDefault);
   mimeInfo->SetDescription(NS_ConvertUTF8toUTF16(description));
 
-  return mimeInfo.forget();
+  nsMIMEInfoBase* retval;
+  NS_ADDREF((retval = mimeInfo));
+  return retval;
 }

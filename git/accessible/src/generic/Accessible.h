@@ -150,8 +150,10 @@ public:
    */
   inline already_AddRefed<nsIDOMNode> DOMNode() const
   {
-    nsCOMPtr<nsIDOMNode> DOMNode = do_QueryInterface(GetNode());
-    return DOMNode.forget();
+    nsIDOMNode *DOMNode = nullptr;
+    if (GetNode())
+      CallQueryInterface(GetNode(), &DOMNode);
+    return DOMNode;
   }
 
   /**

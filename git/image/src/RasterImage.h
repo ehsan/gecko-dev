@@ -585,8 +585,7 @@ private:
                                     gfxPattern::GraphicsFilter aFilter,
                                     const gfxMatrix &aUserSpaceToImageSpace,
                                     const gfxRect &aFill,
-                                    const nsIntRect &aSubimage,
-                                    uint32_t aFlags);
+                                    const nsIntRect &aSubimage);
 
   nsresult CopyFrame(uint32_t aWhichFrame,
                      uint32_t aFlags,
@@ -716,12 +715,6 @@ private:
   };
   NS_IMETHOD RequestDecodeCore(RequestDecodeType aDecodeType);
 
-  // We would like to just check if we have a zero lock count, but we can't do
-  // that for animated images because in EnsureAnimExists we lock the image and
-  // never unlock so that animated images always have their lock count >= 1. In
-  // that case we use our animation consumers count as a proxy for lock count.
-  bool IsUnlocked() { return (mLockCount == 0 || (mAnim && mAnimationConsumers == 0)); }
-
 private: // data
   nsIntSize                  mSize;
 
@@ -828,7 +821,7 @@ private: // data
   TimeStamp mDrawStartTime;
 
   inline bool CanQualityScale(const gfxSize& scale);
-  inline bool CanScale(gfxPattern::GraphicsFilter aFilter, gfxSize aScale, uint32_t aFlags);
+  inline bool CanScale(gfxPattern::GraphicsFilter aFilter, gfxSize aScale);
 
   struct ScaleResult
   {

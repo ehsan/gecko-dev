@@ -133,8 +133,8 @@ nsChromeRegistry::GetService()
     if (!gChromeRegistry)
       return nullptr;
   }
-  nsCOMPtr<nsIChromeRegistry> registry = gChromeRegistry;
-  return registry.forget();
+  NS_ADDREF(gChromeRegistry);
+  return gChromeRegistry;
 }
 
 nsresult
@@ -632,8 +632,8 @@ already_AddRefed<nsChromeRegistry>
 nsChromeRegistry::GetSingleton()
 {
   if (gChromeRegistry) {
-    nsRefPtr<nsChromeRegistry> registry = gChromeRegistry;
-    return registry.forget();
+    NS_ADDREF(gChromeRegistry);
+    return gChromeRegistry;
   }
 
   nsRefPtr<nsChromeRegistry> cr;

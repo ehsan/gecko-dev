@@ -62,7 +62,6 @@ MOCHITEST_CHROME_FILES = \
 		test_queryCaretRect.html \
 		queryCaretRectWin.html \
 		queryCaretRectUnix.html \
-		test_xray_event_constructor.xul \
 		$(NULL)
 
 ifeq (WINNT,$(OS_ARCH))

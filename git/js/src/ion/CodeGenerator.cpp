@@ -2084,8 +2084,6 @@ CodeGenerator::maybeCreateScriptCounts()
     if (cx->runtime->profilingScripts) {
         if (script && !script->hasScriptCounts && !script->initScriptCounts(cx))
             return NULL;
-    } else if (!script) {
-        return NULL;
     }
 
     if (script && !script->hasScriptCounts)

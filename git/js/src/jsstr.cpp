@@ -15,8 +15,6 @@
  * allocations in the same native method.
  */
 
-#include "jsstr.h"
-
 #include "mozilla/Attributes.h"
 #include "mozilla/CheckedInt.h"
 #include "mozilla/FloatingPoint.h"
@@ -34,12 +32,16 @@
 #include "jscntxt.h"
 #include "jsgc.h"
 #include "jsinterp.h"
+#include "jslock.h"
 #include "jsnum.h"
 #include "jsobj.h"
 #include "jsopcode.h"
+#include "jsprobes.h"
+#include "jsstr.h"
 #include "jsversion.h"
 
 #include "builtin/RegExp.h"
+#include "js/HashTable.h"
 #include "vm/GlobalObject.h"
 #include "vm/NumericConversions.h"
 #include "vm/RegExpObject.h"

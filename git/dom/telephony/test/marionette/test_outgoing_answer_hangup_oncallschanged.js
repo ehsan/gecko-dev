@@ -46,10 +46,16 @@ function dial() {
       is(outgoing.number, number);
 
       is(outgoing, telephony.active);
+      //ok(telephony.calls === calls); // bug 717414
       is(telephony.calls.length, 1);
       is(telephony.calls[0], outgoing);
 
-      checkCallList();
+      runEmulatorCmd("gsm list", function(result) {
+        log("Call list is now: " + result);
+        is(result[0], "outbound to  " + number + " : unknown");
+        is(result[1], "OK");
+        answer();
+      });
     }
 
     if (event.call.state == "disconnected") {
@@ -61,17 +67,6 @@ function dial() {
   };
 
   telephony.dial(number);
-}
-
-function checkCallList() {
-  runEmulatorCmd("gsm list", function(result) {
-    log("Call list is now: " + result)
-    if ((result[0] == "outbound to  " + number + " : unknown") && (result[1] == "OK")) {
-      answer();
-    } else {
-      window.setTimeout(checkCallList, 100);
-    }
-  });
 }
 
 function answer() {
@@ -87,7 +82,7 @@ function answer() {
     is(outgoing, telephony.active);
 
     runEmulatorCmd("gsm list", function(result) {
-      log("Call list (after 'connected' event) is now: " + result);
+      log("Call list is now: " + result);
       is(result[0], "outbound to  " + number + " : active");
       is(result[1], "OK");
       hangUp();

@@ -16,7 +16,6 @@
 #include "mozilla/StandardInteger.h"
 #include "mozilla/ThreadLocal.h"
 
-#include <stdarg.h>
 #include <stddef.h>
 #include <stdio.h>
 

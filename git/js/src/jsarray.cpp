@@ -4,33 +4,44 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "jsarray.h"
-
 #include "mozilla/DebugOnly.h"
 #include "mozilla/FloatingPoint.h"
+#include "mozilla/RangedPtr.h"
 #include "mozilla/Util.h"
 
+#include <limits.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "jsapi.h"
+#include "jsarray.h"
 #include "jsatom.h"
+#include "jsbool.h"
 #include "jscntxt.h"
 #include "jsfriendapi.h"
 #include "jsfun.h"
+#include "jsgc.h"
 #include "jsinterp.h"
 #include "jsiter.h"
+#include "jslock.h"
 #include "jsnum.h"
 #include "jsobj.h"
 #include "jstypes.h"
 #include "jsutil.h"
+#include "jsversion.h"
+#include "jswrapper.h"
+
 #include "ds/Sort.h"
+#include "gc/Marking.h"
 #include "methodjit/MethodJIT.h"
+#include "methodjit/StubCalls.h"
 #include "methodjit/StubCalls-inl.h"
 #include "vm/ArgumentsObject.h"
 #include "vm/ForkJoin.h"
 #include "vm/NumericConversions.h"
 #include "vm/Shape.h"
 #include "vm/StringBuffer.h"
+#include "vm/ThreadPool.h"
 
 #include "jsatominlines.h"
 #include "jscntxtinlines.h"
@@ -40,6 +51,8 @@
 
 #include "vm/ArgumentsObject-inl.h"
 #include "vm/ObjectImpl-inl.h"
+#include "vm/Shape-inl.h"
+#include "vm/Stack-inl.h"
 
 using namespace js;
 using namespace js::gc;
@@ -221,13 +234,13 @@ GetElement(JSContext *cx, HandleObject obj, IndexType index, JSBool *hole, Mutab
     if (obj->isNative() && index < obj->getDenseInitializedLength()) {
         vp.set(obj->getDenseElement(uint32_t(index)));
         if (!vp.isMagic(JS_ELEMENTS_HOLE)) {
-            *hole = false;
-            return true;
+            *hole = JS_FALSE;
+            return JS_TRUE;
         }
     }
     if (obj->isArguments()) {
         if (obj->asArguments().maybeGetElement(uint32_t(index), vp)) {
-            *hole = false;
+            *hole = JS_FALSE;
             return true;
         }
     }
@@ -2094,7 +2107,7 @@ array_unshift(JSContext *cx, unsigned argc, Value *vp)
 
     uint32_t length;
     if (!GetLengthProperty(cx, obj, &length))
-        return false;
+        return JS_FALSE;
 
     double newlen = length;
     if (args.length() > 0) {
@@ -2145,16 +2158,16 @@ array_unshift(JSContext *cx, unsigned argc, Value *vp)
 
         /* Copy from args to the bottom of the array. */
         if (!InitArrayElements(cx, obj, 0, args.length(), args.array(), UpdateTypes))
-            return false;
+            return JS_FALSE;
 
         newlen += args.length();
     }
     if (!SetLengthProperty(cx, obj, newlen))
-        return false;
+        return JS_FALSE;
 
     /* Follow Perl by returning the new array length. */
     args.rval().setNumber(newlen);
-    return true;
+    return JS_TRUE;
 }
 
 static inline void
@@ -2492,18 +2505,18 @@ js::array_concat(JSContext *cx, unsigned argc, Value *vp)
         uint32_t initlen = aobj->getDenseInitializedLength();
         nobj = NewDenseCopiedArray(cx, initlen, aobj, 0);
         if (!nobj)
-            return false;
+            return JS_FALSE;
         TryReuseArrayType(aobj, nobj);
         JSObject::setArrayLength(cx, nobj, length);
         args.rval().setObject(*nobj);
         if (argc == 0)
-            return true;
+            return JS_TRUE;
         argc--;
         p++;
     } else {
         nobj = NewDenseEmptyArray(cx);
         if (!nobj)
-            return false;
+            return JS_FALSE;
         args.rval().setObject(*nobj);
         length = 0;
     }
@@ -2558,7 +2571,7 @@ array_slice(JSContext *cx, unsigned argc, Value *vp)
         return false;
 
     if (!GetLengthProperty(cx, obj, &length))
-        return false;
+        return JS_FALSE;
     begin = 0;
     end = length;
 
@@ -2599,29 +2612,29 @@ array_slice(JSContext *cx, unsigned argc, Value *vp)
     {
         nobj = NewDenseCopiedArray(cx, end - begin, obj, begin);
         if (!nobj)
-            return false;
+            return JS_FALSE;
         TryReuseArrayType(obj, nobj);
         args.rval().setObject(*nobj);
-        return true;
+        return JS_TRUE;
     }
 
     nobj = NewDenseAllocatedArray(cx, end - begin);
     if (!nobj)
-        return false;
+        return JS_FALSE;
     TryReuseArrayType(obj, nobj);
 
     RootedValue value(cx);
     for (slot = begin; slot < end; slot++) {
         if (!JS_CHECK_OPERATION_LIMIT(cx) ||
             !GetElement(cx, obj, slot, &hole, &value)) {
-            return false;
+            return JS_FALSE;
         }
         if (!hole && !SetArrayElement(cx, nobj, slot - begin, value))
-            return false;
+            return JS_FALSE;
     }
 
     args.rval().setObject(*nobj);
-    return true;
+    return JS_TRUE;
 }
 
 /* ES5 15.4.4.20. */
@@ -2775,7 +2788,7 @@ js_Array(JSContext *cx, unsigned argc, Value *vp)
     CallArgs args = CallArgsFromVp(argc, vp);
     RootedTypeObject type(cx, GetTypeCallerInitObject(cx, JSProto_Array));
     if (!type)
-        return false;
+        return JS_FALSE;
 
     if (args.length() != 1 || !args[0].isNumber()) {
         if (!InitArrayTypes(cx, type, args.array(), args.length()))
@@ -3047,7 +3060,7 @@ js_ArrayInfo(JSContext *cx, unsigned argc, Value *vp)
 
         char *bytes = DecompileValueGenerator(cx, JSDVG_SEARCH_STACK, arg, NullPtr());
         if (!bytes)
-            return false;
+            return JS_FALSE;
         if (arg.isPrimitive() ||
             !(array = arg.toObjectOrNull())->isArray()) {
             fprintf(stderr, "%s: not array\n", bytes);

@@ -329,19 +329,13 @@ public class GeckoEvent {
         }
     }
 
-    /**
-     * Creates a GeckoEvent that contains the data from the MotionEvent.
-     * The keepInViewCoordinates parameter can be set to false to convert from the Java
-     * coordinate system (device pixels relative to the LayerView) to a coordinate system
-     * relative to gecko's coordinate system (CSS pixels relative to gecko scroll position).
-     */
-    public static GeckoEvent createMotionEvent(MotionEvent m, boolean keepInViewCoordinates) {
+    public static GeckoEvent createMotionEvent(MotionEvent m) {
         GeckoEvent event = new GeckoEvent(NativeGeckoEvent.MOTION_EVENT);
-        event.initMotionEvent(m, keepInViewCoordinates);
+        event.initMotionEvent(m);
         return event;
     }
 
-    private void initMotionEvent(MotionEvent m, boolean keepInViewCoordinates) {
+    private void initMotionEvent(MotionEvent m) {
         mAction = m.getActionMasked();
         mTime = (System.currentTimeMillis() - SystemClock.elapsedRealtime()) + m.getEventTime();
         mMetaState = m.getMetaState();
@@ -364,7 +358,7 @@ public class GeckoEvent {
                 mPointRadii = new Point[mCount];
                 mPointerIndex = m.getActionIndex();
                 for (int i = 0; i < mCount; i++) {
-                    addMotionPoint(i, i, m, keepInViewCoordinates);
+                    addMotionPoint(i, i, m);
                 }
                 break;
             }
@@ -380,12 +374,10 @@ public class GeckoEvent {
         }
     }
 
-    private void addMotionPoint(int index, int eventIndex, MotionEvent event, boolean keepInViewCoordinates) {
+    private void addMotionPoint(int index, int eventIndex, MotionEvent event) {
         try {
             PointF geckoPoint = new PointF(event.getX(eventIndex), event.getY(eventIndex));
-            if (!keepInViewCoordinates) {
-                geckoPoint = GeckoApp.mAppContext.getLayerView().convertViewPointToLayerPoint(geckoPoint);
-            }
+            geckoPoint = GeckoApp.mAppContext.getLayerView().convertViewPointToLayerPoint(geckoPoint);
 
             mPoints[index] = new Point(Math.round(geckoPoint.x), Math.round(geckoPoint.y));
             mPointIndicies[index] = event.getPointerId(eventIndex);
@@ -598,10 +590,10 @@ public class GeckoEvent {
         sb.append("{ \"x\" : ").append(metrics.viewportRectLeft)
           .append(", \"y\" : ").append(metrics.viewportRectTop)
           .append(", \"zoom\" : ").append(metrics.zoomFactor)
-          .append(", \"fixedMarginLeft\" : ").append(metrics.marginLeft)
-          .append(", \"fixedMarginTop\" : ").append(metrics.marginTop)
-          .append(", \"fixedMarginRight\" : ").append(metrics.marginRight)
-          .append(", \"fixedMarginBottom\" : ").append(metrics.marginBottom)
+          .append(", \"fixedMarginLeft\" : ").append(metrics.fixedLayerMarginLeft)
+          .append(", \"fixedMarginTop\" : ").append(metrics.fixedLayerMarginTop)
+          .append(", \"fixedMarginRight\" : ").append(metrics.fixedLayerMarginRight)
+          .append(", \"fixedMarginBottom\" : ").append(metrics.fixedLayerMarginBottom)
           .append(", \"displayPort\" :").append(displayPort.toJSON())
           .append('}');
         event.mCharactersExtra = sb.toString();

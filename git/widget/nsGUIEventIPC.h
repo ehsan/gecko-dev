@@ -262,18 +262,17 @@ struct ParamTraits<nsKeyEvent>
 
   static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
   {
+    bool rv;
     uint32_t keyNameIndex;
-    if (ReadParam(aMsg, aIter, static_cast<nsInputEvent*>(aResult)) &&
-        ReadParam(aMsg, aIter, &keyNameIndex) &&
-        ReadParam(aMsg, aIter, &aResult->keyCode) &&
-        ReadParam(aMsg, aIter, &aResult->charCode) &&
-        ReadParam(aMsg, aIter, &aResult->isChar) &&
-        ReadParam(aMsg, aIter, &aResult->location)) {
-      aResult->mKeyNameIndex =
-        static_cast<mozilla::widget::KeyNameIndex>(keyNameIndex);
-      return true;
-    }
-    return false;
+    rv = ReadParam(aMsg, aIter, static_cast<nsInputEvent*>(aResult)) &&
+         ReadParam(aMsg, aIter, &keyNameIndex) &&
+         ReadParam(aMsg, aIter, &aResult->keyCode) &&
+         ReadParam(aMsg, aIter, &aResult->charCode) &&
+         ReadParam(aMsg, aIter, &aResult->isChar) &&
+         ReadParam(aMsg, aIter, &aResult->location);
+    aResult->mKeyNameIndex =
+      static_cast<mozilla::widget::KeyNameIndex>(keyNameIndex);
+    return rv;
   }
 };
 

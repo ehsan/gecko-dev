@@ -1105,10 +1105,6 @@ RasterImage::GetImageContainer(LayerManager* aManager, ImageContainer **_retval)
     return NS_OK;
   }
 
-  if (IsUnlocked() && mStatusTracker) {
-    mStatusTracker->OnUnlockedDraw();
-  }
-
   if (mImageContainer) {
     *_retval = mImageContainer;
     NS_ADDREF(*_retval);
@@ -1596,15 +1592,6 @@ RasterImage::ResetAnimation()
   }
 
   return NS_OK;
-}
-
-NS_IMETHODIMP_(float)
-RasterImage::GetFrameIndex(uint32_t aWhichFrame)
-{
-  MOZ_ASSERT(aWhichFrame <= FRAME_MAX_VALUE, "Invalid argument");
-  return (aWhichFrame == FRAME_FIRST || !mAnim)
-         ? 0.0f
-         : mAnim->currentAnimationFrameIndex;
 }
 
 void
@@ -2957,17 +2944,14 @@ RasterImage::CanQualityScale(const gfxSize& scale)
 
 bool
 RasterImage::CanScale(gfxPattern::GraphicsFilter aFilter,
-                      gfxSize aScale, uint32_t aFlags)
+                      gfxSize aScale)
 {
 // The high-quality scaler requires Skia.
 #ifdef MOZ_ENABLE_SKIA
   // We don't use the scaler for animated or multipart images to avoid doing a
   // bunch of work on an image that just gets thrown away.
-  // We only use the scaler when drawing to the window because, if we're not
-  // drawing to a window (eg a canvas), updates to that image will be ignored.
   if (gHQDownscaling && aFilter == gfxPattern::FILTER_GOOD &&
-      !mAnim && mDecoded && !mMultipart && CanQualityScale(aScale) &&
-      (aFlags & imgIContainer::FLAG_HIGH_QUALITY_SCALING)) {
+      !mAnim && mDecoded && !mMultipart && CanQualityScale(aScale)) {
     gfxFloat factor = gHQDownscalingMinFactor / 1000.0;
 
     return (aScale.width < factor || aScale.height < factor);
@@ -3023,8 +3007,7 @@ RasterImage::DrawWithPreDownscaleIfNeeded(imgFrame *aFrame,
                                           gfxPattern::GraphicsFilter aFilter,
                                           const gfxMatrix &aUserSpaceToImageSpace,
                                           const gfxRect &aFill,
-                                          const nsIntRect &aSubimage,
-                                          uint32_t aFlags)
+                                          const nsIntRect &aSubimage)
 {
   imgFrame *frame = aFrame;
   nsIntRect framerect = frame->GetRect();
@@ -3034,7 +3017,7 @@ RasterImage::DrawWithPreDownscaleIfNeeded(imgFrame *aFrame,
   gfxSize scale = imageSpaceToUserSpace.ScaleFactors(true);
   nsIntRect subimage = aSubimage;
 
-  if (CanScale(aFilter, scale, aFlags)) {
+  if (CanScale(aFilter, scale)) {
     // If scale factor is still the same that we scaled for and
     // ScaleWorker isn't still working, then we can use pre-downscaled frame.
     // If scale factor has changed, order new request.
@@ -3140,9 +3123,13 @@ RasterImage::Draw(gfxContext *aContext,
     DiscardTracker::Reset(&mDiscardTrackerNode);
   }
 
-
-  if (IsUnlocked() && mStatusTracker) {
-    mStatusTracker->OnUnlockedDraw();
+  // We would like to just check if we have a zero lock count, but we can't do
+  // that for animated images because in EnsureAnimExists we lock the image and
+  // never unlock so that animated images always have their lock count >= 1. In
+  // that case we use our animation consumers count as a proxy for lock count.
+  if (mLockCount == 0 || (mAnim && mAnimationConsumers == 0)) {
+    if (mStatusTracker)
+      mStatusTracker->OnUnlockedDraw();
   }
 
   // We use !mDecoded && mHasSourceData to mean discarded.
@@ -3163,7 +3150,7 @@ RasterImage::Draw(gfxContext *aContext,
     return NS_OK; // Getting the frame (above) touches the image and kicks off decoding
   }
 
-  DrawWithPreDownscaleIfNeeded(frame, aContext, aFilter, aUserSpaceToImageSpace, aFill, aSubimage, aFlags);
+  DrawWithPreDownscaleIfNeeded(frame, aContext, aFilter, aUserSpaceToImageSpace, aFill, aSubimage);
 
   if (mDecoded && !mDrawStartTime.IsNull()) {
       TimeDuration drawLatency = TimeStamp::Now() - mDrawStartTime;

@@ -52,10 +52,6 @@ public:
                                     MOZ_OVERRIDE;
 
   virtual nsresult
-  GetConnectedDevicePropertiesInternal(uint16_t aProfileId,
-                                       BluetoothReplyRunnable* aRunnable)
-                                       MOZ_OVERRIDE;
-  virtual nsresult
   StopDiscoveryInternal(BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
 
   virtual nsresult

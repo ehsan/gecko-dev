@@ -317,8 +317,9 @@ nsXBLPrototypeBinding::SetBasePrototype(nsXBLPrototypeBinding* aBinding)
 already_AddRefed<nsIContent>
 nsXBLPrototypeBinding::GetBindingElement()
 {
-  nsCOMPtr<nsIContent> result = mBinding;
-  return result.forget();
+  nsIContent* result = mBinding;
+  NS_IF_ADDREF(result);
+  return result;
 }
 
 void

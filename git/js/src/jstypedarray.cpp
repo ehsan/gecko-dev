@@ -4,27 +4,32 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "jstypedarray.h"
-
 #include <string.h>
 
+#include "mozilla/DebugOnly.h"
 #include "mozilla/FloatingPoint.h"
 #include "mozilla/PodOperations.h"
 
 #include "jstypes.h"
 #include "jsutil.h"
+#include "jsprf.h"
 #include "jsapi.h"
 #include "jsarray.h"
+#include "jsatom.h"
+#include "jsbool.h"
 #include "jscntxt.h"
 #include "jscpucfg.h"
 #include "jsversion.h"
 #include "jsgc.h"
 #include "jsinterp.h"
+#include "jslock.h"
 #include "jsnum.h"
 #include "jsobj.h"
+#include "jstypedarray.h"
 
 #include "gc/Barrier.h"
 #include "gc/Marking.h"
+#include "gc/StoreBuffer.h"
 #include "vm/GlobalObject.h"
 #include "vm/NumericConversions.h"
 
@@ -45,6 +50,7 @@ using namespace js;
 using namespace js::gc;
 using namespace js::types;
 
+using mozilla::DebugOnly;
 using mozilla::PodCopy;
 
 /*

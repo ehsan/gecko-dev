@@ -15,7 +15,6 @@
 
 #include <math.h>
 
-#include "jsapi.h"
 #include "jstypes.h"
 
 extern "C" {

@@ -7,8 +7,6 @@
 /*
  * JS object implementation.
  */
-#include "jsobj.h"
-
 #include <stdlib.h>
 #include <string.h>
 
@@ -20,12 +18,19 @@
 #include "jsapi.h"
 #include "jsarray.h"
 #include "jsatom.h"
+#include "jsbool.h"
 #include "jscntxt.h"
+#include "jsdate.h"
+#include "jsversion.h"
 #include "jsfun.h"
 #include "jsgc.h"
 #include "jsinterp.h"
 #include "jsiter.h"
+#include "jslock.h"
+#include "jsmath.h"
 #include "jsnum.h"
+#include "jsobj.h"
+#include "jsonparser.h"
 #include "jsopcode.h"
 #include "jsprobes.h"
 #include "jsprototypes.h"
@@ -33,26 +38,35 @@
 #include "jsscript.h"
 #include "jsstr.h"
 #include "jsdbgapi.h"
+#include "json.h"
 #include "jswatchpoint.h"
 #include "jswrapper.h"
 
-#include "frontend/TokenStream.h"
+#include "builtin/MapObject.h"
+#include "builtin/Module.h"
+#include "builtin/ParallelArray.h"
+#include "frontend/BytecodeCompiler.h"
+#include "frontend/Parser.h"
 #include "gc/Marking.h"
 #include "js/MemoryMetrics.h"
 #include "vm/Shape.h"
+#include "vm/StringBuffer.h"
+#include "vm/Xdr.h"
 
 #include "jsatominlines.h"
 #include "jsboolinlines.h"
 #include "jscntxtinlines.h"
-#include "jscompartmentinlines.h"
+#include "jsinterpinlines.h"
 #include "jsobjinlines.h"
 #include "jsscriptinlines.h"
-#include "jstypedarrayinlines.h"
+#include "jscompartmentinlines.h"
 
 #include "vm/BooleanObject-inl.h"
 #include "vm/NumberObject-inl.h"
 #include "vm/Shape-inl.h"
 #include "vm/StringObject-inl.h"
+
+#include "jsautooplen.h"
 
 using namespace js;
 using namespace js::gc;

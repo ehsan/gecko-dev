@@ -1573,12 +1573,13 @@ nsCSSStyleSheet::Clone(nsCSSStyleSheet* aCloneParent,
                        nsIDocument* aCloneDocument,
                        nsINode* aCloneOwningNode) const
 {
-  nsRefPtr<nsCSSStyleSheet> clone = new nsCSSStyleSheet(*this,
-                                                        aCloneParent,
-                                                        aCloneOwnerRule,
-                                                        aCloneDocument,
-                                                        aCloneOwningNode);
-  return clone.forget();
+  nsCSSStyleSheet* clone = new nsCSSStyleSheet(*this,
+                                               aCloneParent,
+                                               aCloneOwnerRule,
+                                               aCloneDocument,
+                                               aCloneOwningNode);
+  NS_IF_ADDREF(clone);
+  return clone;
 }
 
 #ifdef DEBUG

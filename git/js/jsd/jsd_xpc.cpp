@@ -151,8 +151,8 @@ jsds_FindEphemeral (LiveEphemeral **listHead, void *key)
     {
         if (lv_record->key == key)
         {
-            nsCOMPtr<jsdIEphemeral> ret = lv_record->value;
-            return ret.forget();
+            NS_IF_ADDREF(lv_record->value);
+            return lv_record->value;
         }
         lv_record = reinterpret_cast<LiveEphemeral *>
                                     (PR_NEXT_LINK(&lv_record->links));

@@ -17,7 +17,6 @@
 #include "nsTArray.h"
 #include "mozilla/gfx/Rect.h"
 #include "mozilla/dom/Touch.h"
-#include "InputData.h"
 
 //#define FORCE_ALOG 1
 
@@ -196,8 +195,6 @@ public:
     float GetY(JNIEnv *env);
     float GetScale(JNIEnv *env);
     void GetFixedLayerMargins(JNIEnv *env, gfx::Margin &aFixedLayerMargins);
-    float GetOffsetX(JNIEnv *env);
-    float GetOffsetY(JNIEnv *env);
 
 private:
     static jclass jViewTransformClass;
@@ -208,8 +205,6 @@ private:
     static jfieldID jFixedLayerMarginTop;
     static jfieldID jFixedLayerMarginRight;
     static jfieldID jFixedLayerMarginBottom;
-    static jfieldID jOffsetXField;
-    static jfieldID jOffsetYField;
 };
 
 class AndroidProgressiveUpdateData : public WrappedJavaObject {
@@ -271,10 +266,7 @@ public:
     void SetPageRect(const gfx::Rect& aCssPageRect);
     void SyncViewportInfo(const nsIntRect& aDisplayPort, float aDisplayResolution, bool aLayersUpdated,
                           nsIntPoint& aScrollOffset, float& aScaleX, float& aScaleY,
-                          gfx::Margin& aFixedLayerMargins, float& aOffsetX, float& aOffsetY);
-    void SyncFrameMetrics(const gfx::Point& aOffset, float aZoom, const gfx::Rect& aCssPageRect,
-                          bool aLayersUpdated, const gfx::Rect& aDisplayPort, float aDisplayResolution,
-                          bool aIsFirstPaint, gfx::Margin& aFixedLayerMargins, float& aOffsetX, float& aOffsetY);
+                          gfx::Margin& aFixedLayerMargins);
     bool ProgressiveUpdateCallback(bool aHasPendingNewThebesContent, const gfx::Rect& aDisplayPort, float aDisplayResolution, bool aDrawingCritical, gfx::Rect& aViewport, float& aScaleX, float& aScaleY);
     bool CreateFrame(AutoLocalJNIFrame *jniFrame, AndroidLayerRendererFrame& aFrame);
     bool ActivateProgram(AutoLocalJNIFrame *jniFrame);
@@ -286,7 +278,6 @@ protected:
     static jmethodID jSetFirstPaintViewport;
     static jmethodID jSetPageRect;
     static jmethodID jSyncViewportInfoMethod;
-    static jmethodID jSyncFrameMetricsMethod;
     static jmethodID jCreateFrameMethod;
     static jmethodID jActivateProgramMethod;
     static jmethodID jDeactivateProgramMethod;
@@ -516,14 +507,6 @@ public:
         return event;
     }
 
-    static AndroidGeckoEvent* MakeBroadcastEvent(const nsCString& topic, const nsCString& data) {
-        AndroidGeckoEvent* event = new AndroidGeckoEvent();
-        event->Init(BROADCAST);
-        CopyUTF8toUTF16(topic, event->mCharacters);
-        CopyUTF8toUTF16(data, event->mCharactersExtra);
-        return event;
-    }
-
     int Action() { return mAction; }
     int Type() { return mType; }
     bool AckNeeded() { return mAckNeeded; }
@@ -569,7 +552,6 @@ public:
     int Width() { return mWidth; }
     int Height() { return mHeight; }
     nsTouchEvent MakeTouchEvent(nsIWidget* widget);
-    MultiTouchInput MakeMultiTouchInput(nsIWidget* widget);
     void UnionRect(nsIntRect const& aRect);
 
 protected:

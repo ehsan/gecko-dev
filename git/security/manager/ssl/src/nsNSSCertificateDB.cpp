@@ -1359,12 +1359,11 @@ nsNSSCertificateDB::FindCertByEmailAddress(nsISupports *aToken, const char *aEma
 #ifndef NSS_NO_LIBPKIX
     }
     else {
-      nsresult nsrv;
       nsCOMPtr<nsINSSComponent> inss = do_GetService(kNSSComponentCID, &nsrv);
       if (!inss)
         return nsrv;
       RefPtr<nsCERTValInParamWrapper> survivingParams;
-      nsrv = inss->GetDefaultCERTValInParam(survivingParams);
+      nsresult nsrv = inss->GetDefaultCERTValInParam(survivingParams);
       if (NS_FAILED(nsrv))
         return nsrv;
       CERTValOutParam cvout[1];

@@ -362,7 +362,9 @@ nsComposerCommandsUpdater::GetCommandUpdater()
   NS_ENSURE_TRUE(docShell, nullptr);
   nsCOMPtr<nsICommandManager> manager = do_GetInterface(docShell);
   nsCOMPtr<nsPICommandUpdater> updater = do_QueryInterface(manager);
-  return updater.forget();
+  nsPICommandUpdater* retVal = nullptr;
+  updater.swap(retVal);
+  return retVal;
 }
 
 #if 0

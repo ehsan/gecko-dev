@@ -177,8 +177,7 @@ public:
    */
   bool SampleContentTransformForFrame(const TimeStamp& aSampleTime,
                                       ContainerLayer* aLayer,
-                                      ViewTransform* aNewTransform,
-                                      gfxPoint* aScrollOffset);
+                                      ViewTransform* aTransform);
 
   /**
    * A shadow layer update has arrived. |aViewportFrame| is the new FrameMetrics

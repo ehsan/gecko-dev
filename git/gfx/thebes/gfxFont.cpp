@@ -202,7 +202,9 @@ gfxFontEntry::FindOrMakeFont(const gfxFontStyle *aStyle, bool aNeedsBold)
         font = newFont;
         gfxFontCache::GetCache()->AddNew(font);
     }
-    return font.forget();
+    gfxFont *f = nullptr;
+    font.swap(f);
+    return f;
 }
 
 bool
@@ -1253,8 +1255,9 @@ gfxFontCache::Lookup(const gfxFontEntry *aFontEntry,
     if (!entry)
         return nullptr;
 
-    nsRefPtr<gfxFont> font = entry->mFont;
-    return font.forget();
+    gfxFont *font = entry->mFont;
+    NS_ADDREF(font);
+    return font;
 }
 
 void
@@ -4392,10 +4395,11 @@ gfxFontGroup::FindFontForChar(uint32_t aCh, uint32_t aPrevCh,
     bool isVarSelector = gfxFontUtils::IsVarSelector(aCh);
 
     if (!isJoinControl && !wasJoinCauser && !isVarSelector) {
-        nsRefPtr<gfxFont> firstFont = mFonts[0].Font();
+        gfxFont *firstFont = mFonts[0].Font();
         if (firstFont->HasCharacter(aCh)) {
             *aMatchType = gfxTextRange::kFontGroup;
-            return firstFont.forget();
+            firstFont->AddRef();
+            return firstFont;
         }
         // It's possible that another font in the family (e.g. regular face,
         // where the requested style was italic) will support the character
@@ -4414,16 +4418,16 @@ gfxFontGroup::FindFontForChar(uint32_t aCh, uint32_t aPrevCh,
         // actually be rendered (see bug 716229)
         uint8_t category = GetGeneralCategory(aCh);
         if (category == HB_UNICODE_GENERAL_CATEGORY_CONTROL) {
-            nsRefPtr<gfxFont> ret = aPrevMatchedFont;
-            return ret.forget();
+            aPrevMatchedFont->AddRef();
+            return aPrevMatchedFont;
         }
 
         // if this character is a join-control or the previous is a join-causer,
         // use the same font as the previous range if we can
         if (isJoinControl || wasJoinCauser) {
             if (aPrevMatchedFont->HasCharacter(aCh)) {
-                nsRefPtr<gfxFont> ret = aPrevMatchedFont;
-                return ret.forget();
+                aPrevMatchedFont->AddRef();
+                return aPrevMatchedFont;
             }
         }
     }
@@ -4433,8 +4437,8 @@ gfxFontGroup::FindFontForChar(uint32_t aCh, uint32_t aPrevCh,
     // otherwise the text run will be divided.
     if (isVarSelector) {
         if (aPrevMatchedFont) {
-            nsRefPtr<gfxFont> ret = aPrevMatchedFont;
-            return ret.forget();
+            aPrevMatchedFont->AddRef();
+            return aPrevMatchedFont;
         }
         // VS alone. it's meaningless to search different fonts
         return nullptr;
@@ -4471,8 +4475,8 @@ gfxFontGroup::FindFontForChar(uint32_t aCh, uint32_t aPrevCh,
     // -- before searching for something else check the font used for the previous character
     if (aPrevMatchedFont && aPrevMatchedFont->HasCharacter(aCh)) {
         *aMatchType = gfxTextRange::kSystemFallback;
-        nsRefPtr<gfxFont> ret = aPrevMatchedFont;
-        return ret.forget();
+        aPrevMatchedFont->AddRef();
+        return aPrevMatchedFont;
     }
 
     // never fall back for characters from unknown scripts
@@ -4633,7 +4637,7 @@ struct PrefFontCallbackData {
 already_AddRefed<gfxFont>
 gfxFontGroup::WhichPrefFontSupportsChar(uint32_t aCh)
 {
-    nsRefPtr<gfxFont> font;
+    gfxFont *font;
 
     // get the pref font list if it hasn't been set up already
     uint32_t unicodeRange = FindCharUnicodeRange(aCh);
@@ -4643,7 +4647,8 @@ gfxFontGroup::WhichPrefFontSupportsChar(uint32_t aCh)
     if (mLastPrefFont && charLang == mLastPrefLang &&
         mLastPrefFirstFont && mLastPrefFont->HasCharacter(aCh)) {
         font = mLastPrefFont;
-        return font.forget();
+        NS_ADDREF(font);
+        return font;
     }
 
     // based on char lang and page lang, set up list of pref lang fonts to check
@@ -4681,7 +4686,8 @@ gfxFontGroup::WhichPrefFontSupportsChar(uint32_t aCh)
             // pref font lookups
             if (family == mLastPrefFamily && mLastPrefFont->HasCharacter(aCh)) {
                 font = mLastPrefFont;
-                return font.forget();
+                NS_ADDREF(font);
+                return font;
             }
 
             bool needsBold;

@@ -976,7 +976,7 @@ void
 js::TriggerOperationCallbackForAsmJSCode(JSRuntime *rt)
 {
 #if defined(JS_ASMJS)
-    JS_ASSERT(rt->currentThreadOwnsOperationCallbackLock());
+    PerThreadData::AsmJSActivationStackLock lock(rt->mainThread);
 
     AsmJSActivation *activation = rt->mainThread.asmJSActivationStackFromAnyThread();
     if (!activation)

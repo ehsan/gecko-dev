@@ -1443,17 +1443,17 @@ Element::GetExistingAttrNameFromQName(const nsAString& aStr) const
     return nullptr;
   }
 
-  nsCOMPtr<nsINodeInfo> nodeInfo;
+  nsINodeInfo* nodeInfo;
   if (name->IsAtom()) {
     nodeInfo = mNodeInfo->NodeInfoManager()->
       GetNodeInfo(name->Atom(), nullptr, kNameSpaceID_None,
-                  nsIDOMNode::ATTRIBUTE_NODE);
+                  nsIDOMNode::ATTRIBUTE_NODE).get();
   }
   else {
-    nodeInfo = name->NodeInfo();
+    NS_ADDREF(nodeInfo = name->NodeInfo());
   }
 
-  return nodeInfo.forget();
+  return nodeInfo;
 }
 
 // static
