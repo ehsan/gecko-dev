@@ -317,7 +317,13 @@ class MOZ_STACK_CLASS CallArgsBase :
     unsigned length() const { return argc_; }
 
     /* Returns the i-th zero-indexed argument. */
-    MutableHandleValue operator[](unsigned i) const {
+    Value &operator[](unsigned i) const {
+        MOZ_ASSERT(i < argc_);
+        return this->argv_[i];
+    }
+
+    /* Returns a mutable handle for the i-th zero-indexed argument. */
+    MutableHandleValue handleAt(unsigned i) const {
         MOZ_ASSERT(i < argc_);
         return MutableHandleValue::fromMarkedLocation(&this->argv_[i]);
     }
@@ -326,7 +332,15 @@ class MOZ_STACK_CLASS CallArgsBase :
      * Returns the i-th zero-indexed argument, or |undefined| if there's no
      * such argument.
      */
-    HandleValue get(unsigned i) const {
+    Value get(unsigned i) const {
+        return i < length() ? this->argv_[i] : UndefinedValue();
+    }
+
+    /*
+     * Returns the i-th zero-indexed argument as a handle, or |undefined| if
+     * there's no such argument.
+     */
+    HandleValue handleOrUndefinedAt(unsigned i) const {
         return i < length()
                ? HandleValue::fromMarkedLocation(&this->argv_[i])
                : UndefinedHandleValue;

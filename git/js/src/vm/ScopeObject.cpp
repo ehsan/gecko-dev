@@ -608,8 +608,8 @@ Class WithObject::class_ = {
     NULL,                    /* finalize */
     NULL,                    /* checkAccess */
     NULL,                    /* call        */
-    NULL,                    /* hasInstance */
     NULL,                    /* construct   */
+    NULL,                    /* hasInstance */
     NULL,                    /* trace       */
     JS_NULL_CLASS_EXT,
     {
