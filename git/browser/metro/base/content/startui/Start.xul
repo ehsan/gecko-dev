@@ -27,8 +27,7 @@
 <!-- we're using html here so we get anonymous scrollbars on the browser element -->
 <html:html id="startui-page"
            xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
-           xmlns:html="http://www.w3.org/1999/xhtml"
-           dir="&locale.dir;">
+           xmlns:html="http://www.w3.org/1999/xhtml">
 
   <html:body id="startui-body" class="meta"
              onload="StartUI.init();" onunload="StartUI.uninit();">

@@ -174,7 +174,6 @@ public:
     MOZ_FINAL MOZ_OVERRIDE;
   virtual sp<MetaData> getTrackMetaData(
     size_t index, uint32_t flag = 0) MOZ_FINAL MOZ_OVERRIDE;
-  virtual uint32_t flags() const MOZ_FINAL MOZ_OVERRIDE;
 
   RtspExtractor(RtspMediaResource *aResource)
     : mRtspResource(aResource) {
@@ -257,24 +256,15 @@ sp<MetaData> RtspExtractor::getTrackMetaData(size_t index, uint32_t flag)
   return meta;
 }
 
-uint32_t RtspExtractor::flags() const
-{
-  if (mRtspResource->IsRealTime()) {
-    return 0;
-  } else {
-    return MediaExtractor::CAN_SEEK;
-  }
-}
-
 nsresult RtspOmxReader::InitOmxDecoder()
 {
   if (!mOmxDecoder.get()) {
     NS_ASSERTION(mDecoder, "RtspOmxReader mDecoder is null.");
     NS_ASSERTION(mDecoder->GetResource(),
                  "RtspOmxReader mDecoder->GetResource() is null.");
-    mExtractor = new RtspExtractor(mRtspResource);
+    sp<MediaExtractor> extractor = new RtspExtractor(mRtspResource);
     mOmxDecoder = new OmxDecoder(mDecoder->GetResource(), mDecoder);
-    if (!mOmxDecoder->Init(mExtractor)) {
+    if (!mOmxDecoder->Init(extractor)) {
       return NS_ERROR_FAILURE;
     }
   }
