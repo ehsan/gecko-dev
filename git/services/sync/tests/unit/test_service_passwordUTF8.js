@@ -52,7 +52,6 @@ function change_password(request, response) {
 }
 
 function run_test() {
-  do_test_pending();
   let server = httpd_setup({
     "/1.0/johndoe/info/collections": info_collections,
     "/user/1.0/johndoe/password": change_password
@@ -80,7 +79,7 @@ function run_test() {
     do_check_eq(server_password, Utils.encodeUTF8(JAPANESE));
 
   } finally {
-    server.stop(do_test_finished);
+    server.stop(function() {});
     Weave.Svc.Prefs.resetBranch("");
   }
 }

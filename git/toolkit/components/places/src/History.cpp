@@ -1179,11 +1179,12 @@ History::RegisterVisitedCallback(nsIURI* aURI,
   NS_ASSERTION(aURI, "Must pass a non-null URI!");
 #ifdef MOZ_IPC
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
-    NS_PRECONDITION(aLink, "Must pass a non-null Link!");
+    NS_PRECONDITION(aLink, "Must pass a non-null URI!");
   }
 #else
-  NS_PRECONDITION(aLink, "Must pass a non-null Link!");
+  NS_PRECONDITION(aLink, "Must pass a non-null URI!");
 #endif
+
 
   // First, ensure that our hash table is setup.
   if (!mObservers.IsInitialized()) {

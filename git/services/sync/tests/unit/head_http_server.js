@@ -153,7 +153,7 @@ ServerCollection.prototype = {
   post: function(input) {
     input = JSON.parse(input);
     let success = [];
-    let failed = {};
+    let failed = [];
 
     // This will count records where we have an existing ServerWBO
     // registered with us as successful and all other records as failed.
@@ -164,11 +164,10 @@ ServerCollection.prototype = {
         wbo.modified = Date.now() / 1000;
         success.push(record.id);
       } else {
-        failed[record.id] = "no wbo configured";
+        failed.push(record.id);
       }
     }
-    return {modified: Date.now() / 1000,
-            success: success,
+    return {success: success,
             failed: failed};
   },
 
