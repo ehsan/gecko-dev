@@ -20,7 +20,6 @@ exports.OptionsPanel = OptionsPanel;
 function OptionsPanel(iframeWindow, toolbox) {
   this.panelDoc = iframeWindow.document;
   this.panelWin = iframeWindow;
-  this.toolbox = toolbox;
 
   EventEmitter.decorate(this);
 };
@@ -32,11 +31,6 @@ OptionsPanel.prototype = {
 
     this.setupToolsList();
     this.populatePreferences();
-
-    this._disableJSClicked = this._disableJSClicked.bind(this);
-
-    let disableJSNode = this.panelDoc.getElementById("devtools-disable-javascript");
-    disableJSNode.addEventListener("click", this._disableJSClicked, false);
 
     this.emit("ready");
     deferred.resolve(this);
@@ -142,34 +136,7 @@ OptionsPanel.prototype = {
     }
   },
 
-  /**
-   * Disables JavaScript for the currently loaded tab. We force a page refresh
-   * here because setting docShell.allowJavascript to true fails to block JS
-   * execution from event listeners added using addEventListener(), AJAX calls
-   * and timers. The page refresh prevents these things from being added in the
-   * first place.
-   *
-   * @param {Event} event
-   *        The event sent by checking / unchecking the disable JS checkbox.
-   */
-  _disableJSClicked: function(event) {
-    let checked = event.target.checked;
-    let linkedBrowser = this.toolbox._host.hostTab.linkedBrowser;
-    let win = linkedBrowser.contentWindow;
-    let docShell = linkedBrowser.docShell;
-
-    if (typeof this.toolbox._origAllowJavascript == "undefined") {
-      this.toolbox._origAllowJavascript = docShell.allowJavascript;
-    }
-
-    docShell.allowJavascript = !checked;
-    win.location.reload();
-  },
-
   destroy: function OP_destroy() {
-    let disableJSNode = this.panelDoc.getElementById("devtools-disable-javascript");
-    disableJSNode.removeEventListener("click", this._disableJSClicked, false);
-
-    this.panelWin = this.panelDoc = this.toolbox = this._disableJSClicked = null;
+    this.panelWin = this.panelDoc = null;
   }
 };

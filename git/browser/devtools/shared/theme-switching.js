@@ -32,22 +32,20 @@
 
     let newThemeUrl = Services.io.newURI(
       DEVTOOLS_SKIN_URL + newTheme + "-theme.css", null, null);
+    let scrollbarsUrl = Services.io.newURI(
+      DEVTOOLS_SKIN_URL + "floating-scrollbars-light.css", null, null);
+
     winUtils.loadSheet(newThemeUrl, window.AUTHOR_SHEET);
 
-    // Floating scrollbars à la osx
-    if (Services.appinfo.OS != "Darwin") {
-      let scrollbarsUrl = Services.io.newURI(
-        DEVTOOLS_SKIN_URL + "floating-scrollbars-light.css", null, null);
-
-      if (newTheme == "dark") {
-        winUtils.loadSheet(scrollbarsUrl, window.AGENT_SHEET);
-      } else if (oldTheme == "dark") {
-        try {
-          winUtils.removeSheet(scrollbarsUrl, window.AGENT_SHEET);
-        } catch(ex) {}
-      }
-      forceStyle();
+    if (newTheme == "dark") {
+      winUtils.loadSheet(scrollbarsUrl, window.AGENT_SHEET);
+    } else if (oldTheme == "dark") {
+      try {
+        winUtils.removeSheet(scrollbarsUrl, window.AGENT_SHEET);
+      } catch(ex) {}
     }
+
+    forceStyle();
 
     document.documentElement.classList.remove("theme-" + oldTheme);
     document.documentElement.classList.add("theme-" + newTheme);

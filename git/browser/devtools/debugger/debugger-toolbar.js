@@ -5,10 +5,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 "use strict";
 
-// A time interval sufficient for the options popup panel to finish hiding
-// itself.
-const POPUP_HIDDEN_DELAY = 100; // ms
-
 /**
  * Functions handling the toolbar view: close button, expand/collapse button,
  * pause/resume and stepping buttons etc.
@@ -238,13 +234,6 @@ OptionsView.prototype = {
   },
 
   /**
-   * Listener handling the 'gear menu' popup hidden event.
-   */
-  _onPopupHidden: function() {
-    window.dispatchEvent(document, "Debugger:OptionsPopupHidden");
-  },
-
-  /**
    * Listener handling the 'pause on exceptions' menuitem command.
    */
   _togglePauseOnExceptions: function() {
@@ -280,19 +269,10 @@ OptionsView.prototype = {
    * Listener handling the 'show original source' menuitem command.
    */
   _toggleShowOriginalSource: function() {
-    function reconfigure() {
-      window.removeEventListener("Debugger:OptionsPopupHidden", reconfigure, false);
-      // The popup panel needs more time to hide after triggering onpopuphidden.
-      window.setTimeout(function() {
-        DebuggerController.reconfigureThread(pref);
-      }, POPUP_HIDDEN_DELAY);
-    }
-
     let pref = Prefs.sourceMapsEnabled =
       this._showOriginalSourceItem.getAttribute("checked") == "true";
 
-    // Don't block the UI while reconfiguring the server.
-    window.addEventListener("Debugger:OptionsPopupHidden", reconfigure, false);
+    DebuggerController.reconfigureThread(pref);
   },
 
   _button: null,

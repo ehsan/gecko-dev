@@ -30,9 +30,7 @@
 
 #include "base/basictypes.h"
 #include "nscore.h"
-#ifdef MOZ_OMX_DECODER
 #include "MediaResourceManagerService.h"
-#endif
 #include "mozilla/FileUtils.h"
 #include "mozilla/Hal.h"
 #include "mozilla/Mutex.h"
@@ -642,11 +640,10 @@ nsAppShell::Init()
 
     InitGonkMemoryPressureMonitoring();
 
-#ifdef MOZ_OMX_DECODER
     if (XRE_GetProcessType() == GeckoProcessType_Default) {
       android::MediaResourceManagerService::instantiate();
     }
-#endif
+
     nsCOMPtr<nsIObserverService> obsServ = GetObserverService();
     if (obsServ) {
         obsServ->AddObserver(this, "browser-ui-startup-complete", false);
