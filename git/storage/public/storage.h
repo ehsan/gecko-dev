@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+ * vim: sw=2 ts=2 et lcs=trail\:.,tab\:>~ :
+ * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -12,14 +13,15 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is the Netscape Portable Runtime (NSPR).
+ * The Original Code is Mozilla Storage code.
  *
  * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 2000
+ * Mozilla Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
+ *   Shawn Wilsher <me@shawnwilsher.com> (Original Author)
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -35,11 +37,28 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-/*
- * A dummy header file that is a dependency for all the object files.
- * Used to force a full recompilation of NSPR in Mozilla's Tinderbox
- * depend builds.  See comments in rules.mk.
- */
+#ifndef mozilla_storage_h_
+#define mozilla_storage_h_
 
-#error "Do not include this header file."
+////////////////////////////////////////////////////////////////////////////////
+//// Public Interfaces
 
+#include "mozIStorageAggregateFunction.h"
+#include "mozIStorageConnection.h"
+#include "mozIStorageError.h"
+#include "mozIStorageFunction.h"
+#include "mozIStoragePendingStatement.h"
+#include "mozIStorageProgressHandler.h"
+#include "mozIStorageResultSet.h"
+#include "mozIStorageRow.h"
+#include "mozIStorageService.h"
+#include "mozIStorageStatement.h"
+#include "mozIStorageStatementCallback.h"
+
+////////////////////////////////////////////////////////////////////////////////
+//// Native Language Helpers
+
+#include "mozStorageHelper.h"
+#include "mozStorageCID.h"
+
+#endif // mozilla_storage_h_
