@@ -2066,7 +2066,7 @@ nsDOMWindowUtils::GetFullZoom(float* aFullZoom)
     return NS_OK;
   }
 
-  *aFullZoom = presContext->DeviceContext()->GetFullZoom();
+  *aFullZoom = presContext->DeviceContext()->GetPixelScale();
 
   return NS_OK;
 }

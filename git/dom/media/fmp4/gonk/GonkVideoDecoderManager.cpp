@@ -455,7 +455,6 @@ GonkVideoDecoderManager::onMessageReceived(const sp<AMessage> &aMessage)
     {
       // Our decode may have acquired the hardware resource that it needs
       // to start. Notify the state machine to resume loading metadata.
-      ALOG("CodecReserved!");
       mReaderCallback->NotifyResourcesStatusChanged();
       break;
     }
@@ -468,7 +467,7 @@ GonkVideoDecoderManager::onMessageReceived(const sp<AMessage> &aMessage)
 
     case kNotifyPostReleaseBuffer:
     {
-      ReleaseAllPendingVideoBuffers();
+      ReleaseAllPendingVideoBuffersLocked();
       break;
     }
 
@@ -563,7 +562,7 @@ void GonkVideoDecoderManager::PostReleaseVideoBuffer(
 
 }
 
-void GonkVideoDecoderManager::ReleaseAllPendingVideoBuffers()
+void GonkVideoDecoderManager::ReleaseAllPendingVideoBuffersLocked()
 {
   Vector<android::MediaBuffer*> releasingVideoBuffers;
   {
@@ -585,9 +584,4 @@ void GonkVideoDecoderManager::ReleaseAllPendingVideoBuffers()
   releasingVideoBuffers.clear();
 }
 
-void GonkVideoDecoderManager::ReleaseMediaResources() {
-  ALOG("ReleseMediaResources");
-  ReleaseAllPendingVideoBuffers();
-  mDecoder->ReleaseMediaResources();
-}
 } // namespace mozilla

@@ -59,18 +59,14 @@ Box::Box(BoxContext* aContext, uint64_t aOffset, const Box* aParent)
   }
 
   MediaByteRange boxRange(aOffset, aOffset + size);
-  if (mChildOffset > boxRange.mEnd ||
+  if (mChildOffset >= boxRange.mEnd ||
       (mParent && !mParent->mRange.Contains(boxRange)) ||
       !byteRange->Contains(boxRange)) {
     return;
   }
-  mRange = boxRange;
+  mRange = MediaByteRange(aOffset, aOffset + size);
   mType = BigEndian::readUint32(&header[4]);
 }
-
-Box::Box()
-  : mContext(nullptr), mType(0)
-{}
 
 Box
 Box::Next() const
@@ -83,9 +79,6 @@ Box
 Box::FirstChild() const
 {
   MOZ_ASSERT(IsAvailable());
-  if (mChildOffset == mRange.mEnd) {
-    return Box();
-  }
   return Box(mContext, mChildOffset, this);
 }
 

@@ -17,7 +17,7 @@ namespace dom {
 class Console;
 class Function;
 class Promise;
-class RequestOrUSVString;
+class RequestOrScalarValueString;
 
 } // namespace dom
 } // namespace mozilla
@@ -126,7 +126,7 @@ public:
   Performance* GetPerformance();
 
   already_AddRefed<Promise>
-  Fetch(const RequestOrUSVString& aInput, const RequestInit& aInit, ErrorResult& aRv);
+  Fetch(const RequestOrScalarValueString& aInput, const RequestInit& aInit, ErrorResult& aRv);
 };
 
 class DedicatedWorkerGlobalScope MOZ_FINAL : public WorkerGlobalScope

@@ -82,13 +82,7 @@ HttpBaseChannel::HttpBaseChannel()
 {
   LOG(("Creating HttpBaseChannel @%x\n", this));
 
-  // Subfields of unions cannot be targeted in an initializer list.
-#ifdef MOZ_VALGRIND
-  // Zero the entire unions so that Valgrind doesn't complain when we send them
-  // to another process.
-  memset(&mSelfAddr, 0, sizeof(NetAddr));
-  memset(&mPeerAddr, 0, sizeof(NetAddr));
-#endif
+  // Subfields of unions cannot be targeted in an initializer list
   mSelfAddr.raw.family = PR_AF_UNSPEC;
   mPeerAddr.raw.family = PR_AF_UNSPEC;
 }

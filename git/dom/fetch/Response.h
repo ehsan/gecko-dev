@@ -19,7 +19,7 @@ class nsPIDOMWindow;
 namespace mozilla {
 namespace dom {
 
-class ArrayBufferOrArrayBufferViewOrUSVStringOrURLSearchParams;
+class ArrayBufferOrArrayBufferViewOrScalarValueStringOrURLSearchParams;
 class Headers;
 class InternalHeaders;
 class Promise;
@@ -87,7 +87,7 @@ public:
 
   static already_AddRefed<Response>
   Constructor(const GlobalObject& aGlobal,
-              const Optional<ArrayBufferOrArrayBufferViewOrBlobOrUSVStringOrURLSearchParams>& aBody,
+              const Optional<ArrayBufferOrArrayBufferViewOrBlobOrScalarValueStringOrURLSearchParams>& aBody,
               const ResponseInit& aInit, ErrorResult& rv);
 
   nsIGlobalObject* GetParentObject() const

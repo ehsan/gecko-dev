@@ -31,7 +31,7 @@ interface TestInterfaceJS {
   // For testing bug 968335.
   DOMString getCallerPrincipal();
 
-  DOMString convertSVS(USVString svs);
+  DOMString convertSVS(ScalarValueString svs);
 
   (TestInterfaceJS or long) pingPongUnion((TestInterfaceJS or long) something);
   (DOMString or TestInterfaceJS?) pingPongUnionContainingNull((TestInterfaceJS? or DOMString) something);
