@@ -1,13 +1,9 @@
-#!/bin/bash
-echo -n interp:' '
+#!/bin/sh
+echo interp:
 for i in 1 2 3 4 5; do
-  INTERP=`Darwin_OPT.OBJ/js -e 'var d = Date.now(); load("'$1'"); print(Date.now() - d);'`
-  echo -n $INTERP' '
+  Darwin_OPT.OBJ/js -e 'var d = Date.now(); load("'$1'"); print(Date.now() - d);'
 done
-echo -ne '\njit: '
+echo jit:
 for i in 1 2 3 4 5; do
-  JIT=`Darwin_OPT.OBJ/js -j -e 'var d = Date.now(); load("'$1'"); print(Date.now() - d);'`
-  echo -n $JIT' '
+  Darwin_OPT.OBJ/js -j -e 'var d = Date.now(); load("'$1'"); print(Date.now() - d);'
 done
-echo -ne '\njit factor: '
-(echo scale=2; echo $INTERP / $JIT ) | bc

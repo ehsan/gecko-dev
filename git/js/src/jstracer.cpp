@@ -226,6 +226,11 @@ static bool isPromote(LIns* i)
     return isPromoteInt(i) || isPromoteUint(i);
 }
 
+static bool isconst(LIns* i, int32_t c)
+{
+    return i->isconst() && i->constval() == c;
+}
+
 static bool overflowSafe(LIns* i)
 {
     LIns* c;
@@ -298,6 +303,31 @@ public:
                 if (!overflowSafe(d0) || !overflowSafe(d1))
                     out->insGuard(LIR_xt, out->ins1(LIR_ov, result), recorder.snapshot());
                 return out->ins1(LIR_i2f, result);
+            }
+        } else if (v == LIR_or && 
+                   s0->isop(LIR_lsh) && isconst(s0->oprnd2(), 16) &&
+                   s1->isop(LIR_and) && isconst(s1->oprnd2(), 0xffff)) {
+            LIns* msw = s0->oprnd1();
+            LIns* lsw = s1->oprnd1();
+            LIns* x;
+            LIns* y;
+            if (lsw->isop(LIR_add) &&
+                lsw->oprnd1()->isop(LIR_and) && 
+                lsw->oprnd2()->isop(LIR_and) &&
+                isconst(lsw->oprnd1()->oprnd2(), 0xffff) && 
+                isconst(lsw->oprnd2()->oprnd2(), 0xffff) &&
+                msw->isop(LIR_add) && 
+                msw->oprnd1()->isop(LIR_add) && 
+                msw->oprnd2()->isop(LIR_rsh) &&
+                msw->oprnd1()->oprnd1()->isop(LIR_rsh) &&
+                msw->oprnd1()->oprnd2()->isop(LIR_rsh) &&
+                isconst(msw->oprnd2()->oprnd2(), 16) &&
+                isconst(msw->oprnd1()->oprnd1()->oprnd2(), 16) &&
+                isconst(msw->oprnd1()->oprnd2()->oprnd2(), 16) &&
+                (x = lsw->oprnd1()->oprnd1()) == msw->oprnd1()->oprnd1()->oprnd1() &&
+                (y = lsw->oprnd2()->oprnd1()) == msw->oprnd1()->oprnd2()->oprnd1() &&
+                lsw == msw->oprnd2()->oprnd1()) {
+                return out->ins2(LIR_add, x, y);
             }
         }
         return out->ins2(v, s0, s1);
@@ -392,7 +422,7 @@ public:
                 vp = &f->argv[-1];                                            \
                 code;                                                         \
                 SET_VPNAME("argv");                                           \
-                vp = &f->argv[0]; vpstop = &f->argv[f->fun->nargs];           \
+                vp = &f->argv[0]; vpstop = &f->argv[f->argc];                 \
                 while (vp < vpstop) { code; ++vp; INC_VPNUM(); }              \
                 SET_VPNAME("vars");                                           \
                 vp = &f->vars[0]; vpstop = &f->vars[f->nvars];                \
@@ -545,7 +575,7 @@ static unsigned nativeFrameSlots(unsigned ngslots, unsigned callDepth,
     for (;;) {
         slots += 1/*rval*/ + (regs.sp - fp->spbase);
         if (fp->callee)
-            slots += 1/*this*/ + fp->fun->nargs + fp->nvars;
+            slots += 1/*this*/ + fp->argc + fp->nvars;
         if (callDepth-- == 0)
             return slots;
         fp = fp->down;
@@ -1278,7 +1308,7 @@ js_DestroyJIT(JSContext* cx)
 jsval&
 TraceRecorder::argval(unsigned n) const
 {
-    JS_ASSERT(n < cx->fp->fun->nargs);
+    JS_ASSERT(n < cx->fp->argc);
     return cx->fp->argv[n];
 }
 
