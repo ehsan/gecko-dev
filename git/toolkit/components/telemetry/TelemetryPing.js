@@ -239,7 +239,8 @@ TelemetryPing.prototype = {
     return retgram;
   },
 
-  getHistograms: function getHistograms(hls) {
+  getHistograms: function getHistograms() {
+    let hls = Telemetry.histogramSnapshots;
     let info = Telemetry.registeredHistograms;
     let ret = {};
 
@@ -293,8 +294,7 @@ TelemetryPing.prototype = {
       appName: ai.name,
       appBuildID: ai.appBuildID,
       appUpdateChannel: getUpdateChannel(),
-      platformBuildID: ai.platformBuildID,
-      locale: getLocale()
+      platformBuildID: ai.platformBuildID
     };
 
     // sysinfo fields are not always available, get what we can.

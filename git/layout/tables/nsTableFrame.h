@@ -244,7 +244,7 @@ public:
   NS_IMETHOD SetInitialChildList(ChildListID     aListID,
                                  nsFrameList&    aChildList);
 
-  virtual const nsFrameList& GetChildList(ChildListID aListID) const;
+  virtual nsFrameList GetChildList(ChildListID aListID) const;
   virtual void GetChildLists(nsTArray<ChildList>* aLists) const;
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,

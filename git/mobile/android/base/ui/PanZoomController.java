@@ -297,12 +297,12 @@ public class PanZoomController
             cancelTouch();
             startPanning(event.getX(0), event.getY(0), event.getEventTime());
             GeckoApp.mAppContext.hidePlugins(false /* don't hide layers */);
-            GeckoApp.mFormAssistPopup.hide();
+            GeckoApp.mAutoCompletePopup.hide();
             track(event);
             return true;
 
         case PANNING_HOLD_LOCKED:
-            GeckoApp.mFormAssistPopup.hide();
+            GeckoApp.mAutoCompletePopup.hide();
             mState = PanZoomState.PANNING_LOCKED;
             // fall through
         case PANNING_LOCKED:
@@ -310,7 +310,7 @@ public class PanZoomController
             return true;
 
         case PANNING_HOLD:
-            GeckoApp.mFormAssistPopup.hide();
+            GeckoApp.mAutoCompletePopup.hide();
             mState = PanZoomState.PANNING;
             // fall through
         case PANNING:
@@ -760,7 +760,7 @@ public class PanZoomController
         mState = PanZoomState.PINCHING;
         mLastZoomFocus = new PointF(detector.getFocusX(), detector.getFocusY());
         GeckoApp.mAppContext.hidePlugins(false /* don't hide layers, only views */);
-        GeckoApp.mFormAssistPopup.hide();
+        GeckoApp.mAutoCompletePopup.hide();
         cancelTouch();
 
         return true;
@@ -863,7 +863,7 @@ public class PanZoomController
 
     @Override
     public boolean onSingleTapConfirmed(MotionEvent motionEvent) {
-        GeckoApp.mFormAssistPopup.hide();
+        GeckoApp.mAutoCompletePopup.hide();
         sendPointToGecko("Gesture:SingleTap", motionEvent);
         return true;
     }
@@ -880,7 +880,7 @@ public class PanZoomController
     }
 
     private boolean animatedZoomTo(RectF zoomToRect) {
-        GeckoApp.mFormAssistPopup.hide();
+        GeckoApp.mAutoCompletePopup.hide();
 
         mState = PanZoomState.ANIMATED_ZOOM;
         final float startZoom = mController.getZoomFactor();

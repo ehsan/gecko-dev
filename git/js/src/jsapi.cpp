@@ -104,7 +104,6 @@
 #include "vm/RegExpStatics-inl.h"
 #include "vm/Stack-inl.h"
 #include "vm/String-inl.h"
-#include "vm/StringBuffer-inl.h"
 
 #if ENABLE_YARR_JIT
 #include "assembler/jit/ExecutableAllocator.h"
@@ -753,7 +752,6 @@ JSRuntime::JSRuntime()
     gcZealFrequency(0),
     gcNextScheduled(0),
     gcDebugCompartmentGC(false),
-    gcDeterministicOnly(false),
 #endif
     gcCallback(NULL),
     gcSliceCallback(NULL),
@@ -4266,9 +4264,7 @@ prop_iter_trace(JSTracer *trc, JSObject *obj)
          * barrier here because the pointer is updated via setPrivate, which
          * always takes a barrier.
          */
-        Shape *tmp = (Shape *)pdata;
-        MarkShapeUnbarriered(trc, &tmp, "prop iter shape");
-        JS_ASSERT(tmp == pdata);
+        MarkShapeUnbarriered(trc, (Shape *)pdata, "prop iter shape");
     } else {
         /* Non-native case: mark each id in the JSIdArray private. */
         JSIdArray *ida = (JSIdArray *) pdata;
@@ -4408,9 +4404,9 @@ JS_NewArrayObject(JSContext *cx, int length, jsval *vector)
     JS_THREADSAFE_ASSERT(cx->compartment != cx->runtime->atomsCompartment);
     AssertNoGC(cx);
     CHECK_REQUEST(cx);
-    
-    assertSameCompartment(cx, JSValueArray(vector, vector ? (uint32_t)length : 0));
-    return NewDenseCopiedArray(cx, (uint32_t)length, vector);
+    /* NB: jsuint cast does ToUint32. */
+    assertSameCompartment(cx, JSValueArray(vector, vector ? (jsuint)length : 0));
+    return NewDenseCopiedArray(cx, (jsuint)length, vector);
 }
 
 JS_PUBLIC_API(JSBool)
@@ -4421,7 +4417,7 @@ JS_IsArrayObject(JSContext *cx, JSObject *obj)
 }
 
 JS_PUBLIC_API(JSBool)
-JS_GetArrayLength(JSContext *cx, JSObject *obj, uint32_t *lengthp)
+JS_GetArrayLength(JSContext *cx, JSObject *obj, jsuint *lengthp)
 {
     AssertNoGC(cx);
     CHECK_REQUEST(cx);
@@ -4430,7 +4426,7 @@ JS_GetArrayLength(JSContext *cx, JSObject *obj, uint32_t *lengthp)
 }
 
 JS_PUBLIC_API(JSBool)
-JS_SetArrayLength(JSContext *cx, JSObject *obj, uint32_t length)
+JS_SetArrayLength(JSContext *cx, JSObject *obj, jsuint length)
 {
     AssertNoGC(cx);
     CHECK_REQUEST(cx);
@@ -6467,10 +6463,23 @@ JS_ClearPendingException(JSContext *cx)
 JS_PUBLIC_API(JSBool)
 JS_ReportPendingException(JSContext *cx)
 {
+    JSBool ok;
+    bool save;
+
     AssertNoGC(cx);
     CHECK_REQUEST(cx);
 
-    return js_ReportUncaughtException(cx);
+    /*
+     * Set cx->generatingError to suppress the standard error-to-exception
+     * conversion done by all {js,JS}_Report* functions except for OOM.  The
+     * cx->generatingError flag was added to suppress recursive divergence
+     * under js_ErrorToException, but it serves for our purposes here too.
+     */
+    save = cx->generatingError;
+    cx->generatingError = JS_TRUE;
+    ok = js_ReportUncaughtException(cx);
+    cx->generatingError = save;
+    return ok;
 }
 
 struct JSExceptionState {

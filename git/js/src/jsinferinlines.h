@@ -1312,11 +1312,8 @@ TypeObject::writeBarrierPre(TypeObject *type)
         return;
 
     JSCompartment *comp = type->compartment();
-    if (comp->needsBarrier()) {
-        TypeObject *tmp = type;
-        MarkTypeObjectUnbarriered(comp->barrierTracer(), &tmp, "write barrier");
-        JS_ASSERT(tmp == type);
-    }
+    if (comp->needsBarrier())
+        MarkTypeObjectUnbarriered(comp->barrierTracer(), type, "write barrier");
 #endif
 }
 
@@ -1330,11 +1327,8 @@ TypeObject::readBarrier(TypeObject *type)
 {
 #ifdef JSGC_INCREMENTAL
     JSCompartment *comp = type->compartment();
-    if (comp->needsBarrier()) {
-        TypeObject *tmp = type;
-        MarkTypeObjectUnbarriered(comp->barrierTracer(), &tmp, "read barrier");
-        JS_ASSERT(tmp == type);
-    }
+    if (comp->needsBarrier())
+        MarkTypeObjectUnbarriered(comp->barrierTracer(), type, "read barrier");
 #endif
 }
 
@@ -1347,7 +1341,7 @@ TypeNewScript::writeBarrierPre(TypeNewScript *newScript)
 
     JSCompartment *comp = newScript->fun->compartment();
     if (comp->needsBarrier()) {
-        MarkObject(comp->barrierTracer(), &newScript->fun, "write barrier");
+        MarkObjectUnbarriered(comp->barrierTracer(), newScript->fun, "write barrier");
         MarkShape(comp->barrierTracer(), &newScript->shape, "write barrier");
     }
 #endif

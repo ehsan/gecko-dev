@@ -264,14 +264,6 @@ public:
     return GetChildAt(GetChildIndexAtOffset(aOffset));
   }
 
-  //////////////////////////////////////////////////////////////////////////////
-  // EditableTextAccessible
-
-  /**
-   * Return the editor associated with the accessible.
-   */
-  virtual already_AddRefed<nsIEditor> GetEditor() const;
-
 protected:
   // nsHyperTextAccessible
 
@@ -417,7 +409,7 @@ protected:
    * @param aEndOffset        [in, out] the end offset
    * @param aAttributes       [out, optional] result attributes
    */
-  nsresult GetSpellTextAttribute(nsINode* aNode, PRInt32 aNodeOffset,
+  nsresult GetSpellTextAttribute(nsIDOMNode *aNode, PRInt32 aNodeOffset,
                                  PRInt32 *aStartOffset,
                                  PRInt32 *aEndOffset,
                                  nsIPersistentProperties *aAttributes);

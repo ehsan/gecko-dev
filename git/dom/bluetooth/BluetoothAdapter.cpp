@@ -16,56 +16,47 @@
 #include <bluedroid/bluetooth.h>
 #endif
 
-USING_BLUETOOTH_NAMESPACE
+#define POWERED_EVENT_NAME NS_LITERAL_STRING("powered")
+
+BEGIN_BLUETOOTH_NAMESPACE
 
 class ToggleBtResultTask : public nsRunnable
 {
   public:
-    ToggleBtResultTask(nsRefPtr<BluetoothAdapter>& adapterPtr, bool result)
+    ToggleBtResultTask(bool result, nsRefPtr<BluetoothAdapter>& adapterPtr)
       : mResult(result)
     {
-      MOZ_ASSERT(!NS_IsMainThread());
+      MOZ_ASSERT(!NS_IsMainThread()); // This should be running on the worker thread
 
       mAdapterPtr.swap(adapterPtr);
     }
 
-    NS_IMETHOD Run() 
-    {
-      MOZ_ASSERT(NS_IsMainThread());
-
-      if (!mResult) {
-        //TODO:Bug-731361
-        NS_WARNING("BT firmware loading fails.\n");
-      }
- 
-      //mAdapterPtr must be null before returning to prevent the background 
-      //thread from racing to release it during the destruction of this runnable.
+    NS_IMETHOD Run() {
+      MOZ_ASSERT(NS_IsMainThread()); // This method is supposed to run on the main thread!
       mAdapterPtr->FirePowered();
-      mAdapterPtr = nsnull;
 
       return NS_OK;
     }
 
   private:
-    nsRefPtr<BluetoothAdapter> mAdapterPtr;
     bool mResult;
+    nsRefPtr<BluetoothAdapter> mAdapterPtr;
 };
 
 class ToggleBtTask : public nsRunnable
 {
   public:
-    ToggleBtTask(bool onOff, BluetoothAdapter* adapterPtr) 
+    ToggleBtTask(bool onOff, BluetoothAdapter* adapterPtr)
       : mOnOff(onOff),
-        mAdapterPtr(adapterPtr) 
+      mAdapterPtr(adapterPtr)
     {
-      MOZ_ASSERT(NS_IsMainThread());
+      MOZ_ASSERT(NS_IsMainThread()); // The constructor should be running on the main thread.
     }
 
-    NS_IMETHOD Run() 
-    {
-      MOZ_ASSERT(!NS_IsMainThread());
-
+    NS_IMETHOD Run() {
       bool result;
+
+      MOZ_ASSERT(!NS_IsMainThread()); // This should be running on the worker thread.
 
       //Toggle BT here
 #if defined(MOZ_WIDGET_GONK)  
@@ -74,16 +65,13 @@ class ToggleBtTask : public nsRunnable
       } else {
         result = bt_disable();
       }
-#else 
+#else
       result = true;
 #endif
 
       // Create a result thread and pass it to Main Thread, 
-      nsCOMPtr<nsIRunnable> resultRunnable = new ToggleBtResultTask(mAdapterPtr, result);
-
-      if (NS_FAILED(NS_DispatchToMainThread(resultRunnable))) {
-        NS_WARNING("Failed to dispatch to main thread!");
-      }
+      nsCOMPtr<nsIRunnable> resultRunnable = new ToggleBtResultTask(result, mAdapterPtr);
+      NS_DispatchToMainThread(resultRunnable);
 
       return NS_OK;
     }
@@ -93,21 +81,25 @@ class ToggleBtTask : public nsRunnable
     bool mOnOff;
 };
 
-DOMCI_DATA(BluetoothAdapter, BluetoothAdapter)
+END_BLUETOOTH_NAMESPACE
+
+DOMCI_DATA(BluetoothAdapter, mozilla::dom::bluetooth::BluetoothAdapter)
+
+USING_BLUETOOTH_NAMESPACE
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(BluetoothAdapter)
 
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(BluetoothAdapter, 
-                                                  nsDOMEventTargetHelper)
-  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(powered)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(BluetoothAdapter,
+    nsDOMEventTargetHelper)
+NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(powered)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(BluetoothAdapter, 
-                                                nsDOMEventTargetHelper)
-  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(powered)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(BluetoothAdapter,
+    nsDOMEventTargetHelper)
+NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(powered)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(BluetoothAdapter)
+  NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(BluetoothAdapter)
   NS_INTERFACE_MAP_ENTRY(nsIDOMBluetoothAdapter)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(BluetoothAdapter)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
@@ -115,16 +107,18 @@ NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
 NS_IMPL_ADDREF_INHERITED(BluetoothAdapter, nsDOMEventTargetHelper)
 NS_IMPL_RELEASE_INHERITED(BluetoothAdapter, nsDOMEventTargetHelper)
 
-BluetoothAdapter::BluetoothAdapter() 
-  : mPower(false)
+BluetoothAdapter::BluetoothAdapter() : mPower(false)
 {
 }
 
 NS_IMETHODIMP
 BluetoothAdapter::GetPower(bool* aPower)
 {
+#if defined(MOZ_WIDGET_GONK)  
+  *aPower = bt_is_enabled();
+#else
   *aPower = mPower;
-
+#endif
   return NS_OK;
 }
 
@@ -134,13 +128,13 @@ BluetoothAdapter::SetPower(bool aPower)
   if (mPower != aPower) {
     mPower = aPower;
 
-    return ToggleBluetoothAsync();
+    ToggleBluetoothAsync();
   }
 
   return NS_OK;
 }
 
-nsresult
+void 
 BluetoothAdapter::ToggleBluetoothAsync()
 {
   if (!mToggleBtThread) {
@@ -149,17 +143,14 @@ BluetoothAdapter::ToggleBluetoothAsync()
 
   nsCOMPtr<nsIRunnable> r = new ToggleBtTask(mPower, this);
 
-  return mToggleBtThread->Dispatch(r, NS_DISPATCH_NORMAL);
+  mToggleBtThread->Dispatch(r, 0);
 }
 
 nsresult
 BluetoothAdapter::FirePowered()
 {
   nsRefPtr<nsDOMEvent> event = new nsDOMEvent(nsnull, nsnull);
-  nsresult rv = event->InitEvent(NS_LITERAL_STRING("powered"), false, false);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = event->SetTrusted(true);
+  nsresult rv = event->InitEvent(POWERED_EVENT_NAME, false, false);
   NS_ENSURE_SUCCESS(rv, rv);
 
   bool dummy;

@@ -199,12 +199,12 @@ SmsManager::Send(const jsval& aNumber, const nsAString& aMessage, jsval* aReturn
   // Must be an array then.
   JSObject& numbers = aNumber.toObject();
 
-  uint32_t size;
+  jsuint size;
   JS_ALWAYS_TRUE(JS_GetArrayLength(cx, &numbers, &size));
 
   jsval* requests = new jsval[size];
 
-  for (uint32_t i=0; i<size; ++i) {
+  for (jsuint i=0; i<size; ++i) {
     jsval number;
     if (!JS_GetElement(cx, &numbers, i, &number)) {
       return NS_ERROR_INVALID_ARG;

@@ -24,7 +24,7 @@ public abstract class StoreTrackingRepositorySession extends RepositorySession {
   }
 
   @Override
-  public void begin(RepositorySessionBeginDelegate delegate) throws InvalidSessionTransitionException {
+  public void begin(RepositorySessionBeginDelegate delegate) {
     RepositorySessionBeginDelegate deferredDelegate = delegate.deferredBeginDelegate(delegateQueue);
     try {
       super.sharedBegin();
@@ -74,7 +74,7 @@ public abstract class StoreTrackingRepositorySession extends RepositorySession {
   }
 
   @Override
-  public void finish(RepositorySessionFinishDelegate delegate) throws InactiveSessionException {
+  public void finish(RepositorySessionFinishDelegate delegate) {
     super.finish(delegate);
     this.storeTracker = null;
   }

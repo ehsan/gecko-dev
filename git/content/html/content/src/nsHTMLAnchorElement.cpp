@@ -96,8 +96,8 @@ public:
   // nsIDOMHTMLAnchorElement
   NS_DECL_NSIDOMHTMLANCHORELEMENT  
 
-  // DOM memory reporter participant
-  NS_DECL_SIZEOF_EXCLUDING_THIS
+  // TODO: nsHTMLAnchorElement::SizeOfAnchorElement should call
+  // Link::SizeOfExcludingThis().  See bug 682431.
 
   // nsILink
   NS_IMETHOD LinkAdded() { return NS_OK; }
@@ -518,12 +518,5 @@ nsEventStates
 nsHTMLAnchorElement::IntrinsicState() const
 {
   return Link::LinkState() | nsGenericHTMLElement::IntrinsicState();
-}
-
-size_t
-nsHTMLAnchorElement::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
-{
-  return nsGenericHTMLElement::SizeOfExcludingThis(aMallocSizeOf) +
-         Link::SizeOfExcludingThis(aMallocSizeOf);
 }
 

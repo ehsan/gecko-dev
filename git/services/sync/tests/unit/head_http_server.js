@@ -514,8 +514,7 @@ function track_collections_helper() {
       default:
         throw "Non-GET on info_collections.";
     }
-
-    response.setHeader("Content-Type", "application/json");
+        
     response.setHeader("X-Weave-Timestamp",
                        "" + new_timestamp(),
                        false);
@@ -809,18 +808,6 @@ SyncServer.prototype = {
    * TODO: check username in path against username in BasicAuth. 
    */
   handleDefault: function handleDefault(handler, req, resp) {
-    try {
-      this._handleDefault(handler, req, resp);
-    } catch (e) {
-      if (e instanceof HttpError) {
-        this.respond(req, resp, e.code, e.description, "", {});
-      } else {
-        throw e;
-      }
-    }
-  },
-
-  _handleDefault: function _handleDefault(handler, req, resp) {
     this._log.debug("SyncServer: Handling request: " + req.method + " " + req.path);
     let parts = this.pathRE.exec(req.path);
     if (!parts) {

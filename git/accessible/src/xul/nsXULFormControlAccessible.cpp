@@ -850,17 +850,14 @@ nsXULTextFieldAccessible::CanHaveAnonChildren()
   return false;
 }
 
-already_AddRefed<nsIEditor>
-nsXULTextFieldAccessible::GetEditor() const
+NS_IMETHODIMP nsXULTextFieldAccessible::GetAssociatedEditor(nsIEditor **aEditor)
 {
+  *aEditor = nsnull;
+
   nsCOMPtr<nsIContent> inputField = GetInputField();
   nsCOMPtr<nsIDOMNSEditableElement> editableElt(do_QueryInterface(inputField));
-  if (!editableElt)
-    return nsnull;
-
-  nsCOMPtr<nsIEditor> editor;
-  editableElt->GetEditor(getter_AddRefs(editor));
-  return editor.forget();
+  NS_ENSURE_TRUE(editableElt, NS_ERROR_FAILURE);
+  return editableElt->GetEditor(aEditor);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

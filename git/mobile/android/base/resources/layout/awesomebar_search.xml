@@ -14,7 +14,6 @@
           android:hint="@string/awesomebar_default_text"
           android:inputType="textUri|textNoSuggestions"
           android:imeOptions="actionSearch"
-          android:selectAllOnFocus="true"
           android:singleLine="true"
           android:gravity="center_vertical|left">
               <requestFocus/>

@@ -283,8 +283,6 @@ GfxInfo::GetFeatureStatusImpl(PRInt32 aFeature,
                               OperatingSystem* aOS /* = nsnull */)
 
 {
-  GetData();
-
   NS_ENSURE_ARG_POINTER(aStatus);
   *aStatus = nsIGfxInfo::FEATURE_STATUS_UNKNOWN;
   aSuggestedDriverVersion.SetIsVoid(true);
@@ -312,6 +310,7 @@ GfxInfo::GetFeatureStatusImpl(PRInt32 aFeature,
     if (aFeature == nsIGfxInfo::FEATURE_OPENGL_LAYERS ||
         aFeature == nsIGfxInfo::FEATURE_WEBGL_OPENGL ||
         aFeature == nsIGfxInfo::FEATURE_WEBGL_MSAA) {
+      GetData();
 
       // Disable OpenGL layers when we don't have texture_from_pixmap because it regresses performance. 
       if (aFeature == nsIGfxInfo::FEATURE_OPENGL_LAYERS && !mHasTextureFromPixmap) {

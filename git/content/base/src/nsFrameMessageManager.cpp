@@ -882,7 +882,9 @@ nsFrameScriptExecutor::InitTabChildGlobalInternal(nsISupports* aScope)
   JS_SetContextPrivate(cx, aScope);
 
   nsresult rv =
-    xpc->InitClassesWithNewWrappedGlobal(cx, aScope, mPrincipal,
+    xpc->InitClassesWithNewWrappedGlobal(cx, aScope,
+                                         NS_GET_IID(nsISupports),
+                                         mPrincipal, nsnull,
                                          flags, getter_AddRefs(mGlobal));
   NS_ENSURE_SUCCESS(rv, false);
 

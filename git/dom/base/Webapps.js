@@ -1,6 +1,38 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this file,
- * You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Open Web Apps.
+ *
+ * The Initial Developer of the Original Code is Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2011
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Fabrice Desré <fabrice@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -9,31 +41,27 @@ const Cr = Components.results;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/DOMRequestHelper.jsm");
-
-XPCOMUtils.defineLazyGetter(Services, "rs", function() {
-  return Cc["@mozilla.org/dom/dom-request-service;1"].getService(Ci.nsIDOMRequestService);
-});
-
-XPCOMUtils.defineLazyGetter(this, "cpmm", function() {
-  return Cc["@mozilla.org/childprocessmessagemanager;1"].getService(Ci.nsIFrameMessageManager);
-});
-
-function convertAppsArray(aApps, aWindow) {
-  let apps = new Array();
-  for (let i = 0; i < aApps.length; i++) {
-    let app = aApps[i];
-    apps.push(new WebappsApplication(aWindow, app.origin, app.manifest, app.manifestURL, 
-                                     app.receipts, app.installOrigin, app.installTime));
-  }
-  return apps;
-}
 
 function WebappsRegistry() {
+  this.messages = ["Webapps:Install:Return:OK", "Webapps:Install:Return:KO",
+                   "Webapps:Uninstall:Return:OK", "Webapps:Uninstall:Return:KO",
+                   "Webapps:Enumerate:Return:OK", "Webapps:Enumerate:Return:KO"];
+
+  this.mm = Cc["@mozilla.org/childprocessmessagemanager;1"].getService(Ci.nsIFrameMessageManager);
+
+  this.messages.forEach((function(msgName) {
+    this.mm.addMessageListener(msgName, this);
+  }).bind(this));
+
+  this._window = null;
+  this._id = this._getRandomId();
+  this._callbacks = [];
 }
 
 WebappsRegistry.prototype = {
-  __proto__: DOMRequestIpcHelper.prototype,
+  _onerror: null,
+  _oninstall: null,
+  _onuninstall: null,
 
   /** from https://developer.mozilla.org/en/OpenWebApps/The_Manifest
    * only the name property is mandatory
@@ -42,7 +70,7 @@ WebappsRegistry.prototype = {
     // TODO : check for install_allowed_from
     if (aManifest.name == undefined)
       return false;
-
+    
     if (aManifest.installs_allowed_from) {
       ok = false;
       aManifest.installs_allowed_from.forEach(function(aOrigin) {
@@ -53,41 +81,97 @@ WebappsRegistry.prototype = {
     }
     return true;
   },
+  
+  getCallbackId: function(aCallback) {
+    let id = "id" + this._getRandomId();
+    this._callbacks[id] = aCallback;
+    return id;
+  },
+  
+  getCallback: function(aId) {
+    return this._callbacks[aId];
+  },
+
+  removeCallback: function(aId) {
+    if (this._callbacks[aId])
+      delete this._callbacks[aId];
+  },
+  
+  _getRandomId: function() {
+    return Cc["@mozilla.org/uuid-generator;1"].getService(Ci.nsIUUIDGenerator).generateUUID().toString();
+  },
+
+  _convertAppsArray: function(aApps) {
+    let apps = new Array();
+    for (let i = 0; i < aApps.length; i++) {
+      let app = aApps[i];
+      apps.push(new WebappsApplication(app.origin, app.manifest, app.receipt, app.installOrigin, app.installTime));
+    }
+    return apps;
+  },
+
+  set oninstall(aCallback) {
+    if (this.hasPrivileges)
+      this._oninstall = aCallback;
+    else
+      throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
+  },
+  
+  set onuninstall(aCallback) {
+    if (this.hasPrivileges)
+      this._onuninstall = aCallback;
+    else
+      throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
+  },
+
+  set onerror(aCallback) {
+    this._onerror = aCallback;
+  },
 
   receiveMessage: function(aMessage) {
     let msg = aMessage.json;
-    if (msg.oid != this._id)
+    if (!(msg.oid == this._id || aMessage.name == "Webapps:Install:Return:OK" || aMessage.name == "Webapps:Uninstall:Return:OK"))
       return
-    let req = this.getRequest(msg.requestID);
-    if (!req)
-      return;
     let app = msg.app;
+    let cb;
     switch (aMessage.name) {
       case "Webapps:Install:Return:OK":
-        Services.rs.fireSuccess(req, new WebappsApplication(this._window, app.origin, app.manifest, app.manifestURL, app.receipts,
+        if (this._oninstall)
+          this._oninstall.handleEvent(new WebappsApplication(app.origin, app.manifest, app.receipt,
                                                 app.installOrigin, app.installTime));
         break;
       case "Webapps:Install:Return:KO":
-        Services.rs.fireError(req, "DENIED");
+        if (this._onerror)
+          this._onerror.handleEvent(new RegistryError(Ci.mozIDOMApplicationRegistryError.DENIED));
         break;
-      case "Webapps:GetSelf:Return:OK":
-        if (msg.apps.length) {
-          app = msg.apps[0];
-          Services.rs.fireSuccess(req, new WebappsApplication(this._window, app.origin, app.manifest, app.manifestURL, app.receipts,
-                                                  app.installOrigin, app.installTime));
-        } else {
-          Services.rs.fireSuccess(req, null);
+      case "Webapps:Uninstall:Return:OK":
+        if (this._onuninstall)
+          this._onuninstall.handleEvent(new WebappsApplication(msg.origin, null, null, null, 0));
+        break;
+      case "Webapps:Uninstall:Return:KO":
+        if (this._onerror)
+          this._onerror.handleEvent(new RegistryError(Ci.mozIDOMApplicationRegistryError.PERMISSION_DENIED));
+        break;
+      case "Webapps:Enumerate:Return:OK":
+        cb = this.getCallback(msg.callbackID);
+        if (cb.success) {
+          let apps = this._convertAppsArray(msg.apps);
+          cb.success.handleEvent(apps, apps.length);
         }
         break;
-      case "Webapps:GetInstalled:Return:OK":
-        Services.rs.fireSuccess(req, convertAppsArray(msg.apps, this._window));
-        break;
-      case "Webapps:GetSelf:Return:KO":
-      case "Webapps:GetInstalled:Return:KO":
-        Services.rs.fireError(req, "ERROR");
+      case "Webapps:Enumerate:Return:KO":
+        cb = this.getCallback(msg.callbackID);
+        if (cb.error)
+          cb.error.handleEvent(new RegistryError(Ci.mozIDOMApplicationRegistryError.PERMISSION_DENIED));
         break;
     }
-    this.removeRequest(msg.requestID);
+    this.removeCallback(msg.callbackID);
+  },
+  
+  _fireError: function(aCode) {
+    if (!this._onerror)
+      return;
+    this._onerror.handleEvent(new RegistryError(aCode));
   },
 
   _getOrigin: function(aURL) {
@@ -97,9 +181,7 @@ WebappsRegistry.prototype = {
 
   // mozIDOMApplicationRegistry implementation
   
-  install: function(aURL, aParams) {
-    let request = this.createRequest();
-    let requestID = this.getRequestId(request);
+  install: function(aURL, aReceipt) {
     let xhr = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Ci.nsIXMLHttpRequest);
     xhr.open("GET", aURL, true);
 
@@ -109,70 +191,90 @@ WebappsRegistry.prototype = {
           let installOrigin = this._getOrigin(this._window.location.href);
           let manifest = JSON.parse(xhr.responseText, installOrigin);
           if (!this.checkManifest(manifest, installOrigin)) {
-            Services.rs.fireError(request, "INVALID_MANIFEST");
+            this._fireError(Ci.mozIDOMApplicationRegistryError.INVALID_MANIFEST);
           } else {
-            let receipts = (aParams && aParams.receipts && Array.isArray(aParams.receipts)) ? aParams.receipts : [];
-            cpmm.sendAsyncMessage("Webapps:Install", { app: { installOrigin: installOrigin,
-                                                              origin: this._getOrigin(aURL),
-                                                              manifestURL: aURL,
-                                                              manifest: manifest,
-                                                              receipts: receipts },
-                                                              from: this._window.location.href,
-                                                              oid: this._id,
-                                                              requestID: requestID });
+            this.mm.sendAsyncMessage("Webapps:Install", { app: { installOrigin: installOrigin,
+                                                          origin: this._getOrigin(aURL),
+                                                          manifest: manifest,
+                                                          receipt: aReceipt },
+                                                          from: this._window.location.href,
+                                                          oid: this._id });
           }
         } catch(e) {
-          Services.rs.fireError(request, "MANIFEST_PARSE_ERROR");
+          this._fireError(Ci.mozIDOMApplicationRegistryError.MANIFEST_PARSE_ERROR);
         }
       }
       else {
-        Services.rs.fireError(request, "MANIFEST_URL_ERROR");
+        this._fireError(Ci.mozIDOMApplicationRegistryError.MANIFEST_URL_ERROR);
       }      
     }).bind(this), false);
 
     xhr.addEventListener("error", (function() {
-      Services.rs.fireError(request, "NETWORK_ERROR");
+      this._fireError(Ci.mozIDOMApplicationRegistryError.NETWORK_ERROR);
     }).bind(this), false);
 
     xhr.send(null);
-    return request;
   },
 
-  getSelf: function() {
-    let request = this.createRequest();
-    cpmm.sendAsyncMessage("Webapps:GetSelf", { origin: this._getOrigin(this._window.location.href),
-                                               oid: this._id,
-                                               requestID: this.getRequestId(request) });
-    return request;
+  uninstall: function(aOrigin) {
+    if (this.hasPrivileges)
+      this.mm.sendAsyncMessage("Webapps:Uninstall", { from: this._window.location.href,
+                                                      origin: aOrigin,
+                                                      oid: this._id });
+    else
+      throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
   },
 
-  getInstalled: function() {
-    let request = this.createRequest();
-    cpmm.sendAsyncMessage("Webapps:GetInstalled", { origin: this._getOrigin(this._window.location.href),
+  launch: function(aOrigin) {
+    this.mm.sendAsyncMessage("Webapps:Launch", { origin: aOrigin,
+                                                 from: this._window.location.href});
+  },
+  
+  enumerate: function(aSuccess, aError) {
+    this.mm.sendAsyncMessage("Webapps:Enumerate", { from: this._window.location.href,
+                                                    origin: this._getOrigin(this._window.location.href),
                                                     oid: this._id,
-                                                    requestID: this.getRequestId(request) });
-    return request;
+                                                    callbackID:  this.getCallbackId({ success: aSuccess, error: aError }) });
   },
 
-  get mgmt() {
-    if (!this._mgmt)
-      this._mgmt = new WebappsApplicationMgmt(this._window);
-    return this._mgmt;
+  enumerateAll: function(aSuccess, aError) {
+    if (this.hasPrivileges) {
+      this.mm.sendAsyncMessage("Webapps:EnumerateAll", { from: this._window.location.href,
+                                                    origin: this._getOrigin(this._window.location.href),
+                                                    oid: this._id,
+                                                    callbackID:  this.getCallbackId({ success: aSuccess, error: aError }) });
+    } else {
+      if (aError)
+        aError.handleEvent(new RegistryError(Ci.mozIDOMApplicationRegistryError.PERMISSION_DENIED));
+    }
   },
 
-  uninit: function() {
-    this._mgmt = null;
+  observe: function(aSubject, aTopic, aData) {
+    let wId = aSubject.QueryInterface(Ci.nsISupportsPRUint64).data;
+    if (wId == this.innerWindowID) {
+      Services.obs.removeObserver(this, "inner-window-destroyed");
+      this._oninstall = null;
+      this._onuninstall = null;
+      this._onerror = null;
+      this._callbacks = [];
+      this._window = null;
+    }
   },
 
   // nsIDOMGlobalPropertyInitializer implementation
   init: function(aWindow) {
-    this.initHelper(aWindow, ["Webapps:Install:Return:OK", "Webapps:Install:Return:KO",
-                              "Webapps:GetInstalled:Return:OK", "Webapps:GetInstalled:Return:KO",
-                              "Webapps:GetSelf:Return:OK", "Webapps:GetSelf:Return:KO"]);
+    dump("DOMApplicationRegistry::init() " + aWindow + "\n");
+    this._window = aWindow;
+    this._window.appId = this._id;
+    let from = Services.io.newURI(this._window.location.href, null, null);
+    let perm = Services.perms.testExactPermission(from, "webapps-manage");
+
+    //only pages with perm set and chrome or about pages can uninstall, enumerate all set oninstall an onuninstall
+    this.hasPrivileges = perm == Ci.nsIPermissionManager.ALLOW_ACTION || from.schemeIs("chrome") || from.schemeIs("about");
 
     Services.obs.addObserver(this, "inner-window-destroyed", false);
     let util = this._window.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
-    this._id = util.outerWindowID;
+    this.innerWindowID = util.currentInnerWindowID;
   },
   
   classID: Components.ID("{fff440b3-fae2-45c1-bf03-3b5a2e432270}"),
@@ -186,26 +288,18 @@ WebappsRegistry.prototype = {
                                     classDescription: "Webapps Registry"})
 }
 
-/**
-  * mozIDOMApplication object
-  */
-function WebappsApplication(aWindow, aOrigin, aManifest, aManifestURL, aReceipts, aInstallOrigin, aInstallTime) {
+function WebappsApplication(aOrigin, aManifest, aReceipt, aInstallOrigin, aInstallTime) {
   this._origin = aOrigin;
   this._manifest = aManifest;
-  this._manifestURL = aManifestURL;
-  this._receipts = aReceipts;
+  this._receipt = aReceipt;
   this._installOrigin = aInstallOrigin;
   this._installTime = aInstallTime;
-
-  this.initHelper(aWindow, ["Webapps:Uninstall:Return:OK", "Webapps:Uninstall:Return:KO"]);
 }
 
 WebappsApplication.prototype = {
-  __proto__: DOMRequestIpcHelper.prototype,
   _origin: null,
   _manifest: null,
-  _manifestURL: null,
-  _receipts: [],
+  _receipt: null,
   _installOrigin: null,
   _installTime: 0,
 
@@ -217,12 +311,8 @@ WebappsApplication.prototype = {
     return this._manifest;
   },
 
-  get manifestURL() {
-    return this._manifestURL;
-  },
-
-  get receipts() {
-    return this._receipts;
+  get receipt() {
+    return this._receipt;
   },
 
   get installOrigin() {
@@ -231,39 +321,6 @@ WebappsApplication.prototype = {
   
   get installTime() {
     return this._installTime;
-  },
-
-  launch: function(aStartPoint) {
-    let request = this.createRequest();
-    cpmm.sendAsyncMessage("Webapps:Launch", { origin: this._origin,
-                                              startPoint: aStartPoint,
-                                              oid: this._id,
-                                              requestID: this.getRequestId(request) });
-    return request;
-  },
-
-  uninstall: function() {
-    let request = this.createRequest();
-    cpmm.sendAsyncMessage("Webapps:Uninstall", { origin: this._origin,
-                                                 oid: this._id,
-                                                 requestID: this.getRequestId(request) });
-    return request;
-  },
-
-  receiveMessage: function(aMessage) {
-    var msg = aMessage.json;
-    let req = this.getRequest(msg.requestID);
-    if (msg.oid != this._id || !req)
-      return;
-    switch (aMessage.name) {
-      case "Webapps:Uninstall:Return:OK":
-        Services.rs.fireSuccess(req, msg.origin);
-        break;
-      case "Webapps:Uninstall:Return:KO":
-        Services.rs.fireError(req, msg.origin);
-        break;
-    }
-    this.removeRequest(msg.requestID);
   },
 
   classID: Components.ID("{723ed303-7757-4fb0-b261-4f78b1f6bd22}"),
@@ -277,131 +334,26 @@ WebappsApplication.prototype = {
                                     classDescription: "Webapps Application"})
 }
 
-/**
-  * mozIDOMApplicationMgmt object
-  */
-function WebappsApplicationMgmt(aWindow) {
-  let principal = aWindow.document.nodePrincipal;
-  let secMan = Cc["@mozilla.org/scriptsecuritymanager;1"].getService(Ci.nsIScriptSecurityManager);
-
-  let perm = principal == secMan.getSystemPrincipal() ? 
-               Ci.nsIPermissionManager.ALLOW_ACTION : 
-               Services.perms.testExactPermission(principal.URI, "webapps-manage");
-
-  //only pages with perm set can use some functions
-  this.hasPrivileges = perm == Ci.nsIPermissionManager.ALLOW_ACTION;
-
-  this.initHelper(aWindow, ["Webapps:GetAll:Return:OK", "Webapps:GetAll:Return:KO",
-                            "Webapps:Install:Return:OK", "Webapps:Uninstall:Return:OK"]);
-
-  this._oninstall = null;
-  this._onuninstall = null;
+function RegistryError(aCode) {
+  this._code = aCode;
 }
 
-WebappsApplicationMgmt.prototype = {
-  __proto__: DOMRequestIpcHelper.prototype,
-
-  uninit: function() {
-    this._oninstall = null;
-    this._onuninstall = null;
+RegistryError.prototype = {
+  _code: null,
+  
+  get code() {
+    return this._code;
   },
+  
+  classID: Components.ID("{b4937718-11a3-400b-a69f-ab442a418569}"),
 
-  getAll: function() {
-    let request = this.createRequest();
-    cpmm.sendAsyncMessage("Webapps:GetAll", { oid: this._id,
-                                              requestID: this.getRequestId(request),
-                                              hasPrivileges: this.hasPrivileges });
-    return request;
-  },
+  QueryInterface: XPCOMUtils.generateQI([Ci.mozIDOMApplicationRegistryError]),
 
-  get oninstall() {
-    return this._oninstall;
-  },
-
-  get onuninstall() {
-    this._onuninstall;
-  },
-
-  set oninstall(aCallback) {
-    if (this.hasPrivileges)
-      this._oninstall = aCallback;
-    else
-
-      throw new Components.exception("Denied", Cr.NS_ERROR_FAILURE);
-  },
-
-  set onuninstall(aCallback) {
-    if (this.hasPrivileges)
-      this._onuninstall = aCallback;
-    else
-      throw new Components.exception("Denied", Cr.NS_ERROR_FAILURE);
-  },
-
-  receiveMessage: function(aMessage) {
-    var msg = aMessage.json;
-    let req = this.getRequest(msg.requestID);
-    // We want Webapps:Install:Return:OK and Webapps:Uninstall:Return:OK to be boradcasted
-    // to all instances of mozApps.mgmt
-    if (!((msg.oid == this._id && req) 
-       || aMessage.name == "Webapps:Install:Return:OK" || aMessage.name == "Webapps:Uninstall:Return:OK"))
-      return;
-    switch (aMessage.name) {
-      case "Webapps:GetAll:Return:OK":
-        Services.rs.fireSuccess(req, convertAppsArray(msg.apps, this._window));
-        break;
-      case "Webapps:GetAll:Return:KO":
-        Services.rs.fireError(req, "DENIED");
-        break;
-      case "Webapps:Install:Return:OK":
-        if (this._oninstall) {
-          let app = msg.app;
-          let event = new WebappsApplicationEvent(new WebappsApplication(this._window, app.origin, app.manifest, app.manifestURL, app.receipts,
-                                                app.installOrigin, app.installTime));
-          this._oninstall.handleEvent(event);
-        }
-        break;
-      case "Webapps:Uninstall:Return:OK":
-        if (this._onuninstall) {
-          let event = new WebappsApplicationEvent(new WebappsApplication(this._window, msg.origin, null, null, null, null, 0));
-          this._onuninstall.handleEvent(event);
-        }
-        break;
-    }
-    this.removeRequest(msg.requestID);
-  },
-
-  classID: Components.ID("{8c1bca96-266f-493a-8d57-ec7a95098c15}"),
-
-  QueryInterface: XPCOMUtils.generateQI([Ci.mozIDOMApplicationMgmt]),
-
-  classInfo: XPCOMUtils.generateCI({classID: Components.ID("{8c1bca96-266f-493a-8d57-ec7a95098c15}"),
-                                    contractID: "@mozilla.org/webapps/application-mgmt;1",
-                                    interfaces: [Ci.mozIDOMApplicationMgmt],
+  classInfo: XPCOMUtils.generateCI({classID: Components.ID("{b4937718-11a3-400b-a69f-ab442a418569}"),
+                                    contractID: "@mozilla.org/webapps/error;1",
+                                    interfaces: [Ci.mozIDOMApplicationRegistryError],
                                     flags: Ci.nsIClassInfo.DOM_OBJECT,
-                                    classDescription: "Webapps Application Mgmt"})
+                                    classDescription: "Webapps Registry Error"})
 }
 
-/**
-  * mozIDOMApplicationEvent object
-  */
-function WebappsApplicationEvent(aApp) {
-  this._app = aApp;
-}
-
-WebappsApplicationEvent.prototype = {
-  get application() {
-    return this._app;
-  },
-
-  classID: Components.ID("{5bc42b2a-9acc-49d5-a336-c353c8125e48}"),
-
-  QueryInterface: XPCOMUtils.generateQI([Ci.mozIDOMApplicationEvent]),
-
-  classInfo: XPCOMUtils.generateCI({classID: Components.ID("{8c1bca96-266f-493a-8d57-ec7a95098c15}"),
-                                    contractID: "@mozilla.org/webapps/application-event;1",
-                                    interfaces: [Ci.mozIDOMApplicationEvent],
-                                    flags: Ci.nsIClassInfo.DOM_OBJECT,
-                                    classDescription: "Webapps Application Event"})
-}
-
-const NSGetFactory = XPCOMUtils.generateNSGetFactory([WebappsRegistry, WebappsApplication]);
+const NSGetFactory = XPCOMUtils.generateNSGetFactory([WebappsRegistry, WebappsApplication, RegistryError]);

@@ -97,7 +97,6 @@ public class AwesomeBar extends Activity implements GeckoEventListener {
     private AwesomeBarEditText mText;
     private ImageButton mGoButton;
     private ContentResolver mResolver;
-    private ContextMenuSubject mContextMenuSubject;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -309,11 +308,9 @@ public class AwesomeBar extends Activity implements GeckoEventListener {
         }
         mGoButton.setImageResource(imageResource);
 
-        int actionBits = mText.getImeOptions() & EditorInfo.IME_MASK_ACTION;
-        if (actionBits != imeAction) {
+        if ((mText.getImeOptions() & EditorInfo.IME_MASK_ACTION) != imeAction) {
             InputMethodManager imm = (InputMethodManager) mText.getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
-            int optionBits = mText.getImeOptions() & ~EditorInfo.IME_MASK_ACTION;
-            mText.setImeOptions(optionBits | imeAction);
+            mText.setImeOptions(imeAction);
             imm.restartInput(mText);
         }
     }
@@ -413,25 +410,14 @@ public class AwesomeBar extends Activity implements GeckoEventListener {
         GeckoAppShell.unregisterGeckoEventListener("SearchEngines:Data", this);
     }
 
-    private class ContextMenuSubject {
-        public int id;
-        public String url;
-        public byte[] favicon;
-        public String title;
-
-        public ContextMenuSubject(int id, String url, byte[] favicon, String title) {
-            this.id = id;
-            this.url = url;
-            this.favicon = favicon;
-            this.title = title;
-        }
-    };
+    private Object mContextMenuSubject = null;
 
     @Override
     public void onCreateContextMenu(ContextMenu menu, View view, ContextMenuInfo menuInfo) {
         super.onCreateContextMenu(menu, view, menuInfo);
         ListView list = (ListView) view;
-        mContextMenuSubject = null;
+        Object selectedItem = null;
+        String title = "";
 
         if (list == findViewById(R.id.history_list)) {
             if (!(menuInfo instanceof ExpandableListView.ExpandableListContextMenuInfo)) {
@@ -448,12 +434,12 @@ public class AwesomeBar extends Activity implements GeckoEventListener {
                 return;
 
             ExpandableListView exList = (ExpandableListView) list;
+            selectedItem = exList.getExpandableListAdapter().getChild(groupPosition, childPosition);
 
             // The history list is backed by a SimpleExpandableListAdapter
             @SuppressWarnings("rawtypes")
-            Map map = (Map) exList.getExpandableListAdapter().getChild(groupPosition, childPosition);
-            mContextMenuSubject = new ContextMenuSubject(-1, (String)map.get(URLColumns.URL),
-                    (byte[]) map.get(URLColumns.FAVICON), (String)map.get(URLColumns.TITLE));
+            Map map = (Map) selectedItem;
+            title = (String) map.get(URLColumns.TITLE);
         } else {
             if (!(menuInfo instanceof AdapterView.AdapterContextMenuInfo)) {
                 Log.e(LOGTAG, "menuInfo is not AdapterContextMenuInfo");
@@ -461,7 +447,7 @@ public class AwesomeBar extends Activity implements GeckoEventListener {
             }
 
             AdapterView.AdapterContextMenuInfo info = (AdapterView.AdapterContextMenuInfo) menuInfo;
-            Object selectedItem = list.getItemAtPosition(info.position);
+            selectedItem = list.getItemAtPosition(info.position);
 
             if (!(selectedItem instanceof Cursor)) {
                 Log.e(LOGTAG, "item at " + info.position + " is not a Cursor");
@@ -469,19 +455,21 @@ public class AwesomeBar extends Activity implements GeckoEventListener {
             }
 
             Cursor cursor = (Cursor) selectedItem;
+            title = cursor.getString(cursor.getColumnIndexOrThrow(URLColumns.TITLE));
 
             // Don't show the context menu for folders
-            if (!(list == findViewById(R.id.bookmarks_list) && cursor.getInt(cursor.getColumnIndexOrThrow(Bookmarks.IS_FOLDER)) == 1)) {
-                mContextMenuSubject = new ContextMenuSubject(cursor.getInt(cursor.getColumnIndexOrThrow(Bookmarks._ID)),
-                                                             cursor.getString(cursor.getColumnIndexOrThrow(URLColumns.URL)),
-                                                             cursor.getBlob(cursor.getColumnIndexOrThrow(URLColumns.FAVICON)),
-                                                             cursor.getString(cursor.getColumnIndexOrThrow(URLColumns.TITLE))
-                );
+            if (list == findViewById(R.id.bookmarks_list) &&
+                cursor.getInt(cursor.getColumnIndexOrThrow(Bookmarks.IS_FOLDER)) == 1) {
+                selectedItem = null;
             }
         }
 
-        if (mContextMenuSubject == null)
+        if (selectedItem == null || !((selectedItem instanceof Cursor) || (selectedItem instanceof Map))) {
+            mContextMenuSubject = null;
             return;
+        }
+
+        mContextMenuSubject = selectedItem;
 
         MenuInflater inflater = getMenuInflater();
         inflater.inflate(R.menu.awesomebar_contextmenu, menu);
@@ -491,7 +479,7 @@ public class AwesomeBar extends Activity implements GeckoEventListener {
             removeBookmarkItem.setVisible(false);
         }
 
-        menu.setHeaderTitle(mContextMenuSubject.title);
+        menu.setHeaderTitle(title);
     }
 
     @Override
@@ -499,10 +487,27 @@ public class AwesomeBar extends Activity implements GeckoEventListener {
         if (mContextMenuSubject == null)
             return false;
 
-        final int id = mContextMenuSubject.id;
-        final String url = mContextMenuSubject.url;
-        final byte[] b = mContextMenuSubject.favicon;
-        final String title = mContextMenuSubject.title;
+        final int id;
+        final String url;
+        byte[] b = null;
+        String title = "";
+        if (mContextMenuSubject instanceof Cursor) {
+            Cursor cursor = (Cursor)mContextMenuSubject;
+            id = cursor.getInt(cursor.getColumnIndexOrThrow(Bookmarks._ID));
+            url = cursor.getString(cursor.getColumnIndexOrThrow(URLColumns.URL));
+            b = cursor.getBlob(cursor.getColumnIndexOrThrow(URLColumns.FAVICON));
+            title = cursor.getString(cursor.getColumnIndexOrThrow(URLColumns.TITLE));
+        } else if (mContextMenuSubject instanceof Map) {
+            @SuppressWarnings("rawtypes") Map map = (Map)mContextMenuSubject;
+            id = -1;
+            url = (String)map.get(URLColumns.URL);
+            b = (byte[]) map.get(URLColumns.FAVICON);
+            title = (String)map.get(URLColumns.TITLE);
+        } else {
+            return false;
+        }
+
+        mContextMenuSubject = null;
 
         switch (item.getItemId()) {
             case R.id.open_new_tab: {

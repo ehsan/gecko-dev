@@ -500,19 +500,19 @@ StaticStrings::trace(JSTracer *trc)
     /* These strings never change, so barriers are not needed. */
 
     for (uint32_t i = 0; i < UNIT_STATIC_LIMIT; i++) {
-        if (unitStaticTable[i])
-            MarkStringUnbarriered(trc, &unitStaticTable[i], "unit-static-string");
+        if (JSAtom *atom = unitStaticTable[i])
+            MarkStringUnbarriered(trc, atom, "unit-static-string");
     }
 
     for (uint32_t i = 0; i < NUM_SMALL_CHARS * NUM_SMALL_CHARS; i++) {
-        if (length2StaticTable[i])
-            MarkStringUnbarriered(trc, &length2StaticTable[i], "length2-static-string");
+        if (JSAtom *atom = length2StaticTable[i])
+            MarkStringUnbarriered(trc, atom, "length2-static-string");
     }
 
     /* This may mark some strings more than once, but so be it. */
     for (uint32_t i = 0; i < INT_STATIC_LIMIT; i++) {
-        if (intStaticTable[i])
-            MarkStringUnbarriered(trc, &intStaticTable[i], "int-static-string");
+        if (JSAtom *atom = intStaticTable[i])
+            MarkStringUnbarriered(trc, atom, "int-static-string");
     }
 }
 
@@ -533,7 +533,7 @@ StaticStrings::isStatic(JSAtom *atom)
                       (chars[1] - '0') * 10 +
                       (chars[2] - '0');
 
-            return (unsigned(i) < INT_STATIC_LIMIT);
+            return (jsuint(i) < INT_STATIC_LIMIT);
         }
         return false;
       default:

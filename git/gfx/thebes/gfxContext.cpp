@@ -96,8 +96,8 @@ private:
 };
 
 gfxContext::gfxContext(gfxASurface *surface)
-  : mRefCairo(NULL)
-  , mSurface(surface)
+  : mSurface(surface)
+  , mRefCairo(NULL)
 {
   MOZ_COUNT_CTOR(gfxContext);
 
@@ -1265,6 +1265,8 @@ gfxContext::ClipContainsRect(const gfxRect& aRect)
         lastReset = i;
       }
     }
+
+    bool result = true;
 
     // Since we always return false when the clip list contains a
     // non-rectangular clip or a non-rectilinear transform, our 'total' clip

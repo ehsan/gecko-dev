@@ -694,7 +694,9 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
 
     nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
     rv = xpc->InitClassesWithNewWrappedGlobal(cx, backstagePass,
+                                              NS_GET_IID(nsISupports),
                                               mSystemPrincipal,
+                                              nsnull,
                                               nsIXPConnect::
                                               FLAG_SYSTEM_GLOBAL_OBJECT,
                                               getter_AddRefs(holder));
@@ -1214,7 +1216,7 @@ mozJSComponentLoader::ImportInto(const nsACString & aLocation,
 
         // Iterate over symbols array, installing symbols on targetObj:
 
-        uint32_t symbolCount = 0;
+        jsuint symbolCount = 0;
         if (!JS_GetArrayLength(mContext, symbolsObj, &symbolCount)) {
             return ReportOnCaller(cxhelper, ERROR_GETTING_ARRAY_LENGTH,
                                   PromiseFlatCString(aLocation).get());
@@ -1224,7 +1226,7 @@ mozJSComponentLoader::ImportInto(const nsACString & aLocation,
         nsCAutoString logBuffer;
 #endif
 
-        for (uint32_t i = 0; i < symbolCount; ++i) {
+        for (jsuint i = 0; i < symbolCount; ++i) {
             jsval val;
             jsid symbolId;
 

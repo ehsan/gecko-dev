@@ -138,8 +138,8 @@ public:
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
   NS_IMETHOD DoAction(PRUint8 index);
 
-  // nsHyperTextAccessible
-  virtual already_AddRefed<nsIEditor> GetEditor() const;
+  // nsIAccessibleEditableText
+  NS_IMETHOD GetAssociatedEditor(nsIEditor **aEditor);
 
   // nsAccessible
   virtual void ApplyARIAState(PRUint64* aState);

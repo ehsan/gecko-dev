@@ -73,7 +73,7 @@ public abstract class ServerSyncStage implements
   /**
    * Override these in your subclasses.
    *
-   * @return true if this stage should be executed.
+   * @return
    * @throws MetaGlobalException
    */
   protected boolean isEnabled() throws MetaGlobalException {

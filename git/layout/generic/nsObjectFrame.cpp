@@ -351,9 +351,6 @@ nsObjectFrame::DestroyFrom(nsIFrame* aDestructRoot)
     mBackgroundSink->Destroy();
   }
 
-  if (mInstanceOwner) {
-    mInstanceOwner->SetFrame(nsnull);
-  }
   SetInstanceOwner(nsnull);
 
   nsObjectFrameSuper::DestroyFrom(aDestructRoot);

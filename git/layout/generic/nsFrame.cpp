@@ -1187,7 +1187,7 @@ nsFrame::GetBaseline() const
   return mRect.height + GetUsedMargin().bottom;
 }
 
-const nsFrameList&
+nsFrameList
 nsFrame::GetChildList(ChildListID aListID) const
 {
   if (IsAbsoluteContainer() &&

@@ -1773,7 +1773,7 @@ public class GeckoAppShell
         return false;
     }
 
-    public static void emitGeckoAccessibilityEvent (int eventType, String[] textList, String description, boolean enabled, boolean checked, boolean password) {
+    public static void emitGeckoAccessibilityEvent (int eventType, String role, String text, String description, boolean enabled, boolean checked, boolean password) {
         AccessibilityManager accessibilityManager =
             (AccessibilityManager) GeckoApp.mAppContext.getSystemService(Context.ACCESSIBILITY_SERVICE);
 
@@ -1784,14 +1784,13 @@ public class GeckoAppShell
         LayerView layerView = layerController.getView();
 
         AccessibilityEvent event = AccessibilityEvent.obtain(eventType);
-        event.setClassName(layerView.getClass().getName());
+        event.setClassName(layerView.getClass().getName() + "$" + role);
         event.setPackageName(GeckoApp.mAppContext.getPackageName());
         event.setEnabled(enabled);
         event.setChecked(checked);
         event.setPassword(password);
         event.setContentDescription(description);
-        for (String text: textList)
-            event.getText().add(text);
+        event.getText().add(text);
 
         accessibilityManager.sendAccessibilityEvent(event);
     }

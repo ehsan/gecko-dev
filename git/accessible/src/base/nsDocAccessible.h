@@ -133,8 +133,8 @@ public:
   virtual nsresult HandleAccEvent(AccEvent* aAccEvent);
 #endif
 
-  // nsHyperTextAccessible
-  virtual already_AddRefed<nsIEditor> GetEditor() const;
+  // nsIAccessibleText
+  NS_IMETHOD GetAssociatedEditor(nsIEditor **aEditor);
 
   // nsDocAccessible
 

@@ -49,7 +49,6 @@
 #include "nsIObserver.h"
 #include "nsIIdleService.h"
 #include "nsCategoryCache.h"
-#include "nsWeakReference.h"
 
 /**
  * Class we can use to store an observer with its associated idle time
@@ -72,8 +71,7 @@ class nsIdleService;
 /**
  * Class to handle the daily idle timer.
  */
-class nsIdleServiceDaily : public nsIObserver,
-                           public nsSupportsWeakReference
+class nsIdleServiceDaily : public nsIObserver
 {
 public:
   NS_DECL_ISUPPORTS
@@ -118,11 +116,6 @@ private:
    * Cache of observers for the "idle-daily" category.
    */
   nsCategoryCache<nsIObserver> mCategoryObservers;
-
-  /**
-   * Boolean set to true when daily idle notifications should be disabled.
-   */
-  bool mShutdownInProgress;
 };
 
 class nsIdleService : public nsIIdleService

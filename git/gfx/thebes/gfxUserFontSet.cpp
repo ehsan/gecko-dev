@@ -402,11 +402,9 @@ StoreUserFontData(gfxFontEntry* aFontEntry, gfxProxyFontEntry* aProxy,
     }
 }
 
-void
-gfxUserFontSet::CopyWOFFMetadata(const PRUint8* aFontData,
-                                 PRUint32 aLength,
-                                 nsTArray<PRUint8>* aMetadata,
-                                 PRUint32* aMetaOrigLen)
+static void
+CopyWOFFMetadata(const PRUint8* aFontData, PRUint32 aLength,
+                 nsTArray<PRUint8>* aMetadata, PRUint32* aMetaOrigLen)
 {
     // This function may be called with arbitrary, unvalidated "font" data
     // from @font-face, so it needs to be careful to bounds-check, etc.,

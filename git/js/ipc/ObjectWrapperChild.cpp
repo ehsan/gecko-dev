@@ -506,11 +506,11 @@ ObjectWrapperChild::AnswerNewEnumerateNext(const JSVariant& in_state,
 
     jsval v = JS_GetReservedSlot(state, sNextIdIndexSlot);
 
-    int32_t i = JSVAL_TO_INT(v);
+    jsuint i = JSVAL_TO_INT(v);
     NS_ASSERTION(i >= 0, "Index of next jsid negative?");
     NS_ASSERTION(i <= strIds->Length(), "Index of next jsid too large?");
 
-    if (size_t(i) == strIds->Length()) {
+    if (jsuint(i) == strIds->Length()) {
         *status = JS_TRUE;
         return JSObject_to_JSVariant(cx, NULL, statep);
     }

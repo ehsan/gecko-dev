@@ -20,9 +20,9 @@ function tryBadScripts() {
     // Throws an exception
     "importScripts_worker_imported4.js",
     // Shouldn't exist!
-    "http://example.com/non-existing/importScripts_worker_foo.js",
+    "http://flippety.com/floppety/foo.js",
     // Not a valid url
-    "http://notadomain::notafile aword"
+    "http://flippety::foo_js ftw"
   ];
 
   for (var i = 0; i < badScripts.length; i++) {

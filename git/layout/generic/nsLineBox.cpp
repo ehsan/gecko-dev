@@ -235,7 +235,6 @@ nsLineBox::List(FILE* out, PRInt32 aIndent) const
 }
 #endif
 
-#ifdef DEBUG
 nsIFrame*
 nsLineBox::LastChild() const
 {
@@ -246,7 +245,13 @@ nsLineBox::LastChild() const
   }
   return frame;
 }
-#endif
+
+bool
+nsLineBox::IsLastChild(nsIFrame* aFrame) const
+{
+  nsIFrame* lastFrame = LastChild();
+  return aFrame == lastFrame;
+}
 
 PRInt32
 nsLineBox::IndexOf(nsIFrame* aFrame) const
@@ -368,7 +373,7 @@ nsLineBox::RFindLineContaining(nsIFrame* aFrame,
   nsIFrame* curFrame = aLastFrameBeforeEnd;
   while (aBegin != aEnd) {
     --aEnd;
-    NS_ASSERTION(aEnd->LastChild() == curFrame, "Unexpected curFrame");
+    NS_ASSERTION(aEnd->IsLastChild(curFrame), "Unexpected curFrame");
     // i is the index of curFrame in aEnd
     PRInt32 i = aEnd->GetChildCount() - 1;
     while (i >= 0) {

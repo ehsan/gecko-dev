@@ -141,9 +141,14 @@ public abstract class AndroidBrowserRepositorySession extends StoreTrackingRepos
   }
 
   @Override
-  public void begin(RepositorySessionBeginDelegate delegate) throws InvalidSessionTransitionException {
+  public void begin(RepositorySessionBeginDelegate delegate) {
     RepositorySessionBeginDelegate deferredDelegate = delegate.deferredBeginDelegate(delegateQueue);
-    super.sharedBegin();
+    try {
+      super.sharedBegin();
+    } catch (InvalidSessionTransitionException e) {
+      deferredDelegate.onBeginFailed(e);
+      return;
+    }
 
     try {
       // We do this check here even though it results in one extra call to the DB
@@ -236,9 +241,9 @@ public abstract class AndroidBrowserRepositorySession extends StoreTrackingRepos
 
   @Override
   public void fetch(String[] guids,
-                    RepositorySessionFetchRecordsDelegate delegate) throws InactiveSessionException {
+                    RepositorySessionFetchRecordsDelegate delegate) {
     FetchRunnable command = new FetchRunnable(guids, now(), null, delegate);
-    executeDelegateCommand(command);
+    delegateQueue.execute(command);
   }
 
   abstract class FetchingRunnable implements Runnable {
@@ -284,7 +289,7 @@ public abstract class AndroidBrowserRepositorySession extends StoreTrackingRepos
     }
   }
 
-  public class FetchRunnable extends FetchingRunnable {
+  class FetchRunnable extends FetchingRunnable {
     private String[] guids;
     private long     end;
     private RecordFilter filter;
@@ -387,7 +392,6 @@ public abstract class AndroidBrowserRepositorySession extends StoreTrackingRepos
       @Override
       public void run() {
         if (!isActive()) {
-          Logger.warn(LOG_TAG, "AndroidBrowserRepositorySession is inactive. Store failing.");
           delegate.onRecordStoreFailed(new InactiveSessionException(null));
           return;
         }

@@ -15,46 +15,41 @@
   <script type="application/javascript">
     function doTest()
     {
-      var accessible = getApplicationAccessible();
-      if (!accessible) {
-        SimpleTest.finish();
-        return;
-      }
+        var accessible = getApplicationAccessible();
+        if (!accessible) {
+          SimpleTest.finish();
+          return;
+        }
 
-      var bundleServ =
-        Components.classes["@mozilla.org/intl/stringbundle;1"].
-        getService(Components.interfaces.nsIStringBundleService);
-      var brandBundle =
-        bundleServ.createBundle("chrome://branding/locale/brand.properties");
+        // nsIAccessible::name
+        var bundleServ = Components.classes["@mozilla.org/intl/stringbundle;1"]
+                         .getService(Components.interfaces.nsIStringBundleService);
+        var bundle = bundleServ.createBundle("chrome://branding/locale/brand.properties");
 
-      var appInfo = Components.classes["@mozilla.org/xre/app-info;1"].
-        getService(Components.interfaces.nsIXULAppInfo);
+        var applicationName = "";
 
-      // nsIAccessible::name
-      var applicationName = "";
-      if (LINUX || SOLARIS) {
-        applicationName = appInfo.name;
-      } else {
         try {
-          applicationName = brandBundle.GetStringFromName("brandShortName");
-        } catch(e) {
+            applicationName = bundle.GetStringFromName("brandShortName");
+        }  catch(e) {
         }
 
         if (applicationName == "")
-          applicationName = "Gecko based application";
-      }
-      is (accessible.name, applicationName, "wrong application accessible name");
+            applicationName = "Gecko based application";
 
-      // nsIAccessibleApplication
-      is(accessible.appName, appInfo.name, "Wrong application name");
-      is(accessible.appVersion, appInfo.version, "Wrong application version");
-      is(accessible.platformName, "Gecko", "Wrong platform name");
-      is(accessible.platformVersion, appInfo.platformVersion,
-         "Wrong platform version");
+        is (accessible.name, applicationName, "wrong application accessible name");
 
-      SimpleTest.finish();
+        // nsIAccessibleApplication
+        var appInfo = Components.classes["@mozilla.org/xre/app-info;1"].
+          getService(Components.interfaces.nsIXULAppInfo);
+
+        is(accessible.appName, appInfo.name, "Wrong application name");
+        is(accessible.appVersion, appInfo.version, "Wrong application version");
+        is(accessible.platformName, "Gecko", "Wrong platform name");
+        is(accessible.platformVersion, appInfo.platformVersion,
+           "Wrong platform version");
+
+        SimpleTest.finish();
     }
-
     SimpleTest.waitForExplicitFinish();
     addA11yLoadEvent(doTest);
   </script>

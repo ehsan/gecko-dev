@@ -1010,7 +1010,7 @@ BytecodeEmitter::shouldNoteClosedName(ParseNode *pn)
 static int
 AdjustBlockSlot(JSContext *cx, BytecodeEmitter *bce, int slot)
 {
-    JS_ASSERT((unsigned) slot < bce->maxStackDepth);
+    JS_ASSERT((jsuint) slot < bce->maxStackDepth);
     if (bce->inFunction()) {
         slot += bce->bindings.countVars();
         if ((unsigned) slot >= SLOTNO_LIMIT) {
@@ -2468,7 +2468,7 @@ EmitSwitch(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
                 continue;
             }
             i = pn3->pn_pval->toInt32();
-            if ((unsigned)(i + (int)JS_BIT(15)) >= (unsigned)JS_BIT(16)) {
+            if ((jsuint)(i + (int)JS_BIT(15)) >= (jsuint)JS_BIT(16)) {
                 switchOp = JSOP_LOOKUPSWITCH;
                 continue;
             }
@@ -3068,7 +3068,7 @@ EmitDestructuringOpsHelper(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn,
 {
     JS_ASSERT(emitOption != DefineVars);
 
-    unsigned index;
+    jsuint index;
     ParseNode *pn2, *pn3;
     JSBool doElemOp;
 
@@ -3303,7 +3303,7 @@ static JSBool
 EmitGroupAssignment(JSContext *cx, BytecodeEmitter *bce, JSOp prologOp,
                     ParseNode *lhs, ParseNode *rhs)
 {
-    unsigned depth, limit, i, nslots;
+    jsuint depth, limit, i, nslots;
     ParseNode *pn;
 
     depth = limit = (unsigned) bce->stackDepth;
@@ -4086,11 +4086,7 @@ EmitCatch(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
     return true;
 }
 
-/*
- * Using MOZ_NEVER_INLINE in here is a workaround for llvm.org/pr12127. See
- * the comment on EmitSwitch.
- */
-MOZ_NEVER_INLINE static bool
+static bool
 EmitTry(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 {
     StmtInfo stmtInfo;
@@ -4450,11 +4446,7 @@ EmitIf(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
  * JSOP_LEAVEBLOCKEXPR to the beginning of the let and is only needed for
  * let-expressions.
  */
-/*
- * Using MOZ_NEVER_INLINE in here is a workaround for llvm.org/pr12127. See
- * the comment on EmitSwitch.
- */
-MOZ_NEVER_INLINE static bool
+static bool
 EmitLet(JSContext *cx, BytecodeEmitter *bce, ParseNode *pnLet)
 {
     JS_ASSERT(pnLet->isArity(PN_BINARY));
@@ -4598,11 +4590,7 @@ EmitXMLProcessingInstruction(JSContext *cx, BytecodeEmitter *bce, XMLProcessingI
 }
 #endif
 
-/*
- * Using MOZ_NEVER_INLINE in here is a workaround for llvm.org/pr12127. See
- * the comment on EmitSwitch.
- */
-MOZ_NEVER_INLINE static bool
+static bool
 EmitLexicalScope(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 {
     JS_ASSERT(pn->isKind(PNK_LEXICALSCOPE));
@@ -4942,9 +4930,6 @@ EmitNormalFor(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, ptrdiff_t top)
         /* Goto the loop condition, which branches back to iterate. */
         jmp = EmitJump(cx, bce, JSOP_GOTO, 0);
         if (jmp < 0)
-            return false;
-    } else {
-        if (op != JSOP_NOP && Emit1(cx, bce, JSOP_NOP) < 0)
             return false;
     }
 
@@ -5823,11 +5808,7 @@ EmitIncOrDec(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
     return true;
 }
 
-/*
- * Using MOZ_NEVER_INLINE in here is a workaround for llvm.org/pr12127. See
- * the comment on EmitSwitch.
- */
-MOZ_NEVER_INLINE static bool
+static bool
 EmitLabel(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 {
     /*

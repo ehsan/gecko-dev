@@ -55,8 +55,7 @@
 
 #include "txList.h"
 #include "nsIAtom.h"
-#include "nsTHashtable.h"
-#include "nsBaseHashtable.h"
+#include "nsDoubleHashtable.h"
 #include "nsString.h"
 #include "txCore.h"
 #include "nsAutoPtr.h"
@@ -230,7 +229,24 @@ class NodeDefinition : public Node
 //Definition and Implementation of a Document.
 //
 
-typedef nsTHashtable<nsBaseHashtableET<nsStringHashKey, Element*> > txIDMap;
+/**
+ * nsDoubleHashtable definitions for IDs
+ *
+ * It may be possible to share the key value with the element,
+ * but that may leave entries without keys, as the entries
+ * are constructed from the key value and the setting of mElement
+ * happens late. As pldhash.h ain't clear on this, we store the
+ * key by inheriting from PLDHashStringEntry.
+ */
+class txIDEntry : public PLDHashStringEntry
+{
+public:
+    txIDEntry(const void* aKey) : PLDHashStringEntry(aKey), mElement(nsnull)
+    {
+    }
+    Element* mElement;
+};
+DECL_DHASH_WRAPPER(txIDMap, txIDEntry, nsAString&)
 
 class Document : public NodeDefinition
 {

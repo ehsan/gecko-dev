@@ -184,36 +184,19 @@ public:
     if (mObservers->Length() == 0) {
       DisableNotifications();
 
-      OnNotificationsDisabled();
-
       delete mObservers;
       mObservers = 0;
+
+      mHasValidCache = false;
     }
   }
 
-  void BroadcastInformation(const InfoType& aInfo) {
-    MOZ_ASSERT(mObservers);
-    mObservers->Broadcast(aInfo);
-  }
-
-protected:
-  virtual void EnableNotifications() = 0;
-  virtual void DisableNotifications() = 0;
-  virtual void OnNotificationsDisabled() {}
-
-private:
-  mozilla::ObserverList<InfoType>* mObservers;
-};
-
-template <class InfoType>
-class CachingObserversManager : public ObserversManager<InfoType>
-{
-public:
   InfoType GetCurrentInformation() {
     if (mHasValidCache) {
       return mInfo;
     }
 
+    mHasValidCache = true;
     GetCurrentInformationInternal(&mInfo);
     return mInfo;
   }
@@ -224,22 +207,22 @@ public:
   }
 
   void BroadcastCachedInformation() {
-    this->BroadcastInformation(mInfo);
+    MOZ_ASSERT(mObservers);
+    mObservers->Broadcast(mInfo);
   }
 
 protected:
+  virtual void EnableNotifications() = 0;
+  virtual void DisableNotifications() = 0;
   virtual void GetCurrentInformationInternal(InfoType*) = 0;
 
-  virtual void OnNotificationsDisabled() {
-    mHasValidCache = false;
-  }
-
 private:
+  mozilla::ObserverList<InfoType>* mObservers;
   InfoType                mInfo;
   bool                    mHasValidCache;
 };
 
-class BatteryObserversManager : public CachingObserversManager<BatteryInformation>
+class BatteryObserversManager : public ObserversManager<BatteryInformation>
 {
 protected:
   void EnableNotifications() {
@@ -257,7 +240,7 @@ protected:
 
 static BatteryObserversManager sBatteryObservers;
 
-class NetworkObserversManager : public CachingObserversManager<NetworkInformation>
+class NetworkObserversManager : public ObserversManager<NetworkInformation>
 {
 protected:
   void EnableNotifications() {
@@ -274,20 +257,6 @@ protected:
 };
 
 static NetworkObserversManager sNetworkObservers;
-
-class WakeLockObserversManager : public ObserversManager<WakeLockInformation>
-{
-protected:
-  void EnableNotifications() {
-    PROXY_IF_SANDBOXED(EnableWakeLockNotifications());
-  }
-
-  void DisableNotifications() {
-    PROXY_IF_SANDBOXED(DisableWakeLockNotifications());
-  }
-};
-
-static WakeLockObserversManager sWakeLockObservers;
 
 void
 RegisterBatteryObserver(BatteryObserver* aObserver)
@@ -464,43 +433,6 @@ void PowerOff()
 {
   AssertMainThread();
   PROXY_IF_SANDBOXED(PowerOff());
-}
-
-void
-RegisterWakeLockObserver(WakeLockObserver* aObserver)
-{
-  AssertMainThread();
-  sWakeLockObservers.AddObserver(aObserver);
-}
-
-void
-UnregisterWakeLockObserver(WakeLockObserver* aObserver)
-{
-  AssertMainThread();
-  sWakeLockObservers.RemoveObserver(aObserver);
-}
-
-void
-ModifyWakeLock(const nsAString &aTopic,
-               hal::WakeLockControl aLockAdjust,
-               hal::WakeLockControl aHiddenAdjust)
-{
-  AssertMainThread();
-  PROXY_IF_SANDBOXED(ModifyWakeLock(aTopic, aLockAdjust, aHiddenAdjust));
-}
-
-void
-GetWakeLockInfo(const nsAString &aTopic, WakeLockInformation *aWakeLockInfo)
-{
-  AssertMainThread();
-  PROXY_IF_SANDBOXED(GetWakeLockInfo(aTopic, aWakeLockInfo));
-}
-
-void
-NotifyWakeLockChange(const WakeLockInformation& aInfo)
-{
-  AssertMainThread();
-  sWakeLockObservers.BroadcastInformation(aInfo);
 }
 
 } // namespace hal

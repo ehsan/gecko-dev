@@ -1,6 +1,39 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this file,
- * You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Mobile Browser.
+ *
+ * The Initial Developer of the Original Code is Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2011
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Fabrice Desré <fabrice@mozilla.com>
+ *   Mark Finkle <mfinkle@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 const Cu = Components.utils; 
 const Cc = Components.classes;
@@ -17,21 +50,17 @@ XPCOMUtils.defineLazyGetter(this, "NetUtil", function() {
   return NetUtil;
 });
 
-XPCOMUtils.defineLazyGetter(this, "ppmm", function() {
-  return Cc["@mozilla.org/parentprocessmessagemanager;1"].getService(Ci.nsIFrameMessageManager);
-});
-
 let DOMApplicationRegistry = {
   appsFile: null,
   webapps: { },
 
   init: function() {
+    this.mm = Cc["@mozilla.org/parentprocessmessagemanager;1"].getService(Ci.nsIFrameMessageManager);
     let messages = ["Webapps:Install", "Webapps:Uninstall",
-                    "Webapps:GetSelf", "Webapps:GetInstalled",
-                    "Webapps:Launch", "Webapps:GetAll"];
+                    "Webapps:Enumerate", "Webapps:EnumerateAll", "Webapps:Launch"];
 
     messages.forEach((function(msgName) {
-      ppmm.addMessageListener(msgName, this);
+      this.mm.addMessageListener(msgName, this);
     }).bind(this));
 
     let appsDir = FileUtils.getDir("ProfD", ["webapps"], true, true);
@@ -85,29 +114,29 @@ let DOMApplicationRegistry = {
 
   receiveMessage: function(aMessage) {
     let msg = aMessage.json;
+    let from = Services.io.newURI(msg.from, null, null);
+    let perm = Services.perms.testExactPermission(from, "webapps-manage");
+
+    //only pages with perm set and chrome or about pages can uninstall, enumerate all set oninstall an onuninstall
+    let hasPrivileges = perm == Ci.nsIPermissionManager.ALLOW_ACTION || from.schemeIs("chrome") || from.schemeIs("about");
 
     switch (aMessage.name) {
       case "Webapps:Install":
         // always ask for UI to install
         Services.obs.notifyObservers(this, "webapps-ask-install", JSON.stringify(msg));
         break;
-      case "Webapps:GetSelf":
-        this.getSelf(msg);
-        break;
       case "Webapps:Uninstall":
-        this.uninstall(msg);
+        if (hasPrivileges)
+          this.uninstall(msg);
         break;
       case "Webapps:Launch":
         Services.obs.notifyObservers(this, "webapps-launch", JSON.stringify(msg));
         break;
-      case "Webapps:GetInstalled":
-        this.getInstalled(msg);
+      case "Webapps:Enumerate":
+        this.enumerate(msg);
         break;
-      case "Webapps:GetAll":
-        if (msg.hasPrivileges)
-          this.getAll(msg);
-        else
-          ppmm.sendAsyncMessage("Webapps:GetAll:Return:KO", msg);
+      case "Webapps:EnumerateAll":
+        this.enumerateAll(msg);
         break;
     }
   },
@@ -133,15 +162,14 @@ let DOMApplicationRegistry = {
     let clone = {
       installOrigin: aApp.installOrigin,
       origin: aApp.origin,
-      receipts: aApp.receipts,
-      installTime: aApp.installTime,
-      manifestURL: aApp.manifestURL
+      receipt: aApp.receipt,
+      installTime: aApp.installTime
     };
     return clone;
   },
 
   denyInstall: function(aData) {
-    ppmm.sendAsyncMessage("Webapps:Install:Return:KO", aData);
+    this.mm.sendAsyncMessage("Webapps:Install:Return:KO", aData);
   },
 
   confirmInstall: function(aData, aFromSync) {
@@ -174,7 +202,7 @@ let DOMApplicationRegistry = {
     
     if (!aFromSync)
       this._saveApps((function() {
-        ppmm.sendAsyncMessage("Webapps:Install:Return:OK", aData);
+        this.mm.sendAsyncMessage("Webapps:Install:Return:OK", aData);
         Services.obs.notifyObservers(this, "webapps-sync-install", id);
       }).bind(this));
   },
@@ -216,11 +244,9 @@ let DOMApplicationRegistry = {
   },
 
   uninstall: function(aData) {
-    let found = false;
     for (let id in this.webapps) {
       let app = this.webapps[id];
       if (app.origin == aData.origin) {
-        found = true;
         delete this.webapps[id];
         let dir = FileUtils.getDir("ProfD", ["webapps", id], true, true);
         try {
@@ -228,53 +254,62 @@ let DOMApplicationRegistry = {
         } catch (e) {
         }
         this._saveApps((function() {
-          ppmm.sendAsyncMessage("Webapps:Uninstall:Return:OK", aData);
+          this.mm.sendAsyncMessage("Webapps:Uninstall:Return:OK", aData);
           Services.obs.notifyObservers(this, "webapps-sync-uninstall", id);
         }).bind(this));
       }
     }
-    if (!found)
-      ppmm.sendAsyncMessage("Webapps:Uninstall:Return:KO", aData);
   },
 
-  getSelf: function(aData) {
+  enumerate: function(aData) {
     aData.apps = [];
     let tmp = [];
-    let id = this._appId(aData.origin);
+    let selfId;
 
+    let id = this._appId(aData.origin);
+    // if it's an app, add itself to the result
     if (id) {
       let app = this._cloneAppObject(this.webapps[id]);
       aData.apps.push(app);
       tmp.push({ id: id });
+      selfId = id;
     }
 
-    this._readManifests(tmp, (function(aResult) {
-      for (let i = 0; i < aResult.length; i++)
-        aData.apps[i].manifest = aResult[i].manifest;
-      ppmm.sendAsyncMessage("Webapps:GetSelf:Return:OK", aData);
-    }).bind(this));
-  },
-
-  getInstalled: function(aData) {
-    aData.apps = [];
-    let tmp = [];
-    let id = this._appId(aData.origin);
-
+    // check if it's a store.
+    let isStore = false;
     for (id in this.webapps) {
-      if (this.webapps[id].installOrigin == aData.origin) {
-        aData.apps.push(this._cloneAppObject(this.webapps[id]));
-        tmp.push({ id: id });
+      let app = this.webapps[id];
+      if (app.installOrigin == aData.origin) {
+        isStore = true;
+        break;
+      }
+    }
+
+    // add all the apps from this store
+    if (isStore) {
+      for (id in this.webapps) {
+        if (id == selfId)
+          continue;
+        let app = this._cloneAppObject(this.webapps[id]);
+        if (app.installOrigin == aData.origin) {
+          aData.apps.push(app);
+          tmp.push({ id: id });
+        }
       }
     }
 
     this._readManifests(tmp, (function(aResult) {
       for (let i = 0; i < aResult.length; i++)
         aData.apps[i].manifest = aResult[i].manifest;
-      ppmm.sendAsyncMessage("Webapps:GetInstalled:Return:OK", aData);
+      this.mm.sendAsyncMessage("Webapps:Enumerate:Return:OK", aData);
     }).bind(this));
   },
 
-  getAll: function(aData) {
+  denyEnumerate: function(aData) {
+    this.mm.sendAsyncMessage("Webapps:Enumerate:Return:KO", aData);
+  },
+
+  enumerateAll: function(aData) {
     aData.apps = [];
     let tmp = [];
 
@@ -287,7 +322,7 @@ let DOMApplicationRegistry = {
     this._readManifests(tmp, (function(aResult) {
       for (let i = 0; i < aResult.length; i++)
         aData.apps[i].manifest = aResult[i].manifest;
-      ppmm.sendAsyncMessage("Webapps:GetAll:Return:OK", aData);
+      this.mm.sendAsyncMessage("Webapps:Enumerate:Return:OK", aData);
     }).bind(this));
   },
 
@@ -333,7 +368,7 @@ let DOMApplicationRegistry = {
           dir.remove(true);
         } catch (e) {
         }
-        ppmm.sendAsyncMessage("Webapps:Uninstall:Return:OK", { origin: origin });
+        this.mm.sendAsyncMessage("Webapps:Uninstall:Return:OK", { origin: origin });
       } else {
         if (!!this.webapps[record.id]) {
           this.webapps[record.id] = record.value;
@@ -342,7 +377,7 @@ let DOMApplicationRegistry = {
         else {
           let data = { app: record.value };
           this.confirmInstall(data, true);
-          ppmm.sendAsyncMessage("Webapps:Install:Return:OK", data);
+          this.mm.sendAsyncMessage("Webapps:Install:Return:OK", data);
         }
       }
     }

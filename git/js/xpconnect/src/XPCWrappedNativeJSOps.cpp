@@ -1349,6 +1349,7 @@ XPC_WN_JSOp_ThisObject(JSContext *cx, JSObject *obj)
 // static
 XPCNativeScriptableInfo*
 XPCNativeScriptableInfo::Construct(XPCCallContext& ccx,
+                                   JSBool isGlobal,
                                    const XPCNativeScriptableCreateInfo* sci)
 {
     NS_ASSERTION(sci, "bad param");
@@ -1371,7 +1372,7 @@ XPCNativeScriptableInfo::Construct(XPCCallContext& ccx,
     XPCNativeScriptableSharedMap* map = rt->GetNativeScriptableSharedMap();
     {   // scoped lock
         XPCAutoLock lock(rt->GetMapLock());
-        success = map->GetNewOrUsed(sci->GetFlags(), name,
+        success = map->GetNewOrUsed(sci->GetFlags(), name, isGlobal,
                                     sci->GetInterfacesBitmap(), newObj);
     }
 
@@ -1384,7 +1385,7 @@ XPCNativeScriptableInfo::Construct(XPCCallContext& ccx,
 }
 
 void
-XPCNativeScriptableShared::PopulateJSClass()
+XPCNativeScriptableShared::PopulateJSClass(JSBool isGlobal)
 {
     NS_ASSERTION(mJSClass.base.name, "bad state!");
 
@@ -1392,7 +1393,7 @@ XPCNativeScriptableShared::PopulateJSClass()
                           JSCLASS_PRIVATE_IS_NSISUPPORTS |
                           JSCLASS_NEW_RESOLVE;
 
-    if (mFlags.IsGlobalObject())
+    if (isGlobal)
         mJSClass.base.flags |= XPCONNECT_GLOBAL_FLAGS;
 
     JSPropertyOp addProperty;

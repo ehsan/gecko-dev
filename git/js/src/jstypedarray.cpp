@@ -81,7 +81,7 @@ using namespace js::types;
 static const uint8_t ARRAYBUFFER_RESERVED_SLOTS = JSObject::MAX_FIXED_SLOTS - 1;
 
 static bool
-ValueIsLength(JSContext *cx, const Value &v, uint32_t *len)
+ValueIsLength(JSContext *cx, const Value &v, jsuint *len)
 {
     if (v.isInt32()) {
         int32_t i = v.toInt32();
@@ -96,7 +96,7 @@ ValueIsLength(JSContext *cx, const Value &v, uint32_t *len)
         if (JSDOUBLE_IS_NaN(d))
             return false;
 
-        uint32_t length = uint32_t(d);
+        jsuint length = jsuint(d);
         if (d != double(length))
             return false;
 
@@ -330,10 +330,8 @@ ArrayBuffer::obj_trace(JSTracer *trc, JSObject *obj)
      * so it's safe to leave it Unbarriered.
      */
     JSObject *delegate = static_cast<JSObject*>(obj->getPrivate());
-    if (delegate) {
-        MarkObjectUnbarriered(trc, &delegate, "arraybuffer.delegate");
-        obj->setPrivate(delegate);
-    }
+    if (delegate)
+        MarkObjectUnbarriered(trc, delegate, "arraybuffer.delegate");
 }
 
 static JSProperty * const PROPERTY_FOUND = reinterpret_cast<JSProperty *>(1);
@@ -730,9 +728,9 @@ TypedArray::getTypedArray(JSObject *obj)
 }
 
 inline bool
-TypedArray::isArrayIndex(JSContext *cx, JSObject *obj, jsid id, uint32_t *ip)
+TypedArray::isArrayIndex(JSContext *cx, JSObject *obj, jsid id, jsuint *ip)
 {
-    uint32_t index;
+    jsuint index;
     if (js_IdIsIndex(id, &index) && index < getLength(obj)) {
         if (ip)
             *ip = index;
@@ -1264,7 +1262,7 @@ class TypedArrayTemplate
             return true;
         }
 
-        uint32_t index;
+        jsuint index;
         // We can't just chain to js_SetPropertyHelper, because we're not a normal object.
         if (!isArrayIndex(cx, tarray, id, &index)) {
             // Silent ignore is better than an exception here, because
@@ -1509,7 +1507,7 @@ class TypedArrayTemplate
         /* N.B. there may not be an argv[-2]/argv[-1]. */
 
         /* () or (number) */
-        uint32_t len = 0;
+        jsuint len = 0;
         if (argc == 0 || ValueIsLength(cx, argv[0], &len)) {
             JSObject *bufobj = createBufferWithSizeAndCount(cx, len);
             if (!bufobj)
@@ -1663,7 +1661,7 @@ class TypedArrayTemplate
             if (!copyFromTypedArray(cx, obj, src, offset))
                 return false;
         } else {
-            uint32_t len;
+            jsuint len;
             if (!js_GetLengthProperty(cx, arg0, &len))
                 return false;
 
@@ -1734,7 +1732,7 @@ class TypedArrayTemplate
          * Otherwise create a new typed array and copy len properties from the
          * object.
          */
-        uint32_t len;
+        jsuint len;
         if (!js_GetLengthProperty(cx, other, &len))
             return NULL;
 
@@ -1824,7 +1822,7 @@ class TypedArrayTemplate
 
     static bool
     copyFromArray(JSContext *cx, JSObject *thisTypedArrayObj,
-             JSObject *ar, uint32_t len, uint32_t offset = 0)
+             JSObject *ar, jsuint len, jsuint offset = 0)
     {
         thisTypedArrayObj = getTypedArray(thisTypedArrayObj);
         JS_ASSERT(thisTypedArrayObj);
@@ -1858,7 +1856,7 @@ class TypedArrayTemplate
     }
 
     static bool
-    copyFromTypedArray(JSContext *cx, JSObject *thisTypedArrayObj, JSObject *tarray, uint32_t offset)
+    copyFromTypedArray(JSContext *cx, JSObject *thisTypedArrayObj, JSObject *tarray, jsuint offset)
     {
         thisTypedArrayObj = getTypedArray(thisTypedArrayObj);
         JS_ASSERT(thisTypedArrayObj);
@@ -1935,7 +1933,7 @@ class TypedArrayTemplate
     }
 
     static bool
-    copyFromWithOverlap(JSContext *cx, JSObject *self, JSObject *tarray, uint32_t offset)
+    copyFromWithOverlap(JSContext *cx, JSObject *self, JSObject *tarray, jsuint offset)
     {
         JS_ASSERT(offset <= getLength(self));
 
@@ -2532,13 +2530,13 @@ js_IsTypedArray(JSObject *obj)
 }
 
 JS_FRIEND_API(JSObject *)
-js_CreateArrayBuffer(JSContext *cx, uint32_t nbytes)
+js_CreateArrayBuffer(JSContext *cx, jsuint nbytes)
 {
     return ArrayBuffer::create(cx, nbytes);
 }
 
 JS_FRIEND_API(JSObject *)
-JS_NewArrayBuffer(JSContext *cx, uint32_t nbytes)
+JS_NewArrayBuffer(JSContext *cx, jsuint nbytes)
 {
     return js_CreateArrayBuffer(cx, nbytes);
 }
@@ -2581,7 +2579,7 @@ TypedArrayConstruct(JSContext *cx, int atype, unsigned argc, Value *argv)
 }
 
 JS_FRIEND_API(JSObject *)
-js_CreateTypedArray(JSContext *cx, int atype, uint32_t nelements)
+js_CreateTypedArray(JSContext *cx, int atype, jsuint nelements)
 {
     JS_ASSERT(atype >= 0 && atype < TypedArray::TYPE_MAX);
 

@@ -61,6 +61,21 @@
 
 namespace js {
 
+class AutoPreserveEnumerators {
+    JSContext *cx;
+    JSObject *enumerators;
+
+  public:
+    AutoPreserveEnumerators(JSContext *cx) : cx(cx), enumerators(cx->enumerators)
+    {
+    }
+
+    ~AutoPreserveEnumerators()
+    {
+        cx->enumerators = enumerators;
+    }
+};
+
 /*
  * Compute the implicit |this| parameter for a call expression where the callee
  * funval was resolved from an unqualified name reference to a property on obj
@@ -217,7 +232,7 @@ GetPropertyOperation(JSContext *cx, jsbytecode *pc, const Value &lval, Value *vp
         if (lval.isObject()) {
             JSObject *obj = &lval.toObject();
             if (obj->isArray()) {
-                uint32_t length = obj->getArrayLength();
+                jsuint length = obj->getArrayLength();
                 *vp = NumberValue(length);
                 return true;
             }
@@ -240,7 +255,7 @@ GetPropertyOperation(JSContext *cx, jsbytecode *pc, const Value &lval, Value *vp
         }
     }
 
-    JSObject *obj = ValueToObject(cx, lval);
+    JSObject *obj = ValueToObjectOrPrototype(cx, lval);
     if (!obj)
         return false;
 
@@ -789,13 +804,13 @@ SetObjectElementOperation(JSContext *cx, JSObject *obj, jsid id, const Value &va
 
     do {
         if (obj->isDenseArray() && JSID_IS_INT(id)) {
-            uint32_t length = obj->getDenseArrayInitializedLength();
+            jsuint length = obj->getDenseArrayInitializedLength();
             int32_t i = JSID_TO_INT(id);
-            if ((uint32_t)i < length) {
+            if ((jsuint)i < length) {
                 if (obj->getDenseArrayElement(i).isMagic(JS_ARRAY_HOLE)) {
                     if (js_PrototypeHasIndexedProperties(cx, obj))
                         break;
-                    if ((uint32_t)i >= obj->getArrayLength())
+                    if ((jsuint)i >= obj->getArrayLength())
                         obj->setArrayLength(cx, i + 1);
                 }
                 obj->setDenseArrayElementWithType(cx, i, value);

@@ -318,7 +318,7 @@ GetIntFromJSObject(JSContext* aCtx,
 nsresult
 GetJSObjectFromArray(JSContext* aCtx,
                      JSObject* aArray,
-                     uint32_t aIndex,
+                     jsuint aIndex,
                      JSObject** _rooter)
 {
   NS_PRECONDITION(JS_IsArrayObject(aCtx, aArray),
@@ -2104,7 +2104,7 @@ History::UpdatePlaces(const jsval& aPlaceInfos,
   NS_ENSURE_TRUE(NS_IsMainThread(), NS_ERROR_UNEXPECTED);
   NS_ENSURE_TRUE(!JSVAL_IS_PRIMITIVE(aPlaceInfos), NS_ERROR_INVALID_ARG);
 
-  uint32_t infosLength = 1;
+  jsuint infosLength = 1;
   JSObject* infos;
   if (JS_IsArrayObject(aCtx, JSVAL_TO_OBJECT(aPlaceInfos))) {
     infos = JSVAL_TO_OBJECT(aPlaceInfos);
@@ -2122,7 +2122,7 @@ History::UpdatePlaces(const jsval& aPlaceInfos,
   }
 
   nsTArray<VisitData> visitData;
-  for (uint32_t i = 0; i < infosLength; i++) {
+  for (jsuint i = 0; i < infosLength; i++) {
     JSObject* info;
     nsresult rv = GetJSObjectFromArray(aCtx, infos, i, &info);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -2168,7 +2168,7 @@ History::UpdatePlaces(const jsval& aPlaceInfos,
     }
     NS_ENSURE_ARG(visits);
 
-    uint32_t visitsLength = 0;
+    jsuint visitsLength = 0;
     if (visits) {
       (void)JS_GetArrayLength(aCtx, visits, &visitsLength);
     }
@@ -2176,7 +2176,7 @@ History::UpdatePlaces(const jsval& aPlaceInfos,
 
     // Check each visit, and build our array of VisitData objects.
     visitData.SetCapacity(visitData.Length() + visitsLength);
-    for (uint32_t j = 0; j < visitsLength; j++) {
+    for (jsuint j = 0; j < visitsLength; j++) {
       JSObject* visit;
       rv = GetJSObjectFromArray(aCtx, visits, j, &visit);
       NS_ENSURE_SUCCESS(rv, rv);

@@ -70,8 +70,6 @@
 #include "mozilla/Telemetry.h"
 #include "BatteryManager.h"
 #include "PowerManager.h"
-#include "nsIDOMWakeLock.h"
-#include "nsIPowerManagerService.h"
 #include "SmsManager.h"
 #include "nsISmsService.h"
 #include "mozilla/Hal.h"
@@ -174,10 +172,7 @@ Navigator::Invalidate()
     mBatteryManager = nsnull;
   }
 
-  if (mPowerManager) {
-    mPowerManager->Shutdown();
-    mPowerManager = nsnull;
-  }
+  mPowerManager = nsnull;
 
   if (mSmsManager) {
     mSmsManager->Shutdown();
@@ -963,36 +958,13 @@ Navigator::GetMozBattery(nsIDOMMozBatteryManager** aBattery)
 NS_IMETHODIMP
 Navigator::GetMozPower(nsIDOMMozPowerManager** aPower)
 {
-  *aPower = nsnull;
-
   if (!mPowerManager) {
-    nsCOMPtr<nsPIDOMWindow> win = do_QueryReferent(mWindow);
-    NS_ENSURE_TRUE(win, NS_OK);
-
     mPowerManager = new power::PowerManager();
-    mPowerManager->Init(win);
   }
 
-  nsCOMPtr<nsIDOMMozPowerManager> power =
-    do_QueryInterface(NS_ISUPPORTS_CAST(nsIDOMMozPowerManager*, mPowerManager));
-  power.forget(aPower);
+  NS_ADDREF(*aPower = mPowerManager);
 
   return NS_OK;
-}
-
-NS_IMETHODIMP
-Navigator::RequestWakeLock(const nsAString &aTopic, nsIDOMMozWakeLock **aWakeLock)
-{
-  *aWakeLock = nsnull;
-
-  nsCOMPtr<nsPIDOMWindow> win = do_QueryReferent(mWindow);
-  NS_ENSURE_TRUE(win, NS_OK);
-
-  nsCOMPtr<nsIPowerManagerService> pmService =
-    do_GetService(POWERMANAGERSERVICE_CONTRACTID);
-  NS_ENSURE_TRUE(pmService, NS_OK);
-
-  return pmService->NewWakeLock(aTopic, win, aWakeLock);
 }
 
 //*****************************************************************************

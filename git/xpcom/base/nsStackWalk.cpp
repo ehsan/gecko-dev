@@ -258,19 +258,19 @@ void PrintError(char *prefix)
 {
     LPVOID lpMsgBuf;
     DWORD lastErr = GetLastError();
-    FormatMessageA(
+    FormatMessage(
       FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
       NULL,
       lastErr,
       MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), // Default language
-      (LPSTR) &lpMsgBuf,
+      (LPTSTR) &lpMsgBuf,
       0,
       NULL
     );
     fprintf(stderr, "### ERROR: %s: %s",
                     prefix, lpMsgBuf ? lpMsgBuf : "(null)\n");
     fflush(stderr);
-    LocalFree(lpMsgBuf);
+    LocalFree( lpMsgBuf );
 }
 
 bool
@@ -1260,15 +1260,6 @@ NS_StackWalk(NS_WalkStackCallback aCallback, PRUint32 aSkipFrames,
     MOZ_ASSERT(gCriticalAddress.mInit);
     MOZ_ASSERT(!aThread);
     return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-namespace mozilla {
-nsresult
-FramePointerStackWalk(NS_WalkStackCallback aCallback, PRUint32 aSkipFrames,
-                      void *aClosure, void **bp)
-{
-    return NS_ERROR_NOT_IMPLEMENTED;
-}
 }
 
 EXPORT_XPCOM_API(nsresult)
