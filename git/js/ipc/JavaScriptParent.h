@@ -30,7 +30,6 @@ class JavaScriptParent : public JavaScriptBase<PJavaScriptParent>
 
   protected:
     virtual bool isParent() { return true; }
-    virtual JSObject *defaultScope() MOZ_OVERRIDE;
 };
 
 } // jsipc

@@ -91,7 +91,7 @@ class ChildProcessInfo {
   }
 
   // Derived objects need to use this constructor so we know what type we are.
-  explicit ChildProcessInfo(ProcessType type);
+  ChildProcessInfo(ProcessType type);
 
  private:
   ProcessType type_;

@@ -290,7 +290,7 @@ nsNumberControlFrame::MakeAnonymousElement(Element** aResult,
                                            nsStyleContext* aParentContext)
 {
   // Get the NodeInfoManager and tag necessary to create the anonymous divs.
-  nsCOMPtr<nsIDocument> doc = mContent->GetComposedDoc();
+  nsCOMPtr<nsIDocument> doc = mContent->GetDocument();
   nsRefPtr<Element> resultElement = doc->CreateHTMLElement(aTagName);
 
   // If we legitimately fail this assertion and need to allow

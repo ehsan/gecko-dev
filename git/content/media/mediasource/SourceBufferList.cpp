@@ -13,7 +13,7 @@
 #include "nsCOMPtr.h"
 #include "nsIEventTarget.h"
 #include "nsIRunnable.h"
-#include "nsString.h"
+#include "nsStringGlue.h"
 #include "nsThreadUtils.h"
 #include "prlog.h"
 
@@ -144,11 +144,11 @@ double
 SourceBufferList::GetHighestBufferedEndTime()
 {
   MOZ_ASSERT(NS_IsMainThread());
-  double highestEndTime = 0;
+  double highestEnd = 0;
   for (uint32_t i = 0; i < mSourceBuffers.Length(); ++i) {
-    highestEndTime = std::max(highestEndTime, mSourceBuffers[i]->GetBufferedEnd());
+    highestEnd = std::max(highestEnd, mSourceBuffers[i]->GetBufferedEnd());
   }
-  return highestEndTime;
+  return highestEnd;
 }
 
 void
