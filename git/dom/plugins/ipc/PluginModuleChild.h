@@ -55,7 +55,7 @@
 #include "nsTHashtable.h"
 #include "nsHashKeys.h"
 
-#ifdef OS_MACOSX
+#ifdef MOZ_WIDGET_COCOA
 #include "PluginInterposeOSX.h"
 #endif
 
@@ -117,7 +117,14 @@ protected:
 
     virtual PPluginIdentifierChild*
     AllocPPluginIdentifier(const nsCString& aString,
-                           const int32_t& aInt);
+                           const int32_t& aInt,
+                           const bool& aTemporary);
+
+    virtual bool
+    RecvPPluginIdentifierConstructor(PPluginIdentifierChild* actor,
+                                     const nsCString& aString,
+                                     const int32_t& aInt,
+                                     const bool& aTemporary);
 
     virtual bool
     DeallocPPluginIdentifier(PPluginIdentifierChild* aActor);
@@ -155,6 +162,11 @@ protected:
 
     virtual bool
     AnswerNPP_GetSitesWithData(InfallibleTArray<nsCString>* aResult);
+
+    virtual bool
+    RecvSetAudioSessionData(const nsID& aId,
+                            const nsString& aDisplayName,
+                            const nsString& aIconPath);
 
     virtual void
     ActorDestroy(ActorDestroyReason why);
@@ -218,7 +230,7 @@ public:
     static NPUTF8* NP_CALLBACK NPN_UTF8FromIdentifier(NPIdentifier aIdentifier);
     static int32_t NP_CALLBACK NPN_IntFromIdentifier(NPIdentifier aIdentifier);
 
-#ifdef OS_MACOSX
+#ifdef MOZ_WIDGET_COCOA
     void ProcessNativeEvents();
     
     void PluginShowWindow(uint32_t window_id, bool modal, CGRect r) {
@@ -282,6 +294,10 @@ public:
         // Win: QuickTime steals focus on SetWindow calls even if it's hidden.
         // Avoid calling SetWindow in that case.
         QUIRK_QUICKTIME_AVOID_SETWINDOW                 = 1 << 7,
+        // Win: Check to make sure the parent window has focus before calling
+        // set focus on the child. Addresses a full screen dialog prompt
+        // problem in Silverlight.
+        QUIRK_SILVERLIGHT_FOCUS_CHECK_PARENT            = 1 << 8,
     };
 
     int GetQuirks() { return mQuirks; }
@@ -390,8 +406,11 @@ private:
      */
     nsTHashtable<NPObjectData> mObjectMap;
 
-    nsDataHashtable<nsCStringHashKey, PluginIdentifierChild*> mStringIdentifiers;
-    nsDataHashtable<nsUint32HashKey, PluginIdentifierChild*> mIntIdentifiers;
+    friend class PluginIdentifierChild;
+    friend class PluginIdentifierChildString;
+    friend class PluginIdentifierChildInt;
+    nsDataHashtable<nsCStringHashKey, PluginIdentifierChildString*> mStringIdentifiers;
+    nsDataHashtable<nsUint32HashKey, PluginIdentifierChildInt*> mIntIdentifiers;
 
 public: // called by PluginInstanceChild
     /**

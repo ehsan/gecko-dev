@@ -266,7 +266,7 @@ var Browser = {
       ViewableAreaObserver.update();
 
       // Restore the previous scroll position
-      let restorePosition = Browser.controlsPosition;
+      let restorePosition = Browser.controlsPosition || { hideSidebars: true };
       if (restorePosition.hideSidebars) {
         restorePosition.hideSidebars = false;
         Browser.hideSidebars();
@@ -378,12 +378,26 @@ var Browser = {
     let event = document.createEvent("Events");
     event.initEvent("UIReady", true, false);
     window.dispatchEvent(event);
+
+    // if we have an opener this was not the first window opened and will not
+    // receive an initial resize event. instead we fire the resize handler manually
+    if (window.opener)
+      resizeHandler({ target: window });
   },
 
   _alertShown: function _alertShown() {
     // ensure that the full notification still visible, even if the urlbar is floating
     if (BrowserUI.isToolbarLocked())
       Browser.pageScrollboxScroller.scrollTo(0, 0);
+  },
+
+  quit: function quit() {
+    // NOTE: onclose seems to be called only when using OS chrome to close a window,
+    // so we need to handle the Browser.closing check ourselves.
+    if (this.closing()) {
+      window.QueryInterface(Ci.nsIDOMChromeWindow).minimize();
+      window.close();
+    }
   },
 
   _waitingToClose: false,
@@ -1107,7 +1121,7 @@ var Browser = {
     if (prefValue > 0)
       return prefValue / 100;
 
-    let dpi = this.windowUtils.displayDPI;
+    let dpi = Util.displayDPI;
     if (dpi < 200) // Includes desktop displays, and LDPI and MDPI Android devices
       return 1;
     else if (dpi < 300) // Includes Nokia N900, and HDPI Android devices
@@ -1745,6 +1759,8 @@ const ContentTouchHandler = {
           let event = document.createEvent("Events");
           event.initEvent("CancelTouchSequence", true, false);
           document.dispatchEvent(event);
+        } else {
+          SelectionHelper.showPopup(contextMenu);
         }
         break;
       case "Browser:CaptureEvents": {
@@ -1804,7 +1820,7 @@ const ContentTouchHandler = {
   panningPrevented: false,
 
   updateCanCancel: function(aX, aY) {
-    let dpi = Browser.windowUtils.displayDPI;
+    let dpi = Util.displayDPI;
 
     const kSafetyX = Services.prefs.getIntPref("dom.w3c_touch_events.safetyX") / 240 * dpi;
     const kSafetyY = Services.prefs.getIntPref("dom.w3c_touch_events.safetyY") / 240 * dpi;
@@ -2178,6 +2194,10 @@ IdentityHandler.prototype = {
    * Click handler for the identity-box element in primary chrome.
    */
   handleIdentityButtonEvent: function(aEvent) {
+    let broadcaster = document.getElementById("bcast_uidiscovery");
+    if (broadcaster && broadcaster.getAttribute("mode") == "discovery")
+      return;
+
     aEvent.stopPropagation();
 
     if ((aEvent.type == "click" && aEvent.button != 0) ||

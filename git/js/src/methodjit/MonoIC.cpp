@@ -656,7 +656,12 @@ class CallCompiler : public BaseCompiler
         void *compilePtr = JS_FUNC_TO_DATA_PTR(void *, stubs::CompileFunction);
         if (ic.frameSize.isStatic()) {
             masm.move(Imm32(ic.frameSize.staticArgc()), Registers::ArgReg1);
-            masm.fallibleVMCall(compilePtr, script->code, ic.frameSize.staticLocalSlots());
+            /*
+             * CompileFunction doesn't use 'sp', so we could leave it
+             * uninitialized. However, it does wind up calling tryBumpLimit
+             * wanting to assert about regs.sp, so set regs.sp = fp->slots().
+             */
+            masm.fallibleVMCall(compilePtr, script->code, 0);
         } else {
             masm.load32(FrameAddress(offsetof(VMFrame, u.call.dynamicArgc)), Registers::ArgReg1);
             masm.fallibleVMCall(compilePtr, script->code, -1);
@@ -783,19 +788,19 @@ class CallCompiler : public BaseCompiler
          * SplatApplyArgs has not been called, so we call it here before
          * potentially touching f.u.call.dynamicArgc.
          */
-        Value *vp;
+        CallArgs args;
         if (ic.frameSize.isStatic()) {
             JS_ASSERT(f.regs.sp - f.regs.fp()->slots() == (int)ic.frameSize.staticLocalSlots());
-            vp = f.regs.sp - (2 + ic.frameSize.staticArgc());
+            args = CallArgsFromSp(ic.frameSize.staticArgc(), f.regs.sp);
         } else {
             JS_ASSERT(*f.regs.pc == JSOP_FUNAPPLY && GET_ARGC(f.regs.pc) == 2);
             if (!ic::SplatApplyArgs(f))       /* updates regs.sp */
                 THROWV(true);
-            vp = f.regs.sp - (2 + f.u.call.dynamicArgc);
+            args = CallArgsFromSp(f.u.call.dynamicArgc, f.regs.sp);
         }
 
         JSObject *obj;
-        if (!IsFunctionObject(*vp, &obj))
+        if (!IsFunctionObject(args.calleev(), &obj))
             return false;
 
         JSFunction *fun = obj->getFunctionPrivate();
@@ -803,9 +808,9 @@ class CallCompiler : public BaseCompiler
             return false;
 
         if (callingNew)
-            vp[1].setMagicWithObjectOrNullPayload(NULL);
+            args.thisv().setMagicWithObjectOrNullPayload(NULL);
 
-        if (!CallJSNative(cx, fun->u.n.native, ic.frameSize.getArgc(f), vp))
+        if (!CallJSNative(cx, fun->u.n.native, args))
             THROWV(true);
 
         /* Right now, take slow-path for IC misses or multiple stubs. */
@@ -868,7 +873,7 @@ class CallCompiler : public BaseCompiler
 #endif
         MaybeRegisterID argcReg;
         if (ic.frameSize.isStatic()) {
-            uint32 vpOffset = sizeof(StackFrame) + (vp - f.regs.fp()->slots()) * sizeof(Value);
+            uint32 vpOffset = sizeof(StackFrame) + (args.base() - f.regs.fp()->slots()) * sizeof(Value);
             masm.addPtr(Imm32(vpOffset), JSFrameReg, vpReg);
         } else {
             argcReg = tempRegs.takeAnyReg();

@@ -41,7 +41,7 @@
 #define nsWebSocket_h__
 
 #include "nsISupportsUtils.h"
-#include "nsIWebSocket.h"
+#include "nsIMozWebSocket.h"
 #include "nsCOMPtr.h"
 #include "nsString.h"
 #include "nsIJSNativeInitializer.h"
@@ -66,7 +66,7 @@ class nsWebSocketEstablishedConnection;
 class nsWSCloseEvent;
 
 class nsWebSocket: public nsDOMEventTargetWrapperCache,
-                   public nsIWebSocket,
+                   public nsIMozWebSocket,
                    public nsIJSNativeInitializer
 {
 friend class nsWSNetAddressComparator;
@@ -79,7 +79,7 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsWebSocket,
                                            nsDOMEventTargetWrapperCache)
-  NS_DECL_NSIWEBSOCKET
+  NS_DECL_NSIMOZWEBSOCKET
 
   // nsIJSNativeInitializer
   NS_IMETHOD Initialize(nsISupports* aOwner, JSContext* aContext,
@@ -87,18 +87,13 @@ public:
 
   // nsIDOMEventTarget
   NS_IMETHOD AddEventListener(const nsAString& aType,
-                              nsIDOMEventListener* aListener,
-                              PRBool aUseCapture);
-  NS_IMETHOD RemoveEventListener(const nsAString& aType,
-                                 nsIDOMEventListener* aListener,
-                                 PRBool aUseCapture);
-
-  // nsIDOMNSEventTarget
-  NS_IMETHOD AddEventListener(const nsAString& aType,
                               nsIDOMEventListener *aListener,
                               PRBool aUseCapture,
                               PRBool aWantsUntrusted,
                               PRUint8 optional_argc);
+  NS_IMETHOD RemoveEventListener(const nsAString& aType,
+                                 nsIDOMEventListener* aListener,
+                                 PRBool aUseCapture);
 
   // Determine if preferences allow WebSocket
   static PRBool PrefEnabled();
