@@ -48,14 +48,14 @@ function goQuitApplication() {
     forceQuit = Components.interfaces.nsIAppShellService.eForceQuit;
   }
   else {
-    throw new Error('goQuitApplication: no AppStartup/appShell');
+    throw 'goQuitApplication: no AppStartup/appShell';
   }
 
   try {
     appService.quit(forceQuit);
   }
   catch(ex) {
-    throw new Error('goQuitApplication: ' + ex);
+    throw('goQuitApplication: ' + ex);
   }
 
   return true;

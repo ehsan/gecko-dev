@@ -39,7 +39,7 @@ describe("loop.conversation", function() {
         return "en-US";
       },
       setLoopCharPref: sinon.stub(),
-      getLoopCharPref: sinon.stub().returns("http://fakeurl"),
+      getLoopCharPref: sinon.stub().returns(null),
       getLoopBoolPref: sinon.stub(),
       getCallData: sinon.stub(),
       releaseCallData: sinon.stub(),
@@ -356,8 +356,6 @@ describe("loop.conversation", function() {
         describe("WebSocket Events", function() {
           describe("Call cancelled or timed out before acceptance", function() {
             beforeEach(function() {
-              // Mounting the test component automatically calls the required
-              // setup functions
               icView = mountTestComponent();
               promise = new Promise(function(resolve, reject) {
                 resolve();
@@ -368,7 +366,87 @@ describe("loop.conversation", function() {
               sandbox.stub(window, "close");
             });
 
-            describe("progress - terminated (previousState = alerting)", function() {
+            describe("progress - terminated - cancel", function() {
+              it("should stop alerting", function(done) {
+                promise.then(function() {
+                  icView._websocket.trigger("progress", {
+                    state: "terminated",
+                    reason: "cancel"
+                  });
+
+                  sinon.assert.calledOnce(navigator.mozLoop.stopAlerting);
+                  done();
+                });
+              });
+
+              it("should close the websocket", function(done) {
+                promise.then(function() {
+                  icView._websocket.trigger("progress", {
+                    state: "terminated",
+                    reason: "cancel"
+                  });
+
+                  sinon.assert.calledOnce(icView._websocket.close);
+                  done();
+                });
+              });
+
+              it("should close the window", function(done) {
+                promise.then(function() {
+                  icView._websocket.trigger("progress", {
+                    state: "terminated",
+                    reason: "cancel"
+                  });
+
+                  sandbox.clock.tick(1);
+
+                  sinon.assert.calledOnce(window.close);
+                  done();
+                });
+              });
+            });
+
+            describe("progress - terminated - closed", function() {
+              it("should stop alerting", function(done) {
+                promise.then(function() {
+                  icView._websocket.trigger("progress", {
+                    state: "terminated",
+                    reason: "closed"
+                  });
+
+                  sinon.assert.calledOnce(navigator.mozLoop.stopAlerting);
+                  done();
+                });
+              });
+
+              it("should close the websocket", function(done) {
+                promise.then(function() {
+                  icView._websocket.trigger("progress", {
+                    state: "terminated",
+                    reason: "closed"
+                  });
+
+                  sinon.assert.calledOnce(icView._websocket.close);
+                  done();
+                });
+              });
+
+              it("should close the window", function(done) {
+                promise.then(function() {
+                  icView._websocket.trigger("progress", {
+                    state: "terminated",
+                    reason: "closed"
+                  });
+
+                  sandbox.clock.tick(1);
+
+                  sinon.assert.calledOnce(window.close);
+                  done();
+                });
+              });
+            });
+
+            describe("progress - terminated - timeout (previousState = alerting)", function() {
               it("should stop alerting", function(done) {
                 promise.then(function() {
                   icView._websocket.trigger("progress", {
@@ -385,7 +463,7 @@ describe("loop.conversation", function() {
                 promise.then(function() {
                   icView._websocket.trigger("progress", {
                     state: "terminated",
-                    reason: "closed"
+                    reason: "timeout"
                   }, "alerting");
 
                   sinon.assert.calledOnce(icView._websocket.close);
@@ -397,7 +475,7 @@ describe("loop.conversation", function() {
                 promise.then(function() {
                   icView._websocket.trigger("progress", {
                     state: "terminated",
-                    reason: "answered-elsewhere"
+                    reason: "timeout"
                   }, "alerting");
 
                   sandbox.clock.tick(1);
@@ -406,34 +484,6 @@ describe("loop.conversation", function() {
                   done();
                 });
               });
-            });
-
-            describe("progress - terminated (previousState not init" +
-                     " nor alerting)",
-              function() {
-                it("should set the state to end", function(done) {
-                  promise.then(function() {
-                    icView._websocket.trigger("progress", {
-                      state: "terminated",
-                      reason: "media-fail"
-                    }, "connecting");
-
-                    expect(icView.state.callStatus).eql("end");
-                    done();
-                  });
-                });
-
-                it("should stop alerting", function(done) {
-                  promise.then(function() {
-                    icView._websocket.trigger("progress", {
-                      state: "terminated",
-                      reason: "media-fail"
-                    }, "connecting");
-
-                    sinon.assert.calledOnce(navigator.mozLoop.stopAlerting);
-                    done();
-                  });
-                });
             });
           });
         });
@@ -630,12 +680,12 @@ describe("loop.conversation", function() {
       });
 
       describe("session:network-disconnected", function() {
-        it("should navigate to call failed when network disconnects",
+        it("should navigate to call/feedback when network disconnects",
           function() {
             conversation.trigger("session:network-disconnected");
 
               TestUtils.findRenderedComponentWithType(icView,
-                loop.conversation.IncomingCallFailedView);
+                sharedView.FeedbackView);
           });
 
         it("should update the conversation window toolbar title",

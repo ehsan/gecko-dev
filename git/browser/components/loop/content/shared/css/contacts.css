@@ -136,18 +136,13 @@
   display: none;
   margin-left: auto;
   padding: 12px 10px;
-  border-radius: 2px;
-  background: #5bc0a4;
-  color: #fff;
+  border-radius: 30px;
+  background: #7ed321;
   -moz-user-select: none;
 }
 
 .icons:hover {
-  background-color: #47b396;
-}
-
-.icons:hover:active {
-  background-color: #3aa689;
+  background: #89e029;
 }
 
 .icons i {

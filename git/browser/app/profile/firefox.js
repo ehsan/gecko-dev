@@ -1537,7 +1537,7 @@ pref("browser.newtabpage.rows", 3);
 pref("browser.newtabpage.columns", 5);
 
 // directory tiles download URL
-pref("browser.newtabpage.directory.source", "https://tiles.services.mozilla.com/v2/links/fetch/%LOCALE%");
+pref("browser.newtabpage.directory.source", "https://tiles.services.mozilla.com/v2/links/fetch");
 
 // endpoint to send newtab click and view pings
 pref("browser.newtabpage.directory.ping", "https://tiles.services.mozilla.com/v2/links/");
@@ -1585,7 +1585,7 @@ pref("loop.soft_start_hostname", "soft-start.loop.services.mozilla.com");
 
 pref("loop.server", "https://loop.services.mozilla.com");
 pref("loop.seenToS", "unseen");
-pref("loop.legal.ToS_url", "https://hello.firefox.com/legal/terms/");
+pref("loop.legal.ToS_url", "https://accounts.firefox.com/legal/terms");
 pref("loop.legal.privacy_url", "https://www.mozilla.org/privacy/");
 pref("loop.do_not_disturb", false);
 pref("loop.ringtone", "chrome://browser/content/loop/shared/sounds/Firefox-Long.ogg");
