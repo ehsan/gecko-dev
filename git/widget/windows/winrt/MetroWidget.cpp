@@ -56,11 +56,7 @@ extern PRLogModuleInfo* gWindowsLog;
 static uint32_t gInstanceCount = 0;
 const PRUnichar* kMetroSubclassThisProp = L"MetroSubclassThisProp";
 HWND MetroWidget::sICoreHwnd = NULL;
-
-namespace mozilla {
-namespace widget {
-UINT sDefaultBrowserMsgId = RegisterWindowMessageW(L"DefaultBrowserClosing");
-} }
+static const UINT sDefaultBrowserMsgID = RegisterWindowMessageW(L"DefaultBrowserClosing");
 
 // WM_GETOBJECT id pulled from uia headers
 #define UiaRootObjectId -25
@@ -566,7 +562,7 @@ MetroWidget::SynthesizeNativeMouseScrollEvent(nsIntPoint aPoint,
 static void
 CloseGesture()
 {
-  LogFunction();
+  Log("shuting down due to close gesture.\n");
   nsCOMPtr<nsIAppStartup> appStartup =
     do_GetService(NS_APPSTARTUP_CONTRACTID);
   if (appStartup) {
@@ -590,7 +586,7 @@ MetroWidget::StaticWindowProcedure(HWND aWnd, UINT aMsg, WPARAM aWParam, LPARAM 
 LRESULT
 MetroWidget::WindowProcedure(HWND aWnd, UINT aMsg, WPARAM aWParam, LPARAM aLParam)
 {
-  if(sDefaultBrowserMsgId == aMsg) {
+  if(sDefaultBrowserMsgID == aMsg) {
     CloseGesture();
   }
 
