@@ -33,7 +33,7 @@ public:
   class TrackChange : public nsRunnable {
   public:
     TrackChange(StreamListener* aListener,
-                TrackID aID, StreamTime aTrackOffset,
+                TrackID aID, TrackTicks aTrackOffset,
                 uint32_t aEvents, MediaSegment::Type aType)
       : mListener(aListener), mID(aID), mEvents(aEvents), mType(aType)
     {
@@ -85,7 +85,8 @@ public:
    * aQueuedMedia can be null if there is no output.
    */
   virtual void NotifyQueuedTrackChanges(MediaStreamGraph* aGraph, TrackID aID,
-                                        StreamTime aTrackOffset,
+                                        TrackRate aTrackRate,
+                                        TrackTicks aTrackOffset,
                                         uint32_t aTrackEvents,
                                         const MediaSegment& aQueuedMedia) MOZ_OVERRIDE
   {

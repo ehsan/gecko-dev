@@ -265,7 +265,6 @@ TemporaryRef<DrawTarget>
 Factory::CreateDrawTarget(BackendType aBackend, const IntSize &aSize, SurfaceFormat aFormat)
 {
   if (!CheckSurfaceSize(aSize)) {
-    gfxCriticalError() << "Failed to allocate a surface due to invalid size " << aSize;
     return nullptr;
   }
 
@@ -337,7 +336,7 @@ Factory::CreateDrawTarget(BackendType aBackend, const IntSize &aSize, SurfaceFor
 
   if (!retVal) {
     // Failed
-    gfxCriticalError() << "Failed to create DrawTarget, Type: " << int(aBackend) << " Size: " << aSize;
+    gfxDebug() << "Failed to create DrawTarget, Type: " << int(aBackend) << " Size: " << aSize;
   }
   
   return retVal.forget();
@@ -356,9 +355,7 @@ Factory::CreateDrawTargetForData(BackendType aBackend,
                                  int32_t aStride, 
                                  SurfaceFormat aFormat)
 {
-  MOZ_ASSERT(aData);
   if (!CheckSurfaceSize(aSize)) {
-    gfxCriticalError() << "Failed to allocate a surface due to invalid size " << aSize;
     return nullptr;
   }
 
@@ -494,8 +491,6 @@ Factory::CreateScaledFontWithCairo(const NativeFont& aNativeFont, Float aSize, c
 TemporaryRef<DrawTarget>
 Factory::CreateDualDrawTarget(DrawTarget *targetA, DrawTarget *targetB)
 {
-  MOZ_ASSERT(targetA && targetB);
-
   RefPtr<DrawTarget> newTarget =
     new DrawTargetDual(targetA, targetB);
 
@@ -513,8 +508,6 @@ Factory::CreateDualDrawTarget(DrawTarget *targetA, DrawTarget *targetB)
 TemporaryRef<DrawTarget>
 Factory::CreateDrawTargetForD3D10Texture(ID3D10Texture2D *aTexture, SurfaceFormat aFormat)
 {
-  MOZ_ASSERT(aTexture);
-
   RefPtr<DrawTargetD2D> newTarget;
 
   newTarget = new DrawTargetD2D();
@@ -539,7 +532,6 @@ Factory::CreateDualDrawTargetForD3D10Textures(ID3D10Texture2D *aTextureA,
                                               ID3D10Texture2D *aTextureB,
                                               SurfaceFormat aFormat)
 {
-  MOZ_ASSERT(aTextureA && aTextureB);
   RefPtr<DrawTargetD2D> newTargetA;
   RefPtr<DrawTargetD2D> newTargetB;
 
@@ -593,8 +585,6 @@ Factory::GetDirect3D10Device()
 TemporaryRef<DrawTarget>
 Factory::CreateDrawTargetForD3D11Texture(ID3D11Texture2D *aTexture, SurfaceFormat aFormat)
 {
-  MOZ_ASSERT(aTexture);
-
   RefPtr<DrawTargetD2D1> newTarget;
 
   newTarget = new DrawTargetD2D1();
@@ -618,11 +608,6 @@ void
 Factory::SetDirect3D11Device(ID3D11Device *aDevice)
 {
   mD3D11Device = aDevice;
-
-  if (mD2D1Device) {
-    mD2D1Device->Release();
-    mD2D1Device = nullptr;
-  }
 
   RefPtr<ID2D1Factory1> factory = D2DFactory1();
 
@@ -671,12 +656,7 @@ Factory::GetD2DVRAMUsageSourceSurface()
 void
 Factory::D2DCleanup()
 {
-  if (mD2D1Device) {
-    mD2D1Device->Release();
-    mD2D1Device = nullptr;
-  }
   DrawTargetD2D::CleanupD2D();
-  DrawTargetD2D1::CleanupD2D();
 }
 
 #endif // XP_WIN
@@ -764,7 +744,6 @@ Factory::CreateWrappingDataSourceSurface(uint8_t *aData, int32_t aStride,
                                          const IntSize &aSize,
                                          SurfaceFormat aFormat)
 {
-  MOZ_ASSERT(aData);
   if (aSize.width <= 0 || aSize.height <= 0) {
     return nullptr;
   }
@@ -784,7 +763,7 @@ Factory::CreateDataSourceSurface(const IntSize &aSize,
                                  bool aZero)
 {
   if (!CheckSurfaceSize(aSize)) {
-    gfxCriticalError() << "Failed to allocate a surface due to invalid size " << aSize;
+    gfxWarning() << "CreateDataSourceSurface failed with bad size";
     return nullptr;
   }
 
@@ -804,7 +783,7 @@ Factory::CreateDataSourceSurfaceWithStride(const IntSize &aSize,
                                            bool aZero)
 {
   if (aStride < aSize.width * BytesPerPixel(aFormat)) {
-    gfxCriticalError() << "CreateDataSourceSurfaceWithStride failed with bad stride";
+    gfxWarning() << "CreateDataSourceSurfaceWithStride failed with bad stride";
     return nullptr;
   }
 
@@ -813,7 +792,7 @@ Factory::CreateDataSourceSurfaceWithStride(const IntSize &aSize,
     return newSurf.forget();
   }
 
-  gfxCriticalError() << "CreateDataSourceSurfaceWithStride failed to initialize";
+  gfxWarning() << "CreateDataSourceSurfaceWithStride failed to initialize";
   return nullptr;
 }
 

@@ -851,16 +851,6 @@ DrawTargetD2D1::factory()
 }
 
 void
-DrawTargetD2D1::CleanupD2D()
-{
-  if (mFactory) {
-    RadialGradientEffectD2D1::Unregister(mFactory);
-    mFactory->Release();
-    mFactory = nullptr;
-  }
-}
-
-void
 DrawTargetD2D1::MarkChanged()
 {
   if (mSnapshot) {

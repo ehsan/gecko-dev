@@ -42,7 +42,8 @@ public:
                             bool* aFinished) MOZ_OVERRIDE
   {
     *aOutput = aInput;
-    StreamBuffer::Track* track = mOutputStream->EnsureTrack(MEDIA_STREAM_DEST_TRACK_ID);
+    StreamBuffer::Track* track = mOutputStream->EnsureTrack(MEDIA_STREAM_DEST_TRACK_ID,
+                                                            aStream->SampleRate());
     AudioSegment* segment = track->Get<AudioSegment>();
     segment->AppendAndConsumeChunk(aOutput);
   }

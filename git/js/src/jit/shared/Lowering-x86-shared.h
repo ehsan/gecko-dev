@@ -57,8 +57,6 @@ class LIRGeneratorX86Shared : public LIRGeneratorShared
     bool visitSimdValueX4(MSimdValueX4 *ins);
     bool visitCompareExchangeTypedArrayElement(MCompareExchangeTypedArrayElement *ins);
     bool visitAtomicTypedArrayElementBinop(MAtomicTypedArrayElementBinop *ins);
-    bool visitAsmJSCompareExchangeHeap(MAsmJSCompareExchangeHeap *ins);
-    bool visitAsmJSAtomicBinopHeap(MAsmJSAtomicBinopHeap *ins);
 };
 
 } // namespace jit

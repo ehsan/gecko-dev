@@ -333,8 +333,6 @@
     _(AsmJSVoidReturn)              \
     _(AsmJSPassStackArg)            \
     _(AsmJSCall)                    \
-    _(AsmJSCompareExchangeHeap)     \
-    _(AsmJSAtomicBinopHeap)         \
     _(InterruptCheckPar)            \
     _(RecompileCheck)               \
     _(MemoryBarrier)                \

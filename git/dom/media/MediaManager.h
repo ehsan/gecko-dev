@@ -239,8 +239,8 @@ private:
   nsRefPtr<MediaEngineSource> mAudioSource; // threadsafe refcnt
   nsRefPtr<MediaEngineSource> mVideoSource; // threadsafe refcnt
   nsRefPtr<SourceMediaStream> mStream; // threadsafe refcnt
-  StreamTime mLastEndTimeAudio;
-  StreamTime mLastEndTimeVideo;
+  TrackTicks mLastEndTimeAudio;
+  TrackTicks mLastEndTimeVideo;
   bool mFinished;
 
   // Accessed from MainThread and MSG thread

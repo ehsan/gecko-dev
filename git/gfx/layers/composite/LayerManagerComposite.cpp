@@ -166,7 +166,10 @@ LayerManagerComposite::BeginTransaction()
   
   mIsCompositorReady = true;
 
-  mClonedLayerTreeProperties = LayerProperties::CloneFrom(GetRoot());
+  if (Compositor::GetBackend() == LayersBackend::LAYERS_OPENGL ||
+      Compositor::GetBackend() == LayersBackend::LAYERS_BASIC) {
+    mClonedLayerTreeProperties = LayerProperties::CloneFrom(GetRoot());
+  }
 }
 
 void

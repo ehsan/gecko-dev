@@ -27,7 +27,6 @@ const STRING_TYPE_NAME         = "type.%ID%.name";
 const SEC_IN_A_DAY              = 24 * 60 * 60;
 
 const EME_PREF_ENABLED         = "media.eme.enabled";
-const NS_GRE_BIN_DIR           = "GreBinD";
 const CLEARKEY_PLUGIN_ID       = "gmp-clearkey";
 const CLEARKEY_VERSION         = "0.1";
 
@@ -284,8 +283,7 @@ let OpenH264Provider = {
 
     if (Preferences.get(EME_PREF_ENABLED, false)) {
       try {
-        let greBinDir = Services.dirsvc.get(NS_GRE_BIN_DIR, Ci.nsILocalFile);
-        gmpService.addPluginDirectory(OS.Path.join(greBinDir.path,
+        gmpService.addPluginDirectory(OS.Path.join(OS.Constants.Path.libDir,
                                                    CLEARKEY_PLUGIN_ID,
                                                    CLEARKEY_VERSION));
       } catch (e) {

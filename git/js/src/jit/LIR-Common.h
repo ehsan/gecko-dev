@@ -7,7 +7,6 @@
 #ifndef jit_LIR_Common_h
 #define jit_LIR_Common_h
 
-#include "jit/AtomicOp.h"
 #include "jit/shared/Assembler-shared.h"
 
 // This file declares LIR instructions that are common to every platform.
@@ -3451,20 +3450,18 @@ class LStringSplit : public LCallInstructionHelper<1, 2, 0>
     }
 };
 
-class LSubstr : public LInstructionHelper<1, 3, 3>
+class LSubstr : public LInstructionHelper<1, 3, 1>
 {
   public:
     LIR_HEADER(Substr)
 
     LSubstr(const LAllocation &string, const LAllocation &begin, const LAllocation &length,
-            const LDefinition &temp, const LDefinition &temp2, const LDefinition &temp3)
+            const LDefinition &temp)
     {
         setOperand(0, string);
         setOperand(1, begin);
         setOperand(2, length);
         setTemp(0, temp);
-        setTemp(1, temp2);
-        setTemp(2, temp3);
     }
     const LAllocation *string() {
         return getOperand(0);
@@ -3477,12 +3474,6 @@ class LSubstr : public LInstructionHelper<1, 3, 3>
     }
     const LDefinition *temp() {
         return getTemp(0);
-    }
-    const LDefinition *temp2() {
-        return getTemp(1);
-    }
-    const LDefinition *temp3() {
-        return getTemp(2);
     }
     const MStringSplit *mir() const {
         return mir_->toStringSplit();
@@ -4569,9 +4560,8 @@ class LLoadUnboxedPointerT : public LInstructionHelper<1, 2, 0>
         setOperand(1, index);
     }
 
-    MDefinition *mir() {
-        MOZ_ASSERT(mir_->isLoadUnboxedObjectOrNull() || mir_->isLoadUnboxedString());
-        return mir_;
+    const MLoadUnboxedString *mir() const {
+        return mir_->toLoadUnboxedString();
     }
     const LAllocation *elements() {
         return getOperand(0);
@@ -6591,60 +6581,6 @@ class LAsmJSStoreHeap : public LInstructionHelper<0, 2, 0>
     }
 };
 
-class LAsmJSCompareExchangeHeap : public LInstructionHelper<1, 3, 0>
-{
-  public:
-    LIR_HEADER(AsmJSCompareExchangeHeap);
-
-    LAsmJSCompareExchangeHeap(const LAllocation &ptr, const LAllocation &oldValue,
-                              const LAllocation &newValue)
-    {
-        setOperand(0, ptr);
-        setOperand(1, oldValue);
-        setOperand(2, newValue);
-    }
-
-    const LAllocation *ptr() {
-        return getOperand(0);
-    }
-    const LAllocation *oldValue() {
-        return getOperand(1);
-    }
-    const LAllocation *newValue() {
-        return getOperand(2);
-    }
-
-    MAsmJSCompareExchangeHeap *mir() const {
-        return mir_->toAsmJSCompareExchangeHeap();
-    }
-};
-
-class LAsmJSAtomicBinopHeap : public LInstructionHelper<1, 2, 1>
-{
-  public:
-    LIR_HEADER(AsmJSAtomicBinopHeap);
-    LAsmJSAtomicBinopHeap(const LAllocation &ptr, const LAllocation &value,
-                          const LDefinition &temp)
-    {
-        setOperand(0, ptr);
-        setOperand(1, value);
-        setTemp(0, temp);
-    }
-    const LAllocation *ptr() {
-        return getOperand(0);
-    }
-    const LAllocation *value() {
-        return getOperand(1);
-    }
-    const LDefinition *temp() {
-        return getTemp(0);
-    }
-
-    MAsmJSAtomicBinopHeap *mir() const {
-        return mir_->toAsmJSAtomicBinopHeap();
-    }
-};
-
 class LAsmJSLoadGlobalVar : public LInstructionHelper<1, 0, 0>
 {
   public:
@@ -6929,19 +6865,19 @@ class LThrowUninitializedLexical : public LCallInstructionHelper<0, 0, 0>
 class LMemoryBarrier : public LInstructionHelper<0, 0, 0>
 {
   private:
-    const MemoryBarrierBits type_;
+    const int type_;
 
   public:
     LIR_HEADER(MemoryBarrier)
 
     // The parameter 'type' is a bitwise 'or' of the barrier types needed,
     // see AtomicOp.h.
-    explicit LMemoryBarrier(MemoryBarrierBits type) : type_(type)
+    explicit LMemoryBarrier(int type) : type_(type)
     {
-        MOZ_ASSERT((type_ & ~MembarAllbits) == MembarNobits);
+        MOZ_ASSERT((type_ & ~MembarAllbits) == 0);
     }
 
-    MemoryBarrierBits type() const {
+    int type() const {
         return type_;
     }
 

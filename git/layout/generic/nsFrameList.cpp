@@ -347,30 +347,31 @@ nsFrameList::GetPrevVisualFor(nsIFrame* aFrame) const
 {
   if (!mFirstChild)
     return nullptr;
-
+  
   nsIFrame* parent = mFirstChild->GetParent();
   if (!parent)
     return aFrame ? aFrame->GetPrevSibling() : LastChild();
 
-  nsBidiDirection paraDir = nsBidiPresUtils::ParagraphDirection(mFirstChild);
+  nsBidiLevel baseLevel = nsBidiPresUtils::GetFrameBaseLevel(mFirstChild);  
 
   nsAutoLineIterator iter = parent->GetLineIterator();
-  if (!iter) {
+  if (!iter) { 
     // Parent is not a block Frame
     if (parent->GetType() == nsGkAtoms::lineFrame) {
       // Line frames are not bidi-splittable, so need to consider bidi reordering
-      if (paraDir == NSBIDI_LTR) {
+      if (baseLevel == NSBIDI_LTR) {
         return nsBidiPresUtils::GetFrameToLeftOf(aFrame, mFirstChild, -1);
       } else { // RTL
         return nsBidiPresUtils::GetFrameToRightOf(aFrame, mFirstChild, -1);
       }
     } else {
       // Just get the next or prev sibling, depending on block and frame direction.
-      if (nsBidiPresUtils::IsFrameInParagraphDirection(mFirstChild)) {
+      nsBidiLevel frameEmbeddingLevel = nsBidiPresUtils::GetFrameEmbeddingLevel(mFirstChild);
+      if ((frameEmbeddingLevel & 1) == (baseLevel & 1)) {
         return aFrame ? aFrame->GetPrevSibling() : LastChild();
       } else {
         return aFrame ? aFrame->GetNextSibling() : mFirstChild;
-      }
+      }    
     }
   }
 
@@ -395,7 +396,7 @@ nsFrameList::GetPrevVisualFor(nsIFrame* aFrame) const
   if (aFrame) {
     iter->GetLine(thisLine, &firstFrameOnLine, &numFramesOnLine, lineBounds, &lineFlags);
 
-    if (paraDir == NSBIDI_LTR) {
+    if (baseLevel == NSBIDI_LTR) {
       frame = nsBidiPresUtils::GetFrameToLeftOf(aFrame, firstFrameOnLine, numFramesOnLine);
     } else { // RTL
       frame = nsBidiPresUtils::GetFrameToRightOf(aFrame, firstFrameOnLine, numFramesOnLine);
@@ -406,7 +407,7 @@ nsFrameList::GetPrevVisualFor(nsIFrame* aFrame) const
     // Get the last frame of the previous line
     iter->GetLine(thisLine - 1, &firstFrameOnLine, &numFramesOnLine, lineBounds, &lineFlags);
 
-    if (paraDir == NSBIDI_LTR) {
+    if (baseLevel == NSBIDI_LTR) {
       frame = nsBidiPresUtils::GetFrameToLeftOf(nullptr, firstFrameOnLine, numFramesOnLine);
     } else { // RTL
       frame = nsBidiPresUtils::GetFrameToRightOf(nullptr, firstFrameOnLine, numFramesOnLine);
@@ -425,21 +426,22 @@ nsFrameList::GetNextVisualFor(nsIFrame* aFrame) const
   if (!parent)
     return aFrame ? aFrame->GetPrevSibling() : mFirstChild;
 
-  nsBidiDirection paraDir = nsBidiPresUtils::ParagraphDirection(mFirstChild);
-
+  nsBidiLevel baseLevel = nsBidiPresUtils::GetFrameBaseLevel(mFirstChild);
+  
   nsAutoLineIterator iter = parent->GetLineIterator();
   if (!iter) { 
     // Parent is not a block Frame
     if (parent->GetType() == nsGkAtoms::lineFrame) {
       // Line frames are not bidi-splittable, so need to consider bidi reordering
-      if (paraDir == NSBIDI_LTR) {
+      if (baseLevel == NSBIDI_LTR) {
         return nsBidiPresUtils::GetFrameToRightOf(aFrame, mFirstChild, -1);
       } else { // RTL
         return nsBidiPresUtils::GetFrameToLeftOf(aFrame, mFirstChild, -1);
       }
     } else {
       // Just get the next or prev sibling, depending on block and frame direction.
-      if (nsBidiPresUtils::IsFrameInParagraphDirection(mFirstChild)) {
+      nsBidiLevel frameEmbeddingLevel = nsBidiPresUtils::GetFrameEmbeddingLevel(mFirstChild);
+      if ((frameEmbeddingLevel & 1) == (baseLevel & 1)) {
         return aFrame ? aFrame->GetNextSibling() : mFirstChild;
       } else {
         return aFrame ? aFrame->GetPrevSibling() : LastChild();
@@ -467,20 +469,20 @@ nsFrameList::GetNextVisualFor(nsIFrame* aFrame) const
 
   if (aFrame) {
     iter->GetLine(thisLine, &firstFrameOnLine, &numFramesOnLine, lineBounds, &lineFlags);
-
-    if (paraDir == NSBIDI_LTR) {
+    
+    if (baseLevel == NSBIDI_LTR) {
       frame = nsBidiPresUtils::GetFrameToRightOf(aFrame, firstFrameOnLine, numFramesOnLine);
     } else { // RTL
       frame = nsBidiPresUtils::GetFrameToLeftOf(aFrame, firstFrameOnLine, numFramesOnLine);
     }
   }
-
+  
   int32_t numLines = iter->GetNumLines();
   if (!frame && thisLine < numLines - 1) {
     // Get the first frame of the next line
     iter->GetLine(thisLine + 1, &firstFrameOnLine, &numFramesOnLine, lineBounds, &lineFlags);
-
-    if (paraDir == NSBIDI_LTR) {
+    
+    if (baseLevel == NSBIDI_LTR) {
       frame = nsBidiPresUtils::GetFrameToRightOf(nullptr, firstFrameOnLine, numFramesOnLine);
     } else { // RTL
       frame = nsBidiPresUtils::GetFrameToLeftOf(nullptr, firstFrameOnLine, numFramesOnLine);

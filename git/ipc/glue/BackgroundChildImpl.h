@@ -41,9 +41,6 @@ protected:
   virtual ~BackgroundChildImpl();
 
   virtual void
-  ProcessingError(Result aWhat) MOZ_OVERRIDE;
-
-  virtual void
   ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
 
   virtual PBackgroundTestChild*

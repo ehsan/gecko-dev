@@ -2184,15 +2184,10 @@ LIRGenerator::visitStringReplace(MStringReplace *ins)
 bool
 LIRGenerator::visitSubstr(MSubstr *ins)
 {
-    // The last temporary need to be a register that can handle 8bit moves, but
-    // there is no way to signal that to register allocator, except to give a
-    // fixed temporary that is able to do this.
-    LSubstr *lir = new (alloc()) LSubstr(useRegister(ins->string()),
+    LSubstr *lir = new (alloc()) LSubstr(useFixed(ins->string(), CallTempReg1),
                                          useRegister(ins->begin()),
                                          useRegister(ins->length()),
-                                         temp(),
-                                         temp(),
-                                         tempFixed(CallTempReg1));
+                                         temp());
     return define(lir, ins) && assignSafepoint(lir, ins);
 }
 
@@ -2739,17 +2734,7 @@ LIRGenerator::visitLoadUnboxedObjectOrNull(MLoadUnboxedObjectOrNull *ins)
 {
     MOZ_ASSERT(IsValidElementsType(ins->elements(), ins->offsetAdjustment()));
     MOZ_ASSERT(ins->index()->type() == MIRType_Int32);
-
-    if (ins->type() == MIRType_Object) {
-        LLoadUnboxedPointerT *lir = new(alloc()) LLoadUnboxedPointerT(useRegister(ins->elements()),
-                                                                      useRegisterOrConstant(ins->index()));
-        if (ins->bailOnNull() && !assignSnapshot(lir, Bailout_TypeBarrierO))
-            return false;
-        return define(lir, ins);
-    }
-
     MOZ_ASSERT(ins->type() == MIRType_Value);
-    MOZ_ASSERT(!ins->bailOnNull());
 
     LLoadUnboxedPointerV *lir = new(alloc()) LLoadUnboxedPointerV(useRegister(ins->elements()),
                                                                   useRegisterOrConstant(ins->index()));

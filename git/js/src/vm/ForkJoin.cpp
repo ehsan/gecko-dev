@@ -1107,26 +1107,30 @@ ForkJoinOperation::reportBailoutWarnings()
                 sp.printf(" (%s:%u)", script->filename(), PCToLineNumber(script, frame->pc()));
 
                 // Format bindings.
+                BindingVector bindings(cx_);
+                if (!FillBindingVector(script, &bindings))
+                    return false;
+
                 unsigned scopeSlot = 0;
-                for (BindingIter bi(script); bi; bi++) {
+                for (unsigned i = 0; i < bindings.length(); i++) {
                     JSAutoByteString nameBytes;
                     const char *nameChars = nullptr;
-                    RootedPropertyName bindingName(cx_, bi->name());
+                    RootedPropertyName bindingName(cx_, bindings[i].name());
                     nameChars = nameBytes.encodeUtf8(cx_, bindingName);
                     if (!nameChars)
                         return false;
 
                     RootedValue arg(cx_);
-                    if (bi->aliased()) {
+                    if (bindings[i].aliased()) {
                         arg = frame->callObj().getSlot(scopeSlot);
                         scopeSlot++;
-                    } else if (bi->kind() == Binding::ARGUMENT) {
+                    } else if (i < frame->numFormalArgs()) {
                         if (script->argsObjAliasesFormals() && frame->hasArgsObj())
-                            arg = frame->argsObj().arg(bi.argIndex());
+                            arg = frame->argsObj().arg(i);
                         else
-                            arg = frame->unaliasedActual(bi.argIndex(), DONT_CHECK_ALIASING);
+                            arg = frame->unaliasedActual(i, DONT_CHECK_ALIASING);
                     } else {
-                        arg = frame->unaliasedLocal(bi.frameIndex());
+                        arg = frame->unaliasedLocal(i - frame->numFormalArgs());
                     }
 
                     JSAutoByteString valueBytes;
@@ -1135,7 +1139,7 @@ ForkJoinOperation::reportBailoutWarnings()
                         return false;
 
                     sp.printf("\n      %s %s = %s",
-                              bi->kind() == Binding::ARGUMENT ? "arg" : "var",
+                              bindings[i].kind() == Binding::ARGUMENT ? "arg" : "var",
                               nameChars, valueChars);
                 }
             }

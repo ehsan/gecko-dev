@@ -68,10 +68,9 @@
                     ["default isPrimary", event.isPrimary, false]
                 ]);
             });
-
-            test(function() {
-                assert_not_equals(window.PointerEvent, undefined);
-
+            
+            if(typeof(PointerEvent) != "undefined") {
+                try { 
                 pointerEventCustom = new PointerEvent("pointerover",
                 {bubbles: testBubbles,
                 cancelable: testCancelable,
@@ -93,7 +92,10 @@
                 pointerEventDefault = new PointerEvent("pointerout");
                 target0.dispatchEvent(pointerEventDefault);
                 done();
-            }, "PointerEvent constructor");
+                }catch(e) {
+                    assert_unreached("Construction and dispatching of PointerEvent failed");
+                }
+            }
         }
     </script>
     <div id="complete-notice">

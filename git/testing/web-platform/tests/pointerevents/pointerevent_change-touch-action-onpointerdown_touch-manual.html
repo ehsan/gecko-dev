@@ -105,7 +105,6 @@
                 });
 
                 on_event(target0, 'pointerdown', function(event) {
-                    detected_pointertypes[event.pointerType] = true;
                     if(!styleIsChanged) {
                         var before = document.getElementById('target0').style.touchAction;
 
@@ -117,6 +116,7 @@
                             assert_true(before != after, "touch-action was changed");
                         }, "touch-action was changed");
 
+                        detected_pointertypes[event.pointerType] = true;
                         styleIsChanged = true;
                     }
                 });

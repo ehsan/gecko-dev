@@ -42,6 +42,18 @@ static uint8_t kStunMessage[] = {
 };
 static size_t kStunMessageLen = sizeof(kStunMessage);
 
+class DummySocket;
+
+// Temporary whitelist for refcounted class dangerously exposing its destructor.
+// Filed bug 1028140 to address this class.
+namespace mozilla {
+template<>
+struct HasDangerousPublicDestructor<DummySocket>
+{
+  static const bool value = true;
+};
+}
+
 class DummySocket : public NrSocketBase {
  public:
   DummySocket()
@@ -195,8 +207,6 @@ class DummySocket : public NrSocketBase {
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(DummySocket);
 
  private:
-  ~DummySocket() {}
-
   DISALLOW_COPY_ASSIGN(DummySocket);
 
   size_t writable_;  // Amount we allow someone to write.
@@ -220,7 +230,7 @@ class BufferedStunSocketTest : public ::testing::Test {
   }
 
   void SetUp() {
-    nsRefPtr<DummySocket> dummy(new DummySocket());
+    ScopedDeletePtr<DummySocket> dummy(new DummySocket());
 
     int r = nr_socket_buffered_stun_create(
         dummy->get_nr_socket(),
@@ -241,7 +251,7 @@ class BufferedStunSocketTest : public ::testing::Test {
   nr_socket *socket() { return test_socket_; }
 
  protected:
-  nsRefPtr<DummySocket> dummy_;
+  DummySocket *dummy_;
   nr_socket *test_socket_;
   nr_transport_addr remote_addr_;
 };
