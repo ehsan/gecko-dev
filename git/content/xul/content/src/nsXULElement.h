@@ -682,13 +682,10 @@ protected:
                         PRBool aCompileEventHandlers);
     void MaybeAddPopupListener(nsIAtom* aLocalName);
 
-    nsIWidget* GetWindowWidget();
 
     nsresult HideWindowChrome(PRBool aShouldHide);
 
     void SetTitlebarColor(nscolor aColor, PRBool aActive);
-
-    void SetDrawsInTitlebar(PRBool aState);
 
     const nsAttrName* InternalGetExistingAttrNameFromQName(const nsAString& aStr) const;
 

@@ -619,7 +619,7 @@ nsCSSSelector::AppendToStringWithoutCombinatorsOrNegations
       }
     }
     nsAutoString prefix;
-    (isPseudoElement ? mLowercaseTag : mCasedTag)->ToString(prefix);
+    mLowercaseTag->ToString(prefix);
     aString.Append(prefix);
   }
 

@@ -84,7 +84,7 @@ public:
   /*
    * @return PR_FALSE if there is no stroke
    */
-  PRBool HasStroke();
+  PRBool HasStroke(gfxContext *aContext);
   /*
    * Set up a cairo context for measuring a stroked path
    */

@@ -64,11 +64,7 @@ using mozilla::TimeDuration;
 struct ElementPropertyTransition
 {
   nsCSSProperty mProperty;
-  // We need to have mCurrentValue as a member of this structure because
-  // the result of the calls to |Interpolate| might hold data that this
-  // object's owning style rule needs to keep alive (after calling
-  // UncomputeValue on it in MapRuleInfoInto).
-  nsStyleAnimation::Value mStartValue, mEndValue, mCurrentValue;
+  nsStyleAnimation::Value mStartValue, mEndValue;
   TimeStamp mStartTime; // actual start plus transition delay
 
   // data from the relevant nsTransition
@@ -231,11 +227,12 @@ ElementTransitionsStyleRule::MapRuleInfoInto(nsRuleData* aRuleData)
 
       double valuePortion =
         pt.mTimingFunction.GetSplineValue(timePortion);
+      nsStyleAnimation::Value value;
 #ifdef DEBUG
       PRBool ok =
 #endif
         nsStyleAnimation::Interpolate(pt.mStartValue, pt.mEndValue,
-                                      valuePortion, pt.mCurrentValue);
+                                      valuePortion, value);
       NS_ABORT_IF_FALSE(ok, "could not interpolate values");
 
       void *prop =
@@ -244,7 +241,7 @@ ElementTransitionsStyleRule::MapRuleInfoInto(nsRuleData* aRuleData)
       ok =
 #endif
         nsStyleAnimation::UncomputeValue(pt.mProperty, aRuleData->mPresContext,
-                                         pt.mCurrentValue, prop);
+                                         value, prop);
       NS_ABORT_IF_FALSE(ok, "could not store computed value");
     }
   }

@@ -15,7 +15,6 @@
   <script type="text/javascript" src="seek7.js"></script>
   <script type="text/javascript" src="seek8.js"></script>
   <script type="text/javascript" src="seek9.js"></script>
-  <script type="text/javascript" src="seek10.js"></script>
 </head>
 <body>
 <pre id="test">
@@ -39,7 +38,7 @@ function doNextFile() {
     return;
   }
 
-  for (var i = 1; i <= 10; ++i) {
+  for (var i = 1; i <= 9; ++i) {
     var v = document.createElement('video');
     v.src = test.name;
     document.body.appendChild(v);
