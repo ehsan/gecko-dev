@@ -61,9 +61,7 @@ function onLoad() {
       is(id, hudId, "below position is correct after reopen");
 
       diffHeight = Math.abs(hudBox.clientHeight - boxHeight);
-      // dump("Diffheight: " + diffHeight + " clientHeight: " + hudBox.clientHeight + " boxHeight: " + boxHeight + "\n");
-      // XXX TODO bug 702707
-      todo(diffHeight < 3, "hudBox height is still correct");
+      ok(diffHeight < 3, "hudBox height is still correct");
 
       is(Services.prefs.getCharPref(POSITION_PREF), "below", "pref is below");
 
