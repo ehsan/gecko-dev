@@ -359,8 +359,6 @@ StackSpace::popInvokeFrame(const InvokeFrameGuard &fg)
     JSContext *cx = fg.cx_;
     JSStackFrame *fp = fg.regs_.fp;
 
-    PutActivationObjects(cx, fp);
-
     JS_ASSERT(isCurrentAndActive(cx));
     if (JS_UNLIKELY(currentSegment->getInitialFrame() == fp)) {
         cx->popSegmentAndFrame();
@@ -418,18 +416,14 @@ StackSpace::pushInlineFrame(JSContext *cx, JSScript *script, JSStackFrame *fp,
 JS_REQUIRES_STACK JS_ALWAYS_INLINE void
 StackSpace::popInlineFrame(JSContext *cx, JSStackFrame *prev, Value *newsp)
 {
-    JSFrameRegs *regs = cx->regs;
-    JSStackFrame *fp = regs->fp;
-
     JS_ASSERT(isCurrentAndActive(cx));
     JS_ASSERT(cx->hasActiveSegment());
-    JS_ASSERT(fp->prev_ == prev);
-    JS_ASSERT(!fp->hasImacropc());
-    JS_ASSERT(prev->base() <= newsp && newsp <= fp->formalArgsEnd());
+    JS_ASSERT(cx->regs->fp->prev_ == prev);
+    JS_ASSERT(!cx->regs->fp->hasImacropc());
+    JS_ASSERT(prev->base() <= newsp && newsp <= cx->regs->fp->formalArgsEnd());
 
-    PutActivationObjects(cx, fp);
-
-    regs->pc = prev->pc(cx, fp);
+    JSFrameRegs *regs = cx->regs;
+    regs->pc = prev->pc(cx, regs->fp);
     regs->fp = prev;
     regs->sp = newsp;
 }

@@ -490,6 +490,7 @@ extern "C" void *JaegerThrowpoline(js::VMFrame *vmFrame);
 #else
 extern "C" void JaegerThrowpoline();
 #endif
+extern "C" void InjectJaegerReturn();
 
 #endif /* jsjaeger_h__ */
 
