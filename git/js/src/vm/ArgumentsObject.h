@@ -18,7 +18,7 @@ class AbstractFramePtr;
 class ScriptFrameIter;
 
 namespace jit {
-class JitFrameLayout;
+class IonJSFrameLayout;
 }
 
 /*
@@ -142,7 +142,7 @@ class ArgumentsObject : public NativeObject
      */
     static ArgumentsObject *createUnexpected(JSContext *cx, ScriptFrameIter &iter);
     static ArgumentsObject *createUnexpected(JSContext *cx, AbstractFramePtr frame);
-    static ArgumentsObject *createForIon(JSContext *cx, jit::JitFrameLayout *frame,
+    static ArgumentsObject *createForIon(JSContext *cx, jit::IonJSFrameLayout *frame,
                                          HandleObject scopeChain);
 
     /*
@@ -291,7 +291,7 @@ class ArgumentsObject : public NativeObject
 
     static void MaybeForwardToCallObject(AbstractFramePtr frame, ArgumentsObject *obj,
                                          ArgumentsData *data);
-    static void MaybeForwardToCallObject(jit::JitFrameLayout *frame, HandleObject callObj,
+    static void MaybeForwardToCallObject(jit::IonJSFrameLayout *frame, HandleObject callObj,
                                          ArgumentsObject *obj, ArgumentsData *data);
 };
 

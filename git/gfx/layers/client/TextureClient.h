@@ -37,12 +37,6 @@ class GLContext;
 class SharedSurface;
 }
 
-// When defined, we track which pool the tile came from and test for
-// any inconsistencies.  This can be defined in release build as well.
-#ifdef DEBUG
-#define GFX_DEBUG_TRACK_CLIENTS_IN_POOL 1
-#endif
-
 namespace layers {
 
 class AsyncTransactionTracker;
@@ -57,9 +51,6 @@ class PTextureChild;
 class TextureChild;
 class BufferTextureClient;
 class TextureClient;
-#ifdef GFX_DEBUG_TRACK_CLIENTS_IN_POOL
-class TextureClientPool;
-#endif
 class KeepAlive;
 
 /**
@@ -483,12 +474,6 @@ protected:
   friend class RemoveTextureFromCompositableTracker;
   friend void TestTextureClientSurface(TextureClient*, gfxImageSurface*);
   friend void TestTextureClientYCbCr(TextureClient*, PlanarYCbCrData&);
-
-#ifdef GFX_DEBUG_TRACK_CLIENTS_IN_POOL
-public:
-  // Pointer to the pool this tile came from.
-  TextureClientPool* mPoolTracker;
-#endif
 };
 
 /**

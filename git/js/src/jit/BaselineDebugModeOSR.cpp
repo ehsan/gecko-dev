@@ -8,11 +8,12 @@
 
 #include "mozilla/DebugOnly.h"
 
+#include "jit/IonLinker.h"
+
 #include "jit/JitcodeMap.h"
-#include "jit/Linker.h"
 #include "jit/PerfSpewer.h"
 
-#include "jit/JitFrames-inl.h"
+#include "jit/IonFrames-inl.h"
 #include "vm/Stack-inl.h"
 
 using namespace js;
@@ -214,7 +215,7 @@ CollectJitStackScripts(JSContext *cx, const Debugger::ExecutionObservableSet &ob
 
           case JitFrame_BaselineStub:
             prevFrameStubPtr =
-                reinterpret_cast<BaselineStubFrameLayout *>(iter.fp())->maybeStubPtr();
+                reinterpret_cast<IonBaselineStubFrameLayout *>(iter.fp())->maybeStubPtr();
             break;
 
           case JitFrame_IonJS: {
@@ -339,7 +340,7 @@ PatchBaselineFramesForDebugMode(JSContext *cx, const Debugger::ExecutionObservab
     // state). Specifics on what need to be done are documented below.
     //
 
-    CommonFrameLayout *prev = nullptr;
+    IonCommonFrameLayout *prev = nullptr;
     size_t entryIndex = *start;
 
     for (JitFrameIterator iter(activation); !iter.done(); ++iter) {
@@ -501,8 +502,8 @@ PatchBaselineFramesForDebugMode(JSContext *cx, const Debugger::ExecutionObservab
             if (!entry.recompiled())
                 break;
 
-            BaselineStubFrameLayout *layout =
-                reinterpret_cast<BaselineStubFrameLayout *>(iter.fp());
+            IonBaselineStubFrameLayout *layout =
+                reinterpret_cast<IonBaselineStubFrameLayout *>(iter.fp());
             MOZ_ASSERT(layout->maybeStubPtr() == entry.oldStub);
 
             // Patch baseline stub frames for case A above.

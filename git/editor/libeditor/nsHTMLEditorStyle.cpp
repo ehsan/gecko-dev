@@ -1103,7 +1103,7 @@ nsHTMLEditor::GetInlinePropertyBase(nsIAtom *aProperty,
 {
   NS_ENSURE_TRUE(aProperty, NS_ERROR_NULL_POINTER);
 
-  nsresult result = NS_OK;
+  nsresult result;
   *aAny = false;
   *aAll = true;
   *aFirst = false;

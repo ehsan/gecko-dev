@@ -160,14 +160,14 @@ this.Utils = { // jshint ignore:line
   },
 
   get AllMessageManagers() {
-    let messageManagers = new Set();
+    let messageManagers = [];
 
     function collectLeafMessageManagers(mm) {
       for (let i = 0; i < mm.childCount; i++) {
         let childMM = mm.getChildAt(i);
 
         if ('sendAsyncMessage' in childMM) {
-          messageManagers.add(childMM);
+          messageManagers.push(childMM);
         } else {
           collectLeafMessageManagers(childMM);
         }
@@ -179,19 +179,12 @@ this.Utils = { // jshint ignore:line
     let document = this.CurrentContentDoc;
 
     if (document) {
-      if (document.location.host === 'b2g') {
-        // The document is a b2g app chrome (ie. Mulet).
-        let contentBrowser = this.win.content.shell.contentBrowser;
-        messageManagers.add(this.getMessageManager(contentBrowser));
-        document = contentBrowser.contentDocument;
-      }
-
       let remoteframes = document.querySelectorAll('iframe');
 
       for (let i = 0; i < remoteframes.length; ++i) {
         let mm = this.getMessageManager(remoteframes[i]);
         if (mm) {
-          messageManagers.add(mm);
+          messageManagers.push(mm);
         }
       }
 

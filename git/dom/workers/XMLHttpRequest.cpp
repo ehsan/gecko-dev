@@ -1072,13 +1072,16 @@ Proxy::HandleEvent(nsIDOMEvent* aEvent)
     AutoSafeJSContext cx;
     JSAutoRequest ar(cx);
 
+    JS::Rooted<JSObject*> scope(cx, xpc::UnprivilegedJunkScope());
+    JSAutoCompartment ac(cx, scope);
+
     JS::Rooted<JS::Value> value(cx);
-    if (!GetOrCreateDOMReflectorNoWrap(cx, mXHR, &value)) {
+    if (!WrapNewBindingObject(cx, mXHR, &value)) {
       return NS_ERROR_FAILURE;
     }
 
-    JS::Rooted<JSObject*> scope(cx, &value.toObject());
-    JSAutoCompartment ac(cx, scope);
+    scope = js::UncheckedUnwrap(&value.toObject());
+    JSAutoCompartment ac2(cx, scope);
 
     runnable->Dispatch(cx);
   }
@@ -2172,7 +2175,7 @@ XMLHttpRequest::Send(File& aBody, ErrorResult& aRv)
   }
 
   JS::Rooted<JS::Value> value(cx);
-  if (!GetOrCreateDOMReflector(cx, &aBody, &value)) {
+  if (!WrapNewBindingObject(cx, &aBody, &value)) {
     aRv.Throw(NS_ERROR_FAILURE);
     return;
   }

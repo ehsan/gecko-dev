@@ -11,7 +11,7 @@
 
 #include "jit/AtomicOp.h"
 #include "jit/IonCaches.h"
-#include "jit/JitFrames.h"
+#include "jit/IonFrames.h"
 #include "jit/mips/Assembler-mips.h"
 #include "jit/MoveResolver.h"
 
@@ -303,12 +303,12 @@ class MacroAssemblerMIPS : public Assembler
 
   public:
     // calls an Ion function, assumes that the stack is untouched (8 byte alinged)
-    void ma_callJit(const Register reg);
+    void ma_callIon(const Register reg);
     // callso an Ion function, assuming that sp has already been decremented
-    void ma_callJitNoPush(const Register reg);
+    void ma_callIonNoPush(const Register reg);
     // calls an ion function, assuming that the stack is currently not 8 byte aligned
-    void ma_callJitHalfPush(const Register reg);
-    void ma_callJitHalfPush(Label *label);
+    void ma_callIonHalfPush(const Register reg);
+    void ma_callIonHalfPush(Label *label);
 
     void ma_call(ImmPtr dest);
 
@@ -419,7 +419,7 @@ class MacroAssemblerMIPSCompat : public MacroAssemblerMIPS
         BufferOffset bo = m_buffer.nextOffset();
         addPendingJump(bo, ImmPtr(c->raw()), Relocation::JITCODE);
         ma_liPatchable(ScratchRegister, Imm32((uint32_t)c->raw()));
-        ma_callJitHalfPush(ScratchRegister);
+        ma_callIonHalfPush(ScratchRegister);
     }
     void call(const CallSiteDesc &desc, const Register reg) {
         call(reg);
@@ -431,7 +431,7 @@ class MacroAssemblerMIPSCompat : public MacroAssemblerMIPS
     }
 
     void callAndPushReturnAddress(Label *label) {
-        ma_callJitHalfPush(label);
+        ma_callIonHalfPush(label);
     }
 
     void branch(JitCode *c) {
@@ -1137,9 +1137,9 @@ public:
     void callWithExitFrame(JitCode *target);
     void callWithExitFrame(JitCode *target, Register dynStack);
 
-    // Makes a call using the only two methods that it is sane for indep code
-    // to make a call.
-    void callJit(Register callee);
+    // Makes an Ion call using the only two methods that it is sane for
+    // indep code to make a call
+    void callIon(Register callee);
     void callJitFromAsmJS(Register callee);
 
     void reserveStack(uint32_t amount);

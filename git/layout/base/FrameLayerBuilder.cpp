@@ -268,20 +268,6 @@ public:
     mNewChildLayersIndex(-1),
     mAllDrawingAbove(false)
   {}
-
-#ifdef MOZ_DUMP_PAINTING
-  /**
-   * Keep track of important decisions for debugging.
-   */
-  nsAutoCString mLog;
-
-  #define FLB_LOG_PAINTED_LAYER_DECISION(tld, ...) \
-          tld->mLog.AppendPrintf("\t\t\t\t"); \
-          tld->mLog.AppendPrintf(__VA_ARGS__);
-#else
-  #define FLB_LOG_PAINTED_LAYER_DECISION(...)
-#endif
-
   /**
    * Record that an item has been added to the PaintedLayer, so we
    * need to update our regions.
@@ -304,16 +290,16 @@ public:
   const nsIFrame* GetAnimatedGeometryRoot() { return mAnimatedGeometryRoot; }
 
   /**
-   * Add the given hit regions to the hit regions to the hit retions for this
-   * PaintedLayer.
+   * Add aHitRegion, aMaybeHitRegion, and aDispatchToContentHitRegion to the
+   * hit regions for this PaintedLayer.
    */
-  void AccumulateEventRegions(nsDisplayLayerEventRegions* aEventRegions)
+  void AccumulateEventRegions(const nsRegion& aHitRegion,
+                              const nsRegion& aMaybeHitRegion,
+                              const nsRegion& aDispatchToContentHitRegion)
   {
-    FLB_LOG_PAINTED_LAYER_DECISION(this, "Accumulating event regions %p against tld=%p\n", aEventRegions, this);
-
-    mHitRegion.Or(mHitRegion, aEventRegions->HitRegion());
-    mMaybeHitRegion.Or(mMaybeHitRegion, aEventRegions->MaybeHitRegion());
-    mDispatchToContentHitRegion.Or(mDispatchToContentHitRegion, aEventRegions->DispatchToContentHitRegion());
+    mHitRegion.Or(mHitRegion, aHitRegion);
+    mMaybeHitRegion.Or(mMaybeHitRegion, aMaybeHitRegion);
+    mDispatchToContentHitRegion.Or(mDispatchToContentHitRegion, aDispatchToContentHitRegion);
   }
 
   /**
@@ -387,6 +373,20 @@ public:
   {
     return mFixedPosFrameForLayerData != nullptr;
   }
+
+#ifdef MOZ_DUMP_PAINTING
+
+  /**
+   * Keep track of important decisions for debugging.
+   */
+  nsAutoCString mLog;
+
+  #define FLB_LOG_PAINTED_LAYER_DECISION(tld, ...) \
+          tld->mLog.AppendPrintf("\t\t\t\t"); \
+          tld->mLog.AppendPrintf(__VA_ARGS__);
+#else
+  #define FLB_LOG_PAINTED_LAYER_DECISION(...)
+#endif
 
   /**
    * The region of visible content in the layer, relative to the
@@ -3055,7 +3055,9 @@ ContainerState::ProcessDisplayItems(nsDisplayList* aList)
       if (itemType == nsDisplayItem::TYPE_LAYER_EVENT_REGIONS) {
         nsDisplayLayerEventRegions* eventRegions =
             static_cast<nsDisplayLayerEventRegions*>(item);
-        paintedLayerData->AccumulateEventRegions(eventRegions);
+        paintedLayerData->AccumulateEventRegions(eventRegions->HitRegion(),
+                                                eventRegions->MaybeHitRegion(),
+                                                eventRegions->DispatchToContentHitRegion());
       } else {
         // check to see if the new item has rounded rect clips in common with
         // other items in the layer

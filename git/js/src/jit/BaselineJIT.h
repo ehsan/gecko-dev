@@ -15,7 +15,7 @@
 #include "ds/LifoAlloc.h"
 #include "jit/Bailouts.h"
 #include "jit/IonCode.h"
-#include "jit/MacroAssembler.h"
+#include "jit/IonMacroAssembler.h"
 
 namespace js {
 namespace jit {
@@ -415,10 +415,10 @@ CanEnterBaselineMethod(JSContext *cx, RunState &state);
 MethodStatus
 CanEnterBaselineAtBranch(JSContext *cx, InterpreterFrame *fp, bool newType);
 
-JitExecStatus
+IonExecStatus
 EnterBaselineMethod(JSContext *cx, RunState &state);
 
-JitExecStatus
+IonExecStatus
 EnterBaselineAtBranch(JSContext *cx, InterpreterFrame *fp, jsbytecode *pc);
 
 void

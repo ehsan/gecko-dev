@@ -69,7 +69,7 @@ MResumePoint::writeRecoverData(CompactBufferWriter &writer) const
 #ifdef DEBUG
     // Ensure that all snapshot which are encoded can safely be used for
     // bailouts.
-    if (GetJitContext()->cx) {
+    if (GetIonContext()->cx) {
         uint32_t stackDepth;
         bool reachablePC;
         jsbytecode *bailPC = pc();
@@ -77,7 +77,7 @@ MResumePoint::writeRecoverData(CompactBufferWriter &writer) const
         if (mode() == MResumePoint::ResumeAfter)
             bailPC = GetNextPc(pc());
 
-        if (!ReconstructStackDepth(GetJitContext()->cx, script,
+        if (!ReconstructStackDepth(GetIonContext()->cx, script,
                                    bailPC, &stackDepth, &reachablePC))
         {
             return false;

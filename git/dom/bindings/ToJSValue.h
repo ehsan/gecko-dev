@@ -151,7 +151,7 @@ ToJSValue(JSContext* aCx,
   // Make sure non-webidl objects don't sneak in here
   MOZ_ASSERT(aArgument.IsDOMBinding());
 
-  return GetOrCreateDOMReflector(aCx, aArgument, aValue);
+  return WrapNewBindingObject(aCx, aArgument, aValue);
 }
 
 // Accept typed arrays built from appropriate nsTArray values

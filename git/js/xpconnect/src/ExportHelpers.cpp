@@ -113,7 +113,7 @@ StackScopedCloneRead(JSContext *cx, JSStructuredCloneReader *reader, uint32_t ta
         JS::Rooted<JS::Value> val(cx);
         {
             nsRefPtr<File> blob = new File(global, cloneData->mBlobImpls[idx]);
-            if (!GetOrCreateDOMReflector(cx, blob, &val)) {
+            if (!WrapNewBindingObject(cx, blob, &val)) {
                 return nullptr;
             }
         }

@@ -11,7 +11,7 @@
 
 #include "jit/Bailouts.h"
 #include "jit/BaselineFrame.h"
-#include "jit/JitFrames.h"
+#include "jit/IonFrames.h"
 
 namespace js {
 namespace jit {

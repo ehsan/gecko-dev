@@ -751,7 +751,6 @@ nsHTMLReflowState::InitFrameType(nsIAtom* aFrameType)
     case NS_STYLE_DISPLAY_TABLE_CAPTION:
     case NS_STYLE_DISPLAY_FLEX:
     case NS_STYLE_DISPLAY_GRID:
-    case NS_STYLE_DISPLAY_RUBY_TEXT_CONTAINER:
       frameType = NS_CSS_FRAME_TYPE_BLOCK;
       break;
 
@@ -763,10 +762,6 @@ nsHTMLReflowState::InitFrameType(nsIAtom* aFrameType)
     case NS_STYLE_DISPLAY_INLINE_STACK:
     case NS_STYLE_DISPLAY_INLINE_FLEX:
     case NS_STYLE_DISPLAY_INLINE_GRID:
-    case NS_STYLE_DISPLAY_RUBY:
-    case NS_STYLE_DISPLAY_RUBY_BASE:
-    case NS_STYLE_DISPLAY_RUBY_TEXT:
-    case NS_STYLE_DISPLAY_RUBY_BASE_CONTAINER:
       frameType = NS_CSS_FRAME_TYPE_INLINE;
       break;
 
@@ -2196,7 +2191,7 @@ nsHTMLReflowState::InitConstraints(nsPresContext* aPresContext,
           !IsSideCaption(frame, mStyleDisplay) &&
           mStyleDisplay->mDisplay != NS_STYLE_DISPLAY_INLINE_TABLE &&
           !flexContainerFrame) {
-        CalculateBlockSideMargins(aFrameType);
+        CalculateBlockSideMargins(AvailableISize(), ComputedISize(), aFrameType);
       }
     }
   }
@@ -2342,35 +2337,19 @@ nsCSSOffsetState::InitOffsets(nscoord aHorizontalPercentBasis,
 //
 // Note: the width unit is not auto when this is called
 void
-nsHTMLReflowState::CalculateBlockSideMargins(nsIAtom* aFrameType)
+nsHTMLReflowState::CalculateBlockSideMargins(nscoord aAvailISize,
+                                             nscoord aComputedISize,
+                                             nsIAtom* aFrameType)
 {
-  // Calculations here are done in the containing block's writing mode,
-  // which is where margins will eventually be applied: we're calculating
-  // margins that will be used by the container in its inline direction,
-  // which in the case of an orthogonal contained block will correspond to
-  // the block direction of this reflow state. So in the orthogonal-flow
-  // case, "CalculateBlock*Side*Margins" will actually end up adjusting
-  // the BStart/BEnd margins; those are the "sides" of the block from its
-  // container's point of view.
-  WritingMode cbWM =
-    mCBReflowState ? mCBReflowState->GetWritingMode(): GetWritingMode();
-
-  nscoord computedISizeCBWM = ComputedSize(cbWM).ISize(cbWM);
-  nscoord availISizeCBWM = AvailableSize(cbWM).ISize(cbWM);
-
-  NS_WARN_IF_FALSE(NS_UNCONSTRAINEDSIZE != computedISizeCBWM &&
-                   NS_UNCONSTRAINEDSIZE != availISizeCBWM,
+  NS_WARN_IF_FALSE(NS_UNCONSTRAINEDSIZE != aComputedISize &&
+                   NS_UNCONSTRAINEDSIZE != aAvailISize,
                    "have unconstrained inline-size; this should only result from "
                    "very large sizes, not attempts at intrinsic inline-size "
                    "calculation");
 
-  LogicalMargin margin =
-    ComputedLogicalMargin().ConvertTo(cbWM, mWritingMode);
-  LogicalMargin borderPadding =
-    ComputedLogicalBorderPadding().ConvertTo(cbWM, mWritingMode);
-  nscoord sum = margin.IStartEnd(cbWM) +
-    borderPadding.IStartEnd(cbWM) + computedISizeCBWM;
-  if (sum == availISizeCBWM) {
+  nscoord sum = ComputedLogicalMargin().IStartEnd(mWritingMode) +
+    ComputedLogicalBorderPadding().IStartEnd(mWritingMode) + aComputedISize;
+  if (sum == aAvailISize) {
     // The sum is already correct
     return;
   }
@@ -2379,13 +2358,21 @@ nsHTMLReflowState::CalculateBlockSideMargins(nsIAtom* aFrameType)
   // remains constant while we do this.
 
   // Calculate how much space is available for margins
-  nscoord availMarginSpace = availISizeCBWM - sum;
+  nscoord availMarginSpace = aAvailISize - sum;
+
+  LogicalMargin margin = ComputedLogicalMargin();
 
   // If the available margin space is negative, then don't follow the
   // usual overconstraint rules.
   if (availMarginSpace < 0) {
-    margin.IEnd(cbWM) += availMarginSpace;
-    SetComputedLogicalMargin(margin.ConvertTo(mWritingMode, cbWM));
+    if (mCBReflowState &&
+        mCBReflowState->GetWritingMode().IsBidiLTR() !=
+          mWritingMode.IsBidiLTR()) {
+      margin.IStart(mWritingMode) += availMarginSpace;
+    } else {
+      margin.IEnd(mWritingMode) += availMarginSpace;
+    }
+    SetComputedLogicalMargin(margin);
     return;
   }
 
@@ -2393,8 +2380,8 @@ nsHTMLReflowState::CalculateBlockSideMargins(nsIAtom* aFrameType)
   // in section 10.3.3.
   bool isAutoStartMargin, isAutoEndMargin;
   const nsStyleSides& styleSides = mStyleMargin->mMargin;
-  if (cbWM.IsVertical()) {
-    if (cbWM.IsBidiLTR()) {
+  if (mWritingMode.IsVertical()) {
+    if (mWritingMode.IsBidiLTR()) {
       isAutoStartMargin = eStyleUnit_Auto == styleSides.GetTopUnit();
       isAutoEndMargin = eStyleUnit_Auto == styleSides.GetBottomUnit();
     } else {
@@ -2402,7 +2389,7 @@ nsHTMLReflowState::CalculateBlockSideMargins(nsIAtom* aFrameType)
       isAutoEndMargin = eStyleUnit_Auto == styleSides.GetTopUnit();
     }
   } else {
-    if (cbWM.IsBidiLTR()) {
+    if (mWritingMode.IsBidiLTR()) {
       isAutoStartMargin = eStyleUnit_Auto == styleSides.GetLeftUnit();
       isAutoEndMargin = eStyleUnit_Auto == styleSides.GetRightUnit();
     } else {
@@ -2441,6 +2428,11 @@ nsHTMLReflowState::CalculateBlockSideMargins(nsIAtom* aFrameType)
     }
     // Otherwise apply the CSS rules, and ignore one margin by forcing
     // it to 'auto', depending on 'direction'.
+    else if (mCBReflowState &&
+             mCBReflowState->GetWritingMode().IsBidiLTR() !=
+               mWritingMode.IsBidiLTR()) {
+      isAutoStartMargin = true;
+    }
     else {
       isAutoEndMargin = true;
     }
@@ -2454,15 +2446,15 @@ nsHTMLReflowState::CalculateBlockSideMargins(nsIAtom* aFrameType)
     if (isAutoEndMargin) {
       // Both margins are 'auto' so the computed addition should be equal
       nscoord forStart = availMarginSpace / 2;
-      margin.IStart(cbWM) += forStart;
-      margin.IEnd(cbWM) += availMarginSpace - forStart;
+      margin.IStart(mWritingMode) += forStart;
+      margin.IEnd(mWritingMode) += availMarginSpace - forStart;
     } else {
-      margin.IStart(cbWM) += availMarginSpace;
+      margin.IStart(mWritingMode) += availMarginSpace;
     }
   } else if (isAutoEndMargin) {
-    margin.IEnd(cbWM) += availMarginSpace;
+    margin.IEnd(mWritingMode) += availMarginSpace;
   }
-  SetComputedLogicalMargin(margin.ConvertTo(mWritingMode, cbWM));
+  SetComputedLogicalMargin(margin);
 }
 
 #define NORMAL_LINE_HEIGHT_FACTOR 1.2f    // in term of emHeight 

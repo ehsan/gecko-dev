@@ -89,7 +89,6 @@ NfcContentHelper.prototype = {
 
   _window: null,
   _requestMap: null,
-  _rfState: null,
   eventListener: null,
 
   init: function init(aWindow) {
@@ -108,13 +107,6 @@ NfcContentHelper.prototype = {
         updateDebug();
       };
     }
-
-    let info = cpmm.sendSyncMessage("NFC:QueryInfo")[0];
-    this._rfState = info.rfState;
-  },
-
-  queryRFState: function queryRFState() {
-    return this._rfState;
   },
 
   encodeNDEFRecords: function encodeNDEFRecords(records) {
@@ -326,10 +318,6 @@ NfcContentHelper.prototype = {
             break;
           case NFC.TAG_EVENT_LOST:
             this.eventListener.notifyTagLost(result.sessionToken);
-            break;
-          case NFC.RF_EVENT_STATE_CHANGE:
-            this._rfState = result.rfState;
-            this.eventListener.notifyRFStateChange(this._rfState);
             break;
         }
         break;

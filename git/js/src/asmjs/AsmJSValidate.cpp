@@ -2293,7 +2293,7 @@ class FunctionCompiler
     MIRGraph *             graph_;
     CompileInfo *          info_;
     MIRGenerator *         mirGen_;
-    Maybe<JitContext>      jitContext_;
+    Maybe<IonContext>      ionContext_;
 
     MBasicBlock *          curBlock_;
 
@@ -2401,7 +2401,7 @@ class FunctionCompiler
         MOZ_ASSERT(locals_.count() == argTypes.length() + varInitializers_.length());
 
         alloc_  = lifo_.new_<TempAllocator>(&lifo_);
-        jitContext_.emplace(m_.cx(), alloc_);
+        ionContext_.emplace(m_.cx(), alloc_);
 
         graph_  = lifo_.new_<MIRGraph>(alloc_);
         info_   = lifo_.new_<CompileInfo>(locals_.count(), SequentialExecution);
@@ -7580,7 +7580,7 @@ CheckFunctionsSequential(ModuleCompiler &m)
 
         int64_t before = PRMJ_Now();
 
-        JitContext jcx(m.cx(), &mir->alloc());
+        IonContext icx(m.cx(), &mir->alloc());
 
         IonSpewNewFunction(&mir->graph(), NullPtr());
 
@@ -7687,7 +7687,7 @@ GetUsedTask(ModuleCompiler &m, ParallelGroupState &group, AsmJSParallelTask **ou
 
     {
         // Perform code generation on the main thread.
-        JitContext jitContext(m.cx(), &task->mir->alloc());
+        IonContext ionContext(m.cx(), &task->mir->alloc());
         if (!GenerateCode(m, func, *task->mir, *task->lir))
             return false;
     }
@@ -8586,16 +8586,6 @@ GenerateFFIIonExit(ModuleCompiler &m, const ModuleCompiler::ExitDescriptor &exit
         masm.storePtr(reg2, Address(reg0, offsetOfJitJSContext));
     }
 
-    MOZ_ASSERT(masm.framePushed() == framePushed);
-
-    // Reload the global register since Ion code can clobber any register.
-#if defined(JS_CODEGEN_ARM) || defined(JS_CODEGEN_MIPS)
-    JS_STATIC_ASSERT(MaybeSavedGlobalReg > 0);
-    masm.loadPtr(Address(StackPointer, savedGlobalOffset), GlobalReg);
-#else
-    JS_STATIC_ASSERT(MaybeSavedGlobalReg == 0);
-#endif
-
     masm.branchTestMagic(Assembler::Equal, JSReturnOperand, throwLabel);
 
     Label oolConvert;
@@ -8618,6 +8608,16 @@ GenerateFFIIonExit(ModuleCompiler &m, const ModuleCompiler::ExitDescriptor &exit
 
     Label done;
     masm.bind(&done);
+
+    MOZ_ASSERT(masm.framePushed() == framePushed);
+
+    // Reload the global register since Ion code can clobber any register.
+#if defined(JS_CODEGEN_ARM) || defined(JS_CODEGEN_MIPS)
+    JS_STATIC_ASSERT(MaybeSavedGlobalReg > 0);
+    masm.loadPtr(Address(StackPointer, savedGlobalOffset), GlobalReg);
+#else
+    JS_STATIC_ASSERT(MaybeSavedGlobalReg == 0);
+#endif
 
     // The heap pointer has to be reloaded anyway since Ion could have clobbered
     // it. Additionally, the FFI may have detached the heap buffer.
@@ -9047,7 +9047,7 @@ FinishModule(ModuleCompiler &m,
 {
     LifoAlloc lifo(TempAllocator::PreferredLifoChunkSize);
     TempAllocator alloc(&lifo);
-    JitContext jitContext(m.cx(), &alloc);
+    IonContext ionContext(m.cx(), &alloc);
 
     m.masm().resetForNewCodeGenerator(alloc);
 

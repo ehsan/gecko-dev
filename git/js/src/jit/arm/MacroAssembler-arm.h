@@ -14,7 +14,7 @@
 #include "jit/arm/Assembler-arm.h"
 #include "jit/AtomicOp.h"
 #include "jit/IonCaches.h"
-#include "jit/JitFrames.h"
+#include "jit/IonFrames.h"
 #include "jit/MoveResolver.h"
 
 using mozilla::DebugOnly;
@@ -401,15 +401,15 @@ class MacroAssemblerARM : public Assembler
     BufferOffset ma_vstr(VFPRegister src, Register base, Register index, int32_t shift = defaultShift, Condition cc = Always);
     // Calls an Ion function, assumes that the stack is untouched (8 byte
     // aligned).
-    void ma_callJit(const Register reg);
+    void ma_callIon(const Register reg);
     // Calls an Ion function, assuming that sp has already been decremented.
-    void ma_callJitNoPush(const Register reg);
+    void ma_callIonNoPush(const Register reg);
     // Calls an ion function, assuming that the stack is currently not 8 byte
     // aligned.
-    void ma_callJitHalfPush(const Register reg);
+    void ma_callIonHalfPush(const Register reg);
     // Calls an ion function, assuming that the stack is currently not 8 byte
     // aligned.
-    void ma_callJitHalfPush(Label *label);
+    void ma_callIonHalfPush(Label *label);
 
     void ma_call(ImmPtr dest);
 
@@ -579,7 +579,7 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
             rs = L_LDR;
 
         ma_movPatchable(ImmPtr(c->raw()), ScratchRegister, Always, rs);
-        ma_callJitHalfPush(ScratchRegister);
+        ma_callIonHalfPush(ScratchRegister);
     }
     void call(const CallSiteDesc &desc, const Register reg) {
         call(reg);
@@ -1290,9 +1290,9 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
     void callWithExitFrame(JitCode *target);
     void callWithExitFrame(JitCode *target, Register dynStack);
 
-    // Makes a call using the only two methods that it is sane for
+    // Makes an Ion call using the only two methods that it is sane for
     // independent code to make a call.
-    void callJit(Register callee);
+    void callIon(Register callee);
     void callJitFromAsmJS(Register callee);
 
     void reserveStack(uint32_t amount);
