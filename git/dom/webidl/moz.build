@@ -20,7 +20,6 @@ WEBIDL_FILES = [
     'AbstractWorker.webidl',
     'AnalyserNode.webidl',
     'AnimationEvent.webidl',
-    'AppInfo.webidl',
     'AppNotificationServiceOptions.webidl',
     'ArchiveReader.webidl',
     'ArchiveRequest.webidl',
@@ -470,6 +469,12 @@ if CONFIG['MOZ_GAMEPAD']:
         'Gamepad.webidl',
     ]
 
+if CONFIG['MOZ_B2G_RIL']:
+    WEBIDL_FILES += [
+        'MozStkCommandEvent.webidl',
+        'MozVoicemail.webidl',
+    ]
+
 WEBIDL_FILES += [
     'CloseEvent.webidl',
     'CustomEvent.webidl',
@@ -512,16 +517,10 @@ if CONFIG['MOZ_B2G_RIL']:
         'MozCellBroadcastEvent.webidl',
         'MozEmergencyCbModeEvent.webidl',
         'MozOtaStatusEvent.webidl',
-        'MozStkCommandEvent.webidl',
-        'MozVoicemail.webidl',
         'MozVoicemailEvent.webidl',
-        'USSDReceivedEvent.webidl',
-    ]
-
-if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
-    WEBIDL_FILES += [
         'MozWifiConnectionInfoEvent.webidl',
         'MozWifiStatusChangeEvent.webidl',
+        'USSDReceivedEvent.webidl',
     ]
 
 if CONFIG['MOZ_WEBSPEECH']:

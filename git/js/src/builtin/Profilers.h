@@ -13,12 +13,6 @@
 
 #include "jstypes.h"
 
-#ifdef XP_WIN
-typedef int pid_t;
-#else
-#include <unistd.h>
-#endif
-
 /**
  * Start any profilers that are available and have been configured on for this
  * platform. This is NOT thread safe.
@@ -31,7 +25,7 @@ typedef int pid_t;
  * Returns true if no profilers fail to start.
  */
 extern JS_PUBLIC_API(bool)
-JS_StartProfiling(const char *profileName, pid_t pid);
+JS_StartProfiling(const char *profileName);
 
 /**
  * Stop any profilers that were previously started with JS_StartProfiling.

@@ -208,7 +208,7 @@ public:
   AsyncErrorReporter(JSRuntime* aRuntime,
                      JSErrorReport* aErrorReport,
                      const char* aFallbackMessage,
-                     bool aIsChromeError, // To determine category
+                     nsIPrincipal* aGlobalPrincipal, // To determine category
                      nsPIDOMWindow* aWindow);
 
   NS_IMETHOD Run()

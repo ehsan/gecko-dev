@@ -2033,8 +2033,6 @@ public class BrowserProvider extends ContentProvider {
     }
 
     private void cleanupSomeDeletedRecords(Uri fromUri, Uri targetUri, String tableName) {
-        Log.d(LOGTAG, "Cleaning up deleted records from " + tableName);
-
         // we cleanup records marked as deleted that are older than a
         // predefined max age. It's important not be too greedy here and
         // remove only a few old deleted records at a time.
@@ -2092,7 +2090,6 @@ public class BrowserProvider extends ContentProvider {
      * Call this method within a transaction.
      */
     private void expireHistory(final SQLiteDatabase db, final int retain, final long keepAfter) {
-        Log.d(LOGTAG, "Expiring history.");
         final long rows = DatabaseUtils.queryNumEntries(db, TABLE_HISTORY);
 
         if (retain >= rows) {
@@ -2128,7 +2125,6 @@ public class BrowserProvider extends ContentProvider {
      * Call this method within a transaction.
      */
     private void expireThumbnails(final SQLiteDatabase db) {
-        Log.d(LOGTAG, "Expiring thumbnails.");
         final String sortOrder = BrowserContract.getFrecencySortOrder(true, false);
         final String sql = "DELETE FROM " + TABLE_THUMBNAILS +
                            " WHERE " + Thumbnails.URL + " NOT IN ( " +
@@ -2851,12 +2847,9 @@ public class BrowserProvider extends ContentProvider {
         if (updated > 0)
             return updated;
 
-        if (0 <= insertBookmark(uri, values)) {
-            // We 'updated' one row.
-            return 1;
-        }
+        insertBookmark(uri, values);
 
-        // If something went wrong, then we updated zero rows.
+        // Return 0 if we added a new row
         return 0;
     }
 
@@ -2933,10 +2926,9 @@ public class BrowserProvider extends ContentProvider {
         if (!values.containsKey(History.TITLE))
             values.put(History.TITLE, values.getAsString(History.URL));
 
-        if (0 <= insertHistory(uri, values)) {
-            return 1;
-        }
+        insertHistory(uri, values);
 
+        // Return 0 if we added a new row
         return 0;
     }
 

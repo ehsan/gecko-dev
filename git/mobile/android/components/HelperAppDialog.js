@@ -60,6 +60,7 @@ HelperAppLauncherDialog.prototype = {
 
     let callback = function(app) {
       aLauncher.MIMEInfo.preferredAction = Ci.nsIMIMEInfo.useHelperApp;
+      app.launch(aLauncher.source);
       if (!app.launch(aLauncher.source)) {
         aLauncher.cancel(Cr.NS_BINDING_ABORTED);
       }

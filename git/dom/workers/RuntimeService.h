@@ -240,9 +240,6 @@ public:
   void
   GarbageCollectAllWorkers(bool aShrinking);
 
-  bool
-  WorkersDumpEnabled();
-
 private:
   RuntimeService();
   ~RuntimeService();

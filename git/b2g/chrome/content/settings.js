@@ -138,11 +138,6 @@ SettingsListener.observe('language.current', 'en-US', function(value) {
       Services.prefs.setBoolPref('dom.mms.requestStatusReport', value);
   });
 
-  SettingsListener.observe('ril.mms.requestReadReport.enabled', true,
-    function(value) {
-      Services.prefs.setBoolPref('dom.mms.requestReadReport', value);
-  });
-
   SettingsListener.observe('ril.cellbroadcast.disabled', false,
     function(value) {
       Services.prefs.setBoolPref('ril.cellbroadcast.disabled', value);

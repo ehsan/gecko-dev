@@ -1233,6 +1233,7 @@ Blob<ActorFlavor>::SetMysteryBlobInfo(const nsString& aName,
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(mBlob);
   MOZ_ASSERT(mRemoteBlob);
+  MOZ_ASSERT(aLength);
   MOZ_ASSERT(aLastModifiedDate != UINT64_MAX);
 
   ToConcreteBlob(mBlob)->SetLazyData(aName, aContentType,
@@ -1251,6 +1252,7 @@ Blob<ActorFlavor>::SetMysteryBlobInfo(const nsString& aContentType,
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(mBlob);
   MOZ_ASSERT(mRemoteBlob);
+  MOZ_ASSERT(aLength);
 
   nsString voidString;
   voidString.SetIsVoid(true);

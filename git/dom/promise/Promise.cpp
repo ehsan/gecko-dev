@@ -445,13 +445,12 @@ Promise::MaybeReportRejected()
   nsCOMPtr<nsPIDOMWindow> win =
     do_QueryInterface(nsJSUtils::GetStaticScriptGlobal(&mResult.toObject()));
 
-  nsIPrincipal* principal = nsContentUtils::GetObjectPrincipal(&mResult.toObject());
   // Now post an event to do the real reporting async
   NS_DispatchToCurrentThread(
     new AsyncErrorReporter(JS_GetObjectRuntime(&mResult.toObject()),
                            report,
                            nullptr,
-                           nsContentUtils::IsSystemPrincipal(principal),
+                           nsContentUtils::GetObjectPrincipal(&mResult.toObject()),
                            win));
 }
 

@@ -60,15 +60,8 @@ IccManager::IccManager()
     return;
   }
 
-  // TODO: Bug 814637 - WebIccManager API: support multiple sim cards
-  // In Multi-sim, there is more than one client in iccProvider. Each client
-  // represents a icc service. To maintain the backward compatibility with
-  // single sim, we always use client 0 for now. Adding support for multiple sim
-  // will be addressed in bug 814637.
-  mClientId = 0;
-
   mListener = new Listener(this);
-  DebugOnly<nsresult> rv = mProvider->RegisterIccMsg(mClientId, mListener);
+  DebugOnly<nsresult> rv = mProvider->RegisterIccMsg(mListener);
   NS_WARN_IF_FALSE(NS_SUCCEEDED(rv),
                    "Failed registering icc messages with provider");
 }
@@ -84,7 +77,7 @@ IccManager::Shutdown()
 {
   if (mProvider && mListener) {
     mListener->Disconnect();
-    mProvider->UnregisterIccMsg(mClientId, mListener);
+    mProvider->UnregisterIccMsg(mListener);
     mProvider = nullptr;
     mListener = nullptr;
   }
@@ -100,7 +93,7 @@ IccManager::SendStkResponse(const JS::Value& aCommand,
     return NS_ERROR_FAILURE;
   }
 
-  mProvider->SendStkResponse(mClientId, GetOwner(), aCommand, aResponse);
+  mProvider->SendStkResponse(GetOwner(), aCommand, aResponse);
   return NS_OK;
 }
 
@@ -111,7 +104,7 @@ IccManager::SendStkMenuSelection(uint16_t aItemIdentifier, bool aHelpRequested)
     return NS_ERROR_FAILURE;
   }
 
-  mProvider->SendStkMenuSelection(mClientId, GetOwner(), aItemIdentifier, aHelpRequested);
+  mProvider->SendStkMenuSelection(GetOwner(), aItemIdentifier, aHelpRequested);
   return NS_OK;
 }
 
@@ -122,7 +115,7 @@ IccManager::SendStkTimerExpiration(const JS::Value& aTimer)
     return NS_ERROR_FAILURE;
   }
 
-  mProvider->SendStkTimerExpiration(mClientId, GetOwner(), aTimer);
+  mProvider->SendStkTimerExpiration(GetOwner(), aTimer);
   return NS_OK;
 }
 
@@ -133,7 +126,7 @@ IccManager::SendStkEventDownload(const JS::Value& aEvent)
     return NS_ERROR_FAILURE;
   }
 
-  mProvider->SendStkEventDownload(mClientId, GetOwner(), aEvent);
+  mProvider->SendStkEventDownload(GetOwner(), aEvent);
   return NS_OK;
 }
 
@@ -146,7 +139,7 @@ IccManager::GetIccInfo(nsIDOMMozIccInfo** aIccInfo)
     return NS_ERROR_FAILURE;
   }
 
-  return mProvider->GetIccInfo(mClientId, aIccInfo);
+  return mProvider->GetIccInfo(aIccInfo);
 }
 
 NS_IMETHODIMP
@@ -157,8 +150,7 @@ IccManager::GetCardState(nsAString& cardState)
   if (!mProvider) {
     return NS_ERROR_FAILURE;
   }
-
-  return mProvider->GetCardState(mClientId, cardState);
+  return mProvider->GetCardState(cardState);
 }
 
 NS_IMETHODIMP
@@ -168,7 +160,7 @@ IccManager::GetCardLock(const nsAString& aLockType, nsIDOMDOMRequest** aDomReque
     return NS_ERROR_FAILURE;
   }
 
-  return mProvider->GetCardLockState(mClientId, GetOwner(), aLockType, aDomRequest);
+  return mProvider->GetCardLockState(GetOwner(), aLockType, aDomRequest);
 }
 
 NS_IMETHODIMP
@@ -178,7 +170,7 @@ IccManager::SetCardLock(const JS::Value& aInfo, nsIDOMDOMRequest** aDomRequest)
     return NS_ERROR_FAILURE;
   }
 
-  return mProvider->SetCardLock(mClientId, GetOwner(), aInfo, aDomRequest);
+  return mProvider->SetCardLock(GetOwner(), aInfo, aDomRequest);
 }
 
 NS_IMETHODIMP
@@ -188,7 +180,7 @@ IccManager::UnlockCardLock(const JS::Value& aInfo, nsIDOMDOMRequest** aDomReques
     return NS_ERROR_FAILURE;
   }
 
-  return mProvider->UnlockCardLock(mClientId, GetOwner(), aInfo, aDomRequest);
+  return mProvider->UnlockCardLock(GetOwner(), aInfo, aDomRequest);
 }
 
 NS_IMETHODIMP
@@ -198,7 +190,7 @@ IccManager::GetCardLockRetryCount(const nsAString& aLockType, nsIDOMDOMRequest**
     return NS_ERROR_FAILURE;
   }
 
-  return mProvider->GetCardLockRetryCount(mClientId, GetOwner(), aLockType, aDomRequest);
+  return mProvider->GetCardLockRetryCount(GetOwner(), aLockType, aDomRequest);
 }
 
 NS_IMETHODIMP
@@ -208,7 +200,7 @@ IccManager::IccOpenChannel(const nsAString& aAid, nsIDOMDOMRequest** aRequest)
     return NS_ERROR_FAILURE;
   }
 
-  return mProvider->IccOpenChannel(mClientId, GetOwner(), aAid, aRequest);
+  return mProvider->IccOpenChannel(GetOwner(), aAid, aRequest);
 }
 
 NS_IMETHODIMP
@@ -218,7 +210,7 @@ IccManager::IccExchangeAPDU(int32_t aChannel, const jsval& aApdu, nsIDOMDOMReque
     return NS_ERROR_FAILURE;
   }
 
-  return mProvider->IccExchangeAPDU(mClientId, GetOwner(), aChannel, aApdu, aRequest);
+  return mProvider->IccExchangeAPDU(GetOwner(), aChannel, aApdu, aRequest);
 }
 
 NS_IMETHODIMP
@@ -228,7 +220,7 @@ IccManager::IccCloseChannel(int32_t aChannel, nsIDOMDOMRequest** aRequest)
     return NS_ERROR_FAILURE;
   }
 
-  return mProvider->IccCloseChannel(mClientId, GetOwner(), aChannel, aRequest);
+  return mProvider->IccCloseChannel(GetOwner(), aChannel, aRequest);
 }
 
 NS_IMETHODIMP
@@ -238,7 +230,7 @@ IccManager::ReadContacts(const nsAString& aContactType, nsIDOMDOMRequest** aRequ
     return NS_ERROR_FAILURE;
   }
 
-  return mProvider->ReadContacts(mClientId, GetOwner(), aContactType, aRequest);
+  return mProvider->ReadContacts(GetOwner(), aContactType, aRequest);
 }
 
 NS_IMETHODIMP
@@ -251,7 +243,7 @@ IccManager::UpdateContact(const nsAString& aContactType,
     return NS_ERROR_FAILURE;
   }
 
-  return mProvider->UpdateContact(mClientId, GetOwner(), aContactType, aContact, aPin2, aRequest);
+  return mProvider->UpdateContact(GetOwner(), aContactType, aContact, aPin2, aRequest);
 }
 
 NS_IMPL_EVENT_HANDLER(IccManager, stkcommand)

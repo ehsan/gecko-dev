@@ -392,10 +392,6 @@ WebGLContext::SetDimensions(int32_t width, int32_t height)
     if (gl) {
         MakeContextCurrent();
 
-        // If we've already drawn, we should commit the current buffer.
-        PresentScreenBuffer();
-
-        // ResizeOffscreen scraps the current prod buffer before making a new one.
         gl->ResizeOffscreen(gfxIntSize(width, height)); // Doesn't matter if it succeeds (soft-fail)
         // It's unlikely that we'll get a proper-sized context if we recreate if we didn't on resize
 
@@ -404,7 +400,9 @@ WebGLContext::SetDimensions(int32_t width, int32_t height)
         mHeight = gl->OffscreenSize().height;
         mResetLayer = true;
 
-        ClearScreen();
+        ScopedBindFramebuffer autoFB(gl, 0);
+        gl->ClearSafely();
+        mShouldPresent = true;
 
         return NS_OK;
     }

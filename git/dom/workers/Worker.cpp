@@ -94,7 +94,7 @@ public:
 
   static JSObject*
   Create(JSContext* aCx, WorkerPrivate* aParentObj, const nsAString& aScriptURL,
-         bool aIsChromeWorker, WorkerPrivate::WorkerType aWorkerType,
+         bool aIsChromeWorker, bool aIsSharedWorker,
          const nsAString& aSharedWorkerName);
 
 protected:
@@ -128,8 +128,7 @@ protected:
     }
 
     JS::Rooted<JSObject*> obj(aCx,
-      Create(aCx, parent, scriptURL, aIsChromeWorker,
-             WorkerPrivate::WorkerTypeDedicated, EmptyString()));
+      Create(aCx, parent, scriptURL, aIsChromeWorker, false, EmptyString()));
     if (!obj) {
       return false;
     }
@@ -562,13 +561,10 @@ Worker::GetInstancePrivate(JSContext* aCx, JSObject* aObj,
 JSObject*
 Worker::Create(JSContext* aCx, WorkerPrivate* aParent,
                const nsAString& aScriptURL, bool aIsChromeWorker,
-               WorkerPrivate::WorkerType aWorkerType,
-               const nsAString& aSharedWorkerName)
+               bool aIsSharedWorker, const nsAString& aSharedWorkerName)
 {
-  MOZ_ASSERT_IF(aWorkerType == WorkerPrivate::WorkerTypeShared,
-                !aSharedWorkerName.IsVoid());
-  MOZ_ASSERT_IF(aWorkerType != WorkerPrivate::WorkerTypeShared,
-                aSharedWorkerName.IsEmpty());
+  MOZ_ASSERT_IF(aIsSharedWorker, !aSharedWorkerName.IsVoid());
+  MOZ_ASSERT_IF(!aIsSharedWorker, aSharedWorkerName.IsEmpty());
 
   RuntimeService* runtimeService;
   if (aParent) {
@@ -597,7 +593,7 @@ Worker::Create(JSContext* aCx, WorkerPrivate* aParent,
 
   nsRefPtr<WorkerPrivate> worker =
     WorkerPrivate::Create(aCx, obj, aParent, aScriptURL, aIsChromeWorker,
-                          aWorkerType, aSharedWorkerName);
+                          aIsSharedWorker, aSharedWorkerName);
   if (!worker) {
     // It'd be better if we could avoid allocating the JSObject until after we
     // make sure we have a WorkerPrivate, but failing that we should at least

@@ -73,9 +73,6 @@ public:
   nsresult InitFile(JSContext* aCx,
                     uint32_t aArgc,
                     JS::Value* aArgv);
-  nsresult InitChromeFile(JSContext* aCx,
-                          uint32_t aArgc,
-                          JS::Value* aArgv);
 
   already_AddRefed<nsIDOMBlob>
   CreateSlice(uint64_t aStart, uint64_t aLength, const nsAString& aContentType) MOZ_OVERRIDE;
@@ -106,9 +103,6 @@ public:
   NS_IMETHOD GetMozFullPathInternal(nsAString& aFullPath) MOZ_OVERRIDE;
 
 protected:
-  nsresult ParseBlobArrayArgument(JSContext* aCx, JS::Value& aValue,
-                                  bool aNativeEOL, UnwrapFuncPtr aUnwrapFunc);
-
   nsTArray<nsCOMPtr<nsIDOMBlob> > mBlobs;
   bool mIsFromNsiFile;
 };

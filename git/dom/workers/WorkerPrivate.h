@@ -292,12 +292,6 @@ public:
     }
   };
 
-  enum WorkerType
-  {
-    WorkerTypeDedicated,
-    WorkerTypeShared
-  };
-
 protected:
   typedef mozilla::ErrorResult ErrorResult;
 
@@ -334,12 +328,12 @@ private:
   bool mParentSuspended;
   bool mIsChromeWorker;
   bool mMainThreadObjectsForgotten;
-  WorkerType mWorkerType;
+  bool mIsSharedWorker;
 
 protected:
   WorkerPrivateParent(JSContext* aCx, JS::HandleObject aObject,
                       WorkerPrivate* aParent, const nsAString& aScriptURL,
-                      bool aIsChromeWorker, WorkerType aWorkerType,
+                      bool aIsChromeWorker, bool aIsSharedWorker,
                       const nsAString& aSharedWorkerName, LoadInfo& aLoadInfo);
 
   ~WorkerPrivateParent();
@@ -672,8 +666,6 @@ public:
     aSettings = mJSSettings;
   }
 
-  // The ability to be a chrome worker is orthogonal to the type of
-  // worker [Dedicated|Shared].
   bool
   IsChromeWorker() const
   {
@@ -681,15 +673,9 @@ public:
   }
 
   bool
-  IsDedicatedWorker() const
-  {
-    return mWorkerType == WorkerTypeDedicated;
-  }
-
-  bool
   IsSharedWorker() const
   {
-    return mWorkerType == WorkerTypeShared;
+    return mIsSharedWorker;
   }
 
   const nsString&
@@ -811,7 +797,7 @@ public:
   static already_AddRefed<WorkerPrivate>
   Create(JSContext* aCx, JS::HandleObject aObject, WorkerPrivate* aParent,
          const nsAString& aScriptURL, bool aIsChromeWorker,
-         WorkerType aWorkerType, const nsAString& aSharedWorkerName,
+         bool aIsSharedWorker, const nsAString& aSharedWorkerName,
          LoadInfo* aLoadInfo = nullptr);
 
   static nsresult
@@ -1034,7 +1020,7 @@ public:
 private:
   WorkerPrivate(JSContext* aCx, JS::HandleObject aObject,
                 WorkerPrivate* aParent, const nsAString& aScriptURL,
-                bool aIsChromeWorker, WorkerType aWorkerType,
+                bool aIsChromeWorker, bool aIsSharedWorker,
                 const nsAString& aSharedWorkerName, LoadInfo& aLoadInfo);
 
   bool

@@ -43,7 +43,6 @@
 #include "Location.h"
 #include "Navigator.h"
 #include "Principal.h"
-#include "RuntimeService.h" // For WorkersDumpEnabled().
 #include "ScriptLoader.h"
 #include "Worker.h"
 #include "WorkerPrivate.h"
@@ -588,13 +587,6 @@ private:
   static bool
   Dump(JSContext* aCx, unsigned aArgc, jsval* aVp)
   {
-    RuntimeService* runtimeService = RuntimeService::GetService();
-    MOZ_ASSERT(runtimeService);
-
-    if (!runtimeService->WorkersDumpEnabled()) {
-      return true;
-    }
-
     JS::Rooted<JSObject*> obj(aCx, JS_THIS_OBJECT(aCx, aVp));
     if (!obj) {
       return false;
@@ -1402,14 +1394,9 @@ CreateGlobalScope(JSContext* aCx)
   WorkerPrivate* worker = GetWorkerPrivateFromContext(aCx);
   MOZ_ASSERT(worker);
 
-  const JSClass* classPtr;
-  if (worker->IsDedicatedWorker()) {
-    classPtr = DedicatedWorkerGlobalScope::Class();
-  } else if (worker->IsSharedWorker()) {
-    classPtr = SharedWorkerGlobalScope::Class();
-  } else {
-    MOZ_CRASH("Bad type");
-  }
+  const JSClass* classPtr = worker->IsSharedWorker() ?
+                            SharedWorkerGlobalScope::Class() :
+                            DedicatedWorkerGlobalScope::Class();
 
   JS::CompartmentOptions options;
   if (worker->IsChromeWorker()) {
@@ -1426,16 +1413,12 @@ CreateGlobalScope(JSContext* aCx)
   JSAutoCompartment ac(aCx, global);
 
   // Make the private slots now so that all our instance checks succeed.
-  if (worker->IsDedicatedWorker()) {
-    if (!DedicatedWorkerGlobalScope::InitPrivate(aCx, global, worker)) {
-      return nullptr;
-    }
-  } else if (worker->IsSharedWorker()) {
+  if (worker->IsSharedWorker()) {
     if (!SharedWorkerGlobalScope::InitPrivate(aCx, global, worker)) {
       return nullptr;
-    }
-  } else {
-    MOZ_CRASH("Bad type");
+  }
+  } else if (!DedicatedWorkerGlobalScope::InitPrivate(aCx, global, worker)) {
+    return nullptr;
   }
 
   // Proto chain should be:
@@ -1456,15 +1439,10 @@ CreateGlobalScope(JSContext* aCx)
     return nullptr;
   }
 
-  JS::Rooted<JSObject*> finalScopeProto(aCx);
-  if (worker->IsDedicatedWorker()) {
-    finalScopeProto = DedicatedWorkerGlobalScope::InitClass(aCx, global, scopeProto);
-  } else if (worker->IsSharedWorker()) {
-    finalScopeProto = SharedWorkerGlobalScope::InitClass(aCx, global, scopeProto);
-  } else {
-    MOZ_CRASH("Bad type");
-  }
-
+  JS::Rooted<JSObject*> finalScopeProto(aCx,
+    worker->IsSharedWorker() ?
+    SharedWorkerGlobalScope::InitClass(aCx, global, scopeProto) :
+    DedicatedWorkerGlobalScope::InitClass(aCx, global, scopeProto));
   if (!finalScopeProto) {
     return nullptr;
   }

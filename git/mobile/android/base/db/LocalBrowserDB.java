@@ -600,14 +600,14 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
         // Restore deleted record if possible
         values.put(Bookmarks.IS_DELETED, 0);
 
-        final Uri bookmarksWithInsert = mBookmarksUriWithProfile.buildUpon()
-                                          .appendQueryParameter(BrowserContract.PARAM_INSERT_IF_NEEDED, "true")
-                                          .build();
-        cr.update(bookmarksWithInsert,
-                  values,
-                  Bookmarks.URL + " = ? AND " +
-                  Bookmarks.PARENT + " = " + folderId,
-                  new String[] { uri });
+        int updated = cr.update(mBookmarksUriWithProfile,
+                                values,
+                                Bookmarks.URL + " = ? AND " +
+                                Bookmarks.PARENT + " = ?",
+                                new String[] { uri, String.valueOf(folderId) });
+
+        if (updated == 0)
+            cr.insert(mBookmarksUriWithProfile, values);
 
         // Bump parent modified time using its ID.
         debug("Bumping parent modified time for addition to: " + folderId);
@@ -617,7 +617,7 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
         ContentValues bumped = new ContentValues();
         bumped.put(Bookmarks.DATE_MODIFIED, now);
 
-        final int updated = cr.update(mBookmarksUriWithProfile, bumped, where, args);
+        updated = cr.update(mBookmarksUriWithProfile, bumped, where, args);
         debug("Updated " + updated + " rows to new modified time.");
     }
 
@@ -775,10 +775,13 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
         Uri faviconsUri = getAllFaviconsUri().buildUpon().
                 appendQueryParameter(BrowserContract.PARAM_INSERT_IF_NEEDED, "true").build();
 
-        cr.update(faviconsUri,
-                  values,
-                  Favicons.URL + " = ?",
-                  new String[] { faviconUri });
+        int updated = cr.update(faviconsUri,
+                                values,
+                                Favicons.URL + " = ?",
+                                new String[] { faviconUri });
+
+        if (updated == 0)
+            cr.insert(mFaviconsUriWithProfile, values);
     }
 
     @Override
@@ -798,12 +801,13 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
         values.put(Thumbnails.DATA, data);
         values.put(Thumbnails.URL, uri);
 
-        Uri thumbnailsUri = mThumbnailsUriWithProfile.buildUpon().
-                appendQueryParameter(BrowserContract.PARAM_INSERT_IF_NEEDED, "true").build();
-        cr.update(thumbnailsUri,
-                  values,
-                  Thumbnails.URL + " = ?",
-                  new String[] { uri });
+        int updated = cr.update(mThumbnailsUriWithProfile,
+                                values,
+                                Thumbnails.URL + " = ?",
+                                new String[] { uri });
+
+        if (updated == 0)
+            cr.insert(mThumbnailsUriWithProfile, values);
     }
 
     @Override
@@ -1157,18 +1161,26 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
         values.put(Bookmarks.POSITION, position);
         values.put(Bookmarks.IS_DELETED, 0);
 
-        // We do an update-and-replace here without deleting any existing pins for the given URL.
-        // That means if the user pins a URL, then edits another thumbnail to use the same URL,
-        // we'll end up with two pins for that site. This is the intended behavior, which
-        // incidentally saves us a delete query.
-        Uri uri = mBookmarksUriWithProfile.buildUpon()
-                .appendQueryParameter(BrowserContract.PARAM_INSERT_IF_NEEDED, "true").build();
-        cr.update(uri,
-                  values,
-                  Bookmarks.POSITION + " = ? AND " +
-                  Bookmarks.PARENT + " = ?",
-                  new String[] { Integer.toString(position),
-                                 String.valueOf(Bookmarks.FIXED_PINNED_LIST_ID) });
+        // If this site is already pinned, unpin it
+        cr.delete(mBookmarksUriWithProfile,
+                  Bookmarks.PARENT + " == ? AND " + Bookmarks.URL + " == ?",
+                  new String[] {
+                      String.valueOf(Bookmarks.FIXED_PINNED_LIST_ID),
+                      url
+                  });
+
+        // If something is already pinned in this spot update it
+        int updated = cr.update(mBookmarksUriWithProfile,
+                                values,
+                                Bookmarks.POSITION + " = ? AND " +
+                                Bookmarks.PARENT + " = ?",
+                                new String[] { Integer.toString(position),
+                                               String.valueOf(Bookmarks.FIXED_PINNED_LIST_ID) });
+
+        // Otherwise just insert a new item
+        if (updated == 0) {
+            cr.insert(mBookmarksUriWithProfile, values);
+        }
     }
 
     @Override

@@ -337,7 +337,7 @@ namespace dom {
 AsyncErrorReporter::AsyncErrorReporter(JSRuntime* aRuntime,
                                        JSErrorReport* aErrorReport,
                                        const char* aFallbackMessage,
-                                       bool aIsChromeError,
+                                       nsIPrincipal* aGlobalPrincipal,
                                        nsPIDOMWindow* aWindow)
   : mSourceLine(static_cast<const PRUnichar*>(aErrorReport->uclinebuf))
   , mLineNumber(aErrorReport->lineno)
@@ -365,8 +365,9 @@ AsyncErrorReporter::AsyncErrorReporter(JSRuntime* aRuntime,
     mErrorMsg.AssignWithConversion(aFallbackMessage);
   }
 
-  mCategory = aIsChromeError ? NS_LITERAL_CSTRING("chrome javascript") :
-                               NS_LITERAL_CSTRING("content javascript");
+  mCategory = nsContentUtils::IsSystemPrincipal(aGlobalPrincipal) ?
+    NS_LITERAL_CSTRING("chrome javascript") :
+    NS_LITERAL_CSTRING("content javascript");
 
   mInnerWindowID = 0;
   if (aWindow && aWindow->IsOuterWindow()) {
@@ -420,8 +421,7 @@ public:
                    bool aDispatchEvent)
     // Pass an empty category, then compute ours
     : AsyncErrorReporter(aRuntime, aErrorReport, aFallbackMessage,
-                         nsContentUtils::IsSystemPrincipal(aGlobalPrincipal),
-                         aWindow)
+                         aGlobalPrincipal, aWindow)
     , mScriptGlobal(aScriptGlobal)
     , mOriginPrincipal(aScriptOriginPrincipal)
     , mDispatchEvent(aDispatchEvent)

@@ -2497,6 +2497,7 @@ nsCSSRendering::PaintGradient(nsPresContext* aPresContext,
       // tile with the overall area we're supposed to be filling
       gfxRect fillRect =
         forceRepeatToCoverTiles ? areaToFill : tileRect.Intersect(areaToFill);
+      ctx->NewPath();
       // Try snapping the fill rect. Snap its top-left and bottom-right
       // independently to preserve the orientation.
       gfxPoint snappedFillRectTopLeft = fillRect.TopLeft();
@@ -2522,7 +2523,6 @@ nsCSSRendering::PaintGradient(nsPresContext* aPresContext,
             snappedFillRectBottomRight);
         ctx->SetMatrix(transform);
       }
-      ctx->NewPath();
       ctx->Rectangle(fillRect);
       ctx->Translate(tileRect.TopLeft());
       ctx->SetPattern(gradientPattern);

@@ -280,7 +280,8 @@ GLContext::BlitFramebufferToFramebuffer(GLuint srcFB, GLuint destFB,
     MOZ_ASSERT(!srcFB || fIsFramebuffer(srcFB));
     MOZ_ASSERT(!destFB || fIsFramebuffer(destFB));
 
-    MOZ_ASSERT(IsSupported(GLFeature::framebuffer_blit));
+    MOZ_ASSERT(IsExtensionSupported(EXT_framebuffer_blit) ||
+               IsExtensionSupported(ANGLE_framebuffer_blit));
 
     ScopedBindFramebuffer boundFB(this);
     ScopedGLState scissor(this, LOCAL_GL_SCISSOR_TEST, false);
@@ -302,8 +303,10 @@ GLContext::BlitFramebufferToFramebuffer(GLuint srcFB, GLuint destFB,
 {
     MOZ_ASSERT(!srcFB || fIsFramebuffer(srcFB));
     MOZ_ASSERT(!destFB || fIsFramebuffer(destFB));
-    
-    if (IsSupported(GLFeature::framebuffer_blit)) {
+
+    if (IsExtensionSupported(EXT_framebuffer_blit) ||
+        IsExtensionSupported(ANGLE_framebuffer_blit))
+    {
         BlitFramebufferToFramebuffer(srcFB, destFB,
                                      srcSize, destSize);
         return;
@@ -327,7 +330,9 @@ GLContext::BlitTextureToFramebuffer(GLuint srcTex, GLuint destFB,
     MOZ_ASSERT(fIsTexture(srcTex));
     MOZ_ASSERT(!destFB || fIsFramebuffer(destFB));
 
-    if (IsSupported(GLFeature::framebuffer_blit)) {
+    if (IsExtensionSupported(EXT_framebuffer_blit) ||
+        IsExtensionSupported(ANGLE_framebuffer_blit))
+    {
         ScopedFramebufferForTexture srcWrapper(this, srcTex, srcTarget);
         MOZ_ASSERT(srcWrapper.IsComplete());
 
@@ -447,7 +452,9 @@ GLContext::BlitFramebufferToTexture(GLuint srcFB, GLuint destTex,
     MOZ_ASSERT(!srcFB || fIsFramebuffer(srcFB));
     MOZ_ASSERT(fIsTexture(destTex));
 
-    if (IsSupported(GLFeature::framebuffer_blit)) {
+    if (IsExtensionSupported(EXT_framebuffer_blit) ||
+        IsExtensionSupported(ANGLE_framebuffer_blit))
+    {
         ScopedFramebufferForTexture destWrapper(this, destTex, destTarget);
 
         BlitFramebufferToFramebuffer(srcFB, destWrapper.FB(),

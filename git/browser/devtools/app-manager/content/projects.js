@@ -14,7 +14,7 @@ const {AppProjects} = require("devtools/app-manager/app-projects");
 const {AppValidator} = require("devtools/app-manager/app-validator");
 const {Services} = Cu.import("resource://gre/modules/Services.jsm");
 const {FileUtils} = Cu.import("resource://gre/modules/FileUtils.jsm");
-const {installHosted, installPackaged, getTargetForApp, reloadApp} = require("devtools/app-actor-front");
+const {installHosted, installPackaged, getTargetForApp} = require("devtools/app-actor-front");
 const {EventEmitter} = Cu.import("resource:///modules/devtools/shared/event-emitter.js");
 
 const promise = require("sdk/core/promise");
@@ -71,8 +71,6 @@ let UI = {
       );
     }
   },
-
-  get connected() { return !!this.listTabsResponse; },
 
   _selectFolder: function() {
     let fp = Cc["@mozilla.org/filepicker;1"].createInstance(Ci.nsIFilePicker);
@@ -174,32 +172,20 @@ let UI = {
         .then(() => {
            // Install the app to the device if we are connected,
            // and there is no error
-           if (project.errorsCount == 0 && this.connected) {
+           if (project.errorsCount == 0 && this.listTabsResponse) {
              return this.install(project);
            }
          })
-        .then(() => {
+        .then(
+         () => {
            button.disabled = false;
-           // Finally try to reload the app if it is already opened
-           if (this.connected) {
-             this.reload(project);
-           }
-        },
-        (res) => {
-          button.disabled = false;
-          let message = res.error + ": " + res.message;
-          alert(message);
-          this.connection.log(message);
-        });
-  },
-
-  reload: function (project) {
-    return reloadApp(this.connection.client,
-              this.listTabsResponse.webappsActor,
-              this._getProjectManifestURL(project)).
-      then(() => {
-        this.connection.log("App reloaded");
-      });
+         },
+         (res) => {
+           button.disabled = false;
+           let message = res.error + ": " + res.message;
+           alert(message);
+           this.connection.log(message);
+         });
   },
 
   remove: function(location, event) {
