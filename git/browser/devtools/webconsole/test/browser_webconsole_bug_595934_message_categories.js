@@ -152,7 +152,6 @@ function testNext() {
   pos++;
   if (pos < TESTS.length) {
     waitForSuccess({
-      timeout: 10000,
       name: "test #" + pos + " successful finish",
       validatorFn: function()
       {
@@ -212,8 +211,6 @@ function onDOMNodeInserted(aEvent) {
 }
 
 function test() {
-  requestLongerTimeout(2);
-
   addTab("data:text/html;charset=utf-8,Web Console test for bug 595934 - message categories coverage.");
   browser.addEventListener("load", function onLoad() {
     browser.removeEventListener("load", onLoad, true);

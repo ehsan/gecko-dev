@@ -41,7 +41,6 @@ const BUTTON_POSITION_REVERT=0;
  * The scratchpad object handles the Scratchpad window functionality.
  */
 var Scratchpad = {
-  _instanceId: null,
   _initialWindowTitle: document.title,
 
   /**
@@ -206,15 +205,6 @@ var Scratchpad = {
   _contentSandbox: null,
 
   /**
-   * Unique name for the current Scratchpad instance. Used to distinguish
-   * Scratchpad windows between each other. See bug 661762.
-   */
-  get uniqueName()
-  {
-    return "Scratchpad/" + this._instanceId;
-  },
-
-  /**
    * Get the Cu.Sandbox object for the active tab content window object. Note
    * that the returned object is cached for later reuse. The cached object is
    * kept only for the current location in the current tab of the current
@@ -235,7 +225,7 @@ var Scratchpad = {
         this._previousLocation != this.gBrowser.contentWindow.location.href) {
       let contentWindow = this.gBrowser.selectedBrowser.contentWindow;
       this._contentSandbox = new Cu.Sandbox(contentWindow,
-        { sandboxPrototype: contentWindow, wantXrays: false,
+        { sandboxPrototype: contentWindow, wantXrays: false, 
           sandboxName: 'scratchpad-content'});
       this._contentSandbox.__SCRATCHPAD__ = this;
 
@@ -270,7 +260,7 @@ var Scratchpad = {
     if (!this._chromeSandbox ||
         this.browserWindow != this._previousBrowserWindow) {
       this._chromeSandbox = new Cu.Sandbox(this.browserWindow,
-        { sandboxPrototype: this.browserWindow, wantXrays: false,
+        { sandboxPrototype: this.browserWindow, wantXrays: false, 
           sandboxName: 'scratchpad-chrome'});
       this._chromeSandbox.__SCRATCHPAD__ = this;
       addDebuggerToGlobal(this._chromeSandbox);
@@ -327,7 +317,7 @@ var Scratchpad = {
     let error, result;
     try {
       result = Cu.evalInSandbox(aString, this.contentSandbox, "1.8",
-                                this.uniqueName, 1);
+                                "Scratchpad", 1);
     }
     catch (ex) {
       error = ex;
@@ -349,7 +339,7 @@ var Scratchpad = {
     let error, result;
     try {
       result = Cu.evalInSandbox(aString, this.chromeSandbox, "1.8",
-                                this.uniqueName, 1);
+                                "Scratchpad", 1);
     }
     catch (ex) {
       error = ex;
@@ -686,6 +676,8 @@ var Scratchpad = {
         }
 
         if (shouldOpen) {
+          this._skipClosePrompt = true;
+
           let file;
           if (aFile) {
             file = aFile;
@@ -1095,7 +1087,6 @@ var Scratchpad = {
     if (aEvent.target != document) {
       return;
     }
-
     let chrome = Services.prefs.getBoolPref(DEVTOOLS_CHROME_ENABLED);
     if (chrome) {
       let environmentMenu = document.getElementById("sp-environment-menu");
@@ -1106,6 +1097,8 @@ var Scratchpad = {
       errorConsoleCommand.removeAttribute("disabled");
     }
 
+    let state = null;
+
     let initialText = this.strings.formatStringFromName(
       "scratchpadIntro1",
       [LayoutHelpers.prettyKey(document.getElementById("sp-key-run")),
@@ -1113,21 +1106,9 @@ var Scratchpad = {
        LayoutHelpers.prettyKey(document.getElementById("sp-key-display"))],
       3);
 
-    let args = window.arguments;
-
-    if (args && args[0] instanceof Ci.nsIDialogParamBlock) {
-      args = args[0];
-    } else {
-      // If this Scratchpad window doesn't have any arguments, horrible
-      // things might happen so we need to report an error.
-      Cu.reportError(this.strings. GetStringFromName("scratchpad.noargs"));
-    }
-
-    this._instanceId = args.GetString(0);
-
-    let state = args.GetString(1) || null;
-    if (state) {
-      state = JSON.parse(state);
+    if ("arguments" in window &&
+         window.arguments[0] instanceof Ci.nsIDialogParamBlock) {
+      state = JSON.parse(window.arguments[0].GetString(0));
       this.setState(state);
       initialText = state.text;
     }
@@ -1236,13 +1217,8 @@ var Scratchpad = {
     }
 
     this.resetContext();
-
-    // This event is created only after user uses 'reload and run' feature.
-    if (this._reloadAndRunEvent) {
-      this.gBrowser.selectedBrowser.removeEventListener("load",
-          this._reloadAndRunEvent, true);
-    }
-
+    this.gBrowser.selectedBrowser.removeEventListener("load",
+        this._reloadAndRunEvent, true);
     this.editor.removeEventListener(SourceEditor.EVENTS.DIRTY_CHANGED,
                                     this._onDirtyChanged);
     PreferenceObserver.uninit();
@@ -1306,14 +1282,25 @@ var Scratchpad = {
    * there are unsaved changes.
    *
    * @param nsIDOMEvent aEvent
-   * @param function aCallback
-   *        Optional function you want to call when file is saved/closed.
-   *        Used mainly for tests.
    */
-  onClose: function SP_onClose(aEvent, aCallback)
+  onClose: function SP_onClose(aEvent)
   {
+    if (this._skipClosePrompt) {
+      return;
+    }
+
+    this.promptSave(function(aShouldClose, aSaved, aStatus) {
+      let shouldClose = aShouldClose;
+      if (aSaved && !Components.isSuccessCode(aStatus)) {
+        shouldClose = false;
+      }
+
+      if (shouldClose) {
+        this._skipClosePrompt = true;
+        window.close();
+      }
+    }.bind(this));
     aEvent.preventDefault();
-    this.close(aCallback);
   },
 
   /**
@@ -1332,6 +1319,7 @@ var Scratchpad = {
       }
 
       if (shouldClose) {
+        this._skipClosePrompt = true;
         window.close();
       }
       if (aCallback) {

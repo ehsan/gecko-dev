@@ -1446,10 +1446,6 @@ var gBrowserInit = {
       let cmd = document.getElementById("Tools:RemoteDebugger");
       cmd.removeAttribute("disabled");
       cmd.removeAttribute("hidden");
-
-      cmd = document.getElementById("Tools:RemoteWebConsole");
-      cmd.removeAttribute("disabled");
-      cmd.removeAttribute("hidden");
     }
 
     // Enable Chrome Debugger?
