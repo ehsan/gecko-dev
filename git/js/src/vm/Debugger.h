@@ -201,7 +201,7 @@ class Debugger {
 
     static void slowPathOnEnterFrame(JSContext *cx);
     static void slowPathOnLeaveFrame(JSContext *cx);
-    static void slowPathOnNewScript(JSContext *cx, JSScript *script,
+    static void slowPathOnNewScript(JSContext *cx, JSScript *script, JSObject *obj,
                                     GlobalObject *compileAndGoGlobal);
     static JSTrapStatus dispatchHook(JSContext *cx, js::Value *vp, Hook which);
 
@@ -210,16 +210,18 @@ class Debugger {
     void fireEnterFrame(JSContext *cx);
 
     /*
-     * Allocate and initialize a Debugger.Script instance whose referent is
-     * |script|.
+     * Allocate and initialize a Debugger.Script instance whose referent is |script| and
+     * whose holder is |obj|. If |obj| is NULL, this creates a Debugger.Script whose holder
+     * is null, for non-held scripts.
      */
-    JSObject *newDebuggerScript(JSContext *cx, JSScript *script);
+    JSObject *newDebuggerScript(JSContext *cx, JSScript *script, JSObject *obj);
 
     /*
      * Receive a "new script" event from the engine. A new script was compiled
-     * or deserialized.
+     * or deserialized. For eval scripts obj must be null, otherwise it must be
+     * a script object.
      */
-    void fireNewScript(JSContext *cx, JSScript *script);
+    void fireNewScript(JSContext *cx, JSScript *script, JSObject *obj);
 
     static inline Debugger *fromLinks(JSCList *links);
     inline Breakpoint *firstBreakpoint() const;
@@ -260,7 +262,7 @@ class Debugger {
     static inline void onLeaveFrame(JSContext *cx);
     static inline JSTrapStatus onDebuggerStatement(JSContext *cx, js::Value *vp);
     static inline JSTrapStatus onExceptionUnwind(JSContext *cx, js::Value *vp);
-    static inline void onNewScript(JSContext *cx, JSScript *script,
+    static inline void onNewScript(JSContext *cx, JSScript *script, JSObject *obj,
                                    GlobalObject *compileAndGoGlobal);
     static JSTrapStatus onTrap(JSContext *cx, Value *vp);
     static JSTrapStatus onSingleStep(JSContext *cx, Value *vp);
@@ -269,7 +271,7 @@ class Debugger {
 
     inline bool observesEnterFrame() const;
     inline bool observesNewScript() const;
-    inline bool observesGlobal(GlobalObject *global) const;
+    inline bool observesScope(JSObject *obj) const;
     inline bool observesFrame(StackFrame *fp) const;
 
     /*
@@ -330,11 +332,20 @@ class Debugger {
     bool newCompletionValue(AutoCompartment &ac, bool ok, Value val, Value *vp);
 
     /*
-     * Return the Debugger.Script object for |script|, or create a new one if
-     * needed. The context |cx| must be in the debugger compartment; |script|
-     * must be a script in a debuggee compartment.
+     * Return the Debugger.Script object for |fun|'s script, or create a new
+     * one if needed.  The context |cx| must be in the debugger compartment;
+     * |fun| must be a cross-compartment wrapper referring to the JSFunction in
+     * a debuggee compartment.
      */
-    JSObject *wrapScript(JSContext *cx, JSScript *script);
+    JSObject *wrapFunctionScript(JSContext *cx, JSFunction *fun);
+
+    /*
+     * Return the Debugger.Script object for |script|, or create a new one if
+     * needed. The context |cx| must be in the debugger compartment; |script| must
+     * be a script in a debuggee compartment. |obj| is either the script holder or
+     * null for non-held scripts.
+     */
+    JSObject *wrapScript(JSContext *cx, JSScript *script, JSObject *obj);
 
   private:
     /* Prohibit copying. */
@@ -358,7 +369,7 @@ class BreakpointSite {
      * cached eval scripts and for JSD1 traps. It is always non-null for JSD2
      * breakpoints in held scripts.
      */
-    GlobalObject *scriptGlobal;
+    JSObject *scriptObject;
 
     JSCList breakpoints;  /* cyclic list of all js::Breakpoints at this instruction */
     size_t enabledCount;  /* number of breakpoints in the list that are enabled */
@@ -372,7 +383,7 @@ class BreakpointSite {
     Breakpoint *firstBreakpoint() const;
     bool hasBreakpoint(Breakpoint *bp);
     bool hasTrap() const { return !!trapHandler; }
-    GlobalObject *getScriptGlobal() const { return scriptGlobal; }
+    JSObject *getScriptObject() const { return scriptObject; }
 
     bool inc(JSContext *cx);
     void dec(JSContext *cx);
@@ -464,15 +475,15 @@ Debugger::observesNewScript() const
 }
 
 bool
-Debugger::observesGlobal(GlobalObject *global) const
+Debugger::observesScope(JSObject *obj) const
 {
-    return debuggees.has(global);
+    return debuggees.has(obj->getGlobal());
 }
 
 bool
 Debugger::observesFrame(StackFrame *fp) const
 {
-    return observesGlobal(fp->scopeChain().getGlobal());
+    return observesScope(&fp->scopeChain());
 }
 
 void
@@ -506,12 +517,13 @@ Debugger::onExceptionUnwind(JSContext *cx, js::Value *vp)
 }
 
 void
-Debugger::onNewScript(JSContext *cx, JSScript *script, GlobalObject *compileAndGoGlobal)
+Debugger::onNewScript(JSContext *cx, JSScript *script, JSObject *obj,
+                      GlobalObject *compileAndGoGlobal)
 {
     JS_ASSERT_IF(script->compileAndGo, compileAndGoGlobal);
     JS_ASSERT_IF(!script->compileAndGo, !compileAndGoGlobal);
     if (!script->compartment()->getDebuggees().empty())
-        slowPathOnNewScript(cx, script, compileAndGoGlobal);
+        slowPathOnNewScript(cx, script, obj, compileAndGoGlobal);
 }
 
 extern JSBool

@@ -1544,8 +1544,7 @@ AddTransformLists(const nsCSSValueList* aList1, double aCoeff1,
             AddDifferentTransformLists(&tempList1, aCoeff1, &tempList2, aCoeff2);
         }
 
-        // Now advance resultTail to point to the new tail slot.
-        while (*resultTail) {
+        while ((*resultTail)->mNext) {
           resultTail = &(*resultTail)->mNext;
         }
 

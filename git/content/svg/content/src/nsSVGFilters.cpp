@@ -169,7 +169,8 @@ nsSVGFE::SetupScalingFilter(nsSVGFilterInstance *aInstance,
     return result;
 
   gfxRect r(aDataRect.x, aDataRect.y, aDataRect.width, aDataRect.height);
-  r.Scale(1 / kernelX, 1 / kernelY);
+  r.Scale(gfxFloat(scaledSize.width)/aTarget->mImage->Width(),
+          gfxFloat(scaledSize.height)/aTarget->mImage->Height());
   r.RoundOut();
   if (!gfxUtils::GfxRectToIntRect(r, &result.mDataRect))
     return result;

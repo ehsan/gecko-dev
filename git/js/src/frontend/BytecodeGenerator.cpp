@@ -93,6 +93,9 @@ using namespace js::frontend;
 extern uint8 js_opcode2extra[];
 #endif
 
+namespace js {
+namespace frontend {
+
 static JSBool
 NewTryNote(JSContext *cx, CodeGenerator *cg, JSTryNoteKind kind, uintN stackDepth,
            size_t start, size_t end);
@@ -103,8 +106,7 @@ EmitIndexOp(JSContext *cx, JSOp op, uintN index, CodeGenerator *cg, JSOp *psuffi
 static JSBool
 EmitLeaveBlock(JSContext *cx, CodeGenerator *cg, JSOp op, ObjectBox *box);
 
-static JSBool
-SetSrcNoteOffset(JSContext *cx, CodeGenerator *cg, uintN index, uintN which, ptrdiff_t offset);
+} /* namespace frontend */
 
 void
 TreeContext::trace(JSTracer *trc)
@@ -159,6 +161,8 @@ CodeGenerator::~CodeGenerator()
     if (spanDeps)
         cx->free_(spanDeps);
 }
+
+namespace frontend {
 
 static ptrdiff_t
 EmitCheck(JSContext *cx, CodeGenerator *cg, ptrdiff_t delta)
@@ -265,7 +269,7 @@ UpdateDecomposeLength(CodeGenerator *cg, uintN start)
 }
 
 ptrdiff_t
-frontend::Emit1(JSContext *cx, CodeGenerator *cg, JSOp op)
+Emit1(JSContext *cx, CodeGenerator *cg, JSOp op)
 {
     ptrdiff_t offset = EmitCheck(cx, cg, 1);
 
@@ -277,7 +281,7 @@ frontend::Emit1(JSContext *cx, CodeGenerator *cg, JSOp op)
 }
 
 ptrdiff_t
-frontend::Emit2(JSContext *cx, CodeGenerator *cg, JSOp op, jsbytecode op1)
+Emit2(JSContext *cx, CodeGenerator *cg, JSOp op, jsbytecode op1)
 {
     ptrdiff_t offset = EmitCheck(cx, cg, 2);
 
@@ -292,8 +296,8 @@ frontend::Emit2(JSContext *cx, CodeGenerator *cg, JSOp op, jsbytecode op1)
 }
 
 ptrdiff_t
-frontend::Emit3(JSContext *cx, CodeGenerator *cg, JSOp op, jsbytecode op1,
-                    jsbytecode op2)
+Emit3(JSContext *cx, CodeGenerator *cg, JSOp op, jsbytecode op1,
+         jsbytecode op2)
 {
     ptrdiff_t offset = EmitCheck(cx, cg, 3);
 
@@ -309,7 +313,7 @@ frontend::Emit3(JSContext *cx, CodeGenerator *cg, JSOp op, jsbytecode op1,
 }
 
 ptrdiff_t
-frontend::Emit5(JSContext *cx, CodeGenerator *cg, JSOp op, uint16 op1, uint16 op2)
+Emit5(JSContext *cx, CodeGenerator *cg, JSOp op, uint16 op1, uint16 op2)
 {
     ptrdiff_t offset = EmitCheck(cx, cg, 5);
 
@@ -327,7 +331,7 @@ frontend::Emit5(JSContext *cx, CodeGenerator *cg, JSOp op, uint16 op1, uint16 op
 }
 
 ptrdiff_t
-frontend::EmitN(JSContext *cx, CodeGenerator *cg, JSOp op, size_t extra)
+EmitN(JSContext *cx, CodeGenerator *cg, JSOp op, size_t extra)
 {
     ptrdiff_t length = 1 + (ptrdiff_t)extra;
     ptrdiff_t offset = EmitCheck(cx, cg, length);
@@ -554,8 +558,7 @@ AddJumpTarget(AddJumpTargetArgs *args, JumpTarget **jtp)
 }
 
 #ifdef DEBUG_brendan
-static int
-AVLCheck(JumpTarget *jt)
+static int AVLCheck(JumpTarget *jt)
 {
     int lh, rh;
 
@@ -1264,7 +1267,7 @@ GetJumpOffset(CodeGenerator *cg, jsbytecode *pc)
 }
 
 JSBool
-frontend::SetJumpOffset(JSContext *cx, CodeGenerator *cg, jsbytecode *pc, ptrdiff_t off)
+SetJumpOffset(JSContext *cx, CodeGenerator *cg, jsbytecode *pc, ptrdiff_t off)
 {
     if (!cg->spanDeps) {
         if (JUMP_OFFSET_MIN <= off && off <= JUMP_OFFSET_MAX) {
@@ -1278,6 +1281,8 @@ frontend::SetJumpOffset(JSContext *cx, CodeGenerator *cg, jsbytecode *pc, ptrdif
 
     return SetSpanDepTarget(cx, cg, GetSpanDep(cg, pc), off);
 }
+
+} /* namespace frontend */
 
 bool
 TreeContext::inStatement(StmtType type)
@@ -1339,8 +1344,10 @@ TreeContext::skipSpansGenerator(unsigned skip)
     return false;
 }
 
+namespace frontend {
+
 bool
-frontend::SetStaticLevel(TreeContext *tc, uintN staticLevel)
+SetStaticLevel(TreeContext *tc, uintN staticLevel)
 {
     /*
      * This is a lot simpler than error-checking every UpvarCookie::set, and
@@ -1356,7 +1363,7 @@ frontend::SetStaticLevel(TreeContext *tc, uintN staticLevel)
 }
 
 bool
-frontend::GenerateBlockId(TreeContext *tc, uint32& blockid)
+GenerateBlockId(TreeContext *tc, uint32& blockid)
 {
     if (tc->blockidGen == JS_BIT(20)) {
         JS_ReportErrorNumber(tc->parser->context, js_GetErrorMessage, NULL,
@@ -1368,7 +1375,7 @@ frontend::GenerateBlockId(TreeContext *tc, uint32& blockid)
 }
 
 void
-frontend::PushStatement(TreeContext *tc, StmtInfo *stmt, StmtType type, ptrdiff_t top)
+PushStatement(TreeContext *tc, StmtInfo *stmt, StmtType type, ptrdiff_t top)
 {
     stmt->type = type;
     stmt->flags = 0;
@@ -1387,7 +1394,7 @@ frontend::PushStatement(TreeContext *tc, StmtInfo *stmt, StmtType type, ptrdiff_
 }
 
 void
-frontend::PushBlockScope(TreeContext *tc, StmtInfo *stmt, ObjectBox *blockBox, ptrdiff_t top)
+PushBlockScope(TreeContext *tc, StmtInfo *stmt, ObjectBox *blockBox, ptrdiff_t top)
 {
     PushStatement(tc, stmt, STMT_BLOCK, top);
     stmt->flags |= SIF_SCOPE;
@@ -1673,7 +1680,7 @@ BackPatch(JSContext *cx, CodeGenerator *cg, ptrdiff_t last, jsbytecode *target, 
 }
 
 void
-frontend::PopStatementTC(TreeContext *tc)
+PopStatementTC(TreeContext *tc)
 {
     StmtInfo *stmt = tc->topStmt;
     tc->topStmt = stmt->down;
@@ -1686,7 +1693,7 @@ frontend::PopStatementTC(TreeContext *tc)
 }
 
 JSBool
-frontend::PopStatementCG(JSContext *cx, CodeGenerator *cg)
+PopStatementCG(JSContext *cx, CodeGenerator *cg)
 {
     StmtInfo *stmt = cg->topStmt;
     if (!STMT_IS_TRYING(stmt) &&
@@ -1700,7 +1707,7 @@ frontend::PopStatementCG(JSContext *cx, CodeGenerator *cg)
 }
 
 JSBool
-frontend::DefineCompileTimeConstant(JSContext *cx, CodeGenerator *cg, JSAtom *atom, ParseNode *pn)
+DefineCompileTimeConstant(JSContext *cx, CodeGenerator *cg, JSAtom *atom, ParseNode *pn)
 {
     /* XXX just do numbers for now */
     if (pn->isKind(TOK_NUMBER)) {
@@ -1711,7 +1718,7 @@ frontend::DefineCompileTimeConstant(JSContext *cx, CodeGenerator *cg, JSAtom *at
 }
 
 StmtInfo *
-frontend::LexicalLookup(TreeContext *tc, JSAtom *atom, jsint *slotp, StmtInfo *stmt)
+LexicalLookup(TreeContext *tc, JSAtom *atom, jsint *slotp, StmtInfo *stmt)
 {
     if (!stmt)
         stmt = tc->topScopeStmt;
@@ -1953,11 +1960,15 @@ EmitSlotIndexOp(JSContext *cx, JSOp op, uintN slot, uintN index, CodeGenerator *
     return bigSuffix == JSOP_NOP || Emit1(cx, cg, bigSuffix) >= 0;
 }
 
+} /* namespace frontend */
+
 bool
 CodeGenerator::shouldNoteClosedName(ParseNode *pn)
 {
     return !callsEval() && pn->isDefn() && pn->isClosed();
 }
+
+namespace frontend {
 
 /*
  * Adjust the slot for a block local to account for the number of variables
@@ -2041,7 +2052,7 @@ EmitLeaveBlock(JSContext *cx, CodeGenerator *cg, JSOp op, ObjectBox *box)
 {
     JSOp bigSuffix;
     uintN count = OBJ_BLOCK_COUNT(cx, box->object);
-
+    
     bigSuffix = EmitBigIndexPrefix(cx, cg, box->index);
     if (bigSuffix == JSOP_FALSE)
         return JS_FALSE;
@@ -2074,12 +2085,11 @@ EmitLeaveBlock(JSContext *cx, CodeGenerator *cg, JSOp op, ObjectBox *box)
 static bool
 TryConvertToGname(CodeGenerator *cg, ParseNode *pn, JSOp *op)
 {
-    if (cg->compileAndGo() &&
+    if (cg->compileAndGo() && 
         cg->compiler()->globalScope->globalObj &&
         !cg->mightAliasLocals() &&
         !pn->isDeoptimized() &&
-        !(cg->flags & TCF_STRICT_MODE_CODE))
-    {
+        !(cg->flags & TCF_STRICT_MODE_CODE)) { 
         switch (*op) {
           case JSOP_NAME:     *op = JSOP_GETGNAME; break;
           case JSOP_SETNAME:  *op = JSOP_SETGNAME; break;
@@ -2513,6 +2523,8 @@ BindNameToSlot(JSContext *cx, CodeGenerator *cg, ParseNode *pn)
     return JS_TRUE;
 }
 
+} /* namespace frontend */
+
 bool
 CodeGenerator::addGlobalUse(JSAtom *atom, uint32 slot, UpvarCookie *cookie)
 {
@@ -2546,6 +2558,8 @@ CodeGenerator::addGlobalUse(JSAtom *atom, uint32 slot, UpvarCookie *cookie)
 
     return globalMap->add(p, atom, globalUseIndex);
 }
+
+namespace frontend {
 
 /*
  * If pn contains a useful expression, return true with *answer set to true.
@@ -2674,9 +2688,6 @@ CheckSideEffects(JSContext *cx, CodeGenerator *cg, ParseNode *pn, JSBool *answer
               case TOK_DOT:
 #if JS_HAS_XML_SUPPORT
               case TOK_DBLDOT:
-                JS_ASSERT_IF(pn2->getKind() == TOK_DBLDOT, !cg->inStrictMode());
-                /* FALL THROUGH */
-
 #endif
               case TOK_LP:
               case TOK_LB:
@@ -2809,7 +2820,6 @@ EmitNameOp(JSContext *cx, CodeGenerator *cg, ParseNode *pn, JSBool callContext)
 static bool
 EmitXMLName(JSContext *cx, ParseNode *pn, JSOp op, CodeGenerator *cg)
 {
-    JS_ASSERT(!cg->inStrictMode());
     JS_ASSERT(pn->isKind(TOK_UNARYOP));
     JS_ASSERT(pn->isOp(JSOP_XMLNAME));
     JS_ASSERT(op == JSOP_XMLNAME || op == JSOP_CALLXMLNAME);
@@ -3909,7 +3919,7 @@ bad:
 }
 
 JSBool
-frontend::EmitFunctionScript(JSContext *cx, CodeGenerator *cg, ParseNode *body)
+EmitFunctionScript(JSContext *cx, CodeGenerator *cg, ParseNode *body)
 {
     /*
      * The decompiler has assumptions about what may occur immediately after
@@ -4612,9 +4622,7 @@ EmitAssignment(JSContext *cx, CodeGenerator *cg, ParseNode *lhs, JSOp op, ParseN
         break;
 #if JS_HAS_XML_SUPPORT
       case TOK_UNARYOP:
-        JS_ASSERT(!cg->inStrictMode());
         JS_ASSERT(lhs->isOp(JSOP_SETXMLNAME));
-
         if (!EmitTree(cx, cg, lhs->pn_kid))
             return false;
         if (Emit1(cx, cg, JSOP_BINDXMLNAME) < 0)
@@ -4741,7 +4749,6 @@ EmitAssignment(JSContext *cx, CodeGenerator *cg, ParseNode *lhs, JSOp op, ParseN
 #endif
 #if JS_HAS_XML_SUPPORT
       case TOK_UNARYOP:
-        JS_ASSERT(!cg->inStrictMode());
         if (Emit1(cx, cg, JSOP_SETXMLNAME) < 0)
             return false;
         break;
@@ -4808,6 +4815,8 @@ EmitEndInit(JSContext *cx, CodeGenerator *cg, uint32 count)
     return Emit1(cx, cg, JSOP_ENDINIT) >= 0;
 }
 
+} /* namespace frontend */
+
 bool
 ParseNode::getConstantValue(JSContext *cx, bool strictChecks, Value *vp)
 {
@@ -4835,7 +4844,7 @@ ParseNode::getConstantValue(JSContext *cx, bool strictChecks, Value *vp)
         }
       case TOK_RB: {
         JS_ASSERT(isOp(JSOP_NEWINIT) && !(pn_xflags & PNX_NONCONST));
-
+ 
         JSObject *obj = NewDenseAllocatedArray(cx, pn_count);
         if (!obj)
             return false;
@@ -4898,6 +4907,8 @@ ParseNode::getConstantValue(JSContext *cx, bool strictChecks, Value *vp)
     }
     return false;
 }
+
+namespace frontend {
 
 static bool
 EmitSingletonInitialiser(JSContext *cx, CodeGenerator *cg, ParseNode *pn)
@@ -5065,7 +5076,7 @@ EmitTry(JSContext *cx, CodeGenerator *cg, ParseNode *pn)
     ParseNode *lastCatch = NULL;
     if (ParseNode *pn2 = pn->pn_kid2) {
         uintN count = 0;    /* previous catch block's population */
-
+        
         /*
          * The emitted code for a catch block looks like:
          *
@@ -5097,7 +5108,7 @@ EmitTry(JSContext *cx, CodeGenerator *cg, ParseNode *pn)
             if (guardJump != -1) {
                 if (EmitKnownBlockChain(cx, cg, prevBox) < 0)
                     return false;
-
+            
                 /* Fix up and clean up previous catch block. */
                 CHECK_AND_SET_JUMP_OFFSET_AT(cx, cg, guardJump);
 
@@ -5181,7 +5192,7 @@ EmitTry(JSContext *cx, CodeGenerator *cg, ParseNode *pn)
     if (lastCatch && lastCatch->pn_kid2) {
         if (EmitKnownBlockChain(cx, cg, prevBox) < 0)
             return false;
-
+        
         CHECK_AND_SET_JUMP_OFFSET_AT(cx, cg, GUARDJUMP(stmtInfo));
 
         /* Sync the stack to take into account pushed exception. */
@@ -5401,17 +5412,14 @@ EmitLet(JSContext *cx, CodeGenerator *cg, ParseNode *&pn)
 static bool
 EmitXMLTag(JSContext *cx, CodeGenerator *cg, ParseNode *pn)
 {
-    JS_ASSERT(!cg->inStrictMode());
-
     if (Emit1(cx, cg, JSOP_STARTXML) < 0)
         return false;
 
     {
         jsatomid index;
-        JSAtom *tagAtom = (pn->isKind(TOK_XMLETAGO))
-                          ? cx->runtime->atomState.etagoAtom
-                          : cx->runtime->atomState.stagoAtom;
-        if (!cg->makeAtomIndex(tagAtom, &index))
+        JSAtom *tmp = (pn->isKind(TOK_XMLETAGO)) ? cx->runtime->atomState.etagoAtom
+                                                 : cx->runtime->atomState.stagoAtom;
+        if (!cg->makeAtomIndex(tmp, &index))
             return false;
         EMIT_INDEX_OP(JSOP_STRING, index);
     }
@@ -5459,8 +5467,6 @@ EmitXMLTag(JSContext *cx, CodeGenerator *cg, ParseNode *pn)
 static bool
 EmitXMLProcessingInstruction(JSContext *cx, CodeGenerator *cg, ParseNode *pn)
 {
-    JS_ASSERT(!cg->inStrictMode());
-
     jsatomid index;
     if (!cg->makeAtomIndex(pn->pn_pidata, &index))
         return false;
@@ -5839,7 +5845,7 @@ EmitFor(JSContext *cx, CodeGenerator *cg, ParseNode *pn, ptrdiff_t top)
 }
 
 JSBool
-frontend::EmitTree(JSContext *cx, CodeGenerator *cg, ParseNode *pn)
+EmitTree(JSContext *cx, CodeGenerator *cg, ParseNode *pn)
 {
     JSBool useful, wantval;
     StmtInfo stmtInfo;
@@ -6771,7 +6777,6 @@ frontend::EmitTree(JSContext *cx, CodeGenerator *cg, ParseNode *pn)
             break;
 #if JS_HAS_XML_SUPPORT
           case TOK_UNARYOP:
-            JS_ASSERT(!cg->inStrictMode());
             JS_ASSERT(pn2->isOp(JSOP_SETXMLNAME));
             if (!EmitTree(cx, cg, pn2->pn_kid))
                 return JS_FALSE;
@@ -6809,7 +6814,6 @@ frontend::EmitTree(JSContext *cx, CodeGenerator *cg, ParseNode *pn)
             break;
 #if JS_HAS_XML_SUPPORT
           case TOK_DBLDOT:
-            JS_ASSERT(!cg->inStrictMode());
             if (!EmitElemOp(cx, pn2, JSOP_DELDESC, cg))
                 return JS_FALSE;
             break;
@@ -6849,8 +6853,6 @@ frontend::EmitTree(JSContext *cx, CodeGenerator *cg, ParseNode *pn)
 
 #if JS_HAS_XML_SUPPORT
       case TOK_FILTER:
-        JS_ASSERT(!cg->inStrictMode());
-
         if (!EmitTree(cx, cg, pn->pn_left))
             return JS_FALSE;
         jmp = EmitJump(cx, cg, JSOP_FILTER, 0);
@@ -6880,12 +6882,10 @@ frontend::EmitTree(JSContext *cx, CodeGenerator *cg, ParseNode *pn)
         ok = EmitPropOp(cx, pn, pn->getOp(), cg, JS_FALSE);
         break;
 
+      case TOK_LB:
 #if JS_HAS_XML_SUPPORT
       case TOK_DBLDOT:
-        JS_ASSERT(!cg->inStrictMode());
-        /* FALL THROUGH */
 #endif
-      case TOK_LB:
         /*
          * Pop two operands, convert the left one to object and the right one
          * to property name (atom or tagged int), get the named property, and
@@ -6989,7 +6989,7 @@ frontend::EmitTree(JSContext *cx, CodeGenerator *cg, ParseNode *pn)
         break;
 
 #if JS_HAS_BLOCK_SCOPE
-      case TOK_LET:
+      case TOK_LET: 
         if (!EmitLet(cx, cg, pn))
             return false;
         break;
@@ -7286,8 +7286,6 @@ frontend::EmitTree(JSContext *cx, CodeGenerator *cg, ParseNode *pn)
       case TOK_XMLTEXT:
       case TOK_XMLCDATA:
       case TOK_XMLCOMMENT:
-        JS_ASSERT(!cg->inStrictMode());
-        /* FALL THROUGH */
 #endif
       case TOK_STRING:
         ok = EmitAtomOp(cx, pn, pn->getOp(), cg);
@@ -7318,9 +7316,7 @@ frontend::EmitTree(JSContext *cx, CodeGenerator *cg, ParseNode *pn)
 #if JS_HAS_XML_SUPPORT
       case TOK_XMLELEM:
       case TOK_XMLLIST:
-        JS_ASSERT(!cg->inStrictMode());
         JS_ASSERT(pn->isKind(TOK_XMLLIST) || pn->pn_count != 0);
-
         switch (pn->pn_head ? pn->pn_head->getKind() : TOK_XMLLIST) {
           case TOK_XMLETAGO:
             JS_ASSERT(0);
@@ -7370,8 +7366,6 @@ frontend::EmitTree(JSContext *cx, CodeGenerator *cg, ParseNode *pn)
         break;
 
       case TOK_XMLNAME:
-        JS_ASSERT(!cg->inStrictMode());
-
         if (pn->isArity(PN_LIST)) {
             JS_ASSERT(pn->pn_count != 0);
             for (pn2 = pn->pn_head; pn2; pn2 = pn2->pn_next) {
@@ -7445,7 +7439,7 @@ AllocSrcNote(JSContext *cx, CodeGenerator *cg)
 }
 
 intN
-frontend::NewSrcNote(JSContext *cx, CodeGenerator *cg, SrcNoteType type)
+NewSrcNote(JSContext *cx, CodeGenerator *cg, SrcNoteType type)
 {
     intN index, n;
     jssrcnote *sn;
@@ -7493,7 +7487,7 @@ frontend::NewSrcNote(JSContext *cx, CodeGenerator *cg, SrcNoteType type)
 }
 
 intN
-frontend::NewSrcNote2(JSContext *cx, CodeGenerator *cg, SrcNoteType type, ptrdiff_t offset)
+NewSrcNote2(JSContext *cx, CodeGenerator *cg, SrcNoteType type, ptrdiff_t offset)
 {
     intN index;
 
@@ -7506,7 +7500,7 @@ frontend::NewSrcNote2(JSContext *cx, CodeGenerator *cg, SrcNoteType type, ptrdif
 }
 
 intN
-frontend::NewSrcNote3(JSContext *cx, CodeGenerator *cg, SrcNoteType type, ptrdiff_t offset1,
+NewSrcNote3(JSContext *cx, CodeGenerator *cg, SrcNoteType type, ptrdiff_t offset1,
             ptrdiff_t offset2)
 {
     intN index;
@@ -7536,7 +7530,7 @@ GrowSrcNotes(JSContext *cx, CodeGenerator *cg)
 }
 
 jssrcnote *
-frontend::AddToSrcNoteDelta(JSContext *cx, CodeGenerator *cg, jssrcnote *sn, ptrdiff_t delta)
+AddToSrcNoteDelta(JSContext *cx, CodeGenerator *cg, jssrcnote *sn, ptrdiff_t delta)
 {
     ptrdiff_t base, limit, newdelta, diff;
     intN index;
@@ -7569,7 +7563,7 @@ frontend::AddToSrcNoteDelta(JSContext *cx, CodeGenerator *cg, jssrcnote *sn, ptr
     return sn;
 }
 
-static JSBool
+JSBool
 SetSrcNoteOffset(JSContext *cx, CodeGenerator *cg, uintN index, uintN which, ptrdiff_t offset)
 {
     jssrcnote *sn;
@@ -7628,8 +7622,7 @@ SetSrcNoteOffset(JSContext *cx, CodeGenerator *cg, uintN index, uintN which, ptr
 #define NBINS 10
 static uint32 hist[NBINS];
 
-static void
-DumpSrcNoteSizeHist()
+static void DumpSrcNoteSizeHist()
 {
     static FILE *fp;
     int i, n;
@@ -7659,7 +7652,7 @@ DumpSrcNoteSizeHist()
  * CORRESPONDING CHANGES!
  */
 JSBool
-frontend::FinishTakingSrcNotes(JSContext *cx, CodeGenerator *cg, jssrcnote *notes)
+FinishTakingSrcNotes(JSContext *cx, CodeGenerator *cg, jssrcnote *notes)
 {
     uintN prologCount, mainCount, totalCount;
     ptrdiff_t offset, delta;
@@ -7740,7 +7733,7 @@ NewTryNote(JSContext *cx, CodeGenerator *cg, JSTryNoteKind kind, uintN stackDept
 }
 
 void
-frontend::FinishTakingTryNotes(CodeGenerator *cg, JSTryNoteArray *array)
+FinishTakingTryNotes(CodeGenerator *cg, JSTryNoteArray *array)
 {
     TryNode *tryNode;
     JSTryNote *tn;
@@ -7753,6 +7746,8 @@ frontend::FinishTakingTryNotes(CodeGenerator *cg, JSTryNoteArray *array)
     } while ((tryNode = tryNode->prev) != NULL);
     JS_ASSERT(tn == array->vector);
 }
+
+} /* namespace frontend */
 
 /*
  * Find the index of the given object for code generator.
@@ -7831,6 +7826,8 @@ GCConstList::finish(JSConstArray *array)
     for (; src != srcend; ++src, ++dst)
         *dst = *src;
 }
+
+} /* namespace js */
 
 /*
  * We should try to get rid of offsetBias (always 0 or 1, where 1 is

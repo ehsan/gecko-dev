@@ -723,9 +723,10 @@ JS_XDRScript(JSXDRState *xdr, JSScript **scriptp)
 
     if (xdr->mode == JSXDR_DECODE) {
         JS_ASSERT(!script->compileAndGo);
-        script->u.globalObject = GetCurrentGlobal(xdr->cx);
+        if (!js_NewScriptObject(xdr->cx, script))
+            return false;
         js_CallNewScriptHook(xdr->cx, script, NULL);
-        Debugger::onNewScript(xdr->cx, script, NULL);
+        Debugger::onNewScript(xdr->cx, script, script->u.object, NULL);
         *scriptp = script;
     }
 

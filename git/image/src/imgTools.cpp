@@ -197,6 +197,9 @@ NS_IMETHODIMP imgTools::EncodeScaledImage(imgIContainer *aContainer,
     // Create a temporary image surface
     dest = new gfxImageSurface(gfxIntSize(aScaledWidth, aScaledHeight),
                                gfxASurface::ImageFormatARGB32);
+    if (!dest)
+      return NS_ERROR_OUT_OF_MEMORY;
+
     gfxContext ctx(dest);
 
     // Set scaling

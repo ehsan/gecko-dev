@@ -204,8 +204,7 @@ Dump(JSContext *cx, uintN argc, jsval *vp)
     if (!chars)
         return JS_FALSE;
 
-    fputs(NS_ConvertUTF16toUTF8(reinterpret_cast<const PRUnichar*>(chars)).get(), stdout);
-    fflush(stdout);
+    fputs(NS_ConvertUTF16toUTF8(reinterpret_cast<const PRUnichar*>(chars)).get(), stderr);
     return JS_TRUE;
 }
 

@@ -23,9 +23,8 @@ class UnfoldSelect : public TIntermTraverser
 
     void traverse(TIntermNode *node);
     bool visitSelection(Visit visit, TIntermSelection *node);
-    bool visitLoop(Visit visit, TIntermLoop *node);
 
-    int getNextTemporaryIndex();
+    int getTemporaryIndex();
 
   protected:
     TParseContext &mContext;

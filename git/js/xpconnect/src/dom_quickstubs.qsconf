@@ -65,7 +65,6 @@ members = [
     'nsIDOMWindow.name',
     'nsIDOMWindow.parent',
     'nsIDOMWindow.top',
-    'nsIDOMWindow.self',
     # Several window properties are magically resolved, including
     # location, _content, navigator, document, and window itself.
     # These do not need quick stubs.
@@ -487,7 +486,6 @@ irregularFilenames = {
     'nsIWebGLUniformLocation': 'nsIDOMWebGLRenderingContext',
     'nsIWebGLExtension': 'nsIDOMWebGLRenderingContext',
     'nsIWebGLExtensionStandardDerivatives' : 'nsIDOMWebGLRenderingContext',
-    'nsIWebGLExtensionLoseContext' : 'nsIDOMWebGLRenderingContext',
 
     'nsIIndexedDatabaseUsageCallback': 'nsIIndexedDatabaseManager',
 

@@ -877,5 +877,5 @@ SecurityWrapper<Base>::objectClassIs(JSObject *obj, ESClassValue classValue, JSC
     return ret;
 }
 
-template class js::SecurityWrapper<Wrapper>;
-template class js::SecurityWrapper<CrossCompartmentWrapper>;
+template class SecurityWrapper<Wrapper>;
+template class SecurityWrapper<CrossCompartmentWrapper>;

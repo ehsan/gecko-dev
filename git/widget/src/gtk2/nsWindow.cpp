@@ -1407,10 +1407,13 @@ typedef void (* SetUserTimeFunc)(GdkWindow* aWindow, guint32 aTimestamp);
 static void
 SetUserTimeAndStartupIDForActivatedWindow(GtkWidget* aWindow)
 {
-    nsGTKToolkit* GTKToolkit = nsGTKToolkit::GetToolkit();
-    if (!GTKToolkit)
+    nsCOMPtr<nsIToolkit> toolkit;
+    NS_GetCurrentToolkit(getter_AddRefs(toolkit));
+    if (!toolkit)
         return;
 
+    nsGTKToolkit* GTKToolkit = static_cast<nsGTKToolkit*>
+                                          (static_cast<nsIToolkit*>(toolkit));
     nsCAutoString desktopStartupID;
     GTKToolkit->GetDesktopStartupID(&desktopStartupID);
     if (desktopStartupID.IsEmpty()) {
@@ -1741,9 +1744,8 @@ nsWindow::GetNativeData(PRUint32 aDataType)
 
     case NS_NATIVE_GRAPHIC: {
 #if defined(MOZ_WIDGET_GTK2)
-        nsGTKToolkit* toolkit = nsGTKToolkit::GetToolkit();
-        NS_ASSERTION(nsnull != toolkit, "NULL toolkit, unable to get a GC");    
-        return toolkit->GetSharedGC();
+        NS_ASSERTION(nsnull != mToolkit, "NULL toolkit, unable to get a GC");    
+        return (void *)static_cast<nsGTKToolkit *>(mToolkit)->GetSharedGC();
 #else
         return nsnull;
 #endif
@@ -3878,6 +3880,7 @@ nsWindow::Create(nsIWidget        *aParent,
                  const nsIntRect  &aRect,
                  EVENT_CALLBACK    aHandleEventFunction,
                  nsDeviceContext *aContext,
+                 nsIToolkit       *aToolkit,
                  nsWidgetInitData *aInitData)
 {
     // only set the base parent if we're going to be a dialog or a
@@ -3890,11 +3893,9 @@ nsWindow::Create(nsIWidget        *aParent,
 
     NS_ASSERTION(!mWindowGroup, "already have window group (leaking it)");
 
-    // Ensure that the toolkit is created.
-    nsGTKToolkit::GetToolkit();
-
     // initialize all the common bits of this class
-    BaseCreate(baseParent, aRect, aHandleEventFunction, aContext, aInitData);
+    BaseCreate(baseParent, aRect, aHandleEventFunction, aContext,
+               aToolkit, aInitData);
 
     // Do we need to listen for resizes?
     bool listenForResizes = false;;

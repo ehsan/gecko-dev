@@ -58,7 +58,6 @@ gfxGDIShaper::InitTextRun(gfxContext *aContext,
                           PRInt32 aRunScript)
 {
     DCFromContext dc(aContext);
-    AutoSelectFont selectFont(dc, static_cast<gfxGDIFont*>(mFont)->GetHFONT());
 
     nsAutoTArray<WORD,500> glyphArray;
     if (!glyphArray.SetLength(aRunLength)) {

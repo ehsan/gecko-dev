@@ -1143,10 +1143,10 @@ gfxIntSize
 nsSVGUtils::ConvertToSurfaceSize(const gfxSize& aSize,
                                  bool *aResultOverflows)
 {
-  gfxIntSize surfaceSize(ClampToInt(ceil(aSize.width)), ClampToInt(ceil(aSize.height)));
+  gfxIntSize surfaceSize(ClampToInt(aSize.width), ClampToInt(aSize.height));
 
-  *aResultOverflows = surfaceSize.width != ceil(aSize.width) ||
-    surfaceSize.height != ceil(aSize.height);
+  *aResultOverflows = surfaceSize.width != NS_round(aSize.width) ||
+    surfaceSize.height != NS_round(aSize.height);
 
   if (!gfxASurface::CheckSurfaceSize(surfaceSize)) {
     surfaceSize.width = NS_MIN(NS_SVG_OFFSCREEN_MAX_DIMENSION,

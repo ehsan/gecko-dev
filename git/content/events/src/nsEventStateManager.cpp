@@ -1442,7 +1442,10 @@ IsAccessKeyTarget(nsIContent* aContent, nsIFrame* aFrame, nsAString& aKey)
   if (aFrame->IsFocusable())
     return true;
 
-  if (!aFrame->IsVisibleConsideringAncestors())
+  if (!aFrame->GetStyleVisibility()->IsVisible())
+    return false;
+
+  if (!aFrame->AreAncestorViewsVisible())
     return false;
 
   // XUL controls can be activated.

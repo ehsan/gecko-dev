@@ -347,7 +347,7 @@ types::TypeFailure(JSContext *cx, const char *fmt, ...)
     /* Always active, even in release builds */
     JS_Assert(msgbuf, __FILE__, __LINE__);
     
-    *((volatile int *)NULL) = 0;  /* Should never be reached */
+    *((int*)NULL) = 0;  /* Should never be reached */
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -1458,8 +1458,6 @@ GetValueTypeFromTypeFlags(TypeFlags flags)
         return JSVAL_TYPE_STRING;
       case TYPE_FLAG_LAZYARGS:
         return JSVAL_TYPE_MAGIC;
-      case TYPE_FLAG_ANYOBJECT:
-        return JSVAL_TYPE_OBJECT;
       default:
         return JSVAL_TYPE_UNKNOWN;
     }
@@ -4954,7 +4952,7 @@ MarkIteratorUnknownSlow(JSContext *cx)
 
 void
 TypeMonitorCallSlow(JSContext *cx, JSObject *callee,
-                    CallArgs &args, bool constructing)
+                    const CallArgs &args, bool constructing)
 {
     unsigned nargs = callee->getFunctionPrivate()->nargs;
     JSScript *script = callee->getFunctionPrivate()->script();
@@ -4972,10 +4970,8 @@ TypeMonitorCallSlow(JSContext *cx, JSObject *callee,
         TypeScript::SetArgument(cx, script, arg, args[arg]);
 
     /* Watch for fewer actuals than formals to the call. */
-    for (; arg < nargs; arg++) {
-        Value v = UndefinedValue();
-        TypeScript::SetArgument(cx, script, arg, v);
-    }
+    for (; arg < nargs; arg++)
+        TypeScript::SetArgument(cx, script, arg, UndefinedValue());
 }
 
 static inline bool
@@ -5093,10 +5089,8 @@ TypeDynamicResult(JSContext *cx, JSScript *script, jsbytecode *pc, Type type)
 }
 
 void
-TypeMonitorResult(JSContext *cx, JSScript *script, jsbytecode *pc, js::Value &rval)
+TypeMonitorResult(JSContext *cx, JSScript *script, jsbytecode *pc, const js::Value &rval)
 {
-    TryCoerceNumberToInt32(rval);
-
     UntrapOpcode untrap(cx, script, pc);
 
     /* Allow the non-TYPESET scenario to simplify stubs used in compound opcodes. */
@@ -6090,6 +6084,21 @@ TypeScript::Sweep(JSContext *cx, JSScript *script)
      * cannot alias the most recent one, and future activations will overwrite
      * activeCall on creation.
      */
+
+    /*
+     * Method JIT code depends on the type inference data which is about to
+     * be purged, so purge the jitcode as well.
+     */
+#ifdef JS_METHODJIT
+    mjit::ReleaseScriptCode(cx, script);
+
+    /*
+     * Use counts for scripts are reset on GC. After discarding code we need to
+     * let it warm back up to get information like which opcodes are setting
+     * array holes or accessing getter properties.
+     */
+    script->resetUseCount();
+#endif
 }
 
 void

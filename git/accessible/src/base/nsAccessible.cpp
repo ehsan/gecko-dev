@@ -654,7 +654,7 @@ nsAccessible::IsVisible(bool* aIsOffscreen)
   }
 
   // The frame intersects the viewport, but we need to check the parent view chain :(
-  bool isVisible = frame->IsVisibleConsideringAncestors(nsIFrame::VISIBILITY_CROSS_CHROME_CONTENT_BOUNDARY);
+  bool isVisible = nsCoreUtils::CheckVisibilityInParentChain(frame);
   if (isVisible && rectVisibility == nsRectVisibility_kVisible) {
     *aIsOffscreen = false;
   }

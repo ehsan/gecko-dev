@@ -373,8 +373,6 @@ struct GLContextSymbols
     typedef realGLboolean (GLAPIENTRY * PFNGLUNMAPBUFFER) (GLenum target);
     PFNGLUNMAPBUFFER fUnmapBuffer;
 
-    typedef GLenum (GLAPIENTRY * PFNGLGETGRAPHICSRESETSTATUS) (void);
-    PFNGLGETGRAPHICSRESETSTATUS fGetGraphicsResetStatus;
 };
 
 }

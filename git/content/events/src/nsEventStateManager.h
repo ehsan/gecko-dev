@@ -228,8 +228,6 @@ public:
   // Sets the full-screen event state on aElement to aIsFullScreen.
   static void SetFullScreenState(mozilla::dom::Element* aElement, bool aIsFullScreen);
 
-  static bool IsRemoteTarget(nsIContent* aTarget);
-
 protected:
   friend class MouseEnterLeaveDispatcher;
 
@@ -467,6 +465,7 @@ protected:
   bool IsTargetCrossProcess(nsGUIEvent *aEvent);
 
   void DispatchCrossProcessEvent(nsEvent* aEvent, nsIFrameLoader* remote);
+  bool IsRemoteTarget(nsIContent* target);
   bool HandleCrossProcessEvent(nsEvent *aEvent,
                                  nsIFrame* aTargetFrame,
                                  nsEventStatus *aStatus);

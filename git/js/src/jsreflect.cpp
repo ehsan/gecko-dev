@@ -2157,9 +2157,9 @@ ASTSerializer::statement(ParseNode *pn, Value *dst)
 
         return expression(pn->pn_left, &expr) &&
                statement(pn->pn_right, &stmt) &&
-               (pn->isKind(TOK_WITH)
-                ? builder.withStatement(expr, stmt, &pn->pn_pos, dst)
-                : builder.whileStatement(expr, stmt, &pn->pn_pos, dst));
+               pn->isKind(TOK_WITH)
+               ? builder.withStatement(expr, stmt, &pn->pn_pos, dst)
+               : builder.whileStatement(expr, stmt, &pn->pn_pos, dst);
       }
 
       case TOK_DO:
@@ -2354,7 +2354,7 @@ ASTSerializer::comprehension(ParseNode *pn, Value *dst)
             return false;
         next = next->pn_kid2;
     } else if (next->isKind(TOK_LC) && next->pn_count == 0) {
-        /* FoldConstants optimized away the push. */
+        /* js_FoldConstants optimized away the push. */
         NodeVector empty(cx);
         return builder.arrayExpression(empty, &pn->pn_pos, dst);
     }

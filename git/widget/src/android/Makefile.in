@@ -55,6 +55,7 @@ CPPSRCS	= \
 	GfxInfo.cpp \
 	nsWidgetFactory.cpp \
 	nsAppShell.cpp \
+	nsToolkit.cpp \
 	AndroidJavaWrappers.cpp \
 	AndroidBridge.cpp \
 	AndroidJNI.cpp \

@@ -1185,6 +1185,12 @@ struct JSObject : js::gc::Cell {
     inline void setNativeIterator(js::NativeIterator *);
 
     /*
+     * Script-related getters.
+     */
+
+    inline JSScript *getScript() const;
+
+    /*
      * XML-related getters and setters.
      */
 
@@ -1459,6 +1465,7 @@ struct JSObject : js::gc::Cell {
     inline bool isCall() const { return clasp == &js::CallClass; }
     inline bool isDeclEnv() const { return clasp == &js::DeclEnvClass; }
     inline bool isRegExp() const { return clasp == &js::RegExpClass; }
+    inline bool isScript() const { return clasp == &js::ScriptClass; }
     inline bool isGenerator() const { return clasp == &js::GeneratorClass; }
     inline bool isIterator() const { return clasp == &js::IteratorClass; }
     inline bool isStopIteration() const { return clasp == &js::StopIterationClass; }

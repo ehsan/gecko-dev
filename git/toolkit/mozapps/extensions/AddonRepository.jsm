@@ -60,15 +60,6 @@ const PREF_GETADDONS_GETRECOMMENDED      = "extensions.getAddons.recommended.url
 const PREF_GETADDONS_BROWSESEARCHRESULTS = "extensions.getAddons.search.browseURL";
 const PREF_GETADDONS_GETSEARCHRESULTS    = "extensions.getAddons.search.url";
 
-const PREF_CHECK_COMPATIBILITY_BASE = "extensions.checkCompatibility";
-#ifdef MOZ_COMPATIBILITY_NIGHTLY
-const PREF_CHECK_COMPATIBILITY = PREF_CHECK_COMPATIBILITY_BASE +
-                                 ".nightly";
-#else
-const PREF_CHECK_COMPATIBILITY = PREF_CHECK_COMPATIBILITY_BASE + "." +
-                                 Services.appinfo.version.replace(BRANCH_REGEXP, "$1");
-#endif
-
 const XMLURI_PARSE_ERROR  = "http://www.mozilla.org/newlayout/xml/parsererror.xml";
 
 const API_VERSION = "1.5";
@@ -819,23 +810,13 @@ var AddonRepository = {
    *         The callback to pass results to
    */
   searchAddons: function(aSearchTerms, aMaxResults, aCallback) {
-    let substitutions = {
+    let url = this._formatURLPref(PREF_GETADDONS_GETSEARCHRESULTS, {
       API_VERSION : API_VERSION,
       TERMS : encodeURIComponent(aSearchTerms),
 
       // Get twice as many results to account for potential filtering
       MAX_RESULTS : 2 * aMaxResults
-    };
-
-    let checkCompatibility = true;
-    try {
-      checkCompatibility = Services.prefs.getBoolPref(PREF_CHECK_COMPATIBILITY);
-    } catch(e) { }
-
-    if (!checkCompatibility)
-      substitutions.VERSION = "";
-
-    let url = this._formatURLPref(PREF_GETADDONS_GETSEARCHRESULTS, substitutions);
+    });
 
     let self = this;
     function handleResults(aElements, aTotalResults) {
@@ -1098,26 +1079,17 @@ var AddonRepository = {
   _parseAddons: function(aElements, aTotalResults, aSkip) {
     let self = this;
     let results = [];
-
-    let checkCompatibility = true;
-    try {
-      checkCompatibility = Services.prefs.getBoolPref(PREF_CHECK_COMPATIBILITY);
-    } catch(e) { }
-
-    function isSameApplication(aAppNode) {
-      return self._getTextContent(aAppNode) == Services.appinfo.ID;
-    }
-
     for (let i = 0; i < aElements.length && results.length < this._maxResults; i++) {
       let element = aElements[i];
 
+      // Ignore add-ons not compatible with this Application
       let tags = this._getUniqueDescendant(element, "compatible_applications");
       if (tags == null)
         continue;
 
       let applications = tags.getElementsByTagName("appID");
       let compatible = Array.some(applications, function(aAppNode) {
-        if (!isSameApplication(aAppNode))
+        if (self._getTextContent(aAppNode) != Services.appinfo.ID)
           return false;
 
         let parent = aAppNode.parentNode;
@@ -1131,14 +1103,8 @@ var AddonRepository = {
                 Services.vc.compare(currentVersion, maxVersion) <= 0);
       });
 
-      // Ignore add-ons not compatible with this Application
-      if (!compatible) {
-        if (checkCompatibility)
-          continue;
-
-        if (!Array.some(applications, isSameApplication))
-          continue;
-      }
+      if (!compatible)
+        continue;
 
       // Add-on meets all requirements, so parse out data
       let result = this._parseAddon(element, aSkip);
@@ -1158,8 +1124,6 @@ var AddonRepository = {
       // way to purchase the add-on
       if (!result.xpiURL && !result.addon.purchaseURL)
         continue;
-
-      result.addon.isCompatible = compatible;
 
       results.push(result);
       // Ignore this add-on from now on by adding it to the skip array

@@ -40,6 +40,7 @@
 #ifndef GTKTOOLKIT_H      
 #define GTKTOOLKIT_H
 
+#include "nsIToolkit.h"
 #include "nsString.h"
 #include <gtk/gtk.h>
 
@@ -49,18 +50,15 @@
  * execute within the same thread that created the widget under Win32.
  */ 
 
-class nsGTKToolkit
+class nsGTKToolkit : public nsIToolkit
 {
 public:
     nsGTKToolkit();
     virtual ~nsGTKToolkit();
 
-    static nsGTKToolkit* GetToolkit();
+    NS_DECL_ISUPPORTS
 
-    static void Shutdown() {
-      delete gToolkit;
-      gToolkit = nsnull;
-    }
+    NS_IMETHOD    Init(PRThread *aThread);
 
     void          CreateSharedGC(void);
     GdkGC         *GetSharedGC(void);
@@ -81,8 +79,6 @@ public:
     PRUint32 GetFocusTimestamp() { return mFocusTimestamp; }
 
 private:
-    static nsGTKToolkit* gToolkit;
-
     GdkGC         *mSharedGC;
     nsCString      mDesktopStartupID;
     PRUint32       mFocusTimestamp;

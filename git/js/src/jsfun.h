@@ -203,9 +203,10 @@ struct JSFunction : public JSObject_Slots2
     void setScript(JSScript *script) {
         JS_ASSERT(isInterpreted());
         u.i.script_ = script;
+        script->setOwnerObject(this);
     }
 
-    JSScript *maybeScript() const {
+    JSScript * maybeScript() const {
         return isInterpreted() ? script() : NULL;
     }
 

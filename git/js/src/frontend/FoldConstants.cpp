@@ -434,8 +434,10 @@ Boolish(ParseNode *pn)
     }
 }
 
+namespace js {
+
 bool
-js::FoldConstants(JSContext *cx, ParseNode *pn, TreeContext *tc, bool inCond)
+FoldConstants(JSContext *cx, ParseNode *pn, TreeContext *tc, bool inCond)
 {
     ParseNode *pn1 = NULL, *pn2 = NULL, *pn3 = NULL;
 
@@ -906,3 +908,5 @@ js::FoldConstants(JSContext *cx, ParseNode *pn, TreeContext *tc, bool inCond)
 
     return true;
 }
+
+} /* namespace js */

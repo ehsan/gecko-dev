@@ -381,8 +381,6 @@ void Context::markAllStateDirty()
     mSampleStateDirty = true;
     mDitherStateDirty = true;
     mFrontFaceDirty = true;
-    mDxUniformsDirty = true;
-    mCachedCurrentProgram = NULL;
 }
 
 void Context::setClearColor(float red, float green, float blue, float alpha)
@@ -895,7 +893,6 @@ void Context::deleteShader(GLuint shader)
 void Context::deleteProgram(GLuint program)
 {
     mResourceManager->deleteProgram(program);
-    mCachedCurrentProgram = NULL;
 }
 
 void Context::deleteTexture(GLuint texture)
@@ -976,7 +973,7 @@ Framebuffer *Context::getReadFramebuffer()
 
 Framebuffer *Context::getDrawFramebuffer()
 {
-    return mBoundDrawFramebuffer;
+    return getFramebuffer(mState.drawFramebuffer);
 }
 
 void Context::bindArrayBuffer(unsigned int buffer)
@@ -1025,8 +1022,6 @@ void Context::bindDrawFramebuffer(GLuint framebuffer)
     }
 
     mState.drawFramebuffer = framebuffer;
-
-    mBoundDrawFramebuffer = getFramebuffer(framebuffer);
 }
 
 void Context::bindRenderbuffer(GLuint renderbuffer)
@@ -1045,8 +1040,6 @@ void Context::useProgram(GLuint program)
     {
         Program *newProgram = mResourceManager->getProgram(program);
         Program *oldProgram = mResourceManager->getProgram(priorProgram);
-        mCachedCurrentProgram = NULL;
-        mDxUniformsDirty = true;
 
         if (newProgram)
         {
@@ -1064,10 +1057,6 @@ void Context::setFramebufferZero(Framebuffer *buffer)
 {
     delete mFramebufferMap[0];
     mFramebufferMap[0] = buffer;
-    if (mState.drawFramebuffer == 0)
-    {
-        mBoundDrawFramebuffer = buffer;
-    }
 }
 
 void Context::setRenderbufferStorage(RenderbufferStorage *renderbuffer)
@@ -1116,11 +1105,7 @@ Buffer *Context::getElementArrayBuffer()
 
 Program *Context::getCurrentProgram()
 {
-    if (!mCachedCurrentProgram)
-    {
-        mCachedCurrentProgram = mResourceManager->getProgram(mState.currentProgram);
-    }
-    return mCachedCurrentProgram;
+    return mResourceManager->getProgram(mState.currentProgram);
 }
 
 Texture2D *Context::getTexture2D()
@@ -1629,19 +1614,19 @@ bool Context::applyRenderTarget(bool ignoreViewport)
         return error(GL_INVALID_FRAMEBUFFER_OPERATION, false);
     }
 
-    IDirect3DSurface9 *renderTarget = NULL;
+    IDirect3DSurface9 *renderTarget = framebufferObject->getRenderTarget();
+
+    if (!renderTarget)
+    {
+        return false;   // Context must be lost
+    }
+
     IDirect3DSurface9 *depthStencil = NULL;
 
     bool renderTargetChanged = false;
     unsigned int renderTargetSerial = framebufferObject->getRenderTargetSerial();
     if (renderTargetSerial != mAppliedRenderTargetSerial)
     {
-        renderTarget = framebufferObject->getRenderTarget();
-
-        if (!renderTarget)
-        {
-            return false;   // Context must be lost
-        }
         device->SetRenderTarget(0, renderTarget);
         mAppliedRenderTargetSerial = renderTargetSerial;
         mScissorStateDirty = true; // Scissor area must be clamped to render target's size-- this is different for different render targets.
@@ -1685,15 +1670,6 @@ bool Context::applyRenderTarget(bool ignoreViewport)
 
     if (!mRenderTargetDescInitialized || renderTargetChanged)
     {
-        if (!renderTarget)
-        {
-            renderTarget = framebufferObject->getRenderTarget();
-
-            if (!renderTarget)
-            {
-                return false;   // Context must be lost
-            }
-        }
         renderTarget->GetDesc(&mRenderTargetDesc);
         mRenderTargetDescInitialized = true;
     }
@@ -1733,7 +1709,6 @@ bool Context::applyRenderTarget(bool ignoreViewport)
         device->SetViewport(&viewport);
         mSetViewport = viewport;
         mViewportInitialized = true;
-        mDxUniformsDirty = true;
     }
 
     if (mScissorStateDirty)
@@ -1756,7 +1731,7 @@ bool Context::applyRenderTarget(bool ignoreViewport)
         mScissorStateDirty = false;
     }
 
-    if (mState.currentProgram && mDxUniformsDirty)
+    if (mState.currentProgram)
     {
         Program *programObject = getCurrentProgram();
 
@@ -1777,7 +1752,6 @@ bool Context::applyRenderTarget(bool ignoreViewport)
         GLint depthRange = programObject->getDxDepthRangeLocation();
         GLfloat nearFarDiff[3] = {zNear, zFar, zFar - zNear};
         programObject->setUniform3fv(depthRange, 1, nearFarDiff);
-        mDxUniformsDirty = false;
     }
 
     return true;
@@ -2115,14 +2089,12 @@ void Context::applyTextures(SamplerType type)
     Program *programObject = getCurrentProgram();
 
     int samplerCount = (type == SAMPLER_PIXEL) ? MAX_TEXTURE_IMAGE_UNITS : MAX_VERTEX_TEXTURE_IMAGE_UNITS_VTF;   // Range of Direct3D 9 samplers of given sampler type
-    unsigned int *appliedTextureSerial = (type == SAMPLER_PIXEL) ? mAppliedTextureSerialPS : mAppliedTextureSerialVS;
-    int d3dSamplerOffset = (type == SAMPLER_PIXEL) ? 0 : D3DVERTEXTEXTURESAMPLER0;
-    int samplerRange = programObject->getUsedSamplerRange(type);
 
-    for (int samplerIndex = 0; samplerIndex < samplerRange; samplerIndex++)
+    for (int samplerIndex = 0; samplerIndex < samplerCount; samplerIndex++)
     {
         int textureUnit = programObject->getSamplerMapping(type, samplerIndex);   // OpenGL texture image unit index
-        int d3dSampler = samplerIndex + d3dSamplerOffset;
+        int d3dSampler = (type == SAMPLER_PIXEL) ? samplerIndex : D3DVERTEXTEXTURESAMPLER0 + samplerIndex;
+        unsigned int *appliedTextureSerial = (type == SAMPLER_PIXEL) ? mAppliedTextureSerialPS : mAppliedTextureSerialVS;
 
         if (textureUnit != -1)
         {
@@ -2174,15 +2146,6 @@ void Context::applyTextures(SamplerType type)
                 device->SetTexture(d3dSampler, NULL);
                 appliedTextureSerial[samplerIndex] = 0;
             }
-        }
-    }
-
-    for (int samplerIndex = samplerRange; samplerIndex < samplerCount; samplerIndex++)
-    {
-        if (appliedTextureSerial[samplerIndex] != 0)
-        {
-            device->SetTexture(samplerIndex + d3dSamplerOffset, NULL);
-            appliedTextureSerial[samplerIndex] = 0;
         }
     }
 }
@@ -3471,7 +3434,6 @@ void Context::initExtensionString()
     {
         mExtensionString += "GL_ANGLE_texture_compression_dxt5 ";
     }
-    mExtensionString += "GL_ANGLE_translated_shader_source ";
 
     // Other vendor-specific extensions
     if (supportsEventQueries())

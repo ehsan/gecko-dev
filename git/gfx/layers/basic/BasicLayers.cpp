@@ -889,7 +889,7 @@ BasicImageLayer::GetAndPaintCurrentImage(gfxContext* aContext,
   nsRefPtr<Image> image = mContainer->GetCurrentImage();
 
   nsRefPtr<gfxASurface> surface = mContainer->GetCurrentAsSurface(&mSize);
-  if (!surface || surface->CairoStatus()) {
+  if (!surface) {
     return nsnull;
   }
 
@@ -1111,7 +1111,7 @@ BasicCanvasLayer::UpdateSurface(gfxASurface* aDestSurface)
     mGLContext->MakeCurrent();
 
 #if defined (MOZ_X11) && defined (MOZ_EGL_XRENDER_COMPOSITE)
-    mGLContext->fFinish();
+    mGLContext->Finish();
     gfxASurface* offscreenSurface = mGLContext->GetOffscreenPixmapSurface();
 
     // XRender can only blend premuliplied alpha, so only allow xrender
@@ -1868,14 +1868,6 @@ BasicLayerManager::PaintLayer(gfxContext* aTarget,
     untransformedSurface = 
       gfxPlatform::GetPlatform()->CreateOffscreenSurface(gfxIntSize(bounds.width, bounds.height), 
                                                          gfxASurface::CONTENT_COLOR_ALPHA);
-    if (!untransformedSurface) {
-      if (pushedTargetOpaqueRect) {
-        currentSurface->SetOpaqueRect(gfxRect(0, 0, 0, 0));
-      }
-      NS_ASSERTION(needsSaveRestore, "Should always need to restore with 3d transforms!");
-      aTarget->Restore();
-      return;
-    }
     untransformedSurface->SetDeviceOffset(gfxPoint(-bounds.x, -bounds.y));
     groupTarget = new gfxContext(untransformedSurface);
   } else if (needsGroup) {
@@ -2470,11 +2462,6 @@ private:
 void
 BasicShadowableImageLayer::Paint(gfxContext* aContext)
 {
-  if (!HasShadow()) {
-    BasicImageLayer::Paint(aContext);
-    return;
-  }
-
   if (!mContainer) {
     return;
   }

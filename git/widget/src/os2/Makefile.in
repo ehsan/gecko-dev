@@ -62,6 +62,7 @@ CPPSRCS		= \
 		nsOS2Uni.cpp \
 		nsPrintOS2.cpp \
 		nsSound.cpp \
+		nsToolkit.cpp \
 		nsWidgetFactory.cpp \
 		nsWindow.cpp \
 		nsDragService.cpp \
