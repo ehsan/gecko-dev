@@ -11,6 +11,7 @@
 
 #include "mozilla/dom/quota/Client.h"
 
+#define IDB_DIRECTORY_NAME "idb"
 #define JOURNAL_DIRECTORY_NAME "journals"
 
 BEGIN_INDEXEDDB_NAMESPACE

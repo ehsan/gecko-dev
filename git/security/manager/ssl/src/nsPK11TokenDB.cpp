@@ -18,6 +18,8 @@
 extern PRLogModuleInfo* gPIPNSSLog;
 #endif
 
+static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
+
 NS_IMPL_ISUPPORTS1(nsPK11Token, nsIPK11Token)
 
 nsPK11Token::nsPK11Token(PK11SlotInfo *slot)
@@ -230,8 +232,6 @@ NS_IMETHODIMP nsPK11Token::LogoutSimple()
 
 NS_IMETHODIMP nsPK11Token::LogoutAndDropAuthenticatedResources()
 {
-  static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
-
   nsresult rv = LogoutSimple();
 
   if (NS_FAILED(rv))

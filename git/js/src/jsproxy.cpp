@@ -781,7 +781,6 @@ class ScriptedIndirectProxyHandler : public BaseProxyHandler
     virtual bool nativeCall(JSContext *cx, IsAcceptableThis test, NativeImpl impl,
                             CallArgs args) MOZ_OVERRIDE;
     virtual JSString *fun_toString(JSContext *cx, HandleObject proxy, unsigned indent) MOZ_OVERRIDE;
-    virtual bool isScripted() MOZ_OVERRIDE { return true; }
 
     static ScriptedIndirectProxyHandler singleton;
 };
@@ -1102,7 +1101,6 @@ class ScriptedDirectProxyHandler : public DirectProxyHandler {
     /* Spidermonkey extensions. */
     virtual bool call(JSContext *cx, HandleObject proxy, const CallArgs &args) MOZ_OVERRIDE;
     virtual bool construct(JSContext *cx, HandleObject proxy, const CallArgs &args) MOZ_OVERRIDE;
-    virtual bool isScripted() MOZ_OVERRIDE { return true; }
 
     static ScriptedDirectProxyHandler singleton;
 };

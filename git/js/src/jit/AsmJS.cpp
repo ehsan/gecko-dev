@@ -1632,7 +1632,7 @@ class MOZ_STACK_CLASS ModuleCompiler
         module_->exportedFunction(exportIndex).initCodeOffset(masm_.size());
     }
 
-    void buildCompilationTimeReport(bool storedInCache, ScopedJSFreePtr<char> *out) {
+    void buildCompilationTimeReport(ScopedJSFreePtr<char> *out) {
         ScopedJSFreePtr<char> slowFuns;
 #ifndef JS_MORE_DETERMINISTIC
         int64_t usecAfter = PRMJ_Now();
@@ -1653,10 +1653,8 @@ class MOZ_STACK_CLASS ModuleCompiler
                     return;
             }
         }
-        out->reset(JS_smprintf("total compilation time %dms%s%s",
-                               msTotal,
-                               storedInCache ? "; stored in cache" : "",
-                               slowFuns ? slowFuns.get() : ""));
+        out->reset(JS_smprintf("total compilation time %dms%s",
+                               msTotal, slowFuns ? slowFuns.get() : ""));
 #endif
     }
 
@@ -2054,24 +2052,6 @@ class FunctionCompiler
         if (!curBlock_)
             return nullptr;
         MMul *ins = MMul::New(alloc(), lhs, rhs, type, mode);
-        curBlock_->add(ins);
-        return ins;
-    }
-
-    MDefinition *div(MDefinition *lhs, MDefinition *rhs, MIRType type, bool unsignd)
-    {
-        if (!curBlock_)
-            return nullptr;
-        MDiv *ins = MDiv::NewAsmJS(alloc(), lhs, rhs, type, unsignd);
-        curBlock_->add(ins);
-        return ins;
-    }
-
-    MDefinition *mod(MDefinition *lhs, MDefinition *rhs, MIRType type, bool unsignd)
-    {
-        if (!curBlock_)
-            return nullptr;
-        MMod *ins = MMod::NewAsmJS(alloc(), lhs, rhs, type, unsignd);
         curBlock_->add(ins);
         return ins;
     }
@@ -4215,26 +4195,26 @@ CheckDivOrMod(FunctionCompiler &f, ParseNode *expr, MDefinition **def, Type *typ
 
     if (lhsType.isDoublish() && rhsType.isDoublish()) {
         *def = expr->isKind(PNK_DIV)
-               ? f.div(lhsDef, rhsDef, MIRType_Double, /* unsignd = */ false)
-               : f.mod(lhsDef, rhsDef, MIRType_Double, /* unsignd = */ false);
+               ? f.binary<MDiv>(lhsDef, rhsDef, MIRType_Double)
+               : f.binary<MMod>(lhsDef, rhsDef, MIRType_Double);
         *type = Type::Double;
         return true;
     }
 
     if (lhsType.isSigned() && rhsType.isSigned()) {
         if (expr->isKind(PNK_DIV))
-            *def = f.div(lhsDef, rhsDef, MIRType_Int32, /* unsignd = */ false);
+            *def = f.binary<MDiv>(lhsDef, rhsDef, MIRType_Int32);
         else
-            *def = f.mod(lhsDef, rhsDef, MIRType_Int32, /* unsignd = */ false);
+            *def = f.binary<MMod>(lhsDef, rhsDef, MIRType_Int32);
         *type = Type::Intish;
         return true;
     }
 
     if (lhsType.isUnsigned() && rhsType.isUnsigned()) {
         if (expr->isKind(PNK_DIV))
-            *def = f.div(lhsDef, rhsDef, MIRType_Int32, /* unsignd = */ true);
+            *def = f.binary<MAsmJSUDiv>(lhsDef, rhsDef);
         else
-            *def = f.mod(lhsDef, rhsDef, MIRType_Int32, /* unsignd = */ true);
+            *def = f.binary<MAsmJSUMod>(lhsDef, rhsDef);
         *type = Type::Intish;
         return true;
     }
@@ -6464,10 +6444,10 @@ CheckModule(ExclusiveContext *cx, AsmJSParser &parser, ParseNode *stmtList,
     if (!FinishModule(m, &module, &linkData))
         return false;
 
-    bool storedInCache = StoreAsmJSModuleInCache(parser, *module, linkData, cx);
+    StoreAsmJSModuleInCache(parser, *module, linkData, cx);
     module->staticallyLink(linkData, cx);
 
-    m.buildCompilationTimeReport(storedInCache, compilationTimeReport);
+    m.buildCompilationTimeReport(compilationTimeReport);
     *moduleOut = module.forget();
     return true;
 }

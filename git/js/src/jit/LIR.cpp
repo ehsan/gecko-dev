@@ -288,12 +288,6 @@ LAllocation::toString() const
 #endif // DEBUG
 
 void
-LAllocation::dump() const
-{
-    fprintf(stderr, "%s\n", toString());
-}
-
-void
 LInstruction::printOperands(FILE *fp)
 {
     for (size_t i = 0, e = numOperands(); i < e; i++) {
@@ -321,7 +315,7 @@ LInstruction::assignSnapshot(LSnapshot *snapshot)
 }
 
 void
-LInstruction::dump(FILE *fp)
+LInstruction::print(FILE *fp)
 {
     fprintf(fp, "{");
     for (size_t i = 0; i < numDefs(); i++) {
@@ -345,12 +339,6 @@ LInstruction::dump(FILE *fp)
         }
         fprintf(fp, ")");
     }
-}
-
-void
-LInstruction::dump()
-{
-    return dump(stderr);
 }
 
 void

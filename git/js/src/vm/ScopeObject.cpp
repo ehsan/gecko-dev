@@ -61,46 +61,14 @@ js::ScopeCoordinateToStaticScopeShape(JSScript *script, jsbytecode *pc)
     return ssi.scopeShape();
 }
 
-static const uint32_t SCOPE_COORDINATE_NAME_THRESHOLD = 20;
-
-void
-ScopeCoordinateNameCache::purge()
-{
-    shape = nullptr;
-    if (map.initialized())
-        map.finish();
-}
-
 PropertyName *
-js::ScopeCoordinateName(ScopeCoordinateNameCache &cache, JSScript *script, jsbytecode *pc)
+js::ScopeCoordinateName(JSScript *script, jsbytecode *pc)
 {
-    Shape *shape = ScopeCoordinateToStaticScopeShape(script, pc);
-    if (shape != cache.shape && shape->slot() >= SCOPE_COORDINATE_NAME_THRESHOLD) {
-        cache.purge();
-        if (cache.map.init(shape->slot())) {
-            cache.shape = shape;
-            Shape::Range<NoGC> r(shape);
-            while (!r.empty()) {
-                if (!cache.map.putNew(r.front().slot(), r.front().propid())) {
-                    cache.purge();
-                    break;
-                }
-                r.popFront();
-            }
-        }
-    }
-
-    jsid id;
+    Shape::Range<NoGC> r(ScopeCoordinateToStaticScopeShape(script, pc));
     ScopeCoordinate sc(pc);
-    if (shape == cache.shape) {
-        ScopeCoordinateNameCache::Map::Ptr p = cache.map.lookup(sc.slot);
-        id = p->value;
-    } else {
-        Shape::Range<NoGC> r(shape);
-        while (r.front().slot() != sc.slot)
-            r.popFront();
-        id = r.front().propid();
-    }
+    while (r.front().slot() != sc.slot)
+        r.popFront();
+    jsid id = r.front().propid();
 
     /* Beware nameless destructuring formal. */
     if (!JSID_IS_ATOM(id))
@@ -2159,7 +2127,7 @@ RemoveReferencedNames(JSContext *cx, HandleScript script, PropertyNameSet &remai
           case JSOP_GETALIASEDVAR:
           case JSOP_CALLALIASEDVAR:
           case JSOP_SETALIASEDVAR:
-            name = ScopeCoordinateName(cx->runtime()->scopeCoordinateNameCache, script, pc);
+            name = ScopeCoordinateName(script, pc);
             break;
 
           default:

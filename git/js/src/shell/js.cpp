@@ -5015,9 +5015,8 @@ class ScopedFileDesc
 static const uint32_t asmJSCacheCookie = 0xabbadaba;
 
 static bool
-ShellOpenAsmJSCacheEntryForRead(HandleObject global, const jschar *begin, const jschar *limit,
-                                size_t *serializedSizeOut, const uint8_t **memoryOut,
-                                intptr_t *handleOut)
+ShellOpenAsmJSCacheEntryForRead(HandleObject global, size_t *serializedSizeOut,
+                                const uint8_t **memoryOut, intptr_t *handleOut)
 {
     if (!jsCacheAsmJSPath)
         return false;
@@ -5088,8 +5087,8 @@ ShellCloseAsmJSCacheEntryForRead(HandleObject global, size_t serializedSize, con
 }
 
 static bool
-ShellOpenAsmJSCacheEntryForWrite(HandleObject global, const jschar *begin, const jschar *end,
-                                 size_t serializedSize, uint8_t **memoryOut, intptr_t *handleOut)
+ShellOpenAsmJSCacheEntryForWrite(HandleObject global, size_t serializedSize,
+                                 uint8_t **memoryOut, intptr_t *handleOut)
 {
     if (!jsCacheAsmJSPath)
         return false;

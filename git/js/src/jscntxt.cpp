@@ -429,10 +429,7 @@ js_ReportOverRecursed(JSContext *maybecx)
 void
 js_ReportOverRecursed(ThreadSafeContext *cx)
 {
-    if (cx->isJSContext())
-        js_ReportOverRecursed(cx->asJSContext());
-    else if (cx->isExclusiveContext())
-        cx->asExclusiveContext()->addPendingOverRecursed();
+    js_ReportOverRecursed(cx->maybeJSContext());
 }
 
 void

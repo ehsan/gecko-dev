@@ -106,7 +106,7 @@ DumpLIR(FILE *fp, LInstruction *ins)
 {
     fprintf(fp, "      ");
     fprintf(fp, "%d ", ins->id());
-    ins->dump(fp);
+    ins->print(fp);
     fprintf(fp, " <|@\n");
 }
 

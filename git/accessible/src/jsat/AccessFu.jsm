@@ -496,9 +496,7 @@ var Output = {
   },
 
   speechHelper: {
-    EARCONS: ['virtual_cursor_move.ogg',
-              'virtual_cursor_key.ogg',
-              'clicked.ogg'],
+    EARCONS: ['chrome://global/content/accessibility/tick.wav'],
 
     earconBuffers: {},
 
@@ -511,10 +509,9 @@ var Output = {
       this.webspeechEnabled = !!window.speechSynthesis;
 
       for (let earcon of this.EARCONS) {
-        let earconName = /(^.*)\..*$/.exec(earcon)[1];
+        let earconName = /.*\/(.*)\..*$/.exec(earcon)[1];
         this.earconBuffers[earconName] = new WeakMap();
-        this.earconBuffers[earconName].set(
-          window, new window.Audio('chrome://global/content/accessibility/' + earcon));
+        this.earconBuffers[earconName].set(window, new window.Audio(earcon));
       }
 
       this.inited = true;

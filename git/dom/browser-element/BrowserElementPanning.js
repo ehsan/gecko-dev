@@ -115,7 +115,9 @@ const ContentPanning = {
   },
 
   observe: function cp_observe(subject, topic, data) {
-    this._resetHover();
+    if (topic === 'BEC:ShownModalPrompt') {
+      this._resetHover();
+    }
   },
 
   position: new Point(0 , 0),

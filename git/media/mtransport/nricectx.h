@@ -163,15 +163,12 @@ class NrIceTurnServer : public NrIceStunServer {
 
 class NrIceCtx {
  public:
-  enum ConnectionState { ICE_CTX_INIT,
-                         ICE_CTX_CHECKING,
-                         ICE_CTX_OPEN,
-                         ICE_CTX_FAILED
-  };
-
-  enum GatheringState { ICE_CTX_GATHER_INIT,
-                        ICE_CTX_GATHER_STARTED,
-                        ICE_CTX_GATHER_COMPLETE
+  enum State { ICE_CTX_INIT,
+               ICE_CTX_GATHERING,
+               ICE_CTX_GATHERED,
+               ICE_CTX_CHECKING,
+               ICE_CTX_OPEN,
+               ICE_CTX_FAILED
   };
 
   enum Controlling { ICE_CONTROLLING,
@@ -197,14 +194,7 @@ class NrIceCtx {
   const std::string& name() const { return name_; }
 
   // Current state
-  ConnectionState connection_state() const {
-    return connection_state_;
-  }
-
-  // Current state
-  GatheringState gathering_state() const {
-    return gathering_state_;
-  }
+  State state() const { return state_; }
 
   // Get the global attributes
   std::vector<std::string> GetGlobalAttributes();
@@ -242,10 +232,11 @@ class NrIceCtx {
 
   // Signals to indicate events. API users can (and should)
   // register for these.
-  sigslot::signal2<NrIceCtx*, NrIceCtx::GatheringState>
-    SignalGatheringStateChange;
-  sigslot::signal2<NrIceCtx*, NrIceCtx::ConnectionState>
-    SignalConnectionStateChange;
+  // TODO(ekr@rtfm.com): refactor this to be state change instead
+  // so we don't need to keep adding signals?
+  sigslot::signal1<NrIceCtx *> SignalGatheringCompleted;  // Done gathering
+  sigslot::signal1<NrIceCtx *> SignalCompleted;  // Done handshaking
+  sigslot::signal1<NrIceCtx *> SignalFailed;  // Failure.
 
   // The thread to direct method calls to
   nsCOMPtr<nsIEventTarget> thread() { return sts_target_; }
@@ -255,8 +246,7 @@ class NrIceCtx {
  private:
   NrIceCtx(const std::string& name,
            bool offerer)
-  : connection_state_(ICE_CTX_INIT),
-    gathering_state_(ICE_CTX_GATHER_INIT),
+  : state_(ICE_CTX_INIT),
     name_(name),
     offerer_(offerer),
     streams_(),
@@ -291,13 +281,9 @@ class NrIceCtx {
   RefPtr<NrIceMediaStream> FindStream(nr_ice_media_stream *stream);
 
   // Set the state
-  void SetConnectionState(ConnectionState state);
+  void SetState(State state);
 
-  // Set the state
-  void SetGatheringState(GatheringState state);
-
-  ConnectionState connection_state_;
-  GatheringState gathering_state_;
+  State state_;
   const std::string name_;
   bool offerer_;
   std::vector<RefPtr<NrIceMediaStream> > streams_;

@@ -959,8 +959,7 @@ void RNG_SystemInfoForRNG(void)
 size_t RNG_FileUpdate(const char *fileName, size_t limit)
 {
     FILE *        file;
-    int           fd;
-    int           bytes;
+    size_t        bytes;
     size_t        fileBytes = 0;
     struct stat   stat_buf;
     unsigned char buffer[BUFSIZ];
@@ -975,18 +974,10 @@ size_t RNG_FileUpdate(const char *fileName, size_t limit)
     
     file = fopen(fileName, "r");
     if (file != NULL) {
-	/* Read from the underlying file descriptor directly to bypass stdio
-	 * buffering and avoid reading more bytes than we need from
-	 * /dev/urandom. NOTE: we can't use fread with unbuffered I/O because
-	 * fread may return EOF in unbuffered I/O mode on Android.
-	 *
-	 * Moreover, we read into a buffer of size BUFSIZ, so buffered I/O
-	 * has no performance advantage. */
-	fd = fileno(file);
 	while (limit > fileBytes) {
 	    bytes = PR_MIN(sizeof buffer, limit - fileBytes);
-	    bytes = read(fd, buffer, bytes);
-	    if (bytes <= 0)
+	    bytes = fread(buffer, 1, bytes, file);
+	    if (bytes == 0) 
 		break;
 	    RNG_RandomUpdate(buffer, bytes);
 	    fileBytes      += bytes;
@@ -1135,8 +1126,7 @@ static void rng_systemJitter(void)
 size_t RNG_SystemRNG(void *dest, size_t maxLen)
 {
     FILE *file;
-    int fd;
-    int bytes;
+    size_t bytes;
     size_t fileBytes = 0;
     unsigned char *buffer = dest;
 
@@ -1144,16 +1134,10 @@ size_t RNG_SystemRNG(void *dest, size_t maxLen)
     if (file == NULL) {
 	return rng_systemFromNoise(dest, maxLen);
     }
-    /* Read from the underlying file descriptor directly to bypass stdio
-     * buffering and avoid reading more bytes than we need from /dev/urandom.
-     * NOTE: we can't use fread with unbuffered I/O because fread may return
-     * EOF in unbuffered I/O mode on Android.
-     */
-    fd = fileno(file);
     while (maxLen > fileBytes) {
 	bytes = maxLen - fileBytes;
-	bytes = read(fd, buffer, bytes);
-	if (bytes <= 0)
+	bytes = fread(buffer, 1, bytes, file);
+	if (bytes == 0) 
 	    break;
 	fileBytes += bytes;
 	buffer += bytes;

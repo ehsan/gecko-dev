@@ -54,7 +54,7 @@ public class GeckoActionProvider extends ActionProvider {
         view.setActionButtonClickListener(mCallbacks);
 
         final PackageManager packageManager = mContext.getPackageManager();
-        int historySize = dataModel.getDistinctActivityCountInHistory();
+        int historySize = dataModel.getHistorySize();
         if (historySize > 2) {
             historySize = 2;
         }
@@ -142,3 +142,4 @@ public class GeckoActionProvider extends ActionProvider {
         }
     }
 }
+

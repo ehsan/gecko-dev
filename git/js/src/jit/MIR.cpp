@@ -281,12 +281,6 @@ MDefinition::dump(FILE *fp) const
     fprintf(fp, "\n");
 }
 
-void
-MDefinition::dump() const
-{
-    dump(stderr);
-}
-
 size_t
 MDefinition::useCount() const
 {
@@ -333,17 +327,6 @@ MDefinition::hasOneDefUse() const
     }
 
     return hasOneDefUse;
-}
-
-bool
-MDefinition::hasDefUses() const
-{
-    for (MUseIterator i(uses_.begin()); i != uses_.end(); i++) {
-        if ((*i)->consumer()->isDefinition())
-            return true;
-    }
-
-    return false;
 }
 
 MUseIterator
