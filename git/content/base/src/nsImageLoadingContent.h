@@ -284,8 +284,6 @@ protected:
 
   /**
    * Adds/Removes a given imgIRequest from our document's tracker.
-   *
-   * No-op if aImage is null.
    */
   nsresult TrackImage(imgIRequest* aImage);
   nsresult UntrackImage(imgIRequest* aImage);

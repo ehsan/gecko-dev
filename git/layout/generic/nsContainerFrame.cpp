@@ -590,10 +590,9 @@ nsContainerFrame::SyncFrameViewProperties(nsPresContext*  aPresContext,
 
 static nscoord GetCoord(const nsStyleCoord& aCoord, nscoord aIfNotCoord)
 {
-  if (aCoord.ConvertsToLength()) {
-    return nsRuleNode::ComputeCoordPercentCalc(aCoord, 0);
-  }
-  return aIfNotCoord;
+  return aCoord.GetUnit() == eStyleUnit_Coord
+           ? aCoord.GetCoordValue()
+           : aIfNotCoord;
 }
 
 void

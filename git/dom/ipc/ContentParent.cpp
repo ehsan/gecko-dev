@@ -55,7 +55,6 @@
 #include "nsChromeRegistryChrome.h"
 #include "nsExternalHelperAppService.h"
 #include "nsCExternalHandlerService.h"
-#include "nsFrameMessageManager.h"
 
 #ifdef ANDROID
 #include "AndroidBridge.h"
@@ -556,31 +555,6 @@ ContentParent::RecvNotifyIME(const int& aType, const int& aStatus)
 #else
     return false;
 #endif
-}
-
-
-bool
-ContentParent::RecvSyncMessage(const nsString& aMsg, const nsString& aJSON,
-                               nsTArray<nsString>* aRetvals)
-{
-  nsRefPtr<nsFrameMessageManager> ppm = nsFrameMessageManager::sParentProcessManager;
-  if (ppm) {
-    ppm->ReceiveMessage(static_cast<nsIContentFrameMessageManager*>(ppm.get()),
-                        aMsg,PR_TRUE, aJSON, nsnull, aRetvals);
-  }
-  return true;
-}
-
-
-bool
-ContentParent::RecvAsyncMessage(const nsString& aMsg, const nsString& aJSON)
-{
-  nsRefPtr<nsFrameMessageManager> ppm = nsFrameMessageManager::sParentProcessManager;
-  if (ppm) {
-    ppm->ReceiveMessage(static_cast<nsIContentFrameMessageManager*>(ppm.get()),
-                        aMsg, PR_FALSE, aJSON, nsnull, nsnull);
-  }
-  return true;
 }
     
 } // namespace dom

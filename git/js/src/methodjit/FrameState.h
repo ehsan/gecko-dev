@@ -499,9 +499,6 @@ class FrameState
     void allocForBinary(FrameEntry *lhs, FrameEntry *rhs, JSOp op, BinaryAlloc &alloc,
                         bool resultNeeded = true);
 
-    /* Ensures that an FE has both type and data remat'd in registers. */
-    void ensureFullRegs(FrameEntry *fe);
-
     /*
      * Similar to allocForBinary, except works when the LHS and RHS have the
      * same backing FE. Only a reduced subset of BinaryAlloc is used:
@@ -771,7 +768,7 @@ class FrameState
     inline void swapInTracker(FrameEntry *lhs, FrameEntry *rhs);
     inline uint32 localIndex(uint32 n);
     void pushCopyOf(uint32 index);
-    void syncFancy(Assembler &masm, Registers avail, FrameEntry *resumeAt,
+    void syncFancy(Assembler &masm, Registers avail, uint32 resumeAt,
                    FrameEntry *bottom) const;
     inline bool tryFastDoubleLoad(FrameEntry *fe, FPRegisterID fpReg, Assembler &masm) const;
     void resetInternalState();
@@ -799,7 +796,7 @@ class FrameState
         return uint32((sp + depth) - entries);
     }
 
-    uint32 indexOfFe(FrameEntry *fe) const {
+    uint32 indexOfFe(FrameEntry *fe) {
         return uint32(fe - entries);
     }
 
