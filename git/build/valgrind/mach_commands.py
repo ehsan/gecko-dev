@@ -108,8 +108,7 @@ class MachCommands(MachCommandBase):
                 '--num-callers=36',
                 '--leak-check=full',
                 '--show-possibly-lost=no',
-                '--track-origins=yes',
-                '--trace-children=yes',
+                '--track-origins=yes'
             ]
 
             for s in suppressions:

@@ -627,10 +627,7 @@ nsContextMenu.prototype = {
         this.onCanvas = true;
       }
       else if (this.target instanceof HTMLVideoElement) {
-        let mediaURL = this.target.currentSrc || this.target.src;
-        if (this.isMediaURLReusable(mediaURL)) {
-          this.mediaURL = mediaURL;
-        }
+        this.mediaURL = this.target.currentSrc || this.target.src;
         // Firefox always creates a HTMLVideoElement when loading an ogg file
         // directly. If the media is actually audio, be smarter and provide a
         // context menu with audio operations.
@@ -643,10 +640,7 @@ nsContextMenu.prototype = {
       }
       else if (this.target instanceof HTMLAudioElement) {
         this.onAudio = true;
-        let mediaURL = this.target.currentSrc || this.target.src;
-        if (this.isMediaURLReusable(mediaURL)) {
-          this.mediaURL = mediaURL;
-        }
+        this.mediaURL = this.target.currentSrc || this.target.src;
       }
       else if (editFlags & (SpellCheckHelper.INPUT | SpellCheckHelper.TEXTAREA)) {
         this.onTextInput = (editFlags & SpellCheckHelper.TEXTINPUT) !== 0;
@@ -1508,10 +1502,6 @@ nsContextMenu.prototype = {
   // Returns true if anything is selected.
   isContentSelection: function() {
     return !this.focusedWindow.getSelection().isCollapsed;
-  },
-
-  isMediaURLReusable: function(aURL) {
-    return !/^(?:blob|mediasource):/.test(aURL);
   },
 
   toString: function () {

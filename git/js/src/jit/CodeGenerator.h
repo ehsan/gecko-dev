@@ -318,7 +318,6 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool visitAsmJSVoidReturn(LAsmJSVoidReturn *ret);
     bool visitLexicalCheck(LLexicalCheck *ins);
     bool visitThrowUninitializedLexical(LThrowUninitializedLexical *ins);
-    bool visitDebugger(LDebugger *ins);
 
     bool visitCheckOverRecursed(LCheckOverRecursed *lir);
     bool visitCheckOverRecursedFailure(CheckOverRecursedFailure *ool);

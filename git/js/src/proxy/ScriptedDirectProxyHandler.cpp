@@ -1020,10 +1020,10 @@ ScriptedDirectProxyHandler::set(JSContext *cx, HandleObject proxy, HandleObject 
 
 bool
 ScriptedDirectProxyHandler::iterate(JSContext *cx, HandleObject proxy, unsigned flags,
-                                    MutableHandleObject objp) const
+                                    MutableHandleValue vp) const
 {
     // FIXME: Provide a proper implementation for this trap, see bug 787004
-    return DirectProxyHandler::iterate(cx, proxy, flags, objp);
+    return DirectProxyHandler::iterate(cx, proxy, flags, vp);
 }
 
 // ES6 (22 May, 2014) 9.5.13 Proxy.[[Call]]

@@ -758,8 +758,7 @@ ScriptExecutorRunnable::WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
     loadInfo.mScriptTextBuf = nullptr;
     loadInfo.mScriptTextLength = 0;
 
-    JS::Rooted<JS::Value> unused(aCx);
-    if (!JS::Evaluate(aCx, global, options, srcBuf, &unused)) {
+    if (!JS::Evaluate(aCx, global, options, srcBuf)) {
       return true;
     }
 

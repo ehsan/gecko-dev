@@ -3295,15 +3295,17 @@ END_CASE(JSOP_INSTANCEOF)
 CASE(JSOP_DEBUGGER)
 {
     RootedValue rval(cx);
-    switch (Debugger::onDebuggerStatement(cx, REGS.fp())) {
+    switch (Debugger::onDebuggerStatement(cx, REGS.fp(), &rval)) {
       case JSTRAP_ERROR:
         goto error;
       case JSTRAP_CONTINUE:
         break;
       case JSTRAP_RETURN:
+        REGS.fp()->setReturnValue(rval);
         ForcedReturn(cx, REGS);
         goto successful_return_continuation;
       case JSTRAP_THROW:
+        cx->setPendingException(rval);
         goto error;
       default:;
     }

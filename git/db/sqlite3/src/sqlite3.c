@@ -1,6 +1,6 @@
 /******************************************************************************
 ** This file is an amalgamation of many separate C source files from SQLite
-** version 3.8.7.2.  By combining all the individual C code files into this 
+** version 3.8.7.1.  By combining all the individual C code files into this 
 ** single large file, the entire code can be compiled as a single translation
 ** unit.  This allows many compilers to do optimizations that would not be
 ** possible if the files were compiled separately.  Performance improvements
@@ -231,9 +231,9 @@ extern "C" {
 ** [sqlite3_libversion_number()], [sqlite3_sourceid()],
 ** [sqlite_version()] and [sqlite_source_id()].
 */
-#define SQLITE_VERSION        "3.8.7.2"
+#define SQLITE_VERSION        "3.8.7.1"
 #define SQLITE_VERSION_NUMBER 3008007
-#define SQLITE_SOURCE_ID      "2014-11-18 20:57:56 2ab564bf9655b7c7b97ab85cafc8a48329b27f93"
+#define SQLITE_SOURCE_ID      "2014-10-29 13:59:56 3b7b72c4685aa5cf5e675c2c47ebec10d9704221"
 
 /*
 ** CAPI3REF: Run-Time Library Version Numbers
@@ -9013,7 +9013,7 @@ SQLITE_PRIVATE int sqlite3BtreeBeginTrans(Btree*,int);
 SQLITE_PRIVATE int sqlite3BtreeCommitPhaseOne(Btree*, const char *zMaster);
 SQLITE_PRIVATE int sqlite3BtreeCommitPhaseTwo(Btree*, int);
 SQLITE_PRIVATE int sqlite3BtreeCommit(Btree*);
-SQLITE_PRIVATE int sqlite3BtreeRollback(Btree*,int,int);
+SQLITE_PRIVATE int sqlite3BtreeRollback(Btree*,int);
 SQLITE_PRIVATE int sqlite3BtreeBeginStmt(Btree*,int);
 SQLITE_PRIVATE int sqlite3BtreeCreateTable(Btree*, int*, int flags);
 SQLITE_PRIVATE int sqlite3BtreeIsInTrans(Btree*);
@@ -9046,7 +9046,7 @@ SQLITE_PRIVATE int sqlite3BtreeIncrVacuum(Btree *);
 SQLITE_PRIVATE int sqlite3BtreeDropTable(Btree*, int, int*);
 SQLITE_PRIVATE int sqlite3BtreeClearTable(Btree*, int, int*);
 SQLITE_PRIVATE int sqlite3BtreeClearTableOfCursor(BtCursor*);
-SQLITE_PRIVATE int sqlite3BtreeTripAllCursors(Btree*, int, int);
+SQLITE_PRIVATE void sqlite3BtreeTripAllCursors(Btree*, int);
 
 SQLITE_PRIVATE void sqlite3BtreeGetMeta(Btree *pBtree, int idx, u32 *pValue);
 SQLITE_PRIVATE int sqlite3BtreeUpdateMeta(Btree*, int idx, u32 value);
@@ -13062,7 +13062,7 @@ SQLITE_PRIVATE int sqlite3OpenTempDatabase(Parse *);
 SQLITE_PRIVATE void sqlite3StrAccumInit(StrAccum*, char*, int, int);
 SQLITE_PRIVATE void sqlite3StrAccumAppend(StrAccum*,const char*,int);
 SQLITE_PRIVATE void sqlite3StrAccumAppendAll(StrAccum*,const char*);
-SQLITE_PRIVATE void sqlite3AppendChar(StrAccum*,int,char);
+SQLITE_PRIVATE void sqlite3AppendSpace(StrAccum*,int);
 SQLITE_PRIVATE char *sqlite3StrAccumFinish(StrAccum*);
 SQLITE_PRIVATE void sqlite3StrAccumReset(StrAccum*);
 SQLITE_PRIVATE void sqlite3SelectDestInit(SelectDest*,int,int);
@@ -20947,7 +20947,7 @@ SQLITE_PRIVATE void sqlite3VXPrintf(
   const et_info *infop;      /* Pointer to the appropriate info structure */
   char *zOut;                /* Rendering buffer */
   int nOut;                  /* Size of the rendering buffer */
-  char *zExtra = 0;          /* Malloced memory used by some conversion */
+  char *zExtra;              /* Malloced memory used by some conversion */
 #ifndef SQLITE_OMIT_FLOATING_POINT
   int  exp, e2;              /* exponent of real numbers */
   int nsd;                   /* Number of significant digits returned */
@@ -21064,6 +21064,7 @@ SQLITE_PRIVATE void sqlite3VXPrintf(
         break;
       }
     }
+    zExtra = 0;
 
     /*
     ** At this point, variables are initialized as follows:
@@ -21354,16 +21355,13 @@ SQLITE_PRIVATE void sqlite3VXPrintf(
         }else{
           c = va_arg(ap,int);
         }
-        if( precision>1 ){
-          width -= precision-1;
-          if( width>1 && !flag_leftjustify ){
-            sqlite3AppendChar(pAccum, width-1, ' ');
-            width = 0;
-          }
-          sqlite3AppendChar(pAccum, precision-1, c);
+        buf[0] = (char)c;
+        if( precision>=0 ){
+          for(idx=1; idx<precision; idx++) buf[idx] = (char)c;
+          length = precision;
+        }else{
+          length =1;
         }
-        length = 1;
-        buf[0] = c;
         bufpt = buf;
         break;
       case etSTRING:
@@ -21464,14 +21462,11 @@ SQLITE_PRIVATE void sqlite3VXPrintf(
     ** the output.
     */
     width -= length;
-    if( width>0 && !flag_leftjustify ) sqlite3AppendChar(pAccum, width, ' ');
+    if( width>0 && !flag_leftjustify ) sqlite3AppendSpace(pAccum, width);
     sqlite3StrAccumAppend(pAccum, bufpt, length);
-    if( width>0 && flag_leftjustify ) sqlite3AppendChar(pAccum, width, ' ');
+    if( width>0 && flag_leftjustify ) sqlite3AppendSpace(pAccum, width);
 
-    if( zExtra ){
-      sqlite3_free(zExtra);
-      zExtra = 0;
-    }
+    if( zExtra ) sqlite3_free(zExtra);
   }/* End for loop over the format string */
 } /* End of function */
 
@@ -21524,11 +21519,11 @@ static int sqlite3StrAccumEnlarge(StrAccum *p, int N){
 }
 
 /*
-** Append N copies of character c to the given string buffer.
+** Append N space characters to the given string buffer.
 */
-SQLITE_PRIVATE void sqlite3AppendChar(StrAccum *p, int N, char c){
+SQLITE_PRIVATE void sqlite3AppendSpace(StrAccum *p, int N){
   if( p->nChar+N >= p->nAlloc && (N = sqlite3StrAccumEnlarge(p, N))<=0 ) return;
-  while( (N--)>0 ) p->zText[p->nChar++] = c;
+  while( (N--)>0 ) p->zText[p->nChar++] = ' ';
 }
 
 /*
@@ -50641,6 +50636,7 @@ SQLITE_PRIVATE int sqlite3WalUndo(Wal *pWal, int (*xUndo)(void *, Pgno), void *p
     }
     if( iMax!=pWal->hdr.mxFrame ) walCleanupHash(pWal);
   }
+  assert( rc==SQLITE_OK );
   return rc;
 }
 
@@ -51719,11 +51715,6 @@ struct CellInfo {
 **
 ** Fields in this structure are accessed under the BtShared.mutex
 ** found at self->pBt->mutex. 
-**
-** skipNext meaning:
-**    eState==SKIPNEXT && skipNext>0:  Next sqlite3BtreeNext() is no-op.
-**    eState==SKIPNEXT && skipNext<0:  Next sqlite3BtreePrevious() is no-op.
-**    eState==FAULT:                   Cursor fault with skipNext as error code.
 */
 struct BtCursor {
   Btree *pBtree;            /* The Btree to which this cursor belongs */
@@ -51736,8 +51727,7 @@ struct BtCursor {
   void *pKey;               /* Saved key that was cursor last known position */
   Pgno pgnoRoot;            /* The root page of this tree */
   int nOvflAlloc;           /* Allocated size of aOverflow[] array */
-  int skipNext;    /* Prev() is noop if negative. Next() is noop if positive.
-                   ** Error code if eState==CURSOR_FAULT */
+  int skipNext;    /* Prev() is noop if negative. Next() is noop if positive */
   u8 curFlags;              /* zero or more BTCF_* flags defined below */
   u8 eState;                /* One of the CURSOR_XXX constants (see below) */
   u8 hints;                             /* As configured by CursorSetHints() */
@@ -51783,7 +51773,7 @@ struct BtCursor {
 **   on a different connection that shares the BtShared cache with this
 **   cursor.  The error has left the cache in an inconsistent state.
 **   Do nothing else with this cursor.  Any attempt to use the cursor
-**   should return the error code stored in BtCursor.skipNext
+**   should return the error code stored in BtCursor.skip
 */
 #define CURSOR_INVALID           0
 #define CURSOR_VALID             1
@@ -54365,7 +54355,7 @@ SQLITE_PRIVATE int sqlite3BtreeClose(Btree *p){
   ** The call to sqlite3BtreeRollback() drops any table-locks held by
   ** this handle.
   */
-  sqlite3BtreeRollback(p, SQLITE_OK, 0);
+  sqlite3BtreeRollback(p, SQLITE_OK);
   sqlite3BtreeLeave(p);
 
   /* If there are still other outstanding references to the shared-btree
@@ -55658,91 +55648,60 @@ SQLITE_PRIVATE int sqlite3BtreeCommit(Btree *p){
 
 /*
 ** This routine sets the state to CURSOR_FAULT and the error
-** code to errCode for every cursor on any BtShared that pBtree
-** references.  Or if the writeOnly flag is set to 1, then only
-** trip write cursors and leave read cursors unchanged.
+** code to errCode for every cursor on BtShared that pBtree
+** references.
 **
-** Every cursor is a candidate to be tripped, including cursors
-** that belong to other database connections that happen to be
-** sharing the cache with pBtree.
+** Every cursor is tripped, including cursors that belong
+** to other database connections that happen to be sharing
+** the cache with pBtree.
 **
-** This routine gets called when a rollback occurs. If the writeOnly
-** flag is true, then only write-cursors need be tripped - read-only
-** cursors save their current positions so that they may continue 
-** following the rollback. Or, if writeOnly is false, all cursors are 
-** tripped. In general, writeOnly is false if the transaction being
-** rolled back modified the database schema. In this case b-tree root
-** pages may be moved or deleted from the database altogether, making
-** it unsafe for read cursors to continue.
-**
-** If the writeOnly flag is true and an error is encountered while 
-** saving the current position of a read-only cursor, all cursors, 
-** including all read-cursors are tripped.
-**
-** SQLITE_OK is returned if successful, or if an error occurs while
-** saving a cursor position, an SQLite error code.
+** This routine gets called when a rollback occurs.
+** All cursors using the same cache must be tripped
+** to prevent them from trying to use the btree after
+** the rollback.  The rollback may have deleted tables
+** or moved root pages, so it is not sufficient to
+** save the state of the cursor.  The cursor must be
+** invalidated.
 */
-SQLITE_PRIVATE int sqlite3BtreeTripAllCursors(Btree *pBtree, int errCode, int writeOnly){
+SQLITE_PRIVATE void sqlite3BtreeTripAllCursors(Btree *pBtree, int errCode){
   BtCursor *p;
-  int rc = SQLITE_OK;
-
-  assert( (writeOnly==0 || writeOnly==1) && BTCF_WriteFlag==1 );
-  if( pBtree ){
-    sqlite3BtreeEnter(pBtree);
-    for(p=pBtree->pBt->pCursor; p; p=p->pNext){
-      int i;
-      if( writeOnly && (p->curFlags & BTCF_WriteFlag)==0 ){
-        if( p->eState==CURSOR_VALID ){
-          rc = saveCursorPosition(p);
-          if( rc!=SQLITE_OK ){
-            (void)sqlite3BtreeTripAllCursors(pBtree, rc, 0);
-            break;
-          }
-        }
-      }else{
-        sqlite3BtreeClearCursor(p);
-        p->eState = CURSOR_FAULT;
-        p->skipNext = errCode;
-      }
-      for(i=0; i<=p->iPage; i++){
-        releasePage(p->apPage[i]);
-        p->apPage[i] = 0;
-      }
+  if( pBtree==0 ) return;
+  sqlite3BtreeEnter(pBtree);
+  for(p=pBtree->pBt->pCursor; p; p=p->pNext){
+    int i;
+    sqlite3BtreeClearCursor(p);
+    p->eState = CURSOR_FAULT;
+    p->skipNext = errCode;
+    for(i=0; i<=p->iPage; i++){
+      releasePage(p->apPage[i]);
+      p->apPage[i] = 0;
     }
-    sqlite3BtreeLeave(pBtree);
   }
-  return rc;
+  sqlite3BtreeLeave(pBtree);
 }
 
 /*
-** Rollback the transaction in progress.
-**
-** If tripCode is not SQLITE_OK then cursors will be invalidated (tripped).
-** Only write cursors are tripped if writeOnly is true but all cursors are
-** tripped if writeOnly is false.  Any attempt to use
-** a tripped cursor will result in an error.
+** Rollback the transaction in progress.  All cursors will be
+** invalided by this operation.  Any attempt to use a cursor
+** that was open at the beginning of this operation will result
+** in an error.
 **
 ** This will release the write lock on the database file.  If there
 ** are no active cursors, it also releases the read lock.
 */
-SQLITE_PRIVATE int sqlite3BtreeRollback(Btree *p, int tripCode, int writeOnly){
+SQLITE_PRIVATE int sqlite3BtreeRollback(Btree *p, int tripCode){
   int rc;
   BtShared *pBt = p->pBt;
   MemPage *pPage1;
 
-  assert( writeOnly==1 || writeOnly==0 );
-  assert( tripCode==SQLITE_ABORT_ROLLBACK || tripCode==SQLITE_OK );
   sqlite3BtreeEnter(p);
   if( tripCode==SQLITE_OK ){
     rc = tripCode = saveAllCursors(pBt, 0, 0);
-    if( rc ) writeOnly = 0;
   }else{
     rc = SQLITE_OK;
   }
   if( tripCode ){
-    int rc2 = sqlite3BtreeTripAllCursors(p, tripCode, writeOnly);
-    assert( rc==SQLITE_OK || (writeOnly==0 && rc2==SQLITE_OK) );
-    if( rc2!=SQLITE_OK ) rc = rc2;
+    sqlite3BtreeTripAllCursors(p, tripCode);
   }
   btreeIntegrity(p);
 
@@ -56077,9 +56036,13 @@ SQLITE_PRIVATE int sqlite3BtreeCursorIsValid(BtCursor *pCur){
 */
 SQLITE_PRIVATE int sqlite3BtreeKeySize(BtCursor *pCur, i64 *pSize){
   assert( cursorHoldsMutex(pCur) );
-  assert( pCur->eState==CURSOR_VALID );
-  getCellInfo(pCur);
-  *pSize = pCur->info.nKey;
+  assert( pCur->eState==CURSOR_INVALID || pCur->eState==CURSOR_VALID );
+  if( pCur->eState!=CURSOR_VALID ){
+    *pSize = 0;
+  }else{
+    getCellInfo(pCur);
+    *pSize = pCur->info.nKey;
+  }
   return SQLITE_OK;
 }
 
@@ -61503,7 +61466,7 @@ SQLITE_API int sqlite3_backup_finish(sqlite3_backup *p){
   }
 
   /* If a transaction is still open on the Btree, roll it back. */
-  sqlite3BtreeRollback(p->pDest, SQLITE_OK, 0);
+  sqlite3BtreeRollback(p->pDest, SQLITE_OK);
 
   /* Set the error code of the destination database handle. */
   rc = (p->rc==SQLITE_DONE) ? SQLITE_OK : p->rc;
@@ -71341,7 +71304,7 @@ case OP_Column: {
         pC->payloadSize = pC->szRow = avail = pReg->n;
         pC->aRow = (u8*)pReg->z;
       }else{
-        sqlite3VdbeMemSetNull(pDest);
+        MemSetTypeFlag(pDest, MEM_Null);
         goto op_column_out;
       }
     }else{
@@ -71865,18 +71828,11 @@ case OP_Savepoint: {
         db->isTransactionSavepoint = 0;
         rc = p->rc;
       }else{
-        int isSchemaChange;
         iSavepoint = db->nSavepoint - iSavepoint - 1;
         if( p1==SAVEPOINT_ROLLBACK ){
-          isSchemaChange = (db->flags & SQLITE_InternChanges)!=0;
           for(ii=0; ii<db->nDb; ii++){
-            rc = sqlite3BtreeTripAllCursors(db->aDb[ii].pBt,
-                                       SQLITE_ABORT_ROLLBACK,
-                                       isSchemaChange==0);
-            if( rc!=SQLITE_OK ) goto abort_due_to_error;
+            sqlite3BtreeTripAllCursors(db->aDb[ii].pBt, SQLITE_ABORT);
           }
-        }else{
-          isSchemaChange = 0;
         }
         for(ii=0; ii<db->nDb; ii++){
           rc = sqlite3BtreeSavepoint(db->aDb[ii].pBt, p1, iSavepoint);
@@ -71884,7 +71840,7 @@ case OP_Savepoint: {
             goto abort_due_to_error;
           }
         }
-        if( isSchemaChange ){
+        if( p1==SAVEPOINT_ROLLBACK && (db->flags&SQLITE_InternChanges)!=0 ){
           sqlite3ExpirePreparedStatements(db);
           sqlite3ResetAllSchemasOfConnection(db);
           db->flags = (db->flags | SQLITE_InternChanges);
@@ -72281,7 +72237,7 @@ case OP_OpenWrite: {
           || p->readOnly==0 );
 
   if( p->expired ){
-    rc = SQLITE_ABORT_ROLLBACK;
+    rc = SQLITE_ABORT;
     break;
   }
 
@@ -73448,10 +73404,6 @@ case OP_Rowid: {                 /* out2-prerelease */
     assert( pC->pCursor!=0 );
     rc = sqlite3VdbeCursorRestore(pC);
     if( rc ) goto abort_due_to_error;
-    if( pC->nullRow ){
-      pOut->flags = MEM_Null;
-      break;
-    }
     rc = sqlite3BtreeKeySize(pC->pCursor, &v);
     assert( rc==SQLITE_OK );  /* Always so because of CursorRestore() above */
   }
@@ -82483,6 +82435,7 @@ SQLITE_PRIVATE int sqlite3CodeSubselect(
         assert( (pExpr->iTable&0x0000FFFF)==pExpr->iTable );
         pSelect->iLimit = 0;
         testcase( pSelect->selFlags & SF_Distinct );
+        pSelect->selFlags &= ~SF_Distinct;
         testcase( pKeyInfo==0 ); /* Caused by OOM in sqlite3KeyInfoAlloc() */
         if( sqlite3Select(pParse, pSelect, &dest) ){
           sqlite3KeyInfoUnref(pKeyInfo);
@@ -125974,15 +125927,13 @@ SQLITE_PRIVATE void sqlite3LeaveMutexAndCloseZombie(sqlite3 *db){
 
 /*
 ** Rollback all database files.  If tripCode is not SQLITE_OK, then
-** any write cursors are invalidated ("tripped" - as in "tripping a circuit
+** any open cursors are invalidated ("tripped" - as in "tripping a circuit
 ** breaker") and made to return tripCode if there are any further
-** attempts to use that cursor.  Read cursors remain open and valid
-** but are "saved" in case the table pages are moved around.
+** attempts to use that cursor.
 */
 SQLITE_PRIVATE void sqlite3RollbackAll(sqlite3 *db, int tripCode){
   int i;
   int inTrans = 0;
-  int schemaChange;
   assert( sqlite3_mutex_held(db->mutex) );
   sqlite3BeginBenignMalloc();
 
@@ -125993,7 +125944,6 @@ SQLITE_PRIVATE void sqlite3RollbackAll(sqlite3 *db, int tripCode){
   ** the database rollback and schema reset, which can cause false
   ** corruption reports in some cases.  */
   sqlite3BtreeEnterAll(db);
-  schemaChange = (db->flags & SQLITE_InternChanges)!=0 && db->init.busy==0;
 
   for(i=0; i<db->nDb; i++){
     Btree *p = db->aDb[i].pBt;
@@ -126001,7 +125951,7 @@ SQLITE_PRIVATE void sqlite3RollbackAll(sqlite3 *db, int tripCode){
       if( sqlite3BtreeIsInTrans(p) ){
         inTrans = 1;
       }
-      sqlite3BtreeRollback(p, tripCode, !schemaChange);
+      sqlite3BtreeRollback(p, tripCode);
     }
   }
   sqlite3VtabRollback(db);

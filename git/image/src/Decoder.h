@@ -8,7 +8,7 @@
 
 #include "RasterImage.h"
 #include "mozilla/RefPtr.h"
-#include "DecodePool.h"
+#include "DecodeStrategy.h"
 #include "ImageMetadata.h"
 #include "Orientation.h"
 #include "mozilla/Telemetry.h"
@@ -62,7 +62,7 @@ public:
    *
    * Notifications Sent: TODO
    */
-  void Finish(ShutdownReason aReason);
+  void Finish(RasterImage::eShutdownIntent aShutdownIntent);
 
   /**
    * Informs the shared decoder that all the data has been written.

@@ -96,7 +96,7 @@ Decoder::Write(const char* aBuffer, uint32_t aCount, DecodeStrategy aStrategy)
   PROFILER_LABEL("ImageDecoder", "Write",
     js::ProfileEntry::Category::GRAPHICS);
 
-  MOZ_ASSERT(NS_IsMainThread() || aStrategy == DecodeStrategy::ASYNC);
+  MOZ_ASSERT(NS_IsMainThread() || aStrategy == DECODE_ASYNC);
 
   // We're strict about decoder errors
   MOZ_ASSERT(!HasDecoderError(),
@@ -129,14 +129,12 @@ Decoder::Write(const char* aBuffer, uint32_t aCount, DecodeStrategy aStrategy)
 
   // If we're a synchronous decoder and we need a new frame to proceed, let's
   // create one and call it again.
-  if (aStrategy == DecodeStrategy::SYNC) {
-    while (NeedsNewFrame() && !HasDataError()) {
-      nsresult rv = AllocateFrame();
+  while (aStrategy == DECODE_SYNC && NeedsNewFrame() && !HasDataError()) {
+    nsresult rv = AllocateFrame();
 
-      if (NS_SUCCEEDED(rv)) {
-        // Use the data we saved when we asked for a new frame.
-        WriteInternal(nullptr, 0, aStrategy);
-      }
+    if (NS_SUCCEEDED(rv)) {
+      // Tell the decoder to use the data it saved when it asked for a new frame.
+      WriteInternal(nullptr, 0, aStrategy);
     }
   }
 
@@ -145,7 +143,7 @@ Decoder::Write(const char* aBuffer, uint32_t aCount, DecodeStrategy aStrategy)
 }
 
 void
-Decoder::Finish(ShutdownReason aReason)
+Decoder::Finish(RasterImage::eShutdownIntent aShutdownIntent)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
@@ -182,7 +180,7 @@ Decoder::Finish(ShutdownReason aReason)
     }
 
     bool usable = !HasDecoderError();
-    if (aReason != ShutdownReason::NOT_NEEDED && !HasDecoderError()) {
+    if (aShutdownIntent != RasterImage::eShutdownIntent_NotNeeded && !HasDecoderError()) {
       // If we only have a data error, we're usable if we have at least one complete frame.
       if (GetCompleteFrameCount() == 0) {
         usable = false;

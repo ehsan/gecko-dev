@@ -787,7 +787,7 @@ WebConsoleActor.prototype =
       result: resultGrip,
       timestamp: timestamp,
       exception: errorGrip,
-      exceptionMessage: this._createStringGrip(errorMessage),
+      exceptionMessage: errorMessage,
       helperResult: helperResult,
     };
   },

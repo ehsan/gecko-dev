@@ -821,7 +821,10 @@ PluginModuleChild::CleanUp()
 const char*
 PluginModuleChild::GetUserAgent()
 {
-    return NullableStringGet(Settings().userAgent());
+    if (mUserAgent.IsVoid() && !CallNPN_UserAgent(&mUserAgent))
+        return nullptr;
+
+    return NullableStringGet(mUserAgent);
 }
 
 //-----------------------------------------------------------------------------
@@ -1117,21 +1120,18 @@ _getvalue(NPP aNPP,
 #endif
             return NPERR_GENERIC_ERROR;
 
-        case NPNVjavascriptEnabledBool:
-            *(NPBool*)aValue = PluginModuleChild::GetChrome()->Settings().javascriptEnabled();
-            return NPERR_NO_ERROR;
-        case NPNVasdEnabledBool:
-            *(NPBool*)aValue = PluginModuleChild::GetChrome()->Settings().asdEnabled();
-            return NPERR_NO_ERROR;
-        case NPNVisOfflineBool:
-            *(NPBool*)aValue = PluginModuleChild::GetChrome()->Settings().isOffline();
-            return NPERR_NO_ERROR;
-        case NPNVSupportsXEmbedBool:
-            *(NPBool*)aValue = PluginModuleChild::GetChrome()->Settings().supportsXembed();
-            return NPERR_NO_ERROR;
-        case NPNVSupportsWindowless:
-            *(NPBool*)aValue = PluginModuleChild::GetChrome()->Settings().supportsWindowless();
-            return NPERR_NO_ERROR;
+        case NPNVjavascriptEnabledBool: // Intentional fall-through
+        case NPNVasdEnabledBool: // Intentional fall-through
+        case NPNVisOfflineBool: // Intentional fall-through
+        case NPNVSupportsXEmbedBool: // Intentional fall-through
+        case NPNVSupportsWindowless: { // Intentional fall-through
+            NPError result;
+            bool value;
+            PluginModuleChild::GetChrome()->
+                CallNPN_GetValue_WithBoolReturn(aVariable, &result, &value);
+            *(NPBool*)aValue = value ? true : false;
+            return result;
+        }
 #if defined(MOZ_WIDGET_GTK)
         case NPNVxDisplay: {
             if (aNPP) {
@@ -1835,13 +1835,6 @@ _urlredirectresponse(NPP instance, void* notifyData, NPBool allow)
 //-----------------------------------------------------------------------------
 
 bool
-PluginModuleChild::RecvSettingChanged(const PluginSettings& aSettings)
-{
-    mCachedSettings = aSettings;
-    return true;
-}
-
-bool
 PluginModuleChild::AnswerNP_GetEntryPoints(NPError* _retval)
 {
     PLUGIN_LOG_DEBUG_METHOD;
@@ -1859,13 +1852,11 @@ PluginModuleChild::AnswerNP_GetEntryPoints(NPError* _retval)
 }
 
 bool
-PluginModuleChild::AnswerNP_Initialize(const PluginSettings& aSettings, NPError* _retval)
+PluginModuleChild::AnswerNP_Initialize(NPError* _retval)
 {
     PLUGIN_LOG_DEBUG_METHOD;
     AssertPluginThread();
     MOZ_ASSERT(mIsChrome);
-
-    mCachedSettings = aSettings;
 
 #ifdef OS_WIN
     SetEventHooks();

@@ -203,9 +203,11 @@ CrossCompartmentWrapper::getEnumerablePropertyKeys(JSContext *cx, HandleObject w
  * allows fast iteration over objects across a compartment boundary.
  */
 static bool
-CanReify(HandleObject obj)
+CanReify(HandleValue vp)
 {
-    return obj->is<PropertyIteratorObject>() &&
+    JSObject *obj;
+    return vp.isObject() &&
+           (obj = &vp.toObject())->is<PropertyIteratorObject>() &&
            (obj->as<PropertyIteratorObject>().getNativeIterator()->flags & JSITER_ENUMERATE);
 }
 
@@ -223,9 +225,9 @@ struct AutoCloseIterator
 };
 
 static bool
-Reify(JSContext *cx, JSCompartment *origin, MutableHandleObject objp)
+Reify(JSContext *cx, JSCompartment *origin, MutableHandleValue vp)
 {
-    Rooted<PropertyIteratorObject*> iterObj(cx, &objp->as<PropertyIteratorObject>());
+    Rooted<PropertyIteratorObject*> iterObj(cx, &vp.toObject().as<PropertyIteratorObject>());
     NativeIterator *ni = iterObj->getNativeIterator();
 
     AutoCloseIterator close(cx, iterObj);
@@ -241,6 +243,7 @@ Reify(JSContext *cx, JSCompartment *origin, MutableHandleObject objp)
      * implicit cx->enumerators state.
      */
     size_t length = ni->numKeys();
+    bool isKeyIter = ni->isKeyIter();
     AutoIdVector keys(cx);
     if (length > 0) {
         if (!keys.reserve(length))
@@ -258,22 +261,29 @@ Reify(JSContext *cx, JSCompartment *origin, MutableHandleObject objp)
     if (!CloseIterator(cx, iterObj))
         return false;
 
-    return EnumeratedIdVectorToIterator(cx, obj, ni->flags, keys, objp);
+    if (isKeyIter) {
+        if (!VectorToKeyIterator(cx, obj, ni->flags, keys, vp))
+            return false;
+    } else {
+        if (!VectorToValueIterator(cx, obj, ni->flags, keys, vp))
+            return false;
+    }
+    return true;
 }
 
 bool
 CrossCompartmentWrapper::iterate(JSContext *cx, HandleObject wrapper, unsigned flags,
-                                 MutableHandleObject objp) const
+                                 MutableHandleValue vp) const
 {
     {
         AutoCompartment call(cx, wrappedObject(wrapper));
-        if (!Wrapper::iterate(cx, wrapper, flags, objp))
+        if (!Wrapper::iterate(cx, wrapper, flags, vp))
             return false;
     }
 
-    if (CanReify(objp))
-        return Reify(cx, cx->compartment(), objp);
-    return cx->compartment()->wrap(cx, objp);
+    if (CanReify(vp))
+        return Reify(cx, cx->compartment(), vp);
+    return cx->compartment()->wrap(cx, vp);
 }
 
 bool

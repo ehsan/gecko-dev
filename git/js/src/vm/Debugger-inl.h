@@ -42,11 +42,12 @@ js::Debugger::onEnterFrame(JSContext *cx, AbstractFramePtr frame)
 }
 
 /* static */ JSTrapStatus
-js::Debugger::onDebuggerStatement(JSContext *cx, AbstractFramePtr frame)
+js::Debugger::onDebuggerStatement(JSContext *cx, AbstractFramePtr frame, MutableHandleValue vp)
 {
-    if (!cx->compartment()->isDebuggee())
-        return JSTRAP_CONTINUE;
-    return slowPathOnDebuggerStatement(cx, frame);
+    MOZ_ASSERT_IF(frame.script()->isDebuggee(), frame.isDebuggee());
+    return frame.isDebuggee()
+           ? dispatchHook(cx, vp, OnDebuggerStatement, NullPtr())
+           : JSTRAP_CONTINUE;
 }
 
 /* static */ JSTrapStatus
