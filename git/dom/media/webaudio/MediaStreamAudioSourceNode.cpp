@@ -9,7 +9,6 @@
 #include "AudioNodeEngine.h"
 #include "AudioNodeExternalInputStream.h"
 #include "nsIDocument.h"
-#include "mozilla/CORSMode.h"
 
 namespace mozilla {
 namespace dom {
@@ -71,7 +70,7 @@ MediaStreamAudioSourceNode::~MediaStreamAudioSourceNode()
  * change is changing to be the document principal.
  */
 void
-MediaStreamAudioSourceNode::PrincipalChanged(DOMMediaStream* aDOMMediaStream)
+MediaStreamAudioSourceNode::PrincipalChanged(DOMMediaStream* ms)
 {
   bool subsumes = false;
   nsPIDOMWindow* parent = Context()->GetParentObject();
@@ -86,8 +85,7 @@ MediaStreamAudioSourceNode::PrincipalChanged(DOMMediaStream* aDOMMediaStream)
     }
   }
   auto stream = static_cast<AudioNodeExternalInputStream*>(mStream.get());
-  stream->SetInt32Parameter(MediaStreamAudioSourceNodeEngine::ENABLE,
-                            subsumes || aDOMMediaStream->GetCORSMode() != CORS_NONE);
+  stream->SetInt32Parameter(MediaStreamAudioSourceNodeEngine::ENABLE, subsumes);
 }
 
 size_t

@@ -15,7 +15,6 @@
 
 #include "mozilla/dom/ContentParent.h"
 
-#include "nsContentUtils.h"
 #include "nsISupportsPrimitives.h"
 #include "nsThreadUtils.h"
 #include "nsHashPropertyBag.h"
@@ -829,8 +828,11 @@ AudioChannelService::Observe(nsISupports* aSubject, const char* aTopic, const ch
   // To process the volume control on each audio channel according to
   // change of settings
   else if (!strcmp(aTopic, "mozsettings-changed")) {
-    RootedDictionary<SettingChangeNotification> setting(nsContentUtils::RootingCxForThread());
-    if (!WrappedJSToDictionary(aSubject, setting)) {
+    AutoJSAPI jsapi;
+    jsapi.Init();
+    JSContext* cx = jsapi.cx();
+    RootedDictionary<SettingChangeNotification> setting(cx);
+    if (!WrappedJSToDictionary(cx, aSubject, setting)) {
       return NS_OK;
     }
     if (!StringBeginsWith(setting.mKey, NS_LITERAL_STRING("audio.volume."))) {

@@ -1739,50 +1739,50 @@ public:
     mWantAllTraces = true;
   }
 
-  NS_IMETHOD AllTraces(nsICycleCollectorListener** aListener) MOZ_OVERRIDE
+  NS_IMETHOD AllTraces(nsICycleCollectorListener** aListener)
   {
     SetAllTraces();
     NS_ADDREF(*aListener = this);
     return NS_OK;
   }
 
-  NS_IMETHOD GetWantAllTraces(bool* aAllTraces) MOZ_OVERRIDE
+  NS_IMETHOD GetWantAllTraces(bool* aAllTraces)
   {
     *aAllTraces = mWantAllTraces;
     return NS_OK;
   }
 
-  NS_IMETHOD GetDisableLog(bool* aDisableLog) MOZ_OVERRIDE
+  NS_IMETHOD GetDisableLog(bool* aDisableLog)
   {
     *aDisableLog = mDisableLog;
     return NS_OK;
   }
 
-  NS_IMETHOD SetDisableLog(bool aDisableLog) MOZ_OVERRIDE
+  NS_IMETHOD SetDisableLog(bool aDisableLog)
   {
     mDisableLog = aDisableLog;
     return NS_OK;
   }
 
-  NS_IMETHOD GetWantAfterProcessing(bool* aWantAfterProcessing) MOZ_OVERRIDE
+  NS_IMETHOD GetWantAfterProcessing(bool* aWantAfterProcessing)
   {
     *aWantAfterProcessing = mWantAfterProcessing;
     return NS_OK;
   }
 
-  NS_IMETHOD SetWantAfterProcessing(bool aWantAfterProcessing) MOZ_OVERRIDE
+  NS_IMETHOD SetWantAfterProcessing(bool aWantAfterProcessing)
   {
     mWantAfterProcessing = aWantAfterProcessing;
     return NS_OK;
   }
 
-  NS_IMETHOD GetLogSink(nsICycleCollectorLogSink** aLogSink) MOZ_OVERRIDE
+  NS_IMETHOD GetLogSink(nsICycleCollectorLogSink** aLogSink)
   {
     NS_ADDREF(*aLogSink = mLogSink);
     return NS_OK;
   }
 
-  NS_IMETHOD SetLogSink(nsICycleCollectorLogSink* aLogSink) MOZ_OVERRIDE
+  NS_IMETHOD SetLogSink(nsICycleCollectorLogSink* aLogSink)
   {
     if (!aLogSink) {
       return NS_ERROR_INVALID_ARG;
@@ -1791,7 +1791,7 @@ public:
     return NS_OK;
   }
 
-  NS_IMETHOD Begin() MOZ_OVERRIDE
+  NS_IMETHOD Begin()
   {
     nsresult rv;
 
@@ -1816,7 +1816,7 @@ public:
     return NS_OK;
   }
   NS_IMETHOD NoteRefCountedObject(uint64_t aAddress, uint32_t aRefCount,
-                                  const char* aObjectDescription) MOZ_OVERRIDE
+                                  const char* aObjectDescription)
   {
     if (!mDisableLog) {
       fprintf(mCCLog, "%p [rc=%u] %s\n", (void*)aAddress, aRefCount,
@@ -1836,7 +1836,7 @@ public:
   }
   NS_IMETHOD NoteGCedObject(uint64_t aAddress, bool aMarked,
                             const char* aObjectDescription,
-                            uint64_t aCompartmentAddress) MOZ_OVERRIDE
+                            uint64_t aCompartmentAddress)
   {
     if (!mDisableLog) {
       fprintf(mCCLog, "%p [gc%s] %s\n", (void*)aAddress,
@@ -1860,7 +1860,7 @@ public:
     }
     return NS_OK;
   }
-  NS_IMETHOD NoteEdge(uint64_t aToAddress, const char* aEdgeName) MOZ_OVERRIDE
+  NS_IMETHOD NoteEdge(uint64_t aToAddress, const char* aEdgeName)
   {
     if (!mDisableLog) {
       fprintf(mCCLog, "> %p %s\n", (void*)aToAddress, aEdgeName);
@@ -1877,7 +1877,7 @@ public:
     return NS_OK;
   }
   NS_IMETHOD NoteWeakMapEntry(uint64_t aMap, uint64_t aKey,
-                              uint64_t aKeyDelegate, uint64_t aValue) MOZ_OVERRIDE
+                              uint64_t aKeyDelegate, uint64_t aValue)
   {
     if (!mDisableLog) {
       fprintf(mCCLog, "WeakMapEntry map=%p key=%p keyDelegate=%p value=%p\n",
@@ -1886,7 +1886,7 @@ public:
     // We don't support after-processing for weak map entries.
     return NS_OK;
   }
-  NS_IMETHOD NoteIncrementalRoot(uint64_t aAddress) MOZ_OVERRIDE
+  NS_IMETHOD NoteIncrementalRoot(uint64_t aAddress)
   {
     if (!mDisableLog) {
       fprintf(mCCLog, "IncrementalRoot %p\n", (void*)aAddress);
@@ -1894,14 +1894,14 @@ public:
     // We don't support after-processing for incremental roots.
     return NS_OK;
   }
-  NS_IMETHOD BeginResults() MOZ_OVERRIDE
+  NS_IMETHOD BeginResults()
   {
     if (!mDisableLog) {
       fputs("==========\n", mCCLog);
     }
     return NS_OK;
   }
-  NS_IMETHOD DescribeRoot(uint64_t aAddress, uint32_t aKnownEdges) MOZ_OVERRIDE
+  NS_IMETHOD DescribeRoot(uint64_t aAddress, uint32_t aKnownEdges)
   {
     if (!mDisableLog) {
       fprintf(mCCLog, "%p [known=%u]\n", (void*)aAddress, aKnownEdges);
@@ -1915,7 +1915,7 @@ public:
     }
     return NS_OK;
   }
-  NS_IMETHOD DescribeGarbage(uint64_t aAddress) MOZ_OVERRIDE
+  NS_IMETHOD DescribeGarbage(uint64_t aAddress)
   {
     if (!mDisableLog) {
       fprintf(mCCLog, "%p [garbage]\n", (void*)aAddress);
@@ -1928,7 +1928,7 @@ public:
     }
     return NS_OK;
   }
-  NS_IMETHOD End() MOZ_OVERRIDE
+  NS_IMETHOD End()
   {
     if (!mDisableLog) {
       mCCLog = nullptr;
@@ -1938,7 +1938,7 @@ public:
     return NS_OK;
   }
   NS_IMETHOD ProcessNext(nsICycleCollectorHandler* aHandler,
-                         bool* aCanContinue) MOZ_OVERRIDE
+                         bool* aCanContinue)
   {
     if (NS_WARN_IF(!aHandler) || NS_WARN_IF(!mWantAfterProcessing)) {
       return NS_ERROR_UNEXPECTED;

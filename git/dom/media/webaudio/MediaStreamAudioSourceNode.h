@@ -54,7 +54,7 @@ public:
 
   virtual uint16_t NumberOfInputs() const MOZ_OVERRIDE { return 0; }
 
-  virtual const char* NodeType() const MOZ_OVERRIDE
+  virtual const char* NodeType() const
   {
     return "MediaStreamAudioSourceNode";
   }
