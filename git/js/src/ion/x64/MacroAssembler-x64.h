@@ -387,12 +387,8 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
         cmpq(lhs, ScratchReg);
     }
     void cmpPtr(const Operand &lhs, const ImmWord rhs) {
-        if ((intptr_t)rhs.value <= INT32_MAX && (intptr_t)rhs.value >= INT32_MIN) {
-            cmpq(lhs, Imm32((int32_t)rhs.value));
-        } else {
-            mov(rhs, ScratchReg);
-            cmpq(lhs, ScratchReg);
-        }
+        mov(rhs, ScratchReg);
+        cmpq(lhs, ScratchReg);
     }
     void cmpPtr(const Address &lhs, const ImmGCPtr rhs) {
         cmpPtr(Operand(lhs), rhs);
@@ -447,12 +443,8 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     }
     void addPtr(ImmWord imm, const Register &dest) {
         JS_ASSERT(dest != ScratchReg);
-        if ((intptr_t)imm.value <= INT32_MAX && (intptr_t)imm.value >= INT32_MIN) {
-            addq(Imm32((int32_t)imm.value), dest);
-        } else {
-            mov(imm, ScratchReg);
-            addq(ScratchReg, dest);
-        }
+        mov(imm, ScratchReg);
+        addq(ScratchReg, dest);
     }
     void addPtr(const Address &src, const Register &dest) {
         addq(Operand(src), dest);
@@ -562,12 +554,8 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
         shlq(Imm32(1), dest);
     }
     void storePtr(ImmWord imm, const Address &address) {
-        if ((intptr_t)imm.value <= INT32_MAX && (intptr_t)imm.value >= INT32_MIN) {
-            mov(Imm32((int32_t)imm.value), Operand(address));
-        } else {
-            mov(imm, ScratchReg);
-            movq(ScratchReg, Operand(address));
-        }
+        mov(imm, ScratchReg);
+        movq(ScratchReg, Operand(address));
     }
     void storePtr(ImmGCPtr imm, const Address &address) {
         movq(imm, ScratchReg);

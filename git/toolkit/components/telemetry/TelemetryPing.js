@@ -674,18 +674,12 @@ TelemetryPing.prototype = {
     }
   },
 
-  submissionPath: function submissionPath(ping) {
-    let slug;
-    if (!ping || ping.reason == "test-ping") {
-      slug = this._uuid;
-    } else {
-      slug = ping.slug;
-    }
-    return "/submit/telemetry/" + slug;
+  submissionPath: function submissionPath() {
+    return "/submit/telemetry/" + this._uuid;
   },
 
   doPing: function doPing(server, ping, onSuccess, onError) {
-    let url = server + this.submissionPath(ping);
+    let url = server + this.submissionPath();
     let request = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"]
                   .createInstance(Ci.nsIXMLHttpRequest);
     request.mozBackgroundRequest = true;

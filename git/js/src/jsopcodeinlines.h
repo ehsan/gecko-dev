@@ -9,7 +9,7 @@
 
 #include "jsautooplen.h"
 
-#include "frontend/SourceNotes.h"
+#include "frontend/BytecodeEmitter.h"
 
 namespace js {
 

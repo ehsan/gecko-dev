@@ -944,7 +944,7 @@ js_InitGC(JSRuntime *rt, uint32_t maxbytes)
 #endif
 
 #ifdef JSGC_GENERATIONAL
-    if (!rt->gcNursery.init())
+    if (!rt->gcNursery.enable())
         return false;
 
     if (!rt->gcStoreBuffer.enable())
@@ -2577,8 +2577,8 @@ PurgeRuntime(JSRuntime *rt)
     rt->sourceDataCache.purge();
     rt->evalCache.clear();
 
-    if (!rt->activeCompilations)
-        rt->parseMapPool.purgeAll();
+    for (ContextIter acx(rt); !acx.done(); acx.next())
+        acx->purge();
 }
 
 static bool

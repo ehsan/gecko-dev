@@ -617,12 +617,16 @@ castNative(JSContext *cx,
            const nsIID &iid,
            void **ppThis,
            nsISupports **pThisRef,
-           jsval *vp)
+           jsval *vp,
+           XPCLazyCallContext *lccx)
 {
     RootedObject cur(cx, curArg);
     if (wrapper) {
         nsresult rv = getNativeFromWrapper(cx,wrapper, iid, ppThis, pThisRef,
                                            vp);
+
+        if (lccx && NS_SUCCEEDED(rv))
+            lccx->SetWrapper(wrapper, tearoff);
 
         if (rv != NS_ERROR_NO_INTERFACE)
             return rv;
@@ -640,6 +644,14 @@ castNative(JSContext *cx,
         }
 
         if (NS_SUCCEEDED(getNative(native, entries, cur, iid, ppThis, pThisRef, vp))) {
+            if (lccx) {
+                // This only matters for unwrapping of this objects, so we
+                // shouldn't end up here for the new DOM bindings.
+                NS_ABORT_IF_FALSE(IS_SLIM_WRAPPER(cur),
+                                  "what kind of wrapper is this?");
+                lccx->SetWrapper(cur);
+            }
+
             return NS_OK;
         }
     }
@@ -656,6 +668,7 @@ castNativeFromWrapper(JSContext *cx,
                       int32_t protoDepth,
                       nsISupports **pRef,
                       jsval *pVal,
+                      XPCLazyCallContext *lccx,
                       nsresult *rv)
 {
     XPCWrappedNative *wrapper;
@@ -680,11 +693,15 @@ castNativeFromWrapper(JSContext *cx,
         cur = wrapper->GetFlatJSObject();
         if (!native || !HasBitInInterfacesBitmap(cur, interfaceBit)) {
             native = nullptr;
+        } else if (lccx) {
+            lccx->SetWrapper(wrapper, tearoff);
         }
     } else if (cur && IS_SLIM_WRAPPER(cur)) {
         native = static_cast<nsISupports*>(xpc_GetJSPrivate(cur));
         if (!native || !HasBitInInterfacesBitmap(cur, interfaceBit)) {
             native = nullptr;
+        } else if (lccx) {
+            lccx->SetWrapper(cur);
         }
     } else if (cur && protoDepth >= 0) {
         const mozilla::dom::DOMClass* domClass =
@@ -752,7 +769,7 @@ xpc_qsUnwrapArgImpl(JSContext *cx,
 
     if (wrapper || obj2) {
         if (NS_FAILED(castNative(cx, wrapper, obj2, tearoff, iid, ppArg,
-                                 ppArgRef, vp)))
+                                 ppArgRef, vp, nullptr)))
             return NS_ERROR_XPC_BAD_CONVERT_JS;
         return NS_OK;
     }
@@ -779,7 +796,7 @@ xpc_qsUnwrapArgImpl(JSContext *cx,
     }
 
     nsRefPtr<nsXPCWrappedJS> wrappedJS;
-    rv = nsXPCWrappedJS::GetNewOrUsed(src, iid, nullptr,
+    rv = nsXPCWrappedJS::GetNewOrUsed(ccx, src, iid, nullptr,
                                       getter_AddRefs(wrappedJS));
     if (NS_FAILED(rv) || !wrappedJS) {
         *ppArgRef = nullptr;
@@ -882,7 +899,7 @@ xpc_qsStringToJsstring(JSContext *cx, nsString &str, JSString **rval)
 }
 
 JSBool
-xpc_qsXPCOMObjectToJsval(JSContext *cx, qsObjectHelper &aHelper,
+xpc_qsXPCOMObjectToJsval(XPCLazyCallContext &lccx, qsObjectHelper &aHelper,
                          const nsIID *iid, XPCNativeInterface **iface,
                          jsval *rval)
 {
@@ -891,8 +908,10 @@ xpc_qsXPCOMObjectToJsval(JSContext *cx, qsObjectHelper &aHelper,
     // From the T_INTERFACE case in XPCConvert::NativeData2JS.
     // This is one of the slowest things quick stubs do.
 
+    JSContext *cx = lccx.GetJSContext();
+
     nsresult rv;
-    if (!XPCConvert::NativeInterface2JSObject(rval, nullptr,
+    if (!XPCConvert::NativeInterface2JSObject(lccx, rval, nullptr,
                                               aHelper, iid, iface,
                                               true, &rv)) {
         // I can't tell if NativeInterface2JSObject throws JS exceptions
@@ -914,7 +933,7 @@ xpc_qsXPCOMObjectToJsval(JSContext *cx, qsObjectHelper &aHelper,
 }
 
 JSBool
-xpc_qsVariantToJsval(JSContext *aCx,
+xpc_qsVariantToJsval(XPCLazyCallContext &lccx,
                      nsIVariant *p,
                      jsval *rval)
 {
@@ -922,9 +941,9 @@ xpc_qsVariantToJsval(JSContext *aCx,
     // Error handling is in XPCWrappedNative::CallMethod.
     if (p) {
         nsresult rv;
-        JSBool ok = XPCVariant::VariantDataToJS(p, &rv, rval);
+        JSBool ok = XPCVariant::VariantDataToJS(lccx, p, &rv, rval);
         if (!ok)
-            xpc_qsThrow(aCx, rv);
+            xpc_qsThrow(lccx.GetJSContext(), rv);
         return ok;
     }
     *rval = JSVAL_NULL;

@@ -116,7 +116,6 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -161,8 +160,7 @@ abstract public class GeckoApp
     protected RelativeLayout mMainLayout;
     protected RelativeLayout mGeckoLayout;
     public View getView() { return mGeckoLayout; }
-    public SurfaceView mCameraView;
-    public List<GeckoAppShell.AppStateListener> mAppStateListeners;
+    public SurfaceView cameraView;
     private static GeckoApp sAppContext;
     protected MenuPanel mMenuPanel;
     protected Menu mMenu;
@@ -249,15 +247,7 @@ abstract public class GeckoApp
     }
 
     public SurfaceView getCameraView() {
-        return mCameraView;
-    }
-
-    public void addAppStateListener(GeckoAppShell.AppStateListener listener) {
-        mAppStateListeners.add(listener);
-    }
-
-    public void removeAppStateListener(GeckoAppShell.AppStateListener listener) {
-        mAppStateListeners.remove(listener);
+        return cameraView;
     }
 
     public FormAssistPopup getFormAssistPopup() {
@@ -1274,9 +1264,9 @@ abstract public class GeckoApp
         mPluginContainer = (AbsoluteLayout) findViewById(R.id.plugin_container);
         mFormAssistPopup = (FormAssistPopup) findViewById(R.id.form_assist_popup);
 
-        if (mCameraView == null) {
-            mCameraView = new SurfaceView(this);
-            mCameraView.getHolder().setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
+        if (cameraView == null) {
+            cameraView = new SurfaceView(this);
+            cameraView.getHolder().setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
         }
 
         if (mLayerView == null) {
@@ -1403,9 +1393,6 @@ abstract public class GeckoApp
                 }
             }, 1000 * 5 /* 5 seconds */);
         }
-
-        //app state callbacks
-        mAppStateListeners = new LinkedList<GeckoAppShell.AppStateListener>();
 
         //register for events
         registerEventListener("log");
@@ -1640,11 +1627,11 @@ abstract public class GeckoApp
 
     public void enableCameraView() {
         // Some phones (eg. nexus S) need at least a 8x16 preview size
-        mMainLayout.addView(mCameraView, new AbsoluteLayout.LayoutParams(8, 16, 0, 0));
+        mMainLayout.addView(cameraView, new AbsoluteLayout.LayoutParams(8, 16, 0, 0));
     }
 
     public void disableCameraView() {
-        mMainLayout.removeView(mCameraView);
+        mMainLayout.removeView(cameraView);
     }
 
     public String getDefaultUAString() {
@@ -1791,12 +1778,6 @@ abstract public class GeckoApp
         // User may have enabled/disabled accessibility.
         GeckoAccessibility.updateAccessibilitySettings(this);
 
-        if (mAppStateListeners != null) {
-            for(GeckoAppShell.AppStateListener listener: mAppStateListeners) {
-                listener.onResume();
-            }
-        }
-
         ThreadUtils.postToBackgroundThread(new Runnable() {
             @Override
             public void run() {
@@ -1837,12 +1818,6 @@ abstract public class GeckoApp
         });
 
         GeckoScreenOrientationListener.getInstance().stop();
-
-        if (mAppStateListeners != null) {
-            for(GeckoAppShell.AppStateListener listener: mAppStateListeners) {
-                listener.onPause();
-            }
-        }
 
         super.onPause();
     }

@@ -68,6 +68,7 @@ xpc_qsUnwrapThis<_interface>(JSContext *cx,                                   \
                              _interface **ppThis,                             \
                              nsISupports **pThisRef,                          \
                              jsval *pThisVal,                                 \
+                             XPCLazyCallContext *lccx,                        \
                              bool failureFatal)                               \
 {                                                                             \
     nsresult rv;                                                              \
@@ -75,7 +76,7 @@ xpc_qsUnwrapThis<_interface>(JSContext *cx,                                   \
         castNativeFromWrapper(cx, obj, _bit,                                  \
                               ProtoIDAndDepth<_interface>::PrototypeID,       \
                               ProtoIDAndDepth<_interface>::Depth,             \
-                              pThisRef, pThisVal, &rv);                       \
+                              pThisRef, pThisVal, lccx, &rv);                 \
     *ppThis = NULL;  /* avoids uninitialized warnings in callers */           \
     if (failureFatal && !native)                                              \
         return xpc_qsThrow(cx, rv);                                           \

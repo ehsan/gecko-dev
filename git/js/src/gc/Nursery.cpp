@@ -23,9 +23,10 @@ using namespace gc;
 using namespace mozilla;
 
 bool
-js::Nursery::init()
+js::Nursery::enable()
 {
-    JS_ASSERT(start() == 0);
+    if (isEnabled())
+        return true;
 
     if (!hugeSlots.init())
         return false;
@@ -49,28 +50,22 @@ js::Nursery::init()
     return true;
 }
 
-js::Nursery::~Nursery()
-{
-    if (start())
-        UnmapPages((void *)start(), NurserySize);
-}
-
-void
-js::Nursery::enable()
-{
-    if (isEnabled())
-        return;
-    JS_ASSERT(position_ == start());
-    numActiveChunks_ = 1;
-}
-
 void
 js::Nursery::disable()
 {
     if (!isEnabled())
         return;
-    JS_ASSERT(position_ == start());
-    numActiveChunks_ = 0;
+
+    hugeSlots.finish();
+    JS_ASSERT(start());
+    UnmapPages((void *)start(), NurserySize);
+    runtime()->gcNurseryStart_ = runtime()->gcNurseryEnd_ = position_ = currentEnd_ = 0;
+    currentChunk_ = numActiveChunks_ = 0;
+}
+
+js::Nursery::~Nursery()
+{
+    disable();
 }
 
 void *

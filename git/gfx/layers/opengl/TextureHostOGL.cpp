@@ -407,9 +407,7 @@ SurfaceStreamHostOGL::Lock()
   gfxImageSurface* toUpload = nullptr;
   switch (sharedSurf->Type()) {
     case SharedSurfaceType::GLTextureShare: {
-      SharedSurface_GLTexture* glTexSurf = SharedSurface_GLTexture::Cast(sharedSurf);
-      glTexSurf->SetConsumerGL(mGL);
-      mTextureHandle = glTexSurf->Texture();
+      mTextureHandle = SharedSurface_GLTexture::Cast(sharedSurf)->Texture();
       MOZ_ASSERT(mTextureHandle);
       mShaderProgram = sharedSurf->HasAlpha() ? RGBALayerProgramType
                                               : RGBXLayerProgramType;
@@ -702,29 +700,28 @@ TextureTargetForAndroidPixelFormat(android::PixelFormat aFormat)
   }
 }
 
-GrallocTextureHostOGL::GrallocTextureHostOGL()
-: mCompositor(nullptr)
-, mTextureTarget(0)
-, mEGLImage(0)
-{
-}
-
 void GrallocTextureHostOGL::SetCompositor(Compositor* aCompositor)
 {
   CompositorOGL* glCompositor = static_cast<CompositorOGL*>(aCompositor);
-  if (mCompositor && !glCompositor) {
+  if (mGL && !glCompositor) {
     DeleteTextures();
   }
-  mCompositor = glCompositor;
+  mGL = glCompositor ? glCompositor->gl() : nullptr;
 }
 
 void
 GrallocTextureHostOGL::DeleteTextures()
 {
-  if (mEGLImage) {
-    gl()->MakeCurrent();
-    gl()->DestroyEGLImage(mEGLImage);
-    mEGLImage = 0;
+  if (mGLTexture || mEGLImage) {
+    mGL->MakeCurrent();
+    if (mGLTexture) {
+      mGL->fDeleteTextures(1, &mGLTexture);
+      mGLTexture = 0;
+    }
+    if (mEGLImage) {
+      mGL->DestroyEGLImage(mEGLImage);
+      mEGLImage = 0;
+    }
   }
 }
 
@@ -770,43 +767,20 @@ GrallocTextureHostOGL::SwapTexturesImpl(const SurfaceDescriptor& aImage,
   RegisterTextureHostAtGrallocBufferActor(this, aImage);
 }
 
-gl::GLContext*
-GrallocTextureHostOGL::gl() const
-{
-  return mCompositor ? mCompositor->gl() : nullptr;
-}
-
 void GrallocTextureHostOGL::BindTexture(GLenum aTextureUnit)
 {
-  /*
-   * The job of this function is to ensure that the texture is tied to the
-   * android::GraphicBuffer, so that texturing will source the GraphicBuffer.
-   *
-   * To this effect we create an EGLImage wrapping this GraphicBuffer,
-   * using CreateEGLImageForNativeBuffer, and then we tie this EGLImage to our
-   * texture using fEGLImageTargetTexture2D.
-   *
-   * We try to avoid re-creating the EGLImage everytime, by keeping it around
-   * as the mEGLImage member of this class.
-   */
-  MOZ_ASSERT(gl());
-  gl()->MakeCurrent();
+  MOZ_ASSERT(mGLTexture);
 
-  GLuint tex = mCompositor->GetTemporaryTexture(aTextureUnit);
-
-  gl()->fActiveTexture(aTextureUnit);
-  gl()->fBindTexture(mTextureTarget, tex);
-  if (!mEGLImage) {
-    mEGLImage = gl()->CreateEGLImageForNativeBuffer(mGraphicBuffer->getNativeBuffer());
-  }
-  gl()->fEGLImageTargetTexture2D(mTextureTarget, mEGLImage);
-  gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
+  mGL->MakeCurrent();
+  mGL->fActiveTexture(aTextureUnit);
+  mGL->fBindTexture(mTextureTarget, mGLTexture);
+  mGL->fActiveTexture(LOCAL_GL_TEXTURE0);
 }
 
 bool
 GrallocTextureHostOGL::IsValid() const
 {
-  return !!gl() && !!mGraphicBuffer.get();
+  return !!mGL && !!mGraphicBuffer.get();
 }
 
 GrallocTextureHostOGL::~GrallocTextureHostOGL()
@@ -824,14 +798,65 @@ GrallocTextureHostOGL::~GrallocTextureHostOGL()
 bool
 GrallocTextureHostOGL::Lock()
 {
-  // Lock/Unlock is done internally when binding the gralloc buffer to a gl texture
-  return IsValid();
+  if (!IsValid()) {
+    return false;
+  }
+  /*
+   * The job of this function is to ensure that the texture is tied to the
+   * android::GraphicBuffer, so that texturing will source the GraphicBuffer.
+   *
+   * To this effect we create an EGLImage wrapping this GraphicBuffer,
+   * using CreateEGLImageForNativeBuffer, and then we tie this EGLImage to our
+   * texture using fEGLImageTargetTexture2D.
+   *
+   * We try to avoid re-creating the EGLImage everytime, by keeping it around
+   * as the mEGLImage member of this class.
+   */
+  MOZ_ASSERT(mGraphicBuffer.get());
+
+  mGL->MakeCurrent();
+
+  if (!mGLTexture) {
+    mGL->fGenTextures(1, &mGLTexture);
+  }
+  mGL->fActiveTexture(LOCAL_GL_TEXTURE0);
+  mGL->fBindTexture(mTextureTarget, mGLTexture);
+  if (!mEGLImage) {
+    mEGLImage = mGL->CreateEGLImageForNativeBuffer(mGraphicBuffer->getNativeBuffer());
+  }
+  mGL->fEGLImageTargetTexture2D(mTextureTarget, mEGLImage);
+  return true;
 }
 
 void
 GrallocTextureHostOGL::Unlock()
 {
-  // Lock/Unlock is done internally when binding the gralloc buffer to a gl texture
+  /*
+   * The job of this function is to ensure that we release any read lock placed on
+   * our android::GraphicBuffer by any drawing code that sourced it via this TextureHost.
+   *
+   * Indeed, as soon as we draw with a texture that's tied to a android::GraphicBuffer,
+   * the GL may place read locks on it. We must ensure that we release them early enough,
+   * i.e. before the next time that we will try to acquire a write lock on the same buffer,
+   * because read and write locks on gralloc buffers are mutually exclusive.
+   */
+  if (mGL->Renderer() == GLContext::RendererAdrenoTM205) {
+    /* XXX This is working around a driver bug exhibited on at least the
+     * Geeksphone Peak, where retargeting to a different EGL image is very
+     * slow. See Bug 869696.
+     */
+    if (mGLTexture) {
+      mGL->MakeCurrent();
+      mGL->fDeleteTextures(1, &mGLTexture);
+      mGLTexture = 0;
+    }
+    return;
+  }
+
+  mGL->MakeCurrent();
+  mGL->fActiveTexture(LOCAL_GL_TEXTURE0);
+  mGL->fBindTexture(mTextureTarget, mGLTexture);
+  mGL->fEGLImageTargetTexture2D(mTextureTarget, mGL->GetNullEGLImage());
 }
 
 gfx::SurfaceFormat
@@ -852,7 +877,7 @@ GrallocTextureHostOGL::SetBuffer(SurfaceDescriptor* aBuffer, ISurfaceAllocator* 
   RegisterTextureHostAtGrallocBufferActor(this, *mBuffer);
 }
 
-#endif // MOZ_WIDGET_GONK
+#endif
 
 already_AddRefed<gfxImageSurface>
 TextureImageTextureHostOGL::GetAsSurface() {
@@ -907,20 +932,10 @@ TiledTextureHostOGL::GetAsSurface() {
 #ifdef MOZ_WIDGET_GONK
 already_AddRefed<gfxImageSurface>
 GrallocTextureHostOGL::GetAsSurface() {
-  gl()->MakeCurrent();
-
-  GLuint tex = mCompositor->GetTemporaryTexture(LOCAL_GL_TEXTURE0);
-  gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
-  gl()->fBindTexture(mTextureTarget, tex);
-  if (!mEGLImage) {
-    mEGLImage = gl()->CreateEGLImageForNativeBuffer(mGraphicBuffer->getNativeBuffer());
-  }
-  gl()->fEGLImageTargetTexture2D(mTextureTarget, mEGLImage);
-
-  nsRefPtr<gfxImageSurface> surf = IsValid() ?
-    gl()->GetTexImage(tex,
-                      false,
-                      GetShaderProgram())
+  nsRefPtr<gfxImageSurface> surf = IsValid() && mGLTexture ?
+    mGL->GetTexImage(mGLTexture,
+                     false,
+                     GetShaderProgram())
     : nullptr;
   return surf.forget();
 }

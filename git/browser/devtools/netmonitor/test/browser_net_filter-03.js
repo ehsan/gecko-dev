@@ -68,8 +68,9 @@ function test() {
     });
 
     function resetSorting() {
-      EventUtils.sendMouseEvent({ type: "click" }, $("#requests-menu-waterfall-button"));
-      EventUtils.sendMouseEvent({ type: "click" }, $("#requests-menu-size-button"));
+      for (let i = 0; i < 3; i++) {
+        EventUtils.sendMouseEvent({ type: "click" }, $("#requests-menu-size-button"));
+      }
     }
 
     function testButtons(aFilterType) {

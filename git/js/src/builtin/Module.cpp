@@ -21,20 +21,8 @@ Class js::ModuleClass = {
     JS_ConvertStub
 };
 
-inline void
-Module::setAtom(JSAtom *atom)
-{
-    setReservedSlot(ATOM_SLOT, StringValue(atom));
-}
-
-inline void
-Module::setScript(JSScript *script)
-{
-    setReservedSlot(SCRIPT_SLOT, PrivateValue(script));
-}
-
 Module *
-Module::create(JSContext *cx, HandleAtom atom)
+js_NewModule(JSContext *cx, HandleAtom atom)
 {
     RootedObject object(cx, NewBuiltinClassInstance(cx, &ModuleClass));
     if (!object)

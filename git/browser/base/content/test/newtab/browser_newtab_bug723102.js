@@ -15,5 +15,4 @@ function runTests() {
   ok(NewTabUtils.allPages.enabled, "page is enabled");
   NewTabUtils.allPages.enabled = false;
   ok(getGrid().node.hasAttribute("page-disabled"), "page is disabled");
-  NewTabUtils.allPages.enabled = true;
 }

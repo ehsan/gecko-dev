@@ -1574,9 +1574,16 @@ nsXPCComponents_ID::CallOrConstruct(nsIXPConnectWrappedNative *wrapper,
     if (args.length() < 1)
         return ThrowAndFail(NS_ERROR_XPC_NOT_ENOUGH_ARGS, cx, _retval);
 
+    XPCCallContext ccx(JS_CALLER, cx);
+    if (!ccx.IsValid())
+        return ThrowAndFail(NS_ERROR_XPC_UNEXPECTED, cx, _retval);
+
+    XPCContext* xpcc = ccx.GetXPCContext();
+
     // Do the security check if necessary
 
-    nsIXPCSecurityManager* sm = nsXPConnect::XPConnect()->GetDefaultSecurityManager();
+    nsIXPCSecurityManager* sm =
+            xpcc->GetAppropriateSecurityManager(nsIXPCSecurityManager::HOOK_CREATE_INSTANCE);
     if (sm && NS_FAILED(sm->CanCreateInstance(cx, nsJSID::GetCID()))) {
         // the security manager vetoed. It should have set an exception.
         *_retval = false;
@@ -1937,11 +1944,17 @@ nsXPCComponents_Exception::CallOrConstruct(nsIXPConnectWrappedNative *wrapper,
                                            JSContext *cx, HandleObject obj,
                                            const CallArgs &args, bool *_retval)
 {
+    XPCCallContext ccx(JS_CALLER, cx);
+    if (!ccx.IsValid())
+        return ThrowAndFail(NS_ERROR_XPC_UNEXPECTED, cx, _retval);
+
     nsXPConnect* xpc = nsXPConnect::XPConnect();
+    XPCContext* xpcc = ccx.GetXPCContext();
 
     // Do the security check if necessary
 
-    nsIXPCSecurityManager* sm = xpc->GetDefaultSecurityManager();
+    nsIXPCSecurityManager* sm =
+            xpcc->GetAppropriateSecurityManager(nsIXPCSecurityManager::HOOK_CREATE_INSTANCE);
     if (sm && NS_FAILED(sm->CanCreateInstance(cx, nsXPCException::GetCID()))) {
         // the security manager vetoed. It should have set an exception.
         *_retval = false;
@@ -2206,6 +2219,10 @@ nsresult
 nsXPCConstructor::CallOrConstruct(nsIXPConnectWrappedNative *wrapper,JSContext *cx,
                                   HandleObject obj, const CallArgs &args, bool *_retval)
 {
+    XPCCallContext ccx(JS_CALLER, cx);
+    if (!ccx.IsValid())
+        return ThrowAndFail(NS_ERROR_XPC_UNEXPECTED, cx, _retval);
+
     nsXPConnect* xpc = nsXPConnect::XPConnect();
 
     // security check not required because we are going to call through the
@@ -2436,16 +2453,22 @@ nsXPCComponents_Constructor::CallOrConstruct(nsIXPConnectWrappedNative *wrapper,
 
     // get the various other object pointers we need
 
+    XPCCallContext ccx(JS_CALLER, cx);
+    if (!ccx.IsValid())
+        return ThrowAndFail(NS_ERROR_XPC_UNEXPECTED, cx, _retval);
+
     nsXPConnect* xpc = nsXPConnect::XPConnect();
+    XPCContext* xpcc = ccx.GetXPCContext();
     XPCWrappedNativeScope* scope = GetObjectScope(obj);
     nsXPCComponents* comp;
 
-    if (!xpc || !scope || !(comp = scope->GetComponents()))
+    if (!xpc || !xpcc || !scope || !(comp = scope->GetComponents()))
         return ThrowAndFail(NS_ERROR_XPC_UNEXPECTED, cx, _retval);
 
     // Do the security check if necessary
 
-    nsIXPCSecurityManager* sm = xpc->GetDefaultSecurityManager();
+    nsIXPCSecurityManager* sm =
+            xpcc->GetAppropriateSecurityManager(nsIXPCSecurityManager::HOOK_CREATE_INSTANCE);
     if (sm && NS_FAILED(sm->CanCreateInstance(cx, nsXPCConstructor::GetCID()))) {
         // the security manager vetoed. It should have set an exception.
         *_retval = false;
@@ -3338,13 +3361,17 @@ xpc_CreateSandboxObject(JSContext *cx, jsval *vp, nsISupports *prinOrSop, Sandbo
         // Pass on ownership of sbp to |sandbox|.
         JS_SetPrivate(sandbox, sbp.forget().get());
 
+        XPCCallContext ccx(NATIVE_CALLER, cx);
+        if (!ccx.IsValid())
+            return NS_ERROR_XPC_UNEXPECTED;
+
         {
-          JSAutoCompartment ac(cx, sandbox);
+          JSAutoCompartment ac(ccx, sandbox);
           if (options.wantComponents &&
-              !nsXPCComponents::AttachComponentsObject(cx, GetObjectScope(sandbox)))
+              !nsXPCComponents::AttachComponentsObject(ccx, GetObjectScope(sandbox)))
               return NS_ERROR_XPC_UNEXPECTED;
 
-          if (!XPCNativeWrapper::AttachNewConstructorObject(cx, sandbox))
+          if (!XPCNativeWrapper::AttachNewConstructorObject(ccx, sandbox))
               return NS_ERROR_XPC_UNEXPECTED;
         }
 
@@ -4346,7 +4373,8 @@ nsXPCComponents_Utils::GetComponentsForScope(const jsval &vscope, JSContext *cx,
         return NS_ERROR_INVALID_ARG;
     JSObject *scopeObj = js::UncheckedUnwrap(&vscope.toObject());
     XPCWrappedNativeScope *scope = GetObjectScope(scopeObj);
-    JSObject *components = scope->GetComponentsJSObject();
+    XPCCallContext ccx(NATIVE_CALLER, cx);
+    JSObject *components = scope->GetComponentsJSObject(ccx);
     if (!components)
         return NS_ERROR_FAILURE;
     *rval = ObjectValue(*components);
@@ -4861,20 +4889,20 @@ ContentComponentsGetterOp(JSContext *cx, JSHandleObject obj, JSHandleId id,
 
 // static
 JSBool
-nsXPCComponents::AttachComponentsObject(JSContext* aCx,
+nsXPCComponents::AttachComponentsObject(XPCCallContext& ccx,
                                         XPCWrappedNativeScope* aScope)
 {
-    RootedObject components(aCx, aScope->GetComponentsJSObject());
+    RootedObject components(ccx, aScope->GetComponentsJSObject(ccx));
     if (!components)
         return false;
 
-    RootedObject global(aCx, aScope->GetGlobalJSObject());
-    MOZ_ASSERT(js::IsObjectInContextCompartment(global, aCx));
+    RootedObject global(ccx, aScope->GetGlobalJSObject());
+    MOZ_ASSERT(js::IsObjectInContextCompartment(global, ccx));
 
-    RootedId id(aCx, XPCJSRuntime::Get()->GetStringID(XPCJSRuntime::IDX_COMPONENTS));
+    RootedId id(ccx, ccx.GetRuntime()->GetStringID(XPCJSRuntime::IDX_COMPONENTS));
     JSPropertyOp getter = AccessCheck::isChrome(global) ? nullptr
                                                         : &ContentComponentsGetterOp;
-    return JS_DefinePropertyById(aCx, global, id, js::ObjectValue(*components),
+    return JS_DefinePropertyById(ccx, global, id, js::ObjectValue(*components),
                                  getter, nullptr, JSPROP_PERMANENT | JSPROP_READONLY);
 }
 

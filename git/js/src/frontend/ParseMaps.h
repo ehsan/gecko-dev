@@ -45,6 +45,7 @@ class ParseMapPool
 
     RecyclableMaps      all;
     RecyclableMaps      recyclable;
+    JSContext           *cx;
 
     void checkInvariants();
 
@@ -78,6 +79,8 @@ class ParseMapPool
     }
 
   public:
+    explicit ParseMapPool(JSContext *cx) : cx(cx) {}
+
     ~ParseMapPool() {
         purgeAll();
     }

@@ -539,9 +539,6 @@ CompositorParent::ShadowLayersUpdated(LayerTransactionParent* aLayerTree,
   mLayerManager->SetRoot(root);
   if (root) {
     SetShadowProperties(root);
-    if (mIsTesting) {
-      mCompositionManager->TransformShadowTree(mTestTime);
-    }
   }
   ScheduleComposition();
   LayerManagerComposite *layerComposite = mLayerManager->AsLayerManagerComposite();

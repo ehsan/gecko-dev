@@ -143,7 +143,7 @@ function test() {
         })
         .then(() => {
           info("Clearing sort.");
-          RequestsMenu.sortBy();
+          RequestsMenu.sortBy(null);
           return testContents([0, 1, 2, 3, 4]);
         })
         .then(() => {
