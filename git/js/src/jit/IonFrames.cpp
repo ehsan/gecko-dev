@@ -540,7 +540,9 @@ HandleExceptionBaseline(JSContext *cx, const IonFrameIterator &frame, ResumeFrom
                 rfe->kind = ResumeFromException::RESUME_FINALLY;
                 jsbytecode *finallyPC = script->main() + tn->start + tn->length;
                 rfe->target = script->baselineScript()->nativeCodeForPC(script, finallyPC);
-                rfe->exception = cx->getPendingException();
+                // Drop the exception instead of leaking cross compartment data.
+                if (!cx->getPendingException(MutableHandleValue::fromMarkedLocation(&rfe->exception)))
+                    rfe->exception = UndefinedValue();
                 cx->clearPendingException();
                 return;
             }
@@ -1033,7 +1035,7 @@ MarkJitExitFrame(JSTracer *trc, const IonFrameIterator &frame)
     MarkIonCodeRoot(trc, footer->addressOfIonCode(), "ion-exit-code");
 
     const VMFunction *f = footer->function();
-    if (f == nullptr || f->explicitArgs == 0)
+    if (f == nullptr)
         return;
 
     // Mark arguments of the VM wrapper.
