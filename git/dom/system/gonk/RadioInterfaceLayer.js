@@ -396,6 +396,13 @@ XPCOMUtils.defineLazyGetter(this, "gMessageManager", function() {
       }
     },
 
+    sendMobileConnectionMessage: function(message, clientId, data) {
+      this._sendTargetMessage("mobileconnection", message, {
+        clientId: clientId,
+        data: data
+      });
+    },
+
     sendIccMessage: function(message, clientId, data) {
       this._sendTargetMessage("icc", message, {
         clientId: clientId,
@@ -1156,7 +1163,7 @@ DataConnectionHandler.prototype = {
   _compareDataCallOptions: function(dataCall, newDataCall) {
     return dataCall.apnProfile.apn == newDataCall.apn &&
            dataCall.apnProfile.user == newDataCall.user &&
-           dataCall.apnProfile.password == newDataCall.passwd &&
+           dataCall.apnProfile.password == newDataCall.password &&
            dataCall.chappap == newDataCall.chappap &&
            dataCall.pdptype == newDataCall.pdptype;
   },
@@ -2084,7 +2091,8 @@ RadioInterface.prototype = {
         gMessageManager.sendIccMessage("RIL:StkSessionEnd", this.clientId, null);
         break;
       case "cdma-info-rec-received":
-        this.handleCdmaInformationRecords(message.records);
+        if (DEBUG) this.debug("cdma-info-rec-received: " + JSON.stringify(message));
+        gSystemMessenger.broadcastMessage("cdma-info-rec-received", message);
         break;
       default:
         throw new Error("Don't know about this message type: " +
@@ -2910,99 +2918,6 @@ RadioInterface.prototype = {
                                : Ci.nsICellBroadcastService.GSM_ETWS_WARNING_INVALID,
                              hasEtwsInfo ? etwsInfo.emergencyUserAlert : false,
                              hasEtwsInfo ? etwsInfo.popup : false);
-  },
-
-  handleCdmaInformationRecords: function(aRecords) {
-    if (DEBUG) this.debug("cdma-info-rec-received: " + JSON.stringify(aRecords));
-
-    let clientId = this.clientId;
-
-    aRecords.forEach(function(aRecord) {
-      if (aRecord.display) {
-        gMobileConnectionService
-          .notifyCdmaInfoRecDisplay(clientId, aRecord.display);
-        return;
-      }
-
-      if (aRecord.calledNumber) {
-        gMobileConnectionService
-          .notifyCdmaInfoRecCalledPartyNumber(clientId,
-                                              aRecord.calledNumber.type,
-                                              aRecord.calledNumber.plan,
-                                              aRecord.calledNumber.number,
-                                              aRecord.calledNumber.pi,
-                                              aRecord.calledNumber.si);
-        return;
-      }
-
-      if (aRecord.callingNumber) {
-        gMobileConnectionService
-          .notifyCdmaInfoRecCallingPartyNumber(clientId,
-                                               aRecord.callingNumber.type,
-                                               aRecord.callingNumber.plan,
-                                               aRecord.callingNumber.number,
-                                               aRecord.callingNumber.pi,
-                                               aRecord.callingNumber.si);
-        return;
-      }
-
-      if (aRecord.connectedNumber) {
-        gMobileConnectionService
-          .notifyCdmaInfoRecConnectedPartyNumber(clientId,
-                                                 aRecord.connectedNumber.type,
-                                                 aRecord.connectedNumber.plan,
-                                                 aRecord.connectedNumber.number,
-                                                 aRecord.connectedNumber.pi,
-                                                 aRecord.connectedNumber.si);
-        return;
-      }
-
-      if (aRecord.signal) {
-        gMobileConnectionService
-          .notifyCdmaInfoRecSignal(clientId,
-                                   aRecord.signal.type,
-                                   aRecord.signal.alertPitch,
-                                   aRecord.signal.signal);
-        return;
-      }
-
-      if (aRecord.redirect) {
-        gMobileConnectionService
-          .notifyCdmaInfoRecRedirectingNumber(clientId,
-                                              aRecord.redirect.type,
-                                              aRecord.redirect.plan,
-                                              aRecord.redirect.number,
-                                              aRecord.redirect.pi,
-                                              aRecord.redirect.si,
-                                              aRecord.redirect.reason);
-        return;
-      }
-
-      if (aRecord.lineControl) {
-        gMobileConnectionService
-          .notifyCdmaInfoRecLineControl(clientId,
-                                        aRecord.lineControl.polarityIncluded,
-                                        aRecord.lineControl.toggle,
-                                        aRecord.lineControl.reverse,
-                                        aRecord.lineControl.powerDenial);
-        return;
-      }
-
-      if (aRecord.clirCause) {
-        gMobileConnectionService
-          .notifyCdmaInfoRecClir(clientId,
-                                 aRecord.clirCause);
-        return;
-      }
-
-      if (aRecord.audioControl) {
-        gMobileConnectionService
-          .notifyCdmaInfoRecAudioControl(clientId,
-                                         aRecord.audioControl.upLink,
-                                         aRecord.audioControl.downLink);
-        return;
-      }
-    });
   },
 
   // nsIObserver
