@@ -434,7 +434,6 @@ public:
     CreateDrawTarget(const mozilla::gfx::IntSize &aSize,
                      mozilla::gfx::SurfaceFormat aFormat);
 
-  virtual bool CanUseCanvasLayerForSize(const gfxIntSize &aSize) { return PR_TRUE; }
 
   /**
    * Return the name of the layer manager's backend.

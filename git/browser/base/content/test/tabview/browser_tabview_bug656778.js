@@ -30,16 +30,6 @@ function test() {
     assertBoolPref(TabView.PREF_RESTORE_ENABLED_ONCE, enabledOnce);
   };
 
-  let assertNotificationBannerVisible = function (win) {
-    let cw = win.TabView.getContentWindow();
-    is(cw.iQ(".banner").length, 1, "notification banner is visible");
-  };
-
-  let assertNotificationBannerNotVisible = function (win) {
-    let cw = win.TabView.getContentWindow();
-    is(cw.iQ(".banner").length, 0, "notification banner is not visible");
-  };
-
   let next = function () {
     if (tests.length == 0) {
       waitForFocus(finish);
@@ -62,7 +52,6 @@ function test() {
     setPreferences(1, true, false);
 
     newWindowWithTabView(function (win) {
-      assertNotificationBannerVisible(win);
       assertPreferences(3, true, true);
 
       win.close();
@@ -83,12 +72,10 @@ function test() {
     setPreferences(1, false, false);
 
     newWindowWithTabView(function (win) {
-      assertNotificationBannerNotVisible(win);
       assertPreferences(1, false, false);
 
       win.TabView.firstUseExperienced = true;
 
-      assertNotificationBannerVisible(win);
       assertPreferences(3, true, true);
 
       win.close();
@@ -107,7 +94,6 @@ function test() {
     setPreferences(3, true, false);
 
     newWindowWithTabView(function (win) {
-      assertNotificationBannerNotVisible(win);
       assertPreferences(3, true, true);
 
       win.close();
@@ -125,7 +111,6 @@ function test() {
     setPreferences(3, true, true);
 
     newWindowWithTabView(function (win) {
-      assertNotificationBannerNotVisible(win);
       assertPreferences(3, true, true);
 
       win.close();
@@ -144,7 +129,6 @@ function test() {
     setPreferences(1, true, true);
 
     newWindowWithTabView(function (win) {
-      assertNotificationBannerNotVisible(win);
       assertPreferences(1, true, true);
 
       win.close();

@@ -18,6 +18,9 @@ function cleanAndGo(server) {
 }
 
 function run_test() {
+  if (DISABLE_TESTS_BUG_604565)
+    return;
+
   generateNewKeys();
   run_next_test();
 }

@@ -72,9 +72,5 @@ protected:
    NS_METHOD            GetDefaultUserProfileRoot(nsILocalFile **aLocalFile,
                                                   PRBool aLocal = PR_FALSE);
 
-#if defined(XP_MACOSX)
-   static PRBool        IsOSXLeopard();
-#endif
-
    nsCOMPtr<nsILocalFile> mMozBinDirectory;
 };

@@ -113,7 +113,6 @@ static NS_DEFINE_CID(kFrameTraversalCID, NS_FRAMETRAVERSAL_CID);
 #endif // IBMBIDI
 
 #include "nsDOMError.h"
-#include "mozilla/dom/Element.h"
 
 using namespace mozilla;
 
@@ -1928,31 +1927,13 @@ nsFrameSelection::SetMouseDownState(PRBool aState)
   mMouseDownState = aState;
 
   if (mMouseDownState) {
-    if (sDraggingFrameSelection) {
-      sDraggingFrameSelection->AbortDragForSelection();
-    }
     sDraggingFrameSelection = this;
   } else {
-    if (sDraggingFrameSelection == this) {
-      sDraggingFrameSelection = nsnull;
-    }
+    sDraggingFrameSelection = nsnull;
     mDragSelectingCells = PR_FALSE;
     PostReason(nsISelectionListener::MOUSEUP_REASON);
     NotifySelectionListeners(nsISelectionController::SELECTION_NORMAL); //notify that reason is mouse up please.
   }
-}
-
-void
-nsFrameSelection::AbortDragForSelection()
-{
-  if (sDraggingFrameSelection == this) {
-    sDraggingFrameSelection = nsnull;
-    mMouseDownState = PR_FALSE;
-    mDragSelectingCells = PR_FALSE;
-    PostReason(nsISelectionListener::NO_REASON);
-    NotifySelectionListeners(nsISelectionController::SELECTION_NORMAL);
-  }
-  StopAutoScrollTimer();
 }
 
 nsISelection*

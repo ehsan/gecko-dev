@@ -80,6 +80,7 @@
 #include "nsUnicharUtils.h"
 #include "nsICookieService.h"
 #include "nsIPrompt.h"
+#include "nsIDOMWindowInternal.h"
 #include "nsIChannel.h"
 #include "nsIPrincipal.h"
 #include "nsXMLPrettyPrinter.h"

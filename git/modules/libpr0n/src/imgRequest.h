@@ -95,9 +95,7 @@ public:
                 nsIChannel *aChannel,
                 imgCacheEntry *aCacheEntry,
                 void *aCacheId,
-                void *aLoadId,
-                nsIPrincipal* aLoadingPrincipal,
-                PRInt32 aCORSMode);
+                void *aLoadId);
 
   // Callers must call imgRequestProxy::Notify later.
   nsresult AddProxy(imgRequestProxy *proxy);
@@ -136,17 +134,6 @@ public:
   // If this function is called multiple times, the information set earliest
   // wins.
   static void SetCacheValidation(imgCacheEntry* aEntry, nsIRequest* aRequest);
-
-  // The CORS mode for which we loaded this image.
-  PRInt32 GetCORSMode() const { return mCORSMode; }
-
-  // The principal for the document that loaded this image. Used when trying to
-  // validate a CORS image load.
-  already_AddRefed<nsIPrincipal> GetLoadingPrincipal() const
-  {
-    nsCOMPtr<nsIPrincipal> principal = mLoadingPrincipal;
-    return principal.forget();
-  }
 
 private:
   friend class imgCacheEntry;
@@ -229,9 +216,6 @@ private:
   nsCOMPtr<nsIURI> mURI;
   // The URI of the resource we ended up loading after all redirects, etc.
   nsCOMPtr<nsIURI> mCurrentURI;
-  // The principal of the document which loaded this image. Used when validating for CORS.
-  nsCOMPtr<nsIPrincipal> mLoadingPrincipal;
-  // The principal of this image.
   nsCOMPtr<nsIPrincipal> mPrincipal;
   // Status-tracker -- transferred to mImage, when it gets instantiated
   nsAutoPtr<imgStatusTracker> mStatusTracker;
@@ -261,10 +245,6 @@ private:
 
   // Originating outer window ID. Used for error reporting.
   PRUint64 mWindowId;
-
-  // The CORS mode (defined in imgIRequest) this image was loaded with. By
-  // default, imgIRequest::CORS_NONE.
-  PRInt32 mCORSMode;
 
   // Sometimes consumers want to do things before the image is ready. Let them,
   // and apply the action when the image becomes available.

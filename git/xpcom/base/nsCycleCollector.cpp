@@ -150,7 +150,6 @@
 #include "nsICycleCollectorListener.h"
 #include "nsIXPConnect.h"
 #include "nsIJSRuntimeService.h"
-#include "nsIMemoryReporter.h"
 #include "xpcpublic.h"
 #include <stdio.h>
 #include <string.h>
@@ -321,7 +320,6 @@ public:
     {
         mSentinelAndBlocks[0].block = nsnull;
         mSentinelAndBlocks[1].block = nsnull;
-        mNumBlocks = 0;
     }
 
     ~EdgePool()
@@ -337,9 +335,6 @@ public:
         while (b) {
             Block *next = b->Next();
             delete b;
-            NS_ASSERTION(mNumBlocks > 0,
-                         "Expected EdgePool mNumBlocks to be positive.");
-            mNumBlocks--;
             b = next;
         }
 
@@ -374,7 +369,6 @@ private:
     // Store the null sentinel so that we can have valid iterators
     // before adding any edges and without adding any blocks.
     PtrInfoOrBlock mSentinelAndBlocks[2];
-    PRUint32 mNumBlocks;
 
     Block*& Blocks() { return mSentinelAndBlocks[1].block; }
 
@@ -420,8 +414,7 @@ public:
         Builder(EdgePool &aPool)
             : mCurrent(&aPool.mSentinelAndBlocks[0]),
               mBlockEnd(&aPool.mSentinelAndBlocks[0]),
-              mNextBlockPtr(&aPool.Blocks()),
-              mNumBlocks(aPool.mNumBlocks)
+              mNextBlockPtr(&aPool.Blocks())
         {
         }
 
@@ -439,7 +432,6 @@ public:
                 mCurrent = b->Start();
                 mBlockEnd = b->End();
                 mNextBlockPtr = &b->Next();
-                mNumBlocks++;
             }
             (mCurrent++)->ptrInfo = aEdge;
         }
@@ -447,12 +439,7 @@ public:
         // mBlockEnd points to space for null sentinel
         PtrInfoOrBlock *mCurrent, *mBlockEnd;
         Block **mNextBlockPtr;
-        PRUint32 &mNumBlocks;
     };
-
-    size_t BlocksSize() const {
-        return sizeof(Block) * mNumBlocks;
-    }
 
 };
 
@@ -581,8 +568,7 @@ private:
 public:
     NodePool()
         : mBlocks(nsnull),
-          mLast(nsnull),
-          mNumBlocks(0)
+          mLast(nsnull)
     {
     }
 
@@ -605,9 +591,6 @@ public:
         while (b) {
             Block *n = b->mNext;
             NS_Free(b);
-            NS_ASSERTION(mNumBlocks > 0,
-                         "Expected NodePool mNumBlocks to be positive.");
-            mNumBlocks--;
             b = n;
         }
 
@@ -622,8 +605,7 @@ public:
         Builder(NodePool& aPool)
             : mNextBlock(&aPool.mBlocks),
               mNext(aPool.mLast),
-              mBlockEnd(nsnull),
-              mNumBlocks(aPool.mNumBlocks)
+              mBlockEnd(nsnull)
         {
             NS_ASSERTION(aPool.mBlocks == nsnull && aPool.mLast == nsnull,
                          "pool not empty");
@@ -641,7 +623,6 @@ public:
                 mBlockEnd = block->mEntries + BlockSize;
                 block->mNext = nsnull;
                 mNextBlock = &block->mNext;
-                mNumBlocks++;
             }
             return new (mNext++) PtrInfo(aPointer, aParticipant
                                          IF_DEBUG_CC_PARAM(aLangID)
@@ -651,7 +632,6 @@ public:
         Block **mNextBlock;
         PtrInfo *&mNext;
         PtrInfo *mBlockEnd;
-        PRUint32 &mNumBlocks;
     };
 
     class Enumerator;
@@ -695,14 +675,9 @@ public:
         PtrInfo *mNext, *mBlockEnd, *&mLast;
     };
 
-    size_t BlocksSize() const {
-        return sizeof(Block) * mNumBlocks;
-    }
-
 private:
     Block *mBlocks;
     PtrInfo *mLast;
-    PRUint32 mNumBlocks;
 };
 
 
@@ -721,11 +696,6 @@ struct GCGraph
     }
     ~GCGraph() { 
     }
-
-    size_t BlocksSize() const {
-        return mNodes.BlocksSize() + mEdges.BlocksSize();
-    }
-
 };
 
 // XXX Would be nice to have an nsHashSet<KeyType> API that has
@@ -749,7 +719,6 @@ public:
     // buffer.
 
     nsCycleCollectorParams &mParams;
-    PRUint32 mNumBlocksAlloced;
     PRUint32 mCount;
     Block mFirstBlock;
     nsPurpleBufferEntry *mFreeList;
@@ -787,7 +756,6 @@ public:
 
     void InitBlocks()
     {
-        mNumBlocksAlloced = 0;
         mCount = 0;
         mFreeList = nsnull;
         StartBlock(&mFirstBlock);
@@ -819,9 +787,6 @@ public:
             Block *next = b->mNext;
             delete b;
             b = next;
-            NS_ASSERTION(mNumBlocksAlloced > 0,
-                         "Expected positive mNumBlocksAlloced.");
-            mNumBlocksAlloced--;
         }
         mFirstBlock.mNext = nsnull;
     }
@@ -865,7 +830,6 @@ public:
             if (!b) {
                 return nsnull;
             }
-            mNumBlocksAlloced++;
             StartBlock(b);
 
             // Add the new block as the second block in the list.
@@ -929,12 +893,6 @@ public:
     {
         return mCount;
     }
-
-    size_t BlocksSize() const
-    {
-        return sizeof(Block) * mNumBlocksAlloced;
-    }
-
 };
 
 struct CallbackClosure
@@ -3320,36 +3278,6 @@ nsCycleCollector::WasFreed(nsISupports *n)
 }
 #endif
 
-
-////////////////////////
-// Memory reporter
-////////////////////////
-
-static PRInt64
-ReportCycleCollectorMem()
-{
-    if (!sCollector)
-        return 0;
-    PRInt64 size = sizeof(nsCycleCollector) + 
-        sCollector->mPurpleBuf.BlocksSize() +
-        sCollector->mGraph.BlocksSize();
-    if (sCollector->mWhiteNodes)
-        size += sCollector->mWhiteNodes->Capacity() * sizeof(PtrInfo*);
-    return size;
-}
-
-NS_MEMORY_REPORTER_IMPLEMENT(CycleCollector,
-                             "explicit/cycle-collector",
-                             KIND_HEAP,
-                             UNITS_BYTES,
-                             ReportCycleCollectorMem,
-                             "Memory used by the cycle collector.  This "
-                             "includes the cycle collector structure, the "
-                             "purple buffer, the graph, and the white nodes.  "
-                             "The latter two are expected to be empty when the "
-                             "cycle collector is idle.")
-
-
 ////////////////////////////////////////////////////////////////////////
 // Module public API (exported in nsCycleCollector.h)
 // Just functions that redirect into the singleton, once it's built.
@@ -3359,13 +3287,8 @@ void
 nsCycleCollector_registerRuntime(PRUint32 langID, 
                                  nsCycleCollectionLanguageRuntime *rt)
 {
-    static PRBool regMemReport = PR_TRUE;
     if (sCollector)
         sCollector->RegisterRuntime(langID, rt);
-    if (regMemReport) {
-        regMemReport = PR_FALSE;
-        NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(CycleCollector));
-    }
 }
 
 nsCycleCollectionLanguageRuntime *

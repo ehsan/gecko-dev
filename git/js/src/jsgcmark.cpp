@@ -115,12 +115,6 @@ Mark(JSTracer *trc, T *thing)
     JS_ASSERT(thing->arenaHeader()->compartment);
     JS_ASSERT(thing->arenaHeader()->compartment->rt == rt);
 
-    if (rt->gcCheckCompartment && thing->compartment() != rt->gcCheckCompartment &&
-        thing->compartment() != rt->atomsCompartment)
-    {
-        JS_Assert("compartment mismatch in GC", __FILE__, __LINE__);
-    }
-
     /*
      * Don't mark things outside a compartment if we are in a per-compartment
      * GC.
@@ -162,16 +156,6 @@ MarkObject(JSTracer *trc, JSObject &obj, const char *name)
     JS_ASSERT(&obj);
     JS_SET_TRACING_NAME(trc, name);
     Mark(trc, &obj);
-}
-
-void
-MarkCrossCompartmentObject(JSTracer *trc, JSObject &obj, const char *name)
-{
-    JSRuntime *rt = trc->context->runtime;
-    if (rt->gcCurrentCompartment && rt->gcCurrentCompartment != obj.compartment())
-        return;
-
-    MarkObject(trc, obj, name);
 }
 
 void
@@ -365,22 +349,6 @@ MarkValue(JSTracer *trc, const js::Value &v, const char *name)
 {
     JS_SET_TRACING_NAME(trc, name);
     MarkValueRaw(trc, v);
-}
-
-void
-MarkCrossCompartmentValue(JSTracer *trc, const js::Value &v, const char *name)
-{
-    if (v.isMarkable()) {
-        js::gc::Cell *cell = (js::gc::Cell *)v.toGCThing();
-        unsigned kind = v.gcKind();
-        if (kind == JSTRACE_STRING && ((JSString *)cell)->isStaticAtom())
-            return;
-        JSRuntime *rt = trc->context->runtime;
-        if (rt->gcCurrentCompartment && cell->compartment() != rt->gcCurrentCompartment)
-            return;
-
-        MarkValue(trc, v, name);
-    }
 }
 
 void
@@ -780,9 +748,6 @@ MarkChildren(JSTracer *trc, JSXML *xml)
 void
 GCMarker::drainMarkStack()
 {
-    JSRuntime *rt = context->runtime;
-    rt->gcCheckCompartment = rt->gcCurrentCompartment;
-
     while (!isMarkStackEmpty()) {
         while (!ropeStack.isEmpty())
             ScanRope(this, ropeStack.pop());
@@ -807,8 +772,6 @@ GCMarker::drainMarkStack()
             markDelayedChildren();
         }
     }
-
-    rt->gcCheckCompartment = NULL;
 }
 
 } /* namespace js */

@@ -205,6 +205,9 @@ public:
                      const nsAString& browserDumpID);
 
   nsNPAPIPluginInstance *FindInstance(const char *mimetype);
+  nsNPAPIPluginInstance *FindStoppedInstance(const char * url);
+  nsNPAPIPluginInstance *FindOldestStoppedInstance();
+  PRUint32 StoppedInstanceCount();
 
   nsTArray< nsRefPtr<nsNPAPIPluginInstance> > *InstanceArray();
 
@@ -252,6 +255,9 @@ private:
 
   nsPluginTag*
   FindPluginEnabledForExtension(const char* aExtension, const char* &aMimeType);
+
+  nsresult
+  FindStoppedPluginForURL(nsIURI* aURL, nsIPluginInstanceOwner *aOwner);
 
   nsresult
   FindPlugins(PRBool aCreatePluginList, PRBool * aPluginsChanged);

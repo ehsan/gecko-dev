@@ -56,6 +56,8 @@
 #include "nsIPrincipal.h"
 #include "mozilla/scache/StartupCache.h"
 
+using namespace mozilla::scache;
+
 #include "xpcIJSGetFactory.h"
 
 /* 6bd13476-1dd2-11b2-bbef-f0ccb5fa64b6 (thanks, mozbot) */
@@ -103,6 +105,11 @@ class mozJSComponentLoader : public mozilla::ModuleLoader,
                                JSObject **aGlobal,
                                char **location,
                                jsval *exception);
+
+    nsresult ReadScript(StartupCache *cache, nsIURI *uri, 
+                        JSContext *cx, JSObject **scriptObj);
+    nsresult WriteScript(StartupCache *cache, JSObject *scriptObj,
+                         nsIFile *component, nsIURI *uri, JSContext *cx);
 
     nsCOMPtr<nsIComponentManager> mCompMgr;
     nsCOMPtr<nsIJSRuntimeService> mRuntimeService;

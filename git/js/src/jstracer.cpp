@@ -2881,8 +2881,15 @@ TraceMonitor::flush()
 }
 
 static bool
-HasUnreachableGCThings(JSContext *cx, TreeFragment *f)
+HasUnreachableGCThingsImpl(JSContext *cx, TreeFragment *f)
 {
+    if (f->visiting)
+        return false;
+    f->visiting = true;
+    
+    if (!f->code())
+        return false;
+
     /*
      * We do not check here for dead scripts as JSScript is not a GC thing.
      * Instead PurgeScriptFragments is used to remove dead script fragments.
@@ -2904,33 +2911,17 @@ HasUnreachableGCThings(JSContext *cx, TreeFragment *f)
             return true;
     }
 
-    return false;
-}
-
-static bool
-ContainsUnrechableGCThingImpl(JSContext *cx, TreeFragment *f)
-{
-    if (f->visiting)
-        return false;
-    f->visiting = true;
-    
-    if (!f->code())
-        return false;
-
-    if (HasUnreachableGCThings(cx, f))
-        return true;
-
     TreeFragment** data = f->dependentTrees.data();
     unsigned length = f->dependentTrees.length();
     for (unsigned n = 0; n < length; ++n) {
-        if (ContainsUnrechableGCThingImpl(cx, data[n]))
+        if (HasUnreachableGCThingsImpl(cx, data[n]))
             return true;
     }
 
     data = f->linkedTrees.data();
     length = f->linkedTrees.length();
     for (unsigned n = 0; n < length; ++n) {
-        if (ContainsUnrechableGCThingImpl(cx, data[n]))
+        if (HasUnreachableGCThingsImpl(cx, data[n]))
             return true;
     }
 
@@ -2957,16 +2948,10 @@ ClearVisitingFlag(TreeFragment *f)
         ClearVisitingFlag(data[n]);
 }
 
-/*
- * Recursively check if the fragment and its dependent and linked trees has
- * dead GC things. As the trees can point to each other we use the visiting
- * flag to detect already visited fragments. The flag is cleared after we
- * walked the whole graph in the separated ClearVisitingFlag function.  
- */
 static bool
-ContainsUnrechableGCThing(JSContext *cx, TreeFragment *f)
+HasUnreachableGCThings(JSContext *cx, TreeFragment *f)
 {
-    bool hasUnrechable = ContainsUnrechableGCThingImpl(cx, f);
+    bool hasUnrechable = HasUnreachableGCThingsImpl(cx, f);
     ClearVisitingFlag(f);
     return hasUnrechable;
 }
@@ -2989,7 +2974,7 @@ TraceMonitor::sweep(JSContext *cx)
         while (TreeFragment* frag = *fragp) {
             TreeFragment* peer = frag;
             do {
-                if (peer->code() && ContainsUnrechableGCThing(cx, peer))
+                if (peer->code() && HasUnreachableGCThings(cx, peer))
                     break;
                 peer = peer->peer;
             } while (peer);
@@ -4420,7 +4405,6 @@ TraceRecorder::snapshot(ExitType exitType)
                                            0;
     exit->exitType = exitType;
     exit->pc = pc;
-    exit->script = fp->maybeScript();
     exit->imacpc = fp->maybeImacropc();
     exit->sp_adj = (stackSlots * sizeof(double)) - tree->nativeStackBase;
     exit->rp_adj = exit->calldepth * sizeof(FrameInfo*);
@@ -5755,7 +5739,8 @@ SynthesizeFrame(JSContext* cx, const FrameInfo& fi, JSObject* callee)
     /* Push a frame for the call. */
     CallArgs args = CallArgsFromSp(fi.get_argc(), regs.sp);
     cx->stack.pushInlineFrame(cx, regs, args, *callee, newfun, newscript,
-                              MaybeConstructFromBool(fi.is_constructing()));
+                              MaybeConstructFromBool(fi.is_constructing()),
+                              NoCheck());
 
 #ifdef DEBUG
     /* These should be initialized by FlushNativeStackFrame. */
@@ -6650,8 +6635,7 @@ ExecuteTree(JSContext* cx, TraceMonitor* tm, TreeFragment* f,
 #endif
     JS_ASSERT(f->root == f && f->code());
 
-    if (!ScopeChainCheck(cx, f) ||
-        !cx->stack.space().ensureEnoughSpaceToEnterTrace(cx)) {
+    if (!ScopeChainCheck(cx, f) || !cx->stack.space().ensureEnoughSpaceToEnterTrace()) {
         *lrp = NULL;
         return true;
     }
@@ -8237,7 +8221,8 @@ TraceRecorder::callProp(JSObject* obj, JSProperty* prop, jsid id, Value*& vp,
             JS_ASSERT(slot < cfp->numFormalArgs());
             vp = &cfp->formalArg(slot);
             nr.v = *vp;
-        } else if (shape->getterOp() == GetCallVar) {
+        } else if (shape->getterOp() == GetCallVar ||
+                   shape->getterOp() == GetCallVarChecked) {
             JS_ASSERT(slot < cfp->numSlots());
             vp = &cfp->slots()[slot];
             nr.v = *vp;
@@ -8282,7 +8267,8 @@ TraceRecorder::callProp(JSObject* obj, JSProperty* prop, jsid id, Value*& vp,
         if (shape->getterOp() == GetCallArg) {
             JS_ASSERT(slot < ArgClosureTraits::slot_count(obj));
             slot += ArgClosureTraits::slot_offset(obj);
-        } else if (shape->getterOp() == GetCallVar) {
+        } else if (shape->getterOp() == GetCallVar ||
+                   shape->getterOp() == GetCallVarChecked) {
             JS_ASSERT(slot < VarClosureTraits::slot_count(obj));
             slot += VarClosureTraits::slot_offset(obj);
         } else {
@@ -8315,12 +8301,14 @@ TraceRecorder::callProp(JSObject* obj, JSProperty* prop, jsid id, Value*& vp,
             cx_ins
         };
         const CallInfo* ci;
-        if (shape->getterOp() == GetCallArg)
+        if (shape->getterOp() == GetCallArg) {
             ci = &GetClosureArg_ci;
-        else if (shape->getterOp() == GetCallVar)
+        } else if (shape->getterOp() == GetCallVar ||
+                   shape->getterOp() == GetCallVarChecked) {
             ci = &GetClosureVar_ci;
-        else
+        } else {
             RETURN_STOP("dynamic property of Call object");
+        }
 
         // Now assert that our use of shape->shortid was in fact kosher.
         JS_ASSERT(shape->hasShortID());
@@ -8901,7 +8889,7 @@ TraceRecorder::incHelper(const Value &v, LIns*& v_ins, Value &v_after,
         jsdouble num;
         AutoValueRooter tvr(cx);
         *tvr.addr() = v;
-        JS_ALWAYS_TRUE(ToNumber(cx, tvr.value(), &num));
+        JS_ALWAYS_TRUE(ValueToNumber(cx, tvr.value(), &num));
         v_ins_after = tryToDemote(LIR_addd, num, incr, v_ins, w.immd(incr));
         v_after.setDouble(num + incr);
     }
@@ -9308,9 +9296,9 @@ TraceRecorder::relational(LOpcode op, bool tryBranchAfterCond)
     {
         AutoValueRooter tvr(cx);
         *tvr.addr() = l;
-        JS_ALWAYS_TRUE(ToNumber(cx, tvr.value(), &lnum));
+        ValueToNumber(cx, tvr.value(), &lnum);
         *tvr.addr() = r;
-        JS_ALWAYS_TRUE(ToNumber(cx, tvr.value(), &rnum));
+        ValueToNumber(cx, tvr.value(), &rnum);
     }
     cond = EvalCmp(op, lnum, rnum);
     fp = true;
@@ -14854,10 +14842,10 @@ TraceRecorder::record_JSOP_MOREITER()
     LIns* cond_ins;
 
     /*
-     * JSOP_ITERNEXT already guards on this, but in certain rare cases we might
+     * JSOP_FOR* already guards on this, but in certain rare cases we might
      * record misformed loop traces. Note that it's not necessary to guard on
-     * ni->flags (nor do we in unboxNextValue), because the different iteration
-     * type will guarantee a different entry typemap.
+     * ni->flags (nor do we in unboxNextValue), because the different
+     * iteration type will guarantee a different entry typemap.
      */
     if (iterobj->hasClass(&js_IteratorClass)) {
         guardClass(iterobj_ins, &js_IteratorClass, snapshot(BRANCH_EXIT), LOAD_NORMAL);
@@ -14891,16 +14879,6 @@ TraceRecorder::record_JSOP_MOREITER()
     // See the comment in DeepBail about "clobbering deep bails".
     stack(-1, iterobj_ins);
 
-    return ARECORD_CONTINUE;
-}
-
-JS_REQUIRES_STACK AbortableRecordingStatus
-TraceRecorder::record_JSOP_ITERNEXT()
-{
-    LIns* v_ins;
-    Value &iterobj_val = stackval(-GET_INT8(cx->regs().pc));
-    CHECK_STATUS_A(unboxNextValue(iterobj_val, v_ins));
-    stack(0, v_ins);
     return ARECORD_CONTINUE;
 }
 
@@ -14953,8 +14931,9 @@ TraceRecorder::storeMagic(JSWhyMagic why, Address addr)
 #endif
 
 JS_REQUIRES_STACK AbortableRecordingStatus
-TraceRecorder::unboxNextValue(Value &iterobj_val, LIns* &v_ins)
+TraceRecorder::unboxNextValue(LIns* &v_ins)
 {
+    Value &iterobj_val = stackval(-1);
     JSObject *iterobj = &iterobj_val.toObject();
     LIns* iterobj_ins = get(&iterobj_val);
 
@@ -15010,6 +14989,60 @@ TraceRecorder::unboxNextValue(Value &iterobj_val, LIns* &v_ins)
     v_ins = unbox_value(cx->iterValue, iterValueAddr, snapshot(BRANCH_EXIT));
     storeMagic(JS_NO_ITER_VALUE, iterValueAddr);
 
+    return ARECORD_CONTINUE;
+}
+
+JS_REQUIRES_STACK AbortableRecordingStatus
+TraceRecorder::record_JSOP_FORNAME()
+{
+    Value* vp;
+    LIns* x_ins;
+    NameResult nr;
+    CHECK_STATUS_A(name(vp, x_ins, nr));
+    if (!nr.tracked)
+        RETURN_STOP_A("forname on non-tracked value not supported");
+    LIns* v_ins;
+    CHECK_STATUS_A(unboxNextValue(v_ins));
+    set(vp, v_ins);
+    return ARECORD_CONTINUE;
+}
+
+JS_REQUIRES_STACK AbortableRecordingStatus
+TraceRecorder::record_JSOP_FORGNAME()
+{
+    return record_JSOP_FORNAME();
+}
+
+JS_REQUIRES_STACK AbortableRecordingStatus
+TraceRecorder::record_JSOP_FORPROP()
+{
+    return ARECORD_STOP;
+}
+
+JS_REQUIRES_STACK AbortableRecordingStatus
+TraceRecorder::record_JSOP_FORELEM()
+{
+    LIns* v_ins;
+    CHECK_STATUS_A(unboxNextValue(v_ins));
+    stack(0, v_ins);
+    return ARECORD_CONTINUE;
+}
+
+JS_REQUIRES_STACK AbortableRecordingStatus
+TraceRecorder::record_JSOP_FORARG()
+{
+    LIns* v_ins;
+    CHECK_STATUS_A(unboxNextValue(v_ins));
+    arg(GET_ARGNO(cx->regs().pc), v_ins);
+    return ARECORD_CONTINUE;
+}
+
+JS_REQUIRES_STACK AbortableRecordingStatus
+TraceRecorder::record_JSOP_FORLOCAL()
+{
+    LIns* v_ins;
+    CHECK_STATUS_A(unboxNextValue(v_ins));
+    var(GET_SLOTNO(cx->regs().pc), v_ins);
     return ARECORD_CONTINUE;
 }
 
@@ -15131,25 +15164,13 @@ TraceRecorder::record_JSOP_BINDNAME()
     if (!fp->isFunctionFrame()) {
         obj = &fp->scopeChain();
 
-#ifdef DEBUG
-        StackFrame *fp2 = fp;
-#endif
-
         /*
          * In global code, fp->scopeChain can only contain blocks whose values
          * are still on the stack.  We never use BINDNAME to refer to these.
          */
         while (obj->isBlock()) {
             // The block's values are still on the stack.
-#ifdef DEBUG
-            // NB: fp2 can't be a generator frame, because !fp->hasFunction.
-            while (obj->getPrivate() != fp2) {
-                JS_ASSERT(fp2->isEvalFrame());
-                fp2 = fp2->prev();
-                if (!fp2)
-                    JS_NOT_REACHED("bad stack frame");
-            }
-#endif
+            JS_ASSERT(obj->getPrivate() == fp);
             obj = obj->getParent();
             // Blocks always have parents.
             JS_ASSERT(obj);
@@ -16547,6 +16568,19 @@ TraceRecorder::record_JSOP_CALLGNAME()
 {
     return record_JSOP_CALLNAME();
 }
+
+#define DBG_STUB(OP)                                                          \
+    JS_REQUIRES_STACK AbortableRecordingStatus                                \
+    TraceRecorder::record_##OP()                                              \
+    {                                                                         \
+        RETURN_STOP_A("can't trace " #OP);                                    \
+    }
+
+DBG_STUB(JSOP_GETUPVAR_DBG)
+DBG_STUB(JSOP_CALLUPVAR_DBG)
+DBG_STUB(JSOP_DEFFUN_DBGFC)
+DBG_STUB(JSOP_DEFLOCALFUN_DBGFC)
+DBG_STUB(JSOP_LAMBDA_DBGFC)
 
 #ifdef JS_JIT_SPEW
 /*

@@ -146,7 +146,6 @@
 #include "prprf.h"
 
 #include "nsSVGFeatures.h"
-#include "nsDOMMemoryReporter.h"
 
 using namespace mozilla::dom;
 namespace css = mozilla::css;
@@ -1226,20 +1225,24 @@ nsGenericElement::UpdateEditableState(PRBool aNotify)
 {
   nsIContent *parent = GetParent();
 
+  PRBool oldEditable = IsEditable();
   SetEditableFlag(parent && parent->HasFlag(NODE_IS_EDITABLE));
-  if (aNotify) {
-    UpdateState(aNotify);
-  } else {
-    // Avoid calling UpdateState in this very common case, because
-    // this gets called for pretty much every single element on
-    // insertion into the document and UpdateState can be slow for
-    // some kinds of elements even when not notifying.
-    if (IsEditable()) {
-      RemoveStatesSilently(NS_EVENT_STATE_MOZ_READONLY);
-      AddStatesSilently(NS_EVENT_STATE_MOZ_READWRITE);
+  PRBool newEditable = IsEditable();
+  if (oldEditable != newEditable) {
+    if (aNotify) {
+      UpdateState(aNotify);
     } else {
-      RemoveStatesSilently(NS_EVENT_STATE_MOZ_READWRITE);
-      AddStatesSilently(NS_EVENT_STATE_MOZ_READONLY);
+      // Avoid calling UpdateState in this very common case, because
+      // this gets called for pretty much every single element on
+      // insertion into the document and UpdateState can be slow for
+      // some kinds of elements even when not notifying.
+      if (oldEditable) {
+        RemoveStatesSilently(NS_EVENT_STATE_MOZ_READWRITE);
+        AddStatesSilently(NS_EVENT_STATE_MOZ_READONLY);
+      } else {
+        RemoveStatesSilently(NS_EVENT_STATE_MOZ_READONLY);
+        AddStatesSilently(NS_EVENT_STATE_MOZ_READWRITE);
+      }
     }
   }
 }
@@ -1327,7 +1330,7 @@ nsIContent*
 nsIContent::GetEditingHost()
 {
   // If this isn't editable, return NULL.
-  NS_ENSURE_TRUE(IsEditableInternal(), nsnull);
+  NS_ENSURE_TRUE(HasFlag(NODE_IS_EDITABLE), nsnull);
 
   nsIDocument* doc = GetCurrentDoc();
   NS_ENSURE_TRUE(doc, nsnull);
@@ -5369,15 +5372,3 @@ nsNSElementTearoff::MozMatchesSelector(const nsAString& aSelector, PRBool* aRetu
 
   return rv;
 }
-
-PRInt64
-nsGenericElement::SizeOf() const
-{
-  PRInt64 size = MemoryReporter::GetBasicSize<nsGenericElement, Element>(this);
-
-  size -= sizeof(mAttrsAndChildren);
-  size += mAttrsAndChildren.SizeOf();
-
-  return size;
-}
-

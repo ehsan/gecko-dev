@@ -58,7 +58,6 @@
 #include "nsWidgetsCID.h"
 
 #include "mozilla/Preferences.h"
-#include "mozilla/dom/Element.h"
 
 using namespace mozilla;
 
@@ -388,10 +387,14 @@ nsXULMenuitemAccessible::Description(nsString& aDescription)
                     aDescription);
 }
 
-KeyBinding
-nsXULMenuitemAccessible::AccessKey() const
+//return menu accesskey: N or Alt+F
+NS_IMETHODIMP
+nsXULMenuitemAccessible::GetKeyboardShortcut(nsAString& aAccessKey)
 {
-  // Return menu accesskey: N or Alt+F.
+  aAccessKey.Truncate();
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   static PRInt32 gMenuAccesskeyModifier = -1;  // magic value of -1 indicates unitialized state
 
   // We do not use nsCoreUtils::GetAccesskeyFor() because accesskeys for
@@ -400,9 +403,7 @@ nsXULMenuitemAccessible::AccessKey() const
   mContent->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::accesskey,
                     accesskey);
   if (accesskey.IsEmpty())
-    return KeyBinding();
-
-  PRUint32 modifierKey = 0;
+    return NS_OK;
 
   nsAccessible* parentAcc = GetParent();
   if (parentAcc) {
@@ -414,89 +415,44 @@ nsXULMenuitemAccessible::AccessKey() const
         gMenuAccesskeyModifier = Preferences::GetInt("ui.key.menuAccessKey", 0);
       }
 
+      nsAutoString propertyKey;
       switch (gMenuAccesskeyModifier) {
         case nsIDOMKeyEvent::DOM_VK_CONTROL:
-          modifierKey = KeyBinding::kControl;
+          propertyKey.AssignLiteral("VK_CONTROL");
           break;
         case nsIDOMKeyEvent::DOM_VK_ALT:
-          modifierKey = KeyBinding::kAlt;
+          propertyKey.AssignLiteral("VK_ALT");
           break;
         case nsIDOMKeyEvent::DOM_VK_META:
-          modifierKey = KeyBinding::kMeta;
+          propertyKey.AssignLiteral("VK_META");
           break;
       }
+
+      if (!propertyKey.IsEmpty())
+        nsAccessible::GetFullKeyName(propertyKey, accesskey, aAccessKey);
     }
   }
 
-  return KeyBinding(accesskey[0], modifierKey);
+  if (aAccessKey.IsEmpty())
+    aAccessKey = accesskey;
+
+  return NS_OK;
 }
 
-KeyBinding
-nsXULMenuitemAccessible::KeyboardShortcut() const
+//return menu shortcut: Ctrl+F or Ctrl+Shift+L
+NS_IMETHODIMP
+nsXULMenuitemAccessible::GetDefaultKeyBinding(nsAString& aKeyBinding)
 {
-  nsAutoString keyElmId;
-  mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::key, keyElmId);
-  if (keyElmId.IsEmpty())
-    return KeyBinding();
+  aKeyBinding.Truncate();
 
-  nsIDocument* document = mContent->GetOwnerDoc();
-  if (!document)
-    return KeyBinding();
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
 
-  nsIContent* keyElm = document->GetElementById(keyElmId);
-  if (!keyElm)
-    return KeyBinding();
+  nsAutoString accelText;
+  mContent->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::acceltext,
+                    aKeyBinding);
 
-  PRUint32 key = 0;
-
-  nsAutoString keyStr;
-  keyElm->GetAttr(kNameSpaceID_None, nsGkAtoms::key, keyStr);
-  if (keyStr.IsEmpty()) {
-    nsAutoString keyCodeStr;
-    keyElm->GetAttr(kNameSpaceID_None, nsGkAtoms::keycode, keyCodeStr);
-    PRUint32 errorCode;
-    key = keyStr.ToInteger(&errorCode, kAutoDetect);
-  } else {
-    key = keyStr[0];
-  }
-
-  nsAutoString modifiersStr;
-  keyElm->GetAttr(kNameSpaceID_None, nsGkAtoms::modifiers, modifiersStr);
-
-  PRUint32 modifierMask = 0;
-  if (modifiersStr.Find("shift") != -1)
-    modifierMask != KeyBinding::kShift;
-  if (modifiersStr.Find("alt") != -1)
-    modifierMask |= KeyBinding::kAlt;
-  if (modifiersStr.Find("meta") != -1)
-    modifierMask |= KeyBinding::kMeta;
-  if (modifiersStr.Find("control") != -1)
-    modifierMask |= KeyBinding::kControl;
-  if (modifiersStr.Find("accel") != -1) {
-    // Get the accelerator key value from prefs, overriding the default.
-    switch (Preferences::GetInt("ui.key.accelKey", 0)) {
-      case nsIDOMKeyEvent::DOM_VK_META:
-        modifierMask |= KeyBinding::kMeta;
-        break;
-
-      case nsIDOMKeyEvent::DOM_VK_ALT:
-        modifierMask |= KeyBinding::kAlt;
-        break;
-
-      case nsIDOMKeyEvent::DOM_VK_CONTROL:
-        modifierMask |= KeyBinding::kControl;
-        break;
-
-      default:
-#ifdef XP_MACOSX
-        modifierMask |= KeyBinding::kMeta;
-#else
-        modifierMask |= KeyBinding::kControl;
-#endif
-    }
-  }
-
-  return KeyBinding(key, modifierMask);
+  return NS_OK;
 }
 
 PRUint32

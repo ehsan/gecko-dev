@@ -382,9 +382,6 @@ BuildViewMap(ViewMap& oldContentViews, ViewMap& newContentViews,
     return;
   const FrameMetrics metrics = container->GetFrameMetrics();
   const ViewID scrollId = metrics.mScrollId;
-  const gfx3DMatrix transform = aLayer->GetTransform();
-  aXScale *= GetXScale(transform);
-  aYScale *= GetYScale(transform);
 
   if (metrics.IsScrollable()) {
     nscoord auPerDevPixel = aFrameLoader->GetPrimaryFrameOfOwningContent()
@@ -396,7 +393,7 @@ BuildViewMap(ViewMap& oldContentViews, ViewMap& newContentViews,
       ViewConfig config = view->GetViewConfig();
       aXScale *= config.mXScale;
       aYScale *= config.mYScale;
-      view->mFrameLoader = aFrameLoader;
+      view->mOwnerContent = aFrameLoader->GetOwnerContent();
     } else {
       // View doesn't exist, so generate one. We start the view scroll offset at
       // the same position as the framemetric's scroll offset from the layer.
@@ -405,7 +402,7 @@ BuildViewMap(ViewMap& oldContentViews, ViewMap& newContentViews,
       config.mScrollOffset = nsPoint(
         NSIntPixelsToAppUnits(metrics.mViewportScrollOffset.x, auPerDevPixel) * aXScale,
         NSIntPixelsToAppUnits(metrics.mViewportScrollOffset.y, auPerDevPixel) * aYScale);
-      view = new nsContentView(aFrameLoader, scrollId, config);
+      view = new nsContentView(aFrameLoader->GetOwnerContent(), scrollId, config);
     }
 
     view->mViewportSize = nsSize(
@@ -420,6 +417,9 @@ BuildViewMap(ViewMap& oldContentViews, ViewMap& newContentViews,
 
   for (Layer* child = aLayer->GetFirstChild();
        child; child = child->GetNextSibling()) {
+    const gfx3DMatrix transform = aLayer->GetTransform();
+    aXScale *= GetXScale(transform);
+    aYScale *= GetYScale(transform);
     BuildViewMap(oldContentViews, newContentViews, aFrameLoader, child,
                  aXScale, aYScale);
   }
@@ -558,7 +558,7 @@ BuildBackgroundPatternFor(ContainerLayer* aContainer,
   bgRgn.Sub(bgRgn, localIntContentVis);
   bgRgn.MoveBy(-translation);
   layer->SetVisibleRegion(bgRgn);
-
+      
   aContainer->InsertAfter(layer, nsnull);
 }
 
@@ -567,7 +567,8 @@ RenderFrameParent::RenderFrameParent(nsFrameLoader* aFrameLoader)
 {
   NS_ABORT_IF_FALSE(aFrameLoader, "Need a frameloader here");
   mContentViews[FrameMetrics::ROOT_SCROLL_ID] =
-    new nsContentView(aFrameLoader, FrameMetrics::ROOT_SCROLL_ID);
+    new nsContentView(aFrameLoader->GetOwnerContent(),
+                      FrameMetrics::ROOT_SCROLL_ID);
 }
 
 RenderFrameParent::~RenderFrameParent()
@@ -591,14 +592,6 @@ nsContentView*
 RenderFrameParent::GetContentView(ViewID aId)
 {
   return FindViewForId(mContentViews, aId);
-}
-
-void
-RenderFrameParent::ContentViewScaleChanged(nsContentView* aView)
-{
-  // Since the scale has changed for a view, it and its descendents need their
-  // shadow-space attributes updated. It's easiest to rebuild the view map.
-  BuildViewMap();
 }
 
 void
@@ -763,13 +756,13 @@ RenderFrameParent::BuildViewMap()
     // tag them as inactive and to remove any chance of them using a dangling
     // pointer, we set mContentView to NULL.
     //
-    // BuildViewMap will restore mFrameLoader if the content view is still
+    // BuildViewMap will restore mOwnerContent if the content view is still
     // in our hash table.
 
     for (ViewMap::const_iterator iter = mContentViews.begin();
          iter != mContentViews.end();
          ++iter) {
-      iter->second->mFrameLoader = NULL;
+      iter->second->mOwnerContent = NULL;
     }
 
     mozilla::layout::BuildViewMap(mContentViews, newContentViews, mFrameLoader, GetRootLayer());
@@ -783,7 +776,7 @@ RenderFrameParent::BuildViewMap()
     newContentViews[FrameMetrics::ROOT_SCROLL_ID] =
       FindViewForId(mContentViews, FrameMetrics::ROOT_SCROLL_ID);
   }
-
+  
   mContentViews = newContentViews;
 }
 

@@ -519,21 +519,18 @@ PluginInstanceParent::RecvShow(const NPRect& updatedRect,
     else if (newSurface.type() == SurfaceDescriptor::TIOSurfaceDescriptor) {
         IOSurfaceDescriptor iodesc = newSurface.get_IOSurfaceDescriptor();
     
-        nsRefPtr<nsIOSurface> newIOSurface = nsIOSurface::LookupSurface(iodesc.surfaceId());
+        nsIOSurface *newIOSurface = nsIOSurface::LookupSurface(iodesc.surfaceId());
 
         if (!newIOSurface) {
             NS_WARNING("Got bad IOSurfaceDescriptor in RecvShow");
             return false;
         }
       
-        if (mFrontIOSurface)
-            *prevSurface = IOSurfaceDescriptor(mFrontIOSurface->GetIOSurfaceID());
-        else
-            *prevSurface = null_t();
-
         mFrontIOSurface = newIOSurface;
 
         RecvNPN_InvalidateRect(updatedRect);
+
+        *prevSurface = null_t();
 
         PLUGIN_LOG_DEBUG(("   (RecvShow invalidated for surface %p)",
                           mFrontSurface.get()));

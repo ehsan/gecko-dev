@@ -145,7 +145,6 @@ public:
     void ReleaseTexImage(GLXPixmap aPixmap);
 
     PRBool HasTextureFromPixmap() { return mHasTextureFromPixmap; }
-    PRBool SupportsTextureFromPixmap(gfxASurface* aSurface);
 
 private:
     PRBool mInitialized;

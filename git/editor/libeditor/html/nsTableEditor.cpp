@@ -2950,9 +2950,7 @@ nsHTMLEditor::GetCellFromRange(nsIDOMRange *aRange, nsIDOMElement **aCell)
 
   nsCOMPtr<nsIDOMNode> childNode = GetChildAt(startParent, startOffset);
   // This means selection is probably at a text node (or end of doc?)
-  if (!childNode) {
-    return NS_ERROR_FAILURE;
-  }
+  NS_ENSURE_TRUE(childNode, NS_ERROR_FAILURE);
 
   nsCOMPtr<nsIDOMNode> endParent;
   res = aRange->GetEndContainer(getter_AddRefs(endParent));
@@ -3002,13 +3000,9 @@ nsHTMLEditor::GetFirstSelectedCell(nsIDOMRange **aRange, nsIDOMElement **aCell)
   res = GetCellFromRange(range, aCell);
   // Failure here probably means selection is in a text node,
   //  so there's no selected cell
-  if (NS_FAILED(res)) {
-    return NS_EDITOR_ELEMENT_NOT_FOUND;
-  }
+  NS_ENSURE_SUCCESS(res, NS_EDITOR_ELEMENT_NOT_FOUND);
   // No cell means range was collapsed (cell was deleted)
-  if (!*aCell) {
-    return NS_EDITOR_ELEMENT_NOT_FOUND;
-  }
+  NS_ENSURE_TRUE(*aCell, NS_EDITOR_ELEMENT_NOT_FOUND);
 
   if (aRange)
   {

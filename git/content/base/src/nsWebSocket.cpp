@@ -1017,8 +1017,8 @@ nsWebSocket::ParseURL(const nsString& aURL)
   rv = parsedURL->GetQuery(query);
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_SYNTAX_ERR);
 
-  nsCString origin;
-  rv = nsContentUtils::GetASCIIOrigin(mPrincipal, origin);
+  nsXPIDLCString origin;
+  rv = mPrincipal->GetOrigin(getter_Copies(origin));
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_SYNTAX_ERR);
 
   if (scheme.LowerCaseEqualsLiteral("ws")) {
@@ -1350,19 +1350,6 @@ nsWebSocket::Init(nsIPrincipal* aPrincipal,
   // parses the url
   rv = ParseURL(PromiseFlatString(aURL));
   NS_ENSURE_SUCCESS(rv, rv);
-
-  // Don't allow https:// to open ws://
-  if (!mSecure && 
-      !Preferences::GetBool("network.websocket.allowInsecureFromHTTPS",
-                            PR_FALSE)) {
-    // Confirmed we are opening plain ws:// and want to prevent this from a
-    // secure context (e.g. https). Check the security context of the document
-    // associated with this script, which is the same as associated with mOwner.
-    nsCOMPtr<nsIDocument> originDoc =
-      nsContentUtils::GetDocumentFromScriptContext(mScriptContext);
-    if (originDoc && originDoc->GetSecurityInfo())
-      return NS_ERROR_DOM_SECURITY_ERR;
-  }
 
   // sets the protocol
   if (!aProtocol.IsEmpty()) {

@@ -22,7 +22,6 @@
  *  Rob Campbell <rcampbell@mozilla.com>
  *  Patrick Walton <pwalton@mozilla.com>
  *  David Dahl <ddahl@mozilla.com>
- *  Mihai Șucan <mihai.sucan@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -52,16 +51,19 @@ function testChrome() {
 
   openConsole();
 
-  let hud = HUDService.getHudByWindow(content);
+  hudId = HUDService.displaysIndex()[0];
+  hud = HUDService.hudReferences[hudId];
   ok(hud, "we have a console");
   
-  ok(hud.HUDBox, "we have the console display");
-
+  hudBox = HUDService.getHeadsUpDisplay(hudId);
+  ok(hudBox, "we have the console display");
+  
   let jsterm = hud.jsterm;
   ok(jsterm, "we have a jsterm");
 
   let input = jsterm.inputNode;
-  ok(hud.outputNode, "we have an output node");
+  let outputNode = hudBox.querySelector(".jsterm-input-node");
+  ok(outputNode, "we have an output node");
 
   // Test typing 'docu'.
   input.value = "docu";
@@ -69,6 +71,7 @@ function testChrome() {
   jsterm.complete(jsterm.COMPLETE_HINT_ONLY);
   is(jsterm.completeNode.value, "    ment", "'docu' completion");
 
+  HUD = jsterm = input = null;
   finishTest();
 }
 

@@ -72,8 +72,6 @@
 extern PRLogModuleInfo* sCocoaLog;
 #endif
 
-extern void EnsureLogInitialized();
-
 extern NSPasteboard* globalDragPboard;
 extern NSView* gLastDragView;
 extern NSEvent* gLastDragMouseDownEvent;
@@ -92,8 +90,6 @@ nsDragService::nsDragService()
 {
   mNativeDragView = nil;
   mNativeDragEvent = nil;
-
-  EnsureLogInitialized();
 }
 
 nsDragService::~nsDragService()

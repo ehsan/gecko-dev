@@ -330,7 +330,6 @@
 </popupset>
 
 <textbox id="scratchpad-textbox"
-         class="monospace"
          multiline="true"
          flex="1"
          context="scratchpad-text-popup"

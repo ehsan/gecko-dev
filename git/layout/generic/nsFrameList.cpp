@@ -448,6 +448,7 @@ nsFrameList::GetPrevVisualFor(nsIFrame* aFrame) const
     return aFrame ? aFrame->GetPrevSibling() : LastChild();
 
   nsBidiLevel baseLevel = nsBidiPresUtils::GetFrameBaseLevel(mFirstChild);  
+  nsBidiPresUtils* bidiUtils = mFirstChild->PresContext()->GetBidiUtils();
 
   nsAutoLineIterator iter = parent->GetLineIterator();
   if (!iter) { 
@@ -455,9 +456,9 @@ nsFrameList::GetPrevVisualFor(nsIFrame* aFrame) const
     if (parent->GetType() == nsGkAtoms::lineFrame) {
       // Line frames are not bidi-splittable, so need to consider bidi reordering
       if (baseLevel == NSBIDI_LTR) {
-        return nsBidiPresUtils::GetFrameToLeftOf(aFrame, mFirstChild, -1);
+        return bidiUtils->GetFrameToLeftOf(aFrame, mFirstChild, -1);
       } else { // RTL
-        return nsBidiPresUtils::GetFrameToRightOf(aFrame, mFirstChild, -1);
+        return bidiUtils->GetFrameToRightOf(aFrame, mFirstChild, -1);
       }
     } else {
       // Just get the next or prev sibling, depending on block and frame direction.
@@ -492,9 +493,9 @@ nsFrameList::GetPrevVisualFor(nsIFrame* aFrame) const
     iter->GetLine(thisLine, &firstFrameOnLine, &numFramesOnLine, lineBounds, &lineFlags);
 
     if (baseLevel == NSBIDI_LTR) {
-      frame = nsBidiPresUtils::GetFrameToLeftOf(aFrame, firstFrameOnLine, numFramesOnLine);
+      frame = bidiUtils->GetFrameToLeftOf(aFrame, firstFrameOnLine, numFramesOnLine);
     } else { // RTL
-      frame = nsBidiPresUtils::GetFrameToRightOf(aFrame, firstFrameOnLine, numFramesOnLine);
+      frame = bidiUtils->GetFrameToRightOf(aFrame, firstFrameOnLine, numFramesOnLine);
     }
   }
 
@@ -503,9 +504,9 @@ nsFrameList::GetPrevVisualFor(nsIFrame* aFrame) const
     iter->GetLine(thisLine - 1, &firstFrameOnLine, &numFramesOnLine, lineBounds, &lineFlags);
 
     if (baseLevel == NSBIDI_LTR) {
-      frame = nsBidiPresUtils::GetFrameToLeftOf(nsnull, firstFrameOnLine, numFramesOnLine);
+      frame = bidiUtils->GetFrameToLeftOf(nsnull, firstFrameOnLine, numFramesOnLine);
     } else { // RTL
-      frame = nsBidiPresUtils::GetFrameToRightOf(nsnull, firstFrameOnLine, numFramesOnLine);
+      frame = bidiUtils->GetFrameToRightOf(nsnull, firstFrameOnLine, numFramesOnLine);
     }
   }
   return frame;
@@ -522,6 +523,7 @@ nsFrameList::GetNextVisualFor(nsIFrame* aFrame) const
     return aFrame ? aFrame->GetPrevSibling() : mFirstChild;
 
   nsBidiLevel baseLevel = nsBidiPresUtils::GetFrameBaseLevel(mFirstChild);
+  nsBidiPresUtils* bidiUtils = mFirstChild->PresContext()->GetBidiUtils();
   
   nsAutoLineIterator iter = parent->GetLineIterator();
   if (!iter) { 
@@ -529,9 +531,9 @@ nsFrameList::GetNextVisualFor(nsIFrame* aFrame) const
     if (parent->GetType() == nsGkAtoms::lineFrame) {
       // Line frames are not bidi-splittable, so need to consider bidi reordering
       if (baseLevel == NSBIDI_LTR) {
-        return nsBidiPresUtils::GetFrameToRightOf(aFrame, mFirstChild, -1);
+        return bidiUtils->GetFrameToRightOf(aFrame, mFirstChild, -1);
       } else { // RTL
-        return nsBidiPresUtils::GetFrameToLeftOf(aFrame, mFirstChild, -1);
+        return bidiUtils->GetFrameToLeftOf(aFrame, mFirstChild, -1);
       }
     } else {
       // Just get the next or prev sibling, depending on block and frame direction.
@@ -566,9 +568,9 @@ nsFrameList::GetNextVisualFor(nsIFrame* aFrame) const
     iter->GetLine(thisLine, &firstFrameOnLine, &numFramesOnLine, lineBounds, &lineFlags);
     
     if (baseLevel == NSBIDI_LTR) {
-      frame = nsBidiPresUtils::GetFrameToRightOf(aFrame, firstFrameOnLine, numFramesOnLine);
+      frame = bidiUtils->GetFrameToRightOf(aFrame, firstFrameOnLine, numFramesOnLine);
     } else { // RTL
-      frame = nsBidiPresUtils::GetFrameToLeftOf(aFrame, firstFrameOnLine, numFramesOnLine);
+      frame = bidiUtils->GetFrameToLeftOf(aFrame, firstFrameOnLine, numFramesOnLine);
     }
   }
   
@@ -578,9 +580,9 @@ nsFrameList::GetNextVisualFor(nsIFrame* aFrame) const
     iter->GetLine(thisLine + 1, &firstFrameOnLine, &numFramesOnLine, lineBounds, &lineFlags);
     
     if (baseLevel == NSBIDI_LTR) {
-      frame = nsBidiPresUtils::GetFrameToRightOf(nsnull, firstFrameOnLine, numFramesOnLine);
+      frame = bidiUtils->GetFrameToRightOf(nsnull, firstFrameOnLine, numFramesOnLine);
     } else { // RTL
-      frame = nsBidiPresUtils::GetFrameToLeftOf(nsnull, firstFrameOnLine, numFramesOnLine);
+      frame = bidiUtils->GetFrameToLeftOf(nsnull, firstFrameOnLine, numFramesOnLine);
     }
   }
   return frame;

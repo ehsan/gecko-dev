@@ -47,6 +47,7 @@
 #include "nsILocalFile.h"
 #include "nsCOMPtr.h"
 #include "nsString.h"
+#include "nsPrintfCString.h"
 #include "prproces.h"
 #include "prlog.h"
 #include "prenv.h"

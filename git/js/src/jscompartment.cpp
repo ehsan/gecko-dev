@@ -131,9 +131,6 @@ JSCompartment::init()
     if (!crossCompartmentWrappers.init())
         return false;
 
-    if (!scriptFilenameTable.init())
-        return false;
-
     regExpAllocator = rt->new_<WTF::BumpPointerAllocator>();
     if (!regExpAllocator)
         return false;
@@ -230,7 +227,8 @@ JSCompartment::wrap(JSContext *cx, Value *vp)
         global = cx->fp()->scopeChain().getGlobal();
     } else {
         global = cx->globalObject;
-        if (!NULLABLE_OBJ_TO_INNER_OBJECT(cx, global))
+        OBJ_TO_INNER_OBJECT(cx, global);
+        if (!global)
             return false;
     }
 
@@ -559,8 +557,6 @@ JSCompartment::purge(JSContext *cx)
 #endif
 
 #ifdef JS_METHODJIT
-    js::CheckCompartmentScripts(this);
-
     for (JSScript *script = (JSScript *)scripts.next;
          &script->links != &scripts;
          script = (JSScript *)script->links.next) {

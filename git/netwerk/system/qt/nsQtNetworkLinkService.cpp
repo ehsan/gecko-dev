@@ -42,7 +42,6 @@
 #include "nsServiceManagerUtils.h"
 #include "nsString.h"
 #include "mozilla/Services.h"
-#include "nsCRT.h"
 
 NS_IMPL_ISUPPORTS2(nsQtNetworkLinkService,
                    nsINetworkLinkService,
@@ -67,16 +66,6 @@ NS_IMETHODIMP
 nsQtNetworkLinkService::GetLinkStatusKnown(PRBool* aIsKnown)
 {
   *aIsKnown = nsQtNetworkManager::get()->isOnline();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsQtNetworkLinkService::GetLinkType(PRUint32 *aLinkType)
-{
-  NS_ENSURE_ARG_POINTER(aLinkType);
-
-  // XXX This function has not yet been implemented for this platform
-  *aLinkType = nsINetworkLinkService::LINK_TYPE_UNKNOWN;
   return NS_OK;
 }
 

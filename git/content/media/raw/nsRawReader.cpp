@@ -70,8 +70,9 @@ nsresult nsRawReader::ResetDecode()
 
 nsresult nsRawReader::ReadMetadata(nsVideoInfo* aInfo)
 {
-  NS_ASSERTION(mDecoder->OnDecodeThread(),
-               "Should be on decode thread.");
+  NS_ASSERTION(mDecoder->OnStateMachineThread(),
+               "Should be on state machine thread.");
+  mozilla::ReentrantMonitorAutoEnter autoEnter(mReentrantMonitor);
 
   nsMediaStream* stream = mDecoder->GetCurrentStream();
   NS_ASSERTION(stream, "Decoder has no media stream");
@@ -132,6 +133,7 @@ nsresult nsRawReader::ReadMetadata(nsVideoInfo* aInfo)
 
   PRInt64 length = stream->GetLength();
   if (length != -1) {
+    mozilla::ReentrantMonitorAutoExit autoExitMonitor(mReentrantMonitor);
     mozilla::ReentrantMonitorAutoEnter autoMonitor(mDecoder->GetReentrantMonitor());
     mDecoder->GetStateMachine()->SetDuration(USECS_PER_S *
                                            (length - sizeof(nsRawVideoHeader)) /
@@ -176,8 +178,9 @@ PRBool nsRawReader::ReadFromStream(nsMediaStream *aStream, PRUint8* aBuf,
 PRBool nsRawReader::DecodeVideoFrame(PRBool &aKeyframeSkip,
                                      PRInt64 aTimeThreshold)
 {
-  NS_ASSERTION(mDecoder->OnDecodeThread(),
-               "Should be on decode thread.");
+  mozilla::ReentrantMonitorAutoEnter autoEnter(mReentrantMonitor);
+  NS_ASSERTION(mDecoder->OnStateMachineThread() || mDecoder->OnDecodeThread(),
+               "Should be on state machine thread or decode thread.");
 
   // Record number of frames decoded and parsed. Automatically update the
   // stats counters using the AutoNotifyDecoded stack-based class.
@@ -258,8 +261,9 @@ PRBool nsRawReader::DecodeVideoFrame(PRBool &aKeyframeSkip,
 
 nsresult nsRawReader::Seek(PRInt64 aTime, PRInt64 aStartTime, PRInt64 aEndTime, PRInt64 aCurrentTime)
 {
-  NS_ASSERTION(mDecoder->OnDecodeThread(),
-               "Should be on decode thread.");
+  mozilla::ReentrantMonitorAutoEnter autoEnter(mReentrantMonitor);
+  NS_ASSERTION(mDecoder->OnStateMachineThread(),
+               "Should be on state machine thread.");
 
   nsMediaStream *stream = mDecoder->GetCurrentStream();
   NS_ASSERTION(stream, "Decoder has no media stream");
@@ -288,6 +292,7 @@ nsresult nsRawReader::Seek(PRInt64 aTime, PRInt64 aStartTime, PRInt64 aEndTime, 
     }
 
     {
+      mozilla::ReentrantMonitorAutoExit autoMonitorExit(mReentrantMonitor);
       mozilla::ReentrantMonitorAutoEnter autoMonitor(mDecoder->GetReentrantMonitor());
       if (mDecoder->GetDecodeState() ==
           nsBuiltinDecoderStateMachine::DECODER_STATE_SHUTDOWN) {

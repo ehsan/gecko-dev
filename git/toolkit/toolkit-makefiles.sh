@@ -635,6 +635,7 @@ MAKEFILES_xulapp="
   toolkit/components/printing/Makefile
   toolkit/components/satchel/Makefile
   toolkit/components/search/Makefile
+  toolkit/spatial-navigation/Makefile
   toolkit/components/startup/Makefile
   toolkit/components/startup/public/Makefile
   toolkit/components/statusfilter/Makefile
@@ -861,6 +862,7 @@ if [ "$ENABLE_TESTS" ]; then
     embedding/test/Makefile
     extensions/cookie/test/Makefile
     extensions/pref/Makefile
+    intl/locale/tests_multilocale/Makefile
     js/src/xpconnect/tests/mochitest/Makefile
     layout/forms/test/Makefile
     layout/generic/test/Makefile
@@ -926,6 +928,7 @@ if [ "$ENABLE_TESTS" ]; then
     toolkit/mozapps/extensions/test/Makefile
     toolkit/mozapps/plugins/tests/Makefile
     toolkit/mozapps/update/test/Makefile
+    toolkit/spatial-navigation/tests/Makefile
     toolkit/xre/test/Makefile
     uriloader/exthandler/tests/mochitest/Makefile
     widget/tests/Makefile

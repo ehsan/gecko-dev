@@ -1528,7 +1528,7 @@ nsHTMLDocument::Open(const nsAString& aContentTypeOrUrl,
 
   // When called with 3 or more arguments, document.open() calls window.open().
   if (aOptionalArgCount > 2) {
-    nsCOMPtr<nsIDOMWindow> window = GetWindowInternal();
+    nsCOMPtr<nsIDOMWindowInternal> window = GetWindowInternal();
     if (!window) {
       return NS_OK;
     }
@@ -2170,8 +2170,16 @@ nsHTMLDocument::GetEmbeds(nsIDOMHTMLCollection** aEmbeds)
 }
 
 NS_IMETHODIMP
-nsHTMLDocument::GetSelection(nsISelection** aReturn)
+nsHTMLDocument::GetSelection(nsAString& aReturn)
 {
+  aReturn.Truncate();
+
+  nsCOMPtr<nsIJSContextStack> stack = do_GetService("@mozilla.org/js/xpc/ContextStack;1");
+  JSContext* ccx = nsnull;
+  if (stack && NS_SUCCEEDED(stack->Peek(&ccx)) && ccx) {
+    JS_ReportWarning(ccx, "Deprecated method document.getSelection() called.  Please use window.getSelection() instead.");
+  }
+
   nsCOMPtr<nsIDOMWindow> window = do_QueryInterface(GetScopeObject());
   nsCOMPtr<nsPIDOMWindow> pwin = do_QueryInterface(window);
   NS_ENSURE_TRUE(pwin, NS_OK);
@@ -2180,8 +2188,17 @@ nsHTMLDocument::GetSelection(nsISelection** aReturn)
                  pwin->GetOuterWindow()->GetCurrentInnerWindow() == pwin,
                  NS_OK);
 
-  return window->GetSelection(aReturn);
-  
+  nsCOMPtr<nsISelection> selection;
+  nsresult rv = window->GetSelection(getter_AddRefs(selection));
+  NS_ENSURE_TRUE(selection && NS_SUCCEEDED(rv), rv);
+
+  nsXPIDLString str;
+
+  rv = selection->ToString(getter_Copies(str));
+
+  aReturn.Assign(str);
+
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -2585,12 +2602,7 @@ nsHTMLDocument::DeferredContentEditableCountChange(nsIContent *aElement)
         NS_ENSURE_SUCCESS(rv, );
 
         rv = range->SelectNode(node);
-        if (NS_FAILED(rv)) {
-          // The node might be detached from the document at this point,
-          // which would cause this call to fail.  In this case, we can
-          // safely ignore the contenteditable count change.
-          return;
-        }
+        NS_ENSURE_SUCCESS(rv, );
 
         nsCOMPtr<nsIInlineSpellChecker> spellChecker;
         rv = editor->GetInlineSpellChecker(PR_FALSE,
@@ -2946,7 +2958,7 @@ nsHTMLDocument::EditingStateChanged()
 
   if (updateState) {
     nsAutoScriptBlocker scriptBlocker;
-    NotifyEditableStateChange(this, this, designMode);
+    NotifyEditableStateChange(this, this, !designMode);
   }
 
   // Resync the editor's spellcheck state.

@@ -178,9 +178,8 @@ public:
 
     virtual bool RecvLoadURL(const nsCString& uri);
     virtual bool RecvShow(const nsIntSize& size);
-    virtual bool RecvUpdateDimensions(const nsRect& rect, const nsIntSize& size);
+    virtual bool RecvMove(const nsIntSize& size);
     virtual bool RecvActivate();
-    virtual bool RecvDeactivate();
     virtual bool RecvMouseEvent(const nsString& aType,
                                 const float&    aX,
                                 const float&    aY,
@@ -188,9 +187,6 @@ public:
                                 const PRInt32&  aClickCount,
                                 const PRInt32&  aModifiers,
                                 const bool&     aIgnoreRootScrollFrame);
-    virtual bool RecvRealMouseEvent(const nsMouseEvent& event);
-    virtual bool RecvRealKeyEvent(const nsKeyEvent& event);
-    virtual bool RecvMouseScrollEvent(const nsMouseScrollEvent& event);
     virtual bool RecvKeyEvent(const nsString& aType,
                               const PRInt32&  aKeyCode,
                               const PRInt32&  aCharCode,
@@ -268,7 +264,6 @@ private:
     RenderFrameChild* mRemoteFrame;
     nsRefPtr<TabChildGlobal> mTabChildGlobal;
     PRUint32 mChromeFlags;
-    nsIntRect mOuterRect;
 
     DISALLOW_EVIL_CONSTRUCTORS(TabChild);
 };

@@ -21,7 +21,8 @@ function testSelectionWhenMovingBetweenBoxes() {
                               testSelectionWhenMovingBetweenBoxes, false);
   openConsole();
 
-  let jsterm = HUDService.getHudByWindow(content).jsterm;
+  let hudId = HUDService.displaysIndex()[0];
+  let jsterm = HUDService.hudReferences[hudId].jsterm;
 
   // Fill the console with some output.
   jsterm.clearOutput();

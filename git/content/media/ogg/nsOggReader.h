@@ -71,11 +71,15 @@ public:
   virtual PRBool DecodeVideoFrame(PRBool &aKeyframeSkip,
                                   PRInt64 aTimeThreshold);
 
-  virtual PRBool HasAudio() {
+  virtual PRBool HasAudio()
+  {
+    mozilla::ReentrantMonitorAutoEnter mon(mReentrantMonitor);
     return mVorbisState != 0 && mVorbisState->mActive;
   }
 
-  virtual PRBool HasVideo() {
+  virtual PRBool HasVideo()
+  {
+    mozilla::ReentrantMonitorAutoEnter mon(mReentrantMonitor);
     return mTheoraState != 0 && mTheoraState->mActive;
   }
 
@@ -85,9 +89,18 @@ public:
 
 private:
 
-  PRBool HasSkeleton() {
+  PRBool HasSkeleton()
+  {
+    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
     return mSkeletonState != 0 && mSkeletonState->mActive;
   }
+
+  // Returns PR_TRUE if we should decode up to the seek target rather than
+  // seeking to the target using a bisection search or index-assisted seek.
+  // We should do this if the seek target (aTarget, in usecs), lies not too far
+  // ahead of the current playback position (aCurrentTime, in usecs).
+  PRBool CanDecodeToTarget(PRInt64 aTarget,
+                           PRInt64 aCurrentTime);
 
   // Seeks to the keyframe preceeding the target time using available
   // keyframe indexes.

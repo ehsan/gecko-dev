@@ -74,6 +74,7 @@ XPIDLSRCS =					\
 	nsIDOMPlugin.idl			\
 	nsIDOMPluginArray.idl			\
 	nsIDOMScreen.idl			\
+	nsIDOMWindowInternal.idl		\
 	nsIDOMJSWindow.idl			\
 	nsIDOMModalContentWindow.idl		\
 	nsIDOMChromeWindow.idl			\

@@ -965,9 +965,16 @@ nsHTMLTableElement::ParseAttribute(PRInt32 aNamespaceID,
         aAttribute == nsGkAtoms::cellpadding) {
       return aResult.ParseSpecialIntValue(aValue);
     }
-    if (aAttribute == nsGkAtoms::cols ||
-        aAttribute == nsGkAtoms::border) {
+    if (aAttribute == nsGkAtoms::cols) {
       return aResult.ParseIntWithBounds(aValue, 0);
+    }
+    if (aAttribute == nsGkAtoms::border) {
+      if (!aResult.ParseIntWithBounds(aValue, 0)) {
+        // XXX this should really be NavQuirks only to allow non numeric value
+        aResult.SetTo(1);
+      }
+
+      return PR_TRUE;
     }
     if (aAttribute == nsGkAtoms::height) {
       return aResult.ParseSpecialIntValue(aValue);
@@ -976,12 +983,14 @@ nsHTMLTableElement::ParseAttribute(PRInt32 aNamespaceID,
       if (aResult.ParseSpecialIntValue(aValue)) {
         // treat 0 width as auto
         nsAttrValue::ValueType type = aResult.Type();
-        return !((type == nsAttrValue::eInteger &&
-                  aResult.GetIntegerValue() == 0) ||
-                 (type == nsAttrValue::ePercent &&
-                  aResult.GetPercentValue() == 0.0f));
+        if ((type == nsAttrValue::eInteger &&
+             aResult.GetIntegerValue() == 0) ||
+            (type == nsAttrValue::ePercent &&
+             aResult.GetPercentValue() == 0.0f)) {
+          return PR_FALSE;
+        }
       }
-      return PR_FALSE;
+      return PR_TRUE;
     }
     
     if (aAttribute == nsGkAtoms::align) {

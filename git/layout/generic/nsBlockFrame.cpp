@@ -111,6 +111,7 @@ using namespace mozilla;
 using namespace mozilla::css;
 
 #ifdef DEBUG
+#include "nsPrintfCString.h"
 #include "nsBlockDebugFlags.h"
 
 PRBool nsBlockFrame::gLamePaintMetrics;
@@ -4256,7 +4257,11 @@ nsBlockFrame::PlaceLine(nsBlockReflowState& aState,
   if (aState.mPresContext->BidiEnabled()) {
     if (!aState.mPresContext->IsVisualMode() ||
         GetStyleVisibility()->mDirection == NS_STYLE_DIRECTION_RTL) {
-      nsBidiPresUtils::ReorderFrames(aLine->mFirstChild, aLine->GetChildCount());
+      nsBidiPresUtils* bidiUtils = aState.mPresContext->GetBidiUtils();
+
+      if (bidiUtils && bidiUtils->IsSuccessful() ) {
+        bidiUtils->ReorderFrames(aLine->mFirstChild, aLine->GetChildCount());
+      } // bidiUtils
     } // not visual mode
   } // bidi enabled
 #endif // IBMBIDI
@@ -7215,7 +7220,11 @@ nsBlockFrame::ResolveBidi()
     return NS_OK;
   }
 
-  return nsBidiPresUtils::Resolve(this);
+  nsBidiPresUtils* bidiUtils = presContext->GetBidiUtils();
+  if (!bidiUtils)
+    return NS_ERROR_NULL_POINTER;
+
+  return bidiUtils->Resolve(this);
 }
 #endif
 

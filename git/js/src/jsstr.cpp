@@ -61,13 +61,13 @@
 #include "jsbool.h"
 #include "jsbuiltins.h"
 #include "jscntxt.h"
+#include "jsfun.h"      /* for JS_ARGS_LENGTH_MAX */
 #include "jsgc.h"
 #include "jsinterp.h"
 #include "jslock.h"
 #include "jsnum.h"
 #include "jsobj.h"
 #include "jsopcode.h"
-#include "jsprobes.h"
 #include "jsregexp.h"
 #include "jsscope.h"
 #include "jsstaticcheck.h"
@@ -75,8 +75,6 @@
 #include "jsbit.h"
 #include "jsvector.h"
 #include "jsversion.h"
-
-#include "vm/GlobalObject.h"
 
 #include "jsinterpinlines.h"
 #include "jsobjinlines.h"
@@ -144,7 +142,7 @@ str_encodeURI(JSContext *cx, uintN argc, Value *vp);
 static JSBool
 str_encodeURI_Component(JSContext *cx, uintN argc, Value *vp);
 
-static const uint32 INVALID_UTF8 = UINT32_MAX;
+static const uint32 OVERLONG_UTF8 = UINT32_MAX;
 
 static uint32
 Utf8ToOneUcs4Char(const uint8 *utf8Buffer, int utf8Length);
@@ -1146,7 +1144,7 @@ str_lastIndexOf(JSContext *cx, uintN argc, Value *vp)
                 i = j;
         } else {
             double d;
-            if (!ToNumber(cx, vp[3], &d))
+            if (!ValueToNumber(cx, vp[3], &d))
                 return false;
             if (!JSDOUBLE_IS_NaN(d)) {
                 d = js_DoubleToInteger(d);
@@ -2444,7 +2442,7 @@ str_split(JSContext *cx, uintN argc, Value *vp)
     uint32 limit;
     if (argc > 1 && !vp[3].isUndefined()) {
         jsdouble d;
-        if (!ToNumber(cx, vp[3], &d))
+        if (!ValueToNumber(cx, vp[3], &d))
             return false;
         limit = js_DoubleToECMAUint32(d);
     } else {
@@ -3103,7 +3101,7 @@ static JSBool
 str_fromCharCode(JSContext *cx, uintN argc, Value *vp)
 {
     Value *argv = JS_ARGV(cx, vp);
-    JS_ASSERT(argc <= StackSpace::ARGS_LENGTH_MAX);
+    JS_ASSERT(argc <= JS_ARGS_LENGTH_MAX);
     if (argc == 1) {
         uint16_t code;
         if (!ValueToUint16(cx, argv[0], &code))
@@ -3166,39 +3164,70 @@ StringObject::assignInitialShape(JSContext *cx)
 }
 
 JSObject *
-js_InitStringClass(JSContext *cx, JSObject *obj)
+js_InitStringClass(JSContext *cx, JSObject *global)
 {
-    JS_ASSERT(obj->isNative());
-
-    GlobalObject *global = obj->asGlobal();
-
-    JSObject *proto = global->createBlankPrototype(cx, &js_StringClass);
-    if (!proto || !proto->asString()->init(cx, cx->runtime->emptyString))
-        return NULL;
-
-    /* Now create the String function. */
-    JSFunction *ctor = global->createConstructor(cx, js_String, &js_StringClass,
-                                                 CLASS_ATOM(cx, String), 1);
-    if (!ctor)
-        return NULL;
-
-    if (!LinkConstructorAndPrototype(cx, ctor, proto))
-        return NULL;
-
-    if (!DefinePropertiesAndBrand(cx, proto, NULL, string_methods) ||
-        !DefinePropertiesAndBrand(cx, ctor, NULL, string_static_methods))
-    {
-        return NULL;
-    }
-
-    if (!DefineConstructorAndPrototype(cx, global, JSProto_String, ctor, proto))
-        return NULL;
+    JS_ASSERT(global->isGlobal());
+    JS_ASSERT(global->isNative());
 
     /*
      * Define escape/unescape, the URI encode/decode functions, and maybe
      * uneval on the global object.
      */
     if (!JS_DefineFunctions(cx, global, string_functions))
+        return NULL;
+
+    /* Create and initialize String.prototype. */
+    JSObject *objectProto;
+    if (!js_GetClassPrototype(cx, global, JSProto_Object, &objectProto))
+        return NULL;
+
+    JSObject *proto = NewObject<WithProto::Class>(cx, &js_StringClass, objectProto, global);
+    if (!proto || !proto->asString()->init(cx, cx->runtime->emptyString))
+        return NULL;
+
+    /* Now create the String function. */
+    JSAtom *atom = CLASS_ATOM(cx, String);
+    JSFunction *ctor = js_NewFunction(cx, NULL, js_String, 1, JSFUN_CONSTRUCTOR, global, atom);
+    if (!ctor)
+        return NULL;
+
+    /* String creates string objects. */
+    FUN_CLASP(ctor) = &js_StringClass;
+
+    /* Define String.prototype and String.prototype.constructor. */
+    if (!ctor->defineProperty(cx, ATOM_TO_JSID(cx->runtime->atomState.classPrototypeAtom),
+                              ObjectValue(*proto), PropertyStub, StrictPropertyStub,
+                              JSPROP_PERMANENT | JSPROP_READONLY) ||
+        !proto->defineProperty(cx, ATOM_TO_JSID(cx->runtime->atomState.constructorAtom),
+                               ObjectValue(*ctor), PropertyStub, StrictPropertyStub, 0))
+    {
+        return NULL;
+    }
+
+    /* Add properties and methods to the prototype and the constructor. */
+    if (!JS_DefineFunctions(cx, proto, string_methods) ||
+        !JS_DefineFunctions(cx, ctor, string_static_methods))
+    {
+        return NULL;
+    }
+
+    /* Pre-brand String and String.prototype for trace-jitted code. */
+    proto->brand(cx);
+    ctor->brand(cx);
+
+    /*
+     * Make sure proto's emptyShape is available to be shared by String
+     * objects. JSObject::emptyShape is a one-slot cache. If we omit this, some
+     * other class could snap it up. (The risk is particularly great for
+     * Object.prototype.)
+     *
+     * All callers of JSObject::initSharingEmptyShape depend on this.
+     */
+    if (!proto->getEmptyShape(cx, &js_StringClass, FINALIZE_OBJECT0))
+        return NULL;
+
+    /* Install the fully-constructed String and String.prototype. */
+    if (!DefineConstructorAndPrototype(cx, global, JSProto_String, ctor, proto))
         return NULL;
 
     return proto;
@@ -3210,9 +3239,7 @@ js_NewString(JSContext *cx, jschar *chars, size_t length)
     if (!CheckStringLength(cx, length))
         return NULL;
 
-    JSFixedString *s = JSFixedString::new_(cx, chars, length);
-    Probes::createString(cx, s, length);
-    return s;
+    return JSFixedString::new_(cx, chars, length);
 }
 
 static JS_ALWAYS_INLINE JSFixedString *
@@ -3233,7 +3260,6 @@ NewShortString(JSContext *cx, const jschar *chars, size_t length)
     jschar *storage = str->init(length);
     PodCopy(storage, chars, length);
     storage[length] = 0;
-    Probes::createString(cx, str, length);
     return str;
 }
 
@@ -3264,7 +3290,6 @@ NewShortString(JSContext *cx, const char *chars, size_t length)
             *p++ = (unsigned char)*chars++;
         *p = 0;
     }
-    Probes::createString(cx, str, length);
     return str;
 }
 
@@ -3355,9 +3380,7 @@ js_NewDependentString(JSContext *cx, JSString *baseArg, size_t start, size_t len
     if (JSLinearString *staticStr = JSAtom::lookupStatic(chars, length))
         return staticStr;
 
-    JSLinearString *s = JSDependentString::new_(cx, base, chars, length);
-    Probes::createString(cx, s, length);
-    return s;
+    return JSDependentString::new_(cx, base, chars, length);
 }
 
 JSFixedString *
@@ -5601,28 +5624,32 @@ js_OneUcs4ToUtf8Char(uint8 *utf8Buffer, uint32 ucs4Char)
 static uint32
 Utf8ToOneUcs4Char(const uint8 *utf8Buffer, int utf8Length)
 {
-    JS_ASSERT(1 <= utf8Length && utf8Length <= 4);
-
-    if (utf8Length == 1) {
-        JS_ASSERT(!(*utf8Buffer & 0x80));
-        return *utf8Buffer;
-    }
-
+    uint32 ucs4Char;
+    uint32 minucs4Char;
     /* from Unicode 3.1, non-shortest form is illegal */
-    static const uint32 minucs4Table[] = { 0x80, 0x800, 0x10000 };
+    static const uint32 minucs4Table[] = {
+        0x00000080, 0x00000800, 0x00010000
+    };
 
-    JS_ASSERT((*utf8Buffer & (0x100 - (1 << (7 - utf8Length)))) ==
-              (0x100 - (1 << (8 - utf8Length))));
-    uint32 ucs4Char = *utf8Buffer++ & ((1 << (7 - utf8Length)) - 1);
-    uint32 minucs4Char = minucs4Table[utf8Length - 2];
-    while (--utf8Length) {
-        JS_ASSERT((*utf8Buffer & 0xC0) == 0x80);
-        ucs4Char = (ucs4Char << 6) | (*utf8Buffer++ & 0x3F);
+    JS_ASSERT(utf8Length >= 1 && utf8Length <= 4);
+    if (utf8Length == 1) {
+        ucs4Char = *utf8Buffer;
+        JS_ASSERT(!(ucs4Char & 0x80));
+    } else {
+        JS_ASSERT((*utf8Buffer & (0x100 - (1 << (7-utf8Length)))) ==
+                  (0x100 - (1 << (8-utf8Length))));
+        ucs4Char = *utf8Buffer++ & ((1<<(7-utf8Length))-1);
+        minucs4Char = minucs4Table[utf8Length-2];
+        while (--utf8Length) {
+            JS_ASSERT((*utf8Buffer & 0xC0) == 0x80);
+            ucs4Char = ucs4Char<<6 | (*utf8Buffer++ & 0x3F);
+        }
+        if (JS_UNLIKELY(ucs4Char < minucs4Char)) {
+            ucs4Char = OVERLONG_UTF8;
+        } else if (ucs4Char == 0xFFFE || ucs4Char == 0xFFFF) {
+            ucs4Char = 0xFFFD;
+        }
     }
-
-    if (JS_UNLIKELY(ucs4Char < minucs4Char || (ucs4Char >= 0xD800 && ucs4Char <= 0xDFFF)))
-        return INVALID_UTF8;
-
     return ucs4Char;
 }
 

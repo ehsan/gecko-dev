@@ -85,7 +85,6 @@ EXPORTS = \
   nsWrapperCache.h \
   nsContentPermissionHelper.h \
   nsStructuredCloneContainer.h \
-  nsDOMMemoryReporter.h \
   $(NULL)
 
 CPPSRCS =			\

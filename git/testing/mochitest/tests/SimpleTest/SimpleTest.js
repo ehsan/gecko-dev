@@ -109,7 +109,7 @@ SimpleTest.todo = function(condition, name, diag) {
 SimpleTest._getCurrentTestURL = function() {
     return parentRunner && parentRunner.currentTestURL ||
            typeof gTestPath == "string" && gTestPath ||
-           "unknown test url";
+           "";
 };
 
 SimpleTest._logResult = function(test, passString, failString) {
@@ -129,7 +129,7 @@ SimpleTest._logResult = function(test, passString, failString) {
     }
 };
 
-SimpleTest.info = function(name, message) {
+SimpleTest._logInfo = function(name, message) {
     this._logResult({result:true, name:name, diag:message}, "TEST-INFO");
 };
 
@@ -334,7 +334,7 @@ SimpleTest.waitForFocus = function (callback, targetWindow, expectBlankPage) {
     childTargetWindow = childTargetWindow.value;
 
     function info(msg) {
-        SimpleTest.info(msg);
+        SimpleTest._logInfo("", msg);
     }
 
     function debugFocusLog(prefix) {
@@ -554,9 +554,6 @@ SimpleTest.executeSoon = function(aFunc) {
  * SimpleTest.waitForExplicitFinish() has been invoked.
 **/
 SimpleTest.finish = function () {
-    if (SimpleTest._expectingUncaughtException) {
-        SimpleTest.ok(false, "expectUncaughtException was called but no uncaught exception was detected!");
-    }
     if (parentRunner) {
         /* We're running in an iframe, and the parent has a TestRunner */
         parentRunner.testFinished(SimpleTest._tests);
@@ -574,14 +571,6 @@ SimpleTest.expectChildProcessCrash = function () {
     if (parentRunner) {
         parentRunner.expectChildProcessCrash();
     }
-};
-
-/**
- * Indicates to the test framework that the next uncaught exception during
- * the test is expected, and should not cause a test failure.
- */
-SimpleTest.expectUncaughtException = function () {
-    SimpleTest._expectingUncaughtException = true;
 };
 
 
@@ -797,11 +786,11 @@ var todo = SimpleTest.todo;
 var todo_is = SimpleTest.todo_is;
 var todo_isnot = SimpleTest.todo_isnot;
 var isDeeply = SimpleTest.isDeeply;
-var info = SimpleTest.info;
 
 var gOldOnError = window.onerror;
 window.onerror = function simpletestOnerror(errorMsg, url, lineNumber) {
     var funcIdentifier = "[SimpleTest/SimpleTest.js, window.onerror]";
+    var isPlainMochitest = window.location.protocol != "chrome:";
 
     // Log the message.
     // XXX Chrome mochitests sometimes trigger this window.onerror handler,
@@ -809,15 +798,14 @@ window.onerror = function simpletestOnerror(errorMsg, url, lineNumber) {
     // currently, so we can't log them as errors just yet.  For now, when
     // not in a plain mochitest, just dump it so that the error is visible but
     // doesn't cause a test failure.  See bug 652494.
-    var message = "An error occurred: " + errorMsg + " at " + url + ":" + lineNumber;
-    var isPlainMochitest = window.location.protocol != "chrome:";
-    var isExpected = !!SimpleTest._expectingUncaughtException;
-    if (isPlainMochitest) {
-        SimpleTest.ok(isExpected, funcIdentifier, message);
-        SimpleTest._expectingUncaughtException = false;
-    } else {
-        SimpleTest.info(funcIdentifier + " " + message);
+    function logError(message) {
+        if (isPlainMochitest) {
+            SimpleTest.ok(false, funcIdentifier, message);
+        } else {
+            dump(funcIdentifier + " " + message);
+        }
     }
+    logError("An error occurred: " + errorMsg + " at " + url + ":" + lineNumber);
     // There is no Components.stack.caller to log. (See bug 511888.)
 
     // Call previous handler.
@@ -827,15 +815,15 @@ window.onerror = function simpletestOnerror(errorMsg, url, lineNumber) {
             gOldOnError(errorMsg, url, lineNumber);
         } catch (e) {
             // Log the error.
-            SimpleTest.info("Exception thrown by gOldOnError(): " + e);
+            logError("Exception thrown by gOldOnError(): " + e);
             // Log its stack.
             if (e.stack) {
-                SimpleTest.info("JavaScript error stack:\n" + e.stack);
+                logError("JavaScript error stack:\n" + e.stack);
             }
         }
     }
 
-    if (!SimpleTest._stopOnLoad && !isExpected) {
+    if (!SimpleTest._stopOnLoad) {
         // Need to finish() manually here, yet let the test actually end first.
         SimpleTest.executeSoon(SimpleTest.finish);
     }

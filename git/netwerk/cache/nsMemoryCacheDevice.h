@@ -91,9 +91,6 @@ public:
     void             SetMaxEntrySize(PRInt32  maxSizeInKilobytes);
 
     bool             EntryIsTooBig(PRInt64 entrySize);
-
-    size_t           TotalSize();
-
 private:
     friend class nsMemoryCacheDeviceInfo;
     enum      { DELETE_ENTRY        = PR_TRUE,

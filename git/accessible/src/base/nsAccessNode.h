@@ -215,6 +215,7 @@ protected:
 
     // Static data, we do our own refcounting for our static data
     static nsIStringBundle *gStringBundle;
+    static nsIStringBundle *gKeyStringBundle;
 
     static PRBool gIsFormFillEnabled;
 

@@ -48,7 +48,9 @@ function testInputExpansion() {
 
   openConsole();
 
-  let input = HUDService.getHudByWindow(content).jsterm.inputNode;
+  hudId = HUDService.displaysIndex()[0];
+  hudBox = HUDService.getHeadsUpDisplay(hudId);
+  let input = hudBox.querySelector(".jsterm-input-node");
 
   input.focus();
 

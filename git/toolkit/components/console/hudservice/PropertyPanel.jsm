@@ -163,6 +163,9 @@ function isNativeFunction(aFunction)
  * Tells if the given property of the provided object is a non-native getter or
  * not.
  *
+ * @param object aScope
+ *        Scope to use for the check.
+ *
  * @param object aObject
  *        The object that contains the property.
  *
@@ -172,14 +175,14 @@ function isNativeFunction(aFunction)
  * @return boolean
  *         True if the given property is a getter, false otherwise.
  */
-function isNonNativeGetter(aObject, aProp) {
+function isNonNativeGetter(aScope, aObject, aProp) {
   if (typeof aObject != "object") {
     return false;
   }
   let desc;
   while (aObject) {
     try {
-      if (desc = Object.getOwnPropertyDescriptor(aObject, aProp)) {
+      if (desc = aScope.Object.getOwnPropertyDescriptor(aObject, aProp)) {
         break;
       }
     }
@@ -220,8 +223,11 @@ function namesAndValuesOf(aObject)
       continue;
     }
 
-    // Also skip non-native getters.
-    if (isNonNativeGetter(aObject, propName)) {
+    // Also skip non-native getters. Pass the content window so that
+    // getOwnPropertyDescriptor can work later on.
+    let chromeWindow = Services.wm.getMostRecentWindow("navigator:browser");
+    let contentWindow = chromeWindow.gBrowser.selectedBrowser.contentWindow;
+    if (isNonNativeGetter(contentWindow.wrappedJSObject, aObject, propName)) {
       value = ""; // Value is never displayed.
       presentable = {type: TYPE_OTHER, display: "Getter"};
     }

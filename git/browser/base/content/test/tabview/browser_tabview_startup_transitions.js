@@ -31,26 +31,21 @@ function test() {
     let transitioned = 0;
 
     let initCallback = function() {
-      tabViewWindow = win.TabView.getContentWindow();
+      tabViewWindow = win.TabView._window;
       function onTransitionEnd(event) {
         transitioned++;
         info(transitioned);
       }
       tabViewWindow.document.addEventListener("transitionend", onTransitionEnd, false);
 
-      // don't use showTabView() here because we only want to check whether 
-      // zoom out animation happens. Other animations would happen before
-      // the callback as waitForFocus() was added to showTabView() in head.js
-      let onTabViewShown = function() {
-        tabViewWindow.removeEventListener("tabviewshown", onTabViewShown, false);
-        tabViewWindow.document.removeEventListener("transitionend", onTransitionEnd, false);
-
+      showTabView(function() {
         ok(!transitioned, "There should be no transitions");
 
+        tabViewWindow.document.removeEventListener(
+          "transitionend", onTransitionEnd, false);
+
         finish();
-      };
-      tabViewWindow.addEventListener("tabviewshown", onTabViewShown, false);
-      win.TabView.toggle();
+      }, win);
     };
 
     win.TabView._initFrame(initCallback);

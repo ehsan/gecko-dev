@@ -378,11 +378,9 @@ BrowserGlue.prototype = {
     // Show about:rights notification, if needed.
     if (this._shouldShowRights()) {
       this._showRightsNotification();
-#ifdef MOZ_TELEMETRY_REPORTING
     } else {
       // Only show telemetry notification when about:rights notification is not shown.
       this._showTelemetryNotification();
-#endif
     }
 
 
@@ -742,7 +740,6 @@ BrowserGlue.prototype = {
     }
   },
 
-#ifdef MOZ_TELEMETRY_REPORTING
   _showTelemetryNotification: function BG__showTelemetryNotification() {
     const PREF_TELEMETRY_PROMPTED = "toolkit.telemetry.prompted";
     const PREF_TELEMETRY_ENABLED  = "toolkit.telemetry.enabled";
@@ -808,7 +805,6 @@ BrowserGlue.prototype = {
     let description = notification.ownerDocument.getAnonymousElementByAttribute(notification, "anonid", "messageText");
     description.appendChild(link);
   },
-#endif
 
   _showPluginUpdatePage: function BG__showPluginUpdatePage() {
     Services.prefs.setBoolPref(PREF_PLUGINS_NOTIFYUSER, false);

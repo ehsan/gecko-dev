@@ -45,7 +45,6 @@
 #   Justin Dolske <dolske@mozilla.com>
 #   Kathleen Brade <brade@pearlcrescent.com>
 #   Mark Smith <mcs@pearlcrescent.com>
-#   Kailas Patil <patilkr24@gmail.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -880,11 +879,16 @@ nsContextMenu.prototype = {
     saveDocument(this.target.ownerDocument);
   },
 
-  // Helper function to wait for appropriate MIME-type headers and
-  // then prompt the user with a file picker
-  saveHelper: function(linkURL, linkText, dialogTitle, bypassCache, doc) {
+  // Save URL of clicked-on link.
+  saveLink: function() {
     // canonical def in nsURILoader.h
     const NS_ERROR_SAVE_LINK_AS_TIMEOUT = 0x805d0020;
+
+    var doc =  this.target.ownerDocument;
+    urlSecurityCheck(this.linkURL, doc.nodePrincipal);
+    var linkText = this.linkText();
+    var linkURL = this.linkURL;
+
 
     // an object to proxy the data through to
     // nsIExternalHelperAppService.doContent, which will wait for the
@@ -937,7 +941,7 @@ nsContextMenu.prototype = {
         if (aStatusCode == NS_ERROR_SAVE_LINK_AS_TIMEOUT) {
           // do it the old fashioned way, which will pick the best filename
           // it can without waiting.
-          saveURL(linkURL, linkText, dialogTitle, bypassCache, false, doc.documentURIObject);
+          saveURL(linkURL, linkText, null, true, false, doc.documentURIObject);
         }
         if (this.extListener)
           this.extListener.onStopRequest(aRequest, aContext, aStatusCode);
@@ -981,19 +985,10 @@ nsContextMenu.prototype = {
     // set up a channel to do the saving
     var ioService = Cc["@mozilla.org/network/io-service;1"].
                     getService(Ci.nsIIOService);
-    var channel = ioService.newChannelFromURI(makeURI(linkURL));
+    var channel = ioService.newChannelFromURI(this.getLinkURI());
     channel.notificationCallbacks = new callbacks();
-
-    let flags = Ci.nsIChannel.LOAD_CALL_CONTENT_SNIFFERS;
-
-    if (bypassCache)
-      flags |= Ci.nsIRequest.LOAD_BYPASS_CACHE;
-
-    if (channel instanceof Ci.nsICachingChannel)
-      flags |= Ci.nsICachingChannel.LOAD_BYPASS_LOCAL_CACHE_IF_BUSY;
-
-    channel.loadFlags |= flags;
-
+    channel.loadFlags |= Ci.nsIRequest.LOAD_BYPASS_CACHE |
+                         Ci.nsIChannel.LOAD_CALL_CONTENT_SNIFFERS;
     if (channel instanceof Ci.nsIHttpChannel) {
       channel.referrer = doc.documentURIObject;
       if (channel instanceof Ci.nsIHttpChannelInternal)
@@ -1009,14 +1004,6 @@ nsContextMenu.prototype = {
 
     // kick off the channel with our proxy object as the listener
     channel.asyncOpen(new saveAsListener(), null);
-  },
-
-  // Save URL of clicked-on link.
-  saveLink: function() {
-    var doc =  this.target.ownerDocument;
-    urlSecurityCheck(this.linkURL, doc.nodePrincipal);
-
-    this.saveHelper(this.linkURL, this.linkText(), null, true, doc);
   },
 
   sendLink: function() {
@@ -1046,7 +1033,8 @@ nsContextMenu.prototype = {
     else if (this.onVideo || this.onAudio) {
       urlSecurityCheck(this.mediaURL, doc.nodePrincipal);
       var dialogTitle = this.onVideo ? "SaveVideoTitle" : "SaveAudioTitle";
-      this.saveHelper(this.mediaURL, null, dialogTitle, false, doc);
+      saveURL(this.mediaURL, null, dialogTitle, false,
+              false, doc.documentURIObject);
     }
   },
 

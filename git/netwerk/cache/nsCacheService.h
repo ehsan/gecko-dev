@@ -131,9 +131,6 @@ public:
 
     static
     nsCacheService * GlobalInstance()   { return gService; }
-
-    static
-    PRInt64 MemoryDeviceSize();
     
     static nsresult  DoomEntry(nsCacheEntry * entry);
 

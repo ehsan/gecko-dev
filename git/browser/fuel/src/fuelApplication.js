@@ -222,7 +222,7 @@ BrowserTab.prototype = {
       if (!(aEvent.originalTarget instanceof Ci.nsIDOMDocument))
         return;
 
-      if (aEvent.originalTarget.defaultView instanceof Ci.nsIDOMWindow &&
+      if (aEvent.originalTarget.defaultView instanceof Ci.nsIDOMWindowInternal &&
           aEvent.originalTarget.defaultView.frameElement)
         return;
     }
