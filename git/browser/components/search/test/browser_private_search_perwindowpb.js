@@ -3,10 +3,6 @@
 // whether there is an autocomplete entry for the private search.
 
 function test() {
-  // Don't use about:home as the homepage for new windows
-  Services.prefs.setIntPref("browser.startup.page", 0);
-  registerCleanupFunction(function() Services.prefs.clearUserPref("browser.startup.page"));
-
   waitForExplicitFinish();
 
   let engineURL =

@@ -29,14 +29,9 @@ function cleanup()
 
 function launchStyleEditorChrome(aCallback, aSheet, aLine, aCol)
 {
-  launchStyleEditorChromeFromWindow(window, aCallback, aSheet, aLine, aCol);
-}
+  let target = TargetFactory.forTab(gBrowser.selectedTab);
 
-function launchStyleEditorChromeFromWindow(aWindow, aCallback, aSheet, aLine, aCol)
-{
-  let target = TargetFactory.forTab(aWindow.gBrowser.selectedTab);
-
-  let panel = aWindow.gDevTools.getPanelForTarget("styleeditor", target);
+  let panel = gDevTools.getPanelForTarget("styleeditor", target);
   if (panel && panel.isReady) {
     gChromeWindow = panel._panelWin;
     gChromeWindow.styleEditorChrome._alwaysDisableAnimations = true;
@@ -45,7 +40,7 @@ function launchStyleEditorChromeFromWindow(aWindow, aCallback, aSheet, aLine, aC
     }
     aCallback(gChromeWindow.styleEditorChrome);
   } else {
-    let toolbox = aWindow.gDevTools.openToolboxForTab(target, "styleeditor");
+    let toolbox = gDevTools.openToolboxForTab(target, "styleeditor");
     toolbox.once("styleeditor-ready", function(event, panel) {
       gChromeWindow = panel._panelWin;
       gChromeWindow.styleEditorChrome._alwaysDisableAnimations = true;
@@ -54,6 +49,21 @@ function launchStyleEditorChromeFromWindow(aWindow, aCallback, aSheet, aLine, aC
       }
       aCallback(gChromeWindow.styleEditorChrome);
     });
+  }
+}
+
+function launchStyleEditorChromeFromWindow(aWindow, aCallback, aSheet, aLine, aCol)
+{
+  gChromeWindow = aWindow.StyleEditor.openChrome(aSheet, aLine, aCol);
+  if (gChromeWindow.document.readyState != "complete") {
+    gChromeWindow.addEventListener("load", function onChromeLoad() {
+      gChromeWindow.removeEventListener("load", onChromeLoad, true);
+      gChromeWindow.styleEditorChrome._alwaysDisableAnimations = true;
+      aCallback(gChromeWindow.styleEditorChrome);
+    }, true);
+  } else {
+    gChromeWindow.styleEditorChrome._alwaysDisableAnimations = true;
+    aCallback(gChromeWindow.styleEditorChrome);
   }
 }
 
