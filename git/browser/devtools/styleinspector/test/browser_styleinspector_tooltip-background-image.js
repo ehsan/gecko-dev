@@ -25,7 +25,7 @@ const PAGE_CONTENT = [
   '<div class="test-element">test element</div>'
 ].join("\n");
 
-add_task(function*() {
+let test = asyncTest(function*() {
   yield addTab("data:text/html;charset=utf-8,rule view tooltip test");
   content.document.body.innerHTML = PAGE_CONTENT;
   let {toolbox, inspector, view} = yield openRuleView();
@@ -42,9 +42,7 @@ add_task(function*() {
   yield testTooltipAppearsEvenInEditMode(view);
 
   info("Switching over to the computed-view");
-  let onComputedViewReady = inspector.once("computed-view-refreshed");
   ({view} = yield openComputedView());
-  yield onComputedViewReady;
 
   info("Testing that the background-image computed style has a tooltip too");
   yield testComputedView(view);

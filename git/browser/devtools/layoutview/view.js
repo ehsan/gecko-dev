@@ -548,9 +548,7 @@ window.setPanel = function(panel) {
 };
 
 window.onunload = function() {
-  if (this.layoutview) {
-    this.layoutview.destroy();
-  }
+  this.layoutview.destroy();
   if (elts) {
     for (let i = 0; i < elts.length; i++) {
       let elt = elts[i];

@@ -80,6 +80,7 @@ function* testNavigate(inspector, ruleview) {
 
   yield selectNode("#div-1", inspector);
   yield togglePseudoClass(inspector);
+  yield inspector.once("computed-view-refreshed");
 }
 
 function* showPickerOn(selector, inspector) {

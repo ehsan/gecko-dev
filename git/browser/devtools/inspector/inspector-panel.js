@@ -418,18 +418,9 @@ InspectorPanel.prototype = {
     if (reason !== "navigateaway" &&
         this.canGetUniqueSelector &&
         this.selection.isElementNode()) {
-      selection.getUniqueSelector().then(selector => {
+      selection.getUniqueSelector().then((selector) => {
         this.selectionCssSelector = selector;
-      }).then(null, e => {
-        // Only log this as an error if the panel hasn't been destroyed in the
-        // meantime.
-        if (!this._panelDestroyer) {
-          console.error(e);
-        } else {
-          console.warn("Could not set the unique selector for the newly "+
-            "selected node, the inspector was destroyed.");
-        }
-      });
+      }).then(null, console.error);
     }
 
     let selfUpdate = this.updating("inspector-panel");

@@ -535,7 +535,7 @@
           <Section name="UnsupportedBrowserView">
             <Example summary="Standalone Unsupported Browser">
               <div className="standalone">
-                <UnsupportedBrowserView helper={{isFirefox: returnFalse}}/>
+                <UnsupportedBrowserView />
               </div>
             </Example>
           </Section>

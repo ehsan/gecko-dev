@@ -23,7 +23,6 @@
         <toolbarbutton id="PanelUI-fxa-status"
                        defaultlabel="&fxaSignIn.label;"
                        errorlabel="&fxaSignInError.label;"
-                       fxabrandname="&syncBrand.fxAccount.label;"
                        oncommand="gFxAccounts.onMenuPanelCommand(event);"
                        hidden="true"/>
 

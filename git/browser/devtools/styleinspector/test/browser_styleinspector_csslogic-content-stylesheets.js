@@ -18,7 +18,7 @@ const XUL_PRINCIPAL = Components.classes["@mozilla.org/scriptsecuritymanager;1"]
                         .getService(Ci.nsIScriptSecurityManager)
                         .getNoAppCodebasePrincipal(XUL_URI);
 
-add_task(function*() {
+let test = asyncTest(function*() {
   info("Checking stylesheets on HTML document");
   yield addTab(TEST_URI_HTML);
   let target = getNode("#target");

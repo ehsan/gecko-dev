@@ -17,10 +17,10 @@ const PAGE_CONTENT = [
 
 const TYPE = "CssTransformHighlighter";
 
-add_task(function*() {
+let test = asyncTest(function*() {
   yield addTab("data:text/html;charset=utf-8," + PAGE_CONTENT);
 
-  let {inspector, view: rView} = yield openRuleView();
+  let {view: rView} = yield openRuleView();
   let overlay = rView.highlighters;
 
   ok(!overlay.highlighters[TYPE], "No highlighter exists in the rule-view");
@@ -30,9 +30,7 @@ add_task(function*() {
   let h2 = yield overlay._getHighlighter(TYPE);
   is(h, h2, "The same instance of highlighter is returned everytime in the rule-view");
 
-  let onComputedViewReady = inspector.once("computed-view-refreshed");
   let {view: cView} = yield openComputedView();
-  yield onComputedViewReady;
   overlay = cView.highlighters;
 
   ok(!overlay.highlighters[TYPE], "No highlighter exists in the computed-view");

@@ -92,10 +92,6 @@ let gSyncUI = {
 
     // notificationbox will listen to observers from now on.
     Services.obs.removeObserver(this, "weave:notification:added");
-    let idx = this._obs.indexOf("weave:notification:added");
-    if (idx >= 0) {
-      this._obs.splice(idx, 1);
-    }
   },
 
   _needsSetup: function SUI__needsSetup() {
@@ -149,13 +145,12 @@ let gSyncUI = {
       return;
 
     let syncButton = document.getElementById("sync-button");
-    if (syncButton) {
-      syncButton.removeAttribute("status");
-    }
     let panelHorizontalButton = document.getElementById("PanelUI-fxa-status");
-    if (panelHorizontalButton) {
-      panelHorizontalButton.removeAttribute("syncstatus");
-    }
+    [syncButton, panelHorizontalButton].forEach(function(button) {
+      if (!button)
+        return;
+      button.removeAttribute("status");
+    });
 
     if (needsSetup && syncButton)
       syncButton.removeAttribute("tooltiptext");
@@ -169,14 +164,12 @@ let gSyncUI = {
     if (!gBrowser)
       return;
 
-    let button = document.getElementById("sync-button");
-    if (button) {
+    ["sync-button", "PanelUI-fxa-status"].forEach(function(id) {
+      let button = document.getElementById(id);
+      if (!button)
+        return;
       button.setAttribute("status", "active");
-    }
-    button = document.getElementById("PanelUI-fxa-status");
-    if (button) {
-      button.setAttribute("syncstatus", "active");
-    }
+    });
   },
 
   onLoginFinish: function SUI_onLoginFinish() {
@@ -381,7 +374,13 @@ let gSyncUI = {
   },
 
   openSignInAgainPage: function (entryPoint = "syncbutton") {
-    gFxAccounts.openSignInAgainPage(entryPoint);
+    // If the user is also in an uitour, set the entrypoint to `uitour`
+    if (UITour.originTabs.get(window) && UITour.originTabs.get(window).has(gBrowser.selectedTab)) {
+      entryPoint = "uitour";
+    }
+    switchToTabHavingURI("about:accounts?action=reauth&entrypoint=" + entryPoint, true, {
+      replaceQueryString: true
+    });
   },
 
   // Helpers

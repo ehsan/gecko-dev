@@ -32,7 +32,6 @@ function RuleViewTool(inspector, window, iframe) {
   this.clearUserProperties = this.clearUserProperties.bind(this);
   this.onPropertyChanged = this.onPropertyChanged.bind(this);
   this.onViewRefreshed = this.onViewRefreshed.bind(this);
-  this.onPanelSelected = this.onPanelSelected.bind(this);
 
   this.view.element.addEventListener("CssRuleViewChanged", this.onPropertyChanged);
   this.view.element.addEventListener("CssRuleViewRefreshed", this.onViewRefreshed);
@@ -43,24 +42,15 @@ function RuleViewTool(inspector, window, iframe) {
   this.inspector.on("layout-change", this.refresh);
   this.inspector.selection.on("pseudoclass", this.refresh);
   this.inspector.target.on("navigate", this.clearUserProperties);
-  this.inspector.sidebar.on("ruleview-selected", this.onPanelSelected);
 
   this.onSelected();
 }
 
 
 RuleViewTool.prototype = {
-  isSidebarActive: function() {
-    return this.inspector.sidebar.getCurrentTabID() == "ruleview";
-  },
-
   onSelected: function(event) {
-    // Ignore the event if the view has been destroyed, or if it's inactive.
-    // But only if the current selection isn't null. If it's been set to null,
-    // let the update go through as this is needed to empty the view on navigation.
-    let isDestroyed = !this.view;
-    let isInactive = !this.isSidebarActive() && this.inspector.selection.nodeFront;
-    if (isDestroyed || isInactive) {
+    // Ignore the event if the view has been destroyed
+    if (!this.view) {
       return;
     }
 
@@ -79,22 +69,12 @@ RuleViewTool.prototype = {
   },
 
   refresh: function() {
-    if (this.isSidebarActive()) {
-      this.view.refreshPanel();
-    }
+    this.view.refreshPanel();
   },
 
   clearUserProperties: function() {
     if (this.view && this.view.store && this.view.store.userProperties) {
       this.view.store.userProperties.clear();
-    }
-  },
-
-  onPanelSelected: function() {
-    if (this.inspector.selection.nodeFront === this.view.viewedElement) {
-      this.refresh();
-    } else {
-      this.onSelected();
     }
   },
 
@@ -141,7 +121,6 @@ RuleViewTool.prototype = {
     this.inspector.selection.off("pseudoclass", this.refresh);
     this.inspector.selection.off("new-node-front", this.onSelected);
     this.inspector.target.off("navigate", this.clearUserProperties);
-    this.inspector.sidebar.off("ruleview-selected", this.onPanelSelected);
 
     this.view.element.removeEventListener("CssRuleViewCSSLinkClicked", this.onLinkClicked);
     this.view.element.removeEventListener("CssRuleViewChanged", this.onPropertyChanged);
@@ -163,13 +142,11 @@ function ComputedViewTool(inspector, window, iframe) {
 
   this.onSelected = this.onSelected.bind(this);
   this.refresh = this.refresh.bind(this);
-  this.onPanelSelected = this.onPanelSelected.bind(this);
 
   this.inspector.selection.on("detached", this.onSelected);
   this.inspector.selection.on("new-node-front", this.onSelected);
   this.inspector.on("layout-change", this.refresh);
   this.inspector.selection.on("pseudoclass", this.refresh);
-  this.inspector.sidebar.on("computedview-selected", this.onPanelSelected);
 
   this.view.selectElement(null);
 
@@ -177,20 +154,11 @@ function ComputedViewTool(inspector, window, iframe) {
 }
 
 ComputedViewTool.prototype = {
-  isSidebarActive: function() {
-    return this.inspector.sidebar.getCurrentTabID() == "computedview";
-  },
-
   onSelected: function(event) {
-    // Ignore the event if the view has been destroyed, or if it's inactive.
-    // But only if the current selection isn't null. If it's been set to null,
-    // let the update go through as this is needed to empty the view on navigation.
-    let isDestroyed = !this.view;
-    let isInactive = !this.isSidebarActive() && this.inspector.selection.nodeFront;
-    if (isDestroyed || isInactive) {
+    // Ignore the event if the view has been destroyed
+    if (!this.view) {
       return;
     }
-
     this.view.setPageStyle(this.inspector.pageStyle);
 
     if (!this.inspector.selection.isConnected() ||
@@ -208,17 +176,7 @@ ComputedViewTool.prototype = {
   },
 
   refresh: function() {
-    if (this.isSidebarActive()) {
-      this.view.refreshPanel();
-    }
-  },
-
-  onPanelSelected: function() {
-    if (this.inspector.selection.nodeFront === this.view.viewedElement) {
-      this.refresh();
-    } else {
-      this.onSelected();
-    }
+    this.view.refreshPanel();
   },
 
   destroy: function() {
@@ -226,7 +184,6 @@ ComputedViewTool.prototype = {
     this.inspector.sidebar.off("computedview-selected", this.refresh);
     this.inspector.selection.off("pseudoclass", this.refresh);
     this.inspector.selection.off("new-node-front", this.onSelected);
-    this.inspector.sidebar.off("computedview-selected", this.onPanelSelected);
 
     this.view.destroy();
 

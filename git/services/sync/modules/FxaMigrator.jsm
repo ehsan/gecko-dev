@@ -61,7 +61,7 @@ function Migrator() {
   // Leave the log-level as Debug - Sync will setup log appenders such that
   // these messages generally will not be seen unless other log related
   // prefs are set.
-  this.log.level = Log.Level.Debug;
+  this.level = Log.Level.Debug;
 
   this._nextUserStatePromise = Promise.resolve();
 
@@ -138,12 +138,12 @@ Migrator.prototype = {
 
   _promiseCurrentUserState: Task.async(function* (forceObserver) {
     this.log.trace("starting _promiseCurrentUserState");
-    let update = (newState, subject=null) => {
+    let update = newState => {
       this.log.info("Migration state: '${state}' => '${newState}'",
                     {state: this._state, newState: newState});
       if (forceObserver || newState !== this._state) {
         this._state = newState;
-        Services.obs.notifyObservers(subject, OBSERVER_STATE_CHANGE_TOPIC, newState);
+        Services.obs.notifyObservers(null, OBSERVER_STATE_CHANGE_TOPIC, newState);
       }
       return newState;
     }
@@ -153,7 +153,6 @@ Migrator.prototype = {
     if (WeaveService.fxAccountsEnabled) {
       // should not be necessary, but if we somehow ended up with FxA enabled
       // and sync blocked it would be bad - so better safe than sorry.
-      this.log.debug("FxA enabled - there's nothing to do!")
       this._unblockSync();
       return update(null);
     }
@@ -176,10 +175,7 @@ Migrator.prototype = {
       return update(this.STATE_USER_FXA);
     }
     if (!fxauser.verified) {
-      let email = Cc["@mozilla.org/supports-string;1"].
-                  createInstance(Ci.nsISupportsString);
-      email.data = fxauser.email || "";
-      return update(this.STATE_USER_FXA_VERIFIED, email);
+      return update(this.STATE_USER_FXA_VERIFIED);
     }
 
     // So we just have housekeeping to do - we aren't blocked on a user, so
@@ -220,13 +216,6 @@ Migrator.prototype = {
     this.log.info("scheduling initial FxA sync.");
     this._unblockSync();
     Weave.Service.scheduler.scheduleNextSync(0);
-
-    // Tell the front end that migration is now complete -- Sync is now
-    // configured with an FxA user.
-    forceObserver = true;
-    this.log.info("Migration complete");
-    update(null);
-
     return null;
   }),
 
@@ -260,7 +249,11 @@ Migrator.prototype = {
       verified: signedInUser.verified,
       prefs: this._getSentinelPrefs(),
     };
-    yield Weave.Service.setFxAMigrationSentinel(sentinel);
+    if (Weave.Service.setFxaMigrationSentinel) {
+      yield Weave.Service.setFxaMigrationSentinel(sentinel);
+    } else {
+      this.log.warn("Waiting on bug 1017433; no sync sentinel");
+    }
   }),
 
   /* Ask sync to upload the migration sentinal if we (or any other linked device)
@@ -276,7 +269,11 @@ Migrator.prototype = {
   /* Ask sync to return a migration sentinel if one exists, otherwise return null */
   _getSyncMigrationSentinel: Task.async(function* () {
     yield WeaveService.whenLoaded();
-    let sentinel = yield Weave.Service.getFxAMigrationSentinel();
+    if (!Weave.Service.getFxaMigrationSentinel) {
+      this.log.warn("Waiting on bug 1017433; no sync sentinel");
+      return null;
+    }
+    let sentinel = yield Weave.Service.getFxaMigrationSentinel();
     this.log.debug("got migration sentinel ${}", sentinel);
     return sentinel;
   }),
@@ -304,11 +301,19 @@ Migrator.prototype = {
 
   // Prevent sync from automatically starting
   _blockSync() {
-    Weave.Service.scheduler.blockSync();
+    if (Weave.Service.scheduler.blockSync) {
+      Weave.Service.scheduler.blockSync();
+    } else {
+      this.log.warn("Waiting on bug 1019408; sync not blocked");
+    }
   },
 
   _unblockSync() {
-    Weave.Service.scheduler.unblockSync();
+    if (Weave.Service.scheduler.unblockSync) {
+      Weave.Service.scheduler.unblockSync();
+    } else {
+      this.log.warn("Waiting on bug 1019408; sync not unblocked");
+    }
   },
 
   /*

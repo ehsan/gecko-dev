@@ -53,26 +53,22 @@ function setupHighlighterTests() {
   openInspector(runSelectionTests);
 }
 
-let runSelectionTests = Task.async(function*(aInspector) {
+function runSelectionTests(aInspector) {
   inspector = aInspector;
 
-  let onPickerStarted = inspector.toolbox.once("picker-started");
   inspector.toolbox.highlighterUtils.startPicker();
-  yield onPickerStarted;
-
-  info("Picker mode started, now clicking on H1 to select that node");
-  h1.scrollIntoView();
-  let onPickerStopped = inspector.toolbox.once("picker-stopped");
-  let onInspectorUpdated = inspector.once("inspector-updated");
-  EventUtils.synthesizeMouseAtCenter(h1, {}, content);
-  yield onPickerStopped;
-  yield onInspectorUpdated;
-
-  info("Picker mode stopped, H1 selected, now switching to the console");
-  let hud = yield openConsole(gBrowser.selectedTab);
-
-  performWebConsoleTests(hud);
-});
+  inspector.toolbox.once("picker-started", () => {
+    info("Picker mode started, now clicking on H1 to select that node");
+    executeSoon(() => {
+      h1.scrollIntoView();
+      EventUtils.synthesizeMouseAtCenter(h1, {}, content);
+      inspector.toolbox.once("picker-stopped", () => {
+        info("Picker mode stopped, H1 selected, now switching to the console");
+        openConsole(gBrowser.selectedTab).then(performWebConsoleTests);
+      });
+    });
+  });
+}
 
 function performWebConsoleTests(hud) {
   let target = TargetFactory.forTab(gBrowser.selectedTab);

@@ -15,7 +15,7 @@ const PAGE_CONTENT = [
   '</style>'
 ].join("\n");
 
-add_task(function*() {
+let test = asyncTest(function*() {
   yield addTab("data:text/html;charset=utf-8,rule view cubic-bezier tooltip test");
   content.document.body.innerHTML = PAGE_CONTENT;
   let {toolbox, inspector, view} = yield openRuleView();

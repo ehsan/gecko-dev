@@ -10,7 +10,6 @@ import org.mozilla.gecko.BrowserLocaleManager;
 import org.mozilla.gecko.GeckoAppShell;
 import org.mozilla.gecko.GeckoEvent;
 import org.mozilla.gecko.GeckoSharedPrefs;
-import org.mozilla.gecko.Locales;
 import org.mozilla.gecko.PrefsHelper;
 
 import android.content.SharedPreferences;
@@ -91,7 +90,7 @@ public class testOSLocale extends BaseTest {
         // have been set.
         //
         // Instead, we always send a new locale code, and see what we get.
-        final Locale fr = Locales.parseLocaleCode("fr");
+        final Locale fr = BrowserLocaleManager.parseLocaleCode("fr");
         BrowserLocaleManager.storeAndNotifyOSLocale(prefs, fr);
 
         state.fetch();
@@ -126,7 +125,7 @@ public class testOSLocale extends BaseTest {
         mAsserter.is(state.acceptLanguages, EXPECTED, "We have the right es-ES+fr Accept-Languages for this build.");
 
         // And back to en-US.
-        final Locale en_US = Locales.parseLocaleCode("en-US");
+        final Locale en_US = BrowserLocaleManager.parseLocaleCode("en-US");
         BrowserLocaleManager.storeAndNotifyOSLocale(prefs, en_US);
         BrowserLocaleManager.getInstance().resetToSystemLocale(getActivity());
 

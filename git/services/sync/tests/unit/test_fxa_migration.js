@@ -29,7 +29,7 @@ function promiseOneObserver(topic) {
   return new Promise((resolve, reject) => {
     let observer = function(subject, topic, data) {
       Services.obs.removeObserver(observer, topic);
-      resolve({ subject: subject, data: data });
+      resolve(data);
     }
     Services.obs.addObserver(observer, topic, false);
   });
@@ -103,18 +103,20 @@ add_task(function *testMigration() {
 
   // monkey-patch the migration sentinel code so we know it was called.
   let haveStartedSentinel = false;
-  let origSetFxAMigrationSentinel = Service.setFxAMigrationSentinel;
+// (This is waiting on bug 1017433)
+/**
+  let origSetFxaMigrationSentinel = Service.setFxaMigrationSentinel;
   let promiseSentinelWritten = new Promise((resolve, reject) => {
-    Service.setFxAMigrationSentinel = function(arg) {
+    Service.setFxaMigrationSentinel = function(arg) {
       haveStartedSentinel = true;
-      return origSetFxAMigrationSentinel.call(Service, arg).then(result => {
-        Service.setFxAMigrationSentinel = origSetFxAMigrationSentinel;
+      return origSetFxaMigrationSentinel.call(Service, arg).then(result => {
+        Service.setFxaMigrationSentinel = origSetFxaMigrationSentinel;
         resolve(result);
         return result;
       });
     }
   });
-
+**/
   // We are now configured for legacy sync, but we aren't in an EOL state yet,
   // so should still be not waiting for a user.
   Assert.deepEqual((yield fxaMigrator._queueCurrentUserState()), null,
@@ -128,7 +130,7 @@ add_task(function *testMigration() {
   _("Finished sync");
 
   // We should have seen the observer, so be waiting for an FxA user.
-  Assert.equal((yield promise).data, fxaMigrator.STATE_USER_FXA, "now waiting for FxA.")
+  Assert.equal((yield promise), fxaMigrator.STATE_USER_FXA, "now waiting for FxA.")
 
   // Re-calling our user-state promise should also reflect the same state.
   Assert.equal((yield fxaMigrator._queueCurrentUserState()),
@@ -154,15 +156,9 @@ add_task(function *testMigration() {
   promise = promiseOneObserver("fxa-migration:state-changed");
   fxAccounts.setSignedInUser(config.fxaccount.user);
 
-  let observerInfo = yield promise;
-  Assert.equal(observerInfo.data,
+  Assert.equal((yield promise),
                fxaMigrator.STATE_USER_FXA_VERIFIED,
                "now waiting for verification");
-  Assert.ok(observerInfo.subject instanceof Ci.nsISupportsString,
-            "email was passed to observer");
-  Assert.equal(observerInfo.subject.data,
-               FXA_USERNAME,
-               "email passed to observer is correct");
 
   // should have seen the user set, so state should automatically update.
   Assert.equal((yield fxaMigrator._queueCurrentUserState()),
@@ -196,14 +192,17 @@ add_task(function *testMigration() {
     // we should be in a 'null' user-state as there is no user-action
     // necessary.
     let cb = Async.makeSpinningCallback();
-    promiseOneObserver("fxa-migration:state-changed").then(({ data: state }) => cb(null, state));
+    promiseOneObserver("fxa-migration:state-changed").then(state => cb(null, state));
     Assert.equal(cb.wait(), null, "no user action necessary while sync completes.");
 
     // We must not have started writing the sentinel yet.
     Assert.ok(!haveStartedSentinel, "haven't written a sentinel yet");
 
     // sync should be blocked from continuing
+// (This is waiting on bug 1019408)
+/**
     Assert.ok(Service.scheduler.isBlocked, "sync is blocked.")
+**/
 
     wasWaiting = true;
     throw ex;
@@ -228,10 +227,16 @@ add_task(function *testMigration() {
 
   // The migration is now going to run to completion.
   // sync should still be "blocked"
+// (This is waiting on bug 1019408)
+/**
   Assert.ok(Service.scheduler.isBlocked, "sync is blocked.");
+**/
 
   // We should see the migration sentinel written and it should return true.
+// (This is waiting on bug 1017433)
+/**
   Assert.ok((yield promiseSentinelWritten), "wrote the sentinel");
+**/
 
   // And we should see a new sync start
   yield promiseFinalSync;

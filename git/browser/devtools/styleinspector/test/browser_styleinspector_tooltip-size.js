@@ -18,7 +18,7 @@ const TEST_PAGE = [
   '<div></div>'
 ].join("\n");
 
-add_task(function*() {
+let test = asyncTest(function*() {
   yield addTab(TEST_PAGE);
   let {toolbox, inspector, view} = yield openRuleView();
 

@@ -400,13 +400,6 @@ this.BrowserIDManager.prototype = {
   },
 
   /**
-    * Return credentials hosts for this identity only.
-    */
-  _getSyncCredentialsHosts: function() {
-    return Utils.getSyncCredentialsHostsFxA();
-  },
-
-  /**
    * The current state of the auth credentials.
    *
    * This essentially validates that enough credentials are available to use

@@ -6,9 +6,6 @@ XPCOMUtils.defineLazyGetter(this, "FxAccountsCommon", function () {
   return Cu.import("resource://gre/modules/FxAccountsCommon.js", {});
 });
 
-XPCOMUtils.defineLazyModuleGetter(this, "fxaMigrator",
-  "resource://services-sync/FxaMigrator.jsm");
-
 const PREF_SYNC_START_DOORHANGER = "services.sync.ui.showSyncStartDoorhanger";
 const DOORHANGER_ACTIVATE_DELAY_MS = 5000;
 
@@ -32,7 +29,6 @@ let gFxAccounts = {
       "weave:service:sync:start",
       "weave:service:login:error",
       "weave:service:setup-complete",
-      "fxa-migration:state-changed",
       FxAccountsCommon.ONVERIFIED_NOTIFICATION,
       FxAccountsCommon.ONLOGOUT_NOTIFICATION
     ];
@@ -41,13 +37,6 @@ let gFxAccounts = {
   get button() {
     delete this.button;
     return this.button = document.getElementById("PanelUI-fxa-status");
-  },
-
-  get strings() {
-    delete this.strings;
-    return this.strings = Services.strings.createBundle(
-      "chrome://browser/locale/accounts.properties"
-    );
   },
 
   get loginFailed() {
@@ -84,10 +73,6 @@ let gFxAccounts = {
     gNavToolbox.addEventListener("customizationstarting", this);
     gNavToolbox.addEventListener("customizationending", this);
 
-    // Request the current Legacy-Sync-to-FxA migration status.  We'll be
-    // notified of fxa-migration:state-changed in response if necessary.
-    Services.obs.notifyObservers(null, "fxa-migration:state-request", null);
-
     this._initialized = true;
 
     this.updateUI();
@@ -105,16 +90,13 @@ let gFxAccounts = {
     this._initialized = false;
   },
 
-  observe: function (subject, topic, data) {
+  observe: function (subject, topic) {
     switch (topic) {
       case FxAccountsCommon.ONVERIFIED_NOTIFICATION:
         Services.prefs.setBoolPref(PREF_SYNC_START_DOORHANGER, true);
         break;
       case "weave:service:sync:start":
         this.onSyncStart();
-        break;
-      case "fxa-migration:state-changed":
-        this.onMigrationStateChanged(data, subject);
         break;
       default:
         this.updateUI();
@@ -137,14 +119,6 @@ let gFxAccounts = {
       Services.prefs.clearUserPref(PREF_SYNC_START_DOORHANGER);
       this.showSyncStartedDoorhanger();
     }
-  },
-
-  onMigrationStateChanged: function (newState, email) {
-    this._migrationInfo = !newState ? null : {
-      state: newState,
-      email: email ? email.QueryInterface(Ci.nsISupportsString).data : null,
-    };
-    this.updateUI();
   },
 
   handleEvent: function (event) {
@@ -182,24 +156,13 @@ let gFxAccounts = {
   },
 
   updateUI: function () {
-    if (this._migrationInfo) {
-      this.showMigrationUI();
-      return;
-    }
-
     // Bail out if FxA is disabled.
     if (!this.weave.fxAccountsEnabled) {
-      // When migration transitions from needs-verification to the null state,
-      // fxAccountsEnabled is false because migration has not yet finished.  In
-      // that case, hide the button.  We'll get another notification with a null
-      // state once migration is complete.
-      this.button.hidden = true;
-      this.button.removeAttribute("fxastatus");
       return;
     }
 
     // FxA is enabled, show the widget.
-    this.button.hidden = false;
+    this.button.removeAttribute("hidden");
 
     // Make sure the button is disabled in customization mode.
     if (this._inCustomizationMode) {
@@ -217,14 +180,15 @@ let gFxAccounts = {
       // Reset the button to its original state.
       this.button.setAttribute("label", defaultLabel);
       this.button.removeAttribute("tooltiptext");
-      this.button.removeAttribute("fxastatus");
+      this.button.removeAttribute("signedin");
+      this.button.removeAttribute("failed");
 
       if (!this._inCustomizationMode) {
         if (this.loginFailed) {
-          this.button.setAttribute("fxastatus", "error");
+          this.button.setAttribute("failed", "true");
           this.button.setAttribute("label", errorLabel);
         } else if (userData) {
-          this.button.setAttribute("fxastatus", "signedin");
+          this.button.setAttribute("signedin", "true");
           this.button.setAttribute("label", userData.email);
           this.button.setAttribute("tooltiptext", userData.email);
         }
@@ -241,53 +205,15 @@ let gFxAccounts = {
     });
   },
 
-  showMigrationUI: Task.async(function* () {
-    let status = null;
-    let label = null;
-    switch (this._migrationInfo.state) {
-      case fxaMigrator.STATE_USER_FXA:
-        status = "migrate-signup";
-        label = this.strings.formatStringFromName("needUser",
-          [this.button.getAttribute("fxabrandname")], 1);
-        break;
-      case fxaMigrator.STATE_USER_FXA_VERIFIED:
-        if (this._migrationInfo.email) {
-          status = "migrate-verify";
-          label = this.strings.formatStringFromName("needVerifiedUser",
-                                                    [this._migrationInfo.email],
-                                                    1);
-        }
-        break;
-    }
-    if (label && status) {
-      this.button.label = label;
-      this.button.hidden = false;
-      this.button.setAttribute("fxastatus", status);
-    } else {
-      Cu.reportError("Could not update menu panel button given migration " +
-                     "state: " + this._migrationInfo.state);
-    }
-  }),
-
   onMenuPanelCommand: function (event) {
     let button = event.originalTarget;
 
-    switch (button.getAttribute("fxastatus")) {
-    case "signedin":
+    if (button.hasAttribute("signedin")) {
       this.openPreferences();
-      break;
-    case "error":
-      this.openSignInAgainPage("menupanel");
-      break;
-    case "migrate-signup":
-      fxaMigrator.createFxAccount(window);
-      break;
-    case "migrate-verify":
-      fxaMigrator.resendVerificationMail();
-      break;
-    default:
-      this.openAccountsPage(null, { entryPoint: "menupanel" });
-      break;
+    } else if (button.hasAttribute("failed")) {
+      this.openSignInAgainPage();
+    } else {
+      this.openAccountsPage();
     }
 
     PanelUI.hide();
@@ -297,30 +223,23 @@ let gFxAccounts = {
     openPreferences("paneSync");
   },
 
-  openAccountsPage: function (action, urlParams={}) {
-    // An entryPoint param is used for server-side metrics.  If the current tab
-    // is UITour, assume that it initiated the call to this method and override
-    // the entryPoint accordingly.
-    if (UITour.originTabs.get(window) &&
-        UITour.originTabs.get(window).has(gBrowser.selectedTab)) {
-      urlParams.entryPoint = "uitour";
+  openAccountsPage: function () {
+    let entryPoint = "menupanel";
+    if (UITour.originTabs.get(window) && UITour.originTabs.get(window).has(gBrowser.selectedTab)) {
+      entryPoint = "uitour";
     }
-    let params = new URLSearchParams();
-    if (action) {
-      params.set("action", action);
-    }
-    for (let name in urlParams) {
-      if (urlParams[name] !== undefined) {
-        params.set(name, urlParams[name]);
-      }
-    }
-    let url = "about:accounts?" + params;
-    switchToTabHavingURI(url, true, {
+    switchToTabHavingURI("about:accounts?entrypoint=" + entryPoint, true, {
       replaceQueryString: true
     });
   },
 
-  openSignInAgainPage: function (entryPoint) {
-    this.openAccountsPage("reauth", { entryPoint: entryPoint });
-  },
+  openSignInAgainPage: function () {
+    let entryPoint = "menupanel";
+    if (UITour.originTabs.get(window) && UITour.originTabs.get(window).has(gBrowser.selectedTab)) {
+      entryPoint = "uitour";
+    }
+    switchToTabHavingURI("about:accounts?action=reauth&entrypoint=" + entryPoint, true, {
+      replaceQueryString: true
+    });
+  }
 };

@@ -5,7 +5,7 @@
 "use strict";
 
 // Test that the computed view refreshes when the current node has its style
-// changed
+// changed, even if the view is not the active one
 
 const TESTCASE_URI = 'data:text/html;charset=utf-8,' +
                      '<div id="testdiv" style="font-size:10px;">Test div!</div>';
@@ -20,13 +20,18 @@ let test = asyncTest(function*() {
   let fontSize = getComputedViewPropertyValue(view, "font-size");
   is(fontSize, "10px", "The computed view shows the right font-size");
 
+  info("Now switching to the rule view");
+  yield openRuleView();
+
   info("Changing the node's style and waiting for the update");
   let onUpdated = inspector.once("computed-view-refreshed");
-  getNode("#testdiv").style.cssText = "font-size: 15px; color: red;";
+  getNode("#testdiv").style.cssText = "font-size: 20px; color: blue; text-align: center";
   yield onUpdated;
 
   fontSize = getComputedViewPropertyValue(view, "font-size");
-  is(fontSize, "15px", "The computed view shows the updated font-size");
+  is(fontSize, "20px", "The computed view shows the updated font-size");
   let color = getComputedViewPropertyValue(view, "color");
-  is(color, "#F00", "The computed view also shows the color now");
+  is(color, "#00F", "The computed view also shows the color now");
+  let textAlign = getComputedViewPropertyValue(view, "text-align");
+  is(textAlign, "center", "The computed view also shows the text-align now");
 });

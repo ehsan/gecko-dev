@@ -8,7 +8,7 @@ describe("loop.conversationViews", function () {
 
   var sharedUtils = loop.shared.utils;
   var sandbox, oldTitle, view, dispatcher, contact, fakeAudioXHR;
-  var fakeMozLoop, fakeWindow;
+  var fakeMozLoop;
 
   var CALL_STATES = loop.store.CALL_STATES;
 
@@ -58,17 +58,9 @@ describe("loop.conversationViews", function () {
         callback(null, new Blob([new ArrayBuffer(10)], {type: "audio/ogg"}));
       })
     };
-
-    fakeWindow = {
-      navigator: { mozLoop: fakeMozLoop },
-      close: sandbox.stub(),
-    };
-    loop.shared.mixins.setRootObject(fakeWindow);
-
   });
 
   afterEach(function() {
-    loop.shared.mixins.setRootObject(window);
     document.title = oldTitle;
     view = undefined;
     delete navigator.mozLoop;
@@ -324,11 +316,12 @@ describe("loop.conversationViews", function () {
 
     it("should close the conversation window once the email link is received",
       function() {
+        sandbox.stub(window, "close");
         view = mountTestComponent();
 
         store.setStoreState({emailLink: "http://fake.invalid/"});
 
-        sinon.assert.calledOnce(fakeWindow.close);
+        sinon.assert.calledOnce(window.close);
       });
 
     it("should display an error message in case email link retrieval failed",

@@ -1629,7 +1629,6 @@ nsNavBookmarks::ResultNodeForContainer(int64_t aItemId,
   (*aNode)->mDateAdded = bookmark.dateAdded;
   (*aNode)->mLastModified = bookmark.lastModified;
   (*aNode)->mBookmarkGuid = bookmark.guid;
-  (*aNode)->GetAsFolder()->mTargetFolderGuid = bookmark.guid;
 
   NS_ADDREF(*aNode);
   return NS_OK;
@@ -1736,10 +1735,6 @@ nsNavBookmarks::ProcessFolderNodeRow(
 
     node = new nsNavHistoryFolderResultNode(title, aOptions, id);
 
-    rv = aRow->GetUTF8String(kGetChildrenIndex_Guid, node->mBookmarkGuid);
-    NS_ENSURE_SUCCESS(rv, rv);
-    node->GetAsFolder()->mTargetFolderGuid = node->mBookmarkGuid;
-
     rv = aRow->GetInt64(nsNavHistory::kGetInfoIndex_ItemDateAdded,
                         reinterpret_cast<int64_t*>(&node->mDateAdded));
     NS_ENSURE_SUCCESS(rv, rv);
@@ -1755,8 +1750,6 @@ nsNavBookmarks::ProcessFolderNodeRow(
     node = new nsNavHistorySeparatorResultNode();
 
     node->mItemId = id;
-    rv = aRow->GetUTF8String(kGetChildrenIndex_Guid, node->mBookmarkGuid);
-    NS_ENSURE_SUCCESS(rv, rv);
     rv = aRow->GetInt64(nsNavHistory::kGetInfoIndex_ItemDateAdded,
                         reinterpret_cast<int64_t*>(&node->mDateAdded));
     NS_ENSURE_SUCCESS(rv, rv);
@@ -1769,7 +1762,11 @@ nsNavBookmarks::ProcessFolderNodeRow(
   // moz_bookmarks.position.
   node->mBookmarkIndex = aCurrentIndex;
 
+  rv = aRow->GetUTF8String(kGetChildrenIndex_Guid, node->mBookmarkGuid);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   NS_ENSURE_TRUE(aChildren->AppendObject(node), NS_ERROR_OUT_OF_MEMORY);
+
   return NS_OK;
 }
 

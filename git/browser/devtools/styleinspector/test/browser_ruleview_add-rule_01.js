@@ -26,7 +26,7 @@ const TEST_DATA = [
   { node: "p", expected: "p" }
 ];
 
-add_task(function*() {
+let test = asyncTest(function*() {
   yield addTab("data:text/html;charset=utf-8,test rule view add rule");
 
   info("Creating the test document");

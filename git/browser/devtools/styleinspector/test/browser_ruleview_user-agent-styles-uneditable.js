@@ -15,7 +15,7 @@ const TEST_URI = "data:text/html;charset=utf-8," +
   " </pre>" +
   "</blockquote>";
 
-add_task(function*() {
+let test = asyncTest(function*() {
   info ("Starting the test with the pref set to true before toolbox is opened");
   Services.prefs.setBoolPref(PREF_UA_STYLES, true);
 

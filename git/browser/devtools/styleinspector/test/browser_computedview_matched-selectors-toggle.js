@@ -22,7 +22,7 @@ const TEST_URL = "data:text/html;charset=utf-8," + encodeURIComponent([
   '</html>'
 ].join("\n"));
 
-add_task(function*() {
+let test = asyncTest(function*() {
   yield addTab(TEST_URL);
   let {toolbox, inspector, view} = yield openComputedView();
 
