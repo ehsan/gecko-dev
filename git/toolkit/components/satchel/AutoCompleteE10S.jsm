@@ -82,10 +82,8 @@ this.AutoCompleteE10S = {
     this.popup.hidden = false;
     this.popup.setAttribute("width", message.data.width);
 
-    let rect = message.data;
-    let {x, y} = this.browser.mapScreenCoordinatesFromContent(rect.left, rect.top + rect.height);
-    this.x = x;
-    this.y = y;
+    this.x = message.data.left;
+    this.y = message.data.top + message.data.height;
 
     let formAutoComplete = Cc["@mozilla.org/satchel/form-autocomplete;1"]
                              .getService(Ci.nsIFormAutoComplete);
@@ -119,7 +117,7 @@ this.AutoCompleteE10S = {
     this.popup.invalidate();
 
     if (count > 0) {
-      this.popup.openPopupAtScreen(this.x, this.y, true);
+      this.popup.openPopup(this.browser, "overlap", this.x, this.y, true, true);
       // Bug 947503 - This openPopup call is not triggering the "popupshowing"
       // event, which autocomplete.xml uses to track the openness of the popup
       // by setting its mPopupOpen flag. This flag needs to be properly set

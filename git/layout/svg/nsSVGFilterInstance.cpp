@@ -301,23 +301,14 @@ nsSVGFilterInstance::GetInputsAreTainted(const nsTArray<FilterPrimitiveDescripti
   }
 }
 
-static int32_t
-GetLastResultIndex(const nsTArray<FilterPrimitiveDescription>& aPrimitiveDescrs)
-{
-  uint32_t numPrimitiveDescrs = aPrimitiveDescrs.Length();
-  return !numPrimitiveDescrs ?
-    FilterPrimitiveDescription::kPrimitiveIndexSourceGraphic :
-    numPrimitiveDescrs - 1;
-}
-
-nsresult
-nsSVGFilterInstance::GetSourceIndices(nsSVGFE* aPrimitiveElement,
-                                      const nsTArray<FilterPrimitiveDescription>& aPrimitiveDescrs,
-                                      const nsDataHashtable<nsStringHashKey, int32_t>& aImageTable,
-                                      nsTArray<int32_t>& aSourceIndices)
+static nsresult
+GetSourceIndices(nsSVGFE* aFilterElement,
+                 int32_t aCurrentIndex,
+                 const nsDataHashtable<nsStringHashKey, int32_t>& aImageTable,
+                 nsTArray<int32_t>& aSourceIndices)
 {
   nsAutoTArray<nsSVGStringInfo,2> sources;
-  aPrimitiveElement->GetSourceImageNames(sources);
+  aFilterElement->GetSourceImageNames(sources);
 
   for (uint32_t j = 0; j < sources.Length(); j++) {
     nsAutoString str;
@@ -325,7 +316,7 @@ nsSVGFilterInstance::GetSourceIndices(nsSVGFE* aPrimitiveElement,
 
     int32_t sourceIndex = 0;
     if (str.EqualsLiteral("SourceGraphic")) {
-      sourceIndex = mSourceGraphicIndex;
+      sourceIndex = FilterPrimitiveDescription::kPrimitiveIndexSourceGraphic;
     } else if (str.EqualsLiteral("SourceAlpha")) {
       sourceIndex = FilterPrimitiveDescription::kPrimitiveIndexSourceAlpha;
     } else if (str.EqualsLiteral("FillPaint")) {
@@ -336,13 +327,16 @@ nsSVGFilterInstance::GetSourceIndices(nsSVGFE* aPrimitiveElement,
                str.EqualsLiteral("BackgroundAlpha")) {
       return NS_ERROR_NOT_IMPLEMENTED;
     } else if (str.EqualsLiteral("")) {
-      sourceIndex = GetLastResultIndex(aPrimitiveDescrs);
+      sourceIndex = aCurrentIndex == 0 ?
+        FilterPrimitiveDescription::kPrimitiveIndexSourceGraphic :
+        aCurrentIndex - 1;
     } else {
       bool inputExists = aImageTable.Get(str, &sourceIndex);
       if (!inputExists)
         return NS_ERROR_FAILURE;
     }
 
+    MOZ_ASSERT(sourceIndex < aCurrentIndex);
     aSourceIndices.AppendElement(sourceIndex);
   }
   return NS_OK;
@@ -352,9 +346,6 @@ nsresult
 nsSVGFilterInstance::BuildPrimitives(nsTArray<FilterPrimitiveDescription>& aPrimitiveDescrs,
                                      nsTArray<mozilla::RefPtr<SourceSurface>>& aInputImages)
 {
-  mSourceGraphicIndex = GetLastResultIndex(aPrimitiveDescrs);
-
-  // Get the filter primitive elements.
   nsTArray<nsRefPtr<nsSVGFE> > primitives;
   for (nsIContent* child = mFilterElement->nsINode::GetFirstChild();
        child;
@@ -372,13 +363,11 @@ nsSVGFilterInstance::BuildPrimitives(nsTArray<FilterPrimitiveDescription>& aPrim
   // The principal that we check principals of any loaded images against.
   nsCOMPtr<nsIPrincipal> principal = mTargetFrame->GetContent()->NodePrincipal();
 
-  for (uint32_t primitiveElementIndex = 0;
-       primitiveElementIndex < primitives.Length();
-       ++primitiveElementIndex) {
-    nsSVGFE* filter = primitives[primitiveElementIndex];
+  for (uint32_t i = 0; i < primitives.Length(); ++i) {
+    nsSVGFE* filter = primitives[i];
 
     nsAutoTArray<int32_t,2> sourceIndices;
-    nsresult rv = GetSourceIndices(filter, aPrimitiveDescrs, imageTable, sourceIndices);
+    nsresult rv = GetSourceIndices(filter, i, imageTable, sourceIndices);
     if (NS_FAILED(rv)) {
       return rv;
     }
@@ -395,14 +384,14 @@ nsSVGFilterInstance::BuildPrimitives(nsTArray<FilterPrimitiveDescription>& aPrim
     descr.SetIsTainted(filter->OutputIsTainted(sourcesAreTainted, principal));
     descr.SetPrimitiveSubregion(primitiveSubregion);
 
-    for (uint32_t i = 0; i < sourceIndices.Length(); i++) {
-      int32_t inputIndex = sourceIndices[i];
-      descr.SetInputPrimitive(i, inputIndex);
+    for (uint32_t j = 0; j < sourceIndices.Length(); j++) {
+      int32_t inputIndex = sourceIndices[j];
+      descr.SetInputPrimitive(j, inputIndex);
       ColorSpace inputColorSpace =
         inputIndex < 0 ? SRGB : aPrimitiveDescrs[inputIndex].OutputColorSpace();
-      ColorSpace desiredInputColorSpace = filter->GetInputColorSpace(i, inputColorSpace);
-      descr.SetInputColorSpace(i, desiredInputColorSpace);
-      if (i == 0) {
+      ColorSpace desiredInputColorSpace = filter->GetInputColorSpace(j, inputColorSpace);
+      descr.SetInputColorSpace(j, desiredInputColorSpace);
+      if (j == 0) {
         // the output color space is whatever in1 is if there is an in1
         descr.SetOutputColorSpace(desiredInputColorSpace);
       }
@@ -413,11 +402,10 @@ nsSVGFilterInstance::BuildPrimitives(nsTArray<FilterPrimitiveDescription>& aPrim
     }
 
     aPrimitiveDescrs.AppendElement(descr);
-    uint32_t primitiveDescrIndex = aPrimitiveDescrs.Length() - 1;
 
     nsAutoString str;
     filter->GetResultImageName().GetAnimValue(str, filter);
-    imageTable.Put(str, primitiveDescrIndex);
+    imageTable.Put(str, i);
   }
 
   return NS_OK;

@@ -560,18 +560,18 @@ var shell = {
     }
   },
 
-  // Send an event to a specific window, document or element.
-  sendEvent: function shell_sendEvent(target, type, details) {
-    let doc = target.document || target.ownerDocument || target;
-    let event = doc.createEvent('CustomEvent');
+  sendEvent: function shell_sendEvent(content, type, details) {
+    let event = content.document.createEvent('CustomEvent');
     event.initCustomEvent(type, true, true, details ? details : {});
-    target.dispatchEvent(event);
+    content.dispatchEvent(event);
   },
 
   sendCustomEvent: function shell_sendCustomEvent(type, details) {
-    let target = getContentWindow();
-    let payload = details ? Cu.cloneInto(details, target) : {};
-    this.sendEvent(target, type, payload);
+    let content = getContentWindow();
+    let event = content.document.createEvent('CustomEvent');
+    let payload = details ? Cu.cloneInto(details, content) : {};
+    event.initCustomEvent(type, true, true, payload);
+    content.dispatchEvent(event);
   },
 
   sendChromeEvent: function shell_sendChromeEvent(details) {

@@ -22,8 +22,7 @@ this.SelectParentHelper = {
     this._registerListeners(popup);
     popup.hidden = false;
 
-    let {x, y} = browser.mapScreenCoordinatesFromContent(rect.left, rect.top + rect.height);
-    popup.openPopupAtScreen(x, y);
+    popup.openPopup(currentBrowser, "overlap", rect.left, rect.top + rect.height);
   },
 
   hide: function(popup) {
