@@ -123,22 +123,6 @@ function test() {
                      browser1.contentWindow, null, true,
                      "focusedWindow after tab switch from no focus to no focus");
 
-    gURLBar.focus();
-    _browser_tabfocus_test_events = "";
-    _browser_tabfocus_test_lastfocus = gURLBar;
-    _browser_tabfocus_test_lastfocuswindow = window;
-
-    expectFocusShift(function () EventUtils.synthesizeKey("VK_F6", { }),
-                     browser1.contentWindow, browser1.contentDocument.documentElement,
-                     true, "switch document forward with f6");
-    EventUtils.synthesizeKey("VK_F6", { });
-    is(fm.focusedWindow, window, "switch document forward again with f6");
-
-    browser1.style.MozUserFocus = "ignore";
-    browser1.clientWidth;
-    EventUtils.synthesizeKey("VK_F6", { });
-    is(fm.focusedWindow, window, "switch document forward again with f6 when browser non-focusable");
-
     window.addEventListener("focus", _browser_tabfocus_test_eventOccured, true);
     window.addEventListener("blur", _browser_tabfocus_test_eventOccured, true);
 
@@ -223,7 +207,7 @@ function expectFocusShift(callback, expectedWindow, expectedElement, focusChange
                         "focus: " + windowid + "-window";
     }
 
-    if (expectedElement && expectedElement != expectedElement.ownerDocument.documentElement) {
+    if (expectedElement) {
       if (expectedEvents)
         expectedEvents += " ";
       expectedEvents += "focus: " + getId(expectedElement);

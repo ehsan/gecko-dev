@@ -307,7 +307,6 @@ OMNIJAR_FILES	= \
   res \
   defaults \
   greprefs.js \
-  jsloader \
   $(NULL)
 
 NON_OMNIJAR_FILES += \

@@ -418,7 +418,6 @@ let UI = {
     gTabViewFrame.style.marginTop = "";
 #endif
     gTabViewDeck.selectedIndex = 1;
-    gWindow.TabsInTitlebar.allowedBy("tabview-open", false);
     gTabViewFrame.contentWindow.focus();
 
     gBrowser.updateTitlebar();
@@ -485,7 +484,6 @@ let UI = {
     gTabViewFrame.style.marginTop = gBrowser.boxObject.y + "px";
 #endif
     gTabViewDeck.selectedIndex = 0;
-    gWindow.TabsInTitlebar.allowedBy("tabview-open", true);
     gBrowser.contentWindow.focus();
 
     gBrowser.updateTitlebar();

@@ -63,7 +63,6 @@ _MAIN_TEST_FILES = \
   browser_bug596336.js \
   browser_bug608316.js \
   browser_bug610764.js \
-  browser_bug618502.js \
   browser_details.js \
   browser_discovery.js \
   browser_dragdrop.js \
@@ -77,7 +76,6 @@ _MAIN_TEST_FILES = \
   browser_globalwarnings.js \
   browser_eula.js \
   browser_updateid.js \
-  browser_purchase.js \
   $(NULL)
 
 _TEST_FILES = \
@@ -100,7 +98,6 @@ _TEST_RESOURCES = \
   browser_install.xml \
   browser_install1_3.xpi \
   browser_eula.xml \
-  browser_purchase.xml \
   discovery.html \
   redirect.sjs \
   releaseNotes.xhtml \
