@@ -54,7 +54,6 @@ class DOMSVGLengthList;
 class DOMSVGNumberList;
 class DOMSVGPathSegList;
 class DOMSVGPointList;
-class DOMSVGTransformList;
 }
 class nsGlobalWindow;
 class nsIDOMDocument;
@@ -74,6 +73,7 @@ class nsIDOMWindow;
 class nsIForm;
 class nsIHTMLDocument;
 class nsNPAPIPluginInstance;
+class nsSVGTransformList;
 
 struct nsDOMClassInfoData;
 
@@ -1733,6 +1733,5 @@ typedef nsSVGListSH<nsIDOMSVGLengthList, mozilla::DOMSVGLengthList> nsSVGLengthL
 typedef nsSVGListSH<nsIDOMSVGNumberList, mozilla::DOMSVGNumberList> nsSVGNumberListSH;
 typedef nsSVGListSH<nsIDOMSVGPathSegList, mozilla::DOMSVGPathSegList> nsSVGPathSegListSH;
 typedef nsSVGListSH<nsIDOMSVGPointList, mozilla::DOMSVGPointList> nsSVGPointListSH;
-typedef nsSVGListSH<nsIDOMSVGTransformList, mozilla::DOMSVGTransformList> nsSVGTransformListSH;
 
 #endif /* nsDOMClassInfo_h___ */

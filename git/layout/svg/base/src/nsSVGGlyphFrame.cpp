@@ -639,11 +639,7 @@ nsSVGGlyphFrame::FillCharacters(CharacterIterator *aIter,
 gfxRect
 nsSVGGlyphFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace)
 {
-  if (mOverrideCanvasTM) {
-    *mOverrideCanvasTM = aToBBoxUserspace;
-  } else {
-    mOverrideCanvasTM = new gfxMatrix(aToBBoxUserspace);
-  }
+  mOverrideCanvasTM = NS_NewSVGMatrix(aToBBoxUserspace);
 
   nsRefPtr<gfxContext> tmpCtx = MakeTmpCtx();
   SetupGlobalTransform(tmpCtx);
@@ -664,7 +660,7 @@ gfxMatrix
 nsSVGGlyphFrame::GetCanvasTM()
 {
   if (mOverrideCanvasTM) {
-    return *mOverrideCanvasTM;
+    return nsSVGUtils::ConvertSVGMatrixToThebes(mOverrideCanvasTM);
   }
   NS_ASSERTION(mParent, "null parent");
   return static_cast<nsSVGContainerFrame*>(mParent)->GetCanvasTM();

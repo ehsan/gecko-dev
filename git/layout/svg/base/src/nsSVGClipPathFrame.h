@@ -49,6 +49,7 @@ class nsSVGClipPathFrame : public nsSVGClipPathFrameBase
 protected:
   nsSVGClipPathFrame(nsStyleContext* aContext) :
     nsSVGClipPathFrameBase(aContext),
+    mClipParentMatrix(nsnull),
     mInUse(PR_FALSE) {}
 
 public:
@@ -114,7 +115,7 @@ public:
   };
 
   nsIFrame *mClipParent;
-  nsAutoPtr<gfxMatrix> mClipParentMatrix;
+  nsCOMPtr<nsIDOMSVGMatrix> mClipParentMatrix;
   // recursion prevention flag
   PRPackedBool mInUse;
 

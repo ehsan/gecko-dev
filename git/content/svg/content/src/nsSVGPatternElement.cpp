@@ -36,7 +36,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "DOMSVGAnimatedTransformList.h"
+#include "nsSVGTransformList.h"
+#include "nsSVGAnimatedTransformList.h"
 #include "nsIDOMMutationEvent.h"
 #include "nsCOMPtr.h"
 #include "nsGkAtoms.h"
@@ -98,6 +99,41 @@ nsSVGPatternElement::nsSVGPatternElement(already_AddRefed<nsINodeInfo> aNodeInfo
 {
 }
 
+nsresult
+nsSVGPatternElement::CreateTransformList()
+{
+  nsresult rv;
+
+  // DOM property: transform, #IMPLIED attrib: transform
+  nsCOMPtr<nsIDOMSVGTransformList> transformList;
+  rv = nsSVGTransformList::Create(getter_AddRefs(transformList));
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = NS_NewSVGAnimatedTransformList(getter_AddRefs(mPatternTransform),
+                                      transformList);
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = AddMappedSVGValue(nsGkAtoms::patternTransform, mPatternTransform);
+  if (NS_FAILED(rv)) {
+    mPatternTransform = nsnull;
+    return rv;
+  }
+
+  return NS_OK;
+}
+
+nsresult
+nsSVGPatternElement::BeforeSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
+                                   const nsAString* aValue, PRBool aNotify)
+{
+  if (aNamespaceID == kNameSpaceID_None &&
+      aName == nsGkAtoms::patternTransform &&
+      !mPatternTransform &&
+      NS_FAILED(CreateTransformList()))
+    return NS_ERROR_OUT_OF_MEMORY;
+
+  return nsSVGPatternElementBase::BeforeSetAttr(aNamespaceID, aName,
+                                                aValue, aNotify);
+}
+
 //----------------------------------------------------------------------
 // nsIDOMNode method
 
@@ -138,9 +174,11 @@ NS_IMETHODIMP nsSVGPatternElement::GetPatternContentUnits(nsIDOMSVGAnimatedEnume
 /* readonly attribute nsIDOMSVGAnimatedTransformList patternTransform; */
 NS_IMETHODIMP nsSVGPatternElement::GetPatternTransform(nsIDOMSVGAnimatedTransformList * *aPatternTransform)
 {
-  *aPatternTransform =
-    DOMSVGAnimatedTransformList::GetDOMWrapper(GetAnimatedTransformList(), this)
-    .get();
+  if (!mPatternTransform && NS_FAILED(CreateTransformList()))
+    return NS_ERROR_OUT_OF_MEMORY;
+
+  *aPatternTransform = mPatternTransform;
+  NS_IF_ADDREF(*aPatternTransform);
   return NS_OK;
 }
 
@@ -203,13 +241,16 @@ nsSVGPatternElement::IsAttributeMapped(const nsIAtom* name) const
 //----------------------------------------------------------------------
 // nsSVGElement methods
 
-SVGAnimatedTransformList*
-nsSVGPatternElement::GetAnimatedTransformList()
+void
+nsSVGPatternElement::DidAnimateTransform()
 {
-  if (!mPatternTransform) {
-    mPatternTransform = new SVGAnimatedTransformList();
+  nsIFrame* frame = GetPrimaryFrame();
+  
+  if (frame) {
+    frame->AttributeChanged(kNameSpaceID_None,
+                            nsGkAtoms::patternTransform,
+                            nsIDOMMutationEvent::MODIFICATION);
   }
-  return mPatternTransform;
 }
 
 nsSVGElement::LengthAttributesInfo

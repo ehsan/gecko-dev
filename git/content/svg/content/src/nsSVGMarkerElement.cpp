@@ -38,6 +38,7 @@
 #include "nsCOMPtr.h"
 #include "nsISVGValueUtils.h"
 #include "SVGAnimatedPreserveAspectRatio.h"
+#include "nsSVGMatrix.h"
 #include "nsDOMError.h"
 #include "nsSVGUtils.h"
 #include "nsSVGMarkerElement.h"
@@ -397,10 +398,10 @@ nsSVGMarkerElement::GetViewBoxTransform()
 
     gfxMatrix TM = viewBoxTM * gfxMatrix().Translate(gfxPoint(-ref.x, -ref.y));
 
-    mViewBoxToViewportTransform = new gfxMatrix(TM);
+    mViewBoxToViewportTransform = NS_NewSVGMatrix(TM);
   }
 
-  return *mViewBoxToViewportTransform;
+  return nsSVGUtils::ConvertSVGMatrixToThebes(mViewBoxToViewportTransform);
 }
 
 

@@ -52,6 +52,7 @@ class nsSVGMaskFrame : public nsSVGMaskFrameBase
 protected:
   nsSVGMaskFrame(nsStyleContext* aContext) :
     nsSVGMaskFrameBase(aContext),
+    mMaskParentMatrix(nsnull),
     mInUse(PR_FALSE) {}
 
 public:
@@ -108,7 +109,7 @@ private:
   };
 
   nsIFrame *mMaskParent;
-  nsAutoPtr<gfxMatrix> mMaskParentMatrix;
+  nsCOMPtr<nsIDOMSVGMatrix> mMaskParentMatrix;
   // recursion prevention flag
   PRPackedBool mInUse;
 

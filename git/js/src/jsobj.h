@@ -380,7 +380,6 @@ extern Class XMLFilterClass;
 class ArgumentsObject;
 class GlobalObject;
 class NormalArgumentsObject;
-class NumberObject;
 class StrictArgumentsObject;
 class StringObject;
 
@@ -1053,7 +1052,6 @@ struct JSObject : js::gc::Cell {
     }
 
   public:
-    inline js::NumberObject *asNumber();
     inline js::StringObject *asString();
 
     /*

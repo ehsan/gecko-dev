@@ -42,6 +42,8 @@
 #include "nsSVGEnum.h"
 #include "nsIDOMSVGTransform.h"
 #include "nsIDOMSVGTransformable.h"
+#include "nsSVGAnimatedTransformList.h"
+#include "nsSVGTransformSMILAttr.h"
 #include "nsSMILAnimationFunction.h"
 
 typedef nsSVGAnimationElement nsSVGAnimateTransformElementBase;

@@ -39,8 +39,10 @@
 #include "nsSVGContainerFrame.h"
 #include "nsSVGMaskElement.h"
 #include "nsSVGEffects.h"
+#include "nsIDOMSVGMatrix.h"
 #include "gfxContext.h"
 #include "gfxImageSurface.h"
+#include "nsSVGMatrix.h"
 
 //----------------------------------------------------------------------
 // Implementation
@@ -116,11 +118,7 @@ nsSVGMaskFrame::ComputeMaskAlpha(nsSVGRenderState *aContext,
   nsSVGRenderState tmpState(image);
 
   mMaskParent = aParent;
-  if (mMaskParentMatrix) {
-    *mMaskParentMatrix = aMatrix;
-  } else {
-    mMaskParentMatrix = new gfxMatrix(aMatrix);
-  }
+  mMaskParentMatrix = NS_NewSVGMatrix(aMatrix);
 
   for (nsIFrame* kid = mFrames.FirstChild(); kid;
        kid = kid->GetNextSibling()) {
@@ -205,9 +203,8 @@ nsSVGMaskFrame::GetCanvasTM()
 
   nsSVGMaskElement *mask = static_cast<nsSVGMaskElement*>(mContent);
 
-  return nsSVGUtils::AdjustMatrixForUnits(
-    mMaskParentMatrix ? *mMaskParentMatrix : gfxMatrix(),
-    &mask->mEnumAttributes[nsSVGMaskElement::MASKCONTENTUNITS],
-    mMaskParent);
+  return nsSVGUtils::AdjustMatrixForUnits(nsSVGUtils::ConvertSVGMatrixToThebes(mMaskParentMatrix),
+                                          &mask->mEnumAttributes[nsSVGMaskElement::MASKCONTENTUNITS],
+                                          mMaskParent);
 }
 
