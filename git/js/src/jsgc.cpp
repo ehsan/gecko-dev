@@ -2306,7 +2306,7 @@ MarkRuntime(JSTracer *trc, bool useSavedRoots = false)
         if (rt->profilingScripts) {
             for (CellIterUnderGC i(c, FINALIZE_SCRIPT); !i.done(); i.next()) {
                 JSScript *script = i.get<JSScript>();
-                if (script->scriptCounts) {
+                if (script->hasScriptCounts) {
                     MarkScriptRoot(trc, &script, "profilingScripts");
                     JS_ASSERT(script == i.get<JSScript>());
                 }
@@ -4414,7 +4414,7 @@ MaybeVerifyBarriers(JSContext *cx, bool always)
 static void ReleaseAllJITCode(FreeOp *fop)
 {
 #ifdef JS_METHODJIT
-    for (GCCompartmentsIter c(fop->runtime()); !c.done(); c.next()) {
+    for (CompartmentsIter c(fop->runtime()); !c.done(); c.next()) {
         mjit::ClearAllFrames(c);
         for (CellIter i(c, FINALIZE_SCRIPT); !i.done(); i.next()) {
             JSScript *script = i.get<JSScript>();
@@ -4494,15 +4494,15 @@ StopPCCountProfiling(JSContext *cx)
     if (!vec)
         return;
 
-    for (GCCompartmentsIter c(rt); !c.done(); c.next()) {
+    for (CompartmentsIter c(rt); !c.done(); c.next()) {
         for (CellIter i(c, FINALIZE_SCRIPT); !i.done(); i.next()) {
             JSScript *script = i.get<JSScript>();
-            if (script->scriptCounts && script->types) {
-                ScriptAndCounts info;
-                info.script = script;
-                info.scriptCounts.steal(script->scriptCounts);
-                if (!vec->append(info))
-                    info.scriptCounts.destroy(rt->defaultFreeOp());
+            if (script->hasScriptCounts && script->types) {
+                ScriptAndCounts sac;
+                sac.script = script;
+                sac.scriptCounts.set(script->releaseScriptCounts());
+                if (!vec->append(sac))
+                    sac.scriptCounts.destroy(rt->defaultFreeOp());
             }
         }
     }

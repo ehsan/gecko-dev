@@ -12,7 +12,7 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/DOMRequestHelper.jsm");
 
-const DEBUG = true; // set to false to suppress debug messages
+const DEBUG = false; // set to false to suppress debug messages
 
 const DOMWIFIMANAGER_CONTRACTID = "@mozilla.org/wifimanager;1";
 const DOMWIFIMANAGER_CID        = Components.ID("{2cf775a7-1837-410c-9e26-323c42e076da}");
@@ -126,12 +126,12 @@ DOMWifiManager.prototype = {
         break;
 
       case "WifiManager:forget:Return:OK":
-        request = this._takeRequest(msg.rid);
+        request = this.takeRequest(msg.rid);
         Services.DOMRequest.fireSuccess(request, true);
         break;
 
       case "WifiManager:forget:Return:NO":
-        request = this._takeRequest(msg.rid);
+        request = this.takeRequest(msg.rid);
         Services.DOMRequest.fireError(request, msg.data);
         break;
 
@@ -221,7 +221,7 @@ DOMWifiManager.prototype = {
   forget: function nsIDOMWifiManager_forget(network) {
     if (!this._hasPrivileges)
       throw new Components.Exception("Denied", Cr.NS_ERROR_FAILURE);
-    var request = Services.DOMRequest.createRequest(this._window);
+    var request = this.createRequest();
     this._sendMessageForRequest("WifiManager:forget", network, request);
     return request;
   },
