@@ -43,7 +43,6 @@
 #include "nsIObserver.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsServiceManagerUtils.h"
-#include "nsStyleSheetService.h"
 #include "nsXULAppAPI.h"
 #include "nsWeakReference.h"
 #include "nsIScriptError.h"
@@ -1321,38 +1320,6 @@ ContentChild::RecvCancelMinimizeMemoryUsage()
     if (runnable) {
         runnable->Cancel();
         mMemoryMinimizerRunnable = nullptr;
-    }
-
-    return true;
-}
-
-bool
-ContentChild::RecvLoadAndRegisterSheet(const URIParams& aURI, const uint32_t& aType)
-{
-    nsCOMPtr<nsIURI> uri = DeserializeURI(aURI);
-    if (!uri) {
-        return true;
-    }
-
-    nsStyleSheetService *sheetService = nsStyleSheetService::GetInstance();
-    if (sheetService) {
-        sheetService->LoadAndRegisterSheet(uri, aType);
-    }
-
-    return true;
-}
-
-bool
-ContentChild::RecvUnregisterSheet(const URIParams& aURI, const uint32_t& aType)
-{
-    nsCOMPtr<nsIURI> uri = DeserializeURI(aURI);
-    if (!uri) {
-        return true;
-    }
-
-    nsStyleSheetService *sheetService = nsStyleSheetService::GetInstance();
-    if (sheetService) {
-        sheetService->UnregisterSheet(uri, aType);
     }
 
     return true;

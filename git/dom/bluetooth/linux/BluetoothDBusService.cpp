@@ -722,16 +722,13 @@ static bool
 UnpackPropertiesMessage(DBusMessage* aMsg, DBusError* aErr,
                         BluetoothValue& aValue, const char* aIface)
 {
-  MOZ_ASSERT(aMsg);
-
   Properties* propertyTypes;
   int propertyTypesLength;
 
   nsAutoString errorStr;
   if (IsDBusMessageError(aMsg, aErr, errorStr) ||
       dbus_message_get_type(aMsg) != DBUS_MESSAGE_TYPE_METHOD_RETURN) {
-    BT_WARNING("dbus message has an error.");
-    return false;
+    return true;
   }
 
   DBusMessageIter iter;
@@ -800,13 +797,19 @@ GetPropertiesInternal(const nsAString& aPath,
                                             aIface,
                                             "GetProperties",
                                             DBUS_TYPE_INVALID);
-  NS_ENSURE_TRUE(msg, false);
 
   bool success = UnpackPropertiesMessage(msg, &err, aValue, aIface);
 
-  dbus_message_unref(msg);
+  if (msg) {
+    dbus_message_unref(msg);
+  }
 
-  return success;
+  if (!success) {
+    BT_WARNING("Failed to get device properties");
+    return false;
+  }
+
+  return true;
 }
 
 class AppendDeviceNameReplyHandler: public DBusReplyHandler
@@ -1617,13 +1620,18 @@ GetDefaultAdapterPath(BluetoothValue& aValue, nsString& aError)
                                             DBUS_MANAGER_IFACE,
                                             "DefaultAdapter",
                                             DBUS_TYPE_INVALID);
-  NS_ENSURE_TRUE(msg, false);
 
   UnpackObjectPathMessage(msg, &err, aValue, aError);
 
-  dbus_message_unref(msg);
+  if (msg) {
+    dbus_message_unref(msg);
+  }
 
-  return aError.IsEmpty();
+  if (!aError.IsEmpty()) {
+    return false;
+  }
+
+  return true;
 }
 
 bool
@@ -2076,9 +2084,9 @@ public:
         GetObjectPathFromAddress(sAdapterPath, mDeviceAddresses[i]);
 
       if (!GetPropertiesInternal(objectPath, DBUS_DEVICE_IFACE, v)) {
-        // The target device may have been removed, so continue checking the
-        // next device object.
-        continue;
+        errorStr.AssignLiteral("Getting properties failed!");
+        DispatchBluetoothReply(mRunnable, values, errorStr);
+        return NS_OK;
       }
 
       // We have to manually attach the path to the rest of the elements

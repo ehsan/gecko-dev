@@ -7,7 +7,7 @@
 #include "WorkerScope.h"
 
 #include "jsapi.h"
-#include "js/OldDebugAPI.h"
+#include "jsdbgapi.h"
 #include "mozilla/Util.h"
 #include "mozilla/dom/DOMJSClass.h"
 #include "mozilla/dom/EventTargetBinding.h"

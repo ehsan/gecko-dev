@@ -4,20 +4,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef js_OldDebugAPI_h
-#define js_OldDebugAPI_h
+#ifndef jsdbgapi_h
+#define jsdbgapi_h
 
 /*
  * JS debugger API.
  */
 
+#include "jsapi.h"
 #include "jsbytecode.h"
 
-#include "js/CallArgs.h"
-#include "js/IdForward.h"
-
 class JSAtom;
-class JSFreeOp;
 
 namespace js { class StackFrame; }
 
@@ -48,7 +45,7 @@ FormatStackDump(JSContext *cx, char *buf, bool showArgs, bool showLocals, bool s
 }
 
 # ifdef DEBUG
-JS_FRIEND_API(void) js_DumpValue(const JS::Value &val);
+JS_FRIEND_API(void) js_DumpValue(const js::Value &val);
 JS_FRIEND_API(void) js_DumpId(jsid id);
 JS_FRIEND_API(void) js_DumpStackFrame(JSContext *cx, js::StackFrame *start = NULL);
 # endif
@@ -65,24 +62,24 @@ typedef enum JSTrapStatus {
 } JSTrapStatus;
 
 typedef JSTrapStatus
-(* JSTrapHandler)(JSContext *cx, JSScript *script, jsbytecode *pc, JS::Value *rval,
-                  JS::Value closure);
+(* JSTrapHandler)(JSContext *cx, JSScript *script, jsbytecode *pc, jsval *rval,
+                  jsval closure);
 
 typedef JSTrapStatus
-(* JSInterruptHook)(JSContext *cx, JSScript *script, jsbytecode *pc, JS::Value *rval,
+(* JSInterruptHook)(JSContext *cx, JSScript *script, jsbytecode *pc, jsval *rval,
                     void *closure);
 
 typedef JSTrapStatus
-(* JSDebuggerHandler)(JSContext *cx, JSScript *script, jsbytecode *pc, JS::Value *rval,
+(* JSDebuggerHandler)(JSContext *cx, JSScript *script, jsbytecode *pc, jsval *rval,
                       void *closure);
 
 typedef JSTrapStatus
-(* JSThrowHook)(JSContext *cx, JSScript *script, jsbytecode *pc, JS::Value *rval,
+(* JSThrowHook)(JSContext *cx, JSScript *script, jsbytecode *pc, jsval *rval,
                 void *closure);
 
 typedef bool
-(* JSWatchPointHandler)(JSContext *cx, JSObject *obj, jsid id, JS::Value old,
-                        JS::Value *newp, void *closure);
+(* JSWatchPointHandler)(JSContext *cx, JSObject *obj, jsid id, jsval old,
+                        jsval *newp, void *closure);
 
 /* called just after script creation */
 typedef void
@@ -160,11 +157,11 @@ JS_SetSingleStepMode(JSContext *cx, JSScript *script, bool singleStep);
 /* The closure argument will be marked. */
 extern JS_PUBLIC_API(bool)
 JS_SetTrap(JSContext *cx, JSScript *script, jsbytecode *pc,
-           JSTrapHandler handler, JS::Value closure);
+           JSTrapHandler handler, jsval closure);
 
 extern JS_PUBLIC_API(void)
 JS_ClearTrap(JSContext *cx, JSScript *script, jsbytecode *pc,
-             JSTrapHandler *handlerp, JS::Value *closurep);
+             JSTrapHandler *handlerp, jsval *closurep);
 
 extern JS_PUBLIC_API(void)
 JS_ClearScriptTraps(JSRuntime *rt, JSScript *script);
@@ -302,11 +299,11 @@ JS_SetDestroyScriptHook(JSRuntime *rt, JSDestroyScriptHook hook,
 /************************************************************************/
 
 typedef struct JSPropertyDesc {
-    JS::Value       id;         /* primary id, atomized string, or int */
-    JS::Value       value;      /* property value */
+    jsval           id;         /* primary id, atomized string, or int */
+    jsval           value;      /* property value */
     uint8_t         flags;      /* flags, see below */
     uint8_t         spare;      /* unused */
-    JS::Value       alias;      /* alias id if JSPD_ALIAS flag */
+    jsval           alias;      /* alias id if JSPD_ALIAS flag */
 } JSPropertyDesc;
 
 #define JSPD_ENUMERATE  0x01    /* visible to for/in loop */
@@ -516,4 +513,4 @@ CanCallContextDebugHandler(JSContext *cx);
 extern JS_FRIEND_API(bool)
 js_CallContextDebugHandler(JSContext *cx);
 
-#endif /* js_OldDebugAPI_h */
+#endif /* jsdbgapi_h */

@@ -183,35 +183,19 @@ ContentTypeFromPixelFormat(android::PixelFormat aFormat)
   return gfxASurface::ContentFromFormat(ImageFormatForPixelFormat(aFormat));
 }
 
-class GrallocReporter MOZ_FINAL : public MemoryReporterBase
-{
-  friend class GrallocBufferActor;
+static size_t sCurrentAlloc;
+static int64_t GetGrallocSize() { return sCurrentAlloc; }
 
-public:
-  GrallocReporter()
-    : MemoryReporterBase("gralloc", KIND_OTHER, UNITS_BYTES,
-"Special RAM that can be shared between processes and directly accessed by "
-"both the CPU and GPU.  Gralloc memory is usually a relatively precious "
-"resource, with much less available than generic RAM.  When it's exhausted, "
-"graphics performance can suffer. This value can be incorrect because of race "
-"conditions.")
-  {
-#ifdef DEBUG
-    // There must be only one instance of this class, due to |sAmount|
-    // being static.  Assert this.
-    static bool hasRun = false;
-    MOZ_ASSERT(!hasRun);
-    hasRun = true;
-#endif
-  }
-
-private:
-  int64_t Amount() MOZ_OVERRIDE { return sAmount; }
-
-  static int64_t sAmount;
-};
-
-int64_t GrallocReporter::sAmount = 0;
+NS_MEMORY_REPORTER_IMPLEMENT(GrallocBufferActor,
+  "gralloc",
+  KIND_OTHER,
+  UNITS_BYTES,
+  GetGrallocSize,
+  "Special RAM that can be shared between processes and directly "
+  "accessed by both the CPU and GPU.  Gralloc memory is usually a "
+  "relatively precious resource, with much less available than generic "
+  "RAM.  When it's exhausted, graphics performance can suffer. "
+  "This value can be incorrect because of race conditions.");
 
 GrallocBufferActor::GrallocBufferActor()
 : mAllocBytes(0)
@@ -223,7 +207,7 @@ GrallocBufferActor::GrallocBufferActor()
     // the main thread.
     NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
 
-    NS_RegisterMemoryReporter(new GrallocReporter());
+    NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(GrallocBufferActor));
     registered = true;
   }
 }
@@ -231,7 +215,7 @@ GrallocBufferActor::GrallocBufferActor()
 GrallocBufferActor::~GrallocBufferActor()
 {
   if (mAllocBytes > 0) {
-    GrallocReporter::sAmount -= mAllocBytes;
+    sCurrentAlloc -= mAllocBytes;
   }
 }
 
@@ -258,7 +242,7 @@ GrallocBufferActor::Create(const gfxIntSize& aSize,
 
   size_t bpp = BytesPerPixelForPixelFormat(format);
   actor->mAllocBytes = aSize.width * aSize.height * bpp;
-  GrallocReporter::sAmount += actor->mAllocBytes;
+  sCurrentAlloc += actor->mAllocBytes;
 
   actor->mGraphicBuffer = buffer;
   *aOutHandle = MagicGrallocBufferHandle(buffer);
