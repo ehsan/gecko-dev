@@ -24,16 +24,6 @@ static WindowsDllInterceptor sNtDllInterceptor;
 void AbortOnBadWrite(HANDLE);
 bool ValidWriteAssert(bool ok);
 
-typedef NTSTATUS (WINAPI* FlushBuffersFile_fn)(HANDLE, PIO_STATUS_BLOCK);
-FlushBuffersFile_fn gOriginalFlushBuffersFile;
-
-NTSTATUS WINAPI
-patched_FlushBuffersFile(HANDLE aFileHandle, PIO_STATUS_BLOCK aIoStatusBlock)
-{
-  AbortOnBadWrite(aFileHandle);
-  return gOriginalFlushBuffersFile(aFileHandle, aIoStatusBlock);
-}
-
 typedef NTSTATUS (WINAPI* WriteFile_fn)(HANDLE, HANDLE, PIO_APC_ROUTINE,
                                         void*, PIO_STATUS_BLOCK,
                                         const void*, ULONG, PLARGE_INTEGER,
@@ -49,6 +39,24 @@ patched_WriteFile(HANDLE aFile, HANDLE aEvent, PIO_APC_ROUTINE aApc,
   AbortOnBadWrite(aFile);
   return gOriginalWriteFile(aFile, aEvent, aApc, aApcUser, aIoStatus,
                             aBuffer, aLength, aOffset, aKey);
+}
+
+
+typedef NTSTATUS (WINAPI* WriteFileGather_fn)(HANDLE, HANDLE, PIO_APC_ROUTINE,
+                                              void*, PIO_STATUS_BLOCK,
+                                              FILE_SEGMENT_ELEMENT*,
+                                              ULONG, PLARGE_INTEGER, PULONG);
+WriteFileGather_fn gOriginalWriteFileGather;
+
+static NTSTATUS WINAPI
+patched_WriteFileGather(HANDLE aFile, HANDLE aEvent, PIO_APC_ROUTINE aApc,
+                        void* aApcUser, PIO_STATUS_BLOCK aIoStatus,
+                        FILE_SEGMENT_ELEMENT* aSegments, ULONG aLength,
+                        PLARGE_INTEGER aOffset, PULONG aKey)
+{
+  AbortOnBadWrite(aFile);
+  return gOriginalWriteFileGather(aFile, aEvent, aApc, aApcUser, aIoStatus,
+                                  aSegments, aLength, aOffset, aKey);
 }
 
 void AbortOnBadWrite(HANDLE aFile)
@@ -75,8 +83,8 @@ void PoisonWrite() {
     return;
 
   sNtDllInterceptor.Init("ntdll.dll");
-  sNtDllInterceptor.AddHook("NtFlushBuffersFile", reinterpret_cast<intptr_t>(patched_FlushBuffersFile), reinterpret_cast<void**>(&gOriginalFlushBuffersFile));
   sNtDllInterceptor.AddHook("NtWriteFile", reinterpret_cast<intptr_t>(patched_WriteFile), reinterpret_cast<void**>(&gOriginalWriteFile));
+  sNtDllInterceptor.AddHook("NtWriteFileGather", reinterpret_cast<intptr_t>(patched_WriteFileGather), reinterpret_cast<void**>(&gOriginalWriteFileGather));
 }
 }
 

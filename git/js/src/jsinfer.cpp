@@ -6025,7 +6025,6 @@ JSObject::makeLazyType(JSContext *cx, HandleObject obj)
     }
     Rooted<TaggedProto> proto(cx, obj->getTaggedProto());
     TypeObject *type = cx->compartment->types.newTypeObject(cx, obj->getClass(), proto);
-    AutoAssertNoGC nogc;
     if (!type) {
         if (cx->typeInferenceEnabled())
             cx->compartment->types.setPendingNukeTypes(cx);
@@ -6154,8 +6153,6 @@ JSCompartment::getNewType(JSContext *cx, Class *clasp, TaggedProto proto_, JSFun
 
     Rooted<TaggedProto> proto(cx, proto_);
     RootedFunction fun(cx, fun_);
-
-    AssertCanGC();
 
     if (proto.isObject() && !proto.toObject()->setDelegate(cx))
         return NULL;

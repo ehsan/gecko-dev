@@ -115,7 +115,6 @@ class PICStubCompiler : public BaseCompiler
   protected:
     void spew(const char *event, const char *op) {
 #ifdef JS_METHODJIT_SPEW
-        AutoAssertNoGC nogc;
         JaegerSpew(JSpew_PICs, "%s %s: %s (%s: %d)\n",
                    type, event, op, f.script()->filename, CurrentLine(cx));
 #endif
@@ -729,7 +728,6 @@ struct GetPropHelper {
     }
 
     LookupStatus testForGet() {
-        AutoAssertNoGC nogc;
         if (!shape->hasDefaultGetter()) {
             if (shape->hasGetterValue()) {
                 JSObject *getterObj = shape->getterObject();
@@ -896,8 +894,6 @@ class GetPropCompiler : public PICStubCompiler
 
     LookupStatus generateStringPropertyStub()
     {
-        AssertCanGC();
-
         if (!f.fp()->script()->compileAndGo)
             return disable("String.prototype without compile-and-go global");
 
@@ -1052,8 +1048,6 @@ class GetPropCompiler : public PICStubCompiler
     void generateGetterStub(Assembler &masm, RawShape shape, jsid userid,
                             Label start, Vector<Jump, 8> &shapeMismatches)
     {
-        AutoAssertNoGC nogc;
-
         /*
          * Getter hook needs to be called from the stub. The state is fully
          * synced and no registers are live except the result registers.
@@ -1164,9 +1158,7 @@ class GetPropCompiler : public PICStubCompiler
     void generateNativeGetterStub(Assembler &masm, RawShape shape,
                                   Label start, Vector<Jump, 8> &shapeMismatches)
     {
-        AutoAssertNoGC nogc;
-
-        /*
+       /*
          * Getter hook needs to be called from the stub. The state is fully
          * synced and no registers are live except the result registers.
          */
@@ -1256,7 +1248,6 @@ class GetPropCompiler : public PICStubCompiler
 
     LookupStatus generateStub(HandleObject holder, HandleShape shape)
     {
-        AssertCanGC();
         Vector<Jump, 8> shapeMismatches(cx);
 
         MJITInstrumentation sps(&f.cx->runtime->spsProfiler);
@@ -2171,7 +2162,6 @@ void
 BaseIC::spew(VMFrame &f, const char *event, const char *message)
 {
 #ifdef JS_METHODJIT_SPEW
-    AutoAssertNoGC nogc;
     JaegerSpew(JSpew_PICs, "%s %s: %s (%s: %d)\n",
                js_CodeName[JSOp(*f.pc())], event, message,
                f.cx->fp()->script()->filename, CurrentLine(f.cx));
@@ -2182,8 +2172,6 @@ BaseIC::spew(VMFrame &f, const char *event, const char *message)
 inline uint32_t
 frameCountersOffset(VMFrame &f)
 {
-    AutoAssertNoGC nogc;
-
     JSContext *cx = f.cx;
 
     uint32_t offset = 0;

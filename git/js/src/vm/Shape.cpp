@@ -97,7 +97,6 @@ Shape::makeOwnBaseShape(JSContext *cx)
 void
 Shape::handoffTableTo(RawShape shape)
 {
-    AutoAssertNoGC nogc;
     JS_ASSERT(inDictionary() && shape->inDictionary());
 
     if (this == shape)
@@ -118,7 +117,6 @@ Shape::handoffTableTo(RawShape shape)
 /* static */ bool
 Shape::hashify(JSContext *cx, Shape *shape)
 {
-    AutoAssertNoGC nogc;
     JS_ASSERT(!shape->hasTable());
 
     if (!shape->ensureOwnBaseShape(cx))
@@ -279,7 +277,6 @@ ShapeTable::grow(JSContext *cx)
 RawShape
 Shape::getChildBinding(JSContext *cx, const StackShape &child)
 {
-    AssertCanGC();
     JS_ASSERT(!inDictionary());
 
     /* Try to allocate all slots inline. */
@@ -482,7 +479,6 @@ JSObject::addPropertyInternal(JSContext *cx, HandleObject obj, HandleId id,
                               unsigned flags, int shortid, Shape **spp,
                               bool allowDictionary)
 {
-    AssertCanGC();
     JS_ASSERT_IF(!allowDictionary, !obj->inDictionaryMode());
 
     AutoRooterGetterSetter gsRoot(cx, attrs, &getter, &setter);
@@ -931,7 +927,6 @@ JSObject::rollbackProperties(JSContext *cx, uint32_t slotSpan)
 Shape *
 JSObject::replaceWithNewEquivalentShape(JSContext *cx, Shape *oldShape, Shape *newShape)
 {
-    AssertCanGC();
     JS_ASSERT(cx->compartment == oldShape->compartment());
     JS_ASSERT_IF(oldShape != lastProperty(),
                  inDictionaryMode() &&
@@ -1278,7 +1273,6 @@ EmptyShape::getInitialShape(JSContext *cx, Class *clasp, TaggedProto proto, JSOb
 void
 NewObjectCache::invalidateEntriesForShape(JSContext *cx, HandleShape shape, HandleObject proto)
 {
-    AssertCanGC();
     Class *clasp = shape->getObjectClass();
 
     gc::AllocKind kind = gc::GetGCObjectKind(shape->numFixedSlots());

@@ -83,17 +83,6 @@
  * - Pass Handle<T> through your hot call stack to avoid re-rooting costs at
  *   every invocation.
  *
- * If this is not enough, the following family of two classes and two
- * functions can provide partially type-safe and mostly runtime-safe access to
- * GC things.
- *
- * - AutoAssertNoGC is a scoped guard that will trigger an assertion if a GC,
- *   or an appropriately marked method that might GC, is entered when it is in
- *   scope.  By convention the name given to instances of this guard is |nogc|.
- *
- * - AssertCanGC() will assert if an AutoAssertNoGC is in scope either locally
- *   or anywhere in the call stack.
- *
  * There also exists a set of RawT typedefs for modules without rooting
  * concerns, such as the GC. Do not use these as they provide no rooting
  * protection whatsoever.
@@ -117,8 +106,6 @@ namespace js {
 
 class Module;
 
-template <typename T> class Rooted;
-
 template <typename T>
 struct RootMethods {};
 
@@ -135,16 +122,12 @@ class MutableHandleBase {};
 
 namespace JS {
 
-class AutoAssertNoGC;
+template <typename T> class Rooted;
 
 template <typename T> class Handle;
 template <typename T> class MutableHandle;
 
-JS_FRIEND_API(void) EnterAssertNoGCScope();
-JS_FRIEND_API(void) LeaveAssertNoGCScope();
-
-/* These are exposing internal state of the GC for inlining purposes. */
-JS_FRIEND_API(bool) InNoGCScope();
+/* This is exposing internal state of the GC for inlining purposes. */
 JS_FRIEND_API(bool) isGCEnabled();
 
 #if defined(DEBUG) && defined(JS_GC_ZEAL) && defined(JSGC_ROOT_ANALYSIS) && !defined(JS_THREADSAFE)
@@ -215,7 +198,7 @@ class Handle : public js::HandleBase<T>
      */
     template <typename S>
     inline
-    Handle(js::Rooted<S> &root,
+    Handle(Rooted<S> &root,
            typename mozilla::EnableIf<mozilla::IsConvertible<S, T>::value, int>::Type dummy = 0);
 
     /* Construct a read only handle from a mutable handle. */
@@ -262,7 +245,7 @@ template <typename T>
 class MutableHandle : public js::MutableHandleBase<T>
 {
   public:
-    inline MutableHandle(js::Rooted<T> *root);
+    inline MutableHandle(Rooted<T> *root);
 
     void set(T v) {
         JS_ASSERT(!js::RootMethods<T>::poisoned(v));
@@ -408,6 +391,10 @@ struct RootMethods<T *>
     static bool poisoned(T *v) { return IsPoisonedPtr(v); }
 };
 
+} /* namespace js */
+
+namespace JS {
+
 /*
  * Local variable of type T whose value is always rooted. This is typically
  * used for local variables, or for non-rooted values being passed to a
@@ -417,18 +404,18 @@ struct RootMethods<T *>
  * specialization, define a RootedBase<T> specialization containing them.
  */
 template <typename T>
-class Rooted : public RootedBase<T>
+class Rooted : public js::RootedBase<T>
 {
     void init(JSContext *cxArg) {
 #if defined(JSGC_ROOT_ANALYSIS) || defined(JSGC_USE_EXACT_ROOTING)
-        ContextFriendFields *cx = ContextFriendFields::get(cxArg);
+        js::ContextFriendFields *cx = js::ContextFriendFields::get(cxArg);
         commonInit(cx->thingGCRooters);
 #endif
     }
 
-    void init(PerThreadData *ptArg) {
+    void init(js::PerThreadData *ptArg) {
 #if defined(JSGC_ROOT_ANALYSIS) || defined(JSGC_USE_EXACT_ROOTING)
-        PerThreadDataFriendFields *pt = PerThreadDataFriendFields::get(ptArg);
+        js::PerThreadDataFriendFields *pt = js::PerThreadDataFriendFields::get(ptArg);
         commonInit(pt->thingGCRooters);
 #endif
     }
@@ -436,7 +423,7 @@ class Rooted : public RootedBase<T>
   public:
     Rooted(JSContext *cx
            MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : ptr(RootMethods<T>::initial())
+      : ptr(js::RootMethods<T>::initial())
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
         init(cx);
@@ -450,15 +437,15 @@ class Rooted : public RootedBase<T>
         init(cx);
     }
 
-    Rooted(PerThreadData *pt
+    Rooted(js::PerThreadData *pt
            MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : ptr(RootMethods<T>::initial())
+      : ptr(js::RootMethods<T>::initial())
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
         init(pt);
     }
 
-    Rooted(PerThreadData *pt, T initial
+    Rooted(js::PerThreadData *pt, T initial
            MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
       : ptr(initial)
     {
@@ -485,7 +472,7 @@ class Rooted : public RootedBase<T>
     const T &get() const { return ptr; }
 
     T &operator=(T value) {
-        JS_ASSERT(!RootMethods<T>::poisoned(value));
+        JS_ASSERT(!js::RootMethods<T>::poisoned(value));
         ptr = value;
         return ptr;
     }
@@ -501,12 +488,12 @@ class Rooted : public RootedBase<T>
   private:
     void commonInit(Rooted<void*> **thingGCRooters) {
 #if defined(JSGC_ROOT_ANALYSIS) || defined(JSGC_USE_EXACT_ROOTING)
-        ThingRootKind kind = RootMethods<T>::kind();
+        js::ThingRootKind kind = js::RootMethods<T>::kind();
         this->stack = &thingGCRooters[kind];
         this->prev = *stack;
         *stack = reinterpret_cast<Rooted<void*>*>(this);
 
-        JS_ASSERT(!RootMethods<T>::poisoned(ptr));
+        JS_ASSERT(!js::RootMethods<T>::poisoned(ptr));
 #endif
     }
 
@@ -544,6 +531,10 @@ typedef Rooted<JSScript*>    RootedScript;
 typedef Rooted<JSString*>    RootedString;
 typedef Rooted<jsid>         RootedId;
 typedef Rooted<JS::Value>    RootedValue;
+
+} /* namespace JS */
+
+namespace js {
 
 /*
  * Mark a stack location as a root for the rooting analysis, without actually
@@ -753,7 +744,7 @@ namespace JS {
 
 template <typename T> template <typename S>
 inline
-Handle<T>::Handle(js::Rooted<S> &root,
+Handle<T>::Handle(Rooted<S> &root,
                   typename mozilla::EnableIf<mozilla::IsConvertible<S, T>::value, int>::Type dummy)
 {
     ptr = reinterpret_cast<const T *>(root.address());
@@ -769,42 +760,9 @@ Handle<T>::Handle(MutableHandle<S> &root,
 
 template <typename T>
 inline
-MutableHandle<T>::MutableHandle(js::Rooted<T> *root)
+MutableHandle<T>::MutableHandle(Rooted<T> *root)
 {
     ptr = root->address();
-}
-
-/*
- * The scoped guard object AutoAssertNoGC forces the GC to assert if a GC is
- * attempted while the guard object is live.  If you have a GC-unsafe operation
- * to perform, use this guard object to protect your operation.
- */
-class AutoAssertNoGC
-{
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
-
-public:
-    AutoAssertNoGC(MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM) {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-#ifdef DEBUG
-        EnterAssertNoGCScope();
-#endif
-    }
-
-    ~AutoAssertNoGC() {
-#ifdef DEBUG
-        LeaveAssertNoGCScope();
-#endif
-    }
-};
-
-/*
- * AssertCanGC will assert if it is called inside of an AutoAssertNoGC region.
- */
-JS_ALWAYS_INLINE void
-AssertCanGC()
-{
-    JS_ASSERT_IF(isGCEnabled(), !InNoGCScope());
 }
 
 JS_FRIEND_API(bool) NeedRelaxedRootChecks();
@@ -819,7 +777,6 @@ namespace js {
  */
 inline void MaybeCheckStackRoots(JSContext *cx, bool relax = true)
 {
-    JS::AssertCanGC();
 #if defined(DEBUG) && defined(JS_GC_ZEAL) && defined(JSGC_ROOT_ANALYSIS) && !defined(JS_THREADSAFE)
     if (relax && NeedRelaxedRootChecks())
         return;

@@ -127,6 +127,8 @@ CheckMarkedThing(JSTracer *trc, T *thing)
 
     JS_ASSERT(thing->isAligned());
 
+    JS_ASSERT_IF(thing->isTenured(), MapTypeToTraceKind<T>::kind == GetGCThingTraceKind(thing));
+
     JS_ASSERT_IF(rt->gcStrictCompartmentChecking,
                  thing->zone()->isCollecting() ||
                  thing->zone() == rt->atomsCompartment->zone());
@@ -156,7 +158,6 @@ template<typename T>
 static void
 MarkInternal(JSTracer *trc, T **thingp)
 {
-    AutoAssertNoGC nogc;
     JS_ASSERT(thingp);
     T *thing = *thingp;
 
@@ -172,7 +173,7 @@ MarkInternal(JSTracer *trc, T **thingp)
             thing->zone()->maybeAlive = true;
         }
     } else {
-        trc->callback(trc, (void **)thingp, GetGCThingTraceKind(thing));
+        trc->callback(trc, (void **)thingp, MapTypeToTraceKind<T>::kind);
         JS_UNSET_TRACING_LOCATION(trc);
     }
 
@@ -1509,14 +1510,14 @@ struct UnmarkGrayTracer : public JSTracer
       : tracingShape(false), previousShape(NULL)
     {
         JS_TracerInit(this, rt, UnmarkGrayChildren);
-        eagerlyTraceWeakMaps = false;
+        eagerlyTraceWeakMaps = DoNotTraceWeakMaps;
     }
 
     UnmarkGrayTracer(JSTracer *trc, bool tracingShape)
       : tracingShape(tracingShape), previousShape(NULL)
     {
         JS_TracerInit(this, trc->runtime, UnmarkGrayChildren);
-        eagerlyTraceWeakMaps = false;
+        eagerlyTraceWeakMaps = DoNotTraceWeakMaps;
     }
 
     /* True iff we are tracing the immediate children of a shape. */

@@ -96,7 +96,6 @@ IonCache::CacheName(IonCache::Kind kind)
 IonCache::LinkStatus
 IonCache::linkCode(JSContext *cx, MacroAssembler &masm, IonScript *ion, IonCode **code)
 {
-    AssertCanGC();
     Linker linker(masm);
     *code = linker.newCode(cx);
     if (!code)
@@ -1777,7 +1776,6 @@ static inline void
 GenerateScopeChainGuard(MacroAssembler &masm, JSObject *scopeObj,
                         Register scopeObjReg, RawShape shape, Label *failures)
 {
-    AutoAssertNoGC nogc;
     if (scopeObj->isCall()) {
         // We can skip a guard on the call object if the script's bindings are
         // guaranteed to be immutable (and thus cannot introduce shadowing
@@ -1925,7 +1923,6 @@ BindNameIC::update(JSContext *cx, size_t cacheIndex, HandleObject scopeChain)
 bool
 NameIC::attach(JSContext *cx, IonScript *ion, HandleObject scopeChain, HandleObject holder, HandleShape shape)
 {
-    AssertCanGC();
     MacroAssembler masm(cx);
     Label failures;
 
