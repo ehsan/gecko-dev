@@ -103,7 +103,6 @@ import android.nfc.NfcEvent;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.StrictMode;
-import android.support.v4.app.DialogFragment;
 import android.support.v4.app.FragmentManager;
 import android.support.v4.content.LocalBroadcastManager;
 import android.text.TextUtils;
@@ -153,7 +152,6 @@ public class BrowserApp extends GeckoApp
     private static final String STATE_ABOUT_HOME_TOP_PADDING = "abouthome_top_padding";
 
     private static final String BROWSER_SEARCH_TAG = "browser_search";
-    private static final String ONBOARD_STARTPANE_TAG = "startpane_dialog";
 
     // Request ID for startActivityForResult.
     private static final int ACTIVITY_REQUEST_PREFERENCES = 1001;
@@ -630,8 +628,8 @@ public class BrowserApp extends GeckoApp
 
             if (prefs.getBoolean(PREF_STARTPANE_ENABLED, false)) {
                 if (!Intent.ACTION_VIEW.equals(intentAction)) {
-                    final DialogFragment dialog = new StartPane();
-                    dialog.show(getSupportFragmentManager(), ONBOARD_STARTPANE_TAG);
+                    final Intent startIntent = new Intent(this, StartPane.class);
+                    context.startActivity(startIntent);
                 }
                 // Don't bother trying again to show the v1 minimal first run.
                 prefs.edit().putBoolean(PREF_STARTPANE_ENABLED, false).apply();
@@ -639,7 +637,7 @@ public class BrowserApp extends GeckoApp
         } finally {
             StrictMode.setThreadPolicy(savedPolicy);
         }
-    }
+      }
 
     private Class<?> getMediaPlayerManager() {
         if (AppConstants.MOZ_MEDIA_PLAYER) {

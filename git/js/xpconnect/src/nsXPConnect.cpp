@@ -22,7 +22,7 @@
 
 #include "mozilla/dom/BindingUtils.h"
 #include "mozilla/dom/Exceptions.h"
-#include "mozilla/dom/Promise.h"
+#include "mozilla/dom/PromiseBinding.h"
 #include "mozilla/dom/TextDecoderBinding.h"
 #include "mozilla/dom/TextEncoderBinding.h"
 #include "mozilla/dom/DOMErrorBinding.h"
@@ -1053,10 +1053,7 @@ nsXPConnect::AfterProcessNextEvent(nsIThreadInternal *aThread,
     // Call cycle collector occasionally.
     MOZ_ASSERT(NS_IsMainThread());
     nsJSContext::MaybePokeCC();
-
-    nsContentUtils::PerformMainThreadMicroTaskCheckpoint();
-
-    Promise::PerformMicroTaskCheckpoint();
+    nsDOMMutationObserver::HandleMutations();
 
     PopJSContextNoScriptContext();
 
