@@ -14,7 +14,6 @@ import java.io.OutputStream;
 
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.EventDispatcher;
 import org.mozilla.gecko.GeckoAppShell;
 import org.mozilla.gecko.GeckoEvent;
 import org.mozilla.gecko.GeckoProfile;
@@ -150,7 +149,9 @@ public class InstallHelper implements GeckoEventListener {
     }
 
     public void registerGeckoListener() {
-        EventDispatcher.getInstance().registerGeckoThreadListener(this, INSTALL_EVENT_NAMES);
+        for (String eventName : INSTALL_EVENT_NAMES) {
+            GeckoAppShell.registerEventListener(eventName, this);
+        }
     }
 
     private void calculateColor() {
@@ -163,7 +164,9 @@ public class InstallHelper implements GeckoEventListener {
 
     @Override
     public void handleMessage(String event, JSONObject message) {
-        EventDispatcher.getInstance().unregisterGeckoThreadListener(this, INSTALL_EVENT_NAMES);
+        for (String eventName : INSTALL_EVENT_NAMES) {
+            GeckoAppShell.unregisterEventListener(eventName, this);
+        }
 
         if (mCallback != null) {
             mCallback.installCompleted(this, event, message);

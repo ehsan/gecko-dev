@@ -36,7 +36,9 @@ public final class IntentHelper implements GeckoEventListener {
 
     private IntentHelper(Activity activity) {
         this.activity = activity;
-        EventDispatcher.getInstance().registerGeckoThreadListener(this, EVENTS);
+        for (String event : EVENTS) {
+            GeckoAppShell.getEventDispatcher().registerEventListener(event, this);
+        }
     }
 
     public static IntentHelper init(Activity activity) {
@@ -51,7 +53,10 @@ public final class IntentHelper implements GeckoEventListener {
 
     public static void destroy() {
         if (instance != null) {
-            EventDispatcher.getInstance().unregisterGeckoThreadListener(instance, EVENTS);
+            for (String event : EVENTS) {
+                GeckoAppShell.getEventDispatcher().unregisterEventListener(event, instance);
+            }
+
             instance = null;
         }
     }

@@ -284,6 +284,12 @@ protected:
   // Protected destructor, to discourage deletion outside of Release():
   virtual ~APZCTreeManager();
 
+  /**
+   * Debug-build assertion that can be called to ensure code is running on the
+   * compositor thread.
+   */
+  virtual void AssertOnCompositorThread();
+
   /*
    * Build the chain of APZCs that will handle overscroll for a pan starting at |aInitialTarget|.
    */

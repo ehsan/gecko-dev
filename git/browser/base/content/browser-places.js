@@ -1035,7 +1035,6 @@ let PlacesToolbarHelper = {
 
 let BookmarkingUI = {
   BOOKMARK_BUTTON_ID: "bookmarks-menu-button",
-  BOOKMARK_BUTTON_SHORTCUT: "addBookmarkAsKb",
   get button() {
     delete this.button;
     let widgetGroup = CustomizableUI.getWidget(this.BOOKMARK_BUTTON_ID);
@@ -1097,22 +1096,14 @@ let BookmarkingUI = {
   {
     delete this._starredTooltip;
     return this._starredTooltip =
-      this._getFormattedTooltip("starButtonOn.tooltip2");
+      gNavigatorBundle.getString("starButtonOn.tooltip");
   },
 
   get _unstarredTooltip()
   {
     delete this._unstarredTooltip;
     return this._unstarredTooltip =
-      this._getFormattedTooltip("starButtonOff.tooltip2");
-  },
-
-  _getFormattedTooltip: function(strId) {
-    let args = [];
-    let shortcut = document.getElementById(this.BOOKMARK_BUTTON_SHORTCUT);
-    if (shortcut)
-      args.push(ShortcutUtils.prettifyShortcut(shortcut));
-    return gNavigatorBundle.getFormattedString(strId, args);
+      gNavigatorBundle.getString("starButtonOff.tooltip");
   },
 
   /**
