@@ -490,8 +490,8 @@ pref("intl.menuitems.insertseparatorbeforeaccesskeys","chrome://global/locale/in
 // simple gestures support
 pref("browser.gesture.swipe.left", "Browser:BackOrBackDuplicate");
 pref("browser.gesture.swipe.right", "Browser:ForwardOrForwardDuplicate");
-pref("browser.gesture.swipe.up", "cmd_scrollTop");
-pref("browser.gesture.swipe.down", "cmd_scrollBottom");
+pref("browser.gesture.swipe.up", "Browser:HideTabView");
+pref("browser.gesture.swipe.down", "Browser:ShowTabView");
 #ifdef XP_MACOSX
 pref("browser.gesture.pinch.latched", true);
 pref("browser.gesture.pinch.threshold", 150);
@@ -1042,8 +1042,8 @@ pref("services.sync.prefs.sync.spellchecker.dictionary", true);
 pref("services.sync.prefs.sync.xpinstall.whitelist.required", true);
 #endif
 
-// Disable the Error Console
-pref("devtools.errorconsole.enabled", false);
+// Enable the Error Console (for now, see bug 601201)
+pref("devtools.errorconsole.enabled", true);
 
 // disable the Inspector
 pref("devtools.inspector.enabled", false);
