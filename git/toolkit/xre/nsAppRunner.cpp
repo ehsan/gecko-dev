@@ -4027,9 +4027,7 @@ XREMain::XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 {
   char aLocal;
   GeckoProfilerInitRAII profilerGuard(&aLocal);
-
-  PROFILER_LABEL("Startup", "XRE_Main",
-    js::ProfileEntry::Category::OTHER);
+  PROFILER_LABEL("Startup", "XRE_Main");
 
   nsresult rv = NS_OK;
 
@@ -4234,9 +4232,7 @@ XRE_mainMetro(int argc, char* argv[], const nsXREAppData* aAppData)
 {
   char aLocal;
   GeckoProfilerInitRAII profilerGuard(&aLocal);
-
-  PROFILER_LABEL("Startup", "XRE_Main",
-    js::ProfileEntry::Category::OTHER);
+  PROFILER_LABEL("Startup", "XRE_Main");
 
   mozilla::IOInterposerInit ioInterposerGuard;
 

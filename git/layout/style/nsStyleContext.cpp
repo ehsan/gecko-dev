@@ -409,8 +409,7 @@ nsChangeHint
 nsStyleContext::CalcStyleDifference(nsStyleContext* aOther,
                                     nsChangeHint aParentHintsNotHandledForDescendants)
 {
-  PROFILER_LABEL("nsStyleContext", "CalcStyleDifference",
-    js::ProfileEntry::Category::CSS);
+  PROFILER_LABEL("nsStyleContext", "CalcStyleDifference");
 
   NS_ABORT_IF_FALSE(NS_IsHintSubset(aParentHintsNotHandledForDescendants,
                                     nsChangeHint_Hints_NotHandledForDescendants),

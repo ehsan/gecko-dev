@@ -113,7 +113,7 @@ public class TopSitesGridView extends GridView {
                 // If not, navigate to the page given by the url.
                 if (type != TopSites.TYPE_BLANK) {
                     if (mUrlOpenListener != null) {
-                        final TelemetryContract.Method method;
+                        final String method;
                         if (type == TopSites.TYPE_SUGGESTED) {
                             method = TelemetryContract.Method.SUGGESTION;
                         } else {

@@ -174,9 +174,7 @@ GLContextCGL::SupportsRobustness() const
 bool
 GLContextCGL::SwapBuffers()
 {
-  PROFILER_LABEL("GLContextCGL", "SwapBuffers",
-    js::ProfileEntry::Category::GRAPHICS);
-
+  PROFILER_LABEL("GLContext", "SwapBuffers");
   [mContext flushBuffer];
   return true;
 }

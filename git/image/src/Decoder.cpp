@@ -87,9 +87,7 @@ Decoder::InitSharedDecoder(uint8_t* imageData, uint32_t imageDataLength,
 void
 Decoder::Write(const char* aBuffer, uint32_t aCount, DecodeStrategy aStrategy)
 {
-  PROFILER_LABEL("ImageDecoder", "Write",
-    js::ProfileEntry::Category::GRAPHICS);
-
+  PROFILER_LABEL("ImageDecoder", "Write");
   MOZ_ASSERT(NS_IsMainThread() || aStrategy == DECODE_ASYNC);
 
   // We're strict about decoder errors

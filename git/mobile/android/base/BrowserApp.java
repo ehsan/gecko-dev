@@ -1703,9 +1703,7 @@ abstract public class BrowserApp extends GeckoApp
                 // Otherwise, construct a search query from the bookmark keyword.
                 final String searchUrl = keywordUrl.replace("%s", URLEncoder.encode(keywordSearch));
                 Tabs.getInstance().loadUrl(searchUrl, Tabs.LOADURL_USER_ENTERED);
-                Telemetry.sendUIEvent(TelemetryContract.Event.LOAD_URL,
-                                      TelemetryContract.Method.NONE,
-                                      "keyword");
+                Telemetry.sendUIEvent(TelemetryContract.Event.LOAD_URL, "", "keyword");
             }
         });
     }

@@ -1770,9 +1770,7 @@ nsCSSBorderRenderer::DrawBorders()
     DrawBorderSides(SIDE_BITS_ALL);
     SN("---------------- (1)");
   } else {
-    PROFILER_LABEL("nsCSSBorderRenderer", "DrawBorders::multipass",
-      js::ProfileEntry::Category::GRAPHICS);
-
+    PROFILER_LABEL("nsCSSBorderRenderer", "DrawBorders::multipass");
     /* We have more than one pass to go.  Draw the corners separately from the sides. */
 
     /*

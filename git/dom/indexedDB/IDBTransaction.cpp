@@ -373,8 +373,7 @@ IDBTransaction::GetOrCreateConnection(mozIStorageConnection** aResult)
   NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
 
-  PROFILER_LABEL("IDBTransaction", "GetOrCreateConnection",
-    js::ProfileEntry::Category::STORAGE);
+  PROFILER_LABEL("IndexedDB", "IDBTransaction::GetOrCreateConnection");
 
   if (mDatabase->IsInvalidated()) {
     return NS_ERROR_NOT_AVAILABLE;
@@ -793,8 +792,7 @@ NS_IMETHODIMP
 CommitHelper::Run()
 {
   if (NS_IsMainThread()) {
-    PROFILER_MAIN_THREAD_LABEL("CommitHelper", "Run",
-      js::ProfileEntry::Category::STORAGE);
+    PROFILER_MAIN_THREAD_LABEL("IndexedDB", "CommitHelper::Run");
 
     NS_ASSERTION(mDoomedObjects.IsEmpty(), "Didn't release doomed objects!");
 
@@ -862,8 +860,7 @@ CommitHelper::Run()
     return NS_OK;
   }
 
-  PROFILER_LABEL("CommitHelper", "Run",
-    js::ProfileEntry::Category::STORAGE);
+  PROFILER_LABEL("IndexedDB", "CommitHelper::Run");
 
   IDBDatabase* database = mTransaction->Database();
   if (database->IsInvalidated()) {
