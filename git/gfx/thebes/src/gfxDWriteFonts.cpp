@@ -74,12 +74,11 @@ gfxDWriteFont::gfxDWriteFont(gfxFontEntry *aFontEntry,
 
     rv = fe->CreateFontFace(getter_AddRefs(mFontFace), sims);
 
+    ComputeMetrics();
+
     if (NS_FAILED(rv)) {
         mIsValid = PR_FALSE;
-        return;
     }
-
-    ComputeMetrics();
 }
 
 gfxDWriteFont::~gfxDWriteFont()

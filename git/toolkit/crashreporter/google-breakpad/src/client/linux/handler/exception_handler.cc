@@ -1,4 +1,4 @@
-// Copyright (c) 2010 Google Inc.
+// Copyright (c) 2009, Google Inc.
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -80,9 +80,6 @@
 #include <ucontext.h>
 #include <unistd.h>
 
-#include <algorithm>
-#include <vector>
-
 #include "common/linux/linux_libc_support.h"
 #include "common/linux/linux_syscall_support.h"
 #include "common/linux/memory.h"
@@ -91,7 +88,7 @@
 
 // A wrapper for the tgkill syscall: send a signal to a specific thread.
 static int tgkill(pid_t tgid, pid_t tid, int sig) {
-  return syscall(__NR_tgkill, tgid, tid, sig);
+  syscall(__NR_tgkill, tgid, tid, sig);
   return 0;
 }
 
@@ -148,6 +145,7 @@ void ExceptionHandler::Init(const std::string &dump_path,
                             const int server_fd)
 {
   crash_handler_ = NULL;
+
   if (0 <= server_fd)
     crash_generation_client_
       .reset(CrashGenerationClient::TryCreate(server_fd));
@@ -211,11 +209,7 @@ void ExceptionHandler::UninstallHandlers() {
     sigaction(old_handlers_[i].first, action, NULL);
     delete action;
   }
-  pthread_mutex_lock(&handler_stack_mutex_);
-  std::vector<ExceptionHandler*>::iterator handler =
-      std::find(handler_stack_->begin(), handler_stack_->end(), this);
-  handler_stack_->erase(handler);
-  pthread_mutex_unlock(&handler_stack_mutex_);
+
   old_handlers_.clear();
 }
 
@@ -237,15 +231,12 @@ void ExceptionHandler::UpdateNextID() {
   }
 }
 
-// void ExceptionHandler::set_crash_handler(HandlerCallback callback) {
-//   crash_handler_ = callback;
-// }
-
 // This function runs in a compromised context: see the top of the file.
 // Runs on the crashing thread.
 // static
 void ExceptionHandler::SignalHandler(int sig, siginfo_t* info, void* uc) {
   // All the exception signals are blocked at this point.
+
   pthread_mutex_lock(&handler_stack_mutex_);
 
   if (!handler_stack_->size()) {
@@ -297,25 +288,18 @@ bool ExceptionHandler::HandleSignal(int sig, siginfo_t* info, void* uc) {
 
   // Allow ourselves to be dumped.
   sys_prctl(PR_SET_DUMPABLE, 1);
+
   CrashContext context;
   memcpy(&context.siginfo, info, sizeof(siginfo_t));
   memcpy(&context.context, uc, sizeof(struct ucontext));
-#if !defined(__ARM_EABI__)
-  // FP state is not part of user ABI on ARM Linux.
-  struct ucontext *uc_ptr = (struct ucontext*)uc;
-  if (uc_ptr->uc_mcontext.fpregs) {
-    memcpy(&context.float_state,
-           uc_ptr->uc_mcontext.fpregs,
-           sizeof(context.float_state));
-  }
-#endif
+  memcpy(&context.float_state, ((struct ucontext *)uc)->uc_mcontext.fpregs,
+         sizeof(context.float_state));
   context.tid = sys_gettid();
-  if (crash_handler_ != NULL) {
-    if (crash_handler_(&context, sizeof(context),
-                       callback_context_)) {
-      return true;
-    }
-  }
+
+  if (crash_handler_ && crash_handler_(&context, sizeof(context),
+                                       callback_context_))
+    return true;
+
   return GenerateDump(&context);
 }
 
@@ -380,7 +364,6 @@ bool ExceptionHandler::WriteMinidump(const std::string &dump_path,
 }
 
 bool ExceptionHandler::WriteMinidump() {
-#if !defined(__ARM_EABI__)
   // Allow ourselves to be dumped.
   sys_prctl(PR_SET_DUMPABLE, 1);
 
@@ -395,9 +378,6 @@ bool ExceptionHandler::WriteMinidump() {
   bool success = GenerateDump(&context);
   UpdateNextID();
   return success;
-#else
-  return false;
-#endif  // !defined(__ARM_EABI__)
 }
 
 }  // namespace google_breakpad

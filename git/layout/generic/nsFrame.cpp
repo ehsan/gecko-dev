@@ -908,7 +908,10 @@ nsFrame::DisplaySelectionOverlay(nsDisplayListBuilder*   aBuilder,
   if (!shell)
     return NS_OK;
 
-  PRInt16 displaySelection = shell->GetSelectionFlags();
+  PRInt16 displaySelection;
+  nsresult rv = shell->GetSelectionFlags(&displaySelection);
+  if (NS_FAILED(rv))
+    return rv;
   if (!(displaySelection & aContentType))
     return NS_OK;
 
@@ -1700,7 +1703,10 @@ nsFrame::GetDataForTableSelection(const nsFrameSelection *aFrameSelection,
   *aContentOffset = 0;
   *aTarget = 0;
 
-  PRInt16 displaySelection = aPresShell->GetSelectionFlags();
+  PRInt16 displaySelection;
+  nsresult result = aPresShell->GetSelectionFlags(&displaySelection);
+  if (NS_FAILED(result))
+    return result;
 
   PRBool selectingTableCells = aFrameSelection->GetTableCellSelection();
 
@@ -1742,7 +1748,9 @@ nsFrame::GetDataForTableSelection(const nsFrameSelection *aFrameSelection,
   //PRBool selectColumn = PR_FALSE;
   //PRBool selectRow = PR_FALSE;
   
-  while (frame)
+  result = NS_OK;
+
+  while (frame && NS_SUCCEEDED(result))
   {
     // Check for a table cell by querying to a known CellFrame interface
     nsITableCellLayout *cellElement = do_QueryFrame(frame);
@@ -1767,6 +1775,7 @@ nsFrame::GetDataForTableSelection(const nsFrameSelection *aFrameSelection,
         break;
       } else {
         frame = frame->GetParent();
+        result = NS_OK;
         // Stop if we have hit the selection's limiting content node
         if (frame && frame->GetContent() == limiter)
           break;
@@ -1901,8 +1910,9 @@ nsFrame::HandlePress(nsPresContext* aPresContext,
   // if we are in Navigator and the click is in a draggable node, we don't want
   // to start selection because we don't want to interfere with a potential
   // drag of said node and steal all its glory.
-  PRInt16 isEditor = shell->GetSelectionFlags();
-  //weaaak. only the editor can display frame selection not just text and images
+  PRInt16 isEditor = 0;
+  shell->GetSelectionFlags ( &isEditor );
+  //weaaak. only the editor can display frame selction not just text and images
   isEditor = isEditor == nsISelectionDisplay::DISPLAY_ALL;
 
   nsInputEvent* keyEvent = (nsInputEvent*)aEvent;
@@ -4673,12 +4683,13 @@ nsFrame::GetNextPrevLineFromeBlockFrame(nsPresContext* aPresContext,
 
         //special check. if we allow non-text selection then we can allow a hit location to fall before a table. 
         //otherwise there is no way to get and click signal to fall before a table (it being a line iterator itself)
+        PRInt16 isEditor = 0;
         nsIPresShell *shell = aPresContext->GetPresShell();
         if (!shell)
           return NS_ERROR_FAILURE;
-        PRInt16 isEditor = shell->GetSelectionFlags();
+        shell->GetSelectionFlags ( &isEditor );
         isEditor = isEditor == nsISelectionDisplay::DISPLAY_ALL;
-        if ( isEditor )
+        if ( isEditor ) 
         {
           if (resultFrame->GetType() == nsGkAtoms::tableOuterFrame)
           {

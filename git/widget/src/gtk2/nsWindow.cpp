@@ -6543,8 +6543,7 @@ nsWindow::OnIMEFocusChange(PRBool aFocus)
     if (mIMModule) {
       mIMModule->OnFocusChangeInGecko(aFocus);
     }
-    // XXX Return NS_ERROR_NOT_IMPLEMENTED, see bug 496360.
-    return NS_ERROR_NOT_IMPLEMENTED;
+    return NS_OK;
 }
 
 NS_IMETHODIMP

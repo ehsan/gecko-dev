@@ -408,12 +408,6 @@ nsSVGAnimationElement::UnsetAttr(PRInt32 aNamespaceID,
   return NS_OK;
 }
 
-PRBool
-nsSVGAnimationElement::IsNodeOfType(PRUint32 aFlags) const
-{
-  return !(aFlags & ~(eCONTENT | eELEMENT | eSVG | eANIMATION));
-}
-
 //----------------------------------------------------------------------
 // Implementation helpers
 

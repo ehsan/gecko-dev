@@ -44,7 +44,7 @@ namespace google_breakpad {
 typedef typeof(((struct user*) 0)->u_debugreg[0]) debugreg_t;
 
 // Typedef for our parsing of the auxv variables in /proc/pid/auxv.
-#if defined(__i386) || defined(__ARM_EABI__)
+#if defined(__i386)
 typedef Elf32_auxv_t elf_aux_entry;
 #elif defined(__x86_64__)
 typedef Elf64_auxv_t elf_aux_entry;
@@ -64,20 +64,16 @@ struct ThreadInfo {
   const void* stack;  // pointer to the stack area
   size_t stack_len;  // length of the stack to copy
 
-
-#if defined(__i386) || defined(__x86_64)
   user_regs_struct regs;
   user_fpregs_struct fpregs;
-  static const unsigned kNumDebugRegisters = 8;
-  debugreg_t dregs[8];
 #if defined(__i386)
   user_fpxregs_struct fpxregs;
-#endif  // defined(__i386)
+#endif
 
-#elif defined(__ARM_EABI__)
-  // Mimicking how strace does this(see syscall.c, search for GETREGS)
-  struct user_regs regs;
-  struct user_fpregs fpregs;
+#if defined(__i386) || defined(__x86_64)
+
+  static const unsigned kNumDebugRegisters = 8;
+  debugreg_t dregs[8];
 #endif
 };
 
@@ -145,7 +141,7 @@ class LinuxDumper {
 
   mutable PageAllocator allocator_;
 
-  bool threads_suspended_;
+  bool threads_suspened_;
   wasteful_vector<pid_t> threads_;  // the ids of all the threads
   wasteful_vector<MappingInfo*> mappings_;  // info from /proc/<pid>/maps
 };

@@ -6746,11 +6746,12 @@ nsDocument::CreateElem(nsIAtom *aName, nsIAtom *aPrefix, PRInt32 aNamespaceID,
 PRBool
 nsDocument::IsSafeToFlush() const
 {
+  PRBool isSafeToFlush = PR_TRUE;
   nsCOMPtr<nsIPresShell> shell = GetPrimaryShell();
-  if (!shell)
-    return PR_TRUE;
-
-  return shell->IsSafeToFlush();
+  if (shell) {
+    shell->IsSafeToFlush(isSafeToFlush);
+  }
+  return isSafeToFlush;
 }
 
 nsresult

@@ -1828,7 +1828,10 @@ nsFrameSelection::TakeFocus(nsIContent *aNewFocus,
     // BUT only do this in an editor
 
     NS_ENSURE_STATE(mShell);
-    PRInt16 displaySelection = mShell->GetSelectionFlags();
+    PRInt16 displaySelection;
+    nsresult result = mShell->GetSelectionFlags(&displaySelection);
+    if (NS_FAILED(result))
+      return result;
 
     // Editor has DISPLAY_ALL selection type
     if (displaySelection == nsISelectionDisplay::DISPLAY_ALL)

@@ -380,6 +380,11 @@ LoginManagerPrompter.prototype = {
             return ok;
         }
 
+        var newLogin = Cc["@mozilla.org/login-manager/loginInfo;1"].
+                       createInstance(Ci.nsILoginInfo);
+        newLogin.init(hostname, null, realm, aUsername.value, aPassword.value,
+                      "", "");
+
         // XXX We can't prompt with multiple logins yet (bug 227632), so
         // the entered login might correspond to an existing login
         // other than the one we originally selected.
@@ -390,18 +395,13 @@ LoginManagerPrompter.prototype = {
         if (!selectedLogin) {
             // add as new
             this.log("New login seen for " + realm);
-            var newLogin = Cc["@mozilla.org/login-manager/loginInfo;1"].
-                           createInstance(Ci.nsILoginInfo);
-            newLogin.init(hostname, null, realm,
-                          aUsername.value, aPassword.value, "", "");
             this._pwmgr.addLogin(newLogin);
         } else if (aPassword.value != selectedLogin.password) {
             // update password
             this.log("Updating password for  " + realm);
-            this._updateLogin(selectedLogin, aPassword.value);
+            this._pwmgr.modifyLogin(selectedLogin, newLogin);
         } else {
             this.log("Login unchanged, no further action needed.");
-            this._updateLogin(selectedLogin);
         }
 
         return ok;
@@ -589,6 +589,11 @@ LoginManagerPrompter.prototype = {
                 return ok;
             }
 
+            var newLogin = Cc["@mozilla.org/login-manager/loginInfo;1"].
+                           createInstance(Ci.nsILoginInfo);
+            newLogin.init(hostname, null, httpRealm,
+                          username, password, "", "");
+
             // XXX We can't prompt with multiple logins yet (bug 227632), so
             // the entered login might correspond to an existing login
             // other than the one we originally selected.
@@ -597,13 +602,9 @@ LoginManagerPrompter.prototype = {
             // If we didn't find an existing login, or if the username
             // changed, save as a new login.
             if (!selectedLogin) {
+                // add as new
                 this.log("New login seen for " + username +
                          " @ " + hostname + " (" + httpRealm + ")");
-
-                var newLogin = Cc["@mozilla.org/login-manager/loginInfo;1"].
-                               createInstance(Ci.nsILoginInfo);
-                newLogin.init(hostname, null, httpRealm,
-                              username, password, "", "");
                 if (notifyBox)
                     this._showSaveLoginNotification(notifyBox, newLogin);
                 else
@@ -615,13 +616,12 @@ LoginManagerPrompter.prototype = {
                          " @ " + hostname + " (" + httpRealm + ")");
                 if (notifyBox)
                     this._showChangeLoginNotification(notifyBox,
-                                                      selectedLogin, password);
+                                                      selectedLogin, newLogin);
                 else
-                    this._updateLogin(selectedLogin, password);
+                    this._pwmgr.modifyLogin(selectedLogin, newLogin);
 
             } else {
                 this.log("Login unchanged, no further action needed.");
-                this._updateLogin(selectedLogin);
             }
         } catch (e) {
             Components.utils.reportError("LoginManagerPrompter: " +
@@ -923,9 +923,9 @@ LoginManagerPrompter.prototype = {
         var notifyBox = this._getNotifyBox();
 
         if (notifyBox)
-            this._showChangeLoginNotification(notifyBox, aOldLogin, aNewLogin.password);
+            this._showChangeLoginNotification(notifyBox, aOldLogin, aNewLogin);
         else
-            this._showChangeLoginDialog(aOldLogin, aNewLogin.password);
+            this._showChangeLoginDialog(aOldLogin, aNewLogin);
     },
 
 
@@ -935,7 +935,7 @@ LoginManagerPrompter.prototype = {
      * Shows the Change Password notification bar.
      *
      */
-    _showChangeLoginNotification : function (aNotifyBox, aOldLogin, aNewPassword) {
+    _showChangeLoginNotification : function (aNotifyBox, aOldLogin, aNewLogin) {
         var notificationText;
         if (aOldLogin.username)
             notificationText  = this._getLocalizedString(
@@ -957,7 +957,7 @@ LoginManagerPrompter.prototype = {
         // The callbacks in |buttons| have a closure to access the variables
         // in scope here; set one to |this._pwmgr| so we can get back to pwmgr
         // without a getService() call.
-        var self = this;
+        var pwmgr = this._pwmgr;
 
         var buttons = [
             // "Yes" button
@@ -966,7 +966,7 @@ LoginManagerPrompter.prototype = {
                 accessKey: changeButtonAccessKey,
                 popup:     null,
                 callback:  function(aNotificationBar, aButton) {
-                    self._updateLogin(aOldLogin, aNewPassword);
+                    pwmgr.modifyLogin(aOldLogin, aNewLogin);
                 }
             },
 
@@ -992,7 +992,7 @@ LoginManagerPrompter.prototype = {
      * Shows the Change Password dialog.
      *
      */
-    _showChangeLoginDialog : function (aOldLogin, aNewPassword) {
+    _showChangeLoginDialog : function (aOldLogin, aNewLogin) {
         const buttonFlags = Ci.nsIPrompt.STD_YES_NO_BUTTONS;
 
         var dialogText;
@@ -1014,7 +1014,7 @@ LoginManagerPrompter.prototype = {
                                 null, {});
         if (ok) {
             this.log("Updating password for user " + aOldLogin.username);
-            this._updateLogin(aOldLogin, aNewPassword);
+            this._pwmgr.modifyLogin(aOldLogin, aNewLogin);
         }
     },
 
@@ -1047,10 +1047,17 @@ LoginManagerPrompter.prototype = {
                                 usernames.length, usernames,
                                 selectedIndex);
         if (ok) {
-            // Now that we know which login to use, modify its password.
+            // Now that we know which login to change the password for,
+            // update the missing username info in the aNewLogin.
+
             var selectedLogin = logins[selectedIndex.value];
+
             this.log("Updating password for user " + selectedLogin.username);
-            this._updateLogin(selectedLogin, aNewLogin.password);
+
+            aNewLogin.username      = selectedLogin.username;
+            aNewLogin.usernameField = selectedLogin.usernameField;
+
+            this._pwmgr.modifyLogin(selectedLogin, aNewLogin);
         }
     },
 
@@ -1061,25 +1068,6 @@ LoginManagerPrompter.prototype = {
 
 
 
-
-    /*
-     * _updateLogin
-     */
-    _updateLogin : function (login, newPassword) {
-        var now = Date.now();
-        var propBag = Cc["@mozilla.org/hash-property-bag;1"].
-                      createInstance(Ci.nsIWritablePropertyBag);
-        if (newPassword) {
-            propBag.setProperty("password", newPassword);
-            // Explicitly set the password change time here (even though it would
-            // be changed automatically), to ensure that it's exactly the same
-            // value as timeLastUsed.
-            propBag.setProperty("timePasswordChanged", now);
-        }
-        propBag.setProperty("timeLastUsed", now);
-        propBag.setProperty("timesUsedIncrement", 1);
-        this._pwmgr.modifyLogin(login, propBag);
-    },
 
     /*
      * _getNotifyBox
