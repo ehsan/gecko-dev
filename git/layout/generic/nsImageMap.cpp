@@ -13,7 +13,7 @@
 #include "nsRenderingContext.h"
 #include "nsPresContext.h"
 #include "mozilla/dom/Element.h"
-#include "nsNameSpaceManager.h"
+#include "nsINameSpaceManager.h"
 #include "nsGkAtoms.h"
 #include "nsImageFrame.h"
 #include "nsCoord.h"

@@ -23,7 +23,7 @@
 #include "nsObjCExceptions.h"
 #include "nsIContent.h"
 #include "nsIDocument.h"
-#include "nsNameSpaceManager.h"
+#include "nsINameSpaceManager.h"
 #include "nsGkAtoms.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMCSSStyleDeclaration.h"

@@ -6,7 +6,7 @@
 #include "nsListItemFrame.h"
 
 #include "nsCOMPtr.h"
-#include "nsNameSpaceManager.h"
+#include "nsINameSpaceManager.h" 
 #include "nsGkAtoms.h"
 #include "nsDisplayList.h"
 #include "nsBoxLayout.h"

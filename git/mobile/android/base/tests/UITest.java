@@ -59,7 +59,6 @@ abstract class UITest extends ActivityInstrumentationTestCase2<Activity>
 
     protected AboutHomeComponent mAboutHome;
     protected AppMenuComponent mAppMenu;
-    protected GeckoViewComponent mGeckoView;
     protected ToolbarComponent mToolbar;
 
     static {
@@ -123,7 +122,6 @@ abstract class UITest extends ActivityInstrumentationTestCase2<Activity>
     private void initComponents() {
         mAboutHome = new AboutHomeComponent(this);
         mAppMenu = new AppMenuComponent(this);
-        mGeckoView = new GeckoViewComponent(this);
         mToolbar = new ToolbarComponent(this);
     }
 
@@ -169,9 +167,6 @@ abstract class UITest extends ActivityInstrumentationTestCase2<Activity>
 
             case APPMENU:
                 return mAppMenu;
-
-            case GECKOVIEW:
-                return mGeckoView;
 
             case TOOLBAR:
                 return mToolbar;

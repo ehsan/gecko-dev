@@ -7,7 +7,6 @@
 TEST_DIRS += ['test']
 
 XPIDL_SOURCES += [
-    'nsIConsoleAPIStorage.idl',
     'nsIDOMDOMCursor.idl',
     'nsIDOMDOMRequest.idl',
     'nsIEntropyCollector.idl',
@@ -50,7 +49,6 @@ EXPORTS += [
 
 EXPORTS.mozilla.dom += [
     'BarProps.h',
-    'Console.h',
     'DOMCursor.h',
     'DOMError.h',
     'DOMException.h',
@@ -69,7 +67,6 @@ EXPORTS.mozilla.dom += [
 UNIFIED_SOURCES += [
     'BarProps.cpp',
     'CompositionStringSynthesizer.cpp',
-    'Console.cpp',
     'Crypto.cpp',
     'DOMCursor.cpp',
     'DOMError.cpp',
@@ -120,13 +117,14 @@ SOURCES += [
 ]
 
 EXTRA_COMPONENTS += [
+    'ConsoleAPI.js',
     'ConsoleAPI.manifest',
-    'ConsoleAPIStorage.js',
     'SiteSpecificUserAgent.js',
     'SiteSpecificUserAgent.manifest',
 ]
 
 EXTRA_JS_MODULES += [
+    'ConsoleAPIStorage.jsm',
     'DOMRequestHelper.jsm',
     'IndexedDBHelper.jsm',
     'ObjectWrapper.jsm',
@@ -145,7 +143,6 @@ LOCAL_INCLUDES += [
     '../src/geolocation',
     '../src/storage',
     '../time',
-    '../workers',
     '../xbl',
     '/content/base/src',
     '/content/html/document/src',

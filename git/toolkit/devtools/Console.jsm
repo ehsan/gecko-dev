@@ -22,9 +22,10 @@
 
 this.EXPORTED_SYMBOLS = [ "console", "ConsoleAPI" ];
 
-const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
+const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://gre/modules/ConsoleAPIStorage.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "Services",
                                   "resource://gre/modules/Services.jsm");
@@ -557,8 +558,6 @@ function sendConsoleAPIMessage(aLevel, aFrame, aArgs, aOptions = {})
   }
 
   Services.obs.notifyObservers(consoleEvent, "console-api-log-event", null);
-  let ConsoleAPIStorage = Cc["@mozilla.org/consoleAPI-storage;1"]
-                            .getService(Ci.nsIConsoleAPIStorage);
   ConsoleAPIStorage.recordEvent("jsm", consoleEvent);
 }
 
