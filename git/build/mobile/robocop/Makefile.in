@@ -68,7 +68,6 @@ _TEST_FILES = \
   $(TESTPATH)/robocop_blank_01.html \
   $(TESTPATH)/robocop_blank_02.html \
   $(TESTPATH)/robocop_blank_03.html \
-  $(TESTPATH)/robocop_boxes.html \
   $(NULL)
 
 _ROBOCOP_TOOLS = \

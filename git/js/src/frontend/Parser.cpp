@@ -4393,7 +4393,7 @@ Parser::variables(ParseNodeKind kind, StaticBlockObject *blockObj, VarContext va
             pn2->pn_pos.end = init->pn_pos.end;
 
             if (tc->inFunction() && name == context->runtime->atomState.argumentsAtom) {
-                tc->noteArgumentsNameUse(pn2);
+                tc->noteArgumentsUse(pn2);
                 if (!blockObj)
                     tc->flags |= TCF_FUN_HEAVYWEIGHT;
             }
@@ -5746,21 +5746,11 @@ Parser::memberExpr(JSBool allowCallSyntax)
                 } else
 #endif
                 {
-                    PropertyName *field = tokenStream.currentToken().name();
-                    nextMember = new_<PropertyAccess>(lhs, field,
+                    nextMember = new_<PropertyAccess>(lhs, tokenStream.currentToken().name(),
                                                       lhs->pn_pos.begin,
                                                       tokenStream.currentToken().pos.end);
                     if (!nextMember)
                         return NULL;
-
-                    /*
-                     * A property access of the form |<expr>.arguments| might
-                     * access this function's arguments, so we need to flag a
-                     * potential arguments use to ensure an arguments object
-                     * will be created.  See bug 721322.
-                     */
-                    if (tc->inFunction() && field == context->runtime->atomState.argumentsAtom)
-                        tc->noteArgumentsPropertyAccess(nextMember);
                 }
             }
 #if JS_HAS_XML_SUPPORT
@@ -6624,7 +6614,7 @@ Parser::propertyQualifiedIdentifier()
 #endif
 
 ParseNode *
-Parser::identifierName(bool afterDoubleDot)
+Parser::identifierName(bool afterDot)
 {
     JS_ASSERT(tokenStream.isCurrentTokenType(TOK_NAME));
 
@@ -6636,25 +6626,26 @@ Parser::identifierName(bool afterDoubleDot)
     node->setOp(JSOP_NAME);
 
     if ((tc->flags & (TCF_IN_FUNCTION | TCF_FUN_PARAM_ARGUMENTS)) == TCF_IN_FUNCTION &&
-        name == context->runtime->atomState.argumentsAtom)
-    {
+        name == context->runtime->atomState.argumentsAtom) {
+        /*
+         * Flag arguments usage so we can avoid unsafe optimizations such
+         * as formal parameter assignment analysis (because of the hated
+         * feature whereby arguments alias formals). We do this even for
+         * a reference of the form foo.arguments, which ancient code may
+         * still use instead of arguments (more hate).
+         */
+        tc->noteArgumentsUse(node);
+
         /*
          * Bind early to JSOP_ARGUMENTS to relieve later code from having
          * to do this work (new rule for the emitter to count on).
          */
-        if (!afterDoubleDot) {
-            /*
-             * Note use of |arguments| to ensure we can properly create the
-             * |arguments| object for this function.
-             */
-            tc->noteArgumentsNameUse(node);
-
-            if (!(tc->flags & TCF_DECL_DESTRUCTURING) && !tc->inStatement(STMT_WITH)) {
-                node->setOp(JSOP_ARGUMENTS);
-                node->pn_dflags |= PND_BOUND;
-            }
+        if (!afterDot && !(tc->flags & TCF_DECL_DESTRUCTURING)
+            && !tc->inStatement(STMT_WITH)) {
+            node->setOp(JSOP_ARGUMENTS);
+            node->pn_dflags |= PND_BOUND;
         }
-    } else if ((!afterDoubleDot
+    } else if ((!afterDot
 #if JS_HAS_XML_SUPPORT
                 || (!tc->inStrictMode() && tokenStream.peekToken() == TOK_DBLCOLON)
 #endif
@@ -6717,7 +6708,7 @@ Parser::identifierName(bool afterDoubleDot)
 
 #if JS_HAS_XML_SUPPORT
     if (!tc->inStrictMode() && tokenStream.matchToken(TOK_DBLCOLON)) {
-        if (afterDoubleDot) {
+        if (afterDot) {
             if (!checkForFunctionNode(name, node))
                 return NULL;
         }
@@ -6744,7 +6735,7 @@ Parser::starOrAtPropertyIdentifier(TokenKind tt)
 #endif
 
 ParseNode *
-Parser::primaryExpr(TokenKind tt, bool afterDoubleDot)
+Parser::primaryExpr(TokenKind tt, JSBool afterDot)
 {
     JS_ASSERT(tokenStream.isCurrentTokenType(tt));
 
@@ -7177,7 +7168,7 @@ Parser::primaryExpr(TokenKind tt, bool afterDoubleDot)
 #endif
 
       case TOK_NAME:
-        pn = identifierName(afterDoubleDot);
+        pn = identifierName(afterDot);
         break;
 
       case TOK_REGEXP:

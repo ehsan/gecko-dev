@@ -185,12 +185,7 @@ abstract class Axis {
      */
     float getEdgeResistance() {
         float excess = getExcess();
-        if (excess > 0.0f) {
-            // excess can be greater than viewport length, but the resistance
-            // must never drop below 0.0
-            return Math.max(0.0f, SNAP_LIMIT - excess / getViewportLength());
-        }
-        return 1.0f;
+        return (excess > 0.0f) ? SNAP_LIMIT - excess / getViewportLength() : 1.0f;
     }
 
     /* Returns the velocity. If the axis is locked, returns 0. */

@@ -244,13 +244,7 @@ public class LayerController {
 
         // Page size is owned by the LayerClient, so no need to notify it of
         // this change.
-
-        mView.post(new Runnable() {
-            public void run() {
-                mPanZoomController.pageSizeUpdated();
-                mView.requestRender();
-            }
-        });
+        mView.requestRender();
     }
 
     /**

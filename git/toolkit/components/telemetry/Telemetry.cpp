@@ -1128,12 +1128,6 @@ AccumulateTimeDelta(ID aHistogram, TimeStamp start, TimeStamp end)
              static_cast<PRUint32>((end - start).ToMilliseconds()));
 }
 
-bool
-CanRecord()
-{
-  return TelemetryImpl::CanRecord();
-}
-
 base::Histogram*
 GetHistogramById(ID id)
 {

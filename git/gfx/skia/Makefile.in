@@ -309,9 +309,7 @@ endif
 
 ifeq (android,$(MOZ_WIDGET_TOOLKIT))
 CPPSRCS += \
-	SkFontHost_FreeType.cpp \
-	SkFontHost_android.cpp \
-	SkFontHost_gamma.cpp \
+	SkFontHost_none.cpp \
 	SkMMapStream.cpp \
 	SkTime_Unix.cpp \
 	$(NULL)
@@ -323,8 +321,8 @@ endif
 ifeq (gtk2,$(MOZ_WIDGET_TOOLKIT))
 CPPSRCS += \
 	SkFontHost_FreeType.cpp \
-	SkFontHost_gamma_none.cpp \
 	SkFontHost_linux.cpp \
+	SkFontHost_gamma.cpp \
 	SkTime_Unix.cpp \
 	SkMMapStream.cpp \
 	SkOSFile.cpp \

@@ -484,7 +484,6 @@ class BreakStatement;
 class ContinueStatement;
 class XMLProcessingInstruction;
 class ConditionalExpression;
-class PropertyAccess;
 
 struct ParseNode {
   private:
@@ -928,7 +927,6 @@ struct ParseNode {
     inline XMLProcessingInstruction &asXMLProcessingInstruction();
 #endif
     inline ConditionalExpression &asConditionalExpression();
-    inline PropertyAccess &asPropertyAccess();
 };
 
 struct NullaryNode : public ParseNode {
@@ -1231,14 +1229,6 @@ class PropertyAccess : public ParseNode {
         return *pn_u.name.atom->asPropertyName();
     }
 };
-
-inline PropertyAccess &
-ParseNode::asPropertyAccess()
-{
-    JS_ASSERT(isKind(PNK_DOT));
-    JS_ASSERT(pn_arity == PN_NAME);
-    return *static_cast<PropertyAccess *>(this);
-}
 
 class PropertyByValue : public ParseNode {
   public:
