@@ -1,3 +1,4 @@
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -11,15 +12,15 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is Zip Writer Component.
+ * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
- * Dave Townsend <dtownsend@oxymoronical.com>.
- *
- * Portions created by the Initial Developer are Copyright (C) 2007
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2002
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
+ *      Boris Zbarsky <bzbarsky@mit.edu>  (original author)
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -33,47 +34,44 @@
  * the provisions above, a recipient may use your version of this file under
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
- * ***** END LICENSE BLOCK *****
+ * ***** END LICENSE BLOCK ***** */
+
+/*
+ * This file was part of an abortive attempt at DOM3 Load/Save; it's not built.
  */
 
-const NS_OS_TEMP_DIR = "TmpD";
-const Ci = Components.interfaces;
-const Cc = Components.classes;
-const NS_ERROR_IN_PROGRESS = 2152398863;
+#ifndef nsDOMBuilder_h__
+#define nsDOMBuilder_h__
 
-const PR_RDONLY      = 0x01
-const PR_WRONLY      = 0x02
-const PR_RDWR        = 0x04
-const PR_CREATE_FILE = 0x08
-const PR_APPEND      = 0x10
-const PR_TRUNCATE    = 0x20
-const PR_SYNC        = 0x40
-const PR_EXCL        = 0x80
+#include "nsIDOMDOMBuilder.h"
+#include "nsIDOMDOMEntityResolver.h"
+#include "nsIDOMDOMErrorHandler.h"
+#include "nsIDOMDOMBuilderFilter.h"
+#include "nsIDOMDOMImplementation.h"
+#include "nsCOMPtr.h"
 
-const ZIP_EOCDR_HEADER_SIZE = 22;
-const ZIP_FILE_HEADER_SIZE = 30;
-const ZIP_CDS_HEADER_SIZE = 46;
-const ZIP_METHOD_STORE = 0
-const ZIP_METHOD_DEFLATE = 8
+class nsDOMBuilder : public nsIDOMDOMBuilder
+{
+public:
+  nsDOMBuilder(PRUint16 aMode, const nsAString& aSchemaType,
+               nsIDOMDOMImplementation* aDOMImplementation);
+  virtual ~nsDOMBuilder();
 
-const PR_USEC_PER_MSEC = 1000;
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIDOMDOMBUILDER
 
-// ZIP times are stored at a 2 second resolution.
-const TIME_RESOLUTION = 2000;
+private:
+  nsCOMPtr<nsIDOMDOMEntityResolver> mEntityResolver;
+  nsCOMPtr<nsIDOMDOMErrorHandler> mErrorHandler;
+  nsCOMPtr<nsIDOMDOMBuilderFilter> mFilter;
+  // Strong ref; make sure DOMImplementation never owns us!
+  nsCOMPtr<nsIDOMDOMImplementation> mDOMImplementation;
+};
 
-const DATA_DIR = "data/";
+nsresult
+NS_NewDOMBuilder(nsIDOMDOMBuilder** aResult,
+                 PRUint16 aMode,
+                 const nsAString & aSchemaType,
+                 nsIDOMDOMImplementation* aDOMImplementation);
 
-var ZipWriter = Components.Constructor("@mozilla.org/zipwriter;1",
-                                       "nsIZipWriter");
-var ZipReader = Components.Constructor("@mozilla.org/libjar/zip-reader;1",
-                                       "nsIZipReader", "open");
-
-var dirSvc = Cc["@mozilla.org/file/directory_service;1"]
-              .getService(Ci.nsIProperties);
-var tmpDir = dirSvc.get(NS_OS_TEMP_DIR, Ci.nsIFile);
-var tmpFile = tmpDir.clone();
-tmpFile.append("zipwriter-test.zip");
-if (tmpFile.exists())
-  tmpFile.remove(true);
-
-var zipW = new ZipWriter();
+#endif // nsDOMBuilder_h__

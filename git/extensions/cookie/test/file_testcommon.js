@@ -29,15 +29,6 @@ function setupTest(uri, cookies, loads) {
   gPopup = window.open(uri, 'hai', 'width=100,height=100');
 }
 
-function finishTest()
-{
-  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-  Components.classes["@mozilla.org/preferences-service;1"]
-            .getService(Components.interfaces.nsIPrefBranch)
-            .clearUserPref("network.cookie.cookieBehavior");
-
-  SimpleTest.finish();
-}
 
 /** Receives MessageEvents to this window. */
 // Count and check loads.
@@ -48,7 +39,7 @@ function messageReceiver(evt)
     gPopup.close();
     window.removeEventListener("message", messageReceiver, false);
 
-    finishTest();
+    SimpleTest.finish();
     return;
   }
 
@@ -77,5 +68,5 @@ function runTest() {
   is(count, gExpectedCookies, "total number of cookies");
   cs.removeAll();
 
-  finishTest();
+  SimpleTest.finish();
 }

@@ -76,11 +76,13 @@ public:
   NS_IMETHOD NewValueSpecifiedUnits(PRUint16 unitType,
                                     float valueInSpecifiedUnits)
     {
-      return mVal.NewValueSpecifiedUnits(unitType, valueInSpecifiedUnits, nsnull);
+      NS_ENSURE_FINITE(valueInSpecifiedUnits, NS_ERROR_ILLEGAL_VALUE);
+      mVal.NewValueSpecifiedUnits(unitType, valueInSpecifiedUnits, nsnull);
+      return NS_OK;
     }
 
   NS_IMETHOD ConvertToSpecifiedUnits(PRUint16 unitType)
-    { return mVal.ConvertToSpecifiedUnits(unitType, nsnull); }
+    { mVal.ConvertToSpecifiedUnits(unitType, nsnull); return NS_OK; }
 
 private:
   nsSVGAngle mVal;
@@ -203,7 +205,7 @@ GetValueFromString(const nsAString &aValueAsString,
   const char *str = value.get();
 
   if (NS_IsAsciiWhitespace(*str))
-    return NS_ERROR_DOM_SYNTAX_ERR;
+    return NS_ERROR_FAILURE;
   
   char *rest;
   *aValue = float(PR_strtod(str, &rest));
@@ -214,7 +216,7 @@ GetValueFromString(const nsAString &aValueAsString,
     }
   }
   
-  return NS_ERROR_DOM_SYNTAX_ERR;
+  return NS_ERROR_FAILURE;
 }
 
 float
@@ -242,35 +244,31 @@ nsSVGAngle::SetBaseValueInSpecifiedUnits(float aValue,
   aSVGElement->DidChangeAngle(mAttrEnum, PR_TRUE);
 }
 
-nsresult
+void
 nsSVGAngle::ConvertToSpecifiedUnits(PRUint16 unitType,
                                     nsSVGElement *aSVGElement)
 {
   if (!IsValidUnitType(unitType))
-    return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
+    return;
 
   float valueInUserUnits = mBaseVal / GetUnitScaleFactor();
   mSpecifiedUnitType = PRUint8(unitType);
   SetBaseValue(valueInUserUnits, aSVGElement);
-  return NS_OK;
 }
 
-nsresult
+void
 nsSVGAngle::NewValueSpecifiedUnits(PRUint16 unitType,
                                    float valueInSpecifiedUnits,
                                    nsSVGElement *aSVGElement)
 {
-  NS_ENSURE_FINITE(valueInSpecifiedUnits, NS_ERROR_ILLEGAL_VALUE);
-
   if (!IsValidUnitType(unitType))
-    return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
+    return;
 
   mBaseVal = mAnimVal = valueInSpecifiedUnits;
   mSpecifiedUnitType = PRUint8(unitType);
   if (aSVGElement) {
     aSVGElement->DidChangeAngle(mAttrEnum, PR_TRUE);
   }
-  return NS_OK;
 }
 
 nsresult

@@ -83,20 +83,18 @@ class nsZipItem
 public:
   const char* Name() { return ((const char*)central) + ZIPCENTRAL_SIZE; }
 
-  PRUint32 LocalOffset();
-  PRUint32 Size();
-  PRUint32 RealSize();
-  PRUint32 CRC32();
-  PRUint16 Date();
-  PRUint16 Time();
-  PRUint16 Compression();
-  bool     IsDirectory();
-  PRUint16 Mode();
-  const PRUint8* GetExtraField(PRUint16 aTag, PRUint16 *aBlockSize);
-  PRTime   LastModTime();
+  PRUint32 const LocalOffset();
+  PRUint32 const Size();
+  PRUint32 const RealSize();
+  PRUint32 const CRC32();
+  PRUint16 const Date();
+  PRUint16 const Time();
+  PRUint16 const Compression();
+  bool     const IsDirectory();
+  PRUint16 const Mode();
 
 #if defined(XP_UNIX) || defined(XP_BEOS)
-  bool     IsSymlink();
+  bool     const IsSymlink();
 #endif
 
   nsZipItem*         next;

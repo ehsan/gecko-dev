@@ -225,23 +225,12 @@ protected:
                                      nsIDOMClientRect* position,
                                      nsIDOMClientRect* clip);
 
-  void NotifyPluginReflowObservers();
+  void NotifyPluginEventObservers(const PRUnichar *eventType);
 
   friend class nsPluginInstanceOwner;
   friend class nsDisplayPlugin;
 
 private:
-  
-  class PluginEventNotifier : public nsRunnable {
-  public:
-    PluginEventNotifier(const nsString &aEventType) : 
-      mEventType(aEventType) {}
-    
-    NS_IMETHOD Run();
-  private:
-    nsString mEventType;
-  };
-  
   nsRefPtr<nsPluginInstanceOwner> mInstanceOwner;
   nsIView*                        mInnerView;
   nsCOMPtr<nsIWidget>             mWidget;

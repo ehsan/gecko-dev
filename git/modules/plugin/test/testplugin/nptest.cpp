@@ -137,7 +137,6 @@ static bool checkObjectValue(NPObject* npobj, const NPVariant* args, uint32_t ar
 static bool enableFPExceptions(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool setCookie(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool getCookie(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool getAuthInfo(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 
 static const NPUTF8* sPluginMethodIdentifierNames[] = {
   "npnEvaluateTest",
@@ -174,7 +173,6 @@ static const NPUTF8* sPluginMethodIdentifierNames[] = {
   "enableFPExceptions",
   "setCookie",
   "getCookie",
-  "getAuthInfo",
 };
 static NPIdentifier sPluginMethodIdentifiers[ARRAY_LENGTH(sPluginMethodIdentifierNames)];
 static const ScriptableFunction sPluginMethodFunctions[ARRAY_LENGTH(sPluginMethodIdentifierNames)] = {
@@ -212,7 +210,6 @@ static const ScriptableFunction sPluginMethodFunctions[ARRAY_LENGTH(sPluginMetho
   enableFPExceptions,
   setCookie,
   getCookie,
-  getAuthInfo,
 };
 
 struct URLNotifyData
@@ -1334,20 +1331,6 @@ NPN_GetValueForURL(NPP instance, NPNURLVariable variable, const char *url, char 
   return sBrowserFuncs->getvalueforurl(instance, variable, url, value, len);
 }
 
-NPError
-NPN_GetAuthenticationInfo(NPP instance,
-                          const char *protocol,
-                          const char *host, int32_t port,
-                          const char *scheme,
-                          const char *realm,
-                          char **username, uint32_t *ulen,
-                          char **password,
-                          uint32_t *plen)
-{
-  return sBrowserFuncs->getauthenticationinfo(instance, protocol, host, port, scheme, realm,
-      username, ulen, password, plen);
-}
-
 //
 // npruntime object functions
 //
@@ -2258,7 +2241,6 @@ static char* URLForInstanceWindow(NPP instance) {
 static bool
 setCookie(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
 {
-  printf("setCookie(%i)\n", (int) argCount);
   if (argCount != 1)
     return false;
   if (!NPVARIANT_IS_STRING(args[0]))
@@ -2272,8 +2254,6 @@ setCookie(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* 
     return false;
   NPError err = NPN_SetValueForURL(npp, NPNURLVCookie, url, cookie->UTF8Characters, cookie->UTF8Length);
   free(url);
-
-  printf("  setCookie err==%i\n", err);
   
   return (err == NPERR_NO_ERROR);
 }
@@ -2281,7 +2261,6 @@ setCookie(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* 
 static bool
 getCookie(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
 {
-  printf("getCookie(%i)\n", (int) argCount);
   if (argCount != 0)
     return false;
   
@@ -2294,62 +2273,9 @@ getCookie(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* 
   unsigned int length = 0;
   NPError err = NPN_GetValueForURL(npp, NPNURLVCookie, url, &cookie, &length);
   free(url);
-  printf("  getCookie err==%i cookie==%s\n", err, cookie);
   if (err != NPERR_NO_ERROR || !cookie)
     return false;
   
   STRINGZ_TO_NPVARIANT(cookie, *result);
-  return true;
-}
-
-static bool
-getAuthInfo(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
-{
-  if (argCount != 5)
-    return false;
-
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-
-  if (!NPVARIANT_IS_STRING(args[0]) || !NPVARIANT_IS_STRING(args[1]) ||
-      !NPVARIANT_IS_INT32(args[2]) || !NPVARIANT_IS_STRING(args[3]) ||
-      !NPVARIANT_IS_STRING(args[4]))
-    return false;
-
-  const NPString* protocol = &NPVARIANT_TO_STRING(args[0]);
-  const NPString* host = &NPVARIANT_TO_STRING(args[1]);
-  uint32_t port = NPVARIANT_TO_INT32(args[2]);
-  const NPString* scheme = &NPVARIANT_TO_STRING(args[3]);
-  const NPString* realm = &NPVARIANT_TO_STRING(args[4]);
-
-  char* username = NULL;
-  char* password = NULL;
-  uint32_t ulen = 0, plen = 0;
-  
-  NPError err = NPN_GetAuthenticationInfo(npp, 
-      protocol->UTF8Characters, 
-      host->UTF8Characters, 
-      port, 
-      scheme->UTF8Characters, 
-      realm->UTF8Characters,
-      &username, 
-      &ulen, 
-      &password, 
-      &plen);
-  
-  if (err != NPERR_NO_ERROR) {
-    return false;
-  }
-
-  char* outstring = (char*)NPN_MemAlloc(ulen + plen + 2);
-  memset(outstring, 0, ulen + plen + 2);
-  strncpy(outstring, username, ulen);
-  strcat(outstring, "|");
-  strncat(outstring, password, plen);
-
-  STRINGZ_TO_NPVARIANT(outstring, *result);
-
-  NPN_MemFree(username);
-  NPN_MemFree(password);
-  
   return true;
 }

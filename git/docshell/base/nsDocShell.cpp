@@ -7910,7 +7910,7 @@ nsDocShell::InternalLoad(nsIURI * aURI,
                     do_QueryInterface(mScriptGlobal);
 
                 if (window)
-                    window->DispatchSyncHashchange();
+                    window->DispatchAsyncHashchange();
             }
 
             return NS_OK;

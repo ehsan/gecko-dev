@@ -93,12 +93,12 @@ nsSVGNumber2::SetBaseValueString(const nsAString &aValueAsString,
   const char *str = value.get();
 
   if (NS_IsAsciiWhitespace(*str))
-    return NS_ERROR_DOM_SYNTAX_ERR;
+    return NS_ERROR_FAILURE;
   
   char *rest;
   float val = float(PR_strtod(str, &rest));
   if (rest == str || *rest != '\0' || !NS_FloatIsFinite(val)) {
-    return NS_ERROR_DOM_SYNTAX_ERR;
+    return NS_ERROR_FAILURE;
   }
 
   mBaseVal = mAnimVal = val;
