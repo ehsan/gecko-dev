@@ -3668,8 +3668,10 @@ var XULBrowserWindow = {
   init: function () {
     this.throbberElement = document.getElementById("navigator-throbber");
 
-    // Initialize the security button's state and tooltip text.
+    // Initialize the security button's state and tooltip text.  Remember to reset
+    // _hostChanged, otherwise onSecurityChange will short circuit.
     var securityUI = gBrowser.securityUI;
+    this._hostChanged = true;
     this.onSecurityChange(null, null, securityUI.state);
   },
 
@@ -3860,6 +3862,7 @@ var XULBrowserWindow = {
 
   onLocationChange: function (aWebProgress, aRequest, aLocationURI, aFlags) {
     var location = aLocationURI ? aLocationURI.spec : "";
+    this._hostChanged = true;
 
     // Hide the form invalid popup.
     if (gFormSubmitObserver.panel) {
@@ -4001,18 +4004,37 @@ var XULBrowserWindow = {
 
   // Properties used to cache security state used to update the UI
   _state: null,
-  _lastLocation: null,
+  _hostChanged: false, // onLocationChange will flip this bit
 
   onSecurityChange: function (aWebProgress, aRequest, aState) {
     // Don't need to do anything if the data we use to update the UI hasn't
     // changed
-    let uri = gBrowser.currentURI;
-    let spec = uri.spec;
     if (this._state == aState &&
-        this._lastLocation == spec)
+        !this._hostChanged) {
+#ifdef DEBUG
+      try {
+        var contentHost = gBrowser.contentWindow.location.host;
+        if (this._host !== undefined && this._host != contentHost) {
+            Components.utils.reportError(
+              "ASSERTION: browser.js host is inconsistent. Content window has " +
+              "<" + contentHost + "> but cached host is <" + this._host + ">.\n"
+            );
+        }
+      } catch (ex) {}
+#endif
       return;
+    }
     this._state = aState;
-    this._lastLocation = spec;
+
+#ifdef DEBUG
+    try {
+      this._host = gBrowser.contentWindow.location.host;
+    } catch(ex) {
+      this._host = null;
+    }
+#endif
+
+    this._hostChanged = false;
 
     // aState is defined as a bitmask that may be extended in the future.
     // We filter out any unknown bits before testing for known values.
@@ -4041,6 +4063,7 @@ var XULBrowserWindow = {
         gURLBar.removeAttribute("level");
     }
 
+    let uri = gBrowser.currentURI;
     try {
       uri = Services.uriFixup.createExposableURI(uri);
     } catch (e) {}
@@ -6868,7 +6891,7 @@ var gIdentityHandler = {
         continue;
       let menuitem = document.createElement("menuitem");
       menuitem.setAttribute("value", state);
-      menuitem.setAttribute("label", SitePermissions.getStateLabel(aPermission, state));
+      menuitem.setAttribute("label", SitePermissions.getStateLabel(state));
       menupopup.appendChild(menuitem);
     }
     menulist.appendChild(menupopup);

@@ -4849,7 +4849,7 @@ NewGlobalObject(JSContext *cx, JSObject *sameZoneAs)
         if (!JS_DefineProperty(cx, glob, "customNative", UndefinedValue(),
                                (JSPropertyOp)its_get_customNative,
                                (JSStrictPropertyOp)its_set_customNative,
-                               JSPROP_SHARED | JSPROP_NATIVE_ACCESSORS))
+                               JSPROP_NATIVE_ACCESSORS))
         {
             return NULL;
         }
@@ -5265,8 +5265,8 @@ main(int argc, char **argv, char **envp)
         || !op.addStringOption('\0', "ion-gvn", "[mode]",
                                "Specify Ion global value numbering:\n"
                                "  off: disable GVN\n"
-                               "  pessimistic: use pessimistic GVN\n"
-                               "  optimistic: (default) use optimistic GVN")
+                               "  pessimistic: (default) use pessimistic GVN\n"
+                               "  optimistic: use optimistic GVN")
         || !op.addStringOption('\0', "ion-licm", "on/off",
                                "Loop invariant code motion (default: on, off to disable)")
         || !op.addStringOption('\0', "ion-edgecase-analysis", "on/off",

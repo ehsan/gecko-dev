@@ -20,14 +20,12 @@ new
 algorithm
 atomic
 deque
-ios
 iostream
 iterator
 limits
 list
 map
 memory
-ostream
 set
 stack
 string

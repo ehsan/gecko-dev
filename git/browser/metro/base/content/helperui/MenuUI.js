@@ -338,7 +338,6 @@ function MenuPopup(aPanel, aPopup) {
   this._panel = aPanel;
   this._popup = aPopup;
   this._wantTypeBehind = false;
-  this._willReshowPopup = false;
 
   window.addEventListener('MozAppbarShowing', this, false);
 }
@@ -347,19 +346,9 @@ MenuPopup.prototype = {
   get _commands() { return this._popup.childNodes[0]; },
 
   show: function (aPositionOptions) {
-    if (this._visible) {
-      this._willReshowPopup = true;
-      let self = this;
-      this._panel.addEventListener("transitionend", function () {
-        self._show(aPositionOptions);
-        self._panel.removeEventListener("transitionend", arguments.callee);
-      });
-    } else {
-      this._show(aPositionOptions);
-    }
-  },
+    if (this._visible)
+      return;
 
-  _show: function (aPositionOptions) {
     window.addEventListener("keypress", this, true);
     window.addEventListener("mousedown", this, true);
     Elements.stack.addEventListener("PopupChanged", this, false);
@@ -373,12 +362,9 @@ MenuPopup.prototype = {
       self._panel.removeEventListener("transitionend", arguments.callee);
       self._panel.removeAttribute("showingfrom");
 
-      let eventName = self._willReshowPopup ? "popupmoved" : "popupshown";
       let event = document.createEvent("Events");
-      event.initEvent(eventName, true, false);
-      self._panel.dispatchEvent(event);
-
-      self._willReshowPopup = false;
+      event.initEvent("popupshown", true, false);
+      document.dispatchEvent(event);
     });
 
     let popupFrom = !aPositionOptions.bottomAligned ? "above" : "below";
@@ -407,11 +393,9 @@ MenuPopup.prototype = {
       self._popup.style.maxWidth = "none";
       self._popup.style.maxHeight = "none";
 
-      if (!self._willReshowPopup) {
-        let event = document.createEvent("Events");
-        event.initEvent("popuphidden", true, false);
-        self._panel.dispatchEvent(event);
-      }
+      let event = document.createEvent("Events");
+      event.initEvent("popuphidden", true, false);
+      document.dispatchEvent(event);
     });
 
     this._panel.setAttribute("hiding", "true");

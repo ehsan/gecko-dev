@@ -33,7 +33,6 @@ NOT_THERE_YET_CPPSRCS = \
 SHARED_LIBRARY_LIBS = ../xpwidgets/libxpwidgets_s.a
 
 include $(topsrcdir)/config/rules.mk
-include $(topsrcdir)/ipc/chromium/chromium-config.mk
 
 #DEFINES += -DDEBUG_WIDGETS
 
@@ -47,3 +46,5 @@ LOCAL_INCLUDES += \
 	-I$(topsrcdir)/widget/android/android \
 	-I$(srcdir) \
 	$(NULL)
+
+include $(topsrcdir)/ipc/chromium/chromium-config.mk

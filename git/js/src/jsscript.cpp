@@ -2792,9 +2792,6 @@ JSScript::markChildren(JSTracer *trc)
 void
 LazyScript::markChildren(JSTracer *trc)
 {
-    if (function_)
-        MarkObject(trc, &function_, "function");
-
     if (sourceObject_)
         MarkObject(trc, &sourceObject_, "sourceObject");
 
@@ -2969,10 +2966,9 @@ JSScript::formalLivesInArgumentsObject(unsigned argSlot)
     return argsObjAliasesFormals() && !formalIsAliased(argSlot);
 }
 
-LazyScript::LazyScript(JSFunction *fun, void *table, uint32_t numFreeVariables, uint32_t numInnerFunctions,
+LazyScript::LazyScript(void *table, uint32_t numFreeVariables, uint32_t numInnerFunctions,
                        JSVersion version, uint32_t begin, uint32_t end, uint32_t lineno, uint32_t column)
   : script_(NULL),
-    function_(fun),
     enclosingScope_(NULL),
     sourceObject_(NULL),
     table_(table),
@@ -3021,8 +3017,8 @@ LazyScript::sourceObject() const
 }
 
 /* static */ LazyScript *
-LazyScript::Create(ExclusiveContext *cx, HandleFunction fun,
-                   uint32_t numFreeVariables, uint32_t numInnerFunctions, JSVersion version,
+LazyScript::Create(ExclusiveContext *cx, uint32_t numFreeVariables, uint32_t numInnerFunctions,
+                   JSVersion version,
                    uint32_t begin, uint32_t end, uint32_t lineno, uint32_t column)
 {
     JS_ASSERT(begin <= end);
@@ -3041,7 +3037,7 @@ LazyScript::Create(ExclusiveContext *cx, HandleFunction fun,
     if (!res)
         return NULL;
 
-    return new (res) LazyScript(fun, table, numFreeVariables, numInnerFunctions, version,
+    return new (res) LazyScript(table, numFreeVariables, numInnerFunctions, version,
                                 begin, end, lineno, column);
 }
 

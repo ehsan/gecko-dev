@@ -6,6 +6,7 @@
 
 XPIDL_SOURCES += [
     'nsIDOMMozSettingsEvent.idl',
+    'nsIDOMSettingsManager.idl',
     'nsISettingsService.idl',
 ]
 

@@ -14,6 +14,9 @@
 #include "nsWrapperCacheInlines.h"
 #include "mozilla/dom/HTMLPropertiesCollectionBinding.h"
 
+DOMCI_DATA(HTMLPropertiesCollection, mozilla::dom::HTMLPropertiesCollection)
+DOMCI_DATA(PropertyNodeList, mozilla::dom::PropertyNodeList)
+
 namespace mozilla {
 namespace dom {
 

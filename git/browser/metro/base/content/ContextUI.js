@@ -10,6 +10,12 @@ const kContextUIDismissEvent = "MozContextUIDismiss";
 const kContextUITabsShowEvent = "MozContextUITabsShow";
 // add more as needed...
 
+// delay for ContextUI's dismissTabsWithDelay
+const kHideContextAndTrayDelayMsec = 3000;
+
+// delay when showing the tab bar briefly as a new tab opens
+const kNewTabAnimationDelayMsec = 1000;
+
 /*
  * Manages context UI (navbar, tabbar, appbar) and track visibility. Also
  * tracks events that summon and hide the context UI.
@@ -154,22 +160,33 @@ var ContextUI = {
   /*
    * Briefly show the tab bar and then hide it. Fires context ui events.
    */
-  peekTabs: function peekTabs(aDelay) {
-    if (!this.tabbarVisible)
+  peekTabs: function peekTabs() {
+    if (this.tabbarVisible) {
+      setTimeout(function () {
+        ContextUI.dismissTabsWithDelay(kNewTabAnimationDelayMsec);
+      }, 0);
+    } else {
+      BrowserUI.setOnTabAnimationEnd(function () {
+        ContextUI.dismissTabsWithDelay(kNewTabAnimationDelayMsec);
+      });
       this.displayTabs();
-
-    ContextUI.dismissTabsWithDelay(aDelay);
+    }
   },
 
   /*
    * Dismiss tab bar after a delay. Fires context ui events.
    */
   dismissTabsWithDelay: function (aDelay) {
-    aDelay = aDelay || kNewTabAnimationDelayMsec;
+    aDelay = aDelay || kHideContextAndTrayDelayMsec;
     this._clearDelayedTimeout();
     this._hidingId = setTimeout(function () {
         ContextUI.dismissTabs();
       }, aDelay);
+  },
+
+  // Cancel any pending delayed dismiss
+  cancelDismiss: function cancelDismiss() {
+    this._clearDelayedTimeout();
   },
 
   // Display the nav bar
@@ -182,6 +199,12 @@ var ContextUI = {
   displayTabs: function () {
     this._clearDelayedTimeout();
     this._setIsExpanded(true);
+  },
+
+  // Display the app bar
+  displayContextAppbar: function () {
+    this._clearDelayedTimeout();
+    Elements.contextappbar.show();
   },
 
   // Dismiss the navbar if visible.
@@ -289,9 +312,15 @@ var ContextUI = {
         if (aEvent.button == 0 && this.isVisible)
           this.dismiss();
         break;
+      case 'URLChanged':
+        this.dismissTabs();
+        break;
+      case 'TabSelect':
+        this.dismissTabs();
+        break;
 
-      case "ToolPanelShown":
-      case "ToolPanelHidden":
+      case 'ToolPanelShown':
+      case 'ToolPanelHidden':
       case "touchstart":
       case "AlertActive":
         this.dismiss();

@@ -3,7 +3,11 @@
    - License, v. 2.0. If a copy of the MPL was not distributed with this
    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
 
-<merge xmlns:android="http://schemas.android.com/apk/res/android">
+<org.mozilla.gecko.AnimatedHeightLayout xmlns:android="http://schemas.android.com/apk/res/android"
+                android:layout_width="fill_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="@dimen/awesomebar_row_height"
+                android:padding="7dip">
 
     <org.mozilla.gecko.widget.FaviconView android:id="@+id/suggestion_icon"
                                           android:layout_width="@dimen/favicon_bg"
@@ -17,12 +21,11 @@
     <org.mozilla.gecko.FlowLayout android:id="@+id/suggestion_layout"
                                   android:layout_toRightOf="@id/suggestion_icon"
                                   android:layout_width="wrap_content"
-                                  android:duplicateParentState="true"
                                   android:layout_height="wrap_content">
 
-        <include layout="@layout/suggestion_item"
+        <include layout="@layout/awesomebar_suggestion_item"
                  android:id="@+id/suggestion_user_entered"/>
 
     </org.mozilla.gecko.FlowLayout>
 
-</merge>
+</org.mozilla.gecko.AnimatedHeightLayout>
