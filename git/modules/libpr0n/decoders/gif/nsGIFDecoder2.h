@@ -75,7 +75,7 @@ private:
 
   void      BeginGIF();
   void      EndGIF();
-  nsresult  BeginImageFrame(gfx_depth aDepth);
+  void      BeginImageFrame(gfx_depth aDepth);
   void      EndImageFrame();
   nsresult  FlushImageData();
   nsresult  FlushImageData(PRUint32 fromRow, PRUint32 rows);

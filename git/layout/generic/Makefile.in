@@ -50,6 +50,8 @@ LIBRARY_NAME	= gkgeneric_s
 LIBXUL_LIBRARY	= 1
 
 
+ifdef ACCESSIBILITY
+endif
 
 EXPORTS		= \
 		nsQueryFrame.h \

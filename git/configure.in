@@ -1019,6 +1019,11 @@ if test "$COMPILE_ENVIRONMENT"; then
 
 AC_PATH_XTRA
 
+dnl Check in X11 include directory too.
+if test "$no_x" != "yes"; then
+    CPPFLAGS="$CPPFLAGS $X_CFLAGS"
+fi
+
 XCFLAGS="$X_CFLAGS"
 
 fi # COMPILE_ENVIRONMENT
@@ -4245,7 +4250,8 @@ else
         \$(LIBXUL_DIST)/lib/\$(DLL_PREFIX)smime$NSS_VERSION\$(DLL_SUFFIX) \
         \$(LIBXUL_DIST)/lib/\$(DLL_PREFIX)ssl$NSS_VERSION\$(DLL_SUFFIX) \
         \$(LIBXUL_DIST)/lib/\$(DLL_PREFIX)nss$NSS_VERSION\$(DLL_SUFFIX) \
-        \$(LIBXUL_DIST)/lib/\$(DLL_PREFIX)nssutil$NSS_VERSION\$(DLL_SUFFIX)"
+        \$(LIBXUL_DIST)/lib/\$(DLL_PREFIX)nssutil$NSS_VERSION\$(DLL_SUFFIX) \
+        \$(LIBXUL_DIST)/lib/\$(DLL_PREFIX)softokn$NSS_VERSION\$(DLL_SUFFIX)"
 
    if test -z "$GNU_CC" && test "$OS_ARCH" = "WINNT" -o "$OS_ARCH" = "WINCE" -o "$OS_ARCH" = "OS2"; then
        NSS_LIBS="\
@@ -4253,9 +4259,10 @@ else
         \$(LIBXUL_DIST)/lib/\$(LIB_PREFIX)smime$NSS_VERSION.\$(IMPORT_LIB_SUFFIX) \
         \$(LIBXUL_DIST)/lib/\$(LIB_PREFIX)ssl$NSS_VERSION.\$(IMPORT_LIB_SUFFIX) \
         \$(LIBXUL_DIST)/lib/\$(LIB_PREFIX)nss$NSS_VERSION.\$(IMPORT_LIB_SUFFIX) \
-        \$(LIBXUL_DIST)/lib/\$(LIB_PREFIX)nssutil$NSS_VERSION.\$(IMPORT_LIB_SUFFIX)"
+        \$(LIBXUL_DIST)/lib/\$(LIB_PREFIX)nssutil$NSS_VERSION.\$(IMPORT_LIB_SUFFIX) \
+        \$(LIBXUL_DIST)/lib/\$(LIB_PREFIX)softokn$NSS_VERSION.\$(IMPORT_LIB_SUFFIX)"
    else
-       NSS_LIBS='$(LIBS_DIR)'" -lcrmf -lsmime$NSS_VERSION -lssl$NSS_VERSION -lnss$NSS_VERSION -lnssutil$NSS_VERSION"
+       NSS_LIBS='$(LIBS_DIR)'" -lcrmf -lsmime$NSS_VERSION -lssl$NSS_VERSION -lnss$NSS_VERSION -lnssutil$NSS_VERSION -lsoftokn$NSS_VERSION"
    fi
 fi
 
@@ -4470,7 +4477,6 @@ BUILD_STATIC_LIBS=
 ENABLE_TESTS=1
 MOZ_ACTIVEX_SCRIPTING_SUPPORT=
 MOZ_BRANDING_DIRECTORY=
-MOZ_OFFICIAL_BRANDING=
 MOZ_DBGRINFO_MODULES=
 MOZ_ENABLE_CANVAS=1
 MOZ_ENABLE_CANVAS3D=
@@ -4869,6 +4875,7 @@ cairo-os2)
 cairo-cocoa)
     MOZ_WIDGET_TOOLKIT=cocoa
     AC_DEFINE(MOZ_WIDGET_COCOA)
+    MOZ_ENABLE_COCOA=1
     MOZ_USER_DIR="Mozilla"
     AC_DEFINE(XP_MACOSX)
     AC_DEFINE(TARGET_CARBON)
@@ -4984,6 +4991,7 @@ AC_SUBST(TK_LIBS)
 
 AC_SUBST(MOZ_ENABLE_GTK2)
 AC_SUBST(MOZ_ENABLE_PHOTON)
+AC_SUBST(MOZ_ENABLE_COCOA)
 AC_SUBST(MOZ_ENABLE_QT)
 AC_SUBST(MOZ_ENABLE_XREMOTE)
 AC_SUBST(MOZ_GTK2_CFLAGS)
@@ -5021,23 +5029,28 @@ MOZ_ARG_ENABLE_BOOL(official-branding,
                           --enable-official-branding unless you have
                           permission to use trademarks per
                           http://www.mozilla.org/foundation/trademarks/ .],
-[
-  if test -z "$MOZ_OFFICIAL_BRANDING_DIRECTORY"; then
-    AC_MSG_ERROR([You must specify MOZ_OFFICIAL_BRANDING_DIRECTORY to use --enable-official-branding.])
-  else
-    MOZ_BRANDING_DIRECTORY=${MOZ_OFFICIAL_BRANDING_DIRECTORY}
-    MOZ_OFFICIAL_BRANDING=1
-  fi
-], MOZ_OFFICIAL_BRANDING=)
+[case "$MOZ_BUILD_APP" in
+browser)
+    MOZ_BRANDING_DIRECTORY=other-licenses/branding/firefox
+    MOZ_APP_DISPLAYNAME=Firefox
+    ;;
 
-AC_SUBST(MOZ_OFFICIAL_BRANDING)
-if test -n "$MOZ_OFFICIAL_BRANDING"; then
-  AC_DEFINE(MOZ_OFFICIAL_BRANDING)
-fi
+*)]
+    AC_MSG_ERROR([Official branding is only available for Firefox.])
+esac
+)
 
 MOZ_ARG_WITH_STRING(branding,
 [  --with-branding=dir    Use branding from the specified directory.],
     MOZ_BRANDING_DIRECTORY=$withval)
+
+dnl For Firefox, we always want MOZ_BRANDING_DIRECTORY to point somewhere, so
+dnl if it's not set make it point to the default branding location now. Other
+dnl products need MOZ_BRANDING_DIRECTORY to NOT be set, in order to use their
+dnl default branding (ie, only set it when using non-default branding).
+if test "$MOZ_BUILD_APP" = "browser" -a -z "$MOZ_BRANDING_DIRECTORY"; then
+  MOZ_BRANDING_DIRECTORY=${MOZ_BUILD_APP}/branding/nightly
+fi
 
 REAL_BRANDING_DIRECTORY="${MOZ_BRANDING_DIRECTORY}"
 if test -z "$REAL_BRANDING_DIRECTORY"; then

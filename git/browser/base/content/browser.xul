@@ -284,8 +284,14 @@
     </panel>
   </popupset>
 
-  <!-- Bookmarks and history tooltip -->
-  <tooltip id="bhTooltip"/>
+  <!-- bookmarks toolbar tooltip -->
+  <tooltip id="btTooltip" noautohide="true"
+           onpopupshowing="return BookmarksEventHandler.fillInBTTooltip(document.tooltipNode)">
+    <vbox id="btTooltipTextBox" flex="1">
+      <label id="btTitleText" class="tooltip-label" />
+      <label id="btUrlText" crop="center" class="tooltip-label" />
+    </vbox>
+  </tooltip>
 
   <toolbox id="navigator-toolbox" class="toolbox-top" mode="icons"
 #ifdef WINCE
@@ -451,7 +457,7 @@
                onclick="BookmarksEventHandler.onClick(event);"
                oncommand="BookmarksEventHandler.onCommand(event);"
                onpopupshowing="BookmarksEventHandler.onPopupShowing(event);"
-               tooltip="bhTooltip"/>
+               tooltip="btTooltip"/>
       </toolbaritem>
 
         <toolbarbutton id="downloads-button" class="toolbarbutton-1 chromeclass-toolbar-additional"

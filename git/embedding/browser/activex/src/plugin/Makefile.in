@@ -62,6 +62,8 @@ DEFFILE         = npmozax.def
 GRE_MODULE	= 1
 
 
+ifdef XPC_IDISPATCH_SUPPORT
+endif
 XPIFILE         = mozactivex.xpi
 
 FORCE_SHARED_LIB = 1

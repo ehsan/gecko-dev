@@ -169,7 +169,6 @@ nsListControlFrame::nsListControlFrame(
   nsIPresShell* aShell, nsIDocument* aDocument, nsStyleContext* aContext)
   : nsHTMLScrollFrame(aShell, aContext, PR_FALSE),
     mMightNeedSecondPass(PR_FALSE),
-    mHasPendingInterruptAtStartOfReflow(PR_FALSE),
     mLastDropdownComputedHeight(NS_UNCONSTRAINEDSIZE)
 {
   mComboboxFrame      = nsnull;
@@ -554,8 +553,6 @@ nsListControlFrame::Reflow(nsPresContext*           aPresContext,
 {
   NS_PRECONDITION(aReflowState.ComputedWidth() != NS_UNCONSTRAINEDSIZE,
                   "Must have a computed width");
-
-  mHasPendingInterruptAtStartOfReflow = aPresContext->HasPendingInterrupt();
 
   // If all the content and frames are here 
   // then initialize it before reflow
@@ -1806,9 +1803,7 @@ nsListControlFrame::DidReflow(nsPresContext*           aPresContext,
                               nsDidReflowStatus        aStatus)
 {
   nsresult rv;
-  PRBool wasInterrupted = !mHasPendingInterruptAtStartOfReflow &&
-                          aPresContext->HasPendingInterrupt();
-
+  
   if (IsInDropDownMode()) 
   {
     //SyncViewWithFrame();
@@ -1818,7 +1813,7 @@ nsListControlFrame::DidReflow(nsPresContext*           aPresContext,
     rv = nsHTMLScrollFrame::DidReflow(aPresContext, aReflowState, aStatus);
   }
 
-  if (mNeedToReset && !wasInterrupted) {
+  if (mNeedToReset) {
     mNeedToReset = PR_FALSE;
     // Suppress scrolling to the selected element if we restored
     // scroll history state AND the list contents have not changed
@@ -1832,7 +1827,6 @@ nsListControlFrame::DidReflow(nsPresContext*           aPresContext,
     ResetList(!DidHistoryRestore() || mPostChildrenLoadedReset);
   }
 
-  mHasPendingInterruptAtStartOfReflow = PR_FALSE;
   return rv;
 }
 

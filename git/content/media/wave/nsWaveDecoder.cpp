@@ -976,23 +976,19 @@ nsWaveStateMachine::ScanForwardUntil(PRUint32 aWantedChunk, PRUint32* aChunkSize
     }
 
     PRUint32 magic = ReadUint32BE(&p);
-    PRUint32 chunkSize = ReadUint32LE(&p);
+    PRUint32 size = ReadUint32LE(&p);
 
     if (magic == aWantedChunk) {
-      *aChunkSize = chunkSize;
+      *aChunkSize = size;
       return PR_TRUE;
     }
 
     // RIFF chunks are two-byte aligned, so round up if necessary.
-    chunkSize += chunkSize % 2;
+    size += size % 2;
 
-    while (chunkSize > 0) {
-      PRUint32 size = PR_MIN(chunkSize, 1 << 16);
-      nsAutoArrayPtr<char> chunk(new char[size]);
-      if (!ReadAll(chunk.get(), size)) {
-        return PR_FALSE;
-      }
-      chunkSize -= size;
+    nsAutoArrayPtr<char> chunk(new char[size]);
+    if (!ReadAll(chunk.get(), size)) {
+      return PR_FALSE;
     }
   }
 }

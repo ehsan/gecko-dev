@@ -50,6 +50,8 @@ FORCE_STATIC_LIB = 1
 DEFINES += -DIMPL_XREAPI
 
 
+ifdef ACCESSIBILITY
+endif
 
 CPPSRCS		= \
 		gtkmozembed2.cpp \
