@@ -13,5 +13,3 @@ DIRS += [
     'geolocation',
     'notification',
 ]
-
-JAR_MANIFESTS += ['jar.mn']

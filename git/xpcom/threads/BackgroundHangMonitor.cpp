@@ -3,7 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/ArrayUtils.h"
 #include "mozilla/BackgroundHangMonitor.h"
 #include "mozilla/LinkedList.h"
 #include "mozilla/Monitor.h"
@@ -12,9 +11,6 @@
 #include "mozilla/Telemetry.h"
 #include "mozilla/ThreadHangStats.h"
 #include "mozilla/ThreadLocal.h"
-#ifdef MOZ_NUWA_PROCESS
-#include "ipc/Nuwa.h"
-#endif
 
 #include "prinrval.h"
 #include "prthread.h"
@@ -35,15 +31,6 @@ private:
   static void MonitorThread(void* aData)
   {
     PR_SetCurrentThreadName("BgHangManager");
-
-#ifdef MOZ_NUWA_PROCESS
-    if (IsNuwaProcess()) {
-      NS_ASSERTION(NuwaMarkCurrentThread != nullptr,
-                   "NuwaMarkCurrentThread is undefined!");
-      NuwaMarkCurrentThread(nullptr, nullptr);
-    }
-#endif
-
     /* We do not hold a reference to BackgroundHangManager here
        because the monitor thread only exists as long as the
        BackgroundHangManager instance exists. We stop the monitor
@@ -314,12 +301,8 @@ BackgroundHangThread::BackgroundHangThread(const char* aName,
                                            uint32_t aMaxTimeoutMs)
   : mManager(BackgroundHangManager::sInstance)
   , mThreadID(PR_GetCurrentThread())
-  , mTimeout(aTimeoutMs == BackgroundHangMonitor::kNoTimeout
-             ? PR_INTERVAL_NO_TIMEOUT
-             : PR_MillisecondsToInterval(aTimeoutMs))
-  , mMaxTimeout(aMaxTimeoutMs == BackgroundHangMonitor::kNoTimeout
-                ? PR_INTERVAL_NO_TIMEOUT
-                : PR_MillisecondsToInterval(aMaxTimeoutMs))
+  , mTimeout(PR_MillisecondsToInterval(aTimeoutMs))
+  , mMaxTimeout(PR_MillisecondsToInterval(aMaxTimeoutMs))
   , mInterval(mManager->mIntervalNow)
   , mHangStart(mInterval)
   , mHanging(false)

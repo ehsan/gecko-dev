@@ -1455,7 +1455,7 @@ nsEventStateManager::GetAccessKeyLabelPrefix(nsAString& aPrefix)
   nsAutoString separator, modifierText;
   nsContentUtils::GetModifierSeparatorText(separator);
 
-  nsCOMPtr<nsISupports> container = mPresContext->GetContainerWeak();
+  nsCOMPtr<nsISupports> container = mPresContext->GetContainer();
   int32_t modifierMask = GetAccessModifierMaskFor(container);
 
   if (modifierMask & NS_MODIFIER_CONTROL) {
@@ -1489,7 +1489,7 @@ nsEventStateManager::HandleAccessKey(nsPresContext* aPresContext,
                                      ProcessingAccessKeyState aAccessKeyState,
                                      int32_t aModifierMask)
 {
-  nsCOMPtr<nsISupports> pcContainer = aPresContext->GetContainerWeak();
+  nsCOMPtr<nsISupports> pcContainer = aPresContext->GetContainer();
 
   // Alt or other accesskey modifier is down, we may need to do an accesskey
   if (mAccessKeys.Count() > 0 &&
@@ -2204,7 +2204,7 @@ nsEventStateManager::DetermineDragTarget(nsPresContext* aPresContext,
 {
   *aTargetNode = nullptr;
 
-  nsCOMPtr<nsISupports> container = aPresContext->GetContainerWeak();
+  nsCOMPtr<nsISupports> container = aPresContext->GetContainer();
   nsCOMPtr<nsPIDOMWindow> window = do_GetInterface(container);
   if (!window)
     return;
@@ -2423,7 +2423,10 @@ nsEventStateManager::GetMarkupDocumentViewer(nsIMarkupDocumentViewer** aMv)
   nsPresContext *presContext = presShell->GetPresContext();
   if(!presContext) return NS_ERROR_FAILURE;
 
-  nsCOMPtr<nsIDocShell> docshell(presContext->GetDocShell());
+  nsCOMPtr<nsISupports> pcContainer = presContext->GetContainer();
+  if(!pcContainer) return NS_ERROR_FAILURE;
+
+  nsCOMPtr<nsIDocShell> docshell(do_QueryInterface(pcContainer));
   if(!docshell) return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsIContentViewer> cv;
@@ -2484,7 +2487,7 @@ nsEventStateManager::ChangeFullZoom(int32_t change)
 void
 nsEventStateManager::DoScrollHistory(int32_t direction)
 {
-  nsCOMPtr<nsISupports> pcContainer(mPresContext->GetContainerWeak());
+  nsCOMPtr<nsISupports> pcContainer(mPresContext->GetContainer());
   if (pcContainer) {
     nsCOMPtr<nsIWebNavigation> webNav(do_QueryInterface(pcContainer));
     if (webNav) {
@@ -2501,11 +2504,11 @@ void
 nsEventStateManager::DoScrollZoom(nsIFrame *aTargetFrame,
                                   int32_t adjustment)
 {
-  // Exclude form controls and content in chrome docshells.
+  // Exclude form controls and XUL content.
   nsIContent *content = aTargetFrame->GetContent();
   if (content &&
       !content->IsNodeOfType(nsINode::eHTML_FORM_CONTROL) &&
-      !nsContentUtils::IsInChromeDocshell(content->OwnerDoc()))
+      !content->OwnerDoc()->IsXUL())
     {
       // positive adjustment to decrease zoom, negative to increase
       int32_t change = (adjustment > 0) ? -1 : 1;
@@ -2607,13 +2610,10 @@ nsEventStateManager::DispatchLegacyMouseScrollEvents(nsIFrame* aTargetFrame,
 
   nsWeakFrame targetFrame(aTargetFrame);
 
-  MOZ_ASSERT(*aStatus != nsEventStatus_eConsumeNoDefault &&
-             !aEvent->mFlags.mDefaultPrevented,
-             "If you make legacy events dispatched for default prevented wheel "
-             "event, you need to initialize stateX and stateY");
-  EventState stateX, stateY;
+  nsEventStatus statusX = *aStatus;
+  nsEventStatus statusY = *aStatus;
   if (scrollDeltaY) {
-    SendLineScrollEvent(aTargetFrame, aEvent, stateY,
+    SendLineScrollEvent(aTargetFrame, aEvent, &statusY,
                         scrollDeltaY, DELTA_DIRECTION_Y);
     if (!targetFrame.IsAlive()) {
       *aStatus = nsEventStatus_eConsumeNoDefault;
@@ -2622,7 +2622,7 @@ nsEventStateManager::DispatchLegacyMouseScrollEvents(nsIFrame* aTargetFrame,
   }
 
   if (pixelDeltaY) {
-    SendPixelScrollEvent(aTargetFrame, aEvent, stateY,
+    SendPixelScrollEvent(aTargetFrame, aEvent, &statusY,
                          pixelDeltaY, DELTA_DIRECTION_Y);
     if (!targetFrame.IsAlive()) {
       *aStatus = nsEventStatus_eConsumeNoDefault;
@@ -2631,7 +2631,7 @@ nsEventStateManager::DispatchLegacyMouseScrollEvents(nsIFrame* aTargetFrame,
   }
 
   if (scrollDeltaX) {
-    SendLineScrollEvent(aTargetFrame, aEvent, stateX,
+    SendLineScrollEvent(aTargetFrame, aEvent, &statusX,
                         scrollDeltaX, DELTA_DIRECTION_X);
     if (!targetFrame.IsAlive()) {
       *aStatus = nsEventStatus_eConsumeNoDefault;
@@ -2640,7 +2640,7 @@ nsEventStateManager::DispatchLegacyMouseScrollEvents(nsIFrame* aTargetFrame,
   }
 
   if (pixelDeltaX) {
-    SendPixelScrollEvent(aTargetFrame, aEvent, stateX,
+    SendPixelScrollEvent(aTargetFrame, aEvent, &statusX,
                          pixelDeltaX, DELTA_DIRECTION_X);
     if (!targetFrame.IsAlive()) {
       *aStatus = nsEventStatus_eConsumeNoDefault;
@@ -2648,18 +2648,21 @@ nsEventStateManager::DispatchLegacyMouseScrollEvents(nsIFrame* aTargetFrame,
     }
   }
 
-  if (stateY.mDefaultPrevented || stateX.mDefaultPrevented) {
+  if (statusY == nsEventStatus_eConsumeNoDefault ||
+      statusX == nsEventStatus_eConsumeNoDefault) {
     *aStatus = nsEventStatus_eConsumeNoDefault;
-    aEvent->mFlags.mDefaultPrevented = true;
-    aEvent->mFlags.mDefaultPreventedByContent |=
-      stateY.mDefaultPreventedByContent || stateX.mDefaultPreventedByContent;
+    return;
+  }
+  if (statusY == nsEventStatus_eConsumeDoDefault ||
+      statusX == nsEventStatus_eConsumeDoDefault) {
+    *aStatus = nsEventStatus_eConsumeDoDefault;
   }
 }
 
 void
 nsEventStateManager::SendLineScrollEvent(nsIFrame* aTargetFrame,
                                          WidgetWheelEvent* aEvent,
-                                         EventState& aState,
+                                         nsEventStatus* aStatus,
                                          int32_t aDelta,
                                          DeltaDirection aDeltaDirection)
 {
@@ -2675,8 +2678,9 @@ nsEventStateManager::SendLineScrollEvent(nsIFrame* aTargetFrame,
 
   WidgetMouseScrollEvent event(aEvent->mFlags.mIsTrusted, NS_MOUSE_SCROLL,
                                aEvent->widget);
-  event.mFlags.mDefaultPrevented = aState.mDefaultPrevented;
-  event.mFlags.mDefaultPreventedByContent = aState.mDefaultPreventedByContent;
+  if (*aStatus == nsEventStatus_eConsumeNoDefault) {
+    event.mFlags.mDefaultPrevented = true;
+  }
   event.refPoint = aEvent->refPoint;
   event.widget = aEvent->widget;
   event.time = aEvent->time;
@@ -2686,18 +2690,14 @@ nsEventStateManager::SendLineScrollEvent(nsIFrame* aTargetFrame,
   event.delta = aDelta;
   event.inputSource = aEvent->inputSource;
 
-  nsEventStatus status = nsEventStatus_eIgnore;
   nsEventDispatcher::Dispatch(targetContent, aTargetFrame->PresContext(),
-                              &event, nullptr, &status);
-  aState.mDefaultPrevented =
-    event.mFlags.mDefaultPrevented || status == nsEventStatus_eConsumeNoDefault;
-  aState.mDefaultPreventedByContent = event.mFlags.mDefaultPreventedByContent;
+                              &event, nullptr, aStatus);
 }
 
 void
 nsEventStateManager::SendPixelScrollEvent(nsIFrame* aTargetFrame,
                                           WidgetWheelEvent* aEvent,
-                                          EventState& aState,
+                                          nsEventStatus* aStatus,
                                           int32_t aPixelDelta,
                                           DeltaDirection aDeltaDirection)
 {
@@ -2714,8 +2714,9 @@ nsEventStateManager::SendPixelScrollEvent(nsIFrame* aTargetFrame,
 
   WidgetMouseScrollEvent event(aEvent->mFlags.mIsTrusted, NS_MOUSE_PIXEL_SCROLL,
                                aEvent->widget);
-  event.mFlags.mDefaultPrevented = aState.mDefaultPrevented;
-  event.mFlags.mDefaultPreventedByContent = aState.mDefaultPreventedByContent;
+  if (*aStatus == nsEventStatus_eConsumeNoDefault) {
+    event.mFlags.mDefaultPrevented = true;
+  }
   event.refPoint = aEvent->refPoint;
   event.widget = aEvent->widget;
   event.time = aEvent->time;
@@ -2725,12 +2726,8 @@ nsEventStateManager::SendPixelScrollEvent(nsIFrame* aTargetFrame,
   event.delta = aPixelDelta;
   event.inputSource = aEvent->inputSource;
 
-  nsEventStatus status = nsEventStatus_eIgnore;
   nsEventDispatcher::Dispatch(targetContent, aTargetFrame->PresContext(),
-                              &event, nullptr, &status);
-  aState.mDefaultPrevented =
-    event.mFlags.mDefaultPrevented || status == nsEventStatus_eConsumeNoDefault;
-  aState.mDefaultPreventedByContent = event.mFlags.mDefaultPreventedByContent;
+                              &event, nullptr, aStatus);
 }
 
 nsIScrollableFrame*
@@ -3568,10 +3565,9 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
         // For now, do this only for dragover.
         //XXXsmaug dragenter needs some more work.
         if (aEvent->message == NS_DRAGDROP_OVER && !isChromeDoc) {
-          // Someone has called preventDefault(), check whether is was on
-          // content or chrome.
+          // Someone has called preventDefault(), check whether is was content.
           dragSession->SetOnlyChromeDrop(
-            !dragEvent->mDefaultPreventedOnContent);
+            !aEvent->mFlags.mDefaultPreventedByContent);
         }
       } else if (aEvent->message == NS_DRAGDROP_OVER && !isChromeDoc) {
         // No one called preventDefault(), so handle drop only in chrome.
@@ -3784,7 +3780,8 @@ nsEventStateManager::UpdateCursor(nsPresContext* aPresContext,
 
   if (Preferences::GetBool("ui.use_activity_cursor", false)) {
     // Check whether or not to show the busy cursor
-    nsCOMPtr<nsIDocShell> docShell(aPresContext->GetDocShell());
+    nsCOMPtr<nsISupports> pcContainer = aPresContext->GetContainer();
+    nsCOMPtr<nsIDocShell> docShell(do_QueryInterface(pcContainer));
     if (!docShell) return;
     uint32_t busyFlags = nsIDocShell::BUSY_FLAGS_NONE;
     docShell->GetBusyFlags(&busyFlags);
@@ -5508,13 +5505,14 @@ nsEventStateManager::WheelPrefs::Shutdown()
 }
 
 // static
-void
+int
 nsEventStateManager::WheelPrefs::OnPrefChanged(const char* aPrefName,
                                                void* aClosure)
 {
   // forget all prefs, it's not problem for performance.
   sInstance->Reset();
   DeltaAccumulator::GetInstance()->Reset();
+  return 0;
 }
 
 nsEventStateManager::WheelPrefs::WheelPrefs()
@@ -5796,13 +5794,14 @@ nsEventStateManager::Prefs::Init()
 }
 
 // static
-void
+int
 nsEventStateManager::Prefs::OnChange(const char* aPrefName, void*)
 {
   nsDependentCString prefName(aPrefName);
   if (prefName.EqualsLiteral("dom.popup_allowed_events")) {
     nsDOMEvent::PopupAllowedEventsChanged();
   }
+  return 0;
 }
 
 // static

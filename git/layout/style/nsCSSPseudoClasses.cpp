@@ -5,7 +5,7 @@
 
 /* atom list for CSS pseudo-classes */
 
-#include "mozilla/ArrayUtils.h"
+#include "mozilla/Util.h"
 
 #include "nsCSSPseudoClasses.h"
 #include "nsStaticAtom.h"

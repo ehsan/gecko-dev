@@ -40,10 +40,9 @@ if (typeof Mozilla == 'undefined') {
 
 	Mozilla.UITour.DEFAULT_THEME_CYCLE_DELAY = 10 * 1000;
 
-	Mozilla.UITour.showHighlight = function(target, effect) {
+	Mozilla.UITour.showHighlight = function(target) {
 		_sendEvent('showHighlight', {
-			target: target,
-			effect: effect
+			target: target
 		});
 	};
 

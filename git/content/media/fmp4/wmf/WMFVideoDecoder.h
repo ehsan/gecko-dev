@@ -7,7 +7,7 @@
 #if !defined(WMFVideoDecoder_h_)
 #define WMFVideoDecoder_h_
 
-#include "WMF.h"
+#include "wmf.h"
 #include "MP4Reader.h"
 #include "MFTDecoder.h"
 #include "nsRect.h"

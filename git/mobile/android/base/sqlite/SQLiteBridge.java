@@ -51,7 +51,6 @@ public class SQLiteBridge {
     private static native void closeDatabase(long aDb);
 
     // Takes the path to the database we want to access.
-    @RobocopTarget
     public SQLiteBridge(String aDb) throws SQLiteBridgeException {
         mDb = aDb;
     }

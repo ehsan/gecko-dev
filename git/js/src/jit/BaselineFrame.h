@@ -38,6 +38,9 @@ class BaselineFrame
         // The frame has a valid return value. See also StackFrame::HAS_RVAL.
         HAS_RVAL         = 1 << 0,
 
+        // Frame has blockChain_ set.
+        HAS_BLOCKCHAIN   = 1 << 1,
+
         // A call object has been pushed on the scope chain.
         HAS_CALL_OBJ     = 1 << 2,
 
@@ -69,13 +72,11 @@ class BaselineFrame
     uint32_t hiReturnValue_;
     uint32_t frameSize_;
     JSObject *scopeChain_;          // Scope chain (always initialized).
+    StaticBlockObject *blockChain_; // If HAS_BLOCKCHAIN, the static block chain.
     JSScript *evalScript_;          // If isEvalFrame(), the current eval script.
     ArgumentsObject *argsObj_;      // If HAS_ARGS_OBJ, the arguments object.
     void *hookData_;                // If HAS_HOOK_DATA, debugger call hook data.
     uint32_t flags_;
-#if JS_BITS_PER_WORD == 32
-    uint32_t padding_;              // Pad to 8-byte alignment.
-#endif
 
   public:
     // Distance between the frame pointer and the frame header (return address).
@@ -151,7 +152,7 @@ class BaselineFrame
 
     Value &unaliasedVar(unsigned i, MaybeCheckAliasing checkAliasing = CHECK_ALIASING) const {
         JS_ASSERT_IF(checkAliasing, !script()->varIsAliased(i));
-        JS_ASSERT(i < script()->nfixed());
+        JS_ASSERT(i < script()->nfixed);
         return *valueSlot(i);
     }
 
@@ -171,7 +172,7 @@ class BaselineFrame
 
     Value &unaliasedLocal(unsigned i, MaybeCheckAliasing checkAliasing = CHECK_ALIASING) const {
 #ifdef DEBUG
-        CheckLocalUnaliased(checkAliasing, script(), i);
+        CheckLocalUnaliased(checkAliasing, script(), maybeBlockChain(), i);
 #endif
         return *valueSlot(i);
     }
@@ -182,7 +183,7 @@ class BaselineFrame
                              offsetOfNumActualArgs());
     }
     unsigned numFormalArgs() const {
-        return script()->function()->nargs();
+        return script()->function()->nargs;
     }
     Value &thisValue() const {
         return *(Value *)(reinterpret_cast<const uint8_t *>(this) +
@@ -209,6 +210,28 @@ class BaselineFrame
     }
     inline Value *addressOfReturnValue() {
         return reinterpret_cast<Value *>(&loReturnValue_);
+    }
+
+    bool hasBlockChain() const {
+        return (flags_ & HAS_BLOCKCHAIN) && blockChain_;
+    }
+    StaticBlockObject &blockChain() const {
+        JS_ASSERT(hasBlockChain());
+        return *blockChain_;
+    }
+    StaticBlockObject *maybeBlockChain() const {
+        return hasBlockChain() ? blockChain_ : nullptr;
+    }
+    void setBlockChain(StaticBlockObject &block) {
+        flags_ |= HAS_BLOCKCHAIN;
+        blockChain_ = &block;
+    }
+    void setBlockChainNull() {
+        JS_ASSERT(!hasBlockChain());
+        blockChain_ = nullptr;
+    }
+    StaticBlockObject **addressOfBlockChain() {
+        return &blockChain_;
     }
 
     bool hasCallObj() const {
@@ -305,13 +328,13 @@ class BaselineFrame
         return flags_ & EVAL;
     }
     bool isStrictEvalFrame() const {
-        return isEvalFrame() && script()->strict();
+        return isEvalFrame() && script()->strict;
     }
     bool isNonStrictEvalFrame() const {
-        return isEvalFrame() && !script()->strict();
+        return isEvalFrame() && !script()->strict;
     }
     bool isDirectEvalFrame() const {
-        return isEvalFrame() && script()->staticLevel() > 0;
+        return isEvalFrame() && script()->staticLevel > 0;
     }
     bool isNonStrictDirectEvalFrame() const {
         return isNonStrictEvalFrame() && isDirectEvalFrame();
@@ -359,6 +382,9 @@ class BaselineFrame
     }
     static int reverseOffsetOfScopeChain() {
         return -int(Size()) + offsetof(BaselineFrame, scopeChain_);
+    }
+    static int reverseOffsetOfBlockChain() {
+        return -int(Size()) + offsetof(BaselineFrame, blockChain_);
     }
     static int reverseOffsetOfArgsObj() {
         return -int(Size()) + offsetof(BaselineFrame, argsObj_);

@@ -104,12 +104,10 @@ struct nsRect;
 class nsWindowSizes;
 
 namespace mozilla {
-class Selection;
 namespace dom {
 class BarProp;
 class Function;
 class Gamepad;
-class MediaQueryList;
 class Navigator;
 class SpeechSynthesis;
 namespace indexedDB {
@@ -343,7 +341,8 @@ public:
   virtual JSObject *GetGlobalJSObject();
 
   // nsIScriptGlobalObject
-  JSObject *FastGetGlobalJSObject() const
+  virtual nsIScriptContext *GetContext();
+  JSObject *FastGetGlobalJSObject()
   {
     return mJSObject;
   }
@@ -529,6 +528,11 @@ public:
   bool ShouldPromptToBlockDialogs();
   // Inner windows only.
   bool DialogsAreBeingAbused();
+
+  // Ask the user if further dialogs should be blocked, if dialogs are currently
+  // being abused. This is used in the cases where we have no modifiable UI to
+  // show, in that case we show a separate dialog to ask this question.
+  bool ConfirmDialogIfNeeded();
 
   // These functions are used for controlling and determining whether dialogs
   // (alert, prompt, confirm) are currently allowed in this window.
@@ -847,13 +851,13 @@ public:
             mozilla::ErrorResult& aError);
   nsIDOMStorage* GetSessionStorage(mozilla::ErrorResult& aError);
   nsIDOMStorage* GetLocalStorage(mozilla::ErrorResult& aError);
-  mozilla::Selection* GetSelection(mozilla::ErrorResult& aError);
+  nsISelection* GetSelection(mozilla::ErrorResult& aError);
   mozilla::dom::indexedDB::IDBFactory* GetIndexedDB(mozilla::ErrorResult& aError);
   already_AddRefed<nsICSSDeclaration>
     GetComputedStyle(mozilla::dom::Element& aElt, const nsAString& aPseudoElt,
                      mozilla::ErrorResult& aError);
-  already_AddRefed<mozilla::dom::MediaQueryList> MatchMedia(const nsAString& aQuery,
-                                                            mozilla::ErrorResult& aError);
+  already_AddRefed<nsIDOMMediaQueryList> MatchMedia(const nsAString& aQuery,
+                                                    mozilla::ErrorResult& aError);
   nsScreen* GetScreen(mozilla::ErrorResult& aError);
   void MoveTo(int32_t aXPos, int32_t aYPos, mozilla::ErrorResult& aError);
   void MoveBy(int32_t aXDif, int32_t aYDif, mozilla::ErrorResult& aError);
@@ -940,13 +944,6 @@ public:
                                             const mozilla::dom::Sequence<JS::Value>& aExtraArgument,
                                             mozilla::ErrorResult& aError);
   JSObject* GetContent(JSContext* aCx, mozilla::ErrorResult& aError);
-  JSObject* Get_content(JSContext* aCx, mozilla::ErrorResult& aError)
-  {
-    if (mDoc) {
-      mDoc->WarnOnceAbout(nsIDocument::eWindow_Content);
-    }
-    return GetContent(aCx, aError);
-  }
 
 protected:
   // Array of idle observers that are notified of idle events.
@@ -981,7 +978,6 @@ protected:
 
   // Object Management
   virtual ~nsGlobalWindow();
-  void DropOuterWindowDocs();
   void CleanUp();
   void ClearControllers();
   nsresult FinalClose();
@@ -1276,6 +1272,9 @@ protected:
   nsresult CloneStorageEvent(const nsAString& aType,
                              nsCOMPtr<nsIDOMStorageEvent>& aEvent);
 
+  // Implements Get{Real,Scriptable}Top.
+  nsresult GetTopImpl(nsIDOMWindow **aWindow, bool aScriptable);
+
   // Outer windows only.
   nsDOMWindowList* GetWindowList();
 
@@ -1292,7 +1291,7 @@ protected:
 
   void PreloadLocalStorage();
 
-  // Returns device pixels.  Outer windows only.
+  // Returns device pixels.
   nsIntPoint GetScreenXY(mozilla::ErrorResult& aError);
 
   int32_t RequestAnimationFrame(const nsIDocument::FrameRequestCallbackHolder& aCallback,
@@ -1313,11 +1312,6 @@ protected:
 
   already_AddRefed<nsIDOMWindow>
     GetContentInternal(mozilla::ErrorResult& aError);
-
-  // Ask the user if further dialogs should be blocked, if dialogs are currently
-  // being abused. This is used in the cases where we have no modifiable UI to
-  // show, in that case we show a separate dialog to ask this question.
-  bool ConfirmDialogIfNeeded();
 
   // When adding new member variables, be careful not to create cycles
   // through JavaScript.  If there is any chance that a member variable
@@ -1476,12 +1470,6 @@ protected:
 
   nsAutoPtr<nsJSThingHashtable<nsPtrHashKey<nsXBLPrototypeHandler>, JSObject*> > mCachedXBLPrototypeHandlers;
 
-  // mSuspendedDoc is only set on outer windows. It's useful when we get matched
-  // EnterModalState/LeaveModalState calls, in which case the outer window is
-  // responsible for unsuspending events on the document. If we don't (for
-  // example, if the outer window is closed before the LeaveModalState call),
-  // then the inner window whose mDoc is our mSuspendedDoc is responsible for
-  // unsuspending it.
   nsCOMPtr<nsIDocument> mSuspendedDoc;
 
   nsRefPtr<mozilla::dom::indexedDB::IDBFactory> mIndexedDB;

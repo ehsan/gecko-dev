@@ -10,6 +10,7 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/dom/HTMLTextAreaElementBinding.h"
 #include "mozilla/MouseEvents.h"
+#include "mozilla/Util.h"
 #include "nsAttrValueInlines.h"
 #include "nsContentCID.h"
 #include "nsContentCreatorFunctions.h"
@@ -267,14 +268,14 @@ HTMLTextAreaElement::GetRootEditorNode()
   return mState.GetRootNode();
 }
 
-NS_IMETHODIMP_(Element*)
+NS_IMETHODIMP_(nsIContent*)
 HTMLTextAreaElement::CreatePlaceholderNode()
 {
   NS_ENSURE_SUCCESS(mState.CreatePlaceholderNode(), nullptr);
   return mState.GetPlaceholderNode();
 }
 
-NS_IMETHODIMP_(Element*)
+NS_IMETHODIMP_(nsIContent*)
 HTMLTextAreaElement::GetPlaceholderNode()
 {
   return mState.GetPlaceholderNode();
@@ -939,17 +940,17 @@ HTMLTextAreaElement::SetRangeText(const nsAString& aReplacement,
   }
 
   if (aSelectionStart == -1 && aSelectionEnd == -1) {
-    aRv = GetSelectionRange(&aSelectionStart, &aSelectionEnd);
-    if (aRv.Failed()) {
-      if (mState.IsSelectionCached()) {
-        aSelectionStart = mState.GetSelectionProperties().mStart;
-        aSelectionEnd = mState.GetSelectionProperties().mEnd;
-        aRv = NS_OK;
+      aRv = GetSelectionRange(&aSelectionStart, &aSelectionEnd);
+      if (aRv.Failed()) {
+        if (mState.IsSelectionCached()) {
+          aSelectionStart = mState.GetSelectionProperties().mStart;
+          aSelectionEnd = mState.GetSelectionProperties().mEnd;
+          aRv = NS_OK;
+        }
       }
-    }
   }
 
-  if (aStart <= aEnd) {
+  if (aStart < aEnd) {
     value.Replace(aStart, aEnd - aStart, aReplacement);
     SetValueInternal(value, false);
   }
@@ -976,17 +977,15 @@ HTMLTextAreaElement::SetRangeText(const nsAString& aReplacement,
     break;
     case mozilla::dom::SelectionMode::Preserve:
     {
-      if ((uint32_t)aSelectionStart > aEnd) {
+      if ((uint32_t)aSelectionStart > aEnd)
         aSelectionStart += delta;
-      } else if ((uint32_t)aSelectionStart > aStart) {
-        aSelectionStart = aStart;
-      }
+      else if ((uint32_t)aSelectionStart > aStart)
+       aSelectionStart = aStart;
 
-      if ((uint32_t)aSelectionEnd > aEnd) {
+      if ((uint32_t)aSelectionEnd > aEnd)
         aSelectionEnd += delta;
-      } else if ((uint32_t)aSelectionEnd > aStart) {
+      else if ((uint32_t)aSelectionEnd > aStart)
         aSelectionEnd = newEnd;
-      }
     }
     break;
   }

@@ -39,7 +39,6 @@
 #include "nsTArray.h"                   // for nsTArray, nsTArray_Impl, etc
 #include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
 #include "GeckoProfiler.h"
-#include "mozilla/layers/TextureHost.h"
 
 typedef std::vector<mozilla::layers::EditReply> EditReplyVector;
 
@@ -178,17 +177,15 @@ LayerTransactionParent::Destroy()
 bool
 LayerTransactionParent::RecvUpdateNoSwap(const InfallibleTArray<Edit>& cset,
                                          const TargetConfig& targetConfig,
-                                         const bool& isFirstPaint,
-                                         const bool& scheduleComposite)
+                                         const bool& isFirstPaint)
 {
-  return RecvUpdate(cset, targetConfig, isFirstPaint, scheduleComposite, nullptr);
+  return RecvUpdate(cset, targetConfig, isFirstPaint, nullptr);
 }
 
 bool
 LayerTransactionParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
                                    const TargetConfig& targetConfig,
                                    const bool& isFirstPaint,
-                                   const bool& scheduleComposite,
                                    InfallibleTArray<EditReply>* reply)
 {
   profiler_tracing("Paint", "Composite", TRACING_INTERVAL_START);
@@ -282,8 +279,6 @@ LayerTransactionParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
                                      common.stickyScrollRangeOuter(),
                                      common.stickyScrollRangeInner());
       }
-      layer->SetScrollbarData(common.scrollbarTargetContainerId(),
-        static_cast<Layer::ScrollDirection>(common.scrollbarDirection()));
       if (PLayerParent* maskLayer = common.maskLayerParent()) {
         layer->SetMaskLayer(cast(maskLayer)->AsLayer());
       } else {
@@ -452,7 +447,7 @@ LayerTransactionParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
   // other's buffer contents.
   LayerManagerComposite::PlatformSyncBeforeReplyUpdate();
 
-  mShadowLayersManager->ShadowLayersUpdated(this, targetConfig, isFirstPaint, scheduleComposite);
+  mShadowLayersManager->ShadowLayersUpdated(this, targetConfig, isFirstPaint);
 
 #ifdef COMPOSITOR_PERFORMANCE_WARNING
   int compositeTime = (int)(mozilla::TimeStamp::Now() - updateStart).ToMilliseconds();
@@ -599,18 +594,6 @@ LayerTransactionParent::DeallocPCompositableParent(PCompositableParent* actor)
 {
   delete actor;
   return true;
-}
-
-PTextureParent*
-LayerTransactionParent::AllocPTextureParent()
-{
-  return TextureHost::CreateIPDLActor(this);
-}
-
-bool
-LayerTransactionParent::DeallocPTextureParent(PTextureParent* actor)
-{
-  return TextureHost::DestroyIPDLActor(actor);
 }
 
 } // namespace layers

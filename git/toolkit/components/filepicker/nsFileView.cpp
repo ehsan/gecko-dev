@@ -854,7 +854,7 @@ nsFileView::FilterFiles()
       for (uint32_t j = 0; j < filterCount; ++j) {
         bool matched = false;
         if (!nsCRT::strcmp(mCurrentFilters.ElementAt(j),
-                           MOZ_UTF16("..apps")))
+                           NS_LITERAL_STRING("..apps").get()))
         {
           file->IsExecutable(&matched);
         } else

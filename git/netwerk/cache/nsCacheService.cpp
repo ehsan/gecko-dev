@@ -4,10 +4,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/ArrayUtils.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/Assertions.h"
 #include "mozilla/DebugOnly.h"
+#include "mozilla/Util.h"
 
 #include "necko-config.h"
 
@@ -1071,11 +1071,12 @@ private:
  *****************************************************************************/
 nsCacheService *   nsCacheService::gService = nullptr;
 
-NS_IMPL_ISUPPORTS3(nsCacheService, nsICacheService, nsICacheServiceInternal,
-                   nsIMemoryReporter)
+NS_IMPL_ISUPPORTS_INHERITED2(nsCacheService, MemoryMultiReporter,
+                             nsICacheService, nsICacheServiceInternal)
 
 nsCacheService::nsCacheService()
-    : mObserver(nullptr),
+    : MemoryMultiReporter("cache-service"),
+      mObserver(nullptr),
       mLock("nsCacheService.mLock"),
       mCondVar(mLock, "nsCacheService.mCondVar"),
       mTimeStampLock("nsCacheService.mTimeStampLock"),
@@ -3184,8 +3185,6 @@ nsCacheService::LeavePrivateBrowsing()
     }
 }
 
-MOZ_DEFINE_MALLOC_SIZE_OF(DiskCacheDeviceMallocSizeOf)
-
 NS_IMETHODIMP
 nsCacheService::CollectReports(nsIHandleReportCallback* aHandleReport,
                                nsISupports* aData)
@@ -3194,7 +3193,7 @@ nsCacheService::CollectReports(nsIHandleReportCallback* aHandleReport,
     if (mDiskDevice) {
         nsCacheServiceAutoLock
             lock(LOCK_TELEM(NSCACHESERVICE_DISKDEVICEHEAPSIZE));
-        disk = mDiskDevice->SizeOfIncludingThis(DiskCacheDeviceMallocSizeOf);
+        disk = mDiskDevice->SizeOfIncludingThis(MallocSizeOf);
     }
 
     size_t memory = mMemoryDevice ? mMemoryDevice->TotalSize() : 0;

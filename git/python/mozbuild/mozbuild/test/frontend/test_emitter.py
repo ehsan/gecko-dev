@@ -16,7 +16,6 @@ from mozbuild.frontend.data import (
     Exports,
     GeneratedInclude,
     IPDLFile,
-    JARManifest,
     LocalInclude,
     Program,
     ReaderSummary,
@@ -32,23 +31,21 @@ from mozbuild.frontend.reader import (
 
 from mozbuild.test.common import MockConfig
 
-import mozpack.path as mozpath
 
-
-data_path = mozpath.abspath(mozpath.dirname(__file__))
-data_path = mozpath.join(data_path, 'data')
+data_path = os.path.abspath(os.path.dirname(__file__))
+data_path = os.path.join(data_path, 'data')
 
 
 class TestEmitterBasic(unittest.TestCase):
     def reader(self, name):
-        config = MockConfig(mozpath.join(data_path, name), extra_substs=dict(
+        config = MockConfig(os.path.join(data_path, name), extra_substs=dict(
             ENABLE_TESTS='1',
             BIN_SUFFIX='.prog',
         ))
 
         return BuildReader(config)
 
-    def read_topsrcdir(self, reader, filter_common=True):
+    def read_topsrcdir(self, reader):
         emitter = TreeMetadataEmitter(reader.config)
         def ack(obj):
             obj.ack()
@@ -58,22 +55,11 @@ class TestEmitterBasic(unittest.TestCase):
         self.assertGreater(len(objs), 0)
         self.assertIsInstance(objs[-1], ReaderSummary)
 
-        filtered = []
-        for obj in objs:
-            if filter_common and isinstance(obj, DirectoryTraversal):
-                continue
-
-            # Always filter ReaderSummary because it's asserted above.
-            if isinstance(obj, ReaderSummary):
-                continue
-
-            filtered.append(obj)
-
-        return filtered
+        return objs[:-1]
 
     def test_dirs_traversal_simple(self):
         reader = self.reader('traversal-simple')
-        objs = self.read_topsrcdir(reader, filter_common=False)
+        objs = self.read_topsrcdir(reader)
         self.assertEqual(len(objs), 4)
 
         for o in objs:
@@ -95,7 +81,7 @@ class TestEmitterBasic(unittest.TestCase):
 
     def test_traversal_all_vars(self):
         reader = self.reader('traversal-all-vars')
-        objs = self.read_topsrcdir(reader, filter_common=False)
+        objs = self.read_topsrcdir(reader)
         self.assertEqual(len(objs), 6)
 
         for o in objs:
@@ -114,10 +100,13 @@ class TestEmitterBasic(unittest.TestCase):
                 self.assertEqual(o.test_dirs, ['test'])
                 self.assertEqual(o.test_tool_dirs, ['test_tool'])
                 self.assertEqual(o.tool_dirs, ['tool'])
+                self.assertEqual(o.external_make_dirs, ['external_make'])
+                self.assertEqual(o.parallel_external_make_dirs,
+                    ['parallel_external_make'])
 
     def test_tier_simple(self):
         reader = self.reader('traversal-tier-simple')
-        objs = self.read_topsrcdir(reader, filter_common=False)
+        objs = self.read_topsrcdir(reader)
         self.assertEqual(len(objs), 4)
 
         reldirs = [o.relativedir for o in objs]
@@ -126,24 +115,26 @@ class TestEmitterBasic(unittest.TestCase):
     def test_config_file_substitution(self):
         reader = self.reader('config-file-substitution')
         objs = self.read_topsrcdir(reader)
-        self.assertEqual(len(objs), 2)
+        self.assertEqual(len(objs), 3)
 
-        self.assertIsInstance(objs[0], ConfigFileSubstitution)
+        self.assertIsInstance(objs[0], DirectoryTraversal)
         self.assertIsInstance(objs[1], ConfigFileSubstitution)
+        self.assertIsInstance(objs[2], ConfigFileSubstitution)
 
-        topobjdir = mozpath.abspath(reader.config.topobjdir)
-        self.assertEqual(objs[0].relpath, 'foo')
-        self.assertEqual(mozpath.normpath(objs[0].output_path),
-            mozpath.normpath(mozpath.join(topobjdir, 'foo')))
-        self.assertEqual(mozpath.normpath(objs[1].output_path),
-            mozpath.normpath(mozpath.join(topobjdir, 'bar')))
+        topobjdir = os.path.abspath(reader.config.topobjdir)
+        self.assertEqual(objs[1].relpath, 'foo')
+        self.assertEqual(os.path.normpath(objs[1].output_path),
+            os.path.normpath(os.path.join(topobjdir, 'foo')))
+        self.assertEqual(os.path.normpath(objs[2].output_path),
+            os.path.normpath(os.path.join(topobjdir, 'bar')))
 
     def test_variable_passthru(self):
         reader = self.reader('variable-passthru')
         objs = self.read_topsrcdir(reader)
 
-        self.assertEqual(len(objs), 1)
-        self.assertIsInstance(objs[0], VariablePassthru)
+        self.assertEqual(len(objs), 2)
+        self.assertIsInstance(objs[0], DirectoryTraversal)
+        self.assertIsInstance(objs[1], VariablePassthru)
 
         wanted = dict(
             ASFILES=['fans.asm', 'tans.s'],
@@ -171,7 +162,7 @@ class TestEmitterBasic(unittest.TestCase):
             VISIBILITY_FLAGS='',
         )
 
-        variables = objs[0].variables
+        variables = objs[1].variables
         maxDiff = self.maxDiff
         self.maxDiff = None
         self.assertEqual(wanted, variables)
@@ -181,10 +172,11 @@ class TestEmitterBasic(unittest.TestCase):
         reader = self.reader('exports')
         objs = self.read_topsrcdir(reader)
 
-        self.assertEqual(len(objs), 1)
-        self.assertIsInstance(objs[0], Exports)
+        self.assertEqual(len(objs), 2)
+        self.assertIsInstance(objs[0], DirectoryTraversal)
+        self.assertIsInstance(objs[1], Exports)
 
-        exports = objs[0].exports
+        exports = objs[1].exports
         self.assertEqual(exports.get_strings(), ['foo.h', 'bar.h', 'baz.h'])
 
         self.assertIn('mozilla', exports._children)
@@ -217,14 +209,15 @@ class TestEmitterBasic(unittest.TestCase):
         reader = self.reader('program')
         objs = self.read_topsrcdir(reader)
 
-        self.assertEqual(len(objs), 3)
-        self.assertIsInstance(objs[0], Program)
-        self.assertIsInstance(objs[1], SimpleProgram)
+        self.assertEqual(len(objs), 4)
+        self.assertIsInstance(objs[0], DirectoryTraversal)
+        self.assertIsInstance(objs[1], Program)
         self.assertIsInstance(objs[2], SimpleProgram)
+        self.assertIsInstance(objs[3], SimpleProgram)
 
-        self.assertEqual(objs[0].program, 'test_program.prog')
-        self.assertEqual(objs[1].program, 'test_program1.prog')
-        self.assertEqual(objs[2].program, 'test_program2.prog')
+        self.assertEqual(objs[1].program, 'test_program.prog')
+        self.assertEqual(objs[2].program, 'test_program1.prog')
+        self.assertEqual(objs[3].program, 'test_program2.prog')
 
     def test_test_manifest_missing_manifest(self):
         """A missing manifest file should result in an error."""
@@ -255,8 +248,10 @@ class TestEmitterBasic(unittest.TestCase):
                 'installs': {
                     'a11y.ini',
                     'test_a11y.js',
+                    # From ** wildcard.
+                    'a11y-support/foo',
+                    'a11y-support/dir1/bar',
                 },
-                'pattern-installs': 1,
             },
             'browser.ini': {
                 'flavor': 'browser-chrome',
@@ -307,13 +302,13 @@ class TestEmitterBasic(unittest.TestCase):
         }
 
         for o in objs:
-            m = metadata[mozpath.basename(o.manifest_relpath)]
+            m = metadata[os.path.basename(o.manifest_relpath)]
 
             self.assertTrue(o.path.startswith(o.directory))
             self.assertEqual(o.flavor, m['flavor'])
             self.assertEqual(o.dupe_manifest, m.get('dupe', False))
 
-            external_normalized = set(mozpath.basename(p) for p in
+            external_normalized = set(os.path.basename(p) for p in
                     o.external_installs)
             self.assertEqual(external_normalized, m.get('external', set()))
 
@@ -323,9 +318,6 @@ class TestEmitterBasic(unittest.TestCase):
                 path = path[len(o.directory)+1:]
 
                 self.assertIn(path, m['installs'])
-
-            if 'pattern-installs' in m:
-                self.assertEqual(len(o.pattern_installs), m['pattern-installs'])
 
     def test_test_manifest_unmatched_generated(self):
         reader = self.reader('test-manifest-unmatched-generated')
@@ -348,7 +340,7 @@ class TestEmitterBasic(unittest.TestCase):
         o = objs[0]
 
         self.assertEqual(o.flavor, 'mochitest')
-        basenames = set(mozpath.basename(k) for k in o.installs.keys())
+        basenames = set(os.path.basename(k) for k in o.installs.keys())
         self.assertEqual(basenames, {'mochitest.ini', 'test_active.html'})
 
     def test_ipdl_sources(self):
@@ -412,21 +404,6 @@ class TestEmitterBasic(unittest.TestCase):
         }
 
         self.assertEqual(defines, expected)
-
-    def test_jar_manifests(self):
-        reader = self.reader('jar-manifests')
-        objs = self.read_topsrcdir(reader)
-
-        self.assertEqual(len(objs), 1)
-        for obj in objs:
-            self.assertIsInstance(obj, JARManifest)
-            self.assertTrue(os.path.isabs(obj.path))
-
-    def test_jar_manifests_multiple_files(self):
-        with self.assertRaisesRegexp(SandboxValidationError, 'limited to one value'):
-            reader = self.reader('jar-manifests-multiple-files')
-            self.read_topsrcdir(reader)
-
 
 if __name__ == '__main__':
     main()

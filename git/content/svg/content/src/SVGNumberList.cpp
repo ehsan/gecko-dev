@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/ArrayUtils.h"
+#include "mozilla/Util.h"
 
 #include "SVGNumberList.h"
 #include "nsCharSeparatedTokenizer.h"
@@ -34,7 +34,7 @@ SVGNumberList::GetValueAsString(nsAString& aValue) const
     // Would like to use aValue.AppendPrintf("%f", mNumbers[i]), but it's not
     // possible to always avoid trailing zeros.
     nsTextFormatter::snprintf(buf, ArrayLength(buf),
-                              MOZ_UTF16("%g"),
+                              NS_LITERAL_STRING("%g").get(),
                               double(mNumbers[i]));
     // We ignore OOM, since it's not useful for us to return an error.
     aValue.Append(buf);

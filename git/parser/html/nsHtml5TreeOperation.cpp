@@ -357,7 +357,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
         name = nsHtml5Atoms::select;
       }
       
-      nsCOMPtr<dom::Element> newContent;
+      nsCOMPtr<nsIContent> newContent;
       nsCOMPtr<nsINodeInfo> nodeInfo = aBuilder->GetNodeInfoManager()->
         GetNodeInfo(name, nullptr, ns, nsIDOMNode::ELEMENT_NODE);
       NS_ASSERTION(nodeInfo, "Got null nodeinfo.");
@@ -382,10 +382,8 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
         // Adapted from CNavDTD
         nsCOMPtr<nsIFormProcessor> theFormProcessor =
           do_GetService(kFormProcessorCID, &rv);
-        if (NS_FAILED(rv)) {
-          return NS_OK;
-        }
-
+        NS_ENSURE_SUCCESS(rv, rv);
+        
         nsTArray<nsString> theContent;
         nsAutoString theAttribute;
          
@@ -406,7 +404,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
                                                       nsIDOMNode::ELEMENT_NODE);
                                                       
         for (uint32_t i = 0; i < theContent.Length(); ++i) {
-          nsCOMPtr<dom::Element> optionElt;
+          nsCOMPtr<nsIContent> optionElt;
           nsCOMPtr<nsINodeInfo> ni = optionNodeInfo;
           NS_NewElement(getter_AddRefs(optionElt), 
                         ni.forget(),

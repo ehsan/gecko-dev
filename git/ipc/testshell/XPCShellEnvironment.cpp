@@ -309,7 +309,10 @@ XPCShellEnvironment::ProcessFile(JSContext *cx,
     if (forceTTY) {
         file = stdin;
     }
-    else if (!isatty(fileno(file)))
+    else
+#ifdef HAVE_ISATTY
+    if (!isatty(fileno(file)))
+#endif
     {
         /*
          * It's not interactive - just execute it.
@@ -472,9 +475,11 @@ XPCShellEnvironment::Init()
 {
     nsresult rv;
 
+#ifdef HAVE_SETBUF
     // unbuffer stdout so that output is in the correct order; note that stderr
     // is unbuffered by default
     setbuf(stdout, 0);
+#endif
 
     nsCOMPtr<nsIJSRuntimeService> rtsvc =
         do_GetService("@mozilla.org/js/xpc/RuntimeService;1");

@@ -25,9 +25,6 @@
 namespace js {
 namespace gc {
 
-extern void
-CrashAtUnhandlableOOM(const char *);
-
 /*
  * BufferableRef represents an abstract reference for use in the generational
  * GC's remembered set. Entries in the store buffer that cannot be represented
@@ -99,9 +96,7 @@ class StoreBuffer
         MonoTypeBuffer &operator=(const MonoTypeBuffer& other) MOZ_DELETE;
 
         bool init() {
-            if (!storage_)
-                storage_ = js_new<LifoAlloc>(LifoAllocBlockSize);
-            clear();
+            storage_ = js_new<LifoAlloc>(LifoAllocBlockSize);
             return bool(storage_);
         }
 
@@ -131,7 +126,7 @@ class StoreBuffer
 
             T *tp = storage_->new_<T>(t);
             if (!tp)
-                CrashAtUnhandlableOOM("Failed to allocate for MonoTypeBuffer::put.");
+                MOZ_CRASH();
 
             if (isAboutToOverflow()) {
                 compact(owner);
@@ -175,9 +170,7 @@ class StoreBuffer
         GenericBuffer &operator=(const GenericBuffer& other) MOZ_DELETE;
 
         bool init() {
-            if (!storage_)
-                storage_ = js_new<LifoAlloc>(LifoAllocBlockSize);
-            clear();
+            storage_ = js_new<LifoAlloc>(LifoAllocBlockSize);
             return bool(storage_);
         }
 
@@ -205,12 +198,12 @@ class StoreBuffer
             unsigned size = sizeof(T);
             unsigned *sizep = storage_->newPod<unsigned>();
             if (!sizep)
-                CrashAtUnhandlableOOM("Failed to allocate for GenericBuffer::put.");
+                MOZ_CRASH();
             *sizep = size;
 
             T *tp = storage_->new_<T>(t);
             if (!tp)
-                CrashAtUnhandlableOOM("Failed to allocate for GenericBuffer::put.");
+                MOZ_CRASH();
 
             if (isAboutToOverflow())
                 owner->setAboutToOverflow();
@@ -405,8 +398,7 @@ class StoreBuffer
     explicit StoreBuffer(JSRuntime *rt, const Nursery &nursery)
       : bufferVal(), bufferCell(), bufferSlot(), bufferWholeCell(),
         bufferRelocVal(), bufferRelocCell(), bufferGeneric(),
-        runtime_(rt), nursery_(nursery), aboutToOverflow_(false), enabled_(false),
-        entered(false)
+        runtime_(rt), nursery_(nursery), aboutToOverflow_(false), enabled_(false)
     {
     }
 

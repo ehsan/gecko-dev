@@ -46,7 +46,6 @@ struct CGObjectList {
     unsigned add(ObjectBox *objbox);
     unsigned indexOf(JSObject *obj);
     void finish(ObjectArray *array);
-    ObjectBox* find(uint32_t index);
 };
 
 struct CGTryNoteList {
@@ -62,8 +61,7 @@ struct CGBlockScopeList {
     Vector<BlockScopeNote> list;
     CGBlockScopeList(ExclusiveContext *cx) : list(cx) {}
 
-    bool append(uint32_t scopeObject, uint32_t offset, uint32_t parent);
-    uint32_t findEnclosingScope(uint32_t index);
+    bool append(uint32_t scopeObject, uint32_t offset);
     void recordEnd(uint32_t index, uint32_t offset);
     size_t length() const { return list.length(); }
     void finish(BlockScopeArray *array);

@@ -95,15 +95,6 @@ SVGEllipseElement::GetLengthInfo()
 void
 SVGEllipseElement::ConstructPath(gfxContext *aCtx)
 {
-  if (!aCtx->IsCairo()) {
-    RefPtr<Path> path = BuildPath();
-    if (path) {
-      gfxPath gfxpath(path);
-      aCtx->SetPath(&gfxpath);
-    }
-    return;
-  }
-
   float x, y, rx, ry;
 
   GetAnimatedLengthValues(&x, &y, &rx, &ry, nullptr);
@@ -125,7 +116,7 @@ SVGEllipseElement::BuildPath()
 
   RefPtr<PathBuilder> pathBuilder = CreatePathBuilder();
 
-  ArcToBezier(pathBuilder.get(), Point(x, y), Size(rx, ry), 0, Float(2*M_PI), false);
+  AppendEllipseToPath(pathBuilder, Point(x, y), Size(2.0*rx, 2.0*ry));
 
   return pathBuilder->Finish();
 }

@@ -106,9 +106,7 @@ function doLoadForEmailCert()
 function doEmailOK()
 {
   var sslTrust = document.getElementById("sslTrustGroup");
-  var trustemail = sslTrust.value == "true"
-                   ? nsIX509CertDB.TRUSTED_EMAIL
-                   : nsIX509CertDB.UNTRUSTED;
+  var trustemail = sslTrust.value ? nsIX509CertDB.TRUSTED_EMAIL : 0;
   //
   //  Set the cert trust
   //

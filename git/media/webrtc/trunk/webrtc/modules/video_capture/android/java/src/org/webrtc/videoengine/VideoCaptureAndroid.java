@@ -12,7 +12,6 @@ package org.webrtc.videoengine;
 
 import java.io.IOException;
 import java.util.Locale;
-import java.util.List;
 import java.util.concurrent.locks.ReentrantLock;
 
 import org.webrtc.videoengine.CaptureCapabilityAndroid;
@@ -286,12 +285,6 @@ public class VideoCaptureAndroid implements PreviewCallback, Callback {
 
 
             Camera.Parameters parameters = camera.getParameters();
-
-            List<String> focusModeList = parameters.getSupportedFocusModes();
-            if (focusModeList.contains(Camera.Parameters.FOCUS_MODE_CONTINUOUS_VIDEO)) {
-                parameters.setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_VIDEO);
-            }
-
             parameters.setPreviewSize(currentCapability.width,
                     currentCapability.height);
             parameters.setPreviewFormat(PIXEL_FORMAT);

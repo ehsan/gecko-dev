@@ -16,6 +16,8 @@
 
  */
 
+#include "mozilla/Util.h"
+
 #include "nscore.h"
 #include "nsCOMPtr.h"
 #include "plhash.h"

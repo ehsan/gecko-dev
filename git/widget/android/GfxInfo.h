@@ -66,6 +66,8 @@ public:
 
   virtual uint32_t OperatingSystemVersion() MOZ_OVERRIDE;
 
+  virtual void InitializeGLStrings(gl::GLContext* gl);
+
 protected:
 
   virtual nsresult GetFeatureStatusImpl(int32_t aFeature, 

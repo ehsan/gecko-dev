@@ -9,8 +9,8 @@
  * potentially re-creating) style contexts
  */
 
-#include "mozilla/ArrayUtils.h"
 #include "mozilla/MemoryReporting.h"
+#include "mozilla/Util.h"
 
 #include "nsStyleSet.h"
 #include "nsCSSStyleSheet.h"
@@ -79,9 +79,7 @@ nsInitialStyleRule::MapRuleInfoInto(nsRuleData* aRuleData)
               index == nsCSSProps::PropertyIndexInStruct(
                           eCSSProperty_script_size_multiplier) ||
               index == nsCSSProps::PropertyIndexInStruct(
-                          eCSSProperty_script_min_size) ||
-              index == nsCSSProps::PropertyIndexInStruct(
-                          eCSSProperty_math_variant)) {
+                          eCSSProperty_script_min_size)) {
             continue;
           }
         }

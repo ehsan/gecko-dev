@@ -17,8 +17,7 @@
 #include "nsPIDOMWindow.h"
 #include "nsIObserverService.h"
 #include "nsIGlobalObject.h"
-#include "nsIXPConnect.h"
-#if defined(XP_LINUX) || defined(__FreeBSD__)
+#if defined(XP_LINUX)
 #include "nsMemoryInfoDumper.h"
 #endif
 #include "mozilla/Attributes.h"
@@ -204,61 +203,6 @@ ResidentFastDistinguishedAmount(int64_t* aN)
 {
     return ResidentDistinguishedAmount(aN);
 }
-
-#ifdef __FreeBSD__
-#include <libutil.h>
-#include <algorithm>
-
-static nsresult
-GetKinfoVmentrySelf(int64_t* prss, uint64_t* maxreg)
-{
-    int cnt;
-    struct kinfo_vmentry *vmmap, *kve;
-    if ((vmmap = kinfo_getvmmap(getpid(), &cnt)) == NULL)
-        return NS_ERROR_FAILURE;
-
-    if (prss)
-        *prss = 0;
-    if (maxreg)
-        *maxreg = 0;
-
-    for (int i = 0; i < cnt; i++) {
-        kve = &vmmap[i];
-        if (prss)
-            *prss += kve->kve_private_resident;
-        if (maxreg)
-            *maxreg = std::max(*maxreg,
-                               kve->kve_end - kve->kve_start);
-    }
-
-    free(vmmap);
-    return NS_OK;
-}
-
-#define HAVE_PRIVATE_REPORTER
-static nsresult
-PrivateDistinguishedAmount(int64_t* aN)
-{
-    int64_t priv;
-    nsresult rv = GetKinfoVmentrySelf(&priv, NULL);
-    if (NS_SUCCEEDED(rv))
-        *aN = priv * getpagesize();
-
-    return NS_OK;
-}
-
-#define HAVE_VSIZE_MAX_CONTIGUOUS_REPORTER 1
-static nsresult
-VsizeMaxContiguousDistinguishedAmount(int64_t* aN)
-{
-    uint64_t biggestRegion;
-    nsresult rv = GetKinfoVmentrySelf(NULL, &biggestRegion);
-    if (NS_SUCCEEDED(rv))
-        *aN = biggestRegion;
-
-    return NS_OK;
-}
-#endif // FreeBSD
 
 #elif defined(SOLARIS)
 
@@ -472,25 +416,6 @@ VsizeMaxContiguousDistinguishedAmount(int64_t* aN)
     return NS_OK;
 }
 
-#define HAVE_PRIVATE_REPORTER
-static nsresult
-PrivateDistinguishedAmount(int64_t* aN)
-{
-    PROCESS_MEMORY_COUNTERS_EX pmcex;
-    pmcex.cb = sizeof(PROCESS_MEMORY_COUNTERS_EX);
-
-    if (!GetProcessMemoryInfo(
-            GetCurrentProcess(),
-            (PPROCESS_MEMORY_COUNTERS) &pmcex, sizeof(pmcex))) {
-        return NS_ERROR_FAILURE;
-    }
-
-    *aN = pmcex.PrivateUsage;
-    return NS_OK;
-}
-#endif  // XP_<PLATFORM>
-
-#ifdef HAVE_VSIZE_MAX_CONTIGUOUS_REPORTER
 class VsizeMaxContiguousReporter MOZ_FINAL : public MemoryUniReporter
 {
 public:
@@ -504,9 +429,8 @@ public:
         return VsizeMaxContiguousDistinguishedAmount(aAmount);
     }
 };
-#endif
 
-#ifdef HAVE_PRIVATE_REPORTER
+#define HAVE_PRIVATE_REPORTER
 class PrivateReporter MOZ_FINAL : public MemoryUniReporter
 {
 public:
@@ -519,10 +443,21 @@ public:
 
     NS_IMETHOD GetAmount(int64_t* aAmount)
     {
-        return PrivateDistinguishedAmount(aAmount);
+        PROCESS_MEMORY_COUNTERS_EX pmcex;
+        pmcex.cb = sizeof(PROCESS_MEMORY_COUNTERS_EX);
+
+        if (!GetProcessMemoryInfo(
+                GetCurrentProcess(),
+                (PPROCESS_MEMORY_COUNTERS) &pmcex, sizeof(pmcex))) {
+            return NS_ERROR_FAILURE;
+        }
+
+        *aAmount = pmcex.PrivateUsage;
+        return NS_OK;
     }
 };
-#endif
+
+#endif  // XP_<PLATFORM>
 
 #ifdef HAVE_VSIZE_AND_RESIDENT_REPORTERS
 class VsizeReporter MOZ_FINAL : public MemoryUniReporter
@@ -798,10 +733,12 @@ private:
 namespace mozilla {
 namespace dmd {
 
-class DMDReporter MOZ_FINAL : public nsIMemoryReporter
+class DMDReporter MOZ_FINAL : public MemoryMultiReporter
 {
 public:
-  NS_DECL_ISUPPORTS
+  DMDReporter()
+    : MemoryMultiReporter("dmd")
+  {}
 
   NS_IMETHOD CollectReports(nsIHandleReportCallback* aHandleReport,
                             nsISupports* aData)
@@ -843,8 +780,6 @@ public:
     return NS_OK;
   }
 };
-
-NS_IMPL_ISUPPORTS1(DMDReporter, nsIMemoryReporter)
 
 } // namespace dmd
 } // namespace mozilla
@@ -902,7 +837,7 @@ nsMemoryReporterManager::Init()
     RegisterStrongReporter(new mozilla::dmd::DMDReporter());
 #endif
 
-#if defined(XP_LINUX) || defined(__FreeBSD__)
+#if defined(XP_LINUX)
     nsMemoryInfoDumper::Initialize();
 #endif
 
@@ -1007,6 +942,23 @@ nsMemoryReporterManager::~nsMemoryReporterManager()
     NS_ASSERTION(!mSavedWeakReporters, "failed to restore weak reporters");
 }
 
+NS_IMETHODIMP
+nsMemoryReporterManager::EnumerateReporters(nsISimpleEnumerator** aResult)
+{
+    // Memory reporters are not necessarily threadsafe, so this function must
+    // be called from the main thread.
+    if (!NS_IsMainThread()) {
+        MOZ_CRASH();
+    }
+
+    mozilla::MutexAutoLock autoLock(mMutex);
+
+    nsRefPtr<ReporterEnumerator> enumerator =
+        new ReporterEnumerator(mStrongReporters, mWeakReporters);
+    enumerator.forget(aResult);
+    return NS_OK;
+}
+
 //#define DEBUG_CHILD_PROCESS_MEMORY_REPORTING 1
 
 #ifdef DEBUG_CHILD_PROCESS_MEMORY_REPORTING
@@ -1095,38 +1047,19 @@ nsMemoryReporterManager::GetReports(
     }
 
     // Get reports for this process.
-    GetReportsForThisProcess(aHandleReport, aHandleReportData);
-
-    // If there are no child processes, we can finish up immediately.
-    return (mNumChildProcesses == 0)
-         ? aFinishReporting->Callback(aFinishReportingData)
-         : NS_OK;
-}
-
-NS_IMETHODIMP
-nsMemoryReporterManager::GetReportsForThisProcess(
-    nsIHandleReportCallback* aHandleReport,
-    nsISupports* aHandleReportData)
-{
-    // Memory reporters are not necessarily threadsafe, so this function must
-    // be called from the main thread.
-    if (!NS_IsMainThread()) {
-        MOZ_CRASH();
-    }
-
-    nsRefPtr<ReporterEnumerator> e;
-    {
-        mozilla::MutexAutoLock autoLock(mMutex);
-        e = new ReporterEnumerator(mStrongReporters, mWeakReporters);
-    }
     bool more;
+    nsCOMPtr<nsISimpleEnumerator> e;
+    EnumerateReporters(getter_AddRefs(e));
     while (NS_SUCCEEDED(e->HasMoreElements(&more)) && more) {
         nsCOMPtr<nsIMemoryReporter> r;
         e->GetNext(getter_AddRefs(r));
         r->CollectReports(aHandleReport, aHandleReportData);
     }
 
-    return NS_OK;
+    // If there are no child processes, we can finish up immediately.
+    return (mNumChildProcesses == 0)
+         ? aFinishReporting->Callback(aFinishReportingData)
+         : NS_OK;
 }
 
 // This function has no return value.  If something goes wrong, there's no
@@ -1282,16 +1215,6 @@ nsMemoryReporterManager::RegisterReporterHelper(
         CrashIfRefcountIsZero(aReporter);
     } else {
         CrashIfRefcountIsZero(aReporter);
-        nsCOMPtr<nsIXPConnectWrappedJS> jsComponent =
-            do_QueryInterface(aReporter);
-        if (jsComponent) {
-            // We cannot allow non-native reporters (WrappedJS), since we'll be
-            // holding onto a raw pointer, which would point to the wrapper,
-            // and that wrapper is likely to go away as soon as this register
-            // call finishes.  This would then lead to subsequent crashes in
-            // CollectReports().
-            return NS_ERROR_XPC_BAD_CONVERT_JS;
-        }
         mWeakReporters->PutEntry(aReporter);
     }
 
@@ -1318,22 +1241,6 @@ nsMemoryReporterManager::RegisterStrongReporterEvenIfBlocked(
 {
     return RegisterReporterHelper(aReporter, /* force = */ true,
                                   /* strong = */ true);
-}
-
-NS_IMETHODIMP
-nsMemoryReporterManager::UnregisterStrongReporter(nsIMemoryReporter* aReporter)
-{
-    // This method is thread-safe.
-    mozilla::MutexAutoLock autoLock(mMutex);
-
-    MOZ_ASSERT(!mWeakReporters->Contains(aReporter));
-
-    if (mStrongReporters->Contains(aReporter)) {
-        mStrongReporters->RemoveEntry(aReporter);
-        return NS_OK;
-    }
-
-    return NS_ERROR_FAILURE;
 }
 
 NS_IMETHODIMP
@@ -1402,7 +1309,6 @@ public:
     Int64Wrapper() : mValue(0) { }
     int64_t mValue;
 };
-
 NS_IMPL_ISUPPORTS0(Int64Wrapper)
 
 class ExplicitCallback MOZ_FINAL : public nsIHandleReportCallback
@@ -1432,7 +1338,6 @@ public:
         return NS_OK;
     }
 };
-
 NS_IMPL_ISUPPORTS1(ExplicitCallback, nsIHandleReportCallback)
 
 NS_IMETHODIMP
@@ -1444,6 +1349,7 @@ nsMemoryReporterManager::GetExplicit(int64_t* aAmount)
 #ifndef HAVE_JEMALLOC_STATS
     return NS_ERROR_NOT_AVAILABLE;
 #else
+    bool more;
 
     // For each reporter we call CollectReports and filter out the
     // non-explicit, non-NONHEAP measurements (except for "heap-allocated").
@@ -1454,7 +1360,13 @@ nsMemoryReporterManager::GetExplicit(int64_t* aAmount)
     nsRefPtr<ExplicitCallback> handleReport = new ExplicitCallback();
     nsRefPtr<Int64Wrapper> wrappedExplicitSize = new Int64Wrapper();
 
-    GetReportsForThisProcess(handleReport, wrappedExplicitSize);
+    nsCOMPtr<nsISimpleEnumerator> e;
+    EnumerateReporters(getter_AddRefs(e));
+    while (NS_SUCCEEDED(e->HasMoreElements(&more)) && more) {
+        nsCOMPtr<nsIMemoryReporter> r;
+        e->GetNext(getter_AddRefs(r));
+        r->CollectReports(handleReport, wrappedExplicitSize);
+    }
 
     *aAmount = wrappedExplicitSize->mValue;
 
@@ -1655,7 +1567,7 @@ public:
 
     if (mRemainingIters == 0) {
       os->NotifyObservers(nullptr, "after-minimize-memory-usage",
-                          MOZ_UTF16("MinimizeMemoryUsageRunnable"));
+                          NS_LITERAL_STRING("MinimizeMemoryUsageRunnable").get());
       if (mCallback) {
         mCallback->Run();
       }
@@ -1663,7 +1575,7 @@ public:
     }
 
     os->NotifyObservers(nullptr, "memory-pressure",
-                        MOZ_UTF16("heap-minimize"));
+                        NS_LITERAL_STRING("heap-minimize").get());
     mRemainingIters--;
     NS_DispatchToMainThread(this);
 
@@ -1764,6 +1676,7 @@ nsMemoryReporterManager::SizeOfTab(nsIDOMWindow* aTopWindow,
 // thread-safe just to be safe.  Memory reporters are created and destroyed
 // infrequently enough that the performance cost should be negligible.
 NS_IMPL_ISUPPORTS1(MemoryUniReporter, nsIMemoryReporter)
+NS_IMPL_ISUPPORTS1(MemoryMultiReporter, nsIMemoryReporter)
 
 namespace mozilla {
 
@@ -1879,18 +1792,27 @@ public:
         return NS_OK;
     }
 };
-
-NS_IMPL_ISUPPORTS1(DoNothingCallback, nsIHandleReportCallback)
+NS_IMPL_ISUPPORTS1(
+  DoNothingCallback
+, nsIHandleReportCallback
+)
 
 void
-RunReportersForThisProcess()
+RunReporters()
 {
     nsCOMPtr<nsIMemoryReporterManager> mgr =
         do_GetService("@mozilla.org/memory-reporter-manager;1");
 
     nsRefPtr<DoNothingCallback> doNothing = new DoNothingCallback();
 
-    mgr->GetReportsForThisProcess(doNothing, nullptr);
+    bool more;
+    nsCOMPtr<nsISimpleEnumerator> e;
+    mgr->EnumerateReporters(getter_AddRefs(e));
+    while (NS_SUCCEEDED(e->HasMoreElements(&more)) && more) {
+        nsCOMPtr<nsIMemoryReporter> r;
+        e->GetNext(getter_AddRefs(r));
+        r->CollectReports(doNothing, nullptr);
+    }
 }
 
 } // namespace dmd

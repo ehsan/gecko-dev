@@ -196,10 +196,10 @@ jit::CheckFrequentBailouts(JSContext *cx, JSScript *script)
         // we compile this script LICM will be disabled.
         IonScript *ionScript = script->ionScript();
 
-        if (ionScript->numBailouts() >= js_JitOptions.frequentBailoutThreshold &&
-            !script->hadFrequentBailouts())
+        if (ionScript->numBailouts() >= js_IonOptions.frequentBailoutThreshold &&
+            !script->hadFrequentBailouts)
         {
-            script->setHadFrequentBailouts();
+            script->hadFrequentBailouts = true;
 
             IonSpew(IonSpew_Invalidate, "Invalidating due to too many bailouts");
 

@@ -10,8 +10,6 @@ var subclasses = {};
 var superclasses = {};
 var classFunctions = {};
 
-var fieldCallSeen = {};
-
 function addClassEntry(index, name, other)
 {
     if (!(name in index)) {
@@ -61,13 +59,13 @@ function findVirtualFunctions(csu, field, suppressed)
     // which should never enter the JS engine (even when calling dtors).
     while (worklist.length) {
         var csu = worklist.pop();
-        if (csu == "nsISupports" && (field == "AddRef" || field == "Release")) {
-            suppressed[0] = true;
-            return [];
-        }
-        if (isOverridableField(csu, field))
+        if (csu == "nsISupports") {
+            if (field == "AddRef" || field == "Release") {
+                suppressed[0] = true;
+                return [];
+            }
             return null;
-
+        }
         if (csu in superclasses) {
             for (var superclass of superclasses[csu])
                 worklist.push(superclass);
@@ -147,18 +145,9 @@ function getCallees(edge)
                 }
             }
             if (functions) {
-                // Known set of virtual call targets. Treat them as direct
-                // calls to all possible resolved types, but also record edges
-                // from this field call to each final callee. When the analysis
-                // is checking whether an edge can GC and it sees an unrooted
-                // pointer held live across this field call, it will know
-                // whether any of the direct callees can GC or not.
-                var targets = [];
-                for (var name of functions) {
+                // Known set of virtual call targets.
+                for (var name of functions)
                     callees.push({'kind': "direct", 'name': name});
-                    targets.push({'kind': "direct", 'name': name});
-                }
-                callees.push({'kind': "resolved-field", 'csu': csuName, 'field': fieldName, 'callees': targets});
             } else {
                 // Unknown set of call targets. Non-virtual field call,
                 // or virtual call on an nsISupports object.
@@ -211,21 +200,6 @@ function processBody(caller, body)
             } else if (callee.kind == 'field') {
                 var { csu, field } = callee;
                 printOnce("F " + prologue + "CLASS " + csu + " FIELD " + field);
-            } else if (callee.kind == 'resolved-field') {
-                // Fully-resolved field call (usually a virtual method). Record
-                // the callgraph edges. Do not consider suppression, since it
-                // is local to this callsite and we are writing out a global
-                // record here.
-                //
-                // Any field call that does *not* have an R entry must be
-                // assumed to call anything.
-                var { csu, field, callees } = callee;
-                var fullFieldName = csu + "." + field;
-                if (!(fullFieldName in fieldCallSeen)) {
-                    fieldCallSeen[fullFieldName] = true;
-                    for (var target of callees)
-                        printOnce("R " + memo(fullFieldName) + " " + memo(target.name));
-                }
             } else if (callee.kind == 'indirect') {
                 printOnce("I " + prologue + "VARIABLE " + callee.variable);
             } else if (callee.kind == 'unknown') {
@@ -258,8 +232,6 @@ for (var csuIndex = minStream; csuIndex <= maxStream; csuIndex++) {
 
 xdb.open("src_body.xdb");
 
-printErr("Finished loading data structures");
-
 var minStream = xdb.min_data_stream();
 var maxStream = xdb.max_data_stream();
 
@@ -277,9 +249,8 @@ for (var nameIndex = minStream; nameIndex <= maxStream; nameIndex++) {
     seenCallees = {};
     seenSuppressedCallees = {};
 
-    var functionName = name.readString();
     for (var body of functionBodies)
-        processBody(functionName, body);
+        processBody(name.readString(), body);
 
     xdb.free_string(name);
     xdb.free_string(data);

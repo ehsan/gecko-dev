@@ -34,10 +34,10 @@ BailoutEnvironment::BailoutEnvironment(JitCompartment *ion, void **sp)
 
     if (bailout_->frameClass() != FrameSizeClass::None()) {
         frameSize_ = bailout_->frameSize();
-        frame_ = &sp_[sizeof(BailoutStack) / sizeof(void *)];
+        frame_ = &sp_[sizeof(BailoutStack) / STACK_SLOT_SIZE];
 
         // Compute the bailout ID.
-        JitCode *code = ion->getBailoutTable(bailout_->frameClass());
+        IonCode *code = ion->getBailoutTable(bailout_->frameClass());
         uintptr_t tableOffset = bailout_->tableOffset();
         uintptr_t tableStart = reinterpret_cast<uintptr_t>(code->raw());
 
@@ -49,14 +49,14 @@ BailoutEnvironment::BailoutEnvironment(JitCompartment *ion, void **sp)
         JS_ASSERT(bailoutId_ < BAILOUT_TABLE_SIZE);
     } else {
         frameSize_ = bailout_->frameSize();
-        frame_ = &sp_[sizeof(ExtendedBailoutStack) / sizeof(void *)];
+        frame_ = &sp_[sizeof(ExtendedBailoutStack) / STACK_SLOT_SIZE];
     }
 }
 
 IonFramePrefix *
 BailoutEnvironment::top() const
 {
-    return (IonFramePrefix *)&frame_[frameSize_ / sizeof(void *)];
+    return (IonFramePrefix *)&frame_[frameSize_ / STACK_SLOT_SIZE];
 }
 
 #endif
@@ -77,8 +77,8 @@ class BailoutStack
     };
 
   private:
-    mozilla::Array<double, FloatRegisters::Total> fpregs_;
-    mozilla::Array<uintptr_t, Registers::Total> regs_;
+    double    fpregs_[FloatRegisters::Total];
+    uintptr_t regs_[Registers::Total];
 
     uintptr_t snapshotOffset_;
 
@@ -133,7 +133,7 @@ IonBailoutIterator::IonBailoutIterator(const JitActivationIterator &activations,
     // Compute the snapshot offset from the bailout ID.
     JitActivation *activation = activations.activation()->asJit();
     JSRuntime *rt = activation->compartment()->runtimeFromMainThread();
-    JitCode *code = rt->jitRuntime()->getBailoutTable(bailout->frameClass());
+    IonCode *code = rt->jitRuntime()->getBailoutTable(bailout->frameClass());
     uintptr_t tableOffset = bailout->tableOffset();
     uintptr_t tableStart = reinterpret_cast<uintptr_t>(code->raw());
 

@@ -5,7 +5,7 @@
 
 #include "RootAccessible.h"
 
-#include "mozilla/ArrayUtils.h"
+#include "mozilla/Util.h"
 
 #define CreateEvent CreateEventA
 #include "nsIDOMDocument.h"

@@ -84,64 +84,14 @@ var gPluginHandler = {
     return newName;
   },
 
-  /**
-   * Update the visibility of the plugin overlay.
-   */
-  setVisibility : function (plugin, overlay, shouldShow) {
-    overlay.classList.toggle("visible", shouldShow);
-  },
-
-  /**
-   * Check whether the plugin should be visible on the page. A plugin should
-   * not be visible if the overlay is too big, or if any other page content
-   * overlays it.
-   *
-   * This function will handle showing or hiding the overlay.
-   * @returns true if the plugin is invisible.
-   */
-  shouldShowOverlay : function (plugin, overlay) {
-    // If the overlay size is 0, we haven't done layout yet. Presume that
-    // plugins are visible until we know otherwise.
-    if (overlay.scrollWidth == 0) {
-      return true;
-    }
-
+  isTooSmall : function (plugin, overlay) {
     // Is the <object>'s size too small to hold what we want to show?
     let pluginRect = plugin.getBoundingClientRect();
     // XXX bug 446693. The text-shadow on the submitted-report text at
     //     the bottom causes scrollHeight to be larger than it should be.
     let overflows = (overlay.scrollWidth > pluginRect.width) ||
                     (overlay.scrollHeight - 5 > pluginRect.height);
-    if (overflows) {
-      return false;
-    }
-
-    // Is the plugin covered up by other content so that it is not clickable?
-    // Floating point can confuse .elementFromPoint, so inset just a bit
-    let left = pluginRect.left + 2;
-    let right = pluginRect.right - 2;
-    let top = pluginRect.top + 2;
-    let bottom = pluginRect.bottom - 2;
-    let centerX = left + (right - left) / 2;
-    let centerY = top + (bottom - top) / 2;
-    let points = [[left, top],
-                   [left, bottom],
-                   [right, top],
-                   [right, bottom],
-                   [centerX, centerY]];
-
-    if (right <= 0 || top <= 0) {
-      return false;
-    }
-
-    for (let [x, y] of points) {
-      let el = plugin.ownerDocument.elementFromPoint(x, y);
-      if (el !== plugin) {
-        return false;
-      }
-    }
-
-    return true;
+    return overflows;
   },
 
   addLinkClickCallback: function (linkNode, callbackName /*callbackArgs...*/) {
@@ -369,18 +319,26 @@ var gPluginHandler = {
     if (eventType != "PluginCrashed") {
       let overlay = this.getPluginUI(plugin, "main");
       if (overlay != null) {
-        this.setVisibility(plugin, overlay,
-                           this.shouldShowOverlay(plugin, overlay));
-        let resizeListener = (event) => {
-          this.setVisibility(plugin, overlay,
-            this.shouldShowOverlay(plugin, overlay));
-          this._setPluginNotificationIcon(browser);
-        };
-        plugin.addEventListener("overflow", resizeListener);
-        plugin.addEventListener("underflow", resizeListener);
+        if (!this.isTooSmall(plugin, overlay))
+          overlay.style.visibility = "visible";
+
+        plugin.addEventListener("overflow", function(event) {
+          overlay.style.visibility = "hidden";
+          gPluginHandler._setPluginNotificationIcon(browser);
+        });
+        plugin.addEventListener("underflow", function(event) {
+          // this is triggered if only one dimension underflows,
+          // the other dimension might still overflow
+          if (!gPluginHandler.isTooSmall(plugin, overlay)) {
+            overlay.style.visibility = "visible";
+          }
+          gPluginHandler._setPluginNotificationIcon(browser);
+        });
       }
     }
 
+    // Only show the notification after we've done the isTooSmall check, so
+    // that the notification can decide whether to show the "alert" icon
     if (shouldShowNotification) {
       this._showClickToPlayNotification(browser, plugin, false);
     }
@@ -420,9 +378,8 @@ var gPluginHandler = {
 
   hideClickToPlayOverlay: function(aPlugin) {
     let overlay = this.getPluginUI(aPlugin, "main");
-    if (overlay) {
-      overlay.classList.remove("visible");
-    }
+    if (overlay)
+      overlay.style.visibility = "hidden";
   },
 
   stopPlayPreview: function PH_stopPlayPreview(aPlugin, aPlayPlugin) {
@@ -573,9 +530,8 @@ var gPluginHandler = {
     let overlay = this.getPluginUI(aPlugin, "main");
 
     if (pluginPermission == Ci.nsIPermissionManager.DENY_ACTION) {
-      if (overlay) {
-        overlay.classList.remove("visible");
-      }
+      if (overlay)
+        overlay.style.visibility = "hidden";
       return;
     }
 
@@ -775,7 +731,6 @@ var gPluginHandler = {
       let principal = contentWindow.document.nodePrincipal;
       Services.perms.addFromPrincipal(principal, aPluginInfo.permissionString,
                                       permission, expireType, expireTime);
-      aPluginInfo.pluginPermissionType = expireType;
     }
 
     // Manually activate the plugins that would have been automatically
@@ -973,9 +928,7 @@ var gPluginHandler = {
       if (!overlay) {
         continue;
       }
-      let shouldShow = this.shouldShowOverlay(plugin, overlay);
-      this.setVisibility(plugin, overlay, shouldShow);
-      if (shouldShow) {
+      if (!this.isTooSmall(plugin, overlay)) {
         actions.delete(info.permissionString);
         if (actions.size == 0) {
           break;
@@ -1232,18 +1185,22 @@ var gPluginHandler = {
 
     let notificationBox = gBrowser.getNotificationBox(browser);
 
-    let isShowing = this.shouldShowOverlay(plugin, overlay);
+    let isShowing = true;
 
     // Is the <object>'s size too small to hold what we want to show?
-    if (!isShowing) {
+    if (this.isTooSmall(plugin, overlay)) {
       // First try hiding the crash report submission UI.
       statusDiv.removeAttribute("status");
 
-      isShowing = this.shouldShowOverlay(plugin, overlay);
+      if (this.isTooSmall(plugin, overlay)) {
+        // Hide the overlay's contents. Use visibility style, so that it doesn't
+        // collapse down to 0x0.
+        isShowing = false;
+      }
     }
-    this.setVisibility(plugin, overlay, isShowing);
 
     if (isShowing) {
+      overlay.style.visibility = "visible";
       // If a previous plugin on the page was too small and resulted in adding a
       // notification bar, then remove it because this plugin instance it big
       // enough to serve as in-content notification.

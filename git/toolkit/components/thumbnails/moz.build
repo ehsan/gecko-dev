@@ -16,5 +16,3 @@ EXTRA_JS_MODULES += [
     'PageThumbs.jsm',
     'PageThumbsWorker.js',
 ]
-
-JAR_MANIFESTS += ['jar.mn']

@@ -11,8 +11,6 @@
 
 #include "jsobjinlines.h"
 
-#include "vm/Shape-inl.h"
-
 namespace js {
 
 inline bool
@@ -22,8 +20,18 @@ StringObject::init(JSContext *cx, HandleString str)
 
     Rooted<StringObject *> self(cx, this);
 
-    if (!EmptyShape::ensureInitialCustomShape<StringObject>(cx, self))
-        return false;
+    if (nativeEmpty()) {
+        if (isDelegate()) {
+            if (!assignInitialShape(cx))
+                return false;
+        } else {
+            RootedShape shape(cx, assignInitialShape(cx));
+            if (!shape)
+                return false;
+            RootedObject proto(cx, self->getProto());
+            EmptyShape::insertInitialShape(cx, shape, proto);
+        }
+    }
 
     JS_ASSERT(self->nativeLookup(cx, NameToId(cx->names().length))->slot() == LENGTH_SLOT);
 

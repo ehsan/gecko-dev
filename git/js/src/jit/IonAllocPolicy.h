@@ -165,6 +165,9 @@ class AutoIonContextAlloc
 
 struct TempObject
 {
+    inline void *operator new(size_t nbytes) {
+        return GetIonContext()->temp->allocateInfallible(nbytes);
+    }
     inline void *operator new(size_t nbytes, TempAllocator &alloc) {
         return alloc.allocateInfallible(nbytes);
     }
@@ -179,21 +182,12 @@ struct TempObject
 template <typename T>
 class TempObjectPool
 {
-    TempAllocator *alloc_;
     InlineForwardList<T> freed_;
 
   public:
-    TempObjectPool()
-      : alloc_(nullptr)
-    {}
-    void setAllocator(TempAllocator &alloc) {
-        JS_ASSERT(freed_.empty());
-        alloc_ = &alloc;
-    }
     T *allocate() {
-        JS_ASSERT(alloc_);
         if (freed_.empty())
-            return new(*alloc_) T();
+            return new T();
         return freed_.popFront();
     }
     void free(T *obj) {

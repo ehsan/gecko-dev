@@ -9,10 +9,12 @@
 #include "nsCSSScanner.h"
 #include "nsStyleUtil.h"
 #include "nsTraceRefcnt.h"
-#include "mozilla/ArrayUtils.h"
 #include "mozilla/css/ErrorReporter.h"
 #include "mozilla/Likely.h"
+#include "mozilla/Util.h"
 #include <algorithm>
+
+using mozilla::ArrayLength;
 
 /* Character class tables and related helper functions. */
 
@@ -348,12 +350,10 @@ nsCSSScanner::nsCSSScanner(const nsAString& aBuffer, uint32_t aLineNumber)
   , mTokenLineOffset(0)
   , mTokenOffset(0)
   , mRecordStartOffset(0)
-  , mEOFCharacters(eEOFCharacters_None)
   , mReporter(nullptr)
   , mSVGMode(false)
   , mRecording(false)
   , mSeenBadToken(false)
-  , mSeenVariableReference(false)
 {
   MOZ_COUNT_CTOR(nsCSSScanner);
 }
@@ -386,21 +386,6 @@ nsCSSScanner::StopRecording(nsString& aBuffer)
   aBuffer.Append(mBuffer + mRecordStartOffset,
                  mOffset - mRecordStartOffset);
 }
-
-uint32_t
-nsCSSScanner::RecordingLength() const
-{
-  MOZ_ASSERT(mRecording, "haven't started recording");
-  return mOffset - mRecordStartOffset;
-}
-
-#ifdef DEBUG
-bool
-nsCSSScanner::IsRecording() const
-{
-  return mRecording;
-}
-#endif
 
 nsDependentSubstring
 nsCSSScanner::GetCurrentLine() const
@@ -495,32 +480,6 @@ nsCSSScanner::Backup(uint32_t n)
 #endif
 }
 
-void
-nsCSSScanner::SavePosition(nsCSSScannerPosition& aState)
-{
-  aState.mOffset = mOffset;
-  aState.mLineNumber = mLineNumber;
-  aState.mLineOffset = mLineOffset;
-  aState.mTokenLineNumber = mTokenLineNumber;
-  aState.mTokenLineOffset = mTokenLineOffset;
-  aState.mTokenOffset = mTokenOffset;
-  aState.mInitialized = true;
-}
-
-void
-nsCSSScanner::RestoreSavedPosition(const nsCSSScannerPosition& aState)
-{
-  MOZ_ASSERT(aState.mInitialized, "have not saved state");
-  if (aState.mInitialized) {
-    mOffset = aState.mOffset;
-    mLineNumber = aState.mLineNumber;
-    mLineOffset = aState.mLineOffset;
-    mTokenLineNumber = aState.mTokenLineNumber;
-    mTokenLineOffset = aState.mTokenLineOffset;
-    mTokenOffset = aState.mTokenOffset;
-  }
-}
-
 /**
  * Skip over a sequence of whitespace characters (vertical or
  * horizontal) starting at the current read position.
@@ -553,22 +512,13 @@ nsCSSScanner::SkipComment()
     int32_t ch = Peek();
     if (ch < 0) {
       mReporter->ReportUnexpectedEOF("PECommentEOF");
-      SetEOFCharacters(eEOFCharacters_Asterisk | eEOFCharacters_Slash);
       return;
     }
-    if (ch == '*') {
-      Advance();
-      ch = Peek();
-      if (ch < 0) {
-        mReporter->ReportUnexpectedEOF("PECommentEOF");
-        SetEOFCharacters(eEOFCharacters_Slash);
-        return;
-      }
-      if (ch == '/') {
-        Advance();
-        return;
-      }
-    } else if (IsVertSpace(ch)) {
+    if (ch == '*' && Peek(1) == '/') {
+      Advance(2);
+      return;
+    }
+    if (IsVertSpace(ch)) {
       AdvanceLine();
     } else {
       Advance();
@@ -593,11 +543,8 @@ nsCSSScanner::GatherEscape(nsString& aOutput, bool aInString)
     // the backslash on the floor.  Otherwise, we want to treat it as a U+FFFD
     // character.
     Advance();
-    if (aInString) {
-      SetEOFCharacters(eEOFCharacters_DropBackslash);
-    } else {
+    if (!aInString) {
       aOutput.Append(UCS2_REPLACEMENT_CHAR);
-      SetEOFCharacters(eEOFCharacters_ReplacementChar);
     }
     return true;
   }
@@ -732,8 +679,6 @@ bool
 nsCSSScanner::ScanIdent(nsCSSToken& aToken)
 {
   if (MOZ_UNLIKELY(!GatherText(IS_IDCHAR, aToken.mIdent))) {
-    MOZ_ASSERT(Peek() == '\\',
-               "unexpected IsIdentStart character that did not begin an ident");
     aToken.mSymbol = Peek();
     Advance();
     return true;
@@ -748,8 +693,6 @@ nsCSSScanner::ScanIdent(nsCSSToken& aToken)
   aToken.mType = eCSSToken_Function;
   if (aToken.mIdent.LowerCaseEqualsLiteral("url")) {
     NextURL(aToken);
-  } else if (aToken.mIdent.LowerCaseEqualsLiteral("var")) {
-    mSeenVariableReference = true;
   }
   return true;
 }
@@ -968,8 +911,6 @@ nsCSSScanner::ScanString(nsCSSToken& aToken)
 
     int32_t ch = Peek();
     if (ch == -1) {
-      AddEOFCharacters(aStop == '"' ? eEOFCharacters_DoubleQuote :
-                                      eEOFCharacters_SingleQuote);
       break; // EOF ends a string token with no error.
     }
     if (ch == aStop) {
@@ -1075,72 +1016,6 @@ nsCSSScanner::ScanURange(nsCSSToken& aResult)
   return true;
 }
 
-#ifdef DEBUG
-/* static */ void
-nsCSSScanner::AssertEOFCharactersValid(uint32_t c)
-{
-  MOZ_ASSERT(c == eEOFCharacters_None ||
-             c == eEOFCharacters_ReplacementChar ||
-             c == eEOFCharacters_Slash ||
-             c == (eEOFCharacters_Asterisk |
-                   eEOFCharacters_Slash) ||
-             c == eEOFCharacters_DoubleQuote ||
-             c == eEOFCharacters_SingleQuote ||
-             c == (eEOFCharacters_DropBackslash |
-                   eEOFCharacters_DoubleQuote) ||
-             c == (eEOFCharacters_DropBackslash |
-                   eEOFCharacters_SingleQuote) ||
-             c == eEOFCharacters_CloseParen ||
-             c == (eEOFCharacters_ReplacementChar |
-                   eEOFCharacters_CloseParen) ||
-             c == (eEOFCharacters_DoubleQuote |
-                   eEOFCharacters_CloseParen) ||
-             c == (eEOFCharacters_SingleQuote |
-                   eEOFCharacters_CloseParen) ||
-             c == (eEOFCharacters_DropBackslash |
-                   eEOFCharacters_DoubleQuote |
-                   eEOFCharacters_CloseParen) ||
-             c == (eEOFCharacters_DropBackslash |
-                   eEOFCharacters_SingleQuote |
-                   eEOFCharacters_CloseParen),
-             "invalid EOFCharacters value");
-}
-#endif
-
-void
-nsCSSScanner::SetEOFCharacters(uint32_t aEOFCharacters)
-{
-  mEOFCharacters = EOFCharacters(aEOFCharacters);
-}
-
-void
-nsCSSScanner::AddEOFCharacters(uint32_t aEOFCharacters)
-{
-  mEOFCharacters = EOFCharacters(mEOFCharacters | aEOFCharacters);
-}
-
-static const PRUnichar kImpliedEOFCharacters[] = {
-  UCS2_REPLACEMENT_CHAR, '*', '/', '"', '\'', ')', 0
-};
-
-/* static */ void
-nsCSSScanner::AppendImpliedEOFCharacters(EOFCharacters aEOFCharacters,
-                                         nsAString& aResult)
-{
-  // First, ignore eEOFCharacters_DropBackslash.
-  uint32_t c = aEOFCharacters >> 1;
-
-  // All of the remaining EOFCharacters bits represent appended characters,
-  // and the bits are in the order that they need appending.
-  for (const PRUnichar* p = kImpliedEOFCharacters; *p && c; p++, c >>= 1) {
-    if (c & 1) {
-      aResult.Append(*p);
-    }
-  }
-
-  MOZ_ASSERT(c == 0, "too many bits in mEOFCharacters");
-}
-
 /**
  * Consume the part of an URL token after the initial 'url('.  Caller
  * is assumed to have consumed 'url(' already.  Will always produce
@@ -1183,9 +1058,6 @@ nsCSSScanner::NextURL(nsCSSToken& aToken)
   if (MOZ_LIKELY(ch < 0 || ch == ')')) {
     Advance();
     aToken.mType = eCSSToken_URL;
-    if (ch < 0) {
-      AddEOFCharacters(eEOFCharacters_CloseParen);
-    }
   } else {
     mSeenBadToken = true;
     aToken.mType = eCSSToken_Bad_URL;

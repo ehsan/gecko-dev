@@ -16,7 +16,6 @@
 #include "ReadbackLayer.h"              // for ReadbackLayer
 #include "gfxPlatform.h"                // for gfxPlatform
 #include "gfxUtils.h"                   // for gfxUtils, etc
-#include "gfx2DGlue.h"
 #include "mozilla/DebugOnly.h"          // for DebugOnly
 #include "mozilla/Telemetry.h"          // for Accumulate
 #include "mozilla/TelemetryHistogramEnums.h"
@@ -134,6 +133,15 @@ LayerManager::CreateDrawTarget(const IntSize &aSize,
     CreateOffscreenCanvasDrawTarget(aSize, aFormat);
 }
 
+TextureFactoryIdentifier
+LayerManager::GetTextureFactoryIdentifier()
+{
+  //TODO[nrc] make pure virtual when all layer managers use Compositor
+  NS_ERROR("Should have been overridden");
+  return TextureFactoryIdentifier();
+}
+
+
 #ifdef DEBUG
 void
 LayerManager::Mutated(Layer* aLayer)
@@ -176,8 +184,6 @@ Layer::Layer(LayerManager* aManager, void* aImplData) :
   mIsFixedPosition(false),
   mMargins(0, 0, 0, 0),
   mStickyPositionData(nullptr),
-  mScrollbarTargetId(FrameMetrics::NULL_SCROLL_ID),
-  mScrollbarDirection(ScrollDirection::NONE),
   mDebugColorIndex(0),
   mAnimationGeneration(0)
 {}
@@ -216,7 +222,7 @@ Layer::ClearAnimations()
   Mutated();
 }
 
-static nsCSSValueSharedList*
+static nsCSSValueList*
 CreateCSSValueList(const InfallibleTArray<TransformFunction>& aFunctions)
 {
   nsAutoPtr<nsCSSValueList> result;
@@ -339,7 +345,7 @@ CreateCSSValueList(const InfallibleTArray<TransformFunction>& aFunctions)
     result = new nsCSSValueList();
     result->mValue.SetNoneValue();
   }
-  return new nsCSSValueSharedList(result.forget());
+  return result.forget();
 }
 
 void
@@ -387,11 +393,13 @@ Layer::SetAnimations(const AnimationArray& aAnimations)
       if (segment.endState().type() == Animatable::TArrayOfTransformFunction) {
         const InfallibleTArray<TransformFunction>& startFunctions =
           segment.startState().get_ArrayOfTransformFunction();
-        startValue->SetTransformValue(CreateCSSValueList(startFunctions));
+        startValue->SetAndAdoptCSSValueListValue(CreateCSSValueList(startFunctions),
+                                                 nsStyleAnimation::eUnit_Transform);
 
         const InfallibleTArray<TransformFunction>& endFunctions =
           segment.endState().get_ArrayOfTransformFunction();
-        endValue->SetTransformValue(CreateCSSValueList(endFunctions));
+        endValue->SetAndAdoptCSSValueListValue(CreateCSSValueList(endFunctions),
+                                               nsStyleAnimation::eUnit_Transform);
       } else {
         NS_ASSERTION(segment.endState().type() == Animatable::Tfloat,
                      "Unknown Animatable type");
@@ -510,7 +518,7 @@ Layer::SnapTransform(const gfx3DMatrix& aTransform,
   gfx3DMatrix result;
   if (mManager->IsSnappingEffectiveTransforms() &&
       aTransform.Is2D(&matrix2D) &&
-      gfx::Size(1.0, 1.0) <= ToSize(aSnapRect.Size()) &&
+      gfxSize(1.0, 1.0) <= aSnapRect.Size() &&
       matrix2D.PreservesAxisAlignedRectangles()) {
     gfxPoint transformedTopLeft = matrix2D.Transform(aSnapRect.TopLeft());
     transformedTopLeft.Round();
@@ -1270,15 +1278,8 @@ Layer::PrintInfo(nsACString& aTo, const char* aPrefix)
   if (GetContentFlags() & CONTENT_COMPONENT_ALPHA) {
     aTo += " [componentAlpha]";
   }
-  if (GetScrollbarDirection() == VERTICAL) {
-    aTo.AppendPrintf(" [vscrollbar=%lld]", GetScrollbarTargetContainerId());
-  }
-  if (GetScrollbarDirection() == HORIZONTAL) {
-    aTo.AppendPrintf(" [hscrollbar=%lld]", GetScrollbarTargetContainerId());
-  }
   if (GetIsFixedPosition()) {
-    aTo.AppendPrintf(" [isFixedPosition anchor=%f,%f margin=%f,%f,%f,%f]", mAnchor.x, mAnchor.y,
-                     mMargins.top, mMargins.right, mMargins.bottom, mMargins.left);
+    aTo.AppendPrintf(" [isFixedPosition anchor=%f,%f]", mAnchor.x, mAnchor.y);
   }
   if (GetIsStickyPosition()) {
     aTo.AppendPrintf(" [isStickyPosition scrollId=%d outer=%f,%f %fx%f "
@@ -1494,12 +1495,10 @@ PrintInfo(nsACString& aTo, LayerComposite* aLayerComposite)
 void
 SetAntialiasingFlags(Layer* aLayer, gfxContext* aTarget)
 {
-  bool permitSubpixelAA = !(aLayer->GetContentFlags() & Layer::CONTENT_DISABLE_SUBPIXEL_AA);
   if (!aTarget->IsCairo()) {
     RefPtr<DrawTarget> dt = aTarget->GetDrawTarget();
 
     if (dt->GetFormat() != FORMAT_B8G8R8A8) {
-      dt->SetPermitSubpixelAA(permitSubpixelAA);
       return;
     }
 
@@ -1509,22 +1508,20 @@ SetAntialiasingFlags(Layer* aLayer, gfxContext* aTarget)
     transformedBounds.RoundOut();
     IntRect intTransformedBounds;
     transformedBounds.ToIntRect(&intTransformedBounds);
-    permitSubpixelAA &= !(aLayer->GetContentFlags() & Layer::CONTENT_COMPONENT_ALPHA) ||
-                        dt->GetOpaqueRect().Contains(intTransformedBounds);
-    dt->SetPermitSubpixelAA(permitSubpixelAA);
+    dt->SetPermitSubpixelAA(!(aLayer->GetContentFlags() & Layer::CONTENT_COMPONENT_ALPHA) ||
+                            dt->GetOpaqueRect().Contains(intTransformedBounds));
   } else {
     nsRefPtr<gfxASurface> surface = aTarget->CurrentSurface();
     if (surface->GetContentType() != GFX_CONTENT_COLOR_ALPHA) {
       // Destination doesn't have alpha channel; no need to set any special flags
-      surface->SetSubpixelAntialiasingEnabled(permitSubpixelAA);
       return;
     }
 
     const nsIntRect& bounds = aLayer->GetVisibleRegion().GetBounds();
-    permitSubpixelAA &= !(aLayer->GetContentFlags() & Layer::CONTENT_COMPONENT_ALPHA) ||
+    surface->SetSubpixelAntialiasingEnabled(
+        !(aLayer->GetContentFlags() & Layer::CONTENT_COMPONENT_ALPHA) ||
         surface->GetOpaqueRect().Contains(
-        aTarget->UserToDevice(gfxRect(bounds.x, bounds.y, bounds.width, bounds.height)));
-    surface->SetSubpixelAntialiasingEnabled(permitSubpixelAA);
+          aTarget->UserToDevice(gfxRect(bounds.x, bounds.y, bounds.width, bounds.height))));
   }
 }
 

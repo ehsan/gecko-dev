@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/ArrayUtils.h"
+#include "mozilla/Util.h"
 
 #include "nsCOMPtr.h"
 #include "nsIAtom.h"
@@ -214,7 +214,7 @@ nsXBLPrototypeBinding::SetBindingElement(nsIContent* aElement)
 }
 
 bool
-nsXBLPrototypeBinding::GetAllowScripts() const
+nsXBLPrototypeBinding::GetAllowScripts()
 {
   return mXBLDocInfoWeak->GetScriptAccess();
 }
@@ -594,16 +594,6 @@ nsXBLPrototypeBinding::GetRuleProcessor()
   }
   
   return nullptr;
-}
-
-nsXBLPrototypeResources::sheet_array_type*
-nsXBLPrototypeBinding::GetOrCreateStyleSheets()
-{
-  if (!mResources) {
-    mResources = new nsXBLPrototypeResources(this);
-  }
-
-  return &mResources->mStyleSheetList;
 }
 
 nsXBLPrototypeResources::sheet_array_type*
@@ -1332,9 +1322,7 @@ nsXBLPrototypeBinding::ReadContentNode(nsIObjectInputStream* aStream,
   }
   else {
 #endif
-    nsCOMPtr<Element> element;
-    NS_NewElement(getter_AddRefs(element), nodeInfo.forget(), NOT_FROM_PARSER);
-    content = element;
+    NS_NewElement(getter_AddRefs(content), nodeInfo.forget(), NOT_FROM_PARSER);
 
     for (uint32_t i = 0; i < attrCount; i++) {
       rv = ReadNamespace(aStream, namespaceID);

@@ -66,14 +66,13 @@ public:
   virtual void Mutated(Layer* aLayer);
 
   virtual already_AddRefed<ThebesLayer> CreateThebesLayer();
-  virtual already_AddRefed<ThebesLayer> CreateThebesLayerWithHint(ThebesLayerCreationHint aHint);
   virtual already_AddRefed<ContainerLayer> CreateContainerLayer();
   virtual already_AddRefed<ImageLayer> CreateImageLayer();
   virtual already_AddRefed<CanvasLayer> CreateCanvasLayer();
   virtual already_AddRefed<ColorLayer> CreateColorLayer();
   virtual already_AddRefed<RefLayer> CreateRefLayer();
 
-  TextureFactoryIdentifier GetTextureFactoryIdentifier()
+  virtual TextureFactoryIdentifier GetTextureFactoryIdentifier() MOZ_OVERRIDE
   {
     return mForwarder->GetTextureFactoryIdentifier();
   }
@@ -152,8 +151,6 @@ public:
   }
   bool NeedsComposite() const { return mNeedsComposite; }
 
-  virtual void Composite() MOZ_OVERRIDE;
-
 protected:
   enum TransactionPhase {
     PHASE_NONE, PHASE_CONSTRUCTION, PHASE_DRAWING, PHASE_FORWARD
@@ -164,7 +161,7 @@ private:
   /**
    * Forward transaction results to the parent context.
    */
-  void ForwardTransaction(bool aScheduleComposite);
+  void ForwardTransaction();
 
   /**
    * Take a snapshot of the parent context, and copy

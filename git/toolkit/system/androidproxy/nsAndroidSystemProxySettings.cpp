@@ -6,6 +6,7 @@
 #include "nsNetUtil.h"
 #include "nsIURI.h"
 
+#include "mozilla/Util.h"
 #include "nsISystemProxySettings.h"
 #include "nsIServiceManager.h"
 #include "mozilla/ModuleUtils.h"

@@ -104,7 +104,7 @@ protected:
   // The current state of the MediaRecorder object.
   RecordingState mState;
   // Current recording session.
-  nsRefPtr<Session> mSession;
+  Session *mSession;
   // Thread safe for mMimeType.
   Mutex mMutex;
   // It specifies the container format as well as the audio and video capture formats.

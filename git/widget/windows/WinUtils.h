@@ -70,15 +70,6 @@ public:
 class WinUtils {
 public:
   /**
-   * Functions to convert between logical pixels as used by most Windows APIs
-   * and physical (device) pixels.
-   */
-  static double LogToPhysFactor();
-  static double PhysToLogFactor();
-  static int32_t LogToPhys(double aValue);
-  static double PhysToLog(int32_t aValue);
-
-  /**
    * Logging helpers that dump output to prlog module 'Widget', console, and
    * OutputDebugString. Note these output in both debug and release builds.
    */
@@ -123,9 +114,9 @@ public:
    * @return Whether the value exists and is a string.
    */
   static bool GetRegistryKey(HKEY aRoot,
-                             char16ptr_t aKeyName,
-                             char16ptr_t aValueName,
-                             wchar_t* aBuffer,
+                             const PRUnichar* aKeyName,
+                             const PRUnichar* aValueName,
+                             PRUnichar* aBuffer,
                              DWORD aBufferLength);
 
   /**
@@ -137,7 +128,7 @@ public:
    * @return TRUE if it exists and is readable.  Otherwise, FALSE.
    */
   static bool HasRegistryKey(HKEY aRoot,
-                             char16ptr_t aKeyName);
+                             const PRUnichar* aKeyName);
 
   /**
    * GetTopLevelHWND() returns a window handle of the top level window which
@@ -327,8 +318,6 @@ public:
   static DwmGetCompositionTimingInfoProc dwmGetCompositionTimingInfoPtr;
 
   static void Initialize();
-
-  static bool ShouldHideScrollbars();
 
 private:
   typedef HRESULT (WINAPI * SHCreateItemFromParsingNamePtr)(PCWSTR pszPath,

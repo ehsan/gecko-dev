@@ -84,6 +84,9 @@ bool nsNSSComponent::globalConstFlagUsePKIXVerification = false;
 // XXX tmp callback for slot password
 extern char* pk11PasswordPrompt(PK11SlotInfo *slot, PRBool retry, void *arg);
 
+#define PIPNSS_STRBUNDLE_URL "chrome://pipnss/locale/pipnss.properties"
+#define NSSERR_STRBUNDLE_URL "chrome://pipnss/locale/nsserrors.properties"
+
 #ifndef MOZ_DISABLE_CRYPTOLEGACY
 //This class is used to run the callback code
 //passed to the event handlers for smart card notification
@@ -807,13 +810,13 @@ nsNSSComponent::InitializePIPNSSBundle()
   nsCOMPtr<nsIStringBundleService> bundleService(do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv));
   if (NS_FAILED(rv) || !bundleService) 
     return NS_ERROR_FAILURE;
-
-  bundleService->CreateBundle("chrome://pipnss/locale/pipnss.properties",
+  
+  bundleService->CreateBundle(PIPNSS_STRBUNDLE_URL,
                               getter_AddRefs(mPIPNSSBundle));
   if (!mPIPNSSBundle)
     rv = NS_ERROR_FAILURE;
 
-  bundleService->CreateBundle("chrome://pipnss/locale/nsserrors.properties",
+  bundleService->CreateBundle(NSSERR_STRBUNDLE_URL,
                               getter_AddRefs(mNSSErrorsBundle));
   if (!mNSSErrorsBundle)
     rv = NS_ERROR_FAILURE;
@@ -891,6 +894,14 @@ static const CipherPref sCipherPrefs[] = {
 
  {"security.ssl3.rsa_fips_des_ede3_sha", SSL_RSA_FIPS_WITH_3DES_EDE_CBC_SHA},
  {"security.ssl3.dhe_dss_camellia_256_sha", TLS_DHE_DSS_WITH_CAMELLIA_256_CBC_SHA}, // 256-bit Camellia encryption with DSA, DHE, and a SHA1 MAC
+ {"security.ssl3.ecdh_ecdsa_aes_256_sha", TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA}, // 256-bit AES encryption with ECDH-ECDSA and a SHA1 MAC
+ {"security.ssl3.ecdh_ecdsa_aes_128_sha", TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA}, // 128-bit AES encryption with ECDH-ECDSA and a SHA1 MAC
+ {"security.ssl3.ecdh_ecdsa_des_ede3_sha", TLS_ECDH_ECDSA_WITH_3DES_EDE_CBC_SHA}, // 168-bit Triple DES with ECDH-ECDSA and a SHA1 MAC
+ {"security.ssl3.ecdh_ecdsa_rc4_128_sha", TLS_ECDH_ECDSA_WITH_RC4_128_SHA}, // 128-bit RC4 encryption with ECDH-ECDSA and a SHA1 MAC
+ {"security.ssl3.ecdh_rsa_aes_256_sha", TLS_ECDH_RSA_WITH_AES_256_CBC_SHA}, // 256-bit AES encryption with ECDH-RSA and a SHA1 MAC
+ {"security.ssl3.ecdh_rsa_aes_128_sha", TLS_ECDH_RSA_WITH_AES_128_CBC_SHA}, // 128-bit AES encryption with ECDH-RSA and a SHA1 MAC
+ {"security.ssl3.ecdh_rsa_des_ede3_sha", TLS_ECDH_RSA_WITH_3DES_EDE_CBC_SHA}, // 168-bit Triple DES with ECDH-RSA and a SHA1 MAC
+ {"security.ssl3.ecdh_rsa_rc4_128_sha", TLS_ECDH_RSA_WITH_RC4_128_SHA}, // 128-bit RC4 encryption with ECDH-RSA and a SHA1 MAC
  {"security.ssl3.dhe_dss_camellia_128_sha", TLS_DHE_DSS_WITH_CAMELLIA_128_CBC_SHA}, // 128-bit Camellia encryption with DSA, DHE, and a SHA1 MAC
  {"security.ssl3.rsa_seed_sha", TLS_RSA_WITH_SEED_CBC_SHA}, // SEED encryption with RSA and a SHA1 MAC
  {nullptr, 0} /* end marker */
@@ -910,10 +921,21 @@ setNonPkixOcspEnabled(int32_t ocspEnabled)
   }
 }
 
-static const int32_t OCSP_ENABLED_DEFAULT = 1;
+#define CRL_DOWNLOAD_DEFAULT false
+#define OCSP_ENABLED_DEFAULT 1
+#define OCSP_REQUIRED_DEFAULT false
+#define FRESH_REVOCATION_REQUIRED_DEFAULT false
+#define MISSING_CERT_DOWNLOAD_DEFAULT false
+#define FIRST_REVO_METHOD_DEFAULT "ocsp"
+#define USE_NSS_LIBPKIX_DEFAULT false
+#define OCSP_STAPLING_ENABLED_DEFAULT true
+
+static const bool SUPPRESS_WARNING_PREF_DEFAULT = false;
+static const bool MD5_ENABLED_DEFAULT = false;
 static const bool REQUIRE_SAFE_NEGOTIATION_DEFAULT = false;
 static const bool ALLOW_UNRESTRICTED_RENEGO_DEFAULT = false;
 static const bool FALSE_START_ENABLED_DEFAULT = true;
+static const bool CIPHER_ENABLED_DEFAULT = false;
 
 namespace {
 
@@ -999,17 +1021,26 @@ void nsNSSComponent::setValidationOptions()
   nsNSSShutDownPreventionLock locker;
 
   bool crlDownloading = Preferences::GetBool("security.CRL_download.enabled",
-                                             false);
+                                             CRL_DOWNLOAD_DEFAULT);
   // 0 = disabled, 1 = enabled
   int32_t ocspEnabled = Preferences::GetInt("security.OCSP.enabled",
                                             OCSP_ENABLED_DEFAULT);
 
-  bool ocspRequired = Preferences::GetBool("security.OCSP.require", false);
+  bool ocspRequired = Preferences::GetBool("security.OCSP.require",
+                                           OCSP_REQUIRED_DEFAULT);
+  bool anyFreshRequired = Preferences::GetBool("security.fresh_revocation_info.require",
+                                               FRESH_REVOCATION_REQUIRED_DEFAULT);
   bool aiaDownloadEnabled = Preferences::GetBool("security.missing_cert_download.enabled",
-                                                 false);
+                                                 MISSING_CERT_DOWNLOAD_DEFAULT);
+
+  nsCString firstNetworkRevo =
+    Preferences::GetCString("security.first_network_revocation_method");
+  if (firstNetworkRevo.IsEmpty()) {
+    firstNetworkRevo = FIRST_REVO_METHOD_DEFAULT;
+  }
 
   bool ocspStaplingEnabled = Preferences::GetBool("security.ssl.enable_ocsp_stapling",
-                                                  true);
+                                                  OCSP_STAPLING_ENABLED_DEFAULT);
   if (!ocspEnabled) {
     ocspStaplingEnabled = false;
   }
@@ -1023,7 +1054,7 @@ void nsNSSComponent::setValidationOptions()
                            : ocspMode_FailureIsNotAVerificationFailure);
 
   int OCSPTimeoutSeconds = 3;
-  if (ocspRequired) {
+  if (ocspRequired || anyFreshRequired) {
     OCSPTimeoutSeconds = 10;
   }
   CERT_SetOCSPTimeout(OCSPTimeoutSeconds);
@@ -1041,6 +1072,9 @@ void nsNSSComponent::setValidationOptions()
         CertVerifier::ocsp_on : CertVerifier::ocsp_off,
       ocspRequired ? 
         CertVerifier::ocsp_strict : CertVerifier::ocsp_relaxed,
+      anyFreshRequired ?
+        CertVerifier::any_revo_strict : CertVerifier::any_revo_relaxed,
+      firstNetworkRevo.get(),
       ocspGetEnabled ?
         CertVerifier::ocsp_get_enabled : CertVerifier::ocsp_get_disabled);
 
@@ -1113,7 +1147,7 @@ nsNSSComponent::SkipOcspOff()
 }
 
 nsresult
-nsNSSComponent::InitializeNSS()
+nsNSSComponent::InitializeNSS(bool showWarningBox)
 {
   // Can be called both during init and profile change.
   // Needs mutex protection.
@@ -1125,6 +1159,11 @@ nsNSSComponent::InitializeNSS()
                 nsINSSErrorsService::NSS_SSL_ERROR_BASE == SSL_ERROR_BASE &&
                 nsINSSErrorsService::NSS_SSL_ERROR_LIMIT == SSL_ERROR_LIMIT,
                 "You must update the values in nsINSSErrorsService.idl");
+
+  // variables used for flow control within this function
+
+  enum { problem_none, problem_no_rw, problem_no_security_at_all }
+    which_nss_problem = problem_none;
 
   {
     MutexAutoLock lock(mutex);
@@ -1177,8 +1216,12 @@ nsNSSComponent::InitializeNSS()
 
 #ifndef NSS_NO_LIBPKIX
     globalConstFlagUsePKIXVerification =
-      Preferences::GetBool("security.use_libpkix_verification", false);
+      Preferences::GetBool("security.use_libpkix_verification", USE_NSS_LIBPKIX_DEFAULT);
 #endif
+
+    bool suppressWarningPref =
+      Preferences::GetBool("security.suppress_nss_rw_impossible_warning",
+                           SUPPRESS_WARNING_PREF_DEFAULT);
 
     // init phase 2, init calls to NSS library
 
@@ -1204,6 +1247,13 @@ nsNSSComponent::InitializeNSS()
     if (init_rv != SECSuccess) {
       PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("can not init NSS r/w in %s\n", profileStr.get()));
 
+      if (suppressWarningPref) {
+        which_nss_problem = problem_none;
+      }
+      else {
+        which_nss_problem = problem_no_rw;
+      }
+
       // try to init r/o
       init_flags |= NSS_INIT_READONLY;
       init_rv = ::NSS_Initialize(profileStr.get(), "", "",
@@ -1211,6 +1261,7 @@ nsNSSComponent::InitializeNSS()
 
       if (init_rv != SECSuccess) {
         PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("can not init in r/o either\n"));
+        which_nss_problem = problem_no_security_at_all;
 
         init_rv = NSS_NoDB_Init(profileStr.get());
         if (init_rv != SECSuccess) {
@@ -1223,64 +1274,82 @@ nsNSSComponent::InitializeNSS()
 
     // init phase 3, only if phase 2 was successful
 
-    mNSSInitialized = true;
+    if (problem_no_security_at_all != which_nss_problem) {
 
-    PK11_SetPasswordFunc(PK11PasswordPrompt);
+      mNSSInitialized = true;
 
-    SharedSSLState::GlobalInit();
+      PK11_SetPasswordFunc(PK11PasswordPrompt);
 
-    // Register an observer so we can inform NSS when these prefs change
-    Preferences::AddStrongObserver(this, "security.");
+      SharedSSLState::GlobalInit();
 
-    SSL_OptionSetDefault(SSL_ENABLE_SSL2, false);
-    SSL_OptionSetDefault(SSL_V2_COMPATIBLE_HELLO, false);
+      // Register an observer so we can inform NSS when these prefs change
+      Preferences::AddStrongObserver(this, "security.");
 
-    rv = setEnabledTLSVersions();
-    if (NS_FAILED(rv)) {
-      nsPSMInitPanic::SetPanic();
-      return NS_ERROR_UNEXPECTED;
-    }
+      SSL_OptionSetDefault(SSL_ENABLE_SSL2, false);
+      SSL_OptionSetDefault(SSL_V2_COMPATIBLE_HELLO, false);
 
-    DisableMD5();
+      rv = setEnabledTLSVersions();
+      if (NS_FAILED(rv)) {
+        nsPSMInitPanic::SetPanic();
+        return NS_ERROR_UNEXPECTED;
+      }
 
-    SSL_OptionSetDefault(SSL_ENABLE_SESSION_TICKETS, true);
+      bool md5Enabled = Preferences::GetBool("security.enable_md5_signatures",
+                                             MD5_ENABLED_DEFAULT);
+      ConfigureMD5(md5Enabled);
 
-    bool requireSafeNegotiation =
-      Preferences::GetBool("security.ssl.require_safe_negotiation",
-                           REQUIRE_SAFE_NEGOTIATION_DEFAULT);
-    SSL_OptionSetDefault(SSL_REQUIRE_SAFE_NEGOTIATION, requireSafeNegotiation);
+      SSL_OptionSetDefault(SSL_ENABLE_SESSION_TICKETS, true);
 
-    bool allowUnrestrictedRenego =
-      Preferences::GetBool("security.ssl.allow_unrestricted_renego_everywhere__temporarily_available_pref",
-                           ALLOW_UNRESTRICTED_RENEGO_DEFAULT);
-    SSL_OptionSetDefault(SSL_ENABLE_RENEGOTIATION,
-                         allowUnrestrictedRenego ?
-                           SSL_RENEGOTIATE_UNRESTRICTED :
-                           SSL_RENEGOTIATE_REQUIRES_XTN);
+      bool requireSafeNegotiation =
+        Preferences::GetBool("security.ssl.require_safe_negotiation",
+                             REQUIRE_SAFE_NEGOTIATION_DEFAULT);
+      SSL_OptionSetDefault(SSL_REQUIRE_SAFE_NEGOTIATION, requireSafeNegotiation);
 
-    SSL_OptionSetDefault(SSL_ENABLE_FALSE_START,
-                         Preferences::GetBool("security.ssl.enable_false_start",
-                                              FALSE_START_ENABLED_DEFAULT));
+      bool allowUnrestrictedRenego =
+        Preferences::GetBool("security.ssl.allow_unrestricted_renego_everywhere__temporarily_available_pref",
+                             ALLOW_UNRESTRICTED_RENEGO_DEFAULT);
+      SSL_OptionSetDefault(SSL_ENABLE_RENEGOTIATION,
+                           allowUnrestrictedRenego ?
+                             SSL_RENEGOTIATE_UNRESTRICTED :
+                             SSL_RENEGOTIATE_REQUIRES_XTN);
 
-    if (NS_FAILED(InitializeCipherSuite())) {
-      PR_LOG(gPIPNSSLog, PR_LOG_ERROR, ("Unable to initialize cipher suite settings\n"));
-      return NS_ERROR_FAILURE;
-    }
+      SSL_OptionSetDefault(SSL_ENABLE_FALSE_START,
+                           Preferences::GetBool("security.ssl.enable_false_start",
+                                                FALSE_START_ENABLED_DEFAULT));
 
-    // dynamic options from prefs
-    setValidationOptions();
+      if (NS_FAILED(InitializeCipherSuite())) {
+        PR_LOG(gPIPNSSLog, PR_LOG_ERROR, ("Unable to initialize cipher suite settings\n"));
+        return NS_ERROR_FAILURE;
+      }
 
-    mHttpForNSS.initTable();
-    mHttpForNSS.registerHttpClient();
+      // dynamic options from prefs
+      setValidationOptions();
 
-    InstallLoadableRoots();
+      mHttpForNSS.initTable();
+      mHttpForNSS.registerHttpClient();
+
+      InstallLoadableRoots();
 
 #ifndef MOZ_DISABLE_CRYPTOLEGACY
-    LaunchSmartCardThreads();
+      LaunchSmartCardThreads();
 #endif
 
-    PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("NSS Initialization done\n"));
+      PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("NSS Initialization done\n"));
+    }
   }
+
+  if (problem_none != which_nss_problem) {
+    nsPSMInitPanic::SetPanic();
+
+    PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("NSS problem, trying to bring up GUI error message\n"));
+
+    // We might want to use different messages, depending on what failed.
+    // For now, let's use the same message.
+    if (showWarningBox) {
+      ShowAlertFromStringBundle("NSSInitProblemX");
+    }
+  }
+
   return NS_OK;
 }
 
@@ -1369,7 +1438,7 @@ nsNSSComponent::Init()
   // Do that before NSS init, to make sure we won't get unloaded.
   RegisterObservers();
 
-  rv = InitializeNSS();
+  rv = InitializeNSS(true); // ok to show a warning box on failure
   if (NS_FAILED(rv)) {
     PR_LOG(gPIPNSSLog, PR_LOG_ERROR, ("Unable to Initialize NSS.\n"));
 
@@ -1562,14 +1631,11 @@ nsNSSComponent::RandomUpdate(void *entropy, int32_t bufLen)
   return NS_OK;
 }
 
-static const char* const PROFILE_CHANGE_NET_TEARDOWN_TOPIC
-  = "profile-change-net-teardown";
-static const char* const PROFILE_CHANGE_NET_RESTORE_TOPIC
-  = "profile-change-net-restore";
-static const char* const PROFILE_CHANGE_TEARDOWN_TOPIC
-  = "profile-change-teardown";
-static const char* const PROFILE_BEFORE_CHANGE_TOPIC = "profile-before-change";
-static const char* const PROFILE_DO_CHANGE_TOPIC = "profile-do-change";
+#define PROFILE_CHANGE_NET_TEARDOWN_TOPIC "profile-change-net-teardown"
+#define PROFILE_CHANGE_NET_RESTORE_TOPIC "profile-change-net-restore"
+#define PROFILE_CHANGE_TEARDOWN_TOPIC "profile-change-teardown"
+#define PROFILE_BEFORE_CHANGE_TOPIC "profile-before-change"
+#define PROFILE_DO_CHANGE_TOPIC "profile-do-change"
 
 NS_IMETHODIMP
 nsNSSComponent::Observe(nsISupports *aSubject, const char *aTopic, 
@@ -1609,9 +1675,9 @@ nsNSSComponent::Observe(nsISupports *aSubject, const char *aTopic,
         needsInit = false;
       }
     }
-
+    
     if (needsInit) {
-      if (NS_FAILED(InitializeNSS())) {
+      if (NS_FAILED(InitializeNSS(false))) { // do not show a warning box on failure
         PR_LOG(gPIPNSSLog, PR_LOG_ERROR, ("Unable to Initialize NSS after profile switch.\n"));
       }
     }
@@ -1642,6 +1708,11 @@ nsNSSComponent::Observe(nsISupports *aSubject, const char *aTopic,
         prefName.Equals("security.tls.version.max")) {
       (void) setEnabledTLSVersions();
       clearSessionCache = true;
+    } else if (prefName.Equals("security.enable_md5_signatures")) {
+      bool md5Enabled = Preferences::GetBool("security.enable_md5_signatures",
+                                             MD5_ENABLED_DEFAULT);
+      ConfigureMD5(md5Enabled);
+      clearSessionCache = true;
     } else if (prefName.Equals("security.ssl.require_safe_negotiation")) {
       bool requireSafeNegotiation =
         Preferences::GetBool("security.ssl.require_safe_negotiation",
@@ -1663,6 +1734,7 @@ nsNSSComponent::Observe(nsISupports *aSubject, const char *aTopic,
                || prefName.Equals("security.CRL_download.enabled")
                || prefName.Equals("security.fresh_revocation_info.require")
                || prefName.Equals("security.missing_cert_download.enabled")
+               || prefName.Equals("security.first_network_revocation_method")
                || prefName.Equals("security.OCSP.require")
                || prefName.Equals("security.OCSP.GET.enabled")
                || prefName.Equals("security.ssl.enable_ocsp_stapling")) {
@@ -1963,14 +2035,24 @@ setPassword(PK11SlotInfo *slot, nsIInterfaceRequestor *ctx)
 namespace mozilla {
 namespace psm {
 
-void DisableMD5()
+void ConfigureMD5(bool enabled)
 {
-  NSS_SetAlgorithmPolicy(SEC_OID_MD5,
-      0, NSS_USE_ALG_IN_CERT_SIGNATURE | NSS_USE_ALG_IN_CMS_SIGNATURE);
-  NSS_SetAlgorithmPolicy(SEC_OID_PKCS1_MD5_WITH_RSA_ENCRYPTION,
-      0, NSS_USE_ALG_IN_CERT_SIGNATURE | NSS_USE_ALG_IN_CMS_SIGNATURE);
-  NSS_SetAlgorithmPolicy(SEC_OID_PKCS5_PBE_WITH_MD5_AND_DES_CBC,
-      0, NSS_USE_ALG_IN_CERT_SIGNATURE | NSS_USE_ALG_IN_CMS_SIGNATURE);
+  if (enabled) { // set flags
+    NSS_SetAlgorithmPolicy(SEC_OID_MD5,
+        NSS_USE_ALG_IN_CERT_SIGNATURE | NSS_USE_ALG_IN_CMS_SIGNATURE, 0);
+    NSS_SetAlgorithmPolicy(SEC_OID_PKCS1_MD5_WITH_RSA_ENCRYPTION,
+        NSS_USE_ALG_IN_CERT_SIGNATURE | NSS_USE_ALG_IN_CMS_SIGNATURE, 0);
+    NSS_SetAlgorithmPolicy(SEC_OID_PKCS5_PBE_WITH_MD5_AND_DES_CBC,
+        NSS_USE_ALG_IN_CERT_SIGNATURE | NSS_USE_ALG_IN_CMS_SIGNATURE, 0);
+  }
+  else { // clear flags
+    NSS_SetAlgorithmPolicy(SEC_OID_MD5,
+        0, NSS_USE_ALG_IN_CERT_SIGNATURE | NSS_USE_ALG_IN_CMS_SIGNATURE);
+    NSS_SetAlgorithmPolicy(SEC_OID_PKCS1_MD5_WITH_RSA_ENCRYPTION,
+        0, NSS_USE_ALG_IN_CERT_SIGNATURE | NSS_USE_ALG_IN_CMS_SIGNATURE);
+    NSS_SetAlgorithmPolicy(SEC_OID_PKCS5_PBE_WITH_MD5_AND_DES_CBC,
+        0, NSS_USE_ALG_IN_CERT_SIGNATURE | NSS_USE_ALG_IN_CMS_SIGNATURE);
+  }
 }
 
 nsresult InitializeCipherSuite()

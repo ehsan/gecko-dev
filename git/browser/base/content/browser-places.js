@@ -102,9 +102,9 @@ var StarUI = {
               this.cancelButtonOnCommand();
             break;
           case KeyEvent.DOM_VK_RETURN:
-            if (aEvent.target.classList.contains("expander-up") ||
-                aEvent.target.classList.contains("expander-down") ||
-                aEvent.target.id == "editBMPanel_newFolderButton")  {
+            if (aEvent.target.className == "expander-up" ||
+                aEvent.target.className == "expander-down" ||
+                aEvent.target.id == "editBMPanel_newFolderButton") {
               //XXX Why is this necessary? The defaultPrevented check should
               //    be enough.
               break;
@@ -869,7 +869,7 @@ let PlacesToolbarHelper = {
     return document.getElementById("PlacesToolbar");
   },
 
-  init: function PTH_init(forceToolbarOverflowCheck) {
+  init: function PTH_init() {
     let viewElt = this._viewElt;
     if (!viewElt || viewElt._placesView)
       return;
@@ -886,9 +886,6 @@ let PlacesToolbarHelper = {
       return;
 
     new PlacesToolbar(this._place);
-    if (forceToolbarOverflowCheck) {
-      viewElt._placesView.updateOverflowStatus();
-    }
   },
 
   customizeStart: function PTH_customizeStart() {
@@ -903,7 +900,7 @@ let PlacesToolbarHelper = {
 
   customizeDone: function PTH_customizeDone() {
     this._isCustomizing = false;
-    this.init(true);
+    this.init();
   },
 
   onPlaceholderCommand: function () {

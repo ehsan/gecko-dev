@@ -51,8 +51,6 @@ public:
   virtual void SetInput(uint32_t aIndex, SourceSurface *aSurface) MOZ_OVERRIDE;
   virtual void SetInput(uint32_t aIndex, FilterNode *aFilter) MOZ_OVERRIDE;
 
-  virtual const char* GetName() { return "Unknown"; }
-
   virtual void AddInvalidationListener(FilterInvalidationListener* aListener);
   virtual void RemoveInvalidationListener(FilterInvalidationListener* aListener);
 
@@ -218,7 +216,6 @@ class FilterNodeTransformSoftware : public FilterNodeSoftware
 {
 public:
   FilterNodeTransformSoftware();
-  virtual const char* GetName() MOZ_OVERRIDE { return "Transform"; }
   using FilterNodeSoftware::SetAttribute;
   virtual void SetAttribute(uint32_t aIndex, uint32_t aGraphicsFilter) MOZ_OVERRIDE;
   virtual void SetAttribute(uint32_t aIndex, const Matrix &aMatrix) MOZ_OVERRIDE;
@@ -239,7 +236,6 @@ class FilterNodeBlendSoftware : public FilterNodeSoftware
 {
 public:
   FilterNodeBlendSoftware();
-  virtual const char* GetName() MOZ_OVERRIDE { return "Blend"; }
   using FilterNodeSoftware::SetAttribute;
   virtual void SetAttribute(uint32_t aIndex, uint32_t aBlendMode) MOZ_OVERRIDE;
 
@@ -257,7 +253,6 @@ class FilterNodeMorphologySoftware : public FilterNodeSoftware
 {
 public:
   FilterNodeMorphologySoftware();
-  virtual const char* GetName() MOZ_OVERRIDE { return "Morphology"; }
   using FilterNodeSoftware::SetAttribute;
   virtual void SetAttribute(uint32_t aIndex, const IntSize &aRadii) MOZ_OVERRIDE;
   virtual void SetAttribute(uint32_t aIndex, uint32_t aOperator) MOZ_OVERRIDE;
@@ -276,7 +271,6 @@ private:
 class FilterNodeColorMatrixSoftware : public FilterNodeSoftware
 {
 public:
-  virtual const char* GetName() MOZ_OVERRIDE { return "ColorMatrix"; }
   using FilterNodeSoftware::SetAttribute;
   virtual void SetAttribute(uint32_t aIndex, const Matrix5x4 &aMatrix) MOZ_OVERRIDE;
   virtual void SetAttribute(uint32_t aIndex, uint32_t aAlphaMode) MOZ_OVERRIDE;
@@ -295,7 +289,6 @@ private:
 class FilterNodeFloodSoftware : public FilterNodeSoftware
 {
 public:
-  virtual const char* GetName() MOZ_OVERRIDE { return "Flood"; }
   using FilterNodeSoftware::SetAttribute;
   virtual void SetAttribute(uint32_t aIndex, const Color &aColor) MOZ_OVERRIDE;
 
@@ -311,7 +304,6 @@ private:
 class FilterNodeTileSoftware : public FilterNodeSoftware
 {
 public:
-  virtual const char* GetName() MOZ_OVERRIDE { return "Tile"; }
   using FilterNodeSoftware::SetAttribute;
   virtual void SetAttribute(uint32_t aIndex, const IntRect &aSourceRect) MOZ_OVERRIDE;
 
@@ -354,7 +346,6 @@ protected:
 class FilterNodeTableTransferSoftware : public FilterNodeComponentTransferSoftware
 {
 public:
-  virtual const char* GetName() MOZ_OVERRIDE { return "TableTransfer"; }
   using FilterNodeComponentTransferSoftware::SetAttribute;
   virtual void SetAttribute(uint32_t aIndex, const Float* aFloat, uint32_t aSize) MOZ_OVERRIDE;
 
@@ -373,7 +364,6 @@ private:
 class FilterNodeDiscreteTransferSoftware : public FilterNodeComponentTransferSoftware
 {
 public:
-  virtual const char* GetName() MOZ_OVERRIDE { return "DiscreteTransfer"; }
   using FilterNodeComponentTransferSoftware::SetAttribute;
   virtual void SetAttribute(uint32_t aIndex, const Float* aFloat, uint32_t aSize) MOZ_OVERRIDE;
 
@@ -393,7 +383,6 @@ class FilterNodeLinearTransferSoftware : public FilterNodeComponentTransferSoftw
 {
 public:
   FilterNodeLinearTransferSoftware();
-  virtual const char* GetName() MOZ_OVERRIDE { return "LinearTransfer"; }
   using FilterNodeComponentTransferSoftware::SetAttribute;
   virtual void SetAttribute(uint32_t aIndex, Float aValue) MOZ_OVERRIDE;
 
@@ -417,7 +406,6 @@ class FilterNodeGammaTransferSoftware : public FilterNodeComponentTransferSoftwa
 {
 public:
   FilterNodeGammaTransferSoftware();
-  virtual const char* GetName() MOZ_OVERRIDE { return "GammaTransfer"; }
   using FilterNodeComponentTransferSoftware::SetAttribute;
   virtual void SetAttribute(uint32_t aIndex, Float aValue) MOZ_OVERRIDE;
 
@@ -445,7 +433,6 @@ class FilterNodeConvolveMatrixSoftware : public FilterNodeSoftware
 {
 public:
   FilterNodeConvolveMatrixSoftware();
-  virtual const char* GetName() MOZ_OVERRIDE { return "ConvolveMatrix"; }
   using FilterNodeSoftware::SetAttribute;
   virtual void SetAttribute(uint32_t aIndex, const IntSize &aKernelSize) MOZ_OVERRIDE;
   virtual void SetAttribute(uint32_t aIndex, const Float* aMatrix, uint32_t aSize) MOZ_OVERRIDE;
@@ -486,7 +473,6 @@ class FilterNodeDisplacementMapSoftware : public FilterNodeSoftware
 {
 public:
   FilterNodeDisplacementMapSoftware();
-  virtual const char* GetName() MOZ_OVERRIDE { return "DisplacementMap"; }
   using FilterNodeSoftware::SetAttribute;
   virtual void SetAttribute(uint32_t aIndex, Float aScale) MOZ_OVERRIDE;
   virtual void SetAttribute(uint32_t aIndex, uint32_t aValue) MOZ_OVERRIDE;
@@ -509,7 +495,6 @@ class FilterNodeTurbulenceSoftware : public FilterNodeSoftware
 {
 public:
   FilterNodeTurbulenceSoftware();
-  virtual const char* GetName() MOZ_OVERRIDE { return "Turbulence"; }
   using FilterNodeSoftware::SetAttribute;
   virtual void SetAttribute(uint32_t aIndex, const Size &aSize) MOZ_OVERRIDE;
   virtual void SetAttribute(uint32_t aIndex, const IntRect &aRenderRect) MOZ_OVERRIDE;
@@ -534,7 +519,6 @@ class FilterNodeArithmeticCombineSoftware : public FilterNodeSoftware
 {
 public:
   FilterNodeArithmeticCombineSoftware();
-  virtual const char* GetName() MOZ_OVERRIDE { return "ArithmeticCombine"; }
   using FilterNodeSoftware::SetAttribute;
   virtual void SetAttribute(uint32_t aIndex, const Float* aFloat, uint32_t aSize) MOZ_OVERRIDE;
 
@@ -555,7 +539,6 @@ class FilterNodeCompositeSoftware : public FilterNodeSoftware
 {
 public:
   FilterNodeCompositeSoftware();
-  virtual const char* GetName() MOZ_OVERRIDE { return "Composite"; }
   using FilterNodeSoftware::SetAttribute;
   virtual void SetAttribute(uint32_t aIndex, uint32_t aOperator) MOZ_OVERRIDE;
 
@@ -588,7 +571,6 @@ class FilterNodeGaussianBlurSoftware : public FilterNodeBlurXYSoftware
 {
 public:
   FilterNodeGaussianBlurSoftware();
-  virtual const char* GetName() MOZ_OVERRIDE { return "GaussianBlur"; }
   using FilterNodeSoftware::SetAttribute;
   virtual void SetAttribute(uint32_t aIndex, Float aStdDeviation) MOZ_OVERRIDE;
 
@@ -603,7 +585,6 @@ class FilterNodeDirectionalBlurSoftware : public FilterNodeBlurXYSoftware
 {
 public:
   FilterNodeDirectionalBlurSoftware();
-  virtual const char* GetName() MOZ_OVERRIDE { return "DirectionalBlur"; }
   using FilterNodeSoftware::SetAttribute;
   virtual void SetAttribute(uint32_t aIndex, Float aStdDeviation) MOZ_OVERRIDE;
   virtual void SetAttribute(uint32_t aIndex, uint32_t aBlurDirection) MOZ_OVERRIDE;
@@ -619,7 +600,6 @@ private:
 class FilterNodeCropSoftware : public FilterNodeSoftware
 {
 public:
-  virtual const char* GetName() MOZ_OVERRIDE { return "Crop"; }
   using FilterNodeSoftware::SetAttribute;
   virtual void SetAttribute(uint32_t aIndex, const Rect &aSourceRect) MOZ_OVERRIDE;
 
@@ -635,8 +615,6 @@ private:
 
 class FilterNodePremultiplySoftware : public FilterNodeSoftware
 {
-public:
-  virtual const char* GetName() MOZ_OVERRIDE { return "Premultiply"; }
 protected:
   virtual TemporaryRef<DataSourceSurface> Render(const IntRect& aRect) MOZ_OVERRIDE;
   virtual IntRect GetOutputRectInRect(const IntRect& aRect) MOZ_OVERRIDE;
@@ -646,8 +624,6 @@ protected:
 
 class FilterNodeUnpremultiplySoftware : public FilterNodeSoftware
 {
-public:
-  virtual const char* GetName() MOZ_OVERRIDE { return "Unpremultiply"; }
 protected:
   virtual TemporaryRef<DataSourceSurface> Render(const IntRect& aRect) MOZ_OVERRIDE;
   virtual IntRect GetOutputRectInRect(const IntRect& aRect) MOZ_OVERRIDE;
@@ -660,7 +636,6 @@ class FilterNodeLightingSoftware : public FilterNodeSoftware
 {
 public:
   FilterNodeLightingSoftware();
-  virtual const char* GetName() MOZ_OVERRIDE { return "Lighting"; }
   using FilterNodeSoftware::SetAttribute;
   virtual void SetAttribute(uint32_t aIndex, Float) MOZ_OVERRIDE;
   virtual void SetAttribute(uint32_t aIndex, const Size &) MOZ_OVERRIDE;

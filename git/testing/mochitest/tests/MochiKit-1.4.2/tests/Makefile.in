@@ -3,7 +3,10 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-TEST_FILES = \
+
+include $(topsrcdir)/config/rules.mk
+
+_TEST_FILES = \
 	test_Base.js \
 	test_Color.js \
 	test_DateTime.js \
@@ -34,5 +37,5 @@ TEST_FILES = \
 # (And is removed in future MochiKit v1.5)
 #	test_MochiKit-JSAN.html \
 
-TEST_DEST = $(DEPTH)/_tests/$(relativesrcdir)
-INSTALL_TARGETS += TEST
+libs:: $(_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/$(relativesrcdir)

@@ -20,12 +20,12 @@
 #include "nsAutoPtr.h"
 #include "DBusUtils.h"
 
-#undef CHROMIUM_LOG
+#undef LOG
 #if defined(MOZ_WIDGET_GONK)
 #include <android/log.h>
-#define CHROMIUM_LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "Gonk", args);
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "Gonk", args);
 #else
-#define CHROMIUM_LOG(args...)  printf(args);
+#define LOG(args...)  printf(args);
 #endif
 
 namespace mozilla {
@@ -72,11 +72,11 @@ void
 log_and_free_dbus_error(DBusError* err, const char* function, DBusMessage* msg)
 {
   if (msg) {
-    CHROMIUM_LOG("%s: D-Bus error in %s: %s (%s)", function,
-                 dbus_message_get_member((msg)), (err)->name, (err)->message);
+    LOG("%s: D-Bus error in %s: %s (%s)", function,
+        dbus_message_get_member((msg)), (err)->name, (err)->message);
   }	else {
-    CHROMIUM_LOG("%s: D-Bus error: %s (%s)", __FUNCTION__,
-                 (err)->name, (err)->message);
+    LOG("%s: D-Bus error: %s (%s)", __FUNCTION__,
+        (err)->name, (err)->message);
   }
   dbus_error_free((err));
 }

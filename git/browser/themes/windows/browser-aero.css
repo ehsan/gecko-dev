@@ -52,7 +52,6 @@
     border-color: hsla(206,100%,60%,.65) hsla(206,100%,55%,.65) hsla(206,100%,50%,.65);
   }
 
-  .sidebar-header,
   #sidebar-header {
     -moz-appearance: none;
     color: black;
@@ -61,7 +60,6 @@
     text-shadow: none;
   }
 
-  .sidebar-title,
   #sidebar-title {
     font-weight: bold;
   }

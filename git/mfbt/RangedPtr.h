@@ -12,12 +12,10 @@
 #ifndef mozilla_RangedPtr_h
 #define mozilla_RangedPtr_h
 
-#include "mozilla/ArrayUtils.h"
 #include "mozilla/Assertions.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/NullPtr.h"
-
-#include <stdint.h>
+#include "mozilla/Util.h"
 
 namespace mozilla {
 
@@ -204,8 +202,6 @@ class RangedPtr
     }
 
     T& operator*() const {
-      MOZ_ASSERT(ptr >= rangeStart);
-      MOZ_ASSERT(ptr < rangeEnd);
       return *ptr;
     }
 

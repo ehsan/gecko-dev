@@ -27,10 +27,6 @@ protected:
     virtual nsresult OpenContentStream(bool async, nsIInputStream **result,
                                        nsIChannel** channel);
 
-    virtual void OnChannelDone() MOZ_OVERRIDE {
-        mContentStream = nullptr;
-    }
-
 private:
     nsCOMPtr<nsIInputStream> mContentStream;
     nsString mSrcdocData;

@@ -400,7 +400,7 @@ ContactManager.prototype = {
   },
 
   _convertContacts: function(aContacts) {
-    let contacts = new this._window.Array();
+    let contacts = [];
     for (let i in aContacts) {
       contacts.push(this._convertContact(aContacts[i]));
     }

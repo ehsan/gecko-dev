@@ -102,23 +102,28 @@ template<XDRMode mode>
 bool
 XDRState<mode>::codeScript(MutableHandleScript scriptp)
 {
-    if (mode == XDR_DECODE)
+    RootedScript script(cx());
+    if (mode == XDR_DECODE) {
+        script = nullptr;
         scriptp.set(nullptr);
+    } else {
+        script = scriptp.get();
+    }
 
     if (!VersionCheck(this))
         return false;
 
-    if (!XDRScript(this, NullPtr(), NullPtr(), NullPtr(), scriptp))
+    if (!XDRScript(this, NullPtr(), NullPtr(), NullPtr(), &script))
         return false;
 
-    return true;
-}
+    if (mode == XDR_DECODE) {
+        JS_ASSERT(!script->compileAndGo);
+        CallNewScriptHook(cx(), script, NullPtr());
+        Debugger::onNewScript(cx(), script, nullptr);
+        scriptp.set(script);
+    }
 
-template<XDRMode mode>
-bool
-XDRState<mode>::codeConstValue(MutableHandleValue vp)
-{
-    return XDRScriptConst(this, vp);
+    return true;
 }
 
 XDRDecoder::XDRDecoder(JSContext *cx, const void *data, uint32_t length,

@@ -91,18 +91,18 @@
 #include "mozilla/dom/TextMetrics.h"
 #include "mozilla/dom/UnionTypes.h"
 #include "nsGlobalWindow.h"
-#include "GLContext.h"
-#include "GLContextProvider.h"
 
 #ifdef USE_SKIA_GPU
 #undef free // apparently defined by some windows header, clashing with a free()
             // method in SkTypes.h
+#include "GLContext.h"
+#include "GLContextProvider.h"
 #include "GLContextSkia.h"
 #include "SurfaceTypes.h"
 #include "nsIGfxInfo.h"
-#endif
 using mozilla::gl::GLContext;
 using mozilla::gl::GLContextProvider;
+#endif
 
 #ifdef XP_WIN
 #include "gfxWindowsPlatform.h"
@@ -1450,21 +1450,29 @@ CanvasRenderingContext2D::CreatePattern(const HTMLImageOrCanvasOrVideoElement& e
     htmlElement = &element.GetAsHTMLVideoElement();
   }
 
-  EnsureTarget();
-
   // The canvas spec says that createPattern should use the first frame
   // of animated images
   nsLayoutUtils::SurfaceFromElementResult res =
     nsLayoutUtils::SurfaceFromElement(htmlElement,
-      nsLayoutUtils::SFE_WANT_FIRST_FRAME, mTarget);
+      nsLayoutUtils::SFE_WANT_FIRST_FRAME | nsLayoutUtils::SFE_WANT_NEW_SURFACE);
 
-  if (!res.mSourceSurface) {
+  if (!res.mSurface) {
     error.Throw(NS_ERROR_NOT_AVAILABLE);
     return nullptr;
   }
 
+  // Ignore nullptr cairo surfaces! See bug 666312.
+  if (!res.mSurface->CairoSurface() || res.mSurface->CairoStatus()) {
+    error.Throw(NS_ERROR_NOT_AVAILABLE);
+    return nullptr;
+  }
+
+  EnsureTarget();
+  RefPtr<SourceSurface> srcSurf =
+    gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(mTarget, res.mSurface);
+
   nsRefPtr<CanvasPattern> pat =
-    new CanvasPattern(this, res.mSourceSurface, repeatMode, res.mPrincipal,
+    new CanvasPattern(this, srcSurf, repeatMode, res.mPrincipal,
                              res.mIsWriteOnly, res.mCORSUsed);
 
   return pat.forget();
@@ -1890,7 +1898,7 @@ CanvasRenderingContext2D::Arc(double x, double y, double r,
 
   EnsureWritablePath();
 
-  ArcToBezier(this, Point(x, y), Size(r, r), startAngle, endAngle, anticlockwise);
+  ArcToBezier(this, Point(x, y), r, startAngle, endAngle, anticlockwise);
 }
 
 void
@@ -2620,10 +2628,6 @@ CanvasRenderingContext2D::DrawOrMeasureText(const nsAString& aRawText,
   gfxFontGroup* currentFontStyle = GetCurrentFontStyle();
   NS_ASSERTION(currentFontStyle, "font group is null");
 
-  // ensure user font set is up to date
-  currentFontStyle->
-    SetUserFontSet(presShell->GetPresContext()->GetUserFontSet());
-
   if (currentFontStyle->GetStyle()->size == 0.0F) {
     if (aWidth) {
       *aWidth = 0;
@@ -3080,8 +3084,11 @@ CanvasRenderingContext2D::DrawImage(const HTMLImageOrCanvasOrVideoElement& image
       element = video;
     }
 
-    srcSurf =
+    gfxASurface* imgsurf =
       CanvasImageCache::Lookup(element, mCanvasElement, &imgSize);
+    if (imgsurf) {
+      srcSurf = gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(mTarget, imgsurf);
+    }
   }
 
   if (!srcSurf) {
@@ -3089,13 +3096,18 @@ CanvasRenderingContext2D::DrawImage(const HTMLImageOrCanvasOrVideoElement& image
     // of animated images
     uint32_t sfeFlags = nsLayoutUtils::SFE_WANT_FIRST_FRAME;
     nsLayoutUtils::SurfaceFromElementResult res =
-      nsLayoutUtils::SurfaceFromElement(element, sfeFlags, mTarget);
+      nsLayoutUtils::SurfaceFromElement(element, sfeFlags);
 
-    if (!res.mSourceSurface) {
+    if (!res.mSurface) {
       // Spec says to silently do nothing if the element is still loading.
       if (!res.mIsStillLoading) {
         error.Throw(NS_ERROR_NOT_AVAILABLE);
       }
+      return;
+    }
+
+    // Ignore cairo surfaces that are bad! See bug 666312.
+    if (res.mSurface->CairoStatus()) {
       return;
     }
 
@@ -3117,11 +3129,11 @@ CanvasRenderingContext2D::DrawImage(const HTMLImageOrCanvasOrVideoElement& image
     }
 
     if (res.mImageRequest) {
-      CanvasImageCache::NotifyDrawImage(element, mCanvasElement, res.mImageRequest,
-                                        res.mSourceSurface, imgSize);
+      CanvasImageCache::NotifyDrawImage(element, mCanvasElement,
+                                        res.mImageRequest, res.mSurface, imgSize);
     }
 
-    srcSurf = res.mSourceSurface;
+    srcSurf = gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(mTarget, res.mSurface);
   }
 
   if (optional_argc == 0) {
@@ -3987,10 +3999,7 @@ CanvasRenderingContext2D::GetCanvasLayer(nsDisplayListBuilder* aBuilder,
     CanvasRenderingContext2DUserData* userData =
       static_cast<CanvasRenderingContext2DUserData*>(
         aOldLayer->GetUserData(&g2DContextLayerUserData));
-
-    CanvasLayer::Data data;
-    data.mGLContext = static_cast<GLContext*>(mTarget->GetGLContext());
-    if (userData && userData->IsForContext(this) && aOldLayer->IsDataValid(data)) {
+    if (userData && userData->IsForContext(this)) {
       nsRefPtr<CanvasLayer> ret = aOldLayer;
       return ret.forget();
     }

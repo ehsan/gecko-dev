@@ -2386,8 +2386,8 @@ ElementRestyler::RestyleSelf(nsIFrame* aSelf, nsRestyleHint aRestyleHint)
                        nsCSSPseudoElements::ePseudo_PseudoElementCount,
                      "Unexpected pseudo type");
         Element* pseudoElement =
-          nsCSSPseudoElements::PseudoElementSupportsStyleAttribute(pseudoType) ||
-          nsCSSPseudoElements::PseudoElementSupportsUserActionState(pseudoType) ?
+          nsCSSPseudoElements::PseudoElementSupportsStyleAttribute(pseudoTag) ||
+          nsCSSPseudoElements::PseudoElementSupportsUserActionState(pseudoTag) ?
             aSelf->GetContent()->AsElement() : nullptr;
         MOZ_ASSERT(element != pseudoElement);
         newContext = styleSet->ResolvePseudoElementStyle(element,
@@ -2577,7 +2577,7 @@ ElementRestyler::RestyleUndisplayedChildren(nsRestyleHint aChildRestyleHint)
       // not have a frame and would not otherwise be pushed as an ancestor.
       nsIContent* parent = undisplayed->mContent->GetParent();
       TreeMatchContext::AutoAncestorPusher insertionPointPusher(mTreeMatchContext);
-      if (parent && nsContentUtils::IsContentInsertionPoint(parent)) {
+      if (parent && parent->IsActiveChildrenElement()) {
         insertionPointPusher.PushAncestorAndStyleScope(parent);
       }
 
@@ -2748,7 +2748,7 @@ ElementRestyler::RestyleContentChildren(nsIFrame* aParent,
         // nsPageFrame that does not have a content.
         nsIContent* parent = child->GetContent() ? child->GetContent()->GetParent() : nullptr;
         TreeMatchContext::AutoAncestorPusher insertionPointPusher(mTreeMatchContext);
-        if (parent && nsContentUtils::IsContentInsertionPoint(parent)) {
+        if (parent && parent->IsActiveChildrenElement()) {
           insertionPointPusher.PushAncestorAndStyleScope(parent);
         }
 

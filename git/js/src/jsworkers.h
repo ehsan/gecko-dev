@@ -31,7 +31,7 @@ namespace jit {
   class IonBuilder;
 }
 
-#ifdef JS_THREADSAFE
+#ifdef JS_WORKER_THREADS
 
 /* Per-runtime state for off thread work items. */
 class WorkerThreadState
@@ -71,9 +71,6 @@ class WorkerThreadState
     /* Shared worklist for parsing/emitting scripts on worker threads. */
     Vector<ParseTask*, 0, SystemAllocPolicy> parseWorklist, parseFinishedList;
 
-    /* Main-thread-only list of parse tasks waiting for an atoms-zone GC to complete. */
-    Vector<ParseTask*, 0, SystemAllocPolicy> parseWaitingOnGC;
-
     /* Worklist for source compression worker threads. */
     Vector<SourceCompressionTask *, 0, SystemAllocPolicy> compressionWorklist;
 
@@ -95,7 +92,6 @@ class WorkerThreadState
 
     void wait(CondVar which, uint32_t timeoutMillis = 0);
     void notifyAll(CondVar which);
-    void notifyOne(CondVar which);
 
     bool canStartAsmJSCompile();
     bool canStartIonCompile();
@@ -199,15 +195,25 @@ struct WorkerThread
     void threadLoop();
 };
 
-#endif /* JS_THREADSAFE */
+#endif /* JS_WORKER_THREADS */
+
+inline bool
+OffThreadIonCompilationEnabled(JSRuntime *rt)
+{
+#ifdef JS_WORKER_THREADS
+    return rt->useHelperThreads()
+        && rt->helperThreadCount() != 0
+        && rt->useHelperThreadsForIonCompilation();
+#else
+    return false;
+#endif
+}
 
 /* Methods for interacting with worker threads. */
 
 /* Initialize worker threads unless already initialized. */
 bool
 EnsureWorkerThreadsInitialized(ExclusiveContext *cx);
-
-#ifdef JS_ION
 
 /* Perform MIR optimization and LIR generation on a single function. */
 bool
@@ -219,8 +225,6 @@ StartOffThreadAsmJSCompile(ExclusiveContext *cx, AsmJSParallelTask *asmData);
  */
 bool
 StartOffThreadIonCompile(JSContext *cx, jit::IonBuilder *builder);
-
-#endif // JS_ION
 
 /*
  * Cancel a scheduled or in progress Ion compilation for script. If script is
@@ -238,13 +242,6 @@ StartOffThreadParseScript(JSContext *cx, const ReadOnlyCompileOptions &options,
                           const jschar *chars, size_t length, HandleObject scopeChain,
                           JS::OffThreadCompileCallback callback, void *callbackData);
 
-/*
- * Called at the end of GC to enqueue any Parse tasks that were waiting on an
- * atoms-zone GC to finish.
- */
-void
-EnqueuePendingParseTasksAfterGC(JSRuntime *rt);
-
 /* Block until in progress and pending off thread parse jobs have finished. */
 void
 WaitForOffThreadParsingToFinish(JSRuntime *rt);
@@ -257,7 +254,7 @@ class AutoLockWorkerThreadState
 {
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 
-#ifdef JS_THREADSAFE
+#ifdef JS_WORKER_THREADS
     WorkerThreadState &state;
 
   public:
@@ -294,7 +291,7 @@ class AutoUnlockWorkerThreadState
       : rt(rt)
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-#ifdef JS_THREADSAFE
+#ifdef JS_WORKER_THREADS
         JS_ASSERT(rt->workerThreadState);
         rt->workerThreadState->unlock();
 #else
@@ -304,7 +301,7 @@ class AutoUnlockWorkerThreadState
 
     ~AutoUnlockWorkerThreadState()
     {
-#ifdef JS_THREADSAFE
+#ifdef JS_WORKER_THREADS
         rt->workerThreadState->lock();
 #endif
     }
@@ -344,9 +341,6 @@ struct ParseTask
     // main thread.
     JSObject *scopeChain;
 
-    // Rooted pointer to the global object used by 'cx'.
-    JSObject *exclusiveContextGlobal;
-
     // Callback invoked off the main thread when the parse finishes.
     JS::OffThreadCompileCallback callback;
     void *callbackData;
@@ -361,12 +355,10 @@ struct ParseTask
     Vector<frontend::CompileError *> errors;
     bool overRecursed;
 
-    ParseTask(ExclusiveContext *cx, JSObject *exclusiveContextGlobal, JSContext *initCx,
+    ParseTask(ExclusiveContext *cx, JSContext *initCx,
               const jschar *chars, size_t length, JSObject *scopeChain,
               JS::OffThreadCompileCallback callback, void *callbackData);
     bool init(JSContext *cx, const ReadOnlyCompileOptions &options);
-
-    void activate(JSRuntime *rt);
 
     ~ParseTask();
 };
@@ -378,7 +370,7 @@ struct SourceCompressionTask
 {
     friend class ScriptSource;
 
-#ifdef JS_THREADSAFE
+#ifdef JS_WORKER_THREADS
     // Thread performing the compression.
     WorkerThread *workerThread;
 #endif
@@ -403,7 +395,7 @@ struct SourceCompressionTask
     explicit SourceCompressionTask(ExclusiveContext *cx)
       : cx(cx), ss(nullptr), chars(nullptr), oom(false), abort_(0)
     {
-#ifdef JS_THREADSAFE
+#ifdef JS_WORKER_THREADS
         workerThread = nullptr;
 #endif
     }

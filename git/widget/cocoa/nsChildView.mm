@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/ArrayUtils.h"
+#include "mozilla/Util.h"
 
 #ifdef MOZ_LOGGING
 #define FORCE_PR_LOG
@@ -61,8 +61,8 @@
 #include "GLTextureImage.h"
 #include "GLContextProvider.h"
 #include "GLContext.h"
-#include "GLUploadHelpers.h"
 #include "mozilla/layers/GLManager.h"
+#include "mozilla/layers/CompositorCocoaWidgetHelper.h"
 #include "mozilla/layers/CompositorOGL.h"
 #include "mozilla/layers/BasicCompositor.h"
 #include "gfxUtils.h"
@@ -167,7 +167,6 @@ uint32_t nsChildView::sLastInputEventCount = 0;
 - (void)clearCorners;
 
 // Overlay drawing functions for traditional CGContext drawing
-- (void)drawTitleString;
 - (void)drawTitlebarHighlight;
 - (void)maskTopCornersInContext:(CGContextRef)aContext;
 
@@ -910,7 +909,7 @@ NS_IMETHODIMP nsChildView::SetCursor(imgIContainer* aCursor,
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
   nsBaseWidget::SetCursor(aCursor, aHotspotX, aHotspotY);
-  return [[nsCursorManager sharedInstance] setCursorWithImage:aCursor hotSpotX:aHotspotX hotSpotY:aHotspotY scaleFactor:BackingScaleFactor()];
+  return [[nsCursorManager sharedInstance] setCursorWithImage:aCursor hotSpotX:aHotspotX hotSpotY:aHotspotY];
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
@@ -2047,7 +2046,7 @@ nsChildView::CleanupWindowEffects()
 }
 
 bool
-nsChildView::PreRender(LayerManagerComposite* aManager)
+nsChildView::PreRender(LayerManager* aManager)
 {
   nsAutoPtr<GLManager> manager(GLManager::CreateGLManager(aManager));
   if (!manager) {
@@ -2069,7 +2068,7 @@ nsChildView::PreRender(LayerManagerComposite* aManager)
 }
 
 void
-nsChildView::PostRender(LayerManagerComposite* aManager)
+nsChildView::PostRender(LayerManager* aManager)
 {
   nsAutoPtr<GLManager> manager(GLManager::CreateGLManager(aManager));
   if (!manager) {
@@ -2081,7 +2080,7 @@ nsChildView::PostRender(LayerManagerComposite* aManager)
 }
 
 void
-nsChildView::DrawWindowOverlay(LayerManagerComposite* aManager, nsIntRect aRect)
+nsChildView::DrawWindowOverlay(LayerManager* aManager, nsIntRect aRect)
 {
   nsAutoPtr<GLManager> manager(GLManager::CreateGLManager(aManager));
   if (manager) {
@@ -2264,11 +2263,6 @@ nsChildView::UpdateTitlebarCGContext()
   }
   NSGraphicsContext* context = [NSGraphicsContext graphicsContextWithGraphicsPort:ctx flipped:[frameView isFlipped]];
   [NSGraphicsContext setCurrentContext:context];
-
-  // Draw the title string.
-  if ([window wantsTitleDrawn] && [frameView respondsToSelector:@selector(_drawTitleBar:)]) {
-    [frameView _drawTitleBar:[frameView bounds]];
-  }
 
   // Draw the titlebar controls into the titlebar image.
   for (id view in [window titlebarControls]) {
@@ -2640,15 +2634,14 @@ RectTextureImage::EndUpdate(bool aKeepSurface)
   RefPtr<gfx::SourceSurface> snapshot = mUpdateDrawTarget->Snapshot();
   RefPtr<gfx::DataSourceSurface> dataSnapshot = snapshot->GetDataSurface();
 
-  UploadSurfaceToTexture(mGLContext,
-                         dataSnapshot,
-                         updateRegion,
-                         mTexture,
-                         overwriteTexture,
-                         updateRegion.GetBounds().TopLeft(),
-                         false,
-                         LOCAL_GL_TEXTURE0,
-                         LOCAL_GL_TEXTURE_RECTANGLE_ARB);
+  mGLContext->UploadSurfaceToTexture(dataSnapshot,
+                                     updateRegion,
+                                     mTexture,
+                                     overwriteTexture,
+                                     updateRegion.GetBounds().TopLeft(),
+                                     false,
+                                     LOCAL_GL_TEXTURE0,
+                                     LOCAL_GL_TEXTURE_RECTANGLE_ARB);
 
   if (!aKeepSurface) {
     mUpdateDrawTarget = nullptr;
@@ -3551,7 +3544,6 @@ NSEvent* gLastDragMouseDownEvent = nil;
   }
 
   if ([self isCoveringTitlebar]) {
-    [self drawTitleString];
     [self drawTitlebarHighlight];
     [self maskTopCornersInContext:aContext];
   }
@@ -3706,31 +3698,6 @@ NSEvent* gLastDragMouseDownEvent = nil;
   CGContextDrawImage(aContext, destRect, mTopLeftCornerMask);
 
   CGContextRestoreGState(aContext);
-}
-
-- (void)drawTitleString
-{
-  BaseWindow* window = (BaseWindow*)[self window];
-  if (![window wantsTitleDrawn]) {
-    return;
-  }
-
-  NSView* frameView = [[window contentView] superview];
-  if (![frameView respondsToSelector:@selector(_drawTitleBar:)]) {
-    return;
-  }
-
-  NSGraphicsContext* oldContext = [NSGraphicsContext currentContext];
-  CGContextRef ctx = (CGContextRef)[oldContext graphicsPort];
-  CGContextSaveGState(ctx);
-  if ([oldContext isFlipped] != [frameView isFlipped]) {
-    CGContextTranslateCTM(ctx, 0, [self bounds].size.height);
-    CGContextScaleCTM(ctx, 1, -1);
-  }
-  [NSGraphicsContext setCurrentContext:[NSGraphicsContext graphicsContextWithGraphicsPort:ctx flipped:[frameView isFlipped]]];
-  [frameView _drawTitleBar:[frameView bounds]];
-  CGContextRestoreGState(ctx);
-  [NSGraphicsContext setCurrentContext:oldContext];
 }
 
 - (void)drawTitlebarHighlight

@@ -37,14 +37,8 @@ LOCAL_INCLUDES += [
     '../generic',
     '../style',
     '../tables',
-    '../xul',
+    '../xul/base/src',
     '/content/base/src',
     '/content/mathml/content/src',
 ]
 
-if CONFIG['ENABLE_TESTS']:
-    PARALLEL_DIRS += [
-        'tests',
-    ]
-
-JAR_MANIFESTS += ['jar.mn']

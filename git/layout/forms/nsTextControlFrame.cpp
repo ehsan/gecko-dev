@@ -42,9 +42,9 @@
 #include "nsAttrValueInlines.h"
 #include "mozilla/Selection.h"
 #include "nsContentUtils.h"
+#include "nsCxPusher.h"
 #include "nsTextNode.h"
 #include "nsStyleSet.h"
-#include "mozilla/dom/ScriptSettings.h"
 
 #define DEFAULT_COLUMN_WIDTH 20
 
@@ -274,7 +274,8 @@ nsTextControlFrame::EnsureEditorInitialized()
 
     // Time to mess with our security context... See comments in GetValue()
     // for why this is needed.
-    mozilla::dom::AutoSystemCaller asc;
+    nsCxPusher pusher;
+    pusher.PushNull();
 
     // Make sure that we try to focus the content even if the method fails
     class EnsureSetFocus {
@@ -1429,17 +1430,6 @@ nsTextControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     }
     kid = kid->GetNextSibling();
   }
-}
-
-mozilla::dom::Element*
-nsTextControlFrame::GetPseudoElement(nsCSSPseudoElements::Type aType)
-{
-  if (aType == nsCSSPseudoElements::ePseudo_mozPlaceholder) {
-    nsCOMPtr<nsITextControlElement> txtCtrl = do_QueryInterface(GetContent());
-    return txtCtrl->GetPlaceholderNode();
-  }
-
-  return nsContainerFrame::GetPseudoElement(aType);
 }
 
 NS_IMETHODIMP

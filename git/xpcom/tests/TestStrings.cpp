@@ -1017,23 +1017,23 @@ static bool test_strip_chars_helper(const PRUnichar* str, const PRUnichar* strip
 
 static bool test_strip_chars()
 {
-  return test_strip_chars_helper(MOZ_UTF16("foo \r \nbar"),
-                                 MOZ_UTF16(" \n\r"),
+  return test_strip_chars_helper(NS_LITERAL_STRING("foo \r \nbar").get(),
+                                 NS_LITERAL_STRING(" \n\r").get(),
                                  NS_LITERAL_STRING("foobar")) &&
-         test_strip_chars_helper(MOZ_UTF16("\r\nfoo\r\n"),
-                                 MOZ_UTF16(" \n\r"),
+         test_strip_chars_helper(NS_LITERAL_STRING("\r\nfoo\r\n").get(),
+                                 NS_LITERAL_STRING(" \n\r").get(),
                                  NS_LITERAL_STRING("foo")) &&
-         test_strip_chars_helper(MOZ_UTF16("foo"),
-                                 MOZ_UTF16(" \n\r"),
+         test_strip_chars_helper(NS_LITERAL_STRING("foo").get(),
+                                 NS_LITERAL_STRING(" \n\r").get(),
                                  NS_LITERAL_STRING("foo")) &&
-         test_strip_chars_helper(MOZ_UTF16("foo"),
-                                 MOZ_UTF16("fo"),
+         test_strip_chars_helper(NS_LITERAL_STRING("foo").get(),
+                                 NS_LITERAL_STRING("fo").get(),
                                  NS_LITERAL_STRING("")) &&
-         test_strip_chars_helper(MOZ_UTF16("foo"),
-                                 MOZ_UTF16("foo"),
+         test_strip_chars_helper(NS_LITERAL_STRING("foo").get(),
+                                 NS_LITERAL_STRING("foo").get(),
                                  NS_LITERAL_STRING("")) &&
-         test_strip_chars_helper(MOZ_UTF16(" foo"),
-                                 MOZ_UTF16(" "),
+         test_strip_chars_helper(NS_LITERAL_STRING(" foo").get(),
+                                 NS_LITERAL_STRING(" ").get(),
                                  NS_LITERAL_STRING(" foo"), 1);
 }
 

@@ -9,16 +9,14 @@
  */
 
 
-#include "vpx_config.h"
-#include "vp8_rtcd.h"
-#include "vp8/encoder/block.h"
 #include <math.h>
 #include "vpx_mem/vpx_mem.h"
+
 #include "vp8/encoder/quantize.h"
 #include "vp8/common/entropy.h"
 
 
-#if HAVE_NEON
+#if HAVE_ARMV7
 
 /* vp8_quantize_mbX functions here differs from corresponding ones in
  * quantize.c only by using quantize_b_pair function pointer instead of
@@ -61,4 +59,4 @@ void vp8_quantize_mbuv_neon(MACROBLOCK *x)
                            &x->e_mbd.block[i], &x->e_mbd.block[i+1]);
 }
 
-#endif /* HAVE_NEON */
+#endif /* HAVE_ARMV7 */

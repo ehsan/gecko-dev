@@ -27,7 +27,6 @@ namespace jit {
     _(JSOP_NOTEARG)            \
     _(JSOP_POP)                \
     _(JSOP_POPN)               \
-    _(JSOP_POPNV)              \
     _(JSOP_DUP)                \
     _(JSOP_DUP2)               \
     _(JSOP_SWAP)               \
@@ -98,6 +97,7 @@ namespace jit {
     _(JSOP_GETELEM)            \
     _(JSOP_SETELEM)            \
     _(JSOP_CALLELEM)           \
+    _(JSOP_ENUMELEM)           \
     _(JSOP_DELELEM)            \
     _(JSOP_IN)                 \
     _(JSOP_GETGNAME)           \
@@ -145,9 +145,13 @@ namespace jit {
     _(JSOP_FINALLY)            \
     _(JSOP_GOSUB)              \
     _(JSOP_RETSUB)             \
-    _(JSOP_PUSHBLOCKSCOPE)     \
-    _(JSOP_POPBLOCKSCOPE)      \
-    _(JSOP_DEBUGLEAVEBLOCK)    \
+    _(JSOP_ENTERBLOCK)         \
+    _(JSOP_ENTERLET0)          \
+    _(JSOP_ENTERLET1)          \
+    _(JSOP_ENTERLET2)          \
+    _(JSOP_LEAVEBLOCK)         \
+    _(JSOP_LEAVEBLOCKEXPR)     \
+    _(JSOP_LEAVEFORLETIN)      \
     _(JSOP_EXCEPTION)          \
     _(JSOP_DEBUGGER)           \
     _(JSOP_ARGUMENTS)          \
@@ -179,14 +183,14 @@ class BaselineCompiler : public BaselineCompilerSpecific
     bool modifiesArguments_;
 
     Label *labelOf(jsbytecode *pc) {
-        return &labels_[script->pcToOffset(pc)];
+        return &labels_[pc - script->code];
     }
 
     // If a script has more |nslots| than this, then emit code to do an
     // early stack check.
     static const unsigned EARLY_STACK_CHECK_SLOT_COUNT = 128;
     bool needsEarlyStackCheck() const {
-        return script->nslots() > EARLY_STACK_CHECK_SLOT_COUNT;
+        return script->nslots > EARLY_STACK_CHECK_SLOT_COUNT;
     }
 
   public:
@@ -249,6 +253,9 @@ class BaselineCompiler : public BaselineCompilerSpecific
     bool emitInitElemGetterSetter();
 
     bool emitFormalArgAccess(uint32_t arg, bool get);
+
+    bool emitEnterBlock();
+    bool emitLeaveBlock();
 
     bool addPCMappingEntry(bool addIndexEntry);
 

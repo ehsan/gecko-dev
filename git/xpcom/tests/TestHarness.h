@@ -20,7 +20,7 @@
 #define STATIC_JS_API
 #endif
 
-#include "mozilla/ArrayUtils.h"
+#include "mozilla/Util.h"
 
 #include "prenv.h"
 #include "nsComponentManagerUtils.h"

@@ -135,10 +135,6 @@ CustomizeMode.prototype = {
       let mainView = window.PanelUI.mainView;
       panelHolder.appendChild(mainView);
 
-      let customizeButton = document.getElementById("PanelUI-customize");
-      customizeButton.setAttribute("enterLabel", customizeButton.getAttribute("label"));
-      customizeButton.setAttribute("label", customizeButton.getAttribute("exitLabel"));
-
       this._transitioning = true;
 
       let customizer = document.getElementById("customization-container");
@@ -258,10 +254,6 @@ CustomizeMode.prototype = {
 
       window.PanelUI.setMainView(window.PanelUI.mainView);
       window.PanelUI.menuButton.disabled = false;
-
-      let customizeButton = document.getElementById("PanelUI-customize");
-      customizeButton.setAttribute("exitLabel", customizeButton.getAttribute("label"));
-      customizeButton.setAttribute("label", customizeButton.getAttribute("enterLabel"));
 
       // We have to use setAttribute/removeAttribute here instead of the
       // property because the XBL property will be set later, and right
@@ -527,11 +519,6 @@ CustomizeMode.prototype = {
       aNode.removeAttribute("command");
     }
 
-    if (aNode.hasAttribute("observes")) {
-      wrapper.setAttribute("itemobserves", aNode.getAttribute("observes"));
-      aNode.removeAttribute("observes");
-    }
-
     if (aNode.checked) {
       wrapper.setAttribute("itemchecked", "true");
       aNode.checked = false;
@@ -563,13 +550,9 @@ CustomizeMode.prototype = {
     if (aPlace != "toolbar") {
       wrapper.setAttribute("context", contextMenuForPlace);
     }
-    // Only keep track of the menu if it is non-default.
-    if (currentContextMenu &&
-        currentContextMenu != contextMenuForPlace) {
+    if (currentContextMenu) {
       aNode.setAttribute("wrapped-context", currentContextMenu);
       aNode.setAttribute("wrapped-contextAttrName", contextMenuAttrName)
-      aNode.removeAttribute(contextMenuAttrName);
-    } else if (currentContextMenu == contextMenuForPlace) {
       aNode.removeAttribute(contextMenuAttrName);
     }
 
@@ -605,10 +588,6 @@ CustomizeMode.prototype = {
       ERROR("no toolbarItem child for " + aWrapper.tagName + "#" + aWrapper.id);
       aWrapper.remove();
       return null;
-    }
-
-    if (aWrapper.hasAttribute("itemobserves")) {
-      toolbarItem.setAttribute("observes", aWrapper.getAttribute("itemobserves"));
     }
 
     if (aWrapper.hasAttribute("itemchecked")) {

@@ -29,8 +29,7 @@ namespace js {
 enum AsmJSCoercion
 {
     AsmJS_ToInt32,
-    AsmJS_ToNumber,
-    AsmJS_FRound
+    AsmJS_ToNumber
 };
 
 // The asm.js spec recognizes this set of builtin Math functions.
@@ -40,8 +39,7 @@ enum AsmJSMathBuiltin
     AsmJSMathBuiltin_asin, AsmJSMathBuiltin_acos, AsmJSMathBuiltin_atan,
     AsmJSMathBuiltin_ceil, AsmJSMathBuiltin_floor, AsmJSMathBuiltin_exp,
     AsmJSMathBuiltin_log, AsmJSMathBuiltin_pow, AsmJSMathBuiltin_sqrt,
-    AsmJSMathBuiltin_abs, AsmJSMathBuiltin_atan2, AsmJSMathBuiltin_imul,
-    AsmJSMathBuiltin_fround
+    AsmJSMathBuiltin_abs, AsmJSMathBuiltin_atan2, AsmJSMathBuiltin_imul
 };
 
 // Static-link data is used to patch a module either after it has been
@@ -107,9 +105,9 @@ class AsmJSModule
                 struct {
                     uint32_t index_;
                     VarInitKind initKind_;
-                    AsmJSCoercion coercion_;
                     union {
                         Value constant_; // will only contain int32/double
+                        AsmJSCoercion coercion_;
                     } init;
                 } var;
                 uint32_t ffiIndex_;
@@ -153,9 +151,10 @@ class AsmJSModule
             JS_ASSERT(pod.u.var.initKind_ == InitConstant);
             return pod.u.var.init.constant_;
         }
-        AsmJSCoercion varInitCoercion() const {
+        AsmJSCoercion varImportCoercion() const {
             JS_ASSERT(pod.which_ == Variable);
-            return pod.u.var.coercion_;
+            JS_ASSERT(pod.u.var.initKind_ == InitImport);
+            return pod.u.var.init.coercion_;
         }
         PropertyName *varImportField() const {
             JS_ASSERT(pod.which_ == Variable);
@@ -456,14 +455,13 @@ class AsmJSModule
         return charsBegin_ + pod.charsLength_;
     }
 
-    bool addGlobalVarInitConstant(const Value &v, AsmJSCoercion coercion, uint32_t *globalIndex) {
+    bool addGlobalVarInitConstant(const Value &v, uint32_t *globalIndex) {
         JS_ASSERT(pod.funcPtrTableAndExitBytes_ == 0);
         if (pod.numGlobalVars_ == UINT32_MAX)
             return false;
         Global g(Global::Variable, nullptr);
         g.pod.u.var.initKind_ = Global::InitConstant;
         g.pod.u.var.init.constant_ = v;
-        g.pod.u.var.coercion_ = coercion;
         g.pod.u.var.index_ = *globalIndex = pod.numGlobalVars_++;
         return globals_.append(g);
     }
@@ -471,7 +469,7 @@ class AsmJSModule
         JS_ASSERT(pod.funcPtrTableAndExitBytes_ == 0);
         Global g(Global::Variable, name);
         g.pod.u.var.initKind_ = Global::InitImport;
-        g.pod.u.var.coercion_ = coercion;
+        g.pod.u.var.init.coercion_ = coercion;
         g.pod.u.var.index_ = *globalIndex = pod.numGlobalVars_++;
         return globals_.append(g);
     }

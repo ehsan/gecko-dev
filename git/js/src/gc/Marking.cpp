@@ -9,7 +9,6 @@
 #include "mozilla/DebugOnly.h"
 
 #include "jit/IonCode.h"
-#include "js/SliceBudget.h"
 #include "vm/ArgumentsObject.h"
 #include "vm/ScopeObject.h"
 #include "vm/Shape.h"
@@ -90,7 +89,7 @@ static void MarkChildren(JSTracer *trc, LazyScript *lazy);
 static void MarkChildren(JSTracer *trc, Shape *shape);
 static void MarkChildren(JSTracer *trc, BaseShape *base);
 static void MarkChildren(JSTracer *trc, types::TypeObject *type);
-static void MarkChildren(JSTracer *trc, jit::JitCode *code);
+static void MarkChildren(JSTracer *trc, jit::IonCode *code);
 
 } /* namespace gc */
 } /* namespace js */
@@ -372,7 +371,7 @@ Is##base##AboutToBeFinalized(BarrieredPtr<type> *thingp)                        
 
 DeclMarkerImpl(BaseShape, BaseShape)
 DeclMarkerImpl(BaseShape, UnownedBaseShape)
-DeclMarkerImpl(JitCode, jit::JitCode)
+DeclMarkerImpl(IonCode, jit::IonCode)
 DeclMarkerImpl(Object, ArgumentsObject)
 DeclMarkerImpl(Object, ArrayBufferObject)
 DeclMarkerImpl(Object, ArrayBufferViewObject)
@@ -426,8 +425,8 @@ gc::MarkKind(JSTracer *trc, void **thingp, JSGCTraceKind kind)
       case JSTRACE_TYPE_OBJECT:
         MarkInternal(trc, reinterpret_cast<types::TypeObject **>(thingp));
         break;
-      case JSTRACE_JITCODE:
-        MarkInternal(trc, reinterpret_cast<jit::JitCode **>(thingp));
+      case JSTRACE_IONCODE:
+        MarkInternal(trc, reinterpret_cast<jit::IonCode **>(thingp));
         break;
     }
 }
@@ -849,13 +848,13 @@ PushMarkStack(GCMarker *gcmarker, Shape *thing)
 }
 
 static void
-PushMarkStack(GCMarker *gcmarker, jit::JitCode *thing)
+PushMarkStack(GCMarker *gcmarker, jit::IonCode *thing)
 {
     JS_COMPARTMENT_ASSERT(gcmarker->runtime, thing);
     JS_ASSERT(!IsInsideNursery(gcmarker->runtime, thing));
 
     if (thing->markIfUnmarked(gcmarker->getMarkColor()))
-        gcmarker->pushJitCode(thing);
+        gcmarker->pushIonCode(thing);
 }
 
 static inline void
@@ -1122,24 +1121,33 @@ gc::MarkCycleCollectorChildren(JSTracer *trc, Shape *shape)
 static void
 ScanTypeObject(GCMarker *gcmarker, types::TypeObject *type)
 {
-    unsigned count = type->getPropertyCount();
-    for (unsigned i = 0; i < count; i++) {
-        types::Property *prop = type->getProperty(i);
-        if (prop && JSID_IS_STRING(prop->id))
-            PushMarkStack(gcmarker, JSID_TO_STRING(prop->id));
+    /* Don't mark properties for singletons. They'll be purged by the GC. */
+    if (!type->singleton) {
+        unsigned count = type->getPropertyCount();
+        for (unsigned i = 0; i < count; i++) {
+            types::Property *prop = type->getProperty(i);
+            if (prop && JSID_IS_STRING(prop->id))
+                PushMarkStack(gcmarker, JSID_TO_STRING(prop->id));
+        }
     }
 
-    if (type->proto().isObject())
-        PushMarkStack(gcmarker, type->proto().toObject());
+    if (TaggedProto(type->proto).isObject())
+        PushMarkStack(gcmarker, type->proto);
 
-    if (type->singleton() && !type->lazy())
-        PushMarkStack(gcmarker, type->singleton());
+    if (type->singleton && !type->lazy())
+        PushMarkStack(gcmarker, type->singleton);
 
-    if (type->hasNewScript()) {
-        PushMarkStack(gcmarker, type->newScript()->fun);
-        PushMarkStack(gcmarker, type->newScript()->templateObject);
-    } else if (type->hasTypedObject()) {
-        PushMarkStack(gcmarker, type->typedObject()->typeRepr->ownerObject());
+    if (type->addendum) {
+        switch (type->addendum->kind) {
+          case types::TypeObjectAddendum::NewScript:
+            PushMarkStack(gcmarker, type->newScript()->fun);
+            PushMarkStack(gcmarker, type->newScript()->templateObject);
+            break;
+
+          case types::TypeObjectAddendum::TypedObject:
+            PushMarkStack(gcmarker, type->typedObject()->typeRepr->ownerObject());
+            break;
+        }
     }
 
     if (type->interpretedFunction)
@@ -1156,17 +1164,23 @@ gc::MarkChildren(JSTracer *trc, types::TypeObject *type)
             MarkId(trc, &prop->id, "type_prop");
     }
 
-    if (type->proto().isObject())
-        MarkObject(trc, &type->protoRaw(), "type_proto");
+    if (TaggedProto(type->proto).isObject())
+        MarkObject(trc, &type->proto, "type_proto");
 
-    if (type->singleton() && !type->lazy())
-        MarkObject(trc, &type->singletonRaw(), "type_singleton");
+    if (type->singleton && !type->lazy())
+        MarkObject(trc, &type->singleton, "type_singleton");
 
-    if (type->hasNewScript()) {
-        MarkObject(trc, &type->newScript()->fun, "type_new_function");
-        MarkObject(trc, &type->newScript()->templateObject, "type_new_template");
-    } else if (type->hasTypedObject()) {
-        type->typedObject()->typeRepr->mark(trc);
+    if (type->addendum) {
+        switch (type->addendum->kind) {
+          case types::TypeObjectAddendum::NewScript:
+            MarkObject(trc, &type->newScript()->fun, "type_new_function");
+            MarkObject(trc, &type->newScript()->templateObject, "type_new_template");
+            break;
+
+          case types::TypeObjectAddendum::TypedObject:
+            type->typedObject()->typeRepr->mark(trc);
+            break;
+        }
     }
 
     if (type->interpretedFunction)
@@ -1174,7 +1188,7 @@ gc::MarkChildren(JSTracer *trc, types::TypeObject *type)
 }
 
 static void
-gc::MarkChildren(JSTracer *trc, jit::JitCode *code)
+gc::MarkChildren(JSTracer *trc, jit::IonCode *code)
 {
 #ifdef JS_ION
     code->trace(trc);
@@ -1221,8 +1235,8 @@ gc::PushArena(GCMarker *gcmarker, ArenaHeader *aheader)
         PushArenaTyped<js::types::TypeObject>(gcmarker, aheader);
         break;
 
-      case JSTRACE_JITCODE:
-        PushArenaTyped<js::jit::JitCode>(gcmarker, aheader);
+      case JSTRACE_IONCODE:
+        PushArenaTyped<js::jit::IonCode>(gcmarker, aheader);
         break;
     }
 }
@@ -1335,7 +1349,7 @@ GCMarker::restoreValueArray(JSObject *obj, void **vpp, void **endp)
 }
 
 void
-GCMarker::processMarkStackOther(uintptr_t tag, uintptr_t addr)
+GCMarker::processMarkStackOther(SliceBudget &budget, uintptr_t tag, uintptr_t addr)
 {
     if (tag == TypeTag) {
         ScanTypeObject(this, reinterpret_cast<types::TypeObject *>(addr));
@@ -1347,8 +1361,37 @@ GCMarker::processMarkStackOther(uintptr_t tag, uintptr_t addr)
             pushValueArray(obj, vp, end);
         else
             pushObject(obj);
-    } else if (tag == JitCodeTag) {
-        MarkChildren(this, reinterpret_cast<jit::JitCode *>(addr));
+    } else if (tag == IonCodeTag) {
+        MarkChildren(this, reinterpret_cast<jit::IonCode *>(addr));
+    } else if (tag == ArenaTag) {
+        ArenaHeader *aheader = reinterpret_cast<ArenaHeader *>(addr);
+        AllocKind thingKind = aheader->getAllocKind();
+        size_t thingSize = Arena::thingSize(thingKind);
+
+        for ( ; aheader; aheader = aheader->next) {
+            Arena *arena = aheader->getArena();
+            FreeSpan firstSpan(aheader->getFirstFreeSpan());
+            const FreeSpan *span = &firstSpan;
+
+            for (uintptr_t thing = arena->thingsStart(thingKind); ; thing += thingSize) {
+                JS_ASSERT(thing <= arena->thingsEnd());
+                if (thing == span->first) {
+                    if (!span->hasNext())
+                        break;
+                    thing = span->last;
+                    span = span->nextSpan();
+                } else {
+                    JSObject *object = reinterpret_cast<JSObject *>(thing);
+                    if (object->hasSingletonType() && object->markIfUnmarked(getMarkColor()))
+                        pushObject(object);
+                    budget.step();
+                }
+            }
+            if (budget.isOverBudget()) {
+                pushArenaList(aheader);
+                return;
+            }
+        }
     }
 }
 
@@ -1386,7 +1429,7 @@ GCMarker::processMarkStackTop(SliceBudget &budget)
         goto scan_obj;
     }
 
-    processMarkStackOther(tag, addr);
+    processMarkStackOther(budget, tag, addr);
     return;
 
   scan_value_array:
@@ -1429,7 +1472,7 @@ GCMarker::processMarkStackTop(SliceBudget &budget)
         PushMarkStack(this, shape);
 
         /* Call the trace hook if necessary. */
-        const Class *clasp = type->clasp();
+        const Class *clasp = type->clasp;
         if (clasp->trace) {
             JS_ASSERT_IF(runtime->gcMode() == JSGC_MODE_INCREMENTAL &&
                          runtime->gcIncrementalEnabled,
@@ -1535,8 +1578,8 @@ js::TraceChildren(JSTracer *trc, void *thing, JSGCTraceKind kind)
         MarkChildren(trc, static_cast<Shape *>(thing));
         break;
 
-      case JSTRACE_JITCODE:
-        MarkChildren(trc, (js::jit::JitCode *)thing);
+      case JSTRACE_IONCODE:
+        MarkChildren(trc, (js::jit::IonCode *)thing);
         break;
 
       case JSTRACE_BASE_SHAPE:

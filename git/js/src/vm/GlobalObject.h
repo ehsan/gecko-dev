@@ -15,7 +15,6 @@
 
 #include "builtin/RegExp.h"
 #include "js/Vector.h"
-#include "vm/ErrorObject.h"
 
 extern JSObject *
 js_InitObjectClass(JSContext *cx, js::HandleObject obj);
@@ -27,12 +26,11 @@ extern JSObject *
 js_InitTypedArrayClasses(JSContext *cx, js::HandleObject obj);
 
 extern JSObject *
-js_InitTypedObjectModuleObject(JSContext *cx, js::HandleObject obj);
+js_InitTypedObjectClass(JSContext *cx, js::HandleObject obj);
 
 namespace js {
 
 class Debugger;
-class TypedObjectModuleObject;
 
 /*
  * Global object slots are reserved as follows:
@@ -111,9 +109,10 @@ class GlobalObject : public JSObject
     static const unsigned RUNTIME_CODEGEN_ENABLED = WARNED_WATCH_DEPRECATED + 1;
     static const unsigned DEBUGGERS               = RUNTIME_CODEGEN_ENABLED + 1;
     static const unsigned INTRINSICS              = DEBUGGERS + 1;
+    static const unsigned ARRAY_TYPE              = INTRINSICS + 1;
 
     /* Total reserved-slot count for global objects. */
-    static const unsigned RESERVED_SLOTS = INTRINSICS + 1;
+    static const unsigned RESERVED_SLOTS = ARRAY_TYPE + 1;
 
     /*
      * The slot count must be in the public API for JSCLASS_GLOBAL_FLAGS, and
@@ -155,7 +154,7 @@ class GlobalObject : public JSObject
   public:
     Value getConstructor(JSProtoKey key) const {
         JS_ASSERT(key <= JSProto_LIMIT);
-        return getSlotForCompilation(APPLICATION_SLOTS + key);
+        return getSlotRefForCompilation(APPLICATION_SLOTS + key);
     }
 
     void setConstructor(JSProtoKey key, const Value &v) {
@@ -165,7 +164,7 @@ class GlobalObject : public JSObject
 
     Value getPrototype(JSProtoKey key) const {
         JS_ASSERT(key <= JSProto_LIMIT);
-        return getSlotForCompilation(APPLICATION_SLOTS + JSProto_LIMIT + key);
+        return getSlotRefForCompilation(APPLICATION_SLOTS + JSProto_LIMIT + key);
     }
 
     void setPrototype(JSProtoKey key, const Value &value) {
@@ -398,7 +397,7 @@ class GlobalObject : public JSObject
         return &self->getPrototype(JSProto_ArrayBuffer).toObject();
     }
 
-    JSObject *getOrCreateCustomErrorPrototype(JSContext *cx, JSExnType exnType) {
+    JSObject *getOrCreateCustomErrorPrototype(JSContext *cx, int exnType) {
         JSProtoKey key = GetExceptionProtoKey(exnType);
         if (errorClassesInitialized())
             return &getPrototype(key).toObject();
@@ -412,11 +411,12 @@ class GlobalObject : public JSObject
         return getOrCreateObject(cx, APPLICATION_SLOTS + JSProto_Intl, initIntlObject);
     }
 
-    JSObject *getOrCreateTypedObjectModule(JSContext *cx) {
-        return getOrCreateObject(cx, APPLICATION_SLOTS + JSProto_TypedObject, initTypedObjectModule);
+    JSObject &getTypedObject() {
+        Value v = getConstructor(JSProto_TypedObject);
+        // only gets called from contexts where TypedObject must be initialized
+        JS_ASSERT(v.isObject());
+        return v.toObject();
     }
-
-    TypedObjectModuleObject &getTypedObjectModule() const;
 
     JSObject *getIteratorPrototype() {
         return &getPrototype(JSProto_Iterator).toObject();
@@ -434,6 +434,21 @@ class GlobalObject : public JSObject
         return getOrCreateObject(cx, DATE_TIME_FORMAT_PROTO, initDateTimeFormatProto);
     }
 
+    JSObject *getArrayType(JSContext *cx) {
+        const Value &v = getReservedSlot(ARRAY_TYPE);
+
+        MOZ_ASSERT(v.isObject(),
+                   "GlobalObject::arrayType must only be called from "
+                   "TypedObject code that can assume TypedObject has "
+                   "been initialized");
+
+        return &v.toObject();
+    }
+
+    void setArrayType(JSObject *obj) {
+        initReservedSlot(ARRAY_TYPE, ObjectValue(*obj));
+    }
+
   private:
     typedef bool (*ObjectInitOp)(JSContext *cx, Handle<GlobalObject*> global);
 
@@ -447,14 +462,13 @@ class GlobalObject : public JSObject
         return &self->getSlot(slot).toObject();
     }
 
-    Value getSlotForCompilation(uint32_t slot) const {
+    const HeapSlot &getSlotRefForCompilation(uint32_t slot) const {
         // This method should only be used for slots that are either eagerly
         // initialized on creation of the global or only change under the
         // compilation lock. Note that the dynamic slots pointer for global
         // objects can only change under the compilation lock.
         JS_ASSERT(slot < JSCLASS_RESERVED_SLOTS(getClass()));
         uint32_t fixed = numFixedSlotsForCompilation();
-        AutoThreadSafeAccess ts(this);
         if (slot < fixed)
             return fixedSlots()[slot];
         return slots[slot - fixed];
@@ -510,40 +524,29 @@ class GlobalObject : public JSObject
     }
 
     JSObject *intrinsicsHolder() {
-        JS_ASSERT(!getSlotForCompilation(INTRINSICS).isUndefined());
-        return &getSlotForCompilation(INTRINSICS).toObject();
+        JS_ASSERT(!getSlotRefForCompilation(INTRINSICS).isUndefined());
+        return &getSlotRefForCompilation(INTRINSICS).toObject();
     }
 
-    bool maybeGetIntrinsicValue(jsid id, Value *vp) {
-        JS_ASSERT(CurrentThreadCanReadCompilationData());
+    bool maybeGetIntrinsicValue(PropertyName *name, Value *vp) {
         JSObject *holder = intrinsicsHolder();
-
-        AutoThreadSafeAccess ts0(holder);
-        AutoThreadSafeAccess ts1(holder->lastProperty());
-        AutoThreadSafeAccess ts2(holder->lastProperty()->base());
-
-        if (Shape *shape = holder->nativeLookupPure(id)) {
+        if (Shape *shape = holder->nativeLookupPure(name)) {
             *vp = holder->getSlot(shape->slot());
             return true;
         }
         return false;
     }
-    bool maybeGetIntrinsicValue(PropertyName *name, Value *vp) {
-        return maybeGetIntrinsicValue(NameToId(name), vp);
-    }
 
-    static bool getIntrinsicValue(JSContext *cx, Handle<GlobalObject*> global,
-                                  HandlePropertyName name, MutableHandleValue value)
-    {
-        if (global->maybeGetIntrinsicValue(name, value.address()))
+    bool getIntrinsicValue(JSContext *cx, HandlePropertyName name, MutableHandleValue value) {
+        if (maybeGetIntrinsicValue(name, value.address()))
             return true;
+        Rooted<GlobalObject*> self(cx, this);
         if (!cx->runtime()->cloneSelfHostedValue(cx, name, value))
             return false;
+        RootedObject holder(cx, self->intrinsicsHolder());
         RootedId id(cx, NameToId(name));
-        return global->addIntrinsicValue(cx, id, value);
+        return JS_DefinePropertyById(cx, holder, id, value, nullptr, nullptr, 0);
     }
-
-    bool addIntrinsicValue(JSContext *cx, HandleId id, HandleValue value);
 
     bool setIntrinsicValue(JSContext *cx, PropertyName *name, HandleValue value) {
 #ifdef DEBUG
@@ -559,8 +562,7 @@ class GlobalObject : public JSObject
                                unsigned nargs, MutableHandleValue funVal);
 
     RegExpStatics *getRegExpStatics() const {
-        JSObject &resObj = getSlotForCompilation(REGEXP_STATICS).toObject();
-        AutoThreadSafeAccess ts(&resObj);
+        JSObject &resObj = getSlotRefForCompilation(REGEXP_STATICS).toObject();
         return static_cast<RegExpStatics *>(resObj.getPrivate(/* nfixed = */ 1));
     }
 
@@ -588,11 +590,10 @@ class GlobalObject : public JSObject
     // in which |obj| was created, if no prior warning was given.
     static bool warnOnceAboutWatch(JSContext *cx, HandleObject obj);
 
-    static bool getOrCreateEval(JSContext *cx, Handle<GlobalObject*> global,
-                                MutableHandleObject eval);
-
-    // Infallibly test whether the given value is the eval function for this global.
-    bool valueIsEval(Value val);
+    Value getOriginalEval() const {
+        JS_ASSERT(getSlotRefForCompilation(EVAL).isObject());
+        return getSlotRefForCompilation(EVAL);
+    }
 
     // Implemented in jsiter.cpp.
     static bool initIteratorClasses(JSContext *cx, Handle<GlobalObject*> global);
@@ -606,9 +607,6 @@ class GlobalObject : public JSObject
     static bool initCollatorProto(JSContext *cx, Handle<GlobalObject*> global);
     static bool initNumberFormatProto(JSContext *cx, Handle<GlobalObject*> global);
     static bool initDateTimeFormatProto(JSContext *cx, Handle<GlobalObject*> global);
-
-    // Implemented in builtin/TypedObject.cpp
-    static bool initTypedObjectModule(JSContext *cx, Handle<GlobalObject*> global);
 
     static bool initStandardClasses(JSContext *cx, Handle<GlobalObject*> global);
 

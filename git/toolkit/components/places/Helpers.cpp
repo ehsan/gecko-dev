@@ -229,16 +229,10 @@ Base64urlEncode(const uint8_t* aBytes,
 }
 
 #ifdef XP_WIN
-} // namespace places
-} // namespace mozilla
-
 // Included here because windows.h conflicts with the use of mozIStorageError
-// above, but make sure that these are not included inside mozilla::places.
+// above.
 #include <windows.h>
 #include <wincrypt.h>
-
-namespace mozilla {
-namespace places {
 #endif
 
 static

@@ -115,11 +115,10 @@ var Appbar = {
   onMenuButton: function(aEvent) {
       let typesArray = [];
 
-      if (!BrowserUI.isStartTabVisible) {
+      if (!BrowserUI.isStartTabVisible)
         typesArray.push("find-in-page");
-        if (ContextCommands.getPageSource())
-          typesArray.push("view-page-source");
-      }
+      if (ContextCommands.getPageSource())
+        typesArray.push("view-page-source");
       if (ContextCommands.getStoreLink())
         typesArray.push("ms-meta-data");
       if (ConsolePanelView.enabled)

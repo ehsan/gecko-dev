@@ -43,7 +43,6 @@ EXPORTS.mozilla.layout += [
 
 UNIFIED_SOURCES += [
     'FrameChildList.cpp',
-    'MathVariantTextRunFactory.cpp',
     'nsAbsoluteContainingBlock.cpp',
     'nsBlockFrame.cpp',
     'nsBlockReflowContext.cpp',
@@ -119,7 +118,5 @@ LOCAL_INCLUDES += [
     '../style',
     '../svg',
     '../tables',
-    '../xul',
+    '../xul/base/src',
 ]
-
-JAR_MANIFESTS += ['jar.mn']

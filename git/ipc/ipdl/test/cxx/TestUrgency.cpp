@@ -1,9 +1,8 @@
 #include "TestUrgency.h"
 
 #include "IPDLUnitTests.h"      // fail etc.
-#if defined(OS_POSIX)
 #include <unistd.h>
-#else
+#if !defined(OS_POSIX)
 #include <windows.h>
 #endif
 
@@ -167,7 +166,7 @@ TestUrgencyChild::AnswerReply2(uint32_t *reply)
 bool
 TestUrgencyChild::AnswerFinalTest_Hang()
 {
-  Sleep(10);
+  sleep(10);
   return true;
 }
 

@@ -34,23 +34,14 @@ BEGIN_BLUETOOTH_NAMESPACE
 // Bit 7 ~ Bit 2: Minor device class
 #define GET_MINOR_DEVICE_CLASS(cod)  ((cod & 0xfc) >> 2)
 
-// Audio: Major service class = 0x100 (Bit 21 is set)
+// Bit 21: Major service class = 0x100, Audio
 #define HAS_AUDIO(cod)               (cod & 0x200000)
 
-// Rendering: Major service class = 0x20 (Bit 18 is set)
+// Bit 18: Major service class = 0x20, Rendering
 #define HAS_RENDERING(cod)           (cod & 0x40000)
 
-// Peripheral: Major device class = 0x5
+// Major device class = 0x5, Peripheral
 #define IS_PERIPHERAL(cod)           (GET_MAJOR_DEVICE_CLASS(cod) == 0x5)
-
-// Remote Control: sub-field of minor device class, Bit 5 ~ Bit 2 = 0x3
-#define IS_REMOTE_CONTROL(cod)       ((GET_MINOR_DEVICE_CLASS(cod) & 0xf) == 0x3)
-
-// Keyboard: sub-field of minor device class (Bit 6)
-#define IS_KEYBOARD(cod)             ((GET_MINOR_DEVICE_CLASS(cod) & 0x10) >> 4)
-
-// Pointing device: sub-field of minor device class (Bit 7)
-#define IS_POINTING_DEVICE(cod)      ((GET_MINOR_DEVICE_CLASS(cod) & 0x20) >> 5)
 
 class BluetoothProfileManagerBase;
 class BluetoothReplyRunnable;

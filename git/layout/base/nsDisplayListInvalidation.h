@@ -8,7 +8,6 @@
 
 #include "mozilla/Attributes.h"
 #include "nsRect.h"
-#include "nsColor.h"
 
 class nsDisplayItem;
 class nsDisplayListBuilder;

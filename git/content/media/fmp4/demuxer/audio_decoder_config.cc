@@ -5,7 +5,6 @@
 #include "mp4_demuxer/audio_decoder_config.h"
 
 #include <sstream>
-#include <string.h>
 
 namespace mp4_demuxer {
 

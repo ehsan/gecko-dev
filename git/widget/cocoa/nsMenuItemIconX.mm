@@ -384,9 +384,10 @@ nsMenuItemIconX::OnStopFrame(imgIRequest*    aRequest)
     mImageRegionRect.SetRect(0, 0, origWidth, origHeight);
   }
   
-  nsRefPtr<gfxASurface> surface =
-    imageContainer->GetFrame(imgIContainer::FRAME_CURRENT,
-                             imgIContainer::FLAG_NONE);
+  nsRefPtr<gfxASurface> surface;
+  imageContainer->GetFrame(imgIContainer::FRAME_CURRENT,
+                           imgIContainer::FLAG_NONE,
+                           getter_AddRefs(surface));
   if (!surface) {
     [mNativeMenuItem setImage:nil];
     return NS_ERROR_FAILURE;

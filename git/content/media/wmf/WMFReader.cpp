@@ -32,9 +32,9 @@ namespace mozilla {
 
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* gMediaDecoderLog;
-#define DECODER_LOG(...) PR_LOG(gMediaDecoderLog, PR_LOG_DEBUG, (__VA_ARGS__))
+#define LOG(...) PR_LOG(gMediaDecoderLog, PR_LOG_DEBUG, (__VA_ARGS__))
 #else
-#define DECODER_LOG(...)
+#define LOG(...)
 #endif
 
 // Uncomment to enable verbose per-sample logging.
@@ -208,7 +208,7 @@ ConfigureSourceReaderStream(IMFSourceReader *aReader,
   }
   if (!isSubTypeAllowed) {
     nsCString name = GetGUIDName(subType);
-    DECODER_LOG("ConfigureSourceReaderStream subType=%s is not allowed to be decoded", name.get());
+    LOG("ConfigureSourceReaderStream subType=%s is not allowed to be decoded", name.get());
     return E_FAIL;
   }
 
@@ -323,12 +323,12 @@ WMFReader::ConfigureVideoFrameGeometry(IMFMediaType* aMediaType)
   mVideoHeight = height;
   mPictureRegion = pictureRegion;
 
-  DECODER_LOG("WMFReader frame geometry frame=(%u,%u) stride=%u picture=(%d, %d, %d, %d) display=(%d,%d) PAR=%d:%d",
-              width, height,
-              mVideoStride,
-              mPictureRegion.x, mPictureRegion.y, mPictureRegion.width, mPictureRegion.height,
-              displaySize.width, displaySize.height,
-              aspectNum, aspectDenom);
+  LOG("WMFReader frame geometry frame=(%u,%u) stride=%u picture=(%d, %d, %d, %d) display=(%d,%d) PAR=%d:%d",
+      width, height,
+      mVideoStride,
+      mPictureRegion.x, mPictureRegion.y, mPictureRegion.width, mPictureRegion.height,
+      displaySize.width, displaySize.height,
+      aspectNum, aspectDenom);
 
   return S_OK;
 }
@@ -354,7 +354,7 @@ WMFReader::ConfigureVideoDecoder()
                                            MP4VideoTypes,
                                            NS_ARRAY_LENGTH(MP4VideoTypes));
   if (FAILED(hr)) {
-    DECODER_LOG("Failed to configured video output");
+    LOG("Failed to configured video output");
     return hr;
   }
 
@@ -371,7 +371,7 @@ WMFReader::ConfigureVideoDecoder()
     return hr;
   }
 
-  DECODER_LOG("Successfully configured video stream");
+  LOG("Successfully configured video stream");
 
   mHasVideo = mInfo.mVideo.mHasVideo = true;
 
@@ -444,8 +444,8 @@ WMFReader::ConfigureAudioDecoder()
   mInfo.mAudio.mRate = mAudioRate;
   mHasAudio = mInfo.mAudio.mHasAudio = true;
 
-  DECODER_LOG("Successfully configured audio stream. rate=%u channels=%u bitsPerSample=%u",
-              mAudioRate, mAudioChannels, mAudioBytesPerSample);
+  LOG("Successfully configured audio stream. rate=%u channels=%u bitsPerSample=%u",
+      mAudioRate, mAudioChannels, mAudioBytesPerSample);
 
   return S_OK;
 }
@@ -456,7 +456,7 @@ WMFReader::ReadMetadata(MediaInfo* aInfo,
 {
   NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
 
-  DECODER_LOG("WMFReader::ReadMetadata()");
+  LOG("WMFReader::ReadMetadata()");
   HRESULT hr;
 
   RefPtr<IMFAttributes> attr;
@@ -470,7 +470,7 @@ WMFReader::ReadMetadata(MediaInfo* aInfo,
     hr = attr->SetUnknown(MF_SOURCE_READER_D3D_MANAGER,
                           mDXVA2Manager->GetDXVADeviceManager());
     if (FAILED(hr)) {
-      DECODER_LOG("Failed to set DXVA2 D3D Device manager on source reader attributes");
+      LOG("Failed to set DXVA2 D3D Device manager on source reader attributes");
       mUseHwAccel = false;
     }
   }
@@ -504,7 +504,7 @@ WMFReader::ReadMetadata(MediaInfo* aInfo,
       }
     }
     if (FAILED(hr)) {
-      DECODER_LOG("Failed to set DXVA2 D3D Device manager on decoder hr=0x%x", hr);
+      LOG("Failed to set DXVA2 D3D Device manager on decoder hr=0x%x", hr);
       mUseHwAccel = false;
       // Re-run the configuration process, so that the output video format
       // is set correctly to reflect that hardware acceleration is disabled.
@@ -515,7 +515,7 @@ WMFReader::ReadMetadata(MediaInfo* aInfo,
     }
   }
   if (mInfo.HasVideo()) {
-    DECODER_LOG("Using DXVA: %s", (mUseHwAccel ? "Yes" : "No"));
+    LOG("Using DXVA: %s", (mUseHwAccel ? "Yes" : "No"));
   }
 
   // Abort if both video and audio failed to initialize.
@@ -559,7 +559,7 @@ WMFReader::DecodeAudioData()
                                  nullptr);
 
   if (FAILED(hr)) {
-    DECODER_LOG("WMFReader::DecodeAudioData() ReadSample failed with hr=0x%x", hr);
+    LOG("WMFReader::DecodeAudioData() ReadSample failed with hr=0x%x", hr);
     // End the stream.
     return false;
   }
@@ -572,8 +572,8 @@ WMFReader::DecodeAudioData()
       (flags & MF_SOURCE_READERF_ERROR) ||
       (flags & MF_SOURCE_READERF_ENDOFSTREAM) ||
       (flags & MF_SOURCE_READERF_CURRENTMEDIATYPECHANGED)) {
-    DECODER_LOG("WMFReader::DecodeAudioData() ReadSample failed with hr=0x%x flags=0x%x",
-                hr, flags);
+    LOG("WMFReader::DecodeAudioData() ReadSample failed with hr=0x%x flags=0x%x",
+        hr, flags);
     // End the stream.
     return false;
   }
@@ -632,8 +632,8 @@ WMFReader::DecodeAudioData()
                                  mAudioChannels));
 
   #ifdef LOG_SAMPLE_DECODE
-  DECODER_LOG("Decoded audio sample! timestamp=%lld duration=%lld currentLength=%u",
-              timestamp, duration, currentLength);
+  LOG("Decoded audio sample! timestamp=%lld duration=%lld currentLength=%u",
+      timestamp, duration, currentLength);
   #endif
 
   return true;
@@ -793,7 +793,7 @@ WMFReader::DecodeVideoFrame(bool &aKeyframeSkip,
                                  nullptr,
                                  nullptr);
   if (FAILED(hr)) {
-    DECODER_LOG("WMFReader::DecodeVideoData() ReadSample failed with hr=0x%x", hr);
+    LOG("WMFReader::DecodeVideoData() ReadSample failed with hr=0x%x", hr);
     return false;
   }
 
@@ -815,15 +815,15 @@ WMFReader::DecodeVideoFrame(bool &aKeyframeSkip,
 
   if (!sample) {
     if ((flags & MF_SOURCE_READERF_ENDOFSTREAM)) {
-      DECODER_LOG("WMFReader; Null sample after video decode, at end of stream");
+      LOG("WMFReader; Null sample after video decode, at end of stream");
       return false;
     }
-    DECODER_LOG("WMFReader; Null sample after video decode. Maybe insufficient data...");
+    LOG("WMFReader; Null sample after video decode. Maybe insufficient data...");
     return true;
   }
 
   if ((flags & MF_SOURCE_READERF_CURRENTMEDIATYPECHANGED)) {
-    DECODER_LOG("WMFReader: Video media type changed!");
+    LOG("WMFReader: Video media type changed!");
     RefPtr<IMFMediaType> mediaType;
     hr = mSourceReader->GetCurrentMediaType(MF_SOURCE_READER_FIRST_VIDEO_STREAM,
                                             byRef(mediaType));
@@ -854,13 +854,13 @@ WMFReader::DecodeVideoFrame(bool &aKeyframeSkip,
   mVideoQueue.Push(v);
 
   #ifdef LOG_SAMPLE_DECODE
-  DECODER_LOG("Decoded video sample timestamp=%lld duration=%lld stride=%d height=%u flags=%u",
-              timestamp, duration, mVideoStride, mVideoHeight, flags);
+  LOG("Decoded video sample timestamp=%lld duration=%lld stride=%d height=%u flags=%u",
+      timestamp, duration, mVideoStride, mVideoHeight, flags);
   #endif
 
   if ((flags & MF_SOURCE_READERF_ENDOFSTREAM)) {
     // End of stream.
-    DECODER_LOG("End of video stream");
+    LOG("End of video stream");
     return false;
   }
 
@@ -873,7 +873,7 @@ WMFReader::Seek(int64_t aTargetUs,
                 int64_t aEndTime,
                 int64_t aCurrentTime)
 {
-  DECODER_LOG("WMFReader::Seek() %lld", aTargetUs);
+  LOG("WMFReader::Seek() %lld", aTargetUs);
 
   NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
 #ifdef DEBUG

@@ -9,7 +9,7 @@
 /* static functions */
 
 function debug(s) {
-  //dump('DEBUG DataStoreService: ' + s + '\n');
+  // dump('DEBUG DataStoreService: ' + s + '\n');
 }
 
 const {classes: Cc, interfaces: Ci, utils: Cu, results: Cr} = Components;
@@ -136,27 +136,20 @@ DataStoreService.prototype = {
         let request = aRevisionStore.openCursor(null, 'prev');
         request.onsuccess = function(aEvent) {
           let cursor = aEvent.target.result;
-          if (cursor) {
-            debug("First revision already created.");
-            self.enableDataStore(aAppId, aName, aOwner);
-          } else {
+          if (!cursor) {
             // If the revision doesn't exist, let's create the first one.
             db.addRevision(aRevisionStore, 0, REVISION_VOID, function() {
               debug("First revision created.");
-              self.enableDataStore(aAppId, aName, aOwner);
+              if (aName in self.stores && aAppId in self.stores[aName]) {
+                self.stores[aName][aAppId].enabled = true;
+                ppmm.broadcastAsyncMessage('datastore-first-revision-created',
+                                           { name: aName, owner: aOwner });
+              }
             });
           }
         };
       }
     );
-  },
-
-  enableDataStore: function(aAppId, aName, aOwner) {
-    if (aName in this.stores && aAppId in this.stores[aName]) {
-      this.stores[aName][aAppId].enabled = true;
-      ppmm.broadcastAsyncMessage('datastore-first-revision-created',
-                                 { name: aName, owner: aOwner });
-    }
   },
 
   addPermissions: function(aAppId, aName, aOrigin, aOwner, aReadOnly) {
@@ -238,10 +231,6 @@ DataStoreService.prototype = {
       // window, so we can skip the ipc communication.
       if (self.inParent) {
         let stores = self.getDataStoresInfo(aName, aWindow.document.nodePrincipal.appId);
-        if (stores === null) {
-          reject(new aWindow.DOMError("SecurityError", "Access denied"));
-          return;
-        }
         self.getDataStoreCreate(aWindow, resolve, stores);
       } else {
         // This method can be called in the child so we need to send a request
@@ -259,20 +248,6 @@ DataStoreService.prototype = {
 
   getDataStoresInfo: function(aName, aAppId) {
     debug('GetDataStoresInfo');
-
-    let appsService = Cc["@mozilla.org/AppsService;1"]
-                        .getService(Ci.nsIAppsService);
-    let app = appsService.getAppByLocalId(aAppId);
-    if (!app) {
-      return null;
-    }
-
-    let prefName = "dom.testing.datastore_enabled_for_hosted_apps";
-    if (app.appStatus != Ci.nsIPrincipal.APP_STATUS_CERTIFIED &&
-        (Services.prefs.getPrefType(prefName) == Services.prefs.PREF_INVALID ||
-          !Services.prefs.getBoolPref(prefName))) {
-      return null;
-    }
 
     let results = [];
 

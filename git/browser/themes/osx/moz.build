@@ -6,4 +6,3 @@
 
 DIRS += ['communicator']
 
-JAR_MANIFESTS += ['jar.mn']

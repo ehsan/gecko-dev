@@ -546,6 +546,27 @@ XPCWrappedNativeScope::SystemIsBeingShutDown()
 /***************************************************************************/
 
 static PLDHashOperator
+WNProtoSecPolicyClearer(PLDHashTable *table, PLDHashEntryHdr *hdr,
+                        uint32_t number, void *arg)
+{
+    XPCWrappedNativeProto* proto =
+        ((ClassInfo2WrappedNativeProtoMap::Entry*)hdr)->value;
+    *(proto->GetSecurityInfoAddr()) = nullptr;
+    return PL_DHASH_NEXT;
+}
+
+// static
+nsresult
+XPCWrappedNativeScope::ClearAllWrappedNativeSecurityPolicies()
+{
+    for (XPCWrappedNativeScope* cur = gScopes; cur; cur = cur->mNext) {
+        cur->mWrappedNativeProtoMap->Enumerate(WNProtoSecPolicyClearer, nullptr);
+    }
+
+    return NS_OK;
+}
+
+static PLDHashOperator
 WNProtoRemover(PLDHashTable *table, PLDHashEntryHdr *hdr,
                uint32_t number, void *arg)
 {
@@ -642,29 +663,27 @@ XPCWrappedNativeScope::DebugDump(int16_t depth)
 #endif
 }
 
-void
-XPCWrappedNativeScope::AddSizeOfAllScopesIncludingThis(ScopeSizeInfo* scopeSizeInfo)
+size_t
+XPCWrappedNativeScope::SizeOfAllScopesIncludingThis(MallocSizeOf mallocSizeOf)
 {
-    for (XPCWrappedNativeScope *cur = gScopes; cur; cur = cur->mNext)
-        cur->AddSizeOfIncludingThis(scopeSizeInfo);
+    size_t n = 0;
+    for (XPCWrappedNativeScope *cur = gScopes; cur; cur = cur->mNext) {
+        n += cur->SizeOfIncludingThis(mallocSizeOf);
+    }
+    return n;
 }
 
-void
-XPCWrappedNativeScope::AddSizeOfIncludingThis(ScopeSizeInfo* scopeSizeInfo)
+size_t
+XPCWrappedNativeScope::SizeOfIncludingThis(MallocSizeOf mallocSizeOf)
 {
-    scopeSizeInfo->mScopeAndMapSize += scopeSizeInfo->mMallocSizeOf(this);
-    scopeSizeInfo->mScopeAndMapSize +=
-        mWrappedNativeMap->SizeOfIncludingThis(scopeSizeInfo->mMallocSizeOf);
-    scopeSizeInfo->mScopeAndMapSize +=
-        mWrappedNativeProtoMap->SizeOfIncludingThis(scopeSizeInfo->mMallocSizeOf);
-
-    if (dom::HasProtoAndIfaceArray(mGlobalJSObject)) {
-        dom::ProtoAndIfaceArray* cache = dom::GetProtoAndIfaceArray(mGlobalJSObject);
-        scopeSizeInfo->mProtoAndIfaceCacheSize +=
-            cache->SizeOfIncludingThis(scopeSizeInfo->mMallocSizeOf);
-    }
+    size_t n = 0;
+    n += mallocSizeOf(this);
+    n += mWrappedNativeMap->SizeOfIncludingThis(mallocSizeOf);
+    n += mWrappedNativeProtoMap->SizeOfIncludingThis(mallocSizeOf);
 
     // There are other XPCWrappedNativeScope members that could be measured;
     // the above ones have been seen by DMD to be worth measuring.  More stuff
     // may be added later.
+
+    return n;
 }

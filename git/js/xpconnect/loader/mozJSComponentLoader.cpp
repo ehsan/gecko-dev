@@ -127,7 +127,7 @@ Dump(JSContext *cx, unsigned argc, Value *vp)
 #endif
 #ifdef XP_WIN
     if (IsDebuggerPresent()) {
-      OutputDebugStringW(reinterpret_cast<const wchar_t*>(chars));
+      OutputDebugStringW(reinterpret_cast<const PRUnichar*>(chars));
     }
 #endif
     fputs(utf8str.get(), stdout);
@@ -421,7 +421,7 @@ mozJSComponentLoader::LoadModule(FileLocation &aFile)
 
     JSAutoRequest ar(mContext);
     RootedValue dummy(mContext);
-    rv = ObjectForLocation(file, uri, &entry->obj, &entry->thisObjectKey,
+    rv = ObjectForLocation(file, uri, &entry->obj,
                            &entry->location, false, &dummy);
     if (NS_FAILED(rv)) {
         return nullptr;
@@ -570,37 +570,6 @@ mozJSComponentLoader::NoteSubScript(HandleScript aScript, HandleObject aThisObje
   mThisObjects.Put(aScript, aThisObject);
 }
 
-/* static */ size_t
-mozJSComponentLoader::DataEntrySizeOfExcludingThis(const nsACString& aKey,
-                                                   ModuleEntry* const& aData,
-                                                   MallocSizeOf aMallocSizeOf, void*)
-{
-    return aKey.SizeOfExcludingThisIfUnshared(aMallocSizeOf) +
-        aData->SizeOfIncludingThis(aMallocSizeOf);
-}
-
-/* static */ size_t
-mozJSComponentLoader::ClassEntrySizeOfExcludingThis(const nsACString& aKey,
-                                                    const nsAutoPtr<ModuleEntry>& aData,
-                                                    MallocSizeOf aMallocSizeOf, void*)
-{
-    return aKey.SizeOfExcludingThisIfUnshared(aMallocSizeOf) +
-        aData->SizeOfIncludingThis(aMallocSizeOf);
-}
-
-size_t
-mozJSComponentLoader::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf)
-{
-    size_t amount = aMallocSizeOf(this);
-
-    amount += mModules.SizeOfExcludingThis(DataEntrySizeOfExcludingThis, aMallocSizeOf);
-    amount += mImports.SizeOfExcludingThis(ClassEntrySizeOfExcludingThis, aMallocSizeOf);
-    amount += mInProgressImports.SizeOfExcludingThis(DataEntrySizeOfExcludingThis, aMallocSizeOf);
-    amount += mThisObjects.SizeOfExcludingThis(nullptr, aMallocSizeOf);
-
-    return amount;
-}
-
 // Some stack based classes for cleaning up on early return
 #ifdef HAVE_PR_MEMMAP
 class FileAutoCloser
@@ -742,7 +711,6 @@ nsresult
 mozJSComponentLoader::ObjectForLocation(nsIFile *aComponentFile,
                                         nsIURI *aURI,
                                         JSObject **aObject,
-                                        JSScript **aTableScript,
                                         char **aLocation,
                                         bool aPropagateExceptions,
                                         MutableHandleValue aException)
@@ -992,17 +960,12 @@ mozJSComponentLoader::ObjectForLocation(nsIFile *aComponentFile,
     // See bug 384168.
     *aObject = obj;
 
-    RootedScript tableScript(cx, script);
+    JSScript* tableScript = script;
     if (!tableScript) {
         tableScript = JS_GetFunctionScript(cx, function);
         MOZ_ASSERT(tableScript);
     }
 
-    *aTableScript = tableScript;
-
-    // tableScript stays in the table until shutdown. To avoid it being
-    // collected and another script getting the same address, we root
-    // tableScript lower down in this function.
     mThisObjects.Put(tableScript, obj);
     bool ok = false;
 
@@ -1024,8 +987,6 @@ mozJSComponentLoader::ObjectForLocation(nsIFile *aComponentFile,
             JS_ClearPendingException(cx);
         }
         *aObject = nullptr;
-        *aTableScript = nullptr;
-        mThisObjects.Remove(tableScript);
         return NS_ERROR_FAILURE;
     }
 
@@ -1033,13 +994,10 @@ mozJSComponentLoader::ObjectForLocation(nsIFile *aComponentFile,
     *aLocation = ToNewCString(nativePath);
     if (!*aLocation) {
         *aObject = nullptr;
-        *aTableScript = nullptr;
-        mThisObjects.Remove(tableScript);
         return NS_ERROR_OUT_OF_MEMORY;
     }
 
     JS_AddNamedObjectRoot(cx, aObject, *aLocation);
-    JS_AddNamedScriptRoot(cx, aTableScript, *aLocation);
     return NS_OK;
 }
 
@@ -1228,7 +1186,6 @@ mozJSComponentLoader::ImportInto(const nsACString &aLocation,
 
         RootedValue exception(callercx);
         rv = ObjectForLocation(sourceLocalFile, resURI, &newEntry->obj,
-                               &newEntry->thisObjectKey,
                                &newEntry->location, true, &exception);
 
         mInProgressImports.Remove(key);
@@ -1394,15 +1351,6 @@ mozJSComponentLoader::Observe(nsISupports *subject, const char *topic,
     }
 
     return NS_OK;
-}
-
-size_t
-mozJSComponentLoader::ModuleEntry::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
-{
-    size_t n = aMallocSizeOf(this);
-    n += aMallocSizeOf(location);
-
-    return n;
 }
 
 /* static */ already_AddRefed<nsIFactory>

@@ -98,7 +98,6 @@ XPCOMUtils.defineLazyServiceGetter(this, "uuidService",
 
 const DB_SCHEMA_VERSION = 4;
 const DAY_IN_MS  = 86400000; // 1 day in milliseconds
-const MAX_SEARCH_TOKENS = 10;
 const NOOP = function noop() {};
 
 let supportsDeletedTable =
@@ -970,8 +969,7 @@ this.FormHistory = {
         // for each word, calculate word boundary weights for the SELECT clause and
         // add word to the WHERE clause of the query
         let tokenCalc = [];
-        let searchTokenCount = Math.min(searchTokens.length, MAX_SEARCH_TOKENS);
-        for (let i = 0; i < searchTokenCount; i++) {
+        for (let i = 0; i < searchTokens.length; i++) {
             tokenCalc.push("(value LIKE :tokenBegin" + i + " ESCAPE '/') + " +
                             "(value LIKE :tokenBoundary" + i + " ESCAPE '/')");
             where += "AND (value LIKE :tokenContains" + i + " ESCAPE '/') ";
@@ -1023,8 +1021,7 @@ this.FormHistory = {
     if (searchString.length >= 1)
       stmt.params.valuePrefix = stmt.escapeStringForLIKE(searchString, "/") + "%";
     if (searchString.length > 1) {
-      let searchTokenCount = Math.min(searchTokens.length, MAX_SEARCH_TOKENS);
-      for (let i = 0; i < searchTokenCount; i++) {
+      for (let i = 0; i < searchTokens.length; i++) {
         let escapedToken = stmt.escapeStringForLIKE(searchTokens[i], "/");
         stmt.params["tokenBegin" + i] = escapedToken + "%";
         stmt.params["tokenBoundary" + i] =  "% " + escapedToken + "%";

@@ -134,19 +134,17 @@ var tests = {
         let domwindow = aXULWindow.QueryInterface(Ci.nsIInterfaceRequestor)
                                   .getInterface(Ci.nsIDOMWindow);
 
-        domwindow.addEventListener("load", function _load() {
-          domwindow.removeEventListener("load", _load, false);
-
-          domwindow.addEventListener("unload", function _unload() {
-            domwindow.removeEventListener("unload", _unload, false);
-            info("blocklist window was closed");
-            windowWasClosed = true;
-          }, false);
-
-          is(domwindow.document.location.href, URI_EXTENSION_BLOCKLIST_DIALOG, "dialog opened and focused");
-          domwindow.close();
-
+        domwindow.addEventListener("unload", function _unload() {
+          domwindow.removeEventListener("unload", _unload, false);
+          windowWasClosed = true;
         }, false);
+        info("dialog opened, waiting for focus");
+        waitForFocus(function() {
+          is(domwindow.document.location.href, URI_EXTENSION_BLOCKLIST_DIALOG, "dialog opened and focused");
+          executeSoon(function() {
+            domwindow.close();
+          });
+        }, domwindow);
       },
       onCloseWindow: function(aXULWindow) { },
       onWindowTitleChange: function(aXULWindow, aNewTitle) { }

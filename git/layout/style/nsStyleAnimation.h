@@ -242,7 +242,6 @@ public:
       nsCSSValueTriplet* mCSSValueTriplet;
       nsCSSRect* mCSSRect;
       nsCSSValueList* mCSSValueList;
-      nsCSSValueSharedList* mCSSValueSharedList;
       nsCSSValuePairList* mCSSValuePairList;
       nsStringBuffer* mString;
     } mValue;
@@ -298,10 +297,6 @@ public:
       NS_ASSERTION(IsCSSValueListUnit(mUnit), "unit mismatch");
       return mValue.mCSSValueList;
     }
-    nsCSSValueSharedList* GetCSSValueSharedListValue() const {
-      NS_ASSERTION(IsCSSValueSharedListValue(mUnit), "unit mismatch");
-      return mValue.mCSSValueSharedList;
-    }
     nsCSSValuePairList* GetCSSValuePairListValue() const {
       NS_ASSERTION(IsCSSValuePairListUnit(mUnit), "unit mismatch");
       return mValue.mCSSValuePairList;
@@ -356,8 +351,6 @@ public:
     void SetAndAdoptCSSValueListValue(nsCSSValueList *aValue, Unit aUnit);
     void SetAndAdoptCSSValuePairListValue(nsCSSValuePairList *aValue);
 
-    void SetTransformValue(nsCSSValueSharedList* aList);
-
     Value& operator=(const Value& aOther);
 
     bool operator==(const Value& aOther) const;
@@ -389,11 +382,8 @@ public:
     }
     static bool IsCSSValueListUnit(Unit aUnit) {
       return aUnit == eUnit_Dasharray || aUnit == eUnit_Filter ||
-             aUnit == eUnit_Shadow ||
+             aUnit == eUnit_Shadow || aUnit == eUnit_Transform ||
              aUnit == eUnit_BackgroundPosition;
-    }
-    static bool IsCSSValueSharedListValue(Unit aUnit) {
-      return aUnit == eUnit_Transform;
     }
     static bool IsCSSValuePairListUnit(Unit aUnit) {
       return aUnit == eUnit_CSSValuePairList;

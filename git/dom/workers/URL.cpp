@@ -4,24 +4,23 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "URL.h"
+#include "File.h"
+
+#include "WorkerPrivate.h"
+#include "nsThreadUtils.h"
+
+#include "nsPIDOMWindow.h"
+#include "nsGlobalWindow.h"
+#include "nsHostObjectProtocolHandler.h"
+#include "nsServiceManagerUtils.h"
 
 #include "nsIDocument.h"
 #include "nsIDOMFile.h"
-#include "nsIIOService.h"
-#include "nsPIDOMWindow.h"
 
 #include "mozilla/dom/URL.h"
 #include "mozilla/dom/URLBinding.h"
-#include "mozilla/dom/URLSearchParams.h"
-#include "nsGlobalWindow.h"
-#include "nsHostObjectProtocolHandler.h"
+#include "nsIIOService.h"
 #include "nsNetCID.h"
-#include "nsServiceManagerUtils.h"
-#include "nsThreadUtils.h"
-
-#include "File.h"
-#include "WorkerPrivate.h"
-#include "WorkerRunnable.h"
 
 BEGIN_WORKERS_NAMESPACE
 using mozilla::dom::GlobalObject;
@@ -67,7 +66,43 @@ class URLRunnable : public nsRunnable
 {
 protected:
   WorkerPrivate* mWorkerPrivate;
-  nsCOMPtr<nsIEventTarget> mSyncLoopTarget;
+  uint32_t mSyncQueueKey;
+
+private:
+  class ResponseRunnable : public WorkerSyncRunnable
+  {
+    uint32_t mSyncQueueKey;
+
+  public:
+    ResponseRunnable(WorkerPrivate* aWorkerPrivate,
+                     uint32_t aSyncQueueKey)
+    : WorkerSyncRunnable(aWorkerPrivate, aSyncQueueKey, false),
+      mSyncQueueKey(aSyncQueueKey)
+    {
+      NS_ASSERTION(aWorkerPrivate, "Don't hand me a null WorkerPrivate!");
+    }
+
+    bool
+    WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
+    {
+      aWorkerPrivate->StopSyncLoop(mSyncQueueKey, true);
+      return true;
+    }
+
+    bool
+    PreDispatch(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
+    {
+      AssertIsOnMainThread();
+      return true;
+    }
+
+    void
+    PostDispatch(JSContext* aCx, WorkerPrivate* aWorkerPrivate,
+                 bool aDispatchResult)
+    {
+      AssertIsOnMainThread();
+    }
+  };
 
 protected:
   URLRunnable(WorkerPrivate* aWorkerPrivate)
@@ -81,17 +116,15 @@ public:
   Dispatch(JSContext* aCx)
   {
     mWorkerPrivate->AssertIsOnWorkerThread();
-
     AutoSyncLoopHolder syncLoop(mWorkerPrivate);
-
-    mSyncLoopTarget = syncLoop.EventTarget();
+    mSyncQueueKey = syncLoop.SyncQueueKey();
 
     if (NS_FAILED(NS_DispatchToMainThread(this, NS_DISPATCH_NORMAL))) {
       JS_ReportError(aCx, "Failed to dispatch to main thread!");
       return false;
     }
 
-    return syncLoop.Run();
+    return syncLoop.RunAndForget(aCx);
   }
 
 private:
@@ -101,10 +134,8 @@ private:
 
     MainThreadRun();
 
-    nsRefPtr<MainThreadStopSyncLoopRunnable> response =
-      new MainThreadStopSyncLoopRunnable(mWorkerPrivate,
-                                         mSyncLoopTarget.forget(),
-                                         true);
+    nsRefPtr<ResponseRunnable> response =
+      new ResponseRunnable(mWorkerPrivate, mSyncQueueKey);
     if (!response->Dispatch(nullptr)) {
       NS_WARNING("Failed to dispatch response!");
     }
@@ -505,17 +536,6 @@ private:
   mozilla::ErrorResult& mRv;
 };
 
-NS_IMPL_CYCLE_COLLECTION_1(URL, mSearchParams)
-
-// The reason for using worker::URL is to have different refcnt logging than
-// for main thread URL.
-NS_IMPL_CYCLE_COLLECTING_ADDREF(workers::URL)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(workers::URL)
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(URL)
-  NS_INTERFACE_MAP_ENTRY(nsISupports)
-NS_INTERFACE_MAP_END
-
 // static
 URL*
 URL::Constructor(const GlobalObject& aGlobal, const nsAString& aUrl,
@@ -586,9 +606,10 @@ URL::~URL()
 }
 
 JSObject*
-URL::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
+URL::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope,
+                bool* aTookOwnership)
 {
-  return URLBinding_workers::Wrap(aCx, aScope, this);
+  return URLBinding_workers::Wrap(aCx, aScope, this, aTookOwnership);
 }
 
 void
@@ -612,10 +633,6 @@ URL::SetHref(const nsAString& aHref, ErrorResult& aRv)
 
   if (!runnable->Dispatch(mWorkerPrivate->GetJSContext())) {
     JS_ReportPendingException(mWorkerPrivate->GetJSContext());
-  }
-
-  if (mSearchParams) {
-    mSearchParams->Invalidate();
   }
 }
 
@@ -821,16 +838,6 @@ URL::GetSearch(nsString& aSearch) const
 void
 URL::SetSearch(const nsAString& aSearch)
 {
-  SetSearchInternal(aSearch);
-
-  if (mSearchParams) {
-    mSearchParams->Invalidate();
-  }
-}
-
-void
-URL::SetSearchInternal(const nsAString& aSearch)
-{
   ErrorResult rv;
   nsRefPtr<SetterRunnable> runnable =
     new SetterRunnable(mWorkerPrivate, SetterRunnable::SetterSearch,
@@ -839,36 +846,6 @@ URL::SetSearchInternal(const nsAString& aSearch)
   if (!runnable->Dispatch(mWorkerPrivate->GetJSContext())) {
     JS_ReportPendingException(mWorkerPrivate->GetJSContext());
   }
-}
-
-mozilla::dom::URLSearchParams*
-URL::GetSearchParams()
-{
-  CreateSearchParamsIfNeeded();
-  return mSearchParams;
-}
-
-void
-URL::SetSearchParams(URLSearchParams* aSearchParams)
-{
-  if (!aSearchParams) {
-    return;
-  }
-
-  if (!aSearchParams->HasURLAssociated()) {
-    MOZ_ASSERT(aSearchParams->IsValid());
-
-    mSearchParams = aSearchParams;
-    mSearchParams->SetObserver(this);
-  } else {
-    CreateSearchParamsIfNeeded();
-    mSearchParams->CopyFromURLSearchParams(*aSearchParams);
-  }
-
-
-  nsString search;
-  mSearchParams->Serialize(search);
-  SetSearchInternal(search);
 }
 
 void
@@ -944,36 +921,6 @@ URL::RevokeObjectURL(const GlobalObject& aGlobal, const nsAString& aUrl)
 
   if (!runnable->Dispatch(cx)) {
     JS_ReportPendingException(cx);
-  }
-}
-
-void
-URL::URLSearchParamsUpdated()
-{
-  MOZ_ASSERT(mSearchParams && mSearchParams->IsValid());
-
-  nsString search;
-  mSearchParams->Serialize(search);
-  SetSearchInternal(search);
-}
-
-void
-URL::URLSearchParamsNeedsUpdates()
-{
-  MOZ_ASSERT(mSearchParams);
-
-  nsString search;
-  GetSearch(search);
-  mSearchParams->ParseInput(NS_ConvertUTF16toUTF8(Substring(search, 1)));
-}
-
-void
-URL::CreateSearchParamsIfNeeded()
-{
-  if (!mSearchParams) {
-    mSearchParams = new URLSearchParams();
-    mSearchParams->SetObserver(this);
-    mSearchParams->Invalidate();
   }
 }
 

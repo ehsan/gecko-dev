@@ -4,9 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef IndexedDatabaseInlines_h
-#define IndexedDatabaseInlines_h
-
 #ifndef mozilla_dom_indexeddb_indexeddatabase_h__
 #error Must include IndexedDatabase.h first
 #endif
@@ -83,5 +80,3 @@ AppendConditionClause(const nsACString& aColumnName,
 }
 
 END_INDEXEDDB_NAMESPACE
-
-#endif

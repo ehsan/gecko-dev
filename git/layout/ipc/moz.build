@@ -29,7 +29,5 @@ LOCAL_INCLUDES += [
     '/content/base/src',
     '/layout/base',
     '/layout/generic',
-    '/layout/xul',
+    '/layout/xul/base/src',
 ]
-
-JAR_MANIFESTS += ['jar.mn']

@@ -81,12 +81,10 @@ loader.lazyGetter(this, "DOMParser", function() {
 });
 
 exports.register = function(handle) {
-  handle.addGlobalActor(InspectorActor, "inspectorActor");
   handle.addTabActor(InspectorActor, "inspectorActor");
 };
 
 exports.unregister = function(handle) {
-  handle.removeGlobalActor(InspectorActor);
   handle.removeTabActor(InspectorActor);
 };
 
@@ -722,7 +720,7 @@ var NodeListActor = exports.NodeListActor = protocol.ActorClass({
 /**
  * Client side of a node list as returned by querySelectorAll()
  */
-var NodeListFront = exports.NodeListFront = protocol.FrontClass(NodeListActor, {
+var NodeListFront = exports.NodeLIstFront = protocol.FrontClass(NodeListActor, {
   initialize: function(client, form) {
     protocol.Front.prototype.initialize.call(this, client, form);
   },

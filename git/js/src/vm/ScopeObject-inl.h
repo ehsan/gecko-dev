@@ -75,11 +75,9 @@ StaticScopeIter<allowGC>::scopeShape() const
 {
     JS_ASSERT(hasDynamicScopeObject());
     JS_ASSERT(type() != NAMED_LAMBDA);
-    if (type() == BLOCK) {
-        AutoThreadSafeAccess ts(&block());
-        return block().lastProperty();
-    }
-    return funScript()->callObjShape();
+    return type() == BLOCK
+           ? block().lastProperty()
+           : funScript()->bindings.callObjShape();
 }
 
 template <AllowGC allowGC>

@@ -19,8 +19,8 @@
 class nsIMemoryReporter;
 
 class nsObserverService MOZ_FINAL
-  : public nsIObserverService
-  , public nsIMemoryReporter
+  : public mozilla::MemoryMultiReporter
+  , public nsIObserverService
 {
 public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_OBSERVERSERVICE_CID)
@@ -29,8 +29,7 @@ public:
 
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIOBSERVERSERVICE
-  NS_DECL_NSIMEMORYREPORTER
-
+  
   void Shutdown();
 
   static nsresult
@@ -39,6 +38,9 @@ public:
   // Unmark any strongly held observers implemented in JS so the cycle
   // collector will not traverse them.
   NS_IMETHOD UnmarkGrayStrongObservers();
+
+  NS_IMETHOD CollectReports(nsIHandleReportCallback *aHandleReport,
+                            nsISupports *aData);
 
 private:
   ~nsObserverService(void);

@@ -19,7 +19,6 @@ interface StyleSheetList;
 interface WindowProxy;
 interface nsISupports;
 interface URI;
-interface nsIDocShell;
 
 enum VisibilityState { "hidden", "visible" };
 
@@ -280,9 +279,9 @@ partial interface Document {
 
 // http://dev.w3.org/2006/webapi/selectors-api2/#interface-definitions
 partial interface Document {
-  [Throws, Pure]
+  [Throws]
   Element?  querySelector(DOMString selectors);
-  [Throws, Pure]
+  [Throws]
   NodeList  querySelectorAll(DOMString selectors);
 
   //(Not implemented)Element?  find(DOMString selectors, optional (Element or sequence<Node>)? refNodes);
@@ -341,8 +340,6 @@ partial interface Document {
   void obsoleteSheet(URI sheetURI);
   [ChromeOnly, Throws]
   void obsoleteSheet(DOMString sheetURI);
-
-  [ChromeOnly] readonly attribute nsIDocShell? docShell;
 };
 
 // Extension to give chrome JS the ability to determine when a document was

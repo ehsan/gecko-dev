@@ -20,7 +20,6 @@ EXPORTS += [
     'nsCacheService.h',
 ]
 
-# These files cannot be built in unified mode because they force NSPR logging.
 SOURCES += [
     'nsApplicationCacheService.cpp',
     'nsCache.cpp',

@@ -49,13 +49,13 @@
 # define WIN32_EXTRA_LEAN
 # include <windows.h>
 
-static OPUS_INLINE opus_uint32 opus_cpu_capabilities(void){
+static inline opus_uint32 opus_cpu_capabilities(void){
   opus_uint32 flags;
   flags=0;
-  /* MSVC has no OPUS_INLINE __asm support for ARM, but it does let you __emit
+  /* MSVC has no inline __asm support for ARM, but it does let you __emit
    * instructions via their assembled hex code.
    * All of these instructions should be essentially nops. */
-# if defined(OPUS_ARM_MAY_HAVE_EDSP)
+# if defined(ARMv5E_ASM)
   __try{
     /*PLD [r13]*/
     __emit(0xF5DDF000);
@@ -64,7 +64,7 @@ static OPUS_INLINE opus_uint32 opus_cpu_capabilities(void){
   __except(GetExceptionCode()==EXCEPTION_ILLEGAL_INSTRUCTION){
     /*Ignore exception.*/
   }
-#  if defined(OPUS_ARM_MAY_HAVE_MEDIA)
+#  if defined(ARMv6E_ASM)
   __try{
     /*SHADD8 r3,r3,r3*/
     __emit(0xE6333F93);
@@ -73,7 +73,7 @@ static OPUS_INLINE opus_uint32 opus_cpu_capabilities(void){
   __except(GetExceptionCode()==EXCEPTION_ILLEGAL_INSTRUCTION){
     /*Ignore exception.*/
   }
-#   if defined(OPUS_ARM_MAY_HAVE_NEON)
+#   if defined(ARM_HAVE_NEON)
   __try{
     /*VORR q0,q0,q0*/
     __emit(0xF2200150);
@@ -107,26 +107,19 @@ opus_uint32 opus_cpu_capabilities(void)
 
     while(fgets(buf, 512, cpuinfo) != NULL)
     {
-# if defined(OPUS_ARM_MAY_HAVE_EDSP) || defined(OPUS_ARM_MAY_HAVE_NEON)
       /* Search for edsp and neon flag */
       if(memcmp(buf, "Features", 8) == 0)
       {
         char *p;
-#  if defined(OPUS_ARM_MAY_HAVE_EDSP)
         p = strstr(buf, " edsp");
         if(p != NULL && (p[5] == ' ' || p[5] == '\n'))
           flags |= OPUS_CPU_ARM_EDSP;
-#  endif
 
-#  if defined(OPUS_ARM_MAY_HAVE_NEON)
         p = strstr(buf, " neon");
         if(p != NULL && (p[5] == ' ' || p[5] == '\n'))
           flags |= OPUS_CPU_ARM_NEON;
-#  endif
       }
-# endif
 
-# if defined(OPUS_ARM_MAY_HAVE_MEDIA)
       /* Search for media capabilities (>= ARMv6) */
       if(memcmp(buf, "CPU architecture:", 17) == 0)
       {
@@ -136,7 +129,6 @@ opus_uint32 opus_cpu_capabilities(void)
         if(version >= 6)
           flags |= OPUS_CPU_ARM_MEDIA;
       }
-# endif
     }
 
     fclose(cpuinfo);

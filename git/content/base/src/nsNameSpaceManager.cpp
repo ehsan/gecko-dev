@@ -19,7 +19,6 @@
 #include "nsString.h"
 #include "nsINodeInfo.h"
 #include "mozilla/dom/XBLChildrenElement.h"
-#include "mozilla/dom/Element.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -189,7 +188,7 @@ NameSpaceManagerImpl::GetNameSpaceID(const nsAString& aURI)
 }
 
 nsresult
-NS_NewElement(Element** aResult,
+NS_NewElement(nsIContent** aResult,
               already_AddRefed<nsINodeInfo> aNodeInfo, FromParser aFromParser)
 {
   int32_t ns = aNodeInfo.get()->NamespaceID();
@@ -211,7 +210,6 @@ NS_NewElement(Element** aResult,
     NS_ADDREF(*aResult = new XBLChildrenElement(aNodeInfo));
     return NS_OK;
   }
-
   return NS_NewXMLElement(aResult, aNodeInfo);
 }
 

@@ -191,14 +191,13 @@ public:
   /**
    * @note This method might destroy the frame, pres shell and other objects.
    */
-  void ScrollToCSSPixelsApproximate(const mozilla::CSSPoint& aScrollPosition,
-                                    nsIAtom* aOrigin = nullptr);
+  void ScrollToCSSPixelsApproximate(const mozilla::CSSPoint& aScrollPosition);
 
   CSSIntPoint GetScrollPositionCSSPixels();
   /**
    * @note This method might destroy the frame, pres shell and other objects.
    */
-  void ScrollToImpl(nsPoint aScrollPosition, const nsRect& aRange, nsIAtom* aOrigin = nullptr);
+  void ScrollToImpl(nsPoint aScrollPosition, const nsRect& aRange);
   void ScrollVisual(nsPoint aOldScrolledFramePosition);
   /**
    * @note This method might destroy the frame, pres shell and other objects.
@@ -306,9 +305,6 @@ public:
 
   void HandleScrollbarStyleSwitching();
 
-  nsIAtom* OriginOfLastScroll() const { return mOriginOfLastScroll; }
-  void ResetOriginOfLastScroll() { mOriginOfLastScroll = nullptr; }
-
   // owning references to the nsIAnonymousContentCreator-built content
   nsCOMPtr<nsIContent> mHScrollbarContent;
   nsCOMPtr<nsIContent> mVScrollbarContent;
@@ -327,7 +323,6 @@ public:
   nsRefPtr<AsyncScroll> mAsyncScroll;
   nsRefPtr<ScrollbarActivity> mScrollbarActivity;
   nsTArray<nsIScrollPositionListener*> mListeners;
-  nsIAtom* mOriginOfLastScroll;
   nsRect mScrollPort;
   // Where we're currently scrolling to, if we're scrolling asynchronously.
   // If we're not in the middle of an asynchronous scroll then this is
@@ -594,9 +589,8 @@ public:
   virtual void ScrollToCSSPixels(const CSSIntPoint& aScrollPosition) MOZ_OVERRIDE {
     mHelper.ScrollToCSSPixels(aScrollPosition);
   }
-  virtual void ScrollToCSSPixelsApproximate(const mozilla::CSSPoint& aScrollPosition,
-                                            nsIAtom* aOrigin = nullptr) MOZ_OVERRIDE {
-    mHelper.ScrollToCSSPixelsApproximate(aScrollPosition, aOrigin);
+  virtual void ScrollToCSSPixelsApproximate(const mozilla::CSSPoint& aScrollPosition) MOZ_OVERRIDE {
+    mHelper.ScrollToCSSPixelsApproximate(aScrollPosition);
   }
   /**
    * @note This method might destroy the frame, pres shell and other objects.
@@ -647,12 +641,6 @@ public:
   }
   virtual bool IsRectNearlyVisible(const nsRect& aRect) MOZ_OVERRIDE {
     return mHelper.IsRectNearlyVisible(aRect);
-  }
-  virtual nsIAtom* OriginOfLastScroll() MOZ_OVERRIDE {
-    return mHelper.OriginOfLastScroll();
-  }
-  virtual void ResetOriginOfLastScroll() MOZ_OVERRIDE {
-    mHelper.ResetOriginOfLastScroll();
   }
 
   // nsIStatefulFrame
@@ -895,9 +883,8 @@ public:
   virtual void ScrollToCSSPixels(const CSSIntPoint& aScrollPosition) MOZ_OVERRIDE {
     mHelper.ScrollToCSSPixels(aScrollPosition);
   }
-  virtual void ScrollToCSSPixelsApproximate(const mozilla::CSSPoint& aScrollPosition,
-                                            nsIAtom* aOrigin = nullptr) MOZ_OVERRIDE {
-    mHelper.ScrollToCSSPixelsApproximate(aScrollPosition, aOrigin);
+  virtual void ScrollToCSSPixelsApproximate(const mozilla::CSSPoint& aScrollPosition) MOZ_OVERRIDE {
+    mHelper.ScrollToCSSPixelsApproximate(aScrollPosition);
   }
   virtual CSSIntPoint GetScrollPositionCSSPixels() MOZ_OVERRIDE {
     return mHelper.GetScrollPositionCSSPixels();
@@ -906,7 +893,7 @@ public:
    * @note This method might destroy the frame, pres shell and other objects.
    */
   virtual void ScrollBy(nsIntPoint aDelta, ScrollUnit aUnit, ScrollMode aMode,
-                        nsIntPoint* aOverflow, nsIAtom* aOrigin = nullptr) MOZ_OVERRIDE {
+                        nsIntPoint* aOverflow, nsIAtom *aOrigin = nullptr) MOZ_OVERRIDE {
     mHelper.ScrollBy(aDelta, aUnit, aMode, aOverflow, aOrigin);
   }
   /**
@@ -945,12 +932,6 @@ public:
   }
   virtual bool IsRectNearlyVisible(const nsRect& aRect) MOZ_OVERRIDE {
     return mHelper.IsRectNearlyVisible(aRect);
-  }
-  virtual nsIAtom* OriginOfLastScroll() MOZ_OVERRIDE {
-    return mHelper.OriginOfLastScroll();
-  }
-  virtual void ResetOriginOfLastScroll() MOZ_OVERRIDE {
-    mHelper.ResetOriginOfLastScroll();
   }
 
   // nsIStatefulFrame

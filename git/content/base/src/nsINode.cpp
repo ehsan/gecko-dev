@@ -18,6 +18,7 @@
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/MutationEvent.h"
 #include "mozilla/Telemetry.h"
+#include "mozilla/Util.h"
 #include "nsAsyncDOMEvent.h"
 #include "nsAttrValueOrString.h"
 #include "nsBindingManager.h"
@@ -96,7 +97,6 @@
 #include "nsCSSParser.h"
 #include "HTMLLegendElement.h"
 #include "nsWrapperCacheInlines.h"
-#include "mozilla/dom/ShadowRoot.h"
 #include "WrapperFactory.h"
 #include "DocumentType.h"
 #include <algorithm>
@@ -238,15 +238,6 @@ nsINode::GetTextEditorRootContent(nsIEditor** aEditor)
 static nsIContent* GetRootForContentSubtree(nsIContent* aContent)
 {
   NS_ENSURE_TRUE(aContent, nullptr);
-
-  // Special case for ShadowRoot because the ShadowRoot itself is
-  // the root. This is necessary to prevent selection from crossing
-  // the ShadowRoot boundary.
-  ShadowRoot* containingShadow = aContent->GetContainingShadow();
-  if (containingShadow) {
-    return containingShadow;
-  }
-
   nsIContent* stop = aContent->GetBindingParent();
   while (aContent) {
     nsIContent* parent = aContent->GetParent();
@@ -315,17 +306,8 @@ nsINode::GetSelectionRootContent(nsIPresShell* aPresShell)
   // This node might be in another subtree, if so, we should find this subtree's
   // root.  Otherwise, we can return the content simply.
   NS_ENSURE_TRUE(content, nullptr);
-  if (!nsContentUtils::IsInSameAnonymousTree(this, content)) {
-    content = GetRootForContentSubtree(static_cast<nsIContent*>(this));
-    // Fixup for ShadowRoot because the ShadowRoot itself does not have a frame.
-    // Use the host as the root.
-    ShadowRoot* shadowRoot = ShadowRoot::FromNode(content);
-    if (shadowRoot) {
-      content = shadowRoot->GetHost();
-    }
-  }
-
-  return content;
+  return nsContentUtils::IsInSameAnonymousTree(this, content) ?
+           content : GetRootForContentSubtree(static_cast<nsIContent*>(this));
 }
 
 nsINodeList*
@@ -538,11 +520,8 @@ nsINode::Normalize()
       HasMutationListeners(doc, NS_EVENT_BITS_MUTATION_NODEREMOVED);
   if (hasRemoveListeners) {
     for (uint32_t i = 0; i < nodes.Length(); ++i) {
-      nsINode* parentNode = nodes[i]->GetParentNode();
-      if (parentNode) { // Node may have already been removed.
-        nsContentUtils::MaybeFireNodeRemoved(nodes[i], parentNode,
-                                             doc);
-      }
+      nsContentUtils::MaybeFireNodeRemoved(nodes[i], nodes[i]->GetParentNode(),
+                                           doc);
     }
   }
 
@@ -1572,11 +1551,7 @@ bool IsAllowedAsChild(nsIContent* aNewChild, nsINode* aParent,
   // could be pretty deep in the DOM tree.
   if (aNewChild == aParent ||
       ((aNewChild->GetFirstChild() ||
-        // HTML template elements and ShadowRoot hosts need
-        // to be checked to ensure that they are not inserted into
-        // the hosted content.
-        aNewChild->Tag() == nsGkAtoms::_template ||
-        aNewChild->GetShadowRoot()) &&
+        aNewChild->Tag() == nsGkAtoms::_template) &&
        nsContentUtils::ContentIsHostIncludingDescendantOf(aParent,
                                                           aNewChild))) {
     return false;
@@ -2301,36 +2276,28 @@ nsINode::Length() const
   }
 }
 
-nsCSSSelectorList*
-nsINode::ParseSelectorList(const nsAString& aSelectorString,
-                           ErrorResult& aRv)
+// NOTE: The aPresContext pointer is NOT addrefed.
+// *aSelectorList might be null even if NS_OK is returned; this
+// happens when all the selectors were pseudo-element selectors.
+static nsresult
+ParseSelectorList(nsINode* aNode,
+                  const nsAString& aSelectorString,
+                  nsCSSSelectorList** aSelectorList)
 {
-  nsIDocument* doc = OwnerDoc();
-  nsIDocument::SelectorCache& cache = doc->GetSelectorCache();
-  nsCSSSelectorList* selectorList = nullptr;
-  bool haveCachedList = cache.GetList(aSelectorString, &selectorList);
-  if (haveCachedList) {
-    if (!selectorList) {
-      // Invalid selector.
-      aRv.Throw(NS_ERROR_DOM_SYNTAX_ERR);
-    }
-    return selectorList;
-  }
-
+  MOZ_ASSERT(aNode);
+  nsIDocument* doc = aNode->OwnerDoc();
   nsCSSParser parser(doc->CSSLoader());
 
-  aRv = parser.ParseSelectorString(aSelectorString,
-                                   doc->GetDocumentURI(),
-                                   0, // XXXbz get the line number!
-                                   &selectorList);
-  if (aRv.Failed()) {
+  nsCSSSelectorList* selectorList;
+  nsresult rv = parser.ParseSelectorString(aSelectorString,
+                                           doc->GetDocumentURI(),
+                                           0, // XXXbz get the line number!
+                                           &selectorList);
+  if (NS_FAILED(rv)) {
     // We hit this for syntax errors, which are quite common, so don't
     // use NS_ENSURE_SUCCESS.  (For example, jQuery has an extended set
     // of selectors, but it sees if we can parse them first.)
-    MOZ_ASSERT(aRv.ErrorCode() == NS_ERROR_DOM_SYNTAX_ERR,
-               "Unexpected error, so cached version won't return it");
-    cache.CacheList(aSelectorString, nullptr);
-    return nullptr;
+    return rv;
   }
 
   // Filter out pseudo-element selectors from selectorList
@@ -2345,18 +2312,9 @@ nsINode::ParseSelectorList(const nsAString& aSelectorString,
       slot = &cur->mNext;
     }
   } while (*slot);
+  *aSelectorList = selectorList;
 
-  if (selectorList) {
-    NS_ASSERTION(selectorList->mSelectors,
-                 "How can we not have any selectors?");
-    cache.CacheList(aSelectorString, selectorList);
-  } else {
-    // This is the "only pseudo-element selectors" case, which is
-    // not common, so just don't worry about caching it.  That way a
-    // null cached value can always indicate an invalid selector.
-  }
-
-  return selectorList;
+  return NS_OK;
 }
 
 static void
@@ -2426,11 +2384,41 @@ FindMatchingElementsWithId(const nsAString& aId, nsINode* aRoot,
 // null) and which are descendants of aRoot and put them in aList.  If
 // onlyFirstMatch, then stop once the first one is found.
 template<bool onlyFirstMatch, class Collector, class T>
-MOZ_ALWAYS_INLINE static void
-FindMatchingElements(nsINode* aRoot, nsCSSSelectorList* aSelectorList, T &aList,
-                     ErrorResult& aRv)
+MOZ_ALWAYS_INLINE static nsresult
+FindMatchingElements(nsINode* aRoot, const nsAString& aSelector, T &aList)
 {
   nsIDocument* doc = aRoot->OwnerDoc();
+  nsIDocument::SelectorCache& cache = doc->GetSelectorCache();
+  nsCSSSelectorList* selectorList = nullptr;
+  bool haveCachedList = cache.GetList(aSelector, &selectorList);
+
+  if (!haveCachedList) {
+    nsresult rv = ParseSelectorList(aRoot, aSelector, &selectorList);
+    if (NS_FAILED(rv)) {
+      MOZ_ASSERT(!selectorList);
+      MOZ_ASSERT(rv == NS_ERROR_DOM_SYNTAX_ERR,
+                 "Unexpected error, so cached version won't return it");
+      // We hit this for syntax errors, which are quite common, so don't
+      // use NS_ENSURE_SUCCESS.  (For example, jQuery has an extended set
+      // of selectors, but it sees if we can parse them first.)
+    } else if (!selectorList) {
+      // This is the "only pseudo-element selectors" case, which is
+      // not common, so just don't worry about caching it.  That way a
+      // null cached value can always indicate an invalid selector.
+      // Also don't try to do any matching, of course.
+      return NS_OK;
+    }
+
+    cache.CacheList(aSelector, selectorList);
+  }
+
+  if (!selectorList) {
+    // Invalid selector, since we've already handled the pseudo-element case.
+    return NS_ERROR_DOM_SYNTAX_ERR;
+  }
+
+  NS_ASSERTION(selectorList->mSelectors,
+               "How can we not have any selectors?");
 
   TreeMatchContext matchingContext(false, nsRuleWalker::eRelevantLinkUnvisited,
                                    doc, TreeMatchContext::eNeverMatchVisited);
@@ -2440,7 +2428,7 @@ FindMatchingElements(nsINode* aRoot, nsCSSSelectorList* aSelectorList, T &aList,
   // Fast-path selectors involving IDs.  We can only do this if aRoot
   // is in the document and the document is not in quirks mode, since
   // ID selectors are case-insensitive in quirks mode.  Also, only do
-  // this if aSelectorList only has one selector, because otherwise
+  // this if selectorList only has one selector, because otherwise
   // ordering the elements correctly is a pain.
   NS_ASSERTION(aRoot->IsElement() || aRoot->IsNodeOfType(nsINode::eDOCUMENT) ||
                !aRoot->IsInDoc(),
@@ -2449,13 +2437,13 @@ FindMatchingElements(nsINode* aRoot, nsCSSSelectorList* aSelectorList, T &aList,
                "document if it's in the document.");
   if (aRoot->IsInDoc() &&
       doc->GetCompatibilityMode() != eCompatibility_NavQuirks &&
-      !aSelectorList->mNext &&
-      aSelectorList->mSelectors->mIDList) {
-    nsIAtom* id = aSelectorList->mSelectors->mIDList->mAtom;
-    SelectorMatchInfo info = { aSelectorList, matchingContext };
+      !selectorList->mNext &&
+      selectorList->mSelectors->mIDList) {
+    nsIAtom* id = selectorList->mSelectors->mIDList->mAtom;
+    SelectorMatchInfo info = { selectorList, matchingContext };
     FindMatchingElementsWithId<onlyFirstMatch, T>(nsDependentAtomString(id),
                                                   aRoot, &info, aList);
-    return;
+    return NS_OK;
   }
 
   Collector results;
@@ -2465,10 +2453,10 @@ FindMatchingElements(nsINode* aRoot, nsCSSSelectorList* aSelectorList, T &aList,
     if (cur->IsElement() &&
         nsCSSRuleProcessor::SelectorListMatches(cur->AsElement(),
                                                 matchingContext,
-                                                aSelectorList)) {
+                                                selectorList)) {
       if (onlyFirstMatch) {
         aList.AppendElement(cur->AsElement());
-        return;
+        return NS_OK;
       }
       results.AppendElement(cur->AsElement());
     }
@@ -2481,6 +2469,8 @@ FindMatchingElements(nsINode* aRoot, nsCSSSelectorList* aSelectorList, T &aList,
       aList.AppendElement(results.ElementAt(i));
     }
   }
+
+  return NS_OK;
 }
 
 struct ElementHolder {
@@ -2499,14 +2489,9 @@ struct ElementHolder {
 Element*
 nsINode::QuerySelector(const nsAString& aSelector, ErrorResult& aResult)
 {
-  nsCSSSelectorList* selectorList = ParseSelectorList(aSelector, aResult);
-  if (!selectorList) {
-    // Either we failed (and aResult already has the exception), or this
-    // is a pseudo-element-only selector that matches nothing.
-    return nullptr;
-  }
   ElementHolder holder;
-  FindMatchingElements<true, ElementHolder>(this, selectorList, holder, aResult);
+  aResult = FindMatchingElements<true, ElementHolder>(this, aSelector, holder);
+
   return holder.mElement;
 }
 
@@ -2515,16 +2500,10 @@ nsINode::QuerySelectorAll(const nsAString& aSelector, ErrorResult& aResult)
 {
   nsRefPtr<nsSimpleContentList> contentList = new nsSimpleContentList(this);
 
-  nsCSSSelectorList* selectorList = ParseSelectorList(aSelector, aResult);
-  if (selectorList) {
+  aResult =
     FindMatchingElements<false, nsAutoTArray<Element*, 128>>(this,
-                                                             selectorList,
-                                                             *contentList,
-                                                             aResult);
-  } else {
-    // Either we failed (and aResult already has the exception), or this
-    // is a pseudo-element-only selector that matches nothing.
-  }
+                                                             aSelector,
+                                                             *contentList);
 
   return contentList.forget();
 }

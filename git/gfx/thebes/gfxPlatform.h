@@ -506,8 +506,6 @@ public:
     static bool CanUseDirect3D9();
     static int  GetPrefLayoutFrameRate();
     static bool GetPrefLayersDump();
-    static bool GetPrefLayersScrollGraph();
-    static bool GetPrefLayersEnableTiles();
 
     static bool OffMainThreadCompositionRequired();
 
@@ -703,7 +701,7 @@ private:
 
     static void CreateCMSOutputProfile();
 
-    friend void RecordingPrefChanged(const char *aPrefName, void *aClosure);
+    friend int RecordingPrefChanged(const char *aPrefName, void *aClosure);
 
     virtual qcms_profile* GetPlatformCMSOutputProfile();
 

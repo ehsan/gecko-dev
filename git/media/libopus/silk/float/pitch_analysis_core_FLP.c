@@ -48,8 +48,7 @@ static void silk_P_Ana_calc_corr_st3(
     opus_int            start_lag,          /* I start lag                                                      */
     opus_int            sf_length,          /* I sub frame length                                               */
     opus_int            nb_subfr,           /* I number of subframes                                            */
-    opus_int            complexity,         /* I Complexity setting                                             */
-    int                 arch                /* I Run-time architecture                                          */
+    opus_int            complexity          /* I Complexity setting                                             */
 );
 
 static void silk_P_Ana_calc_energy_st3(
@@ -75,8 +74,7 @@ opus_int silk_pitch_analysis_core_FLP(      /* O    Voicing estimate: 0 voiced, 
     const silk_float    search_thres2,      /* I    Final threshold for lag candidates 0 - 1                    */
     const opus_int      Fs_kHz,             /* I    sample frequency (kHz)                                      */
     const opus_int      complexity,         /* I    Complexity setting, 0-2, where 2 is highest                 */
-    const opus_int      nb_subfr,           /* I    Number of 5 ms subframes                                    */
-    int                 arch                /* I    Run-time architecture                                       */
+    const opus_int      nb_subfr            /* I    Number of 5 ms subframes                                    */
 )
 {
     opus_int   i, k, d, j;
@@ -178,7 +176,7 @@ opus_int silk_pitch_analysis_core_FLP(      /* O    Voicing estimate: 0 voiced, 
         silk_assert( basis_ptr >= frame_4kHz );
         silk_assert( basis_ptr + sf_length_8kHz <= frame_4kHz + frame_length_4kHz );
 
-        celt_pitch_xcorr( target_ptr, target_ptr-max_lag_4kHz, xcorr, sf_length_8kHz, max_lag_4kHz - min_lag_4kHz + 1, arch );
+        celt_pitch_xcorr( target_ptr, target_ptr-max_lag_4kHz, xcorr, sf_length_8kHz, max_lag_4kHz - min_lag_4kHz + 1 );
 
         /* Calculate first vector products before loop */
         cross_corr = xcorr[ max_lag_4kHz - min_lag_4kHz ];
@@ -411,7 +409,7 @@ opus_int silk_pitch_analysis_core_FLP(      /* O    Voicing estimate: 0 voiced, 
         CCmax = -1000.0f;
 
         /* Calculate the correlations and energies needed in stage 3 */
-        silk_P_Ana_calc_corr_st3( cross_corr_st3, frame, start_lag, sf_length, nb_subfr, complexity, arch );
+        silk_P_Ana_calc_corr_st3( cross_corr_st3, frame, start_lag, sf_length, nb_subfr, complexity );
         silk_P_Ana_calc_energy_st3( energies_st3, frame, start_lag, sf_length, nb_subfr, complexity );
 
         lag_counter = 0;
@@ -495,11 +493,10 @@ static void silk_P_Ana_calc_corr_st3(
     opus_int            start_lag,          /* I start lag                                                      */
     opus_int            sf_length,          /* I sub frame length                                               */
     opus_int            nb_subfr,           /* I number of subframes                                            */
-    opus_int            complexity,         /* I Complexity setting                                             */
-    int                 arch                /* I Run-time architecture                                          */
+    opus_int            complexity          /* I Complexity setting                                             */
 )
 {
-    const silk_float *target_ptr;
+    const silk_float *target_ptr, *basis_ptr;
     opus_int   i, j, k, lag_counter, lag_low, lag_high;
     opus_int   nb_cbk_search, delta, idx, cbk_size;
     silk_float scratch_mem[ SCRATCH_SIZE ];
@@ -530,8 +527,9 @@ static void silk_P_Ana_calc_corr_st3(
         lag_low  = matrix_ptr( Lag_range_ptr, k, 0, 2 );
         lag_high = matrix_ptr( Lag_range_ptr, k, 1, 2 );
         silk_assert(lag_high-lag_low+1 <= SCRATCH_SIZE);
-        celt_pitch_xcorr( target_ptr, target_ptr - start_lag - lag_high, xcorr, sf_length, lag_high - lag_low + 1, arch );
+        celt_pitch_xcorr( target_ptr, target_ptr - start_lag - lag_high, xcorr, sf_length, lag_high - lag_low + 1 );
         for( j = lag_low; j <= lag_high; j++ ) {
+            basis_ptr = target_ptr - ( start_lag + j );
             silk_assert( lag_counter < SCRATCH_SIZE );
             scratch_mem[ lag_counter ] = xcorr[ lag_high - j ];
             lag_counter++;

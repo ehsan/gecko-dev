@@ -227,8 +227,7 @@ void silk_autocorr(
     opus_int                    *scale,             /* O    Scaling of the correlation vector                           */
     const opus_int16            *inputData,         /* I    Input data to correlate                                     */
     const opus_int              inputDataSize,      /* I    Length of input                                             */
-    const opus_int              correlationCount,   /* I    Number of correlation taps to compute                       */
-    int                         arch                /* I    Run-time architecture                                       */
+    const opus_int              correlationCount    /* I    Number of correlation taps to compute                       */
 );
 
 void silk_decode_pitch(
@@ -250,8 +249,7 @@ opus_int silk_pitch_analysis_core(                  /* O    Voicing estimate: 0 
     const opus_int              search_thres2_Q13,  /* I    Final threshold for lag candidates 0 - 1                    */
     const opus_int              Fs_kHz,             /* I    Sample frequency (kHz)                                      */
     const opus_int              complexity,         /* I    Complexity setting, 0-2, where 2 is highest                 */
-    const opus_int              nb_subfr,           /* I    number of 5 ms subframes                                    */
-    int                         arch                /* I    Run-time architecture                                       */
+    const opus_int              nb_subfr            /* I    number of 5 ms subframes                                    */
 );
 
 /* Compute Normalized Line Spectral Frequencies (NLSFs) from whitening filter coefficients      */
@@ -311,8 +309,7 @@ void silk_burg_modified(
     const opus_int32            minInvGain_Q30,     /* I    Inverse of max prediction gain                              */
     const opus_int              subfr_length,       /* I    Input signal subframe length (incl. D preceding samples)    */
     const opus_int              nb_subfr,           /* I    Number of subframes stacked in x                            */
-    const opus_int              D,                  /* I    Order                                                       */
-    int                         arch                /* I    Run-time architecture                                       */
+    const opus_int              D                   /* I    Order                                                       */
 );
 
 /* Copy and multiply a vector by a constant */
@@ -361,8 +358,8 @@ opus_int64 silk_inner_prod16_aligned_64(
 /* Rotate a32 right by 'rot' bits. Negative rot values result in rotating
    left. Output is 32bit int.
    Note: contemporary compilers recognize the C expression below and
-   compile it into a 'ror' instruction if available. No need for OPUS_INLINE ASM! */
-static OPUS_INLINE opus_int32 silk_ROR32( opus_int32 a32, opus_int rot )
+   compile it into a 'ror' instruction if available. No need for inline ASM! */
+static inline opus_int32 silk_ROR32( opus_int32 a32, opus_int rot )
 {
     opus_uint32 x = (opus_uint32) a32;
     opus_uint32 r = (opus_uint32) rot;
@@ -511,37 +508,37 @@ static OPUS_INLINE opus_int32 silk_ROR32( opus_int32 a32, opus_int rot )
 #define SILK_FIX_CONST( C, Q )              ((opus_int32)((C) * ((opus_int64)1 << (Q)) + 0.5))
 
 /* silk_min() versions with typecast in the function call */
-static OPUS_INLINE opus_int silk_min_int(opus_int a, opus_int b)
+static inline opus_int silk_min_int(opus_int a, opus_int b)
 {
     return (((a) < (b)) ? (a) : (b));
 }
-static OPUS_INLINE opus_int16 silk_min_16(opus_int16 a, opus_int16 b)
+static inline opus_int16 silk_min_16(opus_int16 a, opus_int16 b)
 {
     return (((a) < (b)) ? (a) : (b));
 }
-static OPUS_INLINE opus_int32 silk_min_32(opus_int32 a, opus_int32 b)
+static inline opus_int32 silk_min_32(opus_int32 a, opus_int32 b)
 {
     return (((a) < (b)) ? (a) : (b));
 }
-static OPUS_INLINE opus_int64 silk_min_64(opus_int64 a, opus_int64 b)
+static inline opus_int64 silk_min_64(opus_int64 a, opus_int64 b)
 {
     return (((a) < (b)) ? (a) : (b));
 }
 
 /* silk_min() versions with typecast in the function call */
-static OPUS_INLINE opus_int silk_max_int(opus_int a, opus_int b)
+static inline opus_int silk_max_int(opus_int a, opus_int b)
 {
     return (((a) > (b)) ? (a) : (b));
 }
-static OPUS_INLINE opus_int16 silk_max_16(opus_int16 a, opus_int16 b)
+static inline opus_int16 silk_max_16(opus_int16 a, opus_int16 b)
 {
     return (((a) > (b)) ? (a) : (b));
 }
-static OPUS_INLINE opus_int32 silk_max_32(opus_int32 a, opus_int32 b)
+static inline opus_int32 silk_max_32(opus_int32 a, opus_int32 b)
 {
     return (((a) > (b)) ? (a) : (b));
 }
-static OPUS_INLINE opus_int64 silk_max_64(opus_int64 a, opus_int64 b)
+static inline opus_int64 silk_max_64(opus_int64 a, opus_int64 b)
 {
     return (((a) > (b)) ? (a) : (b));
 }
@@ -579,11 +576,11 @@ static OPUS_INLINE opus_int64 silk_max_64(opus_int64 a, opus_int64 b)
 #include "MacroCount.h"
 #include "MacroDebug.h"
 
-#ifdef OPUS_ARM_INLINE_ASM
+#ifdef ARMv4_ASM
 #include "arm/SigProc_FIX_armv4.h"
 #endif
 
-#ifdef OPUS_ARM_INLINE_EDSP
+#ifdef ARMv5E_ASM
 #include "arm/SigProc_FIX_armv5e.h"
 #endif
 

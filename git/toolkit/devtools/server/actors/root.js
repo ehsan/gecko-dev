@@ -192,11 +192,6 @@ RootActor.prototype = {
   get window() Services.wm.getMostRecentWindow(DebuggerServer.chromeWindowType),
 
   /**
-   * URL of the chrome window.
-   */
-  get url() { return this.window ? this.window.document.location.href : null; },
-
-  /**
    * Getter for the best nsIWebProgress for to watching this window.
    */
   get webProgress() {
@@ -258,11 +253,7 @@ RootActor.prototype = {
       }
 
       /* DebuggerServer.addGlobalActor support: create actors. */
-      if (!this._globalActorPool) {
-        this._globalActorPool = new ActorPool(this.conn);
-        this._createExtraActors(this._parameters.globalActorFactories, this._globalActorPool);
-        this.conn.addActorPool(this._globalActorPool);
-      }
+      this._createExtraActors(this._parameters.globalActorFactories, newActorPool);
 
       /*
        * Drop the old actorID -> actor map. Actors that still mattered were
@@ -279,11 +270,6 @@ RootActor.prototype = {
         "selected": selected || 0,
         "tabs": [actor.form() for (actor of tabActorList)],
       };
-
-      /* If a root window is accessible, include its URL. */
-      if (this.url) {
-        reply.url = this.url;
-      }
 
       /* DebuggerServer.addGlobalActor support: name actors in 'listTabs' reply. */
       this._appendExtraActors(reply);
@@ -381,8 +367,32 @@ RootActor.prototype = {
       windowUtils.resumeTimeouts();
       windowUtils.suppressEventHandling(false);
     }
+  },
+
+  /* ChromeDebuggerActor hooks. */
+
+  /**
+   * Add the specified actor to the default actor pool connection, in order to
+   * keep it alive as long as the server is. This is used by breakpoints in the
+   * thread and chrome debugger actors.
+   *
+   * @param actor aActor
+   *        The actor object.
+   */
+  addToParentPool: function(aActor) {
+    this.conn.addActor(aActor);
+  },
+
+  /**
+   * Remove the specified actor from the default actor pool.
+   *
+   * @param BreakpointActor aActor
+   *        The actor object.
+   */
+  removeFromParentPool: function(aActor) {
+    this.conn.removeActor(aActor);
   }
-};
+}
 
 RootActor.prototype.requestTypes = {
   "listTabs": RootActor.prototype.onListTabs,

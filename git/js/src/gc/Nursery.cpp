@@ -75,9 +75,9 @@ js::Nursery::~Nursery()
 void
 js::Nursery::enable()
 {
-    JS_ASSERT(isEmpty());
     if (isEnabled())
         return;
+    JS_ASSERT_IF(runtime()->gcZeal_ != ZealGenerationalGCValue, position_ == start());
     numActiveChunks_ = 1;
     setCurrentChunk(0);
 #ifdef JS_GC_ZEAL
@@ -91,17 +91,9 @@ js::Nursery::disable()
 {
     if (!isEnabled())
         return;
-    JS_ASSERT(isEmpty());
+    JS_ASSERT_IF(runtime()->gcZeal_ != ZealGenerationalGCValue, position_ == start());
     numActiveChunks_ = 0;
     currentEnd_ = 0;
-}
-
-bool
-js::Nursery::isEmpty() const
-{
-    JS_ASSERT(runtime_);
-    JS_ASSERT_IF(runtime_->gcZeal_ != ZealGenerationalGCValue, currentStart_ == start());
-    return !isEnabled() || position() == currentStart_;
 }
 
 void *
@@ -363,6 +355,8 @@ js::Nursery::forwardBufferPointer(HeapSlot **pSlotsElems)
     JS_ASSERT(!isInside(*pSlotsElems));
 }
 
+namespace {
+
 // Structure for counting how many times objects of a particular type have been
 // tenured during a minor collection.
 struct TenureCount
@@ -370,6 +364,8 @@ struct TenureCount
     types::TypeObject *type;
     int count;
 };
+
+} // anonymous namespace
 
 // Keep rough track of how many times we tenure objects of particular types
 // during minor collections, using a fixed size hash for efficiency at the cost
@@ -460,7 +456,7 @@ js::Nursery::moveToTenured(MinorCollectionTracer *trc, JSObject *src)
     AllocKind dstKind = GetObjectAllocKindForCopy(trc->runtime, src);
     JSObject *dst = static_cast<JSObject *>(allocateFromTenured(zone, dstKind));
     if (!dst)
-        CrashAtUnhandlableOOM("Failed to allocate object while tenuring.");
+        MOZ_CRASH();
 
     trc->tenuredSize += moveObjectToTenured(dst, src, dstKind);
 
@@ -512,7 +508,7 @@ js::Nursery::moveSlotsToTenured(JSObject *dst, JSObject *src, AllocKind dstKind)
     size_t count = src->numDynamicSlots();
     dst->slots = zone->pod_malloc<HeapSlot>(count);
     if (!dst->slots)
-        CrashAtUnhandlableOOM("Failed to allocate slots while tenuring.");
+        MOZ_CRASH();
     PodCopy(dst->slots, src->slots, count);
     setSlotsForwardingPointer(src->slots, dst->slots, count);
     return count * sizeof(HeapSlot);
@@ -541,7 +537,7 @@ js::Nursery::moveElementsToTenured(JSObject *dst, JSObject *src, AllocKind dstKi
         if (src->hasDynamicElements()) {
             dstHeader = static_cast<ObjectElements *>(zone->malloc_(nbytes));
             if (!dstHeader)
-                CrashAtUnhandlableOOM("Failed to allocate array buffer elements while tenuring.");
+                MOZ_CRASH();
         } else {
             dst->setFixedElements();
             dstHeader = dst->getElementsHeader();
@@ -567,7 +563,7 @@ js::Nursery::moveElementsToTenured(JSObject *dst, JSObject *src, AllocKind dstKi
     size_t nbytes = nslots * sizeof(HeapValue);
     dstHeader = static_cast<ObjectElements *>(zone->malloc_(nbytes));
     if (!dstHeader)
-        CrashAtUnhandlableOOM("Failed to allocate elements while tenuring.");
+        MOZ_CRASH();
     js_memcpy(dstHeader, srcHeader, nslots * sizeof(HeapSlot));
     setElementsForwardingPointer(srcHeader, dstHeader, nslots);
     dst->elements = dstHeader->elements();
@@ -602,10 +598,10 @@ js::Nursery::collect(JSRuntime *rt, JS::gcreason::Reason reason, TypeObjectList 
     if (!isEnabled())
         return;
 
-    if (isEmpty())
-        return;
-
     AutoStopVerifyingBarriers av(rt, false);
+
+    if (position() == start())
+        return;
 
     rt->gcHelperThread.waitBackgroundSweepEnd();
 
@@ -682,9 +678,6 @@ js::Nursery::sweep(JSRuntime *rt)
         /* Only reset the alloc point when we are close to the end. */
         if (currentChunk_ + 1 == NumNurseryChunks)
             setCurrentChunk(0);
-
-        /* Set current start position for isEmpty checks. */
-        currentStart_ = position();
 
         return;
     }

@@ -5,10 +5,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "GLBlitTextureImageHelper.h"
-#include "GLUploadHelpers.h"
-#include "DecomposeIntoNoRepeatTriangles.h"
 #include "GLContext.h"
-#include "ScopedGLHelpers.h"
 #include "nsRect.h"
 #include "gfx2DGlue.h"
 #include "gfxUtils.h"
@@ -118,7 +115,7 @@ GLBlitTextureImageHelper::BlitTextureImage(TextureImage *aSrc, const nsIntRect& 
             RectTriangles rects;
 
             nsIntSize realTexSize = srcSize;
-            if (!CanUploadNonPowerOfTwo(mGL)) {
+            if (!mGL->CanUploadNonPowerOfTwo()) {
                 realTexSize = nsIntSize(gfx::NextPowerOfTwo(srcSize.width),
                                         gfx::NextPowerOfTwo(srcSize.height));
             }
@@ -144,8 +141,7 @@ GLBlitTextureImageHelper::BlitTextureImage(TextureImage *aSrc, const nsIntRect& 
                 }
             }
 
-            ScopedBindTextureUnit autoTexUnit(mGL, LOCAL_GL_TEXTURE0);
-            ScopedBindTexture autoTex(mGL, aSrc->GetTextureID());
+            TextureImage::ScopedBindTexture texBind(aSrc, LOCAL_GL_TEXTURE0);
 
             mGL->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, 0);
 

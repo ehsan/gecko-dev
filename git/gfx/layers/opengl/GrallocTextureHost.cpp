@@ -10,7 +10,6 @@
 #include "GrallocImages.h"  // for GrallocImage
 #include "mozilla/layers/GrallocTextureHost.h"
 #include "mozilla/layers/CompositorOGL.h"
-#include "EGLImageHelpers.h"
 #include "GLContextUtils.h"
 
 namespace mozilla {
@@ -96,7 +95,6 @@ GrallocTextureSourceOGL::GrallocTextureSourceOGL(CompositorOGL* aCompositor,
   , mGraphicBuffer(aGraphicBuffer)
   , mEGLImage(0)
   , mFormat(aFormat)
-  , mNeedsReset(true)
 {
   MOZ_ASSERT(mGraphicBuffer.get());
 }
@@ -114,7 +112,7 @@ void GrallocTextureSourceOGL::BindTexture(GLenum aTextureUnit)
    * android::GraphicBuffer, so that texturing will source the GraphicBuffer.
    *
    * To this effect we create an EGLImage wrapping this GraphicBuffer,
-   * using EGLImageCreateFromNativeBuffer, and then we tie this EGLImage to our
+   * using CreateEGLImageForNativeBuffer, and then we tie this EGLImage to our
    * texture using fEGLImageTargetTexture2D.
    */
   MOZ_ASSERT(gl());
@@ -171,14 +169,6 @@ GrallocTextureSourceOGL::GetFormat() const {
 void
 GrallocTextureSourceOGL::SetCompositableBackendSpecificData(CompositableBackendSpecificData* aBackendData)
 {
-  if (mCompositableBackendData != aBackendData) {
-    mNeedsReset = true;
-  }
-
-  if (!mNeedsReset) {
-    return;
-  }
-
   mCompositableBackendData = aBackendData;
 
   if (!mCompositor) {
@@ -195,9 +185,8 @@ GrallocTextureSourceOGL::SetCompositableBackendSpecificData(CompositableBackendS
   gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
   gl()->fBindTexture(textureTarget, tex);
   // create new EGLImage
-  mEGLImage = EGLImageCreateFromNativeBuffer(gl(), mGraphicBuffer->getNativeBuffer());
+  mEGLImage = gl()->CreateEGLImageForNativeBuffer(mGraphicBuffer->getNativeBuffer());
   gl()->fEGLImageTargetTexture2D(textureTarget, mEGLImage);
-  mNeedsReset = false;
 }
 
 gfx::IntSize
@@ -216,14 +205,15 @@ GrallocTextureSourceOGL::DeallocateDeviceData()
   if (mEGLImage) {
     MOZ_ASSERT(gl());
     gl()->MakeCurrent();
-    EGLImageDestroy(gl(), mEGLImage);
-    mEGLImage = EGL_NO_IMAGE;
+    gl()->DestroyEGLImage(mEGLImage);
+    mEGLImage = 0;
   }
 }
 
-GrallocTextureHostOGL::GrallocTextureHostOGL(TextureFlags aFlags,
+GrallocTextureHostOGL::GrallocTextureHostOGL(uint64_t aID,
+                                             TextureFlags aFlags,
                                              const NewSurfaceDescriptorGralloc& aDescriptor)
-  : TextureHost(aFlags)
+  : TextureHost(aID, aFlags)
 {
   mGrallocActor =
     static_cast<GrallocBufferActor*>(aDescriptor.bufferParent());
@@ -284,14 +274,6 @@ GrallocTextureHostOGL::DeallocateSharedData()
 }
 
 void
-GrallocTextureHostOGL::ForgetSharedData()
-{
-  if (mTextureSource) {
-    mTextureSource->ForgetBuffer();
-  }
-}
-
-void
 GrallocTextureHostOGL::DeallocateDeviceData()
 {
   mTextureSource->DeallocateDeviceData();
@@ -331,7 +313,7 @@ GrallocTextureSourceOGL::GetAsSurface() {
   gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
   gl()->fBindTexture(GetTextureTarget(), tex);
   if (!mEGLImage) {
-    mEGLImage = EGLImageCreateFromNativeBuffer(gl(), mGraphicBuffer->getNativeBuffer());
+    mEGLImage = gl()->CreateEGLImageForNativeBuffer(mGraphicBuffer->getNativeBuffer());
   }
   gl()->fEGLImageTargetTexture2D(GetTextureTarget(), mEGLImage);
 

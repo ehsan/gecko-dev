@@ -136,16 +136,16 @@ static inline bool
 DefinitionCompatibleWith(LInstruction *ins, const LDefinition *def, LAllocation alloc)
 {
     if (ins->isPhi()) {
-        if (def->isFloatReg())
-            return alloc.isFloatReg() || alloc.isStackSlot();
-        return alloc.isGeneralReg() || alloc.isStackSlot();
+        if (def->type() == LDefinition::DOUBLE)
+            return alloc.isFloatReg() || alloc.kind() == LAllocation::DOUBLE_SLOT;
+        return alloc.isGeneralReg() || alloc.kind() == LAllocation::STACK_SLOT;
     }
 
     switch (def->policy()) {
       case LDefinition::DEFAULT:
         if (!alloc.isRegister())
             return false;
-        return alloc.isFloatReg() == def->isFloatReg();
+        return alloc.isFloatReg() == (def->type() == LDefinition::DOUBLE);
       case LDefinition::PRESET:
         return alloc == *def->output();
       case LDefinition::MUST_REUSE_INPUT:
@@ -472,8 +472,8 @@ class VirtualRegister
         interval->setIndex(found - intervals_.begin());
         return intervals_.insert(found, interval);
     }
-    bool isFloatReg() const {
-        return def_->isFloatReg();
+    bool isDouble() const {
+        return def_->type() == LDefinition::DOUBLE;
     }
 
     LiveInterval *intervalFor(CodePosition pos);
@@ -600,7 +600,7 @@ class LiveRangeAllocator : protected RegisterAllocator
     void validateVirtualRegisters()
     {
 #ifdef DEBUG
-        if (!js_JitOptions.checkGraphConsistency)
+        if (!js_IonOptions.assertGraphConsistency)
             return;
 
         for (size_t i = 1; i < graph.numVirtualRegisters(); i++) {
@@ -633,37 +633,37 @@ class LiveRangeAllocator : protected RegisterAllocator
     }
 #endif
 
-    bool addMove(LMoveGroup *moves, LiveInterval *from, LiveInterval *to, LDefinition::Type type) {
+    bool addMove(LMoveGroup *moves, LiveInterval *from, LiveInterval *to) {
         JS_ASSERT(*from->getAllocation() != *to->getAllocation());
-        return moves->add(from->getAllocation(), to->getAllocation(), type);
+        return moves->add(from->getAllocation(), to->getAllocation());
     }
 
-    bool moveInput(CodePosition pos, LiveInterval *from, LiveInterval *to, LDefinition::Type type) {
+    bool moveInput(CodePosition pos, LiveInterval *from, LiveInterval *to) {
         if (*from->getAllocation() == *to->getAllocation())
             return true;
         LMoveGroup *moves = getInputMoveGroup(pos);
-        return addMove(moves, from, to, type);
+        return addMove(moves, from, to);
     }
 
-    bool moveAfter(CodePosition pos, LiveInterval *from, LiveInterval *to, LDefinition::Type type) {
+    bool moveAfter(CodePosition pos, LiveInterval *from, LiveInterval *to) {
         if (*from->getAllocation() == *to->getAllocation())
             return true;
         LMoveGroup *moves = getMoveGroupAfter(pos);
-        return addMove(moves, from, to, type);
+        return addMove(moves, from, to);
     }
 
-    bool moveAtExit(LBlock *block, LiveInterval *from, LiveInterval *to, LDefinition::Type type) {
+    bool moveAtExit(LBlock *block, LiveInterval *from, LiveInterval *to) {
         if (*from->getAllocation() == *to->getAllocation())
             return true;
         LMoveGroup *moves = block->getExitMoveGroup(alloc());
-        return addMove(moves, from, to, type);
+        return addMove(moves, from, to);
     }
 
-    bool moveAtEntry(LBlock *block, LiveInterval *from, LiveInterval *to, LDefinition::Type type) {
+    bool moveAtEntry(LBlock *block, LiveInterval *from, LiveInterval *to) {
         if (*from->getAllocation() == *to->getAllocation())
             return true;
         LMoveGroup *moves = block->getEntryMoveGroup(alloc());
-        return addMove(moves, from, to, type);
+        return addMove(moves, from, to);
     }
 
     size_t findFirstNonCallSafepoint(CodePosition from) const

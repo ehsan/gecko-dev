@@ -45,7 +45,7 @@ public class AccountActivity extends AccountAuthenticatorActivity {
   private String              username;
   private String              password;
   private String              key;
-  private String              server = SyncConstants.DEFAULT_AUTH_SERVER;
+  private String              server = Constants.AUTH_NODE_DEFAULT;
 
   // UI elements.
   private EditText            serverInput;
@@ -162,7 +162,7 @@ public class AccountActivity extends AccountAuthenticatorActivity {
     username = usernameInput.getText().toString().toLowerCase(Locale.US);
     password = passwordInput.getText().toString();
     key      = synckeyInput.getText().toString();
-    server   = SyncConstants.DEFAULT_AUTH_SERVER;
+    server   = Constants.AUTH_NODE_DEFAULT;
 
     if (serverCheckbox.isChecked()) {
       String userServer = serverInput.getText().toString();

@@ -20,14 +20,14 @@
 #ifdef XP_WIN
 #include "mozilla/gfx/SharedDIBSurface.h"
 #include "nsCrashOnException.h"
-extern const wchar_t* kFlashFullscreenClass;
+extern const PRUnichar* kFlashFullscreenClass;
 using mozilla::gfx::SharedDIBSurface;
 #endif
 #include "gfxSharedImageSurface.h"
 #include "gfxUtils.h"
 #include "gfxAlphaRecovery.h"
 
-#include "mozilla/ArrayUtils.h"
+#include "mozilla/Util.h"
 #include "mozilla/ipc/MessageChannel.h"
 #include "mozilla/AutoRestore.h"
 #include "ImageContainer.h"
@@ -1476,7 +1476,7 @@ PluginInstanceChild::PluginWindowProcInternal(HWND hWnd,
     // on the window.
     if (message == WM_LBUTTONDOWN &&
         self->GetQuirks() & PluginModuleChild::QUIRK_FLASH_FIXUP_MOUSE_CAPTURE) {
-      wchar_t szClass[26];
+      PRUnichar szClass[26];
       HWND hwnd = GetForegroundWindow();
       if (hwnd && GetClassNameW(hwnd, szClass,
                                 sizeof(szClass)/sizeof(PRUnichar)) &&
@@ -1675,7 +1675,7 @@ PluginInstanceChild::TrackPopupHookProc(HMENU hMenu,
   // Only change the parent when we know this is a context on the plugin
   // surface within the browser. Prevents resetting the parent on child ui
   // displayed by plugins that have working parent-child relationships.
-  wchar_t szClass[21];
+  PRUnichar szClass[21];
   bool haveClass = GetClassNameW(hWnd, szClass, ArrayLength(szClass));
   if (!haveClass || 
       (wcscmp(szClass, L"MozillaWindowClass") &&
@@ -2061,7 +2061,7 @@ PluginInstanceChild::EnumThreadWindowsCallback(HWND hWnd,
         return FALSE;
     }
 
-    wchar_t className[64];
+    PRUnichar className[64];
     if (!GetClassNameW(hWnd, className, sizeof(className)/sizeof(PRUnichar)))
       return TRUE;
     

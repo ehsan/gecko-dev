@@ -21,9 +21,6 @@
 
 #include "nsCycleCollectionParticipant.h"
 
-// Thanks, Windows.h :(
-#undef CompareString
-
 #define TO_ICONTAINER(_node)                                                  \
     static_cast<nsINavHistoryContainerResultNode*>(_node)                      
 
@@ -4718,7 +4715,7 @@ nsNavHistoryResult::OnVisit(nsIURI* aURI, int64_t aVisitId, PRTime aTime,
       NS_ENSURE_TRUE(history, NS_OK);
       nsAutoCString todayLabel;
       history->GetStringFromName(
-        MOZ_UTF16("finduri-AgeInDays-is-0"), todayLabel);
+        NS_LITERAL_STRING("finduri-AgeInDays-is-0").get(), todayLabel);
       todayIsMissing = !todayLabel.Equals(title);
     }
   }

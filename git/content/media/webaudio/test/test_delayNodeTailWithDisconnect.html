@@ -33,7 +33,7 @@ function onDelayOutput(e) {
     return;
   }
 
-  compareChannels(e.inputBuffer.getChannelData(0), sourceOutput);
+  compareBuffers(e.inputBuffer.getChannelData(0), sourceOutput);
   e.target.onaudioprocess = null;
   SimpleTest.finish();
 }

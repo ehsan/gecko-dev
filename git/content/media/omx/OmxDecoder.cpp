@@ -41,25 +41,6 @@ using namespace mozilla;
 
 namespace mozilla {
 
-class ReleaseOmxDecoderRunnable : public nsRunnable
-{
-public:
-  ReleaseOmxDecoderRunnable(const android::sp<android::OmxDecoder>& aOmxDecoder)
-  : mOmxDecoder(aOmxDecoder)
-  {
-  }
-
-  NS_METHOD Run() MOZ_OVERRIDE
-  {
-    MOZ_ASSERT(NS_IsMainThread());
-    mOmxDecoder = nullptr; // release OmxDecoder
-    return NS_OK;
-  }
-
-private:
-  android::sp<android::OmxDecoder> mOmxDecoder;
-};
-
 class OmxDecoderProcessCachedDataTask : public Task
 {
 public:
@@ -72,13 +53,7 @@ public:
   {
     MOZ_ASSERT(!NS_IsMainThread());
     MOZ_ASSERT(mOmxDecoder.get());
-    int64_t rem = mOmxDecoder->ProcessCachedData(mOffset, false);
-
-    if (rem <= 0) {
-      ReleaseOmxDecoderRunnable* r = new ReleaseOmxDecoderRunnable(mOmxDecoder);
-      mOmxDecoder.clear();
-      NS_DispatchToMainThread(r);
-    }
+    mOmxDecoder->ProcessCachedData(mOffset, false);
   }
 
 private:
@@ -317,8 +292,6 @@ OmxDecoder::OmxDecoder(MediaResource *aResource,
 
 OmxDecoder::~OmxDecoder()
 {
-  MOZ_ASSERT(NS_IsMainThread());
-
   ReleaseMediaResources();
 
   // unregister AMessage handler from ALooper.
@@ -425,7 +398,7 @@ bool OmxDecoder::TryLoad() {
       // Feed MP3 parser with cached data. Local files will be fully
       // cached already, network streams will update with sucessive
       // calls to NotifyDataArrived.
-      if (ProcessCachedData(0, true) >= 0) {
+      if (ProcessCachedData(0, true)) {
         durationUs = mMP3FrameParser.GetDuration();
         if (durationUs > totalDurationUs) {
           totalDurationUs = durationUs;
@@ -448,18 +421,6 @@ bool OmxDecoder::TryLoad() {
 
   // read audio metadata
   if (mAudioSource.get()) {
-    // For RTSP, we don't read the audio source for now.
-    // The metadata of RTSP will be obtained through SDP at connection time.
-    if (mResource->GetRtspPointer()) {
-      sp<MetaData> meta = mAudioSource->getFormat();
-      if (!meta->findInt32(kKeyChannelCount, &mAudioChannels) ||
-          !meta->findInt32(kKeySampleRate, &mAudioSampleRate)) {
-        NS_WARNING("Couldn't get audio metadata from OMX decoder");
-        return false;
-      }
-      return true;
-    }
-
     // To reliably get the channel and sample rate data we need to read from the
     // audio source until we get a INFO_FORMAT_CHANGE status
     status_t err = mAudioSource->read(&mAudioBuffer);
@@ -1044,7 +1005,7 @@ void OmxDecoder::ReleaseAllPendingVideoBuffersLocked()
   releasingVideoBuffers.clear();
 }
 
-int64_t OmxDecoder::ProcessCachedData(int64_t aOffset, bool aWaitForCompletion)
+bool OmxDecoder::ProcessCachedData(int64_t aOffset, bool aWaitForCompletion)
 {
   // We read data in chunks of 32 KiB. We can reduce this
   // value if media, such as sdcards, is too slow.
@@ -1057,10 +1018,10 @@ int64_t OmxDecoder::ProcessCachedData(int64_t aOffset, bool aWaitForCompletion)
   MOZ_ASSERT(mResource);
 
   int64_t resourceLength = mResource->GetCachedDataEnd(0);
-  NS_ENSURE_TRUE(resourceLength >= 0, -1);
+  NS_ENSURE_TRUE(resourceLength >= 0, false);
 
   if (aOffset >= resourceLength) {
-    return 0; // Cache is empty, nothing to do
+    return true; // Cache is empty, nothing to do
   }
 
   int64_t bufferLength = std::min<int64_t>(resourceLength-aOffset, sReadSize);
@@ -1068,7 +1029,7 @@ int64_t OmxDecoder::ProcessCachedData(int64_t aOffset, bool aWaitForCompletion)
   nsAutoArrayPtr<char> buffer(new char[bufferLength]);
 
   nsresult rv = mResource->ReadFromCache(buffer.get(), aOffset, bufferLength);
-  NS_ENSURE_SUCCESS(rv, -1);
+  NS_ENSURE_SUCCESS(rv, false);
 
   nsRefPtr<OmxDecoderNotifyDataArrivedRunnable> runnable(
     new OmxDecoderNotifyDataArrivedRunnable(this,
@@ -1078,11 +1039,11 @@ int64_t OmxDecoder::ProcessCachedData(int64_t aOffset, bool aWaitForCompletion)
                                             resourceLength));
 
   rv = NS_DispatchToMainThread(runnable.get());
-  NS_ENSURE_SUCCESS(rv, -1);
+  NS_ENSURE_SUCCESS(rv, false);
 
   if (aWaitForCompletion) {
     runnable->WaitForCompletion();
   }
 
-  return resourceLength - aOffset - bufferLength;
+  return true;
 }

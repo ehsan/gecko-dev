@@ -174,9 +174,13 @@ MobileMessageThread::GetParticipants(JSContext* aCx,
 }
 
 NS_IMETHODIMP
-MobileMessageThread::GetTimestamp(DOMTimeStamp* aDate)
+MobileMessageThread::GetTimestamp(JSContext* aCx,
+                                  JS::Value* aDate)
 {
-  *aDate = mData.timestamp();
+  JSObject *obj = JS_NewDateObjectMsec(aCx, mData.timestamp());
+  NS_ENSURE_TRUE(obj, NS_ERROR_FAILURE);
+
+  *aDate = OBJECT_TO_JSVAL(obj);
   return NS_OK;
 }
 

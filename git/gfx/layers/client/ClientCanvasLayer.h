@@ -19,6 +19,8 @@
 #include "nsRegion.h"                   // for nsIntRegion
 #include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
 
+using namespace mozilla::gfx;
+
 namespace mozilla {
 namespace layers {
 

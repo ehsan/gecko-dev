@@ -25,7 +25,7 @@ EXPORTS.mozilla.dom.telephony += [
     'TelephonyFactory.h',
 ]
 
-UNIFIED_SOURCES += [
+SOURCES += [
     'CallEvent.cpp',
     'CallsList.cpp',
     'ipc/TelephonyChild.cpp',

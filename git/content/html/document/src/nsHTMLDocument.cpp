@@ -78,6 +78,7 @@
 #include "nsArrayUtils.h"
 #include "nsIEffectiveTLDService.h"
 
+#include "nsIPrompt.h"
 //AHMED 12-2
 #include "nsBidiUtils.h"
 
@@ -740,7 +741,7 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
     NS_ASSERTION(NS_SUCCEEDED(rv) && bundle, "chrome://global/locale/browser.properties could not be loaded");
     nsXPIDLString title;
     if (bundle) {
-      bundle->GetStringFromName(MOZ_UTF16("plainText.wordWrap"), getter_Copies(title));
+      bundle->GetStringFromName(NS_LITERAL_STRING("plainText.wordWrap").get(), getter_Copies(title));
     }
     SetSelectedStyleSheetSet(title);
   }
@@ -1202,8 +1203,8 @@ nsHTMLDocument::GetCookie(nsAString& aCookie, ErrorResult& rv)
     service->GetCookieString(codebaseURI, mChannel, getter_Copies(cookie));
     // CopyUTF8toUTF16 doesn't handle error
     // because it assumes that the input is valid.
-    nsContentUtils::ConvertStringFromEncoding(NS_LITERAL_CSTRING("UTF-8"),
-                                              cookie, aCookie);
+    nsContentUtils::ConvertStringFromCharset(NS_LITERAL_CSTRING("utf-8"),
+                                             cookie, aCookie);
   }
 }
 
@@ -1232,6 +1233,12 @@ nsHTMLDocument::SetCookie(const nsAString& aCookie, ErrorResult& rv)
   // not having a cookie service isn't an error
   nsCOMPtr<nsICookieService> service = do_GetService(NS_COOKIESERVICE_CONTRACTID);
   if (service && mDocumentURI) {
+    nsCOMPtr<nsIPrompt> prompt;
+    nsCOMPtr<nsPIDOMWindow> window = GetWindow();
+    if (window) {
+      window->GetPrompter(getter_AddRefs(prompt));
+    }
+
     // The for getting the URI matches nsNavigator::GetCookieEnabled
     nsCOMPtr<nsIURI> codebaseURI;
     NodePrincipal()->GetURI(getter_AddRefs(codebaseURI));
@@ -1244,7 +1251,7 @@ nsHTMLDocument::SetCookie(const nsAString& aCookie, ErrorResult& rv)
     }
 
     NS_ConvertUTF16toUTF8 cookie(aCookie);
-    service->SetCookieString(codebaseURI, nullptr, cookie.get(), mChannel);
+    service->SetCookieString(codebaseURI, prompt, cookie.get(), mChannel);
   }
 }
 
@@ -2096,7 +2103,7 @@ nsHTMLDocument::GetSelection(nsISelection** aReturn)
   return rv.ErrorCode();
 }
 
-already_AddRefed<Selection>
+already_AddRefed<nsISelection>
 nsHTMLDocument::GetSelection(ErrorResult& rv)
 {
   nsCOMPtr<nsIDOMWindow> window = do_QueryInterface(GetScopeObject());
@@ -2112,8 +2119,7 @@ nsHTMLDocument::GetSelection(ErrorResult& rv)
 
   nsCOMPtr<nsISelection> sel;
   rv = window->GetSelection(getter_AddRefs(sel));
-  nsRefPtr<Selection> selection = static_cast<Selection*>(sel.get());
-  return selection.forget();
+  return sel.forget();
 }
 
 NS_IMETHODIMP
@@ -3145,6 +3151,47 @@ ConvertToMidasInternalCommand(const nsAString & inCommandID,
                                             dummyBool, dummyBool, true);
 }
 
+jsid
+nsHTMLDocument::sCutCopyInternal_id = JSID_VOID;
+jsid
+nsHTMLDocument::sPasteInternal_id = JSID_VOID;
+
+/* Helper function to check security of clipboard commands. If aPaste is */
+/* true, we check paste, else we check cutcopy */
+nsresult
+nsHTMLDocument::DoClipboardSecurityCheck(bool aPaste)
+{
+  nsresult rv = NS_ERROR_FAILURE;
+
+  JSContext *cx = nsContentUtils::GetCurrentJSContext();
+  if (!cx) {
+    return NS_OK;
+  }
+
+  NS_NAMED_LITERAL_CSTRING(classNameStr, "Clipboard");
+
+  nsIScriptSecurityManager *secMan = nsContentUtils::GetSecurityManager();
+
+  if (aPaste) {
+    if (nsHTMLDocument::sPasteInternal_id == JSID_VOID) {
+      nsHTMLDocument::sPasteInternal_id =
+        INTERNED_STRING_TO_JSID(cx, ::JS_InternString(cx, "paste"));
+    }
+    rv = secMan->CheckPropertyAccess(cx, nullptr, classNameStr.get(),
+                                     nsHTMLDocument::sPasteInternal_id,
+                                     nsIXPCSecurityManager::ACCESS_GET_PROPERTY);
+  } else {
+    if (nsHTMLDocument::sCutCopyInternal_id == JSID_VOID) {
+      nsHTMLDocument::sCutCopyInternal_id =
+        INTERNED_STRING_TO_JSID(cx, ::JS_InternString(cx, "cutcopy"));
+    }
+    rv = secMan->CheckPropertyAccess(cx, nullptr, classNameStr.get(),
+                                     nsHTMLDocument::sCutCopyInternal_id,
+                                     nsIXPCSecurityManager::ACCESS_GET_PROPERTY);
+  }
+  return rv;
+}
+
 /* TODO: don't let this call do anything if the page is not done loading */
 /* boolean execCommand(in DOMString commandID, in boolean doShowUI,
                                                in DOMString value); */
@@ -3192,11 +3239,14 @@ nsHTMLDocument::ExecCommand(const nsAString& commandID,
     return false;
   }
 
-  bool restricted = commandID.LowerCaseEqualsLiteral("cut") ||
-                    commandID.LowerCaseEqualsLiteral("copy")||
-                    commandID.LowerCaseEqualsLiteral("paste");
-  if (restricted && !nsContentUtils::IsCallerChrome()) {
-    rv = NS_ERROR_DOM_SECURITY_ERR;
+  if (commandID.LowerCaseEqualsLiteral("cut") ||
+      commandID.LowerCaseEqualsLiteral("copy")) {
+    rv = DoClipboardSecurityCheck(false);
+  } else if (commandID.LowerCaseEqualsLiteral("paste")) {
+    rv = DoClipboardSecurityCheck(true);
+  }
+
+  if (rv.Failed()) {
     return false;
   }
 

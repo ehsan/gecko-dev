@@ -542,8 +542,6 @@ nsSocketTransportService::SetOffline(bool offline)
     else if (mOffline && !offline) {
         mOffline = false;
     }
-    if (mThreadEvent)
-        PR_SetPollableEvent(mThreadEvent);
 
     return NS_OK;
 }
@@ -631,8 +629,7 @@ nsSocketTransportService::OnProcessNextEvent(nsIThreadInternal *thread,
 
 NS_IMETHODIMP
 nsSocketTransportService::AfterProcessNextEvent(nsIThreadInternal* thread,
-                                                uint32_t depth,
-                                                bool eventWasProcessed)
+                                                uint32_t depth)
 {
     return NS_OK;
 }
@@ -1129,3 +1126,5 @@ nsSocketTransportService::GetSocketConnections(nsTArray<SocketInfo> *data)
     for (uint32_t i = 0; i < mIdleCount; i++)
         AnalyzeConnection(data, &mIdleList[i], false);
 }
+
+

@@ -203,12 +203,12 @@ nsNSSDialogs::NotifyCACertExists(nsIInterfaceRequestor *ctx)
   nsCOMPtr<nsIDOMWindow> parent = do_GetInterface(ctx);
 
   nsAutoString title;
-  rv = mPIPStringBundle->GetStringFromName(MOZ_UTF16("caCertExistsTitle"),
+  rv = mPIPStringBundle->GetStringFromName(NS_LITERAL_STRING("caCertExistsTitle").get(),
                                            getter_Copies(title));
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsAutoString msg;
-  rv = mPIPStringBundle->GetStringFromName(MOZ_UTF16("caCertExistsMessage"),
+  rv = mPIPStringBundle->GetStringFromName(NS_LITERAL_STRING("caCertExistsMessage").get(),
                                            getter_Copies(msg));
   NS_ENSURE_SUCCESS(rv, rv);
 

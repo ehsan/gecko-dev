@@ -9,7 +9,6 @@
 #include "nsIContent.h"
 #include "nsIFrame.h"
 #include "nsIPresShell.h"
-#include "nsNumberControlFrame.h"
 #include "nsPresContext.h"
 #include "nsEventStateManager.h"
 #include "nsString.h"
@@ -75,24 +74,6 @@ nsNativeTheme::GetContentState(nsIFrame* aFrame, uint8_t aWidgetType)
   nsEventStates flags;
   if (frameContent->IsElement()) {
     flags = frameContent->AsElement()->State();
-
-    // <input type=number> needs special handling since its nested native
-    // anonymous <input type=text> takes focus for it.
-    if (aWidgetType == NS_THEME_NUMBER_INPUT &&
-        frameContent->IsHTML(nsGkAtoms::input)) {
-      nsNumberControlFrame *numberControlFrame = do_QueryFrame(aFrame);
-      if (numberControlFrame && numberControlFrame->IsFocused()) {
-        flags |= NS_EVENT_STATE_FOCUS;
-      }
-    }
-
-    nsNumberControlFrame* numberControlFrame =
-      nsNumberControlFrame::GetNumberControlFrameForSpinButton(aFrame);
-    if (numberControlFrame &&
-        numberControlFrame->GetContent()->AsElement()->State().
-          HasState(NS_EVENT_STATE_DISABLED)) {
-      flags |= NS_EVENT_STATE_DISABLED;
-    }
   }
   
   if (isXULCheckboxRadio && aWidgetType == NS_THEME_RADIO) {
@@ -105,8 +86,7 @@ nsNativeTheme::GetContentState(nsIFrame* aFrame, uint8_t aWidgetType)
   // focus something in the window.
 #if defined(XP_MACOSX)
   // Mac always draws focus rings for textboxes and lists.
-  if (aWidgetType == NS_THEME_NUMBER_INPUT ||
-      aWidgetType == NS_THEME_TEXTFIELD ||
+  if (aWidgetType == NS_THEME_TEXTFIELD ||
       aWidgetType == NS_THEME_TEXTFIELD_MULTILINE ||
       aWidgetType == NS_THEME_SEARCHFIELD ||
       aWidgetType == NS_THEME_LISTBOX) {
@@ -333,17 +313,7 @@ nsNativeTheme::IsWidgetStyled(nsPresContext* aPresContext, nsIFrame* aFrame,
     }
   }
 
-  if (aWidgetType == NS_THEME_SPINNER_UP_BUTTON ||
-      aWidgetType == NS_THEME_SPINNER_DOWN_BUTTON) {
-    nsNumberControlFrame* numberControlFrame =
-      nsNumberControlFrame::GetNumberControlFrameForSpinButton(aFrame);
-    if (numberControlFrame) {
-      return !numberControlFrame->ShouldUseNativeStyleForSpinner();
-    }
-  }
-
-  return (aWidgetType == NS_THEME_NUMBER_INPUT ||
-          aWidgetType == NS_THEME_BUTTON ||
+  return (aWidgetType == NS_THEME_BUTTON ||
           aWidgetType == NS_THEME_TEXTFIELD ||
           aWidgetType == NS_THEME_TEXTFIELD_MULTILINE ||
           aWidgetType == NS_THEME_LISTBOX ||

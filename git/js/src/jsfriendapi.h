@@ -155,7 +155,7 @@ js_AddObjectRoot(JSRuntime *rt, JSObject **objp);
 JS_FRIEND_API(void)
 js_RemoveObjectRoot(JSRuntime *rt, JSObject **objp);
 
-#ifdef JS_DEBUG
+#ifdef DEBUG
 
 /*
  * Routines to print out values during debugging.  These are FRIEND_API to help
@@ -339,9 +339,6 @@ TraceWeakMaps(WeakMapTracer *trc);
 extern JS_FRIEND_API(bool)
 AreGCGrayBitsValid(JSRuntime *rt);
 
-extern JS_FRIEND_API(bool)
-ZoneGlobalsAreAllGray(JS::Zone *zone);
-
 typedef void
 (*GCThingCallback)(void *closure, void *gcthing);
 
@@ -495,7 +492,7 @@ GetGlobalForObjectCrossCompartment(JSObject *obj);
 JS_FRIEND_API(void)
 AssertSameCompartment(JSContext *cx, JSObject *obj);
 
-#ifdef JS_DEBUG
+#ifdef DEBUG
 JS_FRIEND_API(void)
 AssertSameCompartment(JSObject *objA, JSObject *objB);
 #else
@@ -802,7 +799,7 @@ CastToJSFreeOp(FreeOp *fop)
 extern JS_FRIEND_API(const jschar*)
 GetErrorTypeName(JSRuntime* rt, int16_t exnType);
 
-#ifdef JS_DEBUG
+#ifdef DEBUG
 extern JS_FRIEND_API(unsigned)
 GetEnterCompartmentDepth(JSContext* cx);
 #endif
@@ -883,16 +880,6 @@ struct ExpandoAndGeneration {
   {
       ++generation;
       expando.setUndefined();
-  }
-
-  static size_t offsetOfExpando()
-  {
-      return offsetof(ExpandoAndGeneration, expando);
-  }
-
-  static size_t offsetOfGeneration()
-  {
-      return offsetof(ExpandoAndGeneration, generation);
   }
 
   JS::Heap<JS::Value> expando;
@@ -1478,24 +1465,6 @@ struct JSJitInfo {
         ArgTypeListEnd = (1 << 31)
     };
 
-    enum AliasSet {
-        // An enum that describes what this getter/setter/method aliases.  This
-        // determines what things can be hoisted past this call, and if this
-        // call is movable what it can be hoisted past.
-
-        // Alias nothing: a constant value, getting it can't affect any other
-        // values, nothing can affect it.
-        AliasNone,
-
-        // Alias things that can modify the DOM but nothing else.  Doing the
-        // call can't affect the behavior of any other function.
-        AliasDOMSets,
-
-        // Alias the world.  Calling this can change arbitrary values anywhere
-        // in the system.  Most things fall in this bucket.
-        AliasEverything
-    };
-
     union {
         JSJitGetterOp getter;
         JSJitSetterOp setter;
@@ -1506,14 +1475,10 @@ struct JSJitInfo {
     uint32_t depth;
     OpType type;
     bool isInfallible;      /* Is op fallible? False in setters. */
-    bool isMovable;         /* Is op movable?  To be movable the op must not
-                               AliasEverything, but even that might not be
-                               enough (e.g. in cases when it can throw). */
-    AliasSet aliasSet;      /* The alias set for this op.  This is a _minimal_
-                               alias set; in particular for a method it does not
-                               include whatever argument conversions might do.
-                               That's covered by argTypes and runtime analysis
-                               of the actual argument types being passed in. */
+    bool isConstant;        /* Getting a construction-time constant? */
+    bool isPure;            /* As long as no non-pure DOM things happen, will
+                               keep returning the same value for the given
+                               "this" object" */
     // XXXbz should we have a JSGetterJitInfo subclass or something?
     // XXXbz should we have a JSValueType for the type of the member?
     bool isInSlot;          /* True if this is a getter that can get a member
@@ -1545,7 +1510,7 @@ private:
 };
 
 #define JS_JITINFO_NATIVE_PARALLEL(op)                                         \
-    {{nullptr},0,0,JSJitInfo::OpType_None,false,false,JSJitInfo::AliasEverything,false,0,JSVAL_TYPE_MISSING,nullptr,op}
+    {{nullptr},0,0,JSJitInfo::OpType_None,false,false,false,false,0,JSVAL_TYPE_MISSING,nullptr,op}
 
 static JS_ALWAYS_INLINE const JSJitInfo *
 FUNCTION_VALUE_TO_JITINFO(const JS::Value& v)
@@ -1715,7 +1680,7 @@ class JS_FRIEND_API(AutoCTypesActivityCallback) {
     }
 };
 
-#ifdef JS_DEBUG
+#ifdef DEBUG
 extern JS_FRIEND_API(void)
 assertEnteredPolicy(JSContext *cx, JSObject *obj, jsid id);
 #else
@@ -1741,13 +1706,6 @@ SetObjectMetadata(JSContext *cx, JS::HandleObject obj, JS::HandleObject metadata
 
 JS_FRIEND_API(JSObject *)
 GetObjectMetadata(JSObject *obj);
-
-JS_FRIEND_API(void)
-UnsafeDefineElement(JSContext *cx, JS::HandleObject obj, uint32_t index, JS::HandleValue value);
-
-JS_FRIEND_API(bool)
-SliceSlowly(JSContext* cx, JS::HandleObject obj, JS::HandleObject receiver,
-            uint32_t begin, uint32_t end, JS::HandleObject result);
 
 /* ES5 8.12.8. */
 extern JS_FRIEND_API(bool)

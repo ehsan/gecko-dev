@@ -262,7 +262,7 @@ nsAlertsIconListener::InitAlertAsync(const nsAString & aImageUrl,
       nsAutoString appName;
 
       if (bundle) {
-        bundle->GetStringFromName(MOZ_UTF16("brandShortName"),
+        bundle->GetStringFromName(NS_LITERAL_STRING("brandShortName").get(),
                                   getter_Copies(appName));
         appShortName = NS_ConvertUTF16toUTF8(appName);
       } else {

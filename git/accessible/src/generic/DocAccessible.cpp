@@ -1451,22 +1451,10 @@ DocAccessible::CacheChildren()
   if (!rootElm)
     return;
 
-  // Ignore last HTML:br, copied from HyperTextAccessible.
   TreeWalker walker(this, rootElm);
-  Accessible* lastChild = nullptr;
-  while (Accessible* child = walker.NextChild()) {
-    if (lastChild)
-      AppendChild(lastChild);
 
-    lastChild = child;
-  }
-
-  if (lastChild) {
-    if (lastChild->IsHTMLBr())
-      Document()->UnbindFromDocument(lastChild);
-    else
-      AppendChild(lastChild);
-  }
+  Accessible* child = nullptr;
+  while ((child = walker.NextChild()) && AppendChild(child));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

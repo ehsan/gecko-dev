@@ -123,14 +123,13 @@ tabbrowser {
   /* Explicitly set the visibility to override the value (collapsed)
    * we inherit from #TabsToolbar[collapsed] upon opening a browser window. */
   visibility: visible;
-  /* The transition is only delayed for opening tabs. */
+  /* This transition is only applied when opening a new tab. Closing tabs
+   * are just hidden so we don't need to adjust the delay for that. */
   transition: visibility 0ms 25ms;
 }
 
-.tab-background:not([fadein]):not([pinned]) {
+.tab-background[selected]:not([fadein]):not([pinned]) {
   visibility: hidden;
-  /* Closing tabs are hidden without a delay. */
-  transition-delay: 0ms;
 }
 
 .tab-throbber:not([fadein]):not([pinned]),
@@ -729,27 +728,12 @@ toolbarbutton[type="badged"] {
   -moz-binding: url("chrome://browser/content/urlbarBindings.xml#toolbarbutton-badged");
 }
 
-toolbarpaletteitem[place="palette"] > toolbarbutton[type="badged"] > .toolbarbutton-badge-container {
-  padding: 5px;
-}
-
 toolbarbutton[type="socialmark"] {
   -moz-binding: url("chrome://browser/content/socialmarks.xml#toolbarbutton-marks");
 }
-
-toolbarbutton[type="badged"] > .toolbarbutton-badge-container > .toolbarbutton-icon,
 toolbarbutton[type="socialmark"] > .toolbarbutton-icon {
-  max-width: 16px;
-  max-height: 16px;
-}
-toolbarpaletteitem[place="palette"] > toolbarbutton[type="badged"] > .toolbarbutton-badge-container > .toolbarbutton-icon {
-  max-width: 32px;
-  max-height: 32px;
-}
-
-panelview > .social-panel-frame {
-  width: auto;
-  height: auto;
+  width: 16px;
+  height: 16px;
 }
 
 /* Note the chatbox 'width' values are duplicated in socialchat.xml */
@@ -967,13 +951,13 @@ toolbarpaletteitem[place="palette"][hidden] {
 
 @keyframes uitour-zoom {
   from {
-    transform: scale(0.8);
+    transform: scale(0.9);
   }
   50% {
-    transform: scale(1.0);
+    transform: scale(1.1);
   }
   to {
-    transform: scale(0.8);
+    transform: scale(0.9);
   }
 }
 
@@ -989,27 +973,29 @@ toolbarpaletteitem[place="palette"][hidden] {
   }
 }
 
-#UITourHighlightContainer,
-#UITourHighlight {
-  pointer-events: none;
+html|div#UITourHighlight {
+  display: none;
+  position: absolute;
+  z-index: 10000000000;
 }
 
-#UITourHighlight[active] {
+html|div#UITourHighlight[active] {
   animation-delay: 2s;
   animation-fill-mode: forwards;
   animation-iteration-count: infinite;
   animation-timing-function: linear;
+  display: block;
 }
 
-#UITourHighlight[active="wobble"] {
+html|div#UITourHighlight[active="wobble"] {
   animation-name: uitour-wobble;
   animation-duration: 1s;
 }
-#UITourHighlight[active="zoom"] {
+html|div#UITourHighlight[active="zoom"] {
   animation-name: uitour-zoom;
   animation-duration: 1s;
 }
-#UITourHighlight[active="color"] {
+html|div#UITourHighlight[active="color"] {
   animation-name: uitour-color;
   animation-duration: 2s;
 }

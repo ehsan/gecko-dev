@@ -22,7 +22,6 @@
 #include "nsString.h"
 #include "nsAutoPtr.h"
 #include "mozilla/RefPtr.h"
-#include "nsThreadUtils.h"
 
 namespace mozilla {
 namespace ipc {
@@ -166,7 +165,6 @@ public:
 
   SocketConnectionStatus GetConnectionStatus() const
   {
-    MOZ_ASSERT(NS_IsMainThread());
     return mConnectionStatus;
   }
 

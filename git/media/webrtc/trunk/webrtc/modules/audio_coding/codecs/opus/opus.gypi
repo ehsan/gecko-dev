@@ -15,7 +15,7 @@
         ['build_with_mozilla==1', {
           # Mozilla provides its own build of the opus library.
           'include_dirs': [
-            '/media/libopus/include',
+            '$(DIST)/include/opus',
            ]
         }, {
           'dependencies': [

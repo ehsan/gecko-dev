@@ -7,9 +7,9 @@
 #define SURFACE_TYPES_H_
 
 #include "mozilla/TypedEnum.h"
-#include "mozilla/RefPtr.h"
-#include "mozilla/Attributes.h"
 #include <stdint.h>
+
+#include <cstring>
 
 namespace mozilla {
 namespace layers {
@@ -20,7 +20,7 @@ namespace gfx {
 
 typedef uintptr_t SurfaceStreamHandle;
 
-struct SurfaceCaps MOZ_FINAL
+struct SurfaceCaps
 {
     bool any;
     bool color, alpha;
@@ -31,15 +31,15 @@ struct SurfaceCaps MOZ_FINAL
 
     // The surface allocator that we want to create this
     // for.  May be null.
-    RefPtr<layers::ISurfaceAllocator> surfaceAllocator;
+    layers::ISurfaceAllocator* surfaceAllocator;
 
-    SurfaceCaps();
-    SurfaceCaps(const SurfaceCaps& other);
-    ~SurfaceCaps();
+    SurfaceCaps() {
+        Clear();
+    }
 
-    void Clear();
-
-    SurfaceCaps& operator=(const SurfaceCaps& other);
+    void Clear() {
+        std::memset(this, 0, sizeof(SurfaceCaps));
+    }
 
     // We can't use just 'RGB' here, since it's an ancient Windows macro.
     static SurfaceCaps ForRGB() {

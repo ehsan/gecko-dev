@@ -27,12 +27,12 @@ struct VersionPart {
 struct VersionPartW {
   int32_t     numA;
 
-  wchar_t    *strB;    // NOT null-terminated, can be a null pointer
+  const PRUnichar *strB;    // NOT null-terminated, can be a null pointer
   uint32_t    strBlen;
 
   int32_t     numC;
 
-  wchar_t    *extraD;  // null-terminated
+  PRUnichar       *extraD;  // null-terminated
 
 };
 #endif
@@ -112,11 +112,11 @@ ParseVP(char *part, VersionPart &result)
  * @returns A pointer to the next versionpart, or null if none.
  */
 #ifdef XP_WIN
-static wchar_t*
-ParseVP(wchar_t *part, VersionPartW &result)
+static PRUnichar*
+ParseVP(PRUnichar *part, VersionPartW &result)
 {
 
-  wchar_t *dot;
+  PRUnichar *dot;
 
   result.numA = 0;
   result.strB = nullptr;
@@ -136,7 +136,7 @@ ParseVP(wchar_t *part, VersionPartW &result)
     result.strB = L"";
   }
   else {
-    result.numA = wcstol(part, const_cast<wchar_t**>(&result.strB), 10);
+    result.numA = wcstol(part, const_cast<PRUnichar**>(&result.strB), 10);
   }
 
   if (!*result.strB) {
@@ -145,14 +145,14 @@ ParseVP(wchar_t *part, VersionPartW &result)
   }
   else {
     if (result.strB[0] == '+') {
-      static wchar_t kPre[] = L"pre";
+      static const PRUnichar kPre[] = L"pre";
 
       ++result.numA;
       result.strB = kPre;
       result.strBlen = sizeof(kPre) - 1;
     }
     else {
-      const wchar_t *numstart = wcspbrk(result.strB, L"0123456789+-");
+      const PRUnichar *numstart = wcspbrk(result.strB, L"0123456789+-");
       if (!numstart) {
 	result.strBlen = wcslen(result.strB);
       }
@@ -282,18 +282,18 @@ namespace mozilla {
 int32_t
 CompareVersions(const PRUnichar *A, const PRUnichar *B)
 {
-  wchar_t *A2 = wcsdup(char16ptr_t(A));
+  PRUnichar *A2 = wcsdup(A);
   if (!A2)
     return 1;
 
-  wchar_t *B2 = wcsdup(char16ptr_t(B));
+  PRUnichar *B2 = wcsdup(B);
   if (!B2) {
     free(A2);
     return 1;
   }
 
   int32_t result;
-  wchar_t *a = A2, *b = B2;
+  PRUnichar *a = A2, *b = B2;
 
   do {
     VersionPartW va, vb;

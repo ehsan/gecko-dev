@@ -30,16 +30,16 @@ class CodeGeneratorX86 : public CodeGeneratorX86Shared
     ValueOperand ToTempValue(LInstruction *ins, size_t pos);
 
     template<typename T>
-    bool loadAndNoteViewTypeElement(ArrayBufferView::ViewType vt, const T &srcAddr,
+    bool loadViewTypeElement(ArrayBufferView::ViewType vt, const T &srcAddr,
                              const LDefinition *out);
     template<typename T>
-    void loadViewTypeElement(ArrayBufferView::ViewType vt, const T &srcAddr,
+    void loadNonFloat32ViewTypeElement(ArrayBufferView::ViewType vt, const T &srcAddr,
                                        const LDefinition *out);
     template<typename T>
-    bool storeAndNoteViewTypeElement(ArrayBufferView::ViewType vt, const LAllocation *value,
+    bool storeViewTypeElement(ArrayBufferView::ViewType vt, const LAllocation *value,
                               const T &dstAddr);
     template<typename T>
-    void storeViewTypeElement(ArrayBufferView::ViewType vt, const LAllocation *value,
+    void storeNonFloat32ViewTypeElement(ArrayBufferView::ViewType vt, const LAllocation *value,
                                         const T &dstAddr);
     void storeElementTyped(const LAllocation *value, MIRType valueType, MIRType elementType,
                            const Register &elements, const LAllocation *index);

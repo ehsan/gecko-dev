@@ -270,7 +270,6 @@ nsNativeThemeQt::DrawWidgetBackground(QPainter *qPainter,
     }
     case NS_THEME_DROPDOWN_TEXT:
     case NS_THEME_DROPDOWN_TEXTFIELD:
-    case NS_THEME_NUMBER_INPUT:
     case NS_THEME_TEXTFIELD:
     case NS_THEME_TEXTFIELD_MULTILINE:
     case NS_THEME_LISTBOX: {
@@ -283,9 +282,7 @@ nsNativeThemeQt::DrawWidgetBackground(QPainter *qPainter,
         frameOpt.rect = r;
         frameOpt.features = QStyleOptionFrameV2::Flat;
 
-        if (aWidgetType == NS_THEME_NUMBER_INPUT ||
-            aWidgetType == NS_THEME_TEXTFIELD ||
-            aWidgetType == NS_THEME_TEXTFIELD_MULTILINE) {
+        if (aWidgetType == NS_THEME_TEXTFIELD || aWidgetType == NS_THEME_TEXTFIELD_MULTILINE) {
             QRect contentRect = style->subElementRect(QStyle::SE_LineEditContents, &frameOpt);
             contentRect.adjust(mFrameWidth, mFrameWidth, -mFrameWidth, -mFrameWidth);
             qPainter->fillRect(contentRect, QBrush(Qt::white));
@@ -338,8 +335,7 @@ nsNativeThemeQt::GetWidgetPadding(nsDeviceContext* ,
                                   nsIntMargin* aResult)
 {
     // XXX: Where to get padding values, framewidth?
-    if (aWidgetType == NS_THEME_NUMBER_INPUT ||
-        aWidgetType == NS_THEME_TEXTFIELD ||
+    if (aWidgetType == NS_THEME_TEXTFIELD ||
         aWidgetType == NS_THEME_TEXTFIELD_MULTILINE ||
         aWidgetType == NS_THEME_DROPDOWN) {
         aResult->SizeTo(2, 2, 2, 2);
@@ -509,7 +505,6 @@ nsNativeThemeQt::GetMinimumWidgetSize(nsRenderingContext* aContext, nsIFrame* aF
         //*aIsOverridable = false;
         break;
     }
-    case NS_THEME_NUMBER_INPUT:
     case NS_THEME_TEXTFIELD:
     case NS_THEME_TEXTFIELD_MULTILINE:
         break;
@@ -560,7 +555,6 @@ nsNativeThemeQt::ThemeSupportsWidget(nsPresContext* aPresContext,
     case NS_THEME_DROPDOWN_BUTTON:
     case NS_THEME_DROPDOWN_TEXT:
     case NS_THEME_DROPDOWN_TEXTFIELD:
-    case NS_THEME_NUMBER_INPUT:
     case NS_THEME_TEXTFIELD:
     case NS_THEME_TEXTFIELD_MULTILINE:
     case NS_THEME_LISTBOX:

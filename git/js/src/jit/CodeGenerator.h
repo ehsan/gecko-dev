@@ -25,6 +25,7 @@
 namespace js {
 namespace jit {
 
+class OutOfLineNewParallelArray;
 class OutOfLineTestObject;
 class OutOfLineNewArray;
 class OutOfLineNewObject;
@@ -119,13 +120,14 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool visitApplyArgsGeneric(LApplyArgsGeneric *apply);
     bool visitBail(LBail *lir);
     bool visitGetDynamicName(LGetDynamicName *lir);
-    bool visitFilterArgumentsOrEvalS(LFilterArgumentsOrEvalS *lir);
-    bool visitFilterArgumentsOrEvalV(LFilterArgumentsOrEvalV *lir);
-    bool visitCallDirectEvalS(LCallDirectEvalS *lir);
-    bool visitCallDirectEvalV(LCallDirectEvalV *lir);
+    bool visitFilterArgumentsOrEval(LFilterArgumentsOrEval *lir);
+    bool visitCallDirectEval(LCallDirectEval *lir);
     bool visitDoubleToInt32(LDoubleToInt32 *lir);
     bool visitFloat32ToInt32(LFloat32ToInt32 *lir);
     bool visitNewSlots(LNewSlots *lir);
+    bool visitNewParallelArrayVMCall(LNewParallelArray *lir);
+    bool visitNewParallelArray(LNewParallelArray *lir);
+    bool visitOutOfLineNewParallelArray(OutOfLineNewParallelArray *ool);
     bool visitNewArrayCallVM(LNewArray *lir);
     bool visitNewArray(LNewArray *lir);
     bool visitOutOfLineNewArray(OutOfLineNewArray *ool);
@@ -332,8 +334,6 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool visitAssertRangeF(LAssertRangeF *ins);
     bool visitAssertRangeV(LAssertRangeV *ins);
 
-    bool visitRecompileCheck(LRecompileCheck *ins);
-
     IonScriptCounts *extractUnassociatedScriptCounts() {
         IonScriptCounts *counts = unassociatedScriptCounts_;
         unassociatedScriptCounts_ = nullptr;  // prevent delete in dtor
@@ -364,9 +364,6 @@ class CodeGenerator : public CodeGeneratorSpecific
 
     void emitLambdaInit(const Register &resultReg, const Register &scopeChainReg,
                         const LambdaFunctionInfo &info);
-
-    bool emitFilterArgumentsOrEval(LInstruction *lir, Register string, Register temp1,
-                                   Register temp2);
 
     IonScriptCounts *maybeCreateScriptCounts();
 
@@ -429,15 +426,6 @@ class CodeGenerator : public CodeGeneratorSpecific
 
     bool emitAssertRangeI(const Range *r, Register input);
     bool emitAssertRangeD(const Range *r, FloatRegister input, FloatRegister temp);
-
-#ifdef DEBUG
-    Vector<CodeOffsetLabel, 0, IonAllocPolicy> ionScriptLabels_;
-    bool branchIfInvalidated(Register temp, Label *invalidated);
-
-    bool emitDebugResultChecks(LInstruction *ins);
-    bool emitObjectOrStringResultChecks(LInstruction *lir, MDefinition *mir);
-    bool emitValueResultChecks(LInstruction *lir, MDefinition *mir);
-#endif
 
     // Script counts created when compiling code with no associated JSScript.
     IonScriptCounts *unassociatedScriptCounts_;

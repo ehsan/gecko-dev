@@ -13,7 +13,7 @@
 
 #include "jstypes.h"
 
-#ifdef _MSC_VER
+#ifdef XP_WIN
 typedef int pid_t;
 #else
 #include <unistd.h>

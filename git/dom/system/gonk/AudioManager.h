@@ -28,6 +28,8 @@
       {0x89, 0x10, 0xf9, 0x3c, 0x55, 0xe6, 0x62, 0xec}}
 #define NS_AUDIOMANAGER_CONTRACTID "@mozilla.org/telephony/audiomanager;1"
 
+using namespace mozilla::dom;
+
 namespace mozilla {
 namespace hal {
 class SwitchEvent;
@@ -64,11 +66,6 @@ protected:
 private:
   nsAutoPtr<mozilla::hal::SwitchObserver> mObserver;
   nsCOMPtr<AudioChannelAgent>             mPhoneAudioAgent;
-#ifdef MOZ_B2G_RIL
-  bool                                    mMuteCallToRIL;
-  // mIsMicMuted is only used for toggling mute call to RIL.
-  bool                                    mIsMicMuted;
-#endif
 
   void HandleBluetoothStatusChanged(nsISupports* aSubject,
                                     const char* aTopic,

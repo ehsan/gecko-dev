@@ -94,22 +94,23 @@ protected:
                                            const nsHTMLReflowState& aParentReflowState,
                                            const FlexboxAxisTracker& aAxisTracker);
 
-  nsresult GenerateFlexLines(nsPresContext* aPresContext,
+  nsresult GenerateFlexItems(nsPresContext* aPresContext,
                              const nsHTMLReflowState& aReflowState,
-                             nscoord aContentBoxMainSize,
-                             nscoord aAvailableHeightForContent,
                              const FlexboxAxisTracker& aAxisTracker,
-                             nsTArray<FlexLine>& aLines);
+                             FlexLine& aLine);
 
-  nscoord GetMainSizeFromReflowState(const nsHTMLReflowState& aReflowState,
-                                     const FlexboxAxisTracker& aAxisTracker);
+  nscoord ComputeFlexContainerMainSize(const nsHTMLReflowState& aReflowState,
+                                       const FlexboxAxisTracker& aAxisTracker,
+                                       const FlexLine& aLine,
+                                       nscoord aAvailableHeightForContent,
+                                       nsReflowStatus& aStatus);
 
-  nscoord ComputeCrossSize(const nsHTMLReflowState& aReflowState,
-                           const FlexboxAxisTracker& aAxisTracker,
-                           const nsTArray<FlexLine>& aLines,
-                           nscoord aAvailableHeightForContent,
-                           bool* aIsDefinite,
-                           nsReflowStatus& aStatus);
+  nscoord ComputeFlexContainerCrossSize(const nsHTMLReflowState& aReflowState,
+                                        const FlexboxAxisTracker& aAxisTracker,
+                                        nscoord aLineCrossSize,
+                                        nscoord aAvailableHeightForContent,
+                                        bool* aIsDefinite,
+                                        nsReflowStatus& aStatus);
 
   nsresult SizeItemInCrossAxis(nsPresContext* aPresContext,
                                const FlexboxAxisTracker& aAxisTracker,

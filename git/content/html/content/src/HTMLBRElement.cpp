@@ -5,6 +5,7 @@
 
 #include "mozilla/dom/HTMLBRElement.h"
 #include "mozilla/dom/HTMLBRElementBinding.h"
+#include "mozilla/Util.h"
 
 #include "nsAttrValueInlines.h"
 #include "nsStyleConsts.h"

@@ -7,6 +7,7 @@
 #define GFX_ThebesLayerComposite_H
 
 #include "Layers.h"                     // for Layer (ptr only), etc
+#include "gfxPoint.h"                   // for gfxSize
 #include "gfxRect.h"                    // for gfxRect
 #include "mozilla/Attributes.h"         // for MOZ_OVERRIDE
 #include "mozilla/RefPtr.h"             // for RefPtr

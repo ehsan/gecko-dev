@@ -71,9 +71,9 @@ function test1() {
 
   let plugin = gTestBrowser.contentDocument.getElementById("test");
   let doc = gTestBrowser.contentDocument;
-  let overlay = doc.getAnonymousElementByAttribute(plugin, "anonid", "main");
+  let overlay = doc.getAnonymousElementByAttribute(plugin, "class", "mainBox");
   ok(overlay, "Test 1, Should have an overlay.");
-  ok(!overlay.classList.contains("visible"), "Test 1, Overlay should be hidden");
+  is(window.getComputedStyle(overlay).visibility, 'hidden', "Test 1, Overlay should be hidden");
 
   plugin.style.width = '300px';
   executeSoon(test2);
@@ -82,34 +82,34 @@ function test1() {
 function test2() {
   let plugin = gTestBrowser.contentDocument.getElementById("test");
   let doc = gTestBrowser.contentDocument;
-  let overlay = doc.getAnonymousElementByAttribute(plugin, "anonid", "main");
+  let overlay = doc.getAnonymousElementByAttribute(plugin, "class", "mainBox");
   ok(overlay, "Test 2, Should have an overlay.");
-  ok(!overlay.classList.contains("visible"), "Test 2, Overlay should be hidden");
+  is(window.getComputedStyle(overlay).visibility, 'hidden', "Test 2, Overlay should be hidden");
 
   plugin.style.height = '300px';
-  let condition = () => overlay.classList.contains("visible");
+  let condition = () => window.getComputedStyle(overlay).visibility == 'visible';
   waitForCondition(condition, test3, "Test 2, Waited too long for overlay to become visible");
 }
 
 function test3() {
   let plugin = gTestBrowser.contentDocument.getElementById("test");
   let doc = gTestBrowser.contentDocument;
-  let overlay = doc.getAnonymousElementByAttribute(plugin, "anonid", "main");
+  let overlay = doc.getAnonymousElementByAttribute(plugin, "class", "mainBox");
   ok(overlay, "Test 3, Should have an overlay.");
-  ok(overlay.classList.contains("visible"), "Test 3, Overlay should be visible");
+  is(window.getComputedStyle(overlay).visibility, 'visible', "Test 3, Overlay should be visible");
 
   plugin.style.width = '10px';
   plugin.style.height = '10px';
-  let condition = () => !overlay.classList.contains("visible");
+  let condition = () => window.getComputedStyle(overlay).visibility == 'hidden';
   waitForCondition(condition, test4, "Test 3, Waited too long for overlay to become hidden");
 }
 
 function test4() {
   let plugin = gTestBrowser.contentDocument.getElementById("test");
   let doc = gTestBrowser.contentDocument;
-  let overlay = doc.getAnonymousElementByAttribute(plugin, "anonid", "main");
+  let overlay = doc.getAnonymousElementByAttribute(plugin, "class", "mainBox");
   ok(overlay, "Test 4, Should have an overlay.");
-  ok(!overlay.classList.contains("visible"), "Test 4, Overlay should be hidden");
+  is(window.getComputedStyle(overlay).visibility, 'hidden', "Test 4, Overlay should be hidden");
 
   clearAllPluginPermissions();
   finishTest();

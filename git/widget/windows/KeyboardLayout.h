@@ -65,12 +65,12 @@ public:
   MOZ_ALWAYS_INLINE void Update();
 
   MOZ_ALWAYS_INLINE void Unset(Modifiers aRemovingModifiers);
-  void Set(Modifiers aAddingModifiers);
+  MOZ_ALWAYS_INLINE void Set(Modifiers aAddingModifiers);
 
   void InitInputEvent(WidgetInputEvent& aInputEvent) const;
 
-  bool IsShift() const;
-  bool IsControl() const;
+  MOZ_ALWAYS_INLINE bool IsShift() const;
+  MOZ_ALWAYS_INLINE bool IsControl() const;
   MOZ_ALWAYS_INLINE bool IsAlt() const;
   MOZ_ALWAYS_INLINE bool IsAltGr() const;
   MOZ_ALWAYS_INLINE bool IsWin() const;

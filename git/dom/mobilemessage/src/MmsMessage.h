@@ -35,7 +35,6 @@ public:
              const nsAString&                      aSender,
              const nsTArray<nsString>&             aReceivers,
              uint64_t                              aTimestamp,
-             uint64_t                              aSentTimestamp,
              bool                                  aRead,
              const nsAString&                      aSubject,
              const nsAString&                      aSmil,
@@ -53,7 +52,6 @@ public:
                          const nsAString&      aSender,
                          const JS::Value&      aReceivers,
                          const JS::Value&      aTimestamp,
-                         const JS::Value&      aSentTimestamp,
                          bool                  aRead,
                          const nsAString&      aSubject,
                          const nsAString&      aSmil,
@@ -76,7 +74,6 @@ private:
   nsString                       mSender;
   nsTArray<nsString>             mReceivers;
   uint64_t                       mTimestamp;
-  uint64_t                       mSentTimestamp;
   bool                           mRead;
   nsString                       mSubject;
   nsString                       mSmil;

@@ -250,7 +250,7 @@ nsUrlClassifierPrefixSet::Contains(uint32_t aPrefix, bool* aFound)
   return NS_OK;
 }
 
-MOZ_DEFINE_MALLOC_SIZE_OF(UrlClassifierMallocSizeOf)
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(UrlClassifierMallocSizeOf)
 
 NS_IMETHODIMP
 nsUrlClassifierPrefixSet::CollectReports(nsIHandleReportCallback* aHandleReport,

@@ -9,7 +9,6 @@
 #define nsPresContext_h___
 
 #include "mozilla/Attributes.h"
-#include "mozilla/WeakPtr.h"
 #include "nsColor.h"
 #include "nsCoord.h"
 #include "nsCOMPtr.h"
@@ -43,8 +42,6 @@ class nsBidiPresUtils;
 
 class nsAString;
 class nsIPrintSettings;
-class nsDocShell;
-class nsIDocShell;
 class nsIDocument;
 class nsILanguageAtomService;
 class nsITheme;
@@ -65,15 +62,13 @@ struct nsFontFaceRuleContainer;
 class nsObjectFrame;
 class nsTransitionManager;
 class nsAnimationManager;
+class nsIDOMMediaQueryList;
 class nsRefreshDriver;
 class nsIWidget;
 class nsDeviceContext;
 
 namespace mozilla {
 class RestyleManager;
-namespace dom {
-class MediaQueryList;
-}
 namespace layers {
 class ContainerLayer;
 }
@@ -271,7 +266,7 @@ public:
   /**
    * Support for window.matchMedia()
    */
-  already_AddRefed<mozilla::dom::MediaQueryList>
+  already_AddRefed<nsIDOMMediaQueryList>
     MatchMedia(const nsAString& aMediaQueryList);
 
   /**
@@ -415,19 +410,17 @@ public:
   bool GetFocusRingOnAnything() const { return mFocusRingOnAnything; }
   uint8_t GetFocusRingStyle() const { return mFocusRingStyle; }
 
-  NS_HIDDEN_(void) SetContainer(nsIDocShell* aContainer);
+  NS_HIDDEN_(void) SetContainer(nsISupports* aContainer);
 
-  virtual nsISupports* GetContainerWeakExternal() const;
-  nsISupports* GetContainerWeakInternal() const;
+  virtual NS_HIDDEN_(already_AddRefed<nsISupports>) GetContainerExternal() const;
+  NS_HIDDEN_(already_AddRefed<nsISupports>) GetContainerInternal() const;
 #ifdef MOZILLA_INTERNAL_API
-  nsISupports* GetContainerWeak() const
-  { return GetContainerWeakInternal(); }
+  already_AddRefed<nsISupports> GetContainer() const
+  { return GetContainerInternal(); }
 #else
-  nsISupports* GetContainerWeak() const
-  { return GetContainerWeakExternal(); }
+  already_AddRefed<nsISupports> GetContainer() const
+  { return GetContainerExternal(); }
 #endif
-
-  nsIDocShell* GetDocShell() const;
 
   // XXX this are going to be replaced with set/get container
   void SetLinkHandler(nsILinkHandler* aHandler) { mLinkHandler = aHandler; }
@@ -1026,7 +1019,7 @@ protected:
   NS_HIDDEN_(void) GetDocumentColorPreferences();
 
   NS_HIDDEN_(void) PreferenceChanged(const char* aPrefName);
-  static NS_HIDDEN_(void) PrefChangedCallback(const char*, void*);
+  static NS_HIDDEN_(int) PrefChangedCallback(const char*, void*);
 
   NS_HIDDEN_(void) UpdateAfterPreferencesChanged();
   static NS_HIDDEN_(void) PrefChangedUpdateTimerCallback(nsITimer *aTimer, void *aClosure);
@@ -1178,7 +1171,7 @@ public:
 
 protected:
 
-  mozilla::WeakPtr<nsDocShell>             mContainer;
+  nsWeakPtr             mContainer;
 
   PRCList               mDOMMediaQueryLists;
 

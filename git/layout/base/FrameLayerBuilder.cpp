@@ -1420,17 +1420,8 @@ ContainerState::CreateOrRecycleThebesLayer(const nsIFrame* aAnimatedGeometryRoot
     // assume the caller of InvalidateThebesLayerContents has ensured
     // the area is invalidated in the widget.
   } else {
-    // Check whether the layer will be scrollable. This is used as a hint to
-    // influence whether tiled layers are used or not.
-    bool canScroll = false;
-    nsIFrame* animatedGeometryRootParent = aAnimatedGeometryRoot->GetParent();
-    if (animatedGeometryRootParent &&
-        animatedGeometryRootParent->GetType() == nsGkAtoms::scrollFrame) {
-      canScroll = true;
-    }
     // Create a new thebes layer
-    layer = mManager->CreateThebesLayerWithHint(canScroll ? LayerManager::SCROLLABLE :
-                                                            LayerManager::NONE);
+    layer = mManager->CreateThebesLayer();
     if (!layer)
       return nullptr;
     // Mark this layer as being used for Thebes-painting display items
@@ -1626,18 +1617,22 @@ ContainerState::FindFixedPosFrameForLayerData(const nsIFrame* aAnimatedGeometryR
                                               nsIntRegion* aVisibleRegion,
                                               bool* aIsSolidColorInVisibleRegion)
 {
-  nsIFrame *viewport = mContainerFrame->PresContext()->PresShell()->GetRootFrame();
-
+  if (mContainerFrame->GetParent()) {
+    // Viewports with displayports always get a layer created for the viewport
+    // frame. (See nsSubdocumentFrame::BuildDisplayList's calculation of
+    // needsOwnLayer.) The children of that layer are the ones that might
+    // have fixed-pos frame data. So if we're creating layers for children
+    // of a frame other than a viewport, there's nothing to do here.
+    return nullptr;
+  }
   // Viewports with no fixed-pos frames are not relevant.
-  if (!viewport->GetFirstChild(nsIFrame::kFixedList)) {
+  if (!mContainerFrame->GetFirstChild(nsIFrame::kFixedList)) {
     return nullptr;
   }
   nsRect displayPort;
   for (const nsIFrame* f = aAnimatedGeometryRoot; f; f = f->GetParent()) {
     if (nsLayoutUtils::IsFixedPosFrameInDisplayPort(f, &displayPort)) {
-      // Display ports are relative to the viewport, convert it to be relative
-      // to our reference frame.
-      displayPort += viewport->GetOffsetToCrossDoc(mContainerReferenceFrame);
+      displayPort += mContainerFrame->GetOffsetToCrossDoc(mContainerReferenceFrame);
       nsIntRegion newVisibleRegion;
       newVisibleRegion.And(ScaleToOutsidePixels(displayPort, false),
                            aDrawRegion);
@@ -1674,7 +1669,8 @@ ContainerState::SetFixedPositionLayerData(Layer* aLayer,
   }
 
   nsLayoutUtils::SetFixedPositionLayerData(aLayer,
-      viewportFrame, viewportSize, aFixedPosFrame, presContext, mParameters);
+      viewportFrame, viewportSize, aFixedPosFrame, mContainerReferenceFrame,
+      presContext, mParameters);
 }
 
 void
@@ -1798,18 +1794,13 @@ ContainerState::PopThebesLayerData()
     // mask layer for image and color layers
     SetupMaskLayer(layer, data->mItemClip);
   }
-
-  uint32_t flags = 0;
-  nsIWidget* widget = mContainerReferenceFrame->PresContext()->GetRootWidget();
-  // Disable subpixelAA on hidpi
-  bool hidpi = widget && widget->GetDefaultScale().scale >= 2;
-  if (hidpi) {
-    flags |= Layer::CONTENT_DISABLE_SUBPIXEL_AA;
-  }
+  uint32_t flags;
   if (isOpaque && !data->mForceTransparentSurface) {
-    flags |= Layer::CONTENT_OPAQUE;
-  } else if (data->mNeedComponentAlpha && !hidpi) {
-    flags |= Layer::CONTENT_COMPONENT_ALPHA;
+    flags = Layer::CONTENT_OPAQUE;
+  } else if (data->mNeedComponentAlpha) {
+    flags = Layer::CONTENT_COMPONENT_ALPHA;
+  } else {
+    flags = 0;
   }
   layer->SetContentFlags(flags);
 
@@ -2261,12 +2252,11 @@ ContainerState::ProcessDisplayItems(const nsDisplayList& aList,
 
 
       nsDisplayItem::Type type = item->GetType();
-      bool setVisibleRegion = (type != nsDisplayItem::TYPE_TRANSFORM) &&
-        (type != nsDisplayItem::TYPE_SCROLL_LAYER);
-      if (type == nsDisplayItem::TYPE_TRANSFORM) {
-        mParameters.mAncestorClipRect = itemClip.HasClip() ? &clipRect : nullptr;
-      } else {
+      bool setVisibleRegion = type != nsDisplayItem::TYPE_TRANSFORM;
+      if (setVisibleRegion) {
         mParameters.mAncestorClipRect = nullptr;
+      } else {
+        mParameters.mAncestorClipRect = itemClip.HasClip() ? &clipRect : nullptr;
       }
 
       // Just use its layer.
@@ -2845,8 +2835,11 @@ ChooseScaleAndSetTransform(FrameLayerBuilder* aLayerBuilder,
 
   bool canDraw2D = transform.CanDraw2D(&transform2d);
   gfxSize scale;
+  bool isRetained = aLayer->Manager()->IsWidgetLayerManager();
+  // Only fiddle with scale factors for the retaining layer manager, since
+  // it only matters for retained layers
   // XXX Should we do something for 3D transforms?
-  if (canDraw2D) {
+  if (canDraw2D && isRetained) {
     // If the container's transform is animated off main thread, then use the
     // maximum scale.
     if (aContainerFrame->GetContent() &&
@@ -2908,7 +2901,6 @@ ChooseScaleAndSetTransform(FrameLayerBuilder* aLayerBuilder,
       aOutgoingScale.mInActiveTransformedSubtree = true;
     }
   }
-  bool isRetained = aLayer->Manager()->IsWidgetLayerManager();
   if (isRetained && (!canDraw2D || transform2d.HasNonIntegerTranslation())) {
     aOutgoingScale.mDisableSubpixelAntialiasingInDescendants = true;
   }
