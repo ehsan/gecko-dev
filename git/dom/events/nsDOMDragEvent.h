@@ -3,40 +3,41 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_dom_DragEvent_h_
-#define mozilla_dom_DragEvent_h_
+#ifndef nsDOMDragEvent_h__
+#define nsDOMDragEvent_h__
 
 #include "nsIDOMDragEvent.h"
-#include "mozilla/dom/MouseEvent.h"
+#include "nsDOMMouseEvent.h"
 #include "mozilla/dom/DragEventBinding.h"
 #include "mozilla/EventForwards.h"
 
 namespace mozilla {
 namespace dom {
-
 class DataTransfer;
+}
+}
 
-class DragEvent : public MouseEvent,
-                  public nsIDOMDragEvent
+class nsDOMDragEvent : public nsDOMMouseEvent,
+                       public nsIDOMDragEvent
 {
 public:
-  DragEvent(EventTarget* aOwner,
-            nsPresContext* aPresContext,
-            WidgetDragEvent* aEvent);
+  nsDOMDragEvent(mozilla::dom::EventTarget* aOwner,
+                 nsPresContext* aPresContext,
+                 mozilla::WidgetDragEvent* aEvent);
 
   NS_DECL_ISUPPORTS_INHERITED
 
   NS_DECL_NSIDOMDRAGEVENT
-
-  NS_FORWARD_TO_MOUSEEVENT
+  
+  NS_FORWARD_TO_NSDOMMOUSEEVENT
 
   virtual JSObject* WrapObject(JSContext* aCx,
                                JS::Handle<JSObject*> aScope) MOZ_OVERRIDE
   {
-    return DragEventBinding::Wrap(aCx, aScope, this);
+    return mozilla::dom::DragEventBinding::Wrap(aCx, aScope, this);
   }
 
-  DataTransfer* GetDataTransfer();
+  mozilla::dom::DataTransfer* GetDataTransfer();
 
   void InitDragEvent(const nsAString& aType,
                      bool aCanBubble, bool aCancelable,
@@ -45,12 +46,14 @@ public:
                      int32_t aClientX, int32_t aClientY,
                      bool aCtrlKey, bool aAltKey, bool aShiftKey,
                      bool aMetaKey, uint16_t aButton,
-                     EventTarget* aRelatedTarget,
-                     DataTransfer* aDataTransfer,
-                     ErrorResult& aError);
+                     mozilla::dom::EventTarget* aRelatedTarget,
+                     mozilla::dom::DataTransfer* aDataTransfer,
+                     mozilla::ErrorResult& aError);
 };
 
-} // namespace dom
-} // namespace mozilla
+nsresult NS_NewDOMDragEvent(nsIDOMEvent** aInstancePtrResult,
+                            mozilla::dom::EventTarget* aOwner,
+                            nsPresContext* aPresContext,
+                            mozilla::WidgetDragEvent* aEvent);
 
-#endif // mozilla_dom_DragEvent_h_
+#endif // nsDOMDragEvent_h__

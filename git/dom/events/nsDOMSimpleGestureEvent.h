@@ -2,38 +2,34 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_dom_SimpleGestureEvent_h_
-#define mozilla_dom_SimpleGestureEvent_h_
+#ifndef nsDOMSimpleGestureEvent_h__
+#define nsDOMSimpleGestureEvent_h__
 
 #include "nsIDOMSimpleGestureEvent.h"
-#include "mozilla/dom/MouseEvent.h"
-#include "mozilla/dom/SimpleGestureEventBinding.h"
+#include "nsDOMMouseEvent.h"
 #include "mozilla/EventForwards.h"
+#include "mozilla/dom/SimpleGestureEventBinding.h"
 
 class nsPresContext;
 
-namespace mozilla {
-namespace dom {
-
-class SimpleGestureEvent : public MouseEvent,
-                           public nsIDOMSimpleGestureEvent
+class nsDOMSimpleGestureEvent : public nsDOMMouseEvent,
+                                public nsIDOMSimpleGestureEvent
 {
 public:
-  SimpleGestureEvent(EventTarget* aOwner,
-                     nsPresContext* aPresContext,
-                     WidgetSimpleGestureEvent* aEvent);
+  nsDOMSimpleGestureEvent(mozilla::dom::EventTarget* aOwner,
+                          nsPresContext*, mozilla::WidgetSimpleGestureEvent*);
 
   NS_DECL_ISUPPORTS_INHERITED
 
   NS_DECL_NSIDOMSIMPLEGESTUREEVENT
 
   // Forward to base class
-  NS_FORWARD_TO_MOUSEEVENT
+  NS_FORWARD_TO_NSDOMMOUSEEVENT
 
   virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE
+			       JS::Handle<JSObject*> aScope) MOZ_OVERRIDE
   {
-    return SimpleGestureEventBinding::Wrap(aCx, aScope, this);
+    return mozilla::dom::SimpleGestureEventBinding::Wrap(aCx, aScope, this);
   }
 
   uint32_t AllowedDirections();
@@ -55,12 +51,12 @@ public:
                               bool aShiftKey,
                               bool aMetaKey,
                               uint16_t aButton,
-                              EventTarget* aRelatedTarget,
+                              mozilla::dom::EventTarget* aRelatedTarget,
                               uint32_t aAllowedDirections,
                               uint32_t aDirection,
                               double aDelta,
                               uint32_t aClickCount,
-                              ErrorResult& aRv)
+                              mozilla::ErrorResult& aRv)
   {
     aRv = InitSimpleGestureEvent(aType, aCanBubble, aCancelable,
                                  aView, aDetail, aScreenX, aScreenY,
@@ -71,7 +67,4 @@ public:
   }
 };
 
-} // namespace dom
-} // namespace mozilla
-
-#endif // mozilla_dom_SimpleGestureEvent_h_
+#endif

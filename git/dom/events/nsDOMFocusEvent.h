@@ -2,19 +2,16 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-#ifndef mozilla_dom_FocusEvent_h_
-#define mozilla_dom_FocusEvent_h_
+#ifndef nsDOMFocusEvent_h_
+#define nsDOMFocusEvent_h_
 
 #include "nsDOMUIEvent.h"
 #include "nsIDOMFocusEvent.h"
 #include "mozilla/EventForwards.h"
 #include "mozilla/dom/FocusEventBinding.h"
 
-namespace mozilla {
-namespace dom {
-
-class FocusEvent : public nsDOMUIEvent,
-                   public nsIDOMFocusEvent
+class nsDOMFocusEvent : public nsDOMUIEvent,
+                        public nsIDOMFocusEvent
 {
 public:
   NS_DECL_ISUPPORTS
@@ -26,29 +23,26 @@ public:
   virtual JSObject* WrapObject(JSContext* aCx,
                                JS::Handle<JSObject*> aScope) MOZ_OVERRIDE
   {
-    return FocusEventBinding::Wrap(aCx, aScope, this);
+    return mozilla::dom::FocusEventBinding::Wrap(aCx, aScope, this);
   }
 
-  FocusEvent(EventTarget* aOwner,
-             nsPresContext* aPresContext,
-             InternalFocusEvent* aEvent);
+  nsDOMFocusEvent(mozilla::dom::EventTarget* aOwner,
+                  nsPresContext* aPresContext,
+                  mozilla::InternalFocusEvent* aEvent);
 
-  EventTarget* GetRelatedTarget();
+  mozilla::dom::EventTarget* GetRelatedTarget();
 
-  static already_AddRefed<FocusEvent> Constructor(const GlobalObject& aGlobal,
-                                                  const nsAString& aType,
-                                                  const FocusEventInit& aParam,
-                                                  ErrorResult& aRv);
+  static already_AddRefed<nsDOMFocusEvent> Constructor(const mozilla::dom::GlobalObject& aGlobal,
+                                                       const nsAString& aType,
+                                                       const mozilla::dom::FocusEventInit& aParam,
+                                                       mozilla::ErrorResult& aRv);
 protected:
   nsresult InitFocusEvent(const nsAString& aType,
                           bool aCanBubble,
                           bool aCancelable,
                           nsIDOMWindow* aView,
                           int32_t aDetail,
-                          EventTarget* aRelatedTarget);
+                          mozilla::dom::EventTarget* aRelatedTarget);
 };
 
-} // namespace dom
-} // namespace mozilla
-
-#endif // mozilla_dom_FocusEvent_h_
+#endif /* !defined(nsDOMFocusEvent_h_) */

@@ -40,15 +40,15 @@ txNumberExpr::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
 #if defined(XP_WIN)
                 /* XXX MSVC miscompiles such that (NaN == 0) */
                 if (mozilla::IsNaN(rightDbl))
-                    result = mozilla::UnspecifiedNaN<double>();
+                    result = mozilla::UnspecifiedNaN();
                 else
 #endif
                 if (leftDbl == 0 || mozilla::IsNaN(leftDbl))
-                    result = mozilla::UnspecifiedNaN<double>();
+                    result = mozilla::UnspecifiedNaN();
                 else if (mozilla::IsNegative(leftDbl) != mozilla::IsNegative(rightDbl))
-                    result = mozilla::NegativeInfinity<double>();
+                    result = mozilla::NegativeInfinity();
                 else
-                    result = mozilla::PositiveInfinity<double>();
+                    result = mozilla::PositiveInfinity();
             }
             else
                 result = leftDbl / rightDbl;
@@ -56,7 +56,7 @@ txNumberExpr::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
 
         case MODULUS:
             if (rightDbl == 0) {
-                result = mozilla::UnspecifiedNaN<double>();
+                result = mozilla::UnspecifiedNaN();
             }
             else {
 #if defined(XP_WIN)

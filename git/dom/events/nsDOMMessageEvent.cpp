@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/dom/MessageEvent.h"
+#include "nsDOMMessageEvent.h"
 #include "mozilla/dom/MessageEventBinding.h"
 #include "mozilla/dom/MessagePort.h"
 #include "mozilla/dom/MessagePortBinding.h"
@@ -13,57 +13,57 @@
 #include "mozilla/HoldDropJSObjects.h"
 #include "jsapi.h"
 
-namespace mozilla {
-namespace dom {
+using namespace mozilla;
+using namespace mozilla::dom;
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(MessageEvent)
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMMessageEvent)
 
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(MessageEvent, nsDOMEvent)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsDOMMessageEvent, nsDOMEvent)
   tmp->mData = JSVAL_VOID;
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mWindowSource)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mPortSource)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mPorts)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(MessageEvent, nsDOMEvent)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsDOMMessageEvent, nsDOMEvent)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mWindowSource)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mPortSource)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mPorts)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
-NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN_INHERITED(MessageEvent, nsDOMEvent)
+NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN_INHERITED(nsDOMMessageEvent, nsDOMEvent)
   NS_IMPL_CYCLE_COLLECTION_TRACE_JSVAL_MEMBER_CALLBACK(mData)
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(MessageEvent)
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsDOMMessageEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMMessageEvent)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMEvent)
 
-NS_IMPL_ADDREF_INHERITED(MessageEvent, nsDOMEvent)
-NS_IMPL_RELEASE_INHERITED(MessageEvent, nsDOMEvent)
+NS_IMPL_ADDREF_INHERITED(nsDOMMessageEvent, nsDOMEvent)
+NS_IMPL_RELEASE_INHERITED(nsDOMMessageEvent, nsDOMEvent)
 
-MessageEvent::MessageEvent(EventTarget* aOwner,
-                           nsPresContext* aPresContext,
-                           WidgetEvent* aEvent)
-  : nsDOMEvent(aOwner, aPresContext, aEvent)
-  , mData(JSVAL_VOID)
+nsDOMMessageEvent::nsDOMMessageEvent(mozilla::dom::EventTarget* aOwner,
+                                     nsPresContext* aPresContext,
+                                     WidgetEvent* aEvent)
+  : nsDOMEvent(aOwner, aPresContext, aEvent),
+    mData(JSVAL_VOID)
 {
 }
 
-MessageEvent::~MessageEvent()
+nsDOMMessageEvent::~nsDOMMessageEvent()
 {
   mData = JSVAL_VOID;
-  DropJSObjects(this);
+  mozilla::DropJSObjects(this);
 }
 
 JSObject*
-MessageEvent::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
+nsDOMMessageEvent::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
   return mozilla::dom::MessageEventBinding::Wrap(aCx, aScope, this);
 }
 
 NS_IMETHODIMP
-MessageEvent::GetData(JSContext* aCx, JS::MutableHandle<JS::Value> aData)
+nsDOMMessageEvent::GetData(JSContext* aCx, JS::MutableHandle<JS::Value> aData)
 {
   ErrorResult rv;
   aData.set(GetData(aCx, rv));
@@ -71,7 +71,7 @@ MessageEvent::GetData(JSContext* aCx, JS::MutableHandle<JS::Value> aData)
 }
 
 JS::Value
-MessageEvent::GetData(JSContext* aCx, ErrorResult& aRv)
+nsDOMMessageEvent::GetData(JSContext* aCx, ErrorResult& aRv)
 {
   JS::Rooted<JS::Value> data(aCx, mData);
   if (!JS_WrapValue(aCx, &data)) {
@@ -81,28 +81,28 @@ MessageEvent::GetData(JSContext* aCx, ErrorResult& aRv)
 }
 
 NS_IMETHODIMP
-MessageEvent::GetOrigin(nsAString& aOrigin)
+nsDOMMessageEvent::GetOrigin(nsAString& aOrigin)
 {
   aOrigin = mOrigin;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-MessageEvent::GetLastEventId(nsAString& aLastEventId)
+nsDOMMessageEvent::GetLastEventId(nsAString& aLastEventId)
 {
   aLastEventId = mLastEventId;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-MessageEvent::GetSource(nsIDOMWindow** aSource)
+nsDOMMessageEvent::GetSource(nsIDOMWindow** aSource)
 {
   NS_IF_ADDREF(*aSource = mWindowSource);
   return NS_OK;
 }
 
 void
-MessageEvent::GetSource(Nullable<OwningWindowProxyOrMessagePort>& aValue) const
+nsDOMMessageEvent::GetSource(Nullable<mozilla::dom::OwningWindowProxyOrMessagePort>& aValue) const
 {
   if (mWindowSource) {
     aValue.SetValue().SetAsWindowProxy() = mWindowSource;
@@ -111,14 +111,16 @@ MessageEvent::GetSource(Nullable<OwningWindowProxyOrMessagePort>& aValue) const
   }
 }
 
-/* static */ already_AddRefed<MessageEvent>
-MessageEvent::Constructor(const GlobalObject& aGlobal,
-                          JSContext* aCx, const nsAString& aType,
-                          const MessageEventInit& aParam,
-                          ErrorResult& aRv)
+/* static */ already_AddRefed<nsDOMMessageEvent>
+nsDOMMessageEvent::Constructor(const mozilla::dom::GlobalObject& aGlobal,
+                               JSContext* aCx, const nsAString& aType,
+                               const mozilla::dom::MessageEventInit& aParam,
+                               mozilla::ErrorResult& aRv)
 {
-  nsCOMPtr<EventTarget> t = do_QueryInterface(aGlobal.GetAsSupports());
-  nsRefPtr<MessageEvent> event = new MessageEvent(t, nullptr, nullptr);
+  nsCOMPtr<mozilla::dom::EventTarget> t =
+    do_QueryInterface(aGlobal.GetAsSupports());
+  nsRefPtr<nsDOMMessageEvent> event =
+    new nsDOMMessageEvent(t, nullptr, nullptr);
 
   aRv = event->InitEvent(aType, aParam.mBubbles, aParam.mCancelable);
   if (aRv.Failed()) {
@@ -164,13 +166,13 @@ MessageEvent::Constructor(const GlobalObject& aGlobal,
 }
 
 NS_IMETHODIMP
-MessageEvent::InitMessageEvent(const nsAString& aType,
-                               bool aCanBubble,
-                               bool aCancelable,
-                               JS::Handle<JS::Value> aData,
-                               const nsAString& aOrigin,
-                               const nsAString& aLastEventId,
-                               nsIDOMWindow* aSource)
+nsDOMMessageEvent::InitMessageEvent(const nsAString& aType,
+                                    bool aCanBubble,
+                                    bool aCancelable,
+                                    JS::Handle<JS::Value> aData,
+                                    const nsAString& aOrigin,
+                                    const nsAString& aLastEventId,
+                                    nsIDOMWindow* aSource)
 {
   nsresult rv = nsDOMEvent::InitEvent(aType, aCanBubble, aCancelable);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -185,24 +187,19 @@ MessageEvent::InitMessageEvent(const nsAString& aType,
 }
 
 void
-MessageEvent::SetPorts(MessagePortList* aPorts)
+nsDOMMessageEvent::SetPorts(mozilla::dom::MessagePortList* aPorts)
 {
   MOZ_ASSERT(!mPorts && aPorts);
   mPorts = aPorts;
 }
 
-} // namespace dom
-} // namespace mozilla
-
-using namespace mozilla;
-using namespace mozilla::dom;
-
 nsresult
 NS_NewDOMMessageEvent(nsIDOMEvent** aInstancePtrResult,
-                      EventTarget* aOwner,
+                      mozilla::dom::EventTarget* aOwner,
                       nsPresContext* aPresContext,
                       WidgetEvent* aEvent) 
 {
-  MessageEvent* it = new MessageEvent(aOwner, aPresContext, aEvent);
+  nsDOMMessageEvent* it = new nsDOMMessageEvent(aOwner, aPresContext, aEvent);
+
   return CallQueryInterface(it, aInstancePtrResult);
 }

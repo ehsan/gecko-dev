@@ -13,7 +13,7 @@
 #include "nsIVariant.h"
 #include "nsISupportsPrimitives.h"
 #include "nsIScriptSecurityManager.h"
-#include "mozilla/dom/DOMStringList.h"
+#include "nsDOMLists.h"
 #include "nsError.h"
 #include "nsIDragService.h"
 #include "nsIClipboard.h"
@@ -324,32 +324,27 @@ DataTransfer::GetFiles(nsIDOMFileList** aFileList)
   return rv.ErrorCode();
 }
 
-already_AddRefed<DOMStringList>
+already_AddRefed<nsIDOMDOMStringList>
 DataTransfer::Types()
 {
-  nsRefPtr<DOMStringList> types = new DOMStringList();
+  nsRefPtr<nsDOMStringList> types = new nsDOMStringList();
   if (mItems.Length()) {
-    bool addFile = false;
     const nsTArray<TransferItem>& item = mItems[0];
-    for (uint32_t i = 0; i < item.Length(); i++) {
-      const nsString& format = item[i].mFormat;
-      types->Add(format);
-      if (!addFile) {
-        addFile = format.EqualsASCII(kFileMime) ||
-                  format.EqualsASCII("application/x-moz-file-promise");
-      }
-    }
+    for (uint32_t i = 0; i < item.Length(); i++)
+      types->Add(item[i].mFormat);
 
-    if (addFile) {
+    bool filePresent, filePromisePresent;
+    types->Contains(NS_LITERAL_STRING(kFileMime), &filePresent);
+    types->Contains(NS_LITERAL_STRING("application/x-moz-file-promise"), &filePromisePresent);
+    if (filePresent || filePromisePresent)
       types->Add(NS_LITERAL_STRING("Files"));
-    }
   }
 
   return types.forget();
 }
 
 NS_IMETHODIMP
-DataTransfer::GetTypes(nsISupports** aTypes)
+DataTransfer::GetTypes(nsIDOMDOMStringList** aTypes)
 {
   *aTypes = Types().get();
 
@@ -526,7 +521,7 @@ DataTransfer::GetMozSourceNode(nsIDOMNode** aSourceNode)
   return CallQueryInterface(sourceNode, aSourceNode);
 }
 
-already_AddRefed<DOMStringList>
+already_AddRefed<nsIDOMDOMStringList>
 DataTransfer::MozTypesAt(uint32_t aIndex, ErrorResult& aRv)
 {
   // Only the first item is valid for clipboard events
@@ -536,7 +531,7 @@ DataTransfer::MozTypesAt(uint32_t aIndex, ErrorResult& aRv)
     return nullptr;
   }
 
-  nsRefPtr<DOMStringList> types = new DOMStringList();
+  nsRefPtr<nsDOMStringList> types = new nsDOMStringList();
   if (aIndex < mItems.Length()) {
     // note that you can retrieve the types regardless of their principal
     nsTArray<TransferItem>& item = mItems[aIndex];
@@ -548,7 +543,7 @@ DataTransfer::MozTypesAt(uint32_t aIndex, ErrorResult& aRv)
 }
 
 NS_IMETHODIMP
-DataTransfer::MozTypesAt(uint32_t aIndex, nsISupports** aTypes)
+DataTransfer::MozTypesAt(uint32_t aIndex, nsIDOMDOMStringList** aTypes)
 {
   ErrorResult rv;
   *aTypes = MozTypesAt(aIndex, rv).get();

@@ -14,6 +14,12 @@ namespace mozilla {
 namespace dom {
 
 inline void
+Element::MozRequestPointerLock()
+{
+  OwnerDoc()->RequestPointerLock(this);
+}
+
+inline void
 Element::RegisterFreezableElement()
 {
   OwnerDoc()->RegisterFreezableElement(this);

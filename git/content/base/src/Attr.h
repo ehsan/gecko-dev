@@ -20,7 +20,6 @@
 #include "nsINodeInfo.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsStubMutationObserver.h"
-#include "nsIDocument.h"
 
 namespace mozilla {
 namespace dom {

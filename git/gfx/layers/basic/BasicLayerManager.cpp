@@ -861,10 +861,9 @@ BasicLayerManager::FlushGroup(PaintLayerContext& aPaintContext, bool aNeedsClipT
       gfxUtils::ClipToRegion(aPaintContext.mTarget,
                              aPaintContext.mLayer->GetEffectiveVisibleRegion());
     }
-
-    CompositionOp op = GetEffectiveOperator(aPaintContext.mLayer);
-    AutoSetOperator setOperator(aPaintContext.mTarget, ThebesOp(op));
-
+    BasicContainerLayer* container = static_cast<BasicContainerLayer*>(aPaintContext.mLayer);
+    AutoSetOperator setOperator(aPaintContext.mTarget,
+                                ThebesOp(container->GetOperator()));
     PaintWithMask(aPaintContext.mTarget, aPaintContext.mLayer->GetEffectiveOpacity(),
                   aPaintContext.mLayer->GetMaskLayer());
   }

@@ -12,10 +12,9 @@
 #include "mozilla/Mutex.h"
 #include "mozilla/storage.h"
 #include "mozilla/dom/ContentParent.h"
-#include "mozilla/dom/DOMStringList.h"
-#include "mozilla/dom/DOMStringListBinding.h"
 #include "mozilla/dom/quota/Client.h"
 #include "mozilla/dom/quota/QuotaManager.h"
+#include "nsDOMLists.h"
 #include "nsJSUtils.h"
 #include "nsProxyRelease.h"
 #include "nsThreadUtils.h"
@@ -495,18 +494,28 @@ IDBDatabase::Version() const
   return info->version;
 }
 
-already_AddRefed<DOMStringList>
+already_AddRefed<nsIDOMDOMStringList>
 IDBDatabase::GetObjectStoreNames(ErrorResult& aRv) const
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
   DatabaseInfo* info = Info();
 
-  nsRefPtr<DOMStringList> list(new DOMStringList());
-  if (!info->GetObjectStoreNames(list->StringArray())) {
+  nsAutoTArray<nsString, 10> objectStoreNames;
+  if (!info->GetObjectStoreNames(objectStoreNames)) {
     IDB_WARNING("Couldn't get names!");
     aRv.Throw(NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
     return nullptr;
+  }
+
+  nsRefPtr<nsDOMStringList> list(new nsDOMStringList());
+  uint32_t count = objectStoreNames.Length();
+  for (uint32_t index = 0; index < count; index++) {
+    if (!list->Add(objectStoreNames[index])) {
+      IDB_WARNING("Failed to add element");
+      aRv.Throw(NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+      return nullptr;
+    }
   }
 
   return list.forget();

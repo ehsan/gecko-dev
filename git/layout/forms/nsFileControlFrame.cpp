@@ -17,7 +17,8 @@
 #include "nsContentCreatorFunctions.h"
 #include "nsContentUtils.h"
 #include "nsEventStates.h"
-#include "mozilla/dom/DOMStringList.h"
+#include "nsIDOMDataTransfer.h"
+#include "nsIDOMDOMStringList.h"
 #include "nsIDOMDragEvent.h"
 #include "nsIDOMFileList.h"
 #include "nsContentList.h"
@@ -222,14 +223,18 @@ nsFileControlFrame::DnDListener::HandleEvent(nsIDOMEvent* aEvent)
 /* static */ bool
 nsFileControlFrame::DnDListener::IsValidDropData(nsIDOMDragEvent* aEvent)
 {
-  nsCOMPtr<nsIDOMDataTransfer> domDataTransfer;
-  aEvent->GetDataTransfer(getter_AddRefs(domDataTransfer));
-  nsCOMPtr<DataTransfer> dataTransfer = do_QueryInterface(domDataTransfer);
+  nsCOMPtr<nsIDOMDataTransfer> dataTransfer;
+  aEvent->GetDataTransfer(getter_AddRefs(dataTransfer));
   NS_ENSURE_TRUE(dataTransfer, false);
 
+  nsCOMPtr<nsIDOMDOMStringList> types;
+  dataTransfer->GetTypes(getter_AddRefs(types));
+  NS_ENSURE_TRUE(types, false);
+
   // We only support dropping files onto a file upload control
-  nsRefPtr<DOMStringList> types = dataTransfer->Types();
-  return types->Contains(NS_LITERAL_STRING("Files"));
+  bool typeSupported;
+  types->Contains(NS_LITERAL_STRING("Files"), &typeSupported);
+  return typeSupported;
 }
 
 nscoord

@@ -1,4 +1,3 @@
-
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -256,7 +255,7 @@ HTMLLinkElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
     bool dropSheet = false;
     if (aName == nsGkAtoms::rel && GetSheet()) {
       uint32_t linkTypes = nsStyleLinkElement::ParseLinkTypes(aValue);
-      dropSheet = !(linkTypes & nsStyleLinkElement::eSTYLESHEET);
+      dropSheet = !(linkTypes & STYLESHEET);          
     }
     
     UpdateStyleSheetInternal(nullptr, nullptr,
@@ -361,7 +360,7 @@ HTMLLinkElement::GetStyleSheetInfo(nsAString& aTitle,
   GetAttr(kNameSpaceID_None, nsGkAtoms::rel, rel);
   uint32_t linkTypes = nsStyleLinkElement::ParseLinkTypes(rel);
   // Is it a stylesheet link?
-  if (!(linkTypes & nsStyleLinkElement::eSTYLESHEET)) {
+  if (!(linkTypes & STYLESHEET)) {
     return;
   }
 
@@ -371,7 +370,7 @@ HTMLLinkElement::GetStyleSheetInfo(nsAString& aTitle,
   aTitle.Assign(title);
 
   // If alternate, does it have title?
-  if (linkTypes & nsStyleLinkElement::eALTERNATE) {
+  if (linkTypes & ALTERNATE) {
     if (aTitle.IsEmpty()) { // alternates must have title
       return;
     } else {

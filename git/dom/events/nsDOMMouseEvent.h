@@ -3,24 +3,21 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_dom_MouseEvent_h_
-#define mozilla_dom_MouseEvent_h_
+#ifndef nsDOMMouseEvent_h__
+#define nsDOMMouseEvent_h__
 
 #include "nsIDOMMouseEvent.h"
 #include "nsDOMUIEvent.h"
 #include "mozilla/dom/MouseEventBinding.h"
 #include "mozilla/EventForwards.h"
 
-namespace mozilla {
-namespace dom {
-
-class MouseEvent : public nsDOMUIEvent,
-                   public nsIDOMMouseEvent
+class nsDOMMouseEvent : public nsDOMUIEvent,
+                        public nsIDOMMouseEvent
 {
 public:
-  MouseEvent(EventTarget* aOwner,
-             nsPresContext* aPresContext,
-             WidgetMouseEventBase* aEvent);
+  nsDOMMouseEvent(mozilla::dom::EventTarget* aOwner,
+                  nsPresContext* aPresContext,
+                  mozilla::WidgetMouseEventBase* aEvent);
 
   NS_DECL_ISUPPORTS_INHERITED
 
@@ -33,7 +30,7 @@ public:
   virtual JSObject* WrapObject(JSContext* aCx,
                                JS::Handle<JSObject*> aScope) MOZ_OVERRIDE
   {
-    return MouseEventBinding::Wrap(aCx, aScope, this);
+    return mozilla::dom::MouseEventBinding::Wrap(aCx, aScope, this);
   }
 
   // Web IDL binding methods
@@ -52,13 +49,14 @@ public:
   bool MetaKey();
   int16_t Button();
   uint16_t Buttons();
-  already_AddRefed<EventTarget> GetRelatedTarget();
-  void InitMouseEvent(const nsAString& aType, bool aCanBubble, bool aCancelable,
+  already_AddRefed<mozilla::dom::EventTarget> GetRelatedTarget();
+  void InitMouseEvent(const nsAString & aType, bool aCanBubble, bool aCancelable,
                       nsIDOMWindow* aView, int32_t aDetail, int32_t aScreenX,
                       int32_t aScreenY, int32_t aClientX, int32_t aClientY,
                       bool aCtrlKey, bool aAltKey, bool aShiftKey,
                       bool aMetaKey, uint16_t aButton,
-                      EventTarget* aRelatedTarget, ErrorResult& aRv)
+                      mozilla::dom::EventTarget *aRelatedTarget,
+                      mozilla::ErrorResult& aRv)
   {
     aRv = InitMouseEvent(aType, aCanBubble, aCancelable,
                          aView, aDetail, aScreenX, aScreenY,
@@ -70,10 +68,10 @@ public:
   {
     return GetModifierStateInternal(aKeyArg);
   }
-  static already_AddRefed<MouseEvent> Constructor(const GlobalObject& aGlobal,
-                                                  const nsAString& aType,
-                                                  const MouseEventInit& aParam,
-                                                  ErrorResult& aRv);
+  static already_AddRefed<nsDOMMouseEvent> Constructor(const mozilla::dom::GlobalObject& aGlobal,
+                                                       const nsAString& aType,
+                                                       const mozilla::dom::MouseEventInit& aParam,
+                                                       mozilla::ErrorResult& aRv);
   int32_t MozMovementX()
   {
     return GetMovementPoint().x;
@@ -84,15 +82,14 @@ public:
   }
   float MozPressure() const;
   uint16_t MozInputSource() const;
-  void InitNSMouseEvent(const nsAString& aType,
-                        bool aCanBubble, bool aCancelable,
-                        nsIDOMWindow* aView, int32_t aDetail, int32_t aScreenX,
+  void InitNSMouseEvent(const nsAString & aType, bool aCanBubble, bool aCancelable,
+                        nsIDOMWindow *aView, int32_t aDetail, int32_t aScreenX,
                         int32_t aScreenY, int32_t aClientX, int32_t aClientY,
                         bool aCtrlKey, bool aAltKey, bool aShiftKey,
                         bool aMetaKey, uint16_t aButton,
-                        EventTarget* aRelatedTarget,
+                        mozilla::dom::EventTarget *aRelatedTarget,
                         float aPressure, uint16_t aInputSource,
-                        ErrorResult& aRv)
+                        mozilla::ErrorResult& aRv)
   {
     aRv = InitNSMouseEvent(aType, aCanBubble, aCancelable,
                            aView, aDetail, aScreenX, aScreenY,
@@ -112,15 +109,12 @@ protected:
                           int32_t aClientX,
                           int32_t aClientY,
                           int16_t aButton,
-                          nsIDOMEventTarget* aRelatedTarget,
+                          nsIDOMEventTarget *aRelatedTarget,
                           const nsAString& aModifiersList);
 };
 
-} // namespace dom
-} // namespace mozilla
-
-#define NS_FORWARD_TO_MOUSEEVENT \
-  NS_FORWARD_NSIDOMMOUSEEVENT(MouseEvent::) \
+#define NS_FORWARD_TO_NSDOMMOUSEEVENT         \
+  NS_FORWARD_NSIDOMMOUSEEVENT(nsDOMMouseEvent::) \
   NS_FORWARD_TO_NSDOMUIEVENT
 
-#endif // mozilla_dom_MouseEvent_h_
+#endif // nsDOMMouseEvent_h__

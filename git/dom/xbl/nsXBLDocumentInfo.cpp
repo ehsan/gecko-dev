@@ -472,8 +472,10 @@ nsXBLDocumentInfo::ReadPrototypeBindings(nsIURI* aURI, nsXBLDocumentInfo** aDocI
     if (flags == XBLBinding_Serialize_NoMoreBindings)
       break;
 
-    rv = nsXBLPrototypeBinding::ReadNewBinding(stream, docInfo, doc, flags);
+    nsXBLPrototypeBinding* binding = new nsXBLPrototypeBinding();
+    rv = binding->Read(stream, docInfo, doc, flags);
     if (NS_FAILED(rv)) {
+      delete binding;
       return rv;
     }
   }

@@ -780,17 +780,22 @@ InMemoryDataSource::InMemoryDataSource(nsISupports* aOuter)
 nsresult
 InMemoryDataSource::Init()
 {
-    PL_DHashTableInit(&mForwardArcs,
-                      PL_DHashGetStubOps(),
-                      nullptr,
-                      sizeof(Entry),
-                      PL_DHASH_MIN_SIZE);
-
-    PL_DHashTableInit(&mReverseArcs,
-                      PL_DHashGetStubOps(),
-                      nullptr,
-                      sizeof(Entry),
-                      PL_DHASH_MIN_SIZE);
+    if (!PL_DHashTableInit(&mForwardArcs,
+                           PL_DHashGetStubOps(),
+                           nullptr,
+                           sizeof(Entry),
+                           PL_DHASH_MIN_SIZE)) {
+        mForwardArcs.ops = nullptr;
+        return NS_ERROR_OUT_OF_MEMORY;
+    }
+    if (!PL_DHashTableInit(&mReverseArcs,
+                           PL_DHashGetStubOps(),
+                           nullptr,
+                           sizeof(Entry),
+                           PL_DHASH_MIN_SIZE)) {
+        mReverseArcs.ops = nullptr;
+        return NS_ERROR_OUT_OF_MEMORY;
+    }
 
 #ifdef PR_LOGGING
     if (! gLog)

@@ -859,13 +859,9 @@ static inline JS_VALUE_CONSTEXPR JS::Value UndefinedValue();
 static MOZ_ALWAYS_INLINE double
 GenericNaN()
 {
-  return mozilla::SpecificNaN<double>(0, 0x8000000000000ULL);
+  return mozilla::SpecificNaN(0, 0x8000000000000ULL);
 }
 
-/* MSVC with PGO miscompiles this function. */
-#if defined(_MSC_VER)
-# pragma optimize("g", off)
-#endif
 static inline double
 CanonicalizeNaN(double d)
 {
@@ -873,9 +869,6 @@ CanonicalizeNaN(double d)
         return GenericNaN();
     return d;
 }
-#if defined(_MSC_VER)
-# pragma optimize("", on)
-#endif
 
 /*
  * JS::Value is the interface for a single JavaScript Engine value.  A few
@@ -986,7 +979,7 @@ class Value
 
     bool setNumber(double d) {
         int32_t i;
-        if (mozilla::NumberIsInt32(d, &i)) {
+        if (mozilla::DoubleIsInt32(d, &i)) {
             setInt32(i);
             return true;
         }
@@ -1639,7 +1632,7 @@ class HeapBase<JS::Value> : public ValueOperations<JS::Heap<JS::Value> >
 
     bool setNumber(double d) {
         int32_t i;
-        if (mozilla::NumberIsInt32(d, &i)) {
+        if (mozilla::DoubleIsInt32(d, &i)) {
             setInt32(i);
             return true;
         }

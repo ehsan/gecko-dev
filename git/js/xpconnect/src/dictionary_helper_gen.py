@@ -234,9 +234,9 @@ def init_value(attribute):
         return "0"
     else:
         if realtype.count("double") and attribute.defvalue == "Infinity":
-            return "mozilla::PositiveInfinity<double>()"
+            return "mozilla::PositiveInfinity()"
         if realtype.count("double") and attribute.defvalue == "-Infinity":
-            return "mozilla::NegativeInfinity<double>()"
+            return "mozilla::NegativeInfinity()"
         if realtype.count("nsAString"):
             return "NS_LITERAL_STRING(\"%s\")" % attribute.defvalue
         if realtype.count("nsACString"):

@@ -17,7 +17,7 @@ namespace mozilla {
 namespace dom {
 
 Date::Date()
-  : mMsecSinceEpoch(UnspecifiedNaN<double>())
+  : mMsecSinceEpoch(UnspecifiedNaN())
 {
 }
 

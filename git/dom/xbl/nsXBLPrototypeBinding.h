@@ -145,14 +145,8 @@ public:
     return &mKeyHandlers;
   }
 
-private:
-  nsresult Read(nsIObjectInputStream* aStream,
-                nsXBLDocumentInfo* aDocInfo,
-                nsIDocument* aDocument,
-                uint8_t aFlags);
-
   /**
-   * Read a new binding from the stream aStream into the xbl document aDocument.
+   * Read this binding from the stream aStream into the xbl document aDocument.
    * aDocInfo should be the xbl document info for the binding document.
    * aFlags can contain XBLBinding_Serialize_InheritStyle to indicate that
    * mInheritStyle flag should be set, and XBLBinding_Serialize_IsFirstBinding
@@ -160,11 +154,10 @@ private:
    * XBLBinding_Serialize_ChromeOnlyContent indicates that
    * nsXBLPrototypeBinding::mChromeOnlyContent should be true.
    */
-public:
-  static nsresult ReadNewBinding(nsIObjectInputStream* aStream,
-                                 nsXBLDocumentInfo* aDocInfo,
-                                 nsIDocument* aDocument,
-                                 uint8_t aFlags);
+  nsresult Read(nsIObjectInputStream* aStream,
+                nsXBLDocumentInfo* aDocInfo,
+                nsIDocument* aDocument,
+                uint8_t aFlags);
 
   /**
    * Write this binding to the stream.
