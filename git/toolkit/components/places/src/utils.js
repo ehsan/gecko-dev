@@ -1271,7 +1271,7 @@ var PlacesUtils = {
   },
 
   /**
-   * Serializes the given node (and all it's descendents) as JSON
+   * Serializes the given node (and all its descendents) as JSON
    * and writes the serialization to the given output stream.
    * 
    * @param   aNode
@@ -1445,8 +1445,17 @@ var PlacesUtils = {
 
       addGenericProperties(bNode, node);
 
-      if (self.nodeIsURI(bNode))
+      if (self.nodeIsURI(bNode)) {
+        // Check for url validity, since we can't halt while writing a backup.
+        // This will throw if we try to serialize an invalid url and it does
+        // not make sense saving a wrong or corrupt uri node.
+        try {
+          self._uri(bNode.uri);
+        } catch (ex) {
+          return;
+        }
         addURIProperties(bNode, node);
+      }
       else if (self.nodeIsContainer(bNode))
         addContainerProperties(bNode, node);
       else if (self.nodeIsSeparator(bNode))

@@ -56,15 +56,12 @@
 #include "gfxImageSurface.h"
 #include "gfxTextRunCache.h"
 #include "gfxTextRunWordCache.h"
+#include "gfxUserFontSet.h"
 
 #include "nsIPref.h"
 #include "nsServiceManagerUtils.h"
 
 #include "nsWeakReference.h"
-
-#ifdef MOZ_ENABLE_GLITZ
-#include <stdlib.h>
-#endif
 
 #include "cairo.h"
 #include "lcms.h"
@@ -75,7 +72,6 @@
 #include "nsIPrefBranch2.h"
 
 gfxPlatform *gPlatform = nsnull;
-int gGlitzState = -1;
 
 // These two may point to the same profile
 static cmsHPROFILE gCMSOutputProfile = nsnull;
@@ -275,30 +271,6 @@ gfxPlatform::~gfxPlatform()
 #endif
 }
 
-PRBool
-gfxPlatform::UseGlitz()
-{
-#ifdef MOZ_ENABLE_GLITZ
-    if (gGlitzState == -1) {
-        if (getenv("MOZ_GLITZ"))
-            gGlitzState = 1;
-        else
-            gGlitzState = 0;
-    }
-
-    if (gGlitzState)
-        return PR_TRUE;
-#endif
-
-    return PR_FALSE;
-}
-
-void
-gfxPlatform::SetUseGlitz(PRBool use)
-{
-    gGlitzState = (use ? 1 : 0);
-}
-
 already_AddRefed<gfxASurface>
 gfxPlatform::OptimizeImage(gfxImageSurface *aSurface,
                            gfxASurface::gfxImageFormat format)
@@ -332,6 +304,29 @@ gfxPlatform::UpdateFontList()
 {
     return NS_ERROR_NOT_IMPLEMENTED;
 }
+
+#define GFX_DOWNLOADABLE_FONTS_ENABLED "gfx.downloadable_fonts.enabled"
+
+PRBool
+gfxPlatform::DownloadableFontsEnabled()
+{
+    static PRBool initialized = PR_FALSE;
+    static PRBool allowDownloadableFonts = PR_FALSE;
+
+    if (initialized == PR_FALSE) {
+        initialized = PR_TRUE;
+        nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+        if (prefs) {
+            PRBool allow;
+            nsresult rv = prefs->GetBoolPref(GFX_DOWNLOADABLE_FONTS_ENABLED, &allow);
+            if (NS_SUCCEEDED(rv))
+                allowDownloadableFonts = allow;
+        }
+    }
+
+    return allowDownloadableFonts;
+}
+
 
 static void
 AppendGenericFontFromPref(nsString& aFonts, const char *aLangGroup, const char *aGenericName)
