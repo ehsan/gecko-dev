@@ -135,6 +135,11 @@ class AbstractFramePtr
         MOZ_ASSERT_IF(fp, asRematerializedFrame() == fp);
     }
 
+    explicit AbstractFramePtr(JSAbstractFramePtr frame)
+        : ptr_(uintptr_t(frame.raw()))
+    {
+    }
+
     static AbstractFramePtr FromRaw(void *raw) {
         AbstractFramePtr frame;
         frame.ptr_ = uintptr_t(raw);
@@ -1674,6 +1679,8 @@ class FrameIter
     void popJitFrame();
     void popAsmJSFrame();
     void settleOnActivation();
+
+    friend class ::JSBrokenFrameIterator;
 };
 
 class ScriptFrameIter : public FrameIter

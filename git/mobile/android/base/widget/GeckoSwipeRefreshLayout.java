@@ -16,8 +16,6 @@
 
 package org.mozilla.gecko.widget;
 
-import org.mozilla.gecko.AppConstants.Versions;
-
 import android.content.Context;
 import android.content.res.Resources;
 import android.content.res.TypedArray;
@@ -352,7 +350,7 @@ public class GeckoSwipeRefreshLayout extends ViewGroup {
      *         scroll up. Override this if the child view is a custom view.
      */
     public boolean canChildScrollUp() {
-        if (Versions.preICS) {
+        if (android.os.Build.VERSION.SDK_INT < 14) {
             if (mTarget instanceof AbsListView) {
                 final AbsListView absListView = (AbsListView) mTarget;
                 return absListView.getChildCount() > 0

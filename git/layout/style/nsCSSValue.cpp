@@ -111,7 +111,7 @@ nsCSSValue::nsCSSValue(mozilla::css::GridTemplateAreasValue* aValue)
   mValue.mGridTemplateAreas->AddRef();
 }
 
-nsCSSValue::nsCSSValue(css::FontFamilyListRefCnt* aValue)
+nsCSSValue::nsCSSValue(FontFamilyList* aValue)
   : mUnit(eCSSUnit_FontFamilyList)
 {
   mValue.mFontFamilyList = aValue;
@@ -491,7 +491,7 @@ void nsCSSValue::SetGridTemplateAreas(mozilla::css::GridTemplateAreasValue* aVal
   mValue.mGridTemplateAreas->AddRef();
 }
 
-void nsCSSValue::SetFontFamilyListValue(css::FontFamilyListRefCnt* aValue)
+void nsCSSValue::SetFontFamilyListValue(FontFamilyList* aValue)
 {
   Reset();
   mUnit = eCSSUnit_FontFamilyList;

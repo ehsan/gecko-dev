@@ -12245,8 +12245,7 @@ AppendGeneric(nsCSSKeyword aKeyword, FontFamilyList *aFamilyList)
 bool
 CSSParserImpl::ParseFamily(nsCSSValue& aValue)
 {
-  nsRefPtr<css::FontFamilyListRefCnt> familyList =
-    new css::FontFamilyListRefCnt();
+  nsRefPtr<FontFamilyList> familyList = new FontFamilyList();
   nsAutoString family;
   bool single, quoted;
 

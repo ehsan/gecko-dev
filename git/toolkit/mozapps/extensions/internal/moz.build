@@ -4,7 +4,9 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-EXTRA_JS_MODULES.addons += [
+JS_MODULES_PATH = 'modules/addons'
+
+EXTRA_JS_MODULES += [
     'AddonLogging.jsm',
     'AddonRepository.jsm',
     'AddonRepository_SQLiteMigrator.jsm',
@@ -16,7 +18,7 @@ EXTRA_JS_MODULES.addons += [
     'SpellCheckDictionaryBootstrap.js',
 ]
 
-EXTRA_PP_JS_MODULES.addons += [
+EXTRA_PP_JS_MODULES += [
     'XPIProvider.jsm',
     'XPIProviderUtils.js',
 ]

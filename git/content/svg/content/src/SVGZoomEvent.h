@@ -28,7 +28,7 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   SVGZoomEvent(EventTarget* aOwner, nsPresContext* aPresContext,
-               InternalSVGZoomEvent* aEvent);
+               WidgetGUIEvent* aEvent);
 
   // Forward to base class
   NS_FORWARD_TO_UIEVENT

@@ -46,7 +46,9 @@ EXTRA_COMPONENTS += [
     'PeerConnection.manifest',
 ]
 
-EXTRA_JS_MODULES.media += [
+JS_MODULES_PATH = 'modules/media'
+
+EXTRA_JS_MODULES += [
     'IdpProxy.jsm',
     'PeerConnectionIdp.jsm',
     'RTCStatsReport.jsm',

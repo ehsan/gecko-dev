@@ -17,7 +17,9 @@ SOURCES += [
     'IdentityCryptoService.cpp',
 ]
 
-EXTRA_JS_MODULES.identity += [
+JS_MODULES_PATH = 'modules/identity'
+
+EXTRA_JS_MODULES += [
     'Identity.jsm',
     'IdentityProvider.jsm',
     'IdentityStore.jsm',
@@ -29,7 +31,7 @@ EXTRA_JS_MODULES.identity += [
     'Sandbox.jsm',
 ]
 
-EXTRA_PP_JS_MODULES.identity += [
+EXTRA_PP_JS_MODULES += [
     'FirefoxAccounts.jsm',
 ]
 

@@ -5,7 +5,7 @@
 
 #include "mozilla/DebugOnly.h"
 
-#include "mozilla/ContentEvents.h"
+#include "mozilla/BasicEvents.h"
 #include "mozilla/EventDispatcher.h"
 #include "mozilla/dom/SVGAnimationElement.h"
 #include "nsSMILTimedElement.h"
@@ -92,7 +92,8 @@ namespace
 
     NS_IMETHOD Run()
     {
-      InternalSMILTimeEvent event(true, mMsg);
+      InternalUIEvent event(true, mMsg);
+      event.eventStructType = NS_SMIL_TIME_EVENT;
       event.detail = mDetail;
 
       nsPresContext* context = nullptr;

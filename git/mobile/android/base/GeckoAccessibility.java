@@ -5,22 +5,19 @@
 
 package org.mozilla.gecko;
 
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
+import org.mozilla.gecko.gfx.LayerView;
+import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.gecko.util.UiAsyncTask;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.AppConstants.Versions;
-import org.mozilla.gecko.gfx.LayerView;
-import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.util.UiAsyncTask;
 
 import android.app.ActivityManager;
 import android.app.ActivityManager.RunningServiceInfo;
 import android.content.Context;
 import android.graphics.Rect;
+import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
@@ -31,6 +28,10 @@ import android.view.accessibility.AccessibilityNodeProvider;
 
 import com.googlecode.eyesfree.braille.selfbraille.SelfBrailleClient;
 import com.googlecode.eyesfree.braille.selfbraille.WriteData;
+
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
 
 public class GeckoAccessibility {
     private static final String LOGTAG = "GeckoAccessibility";
@@ -73,7 +74,8 @@ public class GeckoAccessibility {
                             if (sEnabled)
                                 break;
                         }
-                        if (Versions.feature16Plus && sEnabled && sSelfBrailleClient == null) {
+                        if (sEnabled && sSelfBrailleClient == null &&
+                            Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
                             sSelfBrailleClient = new SelfBrailleClient(GeckoAppShell.getContext(), false);
                         }
                     }
@@ -115,13 +117,13 @@ public class GeckoAccessibility {
         event.setItemCount(message.optInt("itemCount", -1));
         event.setCurrentItemIndex(message.optInt("currentItemIndex", -1));
         event.setBeforeText(message.optString("beforeText"));
-        if (Versions.feature14Plus) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.ICE_CREAM_SANDWICH) {
             event.setToIndex(message.optInt("toIndex", -1));
             event.setScrollable(message.optBoolean("scrollable"));
             event.setScrollX(message.optInt("scrollX", -1));
             event.setScrollY(message.optInt("scrollY", -1));
         }
-        if (Versions.feature15Plus) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.ICE_CREAM_SANDWICH_MR1) {
             event.setMaxScrollX(message.optInt("maxScrollX", -1));
             event.setMaxScrollY(message.optInt("maxScrollY", -1));
         }
@@ -151,7 +153,7 @@ public class GeckoAccessibility {
             return;
         }
 
-        if (Versions.preJB) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN) {
             // Before Jelly Bean we send events directly from here while spoofing the source by setting
             // the package and class name manually.
             ThreadUtils.postToBackgroundThread(new Runnable() {
@@ -245,7 +247,7 @@ public class GeckoAccessibility {
 
     public static void setDelegate(LayerView layerview) {
         // Only use this delegate in Jelly Bean.
-        if (Versions.feature16Plus) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
             layerview.setAccessibilityDelegate(new GeckoAccessibilityDelegate());
             layerview.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
         }

@@ -22,7 +22,9 @@ EXTRA_COMPONENTS += [
     'nsSessionStore.manifest',
 ]
 
-EXTRA_JS_MODULES.sessionstore = [
+JS_MODULES_PATH = 'modules/sessionstore'
+
+EXTRA_JS_MODULES = [
     'ContentRestore.jsm',
     'DocShellCapabilities.jsm',
     'FrameTree.jsm',
@@ -44,7 +46,7 @@ EXTRA_JS_MODULES.sessionstore = [
     'Utils.jsm',
 ]
 
-EXTRA_PP_JS_MODULES.sessionstore += [
+EXTRA_PP_JS_MODULES += [
     'SessionSaver.jsm',
     'SessionStore.jsm',
 ]

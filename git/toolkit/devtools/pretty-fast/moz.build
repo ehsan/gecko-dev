@@ -6,6 +6,8 @@
 
 XPCSHELL_TESTS_MANIFESTS += ['tests/unit/xpcshell.ini']
 
-EXTRA_JS_MODULES.devtools += [
+JS_MODULES_PATH = 'modules/devtools'
+
+EXTRA_JS_MODULES += [
     'pretty-fast.js',
 ]

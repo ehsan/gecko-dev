@@ -8,7 +8,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.mozilla.gecko.AppConstants.Versions;
 import org.mozilla.gecko.db.BrowserContract.Clients;
 import org.mozilla.gecko.db.BrowserContract.Tabs;
 
@@ -172,7 +171,7 @@ public class TabsProvider extends PerProfileDatabaseProvider<TabsProvider.TabsDa
 
             if (shouldUseTransactions()) {
                 // Modern Android allows WAL to be enabled through a mode flag.
-                if (Versions.preJB) {
+                if (Build.VERSION.SDK_INT < 16) {
                     db.enableWriteAheadLogging();
                 }
                 db.setLockingEnabled(false);

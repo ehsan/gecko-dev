@@ -200,41 +200,6 @@ private:
   operator=(const GridTemplateAreasValue& aOther) MOZ_DELETE;
 };
 
-class FontFamilyListRefCnt MOZ_FINAL : public FontFamilyList {
-public:
-    FontFamilyListRefCnt()
-        : FontFamilyList()
-    {
-        MOZ_COUNT_CTOR(FontFamilyListRefCnt);
-    }
-
-    FontFamilyListRefCnt(FontFamilyType aGenericType)
-        : FontFamilyList(aGenericType)
-    {
-        MOZ_COUNT_CTOR(FontFamilyListRefCnt);
-    }
-
-    FontFamilyListRefCnt(const nsAString& aFamilyName,
-                         QuotedName aQuoted)
-        : FontFamilyList(aFamilyName, aQuoted)
-    {
-        MOZ_COUNT_CTOR(FontFamilyListRefCnt);
-    }
-
-    FontFamilyListRefCnt(const FontFamilyListRefCnt& aOther)
-        : FontFamilyList(aOther)
-    {
-        MOZ_COUNT_CTOR(FontFamilyListRefCnt);
-    }
-
-    NS_INLINE_DECL_REFCOUNTING(FontFamilyListRefCnt);
-
-private:
-    ~FontFamilyListRefCnt() {
-        MOZ_COUNT_DTOR(FontFamilyListRefCnt);
-    }
-};
-
 }
 }
 
@@ -406,7 +371,7 @@ public:
   explicit nsCSSValue(nsCSSValueGradient* aValue);
   explicit nsCSSValue(nsCSSValueTokenStream* aValue);
   explicit nsCSSValue(mozilla::css::GridTemplateAreasValue* aValue);
-  explicit nsCSSValue(mozilla::css::FontFamilyListRefCnt* aValue);
+  explicit nsCSSValue(mozilla::FontFamilyList* aValue);
   nsCSSValue(const nsCSSValue& aCopy);
   ~nsCSSValue() { Reset(); }
 
@@ -674,7 +639,7 @@ public:
   void SetGradientValue(nsCSSValueGradient* aGradient);
   void SetTokenStreamValue(nsCSSValueTokenStream* aTokenStream);
   void SetGridTemplateAreas(mozilla::css::GridTemplateAreasValue* aValue);
-  void SetFontFamilyListValue(mozilla::css::FontFamilyListRefCnt* aFontListValue);
+  void SetFontFamilyListValue(mozilla::FontFamilyList* aFontListValue);
   void SetPairValue(const nsCSSValuePair* aPair);
   void SetPairValue(const nsCSSValue& xValue, const nsCSSValue& yValue);
   void SetSharedListValue(nsCSSValueSharedList* aList);
@@ -742,7 +707,7 @@ protected:
     nsCSSValuePairList_heap* mPairList;
     nsCSSValuePairList* mPairListDependent;
     nsCSSValueFloatColor* mFloatColor;
-    mozilla::css::FontFamilyListRefCnt* mFontFamilyList;
+    mozilla::FontFamilyList* mFontFamilyList;
   } mValue;
 };
 

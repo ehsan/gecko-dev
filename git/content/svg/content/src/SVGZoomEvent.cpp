@@ -3,13 +3,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "DOMSVGPoint.h"
-#include "mozilla/ContentEvents.h"
-#include "mozilla/dom/Element.h"
-#include "mozilla/dom/SVGSVGElement.h"
 #include "mozilla/dom/SVGZoomEvent.h"
-#include "nsIDocument.h"
+#include "DOMSVGPoint.h"
+#include "mozilla/dom/SVGSVGElement.h"
 #include "nsIPresShell.h"
+#include "nsIDocument.h"
+#include "mozilla/dom/Element.h"
 #include "prtime.h"
 
 namespace mozilla {
@@ -28,9 +27,9 @@ NS_INTERFACE_MAP_END_INHERITING(UIEvent)
 
 SVGZoomEvent::SVGZoomEvent(EventTarget* aOwner,
                            nsPresContext* aPresContext,
-                           InternalSVGZoomEvent* aEvent)
+                           WidgetGUIEvent* aEvent)
   : UIEvent(aOwner, aPresContext,
-            aEvent ? aEvent : new InternalSVGZoomEvent(false, NS_SVG_ZOOM))
+            aEvent ? aEvent : new WidgetGUIEvent(false, NS_SVG_ZOOM, 0))
   , mPreviousScale(0)
   , mNewScale(0)
 {
@@ -39,8 +38,11 @@ SVGZoomEvent::SVGZoomEvent(EventTarget* aOwner,
   }
   else {
     mEventIsInternal = true;
+    mEvent->eventStructType = NS_SVGZOOM_EVENT;
     mEvent->time = PR_Now();
   }
+
+  mEvent->mFlags.mCancelable = false;
 
   // We must store the "Previous" and "New" values before this event is
   // dispatched. Reading the values from the root 'svg' element after we've
@@ -93,7 +95,7 @@ nsresult
 NS_NewDOMSVGZoomEvent(nsIDOMEvent** aInstancePtrResult,
                       mozilla::dom::EventTarget* aOwner,
                       nsPresContext* aPresContext,
-                      mozilla::InternalSVGZoomEvent* aEvent)
+                      mozilla::WidgetGUIEvent* aEvent)
 {
   mozilla::dom::SVGZoomEvent* it =
     new mozilla::dom::SVGZoomEvent(aOwner, aPresContext, aEvent);

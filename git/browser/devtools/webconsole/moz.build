@@ -6,7 +6,9 @@
 
 BROWSER_CHROME_MANIFESTS += ['test/browser.ini']
 
-EXTRA_JS_MODULES.devtools.webconsole += [
+JS_MODULES_PATH = 'modules/devtools/webconsole'
+
+EXTRA_JS_MODULES += [
     'console-commands.js',
     'console-output.js',
     'hudservice.js',

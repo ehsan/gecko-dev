@@ -8,7 +8,9 @@ if CONFIG['OS_TARGET'] != 'Android':
     MOCHITEST_CHROME_MANIFESTS += ['test/chrome.ini']
     XPCSHELL_TESTS_MANIFESTS += ['test/unit/xpcshell.ini']
 
-EXTRA_JS_MODULES.devtools.toolkit.webconsole += [
+JS_MODULES_PATH = 'modules/devtools/toolkit/webconsole'
+
+EXTRA_JS_MODULES += [
     'client.js',
     'network-helper.js',
     'network-monitor.js',

@@ -38,6 +38,8 @@ EXTRA_COMPONENTS += [
 
 JAR_MANIFESTS += ['jar.mn']
 
-EXTRA_JS_MODULES.devtools += [
+JS_MODULES_PATH = 'modules/devtools'
+
+EXTRA_JS_MODULES += [
     'main.js',
 ]

@@ -62,7 +62,6 @@
 #include "shell/jsheaptools.h"
 #include "shell/jsoptparse.h"
 #include "vm/ArgumentsObject.h"
-#include "vm/Debugger.h"
 #include "vm/HelperThreads.h"
 #include "vm/Monitor.h"
 #include "vm/Shape.h"
@@ -71,9 +70,6 @@
 
 #include "jscompartmentinlines.h"
 #include "jsobjinlines.h"
-
-#include "vm/Interpreter-inl.h"
-#include "vm/Stack-inl.h"
 
 #ifdef XP_WIN
 # define PATH_MAX (MAX_PATH > _MAX_DIR ? MAX_PATH : _MAX_DIR)
@@ -2681,29 +2677,14 @@ EvalInFrame(JSContext *cx, unsigned argc, jsval *vp)
     if (!stableChars.initTwoByte(cx, str))
         return JSTRAP_ERROR;
 
-    AbstractFramePtr frame = fi.abstractFramePtr();
+    mozilla::Range<const jschar> chars = stableChars.twoByteRange();
+    JSAbstractFramePtr frame(fi.abstractFramePtr().raw(), fi.pc());
     RootedScript fpscript(cx, frame.script());
-
-    RootedObject scope(cx);
-    {
-        RootedObject scopeChain(cx, frame.scopeChain());
-        AutoCompartment ac(cx, scopeChain);
-        scope = GetDebugScopeForFrame(cx, frame, fi.pc());
-    }
-    Rooted<Env*> env(cx, scope);
-    if (!env)
-        return false;
-
-    if (!ComputeThis(cx, frame))
-        return false;
-    RootedValue thisv(cx, frame.thisValue());
-
-    bool ok;
-    {
-        AutoCompartment ac(cx, env);
-        ok = EvaluateInEnv(cx, env, thisv, frame, stableChars.twoByteRange(), fpscript->filename(),
-                           JS_PCToLineNumber(cx, fpscript, fi.pc()), args.rval());
-    }
+    bool ok = !!frame.evaluateUCInStackFrame(cx, chars.start().get(), chars.length(),
+                                             fpscript->filename(),
+                                             JS_PCToLineNumber(cx, fpscript,
+                                                               fi.pc()),
+                                             MutableHandleValue::fromMarkedLocation(vp));
     return ok;
 }
 

@@ -5,7 +5,6 @@
 
 package org.mozilla.gecko.tabspanel;
 
-import org.mozilla.gecko.AppConstants.Versions;
 import org.mozilla.gecko.GeckoApp;
 import org.mozilla.gecko.GeckoAppShell;
 import org.mozilla.gecko.GeckoAppShell.AppStateListener;
@@ -26,6 +25,7 @@ import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
+import android.os.Build;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -42,6 +42,7 @@ public class TabsPanel extends LinearLayout
                        implements GeckoPopupMenu.OnMenuItemClickListener,
                                   LightweightTheme.OnChangeListener,
                                   IconTabWidget.OnTabChangedListener {
+    @SuppressWarnings("unused")
     private static final String LOGTAG = "Gecko" + TabsPanel.class.getSimpleName();
 
     public static enum Panel {
@@ -507,7 +508,7 @@ public class TabsPanel extends LinearLayout
     public void prepareTabsAnimation(PropertyAnimator animator) {
         // Not worth doing this on pre-Honeycomb without proper
         // hardware accelerated animations.
-        if (Versions.preHC) {
+        if (Build.VERSION.SDK_INT < 11) {
             return;
         }
 
@@ -538,7 +539,7 @@ public class TabsPanel extends LinearLayout
     }
 
     public void finishTabsAnimation() {
-        if (Versions.preHC) {
+        if (Build.VERSION.SDK_INT < 11) {
             return;
         }
 

@@ -58,8 +58,6 @@ enum nsEventStructType
   NS_CLIPBOARD_EVENT,                // InternalClipboardEvent
   NS_TRANSITION_EVENT,               // InternalTransitionEvent
   NS_ANIMATION_EVENT,                // InternalAnimationEvent
-  NS_SVGZOOM_EVENT,                  // InternalSVGZoomEvent
-  NS_SMIL_TIME_EVENT,                // InternalSMILTimeEvent
 
   // MiscEvents.h
   NS_COMMAND_EVENT,                  // WidgetCommandEvent
@@ -67,7 +65,13 @@ enum nsEventStructType
   NS_PLUGIN_EVENT,                   // WidgetPluginEvent
 
   // InternalMutationEvent.h (dom/events)
-  NS_MUTATION_EVENT                  // InternalMutationEvent
+  NS_MUTATION_EVENT,                 // InternalMutationEvent
+
+  // Follwoing struct type values are ugly.  They indicate other struct type
+  // actually.  However, they are used for distinguishing which DOM event
+  // should be created for the event.
+  NS_SVGZOOM_EVENT,                  // WidgetGUIEvent
+  NS_SMIL_TIME_EVENT                 // InternalUIEvent
 };
 
 /******************************************************************************
@@ -858,7 +862,8 @@ public:
 
   virtual WidgetEvent* Duplicate() const MOZ_OVERRIDE
   {
-    MOZ_ASSERT(eventStructType == NS_GUI_EVENT,
+    MOZ_ASSERT(eventStructType == NS_GUI_EVENT ||
+                 eventStructType == NS_SVGZOOM_EVENT,
                "Duplicate() must be overridden by sub class");
     // Not copying widget, it is a weak reference.
     WidgetGUIEvent* result = new WidgetGUIEvent(false, message, nullptr);
@@ -1170,7 +1175,8 @@ public:
 
   virtual WidgetEvent* Duplicate() const MOZ_OVERRIDE
   {
-    MOZ_ASSERT(eventStructType == NS_UI_EVENT,
+    MOZ_ASSERT(eventStructType == NS_UI_EVENT ||
+                 eventStructType == NS_SMIL_TIME_EVENT,
                "Duplicate() must be overridden by sub class");
     InternalUIEvent* result = new InternalUIEvent(false, message);
     result->AssignUIEventData(*this, true);

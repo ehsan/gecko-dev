@@ -11,9 +11,6 @@
 #ifdef MOZ_FFMPEG
 #include "FFmpegRuntimeLinker.h"
 #endif
-#ifdef MOZ_APPLEMEDIA
-#include "AppleDecoderModule.h"
-#endif
 #include "mozilla/Preferences.h"
 #include "EMEDecoderModule.h"
 #include "mozilla/CDMProxy.h"
@@ -44,9 +41,6 @@ PlatformDecoderModule::Init()
                                "media.fragmented-mp4.ffmpeg.enabled", false);
 #ifdef XP_WIN
   WMFDecoderModule::Init();
-#endif
-#ifdef MOZ_APPLEMEDIA
-  AppleDecoderModule::Init();
 #endif
 }
 
@@ -121,12 +115,6 @@ PlatformDecoderModule::Create()
 #ifdef MOZ_FFMPEG
   if (sFFmpegDecoderEnabled) {
     return FFmpegRuntimeLinker::CreateDecoderModule();
-  }
-#endif
-#ifdef MOZ_APPLEMEDIA
-  nsAutoPtr<AppleDecoderModule> m(new AppleDecoderModule());
-  if (NS_SUCCEEDED(m->Startup())) {
-    return m.forget();
   }
 #endif
   return nullptr;

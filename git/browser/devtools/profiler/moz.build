@@ -6,7 +6,9 @@
 
 BROWSER_CHROME_MANIFESTS += ['test/browser.ini']
 
-EXTRA_JS_MODULES.devtools.profiler += [
+JS_MODULES_PATH = 'modules/devtools/profiler'
+
+EXTRA_JS_MODULES += [
     'cleopatra.js',
     'commands.js',
     'consts.js',

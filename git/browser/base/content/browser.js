@@ -2536,7 +2536,7 @@ let BrowserOnClick = {
           try {
             let reportURL = formatURL("browser.safebrowsing.malware.reportURL", true);
             reportURL += location;
-            gBrowser.loadURI(reportURL);
+            content.location = reportURL;
           } catch (e) {
             Components.utils.reportError("Couldn't get malware report URL: " + e);
           }
@@ -2561,7 +2561,7 @@ let BrowserOnClick = {
    */
   onE10sAboutNewTab: function(event, ownerDoc) {
     let isTopFrame = (ownerDoc.defaultView.parent === ownerDoc.defaultView);
-    if (!isTopFrame) {
+    if (!isTopFrame || event.button != 0) {
       return;
     }
 
@@ -2570,8 +2570,7 @@ let BrowserOnClick = {
     if (anchorTarget instanceof HTMLAnchorElement &&
         anchorTarget.classList.contains("newtab-link")) {
       event.preventDefault();
-      let where = whereToOpenLink(event, false, false);
-      openUILinkIn(anchorTarget.href, where);
+      openUILinkIn(anchorTarget.href, "current");
     }
   },
 
@@ -2602,11 +2601,11 @@ let BrowserOnClick = {
     // Allow users to override and continue through to the site,
     // but add a notify bar as a reminder, so that they don't lose
     // track after, e.g., tab switching.
-    gBrowser.loadURIWithFlags(gBrowser.currentURI.spec,
+    gBrowser.loadURIWithFlags(content.location.href,
                               nsIWebNavigation.LOAD_FLAGS_BYPASS_CLASSIFIER,
                               null, null, null);
 
-    Services.perms.add(gBrowser.currentURI, "safe-browsing",
+    Services.perms.add(makeURI(content.location.href), "safe-browsing",
                        Ci.nsIPermissionManager.ALLOW_ACTION,
                        Ci.nsIPermissionManager.EXPIRE_SESSION);
 
@@ -2678,7 +2677,7 @@ function getMeOutOfHere() {
   } catch(e) {
     Components.utils.reportError("Couldn't get homepage pref: " + e);
   }
-  gBrowser.loadURI(url);
+  content.location = url;
 }
 
 function BrowserFullScreen()
