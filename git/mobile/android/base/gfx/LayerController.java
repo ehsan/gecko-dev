@@ -91,7 +91,6 @@ public class LayerController {
 
     /* The new color for the checkerboard. */
     private int mCheckerboardColor;
-    private boolean mCheckerboardShouldShowChecks;
 
     private boolean mForceRedraw;
 
@@ -336,6 +335,11 @@ public class LayerController {
         return new RectF(x, y, x + layerSize.width, y + layerSize.height);
     }
 
+    public RectF restrictToPageSize(RectF aRect) {
+        FloatSize pageSize = getPageSize();
+        return RectUtils.restrict(aRect, new RectF(0, 0, pageSize.width, pageSize.height));
+    }
+
     // Returns true if a checkerboard is about to be visible.
     private boolean aboutToCheckerboard() {
         // Increase the size of the viewport (and clamp to page boundaries), and
@@ -380,13 +384,11 @@ public class LayerController {
     public boolean onTouchEvent(MotionEvent event) {
         int action = event.getAction();
         PointF point = new PointF(event.getX(), event.getY());
-
         if ((action & MotionEvent.ACTION_MASK) == MotionEvent.ACTION_DOWN) {
-            mView.clearEventQueue();
             initialTouchLocation = point;
-            allowDefaultActions = !mWaitForTouchListeners;
             post(new Runnable() {
                 public void run() {
+                    mView.clearEventQueue();
                     preventPanning(mWaitForTouchListeners);
                 }
             });
@@ -437,15 +439,13 @@ public class LayerController {
             allowDefaultTimer.purge();
             allowDefaultTimer = null;
         }
-        if (aValue == allowDefaultActions) {
-            allowDefaultActions = !aValue;
-    
-            if (aValue) {
-                mView.clearEventQueue();
-                mPanZoomController.cancelTouch();
-            } else {
-                mView.processEventQueue();
-            }
+        allowDefaultActions = !aValue;
+
+        if (aValue) {
+            mView.clearEventQueue();
+            mPanZoomController.cancelTouch();
+        } else {
+            mView.processEventQueue();
         }
     }
 
@@ -453,20 +453,9 @@ public class LayerController {
         mWaitForTouchListeners = aValue;
     }
 
-    /** Retrieves whether we should show checkerboard checks or not. */
-    public boolean checkerboardShouldShowChecks() {
-        return mCheckerboardShouldShowChecks;
-    }
-
     /** Retrieves the color that the checkerboard should be. */
     public int getCheckerboardColor() {
         return mCheckerboardColor;
-    }
-
-    /** Sets whether or not the checkerboard should show checkmarks. */
-    public void setCheckerboardShowChecks(boolean showChecks) {
-        mCheckerboardShouldShowChecks = showChecks;
-        mView.requestRender();
     }
 
     /** Sets a new color for the checkerboard. */

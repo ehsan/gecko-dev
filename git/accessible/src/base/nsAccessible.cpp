@@ -1828,10 +1828,6 @@ nsAccessible::GetActionName(PRUint8 aIndex, nsAString& aName)
      aName.AssignLiteral("click");
      return NS_OK;
 
-   case ePressAction:
-     aName.AssignLiteral("press");
-     return NS_OK;
-
    case eCheckUncheckAction:
      if (states & states::CHECKED)
        aName.AssignLiteral("uncheck");

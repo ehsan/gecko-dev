@@ -79,7 +79,6 @@ EXPORTS	= \
 	gfxUtils.h \
 	gfxUserFontSet.h \
 	nsCoreAnimationSupport.h \
-	nsIOSurface.h \
 	gfxSharedImageSurface.h \
 	$(NULL)
 

@@ -1139,12 +1139,8 @@ nsObjectFrame::IsTransparentMode() const
   if (!mInstanceOwner)
     return false;
 
-  NPWindow *window = nsnull;
+  NPWindow *window;
   mInstanceOwner->GetWindow(window);
-  if (!window) {
-    return false;
-  }
-
   if (window->type != NPWindowTypeDrawable)
     return false;
 
@@ -1464,15 +1460,40 @@ nsObjectFrame::PrintPlugin(nsRenderingContext& aRenderingContext,
 }
 
 already_AddRefed<ImageContainer>
-nsObjectFrame::GetImageContainer()
+nsObjectFrame::GetImageContainer(LayerManager* aManager)
 {
-  nsRefPtr<ImageContainer> container = mImageContainer;
+  nsRefPtr<LayerManager> manager = aManager;
+  bool retain = false;
 
-  if (container) {
-    return container.forget();
+  if (!manager) {
+    manager = nsContentUtils::LayerManagerForDocument(mContent->OwnerDoc(), &retain);
+  }
+  if (!manager) {
+    return nsnull;
   }
 
-  container = mImageContainer = LayerManager::CreateImageContainer();
+  nsRefPtr<ImageContainer> container;
+
+  // XXX - in the future image containers will be manager independent and
+  // we can remove the manager equals check and only check the backend type.
+  if (mImageContainer) {
+    if ((!mImageContainer->Manager() || mImageContainer->Manager() == manager) &&
+        mImageContainer->GetBackendType() == manager->GetBackendType()) {
+      container = mImageContainer;
+      return container.forget();
+    }
+  }
+
+  container = manager->CreateImageContainer();
+
+  if (retain) {
+    // Clear current image before we reset mImageContainer. Only mImageContainer
+    // is allowed to contain the image for this plugin.
+    if (mImageContainer) {
+      mImageContainer->SetCurrentImage(nsnull);
+    }
+    mImageContainer = container;
+  }
 
   return container.forget();
 }
@@ -1517,6 +1538,13 @@ nsObjectFrame::GetLayerState(nsDisplayListBuilder* aBuilder,
     return LAYER_NONE;
 
 #ifdef XP_MACOSX
+  // Layer painting not supported without OpenGL
+  if (aManager && aManager->GetBackendType() !=
+      LayerManager::LAYERS_OPENGL) {
+    return LAYER_NONE;
+  }
+
+  // Synchronous painting, but with (gecko) layers.
   if (!mInstanceOwner->UseAsyncRendering() &&
       mInstanceOwner->IsRemoteDrawingCoreAnimation() &&
       mInstanceOwner->GetEventModel() == NPEventModelCocoa) {
@@ -1548,7 +1576,9 @@ nsObjectFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
     return nsnull;
 
   // Create image
-  nsRefPtr<ImageContainer> container = GetImageContainer();
+  nsRefPtr<ImageContainer> container = GetImageContainer(aManager);
+  if (!container)
+    return nsnull;
 
   {
     nsRefPtr<Image> current = container->GetCurrentImage();
@@ -1664,6 +1694,7 @@ nsObjectFrame::PaintPlugin(nsDisplayListBuilder* aBuilder,
     // The matrix includes the frame's position, so we need to transform
     // from 0,0 to get the correct coordinates.
     frameGfxRect.MoveTo(0, 0);
+    matrix2d.NudgeToIntegers();
 
     mInstanceOwner->Paint(ctx, matrix2d.Transform(frameGfxRect), dirtyGfxRect);
     return;

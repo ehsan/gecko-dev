@@ -862,7 +862,6 @@ void nsBaseWidget::CreateCompositor()
       if (!lf) {
         delete lm;
         mCompositorChild = nsnull;
-        return;
       }
       lf->SetShadowManager(shadowManager);
       lf->SetParentBackendType(LayerManager::LAYERS_OPENGL);

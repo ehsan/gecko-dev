@@ -119,13 +119,8 @@ public class TabsTray extends Activity implements GeckoApp.OnTabsChangedListener
         // Scrolling to the selected tab can happen here
         if (hasFocus) {
             int position = mTabsAdapter.getPositionForTab(Tabs.getInstance().getSelectedTab());
-            if (position == -1)
-                return;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.FROYO) {
+            if (position != -1) 
                 mList.smoothScrollToPosition(position);
-            } else {
-                /* To Do: Find a way to scroll with Eclair's APIs */
-            }
         }
     } 
    

@@ -46,7 +46,6 @@ class GonkCameraInputStream : public nsIAsyncInputStream {
     void ReceiveFrame(char* frame, PRUint32 length);
 
     static void  DataCallback(int32_t aMsgType, const sp<IMemory>& aDataPtr, void *aUser);
-    static PRUint32 getNumberOfCameras();
 
   protected:
     void NotifyListeners();

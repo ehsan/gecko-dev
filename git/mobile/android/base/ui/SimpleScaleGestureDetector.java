@@ -101,14 +101,9 @@ public class SimpleScaleGestureDetector {
         return mPointerInfo.size();
     }
 
-    private int getActionIndex(MotionEvent event) {
-        return (event.getAction() & MotionEvent.ACTION_POINTER_INDEX_MASK)
-            >> MotionEvent.ACTION_POINTER_INDEX_SHIFT;
-    }
-
     private void onTouchStart(MotionEvent event) {
         mLastEventTime = event.getEventTime();
-        mPointerInfo.addFirst(PointerInfo.create(event, getActionIndex(event)));
+        mPointerInfo.addFirst(PointerInfo.create(event, event.getActionIndex()));
         if (getPointersDown() == 2) {
             sendScaleGesture(EventType.BEGIN);
         }
@@ -131,7 +126,7 @@ public class SimpleScaleGestureDetector {
     private void onTouchEnd(MotionEvent event) {
         mLastEventTime = event.getEventTime();
 
-        int id = event.getPointerId(getActionIndex(event));
+        int id = event.getPointerId(event.getActionIndex());
         ListIterator<PointerInfo> iterator = mPointerInfo.listIterator();
         while (iterator.hasNext()) {
             PointerInfo pointerInfo = iterator.next();

@@ -56,8 +56,7 @@ _JAVA_HARNESS = \
   Driver.java \
   Element.java \
   FennecNativeActions.java \
-  FennecMochitestAssert.java \
-  FennecTalosAssert.java \
+  FennecNativeAssert.java \
   FennecNativeDriver.java \
   FennecNativeElement.java \
   RoboCopException.java \
@@ -65,7 +64,12 @@ _JAVA_HARNESS = \
 
 _JAVA_TESTS = $(patsubst $(TESTPATH)/%.in,%,$(wildcard $(TESTPATH)/*.java.in))
 
-_TEST_FILES = $(wildcard $(TESTPATH)/*.html)
+_TEST_FILES = \
+  $(TESTPATH)/robocop_blank_01.html \
+  $(TESTPATH)/robocop_blank_02.html \
+  $(TESTPATH)/robocop_blank_03.html \
+  $(TESTPATH)/robocop_boxes.html \
+  $(NULL)
 
 _ROBOCOP_TOOLS = \
   $(TESTPATH)/robocop.ini \

@@ -1617,8 +1617,6 @@ public:
     }
   }
 
-  virtual size_t SizeOfStyleSheets(nsMallocSizeOfFun aMallocSizeOf) const = 0;
-
 private:
   PRUint64 mWarnedAbout;
 
