@@ -160,7 +160,7 @@ private:
 class MobileConnectionRequestChild : public PMobileConnectionRequestChild
 {
 public:
-  explicit MobileConnectionRequestChild(nsIMobileConnectionCallback* aRequestCallback)
+  MobileConnectionRequestChild(nsIMobileConnectionCallback* aRequestCallback)
     : mRequestCallback(aRequestCallback)
   {
     MOZ_COUNT_CTOR(MobileConnectionRequestChild);

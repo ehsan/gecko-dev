@@ -183,7 +183,7 @@ types::TypeString(Type type)
           case JSVAL_TYPE_MAGIC:
             return "lazyargs";
           default:
-            MOZ_CRASH("Bad type");
+            MOZ_ASSUME_UNREACHABLE("Bad type");
         }
     }
     if (type.isUnknown())
@@ -357,7 +357,7 @@ TypeSet::mightBeMIRType(jit::MIRType type)
         // same join point in GuessPhiType.
         return false;
       default:
-        MOZ_CRASH("Bad MIR type");
+        MOZ_ASSUME_UNREACHABLE("Bad MIR type");
     }
 }
 

@@ -387,15 +387,6 @@ this.CrashManager.prototype = Object.freeze({
   }),
 
   /**
-   * Generate a submission ID for use with addSubmission{Attempt,Result}.
-   */
-  generateSubmissionID() {
-    return "sub-" + Cc["@mozilla.org/uuid-generator;1"]
-                      .getService(Ci.nsIUUIDGenerator)
-                      .generateUUID().toString().slice(1, -1);
-  },
-
-  /**
    * Record the occurrence of a submission attempt for a crash.
    *
    * @param crashID (string) Crash ID. Likely a UUID.
@@ -424,21 +415,6 @@ this.CrashManager.prototype = Object.freeze({
   addSubmissionResult: Task.async(function* (crashID, submissionID, date, result) {
     let store = yield this._getStore();
     if (store.addSubmissionResult(crashID, submissionID, date, result)) {
-      yield store.save();
-    }
-  }),
-
-  /**
-   * Set the classification of a crash.
-   *
-   * @param crashID (string) Crash ID. Likely a UUID.
-   * @param classification (string) Crash classification/reason.
-   *
-   * @return boolean True if the classification was recorded and false if not.
-   */
-  setCrashClassification: Task.async(function* (crashID, classification) {
-    let store = yield this._getStore();
-    if (store.setCrashClassification(crashID, classification)) {
       yield store.save();
     }
   }),
@@ -530,8 +506,12 @@ this.CrashManager.prototype = Object.freeze({
             store.addCrash(this.PROCESS_TYPE_MAIN, this.CRASH_TYPE_CRASH,
                            crashID, date);
 
-            let submissionID = this.generateSubmissionID();
+            let submissionID = "sub-" + Cc["@mozilla.org/uuid-generator;1"]
+                                          .getService(Ci.nsIUUIDGenerator)
+                                          .generateUUID().toString()
+                                          .slice(1, -1);
             let succeeded = result === "true";
+
             store.addSubmissionAttempt(crashID, submissionID, date);
             store.addSubmissionResult(crashID, submissionID, date,
                                       succeeded ? this.SUBMISSION_RESULT_OK :
@@ -1082,7 +1062,6 @@ CrashStore.prototype = Object.freeze({
         type: type,
         crashDate: date,
         submissions: new Map(),
-        classification: null,
       });
     }
 
@@ -1191,19 +1170,6 @@ CrashStore.prototype = Object.freeze({
     submission.result = result;
     return true;
   },
-
-  /**
-   * @return boolean True if the classification was set.
-   */
-  setCrashClassification: function (crashID, classification) {
-    let crash = this._data.crashes.get(crashID);
-    if (!crash) {
-      return false;
-    }
-
-    crash.classification = classification;
-    return true;
-  },
 });
 
 /**
@@ -1260,10 +1226,6 @@ CrashRecord.prototype = Object.freeze({
 
   get submissions() {
     return this._o.submissions;
-  },
-
-  get classification() {
-    return this._o.classification;
   },
 });
 

@@ -302,9 +302,7 @@ DeviceStorageTypeChecker::Check(const nsAString& aType, nsIDOMBlob* aBlob)
 bool
 DeviceStorageTypeChecker::Check(const nsAString& aType, nsIFile* aFile)
 {
-  if (!aFile) {
-    return false;
-  }
+  MOZ_ASSERT(aFile);
 
   if (aType.EqualsLiteral(DEVICESTORAGE_APPS) ||
       aType.EqualsLiteral(DEVICESTORAGE_SDCARD) ||
@@ -1072,9 +1070,6 @@ DeviceStorageFile::AppendRelativePath(const nsAString& aPath) {
 nsresult
 DeviceStorageFile::CreateFileDescriptor(FileDescriptor& aFileDescriptor)
 {
-  if (!mFile) {
-    return NS_ERROR_FAILURE;
-  }
   ScopedPRFileDesc fd;
   nsresult rv = mFile->OpenNSPRFileDesc(PR_RDWR | PR_CREATE_FILE,
                                         0660, &fd.rwget());
@@ -1246,9 +1241,6 @@ DeviceStorageFile::CalculateMimeType()
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  if (!mFile) {
-    return NS_ERROR_FAILURE;
-  }
   nsAutoCString mimeType;
   nsCOMPtr<nsIMIMEService> mimeService =
     do_GetService(NS_MIMESERVICE_CONTRACTID);
@@ -1269,10 +1261,6 @@ DeviceStorageFile::CalculateSizeAndModifiedDate()
 {
   MOZ_ASSERT(!NS_IsMainThread());
 
-  if (!mFile) {
-    return NS_ERROR_FAILURE;
-  }
-
   int64_t fileSize;
   nsresult rv = mFile->GetFileSize(&fileSize);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -1291,9 +1279,6 @@ void
 DeviceStorageFile::CollectFiles(nsTArray<nsRefPtr<DeviceStorageFile> > &aFiles,
                                 PRTime aSince)
 {
-  if (!mFile) {
-    return;
-  }
   nsString fullRootPath;
   mFile->GetPath(fullRootPath);
   collectFilesInternal(aFiles, aSince, fullRootPath);
@@ -1504,7 +1489,7 @@ DeviceStorageFile::DoFormat(nsAString& aStatus)
 {
   DeviceStorageTypeChecker* typeChecker
     = DeviceStorageTypeChecker::CreateOrGet();
-  if (!typeChecker || !mFile) {
+  if (!typeChecker) {
     return;
   }
   if (!typeChecker->IsVolumeBased(mStorageType)) {
@@ -1534,7 +1519,7 @@ DeviceStorageFile::DoMount(nsAString& aStatus)
 {
   DeviceStorageTypeChecker* typeChecker
     = DeviceStorageTypeChecker::CreateOrGet();
-  if (!typeChecker || !mFile) {
+  if (!typeChecker) {
     return;
   }
   if (!typeChecker->IsVolumeBased(mStorageType)) {
@@ -1564,7 +1549,7 @@ DeviceStorageFile::DoUnmount(nsAString& aStatus)
 {
   DeviceStorageTypeChecker* typeChecker
     = DeviceStorageTypeChecker::CreateOrGet();
-  if (!typeChecker || !mFile) {
+  if (!typeChecker) {
     return;
   }
   if (!typeChecker->IsVolumeBased(mStorageType)) {
@@ -1596,7 +1581,7 @@ DeviceStorageFile::GetStatus(nsAString& aStatus)
 
   DeviceStorageTypeChecker* typeChecker
     = DeviceStorageTypeChecker::CreateOrGet();
-  if (!typeChecker || !mFile) {
+  if (!typeChecker) {
     return;
   }
   if (!typeChecker->IsVolumeBased(mStorageType)) {
@@ -1650,7 +1635,7 @@ DeviceStorageFile::GetStorageStatus(nsAString& aStatus)
 
   DeviceStorageTypeChecker* typeChecker
     = DeviceStorageTypeChecker::CreateOrGet();
-  if (!typeChecker || !mFile) {
+  if (!typeChecker) {
     return;
   }
   if (!typeChecker->IsVolumeBased(mStorageType)) {
@@ -2397,8 +2382,6 @@ public:
     , mRequest(aRequest)
   {
     MOZ_ASSERT(mDSFileDescriptor);
-    MOZ_ASSERT(mDSFileDescriptor->mDSFile);
-    MOZ_ASSERT(mDSFileDescriptor->mDSFile->mFile);
     MOZ_ASSERT(mRequest);
   }
 
@@ -2407,6 +2390,7 @@ public:
     MOZ_ASSERT(!NS_IsMainThread());
 
     DeviceStorageFile* dsFile = mDSFileDescriptor->mDSFile;
+    MOZ_ASSERT(dsFile);
 
     nsString fullPath;
     dsFile->GetFullPath(fullPath);
@@ -2453,7 +2437,6 @@ public:
     , mRequestType(aRequestType)
   {
     MOZ_ASSERT(mFile);
-    MOZ_ASSERT(mFile->mFile);
     MOZ_ASSERT(mRequest);
     MOZ_ASSERT(mRequestType);
   }

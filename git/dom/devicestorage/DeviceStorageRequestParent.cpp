@@ -584,10 +584,6 @@ DeviceStorageRequestParent::CreateFdEvent::CancelableRun()
 
   nsCOMPtr<nsIRunnable> r;
 
-  if (!mFile->mFile) {
-    r = new PostErrorEvent(mParent, POST_ERROR_EVENT_UNKNOWN);
-    return NS_DispatchToMainThread(r);
-  }
   bool check = false;
   mFile->mFile->Exists(&check);
   if (check) {
@@ -632,7 +628,7 @@ DeviceStorageRequestParent::WriteFileEvent::CancelableRun()
 
   nsCOMPtr<nsIRunnable> r;
 
-  if (!mInputStream || !mFile->mFile) {
+  if (!mInputStream) {
     r = new PostErrorEvent(mParent, POST_ERROR_EVENT_UNKNOWN);
     return NS_DispatchToMainThread(r);
   }
@@ -688,10 +684,6 @@ DeviceStorageRequestParent::DeleteFileEvent::CancelableRun()
 
   nsCOMPtr<nsIRunnable> r;
 
-  if (!mFile->mFile) {
-    r = new PostErrorEvent(mParent, POST_ERROR_EVENT_UNKNOWN);
-    return NS_DispatchToMainThread(r);
-  }
   bool check = false;
   mFile->mFile->Exists(&check);
   if (check) {
@@ -792,11 +784,6 @@ DeviceStorageRequestParent::ReadFileEvent::CancelableRun()
   MOZ_ASSERT(!NS_IsMainThread());
 
   nsCOMPtr<nsIRunnable> r;
-
-  if (!mFile->mFile) {
-    r = new PostErrorEvent(mParent, POST_ERROR_EVENT_UNKNOWN);
-    return NS_DispatchToMainThread(r);
-  }
   bool check = false;
   mFile->mFile->Exists(&check);
 

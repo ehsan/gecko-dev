@@ -78,8 +78,6 @@ public:
    */
   void RequestNotifyAfterRemotePaint(TabChild* aTabChild);
 
-  void CancelNotifyAfterRemotePaint(TabChild* aTabChild);
-
 private:
   // Private destructor, to discourage deletion outside of Release():
   virtual ~CompositorChild();

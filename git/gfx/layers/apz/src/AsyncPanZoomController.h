@@ -344,8 +344,6 @@ protected:
     PINCHING,                 /* nth touch-start, where n > 1. this mode allows pan and zoom */
     ANIMATING_ZOOM,           /* animated zoom to a new rect */
     SNAP_BACK,                /* snap-back animation to relieve overscroll */
-    SMOOTH_SCROLL,            /* Smooth scrolling to destination. Used by
-                                 CSSOM-View smooth scroll-behavior */
   };
 
   // Protected destructor, to discourage deletion outside of Release():
@@ -801,8 +799,7 @@ private:
 
   /* ===================================================================
    * The functions and members in this section are used to manage
-   * fling animations, smooth scroll animations, and overscroll
-   * during a fling or smooth scroll.
+   * fling animations and handling overscroll during a fling.
    */
 public:
   /**
@@ -821,7 +818,6 @@ public:
 private:
   friend class FlingAnimation;
   friend class OverscrollSnapBackAnimation;
-  friend class SmoothScrollAnimation;
   // The initial velocity of the most recent fling.
   ScreenPoint mLastFlingVelocity;
   // The time at which the most recent fling started.
@@ -835,8 +831,6 @@ private:
   void HandleFlingOverscroll(const ScreenPoint& aVelocity,
                              const nsRefPtr<const OverscrollHandoffChain>& aOverscrollHandoffChain);
 
-  void HandleSmoothScrollOverscroll(const ScreenPoint& aVelocity);
-
   // Helper function used by TakeOverFling() and HandleFlingOverscroll().
   void AcceptFling(const ScreenPoint& aVelocity,
                    const nsRefPtr<const OverscrollHandoffChain>& aOverscrollHandoffChain,
@@ -846,7 +840,6 @@ private:
   // Start a snap-back animation to relieve overscroll.
   void StartSnapBack();
 
-  void StartSmoothScroll();
 
   /* ===================================================================
    * The functions and members in this section are used to build a tree

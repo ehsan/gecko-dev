@@ -52,11 +52,15 @@ nsFilterInstance::GetPostFilterDirtyArea(nsIFrame *aFilteredFrame,
   if (!instance.IsInitialized()) {
     return nsRegion();
   }
-
   // We've passed in the source's dirty area so the instance knows about it.
   // Now we can ask the instance to compute the area of the filter output
   // that's dirty.
-  return instance.ComputePostFilterDirtyRegion();
+  nsRegion dirtyRegion;
+  nsresult rv = instance.ComputePostFilterDirtyRegion(&dirtyRegion);
+  if (NS_SUCCEEDED(rv)) {
+    return dirtyRegion;
+  }
+  return nsRegion();
 }
 
 nsRegion
@@ -67,10 +71,14 @@ nsFilterInstance::GetPreFilterNeededArea(nsIFrame *aFilteredFrame,
   if (!instance.IsInitialized()) {
     return nsRect();
   }
-
   // Now we can ask the instance to compute the area of the source
   // that's needed.
-  return instance.ComputeSourceNeededRect();
+  nsRect neededRect;
+  nsresult rv = instance.ComputeSourceNeededRect(&neededRect);
+  if (NS_SUCCEEDED(rv)) {
+    return neededRect;
+  }
+  return nsRegion();
 }
 
 nsRect
@@ -88,15 +96,18 @@ nsFilterInstance::GetPostFilterBounds(nsIFrame *aFilteredFrame,
     preFilterRegion = *aPreFilterBounds;
     preFilterRegionPtr = &preFilterRegion;
   }
-
   nsFilterInstance instance(aFilteredFrame, nullptr, nullptr,
                             preFilterRegionPtr, aPreFilterBounds,
                             aOverrideBBox);
   if (!instance.IsInitialized()) {
     return nsRect();
   }
-
-  return instance.ComputePostFilterExtents();
+  nsRect bbox;
+  nsresult rv = instance.ComputePostFilterExtents(&bbox);
+  if (NS_SUCCEEDED(rv)) {
+    return bbox;
+  }
+  return nsRect();
 }
 
 nsFilterInstance::nsFilterInstance(nsIFrame *aTargetFrame,
@@ -437,37 +448,45 @@ nsFilterInstance::Render(gfxContext* aContext)
   return NS_OK;
 }
 
-nsRegion
-nsFilterInstance::ComputePostFilterDirtyRegion()
+nsresult
+nsFilterInstance::ComputePostFilterDirtyRegion(nsRegion* aPostFilterDirtyRegion)
 {
+  *aPostFilterDirtyRegion = nsRegion();
   if (mPreFilterDirtyRegion.IsEmpty()) {
-    return nsRegion();
+    return NS_OK;
   }
 
   FilterDescription filter(mPrimitiveDescriptions);
   nsIntRegion resultChangeRegion =
     FilterSupport::ComputeResultChangeRegion(filter,
       mPreFilterDirtyRegion, nsIntRegion(), nsIntRegion());
-  return FilterSpaceToFrameSpace(resultChangeRegion);
+  *aPostFilterDirtyRegion =
+    FilterSpaceToFrameSpace(resultChangeRegion);
+  return NS_OK;
 }
 
-nsRect
-nsFilterInstance::ComputePostFilterExtents()
+nsresult
+nsFilterInstance::ComputePostFilterExtents(nsRect* aPostFilterExtents)
 {
+  *aPostFilterExtents = nsRect();
+
   nsIntRect sourceBounds;
   sourceBounds.UnionRect(mTargetBBoxInFilterSpace, mTargetBounds);
 
   FilterDescription filter(mPrimitiveDescriptions);
   nsIntRegion postFilterExtents =
     FilterSupport::ComputePostFilterExtents(filter, sourceBounds);
-  return FilterSpaceToFrameSpace(postFilterExtents.GetBounds());
+  *aPostFilterExtents = FilterSpaceToFrameSpace(postFilterExtents.GetBounds());
+  return NS_OK;
 }
 
-nsRect
-nsFilterInstance::ComputeSourceNeededRect()
+nsresult
+nsFilterInstance::ComputeSourceNeededRect(nsRect* aDirty)
 {
   ComputeNeededBoxes();
-  return FilterSpaceToFrameSpace(mSourceGraphic.mNeededBounds);
+  *aDirty = FilterSpaceToFrameSpace(mSourceGraphic.mNeededBounds);
+
+  return NS_OK;
 }
 
 nsIntRect

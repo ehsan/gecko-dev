@@ -26,7 +26,6 @@ public:
                              nsTArray<gfx::GradientStop>& aStops,
                              gfx::ExtendMode aExtend);
 
-    static void PurgeAllCaches();
     static void Shutdown();
 };
 

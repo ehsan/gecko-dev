@@ -80,7 +80,6 @@ enum SecureElementOrigin {
   SIM = 0,
   ESE = 1,
   ASSD = 2,
-  OriginEndGuard = 3
 };
 
 } // namespace mozilla

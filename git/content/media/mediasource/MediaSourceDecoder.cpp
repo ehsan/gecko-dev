@@ -188,11 +188,4 @@ MediaSourceDecoder::NotifyGotData()
   mon.NotifyAll();
 }
 
-void
-MediaSourceDecoder::PrepareReaderInitialization()
-{
-  MOZ_ASSERT(mReader);
-  mReader->PrepareInitialization();
-}
-
 } // namespace mozilla

@@ -322,14 +322,11 @@ public:
 
   void HandleScrollbarStyleSwitching();
 
-  nsIAtom* LastScrollOrigin() const { return mLastScrollOrigin; }
-  nsIAtom* LastSmoothScrollOrigin() const { return mLastSmoothScrollOrigin; }
+  nsIAtom* OriginOfLastScroll() const { return mOriginOfLastScroll; }
   uint32_t CurrentScrollGeneration() const { return mScrollGeneration; }
-  nsPoint LastScrollDestination() const { return mDestination; }
-  void ResetScrollInfoIfGeneration(uint32_t aGeneration) {
+  void ResetOriginIfScrollAtGeneration(uint32_t aGeneration) {
     if (aGeneration == mScrollGeneration) {
-      mLastScrollOrigin = nullptr;
-      mLastSmoothScrollOrigin = nullptr;
+      mOriginOfLastScroll = nullptr;
     }
   }
   bool WantAsyncScroll() const;
@@ -370,8 +367,7 @@ public:
   nsRefPtr<AsyncSmoothMSDScroll> mAsyncSmoothMSDScroll;
   nsRefPtr<ScrollbarActivity> mScrollbarActivity;
   nsTArray<nsIScrollPositionListener*> mListeners;
-  nsIAtom* mLastScrollOrigin;
-  nsIAtom* mLastSmoothScrollOrigin;
+  nsIAtom* mOriginOfLastScroll;
   uint32_t mScrollGeneration;
   nsRect mScrollPort;
   // Where we're currently scrolling to, if we're scrolling asynchronously.
@@ -711,20 +707,14 @@ public:
   virtual nsRect ExpandRectToNearlyVisible(const nsRect& aRect) const MOZ_OVERRIDE {
     return mHelper.ExpandRectToNearlyVisible(aRect);
   }
-  virtual nsIAtom* LastScrollOrigin() MOZ_OVERRIDE {
-    return mHelper.LastScrollOrigin();
-  }
-  virtual nsIAtom* LastSmoothScrollOrigin() MOZ_OVERRIDE {
-    return mHelper.LastSmoothScrollOrigin();
+  virtual nsIAtom* OriginOfLastScroll() MOZ_OVERRIDE {
+    return mHelper.OriginOfLastScroll();
   }
   virtual uint32_t CurrentScrollGeneration() MOZ_OVERRIDE {
     return mHelper.CurrentScrollGeneration();
   }
-  virtual nsPoint LastScrollDestination() MOZ_OVERRIDE {
-    return mHelper.LastScrollDestination();
-  }
-  virtual void ResetScrollInfoIfGeneration(uint32_t aGeneration) MOZ_OVERRIDE {
-    mHelper.ResetScrollInfoIfGeneration(aGeneration);
+  virtual void ResetOriginIfScrollAtGeneration(uint32_t aGeneration) MOZ_OVERRIDE {
+    mHelper.ResetOriginIfScrollAtGeneration(aGeneration);
   }
   virtual bool WantAsyncScroll() const MOZ_OVERRIDE {
     return mHelper.WantAsyncScroll();
@@ -1063,20 +1053,14 @@ public:
   virtual nsRect ExpandRectToNearlyVisible(const nsRect& aRect) const MOZ_OVERRIDE {
     return mHelper.ExpandRectToNearlyVisible(aRect);
   }
-  virtual nsIAtom* LastScrollOrigin() MOZ_OVERRIDE {
-    return mHelper.LastScrollOrigin();
-  }
-  virtual nsIAtom* LastSmoothScrollOrigin() MOZ_OVERRIDE {
-    return mHelper.LastSmoothScrollOrigin();
+  virtual nsIAtom* OriginOfLastScroll() MOZ_OVERRIDE {
+    return mHelper.OriginOfLastScroll();
   }
   virtual uint32_t CurrentScrollGeneration() MOZ_OVERRIDE {
     return mHelper.CurrentScrollGeneration();
   }
-  virtual nsPoint LastScrollDestination() MOZ_OVERRIDE {
-    return mHelper.LastScrollDestination();
-  }
-  virtual void ResetScrollInfoIfGeneration(uint32_t aGeneration) MOZ_OVERRIDE {
-    mHelper.ResetScrollInfoIfGeneration(aGeneration);
+  virtual void ResetOriginIfScrollAtGeneration(uint32_t aGeneration) MOZ_OVERRIDE {
+    mHelper.ResetOriginIfScrollAtGeneration(aGeneration);
   }
   virtual bool WantAsyncScroll() const MOZ_OVERRIDE {
     return mHelper.WantAsyncScroll();

@@ -552,8 +552,8 @@ SingleResponse(Reader& input, Context& context)
   // * revoked overrides good and unknown
   // * good overrides unknown
   if (input.Peek(static_cast<uint8_t>(CertStatus::Good))) {
-    rv = der::ExpectTagAndEmptyValue(input,
-                                     static_cast<uint8_t>(CertStatus::Good));
+    rv = der::ExpectTagAndLength(input, static_cast<uint8_t>(CertStatus::Good),
+                                 0);
     if (rv != Success) {
       return rv;
     }
@@ -572,8 +572,8 @@ SingleResponse(Reader& input, Context& context)
     }
     context.certStatus = CertStatus::Revoked;
   } else {
-    rv = der::ExpectTagAndEmptyValue(input,
-                                     static_cast<uint8_t>(CertStatus::Unknown));
+    rv = der::ExpectTagAndLength(input,
+                                 static_cast<uint8_t>(CertStatus::Unknown), 0);
     if (rv != Success) {
       return rv;
     }
