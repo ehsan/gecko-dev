@@ -400,7 +400,7 @@ public:
 
       if (outgoing->mCurrentWriteOffset == outgoing->mSize) {
         mOutgoingQ.RemoveElementAt(0);
-        delete outgoing;
+        delete data;
       }
     } while (true);
 

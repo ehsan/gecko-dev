@@ -201,13 +201,7 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     }
     void pushValue(const Value &val) {
         jsval_layout jv = JSVAL_TO_IMPL(val);
-        if (val.isMarkable()) {
-            movWithPatch(ImmWord(jv.asBits), ScratchReg);
-            writeDataRelocation(val);
-            push(ScratchReg);
-        } else {
-            push(ImmWord(jv.asBits));
-        }
+        push(ImmWord(jv.asBits));
     }
     void pushValue(JSValueType type, Register reg) {
         boxValue(type, reg, ScratchReg);
