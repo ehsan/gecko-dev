@@ -241,7 +241,8 @@ public:
   // This function does not call ProcessAttachedQueue() on the binding manager.
   // If the caller wants that to happen synchronously, it needs to handle that
   // itself.
-  nsresult ProcessRestyledFrames(nsStyleChangeList& aRestyleArray);
+  nsresult ProcessRestyledFrames(nsStyleChangeList& aRestyleArray,
+                                 OverflowChangedTracker& aTracker);
 
 private:
 
@@ -306,9 +307,13 @@ public:
     PostRestyleEventCommon(aElement, aRestyleHint, aMinChangeHint, true);
   }
 
-  void FlushOverflowChangedTracker() 
+  OverflowChangedTracker *GetOverflowChangedTracker() const 
+  { 
+    return mOverflowChangedTracker; 
+  }
+  void SetOverflowChangedTracker(OverflowChangedTracker *aTracker)
   {
-    mOverflowChangedTracker.Flush();
+    mOverflowChangedTracker = aTracker;    
   }
 
 private:
@@ -401,7 +406,8 @@ private:
                       nsIFrame*       aPrimaryFrame,
                       nsChangeHint    aMinHint,
                       RestyleTracker& aRestyleTracker,
-                      bool            aRestyleDescendants);
+                      bool            aRestyleDescendants,
+                      OverflowChangedTracker& aTracker);
 
   nsresult InitAndRestoreFrame (const nsFrameConstructorState& aState,
                                 nsIContent*                    aContent,
@@ -1898,7 +1904,7 @@ private:
 
   nsCOMPtr<nsILayoutHistoryState> mTempFrameTreeState;
 
-  OverflowChangedTracker mOverflowChangedTracker;
+  OverflowChangedTracker *mOverflowChangedTracker;
 
   // The total number of animation flushes by this frame constructor.
   // Used to keep the layer and animation manager in sync.
