@@ -1204,27 +1204,8 @@ DrawTargetD2D::CreateSourceSurfaceFromData(unsigned char *aData,
 TemporaryRef<SourceSurface> 
 DrawTargetD2D::OptimizeSourceSurface(SourceSurface *aSurface) const
 {
-  if (aSurface->GetType() == SurfaceType::D2D1_BITMAP ||
-      aSurface->GetType() == SurfaceType::D2D1_DRAWTARGET) {
-    return aSurface;
-  }
-
-  RefPtr<DataSourceSurface> data = aSurface->GetDataSurface();
-
-  DataSourceSurface::MappedSurface map;
-  if (!data->Map(DataSourceSurface::MapType::READ, &map)) {
-    return nullptr;
-  }
-
-  RefPtr<SourceSurfaceD2D> newSurf = new SourceSurfaceD2D();
-  bool success = newSurf->InitFromData(map.mData, data->GetSize(), map.mStride, data->GetFormat(), mRT);
-
-  data->Unmap();
-
-  if (!success) {
-    return nullptr;
-  }
-  return newSurf;
+  // Unsupported!
+  return nullptr;
 }
 
 TemporaryRef<SourceSurface>

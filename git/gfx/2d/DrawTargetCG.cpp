@@ -229,11 +229,7 @@ GetRetainedImageFromSourceSurface(SourceSurface *aSurface)
 TemporaryRef<SourceSurface>
 DrawTargetCG::OptimizeSourceSurface(SourceSurface *aSurface) const
 {
-  if (aSurface->GetType() == SurfaceType::COREGRAPHICS_IMAGE ||
-      aSurface->GetType() == SurfaceType::COREGRAPHICS_CGCONTEXT) {
-    return aSurface;
-  }
-  return aSurface->GetDataSurface();
+  return nullptr;
 }
 
 class UnboundnessFixer

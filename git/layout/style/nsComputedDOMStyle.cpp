@@ -3125,18 +3125,18 @@ nsComputedDOMStyle::DoGetTextAlignLast()
 }
 
 CSSValue*
-nsComputedDOMStyle::DoGetTextCombineUpright()
+nsComputedDOMStyle::DoGetTextCombineHorizontal()
 {
   nsROCSSPrimitiveValue *val = new nsROCSSPrimitiveValue;
-  uint8_t tch = StyleText()->mTextCombineUpright;
+  uint8_t tch = StyleText()->mTextCombineHorizontal;
 
-  if (tch <= NS_STYLE_TEXT_COMBINE_UPRIGHT_ALL) {
+  if (tch <= NS_STYLE_TEXT_COMBINE_HORIZ_ALL) {
     val->SetIdent(
       nsCSSProps::ValueToKeywordEnum(tch,
-                                     nsCSSProps::kTextCombineUprightKTable));
-  } else if (tch <= NS_STYLE_TEXT_COMBINE_UPRIGHT_DIGITS_2) {
+                                     nsCSSProps::kTextCombineHorizontalKTable));
+  } else if (tch <= NS_STYLE_TEXT_COMBINE_HORIZ_DIGITS_2) {
     val->SetString(NS_LITERAL_STRING("digits 2"));
-  } else if (tch <= NS_STYLE_TEXT_COMBINE_UPRIGHT_DIGITS_3) {
+  } else if (tch <= NS_STYLE_TEXT_COMBINE_HORIZ_DIGITS_3) {
     val->SetString(NS_LITERAL_STRING("digits 3"));
   } else {
     val->SetString(NS_LITERAL_STRING("digits 4"));
