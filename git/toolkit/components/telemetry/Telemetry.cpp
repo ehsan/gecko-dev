@@ -333,13 +333,13 @@ TelemetryImpl::GetHistogramById(const nsACString &name, JSContext *cx, jsval *re
 }
 
 NS_IMETHODIMP
-TelemetryImpl::GetCanRecord(PRBool *ret) {
+TelemetryImpl::GetCanRecord(bool *ret) {
   *ret = mCanRecord;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-TelemetryImpl::SetCanRecord(PRBool canRecord) {
+TelemetryImpl::SetCanRecord(bool canRecord) {
   mCanRecord = !!canRecord;
   return NS_OK;
 }
@@ -409,6 +409,13 @@ Accumulate(ID aHistogram, PRUint32 aSample)
   nsresult rv = GetHistogramByEnumId(aHistogram, &h);
   if (NS_SUCCEEDED(rv))
     h->Add(aSample);
+}
+
+void
+AccumulateTimeDelta(ID aHistogram, TimeStamp start, TimeStamp end)
+{
+  Accumulate(aHistogram,
+             static_cast<PRUint32>((end - start).ToMilliseconds()));
 }
 
 base::Histogram*
