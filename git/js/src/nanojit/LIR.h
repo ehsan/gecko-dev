@@ -119,9 +119,6 @@ namespace nanojit
 		LIR_stqi	= LIR_sti | LIR64,
 		LIR_quad    = LIR_int | LIR64,
 		LIR_ldq		= LIR_ld    | LIR64,
-        LIR_qiand   = 24 | LIR64,
-        LIR_qiadd   = 25 | LIR64,
-        LIR_qilsh   = LIR_lsh | LIR64,
 
         LIR_fcall   = LIR_call  | LIR64,
 		LIR_fneg	= LIR_neg  | LIR64,
@@ -135,16 +132,12 @@ namespace nanojit
 		LIR_u2f		= 43 | LIR64
 	};
 
-	#if defined NANOJIT_64BIT
-	#define LIR_ldp     LIR_ldq
-    #define LIR_piadd   LIR_qiadd
-    #define LIR_piand   LIR_qiand
-    #define LIR_pilsh   LIR_qilsh
+	#if defined AVMPLUS_64BIT
+	#define LIR_ldp LIR_ldq
+	#define LIR_stp LIR_stq
 	#else
-	#define LIR_ldp     LIR_ld
-    #define LIR_piadd   LIR_add
-    #define LIR_piand   LIR_and
-    #define LIR_pilsh   LIR_lsh
+	#define LIR_ldp LIR_ld
+	#define LIR_stp LIR_st
 	#endif
 
 	inline uint32_t argwords(uint32_t argc) {
@@ -276,7 +269,7 @@ namespace nanojit
 			NanoAssert(isconst());
 			return isop(LIR_short) ? imm16() : imm32();
 		}
-
+		
 		inline uint64_t constvalq() const
 		{
 			NanoAssert(isconstq());
