@@ -3977,10 +3977,10 @@ jit::ElementAccessIsAnyTypedArray(MDefinition *obj, MDefinition *id,
         return false;
 
     *arrayType = types->getTypedArrayType();
-    if (*arrayType != Scalar::MaxTypedArrayViewType)
+    if (*arrayType != Scalar::TypeMax)
         return true;
     *arrayType = types->getSharedTypedArrayType();
-    return *arrayType != Scalar::MaxTypedArrayViewType;
+    return *arrayType != Scalar::TypeMax;
 }
 
 bool

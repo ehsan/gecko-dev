@@ -63,9 +63,6 @@ GetBuildConfiguration(JSContext *cx, unsigned argc, jsval *vp)
     if (!JS_SetProperty(cx, info, "exact-rooting", TrueHandleValue))
         return false;
 
-    if (!JS_SetProperty(cx, info, "trace-jscalls-api", FalseHandleValue))
-        return false;
-
     RootedValue value(cx);
 #ifdef DEBUG
     value = BooleanValue(true);
@@ -145,6 +142,14 @@ GetBuildConfiguration(JSContext *cx, unsigned argc, jsval *vp)
     value = BooleanValue(false);
 #endif
     if (!JS_SetProperty(cx, info, "dtrace", value))
+        return false;
+
+#ifdef MOZ_TRACE_JSCALLS
+    value = BooleanValue(true);
+#else
+    value = BooleanValue(false);
+#endif
+    if (!JS_SetProperty(cx, info, "trace-jscalls-api", value))
         return false;
 
 #ifdef JSGC_INCREMENTAL

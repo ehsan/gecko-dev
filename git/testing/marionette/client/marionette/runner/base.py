@@ -667,7 +667,7 @@ if((navigator.mozSettings == undefined) || (navigator.mozSettings == null) || (n
 let setReq = navigator.mozSettings.createLock().set({'lockscreen.enabled': false});
 setReq.onsuccess = function() {
     let appName = 'Test Container';
-    let activeApp = window.wrappedJSObject.Service.currentApp;
+    let activeApp = window.wrappedJSObject.System.currentApp;
 
     // if the Test Container is already open then do nothing
     if(activeApp.name === appName){
@@ -941,9 +941,6 @@ setReq.onerror = function() {
     def cleanup(self):
         if self.httpd:
             self.httpd.stop()
-
-        if self.marionette:
-            self.marionette.cleanup()
 
     __del__ = cleanup
 

@@ -113,10 +113,6 @@ class CompactBufferWriter
       : enoughMemory_(true)
     { }
 
-    void setOOM() {
-        enoughMemory_ = false;
-    }
-
     // Note: writeByte() takes uint32 to catch implicit casts with a runtime
     // assert.
     void writeByte(uint32_t byte) {

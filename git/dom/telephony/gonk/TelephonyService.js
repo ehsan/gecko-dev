@@ -765,9 +765,9 @@ TelephonyService.prototype = {
     let fullmmi = "(" + procedure + serviceCode + allSi + "#)";
 
     // Dial string after the #.
-    let optionalDialString = "([^#]+)?";
+    let dialString = "([^#]*)";
 
-    return new RegExp("^" + fullmmi + optionalDialString + "$");
+    return new RegExp(fullmmi + dialString);
   },
 
   /**

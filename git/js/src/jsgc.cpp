@@ -2194,22 +2194,9 @@ RelocateCell(Zone *zone, TenuredCell *src, AllocKind thingKind, size_t thingSize
         JSObject *srcObj = static_cast<JSObject *>(static_cast<Cell *>(src));
         JSObject *dstObj = static_cast<JSObject *>(static_cast<Cell *>(dst));
 
-        if (srcObj->isNative()) {
-            NativeObject *srcNative = &srcObj->as<NativeObject>();
-            NativeObject *dstNative = &dstObj->as<NativeObject>();
-
-            // Fixup the pointer to inline object elements if necessary.
-            if (srcNative->hasFixedElements())
-                dstNative->setFixedElements();
-
-            // For copy-on-write objects that own their elements, fix up the
-            // owner pointer to point to the relocated object.
-            if (srcNative->hasDynamicElements() && srcNative->denseElementsAreCopyOnWrite()) {
-                HeapPtrNativeObject &owner = srcNative->getElementsHeader()->ownerObject();
-                if (owner == srcNative)
-                    owner = dstNative;
-            }
-        }
+        // Fixup the pointer to inline object elements if necessary.
+        if (srcObj->isNative() && srcObj->as<NativeObject>().hasFixedElements())
+            dstObj->as<NativeObject>().setFixedElements();
 
         // Call object moved hook if present.
         if (JSObjectMovedOp op = srcObj->getClass()->ext.objectMovedOp)
@@ -3051,7 +3038,6 @@ GCRuntime::refillFreeListFromMainThread(JSContext *cx, AllocKind thingKind)
             // instead of reporting it.
             if (!allowGC) {
                 MOZ_ASSERT(!mustCollectNow);
-                js_ReportOutOfMemory(cx);
                 return nullptr;
             }
 
@@ -3100,12 +3086,7 @@ GCRuntime::refillFreeListOffMainThread(ExclusiveContext *cx, AllocKind thingKind
     while (rt->isHeapBusy())
         HelperThreadState().wait(GlobalHelperThreadState::PRODUCER);
 
-    void *thing = allocator->arenas.allocateFromArena(zone, thingKind, maybeStartBGAlloc);
-    if (thing)
-        return thing;
-
-    js_ReportOutOfMemory(cx);
-    return nullptr;
+    return allocator->arenas.allocateFromArena(zone, thingKind, maybeStartBGAlloc);
 }
 
 /* static */ void *
@@ -3640,7 +3621,7 @@ GCRuntime::queueZonesForBackgroundSweep(ZoneList &zones)
 {
     AutoLockHelperThreadState helperLock;
     AutoLockGC lock(rt);
-    backgroundSweepZones.transferFrom(zones);
+    backgroundSweepZones.append(zones);
     helperState.maybeStartBackgroundSweep(lock);
 }
 
@@ -4637,10 +4618,8 @@ GCRuntime::getNextZoneGroup()
         return;
     }
 
-    for (Zone *zone = currentZoneGroup; zone; zone = zone->nextNodeInGroup()) {
+    for (Zone *zone = currentZoneGroup; zone; zone = zone->nextNodeInGroup())
         MOZ_ASSERT(zone->isGCMarking());
-        MOZ_ASSERT(!zone->isQueuedForBackgroundSweep());
-    }
 
     if (!isIncremental)
         ComponentFinder<Zone>::mergeGroups(currentZoneGroup);
