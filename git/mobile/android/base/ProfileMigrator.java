@@ -531,7 +531,7 @@ public class ProfileMigrator {
                 parent = mRerootMap.get(parent);
             }
             values.put(Bookmarks.PARENT, parent);
-            values.put(Bookmarks.TYPE, (folder ? Bookmarks.TYPE_FOLDER : Bookmarks.TYPE_BOOKMARK));
+            values.put(Bookmarks.IS_FOLDER, (folder ? 1 : 0));
 
             Cursor cursor = null;
             ContentProviderOperation.Builder builder = null;
