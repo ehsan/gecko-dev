@@ -2101,7 +2101,8 @@ CodeGeneratorMIPS::visitAsmJSStoreGlobalVar(LAsmJSStoreGlobalVar *ins)
 {
     const MAsmJSStoreGlobalVar *mir = ins->mir();
 
-    MOZ_ASSERT(IsNumberType(mir->value()->type()));
+    MIRType type = mir->value()->type();
+    MOZ_ASSERT(IsNumberType(type));
     unsigned addr = mir->globalDataOffset() - AsmJSGlobalRegBias;
     if (mir->value()->type() == MIRType_Int32)
         masm.store32(ToRegister(ins->value()), Address(GlobalReg, addr));

@@ -79,21 +79,18 @@ NfcContentHelper.prototype = {
   __proto__: DOMRequestIpcHelper.prototype,
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsINfcContentHelper,
-                                         Ci.nsINfcBrowserAPI,
                                          Ci.nsISupportsWeakReference,
                                          Ci.nsIObserver]),
   classID:   NFCCONTENTHELPER_CID,
   classInfo: XPCOMUtils.generateCI({
     classID:          NFCCONTENTHELPER_CID,
     classDescription: "NfcContentHelper",
-    interfaces:       [Ci.nsINfcContentHelper,
-                       Ci.nsINfcBrowserAPI]
+    interfaces:       [Ci.nsINfcContentHelper]
   }),
 
   _window: null,
   _requestMap: null,
   _rfState: null,
-  _tabId: null,
   eventListener: null,
 
   init: function init(aWindow) {
@@ -115,31 +112,6 @@ NfcContentHelper.prototype = {
 
     let info = cpmm.sendSyncMessage("NFC:QueryInfo")[0];
     this._rfState = info.rfState;
-
-    // For now, we assume app will run in oop mode so we can get
-    // tab id for each app. Fix bug 1116449 if we are going to
-    // support in-process mode.
-    let docShell = aWindow.QueryInterface(Ci.nsIInterfaceRequestor)
-                          .getInterface(Ci.nsIWebNavigation)
-                          .QueryInterface(Ci.nsIDocShell);
-    try {
-      this._tabId = docShell.QueryInterface(Ci.nsIInterfaceRequestor)
-                            .getInterface(Ci.nsITabChild)
-                            .tabId;
-    } catch(e) {
-      // Only parent process does not have tab id, so in this case
-      // NfcContentHelper is used by system app. Use -1(tabId) to
-      // indicate its system app.
-      let inParent = Cc["@mozilla.org/xre/app-info;1"]
-                       .getService(Ci.nsIXULRuntime)
-                       .processType == Ci.nsIXULRuntime.PROCESS_TYPE_DEFAULT;
-      if (inParent) {
-        this._tabId = -1;
-      } else {
-        throw Components.Exception("Can't get tab id in child process",
-                                   Cr.NS_ERROR_UNEXPECTED);
-      }
-    }
   },
 
   queryRFState: function queryRFState() {
@@ -158,13 +130,6 @@ NfcContentHelper.prototype = {
       });
     }
     return encodedRecords;
-  },
-
-  setFocusApp: function setFocusApp(tabId, isFocus) {
-    cpmm.sendAsyncMessage("NFC:SetFocusApp", {
-      tabId: tabId,
-      isFocus: isFocus
-    });
   },
 
   // NFCTag interface
@@ -242,7 +207,7 @@ NfcContentHelper.prototype = {
 
   addEventListener: function addEventListener(listener) {
     this.eventListener = listener;
-    cpmm.sendAsyncMessage("NFC:AddEventListener", { tabId: this._tabId });
+    cpmm.sendAsyncMessage("NFC:AddEventListener");
   },
 
   registerTargetForPeerReady: function registerTargetForPeerReady(appId) {

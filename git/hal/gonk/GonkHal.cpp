@@ -113,44 +113,16 @@ using namespace mozilla::dom;
 namespace mozilla {
 namespace hal_impl {
 
-/**
- * These are defined by libhardware, specifically, hardware/libhardware/include/hardware/lights.h
- * in the gonk subsystem.
- * If these change and are exposed to JS, make sure nsIHal.idl is updated as well.
- */
-enum LightType {
-  eHalLightID_Backlight     = 0,
-  eHalLightID_Keyboard      = 1,
-  eHalLightID_Buttons       = 2,
-  eHalLightID_Battery       = 3,
-  eHalLightID_Notifications = 4,
-  eHalLightID_Attention     = 5,
-  eHalLightID_Bluetooth     = 6,
-  eHalLightID_Wifi          = 7,
-  eHalLightID_Count  // This should stay at the end
-};
-enum LightMode {
-  eHalLightMode_User   = 0,  // brightness is managed by user setting
-  eHalLightMode_Sensor = 1,  // brightness is managed by a light sensor
-  eHalLightMode_Count
-};
-enum FlashMode {
-  eHalLightFlash_None     = 0,
-  eHalLightFlash_Timed    = 1,  // timed flashing.  Use flashOnMS and flashOffMS for timing
-  eHalLightFlash_Hardware = 2,  // hardware assisted flashing
-  eHalLightFlash_Count
-};
-
 struct LightConfiguration {
-  LightType light;
-  LightMode mode;
-  FlashMode flash;
+  hal::LightType light;
+  hal::LightMode mode;
+  hal::FlashMode flash;
   uint32_t flashOnMS;
   uint32_t flashOffMS;
   uint32_t color;
 };
 
-static light_device_t* sLights[eHalLightID_Count]; // will be initialized to nullptr
+static light_device_t* sLights[hal::eHalLightID_Count]; // will be initialized to nullptr
 
 static light_device_t*
 GetDevice(hw_module_t* module, char const* name)
@@ -170,27 +142,27 @@ InitLights()
 {
   // assume that if backlight is nullptr, nothing has been set yet
   // if this is not true, the initialization will occur everytime a light is read or set!
-  if (!sLights[eHalLightID_Backlight]) {
+  if (!sLights[hal::eHalLightID_Backlight]) {
     int err;
     hw_module_t* module;
 
     err = hw_get_module(LIGHTS_HARDWARE_MODULE_ID, (hw_module_t const**)&module);
     if (err == 0) {
-      sLights[eHalLightID_Backlight]
+      sLights[hal::eHalLightID_Backlight]
              = GetDevice(module, LIGHT_ID_BACKLIGHT);
-      sLights[eHalLightID_Keyboard]
+      sLights[hal::eHalLightID_Keyboard]
              = GetDevice(module, LIGHT_ID_KEYBOARD);
-      sLights[eHalLightID_Buttons]
+      sLights[hal::eHalLightID_Buttons]
              = GetDevice(module, LIGHT_ID_BUTTONS);
-      sLights[eHalLightID_Battery]
+      sLights[hal::eHalLightID_Battery]
              = GetDevice(module, LIGHT_ID_BATTERY);
-      sLights[eHalLightID_Notifications]
+      sLights[hal::eHalLightID_Notifications]
              = GetDevice(module, LIGHT_ID_NOTIFICATIONS);
-      sLights[eHalLightID_Attention]
+      sLights[hal::eHalLightID_Attention]
              = GetDevice(module, LIGHT_ID_ATTENTION);
-      sLights[eHalLightID_Bluetooth]
+      sLights[hal::eHalLightID_Bluetooth]
              = GetDevice(module, LIGHT_ID_BLUETOOTH);
-      sLights[eHalLightID_Wifi]
+      sLights[hal::eHalLightID_Wifi]
              = GetDevice(module, LIGHT_ID_WIFI);
         }
     }
@@ -200,7 +172,7 @@ InitLights()
  * The state last set for the lights until liblights supports
  * getting the light state.
  */
-static light_state_t sStoredLightState[eHalLightID_Count];
+static light_state_t sStoredLightState[hal::eHalLightID_Count];
 
 /**
 * Set the value of a light to a particular color, with a specific flash pattern.
@@ -213,13 +185,13 @@ static light_state_t sStoredLightState[eHalLightID_Count];
 * returns true if successful and false if failed.
 */
 static bool
-SetLight(LightType light, const LightConfiguration& aConfig)
+SetLight(hal::LightType light, const LightConfiguration& aConfig)
 {
   light_state_t state;
 
   InitLights();
 
-  if (light < 0 || light >= eHalLightID_Count ||
+  if (light < 0 || light >= hal::eHalLightID_Count ||
       sLights[light] == nullptr) {
     return false;
   }
@@ -241,11 +213,11 @@ SetLight(LightType light, const LightConfiguration& aConfig)
 * returns true if successful and false if failed.
 */
 static bool
-GetLight(LightType light, LightConfiguration* aConfig)
+GetLight(hal::LightType light, LightConfiguration* aConfig)
 {
   light_state_t state;
 
-  if (light < 0 || light >= eHalLightID_Count ||
+  if (light < 0 || light >= hal::eHalLightID_Count ||
       sLights[light] == nullptr) {
     return false;
   }
@@ -255,10 +227,10 @@ GetLight(LightType light, LightConfiguration* aConfig)
 
   aConfig->light = light;
   aConfig->color = state.color;
-  aConfig->flash = FlashMode(state.flashMode);
+  aConfig->flash = hal::FlashMode(state.flashMode);
   aConfig->flashOnMS = state.flashOnMS;
   aConfig->flashOffMS = state.flashOffMS;
-  aConfig->mode = LightMode(state.brightnessMode);
+  aConfig->mode = hal::LightMode(state.brightnessMode);
 
   return true;
 }
@@ -437,13 +409,13 @@ public:
     } // else turn off battery indicator.
 
     LightConfiguration aConfig;
-    aConfig.light = eHalLightID_Battery;
-    aConfig.mode = eHalLightMode_User;
-    aConfig.flash = eHalLightFlash_None;
+    aConfig.light = hal::eHalLightID_Battery;
+    aConfig.mode = hal::eHalLightMode_User;
+    aConfig.flash = hal::eHalLightFlash_None;
     aConfig.flashOnMS = aConfig.flashOffMS = 0;
     aConfig.color = color;
 
-    SetLight(eHalLightID_Battery, aConfig);
+    SetLight(hal::eHalLightID_Battery, aConfig);
 
     hal::NotifyBatteryChange(info);
 
@@ -683,7 +655,7 @@ bool
 GetKeyLightEnabled()
 {
   LightConfiguration config;
-  GetLight(eHalLightID_Buttons, &config);
+  GetLight(hal::eHalLightID_Buttons, &config);
   return (config.color != 0x00000000);
 }
 
@@ -691,8 +663,8 @@ void
 SetKeyLightEnabled(bool aEnabled)
 {
   LightConfiguration config;
-  config.mode = eHalLightMode_User;
-  config.flash = eHalLightFlash_None;
+  config.mode = hal::eHalLightMode_User;
+  config.flash = hal::eHalLightFlash_None;
   config.flashOnMS = config.flashOffMS = 0;
   config.color = 0x00000000;
 
@@ -707,15 +679,15 @@ SetKeyLightEnabled(bool aEnabled)
     config.color = color;
   }
 
-  SetLight(eHalLightID_Buttons, config);
-  SetLight(eHalLightID_Keyboard, config);
+  SetLight(hal::eHalLightID_Buttons, config);
+  SetLight(hal::eHalLightID_Keyboard, config);
 }
 
 double
 GetScreenBrightness()
 {
   LightConfiguration config;
-  LightType light = eHalLightID_Backlight;
+  hal::LightType light = hal::eHalLightID_Backlight;
 
   GetLight(light, &config);
   // backlight is brightness only, so using one of the RGB elements as value.
@@ -739,14 +711,14 @@ SetScreenBrightness(double brightness)
   uint32_t color = (0xff<<24) + (val<<16) + (val<<8) + val;
 
   LightConfiguration config;
-  config.mode = eHalLightMode_User;
-  config.flash = eHalLightFlash_None;
+  config.mode = hal::eHalLightMode_User;
+  config.flash = hal::eHalLightFlash_None;
   config.flashOnMS = config.flashOffMS = 0;
   config.color = color;
-  SetLight(eHalLightID_Backlight, config);
+  SetLight(hal::eHalLightID_Backlight, config);
   if (GetKeyLightEnabled()) {
-    SetLight(eHalLightID_Buttons, config);
-    SetLight(eHalLightID_Keyboard, config);
+    SetLight(hal::eHalLightID_Buttons, config);
+    SetLight(hal::eHalLightID_Keyboard, config);
   }
 }
 

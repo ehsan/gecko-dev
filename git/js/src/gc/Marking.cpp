@@ -209,11 +209,9 @@ CheckMarkedThing(JSTracer *trc, T **thingp)
      * Try to assert that the thing is allocated.  This is complicated by the
      * fact that allocated things may still contain the poison pattern if that
      * part has not been overwritten, and that the free span list head in the
-     * ArenaHeader may not be synced with the real one in ArenaLists.  Also,
-     * background sweeping may be running and concurrently modifiying the free
-     * list.
+     * ArenaHeader may not be synced with the real one in ArenaLists.
      */
-    MOZ_ASSERT_IF(IsThingPoisoned(thing) && rt->isHeapBusy() && !rt->gc.isBackgroundSweeping(),
+    MOZ_ASSERT_IF(IsThingPoisoned(thing) && rt->isHeapBusy(),
                   !InFreeList(thing->asTenured().arenaHeader(), thing));
 #endif
 }

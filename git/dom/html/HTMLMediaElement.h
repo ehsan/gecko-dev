@@ -340,11 +340,7 @@ public:
 
   MediaStream* GetSrcMediaStream() const
   {
-    NS_ASSERTION(mSrcStream, "Don't call this when not playing a stream");
-    if (!mPlaybackStream) {
-      // XXX Remove this check with CameraPreviewMediaStream per bug 1124630.
-      return mSrcStream->GetStream();
-    }
+    NS_ASSERTION(mPlaybackStream, "Don't call this when not playing a stream");
     return mPlaybackStream->GetStream();
   }
 

@@ -16,7 +16,7 @@
 BEGIN_QUOTA_NAMESPACE
 
 class GroupInfo;
-class GroupInfoPair;
+class GroupInfoTriple;
 class OriginInfo;
 class QuotaManager;
 
@@ -76,8 +76,8 @@ class OriginInfo MOZ_FINAL
 
 public:
   OriginInfo(GroupInfo* aGroupInfo, const nsACString& aOrigin, bool aIsApp,
-             uint64_t aUsage, int64_t aAccessTime)
-  : mGroupInfo(aGroupInfo), mOrigin(aOrigin), mUsage(aUsage),
+             uint64_t aLimit, uint64_t aUsage, int64_t aAccessTime)
+  : mGroupInfo(aGroupInfo), mOrigin(aOrigin), mLimit(aLimit), mUsage(aUsage),
     mAccessTime(aAccessTime), mIsApp(aIsApp)
   {
     MOZ_COUNT_CTOR(OriginInfo);
@@ -90,6 +90,12 @@ public:
   {
     return mAccessTime;
   }
+
+  bool
+  IsTreatedAsPersistent() const;
+
+  bool
+  IsTreatedAsTemporary() const;
 
 private:
   // Private destructor, to discourage deletion outside of Release():
@@ -125,6 +131,7 @@ private:
 
   GroupInfo* mGroupInfo;
   const nsCString mOrigin;
+  const uint64_t mLimit;
   uint64_t mUsage;
   int64_t mAccessTime;
   const bool mIsApp;
@@ -149,19 +156,17 @@ public:
 
 class GroupInfo MOZ_FINAL
 {
-  friend class GroupInfoPair;
+  friend class GroupInfoTriple;
   friend class OriginInfo;
   friend class QuotaManager;
   friend class QuotaObject;
 
 public:
-  GroupInfo(GroupInfoPair* aGroupInfoPair, PersistenceType aPersistenceType,
+  GroupInfo(GroupInfoTriple* aGroupInfoTriple, PersistenceType aPersistenceType,
             const nsACString& aGroup)
-  : mGroupInfoPair(aGroupInfoPair), mPersistenceType(aPersistenceType),
+  : mGroupInfoTriple(aGroupInfoTriple), mPersistenceType(aPersistenceType),
     mGroup(aGroup), mUsage(0)
   {
-    MOZ_ASSERT(aPersistenceType != PERSISTENCE_TYPE_PERSISTENT);
-
     MOZ_COUNT_CTOR(GroupInfo);
   }
 
@@ -194,28 +199,37 @@ private:
     return !mOriginInfos.IsEmpty();
   }
 
+  uint64_t
+  LockedGetTemporaryUsage();
+
+  void
+  LockedGetTemporaryOriginInfos(nsTArray<OriginInfo*>* aOriginInfos);
+
+  void
+  LockedRemoveTemporaryOriginInfos();
+
   nsTArray<nsRefPtr<OriginInfo> > mOriginInfos;
 
-  GroupInfoPair* mGroupInfoPair;
+  GroupInfoTriple* mGroupInfoTriple;
   PersistenceType mPersistenceType;
   nsCString mGroup;
   uint64_t mUsage;
 };
 
-class GroupInfoPair
+class GroupInfoTriple
 {
   friend class QuotaManager;
   friend class QuotaObject;
 
 public:
-  GroupInfoPair()
+  GroupInfoTriple()
   {
-    MOZ_COUNT_CTOR(GroupInfoPair);
+    MOZ_COUNT_CTOR(GroupInfoTriple);
   }
 
-  ~GroupInfoPair()
+  ~GroupInfoTriple()
   {
-    MOZ_COUNT_DTOR(GroupInfoPair);
+    MOZ_COUNT_DTOR(GroupInfoTriple);
   }
 
 private:
@@ -223,7 +237,6 @@ private:
   LockedGetGroupInfo(PersistenceType aPersistenceType)
   {
     AssertCurrentThreadOwnsQuotaMutex();
-    MOZ_ASSERT(aPersistenceType != PERSISTENCE_TYPE_PERSISTENT);
 
     nsRefPtr<GroupInfo> groupInfo =
       GetGroupInfoForPersistenceType(aPersistenceType);
@@ -231,13 +244,12 @@ private:
   }
 
   void
-  LockedSetGroupInfo(PersistenceType aPersistenceType, GroupInfo* aGroupInfo)
+  LockedSetGroupInfo(GroupInfo* aGroupInfo)
   {
     AssertCurrentThreadOwnsQuotaMutex();
-    MOZ_ASSERT(aPersistenceType != PERSISTENCE_TYPE_PERSISTENT);
 
     nsRefPtr<GroupInfo>& groupInfo =
-      GetGroupInfoForPersistenceType(aPersistenceType);
+      GetGroupInfoForPersistenceType(aGroupInfo->mPersistenceType);
     groupInfo = aGroupInfo;
   }
 
@@ -245,7 +257,6 @@ private:
   LockedClearGroupInfo(PersistenceType aPersistenceType)
   {
     AssertCurrentThreadOwnsQuotaMutex();
-    MOZ_ASSERT(aPersistenceType != PERSISTENCE_TYPE_PERSISTENT);
 
     nsRefPtr<GroupInfo>& groupInfo =
       GetGroupInfoForPersistenceType(aPersistenceType);
@@ -257,12 +268,13 @@ private:
   {
     AssertCurrentThreadOwnsQuotaMutex();
 
-    return mTemporaryStorageGroupInfo || mDefaultStorageGroupInfo;
+    return mPersistentStorageGroupInfo || mTemporaryStorageGroupInfo;
   }
 
   nsRefPtr<GroupInfo>&
   GetGroupInfoForPersistenceType(PersistenceType aPersistenceType);
 
+  nsRefPtr<GroupInfo> mPersistentStorageGroupInfo;
   nsRefPtr<GroupInfo> mTemporaryStorageGroupInfo;
   nsRefPtr<GroupInfo> mDefaultStorageGroupInfo;
 };

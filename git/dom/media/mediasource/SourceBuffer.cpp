@@ -169,7 +169,7 @@ SourceBuffer::Abort(ErrorResult& aRv)
     // TODO: Abort segment parser loop, buffer append, and stream append loop algorithms.
     AbortUpdating();
   }
-  mTrackBuffer->ResetParserState();
+  // TODO: Run reset parser algorithm.
   mAppendWindowStart = 0;
   mAppendWindowEnd = PositiveInfinity<double>();
 

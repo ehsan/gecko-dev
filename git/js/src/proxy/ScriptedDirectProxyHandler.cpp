@@ -685,7 +685,7 @@ ScriptedDirectProxyHandler::ownPropertyKeys(JSContext *cx, HandleObject proxy,
     // the spec. See step 10-11
     return ArrayToIdVector(cx, proxy, target, trapResult, props,
                            JSITER_OWNONLY | JSITER_HIDDEN | JSITER_SYMBOLS,
-                           cx->names().ownKeys);
+                           cx->names().getOwnPropertyNames);
 }
 
 // ES6 (5 April 2014) 9.5.10 Proxy.[[Delete]](P)
@@ -786,7 +786,12 @@ ScriptedDirectProxyHandler::enumerate(JSContext *cx, HandleObject proxy,
 
     // step 10
     if (trapResult.isPrimitive()) {
-        ReportInvalidTrapResult(cx, proxy, cx->names().enumerate);
+        JSAutoByteString bytes;
+        if (!AtomToPrintableString(cx, cx->names().enumerate, &bytes))
+            return false;
+        RootedValue v(cx, ObjectOrNullValue(proxy));
+        js_ReportValueError2(cx, JSMSG_INVALID_TRAP_RESULT, JSDVG_SEARCH_STACK,
+                             v, js::NullPtr(), bytes.ptr());
         return false;
     }
 
@@ -1000,7 +1005,7 @@ ScriptedDirectProxyHandler::set(JSContext *cx, HandleObject proxy, HandleObject 
     }
 
     // step 11, 15
-    vp.setBoolean(success);
+    vp.set(BooleanValue(success));
     return true;
 }
 
@@ -1020,7 +1025,11 @@ ScriptedDirectProxyHandler::call(JSContext *cx, HandleObject proxy, const CallAr
 
     // step 3
     RootedObject target(cx, proxy->as<ProxyObject>().target());
-    MOZ_ASSERT(target->isCallable());
+
+    /*
+     * NB: Remember to throw a TypeError here if we change NewProxyObject so that this trap can get
+     * called for non-callable objects.
+     */
 
     // step 7
     RootedObject argsArray(cx, NewDenseCopiedArray(cx, args.length(), args.array()));
@@ -1061,7 +1070,11 @@ ScriptedDirectProxyHandler::construct(JSContext *cx, HandleObject proxy, const C
 
     // step 3
     RootedObject target(cx, proxy->as<ProxyObject>().target());
-    MOZ_ASSERT(target->isConstructor());
+
+    /*
+     * NB: Remember to throw a TypeError here if we change NewProxyObject so that this trap can get
+     * called for non-callable objects. FIXME: See bug 1041756
+     */
 
     // step 7
     RootedObject argsArray(cx, NewDenseCopiedArray(cx, args.length(), args.array()));

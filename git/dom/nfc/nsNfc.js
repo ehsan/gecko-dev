@@ -331,6 +331,7 @@ function MozNFCImpl() {
 
   this.eventService = Cc["@mozilla.org/eventlistenerservice;1"]
                         .getService(Ci.nsIEventListenerService);
+  this._nfcContentHelper.addEventListener(this);
 }
 MozNFCImpl.prototype = {
   _nfcContentHelper: null,
@@ -352,7 +353,6 @@ MozNFCImpl.prototype = {
 
     if (this._nfcContentHelper) {
       this._nfcContentHelper.init(aWindow);
-      this._nfcContentHelper.addEventListener(this);
       this._rfState = this._nfcContentHelper.queryRFState();
     }
   },
