@@ -116,6 +116,9 @@ nsNavBookmarks::Init()
   nsresult rv = InitStatements();
   NS_ENSURE_SUCCESS(rv, rv);
 
+  rv = FillBookmarksHash();
+  NS_ENSURE_SUCCESS(rv, rv);
+
   rv = InitRoots();
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -650,27 +653,15 @@ nsNavBookmarks::CreateRoot(mozIStorageStatement* aGetRootStatement,
   return NS_OK;
 }
 
-// nsNavBookmarks::GetBookmarksHash
-//
-//    Getter and lazy initializer of the bookmarks redirect hash.
-//    See FillBookmarksHash for more information.
-
-nsDataHashtable<nsTrimInt64HashKey, PRInt64>*
-nsNavBookmarks::GetBookmarksHash()
-{
-  if (!mBookmarksHash.IsInitialized()) {
-    nsresult rv = FillBookmarksHash();
-    NS_ABORT_IF_FALSE(NS_SUCCEEDED(rv), "FillBookmarksHash() failed!");
-  }
-
-  return &mBookmarksHash;
-}
 
 // nsNavBookmarks::FillBookmarksHash
 //
 //    This initializes the bookmarks hashtable that tells us which bookmark
 //    a given URI redirects to. This hashtable includes all URIs that
 //    redirect to bookmarks.
+//
+//    This is called from the bookmark init function and so is wrapped
+//    in that transaction (for better performance).
 
 nsresult
 nsNavBookmarks::FillBookmarksHash()
@@ -680,7 +671,7 @@ nsNavBookmarks::FillBookmarksHash()
   // first init the hashtable
   NS_ENSURE_TRUE(mBookmarksHash.Init(1024), NS_ERROR_OUT_OF_MEMORY);
 
-  // first populate the hashtable with all bookmarks
+  // first populate the table with all bookmarks
   nsCOMPtr<mozIStorageStatement> statement;
   nsresult rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
       "SELECT h.id "
@@ -781,7 +772,12 @@ nsNavBookmarks::FillBookmarksHash()
 nsresult
 nsNavBookmarks::AddBookmarkToHash(PRInt64 aPlaceId, PRTime aMinTime)
 {
-  if (!GetBookmarksHash()->Put(aPlaceId, aPlaceId))
+  // this function might be called before our hashtable is initialized (for
+  // example, on history import), just ignore these, we'll pick up the add when
+  // the hashtable is initialized later
+  if (! mBookmarksHash.IsInitialized())
+    return NS_OK;
+  if (! mBookmarksHash.Put(aPlaceId, aPlaceId))
     return NS_ERROR_OUT_OF_MEMORY;
   return RecursiveAddBookmarkHash(aPlaceId, aPlaceId, aMinTime);
 }
@@ -831,10 +827,10 @@ nsNavBookmarks::RecursiveAddBookmarkHash(PRInt64 aPlaceID,
       // a restricted page will redirect you to a login page, which will
       // redirect you to the restricted page again with the proper cookie.
       PRInt64 alreadyExistingOne;
-      if (GetBookmarksHash()->Get(curID, &alreadyExistingOne))
+      if (mBookmarksHash.Get(curID, &alreadyExistingOne))
         continue;
 
-      if (!GetBookmarksHash()->Put(curID, aPlaceID))
+      if (! mBookmarksHash.Put(curID, aPlaceID))
         return NS_ERROR_OUT_OF_MEMORY;
 
       // save for recursion later
@@ -883,8 +879,8 @@ nsNavBookmarks::UpdateBookmarkHashOnRemove(PRInt64 aPlaceId)
     return NS_OK; // bookmark still exists, don't need to update hashtable
 
   // remove it
-  GetBookmarksHash()->Enumerate(RemoveBookmarkHashCallback,
-                                reinterpret_cast<void*>(&aPlaceId));
+  mBookmarksHash.Enumerate(RemoveBookmarkHashCallback,
+                           reinterpret_cast<void*>(&aPlaceId));
   return NS_OK;
 }
 
@@ -892,10 +888,13 @@ nsNavBookmarks::UpdateBookmarkHashOnRemove(PRInt64 aPlaceId)
 PRBool
 nsNavBookmarks::IsRealBookmark(PRInt64 aPlaceId)
 {
+  NS_ABORT_IF_FALSE(mBookmarksHash.IsInitialized(),
+                    "Bookmark hashtable has not been initialized!");
+
   // Fast path is to check the hash table first.  If it is in the hash table,
   // then verify that it is a real bookmark.
   PRInt64 bookmarkId;
-  PRBool isBookmark = GetBookmarksHash()->Get(aPlaceId, &bookmarkId);
+  PRBool isBookmark = mBookmarksHash.Get(aPlaceId, &bookmarkId);
   if (!isBookmark)
     return PR_FALSE;
 
@@ -2554,7 +2553,7 @@ nsNavBookmarks::IsBookmarked(nsIURI *aURI, PRBool *aBookmarked)
   }
 
   PRInt64 bookmarkedID;
-  PRBool foundOne = GetBookmarksHash()->Get(urlID, &bookmarkedID);
+  PRBool foundOne = mBookmarksHash.Get(urlID, &bookmarkedID);
 
   // IsBookmarked only tests if this exact URI is bookmarked, so we need to
   // check that the destination matches
@@ -2595,7 +2594,7 @@ nsNavBookmarks::GetBookmarkedURIFor(nsIURI* aURI, nsIURI** _retval)
   }
 
   PRInt64 bookmarkID;
-  if (GetBookmarksHash()->Get(urlID, &bookmarkID)) {
+  if (mBookmarksHash.Get(urlID, &bookmarkID)) {
     // found one, convert ID back to URL. This statement is NOT refcounted
     mozIStorageStatement* statement = history->DBGetIdPageInfo();
     NS_ENSURE_TRUE(statement, NS_ERROR_UNEXPECTED);

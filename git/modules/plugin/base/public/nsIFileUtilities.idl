@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -22,8 +22,8 @@
  * Contributor(s):
  *
  * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
  * in which case the provisions of the GPL or the LGPL are applicable instead
  * of those above. If you wish to allow use of your version of this file only
  * under the terms of either the GPL or the LGPL, and not to allow others to
@@ -35,32 +35,43 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#include "nsISupports.idl"
+#include "nspluginroot.idl"
 
-#ifndef nsIMenuRollup_h___
-#define nsIMenuRollup_h___
+%{C++
+#include "nsplugindefs.h"
+%}
 
-#include "nsISupports.h"
-#include "nsTArray.h"
+/**
+ * The nsIFileUtilities interface provides access to random file operations.
+ * To obtain: QueryInterface on nsIPluginManager.
+ */
+[uuid(89a31ce0-019a-11d2-815b-006008119d7a)]
+interface nsIFileUtilities : nsISupports
+{
+  /**
+   * Returns the name of the browser executable program.
+   *
+   * @param aProgramPath - the returned path to the program
+   * @result             - NS_OK if this operation was successful
+   */
+  void getProgramPath(out constCharPtr aProgramPath);
 
-class nsIWidget;
+  /**
+   * Returns the name of the temporary directory.
+   *
+   * @param aTempDirPath - the returned path to the temp directory
+   * @result             - NS_OK if this operation was successful
+   */
+  void getTempDirPath(out constCharPtr aTempDirPath);
 
-#define NS_IMENUROLLUP_IID \
-  {0x2b65d177, 0xc3e4, 0x4564, \
-    { 0x8d, 0xed, 0x86, 0xd2, 0xfa, 0x2f, 0x65, 0x9a }}
-
-class nsIMenuRollup : public nsISupports {
- public: 
-
-  NS_DECLARE_STATIC_IID_ACCESSOR(NS_IMENUROLLUP_IID)
-
-  /* void GetSubmenuWidgetChain (nsTArray<nsIWidget*>*); */
-  virtual void GetSubmenuWidgetChain(nsTArray<nsIWidget*> *_retval) = 0;
-
-  /* void AdjustPopupsOnWindowChange (); */
-  virtual void AdjustPopupsOnWindowChange(void) = 0;
-
+  /**
+   * Returns a unique temporary file name.
+   *
+   * @param aPrefix - a string to prefix to the temporary file name
+   * @param aLength - the length of the resulting buffer to receive the data
+   * @param aBuffer - the returned temp file name
+   * @result        - NS_OK if this operation was successful
+   */
+  void newTempFileName(in string aPrefix, in unsigned long aLength, in charPtr aBuffer);
 };
-
-  NS_DEFINE_STATIC_IID_ACCESSOR(nsIMenuRollup, NS_IMENUROLLUP_IID)
-
-#endif

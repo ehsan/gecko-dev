@@ -1285,8 +1285,7 @@ nsComboboxControlFrame::GetAdditionalChildListName(PRInt32 aIndex) const
   //nsIRollupListener
 //----------------------------------------------------------------------
 NS_IMETHODIMP 
-nsComboboxControlFrame::Rollup(PRUint32 aCount,
-                               nsIContent** aLastRolledUp)
+nsComboboxControlFrame::Rollup(nsIContent** aLastRolledUp)
 {
   if (aLastRolledUp)
     *aLastRolledUp = nsnull;

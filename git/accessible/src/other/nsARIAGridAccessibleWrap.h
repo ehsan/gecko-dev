@@ -1,4 +1,6 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim:expandtab:shiftwidth=2:tabstop=2:
+ */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -15,15 +17,16 @@
  * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
+ * Mozilla Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
+ *   Alexander Surkov <surkov.alexander@gmail.com> (original author)
  *
  * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
  * in which case the provisions of the GPL or the LGPL are applicable instead
  * of those above. If you wish to allow use of your version of this file only
  * under the terms of either the GPL or the LGPL, and not to allow others to
@@ -35,32 +38,12 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#ifndef _NSARIAGRIDACCESSIBLEWRAP_H
+#define _NSARIAGRIDACCESSIBLEWRAP_H
 
-#ifndef nsIMenuRollup_h___
-#define nsIMenuRollup_h___
+#include "nsARIAGridAccessible.h"
 
-#include "nsISupports.h"
-#include "nsTArray.h"
-
-class nsIWidget;
-
-#define NS_IMENUROLLUP_IID \
-  {0x2b65d177, 0xc3e4, 0x4564, \
-    { 0x8d, 0xed, 0x86, 0xd2, 0xfa, 0x2f, 0x65, 0x9a }}
-
-class nsIMenuRollup : public nsISupports {
- public: 
-
-  NS_DECLARE_STATIC_IID_ACCESSOR(NS_IMENUROLLUP_IID)
-
-  /* void GetSubmenuWidgetChain (nsTArray<nsIWidget*>*); */
-  virtual void GetSubmenuWidgetChain(nsTArray<nsIWidget*> *_retval) = 0;
-
-  /* void AdjustPopupsOnWindowChange (); */
-  virtual void AdjustPopupsOnWindowChange(void) = 0;
-
-};
-
-  NS_DEFINE_STATIC_IID_ACCESSOR(nsIMenuRollup, NS_IMENUROLLUP_IID)
+typedef class nsARIAGridAccessible nsARIAGridAccessibleWrap;
 
 #endif
+
