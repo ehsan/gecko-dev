@@ -68,7 +68,6 @@ SHARED_LIBRARY_LIBS = \
 	$(DEPTH)/dom/file/$(LIB_PREFIX)domfile_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/power/$(LIB_PREFIX)dom_power_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/settings/$(LIB_PREFIX)jsdomsettings_s.$(LIB_SUFFIX) \
-	$(DEPTH)/dom/permission/$(LIB_PREFIX)jsdompermissionsettings_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/network/src/$(LIB_PREFIX)dom_network_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/media/$(LIB_PREFIX)dom_media_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/sms/src/$(LIB_PREFIX)dom_sms_s.$(LIB_SUFFIX) \
@@ -118,12 +117,6 @@ LOCAL_INCLUDES	+= \
 	-I$(topsrcdir)/dom/system \
 	$(NULL)
 endif
-
-ifdef MOZ_B2G_FM #{
-SHARED_LIBRARY_LIBS	+= \
-  $(DEPTH)/dom/fm/$(LIB_PREFIX)domfm_s.$(LIB_SUFFIX) \
-  $(NULL)
-endif #}
 
 ifdef MOZ_B2G_BT #{
 SHARED_LIBRARY_LIBS += $(DEPTH)/dom/bluetooth/$(LIB_PREFIX)dombluetooth_s.$(LIB_SUFFIX)
@@ -262,7 +255,6 @@ LOCAL_INCLUDES	+= -I$(srcdir)/../base \
 		   -I$(topsrcdir)/dom/src/geolocation \
 		   -I$(topsrcdir)/dom/contacts \
 		   -I$(topsrcdir)/dom/settings \
-		   -I$(topsrcdir)/dom/permission \
 		   -I$(topsrcdir)/dom/telephony \
 		   -I. \
 		   -I$(topsrcdir)/editor/libeditor/base \
@@ -281,10 +273,6 @@ LOCAL_INCLUDES	+= -I$(srcdir)/../base \
 
 ifdef MOZ_B2G_RIL #{
 LOCAL_INCLUDES	+= -I$(topsrcdir)/dom/system/gonk
-endif #}
-
-ifdef MOZ_B2G_FM #{
-LOCAL_INCLUDES	+= -I$(topsrcdir)/dom/fm
 endif #}
 
 ifdef MOZ_B2G_BT #{

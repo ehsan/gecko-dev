@@ -35,7 +35,6 @@ PARALLEL_DIRS = \
   interfaces/offline \
   interfaces/geolocation \
   interfaces/notification \
-  interfaces/permission \
   interfaces/svg \
   interfaces/smil \
   interfaces/apps \
@@ -80,10 +79,6 @@ PARALLEL_DIRS += \
   wifi \
   icc \
   $(NULL)
-endif
-
-ifdef MOZ_B2G_FM
-PARALLEL_DIRS += fm
 endif
 
 ifdef MOZ_PAY
