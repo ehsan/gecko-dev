@@ -145,7 +145,6 @@ class TraceRecorder {
     nanojit::LIns* stack(int n);
     void stack(int n, nanojit::LIns* i);
     
-    bool jsIf(bool sense);
     bool inc(jsval& v, jsint incr, bool pre);
     bool cmp(nanojit::LOpcode op, bool negate = false);
     bool ibinary(nanojit::LOpcode op, bool ov = false); 

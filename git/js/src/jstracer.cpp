@@ -327,6 +327,11 @@ static inline bool isDouble(jsval v)
     return (getType(v) == JSVAL_DOUBLE) && !isInt(v);
 }
 
+static inline bool isNumber(jsval v)
+{
+    return getType(v) == JSVAL_INT || getType(v) == JSVAL_DOUBLE;
+}
+
 static inline bool isTrueOrFalse(jsval v)
 {
     return v == JSVAL_TRUE || v == JSVAL_FALSE;
@@ -338,6 +343,14 @@ static inline jsint asInt(jsval v)
     if (JSVAL_IS_DOUBLE(v))
         return js_DoubleToECMAInt32(*JSVAL_TO_DOUBLE(v));
     return JSVAL_TO_INT(v);
+}
+
+static inline jsdouble asNumber(jsval v)
+{
+    JS_ASSERT(isNumber(v));
+    if (JSVAL_IS_DOUBLE(v))
+        return *JSVAL_TO_DOUBLE(v);
+    return (jsdouble)JSVAL_TO_INT(v);
 }
 
 /* Write out a type map for the current scopes and all outer scopes,
@@ -1013,33 +1026,13 @@ bool TraceRecorder::JSOP_GOTO()
 {
     return false;
 }
-
-bool TraceRecorder::jsIf(bool sense)
-{
-    jsval& v = stackval(-1);
-    LIns* cond_ins;
-    bool cond;
-    if (isTrueOrFalse(v)) {
-        cond_ins = lir->ins_eq0(jsval_to_boolean(get(&v)));
-        cond = JSVAL_TO_BOOLEAN(v);
-    } else {
-        return false;
-    }
-
-    if (!sense) {
-        cond = !cond;
-        cond_ins = lir->ins_eq0(cond_ins);
-    }
-    guard(cond, cond_ins);
-    return true;
-}
 bool TraceRecorder::JSOP_IFEQ()
 {
-    return jsIf(true);
+    return false;
 }
 bool TraceRecorder::JSOP_IFNE()
 {
-    return jsIf(false);
+    return false;
 }
 bool TraceRecorder::JSOP_ARGUMENTS()
 {
@@ -1055,14 +1048,11 @@ bool TraceRecorder::JSOP_FORVAR()
 }
 bool TraceRecorder::JSOP_DUP()
 {
-    stack(0, get(&stackval(-1)));
-    return true;
+    return false;
 }
 bool TraceRecorder::JSOP_DUP2()
 {
-    stack(0, get(&stackval(-2)));
-    stack(1, get(&stackval(-1)));
-    return true;
+    return false;
 }
 bool TraceRecorder::JSOP_SETCONST()
 {
