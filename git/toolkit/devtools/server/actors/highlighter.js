@@ -776,12 +776,8 @@ BoxModelHighlighter.prototype = Heritage.extend(XULBasedHighlighter.prototype, {
 
     if (this._nodeNeedsHighlighting()) {
       for (let boxType in this._boxModelNodes) {
-
-        let quads = this.layoutHelpers.getAdjustedQuads(this.currentNode, boxType);
-        if (!quads) {
-          continue;
-        }
-        let {p1, p2, p3, p4} = quads;
+        let {p1, p2, p3, p4} =
+          this.layoutHelpers.getAdjustedQuads(this.currentNode, boxType);
 
         let boxNode = this._boxModelNodes[boxType];
 

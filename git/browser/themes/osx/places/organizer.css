@@ -67,10 +67,8 @@
   -moz-border-start: none !important;
   -moz-border-end: 1px solid #bdbdbd;
   min-width: 1px;
-  width: 3px;
-  -moz-margin-start: -3px;
-  position: relative;
-  background-image: none !important;
+  width: 1px;
+  background-image: none !important;       
 }
 
 #placesToolbar > toolbarbutton {
