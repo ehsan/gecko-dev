@@ -33,8 +33,7 @@ var MigrationWizard = {
 
     if ("arguments" in window && window.arguments.length > 1) {
       this._source = window.arguments[0];
-      this._migrator = window.arguments[1] instanceof kIMig ?
-                       window.arguments[1] : null;
+      this._migrator = window.arguments[1].QueryInterface(kIMig);
       this._autoMigrate = window.arguments[2].QueryInterface(kIPStartup);
       this._skipImportSourcePage = window.arguments[3];
 
