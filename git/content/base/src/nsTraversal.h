@@ -1,4 +1,4 @@
-/* -*- Mode: IDL; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -36,28 +36,43 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
+ 
+/*
+ * Implementation of DOM Traversal's nsIDOMTreeWalker
+ */
 
-#include "domstubs.idl"
+#ifndef nsTraversal_h___
+#define nsTraversal_h___
 
-interface nsIDOMNodeIterator;
-interface nsIDOMNodeFilter;
+#include "nsCOMPtr.h"
 
+class nsINode;
+class nsIDOMNodeFilter;
 
-[scriptable, uuid(354b5f02-1dd2-11b2-b053-b8c2997022a0)]
-// Introduced in DOM Level 2:
-interface nsIDOMNodeIterator : nsISupports
+class nsTraversal
 {
-  readonly attribute nsIDOMNode       root;
-  readonly attribute unsigned long    whatToShow;
-  readonly attribute nsIDOMNodeFilter filter;
-  readonly attribute boolean          expandEntityReferences;
-  nsIDOMNode         nextNode()
-                                        raises(DOMException);
-  nsIDOMNode         previousNode()
-                                        raises(DOMException);
-  void               detach();
+public:
+    nsTraversal(nsINode *aRoot,
+                PRUint32 aWhatToShow,
+                nsIDOMNodeFilter *aFilter,
+                PRBool aExpandEntityReferences);
+    virtual ~nsTraversal();
 
-  // WebKit extensions, convenient for debugging.
-  readonly attribute nsIDOMNode referenceNode;
-  readonly attribute boolean    pointerBeforeReferenceNode;
+protected:
+    nsCOMPtr<nsINode> mRoot;
+    PRUint32 mWhatToShow;
+    nsCOMPtr<nsIDOMNodeFilter> mFilter;
+    PRBool mExpandEntityReferences;
+
+    /*
+     * Tests if and how a node should be filtered. Uses mWhatToShow and
+     * mFilter to test the node.
+     * @param aNode     Node to test
+     * @param _filtered Returned filtervalue. See nsIDOMNodeFilter.idl
+     * @returns         Errorcode
+     */
+    nsresult TestNode(nsINode* aNode, PRInt16* _filtered);
 };
+
+#endif
+
