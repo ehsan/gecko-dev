@@ -5733,7 +5733,11 @@ BaseStubConstructor(nsIWeakReference* aWeakOwner,
       NS_ENSURE_STATE(pusher.Push(cx, false));
 
       JSAutoRequest ar(cx);
-      JSAutoCompartment ac(cx, object);
+
+      JSAutoEnterCompartment ac;
+      if (!ac.enter(cx, object)) {
+        return NS_ERROR_FAILURE;
+      }
 
       JS::Value thisValue = JSVAL_VOID;
       JS::Value funval;
@@ -6532,7 +6536,11 @@ ResolvePrototype(nsIXPConnect *aXPConnect, nsGlobalWindow *aWin, JSContext *cx,
   const char *class_parent_name = nullptr;
 
   if (!primary_iid->Equals(NS_GET_IID(nsISupports))) {
-    JSAutoCompartment ac(cx, class_obj);
+    JSAutoEnterCompartment ac;
+
+    if (!ac.enter(cx, class_obj)) {
+      return NS_ERROR_FAILURE;
+    }
 
     rv = DefineInterfaceConstants(cx, class_obj, primary_iid);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -6598,7 +6606,10 @@ ResolvePrototype(nsIXPConnect *aXPConnect, nsGlobalWindow *aWin, JSContext *cx,
     JSObject *proto = nullptr;
 
     if (class_parent_name) {
-      JSAutoCompartment ac(cx, winobj);
+      JSAutoEnterCompartment ac;
+      if (!ac.enter(cx, winobj)) {
+        return NS_ERROR_UNEXPECTED;
+      }
 
       JS::Value val;
       if (!JS_LookupProperty(cx, winobj, CutPrefix(class_parent_name), &val)) {
@@ -6617,7 +6628,11 @@ ResolvePrototype(nsIXPConnect *aXPConnect, nsGlobalWindow *aWin, JSContext *cx,
     }
 
     if (dot_prototype) {
-      JSAutoCompartment ac(cx, dot_prototype);
+      JSAutoEnterCompartment ac;
+      if (!ac.enter(cx, dot_prototype)) {
+        return NS_ERROR_UNEXPECTED;
+      }
+
       JSObject *xpc_proto_proto = ::JS_GetPrototype(dot_prototype);
 
       if (proto &&
@@ -6629,7 +6644,11 @@ ResolvePrototype(nsIXPConnect *aXPConnect, nsGlobalWindow *aWin, JSContext *cx,
         }
       }
     } else {
-      JSAutoCompartment ac(cx, winobj);
+      JSAutoEnterCompartment ac;
+      if (!ac.enter(cx, winobj)) {
+        return NS_ERROR_UNEXPECTED;
+      }
+
       dot_prototype = ::JS_NewObject(cx, &sDOMConstructorProtoClass, proto,
                                      winobj);
       NS_ENSURE_TRUE(dot_prototype, NS_ERROR_OUT_OF_MEMORY);
@@ -6638,7 +6657,10 @@ ResolvePrototype(nsIXPConnect *aXPConnect, nsGlobalWindow *aWin, JSContext *cx,
 
   v = OBJECT_TO_JSVAL(dot_prototype);
 
-  JSAutoCompartment ac(cx, class_obj);
+  JSAutoEnterCompartment ac;
+  if (!ac.enter(cx, class_obj)) {
+    return NS_ERROR_UNEXPECTED;
+  }
 
   // Per ECMA, the prototype property is {DontEnum, DontDelete, ReadOnly}
   if (!JS_WrapValue(cx, &v) ||
@@ -7072,7 +7094,7 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
     JS::Value exn = JSVAL_VOID;
 
     {
-      Maybe<JSAutoCompartment> ac;
+      JSAutoEnterCompartment ac;
 
       JSContext* my_cx;
       if (!my_context) {
@@ -7081,7 +7103,9 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
         my_cx = my_context->GetNativeContext();
 
         if (my_cx != cx) {
-          ac.construct(my_cx, obj);
+          if (!ac.enter(my_cx, obj)) {
+            return NS_ERROR_UNEXPECTED;
+          }
         }
       }
 
@@ -7960,7 +7984,7 @@ IDBEventTargetSH::PreCreate(nsISupports *aNativeObj, JSContext *aCx,
 
 static bool
 GetBindingURL(Element *aElement, nsIDocument *aDocument,
-              mozilla::css::URLValue **aResult)
+              nsCSSValue::URL **aResult)
 {
   // If we have a frame the frame has already loaded the binding.  And
   // otherwise, don't do anything else here unless we're dealing with
@@ -8024,7 +8048,7 @@ nsElementSH::PreCreate(nsISupports *nativeObj, JSContext *cx,
     return rv == NS_SUCCESS_ALLOW_SLIM_WRAPPERS ? NS_OK : rv;
   }
 
-  mozilla::css::URLValue *bindingURL;
+  nsCSSValue::URL *bindingURL;
   bool ok = GetBindingURL(element, doc, &bindingURL);
   NS_ENSURE_TRUE(ok, NS_ERROR_FAILURE);
 
@@ -8089,7 +8113,7 @@ nsElementSH::PostCreate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 
   // Make sure the style context goes away _before_ we load the binding
   // since that can destroy the relevant presshell.
-  mozilla::css::URLValue *bindingURL;
+  nsCSSValue::URL *bindingURL;
   bool ok = GetBindingURL(element, doc, &bindingURL);
   NS_ENSURE_TRUE(ok, NS_ERROR_FAILURE);
 
@@ -8309,7 +8333,13 @@ nsNamedArraySH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
         realObj = obj;
       }
 
-      JSAutoCompartment ac(cx, realObj);
+      JSAutoEnterCompartment ac;
+
+      if (!ac.enter(cx, realObj)) {
+        *_retval = false;
+        return NS_ERROR_FAILURE;
+      }
+
       JSObject *proto = ::JS_GetPrototype(realObj);
 
       if (proto) {
@@ -9680,7 +9710,11 @@ nsHTMLPluginObjElementSH::SetupProtoChain(nsIXPConnectWrappedNative *wrapper,
   }
 
   JSAutoRequest ar(cx);
-  JSAutoCompartment ac(cx, obj);
+
+  JSAutoEnterCompartment ac;
+  if (!ac.enter(cx, obj)) {
+    return NS_ERROR_UNEXPECTED;
+  }
 
   nsRefPtr<nsNPAPIPluginInstance> pi;
   nsresult rv = GetPluginInstanceIfSafe(wrapper, obj, getter_AddRefs(pi));
@@ -9926,7 +9960,10 @@ nsHTMLPluginObjElementSH::GetPluginJSObject(JSContext *cx, JSObject *obj,
   // NB: We need an AutoEnterCompartment because we can be called from
   // nsObjectFrame when the plugin loads after the JS object for our content
   // node has been created.
-  JSAutoCompartment ac(cx, obj);
+  JSAutoEnterCompartment ac;
+  if (!ac.enter(cx, obj)) {
+    return NS_ERROR_UNEXPECTED;
+  }
 
   if (plugin_inst) {
     plugin_inst->GetJSObject(cx, plugin_obj);
@@ -10266,7 +10303,11 @@ nsStorage2SH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
   JSObject *realObj;
   wrapper->GetJSObject(&realObj);
 
-  JSAutoCompartment ac(cx, realObj);
+  JSAutoEnterCompartment ac;
+  if (!ac.enter(cx, realObj)) {
+    *_retval = false;
+    return NS_ERROR_FAILURE;
+  }
 
   // First check to see if the property is defined on our prototype,
   // after converting id to a string if it's an integer.

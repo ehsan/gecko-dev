@@ -14,15 +14,6 @@ namespace xpc {
 // their prototype, we have to instrument the traps to do this manually.
 ChromeObjectWrapper ChromeObjectWrapper::singleton;
 
-static bool
-PropIsFromStandardPrototype(JSContext *cx, JSPropertyDescriptor *desc)
-{
-    MOZ_ASSERT(desc->obj);
-    JSObject *unwrapped = js::UnwrapObject(desc->obj);
-    JSAutoCompartment ac(cx, unwrapped);
-    return JS_IdentifyClassPrototype(cx, unwrapped) != JSProto_Null;
-}
-
 bool
 ChromeObjectWrapper::getPropertyDescriptor(JSContext *cx, JSObject *wrapper,
                                            jsid id, bool set,
@@ -37,20 +28,15 @@ ChromeObjectWrapper::getPropertyDescriptor(JSContext *cx, JSObject *wrapper,
         return false;
     }
 
-    // If the property is something that can be found on a standard prototype,
-    // prefer the one we'll get via the prototype chain in the content
-    // compartment.
-    if (desc->obj && PropIsFromStandardPrototype(cx, desc))
-        desc->obj = NULL;
-
     // If we found something, were doing a set, or have no proto, we're done.
     JSObject *wrapperProto = JS_GetPrototype(wrapper);
     if (desc->obj || set || !wrapperProto)
         return true;
 
     // If not, try doing the lookup on the prototype.
-    JS_ASSERT(js::IsObjectInContextCompartment(wrapper, cx));
-    return JS_GetPropertyDescriptorById(cx, wrapperProto, id, 0, desc);
+    JSAutoEnterCompartment ac;
+    return ac.enter(cx, wrapper) &&
+           JS_GetPropertyDescriptorById(cx, wrapperProto, id, 0, desc);
 }
 
 bool
@@ -66,11 +52,13 @@ ChromeObjectWrapper::has(JSContext *cx, JSObject *wrapper, jsid id, bool *bp)
         return true;
 
     // Try the prototype if that failed.
-    JS_ASSERT(js::IsObjectInContextCompartment(wrapper, cx));
+    JSAutoEnterCompartment ac;
     JSPropertyDescriptor desc;
-    memset(&desc, 0, sizeof(desc));
-    if (!JS_GetPropertyDescriptorById(cx, wrapperProto, id, 0, &desc))
+    if (!ac.enter(cx, wrapper) ||
+        !JS_GetPropertyDescriptorById(cx, wrapperProto, id, 0, &desc))
+    {
         return false;
+    }
     *bp = !!desc.obj;
     return true;
 }
@@ -79,35 +67,19 @@ bool
 ChromeObjectWrapper::get(JSContext *cx, JSObject *wrapper, JSObject *receiver,
                          jsid id, js::Value *vp)
 {
-    // Start with a call to getPropertyDescriptor. We unfortunately need to do
-    // this because the call signature of ::get doesn't give us any way to
-    // determine the object upon which the property was found.
-    JSPropertyDescriptor desc;
-    memset(&desc, 0, sizeof(desc));
-    if (!ChromeObjectWrapperBase::getPropertyDescriptor(cx, wrapper, id, false,
-                                                        &desc)) {
+    // Try the lookup on the base wrapper.
+    if (!ChromeObjectWrapperBase::get(cx, wrapper, receiver, id, vp))
         return false;
-    }
 
-    // Only call through to the get trap on the underlying object if we'll find
-    // something, and if what we'll find is not on a standard prototype.
-    vp->setUndefined();
-    if (desc.obj && !PropIsFromStandardPrototype(cx, &desc)) {
-        // Call the get trap.
-        if (!ChromeObjectWrapperBase::get(cx, wrapper, receiver, id, vp))
-            return false;
-        // If we found something, we're done.
-        if (!vp->isUndefined())
-            return true;
-    }
-
-    // If we have no proto, we're done.
+    // If we found something or have no proto, we're done.
     JSObject *wrapperProto = JS_GetPrototype(wrapper);
-    if (!wrapperProto)
+    if (!vp->isUndefined() || !wrapperProto)
         return true;
 
     // Try the prototype.
-    JS_ASSERT(js::IsObjectInContextCompartment(wrapper, cx));
+    JSAutoEnterCompartment ac;
+    if (!ac.enter(cx, wrapper))
+        return false;
     return js::GetGeneric(cx, wrapperProto, receiver, id, vp);
 }
 

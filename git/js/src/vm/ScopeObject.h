@@ -524,7 +524,7 @@ class DebugScopes
     JSRuntime *rt;
 
     /* The map from (non-debug) scopes to debug scopes. */
-    typedef WeakMap<EncapsulatedPtrObject, RelocatablePtrObject> ObjectWeakMap;
+    typedef WeakMap<HeapPtrObject, HeapPtrObject> ObjectWeakMap;
     ObjectWeakMap proxiedScopes;
 
     /*

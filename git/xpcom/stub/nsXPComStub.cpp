@@ -515,9 +515,9 @@ NS_CycleCollectorForget(nsISupports* obj)
 
 #undef NS_CycleCollectorSuspect2
 EXPORT_XPCOM_API(nsPurpleBufferEntry*)
-NS_CycleCollectorSuspect2(void *obj, nsCycleCollectionParticipant *p)
+NS_CycleCollectorSuspect2(nsISupports* obj)
 {
-  return NS_CycleCollectorSuspect2_P(obj, p);
+  return NS_CycleCollectorSuspect2_P(obj);
 }
 
 #undef NS_CycleCollectorForget2

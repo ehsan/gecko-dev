@@ -182,7 +182,15 @@ JSCompartment::wrap(JSContext *cx, Value *vp)
      * we parent all wrappers to the global object in their home compartment.
      * This loses us some transparency, and is generally very cheesy.
      */
-    HandleObject global = cx->global();
+    RootedObject global(cx);
+    if (cx->hasfp()) {
+        global = &cx->fp()->global();
+    } else {
+        global = cx->globalObject;
+        global = JS_ObjectToInnerObject(cx, global);
+        if (!global)
+            return false;
+    }
 
     /* Unwrap incoming objects. */
     if (vp->isObject()) {
@@ -194,7 +202,7 @@ JSCompartment::wrap(JSContext *cx, Value *vp)
         /* Translate StopIteration singleton. */
         if (obj->isStopIteration()) {
             RootedValue vvp(cx, *vp);
-            bool result = js_FindClassObject(cx, JSProto_StopIteration, &vvp);
+            bool result = js_FindClassObject(cx, NullPtr(), JSProto_StopIteration, &vvp);
             *vp = vvp;
             return result;
         }
@@ -606,7 +614,7 @@ JSCompartment::sweepCrossCompartmentWrappers()
         JS_ASSERT_IF(!keyMarked && valMarked, key.kind == CrossCompartmentKey::StringWrapper);
         if (!keyMarked || !valMarked || !dbgMarked)
             e.removeFront();
-        else if (key.wrapped != e.front().key.wrapped || key.debugger != e.front().key.debugger)
+        else
             e.rekeyFront(key);
     }
 }
@@ -645,7 +653,8 @@ bool
 JSCompartment::hasScriptsOnStack()
 {
     for (AllFramesIter i(rt->stackSpace); !i.done(); ++i) {
-        if (i.fp()->script()->compartment() == this)
+        JSScript *script = i.fp()->maybeScript();
+        if (script && script->compartment() == this)
             return true;
     }
     return false;

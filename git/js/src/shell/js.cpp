@@ -896,7 +896,10 @@ Evaluate(JSContext *cx, unsigned argc, jsval *vp)
     }
 
     {
-        JSAutoCompartment ac(cx, global);
+        JSAutoEnterCompartment aec;
+        if (!aec.enter(cx, global))
+            return false;
+
         uint32_t saved = JS_GetOptions(cx);
         uint32_t options = saved & ~(JSOPTION_COMPILE_N_GO | JSOPTION_NO_SCRIPT_RVAL);
         if (compileAndGo)
@@ -2304,12 +2307,13 @@ Clone(JSContext *cx, unsigned argc, jsval *vp)
 
     jsval *argv = JS_ARGV(cx, vp);
     {
-        Maybe<JSAutoCompartment> ac;
+        JSAutoEnterCompartment ac;
         RootedObject obj(cx, JSVAL_IS_PRIMITIVE(argv[0]) ? NULL : JSVAL_TO_OBJECT(argv[0]));
 
         if (obj && IsCrossCompartmentWrapper(obj)) {
             obj = UnwrapObject(obj);
-            ac.construct(cx, obj);
+            if (!ac.enter(cx, obj))
+                return false;
             argv[0] = ObjectValue(*obj);
         }
         if (obj && obj->isFunction()) {
@@ -2536,7 +2540,10 @@ NewSandbox(JSContext *cx, bool lazy)
         return NULL;
 
     {
-        JSAutoCompartment ac(cx, obj);
+        JSAutoEnterCompartment ac;
+        if (!ac.enter(cx, obj))
+            return NULL;
+
         if (!lazy && !JS_InitStandardClasses(cx, obj))
             return NULL;
 
@@ -2590,12 +2597,13 @@ EvalInContext(JSContext *cx, unsigned argc, jsval *vp)
     JS_DescribeScriptedCaller(cx, &script, &lineno);
     jsval rval;
     {
-        Maybe<JSAutoCompartment> ac;
+        JSAutoEnterCompartment ac;
         unsigned flags;
         JSObject *unwrapped = UnwrapObject(sobj, true, &flags);
         if (flags & Wrapper::CROSS_COMPARTMENT) {
             sobj = unwrapped;
-            ac.construct(cx, sobj);
+            if (!ac.enter(cx, sobj))
+                return false;
         }
 
         sobj = GetInnerObject(cx, sobj);
@@ -2646,6 +2654,12 @@ EvalInFrame(JSContext *cx, unsigned argc, jsval *vp)
             break;
     }
 
+    StackFrame *const fp = fi.fp();
+    if (!fp->isScriptFrame()) {
+        JS_ReportError(cx, "cannot eval in non-script frame");
+        return false;
+    }
+
     bool saved = false;
     if (saveCurrent)
         saved = JS_SaveFrameChain(cx);
@@ -2655,7 +2669,6 @@ EvalInFrame(JSContext *cx, unsigned argc, jsval *vp)
     if (!chars)
         return false;
 
-    StackFrame *fp = fi.fp();
     bool ok = !!JS_EvaluateUCInStackFrame(cx, Jsvalify(fp), chars, length,
                                           fp->script()->filename,
                                           JS_PCToLineNumber(cx, fp->script(),
@@ -3350,11 +3363,8 @@ static JSBool
 DecompileThisScript(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    JSScript *script = NULL;
-    if (!JS_DescribeScriptedCaller(cx, &script, NULL)) {
-        args.rval().setString(cx->runtime->emptyString);
-        return true;
-    }
+    JSScript *script = js_GetCurrentScript(cx);
+    JS_ASSERT(script);
     JSString *result = JS_DecompileScript(cx, script, "test", 0);
     if (!result)
         return false;
@@ -3366,8 +3376,8 @@ static JSBool
 ThisFilename(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    JSScript *script = NULL;
-    if (!JS_DescribeScriptedCaller(cx, &script, NULL) || !script->filename) {
+    JSScript *script = js_GetCurrentScript(cx);
+    if (!script || !script->filename) {
         args.rval().setString(cx->runtime->emptyString);
         return true;
     }
@@ -3474,11 +3484,8 @@ NewGlobalObject(JSContext *cx);
 static JSBool
 NewGlobal(JSContext *cx, unsigned argc, jsval *vp)
 {
-    RootedObject global(cx, NewGlobalObject(cx));
+    JSObject *global = NewGlobalObject(cx);
     if (!global)
-        return false;
-
-    if (!JS_WrapObject(cx, global.address()))
         return false;
 
     JS_SET_RVAL(cx, vp, OBJECT_TO_JSVAL(global));
@@ -4674,7 +4681,9 @@ NewGlobalObject(JSContext *cx)
         return NULL;
 
     {
-        JSAutoCompartment ac(cx, glob);
+        JSAutoEnterCompartment ac;
+        if (!ac.enter(cx, glob))
+            return NULL;
 
 #ifndef LAZY_STANDARD_CLASSES
         if (!JS_InitStandardClasses(cx, glob))
@@ -4711,6 +4720,9 @@ NewGlobalObject(JSContext *cx)
                                its_setter, JSPROP_READONLY))
             return NULL;
     }
+
+    if (!JS_WrapObject(cx, glob.address()))
+        return NULL;
 
     return glob;
 }
@@ -4835,6 +4847,10 @@ Shell(JSContext *cx, OptionParser *op, char **envp)
     RootedObject glob(cx);
     glob = NewGlobalObject(cx);
     if (!glob)
+        return 1;
+
+    JSAutoEnterCompartment ac;
+    if (!ac.enter(cx, glob))
         return 1;
 
     JS_SetGlobalObject(cx, glob);

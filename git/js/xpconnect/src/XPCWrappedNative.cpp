@@ -323,7 +323,9 @@ XPCWrappedNative::WrapNewGlobal(XPCCallContext &ccx, xpcObjectHelper &nativeHelp
 
     // Immediately enter the global's compartment, so that everything else we
     // create ends up there.
-    JSAutoCompartment ac(ccx, global);
+    JSAutoEnterCompartment ac;
+    success = ac.enter(ccx, global);
+    MOZ_ASSERT(success);
 
     // If requested, immediately initialize the standard classes on the global.
     // We need to do this before creating a scope, because
@@ -517,7 +519,7 @@ XPCWrappedNative::GetNewOrUsed(XPCCallContext& ccx,
     JSBool needsSOW = false;
     JSBool needsCOW = false;
 
-    mozilla::Maybe<JSAutoCompartment> ac;
+    JSAutoEnterCompartment ac;
 
     if (sciWrapper.GetFlags().WantPreCreate()) {
         JSObject* plannedParent = parent;
@@ -533,7 +535,8 @@ XPCWrappedNative::GetNewOrUsed(XPCCallContext& ccx,
         NS_ASSERTION(!xpc::WrapperFactory::IsXrayWrapper(parent),
                      "Xray wrapper being used to parent XPCWrappedNative?");
 
-        ac.construct(ccx, parent);
+        if (!ac.enter(ccx, parent))
+            return NS_ERROR_FAILURE;
 
         if (parent != plannedParent) {
             XPCWrappedNativeScope* betterScope =
@@ -574,7 +577,8 @@ XPCWrappedNative::GetNewOrUsed(XPCCallContext& ccx,
             return NS_OK;
         }
     } else {
-        ac.construct(ccx, parent);
+        if (!ac.enter(ccx, parent))
+            return NS_ERROR_FAILURE;
 
         nsISupports *Object = helper.Object();
         if (nsXPCWrappedJSClass::IsWrappedJS(Object)) {
@@ -788,7 +792,11 @@ XPCWrappedNative::Morph(XPCCallContext& ccx,
     // *seen* this happen.
     AutoMarkingWrappedNativePtr wrapperMarker(ccx, wrapper);
 
-    JSAutoCompartment ac(ccx, existingJSObject);
+    JSAutoEnterCompartment ac;
+    if (!ac.enter(ccx, existingJSObject)) {
+        wrapper->mIdentity = nullptr;
+        return NS_ERROR_FAILURE;
+    }
     if (!wrapper->Init(ccx, existingJSObject))
         return NS_ERROR_FAILURE;
 
@@ -1519,7 +1527,9 @@ XPCWrappedNative::ReparentWrapperIfFound(XPCCallContext& ccx,
         return NS_ERROR_FAILURE;
     }
 
-    JSAutoCompartment ac(ccx, aNewScope->GetGlobalJSObject());
+    JSAutoEnterCompartment ac;
+    if (!ac.enter(ccx, aNewScope->GetGlobalJSObject()))
+        return NS_ERROR_FAILURE;
 
     if (aOldScope != aNewScope) {
         // Oh, so now we need to move the wrapper to a different scope.
@@ -1599,8 +1609,9 @@ XPCWrappedNative::ReparentWrapperIfFound(XPCCallContext& ccx,
             // that the object might have. This forces us to take the 'WithWrapper' path
             // while transplanting that handles this stuff correctly.
             {
-                JSAutoCompartment innerAC(ccx, aOldScope->GetGlobalJSObject());
-                if (!wrapper->GetSameCompartmentSecurityWrapper(ccx))
+                JSAutoEnterCompartment innerAC;
+                if (!innerAC.enter(ccx, aOldScope->GetGlobalJSObject()) ||
+                    !wrapper->GetSameCompartmentSecurityWrapper(ccx))
                     return NS_ERROR_FAILURE;
             }
 
@@ -3797,7 +3808,12 @@ ConstructSlimWrapper(XPCCallContext &ccx,
         return false;
     }
 
-    JSAutoCompartment ac(ccx, parent);
+    JSAutoEnterCompartment ac;
+    if (!ac.enter(ccx, parent)) {
+        SLIM_LOG_NOT_CREATED(ccx, identityObj, "unable to enter compartment");
+
+        return false;
+    }
 
     if (parent != plannedParent) {
         XPCWrappedNativeScope *newXpcScope =

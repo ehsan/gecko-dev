@@ -327,7 +327,6 @@ ArrayBufferObject::obj_trace(JSTracer *trc, JSObject *obj)
      */
     JSObject *delegate = static_cast<JSObject*>(obj->getPrivate());
     if (delegate) {
-        JS_SET_TRACING_LOCATION(trc, &obj->privateRef(obj->numFixedSlots()));
         MarkObjectUnbarriered(trc, &delegate, "arraybuffer.delegate");
         obj->setPrivateUnbarriered(delegate);
     }
@@ -674,6 +673,21 @@ JSType
 ArrayBufferObject::obj_typeOf(JSContext *cx, HandleObject obj)
 {
     return JSTYPE_OBJECT;
+}
+
+/*
+ * ArrayBufferViews of various sorts
+ */
+
+static JSObject *
+GetProtoForClass(JSContext *cx, Class *clasp)
+{
+    // Pass in the proto from this compartment
+    Rooted<GlobalObject*> parent(cx, GetCurrentGlobal(cx));
+    RootedObject proto(cx);
+    if (!FindProto(cx, clasp, parent, &proto))
+        return NULL;
+    return proto;
 }
 
 /*
@@ -1274,7 +1288,13 @@ class TypedArrayTemplate
         JS_ASSERT(bufobj->isArrayBuffer());
         Rooted<ArrayBufferObject *> buffer(cx, &bufobj->asArrayBuffer());
 
-        InitTypedArrayDataPointer(obj, buffer, byteOffset);
+        /*
+         * N.B. The base of the array's data is stored in the object's
+         * private data rather than a slot, to avoid alignment restrictions
+         * on private Values.
+         */
+        obj->setPrivate(buffer->dataPointer() + byteOffset);
+
         obj->setSlot(FIELD_LENGTH, Int32Value(len));
         obj->setSlot(FIELD_BYTEOFFSET, Int32Value(byteOffset));
         obj->setSlot(FIELD_BYTELENGTH, Int32Value(len * sizeof(NativeType)));
@@ -1658,9 +1678,8 @@ class TypedArrayTemplate
                  * reuses all the existing cross-compartment crazy so we don't
                  * have to do anything *uniquely* crazy here.
                  */
-
-                Rooted<JSObject*> proto(cx);
-                if (!FindProto(cx, fastClass(), &proto))
+                Rooted<JSObject*> proto(cx, GetProtoForClass(cx, fastClass()));
+                if (!proto)
                     return NULL;
 
                 InvokeArgsGuard ag;

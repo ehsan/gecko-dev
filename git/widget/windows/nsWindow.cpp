@@ -7082,15 +7082,13 @@ bool nsWindow::OnResize(nsIntRect &aWindowRect)
   }
 #endif
 
-  bool result = mWidgetListener ?
-                mWidgetListener->WindowResized(this, aWindowRect.width, aWindowRect.height) : false;
-
   // If there is an attached view, inform it as well as the normal widget listener.
   if (mAttachedWidgetListener) {
-    return mAttachedWidgetListener->WindowResized(this, aWindowRect.width, aWindowRect.height);
+    mAttachedWidgetListener->WindowResized(this, aWindowRect.width, aWindowRect.height);
   }
 
-  return result;
+  return mWidgetListener ?
+         mWidgetListener->WindowResized(this, aWindowRect.width, aWindowRect.height) : false;
 }
 
 bool nsWindow::OnHotKey(WPARAM wParam, LPARAM lParam)

@@ -128,9 +128,6 @@ bool
 ElementTransitions::CanPerformOnCompositorThread() const
 {
   if (mElementProperty != nsGkAtoms::transitionsProperty) {
-    if (nsLayoutUtils::IsAnimationLoggingEnabled()) {
-      printf_stderr("Gecko bug: Async transition of pseudoelements not supported.  See bug 771367\n");
-    }
     return false;
   }
   bool hasGeometricProperty = false;

@@ -73,14 +73,14 @@ nsCSSValue::nsCSSValue(nsCSSValue::Array* aValue, nsCSSUnit aUnit)
   mValue.mArray->AddRef();
 }
 
-nsCSSValue::nsCSSValue(mozilla::css::URLValue* aValue)
+nsCSSValue::nsCSSValue(nsCSSValue::URL* aValue)
   : mUnit(eCSSUnit_URL)
 {
   mValue.mURL = aValue;
   mValue.mURL->AddRef();
 }
 
-nsCSSValue::nsCSSValue(mozilla::css::ImageValue* aValue)
+nsCSSValue::nsCSSValue(nsCSSValue::Image* aValue)
   : mUnit(eCSSUnit_Image)
 {
   mValue.mImage = aValue;
@@ -364,7 +364,7 @@ void nsCSSValue::SetArrayValue(nsCSSValue::Array* aValue, nsCSSUnit aUnit)
   mValue.mArray->AddRef();
 }
 
-void nsCSSValue::SetURLValue(mozilla::css::URLValue* aValue)
+void nsCSSValue::SetURLValue(nsCSSValue::URL* aValue)
 {
   Reset();
   mUnit = eCSSUnit_URL;
@@ -372,7 +372,7 @@ void nsCSSValue::SetURLValue(mozilla::css::URLValue* aValue)
   mValue.mURL->AddRef();
 }
 
-void nsCSSValue::SetImageValue(mozilla::css::ImageValue* aValue)
+void nsCSSValue::SetImageValue(nsCSSValue::Image* aValue)
 {
   Reset();
   mUnit = eCSSUnit_Image;
@@ -563,12 +563,12 @@ void nsCSSValue::SetDummyInheritValue()
 void nsCSSValue::StartImageLoad(nsIDocument* aDocument) const
 {
   NS_ABORT_IF_FALSE(eCSSUnit_URL == mUnit, "Not a URL value!");
-  mozilla::css::ImageValue* image =
-    new mozilla::css::ImageValue(mValue.mURL->GetURI(),
-                                 mValue.mURL->mString,
-                                 mValue.mURL->mReferrer,
-                                 mValue.mURL->mOriginPrincipal,
-                                 aDocument);
+  nsCSSValue::Image* image =
+    new nsCSSValue::Image(mValue.mURL->GetURI(),
+                          mValue.mURL->mString,
+                          mValue.mURL->mReferrer,
+                          mValue.mURL->mOriginPrincipal,
+                          aDocument);
   if (image) {
     nsCSSValue* writable = const_cast<nsCSSValue*>(this);
     writable->SetImageValue(image);
@@ -1600,8 +1600,8 @@ nsCSSValue::Array::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
   return n;
 }
 
-css::URLValue::URLValue(nsIURI* aURI, nsStringBuffer* aString,
-                        nsIURI* aReferrer, nsIPrincipal* aOriginPrincipal)
+nsCSSValue::URL::URL(nsIURI* aURI, nsStringBuffer* aString,
+                     nsIURI* aReferrer, nsIPrincipal* aOriginPrincipal)
   : mURI(aURI),
     mString(aString),
     mReferrer(aReferrer),
@@ -1612,8 +1612,8 @@ css::URLValue::URLValue(nsIURI* aURI, nsStringBuffer* aString,
   mString->AddRef();
 }
 
-css::URLValue::URLValue(nsStringBuffer* aString, nsIURI* aBaseURI,
-                        nsIURI* aReferrer, nsIPrincipal* aOriginPrincipal)
+nsCSSValue::URL::URL(nsStringBuffer* aString, nsIURI* aBaseURI,
+                     nsIURI* aReferrer, nsIPrincipal* aOriginPrincipal)
   : mURI(aBaseURI),
     mString(aString),
     mReferrer(aReferrer),
@@ -1624,17 +1624,17 @@ css::URLValue::URLValue(nsStringBuffer* aString, nsIURI* aBaseURI,
   mString->AddRef();
 }
 
-css::URLValue::~URLValue()
+nsCSSValue::URL::~URL()
 {
   mString->Release();
 }
 
 bool
-css::URLValue::operator==(const URLValue& aOther) const
+nsCSSValue::URL::operator==(const URL& aOther) const
 {
   bool eq;
-  return NS_strcmp(nsCSSValue::GetBufferValue(mString),
-                   nsCSSValue::GetBufferValue(aOther.mString)) == 0 &&
+  return NS_strcmp(GetBufferValue(mString),
+                   GetBufferValue(aOther.mString)) == 0 &&
           (GetURI() == aOther.GetURI() || // handles null == null
            (mURI && aOther.mURI &&
             NS_SUCCEEDED(mURI->Equals(aOther.mURI, &eq)) &&
@@ -1645,7 +1645,7 @@ css::URLValue::operator==(const URLValue& aOther) const
 }
 
 bool
-css::URLValue::URIEquals(const URLValue& aOther) const
+nsCSSValue::URL::URIEquals(const URL& aOther) const
 {
   NS_ABORT_IF_FALSE(mURIResolved && aOther.mURIResolved,
                     "How do you know the URIs aren't null?");
@@ -1662,15 +1662,14 @@ css::URLValue::URIEquals(const URLValue& aOther) const
 }
 
 nsIURI*
-css::URLValue::GetURI() const
+nsCSSValue::URL::GetURI() const
 {
   if (!mURIResolved) {
     mURIResolved = true;
     // Be careful to not null out mURI before we've passed it as the base URI
     nsCOMPtr<nsIURI> newURI;
     NS_NewURI(getter_AddRefs(newURI),
-              NS_ConvertUTF16toUTF8(nsCSSValue::GetBufferValue(mString)),
-              nullptr, mURI);
+              NS_ConvertUTF16toUTF8(GetBufferValue(mString)), nullptr, mURI);
     newURI.swap(mURI);
   }
 
@@ -1678,7 +1677,7 @@ css::URLValue::GetURI() const
 }
 
 size_t
-css::URLValue::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
+nsCSSValue::URL::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = aMallocSizeOf(this);
 
@@ -1695,10 +1694,10 @@ css::URLValue::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 }
 
 
-css::ImageValue::ImageValue(nsIURI* aURI, nsStringBuffer* aString,
-                            nsIURI* aReferrer, nsIPrincipal* aOriginPrincipal,
-                            nsIDocument* aDocument)
-  : URLValue(aURI, aString, aReferrer, aOriginPrincipal)
+nsCSSValue::Image::Image(nsIURI* aURI, nsStringBuffer* aString,
+                         nsIURI* aReferrer, nsIPrincipal* aOriginPrincipal,
+                         nsIDocument* aDocument)
+  : URL(aURI, aString, aReferrer, aOriginPrincipal)
 {
   if (aDocument->GetOriginalDocument()) {
     aDocument = aDocument->GetOriginalDocument();
@@ -1714,8 +1713,7 @@ static PLDHashOperator
 ClearRequestHashtable(nsISupports* aKey, nsCOMPtr<imgIRequest>& aValue,
                       void* aClosure)
 {
-  mozilla::css::ImageValue* image =
-    static_cast<mozilla::css::ImageValue*>(aClosure);
+  nsCSSValue::Image* image = static_cast<nsCSSValue::Image*>(aClosure);
   nsIDocument* doc = static_cast<nsIDocument*>(aKey);
 
 #ifdef DEBUG
@@ -1736,7 +1734,7 @@ ClearRequestHashtable(nsISupports* aKey, nsCOMPtr<imgIRequest>& aValue,
   return PL_DHASH_REMOVE;
 }
 
-css::ImageValue::~ImageValue()
+nsCSSValue::Image::~Image()
 {
   mRequests.Enumerate(&ClearRequestHashtable, this);
 }

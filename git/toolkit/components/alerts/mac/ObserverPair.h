@@ -51,7 +51,10 @@ GetWindowOfObserver(nsIObserver* aObserver)
   NS_ENSURE_TRUE(cx, nullptr);
 
   JSAutoRequest ar(cx);
-  JSAutoCompartment ac(cx, obj);
+  JSAutoEnterCompartment ac;
+  if (!ac.enter(cx, obj)) {
+    return nullptr;
+  }
 
   JSObject* global = JS_GetGlobalForObject(cx, obj);
   NS_ENSURE_TRUE(global, nullptr);

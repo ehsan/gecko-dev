@@ -102,7 +102,6 @@ UnwrapDOMObject(JSObject* obj, DOMObjectSlot slot)
     MOZ_ASSERT(js::IsObjectProxyClass(js::GetObjectClass(obj)) ||
                js::IsFunctionProxyClass(js::GetObjectClass(obj)));
     MOZ_ASSERT(js::GetProxyHandler(obj)->family() == ProxyFamily());
-    MOZ_ASSERT(IsNewProxyBinding(js::GetProxyHandler(obj)));
     MOZ_ASSERT(slot == eProxyDOMObject);
   }
 #endif
@@ -130,7 +129,6 @@ GetDOMClass(JSObject* obj)
 
   js::BaseProxyHandler* handler = js::GetProxyHandler(obj);
   MOZ_ASSERT(handler->family() == ProxyFamily());
-  MOZ_ASSERT(IsNewProxyBinding(handler));
   return &static_cast<DOMProxyHandler*>(handler)->mClass;
 }
 
@@ -145,7 +143,7 @@ GetDOMClass(JSObject* obj, const DOMClass*& result)
 
   if (js::IsObjectProxyClass(clasp) || js::IsFunctionProxyClass(clasp)) {
     js::BaseProxyHandler* handler = js::GetProxyHandler(obj);
-    if (handler->family() == ProxyFamily() && IsNewProxyBinding(handler)) {
+    if (handler->family() == ProxyFamily()) {
       result = &static_cast<DOMProxyHandler*>(handler)->mClass;
       return eProxyDOMObject;
     }
@@ -173,8 +171,7 @@ IsDOMObject(JSObject* obj)
   js::Class* clasp = js::GetObjectClass(obj);
   return IsDOMClass(clasp) ||
          ((js::IsObjectProxyClass(clasp) || js::IsFunctionProxyClass(clasp)) &&
-          (js::GetProxyHandler(obj)->family() == ProxyFamily() &&
-           IsNewProxyBinding(js::GetProxyHandler(obj))));
+          js::GetProxyHandler(obj)->family() == ProxyFamily());
 }
 
 // Some callers don't want to set an exception when unwrappin fails
@@ -227,7 +224,7 @@ IsArrayLike(JSContext* cx, JSObject* obj)
   // For simplicity, check for security wrappers up front.  In case we
   // have a security wrapper, don't forget to enter the compartment of
   // the underlying object after unwrapping.
-  Maybe<JSAutoCompartment> ac;
+  JSAutoEnterCompartment ac;
   if (js::IsWrapper(obj)) {
     obj = xpc::Unwrap(cx, obj, false);
     if (!obj) {
@@ -235,7 +232,9 @@ IsArrayLike(JSContext* cx, JSObject* obj)
       return false;
     }
 
-    ac.construct(cx, obj);
+    if (!ac.enter(cx, obj)) {
+      return false;
+    }
   }
 
   // XXXbz need to detect platform objects (including listbinding
@@ -441,14 +440,14 @@ WrapNewBindingNonWrapperCachedObject(JSContext* cx, JSObject* scope, T* value,
   // We try to wrap in the compartment of the underlying object of "scope"
   JSObject* obj;
   {
-    // scope for the JSAutoCompartment so that we restore the compartment
-    // before we call JS_WrapValue.
-    Maybe<JSAutoCompartment> ac;
+    // scope for the JSAutoEnterCompartment so that we restore the
+    // compartment before we call JS_WrapValue.
+    JSAutoEnterCompartment ac;
     if (js::IsWrapper(scope)) {
       scope = xpc::Unwrap(cx, scope, false);
-      if (!scope)
+      if (!scope || !ac.enter(cx, scope)) {
         return false;
-      ac.construct(cx, scope);
+      }
     }
 
     obj = value->WrapObject(cx, scope);

@@ -51,7 +51,8 @@ nsStructuredCloneContainer::InitFromVariant(nsIVariant *aData, JSContext *aCx)
 
   // Make sure that we serialize in the right context.
   JSAutoRequest ar(aCx);
- JSAutoCompartment ac(aCx, JS_GetGlobalObject(aCx));
+  JSAutoEnterCompartment ac;
+  NS_ENSURE_STATE(ac.enter(aCx, JS_GetGlobalObject(aCx)));
   JS_WrapValue(aCx, &jsData);
 
   nsCxPusher cxPusher;

@@ -1015,7 +1015,14 @@ XPCConvert::JSObject2NativeInterface(XPCCallContext& ccx,
     NS_ASSERTION(iid, "bad param");
 
     JSContext* cx = ccx.GetJSContext();
-    JSAutoCompartment ac(cx, src);
+
+    JSAutoEnterCompartment ac;
+
+    if (!ac.enter(cx, src)) {
+       if (pErr)
+           *pErr = NS_ERROR_UNEXPECTED;
+       return false;
+    }
 
     *dest = nullptr;
      if (pErr)

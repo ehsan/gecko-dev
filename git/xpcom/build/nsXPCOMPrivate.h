@@ -87,7 +87,7 @@ typedef void       (* DestroyXPTCallStubFunc)(nsISomeInterface*);
 typedef nsresult   (* InvokeByIndexFunc)(nsISupports*, uint32_t, uint32_t, nsXPTCVariant*);
 typedef bool       (* CycleCollectorFunc)(nsISupports*);
 typedef nsPurpleBufferEntry*
-                   (* CycleCollectorSuspect2Func)(void*, nsCycleCollectionParticipant*);
+                   (* CycleCollectorSuspect2Func)(nsISupports*);
 typedef bool       (* CycleCollectorForget2Func)(nsPurpleBufferEntry*);
 
 // PRIVATE AND DEPRECATED

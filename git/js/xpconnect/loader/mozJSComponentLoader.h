@@ -98,7 +98,8 @@ class mozJSComponentLoader : public mozilla::ModuleLoader,
             if (global) {
                 JSAutoRequest ar(sSelf->mContext);
 
-                JSAutoCompartment ac(sSelf->mContext, global);
+                JSAutoEnterCompartment ac;
+                ac.enterAndIgnoreErrors(sSelf->mContext, global);
 
                 JS_ClearScope(sSelf->mContext, global);
                 JS_RemoveObjectRoot(sSelf->mContext, &global);

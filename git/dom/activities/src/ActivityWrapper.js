@@ -9,7 +9,6 @@ const Ci = Components.interfaces;
 const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource://gre/modules/ObjectWrapper.jsm");
 
 function debug(aMsg) {
   //dump("-- ActivityWrapper.js " + Date.now() + " : " + aMsg + "\n");
@@ -24,7 +23,7 @@ function ActivityWrapper() {
 }
 
 ActivityWrapper.prototype = {
-  wrapMessage: function wrapMessage(aMessage, aWindow) {
+  wrapMessage: function wrapMessage(aMessage) {
     debug("Wrapping " + JSON.stringify(aMessage));
     let handler = Cc["@mozilla.org/dom/activities/request-handler;1"]
                     .createInstance(Ci.nsIDOMMozActivityRequestHandler);
@@ -33,7 +32,7 @@ ActivityWrapper.prototype = {
     // options is an nsIDOMActivityOptions object.
     var options = handler.wrappedJSObject._options;
     options.wrappedJSObject._name = aMessage.payload.name;
-    options.wrappedJSObject._data = ObjectWrapper.wrap(aMessage.payload.data, aWindow);
+    options.wrappedJSObject._data = aMessage.payload.data;
 
     return handler;
   },

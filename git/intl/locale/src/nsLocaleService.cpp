@@ -102,6 +102,7 @@ protected:
 // nsLocaleService methods
 //
 nsLocaleService::nsLocaleService(void) 
+    : mSystemLocale(0), mApplicationLocale(0)
 {
 #ifdef XP_WIN
     nsAutoString        xpLocale;
@@ -175,6 +176,9 @@ nsLocaleService::nsLocaleService(void)
         int i;
 
         nsRefPtr<nsLocale> resultLocale(new nsLocale());
+        if ( resultLocale == NULL ) { 
+            return; 
+        }
 
         LocaleObject locale_object = NULL;
         int result = UniCreateLocaleObject(UNI_UCS_STRING_POINTER,
@@ -306,6 +310,7 @@ nsLocaleService::GetApplicationLocale(nsILocale **_retval)
 NS_IMETHODIMP
 nsLocaleService::GetLocaleFromAcceptLanguage(const char *acceptLanguage, nsILocale **_retval)
 {
+  char* input;
   char* cPtr;
   char* cPtr1;
   char* cPtr2;
@@ -315,7 +320,9 @@ nsLocaleService::GetLocaleFromAcceptLanguage(const char *acceptLanguage, nsILoca
   char	acceptLanguageList[NSILOCALE_MAX_ACCEPT_LANGUAGE][NSILOCALE_MAX_ACCEPT_LENGTH];
   nsresult	result;
 
-  nsAutoArrayPtr<char> input(new char[strlen(acceptLanguage)+1]);
+  input = new char[strlen(acceptLanguage)+1];
+  NS_ASSERTION(input!=nullptr,"nsLocaleFactory::GetLocaleFromAcceptLanguage: memory allocation failed.");
+  if (input == (char*)NULL){ return NS_ERROR_OUT_OF_MEMORY; }
 
   strcpy(input, acceptLanguage);
   cPtr1 = input-1;
@@ -400,6 +407,7 @@ nsLocaleService::GetLocaleFromAcceptLanguage(const char *acceptLanguage, nsILoca
   //
   // clean up
   //
+  delete[] input;
   return result;
 }
 

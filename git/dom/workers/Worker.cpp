@@ -33,15 +33,12 @@ WorkerResolveProperty(JSContext* cx, JSObject* wrapper, jsid id, bool set,
   return true;
 }
 bool
-WorkerEnumerateProperties(JSContext* cx, JSObject* wrapper,
-                          JS::AutoIdVector& props)
+WorkerEnumerateProperties(JS::AutoIdVector& props)
 {
   return true;
 }
 NativePropertyHooks mozilla::dom::workers::sNativePropertyHooks =
-  { WorkerResolveProperty, WorkerResolveProperty,
-    WorkerEnumerateProperties, WorkerEnumerateProperties,
-    NULL };
+  { WorkerResolveProperty, WorkerEnumerateProperties, NULL };
 
 
 namespace {

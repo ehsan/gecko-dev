@@ -18,16 +18,15 @@
 //
 // implementation methods
 //
-nsEntityConverter::nsEntityConverter() :
-    mVersionList(nullptr),
-    mVersionListLength(0)
+nsEntityConverter::nsEntityConverter()
+:	mVersionList(NULL),
+  mVersionListLength(0)
 {
 }
 
 nsEntityConverter::~nsEntityConverter()
 {
-    if (mVersionList)
-        delete [] mVersionList;
+  if (NULL != mVersionList) delete [] mVersionList;
 }
 
 NS_IMETHODIMP 
@@ -79,14 +78,15 @@ already_AddRefed<nsIStringBundle>
 nsEntityConverter::LoadEntityBundle(uint32_t version)
 {
   nsCAutoString url(NS_LITERAL_CSTRING("resource://gre/res/entityTables/"));
+  const PRUnichar *versionName = NULL;
   nsresult rv;
 
   nsCOMPtr<nsIStringBundleService> bundleService =
       do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv);
-  NS_ENSURE_SUCCESS(rv, nullptr);
+  if (NS_FAILED(rv)) return NULL;
   
-  const PRUnichar *versionName = GetVersionName(version);
-  NS_ENSURE_TRUE(versionName, nullptr);
+  versionName = GetVersionName(version);
+  if (NULL == versionName) return NULL;
 
   // all property file names are ASCII, like "html40Latin1" so this is safe
   LossyAppendUTF16toASCII(versionName, url);
@@ -94,7 +94,7 @@ nsEntityConverter::LoadEntityBundle(uint32_t version)
 
   nsIStringBundle* bundle;
   rv = bundleService->CreateBundle(url.get(), &bundle);
-  NS_ENSURE_SUCCESS(rv, nullptr);
+  if (NS_FAILED(rv)) return NULL;
   
   // does this addref right?
   return bundle;
@@ -108,17 +108,17 @@ nsEntityConverter:: GetVersionName(uint32_t versionNumber)
       return mVersionList[i].mEntityListName;
   }
 
-  return nullptr;
+  return NULL;
 }
 
 nsIStringBundle*
 nsEntityConverter:: GetVersionBundleInstance(uint32_t versionNumber)
 {
-  if (!mVersionList) {
+  if (NULL == mVersionList) {
     // load the property file which contains available version names
     // and generate a list of version/name pair
-    if (NS_FAILED(LoadVersionPropertyFile()))
-      return nullptr;
+    nsresult rv = LoadVersionPropertyFile();
+    if (NS_FAILED(rv)) return NULL;
   }
 
   uint32_t i;
@@ -134,7 +134,7 @@ nsEntityConverter:: GetVersionBundleInstance(uint32_t versionNumber)
     }
   }
 
-  return nullptr;
+  return NULL;
 }
 
 
@@ -159,7 +159,7 @@ nsEntityConverter::ConvertUTF32ToEntity(uint32_t character, uint32_t entityVersi
   NS_ASSERTION(_retval, "null ptr- _retval");
   if(nullptr == _retval)
     return NS_ERROR_NULL_POINTER;
-  *_retval = nullptr;
+  *_retval = NULL;
 
   for (uint32_t mask = 1, mask2 = 0xFFFFFFFFL; (0!=(entityVersion & mask2)); mask<<=1, mask2<<=1) {
     if (0 == (entityVersion & mask)) 
@@ -167,7 +167,7 @@ nsEntityConverter::ConvertUTF32ToEntity(uint32_t character, uint32_t entityVersi
     nsIStringBundle* entities = GetVersionBundleInstance(entityVersion & mask);
     NS_ASSERTION(entities, "Cannot get the property file");
 
-    if (!entities) 
+    if (NULL == entities) 
       continue;
 
     nsAutoString key(NS_LITERAL_STRING("entity."));
@@ -189,11 +189,13 @@ nsEntityConverter::ConvertUTF32ToEntity(uint32_t character, uint32_t entityVersi
 NS_IMETHODIMP
 nsEntityConverter::ConvertToEntities(const PRUnichar *inString, uint32_t entityVersion, PRUnichar **_retval)
 {
-  NS_ENSURE_ARG_POINTER(inString);
-  NS_ENSURE_ARG_POINTER(_retval);
+  NS_ASSERTION(inString, "null ptr- inString");
+  NS_ASSERTION(_retval, "null ptr- _retval");
+  if((nullptr == inString) || (nullptr == _retval))
+    return NS_ERROR_NULL_POINTER;
+  *_retval = NULL;
 
-  *_retval = nullptr;
-
+  const PRUnichar *entity = NULL;
   nsString outString;
 
   // per character look for the entity
@@ -211,15 +213,15 @@ nsEntityConverter::ConvertToEntities(const PRUnichar *inString, uint32_t entityV
     }
     
     nsXPIDLString value;
-    const PRUnichar *entity = nullptr;
-
+    
+    entity = NULL;
     for (uint32_t mask = 1, mask2 = 0xFFFFFFFFL; (0!=(entityVersion & mask2)); mask<<=1, mask2<<=1) {
       if (0 == (entityVersion & mask)) 
          continue;
       nsIStringBundle* entities = GetVersionBundleInstance(entityVersion & mask);
       NS_ASSERTION(entities, "Cannot get the property file");
 
-      if (!entities) 
+      if (NULL == entities) 
           continue;
 
       nsresult rv = entities->GetStringFromName(key.get(),
@@ -229,7 +231,7 @@ nsEntityConverter::ConvertToEntities(const PRUnichar *inString, uint32_t entityV
         break;
       }
     }
-    if (entity) {
+    if (NULL != entity) {
       outString.Append(entity);
     }
     else {
@@ -238,7 +240,7 @@ nsEntityConverter::ConvertToEntities(const PRUnichar *inString, uint32_t entityV
   }
 
   *_retval = ToNewUnicode(outString);
-  if (!*_retval) 
+  if (NULL == *_retval) 
     return NS_ERROR_OUT_OF_MEMORY;
 
   return NS_OK;

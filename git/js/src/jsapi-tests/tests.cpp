@@ -61,7 +61,9 @@ JSObject * JSAPITest::createGlobal(JSPrincipals *principals)
     JS_AddNamedObjectRoot(cx, &global, "test-global");
     JS::HandleObject globalHandle = JS::HandleObject::fromMarkedLocation(&global);
 
-    JSAutoCompartment ac(cx, globalHandle);
+    JSAutoEnterCompartment ac;
+    if (!ac.enter(cx, globalHandle))
+        return NULL;
 
     /* Populate the global object with the standard globals, like Object and
        Array. */

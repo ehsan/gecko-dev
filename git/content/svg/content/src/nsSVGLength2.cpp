@@ -102,17 +102,16 @@ GetUnitString(nsAString& unit, uint16_t unitType)
 }
 
 static uint16_t
-GetUnitTypeForString(const nsAString& unitStr)
+GetUnitTypeForString(const char* unitStr)
 {
-  if (unitStr.IsEmpty()) 
+  if (!unitStr || *unitStr == '\0') 
     return nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER;
                    
-  nsIAtom *unitAtom = NS_GetStaticAtom(unitStr);
-  if (unitAtom) {
-    for (uint32_t i = 0 ; i < ArrayLength(unitMap) ; i++) {
-      if (unitMap[i] && *unitMap[i] == unitAtom) {
-        return i;
-      }
+  nsCOMPtr<nsIAtom> unitAtom = do_GetAtom(unitStr);
+
+  for (uint32_t i = 0 ; i < ArrayLength(unitMap) ; i++) {
+    if (unitMap[i] && *unitMap[i] == unitAtom) {
+      return i;
     }
   }
 
@@ -147,8 +146,7 @@ GetValueFromString(const nsAString &aValueAsString,
   char *rest;
   *aValue = float(PR_strtod(str, &rest));
   if (rest != str && NS_finite(*aValue)) {
-    *aUnitType = GetUnitTypeForString(
-      Substring(aValueAsString, rest - str));
+    *aUnitType = GetUnitTypeForString(rest);
     if (IsValidUnitType(*aUnitType)) {
       return NS_OK;
     }

@@ -554,7 +554,7 @@ nsTimeout::~nsTimeout()
   MOZ_COUNT_DTOR(nsTimeout);
 }
 
-NS_IMPL_CYCLE_COLLECTION_LEGACY_NATIVE_CLASS(nsTimeout)
+NS_IMPL_CYCLE_COLLECTION_NATIVE_CLASS(nsTimeout)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_NATIVE_0(nsTimeout)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_BEGIN(nsTimeout)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mWindow,
@@ -625,7 +625,11 @@ nsOuterWindowProxy::singleton;
 static JSObject*
 NewOuterWindowProxy(JSContext *cx, JSObject *parent)
 {
-  JSAutoCompartment ac(cx, parent);
+  JSAutoEnterCompartment ac;
+  if (!ac.enter(cx, parent)) {
+    return nullptr;
+  }
+
   JSObject *obj = js::Wrapper::New(cx, parent, js::GetObjectProto(parent), parent,
                                    &nsOuterWindowProxy::singleton);
   NS_ASSERTION(js::GetObjectClass(obj)->ext.innerObject, "bad class");
@@ -1242,13 +1246,11 @@ NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_BEGIN(nsGlobalWindow)
   return tmp->IsBlackForCC();
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_END
 
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsGlobalWindow)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsGlobalWindow)
   if (NS_UNLIKELY(cb.WantDebugInfo())) {
     char name[512];
     PR_snprintf(name, sizeof(name), "nsGlobalWindow #%ld", tmp->mWindowID);
     cb.DescribeRefCountedNode(tmp->mRefCnt.get(), sizeof(nsGlobalWindow), name);
-  } else {
-    NS_IMPL_CYCLE_COLLECTION_DESCRIBE(nsGlobalWindow, tmp->mRefCnt.get())
   }
 
   if (!cb.WantAllTraces() && tmp->IsBlackForCC()) {
@@ -1991,7 +1993,11 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
       SetWrapper(mJSObject);
 
       {
-        JSAutoCompartment ac(cx, mJSObject);
+        JSAutoEnterCompartment ac;
+        if (!ac.enter(cx, mJSObject)) {
+          NS_ERROR("unable to enter a compartment");
+          return NS_ERROR_FAILURE;
+        }
 
         JS_SetParent(cx, mJSObject, newInnerWindow->mJSObject);
 
@@ -2009,7 +2015,11 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
     }
 
     // Enter the new global's compartment.
-    JSAutoCompartment ac(cx, mJSObject);
+    JSAutoEnterCompartment ac;
+    if (!ac.enter(cx, mJSObject)) {
+      NS_ERROR("unable to enter a compartment");
+      return NS_ERROR_FAILURE;
+    }
 
     // If we created a new inner window above, we need to do the last little bit
     // of initialization now that the dust has settled.
@@ -2035,7 +2045,11 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
     }
   }
 
-  JSAutoCompartment ac(cx, mJSObject);
+  JSAutoEnterCompartment ac;
+  if (!ac.enter(cx, mJSObject)) {
+    NS_ERROR("unable to enter a compartment");
+    return NS_ERROR_FAILURE;
+  }
 
   if (!aState && !reUseInnerWindow) {
     // Loading a new page and creating a new inner window, *not*
@@ -6001,7 +6015,10 @@ nsGlobalWindow::CallerInnerWindow()
   }
 
   JSObject *scope = CallerGlobal();
-  JSAutoCompartment ac(cx, scope);
+
+  JSAutoEnterCompartment ac;
+  if (!ac.enter(cx, scope))
+    return nullptr;
 
   nsCOMPtr<nsIXPConnectWrappedNative> wrapper;
   nsContentUtils::XPConnect()->

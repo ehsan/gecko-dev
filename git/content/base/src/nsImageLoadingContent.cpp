@@ -1158,11 +1158,6 @@ nsImageLoadingContent::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
   if (!aDocument)
     return;
 
-  // Push a null JSContext on the stack so that callbacks triggered by the
-  // below code won't think they're being called from JS.
-  nsCxPusher pusher;
-  pusher.PushNull();
-
   if (mCurrentRequestFlags & REQUEST_SHOULD_BE_TRACKED)
     aDocument->AddImage(mCurrentRequest);
   if (mPendingRequestFlags & REQUEST_SHOULD_BE_TRACKED)
@@ -1176,11 +1171,6 @@ nsImageLoadingContent::UnbindFromTree(bool aDeep, bool aNullParent)
   nsCOMPtr<nsIDocument> doc = GetOurCurrentDoc();
   if (!doc)
     return;
-
-  // Push a null JSContext on the stack so that callbacks triggered by the
-  // below code won't think they're being called from JS.
-  nsCxPusher pusher;
-  pusher.PushNull();
 
   if (mCurrentRequestFlags & REQUEST_SHOULD_BE_TRACKED)
     doc->RemoveImage(mCurrentRequest);

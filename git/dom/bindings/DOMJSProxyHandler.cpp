@@ -38,17 +38,6 @@ DefineStaticJSVals(JSContext* cx)
 
 int HandlerFamily;
 
-// Store the information for the specialized ICs.
-struct SetListBaseInformation
-{
-  SetListBaseInformation() {
-    js::SetListBaseInformation((void*) &HandlerFamily, js::JSSLOT_PROXY_EXTRA + JSPROXYSLOT_EXPANDO);
-  }
-};
-
-SetListBaseInformation gSetListBaseInformation;
-
-
 bool
 DefineConstructor(JSContext* cx, JSObject* obj, DefineInterface aDefine, nsresult* aResult)
 {

@@ -4,9 +4,7 @@
     <script>
       function pingWorker() {
         var port = navigator.mozSocial.getWorker().port;
-        port.postMessage({topic: "panel-message",
-                          result: "ok",
-                          location: window.location.href});
+        port.postMessage({topic: "panel-message", result: "ok"});
       }
       window.addEventListener("socialFrameShow", function(e) {
         var port = navigator.mozSocial.getWorker().port;

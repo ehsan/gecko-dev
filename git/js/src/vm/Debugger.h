@@ -70,18 +70,16 @@ class Debugger {
      * that way, but since stack frames are not gc-things, the implementation
      * has to be different.
      */
-    typedef HashMap<StackFrame *,
-                    RelocatablePtrObject,
-                    DefaultHasher<StackFrame *>,
-                    RuntimeAllocPolicy> FrameMap;
+    typedef HashMap<StackFrame *, HeapPtrObject, DefaultHasher<StackFrame *>, RuntimeAllocPolicy>
+        FrameMap;
     FrameMap frames;
 
     /* An ephemeral map from JSScript* to Debugger.Script instances. */
-    typedef WeakMap<EncapsulatedPtrScript, RelocatablePtrObject> ScriptWeakMap;
+    typedef WeakMap<HeapPtrScript, HeapPtrObject> ScriptWeakMap;
     ScriptWeakMap scripts;
 
     /* The map from debuggee objects to their Debugger.Object instances. */
-    typedef WeakMap<EncapsulatedPtrObject, RelocatablePtrObject> ObjectWeakMap;
+    typedef WeakMap<HeapPtrObject, HeapPtrObject> ObjectWeakMap;
     ObjectWeakMap objects;
 
     /* The map from debuggee Envs to Debugger.Environment instances. */
@@ -109,7 +107,7 @@ class Debugger {
      * do some things in the debugger compartment and some things in the
      * debuggee compartment.
      */
-    JSTrapStatus handleUncaughtException(Maybe<AutoCompartment> &ac, Value *vp, bool callHook);
+    JSTrapStatus handleUncaughtException(AutoCompartment &ac, Value *vp, bool callHook);
 
     /*
      * Handle the result of a hook that is expected to return a resumption
@@ -136,8 +134,8 @@ class Debugger {
      *     anything else - Make a new TypeError the pending exception and
      *         return handleUncaughtException(ac, vp, callHook).
      */
-    JSTrapStatus parseResumptionValue(Maybe<AutoCompartment> &ac, bool ok, const Value &rv,
-                                      Value *vp, bool callHook = true);
+    JSTrapStatus parseResumptionValue(AutoCompartment &ac, bool ok, const Value &rv, Value *vp,
+                                      bool callHook = true);
 
     JSObject *unwrapDebuggeeArgument(JSContext *cx, const Value &v);
 
@@ -332,7 +330,7 @@ class Debugger {
      * pending exception. (This ordinarily returns true even if the ok argument
      * is false.)
      */
-    bool receiveCompletionValue(Maybe<AutoCompartment> &ac, bool ok, Value val, Value *vp);
+    bool receiveCompletionValue(AutoCompartment &ac, bool ok, Value val, Value *vp);
 
     /*
      * Return the Debugger.Script object for |script|, or create a new one if
@@ -475,7 +473,7 @@ Debugger::observesGlobal(GlobalObject *global) const
 bool
 Debugger::observesFrame(StackFrame *fp) const
 {
-    return observesGlobal(&fp->global());
+    return !fp->isDummyFrame() && observesGlobal(&fp->global());
 }
 
 JSTrapStatus

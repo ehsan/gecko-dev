@@ -19,9 +19,21 @@ XPCOMUtils.defineLazyGetter(this, "Sanitizer", function () {
  */
 function runTests() {
   yield clearHistory();
-  yield createThumbnail();
 
-  // Make sure Storage.copy() updates an existing file.
+  // create a thumbnail
+  yield addTab(URL);
+  yield whenFileExists();
+  gBrowser.removeTab(gBrowser.selectedTab);
+
+  // clear all browser history
+  yield clearHistory();
+
+  // create a thumbnail
+  yield addTab(URL);
+  yield whenFileExists();
+  gBrowser.removeTab(gBrowser.selectedTab);
+
+  // make sure copy() updates an existing file
   PageThumbsStorage.copy(URL, URL_COPY);
   let copy = PageThumbsStorage.getFileForURL(URL_COPY);
   let mtime = copy.lastModifiedTime -= 60;
@@ -30,31 +42,9 @@ function runTests() {
   isnot(PageThumbsStorage.getFileForURL(URL_COPY).lastModifiedTime, mtime,
         "thumbnail file was updated");
 
-  let file = PageThumbsStorage.getFileForURL(URL);
-  let fileCopy = PageThumbsStorage.getFileForURL(URL_COPY);
-
-  // Clear the browser history. Retry until the files are gone because Windows
-  // locks them sometimes.
-  while (file.exists() || fileCopy.exists()) {
-    yield clearHistory();
-  }
-
-  yield createThumbnail();
-
-  // Clear the last 10 minutes of browsing history.
+  // clear last 10 mins of history
   yield clearHistory(true);
-
-  // Retry until the file is gone because Windows locks it sometimes.
-  while (file.exists()) {
-    // Re-add our URL to the history so that history observer's onDeleteURI()
-    // is called again.
-    let time = Date.now() * 1000;
-    let trans = Ci.nsINavHistoryService.TRANSITION_LINK;
-    PlacesUtils.history.addVisit(makeURI(URL), time, null, trans, false, 0);
-
-    // Try again...
-    yield clearHistory(true);
-  }
+  ok(!copy.exists(), "copy of thumbnail has been removed");
 }
 
 function clearHistory(aUseRange) {
@@ -75,33 +65,25 @@ function clearHistory(aUseRange) {
   if (aUseRange) {
     let usec = Date.now() * 1000;
     s.range = [usec - 10 * 60 * 1000 * 1000, usec];
-    s.ignoreTimespan = false;
   }
 
   s.sanitize();
   s.range = null;
-  s.ignoreTimespan = true;
 
-  executeSoon(next);
-}
-
-function createThumbnail() {
-  addTab(URL, function () {
-    whenFileExists(function () {
-      gBrowser.removeTab(gBrowser.selectedTab);
+  executeSoon(function () {
+    if (PageThumbsStorage.getFileForURL(URL).exists())
+      clearHistory(aUseRange);
+    else
       next();
-    });
   });
 }
 
-function whenFileExists(aCallback) {
-  let callback;
+function whenFileExists() {
+  let callback = whenFileExists;
+
   let file = PageThumbsStorage.getFileForURL(URL);
-  if (file.exists() && file.fileSize) {
-    callback = aCallback;
-  } else {
-    callback = function () whenFileExists(aCallback);
-  }
+  if (file.exists() && file.fileSize)
+    callback = next;
 
   executeSoon(callback);
 }

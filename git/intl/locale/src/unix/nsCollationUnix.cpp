@@ -18,7 +18,7 @@
 
 inline void nsCollationUnix::DoSetLocale()
 {
-  char *locale = setlocale(LC_COLLATE, nullptr);
+  char *locale = setlocale(LC_COLLATE, NULL);
   mSavedLocale.Assign(locale ? locale : "");
   if (!mSavedLocale.EqualsIgnoreCase(mLocale.get())) {
     (void) setlocale(LC_COLLATE, PromiseFlatCString(Substring(mLocale,0,MAX_LOCALE_LEN)).get());
@@ -32,13 +32,14 @@ inline void nsCollationUnix::DoRestoreLocale()
   }
 }
 
-nsCollationUnix::nsCollationUnix() : mCollation(nullptr)
+nsCollationUnix::nsCollationUnix() 
 {
+  mCollation = NULL;
 }
 
 nsCollationUnix::~nsCollationUnix() 
 {
-  if (mCollation)
+  if (mCollation != NULL)
     delete mCollation;
 }
 
@@ -47,11 +48,15 @@ NS_IMPL_ISUPPORTS1(nsCollationUnix, nsICollation)
 nsresult nsCollationUnix::Initialize(nsILocale* locale) 
 {
 #define kPlatformLocaleLength 64
-  NS_ASSERTION(!mCollation, "Should only be initialized once");
+  NS_ASSERTION(mCollation == NULL, "Should only be initialized once");
 
   nsresult res;
 
   mCollation = new nsCollation;
+  if (mCollation == NULL) {
+    NS_ERROR("mCollation creation failed");
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
 
   // default platform locale
   mLocale.Assign('C');
@@ -126,9 +131,9 @@ nsresult nsCollationUnix::CompareString(int32_t strength,
   char *str1, *str2;
 
   res = mCollation->UnicodeToChar(stringNormalized1, &str1);
-  if (NS_SUCCEEDED(res) && str1) {
+  if (NS_SUCCEEDED(res) && str1 != NULL) {
     res = mCollation->UnicodeToChar(stringNormalized2, &str2);
-    if (NS_SUCCEEDED(res) && str2) {
+    if (NS_SUCCEEDED(res) && str2 != NULL) {
       DoSetLocale();
       *result = strcoll(str1, str2);
       DoRestoreLocale();
@@ -159,7 +164,7 @@ nsresult nsCollationUnix::AllocateRawSortKey(int32_t strength,
   char *str;
 
   res = mCollation->UnicodeToChar(stringNormalized, &str);
-  if (NS_SUCCEEDED(res) && str) {
+  if (NS_SUCCEEDED(res) && str != NULL) {
     DoSetLocale();
     // call strxfrm to generate a key 
     size_t len = strxfrm(nullptr, str, 0) + 1;

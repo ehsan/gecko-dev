@@ -254,11 +254,11 @@ nsresult
 nsScriptableUnicodeConverter::InitConverter()
 {
   nsresult rv = NS_OK;
-  mEncoder = nullptr;
+  mEncoder = NULL ;
 
   nsCOMPtr<nsICharsetConverterManager> ccm = do_GetService(NS_CHARSETCONVERTERMANAGER_CONTRACTID, &rv);
 
-  if (NS_SUCCEEDED(rv) && ccm) {
+  if (NS_SUCCEEDED( rv) && (nullptr != ccm)) {
     // get charset atom due to getting unicode converter
     
     // get an unicode converter

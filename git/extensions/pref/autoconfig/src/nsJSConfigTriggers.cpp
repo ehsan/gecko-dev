@@ -133,7 +133,9 @@ nsresult CentralizedAdminPrefManagerInit()
 
     autoconfig_glob = JS_NewGlobalObject(autoconfig_cx, &global_class, NULL);
     if (autoconfig_glob) {
-        JSAutoCompartment ac(autoconfig_cx, autoconfig_glob);
+        JSAutoEnterCompartment ac;
+        if(!ac.enter(autoconfig_cx, autoconfig_glob))
+            return NS_ERROR_FAILURE;
         if (JS_InitStandardClasses(autoconfig_cx, autoconfig_glob)) {
             // XPCONNECT enable this JS context
             rv = xpc->InitClasses(autoconfig_cx, autoconfig_glob);

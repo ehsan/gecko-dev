@@ -922,7 +922,10 @@ CreateDedicatedWorkerGlobalScope(JSContext* aCx)
     return NULL;
   }
 
-  JSAutoCompartment ac(aCx, global);
+  JSAutoEnterCompartment ac;
+  if (!ac.enter(aCx, global)) {
+    return NULL;
+  }
 
   // Make the private slots now so that all our instance checks succeed.
   if (!DedicatedWorkerGlobalScope::InitPrivate(aCx, global, worker)) {

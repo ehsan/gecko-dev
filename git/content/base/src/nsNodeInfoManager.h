@@ -27,15 +27,14 @@ struct PLHashEntry;
 struct PLHashTable;
 template<class T> struct already_AddRefed;
 
-class nsNodeInfoManager MOZ_FINAL
+class nsNodeInfoManager MOZ_FINAL : public nsISupports
 {
 public:
   nsNodeInfoManager();
   ~nsNodeInfoManager();
 
-  NS_DECL_CYCLE_COLLECTION_NATIVE_CLASS(nsNodeInfoManager)
-
-  NS_INLINE_DECL_CYCLE_COLLECTING_NATIVE_REFCOUNTING(nsNodeInfoManager)
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+  NS_DECL_CYCLE_COLLECTION_CLASS(nsNodeInfoManager)
 
   /**
    * Initialize the nodeinfo manager with a document.

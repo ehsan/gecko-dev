@@ -102,7 +102,7 @@ nsHttpTransaction::nsHttpTransaction()
     , mReceivedData(false)
     , mStatusEventPending(false)
     , mHasRequestBody(false)
-    , mProxyConnectFailed(false)
+    , mSSLConnectFailed(false)
     , mHttpResponseMatched(false)
     , mPreserveStream(false)
     , mReportedStart(false)
@@ -353,9 +353,9 @@ nsHttpTransaction::TakeResponseHead()
 }
 
 void
-nsHttpTransaction::SetProxyConnectFailed()
+nsHttpTransaction::SetSSLConnectFailed()
 {
-    mProxyConnectFailed = true;
+    mSSLConnectFailed = true;
 }
 
 nsHttpRequestHead *

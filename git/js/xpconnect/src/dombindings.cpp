@@ -65,6 +65,15 @@ DefineStaticJSVals(JSContext *cx)
 }
 
 
+int HandlerFamily;
+
+struct SetListBaseInformation
+{
+    SetListBaseInformation() {
+        js::SetListBaseInformation((void*) &HandlerFamily, js::JSSLOT_PROXY_EXTRA + JSPROXYSLOT_EXPANDO);
+    }
+} gSetListBaseInformation;
+
 JSBool
 Throw(JSContext *cx, nsresult rv)
 {
@@ -411,7 +420,12 @@ ListBase<LC>::create(JSContext *cx, JSObject *scope, ListType *aList,
         return NULL;
 
     JSObject *global = js::GetGlobalForObjectCrossCompartment(parent);
-    JSAutoCompartment ac(cx, global);
+
+    JSAutoEnterCompartment ac;
+    if (global != scope) {
+        if (!ac.enter(cx, global))
+            return NULL;
+    }
 
     JSObject *proto = getPrototype(cx, global, triedToWrap);
     if (!proto && !*triedToWrap)
@@ -817,10 +831,11 @@ template<class LC>
 bool
 ListBase<LC>::hasPropertyOnPrototype(JSContext *cx, JSObject *proxy, jsid id)
 {
-    Maybe<JSAutoCompartment> ac;
+    JSAutoEnterCompartment ac;
     if (xpc::WrapperFactory::IsXrayWrapper(proxy)) {
         proxy = js::UnwrapObject(proxy);
-        ac.construct(cx, proxy);
+        if (!ac.enter(cx, proxy))
+            return false;
     }
     JS_ASSERT(objIsList(proxy));
 

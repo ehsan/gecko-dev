@@ -34,7 +34,7 @@ NS_IMETHODIMP_(nsrefcnt) StorageChild::Release(void)
     return 0;
   }
   if (count == 0) {
-    mRefCnt.stabilizeForDeletion();
+    mRefCnt.stabilizeForDeletion(base);
     delete this;
     return 0;
   }

@@ -29,7 +29,10 @@ OuterWrapper::singleton;
 static JSObject *
 wrap(JSContext *cx, JS::HandleObject toWrap, JS::HandleObject target)
 {
-    JSAutoCompartment ac(cx, target);
+    JSAutoEnterCompartment ac;
+    if (!ac.enter(cx, target))
+        return NULL;
+
     JS::RootedObject wrapper(cx, toWrap);
     if (!JS_WrapObject(cx, wrapper.address()))
         return NULL;
@@ -85,7 +88,8 @@ BEGIN_TEST(testBug604087)
 
     JS::RootedObject next(cx);
     {
-        JSAutoCompartment ac(cx, compartment2);
+        JSAutoEnterCompartment ac;
+        CHECK(ac.enter(cx, compartment2));
         next = js::Wrapper::New(cx, compartment2, compartment2->getProto(), compartment2,
                                 &OuterWrapper::singleton);
         CHECK(next);

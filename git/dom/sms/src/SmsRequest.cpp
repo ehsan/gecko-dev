@@ -159,7 +159,11 @@ SmsRequest::SetSuccessInternal(nsISupports* aObject)
   NS_ASSERTION(global, "Failed to get global object!");
 
   JSAutoRequest ar(cx);
-  JSAutoCompartment ac(cx, global);
+  JSAutoEnterCompartment ac;
+  if (!ac.enter(cx, global)) {
+    SetError(nsISmsRequestManager::INTERNAL_ERROR);
+    return false;
+  }
 
   RootResult();
 

@@ -614,10 +614,12 @@ bool
 HasPropertyOnPrototype(JSContext* cx, JSObject* proxy, DOMProxyHandler* handler,
                        jsid id)
 {
-  Maybe<JSAutoCompartment> ac;
+  JSAutoEnterCompartment ac;
   if (xpc::WrapperFactory::IsXrayWrapper(proxy)) {
     proxy = js::UnwrapObject(proxy);
-    ac.construct(cx, proxy);
+    if (!ac.enter(cx, proxy)) {
+      return false;
+    }
   }
   MOZ_ASSERT(js::IsProxy(proxy) && js::GetProxyHandler(proxy) == handler);
 

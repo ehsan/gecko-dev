@@ -149,7 +149,9 @@ GetFrameDocument(JSContext *cx, JSStackFrame *fp)
   if (!scope)
     return nullptr;
 
-  JSAutoCompartment ac(cx, scope);
+  JSAutoEnterCompartment ac;
+  if (!ac.enter(cx, scope))
+     return nullptr;
 
   nsCOMPtr<nsIDOMWindow> window =
     do_QueryInterface(nsJSUtils::GetStaticScriptGlobal(cx, scope));

@@ -34,7 +34,6 @@ public class testHistoryTab extends PixelTest {
     private String[] bookmarks = new String[] {
         "http://mochi.test:8888/tests/robocop/robocop_blank_01.html"
     };
-    private View mFirstChild;
 
     @Override
     protected int getTestType() {
@@ -131,15 +130,14 @@ public class testHistoryTab extends PixelTest {
         mAsserter.is(false, mSolo.waitForText("Open in New Tab"), "Header rows should not show a context menu");
 
         // wait for the history list to be populated
-        mFirstChild = null;
-        boolean success = waitForTest(new BooleanTest() {
+        waitForTest(new BooleanTest() {
             public boolean test() {
-                mFirstChild = list.getChildAt(1);
-                if (mFirstChild == null) {
+                if (list.getChildAt(1) == null) {
                     return false;
                 }
-                if (mFirstChild instanceof android.view.ViewGroup) {
-                    ViewGroup group = (ViewGroup)mFirstChild;
+                View firstChild = list.getChildAt(1);
+                if (firstChild instanceof android.view.ViewGroup) {
+                    ViewGroup group = (ViewGroup)firstChild;
                     if (group.getChildCount() < 1) {
                         return false;
                     }
@@ -149,27 +147,21 @@ public class testHistoryTab extends PixelTest {
                             mAsserter.ok(true, "found TextView:", ((android.widget.TextView)grandChild).getText().toString());
                         }
                     }
-                } else {
-                    mAsserter.dumpLog("first child not a ViewGroup: "+mFirstChild);
-                    return false;
                 }
                 return true;
             }
         }, WAIT_FOR_CHILD_TIMEOUT);
-        if (success == true && mFirstChild != null) {
-            mAsserter.dumpLog("clickLongOnView: "+mFirstChild);
-            mSolo.clickLongOnView(mFirstChild);
+        child = list.getChildAt(1);
 
-            // TODO: Test clicking these does the right thing
-            mAsserter.ok(mSolo.waitForText("Open in New Tab"), "Context menu has New Tab option", "Open in New Tab");
-            mAsserter.ok(mSolo.searchText("Share", true), "Context menu has Share option", "Share");
-            mAsserter.ok(mSolo.searchText("Remove", true), "Context menu has Remove option", "Remove");
-            mAsserter.ok(mSolo.searchText("Add to Home Screen", true), "Context menu has Add to Home Screen option", "Add to Home Screen");
+        mSolo.clickLongOnView(child);
 
-            mActions.sendSpecialKey(Actions.SpecialKey.BACK);
-        } else {
-            mAsserter.ok(false, "waiting for history item", "history item available");
-        }
+        // TODO: Test clicking these does the right thing
+        mAsserter.ok(mSolo.waitForText("Open in New Tab"), "Context menu has New Tab option", "Open in New Tab");
+        mAsserter.ok(mSolo.searchText("Share", true), "Context menu has Share option", "Share");
+        mAsserter.ok(mSolo.searchText("Remove", true), "Context menu has Remove option", "Remove");
+        mAsserter.ok(mSolo.searchText("Add to Home Screen", true), "Context menu has Add to Home Screen option", "Add to Home Screen");
+
+        mActions.sendSpecialKey(Actions.SpecialKey.BACK);
         mActions.sendSpecialKey(Actions.SpecialKey.BACK);
     }
 
@@ -184,23 +176,19 @@ public class testHistoryTab extends PixelTest {
         // nothing should happen
 
         Actions.EventExpecter contentEventExpecter = mActions.expectGeckoEvent("DOMContentLoaded");
-        mFirstChild = null;
-        boolean success = waitForTest(new BooleanTest() {
+        waitForTest(new BooleanTest() {
             public boolean test() {
-                mFirstChild = list.getChildAt(1);
-                if (mFirstChild == null) {
+                if (list.getChildAt(1) == null) {
                     return false;
                 }
                 return true;
             }
         }, WAIT_FOR_CHILD_TIMEOUT);
-        if (success == true && mFirstChild != null) {
-            mSolo.clickOnView(mFirstChild);
-            contentEventExpecter.blockForEvent();
-            verifyUrl(url);
-        } else {
-            mAsserter.ok(false, "waiting for history item", "history item available");
-        }
+        child = list.getChildAt(1);
+
+        mSolo.clickOnView(child);
+        contentEventExpecter.blockForEvent();
+        verifyUrl(url);
     }
 
     private ListView getHistoryList() {

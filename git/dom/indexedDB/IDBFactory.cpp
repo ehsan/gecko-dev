@@ -243,7 +243,11 @@ IDBFactory::Create(ContentParent* aContentParent,
   // don't need a proxy here.
   global = JS_UnwrapObject(global);
 
-  JSAutoCompartment ac(cx, global);
+  JSAutoEnterCompartment ac;
+  if (!ac.enter(cx, global)) {
+    NS_WARNING("Failed to enter compartment!");
+    return NS_ERROR_FAILURE;
+  }
 
   nsRefPtr<IDBFactory> factory;
   rv = Create(cx, global, aContentParent, getter_AddRefs(factory));

@@ -21,7 +21,11 @@ mozilla::dom::bluetooth::StringArrayToJSArray(JSContext* aCx, JSObject* aGlobal,
   NS_ASSERTION(aGlobal, "Null global!");
 
   JSAutoRequest ar(aCx);
-  JSAutoCompartment ac(aCx, aGlobal);
+  JSAutoEnterCompartment ac;
+  if (!ac.enter(aCx, aGlobal)) {
+    NS_WARNING("Failed to enter compartment!");
+    return NS_ERROR_FAILURE;
+  }
 
   JSObject* arrayObj;
 
@@ -67,7 +71,11 @@ mozilla::dom::bluetooth::BluetoothDeviceArrayToJSArray(JSContext* aCx, JSObject*
   NS_ASSERTION(aGlobal, "Null global!");
 
   JSAutoRequest ar(aCx);
-  JSAutoCompartment ac(aCx, aGlobal);
+  JSAutoEnterCompartment ac;
+  if (!ac.enter(aCx, aGlobal)) {
+    NS_WARNING("Failed to enter compartment!");
+    return NS_ERROR_FAILURE;
+  }
 
   JSObject* arrayObj;
 

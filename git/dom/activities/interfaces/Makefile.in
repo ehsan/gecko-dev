@@ -21,8 +21,3 @@ XPIDLSRCS = nsIDOMActivity.idl \
             $(NULL)
 
 include $(topsrcdir)/config/rules.mk
-
-XPIDL_FLAGS += \
-  -I$(topsrcdir)/dom/base \
-  -I$(topsrcdir)/dom/interfaces/base \
-  $(NULL)

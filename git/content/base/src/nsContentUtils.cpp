@@ -1775,7 +1775,10 @@ nsContentUtils::GetDocumentFromCaller()
   sXPConnect->GetCaller(&cx, &obj);
   NS_ASSERTION(cx && obj, "Caller ensures something is running");
 
-  JSAutoCompartment ac(cx, obj);
+  JSAutoEnterCompartment ac;
+  if (!ac.enter(cx, obj)) {
+    return nullptr;
+  }
 
   nsCOMPtr<nsPIDOMWindow> win =
     do_QueryInterface(nsJSUtils::GetStaticScriptGlobal(cx, obj));
@@ -5970,14 +5973,14 @@ nsContentUtils::CanAccessNativeAnon()
   NS_ENSURE_TRUE(principal, false);
 
   JSScript *script = nullptr;
-  if (fp) {
-    script = JS_GetFrameScript(cx, fp);
-  } else {
+  if (!fp) {
     if (!JS_DescribeScriptedCaller(cx, &script, nullptr)) {
       // No code at all is running. So we must be arriving here as the result
       // of C++ code asking us to do something. Allow access.
       return true;
     }
+  } else if (JS_IsScriptFrame(cx, fp)) {
+    script = JS_GetFrameScript(cx, fp);
   }
 
   bool privileged;
@@ -6884,7 +6887,10 @@ nsContentUtils::JSArrayToAtomArray(JSContext* aCx, const JS::Value& aJSArray,
   }
   
   JSObject* obj = &aJSArray.toObject();
-  JSAutoCompartment ac(aCx, obj);
+  JSAutoEnterCompartment ac;
+  if (!ac.enter(aCx, obj)) {
+    return NS_ERROR_ILLEGAL_VALUE;
+  }
   
   uint32_t length;
   if (!JS_IsArrayObject(aCx, obj) || !JS_GetArrayLength(aCx, obj, &length)) {

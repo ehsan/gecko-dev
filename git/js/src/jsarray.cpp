@@ -3690,10 +3690,12 @@ NewArray(JSContext *cx, uint32_t length, RawObject protoArg)
     JS_ASSERT(CanBeFinalizedInBackground(kind, &ArrayClass));
     kind = GetBackgroundAllocKind(kind);
 
+    GlobalObject *parent_ = GetCurrentGlobal(cx);
+
     NewObjectCache &cache = cx->runtime->newObjectCache;
 
     NewObjectCache::EntryIndex entry = -1;
-    if (cache.lookupGlobal(&ArrayClass, cx->global(), kind, &entry)) {
+    if (cache.lookupGlobal(&ArrayClass, parent_, kind, &entry)) {
         JSObject *obj = cache.newObjectFromHit(cx, entry);
         if (obj) {
             /* Fixup the elements pointer and length, which may be incorrect. */
@@ -3705,11 +3707,12 @@ NewArray(JSContext *cx, uint32_t length, RawObject protoArg)
         }
     }
 
+    Rooted<GlobalObject*> parent(cx, parent_);
     RootedObject proto(cx, protoArg);
     if (protoArg)
         PoisonPtr(&protoArg);
 
-    if (!proto && !FindProto(cx, &ArrayClass, &proto))
+    if (!proto && !FindProto(cx, &ArrayClass, parent, &proto))
         return NULL;
 
     RootedTypeObject type(cx, proto->getNewType(cx));
@@ -3721,7 +3724,7 @@ NewArray(JSContext *cx, uint32_t length, RawObject protoArg)
      * See JSObject::createDenseArray.
      */
     RootedShape shape(cx, EmptyShape::getInitialShape(cx, &ArrayClass, proto,
-                                                      cx->global(), gc::FINALIZE_OBJECT0));
+                                                      parent, gc::FINALIZE_OBJECT0));
     if (!shape)
         return NULL;
 
@@ -3730,7 +3733,7 @@ NewArray(JSContext *cx, uint32_t length, RawObject protoArg)
         return NULL;
 
     if (entry != -1)
-        cache.fillGlobal(entry, &ArrayClass, cx->global(), kind, obj);
+        cache.fillGlobal(entry, &ArrayClass, parent, kind, obj);
 
     if (allocateCapacity && !EnsureNewArrayElements(cx, obj, length))
         return NULL;

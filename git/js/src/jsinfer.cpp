@@ -2037,7 +2037,8 @@ TypeCompartment::newAllocationSiteTypeObject(JSContext *cx, AllocationSiteKey ke
     JS_ASSERT(!p);
 
     RootedObject proto(cx);
-    if (!js_GetClassPrototype(cx, key.kind, &proto, NULL))
+    RootedObject global(cx, &key.script->global());
+    if (!js_GetClassPrototype(cx, global, key.kind, &proto, NULL))
         return NULL;
 
     RootedScript keyScript(cx, key.script);
@@ -5956,7 +5957,7 @@ TypeCompartment::sweep(FreeOp *fop)
             bool valMarked = IsTypeObjectMarked(e.front().value.unsafeGet());
             if (!keyMarked || !valMarked)
                 e.removeFront();
-            else if (key.script != e.front().key.script)
+            else
                 e.rekeyFront(key);
         }
     }

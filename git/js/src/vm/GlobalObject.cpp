@@ -253,7 +253,9 @@ GlobalObject::initFunctionAndObjectClasses(JSContext *cx)
      */
     // JS_ASSERT(!isCleared());
 
-    cx->setDefaultCompartmentObjectIfUnset(self);
+    /* If cx has no global object, make this the global object. */
+    if (!cx->globalObject)
+        JS_SetGlobalObject(cx, self);
 
     RootedObject objectProto(cx);
 

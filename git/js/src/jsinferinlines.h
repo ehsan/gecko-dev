@@ -359,7 +359,8 @@ inline TypeObject *
 GetTypeNewObject(JSContext *cx, JSProtoKey key)
 {
     RootedObject proto(cx);
-    if (!js_GetClassPrototype(cx, key, &proto))
+    RootedObject null(cx);
+    if (!js_GetClassPrototype(cx, null, key, &proto))
         return NULL;
     return proto->getNewType(cx);
 }
@@ -534,7 +535,8 @@ inline bool
 UseNewTypeAtEntry(JSContext *cx, StackFrame *fp)
 {
     return fp->isConstructing() && cx->typeInferenceEnabled() &&
-           fp->prev() && UseNewType(cx, fp->prev()->script(), fp->prevpc());
+           fp->prev() && fp->prev()->isScriptFrame() &&
+           UseNewType(cx, fp->prev()->script(), fp->prevpc());
 }
 
 inline bool
@@ -649,7 +651,8 @@ TypeScript::SlotTypes(JSScript *script, unsigned slot)
 TypeScript::StandardType(JSContext *cx, JSScript *script, JSProtoKey key)
 {
     RootedObject proto(cx);
-    if (!js_GetClassPrototype(cx, key, &proto, NULL))
+    RootedObject global(cx, &script->global());
+    if (!js_GetClassPrototype(cx, global, key, &proto, NULL))
         return NULL;
     return proto->getNewType(cx);
 }

@@ -3323,7 +3323,7 @@ public:
 struct ScopedFramebufferTexture
     : public ScopedGLWrapper<ScopedFramebufferTexture>
 {
-    friend struct ScopedGLWrapper<ScopedFramebufferTexture>;
+    friend class ScopedGLWrapper<ScopedFramebufferTexture>;
 
 protected:
     bool mComplete; // True if the framebuffer we create is complete.
@@ -3381,7 +3381,7 @@ public:
 struct ScopedGLState
     : public ScopedGLWrapper<ScopedGLState>
 {
-    friend struct ScopedGLWrapper<ScopedGLState>;
+    friend class ScopedGLWrapper<ScopedGLState>;
 
 protected:
     const GLenum mCapability;
@@ -3421,7 +3421,7 @@ protected:
 struct ScopedFramebufferBinding
     : public ScopedGLWrapper<ScopedFramebufferBinding>
 {
-    friend struct ScopedGLWrapper<ScopedFramebufferBinding>;
+    friend class ScopedGLWrapper<ScopedFramebufferBinding>;
 
 protected:
     GLuint mOldState;

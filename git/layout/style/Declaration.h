@@ -70,9 +70,7 @@ public:
   uint32_t Count() const {
     return mOrder.Length();
   }
-
-  // Returns whether we actually had a property at aIndex
-  bool GetNthProperty(uint32_t aIndex, nsAString& aReturn) const;
+  void GetNthProperty(uint32_t aIndex, nsAString& aReturn) const;
 
   void ToString(nsAString& aString) const;
 

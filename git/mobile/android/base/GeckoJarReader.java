@@ -4,7 +4,6 @@
 
 package org.mozilla.gecko.util;
 
-import android.content.res.Resources;
 import android.graphics.drawable.BitmapDrawable;
 import android.util.Log;
 
@@ -26,7 +25,7 @@ public final class GeckoJarReader {
 
     private GeckoJarReader() {}
 
-    public static BitmapDrawable getBitmapDrawable(Resources resources, String url) {
+    public static BitmapDrawable getBitmapDrawable(String url) {
         Stack<String> jarUrls = parseUrl(url);
         InputStream inputStream = null;
         BitmapDrawable bitmap = null;
@@ -37,7 +36,7 @@ public final class GeckoJarReader {
             zip = getZipFile(jarUrls.pop());
             inputStream = getStream(zip, jarUrls);
             if (inputStream != null) {
-                bitmap = new BitmapDrawable(resources, inputStream);
+                bitmap = new BitmapDrawable(inputStream);
             }
         } catch (IOException ex) {
             Log.e(LOGTAG, "Exception ", ex);

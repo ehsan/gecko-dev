@@ -531,9 +531,9 @@ class GeckoInputConnection
             // Such string cannot be handled by Gecko, so we convert it to a key press instead
             if (changedChar == '\n') {
                 processKeyDown(KeyEvent.KEYCODE_ENTER, new KeyEvent(KeyEvent.ACTION_DOWN,
-                                                                    KeyEvent.KEYCODE_ENTER));
+                                                                    KeyEvent.KEYCODE_ENTER), false);
                 processKeyUp(KeyEvent.KEYCODE_ENTER, new KeyEvent(KeyEvent.ACTION_UP,
-                                                                  KeyEvent.KEYCODE_ENTER));
+                                                                  KeyEvent.KEYCODE_ENTER), false);
                 return;
             }
 
@@ -855,9 +855,9 @@ class GeckoInputConnection
     public boolean onKeyPreIme(int keyCode, KeyEvent event) {
         switch (event.getAction()) {
             case KeyEvent.ACTION_DOWN:
-                return processKeyDown(keyCode, event);
+                return processKeyDown(keyCode, event, true);
             case KeyEvent.ACTION_UP:
-                return processKeyUp(keyCode, event);
+                return processKeyUp(keyCode, event, true);
             case KeyEvent.ACTION_MULTIPLE:
                 return onKeyMultiple(keyCode, event.getRepeatCount(), event);
         }
@@ -865,12 +865,13 @@ class GeckoInputConnection
     }
 
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        return processKeyDown(keyCode, event);
+        return processKeyDown(keyCode, event, false);
     }
 
-    private boolean processKeyDown(int keyCode, KeyEvent event) {
+    private boolean processKeyDown(int keyCode, KeyEvent event, boolean isPreIme) {
         if (DEBUG) {
-            Log.d(LOGTAG, "IME: processKeyDown(keyCode=" + keyCode + ", event=" + event + ")");
+            Log.d(LOGTAG, "IME: processKeyDown(keyCode=" + keyCode + ", event=" + event + ", "
+                          + isPreIme + ")");
             GeckoApp.assertOnUiThread();
         }
 
@@ -899,6 +900,11 @@ class GeckoInputConnection
                 break;
         }
 
+        if (isPreIme && mIMEState != IME_STATE_DISABLED &&
+            (event.getMetaState() & KeyEvent.META_ALT_ON) != 0)
+            // Let active IME process pre-IME key events
+            return false;
+
         View view = getView();
         KeyListener keyListener = TextKeyListener.getInstance();
 
@@ -920,12 +926,13 @@ class GeckoInputConnection
     }
 
     public boolean onKeyUp(int keyCode, KeyEvent event) {
-        return processKeyUp(keyCode, event);
+        return processKeyUp(keyCode, event, false);
     }
 
-    private boolean processKeyUp(int keyCode, KeyEvent event) {
+    private boolean processKeyUp(int keyCode, KeyEvent event, boolean isPreIme) {
         if (DEBUG) {
-            Log.d(LOGTAG, "IME: processKeyUp(keyCode=" + keyCode + ", event=" + event + ")");
+            Log.d(LOGTAG, "IME: processKeyUp(keyCode=" + keyCode + ", event=" + event + ", "
+                          + isPreIme + ")");
             GeckoApp.assertOnUiThread();
         }
 
@@ -940,6 +947,11 @@ class GeckoInputConnection
             default:
                 break;
         }
+
+        if (isPreIme && mIMEState != IME_STATE_DISABLED &&
+            (event.getMetaState() & KeyEvent.META_ALT_ON) != 0)
+            // Let active IME process pre-IME key events
+            return false;
 
         View view = getView();
         KeyListener keyListener = TextKeyListener.getInstance();

@@ -1001,7 +1001,10 @@ jsdScript::CreatePPLineMap()
         unsigned nargs;
 
         {
-            JSAutoCompartment ac(cx, JS_GetFunctionObject(fun));
+            JSAutoEnterCompartment ac;
+            if (!ac.enter(cx, JS_GetFunctionObject(fun)))
+                return nullptr;
+
             nargs = JS_GetFunctionArgumentCount(cx, fun);
             if (nargs > 12)
                 return nullptr;
@@ -1236,7 +1239,9 @@ jsdScript::GetParameterNames(uint32_t* count, PRUnichar*** paramNames)
     }
 
     JSAutoRequest ar(cx);
-    JSAutoCompartment ac(cx, JS_GetFunctionObject(fun));
+    JSAutoEnterCompartment ac;
+    if (!ac.enter(cx, JS_GetFunctionObject(fun)))
+        return NS_ERROR_FAILURE;
 
     unsigned nargs;
     if (!JS_FunctionHasLocalNames(cx, fun) ||
@@ -1323,10 +1328,11 @@ jsdScript::GetFunctionSource(nsAString & aFunctionSource)
     JSAutoRequest ar(cx);
 
     JSString *jsstr;
-    mozilla::Maybe<JSAutoCompartment> ac;
+    JSAutoEnterCompartment ac;
     JS::AutoEnterScriptCompartment asc;
     if (fun) {
-        ac.construct(cx, JS_GetFunctionObject(fun));
+        if (!ac.enter(cx, JS_GetFunctionObject(fun)))
+            return NS_ERROR_FAILURE;
         jsstr = JS_DecompileFunction (cx, fun, 4);
     } else {
         JSScript *script = JSD_GetJSScript (mCx, mScript);

@@ -17,7 +17,6 @@
 
 #include "android/log.h"
 
-#undef LOG
 #define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "OmxPlugin" , ## args)
 
 using namespace MPAPI;
@@ -249,7 +248,6 @@ bool OmxDecoder::Init() {
   ssize_t audioTrackIndex = -1;
   ssize_t videoTrackIndex = -1;
   const char *audioMime = NULL;
-  const char *videoMime = NULL;
 
   for (size_t i = 0; i < extractor->countTracks(); ++i) {
     sp<MetaData> meta = extractor->getTrackMetaData(i);
@@ -265,7 +263,6 @@ bool OmxDecoder::Init() {
 
     if (videoTrackIndex == -1 && !strncasecmp(mime, "video/", 6)) {
       videoTrackIndex = i;
-      videoMime = mime;
     } else if (audioTrackIndex == -1 && !strncasecmp(mime, "audio/", 6)) {
       audioTrackIndex = i;
       audioMime = mime;
@@ -305,13 +302,10 @@ bool OmxDecoder::Init() {
                                    NULL,
                                    flags);
     if (videoSource == NULL) {
-      LOG("OMXCodec failed to initialize video decoder for \"%s\"", videoMime);
       return false;
     }
 
-    status_t status = videoSource->start();
-    if (status != OK) {
-      LOG("videoSource->start() failed with status %#x", status);
+    if (videoSource->start() != OK) {
       return false;
     }
 
@@ -334,15 +328,10 @@ bool OmxDecoder::Init() {
                                      false, // decoder
                                      audioTrack);
     }
-
     if (audioSource == NULL) {
-      LOG("OMXCodec failed to initialize audio decoder for \"%s\"", audioMime);
       return false;
     }
-
-    status_t status = audioSource->start();
-    if (status != OK) {
-      LOG("audioSource->start() failed with status %#x", status);
+    if (audioSource->start() != OK) {
       return false;
     }
 
@@ -510,7 +499,7 @@ bool OmxDecoder::ToVideoFrame(VideoFrame *aFrame, int64_t aTimeUs, void *aData, 
     SemiPlanarYVU420Packed32m4ka(aFrame, aTimeUs, aData, aSize, aKeyFrame);
     break;
   default:
-    LOG("Unknown video color format: %#x", mVideoColorFormat);
+    LOG("Unknown video color format: %x", mVideoColorFormat);
     return false;
   }
   return true;

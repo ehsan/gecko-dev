@@ -1287,12 +1287,14 @@ class CrossScriptSSA
     }
 
     CrossScriptSSA(JSContext *cx, JSScript *outer)
-        : outerFrame(OUTER_FRAME, outer, 0, INVALID_FRAME, NULL), inlineFrames(cx)
+        : cx(cx), outerFrame(OUTER_FRAME, outer, 0, INVALID_FRAME, NULL), inlineFrames(cx)
     {}
 
     CrossSSAValue foldValue(const CrossSSAValue &cv);
 
   private:
+    JSContext *cx;
+
     Frame outerFrame;
     Vector<Frame> inlineFrames;
 };

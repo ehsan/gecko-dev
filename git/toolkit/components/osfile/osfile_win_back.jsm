@@ -124,9 +124,6 @@
        Types.zero_or_nothing =
          Types.int.withName("zero_or_nothing");
 
-       Types.SECURITY_ATTRIBUTES =
-         Types.void_t.withName("SECURITY_ATTRIBUTES");
-
        Types.FILETIME =
          new Type("FILETIME",
                   ctypes.StructType("FILETIME", [
@@ -204,19 +201,13 @@
                     /*destPath*/   Types.path,
                     /*bailIfExist*/Types.bool);
 
-       WinFile.CreateDirectory =
-         declareFFI("CreateDirectoryW", ctypes.winapi_abi,
-                    /*return*/ Types.zero_or_nothing,
-                    /*name*/   Types.jschar.in_ptr,
-                    /*security*/Types.SECURITY_ATTRIBUTES.in_ptr);
-
        WinFile.CreateFile =
          declareFFI("CreateFileW", ctypes.winapi_abi,
                     /*return*/  Types.maybe_HANDLE,
                     /*name*/    Types.path,
                     /*access*/  Types.DWORD,
                     /*share*/   Types.DWORD,
-                    /*security*/Types.SECURITY_ATTRIBUTES.in_ptr,
+                    /*security*/Types.void_t.in_ptr,// FIXME: Implement?
                     /*creation*/Types.DWORD,
                     /*flags*/   Types.DWORD,
                     /*template*/Types.HANDLE);

@@ -6173,11 +6173,9 @@ DecompileExpressionFromStack(JSContext *cx, int spindex, int skipStackHits, Valu
 
     *res = NULL;
 
-    ScriptFrameIter iter(cx);
-    if (iter.done())
+    if (!cx->hasfp() || !cx->fp()->isScriptFrame())
         return true;
-
-    StackFrame *fp = iter.fp();
+    StackFrame *fp = js_GetTopStackFrame(cx, FRAME_EXPAND_ALL);
     JSScript *script = fp->script();
     jsbytecode *valuepc = cx->regs().pc;
     JSFunction *fun = fp->maybeFun();
@@ -6792,7 +6790,11 @@ GetPCCountScriptContents(JSContext *cx, size_t index)
         return buf.finishString();
 
     {
-        AutoCompartment ac(cx, &script->global());
+        JSAutoEnterCompartment ac;
+        RootedObject target(cx, &script->global());
+        if (!ac.enter(cx, target))
+            return NULL;
+
         if (!GetPCCountJSON(cx, sac, buf))
             return NULL;
     }

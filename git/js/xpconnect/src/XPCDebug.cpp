@@ -77,7 +77,9 @@ static char* FormatJSFrame(JSContext* cx, JSStackFrame* fp,
     jsbytecode* pc = JS_GetFramePC(cx, fp);
 
     JSAutoRequest ar(cx);
-    JSAutoCompartment ac(cx, JS_GetGlobalForFrame(fp));
+    JSAutoEnterCompartment ac;
+    if (!ac.enter(cx, JS_GetGlobalForFrame(fp)))
+        return buf;
 
     if (script && pc) {
         filename = JS_GetScriptFilename(cx, script);
