@@ -131,15 +131,10 @@ let PositionHandler = {
       // Center the window horizontally on the screen (not the available area).
       // Until we have moved the window to y=0, 'screen.width' may give a value
       // for a secondary screen, so use values from the screen manager instead.
-      let primaryScreen = Cc["@mozilla.org/gfx/screenmanager;1"]
-                            .getService(Ci.nsIScreenManager)
-                            .primaryScreen;
       let width = {};
-      primaryScreen.GetRectDisplayPix({}, {}, width, {});
-      let availTop = {};
-      primaryScreen.GetAvailRectDisplayPix({}, availTop, {}, {});
-      window.moveTo((width.value - document.documentElement.clientWidth) / 2,
-                    availTop.value);
+      Cc["@mozilla.org/gfx/screenmanager;1"].getService(Ci.nsIScreenManager)
+        .primaryScreen.GetRectDisplayPix({}, {}, width, {});
+      window.moveTo((width.value - document.documentElement.clientWidth) / 2, 0);
     } else {
       // This will ensure we're at y=0.
       this.setXPosition(window.screenX);
@@ -150,7 +145,7 @@ let PositionHandler = {
     let desiredX = Math.max(desiredX, screen.availLeft);
     let maxX =
       screen.availLeft + screen.availWidth - document.documentElement.clientWidth;
-    window.moveTo(Math.min(desiredX, maxX), screen.availTop);
+    window.moveTo(Math.min(desiredX, maxX), 0);
   },
   handleEvent: function(aEvent) {
     switch (aEvent.type) {

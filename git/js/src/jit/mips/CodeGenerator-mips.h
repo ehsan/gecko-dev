@@ -121,7 +121,7 @@ class CodeGeneratorMIPS : public CodeGeneratorShared
             Label skip;
 
             masm.ma_b(lhs, rhs, &skip, Assembler::InvertCondition(cond), ShortJump);
-            backedge = masm.backedgeJump(&rejoin);
+            backedge = masm.jumpWithPatch(&rejoin);
             masm.bind(&rejoin);
             masm.bind(&skip);
 

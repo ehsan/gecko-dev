@@ -360,8 +360,7 @@ public:
     IDWriteGdiInterop *GetGDIInterop() { return mGDIInterop; }
     bool UseGDIFontTableAccess() { return mGDIFontTableAccess; }
 
-    virtual gfxFontFamily* FindFamily(const nsAString& aFamily,
-                                      bool aUseSystemFonts = false);
+    virtual gfxFontFamily* FindFamily(const nsAString& aFamily);
 
     virtual void GetFontFamilyList(nsTArray<nsRefPtr<gfxFontFamily> >& aFamilyArray);
 

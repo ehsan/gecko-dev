@@ -28,6 +28,3 @@ interface AudioBufferSourceNode : AudioNode {
 
     attribute EventHandler onended;
 };
-
-// Mozilla extensions
-AudioBufferSourceNode implements AudioNodePassThrough;

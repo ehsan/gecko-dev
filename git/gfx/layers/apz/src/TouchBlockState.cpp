@@ -4,10 +4,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "InputBlockState.h"
+#include "TouchBlockState.h"
 #include "mozilla/layers/APZCTreeManager.h" // for AllowedTouchBehavior
 #include "gfxPrefs.h"                       // for gfxPrefs
-#include "OverscrollHandoffChain.h"
 
 #define TBS_LOG(...)
 // #define TBS_LOG(...) printf_stderr("TBS: " __VA_ARGS__)
@@ -15,22 +14,8 @@
 namespace mozilla {
 namespace layers {
 
-InputBlockState::InputBlockState(const nsRefPtr<const OverscrollHandoffChain>& aOverscrollHandoffChain)
-  : mOverscrollHandoffChain(aOverscrollHandoffChain)
-{
-  // We should never be constructed with a nullptr handoff chain.
-  MOZ_ASSERT(mOverscrollHandoffChain);
-}
-
-const nsRefPtr<const OverscrollHandoffChain>&
-InputBlockState::GetOverscrollHandoffChain() const
-{
-  return mOverscrollHandoffChain;
-}
-
-TouchBlockState::TouchBlockState(const nsRefPtr<const OverscrollHandoffChain>& aOverscrollHandoffChain)
-  : InputBlockState(aOverscrollHandoffChain)
-  , mAllowedTouchBehaviorSet(false)
+TouchBlockState::TouchBlockState()
+  : mAllowedTouchBehaviorSet(false)
   , mPreventDefault(false)
   , mContentResponded(false)
   , mContentResponseTimerExpired(false)

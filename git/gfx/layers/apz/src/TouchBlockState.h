@@ -4,31 +4,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_layers_InputBlockState_h
-#define mozilla_layers_InputBlockState_h
+#ifndef mozilla_layers_TouchBlockState_h
+#define mozilla_layers_TouchBlockState_h
 
 #include "nsTArray.h"                       // for nsTArray
 #include "InputData.h"                      // for MultiTouchInput
-#include "nsAutoPtr.h"
 
 namespace mozilla {
 namespace layers {
-
-class OverscrollHandoffChain;
-
-/**
- * A base class that stores state common to various input blocks.
- * Currently, it just stores the overscroll handoff chain.
- */
-class InputBlockState
-{
-public:
-  InputBlockState(const nsRefPtr<const OverscrollHandoffChain>& aOverscrollHandoffChain);
-
-  const nsRefPtr<const OverscrollHandoffChain>& GetOverscrollHandoffChain() const;
-private:
-  nsRefPtr<const OverscrollHandoffChain> mOverscrollHandoffChain;
-};
 
 /**
  * This class represents a single touch block. A touch block is
@@ -61,12 +44,12 @@ private:
  * be populated with some latency. The mAllowedTouchBehaviorSet and
  * mAllowedTouchBehaviors variables track this information.
  */
-class TouchBlockState : public InputBlockState
+class TouchBlockState
 {
 public:
   typedef uint32_t TouchBehaviorFlags;
 
-  TouchBlockState(const nsRefPtr<const OverscrollHandoffChain>& aOverscrollHandoffChain);
+  TouchBlockState();
 
   /**
    * Record whether or not content cancelled this block of events.
@@ -165,4 +148,4 @@ private:
 } // namespace layers
 } // namespace mozilla
 
-#endif // mozilla_layers_InputBlockState_h
+#endif // mozilla_layers_TouchBlockState_h

@@ -42,9 +42,7 @@ class PCompositorParent;
 struct ViewTransform;
 class AsyncPanZoomAnimation;
 class FlingAnimation;
-class InputBlockState;
 class TouchBlockState;
-class OverscrollHandoffChain;
 
 /**
  * Controller for all panning and zooming logic. Any time a user input is
@@ -539,6 +537,12 @@ protected:
 
 private:
   /**
+   * Cancel animations all the way up the overscroll handoff chain if possible,
+   * or just the local APZC if not.
+   */
+  void CancelAnimationForHandoffChain();
+
+  /**
    * Given the number of touch points in an input event and touch block they
    * belong to, check if the event can result in a panning/zooming behavior.
    * This is primarily used to figure out when to dispatch the pointercancel
@@ -564,8 +568,8 @@ private:
   /**
    * Internal helpers for checking general state of this apzc.
    */
-  static bool IsTransformingState(PanZoomState aState);
-  bool IsInPanningState() const;
+  bool IsTransformingState(PanZoomState aState);
+  bool IsPanningState(PanZoomState mState);
 
   /**
    * Return in |aTransform| a visual effect that reflects this apzc's
@@ -785,15 +789,6 @@ private:
 
   /* ===================================================================
    * The functions and members in this section are used to manage
-   * pan gestures.
-   */
-
-private:
-  UniquePtr<InputBlockState> mPanGestureState;
-
-
-  /* ===================================================================
-   * The functions and members in this section are used to manage
    * fling animations and handling overscroll during a fling.
    */
 public:
@@ -804,8 +799,7 @@ public:
    * Returns true iff. any APZC (whether this one or one further in the handoff
    * chain accepted the fling).
    */
-  bool TakeOverFling(ScreenPoint aVelocity,
-                     const nsRefPtr<const OverscrollHandoffChain>& aOverscrollHandoffChain);
+  bool TakeOverFling(ScreenPoint aVelocity);
 
 private:
   friend class FlingAnimation;
@@ -820,13 +814,10 @@ private:
   // The overscroll is handled by trying to hand the fling off to an APZC
   // later in the handoff chain, or if there are no takers, continuing the
   // fling and entering an overscrolled state.
-  void HandleFlingOverscroll(const ScreenPoint& aVelocity,
-                             const nsRefPtr<const OverscrollHandoffChain>& aOverscrollHandoffChain);
+  void HandleFlingOverscroll(const ScreenPoint& aVelocity);
 
   // Helper function used by TakeOverFling() and HandleFlingOverscroll().
-  void AcceptFling(const ScreenPoint& aVelocity,
-                   const nsRefPtr<const OverscrollHandoffChain>& aOverscrollHandoffChain,
-                   bool aAllowOverscroll);
+  void AcceptFling(const ScreenPoint& aVelocity, bool aAllowOverscroll);
 
   // Start a snap-back animation to relieve overscroll.
   void StartSnapBack();
@@ -906,17 +897,16 @@ public:
    * does not find an APZC further in the handoff chain to accept the
    * overscroll, and this APZC is pannable, this APZC enters an overscrolled
    * state.
-   * |aOverscrollHandoffChain| and |aOverscrollHandoffChainIndex| are used by
-   * the tree manager to keep track of which APZC to hand off the overscroll
-   * to; this function increments the chain and the index and passes it on to
-   * APZCTreeManager::DispatchScroll() in the event of overscroll.
+   * |aOverscrollHandoffChainIndex| is used by the tree manager to keep track
+   * of which APZC to hand off the overscroll to; this function increments it
+   * and passes it on to APZCTreeManager::DispatchScroll() in the event of
+   * overscroll.
    * Returns true iff. this APZC, or an APZC further down the
    * handoff chain, accepted the scroll (possibly entering an overscrolled
    * state). If this return false, the caller APZC knows that it should enter
    * an overscrolled state itself if it can.
    */
   bool AttemptScroll(const ScreenPoint& aStartPoint, const ScreenPoint& aEndPoint,
-                     const OverscrollHandoffChain& aOverscrollHandoffChain,
                      uint32_t aOverscrollHandoffChainIndex = 0);
 
   void FlushRepaintForOverscrollHandoff();
@@ -935,10 +925,14 @@ private:
    * Guards against the case where the APZC is being concurrently destroyed
    * (and thus mTreeManager is being nulled out).
    */
-  bool CallDispatchScroll(const ScreenPoint& aStartPoint,
-                          const ScreenPoint& aEndPoint,
-                          const OverscrollHandoffChain& aOverscrollHandoffChain,
+  bool CallDispatchScroll(const ScreenPoint& aStartPoint, const ScreenPoint& aEndPoint,
                           uint32_t aOverscrollHandoffChainIndex);
+
+  /**
+   * A similar helper function for calling
+   * APZCTreeManager::SnapBackOverscrolledApzc().
+   */
+  void CallSnapBackOverscrolledApzc();
 
   /**
    * Try to overscroll by 'aOverscroll'.
@@ -948,26 +942,6 @@ private:
    */
   bool OverscrollBy(const CSSPoint& aOverscroll);
 
-  /**
-   * Build the chain of APZCs along which scroll will be handed off when
-   * this APZC receives input events.
-   *
-   * Notes on lifetime and const-correctness:
-   *   - The returned handoff chain is |const|, to indicate that it cannot be
-   *     changed after being built.
-   *   - When passing the chain to a function that uses it without storing it,
-   *     pass it by reference-to-const (as in |const OverscrollHandoffChain&|).
-   *   - When storing the chain, store it by RefPtr-to-const (as in
-   *     |nsRefPtr<const OverscrollHandoffChain>|). This ensures the chain is
-   *     kept alive. Note that queueing a task that uses the chain as an
-   *     argument constitutes storing, as the task may outlive its queuer.
-   *   - When passing the chain to a function that will store it, pass it as
-   *     |const nsRefPtr<const OverscrollHandoffChain>&|. This allows the
-   *     function to copy it into the |nsRefPtr<const OverscrollHandoffChain>|
-   *     that will store it, while avoiding an unnecessary copy (and thus
-   *     AddRef() and Release()) when passing it.
-   */
-  nsRefPtr<const OverscrollHandoffChain> BuildOverscrollHandoffChain();
 
   /* ===================================================================
    * The functions and members in this section are used to maintain the

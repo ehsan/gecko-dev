@@ -125,8 +125,8 @@ public:
                           int32_t aRunScript,
                           const gfxFontStyle* aStyle);
 
-    virtual gfxFontFamily* FindFamily(const nsAString& aFamily,
-                                      bool aUseSystemFonts = false);
+    // TODO: make this virtual, for lazily adding to the font list
+    virtual gfxFontFamily* FindFamily(const nsAString& aFamily);
 
     gfxFontEntry* FindFontForFamily(const nsAString& aFamily, const gfxFontStyle* aStyle, bool& aNeedsBold);
 
@@ -291,11 +291,6 @@ protected:
 
     // canonical family name ==> family entry (unique, one name per family entry)
     nsRefPtrHashtable<nsStringHashKey, gfxFontFamily> mFontFamilies;
-
-#if defined(XP_MACOSX)
-    // hidden system fonts used within UI elements
-    nsRefPtrHashtable<nsStringHashKey, gfxFontFamily> mSystemFontFamilies;
-#endif
 
     // other family name ==> family entry (not unique, can have multiple names per
     // family entry, only names *other* than the canonical names are stored here)

@@ -198,13 +198,6 @@ nsNSSSocketInfo::GetSSLVersionUsed(int16_t* aSSLVersionUsed)
 }
 
 NS_IMETHODIMP
-nsNSSSocketInfo::GetSSLVersionOffered(int16_t* aSSLVersionOffered)
-{
-  *aSSLVersionOffered = mTLSVersionRange.max;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 nsNSSSocketInfo::GetMACAlgorithmUsed(int16_t* aMac)
 {
   *aMac = mMACAlgorithmUsed;

@@ -4098,12 +4098,11 @@ def getJSToNativeConversionInfo(type, descriptorProvider, failureCode=None,
         if nullable:
             type = type.inner
 
-        isOwningUnion = isMember or isCallbackReturnValue
-        unionArgumentObj = "${declName}" if isOwningUnion else "${holderName}"
+        unionArgumentObj = "${declName}" if isMember else "${holderName}"
         if nullable:
-            # If we're owning, we're a Nullable, which hasn't been told it has
+            # If we're a member, we're a Nullable, which hasn't been told it has
             # a value.  Otherwise we're an already-constructed Maybe.
-            unionArgumentObj += ".SetValue()" if isOwningUnion else ".ref()"
+            unionArgumentObj += ".SetValue()" if isMember else ".ref()"
 
         memberTypes = type.flatMemberTypes
         names = []
@@ -4293,7 +4292,7 @@ def getJSToNativeConversionInfo(type, descriptorProvider, failureCode=None,
 
         templateBody = CGWrapper(CGIndenter(CGList([templateBody, throw])), pre="{\n", post="}\n")
 
-        typeName = CGUnionStruct.unionTypeDecl(type, isOwningUnion)
+        typeName = CGUnionStruct.unionTypeDecl(type, isMember)
         argumentTypeName = typeName + "Argument"
         if nullable:
             typeName = "Nullable<" + typeName + " >"
@@ -4316,7 +4315,7 @@ def getJSToNativeConversionInfo(type, descriptorProvider, failureCode=None,
                                       extraConditionForNull=extraConditionForNull)
 
         declType = CGGeneric(typeName)
-        if isOwningUnion:
+        if isMember:
             holderType = None
         else:
             holderType = CGGeneric(argumentTypeName)
@@ -4325,13 +4324,13 @@ def getJSToNativeConversionInfo(type, descriptorProvider, failureCode=None,
 
         # If we're isOptional and not nullable the normal optional handling will
         # handle lazy construction of our holder.  If we're nullable and not
-        # owning we do it all by hand because we do not want our holder
-        # constructed if we're null.  But if we're owning we don't have a
+        # isMember we do it all by hand because we do not want our holder
+        # constructed if we're null.  But if we're isMember we don't have a
         # holder anyway, so we can do the normal Optional codepath.
         declLoc = "${declName}"
         constructDecl = None
         if nullable:
-            if isOptional and not isOwningUnion:
+            if isOptional and not isMember:
                 holderArgs = "${declName}.Value().SetValue()"
                 declType = CGTemplatedType("Optional", declType)
                 constructDecl = CGGeneric("${declName}.Construct();\n")
@@ -4347,12 +4346,6 @@ def getJSToNativeConversionInfo(type, descriptorProvider, failureCode=None,
         else:
             holderArgs = "${declName}"
             constructHolder = None
-
-        if not isMember and isCallbackReturnValue:
-            declType = CGWrapper(declType, post="&")
-            declArgs = "aRetVal"
-        else:
-            declArgs = None
 
         if defaultValue and not isinstance(defaultValue, IDLNullValue):
             tag = defaultValue.type.tag()
@@ -4394,7 +4387,7 @@ def getJSToNativeConversionInfo(type, descriptorProvider, failureCode=None,
               isinstance(defaultValue, IDLNullValue)):
             assert type.hasDictionaryType
             assert defaultValue.type.isDictionary()
-            if not isOwningUnion and typeNeedsRooting(defaultValue.type):
+            if not isMember and typeNeedsRooting(defaultValue.type):
                 ctorArgs = "cx"
             else:
                 ctorArgs = ""
@@ -4411,10 +4404,9 @@ def getJSToNativeConversionInfo(type, descriptorProvider, failureCode=None,
 
         return JSToNativeConversionInfo(templateBody.define(),
                                         declType=declType,
-                                        declArgs=declArgs,
                                         holderType=holderType,
                                         holderArgs=holderArgs,
-                                        dealWithOptional=isOptional and (not nullable or isOwningUnion))
+                                        dealWithOptional=isOptional and (not nullable or isMember))
 
     if type.isGeckoInterface():
         assert not isEnforceRange and not isClamp

@@ -324,7 +324,7 @@ AudioNodeExternalInputStream::ProcessInput(GraphTime aFrom, GraphTime aTo,
 
   // GC stuff can result in our input stream being destroyed before this stream.
   // Handle that.
-  if (!IsEnabled() || mInputs.IsEmpty() || mPassThrough) {
+  if (!IsEnabled() || mInputs.IsEmpty()) {
     mLastChunks[0].SetNull(WEBAUDIO_BLOCK_SIZE);
     AdvanceOutputSegment();
     return;

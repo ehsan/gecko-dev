@@ -58,7 +58,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "nsXPCOM.h"
 #include "nsIEventTarget.h"
 #include "nsIUDPSocketChild.h"
-#include "nsProxyRelease.h"
 
 #include "databuffer.h"
 #include "m_cpp_utils.h"
@@ -234,7 +233,7 @@ private:
   NrSocketIpcState state_;
   std::queue<RefPtr<nr_udp_message> > received_msgs_;
 
-  nsMainThreadPtrHandle<nsIUDPSocketChild> socket_child_;
+  nsCOMPtr<nsIUDPSocketChild> socket_child_;
   nsCOMPtr<nsIEventTarget> sts_thread_;
   const nsCOMPtr<nsIEventTarget> main_thread_;
   ReentrantMonitor monitor_;

@@ -147,7 +147,6 @@ nsEditor::nsEditor()
 ,  mDidPreDestroy(false)
 ,  mDidPostCreate(false)
 ,  mDispatchInputEvent(true)
-,  mIsInEditAction(false)
 {
 }
 
@@ -1833,7 +1832,6 @@ nsEditor::NotifyEditorObservers(NotificationForEditorObservers aNotification)
 {
   switch (aNotification) {
     case eNotifyEditorObserversOfEnd:
-      mIsInEditAction = false;
       for (int32_t i = 0; i < mEditorObservers.Count(); i++) {
         mEditorObservers[i]->EditAction();
       }
@@ -1845,13 +1843,11 @@ nsEditor::NotifyEditorObservers(NotificationForEditorObservers aNotification)
       FireInputEvent();
       break;
     case eNotifyEditorObserversOfBefore:
-      mIsInEditAction = true;
       for (int32_t i = 0; i < mEditorObservers.Count(); i++) {
         mEditorObservers[i]->BeforeEditAction();
       }
       break;
     case eNotifyEditorObserversOfCancel:
-      mIsInEditAction = false;
       for (int32_t i = 0; i < mEditorObservers.Count(); i++) {
         mEditorObservers[i]->CancelEditAction();
       }
@@ -5275,13 +5271,5 @@ NS_IMETHODIMP
 nsEditor::SetSuppressDispatchingInputEvent(bool aSuppress)
 {
   mDispatchInputEvent = !aSuppress;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsEditor::GetIsInEditAction(bool* aIsInEditAction)
-{
-  MOZ_ASSERT(aIsInEditAction, "aIsInEditAction must not be null");
-  *aIsInEditAction = mIsInEditAction;
   return NS_OK;
 }
