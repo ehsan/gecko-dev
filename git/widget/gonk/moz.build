@@ -37,7 +37,6 @@ CPP_SOURCES += [
     'KeyLayoutMap.cpp',
     'Keyboard.cpp',
     'OrientationObserver.cpp',
-    'ProcessOrientation.cpp',
     'PixelFormat.cpp',
     'PointerController.cpp',
     'PropertyMap.cpp',
@@ -63,4 +62,6 @@ if CONFIG['ANDROID_VERSION'] == '15':
     ]
 
 LIBXUL_LIBRARY = True
+
+LIBRARY_NAME = 'widget_gonk'
 

@@ -209,19 +209,6 @@ NativeApp.prototype = {
       this.iconURI = iconURI;
     }
   },
-
-  /**
-   * Creates the profile to be used for this app.
-   */
-  createAppProfile: function() {
-    let profSvc = Cc["@mozilla.org/toolkit/profile-service;1"]
-                    .getService(Ci.nsIToolkitProfileService);
-
-    try {
-      this.appProfile = profSvc.createDefaultProfileForApp(this.uniqueName,
-                                                           null, null);
-    } catch (ex if ex.result == Cr.NS_ERROR_ALREADY_INITIALIZED) {}
-  },
 };
 
 #ifdef XP_WIN
@@ -405,6 +392,19 @@ WinNativeApp.prototype = {
     }
 
     this.uninstallDir.create(Ci.nsIFile.DIRECTORY_TYPE, 0755);
+  },
+
+  /**
+   * Creates the profile to be used for this app.
+   */
+  createAppProfile: function() {
+    let profSvc = Cc["@mozilla.org/toolkit/profile-service;1"]
+                    .getService(Ci.nsIToolkitProfileService);
+
+    try {
+      this.appProfile = profSvc.createDefaultProfileForApp(this.installDir.leafName,
+                                                           null, null);
+    } catch (ex if ex.result == Cr.NS_ERROR_ALREADY_INITIALIZED) {}
   },
 
   /**
@@ -658,6 +658,16 @@ MacNativeApp.prototype = {
     this.resourcesDir.create(Ci.nsIFile.DIRECTORY_TYPE, 0755);
   },
 
+  createAppProfile: function() {
+    let profSvc = Cc["@mozilla.org/toolkit/profile-service;1"]
+                    .getService(Ci.nsIToolkitProfileService);
+
+    try {
+      this.appProfile = profSvc.createDefaultProfileForApp(this.appProfileDir.leafName,
+                                                           null, null);
+    } catch (ex if ex.result == Cr.NS_ERROR_ALREADY_INITIALIZED) {}
+  },
+
   _copyPrebuiltFiles: function() {
     let webapprt = this.runtimeFolder.clone();
     webapprt.append("webapprt-stub");
@@ -858,6 +868,16 @@ LinuxNativeApp.prototype = {
     let webapprtPre = this.runtimeFolder.clone();
     webapprtPre.append(this.webapprt.leafName);
     webapprtPre.copyTo(this.installDir, this.webapprt.leafName);
+  },
+
+  createAppProfile: function() {
+    let profSvc = Cc["@mozilla.org/toolkit/profile-service;1"]
+                    .getService(Ci.nsIToolkitProfileService);
+
+    try {
+      this.appProfile = profSvc.createDefaultProfileForApp(this.uniqueName,
+                                                           null, null);
+    } catch (ex if ex.result == Cr.NS_ERROR_ALREADY_INITIALIZED) {}
   },
 
   /**

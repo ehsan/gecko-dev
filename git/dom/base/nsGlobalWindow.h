@@ -97,7 +97,6 @@ class nsGlobalWindow;
 class nsDOMEventTargetHelper;
 class nsDOMWindowUtils;
 class nsIIdleService;
-class nsIntSize;
 
 class nsWindowSizes;
 
@@ -436,7 +435,6 @@ public:
   virtual NS_HIDDEN_(void) MaybeUpdateTouchState();
   virtual NS_HIDDEN_(void) UpdateTouchState();
   virtual NS_HIDDEN_(bool) DispatchCustomEvent(const char *aEventName);
-  virtual NS_HIDDEN_(bool) DispatchResizeEvent(const nsIntSize& aSize);
   virtual NS_HIDDEN_(void) RefreshCompartmentPrincipal();
   virtual NS_HIDDEN_(nsresult) SetFullScreenInternal(bool aIsFullScreen, bool aRequireTrust);
 

@@ -65,7 +65,6 @@ import android.view.MotionEvent;
 import android.view.SubMenu;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.ViewStub;
 import android.view.animation.Interpolator;
 import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
@@ -267,7 +266,7 @@ abstract public class BrowserApp extends GeckoApp
                 case KeyEvent.KEYCODE_BUTTON_Y:
                     // Toggle/focus the address bar on gamepad-y button.
                     if (mBrowserToolbar.isVisible()) {
-                        if (isDynamicToolbarEnabled() && !isHomePagerVisible()) {
+                        if (isDynamicToolbarEnabled() && !mHomePager.isVisible()) {
                             if (mLayerView != null) {
                                 mLayerView.getLayerMarginsAnimator().hideMargins(false);
                                 mLayerView.requestFocus();
@@ -422,11 +421,7 @@ abstract public class BrowserApp extends GeckoApp
                 // If we get a gamepad panning MotionEvent while the focus is not on the layerview,
                 // put the focus on the layerview and carry on
                 if (mLayerView != null && !mLayerView.hasFocus() && GamepadUtils.isPanningControl(event)) {
-                    if (mHomePager == null) {
-                        return false;
-                    }
-
-                    if (isHomePagerVisible()) {
+                    if (mHomePager.isVisible()) {
                         mLayerView.requestFocus();
                     } else {
                         mHomePager.requestFocus();
@@ -436,6 +431,7 @@ abstract public class BrowserApp extends GeckoApp
             }
         });
 
+        mHomePager = (HomePager) findViewById(R.id.home_pager);
         mHomePagerContainer = findViewById(R.id.home_pager_container);
 
         mBrowserSearchContainer = findViewById(R.id.search_container);
@@ -847,7 +843,7 @@ abstract public class BrowserApp extends GeckoApp
 
     @Override
     public void onMetricsChanged(ImmutableViewportMetrics aMetrics) {
-        if (isHomePagerVisible() || mBrowserToolbar == null) {
+        if (mHomePager.isVisible() || mBrowserToolbar == null) {
             return;
         }
 
@@ -882,7 +878,7 @@ abstract public class BrowserApp extends GeckoApp
 
     @Override
     public void onPanZoomStopped() {
-        if (!isDynamicToolbarEnabled() || isHomePagerVisible()) {
+        if (!isDynamicToolbarEnabled() || mHomePager.isVisible()) {
             return;
         }
 
@@ -904,7 +900,7 @@ abstract public class BrowserApp extends GeckoApp
             height = mBrowserToolbar.getHeight();
         }
 
-        if (!isDynamicToolbarEnabled() || isHomePagerVisible()) {
+        if (!isDynamicToolbarEnabled() || mHomePager.isVisible()) {
             // Use aVisibleHeight here so that when the dynamic toolbar is
             // enabled, the padding will animate with the toolbar becoming
             // visible.
@@ -1329,10 +1325,6 @@ abstract public class BrowserApp extends GeckoApp
         mBrowserToolbar.cancelEdit();
     }
 
-    private boolean isHomePagerVisible() {
-        return (mHomePager != null && mHomePager.isVisible());
-    }
-
     private void openReadingList() {
         Tabs.getInstance().loadUrl(ABOUT_HOME, Tabs.LOADURL_READING_LIST);
     }
@@ -1453,7 +1445,7 @@ abstract public class BrowserApp extends GeckoApp
     }
 
     private void showHomePagerWithAnimator(HomePager.Page page, PropertyAnimator animator) {
-        if (isHomePagerVisible()) {
+        if (mHomePager.isVisible()) {
             return;
         }
 
@@ -1466,10 +1458,6 @@ abstract public class BrowserApp extends GeckoApp
             mLayerView.getLayerMarginsAnimator().showMargins(true);
         }
 
-        if (mHomePager == null) {
-            final ViewStub homePagerStub = (ViewStub) findViewById(R.id.home_pager);
-            mHomePager = (HomePager) homePagerStub.inflate();
-        }
         mHomePager.show(getSupportFragmentManager(), page, animator);
     }
 
@@ -1482,7 +1470,7 @@ abstract public class BrowserApp extends GeckoApp
     }
 
     private void hideHomePagerWithAnimation(boolean animate) {
-        if (!isHomePagerVisible()) {
+        if (!mHomePager.isVisible()) {
             return;
         }
 
@@ -1492,9 +1480,7 @@ abstract public class BrowserApp extends GeckoApp
         }
 
         // FIXME: do animation if animate is true
-        if (mHomePager != null) {
-            mHomePager.hide();
-        }
+        mHomePager.hide();
 
         mBrowserToolbar.setNextFocusDownId(R.id.layer_view);
 

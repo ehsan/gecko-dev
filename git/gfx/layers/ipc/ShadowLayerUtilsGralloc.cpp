@@ -457,11 +457,6 @@ GrallocBufferActor::GetFrom(const SurfaceDescriptorGralloc& aDescriptor)
   return gba->mGraphicBuffer;
 }
 
-android::GraphicBuffer*
-GrallocBufferActor::GetGraphicBuffer()
-{
-  return mGraphicBuffer.get();
-}
 
 /*static*/ already_AddRefed<gfxASurface>
 ShadowLayerForwarder::PlatformOpenDescriptor(OpenMode aMode,

@@ -648,8 +648,8 @@ var BrowserUI = {
 
   _adjustDOMforViewState: function(aState) {
     let currViewState = aState;
-    if (!currViewState && Services.metro.immersive) {
-      switch (Services.metro.snappedState) {
+    if (!currViewState && MetroUtils.immersive) {
+      switch (MetroUtils.snappedState) {
         case Ci.nsIWinMetroUtils.fullScreenLandscape:
           currViewState = "landscape";
           break;
@@ -1286,7 +1286,7 @@ var SettingsCharm = {
    */
   addEntry: function addEntry(aEntry) {
     try {
-      let id = Services.metro.addSettingsPanelEntry(aEntry.label);
+      let id = MetroUtils.addSettingsPanelEntry(aEntry.label);
       this._entries.set(id, aEntry);
     } catch (e) {
       // addSettingsPanelEntry does not work on non-Metro platforms
@@ -1304,7 +1304,7 @@ var SettingsCharm = {
     });
     // Sync
     this.addEntry({
-        label: Strings.brand.GetStringFromName("syncBrandShortName"),
+        label: Strings.browser.GetStringFromName("syncCharm"),
         onselected: function() FlyoutPanelsUI.show('SyncFlyoutPanel')
     });
     // About
