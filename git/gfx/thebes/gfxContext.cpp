@@ -722,18 +722,12 @@ gfxContext::CurrentFillRule() const
 
 // clipping
 void
-gfxContext::Clip(const Rect& rect)
-{
-  AzureState::PushedClip clip = { nullptr, rect, mTransform };
-  CurrentState().pushedClips.AppendElement(clip);
-  mDT->PushClipRect(rect);
-  NewPath();
-}
-
-void
 gfxContext::Clip(const gfxRect& rect)
 {
-  Clip(ToRect(rect));
+  AzureState::PushedClip clip = { nullptr, ToRect(rect), mTransform };
+  CurrentState().pushedClips.AppendElement(clip);
+  mDT->PushClipRect(ToRect(rect));
+  NewPath();
 }
 
 void
