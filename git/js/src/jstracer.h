@@ -696,7 +696,6 @@ struct TreeFragment : public LinkableFragment
     Queue<Value>            gcthings;
     Queue<JSScopeProperty*> sprops;
     unsigned                maxNativeStackSlots;
-    uintN                   execs;
 
     inline unsigned nGlobalTypes() {
         return typeMap.length() - nStackTypes;
