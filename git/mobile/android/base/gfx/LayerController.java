@@ -43,7 +43,6 @@ import org.mozilla.gecko.gfx.Layer;
 import org.mozilla.gecko.gfx.LayerClient;
 import org.mozilla.gecko.gfx.LayerView;
 import org.mozilla.gecko.ui.PanZoomController;
-import org.mozilla.gecko.ui.SimpleScaleGestureDetector;
 import org.mozilla.gecko.GeckoApp;
 import android.content.Context;
 import android.content.res.Resources;
@@ -148,9 +147,7 @@ public class LayerController {
     public Bitmap getShadowPattern()        { return getDrawable("shadow"); }
 
     public GestureDetector.OnGestureListener getGestureListener()                   { return mPanZoomController; }
-    public SimpleScaleGestureDetector.SimpleScaleGestureListener getScaleGestureListener() {
-        return mPanZoomController;
-    }
+    public ScaleGestureDetector.OnScaleGestureListener getScaleGestureListener()    { return mPanZoomController; }
     public GestureDetector.OnDoubleTapListener getDoubleTapListener()               { return mPanZoomController; }
 
     private Bitmap getDrawable(String name) {

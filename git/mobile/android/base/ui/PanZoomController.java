@@ -55,6 +55,7 @@ import android.util.FloatMath;
 import android.util.Log;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
+import android.view.ScaleGestureDetector;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -66,7 +67,7 @@ import java.util.TimerTask;
  */
 public class PanZoomController
     extends GestureDetector.SimpleOnGestureListener
-    implements SimpleScaleGestureDetector.SimpleScaleGestureListener, GeckoEventListener
+    implements ScaleGestureDetector.OnScaleGestureListener, GeckoEventListener
 {
     private static final String LOGTAG = "GeckoPanZoomController";
 
@@ -720,7 +721,7 @@ public class PanZoomController
      * Zooming
      */
     @Override
-    public boolean onScaleBegin(SimpleScaleGestureDetector detector) {
+    public boolean onScaleBegin(ScaleGestureDetector detector) {
         Log.d(LOGTAG, "onScaleBegin in " + mState);
 
         if (mState == PanZoomState.ANIMATED_ZOOM)
@@ -736,7 +737,7 @@ public class PanZoomController
     }
 
     @Override
-    public boolean onScale(SimpleScaleGestureDetector detector) {
+    public boolean onScale(ScaleGestureDetector detector) {
         Log.d(LOGTAG, "onScale in state " + mState);
 
         if (mState == PanZoomState.ANIMATED_ZOOM)
@@ -783,7 +784,7 @@ public class PanZoomController
     }
 
     @Override
-    public void onScaleEnd(SimpleScaleGestureDetector detector) {
+    public void onScaleEnd(ScaleGestureDetector detector) {
         Log.d(LOGTAG, "onScaleEnd in " + mState);
 
         if (mState == PanZoomState.ANIMATED_ZOOM)

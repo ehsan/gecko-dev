@@ -1442,7 +1442,7 @@ BrowserGlue.prototype = {
   getMostRecentBrowserWindow: function BG_getMostRecentBrowserWindow() {
     function isFullBrowserWindow(win) {
       return !win.closed &&
-             win.toolbar.visible;
+             !win.document.documentElement.getAttribute("chromehidden");
     }
 
 #ifdef BROKEN_WM_Z_ORDER

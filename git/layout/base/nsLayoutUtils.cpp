@@ -1245,7 +1245,7 @@ TransformGfxRectToAncestor(nsIFrame *aFrame,
                            nsIFrame *aAncestor)
 {
   gfx3DMatrix ctm = nsLayoutUtils::GetTransformToAncestor(aFrame, aAncestor);
-  return ctm.TransformBounds(aRect);
+  return ctm.ProjectRectBounds(aRect);
 }
 
 nsPoint

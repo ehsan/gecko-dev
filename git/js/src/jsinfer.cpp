@@ -2153,8 +2153,10 @@ TypeCompartment::processPendingRecompiles(JSContext *cx)
     for (unsigned i = 0; i < pending->length(); i++) {
         const RecompileInfo &info = (*pending)[i];
         mjit::JITScript *jit = info.script->getJIT(info.constructing);
-        if (jit && jit->chunkDescriptor(info.chunkIndex).chunk)
-            mjit::Recompiler::clearStackReferencesAndChunk(cx, info.script, jit, info.chunkIndex);
+        if (jit && jit->chunkDescriptor(info.chunkIndex).chunk) {
+            mjit::Recompiler::clearStackReferences(cx, info.script);
+            jit->destroyChunk(cx, info.chunkIndex);
+        }
     }
 
 #endif /* JS_METHODJIT */
@@ -3255,7 +3257,7 @@ GetInitializerType(JSContext *cx, JSScript *script, jsbytecode *pc)
     JSOp op = JSOp(*pc);
     JS_ASSERT(op == JSOP_NEWARRAY || op == JSOP_NEWOBJECT || op == JSOP_NEWINIT);
 
-    bool isArray = (op == JSOP_NEWARRAY || (op == JSOP_NEWINIT && GET_UINT8(pc) == JSProto_Array));
+    bool isArray = (op == JSOP_NEWARRAY || (op == JSOP_NEWINIT && pc[1] == JSProto_Array));
     return TypeScript::InitObject(cx, script, pc, isArray ? JSProto_Array : JSProto_Object);
 }
 
@@ -3428,7 +3430,6 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset,
       case JSOP_POP:
       case JSOP_NOP:
       case JSOP_LOOPHEAD:
-      case JSOP_LOOPENTRY:
       case JSOP_GOTO:
       case JSOP_IFEQ:
       case JSOP_IFNE:
@@ -3560,7 +3561,7 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset,
 
       case JSOP_SWAP:
       case JSOP_PICK: {
-        unsigned pickedDepth = (op == JSOP_SWAP ? 1 : GET_UINT8(pc));
+        unsigned pickedDepth = (op == JSOP_SWAP ? 1 : pc[1]);
         /* The last popped value is the last pushed. */
         poppedTypes(pc, pickedDepth)->addSubset(cx, &pushed[pickedDepth]);
         for (unsigned i = 0; i < pickedDepth; i++)
@@ -4023,7 +4024,7 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset,
               return false;
         }
 
-        if (GET_UINT8(pc) & JSITER_FOREACH)
+        if (pc[1] & JSITER_FOREACH)
             state.forTypes->addType(cx, Type::UnknownType());
         else
             state.forTypes->addType(cx, Type::StringType());

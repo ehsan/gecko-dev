@@ -826,6 +826,8 @@ XPCWrappedNative::XPCWrappedNative(already_AddRefed<nsISupports> aIdentity,
     NS_ASSERTION(mSet, "bad ctor param");
 
     DEBUG_TrackNewWrapper(this);
+
+    JS_RegisterReference((void **) &mWrapperWord);
 }
 
 // This ctor is used if this object will NOT have a proto.
@@ -848,6 +850,8 @@ XPCWrappedNative::XPCWrappedNative(already_AddRefed<nsISupports> aIdentity,
     NS_ASSERTION(aSet, "bad ctor param");
 
     DEBUG_TrackNewWrapper(this);
+
+    JS_RegisterReference((void **) &mWrapperWord);
 }
 
 XPCWrappedNative::~XPCWrappedNative()
@@ -905,8 +909,7 @@ XPCWrappedNative::Destroy()
      * the first time because mWrapperWord isn't used afterwards.
      */
     if (XPCJSRuntime *rt = GetRuntime()) {
-        if (js::IsIncrementalBarrierNeeded(rt->GetJSRuntime()))
-            js::IncrementalReferenceBarrier(GetWrapperPreserveColor());
+        JS_UnregisterReferenceRT(rt->GetJSRuntime(), (void **) &mWrapperWord);
         mWrapperWord = WRAPPER_WORD_POISON;
     } else {
         MOZ_ASSERT(mWrapperWord == WRAPPER_WORD_POISON);
@@ -922,7 +925,7 @@ XPCWrappedNative::UpdateScriptableInfo(XPCNativeScriptableInfo *si)
 
     // Write barrier for incremental GC.
     JSRuntime* rt = GetRuntime()->GetJSRuntime();
-    if (js::IsIncrementalBarrierNeeded(rt))
+    if (JS_GetIncrementalGCTracer(rt))
         mScriptableInfo->Mark();
 
     mScriptableInfo = si;
@@ -933,11 +936,12 @@ XPCWrappedNative::SetProto(XPCWrappedNativeProto* p)
 {
     NS_ASSERTION(!IsWrapperExpired(), "bad ptr!");
 
-    MOZ_ASSERT(HasProto());
-
     // Write barrier for incremental GC.
-    JSRuntime* rt = GetRuntime()->GetJSRuntime();
-    GetProto()->WriteBarrierPre(rt);
+    if (HasProto()) {
+        JSRuntime* rt = GetRuntime()->GetJSRuntime();
+        if (JS_GetIncrementalGCTracer(rt))
+            GetProto()->TraceJS(JS_GetIncrementalGCTracer(rt));
+    }
 
     mMaybeProto = p;
 }

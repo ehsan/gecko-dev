@@ -1654,10 +1654,10 @@ private:
     // default parent for the XPCWrappedNatives that have us as the scope,
     // unless a PreCreate hook overrides it.  Note that this _may_ be null (see
     // constructor).
-    js::ObjectPtr                    mGlobalJSObject;
+    JS::HeapPtrObject                mGlobalJSObject;
 
     // Cached value of Object.prototype
-    js::ObjectPtr                    mPrototypeJSObject;
+    JS::HeapPtrObject                mPrototypeJSObject;
     // Prototype to use for wrappers with no helper.
     JSObject*                        mPrototypeNoHelper;
 
@@ -2306,12 +2306,6 @@ public:
             mScriptableInfo->Mark();
     }
 
-    void WriteBarrierPre(JSRuntime* rt)
-    {
-        if (js::IsIncrementalBarrierNeeded(rt) && mJSProtoObject)
-            mJSProtoObject.writeBarrierPre(rt);
-    }
-
     // NOP. This is just here to make the AutoMarkingPtr code compile.
     inline void AutoTrace(JSTracer* trc) {}
 
@@ -2354,7 +2348,7 @@ private:
     }
 
     XPCWrappedNativeScope*   mScope;
-    js::ObjectPtr            mJSProtoObject;
+    JS::HeapPtrObject        mJSProtoObject;
     nsCOMPtr<nsIClassInfo>   mClassInfo;
     PRUint32                 mClassInfoFlags;
     XPCNativeSet*            mSet;
@@ -2743,9 +2737,8 @@ public:
     }
     void SetWrapper(JSObject *obj)
     {
-        js::IncrementalReferenceBarrier(GetWrapperPreserveColor());
         PRWord newval = PRWord(obj) | (mWrapperWord & FLAG_MASK);
-        mWrapperWord = newval;
+        JS_ModifyReference((void **)&mWrapperWord, (void *)newval);
     }
 
     void NoteTearoffs(nsCycleCollectionTraversalCallback& cb);

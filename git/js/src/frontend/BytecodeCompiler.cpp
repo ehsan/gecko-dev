@@ -334,7 +334,11 @@ frontend::CompileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
             len = (cs->length > 0)
                   ? (uintN) cs->length
                   : js_GetVariableBytecodeLength(code);
-            if ((cs->format & JOF_SHARPSLOT) || JOF_TYPE(cs->format) == JOF_LOCAL) {
+            if ((cs->format & JOF_SHARPSLOT) ||
+                JOF_TYPE(cs->format) == JOF_LOCAL ||
+                (JOF_TYPE(cs->format) == JOF_SLOTATOM)) {
+                JS_ASSERT_IF(!(cs->format & JOF_SHARPSLOT),
+                             JOF_TYPE(cs->format) != JOF_SLOTATOM);
                 slot = GET_SLOTNO(code);
                 if (!(cs->format & JOF_SHARPSLOT))
                     slot += bce.sharpSlots();

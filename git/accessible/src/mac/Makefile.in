@@ -56,7 +56,6 @@ CMMSRCS = nsAccessNodeWrap.mm \
           mozDocAccessible.mm \
           mozActionElements.mm \
           mozTextAccessible.mm \
-          mozHTMLAccessible.mm \
           $(NULL)
           
 

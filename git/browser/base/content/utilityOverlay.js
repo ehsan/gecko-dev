@@ -56,7 +56,7 @@ function getTopWin(skipPopups) {
   // whether it's the frontmost window, since commands can be executed in
   // background windows (bug 626148).
   if (top.document.documentElement.getAttribute("windowtype") == "navigator:browser" &&
-      (!skipPopups || top.toolbar.visible))
+      (!skipPopups || !top.document.documentElement.getAttribute("chromehidden")))
     return top;
 
   if (skipPopups) {
@@ -206,7 +206,7 @@ function openLinkIn(url, where, params) {
 
   var w = getTopWin();
   if ((where == "tab" || where == "tabshifted") &&
-      w && !w.toolbar.visible) {
+      w && w.document.documentElement.getAttribute("chromehidden")) {
     w = getTopWin(true);
     aRelatedToCurrent = false;
   }

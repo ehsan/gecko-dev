@@ -40,7 +40,6 @@ package org.mozilla.gecko.gfx;
 import org.mozilla.gecko.gfx.FloatSize;
 import org.mozilla.gecko.gfx.InputConnectionHandler;
 import org.mozilla.gecko.gfx.LayerController;
-import org.mozilla.gecko.ui.SimpleScaleGestureDetector;
 import android.content.Context;
 import android.opengl.GLSurfaceView;
 import android.view.GestureDetector;
@@ -48,6 +47,7 @@ import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
+import android.view.ScaleGestureDetector;
 
 /**
  * A view rendered by the layer compositor.
@@ -61,7 +61,7 @@ public class LayerView extends GLSurfaceView {
     private InputConnectionHandler mInputConnectionHandler;
     private LayerRenderer mRenderer;
     private GestureDetector mGestureDetector;
-    private SimpleScaleGestureDetector mScaleGestureDetector;
+    private ScaleGestureDetector mScaleGestureDetector;
     private long mRenderTime;
     private boolean mRenderTimeReset;
 
@@ -74,8 +74,7 @@ public class LayerView extends GLSurfaceView {
         setRenderer(mRenderer);
         setRenderMode(RENDERMODE_WHEN_DIRTY);
         mGestureDetector = new GestureDetector(context, controller.getGestureListener());
-        mScaleGestureDetector =
-            new SimpleScaleGestureDetector(controller.getScaleGestureListener());
+        mScaleGestureDetector = new ScaleGestureDetector(context, controller.getScaleGestureListener());
         mGestureDetector.setOnDoubleTapListener(controller.getDoubleTapListener());
         mInputConnectionHandler = null;
 
