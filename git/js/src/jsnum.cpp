@@ -326,7 +326,7 @@ num_toLocaleString(JSContext *cx, uintN argc, jsval *vp)
 
     /*
      * Find the first non-integer value, whether it be a letter as in
-     * 'Infinity', a decimal point, or an 'e' from exponential notation.
+     * 'Infinite', a decimal point, or an 'e' from exponential notation.
      */
     nint = num;
     if (*nint == '-')
@@ -1015,10 +1015,18 @@ js_strtod(JSContext *cx, const jschar *s, const jschar *send,
     } else {
         int err;
         d = JS_strtod(cstr, &estr, &err);
-        if (d == HUGE_VAL)
-            d = *cx->runtime->jsPositiveInfinity;
-        else if (d == -HUGE_VAL)
-            d = *cx->runtime->jsNegativeInfinity;
+        if (err == JS_DTOA_ENOMEM) {
+            JS_ReportOutOfMemory(cx);
+            if (cstr != cbuf)
+                JS_free(cx, cstr);
+            return JS_FALSE;
+        }
+        if (err == JS_DTOA_ERANGE) {
+            if (d == HUGE_VAL)
+                d = *cx->runtime->jsPositiveInfinity;
+            else if (d == -HUGE_VAL)
+                d = *cx->runtime->jsNegativeInfinity;
+        }
 #ifdef HPUX
         if (d == 0.0 && negative) {
             /*
