@@ -48,7 +48,6 @@
 #include "xptinfo.h"
 #include "nsIInterfaceInfoManager.h"
 #include "xptiprivate.h"
-#include "mozilla/XPTInterfaceInfoManager.h"
 
 #include "nsTimerImpl.h"
 #include "TimerThread.h"
@@ -127,7 +126,6 @@ extern nsresult nsStringInputStreamConstructor(nsISupports *, REFNSIID, void **)
 
 #include "GeckoProfiler.h"
 
-using namespace mozilla;
 using base::AtExitManager;
 using mozilla::ipc::BrowserProcessSubThread;
 #ifdef MOZ_VISUAL_EVENT_TRACER
@@ -230,7 +228,7 @@ nsXPTIInterfaceInfoManagerGetSingleton(nsISupports* outer,
     NS_ENSURE_TRUE(!outer, NS_ERROR_NO_AGGREGATION);
 
     nsCOMPtr<nsIInterfaceInfoManager> iim
-        (XPTInterfaceInfoManager::GetSingleton());
+        (xptiInterfaceInfoManager::GetSingleton());
     if (!iim)
         return NS_ERROR_FAILURE;
 
@@ -472,7 +470,7 @@ NS_InitXPCOM2(nsIServiceManager* *result,
 
     // The iimanager constructor searches and registers XPT files.
     // (We trigger the singleton's lazy construction here to make that happen.)
-    (void) XPTInterfaceInfoManager::GetSingleton();
+    (void) xptiInterfaceInfoManager::GetSingleton();
 
     // After autoreg, but before we actually instantiate any components,
     // add any services listed in the "xpcom-directory-providers" category
@@ -690,7 +688,7 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
     // Do this _after_ shutting down the component manager, because the
     // JS component loader will use XPConnect to call nsIModule::canUnload,
     // and that will spin up the InterfaceInfoManager again -- bad mojo
-    XPTInterfaceInfoManager::FreeInterfaceInfoManager();
+    xptiInterfaceInfoManager::FreeInterfaceInfoManager();
 
     // Finally, release the component manager last because it unloads the
     // libraries:

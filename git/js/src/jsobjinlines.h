@@ -194,18 +194,19 @@ JSObject::getPropertyNoGC(JSContext *cx, JSObject *obj, JSObject *receiver,
 }
 
 /* static */ inline bool
-JSObject::deleteProperty(JSContext *cx, js::HandleObject obj, js::HandlePropertyName name,
-                         JSBool *succeeded)
+JSObject::deleteProperty(JSContext *cx, js::HandleObject obj,
+                         js::HandlePropertyName name, js::MutableHandleValue rval, bool strict)
 {
     JS::RootedId id(cx, js::NameToId(name));
     js::types::AddTypePropertyId(cx, obj, id, js::types::Type::UndefinedType());
     js::types::MarkTypePropertyConfigured(cx, obj, id);
     js::DeletePropertyOp op = obj->getOps()->deleteProperty;
-    return (op ? op : js::baseops::DeleteProperty)(cx, obj, name, succeeded);
+    return (op ? op : js::baseops::DeleteProperty)(cx, obj, name, rval, strict);
 }
 
 /* static */ inline bool
-JSObject::deleteElement(JSContext *cx, js::HandleObject obj, uint32_t index, JSBool *succeeded)
+JSObject::deleteElement(JSContext *cx, js::HandleObject obj,
+                        uint32_t index, js::MutableHandleValue rval, bool strict)
 {
     JS::RootedId id(cx);
     if (!js::IndexToId(cx, index, &id))
@@ -213,18 +214,18 @@ JSObject::deleteElement(JSContext *cx, js::HandleObject obj, uint32_t index, JSB
     js::types::AddTypePropertyId(cx, obj, id, js::types::Type::UndefinedType());
     js::types::MarkTypePropertyConfigured(cx, obj, id);
     js::DeleteElementOp op = obj->getOps()->deleteElement;
-    return (op ? op : js::baseops::DeleteElement)(cx, obj, index, succeeded);
+    return (op ? op : js::baseops::DeleteElement)(cx, obj, index, rval, strict);
 }
 
 /* static */ inline bool
-JSObject::deleteSpecial(JSContext *cx, js::HandleObject obj, js::HandleSpecialId sid,
-                        JSBool *succeeded)
+JSObject::deleteSpecial(JSContext *cx, js::HandleObject obj,
+                        js::HandleSpecialId sid, js::MutableHandleValue rval, bool strict)
 {
     JS::RootedId id(cx, SPECIALID_TO_JSID(sid));
     js::types::AddTypePropertyId(cx, obj, id, js::types::Type::UndefinedType());
     js::types::MarkTypePropertyConfigured(cx, obj, id);
     js::DeleteSpecialOp op = obj->getOps()->deleteSpecial;
-    return (op ? op : js::baseops::DeleteSpecial)(cx, obj, sid, succeeded);
+    return (op ? op : js::baseops::DeleteSpecial)(cx, obj, sid, rval, strict);
 }
 
 inline void

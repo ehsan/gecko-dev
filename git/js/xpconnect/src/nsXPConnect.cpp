@@ -40,9 +40,7 @@
 #include "nsDOMMutationObserver.h"
 #include "nsICycleCollectorListener.h"
 #include "nsThread.h"
-#include "mozilla/XPTInterfaceInfoManager.h"
 
-using namespace mozilla;
 using namespace mozilla::dom;
 using namespace xpc;
 using namespace JS;
@@ -78,6 +76,7 @@ const char XPC_XPCONNECT_CONTRACTID[]     = "@mozilla.org/js/xpc/XPConnect;1";
 
 nsXPConnect::nsXPConnect()
     :   mRuntime(nullptr),
+        mInterfaceInfoManager(do_GetService(NS_INTERFACEINFOMANAGER_SERVICE_CONTRACTID)),
         mDefaultSecurityManager(nullptr),
         mDefaultSecurityManagerFlags(0),
         mShuttingDown(false),
@@ -151,6 +150,9 @@ nsXPConnect::GetXPConnect()
         if (!gSelf->mRuntime) {
             NS_RUNTIMEABORT("Couldn't create XPCJSRuntime.");
         }
+        if (!gSelf->mInterfaceInfoManager) {
+            NS_RUNTIMEABORT("Couldn't get global interface info manager.");
+        }
 
         // Initial extra ref to keep the singleton alive
         // balanced by explicit call to ReleaseXPConnectSingleton()
@@ -222,6 +224,19 @@ nsXPConnect::ReleaseXPConnectSingleton()
 }
 
 // static
+nsresult
+nsXPConnect::GetInterfaceInfoManager(nsIInterfaceInfoSuperManager** iim,
+                                     nsXPConnect* xpc /*= nullptr*/)
+{
+    if (!xpc && !(xpc = GetXPConnect()))
+        return NS_ERROR_FAILURE;
+
+    *iim = xpc->mInterfaceInfoManager;
+    NS_IF_ADDREF(*iim);
+    return NS_OK;
+}
+
+// static
 XPCJSRuntime*
 nsXPConnect::GetRuntimeInstance()
 {
@@ -242,17 +257,61 @@ nsXPConnect::IsISupportsDescendant(nsIInterfaceInfo* info)
 
 /***************************************************************************/
 
+typedef bool (*InfoTester)(nsIInterfaceInfoManager* manager, const void* data,
+                           nsIInterfaceInfo** info);
+
+static bool IIDTester(nsIInterfaceInfoManager* manager, const void* data,
+                      nsIInterfaceInfo** info)
+{
+    return NS_SUCCEEDED(manager->GetInfoForIID((const nsIID *) data, info)) &&
+           *info;
+}
+
+static bool NameTester(nsIInterfaceInfoManager* manager, const void* data,
+                       nsIInterfaceInfo** info)
+{
+    return NS_SUCCEEDED(manager->GetInfoForName((const char *) data, info)) &&
+           *info;
+}
+
+static nsresult FindInfo(InfoTester tester, const void* data,
+                         nsIInterfaceInfoSuperManager* iism,
+                         nsIInterfaceInfo** info)
+{
+    if (tester(iism, data, info))
+        return NS_OK;
+
+    // If not found, then let's ask additional managers.
+
+    bool yes;
+    nsCOMPtr<nsISimpleEnumerator> list;
+
+    if (NS_SUCCEEDED(iism->HasAdditionalManagers(&yes)) && yes &&
+        NS_SUCCEEDED(iism->EnumerateAdditionalManagers(getter_AddRefs(list))) &&
+        list) {
+        bool more;
+        nsCOMPtr<nsIInterfaceInfoManager> current;
+
+        while (NS_SUCCEEDED(list->HasMoreElements(&more)) && more &&
+               NS_SUCCEEDED(list->GetNext(getter_AddRefs(current))) && current) {
+            if (tester(current, data, info))
+                return NS_OK;
+        }
+    }
+
+    return NS_ERROR_NO_INTERFACE;
+}
+
 nsresult
 nsXPConnect::GetInfoForIID(const nsIID * aIID, nsIInterfaceInfo** info)
 {
-  return XPTInterfaceInfoManager::GetSingleton()->GetInfoForIID(aIID, info);
+    return FindInfo(IIDTester, aIID, mInterfaceInfoManager, info);
 }
 
 nsresult
 nsXPConnect::GetInfoForName(const char * name, nsIInterfaceInfo** info)
 {
-  nsresult rv = XPTInterfaceInfoManager::GetSingleton()->GetInfoForName(name, info);
-  return NS_FAILED(rv) ? NS_OK : NS_ERROR_NO_INTERFACE;
+    return FindInfo(NameTester, name, mInterfaceInfoManager, info);
 }
 
 bool
@@ -1712,6 +1771,7 @@ nsXPConnect::DebugDump(int16_t depth)
         XPC_LOG_ALWAYS(("gOnceAliveNowDead is %d", (int)gOnceAliveNowDead));
         XPC_LOG_ALWAYS(("mDefaultSecurityManager @ %x", mDefaultSecurityManager));
         XPC_LOG_ALWAYS(("mDefaultSecurityManagerFlags of %x", mDefaultSecurityManagerFlags));
+        XPC_LOG_ALWAYS(("mInterfaceInfoManager @ %x", mInterfaceInfoManager.get()));
         if (mRuntime) {
             if (depth)
                 mRuntime->DebugDump(depth);

@@ -119,6 +119,7 @@
 #include "nsMemory.h"
 #include "nsIXPConnect.h"
 #include "nsIInterfaceInfo.h"
+#include "nsIInterfaceInfoManager.h"
 #include "nsIXPCScriptable.h"
 #include "nsIXPCSecurityManager.h"
 #include "nsIJSRuntimeService.h"
@@ -490,6 +491,10 @@ public:
     void AssertNoObjectsToTrace(void* aPossibleJSHolder);
 #endif
 
+    // Gets addref'd pointer
+    static nsresult GetInterfaceInfoManager(nsIInterfaceInfoSuperManager** iim,
+                                            nsXPConnect* xpc = nullptr);
+
     static JSBool IsISupportsDescendant(nsIInterfaceInfo* info);
 
     nsIXPCSecurityManager* GetDefaultSecurityManager() const
@@ -563,6 +568,7 @@ private:
     static JSBool            gOnceAliveNowDead;
 
     XPCJSRuntime*            mRuntime;
+    nsCOMPtr<nsIInterfaceInfoSuperManager> mInterfaceInfoManager;
     nsIXPCSecurityManager*   mDefaultSecurityManager;
     uint16_t                 mDefaultSecurityManagerFlags;
     JSBool                   mShuttingDown;

@@ -14,6 +14,7 @@
 #include "nsITableEditor.h"
 #include "nsIEditorMailSupport.h"
 #include "nsIEditorStyleSheets.h"
+#include "nsITextServicesDocument.h"
 
 #include "nsEditor.h"
 #include "nsIDOMElement.h"
@@ -764,6 +765,9 @@ protected:
   
   // an array for holding default style settings
   nsTArray<PropItem*> mDefaultStyles;
+
+   // for real-time spelling
+   nsCOMPtr<nsITextServicesDocument> mTextServices;
 
 protected:
 

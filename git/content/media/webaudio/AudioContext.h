@@ -141,8 +141,6 @@ public:
   void UnregisterPannerNode(PannerNode* aNode);
   void UpdatePannerSource();
 
-  JSContext* GetJSContext() const;
-
 private:
   void RemoveFromDecodeQueue(WebAudioDecodeJob* aDecodeJob);
 

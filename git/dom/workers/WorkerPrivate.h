@@ -41,7 +41,6 @@ class nsIURI;
 class nsPIDOMWindow;
 class nsITimer;
 class nsIXPCScriptNotify;
-namespace JS { class RuntimeStats; }
 
 BEGIN_WORKERS_NAMESPACE
 
@@ -822,7 +821,7 @@ public:
   ScheduleDeletion(bool aWasPending);
 
   bool
-  BlockAndCollectRuntimeStats(JS::RuntimeStats* aRtStats);
+  BlockAndCollectRuntimeStats(bool aIsQuick, void* aData);
 
   bool
   XHRParamsAllowed() const

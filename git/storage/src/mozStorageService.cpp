@@ -163,6 +163,13 @@ public:
     return NS_OK;
   }
 
+  NS_IMETHOD GetExplicitNonHeap(int64_t *aAmount)
+  {
+    // This reporter doesn't do any non-heap measurements.
+    *aAmount = 0;
+    return NS_OK;
+  }
+
 private:
   /**
    * Passes a single SQLite memory statistic to a memory multi-reporter

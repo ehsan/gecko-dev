@@ -444,6 +444,9 @@ class ObjectPrivateVisitor
 extern JS_PUBLIC_API(bool)
 CollectRuntimeStats(JSRuntime *rt, RuntimeStats *rtStats, ObjectPrivateVisitor *opv);
 
+extern JS_PUBLIC_API(int64_t)
+GetExplicitNonHeapForRuntime(JSRuntime *rt, JSMallocSizeOfFun mallocSizeOf);
+
 extern JS_PUBLIC_API(size_t)
 SystemCompartmentCount(JSRuntime *rt);
 
