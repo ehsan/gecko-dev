@@ -34,7 +34,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-const EXPORTED_SYMBOLS = ["Notifications", "Notification", "NotificationButton"];
+const EXPORTED_SYMBOLS = ["Notifications", "Notification", "NotificationButton",
+                          "TabsNotification"];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -156,3 +157,15 @@ function NotificationButton(label, accessKey, callback) {
   this.accessKey = accessKey;
   this.callback = callbackWrapper;
 }
+
+function TabsNotification() {
+  // Call the base class's constructor to initialize the new instance.
+  // XXX Can we simply pass null, null for the title, description?
+  Notification.call(this, "", "", null, Notifications.PRIORITY_INFO, null);
+}
+
+// We set each prototype property individually instead of redefining
+// the entire prototype to avoid blowing away existing properties
+// of the prototype like the the "constructor" property, which we use
+// to bind notification objects to their XBL representations.
+TabsNotification.prototype.__proto__ = Notification.prototype;

@@ -719,6 +719,11 @@ let Utils = {
       options || "centerscreen,chrome,dialog,modal,resizable=no", args);
   },
 
+  openGenericDialog: function Utils_openGenericDialog(type) {
+    this._genericDialogType = type;
+    this.openDialog("ChangeSomething", "generic-change.xul");
+  },
+
   openLog: function Utils_openLog() {
     Utils._openChromeWindow("Log", "log.xul");
   },
@@ -786,12 +791,11 @@ Svc.Prefs = new Preferences(PREFS_BRANCH);
  ["Observer", "@mozilla.org/observer-service;1", "nsIObserverService"],
  ["Private", "@mozilla.org/privatebrowsing;1", "nsIPrivateBrowsingService"],
  ["Prompt", "@mozilla.org/embedcomp/prompt-service;1", "nsIPromptService"],
- ["Script", "@mozilla.org/moz/jssubscript-loader;1", "mozIJSSubScriptLoader"],
  ["Version", "@mozilla.org/xpcom/version-comparator;1", "nsIVersionComparator"],
  ["WinMediator", "@mozilla.org/appshell/window-mediator;1", "nsIWindowMediator"],
  ["WinWatcher", "@mozilla.org/embedcomp/window-watcher;1", "nsIWindowWatcher"],
 ].forEach(function(lazy) Utils.lazySvc(Svc, lazy[0], lazy[1], Ci[lazy[2]]));
 
 let Str = {};
-["about", "errors", "sync"]
+["about", "errors"]
   .forEach(function(lazy) Utils.lazy2(Str, lazy, Utils.lazyStrings(lazy)));
