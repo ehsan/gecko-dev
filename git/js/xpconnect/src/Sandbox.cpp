@@ -359,7 +359,7 @@ sandbox_convert(JSContext *cx, HandleObject obj, JSType type, MutableHandleValue
         return true;
     }
 
-    return OrdinaryToPrimitive(cx, obj, type, vp);
+    return JS::OrdinaryToPrimitive(cx, obj, type, vp);
 }
 
 static bool

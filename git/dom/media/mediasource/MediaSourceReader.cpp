@@ -478,26 +478,6 @@ MediaSourceReader::SwitchVideoReader(int64_t aTarget, int64_t aError)
   return false;
 }
 
-bool
-MediaSourceReader::IsDormantNeeded()
-{
-  ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-  if (mVideoReader) {
-    return mVideoReader->IsDormantNeeded();
-  }
-
-  return false;
-}
-
-void
-MediaSourceReader::ReleaseMediaResources()
-{
-  ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-  if (mVideoReader) {
-    mVideoReader->ReleaseMediaResources();
-  }
-}
-
 MediaDecoderReader*
 CreateReaderForType(const nsACString& aType, AbstractMediaDecoder* aDecoder)
 {
@@ -907,12 +887,5 @@ MediaSourceReader::SetCDMProxy(CDMProxy* aProxy)
   return NS_OK;
 }
 #endif
-
-bool
-MediaSourceReader::IsActiveReader(MediaDecoderReader* aReader)
-{
-  ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-  return aReader == mVideoReader.get() || aReader == mAudioReader.get();
-}
 
 } // namespace mozilla

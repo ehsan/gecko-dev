@@ -602,7 +602,7 @@ SavedStacks::getOrCreateSavedFramePrototype(JSContext *cx)
     if (!proto
         || !JS_DefineProperties(cx, proto, SavedFrame::properties)
         || !JS_DefineFunctions(cx, proto, SavedFrame::methods)
-        || !FreezeObject(cx, proto))
+        || !JSObject::freeze(cx, proto))
     {
         return nullptr;
     }
@@ -637,7 +637,7 @@ SavedStacks::createFrameFromLookup(JSContext *cx, SavedFrame::HandleLookup looku
     RootedSavedFrame f(cx, &frameObj->as<SavedFrame>());
     f->initFromLookup(lookup);
 
-    if (!FreezeObject(cx, frameObj))
+    if (!JSObject::freeze(cx, frameObj))
         return nullptr;
 
     return f.get();
@@ -812,14 +812,6 @@ SavedStacksMetadataCallback(JSContext *cx, JSObject **pmetadata)
     *pmetadata = frame;
 
     return Debugger::onLogAllocationSite(cx, frame, PRMJ_Now());
-}
-
-JS_FRIEND_API(JSPrincipals *)
-GetSavedFramePrincipals(HandleObject savedFrame)
-{
-    MOZ_ASSERT(savedFrame);
-    MOZ_ASSERT(savedFrame->is<SavedFrame>());
-    return savedFrame->as<SavedFrame>().getPrincipals();
 }
 
 #ifdef JS_CRASH_DIAGNOSTICS

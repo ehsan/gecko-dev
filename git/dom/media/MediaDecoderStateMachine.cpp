@@ -582,8 +582,6 @@ MediaDecoderStateMachine::NeedToDecodeVideo()
   AssertCurrentThreadInMonitor();
   return IsVideoDecoding() &&
          ((mState == DECODER_STATE_SEEKING && mDecodeToSeekTarget) ||
-          (mState == DECODER_STATE_DECODING_FIRSTFRAME &&
-           IsVideoDecoding() && VideoQueue().GetSize() == 0) ||
           (!mMinimizePreroll && !HaveEnoughDecodedVideo()));
 }
 
@@ -683,8 +681,6 @@ MediaDecoderStateMachine::NeedToDecodeAudio()
 
   return IsAudioDecoding() &&
          ((mState == DECODER_STATE_SEEKING && mDecodeToSeekTarget) ||
-          (mState == DECODER_STATE_DECODING_FIRSTFRAME &&
-           IsAudioDecoding() && AudioQueue().GetSize() == 0) ||
           (!mMinimizePreroll &&
           !HaveEnoughDecodedAudio(mAmpleAudioThresholdUsecs * mPlaybackRate) &&
           (mState != DECODER_STATE_SEEKING || mDecodeToSeekTarget)));

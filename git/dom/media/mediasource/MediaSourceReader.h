@@ -53,9 +53,6 @@ public:
   virtual size_t SizeOfVideoQueueInFrames() MOZ_OVERRIDE;
   virtual size_t SizeOfAudioQueueInFrames() MOZ_OVERRIDE;
 
-  virtual bool IsDormantNeeded() MOZ_OVERRIDE;
-  virtual void ReleaseMediaResources() MOZ_OVERRIDE;
-
   void OnAudioDecoded(AudioData* aSample);
   void OnAudioNotDecoded(NotDecodedReason aReason);
   void OnVideoDecoded(VideoData* aSample);
@@ -137,9 +134,6 @@ public:
     return (!mAudioReader || mAudioReader->IsAsync()) &&
            (!mVideoReader || mVideoReader->IsAsync());
   }
-
-  // Returns true if aReader is a currently active audio or video
-  bool IsActiveReader(MediaDecoderReader* aReader);
 
 private:
   // Switch the current audio/video reader to the reader that

@@ -503,7 +503,12 @@ LookupOwnPropertyInline(ExclusiveContext *cx,
     }
 
     // id was not found in obj. Try obj's resolve hook, if any.
-    if (obj->getClass()->resolve)
+    if (obj->getClass()->resolve
+#if defined(__GNUC__) && __GNUC__ == 4 && __GNUC_MINOR__ == 4
+        // Workaround. See the comment on JS_ResolveStub in jsapi.h.
+        && obj->getClass()->resolve != JS_ResolveStub
+#endif
+        )
     {
         if (!cx->shouldBeJSContext() || !allowGC)
             return false;
@@ -596,11 +601,11 @@ LookupPropertyInline(ExclusiveContext *cx,
         if (!proto->isNative()) {
             if (!cx->shouldBeJSContext() || !allowGC)
                 return false;
-            return LookupProperty(cx->asJSContext(),
-                                  MaybeRooted<JSObject*, allowGC>::toHandle(proto),
-                                  MaybeRooted<jsid, allowGC>::toHandle(id),
-                                  MaybeRooted<JSObject*, allowGC>::toMutableHandle(objp),
-                                  MaybeRooted<Shape*, allowGC>::toMutableHandle(propp));
+            return JSObject::lookupGeneric(cx->asJSContext(),
+                                           MaybeRooted<JSObject*, allowGC>::toHandle(proto),
+                                           MaybeRooted<jsid, allowGC>::toHandle(id),
+                                           MaybeRooted<JSObject*, allowGC>::toMutableHandle(objp),
+                                           MaybeRooted<Shape*, allowGC>::toMutableHandle(propp));
         }
 
         current = &proto->template as<NativeObject>();
@@ -612,23 +617,15 @@ LookupPropertyInline(ExclusiveContext *cx,
 }
 
 inline bool
-NativeLookupProperty(ExclusiveContext *cx, HandleNativeObject obj, PropertyName *name,
-                     MutableHandleObject objp, MutableHandleShape propp)
-{
-    RootedId id(cx, NameToId(name));
-    return NativeLookupProperty<CanGC>(cx, obj, id, objp, propp);
-}
-
-inline bool
-NativeDefineProperty(ExclusiveContext *cx, HandleNativeObject obj, PropertyName *name,
-                     HandleValue value, PropertyOp getter, StrictPropertyOp setter,
-                     unsigned attrs)
+DefineNativeProperty(ExclusiveContext *cx, HandleNativeObject obj,
+                     PropertyName *name, HandleValue value,
+                     PropertyOp getter, StrictPropertyOp setter, unsigned attrs)
 {
     MOZ_ASSERT(getter != JS_PropertyStub);
     MOZ_ASSERT(setter != JS_StrictPropertyStub);
 
     RootedId id(cx, NameToId(name));
-    return NativeDefineProperty(cx, obj, id, value, getter, setter, attrs);
+    return DefineNativeProperty(cx, obj, id, value, getter, setter, attrs);
 }
 
 inline bool

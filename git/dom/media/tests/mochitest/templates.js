@@ -535,7 +535,7 @@ var commandsPeerConnection = [
         test.pcLocal.checkStatsIceConnections(stats,
                                               test._offer_constraints,
                                               test._offer_options,
-                                              test._remote_answer);
+                                              test.originalAnswer);
         test.next();
       });
     }

@@ -410,7 +410,7 @@ struct IMEState {
 struct InputContext {
   InputContext()
     : mNativeIMEContext(nullptr)
-    , mOrigin(XRE_IsParentProcess() ? ORIGIN_MAIN : ORIGIN_CONTENT)
+    , mMayBeIMEUnaware(false)
   {}
 
   bool IsPasswordEditor() const
@@ -434,35 +434,10 @@ struct InputContext {
      be nullptr. */
   void* mNativeIMEContext;
 
-  /**
-   * mOrigin indicates whether this focus event refers to main or remote content.
-   */
-  enum Origin
-  {
-    // Adjusting focus of content on the main process
-    ORIGIN_MAIN,
-    // Adjusting focus of content in a remote process
-    ORIGIN_CONTENT
-  };
-  Origin mOrigin;
-
-  bool IsOriginMainProcess() const
-  {
-    return mOrigin == ORIGIN_MAIN;
-  }
-
-  bool IsOriginContentProcess() const
-  {
-    return mOrigin == ORIGIN_CONTENT;
-}
-
-  bool IsOriginCurrentProcess() const
-  {
-    if (XRE_IsParentProcess()) {
-      return IsOriginMainProcess();
-    }
-    return IsOriginContentProcess();
-  }
+  /* True if the webapp may be unaware of IME events such as input event or
+   * composiion events. This enables a key-events-only mode on Android for
+   * compatibility with webapps relying on key listeners. */
+  bool mMayBeIMEUnaware;
 };
 
 struct InputContextAction {

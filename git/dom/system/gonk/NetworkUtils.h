@@ -10,55 +10,12 @@
 #include "mozilla/dom/network/NetUtils.h"
 #include "mozilla/ipc/Netd.h"
 #include "nsTArray.h"
-#include "NetIdManager.h"
 
 class NetworkParams;
 class CommandChain;
 
-class CommandCallback {
-public:
-  typedef void (*CallbackType)(CommandChain*, bool,
-                               mozilla::dom::NetworkResultOptions& aResult);
-
-  typedef void (*CallbackWrapperType)(CallbackType aOriginalCallback,
-                                      CommandChain*, bool,
-                                      mozilla::dom::NetworkResultOptions& aResult);
-
-  CommandCallback()
-    : mCallback(nullptr)
-    , mCallbackWrapper(nullptr)
-  {
-  }
-
-  CommandCallback(CallbackType aCallback)
-    : mCallback(aCallback)
-    , mCallbackWrapper(nullptr)
-  {
-  }
-
-  CommandCallback(CallbackWrapperType aCallbackWrapper,
-                  CommandCallback aOriginalCallback)
-    : mCallback(aOriginalCallback.mCallback)
-    , mCallbackWrapper(aCallbackWrapper)
-  {
-  }
-
-  void operator()(CommandChain* aChain, bool aError,
-                  mozilla::dom::NetworkResultOptions& aResult)
-  {
-    if (mCallbackWrapper) {
-      return mCallbackWrapper(mCallback, aChain, aError, aResult);
-    }
-    if (mCallback) {
-      return mCallback(aChain, aError, aResult);
-    }
-  }
-
-private:
-  CallbackType mCallback;
-  CallbackWrapperType mCallbackWrapper;
-};
-
+typedef void (*CommandCallback)(CommandChain*, bool,
+                                mozilla::dom::NetworkResultOptions& aResult);
 typedef void (*CommandFunc)(CommandChain*, CommandCallback,
                             mozilla::dom::NetworkResultOptions& aResult);
 typedef void (*MessageCallback)(mozilla::dom::NetworkResultOptions& aResult);
@@ -152,7 +109,6 @@ public:
 #undef COPY_FIELD
   }
 
-  // Followings attributes are 1-to-1 mapping to NetworkCommandOptions.
   int32_t mId;
   nsString mCmd;
   nsString mDomain;
@@ -196,9 +152,6 @@ public:
   long mGateway_long;
   long mDns1_long;
   long mDns2_long;
-
-  // Auxiliary information required to carry accros command chain.
-  int mNetId;     // A locally defined id per interface.
 };
 
 // CommandChain store the necessary information to execute command one by one.
@@ -305,16 +258,6 @@ private:
   CommandResult setUSBTethering(NetworkParams& aOptions);
   CommandResult enableUsbRndis(NetworkParams& aOptions);
   CommandResult updateUpStream(NetworkParams& aOptions);
-  CommandResult createNetwork(NetworkParams& aOptions);
-  CommandResult destroyNetwork(NetworkParams& aOptions);
-
-  CommandResult addHostRouteLegacy(NetworkParams& aOptions);
-  CommandResult removeHostRouteLegacy(NetworkParams& aOptions);
-  CommandResult removeHostRoutesLegacy(NetworkParams& aOptions);
-  CommandResult setDefaultRouteLegacy(NetworkParams& aOptions);
-  CommandResult removeDefaultRouteLegacy(NetworkParams& aOptions);
-  CommandResult removeNetworkRouteLegacy(NetworkParams& aOptions);
-
 
   /**
    * function pointer array holds all netd commands should be executed
@@ -334,6 +277,7 @@ private:
   static const CommandFunc sNetworkInterfaceEnableAlarmChain[];
   static const CommandFunc sNetworkInterfaceDisableAlarmChain[];
   static const CommandFunc sNetworkInterfaceSetAlarmChain[];
+  static const CommandFunc sSetDnsChain[];
 
   /**
    * Individual netd command stored in command chain.
@@ -374,23 +318,7 @@ private:
   static void updateUpStreamSuccess(PARAMS);
   static void setDhcpServerSuccess(PARAMS);
   static void wifiOperationModeSuccess(PARAMS);
-  static void clearAddrForInterface(PARAMS);
-  static void createNetwork(PARAMS);
-  static void destroyNetwork(PARAMS);
-  static void addInterfaceToNetwork(PARAMS);
-  static void addDefaultRouteToNetwork(PARAMS);
-  static void setDefaultNetwork(PARAMS);
-  static void removeDefaultRoute(PARAMS);
-  static void removeNetworkRouteSuccess(PARAMS);
-  static void removeNetworkRoute(PARAMS);
-  static void addRouteToInterface(PARAMS);
-  static void removeRouteFromInterface(PARAMS);
-  static void modifyRouteOnInterface(PARAMS, bool aDoAdd);
-  static void enableIpv6(PARAMS);
-  static void disableIpv6(PARAMS);
-  static void setIpv6Enabled(PARAMS, bool aEnabled);
-  static void defaultAsyncSuccessHandler(PARAMS);
-
+  static void setDnsSuccess(PARAMS);
 #undef PARAMS
 
   /**
@@ -405,7 +333,6 @@ private:
   static void setDhcpServerFail(PARAMS);
   static void networkInterfaceAlarmFail(PARAMS);
   static void setDnsFail(PARAMS);
-  static void defaultAsyncFailureHandler(PARAMS);
 #undef PARAMS
 
   /**
@@ -443,8 +370,6 @@ private:
                        const CommandFunc (&aCmds)[N],
                        ErrorCallback aError);
 
-  static nsCString getSubnetIp(const nsCString& aIp, int aPrefixLength);
-
   /**
    * Callback function to send netd result to main thread.
    */
@@ -454,8 +379,6 @@ private:
    * Utility class to access libnetutils.
    */
   nsAutoPtr<NetUtils> mNetUtils;
-
-  NetIdManager mNetIdManager;
 };
 
 #endif

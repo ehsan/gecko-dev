@@ -1495,11 +1495,10 @@ GetPcScript(JSContext *cx, JSScript **scriptRes, jsbytecode **pcRes)
         return;
 
     // Lookup failed: undertake expensive process to recover the innermost inlined frame.
-    if (!it.isBailoutJS())
-        ++it; // Skip exit frame.
+    ++it; // Skip exit frame.
     jsbytecode *pc = nullptr;
 
-    if (it.isIonJS() || it.isBailoutJS()) {
+    if (it.isIonJS()) {
         InlineFrameIterator ifi(cx, &it);
         *scriptRes = ifi.script();
         pc = ifi.pc();

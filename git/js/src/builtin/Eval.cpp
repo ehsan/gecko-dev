@@ -271,7 +271,7 @@ EvalKernel(JSContext *cx, const CallArgs &args, EvalType evalType, AbstractFrame
         staticLevel = 0;
 
         // Use the global as 'this', modulo outerization.
-        JSObject *thisobj = GetThisObject(cx, scopeobj);
+        JSObject *thisobj = JSObject::thisObject(cx, scopeobj);
         if (!thisobj)
             return false;
         thisv = ObjectValue(*thisobj);
@@ -509,7 +509,7 @@ js::ExecuteInGlobalAndReturnScope(JSContext *cx, HandleObject global, HandleScri
     if (!scope->setUnqualifiedVarObj(cx))
         return false;
 
-    JSObject *thisobj = GetThisObject(cx, global);
+    JSObject *thisobj = JSObject::thisObject(cx, global);
     if (!thisobj)
         return false;
 

@@ -255,12 +255,22 @@ NetworkService.prototype = {
   },
 
   resetRoutingTable: function(network) {
-    let options = {
-      cmd: "removeNetworkRoute",
-      ifname: network.name
-    };
+    let ips = {};
+    let prefixLengths = {};
+    let length = network.getAddresses(ips, prefixLengths);
 
-    this.controlMessage(options);
+    for (let i = 0; i < length; i++) {
+      let ip = ips.value[i];
+      let prefixLength = prefixLengths.value[i];
+
+      let options = {
+        cmd: "removeNetworkRoute",
+        ifname: network.name,
+        ip: ip,
+        prefixLength: prefixLength
+      };
+      this.controlMessage(options);
+    }
   },
 
   setDNS: function(networkInterface, callback) {
@@ -302,20 +312,8 @@ NetworkService.prototype = {
     this.controlMessage(options);
   },
 
-  modifyRoute: function(action, interfaceName, host, prefixLength, gateway) {
-    let command;
-
-    switch (action) {
-      case Ci.nsINetworkService.MODIFY_ROUTE_ADD:
-        command = 'addHostRoute';
-        break;
-      case Ci.nsINetworkService.MODIFY_ROUTE_REMOVE:
-        command = 'removeHostRoute';
-        break;
-      default:
-        if (DEBUG) debug('Unknown action: ' + action);
-        return Promise.reject();
-    }
+  _setHostRoute: function(doAdd, interfaceName, gateway, host) {
+    let command = doAdd ? "addHostRoute" : "removeHostRoute";
 
     if (DEBUG) debug(command + " " + host + " on " + interfaceName);
     let deferred = Promise.defer();
@@ -323,7 +321,6 @@ NetworkService.prototype = {
       cmd: command,
       ifname: interfaceName,
       gateway: gateway,
-      prefixLength: prefixLength,
       ip: host
     };
     this.controlMessage(options, function(data) {
@@ -334,6 +331,14 @@ NetworkService.prototype = {
       deferred.resolve();
     });
     return deferred.promise;
+  },
+
+  addHostRoute: function(interfaceName, gateway, host) {
+    return this._setHostRoute(true, interfaceName, gateway, host);
+  },
+
+  removeHostRoute: function(interfaceName, gateway, host) {
+    return this._setHostRoute(false, interfaceName, gateway, host);
   },
 
   removeHostRoutes: function(ifname) {
@@ -554,28 +559,6 @@ NetworkService.prototype = {
   resetConnections: function(interfaceName, callback) {
     let params = {
       cmd: "resetConnections",
-      ifname: interfaceName
-    };
-
-    this.controlMessage(params, function(result) {
-      callback.nativeCommandResult(!result.error);
-    });
-  },
-
-  createNetwork: function(interfaceName, callback) {
-    let params = {
-      cmd: "createNetwork",
-      ifname: interfaceName
-    };
-
-    this.controlMessage(params, function(result) {
-      callback.nativeCommandResult(!result.error);
-    });
-  },
-
-  destroyNetwork: function(interfaceName, callback) {
-    let params = {
-      cmd: "destroyNetwork",
       ifname: interfaceName
     };
 

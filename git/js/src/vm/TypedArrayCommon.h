@@ -277,7 +277,7 @@ class ElementSpecific
         // Convert and copy any remaining elements generically.
         RootedValue v(cx);
         for (; i < len; i++) {
-            if (!GetElement(cx, source, source, i, &v))
+            if (!JSObject::getElement(cx, source, source, i, &v))
                 return false;
 
             T n;

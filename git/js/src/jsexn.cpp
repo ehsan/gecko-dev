@@ -427,7 +427,7 @@ exn_toSource(JSContext *cx, unsigned argc, Value *vp)
 
     RootedValue nameVal(cx);
     RootedString name(cx);
-    if (!GetProperty(cx, obj, obj, cx->names().name, &nameVal) ||
+    if (!JSObject::getProperty(cx, obj, obj, cx->names().name, &nameVal) ||
         !(name = ToString<CanGC>(cx, nameVal)))
     {
         return false;
@@ -435,7 +435,7 @@ exn_toSource(JSContext *cx, unsigned argc, Value *vp)
 
     RootedValue messageVal(cx);
     RootedString message(cx);
-    if (!GetProperty(cx, obj, obj, cx->names().message, &messageVal) ||
+    if (!JSObject::getProperty(cx, obj, obj, cx->names().message, &messageVal) ||
         !(message = ValueToSource(cx, messageVal)))
     {
         return false;
@@ -443,7 +443,7 @@ exn_toSource(JSContext *cx, unsigned argc, Value *vp)
 
     RootedValue filenameVal(cx);
     RootedString filename(cx);
-    if (!GetProperty(cx, obj, obj, cx->names().fileName, &filenameVal) ||
+    if (!JSObject::getProperty(cx, obj, obj, cx->names().fileName, &filenameVal) ||
         !(filename = ValueToSource(cx, filenameVal)))
     {
         return false;
@@ -451,7 +451,7 @@ exn_toSource(JSContext *cx, unsigned argc, Value *vp)
 
     RootedValue linenoVal(cx);
     uint32_t lineno;
-    if (!GetProperty(cx, obj, obj, cx->names().lineNumber, &linenoVal) ||
+    if (!JSObject::getProperty(cx, obj, obj, cx->names().lineNumber, &linenoVal) ||
         !ToUint32(cx, linenoVal, &lineno))
     {
         return false;
@@ -508,7 +508,7 @@ ErrorObject::createProto(JSContext *cx, JSProtoKey key)
     // instance properties.
     RootedPropertyName name(cx, ClassName(key, cx));
     RootedValue nameValue(cx, StringValue(name));
-    if (!DefineProperty(cx, err, cx->names().name, nameValue, nullptr, nullptr, 0))
+    if (!JSObject::defineProperty(cx, err, cx->names().name, nameValue, nullptr, nullptr, 0))
         return nullptr;
 
     return errorProto;

@@ -530,7 +530,7 @@ WeakMap_construct(JSContext *cx, unsigned argc, Value *vp)
     if (!args.get(0).isNullOrUndefined()) {
         // Steps 7a-b.
         RootedValue adderVal(cx);
-        if (!GetProperty(cx, obj, obj, cx->names().set, &adderVal))
+        if (!JSObject::getProperty(cx, obj, obj, cx->names().set, &adderVal))
             return false;
 
         // Step 7c.
@@ -572,11 +572,11 @@ WeakMap_construct(JSContext *cx, unsigned argc, Value *vp)
                 return false;
 
             // Steps 12g-h.
-            if (!GetElement(cx, pairObject, pairObject, 0, &keyVal))
+            if (!JSObject::getElement(cx, pairObject, pairObject, 0, &keyVal))
                 return false;
 
             // Steps 12i-j.
-            if (!GetElement(cx, pairObject, pairObject, 1, &val))
+            if (!JSObject::getElement(cx, pairObject, pairObject, 1, &val))
                 return false;
 
             // Steps 12k-l.

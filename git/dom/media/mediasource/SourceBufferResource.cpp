@@ -172,12 +172,11 @@ SourceBufferResource::ReadFromCache(char* aBuffer, int64_t aOffset, uint32_t aCo
 }
 
 uint32_t
-SourceBufferResource::EvictData(uint64_t aPlaybackOffset, uint32_t aThreshold)
+SourceBufferResource::EvictData(uint32_t aThreshold)
 {
-  SBR_DEBUG("SourceBufferResource(%p)::EvictData(aPlaybackOffset=%llu,"
-            "aThreshold=%u)", this, aPlaybackOffset, aThreshold);
+  SBR_DEBUG("SourceBufferResource(%p)::EvictData(aThreshold=%u)", this, aThreshold);
   ReentrantMonitorAutoEnter mon(mMonitor);
-  return mInputBuffer.Evict(aPlaybackOffset, aThreshold);
+  return mInputBuffer.Evict(mOffset, aThreshold);
 }
 
 void
@@ -187,16 +186,8 @@ SourceBufferResource::EvictBefore(uint64_t aOffset)
   ReentrantMonitorAutoEnter mon(mMonitor);
   // If aOffset is past the current playback offset we don't evict.
   if (aOffset < mOffset) {
-    mInputBuffer.EvictBefore(aOffset);
+    mInputBuffer.Evict(aOffset, 0);
   }
-}
-
-uint32_t
-SourceBufferResource::EvictAll()
-{
-  SBR_DEBUG("SourceBufferResource(%p)::EvictAll()", this);
-  ReentrantMonitorAutoEnter mon(mMonitor);
-  return mInputBuffer.EvictAll();
 }
 
 void
