@@ -317,8 +317,8 @@ public:
         for (n = 0; n < global->script->ngvars; ++n) {                        \
             jsval slotval = gvars[n];                                         \
             vp = JSVAL_IS_INT(slotval)                                        \
-                ? &STOBJ_GET_SLOT(gvarobj, (uint32)JSVAL_TO_INT(slotval))     \
-                : NULL;                                                       \
+                 ? &STOBJ_GET_SLOT(gvarobj, (uint32)JSVAL_TO_INT(slotval))    \
+                 : NULL;                                                      \
             { code; }                                                         \
             INC_VPNUM();                                                      \
         }                                                                     \
@@ -339,7 +339,7 @@ public:
             jsval* vpstop;                                                    \
             SET_VPNAME("rval");                                               \
             vp = &f->rval; code;                                              \
-            if (f->down) {                                                    \
+            if (f->callee) {                                                  \
                 SET_VPNAME("argv");                                           \
                 vp = &f->argv[0]; vpstop = &f->argv[f->argc];                 \
                 while (vp < vpstop) { code; ++vp; INC_VPNUM(); }              \
@@ -368,8 +368,8 @@ public:
     int getStoreType(jsval& v) {
         LIns* i = recorder.get(&v);
         int t = isNumber(v)
-            ? (isPromote(i) ? JSVAL_INT : JSVAL_DOUBLE)
-            : JSVAL_TAG(v);
+                ? (isPromote(i) ? JSVAL_INT : JSVAL_DOUBLE)
+                : JSVAL_TAG(v);
          return t;
     }
 
@@ -545,7 +545,7 @@ TraceRecorder::nativeFrameSlots(JSStackFrame* fp, JSFrameRegs& regs) const
     unsigned slots = global->script->ngvars;
     for (;;) {
         slots += 1/*rval*/ + (regs.sp - fp->spbase);
-        if (fp->down)
+        if (fp->callee)
             slots += fp->argc + fp->nvars;
         if (fp == entryFrame)
             return slots;
@@ -587,10 +587,8 @@ static bool
 unbox_jsval(jsval v, uint8 t, double* slot)
 {
     jsuint type = TYPEMAP_GET_TYPE(t);
-    if (type == TYPEMAP_TYPE_ANY) {
-        verbose_only(printf("any ");)
+    if (type == TYPEMAP_TYPE_ANY)
         return true;
-    }
     if (type == JSVAL_INT) {
         jsint i;
         if (JSVAL_IS_INT(v))
@@ -599,7 +597,6 @@ unbox_jsval(jsval v, uint8 t, double* slot)
             *(jsint*)slot = i;
         else
             return false;
-        verbose_only(printf("int<%d> ", i);)
         return true;
     }
     if (type == JSVAL_DOUBLE) {
@@ -611,7 +608,6 @@ unbox_jsval(jsval v, uint8 t, double* slot)
         else
             return false;
         *(jsdouble*)slot = d;
-        verbose_only(printf("double<%g> ", d);)
         return true;
     }
     if (JSVAL_TAG(v) != type)
@@ -619,17 +615,13 @@ unbox_jsval(jsval v, uint8 t, double* slot)
     switch (JSVAL_TAG(v)) {
     case JSVAL_BOOLEAN:
         *(bool*)slot = JSVAL_TO_BOOLEAN(v);
-        verbose_only(printf("boolean<%d> ", *(bool*)slot);)
         break;
     case JSVAL_STRING:
         *(JSString**)slot = JSVAL_TO_STRING(v);
-        verbose_only(printf("string<%p> ", *(JSString**)slot);)
         break;
     default:
-        JS_ASSERT(JSVAL_IS_OBJECT(v));
-        *(JSObject**)slot = JSVAL_TO_OBJECT(v);
-        verbose_only(printf("object<%p:%s> ", *(JSObject**)slot, 
-                STOBJ_GET_CLASS(JSVAL_TO_OBJECT(v))->name);)
+        JS_ASSERT(JSVAL_IS_GCTHING(v));
+        *(void**)slot = JSVAL_TO_GCTHING(v);
     }
     return true;
 }
@@ -641,20 +633,16 @@ static bool
 box_jsval(JSContext* cx, jsval& v, uint8 t, double* slot)
 {
     jsuint type = TYPEMAP_GET_TYPE(t);
-    if (type == TYPEMAP_TYPE_ANY) {
-        verbose_only(printf("any ");)
+    if (type == TYPEMAP_TYPE_ANY)
         return true;
-    }
     jsint i;
     jsdouble d;
     switch (type) {
       case JSVAL_BOOLEAN:
         v = BOOLEAN_TO_JSVAL(*(bool*)slot);
-        verbose_only(printf("boolean<%d> ", *(bool*)slot);)
         break;
       case JSVAL_INT:
         i = *(jsint*)slot;
-        verbose_only(printf("int<%d> ", i);)
       store_int:
         if (INT_FITS_IN_JSVAL(i)) {
             v = INT_TO_JSVAL(i);
@@ -664,7 +652,6 @@ box_jsval(JSContext* cx, jsval& v, uint8 t, double* slot)
         goto store_double;
       case JSVAL_DOUBLE:
         d = *slot;
-        verbose_only(printf("double<%g> ", d);)
         if (JSDOUBLE_IS_INT(d, i))
             goto store_int;
       store_double:
@@ -674,12 +661,10 @@ box_jsval(JSContext* cx, jsval& v, uint8 t, double* slot)
         return js_NewDoubleInRootedValue(cx, d, &v);
       case JSVAL_STRING:
         v = STRING_TO_JSVAL(*(JSString**)slot);
-        verbose_only(printf("string<%p> ", *(JSString**)slot);)
         break;
       default:
         JS_ASSERT(t == JSVAL_OBJECT);
         v = OBJECT_TO_JSVAL(*(JSObject**)slot);
-        verbose_only(printf("object<%p> ", *(JSObject**)slot);)
         break;
     }
     return true;
@@ -690,13 +675,11 @@ box_jsval(JSContext* cx, jsval& v, uint8 t, double* slot)
 static bool
 unbox(JSStackFrame* entryFrame, JSStackFrame* currentFrame, uint8* m, double* native)
 {
-    verbose_only(printf("unbox native@%p ", native);)
     FORALL_SLOTS_IN_PENDING_FRAMES(entryFrame, currentFrame,
         if (vp && !unbox_jsval(*vp, *m, native))
             return false;
         ++m; ++native
     );
-    verbose_only(printf("\n");)
     return true;
 }
 
@@ -705,13 +688,11 @@ unbox(JSStackFrame* entryFrame, JSStackFrame* currentFrame, uint8* m, double* na
 static bool
 box(JSContext* cx, JSStackFrame* entryFrame, JSStackFrame* currentFrame, uint8* m, double* native)
 {
-    verbose_only(printf("box native@%p ", native);)
     FORALL_SLOTS_IN_PENDING_FRAMES(entryFrame, currentFrame,
         if (vp && !box_jsval(cx, *vp, *m, native))
             return false;
         ++m; ++native
     );
-    verbose_only(printf("\n");)
     return true;
 }
 
@@ -1846,7 +1827,12 @@ bool TraceRecorder::JSOP_NAME()
     if (!test_property_cache_direct_slot(obj, obj_ins, slot))
         return false;
 
-    stack(0, gvar(slot));
+    LIns* dslots_ins = NULL;
+    LIns* v_ins = stobj_get_slot(obj_ins, slot, dslots_ins);
+    if (!unbox_jsval(STOBJ_GET_SLOT(obj, slot), v_ins))
+        return false;
+
+    stack(0, v_ins);
     return true;
 }
 
@@ -2095,8 +2081,9 @@ bool TraceRecorder::JSOP_SETNAME()
     if (!test_property_cache_direct_slot(obj, obj_ins, slot))
         return false;
 
+    LIns* dslots_ins = NULL;
     LIns* r_ins = get(&r);
-    gvar(slot, r_ins);
+    stobj_set_slot(obj_ins, slot, dslots_ins, r_ins);
 
     if (cx->fp->regs->pc[JSOP_SETNAME_LENGTH] != ::JSOP_POP)
         stack(-2, r_ins);
