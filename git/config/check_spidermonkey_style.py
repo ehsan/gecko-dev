@@ -67,7 +67,6 @@ included_inclnames_to_ignore = set([
     'js-config.h',              # generated in $OBJDIR
     'pratom.h',                 # NSPR
     'prcvar.h',                 # NSPR
-    'prerror.h',                # NSPR
     'prinit.h',                 # NSPR
     'prlink.h',                 # NSPR
     'prlock.h',                 # NSPR

@@ -58,7 +58,7 @@ function initialChecks() {
 
   is(objectVar.target.querySelector(".name").getAttribute("value"), "largeObject",
     "Should have the right property name for 'largeObject'.");
-  is(objectVar.target.querySelector(".value").getAttribute("value"), "Object[10000]",
+  is(objectVar.target.querySelector(".value").getAttribute("value"), "Object",
     "Should have the right property value for 'largeObject'.");
   ok(objectVar.target.querySelector(".value").className.contains("token-other"),
     "Should have the right token class for 'largeObject'.");

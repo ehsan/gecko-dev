@@ -921,7 +921,7 @@ class GCRuntime
     void protectRelocatedArenas(ArenaHeader *relocatedList);
     void unprotectRelocatedArenas(ArenaHeader *relocatedList);
 #endif
-    void finishCollection(JS::gcreason::Reason reason);
+    void finishCollection();
 
     void computeNonIncrementalMarkingForValidation();
     void validateIncrementalMarking();
