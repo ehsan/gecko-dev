@@ -80,8 +80,8 @@ NS_IMETHODIMP
 nsAndroidNetworkLinkService::GetLinkType(PRUint32 *aLinkType)
 {
   NS_ENSURE_ARG_POINTER(aLinkType);
+  NS_ENSURE_TRUE(mozilla::AndroidBridge::Bridge(), NS_ERROR_UNEXPECTED);
 
-  // XXX This function has not yet been implemented for this platform
-  *aLinkType = nsINetworkLinkService::LINK_TYPE_UNKNOWN;
+  *aLinkType = mozilla::AndroidBridge::Bridge()->GetNetworkLinkType();
   return NS_OK;
 }
