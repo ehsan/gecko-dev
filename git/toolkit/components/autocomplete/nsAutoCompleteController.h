@@ -59,11 +59,12 @@ protected:
 
   nsresult GetResultAt(int32_t aIndex, nsIAutoCompleteResult** aResult,
                        int32_t* aRowIndex);
-  nsresult GetResultValueAt(int32_t aIndex, bool aGetFinalValue,
+  nsresult GetResultValueAt(int32_t aIndex, bool aValueOnly,
                             nsAString & _retval);
-  nsresult GetResultLabelAt(int32_t aIndex, nsAString & _retval);
+  nsresult GetResultLabelAt(int32_t aIndex, bool aValueOnly,
+                            nsAString & _retval);
 private:
-  nsresult GetResultValueLabelAt(int32_t aIndex, bool aGetFinalValue,
+  nsresult GetResultValueLabelAt(int32_t aIndex, bool aValueOnly,
                                  bool aGetValue, nsAString & _retval);
 protected:
 

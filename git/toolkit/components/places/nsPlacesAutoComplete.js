@@ -1404,7 +1404,9 @@ urlInlineComplete.prototype = {
           untrimmedHost = null;
         }
 
-        ac._result.appendMatch(ac._strippedPrefix + trimmedHost, "", "", "", untrimmedHost);
+        // TODO (bug 754265): this is a temporary solution introduced while
+        // waiting for a propert dedicated API.
+        ac._result.appendMatch(ac._strippedPrefix + trimmedHost, untrimmedHost);
 
         // handleCompletion() will cause the result listener to be called, and
         // will display the result in the UI.
@@ -1478,7 +1480,9 @@ urlInlineComplete.prototype = {
           untrimmedURL = null;
          }
 
-        ac._result.appendMatch(ac._strippedPrefix + url, "", "", "", untrimmedURL);
+        // TODO (bug 754265): this is a temporary solution introduced while
+        // waiting for a propert dedicated API.
+        ac._result.appendMatch(ac._strippedPrefix + url, untrimmedURL);
 
         // handleCompletion() will cause the result listener to be called, and
         // will display the result in the UI.

@@ -21,7 +21,6 @@ import org.mozilla.gecko.fxa.login.State.Action;
 import org.mozilla.gecko.fxa.sync.FxAccountSyncStatusHelper;
 import org.mozilla.gecko.sync.setup.activities.ActivityUtils;
 
-import android.accounts.Account;
 import android.app.Activity;
 import android.content.Context;
 import android.os.Bundle;
@@ -44,7 +43,7 @@ public class FxAccountConfirmAccountActivity extends FxAccountAbstractActivity i
   // Set in onResume.
   protected AndroidFxAccount fxAccount;
 
-  protected final InnerSyncStatusDelegate syncStatusDelegate = new InnerSyncStatusDelegate();
+  protected final SyncStatusDelegate syncStatusDelegate = new SyncStatusDelegate();
 
   public FxAccountConfirmAccountActivity() {
     super(CANNOT_RESUME_WHEN_NO_ACCOUNTS_EXIST);
@@ -103,7 +102,7 @@ public class FxAccountConfirmAccountActivity extends FxAccountAbstractActivity i
     }
   }
 
-  protected class InnerSyncStatusDelegate implements FirefoxAccounts.SyncStatusListener {
+  protected class SyncStatusDelegate implements FxAccountSyncStatusHelper.Delegate {
     protected final Runnable refreshRunnable = new Runnable() {
       @Override
       public void run() {
@@ -112,22 +111,17 @@ public class FxAccountConfirmAccountActivity extends FxAccountAbstractActivity i
     };
 
     @Override
-    public Context getContext() {
-      return FxAccountConfirmAccountActivity.this;
+    public AndroidFxAccount getAccount() {
+      return fxAccount;
     }
 
     @Override
-    public Account getAccount() {
-      return fxAccount.getAndroidAccount();
-    }
-
-    @Override
-    public void onSyncStarted() {
+    public void handleSyncStarted() {
       Logger.info(LOG_TAG, "Got sync started message; ignoring.");
     }
 
     @Override
-    public void onSyncFinished() {
+    public void handleSyncFinished() {
       if (fxAccount == null) {
         return;
       }

@@ -19,10 +19,9 @@ let gPage = {
     // Listen for 'unload' to unregister this page.
     addEventListener("unload", this, false);
 
-    // XXX bug 991111 - Not all click events are correctly triggered when
-    // listening from xhtml nodes -- in particular middle clicks on sites, so
-    // listen from the xul window and filter then delegate
-    addEventListener("click", this, false);
+    // Listen for toggle button clicks.
+    let button = document.getElementById("newtab-toggle");
+    button.addEventListener("click", this, false);
 
     // Initialize sponsored panel
     this._sponsoredPanel = document.getElementById("sponsored-panel");
@@ -197,22 +196,7 @@ let gPage = {
         gAllPages.unregister(this);
         break;
       case "click":
-        let {button, target} = aEvent;
-        if (target.id == "newtab-toggle") {
-          if (button == 0) {
-            gAllPages.enabled = !gAllPages.enabled;
-          }
-          break;
-        }
-
-        // Go up ancestors until we find a Site or not
-        while (target) {
-          if (target.hasOwnProperty("_newtabSite")) {
-            target._newtabSite.onClick(aEvent);
-            break;
-          }
-          target = target.parentNode;
-        }
+        gAllPages.enabled = !gAllPages.enabled;
         break;
       case "dragover":
         if (gDrag.isValid(aEvent) && gDrag.draggedSite)

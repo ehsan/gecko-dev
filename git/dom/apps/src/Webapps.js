@@ -486,6 +486,7 @@ WebappsApplication.prototype = {
                               rules: aRules,
                               manifestURL: this.manifestURL,
                               outerWindowID: this._id,
+                              appStatus: this._appStatus,
                               requestID: this.getPromiseResolverId({
                                 resolve: aResolve,
                                 reject: aReject
