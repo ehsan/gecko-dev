@@ -487,7 +487,7 @@ abstract public class BrowserApp extends GeckoApp
             Telemetry.sendUIEvent(TelemetryContract.Event.LOAD_URL, TelemetryContract.Method.INTENT);
         }
 
-        ((GeckoApp.MainLayout) mMainLayout).setTouchEventInterceptor(new HideTabsTouchListener());
+        ((GeckoApp.MainLayout) mMainLayout).setTouchEventInterceptor(new HideOnTouchListener());
         ((GeckoApp.MainLayout) mMainLayout).setMotionEventInterceptor(new MotionEventInterceptor() {
             @Override
             public boolean onInterceptMotionEvent(View view, MotionEvent event) {
@@ -771,6 +771,11 @@ abstract public class BrowserApp extends GeckoApp
             if (!TextUtils.isEmpty(text)) {
                 enterEditingMode(text);
             }
+            return true;
+        }
+
+        if (itemId == R.id.share) {
+            shareCurrentUrl();
             return true;
         }
 
@@ -1985,11 +1990,17 @@ abstract public class BrowserApp extends GeckoApp
         mBrowserSearch.setUserVisibleHint(false);
     }
 
-    private class HideTabsTouchListener implements TouchEventInterceptor {
+    /**
+     * Hides certain UI elements (e.g. button toast, tabs tray) when the
+     * user touches the main layout.
+     */
+    private class HideOnTouchListener implements TouchEventInterceptor {
         private boolean mIsHidingTabs = false;
 
         @Override
         public boolean onInterceptTouchEvent(View view, MotionEvent event) {
+            getButtonToast().hide(false, ButtonToast.ReasonHidden.TOUCH_OUTSIDE);
+
             // We need to account for scroll state for the touched view otherwise
             // tapping on an "empty" part of the view will still be considered a
             // valid touch event.
@@ -2331,9 +2342,10 @@ abstract public class BrowserApp extends GeckoApp
         }
 
         // Disable share menuitem for about:, chrome:, file:, and resource: URIs
-        final boolean inGuestMode = GeckoProfile.get(this).inGuestMode();
-        share.setVisible(!inGuestMode);
-        share.setEnabled(StringUtils.isShareableUrl(url) && !inGuestMode);
+        String scheme = Uri.parse(url).getScheme();
+        share.setVisible(!GeckoProfile.get(this).inGuestMode());
+        share.setEnabled(!(scheme.equals("about") || scheme.equals("chrome") ||
+                           scheme.equals("file") || scheme.equals("resource")));
 
         // NOTE: Use MenuUtils.safeSetEnabled because some actions might
         // be on the BrowserToolbar context menu

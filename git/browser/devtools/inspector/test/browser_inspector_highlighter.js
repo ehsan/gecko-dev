@@ -42,7 +42,7 @@ function testNonTransformedBoxModelDimensionsNoZoom() {
   info("Highlighted the non-rotated div");
   isNodeCorrectlyHighlighted(div, "non-zoomed");
 
-  waitForBoxModelUpdate().then(testNonTransformedBoxModelDimensionsZoomed);
+  inspector.toolbox.once("highlighter-ready", testNonTransformedBoxModelDimensionsZoomed);
   contentViewer = gBrowser.selectedBrowser.docShell.contentViewer
                           .QueryInterface(Ci.nsIMarkupDocumentViewer);
   contentViewer.fullZoom = 2;
@@ -52,22 +52,19 @@ function testNonTransformedBoxModelDimensionsZoomed() {
   info("Highlighted the zoomed, non-rotated div");
   isNodeCorrectlyHighlighted(div, "zoomed");
 
-  waitForBoxModelUpdate().then(testMouseOverRotatedHighlights);
+  inspector.toolbox.once("highlighter-ready", testMouseOverRotatedHighlights);
   contentViewer.fullZoom = 1;
 }
 
 function testMouseOverRotatedHighlights() {
-  let onBoxModelUpdate = waitForBoxModelUpdate();
-  inspector.selection.setNode(rotated);
-  inspector.once("inspector-updated", () => {
-    onBoxModelUpdate.then(() => {
-      ok(isHighlighting(), "Highlighter is shown");
-      info("Highlighted the rotated div");
-      isNodeCorrectlyHighlighted(rotated, "rotated");
+  inspector.toolbox.once("highlighter-ready", () => {
+    ok(isHighlighting(), "Highlighter is shown");
+    info("Highlighted the rotated div");
+    isNodeCorrectlyHighlighted(rotated, "rotated");
 
-      executeSoon(finishUp);
-    });
+    executeSoon(finishUp);
   });
+  inspector.selection.setNode(rotated);
 }
 
 function finishUp() {

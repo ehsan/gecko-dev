@@ -44,6 +44,7 @@ class Telephony MOZ_FINAL : public DOMEventTargetHelper
   nsCOMPtr<nsITelephonyService> mService;
   nsRefPtr<Listener> mListener;
 
+  TelephonyCall* mActiveCall;
   nsTArray<nsRefPtr<TelephonyCall> > mCalls;
   nsRefPtr<CallsList> mCallsList;
 
@@ -116,6 +117,7 @@ public:
   {
     NS_ASSERTION(!mCalls.Contains(aCall), "Already know about this one!");
     mCalls.AppendElement(aCall);
+    UpdateActiveCall(aCall, IsActiveState(aCall->CallState()));
     NotifyCallsChanged(aCall);
   }
 
@@ -124,6 +126,7 @@ public:
   {
     NS_ASSERTION(mCalls.Contains(aCall), "Didn't know about this one!");
     mCalls.RemoveElement(aCall);
+    UpdateActiveCall(aCall, false);
     NotifyCallsChanged(aCall);
   }
 
@@ -166,6 +169,9 @@ private:
   bool
   HasDialingCall();
 
+  bool
+  MatchActiveCall(TelephonyCall* aCall);
+
   already_AddRefed<Promise>
   DialInternal(uint32_t aServiceId, const nsAString& aNumber, bool isEmergency);
 
@@ -181,6 +187,9 @@ private:
 
   void
   EnqueueEnumerationAck();
+
+  void
+  UpdateActiveCall(TelephonyCall* aCall, bool aIsActive);
 
   already_AddRefed<TelephonyCall>
   GetCall(uint32_t aServiceId, uint32_t aCallIndex);

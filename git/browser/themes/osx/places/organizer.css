@@ -87,7 +87,7 @@
   margin: 1px 4px;
 }
 
-#placesToolbar > toolbarbutton:not(#clearDownloadsButton) > .toolbarbutton-text {
+#placesToolbar > toolbarbutton > .toolbarbutton-text {
   display: none;
 }
 
@@ -288,4 +288,8 @@
 
 #clearDownloadsButton > .toolbarbutton-icon {
   display: none;
+}
+
+#clearDownloadsButton > .toolbarbutton-text {
+  display: inline !important;
 }

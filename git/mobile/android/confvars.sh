@@ -61,10 +61,8 @@ MOZ_SERVICES_HEALTHREPORT=1
 # Enable FirefoxAccounts
 MOZ_SERVICES_FXACCOUNTS=1
 
-# Wifi-AP/cell tower data reporting is enabled on non-release builds.
-if test ! "$RELEASE_BUILD"; then
+# Enable Wifi-AP/cell tower data reporting
 MOZ_DATA_REPORTING=1
-fi
 
 # Enable runtime locale switching.
 MOZ_LOCALE_SWITCHER=1

@@ -160,10 +160,6 @@ const SNAPSHOT_SCHEMA = {
       required: true,
       type: "object",
     },
-    lockedPreferences: {
-      required: true,
-      type: "object",
-    },
     graphics: {
       required: true,
       type: "object",

@@ -93,8 +93,7 @@ const ACTIVITY_TYPE = {
   // Forcing the target to reload with cache enabled or disabled.
   RELOAD: {
     WITH_CACHE_ENABLED: 1,
-    WITH_CACHE_DISABLED: 2,
-    WITH_CACHE_DEFAULT: 3
+    WITH_CACHE_DISABLED: 2
   },
 
   // Enabling or disabling the cache without triggering a reload.
@@ -356,9 +355,7 @@ let NetMonitorController = {
       let navigationFinished = waitForNavigation();
       return reconfigureTab(aOptions).then(() => navigationFinished);
     }
-    if (aType == ACTIVITY_TYPE.RELOAD.WITH_CACHE_DEFAULT) {
-      return reconfigureTabAndWaitForNavigation({}).then(standBy);
-    }
+
     if (aType == ACTIVITY_TYPE.RELOAD.WITH_CACHE_ENABLED) {
       this._currentActivity = ACTIVITY_TYPE.ENABLE_CACHE;
       this._target.once("will-navigate", () => this._currentActivity = aType);

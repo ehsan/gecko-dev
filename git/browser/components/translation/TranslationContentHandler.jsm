@@ -131,13 +131,8 @@ TranslationContentHandler.prototype = {
         translationDocument.translationError = false;
 
         bingTranslation.translate().then(
-          result => {
-            this.global.sendAsyncMessage("Translation:Finished", {
-              characterCount: result.characterCount,
-              from: msg.data.from,
-              to: msg.data.to,
-              success: true
-            });
+          success => {
+            this.global.sendAsyncMessage("Translation:Finished", {success: true});
             translationDocument.showTranslation();
           },
           error => {

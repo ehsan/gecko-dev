@@ -63,3 +63,7 @@ label {
   padding: 4px 2px;
   width: 16px;
 }
+
+.alertCloseButton > .toolbarbutton-text {
+  display: none;
+}
