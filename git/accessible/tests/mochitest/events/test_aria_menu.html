@@ -1,0 +1,141 @@
+<html>
+
+<head>
+  <title>ARIA menu events testing</title>
+
+  <link rel="stylesheet" type="text/css"
+        href="chrome://mochikit/content/tests/SimpleTest/test.css" />
+
+  <script type="application/javascript"
+          src="chrome://mochikit/content/MochiKit/packed.js"></script>
+  <script type="application/javascript"
+          src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"></script>
+
+  <script type="application/javascript"
+          src="../common.js"></script>
+  <script type="application/javascript"
+          src="../states.js"></script>
+  <script type="application/javascript"
+          src="../events.js"></script>
+
+  <script type="application/javascript">
+    const kViaDisplayStyle = 0;
+    const kViaVisibilityStyle = 1;
+
+    function showMenu(aMenuID, aHow)
+    {
+      this.menuNode = getNode(aMenuID);
+
+      this.eventSeq = [
+        new invokerChecker(EVENT_SHOW, this.menuNode),
+        new invokerChecker(EVENT_MENUPOPUP_START, this.menuNode),
+        new invokerChecker(EVENT_REORDER, document)
+      ];
+
+      this.invoke = function showMenu_invoke()
+      {
+        if (aHow == kViaDisplayStyle)
+          this.menuNode.style.display = "block";
+        else
+          this.menuNode.style.visibility = "visible";
+      };
+
+      this.getID = function showMenu_getID()
+      {
+        return "Show ARIA menu " + aMenuID + " by " +
+          (aHow == kViaDisplayStyle ? "display" : "visibility") +
+          " style tricks";
+      };
+    }
+
+    function closeMenu(aMenuID, aHow)
+    {
+      this.menuNode = getNode(aMenuID);
+      this.menu = null;
+
+      this.eventSeq = [
+        new invokerChecker(EVENT_MENUPOPUP_END, getMenu, this),
+        new invokerChecker(EVENT_HIDE, getMenu, this),
+        new invokerChecker(EVENT_REORDER, document),
+      ];
+
+      this.invoke = function closeMenu_invoke()
+      {
+        // Store menu accessible reference while menu is still open.
+        this.menu = getAccessible(this.menuNode);
+
+        // Hide menu.
+        if (aHow == kViaDisplayStyle)
+          this.menuNode.style.display = "none";
+        else
+          this.menuNode.style.visibility = "hidden";
+      }
+
+      this.getID = function closeMenu_getID()
+      {
+        return "Close ARIA menu " + aMenuID + " by " +
+          (aHow == kViaDisplayStyle ? "display" : "visibility") +
+          " style tricks";
+      }
+
+      function getMenu(aThisObj)
+      {
+        return aThisObj.menu;
+      }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Do tests
+
+    var gQueue = null;
+
+    //gA11yEventDumpID = "eventdump";
+
+    function doTests()
+    {
+      gQueue = new eventQueue();
+
+      gQueue.push(new showMenu("menu1", kViaDisplayStyle));
+      gQueue.push(new closeMenu("menu1", kViaDisplayStyle));
+      gQueue.push(new showMenu("menu2", kViaVisibilityStyle));
+      gQueue.push(new closeMenu("menu2", kViaVisibilityStyle));
+
+      gQueue.invoke(); // Will call SimpleTest.finish();
+    }
+
+    SimpleTest.waitForExplicitFinish();
+    addA11yLoadEvent(doTests);
+  </script>
+</head>
+
+<body>
+
+  <a target="_blank"
+     href="https://bugzilla.mozilla.org/show_bug.cgi?id=606207"
+     title="Dojo dropdown buttons are broken">
+    Mozilla Bug 606207
+  </a>
+  <a target="_blank"
+     href="https://bugzilla.mozilla.org/show_bug.cgi?id=614829"
+     title="Menupopup end event isn't fired for ARIA menus">
+    Mozilla Bug 614829
+  </a>
+
+  <p id="display"></p>
+  <div id="content" style="display: none"></div>
+  <pre id="test">
+  </pre>
+
+  <div id="menu1" role="menu" style="display: none;">
+    <div role="menuitem">menuitem1.1</div>
+    <div role="menuitem">menuitem1.2</div>
+  </div>
+  <div id="menu2" role="menu" style="visibility: hidden;">
+    <div role="menuitem">menuitem2.1</div>
+    <div role="menuitem">menuitem2.2</div>
+  </div>
+
+  <div id="eventdump"></div>
+
+</body>
+</html>
