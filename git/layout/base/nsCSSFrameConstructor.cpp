@@ -9048,42 +9048,23 @@ nsCSSFrameConstructor::CaptureStateForFramesOf(nsIContent* aContent,
   }
 }
 
-static bool EqualURIs(mozilla::css::URLValue *aURI1,
-                      mozilla::css::URLValue *aURI2)
-{
-  return aURI1 == aURI2 ||    // handle null==null, and optimize
-         (aURI1 && aURI2 && aURI1->URIEquals(*aURI2));
-}
-
 nsresult
 nsCSSFrameConstructor::MaybeRecreateFramesForElement(Element* aElement)
 {
-  nsRefPtr<nsStyleContext> oldContext = GetUndisplayedContent(aElement);
-  if (!oldContext) {
-    return NS_OK;
-  }
+  nsresult result = NS_OK;
 
-  // The parent has a frame, so try resolving a new context.
-  nsRefPtr<nsStyleContext> newContext = mPresShell->StyleSet()->
-    ResolveStyleFor(aElement, oldContext->GetParent());
+  nsStyleContext *oldContext = GetUndisplayedContent(aElement);
+  if (oldContext) {
+    // The parent has a frame, so try resolving a new context.
+    nsRefPtr<nsStyleContext> newContext = mPresShell->StyleSet()->
+      ResolveStyleFor(aElement, oldContext->GetParent());
 
-  ChangeUndisplayedContent(aElement, newContext);
-  const nsStyleDisplay* disp = newContext->GetStyleDisplay();
-  if (disp->mDisplay == NS_STYLE_DISPLAY_NONE) {
-    // We can skip trying to recreate frames here, but only if our style
-    // context does not have a binding URI that differs from our old one.
-    // Otherwise, we should try to recreate, because we may want to apply the
-    // new binding
-    if (!disp->mBinding) {
-      return NS_OK;
-    }
-    const nsStyleDisplay* oldDisp = oldContext->PeekStyleDisplay();
-    if (oldDisp && EqualURIs(disp->mBinding, oldDisp->mBinding)) {
-      return NS_OK;
+    ChangeUndisplayedContent(aElement, newContext);
+    if (newContext->GetStyleDisplay()->mDisplay != NS_STYLE_DISPLAY_NONE) {
+      result = RecreateFramesForContent(aElement, false);
     }
   }
-
-  return RecreateFramesForContent(aElement, false);
+  return result;
 }
 
 static nsIFrame*
