@@ -2762,24 +2762,19 @@ static DWORD InitDwriteBG(LPVOID lpdwThreadParam)
   SetThreadPriority(GetCurrentThread(), THREAD_MODE_BACKGROUND_BEGIN);
   LOGREGISTRY(L"loading dwrite.dll");
   HMODULE dwdll = LoadLibraryW(L"dwrite.dll");
-  if (dwdll) {
-    DWriteCreateFactoryFunc createDWriteFactory = (DWriteCreateFactoryFunc)
-      GetProcAddress(dwdll, "DWriteCreateFactory");
-    if (createDWriteFactory) {
-      LOGREGISTRY(L"creating dwrite factory");
-      IDWriteFactory *factory;
-      HRESULT hr = createDWriteFactory(
-        DWRITE_FACTORY_TYPE_SHARED,
-        __uuidof(IDWriteFactory),
-        reinterpret_cast<IUnknown**>(&factory));
-      if (SUCCEEDED(hr)) {
-        LOGREGISTRY(L"dwrite factory done");
-        factory->Release();
-        LOGREGISTRY(L"freed factory");
-      } else {
-        LOGREGISTRY(L"failed to create factory");
-      }
-    }
+  DWriteCreateFactoryFunc createDWriteFactory = (DWriteCreateFactoryFunc)
+    GetProcAddress(dwdll, "DWriteCreateFactory");
+  if (createDWriteFactory) {
+    LOGREGISTRY(L"creating dwrite factory");
+    IDWriteFactory *factory;
+    HRESULT hr = createDWriteFactory(
+      DWRITE_FACTORY_TYPE_SHARED,
+      __uuidof(IDWriteFactory),
+      reinterpret_cast<IUnknown**>(&factory));
+    
+    LOGREGISTRY(L"dwrite factory done");
+    factory->Release();
+    LOGREGISTRY(L"freed factory");
   }
   SetThreadPriority(GetCurrentThread(), THREAD_MODE_BACKGROUND_END);
   return 0;

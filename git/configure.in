@@ -7824,7 +7824,7 @@ dnl ========================================================
 dnl = --disable-elf-hack
 dnl ========================================================
 
-USE_ELF_HACK=
+USE_ELF_HACK=1
 MOZ_ARG_DISABLE_BOOL(elf-hack,
 [  --disable-elf-hack      Disable elf hacks],
     USE_ELF_HACK=,
@@ -8363,7 +8363,7 @@ MOZ_ARG_ENABLE_BOOL(libxul,
     MOZ_ENABLE_LIBXUL=)
 
 # split JS out by default to avoid VS2005 PGO crash (bug 591836).
-if test "$OS_ARCH" = "WINNT" -a "$CPU_ARCH" != "x86_64" ; then
+if test "$OS_ARCH" = "WINNT"; then
   ENABLE_SHARED_JS=1
 fi
 
@@ -9679,4 +9679,3 @@ if cmp -s config/autoconf.mk config/autoconf.mk.orig; then
 else
   rm -f config/autoconf.mk.orig 2> /dev/null
 fi
-

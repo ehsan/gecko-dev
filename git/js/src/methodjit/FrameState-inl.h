@@ -376,7 +376,7 @@ FrameState::pushUntypedPayload(JSValueType type, RegisterID payload)
 }
 
 inline void
-FrameState::pushUntypedValue(const Value &v)
+FrameState::pushUntypedValue(Value &v)
 {
     FrameEntry *fe = rawPush();
 

@@ -293,7 +293,7 @@ class FrameState
      * value is known, but its type cannot be propagated because it is not
      * known to be correct at a slow-path merge point.
      */
-    inline void pushUntypedValue(const Value &value);
+    inline void pushUntypedValue(Value &value);
 
     /*
      * Pushes a number onto the operation stack.

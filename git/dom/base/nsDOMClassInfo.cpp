@@ -88,6 +88,7 @@
 #include "nsIDOMKeyEvent.h"
 #include "nsIDOMEventListener.h"
 #include "nsIDOMPopStateEvent.h"
+#include "nsIDOMPopStateEvent_MOZILLA_2_BRANCH.h"
 #include "nsContentUtils.h"
 #include "nsDOMWindowUtils.h"
 #include "nsIDOMGlobalPropertyInitializer.h"
@@ -2192,7 +2193,8 @@ nsDOMClassInfo::WrapNativeParent(JSContext *cx, JSObject *scope,
     DOM_CLASSINFO_MAP_ENTRY(nsIDOM3Document)                                  \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOM3Node)                                      \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMXPathEvaluator)                             \
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNodeSelector)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNodeSelector)                               \
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSDocument_MOZILLA_2_0_BRANCH)
 
 
 #define DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES                                \
@@ -2327,7 +2329,6 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(History, nsIDOMHistory)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMHistory)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMHistory_MOZILLA_2_0_BRANCH)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(Screen, nsIDOMScreen)
@@ -2498,6 +2499,7 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(PopStateEvent, nsIDOMPopStateEvent)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMPopStateEvent)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMPopStateEvent_MOZILLA_2_BRANCH)
     DOM_CLASSINFO_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
@@ -4012,7 +4014,6 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(WebGLRenderingContext, nsIDOMWebGLRenderingContext)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMWebGLRenderingContext)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMWebGLRenderingContext_MOZILLA_2_0_BRANCH)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(WebGLBuffer, nsIWebGLBuffer)
@@ -9420,13 +9421,11 @@ nsHTMLSelectElementSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext 
         *objp = obj;
         *_retval = JS_DefineElement(cx, obj, n, JSVAL_VOID, nsnull, nsnull,
                                     JSPROP_ENUMERATE | JSPROP_SHARED);
-
-        return NS_OK;
       }
     }
   }
 
-  return nsElementSH::NewResolve(wrapper, cx, obj, id, flags, objp, _retval);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -10040,7 +10039,7 @@ NS_IMETHODIMP
 nsHistorySH::PreCreate(nsISupports *nativeObj, JSContext *cx,
                        JSObject *globalObj, JSObject **parentObj)
 {
-  nsHistory *history = (nsHistory *)((nsIDOMHistory*)nativeObj);
+  nsHistory *history = (nsHistory *)nativeObj;
   nsCOMPtr<nsPIDOMWindow> innerWindow;
   history->GetWindow(getter_AddRefs(innerWindow));
   if (!innerWindow) {

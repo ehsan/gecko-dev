@@ -49,6 +49,7 @@ const Cu = Components.utils;
 Cu.import("resource://services-sync/record.js");
 Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://services-sync/ext/Observers.js");
+Cu.import("resource://services-sync/ext/Sync.js");
 Cu.import("resource://services-sync/identity.js");
 Cu.import("resource://services-sync/log4moz.js");
 Cu.import("resource://services-sync/resource.js");
@@ -483,10 +484,6 @@ Engine.prototype = {
 function SyncEngine(name) {
   Engine.call(this, name || "SyncEngine");
   this.loadToFetch();
-
-  Utils.lazy2(this, "_timer", function() {
-    return Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
-  });
 }
 SyncEngine.prototype = {
   __proto__: Engine.prototype,
@@ -576,13 +573,6 @@ SyncEngine.prototype = {
     record.id = id;
     record.collection = this.name;
     return record;
-  },
-
-  _sleep: function _sleep(delay) {
-    let cb = Utils.makeSyncCallback();
-    this._timer.initWithCallback({notify: cb}, delay,
-                                 Ci.nsITimer.TYPE_ONE_SHOT);
-    Utils.waitForSyncCallback(cb);
   },
 
   // Any setup that needs to happen at the beginning of each sync.
@@ -751,7 +741,7 @@ SyncEngine.prototype = {
       if (applyBatch.length == this.applyIncomingBatchSize) {
         doApplyBatch.call(this);
       }
-      this._sleep(0);
+      Sync.sleep(0);
     });
 
     // Only bother getting data from the server if there's new things
@@ -984,7 +974,7 @@ SyncEngine.prototype = {
         if ((++count % MAX_UPLOAD_RECORDS) == 0)
           doUpload((count - MAX_UPLOAD_RECORDS) + " - " + count + " out");
 
-        this._sleep(0);
+        Sync.sleep(0);
       }
 
       // Final upload

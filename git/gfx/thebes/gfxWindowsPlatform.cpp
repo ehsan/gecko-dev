@@ -825,9 +825,3 @@ gfxWindowsPlatform::FontsPrefsChanged(nsIPrefBranch *aPrefBranch, const char *aP
         gfxTextRunWordCache::Flush();
     }
 }
-
-bool
-gfxWindowsPlatform::IsOptimus()
-{
-  return GetModuleHandleA("nvumdshim.dll");
-}

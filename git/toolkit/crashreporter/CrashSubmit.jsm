@@ -357,7 +357,7 @@ Submitter.prototype = {
         return;
       iframe.removeEventListener("load", loadHandler, true);
       if (!self.submitForm()) {
-        self.notifyStatus(FAILED);
+        this.notifyStatus(FAILED);
         self.cleanup();
       }
     }
