@@ -315,7 +315,6 @@ ClientTiledPaintedLayer::RenderHighPrecision(nsIntRegion& aInvalidRegion,
 
   mContentClient->mTiledBuffer.SetFrameResolution(mPaintData.mResolution);
   mContentClient->mTiledBuffer.PaintThebes(mValidRegion, aInvalidRegion, aCallback, aCallbackData);
-  mPaintData.mPaintFinished = true;
   return true;
 }
 

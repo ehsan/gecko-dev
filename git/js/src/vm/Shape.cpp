@@ -116,7 +116,7 @@ Shape::makeOwnBaseShape(ExclusiveContext *cx)
     MOZ_ASSERT(!base()->isOwned());
     assertSameCompartmentDebugOnly(cx, compartment());
 
-    BaseShape *nbase = Allocate<BaseShape, NoGC>(cx);
+    BaseShape *nbase = NewGCBaseShape<NoGC>(cx);
     if (!nbase)
         return false;
 
@@ -383,7 +383,7 @@ NativeObject::getChildPropertyOnDictionary(ExclusiveContext *cx, HandleNativeObj
     if (obj->inDictionaryMode()) {
         MOZ_ASSERT(parent == obj->lastProperty());
         RootedGeneric<StackShape*> childRoot(cx, &child);
-        shape = childRoot->isAccessorShape() ? Allocate<AccessorShape>(cx) : Allocate<Shape>(cx);
+        shape = childRoot->isAccessorShape() ? NewGCAccessorShape(cx) : NewGCShape(cx);
         if (!shape)
             return nullptr;
         if (childRoot->hasSlot() && childRoot->slot() >= obj->lastProperty()->base()->slotSpan()) {
@@ -438,7 +438,7 @@ js::NativeObject::toDictionaryMode(ExclusiveContext *cx)
     while (shape) {
         MOZ_ASSERT(!shape->inDictionary());
 
-        Shape *dprop = shape->isAccessorShape() ? Allocate<AccessorShape>(cx) : Allocate<Shape>(cx);
+        Shape *dprop = shape->isAccessorShape() ? NewGCAccessorShape(cx) : NewGCShape(cx);
         if (!dprop) {
             ReportOutOfMemory(cx);
             return false;
@@ -937,7 +937,7 @@ NativeObject::removeProperty(ExclusiveContext *cx, jsid id_)
     RootedShape spare(cx);
     if (self->inDictionaryMode()) {
         /* For simplicity, always allocate an accessor shape for now. */
-        spare = Allocate<AccessorShape>(cx);
+        spare = NewGCAccessorShape(cx);
         if (!spare)
             return false;
         new (spare) Shape(shape->base()->unowned(), 0);
@@ -1093,8 +1093,8 @@ NativeObject::replaceWithNewEquivalentShape(ExclusiveContext *cx, Shape *oldShap
         RootedNativeObject selfRoot(cx, self);
         RootedShape oldRoot(cx, oldShape);
         newShape = (oldShape->isAccessorShape() || accessorShape)
-                   ? Allocate<AccessorShape>(cx)
-                   : Allocate<Shape>(cx);
+                   ? NewGCAccessorShape(cx)
+                   : NewGCShape(cx);
         if (!newShape)
             return nullptr;
         new (newShape) Shape(oldRoot->base()->unowned(), 0);
@@ -1374,7 +1374,7 @@ BaseShape::getUnowned(ExclusiveContext *cx, StackBaseShape &base)
 
     RootedGeneric<StackBaseShape*> root(cx, &base);
 
-    BaseShape *nbase_ = Allocate<BaseShape>(cx);
+    BaseShape *nbase_ = NewGCBaseShape<CanGC>(cx);
     if (!nbase_)
         return nullptr;
 
@@ -1631,7 +1631,7 @@ JSCompartment::checkInitialShapesTableAfterMovingGC()
 Shape *
 EmptyShape::new_(ExclusiveContext *cx, Handle<UnownedBaseShape *> base, uint32_t nfixed)
 {
-    Shape *shape = Allocate<Shape>(cx);
+    Shape *shape = NewGCShape(cx);
     if (!shape) {
         ReportOutOfMemory(cx);
         return nullptr;

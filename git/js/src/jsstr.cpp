@@ -3066,7 +3066,7 @@ static inline JSFatInlineString *
 FlattenSubstrings(JSContext *cx, HandleLinearString str, const StringRange *ranges,
                   size_t rangesLen, size_t outputLen)
 {
-    JSFatInlineString *result = Allocate<JSFatInlineString>(cx);
+    JSFatInlineString *result = NewGCFatInlineString<CanGC>(cx);
     if (!result)
         return nullptr;
 
