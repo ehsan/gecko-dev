@@ -2439,37 +2439,10 @@ NSEvent* gLastDragMouseDownEvent = nil;
   mIsPluginView = aIsPlugin;
 }
 
+
 -(BOOL)isPluginView
 {
   return mIsPluginView;
-}
-
-// Are we processing an NSLeftMouseDown event that will fail to click through?
-// If so, we shouldn't focus or unfocus a plugin.
-- (BOOL)isInFailingLeftClickThrough
-{
-  if (!mGeckoChild)
-    return NO;
-
-  if (!mClickThroughMouseDownEvent ||
-      [mClickThroughMouseDownEvent type] != NSLeftMouseDown)
-    return NO;
-
-  BOOL retval =
-    !ChildViewMouseTracker::WindowAcceptsEvent([self window],
-                                               mClickThroughMouseDownEvent,
-                                               self, PR_TRUE);
-
-  // If we return YES here, this will result in us not being focused,
-  // which will stop us receiving mClickThroughMouseDownEvent in
-  // [ChildView mouseDown:].  So we need to release and null-out
-  // mClickThroughMouseDownEvent here.
-  if (retval) {
-    [mClickThroughMouseDownEvent release];
-    mClickThroughMouseDownEvent = nil;
-  }
-
-  return retval;
 }
 
 - (void)setPluginEventModel:(NPEventModel)eventModel
@@ -5617,28 +5590,10 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
   return !mGeckoChild->DispatchWindowEvent(geckoEvent);
 }
 
-// Don't focus a plugin if we're in a left click-through that will fail (see
-// [ChildView isInFailingLeftClickThrough] above).
-- (BOOL)shouldFocusPlugin
+- (void)updateCocoaPluginFocusStatus:(BOOL)hasFocus
 {
   if (!mGeckoChild)
-    return NO;
-
-  nsCocoaWindow* windowWidget = mGeckoChild->GetXULWindowWidget();
-  if (windowWidget && !windowWidget->ShouldFocusPlugin())
-    return NO;
-
-  return YES;
-}
-
-// Returns NO if the plugin shouldn't be focused/unfocused.
-- (BOOL)updateCocoaPluginFocusStatus:(BOOL)hasFocus
-{
-  if (!mGeckoChild)
-    return NO;
-
-  if (![self shouldFocusPlugin])
-    return NO;
+    return;
 
   nsGUIEvent pluginEvent(PR_TRUE, NS_NON_RETARGETED_PLUGIN_EVENT, mGeckoChild);
   NPCocoaEvent cocoaEvent;
@@ -5647,11 +5602,6 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
   cocoaEvent.data.focus.hasFocus = hasFocus;
   pluginEvent.pluginEvent = &cocoaEvent;
   mGeckoChild->DispatchWindowEvent(pluginEvent);
-
-  if (hasFocus)
-    [self sendFocusEvent:NS_PLUGIN_FOCUS];
-
-  return YES;
 }
 
 // We must always call through to our superclass, even when mGeckoChild is
@@ -5661,8 +5611,7 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
   if (mIsPluginView && mPluginEventModel == NPEventModelCocoa) {
-    if (![self updateCocoaPluginFocusStatus:YES])
-      return NO;
+    [self updateCocoaPluginFocusStatus:YES];
   }
 
   return [super becomeFirstResponder];
@@ -5677,8 +5626,7 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
   if (mIsPluginView && mPluginEventModel == NPEventModelCocoa) {
-    if (![self updateCocoaPluginFocusStatus:NO])
-      return NO;
+    [self updateCocoaPluginFocusStatus:NO];
   }
 
   return [super resignFirstResponder];

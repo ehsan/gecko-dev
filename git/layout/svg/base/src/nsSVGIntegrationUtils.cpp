@@ -147,13 +147,7 @@ nsSVGIntegrationUtils::GetInvalidAreaForChangedSource(nsIFrame* aFrame,
     nsSVGEffects::GetEffectProperties(firstFrame);
   if (!effectProperties.mFilter)
     return aInvalidRect;
-
-  nsSVGFilterProperty *prop = nsSVGEffects::GetFilterProperty(firstFrame);
-  if (!prop || !prop->IsInObserverList()) {
-    return aInvalidRect;
-  }
-
-  nsSVGFilterFrame* filterFrame = prop->GetFilterFrame();
+  nsSVGFilterFrame* filterFrame = nsSVGEffects::GetFilterFrame(firstFrame);
   if (!filterFrame) {
     // The frame is either not there or not currently available,
     // perhaps because we're in the middle of tearing stuff down.

@@ -57,7 +57,7 @@ public:
 
     virtual ~gfxDDrawSurface();
 
-    already_AddRefed<gfxImageSurface> GetAsImageSurface();
+    already_AddRefed<gfxImageSurface> gfxDDrawSurface::GetImageSurface();
 
     nsresult BeginPrinting(const nsAString& aTitle, const nsAString& aPrintToFileName);
     nsresult EndPrinting();

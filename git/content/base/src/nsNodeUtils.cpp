@@ -278,7 +278,8 @@ nsNodeUtils::LastRelease(nsINode* aNode)
         aNode->HasFlag(ADDED_TO_FORM)) {
       // Tell the form (if any) this node is going away.  Don't
       // notify, since we're being destroyed in any case.
-      static_cast<nsGenericHTMLFormElement*>(aNode)->ClearForm(PR_TRUE);
+      static_cast<nsGenericHTMLFormElement*>(aNode)->ClearForm(PR_TRUE,
+                                                               PR_FALSE);
     }
   }
   aNode->UnsetFlags(NODE_HAS_PROPERTIES);

@@ -74,9 +74,8 @@ var consoleObserver = {
 
     Services.console.unregisterListener(this);
 
-    hudId = HUDService.displaysIndex()[0];
-    hud = HUDService.hudWeakReferences[hudId].get();
-    outputNode = hud.outputNode;
+    var display = HUDService.getDisplayByURISpec(content.location.href);
+    var outputNode = display.querySelectorAll(".hud-output-node")[0];
 
     executeSoon(function () {
       var text = outputNode.textContent;

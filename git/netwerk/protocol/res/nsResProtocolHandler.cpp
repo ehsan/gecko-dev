@@ -279,7 +279,7 @@ EnumerateSubstitution(const nsACString& aKey,
 }
 
 void
-nsResProtocolHandler::CollectSubstitutions(InfallibleTArray<ResourceMapping>& aResources)
+nsResProtocolHandler::CollectSubstitutions(nsTArray<ResourceMapping>& aResources)
 {
     mSubstitutions.EnumerateRead(&EnumerateSubstitution, &aResources);
 }

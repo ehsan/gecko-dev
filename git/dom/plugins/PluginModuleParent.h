@@ -50,7 +50,6 @@
 
 #include "base/string_util.h"
 
-#include "mozilla/FileUtils.h"
 #include "mozilla/PluginLibrary.h"
 #include "mozilla/plugins/PPluginModuleParent.h"
 #include "mozilla/plugins/PluginInstanceParent.h"
@@ -98,8 +97,8 @@ protected:
     PPluginInstanceParent*
     AllocPPluginInstance(const nsCString& aMimeType,
                          const uint16_t& aMode,
-                         const InfallibleTArray<nsCString>& aNames,
-                         const InfallibleTArray<nsCString>& aValues,
+                         const nsTArray<nsCString>& aNames,
+                         const nsTArray<nsCString>& aValues,
                          NPError* rv);
 
     virtual bool
@@ -155,10 +154,6 @@ protected:
 
     NS_OVERRIDE
     virtual bool ShouldContinueFromReplyTimeout();
-
-    NS_OVERRIDE
-    virtual bool
-    RecvBackUpXResources(const FileDescriptor& aXSocketFd);
 
     virtual bool
     AnswerNPN_UserAgent(nsCString* userAgent);
@@ -228,8 +223,9 @@ private:
 
     virtual bool HasRequiredFunctions();
     virtual nsresult AsyncSetWindow(NPP instance, NPWindow* window);
+    virtual nsresult NotifyPainted(NPP instance);
     virtual nsresult GetSurface(NPP instance, gfxASurface** aSurface);
-    NS_OVERRIDE virtual bool UseAsyncPainting() { return true; }
+    virtual nsresult UseAsyncPainting(NPP instance, PRBool* aIsAsync);
 
 #if defined(XP_UNIX) && !defined(XP_MACOSX)
     virtual nsresult NP_Initialize(NPNetscapeFuncs* bFuncs, NPPluginFuncs* pFuncs, NPError* error);
@@ -271,12 +267,6 @@ private:
 #ifdef OS_MACOSX
     nsCOMPtr<nsITimer> mCATimer;
     nsTObserverArray<PluginInstanceParent*> mCATimerTargets;
-#endif
-
-#ifdef MOZ_X11
-    // Dup of plugin's X socket, used to scope its resources to this
-    // object instead of the plugin process's lifetime
-    ScopedClose mPluginXSocketFdDup;
 #endif
 };
 

@@ -303,7 +303,6 @@ protected:
   virtual void            SubclassWindow(BOOL bState);
   PRBool                  CanTakeFocus();
   PRBool                  UpdateNonClientMargins(PRInt32 aSizeMode = -1, PRBool aReflowWindow = PR_TRUE);
-  void                    UpdateGetWindowInfoCaptionStatus(PRBool aActiveCaption);
   void                    ResetLayout();
   void                    InvalidateNonClientRegion();
   HRGN                    ExcludeNonClientFromPaintRegion(HRGN aRegion);

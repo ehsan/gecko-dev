@@ -723,7 +723,8 @@ nsFrameLoader::ShowRemoteFrame(const nsIntSize& size)
     mRemoteBrowser->Show(size);
     mRemoteBrowserShown = PR_TRUE;
 
-    EnsureMessageManager();
+    nsCOMPtr<nsIChromeFrameMessageManager> dummy;
+    GetMessageManager(getter_AddRefs(dummy)); // Initialize message manager.
   } else {
     mRemoteBrowser->Move(size);
   }

@@ -72,7 +72,7 @@ public:
     nsresult Init();
 
 #ifdef MOZ_IPC    
-    void CollectSubstitutions(InfallibleTArray<ResourceMapping>& aResources);
+    void CollectSubstitutions(nsTArray<ResourceMapping>& aResources);
 #endif
 
 private:

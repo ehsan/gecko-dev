@@ -247,9 +247,6 @@ AccessCheck::documentDomainMakesSameOrigin(JSContext *cx, JSObject *obj)
         subject = GetPrincipal(JS_GetGlobalForObject(cx, scope));
     }
 
-    if (!subject)
-        return false;
-
     {
         JSAutoEnterCompartment ac;
 

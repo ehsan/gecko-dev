@@ -169,7 +169,7 @@ public:
     int BeginDrawing();
     jobject GetSoftwareDrawBuffer();
     void EndDrawing();
-    void Draw2D(jobject buffer, int stride);
+    void Draw2D(jobject buffer);
 
     // must have a JNI local frame when calling this,
     // and you'd better know what you're doing

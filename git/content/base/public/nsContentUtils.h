@@ -1700,14 +1700,6 @@ public:
    */
   static bool IsSubDocumentTabbable(nsIContent* aContent);
 
-  /**
-   * Flushes the layout tree (recursively)
-   *
-   * @param aWindow the window the flush should start at
-   *
-   */
-  static void FlushLayoutForTree(nsIDOMWindow* aWindow);
-
 private:
 
   static PRBool InitializeEventTable();

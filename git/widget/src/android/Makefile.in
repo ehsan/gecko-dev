@@ -64,7 +64,6 @@ CPPSRCS	= \
 	nsIdleServiceAndroid.cpp \
 	nsClipboard.cpp \
 	nsFilePicker.cpp \
-	nsIMEPicker.cpp \
 	$(NULL)
 
 NOT_THERE_YET_CPPSRCS = \

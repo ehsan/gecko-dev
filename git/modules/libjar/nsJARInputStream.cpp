@@ -47,9 +47,6 @@
 #include "nsEscape.h"
 #include "nsIFile.h"
 #include "nsDebug.h"
-#if defined(XP_WIN)
-#include <windows.h>
-#endif
 
 /*---------------------------------------------
  *  nsISupports implementation
@@ -215,7 +212,6 @@ nsJARInputStream::Read(char* aBuffer, PRUint32 aCount, PRUint32 *aBytesRead)
     *aBytesRead = 0;
 
     nsresult rv = NS_OK;
-MOZ_WIN_MEM_TRY_BEGIN
     switch (mMode) {
       case MODE_NOTINITED:
         return NS_OK;
@@ -254,7 +250,6 @@ MOZ_WIN_MEM_TRY_BEGIN
         }
         break;
     }
-MOZ_WIN_MEM_TRY_CATCH(rv = NS_ERROR_FAILURE)
     return rv;
 }
 

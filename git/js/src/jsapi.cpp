@@ -628,7 +628,7 @@ JSRuntime::init(uint32 maxbytes)
         return false;
 
 #if ENABLE_YARR_JIT
-    regExpAllocator = JSC::ExecutableAllocator::create();
+    regExpAllocator = new JSC::ExecutableAllocator();
     if (!regExpAllocator)
         return false;
 #endif
@@ -3128,26 +3128,16 @@ LookupResult(JSContext *cx, JSObject *obj, JSObject *obj2, jsid id,
         }
 
         /* Peek at the native property's slot value, without doing a Get. */
-        if (obj2->containsSlot(shape->slot)) {
+        if (obj2->containsSlot(shape->slot))
             *vp = obj2->nativeGetSlot(shape->slot);
-            return true;
-        }
+        else
+            vp->setBoolean(true);
+    } else if (obj2->isDenseArray()) {
+        return js_GetDenseArrayElementValue(cx, obj2, id, vp);
     } else {
-        if (obj2->isDenseArray())
-            return js_GetDenseArrayElementValue(cx, obj2, id, vp);
-        if (obj2->isProxy()) {
-            AutoPropertyDescriptorRooter desc(cx);
-            if (!JSProxy::getPropertyDescriptor(cx, obj2, id, false, &desc))
-                return false;
-            if (!(desc.attrs & JSPROP_SHARED)) {
-                *vp = desc.value;
-                return true;
-            }
-        }
+        /* XXX bad API: no way to return "defined but value unknown" */
+        vp->setBoolean(true);
     }
-
-    /* XXX bad API: no way to return "defined but value unknown" */
-    vp->setBoolean(true);
     return true;
 }
 

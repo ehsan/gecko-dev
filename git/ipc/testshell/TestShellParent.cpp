@@ -89,7 +89,7 @@ JSBool
 TestShellParent::GetGlobalJSObject(JSContext* cx, JSObject** globalp)
 {
     // TODO Unify this code with TabParent::GetGlobalJSObject.
-    InfallibleTArray<PContextWrapperParent*> cwps(1);
+    nsTArray<PContextWrapperParent*> cwps(1);
     ManagedPContextWrapperParent(cwps);
     if (cwps.Length() < 1)
         return JS_FALSE;

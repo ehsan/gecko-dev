@@ -6133,8 +6133,11 @@ nsGlobalWindow::EnterModalState()
   }
   topWin->mModalStateDepth++;
 
-  if (mContext) {
-    mContext->EnterModalState();
+  JSContext *cx = nsContentUtils::GetCurrentJSContext();
+
+  nsIScriptContext *scx;
+  if (cx && (scx = GetScriptContextFromJSContext(cx))) {
+    scx->EnterModalState();
   }
 }
 
@@ -6233,8 +6236,11 @@ nsGlobalWindow::LeaveModalState()
     }
   }
 
-  if (mContext) {
-    mContext->LeaveModalState();
+  JSContext *cx = nsContentUtils::GetCurrentJSContext();
+
+  nsIScriptContext *scx;
+  if (cx && (scx = GetScriptContextFromJSContext(cx))) {
+    scx->LeaveModalState();
   }
 
   // Remember the time of the last dialog quit.

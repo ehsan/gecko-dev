@@ -133,8 +133,8 @@ ShadowLayersParent::~ShadowLayersParent()
 }
 
 bool
-ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
-                               InfallibleTArray<EditReply>* reply)
+ShadowLayersParent::RecvUpdate(const nsTArray<Edit>& cset,
+                               nsTArray<EditReply>* reply)
 {
   MOZ_LAYERS_LOG(("[ParentSide] recieved txn with %d edits", cset.Length()));
 

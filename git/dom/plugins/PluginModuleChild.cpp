@@ -57,9 +57,6 @@
 #include "nsPluginsDir.h"
 #include "nsXULAppAPI.h"
 
-#ifdef MOZ_X11
-# include "mozilla/X11Util.h"
-#endif
 #include "mozilla/plugins/PluginInstanceChild.h"
 #include "mozilla/plugins/StreamNotifyChild.h"
 #include "mozilla/plugins/BrowserStreamChild.h"
@@ -859,10 +856,7 @@ const NPNetscapeFuncs PluginModuleChild::sBrowserFuncs = {
     mozilla::plugins::child::_scheduletimer,
     mozilla::plugins::child::_unscheduletimer,
     mozilla::plugins::child::_popupcontextmenu,
-    mozilla::plugins::child::_convertpoint,
-    NULL, // handleevent, unimplemented
-    NULL, // unfocusinstance, unimplemented
-    NULL  // urlredirectresponse, unimplemented
+    mozilla::plugins::child::_convertpoint
 };
 
 PluginInstanceChild*
@@ -1639,13 +1633,6 @@ PluginModuleChild::AnswerNP_Initialize(NativeThreadId* tid, NPError* _retval)
     SetEventHooks();
 #endif
 
-#ifdef MOZ_X11
-    // Send the parent a dup of our X socket, to act as a proxy
-    // reference for our X resources
-    int xSocketFd = ConnectionNumber(DefaultXDisplay());
-    SendBackUpXResources(FileDescriptor(xSocketFd, false/*don't close*/));
-#endif
-
 #if defined(OS_LINUX)
     *_retval = mInitializeFunc(&sBrowserFuncs, &mFunctions);
     return true;
@@ -1711,8 +1698,8 @@ PluginModuleChild::DeallocPPluginIdentifier(PPluginIdentifierChild* aActor)
 PPluginInstanceChild*
 PluginModuleChild::AllocPPluginInstance(const nsCString& aMimeType,
                                         const uint16_t& aMode,
-                                        const InfallibleTArray<nsCString>& aNames,
-                                        const InfallibleTArray<nsCString>& aValues,
+                                        const nsTArray<nsCString>& aNames,
+                                        const nsTArray<nsCString>& aValues,
                                         NPError* rv)
 {
     PLUGIN_LOG_DEBUG_METHOD;
@@ -1731,8 +1718,8 @@ bool
 PluginModuleChild::AnswerPPluginInstanceConstructor(PPluginInstanceChild* aActor,
                                                     const nsCString& aMimeType,
                                                     const uint16_t& aMode,
-                                                    const InfallibleTArray<nsCString>& aNames,
-                                                    const InfallibleTArray<nsCString>& aValues,
+                                                    const nsTArray<nsCString>& aNames,
+                                                    const nsTArray<nsCString>& aValues,
                                                     NPError* rv)
 {
     PLUGIN_LOG_DEBUG_METHOD;

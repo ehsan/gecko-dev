@@ -40,6 +40,7 @@
 #include "CheckQuotaHelper.h"
 
 #include "nsIDOMWindow.h"
+#include "nsIIDBDatabaseException.h"
 #include "nsIObserverService.h"
 #include "nsIPermissionManager.h"
 #include "nsIPrincipal.h"

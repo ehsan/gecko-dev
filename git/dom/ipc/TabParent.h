@@ -88,7 +88,7 @@ public:
     virtual bool AnswerCreateWindow(PBrowserParent** retval);
     virtual bool RecvSyncMessage(const nsString& aMessage,
                                  const nsString& aJSON,
-                                 InfallibleTArray<nsString>* aJSONRetVal);
+                                 nsTArray<nsString>* aJSONRetVal);
     virtual bool RecvAsyncMessage(const nsString& aMessage,
                                   const nsString& aJSON);
     virtual bool RecvNotifyIMEFocus(const PRBool& aFocus,
@@ -110,8 +110,8 @@ public:
     virtual PContentDialogParent* AllocPContentDialog(const PRUint32& aType,
                                                       const nsCString& aName,
                                                       const nsCString& aFeatures,
-                                                      const InfallibleTArray<int>& aIntParams,
-                                                      const InfallibleTArray<nsString>& aStringParams);
+                                                      const nsTArray<int>& aIntParams,
+                                                      const nsTArray<nsString>& aStringParams);
     virtual bool DeallocPContentDialog(PContentDialogParent* aDialog)
     {
       delete aDialog;
@@ -167,7 +167,7 @@ protected:
     bool ReceiveMessage(const nsString& aMessage,
                         PRBool aSync,
                         const nsString& aJSON,
-                        InfallibleTArray<nsString>* aJSONRetVal = nsnull);
+                        nsTArray<nsString>* aJSONRetVal = nsnull);
 
     void ActorDestroy(ActorDestroyReason why);
 
@@ -189,7 +189,7 @@ protected:
       nsCString mFeatures;
       nsCOMPtr<nsIDialogParamBlock> mParams;
     };
-    InfallibleTArray<DelayedDialogData*> mDelayedDialogs;
+    nsTArray<DelayedDialogData*> mDelayedDialogs;
 
     PRBool ShouldDelayDialogs();
     PRBool AllowContentIME();

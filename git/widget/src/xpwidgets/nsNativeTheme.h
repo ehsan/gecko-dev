@@ -47,20 +47,14 @@
 #include "nsILookAndFeel.h"
 #include "nsWidgetAtoms.h"
 #include "nsEventStates.h"
-#include "nsTArray.h"
-#include "nsITimer.h"
 
-class nsIContent;
 class nsIFrame;
 class nsIPresShell;
 class nsPresContext;
 
-class nsNativeTheme : public nsITimerCallback
+class nsNativeTheme
 {
  protected:
-
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSITIMERCALLBACK
 
   enum ScrollbarButtonType {
     eScrollbarButton_UpTop   = 0,
@@ -184,12 +178,4 @@ class nsNativeTheme : public nsITimerCallback
 
   PRBool GetCheckedOrSelected(nsIFrame* aFrame, PRBool aCheckSelected);
   PRBool GetIndeterminate(nsIFrame* aFrame);
-
-  PRBool QueueAnimatedContentForRefresh(nsIContent* aContent,
-                                        PRUint32 aMinimumFrameRate);
-
- private:
-  PRUint32 mAnimatedContentTimeout;
-  nsCOMPtr<nsITimer> mAnimatedContentTimer;
-  nsAutoTArray<nsCOMPtr<nsIContent>, 20> mAnimatedContentList;
 };

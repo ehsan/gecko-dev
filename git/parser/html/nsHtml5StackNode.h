@@ -89,6 +89,9 @@ class nsHtml5StackNode
     static void releaseStatics();
 };
 
+#ifdef nsHtml5StackNode_cpp__
+#endif
+
 
 
 #endif

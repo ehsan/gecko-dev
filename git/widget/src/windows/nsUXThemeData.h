@@ -130,8 +130,7 @@ public:
   static BOOL sFlatMenus;
   static PRPackedBool sIsXPOrLater;
   static PRPackedBool sIsVistaOrLater;
-  static PRBool sTitlebarInfoPopulatedAero;
-  static PRBool sTitlebarInfoPopulatedThemed;
+  static PRBool sTitlebarInfoPopulated;
   static SIZE sCommandButtons[4];
   static nsILookAndFeel::WindowsThemeIdentifier sThemeId;
   static PRBool sIsDefaultWindowsTheme;

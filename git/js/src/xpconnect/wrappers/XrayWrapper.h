@@ -93,10 +93,6 @@ class XrayWrapper : public Base {
     static JSObject *createHolder(JSContext *cx, JSObject *wrappedNative, JSObject *parent);
 
     static XrayWrapper singleton;
-
-  private:
-    bool resolveOwnProperty(JSContext *cx, JSObject *wrapper, jsid id, bool set,
-                            js::PropertyDescriptor *desc);
 };
 
 class CrossCompartmentXray {

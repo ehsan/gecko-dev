@@ -84,9 +84,6 @@ public:
          PRUint16 aMode,
          PRUint32 aTimeout);
 
-  // nsPIDOMEventTarget
-  virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
-
   void OnNewRequest();
   void OnRequestFinished();
 
@@ -103,7 +100,7 @@ public:
                bool aAutoIncrement);
 
   already_AddRefed<mozIStorageStatement>
-  DeleteStatement(bool aAutoIncrement);
+  RemoveStatement(bool aAutoIncrement);
 
   already_AddRefed<mozIStorageStatement>
   GetStatement(bool aAutoIncrement);
@@ -138,9 +135,8 @@ public:
 #else
   bool TransactionIsOpen() const
   {
-    return (mReadyState == nsIIDBTransaction::INITIAL ||
-            mReadyState == nsIIDBTransaction::LOADING) &&
-           !mClosed;
+    return mReadyState == nsIIDBTransaction::INITIAL ||
+           mReadyState == nsIIDBTransaction::LOADING;
   }
 #endif
 
@@ -161,10 +157,6 @@ public:
     return mDatabase;
   }
 
-  already_AddRefed<IDBObjectStore>
-  GetOrCreateObjectStore(const nsAString& aName,
-                         ObjectStoreInfo* aObjectStoreInfo);
-
 private:
   IDBTransaction();
   ~IDBTransaction();
@@ -179,10 +171,10 @@ private:
   PRUint32 mPendingRequests;
 
   // Only touched on the main thread.
-  nsRefPtr<nsDOMEventListenerWrapper> mOnErrorListener;
   nsRefPtr<nsDOMEventListenerWrapper> mOnCompleteListener;
   nsRefPtr<nsDOMEventListenerWrapper> mOnAbortListener;
   nsRefPtr<nsDOMEventListenerWrapper> mOnTimeoutListener;
+  nsRefPtr<nsDOMEventListenerWrapper> mOnErrorListener;
 
   nsInterfaceHashtable<nsCStringHashKey, mozIStorageStatement>
     mCachedStatements;
@@ -193,10 +185,7 @@ private:
   // Only touched on the database thread.
   PRUint32 mSavepointCount;
 
-  nsTArray<nsRefPtr<IDBObjectStore> > mCreatedObjectStores;
-
   bool mAborted;
-  bool mClosed;
 };
 
 class CommitHelper : public nsIRunnable

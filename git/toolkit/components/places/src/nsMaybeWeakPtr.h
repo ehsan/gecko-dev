@@ -80,26 +80,30 @@ protected:
 // grab a weak reference to a given object if requested.  It only allows a
 // given object to appear in the array once.
 
-typedef nsTArray< nsMaybeWeakPtr<nsISupports> > isupports_array_type;
-nsresult NS_AppendWeakElementBase(isupports_array_type *aArray,
-                                  nsISupports *aElement, PRBool aWeak);
-nsresult NS_RemoveWeakElementBase(isupports_array_type *aArray,
-                                  nsISupports *aElement);
+class nsMaybeWeakPtrArray_base
+{
+protected:
+  static nsresult AppendWeakElementBase(nsTArray_base *aArray,
+                                        nsISupports *aElement, PRBool aWeak);
+  static nsresult RemoveWeakElementBase(nsTArray_base *aArray,
+                                         nsISupports *aElement);
+
+  typedef nsTArray< nsMaybeWeakPtr<nsISupports> > isupports_type;
+};
 
 template<class T>
-class nsMaybeWeakPtrArray : public nsTArray< nsMaybeWeakPtr<T> >
+class nsMaybeWeakPtrArray : public nsTArray< nsMaybeWeakPtr<T> >,
+                            private nsMaybeWeakPtrArray_base
 {
 public:
   nsresult AppendWeakElement(T *aElement, PRBool aOwnsWeak)
   {
-    return NS_AppendWeakElementBase(
-      reinterpret_cast<isupports_array_type*>(this), aElement, aOwnsWeak);
+    return AppendWeakElementBase(this, aElement, aOwnsWeak);
   }
 
   nsresult RemoveWeakElement(T *aElement)
   {
-    return NS_RemoveWeakElementBase(
-      reinterpret_cast<isupports_array_type*>(this), aElement);
+    return RemoveWeakElementBase(this, aElement);
   }
 };
 

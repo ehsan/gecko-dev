@@ -94,12 +94,7 @@ public:
   // (A resample performs the same operations as a sample but doesn't advance
   // the current time and doesn't check if the container is paused)
   void Resample() { DoSample(PR_FALSE); }
-  void SetResampleNeeded()
-  {
-    if (!mRunningSample) {
-      mResampleNeeded = PR_TRUE;
-    }
-  }
+  void SetResampleNeeded() { mResampleNeeded = PR_TRUE; }
   void FlushResampleRequests()
   {
     if (!mResampleNeeded)
@@ -208,7 +203,9 @@ protected:
   // record the time, set the following flag, and then wait until we have an
   // animation element. Then we'll reset this flag and actually start sampling.
   PRPackedBool               mDeferredStartSampling;
+#ifdef DEBUG
   PRPackedBool               mRunningSample;
+#endif
 
   // Store raw ptr to mDocument.  It owns the controller, so controller
   // shouldn't outlive it

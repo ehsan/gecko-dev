@@ -207,6 +207,13 @@ nsLinkableAccessible::GetKeyboardShortcut(nsAString& aKeyboardShortcut)
 ////////////////////////////////////////////////////////////////////////////////
 // nsLinkableAccessible. nsAccessNode
 
+PRBool
+nsLinkableAccessible::Init()
+{
+  CacheActionContent();
+  return nsAccessibleWrap::Init();
+}
+
 void
 nsLinkableAccessible::Shutdown()
 {
@@ -235,19 +242,11 @@ nsLinkableAccessible::GetAnchorURI(PRUint32 aAnchorIndex)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// nsLinkableAccessible: nsAccessible protected
+// nsLinkableAccessible
 
 void
-nsLinkableAccessible::BindToParent(nsAccessible* aParent,
-                                   PRUint32 aIndexInParent)
+nsLinkableAccessible::CacheActionContent()
 {
-  nsAccessibleWrap::BindToParent(aParent, aIndexInParent);
-
-  // Cache action content.
-  mActionContent = nsnull;
-  mIsLink = PR_FALSE;
-  mIsOnclick = PR_FALSE;
-
   nsIContent* walkUpContent = mContent;
   PRBool isOnclick = nsCoreUtils::HasClickListener(walkUpContent);
 
@@ -276,9 +275,6 @@ nsLinkableAccessible::BindToParent(nsAccessible* aParent,
     }
   }
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// nsLinkableAccessible: protected
 
 nsAccessible *
 nsLinkableAccessible::GetActionAccessible() const

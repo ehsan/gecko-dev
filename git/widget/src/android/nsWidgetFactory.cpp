@@ -54,7 +54,6 @@
 #include "nsTransferable.h"
 #include "nsFilePicker.h"
 #include "nsHTMLFormatConverter.h"
-#include "nsIMEPicker.h"
 #ifdef MOZ_IPC
 #include "nsFilePickerProxy.h"
 #include "nsXULAppAPI.h"
@@ -69,7 +68,6 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsTransferable)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsClipboard)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsClipboardHelper)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsHTMLFormatConverter)
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsIMEPicker)
 
 static nsresult
 nsFilePickerConstructor(nsISupports *aOuter, REFNSIID aIID,
@@ -103,7 +101,6 @@ NS_DEFINE_NAMED_CID(NS_CLIPBOARD_CID);
 NS_DEFINE_NAMED_CID(NS_CLIPBOARDHELPER_CID);
 NS_DEFINE_NAMED_CID(NS_FILEPICKER_CID);
 NS_DEFINE_NAMED_CID(NS_HTMLFORMATCONVERTER_CID);
-NS_DEFINE_NAMED_CID(NS_IMEPICKER_CID);
 
 static const mozilla::Module::CIDEntry kWidgetCIDs[] = {
   { &kNS_WINDOW_CID, false, NULL, nsWindowConstructor },
@@ -118,7 +115,6 @@ static const mozilla::Module::CIDEntry kWidgetCIDs[] = {
   { &kNS_CLIPBOARDHELPER_CID, false, NULL, nsClipboardHelperConstructor },
   { &kNS_FILEPICKER_CID, false, NULL, nsFilePickerConstructor },
   { &kNS_HTMLFORMATCONVERTER_CID, false, NULL, nsHTMLFormatConverterConstructor },
-  { &kNS_IMEPICKER_CID, false, NULL, nsIMEPickerConstructor },
   { NULL }
 };
 
@@ -135,7 +131,6 @@ static const mozilla::Module::ContractIDEntry kWidgetContracts[] = {
   { "@mozilla.org/widget/clipboardhelper;1", &kNS_CLIPBOARDHELPER_CID },
   { "@mozilla.org/filepicker;1", &kNS_FILEPICKER_CID },
   { "@mozilla.org/widget/htmlformatconverter;1", &kNS_HTMLFORMATCONVERTER_CID },
-  { "@mozilla.org/imepicker;1", &kNS_IMEPICKER_CID },
   { NULL }
 };
 

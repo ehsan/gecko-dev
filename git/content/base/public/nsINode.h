@@ -738,7 +738,7 @@ public:
     nsSlots* s = GetSlots();
     if (s) {
       NS_ASSERTION(s->mMutationObservers.IndexOf(aMutationObserver) ==
-                   nsTArray<int>::NoIndex,
+                   nsTArray_base::NoIndex,
                    "Observer already in the list");
       s->mMutationObservers.AppendElement(aMutationObserver);
     }
