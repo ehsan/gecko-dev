@@ -30,7 +30,7 @@ WebGLContext::Clear(GLbitfield mask)
     }
 
     if (mBoundFramebuffer) {
-        if (!mBoundFramebuffer->CheckAndInitializeAttachments())
+        if (!mBoundFramebuffer->CheckAndInitializeRenderbuffers())
             return ErrorInvalidFramebufferOperation("clear: incomplete framebuffer");
 
         gl->fClear(mask);

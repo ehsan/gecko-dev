@@ -7,7 +7,6 @@
 #ifndef AudioContext_h_
 #define AudioContext_h_
 
-#include "mozilla/dom/AudioContextBinding.h"
 #include "EnableWebAudioCheck.h"
 #include "MediaBufferDecoder.h"
 #include "mozilla/Attributes.h"
@@ -238,9 +237,6 @@ public:
   void Unmute() const;
 
   JSContext* GetJSContext() const;
-
-  AudioChannel MozAudioChannelType() const;
-  void SetMozAudioChannelType(AudioChannel aValue, ErrorResult& aRv);
 
 private:
   void RemoveFromDecodeQueue(WebAudioDecodeJob* aDecodeJob);

@@ -33,13 +33,8 @@ public:
     bool HasEverBeenBound() { return mHasEverBeenBound; }
     void SetHasEverBeenBound(bool x) { mHasEverBeenBound = x; }
 
-    bool HasUninitializedImageData() const { return mImageDataStatus == WebGLImageDataStatus::UninitializedImageData; }
-    void SetImageDataStatus(WebGLImageDataStatus x) {
-        // there is no way to go from having image data to not having any
-        MOZ_ASSERT(x != WebGLImageDataStatus::NoImageData ||
-                   mImageDataStatus == WebGLImageDataStatus::NoImageData);
-        mImageDataStatus = x;
-    }
+    bool Initialized() const { return mInitialized; }
+    void SetInitialized(bool aInitialized) { mInitialized = aInitialized; }
 
     GLenum InternalFormat() const { return mInternalFormat; }
     void SetInternalFormat(GLenum aInternalFormat) { mInternalFormat = aInternalFormat; }
@@ -71,7 +66,7 @@ protected:
     GLenum mInternalFormat;
     GLenum mInternalFormatForGL;
     bool mHasEverBeenBound;
-    WebGLImageDataStatus mImageDataStatus;
+    bool mInitialized;
 
     friend class WebGLFramebuffer;
 };

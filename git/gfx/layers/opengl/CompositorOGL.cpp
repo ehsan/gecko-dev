@@ -705,14 +705,6 @@ CompositorOGL::SetRenderTarget(CompositingRenderTarget *aSurface)
   CompositingRenderTargetOGL* surface
     = static_cast<CompositingRenderTargetOGL*>(aSurface);
   if (mCurrentRenderTarget != surface) {
-    // Restore the scissor rect that was active before we set the current
-    // render target.
-    mGLContext->PopScissorRect();
-
-    // Save the current scissor rect so that we can pop back to it when
-    // changing the render target again.
-    mGLContext->PushScissorRect();
-
     surface->BindRenderTarget();
     mCurrentRenderTarget = surface;
   }
@@ -835,9 +827,6 @@ CompositorOGL::BeginFrame(const Rect *aClipRectIn, const gfxMatrix& aTransform,
   } else {
     mGLContext->fScissor(aClipRectIn->x, aClipRectIn->y, aClipRectIn->width, aClipRectIn->height);
   }
-
-  // Save the current scissor rect so that SetRenderTarget can pop back to it.
-  mGLContext->PushScissorRect();
 
   // If the Android compositor is being used, this clear will be done in
   // DrawWindowUnderlay. Make sure the bits used here match up with those used
@@ -1291,9 +1280,6 @@ CompositorOGL::EndFrame()
     mCurrentRenderTarget = nullptr;
     return;
   }
-
-  // Restore the scissor rect that we saved in BeginFrame.
-  mGLContext->PopScissorRect();
 
   mCurrentRenderTarget = nullptr;
 

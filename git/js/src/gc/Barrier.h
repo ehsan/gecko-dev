@@ -420,7 +420,7 @@ class RelocatablePtr : public EncapsulatedPtr<T>
 
     ~RelocatablePtr() {
         if (this->value)
-            relocate(this->value->runtimeFromAnyThread());
+            relocate(this->value->runtimeFromMainThread());
     }
 
     RelocatablePtr<T> &operator=(T *v) {
@@ -430,7 +430,7 @@ class RelocatablePtr : public EncapsulatedPtr<T>
             this->value = v;
             post();
         } else if (this->value) {
-            JSRuntime *rt = this->value->runtimeFromAnyThread();
+            JSRuntime *rt = this->value->runtimeFromMainThread();
             this->value = v;
             relocate(rt);
         }
@@ -444,7 +444,7 @@ class RelocatablePtr : public EncapsulatedPtr<T>
             this->value = v.value;
             post();
         } else if (this->value) {
-            JSRuntime *rt = this->value->runtimeFromAnyThread();
+            JSRuntime *rt = this->value->runtimeFromMainThread();
             this->value = v;
             relocate(rt);
         }
@@ -712,7 +712,7 @@ class HeapValue : public EncapsulatedValue
     static void writeBarrierPost(const Value &value, Value *addr) {
 #ifdef JSGC_GENERATIONAL
         if (value.isMarkable())
-            shadowRuntimeFromAnyThread(value)->gcStoreBufferPtr()->putValue(addr);
+            shadowRuntimeFromMainThread(value)->gcStoreBufferPtr()->putValue(addr);
 #endif
     }
 
@@ -761,7 +761,7 @@ class RelocatableValue : public EncapsulatedValue
     ~RelocatableValue()
     {
         if (value.isMarkable())
-            relocate(runtimeFromAnyThread(value));
+            relocate(runtimeFromMainThread(value));
     }
 
     RelocatableValue &operator=(const Value &v) {
@@ -771,7 +771,7 @@ class RelocatableValue : public EncapsulatedValue
             value = v;
             post();
         } else if (value.isMarkable()) {
-            JSRuntime *rt = runtimeFromAnyThread(value);
+            JSRuntime *rt = runtimeFromMainThread(value);
             relocate(rt);
             value = v;
         } else {
@@ -787,7 +787,7 @@ class RelocatableValue : public EncapsulatedValue
             value = v.value;
             post();
         } else if (value.isMarkable()) {
-            JSRuntime *rt = runtimeFromAnyThread(value);
+            JSRuntime *rt = runtimeFromMainThread(value);
             relocate(rt);
             value = v.value;
         } else {
@@ -800,7 +800,7 @@ class RelocatableValue : public EncapsulatedValue
     void post() {
 #ifdef JSGC_GENERATIONAL
         JS_ASSERT(value.isMarkable());
-        shadowRuntimeFromAnyThread(value)->gcStoreBufferPtr()->putRelocatableValue(&value);
+        shadowRuntimeFromMainThread(value)->gcStoreBufferPtr()->putRelocatableValue(&value);
 #endif
     }
 

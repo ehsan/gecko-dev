@@ -102,8 +102,8 @@ public:
     { }
 
     ~WebGLRefCountedObject() {
-        MOZ_ASSERT(mWebGLRefCnt == 0, "destroying WebGL object still referenced by other WebGL objects");
-        MOZ_ASSERT(mDeletionStatus == Deleted, "Derived class destructor must call DeleteOnce()");
+        NS_ABORT_IF_FALSE(mWebGLRefCnt == 0, "destroying WebGL object still referenced by other WebGL objects");
+        NS_ABORT_IF_FALSE(mDeletionStatus == Deleted, "Derived class destructor must call DeleteOnce()");
     }
 
     // called by WebGLRefPtr
@@ -113,7 +113,7 @@ public:
 
     // called by WebGLRefPtr
     void WebGLRelease() {
-        MOZ_ASSERT(mWebGLRefCnt > 0, "releasing WebGL object with WebGL refcnt already zero");
+        NS_ABORT_IF_FALSE(mWebGLRefCnt > 0, "releasing WebGL object with WebGL refcnt already zero");
         --mWebGLRefCnt;
         MaybeDelete();
     }
@@ -215,12 +215,12 @@ public:
     }
 
     T* operator->() const {
-        MOZ_ASSERT(mRawPtr != 0, "You can't dereference a nullptr WebGLRefPtr with operator->()!");
+        NS_ABORT_IF_FALSE(mRawPtr != 0, "You can't dereference a nullptr WebGLRefPtr with operator->()!");
         return get();
     }
 
     T& operator*() const {
-        MOZ_ASSERT(mRawPtr != 0, "You can't dereference a nullptr WebGLRefPtr with operator*()!");
+        NS_ABORT_IF_FALSE(mRawPtr != 0, "You can't dereference a nullptr WebGLRefPtr with operator*()!");
         return *get();
     }
 

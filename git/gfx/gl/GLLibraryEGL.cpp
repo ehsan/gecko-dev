@@ -15,8 +15,6 @@
 namespace mozilla {
 namespace gl {
 
-GLLibraryEGL sEGLLibrary;
-
 // should match the order of EGLExtensions, and be null-terminated.
 static const char *sExtensionNames[] = {
     "EGL_KHR_image_base",

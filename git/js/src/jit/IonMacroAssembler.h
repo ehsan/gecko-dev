@@ -407,10 +407,8 @@ class MacroAssembler : public MacroAssemblerSpecific
             storeValue(src.valueReg(), dest);
         } else if (IsFloatingPointType(src.type())) {
             FloatRegister reg = src.typedReg().fpu();
-            if (src.type() == MIRType_Float32) {
-                convertFloatToDouble(reg, ScratchFloatReg);
-                reg = ScratchFloatReg;
-            }
+            if (src.type() == MIRType_Float32)
+                convertFloatToDouble(reg, reg);
             storeDouble(reg, dest);
         } else {
             storeValue(ValueTypeFromMIRType(src.type()), src.typedReg().gpr(), dest);
@@ -555,10 +553,8 @@ class MacroAssembler : public MacroAssemblerSpecific
             Push(v.valueReg());
         } else if (IsFloatingPointType(v.type())) {
             FloatRegister reg = v.typedReg().fpu();
-            if (v.type() == MIRType_Float32) {
-                convertFloatToDouble(reg, ScratchFloatReg);
-                reg = ScratchFloatReg;
-            }
+            if (v.type() == MIRType_Float32)
+                convertFloatToDouble(reg, reg);
             Push(reg);
         } else {
             Push(ValueTypeFromMIRType(v.type()), v.typedReg().gpr());
@@ -938,6 +934,11 @@ class MacroAssembler : public MacroAssemblerSpecific
         test32(Address(scratch, Class::offsetOfFlags()), Imm32(JSCLASS_EMULATES_UNDEFINED));
         return truthy ? Assembler::Zero : Assembler::NonZero;
     }
+
+    void pushCalleeToken(Register callee, ExecutionMode mode);
+    void PushCalleeToken(Register callee, ExecutionMode mode);
+    void tagCallee(Register callee, ExecutionMode mode);
+    void clearCalleeTag(Register callee, ExecutionMode mode);
 
   private:
     // These two functions are helpers used around call sites throughout the

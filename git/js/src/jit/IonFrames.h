@@ -24,20 +24,26 @@ typedef void * CalleeToken;
 enum CalleeTokenTag
 {
     CalleeToken_Function = 0x0, // untagged
-    CalleeToken_Script = 0x1
+    CalleeToken_Script = 0x1,
+    CalleeToken_ParallelFunction = 0x2
 };
 
 static inline CalleeTokenTag
 GetCalleeTokenTag(CalleeToken token)
 {
     CalleeTokenTag tag = CalleeTokenTag(uintptr_t(token) & 0x3);
-    JS_ASSERT(tag <= CalleeToken_Script);
+    JS_ASSERT(tag <= CalleeToken_ParallelFunction);
     return tag;
 }
 static inline CalleeToken
 CalleeToToken(JSFunction *fun)
 {
     return CalleeToken(uintptr_t(fun) | uintptr_t(CalleeToken_Function));
+}
+static inline CalleeToken
+CalleeToParallelToken(JSFunction *fun)
+{
+    return CalleeToken(uintptr_t(fun) | uintptr_t(CalleeToken_ParallelFunction));
 }
 static inline CalleeToken
 CalleeToToken(JSScript *script)
@@ -55,6 +61,12 @@ CalleeTokenToFunction(CalleeToken token)
     JS_ASSERT(CalleeTokenIsFunction(token));
     return (JSFunction *)token;
 }
+static inline JSFunction *
+CalleeTokenToParallelFunction(CalleeToken token)
+{
+    JS_ASSERT(GetCalleeTokenTag(token) == CalleeToken_ParallelFunction);
+    return (JSFunction *)(uintptr_t(token) & ~uintptr_t(0x3));
+}
 static inline JSScript *
 CalleeTokenToScript(CalleeToken token)
 {
@@ -70,6 +82,8 @@ ScriptFromCalleeToken(CalleeToken token)
         return CalleeTokenToScript(token);
       case CalleeToken_Function:
         return CalleeTokenToFunction(token)->nonLazyScript();
+      case CalleeToken_ParallelFunction:
+        return CalleeTokenToParallelFunction(token)->nonLazyScript();
     }
     MOZ_ASSUME_UNREACHABLE("invalid callee token tag");
 }
@@ -272,9 +286,9 @@ MakeFrameDescriptor(uint32_t frameSize, FrameType type)
 
 // Returns the JSScript associated with the topmost Ion frame.
 inline JSScript *
-GetTopIonJSScript(uint8_t *ionTop, void **returnAddrOut, ExecutionMode mode)
+GetTopIonJSScript(PerThreadData *pt, void **returnAddrOut)
 {
-    IonFrameIterator iter(ionTop, mode);
+    IonFrameIterator iter(pt->ionTop);
     JS_ASSERT(iter.type() == IonFrame_Exit);
     ++iter;
 
@@ -289,6 +303,12 @@ GetTopIonJSScript(uint8_t *ionTop, void **returnAddrOut, ExecutionMode mode)
 
     JS_ASSERT(iter.isScripted());
     return iter.script();
+}
+
+inline JSScript *
+GetTopIonJSScript(ThreadSafeContext *cx, void **returnAddrOut = nullptr)
+{
+    return GetTopIonJSScript(cx->perThreadData, returnAddrOut);
 }
 
 } // namespace jit

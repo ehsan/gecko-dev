@@ -102,7 +102,6 @@ CPP_SOURCES += [
     'SharedSurface.cpp',
     'GLLibraryEGL.cpp',
     'SharedSurfaceEGL.cpp',
-    'TextureImageEGL.cpp',
     'SharedSurfaceGL.cpp',
     'SurfaceFactory.cpp',
     'SurfaceStream.cpp',
