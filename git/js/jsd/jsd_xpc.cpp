@@ -2508,7 +2508,7 @@ jsdService::ActivateDebugger (JSRuntime *rt)
     if (!mCx)
         return NS_ERROR_FAILURE;
 
-    mozilla::AutoPushJSContext cx(JSD_GetDefaultJSContext (mCx));
+    JSContext *cx   = JSD_GetDefaultJSContext (mCx);
     JS::RootedObject glob(cx, JSD_GetDefaultGlobal (mCx));
 
     /* init xpconnect on the debugger's context in case xpconnect tries to

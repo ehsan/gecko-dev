@@ -26,7 +26,7 @@ const CHUNK_SIZE = 20;
 const REVISION_STORE = "revision";
 const REVISION_KEY = "revision";
 
-function ContactDispatcher(aContacts, aFullContacts, aCallback, aNewTxn, aClearDispatcher, aFailureCb) {
+function ContactDispatcher(aContacts, aFullContacts, aCallback, aNewTxn, aClearDispatcher) {
   let nextIndex = 0;
 
   let sendChunk;
@@ -67,8 +67,6 @@ function ContactDispatcher(aContacts, aFullContacts, aCallback, aNewTxn, aClearD
               }
             }
           }
-        }, null, function(errorMsg) {
-          aFailureCb(errorMsg);
         });
       } catch (e) {
         aClearDispatcher();
@@ -550,7 +548,7 @@ ContactDB.prototype = {
     record.updated = new Date();
   },
 
-  removeObjectFromCache: function CDB_removeObjectFromCache(aObjectId, aCallback, aFailureCb) {
+  removeObjectFromCache: function CDB_removeObjectFromCache(aObjectId, aCallback) {
     if (DEBUG) debug("removeObjectFromCache: " + aObjectId);
     if (!aObjectId) {
       if (DEBUG) debug("No object ID passed");
@@ -573,19 +571,16 @@ ContactDB.prototype = {
           aCallback();
         }
       }.bind(this);
-    }.bind(this), null,
-    function(errorMsg) {
-      aFailureCb(errorMsg);
-    });
+    }.bind(this));
   },
 
   // Invalidate the entire cache. It will be incrementally regenerated on demand
   // See getCacheForQuery
-  invalidateCache: function CDB_invalidateCache(aErrorCb) {
+  invalidateCache: function CDB_invalidateCache() {
     if (DEBUG) debug("invalidate cache");
     this.newTxn("readwrite", SAVED_GETALL_STORE_NAME, function (txn, store) {
       store.clear();
-    }, aErrorCb);
+    });
   },
 
   incrementRevision: function CDB_incrementRevision(txn) {
@@ -621,7 +616,7 @@ ContactDB.prototype = {
             store.put(contact);
           }
         }
-        this.invalidateCache(errorCb);
+        this.invalidateCache();
       }.bind(this);
 
       this.incrementRevision(txn);
@@ -637,7 +632,7 @@ ContactDB.prototype = {
         };
         this.incrementRevision(txn);
       }.bind(this), null, aErrorCb);
-    }.bind(this), aErrorCb);
+    }.bind(this));
   },
 
   clear: function clear(aSuccessCb, aErrorCb) {
@@ -659,7 +654,7 @@ ContactDB.prototype = {
         // save contact ids in cache
         this.newTxn("readwrite", SAVED_GETALL_STORE_NAME, function(txn, store) {
           store.put(contactsArray.map(function(el) el.id), aQuery);
-        }, null, aFailureCb);
+        });
 
         // send full contacts
         aSuccessCb(contactsArray, true);
@@ -671,7 +666,7 @@ ContactDB.prototype = {
     JSON.parse(aQuery));
   },
 
-  getCacheForQuery: function CDB_getCacheForQuery(aQuery, aSuccessCb, aFailureCb) {
+  getCacheForQuery: function CDB_getCacheForQuery(aQuery, aSuccessCb) {
     if (DEBUG) debug("getCacheForQuery");
     // Here we try to get the cached results for query `aQuery'. If they don't
     // exist, it means the cache was invalidated and needs to be recreated, so
@@ -687,10 +682,10 @@ ContactDB.prototype = {
           this.createCacheForQuery(aQuery, aSuccessCb);
         }
       }.bind(this);
-      req.onerror = function(e) {
-        aFailureCb(e.target.errorMessage);
+      req.onerror = function() {
+
       };
-    }.bind(this), null, aFailureCb);
+    }.bind(this));
   },
 
   sendNow: function CDB_sendNow(aCursorId) {
@@ -718,14 +713,13 @@ ContactDB.prototype = {
         let newTxnFn = this.newTxn.bind(this);
         let clearDispatcherFn = this.clearDispatcher.bind(this, aCursorId);
         this._dispatcher[aCursorId] = new ContactDispatcher(aCachedResults, aFullContacts,
-                                                            aSuccessCb, newTxnFn,
-                                                            clearDispatcherFn, aFailureCb);
+                                                            aSuccessCb, newTxnFn, clearDispatcherFn);
         this._dispatcher[aCursorId].sendNow();
       } else { // no contacts
         if (DEBUG) debug("query returned no contacts");
         aSuccessCb(null);
       }
-    }.bind(this), aFailureCb);
+    }.bind(this));
   },
 
   getRevision: function CDB_getRevision(aSuccessCb) {

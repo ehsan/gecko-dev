@@ -23,7 +23,6 @@
 #include "js/RootingAPI.h"
 #include "vm/GlobalObject.h"
 
-#include "jsanalyzeinlines.h"
 #include "vm/Stack-inl.h"
 
 #ifndef jsinferinlines_h___

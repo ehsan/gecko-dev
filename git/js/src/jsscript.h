@@ -1102,7 +1102,13 @@ class ScriptSourceObject : public JSObject {
         return static_cast<ScriptSource *>(getReservedSlot(SOURCE_SLOT).toPrivate());
     }
 
-    void setSource(ScriptSource *source);
+    void setSource(ScriptSource *source) {
+        if (source)
+            source->incref();
+        if (this->source())
+            this->source()->decref();
+        setReservedSlot(SOURCE_SLOT, PrivateValue(source));
+    }
 
   private:
     static const uint32_t SOURCE_SLOT = 0;

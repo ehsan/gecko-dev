@@ -48,11 +48,9 @@ class Nursery
     {}
     ~Nursery();
 
-    bool init();
-
-    void enable();
+    bool enable();
     void disable();
-    bool isEnabled() const { return numActiveChunks_ != 0; }
+    bool isEnabled() const { return bool(start()); }
 
     template <typename T>
     JS_ALWAYS_INLINE bool isInside(const T *p) const {

@@ -36,7 +36,6 @@ public class Telemetry {
         private long mStartTime;
         private String mName;
         private boolean mHasFinished;
-        private volatile long mElapsed = -1;
 
         public Timer(String name) {
             mName = name;
@@ -48,10 +47,6 @@ public class Telemetry {
             mHasFinished = true;
         }
 
-        public long getElapsed() {
-          return mElapsed;
-        }
-
         public void stop() {
             // Only the first stop counts.
             if (mHasFinished) {
@@ -60,12 +55,11 @@ public class Telemetry {
                 mHasFinished = true;
             }
 
-            final long elapsed = SystemClock.uptimeMillis() - mStartTime;
-            mElapsed = elapsed;
+            long elapsed = SystemClock.uptimeMillis() - mStartTime;
             if (elapsed < Integer.MAX_VALUE) {
                 HistogramAdd(mName, (int)(elapsed));
             } else {
-                Log.e(LOGTAG, "Duration of " + elapsed + " ms is too long to add to histogram.");
+                Log.e(LOGTAG, "Duration of " + elapsed + " ms is too long.");
             }
         }
     }

@@ -23,6 +23,7 @@
 #include "jstypedarray.h"
 #include "jswrapper.h"
 
+#include "builtin/Iterator-inl.h"
 #include "gc/Barrier.h"
 #include "gc/Marking.h"
 #include "js/MemoryMetrics.h"
@@ -46,6 +47,7 @@
 
 #include "vm/ObjectImpl-inl.h"
 #include "vm/Shape-inl.h"
+#include "vm/RegExpStatics-inl.h"
 #include "vm/String-inl.h"
 
 /* static */ inline bool
@@ -321,6 +323,20 @@ JSObject::getRawSlots()
 {
     JS_ASSERT(isGlobal());
     return slots;
+}
+
+inline const js::Value &
+JSObject::getReservedSlot(uint32_t index) const
+{
+    JS_ASSERT(index < JSSLOT_FREE(getClass()));
+    return getSlot(index);
+}
+
+inline js::HeapSlot &
+JSObject::getReservedSlotRef(uint32_t index)
+{
+    JS_ASSERT(index < JSSLOT_FREE(getClass()));
+    return getSlotRef(index);
 }
 
 inline void

@@ -50,7 +50,7 @@ ParseMapPool::allocateFresh()
     if (!all.reserve(newAllLength) || !recyclable.reserve(newAllLength))
         return NULL;
 
-    AtomMapT *map = js_new<AtomMapT>();
+    AtomMapT *map = cx->new_<AtomMapT>(cx);
     if (!map)
         return NULL;
 
