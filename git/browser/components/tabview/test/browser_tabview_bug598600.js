@@ -10,7 +10,9 @@ function test() {
 
   // open a new window and setup the window state.
   newWin = openDialog(getBrowserURL(), "_blank", "chrome,all,dialog=no");
-  whenWindowLoaded(newWin, function () {
+  newWin.addEventListener("load", function onLoad(event) {
+    this.removeEventListener("load", onLoad, false);
+
     let newState = {
       windows: [{
         tabs: [{
@@ -67,5 +69,5 @@ function test() {
     }
     newWin.addEventListener("tabviewshown", onTabViewShow, false);
     waitForFocus(function() { newWin.TabView.toggle(); });
-  });
+  }, false);
 }
