@@ -814,11 +814,9 @@ LoginManagerStorage_legacy.prototype = {
          */
         const isHTTP = /^https?:\/\//;
         const isLDAP = /^ldaps?:\/\//;
-        const isNews = /^news?:\/\//;
         if (!isHTTP.test(aLogin.hostname) && !isFormLogin) {
-            // LDAP and News logins need to keep the path.
-            if (isLDAP.test(aLogin.hostname) ||
-                isNews.test(aLogin.hostname))
+            // LDAP logins need to keep the path.
+            if (isLDAP.test(aLogin.hostname))
                 aLogin.httpRealm = aLogin.hostname + pathname;
             else
                 aLogin.httpRealm = aLogin.hostname;

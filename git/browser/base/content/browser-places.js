@@ -236,7 +236,7 @@ var StarUI = {
       if (!this._element("editBookmarkPanelContent").hidden) {
         var namePicker = this._element("editBMPanel_namePicker");
         namePicker.focus();
-        namePicker.select();
+        namePicker.editor.selectAll();
       }
       else
         this.panel.focus();
@@ -951,11 +951,7 @@ var PlacesMenuDNDController = {
 
 var PlacesStarButton = {
   init: function PSB_init() {
-    try {
-      PlacesUtils.bookmarks.addObserver(this, false);
-    } catch(ex) {
-      Components.utils.reportError("PlacesStarButton.init(): error adding bookmark observer: " + ex);
-    }
+    PlacesUtils.bookmarks.addObserver(this, false);
   },
 
   uninit: function PSB_uninit() {

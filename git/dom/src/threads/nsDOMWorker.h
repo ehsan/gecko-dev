@@ -77,7 +77,6 @@ class nsDOMWorker : public nsIWorker,
   friend class nsDOMWorkerScriptLoader;
   friend class nsDOMWorkerTimeout;
   friend class nsDOMWorkerXHR;
-  friend class nsDOMWorkerXHRProxy;
   friend class nsReportErrorRunnable;
 
   friend JSBool DOMWorkerOperationCallback(JSContext* aCx);

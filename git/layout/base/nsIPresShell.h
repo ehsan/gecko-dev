@@ -270,9 +270,11 @@ public:
   NS_IMETHOD EndObservingDocument() = 0;
 
   /**
-   * Return whether InitialReflow() was previously called.
+   * Determine if InitialReflow() was previously called.
+   * @param aDidInitialReflow PR_TRUE if InitalReflow() was previously called,
+   * PR_FALSE otherwise.
    */
-  PRBool DidInitialReflow() const { return mDidInitialReflow; }
+  NS_IMETHOD GetDidInitialReflow(PRBool *aDidInitialReflow) = 0;
 
   /**
    * Perform the initial reflow. Constructs the frame for the root content

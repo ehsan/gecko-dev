@@ -35,23 +35,32 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-/* derived class of nsBlockFrame used for xul:label elements */
+/* derived class of nsBlockFrame; distinction barely relevant anymore */
 
-#ifndef nsXULLabelFrame_h_
-#define nsXULLabelFrame_h_
+#ifndef nsAreaFrame_h___
+#define nsAreaFrame_h___
 
 #include "nsBlockFrame.h"
+#include "nsAbsoluteContainingBlock.h"
 
-#ifndef MOZ_XUL
-#error "This file should not be included"
-#endif
+struct nsStyleDisplay;
+struct nsStylePosition;
 
-class nsXULLabelFrame : public nsBlockFrame
+
+/**
+ * The area frame has an additional named child list:
+ * - "Absolute-list" which contains the absolutely positioned frames
+ *
+ * @see nsGkAtoms::absoluteList
+ */
+class nsAreaFrame : public nsBlockFrame
 {
 public:
-  friend nsIFrame* NS_NewXULLabelFrame(nsIPresShell* aPresShell, nsStyleContext *aContext, PRUint32 aFlags);
+  friend nsIFrame* NS_NewAreaFrame(nsIPresShell* aPresShell, nsStyleContext *aContext, PRUint32 aFlags);
   
   // nsIFrame
+
+#ifdef MOZ_XUL
   NS_IMETHOD Init(nsIContent*      aContent,
                   nsIFrame*        aParent,
                   nsIFrame*        aPrevInFlow);
@@ -61,11 +70,12 @@ public:
   NS_IMETHOD AttributeChanged(PRInt32 aNameSpaceID,
                               nsIAtom* aAttribute,
                               PRInt32 aModType);
+#endif
 
   /**
    * Get the "type" of the frame
    *
-   * @see nsGkAtoms::XULLabelFrame
+   * @see nsGkAtoms::areaFrame
    */
   virtual nsIAtom* GetType() const;
   
@@ -74,12 +84,11 @@ public:
 #endif
 
 protected:
-  nsXULLabelFrame(nsStyleContext *aContext) : nsBlockFrame(aContext) {}
+  nsAreaFrame(nsStyleContext *aContext) : nsBlockFrame(aContext) {}
 
+#ifdef MOZ_XUL
   nsresult RegUnregAccessKey(PRBool aDoReg);
+#endif
 };
 
-nsIFrame*
-NS_NewXULLabelFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRUint32 aFlags);
-
-#endif /* !defined(nsXULLabelFrame_h_) */
+#endif /* nsAreaFrame_h___ */

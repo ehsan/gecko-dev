@@ -7095,10 +7095,6 @@ nsDocument::OnPageShow(PRBool aPersisted)
     }
   }
 
-  // Set mIsShowing before firing events, in case those event handlers
-  // move us around.
-  mIsShowing = PR_TRUE;
-  
   nsPageTransitionEvent event(PR_TRUE, NS_PAGE_SHOW, aPersisted);
   DispatchEventToWindow(&event);
 }
@@ -7125,10 +7121,6 @@ nsDocument::OnPageHide(PRBool aPersisted)
     }
   }
 
-  // Set mIsShowing before firing events, in case those event handlers
-  // move us around.
-  mIsShowing = PR_FALSE;
-  
   // Now send out a PageHide event.
   nsPageTransitionEvent event(PR_TRUE, NS_PAGE_HIDE, aPersisted);
   DispatchEventToWindow(&event);

@@ -7325,6 +7325,7 @@ DR_FrameTypeInfo* DR_State::GetFrameTypeInfo(char* aFrameName)
 
 void DR_State::InitFrameTypeTable()
 {  
+  AddFrameTypeInfo(nsGkAtoms::areaFrame,             "area",      "area");
   AddFrameTypeInfo(nsGkAtoms::blockFrame,            "block",     "block");
   AddFrameTypeInfo(nsGkAtoms::brFrame,               "br",        "br");
   AddFrameTypeInfo(nsGkAtoms::bulletFrame,           "bullet",    "bullet");
@@ -7356,9 +7357,6 @@ void DR_State::InitFrameTypeTable()
   AddFrameTypeInfo(nsGkAtoms::textInputFrame,        "textCtl",   "textInput");
   AddFrameTypeInfo(nsGkAtoms::textFrame,             "text",      "text");
   AddFrameTypeInfo(nsGkAtoms::viewportFrame,         "VP",        "viewport");
-#ifdef MOZ_XUL
-  AddFrameTypeInfo(nsGkAtoms::XULLabelFrame,         "XULLabel",  "XULLabel");
-#endif
   AddFrameTypeInfo(nsnull,                               "unknown",   "unknown");
 }
 

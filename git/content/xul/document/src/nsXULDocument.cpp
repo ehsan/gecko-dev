@@ -3888,8 +3888,10 @@ nsXULDocument::OverlayForwardReference::Resolve()
     nsresult rv;
     nsCOMPtr<nsIContent> target;
 
+    PRBool notify = PR_FALSE;
     nsIPresShell *shell = mDocument->GetPrimaryShell();
-    PRBool notify = shell && shell->DidInitialReflow();
+    if (shell)
+        shell->GetDidInitialReflow(&notify);
 
     nsAutoString id;
     mOverlay->GetAttr(kNameSpaceID_None, nsGkAtoms::id, id);

@@ -201,7 +201,7 @@ nsSelectsAreaFrame::BuildDisplayListInternal(nsDisplayListBuilder*   aBuilder,
                                              const nsRect&           aDirtyRect,
                                              const nsDisplayListSet& aLists)
 {
-  nsresult rv = nsBlockFrame::BuildDisplayList(aBuilder, aDirtyRect, aLists);
+  nsresult rv = nsAreaFrame::BuildDisplayList(aBuilder, aDirtyRect, aLists);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsListControlFrame* listFrame = GetEnclosingListFrame(this);
@@ -234,7 +234,7 @@ nsSelectsAreaFrame::Reflow(nsPresContext*           aPresContext,
   nscoord oldHeight;
   if (isInDropdownMode) {
     // Store the height now in case it changes during
-    // nsBlockFrame::Reflow for some odd reason.
+    // nsAreaFrame::Reflow for some odd reason.
     if (!(GetStateBits() & NS_FRAME_FIRST_REFLOW)) {
       oldHeight = GetSize().height;
     } else {
@@ -242,7 +242,7 @@ nsSelectsAreaFrame::Reflow(nsPresContext*           aPresContext,
     }
   }
   
-  nsresult rv = nsBlockFrame::Reflow(aPresContext, aDesiredSize,
+  nsresult rv = nsAreaFrame::Reflow(aPresContext, aDesiredSize,
                                     aReflowState, aStatus);
   NS_ENSURE_SUCCESS(rv, rv);
 

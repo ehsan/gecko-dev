@@ -70,8 +70,7 @@ private:
 
   struct DOMAnimatedString : public nsIDOMSVGAnimatedString
   {
-    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-    NS_DECL_CYCLE_COLLECTION_CLASS(DOMAnimatedString)
+    NS_DECL_ISUPPORTS
 
     DOMAnimatedString(nsSVGString* aVal, nsSVGElement *aSVGElement)
       : mVal(aVal), mSVGElement(aSVGElement) {}

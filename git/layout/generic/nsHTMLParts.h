@@ -82,6 +82,9 @@ class nsTableColFrame;
 
 // Factory methods for creating html layout objects
 
+// These are variations on AreaFrame with slightly different layout
+// policies.
+
 // Create a frame that supports "display: block" layout behavior
 nsIFrame*
 NS_NewBlockFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRUint32 aFlags = 0);
@@ -99,6 +102,10 @@ NS_NewAttributeContent(nsNodeInfoManager *aNodeInfoManager,
 // their height to cover any children that "stick out".
 nsIFrame*
 NS_NewSelectsAreaFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRUint32 aFlags);
+
+// Create a basic area frame.
+nsIFrame*
+NS_NewAreaFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRUint32 aFlags);
 
 // These AreaFrame's shrink wrap around their contents
 inline nsIFrame*

@@ -1359,8 +1359,9 @@ BuildTextRunsScanner::GetNextBreakBeforeFrame(PRUint32* aIndex)
 }
 
 static PRUint32
-GetSpacingFlags(nscoord spacing)
+GetSpacingFlags(const nsStyleCoord& aStyleCoord)
 {
+  nscoord spacing = StyleToCoord(aStyleCoord);
   if (!spacing)
     return 0;
   if (spacing > 0)
@@ -1528,7 +1529,7 @@ BuildTextRunsScanner::BuildTextRunForFrames(void* aTextBuffer)
     if (NS_STYLE_TEXT_TRANSFORM_NONE != textStyle->mTextTransform) {
       anyTextTransformStyle = PR_TRUE;
     }
-    textFlags |= GetSpacingFlags(StyleToCoord(textStyle->mLetterSpacing));
+    textFlags |= GetSpacingFlags(textStyle->mLetterSpacing);
     textFlags |= GetSpacingFlags(textStyle->mWordSpacing);
     nsTextFrameUtils::CompressionMode compression =
       CSSWhitespaceToCompressionMode[textStyle->mWhiteSpace];
@@ -2139,7 +2140,7 @@ public:
       mLineContainer(aLineContainer),
       mFrame(aFrame), mStart(aStart), mTempIterator(aStart),
       mTabWidths(nsnull), mLength(aLength),
-      mWordSpacing(mTextStyle->mWordSpacing),
+      mWordSpacing(StyleToCoord(mTextStyle->mWordSpacing)),
       mLetterSpacing(StyleToCoord(mTextStyle->mLetterSpacing)),
       mJustificationSpacing(0),
       mHyphenWidth(-1),
@@ -2162,7 +2163,7 @@ public:
       mFrame(aFrame), mStart(aStart), mTempIterator(aStart),
       mTabWidths(nsnull),
       mLength(aFrame->GetContentLength()),
-      mWordSpacing(mTextStyle->mWordSpacing),
+      mWordSpacing(StyleToCoord(mTextStyle->mWordSpacing)),
       mLetterSpacing(StyleToCoord(mTextStyle->mLetterSpacing)),
       mJustificationSpacing(0),
       mHyphenWidth(-1),
