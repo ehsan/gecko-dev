@@ -49,7 +49,7 @@
 //The following result for thai was collected from a limited sample (1M). 
 
 //Character Mapping Table:
-static const unsigned char TIS620CharToOrderMap[] =
+unsigned char TIS620CharToOrderMap[] =
 {
 255,255,255,255,255,255,255,255,255,255,254,255,255,254,255,255,  //00
 255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,  //10
@@ -78,7 +78,7 @@ static const unsigned char TIS620CharToOrderMap[] =
 //first 1024 sequences:7.3177%
 //rest  sequences:     1.0230%
 //negative sequences:  0.0436% 
-static const char ThaiLangModel[] = 
+char ThaiLangModel[] = 
 {
 0,1,3,3,3,3,0,0,3,3,0,3,3,0,3,3,3,3,3,3,3,3,0,0,3,3,3,0,3,3,3,3,
 0,3,3,0,0,0,1,3,0,3,3,2,3,3,0,1,2,3,3,3,3,0,2,0,2,0,0,3,2,1,2,2,
@@ -211,7 +211,7 @@ static const char ThaiLangModel[] =
 };
 
 
-const SequenceModel TIS620ThaiModel = 
+SequenceModel TIS620ThaiModel = 
 {
   TIS620CharToOrderMap,
   ThaiLangModel,

@@ -71,8 +71,7 @@ nsHyperTextAccessibleWrap(aDomNode, aShell)
 }
 
 /* unsigned long getRole (); */
-nsresult
-nsHTMLTableCellAccessible::GetRoleInternal(PRUint32 *aResult)
+NS_IMETHODIMP nsHTMLTableCellAccessible::GetRole(PRUint32 *aResult)
 {
   *aResult = nsIAccessibleRole::ROLE_CELL;
   return NS_OK;
@@ -96,7 +95,8 @@ nsHTMLTableCellAccessible::GetAttributesInternal(nsIPersistentProperties *aAttri
   NS_ASSERTION(frame, "The frame cannot be obtaied for HTML table cell.");
   NS_ENSURE_STATE(frame);
 
-  nsITableCellLayout *cellLayout = do_QueryFrame(frame);
+  nsITableCellLayout *cellLayout = nsnull;
+  CallQueryInterface(frame, &cellLayout);
   NS_ENSURE_STATE(cellLayout);
 
   PRInt32 rowIdx = -1, cellIdx = -1;
@@ -189,8 +189,7 @@ void nsHTMLTableAccessible::CacheChildren()
 }
 
 /* unsigned long getRole (); */
-nsresult
-nsHTMLTableAccessible::GetRoleInternal(PRUint32 *aResult)
+NS_IMETHODIMP nsHTMLTableAccessible::GetRole(PRUint32 *aResult)
 {
   *aResult = nsIAccessibleRole::ROLE_TABLE;
   return NS_OK;
@@ -243,17 +242,24 @@ nsHTMLTableAccessible::GetAttributesInternal(nsIPersistentProperties *aAttribute
 }
 
 NS_IMETHODIMP
-nsHTMLTableAccessible::GetRelationByType(PRUint32 aRelationType,
-                                         nsIAccessibleRelation **aRelation)
+nsHTMLTableAccessible::GetAccessibleRelated(PRUint32 aRelationType,
+                                            nsIAccessible **aRelated)
 {
-  nsresult rv = nsAccessibleWrap::GetRelationByType(aRelationType,
-                                                    aRelation);
-  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ENSURE_ARG_POINTER(aRelated);
+  *aRelated = nsnull;
+
+  if (!mDOMNode) {
+    return NS_ERROR_FAILURE;
+  }
+
+  nsresult rv = nsAccessibleWrap::GetAccessibleRelated(aRelationType, aRelated);
+  if (NS_FAILED(rv) || *aRelated) {
+    // Either the node is shut down, or another relation mechanism has been used
+    return rv;
+  }
 
   if (aRelationType == nsIAccessibleRelation::RELATION_DESCRIBED_BY) {
-    nsCOMPtr<nsIAccessible> accCaption;
-    GetCaption(getter_AddRefs(accCaption));
-    return nsRelUtils::AddTarget(aRelationType, aRelation, accCaption);
+    return GetCaption(aRelated);
   }
 
   return NS_OK;
@@ -922,11 +928,7 @@ nsHTMLTableAccessible::GetTableLayout(nsITableLayout **aTableLayout)
   NS_ENSURE_TRUE(shell, NS_ERROR_FAILURE);
 
   nsIFrame *frame = shell->GetPrimaryFrameFor(tableContent);
-  if (!frame)
-    return NS_ERROR_FAILURE;
-
-  *aTableLayout = do_QueryFrame(frame);
-  return (*aTableLayout) ? NS_OK : NS_NOINTERFACE;
+  return frame ? CallQueryInterface(frame, aTableLayout) : NS_ERROR_FAILURE;
 }
 
 nsresult
@@ -969,8 +971,7 @@ NS_IMETHODIMP nsHTMLTableAccessible::GetDescription(nsAString& aDescription)
     captionAccessNode->GetDOMNode(getter_AddRefs(captionNode));
     nsCOMPtr<nsIContent> captionContent = do_QueryInterface(captionNode);
     if (captionContent) {
-      nsTextEquivUtils::
-        AppendTextEquivFromContent(this, captionContent, &aDescription);
+      AppendFlatStringFromSubtree(captionContent, &aDescription);
     }
   }
 #ifdef SHOW_LAYOUT_HEURISTIC
@@ -1209,10 +1210,10 @@ nsHTMLTableAccessible(aDomNode, aShell)
 {
 }
 
-nsresult
-nsHTMLTableHeadAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP
+nsHTMLTableHeadAccessible::GetRole(PRUint32 *aResult)
 {
-  *aRole = nsIAccessibleRole::ROLE_COLUMNHEADER;
+  *aResult = nsIAccessibleRole::ROLE_COLUMNHEADER;
   return NS_OK;
 }
 
@@ -1249,29 +1250,29 @@ nsHTMLTableHeadAccessible::GetRows(PRInt32 *aRows)
   return rows->GetLength((PRUint32 *)aRows);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// nsHTMLCaptionAccessible
-
 NS_IMETHODIMP
-nsHTMLCaptionAccessible::GetRelationByType(PRUint32 aRelationType,
-                                           nsIAccessibleRelation **aRelation)
+nsHTMLCaptionAccessible::GetAccessibleRelated(PRUint32 aRelationType,
+                                              nsIAccessible **aRelated)
 {
-  nsresult rv = nsHyperTextAccessible::GetRelationByType(aRelationType,
-                                                         aRelation);
-  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ENSURE_ARG_POINTER(aRelated);
+  *aRelated = nsnull;
+
+  if (!mDOMNode) {
+    return NS_ERROR_FAILURE;
+  }
+
+  nsresult rv = nsHyperTextAccessible::GetAccessibleRelated(aRelationType, aRelated);
+  if (NS_FAILED(rv) || *aRelated) {
+    // Either the node is shut down, or another relation mechanism has been used
+    return rv;
+  }
 
   if (aRelationType == nsIAccessibleRelation::RELATION_DESCRIPTION_FOR) {
-    nsCOMPtr<nsIAccessible> accParent;
-    GetParent(getter_AddRefs(accParent));
-    return nsRelUtils::AddTarget(aRelationType, aRelation, accParent);
+    return GetParent(aRelated);
   }
 
   return NS_OK;
 }
 
-nsresult
-nsHTMLCaptionAccessible::GetRoleInternal(PRUint32 *aRole)
-{
-  *aRole = nsIAccessibleRole::ROLE_CAPTION;
-  return NS_OK;
-}
+
+

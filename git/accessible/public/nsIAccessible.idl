@@ -58,7 +58,7 @@ interface nsIAccessibleRelation;
  *
  * @status UNDER_REVIEW
  */
-[scriptable, uuid(c81d8f8c-8585-4094-bc7c-71dd01494906)]
+[scriptable, uuid(670fc322-14ec-4f3b-8279-9d62ab8895c0)]
 interface nsIAccessible : nsISupports
 {
   /**
@@ -147,12 +147,19 @@ interface nsIAccessible : nsISupports
   nsIDOMDOMStringList getKeyBindings(in PRUint8 aActionIndex);
 
   /**
-   * Enumerated accessible role (see the constants defined in nsIAccessibleRole).
-   *
-   * @note  The values might depend on platform because of variations. Widgets
-   *        can use ARIA role attribute to force the final role.
+   * Natural enumerated accessible role for the associated element.
+   * The values depend on platform because of variations.
+   * See the ROLE_* constants defined in nsIAccessibleRole.
+   * This does not take into account role attribute as the finalRole does.
    */
   readonly attribute unsigned long role;
+
+  /**
+   * Enumerated accessible role. The values depend on platform because of variations.
+   * See the ROLE_* constants defined in nsIAccessibleRole.
+   * Widgets can use role attribute to force the final role
+   */
+  readonly attribute unsigned long finalRole;
 
   /**
    * Accessible states -- bit fields which describe boolean properties of node.
@@ -244,10 +251,10 @@ interface nsIAccessible : nsISupports
   nsIAccessible getAccessibleBelow();
 
   /**
-   * Return accessible relation by the given relation type (see.
+   * Return accessible related to this one by the given relation type (see.
    * constants defined in nsIAccessibleRelation).
    */
-  nsIAccessibleRelation getRelationByType(in unsigned long aRelationType);
+  nsIAccessible getAccessibleRelated(in unsigned long aRelationType);
 
   /**
    * Returns the number of accessible relations for this object.

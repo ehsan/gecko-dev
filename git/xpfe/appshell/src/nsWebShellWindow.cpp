@@ -182,7 +182,7 @@ nsresult nsWebShellWindow::Initialize(nsIXULWindow* aParent,
   
   // XXX: need to get the default window size from prefs...
   // Doesn't come from prefs... will come from CSS/XUL/RDF
-  nsIntRect r(0, 0, aInitialWidth, aInitialHeight);
+  nsRect r(0, 0, aInitialWidth, aInitialHeight);
   
   // Create top level window
   mWindow = do_CreateInstance(kWindowCID, &rv);
@@ -534,14 +534,6 @@ nsWebShellWindow::HandleEvent(nsGUIEvent *aEvent)
         }
         break;
       }
-      case NS_GETACCESSIBLE: {
-        nsCOMPtr<nsIPresShell> presShell;
-        docShell->GetPresShell(getter_AddRefs(presShell));
-        if (presShell) {
-          presShell->HandleEventWithTarget(aEvent, nsnull, nsnull, &result);
-        }
-        break;
-      }
       default:
         break;
 
@@ -580,16 +572,19 @@ nsWebShellWindow::SetPersistenceTimer(PRUint32 aDirtyFlags)
     return;
 
   PR_Lock(mSPTimerLock);
-  if (!mSPTimer) {
+  if (mSPTimer) {
+    mSPTimer->SetDelay(SIZE_PERSISTENCE_TIMEOUT);
+    PersistentAttributesDirty(aDirtyFlags);
+  } else {
     nsresult rv;
     mSPTimer = do_CreateInstance("@mozilla.org/timer;1", &rv);
     if (NS_SUCCEEDED(rv)) {
       NS_ADDREF_THIS(); // for the timer, which holds a reference to this window
+      mSPTimer->InitWithFuncCallback(FirePersistenceTimer, this,
+                                     SIZE_PERSISTENCE_TIMEOUT, nsITimer::TYPE_ONE_SHOT);
+      PersistentAttributesDirty(aDirtyFlags);
     }
   }
-  mSPTimer->InitWithFuncCallback(FirePersistenceTimer, this,
-                                 SIZE_PERSISTENCE_TIMEOUT, nsITimer::TYPE_ONE_SHOT);
-  PersistentAttributesDirty(aDirtyFlags);
   PR_Unlock(mSPTimerLock);
 }
 

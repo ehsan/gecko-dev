@@ -1,6 +1,3 @@
-// Try no args. This shouldn't do anything.
-importScripts();
-
 onmessage = function(event) {
   switch (event.data) {
     case 'start':

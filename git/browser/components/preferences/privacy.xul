@@ -25,7 +25,6 @@
 #   Ben Goodger <ben@mozilla.org>
 #   Jeff Walden <jwalden+code@mit.edu>
 #   Ehsan Akhgari <ehsan.akhgari@gmail.com>
-#   Roberto Estrada <roberto.estrada@yahoo.es>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -66,13 +65,9 @@
                   type="bool"/>
 
       <!-- Location Bar -->
-      <preference id="browser.urlbar.autocomplete.enabled"
-                  name="browser.urlbar.autocomplete.enabled"
-                  type="bool"/>
-      <preference id="browser.urlbar.default.behavior"
-                  name="browser.urlbar.default.behavior"
-                  type="int"
-                  onchange="document.getElementById('browser.urlbar.autocomplete.enabled').updateElements();"/>
+      <preference id="browser.urlbar.search.sources"
+                  name="browser.urlbar.search.sources"
+                  type="int"/>
 
       <!-- History -->
       <preference id="browser.history_expire_days"
@@ -99,7 +94,6 @@
       <!-- Clear Private Data -->
       <preference id="privacy.sanitize.sanitizeOnShutdown"
                   name="privacy.sanitize.sanitizeOnShutdown"
-                  onchange="gPrivacyPane._updateSanitizeSettingsButton();"
                   type="bool"/>
 
     </preferences>
@@ -117,14 +111,12 @@
                control="locationBarSuggestion"
                accesskey="&locbar.pre.accessKey;">&locbar.pre.label;</label>
         <menulist id="locationBarSuggestion"
-                  preference="browser.urlbar.autocomplete.enabled"
-                  onsyncfrompreference="return gPrivacyPane.readSuggestionPref();"
-                  onsynctopreference="return gPrivacyPane.writeSuggestionPref();">
+                  preference="browser.urlbar.search.sources">
           <menupopup>
-            <menuitem label="&locbar.both.label;" value="0"/>
+            <menuitem label="&locbar.both.label;" value="3"/>
             <menuitem label="&locbar.history.label;" value="1"/>
             <menuitem label="&locbar.bookmarks.label;" value="2"/>
-            <menuitem label="&locbar.nothing.label;" value="-1"/>
+            <menuitem label="&locbar.nothing.label;" value="0"/>
           </menupopup>
         </menulist>
         <label>&locbar.post.label;</label>
@@ -208,6 +200,13 @@
         <button id="clearDataSettings" label="&clearDataSettings.label;"
                 accesskey="&clearDataSettings.accesskey;"
                 oncommand="gPrivacyPane.showClearPrivateDataSettings();"/>
+      </hbox>
+      <hbox id="askClearBox">
+        <spacer flex="1"/>
+        <button id="clearDataNow" icon="clear"
+                label="&clearDataNow.label;"
+                accesskey="&clearDataNow.accesskey;"
+                oncommand="gPrivacyPane.clearPrivateDataNow();"/>
       </hbox>
     </groupbox>
 

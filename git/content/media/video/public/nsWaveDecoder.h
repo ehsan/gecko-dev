@@ -155,6 +155,9 @@ class nsWaveDecoder : public nsMediaDecoder
   // Return the total playback length of the media in seconds.
   virtual float GetDuration();
 
+  // Get the current audio playback volume; result in range [0.0, 1.0].
+  virtual float GetVolume();
+
   // Set the audio playback volume; must be in range [0.0, 1.0].
   virtual void SetVolume(float aVolume);
 
@@ -188,42 +191,28 @@ class nsWaveDecoder : public nsMediaDecoder
   // Element is notifying us that the requested playback rate has changed.
   virtual nsresult PlaybackRateChanged();
 
-  virtual void NotifyBytesDownloaded(PRInt64 aBytes);
-  virtual void NotifyDownloadSeeked(PRInt64 aOffset);
-  virtual void NotifyDownloadEnded(nsresult aStatus);
-  virtual void NotifyBytesConsumed(PRInt64 aBytes);
-
-  virtual Statistics GetStatistics();
-
+  // Getter/setter for mContentLength.
+  virtual PRInt64 GetTotalBytes();
   virtual void SetTotalBytes(PRInt64 aBytes);
-
-  void PlaybackPositionChanged();
-
-  // Setter for the duration. This is ignored by the wave decoder since it can
-  // compute the duration directly from the wave data.
-  virtual void SetDuration(PRInt64 aDuration);
 
   // Getter/setter for mSeekable.
   virtual void SetSeekable(PRBool aSeekable);
   virtual PRBool GetSeekable();
 
+  // Getter/setter for mBytesDownloaded.
+  virtual PRUint64 GetBytesLoaded();
+  virtual void UpdateBytesDownloaded(PRUint64 aBytes);
+
   // Must be called by the owning object before disposing the decoder.
   virtual void Shutdown();
 
-  // Suspend any media downloads that are in progress. Called by the
-  // media element when it is sent to the bfcache. Call on the main
-  // thread only.
-  virtual void Suspend();
-
-  // Resume any media downloads that have been suspended. Called by the
-  // media element when it is restored from the bfcache. Call on the
-  // main thread only.
-  virtual void Resume();
-
-  // Change the element's ready state as necessary. Main thread only.
-  void UpdateReadyStateForData();
-
 private:
+  // Notifies the nsHTMLMediaElement that buffering has started.
+  void BufferingStarted();
+
+  // Notifies the element that buffering has stopped.
+  void BufferingStopped();
+
   // Notifies the element that seeking has started.
   void SeekingStarted();
 
@@ -242,6 +231,12 @@ private:
 
   void RegisterShutdownObserver();
   void UnregisterShutdownObserver();
+
+  // Length of the current resource, or -1 if not available.
+  PRInt64 mContentLength;
+
+  // Total bytes downloaded by mStream so far.
+  PRUint64 mBytesDownloaded;
 
   // Volume that the audio backend will be initialized with.
   float mInitialVolume;
@@ -267,12 +262,6 @@ private:
   // state machine will validate the offset against the current media.
   float mTimeOffset;
 
-  // The current playback position of the media resource in units of
-  // seconds. This is updated every time a block of audio is passed to the
-  // backend (unless an prior update is still pending).  It is read and
-  // written from the main thread only.
-  float mCurrentTime;
-
   // Copy of the current time, duration, and ended state when the state
   // machine was disposed.  Used to respond to time and duration queries
   // with sensible values after the state machine is destroyed.
@@ -285,16 +274,6 @@ private:
 
   // True if the media resource is seekable.
   PRPackedBool mSeekable;
-
-  // True when the media resource has completely loaded. Accessed on
-  // the main thread only.
-  PRPackedBool mResourceLoaded;
-
-  // True if MetadataLoaded has been reported to the element.
-  PRPackedBool mMetadataLoadedReported;
-
-  // True if ResourceLoaded has been reported to the element.
-  PRPackedBool mResourceLoadedReported;
 };
 
 #endif

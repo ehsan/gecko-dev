@@ -105,13 +105,12 @@ GetGtkFileChooserAction(PRInt16 aMode)
     action = GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER;
     break;
 
-    case nsIFilePicker::modeOpen:
-    case nsIFilePicker::modeOpenMultiple:
-    action = GTK_FILE_CHOOSER_ACTION_OPEN;
-    break;
-
     default:
     NS_WARNING("Unknown nsIFilePicker mode");
+    // fall through
+
+    case nsIFilePicker::modeOpen:
+    case nsIFilePicker::modeOpenMultiple:
     action = GTK_FILE_CHOOSER_ACTION_OPEN;
     break;
   }
@@ -278,8 +277,8 @@ nsFilePicker::AppendFilter(const nsAString& aTitle, const nsAString& aFilter)
   CopyUTF16toUTF8(aFilter, filter);
   CopyUTF16toUTF8(aTitle, name);
 
-  mFilters.AppendElement(filter);
-  mFilterNames.AppendElement(name);
+  mFilters.AppendCString(filter);
+  mFilterNames.AppendCString(name);
 
   return NS_OK;
 }
@@ -427,7 +426,7 @@ nsFilePicker::Show(PRInt16 *aReturn)
   GtkWindow *parent_widget = get_gtk_window_for_nsiwidget(mParentWidget);
 
   GtkFileChooserAction action = GetGtkFileChooserAction(mMode);
-  const gchar *accept_button = (action == GTK_FILE_CHOOSER_ACTION_SAVE)
+  const gchar *accept_button = (mMode == GTK_FILE_CHOOSER_ACTION_SAVE)
                                ? GTK_STOCK_SAVE : GTK_STOCK_OPEN;
   GtkWidget *file_chooser =
       gtk_file_chooser_dialog_new(title, parent_widget, action,
@@ -438,7 +437,7 @@ nsFilePicker::Show(PRInt16 *aReturn)
     gtk_file_chooser_set_local_only(GTK_FILE_CHOOSER(file_chooser), FALSE);
   }
 
-  if (action == GTK_FILE_CHOOSER_ACTION_OPEN || action == GTK_FILE_CHOOSER_ACTION_SAVE) {
+  if (mMode == GTK_FILE_CHOOSER_ACTION_OPEN || mMode == GTK_FILE_CHOOSER_ACTION_SAVE) {
     GtkWidget *img_preview = gtk_image_new();
     gtk_file_chooser_set_preview_widget(GTK_FILE_CHOOSER(file_chooser), img_preview);
     g_signal_connect(file_chooser, "update-preview", G_CALLBACK(UpdateFilePreviewWidget), img_preview);
@@ -448,48 +447,35 @@ nsFilePicker::Show(PRInt16 *aReturn)
     gtk_window_group_add_window(parent_widget->group, GTK_WINDOW(file_chooser));
   }
 
-  NS_ConvertUTF16toUTF8 defaultName(mDefault);
-  switch (mMode) {
-    case nsIFilePicker::modeOpenMultiple:
-      gtk_file_chooser_set_select_multiple(GTK_FILE_CHOOSER(file_chooser), TRUE);
-      break;
-    case nsIFilePicker::modeSave:
-      gtk_file_chooser_set_current_name(GTK_FILE_CHOOSER(file_chooser),
-                                        defaultName.get());
-      break;
-  }
-
-  nsCOMPtr<nsIFile> defaultPath;
-  if (mDisplayDirectory) {
-    mDisplayDirectory->Clone(getter_AddRefs(defaultPath));
-  } else if (mPrevDisplayDirectory) {
-    mPrevDisplayDirectory->Clone(getter_AddRefs(defaultPath));
-  }
-
-  if (defaultPath) {
-    if (!defaultName.IsEmpty() && mMode != nsIFilePicker::modeSave) {
-      // Try to select the intended file. Even if it doesn't exist, GTK still switches
-      // directories.
-      defaultPath->AppendNative(defaultName);
-      nsCAutoString path;
-      defaultPath->GetNativePath(path);
-      gtk_file_chooser_set_filename(GTK_FILE_CHOOSER(file_chooser), path.get());
-    } else {
-      nsCAutoString directory;
-      defaultPath->GetNativePath(directory);
-      gtk_file_chooser_set_current_folder(GTK_FILE_CHOOSER(file_chooser),
-                                          directory.get());
-    }
+  if (mMode == nsIFilePicker::modeOpenMultiple) {
+    gtk_file_chooser_set_select_multiple(GTK_FILE_CHOOSER(file_chooser), TRUE);
+  } else if (mMode == nsIFilePicker::modeSave) {
+    char *default_filename = ToNewUTF8String(mDefault);
+    gtk_file_chooser_set_current_name(GTK_FILE_CHOOSER(file_chooser),
+                                      static_cast<const gchar*>(default_filename));
+    nsMemory::Free(default_filename);
   }
 
   gtk_dialog_set_default_response(GTK_DIALOG(file_chooser), GTK_RESPONSE_ACCEPT);
 
-  PRInt32 count = mFilters.Length();
+  nsCAutoString directory;
+  if (mDisplayDirectory) {
+    mDisplayDirectory->GetNativePath(directory);
+  } else if (mPrevDisplayDirectory) {
+    mPrevDisplayDirectory->GetNativePath(directory);
+  }
+
+  if (!directory.IsEmpty()) {
+    gtk_file_chooser_set_current_folder(GTK_FILE_CHOOSER(file_chooser),
+                                        directory.get());
+  }
+
+  PRInt32 count = mFilters.Count();
   for (PRInt32 i = 0; i < count; ++i) {
     // This is fun... the GTK file picker does not accept a list of filters
     // so we need to split out each string, and add it manually.
 
-    char **patterns = g_strsplit(mFilters[i].get(), ";", -1);
+    char **patterns = g_strsplit(mFilters[i]->get(), ";", -1);
     if (!patterns) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
@@ -502,13 +488,13 @@ nsFilePicker::Show(PRInt16 *aReturn)
 
     g_strfreev(patterns);
 
-    if (!mFilterNames[i].IsEmpty()) {
+    if (!mFilterNames[i]->IsEmpty()) {
       // If we have a name for our filter, let's use that.
-      const char *filter_name = mFilterNames[i].get();
+      const char *filter_name = mFilterNames[i]->get();
       gtk_file_filter_set_name(filter, filter_name);
     } else {
       // If we don't have a name, let's just use the filter pattern.
-      const char *filter_pattern = mFilters[i].get();
+      const char *filter_pattern = mFilters[i]->get();
       gtk_file_filter_set_name(filter, filter_pattern);
     }
 
@@ -521,7 +507,7 @@ nsFilePicker::Show(PRInt16 *aReturn)
   }
 
   gtk_file_chooser_set_do_overwrite_confirmation(GTK_FILE_CHOOSER(file_chooser), PR_TRUE);
-  gint response = gtk_dialog_run(GTK_DIALOG(file_chooser));
+  gint response = RunDialog(GTK_DIALOG(file_chooser));
 
   switch (response) {
     case GTK_RESPONSE_ACCEPT:

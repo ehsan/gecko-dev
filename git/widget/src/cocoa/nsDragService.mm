@@ -78,7 +78,6 @@ extern PRLogModuleInfo* sCocoaLog;
 extern NSPasteboard* globalDragPboard;
 extern NSView* gLastDragView;
 extern NSEvent* gLastDragEvent;
-extern PRBool gUserCancelledDrag;
 
 // This global makes the transferable array available to Cocoa's promised
 // file destination callback.
@@ -165,7 +164,7 @@ static nsresult SetUpDragClipboard(nsISupportsArray* aTransferableArray)
 
 NSImage*
 nsDragService::ConstructDragImage(nsIDOMNode* aDOMNode,
-                                  nsIntRect* aDragRect,
+                                  nsRect* aDragRect,
                                   nsIScriptableRegion* aRegion)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
@@ -269,7 +268,7 @@ nsDragService::InvokeDragSession(nsIDOMNode* aDOMNode, nsISupportsArray* aTransf
   if (NS_FAILED(SetUpDragClipboard(aTransferableArray)))
     return NS_ERROR_FAILURE;
 
-  nsIntRect dragRect(0, 0, 20, 20);
+  nsRect dragRect(0, 0, 20, 20);
   NSImage* image = ConstructDragImage(aDOMNode, &dragRect, aDragRgn);
   if (!image) {
     // if no image was returned, just draw a rectangle
@@ -309,7 +308,6 @@ nsDragService::InvokeDragSession(nsIDOMNode* aDOMNode, nsISupportsArray* aTransf
   mNativeDragView = [gLastDragView retain];
   mNativeDragEvent = [gLastDragEvent retain];
 
-  gUserCancelledDrag = PR_FALSE;
   [mNativeDragView dragImage:image
                           at:localPoint
                       offset:NSMakeSize(0,0)
@@ -317,7 +315,6 @@ nsDragService::InvokeDragSession(nsIDOMNode* aDOMNode, nsISupportsArray* aTransf
                   pasteboard:[NSPasteboard pasteboardWithName:NSDragPboard]
                       source:mNativeDragView
                    slideBack:YES];
-  gUserCancelledDrag = PR_FALSE;
 
   if (mDoingDrag)
     nsBaseDragService::EndDragSession(PR_FALSE);
@@ -589,8 +586,6 @@ nsDragService::EndDragSession(PRBool aDoneDrag)
     [mNativeDragEvent release];
     mNativeDragEvent = nil;
   }
-
-  mUserCancelled = gUserCancelledDrag;
 
   nsresult rv = nsBaseDragService::EndDragSession(aDoneDrag);
   mDataItems = nsnull;

@@ -50,6 +50,8 @@
 
 JS_BEGIN_EXTERN_C
 
+JS_STATIC_ASSERT(JSTRACE_STRING == 2);
+
 #define JSTRACE_XML         3
 
 /*
@@ -68,12 +70,17 @@ JS_BEGIN_EXTERN_C
 #define GCX_EXTERNAL_STRING     JSTRACE_LIMIT       /* JSString with external
                                                        chars */
 /*
- * The number of defined GC types and the maximum limit for the number of
- * possible GC types.
+ * The number of defined GC types.
  */
 #define GCX_NTYPES              (GCX_EXTERNAL_STRING + 8)
+
+/*
+ * The maximum limit for the number of GC types.
+ */
 #define GCX_LIMIT_LOG2         4           /* type index bits */
 #define GCX_LIMIT              JS_BIT(GCX_LIMIT_LOG2)
+
+JS_STATIC_ASSERT(GCX_NTYPES <= GCX_LIMIT);
 
 /* GC flag definitions, must fit in 8 bits (type index goes in the low bits). */
 #define GCF_TYPEMASK    JS_BITMASK(GCX_LIMIT_LOG2)
@@ -204,11 +211,6 @@ js_NewDoubleInRootedValue(JSContext *cx, jsdouble d, jsval *vp);
 extern jsdouble *
 js_NewWeaklyRootedDouble(JSContext *cx, jsdouble d);
 
-#ifdef JS_TRACER
-extern JSBool
-js_ReserveObjects(JSContext *cx, size_t nobjects);
-#endif
-
 extern JSBool
 js_LockGCThingRT(JSRuntime *rt, void *thing);
 
@@ -231,6 +233,12 @@ js_IsAboutToBeFinalized(JSContext *cx, void *thing);
 #endif
 
 /*
+ * JS_IS_VALID_TRACE_KIND assumes that JSTRACE_STRING is the last non-xml
+ * trace kind when JS_HAS_XML_SUPPORT is false.
+ */
+JS_STATIC_ASSERT(JSTRACE_STRING + 1 == JSTRACE_XML);
+
+/*
  * Trace jsval when JSVAL_IS_OBJECT(v) can be an arbitrary GC thing casted as
  * JSVAL_OBJECT and js_GetGCThingTraceKind has to be used to find the real
  * type behind v.
@@ -241,10 +249,10 @@ js_CallValueTracerIfGCThing(JSTracer *trc, jsval v);
 extern void
 js_TraceStackFrame(JSTracer *trc, JSStackFrame *fp);
 
-extern JS_REQUIRES_STACK void
+extern void
 js_TraceRuntime(JSTracer *trc, JSBool allAtoms);
 
-extern JS_REQUIRES_STACK JS_FRIEND_API(void)
+extern JS_FRIEND_API(void)
 js_TraceContext(JSTracer *trc, JSContext *acx);
 
 /*
@@ -284,20 +292,6 @@ typedef enum JSGCInvocationKind {
 extern void
 js_GC(JSContext *cx, JSGCInvocationKind gckind);
 
-
-/*
- * This function must be called with the GC lock held. It is a helper for code
- * that can potentially run outside JS request to ensure that the GC is not
- * running when the function returns.
- */
-#ifdef JS_THREADSAFE
-extern void
-js_WaitForGC(JSRuntime *rt);
-#else
-# define js_WaitForGC(rt)    ((void) 0)
-#endif
-
-
 /* Call this after succesful malloc of memory for GC-related things. */
 extern void
 js_UpdateMallocCounter(JSContext *cx, size_t nbytes);
@@ -321,6 +315,8 @@ union JSGCDoubleCell {
     double          number;
     JSGCDoubleCell  *link;
 };
+
+JS_STATIC_ASSERT(sizeof(JSGCDoubleCell) == sizeof(double));
 
 typedef struct JSGCDoubleArenaList {
     JSGCArenaInfo   *first;             /* first allocated GC arena */
@@ -351,6 +347,7 @@ struct JSWeakRoots {
     jsval           lastInternalResult;
 };
 
+JS_STATIC_ASSERT(JSVAL_NULL == 0);
 #define JS_CLEAR_WEAK_ROOTS(wr) (memset((wr), 0, sizeof(JSWeakRoots)))
 
 /*

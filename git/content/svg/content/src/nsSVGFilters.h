@@ -48,15 +48,6 @@ class nsSVGFilterResource;
 class nsSVGString;
 class nsSVGFilterInstance;
 
-struct nsSVGStringInfo {
-  nsSVGStringInfo(const nsSVGString* aString,
-                  nsSVGElement *aElement) :
-    mString(aString), mElement(aElement) {}
-
-  const nsSVGString* mString;
-  nsSVGElement* mElement;
-};
-
 typedef nsSVGStylableElement nsSVGFEBase;
 
 #define NS_SVG_FE_CID \
@@ -146,10 +137,10 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIDOMSVGFILTERPRIMITIVESTANDARDATTRIBUTES
 
-  virtual nsSVGString& GetResultImageName() = 0;
+  virtual nsSVGString* GetResultImageName() = 0;
   // Return a list of all image names used as sources. Default is to
   // return no sources.
-  virtual void GetSourceImageNames(nsTArray<nsSVGStringInfo>& aSources);
+  virtual void GetSourceImageNames(nsTArray<nsSVGString*>* aSources);
   // Compute the bounding box of the filter output. The default is just the
   // union of the source bounding boxes. The caller is
   // responsible for clipping this to the filter primitive subregion, so

@@ -40,7 +40,7 @@
 
 #define M(x)  ((x) >> 32) 
 
-extern void _print_list(char *name, OggPlayDataHeader *p);
+void _print_list(char *name, OggPlayDataHeader *p);
 
 int
 oggplay_callback_info_prepare(OggPlay *me, OggPlayCallbackInfo ***info) {
@@ -48,7 +48,7 @@ oggplay_callback_info_prepare(OggPlay *me, OggPlayCallbackInfo ***info) {
   int i;
   int tcount = 0;
   
-  int         added_required_record   = me->num_tracks;
+  int         added_required_record   = 1;
   ogg_int64_t diff;
   ogg_int64_t latest_first_record     = 0x0LL;
   //ogg_int64_t lpt = 0;
@@ -56,9 +56,7 @@ oggplay_callback_info_prepare(OggPlay *me, OggPlayCallbackInfo ***info) {
   /*
    * allocate the structure for return to the user
    */
-  (*info) = oggplay_calloc (me->num_tracks, sizeof (OggPlayCallbackInfo *));
-  if ((*info) == NULL)
-    return -1;
+  (*info) = malloc (me->num_tracks * sizeof (OggPlayCallbackInfo *));
 
   /*
    * fill in each active track.  Leave gaps for inactive tracks.
@@ -81,7 +79,6 @@ oggplay_callback_info_prepare(OggPlay *me, OggPlayCallbackInfo ***info) {
       track_info->available_records = track_info->required_records = 0;
       track_info->records = NULL;
       track_info->stream_info = OGGPLAY_STREAM_UNINITIALISED;
-      added_required_record --;
       continue;
     }
  
@@ -130,18 +127,7 @@ oggplay_callback_info_prepare(OggPlay *me, OggPlayCallbackInfo ***info) {
     }
    
     /* null-terminate the record list for the python interface */
-    track_info->records = oggplay_calloc ((count + 1), sizeof (OggPlayDataHeader *));
-    if (track_info->records == NULL)
-    {
-      for (i = 0; i < me->num_tracks; i++) {
-        if ((*info)[i]->records != NULL) 
-          oggplay_free ((*info)[i]->records);
-      }
-      oggplay_free (*info);
-      *info = NULL;
-      return -1;
-    }
-
+    track_info->records = malloc ((count + 1) * sizeof (OggPlayDataHeader *));
     track_info->records[count] = NULL;
 
     track_info->available_records = count;
@@ -158,6 +144,7 @@ oggplay_callback_info_prepare(OggPlay *me, OggPlayCallbackInfo ***info) {
         //lpt = p->presentation_time;
       }
     }
+
      
     if (track_info->required_records > 0) {
       /*
@@ -212,30 +199,24 @@ oggplay_callback_info_prepare(OggPlay *me, OggPlayCallbackInfo ***info) {
      * needs to be explicitly required (e.g. by seeking or start of movie), and
      * create a new member in the player struct called pt_update_valid
      */
-     // TODO: I don't think that pt_update_valid is necessary any more, as this will only
-     // trigger now if there's no data in *ANY* of the tracks. Hence the audio timeslice case
-     // doesn't apply.
     if 
     (
-      track->decoded_type == OGGPLAY_CMML 
-      ||
-      track->decoded_type == OGGPLAY_KATE // TODO: check this is the right thing to do
-      ||
-      (
-        track_info->required_records == 0
-        &&
-        track->active == 1
-        && 
-        me->pt_update_valid
-      )
+      track->decoded_type != OGGPLAY_CMML 
+      && 
+      track->decoded_type != OGGPLAY_KATE // TODO: check this is the right thing to do
+      && 
+      track_info->required_records == 0
+      &&
+      track->active == 1
+      && 
+      me->pt_update_valid
     ) {
-      added_required_record --;
+      added_required_record = 0;
+      me->pt_update_valid = 0;
     }
 
   }
  
-   me->pt_update_valid = 0;
-    
   //printf("\n");
 
   /*
@@ -283,20 +264,18 @@ oggplay_callback_info_prepare(OggPlay *me, OggPlayCallbackInfo ***info) {
      * and callback creation
      */
     for (i = 0; i < me->num_tracks; i++) {
-      if ((*info)[i]->records != NULL) 
-        oggplay_free((*info)[i]->records);
+      if ((*info)[i]->records != NULL) free((*info)[i]->records);
     }
-    oggplay_free(*info);
+    free(*info);
     (*info) = NULL;
 
   }
 
   if (tcount == 0) {
     for (i = 0; i < me->num_tracks; i++) {
-      if ((*info)[i]->records != NULL) 
-        oggplay_free((*info)[i]->records);
+      if ((*info)[i]->records != NULL) free((*info)[i]->records);
     }
-    oggplay_free(*info);
+    free(*info);
     (*info) = NULL;
   }
 
@@ -314,10 +293,10 @@ oggplay_callback_info_destroy(OggPlay *me, OggPlayCallbackInfo **info) {
   for (i = 0; i < me->num_tracks; i++) {
     p = info[i];
     if (me->buffer == NULL && p->records != NULL)
-      oggplay_free(p->records);
+      free(p->records);
   }
 
-  oggplay_free(info);
+  free(info);
 
 }
 
@@ -418,7 +397,7 @@ oggplay_callback_info_get_presentation_time(OggPlayDataHeader *header) {
   }
 
   /* SGS: is this correct? */
-  return (((header->presentation_time >> 16) * 1000) >> 16) & 0xFFFFFFFF;
+  return (header->presentation_time >> 32) & 0xFFFFFFFF;
 }
 
 OggPlayVideoData *

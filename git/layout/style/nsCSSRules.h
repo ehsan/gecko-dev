@@ -206,7 +206,7 @@ public:
       , next(aOther.next ? new URL(*aOther.next) : nsnull)
     {
     }
-    ~URL();
+    ~URL() { delete next; }
   };
 
   void SetURLs(URL *aURLs) { mURLs = aURLs; }

@@ -131,24 +131,16 @@ public:
                                          nsIContent *aTopContent);
 
   /**
-   * Any ARIA property of type boolean or NMTOKEN is undefined if the ARIA
-   * property is not present, or is "" or "undefined". Do not call 
-   * this method for properties of type string, decimal, IDREF or IDREFS.
-   * 
-   * Return PR_TRUE if the ARIA property is defined, otherwise PR_FALSE
+   * Return PR_TRUE if the ARIA property should always be exposed as an object
+   * attribute.
    */
-  static PRBool HasDefinedARIAToken(nsIContent *aContent, nsIAtom *aAtom);
+  static PRBool IsARIAPropForObjectAttr(nsIAtom *aAtom);
 
   /**
    * Fire accessible event of the given type for the given accessible.
    */
   static nsresult FireAccEvent(PRUint32 aEventType, nsIAccessible *aAccessible,
                                PRBool aIsAsynch = PR_FALSE);
-
-  /**
-   * Return true if the given DOM node contains accessible children.
-   */
-  static PRBool HasAccessibleChildren(nsIDOMNode *aNode);
 
   /**
     * If an ancestor in this document exists with the given role, return it
@@ -244,15 +236,10 @@ public:
   {
     PRUint32 role = nsIAccessibleRole::ROLE_NOTHING;
     if (aAcc)
-      aAcc->GetRole(&role);
+      aAcc->GetFinalRole(&role);
 
     return role;
   }
-
-  /**
-   * Return the role from native markup of the given accessible.
-   */
-  static PRUint32 RoleInternal(nsIAccessible *aAcc);
 
   /**
    * Return the state for the given accessible.
@@ -265,21 +252,6 @@ public:
 
     return state;
   }
-
-  /**
-   * Get the ARIA attribute characteristics for a given ARIA attribute.
-   * 
-   * @param aAtom  ARIA attribute
-   * @return       A bitflag representing the attribute characteristics
-   *               (see nsARIAMap.h for possible bit masks, prefixed "ARIA_")
-   */
-  static PRUint8 GetAttributeCharacteristics(nsIAtom* aAtom);
-
-  /**
-   * Return the 'live' or 'container-live' object attribute value from the given
-   * ELiveAttrRule constant.
-   */
-  static void GetLiveAttrValue(PRUint32 aRule, nsAString& aValue);
 
   /**
    * Query nsAccessNode from the given nsIAccessible.

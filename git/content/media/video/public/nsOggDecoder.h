@@ -293,7 +293,7 @@ class nsOggDecoder : public nsMediaDecoder
 
   nsOggDecoder();
   ~nsOggDecoder();
-  virtual PRBool Init(nsHTMLMediaElement* aElement);
+  PRBool Init();
 
   // This method must be called by the owning object before that
   // object disposes of this decoder object.
@@ -318,16 +318,14 @@ class nsOggDecoder : public nsMediaDecoder
   virtual nsresult PlaybackRateChanged();
 
   virtual void Pause();
+  virtual float GetVolume();
   virtual void SetVolume(float volume);
   virtual float GetDuration();
 
   virtual void GetCurrentURI(nsIURI** aURI);
   virtual nsIPrincipal* GetCurrentPrincipal();
 
-  virtual void NotifyBytesDownloaded(PRInt64 aBytes);
-  virtual void NotifyDownloadSeeked(PRInt64 aOffsetBytes);
-  virtual void NotifyDownloadEnded(nsresult aStatus);
-  virtual void NotifyBytesConsumed(PRInt64 aBytes);
+  virtual void UpdateBytesDownloaded(PRUint64 aBytes);
 
   // Called when the video file has completed downloading.
   // Call on the main thread only.
@@ -348,11 +346,6 @@ class nsOggDecoder : public nsMediaDecoder
   // Get the size of the media file in bytes. Called on the main thread only.
   virtual void SetTotalBytes(PRInt64 aBytes);
 
-  // Set the duration of the media resource in units of milliseconds.
-  // This is called via a channel listener if it can pick up the duration
-  // from a content header. Must be called from the main thread only.
-  virtual void SetDuration(PRInt64 aDuration);
-
   // Set a flag indicating whether seeking is supported
   virtual void SetSeekable(PRBool aSeekable);
 
@@ -361,18 +354,6 @@ class nsOggDecoder : public nsMediaDecoder
 
   // Returns the channel reader.
   nsChannelReader* GetReader() { return mReader; }
-
-  virtual Statistics GetStatistics();
-
-  // Suspend any media downloads that are in progress. Called by the
-  // media element when it is sent to the bfcache. Call on the main
-  // thread only.
-  virtual void Suspend();
-
-  // Resume any media downloads that have been suspended. Called by the
-  // media element when it is restored from the bfcache. Call on the
-  // main thread only.
-  virtual void Resume();
 
 protected:
 
@@ -389,15 +370,6 @@ protected:
   {
     return mPlayState;
   }
-
-  // Stop updating the bytes downloaded for progress notifications. Called
-  // when seeking to prevent wild changes to the progress notification.
-  // Must be called with the decoder monitor held.
-  void StopProgressUpdates();
-
-  // Allow updating the bytes downloaded for progress notifications. Must
-  // be called with the decoder monitor held.
-  void StartProgressUpdates();
 
   /****** 
    * The following methods must only be called on the main
@@ -421,6 +393,22 @@ protected:
   // Call on the main thread only.
   void PlaybackEnded();
 
+  // Return the current number of bytes loaded from the video file.
+  // This is used for progress events.
+  virtual PRUint64 GetBytesLoaded();
+
+  // Return the size of the video file in bytes.
+  // This is used for progress events.
+  virtual PRInt64 GetTotalBytes();
+
+  // Buffering of data has stopped. Inform the element on the main
+  // thread.
+  void BufferingStopped();
+
+  // Buffering of data has started. Inform the element on the main
+  // thread.
+  void BufferingStarted();
+
   // Seeking has stopped. Inform the element on the main
   // thread.
   void SeekingStopped();
@@ -434,10 +422,6 @@ protected:
   // This must be called on the main thread only.
   void PlaybackPositionChanged();
 
-  // Calls mElement->UpdateReadyStateForData, telling it whether we have
-  // data for the next frame and if we're buffering. Main thread only.
-  void UpdateReadyStateForData();
-
 private:
   // Register/Unregister with Shutdown Observer. 
   // Call on main thread only.
@@ -445,32 +429,10 @@ private:
   void UnregisterShutdownObserver();
 
   /******
-   * The following members should be accessed with the decoder lock held.
+   * The following members should be accessed on the main thread only
    ******/
-
-  // Size of the media file in bytes. Set on the first
-  // HTTP request from nsChannelToPipe Listener. -1 if not known.
-  PRInt64 mTotalBytes;
-  // Current download position in the stream. 
-  PRInt64 mDownloadPosition;
-  // Download position to report if asked. This is the same as
-  // mDownloadPosition normally, but we don't update it while ignoring
-  // progress. This lets us avoid reporting progress changes due to reads
-  // that are only servicing our seek operations.
-  PRInt64 mProgressPosition;
-  // Current decoding position in the stream. This is where the decoder
-  // is up to consuming the stream.
-  PRInt64 mDecoderPosition;
-  // Current playback position in the stream. This is (approximately)
-  // where we're up to playing back the stream.
-  PRInt64 mPlaybackPosition;
-  // Data needed to estimate download data rate. The timeline used for
-  // this estimate is wall-clock time.
-  ChannelStatistics mDownloadStatistics;
-  // Data needed to estimate playback data rate. The timeline used for
-  // this estimate is "decode time" (where the "current time" is the
-  // time of the last decoded video frame).
-  ChannelStatistics mPlaybackStatistics;
+  // Total number of bytes downloaded so far. 
+  PRUint64 mBytesDownloaded;
 
   // The URI of the current resource
   nsCOMPtr<nsIURI> mURI;
@@ -496,6 +458,11 @@ private:
   // value is negative then no seek has been requested. When a seek is
   // started this is reset to negative.
   float mRequestedSeekTime;
+
+  // Size of the media file in bytes. Set on the first non-byte range
+  // HTTP request from nsChannelToPipe Listener. Accessed on the
+  // main thread only.
+  PRInt64 mContentLength;
 
   // Duration of the media resource. Set to -1 if unknown.
   // Set when the Ogg metadata is loaded. Accessed on the main thread
@@ -545,18 +512,6 @@ private:
   // when writing to the state, or when reading from a non-main thread.
   // Any change to the state must call NotifyAll on the monitor.
   PlayState mNextState;	
-
-  // True when we have fully loaded the resource and reported that
-  // to the element (i.e. reached NETWORK_LOADED state).
-  // Accessed on the main thread only.
-  PRPackedBool mResourceLoaded;
-
-  // True when seeking or otherwise moving the play position around in
-  // such a manner that progress event data is inaccurate. This is set
-  // during seek and duration operations to prevent the progress indicator
-  // from jumping around. Read/Write from any thread. Must have decode monitor
-  // locked before accessing.
-  PRPackedBool mIgnoreProgressData;
 };
 
 #endif

@@ -59,7 +59,7 @@
 #include "imgRequest.h"
 #include "imgRequestProxy.h"
 
-#include "nsURILoader.h"
+#include "ImageErrors.h"
 #include "ImageLogging.h"
 
 #include "nsIComponentRegistrar.h"
@@ -127,8 +127,6 @@ static PRBool NewRequestAndEntry(nsIURI *uri, imgRequest **request, imgCacheEntr
 
   NS_ADDREF(*request);
   NS_ADDREF(*entry);
-
-  imgLoader::SetHasNoProxies(uri, *entry);
 
   return PR_TRUE;
 }
@@ -249,14 +247,8 @@ imgCacheEntry::imgCacheEntry(imgRequest *request, PRBool mustValidateIfExpired /
    mTouchedTime(SecondsFromPRTime(PR_Now())),
    mExpiryTime(0),
    mMustValidateIfExpired(mustValidateIfExpired),
-   mEvicted(PR_FALSE),
-   mHasNoProxies(PR_TRUE)
+   mEvicted(PR_FALSE)
 {}
-
-imgCacheEntry::~imgCacheEntry()
-{
-  LOG_FUNC(gImgLog, "imgCacheEntry::~imgCacheEntry()");
-}
 
 void imgCacheEntry::TouchWithSize(PRInt32 diff)
 {
@@ -264,11 +256,7 @@ void imgCacheEntry::TouchWithSize(PRInt32 diff)
 
   mTouchedTime = SecondsFromPRTime(PR_Now());
 
-  // Don't update the cache if we've been removed from it or it doesn't care
-  // about our size or usage.
-  if (!Evicted() && HasNoProxies()) {
-    // We can't use mKeyURI here, because we're not guaranteed to be updated if
-    // the request has no observers and has thus dropped its reference to us.
+  if (!Evicted()) {
     nsCOMPtr<nsIURI> uri;
     mRequest->GetKeyURI(getter_AddRefs(uri));
     imgLoader::CacheEntriesChanged(uri, diff);
@@ -282,32 +270,11 @@ void imgCacheEntry::Touch(PRBool updateTime /* = PR_TRUE */)
   if (updateTime)
     mTouchedTime = SecondsFromPRTime(PR_Now());
 
-  // Don't update the cache if we've been removed from it or it doesn't care
-  // about our size or usage.
-  if (!Evicted() && HasNoProxies()) {
-    // We can't use mKeyURI here, because we're not guaranteed to be updated if
-    // the request has no observers and has thus dropped its reference to us.
+  if (!Evicted()) {
     nsCOMPtr<nsIURI> uri;
     mRequest->GetKeyURI(getter_AddRefs(uri));
     imgLoader::CacheEntriesChanged(uri);
   }
-}
-
-void imgCacheEntry::SetHasNoProxies(PRBool hasNoProxies)
-{
-#if defined(PR_LOGGING)
-  nsCOMPtr<nsIURI> uri;
-  mRequest->GetKeyURI(getter_AddRefs(uri));
-  nsCAutoString spec;
-  if (uri)
-    uri->GetSpec(spec);
-  if (hasNoProxies)
-    LOG_FUNC_WITH_PARAM(gImgLog, "imgCacheEntry::SetHasNoProxies true", "uri", spec.get());
-  else
-    LOG_FUNC_WITH_PARAM(gImgLog, "imgCacheEntry::SetHasNoProxies false", "uri", spec.get());
-#endif
-
-  mHasNoProxies = hasNoProxies;
 }
 
 imgCacheQueue::imgCacheQueue()
@@ -482,21 +449,6 @@ imgCacheExpirationTracker::imgCacheExpirationTracker()
 
 void imgCacheExpirationTracker::NotifyExpired(imgCacheEntry *entry)
 {
-  // Hold on to a reference to this entry, because the expiration tracker
-  // mechanism doesn't.
-  nsRefPtr<imgCacheEntry> kungFuDeathGrip(entry);
-
-#if defined(PR_LOGGING)
-  nsRefPtr<imgRequest> req(entry->GetRequest());
-  if (req) {
-    nsCOMPtr<nsIURI> uri;
-    req->GetKeyURI(getter_AddRefs(uri));
-    nsCAutoString spec;
-    uri->GetSpec(spec);
-    LOG_FUNC_WITH_PARAM(gImgLog, "imgCacheExpirationTracker::NotifyExpired", "entry", spec.get());
-  }
-#endif
-
   // We can be called multiple times on the same entry. Don't do work multiple
   // times.
   if (!entry->Evicted())
@@ -537,13 +489,13 @@ void imgLoader::VerifyCacheSizes()
   if (!gCacheTracker)
     return;
 
-  PRUint32 cachesize = sCache.Count() + sChromeCache.Count();
   PRUint32 queuesize = sCacheQueue.GetNumElements() + sChromeCacheQueue.GetNumElements();
+  PRUint32 cachesize = sCache.Count() + sChromeCache.Count();
   PRUint32 trackersize = 0;
   for (nsExpirationTracker<imgCacheEntry, 3>::Iterator it(gCacheTracker); it.Next(); )
     trackersize++;
-  NS_ABORT_IF_FALSE(queuesize == trackersize, "Queue and tracker sizes out of sync!");
-  NS_ABORT_IF_FALSE(queuesize <= cachesize, "Queue has more elements than cache!");
+  NS_ASSERTION(queuesize == cachesize, "Queue and cache sizes out of sync!");
+  NS_ASSERTION(queuesize == trackersize, "Queue and tracker sizes out of sync!");
 }
 
 imgLoader::imgCacheTable & imgLoader::GetCache(nsIURI *aURI)
@@ -641,9 +593,8 @@ NS_IMETHODIMP imgLoader::FindEntryProperties(nsIURI *uri, nsIProperties **_retva
   *_retval = nsnull;
 
   if (cache.Get(spec, getter_AddRefs(entry)) && entry) {
-    if (gCacheTracker && entry->HasNoProxies())
+    if (gCacheTracker)
       gCacheTracker->MarkUsed(entry);
-
     nsRefPtr<imgRequest> request = getter_AddRefs(entry->GetRequest());
     if (request) {
       *_retval = request->Properties();
@@ -675,12 +626,12 @@ nsresult imgLoader::ClearImageCache()
 
 PRBool imgLoader::PutIntoCache(nsIURI *key, imgCacheEntry *entry)
 {
+  LOG_STATIC_FUNC(gImgLog, "imgLoader::PutIntoCache");
+
   imgCacheTable &cache = GetCache(key);
 
   nsCAutoString spec;
   key->GetSpec(spec);
-
-  LOG_STATIC_FUNC_WITH_PARAM(gImgLog, "imgLoader::PutIntoCache", "uri", spec.get());
 
   // Check to see if this request already exists in the cache and is being
   // loaded on a different thread. If so, don't allow this entry to be added to
@@ -692,8 +643,6 @@ PRBool imgLoader::PutIntoCache(nsIURI *key, imgCacheEntry *entry)
     nsRefPtr<imgRequest> tmpRequest = getter_AddRefs(tmpCacheEntry->GetRequest());
     void *cacheId = NS_GetCurrentThread();
 
-    // If the existing request is currently loading, or loading on a different
-    // thread, we'll leave it be, and not put this new entry into the cache.
     if (!tmpRequest->IsReusable(cacheId))
       return PR_FALSE;
 
@@ -711,64 +660,15 @@ PRBool imgLoader::PutIntoCache(nsIURI *key, imgCacheEntry *entry)
   if (!cache.Put(spec, entry))
     return PR_FALSE;
 
-  return PR_TRUE;
-}
-
-PRBool imgLoader::SetHasNoProxies(nsIURI *key, imgCacheEntry *entry)
-{
-#if defined(PR_LOGGING)
-  nsCAutoString spec;
-  key->GetSpec(spec);
-
-  LOG_STATIC_FUNC_WITH_PARAM(gImgLog, "imgLoader::SetHasNoProxies", "uri", spec.get());
-#endif
-
-  if (entry->Evicted())
-    return PR_FALSE;
-
   imgCacheQueue &queue = GetCacheQueue(key);
-
-  nsresult addrv = NS_OK;
+  queue.Push(entry);
 
   if (gCacheTracker)
-    addrv = gCacheTracker->AddObject(entry);
+    gCacheTracker->AddObject(entry);
 
-  if (NS_SUCCEEDED(addrv)) {
-    queue.Push(entry);
-    entry->SetHasNoProxies(PR_TRUE);
-  }
-
-  imgCacheTable &cache = GetCache(key);
   CheckCacheLimits(cache, queue);
 
   return PR_TRUE;
-}
-
-PRBool imgLoader::SetHasProxies(nsIURI *key)
-{
-  VerifyCacheSizes();
-
-  imgCacheTable &cache = GetCache(key);
-
-  nsCAutoString spec;
-  key->GetSpec(spec);
-
-  LOG_STATIC_FUNC_WITH_PARAM(gImgLog, "imgLoader::SetHasProxies", "uri", spec.get());
-
-  nsRefPtr<imgCacheEntry> entry;
-  if (cache.Get(spec, getter_AddRefs(entry)) && entry && entry->HasNoProxies()) {
-    imgCacheQueue &queue = GetCacheQueue(key);
-    queue.Remove(entry);
-
-    if (gCacheTracker)
-      gCacheTracker->RemoveObject(entry);
-
-    entry->SetHasNoProxies(PR_FALSE);
-
-    return PR_TRUE;
-  }
-
-  return PR_FALSE;
 }
 
 void imgLoader::CacheEntriesChanged(nsIURI *uri, PRInt32 sizediff /* = 0 */)
@@ -790,17 +690,6 @@ void imgLoader::CheckCacheLimits(imgCacheTable &cache, imgCacheQueue &queue)
     nsRefPtr<imgCacheEntry> entry(queue.Pop());
 
     NS_ASSERTION(entry, "imgLoader::CheckCacheLimits -- NULL entry pointer");
-
-#if defined(PR_LOGGING)
-    nsRefPtr<imgRequest> req(entry->GetRequest());
-    if (req) {
-      nsCOMPtr<nsIURI> uri;
-      req->GetKeyURI(getter_AddRefs(uri));
-      nsCAutoString spec;
-      uri->GetSpec(spec);
-      LOG_STATIC_FUNC_WITH_PARAM(gImgLog, "imgLoader::CheckCacheLimits", "entry", spec.get());
-    }
-#endif
 
     if (entry)
       RemoveFromCache(entry);
@@ -824,8 +713,6 @@ PRBool imgLoader::ValidateRequestWithNewChannel(imgRequest *request,
 
   nsresult rv;
 
-  // If we're currently in the middle of validating this request, just hand
-  // back a proxy to it; the required work will be done for us.
   if (request->mValidator) {
     rv = CreateNewProxyForRequest(request, aLoadGroup, aObserver,
                                   aLoadFlags, aExistingRequest, 
@@ -1014,6 +901,7 @@ PRBool imgLoader::ValidateEntry(imgCacheEntry *aEntry,
 
 PRBool imgLoader::RemoveFromCache(nsIURI *aKey)
 {
+  LOG_STATIC_FUNC(gImgLog, "imgLoader::RemoveFromCache uri");
   if (!aKey) return PR_FALSE;
 
   imgCacheTable &cache = GetCache(aKey);
@@ -1022,23 +910,13 @@ PRBool imgLoader::RemoveFromCache(nsIURI *aKey)
   nsCAutoString spec;
   aKey->GetSpec(spec);
 
-  LOG_STATIC_FUNC_WITH_PARAM(gImgLog, "imgLoader::RemoveFromCache", "uri", spec.get());
-
   nsRefPtr<imgCacheEntry> entry;
   if (cache.Get(spec, getter_AddRefs(entry)) && entry) {
+    if (gCacheTracker)
+      gCacheTracker->RemoveObject(entry);
     cache.Remove(spec);
-
-    NS_ABORT_IF_FALSE(!entry->Evicted(), "Evicting an already-evicted cache entry!");
-
-    // Entries with no proxies are in the tracker.
-    if (entry->HasNoProxies()) {
-      if (gCacheTracker)
-        gCacheTracker->RemoveObject(entry);
-      queue.Remove(entry);
-    }
-
+    queue.Remove(entry);
     entry->SetEvicted(PR_TRUE);
-
     return PR_TRUE;
   }
   else
@@ -1048,46 +926,15 @@ PRBool imgLoader::RemoveFromCache(nsIURI *aKey)
 PRBool imgLoader::RemoveFromCache(imgCacheEntry *entry)
 {
   LOG_STATIC_FUNC(gImgLog, "imgLoader::RemoveFromCache entry");
-
+  PRBool ret = PR_FALSE;
   nsRefPtr<imgRequest> request(getter_AddRefs(entry->GetRequest()));
   if (request) {
     nsCOMPtr<nsIURI> key;
-    if (NS_SUCCEEDED(request->GetKeyURI(getter_AddRefs(key))) && key) {
-      imgCacheTable &cache = GetCache(key);
-      imgCacheQueue &queue = GetCacheQueue(key);
-      nsCAutoString spec;
-      key->GetSpec(spec);
-
-      LOG_STATIC_FUNC_WITH_PARAM(gImgLog, "imgLoader::RemoveFromCache", "entry's uri", spec.get());
-
-      cache.Remove(spec);
-
-      if (entry->HasNoProxies()) {
-        LOG_STATIC_FUNC(gImgLog, "imgLoader::RemoveFromCache removing from tracker");
-        if (gCacheTracker)
-          gCacheTracker->RemoveObject(entry);
-        queue.Remove(entry);
-      }
-
-      entry->SetEvicted(PR_TRUE);
-
-      return PR_TRUE;
-    }
+    if (NS_SUCCEEDED(request->GetKeyURI(getter_AddRefs(key))) && key)
+      ret = RemoveFromCache(key);
   }
 
-  return PR_FALSE;
-}
-
-static PLDHashOperator EnumEvictEntries(const nsACString&, 
-                                        nsRefPtr<imgCacheEntry> &aData,
-                                        void *data)
-{
-  nsTArray<nsRefPtr<imgCacheEntry> > *entries = 
-    reinterpret_cast<nsTArray<nsRefPtr<imgCacheEntry> > *>(data);
-
-  entries->AppendElement(aData);
-
-  return PL_DHASH_NEXT;
+  return ret;
 }
 
 nsresult imgLoader::EvictEntries(imgCacheTable &aCacheToClear, imgCacheQueue &aQueueToClear)
@@ -1097,9 +944,10 @@ nsresult imgLoader::EvictEntries(imgCacheTable &aCacheToClear, imgCacheQueue &aQ
   // We have to make a temporary, since RemoveFromCache removes the element
   // from the queue, invalidating iterators.
   nsTArray<nsRefPtr<imgCacheEntry> > entries;
-  aCacheToClear.Enumerate(EnumEvictEntries, &entries);
-
-  for (PRUint32 i = 0; i < entries.Length(); ++i)
+  for (imgCacheQueue::iterator it = aQueueToClear.begin(); it != aQueueToClear.end(); ++it)
+    entries.AppendElement(*it);
+  
+  for (PRUint32  i = 0; i < entries.Length(); ++i)
     if (!RemoveFromCache(entries[i]))
       return NS_ERROR_FAILURE;
 
@@ -1190,22 +1038,14 @@ NS_IMETHODIMP imgLoader::LoadImage(nsIURI *aURI,
     aURI->GetSpec(spec);
 
     if (cache.Get(spec, getter_AddRefs(entry)) && entry) {
+      if (gCacheTracker)
+        gCacheTracker->MarkUsed(entry);
+
       if (ValidateEntry(entry, aURI, aInitialDocumentURI, aReferrerURI, aLoadGroup, aObserver, aCX,
                         requestFlags, PR_TRUE, aRequest, _retval)) {
         request = getter_AddRefs(entry->GetRequest());
 
-        // If this entry has no proxies, its request has no reference to the entry.
-        if (entry->HasNoProxies()) {
-          LOG_FUNC_WITH_PARAM(gImgLog, "imgLoader::LoadImage() adding proxyless entry", "uri", spec.get());
-          NS_ABORT_IF_FALSE(!request->HasCacheEntry(), "Proxyless entry's request has cache entry!");
-          request->SetCacheEntry(entry);
-
-          if (gCacheTracker)
-            gCacheTracker->MarkUsed(entry);
-        } 
-
         entry->Touch();
-
 #ifdef DEBUG_joe
         printf("CACHEGET: %d %s %d\n", time(NULL), spec.get(), entry->GetDataSize());
 #endif
@@ -1269,8 +1109,7 @@ NS_IMETHODIMP imgLoader::LoadImage(nsIURI *aURI,
     }
 
     // Try to add the new request into the cache.
-    if (!PutIntoCache(aURI, entry))
-      request->SetCacheable(PR_FALSE);
+    PutIntoCache(aURI, entry);
 
   // If we did get a cache hit, use it.
   } else {
@@ -1334,6 +1173,9 @@ NS_IMETHODIMP imgLoader::LoadImageWithChannel(nsIChannel *channel, imgIDecoderOb
     uri->GetSpec(spec);
 
     if (cache.Get(spec, getter_AddRefs(entry)) && entry) {
+      if (gCacheTracker)
+        gCacheTracker->MarkUsed(entry);
+
       // We don't want to kick off another network load. So we ask
       // ValidateEntry to only do validation without creating a new proxy. If
       // it says that the entry isn't valid any more, we'll only use the entry
@@ -1359,18 +1201,6 @@ NS_IMETHODIMP imgLoader::LoadImageWithChannel(nsIChannel *channel, imgIDecoderOb
           request = getter_AddRefs(entry->GetRequest());
         }
       }
-
-      if (request && entry) {
-        // If this entry has no proxies, its request has no reference to the entry.
-        if (entry->HasNoProxies()) {
-          LOG_FUNC_WITH_PARAM(gImgLog, "imgLoader::LoadImageWithChannel() adding proxyless entry", "uri", spec.get());
-          NS_ABORT_IF_FALSE(!request->HasCacheEntry(), "Proxyless entry's request has cache entry!");
-          request->SetCacheEntry(entry);
-
-          if (gCacheTracker)
-            gCacheTracker->MarkUsed(entry);
-        } 
-      }
     }
   }
 
@@ -1380,12 +1210,11 @@ NS_IMETHODIMP imgLoader::LoadImageWithChannel(nsIChannel *channel, imgIDecoderOb
   if (request) {
     // we have this in our cache already.. cancel the current (document) load
 
-    channel->Cancel(NS_ERROR_PARSED_DATA_CACHED); // this should fire an OnStopRequest
+    channel->Cancel(NS_IMAGELIB_ERROR_LOAD_ABORTED); // this should fire an OnStopRequest
 
     *listener = nsnull; // give them back a null nsIStreamListener
   } else {
-    if (!NewRequestAndEntry(uri, getter_AddRefs(request), getter_AddRefs(entry)))
-      return NS_ERROR_OUT_OF_MEMORY;
+    NewRequestAndEntry(uri, getter_AddRefs(request), getter_AddRefs(entry));
 
     // We use originalURI here to fulfil the imgIRequest contract on GetURI.
     nsCOMPtr<nsIURI> originalURI;
@@ -1393,10 +1222,8 @@ NS_IMETHODIMP imgLoader::LoadImageWithChannel(nsIChannel *channel, imgIDecoderOb
     request->Init(originalURI, uri, channel, channel, entry, NS_GetCurrentThread(), aCX);
 
     ProxyListener *pl = new ProxyListener(static_cast<nsIStreamListener *>(request.get()));
-    if (!pl) {
-      request->CancelAndAbort(NS_ERROR_OUT_OF_MEMORY);
+    if (!pl)
       return NS_ERROR_OUT_OF_MEMORY;
-    }
 
     NS_ADDREF(pl);
 
@@ -1406,8 +1233,7 @@ NS_IMETHODIMP imgLoader::LoadImageWithChannel(nsIChannel *channel, imgIDecoderOb
     NS_RELEASE(pl);
 
     // Try to add the new request into the cache.
-    if (!PutIntoCache(uri, entry))
-      request->SetCacheable(PR_FALSE);
+    PutIntoCache(uri, entry);
   }
 
   // XXX: It looks like the wrong load flags are being passed in...
@@ -1419,6 +1245,7 @@ NS_IMETHODIMP imgLoader::LoadImageWithChannel(nsIChannel *channel, imgIDecoderOb
 
   return rv;
 }
+
 
 NS_IMETHODIMP imgLoader::SupportImageWithMimeType(const char* aMimeType, PRBool *_retval)
 {
@@ -1644,22 +1471,15 @@ NS_IMETHODIMP imgCacheValidator::OnStartRequest(nsIRequest *aRequest, nsISupport
     }
   }
 
-  // We can't load out of cache. We have to create a whole new request for the
-  // data that's coming in off the channel.
+  // fun stuff.
   nsCOMPtr<nsIChannel> channel(do_QueryInterface(aRequest));
   nsRefPtr<imgCacheEntry> entry;
   nsCOMPtr<nsIURI> uri;
 
-  mRequest->GetURI(getter_AddRefs(uri));
-
-#if defined(PR_LOGGING)
-  nsCAutoString spec;
-  uri->GetSpec(spec);
-  LOG_MSG_WITH_PARAM(gImgLog, "imgCacheValidator::OnStartRequest creating new request", "uri", spec.get());
-#endif
-
   // Doom the old request's cache entry
   mRequest->RemoveFromCache();
+
+  mRequest->GetURI(getter_AddRefs(uri));
 
   mRequest->mValidator = nsnull;
   mRequest = nsnull;
@@ -1676,18 +1496,11 @@ NS_IMETHODIMP imgCacheValidator::OnStartRequest(nsIRequest *aRequest, nsISupport
 
   ProxyListener *pl = new ProxyListener(static_cast<nsIStreamListener *>(request));
   if (!pl) {
-    request->CancelAndAbort(NS_ERROR_OUT_OF_MEMORY);
     NS_RELEASE(request);
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
   mDestListener = static_cast<nsIStreamListener*>(pl);
-
-  // Try to add the new request into the cache. Note that the entry must be in
-  // the cache before the proxies' ownership changes, because adding a proxy
-  // changes the caching behaviour for imgRequests.
-  if (!sImgLoader.PutIntoCache(uri, entry))
-    request->SetCacheable(PR_FALSE);
 
   PRUint32 count = mProxies.Count();
   for (PRInt32 i = count-1; i>=0; i--) {
@@ -1695,6 +1508,9 @@ NS_IMETHODIMP imgCacheValidator::OnStartRequest(nsIRequest *aRequest, nsISupport
     proxy->ChangeOwner(request);
     request->NotifyProxyListener(proxy);
   }
+
+  // Try to add the new request into the cache.
+  sImgLoader.PutIntoCache(uri, entry);
 
   NS_RELEASE(request);
 

@@ -71,7 +71,7 @@ class nsMathMLContainerFrame : public nsHTMLContainerFrame,
 public:
   nsMathMLContainerFrame(nsStyleContext* aContext) : nsHTMLContainerFrame(aContext) {}
 
-  NS_DECL_QUERYFRAME
+  NS_DECL_ISUPPORTS_INHERITED
 
   // --------------------------------------------------------------------------
   // Overloaded nsMathMLFrame methods -- see documentation in nsIMathMLFrame.h
@@ -353,7 +353,7 @@ public:
   //
   // aBits are the bits to pass to FrameNeedsReflow() when we call it.
   static nsresult
-  ReLayoutChildren(nsIFrame* aParentFrame);
+  ReLayoutChildren(nsIFrame* aParentFrame, nsFrameState aBits);
 
 protected:
   // Helper method which positions child frames as an <mrow> on given baseline
@@ -415,7 +415,8 @@ public:
                  "unexpected frame list");
     nsresult rv = nsBlockFrame::AppendFrames(aListName, aFrameList);
     if (NS_LIKELY(!aListName))
-      nsMathMLContainerFrame::ReLayoutChildren(this);
+      nsMathMLContainerFrame::ReLayoutChildren(this,
+                                               NS_FRAME_HAS_DIRTY_CHILDREN);
     return rv;
   }
 
@@ -428,7 +429,8 @@ public:
                  "unexpected frame list");
     nsresult rv = nsBlockFrame::InsertFrames(aListName, aPrevFrame, aFrameList);
     if (NS_LIKELY(!aListName))
-      nsMathMLContainerFrame::ReLayoutChildren(this);
+      nsMathMLContainerFrame::ReLayoutChildren(this,
+                                               NS_FRAME_HAS_DIRTY_CHILDREN);
     return rv;
   }
 
@@ -440,7 +442,8 @@ public:
                  "unexpected frame list");
     nsresult rv = nsBlockFrame::RemoveFrame(aListName, aOldFrame);
     if (NS_LIKELY(!aListName))
-      nsMathMLContainerFrame::ReLayoutChildren(this);
+      nsMathMLContainerFrame::ReLayoutChildren(this,
+                                               NS_FRAME_HAS_DIRTY_CHILDREN);
     return rv;
   }
 
@@ -483,7 +486,8 @@ public:
                  "unexpected frame list");
     nsresult rv = nsInlineFrame::AppendFrames(aListName, aFrameList);
     if (NS_LIKELY(!aListName))
-      nsMathMLContainerFrame::ReLayoutChildren(this);
+      nsMathMLContainerFrame::ReLayoutChildren(this,
+                                               NS_FRAME_HAS_DIRTY_CHILDREN);
     return rv;
   }
 
@@ -496,7 +500,8 @@ public:
                  "unexpected frame list");
     nsresult rv = nsInlineFrame::InsertFrames(aListName, aPrevFrame, aFrameList);
     if (NS_LIKELY(!aListName))
-      nsMathMLContainerFrame::ReLayoutChildren(this);
+      nsMathMLContainerFrame::ReLayoutChildren(this,
+                                               NS_FRAME_HAS_DIRTY_CHILDREN);
     return rv;
   }
 
@@ -508,7 +513,8 @@ public:
                  "unexpected frame list");
     nsresult rv = nsInlineFrame::RemoveFrame(aListName, aOldFrame);
     if (NS_LIKELY(!aListName))
-      nsMathMLContainerFrame::ReLayoutChildren(this);
+      nsMathMLContainerFrame::ReLayoutChildren(this,
+                                               NS_FRAME_HAS_DIRTY_CHILDREN);
     return rv;
   }
 

@@ -77,10 +77,10 @@ static const char* const sEventNames[] = {
   "SVGZoom",
 #endif // MOZ_SVG
 #ifdef MOZ_MEDIA
-  "loadstart", "progress", "suspend", "emptied", "stalled", "play", "pause",
-  "loadedmetadata", "loadeddata", "waiting", "playing", "canplay",
-  "canplaythrough", "seeking", "seeked", "timeupdate", "ended", "ratechange",
-  "durationchange", "volumechange",
+  "loadstart", "progress", "loadedmetadata", "loadeddata",
+  "emptied", "stalled", "play", "pause",
+  "waiting", "seeking", "seeked", "timeupdate", "ended",
+  "canplay", "canplaythrough", "ratechange", "durationchange", "volumechange",
 #endif // MOZ_MEDIA
   "MozAfterPaint",
   "MozSwipeGesture",
@@ -175,12 +175,10 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDOMEvent)
     switch (tmp->mEvent->eventStructType) {
       case NS_MOUSE_EVENT:
       case NS_MOUSE_SCROLL_EVENT:
-      case NS_SIMPLE_GESTURE_EVENT:
         static_cast<nsMouseEvent_base*>(tmp->mEvent)->relatedTarget = nsnull;
         break;
       case NS_DRAG_EVENT:
         static_cast<nsDragEvent*>(tmp->mEvent)->dataTransfer = nsnull;
-        static_cast<nsMouseEvent_base*>(tmp->mEvent)->relatedTarget = nsnull;
         break;
       case NS_XUL_COMMAND_EVENT:
         static_cast<nsXULCommandEvent*>(tmp->mEvent)->sourceEvent = nsnull;
@@ -205,7 +203,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDOMEvent)
     switch (tmp->mEvent->eventStructType) {
       case NS_MOUSE_EVENT:
       case NS_MOUSE_SCROLL_EVENT:
-      case NS_SIMPLE_GESTURE_EVENT:
         NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mEvent->relatedTarget");
         cb.NoteXPCOMChild(
           static_cast<nsMouseEvent_base*>(tmp->mEvent)->relatedTarget);
@@ -214,9 +211,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDOMEvent)
         NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mEvent->dataTransfer");
         cb.NoteXPCOMChild(
           static_cast<nsDragEvent*>(tmp->mEvent)->dataTransfer);
-        NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mEvent->relatedTarget");
-        cb.NoteXPCOMChild(
-          static_cast<nsMouseEvent_base*>(tmp->mEvent)->relatedTarget);
         break;
       case NS_XUL_COMMAND_EVENT:
         NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mEvent->sourceEvent");
@@ -619,8 +613,10 @@ nsDOMEvent::SetEventType(const nsAString& aEventTypeArg)
       mEvent->message = NS_LOADSTART;
     else if (atom == nsGkAtoms::onprogress)
       mEvent->message = NS_PROGRESS;
-    else if (atom == nsGkAtoms::onsuspend)
-      mEvent->message = NS_SUSPEND;
+    else if (atom == nsGkAtoms::onloadedmetadata)
+      mEvent->message = NS_LOADEDMETADATA;
+    else if (atom == nsGkAtoms::onloadeddata)
+      mEvent->message = NS_LOADEDDATA;
     else if (atom == nsGkAtoms::onemptied)
       mEvent->message = NS_EMPTIED;
     else if (atom == nsGkAtoms::onstalled)
@@ -629,26 +625,20 @@ nsDOMEvent::SetEventType(const nsAString& aEventTypeArg)
       mEvent->message = NS_PLAY;
     else if (atom == nsGkAtoms::onpause)
       mEvent->message = NS_PAUSE;
-    else if (atom == nsGkAtoms::onloadedmetadata)
-      mEvent->message = NS_LOADEDMETADATA;
-    else if (atom == nsGkAtoms::onloadeddata)
-      mEvent->message = NS_LOADEDDATA;
     else if (atom == nsGkAtoms::onwaiting)
       mEvent->message = NS_WAITING;
-    else if (atom == nsGkAtoms::onplaying)
-      mEvent->message = NS_PLAYING;
+    else if (atom == nsGkAtoms::onwaiting)
+      mEvent->message = NS_SEEKING;
+    else if (atom == nsGkAtoms::onseeking)
+      mEvent->message = NS_SEEKED;
+    else if (atom == nsGkAtoms::onseeked)
+      mEvent->message = NS_TIMEUPDATE;
+    else if (atom == nsGkAtoms::onended)
+      mEvent->message = NS_ENDED;
     else if (atom == nsGkAtoms::oncanplay)
       mEvent->message = NS_CANPLAY;
     else if (atom == nsGkAtoms::oncanplaythrough)
       mEvent->message = NS_CANPLAYTHROUGH;
-    else if (atom == nsGkAtoms::onseeking)
-      mEvent->message = NS_SEEKING;
-    else if (atom == nsGkAtoms::onseeked)
-      mEvent->message = NS_SEEKED;
-    else if (atom == nsGkAtoms::ontimeupdate)
-      mEvent->message = NS_TIMEUPDATE;
-    else if (atom == nsGkAtoms::onended)
-      mEvent->message = NS_ENDED;
     else if (atom == nsGkAtoms::onratechange)
       mEvent->message = NS_RATECHANGE;
     else if (atom == nsGkAtoms::ondurationchange)
@@ -1015,6 +1005,10 @@ NS_METHOD nsDOMEvent::DuplicatePrivateData()
       isInputEvent = PR_TRUE;
       simpleGestureEvent->direction = oldSimpleGestureEvent->direction;
       simpleGestureEvent->delta = oldSimpleGestureEvent->delta;
+      simpleGestureEvent->isAlt = oldSimpleGestureEvent->isAlt;
+      simpleGestureEvent->isControl = oldSimpleGestureEvent->isControl;
+      simpleGestureEvent->isShift = oldSimpleGestureEvent->isShift;
+      simpleGestureEvent->isMeta = oldSimpleGestureEvent->isMeta;
       newEvent = simpleGestureEvent;
       break;
     }
@@ -1478,8 +1472,10 @@ const char* nsDOMEvent::GetEventName(PRUint32 aEventType)
     return sEventNames[eDOMEvents_loadstart];
   case NS_PROGRESS:
     return sEventNames[eDOMEvents_progress];
-  case NS_SUSPEND:
-    return sEventNames[eDOMEvents_suspend];
+  case NS_LOADEDMETADATA:
+    return sEventNames[eDOMEvents_loadedmetadata];
+  case NS_LOADEDDATA:
+    return sEventNames[eDOMEvents_loadeddata];
   case NS_EMPTIED:
     return sEventNames[eDOMEvents_emptied];
   case NS_STALLED:
@@ -1488,18 +1484,8 @@ const char* nsDOMEvent::GetEventName(PRUint32 aEventType)
     return sEventNames[eDOMEvents_play];
   case NS_PAUSE:
     return sEventNames[eDOMEvents_pause];
-  case NS_LOADEDMETADATA:
-    return sEventNames[eDOMEvents_loadedmetadata];
-  case NS_LOADEDDATA:
-    return sEventNames[eDOMEvents_loadeddata];
   case NS_WAITING:
     return sEventNames[eDOMEvents_waiting];
-  case NS_PLAYING:
-    return sEventNames[eDOMEvents_playing];
-  case NS_CANPLAY:
-    return sEventNames[eDOMEvents_canplay];
-  case NS_CANPLAYTHROUGH:
-    return sEventNames[eDOMEvents_canplaythrough];
   case NS_SEEKING:
     return sEventNames[eDOMEvents_seeking];
   case NS_SEEKED:
@@ -1508,6 +1494,10 @@ const char* nsDOMEvent::GetEventName(PRUint32 aEventType)
     return sEventNames[eDOMEvents_timeupdate];
   case NS_ENDED:
     return sEventNames[eDOMEvents_ended];
+  case NS_CANPLAY:
+    return sEventNames[eDOMEvents_canplay];
+  case NS_CANPLAYTHROUGH:
+    return sEventNames[eDOMEvents_canplaythrough];
   case NS_RATECHANGE:
     return sEventNames[eDOMEvents_ratechange];
   case NS_DURATIONCHANGE:

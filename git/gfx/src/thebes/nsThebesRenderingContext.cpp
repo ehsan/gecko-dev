@@ -81,9 +81,8 @@ static NS_DEFINE_CID(kRegionCID, NS_REGION_CID);
 
 NS_IMPL_ISUPPORTS1(nsThebesRenderingContext, nsIRenderingContext)
 
-nsThebesRenderingContext::nsThebesRenderingContext()
-  : mLineStyle(nsLineStyle_kNone)
-  , mColor(NS_RGB(0,0,0))
+nsThebesRenderingContext::nsThebesRenderingContext() :
+    mLineStyle(nsLineStyle_kNone)
 {
 }
 

@@ -92,7 +92,6 @@ nsFileControlFrame::nsFileControlFrame(nsStyleContext* aContext):
   mTextFrame(nsnull), 
   mCachedState(nsnull)
 {
-  AddStateBits(NS_BLOCK_FLOAT_MGR);
 }
 
 nsFileControlFrame::~nsFileControlFrame()
@@ -162,9 +161,6 @@ nsFileControlFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
   if (!mTextContent)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  // Mark the element to be native anonymous before setting any attributes.
-  mTextContent->SetNativeAnonymous();
-
   mTextContent->SetAttr(kNameSpaceID_None, nsGkAtoms::type,
                         NS_LITERAL_STRING("text"), PR_FALSE);
 
@@ -202,9 +198,6 @@ nsFileControlFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
   if (!mBrowse)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  // Mark the element to be native anonymous before setting any attributes.
-  mBrowse->SetNativeAnonymous();
-
   mBrowse->SetAttr(kNameSpaceID_None, nsGkAtoms::type,
                    NS_LITERAL_STRING("button"), PR_FALSE);
   nsCOMPtr<nsIDOMHTMLInputElement> fileContent = do_QueryInterface(mContent);
@@ -235,10 +228,23 @@ nsFileControlFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
   return NS_OK;
 }
 
-NS_QUERYFRAME_HEAD(nsFileControlFrame)
-  NS_QUERYFRAME_ENTRY(nsIAnonymousContentCreator)
-  NS_QUERYFRAME_ENTRY(nsIFormControlFrame)
-NS_QUERYFRAME_TAIL_INHERITING(nsBlockFrame)
+// Frames are not refcounted, no need to AddRef
+NS_IMETHODIMP
+nsFileControlFrame::QueryInterface(const nsIID& aIID, void** aInstancePtr)
+{
+  NS_PRECONDITION(aInstancePtr, "null out param");
+
+  if (aIID.Equals(NS_GET_IID(nsIAnonymousContentCreator))) {
+    *aInstancePtr = static_cast<nsIAnonymousContentCreator*>(this);
+    return NS_OK;
+  }
+  if (aIID.Equals(NS_GET_IID(nsIFormControlFrame))) {
+    *aInstancePtr = static_cast<nsIFormControlFrame*>(this);
+    return NS_OK;
+  }
+
+  return nsBlockFrame::QueryInterface(aIID, aInstancePtr);
+}
 
 void 
 nsFileControlFrame::SetFocus(PRBool aOn, PRBool aRepaint)
@@ -345,6 +351,8 @@ nsFileControlFrame::MouseListener::MouseClick(nsIDOMEvent* aMouseEvent)
   result = filePicker->Show(&mode);
   if (NS_FAILED(result))
     return result;
+  if (mode == nsIFilePicker::returnCancel)
+    return NS_OK;
 
   if (!mFrame) {
     // The frame got destroyed while the filepicker was up.  Don't do
@@ -355,35 +363,30 @@ nsFileControlFrame::MouseListener::MouseClick(nsIDOMEvent* aMouseEvent)
   }
   
   // Set property
-  nsAutoString unicodePath;
   nsCOMPtr<nsILocalFile> localFile;
-  if (mode != nsIFilePicker::returnCancel) {
-    result = filePicker->GetFile(getter_AddRefs(localFile));
-    if (localFile) {
-      result = localFile->GetPath(unicodePath);
+  result = filePicker->GetFile(getter_AddRefs(localFile));
+  if (localFile) {
+    nsAutoString unicodePath;
+    result = localFile->GetPath(unicodePath);
+    if (!unicodePath.IsEmpty()) {
+      // Tell mTextFrame that this update of the value is a user initiated
+      // change. Otherwise it'll think that the value is being set by a script
+      // and not fire onchange when it should.
+      PRBool oldState = mFrame->mTextFrame->GetFireChangeEventState();
+      mFrame->mTextFrame->SetFireChangeEventState(PR_TRUE);
+      nsCOMPtr<nsIFileControlElement> fileControl = do_QueryInterface(content);
+      if (fileControl) {
+        fileControl->SetFileName(unicodePath);
+      }
+      
+      mFrame->mTextFrame->SetFireChangeEventState(oldState);
+      // May need to fire an onchange here
+      mFrame->mTextFrame->CheckFireOnChange();
+      return NS_OK;
     }
   }
 
-  nsAutoString oldFileName;
-  nsCOMPtr<nsIFileControlElement> fileControl = do_QueryInterface(content);
-  NS_ENSURE_TRUE(fileControl, NS_ERROR_UNEXPECTED);
-
-  fileControl->GetFileName(oldFileName);
-
-  if (!unicodePath.Equals(oldFileName)) {
-    // Tell mTextFrame that this update of the value is a user initiated
-    // change. Otherwise it'll think that the value is being set by a script
-    // and not fire onchange when it should.
-    PRBool oldState = mFrame->mTextFrame->GetFireChangeEventState();
-    mFrame->mTextFrame->SetFireChangeEventState(PR_TRUE);
-    fileControl->SetFileName(unicodePath);
-      
-    mFrame->mTextFrame->SetFireChangeEventState(oldState);
-    // May need to fire an onchange here
-    mFrame->mTextFrame->CheckFireOnChange();
-  }
-
-  return NS_OK;
+  return NS_FAILED(result) ? result : NS_ERROR_FAILURE;
 }
 
 nscoord
@@ -421,6 +424,19 @@ NS_IMETHODIMP nsFileControlFrame::Reflow(nsPresContext*          aPresContext,
   return nsBlockFrame::Reflow(aPresContext, aDesiredSize, aReflowState,
                              aStatus);
 }
+
+/*
+NS_IMETHODIMP
+nsFileControlFrame::SetInitialChildList(nsIAtom*        aListName,
+                                        nsIFrame*       aChildList)
+{
+  nsBlockFrame::SetInitialChildList(aListName, aChildList);
+
+  // given that the CSS frame constructor created all our frames. We need to find the text field
+  // so we can get info from it.
+  mTextFrame = GetTextControlFrame(this);
+}
+*/
 
 nsNewFrame*
 nsFileControlFrame::GetTextControlFrame(nsPresContext* aPresContext, nsIFrame* aStart)
@@ -557,13 +573,6 @@ nsFileControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                      const nsRect&           aDirtyRect,
                                      const nsDisplayListSet& aLists)
 {
-  // box-shadow
-  if (GetStyleBorder()->mBoxShadow) {
-    nsresult rv = aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
-        nsDisplayBoxShadowOuter(this));
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
   // Our background is inherited to the text input, and we don't really want to
   // paint it or out padding and borders (which we never have anyway, per
   // styles in forms.css) -- doing it just makes us look ugly in some cases and

@@ -36,9 +36,12 @@
 
 #include "nsIDOMSVGSymbolElement.h"
 #include "nsSVGStylableElement.h"
-#include "nsSVGViewBox.h"
 #include "nsSVGPreserveAspectRatio.h"
+#include "nsIDOMSVGRect.h"
+#include "nsIDOMSVGLength.h"
 #include "nsIDOMSVGFitToViewBox.h"
+#include "nsSVGRect.h"
+#include "nsSVGAnimatedRect.h"
 #include "nsGkAtoms.h"
 
 typedef nsSVGStylableElement nsSVGSymbolElementBase;
@@ -51,6 +54,7 @@ protected:
   friend nsresult NS_NewSVGSymbolElement(nsIContent **aResult,
                                          nsINodeInfo *aNodeInfo);
   nsSVGSymbolElement(nsINodeInfo* aNodeInfo);
+  nsresult Init();
 
 public:
   // interfaces:
@@ -70,10 +74,9 @@ public:
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
 protected:
-  virtual nsSVGViewBox *GetViewBox();
   virtual nsSVGPreserveAspectRatio *GetPreserveAspectRatio();
 
-  nsSVGViewBox mViewBox;
+  nsCOMPtr<nsIDOMSVGAnimatedRect> mViewBox;
   nsSVGPreserveAspectRatio mPreserveAspectRatio;
 };
 
@@ -101,6 +104,27 @@ nsSVGSymbolElement::nsSVGSymbolElement(nsINodeInfo *aNodeInfo)
 }
 
 
+nsresult
+nsSVGSymbolElement::Init()
+{
+  nsresult rv = nsSVGSymbolElementBase::Init();
+  NS_ENSURE_SUCCESS(rv,rv);
+
+
+  // DOM property: viewBox
+  {
+    nsCOMPtr<nsIDOMSVGRect> viewbox;
+    rv = NS_NewSVGRect(getter_AddRefs(viewbox));
+    NS_ENSURE_SUCCESS(rv,rv);
+    rv = NS_NewSVGAnimatedRect(getter_AddRefs(mViewBox), viewbox);
+    NS_ENSURE_SUCCESS(rv,rv);
+    rv = AddMappedSVGValue(nsGkAtoms::viewBox, mViewBox);
+    NS_ENSURE_SUCCESS(rv,rv);
+  }
+
+  return NS_OK;
+}
+
 //----------------------------------------------------------------------
 // nsIDOMNode methods
 
@@ -112,7 +136,9 @@ NS_IMPL_ELEMENT_CLONE_WITH_INIT(nsSVGSymbolElement)
 /* readonly attribute nsIDOMSVGAnimatedRect viewBox; */
 NS_IMETHODIMP nsSVGSymbolElement::GetViewBox(nsIDOMSVGAnimatedRect * *aViewBox)
 {
-  return mViewBox.ToDOMAnimatedRect(aViewBox, this);
+  *aViewBox = mViewBox;
+  NS_ADDREF(*aViewBox);
+  return NS_OK;
 }
 
 /* readonly attribute nsIDOMSVGAnimatedPreserveAspectRatio preserveAspectRatio; */
@@ -149,12 +175,6 @@ nsSVGSymbolElement::IsAttributeMapped(const nsIAtom* name) const
 
 //----------------------------------------------------------------------
 // nsSVGElement methods
-
-nsSVGViewBox *
-nsSVGSymbolElement::GetViewBox()
-{
-  return &mViewBox;
-}
 
 nsSVGPreserveAspectRatio *
 nsSVGSymbolElement::GetPreserveAspectRatio()

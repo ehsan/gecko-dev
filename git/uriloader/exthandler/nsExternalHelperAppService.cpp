@@ -410,7 +410,7 @@ static nsresult GetDownloadDirectory(nsIFile **_directory)
     case NS_FOLDER_VALUE_CUSTOM:
       {
         (void) prefs->GetComplexValue(NS_PREF_DOWNLOAD_DIR,
-                                      NS_GET_IID(nsILocalFile),
+                                      NS_GET_IID(nsIFile),
                                       getter_AddRefs(dir));
         if (!dir) break;
 
@@ -538,11 +538,10 @@ static nsExtraMimeTypeEntry extraMimeEntries [] =
   { TEXT_XUL, "xul", "XML-Based User Interface Language", MAC_TYPE('TEXT'), MAC_TYPE('ttxt') },
   { TEXT_XML, "xml,xsl,xbl", "Extensible Markup Language", MAC_TYPE('TEXT'), MAC_TYPE('ttxt') },
   { TEXT_CSS, "css", "Style Sheet", MAC_TYPE('TEXT'), MAC_TYPE('ttxt') },
-  { VIDEO_OGG, "ogv", "Ogg Video", 0, 0 },
-  { VIDEO_OGG, "ogg", "Ogg Video", 0, 0 },
-  { APPLICATION_OGG, "ogg", "Ogg Video", 0, 0},
-  { AUDIO_OGG, "oga", "Ogg Audio", 0, 0 },
-  { AUDIO_WAV, "wav", "Waveform Audio", 0, 0 }
+  { "audio/ogg", "oga", "Ogg Audio", 0, 0 },
+  { "video/ogg", "ogv", "Ogg Video", 0, 0 },
+  { "audio/ogg", "ogg", "Ogg Audio", 0, 0 },
+  { "audio/x-wav", "wav", "Waveform Audio", 0, 0 }
 };
 
 #undef MAC_TYPE

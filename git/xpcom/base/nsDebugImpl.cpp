@@ -48,7 +48,6 @@
 #include "prerror.h"
 #include "prerr.h"
 #include "prenv.h"
-#include "pratom.h"
 
 #if defined(XP_BEOS)
 /* For DEBUGGER macros */
@@ -92,9 +91,7 @@ Break(const char *aMsg);
 #include <stdlib.h>
 #endif
 
-static PRInt32 gAssertionCount = 0;
-
-NS_IMPL_QUERY_INTERFACE2(nsDebugImpl, nsIDebug, nsIDebug2)
+NS_IMPL_QUERY_INTERFACE1(nsDebugImpl, nsIDebug)
 
 NS_IMETHODIMP_(nsrefcnt)
 nsDebugImpl::AddRef()
@@ -134,24 +131,6 @@ NS_IMETHODIMP
 nsDebugImpl::Abort(const char *aFile, PRInt32 aLine)
 {
   NS_DebugBreak(NS_DEBUG_ABORT, nsnull, nsnull, aFile, aLine);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDebugImpl::GetIsDebugBuild(PRBool* aResult)
-{
-#ifdef DEBUG
-  *aResult = PR_TRUE;
-#else
-  *aResult = PR_FALSE;
-#endif
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDebugImpl::GetAssertionCount(PRInt32* aResult)
-{
-  *aResult = gAssertionCount;
   return NS_OK;
 }
 
@@ -323,7 +302,6 @@ NS_DebugBreak(PRUint32 aSeverity, const char *aStr, const char *aExpr,
    }
 
    // Now we deal with assertions
-   PR_AtomicIncrement(&gAssertionCount);
 
    switch (GetAssertBehavior()) {
    case NS_ASSERT_WARN:

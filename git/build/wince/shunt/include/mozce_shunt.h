@@ -49,7 +49,6 @@
 #define strcmpi _stricmp
 #define stricmp _stricmp
 #define wgetcwd _wgetcwd
-#define vsnprintf _vsnprintf
 
 #define SHGetSpecialFolderPathW SHGetSpecialFolderPath
 #define SHGetPathFromIDListW    SHGetPathFromIDList
@@ -103,8 +102,6 @@ MOZCE_SHUNT_API int _unlink(const char *filename );
   
 */
 
-
-MOZCE_SHUNT_API unsigned short* mozce_GetEnvironmentCL();
 
 #ifdef __cplusplus
 };

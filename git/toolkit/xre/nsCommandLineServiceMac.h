@@ -40,11 +40,13 @@
 #ifndef nsCommandLineServiceMac_h_
 #define nsCommandLineServiceMac_h_
 
-#include <Carbon/Carbon.h>
+#include <Files.h>
 
 #include "nscore.h"
 #include "nsError.h"
 #include "nsString.h"
+
+#include "nsAEDefs.h"
 
 #ifdef __cplusplus
 
@@ -65,14 +67,16 @@ public:
   void            SetupCommandLine(int& argc, char**& argv);
   
   nsresult        AddToCommandLine(const char* inArgText);
-  nsresult        AddToCommandLine(const char* inOptionString, const FSRef* inFSRef);
+  nsresult        AddToCommandLine(const char* inOptionString, const FSSpec& inFileSpec);
   nsresult        AddToEnvironmentVars(const char* inArgText);
 
-  OSErr           HandleOpenOneDoc(const FSRef* inFSRef, OSType inFileType);
-  OSErr           HandlePrintOneDoc(const FSRef* inFSRef, OSType fileType);
+  OSErr           HandleOpenOneDoc(const FSSpec& inFileSpec, OSType inFileType);
+  OSErr           HandlePrintOneDoc(const FSSpec& inFileSpec, OSType fileType);
 
 	OSErr						DispatchURLToNewBrowser(const char* url);
-
+	  
+  OSErr						Quit(TAskSave askSave);
+  
 protected:
 
   OSErr           OpenURL(const char* aURL);

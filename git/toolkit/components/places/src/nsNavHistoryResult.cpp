@@ -186,7 +186,7 @@ nsNavHistoryResultNode::GetTags(nsAString& aTags) {
   // then build it the first time this method called is called (and by that,
   // implicitly unset the void flag). Result observers may re-set the void flag
   // in order to force rebuilding of the tags string.
-  if (!mTags.IsVoid()) {
+  if (!mTags.IsVoid() && mParent) {
     aTags.Assign(mTags);
     return NS_OK;
   }
@@ -983,21 +983,21 @@ PRInt32 nsNavHistoryContainerResultNode::SortComparison_KeywordLess(
   PRInt32 value = 0;
   if (a->mItemId != -1 || b->mItemId != -1) {
     // compare the keywords
-    nsAutoString keywordA, keywordB;
+    nsAutoString aKeyword, bKeyword;
     nsNavBookmarks* bookmarks = nsNavBookmarks::GetBookmarksService();
     NS_ENSURE_TRUE(bookmarks, 0);
 
     nsresult rv;
     if (a->mItemId != -1) {
-      rv = bookmarks->GetKeywordForBookmark(a->mItemId, keywordA);
+      rv = bookmarks->GetKeywordForBookmark(a->mItemId, aKeyword);
       NS_ENSURE_SUCCESS(rv, 0);
     }
     if (b->mItemId != -1) {
-      rv = bookmarks->GetKeywordForBookmark(b->mItemId, keywordB);
+      rv = bookmarks->GetKeywordForBookmark(b->mItemId, aKeyword);
       NS_ENSURE_SUCCESS(rv, 0);
     }
 
-    value = SortComparison_StringLess(keywordA, keywordB);
+    value = SortComparison_StringLess(aKeyword, bKeyword);
   }
 
   // fall back to title sorting
@@ -1126,19 +1126,19 @@ PRInt32 nsNavHistoryContainerResultNode::SortComparison_AnnotationLess(
         PRInt32 a_val = 0, b_val = 0;
         GET_ANNOTATIONS_VALUES(GetItemAnnotationInt32,
                                GetPageAnnotationInt32, &a_val, &b_val);
-        value = (a_val < b_val) ? -1 : (a_val > b_val) ? 1 : 0;
+        value = (a < b) ? -1 : (a > b) ? 1 : 0;
       }
       else if (annoType == nsIAnnotationService::TYPE_INT64) {
         PRInt64 a_val = 0, b_val = 0;
         GET_ANNOTATIONS_VALUES(GetItemAnnotationInt64,
                                GetPageAnnotationInt64, &a_val, &b_val);
-        value = (a_val < b_val) ? -1 : (a_val > b_val) ? 1 : 0;
+        value = (a < b) ? -1 : (a > b) ? 1 : 0;
       }
       else if (annoType == nsIAnnotationService::TYPE_DOUBLE) {
         double a_val = 0, b_val = 0;
         GET_ANNOTATIONS_VALUES(GetItemAnnotationDouble,
                                GetPageAnnotationDouble, &a_val, &b_val);
-        value = (a_val < b_val) ? -1 : (a_val > b_val) ? 1 : 0;
+        value = (a < b) ? -1 : (a > b) ? 1 : 0;
       }
     }
   }
@@ -2552,21 +2552,6 @@ nsNavHistoryQueryResultNode::GetSortingAnnotation(nsACString& aAnnotation) {
   else
     NS_NOTREACHED("We should always have a result");
 }
-
-void
-nsNavHistoryQueryResultNode::RecursiveSort(
-    const char* aData, SortComparator aComparator)
-{
-  void* data = const_cast<void*>(static_cast<const void*>(aData));
-
-  if (!IsContainersQuery())
-    mChildren.Sort(aComparator, data);
-  else
-    for (PRInt32 i = 0; i < mChildren.Count(); i ++)
-      mChildren[i]->GetAsContainer()->RecursiveSort(aData, aComparator);
-}
-
-
 // nsNavHistoryResultNode::OnBeginUpdateBatch
 
 NS_IMETHODIMP
@@ -2755,7 +2740,7 @@ nsNavHistoryQueryResultNode::OnTitleChanged(nsIURI* aURI,
   }
 
   // compute what the new title should be
-  NS_ConvertUTF16toUTF8 newTitle(aPageTitle);
+  nsCAutoString newTitle = NS_ConvertUTF16toUTF8(aPageTitle);
 
   PRBool onlyOneEntry = (mOptions->ResultType() ==
                          nsINavHistoryQueryOptions::RESULTS_AS_URI ||
@@ -2840,7 +2825,7 @@ nsNavHistoryQueryResultNode::OnPageChanged(nsIURI *aURI, PRUint32 aWhat,
 
   switch (aWhat) {
     case nsINavHistoryObserver::ATTRIBUTE_FAVICON: {
-      NS_ConvertUTF16toUTF8 newFavicon(aValue);
+      nsCString newFavicon = NS_ConvertUTF16toUTF8(aValue);
       PRBool onlyOneEntry = (mOptions->ResultType() ==
                              nsINavHistoryQueryOptions::RESULTS_AS_URI ||
                              mOptions->ResultType() ==
@@ -2979,6 +2964,7 @@ nsNavHistoryFolderResultNode::nsNavHistoryFolderResultNode(
   mContentsValid(PR_FALSE),
   mQueryItemId(-1),
   mIsRegisteredFolderObserver(PR_FALSE)
+, mBatchInProgress(PR_FALSE)
 {
   mItemId = aFolderId;
 }
@@ -3371,6 +3357,7 @@ nsNavHistoryFolderResultNode::FindChildById(PRInt64 aItemId,
 NS_IMETHODIMP
 nsNavHistoryFolderResultNode::OnBeginUpdateBatch()
 {
+  mBatchInProgress = PR_TRUE;
   return NS_OK;
 }
 
@@ -3380,6 +3367,13 @@ nsNavHistoryFolderResultNode::OnBeginUpdateBatch()
 NS_IMETHODIMP
 nsNavHistoryFolderResultNode::OnEndUpdateBatch()
 {
+  if (mBatchInProgress) {
+    mBatchInProgress = PR_FALSE;
+    nsresult rv = Refresh();
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+  else
+    NS_WARNING("EndUpdateBatch without a begin");
   return NS_OK;
 }
 
@@ -3392,6 +3386,9 @@ nsNavHistoryFolderResultNode::OnItemAdded(PRInt64 aItemId,
                                           PRInt32 aIndex)
 {
   NS_ASSERTION(aParentFolder == mItemId, "Got wrong bookmark update");
+
+  if (mBatchInProgress)
+    return NS_OK;
 
   // here, try to do something reasonable if the bookmark service gives us
   // a bogus index.
@@ -3472,6 +3469,9 @@ NS_IMETHODIMP
 nsNavHistoryFolderResultNode::OnItemRemoved(PRInt64 aItemId,
                                             PRInt64 aParentFolder, PRInt32 aIndex)
 {
+  if (mBatchInProgress)
+    return NS_OK;
+
   // We only care about notifications when a child changes. When the deleted
   // item is us, our parent should also be registered and will remove us from
   // its list.
@@ -3587,6 +3587,9 @@ nsNavHistoryFolderResultNode::OnItemChanged(PRInt64 aItemId,
                                             const nsACString& aProperty,
                                             PRBool aIsAnnotationProperty,
                                             const nsACString& aValue) {
+  if (mBatchInProgress)
+    return NS_OK;
+
   // The query-item's title is used for simple-query nodes
   if (mQueryItemId != -1) {
     PRBool isTitleChange = aProperty.EqualsLiteral("title");
@@ -3609,6 +3612,9 @@ NS_IMETHODIMP
 nsNavHistoryFolderResultNode::OnItemVisited(PRInt64 aItemId,
                                             PRInt64 aVisitId, PRTime aTime)
 {
+  if (mBatchInProgress)
+    return NS_OK;
+
   if (mOptions->ExcludeItems())
     return NS_OK; // don't update items when we aren't displaying them
   if (! StartIncrementalUpdate())
@@ -3660,6 +3666,10 @@ nsNavHistoryFolderResultNode::OnItemMoved(PRInt64 aItemId, PRInt64 aOldParent,
 {
   NS_ASSERTION(aOldParent == mItemId || aNewParent == mItemId,
                "Got a bookmark message that doesn't belong to us");
+
+  if (mBatchInProgress)
+    return NS_OK;
+
   if (! StartIncrementalUpdate())
     return NS_OK; // entire container was refreshed for us
 
@@ -4077,6 +4087,18 @@ nsNavHistoryResult::GetRoot(nsINavHistoryContainerResultNode** aRoot)
 
 // nsINavBookmarkObserver implementation
 
+PR_STATIC_CALLBACK(PLDHashOperator)
+FolderObserverEnumerator(nsTrimInt64HashKey::KeyType,
+                         nsNavHistoryResult::FolderObserverList *aList,
+                         void *aData)
+{
+  nsNavHistoryResult::FolderObserverList *list =
+    static_cast<nsNavHistoryResult::FolderObserverList *>(aData);
+  (void)list->AppendElements(*aList);
+  
+  return PL_DHASH_NEXT;
+}
+
 // Here, it is important that we create a COPY of the observer array. Some
 // observers will requery themselves, which may cause the observer array to
 // be modified or added to.
@@ -4089,6 +4111,15 @@ nsNavHistoryResult::GetRoot(nsINavHistoryContainerResultNode** aRoot)
         if (_listCopy[_fol_i]) \
           _listCopy[_fol_i]->_functionCall; \
       } \
+    } \
+  }
+#define ENUMERATE_ALL_BOOKMARK_FOLDER_OBSERVERS(_functionCall) \
+  { \
+    FolderObserverList _folders; \
+    mBookmarkFolderObservers.EnumerateRead(FolderObserverEnumerator, &_folders); \
+    for (PRUint32 _fol_i = 0; _fol_i < _folders.Length(); _fol_i++) { \
+      if (_folders[_fol_i]) \
+        _folders[_fol_i]->_functionCall; \
     } \
   }
 #define ENUMERATE_ALL_BOOKMARKS_OBSERVERS(_functionCall) \
@@ -4116,6 +4147,7 @@ nsNavHistoryResult::OnBeginUpdateBatch()
   mBatchInProgress = PR_TRUE;
   ENUMERATE_HISTORY_OBSERVERS(OnBeginUpdateBatch());
   ENUMERATE_ALL_BOOKMARKS_OBSERVERS(OnBeginUpdateBatch());
+  ENUMERATE_ALL_BOOKMARK_FOLDER_OBSERVERS(OnBeginUpdateBatch());
   return NS_OK;
 }
 
@@ -4129,6 +4161,7 @@ nsNavHistoryResult::OnEndUpdateBatch()
     mBatchInProgress = PR_FALSE;
     ENUMERATE_HISTORY_OBSERVERS(OnEndUpdateBatch());
     ENUMERATE_ALL_BOOKMARKS_OBSERVERS(OnEndUpdateBatch());
+    ENUMERATE_ALL_BOOKMARK_FOLDER_OBSERVERS(OnEndUpdateBatch());
   }
   else
     NS_WARNING("EndUpdateBatch without a begin");

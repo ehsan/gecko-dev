@@ -1,8 +1,3 @@
-const CC = Components.Constructor;
-const BinaryInputStream = CC("@mozilla.org/binaryinputstream;1",
-                             "nsIBinaryInputStream",
-                             "setInputStream");
-
 function handleRequest(request, response)
 {
   var query = {};
@@ -13,28 +8,12 @@ function handleRequest(request, response)
 
   var isPreflight = request.method == "OPTIONS";
 
-  var bodyStream = new BinaryInputStream(request.bodyInputStream);
-  var bodyBytes = [];
-  while ((bodyAvail = bodyStream.available()) > 0)
-    Array.prototype.push.apply(bodyBytes, bodyStream.readByteArray(bodyAvail));
-
-  var body = decodeURIComponent(
-    escape(String.fromCharCode.apply(null, bodyBytes)));
-
   // Check that request was correct
-
-  if (!isPreflight && query.body && body != query.body) {
-    sendHttp500(response, "Wrong body. Expected " + query.body + " got " +
-      body);
-    return;
-  }
 
   if (!isPreflight && "headers" in query) {
     headers = eval(query.headers);
     for(headerName in headers) {
-      // Content-Type is changed if there was a body 
-      if (!(headerName == "Content-Type" && body) &&
-          request.getHeader(headerName) != headers[headerName]) {
+      if (request.getHeader(headerName) != headers[headerName]) {
         sendHttp500(response,
           "Header " + headerName + " had wrong value. Expected " +
           headers[headerName] + " got " + request.getHeader(headerName));
@@ -93,14 +72,7 @@ function handleRequest(request, response)
   }
 
   // Send response
-
-  if (query.hop) {
-     query.hop = parseInt(query.hop, 10);
-     hops = eval(query.hops);
-     query.allowOrigin = hops[query.hop-1].allowOrigin;
-     query.allowHeaders = hops[query.hop-1].allowHeaders;
-  }
-  
+       
   if (query.allowOrigin && (!isPreflight || !query.noAllowPreflight))
     response.setHeader("Access-Control-Allow-Origin", query.allowOrigin);
 
@@ -116,23 +88,12 @@ function handleRequest(request, response)
 
     if (query.allowMethods)
       response.setHeader("Access-Control-Allow-Methods", query.allowMethods);
-  }
-
-  if (query.hop && query.hop < hops.length) {
-    newURL = hops[query.hop].server +
-             "/tests/content/base/test/file_CrossSiteXHR_server.sjs?" +
-             "hop=" + (query.hop + 1) + "&hops=" + query.hops;
-    response.setStatusLine(null, 307, "redirect");
-    response.setHeader("Location", newURL);
 
     return;
   }
 
-  // Send response body
-  if (!isPreflight && request.method != "HEAD") {
-    response.setHeader("Content-Type", "application/xml", false);
-    response.write("<res>hello pass</res>\n");
-  }
+  response.setHeader("Content-Type", "application/xml", false);
+  response.write("<res>hello pass</res>\n");
 }
 
 function sendHttp500(response, text) {

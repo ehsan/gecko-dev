@@ -54,9 +54,6 @@
 #include "nsNodeInfoManager.h"
 #include "nsIStreamListener.h"
 #include "nsIObserver.h"
-#ifdef MOZ_SMIL
-class nsSMILAnimationController;
-#endif // MOZ_SMIL
 
 class nsIContent;
 class nsPresContext;
@@ -69,7 +66,6 @@ class nsIViewManager;
 class nsIScriptGlobalObject;
 class nsPIDOMWindow;
 class nsIDOMEvent;
-class nsIDOMEventTarget;
 class nsIDeviceContext;
 class nsIParser;
 class nsIDOMNode;
@@ -101,8 +97,8 @@ class nsFrameLoader;
 
 // IID for the nsIDocument interface
 #define NS_IDOCUMENT_IID      \
-{ 0xdd9bd470, 0x6315, 0x4e67, \
-  { 0xa8, 0x8a, 0x78, 0xbf, 0x92, 0xb4, 0x5a, 0xdf } }
+{ 0x29f7a5d7, 0xb217, 0x4ea2, \
+  {0x95, 0x40, 0x46, 0x41, 0xb9, 0xf5, 0x99, 0xd9 } }
 
 // Flag for AddStyleSheet().
 #define NS_STYLESHEET_FROM_CATALOG                (1 << 0)
@@ -624,10 +620,6 @@ public:
   virtual void EndUpdate(nsUpdateType aUpdateType) = 0;
   virtual void BeginLoad() = 0;
   virtual void EndLoad() = 0;
-
-  enum ReadyState { READYSTATE_UNINITIALIZED = 0, READYSTATE_LOADING = 1, READYSTATE_INTERACTIVE = 3, READYSTATE_COMPLETE = 4};
-  virtual void SetReadyStateInternal(ReadyState rs) = 0;
-
   // notify that one or two content nodes changed state
   // either may be nsnull, but not both
   virtual void ContentStatesChanged(nsIContent* aContent1,
@@ -853,14 +845,9 @@ public:
    * or to the page's presentation being restored into an existing DOM window.
    * This notification fires applicable DOM events to the content window.  See
    * nsIDOMPageTransitionEvent.idl for a description of the |aPersisted|
-   * parameter. If aDispatchStartTarget is null, the pageshow event is
-   * dispatched on the ScriptGlobalObject for this document, otherwise it's
-   * dispatched on aDispatchStartTarget.
-   * Note: if aDispatchStartTarget isn't null, the showing state of the
-   * document won't be altered.
+   * parameter.
    */
-  virtual void OnPageShow(PRBool aPersisted,
-                          nsIDOMEventTarget* aDispatchStartTarget) = 0;
+  virtual void OnPageShow(PRBool aPersisted) = 0;
 
   /**
    * Notification that the page has been hidden, for documents which are loaded
@@ -868,14 +855,9 @@ public:
    * to the document's presentation being saved but removed from an existing
    * DOM window.  This notification fires applicable DOM events to the content
    * window.  See nsIDOMPageTransitionEvent.idl for a description of the
-   * |aPersisted| parameter. If aDispatchStartTarget is null, the pagehide
-   * event is dispatched on the ScriptGlobalObject for this document,
-   * otherwise it's dispatched on aDispatchStartTarget.
-   * Note: if aDispatchStartTarget isn't null, the showing state of the
-   * document won't be altered.
+   * |aPersisted| parameter.
    */
-  virtual void OnPageHide(PRBool aPersisted,
-                          nsIDOMEventTarget* aDispatchStartTarget) = 0;
+  virtual void OnPageHide(PRBool aPersisted) = 0;
   
   /*
    * We record the set of links in the document that are relevant to
@@ -1123,25 +1105,6 @@ public:
    */
   PRBool IsShowing() { return mIsShowing; }
 
-#ifdef MOZ_SMIL
-  // Getter for this document's SMIL Animation Controller
-  virtual nsSMILAnimationController* GetAnimationController() = 0;
-#endif // MOZ_SMIL
-
-  /**
-   * Prevents user initiated events from being dispatched to the document and
-   * subdocuments.
-   */
-  virtual void SuppressEventHandling(PRUint32 aIncrease = 1) = 0;
-
-  virtual void UnsuppressEventHandlingAndFireEvents(PRBool aFireEvents) = 0;
-
-  void UnsuppressEventHandling()
-  {
-    UnsuppressEventHandlingAndFireEvents(PR_TRUE);
-  }
-
-  PRUint32 EventHandlingSuppressed() { return mEventsSuppressed; }
 protected:
   ~nsIDocument()
   {
@@ -1245,8 +1208,6 @@ protected:
   // point to our "display document": the one that all resource lookups should
   // go to.
   nsCOMPtr<nsIDocument> mDisplayDocument;
-
-  PRUint32 mEventsSuppressed;
 
 private:
   // JSObject cache. Only to be used for performance

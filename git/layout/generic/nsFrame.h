@@ -156,8 +156,8 @@ private:
 
 public:
 
-  // nsQueryFrame
-  NS_DECL_QUERYFRAME
+  // nsISupports
+  NS_IMETHOD  QueryInterface(const nsIID& aIID, void** aInstancePtr);
 
   // nsIFrame
   NS_IMETHOD  Init(nsIContent*      aContent,
@@ -234,7 +234,7 @@ public:
   NS_IMETHOD  List(FILE* out, PRInt32 aIndent) const;
   NS_IMETHOD  GetFrameName(nsAString& aResult) const;
   NS_IMETHOD_(nsFrameState) GetDebugStateBits() const;
-  NS_IMETHOD  DumpRegressionData(nsPresContext* aPresContext, FILE* out, PRInt32 aIndent);
+  NS_IMETHOD  DumpRegressionData(nsPresContext* aPresContext, FILE* out, PRInt32 aIndent, PRBool aIncludeStyleData);
   NS_IMETHOD  VerifyTree() const;
 #endif
 
@@ -436,24 +436,25 @@ public:
   // object. Returns -1 on error or if the frame doesn't have a content object
   static PRInt32 ContentIndexInContainer(const nsIFrame* aFrame);
 
-  static void IndentBy(FILE* out, PRInt32 aIndent) {
-    while (--aIndent >= 0) fputs("  ", out);
-  }
-  
   void ListTag(FILE* out) const {
     ListTag(out, (nsIFrame*)this);
   }
 
   static void ListTag(FILE* out, nsIFrame* aFrame) {
     nsAutoString tmp;
-    nsIFrameDebug*  frameDebug = do_QueryFrame(aFrame);
-    if (frameDebug) {
+    nsIFrameDebug*  frameDebug;
+
+    if (NS_SUCCEEDED(aFrame->QueryInterface(NS_GET_IID(nsIFrameDebug), (void**)&frameDebug))) {
       frameDebug->GetFrameName(tmp);
     }
     fputs(NS_LossyConvertUTF16toASCII(tmp).get(), out);
     fprintf(out, "@%p", static_cast<void*>(aFrame));
   }
 
+  static void IndentBy(FILE* out, PRInt32 aIndent) {
+    while (--aIndent >= 0) fputs("  ", out);
+  }
+  
   static void XMLQuote(nsString& aString);
 
   /**
@@ -465,7 +466,7 @@ public:
    * some custom behavior that requires changing how the outer "frame"
    * XML container is dumped.
    */
-  virtual void DumpBaseRegressionData(nsPresContext* aPresContext, FILE* out, PRInt32 aIndent);
+  virtual void DumpBaseRegressionData(nsPresContext* aPresContext, FILE* out, PRInt32 aIndent, PRBool aIncludeStyleData);
   
   nsresult MakeFrameName(const nsAString& aKind, nsAString& aResult) const;
 
@@ -621,6 +622,10 @@ private:
   NS_IMETHODIMP RefreshSizeCache(nsBoxLayoutState& aState);
 
   virtual nsILineIterator* GetLineIterator();
+
+protected:
+  NS_IMETHOD_(nsrefcnt) AddRef(void);
+  NS_IMETHOD_(nsrefcnt) Release(void);
 };
 
 // Start Display Reflow Debugging

@@ -52,7 +52,7 @@
 #include "nsIFileURL.h"
 #include "nsNetUtil.h"
 #include "prlog.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "nsPrimitiveHelpers.h"
 #include "prtime.h"
 #include "prthread.h"
@@ -106,10 +106,10 @@ nsDragService::nsDragService()
     gtk_widget_realize(mHiddenWidget);
     // hook up our internal signals so that we can get some feedback
     // from our drag source
-    g_signal_connect(GTK_OBJECT(mHiddenWidget), "drag_data_get",
-                     G_CALLBACK(invisibleSourceDragDataGet), this);
-    g_signal_connect(GTK_OBJECT(mHiddenWidget), "drag_end",
-                     G_CALLBACK(invisibleSourceDragEnd), this);
+    gtk_signal_connect(GTK_OBJECT(mHiddenWidget), "drag_data_get",
+                       GTK_SIGNAL_FUNC(invisibleSourceDragDataGet), this);
+    gtk_signal_connect(GTK_OBJECT(mHiddenWidget), "drag_end",
+                       GTK_SIGNAL_FUNC(invisibleSourceDragEnd), this);
 
     // set up our logging module
     if (!sDragLm)
@@ -176,45 +176,42 @@ nsDragService::InvokeDragSession(nsIDOMNode *aDOMNode,
     // length of this call
     mSourceDataItems = aArrayTransferables;
     // get the list of items we offer for drags
-    GtkTargetList *sourceList = GetSourceList();
+    GtkTargetList *sourceList = 0;
 
-    if (!sourceList)
-        return NS_OK;
+    sourceList = GetSourceList();
 
-    // save our action type
-    GdkDragAction action = GDK_ACTION_DEFAULT;
+    if (sourceList) {
+        // save our action type
+        GdkDragAction action = GDK_ACTION_DEFAULT;
 
-    if (aActionType & DRAGDROP_ACTION_COPY)
-        action = (GdkDragAction)(action | GDK_ACTION_COPY);
-    if (aActionType & DRAGDROP_ACTION_MOVE)
-        action = (GdkDragAction)(action | GDK_ACTION_MOVE);
-    if (aActionType & DRAGDROP_ACTION_LINK)
-        action = (GdkDragAction)(action | GDK_ACTION_LINK);
+        if (aActionType & DRAGDROP_ACTION_COPY)
+            action = (GdkDragAction)(action | GDK_ACTION_COPY);
+        if (aActionType & DRAGDROP_ACTION_MOVE)
+            action = (GdkDragAction)(action | GDK_ACTION_MOVE);
+        if (aActionType & DRAGDROP_ACTION_LINK)
+            action = (GdkDragAction)(action | GDK_ACTION_LINK);
 
-    // Create a fake event for the drag so we can pass the time
-    // (so to speak.)  If we don't do this the drag can end as a
-    // result of a button release that is actually _earlier_ than
-    // CurrentTime.  So we use the time on the last button press
-    // event, as that will always be older than the button release
-    // that ends any drag.
-    GdkEvent event;
-    memset(&event, 0, sizeof(GdkEvent));
-    event.type = GDK_BUTTON_PRESS;
-    event.button.window = mHiddenWidget->window;
-    event.button.time = nsWindow::mLastButtonPressTime;
+        // Create a fake event for the drag so we can pass the time
+        // (so to speak.)  If we don't do this the drag can end as a
+        // result of a button release that is actually _earlier_ than
+        // CurrentTime.  So we use the time on the last button press
+        // event, as that will always be older than the button release
+        // that ends any drag.
+        GdkEvent event;
+        memset(&event, 0, sizeof(GdkEvent));
+        event.type = GDK_BUTTON_PRESS;
+        event.button.window = mHiddenWidget->window;
+        event.button.time = nsWindow::mLastButtonPressTime;
 
-    // start our drag.
-    GdkDragContext *context = gtk_drag_begin(mHiddenWidget,
-                                             sourceList,
-                                             action,
-                                             1,
-                                             &event);
+        // start our drag.
+        GdkDragContext *context = gtk_drag_begin(mHiddenWidget,
+                                                 sourceList,
+                                                 action,
+                                                 1,
+                                                 &event);
 
-    if (!context) {
-        rv = NS_ERROR_FAILURE;
-    } else {
         PRBool needsFallbackIcon = PR_FALSE;
-        nsIntRect dragRect;
+        nsRect dragRect;
         nsPresContext* pc;
         nsRefPtr<gfxASurface> surface;
         if (mHasImage || mSelection) {
@@ -226,8 +223,8 @@ nsDragService::InvokeDragSession(nsIDOMNode *aDOMNode,
           PRInt32 sx = mScreenX, sy = mScreenY;
           ConvertToUnscaledDevPixels(pc, &sx, &sy);
 
-          PRInt32 offsetX = sx - dragRect.x;
-          PRInt32 offsetY = sy - dragRect.y;
+          PRInt32 offsetX = sx - NSToIntRound(dragRect.x);
+          PRInt32 offsetY = sy - NSToIntRound(dragRect.y);
           if (!SetAlphaPixmap(surface, context, offsetX, offsetY, dragRect)) {
             GdkPixbuf* dragPixbuf =
               nsImageToPixbuf::SurfaceToPixbuf(surface, dragRect.width, dragRect.height);
@@ -242,11 +239,11 @@ nsDragService::InvokeDragSession(nsIDOMNode *aDOMNode,
 
         if (needsFallbackIcon)
           gtk_drag_set_icon_default(context);
+
+        gtk_target_list_unref(sourceList);
     }
 
-    gtk_target_list_unref(sourceList);
-
-    return rv;
+    return NS_OK;
 }
 
 PRBool
@@ -254,7 +251,7 @@ nsDragService::SetAlphaPixmap(gfxASurface *aSurface,
                                  GdkDragContext *aContext,
                                  PRInt32 aXOffset,
                                  PRInt32 aYOffset,
-                                 const nsIntRect& dragRect)
+                                 const nsRect& dragRect)
 {
     GdkScreen* screen = gtk_widget_get_screen(mHiddenWidget);
 
@@ -295,7 +292,7 @@ nsDragService::SetAlphaPixmap(gfxASurface *aSurface,
     // The drag transaction addrefs the pixmap, so we can just unref it from us here
     gtk_drag_set_icon_pixmap(aContext, alphaColormap, pixmap, NULL,
                              aXOffset, aYOffset);
-    g_object_unref(pixmap);
+    gdk_pixmap_unref(pixmap);
     return PR_TRUE;
 }
 
@@ -977,7 +974,7 @@ nsDragService::GetSourceList(void)
 {
     if (!mSourceDataItems)
         return NULL;
-    nsTArray<GtkTargetEntry*> targetArray;
+    nsVoidArray targetArray;
     GtkTargetEntry *targets;
     GtkTargetList  *targetList = 0;
     PRUint32 targetCount = 0;
@@ -1126,14 +1123,15 @@ nsDragService::GetSourceList(void)
     } // if it is a single item drag
 
     // get all the elements that we created.
-    targetCount = targetArray.Length();
+    targetCount = targetArray.Count();
     if (targetCount) {
         // allocate space to create the list of valid targets
         targets =
           (GtkTargetEntry *)g_malloc(sizeof(GtkTargetEntry) * targetCount);
         PRUint32 targetIndex;
         for ( targetIndex = 0; targetIndex < targetCount; ++targetIndex) {
-            GtkTargetEntry *disEntry = targetArray.ElementAt(targetIndex);
+            GtkTargetEntry *disEntry =
+              (GtkTargetEntry *)targetArray.ElementAt(targetIndex);
             // this is a string reference but it will be freed later.
             targets[targetIndex].target = disEntry->target;
             targets[targetIndex].flags = disEntry->flags;
@@ -1142,7 +1140,8 @@ nsDragService::GetSourceList(void)
         targetList = gtk_target_list_new(targets, targetCount);
         // clean up the target list
         for (PRUint32 cleanIndex = 0; cleanIndex < targetCount; ++cleanIndex) {
-            GtkTargetEntry *thisTarget = targetArray.ElementAt(cleanIndex);
+            GtkTargetEntry *thisTarget =
+              (GtkTargetEntry *)targetArray.ElementAt(cleanIndex);
             g_free(thisTarget->target);
             g_free(thisTarget);
         }

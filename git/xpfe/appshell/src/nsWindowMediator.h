@@ -41,7 +41,7 @@
 #include "nsCOMPtr.h"
 #include "nsIWindowMediator.h"
 #include "nsISupportsArray.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "nsXPIDLString.h"
 #include "nsCRT.h"
 
@@ -85,7 +85,7 @@ private:
   void          SortZOrderFrontToBack();
   void          SortZOrderBackToFront();
 
-  nsTArray<nsAppShellWindowEnumerator*> mEnumeratorList;
+  nsVoidArray   mEnumeratorList;
   nsWindowInfo *mOldestWindow;
   nsWindowInfo *mTopmostWindow;
   PRInt32       mTimeStamp;

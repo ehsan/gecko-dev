@@ -60,7 +60,7 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsDOMDataTransfer)
   NS_INTERFACE_MAP_ENTRY(nsIDOMDataTransfer)
   NS_INTERFACE_MAP_ENTRY(nsIDOMNSDataTransfer)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMDataTransfer)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(DataTransfer)
+  NS_INTERFACE_MAP_ENTRY_DOM_CLASSINFO(DataTransfer)
 NS_INTERFACE_MAP_END
 
 // the size of the array
@@ -74,10 +74,8 @@ nsDOMDataTransfer::nsDOMDataTransfer()
     mEffectAllowed(nsIDragService::DRAGDROP_ACTION_UNINITIALIZED),
     mReadOnly(PR_FALSE),
     mIsExternal(PR_FALSE),
-    mUserCancelled(PR_FALSE),
     mDragImageX(0),
-    mDragImageY(0),
-    mCursorState(PR_FALSE)
+    mDragImageY(0)
 {
 }
 
@@ -86,7 +84,6 @@ nsDOMDataTransfer::nsDOMDataTransfer(PRUint32 aEventType, PRUint32 aAction)
     mDropEffect(nsIDragService::DRAGDROP_ACTION_NONE),
     mReadOnly(PR_TRUE),
     mIsExternal(PR_TRUE),
-    mUserCancelled(PR_FALSE),
     mDragImageX(0),
     mDragImageY(0)
 {
@@ -101,7 +98,6 @@ nsDOMDataTransfer::nsDOMDataTransfer(PRUint32 aEventType, PRUint32 aAction)
 nsDOMDataTransfer::nsDOMDataTransfer(PRUint32 aEventType,
                                      const PRUint32 aEffectAllowed,
                                      PRBool aIsExternal,
-                                     PRBool aUserCancelled,
                                      nsTArray<nsTArray<TransferItem> >& aItems,
                                      nsIDOMElement* aDragImage,
                                      PRUint32 aDragImageX,
@@ -111,7 +107,6 @@ nsDOMDataTransfer::nsDOMDataTransfer(PRUint32 aEventType,
     mEffectAllowed(aEffectAllowed),
     mReadOnly(PR_TRUE),
     mIsExternal(aIsExternal),
-    mUserCancelled(aUserCancelled),
     mItems(aItems),
     mDragImage(aDragImage),
     mDragImageX(aDragImageX),
@@ -213,13 +208,6 @@ nsDOMDataTransfer::SetEffectAllowedInt(PRUint32 aEffectAllowed)
 }
 
 NS_IMETHODIMP
-nsDOMDataTransfer::GetMozUserCancelled(PRBool* aUserCancelled)
-{
-  *aUserCancelled = mUserCancelled;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 nsDOMDataTransfer::GetTypes(nsIDOMDOMStringList** aTypes)
 {
   return MozTypesAt(0, aTypes);
@@ -295,26 +283,6 @@ NS_IMETHODIMP
 nsDOMDataTransfer::GetMozItemCount(PRUint32* aCount)
 {
   *aCount = mItems.Length();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMDataTransfer::GetMozCursor(nsAString& aCursorState)
-{
-  if (mCursorState) {
-    aCursorState.AssignLiteral("default");
-  } else {
-    aCursorState.AssignLiteral("auto");
-  }
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMDataTransfer::SetMozCursor(const nsAString& aCursorState)
-{
-  // Lock the cursor to an arrow during the drag.
-  mCursorState = aCursorState.EqualsLiteral("default");
-
   return NS_OK;
 }
 
@@ -485,11 +453,11 @@ nsDOMDataTransfer::AddElement(nsIDOMElement* aElement)
 }
 
 nsresult
-nsDOMDataTransfer::Clone(PRUint32 aEventType, PRBool aUserCancelled,
+nsDOMDataTransfer::Clone(PRUint32 aEventType,
                          nsIDOMDataTransfer** aNewDataTransfer)
 {
   nsDOMDataTransfer* newDataTransfer =
-    new nsDOMDataTransfer(aEventType, mEffectAllowed, mIsExternal, aUserCancelled,
+    new nsDOMDataTransfer(aEventType, mEffectAllowed, mIsExternal,
                           mItems, mDragImage, mDragImageX, mDragImageY);
   NS_ENSURE_TRUE(newDataTransfer, NS_ERROR_OUT_OF_MEMORY);
 

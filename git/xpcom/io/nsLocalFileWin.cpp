@@ -108,14 +108,13 @@ public:
     NS_DECL_NSISIMPLEENUMERATOR
     nsresult Init();
 private:
-    /* mDrives stores the null-separated drive names.
+    /* mDrives and mLetter share data
      * Init sets them.
-     * HasMoreElements checks mStartOfCurrentDrive.
-     * GetNext advances mStartOfCurrentDrive.
+     * HasMoreElements reads mLetter.
+     * GetNext advances mLetter.
      */
     nsString mDrives;
-    nsAString::const_iterator mStartOfCurrentDrive;
-    nsAString::const_iterator mEndOfDrivesString;
+    const PRUnichar *mLetter;
 };
 
 //----------------------------------------------------------------------------
@@ -900,21 +899,40 @@ nsLocalFile::InitWithPath(const nsAString &filePath)
 
     // just do a sanity check.  if it has any forward slashes, it is not a Native path
     // on windows.  Also, it must have a colon at after the first char.
-    if (FindCharInReadable(L'/', begin, end))
-        return NS_ERROR_FILE_UNRECOGNIZED_PATH;
 
-#ifdef WINCE
-    if (firstChar != L'\\')
+    PRUnichar *path = nsnull;
+    PRInt32 pathLen = 0;
+
+    if (( 
+         !FindCharInReadable(L'/', begin, end) )   //normal path
+#ifndef WINCE
+        && (secondChar == L':') ||  // additional normal path condition
+        (secondChar == L'\\') &&    // addtional network path condition 
 #else
-    if (secondChar != L':' && (secondChar != L'\\' || firstChar != L'\\'))
-#endif
+        ||
+#endif 
+        (firstChar == L'\\')    // wince absolute path or network path
+
+         )
+    {
+        // This is a native path
+        path = ToNewUnicode(filePath);
+        pathLen = filePath.Length();
+    }
+
+    if (path == nsnull) {
         return NS_ERROR_FILE_UNRECOGNIZED_PATH;
+    }
 
-    mWorkingPath = filePath;
     // kill any trailing '\'
-    if (mWorkingPath.Last() == L'\\')
-        mWorkingPath.Truncate(mWorkingPath.Length() - 1);
+    PRInt32 len = pathLen - 1;
+    if (path[len] == L'\\')
+    {
+        path[len] = L'\0';
+        pathLen = len;
+    }
 
+    mWorkingPath.Adopt(path, pathLen);
     return NS_OK;
 
 }
@@ -1020,14 +1038,6 @@ nsLocalFile::Create(PRUint32 type, PRUint32 attributes)
                       &file);
         if (file)
             PR_Close(file);
-
-        if (rv == NS_ERROR_FILE_ACCESS_DENIED)
-        {
-            // need to return already-exists for directories (bug 452217)
-            PRBool isdir;
-            if (NS_SUCCEEDED(IsDirectory(&isdir)) && isdir)
-                rv = NS_ERROR_FILE_ALREADY_EXISTS;
-        }
         return rv;
     }
 
@@ -1438,7 +1448,7 @@ nsLocalFile::CopySingleFile(nsIFile *sourceFile, nsIFile *destParent,
 
     if (!move)
         copyOK = ::CopyFileW(filePath.get(), destPath.get(), PR_TRUE);
-    else {
+    else
 #ifndef WINCE
         copyOK = ::MoveFileExW(filePath.get(), destPath.get(),
                                MOVEFILE_REPLACE_EXISTING |
@@ -1448,7 +1458,6 @@ nsLocalFile::CopySingleFile(nsIFile *sourceFile, nsIFile *destParent,
         DeleteFile(destPath.get());
         copyOK = :: MoveFileW(filePath.get(), destPath.get());
 #endif
-    }
 
     if (!copyOK)  // CopyFile and MoveFileEx return zero at failure.
         rv = ConvertWinError(GetLastError());
@@ -2694,13 +2703,12 @@ nsLocalFile::Reveal()
 #endif
 }
 #ifdef WINCE 
-#ifndef UNICODE
-#error "we don't support narrow char wince"
-#endif
-
+#ifdef UNICODE
 #define SHELLEXECUTEINFOW SHELLEXECUTEINFO
 #define ShellExecuteExW ShellExecuteEx
-
+#else
+#error "we don't support narrow char wince"
+#endif
 #endif
 
 NS_IMETHODIMP
@@ -3015,6 +3023,7 @@ nsLocalFile::GlobalShutdown()
 NS_IMPL_ISUPPORTS1(nsDriveEnumerator, nsISimpleEnumerator)
 
 nsDriveEnumerator::nsDriveEnumerator()
+ : mLetter(0)
 {
 }
 
@@ -3027,39 +3036,32 @@ nsresult nsDriveEnumerator::Init()
     /* If the length passed to GetLogicalDriveStrings is smaller
      * than the length of the string it would return, it returns
      * the length required for the string. */
-    DWORD length = GetLogicalDriveStringsW(0, 0);
+    DWORD length = GetLogicalDriveStrings(0, 0);
     /* The string is null terminated */
     if (!EnsureStringLength(mDrives, length+1))
         return NS_ERROR_OUT_OF_MEMORY;
     if (!GetLogicalDriveStringsW(length, mDrives.BeginWriting()))
         return NS_ERROR_FAILURE;
-    mDrives.BeginReading(mStartOfCurrentDrive);
-    mDrives.EndReading(mEndOfDrivesString);
+    mLetter = mDrives.get();
     return NS_OK;
 }
 
 NS_IMETHODIMP nsDriveEnumerator::HasMoreElements(PRBool *aHasMore)
 {
-    *aHasMore = *mStartOfCurrentDrive != L'\0';
+    *aHasMore = *mLetter != '\0';
     return NS_OK;
 }
 
 NS_IMETHODIMP nsDriveEnumerator::GetNext(nsISupports **aNext)
 {
-    /* GetLogicalDrives stored in mDrives is a concatenation
-     * of null terminated strings, followed by a null terminator.
-     * mStartOfCurrentDrive is an iterator pointing at the first
-     * character of the current drive. */
-    if (*mStartOfCurrentDrive == L'\0') {
+    /* GetLogicalDrives stored in mLetter is a concatenation
+     * of null terminated strings, followed by a null terminator. */
+    if (!*mLetter) {
         *aNext = nsnull;
         return NS_OK;
     }
-
-    nsAString::const_iterator driveEnd = mStartOfCurrentDrive;
-    FindCharInReadable(L'\0', driveEnd, mEndOfDrivesString);
-    nsString drive(Substring(mStartOfCurrentDrive, driveEnd));
-    mStartOfCurrentDrive = ++driveEnd;
-
+    nsString drive(mDrives);
+    mLetter += drive.Length() + 1;
     nsILocalFile *file;
     nsresult rv = NS_NewLocalFile(drive, PR_FALSE, &file);
 

@@ -42,7 +42,9 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-DIRS = libpixman/src cairo/src
+DIRS  = $(NULL)
+
+DIRS += libpixman/src cairo/src
 
 include $(topsrcdir)/config/rules.mk
 

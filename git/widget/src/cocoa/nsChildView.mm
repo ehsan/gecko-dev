@@ -85,10 +85,6 @@
 #undef DEBUG_UPDATE
 #undef INVALIDATE_DEBUGGING  // flash areas as they are invalidated
 
-// Don't put more than this many rects in the dirty region, just fluff
-// out to the bounding-box if there are more
-#define MAX_RECTS_IN_REGION 100
-
 #ifdef MOZ_LOGGING
 #define FORCE_PR_LOG
 #endif
@@ -123,8 +119,6 @@ CFStringRef kOurTISPropertyInputSourceLanguages = NULL;
 
 extern PRBool gCocoaWindowMethodsSwizzled; // Defined in nsCocoaWindow.mm
 
-PRBool gChildViewMethodsSwizzled = PR_FALSE;
-
 extern nsISupportsArray *gDraggedTransferables;
 
 PRBool nsTSMManager::sIsIMEEnabled = PR_TRUE;
@@ -146,7 +140,6 @@ nsIWidget         * gRollupWidget   = nsnull;
 
 PRUint32 gLastModifierState = 0;
 
-PRBool gUserCancelledDrag = PR_FALSE;
 
 @interface ChildView(Private)
 
@@ -154,7 +147,7 @@ PRBool gUserCancelledDrag = PR_FALSE;
 - (id)initWithFrame:(NSRect)inFrame geckoChild:(nsChildView*)inChild;
 
 // sends gecko an ime composition event
-- (nsIntRect) sendCompositionEvent:(PRInt32)aEventType;
+- (nsRect) sendCompositionEvent:(PRInt32)aEventType;
 
 // sends gecko an ime text event
 - (void) sendTextEvent:(PRUnichar*) aBuffer 
@@ -318,7 +311,7 @@ enum
 
 
 static inline void
-GeckoRectToNSRect(const nsIntRect & inGeckoRect, NSRect & outCocoaRect)
+GeckoRectToNSRect(const nsRect & inGeckoRect, NSRect & outCocoaRect)
 {
   outCocoaRect.origin.x = inGeckoRect.x;
   outCocoaRect.origin.y = inGeckoRect.y;
@@ -327,16 +320,17 @@ GeckoRectToNSRect(const nsIntRect & inGeckoRect, NSRect & outCocoaRect)
 }
 
 static inline void
-NSRectToGeckoRect(const NSRect & inCocoaRect, nsIntRect & outGeckoRect)
+NSRectToGeckoRect(const NSRect & inCocoaRect, nsRect & outGeckoRect)
 {
-  outGeckoRect.x = NSToIntRound(inCocoaRect.origin.x);
-  outGeckoRect.y = NSToIntRound(inCocoaRect.origin.y);
-  outGeckoRect.width = NSToIntRound(inCocoaRect.origin.x + inCocoaRect.size.width) - outGeckoRect.x;
-  outGeckoRect.height = NSToIntRound(inCocoaRect.origin.y + inCocoaRect.size.height) - outGeckoRect.y;
+  outGeckoRect.x = static_cast<nscoord>(inCocoaRect.origin.x);
+  outGeckoRect.y = static_cast<nscoord>(inCocoaRect.origin.y);
+  outGeckoRect.width = static_cast<nscoord>(inCocoaRect.size.width);
+  outGeckoRect.height = static_cast<nscoord>(inCocoaRect.size.height);
 }
 
+
 static inline void 
-ConvertGeckoRectToMacRect(const nsIntRect& aRect, Rect& outMacRect)
+ConvertGeckoRectToMacRect(const nsRect& aRect, Rect& outMacRect)
 {
   outMacRect.left = aRect.x;
   outMacRect.top = aRect.y;
@@ -563,7 +557,7 @@ NS_IMPL_ISUPPORTS_INHERITED1(nsChildView, nsBaseWidget, nsIPluginWidget)
 // Utility method for implementing both Create(nsIWidget ...)
 // and Create(nsNativeWidget...)
 nsresult nsChildView::StandardCreate(nsIWidget *aParent,
-                      const nsIntRect &aRect,
+                      const nsRect &aRect,
                       EVENT_CALLBACK aHandleEventFunction,
                       nsIDeviceContext *aContext,
                       nsIAppShell *aAppShell,
@@ -578,12 +572,6 @@ nsresult nsChildView::StandardCreate(nsIWidget *aParent,
     nsToolkit::SwizzleMethods([NSWindow class], @selector(sendEvent:),
                               @selector(nsCocoaWindow_NSWindow_sendEvent:));
     gCocoaWindowMethodsSwizzled = PR_TRUE;
-  }
-  // See NSView (MethodSwizzling) below.
-  if (nsToolkit::OnLeopardOrLater() && !gChildViewMethodsSwizzled) {
-    nsToolkit::SwizzleMethods([NSView class], @selector(mouseDownCanMoveWindow),
-                              @selector(nsChildView_NSView_mouseDownCanMoveWindow));
-    gChildViewMethodsSwizzled = PR_TRUE;
   }
 
   mBounds = aRect;
@@ -699,7 +687,7 @@ void nsChildView::TearDownView()
 
 // create a nsChildView
 NS_IMETHODIMP nsChildView::Create(nsIWidget *aParent,
-                      const nsIntRect &aRect,
+                      const nsRect &aRect,
                       EVENT_CALLBACK aHandleEventFunction,
                       nsIDeviceContext *aContext,
                       nsIAppShell *aAppShell,
@@ -713,7 +701,7 @@ NS_IMETHODIMP nsChildView::Create(nsIWidget *aParent,
 
 // Creates a main nsChildView using a native widget (an NSView)
 NS_IMETHODIMP nsChildView::Create(nsNativeWidget aNativeParent,
-                      const nsIntRect &aRect,
+                      const nsRect &aRect,
                       EVENT_CALLBACK aHandleEventFunction,
                       nsIDeviceContext *aContext,
                       nsIAppShell *aAppShell,
@@ -736,14 +724,13 @@ NS_IMETHODIMP nsChildView::Destroy()
 
   [mView widgetDestroyed];
 
+  nsBaseWidget::OnDestroy();
   nsBaseWidget::Destroy();
 
   ReportDestroyEvent(); 
   mParentWidget = nil;
 
   TearDownView();
-
-  nsBaseWidget::OnDestroy();
 
   return NS_OK;
 
@@ -1162,14 +1149,14 @@ NS_IMETHODIMP nsChildView::SetCursor(imgIContainer* aCursor,
 
 
 // Get this component dimension
-NS_IMETHODIMP nsChildView::GetBounds(nsIntRect &aRect)
+NS_IMETHODIMP nsChildView::GetBounds(nsRect &aRect)
 {
   aRect = mBounds;
   return NS_OK;
 }
 
 
-NS_IMETHODIMP nsChildView::SetBounds(const nsIntRect &aRect)
+NS_IMETHODIMP nsChildView::SetBounds(const nsRect &aRect)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
@@ -1330,20 +1317,7 @@ PRBool nsChildView::ShowsResizeIndicator(nsIntRect* aResizerRect)
 }
 
 
-// In QuickDraw mode the coordinate system used here should be that of the
-// browser window's content region (defined as everything but the 22-pixel
-// high titlebar).  But in CoreGraphics mode the coordinate system should be
-// that of the browser window as a whole (including its titlebar).  Both
-// coordinate systems have a top-left origin.  See bmo bug 474491.
-//
-// There's a bug in this method's code -- it currently uses the QuickDraw
-// coordinate system for both the QuickDraw and CoreGraphics drawing modes.
-// This bug is fixed by the patch for bug 474491.  But the Flash plugin (both
-// version 10.0.12.36 from Adobe and version 9.0 r151 from Apple) has Mozilla-
-// specific code to work around this bug, which breaks when we fix it (see bmo
-// bug 477077).  So we'll need to coordinate releasing a fix for this bug with
-// Adobe and other major plugin vendors that support the CoreGraphics mode.
-NS_IMETHODIMP nsChildView::GetPluginClipRect(nsIntRect& outClipRect, nsIntPoint& outOrigin, PRBool& outWidgetVisible)
+NS_IMETHODIMP nsChildView::GetPluginClipRect(nsRect& outClipRect, nsPoint& outOrigin, PRBool& outWidgetVisible)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
@@ -1364,15 +1338,15 @@ NS_IMETHODIMP nsChildView::GetPluginClipRect(nsIntRect& outClipRect, nsIntPoint&
   // Convert from cocoa to QuickDraw coordinates
   clipOrigin.y = frame.size.height - clipOrigin.y;
   
-  outClipRect.x = NSToIntRound(clipOrigin.x);
-  outClipRect.y = NSToIntRound(clipOrigin.y);
+  outClipRect.x = (nscoord)clipOrigin.x;
+  outClipRect.y = (nscoord)clipOrigin.y;
   
   
   PRBool isVisible;
   IsVisible(isVisible);
   if (isVisible && [mView window] != nil) {
-    outClipRect.width  = NSToIntRound(visibleBounds.origin.x + visibleBounds.size.width) - NSToIntRound(visibleBounds.origin.x);
-    outClipRect.height = NSToIntRound(visibleBounds.origin.y + visibleBounds.size.height) - NSToIntRound(visibleBounds.origin.y);
+    outClipRect.width  = (nscoord)visibleBounds.size.width;
+    outClipRect.height = (nscoord)visibleBounds.size.height;
     outWidgetVisible = PR_TRUE;
   }
   else {
@@ -1383,8 +1357,8 @@ NS_IMETHODIMP nsChildView::GetPluginClipRect(nsIntRect& outClipRect, nsIntPoint&
 
   // need to convert view's origin to window coordinates.
   // then, encode as "SetOrigin" ready values.
-  outOrigin.x = -NSToIntRound(viewOrigin.x);
-  outOrigin.y = -NSToIntRound(viewOrigin.y);
+  outOrigin.x = (nscoord)-viewOrigin.x;
+  outOrigin.y = (nscoord)-viewOrigin.y;
   
   return NS_OK;
 
@@ -1436,8 +1410,8 @@ NS_IMETHODIMP nsChildView::StartDrawPlugin()
 
     ::SetOrigin(0, 0);
     
-    nsIntRect clipRect; // this is in native window coordinates
-    nsIntPoint origin;
+    nsRect clipRect; // this is in native window coordinates
+    nsPoint origin;
     PRBool visible;
     GetPluginClipRect(clipRect, origin, visible);
     
@@ -1746,7 +1720,7 @@ NS_IMETHODIMP nsChildView::Invalidate(PRBool aIsSynchronous)
 
 
 // Invalidate this component's visible area
-NS_IMETHODIMP nsChildView::Invalidate(const nsIntRect &aRect, PRBool aIsSynchronous)
+NS_IMETHODIMP nsChildView::Invalidate(const nsRect &aRect, PRBool aIsSynchronous)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
@@ -1796,7 +1770,7 @@ NS_IMETHODIMP nsChildView::InvalidateRegion(const nsIRegion *aRegion, PRBool aIs
 
   // FIXME rewrite to use a Cocoa region when nsIRegion isn't a QD Region
   NSRect r;
-  nsIntRect bounds;
+  nsRect bounds;
   nsIRegion* region = const_cast<nsIRegion*>(aRegion);     // ugh. this method should be const
   region->GetBoundingBox(&bounds.x, &bounds.y, &bounds.width, &bounds.height);
   GeckoRectToNSRect(bounds, r);
@@ -1842,7 +1816,7 @@ NS_IMETHODIMP nsChildView::Update()
 
 // Scroll the bits of a view and its children
 // FIXME: I'm sure the invalidating can be optimized, just no time now.
-NS_IMETHODIMP nsChildView::Scroll(PRInt32 aDx, PRInt32 aDy, nsIntRect *aClipRect)
+NS_IMETHODIMP nsChildView::Scroll(PRInt32 aDx, PRInt32 aDy, nsRect *aClipRect)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
@@ -1864,7 +1838,7 @@ NS_IMETHODIMP nsChildView::Scroll(PRInt32 aDx, PRInt32 aDy, nsIntRect *aClipRect
     // over repainting.  We can scroll like a bat out of hell
     // by not wasting time invalidating the widgets, since it's
     // completely unnecessary to do so.
-    nsIntRect bounds;
+    nsRect bounds;
     kid->GetBounds(bounds);
     kid->Resize(bounds.x + aDx, bounds.y + aDy, bounds.width, bounds.height, PR_FALSE);
   }
@@ -2086,11 +2060,11 @@ NS_IMETHODIMP nsChildView::CalcOffset(PRInt32 &aX,PRInt32 &aY)
 PRBool nsChildView::PointInWidget(Point aThePoint)
 {
   // get the origin in local coordinates
-  nsIntPoint widgetOrigin(0, 0);
+  nsPoint widgetOrigin(0, 0);
   LocalToWindowCoordinate(widgetOrigin);
 
   // get rectangle relatively to the parent
-  nsIntRect widgetRect;
+  nsRect widgetRect;
   GetBounds(widgetRect);
 
   // convert the topLeft corner to local coordinates
@@ -2103,31 +2077,66 @@ PRBool nsChildView::PointInWidget(Point aThePoint)
 #pragma mark -
 
 
-//    Return the offset between this child view and the screen.
-//    @return       -- widget origin in screen coordinates
-nsIntPoint nsChildView::WidgetToScreenOffset()
+//    Convert the given rect to global coordinates.
+//    @param aLocalRect  -- rect in local coordinates of this widget
+//    @param aGlobalRect -- |aLocalRect| in global coordinates
+NS_IMETHODIMP nsChildView::WidgetToScreen(const nsRect& aLocalRect, nsRect& aGlobalRect)
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  NSPoint temp;
-  temp.x = 0;
-  temp.y = 0;
+  NSRect temp;
+  GeckoRectToNSRect(aLocalRect, temp);
   
-  // 1. First translate this point into window coords. The returned point is always in
+  // 1. First translate this rect into window coords. The returned rect is always in
   //    bottom-left coordinates.
-  temp = [mView convertPoint:temp toView:nil];  
+  //
+  //    NOTE: convertRect:toView:nil doesn't care if |mView| is a flipped view (with
+  //          top-left coords) and so assumes that our passed-in rect's origin is in
+  //          bottom-left coordinates. We adjust this further down, by subtracting
+  //          the final screen rect's origin by the rect's height, to get the origo
+  //          where we want it.
+  temp = [mView convertRect:temp toView:nil];  
   
   // 2. We turn the window-coord rect's origin into screen (still bottom-left) coords.
-  temp = [[mView nativeWindow] convertBaseToScreen:temp];
+  temp.origin = [[mView nativeWindow] convertBaseToScreen:temp.origin];
   
   // 3. Since we're dealing in bottom-left coords, we need to make it top-left coords
   //    before we pass it back to Gecko.
-  FlipCocoaScreenCoordinate(temp);
+  FlipCocoaScreenCoordinate(temp.origin);
   
-  return nsIntPoint(NSToIntRound(temp.x), NSToIntRound(temp.y));
+  // 4. If this is rect has a size (and is not simply a point), it is important to account 
+  //    for the fact that convertRect:toView:nil thought our passed-in point was in bottom-left 
+  //    coords in step #1. Thus, we subtract the rect's height, to get the top-left rect's origin 
+  //     where we want it.
+  temp.origin.y -= temp.size.height;
+  
+  NSRectToGeckoRect(temp, aGlobalRect);
+  return NS_OK;
 
-  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(nsIntPoint(0,0));
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
+
+
+//    Convert the given rect to local coordinates.
+//    @param aGlobalRect  -- rect in screen coordinates 
+//    @param aLocalRect -- |aGlobalRect| in coordinates of this widget
+NS_IMETHODIMP nsChildView::ScreenToWidget(const nsRect& aGlobalRect, nsRect& aLocalRect)
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
+  NSRect temp;
+  GeckoRectToNSRect(aGlobalRect, temp);
+  FlipCocoaScreenCoordinate(temp.origin);
+
+  temp.origin = [[mView nativeWindow] convertScreenToBase:temp.origin];   // convert to screen coords
+  temp = [mView convertRect:temp fromView:nil];                     // convert to window coords
+
+  NSRectToGeckoRect(temp, aLocalRect);
+  
+  return NS_OK;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
+} 
 
 
 // Convert the coordinates to some device coordinates so GFX can draw.
@@ -2171,7 +2180,7 @@ NS_IMETHODIMP nsChildView::GetAttention(PRInt32 aCycleCount)
 #pragma mark -
 
 
-// Force Input Method Editor to commit the uncommitted input
+// Force Input Method Editor to commit the uncommited input
 // Note that this and other IME methods don't necessarily
 // get called on the same ChildView that input is going through.
 NS_IMETHODIMP nsChildView::ResetInputState()
@@ -2943,7 +2952,7 @@ NSEvent* gLastDragEvent = nil;
 static const PRInt32 sShadowInvalidationInterval = 100;
 - (void)maybeInvalidateShadow
 {
-  if (!mWindow || [mWindow isOpaque] || ![mWindow hasShadow])
+  if ([mWindow isOpaque] || ![mWindow hasShadow])
     return;
 
   PRIntervalTime now = PR_IntervalNow();
@@ -2964,7 +2973,7 @@ static const PRInt32 sShadowInvalidationInterval = 100;
 
 - (void)invalidateShadow
 {
-  if (!mWindow || !mNeedsShadowInvalidation)
+  if (!mNeedsShadowInvalidation)
     return;
   [mWindow invalidateShadow];
   mNeedsShadowInvalidation = NO;
@@ -2992,7 +3001,7 @@ static const PRInt32 sShadowInvalidationInterval = 100;
 
   CGContextRef cgContext = (CGContextRef)[[NSGraphicsContext currentContext] graphicsPort];
 
-  nsIntRect geckoBounds;
+  nsRect geckoBounds;
   mGeckoChild->GetBounds(geckoBounds);
 
   NSRect bounds = [self bounds];
@@ -3020,30 +3029,25 @@ static const PRInt32 sShadowInvalidationInterval = 100;
   if (rgn)
     rgn->Init();
 
-  // bounding box of the dirty area
-  nsIntRect fullRect;
-  NSRectToGeckoRect(aRect, fullRect);
-
   const NSRect *rects;
   int count, i;
   [self getRectsBeingDrawn:&rects count:&count];
-  if (count < MAX_RECTS_IN_REGION) {
-    for (i = 0; i < count; ++i) {
-      const NSRect& r = rects[i];
+  for (i = 0; i < count; ++i) {
+    const NSRect& r = rects[i];
 
-      // add to the region
-      if (rgn)
-        rgn->Union((PRInt32)r.origin.x, (PRInt32)r.origin.y, (PRInt32)r.size.width, (PRInt32)r.size.height);
+    // add to the region
+    if (rgn)
+      rgn->Union((PRInt32)r.origin.x, (PRInt32)r.origin.y, (PRInt32)r.size.width, (PRInt32)r.size.height);
 
-      // to the context for clipping
-      targetContext->Rectangle(gfxRect(r.origin.x, r.origin.y, r.size.width, r.size.height));
-    }
-  } else {
-    rgn->Union(aRect.origin.x, aRect.origin.y, aRect.size.width, aRect.size.height);
-    targetContext->Rectangle(gfxRect(aRect.origin.x, aRect.origin.y, aRect.size.width, aRect.size.height));
+    // to the context for clipping
+    targetContext->Rectangle(gfxRect(r.origin.x, r.origin.y, r.size.width, r.size.height));
   }
   targetContext->Clip();
   
+  // bounding box of the dirty area
+  nsRect fullRect;
+  NSRectToGeckoRect(aRect, fullRect);
+
   nsPaintEvent paintEvent(PR_TRUE, NS_PAINT, mGeckoChild);
   paintEvent.renderingContext = rc;
   paintEvent.rect = &fullRect;
@@ -3660,9 +3664,6 @@ static nsEventStatus SendGeckoMouseEnterOrExitEvent(PRBool isTrusted,
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  if (!mWindow)
-    return;
-
   // Work around an Apple bug that causes the OS to continue sending
   // mouseMoved events to a window for a while after it's been miniaturized.
   // This may be related to a similar problem with popup windows (bmo bug
@@ -4177,13 +4178,10 @@ static nsEventStatus SendGeckoMouseEnterOrExitEvent(PRBool isTrusted,
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
 
-  if (!mWindow)
-    return nil;
-
   WindowDataMap* windowMap = [WindowDataMap sharedWindowDataMap];
 
   TopLevelWindowData* windowData = [windowMap dataForWindow:mWindow];
-  if (!windowData)
+  if (mWindow && !windowData)
   {
     windowData = [[TopLevelWindowData alloc] initWithWindow:mWindow];
     [windowMap setData:windowData forWindow:mWindow]; // takes ownership
@@ -5089,14 +5087,14 @@ GetUSLayoutCharFromKeyTranslate(UInt32 aKeyCode, UInt32 aModifiers)
 }
 
 
-- (nsIntRect)sendCompositionEvent:(PRInt32) aEventType
+- (nsRect)sendCompositionEvent:(PRInt32) aEventType
 {
 #ifdef DEBUG_IME
   NSLog(@"****in sendCompositionEvent; type = %d", aEventType);
 #endif
 
   if (!mGeckoChild)
-    return nsIntRect(0, 0, 0, 0);
+    return nsRect(0, 0, 0, 0);
 
   if (aEventType == NS_COMPOSITION_START)
     [self initTSMDocument];
@@ -5469,11 +5467,11 @@ GetUSLayoutCharFromKeyTranslate(UInt32 aKeyCode, UInt32 aModifiers)
   if (!mGeckoChild || theRange.location == NSNotFound)
     return rect;
 
-  nsIntRect r;
+  nsRect r;
   PRBool useCaretRect = theRange.length == 0;
   if (!useCaretRect) {
-    nsQueryContentEvent charRect(PR_TRUE, NS_QUERY_TEXT_RECT, mGeckoChild);
-    charRect.InitForQueryTextRect(theRange.location, 1);
+    nsQueryContentEvent charRect(PR_TRUE, NS_QUERY_CHARACTER_RECT, mGeckoChild);
+    charRect.InitForQueryCharacterRect(theRange.location);
     mGeckoChild->DispatchWindowEvent(charRect);
     if (charRect.mSucceeded)
       r = charRect.mReply.mRect;
@@ -6334,10 +6332,6 @@ static BOOL keyUpAlreadySentKeyDown = NO;
 
   gDraggedTransferables = nsnull;
 
-  NSEvent *currentEvent = [NSApp currentEvent];
-  gUserCancelledDrag = ([currentEvent type] == NSKeyDown &&
-                        [currentEvent keyCode] == kEscapeKeyCode);
-
   if (!mDragService) {
     CallGetService(kDragServiceContractID, &mDragService);
     NS_ASSERTION(mDragService, "Couldn't get a drag service - big problem!");
@@ -6932,33 +6926,3 @@ void NS_RemovePluginKeyEventsHandler()
   ::RemoveEventHandler(gPluginKeyEventsHandler);
   gPluginKeyEventsHandler = NULL;
 }
-
-@interface NSView (MethodSwizzling)
-- (BOOL)nsChildView_NSView_mouseDownCanMoveWindow;
-@end
-
-@implementation NSView (MethodSwizzling)
-
-// All top-level browser windows belong to the ToolbarWindow class and have
-// NSTexturedBackgroundWindowMask turned on in their "style" (see particularly
-// [ToolbarWindow initWithContentRect:...] in nsCocoaWindow.mm).  This style
-// normally means the window "may be moved by clicking and dragging anywhere
-// in the window background", but we've suppressed this by giving the
-// ChildView class a mouseDownCanMoveWindow method that always returns NO.
-// Normally a ToolbarWindow's contentView (not a ChildView) returns YES when
-// NSTexturedBackgroundWindowMask is turned on.  But normally this makes no
-// difference.  However, under some (probably very unusual) circumstances
-// (and only on Leopard) it *does* make a difference -- for example it
-// triggers bmo bugs 431902 and 476393.  So here we make sure that a
-// ToolbarWindow's contentView always returns NO from the
-// mouseDownCanMoveWindow method.
-- (BOOL)nsChildView_NSView_mouseDownCanMoveWindow
-{
-  NSWindow *ourWindow = [self window];
-  NSView *contentView = [ourWindow contentView];
-  if ([ourWindow isKindOfClass:[ToolbarWindow class]] && (self == contentView))
-    return NO;
-  return [self nsChildView_NSView_mouseDownCanMoveWindow];
-}
-
-@end

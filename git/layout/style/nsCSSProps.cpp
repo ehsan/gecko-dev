@@ -303,7 +303,7 @@ nsCSSProps::ReleaseTable(void)
     delete gFontDescTable;
     gFontDescTable = nsnull;
 
-    delete [] gShorthandsContainingPool;
+    delete gShorthandsContainingPool;
     gShorthandsContainingPool = nsnull;
   }
 }
@@ -570,11 +570,6 @@ const PRInt32 nsCSSProps::kBoxPropSourceKTable[] = {
   eCSSKeyword_UNKNOWN,-1
 };
 
-const PRInt32 nsCSSProps::kBoxShadowTypeKTable[] = {
-  eCSSKeyword_inset, NS_STYLE_BOX_SHADOW_INSET,
-  eCSSKeyword_UNKNOWN,-1
-};
-
 const PRInt32 nsCSSProps::kBoxSizingKTable[] = {
   eCSSKeyword_content_box,  NS_STYLE_BOX_SIZING_CONTENT,
   eCSSKeyword_border_box,   NS_STYLE_BOX_SIZING_BORDER,
@@ -669,8 +664,6 @@ const PRInt32 nsCSSProps::kColorKTable[] = {
   eCSSKeyword__moz_win_mediatext, nsILookAndFeel::eColor__moz_win_mediatext,
   eCSSKeyword__moz_win_communicationstext, nsILookAndFeel::eColor__moz_win_communicationstext,
   eCSSKeyword__moz_nativehyperlinktext, nsILookAndFeel::eColor__moz_nativehyperlinktext,
-  eCSSKeyword__moz_comboboxtext, nsILookAndFeel::eColor__moz_comboboxtext,
-  eCSSKeyword__moz_combobox, nsILookAndFeel::eColor__moz_combobox,
   eCSSKeyword_UNKNOWN,-1
 };
 
@@ -1081,7 +1074,6 @@ const PRInt32 nsCSSProps::kTextAlignKTable[] = {
   eCSSKeyword__moz_right, NS_STYLE_TEXT_ALIGN_MOZ_RIGHT,
   eCSSKeyword__moz_left, NS_STYLE_TEXT_ALIGN_MOZ_LEFT,
   eCSSKeyword_start, NS_STYLE_TEXT_ALIGN_DEFAULT,
-  eCSSKeyword_end, NS_STYLE_TEXT_ALIGN_END,
   eCSSKeyword_UNKNOWN,-1
 };
 
@@ -1489,8 +1481,9 @@ static const nsCSSProperty gBackgroundSubpropTable[] = {
   eCSSProperty_background_repeat,
   eCSSProperty_background_attachment,
   eCSSProperty_background_position,
-  eCSSProperty__moz_background_clip,
-  eCSSProperty__moz_background_origin,
+  eCSSProperty__moz_background_clip, // XXX Added LDB.
+  eCSSProperty__moz_background_origin, // XXX Added LDB.
+  eCSSProperty__moz_background_inline_policy, // XXX Added LDB.
   eCSSProperty_UNKNOWN
 };
 

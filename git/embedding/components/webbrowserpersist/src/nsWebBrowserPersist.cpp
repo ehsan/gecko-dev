@@ -621,7 +621,7 @@ nsWebBrowserPersist::SerializeNextFile()
 
     return (mURIMap.Count() 
         || mUploadList.Count()
-        || mDocList.Length()
+        || mDocList.Count()
         || mOutputMap.Count());
 }
 
@@ -775,7 +775,7 @@ NS_IMETHODIMP nsWebBrowserPersist::OnStopRequest(
     {
         // if no documents left in mDocList, --> done
         // if we have no files left to serialize and no error result, --> done
-        if (mDocList.Length() == 0
+        if (mDocList.Count() == 0
             || (!SerializeNextFile() && NS_SUCCEEDED(mPersistResult)))
         {
             completed = PR_TRUE;
@@ -1218,23 +1218,21 @@ nsresult nsWebBrowserPersist::SaveURIInternal(
     if (aCacheKey)
     {
         // Test if the cache key is actually a web page descriptor (docshell)
-        // or session history entry.
-        nsCOMPtr<nsISHEntry> shEntry = do_QueryInterface(aCacheKey);
-        if (!shEntry)
+        nsCOMPtr<nsIWebPageDescriptor> webPageDescriptor = do_QueryInterface(aCacheKey);
+        if (webPageDescriptor)
         {
-            nsCOMPtr<nsIWebPageDescriptor> webPageDescriptor =
-                do_QueryInterface(aCacheKey);
-            if (webPageDescriptor)
+            nsCOMPtr<nsISupports> currentDescriptor;
+            webPageDescriptor->GetCurrentDescriptor(getter_AddRefs(currentDescriptor));
+            if (currentDescriptor)
             {
-                nsCOMPtr<nsISupports> currentDescriptor;
-                webPageDescriptor->GetCurrentDescriptor(getter_AddRefs(currentDescriptor));
-                shEntry = do_QueryInterface(currentDescriptor);
+                // Descriptor is actually a session history entry
+                nsCOMPtr<nsISHEntry> shEntry = do_QueryInterface(currentDescriptor);
+                NS_ASSERTION(shEntry, "The descriptor is meant to be a session history entry");
+                if (shEntry)
+                {
+                    shEntry->GetCacheKey(getter_AddRefs(cacheKey));
+                }
             }
-        }
-
-        if (shEntry)
-        {
-            shEntry->GetCacheKey(getter_AddRefs(cacheKey));
         }
         else
         {
@@ -1725,10 +1723,10 @@ nsresult nsWebBrowserPersist::SaveDocuments()
     // Iterate through all queued documents, saving them to file and fixing
     // them up on the way.
 
-    PRUint32 i;
-    for (i = 0; i < mDocList.Length(); i++)
+    PRInt32 i;
+    for (i = 0; i < mDocList.Count(); i++)
     {
-        DocData *docData = mDocList.ElementAt(i);
+        DocData *docData = (DocData *) mDocList.ElementAt(i);
         if (!docData)
         {
             rv = NS_ERROR_FAILURE;
@@ -1773,9 +1771,9 @@ nsresult nsWebBrowserPersist::SaveDocuments()
     }
 
     // delete, cleanup regardless of errors (bug 132417)
-    for (i = 0; i < mDocList.Length(); i++)
+    for (i = 0; i < mDocList.Count(); i++)
     {
-        DocData *docData = mDocList.ElementAt(i);
+        DocData *docData = (DocData *) mDocList.ElementAt(i);
         delete docData;
         if (mSerializingOutput)
         {
@@ -1800,16 +1798,16 @@ void nsWebBrowserPersist::Cleanup()
     mOutputMap.Reset();
     mUploadList.Enumerate(EnumCleanupUploadList, this);
     mUploadList.Reset();
-    PRUint32 i;
-    for (i = 0; i < mDocList.Length(); i++)
+    PRInt32 i;
+    for (i = 0; i < mDocList.Count(); i++)
     {
-        DocData *docData = mDocList.ElementAt(i);
+        DocData *docData = (DocData *) mDocList.ElementAt(i);
         delete docData;
     }
     mDocList.Clear();
-    for (i = 0; i < mCleanupList.Length(); i++)
+    for (i = 0; i < mCleanupList.Count(); i++)
     {
-        CleanupData *cleanupData = mCleanupList.ElementAt(i);
+        CleanupData *cleanupData = (CleanupData *) mCleanupList.ElementAt(i);
         delete cleanupData;
     }
     mCleanupList.Clear();
@@ -1825,10 +1823,10 @@ void nsWebBrowserPersist::CleanupLocalFiles()
     int pass;
     for (pass = 0; pass < 2; pass++)
     {
-        PRUint32 i;
-        for (i = 0; i < mCleanupList.Length(); i++)
+        PRInt32 i;
+        for (i = 0; i < mCleanupList.Count(); i++)
         {
-            CleanupData *cleanupData = mCleanupList.ElementAt(i);
+            CleanupData *cleanupData = (CleanupData *) mCleanupList.ElementAt(i);
             nsCOMPtr<nsILocalFile> file = cleanupData->mFile;
 
             // Test if the dir / file exists (something in an earlier loop
@@ -1997,7 +1995,7 @@ nsWebBrowserPersist::CalculateUniqueFilename(nsIURI *aURI)
     // Create a filename if it's empty, or if the filename / datapath is
     // already taken by another URI and create an alternate name.
 
-    if (base.IsEmpty() || !mFilenameList.IsEmpty())
+    if (base.IsEmpty() || mFilenameList.Count() > 0)
     {
         nsCAutoString tmpPath;
         nsCAutoString tmpBase;
@@ -2033,7 +2031,7 @@ nsWebBrowserPersist::CalculateUniqueFilename(nsIURI *aURI)
             tmpPath.Append(ext);
 
             // Test if the name is a duplicate
-            if (!mFilenameList.Contains(tmpPath))
+            if (mFilenameList.IndexOf(tmpPath) < 0)
             {
                 if (!base.Equals(tmpBase))
                 {
@@ -2050,7 +2048,7 @@ nsWebBrowserPersist::CalculateUniqueFilename(nsIURI *aURI)
     // Add name to list of those already used
     nsCAutoString newFilepath(directory);
     newFilepath.Append(filename);
-    mFilenameList.AppendElement(newFilepath);
+    mFilenameList.AppendCString(newFilepath);
 
     // Update the uri accordingly if the filename actually changed
     if (nameHasChanged)
@@ -3836,17 +3834,11 @@ nsWebBrowserPersist::MakeAndStoreLocalFilenameInURIMap(
 
     // Create a sensibly named filename for the URI and store in the URI map
     nsCStringKey key(spec.get());
-    URIData *data;
     if (mURIMap.Exists(&key))
     {
-        data = (URIData *) mURIMap.Get(&key);
-        if (aNeedsPersisting)
-        {
-          data->mNeedsPersisting = PR_TRUE;
-        }
         if (aData)
         {
-            *aData = data;
+            *aData = (URIData *) mURIMap.Get(&key);
         }
         return NS_OK;
     }
@@ -3857,7 +3849,7 @@ nsWebBrowserPersist::MakeAndStoreLocalFilenameInURIMap(
     NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
 
     // Store the file name
-    data = new URIData;
+    URIData *data = new URIData;
     NS_ENSURE_TRUE(data, NS_ERROR_OUT_OF_MEMORY);
 
     data->mNeedsPersisting = aNeedsPersisting;

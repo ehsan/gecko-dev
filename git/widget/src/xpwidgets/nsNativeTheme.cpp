@@ -49,7 +49,6 @@
 #include "nsILookAndFeel.h"
 #include "nsThemeConstants.h"
 #include "nsIComponentManager.h"
-#include "nsIDOMNSHTMLInputElement.h"
 
 nsNativeTheme::nsNativeTheme()
 {
@@ -151,31 +150,6 @@ nsNativeTheme::GetCheckedOrSelected(nsIFrame* aFrame, PRBool aCheckSelected)
 
   return CheckBooleanAttr(aFrame, aCheckSelected ? nsWidgetAtoms::selected
                                                  : nsWidgetAtoms::checked);
-}
-
-PRBool
-nsNativeTheme::GetIndeterminate(nsIFrame* aFrame)
-{
-  if (!aFrame)
-    return PR_FALSE;
-
-  nsIContent* content = aFrame->GetContent();
-
-  if (content->IsNodeOfType(nsINode::eXUL)) {
-    // For a XUL checkbox or radio button, the state of the parent determines
-    // the state
-    return CheckBooleanAttr(aFrame->GetParent(), nsWidgetAtoms::indeterminate);
-  }
-
-  // Check for an HTML input element
-  nsCOMPtr<nsIDOMNSHTMLInputElement> inputElt = do_QueryInterface(content);
-  if (inputElt) {
-    PRBool indeterminate;
-    inputElt->GetIndeterminate(&indeterminate);
-    return indeterminate;
-  }
-
-  return PR_FALSE;
 }
 
 PRBool
@@ -361,31 +335,4 @@ nsNativeTheme::IsIndeterminateProgress(nsIFrame* aFrame)
   return aFrame->GetContent()->AttrValueIs(kNameSpaceID_None, nsWidgetAtoms::mode,
                                            NS_LITERAL_STRING("undetermined"),
                                            eCaseMatters);
-}
-
-// menupopup:
-PRBool
-nsNativeTheme::IsSubmenu(nsIFrame* aFrame, PRBool* aLeftOfParent)
-{
-  if (!aFrame)
-    return PR_FALSE;
-
-  nsIContent* parentContent = aFrame->GetContent()->GetParent();
-  if (!parentContent || parentContent->Tag() != nsWidgetAtoms::menu)
-    return PR_FALSE;
-
-  nsIFrame* parent = aFrame;
-  while ((parent = parent->GetParent())) {
-    if (parent->GetContent() == parentContent) {
-      if (aLeftOfParent) {
-        nsIntRect selfBounds, parentBounds;
-        aFrame->GetWindow()->GetScreenBounds(selfBounds);
-        parent->GetWindow()->GetScreenBounds(parentBounds);
-        *aLeftOfParent = selfBounds.x < parentBounds.x;
-      }
-      return PR_TRUE;
-    }
-  }
-
-  return PR_FALSE;
 }

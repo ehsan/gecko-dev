@@ -34,7 +34,7 @@ function test() {
   itemPrefs.setBoolPref("offlineApps", false);
   itemPrefs.setBoolPref("passwords", false);
   itemPrefs.setBoolPref("sessions", false);
-  itemPrefs.setBoolPref("siteSettings", false);
+  itemPrefs.setBoolPref("siteprefs", false);
   
   // Clear 1 hour
   Sanitizer.prefs.setIntPref("timeSpan", 1);

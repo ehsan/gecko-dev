@@ -478,10 +478,7 @@ NS_IMETHODIMP
 nsMenuItemIconX::OnStopRequest(imgIRequest* aRequest,
                               PRBool       aIsLastPart)
 {
-  NS_ASSERTION(mIconRequest, "NULL mIconRequest!  Multiple calls to OnStopRequest()?");
-  if (mIconRequest) {
-    mIconRequest->Cancel(NS_BINDING_ABORTED);
-    mIconRequest = nsnull;
-  }
+  mIconRequest->Cancel(NS_BINDING_ABORTED);
+  mIconRequest = nsnull;
   return NS_OK;
 }

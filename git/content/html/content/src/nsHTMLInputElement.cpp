@@ -129,7 +129,6 @@ static NS_DEFINE_CID(kXULControllersCID,  NS_XULCONTROLLERS_CID);
 #define BF_PARSER_CREATING 7
 #define BF_IN_INTERNAL_ACTIVATE 8
 #define BF_CHECKED_IS_TOGGLED 9
-#define BF_INDETERMINATE 10
 
 #define GET_BOOLBIT(bitfield, field) (((bitfield) & (0x01 << (field))) \
                                         ? PR_TRUE : PR_FALSE)
@@ -141,10 +140,8 @@ static NS_DEFINE_CID(kXULControllersCID,  NS_XULCONTROLLERS_CID);
 #define NS_OUTER_ACTIVATE_EVENT   (1 << 9)
 #define NS_ORIGINAL_CHECKED_VALUE (1 << 10)
 #define NS_NO_CONTENT_DISPATCH    (1 << 11)
-#define NS_ORIGINAL_INDETERMINATE_VALUE (1 << 12)
 #define NS_CONTROL_TYPE(bits)  ((bits) & ~( \
-  NS_OUTER_ACTIVATE_EVENT | NS_ORIGINAL_CHECKED_VALUE | NS_NO_CONTENT_DISPATCH | \
-  NS_ORIGINAL_INDETERMINATE_VALUE))
+  NS_OUTER_ACTIVATE_EVENT | NS_ORIGINAL_CHECKED_VALUE | NS_NO_CONTENT_DISPATCH))
 
 static const char kWhitespace[] = "\n\r\t\b";
 
@@ -321,9 +318,6 @@ protected:
   nsresult SetValueInternal(const nsAString& aValue,
                             nsITextControlFrame* aFrame,
                             PRBool aUserInput);
-
-  nsresult SetIndeterminateInternal(PRBool aValue,
-                                    PRBool aShouldInvalidate);
 
   nsresult GetSelectionRange(PRInt32* aSelectionStart, PRInt32* aSelectionEnd);
 
@@ -689,7 +683,6 @@ nsHTMLInputElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                        NS_EVENT_STATE_USERDISABLED |
                                        NS_EVENT_STATE_SUPPRESSED |
                                        NS_EVENT_STATE_LOADING |
-                                       NS_EVENT_STATE_INDETERMINATE |
                                        NS_EVENT_STATE_MOZ_READONLY |
                                        NS_EVENT_STATE_MOZ_READWRITE);
       }
@@ -761,42 +754,6 @@ nsHTMLInputElement::SetDefaultValue(const nsAString& aValue)
 }
 
 NS_IMETHODIMP
-nsHTMLInputElement::GetIndeterminate(PRBool* aValue)
-{
-  *aValue = GET_BOOLBIT(mBitField, BF_INDETERMINATE);
-  return NS_OK;
-}
-
-nsresult
-nsHTMLInputElement::SetIndeterminateInternal(PRBool aValue,
-                                             PRBool aShouldInvalidate)
-{
-  SET_BOOLBIT(mBitField, BF_INDETERMINATE, aValue);
-
-  if (aShouldInvalidate) {
-    // Repaint the frame
-    nsIFrame* frame = GetPrimaryFrame();
-    if (frame)
-      frame->InvalidateOverflowRect();
-  }
-
-  // Notify the document so it can update :indeterminate pseudoclass rules
-  nsIDocument* document = GetCurrentDoc();
-  if (document) {
-    mozAutoDocUpdate upd(document, UPDATE_CONTENT_STATE, PR_TRUE);
-    document->ContentStatesChanged(this, nsnull, NS_EVENT_STATE_INDETERMINATE);
-  }
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsHTMLInputElement::SetIndeterminate(PRBool aValue)
-{
-  return SetIndeterminateInternal(aValue, PR_TRUE);
-}
-
-NS_IMETHODIMP
 nsHTMLInputElement::GetSize(PRUint32* aValue)
 {
   const nsAttrValue* attrVal = mAttrsAndChildren.GetAttr(nsGkAtoms::size);
@@ -830,7 +787,9 @@ nsHTMLInputElement::GetValue(nsAString& aValue)
 
     PRBool frameOwnsValue = PR_FALSE;
     if (formControlFrame) {
-      nsITextControlFrame* textControlFrame = do_QueryFrame(formControlFrame);
+      nsITextControlFrame* textControlFrame = nsnull;
+      CallQueryInterface(formControlFrame, &textControlFrame);
+
       if (textControlFrame) {
         textControlFrame->OwnsValue(&frameOwnsValue);
       } else {
@@ -1025,26 +984,41 @@ nsHTMLInputElement::SetValueInternal(const nsAString& aValue,
 
   if (mType == NS_FORM_INPUT_TEXT || mType == NS_FORM_INPUT_PASSWORD) {
 
-    nsIFormControlFrame* formControlFrame = aFrame;
-    if (!formControlFrame) {
+    nsITextControlFrame* textControlFrame = aFrame;
+    nsIFormControlFrame* formControlFrame = textControlFrame;
+    if (!textControlFrame) {
       // No need to flush here, if there's no frame at this point we
       // don't need to force creation of one just to tell it about this
       // new value.
       formControlFrame = GetFormControlFrame(PR_FALSE);
+
+      if (formControlFrame) {
+        CallQueryInterface(formControlFrame, &textControlFrame);
+      }
     }
 
-    if (formControlFrame) {
-      // Always set the value in the frame.  If the frame does not own the
-      // value yet (per OwnsValue()), it will turn around and call
-      // TakeTextFrameValue() on us, but will update its display with the new
-      // value if needed.
+    // File frames always own the value (if the frame is there).
+    // Text frames have a bit that says whether they own the value.
+    PRBool frameOwnsValue = PR_FALSE;
+    if (textControlFrame) {
+      textControlFrame->OwnsValue(&frameOwnsValue);
+    }
+    // If the frame owns the value, set the value in the frame
+    if (frameOwnsValue) {
       formControlFrame->SetFormProperty(
         aUserInput ? nsGkAtoms::userInput : nsGkAtoms::value, aValue);
       return NS_OK;
     }
 
+    // If the frame does not own the value, set mValue
+    if (mValue) {
+      nsMemory::Free(mValue);
+    }
+
+    mValue = ToNewUTF8String(aValue);
+
     SetValueChanged(PR_TRUE);
-    return TakeTextFrameValue(aValue);
+    return mValue ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
   }
 
   if (mType == NS_FORM_INPUT_FILE) {
@@ -1292,12 +1266,14 @@ nsHTMLInputElement::SetCheckedInternal(PRBool aChecked, PRBool aNotify)
     nsPresContext *presContext = GetPresContext();
 
     if (mType == NS_FORM_INPUT_CHECKBOX) {
-      nsICheckboxControlFrame* checkboxFrame = do_QueryFrame(frame);
+      nsICheckboxControlFrame* checkboxFrame = nsnull;
+      CallQueryInterface(frame, &checkboxFrame);
       if (checkboxFrame) {
         checkboxFrame->OnChecked(presContext, aChecked);
       }
     } else if (mType == NS_FORM_INPUT_RADIO) {
-      nsIRadioControlFrame* radioFrame = do_QueryFrame(frame);
+      nsIRadioControlFrame* radioFrame = nsnull;
+      CallQueryInterface(frame, &radioFrame);
       if (radioFrame) {
         radioFrame->OnChecked(presContext, aChecked);
       }
@@ -1557,12 +1533,6 @@ nsHTMLInputElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
     switch(mType) {
       case NS_FORM_INPUT_CHECKBOX:
         {
-          if (GET_BOOLBIT(mBitField, BF_INDETERMINATE)) {
-            // indeterminate is always set to FALSE when the checkbox is toggled
-            SetIndeterminateInternal(PR_FALSE, PR_FALSE);
-            aVisitor.mItemFlags |= NS_ORIGINAL_INDETERMINATE_VALUE;
-          }
-
           GetChecked(&originalCheckedValue);
           DoSetChecked(!originalCheckedValue);
           SET_BOOLBIT(mBitField, BF_CHECKED_IS_TOGGLED, PR_TRUE);
@@ -1630,7 +1600,8 @@ nsHTMLInputElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
   if (aVisitor.mEvent->message == NS_BLUR_CONTENT) {
     nsIFrame* primaryFrame = GetPrimaryFrame();
     if (primaryFrame) {
-      nsITextControlFrame* textFrame = do_QueryFrame(primaryFrame);
+      nsITextControlFrame* textFrame = nsnull;
+      CallQueryInterface(primaryFrame, &textFrame);
       if (textFrame) {
         textFrame->CheckFireOnChange();
       }
@@ -1713,9 +1684,6 @@ nsHTMLInputElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
           DoSetChecked(PR_FALSE);
         }
       } else if (oldType == NS_FORM_INPUT_CHECKBOX) {
-        PRBool originalIndeterminateValue =
-          !!(aVisitor.mItemFlags & NS_ORIGINAL_INDETERMINATE_VALUE);
-        SetIndeterminateInternal(originalIndeterminateValue, PR_FALSE);
         DoSetChecked(originalCheckedValue);
       }
     } else {
@@ -1871,7 +1839,8 @@ nsHTMLInputElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
             if (!isButton) {
               nsIFrame* primaryFrame = GetPrimaryFrame();
               if (primaryFrame) {
-                nsITextControlFrame* textFrame = do_QueryFrame(primaryFrame);
+                nsITextControlFrame* textFrame = nsnull;
+                CallQueryInterface(primaryFrame, &textFrame);
               
                 // Fire onChange (if necessary)
                 if (textFrame) {
@@ -2243,7 +2212,9 @@ nsHTMLInputElement::SetSelectionRange(PRInt32 aSelectionStart,
   nsIFormControlFrame* formControlFrame = GetFormControlFrame(PR_TRUE);
 
   if (formControlFrame) {
-    nsITextControlFrame* textControlFrame = do_QueryFrame(formControlFrame);
+    nsITextControlFrame* textControlFrame = nsnull;
+    CallQueryInterface(formControlFrame, &textControlFrame);
+
     if (textControlFrame)
       rv = textControlFrame->SetSelectionRange(aSelectionStart, aSelectionEnd);
   }
@@ -2267,7 +2238,9 @@ nsHTMLInputElement::SetSelectionStart(PRInt32 aSelectionStart)
   nsIFormControlFrame* formControlFrame = GetFormControlFrame(PR_TRUE);
 
   if (formControlFrame) {
-    nsITextControlFrame* textControlFrame = do_QueryFrame(formControlFrame);
+    nsITextControlFrame* textControlFrame = nsnull;
+    CallQueryInterface(formControlFrame, &textControlFrame);
+
     if (textControlFrame)
       rv = textControlFrame->SetSelectionStart(aSelectionStart);
   }
@@ -2292,7 +2265,9 @@ nsHTMLInputElement::SetSelectionEnd(PRInt32 aSelectionEnd)
   nsIFormControlFrame* formControlFrame = GetFormControlFrame(PR_TRUE);
 
   if (formControlFrame) {
-    nsITextControlFrame* textControlFrame = do_QueryFrame(formControlFrame);
+    nsITextControlFrame* textControlFrame = nsnull;
+    CallQueryInterface(formControlFrame, &textControlFrame);
+
     if (textControlFrame)
       rv = textControlFrame->SetSelectionEnd(aSelectionEnd);
   }
@@ -2329,7 +2304,9 @@ nsHTMLInputElement::GetSelectionRange(PRInt32* aSelectionStart,
   nsIFormControlFrame* formControlFrame = GetFormControlFrame(PR_TRUE);
 
   if (formControlFrame) {
-    nsITextControlFrame* textControlFrame = do_QueryFrame(formControlFrame);
+    nsITextControlFrame* textControlFrame = nsnull;
+    CallQueryInterface(formControlFrame, &textControlFrame);
+
     if (textControlFrame)
       rv = textControlFrame->GetSelectionRange(aSelectionStart, aSelectionEnd);
   }
@@ -2344,7 +2321,9 @@ nsHTMLInputElement::GetPhonetic(nsAString& aPhonetic)
   nsIFormControlFrame* formControlFrame = GetFormControlFrame(PR_TRUE);
 
   if (formControlFrame) {
-    nsITextControlFrame* textControlFrame = do_QueryFrame(formControlFrame);
+    nsITextControlFrame* textControlFrame = nsnull;
+    CallQueryInterface(formControlFrame, &textControlFrame);
+
     if (textControlFrame)
       textControlFrame->GetPhonetic(aPhonetic);
   }
@@ -2528,7 +2507,7 @@ nsHTMLInputElement::SubmitNamesValues(nsIFormSubmission* aFormSubmission,
   }
       
   //
-  // Submit file if its input type=file and this encoding method accepts files
+  // Submit file if it's input type=file and this encoding method accepts files
   //
   if (mType == NS_FORM_INPUT_FILE) {
     //
@@ -2747,11 +2726,6 @@ nsHTMLInputElement::IntrinsicState() const
     // Check current checked state (:checked)
     if (GET_BOOLBIT(mBitField, BF_CHECKED)) {
       state |= NS_EVENT_STATE_CHECKED;
-    }
-
-    // Check current indeterminate state (:indeterminate)
-    if (mType == NS_FORM_INPUT_CHECKBOX && GET_BOOLBIT(mBitField, BF_INDETERMINATE)) {
-      state |= NS_EVENT_STATE_INDETERMINATE;
     }
 
     // Check whether we are the default checked element (:default)

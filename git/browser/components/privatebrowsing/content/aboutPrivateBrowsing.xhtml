@@ -58,21 +58,31 @@
 #endif
     <link rel="stylesheet" href="chrome://global/skin/netError.css" type="text/css" media="all"/>
     <link rel="stylesheet" href="chrome://browser/skin/aboutPrivateBrowsing.css" type="text/css" media="all"/>
+    <style type="text/css"><![CDATA[
+      body.normal .showPrivate {
+        display: none;
+      }
+      body.normal .showNormal {
+        display: block;
+      }
+      body.private .showPrivate {
+        display: block;
+      }
+      body.private .showNormal {
+        display: none;
+      }
+    ]]></style>
     <script type="application/x-javascript;version=1.7"><![CDATA[
       const Cc = Components.classes;
       const Ci = Components.interfaces;
 
-      window.__defineGetter__("mainWindow", function() {
-        delete window.mainWindow;
-        return window.mainWindow = window.QueryInterface(Ci.nsIInterfaceRequestor)
-                                         .getInterface(Ci.nsIWebNavigation)
-                                         .QueryInterface(Ci.nsIDocShellTreeItem)
-                                         .rootTreeItem
-                                         .QueryInterface(Ci.nsIInterfaceRequestor)
-                                         .getInterface(Ci.nsIDOMWindow);
-      });
-
       function openSanitizeDialog() {
+        let mainWindow = window.QueryInterface(Ci.nsIInterfaceRequestor)
+                               .getInterface(Ci.nsIWebNavigation)
+                               .QueryInterface(Ci.nsIDocShellTreeItem)
+                               .rootTreeItem
+                               .QueryInterface(Ci.nsIInterfaceRequestor)
+                               .getInterface(Ci.nsIDOMWindow);
         let browserGlue = Cc["@mozilla.org/browser/browserglue;1"].
                           getService(Ci.nsIBrowserGlue);
         browserGlue.sanitize(mainWindow || null);
@@ -87,28 +97,15 @@
       }
 
       function onLoad() {
-        let selector;
         let pb = Cc["@mozilla.org/privatebrowsing;1"].
                  getService(Ci.nsIPrivateBrowsingService);
         if (!pb.privateBrowsingEnabled) {
           document.body.setAttribute("class", "normal");
           document.title = document.body.getAttribute("normaltitle");
           setFavIcon("chrome://global/skin/icons/question-16.png");
-          selector = ".showPrivate";
         }
-        else {
+        else
           setFavIcon("chrome://browser/skin/Privacy-16.png");
-          selector = ".showNormal";
-        }
-
-        // Remove hidden elements to avoid bug 39098
-        let elements = document.body.querySelectorAll(selector);
-        for (let i = 0; i < elements.length; ++ i)
-          elements[i].parentNode.removeChild(elements[i]);
-
-        // Focus the location bar
-        if (mainWindow.gURLBar)
-          mainWindow.focusElement(mainWindow.gURLBar);
       }
     ]]></script>
   </head>
@@ -139,6 +136,11 @@
         <!-- Long Description -->
         <div id="errorLongDesc">
           <p id="errorLongDescText">&privatebrowsingpage.description;</p>
+        </div>
+
+        <!-- Clear Recent History -->
+        <div id="clearRecentHistoryDesc" class="showPrivate">
+          <p>&privatebrowsingpage.clearRecentHistoryBefore;<a href="javascript:openSanitizeDialog();">&privatebrowsingpage.clearRecentHistoryInner;</a>&privatebrowsingpage.clearRecentHistoryAfter;</p>
         </div>
 
         <!-- Start Private Browsing -->

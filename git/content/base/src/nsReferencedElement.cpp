@@ -225,7 +225,6 @@ nsReferencedElement::Unlink()
   }
   if (mPendingNotification) {
     mPendingNotification->Clear();
-    mPendingNotification = nsnull;
   }
   mWatchDocument = nsnull;
   mWatchID = nsnull;

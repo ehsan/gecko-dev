@@ -83,7 +83,6 @@ REQUIRES	+= accessibility
 endif
 
 EXPORTS		= \
-		nsQueryFrame.h \
 		nsFrameList.h \
 		nsHTMLParts.h \
 		nsHTMLReflowMetrics.h \
@@ -187,7 +186,7 @@ LOCAL_INCLUDES += \
 		-I$(srcdir)/../../content/xul/content/src \
 		-I$(srcdir)/../../content/base/src \
 		-I$(srcdir)/../../content/html/content/src \
-		-I$(srcdir)/../../dom/base \
+		-I$(srcdir)/../../dom/src/base \
 		$(MOZ_CAIRO_CFLAGS) \
 		$(NULL)
 

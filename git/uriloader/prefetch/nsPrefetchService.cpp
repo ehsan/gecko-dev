@@ -157,28 +157,28 @@ nsPrefetchQueueEnumerator::GetNext(nsISupports **aItem)
 void
 nsPrefetchQueueEnumerator::Increment()
 {
-  if (!mStarted) {
-    // If the service is currently serving a request, it won't be in
-    // the pending queue, so we return it first.  If it isn't, we'll
-    // just start with the pending queue.
-    mStarted = PR_TRUE;
-    mCurrent = mService->GetCurrentNode();
-    if (!mCurrent)
-      mCurrent = mService->GetQueueHead();
-    return;
-  }
-
-  if (mCurrent) {
-    if (mCurrent == mService->GetCurrentNode()) {
-      // If we just returned the node being processed by the service,
-      // start with the pending queue
-      mCurrent = mService->GetQueueHead();
-    }
-    else {
-      // Otherwise just advance to the next item in the queue
-      mCurrent = mCurrent->mNext;
-    }
-  }
+    do {
+        if (!mStarted) {
+            // If the service is currently serving a request, it won't be
+            // in the pending queue, so we return it first.  If it isn't,
+            // we'll just start with the pending queue.
+            mStarted = PR_TRUE;
+            mCurrent = mService->GetCurrentNode();
+            if (!mCurrent)
+                mCurrent = mService->GetQueueHead();
+        }
+        else if (mCurrent) {
+            if (mCurrent == mService->GetCurrentNode()) {
+                // If we just returned the node being processed by the service,
+                // start with the pending queue
+                mCurrent = mService->GetQueueHead();
+            }
+            else {
+                // Otherwise just advance to the next item in the queue
+                mCurrent = mCurrent->mNext;
+            }
+        }
+    } while (mCurrent);
 }
 
 //-----------------------------------------------------------------------------
@@ -586,10 +586,19 @@ nsPrefetchService::DequeueNode(nsPrefetchNode **node)
 void
 nsPrefetchService::EmptyQueue()
 {
-    do {
-        nsRefPtr<nsPrefetchNode> node;
-        DequeueNode(getter_AddRefs(node));
-    } while (mQueueHead);
+    nsPrefetchNode *prev = 0;
+    nsPrefetchNode *node = mQueueHead;
+
+    while (node) {
+        nsPrefetchNode *next = node->mNext;
+        if (prev)
+            prev->mNext = next;
+        else
+            mQueueHead = next;
+        NS_RELEASE(node);
+
+        node = next;
+    }
 }
 
 void
@@ -942,7 +951,6 @@ nsPrefetchService::Observe(nsISupports     *aSubject,
 
     if (!strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID)) {
         StopPrefetching();
-        EmptyQueue();
         mDisabled = PR_TRUE;
     }
     else if (!strcmp(aTopic, NS_PREFBRANCH_PREFCHANGE_TOPIC_ID)) {
@@ -960,7 +968,6 @@ nsPrefetchService::Observe(nsISupports     *aSubject,
             if (!mDisabled) {
                 LOG(("disabling prefetching\n"));
                 StopPrefetching();
-                EmptyQueue();
                 mDisabled = PR_TRUE;
                 RemoveProgressListener();
             }

@@ -53,7 +53,6 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <limits.h>
 #include <X11/Xatom.h>
 #ifdef POLL_WITH_XCONNECTIONNUMBER
 #include <poll.h>
@@ -77,11 +76,7 @@
 #endif
     
 #ifndef MAX_PATH
-#ifdef PATH_MAX
-#define MAX_PATH PATH_MAX
-#else
 #define MAX_PATH 1024
-#endif
 #endif
 
 #define ARRAY_LENGTH(array_) (sizeof(array_)/sizeof(array_[0]))

@@ -83,10 +83,10 @@ static GtkContainerClass *parent_class = NULL;
 
 /* public methods */
 
-GType
+GtkType
 moz_container_get_type(void)
 {
-    static GType moz_container_type = 0;
+    static GtkType moz_container_type = 0;
 
     if (!moz_container_type) {
         static GTypeInfo moz_container_info = {
@@ -122,7 +122,7 @@ moz_container_new (void)
 {
     MozContainer *container;
 
-    container = g_object_new (MOZ_CONTAINER_TYPE, NULL);
+    container = gtk_type_new (MOZ_CONTAINER_TYPE);
 
     return GTK_WIDGET(container);
 }

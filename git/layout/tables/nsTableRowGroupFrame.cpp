@@ -64,9 +64,19 @@ nsTableRowGroupFrame::~nsTableRowGroupFrame()
 {
 }
 
-NS_QUERYFRAME_HEAD(nsTableRowGroupFrame)
-  NS_QUERYFRAME_ENTRY(nsTableRowGroupFrame)
-NS_QUERYFRAME_TAIL_INHERITING(nsHTMLContainerFrame)
+NS_IMETHODIMP
+nsTableRowGroupFrame::QueryInterface(const nsIID& aIID, void** aInstancePtr)
+{
+  NS_PRECONDITION(aInstancePtr, "null out param");
+
+  static NS_DEFINE_IID(kITableRowGroupIID, NS_ITABLEROWGROUPFRAME_IID);
+  if (aIID.Equals(kITableRowGroupIID)) {
+    *aInstancePtr = (void*)this;
+    return NS_OK;
+  }
+
+  return nsHTMLContainerFrame::QueryInterface(aIID, aInstancePtr);
+}
 
 /* virtual */ PRBool
 nsTableRowGroupFrame::IsContainingBlock() const
@@ -335,7 +345,7 @@ nsTableRowGroupFrame::InitChildReflowState(nsPresContext&     aPresContext,
 }
 
 static void
-CacheRowHeightsForPrinting(nsPresContext*   aPresContext,
+CacheRowHeightsForPrinting(nsPresContext*  aPresContext,
                            nsTableRowFrame* aFirstRow)
 {
   for (nsTableRowFrame* row = aFirstRow; row; row = row->GetNextRow()) {
@@ -1392,14 +1402,14 @@ nsTableRowGroupFrame::AppendFrames(nsIAtom*        aListName,
   ClearRowCursor();
 
   // collect the new row frames in an array
-  nsAutoTArray<nsTableRowFrame*, 8> rows;
+  nsAutoVoidArray rows;
   for (nsIFrame* rowFrame = aFrameList; rowFrame;
        rowFrame = rowFrame->GetNextSibling()) {
     if (nsGkAtoms::tableRowFrame == rowFrame->GetType()) {
       NS_ASSERTION(NS_STYLE_DISPLAY_TABLE_ROW ==
                      rowFrame->GetStyleDisplay()->mDisplay,
                    "wrong display type on rowframe");      
-      rows.AppendElement(static_cast<nsTableRowFrame*>(rowFrame));
+      rows.AppendElement(rowFrame);
     }
   }
 
@@ -1407,7 +1417,7 @@ nsTableRowGroupFrame::AppendFrames(nsIAtom*        aListName,
   // Append the frames to the sibling chain
   mFrames.AppendFrames(nsnull, aFrameList);
 
-  if (rows.Length() > 0) {
+  if (rows.Count() > 0) {
     nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
     if (tableFrame) {
       tableFrame->AppendRows(*this, rowIndex, rows);
@@ -1437,7 +1447,7 @@ nsTableRowGroupFrame::InsertFrames(nsIAtom*        aListName,
     return NS_ERROR_NULL_POINTER;
 
   // collect the new row frames in an array
-  nsTArray<nsTableRowFrame*> rows;
+  nsVoidArray rows;
   PRBool gotFirstRow = PR_FALSE;
   for (nsIFrame* rowFrame = aFrameList; rowFrame;
        rowFrame = rowFrame->GetNextSibling()) {
@@ -1445,7 +1455,7 @@ nsTableRowGroupFrame::InsertFrames(nsIAtom*        aListName,
       NS_ASSERTION(NS_STYLE_DISPLAY_TABLE_ROW ==
                      rowFrame->GetStyleDisplay()->mDisplay,
                    "wrong display type on rowframe");      
-      rows.AppendElement(static_cast<nsTableRowFrame*>(rowFrame));
+      rows.AppendElement(rowFrame);
       if (!gotFirstRow) {
         ((nsTableRowFrame*)rowFrame)->SetFirstInserted(PR_TRUE);
         gotFirstRow = PR_TRUE;
@@ -1458,7 +1468,7 @@ nsTableRowGroupFrame::InsertFrames(nsIAtom*        aListName,
   // Insert the frames in the sibling chain
   mFrames.InsertFrames(nsnull, aPrevFrame, aFrameList);
 
-  PRInt32 numRows = rows.Length();
+  PRInt32 numRows = rows.Count();
   if (numRows > 0) {
     nsTableRowFrame* prevRow = (nsTableRowFrame *)nsTableFrame::GetFrameAtOrBefore(this, aPrevFrame, nsGkAtoms::tableRowFrame);
     PRInt32 rowIndex = (prevRow) ? prevRow->GetRowIndex() + 1 : startRowIndex;

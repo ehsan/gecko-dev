@@ -40,8 +40,6 @@
 #define __nsClipboard_h_
 
 #include "nsIClipboard.h"
-#include "nsClipboardPrivacyHandler.h"
-#include "nsAutoPtr.h"
 #include <gtk/gtk.h>
 
 class nsClipboard : public nsIClipboard
@@ -86,7 +84,6 @@ private:
     nsCOMPtr<nsIClipboardOwner>  mGlobalOwner;
     nsCOMPtr<nsITransferable>    mSelectionTransferable;
     nsCOMPtr<nsITransferable>    mGlobalTransferable;
-    nsRefPtr<nsClipboardPrivacyHandler> mPrivacyHandler;
 
 };
 

@@ -55,7 +55,6 @@
  */
 
 #include "jspubtd.h"
-#include "jsutil.h"
 
 /* Internal identifier (jsid) macros. */
 

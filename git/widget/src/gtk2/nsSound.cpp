@@ -131,7 +131,8 @@ nsSound::nsSound()
 
 nsSound::~nsSound()
 {
-    if (esdref >= 0) {
+    /* see above comment */
+    if (esdref != -1) {
         EsdCloseType EsdClose = (EsdCloseType) PR_FindFunctionSymbol(elib, "esd_close");
         if (EsdClose)
             (*EsdClose)(esdref);
@@ -150,16 +151,19 @@ nsSound::Init()
     mInited = PR_TRUE;
 
     if (!elib) {
+        /* we don't need to do esd_open_sound if we are only going to play files
+           but we will if we want to do things like streams, etc */
+        EsdOpenSoundType EsdOpenSound;
+
         elib = PR_LoadLibrary("libesd.so.0");
         if (elib) {
-            EsdOpenSoundType EsdOpenSound =
-                (EsdOpenSoundType) PR_FindFunctionSymbol(elib, "esd_open_sound");
+            EsdOpenSound = (EsdOpenSoundType) PR_FindFunctionSymbol(elib, "esd_open_sound");
             if (!EsdOpenSound) {
                 PR_UnloadLibrary(elib);
                 elib = nsnull;
             } else {
                 esdref = (*EsdOpenSound)("localhost");
-                if (esdref < 0) {
+                if (!esdref) {
                     PR_UnloadLibrary(elib);
                     elib = nsnull;
                 }
@@ -376,7 +380,7 @@ NS_IMETHODIMP nsSound::OnStreamComplete(nsIStreamLoader *aLoader,
             buf[j + 1] = audio[j];
         }
 
-        audio = buf;
+	audio = buf;
     }
 #endif
 
@@ -487,10 +491,6 @@ nsresult nsSound::PlaySystemEventSound(const nsAString &aSoundAlias)
         ca_context_play(ctx, 0, "event.id", "dialog-question", NULL);
     else if (aSoundAlias.Equals(NS_SYSSOUND_MAIL_BEEP))
         ca_context_play(ctx, 0, "event.id", "message-new-email", NULL);
-    else if (aSoundAlias.Equals(NS_SYSSOUND_MENU_EXECUTE))
-        ca_context_play(ctx, 0, "event.id", "menu-click", NULL);
-    else if (aSoundAlias.Equals(NS_SYSSOUND_MENU_POPUP))
-        ca_context_play(ctx, 0, "event.id", "menu-popup", NULL);
 
     return NS_OK;
 }

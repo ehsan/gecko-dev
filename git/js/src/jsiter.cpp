@@ -41,6 +41,7 @@
 /*
  * JavaScript iterators.
  */
+#include "jsstddef.h"
 #include <string.h>     /* for memcpy */
 #include "jstypes.h"
 #include "jsutil.h"
@@ -63,8 +64,6 @@
 #include "jsscan.h"
 #include "jsscope.h"
 #include "jsscript.h"
-#include "jsstaticcheck.h"
-#include "jstracer.h"
 
 #if JS_HAS_XML_SUPPORT
 #include "jsxml.h"
@@ -76,7 +75,7 @@
 
 #if JS_HAS_GENERATORS
 
-static JS_REQUIRES_STACK JSBool
+static JSBool
 CloseGenerator(JSContext *cx, JSObject *genobj);
 
 #endif
@@ -408,15 +407,18 @@ js_ValueToIterator(JSContext *cx, uintN flags, jsval *vp)
             if (!InitNativeIterator(cx, iterobj, obj, flags))
                 goto bad;
         } else {
-            js_LeaveTrace(cx);
             arg = BOOLEAN_TO_JSVAL((flags & JSITER_FOREACH) == 0);
             if (!js_InternalInvoke(cx, obj, *vp, JSINVOKE_ITERATOR, 1, &arg,
                                    vp)) {
                 goto bad;
             }
             if (JSVAL_IS_PRIMITIVE(*vp)) {
-                js_ReportValueError(cx, JSMSG_BAD_ITERATOR_RETURN,
-                                    JSDVG_SEARCH_STACK, *vp, NULL);
+                const char *printable = js_AtomToPrintableString(cx, atom);
+                if (printable) {
+                    js_ReportValueError2(cx, JSMSG_BAD_ITERATOR_RETURN,
+                                         JSDVG_SEARCH_STACK, *vp, NULL,
+                                         printable);
+                }
                 goto bad;
             }
         }
@@ -447,7 +449,6 @@ js_CloseIterator(JSContext *cx, jsval v)
     }
 #if JS_HAS_GENERATORS
     else if (clasp == &js_GeneratorClass) {
-        JS_ASSERT_NOT_ON_TRACE(cx);
         if (!CloseGenerator(cx, obj))
             return JS_FALSE;
     }
@@ -813,7 +814,7 @@ typedef enum JSGeneratorOp {
  * Start newborn or restart yielding generator and perform the requested
  * operation inside its frame.
  */
-static JS_REQUIRES_STACK JSBool
+static JSBool
 SendToGenerator(JSContext *cx, JSGeneratorOp op, JSObject *obj,
                 JSGenerator *gen, jsval arg)
 {
@@ -903,7 +904,7 @@ SendToGenerator(JSContext *cx, JSGeneratorOp op, JSObject *obj,
     return JS_FALSE;
 }
 
-static JS_REQUIRES_STACK JSBool
+static JSBool
 CloseGenerator(JSContext *cx, JSObject *obj)
 {
     JSGenerator *gen;
@@ -930,8 +931,6 @@ generator_op(JSContext *cx, JSGeneratorOp op, jsval *vp, uintN argc)
     JSObject *obj;
     JSGenerator *gen;
     jsval arg;
-
-    js_LeaveTrace(cx);
 
     obj = JS_THIS_OBJECT(cx, vp);
     if (!JS_InstanceOf(cx, obj, &js_GeneratorClass, vp + 2))

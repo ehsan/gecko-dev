@@ -60,6 +60,7 @@ class nsSVGPatternFrame : public nsSVGPatternFrameBase
 {
 public:
   friend nsIFrame* NS_NewSVGPatternFrame(nsIPresShell* aPresShell,
+                                         nsIContent*   aContent,
                                          nsStyleContext* aContext);
 
   nsSVGPatternFrame(nsStyleContext* aContext);
@@ -85,12 +86,6 @@ public:
                               nsIAtom*        aAttribute,
                               PRInt32         aModType);
 
-#ifdef DEBUG
-  NS_IMETHOD Init(nsIContent*      aContent,
-                  nsIFrame*        aParent,
-                  nsIFrame*        aPrevInFlow);
-#endif
-
   /**
    * Get the "type" of the frame
    *
@@ -115,19 +110,19 @@ protected:
   nsSVGPatternElement* GetPatternWithAttr(nsIAtom *aAttrName, nsIContent *aDefault);
 
   //
-  const nsSVGLength2 *GetX();
-  const nsSVGLength2 *GetY();
-  const nsSVGLength2 *GetWidth();
-  const nsSVGLength2 *GetHeight();
+  nsSVGLength2 *GetX();
+  nsSVGLength2 *GetY();
+  nsSVGLength2 *GetWidth();
+  nsSVGLength2 *GetHeight();
 
   PRUint16 GetPatternUnits();
   PRUint16 GetPatternContentUnits();
   gfxMatrix GetPatternTransform();
 
-  const nsSVGViewBox &GetViewBox();
   const nsSVGPreserveAspectRatio &GetPreserveAspectRatio();
 
   NS_IMETHOD GetPatternFirstChild(nsIFrame **kid);
+  NS_IMETHOD GetViewBox(nsIDOMSVGRect * *aMatrix);
   nsresult   GetPatternRect(nsIDOMSVGRect **patternRect,
                             nsIDOMSVGRect *bbox,
                             nsIDOMSVGMatrix *callerCTM,

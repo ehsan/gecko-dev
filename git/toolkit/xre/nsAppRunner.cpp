@@ -123,7 +123,6 @@
 #include "nsReadableUtils.h"
 #include "nsStaticComponents.h"
 #include "nsXPCOM.h"
-#include "nsXPCOMCIDInternal.h"
 #include "nsXPIDLString.h"
 #include "nsXPFEComponentsCID.h"
 #include "nsVersionComparator.h"
@@ -729,13 +728,6 @@ nsXULAppInfo::GetXPCOMABI(nsACString& aResult)
 #endif
 }
 
-NS_IMETHODIMP
-nsXULAppInfo::GetWidgetToolkit(nsACString& aResult)
-{
-  aResult.AssignLiteral(MOZ_WIDGET_TOOLKIT);
-  return NS_OK;
-}
-
 #ifdef XP_WIN
 // Matches the enum in WinNT.h for the Vista SDK but renamed so that we can
 // safely build with the Vista SDK and without it.
@@ -900,12 +892,6 @@ static nsModuleComponentInfo kComponents[] =
     "nsXULAppInfo",
     APPINFO_CID,
     XULAPPINFO_SERVICE_CONTRACTID,
-    AppInfoConstructor
-  },
-  {
-    "nsXULAppInfo",
-    APPINFO_CID,
-    XULRUNTIME_SERVICE_CONTRACTID,
     AppInfoConstructor
   }
 #ifdef MOZ_CRASHREPORTER
@@ -1354,16 +1340,12 @@ XRE_GetBinaryPath(const char* argv0, nsILocalFile* *aResult)
   // 4) give up
 
 // #ifdef __linux__
-// Commented out because it used to not work because it used to not deal
-// with readlink not null-terminating the buffer.
 #if 0
   int r = readlink("/proc/self/exe", exePath, MAXPATHLEN);
 
-  if (r > 0 && r < MAXPATHLEN) {
-    exePath[r] = '\0';
-    if (stat(exePath, &fileStat) == 0) {
-      rv = NS_OK;
-    }
+  // apparently, /proc/self/exe can sometimes return weird data... check it
+  if (r > 0 && r < MAXPATHLEN && stat(exePath, &fileStat) == 0) {
+    rv = NS_OK;
   }
 
 #endif
@@ -1425,7 +1407,7 @@ XRE_GetBinaryPath(const char* argv0, nsILocalFile* *aResult)
   if (NS_FAILED(rv))
     return rv;
 
-#else
+#elif
 #error Oops, you need platform-specific code here
 #endif
 
@@ -2898,7 +2880,8 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
       _gtk_window_set_auto_startup_notification(PR_FALSE);
     }
 
-    gtk_widget_set_default_colormap(gdk_rgb_get_colormap());
+    gtk_widget_set_default_visual(gdk_rgb_get_visual());
+    gtk_widget_set_default_colormap(gdk_rgb_get_cmap());
 #endif /* MOZ_WIDGET_GTK2 */
 
     // Call the code to install our handler

@@ -298,11 +298,6 @@ nsContentSink::Init(nsIDocument* aDoc,
   mCanInterruptParser =
     nsContentUtils::GetBoolPref("content.interrupt.parsing", PR_TRUE);
 
-  // 200 determined empirically to provide good user response without
-  // sampling the clock too often.
-  mMaxTokensDeflectedInLowFreqMode =
-    nsContentUtils::GetIntPref("content.max.deflected.tokens", 200);
-
   return NS_OK;
 
 }
@@ -354,21 +349,19 @@ nsContentSink::ScriptAvailable(nsresult aResult,
     mParser->ScriptExecuting();
   }
 
+  if (count == 0) {
+    return NS_OK;
+  }
+
   // aElement will not be in mScriptElements if a <script> was added
   // using the DOM during loading, or if the script was inline and thus
   // never blocked.
-  NS_ASSERTION(count == 0 ||
-               mScriptElements.IndexOf(aElement) == PRInt32(count - 1) ||
-               mScriptElements.IndexOf(aElement) == -1,
+  NS_ASSERTION(mScriptElements.IndexOf(aElement) == count - 1 ||
+               mScriptElements.IndexOf(aElement) == PRUint32(-1),
                "script found at unexpected position");
 
   // Check if this is the element we were waiting for
-  if (count == 0 || aElement != mScriptElements[count - 1]) {
-    if (mDidGetReadyToCallDidBuildModelCall &&
-        !mScriptLoader->HasPendingOrCurrentScripts() &&
-        mParser && mParser->IsParserEnabled()) {
-      ContinueInterruptedParsingAsync();
-    }
+  if (aElement != mScriptElements[count - 1]) {
     return NS_OK;
   }
 
@@ -413,11 +406,6 @@ nsContentSink::ScriptEvaluated(nsresult aResult,
   // Check if this is the element we were waiting for
   PRInt32 count = mScriptElements.Count();
   if (count == 0 || aElement != mScriptElements[count - 1]) {
-    if (mDidGetReadyToCallDidBuildModelCall &&
-        !mScriptLoader->HasPendingOrCurrentScripts() &&
-        mParser && mParser->IsParserEnabled()) {
-      ContinueInterruptedParsingAsync();
-    }
     return NS_OK;
   }
 
@@ -731,25 +719,25 @@ nsContentSink::ProcessLink(nsIContent* aElement,
                            const nsSubstring& aMedia)
 {
   // XXX seems overkill to generate this string array
-  nsTArray<nsString> linkTypes;
+  nsStringArray linkTypes;
   nsStyleLinkElement::ParseLinkTypes(aRel, linkTypes);
 
-  PRBool hasPrefetch = linkTypes.Contains(NS_LITERAL_STRING("prefetch"));
+  PRBool hasPrefetch = (linkTypes.IndexOf(NS_LITERAL_STRING("prefetch")) != -1);
   // prefetch href if relation is "next" or "prefetch"
-  if (hasPrefetch || linkTypes.Contains(NS_LITERAL_STRING("next"))) {
+  if (hasPrefetch || linkTypes.IndexOf(NS_LITERAL_STRING("next")) != -1) {
     PrefetchHref(aHref, aElement, hasPrefetch);
   }
 
-  if ((!aHref.IsEmpty()) && linkTypes.Contains(NS_LITERAL_STRING("dns-prefetch"))) {
+  if ((!aHref.IsEmpty()) && linkTypes.IndexOf(NS_LITERAL_STRING("dns-prefetch")) != -1) {
     PrefetchDNS(aHref);
   }
 
   // is it a stylesheet link?
-  if (!linkTypes.Contains(NS_LITERAL_STRING("stylesheet"))) {
+  if (linkTypes.IndexOf(NS_LITERAL_STRING("stylesheet")) == -1) {
     return NS_OK;
   }
 
-  PRBool isAlternate = linkTypes.Contains(NS_LITERAL_STRING("alternate"));
+  PRBool isAlternate = linkTypes.IndexOf(NS_LITERAL_STRING("alternate")) != -1;
   return ProcessStyleLink(aElement, aHref, isAlternate, aTitle, aType,
                           aMedia);
 }
@@ -883,18 +871,10 @@ nsContentSink::PrefetchDNS(const nsAString &aHref)
   if (StringBeginsWith(aHref, NS_LITERAL_STRING("//")))  {
     hostname = Substring(aHref, 2);
   }
-  else {
-    nsCOMPtr<nsIURI> uri;
-    NS_NewURI(getter_AddRefs(uri), aHref);
-    if (!uri) {
-      return;
-    }
-    nsCAutoString host;
-    uri->GetHost(host);
-    CopyUTF8toUTF16(host, hostname);
-  }
+  else
+    nsGenericHTMLElement::GetHostnameFromHrefString(aHref, hostname);
 
-  if (!hostname.IsEmpty() && nsHTMLDNSPrefetch::IsAllowed(mDocument)) {
+  if (nsHTMLDNSPrefetch::IsAllowed(mDocument)) {
     nsHTMLDNSPrefetch::PrefetchLow(hostname);
   }
 }
@@ -1053,12 +1033,6 @@ nsContentSink::ProcessOfflineManifest(nsIContent *aElement)
 {
   // Only check the manifest for root document nodes.
   if (aElement != mDocument->GetRootContent()) {
-    return;
-  }
-
-  // Don't bother processing offline manifest for documents
-  // without a docshell
-  if (!mDocShell) {
     return;
   }
 
@@ -1551,22 +1525,23 @@ nsContentSink::DidProcessATokenImpl()
       // If we can't get the last input time from the widget
       // then we will get it from the viewmanager.
       rv = vm->GetLastUserEventTime(eventTime);
+      NS_ENSURE_SUCCESS(rv , NS_ERROR_FAILURE);
   }
+
 
   NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
 
   if (!mDynamicLowerValue && mLastSampledUserEventTime == eventTime) {
-    // The default value of mMaxTokensDeflectedInLowFreqMode (200)
+    // The magic value of NS_MAX_TOKENS_DEFLECTED_IN_LOW_FREQ_MODE
     // was selected by empirical testing. It provides reasonable
     // user response and prevents us from sampling the clock too
-    // frequently.  This value may be decreased if responsiveness is
-    // valued more than end-to-end pageload time (e.g., for mobile).
-    if (mDeflectedCount < mMaxTokensDeflectedInLowFreqMode) {
+    // frequently.
+    if (mDeflectedCount < NS_MAX_TOKENS_DEFLECTED_IN_LOW_FREQ_MODE) {
       mDeflectedCount++;
       // return early to prevent sampling the clock. Note: This
       // prevents us from switching to higher frequency (better UI
       // responsive) mode, so limit ourselves to doing for no more
-      // than mMaxTokensDeflectedInLowFreqMode tokens.
+      // than NS_MAX_TOKENS_DEFLECTED_IN_LOW_FREQ_MODE tokens.
 
       return NS_OK;
     }
@@ -1772,26 +1747,6 @@ nsContentSink::ContinueInterruptedParsingAsync()
     &nsContentSink::ContinueInterruptedParsingIfEnabled);
 
   NS_DispatchToCurrentThread(ev);
-}
-
-PRBool
-nsContentSink::ReadyToCallDidBuildModelImpl(PRBool aTerminated)
-{
-  if (!mDidGetReadyToCallDidBuildModelCall) {
-    if (mDocument && !aTerminated) {
-      mDocument->SetReadyStateInternal(nsIDocument::READYSTATE_INTERACTIVE);
-    }
-
-    if (mScriptLoader) {
-      mScriptLoader->EndDeferringScripts(aTerminated);
-    }
-  }
-
-  mDidGetReadyToCallDidBuildModelCall = PR_TRUE;
-  
-  // If we're terminated we always want to call DidBuildModel.
-  return aTerminated || !mScriptLoader ||
-         !mScriptLoader->HasPendingOrCurrentScripts();
 }
 
 // URIs: action, href, src, longdesc, usemap, cite

@@ -49,21 +49,24 @@ MAKEFILES_db="
 
 MAKEFILES_dom="
   dom/Makefile
+  dom/public/Makefile
+  dom/public/base/Makefile
   dom/public/coreEvents/Makefile
-  dom/interfaces/base/Makefile
-  dom/interfaces/canvas/Makefile
-  dom/interfaces/core/Makefile
-  dom/interfaces/css/Makefile
-  dom/interfaces/events/Makefile
-  dom/interfaces/html/Makefile
-  dom/interfaces/range/Makefile
-  dom/interfaces/stylesheets/Makefile
-  dom/interfaces/views/Makefile
-  dom/interfaces/xbl/Makefile
-  dom/interfaces/xpath/Makefile
-  dom/interfaces/xul/Makefile
-  dom/base/Makefile
+  dom/public/idl/Makefile
+  dom/public/idl/base/Makefile
+  dom/public/idl/canvas/Makefile
+  dom/public/idl/core/Makefile
+  dom/public/idl/css/Makefile
+  dom/public/idl/events/Makefile
+  dom/public/idl/html/Makefile
+  dom/public/idl/range/Makefile
+  dom/public/idl/stylesheets/Makefile
+  dom/public/idl/views/Makefile
+  dom/public/idl/xbl/Makefile
+  dom/public/idl/xpath/Makefile
+  dom/public/idl/xul/Makefile
   dom/src/Makefile
+  dom/src/base/Makefile
   dom/src/events/Makefile
   dom/src/jsurl/Makefile
   dom/locales/Makefile
@@ -491,6 +494,7 @@ MAKEFILES_widget="
   widget/src/os2/Makefile
   widget/src/windows/Makefile
   widget/src/xpwidgets/Makefile
+  widget/src/support/Makefile
 "
 
 MAKEFILES_xpcom="
@@ -583,6 +587,7 @@ MAKEFILES_xpfe="
   xpfe/appshell/Makefile
   xpfe/appshell/src/Makefile
   xpfe/appshell/public/Makefile
+  xpfe/bootstrap/appleevents/Makefile
   extensions/spellcheck/Makefile
   extensions/spellcheck/hunspell/Makefile
   extensions/spellcheck/idl/Makefile
@@ -752,12 +757,6 @@ MAKEFILES_libmar="
   modules/libmar/tool/Makefile
 "
 
-MAKEFILES_lcms="
-  modules/lcms/Makefile
-  modules/lcms/include/Makefile
-  modules/lcms/src/Makefile
-"
-
 add_makefiles "
   $MAKEFILES_db
   $MAKEFILES_dom
@@ -800,7 +799,6 @@ add_makefiles "
   $MAKEFILES_accessible
   $MAKEFILES_zlib
   $MAKEFILES_libmar
-  $MAKEFILES_lcms
 "
 
 #
@@ -834,6 +832,14 @@ if [ "$MOZ_TREE_CAIRO" ] ; then
     gfx/cairo/libpixman/src/Makefile
     gfx/cairo/cairo/src/Makefile
     gfx/cairo/cairo/src/cairo-features.h
+  "
+fi
+
+if [ ! "$MOZ_NATIVE_LCMS" ] ; then
+  add_makefiles "
+    modules/lcms/Makefile
+    modules/lcms/include/Makefile
+    modules/lcms/src/Makefile
   "
 fi
 
@@ -988,16 +994,9 @@ if [ "$MOZ_SVG" ]; then
     content/svg/document/src/Makefile
     content/svg/content/Makefile
     content/svg/content/src/Makefile
-    dom/interfaces/svg/Makefile
+    dom/public/idl/svg/Makefile
     layout/svg/base/src/Makefile
   "
-fi
-
-# smil
-if [ "$MOZ_SMIL" ]; then
-    MAKEFILES_content="$MAKEFILES_content
-	content/smil/Makefile
-"
 fi
 
 if [ "$MOZ_XTF" ]; then

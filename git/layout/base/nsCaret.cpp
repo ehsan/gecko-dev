@@ -1015,7 +1015,7 @@ PRBool nsCaret::IsMenuPopupHidingCaret()
 #ifdef MOZ_XUL
   // Check if there are open popups.
   nsXULPopupManager *popMgr = nsXULPopupManager::GetInstance();
-  nsTArray<nsIFrame*> popups = popMgr->GetVisiblePopups();
+  nsTArray<nsIFrame*> popups = popMgr->GetOpenPopups();
 
   if (popups.Length() == 0)
     return PR_FALSE; // No popups, so caret can't be hidden by them.
@@ -1184,7 +1184,8 @@ nsresult nsCaret::UpdateCaretRects(nsIFrame* aFrame, PRInt32 aFrameOffset)
   if (scrollFrame)
   {
     // First, use the scrollFrame to get at the scrollable view that we're in.
-    nsIScrollableFrame *scrollable = do_QueryFrame(scrollFrame);
+    nsIScrollableFrame *scrollable;
+    CallQueryInterface(scrollFrame, &scrollable);
     nsIScrollableView *scrollView = scrollable->GetScrollableView();
     nsIView *view;
     scrollView->GetScrolledView(view);

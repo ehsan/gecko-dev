@@ -425,7 +425,8 @@ RTestURLList.prototype = {
         nsILayoutRegressionTester.DUMP_FLAGS_MASK_PRINT_MODE);
     }
     else {
-       this.mRegressionTester.dumpFrameModel(gBrowser.contentWindow, data, 0);
+       this.mRegressionTester.dumpFrameModel(gBrowser.contentWindow, data,
+        nsILayoutRegressionTester.DUMP_FLAGS_MASK_DUMP_STYLE);
     }
      
       

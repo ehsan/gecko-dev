@@ -74,7 +74,7 @@ html|*.textbox-textarea {
   font: inherit;
 }
 
-.textbox-contextmenu {
+.textbox-input-box menupopup {
   cursor: default;
 }
 

@@ -37,7 +37,6 @@ classic.jar:
 +  skin/classic/global/preferences.css
 +  skin/classic/global/progressmeter.css
 +  skin/classic/global/radio.css
-+  skin/classic/global/resizer.css
 +  skin/classic/global/richlistbox.css
 +  skin/classic/global/scrollbars.css                                 (nativescrollbars.css)
 *+ skin/classic/global/scale.css
@@ -102,7 +101,6 @@ classic.jar:
 +  skin/classic/global/icons/blacklist_large.png                      (icons/blacklist_large.png)
 +  skin/classic/global/icons/blacklist_64.png                         (icons/blacklist_64.png)
 +  skin/classic/global/icons/chevron.png                              (icons/chevron.png)
-+  skin/classic/global/icons/chevron-rtl.png                          (icons/chevron-rtl.png)
 +  skin/classic/global/icons/close.gif                                (icons/close.gif)
 +  skin/classic/global/icons/checkbox.png                             (icons/checkbox.png)
 +  skin/classic/global/icons/closetab-active.png                      (icons/closetab-active.png)
@@ -178,8 +176,6 @@ classic.jar:
 +  skin/classic/global/media/playButton.png                           (media/playButton.png)
 +  skin/classic/global/media/muteButton.png                           (media/muteButton.png)
 +  skin/classic/global/media/unmuteButton.png                         (media/unmuteButton.png)
-+  skin/classic/global/media/scrubberThumb.png                        (media/scrubberThumb.png)
-+  skin/classic/global/media/throbber.png                             (media/throbber.png)
 +  skin/classic/global/menu/menu-arrow-dis.gif                        (menu/menu-arrow-dis.gif)
 +  skin/classic/global/menu/menu-arrow-hov.gif                        (menu/menu-arrow-hov.gif)
 +  skin/classic/global/menu/menu-arrow.gif                            (menu/menu-arrow.gif)

@@ -51,13 +51,6 @@
 #include "gfxImageSurface.h"
 #include "nsPresContext.h"
 #include "nsMediaDecoder.h"
-#include "nsDOMError.h"
-
-// Number of milliseconds between progress events as defined by spec
-#define PROGRESS_MS 350
-
-// Number of milliseconds of no data before a stall event is fired as defined by spec
-#define STALL_MS 3000
 
 #ifdef PR_LOGGING
 // Logging object for decoder
@@ -68,8 +61,6 @@ nsMediaDecoder::nsMediaDecoder() :
   mElement(0),
   mRGBWidth(-1),
   mRGBHeight(-1),
-  mProgressTime(0),
-  mDataTime(0),
   mSizeChanged(PR_FALSE),
   mVideoUpdateLock(nsnull),
   mFramerate(0.0),
@@ -88,9 +79,8 @@ nsMediaDecoder::~nsMediaDecoder()
   MOZ_COUNT_DTOR(nsMediaDecoder);
 }
 
-PRBool nsMediaDecoder::Init(nsHTMLMediaElement* aElement)
+PRBool nsMediaDecoder::Init()
 {
-  mElement = aElement;
   mVideoUpdateLock = PR_NewLock();
 
   return mVideoUpdateLock != nsnull;
@@ -99,13 +89,10 @@ PRBool nsMediaDecoder::Init(nsHTMLMediaElement* aElement)
 void nsMediaDecoder::Shutdown()
 {
   StopProgress();
-  mElement = nsnull;
+  ElementUnavailable();
 }
 
-nsHTMLMediaElement* nsMediaDecoder::GetMediaElement()
-{
-  return mElement;
-}
+
 nsresult nsMediaDecoder::InitLogger() 
 {
 #ifdef PR_LOGGING
@@ -120,81 +107,60 @@ void nsMediaDecoder::Invalidate()
     return;
 
   nsIFrame* frame = mElement->GetPrimaryFrame();
+  if (!frame)
+    return;
   
   {
     nsAutoLock lock(mVideoUpdateLock);
     if (mSizeChanged) {
       mElement->UpdateMediaSize(nsIntSize(mRGBWidth, mRGBHeight));
       mSizeChanged = PR_FALSE;
-      if (frame) {
-        nsPresContext* presContext = frame->PresContext();      
-        nsIPresShell *presShell = presContext->PresShell();
-        presShell->FrameNeedsReflow(frame, 
-                                    nsIPresShell::eStyleChange,
-                                    NS_FRAME_IS_DIRTY);
-      }
+      nsPresContext* presContext = frame->PresContext();      
+      nsIPresShell *presShell = presContext->PresShell();
+      presShell->FrameNeedsReflow(frame, 
+                                  nsIPresShell::eStyleChange,
+                                  NS_FRAME_IS_DIRTY);
     }
   }
-
-  if (frame) {
-    nsRect r(nsPoint(0,0), frame->GetSize());
-    frame->Invalidate(r);
-  }
+  nsRect r(nsPoint(0,0), frame->GetSize());
+  frame->Invalidate(r);
 }
 
 static void ProgressCallback(nsITimer* aTimer, void* aClosure)
 {
   nsMediaDecoder* decoder = static_cast<nsMediaDecoder*>(aClosure);
-  decoder->Progress(PR_TRUE);
+  decoder->Progress();
 }
 
-void nsMediaDecoder::Progress(PRBool aTimer)
+void nsMediaDecoder::Progress()
 {
   if (!mElement)
     return;
 
-  PRIntervalTime now = PR_IntervalNow();
-
-  if (!aTimer) {
-    mDataTime = now;
-  }
-
-  PRUint32 progressDelta = PR_IntervalToMilliseconds(now - mProgressTime);
-  PRUint32 networkDelta = PR_IntervalToMilliseconds(now - mDataTime);
-
-  // If PROGRESS_MS has passed since the last progress event fired and more
-  // data has arrived since then, fire another progress event.
-  if (progressDelta >= PROGRESS_MS && networkDelta <= PROGRESS_MS) {
-    mElement->DispatchAsyncProgressEvent(NS_LITERAL_STRING("progress"));
-    mProgressTime = now;
-  }
-
-  if (mDataTime != 0 && networkDelta >= STALL_MS) {
-    mElement->DispatchAsyncProgressEvent(NS_LITERAL_STRING("stalled"));
-    mDataTime = 0;
-  }
+  mElement->DispatchProgressEvent(NS_LITERAL_STRING("progress"));
 }
 
 nsresult nsMediaDecoder::StartProgress()
 {
-  if (mProgressTimer)
-    return NS_OK;
+  nsresult rv = NS_OK;
 
-  mProgressTimer = do_CreateInstance("@mozilla.org/timer;1");
-  return mProgressTimer->InitWithFuncCallback(ProgressCallback,
+  if (!mProgressTimer) {
+    mProgressTimer = do_CreateInstance("@mozilla.org/timer;1");
+    rv = mProgressTimer->InitWithFuncCallback(ProgressCallback, 
                                               this, 
-                                              PROGRESS_MS,
-                                              nsITimer::TYPE_REPEATING_SLACK);
+                                              350, // Number of milliseconds defined in spec
+                                              nsITimer::TYPE_REPEATING_PRECISE);
+  }
+  return rv;
 }
 
 nsresult nsMediaDecoder::StopProgress()
 {
-  if (!mProgressTimer)
-    return NS_OK;
-
-  nsresult rv = mProgressTimer->Cancel();
-  mProgressTimer = nsnull;
-
+  nsresult rv = NS_OK;
+  if (mProgressTimer) {
+    rv = mProgressTimer->Cancel();
+    mProgressTimer = nsnull;
+  }
   return rv;
 }
 
@@ -209,15 +175,10 @@ void nsMediaDecoder::SetRGBData(PRInt32 aWidth, PRInt32 aHeight, float aFramerat
   }
   mFramerate = aFramerate;
 
-  if (aRGBBuffer) {
-    if (!mRGB) {
-      mRGB = new unsigned char[aWidth * aHeight * 4];
-    }
-    if (mRGB) {
-      memcpy(mRGB.get(), aRGBBuffer, aWidth*aHeight*4);
-    }
-  } else {
-    mRGB = nsnull;
+  if (!mRGB) 
+    mRGB = new unsigned char[aWidth * aHeight * 4];
+  if (mRGB && aRGBBuffer) {
+    memcpy(mRGB.get(), aRGBBuffer, aWidth*aHeight*4);
   }
 }
 
@@ -267,5 +228,15 @@ void nsMediaDecoder::Paint(gfxContext* aContext, const gfxRect& aRect)
     }
   }   
 #endif
+}
+
+void nsMediaDecoder::ElementAvailable(nsHTMLMediaElement* anElement)
+{
+  mElement = anElement;
+}
+
+void nsMediaDecoder::ElementUnavailable()
+{
+  mElement = nsnull;
 }
 

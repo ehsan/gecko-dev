@@ -200,12 +200,11 @@ nsSVGFilterInstance::BuildPrimitives()
   for (i = 0; i < mPrimitives.Length(); ++i) {
     PrimitiveInfo* info = &mPrimitives[i];
     nsSVGFE* filter = info->mFE;
-    nsAutoTArray<nsSVGStringInfo,2> sources;
-    filter->GetSourceImageNames(sources);
+    nsAutoTArray<nsSVGString*,2> sources;
+    filter->GetSourceImageNames(&sources);
  
     for (PRUint32 j=0; j<sources.Length(); ++j) {
-      nsAutoString str;
-      sources[j].mString->GetAnimValue(str, sources[j].mElement);
+      const nsString& str = sources[j]->GetAnimValue();
       PrimitiveInfo* sourceInfo;
 
       if (str.EqualsLiteral("SourceGraphic")) {
@@ -232,10 +231,8 @@ nsSVGFilterInstance::BuildPrimitives()
 
     ComputeFilterPrimitiveSubregion(info);
 
-    nsAutoString str;
-    filter->GetResultImageName().GetAnimValue(str, filter);
-
-    ImageAnalysisEntry* entry = imageTable.PutEntry(str);
+    ImageAnalysisEntry* entry =
+      imageTable.PutEntry(filter->GetResultImageName()->GetAnimValue());
     if (entry) {
       entry->mInfo = info;
     }
@@ -367,20 +364,7 @@ nsSVGFilterInstance::BuildSourceImages()
     if (NS_FAILED(rv))
       return rv;
 
-    // SVG graphics paint to device space, so we need to set an initial device
-    // space to filter space transform on the gfxContext that SourceGraphic
-    // and SourceAlpha will paint to.
-    //
-    // (In theory it would be better to minimize error by having filtered SVG
-    // graphics temporarily paint to user space when painting the sources and
-    // only set a user space to filter space transform on the gfxContext
-    // (since that would elliminate the transform multiplications from user
-    // space to device space and back again). However, that would make the
-    // code more complex while being hard to get right without introducing
-    // subtle bugs, and in practice it probably makes no real difference.)
-    gfxMatrix deviceToFilterSpace =
-      nsSVGUtils::ConvertSVGMatrixToThebes(GetFilterSpaceToDeviceSpaceTransform()).Invert();
-    tmpState.GetGfxContext()->Multiply(deviceToFilterSpace);
+    tmpState.GetGfxContext()->Multiply(userSpaceToFilterSpace);
     mPaintCallback->Paint(&tmpState, mTargetFrame, &dirty);
 
     gfxContext copyContext(sourceColorAlpha);

@@ -58,36 +58,37 @@
 
 /* Local helper functions */
 
-static char* GetKeyValue(TCHAR* verbuf, TCHAR* key)
+static char* GetKeyValue(char* verbuf, char* key)
 {
-	TCHAR        *buf = NULL;
+	char        *buf = NULL;
 	UINT        blen;
 
 	::VerQueryValue(verbuf,
-					key,
+					TEXT(key),
 					(void **)&buf, &blen);
 
 	if(buf != NULL)
 	{
-#ifdef UNICODE
-        // the return value needs to always be a char *, regardless
-        // of whether we're UNICODE or not
-        return PL_strdup(NS_ConvertUTF16toUTF8(buf).get());
+#ifdef WINCE
+        // On windows CE, the verbuf is wide and the shunt
+        // layer can't do much about it.  So, here we
+        // convert the wide string.
+		return PL_strdup(NS_ConvertUTF16toUTF8((PRUnichar*)buf).get());
 #else
-        return PL_strdup(buf);
+		return PL_strdup(buf);	
 #endif
 	}
 
 	return nsnull;
 }
 
-static char* GetVersion(TCHAR* verbuf)
+static char* GetVersion(char* verbuf)
 {
     VS_FIXEDFILEINFO *fileInfo;
     UINT fileInfoLen;
 
     ::VerQueryValue(verbuf,
-                    TEXT("\\"),
+                    "\\",
                     (void **)&fileInfo, &fileInfoLen);
 
     if (fileInfo != NULL)
@@ -239,7 +240,6 @@ nsresult nsPluginFile::LoadPlugin(PRLibrary* &outLibrary)
     nsCAutoString temp;
     mPlugin->GetNativePath(temp);
 
-#ifndef WINCE
     char* index;
     char* pluginFolderPath = PL_strdup(temp.get());
     
@@ -256,11 +256,9 @@ nsresult nsPluginFile::LoadPlugin(PRLibrary* &outLibrary)
 		restoreOrigDir = ::SetCurrentDirectory(pluginFolderPath);
 		NS_ASSERTION(restoreOrigDir, "Error in Loading plugin");
     }
-#endif
-
+    
 	outLibrary = PR_LoadLibrary(temp.get());
-
-#ifndef WINCE    
+    
 	if (restoreOrigDir)
 	{
         BOOL bCheck = ::SetCurrentDirectory(aOrigDir);
@@ -268,8 +266,7 @@ nsresult nsPluginFile::LoadPlugin(PRLibrary* &outLibrary)
     }
     
     PL_strfree(pluginFolderPath);
-#endif
-
+    
 	return NS_OK;
 }
 
@@ -280,48 +277,37 @@ nsresult nsPluginFile::GetPluginInfo(nsPluginInfo& info)
 {
     nsresult res = NS_OK;
 	DWORD zerome, versionsize;
-	TCHAR* verbuf = nsnull;
+	char* verbuf = nsnull;
 
-	const TCHAR* path;
+	const char* path;
 
     if (!mPlugin)
         return NS_ERROR_NULL_POINTER;
 
     nsCAutoString temp;
     mPlugin->GetNativePath(temp);
-
-#ifdef UNICODE
-    NS_ConvertASCIItoUTF16 temp2(temp);
-    path = temp2.get();
-    versionsize = ::GetFileVersionInfoSizeW((TCHAR*)path, &zerome);
-#else
     path = temp.get();
-    versionsize = ::GetFileVersionInfoSize((TCHAR*)path, &zerome);
-#endif
-
+    
+    versionsize = ::GetFileVersionInfoSize((char*)path, &zerome);
 	if (versionsize > 0)
-		verbuf = (TCHAR*)PR_Malloc(versionsize);
+		verbuf = (char *)PR_Malloc(versionsize);
 	if(!verbuf)
 		return NS_ERROR_OUT_OF_MEMORY;
-
-#ifdef UNICODE
-	if(::GetFileVersionInfoW((LPWSTR)path, NULL, versionsize, verbuf))
-#else
-    if(::GetFileVersionInfo(path, NULL, versionsize, verbuf))
-#endif
+    
+	if(::GetFileVersionInfo((char*)path, NULL, versionsize, verbuf))
     {
-        info.fName = GetKeyValue(verbuf, TEXT("\\StringFileInfo\\040904E4\\ProductName"));
-		info.fDescription = GetKeyValue(verbuf, TEXT("\\StringFileInfo\\040904E4\\FileDescription"));
+        info.fName = GetKeyValue(verbuf, "\\StringFileInfo\\040904E4\\ProductName");
+		info.fDescription = GetKeyValue(verbuf, "\\StringFileInfo\\040904E4\\FileDescription");
 
-		char *mimeType = GetKeyValue(verbuf, TEXT("\\StringFileInfo\\040904E4\\MIMEType"));
-		char *mimeDescription = GetKeyValue(verbuf, TEXT("\\StringFileInfo\\040904E4\\FileOpenName"));
-		char *extensions = GetKeyValue(verbuf, TEXT("\\StringFileInfo\\040904E4\\FileExtents"));
+		char *mimeType = GetKeyValue(verbuf, "\\StringFileInfo\\040904E4\\MIMEType");
+		char *mimeDescription = GetKeyValue(verbuf, "\\StringFileInfo\\040904E4\\FileOpenName");
+		char *extensions = GetKeyValue(verbuf, "\\StringFileInfo\\040904E4\\FileExtents");
 
 		info.fVariantCount = CalculateVariantCount(mimeType);
 		info.fMimeTypeArray = MakeStringArray(info.fVariantCount, mimeType);
 		info.fMimeDescriptionArray = MakeStringArray(info.fVariantCount, mimeDescription);
 		info.fExtensionArray = MakeStringArray(info.fVariantCount, extensions);
-        info.fFileName = PL_strdup(temp.get());
+        info.fFileName = PL_strdup(path);
         info.fVersion = GetVersion(verbuf);
         
         PL_strfree(mimeType);

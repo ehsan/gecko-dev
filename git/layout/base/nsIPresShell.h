@@ -79,6 +79,7 @@ class nsIRenderingContext;
 class nsIPageSequenceFrame;
 class nsString;
 class nsAString;
+class nsStringArray;
 class nsCaret;
 class nsStyleContext;
 class nsFrameSelection;
@@ -97,15 +98,14 @@ class nsWeakFrame;
 class nsIScrollableFrame;
 class gfxASurface;
 class gfxContext;
-class nsPIDOMEventTarget;
 
 typedef short SelectionType;
 typedef PRUint32 nsFrameState;
 
-// fa7f090d-b19a-4ef8-9552-82992a3b4a83
+// b5bc1dd3-9fd3-4fe7-8311-5dfca55ea371
 #define NS_IPRESSHELL_IID \
-{ 0xfa7f090d, 0xb19a, 0x4ef8, \
-  { 0x95, 0x52, 0x82, 0x99, 0x2a, 0x3b, 0x4a, 0x83 } }
+{ 0xb5bc1dd3, 0x9fd3, 0x4fe7, \
+  { 0x83, 0x11, 0x5d, 0xfc, 0xa5, 0x5e, 0xa3, 0x71 } }
 
 // Constants for ScrollContentIntoView() function
 #define NS_PRESSHELL_SCROLL_TOP      0
@@ -693,9 +693,6 @@ public:
    */
   virtual void Thaw() = 0;
 
-  virtual void NeedsFocusOrBlurAfterSuppression(nsPIDOMEventTarget* aTarget, PRUint32 aEventType) = 0;
-  virtual void FireOrClearDelayedEvents(PRBool aFireEvents) = 0;
-
   /**
    * When this shell is disconnected from its containing docshell, we
    * lose our container pointer.  However, we'd still like to be able to target
@@ -747,8 +744,8 @@ public:
    */
   virtual already_AddRefed<gfxASurface> RenderNode(nsIDOMNode* aNode,
                                                    nsIRegion* aRegion,
-                                                   nsIntPoint& aPoint,
-                                                   nsIntRect* aScreenRect) = 0;
+                                                   nsPoint& aPoint,
+                                                   nsRect* aScreenRect) = 0;
 
   /*
    * Renders a selection to a surface and returns it. This method is primarily
@@ -766,8 +763,8 @@ public:
    * as the position can be determined from the displayed frames.
    */
   virtual already_AddRefed<gfxASurface> RenderSelection(nsISelection* aSelection,
-                                                        nsIntPoint& aPoint,
-                                                        nsIntRect* aScreenRect) = 0;
+                                                        nsPoint& aPoint,
+                                                        nsRect* aScreenRect) = 0;
 
   void AddWeakFrame(nsWeakFrame* aWeakFrame);
   void RemoveWeakFrame(nsWeakFrame* aWeakFrame);
@@ -775,24 +772,6 @@ public:
 #ifdef NS_DEBUG
   nsIFrame* GetDrawEventTargetFrame() { return mDrawEventTargetFrame; }
 #endif
-
-  /**
-   * Stop or restart non synthetic test mouse event handling on *all*
-   * presShells.
-   *
-   * @param aDisable If true, disable all non synthetic test mouse
-   * events on all presShells.  Otherwise, enable them.
-   */
-  NS_IMETHOD DisableNonTestMouseEvents(PRBool aDisable) = 0;
-
-  /* Record the background color of the most recently loaded canvas.
-   * This color is composited on top of the user's default background
-   * color whenever we need to provide an "ultimate" background color.
-   * See PresShell::Paint, PresShell::PaintDefaultBackground, and
-   * nsDocShell::SetupNewViewer; bug 476557 and other bugs mentioned there.
-   */
-  void SetCanvasBackground(nscolor aColor) { mCanvasBackgroundColor = aColor; }
-  nscolor GetCanvasBackground() { return mCanvasBackgroundColor; }
 
 protected:
   // IMPORTANT: The ownership implicit in the following member variables
@@ -832,9 +811,6 @@ protected:
 
   // A list of weak frames. This is a pointer to the last item in the list.
   nsWeakFrame*              mWeakFrames;
-
-  // Most recent canvas background color.
-  nscolor                   mCanvasBackgroundColor;
 };
 
 /**

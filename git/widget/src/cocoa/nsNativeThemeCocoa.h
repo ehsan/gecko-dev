@@ -68,19 +68,19 @@ public:
   NS_IMETHOD GetWidgetBorder(nsIDeviceContext* aContext, 
                              nsIFrame* aFrame,
                              PRUint8 aWidgetType,
-                             nsIntMargin* aResult);
+                             nsMargin* aResult);
 
   virtual PRBool GetWidgetPadding(nsIDeviceContext* aContext,
                                   nsIFrame* aFrame,
                                   PRUint8 aWidgetType,
-                                  nsIntMargin* aResult);
+                                  nsMargin* aResult);
 
   virtual PRBool GetWidgetOverflow(nsIDeviceContext* aContext, nsIFrame* aFrame,
                                    PRUint8 aWidgetType, nsRect* aOverflowRect);
 
   NS_IMETHOD GetMinimumWidgetSize(nsIRenderingContext* aContext, nsIFrame* aFrame,
                                   PRUint8 aWidgetType,
-                                  nsIntSize* aResult, PRBool* aIsOverridable);
+                                  nsSize* aResult, PRBool* aIsOverridable);
   NS_IMETHOD WidgetStateChanged(nsIFrame* aFrame, PRUint8 aWidgetType, 
                                 nsIAtom* aAttribute, PRBool* aShouldRepaint);
   NS_IMETHOD ThemeChanged();
@@ -115,14 +115,12 @@ protected:
                            const HIRect& inBoxRect, PRBool inSelected,
                            PRBool inDisabled, PRInt32 inState, nsIFrame* aFrame);
   void DrawSearchField(CGContextRef cgContext, const HIRect& inBoxRect, nsIFrame* aFrame);
-  void DrawPushButton(CGContextRef cgContext, const HIRect& inBoxRect,
+  void DrawPushButton(CGContextRef cgContext, const HIRect& inBoxRect, PRBool inIsDefault,
                       PRBool inDisabled, PRInt32 inState, nsIFrame* aFrame);
   void DrawButton(CGContextRef context, ThemeButtonKind inKind,
                   const HIRect& inBoxRect, PRBool inIsDefault, 
                   PRBool inDisabled, ThemeButtonValue inValue,
                   ThemeButtonAdornment inAdornment, PRInt32 inState, nsIFrame* aFrame);
-  void DrawDropdown(CGContextRef context, const HIRect& inBoxRect, PRInt32 inState,
-                    PRBool aIsEditable, nsIFrame* aFrame);
   void DrawSpinButtons(CGContextRef context, ThemeButtonKind inKind,
                        const HIRect& inBoxRect,
                        PRBool inDisabled, ThemeDrawState inDrawState,
@@ -145,8 +143,6 @@ private:
   NSButtonCell* mRadioButtonCell;
   NSButtonCell* mCheckboxCell;
   NSSearchFieldCell* mSearchFieldCell;
-  NSPopUpButtonCell* mDropdownCell;
-  NSComboBoxCell* mComboBoxCell;
 };
 
 #endif // nsNativeThemeCocoa_h_

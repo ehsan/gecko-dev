@@ -53,10 +53,10 @@ public:
   
   // nsIAccessible
   NS_IMETHOD GetName(nsAString& aName);
+  NS_IMETHOD GetRole(PRUint32 *aRole);
 
   // nsAccessible
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
-  virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
@@ -64,9 +64,7 @@ class nsHTMLHRAccessible : public nsLeafAccessible
 {
 public:
   nsHTMLHRAccessible(nsIDOMNode* aDomNode, nsIWeakReference* aShell);
-
-  // nsAccessible
-  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  NS_IMETHOD GetRole(PRUint32 *aRole); 
 };
 
 class nsHTMLBRAccessible : public nsLeafAccessible
@@ -74,9 +72,11 @@ class nsHTMLBRAccessible : public nsLeafAccessible
 public:
   nsHTMLBRAccessible(nsIDOMNode* aDomNode, nsIWeakReference* aShell);
 
+  // nsIAccessible
+  NS_IMETHOD GetRole(PRUint32 *aRole);
+
   // nsAccessible
   virtual nsresult GetNameInternal(nsAString& aName);
-  virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
@@ -88,13 +88,13 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsIAccessible
+  NS_IMETHOD GetRole(PRUint32 *_retval); 
   NS_IMETHOD GetFirstChild(nsIAccessible **aFirstChild);
   NS_IMETHOD GetLastChild(nsIAccessible **aLastChild);
   NS_IMETHOD GetChildCount(PRInt32 *aAccChildCount);
 
   // nsAccessible
   virtual nsresult GetNameInternal(nsAString& aName);
-  virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
@@ -108,6 +108,7 @@ public:
   NS_IMETHOD GetUniqueID(void **aUniqueID);
 
   // nsIAccessible
+  NS_IMETHOD GetRole(PRUint32 *aRole);
   NS_IMETHOD GetName(nsAString& aName);
 
   // Don't cache via unique ID -- bullet accessible shares the same dom node as
@@ -120,7 +121,6 @@ public:
   virtual nsresult Shutdown();
 
   // nsAccessible
-  virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 
   // nsPIAccessible
@@ -143,8 +143,10 @@ public:
   nsHTMLListAccessible(nsIDOMNode *aDOMNode, nsIWeakReference* aShell):
     nsHyperTextAccessibleWrap(aDOMNode, aShell) { }
 
+  // nsIAccessible
+  NS_IMETHOD GetRole(PRUint32 *aRole) { *aRole = nsIAccessibleRole::ROLE_LIST; return NS_OK; }
+
   // nsAccessible
-  virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
@@ -155,13 +157,13 @@ public:
                      const nsAString& aBulletText);
 
   // nsIAccessible
+  NS_IMETHOD GetRole(PRUint32 *aRole) { *aRole = nsIAccessibleRole::ROLE_LISTITEM; return NS_OK; }
   NS_IMETHOD GetBounds(PRInt32 *x, PRInt32 *y, PRInt32 *width, PRInt32 *height);
 
   // nsAccessNode
   virtual nsresult Shutdown();
 
   // nsAccessible
-  virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 
 protected:

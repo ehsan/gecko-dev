@@ -69,19 +69,20 @@ public:
 
   static PRInt32 ConstrainFontWeight(PRInt32 aWeight);
 
+  // If aForStyling is false, don't add the link to the document's
+  // list of links to notify on history changes.
   static PRBool IsHTMLLink(nsIContent *aContent, nsIAtom *aTag,
                            nsILinkHandler *aLinkHandler,
+                           PRBool aForStyling,
                            nsLinkState *aState);
   static PRBool IsLink(nsIContent *aContent, nsILinkHandler *aLinkHandler,
-                       nsLinkState *aState);
+                       PRBool aForStyling, nsLinkState *aState);
 
  static PRBool DashMatchCompare(const nsAString& aAttributeValue,
                                 const nsAString& aSelectorValue,
                                 const nsStringComparator& aComparator);
                                 
-  // Append a quoted (with "") and escaped version of aString to aResult.
-  static void AppendEscapedCSSString(const nsString& aString,
-                                     nsAString& aResult);
+  static void EscapeCSSString(const nsString& aString, nsAString& aReturn);
 
   /*
    * Convert an author-provided floating point number to an integer (0

@@ -69,7 +69,7 @@ public:
   /**
    * |ValueAppended| must be called to maintain this declaration's
    * |mOrder| whenever a property is parsed into an expanded data block
-   * for this declaration.  aProperty must not be a shorthand.
+   * for this declaration.
    */
   nsresult ValueAppended(nsCSSProperty aProperty);
 
@@ -162,6 +162,9 @@ private:
   static void AppendImportanceToString(PRBool aIsImportant, nsAString& aString);
   // return whether there was a value in |aValue| (i.e., it had a non-null unit)
   PRBool   AppendValueToString(nsCSSProperty aProperty, nsAString& aResult) const;
+  // May be called only for properties whose type is eCSSType_Value.
+  nsresult GetValueOrImportantValue(nsCSSProperty aProperty, nsCSSValue& aValue) const;
+
   // Helper for ToString with strange semantics regarding aValue.
   void     AppendPropertyAndValueToString(nsCSSProperty aProperty,
                                           nsAutoString& aValue,

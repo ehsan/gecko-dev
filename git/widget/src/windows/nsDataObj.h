@@ -51,7 +51,8 @@
 #include "nsIURI.h"
 #include "nsIInputStream.h"
 #include "nsIChannel.h"
-#include "nsTPtrArray.h"
+#include "nsTArray.h"
+#include "nsVoidArray.h"
 
 // XXX for older version of PSDK where IAsyncOperation and related stuff is not available
 // but thisdefine  should be removed when parocles config is updated
@@ -264,7 +265,7 @@ class nsDataObj : public IDataObject,
 
 		ULONG        m_cRef;              // the reference count
 
-    nsTArray<nsCString> mDataFlavors;
+    nsVoidArray mDataFlavors;
 
     nsITransferable  * mTransferable; // nsDataObj owns and ref counts nsITransferable, 
                                       // the nsITransferable does know anything about the nsDataObj

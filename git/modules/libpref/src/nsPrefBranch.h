@@ -50,7 +50,6 @@
 #include "nsILocalFile.h"
 #include "nsString.h"
 #include "nsVoidArray.h"
-#include "nsTArray.h"
 #include "nsWeakReference.h"
 
 class nsPrefBranch : public nsIPrefBranchInternal,
@@ -80,11 +79,11 @@ protected:
   void       freeObserverList(void);
 
 private:
-  PRInt32               mPrefRootLength;
-  nsAutoVoidArray       *mObservers;
-  nsCString             mPrefRoot;
-  nsTArray<nsCString>   mObserverDomains;
-  PRBool                mIsDefault;
+  PRInt32         mPrefRootLength;
+  nsAutoVoidArray *mObservers;
+  nsCString       mPrefRoot;
+  nsCStringArray  mObserverDomains;
+  PRBool          mIsDefault;
 
 };
 

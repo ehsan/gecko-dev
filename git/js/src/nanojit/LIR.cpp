@@ -88,13 +88,7 @@ namespace nanojit
 	
 	// LCompressedBuffer
 	LirBuffer::LirBuffer(Fragmento* frago, const CallInfo* functions)
-		: _frago(frago),
-#ifdef NJ_VERBOSE
-		  names(NULL),
-#endif
-		  _functions(functions), abi(ABI_FASTCALL),
-		  state(NULL), param1(NULL), sp(NULL), rp(NULL),
-		  _pages(frago->core()->GetGC())
+		: _frago(frago), _pages(frago->core()->GetGC()), _functions(functions), abi(ABI_FASTCALL)
 	{
 		rewind();
 	}
@@ -114,20 +108,19 @@ namespace nanojit
 		_unused = 0;
 		_stats.lir = 0;
 		_noMem = 0;
-		_nextPage = 0;
 		for (int i = 0; i < NumSavedRegs; ++i)
 			savedRegs[i] = NULL;
 		explicitSavedRegs = false;
+		// pre-allocate the next page we will be using
+		_nextPage = pageAlloc();
+		NanoAssert(_nextPage || _noMem);
 	}
 
     void LirBuffer::rewind()
 	{
 		clear();
-		// pre-allocate the current and the next page we will be using
 		Page* start = pageAlloc();
 		_unused = start ? &start->lir[0] : NULL;
-		_nextPage = pageAlloc();
-		NanoAssert((_unused && _nextPage) || _noMem);
     }
 
 	int32_t LirBuffer::insCount() 
@@ -502,7 +495,7 @@ namespace nanojit
 	}
 
 	bool FASTCALL isCmp(LOpcode c) {
-		return (c >= LIR_eq && c <= LIR_uge) || (c >= LIR_feq && c <= LIR_fge);
+		return c >= LIR_eq && c <= LIR_uge || c >= LIR_feq && c <= LIR_fge;
 	}
     
 	bool FASTCALL isCond(LOpcode c) {
@@ -570,7 +563,7 @@ namespace nanojit
 
     bool LIns::isCse(const CallInfo *functions) const
     { 
-		return nanojit::isCse(u.code) || (isCall() && callInfo()->_cse);
+		return nanojit::isCse(u.code) || isCall() && callInfo()->_cse;
     }
 
 	void LIns::setimm16(int32_t x)
@@ -689,13 +682,8 @@ namespace nanojit
         return *(const uint64_t*)ptr;
     #else
         union { uint64_t tmp; int32_t dst[2]; } u;
-		#ifdef AVMPLUS_BIG_ENDIAN
-        u.dst[0] = l->v[1];
-        u.dst[1] = l->v[0];
-		#else
         u.dst[0] = l->v[0];
         u.dst[1] = l->v[1];
-		#endif
         return u.tmp;
     #endif
 	}
@@ -709,13 +697,8 @@ namespace nanojit
 		return *(const double*)ptr;
 	#else
 		union { uint32_t dst[2]; double tmpf; } u;
-		#ifdef AVMPLUS_BIG_ENDIAN
-		u.dst[0] = l->v[1];
-		u.dst[1] = l->v[0];
-		#else
 		u.dst[0] = l->v[0];
 		u.dst[1] = l->v[1];
-		#endif
 		return u.tmpf;
 	#endif
 	}
@@ -960,7 +943,7 @@ namespace nanojit
 					return insImm(0);
 				}
 			}
-			else if (c == -1 || (c == 1 && oprnd1->isCmp())) {
+			else if (c == -1 || c == 1 && oprnd1->isCmp()) {
 				if (v == LIR_or) {
 					// x | -1 = -1, cmp | 1 = 1
 					return oprnd2;
@@ -986,18 +969,14 @@ namespace nanojit
 	{
 		if (v == LIR_xt || v == LIR_xf) {
 			if (c->isconst()) {
-				if ((v == LIR_xt && !c->constval()) || (v == LIR_xf && c->constval())) {
+				if (v == LIR_xt && !c->constval() || v == LIR_xf && c->constval()) {
 					return 0; // no guard needed
 				}
 				else {
+					// need a way to EOT now, since this is trace end.
 #ifdef JS_TRACER
-					// We're emitting a guard that will always fail. Any code
-					// emitted after this guard is dead code. We could
-					// silently optimize out the rest of the emitted code, but
-					// this could indicate a performance problem or other bug,
-					// so assert in debug builds.
-					NanoAssertMsg(0, "Constantly false guard detected");
-#endif
+				    NanoAssertMsg(0, "need a way to EOT now, since this is trace end");
+#endif				    
 					return out->insGuard(LIR_x, out->insImm(1), x);
 				}
 			}
@@ -1147,11 +1126,11 @@ namespace nanojit
 		NanoAssert(argc <= (int)MAXARGS);
 		uint32_t words = argwords(argc);
 		int32_t insSz = words + LIR_CALL_SLOTS; // words need for offsets + size of instruction
-		ensureRoom(argc * LIR_FAR_SLOTS + insSz);  // argc=# possible tramps for args
+		ensureRoom(argc + insSz);  // argc=# possible tramps for args
 
 		// Argument deltas are calculated relative to the final LIns,
 		// which is the last word in the cluster.
-		LInsp from = _buf->next() + argc * LIR_FAR_SLOTS + insSz - 1; 
+		LInsp from = _buf->next() + argc + insSz - 1; 
 		for (int32_t i=0; i < argc; i++)
 			makeReachable(args[i], from);
 
@@ -1902,8 +1881,6 @@ namespace nanojit
 			case LIR_x:
 			case LIR_xt:
 			case LIR_xf:
-			case LIR_xbarrier:
-			case LIR_xtbl:
 				formatGuard(i, s);
 				break;
 
@@ -2228,12 +2205,8 @@ namespace nanojit
 
     LabelMap::~LabelMap()
     {
-        clear();
-    }
-
-    void LabelMap::clear()
-    {
         Entry *e;
+        
         while ((e = names.removeLast()) != NULL) {
             core->freeString(e->name);
             NJ_DELETE(e);

@@ -101,9 +101,6 @@ public:
    */
   virtual PRInt32 CountContexts () = 0;
   virtual nsICanvasRenderingContextInternal *GetContextAtIndex (PRInt32 index) = 0;
-
-  virtual PRBool GetIsOpaque() = 0;
-
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsICanvasElement, NS_ICANVASELEMENT_IID)

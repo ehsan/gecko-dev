@@ -52,6 +52,10 @@ RequestExecutionLevel user
 
 !addplugindir ./
 
+; USE_UAC_PLUGIN is temporary until all applications have been updated to use
+; the UAC plugin
+!define USE_UAC_PLUGIN
+
 ; prevents compiling of the reg write logging.
 !define NO_LOG
 
@@ -83,12 +87,8 @@ Var TmpVal
 VIAddVersionKey "FileDescription" "${BrandShortName} Helper"
 VIAddVersionKey "OriginalFilename" "helper.exe"
 
-; Most commonly used macros for managing shortcuts
-!insertmacro _LoggingShortcutsCommon
-
 !insertmacro AddDDEHandlerValues
 !insertmacro CleanVirtualStore
-!insertmacro FindSMProgramsDir
 !insertmacro GetLongPath
 !insertmacro GetPathFromString
 !insertmacro IsHandlerForInstallDir
@@ -105,7 +105,6 @@ VIAddVersionKey "OriginalFilename" "helper.exe"
 !insertmacro un.CleanUpdatesDir
 !insertmacro un.CleanVirtualStore
 !insertmacro un.DeleteRelativeProfiles
-!insertmacro un.DeleteShortcuts
 !insertmacro un.GetLongPath
 !insertmacro un.GetSecondInstallPath
 !insertmacro un.ManualCloseAppPrompt
@@ -218,19 +217,17 @@ Section "Uninstall"
   SetShellVarContext current  ; Set SHCTX to HKCU
   ${un.RegCleanMain} "Software\Mozilla"
   ${un.RegCleanUninstall}
-  ${un.DeleteShortcuts}
 
   ClearErrors
-  WriteRegStr HKLM "Software\Mozilla" "${BrandShortName}InstallerTest" "Write Test"
+  WriteRegStr HKLM "Software\Mozilla\InstallerTest" "InstallerTest" "Test"
   ${If} ${Errors}
     StrCpy $TmpVal "HKCU" ; used primarily for logging
   ${Else}
     SetShellVarContext all  ; Set SHCTX to HKLM
-    DeleteRegValue HKLM "Software\Mozilla" "${BrandShortName}InstallerTest"
+    DeleteRegKey HKLM "Software\Mozilla\InstallerTest"
     StrCpy $TmpVal "HKLM" ; used primarily for logging
     ${un.RegCleanMain} "Software\Mozilla"
     ${un.RegCleanUninstall}
-    ${un.DeleteShortcuts}
   ${EndIf}
 
   ${un.RegCleanAppHandler} "FirefoxURL"
@@ -559,7 +556,7 @@ Function .onInit
 FunctionEnd
 
 Function un.onInit
-  ${un.GetParent} "$INSTDIR" $INSTDIR
+  GetFullPathName $INSTDIR "$INSTDIR\.."
   ${un.GetLongPath} "$INSTDIR" $INSTDIR
   ${Unless} ${FileExists} "$INSTDIR\${FileMainEXE}"
     Abort
@@ -571,8 +568,6 @@ Function un.onInit
   ; Initialize $hHeaderBitmap to prevent redundant changing of the bitmap if
   ; the user clicks the back button
   StrCpy $hHeaderBitmap ""
-
-  !insertmacro InitInstallOptionsFile "unconfirm.ini"
 FunctionEnd
 
 Function .onGUIEnd

@@ -190,7 +190,6 @@ function run_test() {
   var prefs = Cc["@mozilla.org/preferences-service;1"].
               getService(Ci.nsIPrefBranch);
   prefs.setIntPref("browser.urlbar.search.sources", 3);
-  prefs.setIntPref("browser.urlbar.default.behavior", 0);
 
   tagssvc.tagURI(uri1, ["foo"]);
   tagssvc.tagURI(uri2, ["bar"]);

@@ -55,8 +55,6 @@ nsDocShellEditorData::nsDocShellEditorData(nsIDocShell* inOwningDocShell)
 : mDocShell(inOwningDocShell)
 , mMakeEditable(PR_FALSE)
 , mIsDetached(PR_FALSE)
-, mDetachedMakeEditable(PR_FALSE)
-, mDetachedEditingState(nsIHTMLDocument::eOff)
 {
   NS_ASSERTION(mDocShell, "Where is my docShell?");
 }

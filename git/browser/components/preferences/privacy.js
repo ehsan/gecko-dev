@@ -24,7 +24,6 @@
 #   Ben Goodger <ben@mozilla.org>
 #   Jeff Walden <jwalden+code@mit.edu>
 #   Ehsan Akhgari <ehsan.akhgari@gmail.com>
-#   Roberto Estrada <roberto.estrada@yahoo.es>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -50,47 +49,9 @@ var gPrivacyPane = {
   init: function ()
   {
     this._updateHistoryDaysUI();
-    this._updateSanitizeSettingsButton();
   },
 
   // HISTORY
-
-  /**
-   * Read the location bar enabled and suggestion prefs
-   * @return Int value for suggestion menulist
-   */
-  readSuggestionPref: function PPP_readSuggestionPref()
-  {
-    let getVal = function(aPref)
-      document.getElementById("browser.urlbar." + aPref).value;
-
-    // Suggest nothing if autocomplete is not enabled
-    if (!getVal("autocomplete.enabled"))
-      return -1;
-
-    // Bottom 2 bits of default.behavior specify history/bookmark
-    return getVal("default.behavior") & 3;
-  },
-
-  /**
-   * Write the location bar enabled and suggestion prefs when necessary
-   * @return Bool value for enabled pref
-   */
-  writeSuggestionPref: function PPP_writeSuggestionPref()
-  {
-    let menuVal = document.getElementById("locationBarSuggestion").value;
-    let enabled = menuVal != -1;
-
-    // Only update default.behavior if we're giving suggestions
-    if (enabled) {
-      // Put the selected menu item's value directly into the bottom 2 bits
-      let behavior = document.getElementById("browser.urlbar.default.behavior");
-      behavior.value = behavior.value >> 2 << 2 | menuVal;
-    }
-
-    // Always update the enabled pref
-    return enabled;
-  },
 
   /*
    * Preferences:
@@ -307,16 +268,16 @@ var gPrivacyPane = {
                                            "", null);
   },
 
-  
   /**
-   * Enables or disables the "Settings..." button depending
-   * on the privacy.sanitize.sanitizeOnShutdown preference value
+   * Displays a dialog from which individual parts of private data may be
+   * cleared.
    */
-  _updateSanitizeSettingsButton: function () {
-    var settingsButton = document.getElementById("clearDataSettings");
-    var sanitizeOnShutdownPref = document.getElementById("privacy.sanitize.sanitizeOnShutdown");
-    
-    settingsButton.disabled = !sanitizeOnShutdownPref.value;  	
-   }
+  clearPrivateDataNow: function ()
+  {
+    const Cc = Components.classes, Ci = Components.interfaces;
+    var glue = Cc["@mozilla.org/browser/browserglue;1"]
+                 .getService(Ci.nsIBrowserGlue);
+    glue.sanitize(window || null);
+  }
 
 };

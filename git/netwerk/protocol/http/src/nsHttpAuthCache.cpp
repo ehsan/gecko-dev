@@ -453,6 +453,9 @@ nsHttpAuthNode::~nsHttpAuthNode()
 {
     LOG(("Destroying nsHttpAuthNode @%x\n", this));
 
+    PRInt32 i;
+    for (i=0; i<mList.Count(); ++i)
+        delete (nsHttpAuthEntry *) mList[i];
     mList.Clear();
 }
 
@@ -468,8 +471,8 @@ nsHttpAuthNode::LookupEntryByPath(const char *path)
     // look for an entry that either matches or contains this directory.
     // ie. we'll give out credentials if the given directory is a sub-
     // directory of an existing entry.
-    for (PRUint32 i=0; i<mList.Length(); ++i) {
-        entry = mList[i];
+    for (PRInt32 i=0; i<mList.Count(); ++i) {
+        entry = (nsHttpAuthEntry *) mList[i];
         nsHttpAuthPath *authPath = entry->RootPath();
         while (authPath) {
             const char *entryPath = authPath->mPath;
@@ -498,9 +501,9 @@ nsHttpAuthNode::LookupEntryByRealm(const char *realm)
         realm = "";
 
     // look for an entry that matches this realm
-    PRUint32 i;
-    for (i=0; i<mList.Length(); ++i) {
-        entry = mList[i];
+    PRInt32 i;
+    for (i=0; i<mList.Count(); ++i) {
+        entry = (nsHttpAuthEntry *) mList[i];
         if (strcmp(realm, entry->Realm()) == 0)
             return entry;
     }
@@ -537,5 +540,6 @@ nsHttpAuthNode::ClearAuthEntry(const char *realm)
     nsHttpAuthEntry *entry = LookupEntryByRealm(realm);
     if (entry) {
         mList.RemoveElement(entry); // double search OK
+        delete entry;
     }
 }

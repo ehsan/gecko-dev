@@ -238,8 +238,7 @@ nsIContent*
 nsSVGUseElement::CreateAnonymousContent()
 {
 #ifdef DEBUG_tor
-  nsAutoString href;
-  mStringAttributes[HREF].GetAnimValue(href, this);
+  const nsString &href = mStringAttributes[HREF].GetAnimValue();
   fprintf(stderr, "<svg:use> reclone of \"%s\"\n", ToNewCString(href));
 #endif
 
@@ -327,7 +326,7 @@ nsSVGUseElement::CreateAnonymousContent()
       return nsnull;
 
     nsCOMPtr<nsIContent> svgNode;
-    NS_NewSVGSVGElement(getter_AddRefs(svgNode), nodeInfo, PR_FALSE);
+    NS_NewSVGSVGElement(getter_AddRefs(svgNode), nodeInfo);
 
     if (!svgNode)
       return nsnull;
@@ -422,8 +421,7 @@ nsSVGUseElement::SyncWidthHeight(PRUint8 aAttrEnum)
 void
 nsSVGUseElement::LookupHref()
 {
-  nsAutoString href;
-  mStringAttributes[HREF].GetAnimValue(href, this);
+  const nsString &href = mStringAttributes[HREF].GetAnimValue();
   if (href.IsEmpty())
     return;
 
@@ -473,9 +471,9 @@ nsSVGUseElement::GetLengthInfo()
 }
 
 void
-nsSVGUseElement::DidChangeString(PRUint8 aAttrEnum)
+nsSVGUseElement::DidChangeString(PRUint8 aAttrEnum, PRBool aDoSetAttr)
 {
-  nsSVGUseElementBase::DidChangeString(aAttrEnum);
+  nsSVGUseElementBase::DidChangeString(aAttrEnum, aDoSetAttr);
 
   if (aAttrEnum == HREF) {
     // we're changing our nature, clear out the clone information
@@ -512,4 +510,3 @@ nsSVGUseElement::IsAttributeMapped(const nsIAtom* name) const
   return FindAttributeDependence(name, map, NS_ARRAY_LENGTH(map)) ||
     nsSVGUseElementBase::IsAttributeMapped(name);
 }
-

@@ -96,7 +96,6 @@ nsFtpState::nsFtpState()
     , mRetryPass(PR_FALSE)
     , mStorReplyReceived(PR_FALSE)
     , mInternalError(NS_OK)
-    , mReconnectAndLoginAgain(PR_FALSE)
     , mPort(21)
     , mAddressChecked(PR_FALSE)
     , mServerIsIPv6(PR_FALSE)
@@ -241,12 +240,7 @@ nsFtpState::OnControlError(nsresult status)
          this, mControlConnection.get(), status, mTryingCachedControl));
 
     mControlStatus = status;
-    if (mReconnectAndLoginAgain && NS_SUCCEEDED(mInternalError)) {
-        mReconnectAndLoginAgain = PR_FALSE;
-        mAnonymous = PR_FALSE;
-        mControlStatus = NS_OK;
-        Connect();
-    } else if (mTryingCachedControl && NS_SUCCEEDED(mInternalError)) {
+    if (mTryingCachedControl && NS_SUCCEEDED(mInternalError)) {
         mTryingCachedControl = PR_FALSE;
         Connect();
     } else {
@@ -265,9 +259,7 @@ nsFtpState::EstablishControlConnection()
         
     // Look to see if we can use a cached control connection:
     nsFtpControlConnection *connection = nsnull;
-    // Don't use cached control if anonymous (bug #473371)
-    if (!mChannel->HasLoadFlag(nsIRequest::LOAD_ANONYMOUS))
-        gFtpHandler->RemoveConnection(mChannel->URI(), &connection);
+    gFtpHandler->RemoveConnection(mChannel->URI(), &connection);
 
     if (connection) {
         mControlConnection.swap(connection);
@@ -378,12 +370,6 @@ nsFtpState::Process()
                 // Fire it back up, unless we were trying to login
                 // in which case the server might just be telling us
                 // that the max number of users has been reached...
-                mState = FTP_COMMAND_CONNECT;
-            } else if (mAnonymous && 
-                       mInternalError == NS_ERROR_FTP_LOGIN) {
-                // If the login was anonymous, and it failed, try again with a username
-                // Don't reuse old control connection, see #386167
-                mAnonymous = PR_FALSE;
                 mState = FTP_COMMAND_CONNECT;
             } else {
                 LOG(("FTP:(%x) FTP_ERROR - calling StopProcessing\n", this));
@@ -672,19 +658,10 @@ nsFtpState::S_user() {
     nsresult rv;
     nsCAutoString usernameStr("USER ");
 
-    mResponseMsg = "";
-
     if (mAnonymous) {
-        mReconnectAndLoginAgain = PR_TRUE;
         usernameStr.AppendLiteral("anonymous");
     } else {
-        mReconnectAndLoginAgain = PR_FALSE;
         if (mUsername.IsEmpty()) {
-
-            // No prompt for anonymous requests (bug #473371)
-            if (mChannel->HasLoadFlag(nsIRequest::LOAD_ANONYMOUS))
-              return NS_ERROR_FAILURE;
-
             nsCOMPtr<nsIAuthPrompt2> prompter;
             NS_QueryAuthPrompt2(static_cast<nsIChannel*>(mChannel),
                                 getter_AddRefs(prompter));
@@ -717,7 +694,6 @@ nsFtpState::S_user() {
 
 FTP_STATE
 nsFtpState::R_user() {
-    mReconnectAndLoginAgain = PR_FALSE;
     if (mResponseCode/100 == 3) {
         // send off the password
         return FTP_S_PASS;
@@ -732,6 +708,13 @@ nsFtpState::R_user() {
         return FTP_ERROR;
     }
     // LOGIN FAILED
+    if (mAnonymous) {
+        // we just tried to login anonymously and failed.
+        // kick back out to S_user() and try again after
+        // gathering uname/pwd info from the user.
+        mAnonymous = PR_FALSE;
+        return FTP_S_USER;
+    }
     return FTP_ERROR;
 }
 
@@ -769,11 +752,6 @@ nsFtpState::S_pass() {
         }
     } else {
         if (mPassword.IsEmpty() || mRetryPass) {
-            
-            // No prompt for anonymous requests (bug #473371)
-            if (mChannel->HasLoadFlag(nsIRequest::LOAD_ANONYMOUS))
-                return NS_ERROR_FAILURE;
-
             nsCOMPtr<nsIAuthPrompt2> prompter;
             NS_QueryAuthPrompt2(static_cast<nsIChannel*>(mChannel),
                                 getter_AddRefs(prompter));
@@ -827,9 +805,13 @@ nsFtpState::R_pass() {
         // There is no difference between a too-many-users error,
         // a wrong-password error, or any other sort of error
 
-        if (!mAnonymous)
-            mRetryPass = PR_TRUE;
+        // If the login was anonymous, and it failed, try again with a username
+        if (mAnonymous) {
+            mAnonymous = PR_FALSE;
+            return FTP_S_USER;
+        }
 
+        mRetryPass = PR_TRUE;
         return FTP_ERROR;
     }
     // unexpected response code
@@ -1737,12 +1719,8 @@ nsFtpState::KillControlConnection()
         mControlConnection->mServerType = mServerType;           
         mControlConnection->mPassword = mPassword;
         mControlConnection->mPwd = mPwd;
-        
-        nsresult rv = NS_OK;
-        // Don't cache controlconnection if anonymous (bug #473371)
-        if (!mChannel->HasLoadFlag(nsIRequest::LOAD_ANONYMOUS))
-            rv = gFtpHandler->InsertConnection(mChannel->URI(),
-                                               mControlConnection);
+        nsresult rv = gFtpHandler->InsertConnection(mChannel->URI(),
+                                                    mControlConnection);
         // Can't cache it?  Kill it then.  
         mControlConnection->Disconnect(rv);
     } else {

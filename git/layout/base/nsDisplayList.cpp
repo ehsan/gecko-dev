@@ -493,12 +493,13 @@ nsDisplayBackground::IsOpaque(nsDisplayListBuilder* aBuilder) {
     return PR_FALSE;
 
   const nsStyleBackground* bg;
+  PRBool isCanvas; // not used
   PRBool hasBG =
-    nsCSSRendering::FindBackground(mFrame->PresContext(), mFrame, &bg);
+    nsCSSRendering::FindBackground(mFrame->PresContext(), mFrame,
+                                   &bg, &isCanvas);
 
   return (hasBG && NS_GET_A(bg->mBackgroundColor) == 255 &&
-          // bottom layer's clip is used for the color
-          bg->BottomLayer().mClip == NS_STYLE_BG_CLIP_BORDER &&
+          bg->mBackgroundClip == NS_STYLE_BG_CLIP_BORDER &&
           !nsLayoutUtils::HasNonZeroCorner(mFrame->GetStyleBorder()->
                                          mBorderRadius));
 }
@@ -509,15 +510,15 @@ nsDisplayBackground::IsUniform(nsDisplayListBuilder* aBuilder) {
   if (mIsThemed)
     return PR_FALSE;
 
+  PRBool isCanvas;
   const nsStyleBackground* bg;
   PRBool hasBG =
-    nsCSSRendering::FindBackground(mFrame->PresContext(), mFrame, &bg);
+    nsCSSRendering::FindBackground(mFrame->PresContext(), mFrame, &bg, &isCanvas);
   if (!hasBG)
     return PR_TRUE;
-  if (!bg->BottomLayer().mImage.mRequest &&
-      bg->mImageCount == 1 &&
+  if ((bg->mBackgroundFlags & NS_STYLE_BG_IMAGE_NONE) &&
       !nsLayoutUtils::HasNonZeroCorner(mFrame->GetStyleBorder()->mBorderRadius) &&
-      bg->BottomLayer().mClip == NS_STYLE_BG_CLIP_BORDER)
+      bg->mBackgroundClip == NS_STYLE_BG_CLIP_BORDER)
     return PR_TRUE;
   return PR_FALSE;
 }
@@ -529,9 +530,10 @@ nsDisplayBackground::IsVaryingRelativeToMovingFrame(nsDisplayListBuilder* aBuild
               "IsVaryingRelativeToMovingFrame called on non-moving frame!");
 
   nsPresContext* presContext = mFrame->PresContext();
+  PRBool isCanvas;
   const nsStyleBackground* bg;
   PRBool hasBG =
-    nsCSSRendering::FindBackground(presContext, mFrame, &bg);
+    nsCSSRendering::FindBackground(presContext, mFrame, &bg, &isCanvas);
   if (!hasBG)
     return PR_FALSE;
   if (!bg->HasFixedBackground())
@@ -645,42 +647,16 @@ nsDisplayBorder::Paint(nsDisplayListBuilder* aBuilder,
 }
 
 void
-nsDisplayBoxShadowOuter::Paint(nsDisplayListBuilder* aBuilder,
+nsDisplayBoxShadow::Paint(nsDisplayListBuilder* aBuilder,
      nsIRenderingContext* aCtx, const nsRect& aDirtyRect) {
   nsPoint offset = aBuilder->ToReferenceFrame(mFrame);
-  nsCSSRendering::PaintBoxShadowOuter(mFrame->PresContext(), *aCtx, mFrame,
-                                      nsRect(offset, mFrame->GetSize()), aDirtyRect);
+  nsCSSRendering::PaintBoxShadow(mFrame->PresContext(), *aCtx,
+                                 mFrame, offset, aDirtyRect);
 }
 
 nsRect
-nsDisplayBoxShadowOuter::GetBounds(nsDisplayListBuilder* aBuilder) {
+nsDisplayBoxShadow::GetBounds(nsDisplayListBuilder* aBuilder) {
   return mFrame->GetOverflowRect() + aBuilder->ToReferenceFrame(mFrame);
-}
-
-PRBool
-nsDisplayBoxShadowOuter::OptimizeVisibility(nsDisplayListBuilder* aBuilder,
-                                            nsRegion* aVisibleRegion) {
-  if (!nsDisplayItem::OptimizeVisibility(aBuilder, aVisibleRegion))
-    return PR_FALSE;
-
-  const nsStyleBorder* border = mFrame->GetStyleBorder();
-  nsPoint origin = aBuilder->ToReferenceFrame(mFrame);
-  if (nsRect(origin, mFrame->GetSize()).Contains(aVisibleRegion->GetBounds()) &&
-      !nsLayoutUtils::HasNonZeroCorner(border->mBorderRadius)) {
-    // the visible region is entirely inside the border-rect, and box shadows
-    // never render within the border-rect (unless there's a border radius).
-    return PR_FALSE;
-  }
-
-  return PR_TRUE;
-}
-
-void
-nsDisplayBoxShadowInner::Paint(nsDisplayListBuilder* aBuilder,
-     nsIRenderingContext* aCtx, const nsRect& aDirtyRect) {
-  nsPoint offset = aBuilder->ToReferenceFrame(mFrame);
-  nsCSSRendering::PaintBoxShadowInner(mFrame->PresContext(), *aCtx, mFrame,
-                                      nsRect(offset, mFrame->GetSize()), aDirtyRect);
 }
 
 nsDisplayWrapList::nsDisplayWrapList(nsIFrame* aFrame, nsDisplayList* aList)

@@ -46,14 +46,10 @@
 
 JS_BEGIN_EXTERN_C
 
-/*
- * JS_Assert is present even in release builds, for the benefit of applications
- * that build DEBUG and link against a non-DEBUG SpiderMonkey library.
- */
+#ifdef DEBUG
+
 extern JS_PUBLIC_API(void)
 JS_Assert(const char *s, const char *file, JSIntn ln);
-
-#ifdef DEBUG
 
 #define JS_ASSERT(expr)                                                       \
     ((expr) ? (void)0 : JS_Assert(#expr, __FILE__, __LINE__))
@@ -73,7 +69,7 @@ JS_Assert(const char *s, const char *file, JSIntn ln);
 #endif /* defined(DEBUG) */
 
 /*
- * Compile-time assert. "cond" must be a constant expression.
+ * Compile-time assert. "condition" must be a constant expression.
  * The macro can be used only in places where an "extern" declaration is
  * allowed.
  */
@@ -85,19 +81,11 @@ JS_Assert(const char *s, const char *file, JSIntn ln);
  * Turn off this assert for Sun Studio until this bug is fixed.
  */
 #ifdef __SUNPRO_CC
-#define JS_STATIC_ASSERT(cond)
+#define JS_STATIC_ASSERT(condition)
 #else
-#ifdef __COUNTER__
-    #define JS_STATIC_ASSERT_GLUE1(x,y) x##y
-    #define JS_STATIC_ASSERT_GLUE(x,y) JS_STATIC_ASSERT_GLUE1(x,y)
-    #define JS_STATIC_ASSERT(cond)                                            \
-        typedef int JS_STATIC_ASSERT_GLUE(js_static_assert, __COUNTER__)[(cond) ? 1 : -1]
-#else
-    #define JS_STATIC_ASSERT(cond) extern void js_static_assert(int arg[(cond) ? 1 : -1])
+#define JS_STATIC_ASSERT(condition)                                           \
+    extern void js_static_assert(int arg[(condition) ? 1 : -1])
 #endif
-#endif
-
-#define JS_STATIC_ASSERT_IF(cond, expr) JS_STATIC_ASSERT(!(cond) || (expr))
 
 /*
  * Abort the process in a non-graceful manner. This will cause a core file,
@@ -156,7 +144,7 @@ JS_DumpHistogram(JSBasicStats *bs, FILE *fp);
 #endif /* JS_BASIC_STATS */
 
 
-#if defined(DEBUG_notme) && defined(XP_UNIX)
+#ifdef XP_UNIX
 
 typedef struct JSCallsite JSCallsite;
 
@@ -171,11 +159,7 @@ struct JSCallsite {
     void        *handy;
 };
 
-extern JS_FRIEND_API(JSCallsite *)
-JS_Backtrace(int skip);
-
-extern JS_FRIEND_API(void)
-JS_DumpBacktrace(JSCallsite *trace);
+extern JSCallsite *JS_Backtrace(int skip);
 
 #endif
 

@@ -54,7 +54,6 @@
 #include "gfxMatrix.h"
 #include "gfxPlatform.h"
 #include "gfxTextRunWordCache.h"
-#include "nsTextFrame.h"
 
 struct CharacterPosition {
   gfxPoint pos;
@@ -185,19 +184,27 @@ private:
 // Implementation
 
 nsIFrame*
-NS_NewSVGGlyphFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
+NS_NewSVGGlyphFrame(nsIPresShell* aPresShell, nsIContent* aContent, nsIFrame* parentFrame, nsStyleContext* aContext)
 {
+  NS_ASSERTION(parentFrame, "null parent");
+  nsISVGTextContentMetrics *metrics;
+  CallQueryInterface(parentFrame, &metrics);
+  NS_ASSERTION(metrics, "trying to construct an SVGGlyphFrame for an invalid container");
+  
+  NS_ASSERTION(aContent->IsNodeOfType(nsINode::eTEXT),
+               "trying to construct an SVGGlyphFrame for wrong content element");
+
   return new (aPresShell) nsSVGGlyphFrame(aContext);
 }
 
 //----------------------------------------------------------------------
-// nsQueryFrame methods
+// nsISupports methods
 
-NS_QUERYFRAME_HEAD(nsSVGGlyphFrame)
-  NS_QUERYFRAME_ENTRY(nsISVGGlyphFragmentLeaf)
-  NS_QUERYFRAME_ENTRY(nsISVGGlyphFragmentNode)
-  NS_QUERYFRAME_ENTRY(nsISVGChildFrame)
-NS_QUERYFRAME_TAIL_INHERITING(nsSVGGlyphFrameBase)
+NS_INTERFACE_MAP_BEGIN(nsSVGGlyphFrame)
+  NS_INTERFACE_MAP_ENTRY(nsISVGGlyphFragmentLeaf)
+  NS_INTERFACE_MAP_ENTRY(nsISVGGlyphFragmentNode)
+  NS_INTERFACE_MAP_ENTRY(nsISVGChildFrame)
+NS_INTERFACE_MAP_END_INHERITING(nsSVGGlyphFrameBase)
 
 //----------------------------------------------------------------------
 // nsIFrame methods
@@ -280,33 +287,6 @@ nsSVGGlyphFrame::IsSelectable(PRBool* aIsSelectable,
 #endif
   return rv;
 }
-
-#ifdef DEBUG
-NS_IMETHODIMP
-nsSVGGlyphFrame::Init(nsIContent* aContent,
-                      nsIFrame* aParent,
-                      nsIFrame* aPrevInFlow)
-{
-  NS_ASSERTION(aParent, "null parent");
-
-  nsIFrame* ancestorFrame = nsSVGUtils::GetFirstNonAAncestorFrame(aParent);
-  NS_ASSERTION(ancestorFrame, "Must have ancestor");
-
-  nsISVGTextContentMetrics *metrics = do_QueryFrame(ancestorFrame);
-  NS_ASSERTION(metrics,
-               "trying to construct an SVGGlyphFrame for an invalid container");
-
-  NS_ASSERTION(aContent->IsNodeOfType(nsINode::eTEXT),
-               "trying to construct an SVGGlyphFrame for wrong content element");
-
-  nsresult rv = nsLayoutUtils::InitTextRunContainerForPrinting(aContent,
-                                                               this,
-                                                               NS_STATE_SVG_PRINTING);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return nsSVGGlyphFrameBase::Init(aContent, aParent, aPrevInFlow);
-}
-#endif /* DEBUG */
 
 nsIAtom *
 nsSVGGlyphFrame::GetType() const
@@ -546,7 +526,7 @@ nsSVGGlyphFrame::AddBoundingBoxesToPath(CharacterIterator *aIter,
   if (aIter->SetupForDirectTextRunMetrics(aContext)) {
     gfxTextRun::Metrics metrics =
       mTextRun->MeasureText(0, mTextRun->GetLength(),
-                            gfxFont::LOOSE_INK_EXTENTS, nsnull, nsnull);
+                            PR_FALSE, nsnull, nsnull);
     aContext->Rectangle(metrics.mBoundingBox);
     return;
   }
@@ -555,7 +535,7 @@ nsSVGGlyphFrame::AddBoundingBoxesToPath(CharacterIterator *aIter,
   while ((i = aIter->NextChar()) >= 0) {
     aIter->SetupForMetrics(aContext);
     gfxTextRun::Metrics metrics =
-      mTextRun->MeasureText(i, 1, gfxFont::LOOSE_INK_EXTENTS, nsnull, nsnull);
+      mTextRun->MeasureText(i, 1, PR_FALSE, nsnull, nsnull);
     aContext->Rectangle(metrics.mBoundingBox);
   }
 }
@@ -616,7 +596,7 @@ PRBool
 nsSVGGlyphFrame::GetCharacterData(nsAString & aCharacterData)
 {
   nsAutoString characterData;
-  GetFragment()->AppendTo(characterData);
+  mContent->AppendTextTo(characterData);
 
   if (mWhitespaceHandling & COMPRESS_WHITESPACE) {
     PRBool trimLeadingWhitespace, trimTrailingWhitespace;
@@ -768,7 +748,7 @@ nsSVGGlyphFrame::GetHighlight(PRUint32 *charnum, PRUint32 *nchars,
 
   // The selection ranges are relative to the uncompressed text in
   // the content element. We'll need the text fragment:
-  const nsTextFragment* fragment = GetFragment();
+  const nsTextFragment *fragment = mContent->GetText();
   NS_ASSERTION(fragment, "no text");
   
   // get the selection details 
@@ -882,27 +862,16 @@ nsSVGGlyphFrame::GetExtentOfChar(PRUint32 charnum, nsIDOMSVGRect **_retval)
 {
   *_retval = nsnull;
 
-  PRUint32 start = charnum, limit = charnum + 1;
-  while (start > 0 && !mTextRun->IsClusterStart(start)) {
-    --start;
-  }
-  while (limit < mTextRun->GetLength() && !mTextRun->IsClusterStart(limit)) {
-    ++limit;
-  }
-
   CharacterIterator iter(this, PR_FALSE);
-  if (!iter.AdvanceToCharacter(start))
+  if (!iter.AdvanceToCharacter(charnum))
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
 
   gfxTextRun::Metrics metrics =
-    mTextRun->MeasureText(start, limit - start, gfxFont::LOOSE_INK_EXTENTS,
-                          nsnull, nsnull);
+    mTextRun->MeasureText(charnum, 1, PR_FALSE, nsnull, nsnull);
 
   nsRefPtr<gfxContext> tmpCtx = MakeTmpCtx();
   iter.SetupForMetrics(tmpCtx);
-  tmpCtx->Rectangle(gfxRect(0, -metrics.mAscent,
-                            metrics.mAdvanceWidth,
-                            metrics.mAscent + metrics.mDescent));
+  tmpCtx->Rectangle(metrics.mBoundingBox);
   tmpCtx->IdentityMatrix();
   return NS_NewSVGRect(_retval, tmpCtx->GetUserPathExtent());
 }
@@ -934,7 +903,7 @@ nsSVGGlyphFrame::GetBaselineOffset(PRUint16 baselineIdentifier,
 
   gfxTextRun::Metrics metrics =
     mTextRun->MeasureText(0, mTextRun->GetLength(),
-                          gfxFont::LOOSE_INK_EXTENTS, nsnull, nsnull);
+                          PR_FALSE, nsnull, nsnull);
 
   gfxFloat baselineAppUnits;
   switch (baselineIdentifier) {
@@ -1086,7 +1055,7 @@ NS_IMETHODIMP_(PRUint32)
 nsSVGGlyphFrame::GetNumberOfChars()
 {
   if (mWhitespaceHandling == PRESERVE_WHITESPACE)
-    return GetFragment()->GetLength();
+    return mContent->TextLength();
 
   nsAutoString text;
   GetCharacterData(text);
@@ -1125,50 +1094,16 @@ nsSVGGlyphFrame::GetCharNumAtPosition(nsIDOMSVGPoint *point)
   PRInt32 last = -1;
   gfxPoint pt(xPos, yPos);
   while ((i = iter.NextChar()) >= 0) {
-    // iter is the beginning of a cluster (or of the entire run);
-    // look ahead for the next cluster start, then measure the entire cluster
-    PRInt32 limit = i + 1;
-    while (limit < mTextRun->GetLength() && !mTextRun->IsClusterStart(limit)) {
-      ++limit;
-    }
     gfxTextRun::Metrics metrics =
-      mTextRun->MeasureText(i, limit - i, gfxFont::LOOSE_INK_EXTENTS,
-                            nsnull, nsnull);
-
-    // the SVG spec tells us to divide the width of the cluster equally among
-    // its chars, so we'll step through the chars, allocating a share of the
-    // total advance to each
-    PRInt32 current, end, step;
-    if (mTextRun->IsRightToLeft()) {
-      current = limit - 1;
-      end = i - 1;
-      step = -1;
-    } else {
-      current = i;
-      end = limit;
-      step = 1;
-    }
-    gfxFloat leftEdge = 0.0;
-    gfxFloat width = metrics.mAdvanceWidth / (limit - i);
-    while (current != end) {
-      iter.SetupForMetrics(tmpCtx);
-      tmpCtx->NewPath();
-      tmpCtx->Rectangle(gfxRect(leftEdge, -metrics.mAscent,
-                                width, metrics.mAscent + metrics.mDescent));
-      tmpCtx->IdentityMatrix();
-      if (tmpCtx->PointInFill(pt)) {
-        // Can't return yet; if there's glyph overlap, the last character
-        // to be rendered wins, so we still have to check the rest...
-        last = current;
-        break; // ...but we don't need to check more slices of this cluster
-      }
-      current += step;
-      leftEdge += width;
-    }
-
-    // move iter past any trailing chars of the cluster
-    while (++i < limit) {
-      iter.NextChar();
+      mTextRun->MeasureText(i, 1, PR_FALSE, nsnull, nsnull);
+    iter.SetupForMetrics(tmpCtx);
+    tmpCtx->NewPath();
+    tmpCtx->Rectangle(metrics.mBoundingBox);
+    tmpCtx->IdentityMatrix();
+    if (tmpCtx->PointInFill(pt)) {
+      // Can't return now. If there's glyph overlap, the last character
+      // to be rendered wins.
+      last = i;
     }
   }
 
@@ -1186,7 +1121,8 @@ nsSVGGlyphFrame::GetNextGlyphFragment()
 {
   nsIFrame* sibling = mNextSibling;
   while (sibling) {
-    nsISVGGlyphFragmentNode *node = do_QueryFrame(sibling);
+    nsISVGGlyphFragmentNode *node = nsnull;
+    CallQueryInterface(sibling, &node);
     if (node)
       return node->GetFirstGlyphFragment();
     sibling = sibling->GetNextSibling();
@@ -1195,7 +1131,8 @@ nsSVGGlyphFrame::GetNextGlyphFragment()
   // no more siblings. go back up the tree.
   
   NS_ASSERTION(mParent, "null parent");
-  nsISVGGlyphFragmentNode *node = do_QueryFrame(mParent);
+  nsISVGGlyphFragmentNode *node = nsnull;
+  CallQueryInterface(mParent, &node);
   return node ? node->GetNextGlyphFragment() : nsnull;
 }
 
@@ -1228,7 +1165,7 @@ nsSVGGlyphFrame::ContainsPoint(const nsPoint &aPoint)
   PRInt32 i;
   while ((i = iter.NextChar()) >= 0) {
     gfxTextRun::Metrics metrics =
-      mTextRun->MeasureText(i, 1, gfxFont::LOOSE_INK_EXTENTS, nsnull, nsnull);
+      mTextRun->MeasureText(i, 1, PR_FALSE, nsnull, nsnull);
     iter.SetupForMetrics(tmpCtx);
     tmpCtx->Rectangle(metrics.mBoundingBox);
   }
@@ -1328,8 +1265,8 @@ nsSVGGlyphFrame::EnsureTextRun(float *aDrawScale, float *aMetricsScale,
     const nsFont& font = fontData->mFont;
     PRBool printerFont = (presContext->Type() == nsPresContext::eContext_PrintPreview ||
                           presContext->Type() == nsPresContext::eContext_Print);
-    gfxFontStyle fontStyle(font.style, font.weight, font.stretch, textRunSize,
-                           langGroup, font.sizeAdjust, font.systemFont,
+    gfxFontStyle fontStyle(font.style, font.weight, textRunSize, langGroup,
+                           font.sizeAdjust, font.systemFont,
                            font.familyNameQuirks,
                            printerFont);
 

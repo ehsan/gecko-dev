@@ -202,15 +202,24 @@ void GetAutoCompleteBaseQuery(nsACString& aQuery) {
 // not be read later and we don't have an associated kAutoCompleteIndex_
   aQuery = NS_LITERAL_CSTRING(
       "SELECT h.url, h.title, f.url") + BOOK_TAG_SQL + NS_LITERAL_CSTRING(", "
-        "h.visit_count, h.typed "
-      "FROM ("
-        "SELECT * FROM moz_places_temp "
-        "UNION ALL "
-        "SELECT * FROM moz_places "
-        "ORDER BY frecency DESC LIMIT ?2 OFFSET ?3) h "
+        "h.visit_count, h.typed, h.frecency "
+      "FROM moz_places_temp h "
       "LEFT OUTER JOIN moz_favicons f ON f.id = h.favicon_id "
       "WHERE h.frecency <> 0 "
-      "{ADDITIONAL_CONDITIONS}");
+      "{ADDITIONAL_CONDITIONS} "
+      "UNION ALL "
+      "SELECT * FROM ( "
+        "SELECT h.url, h.title, f.url") + BOOK_TAG_SQL + NS_LITERAL_CSTRING(", "
+          "h.visit_count, h.typed, h.frecency "
+        "FROM moz_places h "
+        "LEFT OUTER JOIN moz_favicons f ON f.id = h.favicon_id "
+        "WHERE h.id NOT IN (SELECT id FROM moz_places_temp) "
+        "AND h.frecency <> 0 "
+        "{ADDITIONAL_CONDITIONS} "
+        "ORDER BY h.frecency DESC LIMIT (?2 + ?3) "
+      ") "
+      // ORDER BY h.frecency
+      "ORDER BY 9 DESC LIMIT ?2 OFFSET ?3");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -227,20 +236,20 @@ StartsWithJS(const nsAString &aString)
 
 /**
  * Callback function for putting URLs from a nsDataHashtable<nsStringHashKey,
- * PRBool> into a nsTArray<nsString>.
+ * PRBool> into a nsStringArray.
  *
  * @param aKey
  *        The hashtable entry's key (the url)
  * @param aData
  *        Unused data
  * @param aArg
- *        The nsTArray<nsString> pointer for collecting URLs
+ *        The nsStringArray pointer for collecting URLs
  */
 PLDHashOperator
 HashedURLsToArray(const nsAString &aKey, PRBool aData, void *aArg)
 {
   // Append the current url to the array of urls
-  static_cast<nsTArray<nsString> *>(aArg)->AppendElement(aKey);
+  static_cast<nsStringArray *>(aArg)->AppendString(aKey);
   return PL_DHASH_NEXT;
 }
 
@@ -561,7 +570,7 @@ nsNavHistory::PerformAutoComplete()
   // Only do some extra searches on the first chunk
   if (!mCurrentChunkOffset) {
     // Only show keywords if there's a search
-    if (mCurrentSearchTokens.Length()) {
+    if (mCurrentSearchTokens.Count()) {
       rv = AutoCompleteKeywordSearch();
       NS_ENSURE_SUCCESS(rv, rv);
     }
@@ -694,13 +703,13 @@ nsNavHistory::StartSearch(const nsAString & aSearchString,
   // into bug 412730 because we only specify urls and not titles to look at.
   // Also, only reuse the search if the previous and new search both start with
   // javascript: or both don't. (bug 417798)
-  if (!mAutoCompleteEnabled ||
+  if (mAutoCompleteSearchSources == SEARCH_NONE ||
       (!prevSearchString.IsEmpty() &&
        StringBeginsWith(mCurrentSearchString, prevSearchString) &&
        (StartsWithJS(prevSearchString) == StartsWithJS(mCurrentSearchString)))) {
 
     // Got nothing before? We won't get anything new, so stop now
-    if (!mAutoCompleteEnabled ||
+    if (mAutoCompleteSearchSources == SEARCH_NONE ||
         (mAutoCompleteFinishedSearch && prevMatchCount == 0)) {
       // Set up the result to let the listener know that there's nothing
       mCurrentResult->SetSearchResult(nsIAutoCompleteResult::RESULT_NOMATCH);
@@ -748,12 +757,12 @@ nsNavHistory::StartSearch(const nsAString & aSearchString,
       NS_ENSURE_SUCCESS(rv, rv);
 
       // Collect the previous result's URLs that we want to process
-      nsTArray<nsString> urls;
+      nsStringArray urls;
       (void)mCurrentResultURLs.EnumerateRead(HashedURLsToArray, &urls);
 
       // Bind the parameters right away. We can only use the query once.
       for (PRUint32 i = 0; i < prevMatchCount; i++) {
-        rv = mDBPreviousQuery->BindStringParameter(i + 1, urls[i]);
+        rv = mDBPreviousQuery->BindStringParameter(i + 1, *urls[i]);
         NS_ENSURE_SUCCESS(rv, rv);
       }
 
@@ -853,7 +862,7 @@ nsNavHistory::AddSearchToken(nsAutoString &aToken)
 {
   aToken.Trim("\r\n\t\b");
   if (!aToken.IsEmpty())
-    mCurrentSearchTokens.AppendElement(aToken);
+    mCurrentSearchTokens.AppendString(aToken);
 }
 
 void
@@ -862,29 +871,36 @@ nsNavHistory::ProcessTokensForSpecialSearch()
   // Start with the default behavior
   mAutoCompleteCurrentBehavior = mAutoCompleteDefaultBehavior;
 
-  // Determine which special searches to apply
-  for (PRInt32 i = PRInt32(mCurrentSearchTokens.Length()); --i >= 0;) {
-    PRBool needToRemove = PR_TRUE;
-    const nsString& token = mCurrentSearchTokens[i];
+  // If we're searching only one of history or bookmark, we can use filters
+  if (mAutoCompleteSearchSources == SEARCH_HISTORY)
+    SET_BEHAVIOR(History);
+  else if (mAutoCompleteSearchSources == SEARCH_BOOKMARK)
+    SET_BEHAVIOR(Bookmark);
+  // SEARCH_BOTH doesn't require any filtering
 
-    if (token.Equals(mAutoCompleteRestrictHistory))
+  // Determine which special searches to apply
+  for (PRInt32 i = mCurrentSearchTokens.Count(); --i >= 0; ) {
+    PRBool needToRemove = PR_TRUE;
+    const nsString *token = mCurrentSearchTokens.StringAt(i);
+
+    if (token->Equals(mAutoCompleteRestrictHistory))
       SET_BEHAVIOR(History);
-    else if (token.Equals(mAutoCompleteRestrictBookmark))
+    else if (token->Equals(mAutoCompleteRestrictBookmark))
       SET_BEHAVIOR(Bookmark);
-    else if (token.Equals(mAutoCompleteRestrictTag))
+    else if (token->Equals(mAutoCompleteRestrictTag))
       SET_BEHAVIOR(Tag);
-    else if (token.Equals(mAutoCompleteMatchTitle))
+    else if (token->Equals(mAutoCompleteMatchTitle))
       SET_BEHAVIOR(Title);
-    else if (token.Equals(mAutoCompleteMatchUrl))
+    else if (token->Equals(mAutoCompleteMatchUrl))
       SET_BEHAVIOR(Url);
-    else if (token.Equals(mAutoCompleteRestrictTyped))
+    else if (token->Equals(mAutoCompleteRestrictTyped))
       SET_BEHAVIOR(Typed);
     else
       needToRemove = PR_FALSE;
 
     // Remove the token if it's special search token
     if (needToRemove)
-      mCurrentSearchTokens.RemoveElementAt(i);
+      (void)mCurrentSearchTokens.RemoveStringAt(i);
   }
 
   // Search only typed pages in history for empty searches
@@ -1103,13 +1119,13 @@ nsNavHistory::AutoCompleteProcessSearch(mozIStorageStatement* aQuery,
 
           // Determine if every token matches either the bookmark title, tags,
           // page title, or page url
-          for (PRUint32 i = 0; i < mCurrentSearchTokens.Length() && matchAll; i++) {
-            const nsString& token = mCurrentSearchTokens[i];
+          for (PRInt32 i = 0; i < mCurrentSearchTokens.Count() && matchAll; i++) {
+            const nsString *token = mCurrentSearchTokens.StringAt(i);
 
             // Check if the tags match the search term
-            PRBool matchTags = (*tokenMatchesTarget)(token, entryTags);
+            PRBool matchTags = (*tokenMatchesTarget)(*token, entryTags);
             // Check if the title matches the search term
-            PRBool matchTitle = (*tokenMatchesTarget)(token, title);
+            PRBool matchTitle = (*tokenMatchesTarget)(*token, title);
 
             // Make sure we match something in the title or tags if we have to
             matchAll = matchTags || matchTitle;
@@ -1117,7 +1133,7 @@ nsNavHistory::AutoCompleteProcessSearch(mozIStorageStatement* aQuery,
               break;
 
             // Check if the url matches the search term
-            PRBool matchUrl = (*tokenMatchesTarget)(token, entryURL);
+            PRBool matchUrl = (*tokenMatchesTarget)(*token, entryURL);
             // If we don't match the url when we have to, reset matchAll to
             // false; otherwise keep track that we did match the current search
             if (GET_BEHAVIOR(Url) && !matchUrl)

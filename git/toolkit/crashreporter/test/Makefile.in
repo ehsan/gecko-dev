@@ -106,8 +106,6 @@ LIBS += \
 endif
 
 ifndef MOZ_ENABLE_LIBXUL
-# XXX TestCrashReporterAPI gives random failures on exit for unexplained reason
-# therefore it is disabled. See Bug 474688.
-#check:: $(PROGRAM)
-#	$(RUN_TEST_PROGRAM) $(DIST)/bin/TestCrashReporterAPI
+check:: $(PROGRAM)
+	$(RUN_TEST_PROGRAM) $(DIST)/bin/TestCrashReporterAPI
 endif

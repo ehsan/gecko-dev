@@ -28,7 +28,6 @@
  *   Ginn Chen <ginn.chen@sun.com>
  *   Simon Bünzli <zeniko@gmail.com>
  *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
- *   Ningjie Chen <chenn@email.uc.edu>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -48,7 +47,7 @@
 #include "nsEventStateManager.h"
 #include "nsEventListenerManager.h"
 #include "nsIMEStateManager.h"
-#include "nsContentEventHandler.h"
+#include "nsQueryContentEventHandler.h"
 #include "nsIContent.h"
 #include "nsINodeInfo.h"
 #include "nsIDocument.h"
@@ -260,42 +259,6 @@ PrintDocTreeAll(nsIDocShellTreeItem* aItem)
 }
 #endif
 
-static nsIDocument*
-EventHandlingSuppressed(nsPIDOMEventTarget* aTarget)
-{
-  nsCOMPtr<nsINode> node = do_QueryInterface(aTarget);
-  nsCOMPtr<nsIDocument> doc;
-  if (node) {
-    doc = node->GetOwnerDoc();
-  } else {
-    nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aTarget);
-    if (window) {
-      doc = do_QueryInterface(window->GetExtantDocument());
-    }
-  }
-
-  return (doc && doc->EventHandlingSuppressed()) ? doc.get() : nsnull;
-}
-
-static void
-FireFocusOrBlurEvent(nsPIDOMEventTarget* aTarget, nsEvent* aEvent, nsPresContext* aContext)
-{
-  NS_ASSERTION(aEvent->message == NS_BLUR_CONTENT ||
-               aEvent->message == NS_FOCUS_CONTENT,
-               "Wrong event!");
-  nsIDocument* doc = EventHandlingSuppressed(aTarget);
-  if (doc) {
-    if (aContext) {
-      nsIPresShell* shell = aContext->GetPresShell();
-      if (shell) {
-        shell->NeedsFocusOrBlurAfterSuppression(aTarget, aEvent->message);
-      }
-    }
-  } else if (aTarget) {
-    nsEventDispatcher::Dispatch(aTarget, aContext, aEvent);
-  }
-}
-
 class nsUITimerCallback : public nsITimerCallback
 {
 public:
@@ -411,90 +374,47 @@ class nsMouseWheelTransaction {
 public:
   static nsIFrame* GetTargetFrame() { return sTargetFrame; }
   static void BeginTransaction(nsIFrame* aTargetFrame,
-                               PRInt32 aNumLines,
-                               PRBool aScrollHorizontal);
-  // Be careful, UpdateTransaction may fire a DOM event, therefore, the target
-  // frame might be destroyed in the event handler.
-  static PRBool UpdateTransaction(PRInt32 aNumLines,
-                                  PRBool aScrollHorizontal);
+                               nsGUIEvent* aEvent);
+  static void UpdateTransaction();
   static void EndTransaction();
   static void OnEvent(nsEvent* aEvent);
-  static void Shutdown();
 protected:
-  static nsIntPoint GetScreenPoint(nsGUIEvent* aEvent);
-  static void OnFailToScrollTarget();
-  static void OnTimeout(nsITimer *aTimer, void *aClosure);
-  static void SetTimeout();
+  static nsPoint GetScreenPoint(nsGUIEvent* aEvent);
   static PRUint32 GetTimeoutTime();
   static PRUint32 GetIgnoreMoveDelayTime();
 
   static nsWeakFrame sTargetFrame;
   static PRUint32    sTime;        // in milliseconds
   static PRUint32    sMouseMoved;  // in milliseconds
-  static nsITimer*   sTimer;
 };
 
 nsWeakFrame nsMouseWheelTransaction::sTargetFrame(nsnull);
 PRUint32    nsMouseWheelTransaction::sTime        = 0;
 PRUint32    nsMouseWheelTransaction::sMouseMoved  = 0;
-nsITimer*   nsMouseWheelTransaction::sTimer       = nsnull;
-
-static PRBool
-CanScrollOn(nsIScrollableView* aScrollView, PRInt32 aNumLines,
-            PRBool aScrollHorizontal)
-{
-  NS_PRECONDITION(aScrollView, "aScrollView is null");
-  NS_PRECONDITION(aNumLines, "aNumLines must be non-zero");
-  PRBool canScroll;
-  nsresult rv =
-    aScrollView->CanScroll(aScrollHorizontal, aNumLines > 0, canScroll);
-  return NS_SUCCEEDED(rv) && canScroll;
-}
 
 void
 nsMouseWheelTransaction::BeginTransaction(nsIFrame* aTargetFrame,
-                                          PRInt32 aNumLines,
-                                          PRBool aScrollHorizontal)
+                                          nsGUIEvent* aEvent)
 {
   NS_ASSERTION(!sTargetFrame, "previous transaction is not finished!");
   sTargetFrame = aTargetFrame;
-  if (!UpdateTransaction(aNumLines, aScrollHorizontal)) {
-    NS_ERROR("BeginTransaction is called even cannot scroll the frame");
-    EndTransaction();
-  }
+  UpdateTransaction();
 }
 
-PRBool
-nsMouseWheelTransaction::UpdateTransaction(PRInt32 aNumLines,
-                                           PRBool aScrollHorizontal)
+void
+nsMouseWheelTransaction::UpdateTransaction()
 {
-  nsIScrollableViewProvider* svp = do_QueryFrame(GetTargetFrame());
-  NS_ENSURE_TRUE(svp, PR_FALSE);
-  nsIScrollableView *scrollView = svp->GetScrollableView();
-  NS_ENSURE_TRUE(scrollView, PR_FALSE);
-
-  if (!CanScrollOn(scrollView, aNumLines, aScrollHorizontal)) {
-    OnFailToScrollTarget();
-    // We should not modify the transaction state when the view will not be
-    // scrolled actually.
-    return PR_FALSE;
-  }
-
-  SetTimeout();
   // We should use current time instead of nsEvent.time.
   // 1. Some events doesn't have the correct creation time.
   // 2. If the computer runs slowly by other processes eating the CPU resource,
   //    the event creation time doesn't keep real time.
   sTime = PR_IntervalToMilliseconds(PR_IntervalNow());
   sMouseMoved = 0;
-  return PR_TRUE;
 }
 
 void
 nsMouseWheelTransaction::EndTransaction()
 {
-  if (sTimer)
-    sTimer->Cancel();
   sTargetFrame = nsnull;
 }
 
@@ -512,11 +432,8 @@ nsMouseWheelTransaction::OnEvent(nsEvent* aEvent)
     return;
 
   if (OutOfTime(sTime, GetTimeoutTime())) {
-    // Even if the scroll event which is handled after timeout, but onTimeout
-    // was not fired by timer, then the scroll event will scroll old frame,
-    // therefore, we should call OnTimeout here and ensure to finish the old
-    // transaction.
-    OnTimeout(nsnull, nsnull);
+    // Time out the current transaction.
+    EndTransaction();
     return;
   }
 
@@ -534,7 +451,7 @@ nsMouseWheelTransaction::OnEvent(nsEvent* aEvent)
       if (((nsMouseEvent*)aEvent)->reason == nsMouseEvent::eReal) {
         // If the cursor is moving to be outside the frame,
         // terminate the scrollwheel transaction.
-        nsIntPoint pt = GetScreenPoint((nsGUIEvent*)aEvent);
+        nsPoint pt = GetScreenPoint((nsGUIEvent*)aEvent);
         nsIntRect r = sTargetFrame->GetScreenRectExternal();
         if (!r.Contains(pt)) {
           EndTransaction();
@@ -565,71 +482,15 @@ nsMouseWheelTransaction::OnEvent(nsEvent* aEvent)
   }
 }
 
-void
-nsMouseWheelTransaction::Shutdown()
-{
-  NS_IF_RELEASE(sTimer);
-}
-
-void
-nsMouseWheelTransaction::OnFailToScrollTarget()
-{
-  NS_PRECONDITION(sTargetFrame, "We don't have mouse scrolling transaction");
-  // This event is used for automated tests, see bug 442774.
-  nsContentUtils::DispatchTrustedEvent(
-                    sTargetFrame->GetContent()->GetOwnerDoc(),
-                    sTargetFrame->GetContent(),
-                    NS_LITERAL_STRING("MozMouseScrollFailed"),
-                    PR_TRUE, PR_TRUE);
-  // The target frame might be destroyed in the event handler, at that time,
-  // we need to finish the current transaction
-  if (!sTargetFrame)
-    EndTransaction();
-}
-
-void
-nsMouseWheelTransaction::OnTimeout(nsITimer* aTimer, void* aClosure)
-{
-  if (!sTargetFrame) {
-    // The transaction target was destroyed already
-    EndTransaction();
-    return;
-  }
-  // Store the sTargetFrame, the variable becomes null in EndTransaction.
-  nsIFrame* frame = sTargetFrame;
-  // We need to finish current transaction before DOM event firing. Because
-  // the next DOM event might create strange situation for us.
-  EndTransaction();
-  // This event is used for automated tests, see bug 442774.
-  nsContentUtils::DispatchTrustedEvent(
-                    frame->GetContent()->GetOwnerDoc(),
-                    frame->GetContent(),
-                    NS_LITERAL_STRING("MozMouseScrollTransactionTimeout"),
-                    PR_TRUE, PR_TRUE);
-}
-
-void
-nsMouseWheelTransaction::SetTimeout()
-{
-  if (!sTimer) {
-    nsCOMPtr<nsITimer> timer = do_CreateInstance(NS_TIMER_CONTRACTID);
-    if (!timer)
-      return;
-    timer.swap(sTimer);
-  }
-  sTimer->Cancel();
-  nsresult rv =
-    sTimer->InitWithFuncCallback(OnTimeout, nsnull, GetTimeoutTime(),
-                                 nsITimer::TYPE_ONE_SHOT);
-  NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "nsITimer::InitWithFuncCallback failed");
-}
-
-nsIntPoint
+nsPoint
 nsMouseWheelTransaction::GetScreenPoint(nsGUIEvent* aEvent)
 {
   NS_ASSERTION(aEvent, "aEvent is null");
   NS_ASSERTION(aEvent->widget, "aEvent-widget is null");
-  return aEvent->refPoint + aEvent->widget->WidgetToScreenOffset();
+  nsRect tmpRect;
+  aEvent->widget->WidgetToScreen(nsRect(aEvent->refPoint, nsSize(1, 1)),
+                                 tmpRect);
+  return tmpRect.TopLeft();
 }
 
 PRUint32
@@ -759,7 +620,6 @@ nsEventStateManager::~nsEventStateManager()
 
   --sESMInstanceCount;
   if(sESMInstanceCount == 0) {
-    nsMouseWheelTransaction::Shutdown();
     NS_IF_RELEASE(gLastFocusedContent);
     NS_IF_RELEASE(gLastFocusedDocument);
     if (gUserInteractionTimerCallback) {
@@ -1099,8 +959,6 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
         break;
 
       if (mDocument) {
-        nsIMEStateManager::OnTextStateBlur(mPresContext, mCurrentFocus);
-
         if (gLastFocusedDocument && gLastFocusedPresContextWeak) {
           nsCOMPtr<nsPIDOMWindow> ourWindow =
             gLastFocusedDocument->GetWindow();
@@ -1128,11 +986,14 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
           if (!isAlreadySuppressed) {
 
             // Fire the blur event on the previously focused document.
-            nsEvent blurEvent(PR_TRUE, NS_BLUR_CONTENT);
-            blurEvent.flags |= NS_EVENT_FLAG_CANT_BUBBLE;
 
-            FireFocusOrBlurEvent(gLastFocusedDocument, &blurEvent,
-                                 gLastFocusedPresContextWeak);
+            nsEventStatus blurstatus = nsEventStatus_eIgnore;
+            nsEvent blurevent(PR_TRUE, NS_BLUR_CONTENT);
+            blurevent.flags |= NS_EVENT_FLAG_CANT_BUBBLE;
+
+            nsEventDispatcher::Dispatch(gLastFocusedDocument,
+                                        gLastFocusedPresContextWeak,
+                                        &blurevent, nsnull, &blurstatus);
 
             nsCOMPtr<nsIEventStateManager> esm;
             if (!mCurrentFocus && gLastFocusedContent) {
@@ -1153,15 +1014,16 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
                 }
               }
               nsCOMPtr<nsIContent> blurContent = gLastFocusedContent;
-              blurEvent.target = nsnull;
-              FireFocusOrBlurEvent(gLastFocusedContent, &blurEvent,
-                                   gLastFocusedPresContextWeak);
+              blurevent.target = nsnull;
+              nsEventDispatcher::Dispatch(gLastFocusedContent,
+                                          gLastFocusedPresContextWeak,
+                                          &blurevent, nsnull, &blurstatus);
             }
             if (ourWindow) {
               // Clear the target so that Dispatch can set it back correctly.
-              blurEvent.target = nsnull;
-              nsCOMPtr<nsPIDOMEventTarget> win = do_QueryInterface(ourWindow);
-              FireFocusOrBlurEvent(win, &blurEvent, gLastFocusedPresContextWeak);
+              blurevent.target = nsnull;
+              nsEventDispatcher::Dispatch(ourWindow, gLastFocusedPresContextWeak,
+                                          &blurevent, nsnull, &blurstatus);
             }
 
             if (esm) {
@@ -1190,29 +1052,30 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
 
           nsIMEStateManager::OnChangeFocus(mPresContext, currentFocus);
 
-          nsEvent focusEvent(PR_TRUE, NS_FOCUS_CONTENT);
-          focusEvent.flags |= NS_EVENT_FLAG_CANT_BUBBLE;
+          nsEventStatus status = nsEventStatus_eIgnore;
+          nsEvent focusevent(PR_TRUE, NS_FOCUS_CONTENT);
+          focusevent.flags |= NS_EVENT_FLAG_CANT_BUBBLE;
 
           if (gLastFocusedDocument != mDocument) {
-            FireFocusOrBlurEvent(mDocument, &focusEvent, aPresContext);
+            nsEventDispatcher::Dispatch(mDocument, aPresContext,
+                                        &focusevent, nsnull, &status);
             if (currentFocus && currentFocus != gLastFocusedContent) {
               // Clear the target so that Dispatch can set it back correctly.
-              focusEvent.target = nsnull;
-              FireFocusOrBlurEvent(currentFocus, &focusEvent, aPresContext);
+              focusevent.target = nsnull;
+              nsEventDispatcher::Dispatch(currentFocus, aPresContext,
+                                          &focusevent, nsnull, &status);
             }
           }
 
           // Clear the target so that Dispatch can set it back correctly.
-          focusEvent.target = nsnull;
-          nsCOMPtr<nsPIDOMEventTarget> win = do_QueryInterface(window);
-          FireFocusOrBlurEvent(win, &focusEvent, aPresContext);
+          focusevent.target = nsnull;
+          nsEventDispatcher::Dispatch(window, aPresContext, &focusevent,
+                                      nsnull, &status);
 
           SetFocusedContent(currentFocus); // we kept this reference above
           NS_IF_RELEASE(gLastFocusedContent);
           gLastFocusedContent = mCurrentFocus;
           NS_IF_ADDREF(gLastFocusedContent);
-
-          nsIMEStateManager::OnTextStateFocus(mPresContext, mCurrentFocus);
         }
 
         // Try to keep the focus controllers and the globals in synch
@@ -1284,12 +1147,12 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
           NS_RELEASE(gLastFocusedContent);
         }
 
-        nsIMEStateManager::OnTextStateBlur(nsnull, nsnull);
-
         // Now fire blurs.  We fire a blur on the focused document, element,
         // and window.
-        nsEvent blurEvent(PR_TRUE, NS_BLUR_CONTENT);
-        blurEvent.flags |= NS_EVENT_FLAG_CANT_BUBBLE;
+
+        nsEventStatus status = nsEventStatus_eIgnore;
+        nsEvent event(PR_TRUE, NS_BLUR_CONTENT);
+        event.flags |= NS_EVENT_FLAG_CANT_BUBBLE;
 
         if (gLastFocusedDocument && gLastFocusedPresContextWeak) {
           if (gLastFocusedContent) {
@@ -1305,7 +1168,8 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
                 nsCOMPtr<nsIEventStateManager> esm =
                   oldPresContext->EventStateManager();
                 esm->SetFocusedContent(gLastFocusedContent);
-                FireFocusOrBlurEvent(gLastFocusedContent, &blurEvent, oldPresContext);
+                nsEventDispatcher::Dispatch(gLastFocusedContent, oldPresContext,
+                                            &event, nsnull, &status);
                 esm->SetFocusedContent(nsnull);
                 NS_IF_RELEASE(gLastFocusedContent);
               }
@@ -1327,13 +1191,15 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
 
             nsCOMPtr<nsPIDOMWindow> window(lastFocusedDocument->GetWindow());
 
-            blurEvent.target = nsnull;
-            FireFocusOrBlurEvent(lastFocusedDocument, &blurEvent, lastFocusedPresContext);
+            event.target = nsnull;
+            nsEventDispatcher::Dispatch(lastFocusedDocument,
+                                        lastFocusedPresContext,
+                                        &event, nsnull, &status);
 
             if (window) {
-              blurEvent.target = nsnull;
-              nsCOMPtr<nsPIDOMEventTarget> win = do_QueryInterface(window);
-              FireFocusOrBlurEvent(win, &blurEvent ,lastFocusedPresContext);
+              event.target = nsnull;
+              nsEventDispatcher::Dispatch(window, lastFocusedPresContext,
+                                          &event, nsnull, &status);
             }
           }
         }
@@ -1454,8 +1320,6 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
       if (focusController)
         focusController->SetSuppressFocus(PR_TRUE, "Deactivate Suppression");
 
-      nsIMEStateManager::OnTextStateBlur(nsnull, nsnull);
-
       // Now fire blurs.  Blur the content, then the document, then the window.
 
       if (gLastFocusedDocument && gLastFocusedDocument == mDocument &&
@@ -1466,9 +1330,10 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
           mFirstDocumentBlurEvent = gLastFocusedDocument;
           clearFirstDocumentBlurEvent = PR_TRUE;
         }
-
-        nsEvent blurEvent(PR_TRUE, NS_BLUR_CONTENT);
-        blurEvent.flags |= NS_EVENT_FLAG_CANT_BUBBLE;
+          
+        nsEventStatus status = nsEventStatus_eIgnore;
+        nsEvent event(PR_TRUE, NS_BLUR_CONTENT);
+        event.flags |= NS_EVENT_FLAG_CANT_BUBBLE;
 
         if (gLastFocusedContent) {
           nsIPresShell *shell = gLastFocusedDocument->GetPrimaryShell();
@@ -1486,7 +1351,8 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
             nsCOMPtr<nsIContent> focusedContent = do_QueryInterface(focusedElement);
             if (focusedContent) {
               // Blur the element.
-              FireFocusOrBlurEvent(focusedContent, &blurEvent, oldPresContext);
+              nsEventDispatcher::Dispatch(focusedContent, oldPresContext,
+                                          &event, nsnull, &status);
             }
 
             esm->SetFocusedContent(nsnull);
@@ -1501,13 +1367,14 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
         gLastFocusedPresContextWeak = nsnull;
 
         // fire blur on document and window
-        blurEvent.target = nsnull;
-        FireFocusOrBlurEvent(mDocument, &blurEvent, aPresContext);
+        event.target = nsnull;
+        nsEventDispatcher::Dispatch(mDocument, aPresContext, &event, nsnull,
+                                    &status);
 
         if (ourWindow) {
-          blurEvent.target = nsnull;
-          nsCOMPtr<nsPIDOMEventTarget> win = do_QueryInterface(ourWindow);
-          FireFocusOrBlurEvent(win, &blurEvent, aPresContext);
+          event.target = nsnull;
+          nsEventDispatcher::Dispatch(ourWindow, aPresContext, &event, nsnull,
+                                      &status);
         }
         if (clearFirstDocumentBlurEvent) {
           mFirstDocumentBlurEvent = nsnull;
@@ -1627,38 +1494,26 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
     break;
   case NS_QUERY_SELECTED_TEXT:
     {
-      nsContentEventHandler handler(mPresContext);
+      nsQueryContentEventHandler handler(mPresContext);
       handler.OnQuerySelectedText((nsQueryContentEvent*)aEvent);
     }
     break;
   case NS_QUERY_TEXT_CONTENT:
     {
-      nsContentEventHandler handler(mPresContext);
+      nsQueryContentEventHandler handler(mPresContext);
       handler.OnQueryTextContent((nsQueryContentEvent*)aEvent);
+    }
+    break;
+  case NS_QUERY_CHARACTER_RECT:
+    {
+      nsQueryContentEventHandler handler(mPresContext);
+      handler.OnQueryCharacterRect((nsQueryContentEvent*)aEvent);
     }
     break;
   case NS_QUERY_CARET_RECT:
     {
-      nsContentEventHandler handler(mPresContext);
+      nsQueryContentEventHandler handler(mPresContext);
       handler.OnQueryCaretRect((nsQueryContentEvent*)aEvent);
-    }
-    break;
-  case NS_QUERY_TEXT_RECT:
-    {
-      nsContentEventHandler handler(mPresContext);
-      handler.OnQueryTextRect((nsQueryContentEvent*)aEvent);
-    }
-    break;
-  case NS_QUERY_EDITOR_RECT:
-    {
-      nsContentEventHandler handler(mPresContext);
-      handler.OnQueryEditorRect((nsQueryContentEvent*)aEvent);
-    }
-    break;
-  case NS_SELECTION_SET:
-    {
-      nsContentEventHandler handler(mPresContext);
-      handler.OnSelectionEvent((nsSelectionEvent*)aEvent);
     }
     break;
   }
@@ -2105,8 +1960,10 @@ nsEventStateManager::BeginTrackingDragGesture(nsPresContext* aPresContext,
 {
   // Note that |inDownEvent| could be either a mouse down event or a
   // synthesized mouse move event.
-  mGestureDownPoint = inDownEvent->refPoint + 
-    inDownEvent->widget->WidgetToScreenOffset();
+  nsRect screenPt;
+  inDownEvent->widget->WidgetToScreen(nsRect(inDownEvent->refPoint, nsSize(1, 1)),
+                                      screenPt);
+  mGestureDownPoint = screenPt.TopLeft();
 
   inDownFrame->GetContentForEvent(aPresContext, inDownEvent,
                                   getter_AddRefs(mGestureDownContent));
@@ -2147,8 +2004,9 @@ nsEventStateManager::FillInEventFromGestureDown(nsMouseEvent* aEvent)
   // Set the coordinates in the new event to the coordinates of
   // the old event, adjusted for the fact that the widget might be
   // different
-  nsIntPoint tmpPoint = aEvent->widget->WidgetToScreenOffset();
-  aEvent->refPoint = mGestureDownPoint - tmpPoint;
+  nsRect tmpRect(0, 0, 1, 1);
+  aEvent->widget->WidgetToScreen(tmpRect, tmpRect);
+  aEvent->refPoint = mGestureDownPoint - tmpRect.TopLeft();
   aEvent->isShift = mGestureDownShift;
   aEvent->isControl = mGestureDownControl;
   aEvent->isAlt = mGestureDownAlt;
@@ -2207,7 +2065,10 @@ nsEventStateManager::GenerateDragGesture(nsPresContext* aPresContext,
     }
 
     // fire drag gesture if mouse has moved enough
-    nsIntPoint pt = aEvent->refPoint + aEvent->widget->WidgetToScreenOffset();
+    nsRect tmpRect;
+    aEvent->widget->WidgetToScreen(nsRect(aEvent->refPoint, nsSize(1, 1)),
+                                   tmpRect);
+    nsPoint pt = tmpRect.TopLeft();
     if (PR_ABS(pt.x - mGestureDownPoint.x) > pixelThresholdX ||
         PR_ABS(pt.y - mGestureDownPoint.y) > pixelThresholdY) {
 #ifdef CLICK_HOLD_CONTEXT_MENUS
@@ -2518,7 +2379,8 @@ nsEventStateManager::DoDefaultDragStart(nsPresContext* aPresContext,
           if (presShell) {
             nsIFrame* frame = presShell->GetPrimaryFrameFor(content);
             if (frame) {
-              nsTreeBodyFrame* treeBody = do_QueryFrame(frame);
+              nsTreeBodyFrame* treeBody;
+              CallQueryInterface(frame, &treeBody);
               treeBody->GetSelectionRegion(getter_AddRefs(region));
             }
           }
@@ -2673,7 +2535,8 @@ static nsIScrollableView*
 GetScrollableViewForFrame(nsPresContext* aPresContext, nsIFrame* aFrame)
 {
   for (; aFrame; aFrame = GetParentFrameToScroll(aPresContext, aFrame)) {
-    nsIScrollableViewProvider* svp = do_QueryFrame(aFrame);
+    nsIScrollableViewProvider* svp;
+    CallQueryInterface(aFrame, &svp);
     if (svp) {
       nsIScrollableView* scrollView = svp->GetScrollableView();
       if (scrollView)
@@ -2749,15 +2612,11 @@ nsEventStateManager::DoScrollText(nsPresContext* aPresContext,
   // operation, even if the mouse hasn't moved.
   nsIFrame* lastScrollFrame = nsMouseWheelTransaction::GetTargetFrame();
   if (lastScrollFrame) {
-    nsIScrollableViewProvider* svp = do_QueryFrame(lastScrollFrame);
-    if (svp && (scrollView = svp->GetScrollableView())) {
-      nsMouseWheelTransaction::UpdateTransaction(aNumLines, aScrollHorizontal);
-      // When the scroll event will not scroll any views, UpdateTransaction
-      // fired MozMouseScrollFailed event which is for automated testing.
-      // In the event handler, the target frame might be destroyed.  Then,
-      // we should not keep handling this scroll event.
-      if (!nsMouseWheelTransaction::GetTargetFrame())
-        return NS_OK;
+    nsIScrollableViewProvider* svp;
+    CallQueryInterface(lastScrollFrame, &svp);
+    if (svp) {
+      scrollView = svp->GetScrollableView();
+      nsMouseWheelTransaction::UpdateTransaction();
     } else {
       nsMouseWheelTransaction::EndTransaction();
       lastScrollFrame = nsnull;
@@ -2769,7 +2628,8 @@ nsEventStateManager::DoScrollText(nsPresContext* aPresContext,
        scrollFrame = GetParentFrameToScroll(aPresContext, scrollFrame)) {
     // Check whether the frame wants to provide us with a scrollable view.
     scrollView = nsnull;
-    nsIScrollableViewProvider* svp = do_QueryFrame(scrollFrame);
+    nsIScrollableViewProvider* svp;
+    CallQueryInterface(scrollFrame, &svp);
     if (svp) {
       scrollView = svp->GetScrollableView();
     }
@@ -2789,14 +2649,17 @@ nsEventStateManager::DoScrollText(nsPresContext* aPresContext,
     scrollView->GetLineHeight(&lineHeight);
 
     if (lineHeight != 0) {
-      if (CanScrollOn(scrollView, aNumLines, aScrollHorizontal)) {
+      PRBool canScroll;
+      nsresult rv = scrollView->CanScroll(aScrollHorizontal,
+                                          (aNumLines > 0), canScroll);
+      if (NS_SUCCEEDED(rv) && canScroll) {
         passToParent = PR_FALSE;
-        nsMouseWheelTransaction::BeginTransaction(scrollFrame,
-                                                  aNumLines, aScrollHorizontal);
+        nsMouseWheelTransaction::BeginTransaction(scrollFrame, aEvent);
       }
 
       // Comboboxes need special care.
-      nsIComboboxControlFrame* comboBox = do_QueryFrame(scrollFrame);
+      nsIComboboxControlFrame* comboBox = nsnull;
+      CallQueryInterface(scrollFrame, &comboBox);
       if (comboBox) {
         if (comboBox->IsDroppedDown()) {
           // Don't propagate to parent when drop down menu is active.
@@ -2817,28 +2680,6 @@ nsEventStateManager::DoScrollText(nsPresContext* aPresContext,
   }
 
   if (!passToParent && scrollView) {
-    if (aScrollQuantity == eScrollByLine) {
-      // Limit scrolling to be at most one page, but if possible, try to
-      // just adjust the number of scrolled lines.
-      nscoord lineHeight = 0;
-      scrollView->GetLineHeight(&lineHeight);
-      if (lineHeight) {
-        nsSize pageScrollDistances(0, 0);
-        scrollView->GetPageScrollDistances(&pageScrollDistances);
-        nscoord pageScroll = aScrollHorizontal ?
-          pageScrollDistances.width : pageScrollDistances.height;
-
-        if (PR_ABS(aNumLines) * lineHeight > pageScroll) {
-          nscoord maxLines = (pageScroll / lineHeight);
-          if (maxLines >= 1) {
-            aNumLines = ((aNumLines < 0) ? -1 : 1) * maxLines;
-          } else {
-            aScrollQuantity = eScrollByPage;
-          }
-        }
-      }
-    }
-
     PRInt32 scrollX = 0;
     PRInt32 scrollY = aNumLines;
 
@@ -3477,6 +3318,22 @@ nsEventStateManager::UpdateCursor(nsPresContext* aPresContext,
       hotspotY = framecursor.mHotspotY;
   }
 
+  // Check whether or not to show the busy cursor
+  nsCOMPtr<nsISupports> pcContainer = aPresContext->GetContainer();
+  nsCOMPtr<nsIDocShell> docShell(do_QueryInterface(pcContainer));
+  if (!docShell) return;
+  PRUint32 busyFlags = nsIDocShell::BUSY_FLAGS_NONE;
+  docShell->GetBusyFlags(&busyFlags);
+
+  // Show busy cursor everywhere before page loads
+  // and just replace the arrow cursor after page starts loading
+  if (busyFlags & nsIDocShell::BUSY_FLAGS_BUSY &&
+        (cursor == NS_STYLE_CURSOR_AUTO || cursor == NS_STYLE_CURSOR_DEFAULT))
+  {
+    cursor = NS_STYLE_CURSOR_SPINNING;
+    container = nsnull;
+  }
+
   if (aTargetFrame) {
     SetCursor(cursor, container, haveHotspot, hotspotX, hotspotY,
               aTargetFrame->GetWindow(), PR_FALSE);
@@ -3736,7 +3593,8 @@ nsEventStateManager::NotifyMouseOut(nsGUIEvent* aEvent, nsIContent* aMovingInto)
   if (mLastMouseOverFrame) {
     // if the frame is associated with a subdocument,
     // tell the subdocument that we're moving out of it
-    nsIFrameFrame* subdocFrame = do_QueryFrame(mLastMouseOverFrame.GetFrame());
+    nsIFrameFrame* subdocFrame;
+    CallQueryInterface(mLastMouseOverFrame.GetFrame(), &subdocFrame);
     if (subdocFrame) {
       nsCOMPtr<nsIDocShell> docshell;
       subdocFrame->GetDocShell(getter_AddRefs(docshell));
@@ -4349,7 +4207,7 @@ nsEventStateManager::ShiftFocusInternal(PRBool aForward, nsIContent* aStart)
     if (doc) {
       nsIDocument *sub_doc = doc->GetSubDocumentFor(nextFocus);
 
-      if (sub_doc && !sub_doc->EventHandlingSuppressed()) {
+      if (sub_doc) {
         nsCOMPtr<nsISupports> container = sub_doc->GetContainer();
         sub_shell = do_QueryInterface(container);
       }
@@ -5179,8 +5037,6 @@ nsEventStateManager::SendFocusBlur(nsPresContext* aPresContext,
   // Track the old focus controller if any focus suppressions is used on it.
   nsFocusSuppressor oldFocusSuppressor;
   
-  nsIMEStateManager::OnTextStateBlur(aPresContext, aContent);
-
   if (nsnull != gLastFocusedPresContextWeak) {
 
     nsCOMPtr<nsIContent> focusAfterBlur;
@@ -5211,8 +5067,9 @@ nsEventStateManager::SendFocusBlur(nsPresContext* aPresContext,
           nsCOMPtr<nsPresContext> oldPresContext = shell->GetPresContext();
 
           //fire blur
-          nsEvent blurEvent(PR_TRUE, NS_BLUR_CONTENT);
-          blurEvent.flags |= NS_EVENT_FLAG_CANT_BUBBLE;
+          nsEventStatus status = nsEventStatus_eIgnore;
+          nsEvent event(PR_TRUE, NS_BLUR_CONTENT);
+          event.flags |= NS_EVENT_FLAG_CANT_BUBBLE;
 
           EnsureDocument(presShell);
 
@@ -5243,7 +5100,8 @@ nsEventStateManager::SendFocusBlur(nsPresContext* aPresContext,
 
           nsCxPusher pusher;
           if (pusher.Push(temp)) {
-            FireFocusOrBlurEvent(temp, &blurEvent, oldPresContext);
+            nsEventDispatcher::Dispatch(temp, oldPresContext, &event, nsnull,
+                                        &status);
             pusher.Pop();
           }
 
@@ -5275,8 +5133,9 @@ nsEventStateManager::SendFocusBlur(nsPresContext* aPresContext,
 
     if (gLastFocusedDocument && (gLastFocusedDocument != mDocument) &&
         window) {
-      nsEvent blurEvent(PR_TRUE, NS_BLUR_CONTENT);
-      blurEvent.flags |= NS_EVENT_FLAG_CANT_BUBBLE;
+      nsEventStatus status = nsEventStatus_eIgnore;
+      nsEvent event(PR_TRUE, NS_BLUR_CONTENT);
+      event.flags |= NS_EVENT_FLAG_CANT_BUBBLE;
 
       // Make sure we're not switching command dispatchers, if so,
       // suppress the blurred one if it isn't already suppressed
@@ -5304,7 +5163,8 @@ nsEventStateManager::SendFocusBlur(nsPresContext* aPresContext,
 
       nsCxPusher pusher;
       if (pusher.Push(temp)) {
-        FireFocusOrBlurEvent(temp, &blurEvent, gLastFocusedPresContextWeak);
+        nsEventDispatcher::Dispatch(temp, gLastFocusedPresContextWeak, &event,
+                                    nsnull, &status);
         pusher.Pop();
       }
 
@@ -5319,9 +5179,9 @@ nsEventStateManager::SendFocusBlur(nsPresContext* aPresContext,
 
       nsCOMPtr<nsPIDOMEventTarget> target = do_QueryInterface(window);
       if (pusher.Push(target)) {
-        blurEvent.target = nsnull;
-        FireFocusOrBlurEvent(target, &blurEvent, gLastFocusedPresContextWeak);
-  
+        nsEventDispatcher::Dispatch(window, gLastFocusedPresContextWeak, &event,
+                                    nsnull, &status);
+
         if (previousFocus && mCurrentFocus != previousFocus) {
           // The window's blur handler focused something else.
           // Abort firing any additional blur or focus events.
@@ -5355,7 +5215,9 @@ nsEventStateManager::SendFocusBlur(nsPresContext* aPresContext,
       currentFocusFrame = presShell->GetPrimaryFrameFor(mCurrentFocus);
     if (!currentFocusFrame)
       currentFocusFrame = mCurrentTarget;
-    nsIObjectFrame* objFrame = do_QueryFrame(currentFocusFrame);
+    nsIObjectFrame* objFrame = nsnull;
+    if (currentFocusFrame)
+      CallQueryInterface(currentFocusFrame, &objFrame);
     if (objFrame) {
       nsIView* view = currentFocusFrame->GetViewExternal();
       NS_ASSERTION(view, "Object frames must have views");
@@ -5374,8 +5236,7 @@ nsEventStateManager::SendFocusBlur(nsPresContext* aPresContext,
       widget->SetFocus(PR_TRUE);
   }
 
-  if (nsnull != aContent && aContent != mFirstFocusEvent &&
-      !EventHandlingSuppressed(aContent)) {
+  if (nsnull != aContent && aContent != mFirstFocusEvent) {
 
     //Store the first focus event we fire and don't refire focus
     //to that element while the first focus is still ongoing.
@@ -5386,13 +5247,15 @@ nsEventStateManager::SendFocusBlur(nsPresContext* aPresContext,
     }
 
     //fire focus
-    nsEvent focusEvent(PR_TRUE, NS_FOCUS_CONTENT);
-    focusEvent.flags |= NS_EVENT_FLAG_CANT_BUBBLE;
+    nsEventStatus status = nsEventStatus_eIgnore;
+    nsEvent event(PR_TRUE, NS_FOCUS_CONTENT);
+    event.flags |= NS_EVENT_FLAG_CANT_BUBBLE;
 
     if (nsnull != mPresContext) {
       nsCxPusher pusher;
       if (pusher.Push(aContent)) {
-        FireFocusOrBlurEvent(aContent, &focusEvent, mPresContext);
+        nsEventDispatcher::Dispatch(aContent, mPresContext, &event, nsnull,
+                                    &status);
       }
     }
 
@@ -5406,18 +5269,18 @@ nsEventStateManager::SendFocusBlur(nsPresContext* aPresContext,
     if (clearFirstFocusEvent) {
       mFirstFocusEvent = nsnull;
     }
-
-    nsIMEStateManager::OnTextStateFocus(mPresContext, mCurrentFocus);
-  } else if (!aContent && !EventHandlingSuppressed(mDocument)) {
+  } else if (!aContent) {
     //fire focus on document even if the content isn't focusable (ie. text)
     //see bugzilla bug 93521
-    nsEvent focusEvent(PR_TRUE, NS_FOCUS_CONTENT);
-    focusEvent.flags |= NS_EVENT_FLAG_CANT_BUBBLE;
+    nsEventStatus status = nsEventStatus_eIgnore;
+    nsEvent event(PR_TRUE, NS_FOCUS_CONTENT);
+    event.flags |= NS_EVENT_FLAG_CANT_BUBBLE;
 
     if (nsnull != mPresContext && mDocument) {
       nsCxPusher pusher;
       if (pusher.Push(mDocument)) {
-        FireFocusOrBlurEvent(mDocument, &focusEvent, mPresContext);
+        nsEventDispatcher::Dispatch(mDocument, mPresContext, &event, nsnull,
+                                    &status);
       }
     }
   }
@@ -5975,6 +5838,13 @@ nsEventStateManager::MoveCaretToFocus()
   }
 
   if (itemType != nsIDocShellTreeItem::typeChrome) {
+    nsCOMPtr<nsIContent> selectionContent, endSelectionContent;
+    nsIFrame *selectionFrame;
+    PRUint32 selectionOffset;
+    GetDocSelectionLocation(getter_AddRefs(selectionContent),
+                            getter_AddRefs(endSelectionContent),
+                            &selectionFrame, &selectionOffset);
+
     nsIPresShell *shell = mPresContext->GetPresShell();
     if (shell) {
       // rangeDoc is a document interface we can create a range with
@@ -5988,7 +5858,7 @@ nsEventStateManager::MoveCaretToFocus()
           nsCOMPtr<nsIDOMNode> currentFocusNode(do_QueryInterface(mCurrentFocus));
           // First clear the selection
           domSelection->RemoveAllRanges();
-          if (currentFocusNode && !mCurrentFocus->IsNodeOfType(nsINode::eXUL)) {
+          if (currentFocusNode) {
             nsCOMPtr<nsIDOMRange> newRange;
             nsresult rv = rangeDoc->CreateRange(getter_AddRefs(newRange));
             if (NS_SUCCEEDED(rv)) {

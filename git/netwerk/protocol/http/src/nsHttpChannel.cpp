@@ -255,19 +255,11 @@ nsHttpChannel::Init(nsIURI *uri,
 //-----------------------------------------------------------------------------
 
 nsresult
-nsHttpChannel::AsyncCall(nsAsyncCallback funcPtr,
-                         nsRunnableMethod<nsHttpChannel> **retval)
+nsHttpChannel::AsyncCall(nsAsyncCallback funcPtr)
 {
-    nsresult rv;
-
-    nsRefPtr<nsRunnableMethod<nsHttpChannel> > event =
+    nsCOMPtr<nsIRunnable> event =
             new nsRunnableMethod<nsHttpChannel>(this, funcPtr);
-    rv = NS_DispatchToCurrentThread(event);
-    if (NS_SUCCEEDED(rv) && retval) {
-        *retval = event;
-    }
-
-    return rv;
+    return NS_DispatchToCurrentThread(event);
 }
 
 PRBool
@@ -349,15 +341,7 @@ nsHttpChannel::Connect(PRBool firstTime)
 
         // read straight from the cache if possible...
         if (mCachedContentIsValid) {
-            nsRunnableMethod<nsHttpChannel> *event = nsnull;
-            if (!mCachedContentIsPartial) {
-                AsyncCall(&nsHttpChannel::AsyncOnExamineCachedResponse, &event);
-            }
-            rv = ReadFromCache();
-            if (NS_FAILED(rv) && event) {
-                event->Revoke();
-            }
-            return rv;
+            return ReadFromCache();
         }
         else if (mLoadFlags & LOAD_ONLY_FROM_CACHE) {
             // the cache contains the requested resource, but it must be 
@@ -672,12 +656,6 @@ nsHttpChannel::SetupTransaction()
     if (!mTransaction)
         return NS_ERROR_OUT_OF_MEMORY;
     NS_ADDREF(mTransaction);
-
-    // See bug #466080. Transfer LOAD_ANONYMOUS flag to socket-layer.
-    if (mLoadFlags & LOAD_ANONYMOUS) {
-        mCaps |= NS_HTTP_LOAD_ANONYMOUS;
-        mConnectionInfo->SetAnonymous();
-    }
 
     nsCOMPtr<nsIAsyncInputStream> responseStream;
     rv = mTransaction->Init(mCaps, mConnectionInfo, &mRequestHead,
@@ -1062,9 +1040,6 @@ nsHttpChannel::ProcessNormal()
 nsresult
 nsHttpChannel::PromptTempRedirect()
 {
-    if (!gHttpHandler->PromptTempRedirect()) {
-        return NS_OK;
-    }
     nsresult rv;
     nsCOMPtr<nsIStringBundleService> bundleService =
             do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv);
@@ -1519,18 +1494,6 @@ nsHttpChannel::ProcessFallback(PRBool *fallingBack)
     return NS_OK;
 }
 
-// Determines if a request is a byte range request for a subrange,
-// i.e. is a byte range request, but not a 0- byte range request.
-static PRBool
-IsSubRangeRequest(nsHttpRequestHead &aRequestHead)
-{
-    if (!aRequestHead.PeekHeader(nsHttp::Range))
-        return PR_FALSE;
-    nsCAutoString byteRange;
-    aRequestHead.GetHeader(nsHttp::Range, byteRange);
-    return !byteRange.EqualsLiteral("bytes=0-");
-}
-
 nsresult
 nsHttpChannel::OpenCacheEntry(PRBool offline, PRBool *delayed)
 {
@@ -1559,16 +1522,13 @@ nsHttpChannel::OpenCacheEntry(PRBool offline, PRBool *delayed)
         return NS_OK;
     }
 
-    if (mResuming) {
-        // We don't support caching for requests initiated
-        // via nsIResumableChannel.
+    if (mRequestHead.PeekHeader(nsHttp::Range) || mResuming) {
+        // we don't support caching for byte range requests initiated
+        // by our clients or via nsIResumableChannel.
+        // XXX perhaps we could munge their byte range into the cache
+        // key to make caching sort'a work.
         return NS_OK;
     }
-
-    // Don't cache byte range requests which are subranges, only cache 0-
-    // byte range requests.
-    if (IsSubRangeRequest(mRequestHead))
-        return NS_OK;
 
     if (RequestIsConditional()) {
         // don't use the cache if our consumer is making a conditional request
@@ -1765,10 +1725,11 @@ nsHttpChannel::OpenOfflineCacheEntryForWriting()
         return NS_OK;
     }
 
-    // Don't cache byte range requests which are subranges, only cache 0-
-    // byte range requests.
-    if (IsSubRangeRequest(mRequestHead))
+    if (mRequestHead.PeekHeader(nsHttp::Range)) {
+        // we don't support caching for byte range requests initiated
+        // by our clients or via nsIResumableChannel.
         return NS_OK;
+    }
 
     if (RequestIsConditional()) {
         // don't use the cache if our consumer is making a conditional request
@@ -2765,21 +2726,6 @@ nsHttpChannel::ProcessRedirection(PRUint32 redirectType)
     rv = ioService->NewURI(nsDependentCString(location), originCharset.get(), mURI,
                            getter_AddRefs(newURI));
     if (NS_FAILED(rv)) return rv;
-
-    if (mApplicationCache) {
-        // if we are redirected to a different origin check if there is a fallback
-        // cache entry to fall back to. we don't care about file strict 
-        // checking, at least mURI is not a file URI.
-        if (!NS_SecurityCompareURIs(mURI, newURI, PR_FALSE)) {
-            PRBool fallingBack;
-            rv = ProcessFallback(&fallingBack);
-            if (NS_SUCCEEDED(rv) && fallingBack) {
-                // do not continue with redirect processing, fallback is in
-                // progress now.
-                return NS_OK;
-            }
-        }
-    }
 
     // Kill the current cache entry if we are redirecting
     // back to ourself.
@@ -5631,8 +5577,3 @@ nsHttpChannel::DetermineStoragePolicy()
     return policy;
 }
 
-void
-nsHttpChannel::AsyncOnExamineCachedResponse()
-{
-    gHttpHandler->OnExamineCachedResponse(this);
-}

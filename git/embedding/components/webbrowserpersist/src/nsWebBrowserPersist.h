@@ -57,7 +57,7 @@
 #include "nsIWebProgressListener2.h"
 
 #include "nsHashtable.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "nsInt64.h"
 
 #include "nsCWebBrowserPersist.h"
@@ -66,8 +66,6 @@ class nsEncoderNodeFixup;
 class nsIStorageStream;
 
 struct URIData;
-struct CleanupData;
-struct DocData;
 
 class nsWebBrowserPersist : public nsIInterfaceRequestor,
                             public nsIWebBrowserPersist,
@@ -226,9 +224,9 @@ private:
     nsHashtable               mOutputMap;
     nsHashtable               mUploadList;
     nsHashtable               mURIMap;
-    nsTArray<DocData*>        mDocList;
-    nsTArray<CleanupData*>    mCleanupList;
-    nsTArray<nsCString>       mFilenameList;
+    nsVoidArray               mDocList;
+    nsVoidArray               mCleanupList;
+    nsCStringArray            mFilenameList;
     PRPackedBool              mFirstAndOnlyUse;
     PRPackedBool              mCancel;
     PRPackedBool              mJustStartedLoading;

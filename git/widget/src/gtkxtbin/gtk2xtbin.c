@@ -210,27 +210,24 @@ xt_event_polling_timer_callback(gpointer user_data)
   return TRUE;
 }
 
-GType
+GtkType
 gtk_xtbin_get_type (void)
 {
-  static GType xtbin_type = 0;
+  static GtkType xtbin_type = 0;
 
   if (!xtbin_type) {
-      static const GTypeInfo xtbin_info =
+      static const GtkTypeInfo xtbin_info =
       {
-        sizeof (GtkXtBinClass), /* class_size */
-        NULL, /* base_init */
-        NULL, /* base_finalize */
-        (GClassInitFunc) gtk_xtbin_class_init, /* class_init */
-        NULL, /* class_finalize */
-        NULL, /* class_data */
-        sizeof (GtkXtBin), /* instance_size */
-        0, /* n_preallocs */
-        (GInstanceInitFunc) gtk_xtbin_init, /* instance_init */
-        NULL /* value_table */
+        "GtkXtBin",
+        sizeof (GtkXtBin),
+        sizeof (GtkXtBinClass),
+        (GtkClassInitFunc) gtk_xtbin_class_init,
+        (GtkObjectInitFunc) gtk_xtbin_init,
+        /* reserved_1 */ NULL,
+        /* reserved_2 */ NULL,
+        (GtkClassInitFunc) NULL
       };
-      xtbin_type = g_type_register_static(GTK_TYPE_SOCKET, "GtkXtBin",
-        &xtbin_info, 0);
+      xtbin_type = gtk_type_unique (GTK_TYPE_SOCKET, &xtbin_info);
     }
   return xtbin_type;
 }
@@ -241,7 +238,7 @@ gtk_xtbin_class_init (GtkXtBinClass *klass)
   GtkWidgetClass *widget_class;
   GtkObjectClass *object_class;
 
-  parent_class = g_type_class_ref (GTK_TYPE_SOCKET);
+  parent_class = gtk_type_class (GTK_TYPE_SOCKET);
 
   widget_class = GTK_WIDGET_CLASS (klass);
   widget_class->realize = gtk_xtbin_realize;
@@ -314,7 +311,7 @@ gtk_xtbin_new (GdkWindow *parent_window, String * f)
   gpointer user_data;
 
   assert(parent_window != NULL);
-  xtbin = g_object_new (GTK_TYPE_XTBIN, NULL);
+  xtbin = gtk_type_new (GTK_TYPE_XTBIN);
 
   if (!xtbin)
     return (GtkWidget*)NULL;
@@ -372,9 +369,9 @@ gtk_xtbin_new (GdkWindow *parent_window, String * f)
                              G_PRIORITY_LOW);
     /* add a timer so that we can poll and process Xt timers */
     xt_polling_timer_id =
-      g_timeout_add(25,
-                    (GtkFunction)xt_event_polling_timer_callback,
-                    xtdisplay);
+      gtk_timeout_add(25,
+                      (GtkFunction)xt_event_polling_timer_callback,
+                      xtdisplay);
   }
 
   /* Bump up our usage count */
@@ -490,7 +487,7 @@ gtk_xtbin_destroy (GtkObject *object)
       g_main_context_remove_poll((GMainContext*)NULL, &xt_event_poll_fd);
       g_source_remove(tag);
 
-      g_source_remove(xt_polling_timer_id);
+      gtk_timeout_remove(xt_polling_timer_id);
       xt_polling_timer_id = 0;
     }
   }

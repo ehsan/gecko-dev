@@ -73,10 +73,12 @@ struct JSFunction {
             uint16      extra;    /* number of arg slots for local GC roots */
             uint16      spare;    /* reserved for future use */
             JSNative    native;   /* native method pointer or null */
-            JSClass     *clasp;   /* class of objects constructed
-                                     by this function */
-            JSTraceableNative *trcinfo;  /* tracer metadata; can be first
-                                            element of array */
+            union {
+                JSClass             *clasp;    /* class of objects constructed
+                                                  by this function */
+                JSTraceableNative   *trcinfo;  /* tracer metadata; can be first
+                                                  element of array */
+            } u;
         } n;
         struct {
             uint16      nvars;    /* number of local variables */
@@ -109,10 +111,11 @@ struct JSFunction {
                               ? 0                                             \
                               : (fun)->nargs)
 #define FUN_CLASP(fun)       (JS_ASSERT(!FUN_INTERPRETED(fun)),               \
-                              fun->u.n.clasp)
+                              JS_ASSERT(!((fun)->flags & JSFUN_TRACEABLE)),   \
+                              fun->u.n.u.clasp)
 #define FUN_TRCINFO(fun)     (JS_ASSERT(!FUN_INTERPRETED(fun)),               \
                               JS_ASSERT((fun)->flags & JSFUN_TRACEABLE),      \
-                              fun->u.n.trcinfo)
+                              fun->u.n.u.trcinfo)
 
 /*
  * Traceable native.  This expands to a JSFunctionSpec initializer (like JS_FN
@@ -121,7 +124,7 @@ struct JSFunction {
 #ifdef JS_TRACER
 /* MSVC demands the intermediate (void *) cast here. */
 # define JS_TN(name,fastcall,nargs,flags,trcinfo)                             \
-    {name, JS_DATA_TO_FUNC_PTR(JSNative, trcinfo), nargs,                     \
+    {name, (JSNative)(void *)(trcinfo), nargs,                                \
      (flags) | JSFUN_FAST_NATIVE | JSFUN_STUB_GSOPS | JSFUN_TRACEABLE, 0}
 #else
 # define JS_TN(name,fastcall,nargs,flags,trcinfo)                             \
@@ -201,7 +204,7 @@ extern void
 js_ReportIsNotFunction(JSContext *cx, jsval *vp, uintN flags);
 
 extern JSObject *
-js_GetCallObject(JSContext *cx, JSStackFrame *fp);
+js_GetCallObject(JSContext *cx, JSStackFrame *fp, JSObject *parent);
 
 extern JS_FRIEND_API(JSBool)
 js_PutCallObject(JSContext *cx, JSStackFrame *fp);
@@ -281,10 +284,10 @@ js_GetLocalNameArray(JSContext *cx, JSFunction *fun, struct JSArenaPool *pool);
 extern void
 js_FreezeLocalNames(JSContext *cx, JSFunction *fun);
 
-extern JS_REQUIRES_STACK JSBool
+extern JSBool
 js_fun_apply(JSContext *cx, uintN argc, jsval *vp);
 
-extern JS_REQUIRES_STACK JSBool
+extern JSBool
 js_fun_call(JSContext *cx, uintN argc, jsval *vp);
 
 

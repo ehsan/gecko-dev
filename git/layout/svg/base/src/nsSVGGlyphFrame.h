@@ -57,7 +57,8 @@ class nsSVGGlyphFrame : public nsSVGGlyphFrameBase,
                         public nsISVGChildFrame
 {
   friend nsIFrame*
-  NS_NewSVGGlyphFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
+  NS_NewSVGGlyphFrame(nsIPresShell* aPresShell, nsIContent* aContent,
+                      nsIFrame* parentFrame, nsStyleContext* aContext);
 protected:
   nsSVGGlyphFrame(nsStyleContext* aContext)
     : nsSVGGlyphFrameBase(aContext),
@@ -70,7 +71,10 @@ protected:
   }
 
 public:
-  NS_DECL_QUERYFRAME
+   // nsISupports interface:
+  NS_IMETHOD QueryInterface(const nsIID& aIID, void** aInstancePtr);
+  NS_IMETHOD_(nsrefcnt) AddRef() { return 1; }
+  NS_IMETHOD_(nsrefcnt) Release() { return 1; }
 
   // nsIFrame interface:
   NS_IMETHOD  CharacterDataChanged(nsPresContext*  aPresContext,
@@ -86,12 +90,6 @@ public:
                           SelectionType   aType);
   NS_IMETHOD  GetSelected(PRBool *aSelected) const;
   NS_IMETHOD  IsSelectable(PRBool* aIsSelectable, PRUint8* aSelectStyle) const;
-
-#ifdef DEBUG
-  NS_IMETHOD Init(nsIContent*      aContent,
-                  nsIFrame*        aParent,
-                  nsIFrame*        aPrevInFlow);
-#endif
 
   /**
    * Get the "type" of the frame
@@ -215,13 +213,6 @@ protected:
   void SetupGlobalTransform(gfxContext *aContext);
   nsresult GetHighlight(PRUint32 *charnum, PRUint32 *nchars,
                         nscolor *foreground, nscolor *background);
-  const nsTextFragment* GetFragment() const
-  {
-    return !(GetStateBits() & NS_STATE_SVG_PRINTING) ?
-      mContent->GetText() :
-      static_cast<const nsTextFragment*>(PresContext()->PropertyTable()->
-                                           GetProperty(mContent, nsGkAtoms::clonedTextForPrint));
-  }
 
   // Owning pointer, must call gfxTextRunWordCache::RemoveTextRun before deleting
   gfxTextRun *mTextRun;

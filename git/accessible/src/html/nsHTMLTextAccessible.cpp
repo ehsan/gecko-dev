@@ -61,8 +61,7 @@ nsHTMLTextAccessible::GetName(nsAString& aName)
   return AppendTextTo(aName, 0, PR_UINT32_MAX);
 }
 
-nsresult
-nsHTMLTextAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP nsHTMLTextAccessible::GetRole(PRUint32 *aRole)
 {
   nsIFrame *frame = GetFrame();
   // Don't return on null frame -- we still return a role
@@ -72,7 +71,7 @@ nsHTMLTextAccessible::GetRoleInternal(PRUint32 *aRole)
     return NS_OK;
   }
 
-  return nsTextAccessible::GetRoleInternal(aRole);
+  return nsTextAccessible::GetRole(aRole);
 }
 
 nsresult
@@ -102,7 +101,7 @@ nsHTMLTextAccessible::GetAttributesInternal(nsIPersistentProperties *aAttributes
   }
 
   PRUint32 role;
-  GetRoleInternal(&role);
+  GetRole(&role);
   if (role == nsIAccessibleRole::ROLE_STATICTEXT) {
     nsAutoString oldValueUnused;
     aAttributes->SetStringProperty(NS_LITERAL_CSTRING("auto-generated"),
@@ -117,8 +116,7 @@ nsLeafAccessible(aDomNode, aShell)
 { 
 }
 
-nsresult
-nsHTMLHRAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP nsHTMLHRAccessible::GetRole(PRUint32 *aRole)
 {
   *aRole = nsIAccessibleRole::ROLE_SEPARATOR;
   return NS_OK;
@@ -129,8 +127,7 @@ nsLeafAccessible(aDomNode, aShell)
 { 
 }
 
-nsresult
-nsHTMLBRAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP nsHTMLBRAccessible::GetRole(PRUint32 *aRole)
 {
   *aRole = nsIAccessibleRole::ROLE_WHITESPACE;
   return NS_OK;
@@ -172,13 +169,25 @@ nsTextAccessible(aDomNode, aShell)
 }
 
 nsresult
-nsHTMLLabelAccessible::GetNameInternal(nsAString& aName)
-{
-  return nsTextEquivUtils::GetNameFromSubtree(this, aName);
+nsHTMLLabelAccessible::GetNameInternal(nsAString& aReturn)
+{ 
+  nsresult rv = NS_ERROR_FAILURE;
+  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
+
+  nsAutoString name;
+  if (content)
+    rv = AppendFlatStringFromSubtree(content, &name);
+
+  if (NS_SUCCEEDED(rv)) {
+    // Temp var needed until CompressWhitespace built for nsAString
+    name.CompressWhitespace();
+    aReturn = name;
+  }
+
+  return rv;
 }
 
-nsresult
-nsHTMLLabelAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP nsHTMLLabelAccessible::GetRole(PRUint32 *aRole)
 {
   *aRole = nsIAccessibleRole::ROLE_LABEL;
   return NS_OK;
@@ -238,13 +247,6 @@ nsHTMLLIAccessible::Shutdown()
   nsresult rv = nsLinkableAccessible::Shutdown();
   mBulletAccessible = nsnull;
   return rv;
-}
-
-nsresult
-nsHTMLLIAccessible::GetRoleInternal(PRUint32 *aRole)
-{
-  *aRole = nsIAccessibleRole::ROLE_LISTITEM;
-  return NS_OK;
 }
 
 nsresult
@@ -325,8 +327,8 @@ nsHTMLListBulletAccessible::GetName(nsAString &aName)
   return NS_OK;
 }
 
-nsresult
-nsHTMLListBulletAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP
+nsHTMLListBulletAccessible::GetRole(PRUint32 *aRole)
 {
   *aRole = nsIAccessibleRole::ROLE_STATICTEXT;
   return NS_OK;
@@ -370,15 +372,7 @@ nsHTMLListBulletAccessible::AppendTextTo(nsAString& aText, PRUint32 aStartOffset
   return NS_OK;
 }
 
-////////////////////////////////////////////////////////////////////////////////
 // nsHTMLListAccessible
-
-nsresult
-nsHTMLListAccessible::GetRoleInternal(PRUint32 *aRole)
-{
-  *aRole = nsIAccessibleRole::ROLE_LIST;
-  return NS_OK;
-}
 
 nsresult
 nsHTMLListAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)

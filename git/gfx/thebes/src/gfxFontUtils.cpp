@@ -46,11 +46,7 @@
 #include "nsIPrefLocalizedString.h"
 #include "nsISupportsPrimitives.h"
 #include "nsIStreamBufferAccess.h"
-#include "nsIUUIDGenerator.h"
 #include "nsMemory.h"
-
-#include "plbase64.h"
-
 
 #define NO_RANGE_FOUND 126 // bit 126 in the font unicode ranges is required to be 0
 
@@ -474,43 +470,6 @@ void gfxFontUtils::GetPrefsFontList(const char *aPrefName, nsTArray<nsString>& a
     }
 
 }
-
-// produce a unique font name that is (1) a valid Postscript name and (2) less
-// than 31 characters in length.  Using AddFontMemResourceEx on Windows fails 
-// for names longer than 30 characters in length.
-
-#define MAX_B64_LEN 32
-
-nsresult gfxFontUtils::MakeUniqueUserFontName(nsAString& aName)
-{
-    nsCOMPtr<nsIUUIDGenerator> uuidgen =
-      do_GetService("@mozilla.org/uuid-generator;1");
-    NS_ENSURE_TRUE(uuidgen, NS_ERROR_OUT_OF_MEMORY);
-
-    nsID guid;
-
-    NS_ASSERTION(sizeof(guid) * 2 <= MAX_B64_LEN, "size of nsID has changed!");
-
-    nsresult rv = uuidgen->GenerateUUIDInPlace(&guid);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    char guidB64[MAX_B64_LEN] = {0};
-
-    if (!PL_Base64Encode((char *)(&guid), sizeof(guid), guidB64))
-        return NS_ERROR_FAILURE;
-
-    // all b64 characters except for '/' are allowed in Postscript names, so convert / ==> -
-    char *p;
-    for (p = guidB64; *p; p++) {
-        if (*p == '/')
-            *p = '-';
-    }
-
-    aName.Assign(NS_LITERAL_STRING("uf"));
-    aName.AppendASCII(guidB64);
-    return NS_OK;
-}
-
 
 // TrueType/OpenType table handling code
 
@@ -1209,10 +1168,6 @@ gfxFontUtils::MakeEOTHeader(const PRUint8 *aFontData, PRUint32 aFontDataLength,
     //    matching platform/encoding/etc. and store offset/lengths
     NameRecordData names[EOTFixedHeader::EOT_NUM_NAMES] = {0};
     const NameRecord *nameRecord = reinterpret_cast<const NameRecord*>(aFontData + nameOffset + sizeof(NameHeader));
-    PRUint32 needNames = (1 << EOTFixedHeader::EOT_FAMILY_NAME_INDEX) | 
-                         (1 << EOTFixedHeader::EOT_STYLE_NAME_INDEX) | 
-                         (1 << EOTFixedHeader::EOT_FULL_NAME_INDEX) | 
-                         (1 << EOTFixedHeader::EOT_VERSION_NAME_INDEX);
 
     for (i = 0; i < nameCount; i++, nameRecord++) {
 
@@ -1227,36 +1182,38 @@ gfxFontUtils::MakeEOTHeader(const PRUint8 *aFontData, PRUint32 aFontDataLength,
         case NameRecord::NAME_ID_FAMILY:
             names[EOTFixedHeader::EOT_FAMILY_NAME_INDEX].offset = nameRecord->offset;
             names[EOTFixedHeader::EOT_FAMILY_NAME_INDEX].length = nameRecord->length;
-            needNames &= ~(1 << EOTFixedHeader::EOT_FAMILY_NAME_INDEX);
             break;
 
         case NameRecord::NAME_ID_STYLE:
             names[EOTFixedHeader::EOT_STYLE_NAME_INDEX].offset = nameRecord->offset;
             names[EOTFixedHeader::EOT_STYLE_NAME_INDEX].length = nameRecord->length;
-            needNames &= ~(1 << EOTFixedHeader::EOT_STYLE_NAME_INDEX);
             break;
 
         case NameRecord::NAME_ID_FULL:
             names[EOTFixedHeader::EOT_FULL_NAME_INDEX].offset = nameRecord->offset;
             names[EOTFixedHeader::EOT_FULL_NAME_INDEX].length = nameRecord->length;
-            needNames &= ~(1 << EOTFixedHeader::EOT_FULL_NAME_INDEX);
             break;
 
         case NameRecord::NAME_ID_VERSION:
             names[EOTFixedHeader::EOT_VERSION_NAME_INDEX].offset = nameRecord->offset;
             names[EOTFixedHeader::EOT_VERSION_NAME_INDEX].length = nameRecord->length;
-            needNames &= ~(1 << EOTFixedHeader::EOT_VERSION_NAME_INDEX);
             break;
 
         default:
             break;
         }
 
-        if (needNames == 0)
+        if (names[EOTFixedHeader::EOT_FAMILY_NAME_INDEX].length &&
+            names[EOTFixedHeader::EOT_STYLE_NAME_INDEX].length &&
+            names[EOTFixedHeader::EOT_FULL_NAME_INDEX].length &&
+            names[EOTFixedHeader::EOT_VERSION_NAME_INDEX].length)
             break;
     }
 
-    if (needNames != 0) 
+    if (!(names[EOTFixedHeader::EOT_FAMILY_NAME_INDEX].length &&
+          names[EOTFixedHeader::EOT_STYLE_NAME_INDEX].length &&
+          names[EOTFixedHeader::EOT_FULL_NAME_INDEX].length &&
+          names[EOTFixedHeader::EOT_VERSION_NAME_INDEX].length)) 
     {
         return NS_ERROR_FAILURE;
     }        

@@ -60,7 +60,7 @@
 #include "nsPropertyTable.h"
 #include "nsGkAtoms.h"
 #include "nsIDocument.h"
-#include "nsRefPtrHashtable.h"
+#include "nsInterfaceHashtable.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsChangeHint.h"
 // This also pulls in gfxTypes.h, which we cannot include directly.
@@ -68,7 +68,6 @@
 #include "nsRegion.h"
 #include "nsTArray.h"
 #include "nsAutoPtr.h"
-#include "nsThreadUtils.h"
 
 class nsImageLoader;
 #ifdef IBMBIDI
@@ -93,10 +92,9 @@ class nsILookAndFeel;
 class nsICSSPseudoComparator;
 class nsIAtom;
 struct nsStyleBackground;
-struct nsStyleBorder;
+template <class T> class nsRunnableMethod;
 class nsIRunnable;
 class gfxUserFontSet;
-class nsUserFontSet;
 struct nsFontFaceRuleContainer;
 
 #ifdef MOZ_REFLOW_PERF
@@ -207,6 +205,7 @@ public:
       return mDocument;
   }
 
+  nsIViewManager* GetViewManager() { return GetPresShell()->GetViewManager(); } 
 #ifdef _IMPL_NS_LAYOUT
   nsStyleSet* StyleSet() { return GetPresShell()->StyleSet(); }
 
@@ -282,21 +281,15 @@ public:
 
   void FreeToShell(size_t aSize, void* aFreeChunk)
   {
-    NS_ASSERTION(mShell, "freeing after shutdown");
     if (mShell)
       mShell->FreeFrame(aSize, aFreeChunk);
   }
 
   /**
    * Get the font metrics for a given font.
-   *
-   * If aUseUserFontSet is false, don't build or use the user font set.
-   * This is intended only for nsRuleNode::CalcLengthWithInitialFont
-   * (which is used from media query matching, which is in turn called
-   * when building the user font set).
    */
   NS_HIDDEN_(already_AddRefed<nsIFontMetrics>)
-  GetMetricsFor(const nsFont& aFont, PRBool aUseUserFontSet = PR_TRUE);
+  GetMetricsFor(const nsFont& aFont);
 
   /**
    * Get the default font corresponding to the given ID.  This object is
@@ -378,46 +371,41 @@ public:
   PRBool GetFocusRingOnAnything() const { return mFocusRingOnAnything; }
   PRUint8 GetFocusRingStyle() const { return mFocusRingStyle; }
 
-  /**
-   * The types of image load types that the pres context needs image
-   * loaders to track invalidation for.
-   */
-  enum ImageLoadType {
-    BACKGROUND_IMAGE,
-    BORDER_IMAGE,
-    IMAGE_LOAD_TYPE_COUNT
-  };
 
   /**
-   * Set the list of image loaders that track invalidation for a
-   * specific frame and type of image.  This list will replace any
-   * previous list for that frame and image type (and null will remove
-   * any previous list).
+   * Set up observers so that aTargetFrame will be invalidated when
+   * aImage loads, where aImage is its background image.  Only a single
+   * image will be tracked per frame.
    */
-  NS_HIDDEN_(void) SetImageLoaders(nsIFrame* aTargetFrame,
-                                   ImageLoadType aType,
-                                   nsImageLoader* aImageLoaders);
-
+  NS_HIDDEN_(imgIRequest*) LoadImage(imgIRequest* aImage,
+                                     nsIFrame* aTargetFrame);
   /**
-   * Make an appropriate SetImageLoaders call (including potentially
-   * with null aImageLoaders) given that aFrame draws its background
-   * based on aStyleBackground.
+   * Set up observers so that aTargetFrame will be invalidated or
+   * reflowed (as appropriate) when aImage loads, where aImage is its
+   * *border* image.  Only a single image will be tracked per frame.
    */
-  NS_HIDDEN_(void) SetupBackgroundImageLoaders(nsIFrame* aFrame,
-                                               const nsStyleBackground*
-                                                 aStyleBackground);
+  NS_HIDDEN_(imgIRequest*) LoadBorderImage(imgIRequest* aImage,
+                                           nsIFrame* aTargetFrame);
 
-  /**
-   * Make an appropriate SetImageLoaders call (including potentially
-   * with null aImageLoaders) given that aFrame draws its border
-   * based on aStyleBorder.
-   */
-  NS_HIDDEN_(void) SetupBorderImageLoaders(nsIFrame* aFrame,
-                                           const nsStyleBorder* aStyleBorder);
+private:
+  typedef nsInterfaceHashtable<nsVoidPtrHashKey, nsImageLoader> ImageLoaderTable;
 
+  NS_HIDDEN_(imgIRequest*) DoLoadImage(ImageLoaderTable& aTable,
+                                       imgIRequest* aImage,
+                                       nsIFrame* aTargetFrame,
+                                       PRBool aReflowOnLoad);
+
+  NS_HIDDEN_(void) DoStopImageFor(ImageLoaderTable& aTable,
+                                  nsIFrame* aTargetFrame);
+public:
+
+  NS_HIDDEN_(void) StopBackgroundImageFor(nsIFrame* aTargetFrame)
+  { DoStopImageFor(mImageLoaders, aTargetFrame); }
+  NS_HIDDEN_(void) StopBorderImageFor(nsIFrame* aTargetFrame)
+  { DoStopImageFor(mBorderImageLoaders, aTargetFrame); }
   /**
    * This method is called when a frame is being destroyed to
-   * ensure that the image loads get disassociated from the prescontext
+   * ensure that the image load gets disassociated from the prescontext
    */
   NS_HIDDEN_(void) StopImagesFor(nsIFrame* aTargetFrame);
 
@@ -520,16 +508,9 @@ public:
 
   float TextZoom() { return mTextZoom; }
   void SetTextZoom(float aZoom) {
-    if (aZoom == mTextZoom)
-      return;
-
     mTextZoom = aZoom;
-    if (HasCachedStyleData()) {
-      // Media queries could have changed since we changed the meaning
-      // of 'em' units in them.
-      MediaFeatureValuesChanged(PR_TRUE);
+    if (HasCachedStyleData())
       RebuildAllStyleData(NS_STYLE_HINT_REFLOW);
-    }
   }
 
   float GetFullZoom() { return mFullZoom; }
@@ -585,7 +566,7 @@ public:
                           mDeviceContext->AppUnitsPerInch()); }
 
   // Margin-specific version, since they often need TwipsToAppUnits
-  nsMargin TwipsToAppUnits(const nsIntMargin &marginInTwips) const
+  nsMargin TwipsToAppUnits(const nsMargin &marginInTwips) const
   { return nsMargin(TwipsToAppUnits(marginInTwips.left), 
                     TwipsToAppUnits(marginInTwips.top),
                     TwipsToAppUnits(marginInTwips.right),
@@ -801,21 +782,12 @@ public:
     return !mSameDocDirtyRegion.IsEmpty() || !mCrossDocDirtyRegion.IsEmpty();
   }
 
-  void ClearMozAfterPaintEvents() {
-    mSameDocDirtyRegion.SetEmpty();
-    mCrossDocDirtyRegion.SetEmpty();
-  }
-
 protected:
   friend class nsRunnableMethod<nsPresContext>;
   NS_HIDDEN_(void) ThemeChangedInternal();
   NS_HIDDEN_(void) SysColorChangedInternal();
 
   NS_HIDDEN_(void) SetImgAnimations(nsIContent *aParent, PRUint16 aMode);
-#ifdef MOZ_SMIL
-  NS_HIDDEN_(void) SetSMILAnimations(nsIDocument *aDoc, PRUint16 aNewMode,
-                                     PRUint16 aOldMode);
-#endif // MOZ_SMIL
   NS_HIDDEN_(void) GetDocumentColorPreferences();
 
   NS_HIDDEN_(void) PreferenceChanged(const char* aPrefName);
@@ -857,9 +829,8 @@ protected:
   nsILinkHandler*       mLinkHandler;   // [WEAK]
   nsIAtom*              mLangGroup;     // [STRONG]
 
-  nsRefPtrHashtable<nsVoidPtrHashKey, nsImageLoader>
-                        mImageLoaders[IMAGE_LOAD_TYPE_COUNT];
-
+  ImageLoaderTable      mImageLoaders;
+  ImageLoaderTable      mBorderImageLoaders;
   nsWeakPtr             mContainer;
 
   float                 mTextZoom;      // Text zoom, defaults to 1.0
@@ -883,7 +854,7 @@ protected:
   nsRegion              mCrossDocDirtyRegion;
 
   // container for per-context fonts (downloadable, SVG, etc.)
-  nsUserFontSet*        mUserFontSet;
+  gfxUserFontSet* mUserFontSet;
   // The list of @font-face rules that we put into mUserFontSet
   nsTArray<nsFontFaceRuleContainer> mFontFaceRules;
   
@@ -931,6 +902,7 @@ protected:
   unsigned              mDrawColorBackground : 1;
   unsigned              mNeverAnimate : 1;
   unsigned              mIsRenderingOnlySelection : 1;
+  unsigned              mNoTheme : 1;
   unsigned              mPaginated : 1;
   unsigned              mCanPaginatedScroll : 1;
   unsigned              mDoScaledTwips : 1;
@@ -1031,7 +1003,9 @@ struct nsAutoLayoutPhase {
                      "constructing frames in the middle of a paint");
         NS_ASSERTION(mPresContext->mLayoutPhaseCount[eLayoutPhase_Reflow] == 0,
                      "constructing frames in the middle of reflow");
-        // Once bug 337957 is fixed this should become an NS_ASSERTION
+        // The nsXBLService::LoadBindings call in ConstructFrameInternal
+        // makes us hit this one too often to be an NS_ASSERTION,
+        // despite how scary it is.
         NS_WARN_IF_FALSE(mPresContext->mLayoutPhaseCount[eLayoutPhase_FrameC] == 0,
                          "recurring into frame construction");
         break;

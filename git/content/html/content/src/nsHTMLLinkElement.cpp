@@ -164,7 +164,7 @@ NS_IMPL_ELEMENT_CLONE(nsHTMLLinkElement)
 NS_IMETHODIMP
 nsHTMLLinkElement::GetDisabled(PRBool* aDisabled)
 {
-  nsCOMPtr<nsIDOMStyleSheet> ss(do_QueryInterface(GetStyleSheet()));
+  nsCOMPtr<nsIDOMStyleSheet> ss(do_QueryInterface(mStyleSheet));
   nsresult result = NS_OK;
 
   if (ss) {
@@ -179,7 +179,7 @@ nsHTMLLinkElement::GetDisabled(PRBool* aDisabled)
 NS_IMETHODIMP 
 nsHTMLLinkElement::SetDisabled(PRBool aDisabled)
 {
-  nsCOMPtr<nsIDOMStyleSheet> ss(do_QueryInterface(GetStyleSheet()));
+  nsCOMPtr<nsIDOMStyleSheet> ss(do_QueryInterface(mStyleSheet));
   nsresult result = NS_OK;
 
   if (ss) {
@@ -257,7 +257,7 @@ nsHTMLLinkElement::CreateAndDispatchEvent(nsIDocument* aDoc,
 
   // In the unlikely case that both rev is specified *and* rel=stylesheet,
   // this code will cause the event to fire, on the principle that maybe the
-  // page really does want to specify that its author is a stylesheet. Since
+  // page really does want to specify that it's author is a stylesheet. Since
   // this should never actually happen and the performance hit is minimal,
   // doing the "right" thing costs virtually nothing here, even if it doesn't
   // make much sense.
@@ -270,13 +270,11 @@ nsHTMLLinkElement::CreateAndDispatchEvent(nsIDocument* aDoc,
                       strings, eIgnoreCase) != ATTR_VALUE_NO_MATCH)
     return;
 
-  nsRefPtr<nsPLDOMEvent> event = new nsPLDOMEvent(this, aEventName, PR_TRUE);
+  nsRefPtr<nsPLDOMEvent> event = new nsPLDOMEvent(this, aEventName);
   if (event) {
     // If we have script blockers on the stack then we want to run as soon as
     // they are removed. Otherwise punt the runable to the event loop as we
-    // don't know when it will be safe to run script.  In particular, we might
-    // be in the middle of a pagehide right now, and firing this event at that
-    // point is not such a great idea.
+    // don't know when it will be safe to run script.
     if (nsContentUtils::IsSafeToRunScript())
       event->PostDOMEvent();
     else
@@ -305,10 +303,10 @@ nsHTMLLinkElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
   if (NS_SUCCEEDED(rv)) {
     PRBool dropSheet = PR_FALSE;
     if (aNameSpaceID == kNameSpaceID_None && aName == nsGkAtoms::rel &&
-        GetStyleSheet()) {
-      nsAutoTArray<nsString, 4> linkTypes;
+        mStyleSheet) {
+      nsStringArray linkTypes(4);
       nsStyleLinkElement::ParseLinkTypes(aValue, linkTypes);
-      dropSheet = !linkTypes.Contains(NS_LITERAL_STRING("stylesheet"));
+      dropSheet = linkTypes.IndexOf(NS_LITERAL_STRING("stylesheet")) < 0;
     }
     
     UpdateStyleSheetInternal(nsnull,
@@ -416,11 +414,11 @@ nsHTMLLinkElement::GetStyleSheetInfo(nsAString& aTitle,
   *aIsAlternate = PR_FALSE;
 
   nsAutoString rel;
-  nsAutoTArray<nsString, 4> linkTypes;
+  nsStringArray linkTypes(4);
   GetAttr(kNameSpaceID_None, nsGkAtoms::rel, rel);
   nsStyleLinkElement::ParseLinkTypes(rel, linkTypes);
   // Is it a stylesheet link?
-  if (!linkTypes.Contains(NS_LITERAL_STRING("stylesheet"))) {
+  if (linkTypes.IndexOf(NS_LITERAL_STRING("stylesheet")) < 0) {
     return;
   }
 
@@ -430,7 +428,7 @@ nsHTMLLinkElement::GetStyleSheetInfo(nsAString& aTitle,
   aTitle.Assign(title);
 
   // If alternate, does it have title?
-  if (linkTypes.Contains(NS_LITERAL_STRING("alternate"))) {
+  if (-1 != linkTypes.IndexOf(NS_LITERAL_STRING("alternate"))) {
     if (aTitle.IsEmpty()) { // alternates must have title
       return;
     } else {

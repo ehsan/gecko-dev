@@ -69,7 +69,6 @@
 #include "nsString.h"
 #include "nsUnicharUtils.h"
 #include "nsWidgetsCID.h"
-#include "nsXPCOMCIDInternal.h"
 #include "nsXPIDLString.h"
 #include "nsXULAppAPI.h"
 #include "nsTextFormatter.h"
@@ -337,12 +336,12 @@ nsChromeRegistry::nsProviderArray::SetBase(const nsACString& aProvider, nsIURI* 
 }
 
 void
-nsChromeRegistry::nsProviderArray::EnumerateToArray(nsTArray<nsCString> *a)
+nsChromeRegistry::nsProviderArray::EnumerateToArray(nsCStringArray *a)
 {
   PRInt32 i = mArray.Count();
   while (i--) {
     ProviderEntry *entry = reinterpret_cast<ProviderEntry*>(mArray[i]);
-    a->AppendElement(entry->provider);
+    a->AppendCString(entry->provider);
   }
 }
 
@@ -826,7 +825,7 @@ NS_IMETHODIMP
 nsChromeRegistry::GetLocalesForPackage(const nsACString& aPackage,
                                        nsIUTF8StringEnumerator* *aResult)
 {
-  nsTArray<nsCString> *a = new nsTArray<nsCString>;
+  nsCStringArray *a = new nsCStringArray;
   if (!a)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -1039,11 +1038,17 @@ nsresult nsChromeRegistry::RefreshWindow(nsIDOMWindowInternal* aWindow,
   // Iterate over our old sheets and kick off a sync load of the new 
   // sheet if and only if it's a chrome URL.
   for (i = 0; i < count; i++) {
-    nsCOMPtr<nsICSSStyleSheet> sheet = do_QueryInterface(oldSheets[i]);
-    nsIURI* uri = sheet ? sheet->GetOriginalURI() : nsnull;
+    nsCOMPtr<nsIStyleSheet> sheet = oldSheets[i];
+    nsCOMPtr<nsIURI> uri;
+    rv = sheet->GetSheetURI(getter_AddRefs(uri));
+    if (NS_FAILED(rv)) return rv;
 
-    if (uri && IsChromeURI(uri)) {
+    if (IsChromeURI(uri)) {
       // Reload the sheet.
+#ifdef DEBUG
+      nsCOMPtr<nsICSSStyleSheet> oldCSSSheet = do_QueryInterface(sheet);
+      NS_ASSERTION(oldCSSSheet, "Don't know how to reload a non-CSS sheet");
+#endif
       nsCOMPtr<nsICSSStyleSheet> newSheet;
       // XXX what about chrome sheets that have a title or are disabled?  This
       // only works by sheer dumb luck.

@@ -58,9 +58,11 @@ nsXULColumnsAccessible::
 {
 }
 
-nsresult
-nsXULColumnsAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP
+nsXULColumnsAccessible::GetRole(PRUint32 *aRole)
 {
+  NS_ENSURE_ARG_POINTER(aRole);
+
   *aRole = nsIAccessibleRole::ROLE_LIST;
   return NS_OK;
 }
@@ -96,9 +98,11 @@ nsXULColumnItemAccessible::
 {
 }
 
-nsresult
-nsXULColumnItemAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP
+nsXULColumnItemAccessible::GetRole(PRUint32 *aRole)
 {
+  NS_ENSURE_ARG_POINTER(aRole);
+
   *aRole = nsIAccessibleRole::ROLE_COLUMNHEADER;
   return NS_OK;
 }
@@ -235,8 +239,7 @@ NS_IMETHODIMP nsXULListboxAccessible::GetValue(nsAString& _retval)
   return NS_ERROR_FAILURE;
 }
 
-nsresult
-nsXULListboxAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP nsXULListboxAccessible::GetRole(PRUint32 *aRole)
 {
   nsCOMPtr<nsIContent> content = do_QueryInterface(mDOMNode);
   if (content) {
@@ -884,8 +887,10 @@ nsXULListitemAccessible::GetNameInternal(nsAString& aName)
   return GetXULName(aName);
 }
 
-nsresult
-nsXULListitemAccessible::GetRoleInternal(PRUint32 *aRole)
+/**
+  *
+  */
+NS_IMETHODIMP nsXULListitemAccessible::GetRole(PRUint32 *aRole)
 {
   nsCOMPtr<nsIAccessible> listAcc = GetListAccessible();
   NS_ENSURE_STATE(listAcc);
@@ -992,9 +997,11 @@ nsXULListCellAccessible::
 {
 }
 
-nsresult
-nsXULListCellAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP
+nsXULListCellAccessible::GetRole(PRUint32 *aRole)
 {
+  NS_ENSURE_ARG_POINTER(aRole);
+
   *aRole = nsIAccessibleRole::ROLE_CELL;
   return NS_OK;
 }
@@ -1020,8 +1027,7 @@ nsXULComboboxAccessible::Init()
 }
 
 /** We are a combobox */
-nsresult
-nsXULComboboxAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP nsXULComboboxAccessible::GetRole(PRUint32 *aRole)
 {
   nsCOMPtr<nsIContent> content = do_QueryInterface(mDOMNode);
   if (!content) {

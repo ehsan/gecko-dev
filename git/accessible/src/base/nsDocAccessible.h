@@ -75,7 +75,7 @@ class nsDocAccessible : public nsHyperTextAccessibleWrap,
     nsDocAccessible(nsIDOMNode *aNode, nsIWeakReference* aShell);
     virtual ~nsDocAccessible();
 
-    // nsIAccessible
+    NS_IMETHOD GetRole(PRUint32 *aRole);
     NS_IMETHOD SetRoleMapEntry(nsRoleMapEntry* aRoleMapEntry);
     NS_IMETHOD GetName(nsAString& aName);
     NS_IMETHOD GetDescription(nsAString& aDescription);
@@ -101,7 +101,6 @@ class nsDocAccessible : public nsHyperTextAccessibleWrap,
     virtual nsIFrame* GetFrame();
 
     // nsAccessible
-  virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 
     // nsIAccessibleText

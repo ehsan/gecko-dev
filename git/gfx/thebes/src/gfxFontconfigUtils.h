@@ -70,19 +70,6 @@ public:
     static void Release(FcCharSet *ptr) { FcCharSetDestroy(ptr); }
 };
 
-class gfxIgnoreCaseCStringComparator
-{
-  public:
-    PRBool Equals(const nsACString& a, const nsACString& b) const
-    {
-      return nsCString(a).Equals(b, nsCaseInsensitiveCStringComparator());
-    }
-
-    PRBool LessThan(const nsACString& a, const nsACString& b) const
-    { 
-      return a < b;
-    }
-};
 
 class gfxFontNameList : public nsTArray<nsString>
 {
@@ -105,7 +92,7 @@ public:
 
     nsresult GetFontList(const nsACString& aLangGroup,
                          const nsACString& aGenericFamily,
-                         nsTArray<nsString>& aListOfFonts);
+                         nsStringArray& aListOfFonts);
 
     nsresult UpdateFontList();
 
@@ -150,8 +137,7 @@ public:
     static PRUint16 GetThebesWeight(FcPattern *aPattern);
 
     static int GetFcSlant(const gfxFontStyle& aFontStyle);
-    // Returns a precise FC_WEIGHT from |aBaseWeight|,
-    // which is a CSS absolute weight / 100.
+    // Returns a precise FC_WEIGHT from CSS weight |aBaseWeight|.
     static int FcWeightForBaseWeight(PRInt8 aBaseWeight);
 
     static PRBool GetFullnameFromFamilyAndStyle(FcPattern *aFont,
@@ -322,7 +308,7 @@ protected:
 
     PRBool IsExistingFamily(const nsCString& aFamilyName);
 
-    nsresult GetFontListInternal(nsTArray<nsCString>& aListOfFonts,
+    nsresult GetFontListInternal(nsCStringArray& aListOfFonts,
                                  const nsACString& aLangGroup);
     nsresult UpdateFontListInternal(PRBool aForce = PR_FALSE);
 
@@ -341,7 +327,7 @@ protected:
     nsTHashtable<LangSupportEntry> mLangSupportTable;
     const nsTArray< nsCountedRef<FcPattern> > mEmptyPatternArray;
 
-    nsTArray<nsCString> mAliasForMultiFonts;
+    nsCStringArray mAliasForMultiFonts;
 
     FcConfig *mLastConfig;
 };

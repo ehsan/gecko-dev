@@ -476,7 +476,6 @@ function run_test() {
 // run async, chained
 
 function startIncrementalExpirationTests() {
-  do_test_pending();
   startExpireNeither();
 }
 
@@ -503,15 +502,13 @@ confirmation:
 */
 function startExpireNeither() {
   dump("startExpireNeither()\n");
-  // Cleanup.
+  // setup
   histsvc.removeAllPages();
   observer.expiredURI = null;
 
-  // Setup data.
+  // add data
   histsvc.addVisit(testURI, Date.now() * 1000, null, histsvc.TRANSITION_TYPED, false, 0);
   annosvc.setPageAnnotation(testURI, testAnnoName, testAnnoVal, 0, annosvc.EXPIRE_NEVER);
-  histsvc.addVisit(triggerURI, Date.now() * 1000, null, histsvc.TRANSITION_TYPED, false, 0);
-  annosvc.setPageAnnotation(triggerURI, testAnnoName, testAnnoVal, 0, annosvc.EXPIRE_NEVER);
 
   // set sites cap to 2
   prefs.setIntPref("browser.history_expire_sites", 2);
@@ -520,11 +517,12 @@ function startExpireNeither() {
   // set date maximum to 3
   prefs.setIntPref("browser.history_expire_days", 3);
 
-  // Changing expiration preferences has already triggered expiration, it will
-  // run after the partial expiration timer (3,5s).
+  // trigger expiration
+  ghist.addURI(triggerURI, false, true, null); 
 
-  // Check results.
-  do_timeout(3600, "checkExpireNeither();");
+  // setup confirmation
+  do_test_pending();
+  do_timeout(3600, "checkExpireNeither();"); // incremental expiration timer is 3500
 }
 
 function checkExpireNeither() {
@@ -532,7 +530,6 @@ function checkExpireNeither() {
   try {
     do_check_eq(observer.expiredURI, null);
     do_check_eq(annosvc.getPageAnnotationNames(testURI, {}).length, 1);
-    do_check_eq(annosvc.getPageAnnotationNames(triggerURI, {}).length, 1);
   } catch(ex) {
     do_throw(ex);
   }
@@ -561,10 +558,11 @@ confirmation:
   - query for the visit, confirm it's there
 */
 function startExpireDaysOnly() {
-  dump("startExpireDaysOnly()\n");
-  // Cleanup.
+  // setup
   histsvc.removeAllPages();
   observer.expiredURI = null;
+
+  dump("startExpireDaysOnly()\n");
 
   // add expirable visit
   histsvc.addVisit(testURI, (Date.now() - (86400 * 4 * 1000)) * 1000, null, histsvc.TRANSITION_TYPED, false, 0);
@@ -582,11 +580,11 @@ function startExpireDaysOnly() {
   // set date maximum to 3
   prefs.setIntPref("browser.history_expire_days", 3);
 
-  // Changing expiration preferences has already triggered expiration, it will
-  // run after the partial expiration timer (3,5s).
+  // trigger expiration
+  ghist.addURI(triggerURI, false, true, null); 
 
-  // Check results.
-  do_timeout(3600, "checkExpireDaysOnly();");
+  // setup confirmation
+  do_timeout(3600, "checkExpireDaysOnly();"); // incremental expiration timer is 3500
 }
 
 function checkExpireDaysOnly() {
@@ -625,26 +623,19 @@ confirmation:
   - query for the oldest visit, confirm it's not there
 */
 function startExpireBoth() {
-  dump("starting expiration test 3: both criteria met\n");
-  // Cleanup.
+  // setup
   histsvc.removeAllPages();
   observer.expiredURI = null;
-
-  // Inserting a bookmark will force a sync, this will ensure that later we will
-  // have the same place in both temp and disk table, and that the expire site
-  // cap count is correct.
-  var bmId = bmsvc.insertBookmark(bmsvc.toolbarFolder, testURI, bmsvc.DEFAULT_INDEX, "foo");
-  bmsvc.removeItem(bmId);
-
+  dump("starting expiration test 3: both criteria met\n");
+  // force a sync, this will ensure that later we will have the same place in
+  // both temp and disk table, and that the expire site cap count is correct.
+  bmsvc.changeBookmarkURI(bookmark, testURI);
   // add visits
   // 2 days old, in microseconds
   var age = (Date.now() - (86400 * 2 * 1000)) * 1000;
   dump("AGE: " + age + "\n");
   histsvc.addVisit(testURI, age, null, histsvc.TRANSITION_TYPED, false, 0);
   annosvc.setPageAnnotation(testURI, testAnnoName, testAnnoVal, 0, annosvc.EXPIRE_NEVER);
-
-  histsvc.addVisit(triggerURI, Date.now() * 1000, null, histsvc.TRANSITION_TYPED, false, 0);
-  annosvc.setPageAnnotation(triggerURI, testAnnoName, testAnnoVal, 0, annosvc.EXPIRE_NEVER);
 
   // set sites cap to 1
   prefs.setIntPref("browser.history_expire_sites", 1);
@@ -653,10 +644,11 @@ function startExpireBoth() {
   // set date minimum to 1
   prefs.setIntPref("browser.history_expire_days_min", 1);
 
-  // Changing expiration preferences has already triggered expiration, it will
-  // run after the partial expiration timer (3,5s).
+  // trigger expiration
+  histsvc.addVisit(triggerURI, Date.now() * 1000, null, histsvc.TRANSITION_TYPED, false, 0);
+  annosvc.setPageAnnotation(triggerURI, testAnnoName, testAnnoVal, 0, annosvc.EXPIRE_NEVER);
 
-  // Check results.
+  // setup confirmation
   do_timeout(3600, "checkExpireBoth();"); // incremental expiration timer is 3500
 }
 
@@ -694,16 +686,13 @@ confirmation:
 */
 function startExpireNeitherOver() {
   dump("startExpireNeitherOver()\n");
-  // Cleanup.
+  // setup
   histsvc.removeAllPages();
   observer.expiredURI = null;
 
   // add data
   histsvc.addVisit(testURI, Date.now() * 1000, null, histsvc.TRANSITION_TYPED, false, 0);
   annosvc.setPageAnnotation(testURI, testAnnoName, testAnnoVal, 0, annosvc.EXPIRE_NEVER);
-
-  histsvc.addVisit(triggerURI, Date.now() * 1000, null, histsvc.TRANSITION_TYPED, false, 0);
-  annosvc.setPageAnnotation(triggerURI, testAnnoName, testAnnoVal, 0, annosvc.EXPIRE_NEVER);
 
   // set sites cap to 1
   prefs.setIntPref("browser.history_expire_sites", 1);
@@ -712,11 +701,12 @@ function startExpireNeitherOver() {
   // set date maximum to 3
   prefs.setIntPref("browser.history_expire_days", 3);
 
-  // Changing expiration preferences has already triggered expiration, it will
-  // run after the partial expiration timer (3,5s).
+  // trigger expiration
+  histsvc.addVisit(triggerURI, Date.now() * 1000, null, histsvc.TRANSITION_TYPED, false, 0);
+  annosvc.setPageAnnotation(triggerURI, testAnnoName, testAnnoVal, 0, annosvc.EXPIRE_NEVER);
 
-  // Check results.
-  do_timeout(3600, "checkExpireNeitherOver();");
+  // setup confirmation
+  do_timeout(3600, "checkExpireNeitherOver();"); // incremental expiration timer is 3500
 }
 
 function checkExpireNeitherOver() {
@@ -751,7 +741,7 @@ confirmation:
 */
 function startExpireHistoryDisabled() {
   dump("startExpireHistoryDisabled()\n");
-  // Cleanup.
+  // setup
   histsvc.removeAllPages();
   observer.expiredURI = null;
 
@@ -762,11 +752,8 @@ function startExpireHistoryDisabled() {
   // set date maximum to 0
   prefs.setIntPref("browser.history_expire_days", 0);
 
-  // Changing expiration preferences has already triggered expiration, it will
-  // run after the partial expiration timer (3,5s).
-
-  // Check results.
-  do_timeout(3600, "checkExpireHistoryDisabled();");
+  // setup confirmation
+  do_timeout(3600, "checkExpireHistoryDisabled();"); // incremental expiration timer is 3500
 }
 
 function checkExpireHistoryDisabled() {
@@ -801,7 +788,7 @@ confirmation:
 */
 function startExpireBadPrefs() {
   dump("startExpireBadPrefs()\n");
-  // Cleanup.
+  // setup
   histsvc.removeAllPages();
   observer.expiredURI = null;
 
@@ -815,11 +802,8 @@ function startExpireBadPrefs() {
   // set date maximum to 1
   prefs.setIntPref("browser.history_expire_days", 1);
 
-  // Changing expiration preferences has already triggered expiration, it will
-  // run after the partial expiration timer (3,5s).
-
-  // Check results.
-  do_timeout(3600, "checkExpireBadPrefs();");
+  // setup confirmation
+  do_timeout(3600, "checkExpireBadPrefs();"); // incremental expiration timer is 3500
 }
 
 function checkExpireBadPrefs() {

@@ -114,47 +114,24 @@ nsIntSize nsHTMLVideoElement::GetVideoSize(nsIntSize aDefaultSize)
   return mMediaSize.width == -1 && mMediaSize.height == -1 ? aDefaultSize : mMediaSize;
 }
 
-PRBool
-nsHTMLVideoElement::ParseAttribute(PRInt32 aNamespaceID,
-                                   nsIAtom* aAttribute,
-                                   const nsAString& aValue,
-                                   nsAttrValue& aResult)
+nsresult nsHTMLVideoElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
+                                        nsIContent* aBindingParent,
+                                        PRBool aCompileEventHandlers)
 {
-   if (aAttribute == nsGkAtoms::width || aAttribute == nsGkAtoms::height) {
-     return aResult.ParseSpecialIntValue(aValue, PR_TRUE);
-   }
+  if (mDecoder)
+    mDecoder->ElementAvailable(this);
 
-   return nsHTMLMediaElement::ParseAttribute(aNamespaceID, aAttribute, aValue,
-                                             aResult);
+  return nsHTMLMediaElement::BindToTree(aDocument, 
+                                        aParent, 
+                                        aBindingParent, 
+                                        aCompileEventHandlers);
 }
 
-static void
-MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
-                      nsRuleData* aData)
+void nsHTMLVideoElement::UnbindFromTree(PRBool aDeep,
+                                        PRBool aNullParent)
 {
-  nsGenericHTMLElement::MapImageSizeAttributesInto(aAttributes, aData);
-  nsGenericHTMLElement::MapCommonAttributesInto(aAttributes, aData);
-}
+  nsHTMLMediaElement::UnbindFromTree(aDeep, aNullParent);
 
-NS_IMETHODIMP_(PRBool)
-nsHTMLVideoElement::IsAttributeMapped(const nsIAtom* aAttribute) const
-{
-  static const MappedAttributeEntry attributes[] = {
-    { &nsGkAtoms::width },
-    { &nsGkAtoms::height },
-    { nsnull }
-  };
-
-  static const MappedAttributeEntry* const map[] = {
-    attributes,
-    sCommonAttributeMap
-  };
-
-  return FindAttributeDependence(aAttribute, map, NS_ARRAY_LENGTH(map));
-}
-
-nsMapRuleToAttributesFunc
-nsHTMLVideoElement::GetAttributeMappingFunction() const
-{
-  return &MapAttributesIntoRule;
+  if (mDecoder) 
+    mDecoder->ElementUnavailable();
 }

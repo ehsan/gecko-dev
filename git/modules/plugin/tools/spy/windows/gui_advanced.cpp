@@ -45,7 +45,7 @@
 
 static void onApply(HWND hWnd)
 {
-  Logger * logger = (Logger *)GetWindowLongPtr(hWnd, DWLP_USER);
+  Logger * logger = (Logger *)GetWindowLong(hWnd, DWL_USER);
   if(!logger)
     return;
 
@@ -72,7 +72,7 @@ static BOOL onInitDialog(HWND hWnd, HWND hWndFocus, LPARAM lParam)
   if(lParam)
   {
     logger = (Logger *)(((PROPSHEETPAGE *)lParam)->lParam);
-    SetWindowLongPtr(hWnd, DWLP_USER, (LONG_PTR)logger);
+    SetWindowLong(hWnd, DWL_USER, (long)logger);
   }
 
   if(logger)

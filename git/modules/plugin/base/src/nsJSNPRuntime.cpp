@@ -1166,18 +1166,18 @@ NPObjWrapper_DelProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 {
   NPObject *npobj = GetNPObject(cx, obj);
 
-  if (!npobj || !npobj->_class || !npobj->_class->hasProperty ||
-      !npobj->_class->removeProperty) {
+  if (!npobj || !npobj->_class || !npobj->_class->hasProperty) {
     ThrowJSException(cx, "Bad NPObject as private data!");
 
     return JS_FALSE;
   }
 
-  if (!npobj->_class->hasProperty(npobj, (NPIdentifier)id))
-    return JS_TRUE;
+  if (!npobj->_class->hasProperty(npobj, (NPIdentifier)id)) {
+    ThrowJSException(cx, "Trying to remove unsupported property on scriptable "
+                     "plugin object!");
 
-  if (!npobj->_class->removeProperty(npobj, (NPIdentifier)id))
-    *vp = JSVAL_FALSE;
+    return JS_FALSE;
+  }
 
   return ReportExceptionIfPending(cx);
 }

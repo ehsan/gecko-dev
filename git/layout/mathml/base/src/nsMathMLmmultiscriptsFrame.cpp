@@ -81,7 +81,7 @@ nsMathMLmmultiscriptsFrame::TransmitAutomaticData()
   // the compression flag in them.
   PRInt32 count = 0;
   PRBool isSubScript = PR_FALSE;
-  nsAutoTArray<nsIFrame*, 8> subScriptFrames;
+  nsAutoVoidArray subScriptFrames;
   nsIFrame* childFrame = mFrames.FirstChild();
   while (childFrame) {
     if (childFrame->GetContent()->Tag() == nsGkAtoms::mprescripts_) {
@@ -104,8 +104,8 @@ nsMathMLmmultiscriptsFrame::TransmitAutomaticData()
     count++;
     childFrame = childFrame->GetNextSibling();
   }
-  for (PRInt32 i = subScriptFrames.Length() - 1; i >= 0; i--) {
-    childFrame = subScriptFrames[i];
+  for (PRInt32 i = subScriptFrames.Count() - 1; i >= 0; i--) {
+    childFrame = (nsIFrame*)subScriptFrames[i];
     PropagatePresentationDataFor(childFrame,
       NS_MATHML_COMPRESSED, NS_MATHML_COMPRESSED);
   }

@@ -49,8 +49,10 @@ public:
 
   NS_DECL_ISUPPORTS_INHERITED
 
+  // nsIAccessible
+  NS_IMETHOD GetRole(PRUint32 *aRole);
+
   // nsAccessible
-  virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
 };
 
@@ -71,13 +73,12 @@ public:
   NS_DECL_NSIACCESSIBLETABLE
 
   // nsIAccessible
+  NS_IMETHOD GetRole(PRUint32 *aResult); 
   NS_IMETHOD GetDescription(nsAString& aDescription);
-  NS_IMETHOD GetRelationByType(PRUint32 aRelationType,
-                               nsIAccessibleRelation **aRelation);
+  NS_IMETHOD GetAccessibleRelated(PRUint32 aRelationType, nsIAccessible **aRelated);
 
   // nsAccessible
   virtual nsresult GetNameInternal(nsAString& aName);
-  virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
 
@@ -140,14 +141,14 @@ public:
 
   nsHTMLTableHeadAccessible(nsIDOMNode *aDomNode, nsIWeakReference *aShell);
 
+  /* nsIAccessible */
+  NS_IMETHOD GetRole(PRUint32 *aResult);
+
   /* nsIAccessibleTable */
   NS_IMETHOD GetCaption(nsIAccessible **aCaption);
   NS_IMETHOD GetSummary(nsAString &aSummary);
   NS_IMETHOD GetColumnHeader(nsIAccessibleTable **aColumnHeader);
   NS_IMETHOD GetRows(PRInt32 *aRows);
-
-  // nsAccessible
-  virtual nsresult GetRoleInternal(PRUint32 *aRole);
 };
 
 class nsHTMLCaptionAccessible : public nsHyperTextAccessibleWrap
@@ -157,11 +158,9 @@ public:
     nsHyperTextAccessibleWrap(aDomNode, aShell) { }
 
   // nsIAccessible
-  NS_IMETHOD GetRelationByType(PRUint32 aRelationType,
-                               nsIAccessibleRelation **aRelation);
-
-  // nsAccessible
-  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  NS_IMETHOD GetRole(PRUint32 *aRole)
+    { *aRole = nsIAccessibleRole::ROLE_CAPTION; return NS_OK; }
+  NS_IMETHOD GetAccessibleRelated(PRUint32 aRelationType, nsIAccessible **aRelated);
 };
 
 #endif  

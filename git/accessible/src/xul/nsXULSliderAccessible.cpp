@@ -51,9 +51,11 @@ nsXULSliderAccessible::nsXULSliderAccessible(nsIDOMNode* aNode,
 
 // nsIAccessible
 
-nsresult
-nsXULSliderAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP
+nsXULSliderAccessible::GetRole(PRUint32 *aRole)
 {
+  NS_ENSURE_ARG_POINTER(aRole);
+
   *aRole = nsIAccessibleRole::ROLE_SLIDER;
   return NS_OK;
 }
@@ -231,9 +233,11 @@ nsXULThumbAccessible::nsXULThumbAccessible(nsIDOMNode* aNode,
 
 // nsIAccessible
 
-nsresult
-nsXULThumbAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP
+nsXULThumbAccessible::GetRole(PRUint32 *aRole)
 {
+  NS_ENSURE_ARG_POINTER(aRole);
+
   *aRole = nsIAccessibleRole::ROLE_INDICATOR;
   return NS_OK;
 }

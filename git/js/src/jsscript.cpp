@@ -41,6 +41,7 @@
 /*
  * JS script operations.
  */
+#include "jsstddef.h"
 #include <string.h>
 #include "jstypes.h"
 #include "jsutil.h" /* Added by JSIFY */
@@ -59,7 +60,6 @@
 #include "jsparse.h"
 #include "jsscope.h"
 #include "jsscript.h"
-#include "jstracer.h"
 #if JS_HAS_XDR
 #include "jsxdrapi.h"
 #endif
@@ -310,7 +310,7 @@ static JSBool
 script_exec_sub(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
                 jsval *rval)
 {
-    JSObject *scopeobj;
+    JSObject *scopeobj, *parent;
     JSStackFrame *caller;
     JSPrincipals *principals;
     JSScript *script;
@@ -343,8 +343,9 @@ script_exec_sub(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
         /* Called from a lightweight function. */
         JS_ASSERT(caller->fun && !JSFUN_HEAVYWEIGHT_TEST(caller->fun->flags));
 
-        /* Scope chain links from Call object to caller's scope chain. */
-        if (!js_GetCallObject(cx, caller))
+        /* Scope chain links from Call object to callee's parent. */
+        parent = OBJ_GET_PARENT(cx, caller->callee);
+        if (!js_GetCallObject(cx, caller, parent))
             return JS_FALSE;
     }
 
@@ -361,7 +362,7 @@ script_exec_sub(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
         } else {
             /*
              * Called from native code, so we don't know what scope object to
-             * use.  We could use the caller's scope chain (see above), but Script.prototype.exec
+             * use.  We could use parent (see above), but Script.prototype.exec
              * might be a shared/sealed "superglobal" method.  A more general
              * approach would use cx->globalObject, which will be the same as
              * exec.__parent__ in the non-superglobal case.  In the superglobal
@@ -451,7 +452,7 @@ js_XDRScript(JSXDRState *xdr, JSScript **scriptp, JSBool *hasMagic)
 
     if (xdr->mode == JSXDR_ENCODE) {
         length = script->length;
-        prologLength = script->main - script->code;
+        prologLength = PTRDIFF(script->main, script->code, jsbytecode);
         JS_ASSERT((int16)script->version != JSVERSION_UNKNOWN);
         version = (uint32)script->version | (script->nfixed << 16);
         lineno = (uint32)script->lineno;
@@ -463,7 +464,7 @@ js_XDRScript(JSXDRState *xdr, JSScript **scriptp, JSBool *hasMagic)
         notes = SCRIPT_NOTES(script);
         for (sn = notes; !SN_IS_TERMINATOR(sn); sn = SN_NEXT(sn))
             continue;
-        nsrcnotes = sn - notes;
+        nsrcnotes = PTRDIFF(sn, notes, jssrcnote);
         nsrcnotes++;            /* room for the terminator */
 
         if (script->objectsOffset != 0)
@@ -507,8 +508,8 @@ js_XDRScript(JSXDRState *xdr, JSScript **scriptp, JSBool *hasMagic)
             return JS_FALSE;
 
         script->main += prologLength;
-        script->version = JSVersion(version & 0xffff);
-        script->nfixed = uint16(version >> 16);
+        script->version = (JSVersion) (version & 0xffff);
+        script->nfixed = (uint16) (version >> 16);
 
         /* If we know nsrcnotes, we allocated space for notes in script. */
         notes = SCRIPT_NOTES(script);
@@ -581,7 +582,7 @@ js_XDRScript(JSXDRState *xdr, JSScript **scriptp, JSBool *hasMagic)
         }
         script->lineno = (uintN)lineno;
         script->nslots = (uint16)nslots;
-        script->staticDepth = (uint16)(nslots >> 16);
+        script->staticDepth = nslots >> 16;
     }
 
     for (i = 0; i != natoms; ++i) {
@@ -1606,9 +1607,6 @@ js_DestroyScript(JSContext *cx, JSScript *script)
             JS_ASSERT(script->owner == cx->thread);
 #endif
             js_FlushPropertyCacheForScript(cx, script);
-#ifdef JS_TRACER
-            js_FlushScriptFragments(cx, script);
-#endif
         }
     }
 
@@ -1685,7 +1683,7 @@ js_GetSrcNoteCached(JSContext *cx, JSScript *script, jsbytecode *pc)
     uintN nsrcnotes;
 
 
-    target = pc - script->code;
+    target = PTRDIFF(pc, script->code, jsbytecode);
     if ((uint32)target >= script->length)
         return NULL;
 
@@ -1754,7 +1752,6 @@ js_FramePCToLineNumber(JSContext *cx, JSStackFrame *fp)
 uintN
 js_PCToLineNumber(JSContext *cx, JSScript *script, jsbytecode *pc)
 {
-    JSOp op;
     JSFunction *fun;
     uintN lineno;
     ptrdiff_t offset, target;
@@ -1769,9 +1766,8 @@ js_PCToLineNumber(JSContext *cx, JSScript *script, jsbytecode *pc)
      * Special case: function definition needs no line number note because
      * the function's script contains its starting line number.
      */
-    op = js_GetOpcode(cx, script, pc);
-    if (js_CodeSpec[op].format & JOF_INDEXBASE)
-        pc += js_CodeSpec[op].length;
+    if (js_CodeSpec[*pc].format & JOF_INDEXBASE)
+        pc += js_CodeSpec[*pc].length;
     if (*pc == JSOP_DEFFUN) {
         GET_FUNCTION_FROM_BYTECODE(script, pc, 0, fun);
         return fun->u.i.script->lineno;
@@ -1784,7 +1780,7 @@ js_PCToLineNumber(JSContext *cx, JSScript *script, jsbytecode *pc)
      */
     lineno = script->lineno;
     offset = 0;
-    target = pc - script->code;
+    target = PTRDIFF(pc, script->code, jsbytecode);
     for (sn = SCRIPT_NOTES(script); !SN_IS_TERMINATOR(sn); sn = SN_NEXT(sn)) {
         offset += SN_DELTA(sn);
         type = (JSSrcNoteType) SN_TYPE(sn);

@@ -68,13 +68,6 @@ nsXULTextAccessible::GetNameInternal(nsAString& aName)
 }
 
 nsresult
-nsXULTextAccessible::GetRoleInternal(PRUint32 *aRole)
-{
-  *aRole = nsIAccessibleRole::ROLE_LABEL;
-  return NS_OK;
-}
-
-nsresult
 nsXULTextAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
 {
   nsresult rv = nsHyperTextAccessibleWrap::GetStateInternal(aState,
@@ -88,16 +81,19 @@ nsXULTextAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
 }
 
 NS_IMETHODIMP
-nsXULTextAccessible::GetRelationByType(PRUint32 aRelationType,
-                                       nsIAccessibleRelation **aRelation)
+nsXULTextAccessible::GetAccessibleRelated(PRUint32 aRelationType,
+                                          nsIAccessible **aRelated)
 {
   nsresult rv =
-    nsHyperTextAccessibleWrap::GetRelationByType(aRelationType, aRelation);
+    nsHyperTextAccessibleWrap::GetAccessibleRelated(aRelationType, aRelated);
   NS_ENSURE_SUCCESS(rv, rv);
+  if (*aRelated) {
+    return NS_OK;
+  }
 
   nsIContent *content = nsCoreUtils::GetRoleContent(mDOMNode);
   if (!content)
-    return NS_OK;
+    return NS_ERROR_FAILURE;
 
   if (aRelationType == nsIAccessibleRelation::RELATION_LABEL_FOR) {
     // Caption is the label for groupbox
@@ -106,8 +102,7 @@ nsXULTextAccessible::GetRelationByType(PRUint32 aRelationType,
       nsCOMPtr<nsIAccessible> parentAccessible;
       GetParent(getter_AddRefs(parentAccessible));
       if (nsAccUtils::Role(parentAccessible) == nsIAccessibleRole::ROLE_GROUPING)
-        return nsRelUtils::
-          AddTarget(aRelationType, aRelation, parentAccessible);
+        parentAccessible.swap(*aRelated);
     }
   }
 
@@ -134,10 +129,9 @@ nsXULTooltipAccessible::GetStateInternal(PRUint32 *aState,
   return NS_OK;
 }
 
-nsresult
-nsXULTooltipAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP nsXULTooltipAccessible::GetRole(PRUint32 *_retval)
 {
-  *aRole = nsIAccessibleRole::ROLE_TOOLTIP;
+  *_retval = nsIAccessibleRole::ROLE_TOOLTIP;
   return NS_OK;
 }
 
@@ -173,20 +167,19 @@ nsXULLinkAccessible::GetValue(nsAString& aValue)
 nsresult
 nsXULLinkAccessible::GetNameInternal(nsAString& aName)
 {
-  if (IsDefunct())
-    return NS_ERROR_FAILURE;
-
   nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
   content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::value, aName);
   if (!aName.IsEmpty())
     return NS_OK;
 
-  return nsTextEquivUtils::GetNameFromSubtree(this, aName);
+  return AppendFlatStringFromSubtree(content, &aName);
 }
 
-nsresult
-nsXULLinkAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP
+nsXULLinkAccessible::GetRole(PRUint32 *aRole)
 {
+  NS_ENSURE_ARG_POINTER(aRole);
+
   *aRole = nsIAccessibleRole::ROLE_LINK;
   return NS_OK;
 }
