@@ -1,0 +1,46 @@
+<!DOCTYPE HTML>
+<html>
+<!--
+https://bugzilla.mozilla.org/show_bug.cgi?id=482260
+-->
+<head>
+  <title>Test for watchPosition </title>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
+  <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
+  <script type="text/javascript" src="geolocation_common.js"></script>
+
+<link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
+</head>
+<body>
+<a target="_blank" href="https://bugzilla.mozilla.org/show_bug.cgi?id=482260">Mozilla Bug 482260</a>
+<p id="display"></p>
+<div id="content" style="display: none">
+  
+</div>
+<pre id="test">
+<script class="testbody" type="text/javascript">
+
+SimpleTest.waitForExplicitFinish();
+resume_geolocationProvider();
+force_prompt(true);
+
+var successCallbackCalled = false;
+
+function successCallback(position) {
+  successCallbackCalled = true;
+}
+
+for (var x = 0; x < 100; x++)
+  navigator.geolocation.watchPosition(successCallback);
+
+function testPassed() {
+  ok(successCallbackCalled, "if nothing crashed, all okay");
+  reset_prompt();
+  SimpleTest.finish();
+}
+setTimeout(testPassed, 1000);
+
+</script>
+</pre>
+</body>
+</html>
