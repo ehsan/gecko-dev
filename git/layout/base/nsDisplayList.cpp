@@ -643,8 +643,7 @@ static void RecordFrameMetrics(nsIFrame* aForFrame,
                                nsRect* aDisplayPort,
                                nsRect* aCriticalDisplayPort,
                                ViewID aScrollId,
-                               const nsDisplayItem::ContainerParameters& aContainerParameters,
-                               bool aMayHaveTouchListeners) {
+                               const nsDisplayItem::ContainerParameters& aContainerParameters) {
   nsPresContext* presContext = aForFrame->PresContext();
   int32_t auPerDevPixel = presContext->AppUnitsPerDevPixel();
   LayoutDeviceToLayerScale resolution(aContainerParameters.mXScale, aContainerParameters.mYScale);
@@ -719,7 +718,16 @@ static void RecordFrameMetrics(nsIFrame* aForFrame,
   metrics.mZoom = metrics.mCumulativeResolution * metrics.mDevPixelsPerCSSPixel
                 * layerToScreenScale;
 
-  metrics.mMayHaveTouchListeners = aMayHaveTouchListeners;
+  if (presShell) {
+    nsIDocument* document = nullptr;
+    document = presShell->GetDocument();
+    if (document) {
+      nsCOMPtr<nsPIDOMWindow> innerWin(document->GetInnerWindow());
+      if (innerWin) {
+        metrics.mMayHaveTouchListeners = innerWin->HasTouchEventListeners();
+      }
+    }
+  }
 
   // Calculate the composition bounds as the size of the scroll frame and
   // its origin relative to the reference frame.
@@ -1248,14 +1256,6 @@ void nsDisplayList::PaintForFrame(nsDisplayListBuilder* aBuilder,
     }
   }
 
-  bool mayHaveTouchListeners = false;
-  if (document) {
-    nsCOMPtr<nsPIDOMWindow> innerWin(document->GetInnerWindow());
-    if (innerWin) {
-      mayHaveTouchListeners = innerWin->HasTouchEventListeners();
-    }
-  }
-
   nsRect viewport(aBuilder->ToReferenceFrame(aForFrame), aForFrame->GetSize());
 
   RecordFrameMetrics(aForFrame, rootScrollFrame,
@@ -1263,7 +1263,7 @@ void nsDisplayList::PaintForFrame(nsDisplayListBuilder* aBuilder,
                      root, mVisibleRect, viewport,
                      (usingDisplayport ? &displayport : nullptr),
                      (usingCriticalDisplayport ? &criticalDisplayport : nullptr),
-                     id, containerParameters, mayHaveTouchListeners);
+                     id, containerParameters);
   if (usingDisplayport &&
       !(root->GetContentFlags() & Layer::CONTENT_OPAQUE)) {
     // See bug 693938, attachment 567017
@@ -3314,6 +3314,35 @@ nsDisplayOwnLayer::BuildLayer(nsDisplayListBuilder* aBuilder,
   return layer.forget();
 }
 
+nsDisplayResolution::nsDisplayResolution(nsDisplayListBuilder* aBuilder,
+                                         nsIFrame* aFrame, nsDisplayList* aList,
+                                         uint32_t aFlags)
+    : nsDisplayOwnLayer(aBuilder, aFrame, aList, aFlags) {
+  MOZ_COUNT_CTOR(nsDisplayResolution);
+}
+
+#ifdef NS_BUILD_REFCNT_LOGGING
+nsDisplayResolution::~nsDisplayResolution() {
+  MOZ_COUNT_DTOR(nsDisplayResolution);
+}
+#endif
+
+already_AddRefed<Layer>
+nsDisplayResolution::BuildLayer(nsDisplayListBuilder* aBuilder,
+                                LayerManager* aManager,
+                                const ContainerParameters& aContainerParameters) {
+  nsIPresShell* presShell = mFrame->PresContext()->PresShell();
+  nsDisplayItem::ContainerParameters containerParameters(
+    presShell->GetXResolution(), presShell->GetYResolution(), nsIntPoint(),
+    aContainerParameters);
+
+  nsRefPtr<Layer> layer = nsDisplayOwnLayer::BuildLayer(
+    aBuilder, aManager, containerParameters);
+  layer->SetPostScale(1.0f / presShell->GetXResolution(),
+                      1.0f / presShell->GetYResolution());
+  return layer.forget();
+}
+
 nsDisplayFixedPosition::nsDisplayFixedPosition(nsDisplayListBuilder* aBuilder,
                                                nsIFrame* aFrame,
                                                nsIFrame* aFixedPosFrame,
@@ -3582,7 +3611,7 @@ nsDisplayScrollLayer::BuildLayer(nsDisplayListBuilder* aBuilder,
                      mVisibleRect, viewport,
                      (usingDisplayport ? &displayport : nullptr),
                      (usingCriticalDisplayport ? &criticalDisplayport : nullptr),
-                     scrollId, aContainerParameters, false);
+                     scrollId, aContainerParameters);
 
   return layer.forget();
 }
