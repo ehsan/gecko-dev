@@ -24,10 +24,10 @@
 #include "jsscript.h"
 #include "jswrapper.h"
 
-#include "js/MemoryMetrics.h"
 #include "jit/AsmJSSignalHandlers.h"
 #include "jit/IonCompartment.h"
 #include "jit/PcScriptCache.h"
+#include "js/MemoryMetrics.h"
 #include "yarr/BumpPointerAllocator.h"
 
 #include "jscntxtinlines.h"
@@ -460,45 +460,9 @@ JSRuntime::~JSRuntime()
     JS_ASSERT(oldCount > 0);
 
 #ifdef JS_THREADSAFE
-    clearOwnerThread();
-#endif
-}
-
-#ifdef JS_THREADSAFE
-void
-JSRuntime::setOwnerThread()
-{
-    JS_ASSERT(ownerThread_ == (void *)0xc1ea12);  /* "clear" */
-    JS_ASSERT(requestDepth == 0);
-    JS_ASSERT(js::TlsPerThreadData.get() == NULL);
-    ownerThread_ = PR_GetCurrentThread();
-    js::TlsPerThreadData.set(&mainThread);
-    nativeStackBase = GetNativeStackBase();
-    if (nativeStackQuota)
-        JS_SetNativeStackQuota(this, nativeStackQuota);
-#ifdef XP_MACOSX
-    asmJSMachExceptionHandler.setCurrentThread();
-#endif
-}
-
-void
-JSRuntime::clearOwnerThread()
-{
-    JS_ASSERT(CurrentThreadCanAccessRuntime(this));
-    JS_ASSERT(requestDepth == 0);
-    ownerThread_ = (void *)0xc1ea12;  /* "clear" */
     js::TlsPerThreadData.set(NULL);
-    nativeStackBase = 0;
-#if JS_STACK_GROWTH_DIRECTION > 0
-    mainThread.nativeStackLimit = UINTPTR_MAX;
-#else
-    mainThread.nativeStackLimit = 0;
-#endif
-#ifdef XP_MACOSX
-    asmJSMachExceptionHandler.clearCurrentThread();
 #endif
 }
-#endif /* JS_THREADSAFE */
 
 void
 NewObjectCache::clearNurseryObjects(JSRuntime *rt)
@@ -563,11 +527,7 @@ JSRuntime::triggerOperationCallback()
      */
     mainThread.setIonStackLimit(-1);
 
-    /*
-     * Use JS_ATOMIC_SET in the hope that it ensures the write will become
-     * immediately visible to other processors polling the flag.
-     */
-    JS_ATOMIC_SET(&interrupt, 1);
+    interrupt = 1;
 
 #ifdef JS_ION
     /* asm.js code uses a separate mechanism to halt running code. */

@@ -492,6 +492,7 @@ webidl_files += \
   DataErrorEvent.webidl \
   IccCardLockErrorEvent.webidl \
   MozCellBroadcastEvent.webidl \
+  MozEmergencyCbModeEvent.webidl \
   MozVoicemailEvent.webidl \
   MozWifiConnectionInfoEvent.webidl \
   MozWifiStatusChangeEvent.webidl \
@@ -527,3 +528,8 @@ else
 test_webidl_files := $(NULL)
 endif
 
+ifdef MOZ_B2G
+webidl_files += \
+  InputMethod.webidl \
+  $(NULL)
+endif

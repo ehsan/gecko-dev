@@ -110,7 +110,10 @@ const RIL_IPC_MOBILECONNECTION_MSG_NAMES = [
   "RIL:SetCallingLineIdRestriction",
   "RIL:GetCallingLineIdRestriction",
   "RIL:SetRoamingPreference",
-  "RIL:GetRoamingPreference"
+  "RIL:GetRoamingPreference",
+  "RIL:ExitEmergencyCbMode",
+  "RIL:SetVoicePrivacyMode",
+  "RIL:GetVoicePrivacyMode"
 ];
 
 const RIL_IPC_ICCMANAGER_MSG_NAMES = [
@@ -857,6 +860,27 @@ RadioInterface.prototype = {
   },
 
   /**
+   * A utility function to compare objects. The srcInfo may contain
+   * 'rilMessageType', should ignore it.
+   */
+  isInfoChanged: function isInfoChanged(srcInfo, destInfo) {
+    if (!destInfo) {
+      return true;
+    }
+
+    for (let key in srcInfo) {
+      if (key === 'rilMessageType') {
+        continue;
+      }
+      if (srcInfo[key] !== destInfo[key]) {
+        return true;
+      }
+    }
+
+    return false;
+  },
+
+  /**
    * Process a message from the content process.
    */
   receiveMessage: function receiveMessage(msg) {
@@ -988,6 +1012,9 @@ RadioInterface.prototype = {
       case "RIL:GetCallingLineIdRestriction":
         this.workerMessenger.sendWithIPCMessage(msg, "getCLIR");
         break;
+      case "RIL:ExitEmergencyCbMode":
+        this.workerMessenger.sendWithIPCMessage(msg, "exitEmergencyCbMode");
+        break;
       case "RIL:GetVoicemailInfo":
         // This message is sync.
         return this.voicemailInfo;
@@ -996,6 +1023,12 @@ RadioInterface.prototype = {
         break;
       case "RIL:GetRoamingPreference":
         this.workerMessenger.sendWithIPCMessage(msg, "queryRoamingPreference");
+        break;
+      case "RIL:SetVoicePrivacyMode":
+        this.workerMessenger.sendWithIPCMessage(msg, "setVoicePrivacyMode");
+        break;
+      case "RIL:GetVoicePrivacyMode":
+        this.workerMessenger.sendWithIPCMessage(msg, "queryVoicePrivacyMode");
         break;
     }
   },
@@ -1022,6 +1055,9 @@ RadioInterface.prototype = {
         break;
       case "suppSvcNotification":
         this.handleSuppSvcNotification(message);
+        break;
+      case "emergencyCbModeChange":
+        this.handleEmergencyCbModeChange(message);
         break;
       case "networkinfochanged":
         this.updateNetworkInfo(message);
@@ -1095,6 +1131,9 @@ RadioInterface.prototype = {
         let lock = gSettingsService.createLock();
         lock.set("ril.radio.disabled", !message.on, null, null);
         break;
+      case "exitEmergencyCbMode":
+        this.handleExitEmergencyCbMode(message);
+        break;
       default:
         throw new Error("Don't know about this message type: " +
                         message.rilMessageType);
@@ -1118,6 +1157,7 @@ RadioInterface.prototype = {
     let dataMessage = message[RIL.NETWORK_INFO_DATA_REGISTRATION_STATE];
     let operatorMessage = message[RIL.NETWORK_INFO_OPERATOR];
     let selectionMessage = message[RIL.NETWORK_INFO_NETWORK_SELECTION_MODE];
+    let signalMessage = message[RIL.NETWORK_INFO_SIGNAL];
 
     // Batch the *InfoChanged messages together
     if (voiceMessage) {
@@ -1132,17 +1172,21 @@ RadioInterface.prototype = {
       this.handleOperatorChange(operatorMessage, true);
     }
 
+    if (signalMessage) {
+      this.handleSignalStrengthChange(signalMessage, true);
+    }
+
     let voice = this.rilContext.voice;
     let data = this.rilContext.data;
 
     this.checkRoamingBetweenOperators(voice);
     this.checkRoamingBetweenOperators(data);
 
-    if (voiceMessage || operatorMessage) {
+    if (voiceMessage || operatorMessage || signalMessage) {
       gMessageManager.sendMobileConnectionMessage("RIL:VoiceInfoChanged",
                                                   this.clientId, voice);
     }
-    if (dataMessage || operatorMessage) {
+    if (dataMessage || operatorMessage || signalMessage) {
       gMessageManager.sendMobileConnectionMessage("RIL:DataInfoChanged",
                                                   this.clientId, data);
     }
@@ -1325,32 +1369,35 @@ RadioInterface.prototype = {
     }).bind(this));
   },
 
-  handleSignalStrengthChange: function handleSignalStrengthChange(message) {
+  /**
+   * Handle signal strength changes.
+   *
+   * @param message The new signal strength.
+   * @param batch   When batch is true, the RIL:VoiceInfoChanged and
+   *                RIL:DataInfoChanged message will not be sent.
+   */
+  handleSignalStrengthChange: function handleSignalStrengthChange(message, batch) {
     let voiceInfo = this.rilContext.voice;
-    if (voiceInfo.signalStrength != message.voice.signalStrength ||
-        voiceInfo.relSignalStrength != message.voice.relSignalStrength) {
-      voiceInfo.signalStrength = message.voice.signalStrength;
-      voiceInfo.relSignalStrength = message.voice.relSignalStrength;
-      gMessageManager.sendMobileConnectionMessage("RIL:VoiceInfoChanged",
-                                                  this.clientId, voiceInfo);
+    // If the voice is not registered, need not to update signal information.
+    if (voiceInfo.state === RIL.GECKO_MOBILE_CONNECTION_STATE_REGISTERED &&
+        this.isInfoChanged(message.voice, voiceInfo)) {
+      this.updateInfo(message.voice, voiceInfo);
+      if (!batch) {
+        gMessageManager.sendMobileConnectionMessage("RIL:VoiceInfoChanged",
+                                                    this.clientId, voiceInfo);
+      }
     }
 
     let dataInfo = this.rilContext.data;
-    if (dataInfo.signalStrength != message.data.signalStrength ||
-        dataInfo.relSignalStrength != message.data.relSignalStrength) {
-      dataInfo.signalStrength = message.data.signalStrength;
-      dataInfo.relSignalStrength = message.data.relSignalStrength;
-      gMessageManager.sendMobileConnectionMessage("RIL:DataInfoChanged",
-                                                  this.clientId, dataInfo);
+    // If the data is not registered, need not to update signal information.
+    if (dataInfo.state === RIL.GECKO_MOBILE_CONNECTION_STATE_REGISTERED &&
+        this.isInfoChanged(message.data, dataInfo)) {
+      this.updateInfo(message.data, dataInfo);
+      if (!batch) {
+        gMessageManager.sendMobileConnectionMessage("RIL:DataInfoChanged",
+                                                    this.clientId, dataInfo);
+      }
     }
-  },
-
-  networkChanged: function networkChanged(srcNetwork, destNetwork) {
-    return !destNetwork ||
-      destNetwork.longName != srcNetwork.longName ||
-      destNetwork.shortName != srcNetwork.shortName ||
-      destNetwork.mnc != srcNetwork.mnc ||
-      destNetwork.mcc != srcNetwork.mcc;
   },
 
   /**
@@ -1365,7 +1412,7 @@ RadioInterface.prototype = {
     let voice = this.rilContext.voice;
     let data = this.rilContext.data;
 
-    if (this.networkChanged(message, operatorInfo)) {
+    if (this.isInfoChanged(message, operatorInfo)) {
       this.updateInfo(message, operatorInfo);
 
       // Update lastKnownNetwork
@@ -1739,6 +1786,15 @@ RadioInterface.prototype = {
   },
 
   /**
+   * Handle emergency callback mode change.
+   */
+  handleEmergencyCbModeChange: function handleEmergencyCbModeChange(message) {
+    if (DEBUG) this.debug("handleEmergencyCbModeChange: " + JSON.stringify(message));
+    gMessageManager.sendMobileConnectionMessage("RIL:EmergencyCbModeChanged",
+                                                this.clientId, message);
+  },
+
+  /**
    * Handle call error.
    */
   handleCallError: function handleCallError(message) {
@@ -2097,6 +2153,11 @@ RadioInterface.prototype = {
     gMessageManager.sendIccMessage("RIL:StkCommand", this.clientId, message);
   },
 
+  handleExitEmergencyCbMode: function handleExitEmergencyCbMode(message) {
+    if (DEBUG) this.debug("handleExitEmergencyCbMode: " + JSON.stringify(message));
+    gMessageManager.sendRequestResults("RIL:ExitEmergencyCbMode", message);
+  },
+
   // nsIObserver
 
   observe: function observe(subject, topic, data) {
@@ -2141,7 +2202,7 @@ RadioInterface.prototype = {
         }
         break;
       case kScreenStateChangedTopic:
-        this.workerMessenger.send("setScreenState", { on: (state === "on") });
+        this.workerMessenger.send("setScreenState", { on: (data === "on") });
         break;
     }
   },

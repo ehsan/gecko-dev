@@ -1313,7 +1313,7 @@ Interpret(JSContext *cx, RunState &state)
      */
 #define CHECK_BRANCH()                                                        \
     JS_BEGIN_MACRO                                                            \
-        if (cx->runtime()->interrupt && !js_HandleExecutionInterrupt(cx))       \
+        if (cx->runtime()->interrupt && !js_HandleExecutionInterrupt(cx))     \
             goto error;                                                       \
     JS_END_MACRO
 
@@ -2494,6 +2494,8 @@ BEGIN_CASE(JSOP_FUNCALL)
     InitialFrameFlags initial = construct ? INITIAL_CONSTRUCT : INITIAL_NONE;
     bool newType = cx->typeInferenceEnabled() && UseNewType(cx, script, regs.pc);
 
+    TypeMonitorCall(cx, args, construct);
+
 #ifdef JS_ION
     InvokeState state(cx, args, initial);
     if (newType)
@@ -2525,8 +2527,6 @@ BEGIN_CASE(JSOP_FUNCALL)
         }
     }
 #endif
-
-    TypeMonitorCall(cx, args, construct);
 
     funScript = fun->nonLazyScript();
     if (!activation.pushInlineFrame(args, funScript, initial))

@@ -691,7 +691,11 @@ struct JSRuntime : public JS::shadow::Runtime,
      * If non-zero, we were been asked to call the operation callback as soon
      * as possible.
      */
-    volatile int32_t    interrupt;
+#ifdef JS_THREADSAFE
+    mozilla::Atomic<int32_t> interrupt;
+#else
+    int32_t interrupt;
+#endif
 
     /* Branch callback */
     JSOperationCallback operationCallback;
@@ -805,13 +809,9 @@ struct JSRuntime : public JS::shadow::Runtime,
     /* Default JSVersion. */
     JSVersion defaultVersion_;
 
-    /* See comment for JS_AbortIfWrongThread in jsapi.h. */
 #ifdef JS_THREADSAFE
-  public:
-    void *ownerThread() const { return ownerThread_; }
-    void clearOwnerThread();
-    void setOwnerThread();
   private:
+    /* See comment for JS_AbortIfWrongThread in jsapi.h. */
     void *ownerThread_;
     friend bool js::CurrentThreadCanAccessRuntime(JSRuntime *rt);
   public:

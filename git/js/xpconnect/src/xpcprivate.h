@@ -104,7 +104,7 @@
 #include "nsXPCOM.h"
 #include "nsAutoPtr.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsCycleCollectorUtils.h"
+#include "mozilla/CycleCollectedJSRuntime.h"
 #include "nsDebug.h"
 #include "nsISupports.h"
 #include "nsIServiceManager.h"
@@ -158,8 +158,6 @@
 
 #include "nsIScriptSecurityManager.h"
 #include "nsNetUtil.h"
-
-#include "nsIXPCScriptNotify.h"  // used to notify: ScriptEvaluated
 
 #include "nsIPrincipal.h"
 #include "nsJSPrincipals.h"
@@ -455,7 +453,7 @@ public:
         // Do a release-mode assert that we're not doing anything significant in
         // XPConnect off the main thread. If you're an extension developer hitting
         // this, you need to change your code. See bug 716167.
-        if (!MOZ_LIKELY(NS_IsMainThread() || NS_IsCycleCollectorThread()))
+        if (!MOZ_LIKELY(NS_IsMainThread()))
             MOZ_CRASH();
 
         return gSelf;
